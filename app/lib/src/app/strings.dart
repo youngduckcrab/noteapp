@@ -9,6 +9,9 @@ abstract final class AppStrings {
   /// RuntimeInfo.rendererLabel off the web.
   static const String rendererNative = '네이티브';
 
+  /// Release-mode replacement of the red error box (appErrorWidgetBuilder).
+  static const String errorWidgetMessage = '이 부분을 표시하지 못했어요';
+
   static const String back = '뒤로';
   static const String settings = '설정';
   static const String settingsPlaceholder = '설정 화면은 준비 중이에요.';
