@@ -5,13 +5,14 @@
 /// `createFakeNoteStore()` (contract 7.4.8); FakePdfNoteGateway is a thin port fake for fast
 /// unit tests.
 ///
-/// The fixture builder (PDF T2) and FakePdfNoteGateway (PDF T4) are real. The fakes are signatures only until the PDF task
-/// named in each UnimplementedError (T5 engine, T6 file source, T7 remote
-/// fetcher, T12–T16 export fakes).
+/// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4) and FakePdfEngine (PDF T5) are
+/// real. The other fakes are signatures only until the PDF task named in each
+/// UnimplementedError (T6 file source, T7 remote fetcher, T12–T16 export fakes).
 library;
 
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -470,15 +471,101 @@ final class _FixtureSecurity {
 }
 
 /// pages/texts given in constructor; solid-color images
+///
+/// Opens any bytes with '%PDF-' in the first 1024 bytes (else notPdf, like PdfrxEngine) as a
+/// document of [pages] (default: [pageCount] pages of [pageSize]) and [texts] (by page
+/// index; missing → empty text). With [userPassword] each open asks onPassword (attempt
+/// 1, 2, …) until it returns that password; null, no callback or more than
+/// maxPasswordAttempts → passwordCancelled. Bytes made by encodeWithoutSecurity open
+/// without a password. [ownerPasswordOnly] opens without asking but reports isEncrypted.
+/// render returns an image of the region (or the full page) filled with [imageArgb]
+/// (Picture.toImageSync, so it works under fake_async).
+///
+/// Test controls: [initError] / [openError] / [renderError] make the call fail; the
+/// [beforeOpen] / [beforeRender] / [beforeLoadText] hooks are awaited first (hold a call
+/// with a Completer); the counters record every call.
 final class FakePdfEngine implements PdfEngine {
-  FakePdfEngine();
+  FakePdfEngine({
+    List<PdfPageInfo>? pages,
+    int pageCount = 1,
+    ui.Size pageSize = const ui.Size(595.276, 841.89),
+    this.texts = const {},
+    this.userPassword,
+    this.ownerPasswordOnly = false,
+    this.imageArgb = 0xFF808080,
+  }) : pages =
+           pages ??
+           List<PdfPageInfo>.unmodifiable([
+             for (var i = 0; i < pageCount; i++)
+               PdfPageInfo(
+                 index: i,
+                 width: pageSize.width,
+                 height: pageSize.height,
+                 rotationQuarterTurns: 0,
+               ),
+           ]);
+
+  /// Appended by encodeWithoutSecurity; such bytes open without a password.
+  static const String noSecurityMarker = '\n%fake-no-security\n';
+
+  final List<PdfPageInfo> pages;
+  final Map<int, PdfPageTextData> texts;
+
+  /// Non-null: opening needs this (non-empty) user password.
+  String? userPassword;
+
+  /// Permission-password-only PDF: opens without asking, isEncrypted == true.
+  bool ownerPasswordOnly;
+  int imageArgb;
+
+  /// ensureInitialized (and open) throw this.
+  PdfIoException? initError;
+
+  /// open throws this after the password step.
+  PdfIoException? openError;
+
+  /// render throws this.
+  Object? renderError;
+  Future<void> Function(String sourceName)? beforeOpen;
+  Future<void> Function(PdfRenderRequest request)? beforeRender;
+  Future<void> Function(int pageIndex)? beforeLoadText;
+
+  int ensureInitializedCalls = 0;
+  final List<({String sourceName, String fileName, bool transferOwnership})>
+  openCalls = [];
+  final List<PdfPasswordRequest> passwordRequests = [];
+  final List<PdfRenderRequest> renderRequests = [];
+  final List<int> loadTextCalls = [];
+  int encodeCalls = 0;
+
+  /// Every document opened, in order (disposed ones included).
+  final List<PdfEngineDocument> documents = [];
+
+  /// Documents opened and not disposed yet.
+  int get openDocumentCount => documents.where((d) => !d.isDisposed).length;
+
+  bool _initialized = false;
+
+  static bool _hasNoSecurityMarker(Uint8List bytes) {
+    final marker = noSecurityMarker.codeUnits;
+    if (bytes.length < marker.length) return false;
+    final start = bytes.length - marker.length;
+    for (var i = 0; i < marker.length; i++) {
+      if (bytes[start + i] != marker[i]) return false;
+    }
+    return true;
+  }
 
   @override
-  bool get isInitialized => _todo('FakePdfEngine.isInitialized', 'T5');
+  bool get isInitialized => _initialized;
 
   @override
-  Future<void> ensureInitialized() =>
-      _todo('FakePdfEngine.ensureInitialized', 'T5');
+  Future<void> ensureInitialized() async {
+    ensureInitializedCalls++;
+    final error = initError;
+    if (error != null) throw error;
+    _initialized = true;
+  }
 
   @override
   Future<PdfEngineDocument> open(
@@ -488,7 +575,142 @@ final class FakePdfEngine implements PdfEngine {
     PdfPasswordCallback? onPassword,
     int maxPasswordAttempts = 5,
     bool transferOwnership = false,
-  }) => _todo('FakePdfEngine.open', 'T5');
+  }) async {
+    openCalls.add((
+      sourceName: sourceName,
+      fileName: fileName,
+      transferOwnership: transferOwnership,
+    ));
+    if (!hasPdfMagic(bytes)) {
+      throw const PdfIoException(
+        PdfErrorCode.notPdf,
+        detail: "no '%PDF-' in the first 1024 bytes",
+      );
+    }
+    final copy = Uint8List.fromList(bytes);
+    await ensureInitialized();
+    await beforeOpen?.call(sourceName);
+    final noSecurity = _hasNoSecurityMarker(copy);
+    final password = userPassword;
+    var usedPassword = false;
+    if (password != null && !noSecurity) {
+      for (var attempt = 1; ; attempt++) {
+        if (onPassword == null || attempt > maxPasswordAttempts) {
+          throw PdfIoException(
+            PdfErrorCode.passwordCancelled,
+            detail: 'password not given after ${attempt - 1} request(s)',
+          );
+        }
+        final request = PdfPasswordRequest(
+          fileName: fileName,
+          attempt: attempt,
+        );
+        passwordRequests.add(request);
+        final given = await onPassword(request);
+        if (given == null) {
+          throw PdfIoException(
+            PdfErrorCode.passwordCancelled,
+            detail: 'password dialog dismissed at attempt $attempt',
+          );
+        }
+        if (given == password) break;
+      }
+      usedPassword = password.isNotEmpty;
+    }
+    final error = openError;
+    if (error != null) throw error;
+    final document = _FakePdfDocument(
+      this,
+      sourceName,
+      copy,
+      PdfDocumentInfo(
+        pages: pages,
+        isEncrypted: !noSecurity && (password != null || ownerPasswordOnly),
+        usedPassword: usedPassword,
+      ),
+    );
+    documents.add(document);
+    return document;
+  }
+}
+
+final class _FakePdfDocument implements PdfEngineDocument {
+  _FakePdfDocument(this._engine, this.sourceName, this._bytes, this.info);
+
+  final FakePdfEngine _engine;
+  final Uint8List _bytes;
+  bool _disposed = false;
+
+  @override
+  final String sourceName;
+
+  @override
+  final PdfDocumentInfo info;
+
+  @override
+  bool get isDisposed => _disposed;
+
+  PdfPageInfo _page(int index) {
+    if (index < 0 || index >= info.pageCount) {
+      throw RangeError.index(index, info.pages, 'pageIndex');
+    }
+    return info.pages[index];
+  }
+
+  @override
+  Future<ui.Image?> render(
+    PdfRenderRequest request, {
+    PdfRenderCancelToken? cancelToken,
+  }) async {
+    _engine.renderRequests.add(request);
+    await _engine.beforeRender?.call(request);
+    if (_disposed || (cancelToken?.isCancelled ?? false)) return null;
+    final error = _engine.renderError;
+    if (error != null) Error.throwWithStackTrace(error, StackTrace.current);
+    final page = _page(request.pageIndex);
+    final region = request.region;
+    final (fullWidth, fullHeight) = request.fullPixelSize(page);
+    final width = region?.width ?? fullWidth;
+    final height = region?.height ?? fullHeight;
+    final recorder = ui.PictureRecorder();
+    ui.Canvas(recorder)
+        .drawColor(ui.Color(_engine.imageArgb), ui.BlendMode.src);
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(
+      width < 1 ? 1 : width,
+      height < 1 ? 1 : height,
+    );
+    picture.dispose();
+    return image;
+  }
+
+  @override
+  Future<PdfPageTextData> loadText(int pageIndex) async {
+    _engine.loadTextCalls.add(pageIndex);
+    await _engine.beforeLoadText?.call(pageIndex);
+    if (_disposed) throw StateError('$sourceName is disposed');
+    _page(pageIndex);
+    return _engine.texts[pageIndex] ??
+        PdfPageTextData(pageIndex: pageIndex, text: '', charRects: const []);
+  }
+
+  @override
+  Future<Uint8List> encodeWithoutSecurity() async {
+    _engine.encodeCalls++;
+    if (_disposed) throw StateError('$sourceName is disposed');
+    if (FakePdfEngine._hasNoSecurityMarker(_bytes)) {
+      return Uint8List.fromList(_bytes);
+    }
+    final marker = FakePdfEngine.noSecurityMarker.codeUnits;
+    return Uint8List(_bytes.length + marker.length)
+      ..setAll(0, _bytes)
+      ..setAll(_bytes.length, marker);
+  }
+
+  @override
+  Future<void> dispose() async {
+    _disposed = true;
+  }
 }
 
 /// In-memory notes/pages/strokes/assets/thumbnails. arriveBytes(id, bytes) stores the bytes and

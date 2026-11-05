@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 1/10 (동시 개발 단계)
-- 다음 할 일: T5 가져오기 서비스(6.3·6.4·6.5, 표지 경로 2종 — `FakePdfEngine`도 이 작업) → T6 가져오기 UI
+- 마지막 세션: 2/10 (동시 개발 단계)
+- 다음 할 일: T6 가져오기 UI·파일 소스 → T7 문서 풀
 
 ## 작업 표
 
@@ -14,7 +14,7 @@
 | T2 | 완료 | 00ff451 | pdfium/fixture_builder_test, unit/fixture_builder_bytes_test, tool/prepare_web_test.dart(4개 파일·sha256), web/pdfrx_smoke_browser_test, web/pure_logic_browser_test, support/pdfium_env.dart, 패키지 .gitignore |
 | T3 | 완료 | bd58dde | pdfium/pdfrx_engine_test, web/pdfrx_engine_browser_test |
 | T4 | 완료 | 009a832 | unit/fake_gateway_test, unit/core_gateway_fake_store_test. integration/core_gateway_test는 작성만 함(통합 단계에서 실행 — 현재 `openTestNoteStore`는 CORE T6 전 자리표시) |
-| T5 | 남음 | | unit/import_service_test, pdfium/import_real_test |
+| T5 | 완료 | (T5 커밋) | unit/import_service_test, pdfium/import_real_test (+ test/support/render_doubles.dart) |
 | T6 | 남음 | | widget/import_flow_test, web/file_source_browser_test |
 | T7 | 남음 | | unit/document_pool_test |
 | T8 | 남음 | | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test |
@@ -54,11 +54,16 @@
 - T3 `%PDF-` 검사는 내부 함수 `hasPdfMagic`(pdf_engine.dart, barrel 비공개) — T5 가져오기 서비스도 같은 함수를 쓴다.
 - T4 `CorePdfNoteGateway`: `putPdf`는 `put`이 내는 모든 오류를 `storageFailed`(cause 보존)로 바꾼다 — 재시도 없이 끝나는 경로는 청크 쓰기 실패뿐이고 그 오류 타입은 blob 저장소 몫이라서. 다른 메서드는 CORE 예외만 바꾸고(EntityNotFound → noteNotFound, ReadOnly → readOnlyNote, 그 밖의 NoteCoreException → storageFailed) ArgumentError 같은 프로그램 오류는 그대로 던진다. `insertPages`의 `receipt.persisted`는 `.ignore()`(기다리지 않고, 나중 오류도 처리되지 않은 오류가 되지 않게).
 - T4 `FakePdfNoteGateway`: lib/testing.dart는 `package:note_core/testing.dart`를 import할 수 없어(R4 test_only_entrypoints) CORE 가짜 저장소를 감싸지 않고 자체 메모리 구현으로 만들었다. 4.14에 없는 테스트용 멤버: `calls`(포트 호출 기록), `thumbnails`, `assets`, `heldWriteCount`, `addRemoteAsset`, `dropAssetBytes`, `addStrokes`, `trashNote`, `purgeNote`(공개 최상위 이름 추가 없음). 보류된 쓰기는 `releaseWrites()` 때 호출 순서대로 적용된다.
+- T5 내부 이름(공개 아님): `PdfImportSessionImpl`(import/import_session.dart), `renderImportCover`(import/cover_thumbnail.dart — T10 표지 테스트도 이 함수), `reportPdfError`(common/error_report.dart — 6.13의 보고 함수).
+- T5 `FakePdfEngine`(4.14는 모양을 정하지 않음): 생성자 `pages`(없으면 `pageCount`×`pageSize`, 기본 A4 1쪽)·`texts`(쪽 번호 → `PdfPageTextData`)·`userPassword`·`ownerPasswordOnly`·`imageArgb`. 시험 조절: `initError`·`openError`·`renderError`, 기다리게 하는 훅 `beforeOpen`·`beforeRender`·`beforeLoadText`, 기록 `ensureInitializedCalls`·`openCalls`(sourceName·fileName·transferOwnership)·`passwordRequests`·`renderRequests`·`loadTextCalls`·`encodeCalls`·`documents`·`openDocumentCount`. `encodeWithoutSecurity`는 원본 뒤에 `FakePdfEngine.noSecurityMarker`를 붙인 바이트를 주고, 그 바이트는 암호 없이 열린다. 렌더 이미지는 `Picture.toImageSync`(fake_async에서도 동작).
+- T5 가져오기 세부: 쪽이 0개인 문서는 `corrupt`. `PdfImportAsNewNote.title`이 공백뿐이면 `suggestedTitle`. `encodeWithoutSecurity` 실패는 `corrupt`(cause 보존). 진행률 `creatingPages`는 호출 전 (0/n)·끝난 뒤 (n/n) 두 번. `refuse` 정책은 엔진이 암호를 물으면(=사용자 암호 필요) 콜백이 null을 돌려주고 그 `passwordCancelled`를 `userPasswordRefused`로 바꾼다(묻지 않음). `open`의 파일 읽기·엔진 초기화·열기는 `raceCancel` — 열기 중 취소하면 늦게 열린 문서를 닫는다. 암호 창이 떠 있을 때 취소해도 바로 `cancelled`. 커밋 중 `dispose()`는 커밋이 끝날 때 문서를 닫는다(풀에 넘기지 않음). 커밋이 오류(`readOnlyNote` 등)로 끝나면 세션은 그대로라 다시 `commit`하거나 `dispose`할 수 있다. 같은 세션의 두 번째 성공 `commit`·dispose 뒤 `commit`은 StateError.
+- T5 테스트 더블 `test/support/render_doubles.dart`: `RecordingDocumentPool`(adopt 기록), `SolidThumbnailRenderer`(renderThumbnail만), `ScriptedThumbnailRenderer`(core.PageThumbnailRenderer) — 실제 풀(T7)·렌더러(T8) 전까지 T5·T6 테스트가 쓴다.
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
 
-- 세션 1 결과: T1·T2·T3·T4 완료. 다음은 T5(가져오기 서비스) — `FakePdfEngine`(testing.dart, 아직 자리표시)을 이 작업에서 구현한다. 그다음 T6(UI·`FakePdfFileSource`)·T7(문서 풀·`FakeRemoteAssetFetcher`).
+- 세션 1 결과: T1·T2·T3·T4 완료.
+- 세션 2 결과: T5 완료(`FakePdfEngine` 구현 포함). 다음은 T6(UI·`FakePdfFileSource`·`pdfImportJobProvider`) — 가져오기 서비스 provider는 `pdfDocumentPoolProvider`(T7)·`pdfPageRendererProvider`(T8)를 watch하므로 T6 위젯 테스트는 이 둘을 `test/support/render_doubles.dart`로 override한다. 그다음 T7(문서 풀·`FakeRemoteAssetFetcher`) — `adopt`는 같은 id 문서가 이미 열려 있으면 넘겨받은 문서를 닫아야 한다(같은 파일 재가져오기).
 - Chrome 테스트: `dart run tool/ws.dart test --platform chrome --package pdf_io`(준비 스크립트 포함, 약 70초). 한 번 `flutter test --platform chrome test/web`가 900초 시간 초과로 끊겼고 다시 돌리니 59초에 통과했다(다른 영역 부하로 보임).
 - 실 PDFium VM 테스트는 `test/pdfium/`(`@Tags(['pdfium'])`, `setUpAll(initPdfiumForTests)`). 이 작업 트리에는 `build/native_assets/linux/libpdfium.so`가 이미 있다.
 
