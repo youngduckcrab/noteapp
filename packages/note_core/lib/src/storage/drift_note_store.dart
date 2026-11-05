@@ -2,9 +2,9 @@
 //
 // T6 opens the database, classifies open errors and keeps the per-device kv
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
-// content reader. The other repositories, sessions and the sync window are
-// filled in by CORE T9–T19; until then their members throw UnimplementedError
-// naming the task.
+// content reader; T9 the trash. The other repositories, sessions and the sync
+// window are filled in by CORE T10–T19; until then their members throw
+// UnimplementedError naming the task.
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -20,13 +20,13 @@ import '../repo/note_store.dart';
 import '../repo/pen_preset_repository.dart';
 import '../repo/settings_repository.dart';
 import '../repo/status.dart';
-import '../repo/trash_repository.dart';
 import '../session/note_session.dart';
 import '../sync/sync_store.dart';
 import 'change_bus.dart';
 import 'db/note_database.dart';
 import 'drift_content_reader.dart';
 import 'drift_library_repository.dart';
+import 'drift_trash_repository.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
 import 'watch_hub.dart';
@@ -71,6 +71,7 @@ final class DriftNoteStore implements NoteStore {
       persistedHlc: persistedHlc,
     );
     library = DriftLibraryRepository(this);
+    trash = DriftTrashRepository(this);
     content = DriftContentReader(db);
     sync = _DriftSyncStore(this);
   }
@@ -80,12 +81,14 @@ final class DriftNoteStore implements NoteStore {
   /// NoteStoreOpenException (6.18) and closes the executor first.
   ///
   /// [deviceNodeId] fixes the HLC node (openTestNoteStore); null = the stored
-  /// node, or a new random one for a new database.
+  /// node, or a new random one for a new database. [autoPurge] starts the trash
+  /// clean-up timers (openNoteStore, 6.8).
   static Future<DriftNoteStore> open({
     required QueryExecutor executor,
     required StorageInfo storageInfo,
     required NoteStoreConfig config,
     String? deviceNodeId,
+    bool autoPurge = false,
     @visibleForTesting NoteDatabase Function(QueryExecutor)? databaseFactory,
   }) async {
     if (deviceNodeId != null && !isValidNodeId(deviceNodeId)) {
@@ -115,6 +118,7 @@ final class DriftNoteStore implements NoteStore {
       if (key != null) {
         _openStoreCounts.update(key, (n) => n + 1, ifAbsent: () => 1);
       }
+      if (autoPurge) store.trash.startAutoPurge();
       return store;
     } on Object catch (e, s) {
       try {
@@ -153,7 +157,7 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final DriftLibraryRepository library;
   @override
-  final TrashRepository trash = const _PendingTrash();
+  late final DriftTrashRepository trash;
   @override
   final PenPresetRepository penPresets = const _PendingPresets();
   @override
@@ -199,6 +203,7 @@ final class DriftNoteStore implements NoteStore {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    trash.stopAutoPurge();
     final key = _storeKey;
     if (key != null) {
       final n = (_openStoreCounts[key] ?? 1) - 1;
@@ -282,12 +287,6 @@ String _name(Invocation i) {
   final start = s.indexOf('"');
   final end = s.lastIndexOf('"');
   return start >= 0 && end > start ? s.substring(start + 1, end) : s;
-}
-
-final class _PendingTrash implements TrashRepository {
-  const _PendingTrash();
-  @override
-  Never noSuchMethod(Invocation i) => _pending('TrashRepository', i, 'T9');
 }
 
 final class _PendingPresets implements PenPresetRepository {

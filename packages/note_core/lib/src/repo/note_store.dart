@@ -138,6 +138,7 @@ Future<NoteStore> openNoteStore(NoteStoreConfig config) async {
     executor: executor,
     storageInfo: info,
     config: config,
+    autoPurge: true,
   );
 }
 

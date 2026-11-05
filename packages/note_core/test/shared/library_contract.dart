@@ -1,5 +1,5 @@
 // Shared body of the LibraryRepository contract (C-1..C-10, 00-overview 7.2.9, CORE 4.5 /
-// 6.8 / 9.1). Runs on createFakeNoteStore() (test/repo/library_contract_fake_test.dart)
+// 6.8 / 9.1) and the TrashRepository rules of 6.8 (CORE T9). Runs on createFakeNoteStore() (test/repo/library_contract_fake_test.dart)
 // and on openTestNoteStore() (test/repo/library_contract_real_test.dart, CORE T8) so the
 // two implementations keep the same meaning (6.19).
 import 'dart:async';
@@ -581,6 +581,161 @@ void defineLibraryContractTests(ClockedStoreFactory open) {
       final tree = await lib.watchFolderTree().first;
       expect(tree.roots.map((x) => x.id), [a.id, c.id, b.id]);
     });
+  });
+
+  group('C-8 / trash', () {
+    test('restore moves to the nearest active ancestor', () async {
+      final parent = await lib.createFolder(name: 'parent');
+      final child = await lib.createFolder(name: 'child', parentId: parent.id);
+      final note = await lib.createNote(title: 'n', folderId: child.id);
+      await lib.trashItems([NoteRef(note.id)]);
+      expect((await lib.getNote(note.id))!.isDeleted, isTrue);
+      await lib.trashItems([FolderRef(child.id)]);
+      await store.trash.restore([NoteRef(note.id)]);
+      final restored = (await lib.getNote(note.id))!;
+      expect(restored.isDeleted, isFalse);
+      expect(restored.trashRootId, isNull);
+      expect(restored.folderId, parent.id);
+      final listing = await lib
+          .watchListing(LibraryQuery(folderId: parent.id))
+          .first;
+      expect(listing.notes.map((n) => n.id), [note.id]);
+    });
+
+    test('restore: parent purged → top level, at the end', () async {
+      final f = await lib.createFolder(name: 'f');
+      final n = await lib.createNote(title: 'n', folderId: f.id);
+      final top = await lib.createNote(title: 'top');
+      await lib.trashItems([NoteRef(n.id)]);
+      await lib.trashItems([FolderRef(f.id)]);
+      await store.trash.purge([FolderRef(f.id)]);
+      expect(await lib.getFolder(f.id), isNull);
+      await store.trash.restore([NoteRef(n.id)]);
+      final restored = (await lib.getNote(n.id))!;
+      expect(restored.folderId, isNull);
+      final custom = await lib
+          .watchListing(const LibraryQuery(sort: LibrarySortField.custom))
+          .first;
+      expect(custom.notes.map((x) => x.id), [top.id, n.id]);
+    });
+
+    test('a group restores together; the representative keeps its place '
+        'when the parent is active', () async {
+      final f = await lib.createFolder(name: 'f');
+      final sub = await lib.createFolder(name: 'sub', parentId: f.id);
+      final inSub = await lib.createNote(title: 'inSub', folderId: sub.id);
+      await lib.trashItems([FolderRef(sub.id)]);
+      await store.trash.restore([FolderRef(sub.id)]);
+      expect((await lib.getFolder(sub.id))!.parentId, f.id);
+      expect((await lib.getFolder(sub.id))!.isDeleted, isFalse);
+      expect((await lib.getNote(inSub.id))!.isDeleted, isFalse);
+      expect((await lib.getNote(inSub.id))!.folderId, sub.id);
+      // Restoring an active item does nothing; an unknown one throws.
+      await store.trash.restore([NoteRef(inSub.id)]);
+      await expectLater(
+        store.trash.restore([NoteRef('missing')]),
+        throwsA(isA<EntityNotFoundException>()),
+      );
+    });
+
+    test('watchTrash: representatives newest first, counts, expiresAt; '
+        'purge removes the group', () async {
+      final f = await lib.createFolder(name: 'f');
+      final sub = await lib.createFolder(name: 'sub', parentId: f.id);
+      final inSub = await lib.createNote(title: 'inSub', folderId: sub.id);
+      final early = await lib.createNote(title: 'early', folderId: f.id);
+      final values = <List<TrashItem>>[];
+      final sub$ = store.trash.watchTrash().listen(values.add);
+      await pumpEventQueue();
+      expect(values.single, isEmpty);
+      await lib.trashItems([NoteRef(early.id)]);
+      await lib.trashItems([FolderRef(f.id)]);
+      await pumpEventQueue();
+      final trash = values.last;
+      expect(trash.map((t) => t.ref), [FolderRef(f.id), NoteRef(early.id)]);
+      final folderItem = trash.first as TrashedFolder;
+      expect(folderItem.name, 'f');
+      expect(folderItem.folderCount, 1);
+      expect(folderItem.noteCount, 1);
+      expect(
+        folderItem.expiresAt,
+        folderItem.deletedAt + const Duration(days: 30).inMilliseconds,
+      );
+      expect((trash.last as TrashedNote).note.id, early.id);
+      await store.trash.restore([FolderRef(f.id)]);
+      expect((await lib.getNote(inSub.id))!.isDeleted, isFalse);
+      expect((await lib.getNote(early.id))!.isDeleted, isTrue);
+      await store.trash.purge([NoteRef(early.id), NoteRef(inSub.id)]);
+      expect(await lib.getNote(early.id), isNull);
+      expect(
+        await lib.getNote(inSub.id),
+        isNotNull,
+        reason: 'purge ignores items that are not in the trash',
+      );
+      await pumpEventQueue();
+      expect(values.last, isEmpty);
+      await sub$.cancel();
+    });
+
+    test('purge deletes the pages and strokes of the group', () async {
+      const pageId = '0193f1d2-7c40-7000-8000-0000000000a9';
+      final n = await lib.createNote(
+        title: 'n',
+        pages: [
+          PageDraft(
+            id: pageId,
+            size: PageSize.a4Portrait,
+            background: const BlankBackground(),
+            strokes: [StrokeFixtures.synthetic(pageId: pageId, ids: store.ids)],
+          ),
+        ],
+      );
+      await lib.trashItems([NoteRef(n.id)]);
+      expect((await store.content.loadPage(pageId)).strokes, hasLength(1));
+      await store.trash.purge([NoteRef(n.id)]);
+      expect(await store.content.getPage(pageId), isNull);
+      expect(await store.content.pagesOf(n.id), isEmpty);
+      await expectLater(
+        store.content.loadPage(pageId),
+        throwsA(isA<EntityNotFoundException>()),
+      );
+    });
+
+    test('emptyTrash purges every group', () async {
+      final f = await lib.createFolder(name: 'f');
+      final a = await lib.createNote(title: 'a', folderId: f.id);
+      final b = await lib.createNote(title: 'b');
+      final keep = await lib.createNote(title: 'keep');
+      await lib.trashItems([FolderRef(f.id), NoteRef(b.id)]);
+      await store.trash.emptyTrash();
+      expect(await store.trash.watchTrash().first, isEmpty);
+      expect(await lib.getFolder(f.id), isNull);
+      expect(await lib.getNote(a.id), isNull);
+      expect(await lib.getNote(b.id), isNull);
+      expect(await lib.getNote(keep.id), isNotNull);
+    });
+
+    test(
+      'purgeExpired: 29 days 23 hours kept, 30 days 1 minute purged',
+      () async {
+        final n = await lib.createNote(title: 'old');
+        final m = await lib.createNote(title: 'newer');
+        await lib.trashItems([NoteRef(n.id)]);
+        final deletedAt = (await lib.getNote(n.id))!.deletedAt!;
+        ms = deletedAt + const Duration(days: 10).inMilliseconds;
+        await lib.trashItems([NoteRef(m.id)]);
+        ms = deletedAt + const Duration(days: 29, hours: 23).inMilliseconds;
+        expect(await store.trash.purgeExpired(), 0);
+        expect(await lib.getNote(n.id), isNotNull);
+        ms = deletedAt + const Duration(days: 30, minutes: 1).inMilliseconds;
+        expect(await store.trash.purgeExpired(), 1);
+        expect(await lib.getNote(n.id), isNull);
+        expect(await lib.getNote(m.id), isNotNull);
+        expect((await store.trash.watchTrash().first).map((t) => t.ref), [
+          NoteRef(m.id),
+        ]);
+      },
+    );
   });
 
   group('changes and trash', () {

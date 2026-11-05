@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 2 (동시 개발 단계)
-- 다음 할 일: T9 (휴지통) — 그다음 T12·T13(순서 무관), T10
+- 다음 할 일: T12 (프리셋·설정) — 그다음 T13, T10
 
 ## 작업 표
 
@@ -17,8 +17,8 @@
 | T5 | 기반 단계에서 완료 | 7bb1c59 | `test/edit/*`, `test/session/note_session_contract_fake_test.dart`, `test/testing/fake_store_test.dart`, `test/dev/seed_synthetic_note_test.dart`, `test/providers/providers_fake_test.dart` |
 | T6 | 완료 | d2a5cf9 | `test/storage/schema_test.dart`, `test/storage/open_errors_test.dart`, `test/testing/open_test_store_test.dart` |
 | T7 | 완료 | 4a3cfaa (+ 다음 커밋: close 수정) | `test/storage/write_queue_test.dart`, `outbox_test.dart`, `change_bus_test.dart`, `field_version_writer_test.dart` |
-| T8 | 완료 | (이 커밋) | `test/shared/library_contract.dart` → `test/repo/library_contract_fake_test.dart`·`library_contract_real_test.dart`, `test/repo/library_repository_test.dart` |
-| T9 | 남음 | | `test/repo/trash_repository_test.dart` |
+| T8 | 완료 | 6d0c569 | `test/shared/library_contract.dart` → `test/repo/library_contract_fake_test.dart`·`library_contract_real_test.dart`, `test/repo/library_repository_test.dart` |
+| T9 | 완료 | (이 커밋) | `test/repo/trash_repository_test.dart`, 공유 계약 `test/shared/library_contract.dart` 'C-8 / trash'(가짜·실제). 열린 세션 읽기 전용 전환·복원 시 해제는 세션 DB 백엔드가 있어야 해 T10 테스트로 |
 | T10 | 남음 | | `test/session/note_session_contract_real_test.dart`, `note_session_test.dart`, `content_reader_test.dart` |
 | T11 | 남음 | | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart` |
 | T12 | 남음 | | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart` |
@@ -56,6 +56,9 @@
 - T8: `createNote`의 draft 페이지 id 중복(draft끼리)·형식 오류는 큐 전, 이미 있는 페이지 id와 겹침은 작업 안에서 `ArgumentError`.
 - T8: `NoteContentReader`(`drift_content_reader.dart`)를 T10에 앞서 구현했다(복사 확인에 필요). T10 `content_reader_test.dart`는 T10에서.
 - T8: 가짜 저장소 수정 2건 — `watchFolderTree`가 폴더가 같으면 다시 내지 않음(내부 `sameFolderTree`), `ChangeBatch`를 커밋마다 origin 연속 구간당 1개로 묶음(이전에는 쓰기 호출마다 1개 — "one per commit" 위반).
+- T9: 영구 삭제 때 그 노트들의 페이지·획·녹음 outbox 대기 항목은 지운다(대표·폴더·노트마다 purge 1건만 남김 — "페이지·획은 생략"의 해석, 행이 없는 upsert를 SYNC가 읽지 않게). `ChangeBatch`에는 폴더·노트 purge만(가짜와 같음).
+- T9: 자동 정리 타이머(10초 뒤 1회, 이후 6시간마다)는 `openNoteStore`만 켠다(`DriftNoteStore.open(autoPurge: true)`). `openTestNoteStore`는 타이머를 만들지 않는다(다른 영역 위젯 테스트의 '타이머 남음' 방지). `close()`가 멈춘다. 보관 기간은 `NoteStoreConfig.trashRetention`.
+- T9: 다른 소유자 행은 휴지통 목록·purge·emptyTrash에서 보이지 않고, `restore`는 `EntityNotFoundException`. 복원 부모 사슬에 순환이 있으면 최상위.
 - T6: 실제 저장소의 아직 구현하지 않은 멤버(라이브러리·휴지통·프리셋·설정·내용·에셋·썸네일·`SyncStore`의 ID 두 개 밖·`openSession`·`exportBackupJson`)는 해당 작업 번호를 적은 `UnimplementedError`를 던진다(T7~T19에서 채움). `connect_browser.dart`(WasmDatabase)는 T6에서 썼고 브라우저 검증은 T16, BlobStore·해셔 연결은 T13.
 
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
@@ -66,7 +69,9 @@
 - fake_async 안에서 drift `NativeDatabase.memory()`가 타이머 없이 마이크로태스크만으로 돈다(write_queue_test에서 확인) → 재시도 간격 테스트를 실제 저장소로 쓸 수 있다.
 - T6 산출물: `lib/src/storage/`(db/tables·note_database(+.g)·migrations, kv_keys, open_errors, connect/*, drift_note_store), `drift_schemas/note_db/drift_schema_v1.json`. 스키마를 바꾸면 패키지 디렉터리에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`--delete-conflicting-outputs`는 쓰지 않음). `schema_test`가 drift_schemas JSON과 실제 테이블·인덱스를 대조한다.
 - T8 사용법(T9 이후): 라이브러리 쓰기는 `DriftLibraryRepository`(`storage/drift_library_repository.dart`). 활성 행·트리 도우미 `activeFolders()`, 복사 경로 `copyNote(tx, note, folderId:, sortKey:, title:)`(T14 `duplicateNoteForRecovery`가 재사용), 이름 검사 `checkLibraryName`, 접미사 자르기 `nameWithSuffix`. watch는 `store.watches.watch(affects:, query:, equals:)`.
-- 세션 2: T8 완료. 라이브러리 C-8(복원 위치)은 T9에서 공유 계약에 넣는다. C-9의 세션 부분(획 편집 → `contentRevision`·`updatedAt`)은 T10 세션 계약(실제)에서.
+- T13 메모: 영구 삭제된 페이지의 썸네일 삭제(가짜는 `thumbnailRows`에서 지움)는 썸네일 캐시 구현(T13)에서 `DriftTrashRepository._purgeGroup`에 붙인다.
+- T10 메모: 휴지통으로 가거나 복원된 노트의 열린 세션 `isReadOnly` 전환(N-4)은 세션이 커밋을 보고 판단해야 한다(가짜는 `_committed`에서 `noteCommitted`). `trash_repository_test`에 넣을 '열린 세션 읽기 전용 전환·복원 시 해제'는 T10에서.
+- 세션 2: T8·T9 완료. 라이브러리 C-8(복원 위치)·휴지통 규칙은 공유 계약 'C-8 / trash' 그룹. C-9의 세션 부분(획 편집 → `contentRevision`·`updatedAt`)은 T10 세션 계약(실제)에서.
 - 세션 1 끝 상태: T6·T7 완료. 실제 저장소는 열기·쓰기 경로까지 동작하고, 저장소 멤버(라이브러리 등)는 아직 `UnimplementedError`. T8은 계획서 6.8(라이브러리·휴지통 규칙)·4.5(LibraryRepository 계약)·6.19(가짜와 같은 의미)를 읽고, 가짜 `lib/src/fake/fake_note_store.dart`의 `_FakeLibrary`를 동작 기준으로 삼아 `test/shared/library_contract.dart`를 두 저장소에 돌린다. watch 스트림은 커밋 뒤 재질의(가짜의 `watch()`처럼 구독 즉시 1회 + 바뀔 때) — `queue`의 커밋 알림에 붙이면 된다(`WriteTxn.afterCommit` 또는 `bus.stream`).
 - 세션 1: 문서 절차(C13-05, CORE-4-1~4-3) 끝 — 02-core.md 상태 줄 '승인'·계약 v1.4, 4.6·4.7 v1.3 주석, 6.13 bullet, 12.2 CP-8 결정, 13.4. 코드 계약 파일은 B2에서 이미 v1.3 주석.
 - Riverpod 3.4.3은 리스너 없는 provider를 멈춘다. 테스트에서 `container.listen(p.future, (_, _) {})` 뒤 `sub.read()`.
