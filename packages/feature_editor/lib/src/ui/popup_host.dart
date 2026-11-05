@@ -6,6 +6,8 @@ import '../state/popup.dart';
 import 'eraser/eraser_popup.dart';
 import 'pen/pen_settings_popup.dart';
 import 'pen/quick_pen_popup.dart';
+import 'presets/preset_manager_sheet.dart';
+import 'presets/save_preset_dialog.dart';
 
 /// Toolbar anchors the popups follow (CompositedTransformTarget links).
 class PopupAnchors {
@@ -20,8 +22,10 @@ class PopupAnchors {
 /// popup and is consumed (nothing is drawn on the canvas).
 ///
 /// E-13 shows the toolbar popups (pen settings, quick pen, eraser); the
-/// context menus stay with InteractionHost (E-10); the add-page sheet (E-17)
-/// and the preset dialogs (E-16) join here.
+/// context menus stay with InteractionHost (E-10). E-16: the preset save
+/// dialog and manager sheet have no anchor — they sit in the middle of the
+/// screen (above the keyboard) over a light scrim. The add-page sheet (E-17)
+/// joins here.
 class PopupHost extends ConsumerStatefulWidget {
   const PopupHost({super.key, required this.child});
 
@@ -73,8 +77,9 @@ class _PopupHostState extends ConsumerState<PopupHost> {
   }
 }
 
-/// The anchor and the panel of a toolbar popup; null for the others.
-({LinkPick link, Widget panel})? _layoutOf(EditorPopup? popup) =>
+/// The anchor (null = centred) and the panel of a popup PopupHost shows;
+/// null for the others.
+({LinkPick? link, Widget panel})? _layoutOf(EditorPopup? popup) =>
     switch (popup) {
       PenSettingsPopup() => (
         link: LinkPick.pen,
@@ -85,6 +90,8 @@ class _PopupHostState extends ConsumerState<PopupHost> {
         link: LinkPick.eraser,
         panel: const EraserSettingsPanel(),
       ),
+      SavePresetPopup() => (link: null, panel: const SavePresetDialog()),
+      PresetManagerPopup() => (link: null, panel: const PresetManagerSheet()),
       _ => null,
     };
 
@@ -103,6 +110,7 @@ class _PopupLayer extends ConsumerWidget {
     final link = switch (layout.link) {
       LinkPick.pen => anchors.pen,
       LinkPick.eraser => anchors.eraser,
+      null => null,
     };
     return Stack(
       children: [
@@ -112,15 +120,29 @@ class _PopupLayer extends ConsumerWidget {
             behavior: HitTestBehavior.opaque,
             onPointerDown: (_) =>
                 ref.read(editorPopupProvider.notifier).close(),
+            child: link == null
+                ? ColoredBox(
+                    color: Theme.of(context).colorScheme.scrim
+                        .withValues(alpha: 0.32),
+                  )
+                : null,
           ),
         ),
-        CompositedTransformFollower(
-          link: link,
-          showWhenUnlinked: false,
-          targetAnchor: Alignment.bottomLeft,
-          offset: const Offset(0, 6),
-          child: Align(alignment: Alignment.topLeft, child: layout.panel),
-        ),
+        if (link != null)
+          CompositedTransformFollower(
+            link: link,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.bottomLeft,
+            offset: const Offset(0, 6),
+            child: Align(alignment: Alignment.topLeft, child: layout.panel),
+          )
+        else
+          Positioned.fill(
+            child: Padding(
+              padding: MediaQuery.viewInsetsOf(context),
+              child: Center(child: layout.panel),
+            ),
+          ),
       ],
     );
   }

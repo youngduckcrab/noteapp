@@ -2,11 +2,12 @@
 //
 // E-13 opens this panel from the toolbar (the active pen tapped again).
 // E-14: the colour part (#4 picker, #5 recent colours, #6 palette). E-15: pen
-// types (#1), width + preview (#2), opacity (#3) and '고급' (#7). The
-// [프리셋으로 저장] button (#8) joins with the preset dialogs (E-16).
+// types (#1), width + preview (#2), opacity (#3) and '고급' (#7). E-16:
+// [프리셋으로 저장] (#8) → SavePresetPopup (replaces this popup).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../state/popup.dart';
 import '../../tools/tool_controller.dart';
 import '../color/color_picker_panel.dart';
 import '../color/opacity_slider.dart';
@@ -25,6 +26,9 @@ class PenSettingsPanel extends ConsumerWidget {
 
   static const panelKey = ValueKey('editor.popup.penSettings');
   static const advancedKey = ValueKey('editor.popup.penSettings.advanced');
+  static const saveAsPresetKey = ValueKey(
+    'editor.popup.penSettings.saveAsPreset',
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,6 +60,15 @@ class PenSettingsPanel extends ConsumerWidget {
             title: Text(EditorStrings.advanced),
             children: [PenAdvancedControls()],
           ),
+        ),
+        const SizedBox(height: 4),
+        OutlinedButton.icon(
+          key: saveAsPresetKey,
+          onPressed: () => ref
+              .read(editorPopupProvider.notifier)
+              .open(const SavePresetPopup()),
+          icon: const Icon(Icons.bookmark_add),
+          label: const Text(EditorStrings.saveAsPreset),
         ),
       ],
     );

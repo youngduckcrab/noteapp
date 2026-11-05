@@ -22,6 +22,7 @@ import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/popup.dart';
+import '../state/preset_bar.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../tools/interaction_host.dart';
@@ -341,6 +342,7 @@ class EditorCommands {
       guarded(_ref.read(editorSettingsProvider.notifier).flush, 'settings'),
       guarded(_ref.read(editorToolProvider.notifier).flush, 'tool state'),
       guarded(_ref.read(editorColorPaletteProvider.notifier).flush, 'colours'),
+      guarded(_ref.read(editorPresetBarProvider.notifier).flush, 'preset bar'),
       guarded(memory.flush, 'the last position'),
     ]);
   }

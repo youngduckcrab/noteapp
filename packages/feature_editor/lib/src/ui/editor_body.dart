@@ -12,13 +12,14 @@ import '../viewport/page_viewport.dart';
 import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
 import 'popup_host.dart';
+import 'presets/preset_bar_view.dart';
 import 'toolbar/editor_toolbar.dart';
 
 /// The ready editor of one note (inside its per-note scope):
 ///
 ///   EditorShortcuts → PopupHost → Scaffold → SafeArea → Column
 ///   ├─ ReadOnlyBanner / StorageWarningBanner (height 0 when not shown)
-///   ├─ EditorToolbar (52 px) · PresetBarView (44 px — E-16)
+///   ├─ EditorToolbar (52 px) · PresetBarView (44 px)
 ///   └─ Expanded: PageViewport
 ///
 /// Also: command and storage-error snack bars, flushAll when the app is
@@ -73,6 +74,7 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
                       onBack: widget.onBack,
                       onOpenSettings: widget.onOpenSettings,
                     ),
+                    const PresetBarView(),
                     const Divider(height: 1),
                     const Expanded(child: PageViewport()),
                   ],

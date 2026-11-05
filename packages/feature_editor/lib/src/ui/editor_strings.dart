@@ -91,7 +91,7 @@ abstract final class EditorStrings {
   static const close = '닫기';
 
   // ---------------------------------------------------------------------------
-  // Popups (04-editor 6.9.2). The panels' own strings come with E-14..E-16.
+  // Popups (04-editor 6.9.2). The panels' own strings are in their sections.
   // ---------------------------------------------------------------------------
 
   static const penSettings = '펜 설정';
@@ -193,6 +193,61 @@ abstract final class EditorStrings {
 
   /// The eyedropper found no stroke under the tap.
   static const eyedropperMissed = '여기엔 획이 없어요';
+
+  // ---------------------------------------------------------------------------
+  // Preset bar, save dialog and manager sheet (04-editor 6.10).
+  // ---------------------------------------------------------------------------
+
+  /// Group menu of the bar: no filter.
+  static const presetAllGroups = '모든 그룹';
+
+  /// Semantics label of the bar's group menu button.
+  static const presetGroupFilter = '프리셋 그룹';
+
+  /// Empty bar.
+  static const presetEmpty = '자주 쓰는 펜을 저장해 보세요';
+
+  /// Button of the empty bar (opens the save dialog).
+  static const presetSaveCurrent = '현재 펜 저장';
+
+  /// Semantics label of the bar's [+].
+  static const presetAdd = '프리셋 추가';
+
+  /// Semantics label of the bar's [⚙] and the manager sheet's title.
+  static const presetManage = '프리셋 관리';
+
+  /// Pen settings #8 and the save dialog's title.
+  static const saveAsPreset = '프리셋으로 저장';
+
+  /// Default name of a new preset: "{펜 이름} {굵기}pt".
+  static String presetDefaultName(core.PenTool tool, double width) =>
+      '${penTypeName(tool)} ${width.toStringAsFixed(1)}pt';
+
+  static const presetName = '이름';
+
+  /// Helper under the name field (trimmed 1–20 characters).
+  static const presetNameRule = '1~20자';
+  static const presetGroup = '그룹';
+  static const presetNoGroup = '그룹 없음';
+  static const presetNewGroup = '새 그룹';
+  static const presetNewGroupName = '그룹 이름';
+  static const presetPinned = '툴바에 고정';
+  static const save = '저장';
+
+  /// Manager row menu (⋯).
+  static const presetRename = '이름 바꾸기';
+  static const presetChangeGroup = '그룹 변경';
+  static const presetUpdateStyle = '현재 펜으로 업데이트';
+  static const presetDelete = '삭제';
+
+  /// Delete confirmation title.
+  static String presetDeleteTitle(String name) => "'$name' 프리셋을 삭제할까요?";
+
+  /// Semantics label of a manager row's drag handle.
+  static const presetReorder = '순서 바꾸기';
+
+  /// Shown after '현재 펜으로 업데이트'.
+  static const presetUpdated = '현재 펜으로 업데이트했어요';
 
   // ---------------------------------------------------------------------------
   // Screen states (04-editor 6.17.1) and leaving (6.17.4).
