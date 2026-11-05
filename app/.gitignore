@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Copies made by tool/prepare_web_test.dart for the Chrome tests (the
+# originals are committed in web/ — tool/web_assets.yaml).
+/test/web/sqlite3.wasm
+/test/web/drift_worker.js

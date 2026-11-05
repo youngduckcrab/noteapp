@@ -1,46 +1,198 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    docs/plans/01-infra.md 6.9 'app/web/index.html 요구 사항'.
+    <base href> is replaced by `flutter build --base-href` and is the base of
+    every static file URL (CORE sqlite3.wasm / drift_worker.js, PDF assets —
+    contract 7.4.9). No CSP meta (contract 7.4.9).
   -->
   <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="필기노트 — iPad 필기 노트 (웹 테스트 버전)">
 
-  <!-- iOS meta tags & icons -->
+  <!-- PWA / iOS home screen -->
+  <meta name="theme-color" content="#3949AB">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="noteapp">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>noteapp</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="필기노트">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="apple-touch-icon" href="icons/Icon-180.png">
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
+
+  <title>필기노트</title>
+
+  <style>
+    /* iPad finger / Pencil long press: no callout, no text selection, no
+       page overscroll or double-tap zoom (6.9, contract 7.4.9). */
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #FFFFFF;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-text-size-adjust: 100%;
+      touch-action: none;
+    }
+    #app-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: #FFFFFF;
+      color: #1B1B1F;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+        "Noto Sans KR", sans-serif;
+    }
+    #app-loader .app-loader-name {
+      font-size: 24px;
+      font-weight: 600;
+    }
+    #app-loader .app-loader-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #C5CAE9;
+      border-top-color: #3949AB;
+      border-radius: 50%;
+      animation: app-loader-spin 0.9s linear infinite;
+    }
+    #app-loader-status {
+      font-size: 15px;
+      color: #5F5F6A;
+    }
+    #app-loader-error {
+      display: none;
+      max-width: 520px;
+      padding: 0 24px;
+      text-align: center;
+    }
+    #app-loader-error p {
+      margin: 8px 0;
+    }
+    #app-loader-error .app-loader-message {
+      font-size: 13px;
+      color: #5F5F6A;
+      word-break: break-word;
+    }
+    #app-loader-error button {
+      margin-top: 12px;
+      padding: 10px 24px;
+      border: 0;
+      border-radius: 20px;
+      background: #3949AB;
+      color: #FFFFFF;
+      font-size: 15px;
+    }
+    #app-loader.app-loader-failed .app-loader-spinner,
+    #app-loader.app-loader-failed #app-loader-status {
+      display: none;
+    }
+    #app-loader.app-loader-failed #app-loader-error {
+      display: block;
+    }
+    @keyframes app-loader-spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // 1. Viewport: the engine removes every viewport meta and adds one
+      //    with maximum-scale=5.0; rewrite each added one so pinch zoom and
+      //    the zoom-on-focus of text fields stay off.
+      var VIEWPORT =
+        'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+      function fixViewport(node) {
+        if (node && node.nodeName === 'META' && node.name === 'viewport' &&
+            node.getAttribute('content') !== VIEWPORT) {
+          node.setAttribute('content', VIEWPORT);
+        }
+      }
+      new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+          mutation.addedNodes.forEach(fixViewport);
+        });
+      }).observe(document.head, { childList: true });
+
+      // 2. Safari page pinch and double-tap zoom.
+      ['gesturestart', 'gesturechange', 'gestureend', 'dblclick'].forEach(
+        function (type) {
+          document.addEventListener(type, function (event) {
+            event.preventDefault();
+          }, { passive: false });
+        });
+
+      // 3. contextmenu guard (contract 7.4.9 v1.1): block the browser menu
+      //    except inside text inputs (their browser editing menu stays).
+      var EDITABLE =
+        'input, textarea, [contenteditable]:not([contenteditable="false"])';
+      document.addEventListener('contextmenu', function (event) {
+        var target = event.target;
+        var editable = target && target.closest && target.closest(EDITABLE);
+        if (!editable) event.preventDefault();
+      });
+
+      // 4. Loader: removed on the first Flutter frame; shows an error with
+      //    a reload button when the app has not drawn within 30 s or a
+      //    script error happens before that.
+      var started = false;
+      var failed = false;
+      function loader() { return document.getElementById('app-loader'); }
+      function showError(message) {
+        if (started || failed) return;
+        failed = true;
+        var root = loader();
+        if (!root) return;
+        root.classList.add('app-loader-failed');
+        var text = document.getElementById('app-loader-message');
+        if (text) text.textContent = message || '';
+      }
+      var timer = window.setTimeout(function () {
+        showError('30초 안에 앱이 시작되지 않았어요.');
+      }, 30000);
+      window.addEventListener('flutter-first-frame', function () {
+        started = true;
+        window.clearTimeout(timer);
+        var root = loader();
+        if (root && root.parentNode) root.parentNode.removeChild(root);
+      });
+      window.addEventListener('error', function (event) {
+        showError(event && event.message ? String(event.message) : '');
+      });
+      window.addEventListener('unhandledrejection', function (event) {
+        var reason = event ? event.reason : null;
+        showError(reason && reason.message ? String(reason.message)
+            : String(reason || ''));
+      });
+      window.noteappReload = function () { window.location.reload(); };
+    })();
+  </script>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="app-loader" role="status" aria-live="polite">
+    <div class="app-loader-name">필기노트</div>
+    <div class="app-loader-spinner" aria-hidden="true"></div>
+    <div id="app-loader-status">불러오는 중…</div>
+    <div id="app-loader-error" role="alert">
+      <p><strong>불러오지 못했어요</strong></p>
+      <p id="app-loader-message" class="app-loader-message"></p>
+      <button type="button" onclick="window.noteappReload()">새로고침</button>
+    </div>
+  </div>
+  <noscript>필기노트를 쓰려면 브라우저에서 JavaScript를 켜 주세요.</noscript>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

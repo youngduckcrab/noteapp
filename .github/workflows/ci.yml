@@ -1,8 +1,17 @@
-# CI — checks, analysis, tests and web build (INFRA, docs/plans/01-infra.md
-# 6.13). Foundation step B1 version: steps 1, 2, 5–9 and 14 of the 6.13 table
-# plus the tool tests (`dart test tool/test`, contract 7.6 B1 v1.3). There is
-# no build info, no preview channel and no deploy yet (added by I12 / I13).
-name: ci
+# CI — checks, analysis, tests, web build and Firebase Hosting deploy in one
+# job (INFRA, docs/plans/01-infra.md 6.13: one job keeps the per-minute
+# rounding of the free minutes low). main deploys to the live channel, every
+# other branch to its own 7-day preview channel (`ws channel-id`, 6.12).
+#
+# Without the secret FIREBASE_SERVICE_ACCOUNT or the repository variable
+# FIREBASE_PROJECT_ID the deploy step is skipped and the summary points to
+# docs/guides/02-github-secrets.md. `if:` cannot read `secrets` directly, so
+# both values come in through the job `env`.
+#
+# Each timed `run` step ends by writing "<seconds> <label>" to
+# $RUNNER_TEMP/step-seconds ($SECONDS = time spent in that step's shell); the
+# summary step prints them as the per-step timing table.
+name: CI
 
 on:
   push:
@@ -11,6 +20,15 @@ on:
       - '**/*.md'
       - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Firebase Hosting에 배포 (live 또는 미리보기 채널)'
+        type: boolean
+        default: true
+      integration:
+        description: '통합 태그 테스트 실행 (통합 단계 G2 이후)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,45 +39,223 @@ permissions:
 
 jobs:
   verify:
-    name: Check, analyze, test, build web
+    name: Check, test, build and deploy web
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
     steps:
+      - name: Start clock
+        run: date +%s > "$RUNNER_TEMP/ci-start"
+
+      # 1
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          # Full history: `--affected-since origin/main` needs the merge base.
           fetch-depth: 0
 
+      # 2
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          # Root pubspec.yaml `environment.flutter: 3.47.9` (D10).
+          # Root pubspec.yaml `environment.flutter: 3.47.9` (D10). `cache`
+          # covers the SDK and the pub cache (key: **/pubspec.lock).
           flutter-version-file: pubspec.yaml
           cache: true
 
-      - name: Dependencies
-        run: flutter pub get --enforce-lockfile
+      # 3 — native build hook outputs at the workspace root: the sqlite3
+      # prebuilt library, the PDFium binary and pdfium_dart's gate library.
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
 
+      # 4 — the files each member's tool/prepare_web_test.dart copies or
+      # downloads for the Chrome tests (contract 7.4.8). A changed path only
+      # misses the cache; the scripts fetch again and nothing fails.
+      - name: Cache browser test assets
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/note_core/test/web/sqlite3.wasm
+            packages/note_core/test/web/drift_worker.js
+            packages/pdf_io/test/web/pdfium/
+            app/test/web/sqlite3.wasm
+            app/test/web/drift_worker.js
+          key: prep-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'tool/web_assets.yaml', '**/tool/prepare_web_test.dart') }}
+
+      # 5
+      - name: Dependencies
+        run: |
+          printf '%s %s\n' "$(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))" '준비 (체크아웃 · Flutter · 캐시)' >> "$RUNNER_TEMP/step-seconds"
+          flutter pub get --enforce-lockfile
+          printf '%s %s\n' "$SECONDS" '의존성' >> "$RUNNER_TEMP/step-seconds"
+
+      # 6
       - name: Workspace rules (main, strict)
         if: github.ref == 'refs/heads/main'
-        run: dart run tool/ws.dart check --strict
+        run: |
+          dart run tool/ws.dart check --strict
+          printf '%s %s\n' "$SECONDS" '규칙 (check --strict)' >> "$RUNNER_TEMP/step-seconds"
 
       - name: Workspace rules
         if: github.ref != 'refs/heads/main'
-        run: dart run tool/ws.dart check
+        run: |
+          dart run tool/ws.dart check
+          printf '%s %s\n' "$SECONDS" '규칙 (check)' >> "$RUNNER_TEMP/step-seconds"
 
+      # 7
       - name: Analyze
-        run: dart run tool/ws.dart analyze
+        run: |
+          dart run tool/ws.dart analyze
+          printf '%s %s\n' "$SECONDS" '분석' >> "$RUNNER_TEMP/step-seconds"
 
-      - name: VM tests
-        run: dart run tool/ws.dart test
+      # 8 — branches test only the members changed since main and their
+      # dependents (PDF `pdfium` tests too — PDF-S8).
+      - name: VM tests (main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          dart run tool/ws.dart test
+          printf '%s %s\n' "$SECONDS" 'VM 테스트' >> "$RUNNER_TEMP/step-seconds"
 
+      - name: VM tests (affected)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          dart run tool/ws.dart test --affected-since origin/main
+          printf '%s %s\n' "$SECONDS" 'VM 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
+
+      # Contract 7.6 B1 v1.3 / 7.7 V3: the workspace tool's own tests.
       - name: Tool tests
-        run: dart test tool/test
+        run: |
+          dart test tool/test
+          printf '%s %s\n' "$SECONDS" '도구 테스트' >> "$RUNNER_TEMP/step-seconds"
 
-      - name: Browser tests
-        run: dart run tool/ws.dart test --platform chrome
+      # 9 — `ws` runs each member's tool/prepare_web_test.dart first. Uses the
+      # runner's google-chrome (unverified; if it is missing add
+      # browser-actions/setup-chrome and CHROME_EXECUTABLE).
+      - name: Browser tests (main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          dart run tool/ws.dart test --platform chrome
+          printf '%s %s\n' "$SECONDS" '브라우저 테스트' >> "$RUNNER_TEMP/step-seconds"
 
+      - name: Browser tests (affected)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          dart run tool/ws.dart test --platform chrome --affected-since origin/main
+          printf '%s %s\n' "$SECONDS" '브라우저 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
+
+      # 10 — manual only (integration stage G2 and later). On push `inputs`
+      # is empty, so the condition is false.
+      - name: Integration tests (VM)
+        if: inputs.integration == true
+        run: |
+          dart run tool/ws.dart test --run-skipped -t integration
+          printf '%s %s\n' "$SECONDS" '통합 테스트 (VM)' >> "$RUNNER_TEMP/step-seconds"
+
+      - name: Integration tests (Chrome)
+        if: inputs.integration == true
+        run: |
+          dart run tool/ws.dart test --platform chrome --run-skipped -t integration
+          printf '%s %s\n' "$SECONDS" '통합 테스트 (Chrome)' >> "$RUNNER_TEMP/step-seconds"
+
+      # 11 — Hosting channel id (`id`) and build channel (`build`).
+      - name: Channel
+        id: channel
+        run: |
+          if [ "$GITHUB_REF" = 'refs/heads/main' ]; then
+            echo 'id=live' >> "$GITHUB_OUTPUT"
+            echo 'build=live' >> "$GITHUB_OUTPUT"
+          else
+            channel_id="$(dart run tool/ws.dart channel-id --branch "$GITHUB_REF_NAME")"
+            echo "id=$channel_id" >> "$GITHUB_OUTPUT"
+            echo 'build=preview' >> "$GITHUB_OUTPUT"
+          fi
+
+      # 12
+      - name: Build info
+        env:
+          BUILD_CHANNEL: ${{ steps.channel.outputs.build }}
+        run: dart run tool/ws.dart build-info --channel "$BUILD_CHANNEL" --out build/build_info.json
+
+      # 13 — a missing sqlite3.wasm would be answered by index.html (rewrite).
+      - name: Verify web assets
+        run: dart run tool/ws.dart web-assets verify
+
+      # 14
       - name: Web build
         working-directory: app
-        run: flutter build web --release --no-wasm-dry-run
+        run: |
+          flutter build web --release --no-wasm-dry-run --dart-define-from-file=../build/build_info.json --build-number=$GITHUB_RUN_NUMBER
+          printf '%s %s\n' "$SECONDS" '웹 빌드' >> "$RUNNER_TEMP/step-seconds"
+
+      # 15 — also writes the main.dart.js size to the step summary.
+      - name: Finalize web build
+        run: |
+          dart run tool/ws.dart finalize-web --build-dir app/build/web --info build/build_info.json
+          date +%s > "$RUNNER_TEMP/deploy-start"
+
+      # 16 — `expires` applies to preview channels only.
+      - name: Deploy to Firebase Hosting
+        id: deploy
+        if: env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != '' && (github.event_name == 'push' || inputs.deploy)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: ${{ steps.channel.outputs.id }}
+          expires: 7d
+          entryPoint: app
+          firebaseToolsVersion: 15.34.2
+          # No repoToken: nothing is posted to GitHub.
+          disableComment: true
+
+      # 17
+      - name: Summary
+        if: always()
+        env:
+          CHANNEL_ID: ${{ steps.channel.outputs.id }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.details_url }}
+          DEPLOY_REQUESTED: ${{ github.event_name == 'push' || inputs.deploy }}
+        run: |
+          {
+            echo '## 빌드 결과'
+            echo
+            if [ -f build/build_info.json ]; then
+              label="$(jq -r '"\(.APP_VERSION) (#\(.APP_BUILD_NUMBER) · \(.APP_GIT_SHA[0:7]) · \(.APP_GIT_REF))"' build/build_info.json)"
+              echo "- 빌드 라벨: \`$label\`"
+            else
+              echo '- 빌드 라벨: (빌드 정보 없음 — 앞 단계에서 멈춤)'
+            fi
+            echo "- 채널: \`${CHANNEL_ID:-없음}\`"
+            if [ "$DEPLOY_OUTCOME" = 'success' ]; then
+              echo "- 주소: $DEPLOY_URL"
+              if [ -f "$RUNNER_TEMP/deploy-start" ]; then
+                printf '%s %s\n' "$(( $(date +%s) - $(cat "$RUNNER_TEMP/deploy-start") ))" '배포' >> "$RUNNER_TEMP/step-seconds"
+              fi
+            elif [ -z "$FIREBASE_SA" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
+              echo '- 주소: Firebase 미설정 — docs/guides/02-github-secrets.md'
+            elif [ "$DEPLOY_REQUESTED" != 'true' ]; then
+              echo '- 주소: 배포하지 않음 (수동 실행에서 deploy 끔)'
+            elif [ "$DEPLOY_OUTCOME" = 'failure' ]; then
+              echo '- 주소: 배포 실패 — Deploy 단계 로그를 확인해 주세요'
+            else
+              echo '- 주소: 배포 단계까지 가지 못함'
+            fi
+            echo
+            echo '| 단계 | 시간 |'
+            echo '|---|---|'
+            if [ -f "$RUNNER_TEMP/step-seconds" ]; then
+              while read -r seconds label; do
+                echo "| $label | ${seconds}초 |"
+              done < "$RUNNER_TEMP/step-seconds"
+            fi
+            if [ -f "$RUNNER_TEMP/ci-start" ]; then
+              echo "| 전체 (요약 전까지) | $(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))초 |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

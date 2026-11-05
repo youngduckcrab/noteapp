@@ -1,10 +1,17 @@
-// ws check rules of the foundation step B1: R1–R3, R7–R9 (R15 lives in
-// test_tags_test.dart). docs/plans/01-infra.md 6.2 and 9.1.
+// ws check rules R1–R13 (R15 lives in test_tags_test.dart, R14 comes with
+// G3). docs/plans/01-infra.md 6.2 and 9.1.
 
+import 'dart:io';
+
+import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../src/cli.dart';
+import '../src/flutter_runner.dart';
 import '../src/rules.dart';
+import '../src/web_assets.dart';
+import 'support/fake_processes.dart';
 import 'support/fixture_workspace.dart';
 
 /// Contract 00-overview 7.5 (v1.3) external packages — the snapshot that
@@ -496,6 +503,440 @@ $deps''';
       final (strictCode, strictOut) = await run(['--strict']);
       expect(strictCode, 1);
       expect(strictOut, contains('1 violation(s), 0 warning(s)'));
+    });
+  });
+
+  group('R4', () {
+    test('dart:io in lib/a.dart; allowed in a_native.dart and b_io.dart', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a.dart': "import 'dart:io';\n",
+        'packages/ink_engine/lib/src/a_native.dart':
+            "import 'dart:io';\nimport 'dart:ffi';\n",
+        'packages/ink_engine/lib/src/b_io.dart': "import 'dart:io';\n",
+      }, rule: 'R4');
+      expect(v.single.path, 'packages/ink_engine/lib/src/a.dart');
+      expect(v.single.message, contains('`dart:io` is not allowed in lib/'));
+    });
+
+    test('dart:html, dart:js_util and package:js are forbidden even in '
+        'native files', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a_native.dart':
+            "import 'dart:html';\nimport 'dart:js_util';\n"
+            "import 'package:js/js.dart';\n",
+      }, rule: 'R4');
+      expect(v.map((e) => e.line), [1, 2, 3]);
+    });
+
+    test('lib_exceptions: note_core/lib/testing_vm.dart may use dart:io and '
+        'drift native', () {
+      final v = check({
+        'packages/note_core/lib/testing_vm.dart':
+            "import 'dart:io';\nimport 'package:drift/native.dart';\n"
+            "import 'testing.dart';\n",
+        'packages/note_core/lib/testing.dart': '',
+      }, rule: 'R4');
+      expect(v, isEmpty);
+    });
+
+    test('native_only: pdfium_dart in compose_backend.dart is a violation, '
+        'in compose_backend_native.dart it is allowed', () {
+      final v = check({
+        'packages/ink_engine/lib/src/compose/compose_backend.dart':
+            "import 'package:pdfium_dart/pdfium_dart.dart';\n",
+        'packages/ink_engine/lib/src/compose/compose_backend_native.dart':
+            "import 'package:pdfium_dart/pdfium_dart.dart';\n"
+            "import 'package:ffi/ffi.dart';\n",
+      }, rule: 'R4');
+      expect(
+        v.single.path,
+        'packages/ink_engine/lib/src/compose/compose_backend.dart',
+      );
+      expect(v.single.message, contains('native-only'));
+    });
+
+    test('drift/native.dart is native-only, other drift URIs are not', () {
+      final v = check({
+        'packages/note_core/lib/src/db.dart':
+            "import 'package:drift/drift.dart';\n"
+            "import 'package:drift/native.dart';\n",
+      }, rule: 'R4');
+      expect(v.single.line, 2);
+    });
+
+    test('test-only entry points through package: URIs', () {
+      final v = check({
+        'packages/note_core/lib/src/b.dart':
+            "import 'package:note_core/testing.dart';\n",
+        'packages/ink_engine/lib/src/c.dart':
+            "export 'package:note_core/testing_vm.dart';\n",
+        'packages/note_core/lib/testing.dart': '',
+      }, rule: 'R4');
+      expect(v.map((e) => e.path), [
+        'packages/ink_engine/lib/src/c.dart',
+        'packages/note_core/lib/src/b.dart',
+      ]);
+      expect(v.first.message, contains('test-only entry point'));
+    });
+
+    test('relative URIs: testing*.dart may import each other, other lib/ '
+        'files may not reach them', () {
+      final v = check({
+        'packages/note_core/lib/testing.dart': "import 'src/a.dart';\n",
+        'packages/feature_library/lib/testing.dart': '',
+        'packages/feature_library/lib/testing_vm.dart':
+            "import 'testing.dart';\n",
+        'packages/note_core/lib/src/b.dart': "import '../testing.dart';\n",
+      }, rule: 'R4');
+      expect(v.single.path, 'packages/note_core/lib/src/b.dart');
+      expect(v.single.message, contains('testing.dart'));
+    });
+
+    test('a directory entry of lib_exceptions exempts every file below it', () {
+      final text = File(realRulesPath).readAsStringSync().replaceFirst(
+        '  - packages/note_core/lib/testing_vm.dart',
+        '  - packages/note_core/lib/testing_vm.dart\n'
+            '  - packages/ink_engine/lib/lab/',
+      );
+      final custom = WorkspaceRules.parse(text);
+      expect(custom.libExceptions, contains('packages/ink_engine/lib/lab/'));
+      fixture = FixtureWorkspace.clean({
+        'packages/ink_engine/lib/lab/deep/x.dart':
+            "import 'package:note_core/testing.dart';\nimport 'dart:io';\n",
+        'packages/ink_engine/lib/labx.dart':
+            "import 'package:note_core/testing.dart';\n",
+      });
+      final v = [
+        for (final r in checkWorkspace(fixture!.load(), custom))
+          if (r.rule == 'R4') r,
+      ];
+      expect(v.single.path, 'packages/ink_engine/lib/labx.dart');
+    });
+
+    test('test/ files may use dart:io and testing.dart', () {
+      final v = check({
+        'packages/note_core/test/b_test.dart':
+            "import 'dart:io';\nimport 'package:note_core/testing.dart';\n",
+      }, rule: 'R4');
+      expect(v, isEmpty);
+    });
+
+    test('a package barrel named <pkg>_io.dart is not a platform file', () {
+      final v = check({
+        'packages/feature_library/pubspec.yaml': null,
+        'packages/feature_library/lib/feature_library.dart': null,
+        'packages/pdf_io/pubspec.yaml': '''
+name: pdf_io
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  note_core: any
+''',
+        'pubspec.yaml': cleanWorkspaceFiles()['pubspec.yaml']!.replaceFirst(
+          'packages/feature_library',
+          'packages/pdf_io',
+        ),
+        'packages/pdf_io/lib/pdf_io.dart': "import 'dart:io';\n",
+        'app/lib/main.dart': "import 'package:pdf_io/pdf_io.dart';\n",
+      });
+      expect(
+        v.where((e) => e.rule == 'R4').single.path,
+        'packages/pdf_io/lib/pdf_io.dart',
+      );
+      expect(v.where((e) => e.rule == 'R6'), isEmpty);
+    });
+  });
+
+  group('R5', () {
+    test('package:web in test/web/ and *_browser.dart is fine, elsewhere a '
+        'violation', () {
+      final v = check({
+        'packages/ink_engine/test/web/x_test.dart':
+            "import 'package:web/web.dart';\n",
+        'packages/ink_engine/test/unit/x_test.dart':
+            "import 'package:web/web.dart';\n",
+        'packages/ink_engine/lib/src/dom_browser.dart':
+            "import 'dart:js_interop';\nimport 'package:web/web.dart';\n",
+        'packages/ink_engine/lib/src/dom.dart':
+            "import 'dart:js_interop_unsafe';\n",
+      }, rule: 'R5');
+      expect(v.map((e) => e.path), [
+        'packages/ink_engine/lib/src/dom.dart',
+        'packages/ink_engine/test/unit/x_test.dart',
+      ]);
+      expect(v.first.message, contains('web-only'));
+    });
+  });
+
+  group('R6', () {
+    test('an unconditional import of a _native.dart file in lib/', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a.dart': "import 'b_native.dart';\n",
+        'packages/ink_engine/lib/src/b_native.dart': '',
+      }, rule: 'R6');
+      expect(v.single.path, 'packages/ink_engine/lib/src/a.dart');
+      expect(v.single.message, contains('platform file'));
+    });
+
+    test('a conditional import with a stub default is fine', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a.dart': '''
+import 'b_stub.dart'
+    if (dart.library.js_interop) 'b_browser.dart'
+    if (dart.library.ffi) 'b_native.dart';
+export 'c_stub.dart' if (dart.library.io) 'c_io.dart';
+''',
+      }, rule: 'R6');
+      expect(v, isEmpty);
+    });
+
+    test('a conditional export whose default is a platform file', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a.dart':
+            "export 'b_browser.dart' if (dart.library.ffi) 'b_native.dart';\n",
+      }, rule: 'R6');
+      expect(v.single.message, contains('must be a stub'));
+    });
+
+    test('platform files may use files of their own platform directly', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a_native.dart':
+            "import 'b_native.dart';\nimport 'c_io.dart';\n"
+            "import 'd_browser.dart';\n",
+        'packages/ink_engine/lib/src/a_browser.dart':
+            "import 'b_browser.dart';\nimport 'b_native.dart';\n",
+      }, rule: 'R6');
+      expect(v.map((e) => (e.path, e.line)), [
+        ('packages/ink_engine/lib/src/a_browser.dart', 2),
+        ('packages/ink_engine/lib/src/a_native.dart', 3),
+      ]);
+    });
+
+    test('test/ may import platform files directly', () {
+      final v = check({
+        'packages/ink_engine/test/a_test.dart':
+            "import 'package:ink_engine/src/b_native.dart';\n",
+      }, rule: 'R6');
+      expect(v, isEmpty);
+    });
+  });
+
+  group('R10', () {
+    test('dependency_overrides in a member pubspec', () {
+      final pubspec = cleanWorkspaceFiles()['packages/note_core/pubspec.yaml']!;
+      final v = check({
+        'packages/note_core/pubspec.yaml':
+            '${pubspec}dependency_overrides:\n  riverpod: 3.4.3\n',
+      }, rule: 'R10');
+      expect(v.single.path, 'packages/note_core/pubspec.yaml');
+      expect(v.single.line, 11);
+    });
+
+    test('dependency_overrides in the root pubspec is fine', () {
+      final pubspec = cleanWorkspaceFiles()['pubspec.yaml']!;
+      final v = check({
+        'pubspec.yaml': '${pubspec}dependency_overrides:\n  path: 1.9.1\n',
+      }, rule: 'R10');
+      expect(v, isEmpty);
+    });
+  });
+
+  group('R11', () {
+    test('formatTargets skips generated files, fixture dirs and build/', () {
+      fixture = FixtureWorkspace.clean({
+        'packages/note_core/lib/src/a.g.dart': '',
+        'packages/note_core/lib/src/schema_versions.dart': '',
+        'tool/test/fixtures/bad.dart': '',
+        'tool/ws.dart': '',
+        'app/build/x.dart': '',
+      });
+      final targets = formatTargets(fixture!.load(), rules);
+      expect(targets, contains('tool/ws.dart'));
+      expect(targets, contains('packages/note_core/lib/src/a.dart'));
+      expect(targets.where((t) => t.contains('.g.dart')), isEmpty);
+      expect(targets.where((t) => t.contains('schema_versions')), isEmpty);
+      expect(targets.where((t) => t.contains('fixtures')), isEmpty);
+      expect(targets.where((t) => t.contains('build/')), isEmpty);
+    });
+
+    test(
+      'an unformatted file is reported; generated and fixture files are not',
+      () async {
+        const unformatted = 'int  f( ){return 1;}\n';
+        fixture = FixtureWorkspace.clean({
+          'packages/note_core/lib/src/bad.dart': unformatted,
+          'packages/note_core/lib/src/bad.g.dart': unformatted,
+          'tool/test/fixtures/bad.dart': unformatted,
+        });
+        final v = await checkFormat(
+          fixture!.load(),
+          rules,
+          processes: IoProcessRunner(out: StringBuffer()),
+          dart: Platform.resolvedExecutable,
+        );
+        expect(v.single.rule, 'R11');
+        expect(v.single.path, 'packages/note_core/lib/src/bad.dart');
+      },
+      tags: ['process'],
+    );
+
+    test(
+      'the formatter is called quietly with --set-exit-if-changed',
+      () async {
+        fixture = FixtureWorkspace.clean();
+        final processes = FakeProcesses(
+          (_) => const RunResult(
+            exitCode: 1,
+            output:
+                'Changed packages/note_core/lib/src/a.dart\n'
+                'Formatted 6 files (1 changed) in 0.01 seconds.\n',
+          ),
+        );
+        final v = await checkFormat(
+          fixture!.load(),
+          rules,
+          processes: processes,
+          dart: '/fake/dart',
+        );
+        final call = processes.calls.single;
+        expect(call.arguments.take(3), [
+          'format',
+          '--output=none',
+          '--set-exit-if-changed',
+        ]);
+        expect(call.echo, isFalse);
+        expect(call.workingDirectory, fixture!.root);
+        expect(v.single.path, 'packages/note_core/lib/src/a.dart');
+      },
+    );
+
+    test('a formatter failure is a violation', () async {
+      fixture = FixtureWorkspace.clean();
+      final v = await checkFormat(
+        fixture!.load(),
+        rules,
+        processes: FakeProcesses(
+          (_) => const RunResult(exitCode: 65, output: 'Could not format'),
+        ),
+        dart: '/fake/dart',
+      );
+      expect(v.single.message, contains('exit code 65'));
+    });
+
+    test('ws check --no-format does not run the formatter', () async {
+      fixture = FixtureWorkspace.clean();
+      final processes = FakeProcesses();
+      final out = StringBuffer();
+      final code = await runWs(
+        ['check', '--rules', realRulesPath, '--no-format', '--no-exports'],
+        context: WsContext(
+          root: fixture!.root,
+          out: out,
+          err: StringBuffer(),
+          processes: processes,
+        ),
+      );
+      expect(code, 0);
+      expect(processes.calls, isEmpty);
+      expect(out.toString(), isNot(contains('R11')));
+    });
+  });
+
+  group('R12', () {
+    const content = 'drift worker bytes';
+    String manifest({int? bytes, String? sha}) =>
+        '''
+assets:
+  - path: drift_worker.js
+    url: https://example.invalid/drift_worker.js
+    bytes: ${bytes ?? content.length}
+    sha256: ${sha ?? sha256Hex(content.codeUnits)}
+    owner: CORE
+    reason: test
+''';
+
+    test('no tool/web_assets.yaml: nothing to check', () {
+      expect(check({}, rule: 'R12'), isEmpty);
+    });
+
+    test('matching file: no violation', () {
+      final v = check({
+        'tool/web_assets.yaml': manifest(),
+        'app/web/drift_worker.js': content,
+      }, rule: 'R12');
+      expect(v, isEmpty);
+    });
+
+    test('missing file, size and sha256 mismatches', () {
+      expect(
+        check({'tool/web_assets.yaml': manifest()}, rule: 'R12').single.message,
+        contains('app/web/drift_worker.js: file is missing'),
+      );
+      expect(
+        check({
+          'tool/web_assets.yaml': manifest(bytes: 3),
+          'app/web/drift_worker.js': content,
+        }, rule: 'R12').single.message,
+        contains('expected 3'),
+      );
+      final v = check({
+        'tool/web_assets.yaml': manifest(sha: 'a' * 64),
+        'app/web/drift_worker.js': content,
+      }, rule: 'R12');
+      expect(v.single.message, contains('sha256 is'));
+      expect(v.single.path, 'tool/web_assets.yaml');
+      expect(v.single.line, 2);
+    });
+
+    test('a malformed manifest is a violation', () {
+      final v = check({
+        'tool/web_assets.yaml': 'assets:\n  - path: x.js\n',
+      }, rule: 'R12');
+      expect(v.single.message, contains('missing `url`'));
+    });
+  });
+
+  group('R13', () {
+    List<int> png(int w, int h) =>
+        img.encodePng(img.Image(width: w, height: h));
+
+    void writePng(String path, int w, int h) =>
+        File(p.join(fixture!.root, path))
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync(png(w, h));
+
+    List<RuleViolation> r13() => [
+      for (final r in checkWorkspace(fixture!.load(), rules))
+        if (r.rule == 'R13') r,
+    ];
+
+    test('icon sizes match their names, favicon is square', () {
+      fixture = FixtureWorkspace.clean();
+      writePng('app/web/icons/Icon-192.png', 192, 192);
+      writePng('app/web/icons/Icon-maskable-512.png', 512, 512);
+      writePng('app/web/favicon.png', 32, 32);
+      expect(r13(), isEmpty);
+    });
+
+    test('wrong sizes, unnamed icon, non-square favicon and non-PNG', () {
+      fixture = FixtureWorkspace.clean({'app/web/icons/Icon-180.png': 'x'});
+      writePng('app/web/icons/Icon-192.png', 180, 180);
+      writePng('app/web/icons/logo.png', 10, 10);
+      writePng('app/web/favicon.png', 32, 16);
+      final v = r13();
+      expect(v.map((e) => e.path), [
+        'app/web/favicon.png',
+        'app/web/icons/Icon-180.png',
+        'app/web/icons/Icon-192.png',
+        'app/web/icons/logo.png',
+      ]);
+      expect(v[0].message, contains('square'));
+      expect(v[1].message, contains('not a PNG'));
+      expect(v[2].message, contains('180x180, its name says 192x192'));
+      expect(v[3].message, contains('-<size>.png'));
     });
   });
 

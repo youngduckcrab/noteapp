@@ -356,8 +356,11 @@ void main() {
         'packages/note_core/test/x_test.dart': "@Tags(['integration'])\n",
       });
       final out = StringBuffer();
+      // --no-format: the fixture test files are not valid Dart (R11 would
+      // report the formatter failure).
       final code = await runWs([
         'check',
+        '--no-format',
         '--rules',
         realRulesPath,
       ], context: WsContext(root: fixture.root, out: out, err: StringBuffer()));
@@ -374,7 +377,7 @@ void main() {
           'packages/note_core/test/x_test.dart': "@Tags(['integration'])\n",
         });
         final code = await runWs(
-          ['check', '--rules', realRulesPath],
+          ['check', '--no-format', '--rules', realRulesPath],
           context: WsContext(
             root: fixture.root,
             out: StringBuffer(),

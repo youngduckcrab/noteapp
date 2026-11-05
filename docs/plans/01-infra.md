@@ -1,6 +1,6 @@
 # 01. 기반 · 빌드 · 배포 (INFRA) 상세 계획서
 
-> 상태: **3차 수정 v0.4** (총괄 관리자 3차 검토(승인 검토) 3.4.1 반영, 재승인 대기) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 **v1.2** · 검토: [00-review.md](00-review.md) 3.1(1차), '2차 검토' 2.4.1, '3차 검토' 3.4.1
+> 상태: **승인** (00-review '최종 승인' — 4차 검토 승인, 판본 3차 수정 v0.4 + 개발 중 반영 INFRA-4-1·4-2) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 **v1.4** · 검토: [00-review.md](00-review.md) 3.1(1차), '2차 검토' 2.4.1, '3차 검토' 3.4.1, '4차 검토' 4.4.1, '최종 승인'
 > 작성 기준일: 2026-11-05 · 검증 환경: Flutter 3.47.9 / Dart 3.13.7, 리눅스 컨테이너
 >
 > 이 문서에서 **(확인함)** 은 저장소 밖 실험 폴더(`/tmp/claude-0/plan-scratch/`)에서 실제로 실행해 확인한 사실이고, **(미확인)** 은 문서·기억에 근거해 구현 때 다시 확인해야 하는 사항이다.
@@ -2586,9 +2586,9 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 
 | 실측 항목 (B8에서 채움) | 값 | 반영 |
 |---|---|---|
-| `ci.yml` 1회 총 시간 / 단계별(캐시 없음·있음) | — | 위 표 |
-| `main.dart.js` 크기 (기반 단계 / 통합 후) | — | 11절 리스크, 시작 시간 목표 |
-| Chrome 첫 `openNoteStore` (빈 DB) | — | `CoreModule.startTimeout` |
+| `ci.yml` 1회 총 시간 / 단계별(캐시 없음·있음) | GitHub 실행은 아직 없음(동시 개발 중 푸시 금지 — G5에서 채움). 로컬 컨테이너 대용 측정(빌드 훅 캐시 있음): B8 `ws test` 54.8초 · `--platform chrome` 99.0초 · 웹 빌드(`--no-wasm-dry-run`) 42.5초. I15(다른 에이전트와 CPU 공유): `ws test` 1분 56초 · `--platform chrome` 3분 44초 · `flutter build web --release`(wasm dry run 포함) 1분 37초 · `dart test tool/test` 16초 · `ws analyze` 5초 | 위 표 (G5 실측 뒤 고침) |
+| `main.dart.js` 크기 (기반 단계 / 통합 후) | B1 1,742,932 B · B8 2,471,812 B(gzip 733,501 B) · I15(다른 영역 자리표시 상태) 2,747,922 B(gzip 814,454 B) / 통합 후는 G4 | 11절 리스크, 시작 시간 목표 |
+| Chrome 첫 `openNoteStore` (빈 DB) | B8·동시 개발 중 측정 불가(이 작업 트리의 CORE는 B2 자리표시) → G2 V6에서 | `CoreModule.startTimeout` |
 
 절약 장치: 문서만 바꾼 푸시 제외, 같은 브랜치 이전 실행 취소, 브랜치는 영향받은 패키지만 테스트, 빌드 훅·준비 산출물 캐시, 통합 태그 테스트는 수동, APK는 main·수동만, iOS는 수동 + 변수 게이트, 모든 잡 시간 제한, Dependabot 미사용(PR마다 CI 소모). 동시 개발 중 영역 브랜치는 **체크포인트·통합 때만 푸시**한다(계약 7.4.12). 실측이 예산을 넘으면 브랜치 푸시의 브라우저 테스트를 영향받은 멤버로만 줄이는 것부터 조정한다.
 
@@ -2690,9 +2690,9 @@ INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`
 | B1-3 | `flutter create --platforms=web,android,ios --org dev.noteapp --project-name noteapp app` → `app/analysis_options.yaml`·`test/widget_test.dart` 삭제, pubspec 교체(3.3 — `sync_engine` 없음), 최소 `main.dart`(자리표시 문구) | `cd app && flutter build web` 성공 |
 | B1-4 | `tool/ws.dart` 최소: `list`, `test`(vm/chrome, `--package`, **chrome 전 `tool/prepare_web_test.dart` 선실행**, Chrome 찾기), `check`(R1–R3·R7–R9·**R15** — 계약 7.6 B1 v1.2, C12-01) + **`tool/src/test_tags.dart`**(R15 리터럴 태그 스캐너 + `dart_test.yaml` 확인, 6.2) + `tool/workspace_rules.yaml`(4.3 전체 — `pinned_external` 7.5 전부, `lib_exceptions`, `pure_dart_members`, **`skip_by_default_tags: [integration, perf]`**) + `tool/test/`(**`test_tags_test.dart`** 포함 — 9.1 행 그대로) | `dart test tool/test` 통과(**`test_tags_test.dart`** 포함), `ws check` 0(R15 포함 — B1 시점에 태그를 쓰는 테스트 없음). 이후 각 영역 브랜치의 `ws check`가 태그 선언·`integration`·`perf` `skip` 누락을 위반(종료 1)으로 잡는다 |
 | B1-5 | 최소 `ci.yml`: 6.13의 1·2·5–9·14단계(배포 없음) | `tool/test/workflows_test.dart`(YAML 파싱·`timeout-minutes`·`flutter-version-file`) 통과 |
-| B1 완료 | | `flutter pub get --enforce-lockfile`, `ws check`(R1–R3·R7–R9·R15), `ws test`, `dart test tool/test`(12.3 P6 — 계약 문구보다 엄격) → 커밋 |
+| B1 완료 | | `flutter pub get --enforce-lockfile`, `ws check`(R1–R3·R7–R9·R15), `ws test`, `dart test tool/test`(계약 7.6 B1·B8 v1.3) → 커밋 |
 | B8-1 | `app/lib/**`·`app/test/**`: 최소 go_router(`/`, `/folders/:folderId`, `/notes/:noteId`, `/settings`) + B6 `LibraryScreen`·B5 `EditorScreen` 자리표시 연결 + 셸 설정 자리표시. `main.dart`는 `openNoteStore(const NoteStoreConfig())`를 시도하고, 실패(B2의 `UnimplementedError` 포함)하면 안내 문구만 표시(전체 부트스트랩은 I5). **비고**(INFRA-3-4): 이 `openNoteStore(const NoteStoreConfig())`(정적 파일 경로가 기본 상대 경로 `'sqlite3.wasm'`·`'drift_worker.js'`)는 **임시 진입점**이다 — 배포 없음(B1·B8 CI는 배포하지 않음, 6.13)이라 깊은 경로 새로고침 문제(계약 7.4.3)가 사용자에게 닿지 않는다. I5에서 `runNoteApp`·`CoreModule`의 `defaultNoteStoreConfig`(`document.baseURI` 기준 절대 URL, 계약 7.2.12·7.4.3)로 교체한다 | `app/test/foundation_routing_test.dart`: `noteStoreProvider` ← `createFakeNoteStore()` → `LibraryScreen` 표시 → 그 위젯의 `onOpenNote('n1')` → `/notes/n1`에 `EditorScreen(noteId: 'n1')` → `onClose()` → `LibraryScreen` (자리표시 본문 문구에 의존하지 않음) |
-| B8-2 | 전체 확인 | `ws check` 0, `flutter analyze --fatal-infos` 0, `ws test`, `ws test --platform chrome`, `dart test tool/test`(12.3 P6), `cd app && flutter build web --release` 성공 → 커밋 |
+| B8-2 | 전체 확인 | `ws check` 0, `flutter analyze --fatal-infos` 0, `ws test`, `ws test --platform chrome`, `dart test tool/test`(계약 7.6 B1·B8 v1.3), `cd app && flutter build web --release` 성공 → 커밋 |
 | B8-3 | **실측**(INFRA-S2): 체크포인트 푸시로 첫 CI 1회 실행 → 단계별 시간, `main.dart.js` 크기, (CORE가 구현돼 있으면) Chrome 첫 `openNoteStore` 시간 | 6.13 예산표·실측표 갱신, 값은 결과 보고에 |
 
 ### 8.2 동시 개발 단계 (INFRA worktree, 브랜치 `area/infra`)
@@ -2950,14 +2950,14 @@ APK 내려받기·설치, 실행 시 라이브러리 화면, 새 APK 덮어 설�
 
 ### 12.3 계약 변경 제안 (승인 전에는 계획서를 계약대로 유지)
 
-| # | 대상 | 제안 | 근거 | 결정 (00-review 2차 2.2 · 3차 3.2) |
+| # | 대상 | 제안 | 근거 | 결정 (00-review 2차 2.2 · 3차 3.2 · 4차 4.2) |
 |---|---|---|---|---|
 | P1 | 7.4.9 괄호 문구(+ 00-review 3.4 Q11 답, INFRA-S5) | "엔진이 `contextmenu`를 이미 막으므로 `BrowserContextMenu.disableContextMenu()`는 쓰지 않는다" → "`BrowserContextMenu.disableContextMenu()`는 쓰지 않는다(텍스트 입력의 브라우저 메뉴까지 끄고 프레임워크가 자체 선택 메뉴로 바뀜). iPad 길게 누르기 콜아웃·선택은 CSS(엔진 `user-select:none` + index.html `-webkit-touch-callout:none`)로, 우클릭 메뉴는 index.html이 입력 요소 밖에서만 `contextmenu`를 `preventDefault`해 막는다(01-infra 6.9)" | Flutter 3.47.9 엔진 `mouse/context_menu.dart`(`_enabled = true`), `platform_dispatcher.dart`(`disableContextMenu` 채널에서만 리스너 추가), 컴파일된 `main.dart.js`에서 같은 구조 확인함. 결정(쓰지 않음)은 그대로, 근거만 정정 | **승인** — 계약 7.4.9 v1.1(C11-28). 6.9에 계약 문장 인용 |
 | P2 | 7.2.12 `NoteStore` | `Future<Uint8List> exportBackupJson();`(CORE-S3: 활성·휴지통 엔티티 JSON + 에셋 메타, 바이트 제외)를 시그니처에 명시 | 계약 7.8이 'INFRA 앱 정보 버튼 + M4 실연결 전 선행 조건'으로 정했지만 7.2.12에 멤버가 없어 INFRA가 위치를 가정해야 함(5.1) | **승인**(CORE CP-2와 한 건) — 계약 7.2.12 v1.1(C11-08). 5.1·4.5.8은 계약 인용 |
 | P3 | 7.2.12 `WebStorageConfig` (+ 7.4.3) | "경로가 상대 경로면 `document.baseURI` 기준으로 해석한다(dart2js `Uri.base`는 `location.href`). 앱 셸은 절대 URL을 넘긴다"를 계약에 명시. 다른 패키지도 정적 파일 주소를 `Uri.base` 상대로 만들지 않는다 | Dart SDK `js_helper.dart` `Primitives.currentUri()` = `self.location.href` 확인함. 경로 URL 전략 + Hosting `**` 재작성에서 `/notes/<id>` 새로고침 시 `sqlite3.wasm` 요청이 `index.html`을 받음 → 시작 실패. INFRA는 이번 계획에서 절대 URL로 우회(6.4) | **수정 승인** — 계약 7.2.12·7.4.3 v1.1(C11-11): CORE 해석 기준(`Uri.base.resolve`)은 유지, 운영은 `document.baseURI` 기준 절대 URL, 상대는 테스트만, 대상은 정적 파일·에셋 URL(질의 읽기 제외). INFRA 설계는 원래 절대 URL만 넘겨 그대로 맞음(4.4, 6.4) |
 | P4 | 7.5 `crypto` 행 | '쓰는 멤버'에 '루트(`tool/`)' 추가(같은 3.0.8, lock 변화 없음) | `ws web-assets`의 sha256 계산 | **승인** — 계약 7.5 v1.1(C11-29). 3.2·4.3·7.1에 반영, `sha256sum` 대체 경로 삭제 |
 | **P5** | 7.4.2 첫 bullet · 7.6 B1 · 7.7 V1 | 7.4.2 "`tool/ws.dart check` 규칙 R1~R13(01-infra 6.2)"에 **R15(태그 선언: 테스트가 쓰는 태그는 패키지 `dart_test.yaml`에 선언, `integration`·`perf`는 `skip`)**를 더하고, 7.6 B1의 `ws check` 범위를 'R1–R3·R7–R9·**R15**'로, V1을 'R1~R15'로 | 계약 7.4.8 v1.1(C11-26)이 정한 규칙을 도구가 강제한다. 지금 계약대로면 R15는 INFRA 브랜치(I1)에서 만들어져 INFRA 병합 뒤에야 전 멤버에 적용된다(6.2). 2차 검토에서 EDITOR·LIBRARY가 같은 선언을 빠뜨렸던 것처럼, 동시 개발 중 각 영역 브랜치에서 바로 잡으려면 B1부터 켜야 한다. 구현은 작다(태그 리터럴 스캔 + YAML 확인, 6.2). B1 시점에는 태그를 쓰는 테스트가 없어 다른 영역 B2~B7 작업에 추가 부담이 없다. CORE·INK·PDF·SYNC는 이미 계획에 `dart_test.yaml`이 있고, EDITOR·LIBRARY는 3차 수정 지시(EDITOR-2-7, LIBRARY-2-1)로 넣는다 | **승인 — 계약 v1.2 C12-01**(7.4.2·7.4.8·7.6 B1·7.7 V1, 00-review 3차 3.2). 담당 조건 둘(B1부터 위반 = 종료 1, '리터럴만 인식' 제약을 7.4.8에)이 그대로 들어갔다. 계획서 반영: 1.2·4.1·4.2·4.3·6.2 R15·8.1 B1-4·8.2 I1·9.1·10절·11절 (INFRA-3-1) |
-| **P6** (새, 사소) | 7.6 B1·B8 '완료 조건' 열 | B1 완료 조건 '`flutter pub get --enforce-lockfile`, `ws check`, `ws test`'에 **`dart test tool/test`**를 더하고, B8 '전체' 목록에도 같은 항목 | v1.2로 B1 경로에 `tool/test/`(`test_tags_test.dart` 포함)가 들어갔지만, `ws test`는 워크스페이스 멤버만 돌리므로(루트 `tool/test/`는 멤버가 아님, 4.2) 계약 문구대로면 R15 검사기의 테스트가 B1·B8 완료 판정에서 실행되지 않는다. V3에는 이미 `dart test tool/test`가 있어 통합 기준과 맞추는 문구 정리일 뿐이고, 다른 영역 작업에 영향 없음(B2~B7은 `tool/`을 바꾸지 않음) | (제안 — 결정 전에도 INFRA는 B1-4·B8-2 완료 조건에 `dart test tool/test`를 넣어 계약보다 엄격하게 진행, 8.1) |
+| **P6** (새, 사소) | 7.6 B1·B8 '완료 조건' 열 | B1 완료 조건 '`flutter pub get --enforce-lockfile`, `ws check`, `ws test`'에 **`dart test tool/test`**를 더하고, B8 '전체' 목록에도 같은 항목 | v1.2로 B1 경로에 `tool/test/`(`test_tags_test.dart` 포함)가 들어갔지만, `ws test`는 워크스페이스 멤버만 돌리므로(루트 `tool/test/`는 멤버가 아님, 4.2) 계약 문구대로면 R15 검사기의 테스트가 B1·B8 완료 판정에서 실행되지 않는다. V3에는 이미 `dart test tool/test`가 있어 통합 기준과 맞추는 문구 정리일 뿐이고, 다른 영역 작업에 영향 없음(B2~B7은 `tool/`을 바꾸지 않음) | **승인 — 계약 v1.3 C13-01** (8.1 B1 완료·B8-2 인용을 '계약 7.6 B1·B8 v1.3'으로, INFRA-4-1) |
 
 ---
 
@@ -3095,3 +3095,7 @@ APK 내려받기·설치, 실행 시 라이브러리 화면, 새 APK 덮어 설�
 | `dart test tool/test`를 B1·B8 완료 조건에 | 계약 7.6 B1 완료 조건(`ws check`·`ws test`)은 루트 `tool/test/`를 돌리지 않는다(멤버가 아님). INFRA는 B1 완료·B8-2에 `dart test tool/test`를 넣어 계약보다 엄격하게 진행하고, 계약 문구 정리를 **12.3 P6**(사소)로 제안 |
 | 11절 리스크 | '태그를 변수로 넘겨 R15가 못 봄'(계약 7.4.8 v1.2 리터럴 규칙, `test_tags_test` 고정), 'CORE 쓰기 재시도 중 백업 대기가 끝나지 않음'(INFRA-3-3) 두 행 추가 |
 | 상태 줄 | 머리말 상태를 '3차 수정 v0.4 · 계약 v1.2', 작성 기준일 2026-11-05로 |
+
+### 13.4 최종 승인 (00-review '4차 검토' 4.4.1 · '최종 승인' · 통합 계약 v1.3→v1.4, 2026-11-05)
+
+4차 검토에서 승인(재승인 조건 없음). 개발 착수 때 반영: **INFRA-4-1**(C13-01) 12.3 P6 결정 칸 = '승인 — 계약 v1.3 C13-01', 8.1 B1 완료·B8-2 인용 = '계약 7.6 B1·B8 v1.3'(동작 변경 없음). **INFRA-4-2**(C13-05) 머리 상태 줄 = '승인'·계약 인용 v1.4(v1.4는 기반 단계 뒤 C14-01 `SelectionGeometry` 이름 겹침 → `hide`/접두사, C14-02 R15 `tags:` 인식 수정 완료 — 시그니처 변경 없음). 본문의 개별 'v1.1/v1.2' 인용은 그 조항이 들어간 판을 가리키므로 그대로 둔다. 진행 기록은 [progress/infra.md](progress/infra.md).

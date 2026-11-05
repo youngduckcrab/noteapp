@@ -1,0 +1,82 @@
+# Android APK (INFRA, docs/plans/01-infra.md 6.13 `android.yml`, 6.14):
+# release APK for arm64 tablets on every push to main and on demand, kept as
+# a 7-day workflow artifact (docs/guides/05-android-apk.md).
+#
+# Signing: the template's debug key, made fresh on every runner — a new APK
+# cannot be installed over the previous one (uninstall first, local data is
+# lost). Release signing from secrets waits until an Android tablet is
+# confirmed (6.14). The container has no Android SDK: this workflow is only
+# checked on GitHub (unverified).
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Generated Android project: AGP 9.1.0, Gradle 9.3.1, Kotlin 2.4.0,
+      # Java 17 target.
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      # Same key as ci.yml step 3.
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      - name: Dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # The update checker is off outside the web, so the channel only labels
+      # the build (About section).
+      - name: Build info
+        env:
+          BUILD_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'live' || 'preview' }}
+        run: dart run tool/ws.dart build-info --channel "$BUILD_CHANNEL" --out build/build_info.json
+
+      - name: Build APK
+        working-directory: app
+        run: flutter build apk --release --split-per-abi --build-number=$GITHUB_RUN_NUMBER --dart-define-from-file=../build/build_info.json
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: noteapp-apk-${{ github.run_number }}
+          path: app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          retention-days: 7
+          # An APK is already a zip.
+          compression-level: 0
+          if-no-files-found: error

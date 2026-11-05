@@ -1,8 +1,8 @@
 /// `ws check` rules (docs/plans/01-infra.md 6.2, contract 00-overview 7.4.2).
 ///
-/// Foundation step B1 checks R1–R3, R7–R9 and R15 (contract 7.6 B1 v1.2).
-/// R4–R6 and R10–R13 are added in I1 and R14 at the integration step G3; the
-/// data they need is already part of [WorkspaceRules].
+/// [checkWorkspace] runs the static rules R1–R10, R12, R13 and R15; the
+/// format rule R11 runs `dart format` and lives in [checkFormat]. R14 (export
+/// name overlap) comes with the integration step G3.
 library;
 
 import 'dart:io';
@@ -11,8 +11,11 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'dart_imports.dart';
+import 'flutter_runner.dart';
+import 'png_size.dart';
 import 'rule_violation.dart';
 import 'test_tags.dart';
+import 'web_assets.dart';
 import 'workspace.dart';
 
 export 'rule_violation.dart';
@@ -22,9 +25,16 @@ const List<String> implementedRules = [
   'R1',
   'R2',
   'R3',
+  'R4',
+  'R5',
+  'R6',
   'R7',
   'R8',
   'R9',
+  'R10',
+  'R11',
+  'R12',
+  'R13',
   'R15',
 ];
 
@@ -156,51 +166,58 @@ final class WorkspaceRules {
   /// R9: exact versions of the external packages of contract 7.5.
   final Map<String, String> pinnedExternal;
 
-  /// R4 (I1): imports forbidden in `lib/`.
+  /// R4: imports forbidden in `lib/`.
   final List<String> forbiddenImportsLib;
 
   /// R7: imports forbidden in `lib/` and `test/`.
   final List<String> forbiddenImportsLibAndTest;
 
-  /// R4 (I1): packages importable only from native-suffixed files.
+  /// R4: packages importable only from native-suffixed files.
   final List<String> nativeOnlyImports;
 
-  /// R4 (I1): test-only entry points.
+  /// R4: test-only entry points.
   final List<String> testOnlyEntrypoints;
 
-  /// R4 (I1): exempt files / directories (trailing `/`).
+  /// R4: exempt files / directories (trailing `/`).
   final List<String> libExceptions;
 
-  /// R5 (I1): web-only imports.
+  /// R5: web-only imports.
   final List<String> webOnlyImports;
 
   final List<String> nativeSuffixes;
 
   final List<String> webSuffixes;
 
-  /// R11 (I1): generated file patterns skipped by the format check.
+  /// R11: generated file patterns skipped by the format check.
   final List<String> generatedFiles;
 
-  /// R11 (I1): checker fixture directories skipped by the format check.
+  /// R11: checker fixture directories skipped by the format check.
   final List<String> fixtureDirs;
 
   /// R15: tags that must have `skip:` in the member `dart_test.yaml`.
   final List<String> skipByDefaultTags;
 
-  /// `affected` (I1): paths that make every member affected.
+  /// `affected`: paths that make every member affected.
   final List<String> globalTriggers;
 }
 
-/// Runs every implemented rule on [workspace]. The result is sorted by path,
-/// line and rule. Warnings (`isWarning`) are included.
+/// Runs every static rule (all implemented rules except the format rule R11,
+/// see [checkFormat]) on [workspace]. The result is sorted by path, line and
+/// rule. Warnings (`isWarning`) are included.
 List<RuleViolation> checkWorkspace(Workspace workspace, WorkspaceRules rules) {
   final violations = <RuleViolation>[
     ..._checkR1(workspace),
     ..._checkR2(workspace, rules),
     ..._checkR3(workspace),
+    ..._checkR4(workspace, rules),
+    ..._checkR5(workspace, rules),
+    ..._checkR6(workspace, rules),
     ..._checkR7(workspace, rules),
     ..._checkR8(workspace, rules),
     ..._checkR9(workspace, rules),
+    ..._checkR10(workspace),
+    ..._checkR12(workspace),
+    ..._checkR13(workspace),
     for (final member in workspace.members)
       ...checkMemberTestTags(
         root: workspace.root,
@@ -402,6 +419,193 @@ Iterable<RuleViolation> _checkR3(Workspace ws) sync* {
 }
 
 // ---------------------------------------------------------------------------
+// R4 — lib/: forbidden imports, native-only packages, test-only entry points
+
+/// Whether [path] (repo-relative) is covered by an entry of [exceptions]
+/// (an entry ending with `/` covers the whole directory).
+bool _isException(String path, List<String> exceptions) => exceptions.any(
+  (entry) => entry.endsWith('/') ? path.startsWith(entry) : path == entry,
+);
+
+/// Whether the file or URI [path] names a platform file with one of
+/// [suffixes]. The package entry point `<package>.dart` is never a platform
+/// file (`pdf_io.dart` ends with `_io.dart` but is the pdf_io barrel);
+/// [packageName] is the package of a file or relative URI — `package:` URIs
+/// carry their own.
+bool _hasSuffix(
+  String path,
+  List<String> suffixes, {
+  required String packageName,
+}) {
+  var package = packageName;
+  if (path.startsWith('package:')) package = _packageOf(path) ?? packageName;
+  final name = p.posix.basename(path);
+  if (name == '$package.dart') return false;
+  return suffixes.any(name.endsWith);
+}
+
+Iterable<RuleViolation> _checkR4(Workspace ws, WorkspaceRules rules) sync* {
+  final names = ws.memberNames;
+  for (final member in ws.members) {
+    final libDir = '${member.path}/lib';
+    for (final file in listDartFiles(
+      ws.root,
+      p.join(member.directory, 'lib'),
+    )) {
+      if (_isException(file, rules.libExceptions)) continue;
+      final native = _hasSuffix(
+        file,
+        rules.nativeSuffixes,
+        packageName: member.name,
+      );
+      final isTestEntry = rules.testOnlyEntrypoints.any(
+        (entry) => file == '$libDir/$entry',
+      );
+      for (final directive in _directivesOf(ws.root, file)) {
+        for (final uri in directive.allUris) {
+          if (_matchesAny(uri, rules.forbiddenImportsLib) &&
+              !(native && (uri == 'dart:io' || uri == 'dart:ffi'))) {
+            yield RuleViolation(
+              rule: 'R4',
+              path: file,
+              line: directive.line,
+              message:
+                  '`$uri` is not allowed in lib/ (move it to a '
+                  '${rules.nativeSuffixes.join('/')} or '
+                  '${rules.webSuffixes.join('/')} file behind a conditional '
+                  'import — contract 7.4.3)',
+            );
+            continue;
+          }
+          if (_matchesAny(uri, rules.nativeOnlyImports) && !native) {
+            yield RuleViolation(
+              rule: 'R4',
+              path: file,
+              line: directive.line,
+              message:
+                  '`$uri` is native-only: import it only from files ending '
+                  'with ${rules.nativeSuffixes.join(' or ')}',
+            );
+            continue;
+          }
+          final other = _packageOf(uri);
+          if (other != null && names.contains(other)) {
+            final entry = uri.substring('package:$other/'.length);
+            if (rules.testOnlyEntrypoints.contains(entry)) {
+              yield RuleViolation(
+                rule: 'R4',
+                path: file,
+                line: directive.line,
+                message:
+                    '`$uri` is a test-only entry point: import it from '
+                    'test/ only',
+              );
+            }
+            continue;
+          }
+          if (_isRelative(uri) && !isTestEntry) {
+            final target = p.posix.normalize(
+              p.posix.join(p.posix.dirname(file), uri),
+            );
+            if (rules.testOnlyEntrypoints.any(
+              (entry) => target == '$libDir/$entry',
+            )) {
+              yield RuleViolation(
+                rule: 'R4',
+                path: file,
+                line: directive.line,
+                message:
+                    '`$uri` reaches the test-only entry point '
+                    '${p.posix.basename(target)}: only the other lib/testing*'
+                    '.dart files of the package may import it',
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+bool _isRelative(String uri) => !uri.contains(':');
+
+// ---------------------------------------------------------------------------
+// R5 — web-only imports only in *_browser.dart (lib/, test/ outside test/web/)
+
+Iterable<RuleViolation> _checkR5(Workspace ws, WorkspaceRules rules) sync* {
+  for (final member in ws.members) {
+    final webTests = '${member.path}/test/web/';
+    for (final dir in const ['lib', 'test']) {
+      for (final file in listDartFiles(
+        ws.root,
+        p.join(member.directory, dir),
+      )) {
+        if (file.startsWith(webTests)) continue;
+        if (_hasSuffix(file, rules.webSuffixes, packageName: member.name)) {
+          continue;
+        }
+        for (final directive in _directivesOf(ws.root, file)) {
+          for (final uri in directive.allUris) {
+            if (_matchesAny(uri, rules.webOnlyImports)) {
+              yield RuleViolation(
+                rule: 'R5',
+                path: file,
+                line: directive.line,
+                message:
+                    '`$uri` is web-only: use it only in files ending with '
+                    '${rules.webSuffixes.join(' or ')} (or in test/web/)',
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// R6 — lib/: platform files only through conditional clauses with a stub
+
+Iterable<RuleViolation> _checkR6(Workspace ws, WorkspaceRules rules) sync* {
+  final platformSuffixes = [...rules.nativeSuffixes, ...rules.webSuffixes];
+  for (final member in ws.members) {
+    bool has(String path, List<String> suffixes) =>
+        !path.startsWith('dart:') &&
+        _hasSuffix(path, suffixes, packageName: member.name);
+
+    for (final file in listDartFiles(
+      ws.root,
+      p.join(member.directory, 'lib'),
+    )) {
+      // A platform file may use files of its own platform directly: it is
+      // itself only reached through a conditional clause.
+      final ownSuffixes = has(file, rules.nativeSuffixes)
+          ? rules.nativeSuffixes
+          : has(file, rules.webSuffixes)
+          ? rules.webSuffixes
+          : const <String>[];
+      for (final directive in _directivesOf(ws.root, file)) {
+        if (!has(directive.uri, platformSuffixes)) continue;
+        if (has(directive.uri, ownSuffixes)) continue;
+        yield RuleViolation(
+          rule: 'R6',
+          path: file,
+          line: directive.line,
+          message: directive.isConditional
+              ? 'the default URI `${directive.uri}` of a conditional '
+                    '${directive.kind.name} must be a stub, not a platform '
+                    'file'
+              : '`${directive.uri}` is a platform file: '
+                    '${directive.kind.name} it only through `if '
+                    '(dart.library.…)` clauses with a stub default '
+                    '(contract 7.4.3)',
+        );
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // R7 — no SDK Material / Cupertino; no other member's src/
 
 Iterable<RuleViolation> _checkR7(Workspace ws, WorkspaceRules rules) sync* {
@@ -574,6 +778,216 @@ Iterable<RuleViolation> _checkR9(Workspace ws, WorkspaceRules rules) sync* {
           );
         }
       }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// R10 — dependency_overrides only in the root pubspec
+
+Iterable<RuleViolation> _checkR10(Workspace ws) sync* {
+  for (final member in ws.members) {
+    if (member.pubspec.containsKey('dependency_overrides')) {
+      yield RuleViolation(
+        rule: 'R10',
+        path: member.pubspecPath,
+        line: lineOfKey(member.pubspec, 'dependency_overrides'),
+        message:
+            '${member.name}: `dependency_overrides` is allowed only in the '
+            'root pubspec.yaml',
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// R11 — dart format (async, runs `dart format`)
+
+/// The files R11 checks: `*.dart` under `app/`, `packages/` and `tool/`,
+/// without hidden and `build/` directories, [WorkspaceRules.generatedFiles]
+/// and [WorkspaceRules.fixtureDirs]. This set is also what "dart format
+/// leaves nothing changed" means (G4, contract V2). Sorted repo-relative
+/// paths.
+List<String> formatTargets(Workspace ws, WorkspaceRules rules) {
+  final generated = [for (final g in rules.generatedFiles) _globToRegExp(g)];
+  return [
+    for (final top in const ['app', 'packages', 'tool'])
+      for (final file in listDartFiles(ws.root, p.join(ws.root, top)))
+        if (!rules.fixtureDirs.any(file.startsWith) &&
+            !generated.any((g) => g.hasMatch(p.posix.basename(file))))
+          file,
+  ];
+}
+
+RegExp _globToRegExp(String glob) {
+  final pattern = StringBuffer('^');
+  for (final rune in glob.runes) {
+    final char = String.fromCharCode(rune);
+    pattern.write(switch (char) {
+      '*' => '.*',
+      '?' => '.',
+      _ => RegExp.escape(char),
+    });
+  }
+  pattern.write(r'$');
+  return RegExp(pattern.toString());
+}
+
+/// R11: runs `dart format --output=none --set-exit-if-changed` on
+/// [formatTargets] with [dart] and reports every file it would change.
+/// Returns an R11 violation on `pubspec.yaml` when the formatter itself
+/// fails.
+Future<List<RuleViolation>> checkFormat(
+  Workspace ws,
+  WorkspaceRules rules, {
+  required ProcessRunner processes,
+  required String dart,
+}) async {
+  final files = formatTargets(ws, rules);
+  if (files.isEmpty) return const [];
+  final violations = <RuleViolation>[];
+  // Keep each command line well below OS argument limits.
+  const chunk = 400;
+  for (var start = 0; start < files.length; start += chunk) {
+    final batch = files.sublist(
+      start,
+      start + chunk > files.length ? files.length : start + chunk,
+    );
+    final result = await processes.run(
+      dart,
+      ['format', '--output=none', '--set-exit-if-changed', ...batch],
+      workingDirectory: ws.root,
+      echo: false,
+    );
+    final changed = [
+      for (final line in result.output.split('\n'))
+        if (line.startsWith('Changed '))
+          line.substring('Changed '.length).trim(),
+    ];
+    for (final file in changed) {
+      violations.add(
+        RuleViolation(
+          rule: 'R11',
+          path: p.split(p.normalize(file)).join('/'),
+          line: 1,
+          message: 'not formatted: run `dart format $file`',
+        ),
+      );
+    }
+    if (result.exitCode != 0 && result.exitCode != 1) {
+      violations.add(
+        RuleViolation(
+          rule: 'R11',
+          path: 'pubspec.yaml',
+          line: 1,
+          message:
+              '`dart format` failed (exit code ${result.exitCode}): '
+              '${result.output.trim()}',
+        ),
+      );
+    } else if (result.exitCode == 1 && changed.isEmpty) {
+      violations.add(
+        RuleViolation(
+          rule: 'R11',
+          path: 'pubspec.yaml',
+          line: 1,
+          message: '`dart format` reported changes it did not name',
+        ),
+      );
+    }
+  }
+  return violations..sort();
+}
+
+// ---------------------------------------------------------------------------
+// R12 — tool/web_assets.yaml files in app/web/ with size and sha256
+
+Iterable<RuleViolation> _checkR12(Workspace ws) sync* {
+  final WebAssetsManifest? manifest;
+  try {
+    manifest = WebAssetsManifest.loadIfExists(
+      p.join(ws.root, webAssetsManifestPath),
+    );
+  } on WebAssetsFormatException catch (e) {
+    yield RuleViolation(
+      rule: 'R12',
+      path: webAssetsManifestPath,
+      line: 1,
+      message: e.message,
+    );
+    return;
+  }
+  if (manifest == null) return;
+  for (final problem in verifyWebAssets(
+    manifest,
+    p.join(ws.root, appWebDirectory),
+  )) {
+    yield RuleViolation(
+      rule: 'R12',
+      path: webAssetsManifestPath,
+      line: problem.asset.line,
+      message:
+          '$appWebDirectory/${problem.asset.path}: ${problem.message} '
+          '(run `dart run tool/ws.dart web-assets fetch`)',
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// R13 — app/web icon PNG sizes match their names
+
+final RegExp _iconSizeName = RegExp(r'-(\d+)\.png$');
+
+Iterable<RuleViolation> _checkR13(Workspace ws) sync* {
+  final web = p.join(ws.root, appWebDirectory);
+  final icons = Directory(p.join(web, 'icons'));
+  final files = <String>[
+    if (File(p.join(web, 'favicon.png')).existsSync()) 'favicon.png',
+    if (icons.existsSync())
+      for (final entry
+          in icons.listSync()..sort((a, b) => a.path.compareTo(b.path)))
+        if (entry is File && entry.path.endsWith('.png'))
+          'icons/${p.basename(entry.path)}',
+  ];
+  for (final name in files) {
+    final path = '$appWebDirectory/$name';
+    final size = pngSize(File(p.join(web, name)).readAsBytesSync());
+    if (size == null) {
+      yield RuleViolation(
+        rule: 'R13',
+        path: path,
+        line: 1,
+        message: 'not a PNG file (no IHDR)',
+      );
+      continue;
+    }
+    final match = _iconSizeName.firstMatch(name);
+    final expected = match == null ? null : int.parse(match.group(1)!);
+    if (expected == null) {
+      if (name.startsWith('icons/')) {
+        yield RuleViolation(
+          rule: 'R13',
+          path: path,
+          line: 1,
+          message: 'icon name must end with -<size>.png',
+        );
+      } else if (size.width != size.height) {
+        yield RuleViolation(
+          rule: 'R13',
+          path: path,
+          line: 1,
+          message: 'is ${size.width}x${size.height}, expected a square PNG',
+        );
+      }
+    } else if (size.width != expected || size.height != expected) {
+      yield RuleViolation(
+        rule: 'R13',
+        path: path,
+        line: 1,
+        message:
+            'is ${size.width}x${size.height}, its name says '
+            '${expected}x$expected',
+      );
     }
   }
 }

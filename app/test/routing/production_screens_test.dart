@@ -1,6 +1,7 @@
-// Foundation step B8 (contract 00-overview 7.6 B8, docs/plans/01-infra.md
-// 8.1 B8-1): the minimal router wired to the B6 LibraryScreen, the B5
-// EditorScreen and the shell settings placeholder, over CORE's fake store.
+// AppScreenBuilders.production() (docs/plans/01-infra.md 4.5.5, 6.6) under
+// createAppRouter: the B6 LibraryScreen, the B5 EditorScreen and the shell
+// settings screen over CORE's fake store. Started in foundation step B8
+// (contract 00-overview 7.6 B8) and kept for the production wiring (I6).
 //
 // The tests drive the screens only through their contract callbacks and
 // contract behaviour (7.2.17 / 7.2.18), never through placeholder body text,
@@ -11,13 +12,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show NoteStore;
+import 'package:note_core/note_core.dart' show NoteStore, noteStoreProvider;
 import 'package:note_core/testing.dart';
-import 'package:noteapp/src/app/foundation_app.dart';
 import 'package:noteapp/src/app/strings.dart';
-import 'package:noteapp/src/bootstrap/foundation_bootstrap.dart';
+import 'package:noteapp/src/bootstrap/startup_report.dart';
+import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/providers.dart';
+import 'package:noteapp/src/routing/app_router.dart';
 import 'package:noteapp/src/routing/app_routes.dart';
-import 'package:noteapp/src/settings/settings_placeholder_screen.dart';
+import 'package:noteapp/src/routing/screen_builders.dart';
+import 'package:noteapp/src/settings/settings_screen.dart';
+import 'package:pdf_io/pdf_io.dart';
 
 /// iPad Pro 13" portrait, logical 1032×1376 at DPR 2 (contract 7.4.8).
 void _useIpadPortrait(WidgetTester tester) {
@@ -27,7 +32,11 @@ void _useIpadPortrait(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-/// Pumps the B8 shell over [store] (a fresh fake store by default).
+/// Pumps the production screens over [store] (a fresh fake store by
+/// default) with the root overrides the screens need (contract 7.3.3:
+/// noteStoreProvider, pdf_io and the feature packages' own lists; the
+/// settings screen's about section also reads the shell's error log and
+/// startup report).
 Future<NoteStore> _pumpShell(
   WidgetTester tester, {
   String initialLocation = AppRoutes.library,
@@ -36,10 +45,24 @@ Future<NoteStore> _pumpShell(
   _useIpadPortrait(tester);
   final noteStore = store ?? createFakeNoteStore();
   addTearDown(noteStore.close);
+  final router = createAppRouter(
+    screens: AppScreenBuilders.production(),
+    initialLocation: initialLocation,
+  );
+  addTearDown(router.dispose);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: foundationOverrides(noteStore, pdfStarted: true),
-      child: FoundationApp(initialLocation: initialLocation),
+      overrides: [
+        noteStoreProvider.overrideWithValue(noteStore),
+        appErrorLogProvider.overrideWithValue(AppErrorLog()),
+        startupReportProvider.overrideWithValue(
+          const StartupReport(steps: [], bootstrapElapsed: Duration.zero),
+        ),
+        ...pdfIoOverrides(),
+        ...featureLibraryOverrides(),
+        ...featureEditorOverrides(),
+      ],
+      child: MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pumpAndSettle();
@@ -67,21 +90,7 @@ final Finder _anyLibrary = find.byType(LibraryScreen, skipOffstage: false);
 final Finder _anyEditor = find.byType(EditorScreen, skipOffstage: false);
 
 void main() {
-  group('AppRoutes', () {
-    test('builds encoded folder and note paths', () {
-      expect(AppRoutes.folder('f1'), '/folders/f1');
-      expect(AppRoutes.folder('a/b c'), '/folders/a%2Fb%20c');
-      expect(AppRoutes.note('n1'), '/notes/n1');
-      expect(AppRoutes.note('n1', pageId: 'p3'), '/notes/n1?page=p3');
-      expect(
-        AppRoutes.note('a/b', pageId: 'p 3&x'),
-        '/notes/a%2Fb?page=p+3%26x',
-      );
-      expect(AppRoutes.libraryPageKey, const ValueKey<String>('library'));
-    });
-  });
-
-  group('foundation router', () {
+  group('production screens', () {
     testWidgets('library → onOpenNote → editor → onClose → library', (
       tester,
     ) async {
@@ -183,14 +192,10 @@ void main() {
       _library(tester).onOpenSettings();
       await tester.pumpAndSettle();
       expect(_location(tester), AppRoutes.settings);
-      expect(find.byType(SettingsPlaceholderScreen), findsOneWidget);
+      expect(find.byType(SettingsScreen), findsOneWidget);
       expect(_pages(tester).last, isA<MaterialPage<Object?>>());
 
-      tester
-          .widget<SettingsPlaceholderScreen>(
-            find.byType(SettingsPlaceholderScreen),
-          )
-          .onClose();
+      tester.widget<SettingsScreen>(find.byType(SettingsScreen)).onClose();
       await tester.pumpAndSettle();
       expect(_location(tester), '/');
       expect(find.byType(LibraryScreen), findsOneWidget);
@@ -202,7 +207,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(_location(tester), AppRoutes.settings);
 
-      await tester.tap(find.byTooltip(AppStrings.back));
+      await tester.tap(find.byTooltip(AppStrings.close));
       await tester.pumpAndSettle();
       expect(_location(tester), '/notes/n1');
       expect(tester.state(find.byType(EditorScreen)), same(editorState));
@@ -235,24 +240,16 @@ void main() {
 
       _library(tester).onOpenSettings();
       await tester.pumpAndSettle();
-      tester
-          .widget<SettingsPlaceholderScreen>(
-            find.byType(SettingsPlaceholderScreen),
-          )
-          .onClose();
+      tester.widget<SettingsScreen>(find.byType(SettingsScreen)).onClose();
       await tester.pumpAndSettle();
       expect(_location(tester), '/folders/f9');
     });
 
     testWidgets('starting on settings and closing goes home', (tester) async {
       await _pumpShell(tester, initialLocation: AppRoutes.settings);
-      expect(find.byType(SettingsPlaceholderScreen), findsOneWidget);
+      expect(find.byType(SettingsScreen), findsOneWidget);
 
-      tester
-          .widget<SettingsPlaceholderScreen>(
-            find.byType(SettingsPlaceholderScreen),
-          )
-          .onClose();
+      tester.widget<SettingsScreen>(find.byType(SettingsScreen)).onClose();
       await tester.pumpAndSettle();
       expect(_location(tester), '/');
       expect(find.byType(LibraryScreen), findsOneWidget);

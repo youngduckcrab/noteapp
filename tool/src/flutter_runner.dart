@@ -126,12 +126,14 @@ abstract interface class ProcessRunner {
   ///
   /// [environment] entries are added to the parent environment. When
   /// [timeout] passes the process is killed and the result has `timedOut`.
+  /// With [echo] `false` the output is only captured, not shown.
   Future<RunResult> run(
     String executable,
     List<String> arguments, {
     required String workingDirectory,
     Map<String, String> environment = const {},
     Duration? timeout,
+    bool echo = true,
   });
 }
 
@@ -148,6 +150,7 @@ final class IoProcessRunner implements ProcessRunner {
     required String workingDirectory,
     Map<String, String> environment = const {},
     Duration? timeout,
+    bool echo = true,
   }) async {
     final process = await Process.start(
       executable,
@@ -159,7 +162,7 @@ final class IoProcessRunner implements ProcessRunner {
     final captured = StringBuffer();
     void forward(String chunk) {
       captured.write(chunk);
-      _out.write(chunk);
+      if (echo) _out.write(chunk);
     }
 
     final done = Future.wait([

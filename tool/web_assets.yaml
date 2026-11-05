@@ -1,0 +1,19 @@
+# Static files that must be in app/web/ (docs/plans/01-infra.md 4.3,
+# contract 00-overview 7.4.9). Both files are committed so that builds and
+# deploys need no network. `dart run tool/ws.dart web-assets verify` checks
+# presence, size and sha256 (also `ws check` R12); `web-assets fetch`
+# downloads a missing or changed file and writes it only when the sha256
+# matches. When CORE moves the sqlite3 / drift pins, update this table too.
+assets:
+  - path: sqlite3.wasm               # relative to app/web/
+    url: https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-3.8.0/sqlite3.wasm
+    bytes: 758619
+    sha256: efd308be92a34f3aa15f289a37f213b0230fd80888a1364326ee29579d892d37
+    owner: CORE
+    reason: drift web database (sqlite3 3.8.0 — must match note_core's sqlite3 pin)
+  - path: drift_worker.js
+    url: https://github.com/simolus3/drift/releases/download/drift-2.35.3/drift_worker.js
+    bytes: 361829
+    sha256: a54b81412d4c4ab56653bb9e4c02912b0820bb37e2bba00722ddef4d78083d4a
+    owner: CORE
+    reason: drift web worker (drift 2.35.3 — same bytes as pub cache drift-2.35.3/drift_worker.js)
