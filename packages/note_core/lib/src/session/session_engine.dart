@@ -107,7 +107,11 @@ final class SessionEngine implements NoteSession, ResolveState {
   @override
   Stream<Note> get noteStream => _noteCtrl.stream;
   @override
-  bool get isReadOnly => _note.requiresNewerApp || _note.isDeleted;
+  /// N-4, plus a note whose migration failed (older format, 6.15).
+  bool get isReadOnly =>
+      _note.requiresNewerApp ||
+      _note.isDeleted ||
+      _note.schemaVersion < kNoteSchemaVersion;
   @override
   List<Page> get pages => _active;
   @override

@@ -18,6 +18,7 @@ import '../assets/thumbnail_cache_impl.dart';
 import '../backup/backup_export.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
+import '../migration/note_migrator.dart';
 import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
 import '../repo/events.dart';
@@ -93,6 +94,7 @@ final class DriftNoteStore implements NoteStore {
     sync = DriftSyncStore(this);
     sessions = DriftSessions(this);
     queue.onCommitted = sessions.committed;
+    _noteMigrator = NoteMigrator(kNoteMigrationSteps, store: this);
   }
 
   /// Opens [executor] as a note database: runs the schema steps (6.15), reads or
@@ -209,6 +211,14 @@ final class DriftNoteStore implements NoteStore {
 
   /// Open note sessions (6.14).
   late final DriftSessions sessions;
+
+  /// Note content migration, run when an older note is opened (6.15).
+  NoteMigrator get noteMigrator => _noteMigrator;
+  late NoteMigrator _noteMigrator;
+
+  /// Tests: other migration steps (the app has none yet — kNoteSchemaVersion 1).
+  @visibleForTesting
+  set noteMigrator(NoteMigrator migrator) => _noteMigrator = migrator;
 
   @override
   Stream<ChangeBatch> get changes => bus.stream;

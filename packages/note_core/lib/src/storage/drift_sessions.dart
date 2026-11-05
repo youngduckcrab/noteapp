@@ -90,13 +90,22 @@ final class DriftSessions {
     if (row == null || row.ownerId != s.ownerId) {
       throw EntityNotFoundException('Note $noteId does not exist');
     }
-    // A newer schema opens read-only (Note.requiresNewerApp, N-4); an older one is
-    // migrated by NoteMigrator (CORE T15) — v1 is the only schema so far.
+    // A newer schema opens read-only (Note.requiresNewerApp, N-4). An older one is
+    // migrated first (6.15); when that fails the note stays at its version and the
+    // session is read-only (SessionEngine.isReadOnly) — not an open failure.
+    var note = noteOf(row);
+    if (note.schemaVersion < kNoteSchemaVersion) {
+      try {
+        note = await s.noteMigrator.migrateIfNeeded(noteId);
+      } on Object {
+        // Read-only below; the note keeps its rows.
+      }
+    }
     final pages = await (_db.select(
       _db.pages,
     )..where((t) => t.noteId.equals(noteId) & t.deletedAt.isNull())).get();
     return SessionEngine(
-      note: noteOf(row),
+      note: note,
       pages: [for (final p in pages) pageOf(p)],
       backend: _DriftSessionBackend(this, noteId),
       options: options,
