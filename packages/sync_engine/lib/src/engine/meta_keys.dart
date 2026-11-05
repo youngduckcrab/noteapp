@@ -85,9 +85,17 @@ final class ScopeStats {
     _entries[scope] = (n: (e?.n ?? 0) + 1, c: e?.c ?? 0);
   }
 
-  /// After compacting [scope] (6.13 step 5): n = 0, c = [atMillis].
-  void markCompacted(String scope, int atMillis) {
-    _entries[scope] = (n: 0, c: atMillis);
+  /// After compacting [scope] (6.13 step 5): n = [chunks] (the snapshot chunks),
+  /// c = [atMillis].
+  void markCompacted(String scope, int atMillis, {int chunks = 0}) {
+    _entries[scope] = (n: chunks, c: atMillis);
+  }
+
+  /// A compaction of [scope] read it and left it as it was (too large, a newer format, a held
+  /// chunk): c = [atMillis], n kept — the next try waits minInterval like after a
+  /// compaction.
+  void markAttempted(String scope, int atMillis) {
+    _entries[scope] = (n: countOf(scope), c: atMillis);
   }
 
   /// Sorted JSON; over [maxScopes] the scopes with the smallest n (then name) are dropped.

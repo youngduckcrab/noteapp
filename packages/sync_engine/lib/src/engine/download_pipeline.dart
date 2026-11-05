@@ -185,6 +185,25 @@ final class DownloadPipeline {
   /// `sync.deferredFrom` (6.6.5): a chunk in a newer format was seen.
   ServerCursor? get deferredFrom => _deferredFrom;
 
+  /// Compaction step 5 (6.13): `sync.scopeStats[scope] = {n: snapshotChunks, c: atMillis}`
+  /// (writeMeta). Run on the engine's serial executor, like every apply.
+  Future<void> markCompacted(
+    String scope, {
+    required int snapshotChunks,
+    required int atMillis,
+  }) => _writeStats(
+    _stats.copy()..markCompacted(scope, atMillis, chunks: snapshotChunks),
+  );
+
+  /// A compaction read [scope] and skipped it: c = [atMillis], n kept (ScopeStats).
+  Future<void> markCompactionAttempted(String scope, {required int atMillis}) =>
+      _writeStats(_stats.copy()..markAttempted(scope, atMillis));
+
+  Future<void> _writeStats(ScopeStats stats) async {
+    await sync.writeMeta({MetaKeys.scopeStats: stats.encode()});
+    _stats = stats;
+  }
+
   /// Chunk ids applied in this session (6.6.3 step 1).
   bool wasApplied(String chunkId) => _applied.contains(chunkId);
 

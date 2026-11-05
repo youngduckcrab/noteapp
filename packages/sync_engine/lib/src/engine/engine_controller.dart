@@ -19,6 +19,7 @@ import '../backend/remote_chunk.dart';
 import '../backend/sync_backend.dart';
 import '../common/errors.dart';
 import '../common/server_cursor.dart';
+import '../compaction/compactor.dart';
 import '../config.dart';
 import '../local/sync_local_store.dart';
 import '../merge/folder_cycles.dart';
@@ -71,6 +72,10 @@ final class _Session {
   late PageResurrection resurrection;
   late FolderCycleDetector cycles;
   late PurgeGuard guard;
+  late Compactor compactor;
+
+  /// Scope → wall ms before which a failed compaction is not tried again (6.13).
+  final Map<String, int> compactRetryAt = {};
 
   /// Cycle rechecks waiting for cycleRepairGrace (6.7.2).
   final Set<Timer> cycleTimers = {};
@@ -96,7 +101,8 @@ final class EngineController {
     required Random random,
     required Stopwatch Function() stopwatch,
     this.log,
-  }) : _monotonic = stopwatch()..start(),
+  }) : _random = random,
+       _monotonic = stopwatch()..start(),
        _serverClock = ServerClock(
          now: clock.now,
          stopwatch: stopwatch,
@@ -147,9 +153,13 @@ final class EngineController {
   /// Consecutive local-store failures that make localStoreFailure (6.5.4).
   static const int storeFailureLimit = 5;
 
-  /// K2 release check while live (6.6.1).
+  /// K2 release check while live (6.6.1); also the compaction trigger check (6.13).
   static const Duration releaseInterval = Duration(minutes: 1);
 
+  /// Wait after a compaction that failed on a backend call (6.13).
+  static const Duration compactionRetry = Duration(minutes: 10);
+
+  final Random _random;
   final Stopwatch _monotonic;
   final ServerClock _serverClock;
   final Backoff _pushBackoff, _pullBackoff;
@@ -174,7 +184,7 @@ final class EngineController {
   int? _pendingSince;
 
   Timer? _retryTimer, _pushRetryTimer, _k4Timer;
-  Timer? _releaseTimer, _heartbeatTimer, _sampleTimer;
+  Timer? _releaseTimer, _heartbeatTimer, _sampleTimer, _compactTimer;
 
   // Debug counters (SyncEngineDebug).
   int _pushCycles = 0, _commits = 0, _chunksSent = 0, _recordsSent = 0;
@@ -381,6 +391,7 @@ final class EngineController {
         final waiting =
             status.pendingUploads - status.quarantinedUploads - held;
         if (waiting > 0) return '$waiting uploads pending';
+        if (_compactTimer != null) return 'compaction scheduled';
         return assets.busyReason;
       default:
         return null;
@@ -681,6 +692,12 @@ final class EngineController {
       },
       afterGroup: (outcomes) => _afterGroup(s, outcomes),
     );
+    s.compactor = Compactor(
+      sync: sync,
+      backend: backend,
+      config: config,
+      purged: s.purged,
+    );
     s.listener = LiveListener(
       backend: backend,
       config: config,
@@ -785,10 +802,10 @@ final class EngineController {
     _scheduler.setLive(true);
     _scheduler.trigger(immediate: true);
     assets.setLive(true);
-    _releaseTimer = Timer.periodic(
-      releaseInterval,
-      (_) => unawaited(_enqueue('release held', _releaseHeld)),
-    );
+    _releaseTimer = Timer.periodic(releaseInterval, (_) {
+      unawaited(_enqueue('release held', _releaseHeld));
+      _scheduleCompaction();
+    });
     _heartbeatTimer = Timer.periodic(
       config.deviceHeartbeat,
       (_) => unawaited(_enqueue('heartbeat', _remeasure)),
@@ -1343,11 +1360,12 @@ final class EngineController {
       _releaseTimer,
       _heartbeatTimer,
       _sampleTimer,
+      _compactTimer,
     ]) {
       t?.cancel();
     }
     _retryTimer = _pushRetryTimer = _k4Timer = null;
-    _releaseTimer = _heartbeatTimer = _sampleTimer = null;
+    _releaseTimer = _heartbeatTimer = _sampleTimer = _compactTimer = null;
     _scheduler.setLive(false);
     assets.setLive(false);
     final s = _session;
@@ -1356,6 +1374,86 @@ final class EngineController {
       _status.nextRetryAt = null;
       _status.initialSync = null;
     });
+  }
+
+  // ---- compaction (6.13) ------------------------------------------------------------------
+
+  /// The engine part of the trigger: enabled, live, nothing pending, foreground, no
+  /// collapsed hold, no deferred format (the scope statistics are Compactor.dueScopes).
+  bool _compactionAllowed(_Session? s) =>
+      config.compaction.enabled &&
+      !_disposed &&
+      s != null &&
+      s.backend != null &&
+      _status.phase == SyncPhase.live &&
+      _status.pendingUploads == 0 &&
+      _backgroundSince == null &&
+      s.download.held.collapsed == null &&
+      s.download.deferredFrom == null;
+
+  /// Due scopes of [s] now, without those waiting after a failure.
+  List<String> _dueScopes(_Session s) {
+    final now = _wallMillis();
+    return [
+      for (final scope in Compactor.dueScopes(
+        s.download.scopeStats,
+        config.compaction,
+        nowMillis: now,
+      ))
+        if ((s.compactRetryAt[scope] ?? 0) <= now) scope,
+    ];
+  }
+
+  /// While live (every releaseInterval and after a compaction): when a scope is due, runs
+  /// one compaction after random(0..startJitterMax) and a recheck.
+  void _scheduleCompaction() {
+    final s = _session;
+    if (_compactTimer != null || !_compactionAllowed(s)) return;
+    if (_dueScopes(s!).isEmpty) return;
+    final jitter = config.compaction.startJitterMax.inMilliseconds;
+    _compactTimer = Timer(
+      Duration(milliseconds: jitter <= 0 ? 0 : _random.nextInt(jitter + 1)),
+      () {
+        _compactTimer = null;
+        unawaited(_enqueue('compact', _compactOnce));
+      },
+    );
+  }
+
+  Future<void> _compactOnce(int epoch) async {
+    final s = _session;
+    if (s == null || _stale(epoch) || !_compactionAllowed(s)) return;
+    final due = _dueScopes(s);
+    if (due.isEmpty) return;
+    final scope = due.first;
+    try {
+      final result = await s.compactor.compact(
+        scope,
+        held: s.download.held,
+        deferredFrom: s.download.deferredFrom,
+      );
+      if (_stale(epoch)) return;
+      final now = _wallMillis();
+      if (result.error != null) {
+        _log(SyncLogLevel.warning, 'compaction of $scope failed', result.error);
+        s.compactRetryAt[scope] = now + compactionRetry.inMilliseconds;
+      } else if (result.completed) {
+        _log(SyncLogLevel.info, 'compacted: $result');
+        await s.download.markCompacted(
+          scope,
+          snapshotChunks: result.snapshotChunks,
+          atMillis: now,
+        );
+      } else if (result.fetched > 0) {
+        _log(SyncLogLevel.info, 'compaction skipped: $result');
+        await s.download.markCompactionAttempted(scope, atMillis: now);
+      }
+    } on Object catch (e) {
+      if (_stale(epoch)) return;
+      _log(SyncLogLevel.warning, 'compaction of $scope failed', e);
+      s.compactRetryAt[scope] = _wallMillis() + compactionRetry.inMilliseconds;
+    }
+    if (!_stale(epoch)) _scheduleCompaction();
   }
 
   // ---- helpers ----------------------------------------------------------------------------
