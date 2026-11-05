@@ -20,7 +20,7 @@
 | L5 | 완료 | d12ef32 | `unit/tree_flatten_test.dart`, `unit/breadcrumb_test.dart`, `unit/location_label_test.dart` |
 | L6 | 완료 | 8dd7f5f | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
 | L7 | 완료 | 6e936b5 | `unit/actions_test.dart` |
-| L8 | 완료 | (이 커밋) | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
+| L8 | 완료 | 58eb35c | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
 | L9 | 남음 | | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
 | L10 | 남음 | | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` |
 | L11 | 남음 | | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` |
@@ -84,3 +84,6 @@
 - provider는 모두 `lib/src/state/providers.dart`에 모은다(지금: `libraryPrefsProvider`, `newNoteDefaultsProvider`, `librarySectionProvider`, `librarySelectionProvider`). `selection_notifier.dart`가 `providers.dart`를 import한다(순환 import, Dart에서 허용).
 - 오류 보고는 `reportLibraryError(error, stack, context)`(`lib/src/common/report_error.dart`).
 - 세션 1 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 175개 통과, `flutter test --platform chrome test/web` 6개 통과(L3 브라우저 파일).
+- 세션 2 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 293개 통과, `flutter test --platform chrome test/web` 6개 통과.
+- L9·L10 시작점: 화면 부분은 `LibraryScope.of(context)`(빌드)/`LibraryScope.read(context)`(이벤트)로 `openFolder`·`openNote`·`openSettings`·`sizeClass`·`routeFolderId`를 얻는다. 섹션은 `ref.watch(librarySectionProvider(scope.routeFolderId))`. 사이드바 행은 `sidebarRowsProvider`, 펼침은 `folderExpansionProvider`, 휴지통 개수는 `trashCountProvider`, 목록은 `libraryContentProvider(section)`, 폴더 없음 판정은 `folderLookupProvider(id)`, 변경은 `libraryActionsProvider`, 스낵바는 `showLibrarySnackBar`. 브레드크럼은 `breadcrumbPath(tree, id)` + `compressBreadcrumb(maxVisible: breadcrumbMaxVisibleFor(sizeClass))`, 그리드 치수는 `GridMetrics.forWidth(LayoutBuilder 폭, sizeClass:, textScale:)`.
+- 위젯 테스트에서 provider 컨테이너는 `ProviderScope.containerOf(tester.element(find.byType(LibraryTopBar)))`로 얻을 수 있다(`widget/layout_test.dart`).
