@@ -1,10 +1,10 @@
 # 04. 에디터 화면 (EDITOR) 상세 계획서
 
-> 상태: **2차 수정본 v0.3** (총괄 2차 승인 검토 반영, 최종 승인 대기) · 영역 ID: **EDITOR** · 소유 경로: `packages/feature_editor/`
-> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 **통합 계약 v1.1**(변경 이력 7.9 C11-01~30, 이 문서와 다르면 계약이 우선) · 검토: [00-review.md](00-review.md) 3.4(1차) · '2차 검토' 2.4.4(EDITOR-2-1~12)
+> 상태: **승인** (2차 수정본 v0.3 — 3차 승인, 4차·최종 승인 유지: [00-review.md '최종 승인'](00-review.md#최종-승인)) · 영역 ID: **EDITOR** · 소유 경로: `packages/feature_editor/`
+> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 **통합 계약 v1.4**(변경 이력 7.9 C11-01~30·C12·C13-01~05·C14-01~02, 이 문서와 다르면 계약이 우선) · 검토: [00-review.md](00-review.md) 3.4(1차) · '2차 검토' 2.4.4(EDITOR-2-1~12) · '3차 검토' 3.4.4(EDITOR-3-1~3) · '4차 검토' 4.4.4(EDITOR-4-1) · '최종 승인' — 반영은 13.3
 > 작성 환경에서 실제 확인한 것: Flutter 3.47.9 / Dart 3.13.7, pub.dev 패키지 정보(2026-11-04 재확인), Flutter 웹 엔진 포인터 소스(`flutter_web_sdk/lib/_engine/engine/pointer_binding.dart`), `material_ui` 1.10.0 소스(pub 캐시), 스크래치 프로젝트 세 개: `/tmp/claude-0/plan-scratch/editor/rp_probe`(초안 — Riverpod 3.4.3 웹 빌드·scoped provider·`EagerGestureRecognizer`), `/tmp/claude-0/plan-scratch/editor/v2_probe`(1차 수정 — 아래 '확인한 것' 표 V1~V6), `/tmp/claude-0/plan-scratch/editor/v3_probe`(2차 수정 — V7)
 
-이 문서만 보고 별도 git worktree에서 구현할 수 있도록 공개 API, 사용하는 계약, 알고리즘 수치, provider 이름, 작업 순서와 완료 조건을 적는다. 다른 영역의 타입·인터페이스는 **통합 계약 v1.1(00-overview 7장)과 계약이 승인한 각 계획서 절(CORE 4.x, INK 4.x)의 이름·형태를 그대로 쓴다.** EDITOR가 가정해 따로 정의한 공유 타입은 없다. 계약 블록을 옮긴 곳은 v1.1 주석까지 글자 그대로다. 계약에 문제가 있다고 본 점은 계약대로 쓰고 12.2에 '계약 변경 제안'으로 남긴다(2차 수정 시점에 새 제안 없음). 검토 반영 내역은 13절.
+이 문서만 보고 별도 git worktree에서 구현할 수 있도록 공개 API, 사용하는 계약, 알고리즘 수치, provider 이름, 작업 순서와 완료 조건을 적는다. 다른 영역의 타입·인터페이스는 **통합 계약 v1.4(00-overview 7장)과 계약이 승인한 각 계획서 절(CORE 4.x, INK 4.x)의 이름·형태를 그대로 쓴다.** EDITOR가 가정해 따로 정의한 공유 타입은 없다. 계약 블록을 옮긴 곳은 v1.1 주석까지 글자 그대로다. 계약에 문제가 있다고 본 점은 계약대로 쓰고 12.2에 '계약 변경 제안'으로 남긴다(2차 수정 시점에 새 제안 없음). 검토 반영 내역은 13절.
 
 표기
 
@@ -3378,3 +3378,18 @@ testWidgets('rejected erase → discardEdit, erased strokes visible again', (tes
 | C11-03~08·18·20·22·23 | EDITOR 표면에 닿지 않음(CORE·SYNC·PDF·INK 내부) |
 
 미반영 항목: 없음. 계약 변경 제안: 없음(12.2).
+
+### 13.3 최종 승인 반영 (00-review '3차 검토' 3.4.4 · '4차 검토' 4.4.4 · '최종 승인', 계약 v1.3 C13-05 · v1.4, 2026-11-05)
+
+계획서 설계 변경은 없다(재승인 조건 없음). 아래는 구현 때 따르는 규칙이다.
+
+| # | 종류 | 반영 |
+|---|---|---|
+| EDITOR-3-1 | 구현 규칙 | CORE를 부르는 곳은 `EditorCommands`의 `_run`·`_runAsync`·`_runHistory` 셋뿐이다 — 5.1.3 표의 '호출' 열보다 이 문장이 우선. 현재 페이지 전체 지우기·페이지 추가·복제 = `_runAsync` → `session.executeAsync`, 페이지 삭제·이동 = `_run` → `session.execute`(6.8 `deletePages`·`movePage` 포함 — 읽기 전용 경합 `ReadOnlyNoteException`을 잡음). E-17 `page_panel_test`에 `rejectNext`로 삭제 거부 → 예외가 버튼 핸들러 밖으로 나가지 않음 1건 |
+| EDITOR-3-2 | 구현 규칙 | 레이아웃 재계산 기준은 6.3.4 `updatePages`·6.4.3 슬롯 키 `(page.id, page.size, settledScale)`·6.13.2 표(id 순서·크기가 같으면 재계산 없음, 배경 변경은 `pageChanges` → INK 컨트롤러). 12.3 Q-E1 결과 칸의 'id·크기·배경'보다 우선 |
+| EDITOR-3-3 | 확인 | C12-01(`dart_test.yaml`, 태그 리터럴)·C12-03·C12-09 이미 맞음. 알려진 한계: 저장 실패가 계속되면 뒤로가기가 '저장하는 중…'에서 계속 기다림(시간 제한 없음 — 최종 승인 주의 3·10) |
+| EDITOR-4-1 | 절차 (C13-05) | 머리 상태 줄 '승인', 계약 인용 v1.4. v1.3(C13-01~04)은 EDITOR 표면에 영향 없음(C13-03 올가미 색은 INK가 그림, EDITOR 선택 핸들 등은 `colorScheme`) |
+| C14-01 | 계약 v1.4 | INK `SelectionGeometry`가 Flutter `rendering.dart`의 같은 이름과 겹친다. EDITOR는 INK를 항상 `as ink` 접두사로 가져오므로(표기 절) 영향 없음. `package:flutter/rendering.dart`를 직접 가져오는 파일이 생기면 `hide SelectionGeometry` |
+| C14-02 | 계약 v1.4 | R15는 `test`·`testWidgets`·`group`의 `tags:`와 `@Tags`만 셈. EDITOR 할 일 없음 |
+
+개발 진행 기록: [progress/editor.md](progress/editor.md).
