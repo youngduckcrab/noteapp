@@ -1338,20 +1338,8 @@ void main() {
       expect(pdfEditorAddPageSources(), isEmpty);
     });
 
-    // importPdfAsNewNote is the real flow from PDF T6 (widget/import_flow_test.dart).
-    testWidgets('exportNotesAsPdf → nothing', (tester) async {
-      late BuildContext context;
-      await tester.pumpWidget(
-        Builder(
-          builder: (c) {
-            context = c;
-            return const SizedBox();
-          },
-        ),
-      );
-      await exportNotesAsPdf(context, const ['n1', 'n2']);
-      await exportNotesAsPdf(context, const []);
-    });
+    // importPdfAsNewNote is the real flow from PDF T6 (widget/import_flow_test.dart),
+    // exportNotesAsPdf from T15b (widget/batch_export_flow_test.dart).
 
     test('platform factories on the VM', () async {
       expect(createPlatformOutputSink().availableActions(const []), isEmpty);

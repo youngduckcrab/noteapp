@@ -5,10 +5,9 @@
 /// `createFakeNoteStore()` (contract 7.4.8); FakePdfNoteGateway is a thin port fake for fast
 /// unit tests.
 ///
-/// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5) and
-/// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7), BoxInkVectorizer (PDF T12)
-/// and RecordingComposeBackend (PDF T15) are real. FakePdfOutputSink is signatures only
-/// until the PDF task named in its UnimplementedError.
+/// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5),
+/// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7), BoxInkVectorizer (PDF T12),
+/// RecordingComposeBackend (PDF T15) and FakePdfOutputSink (PDF T15b) are real.
 library;
 
 import 'dart:async';
@@ -29,9 +28,6 @@ import 'src/export/vectors.dart';
 import 'src/files/pdf_file_source.dart';
 import 'src/gateway/pdf_note_gateway.dart';
 import 'src/output/pdf_output_sink.dart';
-
-Never _todo(String member, String task) =>
-    throw UnimplementedError('$member (PDF $task)');
 
 /// Text drawn with the base-14 Helvetica font. When [mapped] is true every distinct
 /// UTF-16 code unit gets a single-byte code and a ToUnicode CMap entry, so ANY BMP text
@@ -1075,18 +1071,53 @@ final class _PickError {
 }
 
 /// records deliveries (result lists)
+///
+/// Behaves like the browser sink of an iPad (4.10): share for any non-empty list while
+/// [canShare], download / openInNewTab for exactly one result while [canDownload] /
+/// [canOpenInNewTab]. deliver records (results, action) in [deliveries] synchronously and
+/// answers the next queued outcome (empty queue → done); an action that is not available →
+/// ArgumentError. Beyond 4.14 (PDF T15b): the three switches, [availableActionsCalls]
+/// (each result list asked about), [enqueueOutcome].
 final class FakePdfOutputSink implements PdfOutputSink {
-  FakePdfOutputSink();
+  FakePdfOutputSink({
+    this.canShare = true,
+    this.canDownload = true,
+    this.canOpenInNewTab = true,
+  });
+
+  bool canShare, canDownload, canOpenInNewTab;
+  final List<(List<PdfExportResult>, PdfOutputAction)> deliveries = [];
+  final List<List<PdfExportResult>> availableActionsCalls = [];
+  final List<PdfOutputOutcome> _outcomes = [];
+
+  /// The outcome of a later deliver (in call order).
+  void enqueueOutcome(PdfOutputOutcome outcome) => _outcomes.add(outcome);
+
+  Set<PdfOutputAction> _actions(List<PdfExportResult> results) => {
+    if (results.isNotEmpty && canShare) PdfOutputAction.share,
+    if (results.length == 1 && canDownload) PdfOutputAction.download,
+    if (results.length == 1 && canOpenInNewTab) PdfOutputAction.openInNewTab,
+  };
 
   @override
-  Set<PdfOutputAction> availableActions(List<PdfExportResult> results) =>
-      _todo('FakePdfOutputSink.availableActions', 'T16');
+  Set<PdfOutputAction> availableActions(List<PdfExportResult> results) {
+    availableActionsCalls.add(List.unmodifiable(results));
+    return _actions(results);
+  }
 
   @override
   Future<PdfOutputOutcome> deliver(
     List<PdfExportResult> results,
     PdfOutputAction action,
-  ) => _todo('FakePdfOutputSink.deliver', 'T16');
+  ) {
+    if (!_actions(results).contains(action)) {
+      throw ArgumentError.value(action, 'action', 'not available');
+    }
+    deliveries.add((List.unmodifiable(results), action));
+    return Future.value(
+      _outcomes.isEmpty ? PdfOutputOutcome.done : _outcomes.removeAt(0),
+    );
+  }
 }
 
 /// records plan/ops, returns '%PDF-fake'

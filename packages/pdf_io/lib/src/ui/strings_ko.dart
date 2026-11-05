@@ -199,4 +199,36 @@ abstract final class PdfStringsKo {
   /// The only button of the import progress dialog during a storage delay (6.3).
   static const String close = '닫기';
   static const String cancel = '취소';
+
+  // ---------------------------------------------------------------- export flows (6.12)
+
+  static const String exportTitle = 'PDF로 내보내기';
+
+  /// Options sheet title of a bulk export (6.12.1 step 2; one note → its title).
+  static String batchExportTitle(int noteCount) =>
+      '$exportTitle · 노트 $noteCount개';
+  static const String includeInk = '필기 포함';
+  static const String includeTemplates = '속지 포함';
+  static const String exportButton = '내보내기';
+  static const String exportProgressTitle = 'PDF 만드는 중';
+
+  /// Result sheet title of a single export.
+  static const String exportDone = 'PDF를 만들었어요';
+
+  /// '미적분 3강.pdf · 2.4MB'
+  static String exportFileLine(String fileName, int bytes) =>
+      '$fileName · ${megabytes(bytes)}MB';
+  static const String batchFailedHeader = '만들지 못한 노트';
+
+  /// A failed batch item: '{title}: {userMessage}' (a missing note has no title).
+  static String batchFailedLine(String title, String message) =>
+      '${title.isEmpty ? '노트' : title}: $message';
+  static const String shareAll = '모두 공유';
+  static const String share = '공유';
+  static const String download = '다운로드';
+  static const String openInNewTab = '새 탭에서 열기';
+
+  /// PdfOutputOutcome.needsUserGesture (Safari: the tap's user activation expired).
+  static const String needsUserGesture = '한 번 더 눌러 주세요';
+  static const String deliverFailed = '파일을 넘기지 못했어요. 다시 시도해 주세요.';
 }

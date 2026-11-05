@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 6/10 (동시 개발 단계)
-- 다음 할 일: T15b 일괄 내보내기(테스트·노티파이어·`exportNotesAsPdf` 흐름) → T16 출력·내보내기 UI
+- 다음 할 일: T16 출력·내보내기 UI(`output_sink_browser.dart`, 단일 옵션 시트, `runPdfExportFlow`) → T17
 
 ## 작업 표
 
@@ -24,8 +24,8 @@
 | T12 | 완료 | 405875c | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
 | T13 | 완료 | 4081b1a | pdfium/compose_native_test (+ support/compose_probes.dart — T14와 같은 탐침 목록, unit/compose_layout_test) |
 | T14 | 완료 | 0da121f | web/compose_browser_test (T13과 같은 탐침 20개 + 워커 관리 7개), web/foundation_browser_test(웹 합성 팩토리 `isSupported`) |
-| T15 | 완료 | (이 커밋) | unit/export_service_test, pdfium/export_e2e_test (+ support/export_world.dart, web/pure_logic_browser_test 웹 묶음 16쪽, unit/error_messages_test 잘린 쪽 목록) |
-| T15b | 남음 | | unit/batch_export_test, widget/batch_export_flow_test |
+| T15 | 완료 | 809273e | unit/export_service_test, pdfium/export_e2e_test (+ support/export_world.dart, web/pure_logic_browser_test 웹 묶음 16쪽, unit/error_messages_test 잘린 쪽 목록) |
+| T15b | 완료 | (이 커밋) | unit/batch_export_test, widget/batch_export_flow_test |
 | T16 | 남음 | | widget/export_flow_test, web/output_sink_browser_test |
 | T17 | 남음 | | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test |
 | T18 | 남음 | | perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test (perf 태그) |
@@ -108,6 +108,11 @@
 - T15 `exportNotes`도 이 작업에서 구현했다(T15 완료 조건의 일괄 취소 시험 때문). 없는 노트 → 항목 `noteNotFound`(제목 ''), 노트별 PdfIoException은 항목에 기록, `cancelled`면 그 노트는 항목에 넣지 않고 끝(`notReachedCount`에 포함), `engineUnavailable`·`unsupportedPlatform`은 일괄 전체를 그 오류로 끝냄, 예상 밖 오류는 보고 + 항목 `exportFailed`. **150MB 상한(`batchMaxTotalBytesWeb`)은 웹만이 아니라 모든 플랫폼에 적용**(결과를 모두 메모리에 쥐는 것은 네이티브도 같고, VM 시험이 가능). 상한 확인은 다음 노트 시작 전. 파일 이름 중복 제거는 끝난 뒤 성공 항목에 `deduplicate`(이름이 바뀐 결과는 같은 바이트로 새 `PdfExportResult`). `options.fileName`은 `copyWith`대로 그대로 남는다(모든 노트가 같은 이름 → ' (2)'…). T15b는 일괄 시험·노티파이어·흐름이 남는다.
 - T15 `PdfExportJobNotifier`: 가져오기 노티파이어와 같은 규칙(자기 작업 중 두 번째 run → null·상태 유지, 다른 PDF 작업 중 → `Failed(busy)`, 서비스 busy도 `Failed(busy)`, 예상 밖 오류는 보고 + `Failed(exportFailed, cause)`). 진행률 묶음은 내부 `_ProgressThrottle`(providers.dart — 가져오기 노티파이어는 그대로 둠). `cancel()`은 flush 대기 중에도 바로 `Failed(cancelled)`.
 - T15 `RecordingComposeBackend`(4.14 '계획·ops 기록, %PDF-fake'): 생성자 `supported`·`result`(계획 → 바이트), 기록 `plans`·`chunks`·`events`('begin#1'·'addPages#1'·'finish#1'·'abort#1' — 작업 번호 = plans 위치)·`pagesOfJob(n)`·`openJobCount`·`disposed`, 오류 `beginError`·`addPagesError`·`finishError`(설정되어 있는 동안 매번), 훅 `beforeBegin`·`beforeAddPages`·`beforeFinish`. 실제 백엔드처럼 빈 계획·sourceIndex/outputIndex 범위 밖은 ArgumentError, finish/abort 뒤 addPages·finish와 dispose 뒤 begin은 StateError, finish가 시작되면 abort는 아무것도 안 함, dispose는 열린 작업을 abort. 공개 최상위 이름 추가 없음(작업 클래스는 비공개).
+- T15b `PdfBatchExportJobNotifier`: 단일 내보내기 노티파이어와 같은 규칙. 빈 목록은 서비스를 부르지 않고 바로 `Finished(항목 0개)`. 처음 상태 `Running(PdfBatchProgress(0, n, preparingExport))`.
+- T15b `exportNotesAsPdf`(6.12.1): busy면 스낵바 '다른 PDF 작업이 진행 중이에요.'. 시트 제목은 노트가 1개면 `getNote` 제목(비었거나 없으면 'PDF로 내보내기 · 노트 1개'). 옵션 시트(내부 `showPdfBatchExportOptionsSheet` — '필기 포함'·'속지 포함' 스위치, '취소'·'내보내기') → 진행 창(`DialogRoute`, 루트 navigator, 내부 `PdfExportProgressDialog(batch: true)` — `PdfBatchProgress.label` + 전체 막대, writeFailing이면 지연 문구, '취소'만) → 결과 시트. 호출자 context가 해제되었는지는 250ms 폴링으로 본다(남의 context 해제를 알려 주는 API가 없어서) — 해제되면 작업을 취소하고 창을 내린 뒤 조용히 끝낸다. 결과가 null(busy·engineUnavailable 등)이면 스낵바 `userMessage`(cancelled 제외). 취소로 만든 파일이 0개면 결과 시트 없음.
+- T15b 결과 시트(내부 `export_sheets.dart`의 `PdfExportResultSheet` — T16 단일 내보내기도 같은 위젯을 쓸 것): 제목 = 요약 '노트 n개 중 k개를 PDF로 만들었어요'(요청 1개·파일 1개면 'PDF를 만들었어요'), 그 아래 상한/취소 안내, 파일 목록(`'{이름} · {MB}MB'` + 경고 줄), '만들지 못한 노트' 아래 `'{제목}: {userMessage}'`(제목이 없으면 '노트'). 파일 1개: `availableActions`에 있는 것마다 버튼 '공유'·'다운로드'·'새 탭에서 열기'. 여러 개: share 가능하면 '모두 공유', 파일마다 '다운로드'(`availableActions([file])`에 download가 있을 때). 탭 처리기에서 await 없이 `deliver`. 결과 문구: needsUserGesture → '한 번 더 눌러 주세요', failed·예외 → '파일을 넘기지 못했어요. 다시 시도해 주세요.', unsupported → unsupportedPlatform 문구, done·dismissed → 없음. '닫기' 버튼. 6.14에 없던 문구(strings_ko): 'PDF로 내보내기'·'… · 노트 n개'·'필기 포함'·'속지 포함'·'내보내기'·'PDF 만드는 중'·'PDF를 만들었어요'·'만들지 못한 노트'·'모두 공유'·'공유'·'다운로드'·'새 탭에서 열기'·'한 번 더 눌러 주세요'·'파일을 넘기지 못했어요. 다시 시도해 주세요.'.
+- T15b `FakePdfOutputSink`(4.14 '전달 기록', 원래 T16 몫이었으나 이 흐름 시험에 필요해 지금 만듦): 생성자 `canShare`·`canDownload`·`canOpenInNewTab`(기본 모두 true — iPad Safari처럼 share는 비지 않은 목록, download·openInNewTab은 결과 1개일 때만), 기록 `deliveries`((결과 목록, 동작))·`availableActionsCalls`, `enqueueOutcome`(빈 대기열 → done). 없는 동작 → ArgumentError. testing.dart의 `_todo` 도우미는 쓸 곳이 없어 지웠다.
+- T15b `api_surface_test`의 B4 몫 'exportNotesAsPdf → nothing'은 지웠다(실제 흐름 — widget/batch_export_flow_test).
 - T15 `assetMissing` 문구: 잘린 쪽 목록('… 외 n쪽')에는 '쪽'을 다시 붙이지 않는다(strings_ko `errorMessage`).
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.

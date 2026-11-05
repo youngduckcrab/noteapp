@@ -540,21 +540,97 @@ final class PdfBatchJobFailed extends PdfBatchJobState {
 }
 
 class PdfBatchExportJobNotifier extends Notifier<PdfBatchJobState> {
+  PdfCancelSignal? _cancel;
+  _ProgressThrottle<PdfBatchProgress>? _progress;
+
   /// PdfBatchJobIdle
   @override
-  PdfBatchJobState build() => const PdfBatchJobIdle();
+  PdfBatchJobState build() {
+    ref.onDispose(() {
+      _progress?.stop();
+      _cancel?.cancel();
+    });
+    return const PdfBatchJobIdle();
+  }
 
+  /// True while a bulk export runs, or while an import / export runs (one PDF job at a
+  /// time).
   bool get isBusy =>
-      throw UnimplementedError('PdfBatchExportJobNotifier.isBusy (PDF T15b)');
+      state is PdfBatchJobRunning || _pdfJobRunning(ref, batch: false);
 
+  /// pdfExportServiceProvider.exportNotes. Throws nothing: the result (files made so far
+  /// when cancelled) ends in PdfBatchJobFinished; busy / engineUnavailable /
+  /// unsupportedPlatform end in PdfBatchJobFailed. Returns null unless finished.
+  ///
+  /// Same rules as the export job: null with the Running state kept while this notifier's
+  /// own bulk export runs; PdfBatchJobFailed(busy) while another PDF job runs; progress at
+  /// most every PdfTuning.jobProgressInterval; an unexpected error is reported and ends in
+  /// PdfBatchJobFailed(exportFailed). An empty [noteIds] finishes at once with no items.
   Future<PdfBatchExportResult?> run(
     List<String> noteIds,
     PdfExportOptions options,
-  ) => throw UnimplementedError('PdfBatchExportJobNotifier.run (PDF T15b)');
+  ) async {
+    if (state is PdfBatchJobRunning) return null;
+    if (_pdfJobRunning(ref, batch: false)) {
+      state = const PdfBatchJobFailed(PdfIoException(PdfErrorCode.busy));
+      return null;
+    }
+    if (noteIds.isEmpty) {
+      final empty = PdfBatchExportResult(requestedCount: 0, items: const []);
+      state = PdfBatchJobFinished(empty);
+      return empty;
+    }
+    final cancel = _cancel = PdfCancelSignal();
+    final progress = _progress = _ProgressThrottle<PdfBatchProgress>((p) {
+      if (ref.mounted && state is PdfBatchJobRunning) {
+        state = PdfBatchJobRunning(p);
+      }
+    });
+    state = PdfBatchJobRunning(
+      PdfBatchProgress(
+        noteIndex: 0,
+        noteCount: noteIds.length,
+        current: const PdfProgress(PdfJobPhase.preparingExport),
+      ),
+    );
+    PdfBatchJobState end;
+    PdfBatchExportResult? result;
+    try {
+      result = await ref
+          .read(pdfExportServiceProvider)
+          .exportNotes(
+            noteIds,
+            options,
+            onProgress: progress.add,
+            cancel: cancel,
+          );
+      end = PdfBatchJobFinished(result);
+    } on PdfIoException catch (e) {
+      end = PdfBatchJobFailed(e);
+    } on Object catch (e, s) {
+      reportPdfError(e, s, 'pdf batch export job');
+      end = PdfBatchJobFailed(
+        PdfIoException(
+          PdfErrorCode.exportFailed,
+          detail: 'unexpected batch export error',
+          cause: e,
+        ),
+      );
+    }
+    progress.stop();
+    if (identical(_progress, progress)) _progress = null;
+    if (identical(_cancel, cancel)) _cancel = null;
+    if (ref.mounted) state = end;
+    return result;
+  }
 
-  void cancel() =>
-      throw UnimplementedError('PdfBatchExportJobNotifier.cancel (PDF T15b)');
+  /// Cancels the running bulk export (no-op when idle): the note in progress is aborted,
+  /// the files made so far are kept (result.cancelled).
+  void cancel() => _cancel?.cancel();
 
-  void reset() =>
-      throw UnimplementedError('PdfBatchExportJobNotifier.reset (PDF T15b)');
+  /// Back to idle unless a bulk export runs.
+  void reset() {
+    if (state is PdfBatchJobRunning) return;
+    state = const PdfBatchJobIdle();
+  }
 }

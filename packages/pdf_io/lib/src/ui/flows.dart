@@ -3,8 +3,8 @@
 //
 // Foundation step B4 (T0, contract 7.6 B4): importPdfAsNewNote returned null and
 // exportNotesAsPdf does nothing, so INFRA could wire both into the LIBRARY slots. The import
-// flow is real from PDF T6 and the search panel from T11; the others come with T15b (bulk
-// export) and T16 (export).
+// flow is real from PDF T6, the search panel from T11 and the bulk export from T15b; the
+// single export comes with T16.
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +17,7 @@ import '../export/export_types.dart';
 import '../import/import_types.dart';
 import '../providers.dart';
 import '../text/search_notifier.dart';
+import 'export_sheets.dart';
 import 'import_progress_dialog.dart';
 import 'import_sheet.dart';
 import 'search_panel.dart';
@@ -176,11 +177,98 @@ Future<PdfExportResult?> runPdfExportFlow(
 ///
 /// Contract 7.2.19: LibraryPdfExportAction shape: one PDF per note, then the result sheet
 /// (share all / download).
-/// B4 (T0): does nothing (no flow yet).
+///
+/// T15b: the sheet title is 'PDF로 내보내기 · 노트 n개' (one note → its title). Busy → a
+/// snack bar. The progress dialog follows pdfBatchExportJobProvider; '취소' keeps the files
+/// made so far (result sheet with the cancel notice; nothing made → no sheet). busy /
+/// engineUnavailable / unsupportedPlatform → a snack bar. When [context] is unmounted
+/// midway the flow ends quietly and cancels the running job.
 Future<void> exportNotesAsPdf(
   BuildContext context,
   List<String> noteIds,
-) async {}
+) async {
+  if (noteIds.isEmpty) return;
+  final container = ProviderScope.containerOf(context, listen: false);
+  final job = container.read(pdfBatchExportJobProvider.notifier);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  void say(String text) {
+    if (!context.mounted) return;
+    messenger?.showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  if (job.isBusy) {
+    say(const PdfIoException(PdfErrorCode.busy).userMessage);
+    return;
+  }
+  var title = PdfStringsKo.batchExportTitle(noteIds.length);
+  if (noteIds.length == 1) {
+    try {
+      final note = await container
+          .read(pdfNoteGatewayProvider)
+          .getNote(noteIds.single);
+      if (note != null && note.title.trim().isNotEmpty) title = note.title;
+    } on Object catch (e, s) {
+      reportPdfError(e, s, 'pdf batch export: note title');
+    }
+    if (!context.mounted) return;
+  }
+  final options = await showPdfBatchExportOptionsSheet(context, title: title);
+  if (options == null || !context.mounted) return;
+  if (job.isBusy) {
+    // Another job started while the sheet was open.
+    say(const PdfIoException(PdfErrorCode.busy).userMessage);
+    return;
+  }
+
+  final running = job.run(noteIds, options);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final dialog = DialogRoute<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PdfExportProgressDialog(batch: true, onCancel: job.cancel),
+  );
+  unawaited(navigator.push(dialog));
+  final ended = await _untilUnmounted(context, running);
+  if (navigator.mounted && dialog.isActive) navigator.removeRoute(dialog);
+  if (!ended) {
+    job.cancel(); // the caller's screen went away: quietly stop
+    return;
+  }
+  final result = await running;
+  if (!context.mounted) return;
+  if (result == null) {
+    final state = container.read(pdfBatchExportJobProvider);
+    if (state is PdfBatchJobFailed &&
+        state.error.code != PdfErrorCode.cancelled) {
+      say(state.error.userMessage);
+    }
+    return;
+  }
+  if (result.cancelled && result.files.isEmpty) return;
+  await showPdfBatchExportResultSheet(
+    context,
+    result: result,
+    sink: container.read(pdfOutputSinkProvider),
+  );
+}
+
+/// true when [job] ends while [context] is mounted, false as soon as [context] is unmounted
+/// (checked every 250 ms — no unmount callback exists for a foreign context).
+Future<bool> _untilUnmounted(BuildContext context, Future<Object?> job) {
+  final done = Completer<bool>();
+  final timer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+    if (!context.mounted && !done.isCompleted) done.complete(false);
+  });
+  job.then(
+    (_) {
+      if (!done.isCompleted) done.complete(true);
+    },
+    onError: (Object _) {
+      if (!done.isCompleted) done.complete(true);
+    },
+  );
+  return done.future.whenComplete(timer.cancel);
+}
 
 /// Search sheet (query field, progress, hit list). Tapping a hit selects it and calls [onNavigate].
 ///
