@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 1 (동시 개발 단계) — T01~T04 완료
-- 다음 할 일: T05 중심선 처리·굵기 계수 굽기 → T06 `StrokeBuilder`(라이브·완료, T04 필터 연결) → T07 외곽선·K-1 (계획서 8장 순서)
+- 마지막 세션: 2 (동시 개발 단계) — T05 완료(세션 1: T01~T04)
+- 다음 할 일: T06 `StrokeBuilder`(라이브·완료, T04 필터·T05 단계 연결) → T07 외곽선·K-1 (계획서 8장 순서)
 
 ## 작업 표
 
@@ -14,7 +14,7 @@
 | T02 | 완료 | d1dd4ba | `unit/model/ink_points_test.dart`, `unit/model/ink_stroke_test.dart`, `unit/pen/style_ink_test.dart`, `unit/pen/pen_profile_test.dart`. 구현은 B3 본문이 이미 4.1·4.2·6.9대로라 테스트만 추가 |
 | T03 | 완료 | 1489bbf | `unit/input/sample_adapter_test.dart`, `unit/input/pressure_detector_test.dart`, `unit/input/pressure_mode_test.dart`. `PressureDetector`를 6.4 전체 규칙으로 교체(관찰·12개 고정값·재보고), 결정은 detector가 store에 바로 보고(컨트롤러의 B3 보고 블록 삭제). `unit/api_surface_test`의 첫 스타일러스 획 기대값 real → pending(6.4) |
 | T04 | 완료 | bd6875e | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart`. 내부 `src/input/simulated_pressure.dart`(`SimulatedPressure`, `RealPressureSmoother`, `smoothstep`, `sampleDtMs`)·`src/input/one_euro_filter.dart`(`OneEuroFilter`). 아직 `StrokeBuilder`에 연결하지 않음 — T05·T06에서 파이프라인에 넣는다. 실측: 500 px/s 지연 4.8 ms(60/120/240 Hz), 같은 궤적 Hz별 차 ≤ 0.008 |
-| T05 | 남음 | | `unit/stroke/{subdivide,hook,dot,width_factor,taper,straighten,simplify}_test.dart` |
+| T05 | 완료 | (이 커밋) | `unit/stroke/{subdivide,hook,dot,width_factor,taper,straighten,simplify}_test.dart`. 내부 `src/stroke/centerline.dart`(`CenterPoint`, 중복 판정 `isDuplicateSample`, F2 `subdivide`·`subdivideSegment`, F3 `removeHooks`, F4 `isDotStroke`·`dotOf`), `width_factor.dart`(K1 `bakedPressure`, K2–K4 `widthFactor`, K6 `widthQForFactor`, `radiusForFactor`), `taper.dart`(F5), `straighten.dart`(F6, 라이브용 `straightLine`), `simplify.dart`(F7, `simplifyStrokeData`), `geometry/rdp.dart`(공용 RDP). 아직 `StrokeBuilder`에 연결하지 않음(T06) |
 | T06 | 남음 | | `unit/stroke/stroke_builder_test.dart`, `unit/stroke/finish_data_test.dart`, (웹) `web/determinism_test.dart` |
 | T07 | 남음 | | `unit/geometry/{outline,outline_parity,vector_path}_test.dart`, `unit/model/bounds_invariant_test.dart`, (웹) `web/geometry_on_web_test.dart` |
 | T08 | 남음 | | `widget/pixel/{highlighter_overlap,self_overlap}_test.dart`, `unit/render/pencil_grain_test.dart`, (웹) `web/grain_checksum_test.dart`, `goldens/pens_golden_test.dart` |
@@ -50,6 +50,10 @@
 동시 개발 단계:
 
 - T03: 내부 `PressureDetector` 생성자에 선택 인자 `store`(`PressureCapabilityStore?`)를 더했다(4.3 내부 시그니처는 kind·mode·prior). 6.4의 '결정이 나면 report'를 획 도중(`observe`)에 하려면 detector가 store를 알아야 해서다. `buildStroke`(오프라인)는 store 없이 쓴다.
+- T05: F3 갈고리 제거를 F2 보간 **앞**(안정 점 + 끝점 단계)에서 한다. 6.7 표 순서는 F2 → F3이지만 '창 안의 점 ≤ 4개'는 샘플 수여야 의미가 있다(보간 뒤에는 굵은 펜의 창에 점이 늘 4개를 넘어 규칙이 꺼진다). '창 앞 길이 3W 미만이면 적용 안 함'은 S − W ≥ 3W로 읽었다.
+- T05: F7 RDP는 1024점 창마다 따로 돌린다(창 끝점은 항상 유지). RDP는 운 나쁜 입력(같은 높이 톱니)에서 O(n²)이고 `finish`는 펜을 뗄 때 UI 스레드에서 돌기 때문 — 1024점 이하 획(거의 전부)은 한 번에 처리돼 결과가 같다. widthQ 규칙은 '현의 widthQ 선형 보간(호 길이 기준)과의 차 > 0.004이면 유지'로 구현했고, 재단순화 때는 x·y 허용과 widthQ 허용을 함께 2배로 늘린다.
+- T05: 연필 K2 최대값은 `pressureGain` 0.45라 1.45이고(`maxFactor` 1.6에는 닿지 않음) 최대 기울기와 곱하면 f = 4.06이다. 6.7 K4의 4.48은 `maxFactor` 기준 상한이다. 둘 다 `kMaxWidthFactor` 4를 넘어 widthQ 1로 포화하므로 결론(K6·K-1)은 같다 — `width_factor_test`가 두 값을 모두 확인.
+- T05: F6 축 맞춤은 시작점을 두고 끝점을 시작점을 지나는 축 위로 옮긴다(수평이면 끝 y = 시작 y). F4 점 획의 tilt·azimuth는 굵기 계수가 가장 큰 샘플 값. K3 속도 범위(0.3, 2.0)·K4 기울기 범위(0.35, 1.15)·갈고리 창 최소값(1.5 / 1.0pt, 0.75·width)은 6.28 표에 없어 `InkTuning`(공개)에 더하지 않고 각 파일의 비공개 상수로 두었다.
 - T03: `prior == supported`인데 고정값 12개가 나오면(펜슬 교체) capability만 `unsupported`로 재보고하고, **쓰는 중인 획의 source는 real 그대로** 둔다(다음 획부터 simulated). 획 도중 real → simulated 전환은 앞 점 굵기를 다시 계산해야 해 6.4 규칙 6(pending → real, 최대 11점)의 범위를 넘기 때문. 강제 모드(alwaysReal·alwaysSimulated)는 관찰·보고를 하지 않는다.
 
 기반 단계 B3에서 (인수인계 메모 `/home/user/wt/notes/foundation-ink.md` 요약):
