@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 2 (동시 개발 단계) — L5·L6 완료(세션 1: C13-05·L0·L1·L3·L4, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L7 (`LibraryActions`) → L8 (레이아웃 셸)
+- 마지막 세션: 2 (동시 개발 단계) — L5·L6·L7 완료(세션 1: C13-05·L0·L1·L3·L4, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L8 (레이아웃 셸: `LibraryScreen` 4.2, `librarySizeClassFor`, `GridMetrics`, `LibraryLayout`, 서랍, 상단 막대 틀, `ContentBody` 섹션 분기) → L9·L10
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -18,8 +18,8 @@
 | L3 | 완료 | 9c8ebc2 | `unit/sort_test.dart`, `unit/prefs_notifier_test.dart`, `unit/settings_keys_test.dart`, `unit/page_size_mm_test.dart`, `unit/new_note_options_test.dart`, `shared/new_note_options_cases.dart`, `web/new_note_options_browser_test.dart` |
 | L4 | 완료 | 9deed79 | `unit/section_test.dart`, `unit/selection_test.dart` |
 | L5 | 완료 | d12ef32 | `unit/tree_flatten_test.dart`, `unit/breadcrumb_test.dart`, `unit/location_label_test.dart` |
-| L6 | 완료 | (이 커밋) | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
-| L7 | 남음 | | `unit/actions_test.dart` |
+| L6 | 완료 | 8dd7f5f | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
+| L7 | 완료 | (이 커밋) | `unit/actions_test.dart` |
 | L8 | 남음 | | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
 | L9 | 남음 | | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
 | L10 | 남음 | | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` |
@@ -62,6 +62,12 @@
 - L6 `folderLookupProvider`: `folderTreeProvider.future`에 더해 `trashItemsProvider`도 watch한다 — 휴지통에 있는 폴더를 다른 기기가 영구 삭제하면 트리는 바뀌지 않아(값 동등) 다시 계산되지 않기 때문. 트리에 없고 `getFolder`가 휴지통 아닌 폴더를 주면(트리 갱신 직전 경합) `active`.
 - L6 `trashCountProvider`: 오류면 이전 값이 있어도 0.
 - L6 `FolderExpansionNotifier`: 상태 `Set`은 펼친 순서(오래된 것 → 최근)로 순회한다. 이미 펼친 id를 다시 펼치면 자리 그대로(`expandAll`이 아무것도 바꾸지 않으면 같은 상태 객체·저장 없음). 저장된 목록이 오기 전에 접은 id는 복원하지 않고, 그 전에 디바운스가 끝나면 쓰지 않고 로드 뒤 500ms에 쓴다(저장된 id를 덮어쓰지 않게). 트리는 `ref.listen(folderTreeProvider)`로 따라가며 마지막 값으로 거른다(트리가 아직 없으면 거르지 않음). `ref.onDispose`에서는 `state`를 읽을 수 없어(Riverpod 3 생명주기 규칙) 사본 `_current`를 쓴다. 로드 실패는 `reportLibraryError` 1회 후 빈 상태.
+- L7 `LibraryActions` 생성자는 private 이름 붙은 초기화 형식(`{required this._library, ...}`)으로 썼다 — 호출 쪽 이름은 계획 그대로 `library:`·`trash:`·`report:`(린트 `prefer_initializing_formals`).
+- L7 `move`의 영수증(`MoveReceipt`)에는 `originalParents` 중 원래 부모가 대상과 다른 항목만 넣는다(이미 대상에 있던 항목은 CORE가 무시하므로 되돌릴 것도 없음, C-4). `undoMove`는 원래 부모별로 묶어 영수증 순서대로 부모마다 `moveItems` 1회, 첫 실패에서 멈춘다. `MoveReceipt`에 값 동등·`isEmpty`를 더했다.
+- L7 `reorder`: 항목이 0개면 아무것도 부르지 않는다. CORE `reorderItems`는 넘긴 순서가 아니라 항목들의 **현재 상대 순서**를 유지한다(가짜에서 확인: `[c, a] after d` → `… d, a, c`). 화면은 어차피 표시 순서로 넘긴다.
+- L7 `rename`은 이름을 미리 검사하지 않고 CORE에 넘긴다(대화상자가 미리 막음 — 6.11). CORE `ArgumentError` → `invalidName`. `ArgumentError`의 하위 타입(`RangeError`)도 `invalidName`.
+- L7 `locate`·`uniqueNoteTitle`은 `ActionOutcome`이 아니라 값을 돌려주므로 읽기 실패는 보고 후 각각 `null`·기본 이름. `uniqueNoteTitle`은 `watchListing(LibraryQuery(folderId, name, asc)).first`로 노트 제목을 읽는다. `locate`는 휴지통에 있어도 부모를 돌려준다(없을 때만 `null`).
+- L7 `lib/src/model/folder_appearance_value.dart`(`FolderAppearance`, `NewFolderSpec`, 값 동등)를 L7에서 만들었다. `libraryActionsProvider`의 `report`는 `reportLibraryError`(문맥 `'library action: <메서드>'`).
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모

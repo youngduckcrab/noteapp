@@ -13,7 +13,10 @@ import 'package:note_core/note_core.dart'
         noRetry,
         recentNotesProvider,
         settingsSnapshotProvider,
-        trashItemsProvider;
+        trashItemsProvider,
+        trashRepositoryProvider;
+
+import '../common/report_error.dart';
 
 import '../model/content.dart';
 import '../model/new_note_spec.dart';
@@ -23,6 +26,7 @@ import '../model/tree_rows.dart';
 import '../model/view_prefs.dart';
 import '../settings/library_settings_keys.dart';
 import 'expansion_notifier.dart';
+import 'library_actions.dart';
 import 'prefs_notifier.dart';
 import 'section_notifier.dart';
 import 'selection_notifier.dart';
@@ -171,3 +175,15 @@ final trashCountProvider = Provider.autoDispose<int>((ref) {
   if (items.hasError) return 0;
   return items.value?.length ?? 0;
 }, name: 'trashCountProvider');
+
+/// CORE mutations + error classification + undo receipts (6.11). Failures
+/// other than folderCycle / invalidName are reported with
+/// FlutterError.reportError(library: 'feature_library').
+final libraryActionsProvider = Provider<LibraryActions>(
+  (ref) => LibraryActions(
+    library: ref.watch(libraryRepositoryProvider),
+    trash: ref.watch(trashRepositoryProvider),
+    report: reportLibraryError,
+  ),
+  name: 'libraryActionsProvider',
+);
