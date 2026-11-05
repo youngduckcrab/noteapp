@@ -114,6 +114,51 @@ void main() {
     expect(report.problems.single, contains('serviceWorkerSettings'));
   });
 
+  test('the loader inlined by {{flutter_js}} may name serviceWorkerSettings; '
+      'only the app part after the build config is checked', () {
+    const loader =
+        '(()=>{class F{async load({serviceWorkerSettings:e,'
+        'onEntrypointLoaded:s,nonce:t,config:r}={}){}}})();';
+    const buildConfig =
+        'if (!window._flutter) {\n  window._flutter = {};\n}\n'
+        '_flutter.buildConfig = {"builds":[{"compileTarget":"dart2js",'
+        '"renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n';
+    write(
+      p.join(build, 'flutter_bootstrap.js'),
+      '$loader\n$buildConfig\n_flutter.loader.load({config: {}});\n',
+    );
+    expect(finalizeWeb(buildDir: build, infoFile: info).problems, isEmpty);
+
+    write(
+      p.join(build, 'flutter_bootstrap.js'),
+      '$loader\n$buildConfig\n_flutter.loader.load({serviceWorkerSettings: '
+      '{serviceWorkerVersion: "1"}});\n',
+    );
+    expect(
+      finalizeWeb(buildDir: build, infoFile: info).problems.single,
+      contains('serviceWorkerSettings'),
+    );
+  });
+
+  test('the committed app/web/flutter_bootstrap.js template passes once '
+      'its tokens are expanded', () {
+    final template = File(
+      p.join(repoRoot, 'app', 'web', 'flutter_bootstrap.js'),
+    ).readAsStringSync();
+    final expanded = template
+        .replaceFirst(
+          '{{flutter_js}}',
+          '(()=>{class F{async load({serviceWorkerSettings:e}={}){}}})();',
+        )
+        .replaceFirst(
+          '{{flutter_build_config}}',
+          '_flutter.buildConfig = {"builds":[]};',
+        );
+    write(p.join(build, 'flutter_bootstrap.js'), expanded);
+    expect(finalizeWeb(buildDir: build, infoFile: info).problems, isEmpty);
+    expect(bootstrapAppScript(expanded), contains('_flutter.loader.load({'));
+  });
+
   test('missing or broken build info fails', () {
     File(info).deleteSync();
     expect(

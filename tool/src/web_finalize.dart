@@ -120,7 +120,8 @@ FinalizeReport finalizeWeb({
   }
   final bootstrap = File(p.join(buildDir, 'flutter_bootstrap.js'));
   if (bootstrap.existsSync() &&
-      bootstrap.readAsStringSync().contains('serviceWorkerSettings')) {
+      bootstrapAppScript(bootstrap.readAsStringSync())
+          .contains('serviceWorkerSettings')) {
     problems.add(
       'flutter_bootstrap.js passes serviceWorkerSettings: the app must not '
       'register a service worker (6.11)',
@@ -158,4 +159,17 @@ String formatBytes(int bytes) {
   }
   final mib = (bytes / (1024 * 1024)).toStringAsFixed(2);
   return '$grouped B ($mib MiB)';
+}
+
+/// The app's own part of a built `flutter_bootstrap.js`: the text after the
+/// `_flutter.buildConfig = …` line that `{{flutter_build_config}}` expands
+/// to. The `{{flutter_js}}` loader above it names `serviceWorkerSettings` in
+/// its own `load()` signature, so only this part is checked. Without that
+/// line (not a template build) the whole text.
+String bootstrapAppScript(String text) {
+  const marker = '_flutter.buildConfig = ';
+  final at = text.lastIndexOf(marker);
+  if (at < 0) return text;
+  final lineEnd = text.indexOf('\n', at);
+  return lineEnd < 0 ? '' : text.substring(lineEnd + 1);
 }
