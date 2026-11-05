@@ -3,14 +3,14 @@
 ## 요약
 
 - 마지막 세션: 1 (동시 개발 단계)
-- 다음 할 일: T01 패키지 골격 점검 → T02 모델·펜 → T03 입력 정규화·필압 감지 (계획서 8장 순서)
+- 다음 할 일: T02 모델·펜 → T03 입력 정규화·필압 감지 (계획서 8장 순서)
 
 ## 작업 표
 
 | ID | 상태 | 커밋 | 비고 — 완료 조건 테스트 파일 |
 |---|---|---|---|
 | T00 | 기반 단계에서 완료 | 955931c | `foundation/b3_smoke_test.dart`, `foundation/b3_behaviour_test.dart`, `unit/api_surface_test.dart`, `unit/export_list_test.dart`, `unit/no_platform_imports_test.dart`, (웹) `web/smoke_web_test.dart` |
-| T01 | 남음 | | `unit/smoke_test.dart`, `unit/tuning_test.dart`, (웹) `web/smoke_web_test.dart`, `dart_test.yaml`, `test/flutter_test_config.dart`, `THIRD_PARTY_NOTICES.md` |
+| T01 | 완료 | (이 커밋) | `unit/smoke_test.dart`, `unit/tuning_test.dart`, (웹) `web/smoke_web_test.dart`(B3). `dart_test.yaml`(golden·bench), `test/flutter_test_config.dart` + `test/support/golden_tolerance{,_native,_browser}.dart`(0.5% 비교기, 브라우저는 아무것도 안 함), `THIRD_PARTY_NOTICES.md`. `tuning.dart`는 B3에 이미 있음 |
 | T02 | 남음 | | `unit/model/ink_points_test.dart`, `unit/model/ink_stroke_test.dart`, `unit/pen/style_ink_test.dart`, `unit/pen/pen_profile_test.dart` |
 | T03 | 남음 | | `unit/input/sample_adapter_test.dart`, `unit/input/pressure_detector_test.dart`, `unit/input/pressure_mode_test.dart` |
 | T04 | 남음 | | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart` |
