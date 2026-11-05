@@ -17,7 +17,7 @@
 | E-02 | 완료 | 9b78333 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart` |
 | E-03 | 완료 | 261c01f | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
 | E-04 | 남음 | | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
-| E-05 | 완료 | (이 커밋) | `unit/input_router_test.dart` (R1~R33 + R29b·관성 속도·`cancelAll`·간격·트랙패드·observe) |
+| E-05 | 완료 | 21450fe | `unit/input_router_test.dart` (R1~R33 + R29b·관성 속도·`cancelAll`·간격·트랙패드·observe) |
 | E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
 | E-07 | 완료 | 6433a32 | `unit/tool_controller_test.dart` |
 | E-08 | 남음 | | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
@@ -68,6 +68,7 @@
 - EDITOR-3-1: CORE 호출은 `EditorCommands._run`·`_runAsync`·`_runHistory` 셋뿐(E-08에서 만들 때). E-17 `page_panel_test`에 `rejectNext` 삭제 거부 1건.
 - 테스트 도구 사용법: `final h = await pumpEditor(tester, strokesByPageIndex: {0: [strokeA]})` → `h.session`(실제 가짜 저장소 세션), `h.recorder!.calls`·`rejectNext(e)`, `h.container`(EditorScreen 아래 가장 안쪽 ProviderScope — E-04/E-13에서 노트별 scope가 생기면 자동으로 그것), `h.driver`(PointerDriver — 논리 포인터 번호는 `device`, 이벤트 `pointer`는 down마다 새 값), `h.pageId(i)`. 위젯 밖 `Listener`로 받은 이벤트는 `_TransformedPointer*Event`라 `isA<PointerDownEvent>()`로 비교.
 - 설정 테스트 환경: `test/helpers/settings_env.dart`의 `runSettingsEnv((env) { env.storeValue(key, {...}); env.load(); ... })` — fake_async + 가짜 저장소 + `RecordingSettings`(CORE에 닿은 set/reset 기록, `writesOf(name)`). `commitDelay:`로 커밋 지연. E-07 `tool_controller_test`도 이것을 쓰면 된다.
+- E-04 준비(세션 2): `ViewportController`는 크기 0·페이지 0이면 카메라가 없고(`hitPage`·`visibleRange`·`captureAnchor` null), `restore`는 둘 다 생길 때 적용된다 → 6.13.2 스케치대로 `editorViewportProvider`에서 `updatePages(session.pages)`, `PageViewport`의 `LayoutBuilder`에서 `updateViewportSize`, 마지막 위치는 `ViewportMemory.load` 뒤 `restore(anchor, initialPageId:)`(E-13). 마운트 범위는 `controller.mountedRange`(±1, ≤ 8 — 단위 테스트 있음). `InkPageView` 인자: `ancestorScale = camera.scale / settledScale.value`, `isScaling = isInteracting.value`. E-01 메모대로 `EditorTestHandles.viewport`·`controllerOf`와 `test_data`의 화면 좌표 도우미를 E-04에서 더한다.
 - 뷰포트 테스트(세션 2): `test/unit/viewport_controller_test.dart`의 `_viewportTest`·`_controller()` 패턴 — `testWidgets` 안에서 `tester.pump`가 컨트롤러 `Ticker`·150ms 안정화 `Timer`를 움직인다. 컨트롤러는 **본문 끝에서** dispose(testWidgets의 남은 타이머 검사가 tear-down보다 먼저라 `addTearDown`으로는 안 됨). 1032×1376에서 A4 fit = 1000/595.2756 ≈ 1.68, 페이지 i 위 = 24 + i·865.89 pt.
 - 라우터 테스트(세션 2): `test/unit/input_router_test.dart`의 `_Input`(합성 시각 + `tester.pump`) — `VelocityTracker`가 `GestureBinding.samplingClock`을 쓰므로 fake_async가 아니라 `testWidgets` 안에서 돌린다. 본문 끝 `router.cancelAll()`로 길게 누르기 타이머를 지운다.
 - 기반 단계 메모: `/home/user/wt/notes/foundation-editor.md`. 스모크 테스트에서 커밋 지연을 쓰는 저장소는 tear-down이 아니라 본문 끝에서 `close()`(실패 시 멈춤 방지).
