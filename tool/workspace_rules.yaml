@@ -1,8 +1,7 @@
 # Data for `dart run tool/ws.dart check` (INFRA, docs/plans/01-infra.md 4.3 and
-# 6.2, contract 00-overview 7.1 / 7.4.2 / 7.5). Rules checked since the
-# foundation step B1: R1-R3, R7-R9, R15. R4-R6 and R10-R13 come with I1,
-# R14 with the integration step G3. Keys used by later rules are kept here
-# already so the file format does not change.
+# 6.2, contract 00-overview 7.1 / 7.4.2 / 7.5). Rules checked: R1-R13 and R15
+# (R1-R3, R7-R9 and R15 since the foundation step B1, the others since I1).
+# R14 comes with the integration step G3.
 
 allowed_dependencies:          # workspace sibling edges (R8) = 00-overview 7.1
   note_core: []

@@ -1,6 +1,8 @@
 // ws test (docs/plans/01-infra.md 4.2 and 9.1, contract 00-overview 7.4.8),
 // with a fake process runner: no real flutter / Chrome is started.
 
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -35,6 +37,9 @@ final class _FakeProcesses implements ProcessRunner {
   /// (`flutter` / `dart`), default: success with one passing test.
   final results = <String, RunResult>{};
 
+  /// Output of `/usr/bin/git <first argument> ...`.
+  final git = <String, String>{'merge-base': 'base\n'};
+
   @override
   Future<RunResult> run(
     String executable,
@@ -42,10 +47,14 @@ final class _FakeProcesses implements ProcessRunner {
     required String workingDirectory,
     Map<String, String> environment = const {},
     Duration? timeout,
+    bool echo = true,
   }) async {
     calls.add(
       _Call(executable, arguments, workingDirectory, environment, timeout),
     );
+    if (executable == '/usr/bin/git') {
+      return RunResult(exitCode: 0, output: git[arguments.first] ?? '');
+    }
     final kind = executable == '/fake/flutter' ? 'flutter' : 'dart';
     return results['${p.basename(workingDirectory)}:$kind'] ??
         RunResult(
@@ -93,7 +102,9 @@ void main() {
         err: err,
         environment: {'FLUTTER_BIN': '/fake/flutter', ...env},
         isFile: (path) =>
-            path == '/fake/flutter' || path == '/usr/bin/google-chrome',
+            path == '/fake/flutter' ||
+            path == '/usr/bin/google-chrome' ||
+            path == '/usr/bin/git',
         resolvedExecutable: '/fake/dart',
         processes: processes,
       ),
@@ -333,6 +344,57 @@ void main() {
     expect(code, 0);
     expect(out, contains('nothing to run for chrome'));
     expect(processes.calls, isEmpty);
+  });
+
+  group('--affected-since', () {
+    setUp(
+      () => fixture.write(
+        'tool/workspace_rules.yaml',
+        File(realRulesPath).readAsStringSync(),
+      ),
+    );
+
+    test('tests only the changed members and their dependents', () async {
+      processes.git['diff'] = 'packages/ink_engine/lib/a.dart\n';
+      final (code, out, _) = await ws(['--affected-since', 'origin/main']);
+      expect(code, 0);
+      expect(out, contains('affected since origin/main: ink_engine, noteapp'));
+      expect(flutterCalls().map((c) => p.basename(c.workingDirectory)), [
+        'ink_engine',
+        'app',
+      ]);
+      final git = [
+        for (final c in processes.calls)
+          if (c.executable == '/usr/bin/git') c.arguments.first,
+      ];
+      expect(git, ['merge-base', 'diff', 'ls-files']);
+    });
+
+    test('a global trigger tests every member', () async {
+      processes.git['diff'] = 'pubspec.lock\n';
+      final (code, _, _) = await ws(['--affected-since', 'main']);
+      expect(code, 0);
+      expect(flutterCalls().length, 3); // members with VM tests
+    });
+
+    test('intersects with --package; nothing affected runs nothing', () async {
+      processes.git['diff'] = 'packages/ink_engine/lib/a.dart\n';
+      var (code, _, _) = await ws([
+        '--affected-since',
+        'main',
+        '--package',
+        'note_core',
+      ]);
+      expect(code, 0);
+      expect(flutterCalls(), isEmpty);
+
+      processes.git['diff'] = 'docs/a.md\n';
+      final String out;
+      (code, out, _) = await ws(['--affected-since', 'main']);
+      expect(code, 0);
+      expect(out, contains('nothing affected'));
+      expect(flutterCalls(), isEmpty);
+    });
   });
 
   group('parseTestCounts', () {
