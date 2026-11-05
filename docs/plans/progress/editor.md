@@ -25,7 +25,7 @@
 | E-10 | 완료 | ad633e6 | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
 | E-11 | 완료 | 6ce75a2 | `widget/undo_redo_test.dart` |
 | E-12 | 완료 | d67a3c9 | `widget/shortcuts_test.dart` (⌘·Ctrl 각각: Z·⇧Z·C·V·=·⇧=·+·키패드 +/−/0·−·0·⇧D, 텍스트 칸 포커스 중 무시, Ctrl+Y, Delete·Backspace, Esc 순서, PageDown·Space·PageUp·⇧Space, P/E/L 캔버스 포커스·읽기 전용, ⌘↔Ctrl 짝 검사) |
-| E-13 | 완료 | (이 커밋) | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart`, `widget/sync_badge_test.dart`, `widget/toolbar_test.dart`, `widget/extensions_test.dart`(moreMenuItems — `addPageSources`는 페이지 추가 시트가 생기는 E-17에서 같은 파일에 더함), `widget/scope_test.dart`(선택·팝업·세션·뷰포트·명령 분리 — 패널 상태는 E-17) |
+| E-13 | 완료 | 7b1c8b2 | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart`, `widget/sync_badge_test.dart`, `widget/toolbar_test.dart`, `widget/extensions_test.dart`(moreMenuItems — `addPageSources`는 페이지 추가 시트가 생기는 E-17에서 같은 파일에 더함), `widget/scope_test.dart`(선택·팝업·세션·뷰포트·명령 분리 — 패널 상태는 E-17) |
 | E-14 | 남음 | | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart` |
 | E-15 | 남음 | | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart`, `widget/eraser_panel_test.dart` |
 | E-16 | 남음 | | `unit/preset_ordering_test.dart`, `widget/preset_bar_test.dart` |
