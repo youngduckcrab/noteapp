@@ -179,7 +179,7 @@
 
 ## 통합 단계
 
-통합 브랜치 `claude/note-app-planning-bk29xb`, 7개 영역 병합(efc5511)·INFRA 통합 1부(e6431a9) 뒤 — 실제 CORE·INK가 같은 브랜치에 있다. 이번 몫: 계약 7.7 5단계의 PDF `integration`, 실제 합류로 바뀐 동작에 기대는 테스트 점검, 계획 8·10장의 통합 단계 몫 중 INFRA 연결 전에 할 수 있는 것. `lib/` 동작 변경 없음(주석 2곳만).
+통합 브랜치 `claude/note-app-planning-bk29xb`, 7개 영역 병합(efc5511)·INFRA 통합 1부(e6431a9) 뒤 — 실제 CORE·INK가 같은 브랜치에 있다. 통합 커밋 9305235. 이번 몫: 계약 7.7 5단계의 PDF `integration`, 실제 합류로 바뀐 동작에 기대는 테스트 점검, 계획 8·10장의 통합 단계 몫 중 INFRA 연결 전에 할 수 있는 것. `lib/` 동작 변경 없음(주석 2곳만).
 
 ### integration 태그 (계약 7.7 5, 계획 10 5)
 
@@ -203,7 +203,7 @@
 - 10 4(선택): perf `flutter test --run-skipped -t perf test/perf` 4개 통과(합성 500쪽 × 200획 15.6초 ≤ 30초, 스크롤 모의 최대 111.1 MiB ≤ 112 MiB).
 - 표기 정리: `lib/src/providers.dart` 머리 주석의 'the services they build throw UnimplementedError until their PDF task' → 모든 PDF 작업(T1~T19)이 실제 본문을 줬고 `UnimplementedError`를 던지는 것이 없다고(lib에 `UnimplementedError` 없음 확인), `lib/src/import/cover_thumbnail.dart`의 '(foundation stage, unit tests)' → '(no FeatureWiringModule in the container, unit tests)'. README 테스트 표의 integration 행과 계획 9.1 표·10 5에 `real_wiring_test`를 적었다.
 
-### 검사 (이 커밋 시점)
+### 검사 (9305235 시점)
 
 | 검사 | 결과 |
 |---|---|
