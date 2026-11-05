@@ -2,7 +2,9 @@
 
 ## 요약
 
-- 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
+- 2차 마지막 세션: **T25a(B2-0) V7 고정 자료 완료** — 커밋 b6beece(아래 '## 2차'). 1차 CORE 코드(`main` `e3aa110`, note_core 트리 = `b6c9d0a`)로 만든 v1 DB(VM·웹 두 형태)·PDF 바이트·`fixture_source.json`·`manifest.json`(정규 덤프 해시). `lib/` 변경 없음.
+- 2차 다음 할 일: T22(B2-α 계약 표면 + `api_surface_test` v2) → 해시를 '이정표 커밋' 표·SYNC·INFRA·총괄에 알림 → B2-β(T20a → T20b → T21 → T23a → T23b).
+- 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
 - 다음 할 일: 총괄이 7.6 커밋 실패 훅(SYNC 요청 1)을 채택하면 CORE가 구현(아래 제안). iPad 확인(계획서 9.2·10절 #9). 10절 #7(SYNC T16을 막는 CORE 결함 없음)은 통합 태그 전체 통과로 확인(SYNC 42개)
 
 ## 작업 표
@@ -202,3 +204,79 @@
 
 - 공개 API(시그니처) 변경 없음, 새 외부 의존 없음(`drift`는 이미 note_core 의존 — `driftRuntimeOptions`만 import), `pubspec.lock` 변경 없음.
 - 변경 요청(다른 영역으로): 없음.
+
+## 2차
+
+계획 docs/plans/m5-7/02-core.md(승인 · 계약 v2.2). 바탕: `main` `e3aa110` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6` + SYNC R2-B7b `9cdd3fb`·`e3aa110`. `packages/note_core` 트리는 `b6c9d0a`와 같다(`5e728c8`) — 1차 CORE 코드 그대로.
+
+### 이정표 커밋 (CORE 2차)
+
+| 이정표 | 작업 | 커밋 | 날짜 | 이 커밋으로 할 수 있게 되는 것 | 기다리는 영역 |
+|---|---|---|---|---|---|
+| V7 고정 자료 | T25a | b6beece | 2026-11-05 | 1차 v1 DB 고정 자료(생성 커밋은 fixture_source.json) | 총괄 |
+| B2-α 계약 타입 커밋 | T22 | | | 공개 선언 전부 컴파일 — R2-B7a 바탕, R2-B2i 위임, 전 영역 코드 작성 시작 | SYNC·INFRA·전 영역 |
+| B2-β JSON 골든 | T20a | | | 객체·손글씨·녹음 JSON 키 고정 — 키 대조 시험(CP-S9) | SYNC |
+| B2-β 끝 | T23b | | | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
+| DB v2·마이그레이션 | T24 | | | openTestNoteStore가 v2 DB, v1 사본 | SYNC·PDF·LIBRARY·INFRA |
+| 쓰기 경로 | T26 | | | 새 종류 행·힌트·고아 — SYNC 시나리오 시험 | SYNC |
+| 객체 읽기·쓰기 DB | T27 | | | 실제 저장소 객체 명령·N-7 | EDITOR·PDF |
+| 동기화 창구 v2 | T28 | | | applyRemote·readVersioned 새 종류 — T16-v2 | SYNC |
+| 복사·휴지통·백업 | T29 | | | copyNote·영구 삭제·백업 v2 | LIBRARY·SYNC |
+| 녹음 저장소 | T30 | | | createRecording(멱등)·watch | PDF(media)·EDITOR |
+| 실제 초안 저장소 | T31 | | | meta·되살림·조각 — V16 | PDF(media) |
+| 손글씨 저장소 | T32 | | | update·stalePages·notesWithStalePages | LIBRARY |
+| 색인 쓰기 | T33a | | | SearchIndexWriter 실제 — PDF 색인기 | PDF |
+| 검색 색인 | T33b | | | searchPages·searchLibrary.pages 실제 | LIBRARY·PDF |
+| 네이티브 저장 | T35 | | | 파일 DB + 파일 블롭 | INFRA(A-1) |
+
+### 작업 표 (2차)
+
+| ID | 상태 | 커밋 | 비고 — 완료 조건 |
+|---|---|---|---|
+| T25a | 완료 | b6beece | B2-0 V7 고정 자료. `tool/make_v1_fixture.dart`·`tool/v1_fixture_manifest.dart`·`tool/src/v1_dump.dart`, `test/fixtures/db_v1/`(5개 파일), `test/migration/v1_fixture_files_test.dart`(VM 3건) |
+
+### T25a — V7 고정 자료 (계획 6.12.3·8.1, 00-review CORE-F2)
+
+- 커밋: `b6beece`(생성기·고정 자료·manifest·지킴 시험·README), 이 기록은 그 뒤 커밋. `lib/` 변경 없음.
+- **생성 절차**: `git archive e3aa110 | tar -x -C /tmp/claude-0/core-v1-fixture` → 생성기 두 파일(`tool/make_v1_fixture.dart`·`tool/src/v1_dump.dart`)만 복사 → `flutter pub get --enforce-lockfile` → 패키지에서 `dart run tool/make_v1_fixture.dart --out /tmp/claude-0/core-v1-fixture-out --source-commit e3aa1105d7a1bf560a9640ef12b8561b4ec7b140 --core-tree 5e728c80864959c9052fe3fb7f6195fbcaddef5a` → 산출물을 `test/fixtures/db_v1/`로 복사 → 2차 트리에서 `dart run tool/v1_fixture_manifest.dart`. 임시 트리를 `e3aa110`의 새 `git archive`와 `diff -rq`로 비교하면 차이는 pub get 산출물(`.dart_tool`·`app/` 생성 파일)과 생성기 두 파일뿐 — 2차 코드 없음.
+- **내용**(v1.4 공개 API만): 폴더 2개('2026 가을 학기'와 그 아래 전각 라틴 + 자모 분해 한글 이름 — v2 `SearchText.normalize`로 `name_norm`이 달라짐), 노트 A(10쪽, 합성 획 950 + 녹음 연결 획 50, 지운 획 4·옮긴 획 3, 태그·표지), 노트 B(8쪽 800획, PDF 배경 4쪽·템플릿 1쪽, 색 바꾼 획 5, 이름 바꿈·즐겨찾기), 노트 C(2쪽 200획, 휴지통), PDF 에셋 1개(4쪽, 1,990 B), 원격 녹음 1개와 그 오디오 에셋(메타만 — `applyRemote`), 동기 설정 1·기기 설정 1, 기본 펜 프리셋 5. 동기화하지 않아 로컬 쓰기 2,032건이 모두 outbox에 있다.
+- 시계: 2026-10-26T00:00:00Z에서 시작해 00:32:05Z에 끝(고정 시계, id는 그 시계의 UUIDv7 모양). 노트 C 휴지통 시각 00:31:05Z — **2026-11-25T00:31:05Z 뒤에 실제 시계로 `openNoteStore`를 열면 10초 뒤 자동 정리가 노트 C를 지운다**(보관 30일). T25b 시험은 고정 시계를 쓴다(`fixture_source.json` `clock`).
+
+| 파일 | 바이트 | sha256 |
+|---|---|---|
+| `noteapp_v1.sqlite` (VM·네이티브 — `openNoteStore`가 남긴 그대로, WAL 머리) | 2,142,208 | `3ec154b50a3f9046dd56d52c20c0e9abdacfd14a1baaa651ebf07bf13dbcf9e7` |
+| `noteapp_v1_web.sqlite` (Chrome — 같은 행, 롤백 저널 머리) | 2,142,208 | `242c3c1ba1a9963266d0dd727471bf2acbdd9d83c61c8ae194d0a6570ae8d134` |
+| `pdf_asset.pdf` (= PDF 에셋 id) | 1,990 | `a9d04a94683249a064d05127ae71571899d12bb520b437f697f4309eed125f06` |
+| `fixture_source.json` | 3,539 | `71227600c6b4dfd46ddd25b2174fde516c5fb3943b7fb33ad2803e4f4d6aefd7` |
+| `manifest.json` | 7,083 | `69f464bcb01f67d08ccadb446b58525b3e0e25efafc3ff07c35910111d1ad39b` |
+
+- 정규 덤프(`noteapp-v1-dump 1`, 2,074,055 B): `fullDumpSha256` `cf89876473bb45d823621ff7b9427f3c61622ee902cff44287c82633376943d5`, `entityDumpSha256` `c99ca4ebb671820b8477b233b78c4db1f30794abdf1c1c2943a0cc38e3b9d9bc`, `outboxDumpSha256` `3f6d27be99da63a120c005aab9cdf9b60e632b836a8a2f81e4df661394909cb9`, `kvDumpSha256` `316de0e9a972a4ea1c8bdd1b02fdaa86ff87b484432f58b60a9a4193594bc815`. 행 수: assets 2·folders 2·kv 5·notes 3·outbox 2,032·pages 20·pen_presets 5·recordings 1·settings 1·strokes 2,000(점 60,000).
+
+확인 (2026-11-05, load 0~1)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| 생성기 다시 실행(같은 임시 트리, 다른 출력 폴더) | VM 파일의 정규 덤프가 기기 노드 id(`openNoteStore`가 무작위로 만듦)만 바꾸면 커밋한 것과 바이트 단위로 같음, `fixture_source.json`도 시각·노드·해시 외 같음 | 12초 |
+| Chrome 확인(임시 시험 — 커밋 안 함, `flutter test --platform chrome`) | `WasmDatabase.open(initializeDatabase: 웹 형태 바이트)` → `sharedIndexedDb`, `user_version` 1, `journal_mode` delete, SQLite 3.54.1, **브라우저 안 정규 덤프 SHA-256 = `fullDumpSha256`**. VM(WAL) 형태를 초기 바이트로 주면 첫 질의에서 `SqliteException(26) file is not a database` | 37초 |
+| `dart run tool/v1_fixture_manifest.dart --check` | 최신 | 12초 |
+| `ws test --package note_core --platform vm` | 622개 통과(619 + 지킴 시험 3), 5개 건너뜀(perf 파일) | 36초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, 47개 통과, 1개 건너뜀(perf). 첫 시도는 테스트 페이지가 하나도 뜨지 않은 채(시험 호스트 페이지만 열림, load 0) 멈춰 15분 제한에 끝나고, `ws`가 다시 돌린 두 번째 시도가 통과 — 1차 INFRA 기록의 헤드리스 Chrome 초기화 멈춤과 같은 모양 | 956.7초(두 번째 시도 약 56초) |
+| `ws check` | R1~R16 위반 0·경고 0 | 44초 |
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 9초 |
+| `dart format --set-exit-if-changed` (새 파일 5개) | 변경 없음 | — |
+| `dart test tool/test/repo_hygiene_test.dart tool/test/workspace_test.dart` | 16개 통과, `git check-attr`: 두 `.sqlite`·`.pdf` `binary` | 3초 |
+
+#### T25b가 알아 둘 것
+
+- 브라우저 시험은 패키지의 `test/` 밖을 import할 수 없다(`flutter test --platform chrome`의 앱 뿌리 = `test/` — `../../tool/src/v1_dump.dart`는 'File not found'). Chrome의 덤프는 T24의 `lib/src/storage/db/canonical_dump.dart`를 쓰고, 그 출력은 `tool/src/v1_dump.dart`와 바이트 단위로 같아야 한다(지킴 시험·manifest가 그 형식의 해시).
+- 고정 자료 바이트는 `tool/prepare_web_test.dart`가 `test/web/fixtures_v1/`로 복사한다(6.18.1). 웹은 `noteapp_v1_web.sqlite`를 쓴다 — WAL 머리 파일은 웹 워커가 열지 못한다(위 확인). 블롭 DB 항목(키 `<pdfId>/000000`, 1청크)은 `manifest.json` `blobs`.
+- 지킴 시험은 커밋한 생성기의 sha256이 `fixture_source.json`의 값과 같기를 요구한다 — 생성기를 고치면(주석·포맷 포함) 같은 절차(1차 트리 `5e728c8`)로 고정 자료를 다시 만든다.
+
+#### 계획과 다르게 한 점 (T25a)
+
+- 생성 커밋 = 지금의 `main` `e3aa110`(작업 지시 '지금 main의 1차 CORE 코드'). `b6c9d0a` 뒤 커밋은 CORE 파일을 바꾸지 않아 `packages/note_core` 트리가 같다(`5e728c8`) — `fixture_source.json`에 커밋·트리 둘 다 적었다.
+- 산출물에 `noteapp_v1_web.sqlite`를 더했다(계획 6.12.3은 `noteapp_v1.sqlite` 하나). VM 형태는 `openNoteStore`가 남긴 WAL 머리라 웹 워커가 초기 바이트로 받지 못하고, 행은 같고 머리만 다른 파일을 두면 Chrome 시험이 바이트를 고치지 않아도 된다. 두 파일의 정규 덤프가 같은지 생성기·manifest 도구가 확인한다.
+- `manifest.json`과 그 도구(`tool/v1_fixture_manifest.dart`), 덤프 형식(`tool/src/v1_dump.dart`)을 T25b가 아닌 지금 만들었다(CORE-F2 '고정 자료 manifest에 정규 덤프 해시'). 표별 해시·kv 행·블롭 항목도 담았다.
+- 계획에 없던 VM 지킴 시험 `test/migration/v1_fixture_files_test.dart`(manifest 최신·파일 해시·V7 모양).
+- B2-α 커밋에 넣지 않고 따로 커밋했다(작업 지시 — 이정표 커밋은 다른 작업과 섞지 않음, 8.5).
+- 기기 노드 id가 무작위라 다시 돌리면 바이트가 다르다(v1.4 API로는 고정할 수 없음) — 커밋한 파일이 고정 자료이고 manifest가 그 해시다.
