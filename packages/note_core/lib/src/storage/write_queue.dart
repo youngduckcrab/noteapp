@@ -165,7 +165,8 @@ final class WriteQueue {
   int get _pending => _queue.length + _inFlight.length;
 
   void _schedule(Duration delay) {
-    if (_scheduled || _running || _closed) return;
+    // Not stopped by close(): queued and retried jobs still run (close flushes).
+    if (_scheduled || _running) return;
     if (_queue.isEmpty && _inFlight.isEmpty) return;
     _scheduled = true;
     if (delay == Duration.zero) {
@@ -191,7 +192,6 @@ final class WriteQueue {
 
   Future<void> _attempt() async {
     _scheduled = false;
-    if (_closed && _inFlight.isEmpty && _queue.isEmpty) return;
     if (_inFlight.isEmpty) _inFlight = _take();
     final batch = _inFlight;
     if (batch.isEmpty) return;

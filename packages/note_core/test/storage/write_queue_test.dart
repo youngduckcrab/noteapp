@@ -288,18 +288,45 @@ void main() {
     },
   );
 
-  test(
-    'close waits for queued writes; later writes fail with StateError',
-    () async {
-      final store = await openStore();
-      final w = store.queue.run(
-        (tx) => tx.putLocal(folder('f'), const {kAllFields}),
+  test('close waits for queued writes; later writes fail with StateError', () async {
+    final store = await openStore();
+    final w = store.queue.run(
+      (tx) => tx.putLocal(folder('f'), const {kAllFields}),
+    );
+    await store.close();
+    await w;
+    expect(() => store.queue.run((tx) async {}), throwsStateError);
+
+    // More jobs than one transaction holds: close still waits for all of them.
+    final other = await openStore();
+    final many = [
+      for (var i = 0; i < 300; i++)
+        other.queue.run((tx) => tx.putLocal(folder('f$i'), const {kAllFields})),
+    ];
+    await other.close();
+    await Future.wait(many);
+    expect(other.queue.debugTransactionCount, 2); // 256 + 44
+  });
+
+  test('close during a retried commit completes after the retry succeeds', () {
+    fakeAsync((async) {
+      late DriftNoteStore store;
+      openStore().then((s) => store = s);
+      async.flushMicrotasks();
+      store.queue.failNextCommits(2);
+      var wrote = false, closed = false;
+      unawaited(
+        store.queue
+            .run((tx) => tx.putLocal(folder('f'), const {kAllFields}))
+            .then((_) => wrote = true),
       );
-      await store.close();
-      await w;
-      expect(() => store.queue.run((tx) async {}), throwsStateError);
-    },
-  );
+      unawaited(store.close().then((_) => closed = true));
+      async.elapse(const Duration(milliseconds: 499));
+      expect((wrote, closed), (false, false));
+      async.elapse(const Duration(milliseconds: 1));
+      expect((wrote, closed), (true, true));
+    });
+  });
 
   test('isDomainError', () {
     expect(isDomainError(ArgumentError('x')), isTrue);
