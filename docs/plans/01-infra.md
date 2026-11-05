@@ -1,6 +1,6 @@
 # 01. 기반 · 빌드 · 배포 (INFRA) 상세 계획서
 
-> 상태: **승인** (00-review '최종 승인' — 4차 검토 승인, 판본 3차 수정 v0.4 + 개발 중 반영 INFRA-4-1·4-2) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 **v1.4** · 검토: [00-review.md](00-review.md) 3.1(1차), '2차 검토' 2.4.1, '3차 검토' 3.4.1, '4차 검토' 4.4.1, '최종 승인'
+> 상태: **승인** (00-review '최종 승인' — 4차 검토 승인, 판본 3차 수정 v0.4 + 개발 중 반영 INFRA-4-1·4-2) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 **v1.5**(1차 통합 반영 — INFRA는 C15-02 6.2 R6 행, 13.5) · 검토: [00-review.md](00-review.md) 3.1(1차), '2차 검토' 2.4.1, '3차 검토' 3.4.1, '4차 검토' 4.4.1, '최종 승인'
 > 작성 기준일: 2026-11-05 · 검증 환경: Flutter 3.47.9 / Dart 3.13.7, 리눅스 컨테이너
 >
 > 이 문서에서 **(확인함)** 은 저장소 밖 실험 폴더(`/tmp/claude-0/plan-scratch/`)에서 실제로 실행해 확인한 사실이고, **(미확인)** 은 문서·기억에 근거해 구현 때 다시 확인해야 하는 사항이다.
@@ -2142,7 +2142,7 @@ lock 충돌 정책 (동시 개발, 계약 7.4.1):
 | R3 | 멤버 디렉터리에 `analysis_options.yaml` 없음 | 파일 |
 | R4 | `lib/`에서 ① `forbidden_imports.lib` 금지(파일명이 `native_suffixes`로 끝나면 `dart:io`·`dart:ffi` 허용) ② **`native_only_imports`**(`package:ffi/`, `package:pdfium_dart/`, `package:drift/native.dart`)는 파일명이 `native_suffixes`(`_io.dart`·`_native.dart`)로 끝나는 파일에서만 ③ 워크스페이스 패키지의 `test_only_entrypoints`(`testing.dart`·`testing_vm.dart`) import·export 금지 — **`package:` URI 기준**(`package:<멤버>/testing*.dart`). 같은 패키지의 `lib/testing*.dart`끼리는 상대 import 허용(예: `testing_vm.dart` → `'testing.dart'`), 그 밖의 `lib/` 파일이 상대 경로로 `lib/testing*.dart`에 닿으면 위반. **예외 `lib_exceptions`**(파일, 또는 `/`로 끝나면 디렉터리 전체 — ①②③ 모두 면제): `packages/note_core/lib/testing_vm.dart`(+ ink lab이 멤버가 되면 `packages/ink_engine/example/lib/`, 1.3) | Dart |
 | R5 | `web_only_imports`는 파일명이 `web_suffixes`(`_browser.dart`)로 끝나는 파일에서만 — `lib/`와, `test/` 중 `test/web/` 밖의 파일이 대상(`test/web/`의 브라우저 테스트는 직접 import 허용) | Dart |
-| R6 | **`lib/` 안의 import·export에만 적용**: `_io/_native/_browser` 파일은 조건부 절(`if (dart.library.…)`)로만 불러오고, 같은 지시문에 기본(스텁) 파일이 있어야 함. `test/`는 플랫폼 구현 파일을 직접 import해도 됨 | Dart |
+| R6 | **`lib/` 안의 import·export에만 적용**: `_io/_native/_browser` 파일(플랫폼 파일)은 조건부 절(`if (dart.library.…)`)로만 불러오고, 같은 지시문에 기본(스텁) 파일이 있어야 함. **계약 7.4.2 v1.5 해석(C15-02)**: ① 플랫폼 파일 안에서는 **같은 플랫폼**의 플랫폼 파일(`*_native.dart`·`*_io.dart`끼리, `*_browser.dart`끼리)을 조건 없이 불러와도 된다 — 그 파일 자체가 조건부 절로만 불러와지므로 안전하다 ② 패키지 진입점 `lib/<패키지>.dart`는 이름이 `_io.dart`로 끝나도(`pdf_io.dart`) 플랫폼 파일이 아니다(R4·R5·R6 접미사 판정 공통). 다른 플랫폼 파일(네이티브 → 브라우저 등)은 여전히 조건부 절로만. `test/`는 플랫폼 구현 파일을 직접 import해도 됨 | Dart |
 | R7 | `lib/`·`test/`에서 `forbidden_imports.lib_and_test`(SDK `material.dart`·`cupertino.dart`) 금지 + 다른 워크스페이스 패키지의 `package:<pkg>/src/` import 금지 (`tool/` 제외) | Dart |
 | R8 | 형제 의존은 `allowed_dependencies` 안에서만, 버전은 `any`(`path:` 금지) | pubspec |
 | R9 | 외부 의존은 정확 버전(`^`, `>=`, `any` 금지, `sdk:` 의존은 제외), `pinned_external`(= 계약 7.5 표 전부)에 있으면 그 버전과 일치. 표에 없는 외부 의존은 경고 `R9w`(종료 코드 0) — `--strict`(main CI·통합 G1)에서는 위반 | pubspec |
@@ -3106,3 +3106,9 @@ APK 내려받기·설치, 실행 시 라이브러리 화면, 새 APK 덮어 설�
 ### 13.4 최종 승인 (00-review '4차 검토' 4.4.1 · '최종 승인' · 통합 계약 v1.3→v1.4, 2026-11-05)
 
 4차 검토에서 승인(재승인 조건 없음). 개발 착수 때 반영: **INFRA-4-1**(C13-01) 12.3 P6 결정 칸 = '승인 — 계약 v1.3 C13-01', 8.1 B1 완료·B8-2 인용 = '계약 7.6 B1·B8 v1.3'(동작 변경 없음). **INFRA-4-2**(C13-05) 머리 상태 줄 = '승인'·계약 인용 v1.4(v1.4는 기반 단계 뒤 C14-01 `SelectionGeometry` 이름 겹침 → `hide`/접두사, C14-02 R15 `tags:` 인식 수정 완료 — 시그니처 변경 없음). 본문의 개별 'v1.1/v1.2' 인용은 그 조항이 들어간 판을 가리키므로 그대로 둔다. 진행 기록은 [progress/infra.md](progress/infra.md).
+
+### 13.5 1차 통합 뒤 (통합 계약 v1.5, 2026-11-05)
+
+| 항목 | 반영 |
+|---|---|
+| C15-02 (계약 7.4.2 R6 해석) | 6.2 R6 행을 v1.5 문구로: 같은 플랫폼 파일끼리는 조건 없이 불러와도 되고, 패키지 진입점 `lib/<패키지>.dart`(`pdf_io.dart`)는 플랫폼 파일이 아니다(R4·R5·R6 공통). `ws check`는 I1부터 이 규칙이라 코드 변경 없음. 머리 계약 인용 = v1.5 |
