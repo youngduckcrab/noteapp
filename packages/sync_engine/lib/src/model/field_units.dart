@@ -14,6 +14,45 @@ abstract final class FieldUnits {
 
   static const Set<String> _trash = {'deletedAt', 'trashRootId'};
 
+  /// The JSON keys of each kind (CORE 6.3 key table, meta keys included). The
+  /// merge treats every one of them as a unit even when a snapshot lacks it
+  /// (an absent key carries the snapshot's base version), which keeps the merge
+  /// associative across older writers.
+  static Set<String> keysOf(EntityKind kind) => switch (kind) {
+    EntityKind.folder => const {
+      'id', 'ownerId', 'parentId', 'name', 'color', 'icon', 'sortKey', //
+      'createdAt', 'updatedAt', 'deletedAt', 'trashRootId', 'version',
+    },
+    EntityKind.note => const {
+      'id', 'ownerId', 'folderId', 'title', 'cover', 'tags', 'isFavorite', //
+      'sortKey', 'schemaVersion', 'createdAt', 'updatedAt', 'deletedAt',
+      'trashRootId', 'version',
+    },
+    EntityKind.page => const {
+      'id', 'noteId', 'sortKey', 'size', 'background', 'createdAt', //
+      'updatedAt', 'deletedAt', 'version',
+    },
+    EntityKind.stroke => const {
+      'id', 'pageId', 'style', 'points', 'recordingId', 'recordingOffsetMs', //
+      'createdAt', 'updatedAt', 'deletedAt', 'version',
+    },
+    EntityKind.penPreset => const {
+      'id', 'ownerId', 'name', 'style', 'group', 'pinned', 'sortKey', //
+      'createdAt', 'updatedAt', 'deletedAt', 'version',
+    },
+    EntityKind.asset => const {
+      'id', 'ownerId', 'type', 'mimeType', 'size', 'fileName', 'storagePath', //
+      'createdAt', 'deletedAt', 'version',
+    },
+    EntityKind.recording => const {
+      'id', 'noteId', 'assetId', 'durationMs', 'startedAt', 'createdAt', //
+      'updatedAt', 'deletedAt', 'version',
+    },
+    EntityKind.setting => const {
+      'key', 'valueJson', 'updatedAt', 'deletedAt', 'version', //
+    },
+  };
+
   /// Explicit multi-key groups per kind (table 6.3.1).
   static List<Set<String>> groupsOf(EntityKind kind) => switch (kind) {
     EntityKind.folder => const [

@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_core/note_core.dart';
+import 'package:sync_engine/src/codec/chunk_codec.dart';
 import 'package:sync_engine/src/codec/chunk_id.dart';
 import 'package:sync_engine/sync_engine.dart';
 import 'package:sync_engine/testing.dart';
@@ -931,6 +934,107 @@ void main() {
         expect(batches.last.firstWhere((c) => c.id == raw[0].id).format, 2);
         sub.cancel();
       });
+    });
+  });
+
+  group('mergedState', () {
+    UpsertRecord rec(
+      EntityKind kind,
+      String id, {
+      Map<String, Object?> set = const {},
+      Map<String, Hlc> fv = const {},
+      String node = kNodeA,
+    }) {
+      final versions = EntityFieldVersions(Hlc(kT0, 0, node), fv);
+      final json = {
+        ...fixtureJson(kind, id: id),
+        'ownerId': 'user-1',
+        ...set,
+        'version': versions.max.toString(),
+      };
+      if (!const {
+        EntityKind.folder,
+        EntityKind.note,
+        EntityKind.penPreset,
+        EntityKind.asset,
+      }.contains(kind)) {
+        json.remove('ownerId');
+      }
+      return UpsertRecord(SyncDoc(kind: kind, id: id, json: json), versions);
+    }
+
+    ChunkWrite write(
+      List<SyncRecord> records, {
+      String node = kNodeA,
+      String scope = 'lib',
+      int format = 1,
+      Uint8List? payload,
+    }) {
+      final bytes = payload ?? ChunkCodec.encode(records);
+      return ChunkWrite(
+        id: chunkIdOf(node, bytes),
+        scope: scope,
+        authorNodeId: node,
+        recordCount: records.isEmpty ? 1 : records.length,
+        format: format,
+        kind: ChunkKind.delta,
+        maxHlc: hlcText(kT0 + 10, node: node),
+        payload: bytes,
+      );
+    }
+
+    test('merges every chunk field by field and applies purges', () {
+      final server = FakeSyncServer(clock: Clock.fixed(start));
+      final titled = rec(
+        EntityKind.note,
+        'n1',
+        set: {'title': 'A'},
+        fv: {'title': Hlc(kT0 + 1, 0, kNodeA)},
+      );
+      final moved = rec(
+        EntityKind.note,
+        'n1',
+        set: {'folderId': 'f2'},
+        fv: {'folderId': Hlc(kT0 + 2, 0, kNodeB)},
+        node: kNodeB,
+      );
+      final doomed = rec(EntityKind.note, 'n2');
+      final page = rec(EntityKind.page, 'p2', set: {'noteId': 'n2'});
+      final strokeInScope = rec(EntityKind.stroke, 's2', set: {'pageId': 'p2'});
+      final strokeInLib = rec(EntityKind.stroke, 's3', set: {'pageId': 'p2'});
+      final keptStroke = rec(EntityKind.stroke, 's1');
+      server.commitRaw('user-1', [
+        write([titled, doomed, strokeInLib]),
+        write([page], scope: 'n2'),
+        write([strokeInScope], scope: 'n2'),
+        write([keptStroke], scope: 'n1'),
+      ]);
+      server.commitRaw('user-1', [
+        write([moved], node: kNodeB),
+        write([
+          PurgeRecord(
+            const EntityRef(EntityKind.note, 'n2'),
+            Hlc(kT0 + 5, 0, kNodeB),
+          ),
+        ], node: kNodeB),
+        // Left out: newer format, undecodable payload, another owner.
+        write([rec(EntityKind.note, 'n7')], format: 2),
+        write(const [], payload: Uint8List.fromList([1, 2, 3])),
+        write([
+          rec(EntityKind.note, 'n8', set: {'ownerId': 'user-2'}),
+        ]),
+      ]);
+
+      final state = server.mergedState('user-1');
+      expect(state.keys.toSet(), {
+        const EntityRef(EntityKind.note, 'n1'),
+        const EntityRef(EntityKind.stroke, 's1'),
+      });
+      final n1 = state[const EntityRef(EntityKind.note, 'n1')]!;
+      expect(n1.doc.json['title'], 'A');
+      expect(n1.doc.json['folderId'], 'f2');
+      expect(n1.versions.max, Hlc(kT0 + 2, 0, kNodeB));
+      expect(server.mergedState('nobody'), isEmpty);
     });
   });
 

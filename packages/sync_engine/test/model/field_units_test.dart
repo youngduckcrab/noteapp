@@ -5,6 +5,12 @@ import 'package:sync_engine/sync_engine.dart';
 import '../support/entity_fixtures.dart';
 
 void main() {
+  test('keysOf is the CORE 6.3 key table', () {
+    for (final kind in EntityKind.values) {
+      expect(FieldUnits.keysOf(kind), kCoreJsonKeys[kind], reason: kind.name);
+    }
+  });
+
   test('groups follow table 6.3.1', () {
     expect(FieldUnits.groupsOf(EntityKind.folder), [
       {'parentId', 'sortKey'},

@@ -8,8 +8,11 @@ import 'package:note_core/note_core.dart';
 
 import '../backend/profile.dart';
 import '../backend/remote_chunk.dart';
+import '../codec/chunk_codec.dart';
 import '../common/errors.dart';
 import '../common/server_cursor.dart';
+import '../merge/field_merge.dart';
+import '../merge/record_gate.dart';
 import '../model/records.dart';
 import 'fake_blob_store.dart';
 import 'fake_network.dart';
@@ -83,8 +86,78 @@ final class FakeSyncServer {
   int deleteCount(String uid) => _users[uid]?.deletes ?? 0;
 
   /// Decodes every chunk of [uid] and merges with FieldMerge (purges applied).
-  Map<EntityRef, UpsertRecord> mergedState(String uid) =>
-      throw UnimplementedError('SYNC T4');
+  ///
+  /// Chunks of another format or with an undecodable payload are left out, and
+  /// so are records a device's RecordGate would skip (malformed, other owner).
+  /// A purge removes its folder / note, the pages and recordings of a purged
+  /// note and the strokes of those pages or of a purged note's scope.
+  Map<EntityRef, UpsertRecord> mergedState(String uid) {
+    final user = _users[uid];
+    if (user == null) return {};
+    final state = <EntityRef, UpsertRecord>{};
+    final strokeScopes = <String, String>{};
+    final purged = <EntityRef>{};
+    for (final entry in _sorted(user.entries.values)) {
+      final chunk = entry.stored.chunk;
+      if (chunk.format != ChunkCodec.formatVersion) continue;
+      final List<SyncRecord> records;
+      try {
+        records = ChunkCodec.decode(chunk.payload);
+      } on FormatException {
+        continue;
+      }
+      for (final record in records) {
+        final verdict = RecordGate.check(
+          record,
+          scope: chunk.scope,
+          referenceMillis: _noHoldMillis,
+          uid: uid,
+          isPurged: (_) => false,
+        );
+        if (verdict is! GateAccept) continue;
+        switch (record) {
+          case PurgeRecord(:final ref):
+            purged.add(ref);
+          case UpsertRecord(:final ref):
+            final old = state[ref];
+            state[ref] = old == null
+                ? record
+                : FieldMerge.mergeRecords(old, record);
+            if (ref.kind == EntityKind.stroke) {
+              strokeScopes[ref.id] = chunk.scope;
+            }
+        }
+      }
+    }
+    if (purged.isEmpty) return state;
+    final purgedNotes = {
+      for (final r in purged)
+        if (r.kind == EntityKind.note) r.id,
+    };
+    final removedPages = <String>{};
+    state.removeWhere((ref, record) {
+      final json = record.doc.json;
+      switch (ref.kind) {
+        case EntityKind.folder || EntityKind.note:
+          return purged.contains(ref);
+        case EntityKind.page:
+          final gone = purgedNotes.contains(json['noteId']);
+          if (gone) removedPages.add(ref.id);
+          return gone;
+        case EntityKind.recording:
+          return purgedNotes.contains(json['noteId']);
+        default:
+          return false;
+      }
+    });
+    state.removeWhere(
+      (ref, record) =>
+          ref.kind == EntityKind.stroke &&
+          (removedPages.contains(record.doc.json['pageId']) ||
+              purgedNotes.contains(strokeScopes[ref.id])),
+    );
+    return state;
+  }
 
   // ---------------------------------------------------------------------------
   // Server side of FakeSyncBackend (no latency, no faults: the backend adds
@@ -228,6 +301,8 @@ final class FakeSyncServer {
   // ---------------------------------------------------------------------------
 
   static const int _maxBatchWrites = 500;
+  // Far enough ahead that RecordGate never holds a record (merged state).
+  static const int _noHoldMillis = 999999999999999;
   static const int _maxPayloadBytes = 1000000;
   static const int _maxDocumentBytes = 1048576;
   static final RegExp _nodeIdPattern = RegExp(r'^[0-9a-f]{16}$');
