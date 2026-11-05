@@ -1,0 +1,36 @@
+# ink lab (03-ink T23, INK-O1): one page, the five pens, erasers, lasso and the
+# developer numbers on the CORE fake store — for M0 checks on the iPad before
+# EDITOR is integrated.
+#
+# Not a workspace member yet: INFRA registers it (root `workspace:` list,
+# `lib_exceptions: packages/ink_engine/example/lib/` because lib/ uses the
+# testing.dart helpers, the `web-experiment` channel — 03-ink 5.5, INFRA-O1).
+# Until then it resolves on its own with path dependencies; at registration
+# the path / override entries become `resolution: workspace` + `any`.
+name: ink_lab
+description: ink lab — the ink engine on one page with the CORE fake store.
+publish_to: none
+version: 0.0.1
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  flutter:
+    sdk: flutter
+  ink_engine:
+    path: ..
+  note_core:
+    path: ../../note_core
+  riverpod: 3.4.3
+  material_ui: 1.10.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # the workspace lints (root analysis_options.yaml includes them)
+  flutter_lints: 6.0.0
+dependency_overrides:
+  # ink_engine's own `note_core: any` must resolve to the same path package.
+  note_core:
+    path: ../../note_core
+flutter:
+  uses-material-design: true
