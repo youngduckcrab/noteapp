@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 3 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7, 세션 3: I8 …
-- 다음 할 일: I10 → I10b → I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다(I10b는 I10 뒤, I13은 I12 뒤).
+- 마지막 세션: 3 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7, 세션 3: I8·I10 …
+- 다음 할 일: I10b → I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다(I10b는 I10 뒤, I13은 I12 뒤).
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -19,9 +19,9 @@
 | I5 | 완료 | 0aa54f0 | `app/test/bootstrap/app_bootstrapper_test.dart`(fake_async 21건), `overrides_unique_test.dart`, `bootstrap_app_test.dart`(+`runNoteApp`), `startup_error_screen_test.dart`(6.7 문구 표·가로/세로), `foundation_modules_test.dart`(임시 모듈). 가짜 `test/fakes/fake_app_module.dart`·`counting_note_store.dart`. I10·I10b에서 `overrides_unique_test`를 실제 모듈 3개로, `bootstrap_app_test`에 CoreModule 늦은 저장소 경우(`openCount == 2`가 `closeCount == 1` 뒤)를 더한다 |
 | I6 | 완료 | 09cd0db | `app/test/routing/app_routes_test.dart`, `app_router_test.dart`(자리표시 화면: 인자·페이지 종류·라이브러리 State 유지·닫기·새로고침·NotFound·observers). B8 `foundation_routing_test.dart` → `test/routing/production_screens_test.dart`(`AppScreenBuilders.production()` 연결, `FoundationApp`·`foundationOverrides` 없이) |
 | I7 | 완료 | d715ce0 | `app/test/app/note_app_test.dart`(material_ui `MaterialApp`·locale ko·seed `0xFF3949AB`·브리지 없음·라우터 provider dispose·셸 provider `name:`), `lifecycle_bridge_test.dart`(hidden·paused·detached·웹 hidden, 1초 안 반복 무시, dispose 뒤 없음). `builder`의 `UpdateBanner` 감싸기·그 테스트는 I8 |
-| I8 | 완료 | (이 커밋) | `app/test/update/update_checker_test.dart`(fake_async: 비활성 3경우·초기 5초·10분 주기·숨김 동안 없음·visible 60초 규칙·실패 4종 상태 유지·dismiss·applyUpdate flush → reload·500ms 상한·dispose), `update_banner_test.dart`(Available일 때만·버튼 2개·해요체·Overlay 없음·위 여백 이동·아래 State 유지). `note_app_test`에 `builder` = `UpdateBanner` 단언 |
+| I8 | 완료 | f155981 | `app/test/update/update_checker_test.dart`(fake_async: 비활성 3경우·초기 5초·10분 주기·숨김 동안 없음·visible 60초 규칙·실패 4종 상태 유지·dismiss·applyUpdate flush → reload·500ms 상한·dispose), `update_banner_test.dart`(Available일 때만·버튼 2개·해요체·Overlay 없음·위 여백 이동·아래 State 유지). `note_app_test`에 `builder` = `UpdateBanner` 단언 |
 | I9 | 남음 | | `app/test/settings/settings_screen_test.dart`, `settings_sections_test.dart`, `storage_section_test.dart`, `about_section_test.dart`, `backup_export_test.dart` |
-| I10 | 남음 | | `app/test/modules/core_module_test.dart`, `pdf_module_test.dart`, `production_modules_test.dart` |
+| I10 | 완료 | (이 커밋) | `app/test/modules/core_module_test.dart`(절대 URL·기본값·publish/override·flush·close·예외 전파·`canResetAfter` 표·reset 마지막 config·상태 오류 기록·늦은 저장소 close 1회(모듈 단독·부트스트래퍼·shutdown 2초 대기)·늦은 close 실패 기록·늦은 열기 실패), `pdf_module_test.dart`(실패 시 overrides 제외·기본 `pdfIoOverrides()`로 INK 배경 2개), `production_modules_test.dart`(id 순서·유일·새 인스턴스, 세 모듈 함께, `BootstrapApp` 기본 앱 → 라이브러리). `overrides_unique_test`를 실제 모듈로, `bootstrap_app_test`에 CoreModule 늦은 저장소 → 다시 시도(두 번째 open 때 늦은 저장소 `closeCount == 1`) |
 | I10b | 남음 | | `app/test/modules/feature_wiring_module_test.dart`, `pdf_wiring_test.dart` |
 | I11 | 남음 | | `tool/test/web_files_test.dart`, `ws check`(R13), `app/test/web/app_boot_browser_test.dart`, 빌드 결과 `flutter_bootstrap.js`에 `serviceWorkerSettings` 없음 |
 | I12 | 남음 | | `tool/test/hosting_config_test.dart`, `web_assets_test.dart`, `ws check`(R12·R15), `ws web-assets verify`, 기본 `ws test`에서 integration 건너뜀 |
@@ -66,15 +66,20 @@
 - (세션 3, I8) `UpdateChecker`는 시간을 벽시계가 아니라 Timer로만 잰다(앱 의존성에 `clock`이 없어 fake_async가 `DateTime.now()`를 못 바꿈): '마지막 확인 뒤 60초'는 확인을 시작할 때 켜는 `minGapOnResume` Timer가 살아 있는지로 본다(실패한 확인도 '확인'으로 센다). `UpdateUpToDate.checkedAt`만 `DateTime.now()`. 첫 확인 전(`initialDelay` Timer 대기 중)의 `visible`은 확인하지 않는다(초기 Timer가 곧 확인). 첫 확인 때 숨김이면 건너뛰고 다음 `visible`에서 확인한다. `checkNow()`는 비활성이면 아무것도 안 하고, 진행 중인 확인이 있으면 그 Future를 돌려준다. `applyUpdate()`는 중복 탭을 무시하고, `appBootstrapperProvider`가 없는 컨테이너에서도(예외를 잡아) 새로고침한다. dispose 뒤 끝난 fetch는 `ref.mounted`로 버린다.
 - (세션 3, I8) `UpdateBanner`는 배너 유무와 관계없이 `Column[배너?, Expanded(key)]` 모양을 유지해 아래 Navigator의 State가 그대로다. 배너가 보이는 동안 위쪽 안전 영역은 배너가 받고(`SafeArea(bottom: false)`), 아래 화면에는 `MediaQuery.removePadding(removeTop)`. 배너 색은 `colorScheme.surfaceContainerLow`(M3 기본값과 같음, `elevation: 0` → 아래 구분선), 앞에 `Icons.system_update_alt`. 문구는 `AppStrings.updateAvailable(buildNumber, shortSha)`·`AppStrings.later`(새로고침은 기존 `AppStrings.reload`).
 - (세션 3, I8) 가짜 `FakeWebPlatform`에 `fetchDelay`·`hasVisibilityListener`를 더했다(5.7 목록 밖).
+- (세션 3, I10) `productionModules()`의 세 번째 모듈은 I10b 전까지 임시 `StaticOverridesModule(id: 'featureWiring', label: '화면 연결 중', overrides: [...featureEditorOverrides(), ...featureLibraryOverrides()])`(기반 단계와 같은 연결, `critical` 기본값 true). I10b에서 `FeatureWiringModule()`로 바꾼다. `foundation_bootstrap.dart`(임시 `foundationModules`)와 `test/bootstrap/foundation_modules_test.dart`는 지웠고 그 시나리오는 `production_modules_test`로 옮겼다. `runNoteApp()` 기본값은 `productionModules()`.
+- (세션 3, I10) `CoreModule`·`PdfModule` 생성자는 Dart의 비공개 이름 매개변수(`this._open` → 이름 `open`)로 계획서 시그니처의 공개 이름(`open`·`deleteLocalData`·`configFor`, `initialize`·`pdfOverrides`)을 그대로 유지한다. `overrides()`는 시작 전·늦은 저장소면 `StateError`. `resetLocalData`는 항상 있는 함수이고 시작 전에 부르면 `StateError`(부트스트래퍼는 `canResetAfter`가 참일 때만 넘긴다).
+- (세션 3, I10) 상태 구독 해제는 `cancel()`을 부르고 그 Future를 기다리지 않는다(부른 뒤로는 이벤트가 오지 않음). CORE 가짜 저장소의 broadcast 구독 `cancel()`은 루트 zone의 완료된 Future를 돌려줘 fake_async(위젯 테스트)에서 끝나지 않으므로, 기다리면 `stop()`이 2초 제한까지 막혔다. 계획서 '구독 취소 후 `store.close()`' 순서는 지킨다.
+- (세션 3, I10) 저장 오류 기록: 요약 `note_core write failed (consecutiveFailures: n): <오류>`, 기록 시각은 `lastErrorAt`(없으면 지금). 상태 스트림 자체 오류도 source module로 기록. 시간 초과와 같은 턴에 시작이 끝나 이미 publish된 저장소도 `onStartAbandoned`가 구독 해제 후 닫는다.
+- (세션 3, I10) `overrides_unique_test`의 `PdfModule`은 계획서 5.4의 '가짜 `pdfOverrides`' 대신 실제 `pdfIoOverrides()`(기본 인자)를 쓴다 — 운영 목록에서 중복을 찾는 것이 목적이라서. `initialize`만 빈 함수. 가짜 `fake_note_store_opener.dart`: `fakeOpenNoteStore(...)`는 `FakeNoteStoreOpener`(호출 가능 객체, `openCount`·`lastConfig`·`configs`)를 돌려주고 `CoreModule(open: opener.call)`로 넘긴다. `RecordingLocalDataEraser`는 `calls`·`error`·`delay`.
 - (세션 1) 계약 v1.3 C13-05 절차: 계획서 머리 상태 줄 '승인'·계약 인용 v1.4, 12.3 P6 결정 칸·8.1 B1 완료/B8-2 인용(INFRA-4-1), 13.4 '최종 승인' 한 줄(INFRA-4-2). 본문 개별 조항의 v1.1/v1.2 인용은 그 조항이 들어간 판이라 그대로 뒀다.
 
 ## 다음 세션 메모
 
 - 세션 1 끝 상태: `ws check`(R1–R13·R15) 0, 루트 `flutter analyze --fatal-infos` 0, `dart test tool/test` 182건, `ws test` 7개 멤버 통과(noteapp VM 38건), `ws test --package noteapp --platform chrome` 8건 통과.
-- 이미 있는 앱 셸 조각: `src/web/`(WebPlatform), `src/runtime/`(BuildInfo·RuntimeInfo), `src/errors/`(AppErrorLog 등·DiagnosticReport), `src/bootstrap/`(AppModule·AppBootstrapper·BootstrapApp·SplashView·StartupErrorScreen·`runNoteApp`·임시 `foundationModules`), `src/routing/`(I6 전부), `src/providers.dart`(9개), `src/app/`(NoteApp·buildAppTheme·AppStrings·AppLifecycleBridge). 남은 B8 임시 이름: `SettingsPlaceholderScreen`(I9에서 `SettingsScreen`), `foundationModules`(I10에서 `productionModules`).
+- 이미 있는 앱 셸 조각: `src/web/`(WebPlatform), `src/runtime/`(BuildInfo·RuntimeInfo), `src/errors/`(AppErrorLog 등·DiagnosticReport), `src/bootstrap/`(AppModule·AppBootstrapper·BootstrapApp·SplashView·StartupErrorScreen·`runNoteApp`·임시 `foundationModules`), `src/routing/`(I6 전부), `src/providers.dart`(9개), `src/app/`(NoteApp·buildAppTheme·AppStrings·AppLifecycleBridge). 남은 B8 임시 이름: `SettingsPlaceholderScreen`(I9에서 `SettingsScreen`). `productionModules()`의 임시 featureWiring(I10b에서 `FeatureWiringModule`).
 - (세션 2) 5.7은 자리표시 화면에 `Key('open-note')` 같은 콜백 버튼을 적었는데 I6 자리표시는 설정·뒤로 버튼(툴팁)만 있다. I11 `app_boot_browser_test`에 필요하면 그때 더한다.
 - (세션 2) 세션 2 끝 상태: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 앱 VM 132건, 앱 Chrome(`flutter test --platform chrome test/web`) 8건, `dart test tool/test` 182건, I5 뒤 `cd app && flutter build web --release --no-wasm-dry-run` 성공(55초).
-- 가짜: `app/test/fakes/fake_web_platform.dart`. 5.7의 나머지(`FakeAppModule`·`CountingNoteStore`·`fakeOpenNoteStore`·`RecordingLocalDataEraser`·가짜 PDF 동작)는 I5·I9·I10에서 만든다.
+- 가짜: `app/test/fakes/fake_web_platform.dart`. `FakeAppModule`·`CountingNoteStore`(I5), `fakeOpenNoteStore`·`RecordingLocalDataEraser`(I10)는 있다. 가짜 PDF 동작은 I10b에서 만든다.
 - 앱에는 아직 `app/dart_test.yaml`이 없다(I12). 그 전에는 앱 테스트에 태그를 쓰지 않는다(R15).
 - 앱 폴더 이름에 `build`를 쓰지 않는다(`.gitignore`·분석 제외·`ws`가 빌드 산출물로 본다).
 

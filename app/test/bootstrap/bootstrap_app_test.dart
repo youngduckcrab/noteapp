@@ -16,11 +16,14 @@ import 'package:noteapp/src/bootstrap/bootstrap_app.dart';
 import 'package:noteapp/src/bootstrap/splash_view.dart';
 import 'package:noteapp/src/bootstrap/startup_error_screen.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/modules/core_module.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
 
+import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
+import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_web_platform.dart';
 
 void _useIpadPortrait(WidgetTester tester) {
@@ -342,6 +345,62 @@ void main() {
       lessThan(events.indexOf('create:2')),
     );
     expect(_app, findsOneWidget);
+  });
+
+  testWidgets('CoreModule: timeout → error screen → 다시 시도 → the late store '
+      'is closed before the next open (openCount == 2 after closeCount == '
+      '1)', (tester) async {
+    final gate = Completer<NoteStore>();
+    final late = CountingNoteStore();
+    final store = CountingNoteStore();
+    final first = fakeOpenNoteStore(gate: gate);
+    var openCount = 0;
+    int? lateClosesAtSecondOpen;
+    final attempts = _Attempts([
+      () => [
+        CoreModule(
+          open: (config) {
+            openCount++;
+            return first(config);
+          },
+        ),
+      ],
+      () => [
+        CoreModule(
+          open: (config) async {
+            openCount++;
+            lateClosesAtSecondOpen = late.closeCount;
+            return store;
+          },
+        ),
+      ],
+    ]);
+    await _pumpApp(tester, attempts);
+    await tester.pump(const Duration(seconds: 20));
+    await tester.pump();
+    expect(
+      find.text(AppStrings.startupTimedOut(CoreModule().label)),
+      findsOneWidget,
+    );
+    expect(find.text(AppStrings.resetLocalData), findsNothing);
+
+    await tester.tap(find.text(AppStrings.retry));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(attempts.created, hasLength(1));
+    expect(openCount, 1);
+
+    // The late store arrives while shutdown waits for the cleanup.
+    gate.complete(late);
+    await tester.pump();
+    await tester.pump();
+    expect(late.closeCount, 1);
+    expect(attempts.created, hasLength(2));
+    expect(openCount, 2);
+    expect(lateClosesAtSecondOpen, 1);
+    await tester.pump();
+    expect(_app, findsOneWidget);
+    expect(late.flushCount, 0);
+    expect(store.closeCount, 0);
   });
 
   group('reload', () {

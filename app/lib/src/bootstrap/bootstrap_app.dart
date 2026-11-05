@@ -16,11 +16,11 @@ import '../errors/app_error_log.dart';
 import '../errors/app_provider_observer.dart';
 import '../errors/diagnostic_report.dart';
 import '../errors/error_handlers.dart';
+import '../modules/production_modules.dart';
 import '../runtime/build_info.dart';
 import '../runtime/runtime_info.dart';
 import '../web/web_platform.dart';
 import 'app_bootstrapper.dart';
-import 'foundation_bootstrap.dart';
 import 'splash_view.dart';
 import 'startup_error_screen.dart';
 
@@ -203,9 +203,6 @@ class _ShellFrame extends StatelessWidget {
 }
 
 /// Entry used by main.dart. Steps in 6.4.
-///
-/// Until I10 the default modules are the foundation step's
-/// (foundationModules()); I10 switches them to productionModules().
 Future<void> runNoteApp({
   AppBootstrapper Function()? createBootstrapper,
 }) async {
@@ -221,7 +218,7 @@ Future<void> runNoteApp({
       createBootstrapper:
           createBootstrapper ??
           () => AppBootstrapper(
-            modules: foundationModules(),
+            modules: productionModules(),
             buildInfo: buildInfo,
             runtimeInfo: runtime,
             web: web,

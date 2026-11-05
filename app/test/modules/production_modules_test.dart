@@ -1,6 +1,6 @@
-// The interim modules of the foundation step (foundationModules()), run by
-// AppBootstrapper / BootstrapApp until I10 brings productionModules()
-// (docs/plans/01-infra.md 8.1 B8-1, 8.2 I5).
+// productionModules() (docs/plans/01-infra.md 4.5.9, 6.4, 9.1; contract
+// 7.3.3 order core → pdf → featureWiring), and the modules together through
+// AppBootstrapper / BootstrapApp with a fake CORE open.
 import 'package:feature_library/feature_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,16 +11,30 @@ import 'package:noteapp/src/app/note_app.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/bootstrap/bootstrap_app.dart';
-import 'package:noteapp/src/bootstrap/foundation_bootstrap.dart';
 import 'package:noteapp/src/bootstrap/startup_error_screen.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/modules/core_module.dart';
+import 'package:noteapp/src/modules/pdf_module.dart';
+import 'package:noteapp/src/modules/production_modules.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:pdf_io/pdf_io.dart';
 
 import '../fakes/counting_note_store.dart';
+import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_web_platform.dart';
+
+/// productionModules() with CORE's open replaced (B2 openNoteStore throws)
+/// and a no-op PDF initialize; everything else is the production module.
+List<AppModule> _modules(FakeNoteStoreOpener opener) {
+  final production = productionModules();
+  return [
+    CoreModule(open: opener.call),
+    PdfModule(initialize: () async {}),
+    ...production.skip(2),
+  ];
+}
 
 AppBootstrapper _bootstrapper(List<AppModule> modules, AppErrorLog log) {
   final web = FakeWebPlatform();
@@ -35,40 +49,43 @@ AppBootstrapper _bootstrapper(List<AppModule> modules, AppErrorLog log) {
 }
 
 void main() {
-  test('ids, order, criticality and timeouts (contract 7.3.3 order)', () {
-    final modules = foundationModules();
+  test('ids in contract 7.3.3 order, unique; module types and timeouts', () {
+    final modules = productionModules();
     expect(modules.map((m) => m.id), ['core', 'pdf', 'featureWiring']);
-    expect(modules.map((m) => m.critical), [true, false, true]);
+    expect(modules.map((m) => m.id).toSet(), hasLength(modules.length));
+    expect(modules[0], isA<CoreModule>());
+    expect(modules[1], isA<PdfModule>());
+    expect(modules.map((m) => m.critical).take(2), [true, false]);
     expect(modules.map((m) => m.startTimeout), const [
       Duration(seconds: 20),
       Duration(seconds: 10),
       Duration(seconds: 1),
     ]);
+    // A fresh list (and fresh modules) per call: a retry never reuses a
+    // module that held the previous attempt's store.
+    final again = productionModules();
+    for (var i = 0; i < modules.length; i++) {
+      expect(identical(again[i], modules[i]), isFalse);
+    }
   });
 
-  test('core opens CORE’s default config and overrides noteStoreProvider; '
-      'pdf adds pdfIoOverrides()', () async {
+  test('the modules together: store published and overridden, PDF '
+      'backgrounds, flush on hide, close on shutdown', () async {
     final store = CountingNoteStore();
     addTearDown(store.inner.close);
-    final configs = <NoteStoreConfig>[];
-    var pdfStarts = 0;
+    final opener = fakeOpenNoteStore(store: store);
     final log = AppErrorLog();
-    final bootstrapper = _bootstrapper(
-      foundationModules(
-        open: (config) async {
-          configs.add(config);
-          return store;
-        },
-        initializePdf: () async => pdfStarts++,
-      ),
-      log,
-    );
+    final bootstrapper = _bootstrapper(_modules(opener), log);
 
     final success = await bootstrapper.run() as BootstrapSuccess;
-    // INFRA-3-4: the interim core module opens CORE's default config.
-    expect(configs, [same(const NoteStoreConfig())]);
-    expect(pdfStarts, 1);
+    expect(success.report.steps.map((s) => s.outcome), [
+      StartupStepOutcome.ok,
+      StartupStepOutcome.ok,
+      StartupStepOutcome.ok,
+    ]);
     expect(success.report.storage, same(store.storageInfo));
+    expect(opener.openCount, 1);
+    expect(Uri.parse(opener.lastConfig!.web.sqlite3WasmPath).isAbsolute, true);
     expect(log.totalCount, 0);
 
     final container = ProviderContainer.test(overrides: success.overrides);
@@ -76,7 +93,6 @@ void main() {
     final builders = container.read(ink.pageBackgroundBuildersProvider);
     expect(builders, hasLength(2));
     expect(builders.first, isA<PdfBackgroundLayerBuilder>());
-    expect(builders.last, isA<ink.TemplateBackgroundLayerBuilder>());
 
     await bootstrapper.notifyAppHidden();
     expect(store.flushCount, 1);
@@ -84,52 +100,26 @@ void main() {
     expect(store.closeCount, 1);
   });
 
-  test(
-    'a failed PDF start leaves the PDF overrides out and is logged',
-    () async {
-      final store = CountingNoteStore();
-      addTearDown(store.inner.close);
-      final log = AppErrorLog();
-      final bootstrapper = _bootstrapper(
-        foundationModules(
-          open: (_) async => store,
-          initializePdf: () async => throw StateError('pdf start failed'),
-        ),
-        log,
-      );
-
-      final success = await bootstrapper.run() as BootstrapSuccess;
-      expect(
-        success.report.steps[1].outcome,
-        StartupStepOutcome.failedNonCritical,
-      );
-      expect(log.records.single.summary, contains('pdf start failed'));
-      final container = ProviderContainer.test(overrides: success.overrides);
-      expect(container.read(ink.pageBackgroundBuildersProvider), [
-        isA<ink.TemplateBackgroundLayerBuilder>(),
-      ]);
-      await bootstrapper.shutdown();
-    },
-  );
-
-  test(
-    'a failed open (B2 UnimplementedError) fails startup before PDF',
-    () async {
-      var pdfStarts = 0;
-      final bootstrapper = _bootstrapper(
-        foundationModules(
-          open: (_) async => throw UnimplementedError('CORE T6'),
-          initializePdf: () async => pdfStarts++,
-        ),
-        AppErrorLog(),
-      );
-      final failure = await bootstrapper.run() as BootstrapFailure;
-      expect(failure.moduleId, 'core');
-      expect(failure.error, isA<UnimplementedError>());
-      expect(failure.resetLocalData, isNull);
-      expect(pdfStarts, 0);
-    },
-  );
+  test('a CORE open failure stops startup before PDF (critical)', () async {
+    var pdfStarts = 0;
+    final bootstrapper = _bootstrapper([
+      CoreModule(
+        open: fakeOpenNoteStore(
+          error: const NoteStoreOpenException(
+            NoteStoreOpenFailure.corrupted,
+            'bad page',
+          ),
+        ).call,
+      ),
+      PdfModule(initialize: () async => pdfStarts++),
+      ...productionModules().skip(2),
+    ], AppErrorLog());
+    final failure = await bootstrapper.run() as BootstrapFailure;
+    expect(failure.moduleId, 'core');
+    expect(failure.error, isA<NoteStoreOpenException>());
+    expect(failure.resetLocalData, isNotNull);
+    expect(pdfStarts, 0);
+  });
 
   testWidgets('BootstrapApp with the default app builder shows the library', (
     tester,
@@ -142,13 +132,8 @@ void main() {
     final log = AppErrorLog();
     await tester.pumpWidget(
       BootstrapApp(
-        createBootstrapper: () => _bootstrapper(
-          foundationModules(
-            open: (_) async => store,
-            initializePdf: () async {},
-          ),
-          log,
-        ),
+        createBootstrapper: () =>
+            _bootstrapper(_modules(fakeOpenNoteStore(store: store)), log),
         errorLog: log,
       ),
     );
@@ -159,7 +144,8 @@ void main() {
     expect(find.byType(StartupErrorScreen), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    // shutdown: status unsubscribed, then close.
+    await tester.pump(const Duration(milliseconds: 100));
     expect(store.closeCount, 1);
   });
 }
