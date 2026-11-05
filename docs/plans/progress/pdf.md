@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 4/10 (동시 개발 단계)
-- 다음 할 일: T13 네이티브 합성 백엔드 → T14 웹 합성 백엔드
+- 마지막 세션: 5/10 (동시 개발 단계)
+- 다음 할 일: T14 웹 합성 백엔드 → T15 내보내기 서비스
 
 ## 작업 표
 
@@ -22,7 +22,7 @@
 | T10 | 완료 | 6962562 | unit/thumbnail_test, unit/cover_thumbnail_test. integration/ink_thumbnail_test는 작성함(통합 단계 판정 — 지금 INK B3 구현 + 실 PDFium으로 `--run-skipped -t integration` 수동 실행 시 통과) |
 | T11 | 완료 | 03c2568 | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test (+ unit/search_notifier_test, web/pure_logic_browser_test 정규화 항목) |
 | T12 | 완료 | 405875c | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
-| T13 | 남음 | | pdfium/compose_native_test |
+| T13 | 완료 | (이 커밋) | pdfium/compose_native_test (+ support/compose_probes.dart — T14와 같은 탐침 목록, unit/compose_layout_test) |
 | T14 | 남음 | | web/compose_browser_test |
 | T15 | 남음 | | unit/export_service_test, pdfium/export_e2e_test |
 | T15b | 남음 | | unit/batch_export_test, widget/batch_export_flow_test |
@@ -96,6 +96,10 @@
 - T12 인코더: 빈 경로 항목은 건너뛰고(객체 없음), moveTo로 시작하지 않거나 coords 수가 verbs와 안 맞는 경로는 ArgumentError. 같은 paint는 인덱스 하나를 같이 쓴다(문자열 키). 선 paint의 fillMode 칸은 0, 채움 paint의 width·cap·join 칸은 0. `PdfComposePlan.encodePages`의 빈 페이지는 sourceIndex·pdfPageIndex = −1. 고정 픽스처(test/support/compose_fixture.dart)의 verbs·coords·paints 값과 리틀 엔디언 바이트 sha256을 VM·dart2js 둘 다 확인한다 — T13·T14 해석기가 이 형식을 읽는다.
 - T12 INK 어댑터: 6.11.8대로 INK 호출은 ink_adapter/ink_vectorizer.dart와 새 파일 ink_adapter/template_underlay.dart에만 있다. 시험할 수 있게 순수 함수로 나눴다(모두 barrel 비공개): `pdfHighlighterItems`(형광펜 그룹 → (width, cap)별 선 항목, 처음 나온 순서), `pdfTemplateItems`(INK 속지 항목 → 선은 (색, 굵기)별 butt·miter 선 객체, 점은 색별 원 채움 객체, 처음 나온 순서), `pdfPageUnderlay(page, {build})`(`build` 기본값 `ink.TemplateVectors.build` — 시험은 기록하는 builder로 `core.PageTemplate`이 그대로(identical) 가는지 확인). INK 그룹·도형 타입은 생성자가 비공개라 단위 시험에서 만들 수 없어서 이렇게 했다. 이미지 배경 페이지는 종이 채움만(이미지는 이번 범위에서 내보내지 않음). `includeInk`이고 획이 있을 때만 INK 내보내기를 부른다.
 - T12 `BoxInkVectorizer`(4.14 '획 → 경계 상자 채움'): INK 없이 동작 — 살아 있는 획(deletedAt == null)을 `core.Stroke.compareOrder`로 정렬해 `bounds` 사각형 채움(획 색·opacity, normal blend, 형광펜도 같음). `includeTemplate`이면 PDF가 아닌 페이지의 흰색이 아닌 종이만 채운다(속지 선은 그리지 않음).
+- T13 3장 트리의 `compose/display_matrix.dart` 대신 `compose/compose_layout.dart`(내부, 웹 안전)에 순수 부분을 모았다: `PdfComposePageBox`(D 표·표시 크기·`noteToUser` = D∘F, F는 `PdfPageFit.noteToPdfMatrix()`, `isIdentity`면 F 생략), `PdfComposePageBox.visible`(PDFium CPDF_Page 규칙 — CropBox ∩ MediaBox, CropBox가 없거나 교집합이 비면 MediaBox, MediaBox도 없으면 [0 0 612 792]), `decodeComposePlan`(stride 6 행 → 레코드, 잘못된 계획은 ArgumentError), `PdfComposeLayout.of`(6.11.4 3~5단계: 원본별 가져올 쪽 목록·한 쪽씩 옮기기 목록·빈 페이지 위치). 네이티브 해석기가 이것을 워커 isolate에서 그대로 쓰고, T14 JS 확장은 같은 단계를 JS로 옮긴다(기준값 = unit/compose_layout_test).
+- T13 `NativePdfComposeBackend`(compose_backend_native.dart, barrel 비공개): begin/addPages/finish/abort가 각각 `rx.PdfrxEntryFunctions.instance.compute` 한 번이고 `rx.Pdfrx.runAsBackgroundWork`로 감싸 낮은 우선순위(화면 렌더가 먼저). 워커 콜백은 모두 동기(pdfrx가 PDFium 게이트를 동기 구간에만 잡음)이고 예외 대신 'engine: …'/'export: …' 문자열을 돌려준다 — 바인딩 로드 실패 → `engineUnavailable`, 그 밖 → `exportFailed`(원본 열기 실패·쪽 번호 범위 밖·명령 형식 오류·저장 실패). 원본 바이트는 `TransferableTypedData` 하나로 보내 워커에서 `malloc` 버퍼로 복사(`FPDF_LoadMemDocument64`, 암호 nullptr) — 버퍼는 문서를 닫은 뒤 해제. 결과 바이트도 `TransferableTypedData`. 작업 id는 프로세스 전역(모든 백엔드가 같은 워커). `begin` 전에 `PdfrxEngine.shared().ensureInitialized()`(생성자 인자 `ensureEngine`으로 바꿀 수 있음, 실패 → `engineUnavailable`). 빈 계획·`sourceIndex` 범위 밖·잘못된 노트 크기·`outputIndex` 범위 밖은 ArgumentError(프로그램 오류, 워커 전). 비어 있는 ops는 보내지 않는다(페이지를 열지 않음 — 원본 그대로). addPages 실패 뒤에도 작업은 남고 `abort`가 정리한다. `finish`는 성공·실패 모두 작업을 정리한다. finish/abort 뒤 `addPages`·`finish`는 StateError, `abort`는 멱등(진행 중인 finish가 있으면 그것을 기다림). `dispose`는 열린 작업을 abort하고 이후 `begin`은 StateError. 테스트 훅: `openJobCount`, 최상위 내부 함수 `debugNativeComposeJobCount()`(워커의 작업 맵 크기).
+- T13 탐침(test/support/compose_probes.dart, 웹 안전 — T14가 같은 목록을 Chrome에서 돌림): 결과를 `PdfEngine`(PdfrxEngine)으로 다시 열어 표식(빨간 채움) 픽셀·텍스트·쪽 순서와 크기·암호 없음을 확인한다. 출력 페이지 크기는 원본 PDF 페이지 크기(노트 크기가 아님 — F로 필기만 옮김). 형광펜 탐침은 같은 X를 두 객체로 그린 대조 페이지가 교차점에서 더 어두운지도 확인하고(검출력), 파란 띠 위 Multiply(R < 40)도 본다. 행렬을 일부러 틀리게 바꾸면 회전 90·CropBox·Letter/A4 탐침이 실패함을 확인했다.
+- T13 `api_surface_test`의 'VM 합성 팩토리 → UnimplementedError'(B4 몫)는 'isSupported == true'로 바꿨다.
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 

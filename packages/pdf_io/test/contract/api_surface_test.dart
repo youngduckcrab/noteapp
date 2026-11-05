@@ -1355,11 +1355,11 @@ void main() {
 
     test('platform factories on the VM', () async {
       expect(createPlatformOutputSink().availableActions(const []), isEmpty);
-      // dart:ffi is available on the VM → the native compose placeholder (PDF T13).
-      expect(
-        () => createPlatformComposeBackend(const PdfIoConfig()),
-        throwsUnimplementedError,
-      );
+      // dart:ffi is available on the VM → the native FFI backend (PDF T13); creating it
+      // starts nothing (pdfrx is touched on the first begin).
+      final compose = createPlatformComposeBackend(const PdfIoConfig());
+      expect(compose.isSupported, isTrue);
+      await compose.dispose();
       expect(const NoIncomingPdfFiles().incoming, emitsDone);
     });
   });
