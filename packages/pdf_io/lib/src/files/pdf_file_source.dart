@@ -1,5 +1,8 @@
 // lib/src/files/pdf_file_source.dart — 06-pdf 4.5 (file picking, incoming files).
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+
+import '../errors.dart';
 
 @immutable
 final class PickedPdfFile {
@@ -33,17 +36,43 @@ abstract interface class PdfFileSource {
 
 /// file_picker 13.3.2: FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']).
 ///
-/// Foundation step B4 (T0): not supported yet; the picker comes with PDF T6.
+/// One file: FilePicker.pickFile (same options) — the same API on the web and natively
+/// (6.15), so there is no platform branch. On the web file_picker opens its <input type=file>
+/// inside this call, so pickPdf() must run synchronously in the tap handler (it does: the
+/// picker is called before the first await).
 final class FilePickerPdfSource implements PdfFileSource {
   const FilePickerPdfSource();
 
   @override
-  bool get isSupported => false;
+  bool get isSupported => true;
 
   @override
-  Future<PickedPdfFile?> pickPdf() =>
-      throw UnimplementedError('FilePickerPdfSource.pickPdf (PDF T6)');
+  Future<PickedPdfFile?> pickPdf() async {
+    final PlatformFile? file;
+    try {
+      file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+      );
+    } on Object catch (e) {
+      throw PdfIoException(
+        PdfErrorCode.pickerFailed,
+        detail: 'file picker failed',
+        cause: e,
+      );
+    }
+    return file == null ? null : pickedPdfFileFrom(file);
+  }
 }
+
+/// Internal (not exported): a picked file_picker file as a PickedPdfFile. The size is the
+/// one known without I/O (web: File.size); the bytes are read only when the import asks
+/// (PdfImportService.open checks the size first — 6.3 step 1).
+PickedPdfFile pickedPdfFileFrom(PlatformFile file) => PickedPdfFile(
+  name: file.name,
+  sizeBytes: file.lengthSync(),
+  readBytes: file.readAsBytes,
+);
 
 /// Later (native share-to-open / "Open in"). Web implementation: empty stream.
 abstract interface class PdfIncomingFileSource {

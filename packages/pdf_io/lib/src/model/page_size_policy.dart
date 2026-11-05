@@ -1,7 +1,4 @@
 // lib/src/model/page_size_policy.dart — 06-pdf 4.6, 6.5, 6.5.1.
-//
-// Foundation step B4 (T0): PdfPageFit is real (pure calculation, 06-pdf 8 T0);
-// PdfPageSizePolicy comes with PDF T1.
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -11,8 +8,26 @@ import 'package:note_core/note_core.dart' as core;
 abstract final class PdfPageSizePolicy {
   /// PDF displayed size (pt) → CORE PageSize. Rounds to 0.001 pt; if a side is
   /// outside [core.PageSize.minSide, core.PageSize.maxSide] scales BOTH sides uniformly (6.5, P-1).
-  static core.PageSize toNotePageSize(double widthPt, double heightPt) =>
-      throw UnimplementedError('PdfPageSizePolicy.toNotePageSize (PDF T1)');
+  ///
+  /// 6.5: s = 1; shorter side < minSide → s = minSide / shorter; then longer side × s >
+  /// maxSide → s = maxSide / longer (an extreme strip may end below minSide — CORE
+  /// clamped() handles it). Scaled sides are rounded to 0.001 pt again.
+  static core.PageSize toNotePageSize(double widthPt, double heightPt) {
+    final w = _round(widthPt), h = _round(heightPt);
+    if (!w.isFinite || !h.isFinite || w <= 0 || h <= 0) {
+      throw ArgumentError(
+        'PDF page size must be positive: $widthPt x $heightPt',
+      );
+    }
+    final shorter = math.min(w, h), longer = math.max(w, h);
+    var s = 1.0;
+    if (shorter < core.PageSize.minSide) s = core.PageSize.minSide / shorter;
+    if (longer * s > core.PageSize.maxSide) s = core.PageSize.maxSide / longer;
+    if (s == 1.0) return core.PageSize(w, h);
+    return core.PageSize(_round(w * s), _round(h * s));
+  }
+
+  static double _round(double pt) => (pt * 1000).roundToDouble() / 1000;
 }
 
 /// Where the PDF page sits on the note page (6.5.1) — the ONLY conversion between

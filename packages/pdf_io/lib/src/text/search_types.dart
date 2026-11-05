@@ -3,8 +3,9 @@
 
 // lib/src/text/search_types.dart — 06-pdf 4.8, 6.10.2.
 //
-// Foundation step B4 (T0): value equality is real (contract 7.4.4); the highlight rect
-// lookups come with PDF T11.
+// Foundation step B4 (T0): value equality is real (contract 7.4.4). The highlight rect
+// lookups are real from PDF T9 (the background painter reads them); the search itself is
+// PDF T11.
 import 'dart:ui' as ui;
 
 import 'package:collection/collection.dart';
@@ -107,15 +108,24 @@ final class PdfSearchState {
   /// Highlight rects (note page pt) of one NOTE page — keyed by pageId, not by PDF page,
   /// because the same PDF page may back several note pages of different sizes.
   /// Used by PdfPageBackgroundView with params.pageId.
-  List<ui.Rect> rectsFor(core.PageId pageId) =>
-      throw UnimplementedError('PdfSearchState.rectsFor (PDF T11)');
+  List<ui.Rect> rectsFor(core.PageId pageId) => [
+    for (final hit in hits)
+      if (hit.pageId == pageId) ...hit.rects,
+  ];
 
-  List<ui.Rect> currentRectsFor(core.PageId pageId) =>
-      throw UnimplementedError('PdfSearchState.currentRectsFor (PDF T11)');
+  List<ui.Rect> currentRectsFor(core.PageId pageId) {
+    final hit = current;
+    return hit != null && hit.pageId == pageId ? hit.rects : const [];
+  }
 
   /// Union of current!.rects — the focusRectPt passed to onNavigate (6.10.2 step 7).
-  ui.Rect? get currentFocusRect =>
-      throw UnimplementedError('PdfSearchState.currentFocusRect (PDF T11)');
+  ui.Rect? get currentFocusRect {
+    final rects = current?.rects;
+    if (rects == null || rects.isEmpty) return null;
+    return rects
+        .skip(1)
+        .fold<ui.Rect>(rects.first, (a, b) => a.expandToInclude(b));
+  }
 
   static const ListEquality<PdfSearchHit> _hits = ListEquality<PdfSearchHit>();
 

@@ -1328,41 +1328,17 @@ void main() {
   });
 
   group('B4 bodies (contract 7.6 B4)', () {
-    test('initializePdfIo completes and does nothing', () async {
-      await initializePdfIo();
-      await initializePdfIo(config: const PdfIoConfig(warmUpOnStart: false));
-    });
-
-    test('menu functions return empty lists', () {
-      expect(pdfEditorMoreMenuActions(), isEmpty);
-      expect(pdfEditorAddPageSources(), isEmpty);
-    });
-
-    testWidgets('importPdfAsNewNote → null, exportNotesAsPdf → nothing', (
-      tester,
-    ) async {
-      late BuildContext context;
-      await tester.pumpWidget(
-        Builder(
-          builder: (c) {
-            context = c;
-            return const SizedBox();
-          },
-        ),
-      );
-      expect(await importPdfAsNewNote(context), isNull);
-      expect(await importPdfAsNewNote(context, folderId: 'f1'), isNull);
-      await exportNotesAsPdf(context, const ['n1', 'n2']);
-      await exportNotesAsPdf(context, const []);
-    });
+    // importPdfAsNewNote is the real flow from PDF T6 (widget/import_flow_test.dart),
+    // exportNotesAsPdf from T15b (widget/batch_export_flow_test.dart), initializePdfIo
+    // and the menu functions from T17 (unit/init_test.dart, widget/menu_actions_test.dart).
 
     test('platform factories on the VM', () async {
       expect(createPlatformOutputSink().availableActions(const []), isEmpty);
-      // dart:ffi is available on the VM → the native compose placeholder (PDF T13).
-      expect(
-        () => createPlatformComposeBackend(const PdfIoConfig()),
-        throwsUnimplementedError,
-      );
+      // dart:ffi is available on the VM → the native FFI backend (PDF T13); creating it
+      // starts nothing (pdfrx is touched on the first begin).
+      final compose = createPlatformComposeBackend(const PdfIoConfig());
+      expect(compose.isSupported, isTrue);
+      await compose.dispose();
       expect(const NoIncomingPdfFiles().incoming, emitsDone);
     });
   });

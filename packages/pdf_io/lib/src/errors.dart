@@ -1,6 +1,9 @@
 // lib/src/errors.dart — 06-pdf 4.2.
 import 'package:flutter/foundation.dart';
 
+import 'init.dart';
+import 'ui/strings_ko.dart';
+
 enum PdfErrorCode {
   notPdf, // no '%PDF-' in the first 1024 bytes
   tooLarge, // > PdfImportLimits.maxBytes
@@ -32,8 +35,14 @@ final class PdfIoException implements Exception {
   final Object? cause;
 
   /// Korean message for UI (table 6.14).
-  String get userMessage =>
-      throw UnimplementedError('PdfIoException.userMessage (PDF T1)');
+  ///
+  /// {max} of tooLarge / tooManyPages is the limit of the config given to initializePdfIo
+  /// (PdfIoRuntime.config); {detail} of assetMissing is the page list ('3, 5').
+  String get userMessage => PdfStringsKo.errorMessage(
+    code,
+    detail: detail,
+    limits: PdfIoRuntime.config.limits,
+  );
 
   @override
   String toString() {

@@ -1,18 +1,21 @@
 // lib/src/ink_adapter/ink_background_builder.dart — 06-pdf 4.7, 6.8 (contract 7.2.16 /
 // 7.2.19). One of the files allowed to import package:ink_engine (always `as ink`, 3).
 //
-// Foundation step B4 (T0): the paperOnly placeholder is real (handles, opaque paper,
-// renderStill → null) — it is the first entry of ink.pageBackgroundBuildersProvider through
-// pdfIoOverrides(). The renderer-backed builder (renderStill, the PdfPageBackgroundView
-// body) comes with PDF T9.
+// The paperOnly placeholder (B4, T0) stays for tests; from PDF T9 the provider builds the
+// renderer-backed builder: PdfPageBackgroundView for the editor / page panel and renderStill
+// (renderer.renderThumbnail placed with PdfPageFit) for INK's thumbnail renderer.
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 
+import '../common/error_report.dart';
+import '../model/page_size_policy.dart';
 import '../render/page_background_view.dart';
 import '../render/render_service.dart';
+import '../render/tile_math.dart';
 import '../text/search_types.dart';
 
 /// INK extension point implementation for InkBackgroundKind.pdf (contract 7.2.16, 6.8, 6.9).
@@ -61,7 +64,7 @@ final class PdfBackgroundLayerBuilder
           width: ctx.pageSize.width * ctx.viewScale,
           height: ctx.pageSize.height * ctx.viewScale,
           child: ColoredBox(
-            color: Color(_opaqueArgb(ctx.background.paperColorArgb)),
+            color: Color(opaquePaperArgb(ctx.background.paperColorArgb)),
           ),
         ),
       );
@@ -99,11 +102,62 @@ final class PdfBackgroundLayerBuilder
     ink.InkBackgroundSpec background, {
     required Size pageSize,
     required Size pixelSize,
-  }) {
-    if (_renderer == null) return Future<ui.Image?>.value();
-    throw UnimplementedError('PdfBackgroundLayerBuilder.renderStill (PDF T9)');
+  }) async {
+    final renderer = _renderer;
+    final assetId = background.assetId;
+    final pdfPageIndex = background.pdfPageIndex;
+    if (renderer == null || assetId == null || pdfPageIndex == null) {
+      return null;
+    }
+    final width = pixelSize.width.ceil();
+    final height = pixelSize.height.ceil();
+    if (width <= 0 || height <= 0 || pageSize.isEmpty) return null;
+    final paper = opaquePaperArgb(background.paperColorArgb);
+    ui.Image? pdf;
+    try {
+      // Never asks for a download (6.9): renderThumbnail only reads local bytes.
+      pdf = await renderer().renderThumbnail(
+        assetId: assetId,
+        pdfPageIndex: pdfPageIndex,
+        longSidePx: math.max(width, height),
+        backgroundArgb: paper,
+      );
+      if (pdf == null) return null;
+      // The image has the PDF page's aspect, which is all PdfPageFit's box depends on.
+      final box = PdfPageFit(
+        notePageSize: pageSize,
+        pdfPageSize: Size(pdf.width.toDouble(), pdf.height.toDouble()),
+      ).pdfBoxInNote;
+      final sx = width / pageSize.width;
+      final sy = height / pageSize.height;
+      final recorder = ui.PictureRecorder();
+      ui.Canvas(recorder)
+        ..drawRect(
+          Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+          Paint()..color = Color(paper),
+        )
+        ..drawImageRect(
+          pdf,
+          Rect.fromLTWH(0, 0, pdf.width.toDouble(), pdf.height.toDouble()),
+          Rect.fromLTRB(
+            box.left * sx,
+            box.top * sy,
+            box.right * sx,
+            box.bottom * sy,
+          ),
+          Paint()..filterQuality = FilterQuality.medium,
+        );
+      final picture = recorder.endRecording();
+      try {
+        return picture.toImageSync(width, height);
+      } finally {
+        picture.dispose();
+      }
+    } on Object catch (e, s) {
+      reportPdfError(e, s, 'pdf renderStill $assetId #$pdfPageIndex');
+      return null;
+    } finally {
+      pdf?.dispose();
+    }
   }
-
-  /// The paper color with alpha forced to 0xFF, without bit operations (contract 7.4.3).
-  static int _opaqueArgb(int argb) => 0xFF000000 + argb % 0x1000000;
 }

@@ -11,6 +11,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
+import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
 
@@ -22,9 +24,20 @@ void main() {
     addTearDown(container.dispose);
     final builders = container.read(ink.pageBackgroundBuildersProvider);
     expect(builders, hasLength(2));
-    expect((builders.first as PdfBackgroundLayerBuilder).isPaperOnly, isTrue);
+    // PDF T9: the renderer-backed builder (render chain reached lazily).
+    expect((builders.first as PdfBackgroundLayerBuilder).isPaperOnly, isFalse);
     expect(builders.last, isA<ink.TemplateBackgroundLayerBuilder>());
-    expect(container.read(pdfRenderStatsProvider).value, PdfRenderStats.zero);
+    // pdfRenderStatsProvider (T8 body) needs core.noteStoreProvider (PDF-4-2).
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final withStore = ProviderContainer(
+      overrides: [
+        ...pdfIoOverrides(),
+        core.noteStoreProvider.overrideWithValue(store),
+      ],
+    );
+    addTearDown(withStore.dispose);
+    expect(withStore.read(pdfRenderStatsProvider).value, PdfRenderStats.zero);
   });
 
   testWidgets('paperOnly build fills pageSize × viewScale', (tester) async {
@@ -72,15 +85,21 @@ void main() {
       const PdfRenderBudget.web(),
     );
     expect(const PdfRenderBudget.web().totalBytes, 112 * 1024 * 1024);
-    // B4 placeholders of the browser files (PDF T14 / T16).
+    // The Worker compose backend (PDF T14) starts nothing until the first begin.
     expect(
-      () => createPlatformComposeBackend(const PdfIoConfig()),
-      throwsUnimplementedError,
+      createPlatformComposeBackend(const PdfIoConfig()).isSupported,
+      isTrue,
     );
-    expect(createPlatformOutputSink, throwsUnimplementedError);
+    // The browser output sink (PDF T16 — web/output_sink_browser_test): nothing to deliver
+    // without a result.
+    expect(createPlatformOutputSink().availableActions(const []), isEmpty);
     expect(const NoIncomingPdfFiles().incoming, emitsDone);
-    expect(pdfEditorMoreMenuActions(), isEmpty);
-    expect(pdfEditorAddPageSources(), isEmpty);
+    // The menu actions (PDF T17 — widget/menu_actions_test) compile and keep their ids.
+    expect(
+      [for (final a in pdfEditorMoreMenuActions()) a.id],
+      ['pdf.export', 'pdf.share', 'pdf.print', 'pdf.search'],
+    );
+    expect([for (final a in pdfEditorAddPageSources()) a.id], ['pdf.insert']);
     expect(const PdfFixturePage().rotate, 0);
   });
 

@@ -1,7 +1,8 @@
 // lib/src/output/output_sink_stub.dart — platforms without dart:js_interop (06-pdf 4.10,
 // 6.15): nothing can be delivered in this scope (native share / print come later, 1.3).
 //
-// Foundation step B4 (T0): no action is available; deliver comes with PDF T16.
+// No action is available, so the result sheet shows no delivery button; deliver answers
+// PdfOutputOutcome.unsupported (the outcome kept for this sink) instead of throwing.
 import '../export/export_types.dart';
 import 'pdf_output_sink.dart';
 
@@ -19,5 +20,5 @@ final class _UnsupportedOutputSink implements PdfOutputSink {
   Future<PdfOutputOutcome> deliver(
     List<PdfExportResult> results,
     PdfOutputAction action,
-  ) => throw UnimplementedError('PdfOutputSink.deliver (stub, PDF T16)');
+  ) => Future.value(PdfOutputOutcome.unsupported);
 }
