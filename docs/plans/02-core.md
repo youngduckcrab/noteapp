@@ -1,7 +1,7 @@
 # 02 · CORE — 문서 모델 · 저장 · 되돌리기
 
-> 상태: **3차 수정본** (총괄 3차 승인 검토 반영, 재승인 대기) · 작성 2026-11-04 · 1차 수정 2026-11-04 · 2차 수정 2026-11-05 · 3차 수정 2026-11-05
-> 기준: [00-overview.md 7장 '통합 계약' v1.2](00-overview.md#7-통합-계약) — **이 문서와 7장이 다르면 7장이 우선** · 검토: [00-review.md](00-review.md) 3.2(1차)·2.4.2(2차, 지시 번호 `CORE-2-n`)·'3차 검토' 3.4.2(3차, 지시 번호 `CORE-3-n`) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1
+> 상태: **승인** (00-review.md '최종 승인' — 4차 승인, 3차 수정본 기준) · 작성 2026-11-04 · 1차 수정 2026-11-04 · 2차 수정 2026-11-05 · 3차 수정 2026-11-05 · 최종 승인 반영 2026-11-05
+> 기준: [00-overview.md 7장 '통합 계약' v1.4](00-overview.md#7-통합-계약) — **이 문서와 7장이 다르면 7장이 우선** · 검토: [00-review.md](00-review.md) 3.2(1차)·2.4.2(2차, 지시 번호 `CORE-2-n`)·'3차 검토' 3.4.2(3차, 지시 번호 `CORE-3-n`)·'4차 검토' 4.4.2(지시 번호 `CORE-4-n`)·'최종 승인' · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1
 > 소유 경로: `packages/note_core/` · 패키지 이름: `note_core` (순수 Dart 패키지, Flutter SDK 의존 없음)
 
 이 문서만 보고 별도 git worktree에서 CORE를 구현할 수 있게 쓴다. 코드 블록의 Dart 시그니처는 **계약**이다. 7장(통합 계약)에 시그니처가 적힌 공유 타입·인터페이스는 7장과 글자 그대로 같게 썼고, 7장이 "CORE 4.x 승인"으로 위임한 부분은 이 문서의 정의가 계약이다. 이름·타입을 바꾸려면 7.4.12 절차(결과 보고의 '변경 요청' → 총괄 승인)를 거친다. CORE가 보기에 계약을 고칠 필요가 있는 곳은 12.2 '계약 변경 제안'에 모았고, 승인 전까지는 계약 그대로 구현한다. 구현 본문(`...`)은 개발자가 채운다. 총괄 피드백 반영 내역은 13절.
@@ -1592,6 +1592,7 @@ sealed class MergeDecision { const MergeDecision(); }
 final class KeepLocal extends MergeDecision { const KeepLocal(); }
 final class TakeRemote extends MergeDecision {
   const TakeRemote({this.dropPendingLocal = true});   // writes remote entity + remote versions
+  /// (v1.3) A pending purge entry is deleted whatever dropPendingLocal says (the row exists again).
   final bool dropPendingLocal;
 }
 final class WriteMerged extends MergeDecision {
@@ -1599,7 +1600,7 @@ final class WriteMerged extends MergeDecision {
   final SyncEntity entity;            // its version must equal versions.max
   final EntityFieldVersions versions;
   /// The entity's outbox entry fields become EXACTLY this set (empty → entry deleted),
-  /// rev bumped, seq kept.
+  /// rev bumped, seq kept. (v1.3) A pending purge entry becomes an upsert entry of this set.
   final Set<String> fieldsToUpload;
 }
 /// SYNC provides the rule; CORE calls it inside the apply transaction.
@@ -1617,6 +1618,12 @@ final class RemoteApplyReport {    // CORE 4.6
 }
 typedef RepairWrite = ({SyncEntity entity, Set<String> fields});
 
+/// (v1.3) Writes (acknowledge, applyRemote, commitRepairs, writeMeta, reassignOwner,
+/// duplicateNoteForRecovery) follow the write-Future rule of 7.2.9: they complete after the
+/// commit and stay pending (no error) while the write queue retries a failed commit. Only
+/// errors decided without retry complete with an error, and they change nothing:
+/// ArgumentError, state errors (StateError for a WriteMerged invariant, NoteCoreException),
+/// and a policy exception (applyRemote rolls back — metaUpdates included — and rethrows it).
 abstract interface class SyncStore {
   String get deviceNodeId;                   // 16 hex, HLC node of local writes
   OwnerId get ownerId;
@@ -1667,7 +1674,7 @@ CORE 쪽 세부 규칙(6.10에서 상세)
 - `applyRemote`는 정책 결과의 버전을 **그대로** 쓴다(재스탬프 금지). `RemoteUpsert`의 `entity.version != versions.max`이면 호출 전체를 `ArgumentError`로 거부, 정책이 돌려준 `WriteMerged`가 불변식을 어기면 트랜잭션을 되돌리고 `StateError`. `metaUpdates`의 키가 `sync.`으로 시작하지 않거나 값이 256 KiB(UTF-8)를 넘으면 `ArgumentError`.
 - `commitRepairs`: 호출 1회에 새 HLC 1개. 저장되는 값은 현재 행에 `fields`의 값만 `repair.entity`에서 덮어쓴 것(나머지 필드·버전은 그대로), 현재 행이 없으면 `repair.entity` 전체를 `*`로 쓴다. 그렇게 페이지 행을 새로 만들면 그 페이지의 원격 고아 획도 이 커밋 batch에 `noteId`·`pageId`와 함께 실린다(계약 7.2.10 v1.2, 6.10.4).
 - **기기 로컬 필드(계약 7.2.10 v1.1, CORE-2-1)**: `applyRemote`(`TakeRemote`·`WriteMerged`)·`commitRepairs`가 넘겨받은 엔티티의 로컬 전용 값은 무시한다 — `lastOpenedAt` 현재 행 값(새 행 `null`), `pageCount`·`firstPageId` 재계산, `contentRevision` 현재 + 1(새 행 0), `hasLocalBytes`·`chunk_count` 현재 행 값(새 행은 BlobStore에 바이트가 있는지). 상세 6.10.3·6.10.4.
-- **`pendingLocalFields`(계약 7.2.10 v1.1, CORE-2-9)**: 정책에 넘기는 값 = 그 엔티티 outbox 항목의 `changedFields`, 항목이 없으면 `null`, 항목이 `op: purge`면 `{kAllFields}`(행이 이미 없어 `local == null`). 정책이 그래도 되살리기를 고르면 purge 항목은 `TakeRemote` → 삭제(`dropPendingLocal` 값과 무관), `WriteMerged` → `fieldsToUpload`의 upsert 항목(비면 삭제)으로 바뀐다(총괄 결정 CORE-3-3, 계약 주석은 12.2 CP-8 제안). 6.10.3.
+- **`pendingLocalFields`(계약 7.2.10 v1.1, CORE-2-9)**: 정책에 넘기는 값 = 그 엔티티 outbox 항목의 `changedFields`, 항목이 없으면 `null`, 항목이 `op: purge`면 `{kAllFields}`(행이 이미 없어 `local == null`). 정책이 그래도 되살리기를 고르면 purge 항목은 `TakeRemote` → 삭제(`dropPendingLocal` 값과 무관), `WriteMerged` → `fieldsToUpload`의 upsert 항목(비면 삭제)으로 바뀐다(총괄 결정 CORE-3-3, 계약 7.2.10 v1.3(C13-02)). 6.10.3.
 - **`ChangeBatch.origin`(계약 7.2.10 v1.1 — "로컬 편집·저장소 명령·`markUploaded`·`duplicateNoteForRecovery` = `local`(되돌리기는 `undo`/`redo`), `applyRemote`·`commitRepairs`·`reassignOwner` = `remote`. SYNC는 `local`/`undo`/`redo`만 보내기 예약 트리거로 쓴다")**: `markUploaded`·`duplicateNoteForRecovery`는 outbox에 기록하는 일반 로컬 쓰기라 SYNC 보내기 예약이 그대로 동작하고, `reassignOwner`는 outbox 변화가 없어 보내기를 예약하지 않는다(12.2 CP-5 승인).
 - **`EntityChange` 힌트(계약 7.2.10 v1.1)**: `noteId`는 page·stroke·recording에 항상(note는 `id`), `pageId`는 stroke에 항상 — 원격 batch도 같다. C-9(노트 `updatedAt` 갱신)는 로컬 편집 규칙이고 원격 적용은 `max(현재, 적용값)`이므로, 원격 내용 변경을 알아야 하는 쪽(LIBRARY 표지 예약기)은 `ChangeBatch(origin: remote)`와 `EntityChange.noteId`를 본다(4.5 C-9 주석, 4.8.1).
 - 충돌 판정: 필드 단위 LWW는 HLC, 증분 커서는 서버 타임스탬프(CD-18). 시계 오차 상한(계약 7.2.10 v1.1 개정 문장 그대로): "CORE `HlcClock.receive`는 **받는 기기 벽시계** + 24시간을 넘는 원격 값으로 시계를 올리지 않는다(유지). 그래서 SYNC는 `HLC millis > min(청크 serverTime, 받는 기기 벽시계) + 24 h`인 기록을 **적용하지 않고 보류**하며(`clockSkew` 차단 문제, 해제 조건도 `min(serverNow, 벽시계) ≥ releaseAt`), 자기 기기의 측정 오차가 24시간을 넘으면 **업로드와 원격 적용(받기)을 모두** 멈춘다. 2분~24시간 오차는 적용 + 경고(`clockSkewWarning`)." CORE 동작(`receive` 규칙, 6.4)은 바뀌지 않는다.
@@ -1695,6 +1702,9 @@ abstract interface class AssetStore {
   Future<Uint8List?> readBytes(AssetId id);    // null if bytes not on this device (PDF C-6)
   Future<bool> hasBytes(AssetId id);
   /// SYNC download path. Throws AssetHashMismatchException.
+  /// (v1.3) putDownloadedBytes(): a hash mismatch (AssetHashMismatchException) or a failed
+  /// byte-chunk write completes with that error at once, no retry, metadata unchanged; its
+  /// metadata commit (hasLocalBytes) and markUploaded() follow the write-Future rule of 7.2.9.
   Future<void> putDownloadedBytes(AssetId id, Uint8List bytes);
   /// hasLocalBytes: false = metadata only (e.g. a remote asset taken by applyRemote whose
   /// bytes are not in the blob store — SYNC's download list, 6.10.3).
@@ -3039,7 +3049,7 @@ drift 2.35.3 소스 기준 저장 방식 우선순위: `opfsShared` > `opfsLocks
 - 청크 4 MiB: 수백 MB PDF도 한 값이 너무 커지지 않게(Safari IndexedDB 큰 값 처리 리스크 회피 — 미확인 리스크라 보수적으로). `readBytes`는 청크를 이어 붙여 반환. 300 MB까지 웹에서 동작(PDF C-5, 9.1 브라우저 테스트는 32 MiB로 대표).
 - `put`: ① 해시(웹 SubtleCrypto, VM `package:crypto`) ② 같은 ID 메타데이터가 있고 바이트도 있으면 그대로 반환(중복 제거, `bytesArrived` 없음) ③ 바이트 청크 저장 → 메타데이터 upsert(새 에셋이면 outbox `*`, 메타만 있던 원격 에셋이면 `hasLocalBytes = true`만 — 로컬 필드) → `bytesArrived`에 id. 중간 실패 시 메타데이터가 없으므로 고아 청크만 남음(이후 GC). **완료 시점(계약 7.2.11 v1.2, C12-09)**: "put(): a failed byte-chunk write (blob store) completes the Future with that error at once, no retry, no metadata row (orphan chunks only). The metadata commit follows the write-Future rule of 7.2.9 (pending while the write queue retries)." — ③의 청크 쓰기는 SQLite 쓰기 큐 밖(BlobStore)이라 재시도하지 않고 실패한 그 오류로 `put` `Future`를 바로 끝낸다(메타 행·outbox·`bytesArrived` 없음, 이미 쓴 청크는 고아로 남음). 메타 upsert는 쓰기 큐 커밋이므로 4.5 머리말 규칙(커밋 재시도 중에는 완료도 오류도 없음, 성공한 커밋 뒤 완료·그 뒤 `bytesArrived`)을 따른다. 청크는 키 하나가 IndexedDB 값 하나라 키 단위로 원자적이다 → 원격 메타가 새 행으로 들어올 때 '청크 키가 모두 있음'이면 바이트가 온전한 것으로 본다(6.10.3 `writeRow`).
 - 원격 에셋 메타(`applyRemote`의 `TakeRemote`·`WriteMerged`, 계약 7.2.10 v1.1): 기존 행이면 `hasLocalBytes`·`chunk_count` 유지(원격 `storagePath` 갱신이 로컬 바이트를 '없음'으로 바꾸지 않음), 새 행이면 BlobStore 확인 결과(보통 `false`) → `listAssets(hasLocalBytes: false)`에 포함되어 SYNC 내려받기·PDF `assetMissing` 경로(P-2)가 동작한다.
-- `putDownloadedBytes`: 해시 검증 실패 시 `AssetHashMismatchException`, 성공 시 `hasLocalBytes = true`(로컬 필드, outbox 없음) → `bytesArrived`에 id.
+- `putDownloadedBytes`: 해시 검증 실패 시 `AssetHashMismatchException`, 성공 시 `hasLocalBytes = true`(로컬 필드, outbox 없음) → `bytesArrived`에 id. 바이트 청크 쓰기는 `put` ③과 같은 BlobStore 경로다. 실패하면 재시도 없이 그 오류로 즉시 완료하고 메타는 바뀌지 않는다. `hasLocalBytes` 커밋은 4.5 머리말 규칙을 따른다(계약 7.2.11 v1.3 — CORE-4-2).
 - `bytesArrived`: broadcast(비동기 전달), 커밋 후 발행. 구독자: PDF 문서 풀(실패 캐시 지우고 다시 열기, P-2), LIBRARY 표지(선택, LIBRARY-O1).
 - `markUploaded`: `storagePath` 기록 + outbox `{storagePath}` + `ChangeBatch(origin: local)`(6.10.1, 계약 7.2.10 v1.1 — SYNC `localChanges`가 메타 보내기를 바로 예약).
 - 원격 에셋 hook `RemoteAssetFetcher`는 CORE가 인터페이스와 `remoteAssetFetcherProvider`(기본 `null`)만 둔다. 구현은 SYNC `SyncRemoteAssetFetcher`, 주입은 M4 INFRA(X17).
@@ -3138,7 +3148,7 @@ final class NoteMigrator {
 | `unknown` | 그 밖의 예외(`cause`에 원본) | INFRA |
 
 - 실패 시 열던 연결·워커는 닫고 던진다(재시도·초기화가 바로 가능하게).
-- 웹 첫 열기 시간(Chrome 헤드리스, 7.3): 빈 DB(워커·wasm 로드 + 테이블 생성) 0.27~0.31 s, 획 1만 개 0.28~0.30 s, 획 10만 개(≈ 76 MB) 1.6~1.7 s. INFRA 부트스트랩 시간 제한 20초의 근거로 전달(I-6). iPad Safari 실측은 9.2·B8에서.
+- 웹 첫 열기 시간(Chrome 헤드리스, 7.3): 빈 DB(워커·wasm 로드 + 테이블 생성) 0.27~0.31 s, 획 1만 개 0.28~0.30 s, 획 10만 개(≈ 76 MB) 1.6~1.7 s. INFRA 부트스트랩 시간 제한 20초의 근거로 전달(I-6). iPad Safari 실측은 9.2·B8에서. **T16 실측**(실제 `openNoteStore` + 첫 `watchListing` 값, persist 요청 포함, `flutter test --platform chrome` = DDC 디버그 컴파일, 다른 영역 테스트와 CPU 공유, 2026-11-05): 빈 DB **567 ms**, 획 1만 개(50쪽 × 200획, 100점) 다시 열기 **338~411 ms**(3회), 200획 페이지 `openPage` 64 ms, `sharedIndexedDb`·`persist: false`(헤드리스 Chrome은 persist()를 바로 거절). 7.3 기준값의 2배 이내 — `test/web/open_time_browser_test.dart`(perf).
 - `deleteLocalNoteData(config)`: 같은 `config`(이름)로 이 프로세스에서 열린 저장소가 있으면 `StateError`. 웹은 drift `WasmDatabase.probe(databaseName:)`의 `existingDatabases` 중 같은 이름을 모두 `deleteDatabase`(IndexedDB·OPFS 어느 쪽이든) + blob IndexedDB(`config.web.blobDatabaseName`) 삭제. 다른 탭이 열고 있어 IndexedDB 삭제가 막히면 10초 뒤 `TimeoutException`. VM·네이티브는 DB 파일과 `-wal`·`-shm` 삭제, `inMemory`면 아무것도 안 함. 끝나면 같은 `config`로 `openNoteStore`가 빈 DB를 만든다(시작 오류 화면 '초기화' → 다시 열기, INFRA-M1).
 
 ### 6.19 공용 가짜 저장소 (`createFakeNoteStore`, 7.4.8 · 7.6 B2)
@@ -3430,7 +3440,7 @@ CORE 단독 화면은 없으므로 EDITOR·LIBRARY 화면과 개발자 표시를
 
 ### 12.2 계약 변경 제안 (계획서는 현재 계약대로 썼다 — 승인 시 7장 수정)
 
-1차 수정에서 낸 CP-1~CP-6은 총괄 2차 승인 검토(00-review 2.2)에서, 2차 수정에서 낸 CP-7은 총괄 3차 승인 검토(00-review '3차 검토' 3.2)에서 모두 결정됐다. 이 문서는 결정대로(계약 v1.2) 고쳤다.
+1차 수정에서 낸 CP-1~CP-6은 총괄 2차 승인 검토(00-review 2.2)에서, 2차 수정에서 낸 CP-7은 총괄 3차 승인 검토(00-review '3차 검토' 3.2)에서, 3차 수정에서 낸 CP-8은 4차 검토(계약 v1.3 C13-02)에서 모두 결정됐다. 이 문서는 결정대로(계약 v1.2) 고쳤다.
 
 | # | 대상 | 제안(요약) | 결정 (00-review 2.2) | 계약 반영 · 이 문서 |
 |---|---|---|---|---|
@@ -3451,7 +3461,7 @@ CORE 단독 화면은 없으므로 EDITOR·LIBRARY 화면과 개발자 표시를
 
 | # | 대상 | 제안 | 이유 |
 |---|---|---|---|
-| CP-8 | 7.2.10 `TakeRemote` 주석 | `final bool dropPendingLocal;` 위에 한 줄 추가: `/// A pending purge entry is deleted whatever dropPendingLocal says (the row exists again).` | 총괄 결정 CORE-3-3(6.10.3)으로 CORE는 purge 대기 + `TakeRemote(dropPendingLocal: false)`에서 purge 항목을 지운다. 그런데 계약 7.2.10에는 이 경우가 없고 `dropPendingLocal: false`의 글자 뜻('대기 항목 유지')과도 다르게 읽힌다. SYNC `FakeLocalStore`는 '7.2.10 문장과 1:1인 메모리 구현'(07-sync SYNC-M2)이고 계약 스위트 C-11은 `TakeRemote`를 `true`·`false` 둘 다 검사하므로, 계약에 없으면 가짜가 purge 항목을 남겨 실제 CORE(T16 `CoreSyncLocalStore`)와 갈릴 수 있다. SYNC 정책은 이 경우 `KeepLocal`을 돌려주므로(07-sync 6.3.4) 동작 영향은 없고 주석 한 줄이다. 승인 전에는 계약 그대로(주석 없음) 두고 CORE 동작은 6.10.3대로 구현한다 |
+| CP-8 | 7.2.10 `TakeRemote` 주석 | `final bool dropPendingLocal;` 위에 한 줄 추가: `/// A pending purge entry is deleted whatever dropPendingLocal says (the row exists again).` | **승인 — 계약 7.2.10 v1.3(C13-02)**, 보충: `WriteMerged` 쪽도 명시. (제안 이유) 총괄 결정 CORE-3-3(6.10.3)으로 CORE는 purge 대기 + `TakeRemote(dropPendingLocal: false)`에서 purge 항목을 지운다. 그런데 계약 7.2.10에는 이 경우가 없고 `dropPendingLocal: false`의 글자 뜻('대기 항목 유지')과도 다르게 읽힌다. SYNC `FakeLocalStore`는 '7.2.10 문장과 1:1인 메모리 구현'(07-sync SYNC-M2)이고 계약 스위트 C-11은 `TakeRemote`를 `true`·`false` 둘 다 검사하므로, 계약에 없으면 가짜가 purge 항목을 남겨 실제 CORE(T16 `CoreSyncLocalStore`)와 갈릴 수 있다. SYNC 정책은 이 경우 `KeepLocal`을 돌려주므로(07-sync 6.3.4) 동작 영향은 없고 주석 한 줄이다. 승인 전에는 계약 그대로(주석 없음) 두고 CORE 동작은 6.10.3대로 구현한다 | C13-02 · 4.6 `TakeRemote`·`WriteMerged` 주석 = 계약 v1.3 문구(13.4) |
 
 ### 12.3 새 질문 (처리 결과)
 
@@ -3544,3 +3554,7 @@ CORE 단독 화면은 없으므로 EDITOR·LIBRARY 화면과 개발자 표시를
 계약 v1.2 중 CORE에 영향이 있는 나머지 항목도 확인했다: C12-01(R15를 B1부터 — CORE는 T0에서 `dart_test.yaml`(`perf`·`golden`)을 만들고 첫 태그 테스트는 T3 `json_golden_test`, 태그는 모두 리터럴 `@Tags(['golden'])`·`@Tags(['perf'])`라 이미 맞음. 10절 2에 R15 표기만 추가). C12-03·04·06·07은 INK·SYNC·PDF 표면이라 CORE에 닿지 않는다.
 
 미반영 항목: 없음(필수·계약·권장·사소·절차 8건 모두 반영). 새 계약 변경 제안: 12.2 CP-8(`TakeRemote`의 purge 대기 처리 주석 — 계획서는 계약대로 쓰고 CORE 동작은 총괄 결정 CORE-3-3대로).
+
+### 13.4 최종 승인 반영 (00-review.md '최종 승인'·'4차 검토' 4.4.2 · 통합 계약 v1.4, 2026-11-05)
+
+CORE-4-1(4.6 `TakeRemote`·`WriteMerged` 주석 = 계약 7.2.10 v1.3, 4.6 `pendingLocalFields` bullet 인용, 12.2 CP-8 '승인 — C13-02')·CORE-4-2(4.6 `SyncStore`·4.7 `putDownloadedBytes` 주석 = 계약 v1.3, 6.13 bullet 한 줄, T13 `asset_store_test`에 `putDownloadedBytes` 청크 쓰기 실패 1건)·CORE-4-3(머리 상태 줄 '승인'·계약 v1.4) 반영. v1.4(C14-01 INK `SelectionGeometry` — CORE 표면 아님, C14-02 R15 수정 완료 — `kSampleTags` 우회는 그대로 둠)는 CORE 동작에 닿지 않는다. 코드의 계약 파일은 B2에서 이미 v1.3 주석을 담았다.

@@ -107,7 +107,11 @@ final class SessionEngine implements NoteSession, ResolveState {
   @override
   Stream<Note> get noteStream => _noteCtrl.stream;
   @override
-  bool get isReadOnly => _note.requiresNewerApp || _note.isDeleted;
+  /// N-4, plus a note whose migration failed (older format, 6.15).
+  bool get isReadOnly =>
+      _note.requiresNewerApp ||
+      _note.isDeleted ||
+      _note.schemaVersion < kNoteSchemaVersion;
   @override
   List<Page> get pages => _active;
   @override
@@ -683,6 +687,106 @@ final class SessionEngine implements NoteSession, ResolveState {
     } finally {
       _dispatching = outer;
     }
+  }
+
+  /// N-7: a remote write (applyRemote, commitRepairs) committed rows of this note. The
+  /// store passes the committed values read back: [pages] (null = row gone), the strokes
+  /// of loaded pages in [strokes] (stroke id → its page and row, null row = gone), and
+  /// [contentPages], the pages whose strokes changed. Not in the history; a later undo
+  /// skips these entities (their versions changed, 6.7.3).
+  void remoteCommitted({
+    Note? note,
+    Map<PageId, Page?> pages = const {},
+    Map<ElementId, (PageId, Stroke?)> strokes = const {},
+    Set<PageId> contentPages = const {},
+  }) {
+    if (_closed) return;
+    final diffs = <PageId, _PageDiff>{};
+    final bumped = <PageId>{...contentPages};
+    for (final MapEntry(key: id, value: row) in pages.entries) {
+      final old = _pagesById[id];
+      bumped.remove(id);
+      if (row == null || row.noteId != noteId) {
+        if (old != null) {
+          _pagesById.remove(id);
+          _loaded.remove(id);
+        }
+        continue;
+      }
+      // Local revision: current + 1 (6.10.3 (d)), never below the stored value.
+      final rev = old == null
+          ? row.contentRevision
+          : math.max(row.contentRevision, old.contentRevision + 1);
+      _pagesById[id] = row.copyWith(contentRevision: rev);
+      if (_loaded.containsKey(id)) {
+        (diffs[id] ??= _PageDiff()).pageChanged = true;
+      }
+    }
+    for (final MapEntry(key: id, value: (pageId, row)) in strokes.entries) {
+      final l = _loaded[pageId];
+      if (l == null) continue;
+      final diff = diffs[pageId] ??= _PageDiff();
+      final old = l.byId[id];
+      final ref = EntityRef(EntityKind.stroke, id);
+      if (row == null || row.isDeleted || row.pageId != pageId) {
+        if (old != null) {
+          l.byId.remove(id);
+          diff.removed.add(id);
+        }
+        if (row != null && row.isDeleted) {
+          _tombstones[ref] = row;
+        } else {
+          _tombstones.remove(ref);
+        }
+        continue;
+      }
+      _tombstones.remove(ref);
+      l.byId[id] = row;
+      if (old == null) {
+        diff.added.add(id);
+      } else {
+        diff.updated.add(id);
+        if (old.createdAt != row.createdAt) diff.orderChanged = true;
+      }
+    }
+    for (final id in bumped) {
+      final p = _pagesById[id];
+      if (p == null) continue;
+      _pagesById[id] = p.copyWith(contentRevision: p.contentRevision + 1);
+      if (_loaded.containsKey(id)) diffs[id] ??= _PageDiff();
+    }
+    final a = _Applied();
+    final active = _sortedActive();
+    if (active.length != _active.length ||
+        Iterable<int>.generate(active.length)
+            .any((i) => !identical(active[i], _active[i]))) {
+      _active = active;
+      a.pagesChanged = true;
+    }
+    for (final MapEntry(key: id, value: d) in diffs.entries) {
+      final l = _loaded[id];
+      if (l == null) continue;
+      _resort(l, d);
+      l.content = PageContent(
+        page: _pagesById[id]!,
+        strokes: l.sorted,
+        revision: l.content.revision + 1,
+      );
+      a.diffs[id] = d;
+    }
+    final base = note ?? _note;
+    final first = _active.isEmpty ? null : _active.first.id;
+    final merged = base.copyWith(
+      updatedAt: math.max(base.updatedAt, _note.updatedAt),
+      pageCount: _active.length,
+      firstPageId: first,
+      clearFirstPageId: first == null,
+    );
+    if (merged != _note) {
+      _note = merged;
+      a.noteChanged = true;
+    }
+    _emit(a, ChangeOrigin.remote);
   }
 
   /// The store committed a change of the note row (rename, trash, restore, ...).

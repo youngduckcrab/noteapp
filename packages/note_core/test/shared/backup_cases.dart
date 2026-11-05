@@ -1,0 +1,369 @@
+// Shared cases of NoteStore.exportBackupJson (CORE 6.17, T19), run on the SQLite store
+// (test/backup/backup_export_test.dart), the fake (test/testing/fake_backup_export_test.dart)
+// and in Chrome (test/web/backup_export_browser_test.dart). Web-safe (no dart:io).
+//
+// The golden state: folders 2, notes 3 (one in the trash), pages 4, strokes 20 (one
+// erased), presets 5, asset 1, settings 2 (one reset). Whole-entity versions only (the
+// fake keeps no per-field versions), so both stores export the same bytes.
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:clock/clock.dart';
+import 'package:note_core/note_core.dart';
+import 'package:note_core/src/fake/fake_note_store.dart';
+import 'package:note_core/testing.dart';
+import 'package:test/test.dart';
+
+const int kBackupT = 1793750400000; // 2026-11-04T00:00:00Z
+const String kBackupNode = '0000000000000001'; // the fake's device node
+final Clock kBackupClock = Clock.fixed(
+  DateTime.fromMillisecondsSinceEpoch(kBackupT + 86400000, isUtc: true),
+);
+
+Hlc _v(int i) => Hlc(kBackupT + i, 0, '00000000000000c1');
+
+/// The golden state with its versions (entity.version == versions.max).
+List<VersionedEntity> backupGoldenState() {
+  var i = 0;
+  VersionedEntity v(SyncEntity Function(Hlc v) build) {
+    final version = _v(++i);
+    return VersionedEntity(build(version), EntityFieldVersions(version));
+  }
+
+  final ids = SequentialIdGenerator(prefix: 'gen');
+  Stroke stroke(int n, PageId pageId, Hlc version) {
+    final s = StrokeFixtures.synthetic(
+      pageId: pageId,
+      ids: ids,
+      seed: n,
+      pointCount: 6,
+      createdAt: kBackupT + n,
+    );
+    return Stroke(
+      id: 'stk-${n.toString().padLeft(2, '0')}',
+      pageId: pageId,
+      style: s.style,
+      points: s.points,
+      createdAt: s.createdAt,
+      // Not after its note: applyRemote raises Note.updatedAt to the max (6.10.3).
+      updatedAt: kBackupT,
+      deletedAt: n == 19 ? kBackupT + 500 : null,
+      version: version,
+    );
+  }
+
+  Page page(String id, NoteId noteId, String sortKey, Hlc version) => Page(
+    id: id,
+    noteId: noteId,
+    sortKey: sortKey,
+    size: PageSize.a4Portrait,
+    background: const BlankBackground(),
+    createdAt: kBackupT,
+    updatedAt: kBackupT,
+    version: version,
+  );
+
+  final strokePages = [
+    for (var n = 0; n < 20; n++)
+      n < 10
+          ? 'page-a1'
+          : n < 15
+          ? 'page-a2'
+          : n < 18
+          ? 'page-b1'
+          : 'page-c1',
+  ];
+  return [
+    v(
+      (x) => Folder(
+        id: 'fld-a',
+        ownerId: kLocalOwnerId,
+        name: '수업',
+        sortKey: 'a0',
+        createdAt: kBackupT,
+        updatedAt: kBackupT,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => Folder(
+        id: 'fld-b',
+        ownerId: kLocalOwnerId,
+        parentId: 'fld-a',
+        name: '수학',
+        colorArgb: 0xFF3366FF,
+        sortKey: 'a0',
+        createdAt: kBackupT,
+        updatedAt: kBackupT,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => Note(
+        id: 'note-a',
+        ownerId: kLocalOwnerId,
+        folderId: 'fld-b',
+        title: '미적분 정리',
+        tags: const ['math', '2학기'],
+        isFavorite: true,
+        sortKey: 'a0',
+        createdAt: kBackupT,
+        updatedAt: kBackupT + 10,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => Note(
+        id: 'note-b',
+        ownerId: kLocalOwnerId,
+        title: 'Quick notes',
+        cover: const ColorCover(0xFFFFCC00),
+        sortKey: 'a1',
+        createdAt: kBackupT,
+        updatedAt: kBackupT,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => Note(
+        id: 'note-c',
+        ownerId: kLocalOwnerId,
+        title: 'Old draft',
+        sortKey: 'a2',
+        createdAt: kBackupT,
+        updatedAt: kBackupT + 100,
+        deletedAt: kBackupT + 100,
+        trashRootId: 'note-c',
+        version: x,
+      ),
+    ),
+    v((x) => page('page-a1', 'note-a', 'a0', x)),
+    v((x) => page('page-a2', 'note-a', 'a1', x)),
+    v((x) => page('page-b1', 'note-b', 'a0', x)),
+    v((x) => page('page-c1', 'note-c', 'a0', x)),
+    for (var n = 0; n < 20; n++) v((x) => stroke(n, strokePages[n], x)),
+    for (var n = 0; n < 5; n++)
+      v(
+        (x) => PenPreset(
+          id: 'pre-$n',
+          ownerId: kLocalOwnerId,
+          name: '펜 $n',
+          style: StrokeStyle.defaultsFor(
+            PenTool.values[n % PenTool.values.length],
+          ),
+          sortKey: 'a$n',
+          createdAt: kBackupT,
+          updatedAt: kBackupT,
+          version: x,
+        ),
+      ),
+    v(
+      (x) => Asset(
+        id: 'e' * 64,
+        ownerId: kLocalOwnerId,
+        type: AssetType.pdf,
+        mimeType: 'application/pdf',
+        size: 1234,
+        fileName: '교재.pdf',
+        createdAt: kBackupT,
+        storagePath: 'users/u/assets/${'e' * 64}',
+        hasLocalBytes: true,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => SettingValue(
+        key: 'editor.palette',
+        valueJson: '["#000000","#3366ff"]',
+        updatedAt: kBackupT,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => SettingValue(
+        key: 'library.sortField',
+        valueJson: '"name"',
+        updatedAt: kBackupT,
+        deletedAt: kBackupT + 7,
+        version: x,
+      ),
+    ),
+  ];
+}
+
+/// The fake has no remote path: [state] goes straight into its tables.
+Future<void> seedFakeBackupState(
+  NoteStore store,
+  List<VersionedEntity> state,
+) async {
+  final fake = store as FakeNoteStore;
+  for (final VersionedEntity(:entity) in state) {
+    switch (entity) {
+      case Folder():
+        fake.folders[entity.id] = entity;
+      case Note():
+        fake.notes[entity.id] = entity;
+      case Page():
+        fake.pages[entity.id] = entity;
+      case Stroke():
+        fake.strokes[entity.id] = entity;
+        (fake.strokesOfPage[entity.pageId] ??= {}).add(entity.id);
+      case PenPreset():
+        fake.presets[entity.id] = entity;
+      case Asset():
+        fake.assetRows[entity.id] = entity;
+      case SettingValue():
+        fake.syncedSettings[entity.key] = entity;
+      default:
+        throw UnsupportedError('${entity.kind} is not in the fake');
+    }
+  }
+}
+
+/// A fake store for [defineBackupTests] (no default presets, [kBackupClock]).
+Future<NoteStore> openFakeBackupStore() async =>
+    createFakeNoteStore(clock: kBackupClock, seedDefaultPenPresets: false);
+
+/// A device-scope setting: never in the backup.
+final SettingKey<bool> kDeviceOnlySetting = SettingKey.boolean(
+  'editor.backupTestDeviceOnly',
+  false,
+  scope: SettingScope.device,
+);
+
+Map<String, Object?> _parse(Uint8List bytes) =>
+    jsonDecode(utf8.decode(bytes)) as Map<String, Object?>;
+
+List<Map<String, Object?>> _entities(Map<String, Object?> doc) => [
+  for (final e in doc['entities']! as List<Object?>) e! as Map<String, Object?>,
+];
+
+/// [open] returns a fresh store on [kBackupClock] (no default presets, device node
+/// [kBackupNode]); [seed] writes the golden state into it.
+void defineBackupTests({
+  required Future<NoteStore> Function() open,
+  required Future<void> Function(NoteStore store, List<VersionedEntity> state)
+  seed,
+}) {
+  group('exportBackupJson (6.17)', () {
+    late NoteStore store;
+    late List<VersionedEntity> state;
+
+    setUp(() async {
+      store = await open();
+      state = backupGoldenState();
+      await seed(store, state);
+    });
+    tearDown(() => store.close());
+
+    test('header: format, version, time, owner, device, schema', () async {
+      final doc = _parse(await store.exportBackupJson());
+      expect(doc.keys.toList(), [
+        'format',
+        'formatVersion',
+        'exportedAt',
+        'ownerId',
+        'deviceNodeId',
+        'schema',
+        'entities',
+      ]);
+      expect(doc['format'], 'noteapp-backup');
+      expect(doc['formatVersion'], 1);
+      expect(doc['exportedAt'], kBackupClock.now().millisecondsSinceEpoch);
+      expect(doc['ownerId'], kLocalOwnerId);
+      expect(doc['deviceNodeId'], kBackupNode);
+      expect(doc['schema'], {
+        'note': kNoteSchemaVersion,
+        'database': kDatabaseSchemaVersion,
+        'strokePoints': kStrokePointsFormatVersion,
+      });
+    });
+
+    test('every entity of the state round-trips, the trash included', () async {
+      final entities = _entities(_parse(await store.exportBackupJson()));
+      final counts = <String, int>{};
+      for (final e in entities) {
+        counts.update(e['kind']! as String, (n) => n + 1, ifAbsent: () => 1);
+      }
+      expect(counts, {
+        'folder': 2,
+        'note': 3,
+        'page': 4,
+        'stroke': 20,
+        'penPreset': 5,
+        'asset': 1,
+        'setting': 2,
+      });
+      final want = {
+        for (final v in state) '${v.entity.kind.name}/${v.entity.id}': v,
+      };
+      for (final e in entities) {
+        final kind = EntityKind.values.byName(e['kind']! as String);
+        final data = e['data']! as Map<String, Object?>;
+        final decoded = EntityJson.decode(kind, data);
+        final expected = want['${kind.name}/${decoded.id}']!;
+        expect(decoded.toJson(), expected.entity.toJson(), reason: decoded.id);
+        final versions = EntityFieldVersions.fromJson(
+          e['versions']! as Map<String, Object?>,
+        );
+        expect(versions.toJson(), expected.versions.toJson());
+        expect(decoded.version, versions.max);
+      }
+      final trashed = entities.firstWhere(
+        (e) => (e['data']! as Map<String, Object?>)['id'] == 'note-c',
+      );
+      expect(
+        (trashed['data']! as Map<String, Object?>)['deletedAt'],
+        isNotNull,
+      );
+    });
+
+    test('no asset bytes, local fields, device settings or meta', () async {
+      await store.settings.set(kDeviceOnlySetting, true);
+      final text = utf8.decode(await store.exportBackupJson());
+      for (final local in [
+        'hasLocalBytes',
+        'pageCount',
+        'firstPageId',
+        'lastOpenedAt',
+        'contentRevision',
+        'backupTestDeviceOnly',
+      ]) {
+        expect(text, isNot(contains(local)), reason: local);
+      }
+      final asset = _entities(jsonDecode(text) as Map<String, Object?>)
+          .singleWhere((e) => e['kind'] == 'asset');
+      expect(
+        (asset['data']! as Map<String, Object?>).keys,
+        isNot(contains('bytes')),
+      );
+    });
+
+    test('deterministic: kind then id order, the same bytes twice', () async {
+      final first = await store.exportBackupJson();
+      final second = await store.exportBackupJson();
+      expect(second, first);
+      final keys = [
+        for (final e in _entities(_parse(first)))
+          (
+            EntityKind.values.byName(e['kind']! as String).index,
+            (e['data']! as Map<String, Object?>)['id'] ??
+                (e['data']! as Map<String, Object?>)['key'],
+          ),
+      ];
+      final sorted = [...keys]
+        ..sort((a, b) {
+          final k = a.$1.compareTo(b.$1);
+          return k != 0 ? k : (a.$2! as String).compareTo(b.$2! as String);
+        });
+      expect(keys, sorted);
+    });
+
+    test('later edits are in the next export', () async {
+      final before = _entities(_parse(await store.exportBackupJson())).length;
+      await store.library.createFolder(name: 'new');
+      final after = _entities(_parse(await store.exportBackupJson())).length;
+      expect(after, before + 1);
+    });
+  });
+}

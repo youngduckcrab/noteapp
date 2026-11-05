@@ -10,6 +10,7 @@ import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 
 import '../assets/asset_store.dart';
+import '../backup/backup_export.dart';
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
@@ -29,6 +30,7 @@ import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
 import '../repo/events.dart';
 import '../repo/folder_tree.dart';
+import '../repo/folder_tree_equality.dart';
 import '../repo/library_repository.dart';
 import '../repo/library_types.dart';
 import '../repo/note_store.dart';
@@ -191,16 +193,33 @@ final class FakeNoteStore implements NoteStore {
 
   void _committed() {
     final at = now;
-    for (final (origin, changes) in _pendingBatches) {
-      // dedupe: no commit, no bytesArrived (6.13 ②)
-      _changes.add(
-        ChangeBatch(
-          origin: origin,
-          changes: List.unmodifiable(changes),
-          committedAt: at,
-        ),
-      );
+    // One ChangeBatch per origin run of this commit; an entity changed twice keeps its
+    // first position and its last value (same as the SQLite store's batchesOf).
+    ChangeOrigin? origin;
+    var current = <(EntityKind, String), EntityChange>{};
+    void close() {
+      if (origin != null && current.isNotEmpty) {
+        _changes.add(
+          ChangeBatch(
+            origin: origin,
+            changes: List.unmodifiable(current.values),
+            committedAt: at,
+          ),
+        );
+      }
     }
+
+    for (final (o, changes) in _pendingBatches) {
+      if (o != origin) {
+        close();
+        origin = o;
+        current = {};
+      }
+      for (final c in changes) {
+        current[(c.kind, c.id)] = c;
+      }
+    }
+    close();
     _pendingBatches.clear();
     for (final s in _sessions.values.toList()) {
       final n = notes[s.noteId];
@@ -469,12 +488,35 @@ final class FakeNoteStore implements NoteStore {
     if (_closed) throw StateError('The note store is closed');
   }
 
-  /// CORE T19 replaces this with the real backup format (contract 7.6 'B2 단계 값').
+  /// The real backup format (CORE 6.17, T19): every active and trashed entity, kind
+  /// then id order, each with EntityFieldVersions(version) (the fake keeps no per-field
+  /// versions); no asset bytes, device settings or thumbnails.
   @override
-  Future<Uint8List> exportBackupJson() async => throw UnimplementedError(
-    'createFakeNoteStore().exportBackupJson arrives with CORE T19 '
-    '(foundation step B2)',
-  );
+  Future<Uint8List> exportBackupJson() async {
+    _checkOpen();
+    await flush();
+    final out = BackupJsonWriter(
+      exportedAt: now,
+      ownerId: ownerId,
+      deviceNodeId: kFakeDeviceNodeId,
+    );
+    final byKind = <EntityKind, Iterable<SyncEntity>>{
+      EntityKind.folder: folders.values,
+      EntityKind.note: notes.values,
+      EntityKind.page: pages.values,
+      EntityKind.stroke: strokes.values,
+      EntityKind.penPreset: presets.values,
+      EntityKind.asset: assetRows.values,
+      EntityKind.setting: syncedSettings.values,
+    };
+    for (final kind in EntityKind.values) {
+      final rows = [...?byKind[kind]]..sort((a, b) => a.id.compareTo(b.id));
+      for (final e in rows) {
+        out.add(e, EntityFieldVersions(e.version ?? _seedHlc));
+      }
+    }
+    return out.finish();
+  }
 }
 
 // ---- session backend --------------------------------------------------------------
@@ -513,7 +555,8 @@ final class _FakeLibrary implements LibraryRepository {
   FolderTree _tree() => FolderTree(s.ownFolders.where((f) => !f.isDeleted));
 
   @override
-  Stream<FolderTree> watchFolderTree() => s.watch(_tree);
+  Stream<FolderTree> watchFolderTree() =>
+      s.watch(_tree, equals: sameFolderTree);
 
   @override
   Stream<LibraryListing> watchListing(LibraryQuery query) =>

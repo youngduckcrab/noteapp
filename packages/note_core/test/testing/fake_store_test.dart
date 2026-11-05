@@ -676,9 +676,13 @@ void main() {
       await store.close();
     });
 
-    test('exportBackupJson is UnimplementedError in B2', () async {
+    test('exportBackupJson writes the backup format (CORE T19)', () async {
       final store = createFakeNoteStore();
-      await expectLater(store.exportBackupJson(), throwsUnimplementedError);
+      final bytes = await store.exportBackupJson();
+      expect(
+        String.fromCharCodes(bytes.take(26)),
+        '{"format":"noteapp-backup"',
+      );
       await store.close();
     });
 
