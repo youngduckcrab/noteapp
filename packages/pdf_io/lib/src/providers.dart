@@ -14,8 +14,8 @@
 //   - pdfRenderStatsProvider: B4 ValueNotifier(PdfRenderStats.zero); from PDF T8 the
 //     renderer's statsListenable, which needs core.noteStoreProvider (PDF-4-2 — every real
 //     container has it: INFRA CoreModule runs first).
-// The other providers already hold their final wiring; the services they build throw
-// UnimplementedError until their PDF task.
+// The other providers held their final wiring from B4; every PDF task (T1–T19) has since
+// given the services they build their real bodies — none throws UnimplementedError.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';

@@ -3087,7 +3087,7 @@ tags:
 | `flutter test` / `dart run tool/ws.dart test --package pdf_io` | VM: contract·unit·widget·goldens·pdfium. `test/web/`은 `@TestOn('browser')`로 제외(`ws`는 아예 넘기지 않음), `integration`·`perf`는 skip |
 | `dart run tool/prepare_web_test.dart && flutter test --platform chrome test/web` / `dart run tool/ws.dart test --platform chrome --package pdf_io` | Chrome: pdfrx wasm 렌더·텍스트, 합성 워커, 출력 싱크, 파일 소스, VM·웹 공통 순수 로직. `ws`가 준비 스크립트를 먼저 실행(5분 제한) |
 | `flutter test --run-skipped -t perf` | 성능 (수동·선택) |
-| `dart run tool/ws.dart test --run-skipped -t integration` | 통합 단계에서 CORE·INK 실제 구현과(계약 7.7 5) |
+| `dart run tool/ws.dart test --run-skipped -t integration` | 통합 단계에서 CORE·INK 실제 구현과(계약 7.7 5). 통합 단계에 `integration/real_wiring_test.dart`를 더함 — 계약 7.3.3대로 연결한 provider 그래프(`noteStoreProvider` = `openTestNoteStore`, `pdfIoOverrides()`, `pageThumbnailRendererProvider` → INK 렌더러)로 가져오기 → INK 표지 → 검색 → CORE 세션 획 → 실제 INK 벡터 내보내기, 속지 페이지, 열린 노트에 삽입(U7) |
 
 준비 스크립트 `tool/prepare_web_test.dart` (PDF-M2)
 - `Isolate.resolvePackageUri(Uri.parse('package:pdfrx/'))`로 pdfrx 패키지 위치를 찾아 `assets/pdfium.wasm`·`pdfium_worker.js`·`pdfium_client.js`를, 패키지의 `web/pdf_io_compose_ext.js`와 함께 **`test/web/pdfium/`**로 복사한다(네트워크 없음 — pub 캐시에 이미 있음). 추가 의존 없음(`dart:io` + `crypto`).
@@ -3146,7 +3146,7 @@ CI (INFRA 01-infra 6.13, PDF-S8)
 2. `flutter test`(packages/pdf_io, VM: contract·unit·widget·goldens·pdfium) 전부 통과.
 3. `dart run tool/ws.dart test --platform chrome --package pdf_io`(준비 스크립트 → `test/web/`) 전부 통과 — 특히 T13·T14 같은 탐침이 VM(8125)·웹(7811) 모두 통과.
 4. 성능 테스트 기준(T18) 통과(컨테이너 기준값).
-5. 통합 단계: `ws test --run-skipped -t integration`(CORE 게이트웨이·INK 벡터화·INK 썸네일 렌더러) 통과, INFRA `cd app && flutter build web --release` 통과, INFRA 스모크(계약 7.7 V5)에서 `PdfModule`·`FeatureWiringModule`의 PDF override가 실제 구현이고 중복 없음.
+5. 통합 단계: `ws test --run-skipped -t integration`(CORE 게이트웨이·INK 벡터화·INK 썸네일 렌더러, 통합 단계에 더한 실제 연결 provider 그래프 `real_wiring_test`) 통과, INFRA `cd app && flutter build web --release` 통과, INFRA 스모크(계약 7.7 V5)에서 `PdfModule`·`FeatureWiringModule`의 PDF override가 실제 구현이고 중복 없음.
 
 기능:
 6. PLAN 10장 M3 항목 중 이번 범위(가져오기·지연 렌더링·썸네일 캐시·내보내기(웹 공유·다운로드)·일괄 내보내기·노트 안 텍스트 검색)가 웹에서 동작.

@@ -221,27 +221,43 @@ void main() {
       expect(build.calls, isEmpty);
     });
 
-    test(
-      'default builder = ink.TemplateVectors.build (whatever INK returns now)',
-      () {
-        for (final kind in core.PageTemplateKind.values) {
-          final t = core.PageTemplate(kind: kind);
-          final page = _page(core.TemplateBackground(template: t));
-          final expected = pdfTemplateItems(
-            ink.TemplateVectors.build(
-              t,
-              pageSize: const Size(200, 100),
-              paperColorArgb: core.PaperColors.white,
-            ),
-          );
+    // Integration stage (real INK merged): every template gives lines or dots on an A4 page,
+    // and the default builder's underlay is exactly those items grouped (the foundation
+    // INK body returned none, so this used to compare lengths only).
+    test('default builder = ink.TemplateVectors.build, item for item', () {
+      const a4 = Size(595.276, 841.89);
+      for (final kind in core.PageTemplateKind.values) {
+        final t = core.PageTemplate(kind: kind);
+        final page = _page(
+          core.TemplateBackground(template: t),
+          w: a4.width,
+          h: a4.height,
+        );
+        final fromInk = ink.TemplateVectors.build(
+          t,
+          pageSize: a4,
+          paperColorArgb: core.PaperColors.white,
+        );
+        expect(fromInk, isNotEmpty, reason: '$kind');
+        final expected = pdfTemplateItems(fromInk);
+        final actual = pdfPageUnderlay(page);
+        expect(actual, hasLength(expected.length), reason: '$kind');
+        for (var i = 0; i < expected.length; i++) {
+          final (a, e) = (actual[i], expected[i]);
+          expect(a.runtimeType, e.runtimeType, reason: '$kind #$i');
           expect(
-            pdfPageUnderlay(page),
-            hasLength(expected.length),
-            reason: '$kind',
+            (a.colorArgb, a.opacity, a.blend),
+            (e.colorArgb, e.opacity, e.blend),
+            reason: '$kind #$i',
           );
+          if (a is PdfStrokeItem && e is PdfStrokeItem) {
+            expect((a.width, a.cap), (e.width, e.cap), reason: '$kind #$i');
+          }
+          expect(a.path.verbs, e.path.verbs, reason: '$kind #$i');
+          expect(a.path.coords, e.path.coords, reason: '$kind #$i');
         }
-      },
-    );
+      }
+    });
   });
 
   group('InkEngineVectorizer flags', () {

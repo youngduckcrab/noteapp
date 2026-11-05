@@ -17,10 +17,11 @@ import '../tuning.dart';
 ///
 /// With [thumbnailRenderer] (core.pageThumbnailRendererProvider — INK renderer injected by
 /// INFRA) the result is that renderer's, so the cover matches the ones LIBRARY's scheduler
-/// makes later. Without it (foundation stage, unit tests) pdf_io draws it itself: the page
-/// paper of [maxSidePx] on the long side, the PDF image from [renderer].renderThumbnail
-/// placed with PdfPageFit (6.5.1), encoded as PNG — opaque (the paper color with alpha 0xFF,
-/// like the page background). [pdfPage] is the displayed size of the background's PDF page.
+/// makes later. Without it (no FeatureWiringModule in the container, unit tests) pdf_io
+/// draws it itself: the page paper of [maxSidePx] on the long side, the PDF image from
+/// [renderer].renderThumbnail placed with PdfPageFit (6.5.1), encoded as PNG — opaque (the
+/// paper color with alpha 0xFF, like the page background). [pdfPage] is the displayed size
+/// of the background's PDF page.
 ///
 /// null = cannot draw now (not an error, nothing cached): no PDF background, bytes missing,
 /// a password needed or rendering failed. Exceptions propagate (the import reports them).

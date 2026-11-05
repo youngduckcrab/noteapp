@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 보완 세션 1.1 (동시 개발 단계 독립 검토 미비점 5개 모두 처리 — '다음 세션 메모'의 세션 1.1 항목)
-- 다음 할 일: 없음 — 동시 개발 단계 몫(T1~T19, T15b 포함)을 모두 끝냈다. 통합 단계에서 integration 태그 테스트 3개(integration/core_gateway_test·ink_thumbnail_test·ink_vectorizer_test)를 실제 CORE·INK로 판정하고, 남은 열린 항목은 '다음 세션 메모' 참고
+- 마지막 세션: 통합 단계 1 (실제 CORE·INK 합류 뒤 — 아래 '통합 단계' 절). integration 태그 4파일 19개(기존 3파일 + 새 `real_wiring_test`) 실제 CORE·INK·PDFium으로 통과, VM 580·Chrome 54 통과, 변경 요청 없음
+- 다음 할 일: INFRA 연결 몫(INFRA 담당) — `cd app && flutter build web --release`(V4), INFRA 스모크(V5·V6)에서 `PdfModule`·`FeatureWiringModule`의 PDF override가 실제 구현이고 중복 없음(계획 10 5). 그 뒤 사용자 iPad 확인(9.2 U1~U19, 통합 V7 ①). 열린 항목: FreeType·IJG 문서 고지 문구(THIRD_PARTY_NOTICES.md 3절, 2단계 출시 전)
 
 ## 작업 표
 
@@ -176,3 +176,45 @@
 - T4 테스트의 CORE 쪽 가정: `createFakeNoteStore(faults:)`의 `failNextCommits(3)`이면 1초 시점 미완료·`writeFailing`, 6초 시점 완료(100ms·400ms·1.6s 재시도). 실제 CORE(T6)로 바뀌면 integration/core_gateway_test를 돌려 확인한다.
 - PDF-4-2: T8에서 `pdfRenderStatsProvider` 본문을 `ref.watch(pdfPageRendererProvider).statsListenable`로 바꿨다 — 이제 읽는 컨테이너에 `core.noteStoreProvider`가 있어야 한다(세션 3 결과 보고 메모로 INFRA에 공지함). 바인딩은 필요 없다(수명 주기 리스너는 첫 렌더 때 등록).
 - 세션 3 결과: T8·T9·T10 완료. 핸들 동작 테스트는 `test/widget/render_handle_test.dart`(가짜 엔진 `beforeRender`로 렌더를 붙잡는 `_World`), 위젯은 `test/widget/page_background_view_test.dart`. 다음 T11: `PdfSearchState.rectsFor`·`currentRectsFor`·`currentFocusRect`는 T9에서 이미 구현함 — T11은 `PdfTextNormalizer`·`DefaultPdfTextService.searchNote`·`PdfSearchNotifier`·검색 패널(`showPdfSearchPanel`)과 그 테스트(unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test). 검색 하이라이트는 배경 위젯이 `highlights`로 이미 그린다(widget/page_background_view_test 'search highlights').
+
+## 통합 단계
+
+통합 브랜치 `claude/note-app-planning-bk29xb`, 7개 영역 병합(efc5511)·INFRA 통합 1부(e6431a9) 뒤 — 실제 CORE·INK가 같은 브랜치에 있다. 이번 몫: 계약 7.7 5단계의 PDF `integration`, 실제 합류로 바뀐 동작에 기대는 테스트 점검, 계획 8·10장의 통합 단계 몫 중 INFRA 연결 전에 할 수 있는 것. `lib/` 동작 변경 없음(주석 2곳만).
+
+### integration 태그 (계약 7.7 5, 계획 10 5)
+
+- 기존 3파일을 고치지 않고 실제 CORE·INK로 그대로 통과(첫 실행부터): `integration/core_gateway_test`(실제 CORE `openTestNoteStore` — 중복 제거·`bytesArrived`·500쪽·`insertPages` 되돌리기 1단계와 열린 편집기 세션·휴지통 `readOnlyNote`/없는 노트 `noteNotFound`·`loadPage`+`writeThumbnail`·청크 쓰기 실패 `storageFailed` 6개), `integration/ink_vectorizer_test`(실제 INK `InkVectorExport`·`TemplateVectors` — 형광펜 Multiply 선 객체가 먼저·굵기별 2개·펜 채움, 연필 불투명도 × 0.85, 속지 6종 모두 항목 > 0, 8개 — 동시 개발 중 INK B3에서는 실패가 정상이던 파일), `integration/ink_thumbnail_test`(실제 `InkPageThumbnailRenderer` + PDF 빌더 + 실 PDFium — 표지에 원본 글자, 원본 없음 → null·다운로드 요청 없음, 2개).
+- 새 파일 `integration/real_wiring_test.dart`(3개): PDF 쪽은 아무것도 override하지 않고 앱과 같은 연결(계약 7.3.3 — `CoreModule`의 `core.noteStoreProvider` = 실제 `openTestNoteStore`, `PdfModule`의 `pdfIoOverrides()`, `FeatureWiringModule`의 `core.pageThumbnailRendererProvider` → `ink.inkPageThumbnailRendererProvider`)으로 만든 컨테이너에서 실제 엔진(PDFium 8125)·네이티브 합성 백엔드·`InkEngineVectorizer`를 쓴다.
+  - ① 가져오기 → CORE 노트(제목 'lecture', 2쪽, 크기·배경·원본 바이트) → 표지는 INK 렌더러 + PDF 빌더가 그려 CORE 썸네일 캐시에(`contentRevision` = 페이지 값, 512×384, 원본 글자 자리에 어두운 픽셀, 아래 절반 0) → 검색(노트 pt 사각형이 글자 자리, 대소문자 무시로 2쪽) → CORE 세션 `AddStrokes`(볼펜·형광펜) → 내보내기: 쪽수·크기·원본 텍스트, 볼펜 빨강이 y 200 띠에만, 형광펜 노랑(흰 종이 Multiply)이 y 260 띠에만, 원본 글자 유지, 2쪽 필기 없음.
+  - ② 줄노트 속지 페이지: INK 속지 선이 출력에 있고(흰색 아닌 픽셀 > 1000), `includeTemplates: false`면 흰 페이지.
+  - ③ 편집기가 연 노트에 '2'쪽 삽입(U7): 같은 에셋(중복 제거), 편집기 세션에 바로 보이고 위치 = 현재 페이지 뒤, 되돌리기 1단계. `insertPages`는 커밋을 기다리지 않으므로(N-1, 4.4) 라이브러리 `pageCount`는 `flush()` 뒤 3 → 되돌리기·`flush()` 뒤 2.
+  - 공통: 보고된 PDF 오류(`FlutterError.onError`) 0, 컨테이너 dispose 뒤 네이티브 합성 작업 0.
+- 실행: 패키지 `flutter test --run-skipped -t integration` 19개 통과(4회 반복 모두), 루트 `dart run tool/ws.dart test --run-skipped -t integration --package pdf_io` → `pdf_io vm 19 passed 0 failed 31.8s ok`.
+
+### 실제 CORE·INK 합류로 바뀐 동작에 기대는 테스트 점검
+
+- VM(`flutter test`)·Chrome(`ws test --platform chrome --package pdf_io` — 준비 스크립트 포함) 모두 고치기 전부터 통과. VM·위젯·Chrome 테스트는 CORE `createFakeNoteStore()`·PDF 자체 가짜·`BoxInkVectorizer` 위에서 돌고, 실제 INK를 쓰는 곳은 값 타입·`TemplateBackgroundLayerBuilder`·`TemplateVectors`뿐이라 실제 합류로 깨진 것이 없었다.
+- 기반 단계 INK 본문(속지 항목 없음)을 전제해 약하게 쓴 테스트 1개를 계획 의미대로 고쳤다: `unit/template_underlay_test` 'default builder = ink.TemplateVectors.build (whatever INK returns now)'는 길이만 비교했다(B3에서 0 = 0) → 'default builder = ink.TemplateVectors.build, item for item': A4에서 속지 6종 모두 INK 항목이 있고(`isNotEmpty`), 기본 빌더의 underlay가 그 항목을 묶은 결과와 항목마다 같다(종류·색·불투명도·blend·굵기·cap·verbs·coords).
+- 그 밖에 B3·자리표시 전제 테스트 없음(`grep` — test/의 INK 사용처 전부 확인).
+
+### 계획 8·10장 통합 단계 몫 (INFRA 연결 전)
+
+- 10 5의 PDF 몫(integration) 완료. INFRA 몫(`flutter build web --release`, V5·V6 스모크의 PDF override 실제 구현·중복 없음)은 INFRA 담당 — INFRA `PdfModule`(`initializePdfIo`, `pdfIoOverrides`)·`FeatureWiringModule`(가져오기·내보내기 동작, 메뉴 변환, `pdfRenderStatsSection`, 썸네일 렌더러)은 이미 PDF 공개 함수를 그대로 쓴다(읽기만 확인). 새 `real_wiring_test`가 같은 override 조합을 PDF 쪽에서 먼저 확인한다.
+- 10 4(선택): perf `flutter test --run-skipped -t perf test/perf` 4개 통과(합성 500쪽 × 200획 15.6초 ≤ 30초, 스크롤 모의 최대 111.1 MiB ≤ 112 MiB).
+- 표기 정리: `lib/src/providers.dart` 머리 주석의 'the services they build throw UnimplementedError until their PDF task' → 모든 PDF 작업(T1~T19)이 실제 본문을 줬고 `UnimplementedError`를 던지는 것이 없다고(lib에 `UnimplementedError` 없음 확인), `lib/src/import/cover_thumbnail.dart`의 '(foundation stage, unit tests)' → '(no FeatureWiringModule in the container, unit tests)'. README 테스트 표의 integration 행과 계획 9.1 표·10 5에 `real_wiring_test`를 적었다.
+
+### 검사 (이 커밋 시점)
+
+| 검사 | 결과 |
+|---|---|
+| 패키지 `flutter test --run-skipped -t integration` | 19개 통과(core_gateway 6, ink_vectorizer 8, ink_thumbnail 2, real_wiring 3) |
+| 패키지 `flutter test` (VM) | 580개 통과 + 7 skip(integration 4파일·perf 3파일) — 세션 1.1과 같은 수 |
+| `ws test --platform chrome --package pdf_io` | 54개 통과 + 1 skip(웹 perf), prepare ok, 84.7초 |
+| 패키지 perf (`--run-skipped -t perf test/perf`) | 4개 통과 |
+| `ws check` | R1~R15 위반 0 |
+| 루트 `flutter analyze --fatal-infos` | 0건 |
+| `dart format` (바꾼 파일) | 변경 없음 |
+
+### 변경 요청·의존성
+
+- CORE·INK 결함 없음 — 변경 요청 없음. 새 외부 의존 없음(테스트가 쓰는 `flutter_riverpod/misc.dart`는 이미 의존).
