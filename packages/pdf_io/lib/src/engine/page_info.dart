@@ -46,10 +46,36 @@ enum PdfRenderPriority { high, normal, low }
 
 final class PdfRenderCancelToken {
   PdfRenderCancelToken();
-  bool get isCancelled =>
-      throw UnimplementedError('PdfRenderCancelToken.isCancelled (PDF T3)');
-  void cancel() =>
-      throw UnimplementedError('PdfRenderCancelToken.cancel (PDF T3)');
+
+  bool _cancelled = false;
+
+  bool get isCancelled => _cancelled;
+
+  /// Idempotent; runs the listeners added with [whenRenderCancelled] once.
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    final listeners = _cancelListeners[this];
+    _cancelListeners[this] = null;
+    if (listeners == null) return;
+    for (final listener in listeners) {
+      listener();
+    }
+  }
+}
+
+final Expando<List<void Function()>> _cancelListeners = Expando(
+  'PdfRenderCancelToken listeners',
+);
+
+/// Internal (not exported): runs [listener] when [token] is cancelled — at once when it
+/// already is. Engines forward the cancel to their own token (PdfrxEngine → pdfrx).
+void whenRenderCancelled(PdfRenderCancelToken token, void Function() listener) {
+  if (token.isCancelled) {
+    listener();
+    return;
+  }
+  (_cancelListeners[token] ??= []).add(listener);
 }
 
 /// Integer pixel rectangle inside the full rendered page (scale * page size).

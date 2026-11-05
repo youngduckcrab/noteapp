@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 1/10 (동시 개발 단계)
-- 다음 할 일: T3 엔진 어댑터(`PdfrxEngine`) → T4 게이트웨이
+- 다음 할 일: T4 게이트웨이(`CorePdfNoteGateway`, `FakePdfNoteGateway`) → T5 가져오기 서비스
 
 ## 작업 표
 
@@ -11,8 +11,8 @@
 |---|---|---|---|
 | T0 | 기반 단계에서 완료 | 783a5ba | B4: contract/api_surface_test, unit/init_test(B4 판), unit/value_equality_test(B4 몫), unit/page_size_policy_test(PdfPageFit), web/foundation_browser_test, dart_test.yaml |
 | T1 | 완료 | 73d6ee1 | unit/page_range_test, unit/page_size_policy_test, unit/file_naming_test, unit/hangul_jamo_test, unit/title_policy_test, unit/cancel_signal_test, unit/value_equality_test, unit/error_messages_test, unit/no_platform_imports_test |
-| T2 | 완료 | (이 커밋) | pdfium/fixture_builder_test, unit/fixture_builder_bytes_test, tool/prepare_web_test.dart(4개 파일·sha256), web/pdfrx_smoke_browser_test, web/pure_logic_browser_test, support/pdfium_env.dart, 패키지 .gitignore |
-| T3 | 남음 | | pdfium/pdfrx_engine_test, web/pdfrx_engine_browser_test |
+| T2 | 완료 | 00ff451 | pdfium/fixture_builder_test, unit/fixture_builder_bytes_test, tool/prepare_web_test.dart(4개 파일·sha256), web/pdfrx_smoke_browser_test, web/pure_logic_browser_test, support/pdfium_env.dart, 패키지 .gitignore |
+| T3 | 완료 | (이 커밋) | pdfium/pdfrx_engine_test, web/pdfrx_engine_browser_test |
 | T4 | 남음 | | unit/fake_gateway_test, unit/core_gateway_fake_store_test (integration/core_gateway_test는 미리 작성 — 통합 단계) |
 | T5 | 남음 | | unit/import_service_test, pdfium/import_real_test |
 | T6 | 남음 | | widget/import_flow_test, web/file_source_browser_test |
@@ -49,6 +49,9 @@
 - T2 `PdfFixtureBuilder`: 매핑 텍스트(`mapped: true`)는 문서 전체가 공유하는 두 번째 Helvetica(WinAnsi + ToUnicode) 하나로 그린다. 코드는 인쇄 가능한 WinAnsi 바이트(0x21–0x7E, 0xA1–0xFF, 0xAD 제외 — 188개)라 글자마다 실제 글리프·글자 상자가 있다(PDFium `FPDFText_GetCharBox`는 글리프 상자를 씀). 서로 다른 코드 단위가 188개를 넘으면 StateError. 매핑 없는 텍스트는 Latin-1만(넘으면 ArgumentError). 권한 암호(사용자 암호 '')는 `/P -44`, 사용자 암호는 `/P -4`. RC4·바이트 변환은 비트 연산 없이 산술로(웹 안전). 출력은 결정적이라 VM·dart2js 바이트가 같은지 sha256으로 확인한다(test/support/fixture_digest.dart).
 - T2 `web/pdf_io_compose_ext.js`는 준비 스크립트가 4개 파일을 복사하도록 자리 파일만 만들었다(명령은 T14). pubspec `flutter: assets:` 선언은 아직 하지 않았다(T14·T19에서 필요할 때).
 - T2 `web/pure_logic_browser_test.dart`(9.1)를 이 작업에서 만들었다(T1 순수 로직 + 픽스처 바이트). T11·T12가 항목을 더한다.
+- T3 `PdfDocumentInfo.isEncrypted`: pdfrx 2.11.0 웹은 `/P`가 음수(실제 PDF는 거의 항상 음수)면 `FPDF_GetDocPermissions`를 부호 있는 정수로 읽어 `isEncrypted == false`를 준다. 그래서 pdfrx 값 || `usedPassword` || 앞·뒤 64KiB에 `/Encrypt` 키가 있음으로 판단한다(정보용 값 — 저장 결정은 `usedPassword`만 씀).
+- T3 렌더 취소: `PdfRenderCancelToken`에 내부 함수 `whenRenderCancelled(token, listener)`(page_info.dart, barrel 비공개)를 두어 pdfrx 취소 토큰으로 넘긴다. 렌더는 pdfrx `renderForDisplay`(웹은 워커 ImageBitmap)로 `ui.Image`를 만든다. 해제된 문서의 `render`는 null, `loadText`·`encodeWithoutSecurity`는 StateError.
+- T3 `%PDF-` 검사는 내부 함수 `hasPdfMagic`(pdf_engine.dart, barrel 비공개) — T5 가져오기 서비스도 같은 함수를 쓴다.
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모

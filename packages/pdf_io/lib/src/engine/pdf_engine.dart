@@ -3,6 +3,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import '../tuning.dart';
 import 'page_info.dart';
 
 abstract interface class PdfEngine {
@@ -40,4 +41,21 @@ abstract interface class PdfEngineDocument {
   /// user-password PDFs on import (6.4).
   Future<Uint8List> encodeWithoutSecurity();
   Future<void> dispose(); // idempotent
+}
+
+/// Internal (not exported): '%PDF-' within the first PdfTuning.pdfMagicSearchBytes bytes
+/// (6.3 step 3). Engines and the import service reject other bytes with notPdf.
+bool hasPdfMagic(Uint8List bytes) {
+  const magic = [0x25, 0x50, 0x44, 0x46, 0x2D]; // %PDF-
+  final end = bytes.length < PdfTuning.pdfMagicSearchBytes
+      ? bytes.length
+      : PdfTuning.pdfMagicSearchBytes;
+  outer:
+  for (var i = 0; i + magic.length <= end; i++) {
+    for (var j = 0; j < magic.length; j++) {
+      if (bytes[i + j] != magic[j]) continue outer;
+    }
+    return true;
+  }
+  return false;
 }
