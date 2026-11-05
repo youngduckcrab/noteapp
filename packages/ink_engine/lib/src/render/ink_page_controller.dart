@@ -22,6 +22,7 @@ import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
 import '../edit/spatial_index.dart';
 import '../geometry/outline_generator.dart';
+import '../geometry/stroke_outline.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../input/pressure_detector.dart';
@@ -715,8 +716,11 @@ final class InkPageController extends ChangeNotifier {
       }
     }
     final active = _active;
+    final previews = <core.Stroke>[];
     if (active is EraserSession && active.isActive) {
       removed.addAll(eraserTouched(active));
+      // 6.20 P8: the pieces the partial eraser leaves, instead of the originals
+      previews.addAll(eraserPreviewPieces(active));
     }
     final sel = _selection;
     if (sel != null && !sel.isDisposed && !sel.previewTransform.isIdentity) {
@@ -738,7 +742,7 @@ final class InkPageController extends ChangeNotifier {
       for (final o in overrides)
         if (o.stroke.layer == InkLayer.highlighter)
           HighlighterGroupKey.of(o.stroke.style, colorArgb: o.colorArgb),
-      for (final s in added)
+      for (final s in [...added, ...previews])
         if (s.style.profile.layer == InkLayer.highlighter)
           HighlighterGroupKey.of(s.style),
       if (active is StrokeSession &&
@@ -750,6 +754,7 @@ final class InkPageController extends ChangeNotifier {
       hidden: hidden,
       overrides: overrides,
       added: added,
+      previews: previews,
       highlighters: [
         if (content != null)
           for (final s in content.strokes)
@@ -852,6 +857,17 @@ final class InkPageController extends ChangeNotifier {
       if (s.layer != InkLayer.ink) continue;
       _chunks.paintClipped(canvas, s, _drawInk);
     }
+    for (final piece in display.previews) {
+      final s = InkStroke.of(piece);
+      if (s.layer != InkLayer.ink) continue;
+      final outline = _previewOutlines[s] ??= OutlineGenerator.outline(s);
+      final grain = s.profile.textured ? _grain() : null;
+      _chunks.paintClipped(
+        canvas,
+        s,
+        (c, s) => paintFillStroke(c, s, outline, grain: grain),
+      );
+    }
     final active = _active;
     if (active is StrokeSession &&
         active.isActive &&
@@ -904,7 +920,7 @@ final class InkPageController extends ChangeNotifier {
           .lines
           .add(HighlighterLine.of(_overrideStroke(o)));
     }
-    for (final added in display.added) {
+    for (final added in [...display.added, ...display.previews]) {
       if (added.style.profile.layer != InkLayer.highlighter) continue;
       groupOf(HighlighterGroupKey.of(added.style)).lines
           .add(HighlighterLine.of(InkStroke.of(added)));
@@ -964,6 +980,10 @@ final class InkPageController extends ChangeNotifier {
   }
 
   bool _grainWaiting = false;
+
+  /// Outlines of the partial-eraser preview pieces (6.23: not in the pool;
+  /// gone with the piece objects).
+  final Expando<StrokeOutline> _previewOutlines = Expando('previewOutline');
 
   /// The pencil grain when ready; otherwise null (paint without grain, 6.11)
   /// and one repaint once it is ready. Only asked for when a textured stroke
@@ -1068,12 +1088,17 @@ final class _Display {
     required this.hidden,
     required this.overrides,
     required this.added,
+    required this.previews,
     required this.highlighters,
     required this.activeHighlighterKeys,
   });
   final Set<String> hidden;
   final List<_Override> overrides;
   final List<core.Stroke> added;
+
+  /// Memory-only partial-eraser pieces (6.20 P8): outlines never enter the
+  /// cache pool.
+  final List<core.Stroke> previews;
 
   /// Committed highlighters not hidden, z order.
   final List<InkStroke> highlighters;

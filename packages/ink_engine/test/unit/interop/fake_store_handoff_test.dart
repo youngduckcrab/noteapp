@@ -188,11 +188,15 @@ void main() {
       });
 
       test('splitStrokes', () {
+        // T16: a vertical pass through the middle of 'b' → two pieces
         final edit = erase(EraserMode.partial, 200);
         expect(edit.kind, InkEditKind.splitStrokes);
-        expect(controller.pendingIds, {'b'});
+        expect(edit.added, hasLength(2));
+        final pieceIds = {for (final s in edit.added) s.id};
+        expect(controller.pendingIds, {'b', ...pieceIds});
         commit(edit);
         expect(ids(), isNot(contains('b')));
+        expect(ids(), containsAll(pieceIds));
       });
 
       test('transformStrokes', () {

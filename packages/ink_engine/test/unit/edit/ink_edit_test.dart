@@ -265,8 +265,14 @@ void main() {
         final edit = session.end(samples.last)!;
         expect(edit.pageId, 'p1');
         expect(edit.removedIds.toList(), ['c', 'a', 'b'], reason: mode.name);
-        final cmd = edit.toCommand() as core.RemoveStrokes;
-        expect(cmd.strokeIds, ['c', 'a', 'b']);
+        // stroke mode → RemoveStrokes; partial mode (T16) → SplitStrokes
+        // with the pieces of each original, originals in z order
+        final ids = switch (edit.toCommand()) {
+          core.RemoveStrokes(:final strokeIds) => strokeIds,
+          core.SplitStrokes(:final removedIds) => removedIds,
+          final other => fail('unexpected $other'),
+        };
+        expect(ids, ['c', 'a', 'b']);
         controller.discardEdit(edit);
       }
     });

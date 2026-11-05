@@ -7,8 +7,9 @@
 //    rollover, 6.7 F8) → InkEdit(addStroke) (live layers: INK T10);
 //  * EraserSession: a stroke is touched when its ink meets the capsule swept
 //    from the previous sample (6.19, INK T15: spatial index + exact contact);
-//    stroke mode → eraseStrokes; partial mode → splitStrokes still without
-//    fragments (toCommand = RemoveStrokes) (vector split P1–P8: INK T16);
+//    stroke mode → eraseStrokes; partial mode → the vector split of 6.20
+//    (INK T16: PartialEraser P2–P6, CORE fragments P7, splitStrokes P8 —
+//    toCommand = SplitStrokes, or RemoveStrokes when nothing is left);
 //  * LassoSession: a stroke is selected when its bounds center is inside the
 //    lasso polygon (nonzero winding) (the coverage rule of LassoOptions: T17).
 import 'dart:collection';
@@ -22,6 +23,7 @@ import '../edit/eraser_spec.dart';
 import '../edit/hit_test.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
+import '../edit/partial_eraser.dart';
 import '../geometry/outline_generator.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
@@ -294,7 +296,11 @@ StrokeSession newStrokeSession(
 // --- eraser --------------------------------------------------------------------
 
 final class EraserSession implements InkGestureSession {
-  EraserSession._(this._host, this.spec, ui.Offset first) : _last = first {
+  EraserSession._(this._host, this.spec, ui.Offset first)
+    : _last = first,
+      _partial = spec.mode == EraserMode.partial
+          ? PartialEraser(spec.radius)
+          : null {
     _touchAlong(first, first);
   }
 
@@ -303,6 +309,15 @@ final class EraserSession implements InkGestureSession {
   final LinkedHashSet<String> _touched = LinkedHashSet<String>();
   ui.Offset _last;
   bool _active = true;
+
+  /// partial mode (6.20): the erased intervals per original
+  final PartialEraser? _partial;
+
+  /// partial mode: the kept pieces (P5/P6) of each touched original, and
+  /// their memory-only preview strokes (P8, ids `pv-<n>`)
+  final Map<String, List<Float32List>> _pieces = {};
+  final Map<String, List<core.Stroke>> _previews = {};
+  int _previewSeq = 0;
 
   Set<String> get touchedStrokeIds => UnmodifiableSetView(_touched);
 
@@ -326,19 +341,29 @@ final class EraserSession implements InkGestureSession {
     InkEdit? edit;
     final content = _host.content;
     if (_touched.isNotEmpty && content != null) {
-      final ordered = _touched.toList()
-        ..sort((a, b) => content.zIndexOf(a).compareTo(content.zIndexOf(b)));
-      final removed = Set<String>.unmodifiable(LinkedHashSet.of(ordered));
-      edit = InkEdit(
-        pageId: _host.pageId,
-        kind: spec.mode == EraserMode.stroke
-            ? InkEditKind.eraseStrokes
-            : InkEditKind.splitStrokes,
-        removedIds: removed,
-      );
-      _host.addPending(edit);
+      // originals another update removed meanwhile are left out
+      final ordered = [
+        for (final id in _touched)
+          if (content.zIndexOf(id) >= 0) id,
+      ]..sort((a, b) => content.zIndexOf(a).compareTo(content.zIndexOf(b)));
+      if (ordered.isNotEmpty) {
+        final removed = Set<String>.unmodifiable(LinkedHashSet.of(ordered));
+        edit = _partial == null
+            ? InkEdit(
+                pageId: _host.pageId,
+                kind: InkEditKind.eraseStrokes,
+                removedIds: removed,
+              )
+            : InkEdit(
+                pageId: _host.pageId,
+                kind: InkEditKind.splitStrokes,
+                removedIds: removed,
+                added: List.unmodifiable(_fragments(ordered)),
+              );
+        _host.addPending(edit);
+      }
     }
-    _touched.clear();
+    _clear();
     _host.sessionEnded(this);
     return edit;
   }
@@ -350,25 +375,62 @@ final class EraserSession implements InkGestureSession {
   void cancel() {
     if (!_active) return;
     _active = false;
-    _touched.clear();
+    _clear();
     _host.sessionEnded(this);
   }
 
-  /// 6.19 1–2 (6.20 P1 for the partial mode): the capsule from the previous
-  /// sample to this one (the first sample: a disc) → spatial index candidates →
-  /// filter → exact ink contact (InkHitTest.capsuleTouches). The capsule fills
-  /// the gap between samples, so fast scrubbing misses nothing.
+  void _clear() {
+    _touched.clear();
+    _partial?.clear();
+    _pieces.clear();
+    _previews.clear();
+  }
+
+  /// P7: the CORE fragments of every touched original (z order), each piece
+  /// with a real id — computed once per original from the gesture's merged
+  /// intervals (the pieces of the last change).
+  List<core.Stroke> _fragments(List<String> ordered) {
+    final partial = _partial!;
+    return [
+      for (final id in ordered)
+        if (partial.strokeOf(id) case final original?)
+          for (final data in _pieces[id] ?? const <Float32List>[])
+            interop.fragmentOf(
+              original.source,
+              data,
+              id: _host.services.newStrokeId(),
+            ),
+    ];
+  }
+
+  /// 6.19 1–2 / 6.20 P1: the capsule from the previous sample to this one
+  /// (the first sample: a disc) → spatial index candidates → filter → exact
+  /// ink contact (stroke mode: InkHitTest.capsuleTouches; partial mode: the
+  /// cut intervals of PartialEraser). The capsule fills the gap between
+  /// samples, so fast scrubbing misses nothing.
   void _touchAlong(ui.Offset a, ui.Offset b) {
     if (_host.content == null || !a.isFinite || !b.isFinite) return;
     final radius = spec.radius;
     final near = _host.strokesNear(ui.Rect.fromPoints(a, b).inflate(radius));
+    final partial = _partial;
     var changed = false;
     for (final s in near) {
-      if (_touched.contains(s.id)) continue;
       if (!interop.filterAccepts(spec.filter, s.style.tool)) continue;
-      if (InkHitTest.capsuleTouches(s, a, b, radius)) {
+      if (partial != null) {
+        if (!partial.addCapsule(s, a, b)) continue;
         _touched.add(s.id);
+        final pieces = _pieces[s.id] = partial.piecesOf(s.id);
+        _previews[s.id] = [
+          for (final data in pieces)
+            interop.previewFragmentOf(s.source, data, seq: ++_previewSeq),
+        ];
         changed = true;
+      } else {
+        if (_touched.contains(s.id)) continue;
+        if (InkHitTest.capsuleTouches(s, a, b, radius)) {
+          _touched.add(s.id);
+          changed = true;
+        }
       }
     }
     if (changed) _host.displayChanged();
@@ -384,6 +446,17 @@ EraserSession newEraserSession(
 
 @internal
 Set<String> eraserTouched(EraserSession s) => s._touched;
+
+/// Partial mode: the memory-only preview pieces of the touched originals
+/// (6.20 P8), drawn instead of them while the gesture lasts.
+@internal
+Iterable<core.Stroke> eraserPreviewPieces(EraserSession s) =>
+    s._previews.values.expand((pieces) => pieces);
+
+/// Partial mode: the merged erased intervals of [strokeId] so far.
+@internal
+List<ParamInterval> eraserIntervalsOf(EraserSession s, String strokeId) =>
+    s._partial?.erasedOf(strokeId) ?? const [];
 
 // --- lasso ---------------------------------------------------------------------
 

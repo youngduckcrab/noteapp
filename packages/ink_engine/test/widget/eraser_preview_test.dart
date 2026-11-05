@@ -203,4 +203,41 @@ void main() {
     await tester.pump();
     expect(_diffCount(before, await capturePixels(tester)), 0);
   });
+
+  testWidgets('partial mode (T16): only the ink inside the eraser goes; '
+      'pending pieces hand over without a flicker', (tester) async {
+    await pumpPageView(tester, controller, width: 596);
+    // a horizontal pass along y = 300 from x 60 to 200: cuts columns 0 and 1
+    final session = controller.beginErase(
+      _at(60, 300, 0),
+      spec: const EraserSpec(mode: EraserMode.partial, radius: 6),
+      viewScale: 1,
+    );
+    session.addSample(_at(200, 300, 1));
+    await tester.pump();
+    final during = await capturePixels(tester);
+    expect(during.at(100, 300), _white, reason: 'inside the eraser');
+    expect(during.at(180, 300), _white);
+    expect(during.at(100, 280), _bluePx, reason: 'the rest of column 0');
+    expect(during.at(100, 320), _bluePx);
+    expect(during.at(180, 440), _bluePx);
+    expect(during.at(260, 300), _bluePx, reason: 'column 2 untouched');
+    final edit = session.end()!;
+    expect(edit.removedIds, {'col0', 'col1'});
+    expect(edit.added, hasLength(4));
+    await tester.pump();
+    final pending = await capturePixels(tester);
+    expect(_diffCount(during, pending), 0, reason: 'preview = pending');
+    // CORE's stored copies of the pieces arrive
+    push(
+      [
+        for (final s in committed)
+          if (!edit.removedIds.contains(s.id)) s,
+        for (final s in edit.added) s.copyWith(updatedAt: s.updatedAt + 1),
+      ]..sort(core.Stroke.compareOrder),
+    );
+    expect(controller.pendingIds, isEmpty);
+    await tester.pump();
+    expect(_diffCount(pending, await capturePixels(tester)), 0);
+  });
 }
