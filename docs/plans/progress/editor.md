@@ -35,7 +35,7 @@
 | E-20 | 완료 | 35be2bf | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
 | E-21 | 통합 단계 | | `integration/real_core_ink_smoke_test.dart`(뼈대만 E-00에서 작성 — 열기·`storageNotDurable` 배너·닫기. 전체 시나리오는 E-13 뒤 채움), `web/editor_browser_smoke_test.dart`(동시 개발 중 작성 가능) |
 | E-22 | 완료 | 7d81713(골든), e53c351 | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`), `unit/performance_smoke_test.dart`(6.15 #9 수치 4개), 전체 통과, 결과 보고 = 아래 '## 결과 보고 (E-22)' |
-| E-18 | 완료 | (이 커밋 — 아래 메모) | `widget/paged_mode_test.dart`(가로 배치·첫 페이지 가운데·마운트 ±1, 빠른 스와이프 → 다음/이전 장·한 장만·양 끝에서 멈춤, 느리면 가까운 장, 200%는 스냅 없음(팬·관성), 모드 전환 시 현재 페이지 유지(가로 = 가운데, 세로 = 페이지 위), 화면 회전 뒤 가운데 유지, `navigateToPage`·PageDown/PageUp), `unit/camera_math_test.dart`(가로 첫·끝 페이지 가운데 허용 1건 더함) |
+| E-18 | 완료 | 093a76e | `widget/paged_mode_test.dart`(가로 배치·첫 페이지 가운데·마운트 ±1, 빠른 스와이프 → 다음/이전 장·한 장만·양 끝에서 멈춤, 느리면 가까운 장, 200%는 스냅 없음(팬·관성), 모드 전환 시 현재 페이지 유지(가로 = 가운데, 세로 = 페이지 위), 화면 회전 뒤 가운데 유지, `navigateToPage`·PageDown/PageUp), `unit/camera_math_test.dart`(가로 첫·끝 페이지 가운데 허용 1건 더함) |
 
 ## 변경 요청
 
