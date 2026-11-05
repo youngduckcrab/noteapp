@@ -8,7 +8,7 @@
 //   chunk plus small 'appended' Pictures for strokes added on top (R3, R4).
 // - HighlighterBaseCache: one page Picture of the highlighter groups that are
 //   not being written, and the opaque Picture of each group that is (6.10-6).
-// Raster tiles (6.13 L3) come with INK T19.
+// The raster tiles of the ink chunks (6.13 L3) are in raster_tiles.dart.
 import 'dart:ui' as ui;
 
 import 'package:meta/meta.dart';
@@ -132,18 +132,35 @@ final class InkContentDiff {
 /// Draws one stroke into a picture being recorded.
 typedef InkStrokeDraw = void Function(ui.Canvas canvas, InkStroke stroke);
 
+/// Draws chunk [index] some other way (a raster tile, 6.13-5); false → the
+/// vector picture is drawn.
+typedef InkChunkDraw = bool Function(ui.Canvas canvas, int index);
+
 /// R3/R4, 6.13 L2: the ink layer as chunkSizePt × chunkSizePt Pictures.
 /// A chunk records the strokes that overlap it (z order), clipped to its
 /// rectangle without anti-aliasing so neighbouring chunks never paint a pixel
 /// twice. The outer chunks reach far past the page (the view clips).
+///
+/// 6.13 time slicing: a chunk not recorded since [reset] (the page has just
+/// been shown) is recorded stroke by stroke within a frame budget, visible
+/// chunks first, and stays blank until it is complete. A chunk recorded
+/// before that an edit made dirty is recorded in full at the next paint, so
+/// an edit never blanks a chunk.
 final class InkChunkCache {
-  InkChunkCache({required this.chunkSizePt, required this.maxAppended})
-    : assert(chunkSizePt > 0);
+  InkChunkCache({
+    required this.chunkSizePt,
+    required this.maxAppended,
+    this.onChunkCleared,
+  }) : assert(chunkSizePt > 0);
 
   final double chunkSizePt;
 
   /// More appended pictures than this → the chunk is re-recorded (R4).
   final int maxAppended;
+
+  /// A chunk's pictures were dropped (dirty, consolidated, reset): its raster
+  /// tiles are stale (6.13-6).
+  final void Function(int index)? onChunkCleared;
 
   /// CORE bounds hold the outline (K-1); this covers the anti-aliased fringe.
   static const double marginPt = 4;
@@ -153,6 +170,7 @@ final class InkChunkCache {
 
   int _cols = 0;
   int _rows = 0;
+  ui.Size _pageSize = ui.Size.zero;
   List<_Chunk> _chunks = const [];
   int _recordCount = 0;
   bool _disposed = false;
@@ -174,6 +192,9 @@ final class InkChunkCache {
   /// Chunks waiting to be recorded at the next paint.
   int get dirtyCount => _chunks.where((c) => c.picture == null).length;
 
+  /// Chunks not recorded since the last [reset] (still blank, 6.13).
+  int get loadingCount => _chunks.where((c) => !c.loaded).length;
+
   /// Times a chunk was (re-)recorded — appends do not count.
   @visibleForTesting
   int get recordCount => _recordCount;
@@ -186,10 +207,11 @@ final class InkChunkCache {
   bool isDirtyAt(int col, int row) =>
       _chunks[row * _cols + col].picture == null;
 
-  /// New grid for [pageSize]; every chunk dirty.
+  /// New grid for [pageSize]; every chunk dirty and loading.
   void reset(ui.Size pageSize) {
     _disposeAll();
     if (_disposed) return;
+    _pageSize = pageSize;
     _cols = (pageSize.width / chunkSizePt).ceil().clamp(1, 1000000);
     _rows = (pageSize.height / chunkSizePt).ceil().clamp(1, 1000000);
     _chunks = [for (var i = 0; i < _cols * _rows; i++) _Chunk()];
@@ -198,13 +220,13 @@ final class InkChunkCache {
   /// The chunks [pageRect] (+ [marginPt]) touches are recorded again.
   void markDirty(ui.Rect pageRect) {
     for (final i in _indicesFor(pageRect)) {
-      _chunks[i].clear();
+      _clearAt(i);
     }
   }
 
   void markAllDirty() {
-    for (final c in _chunks) {
-      c.clear();
+    for (var i = 0; i < _chunks.length; i++) {
+      _clearAt(i);
     }
   }
 
@@ -213,9 +235,13 @@ final class InkChunkCache {
   void append(InkStroke stroke, InkStrokeDraw draw) {
     for (final i in _indicesFor(stroke.bounds)) {
       final chunk = _chunks[i];
-      if (chunk.picture == null) continue;
+      if (chunk.picture == null) {
+        // a recording in progress takes it as its new top stroke
+        chunk.partial?.strokes.add(stroke);
+        continue;
+      }
       if (chunk.appended.length >= maxAppended) {
-        chunk.clear(); // consolidate (R4)
+        _clearAt(i); // consolidate (R4)
         continue;
       }
       chunk.appended.add(_record(i, [stroke], draw));
@@ -223,34 +249,142 @@ final class InkChunkCache {
   }
 
   /// Records the dirty chunks from [zOrdered] (the visible ink strokes,
-  /// bottom → top), then draws every chunk with its appended pictures.
+  /// bottom → top). Chunks recorded before are recorded in full; loading
+  /// chunks in [order] (every index, highest priority first; default: index
+  /// order) until [outOfTime] — asked after each stroke, so a call always
+  /// makes progress — says the budget is spent. True when every chunk has
+  /// its picture.
+  bool record(
+    Iterable<InkStroke> zOrdered,
+    InkStrokeDraw draw, {
+    List<int>? order,
+    bool Function()? outOfTime,
+  }) {
+    if (_chunks.isEmpty) return true;
+    final need = <int, List<InkStroke>>{
+      for (var i = 0; i < _chunks.length; i++)
+        if (_chunks[i].picture == null && _chunks[i].partial == null)
+          i: <InkStroke>[],
+    };
+    if (need.isEmpty && _chunks.every((c) => c.picture != null)) return true;
+    if (need.isNotEmpty) {
+      for (final s in zOrdered) {
+        for (final i in _indicesFor(s.bounds)) {
+          need[i]?.add(s);
+        }
+      }
+    }
+    // edits: in full now (never blank a chunk that was shown)
+    for (final MapEntry(key: i, value: strokes) in need.entries) {
+      final c = _chunks[i];
+      if (!c.loaded) continue;
+      c.picture = _record(i, strokes, draw);
+      c.recordedStrokes = strokes.length;
+      _recordCount++;
+    }
+    // loading: stroke by stroke within the budget, [order] first
+    var spent = false;
+    for (final i in order ?? Iterable<int>.generate(_chunks.length)) {
+      final c = _chunks[i];
+      if (c.picture != null) continue;
+      if (spent) return false;
+      final p = c.partial ??= _Partial(_clipRectOf(i), need[i] ?? []);
+      while (p.next < p.strokes.length) {
+        draw(p.canvas, p.strokes[p.next++]);
+        if (outOfTime != null && outOfTime()) {
+          spent = true;
+          break;
+        }
+      }
+      if (p.next < p.strokes.length) return false;
+      c
+        ..picture = p.recorder.endRecording()
+        ..recordedStrokes = p.strokes.length
+        ..loaded = true
+        ..partial = null;
+      _recordCount++;
+    }
+    return _chunks.every((c) => c.picture != null);
+  }
+
+  /// Draws every recorded chunk with its appended pictures — or through
+  /// [other] (a raster tile) when it says so. Loading chunks stay blank.
+  void drawChunks(ui.Canvas canvas, {InkChunkDraw? other}) {
+    for (var i = 0; i < _chunks.length; i++) {
+      final c = _chunks[i];
+      final picture = c.picture;
+      if (picture == null) continue;
+      if (other != null && other(canvas, i)) continue;
+      canvas.drawPicture(picture);
+      for (final p in c.appended) {
+        canvas.drawPicture(p);
+      }
+    }
+  }
+
+  /// [record] everything, then [drawChunks].
   void paint(
     ui.Canvas canvas,
     Iterable<InkStroke> zOrdered,
     InkStrokeDraw draw,
   ) {
-    if (_chunks.isEmpty) return;
-    final dirty = <int, List<InkStroke>>{
-      for (var i = 0; i < _chunks.length; i++)
-        if (_chunks[i].picture == null) i: <InkStroke>[],
-    };
-    if (dirty.isNotEmpty) {
-      for (final s in zOrdered) {
-        for (final i in _indicesFor(s.bounds)) {
-          dirty[i]?.add(s);
-        }
-      }
-      for (final MapEntry(key: i, value: strokes) in dirty.entries) {
-        _chunks[i].picture = _record(i, strokes, draw);
-        _recordCount++;
-      }
-    }
-    for (final c in _chunks) {
-      canvas.drawPicture(c.picture!);
-      for (final p in c.appended) {
-        canvas.drawPicture(p);
-      }
-    }
+    record(zOrdered, draw);
+    drawChunks(canvas);
+  }
+
+  // --- chunk access (raster tiles, 6.13 L3) ----------------------------------
+
+  /// The chunk's recorded picture; null while dirty or loading.
+  ui.Picture? pictureOf(int index) => _chunks[index].picture;
+
+  /// The chunk's appended pictures, bottom → top.
+  List<ui.Picture> appendedOf(int index) => _chunks[index].appended;
+
+  /// Bumped whenever the chunk's pictures are dropped.
+  int generationOf(int index) => _chunks[index].generation;
+
+  /// Strokes drawn by the chunk's picture and appended pictures.
+  int strokeCountOf(int index) {
+    final c = _chunks[index];
+    return c.recordedStrokes + c.appended.length;
+  }
+
+  /// The chunk's grid cell in page pt (not reaching past the page).
+  ui.Rect cellRectOf(int index) {
+    final col = index % _cols;
+    final row = index ~/ _cols;
+    return ui.Rect.fromLTWH(
+      col * chunkSizePt,
+      row * chunkSizePt,
+      chunkSizePt,
+      chunkSizePt,
+    );
+  }
+
+  /// The part of the page the chunk shows (its cell ∩ the page).
+  ui.Rect pageRectOf(int index) =>
+      cellRectOf(index).intersect(ui.Offset.zero & _pageSize);
+
+  /// Every chunk index: those meeting [visible] (null = the whole page)
+  /// first, then by the distance of their centre to its centre.
+  List<int> priorityOrder(ui.Rect? visible) {
+    final v = visible ?? (ui.Offset.zero & _pageSize);
+    final centre = v.center;
+    final keyed =
+        [
+          for (var i = 0; i < _chunks.length; i++)
+            (
+              i,
+              cellRectOf(i).overlaps(v) ? 0 : 1,
+              (cellRectOf(i).center - centre).distanceSquared,
+            ),
+        ]..sort((a, b) {
+          final byVisible = a.$2.compareTo(b.$2);
+          if (byVisible != 0) return byVisible;
+          final byDistance = a.$3.compareTo(b.$3);
+          return byDistance != 0 ? byDistance : a.$1.compareTo(b.$1);
+        });
+    return [for (final k in keyed) k.$1];
   }
 
   /// Draws [stroke] the way a chunk picture would: once per chunk it touches,
@@ -276,9 +410,14 @@ final class InkChunkCache {
     _disposeAll();
   }
 
+  void _clearAt(int index) {
+    _chunks[index].clear();
+    onChunkCleared?.call(index);
+  }
+
   void _disposeAll() {
-    for (final c in _chunks) {
-      c.clear();
+    for (var i = 0; i < _chunks.length; i++) {
+      _clearAt(i);
     }
     _chunks = const [];
     _cols = 0;
@@ -330,14 +469,43 @@ final class _Chunk {
   ui.Picture? picture;
   final List<ui.Picture> appended = [];
 
+  /// Strokes in [picture].
+  int recordedStrokes = 0;
+
+  /// Recorded at least once since the grid was made.
+  bool loaded = false;
+
+  /// A loading recording that ran out of frame budget.
+  _Partial? partial;
+
+  int generation = 0;
+
   void clear() {
     picture?.dispose();
     picture = null;
+    recordedStrokes = 0;
     for (final p in appended) {
       p.dispose();
     }
     appended.clear();
+    partial?.recorder.endRecording().dispose();
+    partial = null;
+    generation++;
   }
+}
+
+/// A chunk recording resumed in the next frame (6.13 time slicing).
+final class _Partial {
+  _Partial(ui.Rect clip, this.strokes) : recorder = ui.PictureRecorder() {
+    canvas = ui.Canvas(recorder)..clipRect(clip, doAntiAlias: false);
+  }
+
+  final ui.PictureRecorder recorder;
+  late final ui.Canvas canvas;
+
+  /// Bottom → top; appends land at the end.
+  final List<InkStroke> strokes;
+  int next = 0;
 }
 
 /// The opaque lines of one highlighter group, recorded once (6.10-2).

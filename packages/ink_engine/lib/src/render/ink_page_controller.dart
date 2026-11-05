@@ -6,8 +6,10 @@
 // selection with its live preview pictures (6.22 / R7, INK T18:
 // selection_preview.dart), pending hand-off (6.12 R6: pendingIds, updateContent
 // resolution, discardPending, discardEdit, timeout), the spatial index with
-// exact ink hitTest / strokeIdsInRect (6.18, INK T14) and the viewport report
-// of 6.12 R9 (currentBucket). Raster tiles come with INK T19.
+// exact ink hitTest / strokeIdsInRect (6.18, INK T14), the viewport report
+// of 6.12 R9 (currentBucket) and the second render cache stage (6.13 L3,
+// INK T19: raster tiles of the ink chunks in the pool LRU, made one per frame
+// when quiet, plus the time-sliced first recording of a page's chunks).
 import 'dart:async' show scheduleMicrotask;
 import 'dart:ui' as ui;
 
@@ -42,6 +44,7 @@ import 'ink_page_content.dart';
 import 'lasso_overlay.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
+import 'raster_tiles.dart';
 import 'render_config.dart';
 import 'selection.dart';
 import 'selection_preview.dart';
@@ -140,6 +143,10 @@ final class InkPageController extends ChangeNotifier {
     for (final layer in InkRenderLayer.values) {
       _repaints[layer] = _Repaint();
     }
+    _removePictureCount = addChunkPictureCount(
+      cachePool,
+      () => _chunks.pictureCount,
+    );
   }
 
   final String pageId;
@@ -171,7 +178,32 @@ final class InkPageController extends ChangeNotifier {
   late final InkChunkCache _chunks = InkChunkCache(
     chunkSizePt: config.chunkSizePt,
     maxAppended: config.maxAppendedPictures,
+    onChunkCleared: _tiles.dropChunk,
   );
+  late final void Function() _removePictureCount;
+
+  // raster tiles (6.13 L3, INK T19)
+  late final PageRasterTiles _tiles = PageRasterTiles(
+    rasterTileLruOf(cachePool),
+    config.scaleBuckets,
+  );
+  late final RasterScheduler _rasterSchedule = RasterScheduler(
+    idleMs: config.idleBeforeRasterMs,
+    settleMs: config.zoomSettleMs,
+    releaseMs: config.releaseInvisibleAfterMs,
+    onQuiet: _rasterQuiet,
+    onRelease: _releaseInvisibleTiles,
+  );
+  final InkBaseStats _baseStats = InkBaseStats();
+  bool _baseFrameRequested = false;
+
+  /// Chunk indices, visible ones first (6.13-3), for [_chunkOrderRect].
+  List<int>? _chunkOrder;
+  ui.Rect? _chunkOrderRect;
+
+  /// The view's visible rect at paint time: the loading order of the first
+  /// frames, before the first setViewport report (6.12 R9 ④).
+  ui.Rect? _paintVisibleHint;
   final HighlighterBaseCache _hl = HighlighterBaseCache();
 
   /// R7 selection preview pictures (6.22).
@@ -474,20 +506,26 @@ final class InkPageController extends ChangeNotifier {
     required double deviceScale,
     required bool isScaling,
   }) {
+    final visibleChanged = visiblePageRect != _visiblePageRect;
+    final scaleChanged = deviceScale != _deviceScale;
+    final scalingChanged = isScaling != _isScaling;
+    final oldBucket = _bucket;
     _visiblePageRect = visiblePageRect;
     _deviceScale = deviceScale;
     _isScaling = isScaling;
-    _bucket = _bucketFor(deviceScale);
-    // B3 draws vectors only: no picture depends on the bucket yet.
-  }
-
-  /// Smallest scale bucket >= [deviceScale]; null above the largest (vector only, 6.13).
-  double? _bucketFor(double deviceScale) {
-    double? best;
-    for (final b in config.scaleBuckets) {
-      if (b + 1e-9 >= deviceScale && (best == null || b < best)) best = b;
+    _bucket = scaleBucketFor(config.scaleBuckets, deviceScale);
+    if (_disposed) return;
+    if (!config.rasterTiles) return;
+    if (visibleChanged || scaleChanged) _tiles.clearEvicted();
+    if (visibleChanged || scaleChanged || scalingChanged) {
+      _rasterSchedule.viewportChanged(isScaling: isScaling);
     }
-    return best;
+    if (visibleChanged) _rasterSchedule.scheduleRelease();
+    // 6.13-5: another bucket keeps drawing the tiles there are (stretched);
+    // only crossing the vector-only line changes the picture now.
+    if ((oldBucket == null) != (_bucket == null) && _tiles.count > 0) {
+      _repaints[InkRenderLayer.inkBase]!.fire();
+    }
   }
 
   Listenable layerRepaint(InkRenderLayer layer) => _repaints[layer]!;
@@ -495,8 +533,8 @@ final class InkPageController extends ChangeNotifier {
   InkPageRenderStats get renderStats => InkPageRenderStats(
     strokeCount: _content?.strokes.length ?? 0,
     chunkPictures: _chunks.pictureCount,
-    rasterTiles: 0,
-    rasterBytes: 0,
+    rasterTiles: _tiles.count,
+    rasterBytes: _tiles.bytes,
     pendingCommits: _pending.length,
     currentBucket: _bucket,
   );
@@ -512,7 +550,10 @@ final class InkPageController extends ChangeNotifier {
     if (sel != null) disposeInkSelection(sel);
     _selection = null;
     _pending.clear();
+    _rasterSchedule.dispose();
     _chunks.dispose();
+    _tiles.dropAll();
+    _removePictureCount();
     _hl.dispose();
     _selectionPreview.dispose();
     for (final r in _repaints.values) {
@@ -603,6 +644,8 @@ final class InkPageController extends ChangeNotifier {
   void _invalidate() {
     _display = null;
     if (_disposed) return;
+    // 6.13-2 (b): input and display changes put raster tiles off
+    if (config.rasterTiles) _rasterSchedule.activity();
     for (final r in _repaints.values) {
       r.fire();
     }
@@ -623,6 +666,7 @@ final class InkPageController extends ChangeNotifier {
     if (diff.isNoop) return;
     if (diff.isReset) {
       _chunks.reset(content.pageSize);
+      _chunkOrder = null;
       _hl.markDirty();
       _spatial = null;
       return;
@@ -804,10 +848,7 @@ final class InkPageController extends ChangeNotifier {
         );
       case InkRenderLayer.inkBase:
         if (content == null) return;
-        _chunks.paint(canvas, [
-          for (final s in content.strokes)
-            if (s.layer == InkLayer.ink && !display.hidden.contains(s.id)) s,
-        ], _drawInk);
+        _paintInkBase(canvas, content, display);
         if (diagnostics.enabled) {
           diagnostics.onCacheStats(
             cachePool.stats,
@@ -824,6 +865,180 @@ final class InkPageController extends ChangeNotifier {
         if (active.points.length < 2) return;
         paintLassoOverlay(canvas, active.previewPath, _currentViewScale);
     }
+  }
+
+  /// 6.12 R4 + 6.13: records what the chunks miss (a newly shown page within
+  /// the frame budget, visible chunks first), makes at most
+  /// maxTileRastersPerFrame raster tiles when quiet and the budget is left,
+  /// then draws each chunk from its tile (+ later appends) or its pictures.
+  /// Unfinished work asks for the next frame.
+  void _paintInkBase(
+    ui.Canvas canvas,
+    InkPageContent content,
+    _Display display,
+  ) {
+    final startUs = clock.nowUs();
+    final budgetUs = config.frameWorkBudgetMs * 1000;
+    bool outOfTime() => clock.nowUs() - startUs >= budgetUs;
+    final order = _currentChunkOrder();
+    final recorded = _chunks.record(
+      [
+        for (final s in content.strokes)
+          if (s.layer == InkLayer.ink && !display.hidden.contains(s.id)) s,
+      ],
+      _drawInk,
+      order: order,
+      outOfTime: outOfTime,
+    );
+    var more = !recorded;
+    var tiles = 0;
+    final bucket = config.rasterTiles ? _bucket : null;
+    if (bucket != null && _rasterAllowed) {
+      while (tiles < config.maxTileRastersPerFrame && !outOfTime()) {
+        final next = _nextTileChunk(bucket, order);
+        if (next == null) break;
+        _rasterTile(next, bucket);
+        tiles++;
+      }
+      more |= _nextTileChunk(bucket, order) != null;
+    }
+    _chunks.drawChunks(
+      canvas,
+      other: bucket == null ? null : (c, i) => _drawTile(c, i, bucket),
+    );
+    _baseStats
+      ..lastPaintUs = clock.nowUs() - startUs
+      ..lastPaintTiles = tiles
+      ..paints += 1;
+    if (more) _requestBaseFrame();
+  }
+
+  /// The chunk priority order for the visible rect (the reported one, or the
+  /// view's own before the first report).
+  List<int> _currentChunkOrder() {
+    final visible = _deviceScale == null ? _paintVisibleHint : _visiblePageRect;
+    final cached = _chunkOrder;
+    if (cached != null && visible == _chunkOrderRect) return cached;
+    _chunkOrderRect = visible;
+    return _chunkOrder = _chunks.priorityOrder(visible);
+  }
+
+  /// 6.13-2: tiles are made only when the scheduler is quiet (idle after
+  /// input, zoom settled, not scaling), with no gesture and a view attached.
+  bool get _rasterAllowed =>
+      !_disposed &&
+      config.rasterTiles &&
+      _bucket != null &&
+      _rasterSchedule.quiet &&
+      activeSession == null;
+
+  /// 6.13-3: the first chunk of [order] (visible, nearest the centre) within
+  /// the visible rect + 1 chunk that has strokes and no [bucket] tile.
+  int? _nextTileChunk(double bucket, List<int> order) {
+    final keep = _keepRect();
+    for (final i in order) {
+      if (_chunks.pictureOf(i) == null) continue;
+      if (_chunks.strokeCountOf(i) == 0) continue;
+      if (!_chunks.cellRectOf(i).overlaps(keep)) continue;
+      if (_tiles.wasEvicted(i) || _tiles.has(i, bucket)) continue;
+      return i;
+    }
+    return null;
+  }
+
+  /// The visible rect (whole page when null) + one chunk on every side
+  /// (6.13-7).
+  ui.Rect _keepRect() {
+    final content = _content;
+    final page = content == null
+        ? ui.Rect.zero
+        : ui.Offset.zero & content.pageSize;
+    return (_visiblePageRect ?? page).inflate(config.chunkSizePt);
+  }
+
+  /// 6.13-4: the chunk picture + appended pictures → toImageSync at
+  /// [bucket]; the time goes to InkDiagnostics.onTileRaster.
+  void _rasterTile(int index, double bucket) {
+    final start = clock.nowUs();
+    final RasterTile tile;
+    try {
+      tile = rasterizeChunk(
+        picture: _chunks.pictureOf(index)!,
+        appended: _chunks.appendedOf(index),
+        chunkRect: _chunks.pageRectOf(index),
+        bucket: bucket,
+        generation: _chunks.generationOf(index),
+      );
+    } on Object catch (error, stack) {
+      // 4.0: the render path never throws — the chunk stays vector
+      _tiles.tileEvicted((owner: _tiles, chunk: index, bucket: bucket));
+      diagnostics.onWarning('tileRasterFailed');
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'ink_engine',
+          context: ErrorDescription('while making a raster tile'),
+        ),
+      );
+      return;
+    }
+    _tiles.store(index, tile);
+    final end = clock.nowUs();
+    _baseStats.tilesMade++;
+    diagnostics.onTileRaster((end - start) / 1000);
+  }
+
+  /// 6.13-5: the chunk's tile (this bucket's, else another's stretched) and
+  /// the pictures appended after it; false → vector.
+  bool _drawTile(ui.Canvas canvas, int index, double bucket) {
+    final tile = _tiles.tileFor(index, bucket, _chunks.generationOf(index));
+    if (tile == null) return false;
+    tile.draw(canvas);
+    final appended = _chunks.appendedOf(index);
+    for (var k = tile.appendedCount; k < appended.length; k++) {
+      canvas.drawPicture(appended[k]);
+    }
+    return true;
+  }
+
+  /// The scheduler became quiet: one inkBase frame if a tile is due.
+  void _rasterQuiet() {
+    final bucket = _bucket;
+    if (!_rasterAllowed || bucket == null || _content == null) return;
+    if (_nextTileChunk(bucket, _currentChunkOrder()) != null) {
+      _repaints[InkRenderLayer.inkBase]!.fire();
+    }
+  }
+
+  /// 6.13-7: the tiles of chunks outside the visible rect + 1 chunk go
+  /// (releaseInvisibleAfterMs after the last viewport change).
+  void _releaseInvisibleTiles() {
+    if (_disposed) return;
+    final keep = _keepRect();
+    _tiles.dropWhere((i) => !_chunks.cellRectOf(i).overlaps(keep));
+  }
+
+  /// The next inkBase frame (unfinished loading or tiles). Not during paint:
+  /// after the current task.
+  void _requestBaseFrame() {
+    if (_baseFrameRequested) return;
+    _baseFrameRequested = true;
+    scheduleMicrotask(() {
+      _baseFrameRequested = false;
+      if (!_disposed) _repaints[InkRenderLayer.inkBase]!.fire();
+    });
+  }
+
+  void _viewAttached() {
+    if (_disposed || !config.rasterTiles) return;
+    _rasterSchedule.attach(isScaling: _isScaling);
+  }
+
+  /// No view draws the tiles any more: they go at once.
+  void _viewDetached() {
+    _rasterSchedule.detach();
+    if (!_disposed) _tiles.dropAll();
   }
 
   /// The previewed copy of an override (transform → core.Stroke.transformed).
@@ -1052,22 +1267,36 @@ final class InkPageRender {
   Object? _view;
 
   /// Paints [layer] in page pt (the caller already scaled the canvas by [viewScale]).
-  void paint(ui.Canvas canvas, InkRenderLayer layer, double viewScale) {
-    _controller._currentViewScale = viewScale;
-    _controller._paintLayer(canvas, layer);
+  /// [visiblePageRect]: the view's own argument — the chunk loading order of
+  /// the frames before its first setViewport report (6.13 time slicing).
+  void paint(
+    ui.Canvas canvas,
+    InkRenderLayer layer,
+    double viewScale, {
+    ui.Rect? visiblePageRect,
+  }) {
+    _controller
+      .._currentViewScale = viewScale
+      .._paintVisibleHint = visiblePageRect
+      .._paintLayer(canvas, layer);
   }
 
-  /// One InkPageView per controller (debug assert, 6.12 R9 ⑤).
+  /// One InkPageView per controller (debug assert, 6.12 R9 ⑤). Raster
+  /// tiles (6.13 L3) are made and kept only while a view is attached.
   void attachView(Object view) {
     assert(
       _view == null || identical(_view, view),
       'InkPageController(${_controller.pageId}) already has an InkPageView',
     );
+    if (identical(_view, view)) return;
     _view = view;
+    _controller._viewAttached();
   }
 
   void detachView(Object view) {
-    if (identical(_view, view)) _view = null;
+    if (!identical(_view, view)) return;
+    _view = null;
+    _controller._viewDetached();
   }
 
   ui.Rect? get visiblePageRect => _controller._visiblePageRect;
@@ -1084,6 +1313,32 @@ InkPageRender inkPageRenderOf(InkPageController controller) =>
 @meta.internal
 InkChunkCache inkChunkCacheOf(InkPageController controller) =>
     controller._chunks;
+
+/// INTERNAL (tests): the inkBase paint counters of [controller] (6.13).
+@meta.internal
+InkBaseStats inkBaseStatsOf(InkPageController controller) =>
+    controller._baseStats;
+
+/// INTERNAL (tests): the raster tiles of [controller] (6.13 L3).
+@meta.internal
+PageRasterTiles inkRasterTilesOf(InkPageController controller) =>
+    controller._tiles;
+
+/// INTERNAL: inkBase paint counters (6.13 time slicing and raster tiles).
+@meta.internal
+final class InkBaseStats {
+  /// Clock time of the last inkBase paint (recording + tiles + drawing).
+  int lastPaintUs = 0;
+
+  /// Tiles made by the last inkBase paint.
+  int lastPaintTiles = 0;
+
+  /// Tiles made since the controller was created.
+  int tilesMade = 0;
+
+  /// inkBase paints since the controller was created.
+  int paints = 0;
+}
 
 /// INTERNAL (tests): the R7 selection preview counters of [controller] (6.22).
 @meta.internal

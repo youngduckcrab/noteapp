@@ -339,7 +339,12 @@ void main() {
         inkPageRenderOf(c).paint(canvas, layer, 1);
       }
       recorder.endRecording().dispose();
-      expect(c.cachePool.stats, before);
+      // (T19: the pool stats also count the chunk pictures painting made)
+      final after = c.cachePool.stats;
+      expect(
+        (after.outlineEntries, after.outlineBytes),
+        (before.outlineEntries, before.outlineBytes),
+      );
       expect(c.cachePool.outlineFor(InkStroke.of(a)), same(cached));
     });
   });

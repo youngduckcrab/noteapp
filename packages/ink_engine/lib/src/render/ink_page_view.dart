@@ -4,8 +4,10 @@
 // + CustomPaint per controller layer (highlighter base picture, active
 // highlighter groups, ink chunk pictures, pending / live / previewed strokes,
 // lasso path), clipped to the page. The viewport report follows 6.12 R9
-// (post-frame setViewport, no notification, currentBucket). Raster tiles come
-// with INK T19.
+// (post-frame setViewport, no notification, currentBucket). The ink base
+// layer draws raster tiles when the controller has them (6.13 L3, INK T19);
+// the painters pass the visible rect for the loading order of the first
+// frames.
 import 'dart:typed_data';
 
 import 'package:flutter/scheduler.dart';
@@ -197,6 +199,7 @@ class _InkPageViewState extends State<InkPageView> {
                           layer,
                           viewScale,
                           controller.layerRepaint(layer),
+                          widget.visiblePageRect,
                         ),
                       ),
                     ),
@@ -211,19 +214,28 @@ class _InkPageViewState extends State<InkPageView> {
 }
 
 class _LayerPainter extends CustomPainter {
-  _LayerPainter(this.render, this.layer, this.viewScale, Listenable repaint)
-    : super(repaint: repaint);
+  _LayerPainter(
+    this.render,
+    this.layer,
+    this.viewScale,
+    Listenable repaint,
+    this.visiblePageRect,
+  ) : super(repaint: repaint);
 
   final InkPageRender render;
   final InkRenderLayer layer;
   final double viewScale;
+
+  /// A hint only (loading order before the first viewport report): a
+  /// change alone does not repaint.
+  final Rect? visiblePageRect;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas
       ..save()
       ..scale(viewScale);
-    render.paint(canvas, layer, viewScale);
+    render.paint(canvas, layer, viewScale, visiblePageRect: visiblePageRect);
     canvas.restore();
   }
 
