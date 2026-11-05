@@ -84,6 +84,9 @@ abstract final class CameraMath {
   /// cross axis centred while the widest page fits (with side margins), else
   /// limited to the content plus a side margin; main axis centred while the
   /// content is shorter than the viewport, else within [0, content − visible].
+  /// Horizontal (paged) layout: the main-axis range also reaches the first
+  /// and the last page centred, so every page can be shown centred at its
+  /// fit scale (the leading padding alone is narrower than that margin).
   static ViewportCamera clamp(
     ViewportCamera camera,
     PageLayout layout,
@@ -113,9 +116,21 @@ abstract final class CameraMath {
     final content = vertical
         ? layout.contentSize.height
         : layout.contentSize.width;
-    final main = content <= visMain
-        ? (content - visMain) / 2
-        : mainOrigin.clamp(0.0, content - visMain);
+    var low = 0.0;
+    var high = content - visMain;
+    if (!vertical && layout.length > 0) {
+      low = math.min(low, layout.rectOf(0).center.dx - visMain / 2);
+      final last = layout.rectOf(layout.length - 1).center.dx - visMain / 2;
+      high = math.max(high, last);
+    }
+    final double main;
+    if (vertical && content <= visMain) {
+      main = (content - visMain) / 2;
+    } else if (high <= low) {
+      main = (low + high) / 2;
+    } else {
+      main = mainOrigin.clamp(low, high);
+    }
 
     return ViewportCamera(
       scale: scale,

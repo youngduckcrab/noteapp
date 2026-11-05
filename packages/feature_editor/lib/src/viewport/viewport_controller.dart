@@ -218,7 +218,8 @@ class ViewportController extends ChangeNotifier {
     _relayout(anchor);
   }
 
-  /// Keeps current page, zoom → 1.
+  /// Keeps current page, zoom → 1 (vertical: the page top at fit width;
+  /// horizontal: the page centred at its fit scale, as [jumpToPage]).
   void setAxis(LayoutAxis axis) {
     if (_disposed || axis == _axis) return;
     final index = _placed ? _computeCurrentPage() : 0;
@@ -230,7 +231,12 @@ class ViewportController extends ChangeNotifier {
       return;
     }
     _fitScale = _fitFor(index);
-    _place(_pageStartCamera(index, scale: _fitScale), settle: true);
+    _place(
+      _vertical
+          ? _pageStartCamera(index, scale: _fitScale)
+          : _pageCamera(index),
+      settle: true,
+    );
   }
 
   /// First display: [initialPageId] (if it is a page of the note) at the top
@@ -632,12 +638,16 @@ class ViewportController extends ChangeNotifier {
     var index = _pages.indexWhere((p) => p.id == anchor.pageId);
     if (index < 0) index = anchor.index.clamp(0, _layout.length - 1);
     _fitScale = _fitFor(index);
-    final next = _clamp(
-      ViewportCamera(
-        scale: anchor.zoom * _fitScale,
-        origin: _layout.rectOf(index).topLeft + anchor.offsetInPage,
-      ),
-    );
+    // Paged mode, not zoomed in: the page stays centred (a rotation or a
+    // page-list change never leaves it half off screen).
+    final next = !_vertical && anchor.zoom <= _pagedSnapMaxZoom
+        ? _pageCamera(index)
+        : _clamp(
+            ViewportCamera(
+              scale: anchor.zoom * _fitScale,
+              origin: _layout.rectOf(index).topLeft + anchor.offsetInPage,
+            ),
+          );
     if (next == _camera) {
       _updateCurrentPage();
       notifyListeners(); // the layout itself changed

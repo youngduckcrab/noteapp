@@ -4,8 +4,9 @@
 
 ## 요약
 
-- 마지막 세션: **9** (동시 개발 단계 개발 세션 9/10) — 이번 세션 완료: E-22 (세션 8: E-17·E-19, 세션 7: E-16·E-20, 세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-18 (마지막 순위 — 동시 개발 몫은 이것만 남음, E-21은 통합 단계)
+- 마지막 세션: **9** (동시 개발 단계 개발 세션 9/10) — 이번 세션 완료: E-22·E-18 (세션 8: E-17·E-19, 세션 7: E-16·E-20, 세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 상태: **동시 개발 단계 몫 전부 완료**(B5·E-00~E-20·E-22·E-18). 남은 것은 통합 단계 몫 E-21뿐
+- 다음 할 일: (동시 개발) 없음 — 세션 10은 확인·정리만(아래 메모). 통합 단계: E-21
 
 ## 작업 표
 
@@ -33,8 +34,8 @@
 | E-19 | 완료 | 57635cd | `unit/dev_metrics_test.dart`(≤ 4Hz 발행·멈춤·초기화·라벨), `widget/dev_overlay_test.dart`(설정·더보기·Ctrl+Shift+D·URL 플래그 → `inkDiagnosticsProvider.enabled`·`DevMetrics.isRunning`, 숨김·화면 이탈 → 멈춤, `FakeInkClock` INK 줄·EDITOR 줄·저장 줄, 팜 거부 계수, 섹션 줄 변경·숨기면 구독 해제), `widget/dev_menu_test.dart`(보일 때만, 합성 노트, 합성 획 1,000 → +1,000·1단계·되돌리기, 읽기 전용 비활성, 진단 초기화) |
 | E-20 | 완료 | 35be2bf | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
 | E-21 | 통합 단계 | | `integration/real_core_ink_smoke_test.dart`(뼈대만 E-00에서 작성 — 열기·`storageNotDurable` 배너·닫기. 전체 시나리오는 E-13 뒤 채움), `web/editor_browser_smoke_test.dart`(동시 개발 중 작성 가능) |
-| E-22 | 완료 | 7d81713(골든), (이 커밋) | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`), `unit/performance_smoke_test.dart`(6.15 #9 수치 4개), 전체 통과, 결과 보고 = 아래 '## 결과 보고 (E-22)' |
-| E-18 | 남음 (마지막 순위) | | `widget/paged_mode_test.dart` |
+| E-22 | 완료 | 7d81713(골든), e53c351 | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`), `unit/performance_smoke_test.dart`(6.15 #9 수치 4개), 전체 통과, 결과 보고 = 아래 '## 결과 보고 (E-22)' |
+| E-18 | 완료 | (이 커밋 — 아래 메모) | `widget/paged_mode_test.dart`(가로 배치·첫 페이지 가운데·마운트 ±1, 빠른 스와이프 → 다음/이전 장·한 장만·양 끝에서 멈춤, 느리면 가까운 장, 200%는 스냅 없음(팬·관성), 모드 전환 시 현재 페이지 유지(가로 = 가운데, 세로 = 페이지 위), 화면 회전 뒤 가운데 유지, `navigateToPage`·PageDown/PageUp), `unit/camera_math_test.dart`(가로 첫·끝 페이지 가운데 허용 1건 더함) |
 
 ## 변경 요청
 
@@ -125,6 +126,7 @@
 - (세션 9) E-22 골든: 선택 프레임은 `SelectionFrame` 안의 `RepaintBoundary` 층만 찍는다(투명 바탕에 점선·핸들만 — INK 획·페이지는 안 들어감). 페이지 영역 골든은 `PageViewport`에 자기 `RepaintBoundary`가 없어서(lib는 바꾸지 않음) 가장 가까운 상위 경계 층에서 `PageViewport` 사각형만 `OffsetLayer.toImage(rect)`로 잘라 비교한다(툴바·프리셋 바 제외). 글자(쪽 표시 '1 / 3', '+ 페이지')는 테스트 글꼴의 네모로 찍힌다(계약 7.4.8 'Ahem 글꼴만'). INK 출력은 `ink_testing.SolidBackgroundBuilder(kind: blank, colorArgb: 흰색)` 하나로 override. 그림은 논리 픽셀 1:1(골든 기본 `pixelRatio` 1).
 - (세션 9) E-22 성능 스모크: 컨테이너를 다른 영역 에이전트와 같이 쓰므로 각 수치는 **준비 1회 뒤 5회 중 가장 짧은 값**으로 6.15 #9 한도와 비교한다(한도는 계획 그대로). 타이머·대기 없음 — 커밋 측정은 fakeAsync 안 가짜 저장소(마이크로태스크), 라우터는 울리지 않는 타이머 팩토리. 커밋 측정 = `session.execute(edit.toCommand())` 한 번(그 안에서 `PageMount`가 `updateContent`) — 획 그리기(`beginStroke`·`addSample`·`end`)는 측정 밖. 태그 없이 기본 실행(계획 3절).
 - (세션 9) E-22 결과 보고는 이 파일 끝 '## 결과 보고 (E-22)' 절에 둔다(진행 기록 형식의 절 순서는 그대로 두고 맨 끝에 덧붙임).
+- (세션 9) E-18: 좌우 넘기기 모드에서 페이지가 항상 가운데에 오도록 세 곳을 고쳤다 — ① `setAxis(horizontal)`은 `_pageStartCamera`(페이지 왼쪽 끝) 대신 `jumpToPage`와 같은 `_pageCamera`(그 페이지 fit 배율로 가운데), ② 화면 크기·페이지 목록 변경(`_relayout`)도 가로 모드 + `zoom ≤ 1.05`면 앵커 위치 대신 그 페이지 가운데, ③ `CameraMath.clamp`의 주축 범위를 가로 배치에서만 '첫 페이지 가운데'·'마지막 페이지 가운데'까지 넓혔다(6.3.3의 `[0, content − visible]`만으로는 앞 여백 24pt가 좁아 첫 페이지가 가운데에 올 수 없었다 — 약 40px 왼쪽). 확대(zoom > 1.05) 상태의 범위는 그대로(범위가 0 이상일 때는 영향 없음). `camera_math_test`의 'horizontal layout swaps the axes' 기대값을 이에 맞추고 경우 1건을 더했다.
 
 ## 다음 세션 메모
 
@@ -158,22 +160,24 @@
 - 세션 8 E-19 확인: 패키지 VM 테스트 571개 통과(`~1`은 integration 건너뜀), `dev_metrics`·`dev_overlay`는 `flutter test --platform chrome`에서도 통과(웹 컴파일 확인용), app 패키지 테스트 13개 통과, 루트 `flutter analyze --fatal-infos`·`ws check` 0.
 - 개발자 표시 테스트 메모(세션 8): `pumpEditor(settings: const EditorSettings(showDevOverlay: true))`로 켠 채 시작, URL 플래그는 `editorDevUrlFlagProvider.overrideWithValue(true)`. 오버레이 글자는 `DevOverlay.overlayKey` 아래 `Text.data`, 기대값은 `devInkLines(diagnostics.snapshot)` 등 같은 함수로 만든다. `DevMetrics`·오버레이는 250ms 묶음이므로 값 확인 전 `pump(300ms)`. `ink.inkClockProvider.overrideWithValue(FakeInkClock())`로 INK 진단 시각을 고정할 수 있다.
 - E-22 준비(세션 8): 남은 동시 개발 작업은 E-22(골든 2개 — `selection_frame_golden_test`·`page_viewport_layout_golden_test`, INK 출력은 `SolidBackgroundBuilder`·빈 페이지로 고정 / `unit/performance_smoke_test.dart` 6.15 #9 수치 / 결과 보고)와 E-18(좌우 넘기기 — 컨트롤러 쪽 스냅·`fitScale`은 E-03에서 이미 구현, `paged_mode_test`만 남음에 가까움). 골든은 VM 전용 `golden` 태그(`--update-goldens --tags golden`)로 만들고 별도 커밋. 페이지 패널·개발자 표시가 화면 트리에 생겼으므로 레이아웃 골든은 패널 닫힘·개발자 표시 꺼짐 상태로 찍는다.
-- 세션 9 끝 확인: 패키지 VM 테스트 582개 통과(`~1`은 integration 건너뜀, 골든 9개 포함), 전체 VM 실행 148초(다른 에이전트와 CPU 공유 중 — 10절 #2 '3분 이내' 안), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
-- E-18 준비(세션 9): 컨트롤러 쪽 가로 넘기기 스냅(속도 > 300 → 제스처 시작 페이지 ±1, 아니면 가운데 페이지, `cancelGesture`도 스냅)·가로 `fitScale`(현재 페이지 기준)·`setAxis`는 E-03에서 이미 구현. 화면 쪽은 `EditorSettings.pageFlipMode`·`EditorCommands`의 넘기기 모드 전환(E-13)을 확인하고 `widget/paged_mode_test.dart`(가로 배치, 빠른 스와이프 → 다음 장, 느리면 가까운 장, 확대 상태는 스냅 없음, 모드 전환 시 현재 페이지 유지, `navigateToPage`도 동작)를 쓰면 된다. `navigate_to_page_test`에 가로 넘기기 경우가 이미 있다(E-17). 가로 모드 레이아웃 골든이 필요하면 `page_viewport_layout_golden_test`에 경우를 더하고 별도 커밋.
+- 세션 9 E-22 확인: 패키지 VM 테스트 582개 통과(`~1`은 integration 건너뜀, 골든 9개 포함), 전체 VM 실행 148초(다른 에이전트와 CPU 공유 중 — 10절 #2 '3분 이내' 안), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
+- 세션 9 끝 확인(E-18 뒤): 패키지 VM 테스트 591개 통과(`~1`은 integration 건너뜀), 전체 VM 실행 165초(CPU 공유 중), `paged_mode`·`camera_math`는 `flutter test --platform chrome`에서도 통과(웹 컴파일 확인용, test/web 아님), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
+- 세션 10 메모: 동시 개발 몫은 끝났다. 남은 일은 확인뿐 — 끝 확인 4가지(`ws check`, 루트 analyze, 패키지 VM 테스트, `git status`) 재확인, 필요하면 결과 보고 수치 갱신. E-21 테스트(`integration/real_core_ink_smoke_test.dart` 전체 시나리오, `web/editor_browser_smoke_test.dart`)는 통합 단계 몫이지만 미리 써 둘 수 있다(`@Tags(['integration'])`는 기본 skip, `test/web/`는 `@TestOn('browser')` — 가짜 저장소 + INK로 획 1개·되돌리기, 펜 패널·미리보기는 열지 않음(세션 6 Chrome 메모)).
+- (끝남) E-18 준비(세션 9): 컨트롤러 쪽 가로 넘기기 스냅(속도 > 300 → 제스처 시작 페이지 ±1, 아니면 가운데 페이지, `cancelGesture`도 스냅)·가로 `fitScale`(현재 페이지 기준)·`setAxis`는 E-03에서 이미 구현. 화면 쪽은 `EditorSettings.pageFlipMode`·`EditorCommands`의 넘기기 모드 전환(E-13)을 확인하고 `widget/paged_mode_test.dart`(가로 배치, 빠른 스와이프 → 다음 장, 느리면 가까운 장, 확대 상태는 스냅 없음, 모드 전환 시 현재 페이지 유지, `navigateToPage`도 동작)를 쓰면 된다. `navigate_to_page_test`에 가로 넘기기 경우가 이미 있다(E-17). 가로 모드 레이아웃 골든이 필요하면 `page_viewport_layout_golden_test`에 경우를 더하고 별도 커밋.
 
 ## 결과 보고 (E-22)
 
-세션 9 기준(E-18 제외 — 마지막 순위, E-21은 통합 단계).
+세션 9 기준(E-18 포함 — 동시 개발 몫 전부, E-21은 통합 단계).
 
 - **변경 요청**: 없음. 계약 7.2·7.3의 이름·시그니처는 그대로 썼다(`unit/api_surface_test.dart`). 계획과 다르게 한 세부는 위 '계획과 다르게 한 점'에 모두 적었다.
 - **의존성 요청**: 없음(`pubspec.lock` 변경 없음).
-- **테스트(10절 #2)**: `packages/feature_editor`에서 `flutter test` 582개 통과(골든 9개 포함 — `hsv_wheel` 2·`selection_frame` 2·`page_viewport_*` 5), `integration` 1개는 `dart_test.yaml`로 건너뜀. 전체 VM 실행 148초(CPU 4, 다른 영역 에이전트와 공유 중). `test/web/`는 아직 없음(E-21 `web/editor_browser_smoke_test.dart`는 통합 단계 몫) — 대신 세션 3~8에서 그 세션에 새로 쓴 테스트 파일을 `flutter test --platform chrome`으로도 돌려 웹 컴파일·실행을 확인했다(위 '다음 세션 메모' — 펜 미리보기를 여는 3개 파일은 Chrome에서 'Pending timers' — INK `PencilGrain`의 웹 `decodeImageFromPixels`, VM 전용 파일이라 문제없음).
+- **테스트(10절 #2)**: `packages/feature_editor`에서 `flutter test` 591개 통과(골든 9개 포함 — `hsv_wheel` 2·`selection_frame` 2·`page_viewport_*` 5), `integration` 1개는 `dart_test.yaml`로 건너뜀. 전체 VM 실행 165초(CPU 4, 다른 영역 에이전트와 공유 중 — E-22 시점 148초). `test/web/`는 아직 없음(E-21 `web/editor_browser_smoke_test.dart`는 통합 단계 몫) — 대신 세션 3~8에서 그 세션에 새로 쓴 테스트 파일을 `flutter test --platform chrome`으로도 돌려 웹 컴파일·실행을 확인했다(위 '다음 세션 메모' — 펜 미리보기를 여는 3개 파일은 Chrome에서 'Pending timers' — INK `PencilGrain`의 웹 `decodeImageFromPixels`, VM 전용 파일이라 문제없음).
 - **성능 스모크(6.15 #9, `unit/performance_smoke_test.dart`, 5회 중 최소)**: 500페이지 레이아웃 0.42ms(< 5), 범위 조회 1만 회 1.9ms(< 20), 라우터 이벤트 1만 개 0.8ms(< 50), 획 5천 개 페이지 펜 획 1개 커밋(`execute` + `updateContent`) 1.9ms(< 5). 세션 9 측정값(부하 있는 컨테이너).
 - **줄 커버리지(10절 #4, `flutter test --coverage`의 lcov.info를 직접 집계 — INFRA 측정 스크립트 없음)**: `src/input` 92.1% · `src/viewport` 92.8% · `src/tools` 91.2% · `src/document` 94.1% · `src/commands` 98.9%(각 85% 이상), `src/state` 89.2% · `src/ui` 97.6% · `src/scope` 93.9% · `src/di` 75.0%, 패키지 전체 94.7%(70% 이상).
 - **import 규칙(10절 #3)**: `unit/no_platform_imports_test.dart`(6.16 ①~⑤) 통과. 앱 `flutter build web --release`는 통합 단계.
-- **남은 것**: E-18(`widget/paged_mode_test.dart` — M1 합격 전 완료), E-21(통합 단계: `integration/real_core_ink_smoke_test.dart` 전체 시나리오 + `web/editor_browser_smoke_test.dart`), 10절 #7(INFRA V5)·#8(iPad 확인).
-- **iPad 체크리스트**: 계획서 9.2 표 A1~A24 그대로(★ = M1 합격). 동시 개발 끝 상태에서 확인 가능한 것: A18(좌우 넘기기)만 E-18 뒤. A4·A19의 INK 값(필압·지연·캐시)과 A22b 캐시 합계는 실제 INK 합류(통합 단계) 뒤라야 의미가 있다(지금 INK는 기반 단계 B3 단순 구현). A17b의 PDF 항목은 M3. 기록 양식은 9.2 머리말(기기 / 펜슬 / iPadOS·Safari 버전 / 항목 / O·X / 메모 / 개발자 표시 스크린샷).
-- **2절 '이번' 항목 ↔ 통과 테스트(10절 #5)** — 2절 표의 작업 ID에서 위 작업 표의 완료 조건 테스트로(작업당 앞의 몇 개만 적음, E-18 몫은 E-18 완료 뒤 `paged_mode_test`가 더해짐, E-21 몫은 통합 단계):
+- **남은 것**: E-21(통합 단계: `integration/real_core_ink_smoke_test.dart` 전체 시나리오 + `web/editor_browser_smoke_test.dart`), 10절 #7(INFRA V5)·#8(iPad 확인).
+- **iPad 체크리스트**: 계획서 9.2 표 A1~A24 그대로(★ = M1 합격). A18(좌우 넘기기)은 E-18로 준비됨. A4·A19의 INK 값(필압·지연·캐시)과 A22b 캐시 합계는 실제 INK 합류(통합 단계) 뒤라야 의미가 있다(지금 INK는 기반 단계 B3 단순 구현). A17b의 PDF 항목은 M3. 기록 양식은 9.2 머리말(기기 / 펜슬 / iPadOS·Safari 버전 / 항목 / O·X / 메모 / 개발자 표시 스크린샷).
+- **2절 '이번' 항목 ↔ 통과 테스트(10절 #5)** — 2절 표의 작업 ID에서 위 작업 표의 완료 조건 테스트로(작업당 앞의 몇 개만 적음, E-18 몫은 `widget/paged_mode_test.dart`, E-21 몫은 통합 단계):
 
 | PLAN 항목 | 작업 | 통과 테스트 |
 |---|---|---|
@@ -214,7 +218,7 @@
 | F-13 빈 페이지·속지 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
 | F-13 페이지 크기·방향 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
 | F-13 속지 색상 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
-| F-13 페이지 넘김 | E-02·E-03·E-18 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart`, `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
+| F-13 페이지 넘김 | E-02·E-03·E-18 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart`, `unit/viewport_controller_test.dart`, `widget/paged_mode_test.dart` |
 | F-13 삭제·복제·순서 변경·썸네일 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
 | 5.1 올가미 (기본, M1) | E-10 | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
 | 5.1 팜 리젝션 | E-05 | `unit/input_router_test.dart` |

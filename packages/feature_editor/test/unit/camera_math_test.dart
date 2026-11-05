@@ -241,8 +241,53 @@ void main() {
         hFit,
       );
       final visH = viewport.height / hFit;
-      expect(c.origin.dx, 0, reason: 'main axis clamped to 0');
+      final visW = viewport.width / hFit;
+      // Paged: the lower bound reaches the first page centred (≤ 0).
+      final firstCentred = h.rectOf(0).center.dx - visW / 2;
+      expect(
+        c.origin.dx,
+        closeTo(math.min(0, firstCentred), 1e-9),
+        reason: 'main axis clamped to the first page centred',
+      );
       expect(c.origin.dy, closeTo((a4.height - visH) / 2, 1e-9));
+    });
+
+    test('horizontal (paged): the first and the last page can be centred', () {
+      final h = PageLayout.compute(
+        pageSizes: List.filled(3, a4),
+        axis: LayoutAxis.horizontal,
+      );
+      for (final size in [viewport, const Size(1376, 1032)]) {
+        final fit = CameraMath.fitScale(h, size);
+        final vis = size.width / fit;
+        for (final i in [0, 2]) {
+          final centred = h.rectOf(i).center.dx - vis / 2;
+          final c = CameraMath.clamp(
+            ViewportCamera(scale: fit, origin: Offset(centred, 0)),
+            h,
+            size,
+            fit,
+          );
+          expect(c.origin.dx, closeTo(centred, 1e-9), reason: 'page $i $size');
+        }
+        // Beyond them it still stops.
+        final c = CameraMath.clamp(
+          ViewportCamera(scale: fit, origin: const Offset(-1000, 0)),
+          h,
+          size,
+          fit,
+        );
+        expect(c.origin.dx, closeTo(h.rectOf(0).center.dx - vis / 2, 1e-9));
+      }
+      // Zoomed in, the range is the plain [0, content − visible] again.
+      final fit = CameraMath.fitScale(h, viewport);
+      final c = CameraMath.clamp(
+        ViewportCamera(scale: fit * 3, origin: const Offset(-1000, 0)),
+        h,
+        viewport,
+        fit,
+      );
+      expect(c.origin.dx, 0);
     });
   });
 
