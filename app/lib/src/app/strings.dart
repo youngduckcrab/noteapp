@@ -1,7 +1,9 @@
 /// Korean UI text of the app shell (해요체, contract 7.4.5).
 ///
-/// Each shell step adds its own strings; I7 completes the table (settings,
-/// storage, about, backup, update banner — docs/plans/01-infra.md 4.5.6).
+/// Each shell step added its own strings (bootstrap, routing, update banner,
+/// settings / storage / about / backup — docs/plans/01-infra.md 4.5.6,
+/// 4.5.8). The storage banner sentences of 계약 7.4.5 are not here: LIBRARY
+/// and EDITOR show them.
 abstract final class AppStrings {
   static const String appName = '필기노트';
 
@@ -14,7 +16,6 @@ abstract final class AppStrings {
   static const String back = '뒤로';
   static const String close = '닫기';
   static const String settings = '설정';
-  static const String settingsPlaceholder = '설정 화면은 준비 중이에요.';
 
   /// NotFoundScreen (unknown location, 6.6).
   static const String notFoundTitle = '페이지를 찾을 수 없어요';
@@ -57,4 +58,104 @@ abstract final class AppStrings {
   static String updateAvailable(int buildNumber, String shortSha) =>
       '새 버전이 나왔어요 (#$buildNumber · $shortSha). 새로고침하면 적용돼요.';
   static const String later = '나중에';
+
+  /// Settings sections (4.5.8 table): titles and the group header.
+  static const String sectionStorage = '저장 공간';
+  static const String sectionInput = '입력';
+  static const String sectionPen = '펜';
+  static const String sectionPageFlip = '페이지 넘김';
+  static const String sectionNewNote = '새 노트 기본값';
+  static const String sectionDeveloper = '개발자 표시';
+  static const String sectionAbout = '앱 정보';
+  static const String groupGeneral = '일반';
+
+  /// Common values.
+  static const String yes = '예';
+  static const String no = '아니요';
+  static const String unknown = '알 수 없음';
+  static const String none = '없음';
+
+  /// StorageSection ('저장 공간').
+  static const String storageBackend = '저장 방식';
+  static const String storageDurability = '데이터 보존';
+  static const String storageDurable = '이 기기에 저장돼요';
+  static const String storageNotDurable = '임시 저장이에요. 새로고침하면 사라져요.';
+  static const String storageMultiTab = '여러 탭';
+  static const String storageMultiTabSafe = '여러 탭에서 열어도 안전해요';
+  static const String storageMultiTabUnsafe = '여러 탭에서 함께 열면 안전하지 않아요';
+  static const String storagePersist = '영구 보관';
+  static const String storagePersistGranted = '허용됨';
+  static const String storagePersistDenied =
+      '허용되지 않음 — 공간이 부족하면 브라우저가 지울 수 있어요';
+  static const String storageUsage = '사용량';
+  static const String storageMissingFeatures = '부족한 브라우저 기능';
+  static const String storagePending = '저장 대기';
+  static String storagePendingOps(int count, {required bool writing}) =>
+      '$count건${writing ? ' (저장하는 중)' : ''}';
+  static const String storageLastCommit = '마지막 저장';
+  static const String storageNoCommit = '아직 없음';
+  static const String storageFailures = '연속 실패';
+  static String storageFailureCount(int count) => '$count회';
+  static const String storageWriteFailing =
+      '저장에 계속 실패하고 있어요. 남은 저장 공간을 확인하고, 계속되면 진단 정보를 복사해 보내 주세요.';
+  static const String storageLastError = '마지막 오류';
+  static const String storageRefresh = '다시 확인';
+  static const String storageRefreshFailed = '저장 공간 정보를 다시 읽지 못했어요.';
+
+  /// AboutSection ('앱 정보').
+  static const String aboutBuild = '빌드';
+  static const String aboutRenderer = '렌더러';
+  static const String aboutStandalone = '홈 화면 앱';
+  static const String aboutStartup = '시작 시간';
+  static String aboutStartupTimes(int? pageMs, int bootstrapMs) => [
+    if (pageMs != null) '페이지 열기→준비 ${groupDigits(pageMs)}ms',
+    '부트스트랩 ${groupDigits(bootstrapMs)}ms',
+  ].join(' · ');
+  static const String aboutErrors = '오류';
+  static String aboutErrorCount(int count) => '$count건';
+  static const String aboutUpdate = '새 버전';
+  static const String checkForUpdate = '새 버전 확인';
+  static const String updateDisabled = '이 빌드에서는 새 버전을 확인하지 않아요.';
+  static const String updateUnknown = '아직 확인하지 않았어요.';
+  static String updateUpToDate(String time) => '최신 버전이에요. ($time 확인)';
+  static String updateFound(int buildNumber, String shortSha) =>
+      '새 버전이 있어요 (#$buildNumber · $shortSha). 새로고침하면 적용돼요.';
+  static const String licenses = '오픈소스 라이선스';
+
+  /// Backup export (AboutSection, BackupReadySheet — 4.5.8).
+  static const String backupExport = '백업 내보내기';
+  static const String backupPreparing = '백업을 만드는 중…';
+  static const String backupSlowWrites = '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.';
+  static const String backupReadyTitle = '백업 파일이 준비됐어요';
+  static const String backupShare = '공유 · 파일에 저장';
+  static const String backupDownload = '내려받기';
+  static const String backupDownloaded = '백업 파일을 내려받았어요. 파일 앱에 보관해 주세요.';
+  static const String backupShared = '공유 시트로 보냈어요. 파일 앱에 저장됐는지 확인해 주세요.';
+  static const String backupUnsupported =
+      '이 기기에서는 이 방법으로 백업 파일을 저장할 수 없어요. 다른 방법을 눌러 주세요.';
+  static const String backupFailed = '백업을 만들지 못했어요. 진단 정보를 복사해 보내 주세요.';
+
+  /// `12,345` (thousands separators).
+  static String groupDigits(int value) {
+    final digits = '${value.abs()}';
+    final out = StringBuffer(value < 0 ? '-' : '');
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+      out.write(digits[i]);
+    }
+    return out.toString();
+  }
+
+  /// `12.3MB` (1024-based, one decimal from KB up).
+  static String bytes(int bytes) {
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    if (bytes < 1024) return '${bytes}B';
+    var value = bytes / 1024;
+    var unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit++;
+    }
+    return '${value.toStringAsFixed(1)}${units[unit]}';
+  }
 }

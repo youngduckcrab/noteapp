@@ -15,8 +15,11 @@ import 'package:note_core/testing.dart';
 ///   [persistenceStatusStream] (which still sends the current value first to
 ///   every new listener, 계약 7.2.12 v1.1).
 /// - [refreshResult]: when set, refreshStorageInfo() returns it and
-///   [storageInfo] becomes it.
+///   [storageInfo] becomes it. [refreshGate] (when set) holds
+///   refreshStorageInfo() until it completes; [refreshError] makes it throw.
 /// - [exportBackupResult]: a Uint8List to return or an error to throw.
+///   [exportGate] (when set) holds exportBackupJson() only (after
+///   [flushGate]) — a cancel while the export itself is pending.
 ///   exportBackupJson() never reaches the B2 fake (UnimplementedError there).
 final class CountingNoteStore implements NoteStore {
   CountingNoteStore({
@@ -27,7 +30,10 @@ final class CountingNoteStore implements NoteStore {
     this.closeError,
     this.flushGate,
     this.refreshResult,
+    this.refreshGate,
+    this.refreshError,
     this.exportBackupResult,
+    this.exportGate,
   }) : inner = inner ?? createFakeNoteStore();
 
   final NoteStore inner;
@@ -38,7 +44,10 @@ final class CountingNoteStore implements NoteStore {
   Object? closeError;
   Completer<void>? flushGate;
   StorageInfo? refreshResult;
+  Completer<void>? refreshGate;
+  Object? refreshError;
   Object? exportBackupResult;
+  Completer<void>? exportGate;
 
   int flushCount = 0;
   int closeCount = 0;
@@ -84,6 +93,11 @@ final class CountingNoteStore implements NoteStore {
   @override
   Future<StorageInfo> refreshStorageInfo() async {
     refreshCount++;
+    final gate = refreshGate;
+    if (gate != null) await gate.future;
+    if (refreshError case final error?) {
+      Error.throwWithStackTrace(error, StackTrace.current);
+    }
     final result = refreshResult;
     if (result == null) return inner.refreshStorageInfo();
     _refreshed = result;
@@ -117,6 +131,8 @@ final class CountingNoteStore implements NoteStore {
     exportCount++;
     final gate = flushGate;
     if (gate != null) await gate.future;
+    final ownGate = exportGate;
+    if (ownGate != null) await ownGate.future;
     return switch (exportBackupResult) {
       final Uint8List bytes => bytes,
       null => throw UnimplementedError(

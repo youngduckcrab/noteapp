@@ -3,7 +3,7 @@ import 'package:feature_library/feature_library.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../app/strings.dart';
-import '../settings/settings_placeholder_screen.dart';
+import '../settings/settings_screen.dart';
 import 'app_navigator.dart';
 import 'app_routes.dart';
 
@@ -34,8 +34,6 @@ final class AppScreenBuilders {
 
   /// Real screens: LibraryScreen / EditorScreen (계약 7.2.17, 7.2.18) and
   /// SettingsScreen (4.5.8). Wiring in 6.6.
-  ///
-  /// Until I9 the settings route shows the shell's settings placeholder.
   factory AppScreenBuilders.production() => const AppScreenBuilders(
     library: _productionLibrary,
     editor: _productionEditor,
@@ -80,7 +78,7 @@ Widget _productionEditor(
 );
 
 Widget _productionSettings(BuildContext context, AppNavigator navigator) =>
-    SettingsPlaceholderScreen(onClose: navigator.closeSettings);
+    SettingsScreen(onClose: navigator.closeSettings);
 
 Widget _placeholderLibrary(
   BuildContext context,
