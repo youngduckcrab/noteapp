@@ -1,9 +1,9 @@
 # 03. 필기 엔진 (INK) 상세 계획서
 
-> 상태: **v0.4 — 3차 검토 반영본** (총괄 4차 검토 대기) · 영역 ID: **INK** · 소유 경로: `packages/ink_engine/`
-> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 '통합 계약' **v1.2** (이 문서와 다르면 **계약이 우선**) · 검토: [00-review.md](00-review.md) 3.3(1차), '2차 검토' 2.4.3(INK-2-1~11), '3차 검토' 3.4.3(INK-3-1~5)
+> 상태: **승인** (4차 검토 승인 — [00-review.md '최종 승인'](00-review.md#최종-승인), 승인 판본 v0.4) · 영역 ID: **INK** · 소유 경로: `packages/ink_engine/`
+> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 '통합 계약' **v1.4** (이 문서와 다르면 **계약이 우선**) · 검토: [00-review.md](00-review.md) 3.3(1차), '2차 검토' 2.4.3(INK-2-1~11), '3차 검토' 3.4.3(INK-3-1~5), '4차 검토' 4.4.3(INK-4-1·4-2)·'최종 승인'
 > 근거 환경: Flutter 3.47.9 / Dart 3.13.7 (`/opt/flutter`). 이 문서의 Flutter 엔진·프레임워크 근거는 이 버전 소스에서 확인했다 (6.2).
-> 검토 반영 내역은 13장(13.1 1차, 13.2 2차, 13.3 3차), 계약 변경 제안은 12.1.
+> 검토 반영 내역은 13장(13.1 1차, 13.2 2차, 13.3 3차, 13.4 최종 승인), 계약 변경 제안은 12.1. 개발 진행은 [progress/ink.md](progress/ink.md).
 
 **표기 규칙**
 
@@ -244,7 +244,7 @@ tags:
 
 ## 4. 공개 API
 
-> 계약 대응: 이 장의 4.3~4.9·4.12~4.14가 00-overview **7.2.15**, 4.9(썸네일)·4.10·4.11이 **7.2.16**이다(계약 **v1.2** — v1.2는 시그니처 변경이 없고, INK 표면에서 바뀐 것은 4.13 `pageBackgroundBuildersProvider` 문서 주석 한 줄뿐(C12-03)). 계약 블록에 있는 시그니처·문서 주석은 글자 그대로 옮겼고(주석 `// contract 7.2.x`, v1.1·v1.2에서 바뀐 줄은 계약과 같이 `(v1.1)`·`(v1.2)` 표시), 계약이 "INK 4.x"로 위임한 나머지는 이 장이 정한다. 계약 줄 사이에 INK가 덧붙인 문서 주석 줄은 계약 의미를 좁히거나 바꾸지 않는 보충이다. 계약과 다르게 보이는 곳이 있으면 계약이 우선이며, 고칠 점은 12.1에 '계약 변경 제안'으로 남겼다.
+> 계약 대응: 이 장의 4.3~4.9·4.12~4.14가 00-overview **7.2.15**, 4.9(썸네일)·4.10·4.11이 **7.2.16**이다(계약 **v1.4** — v1.2~v1.4는 시그니처 변경이 없고, INK 표면에서 바뀐 것은 4.13 `pageBackgroundBuildersProvider` 문서 주석 한 줄뿐(C12-03). v1.4 C14-01: 이름 `SelectionGeometry`는 Flutter `rendering.dart`의 같은 이름과 겹치므로 둘을 함께 가져오는 파일은 `hide SelectionGeometry` 또는 `as ink` 접두사로 가져온다). 계약 블록에 있는 시그니처·문서 주석은 글자 그대로 옮겼고(주석 `// contract 7.2.x`, v1.1·v1.2에서 바뀐 줄은 계약과 같이 `(v1.1)`·`(v1.2)` 표시), 계약이 "INK 4.x"로 위임한 나머지는 이 장이 정한다. 계약 줄 사이에 INK가 덧붙인 문서 주석 줄은 계약 의미를 좁히거나 바꾸지 않는 보충이다. 계약과 다르게 보이는 곳이 있으면 계약이 우선이며, 고칠 점은 12.1에 '계약 변경 제안'으로 남겼다.
 
 ### 4.0 공통 규칙과 진입점
 
@@ -2292,7 +2292,7 @@ flowchart TB
 | R5 활성 획 | 채움 펜: `frozenPath`(64점마다 고정되는 청크 외곽선들) + `tailPath`(열린 청크 + 원시 꼬리)를 그림. 투명도 = 1이면 그냥 두 번 `drawPath`, < 1이면 `saveLayer(bounds, alpha)` 안에서 불투명으로 그려 청크 이음매 이중 칠 방지. 형광펜은 6.10-6 |
 | R6 커밋 인계 | 세션·선택이 돌려준 `InkEdit`마다 대기(pending) 표시를 둔다(여러 개 가능 — 커밋 전에 다음 획을 시작해도 됨). 새 획·복제본(`added`)은 활성 레이어에 계속 그려짐(형광펜은 highlighterActive에서 6.10-6 그룹 합성 유지), 지운·나눈 원본(`removedIds`)은 숨기고 조각을 그림, 변형·색 변경 대상(`targetIds`)은 미리보기 유지. `updateContent`가 그 결과를 담으면(새 id 있음 / 지운 id 없음 / 대상 id의 객체가 바뀜) 같은 호출 안에서 base 갱신과 대기 제거를 함께 표시 → 다음 프레임에 동시에 반영(깜빡임·이중 칠 없음). CORE N-1이면 `execute` 안에서 바로, 늦게 와도 그때까지 대기 표시가 남아 같은 결과. 커밋 실패 → EDITOR가 `discardEdit(edit)`(계약 7.2.15 v1.1): 그 편집의 대기 표시 전부(`added`·`removedIds`·`targetIds`)를 같은 호출에서 지우고 base를 다시 표시 → 지운 획이 바로 보이고 변형 미리보기가 끝남. `discardPending(id)`는 id 하나만. `pendingCommitTimeoutMs`(3s)는 안전망(제거 + 경고) |
 | R7 미리보기 | 지우개: 숨길 id·조각 대체를 해당 청크에 반영해 다시 기록(벡터). 선택 변형: 선택 획을 base에서 숨기고(시작 시 1회 재기록), 선택 획 Picture를 1회 기록해 활성 레이어에서 `canvas.transform(InkPageGeometry.matrix4Of(m))`로 그림(형광펜은 highlighterActive, 나머지는 inkActive, 비등방 변형은 6.22처럼 다시 기록). 미리보기는 해당 `updateContent`가 올 때까지 유지(R6과 같은 인계) |
-| R8 오버레이 | 올가미 경로: 화면 1.5px 점선(6px/4px), 선 색 `InkTuning.lassoPathArgb`(0xFF2F80ED), 내부 `InkTuning.lassoFillArgb`(0x142F80ED). 종이 위에 겹쳐 그리는 표시 색이라 기준은 UI 테마가 아니라 종이와의 대비이고, INK는 Material 비의존(3장)이라 `colorScheme`을 읽지 않는다. 색 상수는 `InkTuning` 한 곳에만 두고 painter에 색 리터럴을 쓰지 않는다(계약 7.4.11 v1.2가 PDF 검색 하이라이트에 둔 예외와 같은 성격 — 예외 목록 명시는 12.1 P5로 제안) |
+| R8 오버레이 | 올가미 경로: 화면 1.5px 점선(6px/4px), 선 색 `InkTuning.lassoPathArgb`(0xFF2F80ED), 내부 `InkTuning.lassoFillArgb`(0x142F80ED). 종이 위에 겹쳐 그리는 표시 색이라 기준은 UI 테마가 아니라 종이와의 대비이고, INK는 Material 비의존(3장)이라 `colorScheme`을 읽지 않는다. 색 상수는 `InkTuning` 한 곳에만 두고 painter에 색 리터럴을 쓰지 않는다(계약 7.4.11 v1.3 예외 — C13-03, PDF 검색 하이라이트와 같은 성격) |
 | R9 뷰포트 보고 | `controller.setViewport`의 **유일한 호출자는 `InkPageView`**(계약 7.2.15 v1.1, C11-15). EDITOR는 `InkPageView`에 `ancestorScale`·`isScaling`·`visiblePageRect`만 넘긴다. ① `InkPageView`가 build에 둔 `LayoutBuilder`의 builder(레이아웃 단계)가 viewScale = 폭 / `pageSize.width`, `deviceScale = viewScale × widget.ancestorScale × MediaQuery.devicePixelRatioOf(context)`를 구하고 (`visiblePageRect`, `deviceScale`, `isScaling`)를 지난 보고값과 비교 ② 다르면 `SchedulerBinding.instance.addPostFrameCallback`을 **한 번만** 걸고(같은 프레임의 여러 변경은 마지막 값으로 합침), 콜백에서 `mounted`이면 `controller.setViewport(...)` → **build·layout 중에는 부르지 않는다**(인자 변경은 `didUpdateWidget` → 다시 build → ①, DPR 변경은 `MediaQuery` 의존으로 다시 build) ③ `setViewport`는 **`notifyListeners()`를 부르지 않는다**: 값을 저장하고 버킷(`renderStats.currentBucket`, 6.13 1단계)·래스터 예약·해제 대상(6.13 7단계)을 다시 계산한 뒤, 그림이 바뀌어야 할 때만 `layerRepaint(inkBase)`를 알린다(프레임 뒤라 다음 프레임 예약일 뿐 — "build 중 markNeedsBuild" 예외 없음) ④ 첫 프레임은 보고 전이라 `currentBucket == null` → 벡터 청크로 그림(래스터는 어차피 유휴 300ms 뒤라 체감 차이 없음) ⑤ 한 컨트롤러에 `InkPageView` 하나(두 번째가 붙으면 debug assert) ⑥ 테스트: T10 `widget/viewport_report_test.dart` ⑦ 확인(2026-11-05, scratch `/tmp/claude-0/plan-scratch/ink/r2/vp`, Flutter 3.47.9 위젯 테스트 3건 통과): 이 방식은 DPR 2에서 `ancestorScale` 1 → 1.5 → 5에 버킷 2.0 → 3.0 → `null`, 예외 0, 컨트롤러 알림 0. post-frame 콜백은 그 프레임 끝에 돌아 `pumpWidget` 직후 값이 이미 갱신됨. 대조군 — 레이아웃 중에 알림을 내는 `setViewport`를 부르고 부모가 그 알림으로 `setState`하면 `FlutterError: setState() or markNeedsBuild() called during build.` |
 
 ### 6.13 캐시와 메모리
@@ -2557,7 +2557,7 @@ abstract interface class InkInputExtension {
 | `goldenSectionIterations` / `bisectionIterations` | 24 / 12 | 6.20 |
 | `minPieceLengthPt` / `minPieceWidthRatio` | 0.3 / 0.25 | 6.20 P6 |
 | `lassoCoverage` / `lassoSimplifyPx` / `lassoMinAreaPt2` / `lassoBandMinPt` | 0.5 / 0.75 / 4.0 / 8.0 | 6.21 (포함 규칙은 계약) |
-| `lassoPathArgb` / `lassoFillArgb` | 0xFF2F80ED / 0x142F80ED | 6.12 R8 — INK의 유일한 비(非)종이 표시 색 상수(종이 위 오버레이, 12.1 P5) |
+| `lassoPathArgb` / `lassoFillArgb` | 0xFF2F80ED / 0x142F80ED | 6.12 R8 — INK의 유일한 비(非)종이 표시 색 상수(종이 위 오버레이, 계약 7.4.11 v1.3 예외) |
 | `selectionMinSizePt` / `scaleMin` / `scaleMax` / `duplicateOffsetPt` | 4 / 0.05 / 20 / 16 | 6.22 (계약 수치). 굵기 한계는 `core.StrokeStyle.minWidth/maxWidth`(0.1 / 30) |
 | `similarityEpsilon` / `previewRebuildBudgetMs` | 1e-9 / 4 | 6.22 |
 | `strokeRolloverMs` | 500000 | 6.7 F8 롤오버 — 계약 7.2.3 `StrokePoint.t` 범위 상한과 같은 값(CORE에 이름 있는 상수가 없어 INK가 둠, `tuning_test`가 CORE가 자르는 경계와 대조) |
@@ -2827,14 +2827,14 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 
 ## 12. 총괄 관리자에게 묻는 질문
 
-### 12.1 계약 변경 제안 (계획서 본문은 현재 계약 v1.2대로 썼다)
+### 12.1 계약 변경 제안 (계획서 본문은 현재 계약 v1.4대로 읽는다 — v1.3·v1.4는 시그니처 변경 없음)
 
 | # | 대상 (계약 절) | 제안 | 이유 | 결정 (2차·3차 검토) |
 |---|---|---|---|---|
 | P1 | 7.2.16 `PageBackgroundStillRenderer.renderStill` 주석, `InkPageThumbnailRenderer` 주석 | `renderStill` 주석 `// null → paper color only`를 `// null → cannot render now (InkPageThumbnailRenderer returns null)`로. `InkPageThumbnailRenderer` 주석에 "Also null for pdf / image backgrounds when no listed builder is a still renderer that handles them" 한 줄 추가 | 같은 절의 두 주석이 `null`의 의미를 다르게 읽힌다(종이만 칠함 vs 결과 null). 종이만 그린 PDF 표지가 신선한 캐시로 남으면 원본이 도착해도 `contentRevision`이 그대로라 LIBRARY 예약기(`isStaleFor == false`면 건너뜀)가 다시 그리지 않는다 | **승인(PDF P1과 한 벌)** — 계약 7.2.16 v1.1(C11-18). 렌더러 주석에 '호출자는 null을 캐시하지 않고 다시 시도'도 추가됨. 4.9·4.10·6.17을 계약 문구로 바꿈 |
 | P2 | 7.3.2 K-1 (CORE 02-core 12.2 **CP-3**에 대한 의견) | K-1 문구에 근거 한 줄 추가: "INK 렌더 반지름 하한 `minRadiusPt` 0.05 ≤ 0.75 × `StrokeStyle.minWidth`(= 0.075)이므로 `bounds` 공식 그대로 성립". **CP-3(팽창에 0.05 하한 추가)은 채택하지 않기를 제안** | CP-3의 반례(width 0.1, widthQ 0.075 → 팽창 0.015pt)는 공식의 `max(…, 0.75)` 하한을 빠뜨린 계산이다: 팽창 = 0.1 × max(0.15, 0.75) = 0.075 > 0.05. 굵기는 저장(`normalized()`)·변형(`transformed`) 모두 0.1 이상으로 잘린다 | **승인** — 계약 7.3.2 K-1 v1.1(C11-23), CORE CP-3 기각(7.9). 6.7 K-1 증명·6.28 `minRadiusPt`에 계약 인용 |
 | P4 | 7.2.16 `pageBackgroundBuildersProvider` 문서 주석(급하지 않음 — 다음 계약 개정 때 함께, 재승인 조건 아님) | `/// Read by INK controllers, INK thumbnails and InkPageThumbnailRenderer.` → `/// Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of InkPageThumbnail pass its value (the widget reads no provider).` | 같은 절의 `InkPageThumbnail` 주석(v1.1)은 "the widget reads no provider: the CALLER passes ..."인데 provider 주석은 "Read by ... INK thumbnails"라 C11-19가 고친 오해(위젯이 provider를 읽음)를 다시 부를 수 있다. 의미 변경 없음(INK 4.13 provider 정의는 계약 글자 그대로 유지). P3 번호는 2차 검토의 'INK 담당 요청 P3'(총괄 직접 채택, C11-19)과 헷갈리지 않게 비워 둔다 | **승인 — 계약 v1.2 C12-03**(00-review 3차 3.2 '같은 절 두 주석이 반대로 읽히는 실제 모순, 의미 변경 없음'). 4.13 provider 주석 첫 줄을 계약 v1.2 문구 그대로(`(v1.2)` 표시 포함), 표시는 `// contract 7.2.16 v1.2`. 4.13 표 '누가 읽나' 칸도 같은 뜻으로 |
-| P5 | 7.4.11 색 하드코딩 예외(v1.2 C12-07에 한 항목 추가 — 급하지 않음, 재승인 조건 아님) | 예외 목록에 "INK 올가미 경로 오버레이(종이 위에 겹쳐 그리는 표시 색, 상수는 `ink_engine`의 `InkTuning` 한 곳 — `lassoPathArgb`·`lassoFillArgb`)"를 PDF 검색 하이라이트와 나란히 적는다 | INK는 올가미 경로를 페이지 위 오버레이 레이어(6.12 R8)에 고정 색으로 그린다. C12-07의 근거('종이 위에 겹치는 표시라 기준은 UI 테마가 아니라 종이와의 대비, 다크 모드가 와도 종이 위 색은 테마를 따르지 않아야 함')가 그대로 적용되고, INK는 Material 비의존(7.1·3장 — `widgets`만)이라 `Theme.of(context).colorScheme`을 읽을 수 없다. 위젯 계층의 `DefaultSelectionStyle`도 대용이 되지 못함을 확인했다: material_ui 1.10.0 `Theme`는 `textSelectionTheme`의 색만 넣고(`theme.dart` `_wrapsWidgetThemes`), `ThemeData` 기본 `textSelectionTheme`은 `const TextSelectionThemeData()`(색 null, `theme_data.dart`)이며 01-infra `buildAppTheme()`은 seed만 정한다. 지금 설계 그대로이며 상수를 `InkTuning` 한 곳으로 모았다(이번 수정, 6.28). 기각되면 대안: `InkPageView`에 선택 인자 `overlayColor`(`Color?`)를 두고 EDITOR가 `colorScheme.primary`를 넘김(이때 `null`이면 `InkTuning` 값 — EDITOR 호출 변경 필요) | (4차 검토 대기) |
+| P5 | 7.4.11 색 하드코딩 예외(v1.2 C12-07에 한 항목 추가 — 급하지 않음, 재승인 조건 아님) | 예외 목록에 "INK 올가미 경로 오버레이(종이 위에 겹쳐 그리는 표시 색, 상수는 `ink_engine`의 `InkTuning` 한 곳 — `lassoPathArgb`·`lassoFillArgb`)"를 PDF 검색 하이라이트와 나란히 적는다 | INK는 올가미 경로를 페이지 위 오버레이 레이어(6.12 R8)에 고정 색으로 그린다. C12-07의 근거('종이 위에 겹치는 표시라 기준은 UI 테마가 아니라 종이와의 대비, 다크 모드가 와도 종이 위 색은 테마를 따르지 않아야 함')가 그대로 적용되고, INK는 Material 비의존(7.1·3장 — `widgets`만)이라 `Theme.of(context).colorScheme`을 읽을 수 없다. 위젯 계층의 `DefaultSelectionStyle`도 대용이 되지 못함을 확인했다: material_ui 1.10.0 `Theme`는 `textSelectionTheme`의 색만 넣고(`theme.dart` `_wrapsWidgetThemes`), `ThemeData` 기본 `textSelectionTheme`은 `const TextSelectionThemeData()`(색 null, `theme_data.dart`)이며 01-infra `buildAppTheme()`은 seed만 정한다. 지금 설계 그대로이며 상수를 `InkTuning` 한 곳으로 모았다(이번 수정, 6.28). 기각되면 대안: `InkPageView`에 선택 인자 `overlayColor`(`Color?`)를 두고 EDITOR가 `colorScheme.primary`를 넘김(이때 `null`이면 `InkTuning` 값 — EDITOR 호출 변경 필요) | **승인 — 계약 v1.3 C13-03**(7.4.11 예외 목록에 올가미 오버레이, 예외 색도 상수 참조) |
 
 ### 12.2 남은 질문 — 2차 검토 결정
 
@@ -2992,7 +2992,7 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 | C12-04 `AuthUser` 값 동등 | 해당 없음 |
 | C12-05 SYNC T16 설명 | 해당 없음 |
 | C12-06 B4 PDF provider는 예외 없이 생성 | 5.4에 확인 한 줄: `pdfIoOverrides()`의 자리표시 빌더만 넣은 컨테이너에서 INK `inkPageControllerProvider`·`inkPageThumbnailRendererProvider`도 예외 없음(INK provider는 목록 값만 받음). INK 변경 없음 |
-| C12-07 색 하드코딩 예외(PDF 검색 하이라이트) | INK의 같은 성격 색(올가미 경로 오버레이)을 점검 → 상수를 `InkTuning` 한 곳으로 모으고(6.12 R8, 6.28, T17 `lasso_preview_test`) 예외 목록 명시를 **12.1 P5**로 제안(급하지 않음, 재승인 조건 아님). 그 밖의 INK 색 상수는 종이·속지 팔레트(6.16)와 펜 기본 스타일 값(6.9 — 데이터)뿐 |
+| C12-07 색 하드코딩 예외(PDF 검색 하이라이트) | INK의 같은 성격 색(올가미 경로 오버레이)을 점검 → 상수를 `InkTuning` 한 곳으로 모으고(6.12 R8, 6.28, T17 `lasso_preview_test`) 예외 목록 명시를 **12.1 P5**로 제안(급하지 않음, 재승인 조건 아님) *(4차 검토에서 승인 — 계약 7.4.11 v1.3 예외, C13-03)*. 그 밖의 INK 색 상수는 종이·속지 팔레트(6.16)와 펜 기본 스타일 값(6.9 — 데이터)뿐 |
 | C12-08 B3~B7 시점 | 4.15 B3 완료 조건·T00·11장 리스크 행: CORE T4 뒤 작업 트리에서 작성 시작 가능, B3 main 커밋·완료 조건은 B2(T1~T5, `createFakeNoteStore`는 T5) 뒤, B4·B5는 B3 뒤 |
 | C12-09 쓰기 `Future` 완료 시점 | 해당 없음 — INK는 CORE를 부르지 않고 `receipt.persisted`도 기다리지 않는다(5.3 #7). INK 테스트의 커밋 실패는 `ReadOnlyNoteException`(N-4) 경로로만 만든다(5.6) |
 | 보류 SYNC-CP7 | 해당 없음 |
@@ -3004,3 +3004,13 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 - 12.1 결정 칸 제목 '결정 (2차·3차 검토)'
 
 **미반영**: 없음. (INK-3-4는 '선택'이지만 반영했다.)
+
+### 13.4 최종 승인 (2026-11-05, 00-review '4차 검토' 4.4.3·'최종 승인' + 통합 계약 v1.4 기준)
+
+| 지시 | 근거 | 반영 | 위치 |
+|---|---|---|---|
+| INK-4-1 | 계약 C13-03 | 12.1 P5 결정 '승인 — 계약 v1.3 C13-03', 6.12 R8·6.28 `lassoPathArgb` 행·13.3 표의 'P5로 제안'을 '계약 7.4.11 v1.3 예외'로. 설계·테스트(T17 `lasso_preview_test`) 변경 없음 | 6.12, 6.28, 12.1, 13.3 |
+| INK-4-2 | 절차 C13-05 | 머리 상태 줄 '승인', 기준 계약 v1.4, 4장 머리말 계약 대응 v1.4, 12.1 제목, 이 13.4 | 머리, 4, 12.1, 13.4 |
+| C14-01 | 계약 v1.4 | `SelectionGeometry` 이름 유지 + `hide`/`as ink` 규칙을 4장 머리말과 패키지 README에 한 줄 | 4, README |
+
+- 기반 단계 B3(T00)은 완료(커밋 955931c). 동시 개발 진행·계획과 다르게 한 점은 [progress/ink.md](progress/ink.md)에 적는다.

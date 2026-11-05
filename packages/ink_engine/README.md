@@ -19,5 +19,11 @@ Calling rules for EDITOR (03-ink 5.3, summary): feed every pointer sample throug
 `controller.updateContent(InkPageContent.fromCore(...))`; never call
 `controller.setViewport` (InkPageView does); `viewScale` = logical px per pt.
 
+Name clash (contract v1.4 C14-01): `SelectionGeometry` is also a class in
+`package:flutter/rendering.dart`. A file that imports both uses
+`import 'package:flutter/rendering.dart' hide SelectionGeometry;` or
+`import 'package:ink_engine/ink_engine.dart' as ink;`. `widgets.dart` and
+`material_ui` do not export the Flutter class.
+
 Status: foundation step B3 — the whole contract surface with simple but working
 bodies (03-ink 4.15). The full pipeline replaces them task by task (03-ink 8).
