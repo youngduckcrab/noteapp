@@ -40,10 +40,10 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
   int _lastYields = 0;
 
   /// How long render waits for the pencil grain (6.17 step 3).
-  static const Duration grainWait = Duration(seconds: 1);
+  static const Duration _grainWait = Duration(seconds: 1);
 
   /// Outline work between two yields (6.17 step 5).
-  static const int sliceUs = 4000;
+  static const int _sliceUs = 4000;
 
   /// Paper + background (first builder that handles it AND is a PageBackgroundStillRenderer)
   /// + committed strokes → PNG via Picture.toImage + toByteData(png). Web (CanvasKit) safe.
@@ -119,7 +119,7 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
     for (final s in strokes) {
       if (s.layer != InkLayer.ink) continue;
       outlines[s] = OutlineGenerator.outline(s);
-      if (watch.elapsedMicroseconds >= sliceUs) {
+      if (watch.elapsedMicroseconds >= _sliceUs) {
         yields++;
         await Future<void>.delayed(Duration.zero);
         watch.reset();
@@ -157,14 +157,14 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
     }
   }
 
-  /// The grain when ready within [grainWait]; null otherwise (no texture).
+  /// The grain when ready within [_grainWait]; null otherwise (no texture).
   Future<ui.Image?> _grain() async {
     final g = _pencilGrain;
     if (g == null) return null;
     final ready = g.value;
     if (ready != null) return ready;
     try {
-      return await g.ready.timeout(grainWait);
+      return await g.ready.timeout(_grainWait);
     } on Object {
       return null;
     }
