@@ -26,7 +26,7 @@
 | L11 | 완료 | bd43eaf | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` (+ `support/recording_thumbnail_io.dart`) |
 | L12 | 완료 | ade94c3 | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` (+ B6 `feature_library_smoke_test.dart`·L10 `widget/listing_test.dart` 갱신) |
 | L13 | 완료 | 7be0606 | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`) |
-| L14 | 완료 | (이 커밋) | `widget/multi_select_test.dart` |
+| L14 | 완료 | c979633 | `widget/multi_select_test.dart` |
 | L15 | 남음 | | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`, `widget/auto_scroll_widget_test.dart` |
 | L16 | 남음 | | `widget/trash_view_test.dart` |
 | L17 | 남음 | | `widget/recent_favorites_test.dart`, `widget/search_test.dart` |
@@ -125,6 +125,7 @@
 - L9·L10 시작점: 화면 부분은 `LibraryScope.of(context)`(빌드)/`LibraryScope.read(context)`(이벤트)로 `openFolder`·`openNote`·`openSettings`·`sizeClass`·`routeFolderId`를 얻는다. 섹션은 `ref.watch(librarySectionProvider(scope.routeFolderId))`. 사이드바 행은 `sidebarRowsProvider`, 펼침은 `folderExpansionProvider`, 휴지통 개수는 `trashCountProvider`, 목록은 `libraryContentProvider(section)`, 폴더 없음 판정은 `folderLookupProvider(id)`, 변경은 `libraryActionsProvider`, 스낵바는 `showLibrarySnackBar`. 브레드크럼은 `breadcrumbPath(tree, id)` + `compressBreadcrumb(maxVisible: breadcrumbMaxVisibleFor(sizeClass))`, 그리드 치수는 `GridMetrics.forWidth(LayoutBuilder 폭, sizeClass:, textScale:)`.
 - 세션 3 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 352개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 4 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 415개 통과, `flutter test --platform chrome test/web` 6개 통과.
+- 세션 5 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 471개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
 - L13 시작점: ⋯ 자리는 타일 `Stack`(`note_tile.dart`·`folder_tile.dart`의 'L13' 주석)과 리스트 행(`item_list.dart`의 `SizedBox(52)`). 대화상자 틀은 `LibraryDialogFrame`·`DialogNameField`(L12), 꾸미기는 `FolderColorPicker`·`FolderIconPicker`, 표지 변경은 `CoverPicker`(+ `ColorCoverCard` 미리보기), 실행 취소 스낵바는 `showLibrarySnackBarOn`(L8), 변경은 `libraryActionsProvider`(`move`→`MoveReceipt`/`undoMove`, `trash`→`restore`). 사이드바 줄 메뉴의 '새 하위 폴더'는 `runNewFolderFlow(context, parentId: 그 폴더)`.
 - 화면 테스트 도우미 관례: provider 오류 보고 횟수는 `FlutterError.onError`를 try/finally로 잠시 바꿔 센다(`widget/sidebar_test.dart`·`widget/listing_test.dart`의 `collectReports`). 정렬 메뉴는 `find.byTooltip(LibraryStrings.sort)` → `find.widgetWithText(MenuItemButton, …)`.
