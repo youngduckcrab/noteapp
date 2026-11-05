@@ -390,7 +390,7 @@ void main() {
 
   group('canonicalDump', () {
     test('sorted keys at every level, soft-deleted rows included, versions '
-        'included, Note.updatedAt left out', () {
+        'per merge unit, Note.updatedAt left out', () {
       store.localWrite([
         pageWrite('p1', 'n1'),
         noteWrite('n1', trashRootId: 'n1'),
@@ -406,10 +406,12 @@ void main() {
       expect(entity['deletedAt'], 2);
       final pageEntity = (dump['page/p1']! as Map)['entity']! as Map;
       expect(pageEntity.containsKey('updatedAt'), isTrue);
-      expect(
-        noteDump['versions'],
-        row(EntityKind.note, 'n1').versions.toJson(),
-      );
+      final versions = noteDump['versions']! as Map<String, Object?>;
+      expect(versions.keys.toList(), [...versions.keys]..sort());
+      final noteVersion = row(EntityKind.note, 'n1').versions.base.toString();
+      expect(versions['title'], noteVersion);
+      expect(versions['deletedAt+trashRootId'], noteVersion);
+      expect(versions.containsKey('updatedAt'), isFalse, reason: 'meta key');
     });
 
     test('equal for equal content whatever Note.updatedAt says', () async {
@@ -434,6 +436,50 @@ void main() {
           other.rows[const EntityRef(EntityKind.note, 'n1')]!.entity as Note;
       expect(otherNote.updatedAt, isNot(note('n1').updatedAt));
       expect(other.canonicalDump(), store.canonicalDump());
+    });
+
+    test('the same state in two version encodings dumps the same (per unit), '
+        'a different unit version does not', () async {
+      store.localWrite([noteWrite('n1'), pageWrite('p1', 'n1')]);
+      final n = row(EntityKind.note, 'n1');
+      final p = row(EntityKind.page, 'p1');
+      final top = n.versions.max;
+      final older = Hlc(top.millis - 1, 0, 'b2b2b2b2b2b2b2b2');
+      Future<FakeLocalStore> copy(EntityFieldVersions noteVersions) async {
+        final entity = EntityJson.decode(EntityKind.note, {
+          ...n.entity.toJson(),
+          'version': noteVersions.max.toString(),
+        });
+        final other = FakeLocalStore(
+          nodeId: 'b2b2b2b2b2b2b2b2',
+          clock: clock.clock,
+        );
+        await other.sync.applyRemote([
+          RemoteUpsert(entity, noteVersions),
+          RemoteUpsert(p.entity, p.versions),
+        ], policy: (l, r, x) => const TakeRemote());
+        return other;
+      }
+
+      // FieldMerge's form: a smaller base, every key overridden with the same versions.
+      final merged = await copy(
+        EntityFieldVersions(older, {
+          for (final k in n.entity.toJson().keys) k: n.versions.of(k),
+        }),
+      );
+      expect(
+        merged.rows[const EntityRef(EntityKind.note, 'n1')]!.versions.toJson(),
+        isNot(n.versions.toJson()),
+      );
+      expect(merged.canonicalDump(), store.canonicalDump());
+      // Same entity (version = max) but the title unit older: a real difference.
+      final titleOlder = await copy(
+        EntityFieldVersions(older, {
+          for (final k in n.entity.toJson().keys)
+            if (k != 'title') k: n.versions.of(k),
+        }),
+      );
+      expect(titleOlder.canonicalDump(), isNot(store.canonicalDump()));
     });
 
     test('views are read-only', () {

@@ -86,6 +86,7 @@ final class UploadPipeline {
     this.isClockBlocked = _never,
     this.onPurgesCommitted = _noPurges,
     this.onScopesCommitted = _noScopes,
+    this.onAssetsCommitted = _noAssets,
     this.onPushNeeded = _nothing,
   }) : _packer = ChunkPacker(config: config, authorNodeId: sync.deviceNodeId);
 
@@ -109,6 +110,10 @@ final class UploadPipeline {
   /// 6.7.4).
   final void Function(Set<String> scopes) onScopesCommitted;
 
+  /// A commit carried records of these assets without storagePath: their bytes may need an
+  /// upload (AssetUploader queue, 6.9.1).
+  final void Function(Set<AssetId> ids) onAssetsCommitted;
+
   /// Schedules a push (PushScheduler.trigger) — used after [commitRepairs].
   final void Function() onPushNeeded;
 
@@ -124,6 +129,7 @@ final class UploadPipeline {
   static bool _never() => false;
   static Future<void> _noPurges(List<PurgeRecord> purges) async {}
   static void _noScopes(Set<String> scopes) {}
+  static void _noAssets(Set<AssetId> ids) {}
   static void _nothing() {}
 
   /// Quarantined entries and why (rejectedByServer, entityTooLarge, foreignOwnerData).
@@ -366,6 +372,15 @@ final class _Run {
         if (item.record case final PurgeRecord purge) purge,
     ];
     if (purges.isNotEmpty) await p.onPurgesCommitted(purges);
+    final assets = {
+      for (final item in sent)
+        if (item.record case UpsertRecord(:final doc)
+            when doc.kind == EntityKind.asset &&
+                !doc.isDeleted &&
+                doc.json['storagePath'] == null)
+          doc.id,
+    };
+    if (assets.isNotEmpty) p.onAssetsCommitted(assets);
   }
 
   /// commitChunks; unauthenticated → refreshSession once per push and retry (6.5.4).

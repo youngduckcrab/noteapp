@@ -81,7 +81,7 @@ final class SyncEngine {
   /// Broadcast.
   Stream<SyncNotice> get notices => _c.notices;
 
-  SyncAssetService get assets => throw UnimplementedError('SYNC T12');
+  SyncAssetService get assets => _c.assets;
 
   bool get isStarted => _c.isStarted;
 
@@ -103,7 +103,7 @@ final class SyncEngine {
   Future<bool> flushPendingUploads({Duration? timeout}) =>
       _c.flushPendingUploads(timeout: timeout);
 
-  Future<SyncUsage> usage() => throw UnimplementedError('SYNC T12');
+  Future<SyncUsage> usage() => _c.usage();
 
   Future<void> dispose() => _c.dispose();
 

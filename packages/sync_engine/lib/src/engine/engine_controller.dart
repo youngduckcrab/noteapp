@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:clock/clock.dart';
 import 'package:note_core/note_core.dart';
 
+import '../assets/engine_asset_service.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_user.dart';
 import '../backend/blob_store.dart';
@@ -54,6 +55,8 @@ abstract final class _Keys {
       '$quarantinePrefix${ref.kind.name}:${ref.id}';
   static String apply(SyncIssue issue) =>
       'apply:${issue.code.name}:${issue.ref?.kind.name}:${issue.ref?.id}';
+  static String asset(SyncIssueCode code, AssetId id) =>
+      'asset:${code.name}:$id';
 }
 
 /// One signed-in account's attachment (6.10.3).
@@ -113,6 +116,15 @@ final class EngineController {
       run: () => _enqueue('push', _pushOnce),
       onError: (e, s) => _log(SyncLogLevel.error, 'push failed', e),
     );
+    assets = EngineAssetService(
+      assets: local.assets,
+      config: config,
+      random: random,
+      nowMillis: _wallMillis,
+      onSummary: (summary) => _status.assets = summary,
+      report: _assetIssue,
+      onError: (what, e) => _log(SyncLogLevel.warning, '$what failed', e),
+    );
   }
 
   static final Expando<EngineController> _byEngine = Expando(
@@ -143,6 +155,9 @@ final class EngineController {
   final Backoff _pushBackoff, _pullBackoff;
   late final StatusBuilder _status;
   late final PushScheduler _scheduler;
+
+  /// SyncEngine.assets (6.9).
+  late final EngineAssetService assets;
   final SerialExecutor _exec = SerialExecutor();
   final StreamController<SyncNotice> _notices = StreamController.broadcast();
   final List<StreamSubscription<Object?>> _subscriptions = [];
@@ -296,6 +311,7 @@ final class EngineController {
     _subscriptions.clear();
     _scheduler.dispose();
     _exec.close();
+    await assets.close();
     if (s != null) await _closeSession(s);
     await _status.close();
     await _notices.close();
@@ -324,6 +340,8 @@ final class EngineController {
       lastRemoteApplyLatency: _lastRemoteApplyLatency,
     );
   }
+
+  Future<SyncUsage> usage() => assets.usage();
 
   // ---- test helpers ---------------------------------------------------------------------
 
@@ -363,7 +381,7 @@ final class EngineController {
         final waiting =
             status.pendingUploads - status.quarantinedUploads - held;
         if (waiting > 0) return '$waiting uploads pending';
-        return null;
+        return assets.busyReason;
       default:
         return null;
     }
@@ -419,6 +437,7 @@ final class EngineController {
     _session = null;
     _k3 = false;
     _refreshed = false;
+    assets.detach();
     if (s != null) unawaited(_closeSession(s));
     _status.batch(() {
       _setPhase(SyncPhase.signedOut);
@@ -619,6 +638,7 @@ final class EngineController {
     if (_stale(epoch)) return false;
     if (bound == null) await sync.writeMeta({MetaKeys.boundUid: uid});
     s.accountDone = true;
+    if (_session == s && !_disposed) assets.attach(backend.blobs);
     return true;
   }
 
@@ -643,6 +663,7 @@ final class EngineController {
       onPurgesCommitted: (purges) =>
           s.purged.addCommitted(purges, nowMillis: _wallMillis()),
       onScopesCommitted: s.guard.scopesSent,
+      onAssetsCommitted: assets.onAssetsPushed,
       onPushNeeded: () => _scheduler.trigger(),
     );
     s.download = DownloadPipeline(
@@ -763,6 +784,7 @@ final class EngineController {
     s.listener.start();
     _scheduler.setLive(true);
     _scheduler.trigger(immediate: true);
+    assets.setLive(true);
     _releaseTimer = Timer.periodic(
       releaseInterval,
       (_) => unawaited(_enqueue('release held', _releaseHeld)),
@@ -893,6 +915,11 @@ final class EngineController {
     for (final kind in outcomes.values) {
       if (kind == MergeOutcomeKind.kept) _recordsKept++;
     }
+    final assetIds = [
+      for (final ref in outcomes.keys)
+        if (ref.kind == EntityKind.asset) ref.id,
+    ];
+    if (assetIds.isNotEmpty) assets.onRemoteAssets(assetIds);
     final cycles = await s.cycles.check(outcomes);
     await _repairCycles(s, [
       for (final r in cycles)
@@ -1322,6 +1349,7 @@ final class EngineController {
     _retryTimer = _pushRetryTimer = _k4Timer = null;
     _releaseTimer = _heartbeatTimer = _sampleTimer = null;
     _scheduler.setLive(false);
+    assets.setLive(false);
     final s = _session;
     if (s != null && s.backend != null) unawaited(s.listener.stop());
     _status.batch(() {
@@ -1348,6 +1376,17 @@ final class EngineController {
     return _exec
         .run(() => body(epoch), label: label)
         .catchError((Object e) => _log(SyncLogLevel.error, '$label failed', e));
+  }
+
+  /// Asset issues (6.9): one per code and asset; a null [message] clears it.
+  void _assetIssue(SyncIssueCode code, AssetId id, String? message) {
+    if (_disposed) return;
+    final key = _Keys.asset(code, id);
+    if (message == null) {
+      _status.clearIssue(key);
+    } else {
+      _status.setIssue(key, code, message, assetId: id);
+    }
   }
 
   void _log(SyncLogLevel level, String message, [Object? error]) =>

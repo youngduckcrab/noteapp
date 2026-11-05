@@ -15,7 +15,8 @@ import '../common/errors.dart';
 /// path `users/{uid}/assets/{64 hex}` of this uid, at most 300 MiB, metadata
 /// `sha256` = asset id, objects are immutable. Uploading an object that
 /// already exists with the same `sha256` succeeds without writing (what
-/// FirebaseBlobStore makes of the permission-denied answer, 6.4.6).
+/// FirebaseBlobStore makes of the permission-denied answer, 6.4.6) — also when the
+/// object was written by another upload while this one was transferring.
 ///
 /// Bytes move in 1 MiB pieces of 10 ms (virtual) each; `onProgress` is called
 /// with 0 first and after every piece. [uploadCount] / [downloadCount] count
@@ -121,6 +122,16 @@ final class FakeBlobStore implements RemoteBlobStore {
       throw _denied('objects are immutable', path);
     }
     await _transfer(bytes.length, onProgress, cancel, stopAt, isOnline);
+    final written = _objects[path];
+    if (written != null) {
+      // Another upload of the same path finished during this transfer: the rules see an
+      // existing object (create only).
+      if (_meta[path]?.metadata['sha256'] == assetId &&
+          written.length == bytes.length) {
+        return;
+      }
+      throw _denied('objects are immutable', path);
+    }
     _objects[path] = Uint8List.fromList(bytes);
     _meta[path] = _ObjectMeta(contentType, Map.of(metadata));
     uploadCount++;
