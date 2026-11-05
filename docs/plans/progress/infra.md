@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 1 / 8 (동시 개발 단계)
-- 다음 할 일: I2 (`BuildInfo`·`RuntimeInfo`) → I3 (오류 처리) → I6 → I5 순서. 계획서 8.2 표의 선행 관계를 따른다.
+- 다음 할 일: I3 (오류 처리) → I6 (라우팅) → I5 (부트스트랩) 순서. 계획서 8.2 표의 선행 관계를 따른다.
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -13,9 +13,9 @@
 | B1 | 기반 단계에서 완료 | 0bbebf8 | 워크스페이스·패키지 골격·`ws` 최소(list·check R1–R3·R7–R9·R15·test·analyze)·`ci.yml` 최소 |
 | B8 | 기반 단계에서 완료 | 2cec46a, eda674f | 최소 라우터·자리표시 화면 연결, R15 `tags:` 인식 수정(계약 v1.4 C14-02) |
 | I1 | 완료 | ac34ca7 | `tool/test/rules_test.dart`(R1–R13), `test_tags_test.dart`(회귀), `test_command_test.dart`(`--affected-since` 포함), `affected_test.dart`, `channel_id_test.dart`, `build_info_file_test.dart`, `web_finalize_test.dart`, `web_assets_test.dart`, `dart_imports_test.dart`, `flutter_runner_test.dart`(회귀), `hosting_config_test.dart`(`--isolate` 변환만 — I12에서 `firebase.json` 검사 추가). 새 명령: `affected`, `channel-id`, `build-info`, `finalize-web`, `web-assets verify\|fetch`, `hosting-config`; `check --no-format`·`--no-exports`(R14는 G3) |
-| I2 | 남음 | | `app/test/build/build_info_test.dart`, `runtime_info_test.dart` |
+| I2 | 완료 | (이 커밋) | `app/test/runtime/build_info_test.dart`, `runtime_info_test.dart` (계획서의 `test/build/` → `test/runtime/`, 아래 '계획과 다르게 한 점') |
 | I3 | 남음 | | `app/test/errors/app_error_log_test.dart`, `error_handlers_test.dart`, `diagnostic_report_test.dart`, `app_provider_observer_test.dart` |
-| I4 | 완료 | (이 커밋) | `app/test/web/web_platform_browser_test.dart`(Chrome 8건: 절대 URL, 404·시간 초과 → null, `pagehide`·`visibilitychange` 대응·구독 해제, standalone false, 내려받기 true, 공유 불가면 `unsupported`). `app/test/fakes/fake_web_platform.dart`(5.7). VM 스텁 사용은 I2 `runtime_info_test`에서 |
+| I4 | 완료 | d25743b | `app/test/web/web_platform_browser_test.dart`(Chrome 8건: 절대 URL, 404·시간 초과 → null, `pagehide`·`visibilitychange` 대응·구독 해제, standalone false, 내려받기 true, 공유 불가면 `unsupported`). `app/test/fakes/fake_web_platform.dart`(5.7). VM 스텁 사용은 I2 `test/runtime/runtime_info_test.dart`에서 |
 | I5 | 남음 | | `app/test/bootstrap/app_bootstrapper_test.dart`, `overrides_unique_test.dart`, `bootstrap_app_test.dart`, `startup_error_screen_test.dart` |
 | I6 | 남음 | | `app/test/routing/app_routes_test.dart`, `app_router_test.dart` (B8의 `AppRoutes`·임시 라우터를 교체) |
 | I7 | 남음 | | `app/test/app/note_app_test.dart`, `lifecycle_bridge_test.dart` |
@@ -48,6 +48,7 @@
 - (세션 1, I1) `ProcessRunner.run`에 `echo`(기본 true) 인자를 더했다. git·`dart format` 출력은 화면에 흘리지 않고 모으기만 한다.
 - (세션 1, I1) `channel-id`의 hash 입력 = `refs/heads/`를 뗀 브랜치 이름(소문자화·`claude/` 제거 전). `ws affected`·`--affected-since`의 변경 목록 = `git merge-base <ref> HEAD` 이후 커밋 + 작업 트리 변경 + 무시되지 않은 새 파일. `finalize-web` 필수 파일 = `index.html`·`flutter.js`·`flutter_bootstrap.js`·`main.dart.js`·`manifest.json`·`favicon.png`·`build_info.json` + `web_assets.yaml` 항목, 크기 줄에 gzip 크기도 적는다. `build-info --channel` 기본값 `local`.
 - (세션 1, I4) `createWebPlatform()`은 `web_platform.dart`가 스텁/브라우저 파일을 조건부 `export … show createWebPlatform`으로 내보낸다(두 구현 클래스는 비공개). `shareFile`의 `AbortError` 판정은 오류 문자열로 한다(dart2js가 DOMException을 그대로 던짐 — 헤드리스 Chrome에서는 공유 API가 없어 미확인).
+- (세션 1, I2) 계획서 3.4의 `app/lib/src/build/`·`app/test/build/`를 `src/runtime/`·`test/runtime/`으로 바꿨다. 루트 `.gitignore`의 `build/`, `analysis_options.yaml`의 `**/build/**`, `ws`의 `build` 디렉터리 건너뛰기가 모두 그 폴더를 빌드 산출물로 보아 커밋·분석·테스트에서 빠졌다. 파일 이름(`build_info.dart`·`runtime_info.dart`·`*_test.dart`)과 API는 그대로. `RuntimeInfo.rendererLabel`의 '네이티브'는 `AppStrings.rendererNative`. `BuildInfo`에 값 동등(`==`)을 더했다(JSON 왕복 테스트용). `isLocal` = `gitSha == 'local'`.
 - (세션 1) 계약 v1.3 C13-05 절차: 계획서 머리 상태 줄 '승인'·계약 인용 v1.4, 12.3 P6 결정 칸·8.1 B1 완료/B8-2 인용(INFRA-4-1), 13.4 '최종 승인' 한 줄(INFRA-4-2). 본문 개별 조항의 v1.1/v1.2 인용은 그 조항이 들어간 판이라 그대로 뒀다.
 
 ## 다음 세션 메모

@@ -6,6 +6,9 @@
 abstract final class AppStrings {
   static const String appName = '필기노트';
 
+  /// RuntimeInfo.rendererLabel off the web.
+  static const String rendererNative = '네이티브';
+
   static const String back = '뒤로';
   static const String settings = '설정';
   static const String settingsPlaceholder = '설정 화면은 준비 중이에요.';
