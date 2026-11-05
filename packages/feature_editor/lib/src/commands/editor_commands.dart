@@ -6,7 +6,8 @@
 // and selecting a tool. E-12: zoom, screen scrolling, the developer overlay
 // toggle and Esc for the keyboard shortcuts. E-13: flushAll (leaving), the
 // menu context and navigateToPage, the finger-drawing toggle, the page flip
-// mode, adding a page at the end. The page panel commands join with E-17.
+// mode, adding a page at the end. E-14: the eyedropper and notices. The page
+// panel commands join with E-17.
 import 'dart:async';
 import 'dart:ui' show Offset, Rect, Size;
 
@@ -210,6 +211,19 @@ class EditorCommands {
     if (_disposed) return;
     _ref.read(editorSettingsProvider.notifier).toggleDevOverlay();
   }
+
+  /// Pen panel [스포이드] (6.6.8): closes the popup (and the context menu)
+  /// and turns the eyedropper on — the banner shows and the next down on the
+  /// canvas picks a stroke's colour. Allowed on a read-only note.
+  void startEyedropper() {
+    if (_disposed) return;
+    _ref.read(editorPopupProvider.notifier).close();
+    _host?.closeContextMenu();
+    _ref.read(editorToolProvider.notifier).setEyedropper(true);
+  }
+
+  /// A short notice for the user (snack bar — the eyedropper's result).
+  void notify(String message) => _message(message);
 
   /// Esc: close popup → cancel eyedropper → leave page selection mode → clear selection
   /// (first that applies). The open context menu counts as a popup (E-10);

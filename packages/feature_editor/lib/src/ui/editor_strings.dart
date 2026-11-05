@@ -99,6 +99,49 @@ abstract final class EditorStrings {
   static const eraserSettings = '지우개 설정';
 
   // ---------------------------------------------------------------------------
+  // Colour (04-editor 6.9.3 #4–#6, 6.9.5) and the stroke eyedropper (6.6.8).
+  // ---------------------------------------------------------------------------
+
+  /// SegmentedButton[휠 | 사각].
+  static const colorWheel = '휠';
+  static const colorSquare = '사각';
+
+  /// Semantics labels of the hue and value sliders.
+  static const colorHue = '색상';
+  static const colorValue = '밝기';
+
+  /// Labels of the HEX and R / G / B fields.
+  static const colorHex = 'HEX';
+  static const colorRed = 'R';
+  static const colorGreen = 'G';
+  static const colorBlue = 'B';
+
+  static const recentColors = '최근 색';
+
+  /// Shown instead of the recent colours before the first committed stroke.
+  static const noRecentColors = '획을 그리면 그 색이 여기에 모여요';
+
+  static const userPalette = '내 팔레트';
+
+  /// Semantics label of the palette's [+] (adds the current colour).
+  static const addToPalette = '팔레트에 추가';
+
+  /// Long-press menu item of a palette colour.
+  static const paletteDelete = '삭제';
+
+  /// [스포이드] in the pen settings panel.
+  static const eyedropper = '스포이드';
+
+  /// Banner over the canvas while the eyedropper waits for a tap (6.6.8).
+  static const eyedropperBanner = '획을 탭하면 그 색을 가져와요';
+
+  /// The eyedropper took a stroke's colour.
+  static const eyedropperPicked = '색을 가져왔어요';
+
+  /// The eyedropper found no stroke under the tap.
+  static const eyedropperMissed = '여기엔 획이 없어요';
+
+  // ---------------------------------------------------------------------------
   // Screen states (04-editor 6.17.1) and leaving (6.17.4).
   // ---------------------------------------------------------------------------
 

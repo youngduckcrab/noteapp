@@ -4,8 +4,8 @@
 // taps → undo / redo, hover cursor) and the pen. E-09: the eraser (its ring
 // follows the pen while erasing). E-10: the lasso, the selection transform,
 // one-finger tap → dismiss, and the long-press / secondary-click context
-// menu. The eyedropper (E-14), popups (E-13) and developer metrics (E-19)
-// plug into the marked places.
+// menu. E-14: the stroke eyedropper (①). Developer metrics (E-19) plug into
+// the marked places.
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -24,9 +24,11 @@ import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/popup.dart';
 import '../state/settings/editor_settings_notifier.dart';
+import '../ui/editor_strings.dart';
 import '../viewport/viewport_constants.dart';
 import '../viewport/viewport_controller.dart';
 import 'erase_interaction.dart';
+import 'eyedropper_interaction.dart';
 import 'lasso_interaction.dart';
 import 'pen_interaction.dart';
 import 'selection.dart';
@@ -136,8 +138,19 @@ class InteractionHost implements InputTargets {
     _hideCursor(); // a pen touching the screen hides the hover cursor
     closeContextMenu();
     final tools = _ref.read(editorToolProvider);
-    // ① eyedropper (allowed on read-only notes) — E-14.
-    if (tools.eyedropperActive) return null;
+    // ① eyedropper (allowed on read-only notes; no settleNow — 6.6.2).
+    if (tools.eyedropperActive) {
+      final eyedropper = EyedropperInteraction.start(
+        down: sample,
+        source: source,
+        viewport: _viewport,
+        pages: _pages,
+        session: _session,
+        onPicked: _onEyedropperPicked,
+      );
+      _lastStarted = eyedropper;
+      return eyedropper;
+    }
     // ② read-only note → no tool input (6.17.2).
     if (_ref.read(editorReadOnlyProvider)) return null;
     final selections = _ref.read(editorSelectionProvider.notifier);
@@ -209,6 +222,20 @@ class InteractionHost implements InputTargets {
     }
     _lastStarted = interaction;
     return interaction;
+  }
+
+  /// 6.6.8: the stroke's colour (opacity kept) + '색을 가져왔어요', or '여기엔
+  /// 획이 없어요'; either way the eyedropper ends.
+  void _onEyedropperPicked(int? argb) {
+    if (_disposed) return;
+    final tools = _ref.read(editorToolProvider.notifier);
+    if (argb != null) {
+      tools.setColor(argb);
+      _commands.notify(EditorStrings.eyedropperPicked);
+    } else {
+      _commands.notify(EditorStrings.eyedropperMissed);
+    }
+    tools.setEyedropper(false);
   }
 
   void _onLassoSelected(String pageId, Set<String> strokeIds) {
