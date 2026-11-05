@@ -34,7 +34,7 @@
 | G2 | 완료 | 3cf0b84 | `app/test/integration/app_smoke_test.dart`(V5)·`app/test/web/app_smoke_browser_test.dart`(V6, Chrome) 통과 — 3~8단계 공용 `app/test/support/smoke_scenario.dart`. 릴리스 빌드에서 찾은 라우팅 결함 2건 수정(`app_router_test`·`bootstrap_app_test` 경우 추가) |
 | G4 | 완료 | 3cf0b84 | V1~V4: `ws check`(R1–R15)·`--strict` 0, 루트 analyze 0, `dart format` 변경 없음(R11), `ws test`·`ws test --platform chrome`·`dart test tool/test`, `flutter build web --release`, `ws web-assets verify` |
 | G5 | 총괄·사용자 | | 푸시·CI·미리보기 배포·iPad 체크리스트(컨테이너 밖) |
-| R2-B1 (2차) | 완료 | (아래 '## 2차') | `tool/test/rules_test.dart`(R4 `Platform`·R16·2차 목록)·`chrome_fakemedia_test`·`heavy_lock_test`·`test_command_test`(잠금·`media` 래퍼)·`hosting_config_test`(`functions`·`emulators`)·`workflows_test`(시험 범위·`functions.yml`·수동 APK)·`repo_hygiene_test`·`workspace_test`(`functions/`)·`guides_test`(05), `packages/pencil_bridge/test/pencil_wire_contract_test.dart` |
+| R2-B1 (2차) | 완료 | 3c77de3 | `tool/test/rules_test.dart`(R4 `Platform`·R16·2차 목록)·`chrome_fakemedia_test`·`heavy_lock_test`·`test_command_test`(잠금·`media` 래퍼)·`hosting_config_test`(`functions`·`emulators`)·`workflows_test`(시험 범위·`functions.yml`·수동 APK)·`repo_hygiene_test`·`workspace_test`(`functions/`)·`guides_test`(05), `packages/pencil_bridge/test/pencil_wire_contract_test.dart` |
 
 ## 변경 요청
 
@@ -276,7 +276,7 @@
 
 ### R2-B1 — 기반 단계 (계약 7.6.2, 계획 8.1)
 
-- 커밋: (이 절 아래 '커밋' 줄)
+- 커밋: `3c77de3`(R2-B1 전체), 이 기록 줄은 그 뒤 커밋
 - **새 패키지 골격 3개**(소유 영역에 넘김): `packages/media_io`(PDF — 06-pdf 3.4 확정본 pubspec: 직접 의존 CP-PDF-9 6줄·간접 고정 CP1 2줄·`image_picker_ios` 간접 고정, `dart_test.yaml` `media`·`integration` skip), `packages/ink_recognition`(LIBRARY — 05-library 3.3, `google_mlkit_commons` 직접 의존 없음, `dart_test.yaml` `golden`·`integration`·`emulator`), `packages/pencil_bridge`(INFRA — iOS 전용 플러그인 `pluginClass: PencilBridgePlugin`, 빈 `register(with:)` Swift·`Package.swift`(`.iOS("15.0")`, `FlutterFramework` — Flutter 3.47.9 템플릿)·podspec). 각 README·빈 진입점·스모크 시험. 진입점 본문은 R2-B4·R2-B6·R2-B8b.
 - **pubspec**: 루트(멤버 3줄, dev `xml 7.0.1`), `app`(`media_io`·`ink_recognition`·`pencil_bridge`·`path_provider 2.1.6`, dev `integration_test`), `ink_engine`(CP3 한 번 예외 — `flutter_math_fork 0.7.4`·간접 고정 `flutter_svg 2.3.0`·`vector_graphics 1.2.3`·`vector_graphics_compiler 1.3.0` 4줄만).
 - **lock**(`flutter pub get` 한 번 — 계약 7.5와 같음): 기존 변화는 `xml 7.1.0 → 7.0.1`(transitive → direct dev) 한 건, 추가 49개 = 계약 7.5의 44개 + `integration_test`가 끌어온 5개(SDK `flutter_driver`·`fuchsia_remote_debug_protocol`·`integration_test`, hosted `sync_http 0.3.1`·`webdriver 3.2.0`). CP1 간접 고정 결과 `shared_preferences_android 2.5.3`·`shared_preferences_foundation 2.6.0`. 그 밖의 변화 없음. `flutter pub get --enforce-lockfile` 통과.
@@ -295,7 +295,7 @@
 | `flutter pub get --enforce-lockfile` | 통과 | — |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 20초 |
 | `ws check` / `ws check --strict` (R1–R16) | 0 · 0 | 54초 · 53초 |
-| `dart test tool/test` | 371 통과 · 1 건너뜀(`chrome_fakemedia_test`의 'git 100755' — 커밋 전이라 추적되지 않음, 커밋 뒤 통과) | 59초 |
+| `dart test tool/test` | 371 통과 · 1 건너뜀(`chrome_fakemedia_test`의 'git 100755' — 커밋 전이라 추적되지 않음; 커밋 `3c77de3` 뒤 다시 돌려 통과 — 372) | 59초 |
 | `ws test --package pencil_bridge` | 6 통과(`pencil_wire_contract_test` R2-B1 묶음 5 + 스모크) | — |
 | `ws test` (VM, 11개 멤버) | 모두 통과 — note_core 619(+5 건너뜀)·ink_engine 780·feature_editor 591(+1)·feature_library 626(+1)·pdf_io 580(+7)·sync_engine 777(+4)·ink_lab 1·media_io 1·ink_recognition 1·pencil_bridge 6·noteapp 261(+1 = V5) | 8분 49초 |
 | `ws test --platform chrome --package noteapp` (앱 웹 플러그인 등록에 `record_web`·`just_audio_web`·`image_picker_for_web`·`shared_preferences_web`이 새로 들어가므로) | 준비 ok · 11 통과 · 1 건너뜀(V6) | 1분 3초 |
