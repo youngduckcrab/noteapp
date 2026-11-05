@@ -189,7 +189,13 @@ void main() {
 
     await _pumpEditor(tester, store, note.id);
     await tester.pump();
-    expect(find.bySemanticsLabel(EditorStrings.more), findsNothing);
+    // E-13: the more menu is always there; '설정' only with onOpenSettings.
+    await tester.tap(find.bySemanticsLabel(EditorStrings.more));
+    await tester.pumpAndSettle();
+    expect(find.text(EditorStrings.noteInfo), findsOneWidget);
+    expect(find.text(EditorStrings.settings), findsNothing);
+    await tester.tap(find.bySemanticsLabel(EditorStrings.more)); // closes it
+    await tester.pumpAndSettle();
 
     final calls = await _pumpEditor(tester, store, note.id, withSettings: true);
     await tester.pump();
@@ -220,8 +226,18 @@ void main() {
   testWidgets('the four settings sections are Columns without a Scaffold', (
     tester,
   ) async {
+    // The sections read editorSettingsProvider / editorToolProvider, which
+    // store through CORE: the settings screen's container has the store (app
+    // root), like every container that reads them.
+    final store = createFakeNoteStore();
+    addTearDown(store.close);
+    // Tall enough for the ListView to build all four.
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1032, 6000);
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [core.noteStoreProvider.overrideWithValue(store)],
         child: MaterialApp(
           home: Material(
             child: ListView(
@@ -242,8 +258,7 @@ void main() {
       EditorPageSettingsSection,
       EditorDeveloperSettingsSection,
     ]) {
-      // The B5 placeholders have no height, and the finders treat zero-extent
-      // list children as offstage.
+      // Sections below the fold are offstage for the default finders.
       final section = find.byType(type, skipOffstage: false);
       expect(section, findsOneWidget);
       expect(

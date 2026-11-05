@@ -19,6 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart';
 
 /// 04-editor 4.1 — every name `package:feature_editor/feature_editor.dart`
 /// exports.
@@ -382,7 +383,12 @@ export 'src/d.dart' hide E;
     });
 
     test('editorSettingsProvider / EditorSettingsNotifier members', () {
-      final container = ProviderContainer.test();
+      // From E-06 the notifier loads from core.settingsRepositoryProvider.
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      final container = ProviderContainer.test(
+        overrides: [core.noteStoreProvider.overrideWithValue(store)],
+      );
       final NotifierProvider<EditorSettingsNotifier, EditorSettings> provider =
           editorSettingsProvider;
       expect(provider.name, 'editorSettingsProvider');
@@ -403,7 +409,7 @@ export 'src/d.dart' hide E;
       final void Function() markStylusSeen = notifier.markStylusSeen;
       final void Function() reset = notifier.resetToDefaults;
       final Future<void> Function() flush = notifier.flush;
-      expect(isLoaded, isTrue);
+      expect(isLoaded, isFalse, reason: 'the load completes after an await');
       expect([
         setInputMode,
         setPalm,
