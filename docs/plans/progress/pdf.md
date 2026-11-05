@@ -21,7 +21,7 @@
 | T9 | 완료 | ac4fe3c | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test(+ goldens/background_states/*.png 6장), pdfium/background_real_test |
 | T10 | 완료 | 6962562 | unit/thumbnail_test, unit/cover_thumbnail_test. integration/ink_thumbnail_test는 작성함(통합 단계 판정 — 지금 INK B3 구현 + 실 PDFium으로 `--run-skipped -t integration` 수동 실행 시 통과) |
 | T11 | 완료 | 03c2568 | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test (+ unit/search_notifier_test, web/pure_logic_browser_test 정규화 항목) |
-| T12 | 완료 | (이 커밋) | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
+| T12 | 완료 | 405875c | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
 | T13 | 남음 | | pdfium/compose_native_test |
 | T14 | 남음 | | web/compose_browser_test |
 | T15 | 남음 | | unit/export_service_test, pdfium/export_e2e_test |
@@ -102,6 +102,7 @@
 ## 다음 세션 메모
 
 - 세션 4 결과: T11·T12 완료. 다음 T13(6.11.3·6.11.4·6.11.5·6.11.7 — compose_backend_native.dart: pdfrx 워커 isolate에서 `PdfrxEntryFunctions.instance.compute`, `pdfium_dart` 바인딩, `test/support/compose_probes.dart` 탐침 + pdfium/compose_native_test). 해석기는 test/support/compose_fixture.dart의 형식(verbs·coords·paints, endObject 좌표 = paint 인덱스, 빈 페이지 plan −1)을 읽는다.
+- 세션 4 검사: 패키지 VM 테스트 442개 통과(+3 skip — integration·perf), Chrome 20개 통과(`ws test --platform chrome --package pdf_io`, 76~113초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0. 실 PDFium 검색 테스트(pdfium/search_real_test)는 VM 기본 실행에 포함된다.
 - 검색 위젯 테스트(widget/search_panel_test)는 실제 풀을 쓰므로 테스트 끝에 컨테이너를 fake 존 안에서 정리해야 한다(`_World.end` — 풀의 60초 유휴 타이머가 남으면 'Timer is still pending'). 가짜 게이트웨이·엔진 Future는 `tester.runAsync(pumpEventQueue)` + `pump()`로 진행.
 
 - 세션 1 결과: T1·T2·T3·T4 완료.
