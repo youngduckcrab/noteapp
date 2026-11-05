@@ -117,6 +117,11 @@ final class WriteQueue {
   int _failing = 0;
   Object _failError = const FormatException('injected commit failure');
 
+  /// Runs after each commit, after its ChangeBatches are published and before the
+  /// watch streams re-query and the commit's Futures complete (open sessions, 6.14
+  /// N-4 / N-7). A failure is not the commit's failure.
+  Future<void> Function(List<ChangeBatch> batches)? onCommitted;
+
   /// Transactions attempted so far (tests: group commit).
   @visibleForTesting
   int debugTransactionCount = 0;
@@ -257,11 +262,18 @@ final class WriteQueue {
         f();
       }
     }
-    bus.publish(
-      batchesOf([
-        for (final tx in ok) (tx.origin, tx._changes),
-      ], committed.millisecondsSinceEpoch),
-    );
+    final batches = batchesOf([
+      for (final tx in ok) (tx.origin, tx._changes),
+    ], committed.millisecondsSinceEpoch);
+    bus.publish(batches);
+    final hook = onCommitted;
+    if (hook != null && batches.isNotEmpty) {
+      try {
+        await hook(batches);
+      } on Object {
+        // Session refresh is best effort; the commit itself succeeded.
+      }
+    }
     // Watch streams re-emit before the Futures of this commit complete (C-1, 4.5 head).
     await watches.committed(
       CommitTouch(

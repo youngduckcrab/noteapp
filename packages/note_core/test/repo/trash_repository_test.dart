@@ -255,6 +255,35 @@ void main() {
     },
   );
 
+  test(
+    'an open session of a note in a trashed folder turns read-only before the '
+    'trash Future completes; restore makes it writable again (N-4)',
+    () async {
+      final f = await lib.createFolder(name: 'f');
+      final n = await lib.createNote(title: 'n', folderId: f.id);
+      final session = await store.openSession(n.id);
+      addTearDown(session.close);
+      final notes = <Note>[];
+      final sub = session.noteStream.listen(notes.add);
+      addTearDown(sub.cancel);
+      expect(session.isReadOnly, isFalse);
+      await lib.trashItems([FolderRef(f.id)]);
+      expect(session.isReadOnly, isTrue);
+      expect(notes.last.isDeleted, isTrue);
+      expect(
+        () => session.execute(const DeletePages(pageIds: [])),
+        throwsA(isA<ReadOnlyNoteException>()),
+      );
+      await trash.restore([FolderRef(f.id)]);
+      expect(session.isReadOnly, isFalse);
+      expect(notes.last.isDeleted, isFalse);
+      // Purged while open: stays read-only.
+      await lib.trashItems([NoteRef(n.id)]);
+      await trash.purge([NoteRef(n.id)]);
+      expect(session.isReadOnly, isTrue);
+    },
+  );
+
   group('automatic clean-up (openNoteStore)', () {
     test('10 s after opening, then every 6 hours; close stops it', () {
       fakeAsync((async) {

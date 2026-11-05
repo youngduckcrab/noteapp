@@ -2,9 +2,10 @@
 //
 // T6 opens the database, classifies open errors and keeps the per-device kv
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
-// content reader; T9 the trash; T12 pen presets and settings; T13 assets and
-// thumbnails (blob IndexedDB). Sessions and the sync window are filled in by CORE
-// T10–T19; until then their members throw UnimplementedError naming the task.
+// content reader; T9 the trash; T10 note sessions; T12 pen presets and settings;
+// T13 assets and thumbnails (blob IndexedDB). The sync window and the backup are
+// filled in by CORE T14 / T19; until then their members throw UnimplementedError
+// naming the task.
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -29,6 +30,7 @@ import 'db/note_database.dart';
 import 'drift_content_reader.dart';
 import 'drift_library_repository.dart';
 import 'drift_pen_preset_repository.dart';
+import 'drift_sessions.dart';
 import 'drift_settings_repository.dart';
 import 'drift_trash_repository.dart';
 import 'kv_keys.dart';
@@ -88,6 +90,8 @@ final class DriftNoteStore implements NoteStore {
       thumbnailBytes: thumbnails.totalBytes,
     );
     sync = _DriftSyncStore(this);
+    sessions = DriftSessions(this);
+    queue.onCommitted = sessions.committed;
   }
 
   /// Opens [executor] as a note database: runs the schema steps (6.15), reads or
@@ -199,6 +203,9 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final SyncStore sync;
 
+  /// Open note sessions (6.14).
+  late final DriftSessions sessions;
+
   @override
   Stream<ChangeBatch> get changes => bus.stream;
 
@@ -222,7 +229,10 @@ final class DriftNoteStore implements NoteStore {
   Future<NoteSession> openSession(
     NoteId noteId, {
     NoteSessionOptions options = const NoteSessionOptions(),
-  }) => throw UnimplementedError('openSession: arrives with CORE T10');
+  }) {
+    if (_closed) return Future.error(StateError('The note store is closed'));
+    return sessions.open(noteId, options);
+  }
 
   @override
   Future<void> flush() => queue.flush();
@@ -232,6 +242,7 @@ final class DriftNoteStore implements NoteStore {
     if (_closed) return;
     _closed = true;
     trash.stopAutoPurge();
+    sessions.clear();
     final key = _storeKey;
     if (key != null) {
       final n = (_openStoreCounts[key] ?? 1) - 1;
