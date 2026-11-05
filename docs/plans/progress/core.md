@@ -21,7 +21,7 @@
 | T9 | 완료 | 6bb6c01 | `test/repo/trash_repository_test.dart`, 공유 계약 `test/shared/library_contract.dart` 'C-8 / trash'(가짜·실제). 열린 세션 읽기 전용 전환·복원 시 해제는 세션 DB 백엔드가 있어야 해 T10 테스트로 |
 | T10 | 남음 | | `test/session/note_session_contract_real_test.dart`, `note_session_test.dart`, `content_reader_test.dart` |
 | T11 | 남음 | | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart` |
-| T12 | 완료 | (이 커밋) | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
+| T12 | 완료 | 3503f6c | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
 | T13 | 남음 | | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
 | T14 | 남음 | | 9.1 '동기화 창구 테스트' 전부 (`test/sync/*`) |
 | T15 | 남음 | | `test/migration/note_migrator_test.dart` |
@@ -73,7 +73,8 @@
 - T8 사용법(T9 이후): 라이브러리 쓰기는 `DriftLibraryRepository`(`storage/drift_library_repository.dart`). 활성 행·트리 도우미 `activeFolders()`, 복사 경로 `copyNote(tx, note, folderId:, sortKey:, title:)`(T14 `duplicateNoteForRecovery`가 재사용), 이름 검사 `checkLibraryName`, 접미사 자르기 `nameWithSuffix`. watch는 `store.watches.watch(affects:, query:, equals:)`.
 - T13 메모: 영구 삭제된 페이지의 썸네일 삭제(가짜는 `thumbnailRows`에서 지움)는 썸네일 캐시 구현(T13)에서 `DriftTrashRepository._purgeGroup`에 붙인다.
 - T10 메모: 휴지통으로 가거나 복원된 노트의 열린 세션 `isReadOnly` 전환(N-4)은 세션이 커밋을 보고 판단해야 한다(가짜는 `_committed`에서 `noteCommitted`). `trash_repository_test`에 넣을 '열린 세션 읽기 전용 전환·복원 시 해제'는 T10에서.
-- 세션 2: T8·T9·T12 완료. 라이브러리 C-8(복원 위치)·휴지통 규칙은 공유 계약 'C-8 / trash' 그룹. C-9의 세션 부분(획 편집 → `contentRevision`·`updatedAt`)은 T10 세션 계약(실제)에서.
+- 세션 2 끝 상태: T8·T9·T12 완료(커밋 6d0c569·6bb6c01·3503f6c). 실제 저장소에서 라이브러리·휴지통·프리셋·설정·`NoteContentReader`가 동작하고, 세션(`openSession`, T10)·에셋·썸네일(T13)·`SyncStore` 나머지(T14)·`exportBackupJson`(T19)은 아직 `UnimplementedError`. 검사: 패키지 VM 419개·Chrome 12개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
+- T13 시작 전 읽을 것: 계획서 6.13(에셋·썸네일 저장), 4.7(계약), 6.19 에셋 부분, 가짜 `FakeAssets`·`FakeThumbnails`(`fake_note_store.dart`), `idb_shim` 2.11.2(메모리 IDB = `idbFactoryMemory`). 에셋 메타 커밋은 `store.queue.run`, `putLocal(asset, ..., assetChunkCount:)`가 아직 없으니 `writeEntityRow`의 `assetChunkCount` 인자를 `putLocal`로 넘기는 길을 만들어야 한다. `markUploaded` → outbox `{storagePath}`·`ChangeBatch(origin: local)`. 라이브러리 C-8(복원 위치)·휴지통 규칙은 공유 계약 'C-8 / trash' 그룹. C-9의 세션 부분(획 편집 → `contentRevision`·`updatedAt`)은 T10 세션 계약(실제)에서.
 - 세션 1 끝 상태: T6·T7 완료. 실제 저장소는 열기·쓰기 경로까지 동작하고, 저장소 멤버(라이브러리 등)는 아직 `UnimplementedError`. T8은 계획서 6.8(라이브러리·휴지통 규칙)·4.5(LibraryRepository 계약)·6.19(가짜와 같은 의미)를 읽고, 가짜 `lib/src/fake/fake_note_store.dart`의 `_FakeLibrary`를 동작 기준으로 삼아 `test/shared/library_contract.dart`를 두 저장소에 돌린다. watch 스트림은 커밋 뒤 재질의(가짜의 `watch()`처럼 구독 즉시 1회 + 바뀔 때) — `queue`의 커밋 알림에 붙이면 된다(`WriteTxn.afterCommit` 또는 `bus.stream`).
 - 세션 1: 문서 절차(C13-05, CORE-4-1~4-3) 끝 — 02-core.md 상태 줄 '승인'·계약 v1.4, 4.6·4.7 v1.3 주석, 6.13 bullet, 12.2 CP-8 결정, 13.4. 코드 계약 파일은 B2에서 이미 v1.3 주석.
 - Riverpod 3.4.3은 리스너 없는 provider를 멈춘다. 테스트에서 `container.listen(p.future, (_, _) {})` 뒤 `sub.read()`.
