@@ -6,6 +6,13 @@
 // package assets packages/pdf_io/licenses/ (added with PDF T19) only when the app lists its
 // licenses — nothing is read at start-up and the texts stay out of main.dart.js. A file
 // that cannot be read is reported and left out (6.13).
+//
+// The files are byte-for-byte copies of the archives (T19, THIRD_PARTY_NOTICES.md). Most are
+// UTF-8 or ASCII, but freetype.txt is ISO-8859-1 ('©' is the byte 0xA9), which
+// AssetBundle.loadString (UTF-8 only) would reject — so the bytes are loaded and decoded
+// as UTF-8 with a Latin-1 fallback instead of re-encoding the file.
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
@@ -47,11 +54,25 @@ Stream<LicenseEntry> pdfiumLicenses({AssetBundle? bundle}) async* {
   for (final (file, packages) in pdfiumLicenseFiles) {
     final String text;
     try {
-      text = await assets.loadString('$pdfiumLicenseAssetDir$file');
+      final data = await assets.load('$pdfiumLicenseAssetDir$file');
+      text = decodeLicenseText(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+      );
     } on Object catch (e, s) {
       reportPdfError(e, s, 'pdf_io license asset $file');
       continue;
     }
     yield LicenseEntryWithLineBreaks(packages, text);
+  }
+}
+
+/// UTF-8 (a leading byte-order mark dropped), or Latin-1 when the bytes are not valid UTF-8
+/// (freetype.txt). Latin-1 decodes every byte, so this never throws.
+String decodeLicenseText(Uint8List bytes) {
+  try {
+    final text = utf8.decode(bytes);
+    return text.startsWith('\uFEFF') ? text.substring(1) : text;
+  } on FormatException {
+    return latin1.decode(bytes);
   }
 }
