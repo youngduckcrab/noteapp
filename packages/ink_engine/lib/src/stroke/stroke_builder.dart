@@ -174,6 +174,10 @@ final class StrokeBuilder {
   /// Stable (filtered) points so far, all parts.
   int get stablePointCount => _liveX.length;
   PressureSource get pressureSource => _pressure.source;
+
+  /// Width factor f (K1–K4) of the newest point, null before the first one
+  /// (developer display, 4.12 lastWidthFactor).
+  double? get lastWidthFactor => _pts.isEmpty ? null : _pts.last.factor;
   LiveStrokeGeometry get live => _live;
 
   /// Parts finished by a rollover (6.7 F8), oldest first; the part still

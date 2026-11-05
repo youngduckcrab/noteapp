@@ -297,5 +297,6 @@ void main() {
     expect(controller.diagnostics.snapshot.warnings, 2);
     await tester.pump();
     expect(_diffCount(before, await capturePixels(tester)), 0);
+    controller.diagnostics.enabled = false; // stops its notify timer
   });
 }

@@ -3,6 +3,7 @@
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/ink_clock.dart';
 import '../edit/ink_edit.dart';
+import '../input/pressure_capability.dart';
 import 'ink_page_content.dart';
 import 'ink_page_controller.dart';
 import 'selection.dart';
@@ -13,6 +14,9 @@ abstract interface class InkPageHost {
   InkCoreServices get services;
   InkClock get clock;
   InkDiagnostics get diagnostics;
+
+  /// The stylus pressure capability now (developer display).
+  PressureCapability get stylusCapability;
 
   /// The committed content (null before the first updateContent).
   InkPageContent? get content;

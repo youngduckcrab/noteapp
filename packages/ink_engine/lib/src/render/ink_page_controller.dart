@@ -741,6 +741,12 @@ final class InkPageController extends ChangeNotifier {
           for (final s in content.strokes)
             if (s.layer == InkLayer.ink && !display.hidden.contains(s.id)) s,
         ], _drawInk);
+        if (diagnostics.enabled) {
+          diagnostics.onCacheStats(
+            cachePool.stats,
+            visibleStrokes: content.strokes.length - display.hidden.length,
+          );
+        }
       case InkRenderLayer.highlighterActive:
         _paintActiveHighlighters(canvas, display, paper, margin);
       case InkRenderLayer.inkActive:
@@ -1046,6 +1052,9 @@ final class _Host implements InkPageHost {
   InkClock get clock => _c.clock;
   @override
   InkDiagnostics get diagnostics => _c.diagnostics;
+  @override
+  PressureCapability get stylusCapability =>
+      _c.pressureStore.capabilityOf(InkPointerKind.stylus);
   @override
   InkPageContent? get content => _c._content;
   @override

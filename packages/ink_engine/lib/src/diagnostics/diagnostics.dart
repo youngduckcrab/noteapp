@@ -1,15 +1,20 @@
 // lib/src/diagnostics/diagnostics.dart — 03-ink 4.12. The app's ONLY latency / input-rate
 // source (contract 7.2.15).
 //
-// Foundation step B3 (03-ink 4.15): simple but real — input Hz, samples per frame,
-// pressure / tilt of the last sample, width factor, warnings, cache stats, tile raster
-// times and the receive→paint / event→paint windows. Frame timings are summarized when
-// delivered through onFrameTimings; attaching SchedulerBinding.addTimingsCallback comes
-// with INK T11.
+// INK T11 (6.15): input Hz, samples per frame, pressure / tilt / width factor of
+// the last sample, warnings, cache stats, tile raster times, the receive→paint /
+// event→paint windows and — from the FrameTimings of
+// SchedulerBinding.addTimingsCallback, attached while enabled — frame build /
+// raster p95 and event→rasterEnd (the frame whose [buildStart, rasterStart]
+// holds the paint; only when the clock shares the event / frame timeline).
+// Listeners are notified from a timer, at most every 250 ms and never inside
+// a hook (hooks run during paint).
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:meta/meta.dart' as meta;
 
 import '../input/ink_sample.dart';
@@ -214,13 +219,22 @@ class InkDiagnostics extends ChangeNotifier {
 
   final InkClock _clock;
   bool _enabled = false;
+  bool _timingsAttached = false;
+  bool _disposed = false;
 
   /// Collects only while true; attaches SchedulerBinding.addTimingsCallback when enabled.
   bool get enabled => _enabled;
   set enabled(bool value) {
-    if (_enabled == value) return;
+    if (_enabled == value || _disposed) return;
     _enabled = value;
     _snapshot = null;
+    if (value) {
+      _attachTimings();
+    } else {
+      _detachTimings();
+      _cancelNotify();
+      _awaitingFrame.clear();
+    }
     notifyListeners();
   }
 
@@ -240,6 +254,11 @@ class InkDiagnostics extends ChangeNotifier {
   final List<double> _frameBuildMs = [];
   final List<double> _frameRasterMs = [];
   final List<double> _tileRaster = [];
+  final List<double> _eventToRasterEnd = [];
+
+  /// Active paints (paint time, event time of the newest sample painted)
+  /// waiting for their FrameTiming, oldest first.
+  final List<(int, int)> _awaitingFrame = [];
   int? _pendingReceiveUs;
   int? _pendingEventUs;
   double _activeStrokeUpdateMs = 0;
@@ -249,7 +268,11 @@ class InkDiagnostics extends ChangeNotifier {
   int _warnings = 0;
 
   InkStatsSnapshot? _snapshot;
-  int? _lastNotifyUs;
+
+  // throttled notification (6.15: at most every 250 ms)
+  Timer? _notifyTimer;
+  bool _notifyQueued = false;
+  bool _changedWhileCooling = false;
 
   /// Notifies listeners at most every 250 ms.
   InkStatsSnapshot get snapshot => _snapshot ??= _buildSnapshot();
@@ -270,6 +293,8 @@ class InkDiagnostics extends ChangeNotifier {
     _frameBuildMs.clear();
     _frameRasterMs.clear();
     _tileRaster.clear();
+    _eventToRasterEnd.clear();
+    _awaitingFrame.clear();
     _pendingReceiveUs = null;
     _pendingEventUs = null;
     _activeStrokeUpdateMs = 0;
@@ -278,8 +303,16 @@ class InkDiagnostics extends ChangeNotifier {
     _cache = InkCacheStats.empty;
     _warnings = 0;
     _snapshot = null;
-    _lastNotifyUs = null;
+    _cancelNotify();
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _detachTimings();
+    _cancelNotify();
+    super.dispose();
   }
 
   // Hooks called by INK internals.
@@ -318,16 +351,38 @@ class InkDiagnostics extends ChangeNotifier {
     if (eventUs != null) {
       _push(_eventToPaint, (paintUs - eventUs) / 1000);
       _pendingEventUs = null;
+      if (_clock.alignedWithEventTimestamps) {
+        _awaitingFrame.add((paintUs, eventUs));
+        if (_awaitingFrame.length > _maxAwaitingFrame) {
+          _awaitingFrame.removeAt(0);
+        }
+      }
     }
     _changed();
   }
 
+  /// Frame build / raster durations; event→rasterEnd for every awaiting paint
+  /// inside [buildStart, rasterStart] of a frame (6.15). Paints before a
+  /// frame's buildStart never get a later frame and are dropped.
   @meta.internal
   void onFrameTimings(List<ui.FrameTiming> timings) {
     if (!_enabled) return;
     for (final t in timings) {
       _push(_frameBuildMs, t.buildDuration.inMicroseconds / 1000);
       _push(_frameRasterMs, t.rasterDuration.inMicroseconds / 1000);
+      if (_awaitingFrame.isEmpty) continue;
+      final buildStart = t.timestampInMicroseconds(ui.FramePhase.buildStart);
+      final rasterStart = t.timestampInMicroseconds(ui.FramePhase.rasterStart);
+      final rasterFinish = t.timestampInMicroseconds(
+        ui.FramePhase.rasterFinish,
+      );
+      _awaitingFrame.removeWhere((p) {
+        final (paintUs, eventUs) = p;
+        if (paintUs < buildStart) return true;
+        if (paintUs > rasterStart) return false;
+        _push(_eventToRasterEnd, (rasterFinish - eventUs) / 1000);
+        return true;
+      });
     }
     _changed();
   }
@@ -369,6 +424,26 @@ class InkDiagnostics extends ChangeNotifier {
   }
 
   // --- internals -----------------------------------------------------------
+  static const int _maxAwaitingFrame = 64;
+
+  void _attachTimings() {
+    if (_timingsAttached) return;
+    final SchedulerBinding binding;
+    try {
+      binding = SchedulerBinding.instance;
+    } on FlutterError {
+      return; // no binding (pure Dart test): frames are fed by onFrameTimings
+    }
+    binding.addTimingsCallback(onFrameTimings);
+    _timingsAttached = true;
+  }
+
+  void _detachTimings() {
+    if (!_timingsAttached) return;
+    SchedulerBinding.instance.removeTimingsCallback(onFrameTimings);
+    _timingsAttached = false;
+  }
+
   static void _push(List<double> window, double value) {
     window.add(value);
     if (window.length > InkTuning.latencyWindow) window.removeAt(0);
@@ -384,15 +459,41 @@ class InkDiagnostics extends ChangeNotifier {
     if (drop > 0) times.removeRange(0, drop);
   }
 
+  /// Leading edge from a zero timer (hooks run during paint, so never
+  /// synchronously), then at most one more notification per 250 ms window
+  /// for the changes made meanwhile (trailing edge).
   void _changed() {
     _snapshot = null;
-    final now = _clock.nowUs();
-    final last = _lastNotifyUs;
-    if (last != null && now - last < InkTuning.diagnosticsNotifyMs * 1000) {
+    if (_notifyQueued) return;
+    if (_notifyTimer != null) {
+      _changedWhileCooling = true;
       return;
     }
-    _lastNotifyUs = now;
+    _notifyQueued = true;
+    _notifyTimer = Timer(Duration.zero, _notifyNow);
+  }
+
+  void _notifyNow() {
+    _notifyQueued = false;
+    _notifyTimer = Timer(
+      const Duration(milliseconds: InkTuning.diagnosticsNotifyMs),
+      _coolingEnded,
+    );
     notifyListeners();
+  }
+
+  void _coolingEnded() {
+    _notifyTimer = null;
+    if (!_changedWhileCooling) return;
+    _changedWhileCooling = false;
+    _changed();
+  }
+
+  void _cancelNotify() {
+    _notifyTimer?.cancel();
+    _notifyTimer = null;
+    _notifyQueued = false;
+    _changedWhileCooling = false;
   }
 
   InkStatsSnapshot _buildSnapshot() {
@@ -411,7 +512,7 @@ class InkDiagnostics extends ChangeNotifier {
       samplesPerFrame: frames == 0 ? 0 : hz / math.max(1, frames),
       eventToPaint: LatencySummary._of(_eventToPaint),
       receiveToPaint: LatencySummary._of(_receiveToPaint),
-      eventToRasterEnd: LatencySummary.empty,
+      eventToRasterEnd: LatencySummary._of(_eventToRasterEnd),
       frameBuildP95Ms: LatencySummary._of(_frameBuildMs).p95Ms,
       frameRasterP95Ms: LatencySummary._of(_frameRasterMs).p95Ms,
       activeStrokeUpdateMs: _activeStrokeUpdateMs,

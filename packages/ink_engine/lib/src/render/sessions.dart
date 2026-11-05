@@ -209,6 +209,7 @@ final class StrokeSession implements InkGestureSession {
     _checkActive();
     _builder.add(sample);
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
+    _reportWidthFactor();
     _host.repaint(_layer);
   }
 
@@ -218,7 +219,19 @@ final class StrokeSession implements InkGestureSession {
     if (list.isEmpty) return;
     list.forEach(_builder.add);
     _host.diagnostics.onSamples(list, receiveUs: _host.clock.nowUs());
+    _reportWidthFactor();
     _host.repaint(_layer);
+  }
+
+  /// 4.12 lastWidthFactor / pressureSource / stylusCapability.
+  void _reportWidthFactor() {
+    final d = _host.diagnostics;
+    if (!d.enabled) return;
+    d.onWidthFactor(
+      _builder.lastWidthFactor ?? 1.0,
+      _builder.pressureSource,
+      _host.stylusCapability,
+    );
   }
 
   /// addStroke edit with ONE core.Stroke: id = services.newStrokeId(), createdAt = pen-down
