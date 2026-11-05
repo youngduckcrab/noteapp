@@ -37,7 +37,8 @@ core.Stroke strokeFromData(
   createdAt: createdAt,
 );
 
-/// Pen stroke (6.7 F8): createdAt = penDownMillis, recording fields from the meta.
+/// Pen stroke (6.7 F8): createdAt = penDownMillis (+ Σ⌊t_b⌋ for a part after a
+/// rollover), recording fields from the meta.
 core.Stroke newCoreStroke(
   FinishedStroke f, {
   required String id,
@@ -48,7 +49,7 @@ core.Stroke newCoreStroke(
   id: id,
   pageId: pageId,
   style: f.style,
-  createdAt: penDownMillis,
+  createdAt: penDownMillis + f.createdAtOffsetMs,
   hasTilt: f.hasTilt,
   hasAzimuth: f.hasAzimuth,
   recordingId: f.meta.recordingId,

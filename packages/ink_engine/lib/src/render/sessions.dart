@@ -1,10 +1,10 @@
 // lib/src/render/sessions.dart — StrokeSession / EraserSession / LassoSession
 // (end() → InkEdit?), contract 7.2.15 (03-ink 4.8).
 //
-// Foundation step B3 (03-ink 4.15):
-//  * StrokeSession: sample positions as they come, widthQ = kNominalWidthQ,
-//    t = ms since the first sample, createdAt = pen-down nowMillis() → one
-//    core.Stroke → InkEdit(addStroke) (INK T06 / T10 bring the real pipeline);
+// Foundation step B3 (03-ink 4.15), replaced step by step:
+//  * StrokeSession: the StrokeBuilder pipeline of 6.3–6.7 (INK T06) →
+//    createdAt = pen-down nowMillis() → one core.Stroke (several after a
+//    rollover, 6.7 F8) → InkEdit(addStroke) (live layers: INK T10);
 //  * EraserSession: a stroke is touched when the eraser circle (swept between
 //    samples) overlaps its CORE bounds; stroke mode → eraseStrokes, partial
 //    mode → splitStrokes without fragments (toCommand = RemoveStrokes)
@@ -22,10 +22,12 @@ import 'package:note_core/note_core.dart' as core;
 import '../edit/eraser_spec.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
+import '../geometry/outline_generator.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
+import '../model/ink_points.dart';
 import '../pen/style_ink.dart';
 import '../stroke/stroke_builder.dart';
 import 'ink_page_controller.dart';
@@ -42,23 +44,41 @@ abstract interface class InkGestureSession {
 /// Live geometry for the active layer (page pt). Unquantized; replaced by the CORE
 /// (quantized) stroke when the session ends.
 final class LiveStrokeGeometry {
-  LiveStrokeGeometry._(this._polylineMode);
+  LiveStrokeGeometry._(this._style)
+    : _polylineMode = _style.profile.layer == InkLayer.highlighter;
 
+  final core.StrokeStyle _style;
   final bool _polylineMode;
-  final List<ui.Offset> _points = [];
+
+  /// stable (filtered) centerline positions, append-only during one stroke
+  final List<ui.Offset> _stable = [];
+
+  /// raw tail (+ predicted samples) after the stable points, replaced on every update
+  List<ui.Offset> _tail = const [];
+
+  /// highlighter alwaysStraight: start → current position (replaces the centerline)
+  (ui.Offset, ui.Offset)? _straight;
+
+  final ui.Path _frozen = ui.Path();
+  final List<ui.Path> _frozenChunks = [];
+  InkPoints? _open;
+  ui.Path? _tailPath;
+  Float32List? _polyline;
   ui.Rect _bounds = ui.Rect.zero;
   int _version = 0;
-  ui.Path? _tail;
-  Float32List? _polyline;
-  final ui.Path _frozen = ui.Path();
 
   /// frozen chunks (append-only during one stroke), fill pens only
   ui.Path get frozenPath => _frozen;
 
   /// open chunk + raw tail, rebuilt on every update, fill pens only
   ui.Path get tailPath {
-    if (_polylineMode) return ui.Path();
-    return _tail ??= _pathOf(_points);
+    final open = _open;
+    if (_polylineMode || open == null) return ui.Path();
+    return _tailPath ??= OutlineGenerator.outlineOf(
+      open,
+      width: _style.width,
+      profile: _style.profile,
+    ).toPath();
   }
 
   /// highlighter centerline x,y pairs (stroked); null for fill pens
@@ -73,50 +93,86 @@ final class LiveStrokeGeometry {
 
   /// increments on every change
   int get version => _version;
-  bool get isEmpty => _points.isEmpty;
+  bool get isEmpty => _stable.isEmpty;
 
-  void _append(ui.Offset p) {
-    _bounds = _points.isEmpty
-        ? ui.Rect.fromLTWH(p.dx, p.dy, 0, 0)
-        : _bounds.expandToInclude(ui.Rect.fromLTWH(p.dx, p.dy, 0, 0));
-    _points.add(p);
-    _tail = null;
+  List<ui.Offset> get _points {
+    final s = _straight;
+    if (s != null) return [s.$1, s.$2];
+    return [..._stable, ..._tail];
+  }
+
+  void _changed() {
+    _tailPath = null;
     _polyline = null;
     _version++;
   }
 
   void _clear() {
-    if (_points.isEmpty) return;
-    _points.clear();
+    if (_stable.isEmpty && _frozenChunks.isEmpty) return;
+    _stable.clear();
+    _tail = const [];
+    _straight = null;
+    _frozen.reset();
+    _frozenChunks.clear();
+    _open = null;
     _bounds = ui.Rect.zero;
-    _tail = null;
-    _polyline = null;
-    _version++;
-  }
-
-  static ui.Path _pathOf(List<ui.Offset> points) {
-    final path = ui.Path();
-    if (points.isEmpty) return path;
-    path.moveTo(points.first.dx, points.first.dy);
-    for (var i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
-    }
-    return path;
+    _changed();
   }
 }
 
 @internal
-LiveStrokeGeometry newLiveStrokeGeometry({required bool polyline}) =>
-    LiveStrokeGeometry._(polyline);
+LiveStrokeGeometry newLiveStrokeGeometry(core.StrokeStyle style) =>
+    LiveStrokeGeometry._(style);
 
+/// Appends one stable centerline position (StrokeBuilder).
 @internal
-void liveAppend(LiveStrokeGeometry live, ui.Offset p) => live._append(p);
+void liveAddStable(LiveStrokeGeometry live, ui.Offset p) {
+  live._stable.add(p);
+  live._changed();
+}
+
+/// Freezes one chunk (fill pens): its outline joins frozenPath for good.
+@internal
+void liveFreezeChunk(LiveStrokeGeometry live, InkPoints chunk) {
+  final path = OutlineGenerator.outlineOf(
+    chunk,
+    width: live._style.width,
+    profile: live._style.profile,
+  ).toPath();
+  live._frozenChunks.add(path);
+  live._frozen.addPath(path, ui.Offset.zero);
+  live._changed();
+}
+
+/// Replaces the open part: [tail] after the stable points, [open] = open chunk
+/// + tail with live widthQ (fill pens), [straight] (highlighter alwaysStraight).
+@internal
+void liveSetOpen(
+  LiveStrokeGeometry live, {
+  required List<ui.Offset> tail,
+  required InkPoints? open,
+  required (ui.Offset, ui.Offset)? straight,
+  required ui.Rect bounds,
+}) {
+  live
+    .._tail = tail
+    .._open = open
+    .._straight = straight
+    .._bounds = bounds
+    .._changed();
+}
 
 @internal
 void liveClear(LiveStrokeGeometry live) => live._clear();
 
+/// The live centerline: stable points + raw tail (or the straight line).
 @internal
 List<ui.Offset> livePoints(LiveStrokeGeometry live) => live._points;
+
+/// The frozen chunk outlines, oldest first (tests: append-only).
+@internal
+List<ui.Path> liveFrozenChunks(LiveStrokeGeometry live) =>
+    List.unmodifiable(live._frozenChunks);
 
 // --- pen -----------------------------------------------------------------------
 
@@ -163,18 +219,22 @@ final class StrokeSession implements InkGestureSession {
     _checkActive();
     _active = false;
     final finished = _builder.finish(last: last);
+    final parts = [..._builder.rolledOver, ?finished];
     InkEdit? edit;
-    if (finished != null) {
-      final stroke = interop.newCoreStroke(
-        finished,
-        id: _host.services.newStrokeId(),
-        pageId: _host.pageId,
-        penDownMillis: _penDownMillis,
-      );
+    if (parts.isNotEmpty) {
+      final strokes = [
+        for (final f in parts)
+          interop.newCoreStroke(
+            f,
+            id: _host.services.newStrokeId(),
+            pageId: _host.pageId,
+            penDownMillis: _penDownMillis,
+          ),
+      ];
       edit = InkEdit(
         pageId: _host.pageId,
         kind: InkEditKind.addStroke,
-        added: List.unmodifiable([stroke]),
+        added: List.unmodifiable(strokes),
       );
       _host.addPending(edit);
     }
