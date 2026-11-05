@@ -1,0 +1,117 @@
+# Web renderer experiment (INFRA, docs/plans/01-infra.md 6.10, 6.13
+# `web-experiment.yml`): manual only. Builds with `--wasm` (skwasm with a
+# JavaScript fallback) and, with `isolate`, self-hosted CanvasKit plus the
+# COOP/COEP headers of `ws hosting-config --isolate` — never on the live or
+# branch channels (contract 7.4.9). Deploys to the 7-day channel `exp-wasm`.
+# Compare on the iPad with `?renderer=skwasm` / `?renderer=canvaskit` (9.3
+# item 15).
+name: web-experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      wasm:
+        description: 'WebAssembly 빌드 (--wasm)'
+        type: boolean
+        default: true
+      isolate:
+        description: '교차 출처 격리 (COOP/COEP 헤더 + CanvasKit 자체 호스팅)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: web-experiment
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    name: Build and deploy the experiment channel
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      # Same key as ci.yml step 3.
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      - name: Dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build info
+        run: dart run tool/ws.dart build-info --channel experiment --out build/build_info.json
+
+      - name: Verify web assets
+        run: dart run tool/ws.dart web-assets verify
+
+      - name: Cross-origin isolation headers
+        if: inputs.isolate == true
+        run: |
+          dart run tool/ws.dart hosting-config --isolate > "$RUNNER_TEMP/firebase.json"
+          mv "$RUNNER_TEMP/firebase.json" app/firebase.json
+
+      - name: Web build
+        working-directory: app
+        env:
+          WASM: ${{ inputs.wasm }}
+          ISOLATE: ${{ inputs.isolate }}
+        run: |
+          flags=()
+          if [ "$WASM" = 'true' ]; then flags+=(--wasm); else flags+=(--no-wasm-dry-run); fi
+          if [ "$ISOLATE" = 'true' ]; then flags+=(--no-web-resources-cdn); fi
+          flutter build web --release "${flags[@]}" --dart-define-from-file=../build/build_info.json --build-number=$GITHUB_RUN_NUMBER
+
+      - name: Finalize web build
+        run: dart run tool/ws.dart finalize-web --build-dir app/build/web --info build/build_info.json
+
+      - name: Deploy to Firebase Hosting
+        id: deploy
+        if: env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != ''
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: exp-wasm
+          expires: 7d
+          entryPoint: app
+          firebaseToolsVersion: 15.34.2
+          disableComment: true
+
+      - name: Summary
+        if: always()
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.details_url }}
+          WASM: ${{ inputs.wasm }}
+          ISOLATE: ${{ inputs.isolate }}
+        run: |
+          {
+            echo '## 렌더러 실험'
+            echo
+            echo "- 입력: wasm=$WASM, isolate=$ISOLATE"
+            echo '- 채널: `exp-wasm` (7일)'
+            if [ "$DEPLOY_OUTCOME" = 'success' ]; then
+              echo "- 주소: $DEPLOY_URL (\`?renderer=skwasm\` / \`?renderer=canvaskit\`로 비교)"
+            elif [ -z "$FIREBASE_SA" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
+              echo '- 주소: Firebase 미설정 — docs/guides/02-github-secrets.md'
+            else
+              echo '- 주소: 배포하지 못함 — 단계 로그를 확인해 주세요'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

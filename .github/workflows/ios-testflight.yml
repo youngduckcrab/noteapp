@@ -1,0 +1,92 @@
+# iOS TestFlight — DRAFT, unverified (INFRA, docs/plans/01-infra.md 6.13
+# `ios-testflight.yml`, 6.15, docs/guides/06-ios-testflight.md). Completed at
+# the native stage. macOS runners bill 10x the free minutes, so the job runs
+# only when started by hand, with `confirm` = yes, and only after the
+# repository variable IOS_TESTFLIGHT_ENABLED is set to `true`.
+#
+# Secrets: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (the
+# content of the App Store Connect API key .p8 file).
+name: ios-testflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'macOS 10배 과금 확인: yes 입력'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    name: Archive and upload to TestFlight (draft)
+    if: vars.IOS_TESTFLIGHT_ENABLED == 'true' && inputs.confirm == 'yes'
+    # Runner label unverified.
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build info
+        run: dart run tool/ws.dart build-info --channel live --out build/build_info.json
+
+      - name: App Store Connect API key
+        run: |
+          key_path="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$key_path"
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Flutter iOS build (no signing)
+        working-directory: app
+        run: flutter build ios --release --no-codesign --build-number=$GITHUB_RUN_NUMBER --dart-define-from-file=../build/build_info.json
+
+      - name: Archive
+        working-directory: app/ios
+        run: |
+          xcodebuild archive \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic
+
+      # ExportOptions.plist: method app-store-connect, destination upload.
+      - name: Export and upload
+        working-directory: app/ios
+        run: |
+          cp ExportOptions.plist "$RUNNER_TEMP/ExportOptions.plist"
+          plutil -replace teamID -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Remove API key
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8

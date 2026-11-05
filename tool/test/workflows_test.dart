@@ -1,153 +1,990 @@
-// .github/workflows checks (docs/plans/01-infra.md 6.13, B1-5). The B1
-// workflow has the 6.13 steps 1, 2, 5–9 and 14 and no deploy.
+// .github checks (docs/plans/01-infra.md 6.13 and the 9.1 workflows_test row,
+// I13): the four workflows (triggers, concurrency, time limits, the two
+// caches and their keys, browser and integration tests, the main-only
+// strict check, the deploy gate on secrets, pinned versions, the iOS gate,
+// the APK artifact) and the issue templates. Every `ws` call in a workflow
+// is parsed by the real `ws` argument parser, and every `run` script passes
+// `bash -n`.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
+import '../src/build_info_file.dart';
+import '../src/cli.dart';
 import 'support/fixture_workspace.dart';
 
-void main() {
-  final workflowsDir = p.join(repoRoot, '.github', 'workflows');
+/// Action versions pinned in 01-infra 7.3.
+const _pinnedActions = {
+  'actions/checkout': 'v7',
+  'subosito/flutter-action': 'v2',
+  'actions/cache': 'v6',
+  'actions/setup-java': 'v6',
+  'actions/upload-artifact': 'v7',
+  'FirebaseExtended/action-hosting-deploy': 'v0',
+};
 
-  List<File> workflowFiles() =>
-      Directory(workflowsDir)
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.yml') || f.path.endsWith('.yaml'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+/// `paths-ignore` of every push trigger (6.13).
+const _ignoredPaths = ['docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**'];
 
-  YamlMap load(String name) {
-    final yaml = loadYaml(File(p.join(workflowsDir, name)).readAsStringSync());
-    expect(yaml, isA<YamlMap>(), reason: '$name is not a YAML map');
-    return yaml as YamlMap;
-  }
+/// Job time limits (6.13).
+const _timeouts = {
+  'android.yml': 30,
+  'ci.yml': 25,
+  'ios-testflight.yml': 45,
+  'web-experiment.yml': 25,
+};
 
-  List<YamlMap> stepsOf(YamlMap workflow) => [
-    for (final job in (workflow['jobs'] as YamlMap).values)
-      for (final step in (job as YamlMap)['steps'] as YamlList) step as YamlMap,
-  ];
+const _hooksPath = '.dart_tool/hooks_runner';
+const _hooksKey = r"hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}";
+const _hooksRestoreKey = r'hooks-${{ runner.os }}-';
 
-  test('every workflow parses and every job has timeout-minutes', () {
-    final files = workflowFiles();
-    expect(files, isNotEmpty);
-    for (final file in files) {
-      final workflow = load(p.basename(file.path));
-      final jobs = workflow['jobs'];
-      expect(jobs, isA<YamlMap>(), reason: '${file.path}: no jobs');
-      for (final MapEntry(:key, :value) in (jobs as YamlMap).entries) {
-        expect(
-          (value as YamlMap)['timeout-minutes'],
-          isA<int>(),
-          reason: '${file.path}: job $key has no timeout-minutes',
-        );
+/// Outputs of the members' tool/prepare_web_test.dart (contract 7.4.8).
+const _prepPaths = [
+  'packages/note_core/test/web/sqlite3.wasm',
+  'packages/note_core/test/web/drift_worker.js',
+  'packages/pdf_io/test/web/pdfium/',
+  'app/test/web/sqlite3.wasm',
+  'app/test/web/drift_worker.js',
+];
+const _prepKey =
+    r'prep-${{ runner.os }}-'
+    r"${{ hashFiles('pubspec.lock', 'tool/web_assets.yaml', "
+    r"'**/tool/prepare_web_test.dart') }}";
+
+const _onMain = "github.ref == 'refs/heads/main'";
+const _offMain = "github.ref != 'refs/heads/main'";
+const _ws = 'dart run tool/ws.dart';
+const _defineFile = '--dart-define-from-file=../build/build_info.json';
+const _buildNumber = r'--build-number=$GITHUB_RUN_NUMBER';
+const _buildInfoFromEnv =
+    '$_ws build-info --channel "\$BUILD_CHANNEL" --out build/build_info.json';
+const _finalize =
+    '$_ws finalize-web --build-dir app/build/web --info build/build_info.json';
+const _webBuild =
+    'flutter build web --release --no-wasm-dry-run $_defineFile $_buildNumber';
+const _apkBuild =
+    'flutter build apk --release --split-per-abi $_buildNumber $_defineFile';
+
+final _workflowsDir = p.join(repoRoot, '.github', 'workflows');
+
+YamlMap _load(String path) {
+  final yaml = loadYaml(File(path).readAsStringSync());
+  expect(yaml, isA<YamlMap>(), reason: '$path is not a YAML map');
+  return yaml as YamlMap;
+}
+
+YamlMap _workflow(String name) => _load(p.join(_workflowsDir, name));
+
+List<String> _workflowNames() =>
+    Directory(_workflowsDir)
+        .listSync()
+        .whereType<File>()
+        .map((f) => p.basename(f.path))
+        .where((n) => n.endsWith('.yml') || n.endsWith('.yaml'))
+        .toList()
+      ..sort();
+
+Map<String, YamlMap> _jobs(YamlMap workflow) => {
+  for (final MapEntry(:key, :value) in (workflow['jobs'] as YamlMap).entries)
+    key as String: value as YamlMap,
+};
+
+List<YamlMap> _steps(YamlMap job) => [
+  for (final step in job['steps'] as YamlList) step as YamlMap,
+];
+
+List<YamlMap> _allSteps(YamlMap workflow) => [
+  for (final job in _jobs(workflow).values) ..._steps(job),
+];
+
+YamlMap _with(YamlMap step) => step['with'] as YamlMap? ?? YamlMap();
+
+YamlMap _named(List<YamlMap> steps, String name) {
+  final found = steps.where((s) => s['name'] == name).toList();
+  expect(found, hasLength(1), reason: 'one step named `$name`');
+  return found.single;
+}
+
+/// Lines of a `run` script, trimmed, without blanks.
+List<String> _runLines(YamlMap step) => [
+  for (final line in '${step['run'] ?? ''}'.split('\n'))
+    if (line.trim().isNotEmpty) line.trim(),
+];
+
+/// The `dart …` / `flutter …` command lines of a `run` script (the timing
+/// lines `printf … step-seconds` and `date …` are left out).
+List<String> _commands(YamlMap step) => [
+  for (final line in _runLines(step))
+    if (line.startsWith('dart ') || line.startsWith('flutter ')) line,
+];
+
+List<YamlMap> _usesSteps(YamlMap workflow, String action) => [
+  for (final step in _allSteps(workflow))
+    if ('${step['uses'] ?? ''}'.startsWith('$action@')) step,
+];
+
+final _variableName = RegExp(r'^[A-Z_][A-Z0-9_]*');
+
+/// Splits a shell command line into words: quotes removed, `$NAME` (also
+/// inside double quotes) replaced from [variables], stopping at an unquoted
+/// `>` or `)`.
+List<String> _shellWords(String line, Map<String, String> variables) {
+  final words = <String>[];
+  final word = StringBuffer();
+  var inWord = false;
+  String? quote;
+  for (var i = 0; i < line.length; i++) {
+    final c = line[i];
+    if (c == r'$' && quote != "'") {
+      final name = _variableName.stringMatch(line.substring(i + 1));
+      expect(name, isNotNull, reason: 'unsupported `\$` in `$line`');
+      expect(variables, contains(name), reason: 'no sample for \$$name');
+      word.write(variables[name]);
+      i += name!.length;
+      inWord = true;
+    } else if (quote != null) {
+      if (c == quote) {
+        quote = null;
+      } else {
+        word.write(c);
       }
+    } else if (c == '"' || c == "'") {
+      quote = c;
+      inWord = true;
+    } else if (c == ' ') {
+      if (inWord) words.add(word.toString());
+      word.clear();
+      inWord = false;
+    } else if (c == '>' || c == ')') {
+      break;
+    } else {
+      word.write(c);
+      inWord = true;
     }
+  }
+  if (inWord) words.add(word.toString());
+  return words;
+}
+
+/// Sample values of the shell variables the workflows pass to `ws`.
+const _sampleVariables = {
+  'BUILD_CHANNEL': 'preview',
+  'GITHUB_REF_NAME': 'area/infra',
+};
+
+void main() {
+  test('_shellWords splits like the shell for the forms used here', () {
+    expect(
+      _shellWords(r'channel-id --branch "$GITHUB_REF_NAME")"', {
+        'GITHUB_REF_NAME': 'a/b',
+      }),
+      ['channel-id', '--branch', 'a/b'],
+    );
+    expect(_shellWords('hosting-config --isolate > "x"', {}), [
+      'hosting-config',
+      '--isolate',
+    ]);
+    expect(_shellWords("check  'a b' c", {}), ['check', 'a b', 'c']);
   });
 
-  test('every flutter-action reads the version from the root pubspec', () {
-    for (final file in workflowFiles()) {
-      for (final step in stepsOf(load(p.basename(file.path)))) {
-        final uses = step['uses'];
-        if (uses is String && uses.startsWith('subosito/flutter-action')) {
-          expect(uses, 'subosito/flutter-action@v2');
-          final withMap = step['with'] as YamlMap;
+  group('all workflows', () {
+    test('the four workflows of 6.13 exist and parse', () {
+      expect(_workflowNames(), [
+        'android.yml',
+        'ci.yml',
+        'ios-testflight.yml',
+        'web-experiment.yml',
+      ]);
+      for (final name in _workflowNames()) {
+        final workflow = _workflow(name);
+        expect(workflow['name'], isA<String>(), reason: name);
+        expect(workflow['on'], isA<YamlMap>(), reason: name);
+        expect(_jobs(workflow), isNotEmpty, reason: name);
+      }
+    });
+
+    test('every job has its timeout-minutes; the token is read-only', () {
+      for (final name in _workflowNames()) {
+        final workflow = _workflow(name);
+        expect((workflow['permissions'] as YamlMap).value, {
+          'contents': 'read',
+        }, reason: name);
+        for (final MapEntry(:key, :value) in _jobs(workflow).entries) {
+          expect(
+            value['timeout-minutes'],
+            _timeouts[name],
+            reason: '$name: job $key',
+          );
+          expect(
+            value.containsKey('permissions'),
+            isFalse,
+            reason: '$name: job $key widens permissions',
+          );
+        }
+      }
+    });
+
+    test('every action is pinned to the 7.3 version', () {
+      for (final name in _workflowNames()) {
+        for (final step in _allSteps(_workflow(name))) {
+          final uses = step['uses'];
+          if (uses == null) continue;
+          final [action, version] = '$uses'.split('@');
+          expect(
+            _pinnedActions,
+            contains(action),
+            reason: '$name: unknown action $uses',
+          );
+          expect(version, _pinnedActions[action], reason: '$name: $uses');
+        }
+      }
+    });
+
+    test('every flutter-action reads the version from the root pubspec', () {
+      var count = 0;
+      for (final name in _workflowNames()) {
+        for (final step in _usesSteps(
+          _workflow(name),
+          'subosito/flutter-action',
+        )) {
+          count++;
+          final withMap = _with(step);
           expect(withMap['flutter-version-file'], 'pubspec.yaml');
           expect(withMap['cache'], isTrue);
           expect(withMap.containsKey('flutter-version'), isFalse);
         }
       }
-    }
-    final rootPubspec = loadYaml(
-      File(p.join(repoRoot, 'pubspec.yaml')).readAsStringSync(),
-    ) as YamlMap;
-    expect((rootPubspec['environment'] as YamlMap)['flutter'], '3.47.9');
+      expect(count, 4);
+      final rootPubspec = _load(p.join(repoRoot, 'pubspec.yaml'));
+      expect((rootPubspec['environment'] as YamlMap)['flutter'], '3.47.9');
+    });
+
+    test('pub get always enforces the lock file', () {
+      var count = 0;
+      for (final name in _workflowNames()) {
+        for (final step in _allSteps(_workflow(name))) {
+          for (final line in _runLines(step)) {
+            if (line.contains('pub get')) {
+              count++;
+              expect(line, 'flutter pub get --enforce-lockfile', reason: name);
+            }
+          }
+        }
+      }
+      expect(count, 4);
+    });
+
+    test('no `if:` reads `secrets` (not allowed there — job env instead)', () {
+      for (final name in _workflowNames()) {
+        final workflow = _workflow(name);
+        for (final MapEntry(:key, :value) in _jobs(workflow).entries) {
+          expect('${value['if'] ?? ''}', isNot(contains('secrets.')));
+          for (final step in _steps(value)) {
+            expect(
+              '${step['if'] ?? ''}',
+              isNot(contains('secrets.')),
+              reason: '$name: $key / ${step['name']}',
+            );
+          }
+        }
+      }
+    });
+
+    test('`steps.<id>` refers to an earlier step of the same job', () {
+      final reference = RegExp(r'steps\.([A-Za-z0-9_-]+)\.');
+      for (final name in _workflowNames()) {
+        for (final job in _jobs(_workflow(name)).values) {
+          final seen = <String>{};
+          for (final step in _steps(job)) {
+            for (final match in reference.allMatches('${step.value}')) {
+              expect(
+                seen,
+                contains(match.group(1)),
+                reason: '$name: ${step['name']} uses ${match.group(0)}',
+              );
+            }
+            if (step['id'] case final String id) seen.add(id);
+          }
+        }
+      }
+    });
+
+    test('every build-hooks cache has the same path and key (step 3)', () {
+      for (final name in ['android.yml', 'ci.yml', 'web-experiment.yml']) {
+        final hooks = _usesSteps(
+          _workflow(name),
+          'actions/cache',
+        ).where((s) => _with(s)['path'] == _hooksPath).toList();
+        expect(hooks, hasLength(1), reason: name);
+        expect(_with(hooks.single)['key'], _hooksKey, reason: name);
+        expect(
+          _with(hooks.single)['restore-keys'],
+          _hooksRestoreKey,
+          reason: name,
+        );
+      }
+    });
+
+    test('every flutter build passes the build info and run number', () {
+      var count = 0;
+      for (final name in _workflowNames()) {
+        for (final step in _allSteps(_workflow(name))) {
+          for (final line in _commands(step)) {
+            if (!line.startsWith('flutter build ')) continue;
+            count++;
+            expect(line, contains(' --release'), reason: name);
+            expect(line, contains(' $_defineFile'), reason: name);
+            expect(line, contains(' $_buildNumber'), reason: name);
+            expect(step['working-directory'], 'app', reason: name);
+          }
+        }
+      }
+      expect(count, 4);
+    });
+
+    test('every `ws` call parses with the real ws arguments', () async {
+      final calls = <String>[];
+      final ws = RegExp(r'dart run tool/ws\.dart ([^\n]*)');
+      for (final name in _workflowNames()) {
+        for (final step in _allSteps(_workflow(name))) {
+          for (final match in ws.allMatches('${step['run'] ?? ''}')) {
+            calls.add(match.group(1)!);
+          }
+        }
+      }
+      expect(calls, hasLength(19));
+      for (final call in calls) {
+        final args = _shellWords(call, _sampleVariables);
+        final err = StringBuffer();
+        final code = await runZoned(
+          () => runWs([
+            ...args,
+            '--help',
+          ], context: WsContext(out: StringBuffer(), err: err)),
+          zoneSpecification: ZoneSpecification(print: (_, _, _, _) {}),
+        );
+        expect(code, 0, reason: '`ws $call` → $args: $err');
+      }
+    });
+
+    test('every build-info channel is a build channel', () {
+      final channel = RegExp(r'build-info --channel ("\$BUILD_CHANNEL"|\w+) ');
+      final quoted = RegExp(r"'([a-z]+)'");
+      var count = 0;
+      for (final name in _workflowNames()) {
+        for (final step in _allSteps(_workflow(name))) {
+          for (final line in _commands(step)) {
+            if (!line.contains(' build-info ')) continue;
+            count++;
+            expect(line, endsWith(' --out build/build_info.json'));
+            final value = channel.firstMatch(line)!.group(1)!;
+            if (value == r'"$BUILD_CHANNEL"') {
+              // Set from an expression in the step env.
+              final env = '${(step['env'] as YamlMap)['BUILD_CHANNEL']}';
+              final values = [
+                for (final m in quoted.allMatches(env)) m.group(1)!,
+              ];
+              if (values.isEmpty) {
+                expect(env, r'${{ steps.channel.outputs.build }}');
+              }
+              expect(buildChannels, containsAll(values), reason: name);
+            } else {
+              expect(buildChannels, contains(value), reason: name);
+            }
+          }
+        }
+      }
+      expect(count, 4);
+    });
+
+    test('every deploy is gated on the secret and the project variable', () {
+      var count = 0;
+      for (final name in _workflowNames()) {
+        final workflow = _workflow(name);
+        for (final job in _jobs(workflow).values) {
+          for (final step in _steps(job)) {
+            if (!'${step['uses'] ?? ''}'.startsWith(
+              'FirebaseExtended/action-hosting-deploy@',
+            )) {
+              continue;
+            }
+            count++;
+            final env = job['env'] as YamlMap;
+            expect(
+              env['FIREBASE_SA'],
+              r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
+            );
+            expect(
+              env['FIREBASE_PROJECT_ID'],
+              r'${{ vars.FIREBASE_PROJECT_ID }}',
+            );
+            expect(step['id'], 'deploy');
+            expect(
+              '${step['if']}',
+              startsWith(
+                "env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != ''",
+              ),
+              reason: name,
+            );
+            final withMap = _with(step);
+            expect(
+              withMap['firebaseServiceAccount'],
+              r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
+            );
+            expect(withMap['projectId'], r'${{ vars.FIREBASE_PROJECT_ID }}');
+            expect(withMap['firebaseToolsVersion'], '15.34.2', reason: name);
+            expect(withMap['entryPoint'], 'app');
+            expect(withMap['expires'], '7d');
+            expect(withMap['disableComment'], isTrue);
+            expect(withMap.containsKey('repoToken'), isFalse);
+          }
+        }
+      }
+      expect(count, 2);
+    });
+
+    test('every run script passes `bash -n`', () {
+      final expression = RegExp(r'\$\{\{[^}]*\}\}');
+      var count = 0;
+      for (final name in _workflowNames()) {
+        for (final step in _allSteps(_workflow(name))) {
+          final run = step['run'];
+          if (run == null) continue;
+          count++;
+          final script = '$run'.replaceAll(expression, 'x');
+          final result = Process.runSync('bash', ['-n', '-c', script]);
+          expect(
+            result.exitCode,
+            0,
+            reason: '$name: ${step['name']}: ${result.stderr}',
+          );
+        }
+      }
+      expect(count, greaterThan(30));
+      // The check itself catches a broken script.
+      expect(
+        Process.runSync('bash', ['-n', '-c', 'if [ x ]; then echo']).exitCode,
+        isNot(0),
+      );
+    });
   });
 
   group('ci.yml', () {
     late YamlMap ci;
+    late YamlMap job;
     late List<YamlMap> steps;
 
     setUp(() {
-      ci = load('ci.yml');
-      steps = stepsOf(ci);
+      ci = _workflow('ci.yml');
+      job = _jobs(ci).values.single;
+      steps = _steps(job);
     });
 
-    String runOf(bool Function(YamlMap step) where) =>
-        steps.where(where).map((s) => '${s['run']}').join('\n');
+    YamlMap step(String name) => _named(steps, name);
 
-    test('triggers on push (docs ignored) and manual dispatch', () {
+    test('push on every branch (docs ignored) and manual dispatch', () {
       final on = ci['on'] as YamlMap;
-      expect(on.containsKey('workflow_dispatch'), isTrue);
-      final ignored = (on['push'] as YamlMap)['paths-ignore'] as YamlList;
-      expect(ignored, containsAll(['docs/**', '**/*.md']));
+      expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
+      final push = on['push'] as YamlMap;
+      expect(push.keys, ['paths-ignore'], reason: 'no branch filter');
+      expect(push['paths-ignore'], _ignoredPaths);
+      final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
+      expect(inputs.keys, unorderedEquals(['deploy', 'integration']));
+      expect((inputs['deploy'] as YamlMap)['type'], 'boolean');
+      expect((inputs['deploy'] as YamlMap)['default'], isTrue);
+      expect((inputs['integration'] as YamlMap)['type'], 'boolean');
+      expect((inputs['integration'] as YamlMap)['default'], isFalse);
     });
 
-    test('concurrency per ref with cancel-in-progress, read-only token', () {
+    test('concurrency per ref with cancel-in-progress', () {
       final concurrency = ci['concurrency'] as YamlMap;
       expect(concurrency['group'], r'ci-${{ github.ref }}');
       expect(concurrency['cancel-in-progress'], isTrue);
-      expect((ci['permissions'] as YamlMap)['contents'], 'read');
     });
 
-    test('single job on ubuntu with a 25 minute limit', () {
-      final jobs = ci['jobs'] as YamlMap;
-      expect(jobs, hasLength(1));
-      final job = jobs.values.single as YamlMap;
+    test('single job on ubuntu with a 25 minute limit and the env', () {
+      expect(_jobs(ci), hasLength(1));
       expect(job['runs-on'], 'ubuntu-latest');
       expect(job['timeout-minutes'], 25);
+      expect((job['env'] as YamlMap).value, {
+        'FIREBASE_SA': r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
+        'FIREBASE_PROJECT_ID': r'${{ vars.FIREBASE_PROJECT_ID }}',
+      });
     });
 
-    test('checkout with full history', () {
-      final checkout = steps.firstWhere(
-        (s) => '${s['uses']}'.startsWith('actions/checkout'),
+    test('the 6.13 steps in order', () {
+      expect(
+        [for (final s in steps) s['name']],
+        [
+          'Start clock',
+          'Checkout', // 1
+          'Set up Flutter', // 2
+          'Cache build hooks', // 3
+          'Cache browser test assets', // 4
+          'Dependencies', // 5
+          'Workspace rules (main, strict)', // 6
+          'Workspace rules',
+          'Analyze', // 7
+          'VM tests (main)', // 8
+          'VM tests (affected)',
+          'Tool tests', // contract 7.6 B1 v1.3, V3
+          'Browser tests (main)', // 9
+          'Browser tests (affected)',
+          'Integration tests (VM)', // 10
+          'Integration tests (Chrome)',
+          'Channel', // 11
+          'Build info', // 12
+          'Verify web assets', // 13
+          'Web build', // 14
+          'Finalize web build', // 15
+          'Deploy to Firebase Hosting', // 16
+          'Summary', // 17
+        ],
       );
-      expect(checkout['uses'], 'actions/checkout@v7');
-      expect((checkout['with'] as YamlMap)['fetch-depth'], 0);
     });
 
-    test('runs the B1 steps in order', () {
-      final commands = [for (final s in steps) '${s['run'] ?? s['uses']}'];
-      final expected = [
-        'actions/checkout@v7',
-        'subosito/flutter-action@v2',
-        'flutter pub get --enforce-lockfile',
-        'dart run tool/ws.dart check --strict',
-        'dart run tool/ws.dart check',
-        'dart run tool/ws.dart analyze',
-        'dart run tool/ws.dart test',
-        'dart test tool/test',
-        'dart run tool/ws.dart test --platform chrome',
-        'flutter build web --release --no-wasm-dry-run',
+    test('commands of each step', () {
+      final expected = {
+        'Dependencies': ['flutter pub get --enforce-lockfile'],
+        'Workspace rules (main, strict)': ['$_ws check --strict'],
+        'Workspace rules': ['$_ws check'],
+        'Analyze': ['$_ws analyze'],
+        'VM tests (main)': ['$_ws test'],
+        'VM tests (affected)': ['$_ws test --affected-since origin/main'],
+        'Tool tests': ['dart test tool/test'],
+        'Browser tests (main)': ['$_ws test --platform chrome'],
+        'Browser tests (affected)': [
+          '$_ws test --platform chrome --affected-since origin/main',
+        ],
+        'Integration tests (VM)': ['$_ws test --run-skipped -t integration'],
+        'Integration tests (Chrome)': [
+          '$_ws test --platform chrome --run-skipped -t integration',
+        ],
+        'Build info': [_buildInfoFromEnv],
+        'Verify web assets': ['$_ws web-assets verify'],
+        'Web build': [_webBuild],
+        'Finalize web build': [_finalize],
+      };
+      for (final MapEntry(:key, :value) in expected.entries) {
+        expect(_commands(step(key)), value, reason: key);
+      }
+      expect(step('Web build')['working-directory'], 'app');
+    });
+
+    test('checkout with full history (merge base for --affected-since)', () {
+      expect(step('Checkout')['uses'], 'actions/checkout@v7');
+      expect(_with(step('Checkout'))['fetch-depth'], 0);
+    });
+
+    test('two caches, both keyed on pubspec.lock', () {
+      final caches = _usesSteps(ci, 'actions/cache');
+      expect(caches, hasLength(2));
+      for (final cache in caches) {
+        expect(cache['uses'], 'actions/cache@v6');
+        expect('${_with(cache)['key']}', contains("hashFiles('pubspec.lock'"));
+      }
+      final hooks = _with(step('Cache build hooks'));
+      expect(hooks['path'], _hooksPath);
+      expect(hooks['key'], _hooksKey);
+      final prep = _with(step('Cache browser test assets'));
+      expect(prep['key'], _prepKey);
+      expect(
+        '${prep['path']}'.trim().split('\n').map((l) => l.trim()),
+        _prepPaths,
+      );
+      // Both caches are restored before the first build hook runs.
+      expect(
+        steps.indexOf(step('Cache browser test assets')),
+        lessThan(steps.indexOf(step('Dependencies'))),
+      );
+    });
+
+    test('the prep cache covers the app preparation outputs', () {
+      final ignored = File(p.join(repoRoot, 'app', '.gitignore'))
+          .readAsLinesSync()
+          .where((l) => l.startsWith('/test/web/'));
+      expect(ignored, isNotEmpty);
+      for (final line in ignored) {
+        expect(_prepPaths, contains('app$line'));
+      }
+      expect(
+        File(p.join(repoRoot, 'app', 'tool', 'prepare_web_test.dart'))
+            .existsSync(),
+        isTrue,
+      );
+    });
+
+    test('main runs the strict check and every member, branches the '
+        'affected ones', () {
+      for (final name in [
+        'Workspace rules (main, strict)',
+        'VM tests (main)',
+        'Browser tests (main)',
+      ]) {
+        expect(step(name)['if'], _onMain, reason: name);
+      }
+      for (final name in [
+        'Workspace rules',
+        'VM tests (affected)',
+        'Browser tests (affected)',
+      ]) {
+        expect(step(name)['if'], _offMain, reason: name);
+      }
+      for (final name in [
+        'Dependencies',
+        'Analyze',
+        'Tool tests',
+        'Channel',
+        'Build info',
+        'Verify web assets',
+        'Web build',
+        'Finalize web build',
+      ]) {
+        expect(step(name).containsKey('if'), isFalse, reason: name);
+      }
+    });
+
+    test('integration tag tests only on manual dispatch with the input', () {
+      for (final name in [
+        'Integration tests (VM)',
+        'Integration tests (Chrome)',
+      ]) {
+        expect(step(name)['if'], 'inputs.integration == true', reason: name);
+      }
+      final runSkipped = [
+        for (final s in steps)
+          if ('${s['run'] ?? ''}'.contains('--run-skipped')) s['name'],
       ];
-      expect(commands, expected);
+      expect(runSkipped, [
+        'Integration tests (VM)',
+        'Integration tests (Chrome)',
+      ]);
     });
 
-    test('main runs check --strict, other branches plain check', () {
+    test('channel: live on main, ws channel-id elsewhere', () {
+      final channel = step('Channel');
+      expect(channel['id'], 'channel');
+      final run = '${channel['run']}';
+      expect(run, contains(r'''if [ "$GITHUB_REF" = 'refs/heads/main' ]'''));
+      expect(run, contains(r'''echo 'id=live' >> "$GITHUB_OUTPUT"'''));
+      expect(run, contains(r'''echo 'build=live' >> "$GITHUB_OUTPUT"'''));
       expect(
-        runOf((s) => s['if'] == "github.ref == 'refs/heads/main'"),
-        'dart run tool/ws.dart check --strict',
+        run,
+        contains(
+          r'$(dart run tool/ws.dart channel-id --branch "$GITHUB_REF_NAME")',
+        ),
+      );
+      expect(run, contains(r'''echo "id=$channel_id" >> "$GITHUB_OUTPUT"'''));
+      expect(run, contains(r'''echo 'build=preview' >> "$GITHUB_OUTPUT"'''));
+      expect(
+        (step('Build info')['env'] as YamlMap)['BUILD_CHANNEL'],
+        r'${{ steps.channel.outputs.build }}',
+      );
+    });
+
+    test('deploy: push or the deploy input, the branch channel, 7 days', () {
+      final deploy = step('Deploy to Firebase Hosting');
+      expect(
+        deploy['if'],
+        "env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != '' && "
+        "(github.event_name == 'push' || inputs.deploy)",
+      );
+      expect(deploy['uses'], 'FirebaseExtended/action-hosting-deploy@v0');
+      expect(_with(deploy)['channelId'], r'${{ steps.channel.outputs.id }}');
+    });
+
+    test('summary always runs: label, channel, address or the guide', () {
+      final summary = step('Summary');
+      expect(summary['if'], 'always()');
+      final env = summary['env'] as YamlMap;
+      expect(env['DEPLOY_URL'], r'${{ steps.deploy.outputs.details_url }}');
+      expect(env['DEPLOY_OUTCOME'], r'${{ steps.deploy.outcome }}');
+      expect(env['CHANNEL_ID'], r'${{ steps.channel.outputs.id }}');
+      final run = '${summary['run']}';
+      expect(run, contains(r'>> "$GITHUB_STEP_SUMMARY"'));
+      expect(run, contains('build/build_info.json'));
+      expect(run, contains('Firebase 미설정 — docs/guides/02-github-secrets.md'));
+      expect(run, contains(r'$RUNNER_TEMP/step-seconds'));
+    });
+
+    test('timed steps record their seconds for the summary', () {
+      final timed = [
+        for (final s in steps)
+          if ('${s['run'] ?? ''}'.contains(r'"$SECONDS"')) s['name'],
+      ];
+      expect(
+        timed,
+        containsAll([
+          'Dependencies',
+          'Analyze',
+          'VM tests (main)',
+          'VM tests (affected)',
+          'Browser tests (main)',
+          'Browser tests (affected)',
+          'Web build',
+        ]),
+      );
+      for (final s in steps) {
+        for (final line in _runLines(s)) {
+          if (line.contains(r'"$SECONDS"')) {
+            expect(line, endsWith(r'>> "$RUNNER_TEMP/step-seconds"'));
+          }
+        }
+      }
+    });
+  });
+
+  group('android.yml', () {
+    late YamlMap android;
+    late YamlMap job;
+    late List<YamlMap> steps;
+
+    setUp(() {
+      android = _workflow('android.yml');
+      job = _jobs(android).values.single;
+      steps = _steps(job);
+    });
+
+    test('main pushes (docs ignored) and manual runs only', () {
+      final on = android['on'] as YamlMap;
+      expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
+      final push = on['push'] as YamlMap;
+      expect(push['branches'], ['main']);
+      expect(push['paths-ignore'], _ignoredPaths);
+    });
+
+    test('ubuntu with a 30 minute limit', () {
+      expect(job['runs-on'], 'ubuntu-latest');
+      expect(job['timeout-minutes'], 30);
+    });
+
+    test('the 6.13 steps in order', () {
+      expect(
+        [for (final s in steps) s['uses'] ?? _commands(s).single],
+        [
+          'actions/checkout@v7',
+          'actions/setup-java@v6',
+          'subosito/flutter-action@v2',
+          'actions/cache@v6',
+          'flutter pub get --enforce-lockfile',
+          _buildInfoFromEnv,
+          _apkBuild,
+          'actions/upload-artifact@v7',
+        ],
+      );
+    });
+
+    test('Java 17 (temurin) with the gradle cache', () {
+      final java = _with(_usesSteps(android, 'actions/setup-java').single);
+      expect(java['distribution'], 'temurin');
+      expect('${java['java-version']}', '17');
+      expect(java['cache'], 'gradle');
+    });
+
+    test('the arm64 APK is kept for 7 days, uncompressed', () {
+      final upload = _with(
+        _usesSteps(android, 'actions/upload-artifact').single,
+      );
+      expect(upload['name'], r'noteapp-apk-${{ github.run_number }}');
+      expect(
+        upload['path'],
+        'app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk',
+      );
+      expect(upload['retention-days'], 7);
+      expect(upload['compression-level'], 0);
+    });
+  });
+
+  group('web-experiment.yml', () {
+    late YamlMap experiment;
+    late List<YamlMap> steps;
+
+    setUp(() {
+      experiment = _workflow('web-experiment.yml');
+      steps = _steps(_jobs(experiment).values.single);
+    });
+
+    test('manual only, inputs wasm (on) and isolate (off)', () {
+      final on = experiment['on'] as YamlMap;
+      expect(on.keys, ['workflow_dispatch']);
+      final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
+      expect(inputs.keys, unorderedEquals(['wasm', 'isolate']));
+      expect((inputs['wasm'] as YamlMap)['type'], 'boolean');
+      expect((inputs['wasm'] as YamlMap)['default'], isTrue);
+      expect((inputs['isolate'] as YamlMap)['type'], 'boolean');
+      expect((inputs['isolate'] as YamlMap)['default'], isFalse);
+    });
+
+    test('experiment build: --wasm, isolation with self-hosted CanvasKit', () {
+      final build = _named(steps, 'Web build');
+      expect((build['env'] as YamlMap).value, {
+        'WASM': r'${{ inputs.wasm }}',
+        'ISOLATE': r'${{ inputs.isolate }}',
+      });
+      final run = '${build['run']}';
+      expect(
+        run,
+        contains(r'''if [ "$WASM" = 'true' ]; then flags+=(--wasm)'''),
       );
       expect(
-        runOf((s) => s['if'] == "github.ref != 'refs/heads/main'"),
-        'dart run tool/ws.dart check',
+        run,
+        contains(
+          r'''if [ "$ISOLATE" = 'true' ]; then flags+=(--no-web-resources-cdn)''',
+        ),
+      );
+      final headers = _named(steps, 'Cross-origin isolation headers');
+      expect(headers['if'], 'inputs.isolate == true');
+      expect(_runLines(headers), [
+        '$_ws hosting-config --isolate > "\$RUNNER_TEMP/firebase.json"',
+        r'mv "$RUNNER_TEMP/firebase.json" app/firebase.json',
+      ]);
+      expect(
+        steps.indexOf(headers),
+        lessThan(steps.indexOf(_named(steps, 'Deploy to Firebase Hosting'))),
       );
     });
 
-    test('the web build runs in app/', () {
-      final build = steps.firstWhere(
-        (s) => '${s['run']}'.startsWith('flutter build web'),
+    test('experiment channel exp-wasm, checked assets, finalized build', () {
+      expect(_commands(_named(steps, 'Build info')), [
+        '$_ws build-info --channel experiment --out build/build_info.json',
+      ]);
+      expect(_commands(_named(steps, 'Verify web assets')), [
+        '$_ws web-assets verify',
+      ]);
+      expect(_commands(_named(steps, 'Finalize web build')), [_finalize]);
+      final deploy = _named(steps, 'Deploy to Firebase Hosting');
+      expect(_with(deploy)['channelId'], 'exp-wasm');
+      expect(
+        deploy['if'],
+        "env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != ''",
       );
-      expect(build['working-directory'], 'app');
+    });
+  });
+
+  group('ios-testflight.yml (draft)', () {
+    late YamlMap ios;
+    late YamlMap job;
+
+    setUp(() {
+      ios = _workflow('ios-testflight.yml');
+      job = _jobs(ios).values.single;
     });
 
-    test('B1 has no deploy, no secrets', () {
-      final text = File(p.join(workflowsDir, 'ci.yml')).readAsStringSync();
-      expect(text, isNot(contains('action-hosting-deploy')));
-      expect(text, isNot(contains('secrets.')));
+    test('manual only, with the macOS cost confirmation input', () {
+      final on = ios['on'] as YamlMap;
+      expect(on.keys, ['workflow_dispatch']);
+      final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
+      final confirm = inputs['confirm'] as YamlMap;
+      expect(confirm['required'], isTrue);
+      expect(confirm['description'], contains('yes'));
+    });
+
+    test('the job is gated on the repository variable and the input', () {
+      expect(
+        job['if'],
+        "vars.IOS_TESTFLIGHT_ENABLED == 'true' && inputs.confirm == 'yes'",
+      );
+      expect(job['runs-on'], 'macos-latest');
+      expect(job['timeout-minutes'], 45);
+      expect((job['env'] as YamlMap).value, {
+        for (final name in [
+          'APPLE_TEAM_ID',
+          'ASC_KEY_ID',
+          'ASC_ISSUER_ID',
+          'ASC_PRIVATE_KEY',
+        ])
+          name: '\${{ secrets.$name }}',
+      });
+    });
+
+    test('build without signing, archive, export with ExportOptions', () {
+      final runs = [for (final s in _steps(job)) ..._runLines(s)].join('\n');
+      expect(
+        runs,
+        contains(
+          'flutter build ios --release --no-codesign $_buildNumber '
+          '$_defineFile',
+        ),
+      );
+      expect(runs, contains('xcodebuild archive'));
+      expect(runs, contains('xcodebuild -exportArchive'));
+      expect(runs, contains('-allowProvisioningUpdates'));
+      expect(runs, contains(r'DEVELOPMENT_TEAM="$APPLE_TEAM_ID"'));
+      expect(runs, contains('CODE_SIGN_STYLE=Automatic'));
+      expect(runs, contains('cp ExportOptions.plist'));
+    });
+
+    test('app/ios: ExportOptions.plist and the display name (6.15)', () {
+      final export = File(p.join(repoRoot, 'app', 'ios', 'ExportOptions.plist'))
+          .readAsStringSync();
+      expect(
+        export,
+        matches(RegExp(r'<key>method</key>\s*<string>app-store-connect<')),
+      );
+      expect(
+        export,
+        matches(RegExp(r'<key>destination</key>\s*<string>upload<')),
+      );
+      final info = File(p.join(repoRoot, 'app', 'ios', 'Runner', 'Info.plist'))
+          .readAsStringSync();
+      expect(
+        info,
+        matches(RegExp(r'<key>CFBundleDisplayName</key>\s*<string>필기노트<')),
+      );
+    });
+  });
+
+  group('issue templates', () {
+    final dir = p.join(repoRoot, '.github', 'ISSUE_TEMPLATE');
+
+    test('feedback form with the 6.13 inputs', () {
+      final form = _load(p.join(dir, 'feedback.yml'));
+      expect(form['name'], isA<String>());
+      expect(form['description'], isA<String>());
+      final fields = <String, YamlMap>{
+        for (final item in form['body'] as YamlList)
+          if ((item as YamlMap)['id'] case final String id) id: item,
+      };
+      expect(fields.keys, [
+        'device',
+        'pencil',
+        'app-version',
+        'steps',
+        'expected',
+        'actual',
+        'diagnostics',
+        'media',
+      ]);
+      YamlMap attributes(String id) => fields[id]!['attributes'] as YamlMap;
+      expect(fields['device']!['type'], 'dropdown');
+      expect(attributes('device')['options'], [
+        'iPad Pro 13',
+        '안드로이드 태블릿',
+        '기타',
+      ]);
+      bool required(String id) =>
+          (fields[id]!['validations'] as YamlMap?)?['required'] == true;
+      expect(
+        [
+          for (final id in fields.keys)
+            if (required(id)) id,
+        ],
+        ['device', 'app-version', 'steps', 'expected', 'actual'],
+      );
+      expect('${attributes('diagnostics')['label']}', contains('선택'));
+      expect('${attributes('app-version')['description']}', contains('앱 정보'));
+      expect(
+        '${attributes('diagnostics')['description']}',
+        contains('진단 정보 복사'),
+      );
+    });
+
+    test('config keeps blank issues', () {
+      expect(_load(p.join(dir, 'config.yml'))['blank_issues_enabled'], isTrue);
     });
   });
 }
