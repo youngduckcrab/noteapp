@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 2 (동시 개발 단계) — L5 완료(세션 1: C13-05·L0·L1·L3·L4, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L6 (콘텐츠 provider) → L7 (`LibraryActions`) → L8
+- 마지막 세션: 2 (동시 개발 단계) — L5·L6 완료(세션 1: C13-05·L0·L1·L3·L4, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L7 (`LibraryActions`) → L8 (레이아웃 셸)
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -17,8 +17,8 @@
 | L2 | 기반 단계에서 완료 | 676d241 | `unit/appearance_test.dart` (B6에서 4.4 실제 값·L2 검사 전부) |
 | L3 | 완료 | 9c8ebc2 | `unit/sort_test.dart`, `unit/prefs_notifier_test.dart`, `unit/settings_keys_test.dart`, `unit/page_size_mm_test.dart`, `unit/new_note_options_test.dart`, `shared/new_note_options_cases.dart`, `web/new_note_options_browser_test.dart` |
 | L4 | 완료 | 9deed79 | `unit/section_test.dart`, `unit/selection_test.dart` |
-| L5 | 완료 | (이 커밋) | `unit/tree_flatten_test.dart`, `unit/breadcrumb_test.dart`, `unit/location_label_test.dart` |
-| L6 | 남음 | | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
+| L5 | 완료 | d12ef32 | `unit/tree_flatten_test.dart`, `unit/breadcrumb_test.dart`, `unit/location_label_test.dart` |
+| L6 | 완료 | (이 커밋) | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
 | L7 | 남음 | | `unit/actions_test.dart` |
 | L8 | 남음 | | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
 | L9 | 남음 | | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
@@ -58,6 +58,10 @@
 - L5 `flattenFolderTree` 5단계(순환 폴더): '방문하지 않은 폴더'를 '보인 행'이 아니라 '어느 루트에서도 닿지 않는 폴더'(펼침과 무관한 도달 집합)로 읽었다 — 그대로 읽으면 접힌 폴더의 자식까지 최상위에 나오기 때문. 닿지 않는 폴더를 이름순으로 보며, 아직 덮이지 않은 것만 최상위처럼 내보내고 그 하위 전체를 덮음으로 표시한다(순환 x↔y는 한 줄 x로 보이고 펼치면 y가 그 아래). 도달 집합 계산 때문에 비용은 O(전체 폴더 수)(2,000개 테스트 통과).
 - L5 `breadcrumb.dart`에 `breadcrumbPath(tree, folderId)`(= `[홈, ...tree.pathTo(id)]`, 트리에 없으면 `[홈]`) 도우미와 세 슬롯 타입의 값 동등을 더했다. `compressBreadcrumb`는 `maxVisible >= 2`를 assert. 크기 등급별 칸 수(4·3·2)는 L8/L10의 상단 막대에서 정한다.
 - L5 `LibraryStrings`에 `pathSeparator`(' › ')·`ellipsis`('…')를 더했고 `locationLabel`이 쓴다. `kLocationLabelMaxNames = 3` 상수.
+- L6 `libraryContentProvider`·`sidebarRowsProvider`: 보기 설정이 로드되기 전에는 `AsyncLoading`(휴지통 섹션 포함 모든 섹션). 단 `settingsSnapshotProvider`가 오류면 기본 정렬로 로드된 것으로 본다(설정 스트림 오류로 화면이 영원히 로딩에 머무르지 않게). 사이드바 행도 정렬(이름/사용자 지정)에 따라 순서가 바뀌므로 같은 규칙으로 기다린다. 검색 상한 50은 `kLibrarySearchLimit` 상수(`providers.dart`).
+- L6 `folderLookupProvider`: `folderTreeProvider.future`에 더해 `trashItemsProvider`도 watch한다 — 휴지통에 있는 폴더를 다른 기기가 영구 삭제하면 트리는 바뀌지 않아(값 동등) 다시 계산되지 않기 때문. 트리에 없고 `getFolder`가 휴지통 아닌 폴더를 주면(트리 갱신 직전 경합) `active`.
+- L6 `trashCountProvider`: 오류면 이전 값이 있어도 0.
+- L6 `FolderExpansionNotifier`: 상태 `Set`은 펼친 순서(오래된 것 → 최근)로 순회한다. 이미 펼친 id를 다시 펼치면 자리 그대로(`expandAll`이 아무것도 바꾸지 않으면 같은 상태 객체·저장 없음). 저장된 목록이 오기 전에 접은 id는 복원하지 않고, 그 전에 디바운스가 끝나면 쓰지 않고 로드 뒤 500ms에 쓴다(저장된 id를 덮어쓰지 않게). 트리는 `ref.listen(folderTreeProvider)`로 따라가며 마지막 값으로 거른다(트리가 아직 없으면 거르지 않음). `ref.onDispose`에서는 `state`를 읽을 수 없어(Riverpod 3 생명주기 규칙) 사본 `_current`를 쓴다. 로드 실패는 `reportLibraryError` 1회 후 빈 상태.
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모
