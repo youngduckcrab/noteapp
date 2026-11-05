@@ -106,6 +106,31 @@ void main() {
       expect(uses.map((u) => u.tag), ['golden']);
     });
 
+    test('ignores tags: of calls other than test, testWidgets and group', () {
+      // B2 report: data constructors such as Note(tags: [...]) in test code
+      // are not test tags (contract 7.4.2 names test / testWidgets / group).
+      final uses = scanTestTags('''
+void main() {
+  final note = Note(tags: ['math'], title: 'x');
+  final copy = note.copyWith(tags: const <String>['art']);
+  final single = Label(tags: 'perf');
+  final list = [Note(tags: ['in-list'])];
+  testWidgets('w', (tester) async {
+    final inner = Note(tags: ['inside']);
+    await tester.pumpWidget(Card(tags: ['widget']));
+  }, tags: ['golden']);
+  ft.group('g', () {
+    test('t', () => Note(tags: ['nested']), tags: 'perf');
+  }, tags: ['scenario']);
+}
+''');
+      expect(uses, [
+        const TagUse('golden', 9),
+        const TagUse('perf', 11),
+        const TagUse('scenario', 12),
+      ]);
+    });
+
     test('ignores other named arguments and member accesses', () {
       final uses = scanTestTags('''
 void main() {

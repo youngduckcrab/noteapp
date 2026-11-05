@@ -45,7 +45,9 @@ final class TagUse {
 /// Recognised forms (comments are ignored):
 /// - `@Tags(['a', "b"])`, `@Tags(<String>['a'])`, `@Tags(const ['a'])`
 /// - `tags: 'a'`, `tags: ['a', 'b']`, `tags: <String>['a']`,
-///   `tags: const ['a']` (any named argument called `tags`)
+///   `tags: const ['a']` as a named argument of a `test`, `testWidgets` or
+///   `group` call (contract 7.4.2). A `tags:` argument of any other call,
+///   such as the data constructor `Note(tags: ['math'])`, is not a test tag.
 ///
 /// Non-literal elements (identifiers, interpolated strings) are skipped.
 List<TagUse> scanTestTags(String source) {
@@ -102,7 +104,8 @@ List<TagUse> scanTestTags(String source) {
     } else if (token.isIdentifier('tags') &&
         i + 2 < tokens.length &&
         tokens[i + 1].isPunctuation(':') &&
-        (i == 0 || !tokens[i - 1].isPunctuation('.'))) {
+        (i == 0 || !tokens[i - 1].isPunctuation('.')) &&
+        _isTestCallArgument(tokens, i)) {
       final value = tokens[i + 2];
       if (value.kind == DartTokenKind.string) {
         if (_isWholeArgument(tokens, i + 2)) addString(value);
@@ -113,6 +116,36 @@ List<TagUse> scanTestTags(String source) {
     }
   }
   return uses;
+}
+
+/// Callees whose `tags:` named argument holds test tags (contract 7.4.2).
+const Set<String> _testCallNames = {'test', 'testWidgets', 'group'};
+
+/// Whether the named argument at [index] belongs directly to a `test`,
+/// `testWidgets` or `group` call: the nearest unclosed bracket before it is a
+/// `(` preceded by one of those names (`ft.testWidgets(` counts too).
+bool _isTestCallArgument(List<DartToken> tokens, int index) {
+  var depth = 0;
+  for (var j = index - 1; j >= 0; j--) {
+    final token = tokens[j];
+    if (token.isPunctuation(')') ||
+        token.isPunctuation(']') ||
+        token.isPunctuation('}')) {
+      depth++;
+    } else if (token.isPunctuation('(') ||
+        token.isPunctuation('[') ||
+        token.isPunctuation('{')) {
+      if (depth > 0) {
+        depth--;
+        continue;
+      }
+      if (!token.isPunctuation('(') || j == 0) return false;
+      final callee = tokens[j - 1];
+      return callee.kind == DartTokenKind.identifier &&
+          _testCallNames.any(callee.isIdentifier);
+    }
+  }
+  return false;
 }
 
 /// A string inside a list counts only when it is a whole element:
