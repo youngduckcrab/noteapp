@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 7/10 (동시 개발 단계)
-- 다음 할 일: T18 성능(perf 태그 — perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test) → T19 문서·고지(README, THIRD_PARTY_NOTICES.md, licenses/ 20개 + pubspec 에셋 선언, unit/licenses_test)
+- 마지막 세션: 8/10 (동시 개발 단계)
+- 다음 할 일: T19 문서·고지(README, THIRD_PARTY_NOTICES.md, licenses/ 20개 + pubspec 에셋 선언, unit/licenses_test) — 동시 개발 단계 마지막 작업
 
 ## 작업 표
 
@@ -28,7 +28,7 @@
 | T15b | 완료 | 4cd950b | unit/batch_export_test, widget/batch_export_flow_test |
 | T16 | 완료 | 300774e | widget/export_flow_test, web/output_sink_browser_test (+ web/foundation_browser_test 웹 출력 팩토리) |
 | T17 | 완료 | 7ed8aca | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test (+ web/foundation_browser_test 메뉴 id, contract/api_surface_test B4 몫 정리) |
-| T18 | 남음 | | perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test (perf 태그) |
+| T18 | 완료 | (이 커밋) | perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test (perf 태그, 기본 skip — `flutter test --run-skipped -t perf test/perf`, 웹은 `flutter test --platform chrome --run-skipped -t perf test/web/perf_compose_500_test.dart`) (+ support/perf_compose.dart) |
 | T19 | 남음 | | README, THIRD_PARTY_NOTICES.md, licenses/, unit/licenses_test |
 
 ## 변경 요청
@@ -124,10 +124,16 @@
 - T17 메뉴: `pdfEditorMoreMenuActions()` = [pdf.export 'PDF로 내보내기' `Icons.picture_as_pdf_outlined`, pdf.share 'PDF 공유' `Icons.ios_share`, pdf.print '인쇄' `Icons.print_outlined`, pdf.search 'PDF에서 찾기' `Icons.search`], `pdfEditorAddPageSources()` = [pdf.insert 'PDF에서 페이지 삽입' `Icons.note_add_outlined`]. 내보내기 3종은 `isEnabled` 없음(항상 사용 가능), 검색만 `onNavigate != null`. 비활성 검색을 그래도 run하면 아무것도 하지 않는다. 삽입은 `currentPageId`가 있으면 `core.PageAfter`, 없으면 `core.PageAtEnd`; 결과가 null(취소·실패·'닫기')이거나 `onNavigate`가 없으면 이동 없음. 메뉴 함수는 부를 때마다 새 목록(같은 id·순서).
 - T17 provider 본문은 이미 최종(4.12)이라 바꾸지 않았다. unit/providers_test의 dispose 확인: `overrideWithValue`로 바꾼 provider는 본문의 `onDispose`가 없으므로 합성 백엔드는 override하지 않은 기본(VM = 네이티브) 백엔드를 읽고, dispose 뒤 `begin`이 StateError인지로 확인한다.
 - T17 contract/api_surface_test의 B4 몫('initializePdfIo는 아무것도 안 함'·'메뉴 함수는 빈 목록')은 지웠다(unit/init_test·widget/menu_actions_test로).
+- T18 측정(세션 8, 다른 영역 테스트와 동시 실행 중): 500쪽 열기+정보 VM 18~21ms(엔진)·18ms(가져오기 세션), 합성 500쪽×200획 네이티브 16.3~17.9초(결과 85MiB), 웹(Chrome) 25.8초(결과 89MiB), 스크롤 모의 최고 111.1MiB(미리보기 31.2·타일 64.0·썸네일 16.0, `overBudgetBytes` 매 프레임 0). 합성 결과가 V8(38MB)보다 큰 것은 V8과 경로 모양·좌표 자릿수가 달라서로 보인다 — 일괄 내보내기 웹 결과 상한(150MB)보다는 작다.
+- T18 합성 성능의 획은 `DenseStrokeVectorizer`(test/support/perf_compose.dart — 쪽마다 채움 윤곽 200개, 각 3차 베지어 50개, 앞 10%는 형광펜 multiply 0.35)가 만든다. INK 벡터화기는 통합 단계 몫이라서다. 내보내기 서비스 전체(쪽마다 `loadPage` → 벡터화 → 인코딩 → 묶음 전송 → finish)는 그대로 지난다. 원본은 `PdfFixtureBuilder` 500쪽 A4(쪽마다 텍스트 한 줄). 결과를 다시 열어 500쪽·첫·끝 쪽 텍스트·펜 색 픽셀을 확인한다(시간 측정 밖).
+- T18 스크롤 모의(perf/render_scroll_sim_test): 실제 `PdfRenderService`·`DefaultPdfDocumentPool` + `FakePdfEngine`(500쪽, 지연 미리보기 30ms·타일 12ms·썸네일 8ms — fake 시간), 웹 예산. 아이패드 프로 13" 세로 1032×1376, DPR 2, 폭 맞춤(deviceScale ≈ 3.47, 쪽당 타일 35개). EDITOR 모형: 보이는 쪽 ±1에 핸들(화면 밖 이웃은 `visiblePageRect = Rect.zero` → 타일 없음), 페이지 패널 썸네일 핸들 현재 쪽 ±6. 단계: 읽기 60쪽(40px/프레임) → 끝까지 플링(400px/프레임) → 처음↔끝 5번(U5) → 끝에서 30쪽 뒤로 읽기. '요청 수 ≤ 보이는 쪽 × 상수'는 '엔진에 닿은 미리보기·타일 요청 ≤ 쪽이 보이게 된 횟수 × (1 + 35)', '썸네일 요청 ≤ 썸네일 핸들이 붙은 횟수'로 정했다(측정: 551회 방문에 7,536건 — 방문당 약 13.7건). 그 밖에 엔진 렌더가 그때 핸들이 있는 쪽에만 가는지 매 렌더 확인.
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
+
+- 세션 8 결과: T18 완료(perf 테스트 4파일 + support/perf_compose.dart, lib 변경 없음). 다음 T19(동시 개발 단계 마지막): licenses/ 원문 20개는 pdfium-binaries 배포본(웹 chromium/7811 `pdfium-wasm.tgz`, VM chromium/8125 `pdfium-linux-x64.tgz`)의 `licenses/`와 최상위 `LICENSE` — 네트워크로 받아야 함(프록시 있음). pubspec `flutter: assets:`에 `licenses/`를 더하고(pubspec.lock 변화 없음), T17 lib/src/licenses.dart의 파일 표와 unit/licenses_test로 맞춘다. unit/init_test는 자산 채널을 가짜로 바꿔 시험하므로 T19 뒤에도 그대로 통과해야 한다. README에는 perf 실행 명령(위 작업 표 T18 비고)도 적는다.
+- 세션 8 검사: 패키지 VM 테스트 567개 통과(+6 skip — integration 3파일·perf 3파일), perf 4개(`--run-skipped -t perf test/perf`) 통과, 웹 perf 1개(Chrome, `--run-skipped -t perf`) 통과, Chrome 기본 실행 54개 통과(+1 skip — 웹 perf, `ws test --platform chrome --package pdf_io`, 103초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 
 - 세션 7 결과: T16(300774e)·T17(7ed8aca) 완료. T17 세부는 '계획과 다르게 한 점'의 T17 항목. 메뉴 이름은 `PdfStringsKo.exportTitle`·`shareTitle`·`printTitle`·`searchTitle`·`importIntoNoteTitle`(시트 제목과 같은 상수).
 - 세션 7 검사: 패키지 VM 테스트 567개 통과(+3 skip), Chrome 54개 통과(`ws test --platform chrome --package pdf_io`, 109초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
