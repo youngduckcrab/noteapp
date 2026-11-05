@@ -10,6 +10,7 @@ import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
 import '../../state/providers.dart';
 import '../../state/section_notifier.dart';
+import '../dialogs/create_flows.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
 import 'sidebar_folder_tree.dart';
@@ -72,22 +73,36 @@ class LibrarySidebar extends ConsumerWidget {
           selected: section is FavoritesSection,
           onTap: () => show((s) => s.showFavorites()),
         ),
-        // L12 adds the '+' (new folder) button to this header.
+        // '폴더' header + '+' (new folder): into the current folder section's
+        // folder, else 홈 (6.5).
         SizedBox(
           height: LibraryMetrics.navRowHeight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                LibraryStrings.folders,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+          child: Row(
+            children: [
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  LibraryStrings.folders,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
-            ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: LibraryStrings.newFolder,
+                onPressed: () => runNewFolderFlow(
+                  context,
+                  parentId: switch (section) {
+                    FolderSection(:final folderId) => folderId,
+                    _ => null,
+                  },
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
           ),
         ),
         const Expanded(child: SidebarFolderTree()),

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
+import '../dialogs/create_flows.dart';
 import 'new_note_trigger.dart';
 
 /// Icon 64 + text (+ buttons) in the middle.
@@ -55,14 +56,26 @@ class EmptyState extends StatelessWidget {
               ),
               if (section is FolderSection) ...[
                 const SizedBox(height: 24),
-                // L12 adds [새 폴더] next to it.
-                NewNoteTrigger(
-                  folderId: section.folderId,
-                  builder: (context, onPressed) => FilledButton.icon(
-                    icon: const Icon(Icons.note_add_outlined),
-                    label: const Text(LibraryStrings.newNote),
-                    onPressed: onPressed,
-                  ),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    NewNoteTrigger(
+                      folderId: section.folderId,
+                      builder: (context, onPressed) => FilledButton.icon(
+                        icon: const Icon(Icons.note_add_outlined),
+                        label: const Text(LibraryStrings.newNote),
+                        onPressed: onPressed,
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.create_new_folder_outlined),
+                      label: const Text(LibraryStrings.newFolder),
+                      onPressed: () =>
+                          runNewFolderFlow(context, parentId: section.folderId),
+                    ),
+                  ],
                 ),
               ],
             ],

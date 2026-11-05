@@ -1,8 +1,8 @@
 // lib/src/ui/top_bar/library_top_bar.dart — 05-library 6.2 (top bar table).
 // Leading button, the breadcrumb (folder sections) or the section title, and
 // on the right the sort menu and the view toggle (L10; in the compact class
-// both live in ⋯). Still to come on the right: search (L17), '선택' (L14),
-// '새로 만들기' (L12 / L18).
+// both live in ⋯) and '새로 만들기' (L12; not in the trash). Still to come on
+// the right: search (L17), '선택' (L14), 'PDF 가져오기' in the new menu (L18).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -13,6 +13,7 @@ import '../layout/library_metrics.dart';
 import '../layout/size_class.dart';
 import '../library_scope.dart';
 import 'breadcrumb_bar.dart';
+import 'new_menu_button.dart';
 import 'sort_menu_button.dart';
 
 class LibraryTopBar extends ConsumerWidget {
@@ -59,6 +60,10 @@ class LibraryTopBar extends ConsumerWidget {
             else ...[
               SortMenuButton(enabled: sortEnabled),
               if (showViewToggle) const ViewModeButton(),
+            ],
+            if (section is! TrashSection) ...[
+              const SizedBox(width: 8),
+              NewMenuButton(section: section, sizeClass: scope.sizeClass),
             ],
             const SizedBox(width: 8),
           ],

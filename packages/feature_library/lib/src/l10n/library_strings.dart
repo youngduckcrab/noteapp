@@ -1,5 +1,7 @@
 // lib/src/l10n/library_strings.dart — 05-library 6.18 (contract 7.4.5: Korean
 // 해요체 UI strings live in one constants file per area; no intl).
+import 'package:note_core/note_core.dart' show PageTemplateKind, PaperColors;
+
 import 'korean_josa.dart';
 
 /// Every Korean UI string of the library screen. Widgets never contain Korean
@@ -121,6 +123,49 @@ abstract final class LibraryStrings {
   /// '35.3~1058.3mm 사이로 입력하세요' for (35.3, 1058.3): one decimal each.
   static String customSizeRange(double minMm, double maxMm) =>
       '${minMm.toStringAsFixed(1)}~${maxMm.toStringAsFixed(1)}mm 사이로 입력하세요';
+
+  // New note / new folder dialogs and their pickers (6.12)
+  static const String fieldTitle = '제목';
+  static const String fieldName = '이름';
+  static const String fieldLocation = '위치';
+  static const String fieldPageSize = '페이지 크기';
+  static const String fieldOrientation = '방향';
+  static const String fieldTemplate = '속지';
+  static const String fieldPaperColor = '속지 색';
+  static const String fieldCover = '표지';
+  static const String fieldColor = '색';
+  static const String fieldIcon = '아이콘';
+  static const String pageSizeA4 = 'A4';
+  static const String pageSizeLetter = 'Letter';
+  static const String pageSize16x9 = '16:9';
+  static const String pageSizeCustom = '사용자 지정';
+  static const String portrait = '세로';
+  static const String landscape = '가로';
+  static const String customWidth = '너비';
+  static const String customHeight = '높이';
+  static const String millimeters = 'mm';
+  static const String coverFirstPage = '첫 페이지';
+  static const String colorNone = '없음';
+
+  /// Template picker cell names: null = blank page.
+  static String templateName(PageTemplateKind? kind) => switch (kind) {
+    null => '빈 페이지',
+    PageTemplateKind.lined => '줄',
+    PageTemplateKind.grid => '모눈',
+    PageTemplateKind.dotted => '점',
+    PageTemplateKind.cornell => '코넬',
+    PageTemplateKind.music => '악보',
+    PageTemplateKind.planner => '플래너',
+  };
+
+  /// Paper color names in PaperColors.all order; another value → ''.
+  static String paperColorName(int argb) => switch (argb) {
+    PaperColors.white => '흰색',
+    PaperColors.ivory => '미색',
+    PaperColors.gray => '회색',
+    PaperColors.black => '검정',
+    _ => '',
+  };
 
   // Sync badge (6.16.1)
   static const String syncOff = '이 기기에 저장';

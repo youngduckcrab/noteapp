@@ -285,6 +285,8 @@ void main() {
     final sample = await seed(tester);
     final h = await pumpAt(tester, folderId: sample.math.id);
     await tester.tap(find.byType(NewNoteTile));
+    await tester.pumpAndSettle(); // the new note dialog (L12)
+    await tester.tap(find.text(LibraryStrings.create));
     await tester.pumpAndSettle();
     expect(backend.calls, [
       "createNote f:${sample.math.id} '제목 없는 노트' pages:1 cover:firstPage",
@@ -295,11 +297,15 @@ void main() {
   });
 
   group('empty states', () {
-    testWidgets('home and folder: text + 새 노트', (tester) async {
+    testWidgets('home and folder: text + 새 노트 + 새 폴더', (tester) async {
       final h = await pumpAt(tester);
       expect(find.text(LibraryStrings.emptyHome), findsOneWidget);
       expect(
         find.widgetWithText(FilledButton, LibraryStrings.newNote),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(OutlinedButton, LibraryStrings.newFolder),
         findsOneWidget,
       );
 
@@ -313,6 +319,8 @@ void main() {
       await tester.tap(
         find.widgetWithText(FilledButton, LibraryStrings.newNote),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(LibraryStrings.create));
       await tester.pumpAndSettle();
       expect(backend.calls.single, startsWith('createNote f:${empty.id} '));
       expect(h.log.entries.last, startsWith('note:'));

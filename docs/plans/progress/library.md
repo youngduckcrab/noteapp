@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 4 (동시 개발 단계) — L11 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L12 (만들기 대화상자) → L13~L18 → L19 → L20
+- 마지막 세션: 4 (동시 개발 단계) — L11·L12 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L13 (항목 동작) → L14~L18 → L19 → L20
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -23,8 +23,8 @@
 | L8 | 완료 | 58eb35c | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
 | L9 | 완료 | 80b8ddd | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
 | L10 | 완료 | 581329e | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` (+ B6 `feature_library_smoke_test.dart` 갱신) |
-| L11 | 완료 | (이 커밋) | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` (+ `support/recording_thumbnail_io.dart`) |
-| L12 | 남음 | | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` |
+| L11 | 완료 | bd43eaf | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` (+ `support/recording_thumbnail_io.dart`) |
+| L12 | 완료 | (이 커밋) | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` (+ B6 `feature_library_smoke_test.dart`·L10 `widget/listing_test.dart` 갱신) |
 | L13 | 남음 | | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` |
 | L14 | 남음 | | `widget/multi_select_test.dart` |
 | L15 | 남음 | | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`, `widget/auto_scroll_widget_test.dart` |
@@ -94,6 +94,12 @@
 - L11 `assetCoverBytesProvider`: `readBytes`에 더해 `bytesArrived`가 그 id를 내면 `invalidateSelf`(동기화로 나중에 내려온 표지 그림이 저절로 보이게).
 - L11 테스트: 예약기 단위 테스트의 원격 내용 변경은 세션 `AddStrokes`에 `StrokeFixtures.synthetic(pointCount: 8)`을 썼다(5.1.1의 '쓰지 않는 것'에 있지만 테스트에서 획 하나를 만드는 데만 씀). 원격 batch·에셋 도착은 주입한 `StreamController`, provider 연결 테스트 1건은 가짜 저장소의 실제 `bytesArrived`(다른 가짜 저장소에서 같은 바이트를 `put`해 에셋 id(SHA-256)를 미리 얻음). 호출 기록 래퍼 `RecordingContentReader`·`RecordingThumbnailCache`는 `test/support/recording_thumbnail_io.dart`.
 - L11 위젯 테스트 주의: `tester.pump(duration)`은 시간을 먼저 흘리고 프레임을 그리므로, 위젯을 바꾼 뒤(`didUpdateWidget → request`) 예약기 작업을 보려면 `pump()`로 먼저 빌드하고 `pump(1s)`.
+- L12 피커(`lib/src/ui/pickers/`): 3장 목록의 6개 파일(`page_size_picker.dart`·`template_picker.dart`·`template_pictogram.dart`·`paper_color_picker.dart`·`cover_picker.dart`·`folder_appearance_picker.dart`)에 공용 `swatch_button.dart`(`SwatchButton` — 44×44 터치 영역, 원/둥근 사각 견본, 선택 시 primary 2px 고리, 툴팁 = 이름)를 더했다. `PageSizePicker`가 방향(`SegmentedButton<PageOrientationChoice>`, 사용자 지정이면 `onSelectionChanged: null`)까지 맡고 `onValidityChanged`로 mm 칸 유효 여부를 알린다(L18 설정 섹션도 같은 위젯을 쓰면 된다). 크기 `SegmentedButton`은 좁은 화면에서 넘치지 않게 가로 `SingleChildScrollView` 안에 있다. mm 칸 입력은 숫자 4자리 + 소수 1자리로 거르고(`FilteringTextInputFormatter`), 바깥에서 값이 바뀌면(`didUpdateWidget`, 이전 값과 다를 때만) 칸을 다시 채운다. `FolderIconPicker`는 기본 키(`folder`)를 고르면 `null`을 넘긴다(저장 안 함 = 기본). `TemplatePicker.choices`(빈 페이지 + 6종)는 테스트도 쓴다. `TemplatePictogram`의 종이 바탕은 `surfaceContainerLowest`(종이 색과 무관한 도식).
+- L12 대화상자(`lib/src/ui/dialogs/`): `dialog_frame.dart`(`LibraryDialogFrame` — `Dialog` + 최대 폭 560 + 제목·스크롤 본문·버튼 줄, `DialogSection`, `DialogLocationRow`, `DialogNameField` — 자동 포커스, 전체 선택은 컨트롤러 쪽, `maxLength` 200·카운터 숨김)를 L13 대화상자도 쓰면 된다. **새 폴더도 빈 이름이면 기본 이름**(계획은 새 노트만 명시). 이름 칸은 200자에서 입력이 막히므로 `tooLong` 오류 문구는 두지 않았다.
+- L12 흐름(`ui/dialogs/create_flows.dart`): `runNewNoteFlow(context, folderId:)`(= `uniqueNoteTitle` → 대화상자(기본값 `newNoteDefaultsProvider`, 위치 `locationLabel`, 트리가 아직 없으면 '홈') → `createNote` → `openNote`, 실패는 스낵바)·`runNewFolderFlow(context, parentId:)`(= `uniqueFolderName` → 대화상자 → `createFolder` → **부모와 그 조상 전부** `expandAll`, 이동 없음). 컨테이너마다 한 번에 흐름 하나(`Expando` — 기본 이름 읽기·CORE 쓰기 중 두 번째 탭은 무시). 컨테이너·`LibraryScope`·messenger는 첫 await 전에 잡는다(메뉴가 닫혀도 동작). `NewNoteTrigger`는 이제 이 흐름을 부르는 `StatefulWidget`(흐름이 끝날 때까지 `onPressed == null`).
+- L12 진입점: 상단 막대 `NewMenuButton`(`ui/top_bar/new_menu_button.dart` — expanded·medium은 `FilledButton.tonalIcon(+, '새로 만들기')`, compact는 `IconButton(+, 툴팁 '새로 만들기')`, 메뉴 = 새 노트·새 폴더; 대상 = 폴더 섹션의 폴더, 그 외 홈). **휴지통 섹션에서는 숨김**(계획에 없음 — 보기 전환과 같은 규칙). **L18은 `NewMenuButton`의 `menuChildren`에 'PDF 가져오기'를 더한다.** 사이드바 '폴더' 머리줄 '+'(툴팁 '새 폴더', 폴더 섹션이면 그 폴더, 아니면 홈 — 서랍 안에서도 서랍을 닫지 않고 대화상자를 띄움), 빈 상태 [새 노트](FilledButton)·[새 폴더](OutlinedButton).
+- L12 문구 추가: `fieldTitle`·`fieldName`·`fieldLocation`·`fieldPageSize`·`fieldOrientation`·`fieldTemplate`·`fieldPaperColor`·`fieldCover`·`fieldColor`·`fieldIcon`, `pageSizeA4`·`pageSizeLetter`·`pageSize16x9`·`pageSizeCustom`, `portrait`·`landscape`, `customWidth`·`customHeight`·`millimeters`, `coverFirstPage`, `colorNone`, `templateName(kind?)`, `paperColorName(argb)`.
+- L12 B6 스모크·L10 목록 테스트: '새 노트'를 누른 뒤 대화상자의 [만들기]를 누르도록 바꿨다. 스모크의 '두 번째 탭' 테스트는 [만들기] 뒤 `createNote`가 대기 중일 때 빈 상태 [새 노트]가 비활성이고 눌러도 대화상자가 다시 뜨지 않음을 본다. '실패' 테스트는 대화상자를 연 뒤 저장소를 닫고 [만들기].
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모
@@ -108,6 +114,6 @@
 - L9·L10 시작점: 화면 부분은 `LibraryScope.of(context)`(빌드)/`LibraryScope.read(context)`(이벤트)로 `openFolder`·`openNote`·`openSettings`·`sizeClass`·`routeFolderId`를 얻는다. 섹션은 `ref.watch(librarySectionProvider(scope.routeFolderId))`. 사이드바 행은 `sidebarRowsProvider`, 펼침은 `folderExpansionProvider`, 휴지통 개수는 `trashCountProvider`, 목록은 `libraryContentProvider(section)`, 폴더 없음 판정은 `folderLookupProvider(id)`, 변경은 `libraryActionsProvider`, 스낵바는 `showLibrarySnackBar`. 브레드크럼은 `breadcrumbPath(tree, id)` + `compressBreadcrumb(maxVisible: breadcrumbMaxVisibleFor(sizeClass))`, 그리드 치수는 `GridMetrics.forWidth(LayoutBuilder 폭, sizeClass:, textScale:)`.
 - 세션 3 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 352개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
-- L12 시작점: `NewNoteTrigger` 안에서 대화상자를 열고, 빈 상태에 [새 폴더], 사이드바 '폴더' 머리줄에 '+'(6.5), 상단 막대 오른쪽에 '새로 만들기'(L18의 PDF 가져오기 메뉴와 같은 버튼).
+- L13 시작점: ⋯ 자리는 타일 `Stack`(`note_tile.dart`·`folder_tile.dart`의 'L13' 주석)과 리스트 행(`item_list.dart`의 `SizedBox(52)`). 대화상자 틀은 `LibraryDialogFrame`·`DialogNameField`(L12), 꾸미기는 `FolderColorPicker`·`FolderIconPicker`, 표지 변경은 `CoverPicker`(+ `ColorCoverCard` 미리보기), 실행 취소 스낵바는 `showLibrarySnackBarOn`(L8), 변경은 `libraryActionsProvider`(`move`→`MoveReceipt`/`undoMove`, `trash`→`restore`). 사이드바 줄 메뉴의 '새 하위 폴더'는 `runNewFolderFlow(context, parentId: 그 폴더)`.
 - 화면 테스트 도우미 관례: provider 오류 보고 횟수는 `FlutterError.onError`를 try/finally로 잠시 바꿔 센다(`widget/sidebar_test.dart`·`widget/listing_test.dart`의 `collectReports`). 정렬 메뉴는 `find.byTooltip(LibraryStrings.sort)` → `find.widgetWithText(MenuItemButton, …)`.
 - 위젯 테스트에서 provider 컨테이너는 `ProviderScope.containerOf(tester.element(find.byType(LibraryTopBar)))`로 얻을 수 있다(`widget/layout_test.dart`).
