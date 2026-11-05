@@ -6,6 +6,7 @@ library;
 import 'dart:io';
 
 import 'package:clock/clock.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 
 import 'src/common/ids.dart';
@@ -21,6 +22,13 @@ import 'src/storage/drift_note_store.dart';
 /// CORE: the database runs on the test isolate (NativeDatabase, no background isolate).
 /// CORE: asset chunks / thumbnails live in an in-memory IndexedDB (idb_shim), kept per
 /// filePath for the process so a reopened file store finds its blobs.
+/// CORE: several stores open at once are intended (two devices) and every call has an
+/// executor of its own, so this turns off drift's debug-only warning about the database
+/// class being created more than once (driftRuntimeOptions.dontWarnAboutMultipleDatabases,
+/// for the isolate — test code outside note_core has no drift dependency to do it).
+/// CORE: a file database keeps SQLite's default rollback journal (no WAL, unlike
+/// openNoteStore): moving the open file away makes its commits fail and be retried until it
+/// is back (6.9). SYNC's S-20 integration tests rely on it; open_test_store_test pins it.
 Future<NoteStore> openTestNoteStore({
   Clock? clock,
   IdGenerator? ids,
@@ -30,6 +38,7 @@ Future<NoteStore> openTestNoteStore({
   bool seedDefaultPenPresets = true,
   StorageInfo? storageInfo,
 }) {
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   final config = NoteStoreConfig(
     ownerId: ownerId,
     nativeDatabasePath: filePath,

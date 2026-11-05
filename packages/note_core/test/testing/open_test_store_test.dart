@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:note_core/note_core.dart';
+import 'package:note_core/src/storage/drift_note_store.dart';
 import 'package:note_core/testing_vm.dart';
 import 'package:test/test.dart';
 
@@ -112,6 +113,53 @@ void main() {
     );
     expect(fixed.sync.deviceNodeId, '0000000000000abc');
     await fixed.close();
+  });
+
+  // SYNC's S-20 integration tests (sync_engine test/integration, CoreTestStore.failCommits)
+  // make real CORE fail its commits by moving the open file away; that needs the rollback
+  // journal (with WAL the commits go on).
+  test('a file database keeps the rollback journal: moving the open file away '
+      'fails its commits (retried, the write pending, reads go on) until it is '
+      'back', () async {
+    final dir = Directory.systemTemp.createTempSync('note_core_test_store_');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final path = '${dir.path}/a.db';
+    final moved = File('$path.moved');
+    final store = await openTestNoteStore(filePath: path);
+    addTearDown(store.close);
+    // Runs before close, which waits for the queued writes (6.9).
+    addTearDown(() {
+      if (moved.existsSync()) moved.renameSync(path);
+    });
+
+    final journal = await (store as DriftNoteStore).db
+        .customSelect('PRAGMA journal_mode')
+        .getSingle();
+    expect(journal.read<String>('journal_mode'), 'delete');
+
+    final note = await store.library.createNote(title: 'before');
+    File(path).renameSync(moved.path);
+    var renamed = false;
+    final write = store.library
+        .renameNote(note.id, 'after')
+        .then((_) => renamed = true);
+    // A failed commit, or the write committing anyway (then the checks below fail).
+    final failing = await Future.any([
+      store.persistenceStatusStream.firstWhere(
+        (s) => s.consecutiveFailures >= 1,
+      ),
+      write.then((_) => store.persistenceStatus),
+    ]);
+    expect(renamed, isFalse, reason: 'the write is retried, not completed');
+    expect(failing.consecutiveFailures, greaterThanOrEqualTo(1));
+    expect(failing.lastError, isNotNull);
+    expect(failing.pendingOps, greaterThan(0));
+    expect((await store.library.getNote(note.id))!.title, 'before');
+
+    moved.renameSync(path);
+    await write;
+    expect((await store.library.getNote(note.id))!.title, 'after');
+    expect(store.persistenceStatus.consecutiveFailures, 0);
   });
 
   test(

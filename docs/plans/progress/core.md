@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **통합 단계(1차 통합)** — CORE → INK → EDITOR·LIBRARY 병합 뒤 CORE 확인(VM·Chrome·perf·R14 미리 보기) 통과, CORE 코드 변경 없음(아래 '## 통합 단계'). 동시 개발 마지막은 세션 5
-- 다음 할 일: 동시 개발 단계 몫(T6~T19) 전부 완료, 1차 통합 확인 완료. 남은 것은 PDF·SYNC·INFRA 병합 뒤의 통합 판정(PDF `integration`(CORE 게이트웨이), SYNC T16(계약 스위트 C-01~C-25 등 — 계획서 10절 #7), INFRA V5·V6·G2·G3 R14)과 iPad 확인(계획서 9.2·10절 #9)
+- 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
+- 다음 할 일: 총괄이 7.6 커밋 실패 훅(SYNC 요청 1)을 채택하면 CORE가 구현(아래 제안). iPad 확인(계획서 9.2·10절 #9). 10절 #7(SYNC T16을 막는 CORE 결함 없음)은 통합 태그 전체 통과로 확인(SYNC 42개)
 
 ## 작업 표
 
@@ -34,7 +34,7 @@
 
 ## 변경 요청
 
-- 없음
+- 총괄 결정 대기(계약 7.6 B2 도우미): `openTestNoteStore` 커밋 실패 주입 공개 훅 — SYNC 통합 담당 요청. CORE 의견과 두 안은 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'
 
 ## 의존성 요청
 
@@ -171,3 +171,34 @@
 - 10절 #9·9.2: 앱 웹 빌드(INFRA 병합 뒤)에서 사용자 iPad 확인.
 - INFRA G3 R14 정식 판정(위 미리 보기는 참고값).
 - 변경 요청: 없음. 의존성 요청: 없음(`pubspec.lock` 변경 없음). 공개 API 변경 없음.
+
+### 7개 영역 병합 뒤 — SYNC 변경 요청 (2026-11-05, 통합 브랜치 기준 95c151f)
+
+7개 영역이 모두 병합된 통합 브랜치에서 SYNC 통합 담당이 보낸 `[core]` 요청 2건. 둘 다 `openTestNoteStore`(`testing_vm.dart`) 관련, 시그니처 변경 없음.
+
+| 요청 | 재현 | 판단 | 처리 |
+|---|---|---|---|
+| 1. (optional, low) `openTestNoteStore`용 커밋 실패 훅. SYNC S-20 실제 CORE 테스트 2개는 열린 DB 파일을 옮겨(`CoreTestStore.failCommits`, SQLITE_READONLY_DBMOVED) 커밋을 실패시키는데, 이는 `openTestNoteStore` 파일 DB가 롤백 저널이라서만 된다(앱 `connect_native`는 WAL) | 재현됨: `testing_vm.dart` 파일 DB를 잠시 `NativeDatabase(..., setup: PRAGMA journal_mode = WAL)`로 바꾸고 `sync_engine`에서 `flutter test --run-skipped -t integration --plain-name S-20 test/integration/core_scenarios_test.dart test/integration/core_sync_store_contract_test.dart` → 두 테스트가 'fault injection did not take effect'(쓰기 8개가 `value`, rename 커밋됨)로 실패. 되돌림 | 타당(우회가 CORE 내부 성질에 기댐). 그러나 공개 훅은 계약 7.6 B2 도우미 시그니처 추가 → 7.4.12 절차, **총괄 결정 필요** — 구현하지 않음 | 시그니처 없이 할 수 있는 몫: 기대고 있는 성질을 CORE가 명시하고 테스트로 고정 — `openTestNoteStore` 문서 주석에 CORE 줄('파일 DB는 SQLite 기본 롤백 저널(WAL 아님, `openNoteStore`와 다름), 열린 파일을 옮기면 커밋이 실패·재시도(6.9) — SYNC S-20이 기댐'), `open_test_store_test` 'a file database keeps the rollback journal …'(`PRAGMA journal_mode` = `delete`; 파일을 옮긴 동안 쓰기 Future 미완료·`consecutiveFailures ≥ 1`·`lastError`·`pendingOps > 0`·읽기 계속; 되돌리면 그 쓰기가 커밋·실패 수 0). 누가 WAL로 바꾸면 CORE 테스트가 먼저 실패한다 — WAL로 바꿔 pragma 단언 실패, pragma 단언을 빼도 '쓰기 미완료' 단언 실패를 확인(시간 기반 단언 없음: 실패 상태 또는 쓰기 완료 중 먼저 오는 것을 기다림) |
+| 2. (low) 한 isolate에서 실제 CORE 2개를 열면(두 기기) debug에서 열 때마다 'WARNING (drift): … NoteDatabase multiple times' + 스택. executor가 달라 실제 문제 없음, 소음. SYNC는 drift 의존이 없어(7.5) 끌 수 없음 | 재현됨: `sync_engine`에서 `flutter test --run-skipped -t integration test/integration/core_scenarios_test.dart` → 경고 7번(7개 통과) | 타당. `openTestNoteStore`는 호출마다 executor를 새로 만들어 drift가 경고하는 '같은 QueryExecutor' 위험이 없다 | `openTestNoteStore`가 `driftRuntimeOptions.dontWarnAboutMultipleDatabases = true`(isolate 전역 — drift의 열린 DB 수가 전역이라 범위를 좁히면 수가 어긋남). 앱 경로 `openNoteStore`는 그대로(경고 유지). 새 테스트 `test/testing/open_test_store_drift_warning_test.dart`(파일 따로 — 대조군이 앞 테스트가 남긴 수에 흔들리지 않게): 대조군 `openNoteStore(inMemory)` 2개 동시 → 경고가 잡힘, `openTestNoteStore` 3개(메모리 2·파일 1) 동시 → 경고 0, 서로 다른 DB. 수정 줄을 빼면 이 테스트가 실패함을 확인. SYNC 같은 명령: 경고 7 → **0**, 7개 통과 |
+
+요청 1 — 총괄 결정용 CORE 의견:
+
+- 안 A(계약 7.6 변경): `openTestNoteStore({…, FakeNoteStoreFaults? faults})` — 이미 계약 타입인 `FakeNoteStoreFaults`를 실제 저장소에도 받아 `WriteQueue`가 커밋마다 확인(`failNextCommits(count, error)` → 내부 `WriteQueue.failNextCommits`와 같은 재시도 경로, `commitDelay`도 같은 의미). SYNC의 '되돌릴 때까지 실패'(`healCommits`)는 지금 `FakeNoteStoreFaults`에 해제 멤버가 없어 `failNextCommits`의 횟수로만 표현된다 — 필요하면 해제 멤버(예: `clearCommitFailures()`)도 같은 7.6 변경에 넣는다(가짜·실제 둘 다). CORE 작업량: `testing_vm.dart`·`write_queue.dart`·`api_surface_test`·테스트 1개, SYNC는 `CoreTestStore.failCommits`만 바꿈.
+- 안 B(계약 변경 없음, 이번에 한 것): 지금의 파일 옮기기를 유지하고, 기대는 성질(롤백 저널)을 CORE 문서·테스트로 고정. SYNC 테스트는 그대로 통과.
+- CORE 권장: 당장은 B로 충분(SYNC S-20이 실제 CORE 재시도 경로 — SQLite 오류 → 롤백 → 6.9 재시도 — 를 그대로 지남). 실제 앱처럼 WAL 파일 DB로 시험하고 싶거나 가짜·실제가 같은 실패 주입 타입을 쓰게 하려면 A.
+
+확인 (2026-11-05, load 0.5~2)
+
+| 검사 | 결과 |
+|---|---|
+| `flutter test test/testing/`(패키지) | 44개 통과(새 테스트 2개 포함) |
+| `ws test --package note_core` (VM) | 619개 통과(617 + 2), 5개 건너뜀(perf 파일), drift 경고 0 |
+| `ws test --platform chrome --package note_core` | 준비 ok, 47개 통과, 1개 건너뜀(perf) — 새 테스트는 `@TestOn('vm')` |
+| `ws test --run-skipped -t integration` (전 멤버 VM) | feature_editor 1·feature_library 10·pdf_io 19·noteapp 1·sync_engine 42 통과(note_core·ink_engine·ink_lab은 해당 없음), drift 경고 0 |
+| SYNC 요청 재현 명령(`core_scenarios_test`, `integration`) | 7개 통과, 경고 7 → 0 |
+| `ws check` | R1~R15 위반 0 |
+| 루트 `flutter analyze --fatal-infos` | 0건 |
+| `dart format` (`packages/note_core`) | 변경 없음 |
+
+- 공개 API(시그니처) 변경 없음, 새 외부 의존 없음(`drift`는 이미 note_core 의존 — `driftRuntimeOptions`만 import), `pubspec.lock` 변경 없음.
+- 변경 요청(다른 영역으로): 없음.
