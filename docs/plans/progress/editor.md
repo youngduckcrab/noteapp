@@ -4,7 +4,7 @@
 
 ## 요약
 
-- 마지막 세션: **1** (동시 개발 단계 개발 세션 1/10)
+- 마지막 세션: **1** (동시 개발 단계 개발 세션 1/10) — 완료: E-00·E-01·E-02·E-06 (+ 계획서 C13-05 반영)
 - 다음 할 일: E-03(뷰포트 컨트롤러·위치 기억) · E-05(입력 라우터 R1~R33) · E-07(도구 상태 — E-06 뒤) → E-04(페이지 뷰포트, E-01·E-03 뒤) → E-08 …
 
 ## 작업 표
@@ -18,7 +18,7 @@
 | E-03 | 남음 | | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
 | E-04 | 남음 | | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
 | E-05 | 남음 | | `unit/input_router_test.dart` (R1~R33) |
-| E-06 | 완료 | (이 커밋) | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
+| E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
 | E-07 | 남음 | | `unit/tool_controller_test.dart` |
 | E-08 | 남음 | | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
 | E-09 | 남음 | | `widget/erase_test.dart` |
