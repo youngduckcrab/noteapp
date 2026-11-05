@@ -253,6 +253,28 @@ void main() {
       }
       expect(pool.stats, before);
     });
+
+    test('fragmentFromPreview = fragmentOf of the same data (T22 B5)', () {
+      final o = _original();
+      final piece = Float32List.fromList(
+        o.points.rawData.sublist(1 * _stride, 4 * _stride),
+      );
+      final preview = interop.previewFragmentOf(o, piece, seq: 3);
+      final a = interop.fragmentFromPreview(o, preview, id: 'frag-2');
+      final b = interop.fragmentOf(o, piece, id: 'frag-2');
+      expect(a.id, 'frag-2');
+      expect(a.points, same(preview.points));
+      expect(a.points.rawData, b.points.rawData);
+      expect(a.points.hasTilt, b.points.hasTilt);
+      expect(a.points.hasAzimuth, b.points.hasAzimuth);
+      expect(a.bounds, b.bounds);
+      expect(
+        (a.pageId, a.style, a.createdAt, a.updatedAt, a.recordingId),
+        (b.pageId, b.style, b.createdAt, b.updatedAt, b.recordingId),
+      );
+      expect(a.recordingOffsetMs, b.recordingOffsetMs);
+      expect(a.version, isNull);
+    });
   });
 
   group('duplicateOf', () {

@@ -70,6 +70,15 @@ core.Stroke fragmentOf(
   ),
 );
 
+/// Partial-eraser fragment with the points of its PREVIEW piece
+/// ([previewFragmentOf] of the same data): the same stroke as
+/// fragmentOf(original, data, id: id) without encoding the points again.
+core.Stroke fragmentFromPreview(
+  core.Stroke original,
+  core.Stroke preview, {
+  required String id,
+}) => original.fragment(id: id, points: preview.points);
+
 /// Partial-eraser PREVIEW piece (6.20 P8): id `pv-<seq>`, memory only — never leaves INK
 /// and never enters InkCachePool.
 core.Stroke previewFragmentOf(

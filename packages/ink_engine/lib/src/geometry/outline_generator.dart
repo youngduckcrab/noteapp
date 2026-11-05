@@ -29,7 +29,6 @@ import '../model/ink_points.dart';
 import '../model/ink_stroke.dart';
 import '../pen/pen_profile.dart';
 import '../tuning.dart';
-import 'rdp.dart';
 import 'stroke_outline.dart';
 
 @immutable
@@ -256,16 +255,16 @@ abstract final class OutlineGenerator {
     }
 
     // O4 + O5 for one side (sign +1 = left, −1 = right), in point order.
-    List<double> side(double sign) {
-      final v = <double>[];
+    // (T22 B1: typed buffers instead of List<double>, and atan2 only on the
+    // outer side of a bend that may need a round join — the same vertices.)
+    _Coords side(double sign) {
+      final v = _Coords(2 * count + 16);
       void add(int k, double x, double y) {
         if (k > 0 && k < count - 1) {
-          final px = v[v.length - 2], py = v[v.length - 1];
+          final px = v.data[v.length - 2], py = v.data[v.length - 1];
           if ((x - px) * tx[k] + (y - py) * ty[k] < 0) return; // O5
         }
-        v
-          ..add(x)
-          ..add(y);
+        v.add(x, y);
       }
 
       for (var k = 0; k < count; k++) {
@@ -277,25 +276,32 @@ abstract final class OutlineGenerator {
           // bisector point when the chord would be longer than capChordPt.
           final c = dx[i - 1] * dx[i] + dy[i - 1] * dy[i];
           final cross = dx[i - 1] * dy[i] - dy[i - 1] * dx[i];
-          final theta = math.atan2(cross, c); // signed turn
-          final segments = (theta.abs() * r / options.capChordPt).ceil();
-          if ((cross > 0) == (sign < 0) && segments > 1) {
-            final steps = math.min(
-              segments,
-              math.max(_minCapSegments, options.maxCapSegments),
-            );
-            // u0 = sign · n(d_{i−1}), rotated by theta · j / steps
-            final ux = -dy[i - 1] * sign, uy = dx[i - 1] * sign;
-            for (var j = 0; j <= steps; j++) {
-              final phi = theta * j / steps;
-              final cs = math.cos(phi), sn = math.sin(phi);
-              add(
-                k,
-                xs[i] + (ux * cs - uy * sn) * r,
-                ys[i] + (ux * sn + uy * cs) * r,
+          // |θ| ≤ π/2 · |sin θ| when cos θ > 0 (Jordan): a turn this small
+          // gives segments ≤ 1 (the bisector point) without atan2.
+          final small =
+              c > 0 &&
+              cross.abs() * (math.pi / 2) * r <= 0.999 * options.capChordPt;
+          if ((cross > 0) == (sign < 0) && !small) {
+            final theta = math.atan2(cross, c); // signed turn
+            final segments = (theta.abs() * r / options.capChordPt).ceil();
+            if (segments > 1) {
+              final steps = math.min(
+                segments,
+                math.max(_minCapSegments, options.maxCapSegments),
               );
+              // u0 = sign · n(d_{i−1}), rotated by theta · j / steps
+              final ux = -dy[i - 1] * sign, uy = dx[i - 1] * sign;
+              for (var j = 0; j <= steps; j++) {
+                final phi = theta * j / steps;
+                final cs = math.cos(phi), sn = math.sin(phi);
+                add(
+                  k,
+                  xs[i] + (ux * cs - uy * sn) * r,
+                  ys[i] + (ux * sn + uy * cs) * r,
+                );
+              }
+              continue;
             }
-            continue;
           }
         }
         // n = (−τy, τx)
@@ -306,7 +312,8 @@ abstract final class OutlineGenerator {
 
     final left = side(1);
     final right = side(-1);
-    final out = <double>[...left];
+    final out = _Coords(left.length + right.length + 4 * _maxCapPoints(options))
+      ..addAll(left);
     // O6 end cap: L_b → p_b + τ·r → R_b
     _cap(
       out,
@@ -320,9 +327,7 @@ abstract final class OutlineGenerator {
       options: options,
     );
     for (var i = right.length - 2; i >= 0; i -= 2) {
-      out
-        ..add(right[i])
-        ..add(right[i + 1]);
+      out.add(right.data[i], right.data[i + 1]);
     }
     // O6 start cap: R_a → p_a − τ·r → L_a
     _cap(
@@ -337,7 +342,7 @@ abstract final class OutlineGenerator {
       options: options,
     );
 
-    final poly = Float32List.fromList(out);
+    final poly = Float32List(out.length)..setRange(0, out.length, out.data);
     _orientPositive(poly); // O7
     return _simplify(poly, rs, a, b, options); // O8
   }
@@ -345,8 +350,11 @@ abstract final class OutlineGenerator {
   /// The cap vertices strictly between the two side points around (cx, cy).
   /// [forward]: the end cap (from L through +τ to R); otherwise the start cap
   /// (from R through −τ to L). [square]: the two corners at r · √2.
+  static int _maxCapPoints(OutlineOptions options) =>
+      math.max(_minCapSegments, options.maxCapSegments);
+
   static void _cap(
-    List<double> out,
+    _Coords out,
     double cx,
     double cy,
     double r,
@@ -362,10 +370,8 @@ abstract final class OutlineGenerator {
     final fx = tx * s, fy = ty * s;
     if (square) {
       out
-        ..add(cx + (nx + fx) * r)
-        ..add(cy + (ny + fy) * r)
-        ..add(cx + (fx - nx) * r)
-        ..add(cy + (fy - ny) * r);
+        ..add(cx + (nx + fx) * r, cy + (ny + fy) * r)
+        ..add(cx + (fx - nx) * r, cy + (fy - ny) * r);
       return;
     }
     final segments = (math.pi * r / options.capChordPt).ceil().clamp(
@@ -375,9 +381,7 @@ abstract final class OutlineGenerator {
     for (var k = 1; k < segments; k++) {
       final phi = math.pi * k / segments;
       final c = math.cos(phi), sn = math.sin(phi);
-      out
-        ..add(cx + (nx * c + fx * sn) * r)
-        ..add(cy + (ny * c + fy * sn) * r);
+      out.add(cx + (nx * c + fx * sn) * r, cy + (ny * c + fy * sn) * r);
     }
   }
 
@@ -400,21 +404,52 @@ abstract final class OutlineGenerator {
     final count = poly.length ~/ 2;
     if (!(tol > 0) || count < 4) return poly;
     final keep = List<bool>.filled(count, false);
-    rdpMark(
-      keep,
-      0,
-      count - 1,
-      (i, j, k) =>
-          segmentDistance(
-            poly[2 * k],
-            poly[2 * k + 1],
-            poly[2 * i],
-            poly[2 * i + 1],
-            poly[2 * j],
-            poly[2 * j + 1],
-          ) /
-          tol,
-    );
+    // rdpMark with the error segmentDistance(…) / tol, inlined (T22 B1: the
+    // closure call was most of the outline time); the same arithmetic.
+    keep[0] = true;
+    keep[count - 1] = true;
+    final belowTol2 = tol * tol * (1 - 1e-9);
+    final stack = <int>[0, count - 1];
+    while (stack.isNotEmpty) {
+      final j = stack.removeLast();
+      final i = stack.removeLast();
+      if (j - i < 2) continue;
+      final ax = poly[2 * i], ay = poly[2 * i + 1];
+      final bx = poly[2 * j], by = poly[2 * j + 1];
+      final dx = bx - ax, dy = by - ay;
+      final len2 = dx * dx + dy * dy;
+      var worst = 1.0;
+      var at = -1;
+      // sqrt and the division are monotonic: a squared distance not above
+      // the best one so far (or below the tolerance with a margin) cannot
+      // give a larger error, so only new maxima take sqrt.
+      var best2 = belowTol2;
+      for (var k = i + 1; k < j; k++) {
+        final px = poly[2 * k], py = poly[2 * k + 1];
+        var u = 0.0;
+        if (len2 > 0) {
+          u = ((px - ax) * dx + (py - ay) * dy) / len2;
+          if (u < 0) u = 0;
+          if (u > 1) u = 1;
+        }
+        final ex = px - (ax + u * dx), ey = py - (ay + u * dy);
+        final d2 = ex * ex + ey * ey;
+        if (d2 <= best2) continue;
+        final e = math.sqrt(d2) / tol;
+        if (e > worst) {
+          worst = e;
+          at = k;
+          best2 = d2;
+        }
+      }
+      if (at < 0) continue;
+      keep[at] = true;
+      stack
+        ..add(i)
+        ..add(at)
+        ..add(at)
+        ..add(j);
+    }
     var kept = 0;
     for (final k in keep) {
       if (k) kept++;
@@ -443,4 +478,32 @@ abstract final class OutlineGenerator {
   }
 
   static double _finite(double v) => v.isFinite ? v : 0;
+}
+
+/// A growable x,y buffer of doubles (no boxing).
+final class _Coords {
+  _Coords(int capacity) : data = Float64List(capacity < 8 ? 8 : capacity);
+
+  Float64List data;
+  int length = 0;
+
+  void add(double x, double y) {
+    if (length + 2 > data.length) _grow(length + 2);
+    data[length++] = x;
+    data[length++] = y;
+  }
+
+  void addAll(_Coords other) {
+    if (length + other.length > data.length) _grow(length + other.length);
+    data.setRange(length, length + other.length, other.data);
+    length += other.length;
+  }
+
+  void _grow(int need) {
+    var n = data.length * 2;
+    while (n < need) {
+      n *= 2;
+    }
+    data = Float64List(n)..setRange(0, length, data);
+  }
 }

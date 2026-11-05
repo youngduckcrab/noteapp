@@ -45,6 +45,22 @@ ui.Offset _cubic(List<ui.Offset> p, double t) {
 }
 
 void main() {
+  test('toPath is built once per outline and shared; its bytes are counted '
+      '(T22 B8)', () {
+    final o = _wave();
+    expect(o.toPath(), same(o.toPath()));
+    expect(o.toPath(smooth: false), same(o.toPath(smooth: false)));
+    expect(o.toPath(), isNot(same(o.toPath(smooth: false))));
+    var polygonBytes = 0;
+    for (final p in o.polygons) {
+      polygonBytes += p.lengthInBytes;
+    }
+    expect(
+      o.approximateBytes,
+      greaterThanOrEqualTo(polygonBytes + 17 * o.vertexCount),
+    );
+  });
+
   test('smooth: false → the polygon edges, bounds = outline bounds', () {
     final o = _wave();
     final vp = o.toVectorPath(smooth: false);

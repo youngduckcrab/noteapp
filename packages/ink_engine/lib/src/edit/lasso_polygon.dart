@@ -34,10 +34,7 @@ final class LassoPolygon {
   LassoPolygon._(this._xs, this._ys) {
     final n = _xs.length;
     if (n == 0) {
-      _bandHeight = InkTuning.lassoBandMinPt;
-      _bandCount = 1;
-      _bandStart = Int32List(2);
-      _bandEdges = Int32List(0);
+      _yBands = _xBands = _Bands.empty();
       return;
     }
     var left = _xs[0], right = _xs[0], top = _ys[0], bottom = _ys[0];
@@ -57,35 +54,17 @@ final class LassoPolygon {
     _bottom = bottom;
     _signedArea = area2 / 2;
 
-    final height = bottom - top;
-    _bandHeight = math.max(InkTuning.lassoBandMinPt, height / 64);
-    _bandCount = math.max(1, (height / _bandHeight).ceil());
-    // CSR layout: the edges of band b are _bandEdges[_bandStart[b] ..
-    // _bandStart[b + 1]).
-    final start = Int32List(_bandCount + 1);
+    // L3: y bands (the ray of a point runs to +x) and, T22 B6, x bands (the
+    // same test on the coordinates rotated by −90°, (u, v) = (y, −x): the
+    // ray runs to +y). A point uses whichever of its two bands holds fewer
+    // edges — the winding number does not depend on the ray.
+    _yBands = _Bands(_xs, _ys, top, bottom);
+    final us = Float64List(n), vs = Float64List(n);
     for (var i = 0; i < n; i++) {
-      final j = i + 1 == n ? 0 : i + 1;
-      final b0 = _bandOf(math.min(_ys[i], _ys[j]));
-      final b1 = _bandOf(math.max(_ys[i], _ys[j]));
-      for (var b = b0; b <= b1; b++) {
-        start[b + 1]++;
-      }
+      us[i] = _ys[i];
+      vs[i] = -_xs[i];
     }
-    for (var b = 0; b < _bandCount; b++) {
-      start[b + 1] += start[b];
-    }
-    final edges = Int32List(start[_bandCount]);
-    final fill = Int32List.fromList(start);
-    for (var i = 0; i < n; i++) {
-      final j = i + 1 == n ? 0 : i + 1;
-      final b0 = _bandOf(math.min(_ys[i], _ys[j]));
-      final b1 = _bandOf(math.max(_ys[i], _ys[j]));
-      for (var b = b0; b <= b1; b++) {
-        edges[fill[b]++] = i;
-      }
-    }
-    _bandStart = start;
-    _bandEdges = edges;
+    _xBands = _Bands(us, vs, -right, -left);
   }
 
   /// [vertices] as given (no simplification): non-finite points, consecutive
@@ -134,10 +113,8 @@ final class LassoPolygon {
   final Float64List _ys;
   double _left = 0, _top = 0, _right = 0, _bottom = 0;
   double _signedArea = 0;
-  late final double _bandHeight;
-  late final int _bandCount;
-  late final Int32List _bandStart;
-  late final Int32List _bandEdges;
+  late final _Bands _yBands;
+  late final _Bands _xBands;
 
   int get vertexCount => _xs.length;
   Offset vertex(int i) => Offset(_xs[i], _ys[i]);
@@ -152,19 +129,12 @@ final class LassoPolygon {
   double get signedArea => _signedArea;
 
   /// Height of one y band (L3) and the number of bands.
-  double get bandHeight => _bandHeight;
-  int get bandCount => _bandCount;
+  double get bandHeight => _yBands.height;
+  int get bandCount => _yBands.count;
 
-  /// Number of edges registered in band [b] (diagnostics, tests).
+  /// Number of edges registered in y band [b] (diagnostics, tests).
   @visibleForTesting
-  int edgesInBand(int b) => _bandStart[b + 1] - _bandStart[b];
-
-  int _bandOf(double y) {
-    final b = ((y - _top) / _bandHeight).floor();
-    if (b < 0) return 0;
-    if (b >= _bandCount) return _bandCount - 1;
-    return b;
-  }
+  int edgesInBand(int b) => _yBands.edgesIn(b);
 
   /// L2: fewer than 3 vertices or ∫|w| dA < [minAreaPt2].
   bool isDegenerate(double minAreaPt2) {
@@ -236,43 +206,87 @@ final class LassoPolygon {
     return area;
   }
 
-  /// L3: winding number of (x, y) — only the edges of its y band are tested
-  /// (0 outside the bounds).
+  /// L3: winding number of (x, y) — only the edges of one band are tested:
+  /// its y band or, when that holds more edges, its x band (T22 B6) (0
+  /// outside the bounds).
   int windingNumber(double x, double y) {
     if (_xs.isEmpty) return 0;
     if (!(y >= _top && y <= _bottom && x >= _left && x <= _right)) return 0;
-    final n = _xs.length;
-    final b = _bandOf(y);
-    var wn = 0;
-    for (var k = _bandStart[b]; k < _bandStart[b + 1]; k++) {
-      final i = _bandEdges[k];
-      final j = i + 1 == n ? 0 : i + 1;
-      wn += _crossing(_xs[i], _ys[i], _xs[j], _ys[j], x, y);
-    }
-    return wn;
+    final yb = _yBands.bandOf(y), xb = _xBands.bandOf(-x);
+    return _yBands.edgesIn(yb) <= _xBands.edgesIn(xb)
+        ? _yBands.windingAt(yb, x, y)
+        : _xBands.windingAt(xb, y, -x);
   }
 
   /// Nonzero rule.
   bool contains(double x, double y) => windingNumber(x, y) != 0;
 
-  /// The winding contribution of edge a → b for the point (px, py): +1 for an
-  /// upward crossing with the point on its left, −1 for a downward crossing
-  /// with the point on its right (Sunday's winding-number test).
-  static int _crossing(
+  /// [r] (closed) against the polygon: [rectInside] when every point of r
+  /// has a nonzero winding number, [rectOutside] when none has, [rectMixed]
+  /// when an edge meets r. With no edge meeting r the winding number is the
+  /// same all over r, so one point decides. Only the edges of the y bands r
+  /// spans are tested (L3).
+  int classifyRect(Rect r) => classifyLTRB(r.left, r.top, r.right, r.bottom);
+
+  /// [classifyRect] of Rect.fromLTRB([l], [t], [r], [b]).
+  int classifyLTRB(double l, double t, double r, double b) {
+    if (_xs.isEmpty) return rectOutside;
+    if (r < _left || l > _right || b < _top || t > _bottom) return rectOutside;
+    final bands = _yBands;
+    final b0 = bands.bandOf(math.max(t, _top));
+    final b1 = bands.bandOf(math.min(b, _bottom));
+    for (var band = b0; band <= b1; band++) {
+      for (var k = bands.start[band]; k < bands.start[band + 1]; k++) {
+        if (bands.maxU[k] < l) break; // the rest of the band ends left of r
+        if (_segmentMeetsRect(
+          bands.au[k],
+          bands.av[k],
+          bands.bu[k],
+          bands.bv[k],
+          l,
+          t,
+          r,
+          b,
+        )) {
+          return rectMixed;
+        }
+      }
+    }
+    return windingNumber((l + r) / 2, (t + b) / 2) != 0
+        ? rectInside
+        : rectOutside;
+  }
+
+  static const int rectOutside = 0;
+  static const int rectInside = 1;
+  static const int rectMixed = -1;
+
+  /// Segment a → b vs the closed rectangle [r] (separating axes: x, y and the
+  /// segment normal; touching counts as meeting).
+  static bool _segmentMeetsRect(
     double ax,
     double ay,
     double bx,
     double by,
-    double px,
-    double py,
+    double l,
+    double t,
+    double r,
+    double b,
   ) {
-    final cross = (bx - ax) * (py - ay) - (px - ax) * (by - ay);
-    if (ay <= py) {
-      if (by > py && cross > 0) return 1;
-    } else {
-      if (by <= py && cross < 0) return -1;
+    if ((ax > bx ? ax : bx) < l ||
+        (ax < bx ? ax : bx) > r ||
+        (ay > by ? ay : by) < t ||
+        (ay < by ? ay : by) > b) {
+      return false;
     }
-    return 0;
+    final dx = bx - ax, dy = by - ay;
+    final s0 = dx * (t - ay) - dy * (l - ax);
+    final s1 = dx * (t - ay) - dy * (r - ax);
+    final s2 = dx * (b - ay) - dy * (r - ax);
+    final s3 = dx * (b - ay) - dy * (l - ax);
+    if (s0 > 0 && s1 > 0 && s2 > 0 && s3 > 0) return false;
+    if (s0 < 0 && s1 < 0 && s2 < 0 && s3 < 0) return false;
+    return true;
   }
 }
 
@@ -302,21 +316,172 @@ abstract final class LassoSelector {
   /// coverageOf(stroke, polygon) >= [coverage] (stops as soon as the inside
   /// share reaches [coverage]; the inside sum only grows, so the answer is
   /// the same).
+  ///
+  /// T22 B6: the segments are taken [_run] at a time; when the bounds of a
+  /// run's points are wholly inside / outside the polygon (no edge meets
+  /// them) every midpoint of the run is too, so no point is tested. The
+  /// lengths are still added one by one in order — the same sums as testing
+  /// every midpoint. It also stops with false once the rest of the stroke
+  /// could not reach [coverage] any more.
   static bool selects(InkStroke stroke, LassoPolygon polygon, double coverage) {
     final p = stroke.points;
     if (p.isEmpty) return false;
     if (stroke.isDot) return polygon.contains(p.x(0), p.y(0));
+    switch (polygon.classifyRect(stroke.bounds)) {
+      case LassoPolygon.rectInside:
+        return 1 >= coverage;
+      case LassoPolygon.rectOutside:
+        return 0 >= coverage;
+    }
     final total = p.arcLength();
-    var inside = 0.0;
-    for (var i = 1; i < p.length; i++) {
-      final x0 = p.x(i - 1), y0 = p.y(i - 1), x1 = p.x(i), y1 = p.y(i);
-      final dx = x1 - x0, dy = y1 - y0;
-      final len = math.sqrt(dx * dx + dy * dy);
-      if (len > 0 && polygon.contains((x0 + x1) / 2, (y0 + y1) / 2)) {
-        inside += len;
-        if (inside / total >= coverage) return true;
+    final n = p.length;
+    final need = coverage * total - 1e-9 * total;
+    var inside = 0.0, done = 0.0;
+    for (var start = 1; start < n; start += _run) {
+      final end = math.min(n, start + _run);
+      var minX = p.x(start - 1), maxX = minX;
+      var minY = p.y(start - 1), maxY = minY;
+      for (var i = start; i < end; i++) {
+        final x = p.x(i), y = p.y(i);
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
       }
+      final side = polygon.classifyLTRB(minX, minY, maxX, maxY);
+      for (var i = start; i < end; i++) {
+        final x0 = p.x(i - 1), y0 = p.y(i - 1), x1 = p.x(i), y1 = p.y(i);
+        final dx = x1 - x0, dy = y1 - y0;
+        final len = math.sqrt(dx * dx + dy * dy);
+        done += len;
+        if (len > 0 &&
+            side != LassoPolygon.rectOutside &&
+            (side == LassoPolygon.rectInside ||
+                polygon.contains((x0 + x1) / 2, (y0 + y1) / 2))) {
+          inside += len;
+          if (inside / total >= coverage) return true;
+        }
+      }
+      if (inside + (total - done) < need) return false;
     }
     return inside / total >= coverage;
+  }
+
+  /// Segments per bounds test in [selects].
+  static const int _run = 16;
+}
+
+/// The winding contribution of edge a → b for the point (px, py): +1 for an
+/// upward crossing with the point on its left, −1 for a downward crossing
+/// with the point on its right (Sunday's winding-number test; the ray runs
+/// to +x).
+int _crossing(
+  double ax,
+  double ay,
+  double bx,
+  double by,
+  double px,
+  double py,
+) {
+  final cross = (bx - ax) * (py - ay) - (px - ax) * (by - ay);
+  if (ay <= py) {
+    if (by > py && cross > 0) return 1;
+  } else {
+    if (by <= py && cross < 0) return -1;
+  }
+  return 0;
+}
+
+/// L3 band index of the closed polygon (us[i], vs[i]): bands of height
+/// max(lassoBandMinPt, extent / 64) along v; CSR — the edges of band b are
+/// slots start[b] .. start[b + 1], each slot holding the edge's end points
+/// (au, av) → (bu, bv) and its larger u, sorted by it (largest first) so a
+/// ray to +u stops at the first edge that ends before the point.
+final class _Bands {
+  _Bands(Float64List us, Float64List vs, this.origin, double far)
+    : height = math.max(InkTuning.lassoBandMinPt, (far - origin) / 64) {
+    final n = us.length;
+    count = math.max(1, ((far - origin) / height).ceil());
+    final s = Int32List(count + 1);
+    for (var i = 0; i < n; i++) {
+      final j = i + 1 == n ? 0 : i + 1;
+      final b0 = bandOf(math.min(vs[i], vs[j]));
+      final b1 = bandOf(math.max(vs[i], vs[j]));
+      for (var b = b0; b <= b1; b++) {
+        s[b + 1]++;
+      }
+    }
+    for (var b = 0; b < count; b++) {
+      s[b + 1] += s[b];
+    }
+    final edges = Int32List(s[count]);
+    final fill = Int32List.fromList(s);
+    for (var i = 0; i < n; i++) {
+      final j = i + 1 == n ? 0 : i + 1;
+      final b0 = bandOf(math.min(vs[i], vs[j]));
+      final b1 = bandOf(math.max(vs[i], vs[j]));
+      for (var b = b0; b <= b1; b++) {
+        edges[fill[b]++] = i;
+      }
+    }
+    double maxUOf(int i) => math.max(us[i], us[i + 1 == n ? 0 : i + 1]);
+    for (var b = 0; b < count; b++) {
+      final band = edges.sublist(s[b], s[b + 1])
+        ..sort((p, q) => maxUOf(q).compareTo(maxUOf(p)));
+      edges.setRange(s[b], s[b + 1], band);
+    }
+    final slots = edges.length;
+    au = Float64List(slots);
+    av = Float64List(slots);
+    bu = Float64List(slots);
+    bv = Float64List(slots);
+    maxU = Float64List(slots);
+    for (var k = 0; k < slots; k++) {
+      final i = edges[k];
+      final j = i + 1 == n ? 0 : i + 1;
+      au[k] = us[i];
+      av[k] = vs[i];
+      bu[k] = us[j];
+      bv[k] = vs[j];
+      maxU[k] = math.max(us[i], us[j]);
+    }
+    start = s;
+  }
+
+  _Bands.empty()
+    : origin = 0,
+      height = InkTuning.lassoBandMinPt,
+      count = 1,
+      start = Int32List(2),
+      au = Float64List(0),
+      av = Float64List(0),
+      bu = Float64List(0),
+      bv = Float64List(0),
+      maxU = Float64List(0);
+
+  final double origin;
+  final double height;
+  late final int count;
+  late final Int32List start;
+  late final Float64List au, av, bu, bv, maxU;
+
+  int bandOf(double v) {
+    final b = ((v - origin) / height).floor();
+    if (b < 0) return 0;
+    if (b >= count) return count - 1;
+    return b;
+  }
+
+  int edgesIn(int b) => start[b + 1] - start[b];
+
+  /// Σ Sunday crossings of band [b]'s edges for (pu, pv).
+  int windingAt(int b, double pu, double pv) {
+    var wn = 0;
+    for (var k = start[b]; k < start[b + 1]; k++) {
+      // an edge wholly before pu never crosses the ray to +u
+      if (maxU[k] < pu) break;
+      wn += _crossing(au[k], av[k], bu[k], bv[k], pu, pv);
+    }
+    return wn;
   }
 }

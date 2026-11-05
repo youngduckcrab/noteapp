@@ -129,8 +129,17 @@ final class PartialEraser {
     final top = math.min(a.dy, b.dy) - radius;
     final bottom = math.max(a.dy, b.dy) + radius;
     final out = <ParamInterval>[];
+    // A first cut with the stroke's largest radius (T22 B5) — it never drops
+    // a segment the per-segment test below would keep.
+    final rMax = s.maxRadius;
     for (var i = 0; i + 1 < n; i++) {
       final x0 = p.x(i), y0 = p.y(i), x1 = p.x(i + 1), y1 = p.y(i + 1);
+      if ((x0 < x1 ? x0 : x1) - rMax > right ||
+          (x0 > x1 ? x0 : x1) + rMax < left ||
+          (y0 < y1 ? y0 : y1) - rMax > bottom ||
+          (y0 > y1 ? y0 : y1) + rMax < top) {
+        continue;
+      }
       final r0 = s.radiusAt(i), r1 = s.radiusAt(i + 1);
       final rm = math.max(r0, r1);
       if (math.min(x0, x1) - rm > right ||
@@ -214,8 +223,11 @@ final class PartialEraser {
     const stride = InkPoints.stride;
     final a = keep.start, b = keep.end;
     final first = a.floor() + 1;
-    final inner = <int>[for (var k = first; k < b; k++) k];
-    final data = Float32List((inner.length + 2) * stride);
+    var count = 0; // the original points k with a < k < b: first, first + 1, …
+    for (var k = first; k < b; k++) {
+      count++;
+    }
+    final data = Float32List((count + 2) * stride);
     void put(int slot, core.StrokePoint q) {
       final o = slot * stride;
       data[o] = q.x;
@@ -227,15 +239,8 @@ final class PartialEraser {
     }
 
     put(0, p.lerpAt(a));
-    for (var j = 0; j < inner.length; j++) {
-      data.setRange(
-        (j + 1) * stride,
-        (j + 2) * stride,
-        p.raw,
-        inner[j] * stride,
-      );
-    }
-    put(inner.length + 1, p.lerpAt(b));
+    data.setRange(stride, (count + 1) * stride, p.raw, first * stride);
+    put(count + 1, p.lerpAt(b));
     return data;
   }
 

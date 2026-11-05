@@ -315,9 +315,9 @@ final class EraserSession implements InkGestureSession {
   /// partial mode (6.20): the erased intervals per original
   final PartialEraser? _partial;
 
-  /// partial mode: the kept pieces (P5/P6) of each touched original, and
-  /// their memory-only preview strokes (P8, ids `pv-<n>`)
-  final Map<String, List<Float32List>> _pieces = {};
+  /// partial mode: the kept pieces (P5/P6) of each touched original as
+  /// memory-only preview strokes (P8, ids `pv-<n>`; end() gives their points
+  /// to the fragments)
   final Map<String, List<core.Stroke>> _previews = {};
   int _previewSeq = 0;
 
@@ -384,22 +384,22 @@ final class EraserSession implements InkGestureSession {
   void _clear() {
     _touched.clear();
     _partial?.clear();
-    _pieces.clear();
     _previews.clear();
   }
 
   /// P7: the CORE fragments of every touched original (z order), each piece
-  /// with a real id — computed once per original from the gesture's merged
-  /// intervals (the pieces of the last change).
+  /// with a real id — from the gesture's merged intervals (the pieces of the
+  /// last change). Their points are the preview pieces' points, made from
+  /// the same data (T22 B5: no second StrokePoints.fromInterleaved).
   List<core.Stroke> _fragments(List<String> ordered) {
     final partial = _partial!;
     return [
       for (final id in ordered)
         if (partial.strokeOf(id) case final original?)
-          for (final data in _pieces[id] ?? const <Float32List>[])
-            interop.fragmentOf(
+          for (final preview in _previews[id] ?? const <core.Stroke>[])
+            interop.fragmentFromPreview(
               original.source,
-              data,
+              preview,
               id: _host.services.newStrokeId(),
             ),
     ];
@@ -421,7 +421,7 @@ final class EraserSession implements InkGestureSession {
       if (partial != null) {
         if (!partial.addCapsule(s, a, b)) continue;
         _touched.add(s.id);
-        final pieces = _pieces[s.id] = partial.piecesOf(s.id);
+        final pieces = partial.piecesOf(s.id);
         _previews[s.id] = [
           for (final data in pieces)
             interop.previewFragmentOf(s.source, data, seq: ++_previewSeq),
@@ -511,10 +511,13 @@ final class LassoSession implements InkGestureSession {
     if (content != null) {
       final polygon = lassoPolygonOf(this);
       if (!polygon.isDegenerate(_options.minAreaPt2)) {
-        final picked = [
+        // z looked up once per pick, not per comparison (T22 B6)
+        final zPicked = [
           for (final s in _host.strokesNear(polygon.bounds))
-            if (LassoSelector.selects(s, polygon, _options.coverage)) s.id,
-        ]..sort((a, b) => content.zIndexOf(a).compareTo(content.zIndexOf(b)));
+            if (LassoSelector.selects(s, polygon, _options.coverage))
+              (content.zIndexOf(s.id), s.id),
+        ]..sort((a, b) => a.$1.compareTo(b.$1));
+        final picked = [for (final (_, id) in zPicked) id];
         if (picked.isNotEmpty) {
           result = newInkSelection(_host, picked);
           _host.lassoSelected(result);

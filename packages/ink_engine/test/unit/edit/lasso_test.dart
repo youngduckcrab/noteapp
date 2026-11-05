@@ -8,6 +8,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_engine/dev_tools.dart';
 import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/edit/lasso_polygon.dart';
 import 'package:ink_engine/src/render/sessions.dart' show lassoPolygonOf;
@@ -542,6 +543,101 @@ void main() {
           0.2,
         );
         expect(area, closeTo(grid, 25), reason: 'polygon $k');
+      }
+    });
+  });
+
+  group('fast paths (T22): bounds wholly inside / outside', () {
+    // A star (alternating radii), a figure 8 and a U.
+    final shapes = <String, List<ui.Offset>>{
+      'star': [
+        for (var i = 0; i < 120; i++)
+          const ui.Offset(300, 420) +
+              ui.Offset.fromDirection(
+                i / 120 * 2 * math.pi,
+                i.isEven ? 160.0 : 200.0,
+              ),
+      ],
+      'figure 8': [
+        for (var i = 0; i < 80; i++)
+          ui.Offset(
+            300 + 220 * math.sin(i / 80 * 2 * math.pi),
+            420 + 150 * math.sin(i / 80 * 4 * math.pi),
+          ),
+      ],
+      'U': const [
+        ui.Offset(100, 200),
+        ui.Offset(220, 200),
+        ui.Offset(220, 600),
+        ui.Offset(380, 600),
+        ui.Offset(380, 200),
+        ui.Offset(500, 200),
+        ui.Offset(500, 720),
+        ui.Offset(100, 720),
+      ],
+    };
+    var n = 0;
+    final strokes = [
+      for (final s in InkDevTools.syntheticStrokes(
+        pageId: 'p1',
+        pageSize: core.PageSize.a4Portrait,
+        count: 1500,
+        newId: () => 'fp-${n++}',
+        createdAt: 1000,
+        seed: 7,
+      ))
+        InkStroke.of(s),
+    ];
+
+    test('classifyRect agrees with the winding number on a 9 × 9 grid', () {
+      final rng = math.Random(3);
+      for (final MapEntry(key: name, value: v) in shapes.entries) {
+        final polygon = LassoPolygon.of(v);
+        var decided = 0;
+        for (var k = 0; k < 400; k++) {
+          final x = rng.nextDouble() * 600, y = rng.nextDouble() * 840;
+          final r = ui.Rect.fromLTWH(
+            x,
+            y,
+            rng.nextDouble() * 60,
+            rng.nextDouble() * 60,
+          );
+          final c = polygon.classifyRect(r);
+          if (c == LassoPolygon.rectMixed) continue;
+          decided++;
+          for (var i = 0; i <= 8; i++) {
+            for (var j = 0; j <= 8; j++) {
+              final px = r.left + r.width * i / 8;
+              final py = r.top + r.height * j / 8;
+              expect(
+                _plainWinding(v, px, py) != 0,
+                c == LassoPolygon.rectInside,
+                reason: '$name $r ($px, $py)',
+              );
+            }
+          }
+        }
+        expect(decided, greaterThan(100), reason: name);
+      }
+    });
+
+    test('selects == coverageOf ≥ coverage for every stroke and coverage', () {
+      for (final MapEntry(key: name, value: v) in shapes.entries) {
+        final polygon = LassoPolygon.of(v);
+        var picked = 0;
+        for (final s in strokes) {
+          final share = LassoSelector.coverageOf(s, polygon);
+          for (final c in [0.0, 0.3, 0.6, 1.0]) {
+            final want = share >= c;
+            expect(
+              LassoSelector.selects(s, polygon, c),
+              want,
+              reason: '$name ${s.id} share $share coverage $c',
+            );
+            if (want && c == 0.6) picked++;
+          }
+        }
+        expect(picked, greaterThan(100), reason: name);
       }
     });
   });
