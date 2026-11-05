@@ -33,11 +33,11 @@ import '../model/ink_stroke.dart';
 import '../pen/style_ink.dart';
 import '../stroke/stroke_builder.dart';
 import '../stroke/stroke_meta.dart';
-import '../tuning.dart';
 import 'base_cache.dart';
 import 'cache_pool.dart';
 import 'highlighter_compositor.dart';
 import 'ink_page_content.dart';
+import 'lasso_overlay.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
 import 'render_config.dart';
@@ -289,7 +289,7 @@ final class InkPageController extends ChangeNotifier {
     LassoOptions options = const LassoOptions(),
   }) {
     _beginGesture(viewScale);
-    final session = newLassoSession(_host, firstPagePoint, options);
+    final session = newLassoSession(_host, firstPagePoint, viewScale, options);
     _active = session;
     _sessionStarted();
     return session;
@@ -802,22 +802,7 @@ final class InkPageController extends ChangeNotifier {
         final active = _active;
         if (active is! LassoSession || !active.isActive) return;
         if (active.points.length < 2) return;
-        final path = active.previewPath;
-        final scale = _currentViewScale;
-        canvas
-          ..drawPath(
-            path,
-            ui.Paint()
-              ..style = ui.PaintingStyle.fill
-              ..color = const ui.Color(InkTuning.lassoFillArgb),
-          )
-          ..drawPath(
-            path,
-            ui.Paint()
-              ..style = ui.PaintingStyle.stroke
-              ..strokeWidth = 1.5 / scale
-              ..color = const ui.Color(InkTuning.lassoPathArgb),
-          );
+        paintLassoOverlay(canvas, active.previewPath, _currentViewScale);
     }
   }
 

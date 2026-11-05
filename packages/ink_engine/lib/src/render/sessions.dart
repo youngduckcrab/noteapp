@@ -10,8 +10,9 @@
 //    stroke mode → eraseStrokes; partial mode → the vector split of 6.20
 //    (INK T16: PartialEraser P2–P6, CORE fragments P7, splitStrokes P8 —
 //    toCommand = SplitStrokes, or RemoveStrokes when nothing is left);
-//  * LassoSession: a stroke is selected when its bounds center is inside the
-//    lasso polygon (nonzero winding) (the coverage rule of LassoOptions: T17).
+//  * LassoSession: the LassoOptions rule of 6.21 (INK T17): RDP-simplified
+//    closed polygon, nonzero winding with a y-band index, spatial index
+//    candidates, centerline coverage of segment midpoints >= coverage.
 import 'dart:collection';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -23,6 +24,7 @@ import '../edit/eraser_spec.dart';
 import '../edit/hit_test.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
+import '../edit/lasso_polygon.dart';
 import '../edit/partial_eraser.dart';
 import '../geometry/outline_generator.dart';
 import '../input/ink_sample.dart';
@@ -461,18 +463,22 @@ List<ParamInterval> eraserIntervalsOf(EraserSession s, String strokeId) =>
 // --- lasso ---------------------------------------------------------------------
 
 final class LassoSession implements InkGestureSession {
-  LassoSession._(this._host, ui.Offset first, this._options) {
-    _points.add(first);
+  LassoSession._(this._host, ui.Offset first, this._viewScale, this._options) {
+    if (first.isFinite) _points.add(first);
   }
 
   final InkPageHost _host;
+
+  /// logical px per page pt at gesture start (the RDP tolerance, L2)
+  final double _viewScale;
   final LassoOptions _options;
   final List<ui.Offset> _points = [];
   bool _active = true;
 
+  /// The collected points (page pt; non-finite points are not kept).
   List<ui.Offset> get points => UnmodifiableListView(_points);
 
-  /// The lasso polygon, closed end → start.
+  /// The collected path, closed end → start (not simplified — L1 preview).
   ui.Path get previewPath {
     final path = ui.Path();
     if (_points.isEmpty) return path;
@@ -483,29 +489,36 @@ final class LassoSession implements InkGestureSession {
     return path..close();
   }
 
+  /// L1: one more point (page pt); a non-finite point is ignored.
   void addPoint(ui.Offset pagePoint) {
     if (!_active) throw StateError('The lasso session has ended');
+    if (!pagePoint.isFinite) return;
     _points.add(pagePoint);
     _host.repaint(InkRenderLayer.overlay);
   }
 
   /// Selection by the LassoOptions rule (null if degenerate or empty).
   /// A non-null result becomes controller.selection.
+  ///
+  /// L2 polygon (RDP simplifyPx / viewScale, degenerate → null) → L4 spatial
+  /// index candidates of its bounds (every tool; strokes a pending edit hides
+  /// are left out) → L5 coverage → ids in z order.
   InkSelection? end() {
     if (!_active) throw StateError('The lasso session has ended');
     _active = false;
     InkSelection? result;
     final content = _host.content;
-    if (content != null && !_isDegenerate()) {
-      final ids = <String>[
-        for (final s in content.strokes)
-          if (!_host.isPendingRemoved(s.id) &&
-              _windingNumber(s.bounds.center) != 0)
-            s.id,
-      ];
-      if (ids.isNotEmpty) {
-        result = newInkSelection(_host, ids);
-        _host.lassoSelected(result);
+    if (content != null) {
+      final polygon = lassoPolygonOf(this);
+      if (!polygon.isDegenerate(_options.minAreaPt2)) {
+        final picked = [
+          for (final s in _host.strokesNear(polygon.bounds))
+            if (LassoSelector.selects(s, polygon, _options.coverage)) s.id,
+        ]..sort((a, b) => content.zIndexOf(a).compareTo(content.zIndexOf(b)));
+        if (picked.isNotEmpty) {
+          result = newInkSelection(_host, picked);
+          _host.lassoSelected(result);
+        }
       }
     }
     _host.sessionEnded(this);
@@ -521,38 +534,19 @@ final class LassoSession implements InkGestureSession {
     _active = false;
     _host.sessionEnded(this);
   }
-
-  bool _isDegenerate() {
-    if (_points.length < 3) return true;
-    var area2 = 0.0;
-    for (var i = 0; i < _points.length; i++) {
-      final a = _points[i], b = _points[(i + 1) % _points.length];
-      area2 += a.dx * b.dy - b.dx * a.dy;
-    }
-    return area2.abs() / 2 < _options.minAreaPt2;
-  }
-
-  /// Nonzero winding number of [p] around the closed lasso polygon.
-  int _windingNumber(ui.Offset p) {
-    var wn = 0;
-    final n = _points.length;
-    for (var i = 0; i < n; i++) {
-      final a = _points[i], b = _points[(i + 1) % n];
-      final cross =
-          (b.dx - a.dx) * (p.dy - a.dy) - (p.dx - a.dx) * (b.dy - a.dy);
-      if (a.dy <= p.dy) {
-        if (b.dy > p.dy && cross > 0) wn++;
-      } else {
-        if (b.dy <= p.dy && cross < 0) wn--;
-      }
-    }
-    return wn;
-  }
 }
+
+/// L2: the closed, simplified polygon of [s]'s points so far.
+@internal
+LassoPolygon lassoPolygonOf(LassoSession s) => LassoPolygon.simplified(
+  s._points,
+  tolerancePt: s._options.simplifyPx / s._viewScale,
+);
 
 @internal
 LassoSession newLassoSession(
   InkPageHost host,
   ui.Offset first,
+  double viewScale,
   LassoOptions options,
-) => LassoSession._(host, first, options);
+) => LassoSession._(host, first, viewScale, options);

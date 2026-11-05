@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 6 (동시 개발 단계) — T14 공간 색인·히트 테스트, T15 획 지우개, T16 부분 지우개 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b)
-- 다음 할 일: INK-β T17 올가미 → T18 선택 변형 → T19 래스터 타일 → T20 썸네일… (계획서 8장 순서)
+- 마지막 세션: 7 (동시 개발 단계) — T17 올가미 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b, 세션 6: T14~T16)
+- 다음 할 일: INK-β T18 선택 변형 → T19 래스터 타일 → T20 썸네일 → INK-γ T21·T22 (계획서 8장 순서)
 
 ## 작업 표
 
@@ -28,7 +28,7 @@
 | T14 | 완료 | e1f22c9 | `unit/edit/spatial_index_test.dart`, `unit/edit/hit_test_test.dart`. 내부 `edit/spatial_index.dart`(`StrokeSpatialIndex` — 64pt 균일 격자(A4 10×14), 셀 = bounds가 겹치는 획 slot 목록, 페이지 밖 bounds는 가장자리 셀로 clamp(단조라 같은 clamp 질의가 만남), 닫힌 사각형 겹침 `boundsMeet`, slot 재사용, 질의 스탬프 `Int32List`), `edit/hit_test.dart`(`InkHitTest` — `minimize`(황금분할 24회 + 양 끝), `segmentVsCapsule`·`segmentVsRect`·`capsuleGapAt`, `capsuleGap`(가지치기 없음)·`capsuleTouches`·`rectTouches`(구간 bounds 가지치기), 점 획 = maxRadius 원, `topmostAt`). 컨트롤러: 색인은 첫 질의 때 만들고 `_applyDiff`(removed·inserted·appended·changed)로 갱신, reset(첫 내용·페이지 크기)이면 버림. `hitTest` = 색인 후보 → 필터 → 정확한 거리 → 가장 큰 z, `strokeIdsInRect` = 잉크가 사각형에 닿는 획(정확, z 순서). 세션용 `InkPageHost.strokesNear(rect)`(대기 삭제 제외)를 더함 — T15·T16·T17이 쓴다 |
 | T15 | 완료 | 615577d | `unit/edit/stroke_eraser_test.dart`(가짜 저장소: 빠른 문지름 1번 = `RemoveStrokes` 1개 = undo 1단계 포함), `widget/eraser_preview_test.dart`. `EraserSession._touchAlong`을 B3 bounds 전수 검사에서 6.19로 교체: 직전 샘플 → 이번 샘플 캡슐(첫 샘플 = 원)의 bounds로 `_host.strokesNear` → `filterAccepts` → `InkHitTest.capsuleTouches`. 부분 모드도 같은 닿음 판정(조각은 아직 없음 — T16). 비유한 샘플 위치는 무시. 쓰지 않게 된 bounds 거리 도우미(`_segmentRectDistance` 등) 삭제. 숨김 미리보기·대기 인계는 B3·T10 그대로(위젯 테스트로 확인: 프레임마다 닿은 획만 사라짐, 관계없는 `updateContent` 중에도 숨김 유지, 커밋 프레임 차 0, `cancel`·`discardEdit` 복원) |
 | T16 | 완료 | 084a0eb | `unit/edit/partial_eraser_test.dart`, `unit/edit/partial_eraser_property_test.dart`(200개, 성질 ①–⑤, 체크섬 590911598), (웹) `web/partial_eraser_web_test.dart`(50개, 체크섬 = VM), `goldens/partial_erase_golden_test.dart`(+ `partial_erase.png`), `widget/eraser_preview_test`의 부분 모드 테스트(미리보기 = 대기 = 커밋 프레임). 내부 `edit/partial_eraser.dart`(`ParamInterval`, `PartialEraser` — P2 `InkHitTest.minimize`, P3 이분법 12회로 **바깥쪽(g > 0) 끝**을 취함, P4 원본별 누적·병합(ε 1e-6), P5 `complement`·`pieceData`(lerpAt 양 끝 + 사이 원래 점), P6 `minPieceLength`, 점 획은 전체 삭제). 세션: 부분 모드는 캡슐마다 `addCapsule` → 바뀐 원본만 조각 데이터 다시 계산 + 미리보기 획(`previewFragmentOf`, `pv-<n>`), `end()`에서 마지막 조각 데이터에 `fragmentOf` + `services.newStrokeId()`로 실제 id(원본당 한 번), `InkEdit(splitStrokes, removedIds(z 순서), added)`. 컨트롤러 표시: 부분 지우개 중 닿은 원본 숨김 + 미리보기 조각(`_Display.previews`, 외곽선은 풀 대신 `Expando`)을 활성 레이어(형광펜은 활성 그룹)에 그림. 내부 접근자 `eraserPreviewPieces`·`eraserIntervalsOf`. 기반 단계 테스트 3곳(`b3_smoke_test`·`ink_edit_test`·`fake_store_handoff_test`)의 '부분 지우개 = 조각 없음' 기대값을 조각 있음(`SplitStrokes`)으로 고침. 도우미 `test/support/partial_eraser_properties.dart`(MINSTD 난수 — VM·Chrome 같은 경우) |
-| T17 | 남음 | | `unit/edit/lasso_test.dart`, `widget/lasso_preview_test.dart` |
+| T17 | 완료 | (이 커밋) | `unit/edit/lasso_test.dart`(사각·40%/60%·`coverage` 옵션·bounds 중심이 아닌 중심선 길이·8자·두 번 감은 올가미·오목(U자)·점 획·모든 도구 10종·대기 지움 제외·퇴화(점 1·2개, 왕복 직선, 3pt² 삼각형, `minAreaPt2`)·RDP 허용 = `simplifyPx / viewScale`·띠 높이·띠 감김수 = 단순 감김수(다각형 20개 × 500점 = 1만 점)·∫\|w\| dA = 촘촘한 격자), `widget/lasso_preview_test.dart`(viewScale 1·2에서 내부 픽셀 = `lassoFillArgb` 합성, 선 픽셀 = `lassoPathArgb`, 점선 6px/4px·굵기 1.5px가 화면 px 기준, addPoint로 자람, end·cancel 뒤 사라짐, 8자·두 번 감은 사각형도 채움 1겹), (웹) `web/lasso_web_test.dart`(lasso_test를 group으로 감쌈 — 9.1 '올가미'). 내부 `edit/lasso_polygon.dart`(`LassoPolygon` — L2 비유한·연속 중복·닫는 중복 점 제거 후 공용 RDP(`rdpMark`), 부호 면적, `isDegenerate` = 꼭짓점 < 3 또는 ∫\|w\| dA < `minAreaPt2`(부호 면적이 이미 크면 바로 false, 아니면 꼭짓점·교차점 y로 자른 띠 적분), L3 y 띠 색인(CSR `Int32List`, 띠 높이 max(8, 높이/64)), Sunday 감김수 · `LassoSelector` — L5 `coverageOf`·`selects`(안쪽 비율이 `coverage`에 닿으면 바로 true, 점 획 = 그 점)). `LassoSession`: `viewScale` 보관, `end()` = `lassoPolygonOf` → 퇴화면 null → `_host.strokesNear(polygon.bounds)`(필터 없음, 대기 지움 제외) → `selects` → z 순서 id. 오버레이는 `render/lasso_overlay.dart`(`paintLassoOverlay` — 채움 nonZero + `dashedPath` 6/4 px, 1.5 px, 색은 `InkTuning`만) |
 | T18 | 남음 | | `unit/edit/selection_geometry_test.dart`, `unit/edit/selection_test.dart`, `widget/selection_preview_test.dart` |
 | T19 | 남음 | | `unit/render/{render_config,bucket,raster_lru}_test.dart`, (웹) `web/render_config_web_test.dart`, `widget/{raster_vs_vector,raster_schedule,progressive_load}_test.dart` |
 | T20 | 남음 | | `widget/{thumbnail_renderer,thumbnail,pen_preview}_test.dart`, (웹) `web/thumbnail_png_web_test.dart`, `goldens/{thumbnail,pen_preview}_golden_test.dart` |
@@ -39,7 +39,8 @@
 
 ## 변경 요청
 
-- (없음 — 기반 단계의 `SelectionGeometry` 이름 겹침은 계약 v1.4 C14-01로 처리됨)
+- (기반 단계의 `SelectionGeometry` 이름 겹침은 계약 v1.4 C14-01로 처리됨)
+- T17 (문구 명확화 제안, 급하지 않음 — 시그니처·동작 변화 없음): 계약 7.2.15·계획서 4.7 `LassoOptions` 주석의 '|area| < minAreaPt2'를 '∫|winding| dA < minAreaPt2 (= shoelace |area| for simple polygons; a figure 8 adds its loops)'로 적어 달라. 지금 INK는 이 뜻으로 구현했다(신발끈 부호 면적이면 대칭 8자가 퇴화가 되어 같은 주석의 8자 규칙과 모순).
 
 ## 의존성 요청
 
@@ -49,6 +50,9 @@
 
 동시 개발 단계:
 
+- T17: `LassoOptions` 주석의 퇴화 기준 '|area| < minAreaPt2'의 면적을 **∫|w| dA(감김수 절댓값 가중 면적)**로 읽었다. 단순 다각형·같은 방향으로 여러 번 감은 올가미는 신발끈 공식 |면적|과 같고, 8자 올가미는 두 고리 면적의 합이다. 신발끈 부호 면적을 그대로 쓰면 대칭 8자는 면적 0 → 퇴화 → 선택 없음이 되어 같은 주석의 '8자 올가미는 두 고리 모두 선택'과 모순되기 때문(계약 문구 명확화를 변경 요청에 적음 — 시그니처 변화 없음). 계산: |부호 면적| ≥ 기준이면 바로 퇴화 아님(∫|w| ≥ |∫w|), 아니면 꼭짓점·변 교차점의 y로 자른 띠마다 가운데 높이에서 |w| 가중 길이 × 띠 높이(띠 안에서는 변 순서가 같아 길이가 y에 선형 → 정확), 합이 기준에 닿으면 멈춤. 교차점 계산이 O(n²)이지만 부호 면적이 작은 드문 경우(탭·8자·왕복)에만 돈다.
+- T17: `LassoSession.addPoint`·`beginLasso`의 비유한 점(NaN·무한)은 **무시**한다(`points`에 넣지 않음 — 지우개의 비유한 샘플 무시와 같음). `previewPath`는 L1대로 단순화 전 원래 점(닫힘)이다. 결과가 null(퇴화·선택 없음·내용 없음)이면 기존 선택은 그대로 둔다(B3와 같음 — EDITOR가 올가미 시작 전에 선택을 지움). 선택 id는 z 순서. 대기 중 지움·삭제로 숨은 획은 후보에서 빠진다(`strokesNear`). `coverage` ≤ 0이면 주석 문구 그대로 후보(다각형 bounds와 bounds가 닿는 획) 전부가 선택된다(그런 값을 쓰는 호출자는 없음).
+- T17: R8 오버레이 선을 B3 실선에서 **점선(화면 6px/4px, `PathMetric.extractPath`)**으로 바꿨다. 점선 위상은 매 프레임 첫 점에서 시작한다(경로가 끝에만 자라므로 앞쪽 점선은 프레임 사이에 움직이지 않고, 닫는 변만 바뀜). 채움은 nonZero(선택 규칙과 같은 내부). 굵기·점선 길이는 `lasso_overlay.dart`의 비공개 성격 상수(6.28 표에 없음 — `InkTuning`에 더하지 않음).
 - T16: 부분 지우개 P3 경계는 이분법의 **바깥쪽 끝**(g > 0)을 취한다 — 남는 조각의 끝점이 지우개 안에 들어가지 않게(성질 ① 여유가 양자화에만 쓰이게). 6.20 표의 '한 제스처 여러 번 통과 → 원본당 조각 계산 1회'는 원본 좌표 공간의 구간을 제스처 내내 누적하고, CORE 조각(`fragmentOf`, 실제 id)은 `end()`에서 원본마다 한 번 만드는 것으로 구현(미리보기 조각 데이터는 그 원본의 구간이 바뀔 때마다 다시 계산하고, `end()`는 마지막 데이터를 그대로 씀). 제스처 중 다른 갱신으로 원본이 내용에서 사라지면 그 id는 결과에서 뺀다(획 지우개도 같음, 남는 것이 없으면 null). 대기 중 조각은 B3·T10의 대기 추가 획처럼 활성 레이어(원본 z가 아니라 base 위)에 그린다 — 조각 위에 다른 획이 겹치면 커밋 전까지 위아래가 다르게 보일 수 있다(커밋 후 base 청크가 원래 z로 다시 기록).
 - T14: `strokeIdsInRect`를 B3의 'CORE bounds가 겹침'에서 **잉크(점별 반지름의 원 합집합)가 닫힌 사각형에 닿음**으로 바꿨다(4.15 표 'bounds 기반 → T14'. 4.8에는 시그니처만 있어 주석을 이 뜻으로 고침). 판정은 6.18의 볼록 g를 사각형에 적용(점–사각형 거리도 볼록). `hitTest`·`strokeIdsInRect`는 B3처럼 **커밋된 내용만** 본다(대기 추가·미리보기 획은 대상 아님, 대기 삭제로 숨은 획은 제외). 색인 질의는 닫힌 사각형(경계가 닿아도 후보), `hitTest`의 tolerance가 음수·NaN·무한이면 0. 6.18 '구간 bounds가 캡슐 bounds와 안 겹치면 건너뜀'은 `capsuleTouches`·`rectTouches`만 하고, 테스트·진단용 `capsuleGap`은 모든 구간의 최솟값(가지치기 없음).
 
@@ -91,13 +95,15 @@
 
 ## 다음 세션 메모
 
+- 세션 7(T17 커밋 시점): 패키지 analyze 0, `dart format` 변경 없음, 패키지 VM 569개·Chrome `web/lasso_web_test` 20개·example 스모크(VM) 통과.
+- T18 시작점: 계획서 6.22·4.7 `SelectionGeometry`(계약 수치)·4.8 `InkSelection`·8장 T18 완료 조건(`unit/edit/selection_geometry_test.dart`(CORE `Stroke.transformed` 대조 포함), `unit/edit/selection_test.dart`, `widget/selection_preview_test.dart`). 지금 `edit/selection_geometry.dart`·`render/selection.dart`는 B3 본문 — 먼저 완료 조건 테스트를 쓰고 어긋나는 곳을 고친다. 선택 미리보기 R7: 지금은 컨트롤러가 매 프레임 `previewTransformedOf` + 외곽선 재계산(`_overrideStroke`, T10 메모) — 닮음 변환(a == d, b == −c ±1e-9)이고 굵기가 한계(0.1·30)에 안 걸리면 선택 획 Picture 1번 기록 + `canvas.transform(InkPageGeometry.matrix4Of(m))`, 아니면 `previewTransformedOf` 외곽선으로 다시 기록(프레임당 4ms 예산, 넘으면 직전 Picture를 행렬로 보정). 미리보기 중 원래 위치의 획은 base에서 숨김(이미 `_Display.hidden`).
 - (끝난 메모) T15 시작점: 계획서 6.19·8장 T15 완료 조건(`unit/edit/stroke_eraser_test.dart`, `widget/eraser_preview_test.dart`). `sessions.dart`의 `EraserSession._touchAlong`(지금 bounds 전수 검사 + `_segmentRectDistance`)을 `_host.strokesNear(Rect.fromPoints(a, b).inflate(R))` → `interop.filterAccepts` → `InkHitTest.capsuleTouches(s, a, b, R)`로 바꾼다(첫 샘플은 a == b = 원). 부분 모드(T16)도 같은 후보 단계를 쓴다. 숨김 미리보기(R7)는 `_touched` → `displayChanged()`로 이미 동작(B3).
 - 세션 6(T14 커밋 시점): 패키지 analyze 0, `dart format` 변경 없음, 패키지 VM 513개 통과.
 - 세션 6(T15 커밋 시점): 패키지 analyze 0, 패키지 VM 529개·example 스모크(VM) 통과.
 - 세션 6(T16 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 545개(골든 15장)·Chrome `test/web` 79개·example 스모크(VM) 통과. (첫 Chrome 실행이 부하 중 컴파일 단계에서 10분 넘게 멈춰 중단하고 다시 돌림 — 두 번째는 정상)
 - 세션 6 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 545개·Chrome `test/web` 79개 통과, example 스모크(VM) 통과, `git status` 빔.
 - 성질 테스트 체크섬(`partialEraserChecksum50` 590911598)은 부분 지우개·히트 테스트 수치(황금분할·이분법 횟수, 병합 ε, 부스러기 기준)나 `partialCase` 생성 규칙을 바꾸면 VM에서 다시 기록하고 Chrome(`web/partial_eraser_web_test.dart`)에서 같은지 확인한다.
-- T17 시작점: 계획서 6.21 L1–L6·4.7 `LassoOptions` 주석(계약)·8장 T17 완료 조건(`unit/edit/lasso_test.dart`, `widget/lasso_preview_test.dart`). 지금 `LassoSession`(sessions.dart)은 B3 규칙(bounds 중심이 감김수 내부). L2 RDP(`geometry/rdp.dart` 공용 — 허용 `simplifyPx / viewScale`), L3 nonzero 감김수 + y 띠 색인(띠 높이 max(8pt, 높이/64)), L4 후보 = `_host.strokesNear(polygon bounds)`(필터 없음), L5 중심선 길이 가중 포함률 ≥ `coverage`(구간 중점 내부), 점 획은 그 점. 미리보기 경로·채움 색은 이미 overlay 레이어(`InkTuning.lassoPathArgb`·`lassoFillArgb`)에 있음. 내부 이름 `LassoPolygon`·`LassoSelector`(계획서 4.0 내부 목록).
+- (끝난 메모) T17 시작점: 계획서 6.21 L1–L6·4.7 `LassoOptions` 주석(계약)·8장 T17 완료 조건(`unit/edit/lasso_test.dart`, `widget/lasso_preview_test.dart`). 지금 `LassoSession`(sessions.dart)은 B3 규칙(bounds 중심이 감김수 내부). L2 RDP(`geometry/rdp.dart` 공용 — 허용 `simplifyPx / viewScale`), L3 nonzero 감김수 + y 띠 색인(띠 높이 max(8pt, 높이/64)), L4 후보 = `_host.strokesNear(polygon bounds)`(필터 없음), L5 중심선 길이 가중 포함률 ≥ `coverage`(구간 중점 내부), 점 획은 그 점. 미리보기 경로·채움 색은 이미 overlay 레이어(`InkTuning.lassoPathArgb`·`lassoFillArgb`)에 있음. 내부 이름 `LassoPolygon`·`LassoSelector`(계획서 4.0 내부 목록).
 - (끝난 메모) T16 시작점: 계획서 6.20 P1–P8·8장 T16 완료 조건. 닿음 판정은 T15와 같은 후보 단계(`strokesNear` → 필터)를 쓰고, 구간마다 `InkHitTest.segmentVsCapsule`(u*, g*) → g* ≤ 0이면 [0, u*]·[u*, 1]에서 `capsuleGapAt`의 0점을 이분법 12회(`InkTuning.bisectionIterations`)로 → 분수 인덱스 구간 [i + u₀, i + u₁]를 원본 id별로 누적·병합(ε 1e-6). 점 획은 닿으면 전체 삭제. `end()`에서 P5 여집합 → `InkPoints.lerpAt`(모든 채널 보간)·정수 점 → P6 부스러기(< max(0.3, 0.25·width)) → `interop.fragmentOf`(실제 id) → `InkEdit(splitStrokes, removedIds, added)`. 미리보기는 `interop.previewFragmentOf`(임시 id `pv-<n>`). 지금 컨트롤러 표시 상태가 부분 모드 지우개의 '닿은 원본 숨김'만 하므로 조각 미리보기를 활성 레이어(또는 대기 표시와 같은 경로)에 그리는 배선이 필요하다(`ink_page_controller.dart`의 `_Display`·`eraserTouched`). example 스모크는 원본 id가 사라지는지만 본다.
 - T02 `ink_points_test`: 계획의 `identical(InkPoints.of(p).raw, p.rawData)`는 디버그·테스트 실행에서 성립하지 않는다. CORE `rawData`가 디버그에서 호출마다 새 수정 불가 뷰(`asUnmodifiableView()`)를 주기 때문(CORE 6.2.4). 대신 `fromRaw`의 identical, `of(p).raw`가 수정 불가 뷰(쓰기 → UnsupportedError = INK가 복사하지 않음), 같은 값·같은 바이트 길이, `InkStroke.points.raw`가 늘 같은 객체임을 확인한다.
 
