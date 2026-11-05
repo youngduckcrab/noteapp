@@ -20,8 +20,10 @@ import '../common/errors.dart';
 import '../common/server_cursor.dart';
 import '../config.dart';
 import '../local/sync_local_store.dart';
+import '../merge/folder_cycles.dart';
 import '../merge/merge_recorder.dart';
 import '../merge/page_resurrection.dart';
+import '../merge/purge_guard.dart';
 import '../merge/purged_set.dart';
 import '../status/status_builder.dart';
 import '../status/sync_issue.dart';
@@ -64,6 +66,11 @@ final class _Session {
   late DownloadPipeline download;
   late LiveListener listener;
   late PageResurrection resurrection;
+  late FolderCycleDetector cycles;
+  late PurgeGuard guard;
+
+  /// Cycle rechecks waiting for cycleRepairGrace (6.7.2).
+  final Set<Timer> cycleTimers = {};
 
   /// Steps 2–4 done (bound uid, owner).
   bool accountDone = false;
@@ -424,6 +431,10 @@ final class EngineController {
   Future<void> _closeSession(_Session s) async {
     final backend = s.backend;
     if (backend == null) return;
+    for (final t in s.cycleTimers) {
+      t.cancel();
+    }
+    s.cycleTimers.clear();
     await s.listener.stop();
     await s.purged.dispose();
     try {
@@ -615,6 +626,13 @@ final class EngineController {
     final sync = local.sync;
     s.purged = PurgedSet(sync: sync, localChanges: local.localChanges);
     s.resurrection = PageResurrection(sync: sync);
+    s.cycles = FolderCycleDetector(sync: sync);
+    s.guard = PurgeGuard(
+      sync: sync,
+      titleSuffix: config.recoveredNoteTitleSuffix,
+      window: config.purgeGuardWindow,
+      nowMillis: _wallMillis,
+    );
     s.upload = UploadPipeline(
       sync: sync,
       backend: backend,
@@ -624,6 +642,7 @@ final class EngineController {
       isClockBlocked: () => _k3,
       onPurgesCommitted: (purges) =>
           s.purged.addCommitted(purges, nowMillis: _wallMillis()),
+      onScopesCommitted: s.guard.scopesSent,
       onPushNeeded: () => _scheduler.trigger(),
     );
     s.download = DownloadPipeline(
@@ -634,6 +653,11 @@ final class EngineController {
       wallMillis: _wallMillis,
       serverNowMillis: _serverClock.serverNowMillis,
       onOwnChunk: (c) => _serverClock.onOwnChunk(c.id, c.serverTime),
+      purgeGuard: (purges) async {
+        for (final notice in await s.guard.guard(purges)) {
+          _notices.add(notice);
+        }
+      },
       afterGroup: (outcomes) => _afterGroup(s, outcomes),
     );
     s.listener = LiveListener(
@@ -859,8 +883,8 @@ final class EngineController {
     _pullFailed(error);
   }
 
-  /// Step 8 of 6.6.3 for one apply group: page resurrection (6.7.3). Folder cycles (6.7.2)
-  /// join here in T11.
+  /// Step 8 of 6.6.3 for one apply group: folder cycles (6.7.2) and page resurrection
+  /// (6.7.3) over the committed outcomes.
   Future<void> _afterGroup(
     _Session s,
     Map<EntityRef, MergeOutcomeKind> outcomes,
@@ -869,13 +893,56 @@ final class EngineController {
     for (final kind in outcomes.values) {
       if (kind == MergeOutcomeKind.kept) _recordsKept++;
     }
-    final repairs = await s.resurrection.check(outcomes);
+    final cycles = await s.cycles.check(outcomes);
+    await _repairCycles(s, [
+      for (final r in cycles)
+        if (r.ownMove) r,
+    ]);
+    final later = [
+      for (final r in cycles)
+        if (!r.ownMove) r,
+    ];
+    if (later.isNotEmpty) {
+      // Another device made the losing move: it repairs at once; check again after the
+      // grace and repair only if the loop is still there (fewer duplicate writes).
+      late final Timer timer;
+      timer = Timer(config.cycleRepairGrace, () {
+        s.cycleTimers.remove(timer);
+        unawaited(_enqueue('cycle recheck', (_) => _recheckCycles(s, later)));
+      });
+      s.cycleTimers.add(timer);
+    }
+    final pages = await s.resurrection.check(outcomes);
+    if (pages.isEmpty) return;
+    await s.upload.commitRepairs([for (final r in pages) r.write]);
+    _repairsWritten += pages.length;
+    final at = _wallMillis();
+    for (final r in pages) {
+      _notices.add(PageRestored(at: at, pageId: r.pageId, noteId: r.noteId));
+    }
+  }
+
+  Future<void> _recheckCycles(_Session s, List<CycleRepair> waiting) async {
+    if (_session != s || _disposed) return;
+    final cycles = await s.cycles.findCycles({
+      for (final r in waiting) ...r.cycle.members,
+    });
+    await _repairCycles(s, await s.cycles.repairsOf(cycles));
+  }
+
+  Future<void> _repairCycles(_Session s, List<CycleRepair> repairs) async {
     if (repairs.isEmpty) return;
     await s.upload.commitRepairs([for (final r in repairs) r.write]);
     _repairsWritten += repairs.length;
     final at = _wallMillis();
     for (final r in repairs) {
-      _notices.add(PageRestored(at: at, pageId: r.pageId, noteId: r.noteId));
+      _notices.add(
+        FolderCycleResolved(
+          at: at,
+          folderId: r.folderId,
+          cycle: r.cycle.members,
+        ),
+      );
     }
   }
 

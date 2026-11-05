@@ -85,6 +85,7 @@ final class UploadPipeline {
     required this.refreshSession,
     this.isClockBlocked = _never,
     this.onPurgesCommitted = _noPurges,
+    this.onScopesCommitted = _noScopes,
     this.onPushNeeded = _nothing,
   }) : _packer = ChunkPacker(config: config, authorNodeId: sync.deviceNodeId);
 
@@ -104,6 +105,10 @@ final class UploadPipeline {
   /// Committed purge records (the stored purged set, 6.7.4 — PurgedSet).
   final Future<void> Function(List<PurgeRecord> purges) onPurgesCommitted;
 
+  /// A commit of records in these scopes succeeded (PurgeGuard's recent-upload window,
+  /// 6.7.4).
+  final void Function(Set<String> scopes) onScopesCommitted;
+
   /// Schedules a push (PushScheduler.trigger) — used after [commitRepairs].
   final void Function() onPushNeeded;
 
@@ -118,6 +123,7 @@ final class UploadPipeline {
 
   static bool _never() => false;
   static Future<void> _noPurges(List<PurgeRecord> purges) async {}
+  static void _noScopes(Set<String> scopes) {}
   static void _nothing() {}
 
   /// Quarantined entries and why (rejectedByServer, entityTooLarge, foreignOwnerData).
@@ -348,6 +354,7 @@ final class _Run {
     }
     commits++;
     chunks += group.length;
+    p.onScopesCommitted({for (final c in group) c.write.scope});
     final sent = [
       for (final c in group)
         for (final item in c.items) item,
