@@ -3,18 +3,21 @@
 //
 // Foundation step B4 (T0, contract 7.6 B4): importPdfAsNewNote returned null and
 // exportNotesAsPdf does nothing, so INFRA could wire both into the LIBRARY slots. The import
-// flow is real from PDF T6, the search panel from T11 and the bulk export from T15b; the
-// single export comes with T16.
+// flow is real from PDF T6, the search panel from T11, the bulk export from T15b and the
+// single export from T16.
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' as core;
 
 import '../common/error_report.dart';
 import '../common/job_state.dart';
 import '../errors.dart';
 import '../export/export_types.dart';
 import '../import/import_types.dart';
+import '../output/pdf_output_sink.dart';
 import '../providers.dart';
 import '../text/search_notifier.dart';
 import 'export_sheets.dart';
@@ -160,13 +163,182 @@ Future<String?> importPdfAsNewNote(
 /// Options sheet → progress dialog (cancellable; shows the storage-delay text while
 /// writeFailing — 6.11.2 step 1, '취소' ends a pending flush at once) → result sheet
 /// (share/download/open).
+///
+/// T16: the options sheet (title by [purpose]: 'PDF로 내보내기' / 'PDF 공유' / '인쇄', the
+/// note title under it) offers 노트 전체 / 현재 페이지 / 선택한 페이지 — '선택한 페이지' is
+/// the default when [selectedPageIds] has a page of the note and disabled when it has none —
+/// and '필기 포함'·'속지 포함'; on the web it warns when the PDF originals of the range
+/// exceed PdfTuning.warnExportSourceBytesWeb. The progress dialog follows
+/// pdfExportJobProvider; '취소' cancels the job and closes it at once (no result sheet). The
+/// result sheet lists the file with its warnings and the sink's available actions ordered by
+/// [purpose] (6.12: save / share → 공유 first when possible, then 다운로드; print → 공유 with
+/// '공유 시트에서 프린트를 고르세요', then 새 탭에서 열기). Returns the result after the sheet
+/// closes; null when cancelled, failed (a snack bar, cancel excepted), busy (a snack bar) or
+/// when [context] is unmounted midway (quietly — a running job is cancelled).
 Future<PdfExportResult?> runPdfExportFlow(
   BuildContext context, {
   required String noteId,
   String? currentPageId,
   List<String> selectedPageIds = const [],
   PdfExportPurpose purpose = PdfExportPurpose.save,
-}) => throw UnimplementedError('runPdfExportFlow (PDF T16)');
+}) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final job = container.read(pdfExportJobProvider.notifier);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  void say(String text) {
+    if (!context.mounted) return;
+    messenger?.showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  if (job.isBusy) {
+    say(const PdfIoException(PdfErrorCode.busy).userMessage);
+    return null;
+  }
+  final gateway = container.read(pdfNoteGatewayProvider);
+  final core.Note? note;
+  final List<core.Page> pages;
+  try {
+    note = await gateway.getNote(noteId);
+    pages = note == null ? const [] : await gateway.pagesOf(noteId);
+  } on PdfIoException catch (e) {
+    say(e.userMessage);
+    return null;
+  } on Object catch (e, s) {
+    reportPdfError(e, s, 'pdf export: note pages');
+    say(const PdfIoException(PdfErrorCode.exportFailed).userMessage);
+    return null;
+  }
+  if (!context.mounted) return null;
+  if (note == null) {
+    say(const PdfIoException(PdfErrorCode.noteNotFound).userMessage);
+    return null;
+  }
+  final sizes = kIsWeb
+      ? await _sourceSizes(container, pages)
+      : const <core.AssetId, int>{};
+  if (!context.mounted) return null;
+  final options = await showPdfExportOptionsSheet(
+    context,
+    title: switch (purpose) {
+      PdfExportPurpose.save => PdfStringsKo.exportTitle,
+      PdfExportPurpose.share => PdfStringsKo.shareTitle,
+      PdfExportPurpose.print => PdfStringsKo.printTitle,
+    },
+    subtitle: note.title,
+    pages: pages,
+    currentPageId: currentPageId,
+    selectedPageIds: selectedPageIds,
+    sourceSizes: sizes,
+  );
+  if (options == null || !context.mounted) return null;
+  if (job.isBusy) {
+    // Another job started while the sheet was open.
+    say(const PdfIoException(PdfErrorCode.busy).userMessage);
+    return null;
+  }
+
+  final running = job.run(noteId, options);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final cancelled = Completer<bool>();
+  final dialog = DialogRoute<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PdfExportProgressDialog(
+      batch: false,
+      onCancel: () {
+        job.cancel();
+        if (!cancelled.isCompleted) cancelled.complete(false);
+      },
+    ),
+  );
+  unawaited(navigator.push(dialog));
+  final ended = await Future.any<bool>([
+    _untilUnmounted(context, running),
+    cancelled.future,
+  ]);
+  if (navigator.mounted && dialog.isActive) navigator.removeRoute(dialog);
+  if (!ended) {
+    job.cancel(); // '취소', or the caller's screen went away: quietly stop
+    return null;
+  }
+  final result = await running;
+  if (!context.mounted) return null;
+  if (result == null) {
+    final state = container.read(pdfExportJobProvider);
+    if (state is PdfJobFailed<PdfExportResult> &&
+        state.error.code != PdfErrorCode.cancelled) {
+      say(state.error.userMessage);
+    }
+    return null;
+  }
+  final sink = container.read(pdfOutputSinkProvider);
+  final (order, hint) = _deliveryPlan(purpose, sink.availableActions([result]));
+  await showPdfExportResultSheet(
+    context,
+    sink: sink,
+    title: PdfStringsKo.exportDone,
+    notices: [?hint],
+    files: [PdfResultFile(result, notes: warningLines(result))],
+    actionOrder: order,
+  );
+  return result;
+}
+
+/// Button order and hint of the single export result sheet by purpose (6.12): save →
+/// 다운로드, with 공유 first when files can be shared (iPad: '파일에 저장' is in the share
+/// sheet); share → 공유; print → 공유 + '공유 시트에서 프린트를 고르세요', then 새 탭에서 열기
+/// (no file sharing: 새 탭에서 열기 + '새 탭에서 PDF를 열어 인쇄하세요').
+(List<PdfOutputAction>, String?) _deliveryPlan(
+  PdfExportPurpose purpose,
+  Set<PdfOutputAction> actions,
+) => switch (purpose) {
+  PdfExportPurpose.save || PdfExportPurpose.share => (
+    const [
+      PdfOutputAction.share,
+      PdfOutputAction.download,
+      PdfOutputAction.openInNewTab,
+    ],
+    null,
+  ),
+  PdfExportPurpose.print => (
+    const [
+      PdfOutputAction.share,
+      PdfOutputAction.openInNewTab,
+      PdfOutputAction.download,
+    ],
+    actions.contains(PdfOutputAction.share)
+        ? PdfStringsKo.printViaShare
+        : actions.contains(PdfOutputAction.openInNewTab)
+        ? PdfStringsKo.printViaNewTab
+        : null,
+  ),
+};
+
+/// Web (6.11.2 step 3): asset id → bytes of the PDF originals [pages] use, from CORE's
+/// asset metadata (no bytes are read). Empty when CORE cannot tell (the warning is only a
+/// hint).
+Future<Map<core.AssetId, int>> _sourceSizes(
+  ProviderContainer container,
+  List<core.Page> pages,
+) async {
+  final ids = {
+    for (final p in pages)
+      if (p.background case core.PdfBackground(:final assetId)) assetId,
+  };
+  if (ids.isEmpty) return const {};
+  try {
+    final assets = container.read(core.noteStoreProvider).assets;
+    final sizes = <core.AssetId, int>{};
+    for (final id in ids) {
+      final asset = await assets.getAsset(id);
+      if (asset != null) sizes[id] = asset.size;
+    }
+    return sizes;
+  } on Object catch (e, s) {
+    reportPdfError(e, s, 'pdf export: original sizes');
+    return const {};
+  }
+}
 
 /// LibraryPdfExportAction shape (contract 7.2.18 / 7.2.19), F-01 bulk export (6.12.1):
 /// options sheet (필기·속지 포함) → one PDF per note in [noteIds] order with a cancellable overall

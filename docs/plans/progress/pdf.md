@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 6/10 (동시 개발 단계)
-- 다음 할 일: T16 출력·내보내기 UI(`output_sink_browser.dart`, 단일 옵션 시트, `runPdfExportFlow`) → T17
+- 마지막 세션: 7/10 (동시 개발 단계)
+- 다음 할 일: T17 provider·초기화·메뉴·라이선스 등록(unit/providers_test, unit/init_test 실제 판, widget/menu_actions_test) → T18 → T19
 
 ## 작업 표
 
@@ -26,7 +26,7 @@
 | T14 | 완료 | 0da121f | web/compose_browser_test (T13과 같은 탐침 20개 + 워커 관리 7개), web/foundation_browser_test(웹 합성 팩토리 `isSupported`) |
 | T15 | 완료 | 809273e | unit/export_service_test, pdfium/export_e2e_test (+ support/export_world.dart, web/pure_logic_browser_test 웹 묶음 16쪽, unit/error_messages_test 잘린 쪽 목록) |
 | T15b | 완료 | 4cd950b | unit/batch_export_test, widget/batch_export_flow_test |
-| T16 | 남음 | | widget/export_flow_test, web/output_sink_browser_test |
+| T16 | 완료 | (이 커밋) | widget/export_flow_test, web/output_sink_browser_test (+ web/foundation_browser_test 웹 출력 팩토리) |
 | T17 | 남음 | | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test |
 | T18 | 남음 | | perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test (perf 태그) |
 | T19 | 남음 | | README, THIRD_PARTY_NOTICES.md, licenses/, unit/licenses_test |
@@ -114,10 +114,18 @@
 - T15b `FakePdfOutputSink`(4.14 '전달 기록', 원래 T16 몫이었으나 이 흐름 시험에 필요해 지금 만듦): 생성자 `canShare`·`canDownload`·`canOpenInNewTab`(기본 모두 true — iPad Safari처럼 share는 비지 않은 목록, download·openInNewTab은 결과 1개일 때만), 기록 `deliveries`((결과 목록, 동작))·`availableActionsCalls`, `enqueueOutcome`(빈 대기열 → done). 없는 동작 → ArgumentError. testing.dart의 `_todo` 도우미는 쓸 곳이 없어 지웠다.
 - T15b `api_surface_test`의 B4 몫 'exportNotesAsPdf → nothing'은 지웠다(실제 흐름 — widget/batch_export_flow_test).
 - T15 `assetMissing` 문구: 잘린 쪽 목록('… 외 n쪽')에는 '쪽'을 다시 붙이지 않는다(strings_ko `errorMessage`).
+- T16 `BrowserPdfOutputSink`(output_sink_browser.dart, 내부): `navigator.canShare`·`share`가 없으면(리눅스 데스크톱 Chrome) share 없음, `canShare`가 던지면 false. 결과마다 `web.File`을 한 번만 만든다(`Expando` — File은 바이트를 복사하고 결과 시트가 build마다 `availableActions`를 부르므로). share 제목 = 파일 1개면 그 이름, 여러 개면 'PDF {n}개'. `navigator.share` 거부: `DOMException` AbortError → dismissedByUser, NotAllowedError → needsUserGesture, 그 밖(다른 이름·DOMException 아님·동기 예외) → failed. download = 숨긴 `<a download href=blob:>`를 body에 붙여 click 후 제거, openInNewTab = `window.open(blobUrl, '_blank')`(noopener를 쓰면 반환값이 늘 null이라 쓰지 않음) — 두 Blob URL 모두 `revokeDelay`(5분) 뒤 revoke. 없는 동작이면 `deliver`가 **동기로** ArgumentError(가짜 sink와 같음). 시험용 생성자 인자 `navigator`(가짜 JS 객체)·`openWindow`·`revokeDelay`.
+- T16 VM 스텁 `_UnsupportedOutputSink.deliver`는 ArgumentError가 아니라 `PdfOutputOutcome.unsupported`(동작이 하나도 없어 결과 시트에 버튼이 없으므로 실제로는 불리지 않음 — `unsupported` 값이 이 sink 몫).
+- T16 단일 내보내기 옵션 시트(내부 `showPdfExportOptionsSheet`, export_sheets.dart): 제목 = 목적별('PDF로 내보내기'·'PDF 공유'·'인쇄' — T17 메뉴 이름과 같음), 그 아래 노트 제목. 범위 `RadioGroup`(Flutter 3.47에서 `RadioListTile.groupValue`·`onChanged`는 사용 중단) — '노트 전체'(부제 '{n}쪽'), '현재 페이지'(부제 = 그 쪽 번호 '{p}쪽', `currentPageId`가 노트에 없으면 비활성), '선택한 페이지'(부제 '{k}쪽', 노트에 있는 선택 id가 없으면 비활성, 있으면 기본 — 노트 순서로 `PdfExportSelectedPages`). '필기 포함'·'속지 포함' 스위치, 정책은 기본(blankPage), `fileName` 없음. 웹 원본 경고(6.11.2 3단계): 고른 범위가 쓰는 원본(중복 없이)의 합계가 `warnExportSourceBytesWeb`(150MB)를 **넘으면** 시트에 경고 줄 '원본 PDF가 {MB}MB예요. 기기 메모리가 부족하면 내보내기가 멈출 수 있어요.'(새 문구, 내보내기 버튼은 그대로). 원본 크기는 **CORE `noteStoreProvider.assets.getAsset(id).size`**로 읽는다 — 게이트웨이 포트(4.4)에 크기 조회가 없고 `readAssetBytes`로 세면 웹에서 원본을 한 번 더 메모리에 올리므로. 웹(`kIsWeb`)에서만 읽고, 실패하면 보고 후 경고 없음.
+- T16 `runPdfExportFlow`: busy → 스낵바. 시트 전에 `getNote`·`pagesOf`(노트 없음 → 스낵바 '노트를 찾을 수 없어요.', PdfIoException → 그 문구, 예상 밖 → 보고 + exportFailed 문구). 시트 → (busy 재확인) → `pdfExportJobProvider.run` → 진행 창(`PdfExportProgressDialog(batch: false)`, 루트 navigator `DialogRoute`). '취소'는 작업 취소와 함께 **창을 바로 닫고** null(작업 끝을 기다리지 않음 — 결과 시트·스낵바 없음). 호출자 context가 해제되면 작업을 취소하고 조용히 null(`_untilUnmounted`, 일괄과 같음). 실패는 스낵바 `userMessage`(cancelled 제외). 결과 시트는 '닫기'로 닫힐 때까지 기다린 뒤 결과를 돌려준다. 목적별 버튼(6.12): 결과 시트에 `actionOrder`(내부 인자)를 더해 첫 버튼은 채움·나머지는 tonal — save·share = 공유 → 다운로드 → 새 탭, print = 공유 → 새 탭 → 다운로드 + 안내 '공유 시트에서 프린트를 고르세요'(공유 불가면 '새 탭에서 PDF를 열어 인쇄하세요' — 새 문구). save와 share는 순서가 같다(공유 가능하면 공유가 먼저라는 6.12 규칙이 save에도 적용되므로).
+- T16 widget/export_flow_test의 '탭 처리기에서 동기 deliver'는 `tester.binding.handlePointerEvent`로 down·up을 동기로 보내고 pump·await 없이 `FakePdfOutputSink.deliveries`를 확인한다(처리기가 microtask 뒤에 deliver하도록 바꾸면 실패함을 확인함).
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
+
+- 세션 7 결과: T16 완료. 다음 T17(4.1·4.11·4.12·6.16): `pdfEditorMoreMenuActions`(지금 빈 목록 — 'pdf.export'·'pdf.share'·'pdf.print'는 `runPdfExportFlow(purpose: save/share/print, currentPageId·selectedPageIds = invocation 그대로)`, 'pdf.search'는 `showPdfSearchPanel`(onNavigate 없으면 `isEnabled` false)), `pdfEditorAddPageSources`('pdf.insert' — `runPdfImportFlow(PdfImportIntoNote(...))` 뒤 `onNavigate(firstId, null)`, 진행 창 '닫기'로 null이면 이동 없음), `initializePdfIo` 실제 판(멱등·`Pdfrx.pdfiumWasmModulesUrl`·예열 실패 무시·다른 config면 debug assert·`LicenseRegistry` PDFium 1회), unit/providers_test(그래프·dispose 정리·오류 보고 `library: 'pdf_io'`·빌더 provider 안정성 PDF-3-4). web/foundation_browser_test 97·98행이 메뉴 함수 빈 목록을 단언하므로 T17에서 바꿀 것. 시트 제목 문구 `PdfStringsKo.exportTitle`·`shareTitle`·`printTitle`을 메뉴 이름에 그대로 쓰면 된다.
+- 세션 7 검사: 패키지 VM 테스트 549개 통과(+3 skip), Chrome(web/output_sink_browser_test·foundation_browser_test 56초 — 전체 결과는 아래 세션 끝 검사), `ws check` 0.
 
 - 세션 6 결과: T15(809273e)·T15b(4cd950b) 완료. 다음 T16: ① `output_sink_browser.dart`(지금 웹 `createPlatformOutputSink`는 UnimplementedError — web/foundation_browser_test 94행이 그것을 단언하므로 T16에서 바꿀 것, VM 스텁 `_UnsupportedOutputSink.deliver`도 UnimplementedError → `unsupported`로) ② 단일 내보내기 옵션 시트(범위 전체/현재/선택 — 선택이 없으면 '선택한 페이지' 비활성, 있으면 기본, 필기·속지 토글, 웹 원본 합계 150MB 초과 경고 `PdfTuning.warnExportSourceBytesWeb`) ③ `runPdfExportFlow`(flows.dart, 지금 UnimplementedError): 진행 창은 `PdfExportProgressDialog(batch: false, onCancel: job.cancel)`, 결과 시트는 `showPdfExportResultSheet(title: PdfStringsKo.exportDone, files: [PdfResultFile(r, notes: warningLines(r))])`(export_sheets.dart) — 목적별 기본 버튼·인쇄 안내 문구('공유 시트에서 프린트를 고르세요')는 아직 없음(버튼 순서는 지금 share·download·openInNewTab 고정). 흐름 모양은 `exportNotesAsPdf`를 따르면 된다(busy 스낵바, `_untilUnmounted`, 루트 navigator `DialogRoute`). 위젯 시험 도우미는 widget/batch_export_flow_test의 `_World`(FakePdfNoteGateway·RecordingComposeBackend·BoxInkVectorizer·FakePdfOutputSink·CORE 가짜 저장소 override)를 본뜨면 된다.
 - 세션 6 검사: 패키지 VM 테스트 536개 통과(+3 skip), Chrome 48개 통과(`ws test --platform chrome --package pdf_io`, 77~101초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0. pdfium/export_e2e_test는 실 PDFium으로 1초 안팎.

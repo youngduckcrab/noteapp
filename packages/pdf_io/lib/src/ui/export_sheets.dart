@@ -1,14 +1,16 @@
-// lib/src/ui/export_sheets.dart — 06-pdf 6.11.2, 6.12, 6.12.1 (T15b; T16 reuses the
-// progress dialog and the result sheet). Internal (not exported).
+// lib/src/ui/export_sheets.dart — 06-pdf 4.11, 6.11.2, 6.11.9, 6.12, 6.12.1 (T15b bulk
+// export, T16 single export). Internal (not exported).
 //
-// The bulk export options sheet ('필기 포함'·'속지 포함' → '내보내기'), the export progress
-// dialog (single or bulk job — '취소', storage-delay text while CORE retries a commit) and
-// the result sheet. The result sheet calls PdfOutputSink.deliver synchronously from each tap
-// handler (Safari user activation, 6.12).
+// The single export options sheet (range 전체 / 현재 / 선택, '필기 포함'·'속지 포함', the web
+// large-original warning), the bulk export options sheet ('필기 포함'·'속지 포함' →
+// '내보내기'), the export progress dialog (single or bulk job — '취소', storage-delay text
+// while CORE retries a commit) and the result sheet. The result sheet calls
+// PdfOutputSink.deliver synchronously from each tap handler (Safari user activation, 6.12).
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' as core;
 
 import '../common/job_state.dart';
 import '../errors.dart';
@@ -16,8 +18,217 @@ import '../export/batch_export.dart';
 import '../export/export_types.dart';
 import '../output/pdf_output_sink.dart';
 import '../providers.dart';
+import '../tuning.dart';
 import 'import_progress_dialog.dart';
 import 'strings_ko.dart';
+
+/// The ranges of the single export options sheet.
+enum _RangeChoice { all, current, selected }
+
+/// Single export options (4.11, 6.11.9): range 노트 전체 / 현재 페이지 / 선택한 페이지,
+/// '필기 포함', '속지 포함'. '현재 페이지' is disabled when [currentPageId] is not a page of
+/// [pages]; '선택한 페이지' is disabled when no id of [selectedPageIds] is, and is the
+/// default otherwise (else 노트 전체). [sourceSizes] (web only, asset id → bytes) adds the
+/// large-original warning when the PDF originals of the chosen range exceed
+/// PdfTuning.warnExportSourceBytesWeb (6.11.2 step 3 — the export can go on). null when the
+/// sheet is closed without '내보내기'.
+Future<PdfExportOptions?> showPdfExportOptionsSheet(
+  BuildContext context, {
+  required String title,
+  String subtitle = '',
+  required List<core.Page> pages,
+  String? currentPageId,
+  List<String> selectedPageIds = const [],
+  Map<core.AssetId, int> sourceSizes = const {},
+}) => showModalBottomSheet<PdfExportOptions>(
+  context: context,
+  isScrollControlled: true,
+  showDragHandle: true,
+  builder: (_) => _ExportOptionsSheet(
+    title: title,
+    subtitle: subtitle,
+    pages: pages,
+    currentPageId: currentPageId,
+    selectedPageIds: selectedPageIds,
+    sourceSizes: sourceSizes,
+  ),
+);
+
+class _ExportOptionsSheet extends StatefulWidget {
+  const _ExportOptionsSheet({
+    required this.title,
+    required this.subtitle,
+    required this.pages,
+    required this.currentPageId,
+    required this.selectedPageIds,
+    required this.sourceSizes,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<core.Page> pages;
+  final String? currentPageId;
+  final List<String> selectedPageIds;
+  final Map<core.AssetId, int> sourceSizes;
+
+  @override
+  State<_ExportOptionsSheet> createState() => _ExportOptionsSheetState();
+}
+
+class _ExportOptionsSheetState extends State<_ExportOptionsSheet> {
+  late final int? _currentNumber; // 1-based
+  late final List<core.Page> _selected; // note order
+  late _RangeChoice _range;
+  bool _ink = true;
+  bool _templates = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final index = widget.pages.indexWhere((p) => p.id == widget.currentPageId);
+    _currentNumber = index < 0 ? null : index + 1;
+    final ids = widget.selectedPageIds.toSet();
+    _selected = [
+      for (final p in widget.pages)
+        if (ids.contains(p.id)) p,
+    ];
+    _range = _selected.isNotEmpty ? _RangeChoice.selected : _RangeChoice.all;
+  }
+
+  List<core.Page> _pagesOf(_RangeChoice range) => switch (range) {
+    _RangeChoice.all => widget.pages,
+    _RangeChoice.current => [widget.pages[_currentNumber! - 1]],
+    _RangeChoice.selected => _selected,
+  };
+
+  /// Bytes of the distinct PDF originals the range uses (unknown sizes count 0).
+  int _sourceBytes(_RangeChoice range) {
+    if (widget.sourceSizes.isEmpty) return 0;
+    final assets = {
+      for (final p in _pagesOf(range))
+        if (p.background case core.PdfBackground(:final assetId)) assetId,
+    };
+    var total = 0;
+    for (final id in assets) {
+      total += widget.sourceSizes[id] ?? 0;
+    }
+    return total;
+  }
+
+  PdfExportRange _exportRange() => switch (_range) {
+    _RangeChoice.all => const PdfExportAllPages(),
+    _RangeChoice.current => PdfExportCurrentPage(widget.currentPageId!),
+    _RangeChoice.selected => PdfExportSelectedPages([
+      for (final p in _selected) p.id,
+    ]),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sourceBytes = _sourceBytes(_range);
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.title, style: theme.textTheme.titleLarge),
+            if (widget.subtitle.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                widget.subtitle,
+                style: theme.textTheme.bodyMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 8),
+            RadioGroup<_RangeChoice>(
+              groupValue: _range,
+              onChanged: (v) {
+                if (v != null) setState(() => _range = v);
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<_RangeChoice>(
+                    contentPadding: EdgeInsets.zero,
+                    value: _RangeChoice.all,
+                    title: const Text(PdfStringsKo.rangeAll),
+                    subtitle: Text(PdfStringsKo.pages(widget.pages.length)),
+                  ),
+                  RadioListTile<_RangeChoice>(
+                    contentPadding: EdgeInsets.zero,
+                    value: _RangeChoice.current,
+                    enabled: _currentNumber != null,
+                    title: const Text(PdfStringsKo.rangeCurrent),
+                    subtitle: _currentNumber == null
+                        ? null
+                        : Text(PdfStringsKo.pages(_currentNumber)),
+                  ),
+                  RadioListTile<_RangeChoice>(
+                    contentPadding: EdgeInsets.zero,
+                    value: _RangeChoice.selected,
+                    enabled: _selected.isNotEmpty,
+                    title: const Text(PdfStringsKo.rangeSelected),
+                    subtitle: _selected.isEmpty
+                        ? null
+                        : Text(PdfStringsKo.pages(_selected.length)),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(PdfStringsKo.includeInk),
+              value: _ink,
+              onChanged: (v) => setState(() => _ink = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(PdfStringsKo.includeTemplates),
+              value: _templates,
+              onChanged: (v) => setState(() => _templates = v),
+            ),
+            if (sourceBytes > PdfTuning.warnExportSourceBytesWeb) ...[
+              const SizedBox(height: 8),
+              Text(
+                PdfStringsKo.largeExportSource(sourceBytes),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(PdfStringsKo.cancel),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(
+                    PdfExportOptions(
+                      range: _exportRange(),
+                      includeInk: _ink,
+                      includeTemplates: _templates,
+                    ),
+                  ),
+                  child: const Text(PdfStringsKo.exportButton),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// Bulk export options (6.12.1 step 2): no range (whole notes), the default missing-asset
 /// policy. null when the sheet is closed without '내보내기'.
@@ -225,6 +436,7 @@ Future<void> showPdfExportResultSheet(
   required List<PdfResultFile> files,
   List<String> notices = const [],
   List<String> failures = const [],
+  List<PdfOutputAction> actionOrder = PdfOutputAction.values,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
@@ -235,12 +447,15 @@ Future<void> showPdfExportResultSheet(
     files: files,
     notices: notices,
     failures: failures,
+    actionOrder: actionOrder,
   ),
 );
 
-/// One file: a button per available action (공유 / 다운로드 / 새 탭에서 열기). Several
-/// files: '모두 공유' when every file can be shared at once, and '다운로드' on each file that
-/// can be downloaded (one file per tap — Safari may block several downloads per gesture).
+/// One file: a button per available action (공유 / 다운로드 / 새 탭에서 열기) in
+/// [actionOrder] (the purpose of a single export, 6.12) — the first one filled, the others
+/// tonal. Several files: '모두 공유' when every file can be shared at once, and '다운로드' on
+/// each file that can be downloaded (one file per tap — Safari may block several downloads
+/// per gesture).
 class PdfExportResultSheet extends StatefulWidget {
   const PdfExportResultSheet({
     super.key,
@@ -249,6 +464,7 @@ class PdfExportResultSheet extends StatefulWidget {
     required this.files,
     this.notices = const [],
     this.failures = const [],
+    this.actionOrder = PdfOutputAction.values,
   });
 
   final PdfOutputSink sink;
@@ -256,6 +472,9 @@ class PdfExportResultSheet extends StatefulWidget {
   final List<PdfResultFile> files;
   final List<String> notices;
   final List<String> failures;
+
+  /// Button order of a single file; actions missing here come after it.
+  final List<PdfOutputAction> actionOrder;
 
   @override
   State<PdfExportResultSheet> createState() => _PdfExportResultSheetState();
@@ -296,6 +515,14 @@ class _PdfExportResultSheetState extends State<PdfExportResultSheet> {
       ),
     );
   }
+
+  /// [actions] in [PdfExportResultSheet.actionOrder], then the rest in enum order.
+  List<PdfOutputAction> _ordered(Set<PdfOutputAction> actions) => [
+    for (final a in widget.actionOrder)
+      if (actions.contains(a)) a,
+    for (final a in PdfOutputAction.values)
+      if (actions.contains(a) && !widget.actionOrder.contains(a)) a,
+  ];
 
   static String _actionLabel(PdfOutputAction action) => switch (action) {
     PdfOutputAction.share => PdfStringsKo.share,
@@ -353,12 +580,16 @@ class _PdfExportResultSheetState extends State<PdfExportResultSheet> {
           child: const Text(PdfStringsKo.shareAll),
         ),
       if (!several)
-        for (final action in PdfOutputAction.values)
-          if (actions.contains(action))
-            FilledButton.tonal(
-              onPressed: () => _deliver(results, action),
-              child: Text(_actionLabel(action)),
-            ),
+        for (final (i, action) in _ordered(actions).indexed)
+          i == 0
+              ? FilledButton(
+                  onPressed: () => _deliver(results, action),
+                  child: Text(_actionLabel(action)),
+                )
+              : FilledButton.tonal(
+                  onPressed: () => _deliver(results, action),
+                  child: Text(_actionLabel(action)),
+                ),
     ];
     return SafeArea(
       child: ConstrainedBox(

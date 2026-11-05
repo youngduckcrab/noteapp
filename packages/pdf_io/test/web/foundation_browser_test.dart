@@ -90,8 +90,9 @@ void main() {
       createPlatformComposeBackend(const PdfIoConfig()).isSupported,
       isTrue,
     );
-    // B4 placeholder of the browser output sink (PDF T16).
-    expect(createPlatformOutputSink, throwsUnimplementedError);
+    // The browser output sink (PDF T16 — web/output_sink_browser_test): nothing to deliver
+    // without a result.
+    expect(createPlatformOutputSink().availableActions(const []), isEmpty);
     expect(const NoIncomingPdfFiles().incoming, emitsDone);
     expect(pdfEditorMoreMenuActions(), isEmpty);
     expect(pdfEditorAddPageSources(), isEmpty);

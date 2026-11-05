@@ -231,4 +231,26 @@ abstract final class PdfStringsKo {
   /// PdfOutputOutcome.needsUserGesture (Safari: the tap's user activation expired).
   static const String needsUserGesture = '한 번 더 눌러 주세요';
   static const String deliverFailed = '파일을 넘기지 못했어요. 다시 시도해 주세요.';
+
+  // ---------------------------------------------------------------- single export (4.11)
+
+  /// Options sheet titles by PdfExportPurpose (save / share / print — the menu labels).
+  static const String shareTitle = 'PDF 공유';
+  static const String printTitle = '인쇄';
+  static const String rangeAll = '노트 전체';
+  static const String rangeCurrent = '현재 페이지';
+  static const String rangeSelected = '선택한 페이지';
+
+  /// '12쪽' — the page count of a range, or the number of the current page.
+  static String pages(int count) => '$count쪽';
+
+  /// Web: the PDF originals of the chosen range exceed PdfTuning.warnExportSourceBytesWeb
+  /// (6.11.2 step 3) — a warning only, the export can go on.
+  static String largeExportSource(int bytes) =>
+      '원본 PDF가 ${megabytes(bytes)}MB예요. 기기 메모리가 부족하면 내보내기가 멈출 수 있어요.';
+
+  /// Result sheet of PdfExportPurpose.print (6.12): print from the share sheet, or (no file
+  /// sharing) from the PDF opened in a new tab.
+  static const String printViaShare = '공유 시트에서 프린트를 고르세요';
+  static const String printViaNewTab = '새 탭에서 PDF를 열어 인쇄하세요';
 }
