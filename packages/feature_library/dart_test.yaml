@@ -1,0 +1,8 @@
+# Test tags of feature_library (LIBRARY, docs/plans/05-library.md 3.1 and 9.1;
+# contract 00-overview 7.4.8 v1.1, C11-26). Every tag used by a test in this
+# package is declared here first (ws check R15). Tags are written as string
+# literals in the tests. `integration` (L21, real CORE) runs only in the
+# integration stage.
+tags:
+  golden: {}
+  integration: {skip: "integration stage only — ws test --run-skipped -t integration"}
