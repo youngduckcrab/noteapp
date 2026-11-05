@@ -10,6 +10,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../engine/page_info.dart';
 import '../model/page_size_policy.dart';
 import '../render/render_service.dart';
+import '../render/tile_math.dart';
 import '../tuning.dart';
 
 /// The cover of a freshly imported note's first page (6.3 step 6).
@@ -18,8 +19,8 @@ import '../tuning.dart';
 /// INFRA) the result is that renderer's, so the cover matches the ones LIBRARY's scheduler
 /// makes later. Without it (foundation stage, unit tests) pdf_io draws it itself: the page
 /// paper of [maxSidePx] on the long side, the PDF image from [renderer].renderThumbnail
-/// placed with PdfPageFit (6.5.1), encoded as PNG. [pdfPage] is the displayed size of the
-/// background's PDF page.
+/// placed with PdfPageFit (6.5.1), encoded as PNG — opaque (the paper color with alpha 0xFF,
+/// like the page background). [pdfPage] is the displayed size of the background's PDF page.
 ///
 /// null = cannot draw now (not an error, nothing cached): no PDF background, bytes missing,
 /// a password needed or rendering failed. Exceptions propagate (the import reports them).
@@ -49,18 +50,19 @@ Future<core.PageThumbnail?> renderImportCover({
     1,
     (math.max(box.width, box.height) * scale).round(),
   );
+  final paperArgb = opaquePaperArgb(background.paperColorArgb);
   final image = await renderer.renderThumbnail(
     assetId: background.assetId,
     pdfPageIndex: background.pdfPageIndex,
     longSidePx: pdfLongSidePx,
-    backgroundArgb: background.paperColorArgb,
+    backgroundArgb: paperArgb,
   );
   if (image == null) return null;
   ui.Image? composed;
   try {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
-    final paper = ui.Paint()..color = ui.Color(background.paperColorArgb);
+    final paper = ui.Paint()..color = ui.Color(paperArgb);
     canvas.drawRect(
       ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
       paper,

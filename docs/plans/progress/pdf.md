@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 3/10 (동시 개발 단계)
-- 다음 할 일: T10 썸네일·표지 → T11 텍스트·검색
+- 다음 할 일: T11 텍스트·검색(정규화·검색 서비스·검색 패널) → T12 벡터화·인코더
 
 ## 작업 표
 
@@ -18,8 +18,8 @@
 | T6 | 완료 | ad78e51 | widget/import_flow_test, web/file_source_browser_test (+ unit/file_source_test, support/fake_file_picker.dart) |
 | T7 | 완료 | da17026 | unit/document_pool_test |
 | T8 | 완료 | 3829a68 | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test (+ widget/render_handle_test — 핸들 동작) |
-| T9 | 완료 | | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test(+ goldens/background_states/*.png 6장), pdfium/background_real_test |
-| T10 | 남음 | | unit/thumbnail_test, unit/cover_thumbnail_test (integration/ink_thumbnail_test는 미리 작성 — 통합 단계) |
+| T9 | 완료 | ac4fe3c | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test(+ goldens/background_states/*.png 6장), pdfium/background_real_test |
+| T10 | 완료 | | unit/thumbnail_test, unit/cover_thumbnail_test. integration/ink_thumbnail_test는 작성함(통합 단계 판정 — 지금 INK B3 구현 + 실 PDFium으로 `--run-skipped -t integration` 수동 실행 시 통과) |
 | T11 | 남음 | | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test |
 | T12 | 남음 | | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (integration/ink_vectorizer_test는 미리 작성 — 통합 단계) |
 | T13 | 남음 | | pdfium/compose_native_test |
@@ -83,6 +83,7 @@
 - T9 `renderStill`: `renderThumbnail(longSidePx: ceil(max(pixelSize)), backgroundArgb: 불투명 종이 색)` → PDF 표시 크기 대신 받은 이미지 크기로 `PdfPageFit`(상자는 비율에만 의존) → `PictureRecorder`로 종이 + 이미지 → `toImageSync`(위젯 테스트 fake async에서도 끝남). 예외는 보고 후 null(원본 없음·암호는 `renderThumbnail`이 이미 null — 보고 없음).
 - T9 `pdfBackgroundLayerBuilderProvider` 본문 = 4.12 T9 판(`renderer: () => ref.read(pdfPageRendererProvider)`, `highlights: ref.watch(pdfSearchHighlightsProvider)`). `unit/init_test`(B4 판)는 첫 빌더 `isPaperOnly == false`로 바꾸고 paperOnly 묶음은 자리표시를 직접 만든다. `web/foundation_browser_test`도 `isPaperOnly == false`.
 - T9 골든은 썸네일 모드(아이콘만)·고정 스냅숏 렌더러 더블로 6장을 만들었다(`flutter test --update-goldens test/goldens/`). 테스트 글꼴이라 아이콘은 사각형으로 그려진다.
+- T10 썸네일 경로는 T8 `renderThumbnail`·썸네일 모드 그대로(새 lib 코드 없음). 표지 자체 경로(`renderImportCover`)는 종이 색을 불투명으로 바꿔 칠하고 같은 색으로 렌더를 요청하도록 고쳤다(배경 위젯·`renderStill`과 같은 규칙). 자체 경로 표지 크기는 노트 페이지 비율로 긴 변 512(반올림 — A4 362×512), 썸네일 모드 이미지는 엔진 `fullPixelSize` 올림(A4 182×256).
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
@@ -97,4 +98,4 @@
 - 계획서 상단 상태 줄·계약 인용(v1.4)·13.4(PDF-4-1~4-3, C14-01·02)는 세션 1에서 반영했다.
 - T4 테스트의 CORE 쪽 가정: `createFakeNoteStore(faults:)`의 `failNextCommits(3)`이면 1초 시점 미완료·`writeFailing`, 6초 시점 완료(100ms·400ms·1.6s 재시도). 실제 CORE(T6)로 바뀌면 integration/core_gateway_test를 돌려 확인한다.
 - PDF-4-2: T8에서 `pdfRenderStatsProvider` 본문을 `ref.watch(pdfPageRendererProvider).statsListenable`로 바꿨다 — 이제 읽는 컨테이너에 `core.noteStoreProvider`가 있어야 한다(세션 3 결과 보고 메모로 INFRA에 공지함). 바인딩은 필요 없다(수명 주기 리스너는 첫 렌더 때 등록).
-- 세션 3 결과: T8·T9 완료. 핸들 동작 테스트는 `test/widget/render_handle_test.dart`(가짜 엔진 `beforeRender`로 렌더를 붙잡는 `_World`), 위젯은 `test/widget/page_background_view_test.dart`. 다음 T10: `renderThumbnail`·썸네일 모드(긴 변 256, 썸네일 예산)는 T8에서 이미 동작 — `unit/thumbnail_test`는 그 확인(캐시 재사용 = 썸네일 모드 핸들끼리 캐시 공유, 썸네일 예산 LRU), `unit/cover_thumbnail_test`는 `renderImportCover`(import/cover_thumbnail.dart)를 직접 부른다(자체 경로: PNG 디코드 긴 변 512·`contentRevision`, 렌더러 경로: 가짜 `PageThumbnailRenderer`). `integration/ink_thumbnail_test`는 작성만.
+- 세션 3 결과: T8·T9·T10 완료. 핸들 동작 테스트는 `test/widget/render_handle_test.dart`(가짜 엔진 `beforeRender`로 렌더를 붙잡는 `_World`), 위젯은 `test/widget/page_background_view_test.dart`. 다음 T11: `PdfSearchState.rectsFor`·`currentRectsFor`·`currentFocusRect`는 T9에서 이미 구현함 — T11은 `PdfTextNormalizer`·`DefaultPdfTextService.searchNote`·`PdfSearchNotifier`·검색 패널(`showPdfSearchPanel`)과 그 테스트(unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test). 검색 하이라이트는 배경 위젯이 `highlights`로 이미 그린다(widget/page_background_view_test 'search highlights').
