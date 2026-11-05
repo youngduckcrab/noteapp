@@ -81,7 +81,7 @@ core.Stroke previewFragmentOf(
 /// Selection-transform PREVIEW (6.22) = source.transformed(m, scaleWidth: true): same id,
 /// memory only (the commit sends only the transform).
 core.Stroke previewTransformedOf(core.Stroke source, core.Affine2 m) =>
-    source.transformed(m);
+    source.transformed(m, scaleWidth: true);
 
 /// Lasso duplicate (6.22): moved by [offset] without width scaling, new id and createdAt.
 core.Stroke duplicateOf(

@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 3 (동시 개발 단계) — T07·T08 완료(세션 1: T01~T04, 세션 2: T05·T06)
-- 다음 할 일: T09 CORE 인터롭·`InkEdit` → T10 렌더 캐시 1단계·`InkPageView`·펜 세션 (계획서 8장 순서)
+- 마지막 세션: 4 (동시 개발 단계) — T09 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08)
+- 다음 할 일: T10 렌더 캐시 1단계·`InkPageView`·펜 세션 → T11 진단 → T12 (계획서 8장 순서)
 
 ## 작업 표
 
@@ -18,7 +18,7 @@
 | T06 | 완료 | 6f67596 | `unit/stroke/stroke_builder_test.dart`, `unit/stroke/finish_data_test.dart`, (웹) `web/determinism_test.dart`. `StrokeBuilder` 본문 교체(6.3 중복 병합·시간 역전 → 6.4 관찰 → 6.5 가상 필압 → 6.6 1€·실제 필압 평활 → K1–K4 → 라이브 청크, `finish` = F1→F3→F4→F6→F2→F5→F8→F7, 롤오버 `rolledOver`), `LiveStrokeGeometry` 내부(안정 점 append-only, 64점 청크 `frozenPath`, 열린 청크 + 원시 꼬리 `tailPath`, 형광펜 polyline·alwaysStraight 직선), `StrokeSession.end`가 롤오버 조각을 한 `InkEdit`에 담음, `newCoreStroke`의 `createdAt += FinishedStroke.createdAtOffsetMs`. 공용 스크립트·체크섬 `test/support/stroke_scripts.dart`(VM 기록값 283364609 = Chrome) |
 | T07 | 완료 | 089ad04 | `unit/geometry/{outline,outline_parity,vector_path}_test.dart`, `unit/model/bounds_invariant_test.dart`, (웹) `web/geometry_on_web_test.dart`(outline_test·bounds_invariant_test의 `main`을 group으로 감쌈). `OutlineGenerator.outlineOf` 본문 교체(O1–O8, 형광펜은 반지름 w/2 + 획 양 끝 사각 캡), `StrokeOutline.toPath`/`toVectorPath`의 `smooth: true` = 변 중점 2차 베지어(벡터는 3차로 변환), `InkVectorPath.toUiPath` nonZero. 패리티 실측(perfect_freehand 대비 채움 면적 차): 직선·곡선·고리 ≤ 0.25%, 지그재그 −0.6%, 직각 −0.8%. 도우미 `test/support/outline_helpers.dart` |
 | T08 | 완료 | 109bb81 | `widget/pixel/{highlighter_overlap,self_overlap}_test.dart`, `unit/render/pencil_grain_test.dart`, (웹) `web/grain_checksum_test.dart`(체크섬 120540651 = VM), `goldens/pens_golden_test.dart`(+ `pens_real_pressure.png`·`pens_simulated_pressure.png`). 내부 `render/stroke_painter.dart`(채움 = T07 외곽선 nonZero 1경로, 연필 질감 셰이더 + 기울기 투명도, `paintFillPaths` = R5 saveLayer, 형광펜 선 paint·`highlighterBlendFor`), `render/highlighter_compositor.dart`(6.10 그룹 키·그룹·`paintHighlighterGroup`), `render/layer_painters.dart`(`paintStrokeLayer(s)`). 컨트롤러 레이어·썸네일 2종이 B3 폴리라인 대신 이것을 쓴다. 도우미 `test/support/{pixels,grain_checksum}.dart` |
-| T09 | 남음 | | `unit/interop/core_interop_test.dart`, `unit/edit/ink_edit_test.dart`, `unit/interop/fake_store_handoff_test.dart` |
+| T09 | 완료 | (이 커밋) | `unit/interop/core_interop_test.dart`, `unit/edit/ink_edit_test.dart`, `unit/interop/fake_store_handoff_test.dart`. B3 본문(`core_interop.dart` 6.23 함수표·`InkEdit.toCommand`·`fromCore`·대기 인계)이 이미 계약대로라 테스트만 추가. 코드 변경은 `previewTransformedOf`에 `scaleWidth: true`를 명시한 것뿐(기본값과 같음). 가짜 저장소 인계: 종류 7개 모두 `execute` 안에서 리스너가 `updateContent` → `pendingIds` 빔, 휴지통 노트(`isReadOnly`)에서 `ReadOnlyNoteException` → `discardEdit` 한 번으로 픽셀 복원(지움·나눔·변형·색·추가) |
 | T10 | 남음 | | `widget/{ink_page_view,viewport_report,handoff,highlighter_active}_test.dart`, `unit/render/{content_diff,session_rules}_test.dart` |
 | T11 | 남음 | | `unit/diagnostics/latency_test.dart`, (웹) `web/ink_clock_test.dart` |
 | T12 | 남음 | | `unit/{providers,testing_helpers,dev_tools}_test.dart`, (웹) `web/dev_tools_web_test.dart`, `widget/m0_scenario_test.dart` — INK-α 완료 |
@@ -49,6 +49,7 @@
 
 동시 개발 단계:
 
+- T09: `fake_store_handoff_test`의 splitStrokes는 지금 세션이 만드는 편집(B3 부분 지우개 = 조각 없음 → `RemoveStrokes`)으로 인계·실패 복원을 확인하고, **조각이 있는** `SplitStrokes`는 `fragmentOf`로 만든 조각을 `InkEdit`에 직접 넣어 CORE 가짜 저장소가 받는지(조각 `createdAt`·t 보존)만 따로 확인한다. 부분 지우개 세션이 조각을 만드는 것(P1–P8)은 T16.
 - T08: 레이어는 아직 매 프레임 직접 그린다(청크 Picture·형광펜 `groupOpaque` Picture 재사용·활성 형광펜 그룹을 base에서 빼는 6.10-6은 T10). 지금 highlighterActive는 미리보기·대기·쓰는 중 형광펜을 자기들끼리만 그룹 합성한다 → 쓰는 중 획과 **이미 있는 같은 색** 형광펜의 겹침은 커밋 전까지 진해 보인다(T10 `highlighter_active_test`에서 해결).
 - T08: 연필 기울기 투명도 k̄ — 커밋 획은 저장된 점들의 평균, 라이브는 안정 점들의 평균(`liveMeanTiltK`, `liveAddStable(tiltK:)`). 점 분포가 달라(F7 단순화) 펜을 뗄 때 연필 투명도가 아주 조금 바뀔 수 있다. K4의 k는 `width_factor.dart`의 `tiltK`로 뽑아 둘이 같은 식을 쓴다.
 - T08: 컨트롤러는 질감 펜 획을 그릴 때만 `pencilGrain.value`를 읽고(그때 생성 시작), 준비 전이면 질감 없이 그린 뒤 `ready`에서 한 번 다시 그린다(B3 메모의 '웹 Timer pending'을 연필 없는 테스트로 번지지 않게).
@@ -86,7 +87,8 @@
 - 세션 3(T07 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 260개 통과, Chrome `web/geometry_on_web_test` 67개 통과.
 - 세션 3(T08 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 279개(골든 2 포함)·Chrome `test/web` 73개 통과.
 - 세션 3 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 279개·Chrome `test/web` 73개 통과, `git status` 빔.
-- T09 시작점: 계획서 6.23(함수표)·4.6(`InkEdit` 표 6행)·5.1·계약 7.2.15. 지금 `src/interop/core_interop.dart`·`src/edit/ink_edit.dart`는 B3 본문 — 대부분 이미 동작하므로 완료 조건 테스트(`unit/interop/core_interop_test`, `unit/edit/ink_edit_test`, `unit/interop/fake_store_handoff_test`)를 먼저 쓰고 어긋나는 곳만 고친다. 가짜 저장소 휴지통 노트 세션(`isReadOnly`) 만드는 법은 note_core `testing.dart`·CORE 계획 참고.
+- 세션 4(T09 커밋 시점): 패키지 analyze 0, 패키지 VM 332개 통과.
+- 가짜 저장소 테스트 요령(T09 `fake_store_handoff_test`): `core_testing.createFakeNoteStore()` → `library.createNote` → `openSession` → `openPage` → `pageChanges(pageId).listen(updateContent)`. 컨트롤러 id는 `testInkCoreServices(idPrefix: 'ink')`로 CORE id와 겹치지 않게. 읽기 전용 세션 = `await store.library.trashItems([core.NoteRef(note.id)]); await store.flush();` → `session.isReadOnly`. 대기 표시 픽셀은 `inkPageRenderOf(controller).paint(canvas, layer, 1)`을 `InkRenderLayer.values` 순서로 `renderPixels`에 그려 읽는다(평범한 `test`에서).
 - T10에 넘길 것: 레이어 그리기는 `_paintLayer` → `paintStrokeLayer`(base)·`_paintActiveInk`·`_paintActiveHighlighters`(active). 청크 Picture·형광펜 그룹 Picture 캐시와 6.10-6(쓰는 중 형광펜 그룹을 base에서 빼고 active에서 `paintHighlighterGroup(extra:)`로 같이 합성 — `extra` 인자는 이미 있음)를 여기에 넣는다.
 - 테스트 요령: `testWidgets` 안에서 `PencilGrain`은 `tester.runAsync` **안에서 만들고** `ready`를 기다린다(가짜 async 영역에서 만든 Completer는 pump 전까지 완료 콜백이 안 돈다 — 밖에서 만들면 runAsync가 끝나지 않음). 캡처 이미지의 행 폭은 `image.width`(A4 폭 595.28 → 596)로 읽는다(`test/support/pixels.dart`의 `Pixels`). 골든 갱신: `flutter test --update-goldens test/goldens/pens_golden_test.dart`.
 - 테스트 도우미: `test/support/outline_helpers.dart`(`pointsOf`, `outlineFor`, `windingNumber`, `distanceToPolyline`), `test/support/pixels.dart`(`renderPixels`, `strokeThrough`, `segment`, `samePixel`).
