@@ -94,8 +94,12 @@ void main() {
     // without a result.
     expect(createPlatformOutputSink().availableActions(const []), isEmpty);
     expect(const NoIncomingPdfFiles().incoming, emitsDone);
-    expect(pdfEditorMoreMenuActions(), isEmpty);
-    expect(pdfEditorAddPageSources(), isEmpty);
+    // The menu actions (PDF T17 — widget/menu_actions_test) compile and keep their ids.
+    expect(
+      [for (final a in pdfEditorMoreMenuActions()) a.id],
+      ['pdf.export', 'pdf.share', 'pdf.print', 'pdf.search'],
+    );
+    expect([for (final a in pdfEditorAddPageSources()) a.id], ['pdf.insert']);
     expect(const PdfFixturePage().rotate, 0);
   });
 

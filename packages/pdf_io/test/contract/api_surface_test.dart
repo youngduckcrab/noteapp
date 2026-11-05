@@ -1328,18 +1328,9 @@ void main() {
   });
 
   group('B4 bodies (contract 7.6 B4)', () {
-    test('initializePdfIo completes and does nothing', () async {
-      await initializePdfIo();
-      await initializePdfIo(config: const PdfIoConfig(warmUpOnStart: false));
-    });
-
-    test('menu functions return empty lists', () {
-      expect(pdfEditorMoreMenuActions(), isEmpty);
-      expect(pdfEditorAddPageSources(), isEmpty);
-    });
-
     // importPdfAsNewNote is the real flow from PDF T6 (widget/import_flow_test.dart),
-    // exportNotesAsPdf from T15b (widget/batch_export_flow_test.dart).
+    // exportNotesAsPdf from T15b (widget/batch_export_flow_test.dart), initializePdfIo
+    // and the menu functions from T17 (unit/init_test.dart, widget/menu_actions_test.dart).
 
     test('platform factories on the VM', () async {
       expect(createPlatformOutputSink().availableActions(const []), isEmpty);
