@@ -5,11 +5,12 @@
 /// `createFakeNoteStore()` (contract 7.4.8); FakePdfNoteGateway is a thin port fake for fast
 /// unit tests.
 ///
-/// The fixture builder is real (PDF T2). The fakes are signatures only until the PDF task
-/// named in each UnimplementedError (T4 gateway, T5 engine, T6 file source, T7 remote
+/// The fixture builder (PDF T2) and FakePdfNoteGateway (PDF T4) are real. The fakes are signatures only until the PDF task
+/// named in each UnimplementedError (T5 engine, T6 file source, T7 remote
 /// fetcher, T12–T16 export fakes).
 library;
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -19,6 +20,7 @@ import 'package:note_core/note_core.dart' as core;
 import 'src/compose/compose_backend.dart';
 import 'src/engine/page_info.dart';
 import 'src/engine/pdf_engine.dart';
+import 'src/errors.dart';
 import 'src/export/compose_plan.dart';
 import 'src/export/export_types.dart';
 import 'src/export/vectors.dart';
@@ -494,63 +496,311 @@ final class FakePdfEngine implements PdfEngine {
 /// insertPages / flush stay pending (no completion, no error — CORE commit retry, contract
 /// 7.2.9 v1.2) until releaseWrites(). Retry timing itself is tested with CORE
 /// createFakeNoteStore(faults:) (T4, T6, T15).
+///
+/// Ids are 'note-1', 'page-1', …; an asset id is the SHA-256 hex of its bytes (same bytes →
+/// same asset, C-5). Errors are the port's PdfIoException codes (noteNotFound for an unknown
+/// note or page, readOnlyNote for insertPages into a trashed note). Held writes run in call
+/// order on releaseWrites(); their effect is visible only then.
 final class FakePdfNoteGateway implements PdfNoteGateway {
   FakePdfNoteGateway();
 
+  final Map<core.NoteId, core.Note> _notes = {};
+  final Map<core.NoteId, List<core.Page>> _pages = {};
+  final Map<core.PageId, List<core.Stroke>> _strokes = {};
+  final Map<core.AssetId, core.Asset> _assets = {};
+  final Map<core.AssetId, Uint8List> _bytes = {};
+  final Map<core.PageId, core.PageThumbnail> _thumbnails = {};
+  final StreamController<core.AssetId> _arrived =
+      StreamController<core.AssetId>.broadcast(sync: true);
+  final List<void Function()> _held = [];
+  bool _holding = false;
+  int _nextNote = 0, _nextPage = 0, _clock = 0;
+
+  /// Port calls in order: 'putPdf', 'createNote', 'insertPages', 'flush', 'readAssetBytes',
+  /// 'getNote', 'pagesOf', 'loadPage', 'writeThumbnail' (held writes are logged when called).
+  final List<String> calls = [];
+
+  /// Thumbnails written through [writeThumbnail], by page.
+  Map<core.PageId, core.PageThumbnail> get thumbnails =>
+      Map.unmodifiable(_thumbnails);
+
+  /// Every asset ever stored or registered, with or without local bytes.
+  Map<core.AssetId, core.Asset> get assets => Map.unmodifiable(_assets);
+
   /// Stores [bytes] for [id] and emits it on [bytesArrived].
-  void arriveBytes(core.AssetId id, Uint8List bytes) =>
-      _todo('FakePdfNoteGateway.arriveBytes', 'T4');
+  void arriveBytes(core.AssetId id, Uint8List bytes) {
+    final asset = _assets[id];
+    _assets[id] = asset == null
+        ? _asset(id, bytes, null)
+        : asset.copyWith(hasLocalBytes: true);
+    _bytes[id] = bytes;
+    _arrived.add(id);
+  }
 
   /// putPdf / createNote / insertPages / flush stay pending until [releaseWrites].
-  void holdWrites() => _todo('FakePdfNoteGateway.holdWrites', 'T4');
+  void holdWrites() => _holding = true;
 
   /// Completes the writes held since [holdWrites].
-  void releaseWrites() => _todo('FakePdfNoteGateway.releaseWrites', 'T4');
+  void releaseWrites() {
+    _holding = false;
+    final held = [..._held];
+    _held.clear();
+    for (final run in held) {
+      run();
+    }
+  }
+
+  /// Number of writes waiting for [releaseWrites].
+  int get heldWriteCount => _held.length;
+
+  /// Metadata of an asset whose bytes are NOT on this device (synced from another device):
+  /// readAssetBytes → null until [arriveBytes].
+  void addRemoteAsset(core.AssetId id, {String? fileName, int size = 0}) {
+    _assets[id] = core.Asset(
+      id: id,
+      ownerId: core.kLocalOwnerId,
+      type: core.AssetType.pdf,
+      mimeType: 'application/pdf',
+      size: size,
+      fileName: fileName,
+      createdAt: _clock++,
+      hasLocalBytes: false,
+    );
+  }
+
+  /// Forgets the local bytes of [id] (metadata stays).
+  void dropAssetBytes(core.AssetId id) {
+    _bytes.remove(id);
+    final asset = _assets[id];
+    if (asset != null) _assets[id] = asset.copyWith(hasLocalBytes: false);
+  }
+
+  /// Adds committed strokes to a page (loadPage returns them in drawing order).
+  void addStrokes(core.PageId pageId, List<core.Stroke> strokes) {
+    _pageById(pageId); // throws for an unknown page
+    (_strokes[pageId] ??= []).addAll(strokes);
+  }
+
+  /// Moves a note to the trash: getNote still returns it, insertPages → readOnlyNote.
+  void trashNote(core.NoteId noteId) {
+    final note = _noteOrThrow(noteId);
+    _notes[noteId] = note.copyWith(deletedAt: _clock++, trashRootId: noteId);
+  }
+
+  /// Removes a note for good: getNote → null, other calls → noteNotFound.
+  void purgeNote(core.NoteId noteId) {
+    _notes.remove(noteId);
+    for (final page in _pages.remove(noteId) ?? const <core.Page>[]) {
+      _strokes.remove(page.id);
+    }
+  }
+
+  Future<T> _write<T>(T Function() apply) {
+    final completer = Completer<T>();
+    void run() {
+      try {
+        completer.complete(apply());
+      } on Object catch (e, st) {
+        completer.completeError(e, st);
+      }
+    }
+
+    if (_holding) {
+      _held.add(run);
+    } else {
+      scheduleMicrotask(run);
+    }
+    return completer.future;
+  }
+
+  core.Asset _asset(core.AssetId id, Uint8List bytes, String? fileName) =>
+      core.Asset(
+        id: id,
+        ownerId: core.kLocalOwnerId,
+        type: core.AssetType.pdf,
+        mimeType: 'application/pdf',
+        size: bytes.length,
+        fileName: fileName,
+        createdAt: _clock++,
+      );
+
+  core.Note _noteOrThrow(core.NoteId noteId) {
+    final note = _notes[noteId];
+    if (note == null) {
+      throw PdfIoException(PdfErrorCode.noteNotFound, detail: 'note $noteId');
+    }
+    return note;
+  }
+
+  core.Page _pageById(core.PageId pageId) {
+    for (final pages in _pages.values) {
+      for (final page in pages) {
+        if (page.id == pageId) return page;
+      }
+    }
+    throw PdfIoException(PdfErrorCode.noteNotFound, detail: 'page $pageId');
+  }
+
+  List<core.Page> _newPages(core.NoteId noteId, List<core.PageDraft> drafts) {
+    final now = _clock++;
+    return [
+      for (final draft in drafts)
+        core.Page(
+          id: draft.id ?? 'page-${++_nextPage}',
+          noteId: noteId,
+          sortKey: '',
+          size: draft.size,
+          background: draft.background,
+          createdAt: now,
+          updatedAt: now,
+        ),
+    ];
+  }
+
+  /// Re-numbers sort keys and the note's page count / first page after a change.
+  void _setPages(core.NoteId noteId, List<core.Page> pages) {
+    final sorted = [
+      for (var i = 0; i < pages.length; i++)
+        pages[i].copyWith(sortKey: i.toString().padLeft(6, '0')),
+    ];
+    _pages[noteId] = sorted;
+    final note = _notes[noteId]!;
+    _notes[noteId] = note.copyWith(
+      pageCount: sorted.length,
+      firstPageId: sorted.isEmpty ? null : sorted.first.id,
+      clearFirstPageId: sorted.isEmpty,
+      updatedAt: _clock++,
+    );
+  }
 
   @override
-  Future<core.Asset> putPdf(Uint8List bytes, {required String fileName}) =>
-      _todo('FakePdfNoteGateway.putPdf', 'T4');
+  Future<core.Asset> putPdf(Uint8List bytes, {required String fileName}) {
+    calls.add('putPdf');
+    return _write(() {
+      final id = sha256.convert(bytes).toString();
+      final existing = _assets[id];
+      final hadBytes = _bytes.containsKey(id);
+      _bytes[id] = bytes;
+      final asset = existing == null
+          ? _asset(id, bytes, fileName)
+          : existing.copyWith(hasLocalBytes: true);
+      _assets[id] = asset;
+      if (!hadBytes) _arrived.add(id);
+      return asset;
+    });
+  }
 
   @override
-  Future<Uint8List?> readAssetBytes(core.AssetId assetId) =>
-      _todo('FakePdfNoteGateway.readAssetBytes', 'T4');
+  Future<Uint8List?> readAssetBytes(core.AssetId assetId) async {
+    calls.add('readAssetBytes');
+    return _bytes[assetId];
+  }
 
   @override
-  Stream<core.AssetId> get bytesArrived =>
-      _todo('FakePdfNoteGateway.bytesArrived', 'T4');
+  Stream<core.AssetId> get bytesArrived => _arrived.stream;
 
   @override
   Future<core.Note> createNote({
     core.FolderId? folderId,
     required String title,
     required List<core.PageDraft> pages,
-  }) => _todo('FakePdfNoteGateway.createNote', 'T4');
+  }) {
+    calls.add('createNote');
+    if (pages.isEmpty || pages.length > 2000) {
+      return Future.error(
+        ArgumentError.value(pages.length, 'pages', '1..2000'),
+      );
+    }
+    return _write(() {
+      final id = 'note-${++_nextNote}';
+      final now = _clock++;
+      _notes[id] = core.Note(
+        id: id,
+        ownerId: core.kLocalOwnerId,
+        folderId: folderId,
+        title: title,
+        sortKey: id,
+        createdAt: now,
+        updatedAt: now,
+      );
+      _setPages(id, _newPages(id, pages));
+      return _notes[id]!;
+    });
+  }
 
   @override
   Future<List<core.PageId>> insertPages(
     core.NoteId noteId,
     List<core.PageDraft> pages,
     core.PagePosition position,
-  ) => _todo('FakePdfNoteGateway.insertPages', 'T4');
+  ) {
+    calls.add('insertPages');
+    return _write(() {
+      final note = _noteOrThrow(noteId);
+      if (note.deletedAt != null) {
+        throw PdfIoException(
+          PdfErrorCode.readOnlyNote,
+          detail: 'note $noteId is in the trash',
+        );
+      }
+      final current = [...?_pages[noteId]];
+      int indexOf(core.PageId id) {
+        final i = current.indexWhere((p) => p.id == id);
+        if (i < 0) {
+          throw PdfIoException(PdfErrorCode.noteNotFound, detail: 'page $id');
+        }
+        return i;
+      }
+
+      final at = switch (position) {
+        core.PageAtStart() => 0,
+        core.PageAtEnd() => current.length,
+        core.PageBefore(:final pageId) => indexOf(pageId),
+        core.PageAfter(:final pageId) => indexOf(pageId) + 1,
+      };
+      final inserted = _newPages(noteId, pages);
+      current.insertAll(at, inserted);
+      _setPages(noteId, current);
+      return [for (final p in inserted) p.id];
+    });
+  }
 
   @override
-  Future<void> flush() => _todo('FakePdfNoteGateway.flush', 'T4');
+  Future<void> flush() {
+    calls.add('flush');
+    return _write(() {});
+  }
 
   @override
-  Future<core.Note?> getNote(core.NoteId noteId) =>
-      _todo('FakePdfNoteGateway.getNote', 'T4');
+  Future<core.Note?> getNote(core.NoteId noteId) async {
+    calls.add('getNote');
+    return _notes[noteId];
+  }
 
   @override
-  Future<List<core.Page>> pagesOf(core.NoteId noteId) =>
-      _todo('FakePdfNoteGateway.pagesOf', 'T4');
+  Future<List<core.Page>> pagesOf(core.NoteId noteId) async {
+    calls.add('pagesOf');
+    _noteOrThrow(noteId);
+    return List.unmodifiable(_pages[noteId] ?? const <core.Page>[]);
+  }
 
   @override
-  Future<core.PageContent> loadPage(core.PageId pageId) =>
-      _todo('FakePdfNoteGateway.loadPage', 'T4');
+  Future<core.PageContent> loadPage(core.PageId pageId) async {
+    calls.add('loadPage');
+    final page = _pageById(pageId);
+    final strokes = [...?_strokes[pageId]]..sort(core.Stroke.compareOrder);
+    return core.PageContent(
+      page: page,
+      strokes: strokes,
+      revision: page.contentRevision,
+    );
+  }
 
   @override
-  Future<void> writeThumbnail(core.PageThumbnail thumbnail) =>
-      _todo('FakePdfNoteGateway.writeThumbnail', 'T4');
+  Future<void> writeThumbnail(core.PageThumbnail thumbnail) async {
+    calls.add('writeThumbnail');
+    _thumbnails[thumbnail.pageId] = thumbnail;
+  }
 }
 
 /// returns queued PickedPdfFile / null
