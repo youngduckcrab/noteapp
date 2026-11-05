@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 1 (동시 개발 단계)
-- 다음 할 일: T03 입력 정규화·필압 감지 → T04 가상 필압·스무딩 (계획서 8장 순서)
+- 다음 할 일: T04 가상 필압·스무딩 → T05 중심선·굵기 계수 → T06 `StrokeBuilder` (계획서 8장 순서)
 
 ## 작업 표
 
@@ -11,8 +11,8 @@
 |---|---|---|---|
 | T00 | 기반 단계에서 완료 | 955931c | `foundation/b3_smoke_test.dart`, `foundation/b3_behaviour_test.dart`, `unit/api_surface_test.dart`, `unit/export_list_test.dart`, `unit/no_platform_imports_test.dart`, (웹) `web/smoke_web_test.dart` |
 | T01 | 완료 | 7c74b7c | `unit/smoke_test.dart`, `unit/tuning_test.dart`, (웹) `web/smoke_web_test.dart`(B3). `dart_test.yaml`(golden·bench), `test/flutter_test_config.dart` + `test/support/golden_tolerance{,_native,_browser}.dart`(0.5% 비교기, 브라우저는 아무것도 안 함), `THIRD_PARTY_NOTICES.md`. `tuning.dart`는 B3에 이미 있음 |
-| T02 | 완료 | (이 커밋) | `unit/model/ink_points_test.dart`, `unit/model/ink_stroke_test.dart`, `unit/pen/style_ink_test.dart`, `unit/pen/pen_profile_test.dart`. 구현은 B3 본문이 이미 4.1·4.2·6.9대로라 테스트만 추가 |
-| T03 | 남음 | | `unit/input/sample_adapter_test.dart`, `unit/input/pressure_detector_test.dart`, `unit/input/pressure_mode_test.dart` |
+| T02 | 완료 | d1dd4ba | `unit/model/ink_points_test.dart`, `unit/model/ink_stroke_test.dart`, `unit/pen/style_ink_test.dart`, `unit/pen/pen_profile_test.dart`. 구현은 B3 본문이 이미 4.1·4.2·6.9대로라 테스트만 추가 |
+| T03 | 완료 | (이 커밋) | `unit/input/sample_adapter_test.dart`, `unit/input/pressure_detector_test.dart`, `unit/input/pressure_mode_test.dart`. `PressureDetector`를 6.4 전체 규칙으로 교체(관찰·12개 고정값·재보고), 결정은 detector가 store에 바로 보고(컨트롤러의 B3 보고 블록 삭제). `unit/api_surface_test`의 첫 스타일러스 획 기대값 real → pending(6.4) |
 | T04 | 남음 | | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart` |
 | T05 | 남음 | | `unit/stroke/{subdivide,hook,dot,width_factor,taper,straighten,simplify}_test.dart` |
 | T06 | 남음 | | `unit/stroke/stroke_builder_test.dart`, `unit/stroke/finish_data_test.dart`, (웹) `web/determinism_test.dart` |
@@ -46,6 +46,11 @@
 - (없음)
 
 ## 계획과 다르게 한 점
+
+동시 개발 단계:
+
+- T03: 내부 `PressureDetector` 생성자에 선택 인자 `store`(`PressureCapabilityStore?`)를 더했다(4.3 내부 시그니처는 kind·mode·prior). 6.4의 '결정이 나면 report'를 획 도중(`observe`)에 하려면 detector가 store를 알아야 해서다. `buildStroke`(오프라인)는 store 없이 쓴다.
+- T03: `prior == supported`인데 고정값 12개가 나오면(펜슬 교체) capability만 `unsupported`로 재보고하고, **쓰는 중인 획의 source는 real 그대로** 둔다(다음 획부터 simulated). 획 도중 real → simulated 전환은 앞 점 굵기를 다시 계산해야 해 6.4 규칙 6(pending → real, 최대 11점)의 범위를 넘기 때문. 강제 모드(alwaysReal·alwaysSimulated)는 관찰·보고를 하지 않는다.
 
 기반 단계 B3에서 (인수인계 메모 `/home/user/wt/notes/foundation-ink.md` 요약):
 

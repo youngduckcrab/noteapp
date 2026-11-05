@@ -212,13 +212,13 @@ final class InkPageController extends ChangeNotifier {
     final kind = first.kind;
     final mode = pressureMode();
     final prior = pressureStore.capabilityOf(kind);
-    final detector = PressureDetector(kind: kind, mode: mode, prior: prior);
-    if (mode == PressureMode.auto &&
-        detector.capability != prior &&
-        (kind == InkPointerKind.stylus ||
-            kind == InkPointerKind.invertedStylus)) {
-      pressureStore.report(kind, detector.capability);
-    }
+    // 6.4: the detector reports its decisions to the store as it makes them.
+    final detector = PressureDetector(
+      kind: kind,
+      mode: mode,
+      prior: prior,
+      store: pressureStore,
+    );
     final builder = StrokeBuilder(
       style: style,
       viewScale: viewScale,
