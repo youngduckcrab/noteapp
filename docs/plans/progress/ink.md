@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 4 (동시 개발 단계) — T09·T10·T11 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08)
-- 다음 할 일: T12 provider·export·testing·dev_tools(INK-α 완료) → T23 ink lab → INK-β T13… (계획서 8장 순서)
+- 마지막 세션: 5 (동시 개발 단계) — T12 완료 = **INK-α 완료**(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11)
+- 다음 할 일: T23 ink lab(선택, INK-α 직후) → INK-β T13… (계획서 8장 순서)
 
 ## 작업 표
 
@@ -21,7 +21,7 @@
 | T09 | 완료 | e8b4698 | `unit/interop/core_interop_test.dart`, `unit/edit/ink_edit_test.dart`, `unit/interop/fake_store_handoff_test.dart`. B3 본문(`core_interop.dart` 6.23 함수표·`InkEdit.toCommand`·`fromCore`·대기 인계)이 이미 계약대로라 테스트만 추가. 코드 변경은 `previewTransformedOf`에 `scaleWidth: true`를 명시한 것뿐(기본값과 같음). 가짜 저장소 인계: 종류 7개 모두 `execute` 안에서 리스너가 `updateContent` → `pendingIds` 빔, 휴지통 노트(`isReadOnly`)에서 `ReadOnlyNoteException` → `discardEdit` 한 번으로 픽셀 복원(지움·나눔·변형·색·추가) |
 | T10 | 완료 | 433e9a5 | `widget/{ink_page_view,viewport_report,handoff,highlighter_active}_test.dart`, `unit/render/{content_diff,session_rules}_test.dart`. 내부 `render/base_cache.dart`: `InkContentDiff`(R2 — z 목록 꼭대기의 새 id 연속 = appended, 그 아래 새 id = inserted, removed, changed(old,new), 크기 변경·첫 내용 = reset), `InkChunkCache`(R3/R4 — `chunkSizePt` 격자, 청크마다 Picture + appended 목록(> `maxAppendedPictures` 16이면 통합), 청크 사각형 non-AA clip, 바깥 청크는 페이지 밖 1e5pt까지, CORE bounds + 4pt로 겹침 판정, `paintClipped`), `HighlighterBaseCache`(6.10-6/-7 — 활성 키를 뺀 페이지 Picture 1장 + 활성 그룹의 불투명 `groupOpaque` Picture). 컨트롤러: `updateContent`가 diff를 캐시에 반영, 숨김 집합 변화(대기 지움·미리보기·discard)는 `_syncHidden`이 해당 청크만 dirty, 활성 형광펜 키 = 쓰는 중·대기 추가·미리보기 형광펜의 키, `renderStats.chunkPictures` = 청크 + appended Picture 수. 테스트 도우미 `test/support/page_view.dart`(`pumpPageView`, `pageViewApp`, `capturePixels`) |
 | T11 | 완료 | 05daca9 | `unit/diagnostics/latency_test.dart`, (웹) `web/ink_clock_test.dart`(정렬·단조·DOM `Event.timeStamp`와 같은 시간축). `InkDiagnostics`: 켜져 있는 동안만 `SchedulerBinding.addTimingsCallback`(끄기·dispose에서 제거, 바인딩 없는 순수 Dart 테스트에서는 붙이지 않음), FrameTiming 매칭(활성 paint 시각이 [buildStart, rasterStart]에 든 프레임 → `rasterFinish − 이벤트 시각` = `eventToRasterEnd`, 시계가 이벤트 시간축과 정렬될 때만, buildStart 이전 paint는 버림, 대기 최대 64개), 알림은 타이머로만(0초 타이머 선두 + 250ms 창 끝 후행 1회 — 훅이 paint 중에 불리므로 동기 알림 없음). 펜 세션이 샘플마다 `onWidthFactor`(실제 f·필압 출처·스타일러스 capability — `StrokeBuilder.lastWidthFactor`, `InkPageHost.stylusCapability` 내부 추가), 컨트롤러 inkBase paint가 `onCacheStats` |
-| T12 | 남음 | | `unit/{providers,testing_helpers,dev_tools}_test.dart`, (웹) `web/dev_tools_web_test.dart`, `widget/m0_scenario_test.dart` — INK-α 완료 |
+| T12 | 완료 | (이 커밋) | `unit/{providers,testing_helpers,dev_tools}_test.dart`, (웹) `web/dev_tools_web_test.dart`(체크섬 91952586 = VM), `widget/m0_scenario_test.dart` — **INK-α 완료**. `providers.dart`·`testing.dart`·`dev_tools.dart`는 B3 본문이 4.13·4.14대로라 테스트만 추가. 코드 변경은 `syntheticStrokes`의 위쪽 clamp를 CORE 0.01pt 격자 안쪽(변 − 0.005 내림)으로 바꾼 것뿐(전에는 A4 오른쪽 끝 595.2756이 양자화돼 595.28 — 페이지 밖). 공용 체크섬 `test/support/synthetic_checksum.dart`. M0 시나리오: 원시 `PointerEvent` 스크립트(스타일러스, 120Hz, 필압 0.15→0.95) → `Listener`(EDITOR 배선) → 만년필 획 → `session.execute` → `updateContent` → 저장 widthQ 기울기 0.373(이론 0.375)·화면 굵기 기울기 14.95pt(이론 15), r² > 0.999 |
 | T23 | 남음 | | (선택, INK-α 직후) `example/` ink lab — `flutter build web`, `example/test/smoke_test.dart` |
 | T13 | 남음 | | `unit/background/{template_vectors,template_defaults,background_spec}_test.dart`, `widget/{background_builder,template_still}_test.dart`, `goldens/templates_golden_test.dart` |
 | T13b | 남음 | | `template_vectors_test` 확장(악보·플래너), `goldens/templates_music_planner_golden_test.dart` |
@@ -96,7 +96,9 @@
 - 세션 4(T10 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 392개 통과.
 - 세션 4(T11 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 408개·Chrome `web/ink_clock_test` 3개 통과.
 - 세션 4 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 408개·Chrome `test/web` 76개 통과, `git status` 빔.
-- T12 시작점: 계획서 4.13(provider 표·`name:`)·4.14(`testing.dart`·`dev_tools.dart`)·8장 T12 완료 조건. `providers.dart`·`testing.dart`·`dev_tools.dart`(`InkDevTools.syntheticStrokes` = `src/dev/synthetic_strokes.dart`)는 B3 본문이 있고 `foundation/b3_behaviour_test`가 provider·syntheticStrokes 일부를 이미 확인한다 — 완료 조건 테스트(`unit/{providers,testing_helpers,dev_tools}_test`, (웹) `web/dev_tools_web_test`(VM과 같은 체크섬 — `test/support/stroke_scripts.dart`처럼 산술 체크섬), `widget/m0_scenario_test`(가짜 포인터 스크립트 → 만년필 획 → 커밋 → 굵기 변화가 필압에 비례))를 먼저 쓰고 어긋나는 곳만 고친다. `export_list_test`가 공개 이름 집합을 검사하므로 공개 이름은 늘리지 않는다.
+- 세션 5(T12 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 439개·Chrome `test/web` 78개 통과.
+- T12 테스트 요령: M0 시나리오처럼 원시 `PointerDownEvent`로 필압을 넣을 때는 **`pressureMin: 0`을 꼭 준다** — Flutter 기본값은 `pressureMin = pressureMax = 1.0`이라 6.3 규칙(max = min → null)에 걸려 가상 필압이 된다. 위젯 테스트에서 provider 컨테이너는 `riverpod/misc.dart`의 `Override`로 덮어쓴다(`flutter_riverpod` 비의존). CORE 시계 값은 `store.clock.now()`로 앞뒤를 잡아 비교한다(`package:clock`은 INK 의존성이 아님).
+- (끝난 메모) T12 시작점: 계획서 4.13(provider 표·`name:`)·4.14(`testing.dart`·`dev_tools.dart`)·8장 T12 완료 조건. `providers.dart`·`testing.dart`·`dev_tools.dart`(`InkDevTools.syntheticStrokes` = `src/dev/synthetic_strokes.dart`)는 B3 본문이 있고 `foundation/b3_behaviour_test`가 provider·syntheticStrokes 일부를 이미 확인한다 — 완료 조건 테스트(`unit/{providers,testing_helpers,dev_tools}_test`, (웹) `web/dev_tools_web_test`(VM과 같은 체크섬 — `test/support/stroke_scripts.dart`처럼 산술 체크섬), `widget/m0_scenario_test`(가짜 포인터 스크립트 → 만년필 획 → 커밋 → 굵기 변화가 필압에 비례))를 먼저 쓰고 어긋나는 곳만 고친다. `export_list_test`가 공개 이름 집합을 검사하므로 공개 이름은 늘리지 않는다.
 - 진단 메모: `onActivePaint`는 `_paintActiveInk`·`_paintActiveHighlighters`(쓰는 중일 때)에서, `onCacheStats`는 inkBase paint에서, `onWidthFactor`는 펜 세션 샘플마다 부른다. 청크 Picture 기록 시간은 따로 재지 않는다(T19 `onTileRaster`는 래스터 타일만).
 - T19에 넘길 것: 래스터 타일은 `InkChunkCache`의 청크 단위로 붙이면 된다(청크 Picture + appended를 `scale(버킷)`으로 기록 → `toImageSync`). 청크 clip이 non-AA라 타일 경계도 같은 규칙. `setViewport`는 지금 버킷만 계산하고 다시 그리지 않는다.
 - 위젯 테스트 요령: 새 획을 z 맨 위(appended)로 만들려면 컨트롤러 `testInkCoreServices(startMillis: 100000)`처럼 펜 다운 시각을 기존 획 `createdAt`보다 크게(`strokeThrough` 기본 createdAt은 1000대). 같은 프레임에서 `capturePixels`를 여러 번 불러도 결과는 같다.
