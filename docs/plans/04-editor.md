@@ -1,10 +1,10 @@
 # 04. 에디터 화면 (EDITOR) 상세 계획서
 
 > 상태: **승인** (2차 수정본 v0.3 — 3차 승인, 4차·최종 승인 유지: [00-review.md '최종 승인'](00-review.md#최종-승인)) · 영역 ID: **EDITOR** · 소유 경로: `packages/feature_editor/`
-> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 **통합 계약 v1.4**(변경 이력 7.9 C11-01~30·C12·C13-01~05·C14-01~02, 이 문서와 다르면 계약이 우선) · 검토: [00-review.md](00-review.md) 3.4(1차) · '2차 검토' 2.4.4(EDITOR-2-1~12) · '3차 검토' 3.4.4(EDITOR-3-1~3) · '4차 검토' 4.4.4(EDITOR-4-1) · '최종 승인' — 반영은 13.3
+> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 **통합 계약 v1.5**(변경 이력 7.9 C11-01~30·C12·C13-01~05·C14-01~02·C15-01~08, 이 문서와 다르면 계약이 우선) · 검토: [00-review.md](00-review.md) 3.4(1차) · '2차 검토' 2.4.4(EDITOR-2-1~12) · '3차 검토' 3.4.4(EDITOR-3-1~3) · '4차 검토' 4.4.4(EDITOR-4-1) · '최종 승인' — 반영은 13.3, 1차 통합(계약 v1.5)은 13.4
 > 작성 환경에서 실제 확인한 것: Flutter 3.47.9 / Dart 3.13.7, pub.dev 패키지 정보(2026-11-04 재확인), Flutter 웹 엔진 포인터 소스(`flutter_web_sdk/lib/_engine/engine/pointer_binding.dart`), `material_ui` 1.10.0 소스(pub 캐시), 스크래치 프로젝트 세 개: `/tmp/claude-0/plan-scratch/editor/rp_probe`(초안 — Riverpod 3.4.3 웹 빌드·scoped provider·`EagerGestureRecognizer`), `/tmp/claude-0/plan-scratch/editor/v2_probe`(1차 수정 — 아래 '확인한 것' 표 V1~V6), `/tmp/claude-0/plan-scratch/editor/v3_probe`(2차 수정 — V7)
 
-이 문서만 보고 별도 git worktree에서 구현할 수 있도록 공개 API, 사용하는 계약, 알고리즘 수치, provider 이름, 작업 순서와 완료 조건을 적는다. 다른 영역의 타입·인터페이스는 **통합 계약 v1.4(00-overview 7장)과 계약이 승인한 각 계획서 절(CORE 4.x, INK 4.x)의 이름·형태를 그대로 쓴다.** EDITOR가 가정해 따로 정의한 공유 타입은 없다. 계약 블록을 옮긴 곳은 v1.1 주석까지 글자 그대로다. 계약에 문제가 있다고 본 점은 계약대로 쓰고 12.2에 '계약 변경 제안'으로 남긴다(2차 수정 시점에 새 제안 없음). 검토 반영 내역은 13절.
+이 문서만 보고 별도 git worktree에서 구현할 수 있도록 공개 API, 사용하는 계약, 알고리즘 수치, provider 이름, 작업 순서와 완료 조건을 적는다. 다른 영역의 타입·인터페이스는 **통합 계약 v1.5(00-overview 7장)과 계약이 승인한 각 계획서 절(CORE 4.x, INK 4.x)의 이름·형태를 그대로 쓴다.** EDITOR가 가정해 따로 정의한 공유 타입은 없다. 계약 블록을 옮긴 곳은 v1.1 주석까지 글자 그대로다. 계약에 문제가 있다고 본 점은 계약대로 쓰고 12.2에 '계약 변경 제안'으로 남긴다(2차 수정 시점에 새 제안 없음). 검토 반영 내역은 13절.
 
 표기
 
@@ -3212,7 +3212,7 @@ testWidgets('rejected erase → discardEdit, erased strokes visible again', (tes
 4. 줄 커버리지(`flutter test --coverage`): `src/input`·`src/viewport`·`src/tools`·`src/document`·`src/commands` 각 85% 이상, 패키지 전체 70% 이상. 측정 스크립트는 INFRA 것을 쓰고, 없으면 lcov 수치를 결과 보고에 기록.
 5. 2절에서 '이번'으로 표시한 모든 항목이 하나 이상의 통과 테스트와 연결됨(결과 보고에 표로).
 6. 4절 공개 API가 통합 계약 7.2.17과 글자 그대로 일치(`api_surface_test`). EDITOR가 다른 영역 이름(7.2.0 표)을 정의하지 않음. 다른 영역 경로 변경이 필요했던 것은 '변경 요청'으로 보고.
-7. 계약 7.7 V5(INFRA 스모크: 새 노트 → 에디터에서 합성 포인터로 획 1개 → 닫기 → 다시 열어 유지 → 되돌리기)가 EDITOR 화면으로 통과.
+7. 계약 7.7 V5(INFRA 스모크: 새 노트 → 에디터에서 합성 포인터로 획 1개 → 되돌리기 → 빈 페이지 → 다시 실행 → 닫기 → 다시 열어 같은 획 1개 유지, 다시 연 새 세션은 되돌리기 기록 없음 — 계약 v1.5 C15-04: 히스토리는 세션과 함께 닫힘, 02-core 6.16)가 EDITOR 화면으로 통과.
 8. 사용자 iPad 확인(9.2)의 ★ 항목 합격 = M1 에디터 합격. 나머지는 기록해 다음 작업 목록으로.
 
 ---
@@ -3391,5 +3391,14 @@ testWidgets('rejected erase → discardEdit, erased strokes visible again', (tes
 | EDITOR-4-1 | 절차 (C13-05) | 머리 상태 줄 '승인', 계약 인용 v1.4. v1.3(C13-01~04)은 EDITOR 표면에 영향 없음(C13-03 올가미 색은 INK가 그림, EDITOR 선택 핸들 등은 `colorScheme`) |
 | C14-01 | 계약 v1.4 | INK `SelectionGeometry`가 Flutter `rendering.dart`의 같은 이름과 겹친다. EDITOR는 INK를 항상 `as ink` 접두사로 가져오므로(표기 절) 영향 없음. `package:flutter/rendering.dart`를 직접 가져오는 파일이 생기면 `hide SelectionGeometry` |
 | C14-02 | 계약 v1.4 | R15는 `test`·`testWidgets`·`group`의 `tags:`와 `@Tags`만 셈. EDITOR 할 일 없음 |
+
+### 13.4 1차 통합 (통합 계약 v1.5 C15-01~08, 2026-11-05)
+
+설계·EDITOR 코드 변경 없음(v1.5는 시그니처 변경 없음). 문구만 계약에 맞춘다.
+
+| # | 종류 | 반영 |
+|---|---|---|
+| C15-04 | 계약 v1.5 (7.7 V5) | 10장 7의 V5 순서를 계약대로 '획 1개 → 되돌리기 → 빈 페이지 → 다시 실행 → 닫기 → 다시 열어 같은 획 1개 유지(다시 연 새 세션은 되돌리기 기록 없음)'로. 옛 순서(닫기 → 다시 열기 → 되돌리기)는 02-core 6.16(`noteSessionProvider` autoDispose — 에디터를 떠나면 세션·히스토리가 닫힘)과 함께 성립하지 않는다. EDITOR 동작은 이미 이 뜻이다: 되돌리기 버튼 활성은 `core.historyStateProvider(noteId)`(6.8)이고, E-21도 다시 연 뒤 `undoDepth` 0을 단언한다(E-21의 되돌리기는 닫기 전). 옛 순서를 적은 곳은 계획서에서 10장 7뿐이었다. INFRA V5(`app/test/integration/app_smoke_test.dart`, 1차 통합 G2)가 이 순서로 EDITOR 화면을 거쳐 통과 |
+| C15-01·02·03·05·06·07·08 | 계약 v1.5 | EDITOR 할 일 없음(계약 7.9 표의 '영향' 열 — C15-01 퇴화 올가미 = 탭 처리 그대로) |
 
 개발 진행 기록: [progress/editor.md](progress/editor.md).
