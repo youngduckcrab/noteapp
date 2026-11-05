@@ -155,6 +155,55 @@ abstract final class LibraryStrings {
   /// Trash of n items: '항목 3개를 휴지통으로 옮겼어요'.
   static String trashedCount(int n) => '항목 $n개를 휴지통으로 옮겼어요';
 
+  // Trash view (6.13)
+
+  static const String trashNotice = '휴지통의 항목은 30일 뒤 자동으로 영구 삭제돼요.';
+  static const String emptyTrash = '휴지통 비우기';
+  static const String emptyTrashView = '휴지통이 비어 있어요';
+  static const String restore = '복원';
+  static const String purge = '영구 삭제';
+  static const String purgeTitle = '영구 삭제할까요?';
+  static const String emptyTrashTitle = '휴지통을 비울까요?';
+
+  /// "'수학'을 영구 삭제하면 되돌릴 수 없어요."
+  static String purgeMessageOne(String name) =>
+      '${quotedWithObject(name)} 영구 삭제하면 되돌릴 수 없어요.';
+
+  /// '항목 3개를 영구 삭제하면 되돌릴 수 없어요.'
+  static String purgeMessageCount(int n) => '항목 $n개를 영구 삭제하면 되돌릴 수 없어요.';
+
+  /// '항목 3개를 영구 삭제해요. 되돌릴 수 없어요.'
+  static String emptyTrashMessage(int n) => '항목 $n개를 영구 삭제해요. 되돌릴 수 없어요.';
+
+  /// "'수학'을 복원했어요"
+  static String restoredOne(String name) => '${quotedWithObject(name)} 복원했어요';
+
+  /// '항목 3개를 복원했어요'
+  static String restoredCount(int n) => '항목 $n개를 복원했어요';
+
+  /// A trashed folder: '폴더 · 노트 3개, 폴더 1개 포함' (a 0 part left out; both
+  /// 0 → '폴더').
+  static String trashedFolderInfo({
+    required int noteCount,
+    required int folderCount,
+  }) {
+    final parts = [
+      if (noteCount > 0) '노트 $noteCount개',
+      if (folderCount > 0) '폴더 $folderCount개',
+    ];
+    return parts.isEmpty ? folders : '$folders · ${parts.join(', ')} 포함';
+  }
+
+  /// A trashed note: '노트 · 3페이지'.
+  static String trashedNoteInfo(int pageCount) => '노트 · $pageCount페이지';
+
+  /// '11월 4일 삭제' (date = formatLibraryDate).
+  static String deletedOn(String date) => '$date 삭제';
+
+  /// Screen reader label of a trash row.
+  static String trashRowSemantics(String name, String info, String left) =>
+      '$name, $info, $left';
+
   // Drag and drop (6.10)
 
   /// The drag card of several items: '항목 3개'.

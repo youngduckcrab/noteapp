@@ -1,7 +1,7 @@
 // lib/src/ui/content/content_body.dart — 05-library 6.1 / 6.4 / 6.7: the
 // content area by section. Folder sections (L10): the folder missing view or
 // the listing; recent / favorites use the same listing (their own views and
-// the search results view come with L17); trash with L16.
+// the search results view come with L17); trash → TrashView (6.13).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
@@ -21,6 +21,7 @@ import '../../model/section.dart';
 import '../../model/view_prefs.dart';
 import '../../state/providers.dart';
 import '../library_scope.dart';
+import '../trash/trash_view.dart';
 import 'empty_state.dart';
 import 'folder_missing_view.dart';
 import 'item_grid.dart';
@@ -41,7 +42,7 @@ class ContentBody extends StatelessWidget {
       key: ValueKey<LibrarySection>(section),
       section: section,
     ),
-    TrashSection() => const SizedBox.expand(),
+    TrashSection() => const TrashView(),
   };
 }
 

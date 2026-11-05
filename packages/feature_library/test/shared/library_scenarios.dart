@@ -13,6 +13,7 @@ import 'package:feature_library/src/settings/library_settings_keys.dart';
 import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:feature_library/src/ui/dialogs/folder_picker_dialog.dart';
 import 'package:feature_library/src/ui/sidebar/sidebar_rows.dart';
+import 'package:feature_library/src/ui/trash/trash_row.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
@@ -56,6 +57,10 @@ final List<LibraryScenario> libraryScenarios = [
   LibraryScenario(
     'custom order: two selected notes dragged after a third move together',
     _customReorderSeveral,
+  ),
+  LibraryScenario(
+    'trash: a note trashed in a folder is restored there; [보기] opens it',
+    _trashRestoresInPlace,
   ),
 ];
 
@@ -261,4 +266,37 @@ Future<void> _customReorderSeveral(
     [for (final n in listing.notes) n.id],
     [ids[2], ids[3], ids[0], ids[1]],
   );
+}
+
+/// 6.13 / C-3: ⋯ › 휴지통으로 이동 of a note in 영어 → 휴지통 → ⋯ › 복원 →
+/// the note is back in 영어 (not 홈); [보기] → onOpenFolder(영어).
+Future<void> _trashRestoresInPlace(
+  WidgetTester tester,
+  LibraryTestHarness h,
+) async {
+  final (folder, note) = await _real(tester, () async {
+    final folder = await h.backend.seedFolder('영어');
+    final note = await h.backend.seedNote('단어장', folderId: folder.id);
+    return (folder, note);
+  });
+  await h.pump(tester, folderId: folder.id);
+  await tester.pumpAndSettle();
+  await _menu(tester, '단어장', LibraryStrings.moveToTrash);
+  expect(find.text('단어장'), findsNothing);
+
+  await _tap(tester, find.widgetWithText(SidebarNavRow, LibraryStrings.trash));
+  expect(find.byType(TrashRow), findsOneWidget);
+  await _menu(tester, '단어장', LibraryStrings.restore);
+  expect(find.byType(TrashRow), findsNothing);
+  final restored = await _real(
+    tester,
+    () => h.backend.store.library.getNote(note.id),
+  );
+  expect(restored!.deletedAt, isNull);
+  expect(restored.folderId, folder.id);
+
+  // The route is still 영어 (the trash was a section of it): [보기] shows it.
+  await _tap(tester, find.widgetWithText(SnackBarAction, LibraryStrings.show));
+  expect(find.text('단어장'), findsOneWidget);
+  expect(find.byType(TrashRow), findsNothing);
 }

@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 6 (동시 개발 단계) — L15 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L16 (휴지통 화면) → L17 → L18 → L19 → L20
+- 마지막 세션: 6 (동시 개발 단계) — L15·L16 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L17 (최근 · 즐겨찾기 · 검색) → L18 → L19 → L20
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -28,7 +28,7 @@
 | L13 | 완료 | 7be0606 | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`) |
 | L14 | 완료 | c979633 | `widget/multi_select_test.dart` |
 | L15 | 완료 | d4a2f20 | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`(touch·stylus 각 12건), `widget/auto_scroll_widget_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
-| L16 | 남음 | | `widget/trash_view_test.dart` |
+| L16 | 완료 | (이 커밋) | `widget/trash_view_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
 | L17 | 남음 | | `widget/recent_favorites_test.dart`, `widget/search_test.dart` |
 | L18 | 남음 | | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` |
 | L19 | 남음 | | `goldens/library_golden_test.dart`, `widget/performance_test.dart`, `widget/a11y_test.dart` |
@@ -125,6 +125,12 @@
 - L15 그리드·리스트·사이드바 트리에 `findChildIndexCallback`(키 → 인덱스)을 넣었다 — 항목이 앞에서 생기거나 사라져도(접힌 폴더 자동 펼침, 선택 모드의 '새 노트' 타일) 끄는 중인 원본 State가 유지되게. 세 목록은 각각 `ScrollController`를 가진 State가 되어 `AutoScrollRegion`으로 감쌌다.
 - L15 타일·행의 `InkWell.onLongPress`는 없앴다(길게 누르기 = 끌기 시작, `onDragStarted` = `addItemToSelection`). `Semantics(onLongPress)`는 스크린 리더용으로 그대로 선택에 추가한다.
 - L15 공유 시나리오 1건 추가: 'custom order: two selected notes dragged after a third move together'(사용자 지정 정렬 설정 저장 → 노트 1 길게 누르기·노트 2 탭 → 노트 2를 노트 4의 90% 지점에 놓기 → `reorderItems [1, 2] after:4` 1회, 목록 3·4·1·2).
+- L16 파일: `ui/trash/trash_view.dart`(`TrashView` — `trashItemsProvider` 직접: 로딩 `DelayedSpinner`, 오류 `ListLoadError`(+ `reportLibraryErrorOnce`, [다시 시도] = `invalidate(trashItemsProvider)`), 비면 `EmptyState(TrashSection)`('휴지통이 비어 있어요'), 아니면 `Column[안내 줄(최소 56, ⓘ + 문구 + [휴지통 비우기]), Divider, ListView(72)]`; 목록이 바뀌면 `selection.retainVisible`), `ui/trash/trash_row.dart`(`TrashRow`, `TrashDaysChip`, `kTrashWarnDays = 3`), `ui/dialogs/confirm_dialog.dart`(`showConfirmDialog`/`ConfirmDialog` — `AlertDialog` 최대 폭 560, [취소] `TextButton`, 확인 `FilledButton`, `destructive`면 error/onError; 바깥 탭 = false). 흐름은 `item_action_flows.dart`의 `runRestoreFlow`·`runPurgeFlow`·`runEmptyTrashFlow`.
+- L16 행: 탭(선택 모드 아님) = 행에 붙은 메뉴 [복원] [영구 삭제](⋯와 같은 `MenuController`), 선택 모드면 토글. **길게 누르기 = 선택 모드 시작**(`InkWell.onLongPress` — 휴지통 행은 끌지 않으므로 L14 방식 그대로, 계획 6.13에는 '상단 선택'만 있음). 행 폭 < 600(compact 등)이면 지운 날짜를 설명 줄에 붙인다(`'<설명> · <날짜> 삭제'`, 계획에 없는 배치 규칙 — 375에서 넘침 방지). 지운 날짜 = `formatLibraryDate(deletedAt)` + ' 삭제'(오늘이면 '오늘 오후 2:05 삭제'). 표지는 `NoteCoverView`(40×52), 폴더는 `FolderPicture`(32, 배경 없음).
+- L16 복원 [보기]: `locate(첫 항목)` → `LibraryScope.openFolder(parentId)` — 라우트 폴더와 같으면(휴지통이 그 라우트의 섹션) `showRouteFolder()`로 섹션만 돌아가고 `onOpenFolder`는 부르지 않는다(6.4 규칙). 영구 삭제·비우기 성공 시 스낵바 없음(계획에 문구 없음). 비우기 확인 버튼 라벨 = '휴지통 비우기'(계획은 확인 제목·본문만 지정), 성공하면 선택 모드도 끝낸다. 비우기 메시지의 n = 휴지통 최상위 항목 수.
+- L16 선택 막대(휴지통): 대상 순서·이름은 `libraryContentProvider`가 아니라 `trashItemsProvider`(지운 시각 최신순)에서 — '모두 선택'도 그 키들. 동작 [복원](`Icons.restore_from_trash_outlined`) [영구 삭제](`Icons.delete_forever_outlined`), 성공하면 `end()`.
+- L16 문구 추가: `trashNotice`, `emptyTrash`, `emptyTrashView`, `restore`, `purge`, `purgeTitle`, `emptyTrashTitle`, `purgeMessageOne(name)`·`purgeMessageCount(n)`, `emptyTrashMessage(n)`, `restoredOne(name)`·`restoredCount(n)`, `trashedFolderInfo(noteCount:, folderCount:)`, `trashedNoteInfo(pages)`, `deletedOn(date)`, `trashRowSemantics`.
+- L16 공유 시나리오 1건 추가: 'trash: a note trashed in a folder is restored there; [보기] opens it'(영어 안 노트 ⋯ › 휴지통으로 이동 → 사이드바 휴지통 → ⋯ › 복원 → CORE `getNote`가 `deletedAt == null`·`folderId == 영어`, [보기] → 영어 목록에 노트).
 
 ## 다음 세션 메모
 
@@ -139,8 +145,8 @@
 - 세션 3 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 352개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 4 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 415개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 5 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 471개 통과, `flutter test --platform chrome test/web` 6개 통과.
-- 세션 6 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 530개 통과, `flutter test --platform chrome test/web` 6개 통과.
-- L16 시작점: 휴지통 섹션은 지금 `ContentBody`에서 빈 본문(`SizedBox.expand`). 휴지통 행은 끌 수 없다(6.10.1 — `LibraryDraggable`을 쓰지 않으면 됨). 선택 막대 휴지통 섹션은 ✕·개수·모두 선택만 있고 복원·영구 삭제 자리(`selection_bar.dart`의 `actions` 주석)가 비어 있다. `showConfirmDialog`(영구 삭제·비우기 확인)는 아직 없다 — `dialogs/confirm_dialog.dart`로 만든다. 복원 [보기] → 부모 폴더는 `LibraryActions.locate`. 사이드바 '휴지통' 줄은 이미 놓기 대상(`TrashDropTarget`, errorContainer).
+- 세션 6 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 539개 통과, `flutter test --platform chrome test/web` 6개 통과.
+- L17 시작점: 최근·즐겨찾기·검색은 지금 `ContentBody`에서 같은 `ContentListing`(폴더 먼저 → 노트)으로 보인다 — 끌기·놓기(`ContentItemDraggable`·`LibraryDropZone`)·선택·⋯는 이미 동작. 검색 입력(`library_search_field.dart`, 3장)은 아직 없다 — 상단 막대 오른쪽에 둔다(`LibraryMetrics.searchFieldWidthExpanded`·`Medium`, 디바운스 `searchDebounce` 300ms, 검색어는 `librarySectionProvider(route).notifier`의 `search(q)`·`exitSearch()` — L4). 검색 결과 보기는 `ui/content/search_results_view.dart`(묶음·위치 `locationLabel`·강조·truncated). 디바운스 횟수 확인은 `backend.queries`의 `"searchLibrary '<q>' limit:50"`. 공유 시나리오 남은 것: 제목 검색 NFD, '최근'은 openSession 뒤에만(L17), 새 노트 기본값 왕복(L18), 원격 삭제 → 폴더 없음 보기.
 - 끌기 테스트 도우미: `widget/drag_drop_test.dart`의 `startDrag`(down → 450ms → moveBy(0, 20)) / `moveTo` / `drop`(up + pumpAndSettle). 끄는 동안에도 상단 막대가 남아 있고 선택 막대는 끌기가 끝난 뒤 나온다.
 - 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
 - L13 시작점: ⋯ 자리는 타일 `Stack`(`note_tile.dart`·`folder_tile.dart`의 'L13' 주석)과 리스트 행(`item_list.dart`의 `SizedBox(52)`). 대화상자 틀은 `LibraryDialogFrame`·`DialogNameField`(L12), 꾸미기는 `FolderColorPicker`·`FolderIconPicker`, 표지 변경은 `CoverPicker`(+ `ColorCoverCard` 미리보기), 실행 취소 스낵바는 `showLibrarySnackBarOn`(L8), 변경은 `libraryActionsProvider`(`move`→`MoveReceipt`/`undoMove`, `trash`→`restore`). 사이드바 줄 메뉴의 '새 하위 폴더'는 `runNewFolderFlow(context, parentId: 그 폴더)`.

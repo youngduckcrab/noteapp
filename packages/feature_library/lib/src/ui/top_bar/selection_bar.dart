@@ -12,11 +12,12 @@
 //
 // Wide bars label their buttons; narrower ones show icons with tooltips; the
 // narrowest (compact) keeps 이동 · 휴지통 and moves the rest into ⋯. The
-// trash section's bar (복원 · 영구 삭제) is completed by L16; it has no
-// export (trash notes are read-only).
+// trash section's bar has 복원 · 영구 삭제 over the trash entries
+// (trashItemsProvider order, 6.13) and no export (trash notes are read-only).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show Folder, FolderId, Note, NoteId;
+import 'package:note_core/note_core.dart'
+    show Folder, FolderId, Note, NoteId, TrashItem, trashItemsProvider;
 
 import '../../integration/pdf_flows.dart';
 import '../../integration/pdf_slots.dart';
@@ -88,7 +89,17 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     final container = ProviderScope.containerOf(context, listen: false);
     void end() => container.read(provider.notifier).end();
 
-    final ordered = content?.orderedKeys ?? const <LibraryItemKey>[];
+    final inTrash = section is TrashSection;
+    // The trash view lists trashItemsProvider (newest first), not content.
+    final trashItems = inTrash
+        ? ref.watch(trashItemsProvider).value ?? const <TrashItem>[]
+        : const <TrashItem>[];
+    final trashNames = <LibraryItemKey, String>{
+      for (final t in trashItems) keyOfRef(t.ref): t.name,
+    };
+    final ordered = inTrash
+        ? trashNames.keys.toList()
+        : content?.orderedKeys ?? const <LibraryItemKey>[];
     final items = selection.inDisplayOrder(ordered);
     final folders = <LibraryItemKey, Folder>{
       for (final f in content?.folders ?? const <Folder>[]) folderKey(f.id): f,
@@ -101,8 +112,11 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
       for (final k in items)
         k: k.isFolder ? folders[k]?.parentId : notes[k]?.folderId,
     };
-    String? nameOf(LibraryItemKey k) =>
-        k.isFolder ? folders[k]?.name : notes[k]?.title;
+    String? nameOf(LibraryItemKey k) => inTrash
+        ? trashNames[k]
+        : k.isFolder
+        ? folders[k]?.name
+        : notes[k]?.title;
     final allSelected = ordered.isNotEmpty && ordered.every(selection.contains);
     final any = items.isNotEmpty;
 
@@ -120,7 +134,6 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             },
     );
 
-    final inTrash = section is TrashSection;
     final allFavorite =
         selectedNotes.isNotEmpty && selectedNotes.every((n) => n.isFavorite);
     final _BarAction favorite = (
@@ -193,9 +206,44 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
               onDone: end,
             ),
     );
-    // L16: the trash section gets 복원 · 영구 삭제 here.
+    final singleName = items.length == 1 ? nameOf(items.single) : null;
+    final _BarAction restore = (
+      icon: Icons.restore_from_trash_outlined,
+      label: LibraryStrings.restore,
+      disabledHint: null,
+      onPressed: !any
+          ? null
+          : () => runRestoreFlow(
+              context,
+              items: items,
+              singleName: singleName,
+              onDone: end,
+            ),
+    );
+    final _BarAction purge = (
+      icon: Icons.delete_forever_outlined,
+      label: LibraryStrings.purge,
+      disabledHint: null,
+      onPressed: !any
+          ? null
+          : () => runPurgeFlow(
+              context,
+              items: items,
+              singleName: singleName,
+              onDone: end,
+            ),
+    );
     final actions = <_BarAction>[
-      if (!inTrash) ...[favorite, copy, move, ?export, trash],
+      if (inTrash) ...[
+        restore,
+        purge,
+      ] else ...[
+        favorite,
+        copy,
+        move,
+        ?export,
+        trash,
+      ],
     ];
 
     return Material(

@@ -24,6 +24,7 @@ import '../../model/folder_appearance_value.dart';
 import '../../model/item_key.dart';
 import '../../state/library_actions.dart';
 import '../../state/providers.dart';
+import '../dialogs/confirm_dialog.dart';
 import '../dialogs/cover_dialog.dart';
 import '../dialogs/folder_appearance_dialog.dart';
 import '../dialogs/folder_picker_dialog.dart';
@@ -369,4 +370,78 @@ Future<void> runDropFlow(
       ),
     ),
   };
+}
+
+/// 복원 (trash view, 6.13): restore → "'<이름>'을(를) 복원했어요" (one item,
+/// [singleName]) / '항목 n개를 복원했어요' + [보기] → the parent of the first
+/// item (locate) through LibraryScope.openFolder.
+Future<void> runRestoreFlow(
+  BuildContext context, {
+  required List<LibraryItemKey> items,
+  String? singleName,
+  VoidCallback? onDone,
+}) {
+  final flow = _FlowContext(context);
+  return flow.once('restore', items, () async {
+    if (items.isEmpty) return;
+    if (!flow.check(await flow.actions.restore(items))) return;
+    onDone?.call();
+    flow.show(
+      items.length == 1 && singleName != null
+          ? LibraryStrings.restoredOne(singleName)
+          : LibraryStrings.restoredCount(items.length),
+      action: SnackBarAction(
+        label: LibraryStrings.show,
+        onPressed: () async {
+          final place = await flow.actions.locate(items.first);
+          if (place != null) flow.scope.openFolder(place.parentId);
+        },
+      ),
+    );
+  });
+}
+
+/// 영구 삭제 (trash view): confirm (destructive) → purge. Nothing shows on
+/// success; [취소] calls nothing.
+Future<void> runPurgeFlow(
+  BuildContext context, {
+  required List<LibraryItemKey> items,
+  String? singleName,
+  VoidCallback? onDone,
+}) {
+  final flow = _FlowContext(context);
+  return flow.once('purge', items, () async {
+    if (items.isEmpty) return;
+    final ok = await showConfirmDialog(
+      context,
+      title: LibraryStrings.purgeTitle,
+      message: items.length == 1 && singleName != null
+          ? LibraryStrings.purgeMessageOne(singleName)
+          : LibraryStrings.purgeMessageCount(items.length),
+      confirmLabel: LibraryStrings.purge,
+      destructive: true,
+    );
+    if (!ok) return;
+    if (flow.check(await flow.actions.purge(items))) onDone?.call();
+  });
+}
+
+/// 휴지통 비우기: confirm ([count] entries) → emptyTrash.
+Future<void> runEmptyTrashFlow(BuildContext context, {required int count}) {
+  final flow = _FlowContext(context);
+  return flow.once('emptyTrash', const [], () async {
+    final ok = await showConfirmDialog(
+      context,
+      title: LibraryStrings.emptyTrashTitle,
+      message: LibraryStrings.emptyTrashMessage(count),
+      confirmLabel: LibraryStrings.emptyTrash,
+      destructive: true,
+    );
+    if (!ok) return;
+    if (flow.check(await flow.actions.emptyTrash())) {
+      flow.container
+          .read(librarySelectionProvider(flow.scope.routeFolderId).notifier)
+          .end();
+    }
+  });
 }

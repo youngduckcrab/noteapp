@@ -35,7 +35,7 @@ class EmptyState extends StatelessWidget {
         Icons.search_off,
         LibraryStrings.emptySearch(query),
       ),
-      TrashSection() => (Icons.delete_outline, ''),
+      TrashSection() => (Icons.delete_outline, LibraryStrings.emptyTrashView),
     };
     return Center(
       child: SingleChildScrollView(
