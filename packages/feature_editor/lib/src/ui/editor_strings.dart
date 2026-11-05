@@ -35,6 +35,12 @@ abstract final class EditorStrings {
   /// More menu item, shown only when EditorScreen.onOpenSettings != null.
   static const settings = '설정';
 
+  /// Semantics label of [↶] (04-editor 6.8, 6.9.1).
+  static const undo = '되돌리기';
+
+  /// Semantics label of [↷].
+  static const redo = '다시 실행';
+
   // ---------------------------------------------------------------------------
   // Screen states (04-editor 6.17.1) and leaving (6.17.4).
   // ---------------------------------------------------------------------------

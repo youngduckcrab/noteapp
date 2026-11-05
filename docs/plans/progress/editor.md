@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **4** (동시 개발 단계 개발 세션 4/10) — 이번 세션 완료: E-09·E-10 (세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-11(되돌리기 연결 — 버튼은 E-13 툴바 전이라 아래 메모 참고) → E-12(키보드 단축키) → E-13(화면·툴바·배너) …
+- 마지막 세션: **4** (동시 개발 단계 개발 세션 4/10) — 이번 세션 완료: E-09·E-10·E-11 (세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-12(키보드 단축키, E-11 뒤) → E-13(화면·툴바·배너·진입/이탈) → E-14~E-17·E-19·E-20(E-13 뒤 서로 독립) → E-22 → E-18
 
 ## 작업 표
 
@@ -22,8 +22,8 @@
 | E-07 | 완료 | 6433a32 | `unit/tool_controller_test.dart` |
 | E-08 | 완료 | 219f4a2 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
 | E-09 | 완료 | 55c60e5 | `widget/erase_test.dart` (획·부분 모드 각각: 명령 1회·되돌리기 1번 복구 / 실패 → `discardEdit`·다시 보임·복귀 없음) |
-| E-10 | 완료 | (이 커밋) | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
-| E-11 | 남음 | | `widget/undo_redo_test.dart` |
+| E-10 | 완료 | ad633e6 | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
+| E-11 | 완료 | (이 커밋) | `widget/undo_redo_test.dart` |
 | E-12 | 남음 | | `widget/shortcuts_test.dart` |
 | E-13 | 남음 | | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart`, `widget/sync_badge_test.dart`, `widget/toolbar_test.dart`, `widget/extensions_test.dart`, `widget/scope_test.dart` |
 | E-14 | 남음 | | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart` |
@@ -79,6 +79,7 @@
 - (세션 4) E-10 메뉴: 선택 메뉴 `ui/overlays/selection_menu.dart`(`SelectionMenu`, 키 `copyKey`·`deleteKey`·`clearKey`, 프레임 위 8px — 공간 없으면 아래, 페이지 영역 안으로 클램프, 드래그 중 숨김, 읽기 전용이면 삭제 비활성). 컨텍스트 메뉴 `ui/overlays/context_menu.dart`(`EditorContextMenu`, 키 `pasteKey`·`lassoKey`) — 호스트의 `ValueListenable<ContextMenuRequest?> contextMenu`(새 내부 클래스 `ContextMenuRequest`)를 듣는다. 길게 누르기·우클릭: 선택 위면 컨텍스트 메뉴 없음(선택 메뉴가 이미 보임), 아니면 컨텍스트 메뉴, **읽기 전용이면 안 띄움**(두 항목 모두 편집 — 계획에 없던 규칙). 닫힘: 항목 탭, 한 손가락 탭(tap(1)은 메뉴가 열려 있으면 메뉴만 닫고, 아니면 선택 해제 — 팝업 닫기는 E-13), 펜·도구 상호작용 시작, 탐색 시작. 선택 프레임 `ui/overlays/selection_frame_painter.dart`(`SelectionFrame`·`SelectionFramePainter` — 흰 채움은 색 규칙대로 `colorScheme.surface`). 프레임·메뉴는 뷰포트·`MountedPages`·선택 페이지 INK 컨트롤러와 `layerRepaint(overlay)`(미리보기 변형은 `notifyListeners`가 아니라 repaint만 울림)를 듣는다. `PageViewport`는 이제 바깥 `Stack[RawGestureDetector…, SelectionMenu, EditorContextMenu]`.
 - (세션 4) E-10 명령: `EditorCommands`에 `copySelection`·`paste({screenPoint})`·`deleteSelection`·`clearSelection`·`selectTool` 추가. 붙여넣기는 `_runAsync(AddStrokes)` 성공 뒤 올가미 도구 → `select(pageId, 붙여 넣은 id)`, id = `core.idGeneratorProvider`, 시각 = `core.clockProvider`. 화면 점이 페이지 위면 그 점(오프셋 없음), 아니면 현재 페이지 기준 화면 가운데 + 16pt × n. `StrokeClipboardNotifier.instantiate`: 페이지보다 큰 축만 0으로(다른 축은 가운데 맞춤 + 클램프), 명시 점 붙여넣기는 n을 세지 않음, 빈 목록 `copy`는 클립보드를 비움. `SelectionHitTest.handlePosition`(정적 도우미) 추가.
 - (세션 4) E-10 테스트 메모: 스타일러스 직후 손가락은 팜 쿨다운(400ms)에 걸리므로 손가락 단계 전에 `h.driver.wait(1s)`. 길게 누르기는 `settings: EditorSettings(inputMode: InputMode.penOnly)`(아니면 손가락이 그림). 우클릭은 `driver.down(7, p, kind: mouse, buttons: kSecondaryMouseButton)`.
+- (세션 4) E-11: [↶] [↷]는 `ui/toolbar/undo_redo_buttons.dart`의 `UndoRedoButtons`(키 `undoKey`·`redoKey`, `Icons.undo`/`Icons.redo`, 의미 문구 '되돌리기'/'다시 실행' — `EditorStrings.undo`·`redo`)로 만들고, E-13 툴바 전까지 지금 앱 바 `actions`(더보기 앞)에 둔다. 활성 = `core.historyStateProvider(noteId)` 값(로딩·오류 = `HistoryState.empty`) ∧ 읽기 전용 아님. 탭 → `commands.undo/redo`(E-08에서 이미 만든 흐름 — 상호작용 중·읽기 전용 무시, `_runHistory`, 노트 순서 첫 영향 페이지로 `ensurePageVisible`). E-13에서 `EditorToolbar`로 옮길 것.
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모

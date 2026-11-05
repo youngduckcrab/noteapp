@@ -16,6 +16,7 @@ import 'package:note_core/note_core.dart' as core;
 
 import 'scope/editor_scope.dart';
 import 'ui/editor_strings.dart';
+import 'ui/toolbar/undo_redo_buttons.dart';
 import 'viewport/page_viewport.dart';
 
 /// The note editor screen. The app shell routes `/notes/:noteId` to it with
@@ -207,9 +208,9 @@ class _BackButton extends StatelessWidget {
   );
 }
 
-/// Ready body until E-13: an app bar with the back button, the note title and
-/// '설정' in the more menu (when onOpenSettings is given), over the page
-/// viewport.
+/// Ready body until E-13: an app bar with the back button, the note title,
+/// [↶] [↷] (E-11) and '설정' in the more menu (when onOpenSettings is given),
+/// over the page viewport.
 class _ReadyView extends StatelessWidget {
   const _ReadyView({
     required this.session,
@@ -229,6 +230,7 @@ class _ReadyView extends StatelessWidget {
         leading: _BackButton(onPressed: onBack),
         title: Text(session.note.title, overflow: TextOverflow.ellipsis),
         actions: [
+          const UndoRedoButtons(),
           if (openSettings != null) _MoreMenu(onOpenSettings: openSettings),
         ],
       ),
