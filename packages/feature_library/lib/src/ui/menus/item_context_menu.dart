@@ -8,11 +8,9 @@
 //
 // ItemMenuButton is the 44 × 44 ⋯ of a tile / list row. SidebarRowMenu opens
 // the same kind of menu from a tree row: a long press released without
-// moving (< kTouchSlop) or a secondary (right) click, at the press point.
-// L15 replaces the long press part with LibraryDraggable.onLongPressReleased
-// when the tree rows become draggable.
-import 'package:flutter/gestures.dart'
-    show LongPressGestureRecognizer, TapGestureRecognizer, kTouchSlop;
+// moving (the row's LibraryDraggable.onLongPressReleased — a long press
+// starts a drag, 6.5) or a secondary (right) click, at the press point.
+import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note;
 
@@ -151,13 +149,20 @@ class ItemMenuButton extends StatelessWidget {
   }
 }
 
-/// The menu of a sidebar tree row around [child]: opened by a long press
-/// released without moving, or by a secondary click, at the press point.
+/// The menu of a sidebar tree row: opened by a secondary click, or by the
+/// openMenu callback that [builder] gets (LibraryDraggable.onLongPressReleased
+/// of the row), at the last press point.
 class SidebarRowMenu extends StatefulWidget {
-  const SidebarRowMenu({super.key, required this.folder, required this.child});
+  const SidebarRowMenu({
+    super.key,
+    required this.folder,
+    required this.builder,
+  });
 
   final Folder folder;
-  final Widget child;
+
+  /// The row; [openMenu] opens the menu where the row was last pressed.
+  final Widget Function(BuildContext context, VoidCallback openMenu) builder;
 
   @override
   State<SidebarRowMenu> createState() => _SidebarRowMenuState();
@@ -166,10 +171,10 @@ class SidebarRowMenu extends StatefulWidget {
 class _SidebarRowMenuState extends State<SidebarRowMenu> {
   final MenuController _controller = MenuController();
 
-  /// Where the long press started (global, local).
-  Offset? _downGlobal, _downLocal;
+  /// Where the row was last pressed (local).
+  Offset? _downLocal;
 
-  void _openAt(Offset local) => _controller.open(position: local);
+  void _openAt(Offset? local) => _controller.open(position: local);
 
   @override
   Widget build(BuildContext context) {
@@ -180,42 +185,25 @@ class _SidebarRowMenuState extends State<SidebarRowMenu> {
         folder: widget.folder,
         sidebar: true,
       ),
-      child: RawGestureDetector(
-        // The row keeps its own semantics node (label + tap); screen reader
-        // users reach the same actions through the folder's ⋯ in the
-        // listing.
-        excludeFromSemantics: true,
-        gestures: {
-          LongPressGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-                () => LongPressGestureRecognizer(
-                  duration: LibraryMetrics.longPressDelay,
-                  debugOwner: this,
+      child: Listener(
+        onPointerDown: (event) => _downLocal = event.localPosition,
+        child: RawGestureDetector(
+          // The row keeps its own semantics node (label + tap); screen reader
+          // users reach the same actions through the folder's ⋯ in the
+          // listing.
+          excludeFromSemantics: true,
+          gestures: {
+            TapGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                  () => TapGestureRecognizer(debugOwner: this),
+                  (recognizer) =>
+                      recognizer
+                        ..onSecondaryTapUp = (details) =>
+                            _openAt(details.localPosition),
                 ),
-                (recognizer) => recognizer
-                  ..onLongPressStart = (details) {
-                    _downGlobal = details.globalPosition;
-                    _downLocal = details.localPosition;
-                  }
-                  ..onLongPressEnd = (details) {
-                    final down = _downGlobal, local = _downLocal;
-                    _downGlobal = _downLocal = null;
-                    if (down == null || local == null) return;
-                    if ((details.globalPosition - down).distance < kTouchSlop) {
-                      _openAt(local);
-                    }
-                  },
-              ),
-          TapGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-                () => TapGestureRecognizer(debugOwner: this),
-                (recognizer) =>
-                    recognizer
-                      ..onSecondaryTapUp = (details) =>
-                          _openAt(details.localPosition),
-              ),
-        },
-        child: widget.child,
+          },
+          child: widget.builder(context, () => _openAt(_downLocal)),
+        ),
       ),
     );
   }

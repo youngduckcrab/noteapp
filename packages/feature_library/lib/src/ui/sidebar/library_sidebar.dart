@@ -2,10 +2,12 @@
 // app name row (56) · 홈 · 최근 · 즐겨찾기 · '폴더' header · folder tree (the
 // height left, scrolls) · divider · 휴지통 (count) · sync status + settings
 // button row (56). The same widget is pinned (expanded class) or lives in the
-// drawer.
+// drawer. 홈 and 휴지통 are drop targets (6.10.2).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../dnd/drop_decision.dart';
+import '../../dnd/library_drop_zone.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
 import '../../state/providers.dart';
@@ -55,11 +57,17 @@ class LibrarySidebar extends ConsumerWidget {
             ),
           ),
         ),
-        SidebarNavRow(
-          icon: Icons.home_outlined,
-          label: LibraryStrings.home,
-          selected: section == const FolderSection(null),
-          onTap: () => LibraryScope.read(context).openFolder(null),
+        LibraryDropZone(
+          target: const FolderDropTarget(null),
+          builder: (context, decision) => SidebarNavRow(
+            icon: Icons.home_outlined,
+            label: LibraryStrings.home,
+            selected: section == const FolderSection(null),
+            drop: decision != null
+                ? SidebarDropLook.folder
+                : SidebarDropLook.none,
+            onTap: () => LibraryScope.read(context).openFolder(null),
+          ),
         ),
         SidebarNavRow(
           icon: Icons.schedule,
@@ -107,12 +115,18 @@ class LibrarySidebar extends ConsumerWidget {
         ),
         const Expanded(child: SidebarFolderTree()),
         const Divider(height: 1),
-        SidebarNavRow(
-          icon: Icons.delete_outline,
-          label: LibraryStrings.trash,
-          selected: section is TrashSection,
-          count: trashCount,
-          onTap: () => show((s) => s.showTrash()),
+        LibraryDropZone(
+          target: const TrashDropTarget(),
+          builder: (context, decision) => SidebarNavRow(
+            icon: Icons.delete_outline,
+            label: LibraryStrings.trash,
+            selected: section is TrashSection,
+            count: trashCount,
+            drop: decision != null
+                ? SidebarDropLook.trash
+                : SidebarDropLook.none,
+            onTap: () => show((s) => s.showTrash()),
+          ),
         ),
         SizedBox(
           height: LibraryMetrics.sidebarEdgeRowHeight,

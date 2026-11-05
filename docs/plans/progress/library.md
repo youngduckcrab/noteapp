@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 5 (동시 개발 단계) — L13·L14 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L15 (드래그 앤 드롭) → L16~L18 → L19 → L20
+- 마지막 세션: 6 (동시 개발 단계) — L15 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L16 (휴지통 화면) → L17 → L18 → L19 → L20
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -27,7 +27,7 @@
 | L12 | 완료 | ade94c3 | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` (+ B6 `feature_library_smoke_test.dart`·L10 `widget/listing_test.dart` 갱신) |
 | L13 | 완료 | 7be0606 | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`) |
 | L14 | 완료 | c979633 | `widget/multi_select_test.dart` |
-| L15 | 남음 | | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`, `widget/auto_scroll_widget_test.dart` |
+| L15 | 완료 | (이 커밋) | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`(touch·stylus 각 12건), `widget/auto_scroll_widget_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
 | L16 | 남음 | | `widget/trash_view_test.dart` |
 | L17 | 남음 | | `widget/recent_favorites_test.dart`, `widget/search_test.dart` |
 | L18 | 남음 | | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` |
@@ -112,6 +112,19 @@
 - L14 일괄 동작: 대상 = `selection.inDisplayOrder(content.orderedKeys)`, 부모 = 콘텐츠의 `folder.parentId`/`note.folderId`. 이동·휴지통·즐겨찾기는 L13 흐름에 `onDone: end`, 복사는 새 `runCopyToFlow`(피커 '복사할 위치'·'여기에 복사', 시작 = 폴더 섹션의 폴더, 그 외 홈, **접미사는 대상이 선택 항목 중 하나라도 그 부모면 ' 사본', 아니면 ''** — 최근·즐겨찾기·검색처럼 부모가 섞인 경우의 해석, `copiedCount(n)`). 성공하면 선택 종료, 취소·실패면 선택 유지. `end`는 컨테이너에서 다시 읽은 notifier로(흐름 끝에 막대가 없어도 동작).
 - L14 PDF 내보내기(`lib/src/integration/pdf_flows.dart` 새 파일 — 3장 구조의 파일, L18이 가져오기·⋯ 내보내기를 더한다): `runLibraryPdfExport(context, action:, noteIds:)`는 **`LibraryScope.screenContext`(새 필드 — `LibraryScreen` State의 `context`)**를 슬롯에 넘기고, 컨테이너별 `Expando`로 한 번에 하나(진행 중이면 `false`를 바로 돌려줌, `isLibraryPdfExportRunning(context)`), 예외는 `reportLibraryError(…, 'library pdf export')` + `errorGeneric`. 막대 버튼은 자체 `_exporting`으로 누르는 즉시 비활성(같은 프레임 두 번째 탭도 무시), 슬롯이 끝나면(정상·예외 모두) 선택 종료.
 - 공유 시나리오(L0 틀): 하네스 1건 + **L13에서 2건** — 'folders: create, move through the picker, no move into the own subtree'(빈 상태 [새 폴더] A → 사이드바 줄 메뉴 '새 하위 폴더' B → 새로 만들기 C, A 이동 피커에서 A 비활성·홈 확인 비활성, 래퍼 `moveItems(A → B)`가 `FolderCycleException`·변화 없음(C-4), A → C 이동 후 [실행 취소]), "copy: ' 사본' of a 200-character title stays 200 characters"(C-5). 나머지(사용자 지정 재정렬 다중, 휴지통 → 복원 위치, 제목 검색 NFD, '최근'은 openSession 뒤에만, 새 노트 기본값 왕복, 원격 삭제 → 폴더 없음 보기)는 L15~L18 때 추가한다. 시나리오 본문의 CORE 직접 호출·읽기는 `tester.runAsync`로 감싼다(`runAsync`는 콜백 오류를 다시 던지지 않으므로 오류를 기대하면 콜백 안에서 잡아 값으로 돌려줌).
+- L15 파일: 3장의 `dnd/` 5개 파일에 더해 **`dnd/library_drop_zone.dart`**(`LibraryDropZone` — `DragTarget<LibraryDragHandle>` 하나: `onWillAcceptWithDetails` 항상 true, `onMove`에서 `decideDrop`(트리 = `folderTreeProvider`, 사용자 지정 여부 = 섹션이 폴더 + `prefs.sort.field == custom`, 위치 = 자기 `RenderBox.globalToLocal(details.offset)`), `builder(context, decision)`로 강조, 놓으면 같은 위치로 다시 판정해 `runDropFlow`. `onHold`(700ms, `holdNeedsDrop`이면 `DropInto`일 때만) — 접힌 트리 줄 펼침·'…' 메뉴 열기, `onDropped`)를 두었다. 실행은 `item_action_flows.dart`의 **`runDropFlow(context, payload, decision)`**(이동·휴지통은 L13 흐름과 같은 결과 문구·[실행 취소] 코드를 `_moveAndReport`·`_trashAndReport`로 나눠 공유).
+- L15 `LibraryDragHandle`에 `dropped`/`markDropped()`(놓기 대상이 판정을 실행했는지 — `onLongPressReleased` 판단용)를 더했다. 콘텐츠 페이로드는 순수 함수 `contentDragPayload(pressed:, pressedParent:, selection:, content:)`(drag_payload.dart, 단위 테스트 대상): 선택 모드면 선택 ∪ 누른 항목을 `content`의 화면 순서(폴더 → 노트)로, 더는 안 보이는 선택 항목은 빼고, 누른 항목은 항상(콘텐츠에 없으면 끝에) 넣는다. `parents`는 콘텐츠의 `folder.parentId`/`note.folderId`.
+- L15 `LibraryDraggable`: `childWhenDragging`을 따로 두지 않고 같은 자식을 `Opacity(끄는 중 0.4)`로 감싼다(위젯 종류가 바뀌어 표지 등 하위 State가 다시 만들어지지 않게). `AutomaticKeepAliveClientMixin`으로 끄는 동안 지연 목록에서 살아 있게 한다(자동 스크롤로 화면 밖에 나가도). 끝은 `onDragEnd`가 아니라 `onDragCompleted`·`onDraggableCanceled`로 받는다(Flutter는 원본이 사라지면 `onDragEnd`를 부르지 않음). `onLongPressReleased`는 끄는 동안 누른 점에서 가장 멀어진 거리 < `kTouchSlop`이고 `handle.dropped`가 아닐 때. `maxSimultaneousDrags: 1`.
+- L15 끄는 모양 위치: 6.10.1의 '(−24, −28)'을 **카드 왼쪽 아래 모서리가 포인터에서 왼쪽 24·위 28**로 읽었다(카드 전체가 포인터 위 — 손가락에 가리지 않게. 왼쪽 위 모서리를 (−24, −28)에 두면 포인터가 카드 안에 들어가 아이콘이 가림). 치수는 `LibraryMetrics.dragFeedback*`.
+- L15 **끄는 동안 상단 막대 유지**: 콘텐츠 끌기는 시작할 때 선택 모드를 켜는데(6.10.1) 선택 모드에서는 선택 막대가 상단 막대를 대신해(6.9) 브레드크럼 놓기 대상(6.6)이 사라진다. 그래서 `LibraryDragScopeState.dragging`(`ValueListenable<bool>`, `dragStart()`~`dragEnd()`)이 true인 동안 `ContentPane`은 `LibraryTopBar`를, 그리드는 '새 노트' 타일을 그대로 둔다(끌기 시작 때 타일이 한 칸씩 밀려 포인터 아래가 바뀌지 않게). 끌기가 끝나면 선택 막대가 나온다. 계획 6.9 표현과 다른 점.
+- L15 `LibraryDragScope`: 계획 API에 `maybeOf`, `draggingOf(context)`, `dragStart()`, `dragging`을 더했다. 자동 스크롤 영역 고르기: 포인터를 담은 영역 중 나중에 등록된 것(서랍 트리가 콘텐츠보다 우선), 어느 영역에도 없으면 마지막 영역의 가로 범위 안일 때만 그 영역이 계속(위·아래 밖 → 최대 속도), 아니면 모두 정지. 서랍 가장자리는 스코프 자신의 상자 기준 x < 24. `EdgeAutoScroller`는 `Ticker`(시작 시 `_last = 0`, 끝·범위 밖이면 정지), `velocityFor`는 가까운 가장자리 기준(영역이 112보다 낮으면 위·아래 중 가까운 쪽).
+- L15 '…'(숨은 경로) 자체는 판정이 없는 놓기 영역(`target: null`) — 700ms 머물면 메뉴만 연다. 메뉴 항목이 `FolderDropTarget`이고 놓으면 메뉴를 닫는다. 메뉴 항목의 탭은 버튼 State의 `context`로 폴더를 연다(메뉴 항목 context는 메뉴가 닫히면 비활성 — 기존 L10 테스트가 잡음).
+- L15 휴지통 놓기 문구: 1개 = `LibraryStrings.droppedInTrash`('휴지통으로 옮겼어요', 6.10.3 그대로), 여러 개 = `trashedCount(n)`. 끄는 카드 '항목 n개' = `itemCount(n)`. `runDropFlow`는 **콘텐츠에서 시작한 끌기만, 성공했을 때만** `selection.end()`(실패·사이드바 끌기는 선택 유지 — L14 일괄 동작과 같은 규칙).
+- L15 강조: 그리드 폴더 타일 into = `TileCoverBox(dropInto)` 테두리 2 primary + `FolderPicture(dropInto)` 배경 primaryContainer, 재정렬 = `DropInsertionBar.forTile`(gap 가운데 폭 3, 타일 `Stack(clipBehavior: Clip.none)`), 리스트 행 into = 뒤에 primaryContainer, 재정렬 = `DropInsertionBar.forRow`(행 위·아래 가장자리 안쪽 높이 3), 사이드바 줄 = `SidebarDropLook`(`folder` → primaryContainer/onPrimaryContainer, `trash` → errorContainer/onErrorContainer — `sidebar_rows.dart`의 `_rowColors`), 브레드크럼 칸·메뉴 항목 = 모서리 8 primaryContainer 배경.
+- L15 `SidebarRowMenu` API를 `SidebarRowMenu(folder:, builder: (context, openMenu) => …)`로 바꿨다(길게 누르기 인식기를 없애고, `Listener`로 마지막 누른 점을 기억해 `LibraryDraggable.onLongPressReleased` = `openMenu`가 그 자리에 연다. 오른쪽 클릭은 그대로). 트리 줄 조립은 `sidebar_folder_tree.dart`의 `_TreeItem`(메뉴 → 놓기 영역 → 끌기 원본 → `SidebarTreeRow(drop:)`).
+- L15 그리드·리스트·사이드바 트리에 `findChildIndexCallback`(키 → 인덱스)을 넣었다 — 항목이 앞에서 생기거나 사라져도(접힌 폴더 자동 펼침, 선택 모드의 '새 노트' 타일) 끄는 중인 원본 State가 유지되게. 세 목록은 각각 `ScrollController`를 가진 State가 되어 `AutoScrollRegion`으로 감쌌다.
+- L15 타일·행의 `InkWell.onLongPress`는 없앴다(길게 누르기 = 끌기 시작, `onDragStarted` = `addItemToSelection`). `Semantics(onLongPress)`는 스크린 리더용으로 그대로 선택에 추가한다.
+- L15 공유 시나리오 1건 추가: 'custom order: two selected notes dragged after a third move together'(사용자 지정 정렬 설정 저장 → 노트 1 길게 누르기·노트 2 탭 → 노트 2를 노트 4의 90% 지점에 놓기 → `reorderItems [1, 2] after:4` 1회, 목록 3·4·1·2).
 
 ## 다음 세션 메모
 
@@ -126,6 +139,9 @@
 - 세션 3 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 352개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 4 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 415개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 5 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 471개 통과, `flutter test --platform chrome test/web` 6개 통과.
+- 세션 6 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 530개 통과, `flutter test --platform chrome test/web` 6개 통과.
+- L16 시작점: 휴지통 섹션은 지금 `ContentBody`에서 빈 본문(`SizedBox.expand`). 휴지통 행은 끌 수 없다(6.10.1 — `LibraryDraggable`을 쓰지 않으면 됨). 선택 막대 휴지통 섹션은 ✕·개수·모두 선택만 있고 복원·영구 삭제 자리(`selection_bar.dart`의 `actions` 주석)가 비어 있다. `showConfirmDialog`(영구 삭제·비우기 확인)는 아직 없다 — `dialogs/confirm_dialog.dart`로 만든다. 복원 [보기] → 부모 폴더는 `LibraryActions.locate`. 사이드바 '휴지통' 줄은 이미 놓기 대상(`TrashDropTarget`, errorContainer).
+- 끌기 테스트 도우미: `widget/drag_drop_test.dart`의 `startDrag`(down → 450ms → moveBy(0, 20)) / `moveTo` / `drop`(up + pumpAndSettle). 끄는 동안에도 상단 막대가 남아 있고 선택 막대는 끌기가 끝난 뒤 나온다.
 - 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
 - L13 시작점: ⋯ 자리는 타일 `Stack`(`note_tile.dart`·`folder_tile.dart`의 'L13' 주석)과 리스트 행(`item_list.dart`의 `SizedBox(52)`). 대화상자 틀은 `LibraryDialogFrame`·`DialogNameField`(L12), 꾸미기는 `FolderColorPicker`·`FolderIconPicker`, 표지 변경은 `CoverPicker`(+ `ColorCoverCard` 미리보기), 실행 취소 스낵바는 `showLibrarySnackBarOn`(L8), 변경은 `libraryActionsProvider`(`move`→`MoveReceipt`/`undoMove`, `trash`→`restore`). 사이드바 줄 메뉴의 '새 하위 폴더'는 `runNewFolderFlow(context, parentId: 그 폴더)`.
 - 화면 테스트 도우미 관례: provider 오류 보고 횟수는 `FlutterError.onError`를 try/finally로 잠시 바꿔 센다(`widget/sidebar_test.dart`·`widget/listing_test.dart`의 `collectReports`). 정렬 메뉴는 `find.byTooltip(LibraryStrings.sort)` → `find.widgetWithText(MenuItemButton, …)`.

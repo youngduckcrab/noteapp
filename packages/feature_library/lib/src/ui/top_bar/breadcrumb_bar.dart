@@ -1,11 +1,14 @@
 // lib/src/ui/top_bar/breadcrumb_bar.dart — 05-library 6.6: the path of a
 // folder section in the top bar, compressed to 4 / 3 / 2 places by size
-// class; the hidden part opens from '…'. Drop targets (crumbs, '…' and its
-// menu items, 700 ms hover) come with L15.
+// class; the hidden part opens from '…'. Ancestor crumbs and the items of
+// the hidden path menu are drop targets (into that folder, 6.10.2); a drag
+// that stays 700 ms on '…' opens the menu.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId, folderTreeProvider;
 
+import '../../dnd/drop_decision.dart';
+import '../../dnd/library_drop_zone.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/breadcrumb.dart';
 import '../layout/library_metrics.dart';
@@ -83,7 +86,19 @@ class _CurrentCrumb extends StatelessWidget {
   }
 }
 
-/// An ancestor: tap → that folder (6.4).
+/// primaryContainer behind a crumb / menu item that a drop would go into.
+const BorderRadius _dropRadius = BorderRadius.all(Radius.circular(8));
+
+Widget _dropHighlight(BuildContext context, bool on, Widget child) =>
+    DecoratedBox(
+      decoration: BoxDecoration(
+        color: on ? Theme.of(context).colorScheme.primaryContainer : null,
+        borderRadius: _dropRadius,
+      ),
+      child: child,
+    );
+
+/// An ancestor: tap → that folder (6.4); a drop target (into it).
 class _Crumb extends StatelessWidget {
   const _Crumb({required this.item});
 
@@ -96,54 +111,96 @@ class _Crumb extends StatelessWidget {
       constraints: const BoxConstraints(
         maxWidth: LibraryMetrics.breadcrumbCrumbMaxWidth,
       ),
-      child: TextButton(
-        onPressed: () => LibraryScope.read(context).openFolder(item.folderId),
-        style: TextButton.styleFrom(
-          minimumSize: const Size(
-            LibraryMetrics.minTapTarget,
-            LibraryMetrics.minTapTarget,
+      child: LibraryDropZone(
+        target: FolderDropTarget(item.folderId),
+        builder: (context, decision) => _dropHighlight(
+          context,
+          decision != null,
+          TextButton(
+            onPressed: () =>
+                LibraryScope.read(context).openFolder(item.folderId),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(
+                LibraryMetrics.minTapTarget,
+                LibraryMetrics.minTapTarget,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              foregroundColor: theme.colorScheme.onSurfaceVariant,
+              textStyle: theme.textTheme.titleMedium,
+            ),
+            child: Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          foregroundColor: theme.colorScheme.onSurfaceVariant,
-          textStyle: theme.textTheme.titleMedium,
         ),
-        child: Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }
 }
 
-/// '…': a menu of the hidden folders, top → down.
-class _HiddenPathButton extends StatelessWidget {
+/// '…': a menu of the hidden folders, top → down. A drag that stays 700 ms
+/// on it opens the menu; its items are drop targets.
+class _HiddenPathButton extends StatefulWidget {
   const _HiddenPathButton({required this.hidden});
 
   final List<BreadcrumbItem> hidden;
 
   @override
+  State<_HiddenPathButton> createState() => _HiddenPathButtonState();
+}
+
+class _HiddenPathButtonState extends State<_HiddenPathButton> {
+  final MenuController _controller = MenuController();
+
+  void _close() {
+    if (_controller.isOpen) _controller.close();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MenuAnchor(
+      controller: _controller,
       menuChildren: [
-        for (final item in hidden)
-          MenuItemButton(
-            onPressed: () =>
-                LibraryScope.read(context).openFolder(item.folderId),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: LibraryMetrics.breadcrumbCrumbMaxWidth,
-              ),
-              child: Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+        for (final item in widget.hidden)
+          LibraryDropZone(
+            target: FolderDropTarget(item.folderId),
+            onDropped: _close,
+            // The menu item's context is gone once the menu closes: the
+            // button's own context opens the folder.
+            builder: (zoneContext, decision) => _dropHighlight(
+              zoneContext,
+              decision != null,
+              MenuItemButton(
+                onPressed: () =>
+                    LibraryScope.read(context).openFolder(item.folderId),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: LibraryMetrics.breadcrumbCrumbMaxWidth,
+                  ),
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ),
           ),
       ],
-      builder: (context, controller, _) => IconButton(
-        icon: const Icon(Icons.more_horiz),
-        tooltip: LibraryStrings.hiddenPath,
-        onPressed: () =>
-            controller.isOpen ? controller.close() : controller.open(),
+      child: LibraryDropZone(
+        target: null,
+        holdNeedsDrop: false,
+        onHold: () {
+          if (!_controller.isOpen) _controller.open();
+        },
+        builder: (context, _) => IconButton(
+          icon: const Icon(Icons.more_horiz),
+          tooltip: LibraryStrings.hiddenPath,
+          onPressed: () =>
+              _controller.isOpen ? _controller.close() : _controller.open(),
+        ),
       ),
     );
   }

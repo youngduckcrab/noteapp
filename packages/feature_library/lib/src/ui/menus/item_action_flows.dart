@@ -10,12 +10,15 @@
 // once at a time per screen; a repeat while it runs does nothing (6.11).
 //
 // The multi-item flows (move, trash, favorite) take the items in display
-// order so the selection bar (L14) reuses them.
+// order so the selection bar (L14) reuses them; a drop (L15, runDropFlow)
+// reuses the move / trash parts.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
     show Folder, FolderId, FolderTree, Note, NoteId, folderTreeProvider;
 
+import '../../dnd/drag_payload.dart';
+import '../../dnd/drop_decision.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/folder_appearance_value.dart';
 import '../../model/item_key.dart';
@@ -233,32 +236,43 @@ Future<void> runMoveFlow(
       noOpTargets: current.length == 1 ? current : const {},
     );
     if (picked == null) return;
-    final target = picked.folderId;
-    final outcome = await flow.actions.move(
-      items,
-      target: target,
-      originalParents: parents,
-    );
-    switch (outcome) {
-      case ActionSuccess(value: final receipt):
-        onDone?.call();
-        final name = _targetName(flow.container, target);
-        flow.show(
-          items.length == 1
-              ? LibraryStrings.movedTo(name)
-              : LibraryStrings.movedCountTo(items.length, name),
-          action: receipt.isEmpty
-              ? null
-              : SnackBarAction(
-                  label: LibraryStrings.undo,
-                  onPressed: () async =>
-                      flow.check(await flow.actions.undoMove(receipt)),
-                ),
-        );
-      case ActionFailure(:final kind):
-        flow.showFailure(kind);
-    }
+    await _moveAndReport(flow, items, parents, picked.folderId, onDone);
   });
+}
+
+/// move → `"'<target>'(으)로 옮겼어요"` / "항목 n개를 …" + [실행 취소] →
+/// undoMove (6.10.3 / 6.11).
+Future<void> _moveAndReport(
+  _FlowContext flow,
+  List<LibraryItemKey> items,
+  Map<LibraryItemKey, FolderId?> parents,
+  FolderId? target,
+  VoidCallback? onDone,
+) async {
+  final outcome = await flow.actions.move(
+    items,
+    target: target,
+    originalParents: parents,
+  );
+  switch (outcome) {
+    case ActionSuccess(value: final receipt):
+      onDone?.call();
+      final name = _targetName(flow.container, target);
+      flow.show(
+        items.length == 1
+            ? LibraryStrings.movedTo(name)
+            : LibraryStrings.movedCountTo(items.length, name),
+        action: receipt.isEmpty
+            ? null
+            : SnackBarAction(
+                label: LibraryStrings.undo,
+                onPressed: () async =>
+                    flow.check(await flow.actions.undoMove(receipt)),
+              ),
+      );
+    case ActionFailure(:final kind):
+      flow.showFailure(kind);
+  }
 }
 
 /// 휴지통으로 이동 (no confirmation): trash → "'<이름>'을(를) 휴지통으로
@@ -273,17 +287,86 @@ Future<void> runTrashFlow(
   final flow = _FlowContext(context);
   return flow.once('trash', items, () async {
     if (items.isEmpty) return;
-    final outcome = await flow.actions.trash(items);
-    if (!flow.check(outcome)) return;
-    onDone?.call();
-    flow.show(
+    await _trashAndReport(
+      flow,
+      items,
       items.length == 1 && singleName != null
           ? LibraryStrings.trashedOne(singleName)
           : LibraryStrings.trashedCount(items.length),
-      action: SnackBarAction(
-        label: LibraryStrings.undo,
-        onPressed: () async => flow.check(await flow.actions.restore(items)),
-      ),
+      onDone,
     );
   });
+}
+
+/// trash → [message] + [실행 취소] → restore.
+Future<void> _trashAndReport(
+  _FlowContext flow,
+  List<LibraryItemKey> items,
+  String message,
+  VoidCallback? onDone,
+) async {
+  final outcome = await flow.actions.trash(items);
+  if (!flow.check(outcome)) return;
+  onDone?.call();
+  flow.show(
+    message,
+    action: SnackBarAction(
+      label: LibraryStrings.undo,
+      onPressed: () async => flow.check(await flow.actions.restore(items)),
+    ),
+  );
+}
+
+/// 6.10.3: what a drop runs. DropInto → move + the move message with
+/// [실행 취소]; DropReorder → reorder (no message); DropTrash → trash +
+/// '휴지통으로 옮겼어요' (one item) / '항목 n개를 휴지통으로 옮겼어요' +
+/// [실행 취소]. A drag from the content ends selection mode when it
+/// succeeds (the drag started it, 6.9); failures show the 6.19 snack bar and
+/// keep the selection.
+Future<void> runDropFlow(
+  BuildContext context,
+  LibraryDragPayload payload,
+  DropDecision decision,
+) {
+  final flow = _FlowContext(context);
+  final items = payload.items;
+  void endSelection() {
+    if (payload.source != LibraryDragSource.content) return;
+    flow.container
+        .read(librarySelectionProvider(flow.scope.routeFolderId).notifier)
+        .end();
+  }
+
+  return switch (decision) {
+    DropInto(:final folderId) => flow.once(
+      'move',
+      items,
+      () =>
+          _moveAndReport(flow, items, payload.parents, folderId, endSelection),
+    ),
+    DropReorder(:final anchor, :final after) => flow.once(
+      'reorder',
+      items,
+      () async {
+        final outcome = await flow.actions.reorder(
+          items,
+          anchor: anchor,
+          after: after,
+        );
+        if (flow.check(outcome)) endSelection();
+      },
+    ),
+    DropTrash() => flow.once(
+      'trash',
+      items,
+      () => _trashAndReport(
+        flow,
+        items,
+        items.length == 1
+            ? LibraryStrings.droppedInTrash
+            : LibraryStrings.trashedCount(items.length),
+        endSelection,
+      ),
+    ),
+  };
 }

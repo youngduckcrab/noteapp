@@ -1,8 +1,9 @@
 // lib/src/ui/sidebar/sidebar_rows.dart — 05-library 6.5: the rows of the
 // sidebar. Navigation rows (홈 · 최근 · 즐겨찾기 · 휴지통) and folder tree
 // rows share the selected look (secondaryContainer, corner 12). The tree
-// row menu is SidebarRowMenu around each tree row (sidebar_folder_tree.dart);
-// the drag / drop handling (L15) is added to these rows by its task.
+// row menu is SidebarRowMenu around each tree row (sidebar_folder_tree.dart).
+// A row that a drop would go to shows SidebarDropLook (6.10): folders / 홈 =
+// primaryContainer, 휴지통 = errorContainer (6.13).
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
@@ -17,27 +18,65 @@ import '../layout/library_metrics.dart';
 const double _rowInset = 8;
 const BorderRadius _rowRadius = BorderRadius.all(Radius.circular(12));
 
+/// How a sidebar row shows a drag over it (6.10 / 6.13).
+enum SidebarDropLook {
+  none,
+
+  /// A drop would move the items into this folder (or 홈).
+  folder,
+
+  /// A drop would move the items to the trash.
+  trash,
+}
+
+({Color? background, Color foreground}) _rowColors(
+  ColorScheme scheme, {
+  required bool selected,
+  required SidebarDropLook drop,
+}) => switch (drop) {
+  SidebarDropLook.folder => (
+    background: scheme.primaryContainer,
+    foreground: scheme.onPrimaryContainer,
+  ),
+  SidebarDropLook.trash => (
+    background: scheme.errorContainer,
+    foreground: scheme.onErrorContainer,
+  ),
+  SidebarDropLook.none when selected => (
+    background: scheme.secondaryContainer,
+    foreground: scheme.onSecondaryContainer,
+  ),
+  SidebarDropLook.none => (background: null, foreground: scheme.onSurface),
+};
+
 /// The selectable background of one sidebar row.
 class _RowSurface extends StatelessWidget {
   const _RowSurface({
     required this.selected,
     required this.onTap,
     required this.child,
+    this.drop = SidebarDropLook.none,
   });
 
   final bool selected;
   final VoidCallback onTap;
   final Widget child;
+  final SidebarDropLook drop;
 
   @override
   Widget build(BuildContext context) {
+    final background = _rowColors(
+      Theme.of(context).colorScheme,
+      selected: selected,
+      drop: drop,
+    ).background;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _rowInset),
       child: Material(
-        type: selected ? MaterialType.canvas : MaterialType.transparency,
-        color: selected
-            ? Theme.of(context).colorScheme.secondaryContainer
-            : null,
+        type: background != null
+            ? MaterialType.canvas
+            : MaterialType.transparency,
+        color: background,
         borderRadius: _rowRadius,
         child: Semantics(
           selected: selected,
@@ -58,6 +97,7 @@ class SidebarNavRow extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.count,
+    this.drop = SidebarDropLook.none,
   });
 
   final IconData icon;
@@ -67,20 +107,21 @@ class SidebarNavRow extends StatelessWidget {
 
   /// Shown at the end when > 0 (휴지통 entries).
   final int? count;
+  final SidebarDropLook drop;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final foreground = selected
-        ? scheme.onSecondaryContainer
-        : scheme.onSurface;
+    final colors = _rowColors(scheme, selected: selected, drop: drop);
+    final foreground = colors.foreground;
     final count = this.count;
     return SizedBox(
       height: LibraryMetrics.navRowHeight,
       child: _RowSurface(
         selected: selected,
         onTap: onTap,
+        drop: drop,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16 - _rowInset),
           child: Row(
@@ -101,8 +142,8 @@ class SidebarNavRow extends StatelessWidget {
                   child: Text(
                     '$count',
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: selected
-                          ? scheme.onSecondaryContainer
+                      color: colors.background != null
+                          ? foreground
                           : scheme.onSurfaceVariant,
                     ),
                   ),
@@ -125,10 +166,14 @@ class SidebarTreeRow extends StatelessWidget {
     required this.selected,
     required this.onOpen,
     required this.onToggle,
+    this.drop = SidebarDropLook.none,
   });
 
   final FolderTreeRow row;
   final bool selected;
+
+  /// SidebarDropLook.folder while a drop would go into this folder.
+  final SidebarDropLook drop;
 
   /// Row tap → open the folder (6.4).
   final VoidCallback onOpen;
@@ -148,11 +193,13 @@ class SidebarTreeRow extends StatelessWidget {
     final folder = row.folder;
     final argb = folder.colorArgb;
     final iconColor = argb != null ? Color(argb) : scheme.onSurfaceVariant;
+    final colors = _rowColors(scheme, selected: selected, drop: drop);
     return SizedBox(
       height: LibraryMetrics.treeRowHeight,
       child: _RowSurface(
         selected: selected,
         onTap: onOpen,
+        drop: drop,
         child: Row(
           children: [
             if (row.hasChildren)
@@ -185,9 +232,7 @@ class SidebarTreeRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: selected
-                      ? scheme.onSecondaryContainer
-                      : scheme.onSurface,
+                  color: colors.foreground,
                 ),
               ),
             ),

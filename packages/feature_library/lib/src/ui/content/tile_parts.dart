@@ -2,9 +2,11 @@
 // grid tiles and list rows.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show Folder, Note;
+import 'package:note_core/note_core.dart' show Folder, FolderId, Note;
 
 import '../../appearance/folder_appearance.dart';
+import '../../dnd/drag_payload.dart';
+import '../../dnd/library_draggable.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/item_key.dart';
 import '../../state/providers.dart';
@@ -47,10 +49,101 @@ void openLibraryNote(BuildContext context, Note note) {
 void toggleItemSelection(BuildContext context, LibraryItemKey key) =>
     _selectionNotifier(context).toggle(key);
 
-/// Long press on an item: selection mode with [key] included (6.9). L15
-/// moves this to the drag start (LibraryDraggable.onDragStarted).
+/// Long press on an item: selection mode with [key] included (6.9) — the
+/// drag start (LibraryDraggable.onDragStarted) and the screen reader's long
+/// press action.
 void addItemToSelection(BuildContext context, LibraryItemKey key) =>
     _selectionNotifier(context).add(key);
+
+/// The drag source of a content tile / row (6.10.1): the payload is the
+/// selection (in selection mode) plus this item in display order, built
+/// lazily at the drag start; the drag start adds this item to the selection.
+class ContentItemDraggable extends StatelessWidget {
+  const ContentItemDraggable({
+    super.key,
+    required this.itemKey,
+    required this.parentId,
+    required this.icon,
+    required this.label,
+    required this.child,
+    this.iconColor,
+  });
+
+  final LibraryItemKey itemKey;
+
+  /// Current parent of the item (folder.parentId / note.folderId).
+  final FolderId? parentId;
+
+  /// Of the drag card when only this item is dragged.
+  final IconData icon;
+  final Color? iconColor;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final route = LibraryScope.of(context).routeFolderId;
+    return LibraryDraggable(
+      payloadBuilder: () {
+        final section = container.read(librarySectionProvider(route));
+        return contentDragPayload(
+          pressed: itemKey,
+          pressedParent: parentId,
+          selection: container.read(librarySelectionProvider(route)),
+          content: container.read(libraryContentProvider(section)).value,
+        );
+      },
+      feedbackBuilder: (payload) => LibraryDragFeedback(
+        payload: payload,
+        icon: icon,
+        iconColor: iconColor,
+        label: label,
+      ),
+      onDragStarted: () => addItemToSelection(context, itemKey),
+      child: child,
+    );
+  }
+}
+
+/// Where a reorder drop would put the dragged items (6.8): a 3 px primary bar
+/// — vertical in the middle of the gap left / right of a grid tile, or
+/// horizontal along the top / bottom edge of a list row.
+class DropInsertionBar extends StatelessWidget {
+  const DropInsertionBar({super.key, required this.axis});
+
+  /// The axis the items follow (grid: horizontal → a vertical bar).
+  final Axis axis;
+
+  /// In the Stack of a grid tile ([gap] = grid gap; the Stack must not clip).
+  static Widget forTile({required bool after, required double gap}) {
+    const t = LibraryMetrics.dropInsertionBarThickness;
+    final outside = -(gap + t) / 2;
+    return Positioned(
+      top: 0,
+      bottom: 0,
+      left: after ? null : outside,
+      right: after ? outside : null,
+      width: t,
+      child: const DropInsertionBar(axis: Axis.horizontal),
+    );
+  }
+
+  /// In the Stack of a list row.
+  static Widget forRow({required bool after}) => Positioned(
+    left: 0,
+    right: 0,
+    top: after ? null : 0,
+    bottom: after ? 0 : null,
+    height: LibraryMetrics.dropInsertionBarThickness,
+    child: const DropInsertionBar(axis: Axis.vertical),
+  );
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: ColoredBox(color: Theme.of(context).colorScheme.primary),
+  );
+}
 
 LibrarySelectionNotifier _selectionNotifier(BuildContext context) =>
     ProviderScope.containerOf(context, listen: false).read(
@@ -71,6 +164,7 @@ class FolderPicture extends StatelessWidget {
     required this.folder,
     required this.iconSize,
     this.background = true,
+    this.dropInto = false,
   });
 
   final Folder folder;
@@ -79,12 +173,16 @@ class FolderPicture extends StatelessWidget {
   /// False in list rows (icon only).
   final bool background;
 
+  /// A drop would go into this folder: primaryContainer background (6.8).
+  final bool dropInto;
+
   @override
   Widget build(BuildContext context) => FolderGlyph(
     colorArgb: folder.colorArgb,
     icon: folder.icon,
     iconSize: iconSize,
     background: background,
+    dropInto: dropInto,
   );
 }
 
@@ -97,6 +195,7 @@ class FolderGlyph extends StatelessWidget {
     required this.icon,
     required this.iconSize,
     this.background = true,
+    this.dropInto = false,
   });
 
   final int? colorArgb;
@@ -105,6 +204,9 @@ class FolderGlyph extends StatelessWidget {
   final String? icon;
   final double iconSize;
   final bool background;
+
+  /// primaryContainer background (a drop target, 6.8).
+  final bool dropInto;
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +221,9 @@ class FolderGlyph extends StatelessWidget {
     );
     if (!background) return glyph;
     return ColoredBox(
-      color: argb != null
+      color: dropInto
+          ? scheme.primaryContainer
+          : argb != null
           ? Color(argb).withValues(alpha: 0.15)
           : scheme.surfaceContainerHigh,
       child: glyph,
@@ -128,7 +232,8 @@ class FolderGlyph extends StatelessWidget {
 }
 
 /// Cover box of a grid tile: corner 8, 1 px outlineVariant border — 3 px
-/// primary when the item is selected (6.8).
+/// primary when the item is selected, 2 px primary when a drop would go into
+/// it (6.8).
 class TileCoverBox extends StatelessWidget {
   const TileCoverBox({
     super.key,
@@ -136,11 +241,13 @@ class TileCoverBox extends StatelessWidget {
     required this.height,
     required this.child,
     this.selected = false,
+    this.dropInto = false,
   });
 
   final double width, height;
   final Widget child;
   final bool selected;
+  final bool dropInto;
 
   static const BorderRadius radius = BorderRadius.all(Radius.circular(8));
 
@@ -153,10 +260,10 @@ class TileCoverBox extends StatelessWidget {
         position: DecorationPosition.foreground,
         decoration: BoxDecoration(
           borderRadius: radius,
-          border: selected
+          border: selected || dropInto
               ? Border.all(
                   color: Theme.of(context).colorScheme.primary,
-                  width: 3,
+                  width: selected ? 3 : LibraryMetrics.dropIntoBorderWidth,
                 )
               : Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),

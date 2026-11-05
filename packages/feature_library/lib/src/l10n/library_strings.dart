@@ -155,6 +155,14 @@ abstract final class LibraryStrings {
   /// Trash of n items: '항목 3개를 휴지통으로 옮겼어요'.
   static String trashedCount(int n) => '항목 $n개를 휴지통으로 옮겼어요';
 
+  // Drag and drop (6.10)
+
+  /// The drag card of several items: '항목 3개'.
+  static String itemCount(int n) => '항목 $n개';
+
+  /// One item dropped on the sidebar 휴지통 row (6.10.3).
+  static const String droppedInTrash = '휴지통으로 옮겼어요';
+
   // PDF slots
   static const String exportPdfBulk = 'PDF 내보내기';
   static const String exportPdfOne = 'PDF로 내보내기';

@@ -52,6 +52,25 @@ abstract final class LibraryMetrics {
 
   /// Px from the left screen edge.
   static const double drawerEdgeZone = 24;
+
+  /// The card under a dragging pointer (6.10.1): 200 × 56, elevation 8,
+  /// opacity 0.92; its bottom-left corner sits 24 left of and 28 above the
+  /// pointer (not hidden under the finger); behind it, for several items,
+  /// two more cards each shifted by 4.
+  static const double dragFeedbackWidth = 200, dragFeedbackHeight = 56;
+  static const double dragFeedbackGapX = 24, dragFeedbackGapY = 28;
+  static const double dragFeedbackStackShift = 4;
+  static const double dragFeedbackElevation = 8;
+  static const double dragFeedbackOpacity = 0.92;
+
+  /// The dragged tile / row itself while it is dragged (6.8).
+  static const double dragSourceOpacity = 0.4;
+
+  /// Thickness of the reorder insertion bar (6.8).
+  static const double dropInsertionBarThickness = 3;
+
+  /// Border of a folder tile that a drop would go into (6.8).
+  static const double dropIntoBorderWidth = 2;
   static const Duration longPressDelay = Duration(milliseconds: 400);
   static const Duration autoExpandDelay = Duration(milliseconds: 700);
   static const Duration drawerEdgeDelay = Duration(milliseconds: 600);

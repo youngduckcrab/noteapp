@@ -1,12 +1,15 @@
 // lib/src/library_screen.dart — contract 00-overview 7.2.18, 05-library 4.2 /
 // 6.1. The screen root: one Scaffold (S-2) with the sidebar pinned in the
 // expanded size class or in the drawer otherwise, and the content pane of the
-// current section (6.4).
+// current section (6.4). LibraryDragScope above the Scaffold serves every
+// drag of the screen (drawer included): edge auto scrolling and, without a
+// pinned sidebar, the drawer opening at the left edge (6.10.4).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
     show FolderId, FolderTree, NoteId, folderTreeProvider;
 
+import 'dnd/library_drag_scope.dart';
 import 'state/providers.dart';
 import 'ui/content/content_pane.dart';
 import 'ui/layout/library_layout.dart';
@@ -131,7 +134,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     widget.onOpenSettings();
   }
 
-  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+  /// ☰, and a drag held at the left edge (6.10.4; the drawer stays open
+  /// after the drop).
+  void _openDrawer() {
+    final scaffold = _scaffoldKey.currentState;
+    if (scaffold != null && !scaffold.isDrawerOpen) scaffold.openDrawer();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,20 +158,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       openDrawer: _openDrawer,
       closeDrawer: _closeDrawer,
       screenContext: context,
-      child: Scaffold(
-        key: _scaffoldKey,
-        drawer: expanded
-            ? null
-            : const Drawer(
-                width: LibraryMetrics.drawerWidth,
-                child: LibrarySidebar(inDrawer: true),
-              ),
-        body: SafeArea(
-          child: LibraryLayout(
-            sizeClass: sizeClass,
-            sidebarVisible: sidebarVisible,
-            sidebar: const LibrarySidebar(),
-            content: ContentPane(section: section),
+      child: LibraryDragScope(
+        onDrawerEdgeHold: expanded ? null : _openDrawer,
+        child: Scaffold(
+          key: _scaffoldKey,
+          drawer: expanded
+              ? null
+              : const Drawer(
+                  width: LibraryMetrics.drawerWidth,
+                  child: LibrarySidebar(inDrawer: true),
+                ),
+          body: SafeArea(
+            child: LibraryLayout(
+              sizeClass: sizeClass,
+              sidebarVisible: sidebarVisible,
+              sidebar: const LibrarySidebar(),
+              content: ContentPane(section: section),
+            ),
           ),
         ),
       ),

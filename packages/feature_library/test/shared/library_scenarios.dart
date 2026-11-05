@@ -9,12 +9,14 @@
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:feature_library/src/model/names.dart';
+import 'package:feature_library/src/settings/library_settings_keys.dart';
+import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:feature_library/src/ui/dialogs/folder_picker_dialog.dart';
 import 'package:feature_library/src/ui/sidebar/sidebar_rows.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
-    show FolderCycleException, FolderRef, LibraryQuery;
+    show FolderCycleException, FolderRef, LibraryQuery, LibrarySortField;
 
 import '../support/fixtures.dart';
 import '../support/library_test_harness.dart';
@@ -50,6 +52,10 @@ final List<LibraryScenario> libraryScenarios = [
   LibraryScenario(
     "copy: ' 사본' of a 200-character title stays 200 characters",
     _copyLongTitle,
+  ),
+  LibraryScenario(
+    'custom order: two selected notes dragged after a third move together',
+    _customReorderSeveral,
   ),
 ];
 
@@ -199,4 +205,60 @@ Future<void> _routeChangeKeepsState(
   // A route change made by the test is not a callback of the screen.
   expect(h.log.entries, isEmpty);
   expect(h.backend.calls, isEmpty);
+}
+
+/// Custom order (6.10.3): 노트 1 and 노트 2 selected, dragged onto the right
+/// part of 노트 4 → ONE reorderItems after 노트 4, their relative order kept
+/// (contract 7.2.9); the listing reads 3, 4, 1, 2.
+Future<void> _customReorderSeveral(
+  WidgetTester tester,
+  LibraryTestHarness h,
+) async {
+  final notes = await _real(tester, () async {
+    final made = [
+      for (var i = 1; i <= 4; i++) await h.backend.seedNote('노트 $i'),
+    ];
+    await h.backend.store.settings.set(
+      LibrarySettingsKeys.sortField,
+      LibrarySortField.custom.name,
+    );
+    return made;
+  });
+  await h.pump(tester);
+  await tester.pumpAndSettle();
+  Finder tile(String title) =>
+      find.ancestor(of: find.text(title), matching: find.byType(NoteTile));
+
+  await tester.longPress(tile('노트 1'));
+  await tester.pumpAndSettle();
+  await tester.tap(tile('노트 2'));
+  await tester.pump();
+  final gesture = await tester.startGesture(tester.getCenter(tile('노트 2')));
+  await tester.pump(const Duration(milliseconds: 450));
+  await gesture.moveBy(const Offset(0, 20));
+  await tester.pump();
+  final target = tester.getRect(tile('노트 4'));
+  await gesture.moveTo(
+    Offset(target.left + target.width * 0.9, target.center.dy),
+  );
+  await tester.pump();
+  await gesture.up();
+  await tester.pumpAndSettle();
+
+  final ids = [for (final n in notes) n.id];
+  expect(h.backend.calls, [
+    'reorderItems [n:${ids[0]}, n:${ids[1]}] after:n:${ids[3]}',
+  ]);
+  final listing = await _real(
+    tester,
+    () => h.backend.store.library
+        .watchListing(
+          const LibraryQuery(sort: LibrarySortField.custom, descending: false),
+        )
+        .first,
+  );
+  expect(
+    [for (final n in listing.notes) n.id],
+    [ids[2], ids[3], ids[0], ids[1]],
+  );
 }
