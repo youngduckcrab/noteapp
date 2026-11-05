@@ -16,6 +16,10 @@ abstract final class LibraryStrings {
   static const String folders = '폴더';
   static const String settings = '설정';
 
+  // Paths ('홈 › … › A › B' — location labels, 6.14)
+  static const String pathSeparator = ' › ';
+  static const String ellipsis = '…';
+
   // Top bar
   static const String searchHint = '제목 검색';
   static const String newMenu = '새로 만들기';
