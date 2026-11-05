@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **2** (동시 개발 단계 개발 세션 2/10) — 이번 세션 완료: E-03 (세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-07(도구 상태 — E-06 뒤) · E-05(입력 라우터 R1~R33) → E-04(페이지 뷰포트, E-01·E-03 뒤) → E-08 …
+- 마지막 세션: **2** (동시 개발 단계 개발 세션 2/10) — 이번 세션 완료: E-03·E-07 (세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-05(입력 라우터 R1~R33) → E-04(페이지 뷰포트, E-01·E-03 뒤) → E-08(E-04·E-05·E-07 뒤) …
 
 ## 작업 표
 
@@ -15,11 +15,11 @@
 | E-00 | 완료 | f203d9b | `unit/no_platform_imports_test.dart`(B5에서 6.16 ①~⑤ 이미 완성), `unit/editor_strings_test.dart`, `dart_test.yaml`(B5), `integration/` 기본 '건너뜀' 확인(아래 메모), README |
 | E-01 | 완료 | d32032e | `unit/helpers_smoke_test.dart`. `EditorTestHandles.viewport`·`controllerOf`는 E-03/E-04, `pumpEditor(settings:)`는 E-06, `test_data`의 화면 좌표 도우미(`pageCenterOf`·`lassoAround`·`pathThrough`)는 E-04에서 더함 |
 | E-02 | 완료 | 9b78333 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart` |
-| E-03 | 완료 | (이 커밋) | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
+| E-03 | 완료 | 261c01f | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
 | E-04 | 남음 | | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
 | E-05 | 남음 | | `unit/input_router_test.dart` (R1~R33) |
 | E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
-| E-07 | 남음 | | `unit/tool_controller_test.dart` |
+| E-07 | 완료 | (이 커밋) | `unit/tool_controller_test.dart` |
 | E-08 | 남음 | | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
 | E-09 | 남음 | | `widget/erase_test.dart` |
 | E-10 | 남음 | | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
@@ -55,6 +55,8 @@
 - (세션 2) E-03 `ViewportController`: `panBy(screenDelta)`는 **휠 delta 방향**(양수 dy = 아래 내용이 보임, `PointerScrollEvent.scrollDelta` 그대로)으로 정했다 — `ViewportCamera.pannedBy`(손가락 방향)와 반대. 트랙패드 `panZoomSignal.panDelta`(손가락 방향)는 E-08 `InteractionHost`가 부호를 바꿔 넘긴다. 클래스 멤버를 더함: `pages`(마지막 `updatePages` 값 — '새 값은 보관' 확인용), `isAnimating`; `ViewportAnchor`에 `==`/`hashCode`, `fromJson`은 틀린 필드에 `FormatException`.
 - (세션 2) E-03 동작 세부(계획에 없던 것): `restore`는 크기·페이지가 아직 없으면 보관했다가 둘 다 생길 때 적용, `restore`·첫 배치·`setAxis`는 바로 안정화(`isInteracting` false, `settledScale = scale`) — 나머지 카메라 변경(제스처·관성·애니메이션·`panBy`·`zoomBy`·`jumpToPage`·크기/페이지 변경)은 표대로 150ms 안정화. `settleNow`는 0.1% 문턱 없이 `settledScale = camera.scale`. 스냅은 그 제스처에서 배율이 바뀐 경우만(한 손가락 팬 관성을 막지 않게), 스냅이 관성보다 먼저. `zoomStep` 결과가 1±0.05면 1. 애니메이션은 두 카메라의 공통 고정점 기준 보간(같은 배율이면 선형 팬). `jumpToPage`(세로)는 현재 배율 유지, 페이지 위 = `rect.top − pageGap/2`. `ensurePageVisible`의 '보임' = 페이지가 화면과 조금이라도 겹침. 가로 넘기기 스냅(속도 > 300 → 제스처 시작 페이지 ±1, 아니면 가운데 페이지, `cancelGesture`도 스냅)과 `fitScale`(가로 = 현재 페이지 기준)은 미리 구현했고 테스트는 E-18.
 - (세션 2) E-03 `ViewportMemory`: 쓰기 때마다 저장된 목록을 먼저 읽어 이 인스턴스의 저장분을 합친다(다른 화면이 쓴 항목 유지). 틀린 항목은 버리고 읽기 1회당 1번 보고(`FormatException`, library `feature_editor`). `dispose` 뒤 `save`는 무시. 생성자는 `ViewportMemory(this._settings, {required this._now})`(호출 모양은 계획과 같음).
+- (세션 2) E-07: `WidthMapping`(6.9.4, `src/ui/pen/width_mapping.dart`)을 E-15보다 먼저 만들었다 — `setWidth`가 `WidthMapping.snap`을 쓴다. 완료 조건 테스트(`unit/width_mapping_test.dart`)는 E-15에서 쓴다.
+- (세션 2) E-07 세부: `ToolState.defaults()`·`ToolState.defaultPenStyles()`·`copyWith(clearPreviousTool:)`, `EraserSettings.normalized()`·`snapDiameter`(1~100, 0.5 단위), `EraserSettings.fromJson(json, invalidFields:)`(틀린 필드 이름 수집 — 범위 밖은 기본값, 클램프 아님)를 더했다. `previousTool`은 지우개가 활성일 때만 유지(지우개를 떠나면 지움, 복원 시 지우개가 아니면 버림). `selectTool`·`selectPenType`·`applyStyle`은 스포이드를 끈다. `updateStyleOf`는 `tool`을 그 도구로 고정. 펜 스타일 저장은 모든 `PenTool`(P1 포함). `editor.penStyles`의 모르는 도구 이름은 오류가 아님(건너뜀), 디코드 실패·다른 도구 이름 항목은 기본값 + 보고. 세 키의 JSON 변환은 `tool_controller.dart` 안의 비공개 `_ToolStateJson`. `resetPenDefaults`는 `reset`이 아니라 기본값을 `set`(디바운스).
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모
