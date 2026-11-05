@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 8 (동시 개발 단계) — L19·L20 완료, 동시 개발 단계 몫(L0~L20) 전부 끝(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, 세션 7: L17·L18, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: 동시 개발 단계 작업 없음. 통합 단계에서 L21(실제 CORE 계약 테스트, `integration/core_contract_test.dart`) — 아직 안 씀
+- 다음 할 일: 동시 개발 단계 작업 없음. 통합 단계에서 L21(실제 CORE 계약 테스트, `integration/core_contract_test.dart` — 미리 써 둠, 실제 CORE로 실행·조정)
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -32,8 +32,8 @@
 | L17 | 완료 | b4581da | `widget/recent_favorites_test.dart`, `widget/search_test.dart`, `unit/search_match_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, L13 `widget/item_actions_test.dart` 갱신) |
 | L18 | 완료 | ccdc941 | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, B6 `feature_library_smoke_test.dart` 갱신) |
 | L19 | 완료 | dd82973 | `goldens/library_golden_test.dart`(+ PNG 4장, `goldens/flutter_test_config.dart`), `widget/performance_test.dart`, `widget/a11y_test.dart` |
-| L20 | 완료 | (L20 커밋 — 다음 커밋에서 해시 기록) | `web/library_browser_test.dart`, `web/scenarios_browser_test.dart` (+ L3 `web/new_note_options_browser_test.dart`) — `flutter test --platform chrome test/web` 17개, `ws test --platform chrome --package feature_library` 통과 |
-| L21 | 통합 단계 | | `integration/core_contract_test.dart` (`@Tags(['integration'])`, 미리 써 둬도 됨) |
+| L20 | 완료 | 6b2567c | `web/library_browser_test.dart`, `web/scenarios_browser_test.dart` (+ L3 `web/new_note_options_browser_test.dart`) — `flutter test --platform chrome test/web` 17개, `ws test --platform chrome --package feature_library` 통과 |
+| L21 | 통합 단계 | (미리 작성: L21 커밋 — 다음 커밋에서 해시 기록) | `integration/core_contract_test.dart` (`@Tags(['integration'])` + `@TestOn('vm')`) — 세션 8에 미리 썼다. 기본 실행은 skip(`~1`), `--run-skipped -t integration`은 지금 10건 모두 CORE B2 `UnimplementedError`로 실패(예상). 통합 단계에서 통과 판정 |
 
 ## 변경 요청
 
@@ -179,4 +179,4 @@
 - L15 시작점: 끌기는 `LongPressDraggable`(400ms) — 지금 타일·행의 `InkWell.onLongPress`(→ `addItemToSelection`)와 사이드바 줄의 `SidebarRowMenu` 길게 누르기(`RawGestureDetector`)를 `LibraryDraggable`로 바꾼다(타일: `onDragStarted` = `selection.add`, `onLongPressReleased` = 아무것도 안 함, 사이드바 줄: `onLongPressReleased` = 줄 메뉴 — `SidebarRowMenu`의 `_openAt`). 페이로드의 부모는 선택 막대와 같은 방식(`folder.parentId`/`note.folderId`). 놓은 뒤 이동·휴지통 결과 스낵바는 L13 흐름 문구(`movedTo`/`movedCountTo`, 휴지통은 6.10.3의 '휴지통으로 옮겼어요' — 아직 상수 없음)와 `showLibrarySnackBarOn` + 실행 취소(`undoMove`/`restore`)를 쓰면 된다. 테스트에서 ⋯는 `find.byTooltip(LibraryStrings.itemMenu('<이름>'))`, 선택 막대 버튼은 `find.descendant(of: find.byType(SelectionBar), matching: find.text(라벨))`.
 - (L19 완료) 골든 갱신은 패키지에서 `flutter test --update-goldens --tags golden test/goldens` 뒤 **별도 커밋**(계약 7.4.8). 화면 배치를 바꾸는 작업(L20 이후·통합 단계)에서 골든이 깨지면 갱신 커밋을 따로 만든다. 접근성 검사는 `widget/a11y_test.dart`의 `check(설명, 상태를 만드는 본문)`에 상태를 더하면 세 지침이 자동으로 붙는다.
 - (L20 완료) 브라우저 테스트는 패키지에서 `flutter test --platform chrome test/web`(3파일 17건, 컨테이너에서 약 25~75초). 화면 흐름을 더 웹에서 보려면 `test/shared/library_scenarios.dart`에 시나리오를 더하면 VM·Chrome(`web/scenarios_browser_test.dart`)·통합(L21) 세 곳에서 같이 돈다(웹 안전 import만).
-- L21(통합 단계) 시작점: 계획 8 L21 그대로 `test/integration/core_contract_test.dart`(`@Tags(['integration'])` + `@TestOn('vm')`, `package:note_core/testing_vm.dart`의 `openTestNoteStore`). ① `libraryScenarios.where((s) => !s.needsFaults)`를 `FakeLibraryBackend.overStore((c) => openTestNoteStore(clock: c, storageInfo: const StorageInfo(backend: StorageBackend.nativeFile)))`(runAsync 안) 위에서, 끝에 `await tester.runAsync(backend.dispose)` ② 기본 `openTestNoteStore()`(메모리 = nativeMemory) → 쓰기 없이 `LibraryStrings.storageNotDurable` 배너. 동시 개발 단계에서는 CORE가 B2(`UnimplementedError`)라 미리 쓰지 않았다.
+- L21(통합 단계) 시작점: `test/integration/core_contract_test.dart`를 세션 8에 미리 썼다(계획 8 L21 그대로). ① `libraryScenarios.where((s) => !s.needsFaults)`(지금 9건 모두)를 `open(tester, storageInfo: nativeFile)` = `tester.runAsync(() => FakeLibraryBackend.overStore((c) => openTestNoteStore(clock: c, storageInfo: …)))` 위에서 돌리고, 끝에 `close` = `pumpWidget(SizedBox)` → `runAsync(backend.dispose)` ② 기본 `openTestNoteStore()`(메모리 = nativeMemory) → `pump` 두 번 뒤 쓰기 없이 `LibraryStrings.storageNotDurable` 배너. **실제 drift로는 한 번도 돌려 보지 않았다** — 통합 단계에서 CORE T6 병합 뒤 `ws test --run-skipped -t integration`으로 돌리고, 'A Timer is still pending'·스트림 첫 값이 안 오는 경우는 그 시나리오의 CORE 호출이나 대기를 `runAsync`로 감싼다(11절, LIBRARY-2-6). 시나리오 본문(`shared/library_scenarios.dart`)의 씨앗은 이미 `tester.runAsync` 안에서 CORE를 부른다.
