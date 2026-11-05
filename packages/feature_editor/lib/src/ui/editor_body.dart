@@ -11,6 +11,7 @@ import '../state/popup.dart';
 import '../viewport/page_viewport.dart';
 import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
+import 'editor_strings.dart';
 import 'popup_host.dart';
 import 'presets/preset_bar_view.dart';
 import 'toolbar/editor_toolbar.dart';
@@ -88,12 +89,16 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
   }
 }
 
-/// Shows EditorCommands.messages (read-only refusal, failed command) as
+/// Shows EditorCommands.messages (read-only refusal, failed command) and
+/// EditorCommands.pagesDeleted ("페이지를 삭제했어요 [되돌리기]" — 6.11.1) as
 /// snack bars.
 class CommandMessages extends ConsumerStatefulWidget {
   const CommandMessages({super.key, required this.child});
 
   final Widget child;
+
+  /// Key of the snack bar action "되돌리기" after deleting pages.
+  static const undoDeleteKey = ValueKey('editor.pagesDeleted.undo');
 
   @override
   ConsumerState<CommandMessages> createState() => _CommandMessagesState();
@@ -101,11 +106,14 @@ class CommandMessages extends ConsumerStatefulWidget {
 
 class _CommandMessagesState extends ConsumerState<CommandMessages> {
   StreamSubscription<String>? _sub;
+  StreamSubscription<int>? _deletedSub;
 
   @override
   void initState() {
     super.initState();
-    _sub = ref.read(editorCommandsProvider).messages.listen(_show);
+    final commands = ref.read(editorCommandsProvider);
+    _sub = commands.messages.listen(_show);
+    _deletedSub = commands.pagesDeleted.listen((_) => _showDeleted());
   }
 
   void _show(String message) {
@@ -115,9 +123,27 @@ class _CommandMessagesState extends ConsumerState<CommandMessages> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _showDeleted() {
+    if (!mounted) return;
+    final commands = ref.read(editorCommandsProvider);
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text(EditorStrings.pagesDeleted),
+          action: SnackBarAction(
+            key: CommandMessages.undoDeleteKey,
+            label: EditorStrings.undo,
+            onPressed: () => unawaited(commands.undo()),
+          ),
+        ),
+      );
+  }
+
   @override
   void dispose() {
     unawaited(_sub?.cancel());
+    unawaited(_deletedSub?.cancel());
     super.dispose();
   }
 

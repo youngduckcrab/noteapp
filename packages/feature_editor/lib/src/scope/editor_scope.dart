@@ -11,7 +11,8 @@
 // current page bridge. E-08: read-only state, commands, interaction host and
 // input router. E-10: the selection (tools/selection.dart — listed here as a
 // dependency). E-13: start position and last position (ViewportMemory); the
-// popup lives in state/popup.dart. The page panel comes with E-17.
+// popup lives in state/popup.dart. E-17: the page panel state
+// (state/page_panel.dart — listed here as a dependency).
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -19,6 +20,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
+import '../state/page_panel.dart';
 import '../state/popup.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
@@ -214,6 +216,7 @@ final editorCommandsProvider = Provider<EditorCommands>(
     editorReadOnlyProvider,
     editorSelectionProvider,
     editorPopupProvider,
+    editorPagePanelProvider,
   ],
   name: 'editorCommandsProvider',
 );

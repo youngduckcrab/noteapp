@@ -160,7 +160,7 @@ class _EditorKeyActionHandler extends Action<EditorKeyIntent> {
       case EditorKeyAction.paste:
         unawaited(commands.paste()); // screen centre
       case EditorKeyAction.delete:
-        commands.deleteSelection(); // + selected pages in selection mode (E-17)
+        commands.deleteSelectionOrPages(); // strokes, else selected pages
       case EditorKeyAction.escape:
         commands.escape();
       case EditorKeyAction.zoomIn:

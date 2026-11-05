@@ -1,8 +1,9 @@
 // E-13: per-note provider scopes (04-editor 6.13.1 #3, #4): two editor
 // screens for two notes keep their selection, popup and per-note objects
-// apart. The page panel state joins with E-17.
+// apart. E-17: the page panel state too.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/state/page_panel.dart';
 import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/tools/selection.dart';
 import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
@@ -100,6 +101,16 @@ void main() {
     expect(cb.read(editorPopupProvider), const QuickPenPopup());
     expect(ca.read(editorPopupProvider), isNull);
     expect(find.byKey(QuickPenPanel.panelKey), findsOneWidget);
+
+    // Page panel (open + selection) in A only.
+    ca.read(editorPagePanelProvider.notifier)
+      ..toggleOpen()
+      ..setSelecting(true)
+      ..toggleSelected(sa.pages.first.id);
+    await tester.pump();
+    expect(ca.read(editorPagePanelProvider).isOpen, isTrue);
+    expect(ca.read(editorPagePanelProvider).selectedIds, {sa.pages.first.id});
+    expect(cb.read(editorPagePanelProvider), const PagePanelState());
 
     // Read-only state follows each note.
     await store.library.trashItems([core.NoteRef(b.id)]);

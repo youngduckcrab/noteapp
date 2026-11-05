@@ -2,8 +2,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../di/editor_extensions.dart';
 import '../state/popup.dart';
+import 'editor_strings.dart';
 import 'eraser/eraser_popup.dart';
+import 'pages/add_page_sheet.dart';
 import 'pen/pen_settings_popup.dart';
 import 'pen/quick_pen_popup.dart';
 import 'presets/preset_manager_sheet.dart';
@@ -24,8 +27,8 @@ class PopupAnchors {
 /// E-13 shows the toolbar popups (pen settings, quick pen, eraser); the
 /// context menus stay with InteractionHost (E-10). E-16: the preset save
 /// dialog and manager sheet have no anchor — they sit in the middle of the
-/// screen (above the keyboard) over a light scrim. The add-page sheet (E-17)
-/// joins here.
+/// screen (above the keyboard) over a light scrim; so does the add-page
+/// sheet (E-17).
 class PopupHost extends ConsumerStatefulWidget {
   const PopupHost({super.key, required this.child});
 
@@ -41,6 +44,20 @@ class PopupHost extends ConsumerStatefulWidget {
     return scope!.anchors;
   }
 
+  /// Runs an extension item picked inside a popup (the add-page sheet's
+  /// '다른 소스' row, 4.5) with the PopupHost's own context, which stays
+  /// mounted after the popup closes: awaited, never twice at the same time;
+  /// an exception is reported and shows '실행하지 못했어요'.
+  static Future<void> runMenuItem(
+    BuildContext context,
+    EditorMenuItem item,
+    EditorMenuContext menu,
+  ) {
+    final scope = context.getInheritedWidgetOfExactType<_PopupAnchorsScope>();
+    assert(scope != null, 'No PopupHost above this context');
+    return scope!.host._runMenuItem(item, menu);
+  }
+
   @override
   ConsumerState<PopupHost> createState() => _PopupHostState();
 }
@@ -48,6 +65,32 @@ class PopupHost extends ConsumerStatefulWidget {
 class _PopupHostState extends ConsumerState<PopupHost> {
   final PopupAnchors _anchors = PopupAnchors();
   final OverlayPortalController _portal = OverlayPortalController();
+  final Set<String> _running = {};
+
+  Future<void> _runMenuItem(EditorMenuItem item, EditorMenuContext menu) async {
+    if (!_running.add(item.id)) return;
+    try {
+      await item.onSelected(context, menu);
+    } on Object catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'feature_editor',
+          context: ErrorDescription('while running menu item ${item.id}'),
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(content: Text(EditorStrings.commandFailed)),
+          );
+      }
+    } finally {
+      _running.remove(item.id);
+    }
+  }
 
   void _sync(EditorPopup? popup) {
     final show = _layoutOf(popup) != null;
@@ -68,6 +111,7 @@ class _PopupHostState extends ConsumerState<PopupHost> {
     ref.listen(editorPopupProvider, (_, next) => _sync(next));
     return _PopupAnchorsScope(
       anchors: _anchors,
+      host: this,
       child: OverlayPortal(
         controller: _portal,
         overlayChildBuilder: (context) => _PopupLayer(anchors: _anchors),
@@ -79,21 +123,20 @@ class _PopupHostState extends ConsumerState<PopupHost> {
 
 /// The anchor (null = centred) and the panel of a popup PopupHost shows;
 /// null for the others.
-({LinkPick? link, Widget panel})? _layoutOf(EditorPopup? popup) =>
-    switch (popup) {
-      PenSettingsPopup() => (
-        link: LinkPick.pen,
-        panel: const PenSettingsPanel(),
-      ),
-      QuickPenPopup() => (link: LinkPick.pen, panel: const QuickPenPanel()),
-      EraserSettingsPopup() => (
-        link: LinkPick.eraser,
-        panel: const EraserSettingsPanel(),
-      ),
-      SavePresetPopup() => (link: null, panel: const SavePresetDialog()),
-      PresetManagerPopup() => (link: null, panel: const PresetManagerSheet()),
-      _ => null,
-    };
+({LinkPick? link, Widget panel})? _layoutOf(
+  EditorPopup? popup,
+) => switch (popup) {
+  PenSettingsPopup() => (link: LinkPick.pen, panel: const PenSettingsPanel()),
+  QuickPenPopup() => (link: LinkPick.pen, panel: const QuickPenPanel()),
+  EraserSettingsPopup() => (
+    link: LinkPick.eraser,
+    panel: const EraserSettingsPanel(),
+  ),
+  SavePresetPopup() => (link: null, panel: const SavePresetDialog()),
+  PresetManagerPopup() => (link: null, panel: const PresetManagerSheet()),
+  final AddPagePopup popup => (link: null, panel: AddPageSheet(popup: popup)),
+  _ => null,
+};
 
 /// Which toolbar button a popup hangs from.
 enum LinkPick { pen, eraser }
@@ -149,9 +192,14 @@ class _PopupLayer extends ConsumerWidget {
 }
 
 class _PopupAnchorsScope extends InheritedWidget {
-  const _PopupAnchorsScope({required this.anchors, required super.child});
+  const _PopupAnchorsScope({
+    required this.anchors,
+    required this.host,
+    required super.child,
+  });
 
   final PopupAnchors anchors;
+  final _PopupHostState host;
 
   @override
   bool updateShouldNotify(_PopupAnchorsScope oldWidget) =>

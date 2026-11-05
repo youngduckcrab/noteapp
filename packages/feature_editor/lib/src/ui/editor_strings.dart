@@ -393,4 +393,82 @@ abstract final class EditorStrings {
 
   /// Context menu: switch to the lasso tool.
   static const lassoTool = '올가미 도구';
+
+  // ---------------------------------------------------------------------------
+  // Page panel, page selection mode, add-page sheet (04-editor 6.11).
+  // ---------------------------------------------------------------------------
+
+  /// Toolbar [▤] (semantics label).
+  static const pagePanel = '페이지 패널';
+
+  /// Panel header: "페이지 12".
+  static String pageCount(int count) => '페이지 $count';
+
+  /// Header [선택] (semantics label) — the page selection mode.
+  static const selectPages = '페이지 선택';
+
+  /// Header [+] (semantics label).
+  static const addPageEllipsis = '페이지 추가…';
+
+  /// Item ⋯ (semantics label): "3쪽 메뉴".
+  static String pageMenu(int number) => '$number쪽 메뉴';
+
+  /// Item number / semantics: "3쪽".
+  static String pageNumber(int number) => '$number쪽';
+
+  static const addPageBefore = '앞에 페이지 추가';
+  static const addPageAfter = '뒤에 페이지 추가';
+  static const duplicatePage = '복제';
+  static const deletePage = '삭제';
+
+  /// Snack bar after deleting pages, with [undo].
+  static const pagesDeleted = '페이지를 삭제했어요';
+
+  /// Selection bar: "3쪽 선택됨".
+  static String pagesSelected(int count) => '$count쪽 선택됨';
+  static const selectAll = '모두 선택';
+  static const done = '완료';
+
+  /// Page indicator "3 / 12".
+  static String pageIndicator(int current, int count) => '$current / $count';
+
+  /// The document-end button.
+  static const addPageAtEnd = '+ 페이지';
+
+  /// Add-page sheet.
+  static const addPageTitle = '페이지 추가';
+  static const placement = '위치';
+  static const placementBefore = '현재 페이지 앞';
+  static const placementAfter = '현재 페이지 뒤';
+  static const placementEnd = '맨 끝';
+  static const template = '속지';
+  static const paperColor = '색';
+  static const pageSize = '크기';
+  static const orientation = '방향';
+  static const portrait = '세로';
+  static const landscape = '가로';
+  static const otherSources = '다른 소스';
+  static const add = '추가';
+  static const widthPt = '가로 (pt)';
+  static const heightPt = '세로 (pt)';
+
+  /// Custom size outside PageSizeLimits.userMinSidePt..userMaxSidePt.
+  static const customSizeOutOfRange = '100~3000pt 사이로 입력해 주세요';
+  static const customSize = '사용자 지정';
+
+  static const paperWhite = '흰색';
+  static const paperIvory = '미색';
+  static const paperGray = '회색';
+  static const paperBlack = '검정';
+
+  /// A paper colour that is not one of core.PaperColors.all.
+  static const paperOther = '다른 색';
+
+  static const templateBlank = '빈 페이지';
+  static const templateLined = '줄';
+  static const templateGrid = '모눈';
+  static const templateDotted = '점';
+  static const templateCornell = '코넬';
+  static const templateMusic = '악보';
+  static const templatePlanner = '플래너';
 }

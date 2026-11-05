@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../../scope/editor_scope.dart';
+import '../../state/page_panel.dart';
 import '../../state/popup.dart';
 import '../../state/settings/editor_settings_notifier.dart';
 import '../../tools/tool_controller.dart';
@@ -26,9 +27,9 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   _ => Icons.edit,
 };
 
-/// [←] title │ [펜●] [지우개] [올가미] │ [↶] [↷] │ [✋] [100%] [☁] [⋯] — 52 px.
-/// The title is hidden below 700 px. The page panel button [▤] joins with
-/// E-17. On a read-only note the tool buttons are disabled (6.9.1).
+/// [←] title [▤] │ [펜●] [지우개] [올가미] │ [↶] [↷] │ [✋] [100%] [☁] [⋯] — 52 px.
+/// The title is hidden below 700 px. [▤] toggles the page panel (E-17). On a
+/// read-only note the tool buttons are disabled (6.9.1).
 class EditorToolbar extends ConsumerWidget {
   const EditorToolbar({super.key, required this.onBack, this.onOpenSettings});
 
@@ -43,6 +44,7 @@ class EditorToolbar extends ConsumerWidget {
   static const lassoKey = ValueKey('editor.toolbar.lasso');
   static const fingerKey = ValueKey('editor.toolbar.finger');
   static const titleKey = ValueKey('editor.toolbar.title');
+  static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -74,6 +76,7 @@ class EditorToolbar extends ConsumerWidget {
                 )
               else
                 const Spacer(),
+              const _PagePanelButton(),
               const _Divider(),
               const _ToolButtons(),
               const _Divider(),
@@ -167,6 +170,26 @@ class _ToolButtons extends ConsumerWidget {
           onTap: tap(EditorTool.lasso, null),
         ),
       ],
+    );
+  }
+}
+
+/// [▤]: opens / closes the page panel (selected while open).
+class _PagePanelButton extends ConsumerWidget {
+  const _PagePanelButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open = ref.watch(editorPagePanelProvider.select((p) => p.isOpen));
+    final commands = ref.watch(editorCommandsProvider);
+    return IconButton(
+      key: EditorToolbar.pagePanelKey,
+      isSelected: open,
+      onPressed: commands.togglePagePanel,
+      icon: const Icon(
+        Icons.view_sidebar,
+        semanticLabel: EditorStrings.pagePanel,
+      ),
     );
   }
 }

@@ -2,15 +2,19 @@
 // the EditorMenuContext built when the menu opens (noteId, pageIds in note
 // order, currentPageId, selectedPageIds, navigateToPage), isEnabled false →
 // greyed (not hidden), one run at a time, an exception → reported + snack
-// bar. addPageSources (the add-page sheet's '다른 소스' row) are checked with
-// E-17.
+// bar. E-17: addPageSources in the add-page sheet's '다른 소스' row (the
+// sheet closes, onSelected gets the menu context and a mounted context;
+// isEnabled false and a read-only note → greyed).
 import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart';
+import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
+import 'package:feature_editor/src/ui/pages/add_page_sheet.dart';
 import 'package:feature_editor/src/ui/toolbar/more_menu.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' as core;
 
 import '../helpers/pump_editor.dart';
 
@@ -164,5 +168,81 @@ void main() {
     expect(reported.single.library, 'feature_editor');
     expect(find.text(EditorStrings.commandFailed), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('addPageSources: the sheet\'s 다른 소스 row closes the sheet and '
+      'runs the item with the menu context; isEnabled / read-only grey it', (
+    tester,
+  ) async {
+    final received = <EditorMenuContext>[];
+    BuildContext? usedContext;
+    final h = await pumpEditor(
+      tester,
+      pages: 3,
+      overrides: [
+        editorExtensionsProvider.overrideWithValue(
+          EditorExtensions(
+            addPageSources: [
+              EditorMenuItem(
+                id: 'pdf.insert',
+                label: 'PDF에서 가져오기',
+                icon: Icons.picture_as_pdf,
+                onSelected: (context, menu) async {
+                  usedContext = context;
+                  received.add(menu);
+                },
+              ),
+              EditorMenuItem(
+                id: 'test.off',
+                label: '꺼진 소스',
+                icon: Icons.block,
+                onSelected: (context, menu) async => received.add(menu),
+                isEnabled: (menu) => menu.pageIds.length > 10,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    await h.viewport.jumpToPage(1, animate: false);
+    await tester.pump();
+    Future<void> openSheet() async {
+      h.container.read(editorPopupProvider.notifier).open(const AddPagePopup());
+      await tester.pump();
+      await tester.pump();
+    }
+
+    await openSheet();
+    expect(find.text('PDF에서 가져오기'), findsOneWidget);
+    final off = tester.widget<ActionChip>(
+      find.byKey(AddPageSheet.sourceKey('test.off')),
+    );
+    expect(off.onPressed, isNull, reason: 'isEnabled false → greyed');
+    await tester.ensureVisible(
+      find.byKey(AddPageSheet.sourceKey('pdf.insert')),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(AddPageSheet.sourceKey('pdf.insert')));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(AddPageSheet.panelKey), findsNothing);
+    final menu = received.single;
+    expect(menu.noteId, h.noteId);
+    expect(menu.pageIds, [for (var i = 0; i < 3; i++) h.pageId(i)]);
+    expect(menu.currentPageId, h.pageId(1));
+    expect(usedContext!.mounted, isTrue, reason: 'the PopupHost context');
+
+    // Read only: every source is greyed.
+    await h.store.library.trashItems([core.NoteRef(h.noteId)]);
+    await tester.pump();
+    await openSheet();
+    expect(
+      tester
+          .widget<ActionChip>(find.byKey(AddPageSheet.sourceKey('pdf.insert')))
+          .onPressed,
+      isNull,
+    );
+    h.container.read(editorPopupProvider.notifier).close();
+    await tester.pump(const Duration(seconds: 3));
   });
 }

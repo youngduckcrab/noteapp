@@ -6,8 +6,9 @@
 // and selecting a tool. E-12: zoom, screen scrolling, the developer overlay
 // toggle and Esc for the keyboard shortcuts. E-13: flushAll (leaving), the
 // menu context and navigateToPage, the finger-drawing toggle, the page flip
-// mode, adding a page at the end. E-14: the eyedropper and notices. The page
-// panel commands join with E-17.
+// mode, adding a page at the end. E-14: the eyedropper and notices. E-17: the
+// page commands (add, delete, duplicate, move), the page panel and its
+// selection mode (Esc, Delete, the menu context's selectedPageIds).
 import 'dart:async';
 import 'dart:ui' show Offset, Rect, Size;
 
@@ -21,6 +22,7 @@ import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
+import '../state/page_panel.dart';
 import '../state/popup.dart';
 import '../state/preset_bar.dart';
 import '../state/settings/editor_settings.dart';
@@ -31,6 +33,7 @@ import '../tools/stroke_clipboard.dart';
 import '../tools/tool_controller.dart';
 import '../tools/tool_state.dart';
 import '../ui/editor_strings.dart';
+import '../ui/pages/page_choices.dart';
 import '../viewport/viewport_controller.dart';
 import '../viewport/viewport_memory.dart';
 
@@ -49,6 +52,7 @@ class EditorCommands {
   final ViewportController _viewport;
   final MountedPages _pages;
   final StreamController<String> _messages = StreamController.broadcast();
+  final StreamController<int> _pagesDeleted = StreamController.broadcast();
   InputRouter? _router;
   InteractionHost? _host;
   bool _disposed = false;
@@ -56,6 +60,10 @@ class EditorCommands {
   /// Short notices for the user (snackbar text): a command refused on a
   /// read-only note, a command that failed.
   Stream<String> get messages => _messages.stream;
+
+  /// How many pages each successful deletePages removed: the snack bar
+  /// "페이지를 삭제했어요 [되돌리기]" (6.11.1).
+  Stream<int> get pagesDeleted => _pagesDeleted.stream;
 
   /// The mounted pages this note's commands may touch (contract E-2).
   MountedPages get pages => _pages;
@@ -178,6 +186,113 @@ class EditorCommands {
     _ref.read(editorSelectionProvider.notifier).clear();
   }
 
+  // ---- pages (6.11, 5.1.3 — each one undo step) ----
+
+  /// Add-page sheet [추가] (6.11.4): core.InsertPages(one draft, at
+  /// request.positionFor(current page)) through _runAsync, then the viewport
+  /// goes to the inserted page. Ignored on a read-only note.
+  Future<void> addPage(AddPageRequest request) async {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final pages = _session.pages;
+    if (pages.isEmpty) return;
+    final current =
+        pages[_viewport.currentPageIndex.value.clamp(0, pages.length - 1)];
+    final receipt = await _runAsync(
+      core.InsertPages(
+        drafts: [
+          core.PageDraft(size: request.size, background: request.background),
+        ],
+        position: request.positionFor(current.id),
+      ),
+    );
+    if (_disposed || receipt == null) return;
+    _jumpToInserted(receipt);
+  }
+
+  /// core.DeletePages through _run (6.11.1, EDITOR-3-1). Ignored when nothing
+  /// would remain (the buttons are disabled then — contract 7.2.6), for ids
+  /// not in the note and on a read-only note. A deletion → [pagesDeleted]
+  /// (snack bar with "되돌리기").
+  void deletePages(List<String> pageIds) {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final pages = _session.pages;
+    final wanted = pageIds.toSet();
+    final ids = [
+      for (final p in pages)
+        if (wanted.contains(p.id)) p.id,
+    ];
+    if (ids.isEmpty || ids.length >= pages.length) return;
+    final receipt = _run(core.DeletePages(pageIds: ids));
+    if (receipt != null && !_disposed) _pagesDeleted.add(ids.length);
+  }
+
+  /// core.DuplicatePages through _runAsync (each copy right after its
+  /// source); one page → the viewport goes to the copy. Ignored on a
+  /// read-only note.
+  Future<void> duplicatePages(List<String> pageIds) async {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final wanted = pageIds.toSet();
+    final ids = [
+      for (final p in _session.pages)
+        if (wanted.contains(p.id)) p.id,
+    ];
+    if (ids.isEmpty) return;
+    final receipt = await _runAsync(core.DuplicatePages(pageIds: ids));
+    if (_disposed || receipt == null || ids.length != 1) return;
+    _jumpToInserted(receipt);
+  }
+
+  /// Page panel drag (6.11.1): [toIndex] is onReorderItem's final index.
+  /// core.MovePages(position: toIndex == 0 ? PageAtStart : PageAfter(rest[toIndex − 1]))
+  /// through _run (5.1.3); no command when the page stays where it is. The
+  /// viewport keeps the page it shows (6.3.4 anchor). Ignored on a read-only
+  /// note.
+  void movePage(String pageId, int toIndex) {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final ids = [for (final p in _session.pages) p.id];
+    final from = ids.indexOf(pageId);
+    if (from < 0) return;
+    final rest = [...ids]..removeAt(from);
+    final to = toIndex.clamp(0, rest.length);
+    if (to == from) return;
+    _run(
+      core.MovePages(
+        pageIds: [pageId],
+        position: to == 0
+            ? const core.PageAtStart()
+            : core.PageAfter(rest[to - 1]),
+      ),
+    );
+  }
+
+  void _jumpToInserted(core.CommandReceipt receipt) {
+    final inserted = receipt.edit.insertedPageIds;
+    if (inserted.isEmpty) return;
+    final index = _session.pages.indexWhere((p) => p.id == inserted.first);
+    if (index >= 0) unawaited(_viewport.jumpToPage(index));
+  }
+
+  /// Toolbar [▤]: opens / closes the page panel (closing leaves the
+  /// selection mode).
+  void togglePagePanel() {
+    if (_disposed) return;
+    _ref.read(editorPagePanelProvider.notifier).toggleOpen();
+  }
+
+  /// Delete / Backspace (6.8): the selected strokes; with no stroke selection
+  /// in the page selection mode, the selected pages (ignored when nothing
+  /// would remain).
+  void deleteSelectionOrPages() {
+    if (_disposed) return;
+    if (_ref.read(editorSelectionProvider) != null) {
+      deleteSelection();
+      return;
+    }
+    final panel = _ref.read(editorPagePanelProvider);
+    if (!panel.isSelecting || panel.selectedIds.isEmpty) return;
+    deletePages(panel.orderedSelection([for (final p in _session.pages) p.id]));
+  }
+
   void selectTool(EditorTool tool) {
     if (_disposed) return;
     _ref.read(editorToolProvider.notifier).selectTool(tool);
@@ -227,8 +342,7 @@ class EditorCommands {
   void notify(String message) => _message(message);
 
   /// Esc: close popup → cancel eyedropper → leave page selection mode → clear selection
-  /// (first that applies). The open context menu counts as a popup (E-10);
-  /// the page selection mode joins with E-17.
+  /// (first that applies). The open context menu counts as a popup (E-10).
   void escape() {
     if (_disposed) return;
     if (_ref.read(editorPopupProvider) != null) {
@@ -242,6 +356,10 @@ class EditorCommands {
     }
     if (_ref.read(editorToolProvider).eyedropperActive) {
       _ref.read(editorToolProvider.notifier).setEyedropper(false);
+      return;
+    }
+    if (_ref.read(editorPagePanelProvider).isSelecting) {
+      _ref.read(editorPagePanelProvider.notifier).setSelecting(false);
       return;
     }
     _ref.read(editorSelectionProvider.notifier).clear();
@@ -269,14 +387,20 @@ class EditorCommands {
     _ref.read(editorSettingsProvider.notifier).setPageFlipMode(mode);
   }
 
-  /// 04-editor 4.5 table: built when the more menu opens (6.11.5).
-  /// selectedPageIds stays empty until the page panel selection mode (E-17).
+  /// 04-editor 4.5 table: built when the more menu opens and when the
+  /// add-page sheet's '다른 소스' row is pressed (6.11.5). selectedPageIds =
+  /// the page panel selection in note order while the selection mode is on,
+  /// else const [].
   EditorMenuContext menuContext() {
     final ids = [for (final p in _session.pages) p.id];
+    final panel = _ref.read(editorPagePanelProvider);
     return EditorMenuContext(
       noteId: _session.noteId,
       pageIds: ids,
       currentPageIndex: _viewport.currentPageIndex.value,
+      selectedPageIds: panel.isSelecting
+          ? panel.orderedSelection(ids)
+          : const [],
       navigateToPage: navigateToPage,
     );
   }
@@ -301,9 +425,10 @@ class EditorCommands {
     );
   }
 
-  /// A page like the last one (size, background) at the end, then the
-  /// viewport goes to it (6.11.4 '+ 페이지'; also the '페이지가 없어요' state —
-  /// blank A4 when there is no page). Ignored on a read-only note.
+  /// A page like the last one (size, background — a PDF / image page gives
+  /// a blank page of its paper colour) at the end, then the viewport goes to
+  /// it (6.11.4 '+ 페이지'; also the '페이지가 없어요' state — blank A4 when
+  /// there is no page). Ignored on a read-only note.
   Future<void> addPageAtEndLikeLast() async {
     if (_disposed || _ref.read(editorReadOnlyProvider)) return;
     final pages = _session.pages;
@@ -311,7 +436,13 @@ class EditorCommands {
         ? core.PageDraft.blankA4
         : core.PageDraft(
             size: pages.last.size,
-            background: pages.last.background,
+            background: switch (pages.last.background) {
+              final core.BlankBackground b => b,
+              final core.TemplateBackground t => t,
+              final other => core.BlankBackground(
+                paperColorArgb: other.paperColorArgb,
+              ),
+            },
           );
     final receipt = await _runAsync(
       core.InsertPages(drafts: [draft], position: const core.PageAtEnd()),
@@ -488,5 +619,6 @@ class EditorCommands {
     _router = null;
     _host = null;
     unawaited(_messages.close());
+    unawaited(_pagesDeleted.close());
   }
 }
