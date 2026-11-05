@@ -1,0 +1,51 @@
+# Shared lint configuration for the whole workspace (INFRA,
+# docs/plans/01-infra.md 6.2, contract 00-overview 7.4.2). Members must not
+# add their own analysis_options.yaml (ws check R3). CI runs
+# `flutter analyze --fatal-infos`, so infos fail the build too.
+include: package:flutter_lints/flutter.yaml
+
+formatter:
+  page_width: 80
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    invalid_use_of_visible_for_testing_member: error
+    invalid_use_of_protected_member: error
+    missing_required_argument: error
+    unused_import: error
+    todo: ignore
+  exclude:
+    - "**/build/**"
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "app/android/**"
+    - "app/ios/**"
+    - "app/web/**"
+    # Fake workspaces for the checker tests: they contain rule violations,
+    # unresolved imports and unformatted code on purpose.
+    - "tool/test/fixtures/**"
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_dynamic_calls
+    - avoid_slow_async_io
+    - avoid_type_to_string
+    - cancel_subscriptions
+    - close_sinks
+    - directives_ordering
+    - no_adjacent_strings_in_list
+    - only_throw_errors
+    - prefer_final_locals
+    - prefer_single_quotes
+    - prefer_void_to_null
+    - test_types_in_equals
+    - unawaited_futures
+    - unnecessary_lambdas
+    - unnecessary_parenthesis
+    - use_named_constants
+    - use_super_parameters

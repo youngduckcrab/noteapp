@@ -1,0 +1,12 @@
+# INFRA, docs/plans/01-infra.md 3.1
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.jar binary
+*.wasm binary
+*.pdf binary
+
+pubspec.lock linguist-generated=true
+*.g.dart linguist-generated=true

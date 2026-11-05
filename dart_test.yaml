@@ -1,0 +1,10 @@
+# Test configuration of the workspace tool tests: `dart test tool/test`, run
+# from the repository root (INFRA). The root package is not a workspace
+# member, so `ws check` R15 does not cover it; the same rule is kept by hand:
+# every tag used under tool/test/ is declared here (contract 00-overview
+# 7.4.8).
+tags:
+  # Spawns `dart run tool/ws.dart` as a real process (slower than the
+  # in-process tests). Run only the fast ones with `-x process`.
+  process:
+    timeout: 3x

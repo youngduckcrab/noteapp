@@ -1,0 +1,27 @@
+name: pdf_io
+description: PDF import, PDF page background rendering and PDF export (PDF).
+publish_to: none
+version: 0.0.1
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  flutter:
+    sdk: flutter
+  note_core: any
+  ink_engine: any
+  flutter_riverpod: 3.4.3
+  material_ui: 1.10.0
+  web: 1.1.2
+  meta: 1.19.0
+  collection: 1.19.1
+  crypto: 3.0.8
+  pdfrx: 2.11.0
+  pdfium_dart: 0.4.1
+  ffi: 2.2.0
+  file_picker: 13.3.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  fake_async: 1.3.3

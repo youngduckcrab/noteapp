@@ -1,0 +1,33 @@
+name: sync_engine
+description: >-
+  Account and sync engine core with a fake backend and a Firebase adapter
+  skeleton (SYNC).
+publish_to: none
+version: 0.0.1
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+# Flutter package, but sync_engine.dart / testing.dart and everything they
+# import stay pure Dart (00-overview 7.1).
+dependencies:
+  flutter:
+    sdk: flutter
+  note_core: any
+  riverpod: 3.4.3
+  web: 1.1.2
+  meta: 1.19.0
+  collection: 1.19.1
+  clock: 1.1.3
+  crypto: 3.0.8
+  firebase_core: 5.1.0
+  firebase_auth: 7.0.1
+  cloud_firestore: 7.1.0
+  firebase_storage: 14.0.1
+  connectivity_plus: 7.3.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  fake_async: 1.3.3
+  fake_cloud_firestore: 4.5.0
+  firebase_auth_mocks: 0.16.0

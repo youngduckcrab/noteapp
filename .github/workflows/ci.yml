@@ -1,0 +1,65 @@
+# CI — checks, analysis, tests and web build (INFRA, docs/plans/01-infra.md
+# 6.13). Foundation step B1 version: steps 1, 2, 5–9 and 14 of the 6.13 table
+# plus the tool tests (`dart test tool/test`, contract 7.6 B1 v1.3). There is
+# no build info, no preview channel and no deploy yet (added by I12 / I13).
+name: ci
+
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Check, analyze, test, build web
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Root pubspec.yaml `environment.flutter: 3.47.9` (D10).
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Workspace rules (main, strict)
+        if: github.ref == 'refs/heads/main'
+        run: dart run tool/ws.dart check --strict
+
+      - name: Workspace rules
+        if: github.ref != 'refs/heads/main'
+        run: dart run tool/ws.dart check
+
+      - name: Analyze
+        run: dart run tool/ws.dart analyze
+
+      - name: VM tests
+        run: dart run tool/ws.dart test
+
+      - name: Tool tests
+        run: dart test tool/test
+
+      - name: Browser tests
+        run: dart run tool/ws.dart test --platform chrome
+
+      - name: Web build
+        working-directory: app
+        run: flutter build web --release --no-wasm-dry-run

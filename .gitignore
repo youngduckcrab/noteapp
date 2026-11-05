@@ -1,0 +1,18 @@
+# Root ignores (INFRA, docs/plans/01-infra.md 3.1). Members and app/ may add
+# their own .gitignore for package-local files.
+.dart_tool/
+build/
+**/.flutter-plugins-dependencies
+
+# Signing material never goes into git.
+app/android/key.properties
+*.jks
+
+# Firebase CLI local state.
+.firebase/
+.firebaserc
+
+# Editors / OS
+.idea/
+*.iml
+.DS_Store

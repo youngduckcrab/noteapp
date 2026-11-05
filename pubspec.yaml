@@ -1,0 +1,25 @@
+# Workspace root (INFRA, docs/plans/01-infra.md 3.2). No lib/: the root
+# package only hosts the workspace scripts in tool/ and their tests.
+name: noteapp_workspace
+publish_to: none
+environment:
+  sdk: ^3.13.0
+  # Exact pin. CI reads this value (flutter-version-file); every member uses
+  # the same environment block (ws check R2).
+  flutter: 3.47.9
+workspace:
+  - app
+  - packages/note_core
+  - packages/ink_engine
+  - packages/feature_editor
+  - packages/feature_library
+  - packages/pdf_io
+  - packages/sync_engine
+dev_dependencies:
+  flutter_lints: 6.0.0
+  yaml: 3.1.4
+  args: 2.7.0
+  path: 1.9.1
+  test: 1.31.1
+  image: 4.12.0
+  crypto: 3.0.8

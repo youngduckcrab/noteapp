@@ -1,0 +1,83 @@
+# Data for `dart run tool/ws.dart check` (INFRA, docs/plans/01-infra.md 4.3 and
+# 6.2, contract 00-overview 7.1 / 7.4.2 / 7.5). Rules checked since the
+# foundation step B1: R1-R3, R7-R9, R15. R4-R6 and R10-R13 come with I1,
+# R14 with the integration step G3. Keys used by later rules are kept here
+# already so the file format does not change.
+
+allowed_dependencies:          # workspace sibling edges (R8) = 00-overview 7.1
+  note_core: []
+  ink_engine: [note_core]
+  feature_editor: [note_core, ink_engine]
+  feature_library: [note_core]
+  pdf_io: [note_core, ink_engine]
+  sync_engine: [note_core]
+  # 7.1: the app may use every package, but this scope's app does NOT depend on
+  # sync_engine. The sync_engine edge is added together with app/pubspec.yaml at M4.
+  noteapp: [note_core, ink_engine, feature_editor, feature_library, pdf_io]
+
+pure_dart_members: [note_core]  # R2: no `sdk: flutter` deps, no package:flutter/ imports
+
+pinned_external:               # R9: must be identical wherever declared = 00-overview 7.5 (all rows)
+  flutter_riverpod: 3.4.3
+  riverpod: 3.4.3
+  material_ui: 1.10.0
+  go_router: 18.1.2
+  cupertino_icons: 2.0.0
+  web: 1.1.2
+  meta: 1.19.0
+  collection: 1.19.1
+  clock: 1.1.3
+  crypto: 3.0.8
+  drift: 2.35.3
+  sqlite3: 3.8.0
+  idb_shim: 2.11.2
+  uuid: 4.6.0
+  pdfrx: 2.11.0
+  pdfium_dart: 0.4.1
+  ffi: 2.2.0
+  file_picker: 13.3.2
+  firebase_core: 5.1.0
+  firebase_auth: 7.0.1
+  cloud_firestore: 7.1.0
+  firebase_storage: 14.0.1
+  connectivity_plus: 7.3.2
+  test: 1.31.1
+  build_runner: 2.16.1
+  drift_dev: 2.35.2
+  fake_async: 1.3.3
+  perfect_freehand: 2.5.2+1
+  fake_cloud_firestore: 4.5.0
+  firebase_auth_mocks: 0.16.0
+  flutter_lints: 6.0.0
+  yaml: 3.1.4
+  args: 2.7.0
+  path: 1.9.1
+  image: 4.12.0
+  # analyzer: 13.3.0         # added at integration step G3 together with R14
+
+forbidden_imports:
+  lib: [dart:io, dart:ffi, dart:html, dart:js, dart:js_util, package:js/]
+  lib_and_test: [package:flutter/material.dart, package:flutter/cupertino.dart]
+
+native_only_imports:           # R4: in lib/, only from files ending with native_suffixes
+  - package:ffi/
+  - package:pdfium_dart/
+  - package:drift/native.dart
+
+test_only_entrypoints: [testing.dart, testing_vm.dart]
+  # R4: a lib/ file must not import/export package:<member>/<entry> for these entries.
+  # Checked on package: URIs. Relative imports between the SAME package's
+  # lib/testing*.dart files are allowed (e.g. testing_vm.dart → 'testing.dart');
+  # a relative URI from any other lib/ file that resolves to lib/testing*.dart is a violation.
+
+lib_exceptions:                # R4 exceptions (00-overview 7.4.2); a trailing '/' = whole directory
+  - packages/note_core/lib/testing_vm.dart   # VM test helper (dart:ffi, drift native); imported from test/ only
+  # - packages/ink_engine/example/lib/       # added only if the ink lab becomes a member (1.3, INFRA-O1)
+
+web_only_imports: [dart:js_interop, dart:js_interop_unsafe, package:web/]
+native_suffixes: [_io.dart, _native.dart]
+web_suffixes: [_browser.dart]
+generated_files: ['*.g.dart', '*.freezed.dart', 'schema_versions.dart']   # skipped by R11 format
+fixture_dirs: [tool/test/fixtures/]   # skipped by R11 format and by root analysis (6.2 exclude): checker test fixtures
+skip_by_default_tags: [integration, perf]   # R15 (from B1, 계약 7.4.8 v1.2): must have `skip:` in the package dart_test.yaml
+global_triggers: [pubspec.yaml, pubspec.lock, analysis_options.yaml, tool/, .github/workflows/]
