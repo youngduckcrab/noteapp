@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 4/10 (동시 개발 단계)
-- 다음 할 일: T12 벡터화·인코더 → T13 네이티브 합성 백엔드
+- 다음 할 일: T13 네이티브 합성 백엔드 → T14 웹 합성 백엔드
 
 ## 작업 표
 
@@ -20,8 +20,8 @@
 | T8 | 완료 | 3829a68 | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test (+ widget/render_handle_test — 핸들 동작) |
 | T9 | 완료 | ac4fe3c | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test(+ goldens/background_states/*.png 6장), pdfium/background_real_test |
 | T10 | 완료 | 6962562 | unit/thumbnail_test, unit/cover_thumbnail_test. integration/ink_thumbnail_test는 작성함(통합 단계 판정 — 지금 INK B3 구현 + 실 PDFium으로 `--run-skipped -t integration` 수동 실행 시 통과) |
-| T11 | 완료 | (이 커밋) | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test (+ unit/search_notifier_test, web/pure_logic_browser_test 정규화 항목) |
-| T12 | 남음 | | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (integration/ink_vectorizer_test는 미리 작성 — 통합 단계) |
+| T11 | 완료 | 03c2568 | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test (+ unit/search_notifier_test, web/pure_logic_browser_test 정규화 항목) |
+| T12 | 완료 | (이 커밋) | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
 | T13 | 남음 | | pdfium/compose_native_test |
 | T14 | 남음 | | web/compose_browser_test |
 | T15 | 남음 | | unit/export_service_test, pdfium/export_e2e_test |
@@ -92,12 +92,16 @@
 - T11 `PdfSearchNotifier`: 검색 서비스는 `start` 때 `ref.read(pdfTextServiceProvider)` — 노티파이어·하이라이트·빌더 provider는 렌더 사슬을 watch하지 않는다(PDF-3-4 그대로). `select(i)`는 i가 이미 현재여도 새(같은 값) 상태를 넣는다 — Riverpod `previous != next`와 하이라이트 ValueNotifier가 같은 값을 건너뛴다(PDF-3-2 시험이 이 경로를 확인). 범위 밖 i는 무시. 스트림의 PdfIoException이 아닌 오류는 보고 후 `failed`(`corrupt`, cause 보존). 첫 결과가 오면 `currentIndex = 0`.
 - T11 검색 패널: `showModalBottomSheet`(isScrollControlled, 화면 높이 50% 상한, 내용은 호출 context의 컨테이너로 `UncontrolledProviderScope`). 위에 입력란(250ms 디바운스, Enter는 바로)·이전/다음(순환, 누르면 그 결과로 onNavigate)·닫기, 아래 상태 줄('찾는 중 (n/m쪽)' + 진행 막대, 그 아래 writeFailing이면 지연 문구 — writeFailing은 검색 중일 때만 watch), 결과 목록(앞에 'n쪽', 조각글의 일치 부분 굵게). 패널은 `state.noteId == noteId`인 검색만 보인다. 문구(6.14에 없던 것): 'PDF에서 찾기'(제목 상수, 지금 화면에는 안 씀)·'찾을 내용'·'이전 결과'·'다음 결과'·'찾는 중 (n/m쪽)'·'결과 n개 중 k번째'·'찾는 내용이 없어요'·'이 노트에는 PDF 페이지가 없어요'·'결과가 많아 처음 n개만 보여요'.
 - T11 패널 닫기 = 내부 함수 `stopPdfSearch(notifier)`(search_notifier.dart, barrel 비공개): 검색 중이면 취소하고 지금까지 결과는 남긴 채 상태를 `idle`로(하이라이트 유지). 끝난 검색은 그대로(하이라이트는 새 검색어·`clear()`까지 남음). 같은 노트로 패널을 다시 열면 검색어를 채우고, 상태가 `idle`(도중에 멈춘 검색)이면 다음 프레임에 다시 검색한다. 4.8에 공개 멤버를 더하지 않으려고 내부 함수로 했다.
+- T12 `PdfVectorPath`: `rect`는 왼쪽 위부터 시계 방향(y 아래) moveTo + lineTo×3 + close. `circles`는 원마다 (cx + r, cy)에서 시작해 아래(cx, cy + r)·왼쪽·위로 도는 cubic 4개 + close(k·r, k = 0.5523). `concat`은 빈 입력을 건너뛰고, 비지 않은 입력이 moveTo로 시작하지 않으면 ArgumentError. `alpha255`는 opacity를 0..1로 자른 뒤 `round(255·o·a/255)`. ARGB 채널은 내부 함수 `argbChannel(argb, i)`(vectors.dart, barrel 비공개 — `~/`·`%`만).
+- T12 인코더: 빈 경로 항목은 건너뛰고(객체 없음), moveTo로 시작하지 않거나 coords 수가 verbs와 안 맞는 경로는 ArgumentError. 같은 paint는 인덱스 하나를 같이 쓴다(문자열 키). 선 paint의 fillMode 칸은 0, 채움 paint의 width·cap·join 칸은 0. `PdfComposePlan.encodePages`의 빈 페이지는 sourceIndex·pdfPageIndex = −1. 고정 픽스처(test/support/compose_fixture.dart)의 verbs·coords·paints 값과 리틀 엔디언 바이트 sha256을 VM·dart2js 둘 다 확인한다 — T13·T14 해석기가 이 형식을 읽는다.
+- T12 INK 어댑터: 6.11.8대로 INK 호출은 ink_adapter/ink_vectorizer.dart와 새 파일 ink_adapter/template_underlay.dart에만 있다. 시험할 수 있게 순수 함수로 나눴다(모두 barrel 비공개): `pdfHighlighterItems`(형광펜 그룹 → (width, cap)별 선 항목, 처음 나온 순서), `pdfTemplateItems`(INK 속지 항목 → 선은 (색, 굵기)별 butt·miter 선 객체, 점은 색별 원 채움 객체, 처음 나온 순서), `pdfPageUnderlay(page, {build})`(`build` 기본값 `ink.TemplateVectors.build` — 시험은 기록하는 builder로 `core.PageTemplate`이 그대로(identical) 가는지 확인). INK 그룹·도형 타입은 생성자가 비공개라 단위 시험에서 만들 수 없어서 이렇게 했다. 이미지 배경 페이지는 종이 채움만(이미지는 이번 범위에서 내보내지 않음). `includeInk`이고 획이 있을 때만 INK 내보내기를 부른다.
+- T12 `BoxInkVectorizer`(4.14 '획 → 경계 상자 채움'): INK 없이 동작 — 살아 있는 획(deletedAt == null)을 `core.Stroke.compareOrder`로 정렬해 `bounds` 사각형 채움(획 색·opacity, normal blend, 형광펜도 같음). `includeTemplate`이면 PDF가 아닌 페이지의 흰색이 아닌 종이만 채운다(속지 선은 그리지 않음).
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
 
-- 세션 4 결과: T11 완료. 다음 T12(6.11.5·6.11.8 — `compose_encoder.dart`·`vectors.dart`·`ink_vectorizer.dart`의 `PdfVectorPath` 도우미, unit/compose_encoder_test·vectorizer_box_test·template_underlay_test, integration/ink_vectorizer_test는 미리 작성).
+- 세션 4 결과: T11·T12 완료. 다음 T13(6.11.3·6.11.4·6.11.5·6.11.7 — compose_backend_native.dart: pdfrx 워커 isolate에서 `PdfrxEntryFunctions.instance.compute`, `pdfium_dart` 바인딩, `test/support/compose_probes.dart` 탐침 + pdfium/compose_native_test). 해석기는 test/support/compose_fixture.dart의 형식(verbs·coords·paints, endObject 좌표 = paint 인덱스, 빈 페이지 plan −1)을 읽는다.
 - 검색 위젯 테스트(widget/search_panel_test)는 실제 풀을 쓰므로 테스트 끝에 컨테이너를 fake 존 안에서 정리해야 한다(`_World.end` — 풀의 60초 유휴 타이머가 남으면 'Timer is still pending'). 가짜 게이트웨이·엔진 Future는 `tester.runAsync(pumpEventQueue)` + `pump()`로 진행.
 
 - 세션 1 결과: T1·T2·T3·T4 완료.

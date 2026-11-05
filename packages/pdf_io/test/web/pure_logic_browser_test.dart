@@ -4,7 +4,7 @@ library;
 // Pure logic that must give the same results under dart2js as on the VM (06-pdf 9.1,
 // contract 7.4.8: dart2js number differences). Grows with the tasks that add pure logic
 // (T8 tile math, T11 normalizer, T12 encoder bytes and alpha255).
-import 'dart:ui' show Rect, Size;
+import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +14,7 @@ import 'package:pdf_io/src/render/tile_math.dart';
 import 'package:pdf_io/src/text/hangul_jamo.dart';
 import 'package:pdf_io/src/ui/strings_ko.dart';
 
+import '../support/compose_fixture.dart';
 import '../support/fixture_digest.dart';
 
 void main() {
@@ -93,6 +94,30 @@ void main() {
     expect((n.sourceStart[syllable], n.sourceEnd[syllable]), (18, 21));
     expect((n.sourceStart[syllable - 1], n.sourceEnd[syllable - 1]), (15, 18));
     expect(PdfTextNormalizer.normalizeQuery('  강의\u3000NOTES '), '강의 notes');
+  });
+
+  test('compose encoder (T12): same bytes and alpha255 as on the VM', () {
+    final ops = PdfComposeEncoder.encode(
+      outputIndex: 2,
+      vectors: composeFixtureVectors(),
+    );
+    expect(ops.verbs, composeFixtureVerbs);
+    expect(ops.coords, composeFixtureCoords);
+    expect(ops.paints, composeFixturePaints);
+    expect(
+      sha256.convert(composeOpsBytes(ops)).toString(),
+      composeFixtureSha256,
+    );
+    PdfFillItem fill(int argb, double opacity) => PdfFillItem(
+      path: PdfVectorPath.rect(Rect.zero),
+      colorArgb: argb,
+      opacity: opacity,
+    );
+    expect(fill(0xFFFFE600, 0.35).alpha255, 89);
+    expect(fill(0x7F000000, 0.5).alpha255, 64);
+    expect(fill(0x80123456, 1).alpha255, 128);
+    final circle = PdfVectorPath.circles(const [(Offset(10, 20), 2)]);
+    expect(circle.coords[3], closeTo(21.1046, 1e-4));
   });
 
   test('file naming and strings', () {

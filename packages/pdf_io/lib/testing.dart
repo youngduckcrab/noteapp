@@ -6,8 +6,9 @@
 /// unit tests.
 ///
 /// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5) and
-/// FakePdfFileSource (PDF T6) and FakeRemoteAssetFetcher (PDF T7) are real. The export fakes
-/// are signatures only until the PDF task named in each UnimplementedError (T12–T16).
+/// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7) and BoxInkVectorizer (PDF T12)
+/// are real. The other export fakes are signatures only until the PDF task named in each
+/// UnimplementedError (T15–T16).
 library;
 
 import 'dart:async';
@@ -1104,6 +1105,12 @@ final class RecordingComposeBackend implements PdfComposeBackend {
 }
 
 /// each stroke → filled rect of its bounds
+///
+/// No INK involved (T12): with [includeInk], every live stroke (deletedAt == null) in
+/// core.Stroke.compareOrder becomes a PdfFillItem of its `bounds` rect in its style color
+/// and opacity (normal blend, highlighters included). With [includeTemplate], a blank /
+/// template / image page whose paper is not white gets a full-page paper fill underlay —
+/// template lines are not drawn. PDF pages never get an underlay.
 final class BoxInkVectorizer implements PdfInkVectorizer {
   const BoxInkVectorizer();
 
@@ -1113,7 +1120,44 @@ final class BoxInkVectorizer implements PdfInkVectorizer {
     List<core.Stroke> strokes, {
     required bool includeInk,
     required bool includeTemplate,
-  }) => _todo('BoxInkVectorizer.vectorize', 'T15');
+  }) {
+    final background = page.background;
+    final paper = background.paperColorArgb;
+    final underlay = <PdfVectorItem>[
+      if (includeTemplate &&
+          background is! core.PdfBackground &&
+          paper != core.PaperColors.white)
+        PdfFillItem(
+          path: PdfVectorPath.rect(
+            ui.Rect.fromLTWH(0, 0, page.size.width, page.size.height),
+          ),
+          colorArgb: paper,
+        ),
+    ];
+    if (!includeInk) return PdfPageVectors(underlay: underlay);
+    final live = [
+      for (final s in strokes)
+        if (s.deletedAt == null) s,
+    ]..sort(core.Stroke.compareOrder);
+    return PdfPageVectors(
+      underlay: underlay,
+      ink: [
+        for (final stroke in live)
+          PdfFillItem(
+            path: PdfVectorPath.rect(
+              ui.Rect.fromLTRB(
+                stroke.bounds.left,
+                stroke.bounds.top,
+                stroke.bounds.right,
+                stroke.bounds.bottom,
+              ),
+            ),
+            colorArgb: stroke.style.colorArgb,
+            opacity: stroke.style.opacity,
+          ),
+      ],
+    );
+  }
 }
 
 /// Scripted core.RemoteAssetFetcher (P-2 tests, also usable by INFRA before M4).

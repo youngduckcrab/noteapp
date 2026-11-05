@@ -1,6 +1,6 @@
 // lib/src/export/compose_plan.dart — 06-pdf 4.9, 6.11.4, 6.11.5.
 //
-// Foundation step B4 (T0): types, opcodes and plain getters; encodePages comes with PDF T12.
+// Foundation step B4 (T0): types, opcodes and plain getters; encodePages is PDF T12.
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -38,8 +38,28 @@ final class PdfComposePlan {
   final List<PdfComposeSource> sources;
   final List<PdfComposePagePlan> pages; // output order
   /// Stride 6 per page: [kind(0 source, 1 blank), sourceIndex, pdfPageIndex, noteW, noteH, 0].
-  Float64List encodePages() =>
-      throw UnimplementedError('PdfComposePlan.encodePages (PDF T12)');
+  ///
+  /// T12: a blank page has sourceIndex and pdfPageIndex −1.
+  Float64List encodePages() {
+    final out = Float64List(pages.length * 6);
+    for (var i = 0; i < pages.length; i++) {
+      final page = pages[i];
+      final o = i * 6;
+      switch (page) {
+        case PdfComposeSourcePage(:final sourceIndex, :final pdfPageIndex):
+          out[o] = 0;
+          out[o + 1] = sourceIndex.toDouble();
+          out[o + 2] = pdfPageIndex.toDouble();
+        case PdfComposeBlankPage():
+          out[o] = 1;
+          out[o + 1] = -1;
+          out[o + 2] = -1;
+      }
+      out[o + 3] = page.noteSize.width;
+      out[o + 4] = page.noteSize.height;
+    }
+    return out;
+  }
 }
 
 /// Binary ops of one output page (format 6.11.5).
