@@ -136,7 +136,7 @@
 
 통합 브랜치 `claude/note-app-planning-bk29xb`, 7개 영역 병합(efc5511) 뒤. 이번 몫(1/2): 8.3의 G1·G3, ink lab 등록(INFRA-O1), Chrome 실행 안정화, `android.yml` 개발 브랜치 푸시.
 
-- (1차 통합 뒤, V1~V6 통과 88808e3 이후) GitHub CI가 푸시마다 종료 3(`git merge-base origin/main HEAD` — 원격에 `main` 없음, 기본 브랜치 = 이 개발 브랜치) → `ci.yml` 비교 기준 = `github.event.repository.default_branch`, `FULL_RUN`(main·기본 브랜치 자신) = `check --strict`·모든 멤버, 그 밖은 `ws test --affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base`(새 플래그: 커밋이 아닌 기준·merge base 없음 → 모든 멤버, 다른 git 실패는 종료 3), 잡 제한 25 → 60분(2코어 러너 전체 실행 30~40분 추정), live는 `main`만(바뀌지 않음 — 개발 브랜치는 미리보기 채널, 시크릿 없으면 배포 건너뜀), `android.yml`·`web-experiment.yml` 주석·안내서 02·04·05(개발 브랜치가 기본 브랜치라 Run workflow 있음, `main` 전 live 주소 비어 있음), 계약 v1.5 C15-02 계획서 6.2 R6 행. `dart test tool/test` 306 통과, `ws check --strict` 0·0, `ws analyze` 0. 위험: 기본 브랜치 푸시마다 전체 실행 → 월 2,000분이면 약 50회(계획서 6.13 메모).
+- (1차 통합 뒤, V1~V6 통과 88808e3 이후) GitHub CI가 푸시마다 종료 3(`git merge-base origin/main HEAD` — 원격에 `main` 없음, 기본 브랜치 = 이 개발 브랜치) → `ci.yml` 비교 기준 = `github.event.repository.default_branch`, `FULL_RUN`(main·기본 브랜치 자신) = `check --strict`·모든 멤버, 그 밖은 `ws test --affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base`(새 플래그: 커밋이 아닌 기준·merge base 없음 → 모든 멤버, 다른 git 실패는 종료 3), 잡 제한 25 → 60분(2코어 러너 전체 실행 30~40분 추정), live는 `main`만(바뀌지 않음 — 개발 브랜치는 미리보기 채널, 시크릿 없으면 배포 건너뜀), `android.yml`·`web-experiment.yml` 주석·안내서 02·04·05(개발 브랜치가 기본 브랜치라 Run workflow 있음, `main` 전 live 주소 비어 있음), 계약 v1.5 C15-02 계획서 6.2 R6 행. `dart test tool/test` 306 통과, `ws check --strict` 0·0, `ws analyze` 0. 커밋 54bb561(R6 행)·bb1bc60(CI). 위험: 기본 브랜치 푸시마다 전체 실행 → 월 2,000분이면 약 50회(계획서 6.13 메모).
 
 ### G1 — lock 정책 (6.1)
 
