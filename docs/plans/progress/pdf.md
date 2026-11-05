@@ -25,7 +25,7 @@
 | T13 | 완료 | 4081b1a | pdfium/compose_native_test (+ support/compose_probes.dart — T14와 같은 탐침 목록, unit/compose_layout_test) |
 | T14 | 완료 | 0da121f | web/compose_browser_test (T13과 같은 탐침 20개 + 워커 관리 7개), web/foundation_browser_test(웹 합성 팩토리 `isSupported`) |
 | T15 | 완료 | 809273e | unit/export_service_test, pdfium/export_e2e_test (+ support/export_world.dart, web/pure_logic_browser_test 웹 묶음 16쪽, unit/error_messages_test 잘린 쪽 목록) |
-| T15b | 완료 | (이 커밋) | unit/batch_export_test, widget/batch_export_flow_test |
+| T15b | 완료 | 4cd950b | unit/batch_export_test, widget/batch_export_flow_test |
 | T16 | 남음 | | widget/export_flow_test, web/output_sink_browser_test |
 | T17 | 남음 | | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test |
 | T18 | 남음 | | perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test (perf 태그) |
@@ -118,6 +118,10 @@
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
+
+- 세션 6 결과: T15(809273e)·T15b(4cd950b) 완료. 다음 T16: ① `output_sink_browser.dart`(지금 웹 `createPlatformOutputSink`는 UnimplementedError — web/foundation_browser_test 94행이 그것을 단언하므로 T16에서 바꿀 것, VM 스텁 `_UnsupportedOutputSink.deliver`도 UnimplementedError → `unsupported`로) ② 단일 내보내기 옵션 시트(범위 전체/현재/선택 — 선택이 없으면 '선택한 페이지' 비활성, 있으면 기본, 필기·속지 토글, 웹 원본 합계 150MB 초과 경고 `PdfTuning.warnExportSourceBytesWeb`) ③ `runPdfExportFlow`(flows.dart, 지금 UnimplementedError): 진행 창은 `PdfExportProgressDialog(batch: false, onCancel: job.cancel)`, 결과 시트는 `showPdfExportResultSheet(title: PdfStringsKo.exportDone, files: [PdfResultFile(r, notes: warningLines(r))])`(export_sheets.dart) — 목적별 기본 버튼·인쇄 안내 문구('공유 시트에서 프린트를 고르세요')는 아직 없음(버튼 순서는 지금 share·download·openInNewTab 고정). 흐름 모양은 `exportNotesAsPdf`를 따르면 된다(busy 스낵바, `_untilUnmounted`, 루트 navigator `DialogRoute`). 위젯 시험 도우미는 widget/batch_export_flow_test의 `_World`(FakePdfNoteGateway·RecordingComposeBackend·BoxInkVectorizer·FakePdfOutputSink·CORE 가짜 저장소 override)를 본뜨면 된다.
+- 세션 6 검사: 패키지 VM 테스트 536개 통과(+3 skip), Chrome 48개 통과(`ws test --platform chrome --package pdf_io`, 77~101초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0. pdfium/export_e2e_test는 실 PDFium으로 1초 안팎.
+- 내보내기 시험 공용 도우미: test/support/export_world.dart(`ExportWorld` — 가짜 게이트웨이 + BoxInkVectorizer + RecordingComposeBackend + 서비스, `blankDraft`·`testStroke`·`describePlan`·`hasCode`·`captureFlutterErrors`·`LongPathVectorizer`). 웹 안전이라 web/pure_logic_browser_test도 쓴다.
 
 - 세션 5 결과: T13(4081b1a)·T14(0da121f) 완료. 다음 T15(6.11.2·6.11.9·6.11.10, `DefaultPdfExportService`·`pdfExportJobProvider`, testing.dart `RecordingComposeBackend` 본문 — 지금 `_todo`). 네이티브 묶음 8쪽(`PdfTuning.nativeExportChunkPages`)·웹 16쪽(`exportChunkPages`)은 백엔드에 크기 멤버가 없으므로(4.9) 서비스가 `kIsWeb`로 고른다. pdfium/export_e2e_test는 `NativePdfComposeBackend()`(src import)와 탐침 도우미(`expectMarkersAt` 등, test/support/compose_probes.dart)를 다시 쓸 수 있다. 합성 백엔드는 비어 있는 ops를 건너뛰므로 서비스가 빈 ops를 걸러도 되고 그대로 넘겨도 된다.
 - 세션 5 검사: 패키지 VM 테스트 482개 통과(+3 skip), Chrome 47개 통과(`ws test --platform chrome --package pdf_io`, 122초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0. pdfium/compose_native_test는 실 PDFium으로 약 2초, web/compose_browser_test는 Chrome에서 약 60초(컴파일 포함).
