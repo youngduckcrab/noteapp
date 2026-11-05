@@ -55,6 +55,9 @@ final class FakeWebPlatform implements WebPlatform {
   /// Bodies for other paths (missing = request fails).
   final Map<String, String> fetchResponses;
 
+  /// How long [fetchTextNoStore] takes (fake time).
+  Duration fetchDelay = Duration.zero;
+
   bool downloadResult;
   bool canShareFilesResult;
   WebShareResult shareResult;
@@ -71,6 +74,9 @@ final class FakeWebPlatform implements WebPlatform {
   /// Sends [value] to [visibilityChanges] listeners.
   void emitVisibility(WebVisibility value) => _visibility.add(value);
 
+  /// Whether anything listens to [visibilityChanges].
+  bool get hasVisibilityListener => _visibility.hasListener;
+
   Future<void> dispose() => _visibility.close();
 
   @override
@@ -84,6 +90,7 @@ final class FakeWebPlatform implements WebPlatform {
   }) async {
     fetchCount++;
     fetchedPaths.add(relativePath);
+    if (fetchDelay > Duration.zero) await Future<void>.delayed(fetchDelay);
     if (relativePath == 'build_info.json') return buildInfoJson;
     return fetchResponses[relativePath];
   }

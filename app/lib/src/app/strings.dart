@@ -52,4 +52,9 @@ abstract final class AppStrings {
   static const String proceed = '계속';
   static const String erase = '지우기';
   static const String resetFailed = '데이터를 지우지 못했어요.';
+
+  /// New-version banner (UpdateBanner, 6.11 step 5).
+  static String updateAvailable(int buildNumber, String shortSha) =>
+      '새 버전이 나왔어요 (#$buildNumber · $shortSha). 새로고침하면 적용돼요.';
+  static const String later = '나중에';
 }

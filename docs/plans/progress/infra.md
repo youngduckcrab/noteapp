@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 2 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7
-- 다음 할 일: I8 (UpdateChecker·UpdateBanner + `NoteApp.builder`) → I10 → I10b → I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다(I9는 I8 뒤, I10b는 I10 뒤).
+- 마지막 세션: 3 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7, 세션 3: I8 …
+- 다음 할 일: I10 → I10b → I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다(I10b는 I10 뒤, I13은 I12 뒤).
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -19,7 +19,7 @@
 | I5 | 완료 | 0aa54f0 | `app/test/bootstrap/app_bootstrapper_test.dart`(fake_async 21건), `overrides_unique_test.dart`, `bootstrap_app_test.dart`(+`runNoteApp`), `startup_error_screen_test.dart`(6.7 문구 표·가로/세로), `foundation_modules_test.dart`(임시 모듈). 가짜 `test/fakes/fake_app_module.dart`·`counting_note_store.dart`. I10·I10b에서 `overrides_unique_test`를 실제 모듈 3개로, `bootstrap_app_test`에 CoreModule 늦은 저장소 경우(`openCount == 2`가 `closeCount == 1` 뒤)를 더한다 |
 | I6 | 완료 | 09cd0db | `app/test/routing/app_routes_test.dart`, `app_router_test.dart`(자리표시 화면: 인자·페이지 종류·라이브러리 State 유지·닫기·새로고침·NotFound·observers). B8 `foundation_routing_test.dart` → `test/routing/production_screens_test.dart`(`AppScreenBuilders.production()` 연결, `FoundationApp`·`foundationOverrides` 없이) |
 | I7 | 완료 | d715ce0 | `app/test/app/note_app_test.dart`(material_ui `MaterialApp`·locale ko·seed `0xFF3949AB`·브리지 없음·라우터 provider dispose·셸 provider `name:`), `lifecycle_bridge_test.dart`(hidden·paused·detached·웹 hidden, 1초 안 반복 무시, dispose 뒤 없음). `builder`의 `UpdateBanner` 감싸기·그 테스트는 I8 |
-| I8 | 남음 | | `app/test/update/update_checker_test.dart`, `update_banner_test.dart` |
+| I8 | 완료 | (이 커밋) | `app/test/update/update_checker_test.dart`(fake_async: 비활성 3경우·초기 5초·10분 주기·숨김 동안 없음·visible 60초 규칙·실패 4종 상태 유지·dismiss·applyUpdate flush → reload·500ms 상한·dispose), `update_banner_test.dart`(Available일 때만·버튼 2개·해요체·Overlay 없음·위 여백 이동·아래 State 유지). `note_app_test`에 `builder` = `UpdateBanner` 단언 |
 | I9 | 남음 | | `app/test/settings/settings_screen_test.dart`, `settings_sections_test.dart`, `storage_section_test.dart`, `about_section_test.dart`, `backup_export_test.dart` |
 | I10 | 남음 | | `app/test/modules/core_module_test.dart`, `pdf_module_test.dart`, `production_modules_test.dart` |
 | I10b | 남음 | | `app/test/modules/feature_wiring_module_test.dart`, `pdf_wiring_test.dart` |
@@ -63,6 +63,9 @@
 - (세션 2, I5) B8의 `app/test/foundation_startup_test.dart`를 지우고 `test/bootstrap/foundation_modules_test.dart`로 옮겼다(임시 모듈 + `BootstrapApp` 기본 경로).
 - (세션 2, I7) `NoteApp`의 `builder: (context, child) => UpdateBanner(child: child!)`는 `UpdateBanner`가 생기는 I8에서 넣는다(그 단언도 I8의 `note_app_test`에). `BootstrapApp`이 성공 화면을 `AppLifecycleBridge`로 감싸고 기본 `appBuilder`는 `NoteApp`이다. B8 `FoundationApp`은 지웠다. `AppStrings`는 작업마다 자기 문구를 더한다(설정·저장 공간·앱 정보·백업·업데이트 문구는 I8·I9).
 - (세션 2, I7) `AppLifecycleBridge`의 '초당 1회'는 첫 신호를 바로 보내고 그 뒤 1초 동안 오는 신호를 버리는 방식(throttle)이다. `notifyAppHidden()`은 던지지 않으므로 결과를 기다리지 않는다.
+- (세션 3, I8) `UpdateChecker`는 시간을 벽시계가 아니라 Timer로만 잰다(앱 의존성에 `clock`이 없어 fake_async가 `DateTime.now()`를 못 바꿈): '마지막 확인 뒤 60초'는 확인을 시작할 때 켜는 `minGapOnResume` Timer가 살아 있는지로 본다(실패한 확인도 '확인'으로 센다). `UpdateUpToDate.checkedAt`만 `DateTime.now()`. 첫 확인 전(`initialDelay` Timer 대기 중)의 `visible`은 확인하지 않는다(초기 Timer가 곧 확인). 첫 확인 때 숨김이면 건너뛰고 다음 `visible`에서 확인한다. `checkNow()`는 비활성이면 아무것도 안 하고, 진행 중인 확인이 있으면 그 Future를 돌려준다. `applyUpdate()`는 중복 탭을 무시하고, `appBootstrapperProvider`가 없는 컨테이너에서도(예외를 잡아) 새로고침한다. dispose 뒤 끝난 fetch는 `ref.mounted`로 버린다.
+- (세션 3, I8) `UpdateBanner`는 배너 유무와 관계없이 `Column[배너?, Expanded(key)]` 모양을 유지해 아래 Navigator의 State가 그대로다. 배너가 보이는 동안 위쪽 안전 영역은 배너가 받고(`SafeArea(bottom: false)`), 아래 화면에는 `MediaQuery.removePadding(removeTop)`. 배너 색은 `colorScheme.surfaceContainerLow`(M3 기본값과 같음, `elevation: 0` → 아래 구분선), 앞에 `Icons.system_update_alt`. 문구는 `AppStrings.updateAvailable(buildNumber, shortSha)`·`AppStrings.later`(새로고침은 기존 `AppStrings.reload`).
+- (세션 3, I8) 가짜 `FakeWebPlatform`에 `fetchDelay`·`hasVisibilityListener`를 더했다(5.7 목록 밖).
 - (세션 1) 계약 v1.3 C13-05 절차: 계획서 머리 상태 줄 '승인'·계약 인용 v1.4, 12.3 P6 결정 칸·8.1 B1 완료/B8-2 인용(INFRA-4-1), 13.4 '최종 승인' 한 줄(INFRA-4-2). 본문 개별 조항의 v1.1/v1.2 인용은 그 조항이 들어간 판이라 그대로 뒀다.
 
 ## 다음 세션 메모

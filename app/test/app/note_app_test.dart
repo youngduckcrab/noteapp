@@ -10,6 +10,8 @@ import 'package:noteapp/src/app/theme.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/routing/app_navigator.dart';
 import 'package:noteapp/src/routing/screen_builders.dart';
+import 'package:noteapp/src/update/update_banner.dart';
+import 'package:noteapp/src/update/update_checker.dart';
 
 /// The app's seed color (4.4: Material 3, seed 0xFF3949AB).
 const Color _seed = Color(0xFF3949AB);
@@ -78,6 +80,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.toString(), '/notes/n1');
     expect(find.text('noteId: n1'), findsOneWidget);
+  });
+
+  testWidgets('builder wraps the router (Navigator) in UpdateBanner; the '
+      'checker is disabled for a local build', (tester) async {
+    final container = await _pump(tester);
+    expect(find.byType(UpdateBanner), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byType(Navigator).first,
+        matching: find.byType(UpdateBanner),
+      ),
+      findsOneWidget,
+    );
+    expect(container.read(updateCheckerProvider), isA<UpdateDisabled>());
+    expect(find.byType(MaterialBanner), findsNothing);
   });
 
   testWidgets('no MaterialUiCompatibilityBridge in the tree (D2)', (
