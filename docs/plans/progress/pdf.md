@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 5/10 (동시 개발 단계)
-- 다음 할 일: T14 웹 합성 백엔드 → T15 내보내기 서비스
+- 다음 할 일: T15 내보내기 서비스 → T15b 일괄 내보내기
 
 ## 작업 표
 
@@ -22,8 +22,8 @@
 | T10 | 완료 | 6962562 | unit/thumbnail_test, unit/cover_thumbnail_test. integration/ink_thumbnail_test는 작성함(통합 단계 판정 — 지금 INK B3 구현 + 실 PDFium으로 `--run-skipped -t integration` 수동 실행 시 통과) |
 | T11 | 완료 | 03c2568 | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test (+ unit/search_notifier_test, web/pure_logic_browser_test 정규화 항목) |
 | T12 | 완료 | 405875c | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
-| T13 | 완료 | (이 커밋) | pdfium/compose_native_test (+ support/compose_probes.dart — T14와 같은 탐침 목록, unit/compose_layout_test) |
-| T14 | 남음 | | web/compose_browser_test |
+| T13 | 완료 | 4081b1a | pdfium/compose_native_test (+ support/compose_probes.dart — T14와 같은 탐침 목록, unit/compose_layout_test) |
+| T14 | 완료 | (이 커밋) | web/compose_browser_test (T13과 같은 탐침 20개 + 워커 관리 7개), web/foundation_browser_test(웹 합성 팩토리 `isSupported`) |
 | T15 | 남음 | | unit/export_service_test, pdfium/export_e2e_test |
 | T15b | 남음 | | unit/batch_export_test, widget/batch_export_flow_test |
 | T16 | 남음 | | widget/export_flow_test, web/output_sink_browser_test |
@@ -100,6 +100,10 @@
 - T13 `NativePdfComposeBackend`(compose_backend_native.dart, barrel 비공개): begin/addPages/finish/abort가 각각 `rx.PdfrxEntryFunctions.instance.compute` 한 번이고 `rx.Pdfrx.runAsBackgroundWork`로 감싸 낮은 우선순위(화면 렌더가 먼저). 워커 콜백은 모두 동기(pdfrx가 PDFium 게이트를 동기 구간에만 잡음)이고 예외 대신 'engine: …'/'export: …' 문자열을 돌려준다 — 바인딩 로드 실패 → `engineUnavailable`, 그 밖 → `exportFailed`(원본 열기 실패·쪽 번호 범위 밖·명령 형식 오류·저장 실패). 원본 바이트는 `TransferableTypedData` 하나로 보내 워커에서 `malloc` 버퍼로 복사(`FPDF_LoadMemDocument64`, 암호 nullptr) — 버퍼는 문서를 닫은 뒤 해제. 결과 바이트도 `TransferableTypedData`. 작업 id는 프로세스 전역(모든 백엔드가 같은 워커). `begin` 전에 `PdfrxEngine.shared().ensureInitialized()`(생성자 인자 `ensureEngine`으로 바꿀 수 있음, 실패 → `engineUnavailable`). 빈 계획·`sourceIndex` 범위 밖·잘못된 노트 크기·`outputIndex` 범위 밖은 ArgumentError(프로그램 오류, 워커 전). 비어 있는 ops는 보내지 않는다(페이지를 열지 않음 — 원본 그대로). addPages 실패 뒤에도 작업은 남고 `abort`가 정리한다. `finish`는 성공·실패 모두 작업을 정리한다. finish/abort 뒤 `addPages`·`finish`는 StateError, `abort`는 멱등(진행 중인 finish가 있으면 그것을 기다림). `dispose`는 열린 작업을 abort하고 이후 `begin`은 StateError. 테스트 훅: `openJobCount`, 최상위 내부 함수 `debugNativeComposeJobCount()`(워커의 작업 맵 크기).
 - T13 탐침(test/support/compose_probes.dart, 웹 안전 — T14가 같은 목록을 Chrome에서 돌림): 결과를 `PdfEngine`(PdfrxEngine)으로 다시 열어 표식(빨간 채움) 픽셀·텍스트·쪽 순서와 크기·암호 없음을 확인한다. 출력 페이지 크기는 원본 PDF 페이지 크기(노트 크기가 아님 — F로 필기만 옮김). 형광펜 탐침은 같은 X를 두 객체로 그린 대조 페이지가 교차점에서 더 어두운지도 확인하고(검출력), 파란 띠 위 Multiply(R < 40)도 본다. 행렬을 일부러 틀리게 바꾸면 회전 90·CropBox·Letter/A4 탐침이 실패함을 확인했다.
 - T13 `api_surface_test`의 'VM 합성 팩토리 → UnimplementedError'(B4 몫)는 'isSupported == true'로 바꿨다.
+- T14 `web/pdf_io_compose_ext.js`: 6.11.6 명령 4개 + 시험 훅 `pdfioComposeJobCount`(→ `{count}`, 워커 안 열린 작업 수 — 계획의 표에 없던 다섯 번째 명령). 단계는 compose_layout.dart·네이티브 해석기와 같다(보이는 상자·D·M·계획 행·가져오기/옮기기/빈 페이지). `finish`는 pdfrx `encodePdf`를 그대로 불러 `{result: {data}, transfer: [data]}`를 돌려준다(성공·실패 모두 작업 정리). 호환 검사 실패면 begin/addPages/finish가 'pdfio-incompatible-pdfrx'를 던지고 abort는 `{}`. `functions` 표 자체가 없으면 아무것도 등록하지 않는다(요청이 'is not a function'으로 실패 → Dart가 `engineUnavailable`로 바꿈).
+- T14 `BrowserPdfComposeBackend`(compose_backend_browser.dart, barrel 비공개): 첫 `begin`에서 Worker를 만든다 — 주소는 `document.baseURI` 기준(`modules` = `pdfiumWasmModulesUrl ?? 'assets/packages/pdfrx/assets/'`, ext = `composeExtensionUrl`), Blob 내용은 `const pdfiumWasmUrl=…;importScripts(worker);importScripts(ext);`(문자열은 `jsonEncode`), `init` 응답 뒤 Blob URL 해제. 요청 id는 1부터(pdfrx 워커는 falsy id를 무시). 초기화 실패(wasm·확장 스크립트 없음 포함) → `engineUnavailable`. 워커 `onerror` → 그 워커를 끝내고 대기 요청은 `exportFailed`('compose worker stopped …'), 다음 `begin`이 새로 만든다. 마지막 작업이 끝나면(finish/abort/실패한 begin) `idleTimeout`(기본 `PdfTuning.composeWorkerIdleTimeout` 60초) 뒤 종료, `begin`이 타이머를 끈다. `abort`가 `abortTimeout`(기본 5초) 안에 답하지 않으면 워커를 끝낸다. 바이트 전달(6.11.6과 다름): 호출자 바이트가 버퍼 전체이면 structured clone(옮기지 않음 — 호출자 `Uint8List`가 분리되지 않게), 더 큰 버퍼의 view이면 복사본을 만들어 transfer, `encodePages()` 버퍼는 transfer. 시험 훅: `hasWorker`, `openJobCount`, `debugWorkerJobCount()`. 작업 수명 규칙은 네이티브와 같다(finish/abort 뒤 StateError, abort 멱등, dispose 뒤 begin StateError).
+- T14 pubspec에 `flutter: assets: - path: web/ (platforms: [web])`을 더했다(3.1 — `licenses/`는 T19). `pubspec.lock` 변화 없음.
+- T14 web 시험의 시간: Worker는 진짜라 fake_async 대신 짧은 설정값(`idleTimeout` 200ms, `abortTimeout` 100ms)을 쓰고, 종료는 상한 30초 폴링으로 기다린다(시간 단언 없음). '응답 없는 abort'는 Blob으로 감싼 확장이 abort 명령을 3초 바쁜 대기로 바꿔 만든다, '호환 안 됨'은 Blob 확장이 `encodePdf = undefined` 뒤 진짜 확장을 `importScripts`.
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 

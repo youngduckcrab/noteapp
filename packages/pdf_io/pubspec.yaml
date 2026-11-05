@@ -25,3 +25,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   fake_async: 1.3.3
+flutter:
+  assets:
+    - path: web/
+      platforms: [web]   # served at assets/packages/pdf_io/web/pdf_io_compose_ext.js (6.11.6)

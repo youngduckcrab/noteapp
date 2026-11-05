@@ -85,11 +85,12 @@ void main() {
       const PdfRenderBudget.web(),
     );
     expect(const PdfRenderBudget.web().totalBytes, 112 * 1024 * 1024);
-    // B4 placeholders of the browser files (PDF T14 / T16).
+    // The Worker compose backend (PDF T14) starts nothing until the first begin.
     expect(
-      () => createPlatformComposeBackend(const PdfIoConfig()),
-      throwsUnimplementedError,
+      createPlatformComposeBackend(const PdfIoConfig()).isSupported,
+      isTrue,
     );
+    // B4 placeholder of the browser output sink (PDF T16).
     expect(createPlatformOutputSink, throwsUnimplementedError);
     expect(const NoIncomingPdfFiles().incoming, emitsDone);
     expect(pdfEditorMoreMenuActions(), isEmpty);
