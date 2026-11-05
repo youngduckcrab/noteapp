@@ -1,5 +1,7 @@
 // A SyncStore that forwards to another one, with test hooks (test/ only): hide rows from
-// readVersioned, record applyRemote calls, hold applyRemote open (CORE write retry, S-20).
+// readVersioned, record applyRemote / writeMeta calls, hold applyRemote open (CORE write
+// retry, S-20), reject calls holding given refs like CORE (policy runs, then the whole call
+// rolls back with ArgumentError), throw a store error without retry.
 import 'dart:async';
 
 import 'package:note_core/note_core.dart';
@@ -17,6 +19,26 @@ final class DelegatingSyncStore implements SyncStore {
 
   /// When set, applyRemote waits for it before forwarding.
   Completer<void>? applyGate;
+
+  /// Refs of every applyRemote call, in order (rejected calls included).
+  final List<List<EntityRef>> applyRefs = [];
+
+  /// A call holding one of these refs runs the policy on its upserts, then throws
+  /// ArgumentError without writing (CORE S-7: the whole call is rolled back).
+  final Set<EntityRef> rejectRefs = {};
+
+  /// Thrown (once) by the next applyRemote call — a store error without retry.
+  Exception? nextApplyError;
+
+  /// Thrown (once) by applyRemote call number [failApplyAt] (1-based over applyRefs).
+  int? failApplyAt;
+  Exception failApplyError = Exception('injected store failure');
+
+  /// Runs after each applyRemote call that wrote (1-based call number).
+  void Function(int call)? afterApply;
+
+  /// updates of every writeMeta call, in order.
+  final List<Map<String, String>> writeMetaCalls = [];
 
   @override
   String get deviceNodeId => inner.deviceNodeId;
@@ -50,9 +72,37 @@ final class DelegatingSyncStore implements SyncStore {
     Map<String, String> metaUpdates = const {},
   }) async {
     applyMetaUpdates.add(Map.of(metaUpdates));
+    final refs = [for (final c in changes) EntityRef(c.kind, c.id)];
+    applyRefs.add(refs);
+    final call = applyRefs.length;
     final gate = applyGate;
     if (gate != null) await gate.future;
-    return inner.applyRemote(changes, policy: policy, metaUpdates: metaUpdates);
+    final error = nextApplyError;
+    if (error != null) {
+      nextApplyError = null;
+      throw error;
+    }
+    if (failApplyAt == call) throw failApplyError;
+    if (refs.any(rejectRefs.contains)) {
+      final rows = await inner.readVersioned(refs);
+      for (final (i, change) in changes.indexed) {
+        if (change case RemoteUpsert(:final entity, :final versions)) {
+          policy(rows[i], VersionedEntity(entity, versions), null);
+        }
+      }
+      throw ArgumentError.value(
+        refs.where(rejectRefs.contains).toList(),
+        'changes',
+        'rejected by the test store',
+      );
+    }
+    final report = await inner.applyRemote(
+      changes,
+      policy: policy,
+      metaUpdates: metaUpdates,
+    );
+    afterApply?.call(call);
+    return report;
   }
 
   @override
@@ -63,8 +113,10 @@ final class DelegatingSyncStore implements SyncStore {
   Future<String?> readMeta(String key) => inner.readMeta(key);
 
   @override
-  Future<void> writeMeta(Map<String, String> updates) =>
-      inner.writeMeta(updates);
+  Future<void> writeMeta(Map<String, String> updates) {
+    writeMetaCalls.add(Map.of(updates));
+    return inner.writeMeta(updates);
+  }
 
   @override
   Future<void> reassignOwner({required OwnerId from, required OwnerId to}) =>
