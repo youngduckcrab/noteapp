@@ -1,0 +1,70 @@
+{
+  "format": "noteapp-v1-fixture-source 1",
+  "task": "CORE T25a — docs/plans/m5-7/02-core.md 6.12.3, 8.1; contract 00-overview 7.7.2 V7",
+  "sourceCommit": "e3aa1105d7a1bf560a9640ef12b8561b4ec7b140",
+  "noteCoreTree": "5e728c80864959c9052fe3fb7f6195fbcaddef5a",
+  "sourceNote": "git archive of main e3aa110 into /tmp/claude-0/core-v1-fixture with only tool/make_v1_fixture.dart and tool/src/v1_dump.dart added; packages/note_core tree 5e728c8 = the 1st-round integration commit b6c9d0a744fe9e60d1fce51326d8c9765d7beb1e (CORE-F2)",
+  "generatedAt": "2026-11-05T22:48:25.273791Z",
+  "generator": {
+    "tool/make_v1_fixture.dart": "0825307f9dd9ce963bb466f7f8d20dd86cba63a66d070cc33ac65fc46ba28464",
+    "tool/src/v1_dump.dart": "ef1218fc3dfb531a9284343f80652f3b035db2f6ab8031fb37309ac6296895dd",
+    "dart": "3.13.7 (stable) (Thu Oct 22 14:28:57 2026 -0700) on \"linux_x64\"",
+    "sqlite": "3.54.1"
+  },
+  "api": "openNoteStore(NoteStoreConfig(nativeDatabasePath, idGenerator, clock)), library, assets.put, session commands, settings.set, sync.applyRemote, dev_tools seedSyntheticNote — v1.4 public API only",
+  "clock": {
+    "startMillis": 1792972800000,
+    "endMillis": 1792974725000,
+    "trashedAtMillis": 1792974665000,
+    "note": "NoteStoreConfig.trashRetention is 30 days: a store opened with a clock later than trashedAtMillis + 30 days purges note C 10 s after openNoteStore (auto purge)"
+  },
+  "deviceNodeId": "ab463465a52e80fa",
+  "remoteNodeId": "7e57de71ce000002",
+  "entities": {
+    "folders": {
+      "term": "01a17582-aa60-7000-804a-9418a93eaf73",
+      "physics": "01a17583-94c0-7000-8091-00335a6af271"
+    },
+    "notes": {
+      "A": "01a17584-7f20-7000-80f4-5cfb11de7437",
+      "B": "01a1758a-e7c0-7003-b10a-fac7793830c1",
+      "C (trashed)": "01a1759d-4ac8-7007-8814-b5393924fc7d"
+    },
+    "pdfAsset": "a9d04a94683249a064d05127ae71571899d12bb520b437f697f4309eed125f06",
+    "audioAsset (remote, metadata only)": "e5a00aa9991ac8a5ee3109844d84a55583bd20572ad3ffcd42792f3c36b183ad",
+    "recording (remote)": "01a17596-cea0-7006-bb77-1263f8352718",
+    "noteB pdfBackgroundPages (pdfPageIndex 0..3)": [
+      "01a1758a-e7c0-7003-b172-acf473ea1bd1",
+      "01a1758a-e7c0-7003-b185-3d7395a35b97",
+      "01a1758a-e7c0-7003-b1f5-741f3cf308c1",
+      "01a1758a-e7c0-7003-b22f-14c028c07829"
+    ],
+    "noteB templatePage": "01a1758a-e7c0-7003-b275-4d42cdbbc071",
+    "noteA recordingPage": "01a17584-7f20-7000-8145-31e1b21057c0",
+    "noteA recordingStrokes": 50,
+    "noteA erasedStrokes": [
+      "01a17584-7f20-7000-8628-95738635258e",
+      "01a17584-7f20-7000-8644-a81930a7baa4",
+      "01a17584-7f20-7000-86a1-99a2bc591025",
+      "01a17584-7f20-7000-86e1-b93cbd2bb35c"
+    ],
+    "noteA movedStrokes": [
+      "01a17584-7f20-7000-8893-6cbee919a619",
+      "01a17584-7f20-7000-88e8-02d98fb6b2b7",
+      "01a17584-7f20-7000-893b-7d3e8403eb02"
+    ],
+    "noteB restyledStrokes": [
+      "01a1758a-e7c0-7003-b34d-cdb0b66c0fad",
+      "01a1758a-e7c0-7003-b381-7c0fd699ae99",
+      "01a1758a-e7c0-7003-b3e2-3804bae28e79",
+      "01a1758a-e7c0-7003-b41b-1572b7349581",
+      "01a1758a-e7c0-7003-b44b-6c40f541a637"
+    ]
+  },
+  "files": {
+    "noteapp_v1.sqlite": "3ec154b50a3f9046dd56d52c20c0e9abdacfd14a1baaa651ebf07bf13dbcf9e7",
+    "noteapp_v1_web.sqlite": "242c3c1ba1a9963266d0dd727471bf2acbdd9d83c61c8ae194d0a6570ae8d134",
+    "pdf_asset.pdf": "a9d04a94683249a064d05127ae71571899d12bb520b437f697f4309eed125f06"
+  },
+  "fullDumpSha256": "cf89876473bb45d823621ff7b9427f3c61622ee902cff44287c82633376943d5"
+}

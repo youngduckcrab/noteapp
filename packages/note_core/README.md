@@ -181,6 +181,19 @@ flutter test --platform chrome test/web         # browser (real WasmDatabase sto
 flutter test --run-skipped -t perf              # performance budgets (plan 9.1)
 ```
 
+V7 fixture (2차 T25a — plan m5-7/02-core 6.12.3): `test/fixtures/db_v1/` holds
+a v1 database written by the 1st-round code (`noteapp_v1.sqlite` as the native
+store left it, `noteapp_v1_web.sqlite` the same rows with the rollback journal
+header for Chrome), the PDF asset bytes, `fixture_source.json` (source commit,
+generator hash, entity ids) and `manifest.json` (row counts and canonical dump
+hashes). Never open these files in place — tests copy them first.
+
+```text
+dart run tool/v1_fixture_manifest.dart --check  # manifest.json matches the files
+dart run tool/make_v1_fixture.dart --out <dir> --source-commit <sha> --core-tree <sha>
+                                                # generator: steps in its header
+```
+
 `tool/prepare_web_test.dart` copies `drift_worker.js` from the resolved
 drift package and checks the sha256 of `sqlite3.wasm` (sqlite3 3.8.0). The
 file comes from the cache (`.dart_tool/note_core_web_test/`), then from the

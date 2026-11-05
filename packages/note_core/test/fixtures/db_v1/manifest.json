@@ -1,0 +1,278 @@
+{
+  "format": "noteapp-v1-fixture-manifest 1",
+  "dumpFormat": "noteapp-v1-dump 1",
+  "about": "V7 fixture (CORE T25a): a v1 database written by the 1st-round CORE code. Computed by tool/v1_fixture_manifest.dart from the files of this directory; dump format in tool/src/v1_dump.dart.",
+  "files": {
+    "noteapp_v1.sqlite": {
+      "bytes": 2142208,
+      "sha256": "3ec154b50a3f9046dd56d52c20c0e9abdacfd14a1baaa651ebf07bf13dbcf9e7",
+      "journalHeader": "wal",
+      "use": "VM / native: copy to a temporary directory, openNoteStore(file database) — the native form openNoteStore left"
+    },
+    "noteapp_v1_web.sqlite": {
+      "bytes": 2142208,
+      "sha256": "242c3c1ba1a9963266d0dd727471bf2acbdd9d83c61c8ae194d0a6570ae8d134",
+      "journalHeader": "delete",
+      "use": "Chrome: the initial bytes of a new web database (drift WasmDatabase.open initializeDatabase) — same rows, rollback journal header"
+    },
+    "pdf_asset.pdf": {
+      "bytes": 1990,
+      "sha256": "a9d04a94683249a064d05127ae71571899d12bb520b437f697f4309eed125f06",
+      "use": "the bytes of the PDF asset (not in the database)"
+    },
+    "fixture_source.json": {
+      "sha256": "71227600c6b4dfd46ddd25b2174fde516c5fb3943b7fb33ad2803e4f4d6aefd7"
+    }
+  },
+  "sqlite": {
+    "userVersion": 1,
+    "pageSize": 4096,
+    "encoding": "UTF-8"
+  },
+  "fullDumpSha256": "cf89876473bb45d823621ff7b9427f3c61622ee902cff44287c82633376943d5",
+  "fullDumpBytes": 2074055,
+  "entityTables": [
+    "assets",
+    "folders",
+    "notes",
+    "pages",
+    "pen_presets",
+    "recordings",
+    "settings",
+    "strokes"
+  ],
+  "derivedColumns": {
+    "folders": [
+      "name_norm"
+    ],
+    "notes": [
+      "title_norm"
+    ]
+  },
+  "entityDumpSha256": "c99ca4ebb671820b8477b233b78c4db1f30794abdf1c1c2943a0cc38e3b9d9bc",
+  "outboxDumpSha256": "3f6d27be99da63a120c005aab9cdf9b60e632b836a8a2f81e4df661394909cb9",
+  "kvDumpSha256": "316de0e9a972a4ea1c8bdd1b02fdaa86ff87b484432f58b60a9a4193594bc815",
+  "kv": {
+    "device.nodeId": "ab463465a52e80fa",
+    "hlc.last": "001792974725000-0000-ab463465a52e80fa",
+    "seed.presets.v1": "1",
+    "setting.library.viewMode": "\"list\"",
+    "store.ownerId": "local"
+  },
+  "tables": {
+    "assets": {
+      "columns": [
+        "id",
+        "owner_id",
+        "type",
+        "mime_type",
+        "size",
+        "file_name",
+        "chunk_count",
+        "has_local_bytes",
+        "storage_path",
+        "created_at",
+        "deleted_at",
+        "version",
+        "field_versions"
+      ],
+      "rows": 2,
+      "dumpSha256": "c4cdf7ace73db7e5c75c72ae4f1dd0670e80bb5eeb5ec12ca8bf24fea1aa30bd"
+    },
+    "folders": {
+      "columns": [
+        "id",
+        "owner_id",
+        "parent_id",
+        "name",
+        "name_norm",
+        "color_argb",
+        "icon",
+        "sort_key",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "trash_root_id",
+        "version",
+        "field_versions"
+      ],
+      "rows": 2,
+      "dumpSha256": "503b149610f119be5347a33e8545ece93c9c5ecbc509ccc5e2c847c14925d073"
+    },
+    "kv": {
+      "columns": [
+        "key",
+        "value"
+      ],
+      "rows": 5,
+      "dumpSha256": "316de0e9a972a4ea1c8bdd1b02fdaa86ff87b484432f58b60a9a4193594bc815"
+    },
+    "notes": {
+      "columns": [
+        "id",
+        "owner_id",
+        "folder_id",
+        "title",
+        "title_norm",
+        "cover_json",
+        "tags_json",
+        "is_favorite",
+        "sort_key",
+        "schema_version",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "trash_root_id",
+        "version",
+        "field_versions",
+        "page_count",
+        "first_page_id",
+        "last_opened_at"
+      ],
+      "rows": 3,
+      "dumpSha256": "fc78070f6a1eade482cfceafc7b5858225c2d2f5e14d4c12f9162a97ef9ba232"
+    },
+    "outbox": {
+      "columns": [
+        "seq",
+        "rev",
+        "entity_kind",
+        "entity_id",
+        "note_id",
+        "page_id",
+        "op",
+        "changed_fields",
+        "hlc",
+        "enqueued_at"
+      ],
+      "rows": 2032,
+      "dumpSha256": "3f6d27be99da63a120c005aab9cdf9b60e632b836a8a2f81e4df661394909cb9"
+    },
+    "pages": {
+      "columns": [
+        "id",
+        "note_id",
+        "sort_key",
+        "width",
+        "height",
+        "background_json",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "version",
+        "field_versions",
+        "content_rev"
+      ],
+      "rows": 20,
+      "dumpSha256": "4edc6dc6964fc389cb42869b6720d1f43acee6ac384f9f089a7a967a03edc905"
+    },
+    "pen_presets": {
+      "columns": [
+        "id",
+        "owner_id",
+        "name",
+        "style_json",
+        "group_name",
+        "pinned",
+        "sort_key",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "version",
+        "field_versions"
+      ],
+      "rows": 5,
+      "dumpSha256": "f300c4175c5422402728f7a8db16a27d2adfa7fb3291af5102c4f8c9c3fd54ed"
+    },
+    "recordings": {
+      "columns": [
+        "id",
+        "note_id",
+        "asset_id",
+        "duration_ms",
+        "started_at",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "version",
+        "field_versions"
+      ],
+      "rows": 1,
+      "dumpSha256": "185876a1f5fddffda0c65713bbb9697d1406b7689bd2dcf7b8e9d083ce4cdd1c"
+    },
+    "settings": {
+      "columns": [
+        "key",
+        "value_json",
+        "updated_at",
+        "deleted_at",
+        "version",
+        "field_versions"
+      ],
+      "rows": 1,
+      "dumpSha256": "59865b5f01f66eae30b7984a58d72109d0c80180086a9104086fad9ccf92864d"
+    },
+    "strokes": {
+      "columns": [
+        "id",
+        "page_id",
+        "note_id",
+        "tool",
+        "color_argb",
+        "width",
+        "opacity",
+        "pressure_sensitivity",
+        "pressure_curve",
+        "smoothing",
+        "style_extras_json",
+        "points",
+        "point_count",
+        "min_x",
+        "min_y",
+        "max_x",
+        "max_y",
+        "recording_id",
+        "recording_offset_ms",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "version",
+        "field_versions"
+      ],
+      "rows": 2000,
+      "dumpSha256": "7e1d83e275e8eac493552e3095dd43ec6a86fcd00f2c3d44ca31a0aa20ed7de5"
+    }
+  },
+  "blobs": {
+    "database": "noteapp_blobs (WebStorageConfig.blobDatabaseName default), IndexedDB version 1",
+    "store": "asset_chunks",
+    "entries": [
+      {
+        "key": "a9d04a94683249a064d05127ae71571899d12bb520b437f697f4309eed125f06/000000",
+        "file": "pdf_asset.pdf",
+        "offset": 0,
+        "bytes": 1990
+      }
+    ]
+  },
+  "counts": {
+    "notes": 3,
+    "notesInTrash": 1,
+    "folders": 2,
+    "pages": 20,
+    "pagesWithPdfBackground": 4,
+    "strokes": 2000,
+    "strokesErased": 4,
+    "strokesWithRecording": 50,
+    "strokePoints": 60000,
+    "pdfAssets": 1,
+    "assets": 2,
+    "assetsWithoutLocalBytes": 1,
+    "recordings": 1,
+    "penPresets": 5,
+    "syncedSettings": 1,
+    "deviceSettings": 1,
+    "outbox": 2032,
+    "fieldVersionOverrides": 20
+  }
+}
