@@ -137,6 +137,7 @@
 ## 다음 세션 메모
 
 - 보완 세션 1.1(독립 검토 미비점 5개):
+  - ② T4: integration/core_gateway_test를 unit/core_gateway_fake_store_test와 같은 시나리오·같은 단언으로 맞췄다(재시도 시간 묶음만 제외) — 'loadPage after flush and writeThumbnail'(실제 캐시가 바이트를 볼 수 있어 1×1 PNG를 씀), 'a failed byte-chunk write → storageFailed'(실제 저장소를 감싸 `assets.put`만 던지는 `_PutFailsStore` — 나머지는 실제 저장소로 위임, 뒤이어 실제 put이 처음 저장으로 `bytesArrived`를 냄) 추가, 기존 4개에도 빠졌던 단언(type·mimeType, 499쪽 인덱스·pageCount, undoDepth·canUndo, 없는 노트 getNote null)을 채웠다. 같은 파일을 `createFakeNoteStore()`로 바꿔 `--run-skipped`로 돌려 6개 통과를 확인했다(임시 사본, 커밋 안 함). 실제 CORE 판정은 통합 단계.
   - ④ T8: unit/render_stats_provider_test 'the stats notifier goes with the renderer'에 단언을 더했다 — 컨테이너 dispose 뒤 렌더러 `renderThumbnail`은 null(엔진 열기 없음), 노티파이어는 `ChangeNotifier.debugAssertNotDisposed`·`addListener`가 FlutterError(해제됨), 리스너 호출 0번.
   - ⑤ T6: web/file_source_browser_test의 `@TestOn('browser')`를 파일 첫 줄로(주석은 `library;` 아래로) — 다른 test/web 파일과 같은 모양.
 
