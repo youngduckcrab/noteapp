@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 5 (동시 개발 단계) — T12 완료 = **INK-α 완료**, T23 ink lab, T13 속지 4종, T13b 악보·플래너 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11)
-- 다음 할 일: INK-β T14 공간 색인·히트 테스트 → T15 획 지우개 → T16 부분 지우개… (계획서 8장 순서)
+- 마지막 세션: 6 (동시 개발 단계) — T14 공간 색인·히트 테스트 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b)
+- 다음 할 일: INK-β T15 획 지우개 → T16 부분 지우개 → T17 올가미… (계획서 8장 순서)
 
 ## 작업 표
 
@@ -25,7 +25,7 @@
 | T23 | 완료 | c1876ba | (선택) `example/test/smoke_test.dart`(VM·Chrome 둘 다 통과), `flutter build web` 성공(example 디렉터리, `--release`). `example/`(`ink_lab`): 페이지 1장, 펜 5종·획/부분 지우개(뒤집은 펜 끝 = 지우개)·올가미(선택 안 끌기 = 이동)·삭제·undo/redo·지우기·합성 획 +1,000/+3,000·속지 순환(빈 + 6종, 검정 종이)·확대 1/2/4×·필압 모드·'손가락으로 쓰기'·개발자 수치(`InkDiagnostics.snapshot`). 컨트롤러는 `inkPageControllerProvider`(`ProviderContainer` + `core.noteStoreProvider` = `createFakeNoteStore()`), 입력은 EDITOR 배선 그대로(`InkSampleAdapter` → 세션 → `execute(toCommand())`, 실패 시 `discardEdit`). **워크스페이스 멤버가 아니다**(등록은 INFRA) — 그때까지 path 의존 + `dependency_overrides`(note_core)로 혼자 resolve, `example/pubspec.lock`은 `.gitignore` |
 | T13 | 완료 | 1184428 | `unit/background/{template_vectors,template_defaults,background_spec}_test.dart`, `widget/{background_builder,template_still}_test.dart`, `goldens/templates_golden_test.dart`(+ `templates_{lined,grid,dotted,cornell}_{white,black}.png` 8장). 내부 `background/template_defaults.dart`(6.16 표 상수 전부 — 악보·플래너 값 포함, `ResolvedTemplate`: spacing·lineWidth ≤0/NaN/무한 → 기본값, extras 타입 오류 → 그 키만 기본값, 종이 밝기별 색, `lineColorArgb`는 여백선 빼고 전부), `template_vectors.dart` 본문(lined·grid·dotted·cornell, 페이지·clip으로 자르기 — 축 정렬 선은 정확한 clamp, 그 밖은 Liang–Barsky `clipSegment`, 점은 반지름 포함 페이지 안만), `background/template_painter.dart`(종이 + 항목, 선 최소 굵기 = deviceScale의 log2 1/4 단계 버킷 `1/2^(b/4)` ≥ 1 기기 px, (template, 페이지 크기, 종이 색, 버킷) Picture LRU 16개, 점은 색·지름별 `drawRawPoints` 1번). `TemplateBackgroundLayerBuilder.build` = `SizedBox(pageSize × viewScale)` + `CustomPaint(TemplatePainter)`, `renderStill` = 종이 + 항목(최소 1 px). 악보·플래너는 아직 빈 목록(T13b) |
 | T13b | 완료 | 405a4db | `unit/background/template_vectors_test.dart`의 `music (T13b)`·`planner (T13b)` group, `goldens/templates_music_planner_golden_test.dart`(+ `templates_{music,planner}_{white,black}.png` 4장), `widget/template_still_test`의 '모든 종류' 루프가 6종. `template_vectors.dart`의 `_music`(n = ⌊(H − 2·marginTop + staffGap)/(4·spacing + staffGap)⌋, 묶음 세로 가운데, 악보선 색·`lineWidth` 0.6, 좌우 marginLeft — A4 세로 12단·가로 8단)·`_planner`(weekly만: 머리 띠 아래 구조선 = 본문 위 외곽선, 세로 2×4·가로 4×2 칸 경계 구조선, 칸마다 위 20pt 제목선 + spacing 간격 일반선(칸 아래 4pt 전까지), `layout` 값은 읽지 않음 — 모르는 값도 weekly) |
-| T14 | 남음 | | `unit/edit/spatial_index_test.dart`, `unit/edit/hit_test_test.dart` |
+| T14 | 완료 | (이 커밋) | `unit/edit/spatial_index_test.dart`, `unit/edit/hit_test_test.dart`. 내부 `edit/spatial_index.dart`(`StrokeSpatialIndex` — 64pt 균일 격자(A4 10×14), 셀 = bounds가 겹치는 획 slot 목록, 페이지 밖 bounds는 가장자리 셀로 clamp(단조라 같은 clamp 질의가 만남), 닫힌 사각형 겹침 `boundsMeet`, slot 재사용, 질의 스탬프 `Int32List`), `edit/hit_test.dart`(`InkHitTest` — `minimize`(황금분할 24회 + 양 끝), `segmentVsCapsule`·`segmentVsRect`·`capsuleGapAt`, `capsuleGap`(가지치기 없음)·`capsuleTouches`·`rectTouches`(구간 bounds 가지치기), 점 획 = maxRadius 원, `topmostAt`). 컨트롤러: 색인은 첫 질의 때 만들고 `_applyDiff`(removed·inserted·appended·changed)로 갱신, reset(첫 내용·페이지 크기)이면 버림. `hitTest` = 색인 후보 → 필터 → 정확한 거리 → 가장 큰 z, `strokeIdsInRect` = 잉크가 사각형에 닿는 획(정확, z 순서). 세션용 `InkPageHost.strokesNear(rect)`(대기 삭제 제외)를 더함 — T15·T16·T17이 쓴다 |
 | T15 | 남음 | | `unit/edit/stroke_eraser_test.dart`, `widget/eraser_preview_test.dart` |
 | T16 | 남음 | | `unit/edit/partial_eraser_test.dart`, `unit/edit/partial_eraser_property_test.dart`, (웹) `web/partial_eraser_web_test.dart`, `goldens/partial_erase_golden_test.dart` |
 | T17 | 남음 | | `unit/edit/lasso_test.dart`, `widget/lasso_preview_test.dart` |
@@ -48,6 +48,8 @@
 ## 계획과 다르게 한 점
 
 동시 개발 단계:
+
+- T14: `strokeIdsInRect`를 B3의 'CORE bounds가 겹침'에서 **잉크(점별 반지름의 원 합집합)가 닫힌 사각형에 닿음**으로 바꿨다(4.15 표 'bounds 기반 → T14'. 4.8에는 시그니처만 있어 주석을 이 뜻으로 고침). 판정은 6.18의 볼록 g를 사각형에 적용(점–사각형 거리도 볼록). `hitTest`·`strokeIdsInRect`는 B3처럼 **커밋된 내용만** 본다(대기 추가·미리보기 획은 대상 아님, 대기 삭제로 숨은 획은 제외). 색인 질의는 닫힌 사각형(경계가 닿아도 후보), `hitTest`의 tolerance가 음수·NaN·무한이면 0. 6.18 '구간 bounds가 캡슐 bounds와 안 겹치면 건너뜀'은 `capsuleTouches`·`rectTouches`만 하고, 테스트·진단용 `capsuleGap`은 모든 구간의 최솟값(가지치기 없음).
 
 - T13: 화면 속지 Picture는 `visiblePageRect`로 자르지 않고 **페이지 전체를 한 번 기록**해 재사용한다(6.16은 `clip: visiblePageRect`로 기록). 속지 항목은 많아야 수천 개(A4 점 속지 ≈ 2,400개)라 전체 Picture 하나가 싸고, clip을 키에 넣으면 확대 중 스크롤마다 다시 기록해야 하기 때문. `TemplateVectors.build`의 `clip` 인자 자체는 6.16대로 동작(PDF 내보내기·테스트). `isScaling` 중에도 버킷이 바뀌면 다시 기록한다(작은 Picture라 억제하지 않음). 선 최소 굵기 `max(lineWidth, 1/deviceScale)`의 1/deviceScale은 log2 1/4 단계로 내림한 버킷 값(≥ 1 기기 px, 최대 2^(1/4)배)으로 그려 핀치 중 매 프레임 다시 기록하지 않는다. `renderStill`(썸네일)도 선을 최소 1 px로 그린다(6.16 '`TemplateVectors`·PDF는 원래 굵기'는 그대로). 코넬 일반선은 k ≥ 1부터(k = 0은 머리 구조선과 겹침). 점 속지는 반지름을 포함해 페이지 안인 점만이라 A4에서 가장자리 열(x ≈ 0.0006)은 빠진다.
 
@@ -88,6 +90,8 @@
 
 ## 다음 세션 메모
 
+- T15 시작점: 계획서 6.19·8장 T15 완료 조건(`unit/edit/stroke_eraser_test.dart`, `widget/eraser_preview_test.dart`). `sessions.dart`의 `EraserSession._touchAlong`(지금 bounds 전수 검사 + `_segmentRectDistance`)을 `_host.strokesNear(Rect.fromPoints(a, b).inflate(R))` → `interop.filterAccepts` → `InkHitTest.capsuleTouches(s, a, b, R)`로 바꾼다(첫 샘플은 a == b = 원). 부분 모드(T16)도 같은 후보 단계를 쓴다. 숨김 미리보기(R7)는 `_touched` → `displayChanged()`로 이미 동작(B3).
+- 세션 6(T14 커밋 시점): 패키지 analyze 0, `dart format` 변경 없음, 패키지 VM 513개 통과.
 - T02 `ink_points_test`: 계획의 `identical(InkPoints.of(p).raw, p.rawData)`는 디버그·테스트 실행에서 성립하지 않는다. CORE `rawData`가 디버그에서 호출마다 새 수정 불가 뷰(`asUnmodifiableView()`)를 주기 때문(CORE 6.2.4). 대신 `fromRaw`의 identical, `of(p).raw`가 수정 불가 뷰(쓰기 → UnsupportedError = INK가 복사하지 않음), 같은 값·같은 바이트 길이, `InkStroke.points.raw`가 늘 같은 객체임을 확인한다.
 
 - 문서 C13-05(상태 줄 '승인', 계약 v1.4 인용, INK-4-1·4-2, 13.4)와 C14-01 README 한 줄은 세션 1에서 끝냈다(커밋 551bdea).
@@ -104,7 +108,7 @@
 - 세션 5(T13 커밋 시점): `ws check` 0, 루트 analyze 0, 패키지 VM 478개(골든 10장)·Chrome `test/web` 78개·example 스모크 통과.
 - 세션 5(T13b 커밋 시점): 패키지 analyze 0, 패키지 VM 488개(골든 14장) 통과.
 - 세션 5 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 488개·Chrome `test/web` 78개 통과, example 스모크(VM·Chrome) 통과, `git status` 빔.
-- T14 시작점: 계획서 6.18(공간 색인·히트 테스트)·4.8의 `hitTest`·`strokeIdsInRect`(지금 B3 bounds 기반, `ink_page_controller.dart`)·8장 T14 완료 조건(`unit/edit/{spatial_index,hit_test}_test.dart`). 형광펜 반지름은 `InkStroke.radiusAt`(w/2), 필터는 `interop.filterAccepts`. T15·T16·T17이 같은 색인을 쓴다(`sessions.dart`의 지우개는 지금 bounds 전수 검사 `_touchAlong`).
+- (끝난 메모) T14 시작점: 계획서 6.18(공간 색인·히트 테스트)·4.8의 `hitTest`·`strokeIdsInRect`(지금 B3 bounds 기반, `ink_page_controller.dart`)·8장 T14 완료 조건(`unit/edit/{spatial_index,hit_test}_test.dart`). 형광펜 반지름은 `InkStroke.radiusAt`(w/2), 필터는 `interop.filterAccepts`. T15·T16·T17이 같은 색인을 쓴다(`sessions.dart`의 지우개는 지금 bounds 전수 검사 `_touchAlong`).
 - (끝난 메모) T13b 시작점: `template_vectors.dart`의 `case music / planner`(지금 `break`)에 6.16 악보·플래너 규칙을 넣는다. 기본값·extras 키는 `template_defaults.dart`에 이미 있다(`musicMarginTop` 54·`musicMarginLeft` 36·`musicStaffGap` 36·`musicStaffLines` 5, `plannerLayout` 'weekly'·`plannerMarginTop`/`Left` 36·`plannerHeaderHeight` 56·`plannerTitleOffset` 20·`plannerCellBottomGap` 4). 악보선 색 = `ResolvedTemplate.staffColor`(구조선 색), 굵기 = `lineWidth`(기본 0.6). 플래너 외곽·칸 경계 = 구조선(`structureWidth`·`structureColor`). 테스트는 `unit/background/template_vectors_test.dart`에 group 추가, 골든은 `goldens/templates_music_planner_golden_test.dart`(T13 골든 파일과 같은 틀). `template_still_test`의 '모든 종류' 루프에 music·planner를 넣는다.
 - 세션 5(T23 커밋 시점): `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, example `flutter test`(VM·Chrome) 통과, example `flutter build web --release` 성공(약 95초).
 - T23 ink lab 실행: `cd packages/ink_engine/example && flutter pub get && flutter run -d web-server --web-hostname 0.0.0.0`(iPad M0 확인 9.3). INK-β 이후 지우개·올가미·속지 본문이 바뀌면 `example/test/smoke_test.dart`도 같이 돌린다(부분 지우개는 원본 id가 사라지는지만 보므로 T16 조각에도 그대로 통과해야 함).

@@ -4,9 +4,9 @@
 // base layers (INK T10: ink chunk pictures R3/R4, highlighter page picture
 // with the active groups left out, 6.10-6), the three gesture sessions,
 // selection, pending hand-off (6.12 R6: pendingIds, updateContent
-// resolution, discardPending, discardEdit, timeout), bounds-based hitTest /
-// strokeIdsInRect (exact: INK T14) and the viewport report of 6.12 R9
-// (currentBucket). Raster tiles come with INK T19.
+// resolution, discardPending, discardEdit, timeout), the spatial index with
+// exact ink hitTest / strokeIdsInRect (6.18, INK T14) and the viewport report
+// of 6.12 R9 (currentBucket). Raster tiles come with INK T19.
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -17,8 +17,10 @@ import '../background/background_builder.dart';
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/ink_clock.dart';
 import '../edit/eraser_spec.dart';
+import '../edit/hit_test.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
+import '../edit/spatial_index.dart';
 import '../geometry/outline_generator.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
@@ -173,6 +175,9 @@ final class InkPageController extends ChangeNotifier {
 
   /// A chunk was recorded with a pencil stroke before the grain was ready.
   bool _chunksMissingGrain = false;
+
+  /// 6.18: built on first use, then kept up to date from the R2 diff.
+  StrokeSpatialIndex? _spatial;
 
   // viewport (6.12 R9)
   ui.Rect? _visiblePageRect;
@@ -344,30 +349,55 @@ final class InkPageController extends ChangeNotifier {
 
   // --- queries -------------------------------------------------------------
   /// Topmost stroke whose ink lies within [tolerance] pt of [pagePoint] (eyedropper, tap).
-  /// B3: the stroke's CORE bounds inflated by [tolerance] (exact distance: INK T14).
+  /// 6.18: spatial index candidates → exact ink distance (radiusAt per point;
+  /// highlighter width / 2) → the largest z. Strokes hidden by a pending erase
+  /// or delete are skipped.
   InkStroke? hitTest(
     ui.Offset pagePoint, {
     double tolerance = 4.0,
     core.StrokeFilter filter = core.StrokeFilter.all,
   }) {
     final content = _content;
-    if (content == null) return null;
-    for (var i = content.strokes.length - 1; i >= 0; i--) {
-      final s = content.strokes[i];
-      if (_isPendingRemoved(s.id)) continue;
-      if (!interop.filterAccepts(filter, s.style.tool)) continue;
-      if (s.bounds.inflate(tolerance).contains(pagePoint)) return s;
-    }
-    return null;
+    if (content == null || !pagePoint.isFinite) return null;
+    final radius = tolerance > 0 && tolerance.isFinite ? tolerance : 0.0;
+    final candidates = [
+      for (final s in _strokesNear(
+        ui.Rect.fromCircle(center: pagePoint, radius: radius),
+      ))
+        if (interop.filterAccepts(filter, s.style.tool)) s,
+    ];
+    return InkHitTest.topmostAt(
+      candidates,
+      pagePoint,
+      radius,
+      zOf: (s) => content.zIndexOf(s.id),
+    );
   }
 
-  /// Ids (z-order) of the strokes whose CORE bounds overlap [pageRect].
+  /// Ids (z-order) of the strokes whose ink meets [pageRect] (closed; 6.18
+  /// exact test). Strokes hidden by a pending erase or delete are left out.
   List<String> strokeIdsInRect(ui.Rect pageRect) {
     final content = _content;
     if (content == null) return const [];
+    final hits = [
+      for (final s in _strokesNear(pageRect))
+        if (InkHitTest.rectTouches(s, pageRect)) s,
+    ]..sort((a, b) => content.zIndexOf(a.id).compareTo(content.zIndexOf(b.id)));
+    return [for (final s in hits) s.id];
+  }
+
+  /// 6.18: the committed strokes whose CORE bounds meet [pageRect] (closed),
+  /// without those a pending edit hides; no particular order.
+  List<InkStroke> _strokesNear(ui.Rect pageRect) {
+    final content = _content;
+    if (content == null) return const [];
+    final index = _spatial ??= StrokeSpatialIndex.of(
+      content.pageSize,
+      content.strokes,
+    );
     return [
-      for (final s in content.strokes)
-        if (!_isPendingRemoved(s.id) && s.bounds.overlaps(pageRect)) s.id,
+      for (final s in index.query(pageRect))
+        if (!_isPendingRemoved(s.id)) s,
     ];
   }
 
@@ -581,7 +611,19 @@ final class InkPageController extends ChangeNotifier {
     if (diff.isReset) {
       _chunks.reset(content.pageSize);
       _hl.markDirty();
+      _spatial = null;
       return;
+    }
+    final spatial = _spatial;
+    if (spatial != null) {
+      for (final s in diff.removed) {
+        spatial.remove(s.id);
+      }
+      diff.inserted.forEach(spatial.insert);
+      diff.appended.forEach(spatial.insert);
+      for (final (_, now) in diff.changed) {
+        spatial.insert(now);
+      }
     }
     var highlighters = diff.backgroundChanged;
     void dirty(InkStroke s) {
@@ -1059,6 +1101,8 @@ final class _Host implements InkPageHost {
   InkPageContent? get content => _c._content;
   @override
   bool isPendingRemoved(String id) => _c._isPendingRemoved(id);
+  @override
+  List<InkStroke> strokesNear(ui.Rect pageRect) => _c._strokesNear(pageRect);
   @override
   void addPending(InkEdit edit) => _c._addPending(edit);
 
