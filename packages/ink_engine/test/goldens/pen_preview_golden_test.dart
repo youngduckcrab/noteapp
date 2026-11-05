@@ -62,7 +62,7 @@ void main() {
     );
     await expectLater(
       find.byType(RepaintBoundary).first,
-      matchesGoldenFile('pen_preview.png'),
+      matchesGoldenFile('images/pen_preview.png'),
     );
   });
 }

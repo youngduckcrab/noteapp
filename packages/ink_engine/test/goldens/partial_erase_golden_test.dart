@@ -150,7 +150,7 @@ void main() {
     );
     await expectLater(
       find.byType(RepaintBoundary).first,
-      matchesGoldenFile('partial_erase.png'),
+      matchesGoldenFile('images/partial_erase.png'),
     );
   });
 }

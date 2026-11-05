@@ -126,7 +126,7 @@ void main() {
       );
       await expectLater(
         find.byType(RepaintBoundary).first,
-        matchesGoldenFile('$name.png'),
+        matchesGoldenFile('images/$name.png'),
       );
     });
   }
