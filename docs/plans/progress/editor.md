@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **7** (동시 개발 단계 개발 세션 7/10) — 이번 세션 완료: E-16 (세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-17 → E-19 → E-20 (E-13 뒤 서로 독립) → E-22 → E-18
+- 마지막 세션: **7** (동시 개발 단계 개발 세션 7/10) — 이번 세션 완료: E-16·E-20 (세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-17 → E-19 (E-13 뒤 서로 독립) → E-22 → E-18
 
 ## 작업 표
 
@@ -28,10 +28,10 @@
 | E-13 | 완료 | 7b1c8b2 | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart`, `widget/sync_badge_test.dart`, `widget/toolbar_test.dart`, `widget/extensions_test.dart`(moreMenuItems — `addPageSources`는 페이지 추가 시트가 생기는 E-17에서 같은 파일에 더함), `widget/scope_test.dart`(선택·팝업·세션·뷰포트·명령 분리 — 패널 상태는 E-17) |
 | E-14 | 완료 | 90b4bb9, db03b35(골든) | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart`(+ `hsv_wheel.png`·`hsv_wheel_value_40.png`, 골든은 별도 커밋) |
 | E-15 | 완료 | 0441ac7 | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart`, `widget/eraser_panel_test.dart`(+ `EraserSizeMapping` 단위 검사) |
-| E-16 | 완료 | (이 행을 넣은 커밋 — 다음 커밋에서 해시로 바꿈) | `unit/preset_ordering_test.dart`(+ `presetsInOrder`·`effectiveGroupFilter`, 가짜 저장소 `reorderPresets` 왕복), `widget/preset_bar_test.dart`, `unit/preset_bar_notifier_test.dart`(더함 — `editor.presetBar` 로드·500ms·보고·원격·flush, 보이는 목록·그룹 provider) |
+| E-16 | 완료 | 25af2b6 | `unit/preset_ordering_test.dart`(+ `presetsInOrder`·`effectiveGroupFilter`, 가짜 저장소 `reorderPresets` 왕복), `widget/preset_bar_test.dart`, `unit/preset_bar_notifier_test.dart`(더함 — `editor.presetBar` 로드·500ms·보고·원격·flush, 보이는 목록·그룹 provider) |
 | E-17 | 남음 | | `widget/page_panel_test.dart`(+ EDITOR-3-1 `rejectNext` 삭제 거부 1건), `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart`, `widget/navigate_to_page_test.dart`, `widget/add_page_sheet_test.dart`, `unit/page_choices_test.dart`, `widget/add_page_button_test.dart` |
 | E-19 | 남음 | | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
-| E-20 | 남음 | | `widget/settings_sections_test.dart` |
+| E-20 | 완료 | (이 행을 넣은 커밋 — 다음 커밋에서 해시로 바꿈) | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
 | E-21 | 통합 단계 | | `integration/real_core_ink_smoke_test.dart`(뼈대만 E-00에서 작성 — 열기·`storageNotDurable` 배너·닫기. 전체 시나리오는 E-13 뒤 채움), `web/editor_browser_smoke_test.dart`(동시 개발 중 작성 가능) |
 | E-22 | 남음 | | `goldens/selection_frame_golden_test.dart`, `goldens/page_viewport_layout_golden_test.dart`, `unit/performance_smoke_test.dart`, 결과 보고 |
 | E-18 | 남음 (마지막 순위) | | `widget/paged_mode_test.dart` |
@@ -104,6 +104,11 @@
 - (세션 7) E-16 칩(`PresetChip`): 원 = 프리셋 색 × 투명도(+ 0.5px `outlineVariant`), 굵기 점 색 = `surface`/`onSurface` 중 원(바 위 합성색)과 대비가 큰 쪽(색은 `colorScheme`만 — 7.4.11). 읽기 전용이면 바 전체 `IgnorePointer` + 38% 불투명 + `ExcludeSemantics`.
 - (세션 7) E-16 관리 시트(`PresetManagerSheet`, 폭 440, 높이 최대 min(600, 가용)): 행 = 드래그 핸들(`ReorderableDragStartListener`) · 미리보기 72×32 · 이름/그룹 · 고정 스위치 · ⋯(`MenuAnchor`). 이름 바꾸기·그룹 변경·삭제 확인은 `showDialog`의 `AlertDialog`(`PresetRenameDialog`·`PresetGroupDialog`·`PresetDeleteDialog`)가 값만 돌려주고 쓰기는 시트가 한다(대화상자 라우트는 노트별 `ProviderScope` 밖이라). '현재 펜으로 업데이트' 뒤 스낵바 '현재 펜으로 업데이트했어요'(계획에 없던 안내).
 - (세션 7) E-16 `PopupHost`: 앵커 없는 팝업(`SavePresetPopup`·`PresetManagerPopup`)은 화면 가운데(키보드 높이만큼 `viewInsets` 패딩) + 장벽에 `scrim` 32%. 장벽을 누르면 다른 팝업처럼 닫힌다(저장 안 함). 펜 설정 패널 끝에 [프리셋으로 저장](`OutlinedButton.icon`, `Icons.bookmark_add`) → 펜 설정 팝업 대신 저장 대화상자. `EditorCommands.flushAll`에 프리셋 바 필터 flush를 더함.
+- (세션 7) E-20 설정 섹션: 공개 클래스 4개는 계약대로 `ConsumerWidget`이고, 상태가 필요한 펜·개발자 섹션은 `build`가 비공개 `ConsumerStatefulWidget` 본문(`_PenSectionBody`·`_DeveloperSectionBody`)을 돌려준다. 컨트롤 키는 공개 클래스에 정적 멤버를 더하지 않으려고 내보내지 않는 `SettingsSectionKeys`에 둠. 섹션 안의 작은 제목(`_Label`)은 EDITOR가 그린다(섹션 제목은 INFRA).
+- (세션 7) E-20 입력 섹션: 입력 모드 `SegmentedButton` 3칸 + 모드별 안내 1줄, 펜 직후 무시 슬라이더 0–1500ms(50ms 단위), hover 스위치 + "hover를 지원하는 기기에서만", 접촉 반경 슬라이더 20–120px(5px 단위) + "웹에서는 적용되지 않아요", 탭 제스처 3개 스위치, 바꿀 수 없는 제스처 `Table`(5줄 — `EditorStrings.fixedGestureTable`), [입력 설정 기본값으로](입력 모드·팜 리젝션·제스처만 기본값으로 — `resetToDefaults`는 필압·페이지 넘김·개발자 표시까지 지우므로 쓰지 않음).
+- (세션 7) E-20 펜 섹션: 필압 사용 3칸 → `setPressureMode`(INK `pressureModeProvider`로 전달은 E-06 notifier), 감지 상태 "지금 펜: 감지 중 / 필압 있음 / 필압 없음 — 속도로 흉내 내요", 펜 종류 칩(`PenTypeSelector(selected:, onSelected:)` — 섹션 안 선택만 바꾸고 에디터의 현재 펜은 그대로, 처음엔 현재 펜 종류) + `PenAdvancedControls(tool:)`, [펜 종류별 기본값으로 초기화]는 확인 대화상자 뒤 `resetPenDefaults()`(모든 종류 — 계획에 확인 대화상자 없음).
+- (세션 7) E-20 개발자 섹션: 개발자 표시 스위치 + 켜는 다른 방법 안내(더보기·⌘⇧D/Ctrl+Shift+D·`?dev=1`), '합성 노트 만들기' = `seedSyntheticNote(store, title: 'perf-test', pages: 50, strokesPerPage: 300)`(실행 중 비활성·진행 표시, 끝나면 스낵바, 실패는 보고 + '실행하지 못했어요'). E-19 개발자 메뉴의 같은 항목은 E-19에서.
+- (세션 7) B5 `smoke_test`의 '설정 섹션 4개가 Scaffold 없는 Column' 검사: 섹션이 `editorSettingsProvider`·`editorToolProvider`를 읽게 되어 가짜 저장소 override와 세로로 긴 화면(1032×6000, ListView가 4개를 다 만들게)을 더했다.
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모
@@ -128,6 +133,8 @@
 - 세션 6 E-15 확인: 패키지 VM 테스트 466개 통과. **Chrome 메모**: 펜 설정·빠른 팝업을 여는 위젯 테스트(`color_picker`·`pen_settings_panel`·`quick_pen_panel`)는 `flutter test --platform chrome`에서 'Pending timers: Timer(0)'로 실패한다 — `PenPreview`가 그리는 `ink.PenPreviewPainter(repaint: pencilGrain)`가 INK `PencilGrain` 생성을 시작하고, 웹에서는 `decodeImageFromPixels`가 엔진 `Timer.run`을 (실제 비동기 뒤에) 건다(INK `pencil_grain.dart` 주석 그대로). VM에서는 문제없고 이 파일들은 VM 테스트(test/)다. E-21 `test/web/` 스모크는 펜 패널·미리보기를 열지 않게 쓴다. `eraser_panel`·`width_mapping`은 Chrome에서도 통과.
 - 세션 6 끝 확인: 패키지 VM 테스트 466개 통과(`~1`은 integration 건너뜀), app 패키지 테스트 13개 통과(펜 패널 내용 변경 영향 없음), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
 - E-16 준비(세션 6): 펜 설정 패널 끝에 [프리셋으로 저장](6.9.3 #8)을 넣는다 — `editorPopupProvider.open(const SavePresetPopup())`, `PopupHost._layoutOf`에 `SavePresetPopup`·`PresetManagerPopup` 분기(앵커 없음 → 가운데 배치)를 더한다. 프리셋 칩 아이콘은 `PenPreview`가 아니라 `ink.PenPreviewPainter`를 직접(작은 크기, `shape: PenPreviewShape.line` 등) 쓰면 되고, `pencilGrain`은 `ref.watch(ink.pencilGrainProvider)`. 프리셋 바(44px)는 `EditorBody` Column의 `EditorToolbar` 아래(6.9.1·6.4.3) — 툴바 테스트·뷰포트 원점이 바뀌므로 `h.toGlobal`을 쓰는 테스트는 영향 없음.
-- 세션 7 끝 확인: 패키지 VM 테스트 505개 통과(`~1`은 integration 건너뜀), app 패키지 테스트 13개 통과(본문에 프리셋 바 44px 추가 영향 없음), 루트 `flutter analyze --fatal-infos`·`ws check` 0. 관리 시트는 `ink.PenPreviewPainter(pencilGrain:)`을 그리므로 세션 6 Chrome 메모와 같이 Chrome 위젯 테스트에서는 'Pending timers'가 날 수 있다(VM 테스트라 문제없음).
+- 세션 7 끝 확인: 패키지 VM 테스트 516개 통과(`~1`은 integration 건너뜀), app 패키지 테스트 13개 통과(본문에 프리셋 바 44px 추가 영향 없음), 새 테스트 `settings_sections`·`preset_ordering`은 `flutter test --platform chrome`에서도 통과(웹 컴파일 확인용, test/web 아님 — `note_core/dev_tools.dart` import 포함), 루트 `flutter analyze --fatal-infos`·`ws check` 0. 관리 시트는 `ink.PenPreviewPainter(pencilGrain:)`을 그리므로 세션 6 Chrome 메모와 같이 Chrome 위젯 테스트에서는 'Pending timers'가 날 수 있다(VM 테스트라 문제없음).
 - 프리셋 테스트 메모(세션 7): `widget/preset_bar_test.dart`의 `_pump`가 가짜 저장소 프리셋 저장소를 `_RecordingPresets`로 감싸 `core.penPresetRepositoryProvider`를 override한다(`calls`·`created`·`reorders`·`failNext`). **`MenuItemButton.onPressed`는 다음 프레임 뒤(post-frame)에 불린다** — 메뉴 항목을 탭한 뒤 `pump()` 두 번(상태 반영), 대화상자를 여는 항목은 세 번 + 300ms(`_pickGroup`·`_rowMenu`). 바 칩 드래그는 `startGesture` → `pump(600ms)`(길게 누르기 500ms) → `moveBy` 여러 번 → `up` → 16ms씩 pump. 바는 툴바 바로 아래(`PresetBarView.barKey`), 뷰포트 원점이 44px 내려갔지만 `h.toGlobal`을 쓰는 테스트는 영향 없음.
+- 설정 섹션 테스트 메모(세션 7): `widget/settings_sections_test.dart`의 `_pump`는 `ProviderScope(가짜 저장소) → MaterialApp → Scaffold → ListView(섹션 4개)`, 1032×1376. ListView는 보이는 것만 만들므로 `_show`(= `scrollUntilVisible`) 뒤에 찾는다. 슬라이더 단위 확인은 `tester.widget<Slider>(…).onChanged!(값)`. CORE 키 확인은 `pump(600ms)` 뒤 `store.settings.get(key)`. 가짜 저장소의 `seedSyntheticNote`는 마이크로태스크만 써서 탭 뒤 첫 pump 안에 끝난다 — E-19 `dev_menu_test`도 같다.
+- E-17 준비(세션 7): 페이지 패널은 툴바·**프리셋 바 아래부터**(6.11.1) — `EditorBody` Column은 `[배너들, EditorToolbar, PresetBarView, Divider, Expanded(PageViewport)]`이므로 패널·`AddPageButton`·`PageIndicator`는 `PageViewport` 쪽 Stack에 겹치면 된다. 페이지 추가 시트는 `PopupHost._layoutOf`에 `AddPagePopup() => (link: null, panel: AddPageSheet(...))`(가운데 배치·scrim은 E-16에서 생김). 이름 1~20자 같은 입력 규칙 도우미는 `ui/presets/save_preset_dialog.dart`(`runPresetWrite`는 CORE 저장소 쓰기용, 노트 명령은 `EditorCommands._run*`).
 - 기반 단계 메모: `/home/user/wt/notes/foundation-editor.md`. 스모크 테스트에서 커밋 지연을 쓰는 저장소는 tear-down이 아니라 본문 끝에서 `close()`(실패 시 멈춤 방지).

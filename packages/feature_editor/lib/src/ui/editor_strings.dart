@@ -250,6 +250,76 @@ abstract final class EditorStrings {
   static const presetUpdated = '현재 펜으로 업데이트했어요';
 
   // ---------------------------------------------------------------------------
+  // Settings sections (04-editor 4.9). INFRA draws the section titles.
+  // ---------------------------------------------------------------------------
+
+  /// Input section: input mode.
+  static const inputMode = '입력 모드';
+  static const inputModeAuto = '자동';
+  static const inputModePenOnly = '펜 전용';
+  static const inputModeFingerDrawing = '손가락 필기';
+  static const inputModeAutoHint = '펜을 한 번 쓰면 그다음부터는 펜으로만 그리고 손가락으로는 화면을 움직여요';
+  static const inputModePenOnlyHint = '펜으로만 그려요. 손가락으로는 화면을 움직이고 확대해요';
+  static const inputModeFingerDrawingHint = '한 손가락으로 그리고 두 손가락으로 화면을 움직여요';
+
+  /// Input section: palm rejection (6.5.4).
+  static const palmRejection = '손바닥 무시';
+  static String penCooldownLabel(int ms) => '펜을 뗀 뒤 터치 무시 $ms ms';
+  static const penCooldown = '펜을 뗀 뒤 터치 무시 시간';
+  static const hoverAsPen = '펜이 화면 가까이 있을 때 터치 무시';
+  static const hoverAsPenHint = '펜 hover를 지원하는 기기에서만 동작해요';
+  static String maxTouchRadiusLabel(int px) => '큰 접촉 무시 $px px 넘음';
+  static const maxTouchRadius = '큰 접촉 무시 기준';
+  static const maxTouchRadiusHint =
+      '접촉 크기를 알려 주는 기기에서만 동작해요. 웹 브라우저에서는 적용되지 않아요';
+
+  /// Input section: gestures (F-12 — on/off only, contract 7.8).
+  static const gestures = '제스처';
+  static const twoFingerTapUndo = '두 손가락 탭으로 되돌리기';
+  static const threeFingerTapRedo = '세 손가락 탭으로 다시 실행';
+  static const longPressMenu = '손가락 길게 누르기로 메뉴 열기';
+
+  /// The gestures that cannot be changed (read-only table).
+  static const fixedGestures = '바꿀 수 없는 제스처';
+  static const fixedGestureTable = <(String, String)>[
+    ('두 손가락으로 끌기', '화면 이동'),
+    ('두 손가락 벌리기·오므리기', '확대·축소'),
+    ('펜 전용 모드에서 한 손가락으로 끌기', '화면 이동'),
+    ('펜 전용 모드에서 한 손가락 짧게 탭', '선택 해제·메뉴 닫기'),
+    ('트랙패드 두 손가락 스크롤·핀치', '화면 이동·확대'),
+  ];
+  static const resetInput = '입력 설정 기본값으로';
+
+  /// Pen section: pressure mode (6.5.7).
+  static const pressureMode = '필압 사용';
+  static const pressureModeAuto = '자동';
+  static const pressureModeReal = '항상 사용';
+  static const pressureModeSimulated = '사용 안 함';
+  static const pressureDetecting = '감지 중';
+  static const pressureSupported = '필압 있음';
+  static const pressureUnsupported = '필압 없음 — 속도로 흉내 내요';
+
+  /// "지금 펜: 감지 중".
+  static String pressureState(String state) => '지금 펜: $state';
+
+  /// Which pen type the advanced values below belong to.
+  static const penTypeToEdit = '펜 종류';
+  static const resetPenDefaults = '펜 종류별 기본값으로 초기화';
+  static const resetPenDefaultsTitle = '모든 펜 종류의 굵기·색·필압 설정을 기본값으로 되돌릴까요?';
+  static const reset = '초기화';
+
+  /// Page section.
+  static const pageFlipHint = '좌우 넘기기에서는 한 장씩 넘겨요';
+
+  /// Developer section (6.12.4).
+  static const devOverlayHint =
+      '에디터의 더보기 › 개발자 표시, ⌘⇧D / Ctrl+Shift+D, 또는 주소 끝에 ?dev=1을 붙여도 켜져요';
+  static const seedSyntheticNote = '합성 노트 만들기';
+  static const seedSyntheticNoteHint = '50쪽 × 쪽마다 획 300개인 성능 확인용 노트';
+  static const seedSyntheticNoteDone =
+      "합성 노트를 만들었어요. 라이브러리에서 'perf-test'를 열어 보세요";
+
+  // ---------------------------------------------------------------------------
   // Screen states (04-editor 6.17.1) and leaving (6.17.4).
   // ---------------------------------------------------------------------------
 
