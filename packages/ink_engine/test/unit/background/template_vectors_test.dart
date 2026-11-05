@@ -274,6 +274,179 @@ void main() {
     ); // only the margin line (72 > 80 − 24)
   });
 
+  group('music (T13b)', () {
+    List<TemplateLine> staffLines(Size size, {core.PageTemplate? t}) =>
+        _lines(_build(t ?? _t(core.PageTemplateKind.music), size: size))
+            .toList();
+
+    test(
+      'A4 portrait: 12 staves, landscape: 8; gap 7, centred, margins 36',
+      () {
+        for (final (size, staves) in [
+          (_a4, 12),
+          (Size(_a4.height, _a4.width), 8),
+        ]) {
+          final lines = staffLines(size);
+          expect(lines, hasLength(staves * 5), reason: '$size');
+          for (final l in lines) {
+            expect((l.p0.dx, l.p1.dx), (36, size.width - 36));
+            expect(l.width, 0.6);
+            expect(l.colorArgb, 0xFF8FA3BF);
+            expect(_horizontal(l), isTrue);
+          }
+          for (var i = 0; i < staves; i++) {
+            final staff = lines.sublist(5 * i, 5 * i + 5);
+            for (var j = 1; j < 5; j++) {
+              expect(staff[j].p0.dy - staff[j - 1].p0.dy, closeTo(7, 1e-9));
+            }
+            if (i > 0) {
+              expect(
+                staff.first.p0.dy - lines[5 * i - 1].p0.dy,
+                closeTo(36, 1e-9),
+              );
+            }
+          }
+          // the block is centred vertically
+          expect(
+            size.height - lines.last.p0.dy,
+            closeTo(lines.first.p0.dy, 1e-9),
+          );
+        }
+      },
+    );
+
+    test('a small page → no staff; staffGap / spacing user values', () {
+      expect(staffLines(const Size(200, 100)), isEmpty);
+      final t = _t(
+        core.PageTemplateKind.music,
+        spacing: 10,
+        extras: {core.TemplateExtrasKeys.staffGap: 50},
+      );
+      final lines = staffLines(_a4, t: t);
+      // n = ⌊(841.89 − 108 + 50) / (40 + 50)⌋ = 8
+      expect(lines, hasLength(8 * 5));
+      expect(lines[1].p0.dy - lines[0].p0.dy, closeTo(10, 1e-9));
+      expect(lines[5].p0.dy - lines[4].p0.dy, closeTo(50, 1e-9));
+      // a wrongly typed staffGap → the default
+      final bad = staffLines(
+        _a4,
+        t: _t(
+          core.PageTemplateKind.music,
+          extras: {core.TemplateExtrasKeys.staffGap: 'wide'},
+        ),
+      );
+      expect(bad, hasLength(12 * 5));
+    });
+
+    test('dark paper and lineColorArgb', () {
+      expect(
+        _lines(_build(_t(core.PageTemplateKind.music), paper: _black))
+            .map((l) => l.colorArgb),
+        everyElement(0x80FFFFFF),
+      );
+      expect(
+        _lines(_build(_t(core.PageTemplateKind.music, color: 0xFF010203)))
+            .map((l) => l.colorArgb),
+        everyElement(0xFF010203),
+      );
+    });
+  });
+
+  group('planner (T13b)', () {
+    test('portrait: header line, 2 × 4 cells, title + ruled lines', () {
+      final items = _lines(_build(_t(core.PageTemplateKind.planner))).toList();
+      final structure = items.where((l) => l.width == 1.0).toList();
+      final ruled = items.where((l) => l.width == 0.5).toList();
+      expect(structure.every((l) => l.colorArgb == 0xFF8FA3BF), isTrue);
+      expect(ruled.every((l) => l.colorArgb == 0xFFB7C4D6), isTrue);
+      const top = 36 + 56.0; // header band bottom = body top
+      final bottom = _a4.height - 36, right = _a4.width - 36;
+      final ch = (bottom - top) / 4, cw = (right - 36) / 2;
+      // borders: 5 horizontal (header line included) + 3 vertical
+      final hs = structure.where(_horizontal).map((l) => l.p0.dy).toList();
+      final vs = structure.where(_vertical).map((l) => l.p0.dx).toList();
+      expect(hs, [for (var k = 0; k <= 4; k++) closeTo(top + k * ch, 1e-9)]);
+      expect(vs, [36, closeTo(36 + cw, 1e-9), closeTo(right, 1e-9)]);
+      for (final l in structure.where(_horizontal)) {
+        expect(l.p0.dx, 36);
+        expect(l.p1.dx, closeTo(right, 1e-9));
+      }
+      // every cell: title line 20 pt below its top, then every 20 pt down to
+      // 4 pt above the cell bottom
+      for (var row = 0; row < 4; row++) {
+        for (var col = 0; col < 2; col++) {
+          final x0 = 36 + col * cw, cellTop = top + row * ch;
+          final cell = ruled
+              .where(
+                (l) =>
+                    (l.p0.dx - x0).abs() < 1e-9 &&
+                    l.p0.dy > cellTop &&
+                    l.p0.dy < cellTop + ch,
+              )
+              .toList();
+          expect(cell.first.p0.dy, closeTo(cellTop + 20, 1e-9));
+          expect(cell.first.p1.dx, closeTo(x0 + cw, 1e-9));
+          for (var i = 1; i < cell.length; i++) {
+            expect(cell[i].p0.dy - cell[i - 1].p0.dy, closeTo(20, 1e-9));
+          }
+          expect(cell.last.p0.dy, lessThanOrEqualTo(cellTop + ch - 4 + 1e-9));
+          expect(cell.last.p0.dy + 20, greaterThan(cellTop + ch - 4));
+        }
+      }
+    });
+
+    test('landscape: 4 × 2 cells; an unknown layout draws weekly', () {
+      final size = Size(_a4.height, _a4.width);
+      final items = _lines(
+        _build(_t(core.PageTemplateKind.planner), size: size),
+      );
+      final structure = items.where((l) => l.width == 1.0);
+      expect(structure.where(_vertical), hasLength(5));
+      expect(structure.where(_horizontal), hasLength(3));
+      final monthly = _build(
+        _t(
+          core.PageTemplateKind.planner,
+          extras: {core.TemplateExtrasKeys.plannerLayout: 'monthly'},
+        ),
+      );
+      expect(monthly, _build(_t(core.PageTemplateKind.planner)));
+      final wrongType = _build(
+        _t(
+          core.PageTemplateKind.planner,
+          extras: {core.TemplateExtrasKeys.plannerLayout: 3},
+        ),
+      );
+      expect(wrongType, monthly);
+    });
+
+    test('extras, dark paper, tiny page', () {
+      final moved = _lines(
+        _build(
+          _t(
+            core.PageTemplateKind.planner,
+            extras: {
+              core.TemplateExtrasKeys.marginTop: 50,
+              core.TemplateExtrasKeys.headerHeight: 30,
+            },
+          ),
+        ),
+      ).where((l) => l.width == 1.0 && _horizontal(l));
+      expect(moved.first.p0.dy, 80);
+      expect(moved.last.p0.dy, closeTo(_a4.height - 50, 1e-9));
+      final dark = _lines(
+        _build(_t(core.PageTemplateKind.planner), paper: _black),
+      );
+      expect(
+        dark.where((l) => l.width == 1.0).map((l) => l.colorArgb),
+        everyElement(0x80FFFFFF),
+      );
+      expect(
+        _build(_t(core.PageTemplateKind.planner), size: const Size(60, 100)),
+        isEmpty,
+      );
+    });
+  });
+
   test('clipSegment (Liang–Barsky)', () {
     const r = Rect.fromLTRB(0, 0, 10, 10);
     expect(clipSegment(const Offset(2, 2), const Offset(8, 8), r), (

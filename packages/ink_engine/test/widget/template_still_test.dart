@@ -83,12 +83,7 @@ void main() {
   });
 
   test('every kind draws lines; dark paper keeps its color', () async {
-    for (final kind in [
-      core.PageTemplateKind.lined,
-      core.PageTemplateKind.grid,
-      core.PageTemplateKind.dotted,
-      core.PageTemplateKind.cornell,
-    ]) {
+    for (final kind in core.PageTemplateKind.values) {
       final light = await _still(_template(kind));
       expect(light.at(0, light.height - 1)[3], 255);
       expect(

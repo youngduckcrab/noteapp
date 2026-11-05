@@ -92,9 +92,9 @@ abstract final class TemplateVectors {
       case core.PageTemplateKind.cornell:
         _cornell(out, r, w, h);
       case core.PageTemplateKind.music:
+        _music(out, r, w, h);
       case core.PageTemplateKind.planner:
-        // INK T13b
-        break;
+        _planner(out, r, w, h);
     }
     return List.unmodifiable(out.items);
   }
@@ -184,6 +184,95 @@ abstract final class TemplateVectors {
       ..line(Offset(0, header), Offset(w, header), sw, sc)
       ..line(Offset(0, summaryTop), Offset(w, summaryTop), sw, sc)
       ..line(Offset(cue, header), Offset(cue, summaryTop), sw, sc);
+  }
+
+  /// Music: n staves of 5 lines (gap = spacing), n = ⌊(H − 2·marginTop +
+  /// staffGap) / (4·spacing + staffGap)⌋, the block centred vertically, lines
+  /// from marginLeft to W − marginLeft in the staff color, width lineWidth.
+  static void _music(_Items out, ResolvedTemplate r, double w, double h) {
+    final top = r.number(
+      core.TemplateExtrasKeys.marginTop,
+      TemplateDefaults.musicMarginTop,
+    );
+    final left = r.number(
+      core.TemplateExtrasKeys.marginLeft,
+      TemplateDefaults.musicMarginLeft,
+    );
+    final gap = r.number(
+      core.TemplateExtrasKeys.staffGap,
+      TemplateDefaults.musicStaffGap,
+    );
+    const lines = TemplateDefaults.musicStaffLines;
+    final staff = (lines - 1) * r.spacing;
+    final pitch = staff + gap;
+    if (!(pitch > 0) || !(w - 2 * left > 0)) return;
+    final n = ((h - 2 * top + gap) / pitch + _eps).floor();
+    if (n < 1) return;
+    final y0 = (h - (n * staff + (n - 1) * gap)) / 2;
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < lines; j++) {
+        final y = y0 + i * pitch + j * r.spacing;
+        out.line(
+          Offset(left, y),
+          Offset(w - left, y),
+          r.lineWidth,
+          r.staffColor,
+        );
+      }
+    }
+  }
+
+  /// Planner (weekly; an unknown layout is weekly too): a header band
+  /// marginTop … marginTop + headerHeight whose bottom is a structure line;
+  /// the body below it down to H − marginTop, marginLeft from both sides, is
+  /// 8 cells (portrait 2 × 4, landscape 4 × 2) with structure-line borders.
+  /// Each cell: a title line 20 pt below its top, then ruled lines every
+  /// spacing down to 4 pt above its bottom. No text.
+  static void _planner(_Items out, ResolvedTemplate r, double w, double h) {
+    final top = r.number(
+      core.TemplateExtrasKeys.marginTop,
+      TemplateDefaults.plannerMarginTop,
+    );
+    final left = r.number(
+      core.TemplateExtrasKeys.marginLeft,
+      TemplateDefaults.plannerMarginLeft,
+    );
+    final header = r.number(
+      core.TemplateExtrasKeys.headerHeight,
+      TemplateDefaults.plannerHeaderHeight,
+    );
+    // 'weekly' is the only layout (03-ink 6.16): the `layout` extra is not
+    // read — any value draws the weekly page.
+    final bodyTop = top + header, bodyBottom = h - top;
+    final bodyLeft = left, bodyRight = w - left;
+    if (!(bodyBottom - bodyTop > 0) || !(bodyRight - bodyLeft > 0)) return;
+    final portrait = w <= h;
+    final cols = portrait ? 2 : 4, rows = portrait ? 4 : 2;
+    final cw = (bodyRight - bodyLeft) / cols,
+        ch = (bodyBottom - bodyTop) / rows;
+    for (var row = 0; row < rows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final x0 = bodyLeft + col * cw, x1 = x0 + cw;
+        final cellTop = bodyTop + row * ch, cellBottom = cellTop + ch;
+        for (var k = 0; ; k++) {
+          final y =
+              cellTop + TemplateDefaults.plannerTitleOffset + k * r.spacing;
+          if (y > cellBottom - TemplateDefaults.plannerCellBottomGap + _eps) {
+            break;
+          }
+          out.line(Offset(x0, y), Offset(x1, y), r.lineWidth, r.lineColor);
+        }
+      }
+    }
+    final sw = r.structureWidth, sc = r.structureColor;
+    for (var row = 0; row <= rows; row++) {
+      final y = bodyTop + row * ch;
+      out.line(Offset(bodyLeft, y), Offset(bodyRight, y), sw, sc);
+    }
+    for (var col = 0; col <= cols; col++) {
+      final x = bodyLeft + col * cw;
+      out.line(Offset(x, bodyTop), Offset(x, bodyBottom), sw, sc);
+    }
   }
 }
 
