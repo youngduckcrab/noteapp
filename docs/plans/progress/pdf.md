@@ -13,7 +13,7 @@
 | T1 | 완료 | 73d6ee1 | unit/page_range_test, unit/page_size_policy_test, unit/file_naming_test, unit/hangul_jamo_test, unit/title_policy_test, unit/cancel_signal_test, unit/value_equality_test, unit/error_messages_test, unit/no_platform_imports_test |
 | T2 | 완료 | 00ff451 | pdfium/fixture_builder_test, unit/fixture_builder_bytes_test, tool/prepare_web_test.dart(4개 파일·sha256), web/pdfrx_smoke_browser_test, web/pure_logic_browser_test, support/pdfium_env.dart, 패키지 .gitignore |
 | T3 | 완료 | bd58dde | pdfium/pdfrx_engine_test, web/pdfrx_engine_browser_test |
-| T4 | 완료 | (이 커밋) | unit/fake_gateway_test, unit/core_gateway_fake_store_test. integration/core_gateway_test는 작성만 함(통합 단계에서 실행 — 현재 `openTestNoteStore`는 CORE T6 전 자리표시) |
+| T4 | 완료 | 009a832 | unit/fake_gateway_test, unit/core_gateway_fake_store_test. integration/core_gateway_test는 작성만 함(통합 단계에서 실행 — 현재 `openTestNoteStore`는 CORE T6 전 자리표시) |
 | T5 | 남음 | | unit/import_service_test, pdfium/import_real_test |
 | T6 | 남음 | | widget/import_flow_test, web/file_source_browser_test |
 | T7 | 남음 | | unit/document_pool_test |
@@ -57,6 +57,10 @@
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
+
+- 세션 1 결과: T1·T2·T3·T4 완료. 다음은 T5(가져오기 서비스) — `FakePdfEngine`(testing.dart, 아직 자리표시)을 이 작업에서 구현한다. 그다음 T6(UI·`FakePdfFileSource`)·T7(문서 풀·`FakeRemoteAssetFetcher`).
+- Chrome 테스트: `dart run tool/ws.dart test --platform chrome --package pdf_io`(준비 스크립트 포함, 약 70초). 한 번 `flutter test --platform chrome test/web`가 900초 시간 초과로 끊겼고 다시 돌리니 59초에 통과했다(다른 영역 부하로 보임).
+- 실 PDFium VM 테스트는 `test/pdfium/`(`@Tags(['pdfium'])`, `setUpAll(initPdfiumForTests)`). 이 작업 트리에는 `build/native_assets/linux/libpdfium.so`가 이미 있다.
 
 - 계획서 상단 상태 줄·계약 인용(v1.4)·13.4(PDF-4-1~4-3, C14-01·02)는 세션 1에서 반영했다.
 - T4 테스트의 CORE 쪽 가정: `createFakeNoteStore(faults:)`의 `failNextCommits(3)`이면 1초 시점 미완료·`writeFailing`, 6초 시점 완료(100ms·400ms·1.6s 재시도). 실제 CORE(T6)로 바뀌면 integration/core_gateway_test를 돌려 확인한다.
