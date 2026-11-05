@@ -1,14 +1,11 @@
-// PDF T0 init_test, B4 version (contract 00-overview 7.6 B4 v1.2, 06-pdf 8 T0, PDF-2-2,
-// PDF-3-3): a ProviderContainer that holds ONLY pdfIoOverrides() — no other override, not
-// even core.noteStoreProvider — reads the two providers other areas read during the
-// foundation stage and concurrent development without an exception:
-//   - ink.pageBackgroundBuildersProvider = [PdfBackgroundLayerBuilder.paperOnly(),
-//     TemplateBackgroundLayerBuilder()] (INK controllers / thumbnail renderer, INFRA
-//     pdf_module_test),
-//   - pdfRenderStatsProvider = ValueNotifier(PdfRenderStats.zero) (INFRA
-//     pdfRenderStatsSection, feature_wiring_module_test, pdf_wiring_test).
-// From PDF T8 / T17 the stats provider needs core.noteStoreProvider (PDF-4-2); this file is
-// then rewritten with a fake store.
+// PDF T0 init_test, B4 version (contract 00-overview 7.6 B4 v1.2, 06-pdf 8 T0, PDF-2-2): a
+// ProviderContainer that holds ONLY pdfIoOverrides() — no other override, not even
+// core.noteStoreProvider — reads ink.pageBackgroundBuildersProvider =
+// [PdfBackgroundLayerBuilder.paperOnly(), TemplateBackgroundLayerBuilder()] without an
+// exception (INK controllers / thumbnail renderer, INFRA pdf_module_test).
+// pdfRenderStatsProvider has its T8 body since PDF T8: it needs core.noteStoreProvider
+// (PDF-4-2), so its reads moved to unit/render_stats_provider_test (06-pdf 4.12). T17
+// rewrites this file for the real builder.
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,29 +36,22 @@ void main() {
     expect(pdfIoOverrides(config: const PdfIoConfig()), hasLength(2));
   });
 
-  test(
-    'builders and stats read in the same container without an exception',
-    () {
-      final builders = container.read(ink.pageBackgroundBuildersProvider);
-      expect(builders, hasLength(2));
-      final first = builders[0];
-      expect(first, isA<PdfBackgroundLayerBuilder>());
-      expect((first as PdfBackgroundLayerBuilder).isPaperOnly, isTrue);
-      expect(builders[1], isA<ink.TemplateBackgroundLayerBuilder>());
-      expect(
-        identical(first, container.read(pdfBackgroundLayerBuilderProvider)),
-        isTrue,
-      );
+  test('builders read without an exception', () {
+    final builders = container.read(ink.pageBackgroundBuildersProvider);
+    expect(builders, hasLength(2));
+    final first = builders[0];
+    expect(first, isA<PdfBackgroundLayerBuilder>());
+    expect((first as PdfBackgroundLayerBuilder).isPaperOnly, isTrue);
+    expect(builders[1], isA<ink.TemplateBackgroundLayerBuilder>());
+    expect(
+      identical(first, container.read(pdfBackgroundLayerBuilderProvider)),
+      isTrue,
+    );
+  });
 
-      final stats = container.read(pdfRenderStatsProvider);
-      expect(stats.value, PdfRenderStats.zero);
-    },
-  );
-
-  test('neither read touches core.noteStoreProvider (not overridden here)', () {
+  test('the builder read does not touch core.noteStoreProvider', () {
     container.read(ink.pageBackgroundBuildersProvider);
-    container.read(pdfRenderStatsProvider);
-    // The container really has no store: reading it fails, the reads above did not.
+    // The container really has no store: reading it fails, the read above did not.
     expect(() => container.read(core.noteStoreProvider), throwsA(anything));
   });
 
@@ -71,31 +61,6 @@ void main() {
     final custom = ProviderContainer(overrides: pdfIoOverrides(config: config));
     addTearDown(custom.dispose);
     expect(custom.read(pdfIoConfigProvider), config);
-  });
-
-  test('stats notifier starts at zero and skips equal values', () {
-    final stats = container.read(pdfRenderStatsProvider);
-    expect(stats, isA<ValueNotifier<PdfRenderStats>>());
-    var calls = 0;
-    void listener() => calls++;
-    stats.addListener(listener);
-    // A separately built zero (calls is 0 here), not the PdfRenderStats.zero instance.
-    (stats as ValueNotifier<PdfRenderStats>).value = PdfRenderStats(
-      previewBytes: calls,
-      tileBytes: 0,
-      thumbnailBytes: 0,
-      liveImages: 0,
-      queued: 0,
-      inflight: 0,
-      rendered: 0,
-      cancelled: 0,
-      lastRenderMs: 0,
-      p95RenderMs: 0,
-      openDocuments: 0,
-      overBudgetBytes: 0,
-    );
-    expect(calls, 0);
-    stats.removeListener(listener);
   });
 
   test('INK readers of the builder list work in this container', () {

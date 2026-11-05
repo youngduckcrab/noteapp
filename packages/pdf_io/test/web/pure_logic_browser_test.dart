@@ -3,13 +3,14 @@ library;
 
 // Pure logic that must give the same results under dart2js as on the VM (06-pdf 9.1,
 // contract 7.4.8: dart2js number differences). Grows with the tasks that add pure logic
-// (T11 normalizer, T12 encoder bytes and alpha255).
-import 'dart:ui' show Size;
+// (T8 tile math, T11 normalizer, T12 encoder bytes and alpha255).
+import 'dart:ui' show Rect, Size;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/src/model/title_policy.dart';
+import 'package:pdf_io/src/render/tile_math.dart';
 import 'package:pdf_io/src/text/hangul_jamo.dart';
 import 'package:pdf_io/src/ui/strings_ko.dart';
 
@@ -47,6 +48,37 @@ void main() {
     );
     expect(fit.k, closeTo(0.97267, 1e-5));
     expect(fit.oy, closeTo(35.767, 1e-3));
+  });
+
+  test('tile math (T8): buckets, preview scale, grid, tiles', () {
+    expect(bucketScale(3.47), closeTo(3.8147, 1e-4));
+    expect(bucketScale(1), 1.0);
+    expect(bucketScale(1000), 24);
+    const a4 = Size(595.276, 841.89);
+    expect(previewScale(3.815, a4), closeTo(1.2163, 1e-4));
+    final grid = PdfTileGrid(const Size(300, 200), 4);
+    expect((grid.columns, grid.rows), (3, 2));
+    final r = grid.requestRect(2, 1);
+    expect((r.left, r.top, r.width, r.height), (1023, 511, 177, 289));
+    final tiles = tilesFor(
+      PdfTileGrid(const Size(512, 512), 8),
+      const Size(512, 512),
+      visiblePdfRect: const Rect.fromLTWH(128, 128, 64, 64),
+    );
+    expect(tiles, hasLength(9));
+    expect(tiles.first, const PdfTileRef(2, 2, prefetch: false));
+    expect(opaquePaperArgb(0x80FBF7EC), 0xFFFBF7EC);
+    final plan = PdfRenderPlan.of(
+      const PdfBackgroundParams(
+        assetId: 'a',
+        pdfPageIndex: 0,
+        pageSize: a4,
+        deviceScale: 3.47,
+      ),
+      a4,
+    );
+    expect(plan.tiles, hasLength(5 * 7));
+    expect(plan.baseScale, closeTo(1.2163, 1e-4));
   });
 
   test('file naming and strings', () {

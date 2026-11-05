@@ -23,6 +23,9 @@ abstract final class PdfTuning {
   static const Duration idleTileTtl = Duration(seconds: 30);
   static const Duration trimInterval = Duration(seconds: 5);
 
+  /// PdfRenderStats.p95RenderMs: the last N render times
+  static const int renderTimingSamples = 100;
+
   // documents (6.6)
   static const int maxIdleDocuments = 2;
   static const Duration idleDocumentTtl = Duration(seconds: 60);

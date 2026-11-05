@@ -11,6 +11,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
+import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
 
@@ -24,7 +26,17 @@ void main() {
     expect(builders, hasLength(2));
     expect((builders.first as PdfBackgroundLayerBuilder).isPaperOnly, isTrue);
     expect(builders.last, isA<ink.TemplateBackgroundLayerBuilder>());
-    expect(container.read(pdfRenderStatsProvider).value, PdfRenderStats.zero);
+    // pdfRenderStatsProvider (T8 body) needs core.noteStoreProvider (PDF-4-2).
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final withStore = ProviderContainer(
+      overrides: [
+        ...pdfIoOverrides(),
+        core.noteStoreProvider.overrideWithValue(store),
+      ],
+    );
+    addTearDown(withStore.dispose);
+    expect(withStore.read(pdfRenderStatsProvider).value, PdfRenderStats.zero);
   });
 
   testWidgets('paperOnly build fills pageSize × viewScale', (tester) async {

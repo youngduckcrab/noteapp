@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 2/10 (동시 개발 단계)
-- 다음 할 일: T8 렌더 캐시·큐·타일 수학(+ `pdfRenderStatsProvider` 본문 교체, PDF-4-2 공지) → T9 배경 위젯·INK 어댑터
+- 마지막 세션: 3/10 (동시 개발 단계)
+- 다음 할 일: T9 배경 위젯·INK 어댑터(핸들에 6.7.7 원격 원본 추가) → T10 썸네일·표지
 
 ## 작업 표
 
@@ -17,7 +17,7 @@
 | T5 | 완료 | a160abb | unit/import_service_test, pdfium/import_real_test (+ test/support/render_doubles.dart) |
 | T6 | 완료 | ad78e51 | widget/import_flow_test, web/file_source_browser_test (+ unit/file_source_test, support/fake_file_picker.dart) |
 | T7 | 완료 | da17026 | unit/document_pool_test |
-| T8 | 남음 | | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test |
+| T8 | 완료 | | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test (+ widget/render_handle_test — 핸들 동작) |
 | T9 | 남음 | | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test, pdfium/background_real_test |
 | T10 | 남음 | | unit/thumbnail_test, unit/cover_thumbnail_test (integration/ink_thumbnail_test는 미리 작성 — 통합 단계) |
 | T11 | 남음 | | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test |
@@ -66,6 +66,17 @@
 - T6 `api_surface_test`의 B4 몫 'importPdfAsNewNote → null'은 지웠다(실제 흐름 — widget/import_flow_test).
 - T7 `DefaultPdfDocumentPool`: 생성 때 `gateway.bytesArrived`를 구독한다(문서는 열지 않음). 실패 기억(2초)은 모든 열기 실패(assetMissing 포함)에 적용하되, 열기를 시작한 뒤 그 id의 원본이 도착했으면 기억하지 않는다. 엔진·게이트웨이의 PdfIoException이 아닌 오류는 `corrupt`(cause 보존). `adopt`: 이미 열린 문서가 있으면 넘겨받은 문서를 닫고(같은 파일 재가져오기), 아니면 참조 0 유휴로 넣고 그 id의 실패 기억을 지운다. 열기 중에 `adopt`가 먼저 넣으면 열린 문서를 닫고 adopt한 것을 쓴다. `dispose`는 빌려 간 문서까지 모두 닫고 이후 `acquire`는 StateError, 진행 중이던 열기는 끝나면 닫는다. `requestRemote`의 `ensureLocal` 예외·`watch` 오류는 보고 후 공유 스트림에 `RemoteAssetProgress(failed)`를 내고 요청 기록을 지운다. 공유 watch는 `Stream.multi`(새 구독자에게 마지막 값을 먼저 줌), 구독자가 0이면 fetcher 구독 해제. `bytesArrived`와 `ensureLocal == true`가 겹치면 `assetArrived`가 두 번 나온다(6.6대로 — `acquire`가 중복 열기를 막음).
 - T7 `FakeRemoteAssetFetcher`: 4.14 멤버 + `failEnsureLocal(id, error)`·`watchListenerCount(id)`. 같은 id의 동시 `ensureLocal`은 한 Future를 공유.
+- T8 내부 이름(공개 아님): render/tile_math.dart(`bucketScale`·`previewScale`·`thumbnailScale`·`scaleForLongSide`·`needsTiles`·`PdfTileGrid`·`PdfTileRef`·`tilesFor`·`PdfRenderPlan`·`PdfRenderKind`·`PdfRenderClass`·`opaquePaperArgb`), render/render_scheduler.dart(`PdfRenderScheduler`·`PdfRenderJob`), render/render_cache.dart(`PdfRenderCache`·`PdfCacheLease`·`PdfRenderKey`). 3장 트리의 `render_stats.dart`는 만들지 않았다 — `PdfRenderStats`는 B4대로 render_service.dart에 있다(barrel 그대로).
+- T8 캐시 키: 6.7.4의 (assetId, pageIndex, kind, scale, tileX, tileY)에 렌더 배경색(불투명 종이 색)을 더했다 — 같은 PDF 쪽이 다른 종이 색 노트에 쓰이면 다른 이미지라서. 미리보기 키의 scale은 버킷이 아니라 실제 배율 pv(긴 변 1024 상한이 걸리면 버킷과 다름).
+- T8 `PdfRenderService`의 `AppLifecycleListener(onHide: trimMemory)`는 생성자가 아니라 첫 `attach`·`renderThumbnail` 때 등록한다(그 전에는 캐시가 비어 있음). 그래서 `pdfRenderStatsProvider` read(서비스 생성)는 바인딩이 없어도 된다 — INFRA가 바인딩 없는 `test()`에서 읽어도 안전.
+- T8 `statsListenable`: 캐시·큐 변화를 마이크로태스크 하나로 모아 갱신한다(핸들을 attach·update하는 위젯 build 안에서 리스너가 불리지 않게). `stats` 게터는 그때그때 계산. `openDocuments` = `pool.openCount`(풀은 알리지 않으므로 다음 갱신 때 반영).
+- T8 핸들: `update()`는 리스너를 부르지 않는다(호출자 didUpdateWidget 뒤 build가 `snapshot`을 읽음). 이미지 도착·상태 변화만 알린다. 스냅숏에서 빠진 이미지는 `SchedulerBinding.addPostFrameCallback` + `ensureVisualUpdate`로 다음 프레임 뒤 참조를 내린다(핸들은 위젯 아래에서만 쓰임). `dispose`는 대기·진행 렌더 취소, 타일은 바로 `release(dropIfUnused: true)`(다른 핸들이 안 쓰면 즉시 dispose), 미리보기·썸네일은 LRU에 남김. 서비스 `dispose`는 살아 있는 핸들도 정리하고 캐시·통계 노티파이어를 해제한다.
+- T8 그릴 것 결정 세부: 보이는 사각형이 있으면 25% 여백 포함 목록을 보이는 타일 먼저(보이는 영역 중심에서 가까운 순)·여백 타일 다음 순으로 만들고 64개에서 자른다(`visiblePageRect == null`이고 64 초과면 계획대로 타일 없음). 보이는 사각형이 비면(화면 밖) 타일 없음. 핀치 중(`isScaling`)·끝난 뒤 120ms 동안 새 요청 없음 — 단 아직 base가 하나도 없는 핸들(핀치 중 마운트된 페이지)은 base(미리보기·썸네일)만 요청한다. base가 바뀌면(버킷·모드) 새 base가 올 때까지 이전 base를 스냅숏에 둔다. 이전 버킷 타일은 현재 버킷의 보이는 타일이 모두 도착(또는 최종 실패)하면 내리고, 타일이 필요 없어지면(축소·썸네일 모드) 바로 내린다(프레임 뒤).
+- T8 오류: 문서 열기의 엔진 오류(`corrupt`·`engineUnavailable` 등)는 풀의 실패 기억(2초) 뒤 한 번 다시 열고, 또 실패하면 보고 + `failed`. `assetMissing` → `assetMissing`, `passwordCancelled` → `needsPassword`(보고 없음 — 원격 요청은 T9). 쪽 번호가 범위 밖이면 `corrupt` 보고 + `failed`. 렌더 오류는 이미지마다 즉시 1회 재시도, 또 실패하면 보고하고 base면 `failed`(이전 base가 보이고 있으면 `ready` 유지), 타일이면 그 타일만 건너뜀(미리보기는 그대로). 같은 이미지를 두 핸들이 동시에 렌더하면 합치지 않는다(나중 `put`이 중복 이미지를 dispose).
+- T8 `renderThumbnail`: 큐의 썸네일 클래스로 렌더, 캐시에 넣지 않는다(호출자 소유). `assetMissing`·`passwordCancelled` → null(보고 없음), 그 밖의 예외 → null + 보고. 배경색은 받은 값 그대로.
+- T8 긴 변 맞춤 배율(`scaleForLongSide`): `(긴 변 px − 0.001) / 긴 변 pt` — 엔진 `fullPixelSize`의 올림이 부동소수 오차로 1px 더 커지지 않게(미리보기 1024·썸네일 256·`renderThumbnail`의 `longSidePx`가 정확히 나옴).
+- T8 `PdfTuning.renderTimingSamples = 100`(p95 창)을 새로 두고 4.13에 적었다.
+- T8 `unit/init_test`(B4 판)에서 `pdfRenderStatsProvider` read를 지웠다(4.12대로 `unit/render_stats_provider_test`로 옮김). `web/foundation_browser_test`는 통계 read에 CORE 가짜 저장소를 더했다. `web/pure_logic_browser_test`에 타일 수학을 더했다.
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
@@ -79,4 +90,5 @@
 
 - 계획서 상단 상태 줄·계약 인용(v1.4)·13.4(PDF-4-1~4-3, C14-01·02)는 세션 1에서 반영했다.
 - T4 테스트의 CORE 쪽 가정: `createFakeNoteStore(faults:)`의 `failNextCommits(3)`이면 1초 시점 미완료·`writeFailing`, 6초 시점 완료(100ms·400ms·1.6s 재시도). 실제 CORE(T6)로 바뀌면 integration/core_gateway_test를 돌려 확인한다.
-- PDF-4-2: T8 커밋 때 `pdfRenderStatsProvider`가 `core.noteStoreProvider`를 필요로 하게 됨을 결과 보고 메모에 적어 INFRA에 공지한다.
+- PDF-4-2: T8에서 `pdfRenderStatsProvider` 본문을 `ref.watch(pdfPageRendererProvider).statsListenable`로 바꿨다 — 이제 읽는 컨테이너에 `core.noteStoreProvider`가 있어야 한다(세션 3 결과 보고 메모로 INFRA에 공지함). 바인딩은 필요 없다(수명 주기 리스너는 첫 렌더 때 등록).
+- 세션 3 결과: T8 완료. 다음 T9: 핸들에 6.7.7(원본 없음 → `pool.requestRemote` 구독·`remote` 스냅숏·`pool.assetArrived` 재획득, 해제 시 구독 해제)을 더하고, `PdfPageBackgroundView`(+ painter), `PdfBackgroundLayerBuilder` 본문(렌더러 지연 접근·`renderStill` = `renderThumbnail` + `PdfPageFit` 배치), `pdfBackgroundLayerBuilderProvider` 본문 교체(4.12 — watch는 `pdfSearchHighlightsProvider`만). 핸들 동작 테스트는 `test/widget/render_handle_test.dart`에 있다(가짜 엔진 `beforeRender`로 렌더를 붙잡는 `_World`).

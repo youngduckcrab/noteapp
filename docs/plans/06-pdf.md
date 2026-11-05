@@ -1684,6 +1684,7 @@ abstract final class PdfTuning {
   static const int maxInflightRenders = 2;
   static const Duration idleTileTtl = Duration(seconds: 30);
   static const Duration trimInterval = Duration(seconds: 5);
+  static const int renderTimingSamples = 100;      // PdfRenderStats.p95RenderMs window (T8)
   // documents (6.6)
   static const int maxIdleDocuments = 2;
   static const Duration idleDocumentTtl = Duration(seconds: 60);

@@ -9,12 +9,12 @@
 // Foundation step B4 (T0, contract 7.6 B4 v1.2): the providers other areas read during the
 // foundation stage and concurrent development never throw —
 //   - pdfBackgroundLayerBuilderProvider = const PdfBackgroundLayerBuilder.paperOnly()
-//     (read by pdfIoOverrides() for ink.pageBackgroundBuildersProvider),
-//   - pdfRenderStatsProvider = ValueNotifier(PdfRenderStats.zero) (read by INFRA
-//     pdfRenderStatsSection),
-// and neither watches the render chain (pdfPageRendererProvider → PdfRenderService · pool ·
-// engine · gateway → core.noteStoreProvider). The other providers already hold their final
-// wiring; the services they build throw UnimplementedError until their PDF task.
+//     (read by pdfIoOverrides() for ink.pageBackgroundBuildersProvider; until PDF T9),
+//   - pdfRenderStatsProvider: B4 ValueNotifier(PdfRenderStats.zero); from PDF T8 the
+//     renderer's statsListenable, which needs core.noteStoreProvider (PDF-4-2 — every real
+//     container has it: INFRA CoreModule runs first).
+// The other providers already hold their final wiring; the services they build throw
+// UnimplementedError until their PDF task.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -103,12 +103,11 @@ final pdfPageRendererProvider = Provider<PdfPageRenderer>((ref) {
 ///               opens a document. Every real container has core.noteStoreProvider (INFRA
 ///               CoreModule runs first, 7.3.3 module order; INFRA tests use CoreModule with a
 ///               fake open), so INFRA needs no test override in either stage.
-final pdfRenderStatsProvider = Provider<ValueListenable<PdfRenderStats>>((ref) {
-  // B4 (T0) body. The notifier is disposed with the provider.
-  final stats = ValueNotifier(PdfRenderStats.zero);
-  ref.onDispose(stats.dispose);
-  return stats;
-}, name: 'pdfRenderStatsProvider');
+final pdfRenderStatsProvider = Provider<ValueListenable<PdfRenderStats>>(
+  // T8 body. The notifier belongs to the renderer (disposed with it).
+  (ref) => ref.watch(pdfPageRendererProvider).statsListenable,
+  name: 'pdfRenderStatsProvider',
+);
 
 /// DefaultPdfTextService(pool: …, gateway: …).
 final pdfTextServiceProvider = Provider<PdfTextService>(
