@@ -215,14 +215,56 @@ void main() {
     expect(repaint(PenPreviewPainter(style: style)), isTrue);
   });
 
-  test('a tiny or empty size draws nothing and does not throw', () {
+  test(
+    'an empty or non-finite size draws nothing (no pixel, any tool)',
+    () async {
+      const sizes = [
+        Size.zero,
+        Size(0, 80),
+        Size(240, 0),
+        Size(double.infinity, 80),
+        Size(240, double.nan),
+      ];
+      for (final tool in core.PenTool.values) {
+        final p = PenPreviewPainter(style: _style(tool));
+        for (final size in sizes) {
+          expect(await _paintedPixels(p, size), 0, reason: '$tool $size');
+        }
+      }
+    },
+  );
+
+  test('a tiny size does not throw (the margin shrinks to the short side)', () {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     final p = PenPreviewPainter(style: _style(core.PenTool.fountain));
     p
-      ..paint(canvas, Size.zero)
+      ..paint(canvas, const Size(1, 1))
       ..paint(canvas, const Size(4, 4))
       ..paint(canvas, const Size(400, 2));
     recorder.endRecording().dispose();
   });
+}
+
+/// Pixels with alpha > 0 after [painter] paints [size] on a transparent canvas
+/// with a 64 px border on every side (so ink outside the size counts too).
+Future<int> _paintedPixels(CustomPainter painter, Size size) async {
+  const pad = 64;
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder)..translate(pad.toDouble(), pad.toDouble());
+  painter.paint(canvas, size);
+  final picture = recorder.endRecording();
+  int side(double v) => (v.isFinite ? v.ceil() : 0) + 2 * pad;
+  final image = await picture.toImage(side(size.width), side(size.height));
+  picture.dispose();
+  try {
+    final data = (await image.toByteData())!;
+    var n = 0;
+    for (var i = 3; i < data.lengthInBytes; i += 4) {
+      if (data.getUint8(i) != 0) n++;
+    }
+    return n;
+  } finally {
+    image.dispose();
+  }
 }

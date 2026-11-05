@@ -115,6 +115,7 @@
 
 ## 다음 세션 메모
 
+- 보완 1.1 `widget/pen_preview_test`: 예전 테스트 'a tiny or empty size draws nothing'은 단언이 없었고 이름도 맞지 않았다 — 실제로 1×1·4×4는 점, 400×2는 직선을 그린다(여백이 짧은 변의 절반으로 줄어듦, 의도된 동작). 두 테스트로 나눔: '빈·비유한 크기(0, NaN, 무한) = 모든 도구에서 픽셀 0'(사방 64px 여백을 둔 캔버스를 `toImage`해 alpha > 0 픽셀 수로 단언)·'작은 크기 = 예외 없음'.
 - 세션 9 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 759개·Chrome `test/web` 115개 통과, 벤치마크 `flutter test benchmark/ --concurrency=1` 2회 모두 통과(14케이스), `git status` 빔. **동시 개발 단계 몫(T01–T23) 전부 완료.**
 - 벤치마크 다시 재기: `cd packages/ink_engine && flutter test benchmark/ --concurrency=1`(load가 CPU 4보다 낮을 때). B5(1.2–1.9 / 기준 2)와 B11(2.1–4.1 / 기준 5)은 기준 근처라 부하가 크면 넘을 수 있다 — 원인은 CORE `fromInterleaved`·할당(GC). 외곽선·올가미·부분 지우개 수치를 바꾸면 `benchmark/README.md` 표도 고친다.
 - 세션 9(T21 커밋 시점): 패키지 analyze 0, `dart format` 변경 없음, 패키지 VM 755개 통과.
