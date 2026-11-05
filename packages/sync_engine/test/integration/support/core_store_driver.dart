@@ -2,7 +2,9 @@
 // temporary SQLite file (so it can be reopened), wrapped by CoreSyncLocalStore, and the
 // SyncStore contract driver doing local edits the way the app does them (5.1.4): library
 // and trash repositories, a session's AddStrokes, assets.put, markOpened through
-// openSession (N-6) and reopening the same file.
+// openSession (N-6) and reopening the same file. Commit failures for S-20 (5.1.2) come from
+// moving the database file away (CoreTestStore.failCommits): openTestNoteStore takes no
+// fault hook, and the write queue's own hook (WriteQueue.failNextCommits) is CORE src/.
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -18,6 +20,8 @@ import '../../contract/sync_store_contract.dart';
 final class CoreTestStore {
   CoreTestStore._(this.store, this.directory, this._reopen);
 
+  static const String _fileName = 'core.sqlite';
+
   static Future<CoreTestStore> open({
     required String deviceNodeId,
     Clock? clock,
@@ -27,7 +31,7 @@ final class CoreTestStore {
     Future<NoteStore> openStore() => openTestNoteStore(
       clock: clock,
       deviceNodeId: deviceNodeId,
-      filePath: '${directory.path}/core.sqlite',
+      filePath: '${directory.path}/$_fileName',
       seedDefaultPenPresets: seedDefaultPenPresets,
     );
     return CoreTestStore._(await openStore(), directory, openStore);
@@ -38,13 +42,41 @@ final class CoreTestStore {
   final Future<NoteStore> Function() _reopen;
   late final CoreSyncLocalStore local = CoreSyncLocalStore(store);
 
+  String get _file => '${directory.path}/$_fileName';
+  String get _movedFile => '$_file.moved';
+
+  /// Whether [failCommits] is in effect.
+  bool get commitsFailing => File(_movedFile).existsSync();
+
+  /// S-20 with real CORE: moves the open database file away, so SQLite refuses every write
+  /// transaction (SQLITE_READONLY_DBMOVED — its rollback journal would have no database
+  /// name to belong to) while reads go on. CORE's write queue treats that as a storage
+  /// failure (6.9): the transaction rolls back and is retried after 100 ms, 400 ms, 1.6 s,
+  /// then every 5 s, its write Futures stay pending (no value, no error) and
+  /// PersistenceStatus.consecutiveFailures counts up (writeFailing from 3). [healCommits]
+  /// moves the file back and the next retry commits. Relies on the rollback journal of
+  /// openTestNoteStore's file database (no WAL): a test using it waits for writeFailing OR
+  /// its write completing, then expects the write still pending, so a store that keeps
+  /// committing fails at once with that reason.
+  void failCommits() {
+    if (!commitsFailing) File(_file).renameSync(_movedFile);
+  }
+
+  /// Ends [failCommits]: the database file is back under its name.
+  void healCommits() {
+    if (commitsFailing) File(_movedFile).renameSync(_file);
+  }
+
   /// Closes this store and opens the same file again (the directory moves to the result).
   Future<CoreTestStore> reopen() async {
+    healCommits();
     await store.close();
     return CoreTestStore._(await _reopen(), directory, _reopen);
   }
 
+  /// Heals commits first: close waits for the queued writes (CORE 6.9).
   Future<void> close() async {
+    healCommits();
     await store.close();
     if (directory.existsSync()) directory.deleteSync(recursive: true);
   }

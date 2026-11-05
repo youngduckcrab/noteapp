@@ -1,11 +1,15 @@
 // T16 (integration stage, contract 7.7 step 5 v1.2 — C12-05 "실제 CORE 2개로 S01·S02·S05·
 // S15"): the scenarios of 9.1.2 with two real CORE stores (openTestNoteStore through
 // CoreSyncLocalStore), each with its own SyncEngine, on one FakeSyncServer. Real CORE runs
-// on the real event loop, so these tests wait for states (polling, generous limits) and
-// never assert durations. Edits go through CORE the way the app makes them (library,
-// sessions, pen presets). Convergence = the canonical dump (4.11) of every entity the
-// scenario touched, read with SyncStore.readVersioned on both stores; S15 leaves the meta
-// keys of the seeded presets out (each device seeds its own createdAt / updatedAt — 6.3.1).
+// on the real event loop, so these tests wait for states (polling, one real-time budget
+// per test — support/real_time.dart) and never assert durations. Edits go through CORE the
+// way the app makes them (library, sessions, pen presets). Convergence = the canonical dump
+// (4.11) of every entity the scenario touched, read with SyncStore.readVersioned on both
+// stores; S15 leaves the meta keys of the seeded presets out (each device seeds its own
+// createdAt / updatedAt — 6.3.1). Plus S-20 (5.1.2) on the engine: B's CORE cannot commit
+// for a while (CoreTestStore.failCommits) — B's engine waits on the pending CORE writes
+// without a store issue and nothing is lost. Each engine's SyncStore is wrapped by
+// DelegatingSyncStore (forwarding only) so a test can see which applyRemote calls are open.
 @Tags(['integration'])
 @TestOn('vm')
 library;
@@ -23,14 +27,47 @@ import 'package:sync_engine/src/testing/canonical_dump.dart';
 import 'package:sync_engine/sync_engine.dart';
 import 'package:sync_engine/testing.dart';
 
+import '../support/delegating_sync_store.dart';
 import 'support/core_store_driver.dart';
+import 'support/real_time.dart';
 
 const AuthUser _user = AuthUser(uid: 'user-1');
+
+/// CORE's SyncLocalStore with its SyncStore wrapped by DelegatingSyncStore (forwarding only),
+/// recording which applyRemote calls have returned.
+final class _TrackedLocal implements SyncLocalStore {
+  _TrackedLocal(this._inner) : sync = DelegatingSyncStore(_inner.sync) {
+    sync.afterApply = returned.add;
+  }
+
+  final SyncLocalStore _inner;
+
+  @override
+  final DelegatingSyncStore sync;
+
+  /// 1-based numbers (over [DelegatingSyncStore.applyRefs]) of the returned calls.
+  final Set<int> returned = {};
+
+  @override
+  AssetStore get assets => _inner.assets;
+
+  @override
+  Stream<void> get localChanges => _inner.localChanges;
+
+  /// The number of the first applyRemote call holding [ref], or null.
+  int? firstCallWith(EntityRef ref) {
+    for (final (i, refs) in sync.applyRefs.indexed) {
+      if (refs.contains(ref)) return i + 1;
+    }
+    return null;
+  }
+}
 
 final class _Device {
   _Device._(
     this.name,
     this.core,
+    this.local,
     this.auth,
     this.authService,
     this.link,
@@ -48,13 +85,14 @@ final class _Device {
         .toString()
         .substring(0, 16);
     final core = await CoreTestStore.open(deviceNodeId: nodeId);
+    final local = _TrackedLocal(core.local);
     final link = FakeNetworkLink(latency: const Duration(milliseconds: 20));
     final connectivity = ManualConnectivitySignal();
     final auth = FakeAuthBackend(user: signedIn ? _user : null)
       ..nextSignInUser = _user;
     final authService = AuthService(auth);
     final engine = SyncEngine(
-      local: core.local,
+      local: local,
       auth: authService,
       backendFactory: (u) async => server.connect(uid: u.uid, link: link),
       connectivity: connectivity,
@@ -64,6 +102,7 @@ final class _Device {
     final device = _Device._(
       name,
       core,
+      local,
       auth,
       authService,
       link,
@@ -76,6 +115,7 @@ final class _Device {
 
   final String name;
   final CoreTestStore core;
+  final _TrackedLocal local;
   final FakeAuthBackend auth;
   final AuthService authService;
   final FakeNetworkLink link;
@@ -83,7 +123,12 @@ final class _Device {
   final SyncEngine engine;
 
   NoteStore get store => core.store;
+
+  /// CORE's SyncStore itself (reads only; the engine goes through [local]).
   SyncStore get sync => core.local.sync;
+
+  StorageWarning? get storageWarning =>
+      storageWarningOf(store.storageInfo, store.persistenceStatus);
 
   void goOffline() {
     link.setOnline(false);
@@ -144,25 +189,21 @@ final class _Device {
     };
   }
 
+  /// Heals CORE commits first: the engine's dispose waits for its open CORE writes.
   Future<void> close() async {
+    core.healCommits();
     await engine.dispose();
     await authService.dispose();
     await core.close();
   }
 }
 
-/// Polls [done] every 50 ms (real time); fails after [limit].
-Future<void> _until(
-  String what,
-  FutureOr<bool> Function() done, {
-  Duration limit = const Duration(minutes: 3),
-}) async {
-  final watch = Stopwatch()..start();
-  while (!await done()) {
-    if (watch.elapsed > limit) fail('still waiting for $what after $limit');
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-  }
-}
+/// The waits of the running test (one real-time budget per test, set in setUp).
+late RealTimeWaits _waits;
+
+/// Polls [done] (real time) until it holds, within the test's budget.
+Future<void> _until(String what, FutureOr<bool> Function() done) =>
+    _waits.until(what, done);
 
 /// Both engines idle and the dumps of every entity either side knows of [notes] equal.
 Future<void> _converge(
@@ -196,6 +237,7 @@ void main() {
   setUp(() {
     server = FakeSyncServer(clock: const Clock());
     devices.clear();
+    _waits = RealTimeWaits();
   });
   tearDown(() async {
     for (final d in devices) {
@@ -225,7 +267,7 @@ void main() {
     await _converge(a, b, [note]);
     expect(server.writeCount('user-1') - writes, 1);
     expect(await _activeStrokes(b, page), 1);
-  });
+  }, timeout: kIntegrationTimeout);
 
   for (final order in ['A then B', 'B then A', 'both at once']) {
     test('S02 both offline (A: 100 strokes + rename, B: 80 strokes + folder '
@@ -295,7 +337,7 @@ void main() {
         expect(n.title, 'title from A', reason: d.name);
         expect(n.folderId, folder, reason: d.name);
       }
-    });
+    }, timeout: kIntegrationTimeout);
   }
 
   test('S05 A deletes a stroke while B (offline) recolors it: deleted on '
@@ -332,7 +374,7 @@ void main() {
       expect((row.entity as Stroke).style.colorArgb, green, reason: d.name);
       expect(await _activeStrokes(d, page), 0, reason: d.name);
     }
-  });
+  }, timeout: kIntegrationTimeout);
 
   test('S15 first sign-in on two devices with local data: owners reassigned, '
       '5 notes, the default presets once, A\'s renamed preset kept', () async {
@@ -383,5 +425,72 @@ void main() {
       );
     }
     expect((await b.store.library.getNote(notes.first))!.title, 'A0');
-  });
+  }, timeout: kIntegrationTimeout);
+
+  test('S-20 B cannot commit while A\'s stroke arrives and B renames the note: '
+      'B\'s engine waits on the pending CORE writes without a store issue; once '
+      'CORE commits, nothing is lost and both converge', () async {
+    final a = await device('A');
+    final b = await device('B');
+    final note = (await a.store.library.createNote(title: 'S-20')).id;
+    final page = (await a.store.content.pagesOf(note)).single.id;
+    await _converge(a, b, [note]);
+
+    final storeTrouble = <SyncStatus>[];
+    final statuses = b.engine.statusStream.listen((s) {
+      if (s.phase == SyncPhase.error ||
+          s.issues.any((i) => i.code == SyncIssueCode.localStoreFailure)) {
+        storeTrouble.add(s);
+      }
+    });
+    addTearDown(statuses.cancel);
+
+    b.core.failCommits();
+    var renamed = false;
+    final rename = b.store.library
+        .renameNote(note, 'title from B')
+        .then((_) => renamed = true);
+    final stroke = await a.core.addStroke(page, seed: 20);
+    final strokeRef = EntityRef(EntityKind.stroke, stroke.id);
+    await _until('A idle', () => a.idle);
+    await _until(
+      'B to call applyRemote with the stroke',
+      () => b.local.firstCallWith(strokeRef) != null,
+    );
+    final call = b.local.firstCallWith(strokeRef)!;
+    // A store that keeps committing ends this wait too (and fails below).
+    await _until(
+      'B\'s CORE to report writeFailing',
+      () => b.storageWarning == StorageWarning.writeFailing || renamed,
+    );
+
+    // CORE retries: its write Futures neither complete nor fail (S-20), so B's engine
+    // waits in that applyRemote; reads see the last commit.
+    expect(
+      renamed,
+      isFalse,
+      reason: 'the rename committed: the fault injection did not take effect',
+    );
+    expect(b.local.returned, isNot(contains(call)));
+    expect(await b.read(EntityKind.stroke, stroke.id), isNull);
+    expect((await b.store.library.getNote(note))!.title, 'S-20');
+    expect(b.engine.status.phase, isNot(SyncPhase.error));
+    expect(storeTrouble, isEmpty);
+    expect((await a.store.library.getNote(note))!.title, 'S-20');
+
+    b.core.healCommits();
+    await rename;
+    await _converge(a, b, [note]);
+    expect(b.local.returned, contains(call));
+    expect(storeTrouble, isEmpty);
+    expect(b.storageWarning, isNull);
+    for (final d in [a, b]) {
+      expect(await _activeStrokes(d, page), 1, reason: d.name);
+      expect(
+        (await d.store.library.getNote(note))!.title,
+        'title from B',
+        reason: d.name,
+      );
+    }
+  }, timeout: kIntegrationTimeout);
 }
