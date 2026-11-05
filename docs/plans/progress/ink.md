@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: 9 (동시 개발 단계) — T21 벡터 내보내기, T22 벤치마크 스위트 완료 — **동시 개발 단계 몫 전부 완료**(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b, 세션 6: T14~T16, 세션 7: T17·T18, 세션 8: T19·T20(INK-β 완료))
+- 마지막 세션: 10 = 동시 개발 단계 보완 1.1 — 독립 검토 미비점 5개 처리(① `InkPageThumbnailRenderer`의 계약 밖 공개 static `grainWait`·`sliceUs` → 비공개 ② 9.1 '속지 벡터' Chrome 감싸기 `web/template_vectors_web_test.dart` ③ ink lab 등록을 '변경 요청'·'의존성 요청'에 명시(대상 INFRA) ④ 골든 9.2 — `images/`, ≤ 400×400, 불투명 ⑤ `pen_preview_test` 빈 크기 단언). 세션 9까지: T21 벡터 내보내기, T22 벤치마크 스위트 완료 — **동시 개발 단계 몫 전부 완료**(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b, 세션 6: T14~T16, 세션 7: T17·T18, 세션 8: T19·T20(INK-β 완료))
 - 다음 할 일: 동시 개발 단계 몫 없음. 통합 단계에서 EDITOR E-21(실제 INK + 실제 CORE), PDF `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`가 INK 출력을 판정한다. 9.3 iPad 확인은 사용자 몫
 
 ## 작업 표
@@ -115,6 +115,7 @@
 
 ## 다음 세션 메모
 
+- 세션 10(보완 1.1) 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음, 패키지 VM 779개(골든 17장 + 골든 이미지 가드 19개)·Chrome `test/web` 193개(새 감싸기 78개 포함)·example 스모크(VM) 통과, `git status` 빔. 커밋: c121472(①), 532d5f9(②), d52715c(③), d3b6f0c(④), ece6d40(⑤).
 - 보완 1.1 `widget/pen_preview_test`: 예전 테스트 'a tiny or empty size draws nothing'은 단언이 없었고 이름도 맞지 않았다 — 실제로 1×1·4×4는 점, 400×2는 직선을 그린다(여백이 짧은 변의 절반으로 줄어듦, 의도된 동작). 두 테스트로 나눔: '빈·비유한 크기(0, NaN, 무한) = 모든 도구에서 픽셀 0'(사방 64px 여백을 둔 캔버스를 `toImage`해 alpha > 0 픽셀 수로 단언)·'작은 크기 = 예외 없음'.
 - 세션 9 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 759개·Chrome `test/web` 115개 통과, 벤치마크 `flutter test benchmark/ --concurrency=1` 2회 모두 통과(14케이스), `git status` 빔. **동시 개발 단계 몫(T01–T23) 전부 완료.**
 - 벤치마크 다시 재기: `cd packages/ink_engine && flutter test benchmark/ --concurrency=1`(load가 CPU 4보다 낮을 때). B5(1.2–1.9 / 기준 2)와 B11(2.1–4.1 / 기준 5)은 기준 근처라 부하가 크면 넘을 수 있다 — 원인은 CORE `fromInterleaved`·할당(GC). 외곽선·올가미·부분 지우개 수치를 바꾸면 `benchmark/README.md` 표도 고친다.
