@@ -1,0 +1,8 @@
+# Test tags of the app shell (docs/plans/01-infra.md 8.2 I12, contract
+# 00-overview 7.4.8 v1.1 / v1.2). Declared before the first tagged test
+# (ws check R15). The app uses this one tag only; tags are string literals.
+tags:
+  # V5 / V6 smoke against the real CORE, INK and feature packages: skipped
+  # by default, run in the integration stage.
+  integration:
+    skip: "integration stage only — ws test --run-skipped -t integration"

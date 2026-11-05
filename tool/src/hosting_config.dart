@@ -4,6 +4,9 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 
 /// Repo-relative path of the Hosting configuration.
 const String hostingConfigPath = 'app/firebase.json';
@@ -69,3 +72,89 @@ Map<String, Object?> isolatedHostingConfig(Map<String, Object?> config) {
 /// Pretty JSON text of [config].
 String encodeHostingConfig(Map<String, Object?> config) =>
     '${const JsonEncoder.withIndent('  ').convert(config)}\n';
+
+/// Rule files of the M4 shape (6.12): `firestore.rules`, `firestore.indexes`
+/// and `storage.rules`, relative to the directory of `firebase.json`.
+const List<(String, String)> hostingRuleFileKeys = [
+  ('firestore', 'rules'),
+  ('firestore', 'indexes'),
+  ('storage', 'rules'),
+];
+
+/// Problems of a default (not `--isolate`) Hosting configuration
+/// (6.12 table, contract 7.4.9): `public` is `build/web`, every path is
+/// rewritten to `/index.html`, `**` is `no-cache`, `**/*.wasm` is
+/// `application/wasm`, there is no COOP / COEP header, and each referenced
+/// rules / indexes file exists under [appDir]. Empty when fine.
+List<String> hostingConfigProblems(
+  Map<String, Object?> config, {
+  required String appDir,
+}) {
+  final problems = <String>[];
+  final hosting = config['hosting'];
+  if (hosting is! Map<String, Object?>) return ['no `hosting` object'];
+  if (hosting['public'] != 'build/web') {
+    problems.add('hosting.public must be "build/web"');
+  }
+  final rewrites = hosting['rewrites'];
+  final rewritesAll =
+      rewrites is List &&
+      rewrites.any(
+        (r) =>
+            r is Map &&
+            r['source'] == '**' &&
+            r['destination'] == '/index.html',
+      );
+  if (!rewritesAll) {
+    problems.add('hosting.rewrites must send "**" to "/index.html"');
+  }
+
+  final headers = hosting['headers'];
+  String? header(String source, String key) {
+    if (headers is! List) return null;
+    for (final entry in headers) {
+      if (entry is! Map || entry['source'] != source) continue;
+      final list = entry['headers'];
+      if (list is! List) continue;
+      for (final h in list) {
+        if (h is Map && h['key'] == key) return '${h['value']}';
+      }
+    }
+    return null;
+  }
+
+  if (header('**', 'Cache-Control') != 'no-cache') {
+    problems.add('"**" needs Cache-Control: no-cache');
+  }
+  if (header('**/*.wasm', 'Content-Type') != 'application/wasm') {
+    problems.add('"**/*.wasm" needs Content-Type: application/wasm');
+  }
+  if (headers is List) {
+    for (final entry in headers) {
+      final list = entry is Map ? entry['headers'] : null;
+      if (list is! List) continue;
+      for (final h in list) {
+        if (h is Map && isolationHeaders.containsKey(h['key'])) {
+          problems.add(
+            '${h['key']} must not be in the default configuration '
+            '(contract 7.4.9; only `ws hosting-config --isolate` adds it)',
+          );
+        }
+      }
+    }
+  }
+
+  for (final (section, key) in hostingRuleFileKeys) {
+    final block = config[section];
+    if (block is! Map || !block.containsKey(key)) continue;
+    final path = block[key];
+    if (path is! String || path.isEmpty) {
+      problems.add('$section.$key must be a path');
+      continue;
+    }
+    if (!File(p.normalize(p.join(appDir, path))).existsSync()) {
+      problems.add('$section.$key: $path does not exist (relative to app/)');
+    }
+  }
+  return problems;
+}

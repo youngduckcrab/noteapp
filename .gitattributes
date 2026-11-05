@@ -10,3 +10,6 @@
 
 pubspec.lock linguist-generated=true
 *.g.dart linguist-generated=true
+
+# Byte-exact web assets checked by sha256 (tool/web_assets.yaml, ws check R12).
+app/web/drift_worker.js -text

@@ -770,7 +770,8 @@ final class _HostingConfigCommand extends _WsCommand {
 
   @override
   String get description =>
-      'Print app/firebase.json, with --isolate plus COOP/COEP headers.';
+      'Check app/firebase.json (6.12) and print it, with --isolate plus '
+      'COOP/COEP headers. Exit 1 when the file breaks a 6.12 rule.';
 
   @override
   Future<int> run() async {
@@ -780,6 +781,16 @@ final class _HostingConfigCommand extends _WsCommand {
       throw _EnvironmentError('${file.path} not found');
     }
     var config = parseHostingConfig(file.readAsStringSync());
+    final problems = hostingConfigProblems(
+      config,
+      appDir: p.dirname(file.path),
+    );
+    if (problems.isNotEmpty) {
+      for (final problem in problems) {
+        ctx.err.writeln('$hostingConfigPath: $problem');
+      }
+      return 1;
+    }
     if (argResults!['isolate'] as bool) config = isolatedHostingConfig(config);
     ctx.out.write(encodeHostingConfig(config));
     return 0;

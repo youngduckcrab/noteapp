@@ -214,4 +214,57 @@ assets:
       expect((await ws(['web-assets', 'nope'])).$1, usageExitCode);
     });
   });
+
+  group('the committed tool/web_assets.yaml', () {
+    late WebAssetsManifest manifest;
+
+    setUpAll(() {
+      manifest = WebAssetsManifest.loadIfExists(
+        p.join(repoRoot, webAssetsManifestPath),
+      )!;
+    });
+
+    test('has exactly the two contract 7.4.9 items', () {
+      expect(
+        [
+          for (final a in manifest.assets)
+            (a.path, '${a.url}', a.bytes, a.sha256, a.owner),
+        ],
+        [
+          (
+            'sqlite3.wasm',
+            'https://github.com/simolus3/sqlite3.dart/releases/download/'
+                'sqlite3-3.8.0/sqlite3.wasm',
+            758619,
+            'efd308be92a34f3aa15f289a37f213b0230fd80888a1364326ee29579d892d37',
+            'CORE',
+          ),
+          (
+            'drift_worker.js',
+            'https://github.com/simolus3/drift/releases/download/'
+                'drift-2.35.3/drift_worker.js',
+            361829,
+            'a54b81412d4c4ab56653bb9e4c02912b0820bb37e2bba00722ddef4d78083d4a',
+            'CORE',
+          ),
+        ],
+      );
+    });
+
+    test('the committed app/web files verify (size and sha256)', () {
+      expect(
+        verifyWebAssets(manifest, p.join(repoRoot, 'app', 'web')),
+        isEmpty,
+      );
+    });
+
+    test('ws web-assets verify exits 0 on the repository', () async {
+      final out = StringBuffer();
+      final code = await runWs([
+        'web-assets',
+        'verify',
+      ], context: WsContext(root: repoRoot, out: out, err: StringBuffer()));
+      expect(code, 0, reason: '$out');
+    });
+  });
 }
