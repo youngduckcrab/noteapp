@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
-import 'package:noteapp/src/app/foundation_app.dart';
+import 'package:noteapp/src/app/note_app.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/bootstrap/bootstrap_app.dart';
@@ -154,7 +154,7 @@ void main() {
     );
     await tester.pump();
     await tester.pumpAndSettle();
-    expect(find.byType(FoundationApp), findsOneWidget);
+    expect(find.byType(NoteApp), findsOneWidget);
     expect(find.byType(LibraryScreen), findsOneWidget);
     expect(find.byType(StartupErrorScreen), findsNothing);
 

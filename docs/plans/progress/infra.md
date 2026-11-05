@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 2 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5
-- 다음 할 일: I7 (NoteApp·테마·AppStrings·AppLifecycleBridge) → I10 → I10b → I8 → I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다.
+- 마지막 세션: 2 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7
+- 다음 할 일: I8 (UpdateChecker·UpdateBanner + `NoteApp.builder`) → I10 → I10b → I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다(I9는 I8 뒤, I10b는 I10 뒤).
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -16,9 +16,9 @@
 | I2 | 완료 | baabeeb | `app/test/runtime/build_info_test.dart`, `runtime_info_test.dart` (계획서의 `test/build/` → `test/runtime/`, 아래 '계획과 다르게 한 점') |
 | I3 | 완료 | 99d47c9 | `app/test/errors/app_error_log_test.dart`, `error_handlers_test.dart`(+`appErrorWidgetBuilder`), `diagnostic_report_test.dart`(6.7 형식 스냅숏·알 수 없음·8,000자·오류 5건·스택 15줄), `app_provider_observer_test.dart`. `StartupReport`·`StartupStep`·`StartupStepOutcome`(4.5.4)을 `src/bootstrap/startup_report.dart`에 먼저 만들었다(I5가 사용) |
 | I4 | 완료 | d25743b | `app/test/web/web_platform_browser_test.dart`(Chrome 8건: 절대 URL, 404·시간 초과 → null, `pagehide`·`visibilitychange` 대응·구독 해제, standalone false, 내려받기 true, 공유 불가면 `unsupported`). `app/test/fakes/fake_web_platform.dart`(5.7). VM 스텁 사용은 I2 `test/runtime/runtime_info_test.dart`에서 |
-| I5 | 완료 | (이 커밋) | `app/test/bootstrap/app_bootstrapper_test.dart`(fake_async 21건), `overrides_unique_test.dart`, `bootstrap_app_test.dart`(+`runNoteApp`), `startup_error_screen_test.dart`(6.7 문구 표·가로/세로), `foundation_modules_test.dart`(임시 모듈). 가짜 `test/fakes/fake_app_module.dart`·`counting_note_store.dart`. I10·I10b에서 `overrides_unique_test`를 실제 모듈 3개로, `bootstrap_app_test`에 CoreModule 늦은 저장소 경우(`openCount == 2`가 `closeCount == 1` 뒤)를 더한다 |
+| I5 | 완료 | 0aa54f0 | `app/test/bootstrap/app_bootstrapper_test.dart`(fake_async 21건), `overrides_unique_test.dart`, `bootstrap_app_test.dart`(+`runNoteApp`), `startup_error_screen_test.dart`(6.7 문구 표·가로/세로), `foundation_modules_test.dart`(임시 모듈). 가짜 `test/fakes/fake_app_module.dart`·`counting_note_store.dart`. I10·I10b에서 `overrides_unique_test`를 실제 모듈 3개로, `bootstrap_app_test`에 CoreModule 늦은 저장소 경우(`openCount == 2`가 `closeCount == 1` 뒤)를 더한다 |
 | I6 | 완료 | 09cd0db | `app/test/routing/app_routes_test.dart`, `app_router_test.dart`(자리표시 화면: 인자·페이지 종류·라이브러리 State 유지·닫기·새로고침·NotFound·observers). B8 `foundation_routing_test.dart` → `test/routing/production_screens_test.dart`(`AppScreenBuilders.production()` 연결, `FoundationApp`·`foundationOverrides` 없이) |
-| I7 | 남음 | | `app/test/app/note_app_test.dart`, `lifecycle_bridge_test.dart` |
+| I7 | 완료 | (이 커밋) | `app/test/app/note_app_test.dart`(material_ui `MaterialApp`·locale ko·seed `0xFF3949AB`·브리지 없음·라우터 provider dispose·셸 provider `name:`), `lifecycle_bridge_test.dart`(hidden·paused·detached·웹 hidden, 1초 안 반복 무시, dispose 뒤 없음). `builder`의 `UpdateBanner` 감싸기·그 테스트는 I8 |
 | I8 | 남음 | | `app/test/update/update_checker_test.dart`, `update_banner_test.dart` |
 | I9 | 남음 | | `app/test/settings/settings_screen_test.dart`, `settings_sections_test.dart`, `storage_section_test.dart`, `about_section_test.dart`, `backup_export_test.dart` |
 | I10 | 남음 | | `app/test/modules/core_module_test.dart`, `pdf_module_test.dart`, `production_modules_test.dart` |
@@ -61,14 +61,16 @@
 - (세션 2, I5) `providers.dart`는 4.5.10의 9개를 먼저 만들었다(`latestStorageInfoProvider`는 I9). 셸 overrides 6개(`buildInfoProvider` … `appBootstrapperProvider`)는 `BootstrapSuccess.overrides` 맨 앞.
 - (세션 2, I5) 가짜: `FakeAppModule`에 5.7 목록 밖의 `startTimeout`·`hiddenError`·`stopDelay`·`stopError`·`onStart`(시작 때 context 확인·publish)·`events`(공유 순서 기록)·`overridesCalls`·`resetQueries`를 더했다. `CountingNoteStore`에 `exportCount`·`hasStatusListeners`를 더했다. `NoteStore.clock`의 `Clock`은 note_core가 내보내지 않아(앱 의존성에 `clock` 없음) 타입을 추론에 맡기고 `// ignore: always_declare_return_types`.
 - (세션 2, I5) B8의 `app/test/foundation_startup_test.dart`를 지우고 `test/bootstrap/foundation_modules_test.dart`로 옮겼다(임시 모듈 + `BootstrapApp` 기본 경로).
+- (세션 2, I7) `NoteApp`의 `builder: (context, child) => UpdateBanner(child: child!)`는 `UpdateBanner`가 생기는 I8에서 넣는다(그 단언도 I8의 `note_app_test`에). `BootstrapApp`이 성공 화면을 `AppLifecycleBridge`로 감싸고 기본 `appBuilder`는 `NoteApp`이다. B8 `FoundationApp`은 지웠다. `AppStrings`는 작업마다 자기 문구를 더한다(설정·저장 공간·앱 정보·백업·업데이트 문구는 I8·I9).
+- (세션 2, I7) `AppLifecycleBridge`의 '초당 1회'는 첫 신호를 바로 보내고 그 뒤 1초 동안 오는 신호를 버리는 방식(throttle)이다. `notifyAppHidden()`은 던지지 않으므로 결과를 기다리지 않는다.
 - (세션 1) 계약 v1.3 C13-05 절차: 계획서 머리 상태 줄 '승인'·계약 인용 v1.4, 12.3 P6 결정 칸·8.1 B1 완료/B8-2 인용(INFRA-4-1), 13.4 '최종 승인' 한 줄(INFRA-4-2). 본문 개별 조항의 v1.1/v1.2 인용은 그 조항이 들어간 판이라 그대로 뒀다.
 
 ## 다음 세션 메모
 
 - 세션 1 끝 상태: `ws check`(R1–R13·R15) 0, 루트 `flutter analyze --fatal-infos` 0, `dart test tool/test` 182건, `ws test` 7개 멤버 통과(noteapp VM 38건), `ws test --package noteapp --platform chrome` 8건 통과.
-- 이미 있는 앱 셸 조각: `src/web/`(WebPlatform), `src/runtime/`(BuildInfo·RuntimeInfo), `src/errors/`(AppErrorLog 등·DiagnosticReport), `src/bootstrap/`(AppModule·AppBootstrapper·BootstrapApp·SplashView·StartupErrorScreen·`runNoteApp`·임시 `foundationModules`), `src/routing/`(I6 전부), `src/providers.dart`(9개). 남은 B8 임시 이름: `FoundationApp`(I7에서 `NoteApp`), `SettingsPlaceholderScreen`(I9에서 `SettingsScreen`), `foundationModules`(I10에서 `productionModules`).
+- 이미 있는 앱 셸 조각: `src/web/`(WebPlatform), `src/runtime/`(BuildInfo·RuntimeInfo), `src/errors/`(AppErrorLog 등·DiagnosticReport), `src/bootstrap/`(AppModule·AppBootstrapper·BootstrapApp·SplashView·StartupErrorScreen·`runNoteApp`·임시 `foundationModules`), `src/routing/`(I6 전부), `src/providers.dart`(9개), `src/app/`(NoteApp·buildAppTheme·AppStrings·AppLifecycleBridge). 남은 B8 임시 이름: `SettingsPlaceholderScreen`(I9에서 `SettingsScreen`), `foundationModules`(I10에서 `productionModules`).
 - (세션 2) 5.7은 자리표시 화면에 `Key('open-note')` 같은 콜백 버튼을 적었는데 I6 자리표시는 설정·뒤로 버튼(툴팁)만 있다. I11 `app_boot_browser_test`에 필요하면 그때 더한다.
-- (세션 2) 세션 2 끝 상태: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 앱 VM 121건, `cd app && flutter build web --release --no-wasm-dry-run` 성공(55초).
+- (세션 2) 세션 2 끝 상태: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 앱 VM 132건, I5 뒤 `cd app && flutter build web --release --no-wasm-dry-run` 성공(55초).
 - 가짜: `app/test/fakes/fake_web_platform.dart`. 5.7의 나머지(`FakeAppModule`·`CountingNoteStore`·`fakeOpenNoteStore`·`RecordingLocalDataEraser`·가짜 PDF 동작)는 I5·I9·I10에서 만든다.
 - 앱에는 아직 `app/dart_test.yaml`이 없다(I12). 그 전에는 앱 테스트에 태그를 쓰지 않는다(R15).
 - 앱 폴더 이름에 `build`를 쓰지 않는다(`.gitignore`·분석 제외·`ws`가 빌드 산출물로 본다).

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
+import 'package:noteapp/src/app/lifecycle_bridge.dart';
 import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
@@ -127,6 +128,13 @@ void main() {
     expect(find.byType(SplashView), findsNothing);
     expect(find.text('app ready · 1 steps'), findsOneWidget);
     expect(_scope(tester).key, const ValueKey<int>(0));
+    expect(
+      find.descendant(
+        of: find.byType(ProviderScope),
+        matching: find.byType(AppLifecycleBridge),
+      ),
+      findsOneWidget,
+    );
 
     final container = ProviderScope.containerOf(tester.element(_app));
     expect(

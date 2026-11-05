@@ -9,7 +9,8 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show kLocalOwnerId;
 
-import '../app/foundation_app.dart';
+import '../app/lifecycle_bridge.dart';
+import '../app/note_app.dart';
 import '../app/strings.dart';
 import '../errors/app_error_log.dart';
 import '../errors/app_provider_observer.dart';
@@ -27,10 +28,10 @@ import 'startup_error_screen.dart';
 ///
 /// Splash while the bootstrapper runs; on success
 /// `ProviderScope(key: ValueKey(attempt), overrides, observers:
-/// [AppProviderObserver(errorLog)])` around [appBuilder]; on failure the
-/// StartupErrorScreen. "다시 시도" awaits the old bootstrapper's shutdown()
-/// before it creates the next one; "데이터 지우기" does shutdown() →
-/// resetLocalData() → retry.
+/// [AppProviderObserver(errorLog)])` → AppLifecycleBridge → [appBuilder]; on
+/// failure the StartupErrorScreen. "다시 시도" awaits the old bootstrapper's
+/// shutdown() before it creates the next one; "데이터 지우기" does
+/// shutdown() → resetLocalData() → retry.
 class BootstrapApp extends StatefulWidget {
   const BootstrapApp({
     super.key,
@@ -45,9 +46,8 @@ class BootstrapApp extends StatefulWidget {
   final AppBootstrapper Function() createBootstrapper;
   final AppErrorLog errorLog;
 
-  /// Defaults to `(success) => const NoteApp()`.
-  ///
-  /// Until I7 the default is the foundation step's FoundationApp.
+  /// Defaults to `(success) => const NoteApp()`. BootstrapApp puts an
+  /// AppLifecycleBridge around it (6.4 step 3).
   final Widget Function(BootstrapSuccess success)? appBuilder;
 
   @override
@@ -152,7 +152,9 @@ class _BootstrapAppState extends State<BootstrapApp> {
         key: ValueKey<int>(_attempt),
         overrides: success.overrides,
         observers: [AppProviderObserver(widget.errorLog)],
-        child: (widget.appBuilder ?? _defaultApp)(success),
+        child: AppLifecycleBridge(
+          child: (widget.appBuilder ?? _defaultApp)(success),
+        ),
       ),
       final BootstrapFailure failure => _ShellFrame(
         child: StartupErrorScreen(
@@ -181,7 +183,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
   );
 }
 
-Widget _defaultApp(BootstrapSuccess success) => const FoundationApp();
+Widget _defaultApp(BootstrapSuccess success) => const NoteApp();
 
 /// MaterialApp for the splash and the startup error screen.
 class _ShellFrame extends StatelessWidget {
