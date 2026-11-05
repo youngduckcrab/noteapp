@@ -1,10 +1,12 @@
 // lib/src/render/ink_page_controller.dart — contract 7.2.15 (03-ink 4.8).
 //
-// Foundation step B3 (03-ink 4.15): content diff by identity, the three
-// gesture sessions, selection, pending hand-off (6.12 R6: pendingIds,
-// updateContent resolution, discardPending, discardEdit, timeout), bounds-based
-// hitTest / strokeIdsInRect and the viewport report of 6.12 R9 (currentBucket).
-// Chunk pictures and raster tiles come with INK T10 / T19.
+// Content diff by id + identity (6.12 R2) feeding the vector caches of the
+// base layers (INK T10: ink chunk pictures R3/R4, highlighter page picture
+// with the active groups left out, 6.10-6), the three gesture sessions,
+// selection, pending hand-off (6.12 R6: pendingIds, updateContent
+// resolution, discardPending, discardEdit, timeout), bounds-based hitTest /
+// strokeIdsInRect (exact: INK T14) and the viewport report of 6.12 R9
+// (currentBucket). Raster tiles come with INK T19.
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -29,10 +31,10 @@ import '../pen/style_ink.dart';
 import '../stroke/stroke_builder.dart';
 import '../stroke/stroke_meta.dart';
 import '../tuning.dart';
+import 'base_cache.dart';
 import 'cache_pool.dart';
 import 'highlighter_compositor.dart';
 import 'ink_page_content.dart';
-import 'layer_painters.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
 import 'render_config.dart';
@@ -159,6 +161,19 @@ final class InkPageController extends ChangeNotifier {
   _Display? _display;
   bool _disposed = false;
 
+  // base-layer vector caches (6.12 R2–R4, 6.10-6/-7, 6.13 L2/L4)
+  late final InkChunkCache _chunks = InkChunkCache(
+    chunkSizePt: config.chunkSizePt,
+    maxAppended: config.maxAppendedPictures,
+  );
+  final HighlighterBaseCache _hl = HighlighterBaseCache();
+
+  /// The ids the base caches were last told to leave out (display.hidden).
+  Set<String> _baseHidden = const {};
+
+  /// A chunk was recorded with a pencil stroke before the grain was ready.
+  bool _chunksMissingGrain = false;
+
   // viewport (6.12 R9)
   ui.Rect? _visiblePageRect;
   double? _deviceScale;
@@ -185,7 +200,9 @@ final class InkPageController extends ChangeNotifier {
         old == null ||
         old.page.size != content.page.size ||
         old.page.background != content.page.background;
+    final diff = InkContentDiff.between(old, content);
     _content = content;
+    _applyDiff(diff, content);
     _resolvePending(content);
     _pruneTimedOut();
     _refreshSelection(content);
@@ -435,7 +452,7 @@ final class InkPageController extends ChangeNotifier {
 
   InkPageRenderStats get renderStats => InkPageRenderStats(
     strokeCount: _content?.strokes.length ?? 0,
-    chunkPictures: 0,
+    chunkPictures: _chunks.pictureCount,
     rasterTiles: 0,
     rasterBytes: 0,
     pendingCommits: _pending.length,
@@ -453,6 +470,8 @@ final class InkPageController extends ChangeNotifier {
     if (sel != null) disposeInkSelection(sel);
     _selection = null;
     _pending.clear();
+    _chunks.dispose();
+    _hl.dispose();
     for (final r in _repaints.values) {
       r.dispose();
     }
@@ -546,7 +565,85 @@ final class InkPageController extends ChangeNotifier {
     }
   }
 
-  _Display _currentDisplay() => _display ??= _computeDisplay();
+  _Display _currentDisplay() {
+    final cached = _display;
+    if (cached != null) return cached;
+    final d = _display = _computeDisplay();
+    _syncHidden(d.hidden);
+    return d;
+  }
+
+  /// R2–R4: what the content change means for the base caches. Appended
+  /// strokes (top of the z order) become small chunk pictures; everything
+  /// else marks the chunks it touches dirty. Highlighters: one page picture.
+  void _applyDiff(InkContentDiff diff, InkPageContent content) {
+    if (diff.isNoop) return;
+    if (diff.isReset) {
+      _chunks.reset(content.pageSize);
+      _hl.markDirty();
+      return;
+    }
+    var highlighters = diff.backgroundChanged;
+    void dirty(InkStroke s) {
+      if (s.layer == InkLayer.highlighter) {
+        highlighters = true;
+      } else {
+        _chunks.markDirty(s.bounds);
+      }
+    }
+
+    diff.inserted.forEach(dirty);
+    diff.removed.forEach(dirty);
+    for (final (before, now) in diff.changed) {
+      dirty(before);
+      dirty(now);
+    }
+    for (final s in diff.appended) {
+      if (s.layer == InkLayer.highlighter) {
+        highlighters = true;
+      } else if (!_baseHidden.contains(s.id)) {
+        _chunks.append(s, _drawInk);
+      }
+    }
+    if (highlighters) _hl.markDirty();
+  }
+
+  /// R7: ids that start or stop being hidden (pending erase, previews,
+  /// discarded edits) mark the base pictures they appear in dirty.
+  void _syncHidden(Set<String> hidden) {
+    final content = _content;
+    if (content != null) {
+      var highlighters = false;
+      void touch(String id) {
+        final s = content.strokeById(id);
+        if (s == null) return;
+        if (s.layer == InkLayer.highlighter) {
+          highlighters = true;
+        } else {
+          _chunks.markDirty(s.bounds);
+        }
+      }
+
+      for (final id in hidden) {
+        if (!_baseHidden.contains(id)) touch(id);
+      }
+      for (final id in _baseHidden) {
+        if (!hidden.contains(id)) touch(id);
+      }
+      if (highlighters) _hl.markDirty();
+    }
+    _baseHidden = hidden;
+  }
+
+  /// One committed ink stroke into a chunk picture (6.8 fill, 6.11 grain).
+  void _drawInk(ui.Canvas canvas, InkStroke s) {
+    ui.Image? grain;
+    if (s.profile.textured) {
+      grain = _grain();
+      if (grain == null) _chunksMissingGrain = true;
+    }
+    paintFillStroke(canvas, s, cachePool.outlineFor(s), grain: grain);
+  }
 
   _Display _computeDisplay() {
     final content = _content;
@@ -592,10 +689,31 @@ final class InkPageController extends ChangeNotifier {
               (transforms.containsKey(s.id) || colors.containsKey(s.id)))
             _Override(s, transforms[s.id], colors[s.id]),
     ];
+    final hidden = {...removed, ...transforms.keys, ...colors.keys};
+    // 6.10-6: a group with anything being written, pending or previewed is
+    // composited by the active layer only (committed lines included).
+    final activeKeys = <HighlighterGroupKey>{
+      for (final o in overrides)
+        if (o.stroke.layer == InkLayer.highlighter)
+          HighlighterGroupKey.of(o.stroke.style, colorArgb: o.colorArgb),
+      for (final s in added)
+        if (s.style.profile.layer == InkLayer.highlighter)
+          HighlighterGroupKey.of(s.style),
+      if (active is StrokeSession &&
+          active.isActive &&
+          active.style.profile.layer == InkLayer.highlighter)
+        HighlighterGroupKey.of(active.style),
+    };
     return _Display(
-      hidden: {...removed, ...transforms.keys, ...colors.keys},
+      hidden: hidden,
       overrides: overrides,
       added: added,
+      highlighters: [
+        if (content != null)
+          for (final s in content.strokes)
+            if (s.layer == InkLayer.highlighter && !hidden.contains(s.id)) s,
+      ],
+      activeHighlighterKeys: activeKeys,
     );
   }
 
@@ -609,26 +727,20 @@ final class InkPageController extends ChangeNotifier {
       case InkRenderLayer.background:
         return;
       case InkRenderLayer.highlighterBase:
-      case InkRenderLayer.inkBase:
         if (content == null) return;
-        final want = layer == InkRenderLayer.highlighterBase
-            ? InkLayer.highlighter
-            : InkLayer.ink;
-        final visible = [
-          for (final s in content.strokes)
-            if (s.layer == want && !display.hidden.contains(s.id)) s,
-        ];
-        paintStrokeLayer(
+        _hl.paintBase(
           canvas,
-          visible,
-          layer: want,
+          display.highlighters,
+          excluded: display.activeHighlighterKeys,
           paperColorArgb: paper,
-          outlineOf: cachePool.outlineFor,
-          grain: want == InkLayer.ink && visible.any((s) => s.profile.textured)
-              ? _grain()
-              : null,
           marginPt: margin,
         );
+      case InkRenderLayer.inkBase:
+        if (content == null) return;
+        _chunks.paint(canvas, [
+          for (final s in content.strokes)
+            if (s.layer == InkLayer.ink && !display.hidden.contains(s.id)) s,
+        ], _drawInk);
       case InkRenderLayer.highlighterActive:
         _paintActiveHighlighters(canvas, display, paper, margin);
       case InkRenderLayer.inkActive:
@@ -666,28 +778,31 @@ final class InkPageController extends ChangeNotifier {
 
   /// Ink-layer previews, pending strokes and the stroke being written (R5–R7).
   void _paintActiveInk(ui.Canvas canvas, _Display display, double margin) {
+    // Committed-looking strokes are drawn under the chunk clips, like the
+    // chunk pictures that take them over (pixel-exact hand-off, R6).
     for (final o in display.overrides) {
       if (o.stroke.layer != InkLayer.ink) continue;
       final s = _overrideStroke(o);
-      paintFillStroke(
+      final outline = o.transform == null
+          ? cachePool.outlineFor(s)
+          : OutlineGenerator.outline(s);
+      final grain = s.profile.textured ? _grain() : null;
+      _chunks.paintClipped(
         canvas,
         s,
-        o.transform == null
-            ? cachePool.outlineFor(s)
-            : OutlineGenerator.outline(s),
-        colorArgb: o.colorArgb,
-        grain: s.profile.textured ? _grain() : null,
+        (c, s) => paintFillStroke(
+          c,
+          s,
+          outline,
+          colorArgb: o.colorArgb,
+          grain: grain,
+        ),
       );
     }
     for (final added in display.added) {
       final s = InkStroke.of(added);
       if (s.layer != InkLayer.ink) continue;
-      paintFillStroke(
-        canvas,
-        s,
-        cachePool.outlineFor(s),
-        grain: s.profile.textured ? _grain() : null,
-      );
+      _chunks.paintClipped(canvas, s, _drawInk);
     }
     final active = _active;
     if (active is StrokeSession &&
@@ -714,68 +829,84 @@ final class InkPageController extends ChangeNotifier {
     }
   }
 
-  /// Highlighter previews, pending highlighters and the highlighter being
-  /// written, each inside its group composite (6.10-3, -6).
+  /// The active highlighter groups (6.10-6): for each, ONE composite of its
+  /// committed lines (cached opaque picture), its previews, its pending
+  /// strokes and the highlighter being written — so a new stroke over a
+  /// committed one of the same color never darkens the overlap.
   void _paintActiveHighlighters(
     ui.Canvas canvas,
     _Display display,
     int paper,
     double margin,
   ) {
-    final pairs = <(HighlighterGroupKey, HighlighterLine)>[
-      for (final o in display.overrides)
-        if (o.stroke.layer == InkLayer.highlighter)
-          (
-            HighlighterGroupKey.of(o.stroke.style, colorArgb: o.colorArgb),
-            HighlighterLine.of(_overrideStroke(o)),
-          ),
-      for (final added in display.added)
-        if (added.style.profile.layer == InkLayer.highlighter)
-          (
-            HighlighterGroupKey.of(added.style),
-            HighlighterLine.of(InkStroke.of(added)),
-          ),
-    ];
-    final groups = groupHighlighterLines(pairs);
-    final blend = highlighterBlendFor(paper);
+    final keys = display.activeHighlighterKeys;
+    _hl.retainGroups(keys);
+    if (keys.isEmpty) return;
+    // group order: lowest z of the committed lines, then the rest
+    final groups = <HighlighterGroupKey, HighlighterGroup>{};
+    HighlighterGroup groupOf(HighlighterGroupKey key) =>
+        groups.putIfAbsent(key, () => HighlighterGroup(key));
+    for (final s in display.highlighters) {
+      final key = HighlighterGroupKey.of(s.style);
+      if (keys.contains(key)) groupOf(key);
+    }
+    for (final o in display.overrides) {
+      if (o.stroke.layer != InkLayer.highlighter) continue;
+      groupOf(HighlighterGroupKey.of(o.stroke.style, colorArgb: o.colorArgb))
+          .lines
+          .add(HighlighterLine.of(_overrideStroke(o)));
+    }
+    for (final added in display.added) {
+      if (added.style.profile.layer != InkLayer.highlighter) continue;
+      groupOf(HighlighterGroupKey.of(added.style)).lines
+          .add(HighlighterLine.of(InkStroke.of(added)));
+    }
     final active = _active;
     final writing =
         active is StrokeSession &&
         active.isActive &&
         active.style.profile.layer == InkLayer.highlighter;
     final start = writing ? clock.nowUs() : 0;
-    HighlighterGroup? liveGroup;
+    HighlighterGroupKey? liveKey;
     HighlighterLine? liveLine;
     if (writing) {
       final xy = active.live.polyline;
       if (xy != null && xy.isNotEmpty) {
-        final key = HighlighterGroupKey.of(active.style);
+        liveKey = HighlighterGroupKey.of(active.style);
         liveLine = HighlighterLine(xy, active.style.width);
-        liveGroup = groups.firstWhere(
-          (g) => g.key == key,
-          orElse: () {
-            final g = HighlighterGroup(key);
-            groups.add(g);
-            return g;
-          },
-        );
+        groupOf(liveKey);
       }
     }
-    for (final g in groups) {
-      final line = identical(g, liveGroup) ? liveLine : null;
+    final blend = highlighterBlendFor(paper);
+    for (final g in groups.values) {
+      final committed = _hl.groupOpaque(g.key, display.highlighters);
+      final line = g.key == liveKey ? liveLine : null;
+      ui.Rect? extraBounds = committed?.bounds;
+      final lineBounds = line?.bounds;
+      if (lineBounds != null) {
+        extraBounds = extraBounds == null
+            ? lineBounds
+            : extraBounds.expandToInclude(lineBounds);
+      }
+      if (g.lines.isEmpty && extraBounds == null) continue;
       paintHighlighterGroup(
         canvas,
         g,
         blend: blend,
         marginPt: margin,
-        extraBounds: line?.bounds,
-        extra: line == null
+        extraBounds: extraBounds,
+        extra: committed == null && line == null
             ? null
-            : (c, color) => drawHighlighterLine(
-                c,
-                line.xy,
-                highlighterLinePaint(line.width, color),
-              ),
+            : (c, color) {
+                if (committed != null) c.drawPicture(committed.picture);
+                if (line != null) {
+                  drawHighlighterLine(
+                    c,
+                    line.xy,
+                    highlighterLinePaint(line.width, color),
+                  );
+                }
+              },
       );
     }
     if (writing) {
@@ -794,7 +925,12 @@ final class InkPageController extends ChangeNotifier {
     if (image == null && !_grainWaiting) {
       _grainWaiting = true;
       pencilGrain.ready.then((_) {
-        if (!_disposed) _invalidate();
+        if (_disposed) return;
+        if (_chunksMissingGrain) {
+          _chunksMissingGrain = false;
+          _chunks.markAllDirty();
+        }
+        _invalidate();
       }, onError: (Object _) {});
     }
     return image;
@@ -841,6 +977,16 @@ final class InkPageRender {
 InkPageRender inkPageRenderOf(InkPageController controller) =>
     controller._render;
 
+/// INTERNAL (tests): the ink chunk pictures of [controller] (6.12 R3/R4).
+@meta.internal
+InkChunkCache inkChunkCacheOf(InkPageController controller) =>
+    controller._chunks;
+
+/// INTERNAL (tests): the highlighter page picture of [controller] (6.10-6/-7).
+@meta.internal
+HighlighterBaseCache inkHighlighterCacheOf(InkPageController controller) =>
+    controller._hl;
+
 final class _Repaint extends ChangeNotifier {
   void fire() => notifyListeners();
 }
@@ -874,10 +1020,18 @@ final class _Display {
     required this.hidden,
     required this.overrides,
     required this.added,
+    required this.highlighters,
+    required this.activeHighlighterKeys,
   });
   final Set<String> hidden;
   final List<_Override> overrides;
   final List<core.Stroke> added;
+
+  /// Committed highlighters not hidden, z order.
+  final List<InkStroke> highlighters;
+
+  /// Groups composited by highlighterActive instead of highlighterBase (6.10-6).
+  final Set<HighlighterGroupKey> activeHighlighterKeys;
 }
 
 final class _Host implements InkPageHost {

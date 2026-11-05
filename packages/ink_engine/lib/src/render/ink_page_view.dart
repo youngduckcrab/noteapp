@@ -1,10 +1,11 @@
 // lib/src/render/ink_page_view.dart — 03-ink 4.9, viewport report 6.12 R9.
 //
-// Foundation step B3 (03-ink 4.15): background builder + the layer painters of
-// the controller (committed, pending and live strokes, selection preview, lasso
-// path — fill outlines and highlighter groups since INK T08). The viewport report
-// follows the final rule already (post-frame setViewport, no notification,
-// currentBucket). Chunk pictures / raster tiles come with INK T10 / T19.
+// The layer stack of 6.12: background builder widget, then one RepaintBoundary
+// + CustomPaint per controller layer (highlighter base picture, active
+// highlighter groups, ink chunk pictures, pending / live / previewed strokes,
+// lasso path), clipped to the page. The viewport report follows 6.12 R9
+// (post-frame setViewport, no notification, currentBucket). Raster tiles come
+// with INK T19.
 import 'dart:typed_data';
 
 import 'package:flutter/scheduler.dart';

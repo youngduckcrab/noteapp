@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 4 (동시 개발 단계) — T09 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08)
-- 다음 할 일: T10 렌더 캐시 1단계·`InkPageView`·펜 세션 → T11 진단 → T12 (계획서 8장 순서)
+- 마지막 세션: 4 (동시 개발 단계) — T09·T10 완료(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08)
+- 다음 할 일: T11 진단(`InkClock`·`InkDiagnostics`·FrameTiming) → T12 provider·export·testing·dev_tools(INK-α 완료) → T23 ink lab (계획서 8장 순서)
 
 ## 작업 표
 
@@ -18,8 +18,8 @@
 | T06 | 완료 | 6f67596 | `unit/stroke/stroke_builder_test.dart`, `unit/stroke/finish_data_test.dart`, (웹) `web/determinism_test.dart`. `StrokeBuilder` 본문 교체(6.3 중복 병합·시간 역전 → 6.4 관찰 → 6.5 가상 필압 → 6.6 1€·실제 필압 평활 → K1–K4 → 라이브 청크, `finish` = F1→F3→F4→F6→F2→F5→F8→F7, 롤오버 `rolledOver`), `LiveStrokeGeometry` 내부(안정 점 append-only, 64점 청크 `frozenPath`, 열린 청크 + 원시 꼬리 `tailPath`, 형광펜 polyline·alwaysStraight 직선), `StrokeSession.end`가 롤오버 조각을 한 `InkEdit`에 담음, `newCoreStroke`의 `createdAt += FinishedStroke.createdAtOffsetMs`. 공용 스크립트·체크섬 `test/support/stroke_scripts.dart`(VM 기록값 283364609 = Chrome) |
 | T07 | 완료 | 089ad04 | `unit/geometry/{outline,outline_parity,vector_path}_test.dart`, `unit/model/bounds_invariant_test.dart`, (웹) `web/geometry_on_web_test.dart`(outline_test·bounds_invariant_test의 `main`을 group으로 감쌈). `OutlineGenerator.outlineOf` 본문 교체(O1–O8, 형광펜은 반지름 w/2 + 획 양 끝 사각 캡), `StrokeOutline.toPath`/`toVectorPath`의 `smooth: true` = 변 중점 2차 베지어(벡터는 3차로 변환), `InkVectorPath.toUiPath` nonZero. 패리티 실측(perfect_freehand 대비 채움 면적 차): 직선·곡선·고리 ≤ 0.25%, 지그재그 −0.6%, 직각 −0.8%. 도우미 `test/support/outline_helpers.dart` |
 | T08 | 완료 | 109bb81 | `widget/pixel/{highlighter_overlap,self_overlap}_test.dart`, `unit/render/pencil_grain_test.dart`, (웹) `web/grain_checksum_test.dart`(체크섬 120540651 = VM), `goldens/pens_golden_test.dart`(+ `pens_real_pressure.png`·`pens_simulated_pressure.png`). 내부 `render/stroke_painter.dart`(채움 = T07 외곽선 nonZero 1경로, 연필 질감 셰이더 + 기울기 투명도, `paintFillPaths` = R5 saveLayer, 형광펜 선 paint·`highlighterBlendFor`), `render/highlighter_compositor.dart`(6.10 그룹 키·그룹·`paintHighlighterGroup`), `render/layer_painters.dart`(`paintStrokeLayer(s)`). 컨트롤러 레이어·썸네일 2종이 B3 폴리라인 대신 이것을 쓴다. 도우미 `test/support/{pixels,grain_checksum}.dart` |
-| T09 | 완료 | (이 커밋) | `unit/interop/core_interop_test.dart`, `unit/edit/ink_edit_test.dart`, `unit/interop/fake_store_handoff_test.dart`. B3 본문(`core_interop.dart` 6.23 함수표·`InkEdit.toCommand`·`fromCore`·대기 인계)이 이미 계약대로라 테스트만 추가. 코드 변경은 `previewTransformedOf`에 `scaleWidth: true`를 명시한 것뿐(기본값과 같음). 가짜 저장소 인계: 종류 7개 모두 `execute` 안에서 리스너가 `updateContent` → `pendingIds` 빔, 휴지통 노트(`isReadOnly`)에서 `ReadOnlyNoteException` → `discardEdit` 한 번으로 픽셀 복원(지움·나눔·변형·색·추가) |
-| T10 | 남음 | | `widget/{ink_page_view,viewport_report,handoff,highlighter_active}_test.dart`, `unit/render/{content_diff,session_rules}_test.dart` |
+| T09 | 완료 | e8b4698 | `unit/interop/core_interop_test.dart`, `unit/edit/ink_edit_test.dart`, `unit/interop/fake_store_handoff_test.dart`. B3 본문(`core_interop.dart` 6.23 함수표·`InkEdit.toCommand`·`fromCore`·대기 인계)이 이미 계약대로라 테스트만 추가. 코드 변경은 `previewTransformedOf`에 `scaleWidth: true`를 명시한 것뿐(기본값과 같음). 가짜 저장소 인계: 종류 7개 모두 `execute` 안에서 리스너가 `updateContent` → `pendingIds` 빔, 휴지통 노트(`isReadOnly`)에서 `ReadOnlyNoteException` → `discardEdit` 한 번으로 픽셀 복원(지움·나눔·변형·색·추가) |
+| T10 | 완료 | (이 커밋) | `widget/{ink_page_view,viewport_report,handoff,highlighter_active}_test.dart`, `unit/render/{content_diff,session_rules}_test.dart`. 내부 `render/base_cache.dart`: `InkContentDiff`(R2 — z 목록 꼭대기의 새 id 연속 = appended, 그 아래 새 id = inserted, removed, changed(old,new), 크기 변경·첫 내용 = reset), `InkChunkCache`(R3/R4 — `chunkSizePt` 격자, 청크마다 Picture + appended 목록(> `maxAppendedPictures` 16이면 통합), 청크 사각형 non-AA clip, 바깥 청크는 페이지 밖 1e5pt까지, CORE bounds + 4pt로 겹침 판정, `paintClipped`), `HighlighterBaseCache`(6.10-6/-7 — 활성 키를 뺀 페이지 Picture 1장 + 활성 그룹의 불투명 `groupOpaque` Picture). 컨트롤러: `updateContent`가 diff를 캐시에 반영, 숨김 집합 변화(대기 지움·미리보기·discard)는 `_syncHidden`이 해당 청크만 dirty, 활성 형광펜 키 = 쓰는 중·대기 추가·미리보기 형광펜의 키, `renderStats.chunkPictures` = 청크 + appended Picture 수. 테스트 도우미 `test/support/page_view.dart`(`pumpPageView`, `pageViewApp`, `capturePixels`) |
 | T11 | 남음 | | `unit/diagnostics/latency_test.dart`, (웹) `web/ink_clock_test.dart` |
 | T12 | 남음 | | `unit/{providers,testing_helpers,dev_tools}_test.dart`, (웹) `web/dev_tools_web_test.dart`, `widget/m0_scenario_test.dart` — INK-α 완료 |
 | T23 | 남음 | | (선택, INK-α 직후) `example/` ink lab — `flutter build web`, `example/test/smoke_test.dart` |
@@ -49,6 +49,10 @@
 
 동시 개발 단계:
 
+- T10: **대기·미리보기 일반 획도 청크 clip 아래에서 그린다**(`InkChunkCache.paintClipped` — 획이 닿는 청크마다 그 청크 사각형으로 non-AA clip 후 한 번). Skia는 clip이 경로를 자르면 안티앨리어싱 가장자리를 다른 방식으로 래스터해(가는 taper 부분에서 채널 값이 20 넘게 차이) clip 없이 그린 대기 획과 청크 Picture가 픽셀 단위로 어긋났다. 이렇게 하면 커밋 인계 프레임이 대기 프레임과 픽셀까지 같다(`handoff_test` 전체 이미지 차 0). 쓰는 중 라이브 형상(`frozenPath`·`tailPath`)은 그대로 clip 없이 그린다(양자화 전 형상이라 원래 펜을 뗄 때 아주 조금 바뀜).
+- T10: 6.10-6의 '활성 형광펜 그룹'을 쓰는 중 획뿐 아니라 **대기 중 추가 형광펜과 형광펜 미리보기(색 변경·변형)의 키**까지로 넓혔다 — 커밋 전 대기 형광펜이 같은 색 기존 형광펜과 겹쳐도 진해지지 않는다. 그 키의 그룹은 base Picture에서 빠지고(키 집합이 바뀔 때만 다시 기록) active 레이어가 커밋된 선(`groupOpaque` Picture 1회 기록) + 미리보기 + 대기 + 쓰는 중 선을 saveLayer 하나로 합성. 활성 그룹 순서는 커밋된 선의 가장 낮은 z, 그다음 나머지. 형광펜 base Picture의 saveLayer 여유(1 논리 px)는 viewScale에 따라 달라 viewScale이 바뀌면 다시 기록.
+- T10: 대기 타임아웃(3s)은 타이머 없이 **다음 `updateContent`·제스처 시작 때** 확인한다(B3와 같음). 타이머를 걸면 대기 편집을 남긴 위젯 테스트마다 'A Timer is still pending'이 나고, EDITOR는 실행 후 늘 `updateContent`나 `discardEdit`을 부르므로 안전망으로는 충분하다.
+- T10: 연필 질감이 준비되기 전에 연필 획이 든 청크를 기록했으면 `ready` 때 청크 전부를 dirty로 한다(한 번). 선택 변형 미리보기는 아직 매 프레임 `previewTransformedOf` + 외곽선 재계산(R7의 선택 Picture + `canvas.transform`은 T18).
 - T09: `fake_store_handoff_test`의 splitStrokes는 지금 세션이 만드는 편집(B3 부분 지우개 = 조각 없음 → `RemoveStrokes`)으로 인계·실패 복원을 확인하고, **조각이 있는** `SplitStrokes`는 `fragmentOf`로 만든 조각을 `InkEdit`에 직접 넣어 CORE 가짜 저장소가 받는지(조각 `createdAt`·t 보존)만 따로 확인한다. 부분 지우개 세션이 조각을 만드는 것(P1–P8)은 T16.
 - T08: 레이어는 아직 매 프레임 직접 그린다(청크 Picture·형광펜 `groupOpaque` Picture 재사용·활성 형광펜 그룹을 base에서 빼는 6.10-6은 T10). 지금 highlighterActive는 미리보기·대기·쓰는 중 형광펜을 자기들끼리만 그룹 합성한다 → 쓰는 중 획과 **이미 있는 같은 색** 형광펜의 겹침은 커밋 전까지 진해 보인다(T10 `highlighter_active_test`에서 해결).
 - T08: 연필 기울기 투명도 k̄ — 커밋 획은 저장된 점들의 평균, 라이브는 안정 점들의 평균(`liveMeanTiltK`, `liveAddStable(tiltK:)`). 점 분포가 달라(F7 단순화) 펜을 뗄 때 연필 투명도가 아주 조금 바뀔 수 있다. K4의 k는 `width_factor.dart`의 `tiltK`로 뽑아 둘이 같은 식을 쓴다.
@@ -88,6 +92,10 @@
 - 세션 3(T08 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 279개(골든 2 포함)·Chrome `test/web` 73개 통과.
 - 세션 3 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 279개·Chrome `test/web` 73개 통과, `git status` 빔.
 - 세션 4(T09 커밋 시점): 패키지 analyze 0, 패키지 VM 332개 통과.
+- 세션 4(T10 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 392개 통과.
+- T11에 넘길 것: `diagnostics.onActivePaint`는 지금 `_paintActiveInk`·`_paintActiveHighlighters`에서 부른다. FrameTiming 매칭·`addTimingsCallback`은 아직 없음(B3 메모). 청크 Picture 기록 시간은 따로 재지 않는다(T19 `tileRaster`는 래스터 타일만).
+- T19에 넘길 것: 래스터 타일은 `InkChunkCache`의 청크 단위로 붙이면 된다(청크 Picture + appended를 `scale(버킷)`으로 기록 → `toImageSync`). 청크 clip이 non-AA라 타일 경계도 같은 규칙. `setViewport`는 지금 버킷만 계산하고 다시 그리지 않는다.
+- 위젯 테스트 요령: 새 획을 z 맨 위(appended)로 만들려면 컨트롤러 `testInkCoreServices(startMillis: 100000)`처럼 펜 다운 시각을 기존 획 `createdAt`보다 크게(`strokeThrough` 기본 createdAt은 1000대). 같은 프레임에서 `capturePixels`를 여러 번 불러도 결과는 같다.
 - 가짜 저장소 테스트 요령(T09 `fake_store_handoff_test`): `core_testing.createFakeNoteStore()` → `library.createNote` → `openSession` → `openPage` → `pageChanges(pageId).listen(updateContent)`. 컨트롤러 id는 `testInkCoreServices(idPrefix: 'ink')`로 CORE id와 겹치지 않게. 읽기 전용 세션 = `await store.library.trashItems([core.NoteRef(note.id)]); await store.flush();` → `session.isReadOnly`. 대기 표시 픽셀은 `inkPageRenderOf(controller).paint(canvas, layer, 1)`을 `InkRenderLayer.values` 순서로 `renderPixels`에 그려 읽는다(평범한 `test`에서).
 - T10에 넘길 것: 레이어 그리기는 `_paintLayer` → `paintStrokeLayer`(base)·`_paintActiveInk`·`_paintActiveHighlighters`(active). 청크 Picture·형광펜 그룹 Picture 캐시와 6.10-6(쓰는 중 형광펜 그룹을 base에서 빼고 active에서 `paintHighlighterGroup(extra:)`로 같이 합성 — `extra` 인자는 이미 있음)를 여기에 넣는다.
 - 테스트 요령: `testWidgets` 안에서 `PencilGrain`은 `tester.runAsync` **안에서 만들고** `ready`를 기다린다(가짜 async 영역에서 만든 Completer는 pump 전까지 완료 콜백이 안 돈다 — 밖에서 만들면 runAsync가 끝나지 않음). 캡처 이미지의 행 폭은 `image.width`(A4 폭 595.28 → 596)로 읽는다(`test/support/pixels.dart`의 `Pixels`). 골든 갱신: `flutter test --update-goldens test/goldens/pens_golden_test.dart`.
