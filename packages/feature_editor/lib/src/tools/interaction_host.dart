@@ -2,15 +2,16 @@
 //
 // E-08: the skeleton (policy, decision order, navigation, wheel / trackpad,
 // taps → undo / redo, hover cursor) and the pen. E-09: the eraser (its ring
-// follows the pen while erasing). The lasso and selection transform,
-// long-press / secondary-click menus (E-10), eyedropper (E-14) and developer
-// metrics (E-19) plug into the marked places.
+// follows the pen while erasing). E-10: the lasso, the selection transform,
+// one-finger tap → dismiss, and the long-press / secondary-click context
+// menu. The eyedropper (E-14), popups (E-13) and developer metrics (E-19)
+// plug into the marked places.
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/painting.dart' show Color;
+import 'package:flutter/painting.dart' show Color, Size;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -25,7 +26,11 @@ import '../state/settings/editor_settings_notifier.dart';
 import '../viewport/viewport_constants.dart';
 import '../viewport/viewport_controller.dart';
 import 'erase_interaction.dart';
+import 'lasso_interaction.dart';
 import 'pen_interaction.dart';
+import 'selection.dart';
+import 'selection_hit_test.dart';
+import 'selection_transform_interaction.dart';
 import 'tool_controller.dart';
 import 'tool_interaction.dart';
 import 'tool_state.dart';
@@ -51,6 +56,21 @@ final class EraserRingCursor extends CursorState {
   final double diameter; // eraser.diameter * scale px
 }
 
+/// A context menu requested by a long press or a secondary click away from
+/// the selection (6.6.2): [position] in viewport coordinates.
+@immutable
+final class ContextMenuRequest {
+  const ContextMenuRequest({required this.position});
+  final Offset position;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ContextMenuRequest && other.position == position;
+
+  @override
+  int get hashCode => position.hashCode;
+}
+
 /// The hover cursor hides when no hover event came for this long (6.6.9).
 const Duration kHoverCursorTimeout = Duration(milliseconds: 300);
 
@@ -72,11 +92,19 @@ class InteractionHost implements InputTargets {
   final MountedPages _pages;
   final EditorCommands _commands;
   final ValueNotifier<CursorState?> _cursor = ValueNotifier(null);
+  final ValueNotifier<ContextMenuRequest?> _contextMenu = ValueNotifier(null);
   Timer? _hoverTimer;
   ToolInteraction? _lastStarted;
   bool _disposed = false;
 
   ValueListenable<CursorState?> get cursor => _cursor;
+
+  /// The open context menu (long press / secondary click), or null.
+  ValueListenable<ContextMenuRequest?> get contextMenu => _contextMenu;
+
+  void closeContextMenu() {
+    if (!_disposed) _contextMenu.value = null;
+  }
 
   /// The interaction most recently returned by [beginInteraction] (tests,
   /// developer metrics).
@@ -105,15 +133,30 @@ class InteractionHost implements InputTargets {
   }) {
     if (_disposed) return null;
     _hideCursor(); // a pen touching the screen hides the hover cursor
+    closeContextMenu();
     final tools = _ref.read(editorToolProvider);
     // ① eyedropper (allowed on read-only notes) — E-14.
     if (tools.eyedropperActive) return null;
     // ② read-only note → no tool input (6.17.2).
     if (_ref.read(editorReadOnlyProvider)) return null;
-    // ③ lasso tool on the selection → selection transform — E-10.
-    // ④ gap / outside the pages → nothing.
+    final selections = _ref.read(editorSelectionProvider.notifier);
+    // ③ lasso tool on the selection → selection transform.
+    if (tools.activeTool == EditorTool.lasso) {
+      final transform = _beginTransform(sample, source);
+      if (transform != null) {
+        _lastStarted = transform;
+        return transform;
+      }
+    }
+    // ④ gap / outside the pages → nothing (the lasso clears the selection).
     final hit = _viewport.hitPage(sample.position);
-    if (hit == null) return null;
+    if (hit == null) {
+      if (tools.activeTool == EditorTool.lasso) selections.clear();
+      return null;
+    }
+    // Touching another page clears the selection.
+    final selected = _ref.read(editorSelectionProvider);
+    if (selected != null && selected.pageId != hit.pageId) selections.clear();
     // ⑤ only mounted, loaded pages take tool input (contract E-2, 6.4.4).
     final mount = _pages[hit.pageId];
     if (mount == null || !mount.isLoaded.value) return null;
@@ -150,11 +193,66 @@ class InteractionHost implements InputTargets {
           onFinished: _hideCursor,
           onCommitted: eraser.returnToPreviousTool ? _returnFromEraser : null,
         );
-      case EditorTool.lasso: // E-10
-        interaction = null;
+      case EditorTool.lasso:
+        selections.clear();
+        _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
+        interaction = LassoInteraction.start(
+          down: sample,
+          source: source,
+          controller: mount.controller,
+          pageIndex: hit.index,
+          pageId: hit.pageId,
+          viewport: _viewport,
+          onSelected: _onLassoSelected,
+        );
     }
     _lastStarted = interaction;
     return interaction;
+  }
+
+  void _onLassoSelected(String pageId, Set<String> strokeIds) {
+    if (_disposed) return;
+    _ref.read(editorSelectionProvider.notifier).select(pageId, strokeIds);
+  }
+
+  /// ③: a handle → resize from that corner, the body → move (6.6.5).
+  ToolInteraction? _beginTransform(
+    InputSample sample,
+    InteractionSource source,
+  ) {
+    final selection = _ref.read(editorSelectionProvider);
+    final rect = selectionRectOnScreen(_viewport, _pages, selection);
+    if (selection == null || rect == null) return null;
+    final handle = SelectionHitTest.hitHandle(rect, sample.position);
+    if (handle == null && !SelectionHitTest.hitBody(rect, sample.position)) {
+      return null;
+    }
+    final mount = _pages[selection.pageId];
+    final sel = inkSelectionOf(_pages, selection);
+    final index = _viewport.pages.indexWhere((p) => p.id == selection.pageId);
+    if (mount == null || sel == null || index < 0) return null;
+    _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
+    final size = _viewport.pages[index].size;
+    final notifier = _ref.read(editorSelectionProvider.notifier)
+      ..setDragging(true);
+    return SelectionTransformInteraction.start(
+      down: sample,
+      source: source,
+      controller: mount.controller,
+      selection: sel,
+      pageIndex: index,
+      pageSize: Size(size.width, size.height),
+      handle: handle,
+      viewport: _viewport,
+      commands: _commands,
+      onCommitted: (ids) {
+        // TransformElements keeps ids: select them again (6.6.5).
+        if (!_disposed) notifier.select(selection.pageId, ids);
+      },
+      onFinished: () {
+        if (!_disposed) notifier.setDragging(false);
+      },
+    );
   }
 
   void _onStrokeCommitted(core.StrokeStyle style) {
@@ -176,12 +274,32 @@ class InteractionHost implements InputTargets {
   }
 
   /// True only if the lasso tool is active, a selection exists and [screen]
-  /// hits it — E-10.
+  /// hits its frame (a corner handle or the inflated body — 6.6.5).
   @override
-  bool hitsSelection(Offset screen) => false;
+  bool hitsSelection(Offset screen) {
+    if (_disposed) return false;
+    if (_ref.read(editorToolProvider).activeTool != EditorTool.lasso) {
+      return false;
+    }
+    return _onSelection(screen);
+  }
+
+  bool _onSelection(Offset screen) {
+    final rect = selectionRectOnScreen(
+      _viewport,
+      _pages,
+      _ref.read(editorSelectionProvider),
+    );
+    if (rect == null) return false;
+    return SelectionHitTest.hitHandle(rect, screen) != null ||
+        SelectionHitTest.hitBody(rect, screen);
+  }
 
   @override
-  void navigationStart() => _viewport.beginGesture();
+  void navigationStart() {
+    closeContextMenu();
+    _viewport.beginGesture();
+  }
 
   @override
   void navigationUpdate(NavigationUpdate update) => _viewport.updateGesture(
@@ -197,11 +315,17 @@ class InteractionHost implements InputTargets {
   @override
   void navigationCancel() => _viewport.cancelGesture();
 
-  /// 1 = dismiss (popup → selection, E-10/E-13), 2 = undo, 3 = redo. The
-  /// router already applied GestureSettings.
+  /// 1 = dismiss (context menu → popup (E-13) → selection), 2 = undo,
+  /// 3 = redo. The router already applied GestureSettings.
   @override
   void tapGesture(int fingerCount, Offset centroid) {
     switch (fingerCount) {
+      case 1:
+        if (_contextMenu.value != null) {
+          closeContextMenu();
+        } else {
+          _commands.clearSelection();
+        }
       case 2:
         unawaited(_commands.undo());
       case 3:
@@ -211,13 +335,25 @@ class InteractionHost implements InputTargets {
     }
   }
 
-  /// Selection menu / context menu — E-10.
+  /// On the selection → its menu (already shown while a selection exists);
+  /// elsewhere → the context menu (붙여넣기 when the clipboard has strokes,
+  /// 올가미 도구). Nothing on a read-only note (both items edit).
   @override
-  void longPress(Offset screen) {}
+  void longPress(Offset screen) => _menuAt(screen);
 
-  /// Selection menu / context menu — E-10.
+  /// Same as [longPress] (mouse right button).
   @override
-  void secondaryClick(Offset screen) {}
+  void secondaryClick(Offset screen) => _menuAt(screen);
+
+  void _menuAt(Offset screen) {
+    if (_disposed) return;
+    if (_onSelection(screen)) {
+      closeContextMenu();
+      return;
+    }
+    if (_ref.read(editorReadOnlyProvider)) return;
+    _contextMenu.value = ContextMenuRequest(position: screen);
+  }
 
   /// Pen tool → PenDotCursor (stylus only), eraser → EraserRingCursor (stylus
   /// or mouse), lasso → none. Hidden after [kHoverCursorTimeout] without hover.
@@ -309,5 +445,6 @@ class InteractionHost implements InputTargets {
     _hoverTimer?.cancel();
     _hoverTimer = null;
     _cursor.dispose();
+    _contextMenu.dispose();
   }
 }

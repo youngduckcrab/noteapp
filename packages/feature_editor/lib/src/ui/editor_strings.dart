@@ -95,4 +95,18 @@ abstract final class EditorStrings {
 
   /// Cancel button of the editor's dialogs.
   static const cancel = '취소';
+
+  // ---------------------------------------------------------------------------
+  // Selection menu and context menu (04-editor 6.6.2, 6.6.5, 6.6.7).
+  // ---------------------------------------------------------------------------
+
+  static const selectionCopy = '복사';
+  static const selectionDelete = '삭제';
+  static const selectionClear = '선택 해제';
+
+  /// Context menu (long press / secondary click), when the clipboard has strokes.
+  static const paste = '붙여넣기';
+
+  /// Context menu: switch to the lasso tool.
+  static const lassoTool = '올가미 도구';
 }

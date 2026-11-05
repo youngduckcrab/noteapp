@@ -7,6 +7,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../document/mounted_pages.dart';
 import '../document/page_mount.dart';
 import '../scope/editor_scope.dart';
+import '../tools/selection.dart';
 import 'viewport_controller.dart';
 
 /// One page: ink.InkPageView + a loading cover until the content is loaded.
@@ -71,6 +72,7 @@ class _EditorPageViewState extends ConsumerState<EditorPageView> {
       session: _session,
       page: widget.page,
       controller: controller,
+      onContentChanged: _onContentChanged,
     );
     _mount = mount;
     _mountedPages.register(mount);
@@ -78,6 +80,15 @@ class _EditorPageViewState extends ConsumerState<EditorPageView> {
       old.dispose();
       if (mounted) setState(() {});
     }
+  }
+
+  /// Selection revalidation (6.6.6) — INK calls only, never a CORE command
+  /// (this runs inside a session stream listener, N-2 v1.1).
+  void _onContentChanged(core.PageContentChange change) {
+    if (!mounted) return;
+    ref
+        .read(editorSelectionProvider.notifier)
+        .revalidate(change.content.page.id, change.content);
   }
 
   void _unmount() {

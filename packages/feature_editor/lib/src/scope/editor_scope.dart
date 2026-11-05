@@ -9,7 +9,8 @@
 //
 // E-04: note id, initial page id, session, mounted pages, viewport and the
 // current page bridge. E-08: read-only state, commands, interaction host and
-// input router. Selection, page panel and popup come with E-10..E-17.
+// input router. E-10: the selection (tools/selection.dart — listed here as a
+// dependency). Page panel and popup come with E-13..E-17.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -19,6 +20,7 @@ import '../input/input_router.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../tools/interaction_host.dart';
+import '../tools/selection.dart';
 import '../viewport/page_layout.dart';
 import '../viewport/viewport_controller.dart';
 
@@ -159,6 +161,7 @@ final editorCommandsProvider = Provider<EditorCommands>(
     editorViewportProvider,
     editorMountedPagesProvider,
     editorReadOnlyProvider,
+    editorSelectionProvider,
   ],
   name: 'editorCommandsProvider',
 );
@@ -182,6 +185,7 @@ final editorInteractionHostProvider = Provider<InteractionHost>(
     editorMountedPagesProvider,
     editorCommandsProvider,
     editorReadOnlyProvider,
+    editorSelectionProvider,
   ],
   name: 'editorInteractionHostProvider',
 );

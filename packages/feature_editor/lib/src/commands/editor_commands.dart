@@ -1,9 +1,12 @@
 // lib/src/commands/editor_commands.dart — 04-editor 6.8, 5.1.3.
 //
 // E-08: the three CORE entry points (_run, _runAsync, _runHistory), the ink
-// hand-off (commitInkEdit), undo / redo and the user messages. Copy / paste,
-// page commands, navigation and UI actions join with E-09..E-19.
+// hand-off (commitInkEdit), undo / redo and the user messages. E-09: clearing
+// the current page. E-10: copy / paste / delete of the selection, clearing it
+// and selecting a tool. Page commands, navigation and UI actions join with
+// E-11..E-19.
 import 'dart:async';
+import 'dart:ui' show Offset, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +16,10 @@ import 'package:note_core/note_core.dart' as core;
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../tools/selection.dart';
+import '../tools/stroke_clipboard.dart';
 import '../tools/tool_controller.dart';
+import '../tools/tool_state.dart';
 import '../ui/editor_strings.dart';
 import '../viewport/viewport_controller.dart';
 
@@ -76,6 +82,89 @@ class EditorCommands {
         filter: _ref.read(editorToolProvider).eraser.filter,
       ),
     );
+  }
+
+  /// Copies the selected strokes (CORE state — session.pageIfLoaded) to the
+  /// app clipboard (6.6.7). Allowed on a read-only note.
+  void copySelection() {
+    if (_disposed) return;
+    final selection = _ref.read(editorSelectionProvider);
+    if (selection == null) return;
+    final page = _session.pageIfLoaded(selection.pageId);
+    if (page == null) return;
+    final strokes = [
+      for (final id in selection.strokeIds) ?page.strokeById(id),
+    ];
+    if (strokes.isEmpty) return;
+    _ref.read(editorClipboardProvider.notifier).copy(strokes);
+  }
+
+  /// Pastes the clipboard (6.6.7): at [screenPoint] when it is on a page,
+  /// else centred on the screen centre in the current page's coordinates
+  /// (repeated pastes move +16 pt each). One core.AddStrokes through _runAsync,
+  /// then the lasso tool with the pasted strokes selected (controller.select —
+  /// contract 7.2.15 paste rule). Ignored on a read-only note.
+  Future<void> paste({Offset? screenPoint}) async {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final clipboard = _ref.read(editorClipboardProvider.notifier);
+    if (_ref.read(editorClipboardProvider) == null) return;
+    final pages = _session.pages;
+    if (pages.isEmpty || _viewport.viewportSize.isEmpty) return;
+    final hit = screenPoint == null ? null : _viewport.hitPage(screenPoint);
+    final int index;
+    final Offset center;
+    if (hit != null) {
+      index = hit.index;
+      center = _viewport.screenToPage(index, screenPoint!);
+    } else {
+      index = _viewport.currentPageIndex.value.clamp(0, pages.length - 1);
+      center = _viewport.screenToPage(
+        index,
+        _viewport.viewportSize.center(Offset.zero),
+      );
+    }
+    final page = pages[index];
+    final strokes = clipboard.instantiate(
+      pageId: page.id,
+      pageSize: Size(page.size.width, page.size.height),
+      center: center,
+      explicitPoint: hit != null,
+      newId: _ref.read(core.idGeneratorProvider).newId,
+      createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+    );
+    if (strokes.isEmpty) return;
+    final receipt = await _runAsync(
+      core.AddStrokes(pageId: page.id, strokes: strokes),
+    );
+    if (_disposed || receipt == null) return;
+    _ref.read(editorToolProvider.notifier).selectTool(EditorTool.lasso);
+    _ref.read(editorSelectionProvider.notifier).select(page.id, {
+      for (final s in strokes) s.id,
+    });
+  }
+
+  /// Deletes the selected strokes: commitInkEdit(controller, sel.delete())
+  /// (one RemoveStrokes). A rejected commit shows them again (discardEdit) and
+  /// keeps the selection. Ignored on a read-only note.
+  void deleteSelection() {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final selection = _ref.read(editorSelectionProvider);
+    final sel = inkSelectionOf(_pages, selection);
+    if (selection == null || sel == null) return;
+    final controller = _pages[selection.pageId]!.controller;
+    if (commitInkEdit(controller, sel.delete())) {
+      _ref.read(editorSelectionProvider.notifier).clear();
+    }
+  }
+
+  void clearSelection() {
+    if (_disposed) return;
+    _ref.read(editorSelectionProvider.notifier).clear();
+  }
+
+  void selectTool(EditorTool tool) {
+    if (_disposed) return;
+    _ref.read(editorToolProvider.notifier).selectTool(tool);
   }
 
   /// Through _runHistory (5.1.3): ignored while an interaction is active or read-only;

@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **4** (동시 개발 단계 개발 세션 4/10) — 이번 세션 완료: E-09 (세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-10(올가미·선택·클립보드) → E-11(되돌리기 연결) → E-12 → E-13 …
+- 마지막 세션: **4** (동시 개발 단계 개발 세션 4/10) — 이번 세션 완료: E-09·E-10 (세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-11(되돌리기 연결 — 버튼은 E-13 툴바 전이라 아래 메모 참고) → E-12(키보드 단축키) → E-13(화면·툴바·배너) …
 
 ## 작업 표
 
@@ -21,8 +21,8 @@
 | E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
 | E-07 | 완료 | 6433a32 | `unit/tool_controller_test.dart` |
 | E-08 | 완료 | 219f4a2 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
-| E-09 | 완료 | (이 커밋) | `widget/erase_test.dart` (획·부분 모드 각각: 명령 1회·되돌리기 1번 복구 / 실패 → `discardEdit`·다시 보임·복귀 없음) |
-| E-10 | 남음 | | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
+| E-09 | 완료 | 55c60e5 | `widget/erase_test.dart` (획·부분 모드 각각: 명령 1회·되돌리기 1번 복구 / 실패 → `discardEdit`·다시 보임·복귀 없음) |
+| E-10 | 완료 | (이 커밋) | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
 | E-11 | 남음 | | `widget/undo_redo_test.dart` |
 | E-12 | 남음 | | `widget/shortcuts_test.dart` |
 | E-13 | 남음 | | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart`, `widget/sync_badge_test.dart`, `widget/toolbar_test.dart`, `widget/extensions_test.dart`, `widget/scope_test.dart` |
@@ -74,6 +74,11 @@
 - (세션 4) E-09 `EraseInteraction`(`tools/erase_interaction.dart`): `EraseInteraction.start(..., onPosition, onFinished, onCommitted)` — 호스트가 `onPosition`으로 `EraserRingCursor`(지름 = 시작 때 `eraser.diameter × camera.scale`)를 펜 위치에 두고(hover 타이머 끔 — 지우는 동안 300ms 숨김 없음), `onFinished`(끝·취소)로 숨긴다. 마우스로 지울 때도 원이 따라감. `onCommitted`는 `returnToPreviousTool`일 때만 넘기고 커밋 성공일 때만 불림(변화 없음·거부 → 복귀 없음). 지우개 설정은 펜 down 때 값으로 고정.
 - (세션 4) E-09 전체 지우기 확인: 지우개 팝업(E-15)·더보기(E-13)가 같이 쓸 최상위 함수 `confirmClearCurrentPage(context, commands:, filter:)`와 `ClearPageDialog`(키 `confirmKey`·`cancelKey`, 확인 버튼 `colorScheme.error`)를 `ui/eraser/eraser_popup.dart`에 먼저 만들었다(팝업 위젯은 E-15). 제목 문구는 필터별 3가지(`clearPageTitleFor`): '이 페이지의 필기를 모두 지울까요?' / '이 페이지의 형광펜만 모두 지울까요?' / '이 페이지의 필기를 형광펜을 빼고 모두 지울까요?', 본문 '되돌리기로 복구할 수 있어요'(계획 6.6.4 #5 문장을 제목·본문으로 나눔). `EditorStrings`에 `clearPage`·`clearPage*`·`cancel` 추가.
 - (세션 4) E-09 테스트: B3 INK는 부분 모드도 bounds 겹침 → `RemoveStrokes`라, 부분 모드 단언은 `remove-strokes`·`split-strokes` 둘 다 허용(실제 INK에서도 통과하게). '화면에 그대로'는 INK 공개 API(`hitTest`·`strokeIdsInRect` — 대기 삭제 획 제외)로 확인. 반지름 테스트는 0.1pt 획(bounds 팽창 0.075pt)으로 d = 10, 지름 19/21, 배율 fit·×2.5·×0.5. `test_data.lineStroke`에 `width:` 추가.
+- (세션 4) E-10 선택 상태: `EditorSelection`·`EditorSelectionNotifier`·`editorSelectionProvider`(`tools/selection.dart`, dependencies = noteId·mountedPages·**sessionValue**(계획은 앞 둘 — 삭제된 페이지 감지에 `pagesStream`을 직접 구독하려고 더함)). 해제 조건(6.6.6) 구현: 도구가 올가미가 아니게 되면(`ref.listen(editorToolProvider.select(activeTool))`), 선택 페이지가 `pagesStream`에서 사라지면, 선택 페이지가 마운트에서 빠지면(INK 컨트롤러와 함께 INK 선택이 없어지므로 — 계획에 없던 규칙, `MountedPages` 리스너). `revalidate`는 `EditorPageView`가 `PageMount(onContentChanged:)`로 부른다(INK 호출만). `editorCommandsProvider`·`editorInteractionHostProvider`의 dependencies에 `editorSelectionProvider`를 더했다. 도우미 최상위 함수 `inkSelectionOf(pages, selection)`·`selectionRectOnScreen(viewport, pages, selection)`(공개 아님).
+- (세션 4) E-10 상호작용: `LassoInteraction`(화면 3px 이상 움직일 때만 `addPoint`, 끝에서 `lasso.end()` → `selection.select`), `SelectionTransformInteraction`(손잡이 = 모서리 크기 조절, 몸통 = 이동, 시작 때 `bounds`·시작 페이지 점 고정, 이동 = `clampTranslation` 뒤 `SelectionGeometry.move`, 끝 = `commitTransform` → `commitInkEdit` → 성공 때만 같은 id 다시 `select`, `setDragging(true/false)`). 호스트 ③은 올가미 도구 + `hitsSelection`일 때, ④ 간격 → 올가미면 해제, 다른 페이지를 누르면 해제, 올가미 시작 시 해제. 상호작용 시작 공통 규칙대로 셋 다 `settleNow`.
+- (세션 4) E-10 메뉴: 선택 메뉴 `ui/overlays/selection_menu.dart`(`SelectionMenu`, 키 `copyKey`·`deleteKey`·`clearKey`, 프레임 위 8px — 공간 없으면 아래, 페이지 영역 안으로 클램프, 드래그 중 숨김, 읽기 전용이면 삭제 비활성). 컨텍스트 메뉴 `ui/overlays/context_menu.dart`(`EditorContextMenu`, 키 `pasteKey`·`lassoKey`) — 호스트의 `ValueListenable<ContextMenuRequest?> contextMenu`(새 내부 클래스 `ContextMenuRequest`)를 듣는다. 길게 누르기·우클릭: 선택 위면 컨텍스트 메뉴 없음(선택 메뉴가 이미 보임), 아니면 컨텍스트 메뉴, **읽기 전용이면 안 띄움**(두 항목 모두 편집 — 계획에 없던 규칙). 닫힘: 항목 탭, 한 손가락 탭(tap(1)은 메뉴가 열려 있으면 메뉴만 닫고, 아니면 선택 해제 — 팝업 닫기는 E-13), 펜·도구 상호작용 시작, 탐색 시작. 선택 프레임 `ui/overlays/selection_frame_painter.dart`(`SelectionFrame`·`SelectionFramePainter` — 흰 채움은 색 규칙대로 `colorScheme.surface`). 프레임·메뉴는 뷰포트·`MountedPages`·선택 페이지 INK 컨트롤러와 `layerRepaint(overlay)`(미리보기 변형은 `notifyListeners`가 아니라 repaint만 울림)를 듣는다. `PageViewport`는 이제 바깥 `Stack[RawGestureDetector…, SelectionMenu, EditorContextMenu]`.
+- (세션 4) E-10 명령: `EditorCommands`에 `copySelection`·`paste({screenPoint})`·`deleteSelection`·`clearSelection`·`selectTool` 추가. 붙여넣기는 `_runAsync(AddStrokes)` 성공 뒤 올가미 도구 → `select(pageId, 붙여 넣은 id)`, id = `core.idGeneratorProvider`, 시각 = `core.clockProvider`. 화면 점이 페이지 위면 그 점(오프셋 없음), 아니면 현재 페이지 기준 화면 가운데 + 16pt × n. `StrokeClipboardNotifier.instantiate`: 페이지보다 큰 축만 0으로(다른 축은 가운데 맞춤 + 클램프), 명시 점 붙여넣기는 n을 세지 않음, 빈 목록 `copy`는 클립보드를 비움. `SelectionHitTest.handlePosition`(정적 도우미) 추가.
+- (세션 4) E-10 테스트 메모: 스타일러스 직후 손가락은 팜 쿨다운(400ms)에 걸리므로 손가락 단계 전에 `h.driver.wait(1s)`. 길게 누르기는 `settings: EditorSettings(inputMode: InputMode.penOnly)`(아니면 손가락이 그림). 우클릭은 `driver.down(7, p, kind: mouse, buttons: kSecondaryMouseButton)`.
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모

@@ -1,9 +1,9 @@
 // lib/src/viewport/page_viewport.dart — 04-editor 6.4.1, 6.4.3, 6.5.1.
 //
 // Page placement and virtualization (E-04), the input Listener that feeds the
-// InputRouter and the hover cursor layer (E-08). The selection frame, menus,
-// page indicator, add-page button, panel and developer overlay join with
-// E-10..E-19 (6.4.3 tree).
+// InputRouter and the hover cursor layer (E-08), the selection frame, the
+// selection menu and the context menu (E-10). The page indicator, add-page
+// button, panel and developer overlay join with E-13..E-19 (6.4.3 tree).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +12,10 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../ui/overlays/context_menu.dart';
 import '../ui/overlays/cursor_painter.dart';
+import '../ui/overlays/selection_frame_painter.dart';
+import '../ui/overlays/selection_menu.dart';
 import 'editor_page_view.dart';
 import 'viewport_controller.dart';
 
@@ -100,33 +103,44 @@ class _PageViewportState extends ConsumerState<PageViewport> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           _reportSize(viewport, constraints.biggest);
-          return RawGestureDetector(
-            behavior: HitTestBehavior.opaque,
-            gestures: const {EagerGestureRecognizer: _eagerFactory},
-            child: _InputListener(
-              router: router,
-              child: ClipRect(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ListenableBuilder(
-                      listenable: camera,
-                      builder: (context, _) => _buildPages(viewport),
-                    ),
-                    IgnorePointer(
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: CursorPainter(
-                            cursor: host.cursor,
-                            ringColor: scheme.onSurface.withValues(alpha: 0.6),
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              RawGestureDetector(
+                behavior: HitTestBehavior.opaque,
+                gestures: const {EagerGestureRecognizer: _eagerFactory},
+                child: _InputListener(
+                  router: router,
+                  child: ClipRect(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ListenableBuilder(
+                          listenable: camera,
+                          builder: (context, _) => _buildPages(viewport),
+                        ),
+                        const SelectionFrame(),
+                        IgnorePointer(
+                          child: RepaintBoundary(
+                            child: CustomPaint(
+                              painter: CursorPainter(
+                                cursor: host.cursor,
+                                ringColor: scheme.onSurface.withValues(
+                                  alpha: 0.6,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              // Siblings of the Listener: their taps never reach the router.
+              const SelectionMenu(),
+              const EditorContextMenu(),
+            ],
           );
         },
       ),
