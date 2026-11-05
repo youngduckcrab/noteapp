@@ -1693,6 +1693,8 @@ abstract final class PdfTuning {
   static const int coverThumbnailLongSidePx = 512;   // = PageThumbnailRenderer default maxSidePx
   static const int maxTitleLength = 200;
   static const String defaultTitle = 'PDF 문서';
+  // jobs (6.13): Running(progress) updates of the job notifiers are batched (T6)
+  static const Duration jobProgressInterval = Duration(milliseconds: 100);
   // text/search (6.10)
   static const int textCachePages = 600;
   static const Duration searchDebounce = Duration(milliseconds: 250);

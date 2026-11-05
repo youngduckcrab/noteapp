@@ -130,8 +130,42 @@ abstract final class PdfStringsKo {
   static String batchCancelled(int notReachedCount) =>
       '취소해서 나머지 $notReachedCount개는 만들지 않았어요';
 
+  // ---------------------------------------------------------------- import sheet (6.3, 4.11)
+
+  static const String importNewNoteTitle = 'PDF 가져오기';
+  static const String importIntoNoteTitle = 'PDF에서 페이지 삽입';
+  static const String importNewNoteHint = 'PDF 파일을 골라 새 노트로 만들어요.';
+  static const String importIntoNoteHint = 'PDF 파일을 골라 페이지를 이 노트에 넣어요.';
+  static const String pickPdfButton = 'PDF 파일 선택';
+  static const String pickAnotherButton = '다른 파일 선택';
+  static const String importButton = '가져오기';
+  static const String pageRangeLabel = '가져올 페이지';
+  static const String pageRangeHint = '비워 두면 전체예요. 예: 1-3, 5, 8-';
+
+  /// '12쪽 · 3.4MB'
+  static String fileSummary({required int pageCount, required int bytes}) =>
+      '$pageCount쪽 · ${megabytes(bytes)}MB';
+
+  /// Success snack bar of the import flow.
+  static String importDone(int pageCount) => '$pageCount쪽을 가져왔어요';
+
+  static const String importProgressTitle = 'PDF 가져오는 중';
+
+  static const String largeFileTitle = '큰 PDF예요';
+
+  /// Above PdfImportLimits.warnBytes (6.3).
+  static String largeFileBody(int bytes) =>
+      '이 PDF는 ${megabytes(bytes)}MB예요. 가져오는 데 시간이 걸리고 저장 공간을 많이 써요. '
+      '계속할까요?';
+
   // ---------------------------------------------------------------- dialogs (6.3, 6.4)
 
+  static const String passwordDialogTitle = 'PDF 암호';
+  static const String passwordFieldLabel = '암호';
+
+  /// Shown from the second request on (U6).
+  static const String passwordWrong = '암호가 틀렸어요. 다시 입력해 주세요.';
+  static const String confirm = '확인';
   static const String passwordDialogNote = '암호를 푼 사본이 노트에 저장돼요';
 
   /// Progress dialogs and the search panel while core.storageWarningOf(...) == writeFailing.

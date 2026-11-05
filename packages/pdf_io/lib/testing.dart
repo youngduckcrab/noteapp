@@ -5,9 +5,9 @@
 /// `createFakeNoteStore()` (contract 7.4.8); FakePdfNoteGateway is a thin port fake for fast
 /// unit tests.
 ///
-/// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4) and FakePdfEngine (PDF T5) are
-/// real. The other fakes are signatures only until the PDF task named in each
-/// UnimplementedError (T6 file source, T7 remote fetcher, T12–T16 export fakes).
+/// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5) and
+/// FakePdfFileSource (PDF T6) are real. The other fakes are signatures only until the PDF
+/// task named in each UnimplementedError (T7 remote fetcher, T12–T16 export fakes).
 library;
 
 import 'dart:async';
@@ -1026,14 +1026,51 @@ final class FakePdfNoteGateway implements PdfNoteGateway {
 }
 
 /// returns queued PickedPdfFile / null
+///
+/// Each pickPdf() takes the next queued answer: a file, null (the user cancelled) or an
+/// error to throw; an empty queue answers null. [beforePick] is awaited first (hold the
+/// picker open, or change the world while it is open). [pickCalls] counts the calls.
 final class FakePdfFileSource implements PdfFileSource {
-  FakePdfFileSource();
+  FakePdfFileSource({
+    List<PickedPdfFile?> files = const [],
+    this.supported = true,
+  }) : _queue = [...files];
+
+  final List<Object?> _queue;
+
+  /// isSupported
+  bool supported;
+  int pickCalls = 0;
+  Future<void> Function()? beforePick;
+
+  /// Queues the answer of a later pickPdf(): a file, or null for "cancelled".
+  void enqueue(PickedPdfFile? file) => _queue.add(file);
+
+  /// Queues an error for a later pickPdf() (e.g. PdfIoException(pickerFailed)).
+  void enqueueError(Object error) => _queue.add(_PickError(error));
+
+  /// Answers not taken yet.
+  int get queued => _queue.length;
 
   @override
-  bool get isSupported => _todo('FakePdfFileSource.isSupported', 'T6');
+  bool get isSupported => supported;
 
   @override
-  Future<PickedPdfFile?> pickPdf() => _todo('FakePdfFileSource.pickPdf', 'T6');
+  Future<PickedPdfFile?> pickPdf() async {
+    pickCalls++;
+    await beforePick?.call();
+    if (_queue.isEmpty) return null;
+    final next = _queue.removeAt(0);
+    if (next is _PickError) {
+      Error.throwWithStackTrace(next.error, StackTrace.current);
+    }
+    return next as PickedPdfFile?;
+  }
+}
+
+final class _PickError {
+  const _PickError(this.error);
+  final Object error;
 }
 
 /// records deliveries (result lists)

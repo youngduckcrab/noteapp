@@ -1,13 +1,24 @@
 // lib/src/ui/flows.dart — 06-pdf 4.11 (contract 7.2.19). UI flows read providers through
 // ProviderScope.containerOf(context) (6.13): callers pass a BuildContext only.
 //
-// Foundation step B4 (T0, contract 7.6 B4): importPdfAsNewNote returns null and
-// exportNotesAsPdf does nothing, so INFRA can wire both into the LIBRARY slots now. The
-// flows come with PDF T6 (import), T11 (search), T15b (bulk export) and T16 (export).
+// Foundation step B4 (T0, contract 7.6 B4): importPdfAsNewNote returned null and
+// exportNotesAsPdf does nothing, so INFRA could wire both into the LIBRARY slots. The import
+// flow is real from PDF T6; the others come with T11 (search), T15b (bulk export) and T16
+// (export).
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../common/error_report.dart';
+import '../common/job_state.dart';
+import '../errors.dart';
 import '../export/export_types.dart';
 import '../import/import_types.dart';
+import '../providers.dart';
+import 'import_progress_dialog.dart';
+import 'import_sheet.dart';
+import 'strings_ko.dart';
 
 /// Same shape as EditorMenuContext.navigateToPage (contract 7.2.17).
 typedef PdfNavigateCallback = void Function(String pageId, Rect? focusRectPt);
@@ -29,19 +40,119 @@ enum PdfExportPurpose { save, share, print }
 Future<PdfImportResult?> runPdfImportFlow(
   BuildContext context,
   PdfImportTarget target,
-) => throw UnimplementedError('runPdfImportFlow (PDF T6)');
+) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final job = container.read(pdfImportJobProvider.notifier);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  void say(String text) {
+    if (!context.mounted) return;
+    messenger?.showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  if (job.isBusy) {
+    say(const PdfIoException(PdfErrorCode.busy).userMessage);
+    return null;
+  }
+  final choice = await showPdfImportSheet(
+    context,
+    service: container.read(pdfImportServiceProvider),
+    fileSource: container.read(pdfFileSourceProvider),
+    target: target,
+  );
+  if (choice == null) return null;
+  final session = choice.session;
+  if (!context.mounted) {
+    await session.dispose();
+    return null;
+  }
+  if (session.isLargeFile &&
+      !await confirmLargePdfImport(context, session.byteLength)) {
+    await session.dispose();
+    return null;
+  }
+  if (!context.mounted) {
+    await session.dispose();
+    return null;
+  }
+  if (job.isBusy) {
+    // Another job started while the sheet was open.
+    await session.dispose();
+    say(const PdfIoException(PdfErrorCode.busy).userMessage);
+    return null;
+  }
+
+  final running = job.run(session, target, range: choice.range);
+  // The session lives as long as the job, whatever happens to the dialog.
+  unawaited(running.whenComplete(session.dispose));
+
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final closed = Completer<void>();
+  final dialog = DialogRoute<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PdfImportProgressDialog(
+      onCancel: job.cancel,
+      onClose: () {
+        if (!closed.isCompleted) closed.complete();
+      },
+    ),
+  );
+  unawaited(navigator.push(dialog));
+  void removeDialog() {
+    if (navigator.mounted && dialog.isActive) navigator.removeRoute(dialog);
+  }
+
+  final ended = await Future.any<bool>([
+    running.then((_) => true),
+    closed.future.then((_) => false),
+  ]);
+  removeDialog();
+  if (!ended) {
+    // '닫기' during a storage delay (6.3): the job keeps running; nothing to show later.
+    unawaited(
+      running.then((_) {
+        final state = container.read(pdfImportJobProvider);
+        if (state is PdfJobFailed<PdfImportResult> &&
+            state.error.code != PdfErrorCode.cancelled) {
+          reportPdfError(
+            state.error,
+            StackTrace.current,
+            'pdf import after its progress dialog was closed',
+          );
+        }
+      }),
+    );
+    return null;
+  }
+  final result = await running;
+  if (!context.mounted) return null;
+  if (result != null) {
+    say(PdfStringsKo.importDone(result.insertedPageIds.length));
+    return result;
+  }
+  final state = container.read(pdfImportJobProvider);
+  if (state is PdfJobFailed<PdfImportResult> &&
+      state.error.code != PdfErrorCode.cancelled) {
+    say(state.error.userMessage);
+  }
+  return null;
+}
 
 /// LibraryPdfImportAction shape (contract 7.2.18 / 7.2.19):
 /// runPdfImportFlow(context, PdfImportAsNewNote(folderId: folderId)) → created note id or null.
 /// null also when the progress dialog was closed with '닫기' during a storage delay: the job
 /// keeps running and the note appears in the library once CORE commits it (runPdfImportFlow).
 /// INFRA FeatureWiringModule: libraryPdfImportActionProvider.overrideWithValue(importPdfAsNewNote).
-///
-/// B4 (T0): always null (no flow yet).
 Future<String?> importPdfAsNewNote(
   BuildContext context, {
   String? folderId,
-}) async => null;
+}) async {
+  final result = await runPdfImportFlow(
+    context,
+    PdfImportAsNewNote(folderId: folderId),
+  );
+  return result?.noteId;
+}
 
 /// Options sheet → progress dialog (cancellable; shows the storage-delay text while
 /// writeFailing — 6.11.2 step 1, '취소' ends a pending flush at once) → result sheet

@@ -1338,9 +1338,8 @@ void main() {
       expect(pdfEditorAddPageSources(), isEmpty);
     });
 
-    testWidgets('importPdfAsNewNote → null, exportNotesAsPdf → nothing', (
-      tester,
-    ) async {
+    // importPdfAsNewNote is the real flow from PDF T6 (widget/import_flow_test.dart).
+    testWidgets('exportNotesAsPdf → nothing', (tester) async {
       late BuildContext context;
       await tester.pumpWidget(
         Builder(
@@ -1350,8 +1349,6 @@ void main() {
           },
         ),
       );
-      expect(await importPdfAsNewNote(context), isNull);
-      expect(await importPdfAsNewNote(context, folderId: 'f1'), isNull);
       await exportNotesAsPdf(context, const ['n1', 'n2']);
       await exportNotesAsPdf(context, const []);
     });

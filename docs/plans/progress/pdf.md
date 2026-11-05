@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 2/10 (동시 개발 단계)
-- 다음 할 일: T6 가져오기 UI·파일 소스 → T7 문서 풀
+- 다음 할 일: T7 문서 풀·원격 원본(`FakeRemoteAssetFetcher`) → T8 렌더 캐시·큐·타일 수학
 
 ## 작업 표
 
@@ -14,8 +14,8 @@
 | T2 | 완료 | 00ff451 | pdfium/fixture_builder_test, unit/fixture_builder_bytes_test, tool/prepare_web_test.dart(4개 파일·sha256), web/pdfrx_smoke_browser_test, web/pure_logic_browser_test, support/pdfium_env.dart, 패키지 .gitignore |
 | T3 | 완료 | bd58dde | pdfium/pdfrx_engine_test, web/pdfrx_engine_browser_test |
 | T4 | 완료 | 009a832 | unit/fake_gateway_test, unit/core_gateway_fake_store_test. integration/core_gateway_test는 작성만 함(통합 단계에서 실행 — 현재 `openTestNoteStore`는 CORE T6 전 자리표시) |
-| T5 | 완료 | (T5 커밋) | unit/import_service_test, pdfium/import_real_test (+ test/support/render_doubles.dart) |
-| T6 | 남음 | | widget/import_flow_test, web/file_source_browser_test |
+| T5 | 완료 | a160abb | unit/import_service_test, pdfium/import_real_test (+ test/support/render_doubles.dart) |
+| T6 | 완료 | (이 커밋 — 다음 커밋에서 해시 기록) | widget/import_flow_test, web/file_source_browser_test (+ unit/file_source_test, support/fake_file_picker.dart) |
 | T7 | 남음 | | unit/document_pool_test |
 | T8 | 남음 | | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test |
 | T9 | 남음 | | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test, pdfium/background_real_test |
@@ -58,12 +58,19 @@
 - T5 `FakePdfEngine`(4.14는 모양을 정하지 않음): 생성자 `pages`(없으면 `pageCount`×`pageSize`, 기본 A4 1쪽)·`texts`(쪽 번호 → `PdfPageTextData`)·`userPassword`·`ownerPasswordOnly`·`imageArgb`. 시험 조절: `initError`·`openError`·`renderError`, 기다리게 하는 훅 `beforeOpen`·`beforeRender`·`beforeLoadText`, 기록 `ensureInitializedCalls`·`openCalls`(sourceName·fileName·transferOwnership)·`passwordRequests`·`renderRequests`·`loadTextCalls`·`encodeCalls`·`documents`·`openDocumentCount`. `encodeWithoutSecurity`는 원본 뒤에 `FakePdfEngine.noSecurityMarker`를 붙인 바이트를 주고, 그 바이트는 암호 없이 열린다. 렌더 이미지는 `Picture.toImageSync`(fake_async에서도 동작).
 - T5 가져오기 세부: 쪽이 0개인 문서는 `corrupt`. `PdfImportAsNewNote.title`이 공백뿐이면 `suggestedTitle`. `encodeWithoutSecurity` 실패는 `corrupt`(cause 보존). 진행률 `creatingPages`는 호출 전 (0/n)·끝난 뒤 (n/n) 두 번. `refuse` 정책은 엔진이 암호를 물으면(=사용자 암호 필요) 콜백이 null을 돌려주고 그 `passwordCancelled`를 `userPasswordRefused`로 바꾼다(묻지 않음). `open`의 파일 읽기·엔진 초기화·열기는 `raceCancel` — 열기 중 취소하면 늦게 열린 문서를 닫는다. 암호 창이 떠 있을 때 취소해도 바로 `cancelled`. 커밋 중 `dispose()`는 커밋이 끝날 때 문서를 닫는다(풀에 넘기지 않음). 커밋이 오류(`readOnlyNote` 등)로 끝나면 세션은 그대로라 다시 `commit`하거나 `dispose`할 수 있다. 같은 세션의 두 번째 성공 `commit`·dispose 뒤 `commit`은 StateError.
 - T5 테스트 더블 `test/support/render_doubles.dart`: `RecordingDocumentPool`(adopt 기록), `SolidThumbnailRenderer`(renderThumbnail만), `ScriptedThumbnailRenderer`(core.PageThumbnailRenderer) — 실제 풀(T7)·렌더러(T8) 전까지 T5·T6 테스트가 쓴다.
+- T6 `FilePickerPdfSource`: 한 파일만 고르므로 `FilePicker.pickFile`(`pickFiles`와 같은 옵션 — `FileType.custom`, `['pdf']`)을 쓴다. 웹·네이티브 같은 API(6.15)라 분기 없음. 파일 변환은 내부 함수 `pickedPdfFileFrom(PlatformFile)`(크기 = `lengthSync()`, 바이트는 `readAsBytes`를 가져오기가 부를 때). 웹에서 file_picker 기본값(`withData: true`)은 고를 때 바이트를 미리 읽는다 — 끄는 옵션 `FilePickerWebOptions`는 `file_picker_web`에만 있어(직접 의존성 아님, 사용 중단 예정 표시) 그대로 둔다. 그래서 웹에서는 6.3 1단계 '읽기 전 크기 거부'가 메모리를 아끼지 못한다(거부는 그대로 됨).
+- T6 `web/file_source_browser_test`: 계획의 'web.File → PickedPdfFile'은 file_picker가 web.File을 감싸는 몫이라, 실제 `web.File`을 file_picker 웹 구현처럼 감싼 테스트용 `PlatformFile`(크기 = `File.size`, 바이트 = `arrayBuffer`)을 `ScriptedFilePicker`(test/support/fake_file_picker.dart, `FilePickerPlatform.instance` 교체)로 돌려주고 `FilePickerPdfSource.pickPdf()` 결과의 이름·크기·바이트를 확인한다. VM에서도 같은 방식(unit/file_source_test).
+- T6 `FakePdfFileSource`(4.14는 모양을 정하지 않음): 생성자 `files`(대기열)·`supported`, `enqueue(file|null)`·`enqueueError(e)`, `beforePick` 훅, `pickCalls`·`queued`. 대기열이 비면 null(사용자 취소).
+- T6 흐름 세부: 시트에서 파일 선택이 취소되면(첫 선택) 시트를 닫고 흐름은 null. 열기 오류(notPdf·passwordCancelled 등)는 시트 안에 문구 + '다른 파일 선택'. 시트에서 세션을 열어 두고(암호 창 포함) 범위를 받는다 — 빈 칸 = 전체, 잘못된 범위는 입력란 오류 문구. 큰 파일 확인 창은 시트를 닫은 뒤(`isLargeFile`, 세션 열린 뒤). 진행 창은 `DialogRoute`를 흐름이 직접 넣고 뺀다. 성공은 스낵바 '{n}쪽을 가져왔어요', 실패는 스낵바 `userMessage`, 취소는 문구 없음. '취소' 버튼은 진행 단계가 `creatingPages` 전일 때만 보인다. 문구는 strings_ko.dart(가져오기 시트·암호 창·큰 파일 확인 — 계획 6.14에 없던 문구를 정함).
+- T6 `PdfImportJobNotifier`: busy = 자기 가져오기 또는 내보내기·일괄 내보내기 상태가 Running. 자기 가져오기가 도는 중의 두 번째 `run`은 상태를 바꾸지 않고 null(돌고 있는 작업의 Running을 덮지 않음), 다른 작업이 도는 중이면 `PdfJobFailed(busy)`. 진행률은 `PdfTuning.jobProgressInterval`(100ms, 4.13에 새로 추가)마다 묶어 상태에 반영. 예상 밖 예외는 보고 후 `PdfJobFailed(storageFailed, cause)`. '닫기' 뒤 작업이 실패하면 `reportPdfError`.
+- T6 `api_surface_test`의 B4 몫 'importPdfAsNewNote → null'은 지웠다(실제 흐름 — widget/import_flow_test).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
 
 - 세션 1 결과: T1·T2·T3·T4 완료.
-- 세션 2 결과: T5 완료(`FakePdfEngine` 구현 포함). 다음은 T6(UI·`FakePdfFileSource`·`pdfImportJobProvider`) — 가져오기 서비스 provider는 `pdfDocumentPoolProvider`(T7)·`pdfPageRendererProvider`(T8)를 watch하므로 T6 위젯 테스트는 이 둘을 `test/support/render_doubles.dart`로 override한다. 그다음 T7(문서 풀·`FakeRemoteAssetFetcher`) — `adopt`는 같은 id 문서가 이미 열려 있으면 넘겨받은 문서를 닫아야 한다(같은 파일 재가져오기).
+- 세션 2 결과: T5(`FakePdfEngine` 포함)·T6 완료. 가져오기 서비스 provider는 `pdfDocumentPoolProvider`(T7)·`pdfPageRendererProvider`(T8)를 watch하므로 지금 위젯 테스트는 둘을 `test/support/render_doubles.dart`로 override한다(T7·T8 뒤에도 그대로 둬도 된다). 다음은 T7(문서 풀·`FakeRemoteAssetFetcher`) — `adopt`는 같은 id 문서가 이미 열려 있으면 넘겨받은 문서를 닫아야 한다(같은 파일 재가져오기). 그다음 T8.
+- 위젯 테스트에서 가져오기 진행 창·시트의 진행 막대는 값이 없으면 계속 움직이므로 `pumpAndSettle` 대신 `pump(100ms)` 반복(import_flow_test `_settle`). 표지는 `toByteData`(엔진 비동기)라 위젯 테스트에서는 `core.pageThumbnailRendererProvider`를 `ScriptedThumbnailRenderer`로 override해 자체 PNG 경로를 피한다.
 - Chrome 테스트: `dart run tool/ws.dart test --platform chrome --package pdf_io`(준비 스크립트 포함, 약 70초). 한 번 `flutter test --platform chrome test/web`가 900초 시간 초과로 끊겼고 다시 돌리니 59초에 통과했다(다른 영역 부하로 보임).
 - 실 PDFium VM 테스트는 `test/pdfium/`(`@Tags(['pdfium'])`, `setUpAll(initPdfiumForTests)`). 이 작업 트리에는 `build/native_assets/linux/libpdfium.so`가 이미 있다.
 
