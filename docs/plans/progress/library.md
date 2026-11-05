@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 7 (동시 개발 단계) — L17·L18 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L19 (골든 · 성능 · 접근성) → L20 (브라우저 스모크). L21은 통합 단계
+- 마지막 세션: 8 (동시 개발 단계) — L19 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, 세션 7: L17·L18, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L20 (브라우저 스모크). L21은 통합 단계
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -31,7 +31,7 @@
 | L16 | 완료 | 82509da | `widget/trash_view_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
 | L17 | 완료 | b4581da | `widget/recent_favorites_test.dart`, `widget/search_test.dart`, `unit/search_match_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, L13 `widget/item_actions_test.dart` 갱신) |
 | L18 | 완료 | ccdc941 | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, B6 `feature_library_smoke_test.dart` 갱신) |
-| L19 | 남음 | | `goldens/library_golden_test.dart`, `widget/performance_test.dart`, `widget/a11y_test.dart` |
+| L19 | 완료 | (L19 커밋 — 다음 커밋에서 해시 기록) | `goldens/library_golden_test.dart`(+ PNG 4장, `goldens/flutter_test_config.dart`), `widget/performance_test.dart`, `widget/a11y_test.dart` |
 | L20 | 남음 | | `web/library_browser_test.dart` (+ L3 `web/new_note_options_browser_test.dart`) |
 | L21 | 통합 단계 | | `integration/core_contract_test.dart` (`@Tags(['integration'])`, 미리 써 둬도 됨) |
 
@@ -146,6 +146,11 @@
 - L18 `LibrarySettingsSection`: 계약대로 `ConsumerWidget`이고, 안에서 `IgnorePointer`+`Opacity 0.38`(설정 로딩 중 — `settingsSnapshotProvider`에 값이 없으면) → 내부 `_NewNoteDefaultsForm`(`ConsumerStatefulWidget`): 표시 값 `_value`를 State에 두고 바꾸면 즉시 반영 + `settings.set(newNoteDefaults, toJson())`(await하지 않음 — 쓰기 Future 규칙, 실패는 보고). `ref.listen(newNoteDefaultsProvider)`로 다른 기기 값·첫 로드를 반영(연속 변경이 늦게 오는 스냅숏 위에 쌓이지 않게). 피커는 새 노트 대화상자의 `PageSizePicker`·`TemplatePicker`·`PaperColorPicker` + `DialogSection` 라벨(제목·표지 없음). 사용자 지정 범위 밖 값은 `PageSizePicker`가 `onChanged`를 부르지 않으므로 저장되지 않는다.
 - L18 B6 스모크의 `LibrarySettingsSection` 테스트: 'Column 정확히 1개'(자리표시용 단언)를 `findsWidgets`로 바꾸고 `SingleChildScrollView` 안에 넣었다(설정 틀이 스크롤함 — 800×600 기본 테스트 화면에서 넘침 방지).
 - L18 테스트: `widget/integration_slots_test.dart`(가져오기 6건·내보내기 2건·`featureLibraryOverrides()` 빈 목록), `widget/storage_banner_test.dart`(4건 — 계획의 3가지 + 'notDurable을 닫아도 writeFailing은 보임'), `widget/settings_section_test.dart`(5건). 공유 시나리오 2건 추가: 'new note defaults: the stored JSON comes back in the dialog and the page'(사용자 지정 148×210mm·점 속지·아이보리를 `settings.set` → 대화상자 칸 '148.0'·'210.0' → [만들기] → 첫 페이지 크기·배경, 설정을 다시 읽어 같은 값), 'remote delete: the shown folder trashed / purged elsewhere → missing view'(`remoteChange`로 휴지통 → '이 폴더는 휴지통에 있어요', 영구 삭제 → '폴더를 찾을 수 없어요…'). 이로써 L21 ① 목록의 시나리오(8 L21)가 모두 들어갔다.
+- L19 골든(`test/goldens/library_golden_test.dart`, `@Tags(['golden'])` + `@TestOn('vm')`): 4장 `library_13_landscape.png`·`library_13_portrait.png`(서랍 닫힘 확인)·`library_13_landscape_list.png`·`library_trash.png`. 씨앗은 `seedSampleLibrary`에 ★(아이디어)·색 표지(일기, `CoverPalette.colors[0]`)·폴더 꾸미기(영어, `FolderPalette.colors[3]`·`FolderIcons.keys[5]`)를 더했다 — ★·색 카드·폴더 색/아이콘 배치까지 보이게. 휴지통은 30·27·10·0일 전 항목 4개. DPR 2(하네스 그대로), PNG는 각 16~22KB. 글자와 아이콘은 테스트 글꼴의 네모(배치만 비교). 처음 만든 골든이라 L19 커밋에 같이 넣었다(갱신은 별도 커밋 — 계약 7.4.8). 갱신 명령: 패키지에서 `flutter test --update-goldens --tags golden test/goldens`.
+- L19 허용 오차 비교기는 계약 7.4.8이 말하는 `test/flutter_test_config.dart`가 아니라 **`test/goldens/flutter_test_config.dart`**에 두었다(같은 디렉터리 아래 테스트에만 적용 — 다른 VM 테스트와 `test/web` 브라우저 실행에는 영향 없음). `LocalFileComparator`를 상속해 `diffPercent ≤ 0.005`(0.5 %)면 통과. 패키지 `.gitignore`에 `test/goldens/failures/`(실패 때 생기는 비교 이미지)를 넣었다. 확인: 가로 골든을 리스트 골든으로 바꿔치기하면 26 % 차이로 실패(되돌림).
+- L19 성능(`widget/performance_test.dart`): '큰 폴더'에 노트 1,000개(1분 간격, `tester.runAsync` 안에서 CORE로 생성). 6.21 '스트림 첫 값 뒤 다음 프레임'은 시간 없이 `pump()`를 하며 `libraryContentProvider(FolderSection(id))`에 값이 생길 때까지(보기 설정 값 → 목록 값, 3프레임 이내) 기다린 뒤 **바로 다음 프레임**에 사이드바 줄·타일이 있고 스피너가 없는지로 확인한다(지금 구현은 설정 첫 값을 기다린 뒤 목록 쿼리를 구독하므로 pumpWidget 뒤 두 번째 프레임에 보임). 생성된 `NoteTile`(`skipOffstage: false`) 9~35개(실제 19개), 끝까지 스크롤해도 ≤ 35이고 맨 앞 노트는 해제됨, 리스트 보기 행 ≤ 30, 타일마다 `RepaintBoundary`·높이 하나.
+- L19 접근성(`widget/a11y_test.dart`): 13" 가로·세로 각 12상태(홈 격자·리스트, 깊은 폴더 + 브레드크럼, 빈 폴더, 휴지통, 검색 결과 + 지우기 버튼, 새로 만들기 메뉴('PDF 가져오기' 준비 중), ⋯ 메뉴, 선택 모드, 저장 경고 배너 [닫기], 새 노트·새 폴더 대화상자) + 세로 서랍 = 25건에 세 지침(`iOSTapTargetGuideline`·`labeledTapTargetGuideline`·`textContrastGuideline`). `SemanticsHandle`은 `addTearDown`이 아니라 본문 `finally`에서 닫는다(핸들 검사가 tearDown보다 먼저 돎).
+- L19 lib 수정 1건: `LibraryDialogFrame` 제목의 `Semantics(header: true)`에 `container: true`를 더했다. 없으면 제목 라벨·header 표시가 대화상자의 전체 화면 경로 노드(`role: dialog`)로 합쳐져, 대화상자 전체가 '머리글'로 읽히고 `textContrastGuideline`이 화면 전체(어두운 장벽)의 색으로 대비 1.77을 보고했다(새 폴더 대화상자).
 
 ## 다음 세션 메모
 
@@ -162,6 +167,7 @@
 - 세션 5 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 471개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 6 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 539개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 7 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 594개 통과, `flutter test --platform chrome test/web` 6개 통과.
+- 세션 8 끝 확인: (세션 끝에 채움)
 - (L17 완료) 공유 시나리오는 L18까지 8 L21 ① 목록을 모두 담았다(10건). 검색 화면 테스트 도우미: `widget/search_test.dart`의 `search(tester, text)`(enterText → `pump(300ms)` → `pumpAndSettle`), `searchInput`(`LibrarySearchField` 안의 `TextField`), `boldParts`(제목 `Text.rich`의 w700 조각). **`enterText` 뒤에는 `pump()`를 해야** 대화상자의 [저장] 등 활성 상태가 다시 그려진다(`enterText`는 프레임을 그리지 않음).
 - 끌기 테스트 도우미: `widget/drag_drop_test.dart`의 `startDrag`(down → 450ms → moveBy(0, 20)) / `moveTo` / `drop`(up + pumpAndSettle). 끄는 동안에도 상단 막대가 남아 있고 선택 막대는 끌기가 끝난 뒤 나온다.
 - 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
@@ -169,5 +175,5 @@
 - 화면 테스트 도우미 관례: provider 오류 보고 횟수는 `FlutterError.onError`를 try/finally로 잠시 바꿔 센다(`widget/sidebar_test.dart`·`widget/listing_test.dart`의 `collectReports`). 정렬 메뉴는 `find.byTooltip(LibraryStrings.sort)` → `find.widgetWithText(MenuItemButton, …)`.
 - 위젯 테스트에서 provider 컨테이너는 `ProviderScope.containerOf(tester.element(find.byType(LibraryTopBar)))`로 얻을 수 있다(`widget/layout_test.dart`).
 - L15 시작점: 끌기는 `LongPressDraggable`(400ms) — 지금 타일·행의 `InkWell.onLongPress`(→ `addItemToSelection`)와 사이드바 줄의 `SidebarRowMenu` 길게 누르기(`RawGestureDetector`)를 `LibraryDraggable`로 바꾼다(타일: `onDragStarted` = `selection.add`, `onLongPressReleased` = 아무것도 안 함, 사이드바 줄: `onLongPressReleased` = 줄 메뉴 — `SidebarRowMenu`의 `_openAt`). 페이로드의 부모는 선택 막대와 같은 방식(`folder.parentId`/`note.folderId`). 놓은 뒤 이동·휴지통 결과 스낵바는 L13 흐름 문구(`movedTo`/`movedCountTo`, 휴지통은 6.10.3의 '휴지통으로 옮겼어요' — 아직 상수 없음)와 `showLibrarySnackBarOn` + 실행 취소(`undoMove`/`restore`)를 쓰면 된다. 테스트에서 ⋯는 `find.byTooltip(LibraryStrings.itemMenu('<이름>'))`, 선택 막대 버튼은 `find.descendant(of: find.byType(SelectionBar), matching: find.text(라벨))`.
-- L19 시작점: 골든 4장(`goldens/library_golden_test.dart`, `@Tags(['golden'])` + `@TestOn('vm')` — 태그는 `dart_test.yaml`에 이미 선언): 13" 가로 그리드 · 13" 세로 그리드(서랍 닫힘) · 13" 가로 리스트 · 휴지통. 시각에 따라 바뀌는 글자(날짜)는 `TestClock` 고정값(`seedSampleLibrary`가 시계를 2026-11-04 14:05로 둠)으로 맞추고, 표지는 기본(렌더러 `null` → 자리표시)으로 둔다. 상단 막대에 이제 검색 입력(240/200)이 있다. `widget/performance_test.dart`(6.21: 노트 1,000개 폴더 첫 `pump` 뒤 생성된 `NoteTile` ≤ 35 — 13" 가로 5열), `widget/a11y_test.dart`(6.20: `iOSTapTargetGuideline`·`labeledTapTargetGuideline`·`textContrastGuideline`, 13" 가로·세로 — 검색 입력의 지우기 버튼·'PDF 가져오기' 메뉴·배너 [닫기]도 대상). 시드 1,000개는 `tester.runAsync` 안에서 만든다.
+- (L19 완료) 골든 갱신은 패키지에서 `flutter test --update-goldens --tags golden test/goldens` 뒤 **별도 커밋**(계약 7.4.8). 화면 배치를 바꾸는 작업(L20 이후·통합 단계)에서 골든이 깨지면 갱신 커밋을 따로 만든다. 접근성 검사는 `widget/a11y_test.dart`의 `check(설명, 상태를 만드는 본문)`에 상태를 더하면 세 지침이 자동으로 붙는다.
 - L20 시작점: `test/web/library_browser_test.dart`(`@TestOn('browser')`) — 가짜 위 `FakeLibraryBackend`(웹 안전)로 화면 → 새 폴더(빈 상태 [새 폴더] 또는 새로 만들기 메뉴) → 노트를 stylus로 끌어 폴더에 넣기(`widget/drag_drop_test.dart`의 `startDrag` 방식, `kind: PointerDeviceKind.stylus`) → 휴지통 → 복원. 공유 시나리오 도우미는 `test/shared/library_scenarios.dart`(웹 안전 import만).

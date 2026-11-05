@@ -33,7 +33,10 @@ class LibraryDialogFrame extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+              // Its own node: without container the header flag and the
+              // title merge into the dialog's full-screen route node (6.20).
               child: Semantics(
+                container: true,
                 header: true,
                 child: Text(title, style: theme.textTheme.headlineSmall),
               ),
