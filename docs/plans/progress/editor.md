@@ -31,7 +31,7 @@
 | E-16 | 완료 | 25af2b6 | `unit/preset_ordering_test.dart`(+ `presetsInOrder`·`effectiveGroupFilter`, 가짜 저장소 `reorderPresets` 왕복), `widget/preset_bar_test.dart`, `unit/preset_bar_notifier_test.dart`(더함 — `editor.presetBar` 로드·500ms·보고·원격·flush, 보이는 목록·그룹 provider) |
 | E-17 | 남음 | | `widget/page_panel_test.dart`(+ EDITOR-3-1 `rejectNext` 삭제 거부 1건), `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart`, `widget/navigate_to_page_test.dart`, `widget/add_page_sheet_test.dart`, `unit/page_choices_test.dart`, `widget/add_page_button_test.dart` |
 | E-19 | 남음 | | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
-| E-20 | 완료 | (이 행을 넣은 커밋 — 다음 커밋에서 해시로 바꿈) | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
+| E-20 | 완료 | 35be2bf | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
 | E-21 | 통합 단계 | | `integration/real_core_ink_smoke_test.dart`(뼈대만 E-00에서 작성 — 열기·`storageNotDurable` 배너·닫기. 전체 시나리오는 E-13 뒤 채움), `web/editor_browser_smoke_test.dart`(동시 개발 중 작성 가능) |
 | E-22 | 남음 | | `goldens/selection_frame_golden_test.dart`, `goldens/page_viewport_layout_golden_test.dart`, `unit/performance_smoke_test.dart`, 결과 보고 |
 | E-18 | 남음 (마지막 순위) | | `widget/paged_mode_test.dart` |
