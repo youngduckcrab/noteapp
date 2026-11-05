@@ -27,7 +27,7 @@
 | T15 | 완료 | 809273e | unit/export_service_test, pdfium/export_e2e_test (+ support/export_world.dart, web/pure_logic_browser_test 웹 묶음 16쪽, unit/error_messages_test 잘린 쪽 목록) |
 | T15b | 완료 | 4cd950b | unit/batch_export_test, widget/batch_export_flow_test |
 | T16 | 완료 | 300774e | widget/export_flow_test, web/output_sink_browser_test (+ web/foundation_browser_test 웹 출력 팩토리) |
-| T17 | 완료 | (이 커밋) | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test (+ web/foundation_browser_test 메뉴 id, contract/api_surface_test B4 몫 정리) |
+| T17 | 완료 | 7ed8aca | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test (+ web/foundation_browser_test 메뉴 id, contract/api_surface_test B4 몫 정리) |
 | T18 | 남음 | | perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test (perf 태그) |
 | T19 | 남음 | | README, THIRD_PARTY_NOTICES.md, licenses/, unit/licenses_test |
 
@@ -129,7 +129,7 @@
 
 ## 다음 세션 메모
 
-- 세션 7 결과: T16(300774e)·T17 완료. T17 세부는 '계획과 다르게 한 점'의 T17 항목. 메뉴 이름은 `PdfStringsKo.exportTitle`·`shareTitle`·`printTitle`·`searchTitle`·`importIntoNoteTitle`(시트 제목과 같은 상수).
+- 세션 7 결과: T16(300774e)·T17(7ed8aca) 완료. T17 세부는 '계획과 다르게 한 점'의 T17 항목. 메뉴 이름은 `PdfStringsKo.exportTitle`·`shareTitle`·`printTitle`·`searchTitle`·`importIntoNoteTitle`(시트 제목과 같은 상수).
 - 세션 7 검사: 패키지 VM 테스트 567개 통과(+3 skip), Chrome 54개 통과(`ws test --platform chrome --package pdf_io`, 109초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 - 다음 T18(perf 태그, 기본 skip — `flutter test --run-skipped -t perf`로 돌림): 500쪽 픽스처는 `PdfFixtureBuilder`로 만들 수 있다. 실제 시간 측정 테스트이므로 단언은 계획서 목표(≤ 2초·30초·40초)대로 쓰되 perf 태그라 기본 실행에는 들어가지 않는다. 그다음 T19: licenses/ 원문 20개는 pdfium-binaries 배포본(웹 chromium/7811 `pdfium-wasm.tgz`, VM chromium/8125 `pdfium-linux-x64.tgz`)의 `licenses/`와 최상위 `LICENSE` — 네트워크로 받아야 함(프록시 있음). pubspec `flutter: assets:`에 `licenses/`를 더하고(pubspec.lock 변화 없음), T17 lib/src/licenses.dart의 파일 표와 unit/licenses_test로 맞춘다. unit/init_test는 자산 채널을 가짜로 바꿔 시험하므로 T19 뒤에도 그대로 통과해야 한다.
 
