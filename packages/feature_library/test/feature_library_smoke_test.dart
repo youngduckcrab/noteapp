@@ -1,6 +1,8 @@
 // Foundation step B6 smoke test (contract 00-overview 7.6 B6, 05-library 8 B6):
-// the placeholder LibraryScreen on CORE's shared fake store creates a note with
-// '새 노트' and opens it with onOpenNote exactly once.
+// LibraryScreen on CORE's shared fake store creates a note with '새 노트' and
+// opens it with onOpenNote exactly once. Since L10 the button is the empty
+// home's '새 노트'; since L12 it opens the new note dialog and [만들기]
+// creates the note.
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,10 +54,15 @@ void main() {
     final store = createFakeNoteStore();
     addTearDown(store.close);
     final calls = await _pumpLibrary(tester, store);
+    await tester.pumpAndSettle(); // the empty home listing
 
-    expect(find.text(LibraryStrings.home), findsOneWidget);
+    // Breadcrumb and the sidebar's 홈 row.
+    expect(find.text(LibraryStrings.home), findsNWidgets(2));
+    expect(find.text(LibraryStrings.emptyHome), findsOneWidget);
     await tester.tap(find.text(LibraryStrings.newNote));
-    await tester.pump();
+    await tester.pumpAndSettle(); // the new note dialog
+    await tester.tap(find.text(LibraryStrings.create));
+    await tester.pumpAndSettle();
 
     expect(calls.openedNotes, hasLength(1));
     final note = await store.library.getNote(calls.openedNotes.single);
@@ -75,11 +82,17 @@ void main() {
     final store = createFakeNoteStore(faults: faults);
     addTearDown(store.close);
     final calls = await _pumpLibrary(tester, store);
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.text(LibraryStrings.newNote));
+    final newNote = find.widgetWithText(FilledButton, LibraryStrings.newNote);
+    await tester.tap(newNote);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(LibraryStrings.create));
+    await tester.pumpAndSettle(); // dialog gone, createNote pending
+    expect(tester.widget<FilledButton>(newNote).onPressed, isNull);
+    await tester.tap(newNote, warnIfMissed: false);
     await tester.pump();
-    await tester.tap(find.text(LibraryStrings.newNote));
-    await tester.pump();
+    expect(find.text(LibraryStrings.create), findsNothing); // no new dialog
     expect(calls.openedNotes, isEmpty);
 
     await tester.pump(const Duration(seconds: 1));
@@ -92,10 +105,14 @@ void main() {
   ) async {
     _useIpad13Landscape(tester);
     final store = createFakeNoteStore();
-    await tester.runAsync(store.close);
     final calls = await _pumpLibrary(tester, store);
-
+    await tester.pumpAndSettle();
     await tester.tap(find.text(LibraryStrings.newNote));
+    await tester.pumpAndSettle();
+    // Writes fail on a closed store; the listing keeps its last value.
+    await tester.runAsync(store.close);
+
+    await tester.tap(find.text(LibraryStrings.create));
     await tester.pump();
 
     expect(tester.takeException(), isA<StateError>());
@@ -139,11 +156,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [noteStoreProvider.overrideWithValue(store)],
+        // The app shell's settings frame scrolls (01-infra 4.5.8).
         child: const MaterialApp(
-          home: Scaffold(body: LibrarySettingsSection()),
+          home: Scaffold(
+            body: SingleChildScrollView(child: LibrarySettingsSection()),
+          ),
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
     final section = find.byType(LibrarySettingsSection);
     expect(section, findsOneWidget);
@@ -151,9 +172,11 @@ void main() {
       find.descendant(of: section, matching: find.byType(Scaffold)),
       findsNothing,
     );
+    // L18: the body is a Column of the new note dialog's pickers.
     expect(
       find.descendant(of: section, matching: find.byType(Column)),
-      findsOneWidget,
+      findsWidgets,
     );
+    expect(tester.takeException(), isNull);
   });
 }

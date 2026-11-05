@@ -30,3 +30,14 @@ const Color _darkForeground = Color(0xDE000000);
 /// < 0.5, otherwise 0xDE000000. Any ARGB (also unknown synced colors).
 Color coverForegroundFor(int argb) =>
     Color(argb).computeLuminance() < 0.5 ? _lightForeground : _darkForeground;
+
+/// Mixed into a cover color for the spine of a color card (6.15.1).
+const Color _spineShade = Color(0xFF000000);
+
+/// Share of [_spineShade] in the spine color.
+const double _spineShadeAmount = 0.2;
+
+/// The 8 px spine on the left of a ColorCover card: the cover color with
+/// 20 % black mixed in (Color.lerp — no bit operations, web-safe).
+Color coverSpineColorFor(int argb) =>
+    Color.lerp(Color(argb), _spineShade, _spineShadeAmount)!;
