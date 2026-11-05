@@ -353,6 +353,66 @@ Future<VersionedEntity?> readVersionedRow(
   }
 }
 
+/// Rows of [kind] with id (settings: key) > [after], in id order, at most [limit]
+/// (keyset paging of the backup export, 6.17). Soft-deleted rows included.
+Future<List<VersionedEntity>> readVersionedPage(
+  NoteDatabase db,
+  EntityKind kind, {
+  String? after,
+  required int limit,
+}) async {
+  switch (kind) {
+    case EntityKind.folder:
+      final q = db.select(db.folders)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedFolder(r)];
+    case EntityKind.note:
+      final q = db.select(db.notes)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedNote(r)];
+    case EntityKind.page:
+      final q = db.select(db.pages)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedPage(r)];
+    case EntityKind.stroke:
+      final q = db.select(db.strokes)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedStroke(r)];
+    case EntityKind.penPreset:
+      final q = db.select(db.penPresets)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedPreset(r)];
+    case EntityKind.asset:
+      final q = db.select(db.assets)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedAsset(r)];
+    case EntityKind.recording:
+      final q = db.select(db.recordings)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedRecording(r)];
+    case EntityKind.setting:
+      final q = db.select(db.settings)
+        ..orderBy([(t) => OrderingTerm.asc(t.key)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.key.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedSetting(r)];
+  }
+}
+
 VersionedEntity _versioned(
   SyncEntity Function(Hlc version) build,
   String version,

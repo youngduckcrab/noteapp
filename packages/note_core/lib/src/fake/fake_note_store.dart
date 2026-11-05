@@ -10,6 +10,7 @@ import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 
 import '../assets/asset_store.dart';
+import '../backup/backup_export.dart';
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
@@ -487,12 +488,35 @@ final class FakeNoteStore implements NoteStore {
     if (_closed) throw StateError('The note store is closed');
   }
 
-  /// CORE T19 replaces this with the real backup format (contract 7.6 'B2 단계 값').
+  /// The real backup format (CORE 6.17, T19): every active and trashed entity, kind
+  /// then id order, each with EntityFieldVersions(version) (the fake keeps no per-field
+  /// versions); no asset bytes, device settings or thumbnails.
   @override
-  Future<Uint8List> exportBackupJson() async => throw UnimplementedError(
-    'createFakeNoteStore().exportBackupJson arrives with CORE T19 '
-    '(foundation step B2)',
-  );
+  Future<Uint8List> exportBackupJson() async {
+    _checkOpen();
+    await flush();
+    final out = BackupJsonWriter(
+      exportedAt: now,
+      ownerId: ownerId,
+      deviceNodeId: kFakeDeviceNodeId,
+    );
+    final byKind = <EntityKind, Iterable<SyncEntity>>{
+      EntityKind.folder: folders.values,
+      EntityKind.note: notes.values,
+      EntityKind.page: pages.values,
+      EntityKind.stroke: strokes.values,
+      EntityKind.penPreset: presets.values,
+      EntityKind.asset: assetRows.values,
+      EntityKind.setting: syncedSettings.values,
+    };
+    for (final kind in EntityKind.values) {
+      final rows = [...?byKind[kind]]..sort((a, b) => a.id.compareTo(b.id));
+      for (final e in rows) {
+        out.add(e, EntityFieldVersions(e.version ?? _seedHlc));
+      }
+    }
+    return out.finish();
+  }
 }
 
 // ---- session backend --------------------------------------------------------------

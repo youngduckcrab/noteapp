@@ -3,8 +3,7 @@
 // T6 opens the database, classifies open errors and keeps the per-device kv
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
 // content reader; T9 the trash; T10 note sessions; T12 pen presets and settings;
-// T13 assets and thumbnails (blob IndexedDB); T14 the sync window. The backup arrives
-// with CORE T19; until then exportBackupJson throws UnimplementedError.
+// T13 assets and thumbnails (blob IndexedDB); T14 the sync window; T19 the backup export.
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -16,8 +15,10 @@ import '../assets/asset_store_impl.dart';
 import '../assets/blob_store.dart';
 import '../assets/idb_blob_store.dart';
 import '../assets/thumbnail_cache_impl.dart';
+import '../backup/backup_export.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
+import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
 import '../repo/events.dart';
 import '../repo/note_store.dart';
@@ -34,6 +35,7 @@ import 'drift_sync_store.dart';
 import 'drift_trash_repository.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
+import 'row_mappers.dart';
 import 'watch_hub.dart';
 import 'write_queue.dart';
 
@@ -264,9 +266,37 @@ final class DriftNoteStore implements NoteStore {
     await db.close();
   }
 
+  /// 6.17: after a flush, one read transaction (a snapshot; writes queue behind it),
+  /// every kind in EntityKind order, rows in id order, [kBackupPageRows] per query.
   @override
-  Future<Uint8List> exportBackupJson() =>
-      throw UnimplementedError('exportBackupJson: arrives with CORE T19');
+  Future<Uint8List> exportBackupJson() async {
+    if (_closed) throw StateError('The note store is closed');
+    await queue.flush();
+    final out = BackupJsonWriter(
+      exportedAt: clock.now().millisecondsSinceEpoch,
+      ownerId: ownerId,
+      deviceNodeId: nodeId,
+    );
+    await db.transaction(() async {
+      for (final kind in EntityKind.values) {
+        String? after;
+        while (true) {
+          final rows = await readVersionedPage(
+            db,
+            kind,
+            after: after,
+            limit: kBackupPageRows,
+          );
+          for (final v in rows) {
+            out.add(v.entity, v.versions);
+          }
+          if (rows.length < kBackupPageRows) break;
+          after = rows.last.entity.id;
+        }
+      }
+    });
+    return out.finish();
+  }
 }
 
 typedef _KvValues = ({

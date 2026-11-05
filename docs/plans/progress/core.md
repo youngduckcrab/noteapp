@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 4 (동시 개발 단계)
-- 다음 할 일: T19 (백업 내보내기) 또는 T15·T16(언제든) — 그다음 T17·T18
+- 다음 할 일: T15 (마이그레이션) → T16 (웹 저장) → T17·T18
 
 ## 작업 표
 
@@ -23,12 +23,12 @@
 | T11 | 완료 | 7fa9c6d | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart`(필드 버전·outbox 필드, 100단계 undo 후 초기 상태, 별칭 정리) |
 | T12 | 완료 | 3503f6c | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
 | T13 | 완료 | ac1965c | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
-| T14 | 완료 | (이 커밋) | `test/sync/sync_store_test.dart`(outbox·readVersioned·세 결정·기기 로컬 필드·pendingLocalFields·origin·세션 N-7/영구 삭제·쓰기 Future 규칙), `field_lww_convergence_test.dart`, `version_invariant_test.dart`(500단계), `commit_repairs_test.dart`, `meta_kv_test.dart`, `reassign_owner_test.dart`, `duplicate_for_recovery_test.dart`, 도우미 `test/sync/support/sync_support.dart` |
+| T14 | 완료 | 4f43deb | `test/sync/sync_store_test.dart`(outbox·readVersioned·세 결정·기기 로컬 필드·pendingLocalFields·origin·세션 N-7/영구 삭제·쓰기 Future 규칙), `field_lww_convergence_test.dart`, `version_invariant_test.dart`(500단계), `commit_repairs_test.dart`, `meta_kv_test.dart`, `reassign_owner_test.dart`, `duplicate_for_recovery_test.dart`, 도우미 `test/sync/support/sync_support.dart` |
 | T15 | 남음 | | `test/migration/note_migrator_test.dart` |
 | T16 | 남음 | | `test/web/drift_web_persistence_test.dart`, `storage_info_browser_test.dart`, `delete_local_data_browser_test.dart`, `open_time_browser_test.dart`(perf) |
 | T17 | 남음 | | `test/providers/providers_real_test.dart` |
 | T18 | 남음 | | `test/perf/*`(perf 태그), README |
-| T19 | 남음 | | `test/shared/backup_cases.dart` → `test/backup/backup_export_test.dart`, `test/testing/fake_backup_export_test.dart`, `test/web/backup_export_browser_test.dart` |
+| T19 | 완료 | (이 커밋) | 공유 본문 `test/shared/backup_cases.dart` → 실제 `test/backup/backup_export_test.dart`, 가짜 `test/testing/fake_backup_export_test.dart`(같은 골든 바이트 `test/goldens/backup/backup_v1.json`, `golden` 태그), 브라우저 `test/web/backup_export_browser_test.dart`(가짜 저장소로 웹 생성·파싱) |
 
 순서(계획서 8.2 병렬화 메모): T6 → T7 → (T8, T9, T12, T13) → T10 → T11 → T14. T15·T16은 T6 이후 언제든, T19는 T14 이후, T17·T18은 끝 무렵.
 
@@ -91,11 +91,16 @@
 - T14: `watchPendingCount` = `WatchHub` 재질의(엔티티 종류를 건드린 커밋, 또는 의사 kv 키 `#outbox`를 건드린 커밋 — `acknowledge` 등) + distinct. `pendingChanges(limit < 1)` → `ArgumentError`. `readVersioned`는 종류별 `IN` 질의(500개씩), 요청 순서대로(중복 허용). `readMeta`는 큐를 flush하지 않고 커밋된 값을 읽는다.
 - T14: 열린 세션의 노트가 영구 삭제되면(트래시 purge·`RemotePurge`) 세션 노트를 `deletedAt`을 찍은 마지막 상태로 바꿔 읽기 전용으로 만든다(`DriftSessions.committed`, 6.10.3 끝 문단).
 
+- T19: 문서 작성기 `BackupJsonWriter`(`backup/backup_export.dart`)를 실제·가짜가 같이 쓴다 — 압축 JSON(들여쓰기 없음), 머리 키 순서 `format, formatVersion, exportedAt, ownerId, deviceNodeId, schema, entities`, 엔티티 `{"kind","data"(6.3 JSON),"versions"}`를 하나씩 바이트로 붙임(`JsonUtf8Encoder`, `BytesBuilder(copy: false)` + `takeBytes`). 순서 = `EntityKind.values` 순 → id(설정은 key) 순. 소유자로 거르지 않는다(기기 전체). 실제 저장소는 `flush()` 뒤 읽기 트랜잭션 하나에서 종류별 keyset 페이지(2,000행, `readVersionedPage`)로 읽는다(쓰기 큐는 그동안 뒤에서 기다림 — 세션 메모리 편집은 막히지 않음). 가짜는 맵을 id 정렬, 버전 = `EntityFieldVersions(entity.version)`(필드 버전 없음 → 골든 상태는 엔티티 단위 버전만 씀). 닫힌 저장소 → `StateError`.
+- T19: 골든 상태의 획 `updatedAt`은 노트 `updatedAt` 이하로 둔다 — 실제 저장소 시드(`applyRemote` TakeRemote)가 노트 `updatedAt`을 자식 적용값의 max로 올리기 때문(6.10.3). 골든 파일 갱신은 `UPDATE_BACKUP_GOLDEN=1 flutter test test/backup/backup_export_test.dart`(VM 전용 — 웹은 1.0을 1로 씀).
+- T19: 웹 테스트는 지금 가짜 저장소로 공유 본문을 돈다(작성기·파싱이 웹 컴파일러에서 동작). 실제 저장소(WasmDatabase)로 웹 내보내기는 T16에서 `drift_web_persistence_test` 등과 함께 추가한다.
+- T19: `fake_store_test`의 'exportBackupJson is UnimplementedError in B2'를 '백업 형식을 씀'으로 바꿨다. `lib/testing.dart` 주석('UnimplementedError in B2; the same format as the real store from CORE T19')은 계약 7.6 문구라 그대로 둔다.
+
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
 
 ## 다음 세션 메모
 
-- 세션 4 끝 상태: T14 완료. 실제 저장소의 `SyncStore` 전부가 동작한다. 남은 `UnimplementedError`: `exportBackupJson`(T19, 실제·가짜 둘 다). 검사: 패키지 VM 567개 통과(Chrome은 test/web 변경 없음 — 24개), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
+- 세션 4 끝 상태: T14·T19 완료. 실제 저장소의 `SyncStore` 전부와 `exportBackupJson`(실제·가짜)이 동작한다 — 실제 저장소에 남은 `UnimplementedError` 없음. 검사: 패키지 VM 584개·Chrome 29개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 - T14 테스트 도우미(`test/sync/support/sync_support.dart`): `upsert(entity, hlc, overrides)`(JSON 디코드 + version = max, SYNC가 넘기는 모양), `remoteAfter(store)`(로컬 스탬프보다 새 원격 HLC), `RecordingPolicy`(호출 기록), `fieldLwwPolicy()`(SYNC 6.3.4 모양의 필드 단위 LWW, `entityVersionOnly: true`는 대조군), `push(from, to, policy)`(outbox → readVersioned → applyRemote → ack). 두 저장소를 동시에 여는 테스트는 `driftRuntimeOptions.dontWarnAboutMultipleDatabases`를 켠다.
 - 원격 쓰기 흉내는 이제 `store.sync.applyRemote([...], policy: newerVersionWinsPolicy)`로 써도 된다(T10·T11 테스트의 `queue.run(... putRemote ...)`는 그대로 둠).
 - 테스트 도우미: 원격 쓰기 흉내는 `store.queue.run((tx) => tx.putRemote(...), origin: ChangeOrigin.remote)`(`test/edit/undo_support.dart` `UndoFixture.remote`, `note_session_test`의 `_putRemote`). T14가 `applyRemote`를 만들면 그것으로 바꿔도 된다.
