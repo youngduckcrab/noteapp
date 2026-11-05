@@ -1,7 +1,7 @@
 # 07 · SYNC — 계정 · 동기화
 
-> 상태: **3차 수정** (총괄 3차 승인 검토 [00-review.md](00-review.md) '3차 검토' 3.4.7 반영, 재승인 대기) · 작성 2026-11-04 · 1차 수정 2026-11-04 · 2차 수정 2026-11-05 · 3차 수정 2026-11-05
-> 기준: [00-overview.md](00-overview.md) 7장 '통합 계약' **v1.2**(변경 이력 7.9 C12-01~09·C11-01~30 — 이 문서와 7장이 다르면 7장이 우선) · 검토: [00-review.md](00-review.md) 3.7(1차), '2차 검토' 2.4.7(지시 번호 `SYNC-2-n`), '3차 검토' 3.4.7(지시 번호 `SYNC-3-n`)
+> 상태: **승인** (총괄 4차 승인 검토 · [00-review.md](00-review.md) '최종 승인' — 개발 중 반영 SYNC-4-1~4-3 처리, 13.4) · 작성 2026-11-04 · 1차 수정 2026-11-04 · 2차 수정 2026-11-05 · 3차 수정 2026-11-05 · 승인 반영 2026-11-05
+> 기준: [00-overview.md](00-overview.md) 7장 '통합 계약' **v1.4**(변경 이력 7.9 C14-01·02·C13-01~05·C12-01~09·C11-01~30 — 이 문서와 7장이 다르면 7장이 우선) · 검토: [00-review.md](00-review.md) 3.7(1차), '2차 검토' 2.4.7(지시 번호 `SYNC-2-n`), '3차 검토' 3.4.7(지시 번호 `SYNC-3-n`), '4차 검토' 4.4.7(지시 번호 `SYNC-4-n`)·'최종 승인'
 > 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도: [00-overview.md](00-overview.md)
 > 소유 경로: `packages/sync_engine/` · 패키지 이름: `sync_engine`
 
@@ -9,7 +9,7 @@
 
 - 다른 영역이 소유한 타입(CORE `SyncStore`·`EntityFieldVersions`·`MergeDecision`·`SyncBadge` 등)은 통합 계약 7장의 이름·형태를 **그대로** 쓰고, SYNC가 다시 정의하거나 다시 export하지 않는다(계약 7.2.0). 이 문서와 7장이 다르면 7장이 우선이다. 계약에 대한 의견은 12.2 '계약 변경 제안'에만 적었다.
 - CORE 타입은 `package:note_core/note_core.dart`에서 가져온다. 코드 블록은 CORE 이름을 접두사 없이 쓰고, 계약 블록을 그대로 옮긴 곳(5.1.1, 4.4.1 `syncBadgeOf`, 4.5 `SyncRemoteAssetFetcher`)만 계약 표기(`core.`)를 유지한다. 그 두 파일은 `import 'package:note_core/note_core.dart' as core;`로 가져온다.
-- 계약 블록을 옮긴 곳(5.1.1)은 계약 v1.2 원문이다. v1.1에서 SYNC에 들어온 것: C11-03(원격·복구 쓰기의 기기 로컬 필드), C11-04(`ChangeBatch.origin`), C11-05(purge 대기의 `pendingLocalFields = {'*'}`), C11-06(`EntityChange` 힌트), C11-07(시계 보류·해제 기준, 자기 오차 > 24 h면 업로드·받기 모두 멈춤), C11-13(`SyncBadge` 값 동등·`.distinct()`), C11-22(SYNC 공개 표면·`testing.dart` 정리·상태 값 클래스 값 동등), C11-26(`dart_test.yaml` 태그 선언), C11-27(B2 테스트 도우미), C11-30(T16 태그 `integration`). v1.2에서 SYNC에 들어온 것(시그니처 변경 없음): C12-01(`ws check` R15를 B1부터, 태그는 리터럴 — 3.2), C12-02(`EntityChange` 원격 고아 획 주석 — 5.1.1 원문), C12-04(`AuthUser` 값 동등, 7종 — 4.3, SYNC-CP5 승인), C12-05(7.7 5단계 T16 설명 — T16, SYNC-CP6 승인), C12-08(B7 커밋 시점 — 8장), C12-09(쓰기 `Future` 완료 시점 — 5.1.2 S-20).
+- 계약 블록을 옮긴 곳(5.1.1)은 계약 v1.4 원문이다(7.2.10은 v1.3 C13-02·04에서 바뀐 뒤 v1.4에서 그대로 — v1.4 C14-01(INK `SelectionGeometry` 이름)·C14-02(R15 검사 대상)는 SYNC 코드에 영향 없음: SYNC는 `ink_engine`·`rendering.dart`를 쓰지 않고, 태그는 이미 리터럴만). v1.1에서 SYNC에 들어온 것: C11-03(원격·복구 쓰기의 기기 로컬 필드), C11-04(`ChangeBatch.origin`), C11-05(purge 대기의 `pendingLocalFields = {'*'}`), C11-06(`EntityChange` 힌트), C11-07(시계 보류·해제 기준, 자기 오차 > 24 h면 업로드·받기 모두 멈춤), C11-13(`SyncBadge` 값 동등·`.distinct()`), C11-22(SYNC 공개 표면·`testing.dart` 정리·상태 값 클래스 값 동등), C11-26(`dart_test.yaml` 태그 선언), C11-27(B2 테스트 도우미), C11-30(T16 태그 `integration`). v1.2에서 SYNC에 들어온 것(시그니처 변경 없음): C12-01(`ws check` R15를 B1부터, 태그는 리터럴 — 3.2), C12-02(`EntityChange` 원격 고아 획 주석 — 5.1.1 원문), C12-04(`AuthUser` 값 동등, 7종 — 4.3, SYNC-CP5 승인), C12-05(7.7 5단계 T16 설명 — T16, SYNC-CP6 승인), C12-08(B7 커밋 시점 — 8장), C12-09(쓰기 `Future` 완료 시점 — 5.1.2 S-20).
 - 총괄 검토 반영 내역은 13절.
 
 ---
@@ -1393,7 +1393,10 @@ final class FakeLocalStore implements SyncLocalStore {
   void localWrite(List<FakeLocalWrite> writes);
   /// Trash purge as CORE does it (CORE 6.8): rows of [group] and of the group notes' pages /
   /// strokes / recordings removed, one purge entry per folder / note of the group, their
-  /// pending upserts become purges; one localChanges event (origin local).
+  /// pending upserts become purges; one localChanges event (origin local). A later applyRemote
+  /// on such an entity follows contract 7.2.10 v1.3 (C13-02): TakeRemote deletes the purge
+  /// entry whatever dropPendingLocal says; WriteMerged(F) turns it into an upsert entry of F
+  /// (seq kept, rev + 1; deleted when F is empty).
   void localPurge(EntityRef ref, {required List<EntityRef> group});
   /// Sets the device-local Note.lastOpenedAt like CORE markOpened (no outbox, no
   /// localChanges) — for contract check C-25.
@@ -1528,10 +1531,10 @@ SYNC 코드는 `note_core`에만 의존한다(계약 7.1: `sync_engine → note_
 
 #### 5.1.1 쓰는 CORE 계약
 
-동기화 창구 — 계약 7.2.10 v1.2 원문(C11-03·04·05·06의 `(v1.1)` 주석, C12-02의 `(v1.2)` 주석 포함)
+동기화 창구 — 계약 7.2.10 v1.4 원문(C11-03·04·05·06의 `(v1.1)` 주석, C12-02의 `(v1.2)` 주석, C13-02·04의 `(v1.3)` 주석 포함 — SYNC-4-2, 스크립트로 계약 블록과 대조)
 
 ```dart
-// note_core — contract 7.2.10 v1.2 (verbatim)
+// note_core — contract 7.2.10 v1.4 (verbatim; last changed in v1.3)
 enum OutboxOp { upsert, purge }
 const String kAllFields = '*';
 final class EntityRef { const EntityRef(this.kind, this.id); final EntityKind kind; final String id; }
@@ -1572,6 +1575,7 @@ sealed class MergeDecision { const MergeDecision(); }
 final class KeepLocal extends MergeDecision { const KeepLocal(); }
 final class TakeRemote extends MergeDecision {
   const TakeRemote({this.dropPendingLocal = true});   // writes remote entity + remote versions
+  /// (v1.3) A pending purge entry is deleted whatever dropPendingLocal says (the row exists again).
   final bool dropPendingLocal;
 }
 final class WriteMerged extends MergeDecision {
@@ -1579,7 +1583,7 @@ final class WriteMerged extends MergeDecision {
   final SyncEntity entity;            // its version must equal versions.max
   final EntityFieldVersions versions;
   /// The entity's outbox entry fields become EXACTLY this set (empty → entry deleted),
-  /// rev bumped, seq kept.
+  /// rev bumped, seq kept. (v1.3) A pending purge entry becomes an upsert entry of this set.
   final Set<String> fieldsToUpload;
 }
 /// SYNC provides the rule; CORE calls it inside the apply transaction.
@@ -1591,6 +1595,12 @@ typedef RemoteMergePolicy = MergeDecision Function(
 final class RemoteApplyReport { /* CORE 4.6: taken, kept, merged, purged, affectedNoteIds */ }
 typedef RepairWrite = ({SyncEntity entity, Set<String> fields});
 
+/// (v1.3) Writes (acknowledge, applyRemote, commitRepairs, writeMeta, reassignOwner,
+/// duplicateNoteForRecovery) follow the write-Future rule of 7.2.9: they complete after the
+/// commit and stay pending (no error) while the write queue retries a failed commit. Only
+/// errors decided without retry complete with an error, and they change nothing:
+/// ArgumentError, state errors (StateError for a WriteMerged invariant, NoteCoreException),
+/// and a policy exception (applyRemote rolls back — metaUpdates included — and rethrows it).
 abstract interface class SyncStore {
   String get deviceNodeId;                   // 16 hex, HLC node of local writes
   OwnerId get ownerId;
@@ -1748,7 +1758,7 @@ Future<NoteStore> openTestNoteStore({Clock? clock, IdGenerator? ids,
 | S-17 | `markUploaded(id, storagePath)`가 outbox에 `{storagePath}`를 기록하고 `ChangeBatch(origin: local)` | 7.2.10 v1.1 bullet |
 | S-18 | 정책에 넘기는 `pendingLocalFields` = 그 엔티티 outbox 항목의 `changedFields`, 항목이 없으면 `null`, **항목이 `op: purge`면 `{kAllFields}`**(로컬 영구 삭제 대기 — 행이 이미 없어 `local == null`). SYNC 정책은 이때 `KeepLocal`을 돌려 보내지 않은 영구 삭제를 지킨다(6.3.4). 정책이 되살리기를 고르면 CORE는 따르므로 지키는 책임은 SYNC 정책에 있다 | 7.2.10 v1.1 `RemoteMergePolicy` 주석(C11-05), CORE 6.10.3 |
 | S-19 | 영구 삭제(로컬 purge)는 묶음의 폴더·노트 행과 그 노트들의 페이지·획·녹음 행을 지우고, outbox에는 묶음의 폴더·노트마다 purge 1건(페이지·획은 없음) | CORE 6.8 — 6.7.4의 하위 기록 버리기가 이 형태에 기댐 |
-| S-20 | (v1.2 — C12-09) 쓰기 `Future` 완료 시점: CORE 쓰기는 원격 적용까지 모두 한 쓰기 큐를 거치고 커밋 실패는 무한 재시도하며, 그동안 `Future`는 **완료도 오류도 없다**(CORE 6.9, 계약 7.2.9 v1.2 요약과 같은 규칙). SYNC가 부르는 `applyRemote`·`commitRepairs`·`acknowledge`·`writeMeta`·`reassignOwner`·`duplicateNoteForRecovery`·`markUploaded`와 `putDownloadedBytes`의 메타 커밋 실패도 이렇게 본다(`putDownloadedBytes`의 바이트 청크 쓰기(BlobStore) 실패는 `put`처럼 재시도 없이 오류로 올 수 있다 — 계약 7.2.11 v1.2는 `put`만 명시 → 6.9.2 다운로드 실패로 처리, 다음 `ensureLocal`에 다시 시도) → 엔진은 저장 실패를 예외로 기대하지 않는다: 그 작업에서 직렬 실행기(6.1)가 기다리고(받기·보내기가 멈출 뿐 메모리·outbox·커서는 그대로 — 손실 없음), 시간 제한으로 끊지 않으며(끊어도 CORE 큐의 그 쓰기는 계속 재시도되어 나중에 커밋됨), 사용자에게는 CORE 저장 경고 배너(`storageWarningOf == writeFailing`, LIBRARY·EDITOR — 계약 7.4.5)가 원인을 알린다. 재시도 없이 오는 오류(인자 `ArgumentError`, `WriteMerged` 불변식 `StateError`, 정책 예외 롤백 — S-2·S-7, `AssetHashMismatchException`)만 예외로 처리한다(6.6.3 이분, 6.9.2). 6.5.4·6.6.3의 '저장 실패' 분기(백오프·연속 5회 `localStoreFailure`)는 그 밖에 재시도 없이 던지는 오류(가짜 `failNextWrites` 포함)에 대한 방어다 | CORE 6.9 '쓰기는 모두 단일 직렬 큐(세션 편집, 저장소 명령, 원격 적용)'·'무한 재시도', 계약 7.2.9 v1.2. 계약 7.2.10에 이 문장이 없어 12.2 SYNC-CP8로 문구 보충 제안 |
+| S-20 | (v1.2 — C12-09) 쓰기 `Future` 완료 시점: CORE 쓰기는 원격 적용까지 모두 한 쓰기 큐를 거치고 커밋 실패는 무한 재시도하며, 그동안 `Future`는 **완료도 오류도 없다**(CORE 6.9, 계약 7.2.9 v1.2 요약과 같은 규칙). SYNC가 부르는 `applyRemote`·`commitRepairs`·`acknowledge`·`writeMeta`·`reassignOwner`·`duplicateNoteForRecovery`·`markUploaded`와 `putDownloadedBytes`의 메타 커밋 실패도 이렇게 본다(`putDownloadedBytes`의 바이트 청크 쓰기(BlobStore) 실패는 `put`처럼 재시도 없이 오류로 올 수 있다 — 계약 7.2.10·7.2.11 v1.3(C13-04) → 6.9.2 다운로드 실패로 처리, 다음 `ensureLocal`에 다시 시도) → 엔진은 저장 실패를 예외로 기대하지 않는다: 그 작업에서 직렬 실행기(6.1)가 기다리고(받기·보내기가 멈출 뿐 메모리·outbox·커서는 그대로 — 손실 없음), 시간 제한으로 끊지 않으며(끊어도 CORE 큐의 그 쓰기는 계속 재시도되어 나중에 커밋됨), 사용자에게는 CORE 저장 경고 배너(`storageWarningOf == writeFailing`, LIBRARY·EDITOR — 계약 7.4.5)가 원인을 알린다. 재시도 없이 오는 오류(인자 `ArgumentError`, `WriteMerged` 불변식 `StateError`, 정책 예외 롤백 — S-2·S-7, `AssetHashMismatchException`)만 예외로 처리한다(6.6.3 이분, 6.9.2). 6.5.4·6.6.3의 '저장 실패' 분기(백오프·연속 5회 `localStoreFailure`)는 그 밖에 재시도 없이 던지는 오류(가짜 `failNextWrites` 포함)에 대한 방어다 | CORE 6.9 '쓰기는 모두 단일 직렬 큐(세션 편집, 저장소 명령, 원격 적용)'·'무한 재시도', 계약 7.2.9·7.2.10·7.2.11 v1.3(C13-04 — 12.2 SYNC-CP8 승인) |
 
 #### 5.1.3 초안 이름 → 계약 이름, 엔진 동작 → CORE 호출
 
@@ -1814,8 +1824,8 @@ Future<NoteStore> openTestNoteStore({Clock? clock, IdGenerator? ids,
 | C-08 | 로컬 쓰기는 `changedFields`의 필드만 새 HLC, `*` = 전체 초기화 | 제목만 바꾸면 `of('title')`만 새 값, 나머지는 base |
 | C-09 | `applyRemote` — policy 인자 `(local, remote, pendingLocalFields)`: `changedFields of the entity's pending outbox entry, null if none`, (v1.1) `An entry with op == purge (row already gone, so local == null) passes {kAllFields}` | 기록 정책이 받은 인자: 항목 없음 → `null`, upsert 대기 → 그 `changedFields`, **로컬 purge 대기(노트 영구 삭제, 아직 안 보냄) 중 같은 노트의 원격 upsert → `local == null`·`pending == {'*'}`**, 정책이 `KeepLocal`이면 행은 없는 채로·purge 항목 유지(C11-05) |
 | C-10 | `KeepLocal` → 쓰기 없음, 대기 항목 유지 | |
-| C-11 | `TakeRemote` → 원격 엔티티·버전을 그대로(재스탬프 없음), `dropPendingLocal`이면 항목 삭제 | `true`·`false` 둘 다 |
-| C-12 | `WriteMerged` → 엔티티·버전 그대로, 항목 필드 = `fieldsToUpload` 정확히(빈 집합 → 삭제, 항목이 없었으면 새로), rev 증가·seq 유지 | 세 경우 |
+| C-11 | `TakeRemote` → 원격 엔티티·버전을 그대로(재스탬프 없음), `dropPendingLocal`이면 항목 삭제. (v1.3 — C13-02) `A pending purge entry is deleted whatever dropPendingLocal says (the row exists again)` | `true`·`false` 둘 다. **purge 대기(`localPurge`) + `TakeRemote(dropPendingLocal: false)` → 행 있음, 그 엔티티의 outbox 항목 없음**(SYNC-4-1) |
+| C-12 | `WriteMerged` → 엔티티·버전 그대로, 항목 필드 = `fieldsToUpload` 정확히(빈 집합 → 삭제, 항목이 없었으면 새로), rev 증가·seq 유지. (v1.3 — C13-02) `A pending purge entry becomes an upsert entry of this set` | 세 경우. **purge 대기 + `WriteMerged(F)` → `op: upsert`·`changedFields == F`·seq 유지·rev + 1, `F` 빈 집합이면 항목 없음**(SYNC-4-1) |
 | C-13 | HLC `receive(max version)` | 적용 뒤 로컬 쓰기 > 받은 최대 버전. 벽시계 + 24 h를 넘는 값은 시계를 올리지 않음 |
 | C-14 | `metaUpdates`는 같은 트랜잭션, 정책 예외 → 아무것도 저장되지 않음(메타 포함), `applyRemote`가 그대로 던짐 | |
 | C-15 | 원격·복구 쓰기는 `ChangeBatch(origin: remote)`, 히스토리 밖 | `localChanges`가 오지 않음. 실제 CORE: 열린 세션의 `history` 그대로 |
@@ -3048,8 +3058,8 @@ INFRA 안내서 01(프로젝트 만들기)·04(테스트 주소) 반영용이다
 
 | # | 대상 | 제안 | 이유 | 결정 |
 |---|---|---|---|---|
-| SYNC-CP7 | 7.3.3 앱 셸 연결 표 | `SyncEngine(log:)`(`SyncLogSink`, 4.5)를 앱 셸이 넣을 자리: SYNC 소유 선택 자리 `syncLogSinkProvider = Provider<SyncLogSink?>((ref) => null, name: 'syncLogSinkProvider')`를 두고 `syncEngineProvider`가 그 값을 `log:`로 넘기며, INFRA `SyncModule`이 override해 `AppErrorLog`로 보낸다(7.3.3 `SyncModule` 행에 추가) | 계약 7.4.5는 '순수 Dart 패키지는 … 로그 콜백으로 알리고 INFRA 어댑터가 `AppErrorLog`로 넘긴다'인데 7.3.3 표에 SYNC 로그 콜백을 넣을 자리가 없다(4.7 provider는 `log:`를 넘길 방법이 없음). 이번 범위(앱이 `sync_engine`에 의존하지 않음)에는 영향이 없다 | **보류(방향 승인)** — 총괄 답(00-review '3차 검토' 3.2·3.4.7 SYNC-3-5, 계약 7.9 v1.2 '보류'): 방향은 위 그대로 승인, 7.3.3 표 반영은 M4 연결 계획 때. 이번 범위에서는 `log:` = `null`이고 provider를 정의하지 않는다(4.7 bullet, 5.2 I-10) |
-| SYNC-CP8 | 7.2.10 `SyncStore` 문서 주석(또는 7.2.9 v1.2 '쓰기 `Future`의 완료 시점' bullet) | 한 줄 추가: "`SyncStore` writes (`acknowledge`, `applyRemote`, `commitRepairs`, `writeMeta`, `reassignOwner`, `duplicateNoteForRecovery`) and `AssetStore.markUploaded` / the metadata commit of `putDownloadedBytes` follow the write-Future rule of 7.2.9 (pending while the write queue retries; only argument / state errors and policy rollbacks complete with an error)." | 계약 7.2.9 v1.2 요약은 저장소 메서드·`flush`만 적었고 `SyncStore`는 7.2.10에 따로 있어 같은 규칙이 적용되는지 계약에서 읽히지 않는다. CORE 6.9('쓰기는 모두 단일 직렬 큐 — 원격 적용 포함', 무한 재시도)로는 그렇다. 3차 검토가 PDF에서 찾은 결함('저장 실패를 예외로 기대')과 같은 종류라, SYNC 2차 수정본도 `acknowledge`·`applyRemote` 저장 실패를 예외로 가정했다(6.5.4·6.6.3 — 이번에 5.1.2 S-20으로 고침). 계약에 적으면 CORE·SYNC 구현자가 같은 의미로 읽는다. SYNC 설계는 어느 쪽이든 동작한다(기다림 또는 예외 → 백오프) | 제안(총괄 결정 대기) |
+| SYNC-CP7 | 7.3.3 앱 셸 연결 표 | `SyncEngine(log:)`(`SyncLogSink`, 4.5)를 앱 셸이 넣을 자리: SYNC 소유 선택 자리 `syncLogSinkProvider = Provider<SyncLogSink?>((ref) => null, name: 'syncLogSinkProvider')`를 두고 `syncEngineProvider`가 그 값을 `log:`로 넘기며, INFRA `SyncModule`이 override해 `AppErrorLog`로 보낸다(7.3.3 `SyncModule` 행에 추가) | 계약 7.4.5는 '순수 Dart 패키지는 … 로그 콜백으로 알리고 INFRA 어댑터가 `AppErrorLog`로 넘긴다'인데 7.3.3 표에 SYNC 로그 콜백을 넣을 자리가 없다(4.7 provider는 `log:`를 넘길 방법이 없음). 이번 범위(앱이 `sync_engine`에 의존하지 않음)에는 영향이 없다 | **보류 유지(v1.3)** — 00-review '4차 검토' 4.2: v1.2 결정(방향 승인) 그대로, 7.3.3 표 반영과 provider 정의는 M4 연결 계획 때. 이번 범위에서는 `log:` = `null`이고 provider를 정의하지 않는다(4.7 bullet, 5.2 I-10) |
+| SYNC-CP8 | 7.2.10 `SyncStore` 문서 주석(또는 7.2.9 v1.2 '쓰기 `Future`의 완료 시점' bullet) | 한 줄 추가: "`SyncStore` writes (`acknowledge`, `applyRemote`, `commitRepairs`, `writeMeta`, `reassignOwner`, `duplicateNoteForRecovery`) and `AssetStore.markUploaded` / the metadata commit of `putDownloadedBytes` follow the write-Future rule of 7.2.9 (pending while the write queue retries; only argument / state errors and policy rollbacks complete with an error)." | 계약 7.2.9 v1.2 요약은 저장소 메서드·`flush`만 적었고 `SyncStore`는 7.2.10에 따로 있어 같은 규칙이 적용되는지 계약에서 읽히지 않는다. CORE 6.9('쓰기는 모두 단일 직렬 큐 — 원격 적용 포함', 무한 재시도)로는 그렇다. 3차 검토가 PDF에서 찾은 결함('저장 실패를 예외로 기대')과 같은 종류라, SYNC 2차 수정본도 `acknowledge`·`applyRemote` 저장 실패를 예외로 가정했다(6.5.4·6.6.3 — 이번에 5.1.2 S-20으로 고침). 계약에 적으면 CORE·SYNC 구현자가 같은 의미로 읽는다. SYNC 설계는 어느 쪽이든 동작한다(기다림 또는 예외 → 백오프) | **승인 — C13-04**(계약 v1.3, 00-review '4차 검토' 4.2 — 총괄 보충: `putDownloadedBytes`의 바이트 청크 쓰기 실패도 `put`과 같게 명시). 5.1.1 블록을 v1.3 원문으로 교체(SYNC-4-2) |
 
 다른 영역 제안에 대한 결정(1차 수정의 SYNC 의견 → 총괄 결정)
 
@@ -3197,3 +3207,7 @@ INFRA 안내서 01(프로젝트 만들기)·04(테스트 주소) 반영용이다
 | 13.2 SYNC-2-4 행 | 그 행의 '자기 스냅숏 청크는 받을 때 건너뛰므로(6.6.3 2단계)'는 2차 수정 당시의 근거다. 3차에서 그 규칙을 SYNC-3-2 ①로 바꿨으므로 현재 규칙은 6.6.3 2단계·6.13 1단계를 따른다(이력이라 13.2 문장은 고치지 않음) | 13.2(참고) |
 
 미반영 항목: 없음(필수 2건·권장 3건·계약 1건·절차 1건 전부 반영). SYNC-3-3은 두 안 중 '무해함 명시'를 택했고(4단계 조건 변경으로는 틈이 닫히지 않는 이유를 6.7.4에 적음), 무해함의 전제를 지키려고 페이지 되살림에 노트 행 확인을 더했다. 새 계약 변경 제안: SYNC-CP7(보류 — 총괄 답을 미리 받음), SYNC-CP8(`SyncStore` 쓰기 완료 시점 문구 보충 — 계획서는 현재 계약대로 썼고 어느 결정이든 SYNC 설계는 그대로 동작).
+
+### 13.4 최종 승인 (총괄 4차 승인 검토 00-review.md '4차 검토' 4.4.7 · '최종 승인' 반영 · 통합 계약 v1.4, 2026-11-05)
+
+SYNC-4-1(C13-02: 5.1.4 C-11·C-12에 purge 대기 경우, 4.11 `FakeLocalStore.localPurge` 주석 — 구현·검사는 T6), SYNC-4-2(C13-04: 5.1.1 블록 = 계약 7.2.10 v1.4 원문, S-20 인용, 12.2 SYNC-CP8 '승인 — C13-04'·SYNC-CP7 '보류 유지(v1.3)'), SYNC-4-3(C13-05: 머리 상태 줄 '승인'·계약 인용 v1.4) 반영. v1.4(C14-01·02)는 SYNC 영향 없음. 진행 상황은 [progress/sync.md](progress/sync.md).

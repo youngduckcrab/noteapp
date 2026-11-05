@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "changes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "scope", "order": "ASCENDING"},
+        {"fieldPath": "su", "order": "ASCENDING"}
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {"collectionGroup": "changes", "fieldPath": "data", "indexes": []},
+    {"collectionGroup": "changes", "fieldPath": "maxHlc", "indexes": []},
+    {"collectionGroup": "changes", "fieldPath": "by", "indexes": []},
+    {"collectionGroup": "changes", "fieldPath": "n", "indexes": []},
+    {"collectionGroup": "changes", "fieldPath": "bytes", "indexes": []},
+    {"collectionGroup": "changes", "fieldPath": "fmt", "indexes": []},
+    {"collectionGroup": "changes", "fieldPath": "kind", "indexes": []}
+  ]
+}

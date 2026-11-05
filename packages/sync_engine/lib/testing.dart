@@ -9,6 +9,15 @@
 /// convergence checks throw instead of using matchers.
 /// `test/no_dart_io_test.dart` checks this.
 ///
-/// Foundation step B7 (00-overview 7.6): empty frame. The exports are added
-/// during concurrent development (07-sync 8).
+/// Exports the 4.11 helpers (07-sync 4.0 table). `syncScenario` lives in
+/// `test/scenarios/support/sync_scenario.dart` and is not exported.
 library;
+
+export 'src/testing/fake_auth_backend.dart';
+export 'src/testing/fake_blob_store.dart';
+export 'src/testing/fake_local_store.dart';
+export 'src/testing/fake_network.dart';
+export 'src/testing/fake_sync_backend.dart';
+export 'src/testing/fake_sync_server.dart';
+export 'src/testing/sync_test_harness.dart';
+export 'src/testing/test_device.dart';

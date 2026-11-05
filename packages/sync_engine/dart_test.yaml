@@ -1,0 +1,8 @@
+# Test tags of sync_engine (SYNC, docs/plans/07-sync.md 3.2; contract
+# 00-overview 7.4.8). Every tag used by a test in this package is declared
+# here (ws check R15). Tags are written as string literals in the tests.
+tags:
+  scenario: {}        # test/scenarios/ (default run, 9.1.2)
+  golden: {}          # test/goldens/ byte golden (VM only, default run, 6.4.4)
+  integration:        # test/integration/ — real CORE via openTestNoteStore (T16)
+    skip: "integration stage only — ws test --run-skipped -t integration"
