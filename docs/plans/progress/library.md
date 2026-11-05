@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: 1 (동시 개발 단계)
+- 마지막 세션: 1 (동시 개발 단계) — C13-05·L0·L1·L3·L4 완료(L2는 기반 단계 B6에서 완료)
 - 다음 할 일: L5 (트리 평탄화 · 브레드크럼 · 위치) → L6·L7 → L8
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
@@ -16,7 +16,7 @@
 | L1 | 완료 | c2a55ea | `unit/date_format_test.dart`, `unit/josa_test.dart`, `unit/names_test.dart`, `unit/strings_contract_test.dart` |
 | L2 | 기반 단계에서 완료 | 676d241 | `unit/appearance_test.dart` (B6에서 4.4 실제 값·L2 검사 전부) |
 | L3 | 완료 | 9c8ebc2 | `unit/sort_test.dart`, `unit/prefs_notifier_test.dart`, `unit/settings_keys_test.dart`, `unit/page_size_mm_test.dart`, `unit/new_note_options_test.dart`, `shared/new_note_options_cases.dart`, `web/new_note_options_browser_test.dart` |
-| L4 | 완료 | (L4 커밋) | `unit/section_test.dart`, `unit/selection_test.dart` |
+| L4 | 완료 | 9deed79 | `unit/section_test.dart`, `unit/selection_test.dart` |
 | L5 | 남음 | | `unit/tree_flatten_test.dart`, `unit/breadcrumb_test.dart`, `unit/location_label_test.dart` |
 | L6 | 남음 | | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
 | L7 | 남음 | | `unit/actions_test.dart` |
@@ -61,4 +61,7 @@
 
 - 기반 단계 인수인계: `/home/user/wt/notes/foundation-library.md`. B6에서 L2 외형 레지스트리(4.4 실제 값)와 그 테스트가 이미 끝났다.
 - 테스트 기반(L0): 위젯 테스트는 `LibraryTestHarness(FakeLibraryBackend(), size: …, extraOverrides: …)` → `h.pump(tester, folderId: …)`, `h.goToFolder`, `h.log.entries`, `h.backend.calls`/`queries`. 씨앗은 `seedSampleLibrary(backend)`(홈 폴더 3·노트 4, 수학 › 미적분 › 극한 › 연습 문제 + '극한 정리'). 시간 흐름이 있는 단위 테스트는 `fakeAsync` 안에서 백엔드를 만든다(가짜의 커밋 재시도·`latency`가 Timer).
-- `LibraryStrings`에는 B6 자리표시 문구(home, folders, settings, newNote, defaultNoteTitle, errorGeneric)만 있다. 전체 표는 L1.
+- L1 이후 `LibraryStrings`에 6.18 주요 표가 있다. 새 화면 문구는 그 작업에서 이 파일에 더한다(위젯에 한국어 리터럴 금지).
+- provider는 모두 `lib/src/state/providers.dart`에 모은다(지금: `libraryPrefsProvider`, `newNoteDefaultsProvider`, `librarySectionProvider`, `librarySelectionProvider`). `selection_notifier.dart`가 `providers.dart`를 import한다(순환 import, Dart에서 허용).
+- 오류 보고는 `reportLibraryError(error, stack, context)`(`lib/src/common/report_error.dart`).
+- 세션 1 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 175개 통과, `flutter test --platform chrome test/web` 6개 통과(L3 브라우저 파일).
