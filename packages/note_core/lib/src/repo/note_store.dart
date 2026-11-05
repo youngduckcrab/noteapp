@@ -4,11 +4,15 @@
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
+import 'package:drift/drift.dart' show QueryExecutor;
 import 'package:meta/meta.dart';
 
 import '../assets/asset_store.dart';
 import '../common/ids.dart';
 import '../session/note_session.dart';
+import '../storage/connect/connect.dart';
+import '../storage/drift_note_store.dart';
+import '../storage/open_errors.dart';
 import '../sync/sync_store.dart';
 import 'content_reader.dart';
 import 'events.dart';
@@ -121,18 +125,29 @@ abstract interface class NoteStore {
 }
 
 /// Opens (and migrates) the database. Throws NoteStoreOpenException.
-/// CORE: foundation step B2 ships the signature only; the drift store arrives with CORE T6
-/// (contract 7.6 B2: UnimplementedError allowed).
-Future<NoteStore> openNoteStore(NoteStoreConfig config) async =>
-    throw UnimplementedError(
-      'openNoteStore: the SQLite store arrives with CORE T6 '
-      '(foundation step B2 ships the signature only)',
-    );
+/// CORE: 6.18 — every failure is classified; the connection is closed before throwing.
+Future<NoteStore> openNoteStore(NoteStoreConfig config) async {
+  final QueryExecutor executor;
+  final StorageInfo info;
+  try {
+    (executor, info) = await openNoteDatabaseExecutor(config);
+  } on Object catch (e, s) {
+    Error.throwWithStackTrace(classifyOpenError(e), s);
+  }
+  return DriftNoteStore.open(
+    executor: executor,
+    storageInfo: info,
+    config: config,
+  );
+}
 
 /// Drops the SQLite DB and the blob IndexedDB of [config] (startup error screen reset).
-/// CORE: body arrives with CORE T6 / T16 (contract 7.6 B2).
-Future<void> deleteLocalNoteData(NoteStoreConfig config) async =>
-    throw UnimplementedError(
-      'deleteLocalNoteData: arrives with CORE T6 / T16 '
-      '(foundation step B2 ships the signature only)',
+/// CORE: 6.18 — StateError while a store of the same database is open in this process.
+Future<void> deleteLocalNoteData(NoteStoreConfig config) async {
+  if (isStoreOpen(config)) {
+    throw StateError(
+      'deleteLocalNoteData: close the open NoteStore of this database first',
     );
+  }
+  await deleteLocalData(config);
+}
