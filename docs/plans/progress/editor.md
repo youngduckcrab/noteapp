@@ -20,7 +20,7 @@
 | E-05 | 완료 | 21450fe | `unit/input_router_test.dart` (R1~R33 + R29b·관성 속도·`cancelAll`·간격·트랙패드·observe) |
 | E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
 | E-07 | 완료 | 6433a32 | `unit/tool_controller_test.dart` |
-| E-08 | 완료 | (이 커밋) | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
+| E-08 | 완료 | 219f4a2 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
 | E-09 | 남음 | | `widget/erase_test.dart` |
 | E-10 | 남음 | | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
 | E-11 | 남음 | | `widget/undo_redo_test.dart` |
@@ -86,4 +86,5 @@
 - 라우터 테스트(세션 2): `test/unit/input_router_test.dart`의 `_Input`(합성 시각 + `tester.pump`) — `VelocityTracker`가 `GestureBinding.samplingClock`을 쓰므로 fake_async가 아니라 `testWidgets` 안에서 돌린다. 본문 끝 `router.cancelAll()`로 길게 누르기 타이머를 지운다.
 - 화면 위젯 테스트(세션 3): `pumpEditor`가 기본으로 페이지 로드까지 끝낸 뒤 돌려준다. 뷰포트 원점은 `PageViewport`의 왼쪽 위(앱 바 아래) — 전역 좌표는 `h.toGlobal(i, pt)`·`pathThrough(h, i, pts)`·`pageCenterOf(h, i)`로만 구한다(E-13에서 툴바·프리셋 바가 생기면 원점이 바뀜). 로딩 중 페이지 테스트는 `pumpEditor(settle: false)` 뒤 `h.recorder!.holdPageLoads()`, 프레임 몇 번 → 덮개, `releasePageLoads()`. 커밋 거부는 `h.recorder!.rejectNext(const core.ReadOnlyNoteException('race'))`, 안내 스낵바가 뜨므로 테스트 끝에 `tester.pump(const Duration(seconds: 5))`. 보고되는 오류를 단언하는 테스트는 `FlutterError.onError`를 바꿨다가 **본문 안에서** 되돌린다(`unit/editor_commands_test.dart`의 `_Probe`). 명령·호스트·라우터는 `h.container.read(editorCommandsProvider / editorInteractionHostProvider / editorInputRouterProvider)`.
 - E-09 준비(세션 3): `InteractionHost.beginInteraction`의 `case EditorTool.eraser:`에 `EraseInteraction`을 넣고(펜처럼 `settleNow` 뒤 `controller.beginErase(toInkSample(...), spec: tools.eraser.toSpec(), viewScale: camera.scale)`), 지우는 동안 `EraserRingCursor`가 펜 위치를 따라가게 호스트의 `_cursor`를 갱신(지금 `beginInteraction`이 커서를 숨김 — 지우개는 예외로). 성공 + `returnToPreviousTool`이면 `editorToolProvider.notifier.returnFromEraser()`. `commands.clearCurrentPage()`는 이미 있음 — 지우개 팝업의 확인 대화상자만 E-09에서(팝업 자체는 E-15 `eraser_popup.dart`와 겹치므로 E-09는 확인 대화상자 함수 + 테스트에서 직접 호출로 충분한지 계획 6.6.4 #5 확인).
+- 세션 3 끝 확인: 패키지 VM 테스트 293개 통과(`~1`은 integration 건너뜀), 새 테스트 3개 파일(`pen_stroke`·`page_viewport`·`editor_commands`)은 `flutter test --platform chrome`에서도 46개 통과(웹 컴파일 확인용, test/web 아님), app 패키지 테스트 13개 통과(EditorScreen 구조 변경 영향 없음), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
 - 기반 단계 메모: `/home/user/wt/notes/foundation-editor.md`. 스모크 테스트에서 커밋 지연을 쓰는 저장소는 tear-down이 아니라 본문 끝에서 `close()`(실패 시 멈춤 방지).
