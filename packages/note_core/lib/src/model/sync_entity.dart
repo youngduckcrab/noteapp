@@ -12,6 +12,9 @@ enum EntityKind {
   asset,
   recording,
   setting,
+  // (v2.0, C2-05) wire name = enum name
+  pageObject,
+  handwriting,
 }
 
 /// Everything that is stored, versioned and synced.

@@ -1,4 +1,5 @@
-// lib/src/providers.dart — contract 00-overview 7.2.13 / 7.2.14, CORE 4.9, 6.16.
+// lib/src/providers.dart — contract 00-overview 7.2.13 / 7.2.14, CORE 4.9, 6.16. (v2.0) six
+// providers of the 2nd-round contract 7.2.4 / 7.2.5 (02-core 4.10).
 // package:riverpod 3.4.3, no code generation. Every provider: top-level final, name: == the
 // variable name (7.4.4). Repository stream providers turn automatic retry off.
 import 'dart:async';
@@ -9,18 +10,24 @@ import 'package:riverpod/riverpod.dart';
 import 'assets/asset_store.dart';
 import 'common/ids.dart';
 import 'edit/applied_edit.dart';
+import 'media/audio_ports.dart';
+import 'media/unsupported_audio.dart';
+import 'model/asset.dart';
 import 'model/note.dart';
 import 'model/page.dart';
 import 'model/pen_preset.dart';
 import 'repo/content_reader.dart';
 import 'repo/folder_tree.dart';
+import 'repo/handwriting_repository.dart';
 import 'repo/library_repository.dart';
 import 'repo/library_types.dart';
 import 'repo/note_store.dart';
 import 'repo/pen_preset_repository.dart';
+import 'repo/recording_repository.dart';
 import 'repo/settings_repository.dart';
 import 'repo/status.dart';
 import 'repo/trash_repository.dart';
+import 'search/search_types.dart';
 import 'session/note_session.dart';
 import 'session/page_content.dart';
 import 'sync/sync_display.dart';
@@ -253,4 +260,36 @@ final syncPendingCountProvider = StreamProvider<int>(
   (ref) => ref.watch(syncStoreProvider).watchPendingCount(),
   retry: noRetry,
   name: 'syncPendingCountProvider',
+);
+
+// (v2.0) Recording (2nd-round contract 7.2.4, 02-core 4.10)
+// Defaults: web/VM without media_io → unsupported (no throw on read).
+final audioRecorderServiceProvider = Provider<AudioRecorderService>(
+  (ref) => const UnsupportedAudioRecorder(),
+  name: 'audioRecorderServiceProvider',
+);
+final audioPlaybackServiceProvider = Provider<AudioPlaybackService>(
+  (ref) => const UnsupportedAudioPlayback(),
+  name: 'audioPlaybackServiceProvider',
+);
+final recordingRepositoryProvider = Provider<RecordingRepository>(
+  (ref) => ref.watch(noteStoreProvider).recordings,
+  name: 'recordingRepositoryProvider',
+);
+final noteRecordingsProvider = StreamProvider.autoDispose
+    .family<List<Recording>, NoteId>(
+      (ref, noteId) =>
+          ref.watch(recordingRepositoryProvider).watchRecordings(noteId),
+      retry: noRetry,
+      name: 'noteRecordingsProvider',
+    );
+
+// (v2.0) Handwriting results and search (2nd-round contract 7.2.5, 02-core 4.10)
+final handwritingRepositoryProvider = Provider<HandwritingRepository>(
+  (ref) => ref.watch(noteStoreProvider).handwriting,
+  name: 'handwritingRepositoryProvider',
+);
+final searchIndexProvider = Provider<SearchIndex>(
+  (ref) => ref.watch(noteStoreProvider).search,
+  name: 'searchIndexProvider',
 );

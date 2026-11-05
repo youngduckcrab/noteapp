@@ -6,9 +6,11 @@ import 'package:meta/meta.dart';
 import '../common/ids.dart';
 import '../model/folder.dart';
 import '../model/note.dart';
+import '../search/search_types.dart';
 
 const ListEquality<Folder> _foldersEq = ListEquality<Folder>();
 const ListEquality<Note> _notesEq = ListEquality<Note>();
+const ListEquality<PageSearchHit> _hitsEq = ListEquality<PageSearchHit>();
 
 @immutable
 sealed class LibraryItemRef {
@@ -107,20 +109,37 @@ final class LibrarySearchResult {
     required this.query,
     required this.folders,
     required this.notes,
+    this.pages = const [],
+    this.pagesTruncated = false,
   });
 
   final String query;
   final List<Folder> folders;
   final List<Note> notes;
 
+  /// (v2.0, 2nd-round contract 7.2.5) content hits (ink, pdf, text, math).
+  /// LibraryRepository.searchLibrary(query, {limit = 50}) now also fills pages (≤ 100).
+  /// CORE: empty until CORE T33b / T23b (02-core 8.1).
+  final List<PageSearchHit> pages;
+
+  /// (v2.1, CP-14) more pages than limit, or the 2,000-candidate cap was hit
+  final bool pagesTruncated;
+
   @override
   bool operator ==(Object other) =>
       other is LibrarySearchResult &&
       other.query == query &&
       _foldersEq.equals(other.folders, folders) &&
-      _notesEq.equals(other.notes, notes);
+      _notesEq.equals(other.notes, notes) &&
+      _hitsEq.equals(other.pages, pages) &&
+      other.pagesTruncated == pagesTruncated;
 
   @override
-  int get hashCode =>
-      Object.hash(query, _foldersEq.hash(folders), _notesEq.hash(notes));
+  int get hashCode => Object.hash(
+    query,
+    _foldersEq.hash(folders),
+    _notesEq.hash(notes),
+    _hitsEq.hash(pages),
+    pagesTruncated,
+  );
 }

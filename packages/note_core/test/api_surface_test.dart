@@ -1,5 +1,9 @@
 // API surface of note_core's four entry points (contract 00-overview 7.2.2 ~ 7.2.14 and
 // 7.6 'B2 테스트·개발 도우미', CORE 4.1 ~ 4.10, 8.1 T4 / T5).
+// v2 (2nd-round contract docs/plans/m5-7/00-overview.md 7.2.2 ~ 7.2.7 and 7.6 '기반 단계
+// 시험 도우미', m5-7/02-core 4.1 ~ 4.11, 8.1 T22 = B2-α): the 'v2' tests below reference
+// every 2nd-round name with its contract type. testing_web.dart is a browser-only entry
+// point: test/web/testing_web_browser_test.dart references its names (4.11).
 //
 // The checks are mostly compile-time:
 // - every contract name is referenced from its entry point with the contract types;
@@ -23,7 +27,8 @@ import 'package:note_core/dev_tools.dart' as dev;
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart' as testing;
 import 'package:note_core/testing_vm.dart' as testing_vm;
-import 'package:riverpod/misc.dart' show ProviderOrFamily;
+import 'package:riverpod/misc.dart' show ProviderListenable, ProviderOrFamily;
+import 'package:riverpod/riverpod.dart' show AsyncValue, Provider;
 import 'package:test/test.dart';
 
 import 'support/absent_names.dart';
@@ -372,6 +377,161 @@ final class _Store implements NoteStore {
   Future<void> close() => _no();
   @override
   Future<Uint8List> exportBackupJson() => _no();
+  // v2 (7.2.6, C2-15)
+  @override
+  RecordingRepository get recordings => _Recordings();
+  @override
+  RecordingDraftStore get recordingDrafts => _Drafts();
+  @override
+  HandwritingRepository get handwriting => _Handwriting();
+  @override
+  SearchIndex get search => _Search();
+}
+
+// ---- v2 interfaces (7.2.4, 7.2.5) -------------------------------------------------------
+
+final class _Recordings implements RecordingRepository {
+  @override
+  Stream<List<Recording>> watchRecordings(NoteId noteId) => _no();
+  @override
+  Future<List<Recording>> recordingsOf(NoteId noteId) => _no();
+  @override
+  Future<Recording?> getRecording(RecordingId id) => _no();
+  @override
+  Future<Recording> createRecording({
+    required RecordingId id,
+    required NoteId noteId,
+    required AssetId assetId,
+    required int durationMs,
+    required EpochMillis startedAt,
+    String? title,
+  }) => _no();
+  @override
+  Future<void> renameRecording(RecordingId id, String? title) => _no();
+  @override
+  Future<void> deleteRecording(RecordingId id) => _no();
+  @override
+  Future<int> audioBytesOf(NoteId noteId) => _no();
+}
+
+final class _Drafts implements RecordingDraftStore {
+  @override
+  Future<RecordingDraft> begin({
+    required RecordingId recordingId,
+    required NoteId noteId,
+    required String mimeType,
+    required EpochMillis startedAt,
+  }) => _no();
+  @override
+  Future<void> append(
+    String draftId,
+    Uint8List chunk, {
+    required int activeMs,
+  }) => _no();
+  @override
+  Future<List<RecordingDraft>> listDrafts() => _no();
+  @override
+  Future<Uint8List> readAll(String draftId) => _no();
+  @override
+  Future<void> discard(String draftId) => _no();
+}
+
+final class _Recorder implements AudioRecorderService {
+  @override
+  RecorderStatus get status => _no();
+  @override
+  Stream<RecorderStatus> get statusStream => _no();
+  @override
+  Future<AudioSupport> checkSupport({bool requestPermission = false}) => _no();
+  @override
+  Future<void> start({
+    required RecordingId recordingId,
+    required NoteId noteId,
+  }) => _no();
+  @override
+  Future<void> pause() => _no();
+  @override
+  Future<void> resume() => _no();
+  @override
+  Future<Recording?> stop() => _no();
+  @override
+  Future<void> cancel() => _no();
+  @override
+  int? offsetNowMs() => _no();
+  @override
+  Future<List<RecordingDraft>> pendingDrafts() => _no();
+  @override
+  Future<Recording?> recoverDraft(String draftId) => _no();
+}
+
+final class _Player implements AudioPlaybackService {
+  @override
+  PlaybackStatus get status => _no();
+  @override
+  Stream<PlaybackStatus> get statusStream => _no();
+  @override
+  Future<void> open(Recording recording) => _no();
+  @override
+  Future<void> play() => _no();
+  @override
+  Future<void> pause() => _no();
+  @override
+  Future<void> seekMs(int positionMs) => _no();
+  @override
+  Future<void> setSpeed(double speed) => _no();
+  @override
+  int positionMs() => _no();
+  @override
+  Future<void> close() => _no();
+}
+
+final class _Handwriting implements HandwritingRepository {
+  @override
+  Future<HandwritingText?> forPage(PageId pageId) => _no();
+  @override
+  Stream<HandwritingText?> watchPage(PageId pageId) => _no();
+  @override
+  Future<void> put(HandwritingText value) => _no();
+  @override
+  Future<HandwritingText?> update(
+    PageId pageId,
+    HandwritingText? Function(HandwritingText? current) transform,
+  ) => _no();
+  @override
+  Future<void> removeForPage(PageId pageId) => _no();
+  @override
+  Future<List<PageId>> stalePages(NoteId noteId) => _no();
+  @override
+  Future<List<NoteId>> notesWithStalePages() => _no();
+}
+
+final class _Writer implements SearchIndexWriter {
+  @override
+  Future<String?> sourceRevOf(SearchSource source, String ownerKey) => _no();
+  @override
+  Future<Map<String, String>> sourceRevs(SearchSource source) => _no();
+  @override
+  Future<void> replaceUnits(
+    SearchSource source,
+    String ownerKey,
+    List<SearchUnitDraft> units, {
+    required String sourceRev,
+  }) => _no();
+  @override
+  Future<void> removeOwner(SearchSource source, String ownerKey) => _no();
+}
+
+final class _Search extends _Writer implements SearchIndex {
+  @override
+  Future<List<PageSearchHit>> searchPages(
+    String query, {
+    int limit = 100,
+    NoteId? withinNote,
+  }) => _no();
+  @override
+  Stream<SearchIndexStatus> get status => _no();
+  @override
+  Future<void> rebuild({Set<SearchSource>? sources}) => _no();
 }
 
 final class _Entity implements SyncEntity {
@@ -393,7 +553,22 @@ final class _Entity implements SyncEntity {
 
 String _exhaustiveElement(PageElement e) => switch (e) {
   Stroke() => 'stroke',
+  ShapeObject() => 'shape',
+  TextBoxObject() => 'text',
+  ImageObject() => 'image',
+  MathObject() => 'math',
+  UnknownObject() => 'unknown',
 };
+
+String _exhaustiveObject(PageObject o, ShapeGeometry g) =>
+    switch (o) {
+      ShapeObject() || TextBoxObject() || ImageObject() || MathObject() => 'k',
+      UnknownObject() => 'u',
+    } +
+    switch (g) {
+      PolylineGeometry() => 'p',
+      EllipseGeometry() => 'e',
+    };
 
 String _exhaustiveCommand(EditCommand c) => switch (c) {
   AddStrokes() => c.label,
@@ -409,6 +584,9 @@ String _exhaustiveCommand(EditCommand c) => switch (c) {
   SetPageBackground() => c.label,
   ResizePages() => c.label,
   CompositeCommand() => c.label,
+  AddObjects() => c.label,
+  UpdateObjects() => c.label,
+  RemoveElements() => c.label,
 };
 
 String _exhaustiveException(NoteCoreException e) => switch (e) {
@@ -901,6 +1079,26 @@ void main() {
       deletedAt: null,
       version: null,
     );
+    // v2 (7.2.2, 7.2.5): EntityKind.pageObject / handwriting
+    final object = ShapeObject(
+      id: 'o',
+      pageId: 'p',
+      shapeKind: ShapeKind.line,
+      geometry: const PolylineGeometry([
+        PagePoint(0, 0),
+        PagePoint(1, 1),
+      ], closed: false),
+      style: const ShapeStyle(strokeColorArgb: 0xFF000000),
+      createdAt: 0,
+    );
+    final handwriting = HandwritingText(
+      noteId: 'n',
+      pageId: 'p',
+      engineId: 'fake',
+      sourceRev: '0000000000000000',
+      lines: const [],
+      createdAt: 0,
+    );
     final entities = <SyncEntity>[
       folder,
       note,
@@ -910,6 +1108,8 @@ void main() {
       asset,
       recording,
       setting,
+      object,
+      handwriting,
       _Entity(),
     ];
     expect(entities.map((x) => x.kind).toSet(), EntityKind.values.toSet());
@@ -931,8 +1131,8 @@ void main() {
     ];
     // ignore: use_named_constants
     const draft = PageDraft(
-      id: null,
-      size: PageSize.a4Portrait,
+      id: 'p2',
+      size: PageSize.letterPortrait,
       background: BlankBackground(),
       strokes: [],
     );
@@ -1447,5 +1647,1005 @@ void main() {
     expect(StrokeEraseSession, isNotNull);
     expect(StorageUnavailableException, isNotNull);
     unawaited(Future<void>.value());
+  });
+
+  // ---- v2: 2nd-round contract (B2-α) -------------------------------------------------
+
+  test('v2 7.2.2 PagePoint, ElementFrame', () {
+    const point = PagePoint(1, 2);
+    final List<double> xy = [point.x, point.y];
+    final PagePoint Function(Affine2) movePoint = point.transformed;
+    const frame = ElementFrame(PageRect(0, 0, 10, 20), rotation: 0.5);
+    const flat = ElementFrame(PageRect(0, 0, 10, 0));
+    final PageRect rect = frame.rect;
+    final double rotation = frame.rotation;
+    expect(
+      [xy, rect, rotation, flat.rotation],
+      [
+        [1, 2],
+        const PageRect(0, 0, 10, 20),
+        0.5,
+        0,
+      ],
+    );
+    final List<Object> geometry = [
+      () => frame.center,
+      () => frame.corners,
+      () => frame.bounds,
+    ];
+    final ElementFrame Function(Affine2) moveFrame = frame.transformed;
+    final bool Function(PagePoint, {double tolerance}) contains =
+        frame.contains;
+    final List<double> Function() toJson = frame.toJson;
+    final ElementFrame Function(List<Object?>) fromJson = ElementFrame.fromJson;
+    final ElementFrame Function() normalized = frame.normalized;
+    const double maxSide = ElementFrame.maxSide;
+    expect(maxSide, 14400);
+    expect([
+      movePoint,
+      geometry,
+      moveFrame,
+      contains,
+      toJson,
+      fromJson,
+      normalized,
+    ], hasLength(7));
+  });
+
+  test('v2 7.2.2 page objects', () {
+    expect(EntityKind.values.map((k) => k.name), [
+      'folder',
+      'note',
+      'page',
+      'stroke',
+      'penPreset',
+      'asset',
+      'recording',
+      'setting',
+      'pageObject',
+      'handwriting',
+    ]);
+    expect(ShapeKind.values.map((k) => k.name), [
+      'line',
+      'arrow',
+      'rectangle',
+      'ellipse',
+      'triangle',
+      'polygon',
+      'star',
+    ]);
+    expect(LineDash.values.map((k) => k.name), ['solid', 'dashed', 'dotted']);
+    expect(ArrowHeads.values.map((k) => k.name), ['none', 'end', 'both']);
+    expect(TextAlignKind.values.map((k) => k.name), ['start', 'center', 'end']);
+    expect(
+      [
+        PageObjectLimits.maxObjectsPerPage,
+        PageObjectLimits.maxTextLength,
+        PageObjectLimits.maxLatexLength,
+        PageObjectLimits.maxPolylinePoints,
+      ],
+      [2000, 10000, 4000, 64],
+    );
+
+    const shapeStyle = ShapeStyle(
+      strokeColorArgb: 0xFF000000,
+      strokeWidth: 2.0,
+      strokeOpacity: 1.0,
+      dash: LineDash.solid,
+      fillColorArgb: null,
+      fillOpacity: 1.0,
+      arrowHeads: ArrowHeads.none,
+    );
+    expect([ShapeStyle.minWidth, ShapeStyle.maxWidth], [0.1, 30.0]);
+    final List<Object?> shapeStyleFields = [
+      shapeStyle.strokeColorArgb,
+      shapeStyle.strokeWidth,
+      shapeStyle.strokeOpacity,
+      shapeStyle.dash,
+      shapeStyle.fillColorArgb,
+      shapeStyle.fillOpacity,
+      shapeStyle.arrowHeads,
+    ];
+    double arrowHeadLength() => shapeStyle.arrowHeadLength;
+    final ShapeStyle Function() normalizeShape = shapeStyle.normalized;
+    final ShapeStyle Function({
+      int? strokeColorArgb,
+      double? strokeWidth,
+      double? strokeOpacity,
+      LineDash? dash,
+      int? fillColorArgb,
+      bool clearFill,
+      double? fillOpacity,
+      ArrowHeads? arrowHeads,
+    })
+    copyShapeStyle = shapeStyle.copyWith;
+    final Map<String, Object?> Function() shapeStyleJson = shapeStyle.toJson;
+    final ShapeStyle Function(Map<String, Object?>) shapeStyleFrom =
+        ShapeStyle.fromJson;
+
+    const poly = PolylineGeometry([
+      PagePoint(0, 0),
+      PagePoint(10, 10),
+    ], closed: false);
+    const ellipse = EllipseGeometry(ElementFrame(PageRect(0, 0, 10, 10)));
+    final List<PagePoint> points = poly.points;
+    final bool closed = poly.closed;
+    final ElementFrame ellipseFrame = ellipse.ellipseFrame;
+    final ShapeGeometry Function(Affine2) moveGeometry = poly.transformed;
+    ElementFrame geometryFrame() => poly.frame;
+    final Object Function() geometryJson = poly.toJson;
+    final ShapeGeometry Function(Object?) geometryFrom = ShapeGeometry.fromJson;
+    final PolylineGeometry Function(PagePoint, PagePoint) line =
+        ShapeGeometry.line;
+    final PolylineGeometry Function(PageRect, {double rotation}) rectangle =
+        ShapeGeometry.rectangle;
+    final EllipseGeometry Function(PageRect, {double rotation}) ellipseOf =
+        ShapeGeometry.ellipse;
+    final PolylineGeometry Function(PageRect) triangle = ShapeGeometry.triangle;
+    final PolylineGeometry Function(PageRect, int, {double rotation}) polygon =
+        ShapeGeometry.regularPolygon;
+    final PolylineGeometry Function(PageRect, {int points, double innerRatio})
+    star = ShapeGeometry.star;
+
+    final shape = ShapeObject(
+      id: 's',
+      pageId: 'p',
+      shapeKind: ShapeKind.line,
+      geometry: poly,
+      style: shapeStyle,
+      createdAt: 1,
+      updatedAt: null,
+      deletedAt: null,
+      version: null,
+    );
+    final ShapeKind shapeKind = shape.shapeKind;
+    final ShapeGeometry shapeGeometry = shape.geometry;
+    final ShapeStyle shapeStyleOf = shape.style;
+    final ShapeObject Function({
+      ShapeKind? shapeKind,
+      ShapeGeometry? geometry,
+      ShapeStyle? style,
+      EpochMillis? updatedAt,
+    })
+    copyShape = shape.copyWith;
+
+    const textStyle = TextBoxStyle(
+      fontSizePt: 16,
+      colorArgb: 0xFF1A1A1A,
+      bold: false,
+      align: TextAlignKind.start,
+      lineHeight: 1.4,
+      backgroundArgb: null,
+    );
+    expect([TextBoxStyle.minFontSize, TextBoxStyle.maxFontSize], [6, 144]);
+    final List<Object?> textStyleFields = [
+      textStyle.fontSizePt,
+      textStyle.colorArgb,
+      textStyle.bold,
+      textStyle.align,
+      textStyle.lineHeight,
+      textStyle.backgroundArgb,
+    ];
+    final TextBoxStyle Function() normalizeText = textStyle.normalized;
+    final TextBoxStyle Function({
+      double? fontSizePt,
+      int? colorArgb,
+      bool? bold,
+      TextAlignKind? align,
+      double? lineHeight,
+      int? backgroundArgb,
+      bool clearBackground,
+    })
+    copyTextStyle = textStyle.copyWith;
+    final Map<String, Object?> Function() textStyleJson = textStyle.toJson;
+    final TextBoxStyle Function(Map<String, Object?>) textStyleFrom =
+        TextBoxStyle.fromJson;
+    final text = TextBoxObject(
+      id: 't',
+      pageId: 'p',
+      frame: const ElementFrame(PageRect(0, 0, 100, 20)),
+      text: '안녕',
+      style: textStyle,
+      createdAt: 1,
+      updatedAt: 2,
+      deletedAt: null,
+      version: null,
+    );
+    final List<Object> textFields = [text.frame, text.text, text.style];
+    final TextBoxObject Function({
+      ElementFrame? frame,
+      String? text,
+      TextBoxStyle? style,
+      EpochMillis? updatedAt,
+    })
+    copyText = text.copyWith;
+
+    final image = ImageObject(
+      id: 'i',
+      pageId: 'p',
+      frame: const ElementFrame(PageRect(0, 0, 40, 30)),
+      assetId: 'a' * 64,
+      pixelWidth: 400,
+      pixelHeight: 300,
+      createdAt: 1,
+      updatedAt: null,
+      deletedAt: null,
+      version: null,
+    );
+    final List<Object> imageFields = [
+      image.frame,
+      image.assetId,
+      image.pixelWidth,
+      image.pixelHeight,
+    ];
+    final ImageObject Function({ElementFrame? frame, EpochMillis? updatedAt})
+    copyImage = image.copyWith;
+
+    const mathStyle = MathStyle(colorArgb: 0xFF1A1A1A, fontSizePt: 18);
+    expect([MathStyle.minFontSize, MathStyle.maxFontSize], [6, 144]);
+    final MathStyle Function() normalizeMath = mathStyle.normalized;
+    final MathStyle Function({int? colorArgb, double? fontSizePt})
+    copyMathStyle = mathStyle.copyWith;
+    final Map<String, Object?> Function() mathStyleJson = mathStyle.toJson;
+    final MathStyle Function(Map<String, Object?>) mathStyleFrom =
+        MathStyle.fromJson;
+    final math = MathObject(
+      id: 'm',
+      pageId: 'p',
+      frame: const ElementFrame(PageRect(0, 0, 40, 30)),
+      latex: r'\frac{a}{b}',
+      style: mathStyle,
+      engineId: 'manual',
+      createdAt: 1,
+      updatedAt: null,
+      deletedAt: null,
+      version: null,
+    );
+    final List<Object?> mathFields = [
+      math.frame,
+      math.latex,
+      math.style,
+      math.engineId,
+    ];
+    final MathObject Function({
+      ElementFrame? frame,
+      String? latex,
+      MathStyle? style,
+      String? engineId,
+      EpochMillis? updatedAt,
+    })
+    copyMath = math.copyWith;
+
+    final UnknownObject Function(Map<String, Object?>) unknown =
+        UnknownObject.new;
+    String unknownMembers(UnknownObject u) =>
+        '${u.type}${u.rawJson}${u.frame}${u.bounds}${u.referencedAssets}';
+
+    final objects = <PageObject>[shape, text, image, math];
+    for (final o in objects) {
+      final PageElement element = o;
+      final List<Object?> common = [
+        o.kind,
+        o.type,
+        o.id,
+        o.pageId,
+        o.createdAt,
+        o.updatedAt,
+        o.deletedAt,
+        o.version,
+        o.isDeleted,
+        o.referencedAssets,
+        element.createdAt,
+      ];
+      final PageObject Function(Affine2, {bool scaleWidth}) transformed =
+          o.transformed;
+      final PageObject Function({
+        required ElementId id,
+        required PageId pageId,
+        required EpochMillis createdAt,
+      })
+      copyTo = o.copyTo;
+      final PageObject Function({
+        EpochMillis? updatedAt,
+        EpochMillis? deletedAt,
+        bool clearDeletedAt,
+        Hlc? version,
+      })
+      copyWithMeta = o.copyWithMeta;
+      int estimate() => o.estimatedBytes;
+      ElementFrame frame() => o.frame;
+      final Map<String, Object?> Function() json = o.toJson;
+      expect(o.kind, EntityKind.pageObject);
+      expect([
+        common,
+        transformed,
+        copyTo,
+        copyWithMeta,
+        estimate,
+        frame,
+        json,
+      ], hasLength(7));
+    }
+    expect(objects.map((o) => o.type), ['shape', 'text', 'image', 'math']);
+    final PageObject Function(Map<String, Object?>) fromJson =
+        PageObject.fromJson;
+    final int Function(PageElement, PageElement) order = Stroke.compareOrder;
+    expect(objects.map(_exhaustiveElement), ['shape', 'text', 'image', 'math']);
+    expect(_exhaustiveObject(shape, ellipse), 'ke');
+    expect([
+      shapeStyleFields,
+      arrowHeadLength,
+      normalizeShape,
+      copyShapeStyle,
+      shapeStyleJson,
+      shapeStyleFrom,
+      points,
+      closed,
+      ellipseFrame,
+      moveGeometry,
+      geometryFrame,
+      geometryJson,
+      geometryFrom,
+      line,
+      rectangle,
+      ellipseOf,
+      triangle,
+      polygon,
+      star,
+      shapeKind,
+      shapeGeometry,
+      shapeStyleOf,
+      copyShape,
+      textStyleFields,
+      normalizeText,
+      copyTextStyle,
+      textStyleJson,
+      textStyleFrom,
+      textFields,
+      copyText,
+      imageFields,
+      copyImage,
+      normalizeMath,
+      copyMathStyle,
+      mathStyleJson,
+      mathStyleFrom,
+      mathFields,
+      copyMath,
+      unknown,
+      unknownMembers,
+      fromJson,
+      order,
+    ], hasLength(42));
+  });
+
+  test('v2 7.2.3 page content, drafts, commands', () {
+    const page = Page(
+      id: 'p',
+      noteId: 'n',
+      sortKey: 'a0',
+      size: PageSize.a4Portrait,
+      background: BlankBackground(),
+      createdAt: 0,
+      updatedAt: 0,
+    );
+    final content = PageContent(
+      page: page,
+      strokes: const [],
+      objects: const [],
+      revision: 0,
+    );
+    final List<PageObject> objects = content.objects;
+    final PageObject? Function(ElementId) objectById = content.objectById;
+    final PageElement? Function(ElementId) elementById = content.elementById;
+    final int objectCount = content.objectCount;
+    expect(
+      [objects, objectById('x'), elementById('x'), objectCount],
+      [isEmpty, null, null, 0],
+    );
+    const draft = PageDraft(
+      id: 'p2',
+      size: PageSize.letterPortrait,
+      background: BlankBackground(),
+      strokes: [],
+      objects: [],
+    );
+    final List<PageObject> draftObjects = draft.objects;
+    final PageDraft Function(PageContent) copyOf = PageDraft.copyOf;
+    expect([draftObjects, copyOf], hasLength(2));
+    const add = AddObjects(pageId: 'p', objects: []);
+    const update = UpdateObjects(pageId: 'p', objects: []);
+    const remove = RemoveElements(pageId: 'p', elementIds: ['e']);
+    const clear = ClearPage(
+      pageId: 'p',
+      filter: StrokeFilter.all,
+      includeObjects: true,
+    );
+    final PageId addPage = add.pageId;
+    final List<PageObject> addObjects = add.objects;
+    final PageId updatePage = update.pageId;
+    final List<PageObject> updateObjects = update.objects;
+    final PageId removePage = remove.pageId;
+    final List<ElementId> removeIds = remove.elementIds;
+    final bool includeObjects = clear.includeObjects;
+    expect(const ClearPage(pageId: 'p').includeObjects, isFalse);
+    expect([add, update, remove].map(_exhaustiveCommand), [
+      'add-objects',
+      'update-objects',
+      'remove-elements',
+    ]);
+    expect([
+      addPage,
+      addObjects,
+      updatePage,
+      updateObjects,
+      removePage,
+      removeIds,
+      includeObjects,
+    ], hasLength(7));
+  });
+
+  test('v2 7.2.4 recordings and audio ports', () {
+    const recording = Recording(
+      id: 'r',
+      noteId: 'n',
+      assetId: 'a',
+      durationMs: 1,
+      startedAt: 0,
+      createdAt: 0,
+      updatedAt: 0,
+      deletedAt: null,
+      version: null,
+      title: '녹음',
+    );
+    final String? title = recording.title;
+    final Recording Function({
+      int? durationMs,
+      EpochMillis? updatedAt,
+      EpochMillis? deletedAt,
+      bool clearDeletedAt,
+      Hlc? version,
+      String? title,
+      bool clearTitle,
+    })
+    copy = recording.copyWith;
+    expect(title, '녹음');
+    const draft = RecordingDraft(
+      draftId: 'd',
+      recordingId: 'r',
+      noteId: 'n',
+      mimeType: 'audio/mp4',
+      startedAt: 0,
+      chunkCount: 0,
+      bytes: 0,
+      activeMs: 0,
+      updatedAt: 0,
+    );
+    final List<Object> draftFields = [
+      draft.draftId,
+      draft.recordingId,
+      draft.noteId,
+      draft.mimeType,
+      draft.startedAt,
+      draft.chunkCount,
+      draft.bytes,
+      draft.activeMs,
+      draft.updatedAt,
+    ];
+    expect(AudioSupport.values.map((v) => v.name), [
+      'supported',
+      'unsupported',
+      'permissionDenied',
+      'permissionPermanentlyDenied',
+    ]);
+    expect(RecorderPhase.values.map((v) => v.name), [
+      'idle',
+      'starting',
+      'recording',
+      'paused',
+      'finishing',
+    ]);
+    expect(PlaybackPhase.values.map((v) => v.name), [
+      'idle',
+      'loading',
+      'ready',
+      'playing',
+      'paused',
+      'completed',
+      'failed',
+    ]);
+    const recorder = RecorderStatus(
+      phase: RecorderPhase.idle,
+      recordingId: null,
+      noteId: null,
+      activeMs: 0,
+      backgroundCapable: false,
+      interrupted: false,
+      mimeType: null,
+      crossPlatformPlayable: true,
+      error: null,
+    );
+    final List<Object?> recorderFields = [
+      recorder.phase,
+      recorder.recordingId,
+      recorder.noteId,
+      recorder.activeMs,
+      recorder.backgroundCapable,
+      recorder.interrupted,
+      recorder.mimeType,
+      recorder.crossPlatformPlayable,
+      recorder.error,
+    ];
+    bool isActive() => recorder.isActive;
+    final RecorderStatus Function({
+      RecorderPhase? phase,
+      RecordingId? recordingId,
+      NoteId? noteId,
+      int? activeMs,
+      bool? backgroundCapable,
+      bool? interrupted,
+      String? mimeType,
+      bool? crossPlatformPlayable,
+      Object? error,
+      bool clearRecording,
+      bool clearError,
+    })
+    copyRecorder = recorder.copyWith;
+    const playback = PlaybackStatus(
+      phase: PlaybackPhase.idle,
+      recordingId: null,
+      durationMs: 0,
+      speed: 1.0,
+      unsupportedFormat: false,
+      error: null,
+    );
+    final List<Object?> playbackFields = [
+      playback.phase,
+      playback.recordingId,
+      playback.durationMs,
+      playback.speed,
+      playback.unsupportedFormat,
+      playback.error,
+    ];
+    final PlaybackStatus Function({
+      PlaybackPhase? phase,
+      RecordingId? recordingId,
+      int? durationMs,
+      double? speed,
+      bool? unsupportedFormat,
+      Object? error,
+      bool clearRecording,
+      bool clearError,
+    })
+    copyPlayback = playback.copyWith;
+    const AudioRecorderService unsupportedRecorder = UnsupportedAudioRecorder();
+    const AudioPlaybackService unsupportedPlayback = UnsupportedAudioPlayback();
+    final services = <Object>[
+      _Recordings(),
+      _Drafts(),
+      _Recorder(),
+      _Player(),
+      unsupportedRecorder,
+      unsupportedPlayback,
+    ];
+    expect([
+      copy,
+      draftFields,
+      recorderFields,
+      isActive,
+      copyRecorder,
+      playbackFields,
+      copyPlayback,
+      services,
+    ], hasLength(8));
+  });
+
+  test('v2 7.2.5 handwriting results and search', () {
+    const line = HandwritingLine(
+      text: '안녕',
+      alternatives: ['안냥'],
+      rect: PageRect(0, 0, 10, 10),
+      strokeIds: ['s'],
+      languageTag: 'ko',
+      userConfirmed: false,
+    );
+    final List<Object> lineFields = [
+      line.text,
+      line.alternatives,
+      line.rect,
+      line.strokeIds,
+      line.languageTag,
+      line.userConfirmed,
+    ];
+    final Map<String, Object?> Function() lineJson = line.toJson;
+    final HandwritingLine Function(Map<String, Object?>) lineFrom =
+        HandwritingLine.fromJson;
+    final HandwritingLine Function({
+      String? text,
+      List<String>? alternatives,
+      PageRect? rect,
+      List<ElementId>? strokeIds,
+      String? languageTag,
+      bool? userConfirmed,
+    })
+    copyLine = line.copyWith;
+    final result = HandwritingText(
+      noteId: 'n',
+      pageId: 'p',
+      engineId: 'fake',
+      sourceRev: '0000000000000000',
+      lines: const [line],
+      createdAt: 1,
+      updatedAt: null,
+      deletedAt: null,
+      version: null,
+    );
+    final String Function(PageId) idFor = HandwritingText.idFor;
+    final String Function(Iterable<Stroke>) sourceRevOf =
+        HandwritingText.sourceRevOf;
+    final bool Function(Stroke) isInput = HandwritingText.isRecognitionInput;
+    final List<Object?> resultFields = [
+      result.id,
+      result.noteId,
+      result.pageId,
+      result.engineId,
+      result.sourceRev,
+      result.lines,
+      result.createdAt,
+      result.updatedAt,
+      result.deletedAt,
+      result.version,
+      result.isDeleted,
+      result.kind,
+    ];
+    final Map<String, Object?> Function() resultJson = result.toJson;
+    final HandwritingText Function(Map<String, Object?>) resultFrom =
+        HandwritingText.fromJson;
+    final HandwritingText Function({
+      String? engineId,
+      String? sourceRev,
+      List<HandwritingLine>? lines,
+      EpochMillis? updatedAt,
+      EpochMillis? deletedAt,
+      bool clearDeletedAt,
+      Hlc? version,
+    })
+    copyResult = result.copyWith;
+    expect(result.kind, EntityKind.handwriting);
+
+    expect(SearchSource.values.map((v) => v.name), [
+      'ink',
+      'pdf',
+      'text',
+      'math',
+    ]);
+    const unit = SearchUnitDraft(body: '안녕', rects: [], pdfPageAspect: null);
+    final List<Object?> unitFields = [
+      unit.body,
+      unit.rects,
+      unit.pdfPageAspect,
+    ];
+    const hit = PageSearchHit(
+      noteId: 'n',
+      pageId: 'p',
+      source: SearchSource.ink,
+      snippet: '안녕',
+      matchRange: (0, 2),
+      rects: [],
+      score: 1,
+    );
+    final (int, int) range = hit.matchRange;
+    final List<Object> hitFields = [
+      hit.noteId,
+      hit.pageId,
+      hit.source,
+      hit.snippet,
+      hit.rects,
+      hit.score,
+    ];
+    const status = SearchIndexStatus(
+      pendingOwners: 0,
+      rebuilding: false,
+      lastRebuildAt: null,
+    );
+    final List<Object?> statusFields = [
+      status.pendingOwners,
+      status.rebuilding,
+      status.lastRebuildAt,
+    ];
+    const int normalizerVersion = SearchText.normalizerVersion;
+    expect(normalizerVersion, 1);
+    final String Function(String) normalize = SearchText.normalize;
+    final String Function(String) indexTerms = SearchText.indexTerms;
+    final String? Function(String) matchQuery = SearchText.matchQuery;
+    final SearchTextMapping Function(String) mapped =
+        SearchText.normalizeMapped;
+    final mapping = SearchTextMapping(
+      text: 'a',
+      sourceStart: Int32List.fromList([0]),
+      sourceEnd: Int32List.fromList([1]),
+    );
+    final List<Object> mappingFields = [
+      mapping.text,
+      mapping.sourceStart,
+      mapping.sourceEnd,
+    ];
+    const library = LibrarySearchResult(
+      query: 'q',
+      folders: [],
+      notes: [],
+      pages: [hit],
+      pagesTruncated: false,
+    );
+    final List<PageSearchHit> pages = library.pages;
+    final bool truncated = library.pagesTruncated;
+    final writers = <SearchIndexWriter>[_Writer(), _Search()];
+    final services = <Object>[_Handwriting(), ...writers];
+    expect([
+      lineFields,
+      lineJson,
+      lineFrom,
+      copyLine,
+      idFor,
+      sourceRevOf,
+      isInput,
+      resultFields,
+      resultJson,
+      resultFrom,
+      copyResult,
+      unitFields,
+      range,
+      hitFields,
+      statusFields,
+      normalize,
+      indexTerms,
+      matchQuery,
+      mapped,
+      mappingFields,
+      pages,
+      truncated,
+      services,
+    ], hasLength(23));
+  });
+
+  test('v2 7.2.6 image import, assets, store bundle', () {
+    expect(ImageImportSource.values.map((v) => v.name), [
+      'photos',
+      'camera',
+      'files',
+      'clipboard',
+    ]);
+    const asset = Asset(
+      id: 'a',
+      ownerId: kLocalOwnerId,
+      type: AssetType.image,
+      mimeType: 'image/png',
+      size: 1,
+      createdAt: 0,
+    );
+    const imported = ImportedImage(asset: asset, pixelWidth: 1, pixelHeight: 1);
+    final List<Object> importedFields = [
+      imported.asset,
+      imported.pixelWidth,
+      imported.pixelHeight,
+    ];
+    expect(
+      [ImageImportLimits.maxLongSidePx, ImageImportLimits.maxBytes],
+      [2048, 8 * 1024 * 1024],
+    );
+    const Set<String> stored = ImageImportLimits.storedMimeTypes;
+    expect(stored, {'image/jpeg', 'image/png'});
+    const usage = AssetStorageUsage(
+      assetCount: 0,
+      totalBytes: 0,
+      thumbnailBytes: 0,
+      bytesByType: {AssetType.audio: 0},
+    );
+    final Map<AssetType, int> byType = usage.bytesByType;
+    expect(
+      const AssetStorageUsage(
+        assetCount: 0,
+        totalBytes: 0,
+        thumbnailBytes: 0,
+      ).bytesByType,
+      isEmpty,
+    );
+    const config = NoteStoreConfig(nativeAssetDirectoryPath: '/tmp/blobs');
+    final String? blobRoot = config.nativeAssetDirectoryPath;
+    final NoteStore store = _Store();
+    RecordingRepository recordings() => store.recordings;
+    RecordingDraftStore drafts() => store.recordingDrafts;
+    HandwritingRepository handwriting() => store.handwriting;
+    SearchIndex search() => store.search;
+    expect([
+      importedFields,
+      byType,
+      blobRoot,
+      recordings,
+      drafts,
+      handwriting,
+      search,
+    ], hasLength(7));
+  });
+
+  test('v2 7.2.7 schema versions (DB v2 is CORE T24)', () {
+    expect([kNoteSchemaVersion, kDatabaseSchemaVersion], [1, 1]);
+  });
+
+  test('v2 providers (7.2.4, 7.2.5)', () {
+    final providers = <String, ProviderOrFamily>{
+      'audioRecorderServiceProvider': audioRecorderServiceProvider,
+      'audioPlaybackServiceProvider': audioPlaybackServiceProvider,
+      'recordingRepositoryProvider': recordingRepositoryProvider,
+      'noteRecordingsProvider': noteRecordingsProvider,
+      'handwritingRepositoryProvider': handwritingRepositoryProvider,
+      'searchIndexProvider': searchIndexProvider,
+    };
+    for (final e in providers.entries) {
+      expect(
+        e.value.name,
+        e.key,
+        reason: 'name: argument == variable name (7.4.4)',
+      );
+    }
+    final Provider<AudioRecorderService> recorder =
+        audioRecorderServiceProvider;
+    final Provider<AudioPlaybackService> playback =
+        audioPlaybackServiceProvider;
+    final Provider<RecordingRepository> recordings =
+        recordingRepositoryProvider;
+    final ProviderListenable<AsyncValue<List<Recording>>> Function(NoteId)
+    noteRecordings = noteRecordingsProvider.call;
+    final Provider<HandwritingRepository> handwriting =
+        handwritingRepositoryProvider;
+    final Provider<SearchIndex> search = searchIndexProvider;
+    expect([
+      recorder,
+      playback,
+      recordings,
+      noteRecordings,
+      handwriting,
+      search,
+    ], hasLength(6));
+  });
+
+  test('v2 testing.dart / dev_tools.dart', () async {
+    final ShapeObject Function({
+      required String pageId,
+      ShapeKind kind,
+      PageRect rect,
+      int createdAt,
+      String? id,
+    })
+    shape = testing.PageObjectFixtures.shape;
+    final TextBoxObject Function({
+      required String pageId,
+      String text,
+      PageRect rect,
+      int createdAt,
+      String? id,
+    })
+    textBox = testing.PageObjectFixtures.textBox;
+    final ImageObject Function({
+      required String pageId,
+      required AssetId assetId,
+      PageRect rect,
+      int pixelWidth,
+      int pixelHeight,
+      int createdAt,
+      String? id,
+    })
+    image = testing.PageObjectFixtures.image;
+    final MathObject Function({
+      required String pageId,
+      String latex,
+      PageRect rect,
+      int createdAt,
+      String? id,
+    })
+    math = testing.PageObjectFixtures.math;
+    final UnknownObject Function({
+      required String pageId,
+      String type,
+      PageRect rect,
+      String? id,
+    })
+    unknown = testing.PageObjectFixtures.unknown;
+    final store = testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final testing.FakeAudioRecorder Function({
+      required NoteStore store,
+      AudioSupport support,
+    })
+    makeRecorder = testing.FakeAudioRecorder.new;
+    final recorder = makeRecorder(
+      store: store,
+      support: AudioSupport.supported,
+    );
+    final AudioRecorderService asPort = recorder;
+    final void Function(Duration) advance = recorder.advance;
+    final void Function() interrupt = recorder.interrupt;
+    recorder.stopDurationErrorMs = 5;
+    final int durationError = recorder.stopDurationErrorMs;
+    final Future<void> Function() abandon = recorder.abandon;
+    final testing.FakeAudioPlayback Function() makePlayback =
+        testing.FakeAudioPlayback.new;
+    final playback = makePlayback();
+    final AudioPlaybackService asPlayer = playback;
+    final void Function(int) setPosition = playback.setPositionMs;
+    List<String> calls() => playback.calls;
+
+    const info = dev.V1DatabaseCopyInfo(
+      createdAt: 0,
+      bytes: 0,
+      normalOpens: 0,
+      fileName: 'noteapp-v1-backup.sqlite',
+      failure: null,
+    );
+    final List<Object?> infoFields = [
+      info.createdAt,
+      info.bytes,
+      info.normalOpens,
+      info.fileName,
+      info.failure,
+    ];
+    final Future<dev.V1DatabaseCopyInfo?> Function(NoteStore) copyInfo =
+        dev.v1DatabaseCopyInfo;
+    final Stream<Uint8List> Function(NoteStore) readCopy =
+        dev.readV1DatabaseCopy;
+    final Future<void> Function(NoteStore) deleteCopy =
+        dev.deleteV1DatabaseCopy;
+    expect([
+      shape,
+      textBox,
+      image,
+      math,
+      unknown,
+      asPort,
+      advance,
+      interrupt,
+      durationError,
+      abandon,
+      asPlayer,
+      setPosition,
+      calls,
+      infoFields,
+      copyInfo,
+      readCopy,
+      deleteCopy,
+    ], hasLength(17));
+  });
+
+  test('v2 names that stay out of the barrel', () {
+    // Test / developer helpers and internals (4.11: normalizeForSearch, DriftSearchIndex,
+    // MemorySearchIndex, SearchIndexer, FileBlobDatabase, upgradeV1ToV2, searchMatches,
+    // ftsCandidateMatches, canonicalDump, SearchRectsCodec).
+    expect([
+      openWebTestNoteStore,
+      deleteWebTestNoteStore,
+      v1DatabaseCopyInfo,
+      readV1DatabaseCopy,
+      deleteV1DatabaseCopy,
+      upgradeV1ToV2,
+      searchMatches,
+      ftsCandidateMatches,
+      canonicalDump,
+      notYet,
+      kCalligraphyNibAngleKey,
+    ], everyElement(const Absent()));
+    expect([
+      PageObjectFixtures,
+      FakeAudioRecorder,
+      FakeAudioPlayback,
+      V1DatabaseCopyInfo,
+      DriftSearchIndex,
+      MemorySearchIndex,
+      SearchIndexer,
+      FileBlobDatabase,
+      SearchRectsCodec,
+      EmptyRecordingRepository,
+      EmptyRecordingDraftStore,
+      EmptyHandwritingRepository,
+      EmptySearchIndex,
+    ], hasLength(13));
   });
 }

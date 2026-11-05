@@ -2,6 +2,7 @@
 // remote_asset.dart — contract 00-overview 7.2.11 (v1.3) / CORE 4.7.
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 import '../common/ids.dart';
@@ -15,19 +16,34 @@ final class AssetStorageUsage {
     required this.assetCount,
     required this.totalBytes,
     required this.thumbnailBytes,
+    this.bytesByType = const {},
   });
 
   final int assetCount, totalBytes, thumbnailBytes;
+
+  /// (v2.0, 2nd-round contract 7.2.6 — C2-14) Σ Asset.size of rows with hasLocalBytes, per
+  /// type (same rule as totalBytes, 1차 T13); a type with no bytes is absent (read as 0).
+  /// == / hashCode include it. CORE: filled by CORE T21 (empty until then — 02-core 8.1).
+  final Map<AssetType, int> bytesByType;
 
   @override
   bool operator ==(Object other) =>
       other is AssetStorageUsage &&
       other.assetCount == assetCount &&
       other.totalBytes == totalBytes &&
-      other.thumbnailBytes == thumbnailBytes;
+      other.thumbnailBytes == thumbnailBytes &&
+      const MapEquality<AssetType, int>().equals(
+        other.bytesByType,
+        bytesByType,
+      );
 
   @override
-  int get hashCode => Object.hash(assetCount, totalBytes, thumbnailBytes);
+  int get hashCode => Object.hash(
+    assetCount,
+    totalBytes,
+    thumbnailBytes,
+    const MapEquality<AssetType, int>().hash(bytesByType),
+  );
 }
 
 abstract interface class AssetStore {

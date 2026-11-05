@@ -1,4 +1,6 @@
-// lib/src/repo/note_store.dart — contract 00-overview 7.2.12 / CORE 4.8.1, 6.18.
+// lib/src/repo/note_store.dart — contract 00-overview 7.2.12 / CORE 4.8.1, 6.18. (v2.0) getters
+// recordings / recordingDrafts / handwriting / search, NoteStoreConfig.nativeAssetDirectoryPath —
+// 2nd-round contract 7.2.6 / 02-core 4.7.
 // Contract comments are kept verbatim (they contain <placeholders>).
 // ignore_for_file: unintended_html_in_doc_comment
 import 'dart:typed_data';
@@ -9,6 +11,7 @@ import 'package:meta/meta.dart';
 
 import '../assets/asset_store.dart';
 import '../common/ids.dart';
+import '../search/search_types.dart';
 import '../session/note_session.dart';
 import '../storage/connect/connect.dart';
 import '../storage/drift_note_store.dart';
@@ -18,8 +21,10 @@ import '../storage/web_storage/storage_query.dart';
 import '../sync/sync_store.dart';
 import 'content_reader.dart';
 import 'events.dart';
+import 'handwriting_repository.dart';
 import 'library_repository.dart';
 import 'pen_preset_repository.dart';
+import 'recording_repository.dart';
 import 'settings_repository.dart';
 import 'status.dart';
 import 'trash_repository.dart';
@@ -66,6 +71,7 @@ final class NoteStoreConfig {
     this.seedDefaultPenPresets = true,
     this.clock, // tests
     this.idGenerator, // tests
+    this.nativeAssetDirectoryPath,
   });
 
   final String databaseName;
@@ -86,6 +92,12 @@ final class NoteStoreConfig {
   final bool seedDefaultPenPresets;
   final Clock? clock;
   final IdGenerator? idGenerator;
+
+  /// (v2.0, 2nd-round contract 7.2.6 — C2-16) file BlobStore root (native).
+  /// 네이티브 저장(공통-1): nativeDatabasePath와 nativeAssetDirectoryPath가 모두 있으면 CORE는
+  /// 파일 DB + 파일 블롭 저장소를 쓴다. (v2.1) 루트 디렉터리가 없으면 CORE가 만든다.
+  /// CORE: field only until CORE T35 — the native store keeps the 1차 behaviour (02-core 8.1).
+  final String? nativeAssetDirectoryPath;
 }
 
 abstract interface class NoteStore {
@@ -124,6 +136,12 @@ abstract interface class NoteStore {
   /// field versions + asset metadata, NO asset bytes, no device settings / sync meta /
   /// thumbnails. One UTF-8 JSON document, deterministic order. Flushes first.
   Future<Uint8List> exportBackupJson();
+
+  // (v2.0, 2nd-round contract 7.2.6 — C2-15) new getters
+  RecordingRepository get recordings;
+  RecordingDraftStore get recordingDrafts;
+  HandwritingRepository get handwriting;
+  SearchIndex get search;
 }
 
 /// Opens (and migrates) the database. Throws NoteStoreOpenException.

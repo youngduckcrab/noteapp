@@ -1,4 +1,5 @@
-// CORE T6 — openTestNoteStore body (contract 7.6, CORE 4.10).
+// CORE T6 — openTestNoteStore body (contract 7.6, CORE 4.10). (v2.0) The B2-α state of the
+// real store (m5-7/02-core 8.1 'B2 상태', column 'B2-α 끝').
 @TestOn('vm')
 library;
 
@@ -9,6 +10,8 @@ import 'package:note_core/note_core.dart';
 import 'package:note_core/src/storage/drift_note_store.dart';
 import 'package:note_core/testing_vm.dart';
 import 'package:test/test.dart';
+
+import '../shared/b2_alpha_store_cases.dart';
 
 void main() {
   test(
@@ -173,4 +176,29 @@ void main() {
       expect(first.isWriting, isFalse);
     },
   );
+
+  group('B2-α state (m5-7/02-core 8.1)', () {
+    defineB2AlphaStoreTests(
+      openTestNoteStore,
+      tasks: (
+        recordings: 'T30',
+        drafts: 'T31',
+        handwriting: 'T32',
+        search: 'T33a',
+        v1Copy: 'T24',
+      ),
+      hasV1CopyApi: true,
+    );
+
+    test('the sync window reads no row of the new kinds (DB v1)', () async {
+      final store = await openTestNoteStore();
+      addTearDown(store.close);
+      final refs = [
+        const EntityRef(EntityKind.pageObject, 'o1'),
+        EntityRef(EntityKind.handwriting, HandwritingText.idFor('p1')),
+      ];
+      expect(await store.sync.readVersioned(refs), [null, null]);
+      expect(kDatabaseSchemaVersion, 1);
+    });
+  });
 }

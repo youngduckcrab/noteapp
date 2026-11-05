@@ -19,12 +19,28 @@ void main() {
     }
   });
 
-  test('all 8 kinds are covered by the samples (10 entity shapes)', () {
+  test('the 8 v1.4 kinds are covered by the samples (10 entity shapes)', () {
+    // (v2.0) pageObject / handwriting get their samples and decoders with CORE T20a
+    // (m5-7/02-core 8.1); until then decoding them is UnimplementedError('CORE T20a: …').
+    const newKinds = {EntityKind.pageObject, EntityKind.handwriting};
     expect(
       kSampleEntities.values.map((e) => e.kind).toSet(),
-      EntityKind.values.toSet(),
+      EntityKind.values.toSet().difference(newKinds),
     );
     expect(kSampleEntities.length, 10);
+    for (final kind in newKinds) {
+      expect(
+        () => EntityJson.decode(kind, const {}),
+        throwsA(
+          isA<UnimplementedError>().having(
+            (e) => e.message,
+            'message',
+            startsWith('CORE T20a: '),
+          ),
+        ),
+        reason: kind.name,
+      );
+    }
   });
 
   test('local-only fields are not serialized and get fixed values', () {

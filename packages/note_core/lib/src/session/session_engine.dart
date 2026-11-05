@@ -311,7 +311,10 @@ final class SessionEngine implements NoteSession, ResolveState {
     SplitStrokes(:final pageId) ||
     TransformElements(:final pageId) ||
     RestyleStrokes(:final pageId) ||
-    ClearPage(:final pageId) => {pageId},
+    ClearPage(:final pageId) ||
+    AddObjects(:final pageId) ||
+    UpdateObjects(:final pageId) ||
+    RemoveElements(:final pageId) => {pageId},
     DuplicatePages(:final pageIds) => pageIds.toSet(),
     CompositeCommand(:final commands) => {
       for (final sub in commands) ..._pagesNeeded(sub),

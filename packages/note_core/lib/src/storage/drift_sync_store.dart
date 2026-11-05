@@ -209,6 +209,8 @@ final class DriftSyncStore implements SyncStore {
       )..where((t) => t.key.isIn(ids))).get())
         versionedSetting(r),
     ],
+    // (v2.0) A v1 database has no such rows; the tables come with DB v2 (CORE T24 / T28).
+    EntityKind.pageObject || EntityKind.handwriting => const [],
   };
 
   // ---- applyRemote (6.10.3) ----------------------------------------------------------

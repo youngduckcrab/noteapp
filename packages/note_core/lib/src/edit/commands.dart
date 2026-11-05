@@ -1,6 +1,7 @@
 // lib/src/edit/commands.dart — user intent. Resolved to an AppliedEdit (6.5).
 // Contract 00-overview 7.2.7 / CORE 4.3. Change: StrokeEraseSession removed (INK
-// EraserSession turns one gesture into one command).
+// EraserSession turns one gesture into one command). (v2.0) AddObjects, UpdateObjects,
+// RemoveElements, ClearPage.includeObjects — 2nd-round contract 7.2.3 / 02-core 4.4, 6.4.
 import '../common/geometry.dart';
 import '../common/ids.dart';
 import '../model/page_background.dart';
@@ -77,10 +78,23 @@ final class RestyleStrokes extends EditCommand {
   String get label => 'restyle';
 }
 
+// (v2.0, 2nd-round contract 7.2.3) TransformElements({pageId, elementIds, transform,
+//   scaleStrokeWidth = true}): strokes as v1.4 (Stroke.transformed(m, scaleWidth:) — (v2.1)
+//   calligraphy nib angle turns with it, C2-38) AND objects via
+//   PageObject.transformed(m, scaleWidth: scaleStrokeWidth) — the single rule (7.2.2).
+// ClearPage({pageId, filter = StrokeFilter.all, includeObjects = false}) — 추가 (named, optional):
+//   includeObjects removes every PageObject too (filter applies to strokes only).
+// InsertPages / DuplicatePages: PageDraft.objects copied with new ids.
+// DeletePages / note purge / note copy / backup: objects follow strokes (CORE 동작 계약).
 final class ClearPage extends EditCommand {
-  const ClearPage({required this.pageId, this.filter = StrokeFilter.all});
+  const ClearPage({
+    required this.pageId,
+    this.filter = StrokeFilter.all,
+    this.includeObjects = false,
+  });
   final PageId pageId;
   final StrokeFilter filter;
+  final bool includeObjects;
   @override
   String get label => 'clear-page';
 }
@@ -131,6 +145,38 @@ final class ResizePages extends EditCommand {
   final PageSize size;
   @override
   String get label => 'resize-pages';
+}
+
+// (v2.1, CP-1) new commands in the v1.4 command shape — const, named arguments, label.
+// EditCommand is sealed; the only exhaustive switch is CORE's resolver.
+/// objects: new ids, version == null, pageId == this.pageId. ≤ PageObjectLimits.maxObjectsPerPage.
+final class AddObjects extends EditCommand {
+  const AddObjects({required this.pageId, required this.objects});
+  final PageId pageId;
+  final List<PageObject> objects;
+  @override
+  String get label => 'add-objects';
+}
+
+/// Replace by id (same id, same type). UnknownObject or a missing id → ArgumentError before any
+/// change. Only JSON keys whose value changed get a new field version (1차 7.2.10, C-11).
+final class UpdateObjects extends EditCommand {
+  const UpdateObjects({required this.pageId, required this.objects});
+  final PageId pageId;
+  final List<PageObject> objects;
+  @override
+  String get label => 'update-objects';
+}
+
+/// Removes strokes AND objects by id; unknown / already deleted / repeated ids ignored (like
+/// RemoveStrokes). (v2.1) A List like every v1.4 id list (RemoveStrokes.strokeIds,
+/// TransformElements.elementIds) — callers write [id], not {id}.
+final class RemoveElements extends EditCommand {
+  const RemoveElements({required this.pageId, required this.elementIds});
+  final PageId pageId;
+  final List<ElementId> elementIds;
+  @override
+  String get label => 'remove-elements';
 }
 
 final class CompositeCommand extends EditCommand {

@@ -1,12 +1,19 @@
 // package:note_core/dev_tools.dart — web-safe, production code may import (EDITOR dev menu)
-/// Developer tools of note_core (contract 00-overview 7.6, CORE 4.10).
+/// Developer tools of note_core (contract 00-overview 7.6, CORE 4.10). (v2.2) v1 DB copy
+/// API for the INFRA developer menu — 2nd-round contract 7.2.7 (C22-01, CORE CP-17).
 library;
 
+import 'dart:typed_data';
+
+import 'package:meta/meta.dart';
+
 import 'src/common/ids.dart';
+import 'src/common/pending.dart';
 import 'src/dev/synthetic.dart';
 import 'src/edit/commands.dart';
 import 'src/edit/page_draft.dart';
 import 'src/repo/note_store.dart';
+import 'src/storage/drift_note_store.dart';
 
 /// CORE: synthetic handwriting-like note for iPad performance checks (strokes carry widthQ,
 /// 6.2.4). Uses ONLY the NoteStore interface (library.createNote + session AddStrokes), so it
@@ -64,4 +71,62 @@ Future<NoteId> seedSyntheticNote(
     await session.close();
   }
   return note.id;
+}
+
+// package:note_core/dev_tools.dart — (v2.2, C22-01 — CORE CP-17) v1 DB copy for the INFRA developer menu
+@immutable
+final class V1DatabaseCopyInfo {
+  const V1DatabaseCopyInfo({
+    required this.createdAt,
+    required this.bytes,
+    required this.normalOpens,
+    required this.fileName,
+    this.failure,
+  });
+  final EpochMillis createdAt;
+  final int bytes;
+  final int normalOpens;
+
+  /// 'noteapp-v1-backup.sqlite' (native, a SQLite file) | 'noteapp-v1-backup.sql.txt' (web, the canonical dump)
+  final String fileName;
+
+  /// Set when the copy could not be made ('quota' | 'io' | 'other'); bytes is 0 then.
+  final String? failure;
+
+  @override
+  bool operator ==(Object other) =>
+      other is V1DatabaseCopyInfo &&
+      other.createdAt == createdAt &&
+      other.bytes == bytes &&
+      other.normalOpens == normalOpens &&
+      other.fileName == fileName &&
+      other.failure == failure;
+
+  @override
+  int get hashCode =>
+      Object.hash(createdAt, bytes, normalOpens, fileName, failure);
+
+  @override
+  String toString() =>
+      'V1DatabaseCopyInfo($fileName, $bytes B, opens: $normalOpens'
+      '${failure == null ? '' : ', failure: $failure'})';
+}
+
+/// null when there is no copy and no failure record (new DB, deleted, or a store without one — fakes).
+/// CORE: the copy is made from CORE T24 on (DB v2); until then no store has one.
+Future<V1DatabaseCopyInfo?> v1DatabaseCopyInfo(NoteStore store) async => null;
+
+/// The copy in ≤ 4 MiB chunks (INFRA writes a file / web download). StateError when there is none.
+/// CORE: the real store answers from CORE T24 on (UnimplementedError until then); a store
+/// without one (the fake store) has none.
+Stream<Uint8List> readV1DatabaseCopy(NoteStore store) async* {
+  if (store is DriftNoteStore) notYet('T24', 'readV1DatabaseCopy');
+  throw StateError('This store has no v1 database copy');
+}
+
+/// Deletes the copy and its kv record; no-op when none.
+/// CORE: the real store from CORE T24 on (UnimplementedError until then); no-op for a store
+/// without one (the fake store).
+Future<void> deleteV1DatabaseCopy(NoteStore store) async {
+  if (store is DriftNoteStore) notYet('T24', 'deleteV1DatabaseCopy');
 }

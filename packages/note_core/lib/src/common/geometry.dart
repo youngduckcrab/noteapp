@@ -1,10 +1,12 @@
 // lib/src/common/geometry.dart — pure Dart (no dart:ui). INK converts to Rect/Offset.
-// Contract 00-overview 7.2.2 / CORE 4.1.
+// Contract 00-overview 7.2.2 / CORE 4.1. (v2.0) PagePoint, ElementFrame — 2nd-round
+// contract 7.2.2, 02-core 4.1 / 4.3 / 6.2.1.
 import 'dart:math' as math;
 
 import 'package:meta/meta.dart';
 
 import 'json_read.dart';
+import 'pending.dart';
 
 @immutable
 final class PageRect {
@@ -190,4 +192,75 @@ final class Affine2 {
 
   @override
   String toString() => 'Affine2($a, $b, $c, $d, $tx, $ty)';
+}
+
+// lib/src/common/geometry.dart — (v2.0) added
+@immutable
+final class PagePoint {
+  const PagePoint(this.x, this.y); // pt, page coordinates, y down
+  final double x, y;
+  PagePoint transformed(Affine2 m) => notYet('T20b', 'PagePoint.transformed');
+
+  // CORE 4.3: ==, hashCode (x, y), toString — no JSON of its own (frames and geometry
+  // write arrays)
+  @override
+  bool operator ==(Object other) =>
+      other is PagePoint && other.x == x && other.y == y;
+
+  @override
+  int get hashCode => Object.hash(x, y);
+
+  @override
+  String toString() => 'PagePoint($x, $y)';
+}
+
+/// (v2.0) Rotated box in page pt. [rect] is the UNROTATED box; [rotation] (rad, clockwise
+/// on screen because y is down) turns it about rect's center.
+@immutable
+final class ElementFrame {
+  const ElementFrame(this.rect, {this.rotation = 0});
+
+  // (v2.1, CP-4) static const double maxSide = 14400 (= PageSize.maxSide; fromJson rejects
+  // larger)
+  static const double maxSide = 14400;
+
+  // width, height in [0, 14400] (a straight line's frame may be flat)
+  final PageRect rect;
+  final double rotation; // normalized to (-pi, pi]
+  PagePoint get center => notYet('T20b', 'ElementFrame.center');
+  // tl, tr, br, bl after rotation
+  List<PagePoint> get corners => notYet('T20b', 'ElementFrame.corners');
+  PageRect get bounds =>
+      notYet('T20b', 'ElementFrame.bounds'); // AABB of corners
+
+  /// Similarity transforms (move / uniform scale / rotate) are exact: center' = m(center),
+  /// width·s, height·s, rotation + m.rotation, s = m.uniformScale. Other transforms are
+  /// approximated the same way (EDITOR sends non-uniform resizes as UpdateObjects).
+  ElementFrame transformed(Affine2 m) =>
+      notYet('T20b', 'ElementFrame.transformed');
+  bool contains(PagePoint p, {double tolerance = 0}) =>
+      notYet('T20b', 'ElementFrame.contains');
+  // [left, top, right, bottom, rotation]
+  List<double> toJson() => notYet('T20a', 'ElementFrame.toJson');
+
+  /// FormatException on bad input; (v2.1) never normalizes
+  factory ElementFrame.fromJson(List<Object?> json) =>
+      notYet('T20a', 'ElementFrame.fromJson');
+
+  /// (contract: maxSide, normalized) width / height clamped to [0, maxSide] around the same
+  /// center; rotation folded into (-pi, pi] (so -pi → pi, 3·pi → pi). The const constructor and
+  /// fromJson keep the given values.
+  ElementFrame normalized() => notYet('T20b', 'ElementFrame.normalized');
+
+  // CORE 4.3: ==, hashCode over the raw (rect, rotation):
+  // ElementFrame(r, rotation: -pi) != ElementFrame(r, rotation: pi)
+  @override
+  bool operator ==(Object other) =>
+      other is ElementFrame && other.rect == rect && other.rotation == rotation;
+
+  @override
+  int get hashCode => Object.hash(rect, rotation);
+
+  @override
+  String toString() => 'ElementFrame($rect, rotation: $rotation)';
 }

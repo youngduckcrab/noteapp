@@ -49,7 +49,8 @@ final class PageAfter extends PagePosition {
 }
 
 /// A page to be inserted. Stroke ids/pageIds are reassigned on insert;
-/// stroke createdAt is preserved (keeps z-order of copies).
+/// stroke createdAt is preserved (keeps z-order of copies). (v2.0) The same for
+/// [objects] (2nd-round contract 7.2.3).
 @immutable
 final class PageDraft {
   const PageDraft({
@@ -57,6 +58,7 @@ final class PageDraft {
     required this.size,
     required this.background,
     this.strokes = const [],
+    this.objects = const [],
   });
 
   static const PageDraft blankA4 = PageDraft(
@@ -64,16 +66,20 @@ final class PageDraft {
     background: BlankBackground(),
   );
 
+  // strokes AND objects
   factory PageDraft.copyOf(PageContent content) => PageDraft(
     size: content.page.size,
     background: content.page.background,
     strokes: content.strokes,
+    objects: content.objects,
   );
 
   final PageId? id; // null = generated
   final PageSize size;
   final PageBackground background;
   final List<Stroke> strokes;
+  final List<PageObject>
+  objects; // copied with new ids by InsertPages / DuplicatePages
 
   @override
   bool operator ==(Object other) =>
@@ -81,7 +87,8 @@ final class PageDraft {
       other.id == id &&
       other.size == size &&
       other.background == background &&
-      const ListEquality<Stroke>().equals(other.strokes, strokes);
+      const ListEquality<Stroke>().equals(other.strokes, strokes) &&
+      const ListEquality<PageObject>().equals(other.objects, objects);
 
   @override
   int get hashCode => Object.hash(
@@ -89,5 +96,6 @@ final class PageDraft {
     size,
     background,
     const ListEquality<Stroke>().hash(strokes),
+    const ListEquality<PageObject>().hash(objects),
   );
 }

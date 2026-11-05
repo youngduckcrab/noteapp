@@ -10,9 +10,11 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../common/hlc.dart';
+import '../common/pending.dart';
 import '../common/text_normalize.dart';
 import '../model/asset.dart';
 import '../model/folder.dart';
+import '../model/handwriting.dart';
 import '../model/note.dart';
 import '../model/page.dart';
 import '../model/page_background.dart';
@@ -266,6 +268,9 @@ Future<void> writeEntityRow(
               fieldVersions: Value(fv),
             ),
           );
+    case PageObject() || HandwritingText():
+      // (v2.0) The page_objects / handwriting tables come with DB v2 (02-core 8.1).
+      notYet('T26', 'writeEntityRow(${e.kind.name}) needs DB v2');
     default:
       throw ArgumentError.value(e, 'entity', 'unknown entity type');
   }
@@ -299,6 +304,11 @@ Future<bool> deleteEntityRow(NoteDatabase db, EntityRef ref) async {
     EntityKind.setting => await (db.delete(
       db.settings,
     )..where((t) => t.key.equals(id))).go(),
+    // (v2.0) No table before DB v2 (02-core 8.1).
+    EntityKind.pageObject || EntityKind.handwriting => notYet(
+      'T26',
+      'deleteEntityRow(${ref.kind.name}) needs DB v2',
+    ),
   };
   return n > 0;
 }
@@ -350,6 +360,9 @@ Future<VersionedEntity?> readVersionedRow(
         db.settings,
       )..where((t) => t.key.equals(id))).getSingleOrNull();
       return r == null ? null : versionedSetting(r);
+    case EntityKind.pageObject || EntityKind.handwriting:
+      // (v2.0) A v1 database has no such rows; the tables come with DB v2 (CORE T24 / T26).
+      return null;
   }
 }
 
@@ -410,6 +423,9 @@ Future<List<VersionedEntity>> readVersionedPage(
         ..limit(limit);
       if (after != null) q.where((t) => t.key.isBiggerThanValue(after));
       return [for (final r in await q.get()) versionedSetting(r)];
+    case EntityKind.pageObject || EntityKind.handwriting:
+      // (v2.0) A v1 database has no such rows; the tables come with DB v2 (CORE T24 / T26).
+      return const [];
   }
 }
 

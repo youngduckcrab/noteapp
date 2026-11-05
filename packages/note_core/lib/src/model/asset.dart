@@ -1,5 +1,5 @@
 // lib/src/model/asset.dart, recording.dart, setting_value.dart — contract 00-overview 7.2.6 /
-// CORE 4.2.4.
+// CORE 4.2.4. (v2.0) Recording.title — 2nd-round contract 7.2.4 (C2-06).
 import 'package:meta/meta.dart';
 
 import '../common/hlc.dart';
@@ -152,12 +152,21 @@ final class Recording implements SyncEntity {
     required this.updatedAt,
     this.deletedAt,
     this.version,
+    this.title,
   });
 
   @override
   final RecordingId id;
   final NoteId noteId;
   final AssetId assetId;
+
+  /// 2nd-round contract 7.2.4 R-3: `Recording.durationMs` = 저장된 파일 안의 오디오 타임라인
+  /// 길이(디코더가 읽는 길이). (v2.1) 웹 WebM에는 Duration이 없으므로 media가 마지막 블록의
+  /// 타임코드 + 그 블록(패킷)의 길이(`TimecodeScale` 반영. (v2.2, C22-04) 블록 길이는 Opus면
+  /// TOC의 프레임 크기 × 프레임 수 — Chrome은 20 ms × 3 = 60 ms)로 계산해 넣는다 — 녹음 시계
+  /// 값으로 패치하지 않는다(파싱이 실패할 때만 시계 값 + 개발자 표시 'duration from clock').
+  /// 시계 활성 시간과의 차이는 개발자 표시에만 보인다(보정 필드는 실측 뒤 판단 — 조사 02 D9,
+  /// 7.8 A-5).
   final int durationMs;
   final EpochMillis startedAt;
   final EpochMillis createdAt, updatedAt;
@@ -165,6 +174,14 @@ final class Recording implements SyncEntity {
   final EpochMillis? deletedAt;
   @override
   final Hlc? version;
+
+  /// (v2.0, 2nd-round contract 7.2.4) trimmed 1..100 chars; null → UI shows '녹음 N' by
+  /// startedAt order.
+  /// JSON: 'title' — (v2.1, CP-7) always written (null when unset); absent on read = null.
+  /// Old apps ignore it (no deployed old app before 실연결).
+  /// CORE: the JSON key is CORE T20a (02-core 8.1) — until then toJson / fromJson are the
+  /// v1.4 key set and the recording.json golden is unchanged.
+  final String? title;
   @override
   EntityKind get kind => EntityKind.recording;
   @override
@@ -176,6 +193,8 @@ final class Recording implements SyncEntity {
     EpochMillis? deletedAt,
     bool clearDeletedAt = false,
     Hlc? version,
+    String? title,
+    bool clearTitle = false,
   }) => Recording(
     id: id,
     noteId: noteId,
@@ -186,6 +205,7 @@ final class Recording implements SyncEntity {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
     version: version ?? this.version,
+    title: clearTitle ? null : title ?? this.title,
   );
 
   @override
@@ -224,7 +244,8 @@ final class Recording implements SyncEntity {
       other.createdAt == createdAt &&
       other.updatedAt == updatedAt &&
       other.deletedAt == deletedAt &&
-      other.version == version;
+      other.version == version &&
+      other.title == title;
 
   @override
   int get hashCode => Object.hash(
@@ -237,10 +258,13 @@ final class Recording implements SyncEntity {
     updatedAt,
     deletedAt,
     version,
+    title,
   );
 
   @override
-  String toString() => 'Recording($id, note: $noteId, ${durationMs}ms)';
+  String toString() =>
+      'Recording($id, note: $noteId, ${durationMs}ms'
+      '${title == null ? '' : ', "$title"'})';
 }
 
 /// One synced setting. id == key.

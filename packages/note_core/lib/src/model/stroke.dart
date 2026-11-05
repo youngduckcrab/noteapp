@@ -1,18 +1,32 @@
 // lib/src/model/stroke.dart (+ PageElement) — contract 00-overview 7.2.3 / CORE 4.2.2, 6.2.5.
-// PageElement is sealed, so its subtypes live in this library.
+// PageElement is sealed, so its subtypes live in this library: (v2.0, 2nd-round contract
+// 7.2.2) the new subtypes are `part` files of this library (page_object.dart,
+// shape_object.dart, …). A part file cannot import, so their imports are here.
 import 'dart:math' as math;
+
+import 'package:collection/collection.dart';
 
 import '../common/geometry.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../common/json_read.dart';
+import '../common/pending.dart';
+import 'object_styles.dart';
 import 'pen_style.dart';
+import 'shape_geometry.dart';
 import 'stroke_points.dart';
 import 'sync_entity.dart';
 
-/// Things placed on a page. Only Stroke exists now; Shape, TextBox, MathObject
-/// and ImageObject are added in M5/M7 (exhaustive switches will then fail to
-/// compile on purpose).
+part 'page_object.dart';
+part 'shape_object.dart';
+part 'text_box_object.dart';
+part 'image_object.dart';
+part 'math_object.dart';
+part 'unknown_object.dart';
+
+/// Things placed on a page: Stroke and (v2.0) PageObject — ShapeObject, TextBoxObject,
+/// ImageObject, MathObject, UnknownObject (2nd-round contract 7.2.2). Exhaustive
+/// switches over it are CORE-internal only (7.0.1 C2-03).
 sealed class PageElement implements SyncEntity {
   const PageElement();
   @override

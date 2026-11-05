@@ -196,4 +196,65 @@ void defineProviderContractTests(Future<NoteStore> Function() open) {
     unawaited(Future<void>.value());
     expect(const Clock(), isNotNull);
   });
+
+  // ---- v2 (m5-7/02-core 4.10, 6.8.2, 6.16 — B2-α: values; behaviour of the store members
+  // follows 8.1 'B2 상태') ---------------------------------------------------------------
+
+  test('v2: repositories and the index come from the store', () async {
+    expect(container.read(recordingRepositoryProvider), same(store.recordings));
+    expect(
+      container.read(handwritingRepositoryProvider),
+      same(store.handwriting),
+    );
+    expect(container.read(searchIndexProvider), same(store.search));
+    final note = await store.library.createNote(title: 'r');
+    expect(await readAsync(noteRecordingsProvider(note.id).future), isEmpty);
+  });
+
+  test('v2: audio ports default to Unsupported* (6.8.2)', () async {
+    final recorder = container.read(audioRecorderServiceProvider);
+    final playback = container.read(audioPlaybackServiceProvider);
+    expect(recorder, isA<UnsupportedAudioRecorder>());
+    expect(playback, isA<UnsupportedAudioPlayback>());
+    // Recorder: idle status once, unsupported, start throws, the rest does nothing.
+    expect(recorder.status, const RecorderStatus());
+    expect(recorder.status.phase, RecorderPhase.idle);
+    expect(await recorder.statusStream.toList(), [const RecorderStatus()]);
+    expect(await recorder.checkSupport(), AudioSupport.unsupported);
+    expect(
+      await recorder.checkSupport(requestPermission: true),
+      AudioSupport.unsupported,
+    );
+    expect(
+      recorder.start(recordingId: 'r1', noteId: 'n1'),
+      throwsUnsupportedError,
+    );
+    await recorder.pause();
+    await recorder.resume();
+    await recorder.cancel();
+    expect(await recorder.stop(), isNull);
+    expect(await recorder.recoverDraft('d1'), isNull);
+    expect(await recorder.pendingDrafts(), isEmpty);
+    expect(recorder.offsetNowMs(), isNull);
+    // Player: idle status once, open throws, the rest does nothing, position 0.
+    expect(playback.status, const PlaybackStatus());
+    expect(await playback.statusStream.toList(), [const PlaybackStatus()]);
+    const recording = Recording(
+      id: 'r1',
+      noteId: 'n1',
+      assetId: 'a',
+      durationMs: 1000,
+      startedAt: 0,
+      createdAt: 0,
+      updatedAt: 0,
+    );
+    expect(playback.open(recording), throwsUnsupportedError);
+    await playback.play();
+    await playback.pause();
+    await playback.seekMs(500);
+    await playback.setSpeed(2);
+    expect(playback.positionMs(), 0);
+    await playback.close();
+    expect(playback.status, const PlaybackStatus());
+  });
 }

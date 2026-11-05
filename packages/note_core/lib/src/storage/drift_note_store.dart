@@ -21,9 +21,13 @@ import '../common/ids.dart';
 import '../migration/note_migrator.dart';
 import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
+import '../repo/empty_v2_repositories.dart';
 import '../repo/events.dart';
+import '../repo/handwriting_repository.dart';
 import '../repo/note_store.dart';
+import '../repo/recording_repository.dart';
 import '../repo/status.dart';
+import '../search/search_types.dart';
 import '../session/note_session.dart';
 import 'change_bus.dart';
 import 'db/note_database.dart';
@@ -215,6 +219,17 @@ final class DriftNoteStore implements NoteStore {
   late final ThumbnailCacheImpl thumbnails;
   @override
   late final DriftSyncStore sync;
+
+  // (v2.0) 2nd-round getters — reads empty, writes UnimplementedError until the named CORE
+  // task (02-core 8.1 'B2 상태': T30 recordings, T31 drafts, T32 handwriting, T33a search).
+  @override
+  final RecordingRepository recordings = EmptyRecordingRepository('T30');
+  @override
+  final RecordingDraftStore recordingDrafts = EmptyRecordingDraftStore('T31');
+  @override
+  final HandwritingRepository handwriting = EmptyHandwritingRepository('T32');
+  @override
+  final SearchIndex search = EmptySearchIndex('T33a');
 
   /// Open note sessions (6.14).
   late final DriftSessions sessions;

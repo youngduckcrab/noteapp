@@ -28,17 +28,21 @@ import '../model/pen_style.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
+import '../repo/empty_v2_repositories.dart';
 import '../repo/events.dart';
 import '../repo/folder_tree.dart';
 import '../repo/folder_tree_equality.dart';
+import '../repo/handwriting_repository.dart';
 import '../repo/library_repository.dart';
 import '../repo/library_types.dart';
 import '../repo/note_store.dart';
 import '../repo/pen_preset_repository.dart';
+import '../repo/recording_repository.dart';
 import '../repo/settings_internal.dart';
 import '../repo/settings_repository.dart';
 import '../repo/status.dart';
 import '../repo/trash_repository.dart';
+import '../search/search_types.dart';
 import '../session/note_session.dart';
 import '../session/page_content.dart';
 import '../session/session_backend.dart';
@@ -161,6 +165,17 @@ final class FakeNoteStore implements NoteStore {
   late final FakeThumbnails thumbnails;
   @override
   late final SyncStore sync;
+
+  // (v2.0) 2nd-round getters — reads empty, writes UnimplementedError until CORE T23b
+  // (02-core 8.1 'B2 상태').
+  @override
+  final RecordingRepository recordings = EmptyRecordingRepository('T23b');
+  @override
+  final RecordingDraftStore recordingDrafts = EmptyRecordingDraftStore('T23b');
+  @override
+  final HandwritingRepository handwriting = EmptyHandwritingRepository('T23b');
+  @override
+  final SearchIndex search = EmptySearchIndex('T23b');
 
   @override
   OwnerId get ownerId => _ownerId;

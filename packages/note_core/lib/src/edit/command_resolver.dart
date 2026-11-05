@@ -4,6 +4,7 @@
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
+import '../common/pending.dart';
 import '../common/sort_keys.dart';
 import '../common/sort_planner.dart';
 import '../model/page.dart';
@@ -49,14 +50,34 @@ final class CommandResolver {
   final IdGenerator ids;
 
   /// Throws ArgumentError, PageNotOpenException, LastPageDeletionException.
+  /// (v2.0, 02-core 8.1 'B2 상태') A command that creates or changes page objects
+  /// (AddObjects, UpdateObjects, InsertPages with PageDraft.objects — also inside a
+  /// CompositeCommand) throws UnimplementedError('CORE T23a: …') before anything is resolved.
   ResolvedEdit resolve(
     EditCommand command,
     ResolveState state, {
     required EpochMillis now,
     required Hlc version,
   }) {
+    _rejectObjectWrites(command);
     final w = _Work(state, now, version, ids)..apply(command);
     return w.finish(command.label);
+  }
+
+  static void _rejectObjectWrites(EditCommand c) {
+    switch (c) {
+      case AddObjects():
+        notYet('T23a', 'AddObjects');
+      case UpdateObjects():
+        notYet('T23a', 'UpdateObjects');
+      case InsertPages(:final drafts)
+          when drafts.any((d) => d.objects.isNotEmpty):
+        notYet('T23a', 'InsertPages with PageDraft.objects');
+      case CompositeCommand(:final commands):
+        commands.forEach(_rejectObjectWrites);
+      default:
+        break;
+    }
   }
 }
 
@@ -198,6 +219,7 @@ final class _Work {
           });
         }
       case ClearPage(:final pageId, :final filter):
+        // (v2.0) includeObjects: no page object exists before CORE T23a (02-core 8.1).
         _base(pageId);
         final ids = [
           for (final s in _allActive(pageId))
@@ -238,6 +260,14 @@ final class _Work {
         }
       case CompositeCommand(:final commands):
         commands.forEach(apply);
+      case RemoveElements(:final pageId, :final elementIds):
+        // (v2.0) Strokes as RemoveStrokes; objects come with CORE T23a (none exist before
+        // it — 02-core 8.1).
+        _base(pageId);
+        _removeStrokes(pageId, elementIds);
+      case AddObjects() || UpdateObjects():
+        // Rejected by CommandResolver._rejectObjectWrites before any work.
+        notYet('T23a', c.label);
     }
   }
 
