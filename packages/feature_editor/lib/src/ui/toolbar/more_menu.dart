@@ -10,13 +10,15 @@ import '../../scope/editor_scope.dart';
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
 import '../../tools/tool_controller.dart';
+import '../dev/dev_metrics.dart';
 import '../editor_strings.dart';
 import '../eraser/eraser_popup.dart';
+import 'dev_menu.dart';
 import 'note_info_dialog.dart';
 
 /// 페이지 넘김 (세로 스크롤 / 좌우 넘기기) · 현재 페이지 지우기 · 개발자 표시 (check) ·
-/// 노트 정보 · 설정 (only with onOpenSettings) · divider · extension items.
-/// The developer menu joins with E-19.
+/// 노트 정보 · 설정 (only with onOpenSettings) · 개발자 메뉴 (only while the
+/// developer overlay is visible — EditorDevMenu) · divider · extension items.
 ///
 /// The EditorMenuContext is built when the menu opens (6.11.5); extension
 /// items get it for isEnabled (false → greyed, not hidden) and onSelected,
@@ -100,6 +102,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
     final readOnly = ref.watch(editorReadOnlyProvider);
     final settings = ref.watch(editorSettingsProvider);
     final extensions = ref.watch(editorExtensionsProvider);
+    final devVisible = ref.watch(editorDevOverlayVisibleProvider);
     final openSettings = widget.onOpenSettings;
     final menu = _menu;
     final flip = settings.pageFlipMode;
@@ -160,6 +163,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
             onPressed: openSettings,
             child: const Text(EditorStrings.settings),
           ),
+        if (devVisible) const EditorDevMenu(),
         if (extensions.moreMenuItems.isNotEmpty && menu != null) ...[
           const Divider(height: 1),
           for (final item in extensions.moreMenuItems)

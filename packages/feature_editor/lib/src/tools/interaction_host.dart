@@ -24,6 +24,7 @@ import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/popup.dart';
 import '../state/settings/editor_settings_notifier.dart';
+import '../ui/dev/dev_metrics.dart';
 import '../ui/editor_strings.dart';
 import '../viewport/viewport_constants.dart';
 import '../viewport/viewport_controller.dart';
@@ -462,13 +463,37 @@ class InteractionHost implements InputTargets {
     _ref.read(editorSettingsProvider.notifier).markStylusSeen();
   }
 
-  /// Developer metrics (palm rejections) — E-19.
+  /// Developer metrics: palm rejections (6.12.1, only while collecting).
   @override
-  void palmRejected(InputSample sample) {}
+  void palmRejected(InputSample sample) {
+    if (_disposed) return;
+    final metrics = _ref.read(editorDevMetricsProvider);
+    if (metrics.isRunning) metrics.recordPalmRejected();
+  }
 
-  /// Developer metrics (pointer rate) — E-19.
+  /// Pointers down now (developer metrics).
+  final Set<int> _downPointers = {};
+
+  /// Developer metrics: the last pointer kind and how many are down (6.12.1).
   @override
-  void observe(PointerEvent event, InputSample sample) {}
+  void observe(PointerEvent event, InputSample sample) {
+    if (_disposed) return;
+    switch (event) {
+      case PointerDownEvent():
+        _downPointers.add(event.pointer);
+      case PointerUpEvent() || PointerCancelEvent() || PointerRemovedEvent():
+        _downPointers.remove(event.pointer);
+      default:
+        break;
+    }
+    final metrics = _ref.read(editorDevMetricsProvider);
+    if (!metrics.isRunning) return;
+    metrics.recordPointer(
+      event,
+      drawing: _downPointers.isNotEmpty,
+      activePointers: _downPointers.length,
+    );
+  }
 
   void dispose() {
     _disposed = true;

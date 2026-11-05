@@ -319,6 +319,22 @@ abstract final class EditorStrings {
   static const seedSyntheticNoteDone =
       "합성 노트를 만들었어요. 라이브러리에서 'perf-test'를 열어 보세요";
 
+  /// More menu submenu (shown while the developer overlay is visible, 6.12.4).
+  static const devMenu = '개발자 메뉴';
+
+  /// "현재 페이지에 합성 획 1,000개".
+  static String syntheticStrokes(int count) {
+    final digits = '$count';
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(digits[i]);
+    }
+    return '현재 페이지에 합성 획 $buffer개';
+  }
+
+  static const resetDiagnostics = '진단 초기화';
+
   // ---------------------------------------------------------------------------
   // Screen states (04-editor 6.17.1) and leaving (6.17.4).
   // ---------------------------------------------------------------------------

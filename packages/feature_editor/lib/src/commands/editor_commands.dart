@@ -14,6 +14,7 @@ import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ink_engine/dev_tools.dart' as ink_dev;
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
@@ -32,6 +33,7 @@ import '../tools/selection.dart';
 import '../tools/stroke_clipboard.dart';
 import '../tools/tool_controller.dart';
 import '../tools/tool_state.dart';
+import '../ui/dev/dev_metrics.dart';
 import '../ui/editor_strings.dart';
 import '../ui/pages/page_choices.dart';
 import '../viewport/viewport_controller.dart';
@@ -85,11 +87,23 @@ class EditorCommands {
   /// moved strokes show their committed state again at once. Returns true when committed.
   bool commitInkEdit(ink.InkPageController controller, ink.InkEdit edit) {
     if (edit.isEmpty) return false; // nothing pending (INK 4.6)
-    return _run(
+    final committed =
+        _run(
           edit.toCommand(),
           onRejected: () => controller.discardEdit(edit),
         ) !=
         null;
+    if (committed &&
+        edit.kind == ink.InkEditKind.addStroke &&
+        edit.added.length == 1) {
+      final metrics = _ref.read(editorDevMetricsProvider);
+      if (metrics.isRunning) {
+        metrics.recordStrokeCommitted(
+          pointCount: edit.added.single.points.length,
+        );
+      }
+    }
+    return committed;
   }
 
   /// After the confirmation dialog (6.6.4 #5, E-09):
@@ -272,6 +286,26 @@ class EditorCommands {
     if (index >= 0) unawaited(_viewport.jumpToPage(index));
   }
 
+  /// Developer menu (6.12.4): [count] synthetic strokes on the current page
+  /// (ink.InkDevTools.syntheticStrokes, ids from core.idGeneratorProvider) as
+  /// one core.AddStrokes through _runAsync — one undo step. Ignored on a
+  /// read-only note.
+  Future<void> addSyntheticStrokes(int count) async {
+    if (_disposed || _ref.read(editorReadOnlyProvider) || count <= 0) return;
+    final pages = _session.pages;
+    if (pages.isEmpty) return;
+    final current =
+        pages[_viewport.currentPageIndex.value.clamp(0, pages.length - 1)];
+    final strokes = ink_dev.InkDevTools.syntheticStrokes(
+      pageId: current.id,
+      pageSize: current.size,
+      count: count,
+      newId: _ref.read(core.idGeneratorProvider).newId,
+      createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+    );
+    await _runAsync(core.AddStrokes(pageId: current.id, strokes: strokes));
+  }
+
   /// Toolbar [▤]: opens / closes the page panel (closing leaves the
   /// selection mode).
   void togglePagePanel() {
@@ -322,7 +356,8 @@ class EditorCommands {
   }
 
   /// Flips EditorSettings.showDevOverlay (device setting). The overlay is
-  /// shown when this or the URL flag is on (6.12, E-19).
+  /// shown when this or the URL flag is on (editorDevOverlayVisibleProvider,
+  /// 6.12).
   void toggleDevOverlay() {
     if (_disposed) return;
     _ref.read(editorSettingsProvider.notifier).toggleDevOverlay();

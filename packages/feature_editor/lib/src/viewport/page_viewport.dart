@@ -4,8 +4,8 @@
 // InputRouter and the hover cursor layer (E-08), the selection frame, the
 // selection menu and the context menu (E-10), the canvas focus (E-12 — P / E /
 // L, focused again by a pointer down), the eyedropper banner (E-14), the
-// add-page button, the page indicator and the page panel (E-17). The
-// developer overlay joins with E-19 (6.4.3 tree).
+// add-page button, the page indicator and the page panel (E-17), the
+// developer overlay (E-19) — 6.4.3 tree.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +15,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../input/editor_shortcuts.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../ui/dev/dev_overlay.dart';
 import '../ui/overlays/add_page_button.dart';
 import '../ui/overlays/context_menu.dart';
 import '../ui/overlays/cursor_painter.dart';
@@ -153,6 +154,7 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               const PageIndicator(),
               const EyedropperBanner(),
               const PagePanel(),
+              const DevOverlay(),
             ],
           );
         },
