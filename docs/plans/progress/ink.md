@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 1 (동시 개발 단계)
-- 다음 할 일: T04 가상 필압·스무딩 → T05 중심선·굵기 계수 → T06 `StrokeBuilder` (계획서 8장 순서)
+- 다음 할 일: T05 중심선 처리·굵기 계수 굽기 → T06 `StrokeBuilder`(라이브·완료, T04 필터 연결) → T07 외곽선·K-1 (계획서 8장 순서)
 
 ## 작업 표
 
@@ -12,8 +12,8 @@
 | T00 | 기반 단계에서 완료 | 955931c | `foundation/b3_smoke_test.dart`, `foundation/b3_behaviour_test.dart`, `unit/api_surface_test.dart`, `unit/export_list_test.dart`, `unit/no_platform_imports_test.dart`, (웹) `web/smoke_web_test.dart` |
 | T01 | 완료 | 7c74b7c | `unit/smoke_test.dart`, `unit/tuning_test.dart`, (웹) `web/smoke_web_test.dart`(B3). `dart_test.yaml`(golden·bench), `test/flutter_test_config.dart` + `test/support/golden_tolerance{,_native,_browser}.dart`(0.5% 비교기, 브라우저는 아무것도 안 함), `THIRD_PARTY_NOTICES.md`. `tuning.dart`는 B3에 이미 있음 |
 | T02 | 완료 | d1dd4ba | `unit/model/ink_points_test.dart`, `unit/model/ink_stroke_test.dart`, `unit/pen/style_ink_test.dart`, `unit/pen/pen_profile_test.dart`. 구현은 B3 본문이 이미 4.1·4.2·6.9대로라 테스트만 추가 |
-| T03 | 완료 | (이 커밋) | `unit/input/sample_adapter_test.dart`, `unit/input/pressure_detector_test.dart`, `unit/input/pressure_mode_test.dart`. `PressureDetector`를 6.4 전체 규칙으로 교체(관찰·12개 고정값·재보고), 결정은 detector가 store에 바로 보고(컨트롤러의 B3 보고 블록 삭제). `unit/api_surface_test`의 첫 스타일러스 획 기대값 real → pending(6.4) |
-| T04 | 남음 | | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart` |
+| T03 | 완료 | 1489bbf | `unit/input/sample_adapter_test.dart`, `unit/input/pressure_detector_test.dart`, `unit/input/pressure_mode_test.dart`. `PressureDetector`를 6.4 전체 규칙으로 교체(관찰·12개 고정값·재보고), 결정은 detector가 store에 바로 보고(컨트롤러의 B3 보고 블록 삭제). `unit/api_surface_test`의 첫 스타일러스 획 기대값 real → pending(6.4) |
+| T04 | 완료 | (이 커밋) | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart`. 내부 `src/input/simulated_pressure.dart`(`SimulatedPressure`, `RealPressureSmoother`, `smoothstep`, `sampleDtMs`)·`src/input/one_euro_filter.dart`(`OneEuroFilter`). 아직 `StrokeBuilder`에 연결하지 않음 — T05·T06에서 파이프라인에 넣는다. 실측: 500 px/s 지연 4.8 ms(60/120/240 Hz), 같은 궤적 Hz별 차 ≤ 0.008 |
 | T05 | 남음 | | `unit/stroke/{subdivide,hook,dot,width_factor,taper,straighten,simplify}_test.dart` |
 | T06 | 남음 | | `unit/stroke/stroke_builder_test.dart`, `unit/stroke/finish_data_test.dart`, (웹) `web/determinism_test.dart` |
 | T07 | 남음 | | `unit/geometry/{outline,outline_parity,vector_path}_test.dart`, `unit/model/bounds_invariant_test.dart`, (웹) `web/geometry_on_web_test.dart` |
