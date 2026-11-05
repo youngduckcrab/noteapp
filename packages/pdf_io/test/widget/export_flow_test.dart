@@ -4,7 +4,10 @@
 // availableActions in purpose order, deliver called synchronously inside the tap handler,
 // the needsUserGesture notice, the missing-original warning, the web large-original
 // warning of the options sheet, and the storage-delay text while CORE retries a commit
-// (PDF-3-1).
+// (PDF-3-1). Every test runs on an iPad Pro 13" view (contract 7.4.8); the options sheet
+// (with and without the large-original warning), the progress dialog and the result sheet
+// (each set of actions, the retry notice, the missing-original warning) meet the 44×44 /
+// labeled tap-target guidelines, also in landscape.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -18,6 +21,7 @@ import 'package:pdf_io/src/ui/export_sheets.dart';
 import 'package:pdf_io/testing.dart';
 
 import '../support/export_world.dart';
+import '../support/ipad.dart';
 
 const String _delayText = '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.';
 
@@ -169,7 +173,7 @@ void main() {
       'those ranges are disabled', (tester) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, _) = await w.note('미적분 3강');
 
     final flow = runPdfExportFlow(w.context, noteId: id);
@@ -183,6 +187,7 @@ void main() {
     expect(_radio(tester, '선택한 페이지').enabled, isFalse);
     expect(_switchOn(tester, '필기 포함'), isTrue);
     expect(_switchOn(tester, '속지 포함'), isTrue);
+    await expectTapTargetGuidelines(tester);
     // A disabled range cannot be chosen.
     await tester.tap(_inSheet(find.text('선택한 페이지')));
     await tester.pump();
@@ -193,6 +198,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     expect(_inSheet(find.text('PDF를 만들었어요')), findsOneWidget);
     expect(_inSheet(find.textContaining('미적분 3강.pdf')), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     expect(w.backend.plans.single.pages, hasLength(3));
     expect(w.backend.chunks, isNotEmpty, reason: 'ink included');
     await _closeSheet(tester);
@@ -207,7 +213,7 @@ void main() {
   ) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, pages) = await w.note('n', pageCount: 4);
 
     final flow = runPdfExportFlow(
@@ -224,6 +230,7 @@ void main() {
       _inSheet(find.text('3쪽')),
       findsOneWidget,
     ); // the current page number
+    await expectTapTargetGuidelines(tester);
     await tester.tap(_inSheet(find.text('내보내기')));
     await _settle(tester);
     expect(_inSheet(find.textContaining('n (선택 2쪽).pdf')), findsOneWidget);
@@ -259,7 +266,7 @@ void main() {
   testWidgets('필기 포함 off → no ink ops', (tester) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, _) = await w.note('n', pageCount: 2);
     final flow = runPdfExportFlow(w.context, noteId: id);
     await _settle(tester);
@@ -277,7 +284,7 @@ void main() {
   ) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, _) = await w.note('n');
     final hold = Completer<void>();
     w.backend.beforeAddPages = () => hold.future;
@@ -291,6 +298,7 @@ void main() {
     expect(_inDialog(find.text('취소')), findsOneWidget);
     expect(_inDialog(find.text('닫기')), findsNothing);
     expect(find.text(_delayText), findsNothing);
+    await expectTapTargetGuidelines(tester);
 
     await tester.tap(_inDialog(find.text('취소')));
     await tester.pump();
@@ -315,7 +323,7 @@ void main() {
     (tester) async {
       final w = _World(sink: FakePdfOutputSink(canShare: false));
       addTearDown(w.dispose);
-      await tester.pumpWidget(w.app());
+      await pumpOnIpad(tester, w.app());
       final (id, _) = await w.note('n');
       final flow = await _export(tester, w, id);
 
@@ -324,6 +332,7 @@ void main() {
       expect(_inSheet(find.text('다운로드')), findsOneWidget);
       expect(_inSheet(find.text('새 탭에서 열기')), findsOneWidget);
       expect(w.sink.availableActionsCalls.last.single.fileName, 'n.pdf');
+      await expectTapTargetGuidelines(tester);
 
       _tapNow(tester, _inSheet(find.text('다운로드')));
       // No pump, no await: the sink got the file during the tap itself (6.12).
@@ -344,17 +353,19 @@ void main() {
   ) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, _) = await w.note('n');
     final flow = await _export(tester, w, id);
     double x(String label) => tester.getTopLeft(_inSheet(find.text(label))).dx;
     expect(x('공유'), lessThan(x('다운로드')));
     expect(x('다운로드'), lessThan(x('새 탭에서 열기')));
+    await expectTapTargetGuidelines(tester);
 
     w.sink.enqueueOutcome(PdfOutputOutcome.needsUserGesture);
     await tester.tap(_inSheet(find.text('공유')));
     await tester.pump();
     expect(_inSheet(find.text('한 번 더 눌러 주세요')), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     w.sink.enqueueOutcome(PdfOutputOutcome.dismissedByUser);
     await tester.tap(_inSheet(find.text('공유')));
     await tester.pump();
@@ -374,7 +385,7 @@ void main() {
   testWidgets('print: 공유 with the print hint, then 새 탭에서 열기', (tester) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, _) = await w.note('n');
     final flow = runPdfExportFlow(
       w.context,
@@ -386,6 +397,7 @@ void main() {
     await tester.tap(_inSheet(find.text('내보내기')));
     await _settle(tester);
     expect(_inSheet(find.text('공유 시트에서 프린트를 고르세요')), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     double x(String label) => tester.getTopLeft(_inSheet(find.text(label))).dx;
     expect(x('공유'), lessThan(x('새 탭에서 열기')));
     expect(x('새 탭에서 열기'), lessThan(x('다운로드')));
@@ -418,7 +430,7 @@ void main() {
   ) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     const remote = 'f00dfeed';
     w.fake.addRemoteAsset(remote, fileName: 'remote.pdf');
     final note = await w.gateway.createNote(
@@ -438,6 +450,7 @@ void main() {
     final flow = await _export(tester, w, note.id);
     expect(_inSheet(find.text('PDF를 만들었어요')), findsOneWidget);
     expect(_inSheet(find.text('1, 3쪽은 원본이 없어 빈 페이지로 넣었어요')), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     await _closeSheet(tester);
     final result = await flow;
     expect(result!.warnings.single, isA<PdfExportBlankedMissingAsset>());
@@ -448,7 +461,7 @@ void main() {
     (tester) async {
       final w = _World();
       addTearDown(w.dispose);
-      await tester.pumpWidget(w.app());
+      await pumpOnIpad(tester, w.app());
       const big = 'b16b16';
       w.fake.addRemoteAsset(big, fileName: 'big.pdf');
       final note = await w.gateway.createNote(
@@ -472,6 +485,7 @@ void main() {
       );
       await _settle(tester);
       expect(_inSheet(find.text(warning)), findsOneWidget);
+      await expectTapTargetGuidelines(tester);
       // The current page has no PDF original.
       await tester.tap(_inSheet(find.text('현재 페이지')));
       await tester.pump();
@@ -508,7 +522,7 @@ void main() {
   ) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, _) = await w.note('n');
 
     expect(await runPdfExportFlow(w.context, noteId: 'note-404'), isNull);
@@ -539,7 +553,7 @@ void main() {
   ) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (id, _) = await w.note('n');
     final navigator = Navigator.of(w.context);
     late BuildContext pageContext;
@@ -582,7 +596,7 @@ void main() {
       final store = core_testing.createFakeNoteStore(faults: faults);
       final w = _World(store: store, gateway: CorePdfNoteGateway(store));
       addTearDown(w.dispose);
-      await tester.pumpWidget(w.app());
+      await pumpOnIpad(tester, w.app());
       final note = await w.gateway.createNote(
         title: 'n',
         pages: const [blankDraft],
@@ -604,6 +618,7 @@ void main() {
       expect(_inDialog(find.text('내보낼 준비 중')), findsOneWidget);
       expect(find.text(_delayText), findsOneWidget);
       expect(_inDialog(find.text('닫기')), findsNothing);
+      await expectTapTargetGuidelines(tester);
 
       await tester.tap(_inDialog(find.text('취소')));
       await tester.pump();
@@ -624,6 +639,40 @@ void main() {
       await _settle(tester);
     },
   );
+
+  testWidgets('landscape 1376×1032: options, progress and result meet the '
+      'tap-target guidelines', (tester) async {
+    final w = _World();
+    addTearDown(w.dispose);
+    await pumpOnIpad(tester, w.app(), landscape: true);
+    expect(
+      tester.view.physicalSize / tester.view.devicePixelRatio,
+      ipad13Landscape,
+    );
+    final (id, pages) = await w.note('n', pageCount: 3);
+    final hold = Completer<void>();
+    w.backend.beforeAddPages = () => hold.future;
+
+    final flow = runPdfExportFlow(
+      w.context,
+      noteId: id,
+      currentPageId: pages[0],
+      selectedPageIds: [pages[1]],
+    );
+    await _settle(tester);
+    expect(_inSheet(find.text('PDF로 내보내기')), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
+    await tester.tap(_inSheet(find.text('내보내기')));
+    await _settle(tester);
+    expect(_inDialog(find.text('PDF 만드는 중')), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
+    hold.complete();
+    await _settle(tester);
+    expect(_inSheet(find.text('PDF를 만들었어요')), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
+    await _closeSheet(tester);
+    expect(await flow, isNotNull);
+  });
 
   test('VM platform sink: nothing to deliver → unsupported', () async {
     final sink = createPlatformOutputSink();

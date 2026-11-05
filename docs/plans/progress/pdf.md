@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: 보완 세션 1.1 (동시 개발 단계 검토 미비점 5개 처리 중 — '다음 세션 메모'의 세션 1.1 항목)
+- 마지막 세션: 보완 세션 1.1 (동시 개발 단계 독립 검토 미비점 5개 모두 처리 — '다음 세션 메모'의 세션 1.1 항목)
 - 다음 할 일: 없음 — 동시 개발 단계 몫(T1~T19, T15b 포함)을 모두 끝냈다. 통합 단계에서 integration 태그 테스트 3개(integration/core_gateway_test·ink_thumbnail_test·ink_vectorizer_test)를 실제 CORE·INK로 판정하고, 남은 열린 항목은 '다음 세션 메모' 참고
 
 ## 작업 표
@@ -137,6 +137,7 @@
 ## 다음 세션 메모
 
 - 보완 세션 1.1(독립 검토 미비점 5개):
+  - ① 9.1 공통(T6·T11·T15b·T16·T17, 계약 7.4.8): UI 흐름 위젯 테스트 5개(widget/import_flow·export_flow·batch_export_flow·search_panel·menu_actions)의 모든 테스트가 iPad Pro 13" 세로 1032×1376(DPR 2)에서 돈다 — 새 도우미 test/support/ipad.dart(`useIpad13`·`pumpOnIpad`·`ipad13Portrait`/`ipad13Landscape`·`expectTapTargetGuidelines` = `meetsGuideline(iOSTapTargetGuideline)` + `meetsGuideline(labeledTapTargetGuideline)`; testWidgets는 기본으로 시맨틱스를 켜므로 핸들 불필요). 가이드라인 단언을 화면마다 더했다: 가져오기 시트(파일 고르기 전·notPdf 오류)·암호 창(첫 요청·틀린 뒤)·범위 옵션(잘못된 범위 문구 포함)·큰 파일 확인 창·진행 창(취소만·저장 지연 '닫기'+'취소'), 단일 내보내기 옵션 시트(비활성 범위·선택 기본·웹 큰 원본 경고)·진행 창(평상·저장 지연)·결과 시트(공유·다운로드·새 탭, 공유 없음, '한 번 더 눌러 주세요', 인쇄 안내, 빠진 원본 경고), 일괄 옵션·진행·결과 시트(모두 공유+파일별 다운로드, 다운로드만, 실패 목록, 노트 하나, 취소 안내, 저장 지연), 검색 패널(빈 상태·찾는 중·결과·결과 없음·PDF 쪽 없음·저장 지연), 메뉴 항목이 여는 시트(목적별 옵션 시트·검색 패널·페이지 삽입 시트와 옵션). 파일마다 가로 1376×1032 한 바퀴 테스트를 더했다. lib 변경 없이 모두 통과(위반 없음 — 작은 대상이 실제로 실패하는지는 임시 테스트로 확인하고 지움).
   - ② T4: integration/core_gateway_test를 unit/core_gateway_fake_store_test와 같은 시나리오·같은 단언으로 맞췄다(재시도 시간 묶음만 제외) — 'loadPage after flush and writeThumbnail'(실제 캐시가 바이트를 볼 수 있어 1×1 PNG를 씀), 'a failed byte-chunk write → storageFailed'(실제 저장소를 감싸 `assets.put`만 던지는 `_PutFailsStore` — 나머지는 실제 저장소로 위임, 뒤이어 실제 put이 처음 저장으로 `bytesArrived`를 냄) 추가, 기존 4개에도 빠졌던 단언(type·mimeType, 499쪽 인덱스·pageCount, undoDepth·canUndo, 없는 노트 getNote null)을 채웠다. 같은 파일을 `createFakeNoteStore()`로 바꿔 `--run-skipped`로 돌려 6개 통과를 확인했다(임시 사본, 커밋 안 함). 실제 CORE 판정은 통합 단계.
   - ③ T9: goldens/background_states_golden_test가 `setUpAll`에서 실제 MaterialIcons 글꼴(이 테스트를 돌리는 Flutter SDK 캐시 `bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf` — `FLUTTER_ROOT` 또는 `Platform.resolvedExecutable`에서 위로 찾음)을 `FontLoader('MaterialIcons')`로 불러 아이콘이 실제 모양으로 그려진다(테스트 글꼴은 모든 아이콘을 같은 사각형으로 그려 assetMissing·needsPassword·failed 골든이 바이트까지 같았다). 골든 6장이 서로 다른 이미지인지 보는 VM 테스트를 같은 파일에 더했다. 계약 7.4.8 '골든 갱신은 별도 커밋'대로 테스트 코드 커밋 다음 커밋에서 PNG 4장(asset_missing·downloading·needs_password·failed)을 다시 만들었다 — 두 커밋은 한 쌍이라 코드 커밋 하나만으로는 골든 테스트 5개가 맞지 않는다.
   - ④ T8: unit/render_stats_provider_test 'the stats notifier goes with the renderer'에 단언을 더했다 — 컨테이너 dispose 뒤 렌더러 `renderThumbnail`은 null(엔진 열기 없음), 노티파이어는 `ChangeNotifier.debugAssertNotDisposed`·`addListener`가 FlutterError(해제됨), 리스너 호출 0번.

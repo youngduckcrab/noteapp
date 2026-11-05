@@ -4,6 +4,9 @@
 // opens the search panel, and 'pdf.insert' inserts after the current page (else at the
 // end) and then calls onNavigate(firstId, null) — with a PdfMenuInvocation built from the
 // same fields INFRA's pdfMenuInvocationOf copies from EditorMenuContext (01-infra 4.5.9).
+// Every test runs on an iPad Pro 13" view (contract 7.4.8); what each entry opens (options
+// sheet per purpose, search panel, the insert sheet) meets the 44×44 / labeled tap-target
+// guidelines.
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +18,7 @@ import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
 
 import '../support/export_world.dart';
+import '../support/ipad.dart';
 import '../support/render_doubles.dart';
 
 Uint8List _pdf() => Uint8List.fromList('%PDF-1.7\n% menu\n%%EOF\n'.codeUnits);
@@ -157,7 +161,7 @@ void main() {
   ) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (noteId, pages) = await w.note(3);
     final editor = _EditorContext(
       noteId: noteId,
@@ -175,6 +179,7 @@ void main() {
       await _settle(tester);
       expect(_inSheet(find.text(title)), findsOneWidget, reason: id);
       expect(_chosenRange(tester), 'selected', reason: id);
+      await expectTapTargetGuidelines(tester);
       await tester.tap(_inSheet(find.text('취소')));
       await _settle(tester);
       await run;
@@ -197,7 +202,7 @@ void main() {
   testWidgets('pdf.search opens the search panel of the note', (tester) async {
     final w = _World();
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final (noteId, _) = await w.note(1);
     final editor = _EditorContext(noteId: noteId);
     final run = _action(
@@ -206,6 +211,7 @@ void main() {
     ).run(w.context, editor.invocation());
     await _settle(tester);
     expect(find.text('찾을 내용'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     Navigator.of(w.context).pop();
     await _settle(tester);
     await run;
@@ -225,7 +231,7 @@ void main() {
     (tester) async {
       final w = _World();
       addTearDown(w.dispose);
-      await tester.pumpWidget(w.app());
+      await pumpOnIpad(tester, w.app());
       final (noteId, pages) = await w.note(3);
       final editor = _EditorContext(noteId: noteId, currentPageId: pages[0]);
       w.files.enqueue(PickedPdfFile.fromBytes('자료.pdf', _pdf()));
@@ -234,8 +240,10 @@ void main() {
       final run = insert.run(w.context, editor.invocation());
       await _settle(tester);
       expect(_inSheet(find.text('PDF에서 페이지 삽입')), findsOneWidget);
+      await expectTapTargetGuidelines(tester);
       await tester.tap(find.text('PDF 파일 선택'));
       await _settle(tester);
+      await expectTapTargetGuidelines(tester); // the options of the insert
       await tester.tap(find.text('가져오기'));
       await _settle(tester);
       await run;

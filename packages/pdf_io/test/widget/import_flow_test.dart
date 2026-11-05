@@ -2,6 +2,9 @@
 // result, picker cancel, cancel during progress, large-file confirmation, busy,
 // importPdfAsNewNote (folderId, note id, unmounted context), the composed file name, and the
 // storage delay (PDF-3-1): delay text + '닫기' while CORE retries, the job keeps running.
+// Every test runs on an iPad Pro 13" view (contract 7.4.8); the sheet, the password dialog,
+// the options, the large-file confirmation and the progress dialog (with and without
+// '닫기') meet the 44×44 / labeled tap-target guidelines, also in landscape.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -13,6 +16,7 @@ import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
 
+import '../support/ipad.dart';
 import '../support/render_doubles.dart';
 
 const String _delayText = '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.';
@@ -108,16 +112,19 @@ void main() {
       files: [PickedPdfFile.fromBytes('locked.pdf', _pdf())],
     );
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final flow = runPdfImportFlow(
       w.context,
       const PdfImportAsNewNote(folderId: 'folder-1'),
     );
+    await _settle(tester);
+    await expectTapTargetGuidelines(tester); // the sheet, nothing picked yet
     await _pick(tester);
     expect(w.files.pickCalls, 1);
 
     // First password request.
     expect(find.text('PDF 암호'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     expect(find.text('암호가 틀렸어요. 다시 입력해 주세요.'), findsNothing);
     expect(find.text('암호를 푼 사본이 노트에 저장돼요'), findsOneWidget);
     await tester.enterText(_inDialog(find.byType(TextField)), 'nope');
@@ -126,6 +133,7 @@ void main() {
 
     // Second request says the first one was wrong.
     expect(find.text('암호가 틀렸어요. 다시 입력해 주세요.'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     await tester.enterText(_inDialog(find.byType(TextField)), 'pw');
     await tester.tap(_inDialog(find.text('확인')));
     await _settle(tester);
@@ -134,10 +142,12 @@ void main() {
 
     // Options: an invalid range is refused in place, then '2-3'.
     expect(find.textContaining('4쪽'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     await tester.enterText(find.byType(TextField), '9');
     await tester.tap(find.text('가져오기'));
     await tester.pump();
     expect(find.text("'9'쪽이 없어요. 1–4쪽 중에서 골라 주세요."), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     expect(w.fakeGateway.calls, isEmpty);
     await tester.enterText(find.byType(TextField), '2-3');
     await tester.tap(find.text('가져오기'));
@@ -169,7 +179,7 @@ void main() {
   ) async {
     final w = _World(); // empty queue: the picker answers null
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
     await _pick(tester);
     expect(await flow, isNull);
@@ -183,7 +193,7 @@ void main() {
   ) async {
     final w = _World(files: [PickedPdfFile.fromBytes('a.pdf', _pdf())]);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
     await _pick(tester);
     expect(w.engine.openDocumentCount, 1);
@@ -202,11 +212,12 @@ void main() {
       ],
     );
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
     await _pick(tester);
     expect(find.text('PDF 파일이 아니에요.'), findsOneWidget);
     expect(find.text('다른 파일 선택'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     await tester.tap(find.text('취소'));
     await _settle(tester);
     expect(await flow, isNull);
@@ -217,7 +228,7 @@ void main() {
   ) async {
     final w = _World(files: [PickedPdfFile.fromBytes('a.pdf', _pdf())]);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
     await _pick(tester);
     w.fakeGateway.holdWrites(); // putPdf stays pending
@@ -225,6 +236,7 @@ void main() {
     await _settle(tester);
     expect(find.text('PDF 가져오는 중'), findsOneWidget);
     expect(find.text('저장 중'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     // No storage failure injected: neither the delay text nor '닫기'.
     expect(find.text(_delayText), findsNothing);
     expect(find.text('닫기'), findsNothing);
@@ -257,13 +269,14 @@ void main() {
       config: PdfIoConfig(limits: PdfImportLimits(warnBytes: bytes.length - 1)),
     );
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
 
     var flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
     await _pick(tester);
     await tester.tap(find.text('가져오기'));
     await _settle(tester);
     expect(find.text('큰 PDF예요'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     await tester.tap(_inDialog(find.text('취소')));
     await _settle(tester);
     expect(await flow, isNull);
@@ -285,7 +298,7 @@ void main() {
   ) async {
     final w = _World(files: [PickedPdfFile.fromBytes('a.pdf', _pdf())]);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final first = runPdfImportFlow(w.context, const PdfImportAsNewNote());
     await _pick(tester);
     w.fakeGateway.holdWrites();
@@ -313,7 +326,7 @@ void main() {
   ) async {
     final w = _World(files: [PickedPdfFile.fromBytes('a.pdf', _pdf())]);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final flow = importPdfAsNewNote(w.context, folderId: 'folder-7');
     await _pick(tester);
     await tester.tap(find.text('가져오기'));
@@ -332,7 +345,7 @@ void main() {
   ) async {
     final w = _World(files: [PickedPdfFile.fromBytes('a.pdf', _pdf())]);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final navigator = Navigator.of(w.context);
     late BuildContext pageContext;
     final page = MaterialPageRoute<void>(
@@ -360,7 +373,7 @@ void main() {
   testWidgets('the sheet shows the composed (NFC) file name', (tester) async {
     final w = _World(files: [PickedPdfFile.fromBytes(_nfdName, _pdf())]);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
     await _pick(tester);
     expect(find.text('강의자료.PDF'), findsOneWidget);
@@ -382,7 +395,7 @@ void main() {
         files: [PickedPdfFile.fromBytes('slow.pdf', _pdf('slow'))],
       );
       addTearDown(w.dispose);
-      await tester.pumpWidget(w.app());
+      await pumpOnIpad(tester, w.app());
       final flow = importPdfAsNewNote(w.context, folderId: null);
       await _pick(tester);
       faults.failNextCommits(5);
@@ -393,6 +406,7 @@ void main() {
       expect(find.text(_delayText), findsOneWidget);
       expect(_inDialog(find.text('닫기')), findsOneWidget);
       expect(_inDialog(find.text('취소')), findsOneWidget); // still storing
+      await expectTapTargetGuidelines(tester);
 
       await tester.tap(_inDialog(find.text('닫기')));
       await tester.pump();
@@ -422,6 +436,46 @@ void main() {
       expect(note!.title, 'slow');
       // No result UI after '닫기'.
       expect(find.textContaining('쪽을 가져왔어요'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'landscape 1376×1032: sheet, password, options and progress meet the '
+    'tap-target guidelines',
+    (tester) async {
+      final w = _World(
+        engine: FakePdfEngine(pageCount: 4, userPassword: 'pw'),
+        files: [PickedPdfFile.fromBytes('locked.pdf', _pdf())],
+      );
+      addTearDown(w.dispose);
+      await pumpOnIpad(tester, w.app(), landscape: true);
+      expect(
+        tester.view.physicalSize / tester.view.devicePixelRatio,
+        ipad13Landscape,
+      );
+      final flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
+      await _settle(tester);
+      expect(find.text('PDF 파일 선택'), findsOneWidget);
+      await expectTapTargetGuidelines(tester);
+      await _pick(tester);
+      expect(find.text('PDF 암호'), findsOneWidget);
+      await expectTapTargetGuidelines(tester);
+      await tester.enterText(_inDialog(find.byType(TextField)), 'pw');
+      await tester.tap(_inDialog(find.text('확인')));
+      await _settle(tester);
+      expect(find.textContaining('4쪽'), findsOneWidget);
+      await expectTapTargetGuidelines(tester);
+      w.fakeGateway
+          .holdWrites(); // putPdf stays pending: the progress dialog stays up
+      await tester.tap(find.text('가져오기'));
+      await _settle(tester);
+      expect(find.text('PDF 가져오는 중'), findsOneWidget);
+      await expectTapTargetGuidelines(tester);
+      await tester.tap(_inDialog(find.text('취소')));
+      await _settle(tester);
+      expect(await flow, isNull);
+      w.fakeGateway.releaseWrites();
+      await _settle(tester);
     },
   );
 }

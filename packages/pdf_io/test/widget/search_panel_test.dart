@@ -3,6 +3,9 @@
 // the union of the hit's rects (note pt, s ≠ 1 included), a hit without rects →
 // onNavigate(pageId, null), previous / next, the storage-delay text while the pre-search
 // flush waits on CORE retries (PDF-3-1), and closing the panel cancels its search.
+// Every test runs on an iPad Pro 13" view (contract 7.4.8); the panel (empty, searching,
+// results, no results, the delay text) meets the 44×44 / labeled tap-target guidelines,
+// also in landscape.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -13,6 +16,8 @@ import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
+
+import '../support/ipad.dart';
 
 const String _delayText = '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.';
 
@@ -146,7 +151,7 @@ void main() {
     );
     final w = _World(engine: engine);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final note = await tester.runAsync(
       () => w.pdfNote([for (var i = 0; i < 12; i++) i]),
     );
@@ -156,6 +161,7 @@ void main() {
     final panel = w.open(note!.id);
     await _settle(tester);
     expect(find.text('찾을 내용'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     final fake = w.gateway as FakePdfNoteGateway;
     fake.calls.clear();
 
@@ -178,6 +184,7 @@ void main() {
     );
     expect(bar.value, closeTo(10 / 12, 1e-9));
     expect(find.text(_delayText), findsNothing);
+    await expectTapTargetGuidelines(tester);
 
     hold.complete();
     await _run(tester);
@@ -185,6 +192,7 @@ void main() {
     expect(find.text('결과 12개 중 1번째'), findsOneWidget);
     expect(find.text('1쪽'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
+    await expectTapTargetGuidelines(tester);
 
     await tester.tap(find.text('2쪽'));
     await tester.pump();
@@ -237,7 +245,7 @@ void main() {
     );
     final w = _World(engine: engine);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final note = await tester.runAsync(
       () => w.pdfNote([0], size: const core.PageSize(72, 72)),
     );
@@ -276,7 +284,7 @@ void main() {
     );
     final w = _World(engine: engine);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final note = await tester.runAsync(() => w.pdfNote([0]));
     unawaited(w.open(note!.id));
     await _settle(tester);
@@ -294,7 +302,7 @@ void main() {
   testWidgets('no results / no PDF pages', (tester) async {
     final w = _World(engine: FakePdfEngine(texts: {0: _line(0, 'abc')}));
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final note = await tester.runAsync(() => w.pdfNote([0]));
     unawaited(w.open(note!.id));
     await _settle(tester);
@@ -302,6 +310,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await _run(tester);
     expect(find.text('찾는 내용이 없어요'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
 
     final blank = await tester.runAsync(
       () => w.gateway.createNote(title: 'b', pages: [core.PageDraft.blankA4]),
@@ -315,6 +324,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await _run(tester);
     expect(find.text('이 노트에는 PDF 페이지가 없어요'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
     await w.end(tester);
   });
 
@@ -328,7 +338,7 @@ void main() {
     );
     final w = _World(engine: engine);
     addTearDown(w.dispose);
-    await tester.pumpWidget(w.app());
+    await pumpOnIpad(tester, w.app());
     final note = await tester.runAsync(() => w.pdfNote([0, 1, 2]));
     engine.beforeLoadText = (i) => i == 1 ? hold.future : Future.value();
     final panel = w.open(note!.id);
@@ -368,7 +378,7 @@ void main() {
       final gateway = CorePdfNoteGateway(store);
       final w = _World(store: store, gateway: gateway);
       addTearDown(w.dispose);
-      await tester.pumpWidget(w.app());
+      await pumpOnIpad(tester, w.app());
       final note = (await tester.runAsync(
         () => gateway.createNote(title: 'n', pages: [core.PageDraft.blankA4]),
       ))!;
@@ -393,6 +403,7 @@ void main() {
         tester.getTopLeft(find.text(_delayText)).dy,
         greaterThan(tester.getTopLeft(find.textContaining('찾는 중')).dy),
       );
+      await expectTapTargetGuidelines(tester);
 
       await tester.tap(find.byTooltip('닫기'));
       await _settle(tester);
@@ -408,4 +419,33 @@ void main() {
       await w.end(tester);
     },
   );
+
+  testWidgets('landscape 1376×1032: the panel with results meets the '
+      'tap-target guidelines', (tester) async {
+    final engine = FakePdfEngine(
+      pageCount: 3,
+      texts: {for (var i = 0; i < 3; i++) i: _line(i, 'page $i alpha')},
+    );
+    final w = _World(engine: engine);
+    addTearDown(w.dispose);
+    await pumpOnIpad(tester, w.app(), landscape: true);
+    expect(
+      tester.view.physicalSize / tester.view.devicePixelRatio,
+      ipad13Landscape,
+    );
+    final note = await tester.runAsync(() => w.pdfNote([0, 1, 2]));
+    final panel = w.open(note!.id);
+    await _settle(tester);
+    expect(find.text('찾을 내용'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
+    await _type(tester, 'alpha');
+    await tester.pump(const Duration(milliseconds: 300));
+    await _run(tester);
+    expect(find.text('결과 3개 중 1번째'), findsOneWidget);
+    await expectTapTargetGuidelines(tester);
+    await tester.tap(find.byTooltip('닫기'));
+    await _settle(tester);
+    await panel;
+    await w.end(tester);
+  });
 }
