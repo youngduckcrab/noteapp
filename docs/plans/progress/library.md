@@ -33,7 +33,7 @@
 | L18 | 완료 | ccdc941 | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, B6 `feature_library_smoke_test.dart` 갱신) |
 | L19 | 완료 | dd82973 | `goldens/library_golden_test.dart`(+ PNG 4장, `goldens/flutter_test_config.dart`), `widget/performance_test.dart`, `widget/a11y_test.dart` |
 | L20 | 완료 | 6b2567c | `web/library_browser_test.dart`, `web/scenarios_browser_test.dart` (+ L3 `web/new_note_options_browser_test.dart`) — `flutter test --platform chrome test/web` 17개, `ws test --platform chrome --package feature_library` 통과 |
-| L21 | 통합 단계 | (미리 작성: L21 커밋 — 다음 커밋에서 해시 기록) | `integration/core_contract_test.dart` (`@Tags(['integration'])` + `@TestOn('vm')`) — 세션 8에 미리 썼다. 기본 실행은 skip(`~1`), `--run-skipped -t integration`은 지금 10건 모두 CORE B2 `UnimplementedError`로 실패(예상). 통합 단계에서 통과 판정 |
+| L21 | 통합 단계 | 4450eaa (미리 작성) | `integration/core_contract_test.dart` (`@Tags(['integration'])` + `@TestOn('vm')`) — 세션 8에 미리 썼다. 기본 실행은 skip(`~1`), `--run-skipped -t integration`은 지금 10건 모두 CORE B2 `UnimplementedError`로 실패(예상). 통합 단계에서 통과 판정 |
 
 ## 변경 요청
 
@@ -169,7 +169,7 @@
 - 세션 5 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 471개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 6 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 539개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 7 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 594개 통과, `flutter test --platform chrome test/web` 6개 통과.
-- 세션 8 끝 확인: (세션 끝에 채움 — 다음 커밋)
+- 세션 8 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 626개 통과 + 1 skip(L21 `integration`), `flutter test --platform chrome test/web` 17개 통과(`ws test --platform chrome --package feature_library`도 통과), `dart format` 변경 없음.
 - (L17 완료) 공유 시나리오는 L18까지 8 L21 ① 목록을 모두 담았다(9건 — 세션 8에서 다시 셈). 검색 화면 테스트 도우미: `widget/search_test.dart`의 `search(tester, text)`(enterText → `pump(300ms)` → `pumpAndSettle`), `searchInput`(`LibrarySearchField` 안의 `TextField`), `boldParts`(제목 `Text.rich`의 w700 조각). **`enterText` 뒤에는 `pump()`를 해야** 대화상자의 [저장] 등 활성 상태가 다시 그려진다(`enterText`는 프레임을 그리지 않음).
 - 끌기 테스트 도우미: `widget/drag_drop_test.dart`의 `startDrag`(down → 450ms → moveBy(0, 20)) / `moveTo` / `drop`(up + pumpAndSettle). 끄는 동안에도 상단 막대가 남아 있고 선택 막대는 끌기가 끝난 뒤 나온다.
 - 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
