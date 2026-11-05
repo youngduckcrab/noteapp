@@ -1,0 +1,6 @@
+# packages/pdf_io/dart_test.yaml
+tags:
+  golden: {}                     # test/goldens/ — VM only (@TestOn('vm'))
+  pdfium: {timeout: 2x}          # real PDFium via pdfium_dart build hook (network + gcc on first run)
+  integration: {skip: "integration stage only: ws test --run-skipped -t integration"}
+  perf: {skip: "run explicitly: flutter test --run-skipped -t perf"}
