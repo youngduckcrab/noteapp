@@ -105,6 +105,9 @@ abstract final class LibraryStrings {
   static const String deselectAll = '모두 해제';
   static String selectedCount(int n) => '$n개 선택됨';
 
+  /// Selection bar '이동' (the item menu says '이동…').
+  static const String move = '이동';
+
   // Item actions
   static const String rename = '이름 변경';
   static const String customize = '꾸미기';

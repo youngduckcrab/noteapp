@@ -1,6 +1,6 @@
 // lib/src/ui/content/item_list.dart — 05-library 6.8: the list view of one
-// LibraryContent (rows of 64, folders first). Selection checkboxes come with
-// L14, drag / drop with L15.
+// LibraryContent (rows of 64, folders first). In selection mode rows show a
+// leading checkbox and no ⋯ (6.8 / 6.9); drag / drop comes with L15.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note, clockProvider;
@@ -51,18 +51,27 @@ class ItemList extends StatelessWidget {
 const double _thumbWidth = 40, _thumbHeight = 52;
 const BorderRadius _thumbRadius = BorderRadius.all(Radius.circular(4));
 
-/// `[cover 40×52][16][title / meta]` — the tappable part of a row.
+/// `[checkbox in selection mode][cover 40×52][16][title / meta]` — the
+/// tappable part of a row. In selection mode a tap toggles the item (6.9);
+/// a long press starts selection mode with it.
 class _RowMain extends StatelessWidget {
   const _RowMain({
+    required this.itemKey,
+    required this.active,
+    required this.selected,
     required this.semanticsLabel,
-    required this.onTap,
+    required this.onOpen,
     required this.leading,
     required this.title,
     required this.meta,
   });
 
+  final LibraryItemKey itemKey;
+
+  /// Selection mode, and whether this item is selected.
+  final bool active, selected;
   final String semanticsLabel;
-  final VoidCallback onTap;
+  final VoidCallback onOpen;
   final Widget leading;
   final String title;
   final String meta;
@@ -70,18 +79,30 @@ class _RowMain extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    void onTap() => active ? toggleItemSelection(context, itemKey) : onOpen();
+    void onLongPress() => addItemToSelection(context, itemKey);
     return Semantics(
       container: true,
       button: true,
       label: semanticsLabel,
+      selected: active ? selected : null,
       excludeSemantics: true,
       onTap: onTap,
+      onLongPress: onLongPress,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
-          padding: const EdgeInsetsDirectional.only(start: 16),
+          padding: EdgeInsetsDirectional.only(start: active ? 4 : 16),
           child: Row(
             children: [
+              // Decorative: the row itself toggles and carries selected.
+              if (active)
+                IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: Checkbox(value: selected, onChanged: (_) {}),
+                  ),
+                ),
               SizedBox(
                 width: _thumbWidth,
                 height: _thumbHeight,
@@ -131,12 +152,17 @@ class NoteListRow extends ConsumerWidget {
       note.updatedAt,
       now: ref.watch(clockProvider).now(),
     );
+    final key = noteKey(note.id);
+    final (:active, :selected) = watchItemSelection(ref, context, key);
     return Row(
       children: [
         Expanded(
           child: _RowMain(
+            itemKey: key,
+            active: active,
+            selected: selected,
             semanticsLabel: LibraryStrings.noteSemantics(note.title, date),
-            onTap: () => openLibraryNote(context, note),
+            onOpen: () => openLibraryNote(context, note),
             leading: ClipRRect(
               borderRadius: _thumbRadius,
               child: NoteCoverView(
@@ -165,7 +191,11 @@ class NoteListRow extends ConsumerWidget {
             favorite: !note.isFavorite,
           ),
         ),
-        ItemMenuButton(note: note),
+        // No ⋯ in selection mode (6.9); the place stays (alignment).
+        if (active)
+          const SizedBox(width: LibraryMetrics.minTapTarget)
+        else
+          ItemMenuButton(note: note),
         const SizedBox(width: 8),
       ],
     );
@@ -173,19 +203,24 @@ class NoteListRow extends ConsumerWidget {
 }
 
 /// `[folder icon 32 in 40×52][16][name / '폴더'][⋯ 44]`.
-class FolderListRow extends StatelessWidget {
+class FolderListRow extends ConsumerWidget {
   const FolderListRow({super.key, required this.folder});
 
   final Folder folder;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final key = folderKey(folder.id);
+    final (:active, :selected) = watchItemSelection(ref, context, key);
     return Row(
       children: [
         Expanded(
           child: _RowMain(
+            itemKey: key,
+            active: active,
+            selected: selected,
             semanticsLabel: LibraryStrings.folderSemantics(folder.name),
-            onTap: () => LibraryScope.read(context).openFolder(folder.id),
+            onOpen: () => LibraryScope.read(context).openFolder(folder.id),
             leading: FolderPicture(
               folder: folder,
               iconSize: 32,
@@ -195,7 +230,10 @@ class FolderListRow extends StatelessWidget {
             meta: LibraryStrings.folders,
           ),
         ),
-        ItemMenuButton(folder: folder),
+        if (active)
+          const SizedBox(width: LibraryMetrics.minTapTarget)
+        else
+          ItemMenuButton(folder: folder),
         const SizedBox(width: 8),
       ],
     );

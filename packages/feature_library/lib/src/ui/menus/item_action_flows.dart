@@ -169,6 +169,41 @@ Future<void> runCopyHereFlow(
   });
 }
 
+/// 복사 from the selection bar: folder picker ('복사할 위치', starting at
+/// [initialFolderId] — the current folder or 홈) → copy with ' 사본' when the
+/// target is the current parent of an item (else no suffix) → '항목 n개를
+/// 복사했어요'. [items] in display order, [parents] = the current parent of
+/// every item (null = 홈).
+Future<void> runCopyToFlow(
+  BuildContext context, {
+  required List<LibraryItemKey> items,
+  required Map<LibraryItemKey, FolderId?> parents,
+  required FolderId? initialFolderId,
+  VoidCallback? onDone,
+}) {
+  final flow = _FlowContext(context);
+  return flow.once('copyTo', items, () async {
+    if (items.isEmpty) return;
+    final picked = await showFolderPickerDialog(
+      context,
+      title: LibraryStrings.copyDestination,
+      confirmLabel: LibraryStrings.copyHere,
+      initialFolderId: initialFolderId,
+    );
+    if (picked == null) return;
+    final target = picked.folderId;
+    final here = items.any((k) => parents[k] == target);
+    final outcome = await flow.actions.copy(
+      items,
+      target: target,
+      nameSuffix: here ? LibraryStrings.copySuffix : '',
+    );
+    if (!flow.check(outcome)) return;
+    onDone?.call();
+    flow.show(LibraryStrings.copiedCount(items.length));
+  });
+}
+
 /// 이동… : folder picker ('이동할 위치' — the moved folders and their
 /// sub-folders disabled; the confirm button disabled for the one parent all
 /// items share) → move → `"'<target>'(으)로 옮겼어요"` / "항목 n개를 …" +

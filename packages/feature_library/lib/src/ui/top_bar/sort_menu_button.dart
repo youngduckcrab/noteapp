@@ -84,21 +84,24 @@ class ViewModeButton extends ConsumerWidget {
   }
 }
 
-/// Compact class: ⋯ with 정렬 (sub-menu) and the view toggle. Nothing when
-/// neither applies (trash).
+/// Compact class: ⋯ with 정렬 (sub-menu, folder sections), the view toggle
+/// (not in the trash) and 선택.
 class CompactListingMenu extends ConsumerWidget {
   const CompactListingMenu({
     super.key,
     required this.sortEnabled,
     required this.showViewToggle,
+    required this.onSelect,
   });
 
   final bool sortEnabled;
   final bool showViewToggle;
 
+  /// '선택' (6.9).
+  final VoidCallback onSelect;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!sortEnabled && !showViewToggle) return const SizedBox.shrink();
     final (sort, mode) = ref.watch(
       libraryPrefsProvider.select((p) => (p.sort, p.viewMode)),
     );
@@ -123,6 +126,11 @@ class CompactListingMenu extends ConsumerWidget {
               toList ? LibraryStrings.viewAsList : LibraryStrings.viewAsGrid,
             ),
           ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.check_circle_outline),
+          onPressed: onSelect,
+          child: const Text(LibraryStrings.select),
+        ),
       ],
       builder: (context, controller, _) => IconButton(
         icon: const Icon(Icons.more_vert),

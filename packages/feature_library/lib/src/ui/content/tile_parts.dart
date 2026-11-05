@@ -1,10 +1,14 @@
 // lib/src/ui/content/tile_parts.dart — 05-library 6.8: pieces shared by the
 // grid tiles and list rows.
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note;
 
 import '../../appearance/folder_appearance.dart';
 import '../../l10n/library_strings.dart';
+import '../../model/item_key.dart';
+import '../../state/providers.dart';
+import '../../state/selection_notifier.dart';
 import '../feedback/library_snack_bar.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
@@ -24,6 +28,35 @@ void openLibraryNote(BuildContext context, Note note) {
   }
   scope.openNote(note.id);
 }
+
+/// Selection mode and whether [key] is selected (6.9) — rebuilds only when
+/// one of the two changes.
+({bool active, bool selected}) watchItemSelection(
+  WidgetRef ref,
+  BuildContext context,
+  LibraryItemKey key,
+) {
+  final routeFolderId = LibraryScope.of(context).routeFolderId;
+  return ref.watch(
+    librarySelectionProvider(routeFolderId)
+        .select((s) => (active: s.active, selected: s.contains(key))),
+  );
+}
+
+/// Tap in selection mode: toggles [key] (opens nothing, 6.9).
+void toggleItemSelection(BuildContext context, LibraryItemKey key) =>
+    _selectionNotifier(context).toggle(key);
+
+/// Long press on an item: selection mode with [key] included (6.9). L15
+/// moves this to the drag start (LibraryDraggable.onDragStarted).
+void addItemToSelection(BuildContext context, LibraryItemKey key) =>
+    _selectionNotifier(context).add(key);
+
+LibrarySelectionNotifier _selectionNotifier(BuildContext context) =>
+    ProviderScope.containerOf(context, listen: false).read(
+      librarySelectionProvider(LibraryScope.read(context).routeFolderId)
+          .notifier,
+    );
 
 /// Folder color or the theme default (onSurfaceVariant). An unknown color
 /// synced from elsewhere is drawn as it is (ARGB).
@@ -94,17 +127,20 @@ class FolderGlyph extends StatelessWidget {
   }
 }
 
-/// Cover box of a grid tile: corner 8, 1 px outlineVariant border.
+/// Cover box of a grid tile: corner 8, 1 px outlineVariant border — 3 px
+/// primary when the item is selected (6.8).
 class TileCoverBox extends StatelessWidget {
   const TileCoverBox({
     super.key,
     required this.width,
     required this.height,
     required this.child,
+    this.selected = false,
   });
 
   final double width, height;
   final Widget child;
+  final bool selected;
 
   static const BorderRadius radius = BorderRadius.all(Radius.circular(8));
 
@@ -117,9 +153,12 @@ class TileCoverBox extends StatelessWidget {
         position: DecorationPosition.foreground,
         decoration: BoxDecoration(
           borderRadius: radius,
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
+          border: selected
+              ? Border.all(
+                  color: Theme.of(context).colorScheme.primary,
+                  width: 3,
+                )
+              : Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: ClipRRect(borderRadius: radius, child: child),
       ),
@@ -192,6 +231,42 @@ class CoverCornerBadge extends StatelessWidget {
             color: Theme.of(context).colorScheme.surfaceContainerLowest,
           ),
           child: Icon(icon, size: 18, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+/// Selection mode mark on a grid tile's cover (top left, in a 44 × 44
+/// area): an empty circle, or check_circle in primary when selected. Not
+/// tappable itself (the whole tile toggles) and decorative (the tile's
+/// semantics carry selected).
+class SelectionCheckBadge extends StatelessWidget {
+  const SelectionCheckBadge({super.key, required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IgnorePointer(
+      child: ExcludeSemantics(
+        child: SizedBox(
+          width: LibraryMetrics.minTapTarget,
+          height: LibraryMetrics.minTapTarget,
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.surfaceContainerLowest,
+              ),
+              child: Icon(
+                selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                size: 24,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
         ),
       ),
     );

@@ -16,6 +16,7 @@ class LibraryScope extends InheritedWidget {
     required this.openSettings,
     required this.openDrawer,
     required this.closeDrawer,
+    required this.screenContext,
     required super.child,
   });
 
@@ -40,6 +41,10 @@ class LibraryScope extends InheritedWidget {
   /// Closes the drawer if it is open (sidebar 최근 / 즐겨찾기 / 휴지통).
   final VoidCallback closeDrawer;
 
+  /// The LibraryScreen State's context: the PDF slots get it (4.3 — the
+  /// selection bar or a menu may be gone while the PDF flow runs).
+  final BuildContext screenContext;
+
   static LibraryScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<LibraryScope>();
     assert(scope != null, 'No LibraryScope above this widget');
@@ -61,5 +66,6 @@ class LibraryScope extends InheritedWidget {
       openNote != oldWidget.openNote ||
       openSettings != oldWidget.openSettings ||
       openDrawer != oldWidget.openDrawer ||
-      closeDrawer != oldWidget.closeDrawer;
+      closeDrawer != oldWidget.closeDrawer ||
+      screenContext != oldWidget.screenContext;
 }

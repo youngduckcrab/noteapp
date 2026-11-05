@@ -149,6 +149,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       openSettings: _openSettings,
       openDrawer: _openDrawer,
       closeDrawer: _closeDrawer,
+      screenContext: context,
       child: Scaffold(
         key: _scaffoldKey,
         drawer: expanded

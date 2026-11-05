@@ -1,8 +1,9 @@
 // lib/src/ui/top_bar/library_top_bar.dart — 05-library 6.2 (top bar table).
 // Leading button, the breadcrumb (folder sections) or the section title, and
-// on the right the sort menu and the view toggle (L10; in the compact class
-// both live in ⋯) and '새로 만들기' (L12; not in the trash). Still to come on
-// the right: search (L17), '선택' (L14), 'PDF 가져오기' in the new menu (L18).
+// on the right the sort menu, the view toggle (L10) and '선택' (L14) — in the
+// compact class all three live in ⋯ — and '새로 만들기' (L12; not in the
+// trash). Still to come on the right: search (L17), 'PDF 가져오기' in the new
+// menu (L18). In selection mode the selection bar replaces this bar.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -27,6 +28,10 @@ class LibraryTopBar extends ConsumerWidget {
     final theme = Theme.of(context);
     final sortEnabled = section is FolderSection;
     final showViewToggle = section is! TrashSection;
+    // '선택' (6.9): selection mode with nothing selected yet.
+    void beginSelection() => ref
+        .read(librarySelectionProvider(scope.routeFolderId).notifier)
+        .begin();
     return Material(
       color: theme.colorScheme.surface,
       child: SizedBox(
@@ -56,10 +61,16 @@ class LibraryTopBar extends ConsumerWidget {
               CompactListingMenu(
                 sortEnabled: sortEnabled,
                 showViewToggle: showViewToggle,
+                onSelect: beginSelection,
               )
             else ...[
               SortMenuButton(enabled: sortEnabled),
               if (showViewToggle) const ViewModeButton(),
+              const SizedBox(width: 4),
+              TextButton(
+                onPressed: beginSelection,
+                child: const Text(LibraryStrings.select),
+              ),
             ],
             if (section is! TrashSection) ...[
               const SizedBox(width: 8),
