@@ -29,8 +29,9 @@ final class InkVectorPath {
     return ui.Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
+  /// The path with PathFillType.nonZero (the fill rule of every ink outline).
   ui.Path toUiPath() {
-    final path = ui.Path();
+    final path = ui.Path()..fillType = ui.PathFillType.nonZero;
     var c = 0;
     for (final v in verbs) {
       switch (InkPathVerb.values[v]) {

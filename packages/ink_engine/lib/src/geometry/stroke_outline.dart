@@ -1,8 +1,9 @@
-// lib/src/geometry/stroke_outline.dart — INTERNAL (03-ink 4.5).
+// lib/src/geometry/stroke_outline.dart — INTERNAL (03-ink 4.5, 6.8 O7).
 //
-// Foundation step B3: a simple outline (both sides of the centerline offset
-// by the point radius, no caps / joins). The outline of 6.8 replaces the
-// generator in INK T07; this type keeps its members.
+// The polygons come from OutlineGenerator (6.8). toPath / toVectorPath with
+// smooth: true draw quadratic Béziers through the edge midpoints with the
+// vertices as control points (O7): the curve stays inside the vertices'
+// convex hull, so bounds (vertex bounds) still contain it (K-1).
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -46,7 +47,10 @@ final class StrokeOutline {
     return n;
   }
 
-  /// B3: straight edges ([smooth] is accepted and ignored).
+  /// Fill path (PathFillType.nonZero). [smooth]: quadratic Béziers through
+  /// the edge midpoints, `moveTo(mid(v_{m−1}, v_0))` then for every v_i
+  /// `quadraticBezierTo(v_i, mid(v_i, v_{i+1}))` (6.8 O7); otherwise the
+  /// polygon edges.
   ui.Path toPath({bool smooth = true}) {
     final path = ui.Path()..fillType = ui.PathFillType.nonZero;
     final c = dotCenter;
@@ -55,22 +59,42 @@ final class StrokeOutline {
       return path;
     }
     for (final poly in polygons) {
-      if (poly.length < 6) continue;
-      path.moveTo(poly[0], poly[1]);
-      for (var i = 2; i + 1 < poly.length; i += 2) {
-        path.lineTo(poly[i], poly[i + 1]);
+      final m = poly.length ~/ 2;
+      if (m < 3) continue;
+      if (!smooth) {
+        path.moveTo(poly[0], poly[1]);
+        for (var i = 1; i < m; i++) {
+          path.lineTo(poly[2 * i], poly[2 * i + 1]);
+        }
+        path.close();
+        continue;
+      }
+      path.moveTo(
+        (poly[2 * m - 2] + poly[0]) / 2,
+        (poly[2 * m - 1] + poly[1]) / 2,
+      );
+      for (var i = 0; i < m; i++) {
+        final j = i + 1 == m ? 0 : i + 1;
+        path.quadraticBezierTo(
+          poly[2 * i],
+          poly[2 * i + 1],
+          (poly[2 * i] + poly[2 * j]) / 2,
+          (poly[2 * i + 1] + poly[2 * j + 1]) / 2,
+        );
       }
       path.close();
     }
     return path;
   }
 
+  /// The same geometry as [toPath] for PDF export (6.24): a quadratic
+  /// (P0, C, P1) becomes the cubic (P0, P0 + ⅔(C − P0), P1 + ⅔(C − P1), P1);
+  /// a dot is 4 cubics with k = 0.5523 · r.
   InkVectorPath toVectorPath({bool smooth = true}) {
     final verbs = <int>[];
     final coords = <double>[];
     final c = dotCenter;
     if (c != null) {
-      // circle = 4 cubic Béziers, k = 0.5523 (6.24)
       final r = dotRadius, k = 0.5523 * dotRadius;
       final x = c.dx, y = c.dy;
       verbs.add(InkPathVerb.moveTo.index);
@@ -87,12 +111,36 @@ final class StrokeOutline {
       verbs.add(InkPathVerb.close.index);
     } else {
       for (final poly in polygons) {
-        if (poly.length < 6) continue;
+        final m = poly.length ~/ 2;
+        if (m < 3) continue;
         verbs.add(InkPathVerb.moveTo.index);
-        coords.addAll([poly[0], poly[1]]);
-        for (var i = 2; i + 1 < poly.length; i += 2) {
-          verbs.add(InkPathVerb.lineTo.index);
-          coords.addAll([poly[i], poly[i + 1]]);
+        if (!smooth) {
+          coords.addAll([poly[0], poly[1]]);
+          for (var i = 1; i < m; i++) {
+            verbs.add(InkPathVerb.lineTo.index);
+            coords.addAll([poly[2 * i], poly[2 * i + 1]]);
+          }
+          verbs.add(InkPathVerb.close.index);
+          continue;
+        }
+        var x0 = (poly[2 * m - 2] + poly[0]) / 2;
+        var y0 = (poly[2 * m - 1] + poly[1]) / 2;
+        coords.addAll([x0, y0]);
+        for (var i = 0; i < m; i++) {
+          final j = i + 1 == m ? 0 : i + 1;
+          final cx = poly[2 * i], cy = poly[2 * i + 1];
+          final x1 = (cx + poly[2 * j]) / 2, y1 = (cy + poly[2 * j + 1]) / 2;
+          verbs.add(InkPathVerb.cubicTo.index);
+          coords.addAll([
+            x0 + 2 / 3 * (cx - x0),
+            y0 + 2 / 3 * (cy - y0),
+            x1 + 2 / 3 * (cx - x1),
+            y1 + 2 / 3 * (cy - y1),
+            x1,
+            y1,
+          ]);
+          x0 = x1;
+          y0 = y1;
         }
         verbs.add(InkPathVerb.close.index);
       }
