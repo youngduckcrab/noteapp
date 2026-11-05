@@ -1,6 +1,6 @@
 # 동시 개발 영역 개요
 
-> 상태: **확정 — 기반 단계 완료, 동시 개발 중** (통합 계약 v1.4, 4차 승인 검토 · 최종 승인 2026-11-05 — 7개 영역 계획서 01~07 모두 승인) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 검토 결과: [00-review.md](00-review.md) ('최종 승인' 절에 개발 중 주의할 점)
+> 상태: **1차 통합 완료(V1~V6) — V7 사용자 기기 확인 대기** (통합 계약 v1.5, 2026-11-05 · 4차 승인 검토 · 최종 승인 2026-11-05 — 7개 영역 계획서 01~07 모두 승인) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 검토 결과: [00-review.md](00-review.md) ('최종 승인' 절에 개발 중 주의할 점, ['1차 통합 결과'](00-review.md#1차-통합-결과) 절에 통합 결과와 남은 일)
 
 ## 1. 목적
 
@@ -93,7 +93,7 @@ flowchart LR
 
 ## 7. 통합 계약
 
-> **계약 v1.3** (2026-11-05, 4차 승인 검토(최종) 반영 — 바뀐 곳은 [7.9 변경 이력](#79-계약-변경-이력), v1.3은 C13-01~05, v1.2는 C12-01~09). 7개 영역 개발자가 동시에 따르는 단일 기준이다. 개발 중 바꿀 때는 7.4.12 절차(v1.4~).
+> **계약 v1.5** (2026-11-05, 1차 통합 반영 — 바뀐 곳은 [7.9 변경 이력](#79-계약-변경-이력), v1.5는 C15-01~08, v1.4는 C14-01~02, v1.3은 C13-01~05, v1.2는 C12-01~09. v1.2 이후 시그니처 변경 없음). 7개 영역 개발자가 따르는 단일 기준이다. 바꿀 때는 7.4.12 절차.
 > - 이 장과 각 계획서 4·5절이 다르면 **이 장이 우선**한다. 각 계획서 5절의 '가정한 시그니처'는 모두 폐기하고 이 장의 이름·형태를 쓴다.
 > - 코드 블록은 시그니처 계약이다(본문 생략). 여기서 "CORE 4.x 승인"이라고 적은 타입은 `02-core.md` 해당 절의 정의가 그대로 계약이며, 이 장에 적은 변경분이 그 위에 덮어쓴다.
 > - 근거와 영역별 수정 지시는 [00-review.md](00-review.md). 계약 변경 절차는 7.4.12.
@@ -109,12 +109,12 @@ flowchart LR
 | `pdf_io` | PDF | Flutter 패키지 | `note_core`, `ink_engine` | `pdf_io.dart`, `testing.dart`(테스트 전용) |
 | `sync_engine` | SYNC | Flutter 패키지. 단 `sync_engine.dart`·`testing.dart`와 그 전이 import는 **순수 Dart** | `note_core` | `sync_engine.dart`, `testing.dart`, `firebase.dart`, `platform.dart` |
 | `noteapp` (`app/`) | INFRA | Flutter 앱 | 위 전부 허용. **이번 범위의 `app/pubspec.yaml`은 `sync_engine`에 의존하지 않는다**(M4 연결 때 추가 — Firebase 플러그인이 웹·안드로이드 빌드에 들어가지 않게) | — |
-| (선택) `packages/ink_engine/example` | INK | Flutter 앱(ink lab) | `ink_engine`, `note_core` | — (워크스페이스 멤버로 넣을지는 INFRA가 승인 후 등록) |
+| `ink_lab` (`packages/ink_engine/example`) | INK | Flutter 앱(ink lab). **워크스페이스 멤버**(v1.5 — 통합 단계 INFRA-O1에서 등록) | `note_core`, `ink_engine` | — (앱이라 R14 비교 대상 아님 — `workspace_rules.yaml` `app_members`. `lib/`이 `testing.dart` 가짜를 써서 R4 예외, 7.4.2) |
 
 규칙
 
 1. 피처 패키지(`feature_editor`, `feature_library`, `pdf_io`, `sync_engine`)끼리는 서로 import하지 않는다. 피처 사이 연결은 ① CORE에 둔 인터페이스, 또는 ② **소비하는 쪽**이 정의한 provider 자리(slot)를 앱 셸이 덮어써서 한다(7.3.3).
-2. 다른 패키지의 `src/`를 import하지 않는다. 위 진입점만 쓴다. `testing.dart`·`testing_vm.dart`는 `test/`에서만 import한다.
+2. 다른 패키지의 `src/`를 import하지 않는다. 위 진입점만 쓴다. `testing.dart`·`testing_vm.dart`는 `test/`에서만 import한다(예외: 개발용 앱 ink lab의 `lib/` — v1.5, 7.4.2 R4 예외 목록).
 3. 의존 방향은 INFRA `tool/workspace_rules.yaml`의 `allowed_dependencies`(R8)로 강제한다. 위 표와 같아야 한다.
 
 ### 7.2 공유 타입 소유표와 최종 정의
@@ -899,6 +899,9 @@ final class EraserSpec {
   final core.StrokeFilter filter;
 }
 // StrokeSession / EraserSession / LassoSession / InkSelection — INK 4.8 (end() → InkEdit?)
+// LassoOptions — INK 4.7; its doc comment (inclusion rule) is a CONTRACT. (v1.5) Degenerate rule:
+//   fewer than 3 vertices or ∫|winding| dA < minAreaPt2 (= shoelace |area| for simple polygons;
+//   a figure 8 adds its loops) → degenerate → no selection (EDITOR: tap).
 // SelectionGeometry / SelectionHandle — INK 4.7 (EDITOR uses these; width clamp [0.1, 30])
 final inkPageControllerProvider =
     Provider.autoDispose.family<InkPageController, String>(/* INK 4.13 */);
@@ -1234,6 +1237,7 @@ final class SyncRemoteAssetFetcher implements core.RemoteAssetFetcher {
 | `libraryPdfExportActionProvider` (LIBRARY) | `FeatureWiringModule` | `overrideWithValue(exportNotesAsPdf)` (PDF 시작 실패 시 생략) | 이번 |
 | `editorExtensionsProvider` (EDITOR) | `FeatureWiringModule` | `PdfMenuAction` → `EditorMenuItem` 변환(06-pdf 5.5 예시) | 이번 |
 | `devOverlaySectionsProvider` (EDITOR) | `FeatureWiringModule` | PDF 렌더 통계 섹션 | 이번 |
+| `featureEditorOverrides()`·`featureLibraryOverrides()`(7.2.17·7.2.18)가 돌려주는 항목 (EDITOR, LIBRARY) (v1.5) | `FeatureWiringModule` | 패키지가 정한 값 그대로(지금 둘 다 빈 목록). 패키지가 이 목록에 provider를 더하면 7.4.12 절차로 이 표에 그 이름을 적는다 — 중복 검사 대상 | 이번 |
 | 셸 provider(`buildInfoProvider` 등) (INFRA) | `BootstrapApp` | 01-infra 6.4 | 이번 |
 | `syncBadgeProvider`, `remoteAssetFetcherProvider` (CORE) | `SyncModule` | `syncEngine.statusStream.map(syncBadgeOf).distinct()`(v1.1 — `SyncBadge` 값 동등), `SyncRemoteAssetFetcher` | M4 |
 | `syncConfigProvider`, `authBackendProvider`, `syncBackendFactoryProvider`, `connectivitySignalProvider` (SYNC) | `SyncModule` | SYNC 5.2 | M4 |
@@ -1272,10 +1276,10 @@ dev_dependencies:
 - `tool/ws.dart check` 규칙 R1~R13·R15(01-infra 6.2) + 보완:
   - **R15(v1.2, 기반 단계 B1부터 위반 = 종료 코드 1)**: 멤버의 테스트가 쓰는 태그(`@Tags([...])`, `test`/`testWidgets`/`group`의 `tags:`)는 모두 그 멤버 `dart_test.yaml`의 `tags:`에 선언되어 있고, `integration`·`perf`는 그 선언에 `skip:`이 있다(7.4.8). 태그를 쓰지 않는 멤버는 `dart_test.yaml`이 없어도 된다.
   - R2: 순수 Dart 멤버도 `environment.flutter: 3.47.9`.
-  - R4 예외 목록(`workspace_rules.yaml` `lib_exceptions`): `packages/note_core/lib/testing_vm.dart`(VM 테스트 전용, `test/`에서만 import).
-  - R6은 `lib/` 안의 import에만 적용.
+  - R4 예외 목록(`workspace_rules.yaml` `lib_exceptions`): `packages/note_core/lib/testing_vm.dart`(VM 테스트 전용, `test/`에서만 import), (v1.5) `packages/ink_engine/example/lib/`(디렉터리 — 개발용 앱 ink lab이 `testing.dart` 가짜를 씀).
+  - R6은 `lib/` 안의 import·export에만 적용. (v1.5 해석) ① 플랫폼 파일 안에서는 **같은 플랫폼**의 플랫폼 파일(`*_native.dart`·`*_io.dart`끼리, `*_browser.dart`끼리)을 조건 없이 불러와도 된다 — 그 파일 자체가 조건부 절로만 불러와지므로 안전하다. ② 패키지 진입점 `lib/<패키지>.dart`는 이름이 `_io.dart`로 끝나도(`pdf_io.dart`) 플랫폼 파일이 아니다(R4·R5·R6 접미사 판정 공통). 다른 플랫폼 파일(네이티브 → 브라우저 등)은 여전히 조건부 절로만.
   - R9 `pinned_external`에 7.5 표의 모든 외부 패키지.
-  - **R14(통합 단계 추가)**: 6개 패키지 공개 진입점의 export 이름 교집합이 비어 있음(`package:analyzer`로 export namespace 비교, 예외 목록 없음).
+  - **R14(통합 단계 G3에서 추가 — v1.5 완료)**: 6개 패키지 공개 진입점의 export 이름 교집합이 비어 있음(`package:analyzer`로 export namespace 비교, 예외 목록 없음). 앱 멤버(`app_members`: `noteapp`·`ink_lab`)는 비교하지 않고, 같은 패키지 진입점끼리도 비교하지 않는다. 해석기는 별도 프로세스(`tool/export_names.dart`)로 돌고 `ws check --no-exports`로 건너뛸 수 있다. G3 결과: 진입점 15개, 겹치는 이름 0.
 - `@Deprecated` API 사용 금지. 꼭 필요하면 그 줄에 `// ignore: deprecated_member_use` + 사유 주석, INFRA 승인. 이번 범위에서 `MaterialUiCompatibilityBridge`는 쓰지 않는다(deprecated 확인, SDK Material을 쓰는 외부 패키지가 없음).
 
 #### 7.4.3 import · 플랫폼 · 웹 호환
@@ -1283,6 +1287,7 @@ dev_dependencies:
 - Material은 **`package:material_ui/material_ui.dart`만** 사용. `package:flutter/material.dart`·`cupertino.dart` 금지(lib·test 모두, R7). 위젯 테스트의 `MaterialApp`도 material_ui 것.
 - `lib/`에서 `dart:io`·`dart:ffi`·`dart:html`·`dart:js`·`dart:js_util`·`package:js` 금지. 네이티브 전용 파일은 `*_native.dart`(또는 `*_io.dart`), 웹 전용(`dart:js_interop`, `package:web`)은 `*_browser.dart`, 그리고 **조건부 import/export로만** 불러온다:
   `import 'x_stub.dart' if (dart.library.js_interop) 'x_browser.dart' if (dart.library.ffi) 'x_native.dart';`
+  (v1.5) 예외: 플랫폼 파일끼리 같은 플랫폼이면 조건 없이 불러와도 되고, 패키지 진입점 `<패키지>.dart`는 이름과 상관없이 플랫폼 파일이 아니다(7.4.2 R6 해석).
 - 이 규칙에 맞게 바꿀 파일: CORE `connect_web.dart`→`connect_browser.dart`, `persistence_web.dart`→`persistence_browser.dart`, `content_hasher_web/_vm`→`content_hasher_browser/_native`; INK `ink_clock_web.dart`→`ink_clock_browser.dart`; SYNC `display_mode_web.dart`→`display_mode_browser.dart`.
 - 웹 안전 수치: 64비트 정수 연산·`ByteData.getInt64` 금지, 비트 연산 대신 산술(색 성분 포함), 정수는 2^53 미만.
 - 정적 파일·에셋 URL(v1.1): 어떤 패키지도 정적 파일·에셋 주소를 `Uri.base` 상대로 만들지 않는다(dart2js `Uri.base` = `location.href` → 경로 URL 전략에서 `/notes/<id>`를 새로고침하면 Hosting `**` 재작성이 `index.html`을 돌려준다). 브라우저 기본인 `document.baseURI` 기준으로 해석한다. 앱 셸은 CORE `WebStorageConfig`에 `document.baseURI`로 해석한 절대 URL을 넘긴다(7.2.12, 01-infra 6.4). 상대 경로는 테스트에서만. 주소 질의 읽기(EDITOR `?dev=1` 등 `Uri.base.queryParameters`)는 이 규칙 대상이 아니다.
@@ -1322,14 +1327,14 @@ dev_dependencies:
 
 | 항목 | 규칙 |
 |---|---|
-| 실행 | 각 멤버 디렉터리에서 `flutter test`. 워크스페이스 전체는 `dart run tool/ws.dart test [--platform chrome]` |
+| 실행 | 각 멤버 디렉터리에서 `flutter test`. 워크스페이스 전체는 `dart run tool/ws.dart test [--platform chrome]`. (v1.5) 멤버 실행마다 시간 제한: chrome 기본 15분, vm 없음(`--member-timeout <분>`, 0 = 없음). 넘으면 그 멤버의 프로세스 트리를 끝내고 1회 다시 실행(두 번 넘으면 실패, 다음 멤버 진행). 밖에서 온 SIGINT·SIGTERM은 자식 트리까지 끝내고 남은 멤버를 실행하지 않는다(130·143) — 헤드리스 Chrome CanvasKit 초기화가 멈춘 경우 대비(원인 미확정) |
 | VM 테스트 | `test/` 아래(`test/web/` 제외). 네트워크 금지, 실제 시간 대기 금지(`fake_async`·`tester.pump`) |
 | 브라우저 테스트 | **`test/web/` 한 곳**, 파일 첫 줄 `@TestOn('browser')`. 준비가 필요한 패키지는 `tool/prepare_web_test.dart`를 두고, `ws test --platform chrome`이 먼저 실행한다(CORE: `sqlite3.wasm`·`drift_worker.js`, PDF: pdfrx wasm 자산 + 합성 확장 JS → `test/web/pdfium/`). 복사된 자산은 패키지 `.gitignore`로 제외. VM과 Chrome 양쪽에서 돌려야 할 단위 테스트는 `test/web/`에 감싸 둔다 |
 | 다운로드 | 테스트 코드의 네트워크 접근은 금지. 빌드 훅(sqlite3 미리 빌드 라이브러리, pdfium_dart의 PDFium 바이너리·gcc)과 준비 스크립트의 다운로드는 허용하고 CI에서 캐시한다 |
 | 태그 | `golden`, `perf`(기본 skip), `bench`(기본 제외), `pdfium`(실 PDFium VM), `integration`(통합 단계에서만, 기본 skip), `scenario`(SYNC). v1.1: 태그를 쓰는 패키지는 **패키지 `dart_test.yaml`의 `tags:`에 선언**하고, `integration`·`perf`는 거기서 `skip: "<사유>"`로 기본 건너뛴다(`ws test`의 기본 제외는 `-x bench`뿐이라, 선언이 없으면 동시 개발 중 B2 상태 CORE로 통합 테스트가 돌아 실패한다). v1.2: `ws check` R15가 B1부터 이 규칙을 검사한다(7.4.2). R15 스캐너는 **문자열 리터럴 태그만** 인식하므로 태그는 `@Tags(['integration'])`·`tags: ['golden']`처럼 리터럴로 쓴다(변수·상수로 넘기지 않는다). `dart_test.yaml`은 그 패키지에서 태그를 쓰는 첫 테스트보다 먼저(보통 골격 작업에서) 만든다 |
 | 골든 | `test/goldens/` 아래, `@Tags(['golden'])` + `@TestOn('vm')`. 리눅스 컨테이너에서 만들고 CI(ubuntu)에서 비교. 글자 없는 화면이나 Ahem 글꼴만. 허용 오차 비교기(≤ 0.5%)는 패키지가 `test/flutter_test_config.dart`로 둘 수 있다. 정확한 성질(겹침 비진해짐 등)은 골든이 아니라 픽셀 단언으로. 골든 갱신은 별도 커밋 |
 | 화면 크기 | iPad Pro 13" 기준 논리 크기(DPR 2): 세로 **1032×1376**, 가로 **1376×1032**. Safari 탭(주소창) 가로 1376×940(보수값). 12.9"·11"·분할 화면은 LIBRARY 05-library 9.1 값을 따른다 |
-| 가짜 | CORE `createFakeNoteStore()`(메모리, 기반 단계에 포함)가 공용 가짜. 영역 자체 가짜를 써도 되지만 CORE 값 타입을 그대로 쓰고, 통합 단계에 실제 CORE(`openTestNoteStore`)로 같은 시나리오를 한 번 더 돌린다. 두 도우미의 시그니처는 7.6 'B2 테스트 도우미'가 계약이다(v1.1) |
+| 가짜 | CORE `createFakeNoteStore()`(메모리, 기반 단계에 포함)가 공용 가짜. 영역 자체 가짜를 써도 되지만 CORE 값 타입을 그대로 쓰고, 통합 단계에 실제 CORE(`openTestNoteStore`)로 같은 시나리오를 한 번 더 돌린다. 두 도우미의 시그니처는 7.6 'B2 테스트 도우미'가 계약이다(v1.1). 실제 CORE를 위젯 테스트에서 쓸 때의 주의는 7.6 bullet(v1.5) |
 | 접근성 | 누를 수 있는 요소 44×44 이상(`iOSTapTargetGuideline`) |
 
 #### 7.4.9 웹 배포 설정 (INFRA)
@@ -1370,8 +1375,8 @@ dev_dependencies:
 | 패키지 | 버전 | 쓰는 멤버 | 비고 |
 |---|---|---|---|
 | `flutter_riverpod` | 3.4.3 | app, feature_editor, feature_library, pdf_io | pub.dev 웹 태그 없음 → 웹 빌드·Chrome 테스트 확인됨(INFRA·INK·EDITOR·LIBRARY 실험) |
-| `riverpod` | 3.4.3 | note_core, ink_engine, sync_engine | |
-| `material_ui` | 1.10.0 | app, feature_editor, feature_library, pdf_io | 주간 릴리스 — 올리는 것은 INFRA 단독 작업 |
+| `riverpod` | 3.4.3 | note_core, ink_engine, sync_engine, **ink_lab**(v1.5) | |
+| `material_ui` | 1.10.0 | app, feature_editor, feature_library, pdf_io, **ink_lab**(v1.5) | 주간 릴리스 — 올리는 것은 INFRA 단독 작업 |
 | `go_router` | 18.1.2 | app | 18.1.3(2026-11-04)은 채택하지 않음 |
 | `cupertino_icons` | 2.0.0 | app | |
 | `web` | 1.1.2 | app, note_core, pdf_io, sync_engine | `*_browser.dart`에서만 |
@@ -1400,7 +1405,7 @@ dev_dependencies:
 | dev `fake_cloud_firestore` | 4.5.0 | sync_engine | |
 | dev `firebase_auth_mocks` | 0.16.0 | sync_engine | |
 | dev `flutter_lints` / `yaml` / `args` / `path` / `image` | 6.0.0 / 3.1.4 / 2.7.0 / 1.9.1 / 4.12.0 | 루트(`tool/`) | |
-| dev `analyzer` | 13.3.0 | 루트(`tool/`) | 통합 단계에 R14 검사를 넣을 때만 추가(해석된 버전과 같게) |
+| dev `analyzer` | 13.3.0 | 루트(`tool/`) | 통합 단계 G3에서 R14 검사와 함께 추가(v1.5 — 해석된 버전 그대로, lock은 `dependency:` 표기만 `direct dev`로) |
 | SDK `flutter`, `flutter_test`, `flutter_web_plugins` | 3.47.9 | — | |
 
 해석된 주요 간접 의존(참고, 직접 쓰지 않음): `analyzer 13.3.0`, `test_api 0.7.12`, `vector_math 2.4.4`, `pdfrx_engine 0.9.0`, `pdfium_flutter 0.4.1`, `cupertino_ui 1.1.6`, `intl 0.20.3`. 도구: Flutter 3.47.9 stable, `firebase-tools 15.34.2`, GitHub Actions 태그는 01-infra 7.3.
@@ -1455,6 +1460,7 @@ Future<NoteId> seedSyntheticNote(NoteStore store,
 
 - `createFakeNoteStore` 동작 범위: 라이브러리(C-1~C-10)·휴지통·프리셋(`ensureDefaults`)·설정·세션(N-1~N-6, N-7은 원격 경로가 없어 해당 없음)·썸네일 캐시·에셋(+`bytesArrived`)·`ids`(기본 `SequentialIdGenerator`)·`clock`·`storageInfo`(기본 `nativeFile` = 배너 없음, `webInMemory`를 넘기면 `notDurable`)·`persistenceStatusStream`(구독 즉시 1회, 7.2.12). `SyncStore`는 `ownerId`·`deviceNodeId`가 값을 돌려주고 `pendingChanges()` = 빈 목록, `watchPendingCount()` = 0, **그 밖의 멤버는 전부 `UnsupportedError`**(SYNC 계약 테스트는 `openTestNoteStore`로).
 - B2 단계 값: `seedSyntheticNote`는 `NoteStore` 인터페이스(`library.createNote` + 세션 `AddStrokes`)만으로 구현하므로 B2부터 가짜 저장소에서 동작한다. `openTestNoteStore`는 CORE T6 전까지 `UnimplementedError`. 가짜 저장소의 `exportBackupJson`은 B2에서 `UnimplementedError`, CORE T19에서 실제와 같은 형식으로 구현.
+- (v1.5, 시그니처 변경 없음 — 1차 통합에서 다른 영역이 기댄 `openTestNoteStore` 성질. ①②는 CORE가 `testing_vm.dart` 문서 주석·테스트로 고정했다(c4966ce), ③은 통합 테스트 작성 규칙) ① 파일 DB(`filePath`)는 SQLite 기본 **롤백 저널**(WAL 아님 — `openNoteStore`와 다름). 열린 파일을 옮기면 커밋이 실패해 6.9 재시도에 들어가고 쓰기 `Future`는 미완료, 되돌리면 커밋된다(SYNC S-20 실제 CORE 테스트가 이 방법으로 커밋 실패를 만든다). ② 한 isolate에서 여러 개를 동시에 열어도 된다(두 기기). 호출마다 executor가 따로라 drift 다중 DB 경고를 끈다. ③ DB는 테스트 isolate에서 돌아 라이브러리·세션 쓰기는 마이크로태스크만 쓰지만, 에셋 청크·썸네일 캐시는 idb_shim 메모리 IndexedDB(0·0.1 ms 타이머)라 fake_async·위젯 테스트에서는 시간을 진행해야 끝난다. `store.close()`는 진행 중인 캐시 작업을 기다리므로, 화면이 가짜 시간 영역에서 썸네일을 읽었다면 닫기를 테스트 영역에서 시작하고 `pump(1ms)`·`runAsync(Future.delayed(1ms))`를 번갈아 진행한다(`runAsync(store.close)`만으로는 끝나지 않음 — LIBRARY L21·EDITOR E-21·INFRA V5). ④ 실제 저장소용 커밋 실패 주입 **공개 훅은 두지 않는다**(SYNC 요청 — `openTestNoteStore(faults:)` 안은 보류). WAL 테스트 DB나 가짜·실제 공용 주입 타입이 필요해지면 7.4.12 절차로 다시 제안한다.
 - B2가 가장 긴 경로다. B3~B7은 B2 계약 파일이 커밋되면 병렬로 할 수 있다(B4는 B3 이후). v1.2 풀이: 각 영역은 CORE T4(계약 타입 고정) 커밋 뒤 자기 작업 트리에서 코드 작성을 시작해도 되지만, B3~B7의 **main 커밋과 완료 조건(스모크 테스트)은 B2 완료(T1~T5 통과 — `createFakeNoteStore`는 T5) 뒤**다. `ink_engine` 타입을 쓰는 B4·B5는 B3 커밋 뒤.
 - 기반 단계가 끝나면 각 영역 계획서 5절의 '가정' 블록을 기반 단계 실제 타입으로 바꾼 뒤 동시 개발을 시작한다. (v1.3) 같은 때 각 영역은 계획서 머리 상태 줄을 '승인'으로, 계약 인용·발췌를 v1.3으로 맞추고 [00-review.md '최종 승인'](00-review.md#최종-승인)의 자기 영역 '개발 중 반영' 항목을 처리한다(자기 소유 경로 커밋과 함께, 계약과 다르게 쓰지 않는다).
 
@@ -1466,7 +1472,7 @@ Future<NoteId> seedSyntheticNote(NoteStore store,
 2. **INK** 병합 → 같은 검사 + INK 골든
 3. **EDITOR · LIBRARY · PDF · SYNC** (순서 무관, 하나씩 병합하고 매번 같은 검사)
 4. **INFRA** 병합 → `AppScreenBuilders.production()`·`CoreModule`·`PdfModule`·`FeatureWiringModule`을 실제 구현에 연결
-5. **통합 태그 테스트**(`ws test --run-skipped -t integration`): LIBRARY L21(`core_contract_test`), PDF `integration`(CORE 게이트웨이·INK 벡터화), SYNC T16(태그 `integration`: 실제 CORE 2개로 S01·S02·S05·S15 + JSON 키 대조 + **SyncStore 계약 스위트 C-01~C-25**(`CoreSyncLocalStore(openTestNoteStore)`) + 폴더 순환 판정 대조(`FolderTree.findCycles()`) — v1.2), EDITOR E-21(실제 INK + 실제 CORE 메모리 저장소), INFRA G2 스모크(저장 경고 배너 문구가 라이브러리·에디터 두 화면에서 같은지도 확인 — 7.4.5)
+5. **통합 태그 테스트**(`ws test --run-skipped -t integration`): LIBRARY L21(`core_contract_test`), PDF `integration`(CORE 게이트웨이·INK 벡터화), SYNC T16(태그 `integration`: 실제 CORE 2개로 S01·S02·S05·S15 + JSON 키 대조 + **SyncStore 계약 스위트 C-01~C-25**(`CoreSyncLocalStore(openTestNoteStore)`) + 폴더 순환 판정 대조(`FolderTree.findCycles()`) — v1.2), EDITOR E-21(실제 INK + 실제 CORE 메모리 저장소), INFRA G2 스모크(저장 경고 배너 문구가 라이브러리·에디터 두 화면에서 같은지도 확인 — 7.4.5). Chrome 쪽 통합 태그(INFRA V6)는 `ws test --platform chrome --run-skipped -t integration`(v1.5)
 6. 미리보기 배포 → 사용자 iPad 확인 → PLAN.md 체크리스트 갱신(총괄)
 
 통합 검증 기준 (전부 통과해야 '통합 완료')
@@ -1477,9 +1483,11 @@ Future<NoteId> seedSyntheticNote(NoteStore store,
 | V2 | 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음 |
 | V3 | `ws test`(VM, 골든 포함) · `ws test --platform chrome` · `dart test tool/test` 전부 통과, 통합 태그 테스트(위 5) 통과 |
 | V4 | `cd app && flutter build web --release` 성공, `web-assets verify` 통과 |
-| V5 | INFRA 스모크(`app/test/integration/app_smoke_test.dart`): 실제 모듈(메모리 CORE) → 라이브러리 → 새 노트 → 에디터에서 합성 포인터로 획 1개 → 닫기 → 다시 열어 획 1개 유지 → 되돌리기 → 빈 페이지. 7.3.3 표의 override가 모두 실제 구현이고 중복이 없음 |
+| V5 | INFRA 스모크(`app/test/integration/app_smoke_test.dart`): 실제 모듈(메모리 CORE) → 라이브러리 → 새 노트 → 에디터에서 합성 포인터로 획 1개 → 되돌리기 → 빈 페이지 → 다시 실행 → 닫기 → 다시 열어 같은 획 1개 유지(새 세션은 되돌리기 없음 — v1.5: 히스토리는 세션과 함께 닫힘, 02-core 6.16). 7.3.3 표의 override가 모두 실제 구현이고 중복이 없음 |
 | V6 | 같은 스모크를 `test/web/`에서 Chrome으로(웹 런타임에 `dart:io` 사용 없음 확인) |
 | V7 | 통합 iPad 체크리스트(각 계획서 9.3·9.2 + 아래 복합 항목) 사용자 확인: ① PDF 500쪽 노트 + 획 3,000개 페이지에서 스크롤·필기·내보내기를 한 번에 → 탭 재로드 없음, 개발자 표시 캐시 합계 ≤ 300MB ② 필기 직후 앱 전환 → 마지막 획 보존 ③ 홈 화면 앱 재실행 → 데이터·도구·위치 유지 |
+
+1차 통합 결과(v1.5, 2026-11-05): V1~V6 컨테이너에서 통과, V7은 미리보기 배포 뒤 사용자 확인 대기. 결과·명령·수치와 남은 일(GitHub CI 녹색·배포는 G5)은 [00-review.md '1차 통합 결과'](00-review.md#1차-통합-결과).
 
 ### 7.8 범위 결정 (이번 동시 개발)
 
@@ -1497,6 +1505,23 @@ Future<NoteId> seedSyntheticNote(NoteStore store,
 | 다중 탭 리더 선출, tombstone 정리, 고아 에셋 GC | 이후(SYNC 12절 Q15 방향 승인: 기기 커서 최솟값 기준, 90일 미접속 기기 제외) |
 
 ### 7.9 계약 변경 이력
+
+#### v1.5 (2026-11-05, 1차 통합 — 근거: [00-review.md '1차 통합 결과'](00-review.md#1차-통합-결과))
+
+시그니처 변경 없음. 통합 단계 결과 보고·진행 기록 '통합 단계' 절의 변경 요청과, 통합 중 실제로 정해진 규칙을 계약 문구에 옮겼다. 코드 동작은 이미 이 뜻이라 어느 영역도 동작을 바꿀 일이 없고, 남은 것은 문구 맞추기뿐이다(C15-01 INK 주석·계획서, C15-02 INFRA 계획서, C15-04 EDITOR 계획서).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C15-01 | 7.2.15 (`LassoOptions` 주석, 03-ink 4.7) | 퇴화 기준 '\|area\| < minAreaPt2' → '∫\|winding\| dA < minAreaPt2 (= shoelace \|area\| for simple polygons; a figure 8 adds its loops)'. 신발끈 부호 면적으로 읽으면 대칭 8자(면적 0)가 퇴화 = 선택 없음이 되어 같은 주석의 '8자 올가미는 두 고리 모두 선택'과 모순 | INK T17(진행 기록 '총괄에게 넘길 결정' 1) | INK(4.7·6.21 L2 표·`lib/src/edit/lasso_options.dart` 주석을 한 커밋으로 — 구현 `LassoPolygon.isDegenerate`·테스트 `unit/edit/lasso_test.dart`는 이미 이 뜻). EDITOR 영향 없음(퇴화 = 탭 처리 그대로) |
+| C15-02 | 7.4.2 R6, 7.4.3 | R6 해석 완화를 **계약에 반영하기로 결정**: 같은 플랫폼 파일끼리는 조건 없이 import 가능, 패키지 진입점 `<pkg>.dart`(`pdf_io.dart`)는 플랫폼 파일 아님(R4·R5·R6 공통). 근거: 플랫폼 파일 자체가 조건부 절로만 불러와져 안전하고, 진입점 판정은 `pdf_io.dart`의 오탐을 없앤다. 다른 플랫폼 파일은 여전히 조건부 절로만 | INFRA I1('계획과 다르게 한 점' — `ws check`는 I1부터 이 규칙) | INFRA(01-infra 6.2 R6 행 문구만). 나머지 영역 없음(1차 통합 `ws check` 0) |
+| C15-03 | 7.1 표·규칙 2, 7.4.2 R4·R14, 7.5 | ink lab(`packages/ink_engine/example`, 멤버 이름 `ink_lab`)을 워크스페이스 멤버로: 허용 의존 `note_core`·`ink_engine`(R8), `lib/` R4 예외(`testing.dart` 가짜), R14 비교 대상 아님(`app_members`), 7.5 '쓰는 멤버'에 `riverpod`·`material_ui`(새 패키지·버전 변경 없음) | INK T23 요청 → INFRA-O1(52de08c) | 완료 — INFRA(루트 `workspace:`·`workspace_rules.yaml`·`web-experiment.yml` `target: ink_lab` → 채널 `exp-ink-lab`), INK(`example/README.md`, 1689f7e) |
+| C15-04 | 7.7 V5 | 순서를 '획 1개 → 되돌리기 → 빈 페이지 → 다시 실행 → 닫기 → 다시 열어 같은 획 1개 유지(새 세션은 되돌리기 없음)'로. 옛 순서(닫기 → 다시 열기 → 되돌리기)는 CORE 승인 설계(02-core 6.16 — `noteSessionProvider` autoDispose, 재진입 시 빈 히스토리)와 함께 성립하지 않는다(실제 CORE로 확인: 다시 연 뒤 되돌리기 버튼 비활성) | INFRA G2 변경 요청 | INFRA(이미 이 순서로 모든 끝 상태를 단언 — 01-infra 8.3 'G2 실행 순서'), EDITOR(04-editor 10장 7의 같은 문구만 — 계약이 우선이라 다음 EDITOR 문서 작업 때) |
+| C15-05 | 7.3.3 | `featureEditorOverrides()`·`featureLibraryOverrides()`가 돌려주는 항목을 표에 한 행으로(주체 `FeatureWiringModule`, 지금 빈 목록). 패키지가 목록에 provider를 더하면 7.4.12 절차로 표에 이름을 적는다 | 총괄(INFRA G2의 '실제 구현·중복 없음' 판정 기준 = 7.3.3 '이번' 8개 + 셸 6개 + 이 두 목록 — 01-infra 7.3.3 사본에는 이미 있던 행) | 없음(INFRA V5·V6 `expectContractOverrides`가 이미 이 기준) |
+| C15-06 | 7.6, 7.4.8 '가짜' | `openTestNoteStore`가 1차 통합에서 기댄 성질을 계약 bullet로: 파일 DB 롤백 저널, 여러 개 동시에 열기(drift 다중 DB 경고 끔), idb_shim 타이머와 `store.close()` 닫는 방법. SYNC 요청 1(실제 저장소 커밋 실패 공개 훅 — 7.6 시그니처 추가)은 **채택하지 않음**(보류): CORE 권장대로 롤백 저널 성질을 CORE 문서·테스트로 고정한 것(안 B)으로 충분하고, S-20이 실제 CORE 재시도 경로를 그대로 지난다 | SYNC 통합 변경 요청 2건 → CORE 처리(c4966ce), LIBRARY L21·EDITOR E-21 메모 | 완료 — CORE(`testing_vm.dart` 주석·`open_test_store_test`·`open_test_store_drift_warning_test`). SYNC 없음(`CoreTestStore.failCommits` 그대로) |
+| C15-07 | 7.4.2 R14, 7.5 `analyzer` | R14 구현 완료 기록(진입점 15개, 겹침 0, 별도 프로세스, `--no-exports`), 루트 dev `analyzer: 13.3.0` 추가 | INFRA G3(52de08c) | 완료 |
+| C15-08 | 7.4.8 '실행' | `ws test` 멤버 시간 제한(chrome 기본 15분 + 1회 재시도, `--member-timeout`), 신호 받으면 자식 트리 종료·남은 멤버 미실행 | INFRA 통합 1/2(5adf710) — 전체 Chrome 실행 멈춤(재현 안 됨) 대비 | 완료. CI 잡 시간 예산(25분)은 G5 첫 녹색 실행에서 확인 |
+
+보류 유지: SYNC-CP7(`syncLogSinkProvider`) — M4 연결 계획 때. 채택하지 않음: SYNC 요청 1의 공개 훅 안 A(C15-06). 기각: 없음.
 
 #### v1.4 (2026-11-05, 기반 단계 B1~B8 완료 후 — 총괄)
 

@@ -1,6 +1,7 @@
 # 00 · 총괄 관리자 검토 결과
 
 > 상태: 1차 검토 완료 (2026-11-04) · 대상: 01~07 계획서 초안 · 확정한 공통 결정: [00-overview.md 7장 '통합 계약' v1.0](00-overview.md#7-통합-계약)
+> 이후 절: 2차~4차 검토 → [최종 승인](#최종-승인)(2026-11-05, 계약 v1.3) → [1차 통합 결과](#1차-통합-결과)(2026-11-05, 계약 v1.5 — 1차 통합 완료(V1~V6), V7 사용자 기기 확인 대기)
 > 판정 기준: ① 이 계획서들만 보고 서로 다른 개발자가 독립적으로 구현했을 때 통합이 깨지지 않는가 ② PLAN.md 요구사항이 빠짐없이 구현되는가 ③ 컨테이너와 iPad Safari 웹에서 검증 가능한가
 
 ---
@@ -957,3 +958,104 @@
 2. 동시 개발(영역별 git worktree, 브랜치 `area/<id>`, GitHub 푸시는 체크포인트·통합 때만 — 7.4.12).
 3. 통합(7.7): CORE → INK → EDITOR·LIBRARY·PDF·SYNC → INFRA 순서로 병합하고, 통합 태그 테스트를 돌린 뒤 V1~V7이 모두 통과하면 '통합 완료'. 그다음 미리보기 배포 → 사용자 iPad 확인 → PLAN.md 체크리스트 갱신(총괄).
 4. 총괄 후속(이전 검토에서 이월): PLAN.md 7.4 '서버 시간 기준' → 'HLC 기준(커서는 서버 시각)', 10장 M0 '예산 알림 설정' → '요금제 확인(예산 알림은 Blaze 전환 시)'. 이 문서 작업 범위 밖이라 PLAN 갱신 작업 때 한다.
+
+---
+
+## 1차 통합 결과
+
+> 날짜: 2026-11-05 · 총괄 관리자 · 브랜치 `claude/note-app-planning-bk29xb`(기준 18c5ae5) · 기준: 통합 계약 **v1.5**([00-overview.md](00-overview.md) 7장 — 이번에 바뀐 곳은 [7.9 변경 이력](00-overview.md#79-계약-변경-이력)의 v1.5 C15-01~08) · 판정: **1차 통합 완료(V1~V6) — V7 사용자 기기 확인 대기**
+
+### 통합 순서 (계약 7.7)
+
+| 단계 | 병합 | 통합 작업(커밋) | 그 단계 확인 |
+|---|---|---|---|
+| 1 | CORE (88b2c4c) | 확인만(1582ec2) | `ws check` 0, analyze 0, note_core VM 617·Chrome 47, perf 6개 예산 안 |
+| 2 | INK (10b33ce) | 확인만(1582ec2) | ink_engine VM 779(골든 17장)·Chrome 193, 벤치 12개 기준 안 |
+| 3 | EDITOR (dd7061a) · LIBRARY (7f32948) | EDITOR 299001b, LIBRARY aabcabe | **통합 1부 V1~V3 통과**(통합 태그 E-21·L21 포함) |
+| 3 | PDF (cd28e50) · SYNC (c310746) | PDF 9305235, SYNC 22abbea | PDF `integration` 19개, SYNC T16 42개 |
+| 4 | INFRA (efc5511) | 1/2: 52de08c·d5938c6·5adf710, 2/2: 3cf0b84 | G1~G4, V5·V6 |
+| 5 | 통합 태그 테스트 | — | 아래 V3 |
+| 후속 | 변경 요청 처리 | INK 1689f7e(ink lab README), CORE c4966ce(`openTestNoteStore`) | `ws check` 0, analyze 0, 통합 태그 VM 전 멤버 통과 |
+
+### 통합 검증 기준 (계약 7.7 V1~V7)
+
+| # | 결과 | 근거 |
+|---|---|---|
+| V1 | 통과 | `flutter pub get --enforce-lockfile`, `ws check`(R1~R15, R14 포함) 0 · `--strict` 0 (INFRA G4). GitHub 러너에서도 `ws check` 0(CI 실행 #8) |
+| V2 | 통과 | 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음(R11) |
+| V3 | 통과 | `ws test`(VM, 골든 포함) 8개 멤버 — note_core 617(+5 건너뜀, CORE 후속 뒤 619)·ink_engine 779·feature_editor 591·feature_library 626·pdf_io 580·noteapp 261·sync_engine 777·ink_lab 1. `ws test --platform chrome` 한 번에 7개 멤버(8분 2초, 시간 초과·재시도 없음) — 47·193·1·17·54·11·26. `dart test tool/test` 295. 통합 태그 VM(`--run-skipped -t integration`) — EDITOR E-21 1·LIBRARY L21 10·PDF 19·INFRA V5 1·SYNC T16 42, Chrome 통합 태그 — INFRA V6 1 |
+| V4 | 통과 | `cd app && flutter build web --release` 성공(wasm dry run 포함), `main.dart.js` 4,633,843 B(gzip 1,366,038 B — I15보다 +1.89 MB), `ws web-assets verify` 문제 0 |
+| V5 | 통과 | `app/test/integration/app_smoke_test.dart`(메모리 CORE): 실제 모듈 3개 `ok`, 루트 override 집합 = 7.3.3 '이번' 8개 + 셸 6개 + 피처 두 목록(중복 없음, 값이 실제 구현), 두 화면 모두 `notDurable` 고정 문장 1개, 새 노트 → 획 1개 → 되돌리기 → 빈 페이지 → 다시 실행 → 닫기 → 다시 열어 같은 획 1개(v1.5 순서), 오류 기록 0 |
+| V6 | 통과 | `app/test/web/app_smoke_browser_test.dart`(Chrome): 같은 시나리오, 백엔드 `webSharedIndexedDb`·경고 없음, 실행마다 다른 DB 이름 → `deleteLocalNoteData`로 정리 확인 |
+| V7 | **사용자 확인 대기** | 미리보기 배포(Firebase 프로젝트·시크릿 필요) 뒤 iPad에서. 아래 '실기기 체크리스트 위치' |
+
+추가 확인(INFRA): 릴리스 빌드를 헤드리스 Chromium으로 띄워 라이브러리 → 새 노트 → 에디터 → 뒤로 → 표지 타일 → 노트 주소에서 새로고침 → 같은 노트까지 콘솔 오류·페이지 오류·실패 요청 0건(첫 프레임 약 1.7초). Chrome 첫 `openNoteStore` 2.8~3.0초(헤드리스, CPU 공유).
+
+### 영역별 결과
+
+| 영역 | 동시 개발 | 통합 단계에서 한 일 | 실제 CORE·INK로 돈 통합 테스트 | 결함·변경 요청 |
+|---|---|---|---|---|
+| CORE | T0~T19 완료 | 확인. 후속: `openTestNoteStore` drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정(c4966ce) | 다른 영역 통합 테스트 전부가 실제 CORE 위에서 통과 | CORE 결함 0. SYNC 요청 2건 처리(1건은 계약 결정 — C15-06) |
+| INK | T00~T23 완료 | 확인. ink lab README를 워크스페이스 멤버 기준으로(1689f7e) | EDITOR E-21, PDF `ink_vectorizer_test`·`ink_thumbnail_test`·`real_wiring_test` | INK 결함 0. 총괄 결정 2건(C15-01 문구, C15-03 ink lab) |
+| EDITOR | B5·E-00~E-22·E-18 완료 | B3 단순 구현을 전제한 VM 테스트 2개를 계획 의미로 고침, E-21·브라우저 스모크(299001b) | E-21(펜 3 → 부분 지우개 → 되돌리기 → 올가미 이동 → 다시 열기) | 없음 |
+| LIBRARY | B6·L0~L21 완료 | L21 닫기 방식만 고침(aabcabe) | L21 10건(가짜와 실제 CORE 결과 차이 없음), 실제 INK 표지 렌더(임시 테스트, 커밋 안 함) | 없음 |
+| PDF | T0~T19·T15b 완료 | 기반 단계 INK를 전제한 약한 테스트 1개 강화, `real_wiring_test` 3개 추가(9305235) | `integration` 19개(CORE 게이트웨이·INK 벡터·썸네일·앱과 같은 연결) | 없음 |
+| SYNC | B7·T1~T17 완료 | T16 실행·판정, S-20 실제 CORE 저장 재시도 2개 새로 작성, 테스트별 대기 예산(22abbea) | T16 42개(계약 스위트 C-01~C-25 + 실제 CORE 전용, S01·S02·S05·S15·S-20, JSON 키, 폴더 순환) | CORE에 2건(C15-06) |
+| INFRA | B1·B8·I1~I15 완료 | G1 lock, ink lab 등록, G3 R14, Chrome 실행 안정화, `android.yml` 개발 브랜치 푸시(52de08c·d5938c6·5adf710), G2 연결 확인·V5·V6, 라우팅 결함 2개, G4(3cf0b84) | V5·V6 | 총괄에 1건(V5 문구 — C15-04) |
+
+### 통합에서 나온 문제와 처리
+
+| # | 문제 | 원인 | 처리 | 계약 |
+|---|---|---|---|---|
+| 1 | 실제 INK 합류 뒤 EDITOR VM 테스트 2개 실패(점 개수 6 → 2, 개발자 표시 캐시 줄) | 테스트가 기반 단계 INK의 세부 동작(샘플 = 점, 같은 프레임 진단)을 전제 | 계획이 정한 의미(E-08 좌표 변환, 6.12.2 표시 형식)를 검사하도록 고침. 테스트를 약하게 만들지 않음 | — |
+| 2 | LIBRARY L21이 닫기에서 멈춤(시간 초과도 없음) | `store.close()`가 화면이 가짜 시간 영역에서 시작한 썸네일 캐시 읽기(idb_shim 0·0.1 ms 타이머)를 기다림 | 닫기를 테스트 영역에서 시작하고 `pump`·`runAsync`를 번갈아 진행(EDITOR E-21·INFRA V5도 같은 방식) | 7.6 bullet(C15-06 ③) |
+| 3 | PDF 테스트 1개가 기반 단계 INK(속지 항목 0)를 전제로 길이만 비교 | 기반 단계 단순 구현 전제 | 속지 6종 항목을 하나씩 비교하도록 강화 | — |
+| 4 | SYNC: 실제 CORE에 커밋 실패를 넣을 공개 수단이 없음 | `FakeNoteStoreFaults`는 가짜 전용, `WriteQueue`는 CORE `src/` | 열린 DB 파일을 옮겨 SQLite가 쓰기를 거부하게 함. 이 방법이 기대는 롤백 저널을 CORE가 문서·테스트로 고정, 공개 훅은 두지 않음 | C15-06 ①④ |
+| 5 | SYNC: 두 기기용 실제 CORE를 열 때마다 drift 경고 + 스택 | drift 다중 DB 검사(디버그 전용, 실제 문제 없음) | `openTestNoteStore`가 경고를 끔(앱 경로 `openNoteStore`는 그대로) | C15-06 ② |
+| 6 | SYNC: 대기 상한이 package:test 기본 30초에 먼저 걸림 | 테스트별 timeout 없음 | 테스트마다 대기 예산 3분 하나 + timeout 4분 | — |
+| 7 | 계약 V5 순서(닫기 → 다시 열기 → 되돌리기)가 성립하지 않음 | CORE 승인 설계: 에디터를 떠나면 세션·히스토리가 닫힘 | V5 문구를 실행 가능한 순서로(끝 상태는 모두 단언) | C15-04 |
+| 8 | 릴리스 빌드에서 노트를 열어도 주소가 `/`에 남음, `/notes/<id>` 새로고침 → 라이브러리 | go_router `push`가 주소를 바꾸지 않는 기본값, 시작 화면 틀의 Navigator가 엔진에 `/`를 보고 | `GoRouter.optionURLReflectsImperativeAPIs = true`, 시작·오류 화면 틀이 라우트를 보고하지 않게 + 회귀 테스트 2개. iPad Safari 확인은 01-infra 9.3 #16 | — (앱 셸 내부) |
+| 9 | 전체 `ws test --platform chrome`이 CanvasKit 초기화에서 무기한 멈춘 적이 있음, SIGTERM 뒤에도 다음 멤버로 넘어감 | 재현 안 됨 — 프로필·포트·CDN은 배제, 부하 중 소프트웨어 WebGL 초기화가 남은 의심 | 멤버 시간 제한(chrome 15분) + 1회 재시도, 프로세스 트리 종료, 신호 처리. 이후 전체 실행 2회 끝까지 통과 | C15-08 |
+| 10 | ink lab이 워크스페이스 밖(따로 resolve) | 계약 7.1 '선택' 행 | 멤버 `ink_lab` 등록, R4 예외·R14 제외, `web-experiment` 대상 추가, README | C15-03 |
+| 11 | `LassoOptions` 주석의 면적 기준이 같은 주석의 8자 규칙과 모순 | 신발끈 부호 면적으로 읽으면 대칭 8자 = 면적 0 | 감김수 절댓값 가중 면적으로 문구 정리(구현은 이미 이 뜻) | C15-01 |
+| 12 | R6가 `pdf_io.dart`를 플랫폼 파일로 잡음, 같은 플랫폼 파일끼리 import도 위반 | 접미사 판정이 진입점 이름과 겹침, 계약 문구가 '조건부 절로만' | `ws check`의 I1 해석(같은 플랫폼 허용, 진입점 제외)을 계약에 반영 | C15-02 |
+| 13 | GitHub `ci.yml`이 개발 브랜치 푸시마다 실패(실행 #4~#8) | 원격 저장소에 `main`이 없음(브랜치는 개발 브랜치 하나) → 브랜치 푸시 단계 `ws test --affected-since origin/main`이 `git merge-base` 실패(종료 3). 그 앞 `ws check`·analyze는 GitHub에서도 통과, 뒤 단계(Chrome·웹 빌드·배포)는 실행되지 않음 | INFRA 변경 요청(이 문서 작업은 `.github/`를 고치지 않음). `android.yml`은 실행 #1·#2 녹색 — APK 아티팩트 있음 | — (G5) |
+
+알려진 한계(결함 아님, '최종 승인' 주의 10 그대로): EDITOR 저장 실패 중 뒤로가기 대기, SYNC purge·원격 적용 좁은 틈의 고아 행, PDF 취소한 `put` 메타의 고아 에셋, 동기화 실연결은 M4.
+
+### 남은 일
+
+총괄·영역 (컨테이너·GitHub)
+
+1. **G5 — CI 녹색**: INFRA가 `ci.yml`의 `origin/main` 없음 실패를 고친 뒤(위 13) 푸시 → `ci.yml` 녹색 확인. 첫 녹색 실행의 단계 시간 요약으로 잡 제한 25분을 확인(로컬 Chrome 단계 약 8분, VM `ws test` 약 9분 — 넘으면 잡 제한을 올리거나 `--member-timeout`·브랜치 푸시 테스트 범위를 조정). 저장소에 `main`을 만들지(개발 브랜치를 기본 브랜치에 합치는 시점)는 총괄이 정한다 — 만들면 `ci.yml`의 main 경로(`check --strict`·전체 테스트·live 채널)가 적용되고, 합친 뒤 `android.yml` `on.push.branches`에서 개발 브랜치를 지운다(워크플로 주석).
+2. (선택) `ci.yml`을 `workflow_dispatch`로 `integration: true`와 함께 실행해 통합 태그 테스트를 GitHub에서도 돌린다.
+3. Firebase 시크릿이 생긴 뒤: 미리보기 배포 → `curl -I <주소>/sqlite3.wasm`으로 `Content-Type: application/wasm`·`Cache-Control: no-cache`·COOP/COEP 없음(01-infra 9.2), 6.13 실측표의 GitHub 행 채우기.
+4. 문서 정리(코드 변경 없음): INK — 03-ink 4.7·6.21 L2·`lasso_options.dart` 주석을 C15-01 문구로. INFRA — 01-infra 6.2 R6 행을 C15-02로. EDITOR — 04-editor 10장 7을 C15-04 순서로.
+5. 재측정(부하가 낮을 때 — load < 4): CORE 1획 커밋 중앙값 27.6 ms(예산 30 ms, 부하 5.8에서 측정), INK 벤치 B1 1000pt 0.49 ms·B6 22.5 ms(기준 근처, 부하 5.5).
+6. PDF: 앱 정보 화면·스토어 설명의 FreeType·IJG 고지 문구(THIRD_PARTY_NOTICES.md 3절) — 2단계 출시 전.
+7. M4 연결 계획(Firebase 프로젝트 생성 뒤): INFRA `SyncModule`·앱의 `sync_engine` 의존·`/login`·계정·동기화 설정 섹션, `syncLogSinkProvider`(SYNC-CP7 보류분), Firebase 규칙·색인 배포. 계획은 그때 총괄이 따로 낸다.
+
+사용자 행동 (순서대로)
+
+1. **Firebase 프로젝트 만들기** → [안내서 01](../guides/01-firebase-project.md), 이어서 **GitHub 시크릿 등록** → [안내서 02](../guides/02-github-secrets.md). 이것이 없으면 CI가 배포를 건너뛰어 미리보기 주소가 없다.
+2. **미리보기 배포 → iPad 확인(V7)**: 배포 주소를 iPad Safari로 열고 홈 화면에 추가해 [안내서 04](../guides/04-ipad-web-test.md)의 체크리스트와 아래 각 계획서 체크리스트를 확인한다. 특히 01-infra 9.3 #1(재방문 시작 2초 — `main.dart.js`가 4.6 MB), #8(영구 저장 허용), #16(노트에서 새로고침 → 같은 노트 — 이번에 고침, Safari 미확인), #18a·18b(백업 내보내기 — Safari 탭·홈 화면 앱), 계약 V7 ①②③.
+3. **Android APK 받기**(태블릿이 있으면): 개발 브랜치에 푸시할 때마다 GitHub Actions → **Android APK** 실행의 Artifacts(`noteapp-apk-<번호>`, 7일 보관)로 만들어진다 — 이미 녹색 실행이 있다. [안내서 05](../guides/05-android-apk.md) '개발 브랜치에서 받기'. 라이브러리 화면이 뜨는지 알려 주면 된다.
+4. **Apple 개발자 계정 → TestFlight**(네이티브 전환 때): 계정 가입 뒤 [안내서 06](../guides/06-ios-testflight.md)(초안 — 그때 다시 고침). 필기감 합격 판정은 이 단계에서 한다.
+5. M4 때: Blaze 요금제로 바꿀 때 [안내서 03](../guides/03-budget-alert.md) 예산 알림, Firebase 연결 뒤 07-sync 9.2(live 채널 로그인·2초 반영·오프라인 편집).
+6. 4장 U1~U4 답(펜슬 종류·iPad 모델, 암호 PDF 사본, 앱 이름·번들 ID, Firebase 위치) — 막는 것은 없고 각 시점 전에.
+
+### 실기기 체크리스트 위치
+
+| 영역 | 체크리스트 | 언제 |
+|---|---|---|
+| 통합 | [00-overview 7.7 V7](00-overview.md#77-통합-순서와-검증-기준) 복합 항목 ①②③ | 미리보기 배포 뒤 |
+| INFRA | [01-infra](01-infra.md) 9.2(GitHub에서만 확인), 9.3(iPad — 안내서 04의 체크리스트), 9.4(안드로이드) | G5·배포 뒤 |
+| CORE | [02-core](02-core.md) 9.2 | 배포 뒤 |
+| INK | [03-ink](03-ink.md) 9.3(9.2는 골든 운영) | 배포 뒤(앱 또는 `web-experiment` `target: ink_lab`) |
+| EDITOR | [04-editor](04-editor.md) 9.2 — ★ 항목 = M1 에디터 합격 | 배포 뒤 |
+| LIBRARY | [05-library](05-library.md) 9.2 — M2 합격 | 배포 뒤 |
+| PDF | [06-pdf](06-pdf.md) 9.2 U1~U19(★ 필수) + V7 ① | 배포 뒤 |
+| SYNC | [07-sync](07-sync.md) 9.2 | M4 연결 뒤(live 채널) |
+| 안내서 | [04 iPad 웹](../guides/04-ipad-web-test.md) · [05 안드로이드 APK](../guides/05-android-apk.md) · [06 iOS TestFlight(초안)](../guides/06-ios-testflight.md) — 준비는 [01](../guides/01-firebase-project.md)·[02](../guides/02-github-secrets.md)·[03](../guides/03-budget-alert.md) | |
+
+결과는 GitHub 이슈 양식(안내서 04 '9단계 — 문제 알려 주기')이나 대화로 알려 주면, 총괄이 각 영역 다음 작업 목록과 PLAN.md 10장 완료 기준에 반영한다.
