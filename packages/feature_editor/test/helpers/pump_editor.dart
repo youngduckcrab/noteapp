@@ -1,15 +1,19 @@
 // test/helpers/pump_editor.dart — 04-editor 9.1 (E-01).
 //
-// E-01 state: the handles cover the store, the seeded note, the session (and
-// its recorder), the provider container and the pointer driver. `viewport`
-// (ViewportController) and `controllerOf` (mounted INK page controllers) are
-// added with E-03/E-04, and `settings` (written to the CORE keys) with E-06.
+// The handles cover the store, the seeded note, the session (and its
+// recorder), the per-note provider container, the pointer driver, the
+// viewport controller and the mounted pages' INK controllers (E-04).
 import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart';
+import 'package:feature_editor/src/document/mounted_pages.dart';
+import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
+import 'package:feature_editor/src/viewport/viewport_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart';
@@ -28,17 +32,26 @@ int _seedCount = 0;
 /// Default view: iPad Pro 13" portrait, logical 1032×1376 at DPR 2 (contract 7.4.8);
 /// resets the view in addTearDown.
 ///
-/// The note has [pages] blank A4 pages with ids [seededPageId]; the strokes of
+/// The note has [pages] blank pages of [pageSize] (A4 portrait by default)
+/// with ids [seededPageId]; the strokes of
 /// [strokesByPageIndex] are added through the session with their page id set
 /// to that page (ids kept), then the history is cleared, so the screen opens
 /// with `undoDepth == 0`. A store created here is closed in a tear-down; a
 /// store passed in is the caller's to close.
+///
+/// [settings] is written to the two CORE settings keys before pumping. After
+/// the session opens, the helper pumps until the viewport has its size and
+/// the mounted pages are loaded (no fake time passes), unless [settle] is
+/// false (then only the session is open).
 Future<EditorTestHandles> pumpEditor(
   WidgetTester tester, {
   core.NoteStore? store, // default: core.createFakeNoteStore()
   String title = '테스트 노트',
   int pages = 3, // A4 blank pages of the seeded note
+  core.PageSize pageSize = core.PageSize.a4Portrait, // of every seeded page
   Map<int, List<core.Stroke>> strokesByPageIndex = const {},
+  EditorSettings? settings, // written to the CORE keys before pumping
+  bool settle = true,
   List<Override> overrides = const [], // e.g. syncBadgeProvider
   Size logicalSize = const Size(1032, 1376),
   String? initialPageId,
@@ -56,7 +69,24 @@ Future<EditorTestHandles> pumpEditor(
   if (ownStore) addTearDown(s.close);
 
   final seedKey = 'seed${++_seedCount}';
-  final noteId = await _seedNote(s, seedKey, title, pages, strokesByPageIndex);
+  final noteId = await _seedNote(
+    s,
+    seedKey,
+    title,
+    pages,
+    pageSize,
+    strokesByPageIndex,
+  );
+  if (settings != null) {
+    await s.settings.set(
+      EditorSettingKeys.deviceSettings,
+      settings.toJson(core.SettingScope.device),
+    );
+    await s.settings.set(
+      EditorSettingKeys.syncedSettings,
+      settings.toJson(core.SettingScope.synced),
+    );
+  }
 
   RecordingNoteSession? recorder;
   final handles = EditorTestHandles._(
@@ -110,6 +140,7 @@ Future<EditorTestHandles> pumpEditor(
   );
   // The fake store opens the session after a microtask; one pump shows it.
   await tester.pump();
+  if (settle) await handles.settlePages();
   return handles;
 }
 
@@ -118,6 +149,7 @@ Future<core.NoteId> _seedNote(
   String key,
   String title,
   int pages,
+  core.PageSize pageSize,
   Map<int, List<core.Stroke>> strokesByPageIndex,
 ) async {
   for (final index in strokesByPageIndex.keys) {
@@ -131,7 +163,7 @@ Future<core.NoteId> _seedNote(
       for (var i = 0; i < pages; i++)
         core.PageDraft(
           id: seededPageId(key, i),
-          size: core.PageSize.a4Portrait,
+          size: pageSize,
           background: const core.BlankBackground(),
         ),
     ],
@@ -190,16 +222,16 @@ class EditorTestHandles {
   /// EditorScreen, else the root scope.
   ProviderContainer get container {
     final screen = find.byType(EditorScreen);
+    // Every ProviderScope builds an UncontrolledProviderScope that carries
+    // its container; the last one under EditorScreen is the innermost.
     final scopes = find.descendant(
       of: screen,
-      matching: find.byWidgetPredicate(
-        (w) => w is ProviderScope || w is UncontrolledProviderScope,
-      ),
+      matching: find.byType(UncontrolledProviderScope),
     );
-    final context = scopes.evaluate().isNotEmpty
-        ? _tester.element(scopes.last)
-        : _tester.element(screen);
-    return ProviderScope.containerOf(context, listen: false);
+    if (scopes.evaluate().isNotEmpty) {
+      return _tester.widget<UncontrolledProviderScope>(scopes.last).container;
+    }
+    return ProviderScope.containerOf(_tester.element(screen), listen: false);
   }
 
   /// The real (fake-store) session; throws while the note is still opening.
@@ -212,4 +244,42 @@ class EditorTestHandles {
 
   /// The recording wrapper (null with recordSession: false or before open).
   RecordingNoteSession? get recorder => _recorderOf();
+
+  /// The note's ViewportController (editorViewportProvider).
+  ViewportController get viewport => container.read(editorViewportProvider);
+
+  /// The registry of mounted pages (editorMountedPagesProvider).
+  MountedPages get mountedPages => container.read(editorMountedPagesProvider);
+
+  /// The INK controller of page [pageIndex] (by the session's current page
+  /// order); mounted pages only (StateError otherwise).
+  ink.InkPageController controllerOf(int pageIndex) {
+    final id = session.pages[pageIndex].id;
+    final mount = mountedPages[id];
+    if (mount == null) {
+      throw StateError('page $pageIndex ($id) is not mounted');
+    }
+    return mount.controller;
+  }
+
+  /// Pumps frames (no fake time) until the viewport has its size and every
+  /// mounted page is loaded; at most [maxFrames].
+  Future<void> settlePages({int maxFrames = 10}) async {
+    for (var i = 0; i < maxFrames; i++) {
+      final open = container.read(editorSessionProvider).hasValue;
+      if (open) {
+        final v = viewport;
+        final mounted = mountedPages.all.toList();
+        final range = v.mountedRange;
+        final expected = range == null ? -1 : range.last - range.first + 1;
+        if (!v.viewportSize.isEmpty &&
+            mounted.length == expected &&
+            mounted.every((m) => m.isLoaded.value) &&
+            !_tester.binding.hasScheduledFrame) {
+          return;
+        }
+      }
+      await _tester.pump();
+    }
+  }
 }

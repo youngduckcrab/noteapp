@@ -1,11 +1,11 @@
 // lib/src/editor_screen.dart — contract 00-overview 7.2.17, 04-editor 4.2.
 //
-// Foundation step B5 (contract 7.6): the final constructor with a placeholder
-// body — the note title and a back button that flushes the note session and
-// then calls onClose. The screen states follow 04-editor 6.17.1 (opening /
-// note not found / open failed / ready). The real screen (EditorRoot,
-// EditorBody, toolbar, page viewport, per-note scope, …) comes with tasks
-// E-04..E-13 of 04-editor 8.2.
+// Foundation step B5 (contract 7.6) gave the final constructor, the screen
+// states of 04-editor 6.17.1 (opening / note not found / open failed / ready)
+// and the back button that flushes the note session before onClose.
+// E-04 adds the per-note ProviderScope (6.13.1 #4) and the page viewport as
+// the ready body. EditorRoot / EditorBody, toolbar, banners and the rest of
+// the screen come with E-13.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -14,7 +14,9 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import 'scope/editor_scope.dart';
 import 'ui/editor_strings.dart';
+import 'viewport/page_viewport.dart';
 
 /// The note editor screen. The app shell routes `/notes/:noteId` to it with
 /// `key: ValueKey(noteId)`; the screen knows no router and only calls the
@@ -96,66 +98,98 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = core.noteSessionProvider(widget.noteId);
-    ref.listen<AsyncValue<core.NoteSession>>(provider, (previous, next) {
-      // A missing note is a normal screen state (N-6), not an error report.
-      if (next
-          case AsyncError(:final error, :final stackTrace, isLoading: false)
-          when error is! core.EntityNotFoundException) {
-        _report(error, stackTrace, 'while opening note ${widget.noteId}');
-      }
-    });
-    final session = ref.watch(provider);
-
-    final Widget screen;
-    if (session.value case final core.NoteSession open) {
-      screen = _ReadyView(
-        session: open,
-        onBack: _close,
-        onOpenSettings: widget.onOpenSettings,
-      );
-    } else if (session.hasError && !session.isLoading) {
-      final error = session.error;
-      screen = error is core.EntityNotFoundException
-          ? _MessageView(
-              onBack: _close,
-              message: EditorStrings.noteNotFound,
-              actions: [
-                FilledButton(
-                  onPressed: _close,
-                  child: const Text(EditorStrings.goBack),
-                ),
-              ],
-            )
-          : _MessageView(
-              onBack: _close,
-              message: EditorStrings.openFailed,
-              detail: kDebugMode ? '$error' : null,
-              actions: [
-                FilledButton(
-                  onPressed: _retry,
-                  child: const Text(EditorStrings.retry),
-                ),
-                OutlinedButton(
-                  onPressed: _close,
-                  child: const Text(EditorStrings.goBack),
-                ),
-              ],
-            );
-    } else {
-      screen = _MessageView(
-        onBack: _close,
-        message: EditorStrings.openingNote,
-        showProgress: true,
-      );
-    }
+    ref.listen<AsyncValue<core.NoteSession>>(
+      core.noteSessionProvider(widget.noteId),
+      (previous, next) {
+        // A missing note is a normal screen state (N-6), not an error report.
+        if (next
+            case AsyncError(:final error, :final stackTrace, isLoading: false)
+            when error is! core.EntityNotFoundException) {
+          _report(error, stackTrace, 'while opening note ${widget.noteId}');
+        }
+      },
+    );
 
     return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) unawaited(_close());
       },
-      child: screen,
+      // Per-note scope: only EDITOR providers are overridden here (contract
+      // 7.3.3); CORE and INK providers stay in the root container.
+      child: ProviderScope(
+        key: ValueKey(widget.noteId),
+        overrides: [
+          editorNoteIdProvider.overrideWithValue(widget.noteId),
+          editorInitialPageIdProvider.overrideWithValue(widget.initialPageId),
+        ],
+        child: _EditorRoot(
+          onBack: _close,
+          onRetry: _retry,
+          onOpenSettings: widget.onOpenSettings,
+        ),
+      ),
+    );
+  }
+}
+
+/// Opening / not found / open failed / ready (6.17.1), from
+/// editorSessionProvider — the body is built only once it has a value, so
+/// everything below may read editorSessionValueProvider.
+class _EditorRoot extends ConsumerWidget {
+  const _EditorRoot({
+    required this.onBack,
+    required this.onRetry,
+    required this.onOpenSettings,
+  });
+
+  final VoidCallback onBack;
+  final VoidCallback onRetry;
+  final VoidCallback? onOpenSettings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(editorSessionProvider);
+    if (session.value case final core.NoteSession open) {
+      return _ReadyView(
+        session: open,
+        onBack: onBack,
+        onOpenSettings: onOpenSettings,
+      );
+    }
+    if (session.hasError && !session.isLoading) {
+      final error = session.error;
+      return error is core.EntityNotFoundException
+          ? _MessageView(
+              onBack: onBack,
+              message: EditorStrings.noteNotFound,
+              actions: [
+                FilledButton(
+                  onPressed: onBack,
+                  child: const Text(EditorStrings.goBack),
+                ),
+              ],
+            )
+          : _MessageView(
+              onBack: onBack,
+              message: EditorStrings.openFailed,
+              detail: kDebugMode ? '$error' : null,
+              actions: [
+                FilledButton(
+                  onPressed: onRetry,
+                  child: const Text(EditorStrings.retry),
+                ),
+                OutlinedButton(
+                  onPressed: onBack,
+                  child: const Text(EditorStrings.goBack),
+                ),
+              ],
+            );
+    }
+    return _MessageView(
+      onBack: onBack,
+      message: EditorStrings.openingNote,
+      showProgress: true,
     );
   }
 }
@@ -173,8 +207,9 @@ class _BackButton extends StatelessWidget {
   );
 }
 
-/// B5 body: the note title and the back button; '설정' in the more menu when
-/// onOpenSettings is given.
+/// Ready body until E-13: an app bar with the back button, the note title and
+/// '설정' in the more menu (when onOpenSettings is given), over the page
+/// viewport.
 class _ReadyView extends StatelessWidget {
   const _ReadyView({
     required this.session,
@@ -197,7 +232,7 @@ class _ReadyView extends StatelessWidget {
           if (openSettings != null) _MoreMenu(onOpenSettings: openSettings),
         ],
       ),
-      body: const Center(child: Text(EditorStrings.placeholderBody)),
+      body: const PageViewport(),
     );
   }
 }

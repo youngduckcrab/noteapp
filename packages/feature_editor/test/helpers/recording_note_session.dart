@@ -36,6 +36,28 @@ class RecordingNoteSession implements core.NoteSession {
   /// Forgets the recorded calls (the delivery flag stays).
   void clearCalls() => _calls.clear();
 
+  int _activeSubscriptions = 0;
+
+  /// Subscriptions to this session's streams that were not cancelled yet
+  /// (a stream that ends by itself still counts).
+  int get activeSubscriptions => _activeSubscriptions;
+
+  /// Number of recorded calls equal to [call] (e.g. 'closePage:p1').
+  int countOf(String call) => _calls.where((c) => c == call).length;
+
+  Completer<void>? _pageLoadGate;
+
+  /// From now on openPage waits for [releasePageLoads] before it reaches the
+  /// inner session, so the page stays unloaded (loading cover) meanwhile.
+  void holdPageLoads() => _pageLoadGate ??= Completer<void>();
+
+  /// Lets the openPage calls held by [holdPageLoads] through.
+  void releasePageLoads() {
+    final gate = _pageLoadGate;
+    _pageLoadGate = null;
+    gate?.complete();
+  }
+
   Object? _takeRejection() {
     final error = _rejectNext;
     _rejectNext = null;
@@ -58,6 +80,8 @@ class RecordingNoteSession implements core.NoteSession {
   @override
   Future<core.PageContent> openPage(core.PageId pageId) {
     _calls.add('openPage:$pageId');
+    final gate = _pageLoadGate;
+    if (gate != null) return gate.future.then((_) => inner.openPage(pageId));
     return inner.openPage(pageId);
   }
 
@@ -197,6 +221,7 @@ final class _TrackedStream<T> extends Stream<T> {
       _owner,
     );
     subscription.onData(onData);
+    _owner._activeSubscriptions++;
     return subscription;
   }
 }
@@ -231,8 +256,16 @@ final class _TrackedSubscription<T> implements StreamSubscription<T> {
   @override
   bool get isPaused => _inner.isPaused;
 
+  bool _cancelled = false;
+
   @override
-  Future<void> cancel() => _inner.cancel();
+  Future<void> cancel() {
+    if (!_cancelled) {
+      _cancelled = true;
+      _owner._activeSubscriptions--;
+    }
+    return _inner.cancel();
+  }
 
   @override
   Future<E> asFuture<E>([E? futureValue]) => _inner.asFuture<E>(futureValue);

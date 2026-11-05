@@ -54,9 +54,6 @@ abstract final class EditorStrings {
   /// Shown when leaving waits on `flush()` for more than 300 ms (6.17.4).
   static const saving = '저장하는 중…';
 
-  /// Body of the B5 placeholder screen (replaced by EditorBody in E-13).
-  static const placeholderBody = '필기 화면을 준비하고 있어요';
-
   // ---------------------------------------------------------------------------
   // Read only (04-editor 6.17.2, N-4) and rejected commands (5.1.3).
   // ---------------------------------------------------------------------------
