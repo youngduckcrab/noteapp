@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: 1 (동시 개발 단계 개발 세션 1/8)
+- 마지막 세션: 1 (동시 개발 단계 개발 세션 1/8) — 문서(C13-05·SYNC-4-1~4-3), T1, T2, T3 완료
 - 다음 할 일: T5 가짜 서버(`FakeSyncServer`·`FakeSyncBackend`·`FakeNetworkLink`·`FakeBlobStore`) → T7 스케줄러·백오프 → T4 병합 → T6 가짜 로컬·계약 스위트·하네스 …
 - 순서(계획서 8장): T1→T2→T3→T5→T7→T4→T6→T8→T9→T10→T11→T12→T13→T14→T15→T17→T16
 
@@ -12,7 +12,7 @@
 |---|---|---|---|
 | T1 | 완료 (앞부분 B7은 기반 단계에서 완료) | 4d7a82f (B7), 8dd1fe5 | `test/no_dart_io_test.dart`(B7), `test/dart_test_yaml_test.dart`(태그 선언·`integration` skip 소스 검사), `test/web/firebase_compile_test.dart`(Chrome), `ws check` 0. 4장 시그니처 파일 전부(본문은 `UnimplementedError('SYNC Tn')` — n = 채울 작업). 값 클래스 7종 `==`·`SyncConfig.copyWith`·`syncBadgeOf`·`ManualConnectivitySignal`은 이미 구현(테스트는 T10) |
 | T2 | 완료 | af0340b | `common/server_cursor_test.dart`, `common/varuint_test.dart`, `common/lru_set_test.dart`, `common/errors_test.dart`(추가), `model/field_versions_ext_test.dart`, `model/field_units_test.dart`, `model/scopes_test.dart`(추가), `model/sync_doc_test.dart`, `model/records_test.dart`, `codec/canonical_json_test.dart`. 커서·varuint 본문은 `test/shared/*_cases.dart`(T3 Chrome 테스트가 다시 씀). 엔티티 8종 고정 JSON은 `test/support/entity_fixtures.dart` |
-| T3 | 완료 | (이 커밋 — 다음 세션이 해시로 바꿈) | `goldens/chunk_v1_golden_test.dart`(golden·VM: 824 B·sha-256·청크 ID·상수 사본 = 파일), `codec/chunk_codec_test.dart`(왕복, 디코드 오류 27종, fmt 2 거부), `codec/chunk_packer_test.dart`(범위·정렬 결정성·256 KiB·2,000개·단독 큰 기록·1,000,000 B 격리·16청크·8 MiB), `test/web/pure_logic_browser_test.dart`(Chrome: 코덱 골든·varuint·`ServerCursor` — 병합 성질은 T4에서 추가). 골든 `test/goldens/chunk_v1_golden.bin`은 Python으로 따로 만들어 Dart 인코더 출력과 같음을 확인 |
+| T3 | 완료 | 2fbf922 | `goldens/chunk_v1_golden_test.dart`(golden·VM: 824 B·sha-256·청크 ID·상수 사본 = 파일), `codec/chunk_codec_test.dart`(왕복, 디코드 오류 27종, fmt 2 거부), `codec/chunk_packer_test.dart`(범위·정렬 결정성·256 KiB·2,000개·단독 큰 기록·1,000,000 B 격리·16청크·8 MiB), `test/web/pure_logic_browser_test.dart`(Chrome: 코덱 골든·varuint·`ServerCursor` — 병합 성질은 T4에서 추가). 골든 `test/goldens/chunk_v1_golden.bin`은 Python으로 따로 만들어 Dart 인코더 출력과 같음을 확인 |
 | T4 | 남음 | | `merge/field_merge_test.dart`, `merge/field_merge_properties_test.dart`, `merge/sync_merge_policy_test.dart`, `merge/merge_recorder_test.dart`, `merge/record_gate_test.dart` |
 | T5 | 남음 | | `testing/fake_sync_server_test.dart`, `testing/fake_blob_store_test.dart` |
 | T6 | 남음 | | `contract/fake_local_store_contract_test.dart`(C-11·C-12 purge 대기 경우 포함 — SYNC-4-1), `testing/test_device_test.dart`, `testing/fake_local_store_test.dart`, `testing/sync_test_harness_test.dart` |
@@ -27,7 +27,7 @@
 | T15 | 남음 | | `compaction/compactor_test.dart` |
 | T16 | 남음 (어댑터 코드는 동시 개발, 실행·판정은 통합 단계) | | `CoreSyncLocalStore` 코드 + `integration/core_sync_store_contract_test.dart`, `integration/core_scenarios_test.dart`, `integration/core_json_keys_test.dart`, `integration/core_folder_cycles_test.dart`(태그 `integration`, 기본 skip) |
 | T17 | 남음 | | `firebase/firestore_chunk_mapper_test.dart`, `firebase/firebase_sync_backend_test.dart`, `firebase/firebase_auth_backend_test.dart`, `firebase/firebase_error_mapper_test.dart`, `firebase/rules_ownership_test.dart`, `test/web/firebase_compile_test.dart` 확장 |
-| 문서 | 완료 | (이 세션) | C13-05·SYNC-4-1~4-3: 계획서 상태 줄 '승인', 계약 인용 v1.4, 5.1.1 블록 = 계약 7.2.10 원문, C-11·C-12 purge 대기 경우, 12.2 결정 칸, 13.4 |
+| 문서 | 완료 | 749fa45 | C13-05·SYNC-4-1~4-3: 계획서 상태 줄 '승인', 계약 인용 v1.4, 5.1.1 블록 = 계약 7.2.10 원문, C-11·C-12 purge 대기 경우, 12.2 결정 칸, 13.4 |
 
 ## 변경 요청
 
@@ -51,4 +51,8 @@
 
 - cloud_firestore 7.1.0은 `Type`(파이프라인 식)을 export해 `dart:core`의 `Type`을 가린다. Firestore를 import하면서 `Type`을 쓰는 파일은 `import 'package:cloud_firestore/cloud_firestore.dart' hide Type;`(T1 `firebase_compile_test`에서 발견, T17 주의).
 - `lib/src/firebase/display_mode.dart`의 내부 함수 이름은 `isStandaloneDisplayMode()`(export 안 함). `FirebaseAuthBackend(isStandaloneWebApp:)` 기본값.
+- 세션 1 끝 상태: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 151개 통과, Chrome(`flutter test --platform chrome test/web`) 21개 통과(첫 컴파일 약 40초).
+- 아직 `UnimplementedError('SYNC Tn')`인 본문: n이 그 본문을 채울 작업이다(4장 시그니처는 T1에서 모두 만들어 둠 — 파일을 새로 만들지 말고 본문을 채운다). 예외: `AuthService`는 T14로 적었지만 T10 엔진(`auth_attach_test`)이 먼저 쓰므로 T10에서 채워도 된다. `FakeAuthBackend`는 T10으로 적음.
+- T5 `FakeSyncServer.mergedState`는 `FieldMerge`(T4)가 필요하다. T5에서는 디코드·purge 적용까지 하고 병합은 T4에서 채우거나, T5 테스트에서 이 멤버를 빼고 T4에서 검사한다.
+- 공용 테스트 자료: `test/support/entity_fixtures.dart`(엔티티 8종 JSON·`kCoreJsonKeys`·`hlcText`·`kNodeA`), `test/shared/*_cases.dart`(VM·Chrome 공용 본문 — T4 병합 성질도 여기에 두고 `test/web/pure_logic_browser_test.dart`에 group 추가).
 - 다른 영역은 이 작업 트리에서 기반 단계 상태다. CORE는 `createFakeNoteStore()`(SyncStore 대부분 `UnsupportedError`)와 실제 값 타입(B2)만 쓸 수 있다.
