@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 2차 마지막 세션: **T25a(B2-0) V7 고정 자료 완료** — 커밋 b6beece(아래 '## 2차'). 1차 CORE 코드(`main` `e3aa110`, note_core 트리 = `b6c9d0a`)로 만든 v1 DB(VM·웹 두 형태)·PDF 바이트·`fixture_source.json`·`manifest.json`(정규 덤프 해시). `lib/` 변경 없음.
-- 2차 다음 할 일: T22(B2-α 계약 표면 + `api_surface_test` v2) → 해시를 '이정표 커밋' 표·SYNC·INFRA·총괄에 알림 → B2-β(T20a → T20b → T21 → T23a → T23b).
+- 2차 마지막 세션: **T22(B2-α) 계약 표면 완료 — '계약 타입 커밋' `2b2e4b0`**(아래 '## 2차' > 'T22'). 7.2.2~7.2.7의 공개 선언 전부·`EntityKind` 2값·`NoteStore` getter 4개·provider 6개·진입점(`testing_web.dart` 포함)·`dev_tools.dart` v1 사본 API. 알고리즘 본문은 작업 번호를 단 `UnimplementedError`. 그 앞은 T25a(B2-0) V7 고정 자료 `b6beece`.
+- 2차 다음 할 일: SYNC R2-B7a·INFRA R2-B2i가 `2b2e4b0` 위에서 묶음 패치 → B2-β(T20a JSON·골든 먼저 — 해시 알림 → T20b → T21 → T23a → T23b) → 총괄 묶음 병합.
 - 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
 - 다음 할 일: 총괄이 7.6 커밋 실패 훅(SYNC 요청 1)을 채택하면 CORE가 구현(아래 제안). iPad 확인(계획서 9.2·10절 #9). 10절 #7(SYNC T16을 막는 CORE 결함 없음)은 통합 태그 전체 통과로 확인(SYNC 42개)
 
@@ -214,7 +214,7 @@
 | 이정표 | 작업 | 커밋 | 날짜 | 이 커밋으로 할 수 있게 되는 것 | 기다리는 영역 |
 |---|---|---|---|---|---|
 | V7 고정 자료 | T25a | b6beece | 2026-11-05 | 1차 v1 DB 고정 자료(생성 커밋은 fixture_source.json) | 총괄 |
-| B2-α 계약 타입 커밋 | T22 | | | 공개 선언 전부 컴파일 — R2-B7a 바탕, R2-B2i 위임, 전 영역 코드 작성 시작 | SYNC·INFRA·전 영역 |
+| B2-α 계약 타입 커밋 | T22 | 2b2e4b0 | 2026-11-05 | 공개 선언 전부 컴파일 — R2-B7a 바탕, R2-B2i 위임, 전 영역 코드 작성 시작 | SYNC·INFRA·전 영역 |
 | B2-β JSON 골든 | T20a | | | 객체·손글씨·녹음 JSON 키 고정 — 키 대조 시험(CP-S9) | SYNC |
 | B2-β 끝 | T23b | | | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
 | DB v2·마이그레이션 | T24 | | | openTestNoteStore가 v2 DB, v1 사본 | SYNC·PDF·LIBRARY·INFRA |
@@ -234,6 +234,7 @@
 | ID | 상태 | 커밋 | 비고 — 완료 조건 |
 |---|---|---|---|
 | T25a | 완료 | b6beece | B2-0 V7 고정 자료. `tool/make_v1_fixture.dart`·`tool/v1_fixture_manifest.dart`·`tool/src/v1_dump.dart`, `test/fixtures/db_v1/`(5개 파일), `test/migration/v1_fixture_files_test.dart`(VM 3건) |
+| T22 | 완료 | 2b2e4b0 | B2-α 계약 표면. `test/api_surface_test.dart` v2, `test/model/b2_alpha_values_test.dart`, `test/shared/b2_alpha_store_cases.dart` → `test/testing/open_test_store_test.dart`(실제)·`test/testing/fake_store_b2_alpha_test.dart`(가짜), `test/shared/providers_contract.dart` v2(가짜·실제), `test/web/testing_web_browser_test.dart` |
 
 ### T25a — V7 고정 자료 (계획 6.12.3·8.1, 00-review CORE-F2)
 
@@ -280,3 +281,44 @@
 - 계획에 없던 VM 지킴 시험 `test/migration/v1_fixture_files_test.dart`(manifest 최신·파일 해시·V7 모양).
 - B2-α 커밋에 넣지 않고 따로 커밋했다(작업 지시 — 이정표 커밋은 다른 작업과 섞지 않음, 8.5).
 - 기기 노드 id가 무작위라 다시 돌리면 바이트가 다르다(v1.4 API로는 고정할 수 없음) — 커밋한 파일이 고정 자료이고 manifest가 그 해시다.
+
+### T22 — B2-α 계약 표면 (계획 4.1~4.11·8.1, 계약 7.6.2 R2-B2 행, 00-review CORE-F1·F3)
+
+- 커밋: **`2b2e4b02172b99a3e28d2f6edf478682d683f1f0`**(계약 타입 커밋 — SYNC R2-B7a·INFRA R2-B2i의 바탕), 이 기록은 그 뒤 커밋. 바탕 `051386b`.
+- **실제로 동작하는 것**(8.1 'B2 상태' 'α 끝' 열): 생성자·필드·기본값·`==`·`hashCode`·`toString`, enum·한도 상수, `kind`·`type`·`isDeleted`, `referencedAssets`(도형·텍스트·수식 빈 집합, 이미지 `{assetId}`), 계약이 `=>`로 적은 위임(`ShapeObject.frame => geometry.frame`, `bounds => frame.bounds`, `EllipseGeometry.frame` = `ellipseFrame`), `HandwritingText.idFor`·`id = 'hw_' + pageId`, `Recording.title`·`copyWith(title:, clearTitle:)`, `PageContent` 객체 멤버, `PageDraft.objects`·`copyOf`, 명령 3종 `label`·`ClearPage.includeObjects`, `Unsupported*`(6.8.2 표), provider 6개, `SearchText.normalizerVersion`, `ImageImportLimits`.
+- **작업 번호를 단 `UnimplementedError('CORE <작업>: <멤버>')`**: JSON 전부(`toJson`·`fromJson`·`EntityJson`의 새 두 갈래, `UnknownObject(rawJson)`) — T20a. `ElementFrame` 기하·`normalized`, `PagePoint.transformed`, 템플릿 6종, `bounds`(도형)·`arrowHeadLength`, `transformed`·`copyTo`·`copyWithMeta`·`estimatedBytes`, 스타일·객체 `normalized`·`copyWith` — T20b. `sourceRevOf`·`isRecognitionInput`·`HandwritingLine/Text.copyWith`, `SearchText` 함수 4개, `RecorderStatus.isActive`·`copyWith`, `PlaybackStatus.copyWith` — T21. 객체를 만들거나 고치는 명령(`AddObjects`·`UpdateObjects`·객체가 든 `InsertPages` — 복합 명령 안 포함)은 해석 **전에** T23a. `PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback` 메서드·`openWebTestNoteStore`·`deleteWebTestNoteStore` — T23b.
+- **저장소 getter 4개**: 읽기는 빈 결과(`watchRecordings`·`watchPage`·`status`는 값 하나를 내고 열린 채 — 1차 watch 규칙), `readAll`은 초안이 없으므로 `StateError`(계약 '모르는 draftId'), 쓰기는 실제 T30(녹음)·T31(초안)·T32(손글씨)·T33a(색인), 가짜 T23b. `searchLibrary`의 `pages`는 빈 목록, `usage().bytesByType`은 빈 맵, `kDatabaseSchemaVersion`은 1.
+- **실제 저장소의 새 두 종류**: `readVersioned`·백업 쪽 읽기(`readVersionedRow`·`readVersionedPage`·`_readKind`)는 '행 없음'(v1 DB에 테이블이 없다), 행 쓰기·지우기(`writeEntityRow`·`deleteEntityRow`)는 `UnimplementedError('CORE T26: …')`(쓰기 큐에서는 도메인 오류라 재시도 없음).
+- **`dev_tools.dart` v1 사본 API**(C22-01): `v1DatabaseCopyInfo` → 언제나 `null`. 실제 저장소의 `readV1DatabaseCopy`·`deleteV1DatabaseCopy`는 T24, 사본이 없는 저장소(가짜)는 읽기 `StateError`·지우기 아무것도 안 함.
+- `RemoveElements`는 획을 `RemoveStrokes`처럼 지우고, `ClearPage(includeObjects: true)`는 획을 `filter`대로 지운다(객체는 T23a 전에는 있을 수 없다).
+
+확인 (2026-11-05, load 0~1)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 1초 |
+| `ws test --package note_core --platform vm` | 682개 통과(622 + 새 60), 5개 건너뜀(perf 파일) | 31.7초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, 48개 통과(47 + `testing_web_browser_test`), 1개 건너뜀(perf) | 55.4초 |
+| `ws check` | R1~R16 위반 0·경고 0(R14 — 새 이름이 9개 진입점에서 겹치지 않음) | 37초 |
+| 다른 멤버 `dart analyze`(고치지 않고 깨짐만 확인) | `ink_engine`·`ink_engine/example`·`feature_editor`·`feature_library`·`pdf_io`·`media_io`·`ink_recognition`·`pencil_bridge` 0건. `sync_engine` 5건·`app` 1건 — 아래 | — |
+
+#### 묶음(R2-B2 + R2-B7a + R2-B2i)에서 고칠 곳 — 계약 7.0.2와 같음
+
+- `packages/sync_engine/lib/src/model/field_units.dart:21` `keysOf`, `:57` `groupsOf` — `EntityKind` switch에 갈래 없음(컴파일 오류).
+- `packages/sync_engine/lib/src/model/scopes.dart:19` `scopeOf` — 같음.
+- `packages/sync_engine/lib/src/merge/record_gate.dart:142` `_purged` — 같음(switch 문).
+- `packages/sync_engine/test/support/entity_fixtures.dart:65` `fixtureJson` — 같음.
+- `packages/sync_engine/lib/src/codec/chunk_packer.dart:56` `kindOrder` — 컴파일은 되지만 새 두 값이 없다(계약 7.2.8 순서: … `stroke, pageObject, handwriting`).
+- `app/test/fakes/counting_note_store.dart:24` `CountingNoteStore` — getter 4개(`recordings`·`recordingDrafts`·`handwriting`·`search`) 없음.
+- SYNC 참고: `EntityKind.values`를 돌며 CORE로 인코드·디코드하는 시험(`test/model/records_test.dart:21`, `test/model/sync_doc_test.dart:69`·`:113`, `test/merge/field_merge_test.dart:479`, `test/codec/chunk_codec_test.dart:47`, `test/model/field_units_test.dart` 9·52·64·78행, `integration` `test/integration/core_json_keys_test.dart:52`)는 새 두 종류에서 `UnimplementedError('CORE T20a: …')`를 만난다(`FormatException`이 아니다 — `SyncDoc.toEntity` 주석과 다름). T20a 커밋 전에는 이 두 종류를 빼고 돌려야 한다(계약 7.6.2 R2-B7a '새 종류 디코드·키 대조 시험은 B2-β JSON 조각이 들어온 뒤').
+
+#### 계획과 다르게 한 점 (T22)
+
+- 계획 8.1 T25a 행은 고정 자료를 'B2-α 커밋에 함께 넣는다'고 했으나, T25a는 작업 지시대로 앞서 따로 커밋했다(`b6beece`) — 이 커밋에는 계약 표면만 있다.
+- `UnknownObject(rawJson)`은 계약대로 생성자이지만, 읽기(공통 키 검사·깊은 복사·`frame` 해석)가 JSON 조각이라 T20a다. 지금은 내부 `_readUnknownParts`가 `UnimplementedError`를 던지고, 필드는 그 결과를 받는 내부 생성자가 채운다(β에서 그 함수만 채운다).
+- 새 `copyWith`(스타일·객체 — T20b, 손글씨·녹음기·재생기 상태 — T21)는 계획 8.1이 '생성자·필드·`==`·enum·상수'만 실제로 둔다고 해서 본문을 비웠다. `Recording.copyWith`는 1차 멤버에 인자를 더한 것이라 실제로 동작한다.
+- `Recording.toJson`·`fromJson`은 T20a까지 1차 키 그대로다(`title`을 쓰지도 읽지도 않음) — 골든 `recording.json`은 T20a에서 바뀐다(8.1 'JSON 골든' 행).
+- `RecordingDraftStore.readAll`은 '읽기 빈 결과'를 따라 `UnimplementedError`가 아니라 계약의 '모르는 draftId → `StateError`'로 답한다(초안이 하나도 없으므로).
+- 실제 저장소의 행 단위 쓰기(`writeEntityRow`·`deleteEntityRow`)의 새 두 종류는 표에 없는 자리라 쓰기 경로 작업 번호 T26을 달았다.
+- 내부 새 파일: `lib/src/common/pending.dart`(`notYet` — 메시지 형식 'CORE <작업>: <멤버>'), `lib/src/repo/empty_v2_repositories.dart`(작업 전 저장소 4종 — 실제·가짜 공용). 둘 다 내보내지 않는다(`absent_names`).
+
