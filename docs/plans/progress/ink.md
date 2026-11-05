@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: 1 (동시 개발 단계)
+- 마지막 세션: 1 (동시 개발 단계) — T01~T04 완료
 - 다음 할 일: T05 중심선 처리·굵기 계수 굽기 → T06 `StrokeBuilder`(라이브·완료, T04 필터 연결) → T07 외곽선·K-1 (계획서 8장 순서)
 
 ## 작업 표
@@ -13,7 +13,7 @@
 | T01 | 완료 | 7c74b7c | `unit/smoke_test.dart`, `unit/tuning_test.dart`, (웹) `web/smoke_web_test.dart`(B3). `dart_test.yaml`(golden·bench), `test/flutter_test_config.dart` + `test/support/golden_tolerance{,_native,_browser}.dart`(0.5% 비교기, 브라우저는 아무것도 안 함), `THIRD_PARTY_NOTICES.md`. `tuning.dart`는 B3에 이미 있음 |
 | T02 | 완료 | d1dd4ba | `unit/model/ink_points_test.dart`, `unit/model/ink_stroke_test.dart`, `unit/pen/style_ink_test.dart`, `unit/pen/pen_profile_test.dart`. 구현은 B3 본문이 이미 4.1·4.2·6.9대로라 테스트만 추가 |
 | T03 | 완료 | 1489bbf | `unit/input/sample_adapter_test.dart`, `unit/input/pressure_detector_test.dart`, `unit/input/pressure_mode_test.dart`. `PressureDetector`를 6.4 전체 규칙으로 교체(관찰·12개 고정값·재보고), 결정은 detector가 store에 바로 보고(컨트롤러의 B3 보고 블록 삭제). `unit/api_surface_test`의 첫 스타일러스 획 기대값 real → pending(6.4) |
-| T04 | 완료 | (이 커밋) | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart`. 내부 `src/input/simulated_pressure.dart`(`SimulatedPressure`, `RealPressureSmoother`, `smoothstep`, `sampleDtMs`)·`src/input/one_euro_filter.dart`(`OneEuroFilter`). 아직 `StrokeBuilder`에 연결하지 않음 — T05·T06에서 파이프라인에 넣는다. 실측: 500 px/s 지연 4.8 ms(60/120/240 Hz), 같은 궤적 Hz별 차 ≤ 0.008 |
+| T04 | 완료 | bd6875e | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart`. 내부 `src/input/simulated_pressure.dart`(`SimulatedPressure`, `RealPressureSmoother`, `smoothstep`, `sampleDtMs`)·`src/input/one_euro_filter.dart`(`OneEuroFilter`). 아직 `StrokeBuilder`에 연결하지 않음 — T05·T06에서 파이프라인에 넣는다. 실측: 500 px/s 지연 4.8 ms(60/120/240 Hz), 같은 궤적 Hz별 차 ≤ 0.008 |
 | T05 | 남음 | | `unit/stroke/{subdivide,hook,dot,width_factor,taper,straighten,simplify}_test.dart` |
 | T06 | 남음 | | `unit/stroke/stroke_builder_test.dart`, `unit/stroke/finish_data_test.dart`, (웹) `web/determinism_test.dart` |
 | T07 | 남음 | | `unit/geometry/{outline,outline_parity,vector_path}_test.dart`, `unit/model/bounds_invariant_test.dart`, (웹) `web/geometry_on_web_test.dart` |
@@ -64,5 +64,9 @@
 
 - T02 `ink_points_test`: 계획의 `identical(InkPoints.of(p).raw, p.rawData)`는 디버그·테스트 실행에서 성립하지 않는다. CORE `rawData`가 디버그에서 호출마다 새 수정 불가 뷰(`asUnmodifiableView()`)를 주기 때문(CORE 6.2.4). 대신 `fromRaw`의 identical, `of(p).raw`가 수정 불가 뷰(쓰기 → UnsupportedError = INK가 복사하지 않음), 같은 값·같은 바이트 길이, `InkStroke.points.raw`가 늘 같은 객체임을 확인한다.
 
-- 문서 C13-05(상태 줄 '승인', 계약 v1.4 인용, INK-4-1·4-2, 13.4)와 C14-01 README 한 줄은 세션 1에서 끝냈다.
+- 문서 C13-05(상태 줄 '승인', 계약 v1.4 인용, INK-4-1·4-2, 13.4)와 C14-01 README 한 줄은 세션 1에서 끝냈다(커밋 551bdea).
+- 세션 1 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 113개·Chrome 3개 통과.
+- T05 시작점: 계획서 6.7(F1~F8, K1~K6 표 — `grep -n '^### 6.7'`), 6.28 상수는 `lib/src/tuning.dart`에 이미 있다. 새 내부 파일은 3장 트리대로 `src/stroke/`(centerline·width_factor·taper·straighten·simplify). 굵기 계수는 실제 필압이면 `RealPressureSmoother` → `pressureCurve.evaluate` → K2, 가상이면 `SimulatedPressure`(곡선 미적용).
+- T06: `StrokeBuilder`(현재 B3 본문 — 샘플 그대로, widthQ 0.25)에 `OneEuroFilter`·`SimulatedPressure`·`RealPressureSmoother`·T05 단계를 연결한다. `PressureDetector.observe`가 true(pending → real)를 돌려주면 앞 점(최대 11점) 굵기를 다시 계산해야 하는데 지금 빌더는 반환값을 무시한다.
+- 테스트 도우미 파일은 `test/support/`(지금은 골든 허용 오차 비교기 3개 — 조건부 export, 브라우저는 아무것도 안 함).
 - B3 본문은 단순 구현이다(4.15 표). 각 T 작업이 해당 파일 본문을 교체한다.
