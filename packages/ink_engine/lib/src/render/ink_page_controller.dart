@@ -3,10 +3,12 @@
 // Content diff by id + identity (6.12 R2) feeding the vector caches of the
 // base layers (INK T10: ink chunk pictures R3/R4, highlighter page picture
 // with the active groups left out, 6.10-6), the three gesture sessions,
-// selection, pending hand-off (6.12 R6: pendingIds, updateContent
+// selection with its live preview pictures (6.22 / R7, INK T18:
+// selection_preview.dart), pending hand-off (6.12 R6: pendingIds, updateContent
 // resolution, discardPending, discardEdit, timeout), the spatial index with
 // exact ink hitTest / strokeIdsInRect (6.18, INK T14) and the viewport report
 // of 6.12 R9 (currentBucket). Raster tiles come with INK T19.
+import 'dart:async' show scheduleMicrotask;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -42,6 +44,7 @@ import 'page_host.dart';
 import 'pencil_grain.dart';
 import 'render_config.dart';
 import 'selection.dart';
+import 'selection_preview.dart';
 import 'sessions.dart';
 import 'stroke_painter.dart';
 
@@ -170,6 +173,14 @@ final class InkPageController extends ChangeNotifier {
     maxAppended: config.maxAppendedPictures,
   );
   final HighlighterBaseCache _hl = HighlighterBaseCache();
+
+  /// R7 selection preview pictures (6.22).
+  late final SelectionPreviewCache _selectionPreview = SelectionPreviewCache(
+    budgetUs: config.frameWorkBudgetMs * 1000,
+    nowUs: clock.nowUs,
+    requestFrame: _requestActiveInkFrame,
+  );
+  bool _activeInkFrameRequested = false;
 
   /// The ids the base caches were last told to leave out (display.hidden).
   Set<String> _baseHidden = const {};
@@ -503,6 +514,7 @@ final class InkPageController extends ChangeNotifier {
     _pending.clear();
     _chunks.dispose();
     _hl.dispose();
+    _selectionPreview.dispose();
     for (final r in _repaints.values) {
       r.dispose();
     }
@@ -723,9 +735,12 @@ final class InkPageController extends ChangeNotifier {
       previews.addAll(eraserPreviewPieces(active));
     }
     final sel = _selection;
+    final selectionPreviewIds = <String>{};
     if (sel != null && !sel.isDisposed && !sel.previewTransform.isIdentity) {
       for (final id in sel.strokeIds) {
-        transforms.putIfAbsent(id, () => sel.previewTransform);
+        if (transforms.containsKey(id)) continue; // a pending transform wins
+        transforms[id] = sel.previewTransform;
+        selectionPreviewIds.add(id);
       }
     }
     final overrides = <_Override>[
@@ -733,7 +748,12 @@ final class InkPageController extends ChangeNotifier {
         for (final s in content.strokes)
           if (!removed.contains(s.id) &&
               (transforms.containsKey(s.id) || colors.containsKey(s.id)))
-            _Override(s, transforms[s.id], colors[s.id]),
+            _Override(
+              s,
+              transforms[s.id],
+              colors[s.id],
+              fromSelection: selectionPreviewIds.contains(s.id),
+            ),
     ];
     final hidden = {...removed, ...transforms.keys, ...colors.keys};
     // 6.10-6: a group with anything being written, pending or previewed is
@@ -818,8 +838,16 @@ final class InkPageController extends ChangeNotifier {
   void _paintActiveInk(ui.Canvas canvas, _Display display, double margin) {
     // Committed-looking strokes are drawn under the chunk clips, like the
     // chunk pictures that take them over (pixel-exact hand-off, R6).
+    final selectionItems = <SelectionPreviewItem>[];
+    core.Affine2? selectionTransform;
     for (final o in display.overrides) {
       if (o.stroke.layer != InkLayer.ink) continue;
+      if (o.fromSelection) {
+        // R7 / 6.22: the live selection preview has its own pictures
+        selectionItems.add((stroke: o.stroke, colorArgb: o.colorArgb));
+        selectionTransform = o.transform;
+        continue;
+      }
       final s = _overrideStroke(o);
       final outline = o.transform == null
           ? cachePool.outlineFor(s)
@@ -835,6 +863,17 @@ final class InkPageController extends ChangeNotifier {
           colorArgb: o.colorArgb,
           grain: grain,
         ),
+      );
+    }
+    if (selectionTransform == null) {
+      _selectionPreview.reset();
+    } else {
+      _selectionPreview.paint(
+        canvas,
+        selectionItems,
+        selectionTransform,
+        grain: _grain,
+        outlineOf: cachePool.outlineFor,
       );
     }
     for (final added in display.added) {
@@ -991,6 +1030,17 @@ final class InkPageController extends ChangeNotifier {
 
   /// Logical px per pt of the view being painted (set by InkPageRender.paint).
   double _currentViewScale = 1;
+
+  /// One more inkActive frame after this one (an unfinished selection
+  /// preview recording). Not during paint: after the current task.
+  void _requestActiveInkFrame() {
+    if (_activeInkFrameRequested) return;
+    _activeInkFrameRequested = true;
+    scheduleMicrotask(() {
+      _activeInkFrameRequested = false;
+      if (!_disposed) _repaints[InkRenderLayer.inkActive]!.fire();
+    });
+  }
 }
 
 /// INTERNAL render access for InkPageView (not exported).
@@ -1035,6 +1085,11 @@ InkPageRender inkPageRenderOf(InkPageController controller) =>
 InkChunkCache inkChunkCacheOf(InkPageController controller) =>
     controller._chunks;
 
+/// INTERNAL (tests): the R7 selection preview counters of [controller] (6.22).
+@meta.internal
+SelectionPreviewStats selectionPreviewStatsOf(InkPageController controller) =>
+    controller._selectionPreview.stats;
+
 /// INTERNAL (tests): the highlighter page picture of [controller] (6.10-6/-7).
 @meta.internal
 HighlighterBaseCache inkHighlighterCacheOf(InkPageController controller) =>
@@ -1062,10 +1117,18 @@ final class _Pending {
 }
 
 final class _Override {
-  _Override(this.stroke, this.transform, this.colorArgb);
+  _Override(
+    this.stroke,
+    this.transform,
+    this.colorArgb, {
+    required this.fromSelection,
+  });
   final InkStroke stroke;
   final core.Affine2? transform;
   final int? colorArgb;
+
+  /// [transform] is the live selection preview (not a pending edit).
+  final bool fromSelection;
 }
 
 final class _Display {
