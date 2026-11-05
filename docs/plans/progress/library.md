@@ -33,7 +33,7 @@
 | L18 | 완료 | ccdc941 | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, B6 `feature_library_smoke_test.dart` 갱신) |
 | L19 | 완료 | dd82973 | `goldens/library_golden_test.dart`(+ PNG 4장, `goldens/flutter_test_config.dart`), `widget/performance_test.dart`, `widget/a11y_test.dart` |
 | L20 | 완료 | 6b2567c | `web/library_browser_test.dart`, `web/scenarios_browser_test.dart` (+ L3 `web/new_note_options_browser_test.dart`) — `flutter test --platform chrome test/web` 17개, `ws test --platform chrome --package feature_library` 통과 |
-| L21 | 완료(통합 단계) | 4450eaa (미리 작성), 통합 커밋은 '통합 단계' 절 | `integration/core_contract_test.dart` (`@Tags(['integration'])` + `@TestOn('vm')`) — 세션 8에 미리 썼고, 1차 통합에서 실제 CORE로 10건 통과(닫기 방식만 고침 — '통합 단계' 절). 기본 실행은 skip(`~1`) 그대로 |
+| L21 | 완료(통합 단계) | 4450eaa (미리 작성), aabcabe (통합) | `integration/core_contract_test.dart` (`@Tags(['integration'])` + `@TestOn('vm')`) — 세션 8에 미리 썼고, 1차 통합에서 실제 CORE로 10건 통과(닫기 방식만 고침 — '통합 단계' 절). 기본 실행은 skip(`~1`) 그대로 |
 
 ## 변경 요청
 
@@ -183,7 +183,7 @@
 
 ## 통합 단계
 
-1차 통합(계약 7.7 순서 CORE → INK → EDITOR·LIBRARY 병합 뒤, 통합 브랜치 `claude/note-app-planning-bk29xb`, 기준 1582ec2). PDF·SYNC·INFRA는 아직 동시 개발 중이라 이 브랜치의 `pdf_io`·`sync_engine`·`app`은 기반 단계 자리표시다(단 `app`의 기반 라우터는 이미 실제 `LibraryScreen`을 띄운다). LIBRARY `lib/`는 바꾸지 않았다 — L21 테스트 파일, 계획서 8 L21 행·11절 리스크 행, 이 기록만.
+1차 통합(계약 7.7 순서 CORE → INK → EDITOR·LIBRARY 병합 뒤, 통합 브랜치 `claude/note-app-planning-bk29xb`, 기준 1582ec2, 통합 커밋 aabcabe). PDF·SYNC·INFRA는 아직 동시 개발 중이라 이 브랜치의 `pdf_io`·`sync_engine`·`app`은 기반 단계 자리표시다(단 `app`의 기반 라우터는 이미 실제 `LibraryScreen`을 띄운다). LIBRARY `lib/`는 바꾸지 않았다 — L21 테스트 파일, 계획서 8 L21 행·11절 리스크 행, 이 기록만.
 
 ### L21 — `integration/core_contract_test.dart`를 실제 CORE로 (계약 7.7 5단계)
 
