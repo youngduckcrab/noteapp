@@ -7,6 +7,7 @@
 // `bash -n`.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -15,6 +16,7 @@ import 'package:yaml/yaml.dart';
 
 import '../src/build_info_file.dart';
 import '../src/cli.dart';
+import '../src/workspace.dart';
 import 'support/fixture_workspace.dart';
 
 /// Action versions pinned in 01-infra 7.3.
@@ -68,6 +70,7 @@ const _webBuild =
     'flutter build web --release --no-wasm-dry-run $_defineFile $_buildNumber';
 const _apkBuild =
     'flutter build apk --release --split-per-abi $_buildNumber $_defineFile';
+const _inkLabDir = 'packages/ink_engine/example';
 
 final _workflowsDir = p.join(repoRoot, '.github', 'workflows');
 
@@ -336,14 +339,19 @@ void main() {
           for (final line in _commands(step)) {
             if (!line.startsWith('flutter build ')) continue;
             count++;
+            final dir = '${step['working-directory']}';
+            // The app, and the ink lab of web-experiment (INFRA-O1).
+            expect(dir, isIn(['app', _inkLabDir]), reason: name);
+            final defineFile =
+                '--dart-define-from-file='
+                '${p.posix.relative('build/build_info.json', from: dir)}';
             expect(line, contains(' --release'), reason: name);
-            expect(line, contains(' $_defineFile'), reason: name);
+            expect(line, contains(' $defineFile'), reason: name);
             expect(line, contains(' $_buildNumber'), reason: name);
-            expect(step['working-directory'], 'app', reason: name);
           }
         }
       }
-      expect(count, 4);
+      expect(count, 5);
     });
 
     test('every `ws` call parses with the real ws arguments', () async {
@@ -808,15 +816,67 @@ void main() {
       steps = _steps(_jobs(experiment).values.single);
     });
 
-    test('manual only, inputs wasm (on) and isolate (off)', () {
+    test('manual only, inputs wasm (on), isolate (off) and target', () {
       final on = experiment['on'] as YamlMap;
       expect(on.keys, ['workflow_dispatch']);
       final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
-      expect(inputs.keys, unorderedEquals(['wasm', 'isolate']));
+      expect(inputs.keys, unorderedEquals(['wasm', 'isolate', 'target']));
       expect((inputs['wasm'] as YamlMap)['type'], 'boolean');
       expect((inputs['wasm'] as YamlMap)['default'], isTrue);
       expect((inputs['isolate'] as YamlMap)['type'], 'boolean');
       expect((inputs['isolate'] as YamlMap)['default'], isFalse);
+      // INFRA-O1: the app or the ink lab, the app by default.
+      final target = inputs['target'] as YamlMap;
+      expect(target['type'], 'choice');
+      expect(target['options'], ['app', 'ink_lab']);
+      expect(target['default'], 'app');
+      expect(
+        (experiment['concurrency'] as YamlMap)['group'],
+        r'web-experiment-${{ inputs.target }}',
+      );
+    });
+
+    test('target ink_lab builds the ink lab member and serves it from the '
+        'Hosting public directory; the app steps are skipped', () {
+      // The ink lab is a workspace member (root pubspec, INFRA-O1).
+      expect(Workspace.load(repoRoot).memberNamed('ink_lab')?.path, _inkLabDir);
+      const app = "inputs.target == 'app'";
+      const inkLab = "inputs.target == 'ink_lab'";
+      final appBuild = _named(steps, 'Web build');
+      final finalize = _named(steps, 'Finalize web build');
+      final labBuild = _named(steps, 'Web build (ink lab)');
+      final copy = _named(steps, 'Ink lab to the hosting directory');
+      final deploy = _named(steps, 'Deploy to Firebase Hosting');
+      expect(appBuild['if'], app);
+      expect(finalize['if'], app);
+      expect(labBuild['if'], inkLab);
+      expect(copy['if'], inkLab);
+      expect(labBuild['working-directory'], _inkLabDir);
+      expect(labBuild['env'], appBuild['env']);
+      // The same flag lines as the app build.
+      expect(
+        _runLines(labBuild).where((l) => l.startsWith('if ')),
+        _runLines(appBuild).where((l) => l.startsWith('if ')),
+      );
+      expect(_runLines(copy), [
+        'rm -rf app/build/web',
+        'mkdir -p app/build',
+        'cp -R $_inkLabDir/build/web app/build/web',
+      ]);
+      // app/firebase.json serves build/web (entryPoint app).
+      expect(
+        ((jsonDecode(
+              File(p.join(repoRoot, 'app', 'firebase.json')).readAsStringSync(),
+            ) as Map)['hosting']
+            as Map)['public'],
+        'build/web',
+      );
+      expect(_with(deploy)['entryPoint'], 'app');
+      for (final step in [labBuild, copy]) {
+        expect(steps.indexOf(step), greaterThan(steps.indexOf(appBuild)));
+        expect(steps.indexOf(step), lessThan(steps.indexOf(deploy)));
+      }
+      expect(steps.indexOf(labBuild), lessThan(steps.indexOf(copy)));
     });
 
     test('experiment build: --wasm, isolation with self-hosted CanvasKit', () {
@@ -857,11 +917,20 @@ void main() {
       ]);
       expect(_commands(_named(steps, 'Finalize web build')), [_finalize]);
       final deploy = _named(steps, 'Deploy to Firebase Hosting');
-      expect(_with(deploy)['channelId'], 'exp-wasm');
+      // exp-wasm for the app, exp-ink-lab for the ink lab (job env).
+      expect(_with(deploy)['channelId'], r'${{ env.CHANNEL_ID }}');
+      expect(
+        (_jobs(experiment).values.single['env'] as YamlMap)['CHANNEL_ID'],
+        r"${{ inputs.target == 'ink_lab' && 'exp-ink-lab' || 'exp-wasm' }}",
+      );
       expect(
         deploy['if'],
         "env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != ''",
       );
+      final summary = _named(steps, 'Summary');
+      expect((summary['env'] as YamlMap)['TARGET'], r'${{ inputs.target }}');
+      expect('${summary['run']}', contains(r'target=$TARGET'));
+      expect('${summary['run']}', contains(r'$CHANNEL_ID'));
     });
   });
 

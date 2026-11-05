@@ -74,7 +74,8 @@ dev_dependencies:
     );
   });
 
-  test('the real workspace lists the 7 members of contract 7.1', () {
+  test('the real workspace lists the 7 members of contract 7.1 and the '
+      'ink lab (7.1 optional row, INFRA-O1)', () {
     final ws = Workspace.load(repoRoot);
     expect(ws.topologicalOrder().map((m) => m.name), [
       'note_core',
@@ -84,8 +85,10 @@ dev_dependencies:
       'pdf_io',
       'noteapp',
       'sync_engine',
+      'ink_lab',
     ]);
     expect(ws.memberNamed('noteapp')!.path, 'app');
+    expect(ws.memberNamed('ink_lab')!.path, 'packages/ink_engine/example');
   });
 
   test('ws list prints name and path in topological order', () async {

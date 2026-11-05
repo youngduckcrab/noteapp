@@ -26,7 +26,7 @@ void main() {
     for (final m in affectedMembers(workspace, paths, triggers)) m.name,
   ];
 
-  test('note_core change: note_core, its five dependents and the app', () {
+  test('note_core change: note_core, its five dependents and the two apps', () {
     expect(affected(['packages/note_core/lib/x.dart']), [
       'note_core',
       'ink_engine',
@@ -35,6 +35,7 @@ void main() {
       'pdf_io',
       'noteapp',
       'sync_engine',
+      'ink_lab',
     ]);
   });
 
@@ -45,13 +46,32 @@ void main() {
     ]);
   });
 
-  test('ink_engine change reaches editor, pdf and app, not library', () {
+  test('ink_engine change reaches editor, pdf, app and ink lab, not '
+      'library', () {
     expect(affected(['packages/ink_engine/test/a_test.dart']), [
       'ink_engine',
       'feature_editor',
       'pdf_io',
       'noteapp',
+      'ink_lab',
     ]);
+  });
+
+  test('a file of the nested ink lab affects only the ink lab, not '
+      'ink_engine (innermost member)', () {
+    expect(affected(['packages/ink_engine/example/lib/main.dart']), [
+      'ink_lab',
+    ]);
+    expect(affected(['packages/ink_engine/example/pubspec.yaml']), ['ink_lab']);
+    expect(
+      memberOfPath(workspace, 'packages/ink_engine/lib/a.dart')!.name,
+      'ink_engine',
+    );
+    expect(
+      memberOfPath(workspace, 'packages/ink_engine/example')!.name,
+      'ink_lab',
+    );
+    expect(memberOfPath(workspace, 'packages/ink_engine_x/a.dart'), isNull);
   });
 
   test('sync_engine change: only sync_engine (the app does not use it)', () {

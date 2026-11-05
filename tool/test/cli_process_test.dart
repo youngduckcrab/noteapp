@@ -32,6 +32,7 @@ void main() {
       'pdf_io',
       'noteapp',
       'sync_engine',
+      'ink_lab',
     ]);
   });
 
@@ -44,6 +45,7 @@ void main() {
       '--root',
       fixture.root,
       'check',
+      '--no-exports',
       '--rules',
       realRulesPath,
     ]);

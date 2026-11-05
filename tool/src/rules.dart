@@ -1,8 +1,9 @@
 /// `ws check` rules (docs/plans/01-infra.md 6.2, contract 00-overview 7.4.2).
 ///
 /// [checkWorkspace] runs the static rules R1–R10, R12, R13 and R15; the
-/// format rule R11 runs `dart format` and lives in [checkFormat]. R14 (export
-/// name overlap) comes with the integration step G3.
+/// format rule R11 runs `dart format` and lives in [checkFormat]; the export
+/// name rule R14 (integration step G3) resolves the entry points in a
+/// separate process and lives in `export_names.dart` (`checkExports`).
 library;
 
 import 'dart:io';
@@ -20,7 +21,8 @@ import 'workspace.dart';
 
 export 'rule_violation.dart';
 
-/// The rules `checkWorkspace` runs in this version of the tool.
+/// The rules `ws check` runs in this version of the tool (R11 and R14 can be
+/// skipped with `--no-format` / `--no-exports`).
 const List<String> implementedRules = [
   'R1',
   'R2',
@@ -35,6 +37,7 @@ const List<String> implementedRules = [
   'R11',
   'R12',
   'R13',
+  'R14',
   'R15',
 ];
 
@@ -52,6 +55,7 @@ final class RulesFormatException implements Exception {
 final class WorkspaceRules {
   const WorkspaceRules({
     required this.allowedDependencies,
+    this.appMembers = const [],
     required this.pureDartMembers,
     required this.pinnedExternal,
     required this.forbiddenImportsLib,
@@ -125,6 +129,7 @@ final class WorkspaceRules {
 
     return WorkspaceRules(
       allowedDependencies: Map.unmodifiable(allowed),
+      appMembers: strings(yaml['app_members'], 'app_members'),
       pureDartMembers: strings(yaml['pure_dart_members'], 'pure_dart_members'),
       pinnedExternal: Map.unmodifiable(pinned),
       forbiddenImportsLib: strings(
@@ -159,6 +164,10 @@ final class WorkspaceRules {
 
   /// R8: allowed workspace sibling dependencies per member name.
   final Map<String, List<String>> allowedDependencies;
+
+  /// R14: app members (`noteapp`, `ink_lab`) — their `lib/` files are not
+  /// public entry points, so the export name check skips them.
+  final List<String> appMembers;
 
   /// R2: members that must stay pure Dart.
   final List<String> pureDartMembers;

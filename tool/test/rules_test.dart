@@ -1,5 +1,5 @@
-// ws check rules R1–R13 (R15 lives in test_tags_test.dart, R14 comes with
-// G3). docs/plans/01-infra.md 6.2 and 9.1.
+// ws check rules R1–R13 (R15 lives in test_tags_test.dart, R14 in
+// export_names_test.dart). docs/plans/01-infra.md 6.2 and 9.1.
 
 import 'dart:io';
 
@@ -15,7 +15,8 @@ import 'support/fake_processes.dart';
 import 'support/fixture_workspace.dart';
 
 /// Contract 00-overview 7.5 (v1.3) external packages — the snapshot that
-/// `pinned_external` must equal (analyzer is added only at G3 with R14).
+/// `pinned_external` must equal (every row; the root dev `analyzer` since
+/// the integration step G3 with R14).
 const _contract75 = <String, String>{
   'flutter_riverpod': '3.4.3',
   'riverpod': '3.4.3',
@@ -52,6 +53,7 @@ const _contract75 = <String, String>{
   'args': '2.7.0',
   'path': '1.9.1',
   'image': '4.12.0',
+  'analyzer': '13.3.0',
 };
 
 void main() {
@@ -79,7 +81,7 @@ void main() {
   group('rules file', () {
     test('pinned_external equals the contract 7.5 table', () {
       expect(rules.pinnedExternal, _contract75);
-      expect(rules.pinnedExternal.length, 35);
+      expect(rules.pinnedExternal.length, 36);
     });
 
     test(
@@ -99,13 +101,18 @@ void main() {
             'feature_library',
             'pdf_io',
           ],
+          'ink_lab': ['note_core', 'ink_engine'],
         });
       },
     );
 
     test('keeps the data of the later rules (4.3 full format)', () {
       expect(rules.pureDartMembers, ['note_core']);
-      expect(rules.libExceptions, ['packages/note_core/lib/testing_vm.dart']);
+      expect(rules.libExceptions, [
+        'packages/note_core/lib/testing_vm.dart',
+        'packages/ink_engine/example/lib/',
+      ]);
+      expect(rules.appMembers, ['noteapp', 'ink_lab']);
       expect(rules.testOnlyEntrypoints, ['testing.dart', 'testing_vm.dart']);
       expect(rules.forbiddenImportsLibAndTest, [
         'package:flutter/material.dart',
@@ -485,7 +492,7 @@ $deps''';
       Future<(int, String)> run(List<String> extra) async {
         final out = StringBuffer();
         final code = await runWs(
-          ['check', '--rules', realRulesPath, ...extra],
+          ['check', '--rules', realRulesPath, '--no-exports', ...extra],
           context: WsContext(
             root: fixture!.root,
             out: out,
@@ -949,6 +956,7 @@ assets:
       'check',
       '--rules',
       realRulesPath,
+      '--no-exports',
     ], context: WsContext(root: fixture!.root, out: out, err: StringBuffer()));
     expect(code, 1);
     expect(

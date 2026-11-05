@@ -1,7 +1,7 @@
 # Data for `dart run tool/ws.dart check` (INFRA, docs/plans/01-infra.md 4.3 and
-# 6.2, contract 00-overview 7.1 / 7.4.2 / 7.5). Rules checked: R1-R13 and R15
-# (R1-R3, R7-R9 and R15 since the foundation step B1, the others since I1).
-# R14 comes with the integration step G3.
+# 6.2, contract 00-overview 7.1 / 7.4.2 / 7.5). Rules checked: R1-R15
+# (R1-R3, R7-R9 and R15 since the foundation step B1, R4-R6 and R10-R13 since
+# I1, R14 since the integration step G3).
 
 allowed_dependencies:          # workspace sibling edges (R8) = 00-overview 7.1
   note_core: []
@@ -13,6 +13,10 @@ allowed_dependencies:          # workspace sibling edges (R8) = 00-overview 7.1
   # 7.1: the app may use every package, but this scope's app does NOT depend on
   # sync_engine. The sync_engine edge is added together with app/pubspec.yaml at M4.
   noteapp: [note_core, ink_engine, feature_editor, feature_library, pdf_io]
+  # 7.1 optional row: the ink lab app packages/ink_engine/example (INFRA-O1).
+  ink_lab: [note_core, ink_engine]
+
+app_members: [noteapp, ink_lab]  # R14: apps — their lib/ is not a public entry point
 
 pure_dart_members: [note_core]  # R2: no `sdk: flutter` deps, no package:flutter/ imports
 
@@ -52,7 +56,7 @@ pinned_external:               # R9: must be identical wherever declared = 00-ov
   args: 2.7.0
   path: 1.9.1
   image: 4.12.0
-  # analyzer: 13.3.0         # added at integration step G3 together with R14
+  analyzer: 13.3.0             # root dev (tool/), R14 — integration step G3
 
 forbidden_imports:
   lib: [dart:io, dart:ffi, dart:html, dart:js, dart:js_util, package:js/]
@@ -71,7 +75,7 @@ test_only_entrypoints: [testing.dart, testing_vm.dart]
 
 lib_exceptions:                # R4 exceptions (00-overview 7.4.2); a trailing '/' = whole directory
   - packages/note_core/lib/testing_vm.dart   # VM test helper (dart:ffi, drift native); imported from test/ only
-  # - packages/ink_engine/example/lib/       # added only if the ink lab becomes a member (1.3, INFRA-O1)
+  - packages/ink_engine/example/lib/         # ink lab app (1.3, INFRA-O1): lib/ uses the testing.dart fakes
 
 web_only_imports: [dart:js_interop, dart:js_interop_unsafe, package:web/]
 native_suffixes: [_io.dart, _native.dart]

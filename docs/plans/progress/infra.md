@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 5 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7, 세션 3: I8·I10·I10b, 세션 4: I9·I11·I12, 세션 5: I13·I14·I15
-- 다음 할 일: **동시 개발 단계 몫(I1–I15, I10b) 전부 완료.** 남은 것은 통합 단계 G1–G5(계획서 8.3) — 총괄의 통합 순서(계약 7.7)를 기다린다. 다음 세션이 열리면 `git status`·`ws check`·테스트만 다시 확인하고, 통합 전에 할 수 있는 일(아래 '다음 세션 메모'의 G 단계 준비)만 한다.
+- 마지막 세션: 통합 단계 1/2(G1·G3·INFRA-O1·도구 정리) — 동시 개발 단계 세션 1–5(I1–I15, I10b) 완료 뒤. 아래 '## 통합 단계'
+- 다음 할 일: 통합 단계 2/2 — G2(실제 모듈 연결·V5·V6 스모크), G4(최종 확인), G5(푸시·CI·미리보기 배포 — 총괄)
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -28,7 +28,9 @@
 | I13 | 완료 | af088b2 | `tool/test/workflows_test.dart`(42건: 워크플로 4개·이슈 템플릿 2개 존재·파싱, 잡별 `timeout-minutes`(25·30·25·45)·`permissions: contents: read`, 액션 버전 = 7.3 고정표, flutter-action `flutter-version-file: pubspec.yaml`·`cache: true`, `pub get --enforce-lockfile`만, `if`에 `secrets.` 없음, `steps.<id>`는 앞 단계만, 빌드 훅 캐시 3곳 같은 키, `flutter build` 4곳 `--release`·빌드 정보·실행 번호·`app/`, **워크플로의 `ws` 호출 19개를 실제 `ws` 인자 해석기로 `--help` 파싱**, `build-info` 채널 값, 배포 2곳 시크릿·변수 게이트·`firebaseToolsVersion: 15.34.2`·`disableComment`·repoToken 없음, **`run` 스크립트 전부 `bash -n`**; ci: 트리거·입력 2개·동시성·잡 env·6.13 1–17단계 순서와 명령·`fetch-depth: 0`·캐시 2종 키·준비 산출물 경로(앱 `.gitignore`와 대조)·main `check --strict`/브랜치 `--affected-since origin/main`·통합 단계 `inputs.integration`·채널·배포 `if`·요약·단계 시간 기록; android: main 푸시·Java 17·단계 순서·APK 아티팩트 7일·압축 0; web-experiment: 입력 2개·`--wasm`·격리(`hosting-config --isolate`·`--no-web-resources-cdn`)·`exp-wasm`; ios: 수동·변수 게이트·시크릿 4개·`ExportOptions.plist`·`CFBundleDisplayName`; 이슈 양식 입력 8개·필수 5개). 실제 GitHub 실행은 하지 않음(G5) |
 | I14 | 완료 | 819ce39 | `tool/test/guides_test.dart`(21건: 3.7의 7개 파일만 있음, 상대 링크 대상 존재(안내서 7개 + 루트 README, 링크 검사 자체 확인), README 순서 01 → 02 → 04 → 03·05·06과 루트 README의 안내서 링크, 01–06 공통 형식(맨 위 '소요 시간'·'끝나면 Claude에게 알려줄 것', `##` 첫 제목 '준비물'·'확인 방법'·마지막 '문제 해결', '스크린샷을 보내 주세요', 합니다체·한다체 문장 끝 없음), 01 M4 위치 권장(`asia-northeast3`·`us-central1`·바꿀 수 없음·미확인)·`authDomain`·승인된 도메인, 02 `ci.yml`이 읽는 Secret·Variable 이름·워크플로 이름·요약의 'Firebase 미설정' 문장 글자 그대로·역할 4개·조직 정책, 03 Blaze 때만·요금을 멈추지 않음·50/90/100%·릴리스 10개, 04 미리보기 데이터 분리·임시·테스트 전용·홈 화면 앱 권장·백업 두 버튼과 대안·**인용한 화면 문구 22개 = `AppStrings` 값**·배너 문장·로더 문구 = `index.html`·백업 파일 이름 = `backupFileName`·9.3 체크리스트 1–17·18a·18b·19·20, 05 워크플로 이름·아티팩트 이름·APK 파일 이름·보관 일수 = `android.yml`, 06 초안 표시·워크플로 이름·Secret 4개·게이트 변수 = `ios-testflight.yml`) |
 | I15 | 완료 | abe97df | 8.2 전체(9.1 표의 테스트 파일 전부 있음 — `export_names_test`만 G3) + `ws check` 0·`ws check --strict` 0 · `ws analyze` 0 · `dart test tool/test` 265 통과 · `ws test` 7개 멤버 통과(noteapp 259 통과·1 건너뜀 = `integration/app_smoke_test`) · `ws test --platform chrome` 4개 멤버 통과(noteapp 준비 ok·11 통과·1 건너뜀 = `app_smoke_browser_test`) · `dart format` 352개 변경 없음 · `ws build-info --channel preview` → `cd app && flutter build web --release --dart-define-from-file=../build/build_info.json`(wasm dry run 성공, 1분 37초) → `ws finalize-web` ok(`main.dart.js` 2,747,922 B · gzip 814,454 B)·`ws web-assets verify` 0·`ws hosting-config` 0. 계획서 6.13 '실측 항목' 표에 로컬 측정값을 적었다(GitHub 실측은 G5) |
-| G1–G5 | 통합 단계 | | 계획서 8.3 (G3의 R14·`analyzer` 추가 포함) |
+| G1 | 완료 | (통합 1/2 커밋) | `flutter pub get --enforce-lockfile`, `ws check --strict` 0. lock은 ink lab 등록·`analyzer` 직접 의존과 함께 한 번만 재생성(해석 버전 변화 없음) |
+| G3 | 완료 | (통합 1/2 커밋) | `tool/test/export_names_test.dart`, `ws check`(R1–R15) 0 |
+| G2·G4·G5 | 통합 단계 2/2 | | 계획서 8.3 |
 
 ## 변경 요청
 
@@ -118,3 +120,30 @@
 - (세션 5) 세션 5 끝 상태: `ws check`(R1–R13·R15)·`--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart test tool/test` 265건, `ws test` 7개 멤버 통과, `ws test --platform chrome` 4개 멤버 통과, `flutter build web --release` → `finalize-web` ok.
 - (세션 5) 통합 단계 G 준비 메모: G1 `pubspec.lock` 재생성 뒤 `ci.yml`의 캐시 키(`hashFiles('pubspec.lock')`)가 바뀌어 첫 실행은 캐시가 빗나간다(정상). G2 스모크 뼈대 두 파일(세션 4 메모)과 `ci.yml` 10단계(`workflow_dispatch`의 `integration` 입력)로 통합 태그 테스트를 GitHub에서도 돌릴 수 있다. G5에서 확인할 것(9.2): 러너 Chrome(없으면 `browser-actions/setup-chrome`), 두 번째 실행의 캐시 적중, 요약의 주소·단계 시간 표, `android.yml` 아티팩트 경로, 배포 뒤 `curl -I …/sqlite3.wasm`. 워크플로에 actionlint를 돌려 본 적은 없다(컨테이너에 없음) — G5 첫 푸시에서 GitHub가 YAML 오류를 보이면 고친다.
 - (세션 5) 6.14 안드로이드 release 서명(키스토어 시크릿 4개 → `key.properties`, `build.gradle.kts`가 있을 때만 사용)은 태블릿 보유 확인 뒤 할 일로 남겼다(동시 개발 몫 아님).
+
+## 통합 단계
+
+통합 브랜치 `claude/note-app-planning-bk29xb`, 7개 영역 병합(efc5511) 뒤. 이번 몫(1/2): 8.3의 G1·G3, ink lab 등록(INFRA-O1), Chrome 실행 안정화, `android.yml` 개발 브랜치 푸시.
+
+### G1 — lock 정책 (6.1)
+
+- 병합 직후 `flutter pub get --enforce-lockfile` 통과, `ws check --strict` 0. 영역 진행 기록의 '의존성 요청'은 INK의 ink lab 항목(새 패키지·버전 없음)뿐 — `pinned_external` 값 변경 없음.
+- lock 재생성은 한 번(G3의 루트 dev `analyzer: 13.3.0` + ink lab 멤버 등록과 함께): 루트 `flutter pub get` → `pubspec.lock` 변경은 `analyzer`의 `dependency: transitive` → `"direct dev"` 한 줄뿐(해석 버전 전부 그대로). 이때 pub이 ink lab의 옛 단독 해석 파일(`example/pubspec.lock`, `example/.dart_tool/package_config.json`)을 지웠고, 남은 `example/.dart_tool/`도 지웠다(무시 파일).
+- 이 커밋 뒤 `ci.yml` 캐시 키(`hashFiles('pubspec.lock')`)가 바뀌어 첫 CI 실행은 캐시가 빗나간다(정상).
+
+### ink lab 등록 (INFRA-O1, INK T23 변경 요청)
+
+- 루트 `pubspec.yaml` `workspace:`에 `packages/ink_engine/example`(멤버 이름 `ink_lab`). `workspace_rules.yaml`: `allowed_dependencies: ink_lab: [note_core, ink_engine]`(계약 7.1 선택 행), `lib_exceptions: packages/ink_engine/example/lib/`(lib/이 `testing.dart` 가짜를 씀 — R4), 새 키 `app_members: [noteapp, ink_lab]`(R14가 비교하지 않는 앱 멤버).
+- INK 소유 `example/pubspec.yaml`·`example/.gitignore`는 INK 요청대로 INFRA가 고쳤다(progress/ink.md에 한 줄): `resolution: workspace`, `ink_engine`·`note_core: any`, `riverpod 3.4.3`·`material_ui 1.10.0`(7.5 고정값), `dependency_overrides` 삭제(R10), dev `flutter_lints` 삭제 — 워크스페이스에서는 루트 dev 의존이 `analysis_options.yaml`의 include를 해석하므로 다른 멤버처럼 필요 없다(계약 7.5 '쓰는 멤버'에 `ink_lab`이 생기는 것은 `riverpod`·`material_ui` 두 행뿐 — 총괄이 7.5 갱신).
+- `ws affected`: 중첩 멤버(`packages/ink_engine/example` ⊂ `packages/ink_engine`)의 파일은 가장 안쪽 멤버(`ink_lab`)에만 속하게 고쳤다(`memberOfPath` — 전에는 ink_engine과 그 의존 멤버 전체가 영향받음으로 나왔다). `affected_test` 경우 추가.
+- `web-experiment.yml`: 입력 `target`(choice `app`|`ink_lab`, 기본 `app`), 동시성 그룹 `web-experiment-<target>`, 채널은 잡 env `CHANNEL_ID`(`app` → `exp-wasm` 그대로, `ink_lab` → `exp-ink-lab` — 두 실험이 서로 덮어쓰지 않게). `ink_lab`이면 `packages/ink_engine/example`에서 같은 플래그로 `flutter build web` → 결과를 `app/build/web`(= `app/firebase.json`의 `public`)으로 복사 → 같은 배포 단계. ink lab에는 manifest·아이콘·웹 자산이 없어 `finalize-web`은 `app`일 때만.
+- 확인: `ws list` 8개 멤버, `ws check --strict` 0(R4 예외 동작), `ws test --package ink_lab` 스모크 1개 통과(VM). ink lab에는 `test/web/`가 없어 Chrome 실행에서는 '건너뜀'.
+
+### G3 — R14 (export 이름 교집합)
+
+- 루트 dev `analyzer: 13.3.0` + `pinned_external` 추가(계약 7.5 표 36행 전부 — `rules_test` 스냅숏 갱신).
+- 구현을 둘로 나눴다(계획서 6.2와 다른 점): `tool/src/export_names.dart`(analyzer 없음 — 진입점 찾기, 겹침 판정, 프로세스 약속)와 `tool/src/export_namespace.dart`(analyzer — `AnalysisContextCollection(includedPaths: 진입점)` → `getResolvedLibrary` → `exportNamespace.definedNames2`, setter 키 `name=` → `name`, private 제외), 실행 스크립트 `tool/export_names.dart --out <json> <진입점…>`. `ws check`는 이 스크립트를 별도 프로세스(`dart run`, 10분 제한)로 돌린다 — analyzer를 `ws`에 import하면 모든 `ws` 명령이 컴파일에 약 12초 더 걸렸다(측정: `dart run` 0.3초 → 13초).
+- 대상: `app_members`(noteapp·ink_lab)를 뺀 멤버의 `lib/*.dart` 최상위 파일 = 6개 패키지 진입점 15개. 같은 패키지 진입점끼리는 비교하지 않는다. 출력 `packages/<a>/lib/<e>.dart:1: [R14] <이름>: <a>/<e>.dart & <b>/<e>.dart`(다른 규칙과 같은 `경로:줄: [규칙]` 형식, 그 이름을 내보내는 진입점 전부). 진입점 자신의 단위에 오류가 있거나(예: 해석 안 되는 `export` URI — `pub get` 안 함) 라이브러리가 아니면 '해석 실패' → 스크립트 종료 3 → `ws check` 종료 3.
+- 결과: 진입점 15개(note_core 4·ink_engine 3·feature_editor 1·feature_library 1·pdf_io 2·sync_engine 4) 모두 해석, **겹치는 이름 0**. 이름 수: note_core.dart 198, pdf_io.dart 150, ink_engine.dart 85, sync_engine.dart 73, feature_editor.dart 26, feature_library.dart 11 등. 해석 약 43초(+ 스크립트 컴파일 13초) — `ws check` 전체 약 64초(load 5 안팎).
+- `ws check --no-exports`로 건너뜀(픽스처 작업 공간으로 다른 규칙을 보는 기존 테스트 5곳에 `--no-exports`를 더했다 — 픽스처에는 해석기 스크립트·package config가 없다).
+- `tool/test/export_names_test.dart` 13건: 픽스처 패키지 3개 + 앱(직접 쓴 `package_config.json`, pub get 없음) — 겹친 이름 1개만(`Shared`, 진입점 3개 나열), `show`/`hide`·private 반영, 같은 패키지 진입점끼리 비교 안 함, `exportOverlaps` 3개 패키지 정렬, 해석 실패(없는 패키지 export → 스크립트 종료 3 → `ws check` 종료 3, part 파일·없는 파일), 해석기 프로세스 문제(비정상 종료·시간 초과·JSON 아님·진입점 누락·스크립트 없음) → 환경 오류, `ws check`가 진입점 전부를 스크립트에 넘김, `--no-exports`면 프로세스 없음, 실제 스크립트 프로세스(종료 3·0, `process` 태그).

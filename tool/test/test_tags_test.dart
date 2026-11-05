@@ -361,6 +361,7 @@ void main() {
       final code = await runWs([
         'check',
         '--no-format',
+        '--no-exports',
         '--rules',
         realRulesPath,
       ], context: WsContext(root: fixture.root, out: out, err: StringBuffer()));
@@ -377,7 +378,7 @@ void main() {
           'packages/note_core/test/x_test.dart': "@Tags(['integration'])\n",
         });
         final code = await runWs(
-          ['check', '--no-format', '--rules', realRulesPath],
+          ['check', '--no-format', '--no-exports', '--rules', realRulesPath],
           context: WsContext(
             root: fixture.root,
             out: StringBuffer(),

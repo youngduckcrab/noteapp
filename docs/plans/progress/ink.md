@@ -208,3 +208,4 @@
 - INFRA G3 R14 정식 판정(위 미리 보기는 참고값), INFRA 병합 뒤 V5·V6 스모크(EDITOR 화면을 거쳐 INK 획 1개).
 - 10절 #7·9.3: EDITOR와 함께 웹 빌드에서 사용자 iPad 확인.
 - 의존성 요청: 위 2번(ink lab 등록 때만). 공개 API 변경 없음, `pubspec.lock` 변경 없음.
+- (INFRA 통합 1/2, INFRA-O1 처리) ink lab을 워크스페이스 멤버로 등록했다: 루트 `workspace:`에 `packages/ink_engine/example`, `allowed_dependencies: ink_lab: [note_core, ink_engine]`, `lib_exceptions: packages/ink_engine/example/lib/`, `app_members`(R14 제외), `web-experiment.yml` `target: app|ink_lab`(채널 `exp-ink-lab`). INK 요청대로 INFRA가 `example/pubspec.yaml`(`resolution: workspace`, 형제 `any`, `dependency_overrides`·dev `flutter_lints` 삭제 — 루트 dev가 analysis_options include를 해석)과 `example/.gitignore`(`pubspec.lock` 줄 삭제)를 고쳤다. `ws test --package ink_lab` 스모크 1개 통과. `example/README.md`의 'Not a workspace member yet' 문단은 INK가 고칠 몫.

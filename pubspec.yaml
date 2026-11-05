@@ -15,6 +15,9 @@ workspace:
   - packages/feature_library
   - packages/pdf_io
   - packages/sync_engine
+  # ink lab (03-ink T23, INFRA-O1): an app, not a public package — R14 skips
+  # it (tool/workspace_rules.yaml `app_members`).
+  - packages/ink_engine/example
 dev_dependencies:
   flutter_lints: 6.0.0
   yaml: 3.1.4
@@ -23,3 +26,6 @@ dev_dependencies:
   test: 1.31.1
   image: 4.12.0
   crypto: 3.0.8
+  # R14 export name check (tool/src/export_names.dart, integration step G3);
+  # the version test 1.31.1 already resolves (contract 7.5).
+  analyzer: 13.3.0

@@ -450,6 +450,9 @@ allowed_dependencies:          # workspace sibling edges (R8) = 00-overview 7.1
   # 7.1: the app may use every package, but this scope's app does NOT depend on
   # sync_engine. The sync_engine edge is added together with app/pubspec.yaml at M4.
   noteapp: [note_core, ink_engine, feature_editor, feature_library, pdf_io]
+  # 7.1 optional row: the ink lab app packages/ink_engine/example (INFRA-O1, 통합 단계에서 등록).
+  ink_lab: [note_core, ink_engine]
+app_members: [noteapp, ink_lab]  # R14: apps — their lib/ is not a public entry point (통합 단계 G3)
 pure_dart_members: [note_core]  # R2: no `sdk: flutter` deps, no package:flutter/ imports
 pinned_external:               # R9: must be identical wherever declared = 00-overview 7.5 (all rows)
   flutter_riverpod: 3.4.3
@@ -487,7 +490,7 @@ pinned_external:               # R9: must be identical wherever declared = 00-ov
   args: 2.7.0
   path: 1.9.1
   image: 4.12.0
-  # analyzer: 13.3.0         # added at integration step G3 together with R14
+  analyzer: 13.3.0             # root dev (tool/), R14 — integration step G3
 forbidden_imports:
   lib: [dart:io, dart:ffi, dart:html, dart:js, dart:js_util, package:js/]
   lib_and_test: [package:flutter/material.dart, package:flutter/cupertino.dart]
@@ -502,7 +505,7 @@ test_only_entrypoints: [testing.dart, testing_vm.dart]
   # a relative URI from any other lib/ file that resolves to lib/testing*.dart is a violation.
 lib_exceptions:                # R4 exceptions (00-overview 7.4.2); a trailing '/' = whole directory
   - packages/note_core/lib/testing_vm.dart   # VM test helper (dart:ffi, drift native); imported from test/ only
-  # - packages/ink_engine/example/lib/       # added only if the ink lab becomes a member (1.3, INFRA-O1)
+  - packages/ink_engine/example/lib/         # ink lab app (1.3, INFRA-O1): lib/ uses the testing.dart fakes
 web_only_imports: [dart:js_interop, dart:js_interop_unsafe, package:web/]
 native_suffixes: [_io.dart, _native.dart]
 web_suffixes: [_browser.dart]
@@ -2147,7 +2150,7 @@ lock 충돌 정책 (동시 개발, 계약 7.4.1):
 | R11 | `dart format --output=none --set-exit-if-changed <파일 목록>` — `app`·`packages`·`tool`의 `*.dart` 중 `generated_files`(`*.g.dart`, `*.freezed.dart`, `schema_versions.dart`)와 `tool/test/fixtures/` 아래 제외(drift 생성 코드는 `build_runner`가 자기 포매터로 쓴다, 픽스처는 일부러 포맷 안 된 파일을 담는다). **이 파일 집합이 'dart format 변경 없음'(G4·10절 7·계약 V2)의 대상이다**(R11 기준 — 생성 파일 제외) | 포맷 |
 | R12 | `web_assets.yaml` 파일이 `app/web/`에 있고 크기·sha256 일치 | 파일 |
 | R13 | `app/web/icons/*`, `favicon.png` PNG 크기가 파일명과 일치 (IHDR 읽기) | 파일 |
-| R14 | **통합 단계 G3부터**: 6개 패키지(`app` 제외) 공개 진입점(`lib/` 최상위 `*.dart` 전부)의 export 이름 교집합 = ∅ (같은 패키지 안의 진입점끼리는 비교하지 않음, 예외 목록 없음). 구현: 루트 dev `analyzer: 13.3.0`, `AnalysisContextCollection(includedPaths: 진입점)` → `getResolvedLibrary` → `ResolvedLibraryResult.element.exportNamespace.definedNames2`의 키를 패키지별로 모아 비교. 출력 `R14 <이름>: <pkgA>/<entry> & <pkgB>/<entry>` | Dart |
+| R14 | **통합 단계 G3부터**: 6개 패키지(`app` 제외) 공개 진입점(`lib/` 최상위 `*.dart` 전부)의 export 이름 교집합 = ∅ (같은 패키지 안의 진입점끼리는 비교하지 않음, 예외 목록 없음). 구현: 루트 dev `analyzer: 13.3.0`, `AnalysisContextCollection(includedPaths: 진입점)` → `getResolvedLibrary` → `ResolvedLibraryResult.element.exportNamespace.definedNames2`의 키를 패키지별로 모아 비교. 출력 `R14 <이름>: <pkgA>/<entry> & <pkgB>/<entry>`. **통합 단계 구현**(G3): 대상 = `app_members`(noteapp·ink_lab)를 뺀 멤버. analyzer 부분(`tool/src/export_namespace.dart`)은 별도 프로세스 `dart run tool/export_names.dart --out <json> <진입점…>`(10분 제한)에서만 돈다 — `ws`에 import하면 모든 `ws` 명령의 컴파일이 약 12초 늘어서. `ws`는 `tool/src/export_names.dart`(진입점·겹침 판정)만 쓴다. 출력은 다른 규칙과 같은 `경로:1: [R14] <이름>: <pkgA>/<entry> & <pkgB>/<entry>`, 진입점 자신에 오류가 있으면(해석 안 되는 `export` 등) 해석 실패 → 종료 3 | Dart |
 | R15 | **태그 선언**(계약 7.4.2·7.4.8 v1.2 C12-01 — **기반 단계 B1부터 위반 = 종료 코드 1**, 규칙 자체는 7.4.8 v1.1 C11-26): 멤버의 `test/**/*.dart`에서 쓰인 태그(`@Tags([...])`·`@Tags(<String>[...])`, `test(`/`testWidgets(`/`group(`의 `tags: '...'`·`tags: [...]` 문자열 리터럴)를 모아, ① 모두 그 멤버 `dart_test.yaml`의 `tags:` 아래에 선언돼 있어야 하고 ② `skip_by_default_tags`(`integration`, `perf`)는 그 선언에 `skip:`(문자열 사유 또는 `true`)이 있어야 한다. 태그를 하나도 안 쓰면 `dart_test.yaml`이 없어도 된다. 출력 `R15 <멤버>: tag 'integration' used in test/x_test.dart but dart_test.yaml does not skip it` | Dart, YAML |
 
 import 스캐너: 줄 시작이 `import`/`export`인 지시문을 `;`까지 이어 붙여 파싱(주석 줄·블록 주석 제외), 조건부 절(`if (dart.library.X) 'uri'`)을 분리 저장. 상대 URI는 파일 경로로 풀어 같은 멤버의 `lib/` 파일인지 판정한다(R4 ③). 생성 파일(`*.g.dart`)도 import 검사(R4–R7)는 한다.
@@ -2556,7 +2559,7 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 
 #### `web-experiment.yml` — 렌더러 실험 (수동)
 
-입력 `wasm: boolean = true`, `isolate: boolean = false`. `--wasm` 빌드(+ `isolate`면 `--no-web-resources-cdn`과 `hosting-config --isolate` 결과로 `app/firebase.json` 교체) → 채널 `exp-wasm`, 7일. `timeout-minutes: 25`. (INK ink lab이 멤버가 되면 입력 `target: app|ink_lab` 추가 — INFRA-O1)
+입력 `wasm: boolean = true`, `isolate: boolean = false`. `--wasm` 빌드(+ `isolate`면 `--no-web-resources-cdn`과 `hosting-config --isolate` 결과로 `app/firebase.json` 교체) → 채널 `exp-wasm`, 7일. `timeout-minutes: 25`. (INK ink lab이 멤버가 되면 입력 `target: app|ink_lab` 추가 — INFRA-O1. **통합 단계에서 추가**: `ink_lab`이면 `packages/ink_engine/example`에서 같은 플래그로 빌드 → `app/build/web`으로 복사 → 채널 `exp-ink-lab`(app은 `exp-wasm` 그대로), `finalize-web`은 app만)
 
 #### `ios-testflight.yml` — 초안 (비활성)
 

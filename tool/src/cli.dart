@@ -1,6 +1,7 @@
 /// Command line of `dart run tool/ws.dart` (docs/plans/01-infra.md 4.2).
 ///
-/// Commands: `list`, `check` (R1–R13, R15; R14 comes with G3), `analyze`,
+/// Commands: `list`, `check` (R1–R15; R14 since the integration step G3),
+/// `analyze`,
 /// `test` (vm / chrome, `--affected-since`), `affected`, `channel-id`,
 /// `build-info`, `finalize-web`, `web-assets verify|fetch` and
 /// `hosting-config`.
@@ -17,6 +18,7 @@ import 'package:path/path.dart' as p;
 import 'affected.dart';
 import 'build_info_file.dart';
 import 'channel_id.dart';
+import 'export_names.dart';
 import 'flutter_runner.dart';
 import 'hosting_config.dart';
 import 'rules.dart';
@@ -134,6 +136,9 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   } on HostingConfigException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on ExportNamesException catch (e) {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   }
@@ -256,8 +261,9 @@ final class _CheckCommand extends _WsCommand {
         'exports',
         defaultsTo: true,
         help:
-            'Run the export name rule R14 (integration step G3; not part of '
-            'this version, accepted so CI can pass --no-exports).',
+            'Run the export name rule R14 (resolves the package entry points '
+            'with package:analyzer in `dart run tool/export_names.dart`, '
+            'about a minute; exit code 3 when they cannot be resolved).',
       )
       ..addOption(
         'rules',
@@ -283,6 +289,7 @@ final class _CheckCommand extends _WsCommand {
         p.join(workspace.root, 'tool', 'workspace_rules.yaml');
     final rules = WorkspaceRules.load(rulesPath);
     final format = argResults!['format'] as bool;
+    final exports = argResults!['exports'] as bool;
     final results = [
       ...checkWorkspace(workspace, rules),
       if (format)
@@ -292,10 +299,17 @@ final class _CheckCommand extends _WsCommand {
           processes: ctx.processes,
           dart: ctx.resolvedExecutable,
         ),
+      if (exports)
+        ...await checkExports(
+          workspace,
+          rules,
+          processes: ctx.processes,
+          dart: ctx.resolvedExecutable,
+        ),
     ]..sort();
     final checked = [
       for (final rule in implementedRules)
-        if (format || rule != 'R11') rule,
+        if ((format || rule != 'R11') && (exports || rule != 'R14')) rule,
     ];
     final violations = [
       for (final r in results)

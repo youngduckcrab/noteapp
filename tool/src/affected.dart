@@ -29,7 +29,9 @@ bool isGlobalTrigger(String path, List<String> globalTriggers) =>
 ///   `analysis_options.yaml`, `tool/`, `.github/workflows/`) affects every
 ///   member;
 /// - a path inside a member directory affects that member and every member
-///   that depends on it, directly or not (main and dev dependencies);
+///   that depends on it, directly or not (main and dev dependencies). A path
+///   inside a member nested in another member (the ink lab
+///   `packages/ink_engine/example`) belongs to the innermost one only;
 /// - any other path (e.g. `docs/`) affects nothing.
 List<WorkspaceMember> affectedMembers(
   Workspace workspace,
@@ -43,11 +45,8 @@ List<WorkspaceMember> affectedMembers(
   }
   final names = workspace.memberNames;
   final affected = <String>{
-    for (final member in workspace.members)
-      if (paths.any(
-        (path) => path == member.path || path.startsWith('${member.path}/'),
-      ))
-        member.name,
+    for (final path in paths)
+      if (memberOfPath(workspace, path) case final member?) member.name,
   };
   // Members come after their dependencies, so one pass in topological order
   // reaches every transitive dependent.
@@ -60,6 +59,20 @@ List<WorkspaceMember> affectedMembers(
     for (final member in ordered)
       if (affected.contains(member.name)) member,
   ];
+}
+
+/// The member whose directory holds [path] (repo-relative, `/`): the one
+/// with the longest directory prefix, so a file of a nested member is not
+/// also a file of the outer member. `null` outside every member.
+WorkspaceMember? memberOfPath(Workspace workspace, String path) {
+  WorkspaceMember? best;
+  for (final member in workspace.members) {
+    final inside = path == member.path || path.startsWith('${member.path}/');
+    if (inside && (best == null || member.path.length > best.path.length)) {
+      best = member;
+    }
+  }
+  return best;
 }
 
 /// The paths changed since [ref], relative to [root]: committed changes since

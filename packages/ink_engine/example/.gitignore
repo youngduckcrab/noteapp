@@ -1,4 +1,1 @@
-# Standalone resolution until INFRA makes ink lab a workspace member; the
-# workspace pubspec.lock is the only lock file in git.
-pubspec.lock
 .metadata
