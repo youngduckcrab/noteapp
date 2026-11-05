@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 5 (동시 개발 단계)
-- 다음 할 일: T18 (성능 `test/perf/*`·README)
+- 다음 할 일: 동시 개발 단계 몫(T6~T19) 전부 완료. 남은 것은 통합 단계 판정(다른 영역의 `integration` 태그 테스트, 계약 7.7 5단계)과 iPad 확인(계획서 9.2)
 
 ## 작업 표
 
@@ -26,8 +26,8 @@
 | T14 | 완료 | 4f43deb | `test/sync/sync_store_test.dart`(outbox·readVersioned·세 결정·기기 로컬 필드·pendingLocalFields·origin·세션 N-7/영구 삭제·쓰기 Future 규칙), `field_lww_convergence_test.dart`, `version_invariant_test.dart`(500단계), `commit_repairs_test.dart`, `meta_kv_test.dart`, `reassign_owner_test.dart`, `duplicate_for_recovery_test.dart`, 도우미 `test/sync/support/sync_support.dart` |
 | T15 | 완료 | 8f001f9 | `test/migration/note_migrator_test.dart`(v0→v1 1회·outbox 바뀐 필드, 실패 시 롤백·재시도 없음, 단계 없음 `StateError`, `openSession` 이주 후 열기·실패 시 읽기 전용, 새 버전 노트 `ReadOnlyNoteException`·이주 안 함) |
 | T16 | 완료 | e430894 | `test/web/drift_web_persistence_test.dart`(쓰기→닫기→같은 이름 다시 열기: 백업 바이트·outbox·획 점·에셋 바이트·설정 동일, `deviceNodeId`·HLC 이어짐, backend 보고), `storage_info_browser_test.dart`(persist 요청·estimate 채움, 응답 없는 persist 상한, `refreshStorageInfo`), `delete_local_data_browser_test.dart`(삭제 후 빈 DB·새 노드, 열린 동안 `StateError`, 막히면 `TimeoutException`), `open_time_browser_test.dart`(perf), VM `test/storage/storage_query_test.dart`(fake_async: 1 s 상한·늦은 응답은 refresh가 읽음), `backup_export_browser_test.dart`에 실제 웹 저장소 그룹 추가 |
-| T17 | 완료 | (이 커밋) | 공유 본문 `test/shared/providers_contract.dart`(T5 본문을 옮김) → 가짜 `test/providers/providers_fake_test.dart`·실제 `test/providers/providers_real_test.dart`(+ `refreshStorageInfo` 뒤 invalidate 전 옛 값·뒤 새 값, 원격 획 `applyRemote` → `pageContentProvider` 갱신·히스토리 불변, 쓰기 없는 새 메모리 저장소의 `persistenceStatusProvider` 첫 값) |
-| T18 | 남음 | | `test/perf/*`(perf 태그), README |
+| T17 | 완료 | 13b5be9 | 공유 본문 `test/shared/providers_contract.dart`(T5 본문을 옮김) → 가짜 `test/providers/providers_fake_test.dart`·실제 `test/providers/providers_real_test.dart`(+ `refreshStorageInfo` 뒤 invalidate 전 옛 값·뒤 새 값, 원격 획 `applyRemote` → `pageContentProvider` 갱신·히스토리 불변, 쓰기 없는 새 메모리 저장소의 `persistenceStatusProvider` 첫 값) |
+| T18 | 완료 | (이 커밋) | `test/perf/`(`perf` 태그·`@TestOn('vm')`): `large_note_perf_test.dart`(10만 획 시드 기록·`openSession` < 200 ms), `page_perf_test.dart`(2,000획 `openPage` < 300 ms, 5,000획 페이지 `execute` 평균 < 2 ms), `commit_latency_perf_test.dart`(파일 DB 1획 커밋 중앙값 < 30 ms), `codec_perf_test.dart`(점 100만 개 < 300 ms), `listing_perf_test.dart`(폴더 200 + 노트 1,000 첫 값 < 100 ms), 도우미 `perf_support.dart`. README 사용 예 + `test/readme_examples_test.dart`(README 예제를 가짜·실제 저장소로 실행) |
 | T19 | 완료 | 2c2b1e2 | 공유 본문 `test/shared/backup_cases.dart` → 실제 `test/backup/backup_export_test.dart`, 가짜 `test/testing/fake_backup_export_test.dart`(같은 골든 바이트 `test/goldens/backup/backup_v1.json`, `golden` 태그), 브라우저 `test/web/backup_export_browser_test.dart`(가짜 저장소로 웹 생성·파싱) |
 
 순서(계획서 8.2 병렬화 메모): T6 → T7 → (T8, T9, T12, T13) → T10 → T11 → T14. T15·T16은 T6 이후 언제든, T19는 T14 이후, T17·T18은 끝 무렵.
@@ -106,10 +106,14 @@
 
 - T17: provider 테스트 본문을 `test/shared/providers_contract.dart`(`defineProviderContractTests(open)`, `readWhileListening(container, provider)`)로 옮겨 두 저장소에 돌린다. 공유 본문의 `syncPendingCountProvider` 기대값은 `pendingChanges().length`(가짜 0, 실제는 기본 프리셋 outbox 5). `storageInfoProvider` 갱신 테스트는 VM에 `navigator.storage`가 없어 `DriftNoteStore.open(storageQuery: 테스트 더블)`로 실제 저장소를 연다.
 
+- T18: 성능 예산은 VM에서 측정(다른 영역과 CPU 공유, 2026-11-05): 10만 획 시드 45.9~55.2 s(기록), `openSession` 5.2~5.7 ms, 2,000획 `openPage` 중앙값 58~88 ms, 5,000획 페이지 `execute` 평균 0.35~0.37 ms, 1획 커밋 중앙값 6.8~7.8 ms, 점 100만 개 디코드 60~90 ms, `watchListing` 첫 값 중앙값 17~20 ms — 모두 예산 안. 측정마다 워밍업을 두고 중앙값(또는 평균)으로 판정한다. 값은 README 표에도 있다.
+- T18: README의 예제 코드 블록은 `test/readme_examples_test.dart`가 같은 코드로 컴파일·실행한다(앱 셸은 VM이라 `inMemory`, 웹 경로 config는 `storageUnavailable` 분류 확인).
+
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
 
 ## 다음 세션 메모
 
+- 세션 5 끝 상태: T16·T17·T18 완료 → 동시 개발 단계 몫(T6~T19) 전부 완료. 검사: 패키지 VM 617개 통과(perf 파일 5개는 파일 단위 skip, `--run-skipped -t perf`로 6개 테스트 통과), Chrome 47개 통과(perf 1 skip, 따로 돌려 통과), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 - 세션 5: T16 완료. 브라우저 테스트 도우미 `test/web/web_store_support.dart` — `freshWebConfig(tag)`(테스트마다 새 DB·블롭 DB 이름), `dropAfterTest(config)`(닫은 뒤 삭제 — 저장소 close보다 **먼저** 등록), `closeAndDropAfterTest(store, config)`(그룹 tearDown보다 먼저 돌아야 할 때, 예: 공유 본문의 setUp에서 연 저장소), `openWebStoreWithNode(config, node)`(고정 HLC 노드 — 백업 골든 비교용). 브라우저에서 두 저장소를 동시에 열면 `driftRuntimeOptions.dontWarnAboutMultipleDatabases = true`.
 - 웹 자산 준비: 패키지 디렉터리에서 `dart run tool/prepare_web_test.dart`(ws가 먼저 실행). 헤드리스 Chrome은 `sharedIndexedDb`, `persist()` = false, 할당량 약 10 GiB.
 - 세션 4 끝 상태: T14·T19·T15 완료. 실제 저장소의 `SyncStore` 전부, `exportBackupJson`(실제·가짜), 노트 형식 이주가 동작한다 — 실제 저장소에 남은 `UnimplementedError` 없음. 검사: 패키지 VM 591개·Chrome 29개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
