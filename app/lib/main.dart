@@ -1,26 +1,16 @@
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
-/// Foundation step B1 entry point: a placeholder screen only.
+import 'src/bootstrap/foundation_bootstrap.dart';
+
+/// Foundation step B8 entry point: tries CORE openNoteStore and shows the
+/// minimal router with the placeholder screens, or a notice when the store
+/// cannot be opened (docs/plans/01-infra.md 8.1 B8-1).
 ///
-/// B8 connects the minimal router and the placeholder screens; I5 replaces
-/// this file with `runNoteApp()` (docs/plans/01-infra.md 8.1 / 8.2).
-void main() {
-  runApp(const NoteAppPlaceholder());
-}
-
-/// Placeholder root widget of the foundation step (material_ui only, R7).
-class NoteAppPlaceholder extends StatelessWidget {
-  const NoteAppPlaceholder({super.key});
-
-  /// Placeholder text shown until the app shell is connected (B8).
-  static const String message = '필기노트를 준비하고 있어요.';
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: '필기노트',
-      locale: Locale('ko'),
-      home: Scaffold(body: Center(child: Text(message))),
-    );
-  }
+/// I5 replaces the body with `runNoteApp()` (bootstrap, modules, error
+/// handling — 4.5.4, 6.4).
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy();
+  runApp(await buildFoundationRoot());
 }
