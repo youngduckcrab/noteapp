@@ -1,6 +1,6 @@
 # 동시 개발 영역 개요
 
-> 상태: 통합 계약 1차 확정 (총괄 관리자 검토 완료) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 검토 결과: [00-review.md](00-review.md)
+> 상태: **확정 — 개발 시작 가능** (통합 계약 v1.3, 4차 승인 검토 · 최종 승인 2026-11-05 — 7개 영역 계획서 01~07 모두 승인) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 검토 결과: [00-review.md](00-review.md) ('최종 승인' 절에 개발 중 주의할 점)
 
 ## 1. 목적
 
@@ -93,7 +93,7 @@ flowchart LR
 
 ## 7. 통합 계약
 
-> **계약 v1.0** (2026-11-04). 7개 영역 개발자가 동시에 따르는 단일 기준이다.
+> **계약 v1.3** (2026-11-05, 4차 승인 검토(최종) 반영 — 바뀐 곳은 [7.9 변경 이력](#79-계약-변경-이력), v1.3은 C13-01~05, v1.2는 C12-01~09). 7개 영역 개발자가 동시에 따르는 단일 기준이다. 개발 중 바꿀 때는 7.4.12 절차(v1.4~).
 > - 이 장과 각 계획서 4·5절이 다르면 **이 장이 우선**한다. 각 계획서 5절의 '가정한 시그니처'는 모두 폐기하고 이 장의 이름·형태를 쓴다.
 > - 코드 블록은 시그니처 계약이다(본문 생략). 여기서 "CORE 4.x 승인"이라고 적은 타입은 `02-core.md` 해당 절의 정의가 그대로 계약이며, 이 장에 적은 변경분이 그 위에 덮어쓴다.
 > - 근거와 영역별 수정 지시는 [00-review.md](00-review.md). 계약 변경 절차는 7.4.12.
@@ -488,10 +488,10 @@ final class UndoRedoResult { /* CORE 4.3: applied, edit, affectedPageIds */ }
 
 | # | 보장 |
 |---|---|
-| N-1 | `execute(command)`는 메모리 상태를 **동기적으로** 바꾸고, 그 안에서 `pageChanges`·`pagesStream`·`historyStream`·`noteStream` 이벤트를 **동기 broadcast 컨트롤러**로 전달한 뒤 반환한다. 반환 시점에 `pageIfLoaded`·`pages`·`history`는 새 상태다. 저장은 `receipt.persisted`로 비동기. |
-| N-2 | 명령은 호출 순서대로 적용된다(단일 스레드, 큐잉 없음). |
+| N-1 | `execute(command)`는 메모리 상태를 **동기적으로** 바꾸고, 그 안에서 `pageChanges`·`pagesStream`·`historyStream`·`noteStream` 이벤트를 **동기 broadcast 컨트롤러**로 전달한 뒤 반환한다. 반환 시점에 `pageIfLoaded`·`pages`·`history`는 새 상태다. 저장은 `receipt.persisted`로 비동기. `pagesStream`은 활성 페이지 목록 또는 그 안의 `Page` 값(로컬 `contentRevision` 포함)이 바뀔 때마다 내보낸다(v1.1 — 레이아웃만 필요한 쪽은 id·크기·배경으로 걸러 쓴다). |
+| N-2 | 명령은 호출 순서대로 적용된다(단일 스레드, 큐잉 없음). **재진입 금지**(v1.1): 세션 스트림 리스너 안에서 `execute()`를 부르면 `StateError`(동기 broadcast 전달 중에는 다시 전달할 수 없다). 리스너에서 명령이 필요하면 `scheduleMicrotask`로 미룬다. `executeAsync`·`undo`·`redo`는 첫 `await` 뒤에 적용된다. |
 | N-3 | 획 명령의 대상 페이지가 로드되지 않았으면 `PageNotOpenException`. 페이지 명령(`DuplicatePages` 등)은 `executeAsync`로 필요한 페이지를 먼저 연다. |
-| N-4 | `isReadOnly`(휴지통 노트·새 스키마 노트)이면 `execute`가 `ReadOnlyNoteException`. EDITOR는 읽기 전용 안내를 띄우고 도구를 끈다. |
+| N-4 | `isReadOnly`(휴지통 노트·새 스키마 노트)이면 `execute`·`executeAsync`·`undo`·`redo`가 `ReadOnlyNoteException`(v1.1: `undo`·`redo` 추가 — 읽기 전용 노트에 쓰기가 생기지 않는다). EDITOR는 읽기 전용 안내를 띄우고 도구를 끈다. |
 | N-5 | 한 노트의 세션은 하나이며 참조 계수로 공유된다(`NoteStore.openSession` 두 번 = 같은 인스턴스, `close()` 한 번 = 참조 1 감소). EDITOR는 `noteSessionProvider`, PDF는 `openSession`/`close`를 쓴다. |
 | N-6 | `openSession`은 `markOpened(noteId)`를 호출한다 → '최근' 기록의 유일한 주체는 CORE. LIBRARY·EDITOR는 따로 부르지 않는다. 없는 노트·영구 삭제된 노트는 `EntityNotFoundException`. |
 | N-7 | 원격 변경은 열린 세션의 로드된 페이지에 `PageContentChange(origin: remote)`로 들어온다. |
@@ -533,6 +533,13 @@ abstract interface class NoteContentReader {
 ```
 
 LIBRARY 5.1.1의 C-1~C-10은 CORE 동작 계약으로 승인한다(특히 C-3: `getFolder`/`getNote`는 휴지통 항목도 돌려줌, C-5: 복사 이름 200자 자르기). 설정 키 이름은 각 영역이 자기 패키지에 `<영역>.` 접두사로 선언한다(`editor.*`, `library.*`, `sync.*`는 메타 KV용이라 설정 키로 쓰지 않음).
+
+쓰기 `Future`의 완료 시점(v1.2 — CORE 4.5 머리말이 계약, 여기는 요약):
+
+- 저장소 변경 메서드(`LibraryRepository`·`TrashRepository`·`PenPresetRepository`·`SettingsRepository`의 쓰기, `createNote` 포함)는 **DB 커밋 뒤** 완료된다. 커밋이 실패하면 CORE `WriteQueue`가 무한 재시도(02-core 6.9: 100 ms → 400 ms → 1.6 s → 5 s 간격)하므로 그동안 **완료되지도, 오류로 끝나지도 않는다**. 원인은 `PersistenceStatus`·`storageWarningOf`(`writeFailing`)로만 보인다. `NoteStore.flush()`·`NoteSession.flush()`도 같다(앞에 쌓인 쓰기가 재시도 중이면 그 뒤).
+- 재시도 없이 오류로 끝나는 것: 인자 오류(`ArgumentError`)는 큐에 넣기 전에 바로, 현재 상태에 따른 오류(`FolderCycleException`·`EntityNotFoundException`)는 그 변경의 트랜잭션 안에서(앞에 쌓인 쓰기 뒤) 판정된다. 둘 다 아무것도 바꾸지 않는다.
+- (v1.3) 같은 규칙이 `SyncStore`의 쓰기(`acknowledge`·`applyRemote`·`commitRepairs`·`writeMeta`·`reassignOwner`·`duplicateNoteForRecovery`)와 `AssetStore.markUploaded`·`putDownloadedBytes`의 메타 커밋에도 적용된다. 이 경로에서 재시도 없이 오류로 끝나는 것은 인자·상태 오류, `applyRemote` 정책 예외(롤백 후 그대로 던짐), `putDownloadedBytes`의 해시 불일치·청크 쓰기 실패뿐이다(7.2.10·7.2.11 주석).
+- 소비하는 쪽은 저장 실패를 예외로 기대하지 않는다(대기가 끝나지 않을 수 있음). 기다리는 화면의 처리는 각 영역이 정한다: PDF 가져오기·내보내기 진행 창은 `writeFailing`이면 지연 문구 + 닫기·취소(06-pdf), EDITOR 뒤로가기는 '저장하는 중…'을 띄우고 계속 기다림(04-editor 6.17.4). 어느 경우든 메모리 상태와 쓰기 큐는 그대로 남아 계속 재시도된다.
 
 #### 7.2.10 변경 기록 · 동기화 창구 (note_core ↔ sync_engine)
 
@@ -579,6 +586,7 @@ sealed class MergeDecision { const MergeDecision(); }
 final class KeepLocal extends MergeDecision { const KeepLocal(); }
 final class TakeRemote extends MergeDecision {
   const TakeRemote({this.dropPendingLocal = true});   // writes remote entity + remote versions
+  /// (v1.3) A pending purge entry is deleted whatever dropPendingLocal says (the row exists again).
   final bool dropPendingLocal;
 }
 final class WriteMerged extends MergeDecision {
@@ -586,16 +594,24 @@ final class WriteMerged extends MergeDecision {
   final SyncEntity entity;            // its version must equal versions.max
   final EntityFieldVersions versions;
   /// The entity's outbox entry fields become EXACTLY this set (empty → entry deleted),
-  /// rev bumped, seq kept.
+  /// rev bumped, seq kept. (v1.3) A pending purge entry becomes an upsert entry of this set.
   final Set<String> fieldsToUpload;
 }
 /// SYNC provides the rule; CORE calls it inside the apply transaction.
+/// pendingLocalFields = changedFields of the entity's pending outbox entry, null if none.
+/// (v1.1) An entry with op == purge (row already gone, so local == null) passes {kAllFields}.
 typedef RemoteMergePolicy = MergeDecision Function(
     VersionedEntity? local, VersionedEntity remote, Set<String>? pendingLocalFields);
 
 final class RemoteApplyReport { /* CORE 4.6: taken, kept, merged, purged, affectedNoteIds */ }
 typedef RepairWrite = ({SyncEntity entity, Set<String> fields});
 
+/// (v1.3) Writes (acknowledge, applyRemote, commitRepairs, writeMeta, reassignOwner,
+/// duplicateNoteForRecovery) follow the write-Future rule of 7.2.9: they complete after the
+/// commit and stay pending (no error) while the write queue retries a failed commit. Only
+/// errors decided without retry complete with an error, and they change nothing:
+/// ArgumentError, state errors (StateError for a WriteMerged invariant, NoteCoreException),
+/// and a policy exception (applyRemote rolls back — metaUpdates included — and rethrows it).
 abstract interface class SyncStore {
   String get deviceNodeId;                   // 16 hex, HLC node of local writes
   OwnerId get ownerId;
@@ -610,33 +626,51 @@ abstract interface class SyncStore {
   /// publish ChangeBatch(origin: remote). Remote writes never enter undo history.
   /// Bumps the local Note.updatedAt of affected notes to max(current, applied updatedAt)
   /// without outbox. Purges the trash group for RemotePurge.
+  /// (v1.1) Device-local fields of the handed-over entities (TakeRemote: remote entity,
+  /// WriteMerged: merged entity — both decoded from JSON, so they hold defaults) are IGNORED:
+  ///   Note.lastOpenedAt              = current row value (new row: null)
+  ///   Note.pageCount / firstPageId   = recomputed
+  ///   Page.contentRevision           = current + 1 when the page row or its strokes were
+  ///                                    written (new row: 0)
+  ///   Asset.hasLocalBytes (+ CORE's local storage columns) = current row value
+  ///                                    (new row: whether the blob store holds the bytes)
   Future<RemoteApplyReport> applyRemote(List<RemoteChange> changes,
       {required RemoteMergePolicy policy, Map<String, String> metaUpdates = const {}});
   /// ONE transaction: stamp EXACTLY [fields] of each entity with one fresh local HLC (SYNC
   /// passes whole merge units), queue them in the outbox, publish ChangeBatch(origin: remote),
-  /// not added to undo history.
+  /// not added to undo history. (v1.1) Same device-local field rule as applyRemote: only
+  /// [fields] are taken from [RepairWrite.entity]; local-only values are kept / recomputed.
   Future<void> commitRepairs(List<RepairWrite> repairs);
   /// SYNC meta KV: keys start with 'sync.', values ≤ 256 KiB.
   Future<String?> readMeta(String key);
   Future<void> writeMeta(Map<String, String> updates);
   /// First login: every row with ownerId == from gets to; the store's ownerId switches at
   /// runtime and is persisted (next openNoteStore uses it). Existing outbox entries stay.
+  /// (v1.1) Publishes ChangeBatch(origin: remote) — no outbox change, so no push is scheduled.
   Future<void> reassignOwner({required OwnerId from, required OwnerId to});
   /// Copies a (possibly trashed) note with its active pages and strokes under new ids,
   /// active, same folder (or top level), title + suffix. null if the note row is gone.
+  /// (v1.1) New entities go to the outbox ('*') and ChangeBatch(origin: local) is published.
   Future<NoteId?> duplicateNoteForRecovery(NoteId noteId, {required String titleSuffix});
 }
 // Removed: readEntities, readCursor, applyRemote(cursorUpdates:), unversioned RemoteMergePolicy.
 
+/// CORE 4.8. (v1.1) Same hints as OutboxEntry: noteId ALWAYS set for page / stroke /
+/// recording (for kind == note use id), pageId ALWAYS for stroke.
+/// (v1.2) A remote orphan stroke (its page row not here yet) is listed in the batch of the
+/// commit that brings its page row (applyRemote, or commitRepairs creating the row), with
+/// noteId / pageId — not in the batch of its own commit.
 final class EntityChange { /* CORE 4.8 */ }
 final class ChangeBatch { /* CORE 4.8: origin, changes, committedAt */ }
 ```
 
 - 저장: 엔티티 행의 `version` 열 = `versions.max`, 새 `field_versions` JSON 열(덮어쓴 필드가 없으면 NULL = 전체가 `version`). 로컬 쓰기는 `changedFields`의 필드만 새 HLC로 찍는다(`*` = 전체 초기화).
 - outbox 병합 규칙(엔티티당 1건, seq 유지·rev 증가·필드 합집합·purge 우선), `(seq, rev)` ack, 커서·메타 원자 저장, 고아 허용, 로그인 전 쓰기도 모두 outbox — CORE 6.10 + SYNC 5.1.1 S-1~S-5 승인.
-- `markUploaded(id, storagePath)`는 outbox에 `{storagePath}`를 기록한다.
+- `markUploaded(id, storagePath)`는 outbox에 `{storagePath}`를 기록하고 `ChangeBatch(origin: local)`을 낸다(v1.1 — SYNC `localChanges`가 바로 보내기를 예약).
+- `ChangeBatch.origin` 정리(v1.1): 로컬 편집·저장소 명령·`markUploaded`·`duplicateNoteForRecovery` = `local`(되돌리기는 `undo`/`redo`), `applyRemote`·`commitRepairs`·`reassignOwner` = `remote`. SYNC는 `local`/`undo`/`redo`만 보내기 예약 트리거로 쓴다.
+- C-9(첫 페이지 내용이 바뀌면 노트 `updatedAt`이 오름)는 **로컬 편집**의 규칙이다. 원격 적용은 위 주석대로 `max(현재, 적용값)`이라 원격 획 변경 뒤에도 `Note.updatedAt`이 그대로일 수 있다. 원격 내용 변경을 알아야 하는 쪽(LIBRARY 표지 예약기 등)은 `NoteStore.changes`의 `ChangeBatch(origin: remote)`와 `EntityChange.noteId`를 본다(v1.1).
 - 충돌 판정: **필드 단위 LWW는 HLC**, 증분 동기화 커서는 서버 타임스탬프(SYNC D3). PLAN 7.4 '서버 시간 기준' 문구는 총괄이 PLAN 갱신 때 'HLC 기준(커서는 서버 시각)'으로 고친다.
-- 시계 오차 상한: CORE `HlcClock.receive`는 벽시계 + 24시간을 넘는 원격 값으로 시계를 올리지 않는다(유지). SYNC는 `HLC millis > 청크 serverTime + 24 h`인 기록을 **적용하지 않고 격리**하며(`clockSkew` 차단 문제), 자기 기기의 측정 오차가 24시간을 넘으면 업로드를 멈춘다. 2분~24시간 오차는 적용 + 경고.
+- 시계 오차 상한(v1.1 개정): CORE `HlcClock.receive`는 **받는 기기 벽시계** + 24시간을 넘는 원격 값으로 시계를 올리지 않는다(유지). 그래서 SYNC는 `HLC millis > min(청크 serverTime, 받는 기기 벽시계) + 24 h`인 기록을 **적용하지 않고 보류**하며(`clockSkew` 차단 문제, 해제 조건도 `min(serverNow, 벽시계) ≥ releaseAt`), 자기 기기의 측정 오차가 24시간을 넘으면 **업로드와 원격 적용(받기)을 모두** 멈춘다. 2분~24시간 오차는 적용 + 경고(`clockSkewWarning`).
 
 #### 7.2.11 에셋 · 썸네일 · 원격 에셋 (note_core)
 
@@ -644,6 +678,12 @@ final class ChangeBatch { /* CORE 4.8: origin, changes, committedAt */ }
 abstract interface class AssetStore {
   // ... CORE 4.7 (put, getAsset, readBytes, hasBytes, putDownloadedBytes, listAssets,
   //     markUploaded, usage) ...
+  /// (v1.2) put(): a failed byte-chunk write (blob store) completes the Future with that
+  /// error at once, no retry, no metadata row (orphan chunks only). The metadata commit
+  /// follows the write-Future rule of 7.2.9 (pending while the write queue retries).
+  /// (v1.3) putDownloadedBytes(): a hash mismatch (AssetHashMismatchException) or a failed
+  /// byte-chunk write completes with that error at once, no retry, metadata unchanged; its
+  /// metadata commit (hasLocalBytes) and markUploaded() follow the write-Future rule of 7.2.9.
   /// Emits the id after put() stored new bytes or putDownloadedBytes() succeeded.
   Stream<AssetId> get bytesArrived;
 }
@@ -699,20 +739,35 @@ enum StorageWarning { writeFailing, notDurable }
 /// else null. LIBRARY (library screen) and EDITOR (editor screen) show the same banner text.
 StorageWarning? storageWarningOf(StorageInfo info, PersistenceStatus status);
 
-final class WebStorageConfig { /* CORE 4.8: sqlite3.wasm, drift_worker.js, blob DB name */ }
+final class WebStorageConfig {
+  /* CORE 4.8: sqlite3.wasm, drift_worker.js, blob DB name.
+     (v1.1) Paths are resolved with Uri.base.resolve(path), so an absolute URL is used as is.
+     In production the app shell ALWAYS passes absolute URLs resolved against
+     document.baseURI (01-infra 6.4) — dart2js Uri.base is location.href, which breaks
+     relative paths on deep links such as /notes/<id>. Relative paths are for tests only. */
+}
 final class NoteStoreConfig {
   /* CORE 4.8. ownerId is used only when a new database is created; a persisted owner
      (after reassignOwner) wins. requestPersistentStorage: web persist() is called during
-     open and awaited at most 1 s; the result goes to StorageInfo.persistGranted. */
+     open and awaited at most 1 s; the result goes to StorageInfo.persistGranted.
+     (v1.1) inMemory: true reports StorageBackend.nativeMemory → isDurable == false →
+     storageWarningOf == notDurable, i.e. the storage banner shows (tests expect it). */
 }
 
 abstract interface class NoteStore {
   // ... CORE 4.8 (ownerId, library, trash, penPresets, settings, content, assets,
-  //     thumbnails, sync, changes, persistenceStatus(+Stream), storageInfo, openSession,
+  //     thumbnails, sync, changes, persistenceStatus, storageInfo, openSession,
   //     flush, close) ...
+  /// (v1.1) Emits the current persistenceStatus ONCE right after each listen, then on every
+  /// change (same rule as the watch streams, LIBRARY C-1). The fake store does the same.
+  Stream<PersistenceStatus> get persistenceStatusStream;
   IdGenerator get ids;                  // the store's generator (UUIDv7 in production)
   Clock get clock;                      // package:clock
   Future<StorageInfo> refreshStorageInfo();   // re-query persisted() / estimate()
+  /// (v1.1) Backup (7.8, CORE 6.17): every active and trashed entity as CORE 6.3 JSON with
+  /// field versions + asset metadata, NO asset bytes, no device settings / sync meta /
+  /// thumbnails. One UTF-8 JSON document, deterministic order. Flushes first.
+  Future<Uint8List> exportBackupJson();
 }
 
 /// Opens (and migrates) the database. Throws NoteStoreOpenException.
@@ -722,6 +777,7 @@ Future<void> deleteLocalNoteData(NoteStoreConfig config);
 ```
 
 - 웹 `navigator.storage.persist()`·`estimate()` 호출은 **CORE만** 한다. INFRA 앱 정보·진단은 `storageInfoProvider`/`refreshStorageInfo()` 값을 표시한다.
+- `storageInfoProvider`는 plain `Provider`라 자동으로 다시 읽지 않는다(v1.1). `refreshStorageInfo()`를 부른 쪽은 끝난 뒤 `ref.invalidate(storageInfoProvider)`를 불러 다른 화면(LIBRARY·EDITOR 배너, 진단)이 새 `persistGranted`·사용량을 보게 한다. 부른 화면 자신은 반환값을 바로 써도 된다. `backend`·`isDurable`은 실행 중 바뀌지 않으므로 `storageWarningOf`의 `notDurable` 판정에는 영향이 없다.
 
 #### 7.2.13 화면용 동기화 상태 (note_core)
 
@@ -736,6 +792,9 @@ final class SyncBadge {
   final int pendingChanges;          // local changes not yet acknowledged
   final EpochMillis? lastSyncedAt;
   final String? issueCode;           // SYNC SyncIssueCode.name of the first blocking issue
+  /// (v1.1) Value equality over all four fields (7.4.4) — the M4 override uses .distinct().
+  @override bool operator ==(Object other);
+  @override int get hashCode;
 }
 
 /// Default: off ("이 기기에 저장"). From M4 the app shell overrides it with SYNC's status.
@@ -806,6 +865,9 @@ final class InkCoreServices {
   final core.EpochMillis Function() nowMillis;   // from core.clockProvider
 }
 final class InkPageContent {
+  /// (v1.1) The ONLY constructor. Previews build a core.Page first, e.g.
+  /// InkPageContent.fromCore(page: current.copyWith(size: s, background: b),
+  ///     strokes: const [], revision: 0).
   factory InkPageContent.fromCore({required core.Page page, required List<core.Stroke> strokes,
       required int revision});                   // order = core.Stroke.compareOrder
   /* INK 4.8 */
@@ -813,6 +875,8 @@ final class InkPageContent {
 final class InkPageController extends ChangeNotifier {
   /* INK 4.8, with: */
   void updateContent(InkPageContent content);
+  /// (v1.1) viewScale (all three sessions) = logical px per page pt at gesture start
+  /// (no devicePixelRatio, no ancestor transform). INK's screen-distance thresholds use it.
   StrokeSession beginStroke(InkSample first, {required core.StrokeStyle style,
       required double viewScale, InkStrokeMeta meta = const InkStrokeMeta()});
   EraserSession beginErase(InkSample first, {required EraserSpec spec, required double viewScale});
@@ -820,7 +884,11 @@ final class InkPageController extends ChangeNotifier {
       LassoOptions options = const LassoOptions()});
   InkSelection select(Set<String> strokeIds);
   InkStroke? hitTest(Offset pagePoint, {double tolerance = 4.0, core.StrokeFilter filter = core.StrokeFilter.all});
-  // pendingIds / discardPending / setViewport / layerRepaint / renderStats — INK 4.8
+  // pendingIds / discardPending / discardEdit / layerRepaint / renderStats — INK 4.8
+  /// (v1.1) Called ONLY by InkPageView from its own arguments (visiblePageRect, isScaling,
+  /// deviceScale = viewScale × ancestorScale × devicePixelRatio). EDITOR never calls it;
+  /// it passes ancestorScale / isScaling / visiblePageRect to InkPageView.
+  void setViewport({Rect? visiblePageRect, required double deviceScale, required bool isScaling});
 }
 enum EraserMode { stroke, partial }
 @immutable
@@ -865,6 +933,7 @@ final class InkEdit {
 - '현재 페이지 전체 지우기'는 EDITOR가 `core.ClearPage(pageId, filter)`를 직접 실행한다.
 - 선택 변형 미리보기는 INK 근사이고 최종 좌표는 CORE `Stroke.transformed`가 정한다(차이 ≤ 0.01pt — 양자화).
 - 커밋 인계: EDITOR가 `session.execute(edit.toCommand())`를 부르면 N-1에 따라 같은 호출 안에서 `pageChanges` → `controller.updateContent(...)`가 실행되어 INK의 대기(pending) 표시가 같은 프레임에 정리된다. EDITOR는 별도의 낙관적 표시층을 두지 않는다.
+- 커밋 실패(v1.1): `execute`가 던지면(`ReadOnlyNoteException` 등) EDITOR는 **`controller.discardEdit(edit)`**를 부른다(`added`뿐 아니라 `removedIds`·`targetIds`의 대기 표시까지 지움 → 지운 획이 바로 다시 보임). `discardPending(id)`는 id 하나만 지울 때만 쓴다.
 
 진단·개발 도구
 
@@ -901,6 +970,9 @@ final class InkBackgroundSpec {
 final class PageBackgroundContext {
   /* INK 4.10: pageId, pageSize (pt), background, viewScale, ancestorScale, devicePixelRatio,
      isScaling, visiblePageRect (pt), deviceScale */
+  /// (v1.1) viewScale = logical px per pt (layout). ancestorScale = scale of ancestor
+  /// Transforms (pinch preview) — already applied on screen. deviceScale = viewScale ×
+  /// ancestorScale × devicePixelRatio (render resolution only).
   final bool isThumbnail;              // added: page panel / thumbnail rendering
 }
 
@@ -908,18 +980,23 @@ final class PageBackgroundContext {
 abstract interface class PageBackgroundLayerBuilder {
   bool handles(InkBackgroundSpec background);
   /// Widget filling pageSize * viewScale; must paint opaque paper; no pointer handling.
+  /// (v1.1) Layout size / painter scale use ctx.viewScale ONLY; ancestorScale enters only
+  /// through ctx.deviceScale (resolution / bucket choice). Multiplying the layout by
+  /// ancestorScale would double the pinch zoom.
   Widget build(BuildContext context, PageBackgroundContext ctx);
 }
 /// Optional second interface for offscreen thumbnails (checked with `is`).
 abstract interface class PageBackgroundStillRenderer {
   Future<ui.Image?> renderStill(InkBackgroundSpec background,
-      {required Size pageSize, required Size pixelSize});   // null → paper color only
+      {required Size pageSize, required Size pixelSize});
+      // (v1.1) null → cannot render now (InkPageThumbnailRenderer returns null)
 }
 final class TemplateBackgroundLayerBuilder
     implements PageBackgroundLayerBuilder, PageBackgroundStillRenderer {
   const TemplateBackgroundLayerBuilder();   // blank + all six template kinds; fallback = paper
 }
-/// Read by INK controllers, INK thumbnails and InkPageThumbnailRenderer.
+/// (v1.2) Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of
+/// InkPageThumbnail pass its value (the widget reads no provider).
 /// Overridden ONLY through pdf_io's pdfIoOverrides() (7.3.3).
 final pageBackgroundBuildersProvider = Provider<List<PageBackgroundLayerBuilder>>(
     (ref) => const [TemplateBackgroundLayerBuilder()], name: 'pageBackgroundBuildersProvider');
@@ -933,13 +1010,28 @@ abstract final class TemplateVectors {
 // InkVectorExport / InkPageVectors / InkHighlighterGroup / InkFillShape / InkVectorPath /
 // InkExportOptions — INK 4.5, 4.11 (approved)
 
-class InkPageThumbnail extends StatefulWidget { /* INK 4.9 — backgroundBuilders from the provider */ }
+/// (v1.1) INK 4.9. ink_engine does not depend on flutter_riverpod, so the widget reads no
+/// provider: the CALLER passes ref.watch(pageBackgroundBuildersProvider) and
+/// ref.watch(pencilGrainProvider).
+class InkPageThumbnail extends StatefulWidget {
+  const InkPageThumbnail({super.key, required this.content, required this.width,
+      required this.backgroundBuilders, this.pencilGrain});
+  final InkPageContent content;
+  final double width;                                  // logical px; height = page aspect
+  final List<PageBackgroundLayerBuilder> backgroundBuilders;
+  final PencilGrain? pencilGrain;
+}
+/// PenPreviewPainter(style:, shape:, paperColorArgb:, pencilGrain:) — INK 4.9.
+/// (v1.1) pencilGrain is the PencilGrain itself (ref.watch(pencilGrainProvider)), not its
+/// ui.Image; the painter repaints on it (repaint: pencilGrain).
 final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
   InkPageThumbnailRenderer({required List<PageBackgroundLayerBuilder> backgroundBuilders,
       PencilGrain? pencilGrain});
   /// Paper + background (first builder that handles it AND is a PageBackgroundStillRenderer)
   /// + committed strokes → PNG via Picture.toImage + toByteData(png). Web (CanvasKit) safe.
   /// Returns null when the background still renderer returns null (e.g. PDF bytes missing).
+  /// (v1.1) Also null for pdf / image backgrounds when no listed builder is a still renderer
+  /// that handles them. Callers never cache a null result and retry later (LIBRARY 6.15.3).
   @override
   Future<core.PageThumbnail?> render(core.PageContent content, {int maxSidePx = 512});
 }
@@ -975,6 +1067,8 @@ class EditorMenuContext {
   final int currentPageIndex;
   final List<String> selectedPageIds;         // page panel multi-select, note order
   /// Jump/scroll to the page; when focusRectPt is given, bring that page rect into view.
+  /// (v1.1) focusRectPt is in displayed page coordinates: pt of the note's Page.size,
+  /// origin top-left, y down — same as core.Stroke points (PDF converts its search hits).
   final void Function(String pageId, Rect? focusRectPt) navigateToPage;
   String? get currentPageId;
 }
@@ -1062,7 +1156,19 @@ final pdfRenderStatsProvider = Provider<ValueListenable<PdfRenderStats>>(/* PDF 
 
 #### 7.2.20 동기화 엔진 연결 (sync_engine, M4)
 
-SYNC 4장의 공개 API를 승인한다(`SyncEngine`, `SyncStatus`, `SyncPhase`, `SyncIssue`, `SyncNotice`, `AuthService`, `AuthState`, `SyncAssetService`, `SyncConfig`, provider 일체, `firebase.dart`, `platform.dart`, `testing.dart`). 변경: `SyncDisplayState`는 CORE 것을 쓰고 다시 정의·export하지 않는다. 추가:
+SYNC 4장의 공개 API를 승인한다(`SyncEngine`, `SyncStatus`, `SyncPhase`, `SyncIssue`, `SyncNotice`, `AuthService`, `AuthState`, `SyncAssetService`, `SyncConfig`, provider 일체, `firebase.dart`, `platform.dart`, `testing.dart`). 변경: `SyncDisplayState`는 CORE 것을 쓰고 다시 정의·export하지 않는다.
+
+v1.1 표면 갱신(SYNC 1차 수정본 07-sync 4장 기준 — SYNC-CP0):
+
+| 구분 | 이름 |
+|---|---|
+| 삭제(CORE에 같은 개념) | `SyncDisplayState`, `syncDisplayStateProvider`, `syncClockProvider`(→ CORE `clockProvider`), `FieldVersions`, `LocalRecord`, `AssetMeta`, `SyncMergeFn`, `MergeOutcome`·`KeepLocalOutcome`·`TakeRemoteOutcome`·`WriteMergedOutcome`, `LocalApplyReport`·`ApplyOutcomeKind`, 포트 `RepairWrite`·`RepairReason`(CORE `typedef RepairWrite`를 그대로 씀) |
+| 변경 | `SyncLocalStore`(= `sync`·`assets`·`localChanges`), `SyncBackend.upsertDevice`가 `ServerCursor` 반환, `SyncBackend.getChunks` 추가, `SyncIssueCode.clockSkew`는 차단 문제·`clockSkewWarning` 추가, `SyncIssue.nodeId`, `SyncConfig` 시계 필드 4개, `SyncEngine(stopwatch:)`, `SyncEngineDebug.heldChunks` |
+| 추가 | `SyncMergePolicy`, `FakeLocalWrite`, `FakeSyncServer.commitRaw`, `TestDevice.clockOffset` |
+| `testing.dart` 정리 | `lib/`에서 `package:fake_async`·`package:test`·matcher를 쓰지 않는다(순수 Dart·`depend_on_referenced_packages`). `SyncTestHarness`는 `Clock`과 시간 진행 콜백(`elapse`·`flushMicrotasks`)을 받고, `syncScenario`(`test()`·`fakeAsync` 감쌈)는 `test/` 지원 파일로 옮긴다. 수렴 검사는 matcher 없이 차이를 담은 예외를 던지는 `checkConverged`(또는 `test/` 지원 파일의 `expectConverged`) |
+| 값 동등 | `SyncStatus`, `SyncIssue`, `AuthState`, **`AuthUser`**(v1.2 — `AuthState.user`·`SyncStatus.user`의 타입), `AssetAvailability`, `AssetTransferSummary`, `InitialSyncProgress`는 `==`/`hashCode`(컬렉션은 `collection` Equality, 7.4.4) |
+
+다른 영역이 쓰는 이름(7.3.1 X16·X17, 7.3.3의 provider 4개·`syncEngineProvider`·`authServiceProvider`·`syncNoticesProvider`·`FirebaseSyncBindings`·`syncBadgeOf`·`SyncRemoteAssetFetcher`)은 그대로다. 추가:
 
 ```dart
 /// For the app shell's syncBadgeProvider override (M4).
@@ -1101,7 +1207,7 @@ final class SyncRemoteAssetFetcher implements core.RemoteAssetFetcher {
 
 | # | 주체 | 보장 |
 |---|---|---|
-| K-1 | INK | 모든 펜·최대 필압·최대 기울기에서 렌더 외곽 ⊆ CORE `Stroke.bounds`(INK 불변식 테스트) |
+| K-1 | INK | 모든 펜·최대 필압·최대 기울기에서 렌더 외곽 ⊆ CORE `Stroke.bounds`(INK 불변식 테스트). 근거(v1.1): 팽창 = `width · max(2·maxWidthQ, 0.75)` ≥ 0.75 × `StrokeStyle.minWidth` = 0.075pt ≥ INK 렌더 반지름 하한 `minRadiusPt` 0.05(굵기는 `normalized()`·`transformed`가 항상 0.1 이상으로 자름), 형광펜 사각 캡 모서리 0.7071·w ≤ 0.75·w → 공식 그대로 성립(CORE CP-3 기각) |
 | K-2 | INK | `StrokePoints.rawData`를 수정하지 않는다. 획은 불변, 변경 = 새 객체 |
 | K-3 | INK | 그리기 순서 = `PageContent.strokes`(= `compareOrder`). 형광펜 레이어 아래 그리기는 INK 내부 |
 | K-4 | INK | 공간 색인은 `updateContent`의 diff로 갱신(같은 id·같은 객체 = 변화 없음) |
@@ -1129,7 +1235,7 @@ final class SyncRemoteAssetFetcher implements core.RemoteAssetFetcher {
 | `editorExtensionsProvider` (EDITOR) | `FeatureWiringModule` | `PdfMenuAction` → `EditorMenuItem` 변환(06-pdf 5.5 예시) | 이번 |
 | `devOverlaySectionsProvider` (EDITOR) | `FeatureWiringModule` | PDF 렌더 통계 섹션 | 이번 |
 | 셸 provider(`buildInfoProvider` 등) (INFRA) | `BootstrapApp` | 01-infra 6.4 | 이번 |
-| `syncBadgeProvider`, `remoteAssetFetcherProvider` (CORE) | `SyncModule` | `syncEngine.statusStream.map(syncBadgeOf)`, `SyncRemoteAssetFetcher` | M4 |
+| `syncBadgeProvider`, `remoteAssetFetcherProvider` (CORE) | `SyncModule` | `syncEngine.statusStream.map(syncBadgeOf).distinct()`(v1.1 — `SyncBadge` 값 동등), `SyncRemoteAssetFetcher` | M4 |
 | `syncConfigProvider`, `authBackendProvider`, `syncBackendFactoryProvider`, `connectivitySignalProvider` (SYNC) | `SyncModule` | SYNC 5.2 | M4 |
 
 override가 아닌 연결: `ink.pressureModeProvider`는 EDITOR가 설정을 읽을 때·바꿀 때 `notifier.set()`으로 값을 넣는다. 패키지 안의 하위 `ProviderScope`(EDITOR 노트별 scope)는 **자기 패키지 provider만** override한다.
@@ -1163,7 +1269,8 @@ dev_dependencies:
 #### 7.4.2 린트 · 포맷 · 검사
 
 - 루트 `analysis_options.yaml` = 01-infra 6.2 표(flutter_lints 6.0.0 + strict-casts/inference/raw-types + 선별 lint 18개). CI는 `flutter analyze --fatal-infos`(info도 실패). `dart format`(page width 80) 변경 없음.
-- `tool/ws.dart check` 규칙 R1~R13(01-infra 6.2) + 보완:
+- `tool/ws.dart check` 규칙 R1~R13·R15(01-infra 6.2) + 보완:
+  - **R15(v1.2, 기반 단계 B1부터 위반 = 종료 코드 1)**: 멤버의 테스트가 쓰는 태그(`@Tags([...])`, `test`/`testWidgets`/`group`의 `tags:`)는 모두 그 멤버 `dart_test.yaml`의 `tags:`에 선언되어 있고, `integration`·`perf`는 그 선언에 `skip:`이 있다(7.4.8). 태그를 쓰지 않는 멤버는 `dart_test.yaml`이 없어도 된다.
   - R2: 순수 Dart 멤버도 `environment.flutter: 3.47.9`.
   - R4 예외 목록(`workspace_rules.yaml` `lib_exceptions`): `packages/note_core/lib/testing_vm.dart`(VM 테스트 전용, `test/`에서만 import).
   - R6은 `lib/` 안의 import에만 적용.
@@ -1178,6 +1285,7 @@ dev_dependencies:
   `import 'x_stub.dart' if (dart.library.js_interop) 'x_browser.dart' if (dart.library.ffi) 'x_native.dart';`
 - 이 규칙에 맞게 바꿀 파일: CORE `connect_web.dart`→`connect_browser.dart`, `persistence_web.dart`→`persistence_browser.dart`, `content_hasher_web/_vm`→`content_hasher_browser/_native`; INK `ink_clock_web.dart`→`ink_clock_browser.dart`; SYNC `display_mode_web.dart`→`display_mode_browser.dart`.
 - 웹 안전 수치: 64비트 정수 연산·`ByteData.getInt64` 금지, 비트 연산 대신 산술(색 성분 포함), 정수는 2^53 미만.
+- 정적 파일·에셋 URL(v1.1): 어떤 패키지도 정적 파일·에셋 주소를 `Uri.base` 상대로 만들지 않는다(dart2js `Uri.base` = `location.href` → 경로 URL 전략에서 `/notes/<id>`를 새로고침하면 Hosting `**` 재작성이 `index.html`을 돌려준다). 브라우저 기본인 `document.baseURI` 기준으로 해석한다. 앱 셸은 CORE `WebStorageConfig`에 `document.baseURI`로 해석한 절대 URL을 넘긴다(7.2.12, 01-infra 6.4). 상대 경로는 테스트에서만. 주소 질의 읽기(EDITOR `?dev=1` 등 `Uri.base.queryParameters`)는 이 규칙 대상이 아니다.
 - 빌드 기본은 dart2js + CanvasKit(iPad Safari는 `--wasm`이어도 CanvasKit). 렌더 최적화 기준은 CanvasKit.
 
 #### 7.4.4 상태 관리 · provider
@@ -1195,6 +1303,8 @@ dev_dependencies:
 - 예외 타입: CORE `NoteCoreException` 계열, PDF `PdfIoException`, SYNC `SyncBackendException`·`SignInException`. 잘못된 인자 `ArgumentError`, 상태 위반 `StateError`.
 - 사용자 문구는 한국어 **해요체**(예: '옮겼어요', '저장하지 못했어요'), 각 영역의 문구 상수 파일에 모은다(`intl` 미사용). 개발자용 세부·로그는 영어.
 - 저장 경고 배너: 조건은 `storageWarningOf`(7.2.12) 하나. 라이브러리 화면은 LIBRARY, 에디터 화면은 EDITOR가 같은 문구로 표시. 동기화 알림 스낵바(M4)는 INFRA가 루트 `ScaffoldMessenger`에서 `syncNoticesProvider`로.
+  - 문구(v1.1 고정): `writeFailing` → "저장에 계속 실패하고 있어요. 브라우저 저장 공간을 확인해 주세요." / `notDurable` → "이 브라우저에서는 노트가 임시로만 저장돼요. 테스트 용도로만 사용하세요." 바꿀 때는 7.4.12 절차.
+  - 대조(v1.1): 피처 패키지끼리는 test에서도 import할 수 없으므로(7.1 규칙 1) LIBRARY·EDITOR는 각자 자기 문구 상수를 위 고정 문장과 비교하는 테스트를 둔다. 두 화면이 실제로 같은 문장을 보이는지는 INFRA 통합 스모크(V5, 메모리 CORE = `nativeMemory` → `notDurable` 배너)가 `find.text`로 확인한다.
 
 #### 7.4.6 직렬화 · 시간 · ID · 설정 키
 
@@ -1202,7 +1312,7 @@ dev_dependencies:
 - `fromJson`은 실수 필드에 정수도 받는다(`(v as num).toDouble()`) — 웹 `jsonEncode(1.0)`이 `1`을 낸다(확인함). JSON 골든(바이트 비교)은 VM 전용(`@TestOn('vm')`), 웹 형식 입력 디코드 테스트는 VM·Chrome 둘 다.
 - 시간: 저장 값은 `EpochMillis`(UTC ms). 순수 Dart는 `package:clock` 주입, 테스트는 `fake_async`/가짜 시계, 실제 대기 금지. 입력 샘플·지연 측정 시각은 INK `InkClock`(µs, 단조).
 - ID: 엔티티는 UUIDv7(`idGeneratorProvider`), 에셋은 SHA-256 hex, 기본 프리셋은 `preset-default-<tool>`. ID를 만드는 다른 방법을 쓰지 않는다.
-- 설정 키 scope: **기기마다 다른 값은 `device`**(입력 모드·팜 리젝션·필압 모드·`stylusSeen`·개발자 표시·뷰포트 위치·프리셋 바 필터·라이브러리 보기/정렬/펼침), **사용자 취향은 `synced`**(펜 종류별 스타일·지우개 설정·최근 색·팔레트·제스처·페이지 넘김 방식·새 노트 기본값). `device` 키는 outbox에 기록되지 않는다.
+- 설정 키 scope: **기기마다 다른 값은 `device`**(입력 모드·팜 리젝션·필압 모드·`stylusSeen`·개발자 표시·뷰포트 위치·프리셋 바 필터·라이브러리 보기/정렬/펼침·**현재 도구·펜 종류 선택**(`editor.toolSelection`, v1.1)), **사용자 취향은 `synced`**(펜 종류별 스타일·지우개 설정·최근 색·팔레트·제스처·페이지 넘김 방식·새 노트 기본값). `device` 키는 outbox에 기록되지 않는다.
 
 #### 7.4.7 코드 생성
 
@@ -1216,17 +1326,17 @@ dev_dependencies:
 | VM 테스트 | `test/` 아래(`test/web/` 제외). 네트워크 금지, 실제 시간 대기 금지(`fake_async`·`tester.pump`) |
 | 브라우저 테스트 | **`test/web/` 한 곳**, 파일 첫 줄 `@TestOn('browser')`. 준비가 필요한 패키지는 `tool/prepare_web_test.dart`를 두고, `ws test --platform chrome`이 먼저 실행한다(CORE: `sqlite3.wasm`·`drift_worker.js`, PDF: pdfrx wasm 자산 + 합성 확장 JS → `test/web/pdfium/`). 복사된 자산은 패키지 `.gitignore`로 제외. VM과 Chrome 양쪽에서 돌려야 할 단위 테스트는 `test/web/`에 감싸 둔다 |
 | 다운로드 | 테스트 코드의 네트워크 접근은 금지. 빌드 훅(sqlite3 미리 빌드 라이브러리, pdfium_dart의 PDFium 바이너리·gcc)과 준비 스크립트의 다운로드는 허용하고 CI에서 캐시한다 |
-| 태그 | `golden`, `perf`(기본 skip), `bench`(기본 제외), `pdfium`(실 PDFium VM), `integration`(통합 단계에서만, 기본 skip), `scenario`(SYNC) |
+| 태그 | `golden`, `perf`(기본 skip), `bench`(기본 제외), `pdfium`(실 PDFium VM), `integration`(통합 단계에서만, 기본 skip), `scenario`(SYNC). v1.1: 태그를 쓰는 패키지는 **패키지 `dart_test.yaml`의 `tags:`에 선언**하고, `integration`·`perf`는 거기서 `skip: "<사유>"`로 기본 건너뛴다(`ws test`의 기본 제외는 `-x bench`뿐이라, 선언이 없으면 동시 개발 중 B2 상태 CORE로 통합 테스트가 돌아 실패한다). v1.2: `ws check` R15가 B1부터 이 규칙을 검사한다(7.4.2). R15 스캐너는 **문자열 리터럴 태그만** 인식하므로 태그는 `@Tags(['integration'])`·`tags: ['golden']`처럼 리터럴로 쓴다(변수·상수로 넘기지 않는다). `dart_test.yaml`은 그 패키지에서 태그를 쓰는 첫 테스트보다 먼저(보통 골격 작업에서) 만든다 |
 | 골든 | `test/goldens/` 아래, `@Tags(['golden'])` + `@TestOn('vm')`. 리눅스 컨테이너에서 만들고 CI(ubuntu)에서 비교. 글자 없는 화면이나 Ahem 글꼴만. 허용 오차 비교기(≤ 0.5%)는 패키지가 `test/flutter_test_config.dart`로 둘 수 있다. 정확한 성질(겹침 비진해짐 등)은 골든이 아니라 픽셀 단언으로. 골든 갱신은 별도 커밋 |
 | 화면 크기 | iPad Pro 13" 기준 논리 크기(DPR 2): 세로 **1032×1376**, 가로 **1376×1032**. Safari 탭(주소창) 가로 1376×940(보수값). 12.9"·11"·분할 화면은 LIBRARY 05-library 9.1 값을 따른다 |
-| 가짜 | CORE `createFakeNoteStore()`(메모리, 기반 단계에 포함)가 공용 가짜. 영역 자체 가짜를 써도 되지만 CORE 값 타입을 그대로 쓰고, 통합 단계에 실제 CORE(`openTestNoteStore`)로 같은 시나리오를 한 번 더 돌린다 |
+| 가짜 | CORE `createFakeNoteStore()`(메모리, 기반 단계에 포함)가 공용 가짜. 영역 자체 가짜를 써도 되지만 CORE 값 타입을 그대로 쓰고, 통합 단계에 실제 CORE(`openTestNoteStore`)로 같은 시나리오를 한 번 더 돌린다. 두 도우미의 시그니처는 7.6 'B2 테스트 도우미'가 계약이다(v1.1) |
 | 접근성 | 누를 수 있는 요소 44×44 이상(`iOSTapTargetGuideline`) |
 
 #### 7.4.9 웹 배포 설정 (INFRA)
 
 - 헤더: 모든 경로 `Cache-Control: no-cache`, **COOP/COEP 없음**(M0~M3 기본 채널). drift는 Safari에서 `sharedIndexedDb`로 동작, pdfrx는 격리 불필요(PDF V13), Firebase Auth 팝업도 가능. OPFS가 필요해지면 `web-experiment` 채널에서만 격리 헤더 + CanvasKit 자체 호스팅으로 실험.
 - `app/web/` 정적 파일: `sqlite3.wasm`(sqlite3-3.8.0 릴리스, 758,619 B, sha256 `efd308be92a34f3aa15f289a37f213b0230fd80888a1364326ee29579d892d37`), `drift_worker.js`(drift 2.35.3, 361,829 B, sha256 `a54b81412d4c4ab56653bb9e4c02912b0820bb37e2bba00722ddef4d78083d4a`) — `tool/web_assets.yaml`로 관리. pdfrx·pdf_io 자산은 Flutter 에셋으로 자동 포함(추가 없음). `.wasm`은 `application/wasm`. `<base href>` 유지. CSP는 두지 않는다.
-- 서비스 워커 없음, 새 버전 배너(01-infra 6.11). Safari 확대·길게 누르기 방지는 01-infra 6.9(엔진이 `contextmenu`를 이미 막으므로 `BrowserContextMenu.disableContextMenu()`는 쓰지 않는다).
+- 서비스 워커 없음, 새 버전 배너(01-infra 6.11). Safari 확대·길게 누르기 방지는 01-infra 6.9. `BrowserContextMenu.disableContextMenu()`는 쓰지 않는다(텍스트 입력의 브라우저 메뉴까지 끄고 프레임워크가 자체 선택 메뉴로 바뀜). iPad 길게 누르기 콜아웃·선택은 CSS(엔진 `user-select:none` + index.html `-webkit-touch-callout:none`)로, 우클릭 메뉴는 index.html이 입력 요소 밖에서만 `contextmenu`를 `preventDefault`해 막는다(v1.1 근거 정정 — Flutter 3.47.9 엔진 `mouse/context_menu.dart`는 `_enabled = true`로 시작하고 `disable()`에서만 리스너를 단다. 총괄 확인).
 - 미리보기 채널 주소는 출처가 달라 데이터·홈 화면 앱·로그인이 따로다(안내서에 '임시 데이터'로 명시, 로그인 확인은 live 채널에서).
 
 #### 7.4.10 성능 · 메모리 예산 (iPad Safari 한 탭)
@@ -1244,7 +1354,7 @@ dev_dependencies:
 
 #### 7.4.11 UX 공통
 
-- 테마: `buildAppTheme()`(Material 3, seed `0xFF3949AB`). 패키지는 `Theme.of(context).colorScheme`만 쓰고 자체 `MaterialApp`·`ProviderScope`를 만들지 않는다(테스트 제외). 색 하드코딩 금지(폴더·표지·종이 팔레트 제외).
+- 테마: `buildAppTheme()`(Material 3, seed `0xFF3949AB`). 패키지는 `Theme.of(context).colorScheme`만 쓰고 자체 `MaterialApp`·`ProviderScope`를 만들지 않는다(테스트 제외). 색 하드코딩 금지(폴더·표지·종이 팔레트 제외). v1.2: PDF 검색 하이라이트(종이 위에 겹쳐 그리는 표시 색 — UI 테마가 아니라 종이와의 대비가 기준)도 예외이며, 상수는 `pdf_io`의 튜닝 상수 한 곳(`PdfTuning`)에만 둔다. v1.3: INK 올가미 경로 오버레이(선 `lassoPathArgb`·내부 `lassoFillArgb` — 같은 이유이고, INK는 Material 비의존(7.1)이라 `colorScheme`을 읽을 수 없음)도 예외이며, 상수는 `ink_engine`의 `InkTuning` 한 곳에만 둔다. 예외 색은 어느 패키지든 painter·위젯에 리터럴로 쓰지 않고 그 상수를 참조한다.
 - 펜·손가락: 라이브러리는 펜·손가락 동일 조작, 펜 전용 모드는 에디터 필기에만 적용.
 - 설정 화면(`/settings`)은 INFRA 틀 + 섹션 조립: 계정·동기화(M4, INFRA가 SYNC API로) · 입력 · 펜 · 페이지 넘김 · 개발자 표시(EDITOR 4종) · 일반 › 새 노트 기본값/기본 속지(LIBRARY) · 저장 공간·앱 정보(INFRA, CORE `StorageInfo`). 로그인 화면(`/login`, M4)도 INFRA.
 
@@ -1255,7 +1365,7 @@ dev_dependencies:
 
 ### 7.5 공통 외부 패키지 버전 고정표
 
-확인: 2026-11-04 pub.dev, 그리고 아래 표 그대로의 7개 멤버 + 루트 pubspec으로 `flutter pub get` 해석 성공(Flutter 3.47.9, 총괄 scratch `/tmp/claude-0/plan-scratch/lead/ws`). 모든 외부 의존은 **정확한 버전**으로 쓴다.
+확인: 2026-11-04 pub.dev, 그리고 아래 표 그대로의 7개 멤버 + 루트 pubspec으로 `flutter pub get` 해석 성공(Flutter 3.47.9, 총괄 scratch `/tmp/claude-0/plan-scratch/lead/ws`). v1.1 추가 3건(feature_library `collection`·dev `clock`, 루트 dev `crypto`)도 같은 구성에 넣어 `flutter pub get --offline` 해석 성공, 해석된 버전 변화 없음(`/tmp/claude-0/plan-scratch/lead/ws-v11` — lock은 `crypto`의 `dependency:` 표기만 `direct dev`로 바뀜). 모든 외부 의존은 **정확한 버전**으로 쓴다.
 
 | 패키지 | 버전 | 쓰는 멤버 | 비고 |
 |---|---|---|---|
@@ -1266,9 +1376,9 @@ dev_dependencies:
 | `cupertino_icons` | 2.0.0 | app | |
 | `web` | 1.1.2 | app, note_core, pdf_io, sync_engine | `*_browser.dart`에서만 |
 | `meta` | 1.19.0 | note_core, ink_engine, feature_editor, pdf_io, sync_engine | |
-| `collection` | 1.19.1 | note_core, feature_editor, pdf_io, sync_engine | |
-| `clock` | 1.1.3 | note_core, sync_engine | |
-| `crypto` | 3.0.8 | note_core, pdf_io, sync_engine | |
+| `collection` | 1.19.1 | note_core, feature_editor, **feature_library**(v1.1), pdf_io, sync_engine | |
+| `clock` | 1.1.3 | note_core, sync_engine, **feature_library(dev)**(v1.1) | feature_library는 테스트 시계용 dev 의존만(프로덕션 코드는 `clockProvider`) |
+| `crypto` | 3.0.8 | note_core, pdf_io, sync_engine, **루트(`tool/`, dev)**(v1.1) | 루트는 `ws web-assets` sha256 계산용 |
 | `drift` | 2.35.3 | note_core | `drift_worker.js`와 같은 버전 |
 | `sqlite3` | 3.8.0 | note_core | `sqlite3.wasm`과 같은 버전 |
 | `idb_shim` | 2.11.2 | note_core | |
@@ -1301,17 +1411,52 @@ dev_dependencies:
 
 | 단계 | 담당 | 경로 | 내용 | 완료 조건 |
 |---|---|---|---|---|
-| B1 | INFRA | 루트 `pubspec.yaml`·`pubspec.lock`·`analysis_options.yaml`·`.gitignore`·`.gitattributes`, `packages/*/pubspec.yaml`·`README.md`·`lib/<name>.dart`(빈 barrel)·`test/<name>_smoke_test.dart`, `tool/ws.dart`(list·test·check R1–R3·R7–R9)·`tool/workspace_rules.yaml`·`tool/test/`, `.github/workflows/ci.yml`(검사·분석·테스트·웹 빌드, 배포 없음) | 7.5의 **모든** 외부 의존을 7.1·7.4.1 형식으로 미리 넣음. `app/`은 `flutter create --platforms=web,android,ios --org dev.noteapp --project-name noteapp` 후 최소 `main.dart` | `flutter pub get --enforce-lockfile`, `ws check`, `ws test` |
-| B2 | CORE | `packages/note_core/lib/**`, `test/**` | 7.2.2~7.2.14의 계약 파일. **동작 구현 포함**: 기초 타입(`Hlc`·`HlcClock`·`SortKeys`·`Affine2`·`PageRect`·ID·예외), 엔티티 전체 + JSON + 점 코덱, 명령·`AppliedEdit` 데이터 타입, `FolderTree`, `PageThumbnail.isStaleFor`, `SettingKey`·`SettingsSnapshot`, `storageWarningOf`, `EntityFieldVersions`. 인터페이스(세션·저장소·`SyncStore`·`AssetStore` 등)와 provider 선언. `openNoteStore`는 `UnimplementedError` 허용. `testing.dart`: **`createFakeNoteStore()`**(메모리: 라이브러리·휴지통·프리셋·설정·세션 execute/undo/redo·썸네일 캐시·에셋), `StrokeFixtures`, `newerVersionWinsPolicy` | CORE T1~T5 테스트 통과, `api_surface_test` |
+| B1 | INFRA | 루트 `pubspec.yaml`·`pubspec.lock`·`analysis_options.yaml`·`.gitignore`·`.gitattributes`, `packages/*/pubspec.yaml`·`README.md`·`lib/<name>.dart`(빈 barrel)·`test/<name>_smoke_test.dart`, `tool/ws.dart`(list·test·check R1–R3·R7–R9·**R15**(v1.2))·`tool/workspace_rules.yaml`(`skip_by_default_tags` 포함)·`tool/test/`(`test_tags_test.dart` 포함), `.github/workflows/ci.yml`(검사·분석·테스트·웹 빌드, 배포 없음) | 7.5의 **모든** 외부 의존을 7.1·7.4.1 형식으로 미리 넣음. `app/`은 `flutter create --platforms=web,android,ios --org dev.noteapp --project-name noteapp` 후 최소 `main.dart` | `flutter pub get --enforce-lockfile`, `ws check`, `ws test`, `dart test tool/test`(v1.3 — 루트 `tool/`은 워크스페이스 멤버가 아니라 `ws test`가 돌리지 않음) |
+| B2 | CORE | `packages/note_core/lib/**`, `test/**` | 7.2.2~7.2.14의 계약 파일. **동작 구현 포함**: 기초 타입(`Hlc`·`HlcClock`·`SortKeys`·`Affine2`·`PageRect`·ID·예외), 엔티티 전체 + JSON + 점 코덱, 명령·`AppliedEdit` 데이터 타입, `FolderTree`, `PageThumbnail.isStaleFor`, `SettingKey`·`SettingsSnapshot`, `storageWarningOf`, `EntityFieldVersions`. 인터페이스(세션·저장소·`SyncStore`·`AssetStore` 등)와 provider 선언. `openNoteStore`는 `UnimplementedError` 허용. `testing.dart`: **`createFakeNoteStore()`**(메모리: 라이브러리·휴지통·프리셋·설정·세션 execute/undo/redo·썸네일 캐시·에셋), `StrokeFixtures`, `newerVersionWinsPolicy`. v1.1: `dev_tools.dart` `seedSyntheticNote`(동작), `testing_vm.dart` `openTestNoteStore`(시그니처, 본문 `UnimplementedError` 허용)도 B2에 포함 — 아래 'B2 테스트·개발 도우미' | CORE T1~T5 테스트 통과, `api_surface_test`(진입점 4개 `note_core.dart`·`testing.dart`·`testing_vm.dart`·`dev_tools.dart`) |
 | B3 | INK | `packages/ink_engine/lib/**`, `test/**` | 7.2.15·7.2.16 공개 표면 전부를 **단순하지만 동작하는 구현**으로: 값 타입 실제 구현, `InkSampleAdapter` 실제 구현, `StrokeSession.end()`는 샘플을 그대로(스무딩 없이, `widthQ` 0.25) 획으로 만든 `InkEdit`, `EraserSession`(획 모드: bounds 겹침, 부분 모드: 획 모드와 같게), `LassoSession`(bounds 중심 포함), `InkPageView`(배경 + 폴리라인), `TemplateBackgroundLayerBuilder`(종이 색), `InkPageThumbnailRenderer`(종이 색 PNG), provider 전부, `testing.dart`·`dev_tools.dart` | 스모크 테스트 + 다른 영역이 컴파일·기본 동작 가능 |
-| B4 | PDF | `packages/pdf_io/lib/**` | PDF T0: 7.2.19 공개 함수·타입(본문 `UnimplementedError` 허용). `initializePdfIo`는 아무것도 안 함, `pdfIoOverrides()`는 종이만 칠하는 자리표시 PDF 빌더 + 속지 빌더, `importPdfAsNewNote`는 `null`, `exportNotesAsPdf`는 아무것도 안 함, 메뉴 함수는 빈 목록 | `api_surface_test`, 웹 빌드에 포함 가능 |
+| B4 | PDF | `packages/pdf_io/lib/**`, `test/**`, `dart_test.yaml`(v1.2) | PDF T0: 7.2.19 공개 함수·타입(본문 `UnimplementedError` 허용). `initializePdfIo`는 아무것도 안 함, `pdfIoOverrides()`는 종이만 칠하는 자리표시 PDF 빌더 + 속지 빌더, `importPdfAsNewNote`는 `null`, `exportNotesAsPdf`는 아무것도 안 함, 메뉴 함수는 빈 목록. v1.2: 다른 영역이 기반 단계·동시 개발 중 읽는 provider는 **예외 없이 만들어진다** — `pdfIoOverrides()`가 override하는 provider(자리표시 빌더는 렌더 사슬을 watch하지 않음)와 `pdfRenderStatsProvider`(B4 본문 = `ValueNotifier(PdfRenderStats.zero)`, INFRA `pdfRenderStatsSection`이 읽음). 본문 `UnimplementedError` 허용은 그 밖의 멤버에만 | `api_surface_test`, 두 provider를 `pdfIoOverrides()`만 넣은 컨테이너에서 read → 예외 없음(PDF T0 `init_test`), 웹 빌드에 포함 가능 |
 | B5 | EDITOR | `packages/feature_editor/lib/**` | 7.2.17 공개 표면: `EditorScreen` 자리표시(최종 생성자, 본문은 제목 + 닫기 버튼), `featureEditorOverrides`, `EditorExtensions`·`EditorMenuItem`·`EditorMenuContext`·`editorExtensionsProvider`, `DevOverlaySection`·`devOverlaySectionsProvider`, `EditorSettings` 모델·`editorSettingsProvider`(메모리), 설정 섹션 4종 자리표시 | 스모크 위젯 테스트 |
 | B6 | LIBRARY | `packages/feature_library/lib/**` | 7.2.18 공개 표면: `LibraryScreen` 자리표시(최종 생성자, 본문은 '새 노트' 버튼 → `createNote` → `onOpenNote`), `featureLibraryOverrides`, 두 자리 provider·typedef, `LibrarySettingsSection` 자리표시, 외형 레지스트리 | 스모크 위젯 테스트 |
 | B7 | SYNC | `packages/sync_engine/lib/**` | 공개 진입점 4개의 빈 틀(`sync_engine.dart`는 순수 Dart). 엔진 구현은 동시 개발에서 | `no_dart_io_test` |
-| B8 | INFRA | `app/lib/**`, `app/test/**` | 최소 go_router(`/`, `/folders/:folderId`, `/notes/:noteId`, `/settings`) + 자리표시 화면 연결, `foundation_routing_test`(라이브러리 → 노트 열기 → 닫기) | 전체: `ws check` 0, `flutter analyze --fatal-infos` 0, `ws test`, `ws test --platform chrome`, `cd app && flutter build web --release` 성공. **CI 1회 실행 시간·`main.dart.js` 크기·Chrome 첫 `openNoteStore` 시간(가능하면)을 기록**해 01-infra 6.13 예산표 갱신 |
+| B8 | INFRA | `app/lib/**`, `app/test/**` | 최소 go_router(`/`, `/folders/:folderId`, `/notes/:noteId`, `/settings`) + 자리표시 화면 연결, `foundation_routing_test`(라이브러리 → 노트 열기 → 닫기) | 전체: `ws check` 0, `flutter analyze --fatal-infos` 0, `ws test`, `ws test --platform chrome`, `dart test tool/test`(v1.3), `cd app && flutter build web --release` 성공. **CI 1회 실행 시간·`main.dart.js` 크기·Chrome 첫 `openNoteStore` 시간(가능하면)을 기록**해 01-infra 6.13 예산표 갱신 |
 
-- B2가 가장 긴 경로다. B3~B7은 B2 계약 파일이 커밋되면 병렬로 할 수 있다(B4는 B3 이후).
-- 기반 단계가 끝나면 각 영역 계획서 5절의 '가정' 블록을 기반 단계 실제 타입으로 바꾼 뒤 동시 개발을 시작한다.
+B2 테스트·개발 도우미 (v1.1 — CORE 4.10 원문을 계약으로 올림. 바꿀 때는 7.4.12 절차)
+
+```dart
+// package:note_core/testing.dart — web-safe, test/ only
+NoteStore createFakeNoteStore({Clock? clock, IdGenerator? ids, OwnerId ownerId = kLocalOwnerId,
+    bool seedDefaultPenPresets = true,
+    StorageInfo storageInfo = const StorageInfo(backend: StorageBackend.nativeFile),
+    FakeNoteStoreFaults? faults});
+/// Failure / latency injection for other areas' tests.
+final class FakeNoteStoreFaults {
+  FakeNoteStoreFaults();
+  /// The next [count] commits fail with [error]; PersistenceStatus reports them and the
+  /// in-memory state is kept (like the real WriteQueue retry).
+  void failNextCommits(int count, {Object error = const FormatException('injected')});
+  /// Every commit completes after [delay] (use with fake_async).
+  Duration commitDelay = Duration.zero;
+}
+// StrokeFixtures, newerVersionWinsPolicy — CORE 4.10
+
+// package:note_core/testing_vm.dart — VM tests only (lib_exceptions, 7.4.2)
+/// Real CORE on NativeDatabase (filePath null = in-memory). deviceNodeId fixes the HLC node.
+/// storageInfo: value reported by NoteStore.storageInfo; null = the real backend
+/// (in-memory → nativeMemory → notDurable banner).
+Future<NoteStore> openTestNoteStore({Clock? clock, IdGenerator? ids,
+    OwnerId ownerId = kLocalOwnerId, String? filePath, String? deviceNodeId,
+    bool seedDefaultPenPresets = true, StorageInfo? storageInfo});
+
+// package:note_core/dev_tools.dart — web-safe, production code may import (EDITOR dev menu)
+Future<NoteId> seedSyntheticNote(NoteStore store,
+    {String title = 'perf-test', int pages = 50, int strokesPerPage = 300,
+     int pointsPerStroke = 100, int seed = 1});
+```
+
+- `createFakeNoteStore` 동작 범위: 라이브러리(C-1~C-10)·휴지통·프리셋(`ensureDefaults`)·설정·세션(N-1~N-6, N-7은 원격 경로가 없어 해당 없음)·썸네일 캐시·에셋(+`bytesArrived`)·`ids`(기본 `SequentialIdGenerator`)·`clock`·`storageInfo`(기본 `nativeFile` = 배너 없음, `webInMemory`를 넘기면 `notDurable`)·`persistenceStatusStream`(구독 즉시 1회, 7.2.12). `SyncStore`는 `ownerId`·`deviceNodeId`가 값을 돌려주고 `pendingChanges()` = 빈 목록, `watchPendingCount()` = 0, **그 밖의 멤버는 전부 `UnsupportedError`**(SYNC 계약 테스트는 `openTestNoteStore`로).
+- B2 단계 값: `seedSyntheticNote`는 `NoteStore` 인터페이스(`library.createNote` + 세션 `AddStrokes`)만으로 구현하므로 B2부터 가짜 저장소에서 동작한다. `openTestNoteStore`는 CORE T6 전까지 `UnimplementedError`. 가짜 저장소의 `exportBackupJson`은 B2에서 `UnimplementedError`, CORE T19에서 실제와 같은 형식으로 구현.
+- B2가 가장 긴 경로다. B3~B7은 B2 계약 파일이 커밋되면 병렬로 할 수 있다(B4는 B3 이후). v1.2 풀이: 각 영역은 CORE T4(계약 타입 고정) 커밋 뒤 자기 작업 트리에서 코드 작성을 시작해도 되지만, B3~B7의 **main 커밋과 완료 조건(스모크 테스트)은 B2 완료(T1~T5 통과 — `createFakeNoteStore`는 T5) 뒤**다. `ink_engine` 타입을 쓰는 B4·B5는 B3 커밋 뒤.
+- 기반 단계가 끝나면 각 영역 계획서 5절의 '가정' 블록을 기반 단계 실제 타입으로 바꾼 뒤 동시 개발을 시작한다. (v1.3) 같은 때 각 영역은 계획서 머리 상태 줄을 '승인'으로, 계약 인용·발췌를 v1.3으로 맞추고 [00-review.md '최종 승인'](00-review.md#최종-승인)의 자기 영역 '개발 중 반영' 항목을 처리한다(자기 소유 경로 커밋과 함께, 계약과 다르게 쓰지 않는다).
 
 ### 7.7 통합 순서와 검증 기준
 
@@ -1321,14 +1466,14 @@ dev_dependencies:
 2. **INK** 병합 → 같은 검사 + INK 골든
 3. **EDITOR · LIBRARY · PDF · SYNC** (순서 무관, 하나씩 병합하고 매번 같은 검사)
 4. **INFRA** 병합 → `AppScreenBuilders.production()`·`CoreModule`·`PdfModule`·`FeatureWiringModule`을 실제 구현에 연결
-5. **통합 태그 테스트**: LIBRARY L21(`core_contract_test`), PDF `integration`(CORE 게이트웨이·INK 벡터화), SYNC T16(`core-integration`: 실제 CORE 2개로 S01·S02·S05·S15 + JSON 키 대조), EDITOR E-21(실제 INK + 실제 CORE 메모리 저장소), INFRA G2 스모크
+5. **통합 태그 테스트**(`ws test --run-skipped -t integration`): LIBRARY L21(`core_contract_test`), PDF `integration`(CORE 게이트웨이·INK 벡터화), SYNC T16(태그 `integration`: 실제 CORE 2개로 S01·S02·S05·S15 + JSON 키 대조 + **SyncStore 계약 스위트 C-01~C-25**(`CoreSyncLocalStore(openTestNoteStore)`) + 폴더 순환 판정 대조(`FolderTree.findCycles()`) — v1.2), EDITOR E-21(실제 INK + 실제 CORE 메모리 저장소), INFRA G2 스모크(저장 경고 배너 문구가 라이브러리·에디터 두 화면에서 같은지도 확인 — 7.4.5)
 6. 미리보기 배포 → 사용자 iPad 확인 → PLAN.md 체크리스트 갱신(총괄)
 
 통합 검증 기준 (전부 통과해야 '통합 완료')
 
 | # | 기준 |
 |---|---|
-| V1 | `flutter pub get --enforce-lockfile`, `ws check`(R1~R14) 위반 0 |
+| V1 | `flutter pub get --enforce-lockfile`, `ws check`(R1~R15, v1.2) 위반 0 |
 | V2 | 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음 |
 | V3 | `ws test`(VM, 골든 포함) · `ws test --platform chrome` · `dart test tool/test` 전부 통과, 통합 태그 테스트(위 5) 통과 |
 | V4 | `cd app && flutter build web --release` 성공, `web-assets verify` 통과 |
@@ -1350,3 +1495,74 @@ dev_dependencies:
 | 백업 내보내기 (PLAN 12장) | CORE `exportBackupJson()` + INFRA 앱 정보 버튼을 권장 작업으로. **M4 실제 연결 전 선행 조건** |
 | 동기화 실연결 | 이번은 엔진 + 가짜 서버 + 어댑터 골격. 앱 연결·Firebase 배포·로그인 화면은 M4(Firebase 프로젝트 생성 후) |
 | 다중 탭 리더 선출, tombstone 정리, 고아 에셋 GC | 이후(SYNC 12절 Q15 방향 승인: 기기 커서 최솟값 기준, 90일 미접속 기기 제외) |
+
+### 7.9 계약 변경 이력
+
+#### v1.3 (2026-11-05, 4차 승인 검토(최종) — 근거: [00-review.md '4차 검토'](00-review.md#4차-검토-승인-검토))
+
+시그니처 변경은 없다. 모두 주석·규칙 문구이며, 이미 해당 계획서에 있는 동작·기준을 계약에 적은 것이다(C13-01~04). 그래서 어느 영역도 재승인이 필요하지 않고, 계획서의 인용·결정 칸은 개발 착수 때 맞춘다(C13-05, 00-review '최종 승인').
+
+| # | 절 | 변경 | 출처 | 반영할 영역 (개발 중) |
+|---|---|---|---|---|
+| C13-01 | 7.6 B1·B8 | 완료 조건에 `dart test tool/test`(루트 `tool/`은 멤버가 아니라 `ws test`가 돌리지 않음 — R15 검사기 테스트가 B1·B8 판정에서 빠지던 틈). V3과 같은 명령 | INFRA P6 | INFRA(12.3 P6 결정 칸만 — 8.1 B1 완료·B8-2에 이미 있음) |
+| C13-02 | 7.2.10 `TakeRemote`·`WriteMerged` 주석 | purge 대기 + `TakeRemote` → purge 항목 삭제(`dropPendingLocal` 값과 무관 — 행이 되살아남), purge 대기 + `WriteMerged` → purge 항목이 `fieldsToUpload`의 upsert 항목으로(비면 삭제) | CORE CP-8(+ 총괄 보충: `WriteMerged` 쪽도 명시 — 3차 총괄 결정 CORE-3-3 그대로) | CORE(4.6 주석 옮김 — 6.10.3·9.1 이미 맞음), SYNC(`FakeLocalStore`·C-11에 purge 대기 경우 — T6) |
+| C13-03 | 7.4.11 | 색 하드코딩 예외에 INK 올가미 경로 오버레이(`InkTuning.lassoPathArgb`·`lassoFillArgb` 한 곳). 예외 색은 painter·위젯에 리터럴 없이 상수 참조 | INK P5 | INK(12.1 P5 결정 칸·6.12 R8 인용만 — 설계 그대로), PDF 확인(이미 `PdfTuning`만) |
+| C13-04 | 7.2.9, 7.2.10 `SyncStore`, 7.2.11 `AssetStore` | `SyncStore` 쓰기 6종·`markUploaded`·`putDownloadedBytes` 메타 커밋도 7.2.9 쓰기 `Future` 규칙(재시도 중 미완료·오류 아님). 재시도 없는 오류 = 인자·상태 오류, `applyRemote` 정책 예외(롤백 후 던짐), `putDownloadedBytes` 해시 불일치·청크 쓰기 실패(= `put`과 같음) | SYNC-CP8(+ 총괄 보충: `putDownloadedBytes` 청크 쓰기 실패 — SYNC S-20이 '계약에 없음'으로 적은 틈) | CORE(4.6·4.7 주석 옮김, 6.13 `putDownloadedBytes` bullet 한 줄 — 구현 변경 없음: `put` ③과 같은 BlobStore 경로), SYNC(12.2 CP8 결정 칸, 5.1.1 블록을 v1.3 원문으로 — S-20 이미 맞음) |
+| C13-05 | 7.6 마지막 bullet | 기반 단계 뒤 '가정' 블록 교체 때 각 영역이 상태 줄('승인')·계약 인용(v1.3)을 맞추고 00-review '최종 승인'의 자기 영역 항목을 처리 | 총괄(최종 승인 절차) | 전 영역 |
+
+보류 유지: SYNC-CP7(`syncLogSinkProvider`) — v1.2 보류 그대로(방향 승인, 7.3.3 반영은 M4 연결 계획 때). 이미 수용: PDF P1(= v1.1 C11-18, 할 일 없음). 기각: 없음.
+
+#### v1.2 (2026-11-05, 3차 승인 검토 — 근거: [00-review.md '3차 검토'](00-review.md#3차-검토-승인-검토))
+
+시그니처 변경은 없다. 모두 주석·규칙 문구이며, 기존 동작을 계약에 적거나(C12-02·04·05·09) 기반 단계·검사 시점을 정한 것이다(C12-01·06·08).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C12-01 | 7.4.2, 7.4.8, 7.6 B1, 7.7 V1 | `ws check` R15(태그 선언·`integration`·`perf` skip)를 **B1부터** 위반으로 검사, V1 = R1~R15. 태그는 문자열 리터럴로 쓰고, `dart_test.yaml`은 태그를 쓰는 첫 테스트보다 먼저 만든다 | INFRA P5 | INFRA(B1-4·I1·6.2·10절), PDF(T0에 `dart_test.yaml`, 10절), INK(10절 표기). CORE·EDITOR·LIBRARY·SYNC는 이미 맞음(골격 작업에서 선언, 리터럴 태그 — 총괄 확인) |
+| C12-02 | 7.2.10 `EntityChange` | 원격 고아 획은 그 페이지 행을 가져오는 커밋(`applyRemote`, 또는 그 행을 만드는 `commitRepairs`)의 batch에 `noteId`·`pageId`와 함께 실린다 | CORE CP-7 | CORE(6.10.4 `commitRepairs`), LIBRARY·SYNC 확인(변경 없음) |
+| C12-03 | 7.2.16 `pageBackgroundBuildersProvider` 주석 | 'Read by INK controllers, INK thumbnails …' → 'Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of InkPageThumbnail pass its value (the widget reads no provider)' | INK P4 | INK(4.13), PDF(5.2 발췌), EDITOR 확인(이미 값을 넘김) |
+| C12-04 | 7.2.20 '값 동등' | `AuthUser` 추가(7종) | SYNC-CP5 | SYNC(12.2·10절), INFRA 확인 |
+| C12-05 | 7.7 5단계 | SYNC T16 설명에 SyncStore 계약 스위트 C-01~C-25 + 폴더 순환 판정 대조 | SYNC-CP6 | SYNC(12.2), CORE(10절 7 인용), INFRA 확인(명령 같음) |
+| C12-06 | 7.6 B4 | 다른 영역이 읽는 PDF provider(`pdfIoOverrides()` 대상, `pdfRenderStatsProvider`)는 B4에서도 예외 없이 만들어짐, `pdfRenderStatsProvider` B4 본문 = `ValueNotifier(PdfRenderStats.zero)` | 총괄(PDF 담당 PDF-3-3 + INFRA 담당 권장 1 — 같은 결함) | PDF(T0·4.12·`init_test`), INFRA(4.5.9·5.7·9.1) |
+| C12-07 | 7.4.11 | 색 하드코딩 예외에 PDF 검색 하이라이트(종이 위 표시 색, `PdfTuning` 한 곳) | 총괄(PDF 담당 PDF-3-5의 두 안 중 결정) | PDF(3절 원칙·4.13 인용) |
+| C12-08 | 7.6 B3~B7 시점 | T4 뒤 작업 트리에서 미리 작성 가능, main 커밋·완료 조건은 B2(T1~T5) 완료 뒤, B4·B5는 B3 뒤 | 총괄(CORE 담당 권장) | CORE(8.1 순서 메모) |
+| C12-09 | 7.2.9, 7.2.11 | 쓰기 `Future` 완료 시점 요약(커밋 뒤 완료, 재시도 중 미완료·오류 아님, 인자·상태 오류만 재시도 없이 오류) + `AssetStore.put` 청크 쓰기 실패는 즉시 오류 | 총괄(PDF 담당 PDF-3-1의 근거를 계약에, CORE 담당 권장) | CORE(4.5 문구 통일·4.7 `put` 주석), PDF(PDF-3-1), INFRA(백업 대기 — 권장), EDITOR·LIBRARY 확인(이미 맞음) |
+
+보류: SYNC 담당이 제안한 SYNC-CP7(`SyncLogSink`를 앱 셸이 넣을 provider 자리) — 이번 범위 동작에 영향 없음. 방향(SYNC 소유 선택 자리 `syncLogSinkProvider`, 기본 `null`, INFRA `SyncModule`이 override)은 승인하고, 7.3.3 표 반영은 M4 연결 계획 때.
+
+#### v1.1 (2026-11-04, 2차 승인 검토 — 근거: [00-review.md '2차 검토'](00-review.md#2차-검토-승인-검토))
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C11-01 | 7.2.8 N-2·N-4 | 리스너 안 `execute` = `StateError`(재진입 금지), `executeAsync`·`undo`·`redo`는 첫 `await` 뒤 적용, 읽기 전용이면 `undo`·`redo`도 `ReadOnlyNoteException` | CORE CP-1 | CORE, EDITOR, INK, PDF |
+| C11-02 | 7.2.8 N-1 | `pagesStream`은 `Page` 값(로컬 `contentRevision` 포함)이 바뀔 때도 내보냄 | EDITOR Q-E1 답 | CORE, EDITOR |
+| C11-03 | 7.2.10 | `applyRemote`·`commitRepairs`의 기기 로컬 필드 규칙(받은 값 무시, 유지·재계산) | SYNC-CP2, CORE 승인 검토 | CORE, SYNC |
+| C11-04 | 7.2.10 | `ChangeBatch.origin`: `markUploaded`·`duplicateNoteForRecovery` = local, `reassignOwner` = remote | CORE CP-5 | CORE, SYNC |
+| C11-05 | 7.2.10 | `RemoteMergePolicy`의 `pendingLocalFields`: purge 대기 항목은 `{'*'}` | SYNC 승인 검토(purge 되살림) | CORE, SYNC |
+| C11-06 | 7.2.10 | `EntityChange.noteId`/`pageId` 힌트 항상(outbox와 같음), C-9는 로컬 편집 규칙·원격은 `ChangeBatch(origin: remote)`로 알 것 | LIBRARY 승인 검토(표지 갱신) | CORE, LIBRARY |
+| C11-07 | 7.2.10 | 시계: 보류 조건 `min(청크 serverTime, 받는 기기 벽시계) + 24 h`, 해제도 같은 기준, 자기 오차 > 24 h면 업로드·받기 모두 멈춤 | SYNC-CP1, SYNC Q-N2 | SYNC, CORE(인용문) |
+| C11-08 | 7.2.12 | `NoteStore.exportBackupJson()` 시그니처 | INFRA P2 = CORE CP-2 | CORE, INFRA |
+| C11-09 | 7.2.12 | `persistenceStatusStream` 구독 즉시 현재 값 1회 | LIBRARY CP-L2 | CORE, LIBRARY, EDITOR |
+| C11-10 | 7.2.12 | `refreshStorageInfo()` 뒤 `ref.invalidate(storageInfoProvider)` | CORE CP-6 | CORE, INFRA, LIBRARY, EDITOR |
+| C11-11 | 7.2.12, 7.4.3 | 정적 파일 URL: 운영은 `document.baseURI` 기준 절대 URL, `Uri.base` 상대 금지(질의 읽기는 예외) | INFRA P3(수정 채택) | INFRA, CORE, PDF·EDITOR(확인) |
+| C11-12 | 7.2.12, 7.6 | `inMemory`/`openTestNoteStore` → `nativeMemory` → `notDurable` 배너, `openTestNoteStore(storageInfo:)` 추가 | CORE 승인 검토 | CORE, INFRA, EDITOR, LIBRARY, SYNC |
+| C11-13 | 7.2.13, 7.3.3 | `SyncBadge` `==`/`hashCode`, M4 override에 `.distinct()` | SYNC-CP3 | CORE, SYNC, INFRA, LIBRARY, PDF(사본 표) |
+| C11-14 | 7.2.15 | `viewScale` = 논리 px/pt(DPR 없음) | EDITOR CP-E3 | INK, EDITOR |
+| C11-15 | 7.2.15 | `setViewport`는 `InkPageView`만 부름, EDITOR는 부르지 않음 | INK·EDITOR 승인 검토 | INK, EDITOR |
+| C11-16 | 7.2.15 | 커밋 실패 시 `discardEdit(edit)`, `discardEdit`를 계약 멤버로 | INK 5.3 #5 · EDITOR 승인 검토 | EDITOR, INK |
+| C11-17 | 7.2.15 | `InkPageContent.fromCore`가 유일한 생성자(미리보기는 `core.Page`를 만들어 넘김) | INK·EDITOR 승인 검토 | INK, EDITOR |
+| C11-18 | 7.2.16 | `renderStill` null = 지금 그릴 수 없음, 렌더러 null 보충 문장, 호출자는 null을 캐시하지 않음 | INK P1 = PDF P1 | INK, PDF, LIBRARY |
+| C11-19 | 7.2.16 | `InkPageThumbnail` 시그니처(`backgroundBuilders` 필수 — 호출자가 provider 값을 넘김), `PenPreviewPainter.pencilGrain` = `PencilGrain` | INK 승인 검토(P3 요청을 총괄이 직접 채택) | INK, EDITOR |
+| C11-20 | 7.2.16 | 배경 위젯 레이아웃은 `viewScale`만, `ancestorScale`은 `deviceScale`로만 | PDF 승인 검토 | PDF, INK |
+| C11-21 | 7.2.17 | `focusRectPt` = 표시 페이지 pt(노트 `Page.size`), 왼쪽 위 원점, y 아래 | EDITOR CP-E1 | EDITOR, PDF, INFRA(전달만) |
+| C11-22 | 7.2.20 | SYNC 공개 표면 갱신(삭제·변경·추가, `testing.dart`에서 `fake_async`·matcher 제거), SYNC 상태 값 클래스 값 동등 | SYNC-CP0 + SYNC 승인 검토 | SYNC, INFRA(확인) |
+| C11-23 | 7.3.2 K-1 | 근거 한 줄(`minRadiusPt` 0.05 ≤ 0.075). CORE CP-3 기각 | INK P2 | CORE, INK |
+| C11-24 | 7.4.5 | 저장 경고 문구 고정, 대조 방법(영역별 고정 문장 테스트 + INFRA 스모크) | EDITOR 승인 검토 | EDITOR, LIBRARY, INFRA |
+| C11-25 | 7.4.6 | `device` 목록에 현재 도구·펜 종류 선택(`editor.toolSelection`) | EDITOR CP-E2 | EDITOR, CORE(5.3 문구) |
+| C11-26 | 7.4.8 | 태그를 쓰는 패키지는 `dart_test.yaml`에 선언, `integration`·`perf`는 skip | LIBRARY 승인 검토 + 총괄(EDITOR 누락 발견) | LIBRARY, EDITOR(필수), 전 영역(확인) |
+| C11-27 | 7.4.8, 7.6 | B2 테스트·개발 도우미 시그니처(`createFakeNoteStore`·`FakeNoteStoreFaults`·`openTestNoteStore`·`seedSyntheticNote`)와 B2 단계 동작 | LIBRARY CP-L3 + CORE 승인 검토 | CORE, 전 영역(테스트) |
+| C11-28 | 7.4.9 | `disableContextMenu()` 미사용 근거 정정(엔진 기본은 막지 않음) | INFRA P1 | INFRA |
+| C11-29 | 7.5 | `collection`·dev `clock`에 feature_library, `crypto`에 루트 dev | LIBRARY CP-L1, INFRA P4 | INFRA(B1 pubspec·3.3 표), LIBRARY |
+| C11-30 | 7.7 | T16 태그 `integration`, INFRA 스모크에 배너 문구 대조 | SYNC-CP4 | SYNC, INFRA |
+
+기각: CORE CP-3(팽창 하한 — 반례 계산 오류, K-1은 현 공식으로 성립), CORE CP-4(SYNC 포트 `RepairWrite` 이름 변경 — SYNC가 포트를 지워 불필요).

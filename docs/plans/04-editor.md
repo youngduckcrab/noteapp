@@ -1,10 +1,10 @@
 # 04. 에디터 화면 (EDITOR) 상세 계획서
 
-> 상태: **1차 수정본 v0.2** (총괄 1차 검토 반영, 재검토 대기) · 영역 ID: **EDITOR** · 소유 경로: `packages/feature_editor/`
-> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 **통합 계약 v1.0**(이 문서와 다르면 계약이 우선) · 검토: [00-review.md](00-review.md) 3.4
-> 작성 환경에서 실제 확인한 것: Flutter 3.47.9 / Dart 3.13.7, pub.dev 패키지 정보(2026-11-04 재확인), Flutter 웹 엔진 포인터 소스(`flutter_web_sdk/lib/_engine/engine/pointer_binding.dart`), `material_ui` 1.10.0 소스(pub 캐시), 스크래치 프로젝트 두 개: `/tmp/claude-0/plan-scratch/editor/rp_probe`(초안 — Riverpod 3.4.3 웹 빌드·scoped provider·`EagerGestureRecognizer`), `/tmp/claude-0/plan-scratch/editor/v2_probe`(1차 수정 — 아래 '확인한 것' 표)
+> 상태: **2차 수정본 v0.3** (총괄 2차 승인 검토 반영, 최종 승인 대기) · 영역 ID: **EDITOR** · 소유 경로: `packages/feature_editor/`
+> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 **통합 계약 v1.1**(변경 이력 7.9 C11-01~30, 이 문서와 다르면 계약이 우선) · 검토: [00-review.md](00-review.md) 3.4(1차) · '2차 검토' 2.4.4(EDITOR-2-1~12)
+> 작성 환경에서 실제 확인한 것: Flutter 3.47.9 / Dart 3.13.7, pub.dev 패키지 정보(2026-11-04 재확인), Flutter 웹 엔진 포인터 소스(`flutter_web_sdk/lib/_engine/engine/pointer_binding.dart`), `material_ui` 1.10.0 소스(pub 캐시), 스크래치 프로젝트 세 개: `/tmp/claude-0/plan-scratch/editor/rp_probe`(초안 — Riverpod 3.4.3 웹 빌드·scoped provider·`EagerGestureRecognizer`), `/tmp/claude-0/plan-scratch/editor/v2_probe`(1차 수정 — 아래 '확인한 것' 표 V1~V6), `/tmp/claude-0/plan-scratch/editor/v3_probe`(2차 수정 — V7)
 
-이 문서만 보고 별도 git worktree에서 구현할 수 있도록 공개 API, 사용하는 계약, 알고리즘 수치, provider 이름, 작업 순서와 완료 조건을 적는다. 다른 영역의 타입·인터페이스는 **통합 계약(00-overview 7장)과 계약이 승인한 각 계획서 절(CORE 4.x, INK 4.x)의 이름·형태를 그대로 쓴다.** EDITOR가 가정해 따로 정의한 공유 타입은 없다. 계약에 문제가 있다고 본 점은 계약대로 쓰고 12.2에 '계약 변경 제안'으로 남겼다. 검토 반영 내역은 13절.
+이 문서만 보고 별도 git worktree에서 구현할 수 있도록 공개 API, 사용하는 계약, 알고리즘 수치, provider 이름, 작업 순서와 완료 조건을 적는다. 다른 영역의 타입·인터페이스는 **통합 계약 v1.1(00-overview 7장)과 계약이 승인한 각 계획서 절(CORE 4.x, INK 4.x)의 이름·형태를 그대로 쓴다.** EDITOR가 가정해 따로 정의한 공유 타입은 없다. 계약 블록을 옮긴 곳은 v1.1 주석까지 글자 그대로다. 계약에 문제가 있다고 본 점은 계약대로 쓰고 12.2에 '계약 변경 제안'으로 남긴다(2차 수정 시점에 새 제안 없음). 검토 반영 내역은 13절.
 
 표기
 
@@ -21,6 +21,7 @@
 | V4 | 루트 `NotifierProvider`(INK `pressureModeProvider` 모양)를 다른 Notifier가 `build()` 안에서 `set()` | **오류**(Riverpod 3.4.3: 그 provider가 오류 상태가 됨). `await` 뒤(로드 완료 후)와 setter에서는 정상 → 6.13.1 #7 규칙 |
 | V5 | `package:flutter_riverpod/misc.dart`의 `Override`로 `List<Override> featureEditorOverrides()` 선언 | 분석·실행 통과 |
 | V6 | `material_ui` 1.10.0 `Icons`에 6.9.1 아이콘 전부(`edit`·`history_edu`·`border_color`·`create`·`brush`·`auto_fix_normal`·`highlight_alt`·`view_sidebar`·`touch_app`·`do_not_touch`·`cloud_done`·`cloud_sync`·`cloud_off`·`sync_problem`·`checklist`·`lock`) 존재, `ReorderableListView`의 `onReorder`는 `@Deprecated`(→ `onReorderItem`만 사용) | 소스 확인 |
+| V7 | (2차, `v3_probe`) 3절의 `dart_test.yaml`(`golden: {}`, `integration: {skip: "..."}`)과 `@Tags(['integration'])` 테스트(본문 `UnimplementedError` — B2 CORE 흉내)·`@Tags(['golden'])` 테스트 | 기본 `flutter test`: 통합 suite가 사유 문구와 함께 '건너뜀'(+2 ~1, 통과). `--run-skipped -t integration`: 그 테스트만 실행(실패 = 실제로 돈다). `-t golden`: 골든만. **파일을 빼면** "A tag was used that wasn't specified in dart_test.yaml" 경고 + 통합 테스트가 기본 실행에서 돌아 실패 → C11-26 결함 재현 |
 
 ---
 
@@ -220,6 +221,7 @@ EDITOR는 `packages/feature_editor/` 아래만 수정한다. 다른 경로 변�
 ```text
 packages/feature_editor/
 ├─ pubspec.yaml                          # 기반 단계 B1에서 INFRA가 만들고, EDITOR가 내용을 유지
+├─ dart_test.yaml                        # tags: golden {}, integration {skip} — 계약 7.4.8 v1.1 (C11-26), E-00
 ├─ README.md
 ├─ lib/
 │  ├─ feature_editor.dart                # 공개 API (4절) — 유일한 진입점
@@ -285,11 +287,11 @@ packages/feature_editor/
 │     │  ├─ dev/      dev_metrics.dart · dev_overlay.dart
 │     │  └─ settings/ editor_settings_sections.dart
 └─ test/
-   ├─ helpers/   pointer_driver.dart · pump_editor.dart · test_data.dart · recording_input_targets.dart
+   ├─ helpers/   pointer_driver.dart · pump_editor.dart · test_data.dart · recording_input_targets.dart · recording_note_session.dart
    ├─ unit/      (9.1 표)
    ├─ widget/    (9.1 표)
    ├─ goldens/   *_golden_test.dart + *.png   (@Tags(['golden']), @TestOn('vm') — 계약 7.4.8)
-   ├─ integration/ real_core_ink_smoke_test.dart   (@Tags(['integration']) — 통합 단계, E-21)
+   ├─ integration/ real_core_ink_smoke_test.dart   (@Tags(['integration']) — dart_test.yaml이 기본 skip, 통합 단계에만, E-21)
    └─ web/       editor_browser_smoke_test.dart     (@TestOn('browser') — 계약 7.4.8)
 ```
 
@@ -322,6 +324,19 @@ dev_dependencies:
 - 형제 패키지는 `any`(경로 의존 금지 — R8). 외부 의존은 정확한 버전(R9). 테스트에서 쓰는 `note_core`의 `testing.dart`·`testing_vm.dart`·`dev_tools.dart`, `ink_engine`의 `testing.dart`·`dev_tools.dart`는 같은 패키지의 다른 진입점이라 추가 의존이 없다.
 - `lib/`은 `package:note_core/note_core.dart`, `package:note_core/dev_tools.dart`(개발자 메뉴), `package:ink_engine/ink_engine.dart`, `package:ink_engine/dev_tools.dart`(개발자 메뉴)만 import한다. `testing.dart`·`testing_vm.dart`는 `test/`에서만(계약 7.1 규칙 2).
 - 의존성 추가가 필요해지면 결과 보고에 '의존성 추가'로 남긴다(계약 7.4.1).
+
+`dart_test.yaml` (계약 7.4.8 v1.1, C11-26 — EDITOR-2-7. E-00에서 만든다):
+
+```yaml
+# packages/feature_editor/dart_test.yaml
+tags:
+  golden: {}
+  integration: {skip: "integration stage only — ws test --run-skipped -t integration"}
+```
+
+- EDITOR 테스트가 쓰는 태그는 `golden`(`test/goldens/`)과 `integration`(E-21) 둘뿐이다(`perf`·`bench` 안 씀 — E-22 `performance_smoke_test`는 태그 없이 기본 실행). 둘 다 여기 선언한다(계약 7.4.8 v1.1: 쓰는 태그는 모두 선언, `integration`·`perf`는 `skip` — INFRA가 01-infra 6.2에 둔 `ws check` R15가 이 규칙을 검사).
+- 왜 필요한가: `ws test`의 기본 제외는 `-x bench`뿐이다. 이 파일이 없으면 E-21(`@Tags(['integration'])`, `openTestNoteStore()`)이 동시 개발 중 기본 `ws test`에서 돌고, B2 단계 CORE의 `openTestNoteStore`는 CORE T6 전까지 `UnimplementedError`(계약 7.6 'B2 단계 값')라 실패한다. 스크래치 V7로 확인(파일이 없으면 경고 + 실패, 있으면 사유와 함께 건너뜀).
+- 통합 단계(계약 7.7 5단계)에서는 `ws test --run-skipped -t integration`이 이 skip을 풀어 E-21을 돌린다. `flutter test`가 지원하지 않는 `override_platforms`·`presets`는 쓰지 않는다(CORE 7.3 확인).
 
 ---
 
@@ -421,7 +436,8 @@ EDITOR가 직접 읽는 다른 영역 provider(override하지 않음, 테스트�
 | INK | `pressureModeProvider` | 설정의 필압 모드를 `notifier.set()`으로 넣음(계약 7.3.3 마지막 문단) |
 | INK | `pressureCapabilityProvider` | 필압 감지 상태 표시(설정 > 펜, 개발자 표시, 펜 '고급' 비활성 판단) |
 | INK | `inkDiagnosticsProvider` | 개발자 표시의 지연·입력 Hz·필압·프레임·캐시 |
-| INK | `pencilGrainProvider` | 펜 미리보기(`PenPreviewPainter.pencilGrain`) |
+| INK | `pencilGrainProvider` | `PencilGrain` 값을 그대로 넘김: 펜 미리보기(`PenPreviewPainter.pencilGrain` — 6.9.3 #2, 6.10 관리 시트), `InkPageThumbnail.pencilGrain`(페이지 패널 6.11.3, 페이지 추가 시트 미리보기 6.11.4) — 계약 7.2.16 v1.1 |
+| INK | `pageBackgroundBuildersProvider` | **읽기만, override 안 함**(override는 PDF `pdfIoOverrides()`만 — 계약 7.3.3). `InkPageThumbnail.backgroundBuilders`(페이지 패널 6.11.3, 페이지 추가 시트 미리보기 6.11.4)에 `ref.watch` 값을 넘김 — INK 위젯은 provider를 읽지 않고 호출자가 넘긴다(계약 7.2.16 v1.1, C11-19). 마운트된 페이지의 `InkPageView`는 INK 컨트롤러가 직접 읽음 |
 
 ### 4.4 설정 저장 — 공개 API 없음
 
@@ -440,6 +456,8 @@ class EditorMenuContext {
   final int currentPageIndex;
   final List<String> selectedPageIds;         // page panel multi-select, note order
   /// Jump/scroll to the page; when focusRectPt is given, bring that page rect into view.
+  /// (v1.1) focusRectPt is in displayed page coordinates: pt of the note's Page.size,
+  /// origin top-left, y down — same as core.Stroke points (PDF converts its search hits).
   final void Function(String pageId, Rect? focusRectPt) navigateToPage;
   String? get currentPageId;
 }
@@ -489,7 +507,7 @@ EDITOR가 `EditorMenuContext`를 만드는 규칙(6.11.5):
 | `currentPageIndex` | `ViewportController.currentPageIndex.value`(화면 가운데 페이지) |
 | `currentPageId` | `currentPageIndex < pageIds.length ? pageIds[currentPageIndex] : null` |
 | `selectedPageIds` | 페이지 패널 선택 모드에서 고른 페이지(노트 순서로 정렬). 선택 모드가 아니면 `const []` |
-| `navigateToPage` | `EditorCommands.navigateToPage`(6.11.6): 모르는 id는 무시, 알면 그 페이지로 이동하고 `focusRectPt`(페이지 pt)가 있으면 그 사각형이 화면에 보이게 스크롤 |
+| `navigateToPage` | `EditorCommands.navigateToPage`(6.11.6): 모르는 id는 무시, 알면 그 페이지로 이동하고 `focusRectPt`가 있으면 그 사각형이 화면에 보이게 스크롤. `focusRectPt` = 표시 페이지 좌표(노트 `Page.size` 기준 pt, 왼쪽 위 원점, y 아래 — `core.Stroke` 점과 같음, 계약 7.2.17 v1.1). EDITOR는 변환하지 않는다(PDF가 검색 결과를 변환해 넘김) |
 
 - `onSelected`는 메뉴를 닫은 뒤 `await`된다. 진행 중에는 같은 항목을 다시 누를 수 없다(중복 실행 방지). 예외는 `FlutterError.reportError(... library: 'feature_editor')` 후 스낵바 "실행하지 못했어요"(계약 7.4.5).
 - `isEnabled`가 `false`면 항목을 회색으로 보여 준다(숨기지 않음). 읽기 전용 노트에서는 `addPageSources` 항목 전체를 비활성으로 보인다(`moreMenuItems`는 각 항목의 `isEnabled`를 따른다 — 내보내기는 읽기 전용에서도 가능).
@@ -825,14 +843,14 @@ class EditorDeveloperSettingsSection extends ConsumerWidget {
 
 | 보장 | EDITOR가 하는 일 |
 |---|---|
-| N-1 `execute`는 동기 반영 + 동기 이벤트 | 펜·지우개·올가미·붙여넣기 결과를 `session.execute(...)`로 실행하면 **그 호출 안에서** `pageChanges` 리스너(`PageMount`, 6.4.4)가 `controller.updateContent(...)`를 불러 INK pending이 같은 프레임에 정리된다. 별도 낙관적 표시층이 없다(6.7). 반환 직후 `session.pages`·`session.history`를 그대로 믿는다 |
-| N-2 호출 순서대로 적용 | 큐잉하지 않는다. 연속 획은 펜을 뗄 때마다 바로 `execute` |
+| N-1 `execute`는 동기 반영 + 동기 이벤트 | 펜·지우개·올가미·붙여넣기 결과를 `session.execute(...)`로 실행하면 **그 호출 안에서** `pageChanges` 리스너(`PageMount`, 6.4.4)가 `controller.updateContent(...)`를 불러 INK pending이 같은 프레임에 정리된다. 별도 낙관적 표시층이 없다(6.7). 반환 직후 `session.pages`·`session.history`를 그대로 믿는다. `pagesStream`은 활성 페이지 목록 **또는 그 안의 `Page` 값(로컬 `contentRevision` 포함)**이 바뀔 때마다 낸다(N-1 v1.1 — 획 명령마다 옴) → 뷰포트(`ViewportController.updatePages`)는 id 순서·크기가 같으면 레이아웃을 다시 계산하지 않고 알리지도 않으며(6.3.4), 페이지 슬롯은 `(page.id, page.size, settledScale)`로 재사용하고(6.4.3), 페이지 패널 항목은 `ValueKey(page.id)`로 유지된다(6.11.1). 썸네일 신선도는 그 `contentRevision`으로 본다(6.11.3) |
+| N-2 호출 순서대로 적용 | 큐잉하지 않는다. 연속 획은 펜을 뗄 때마다 바로 `execute`. `executeAsync`·`undo`·`redo`는 첫 `await` 뒤에 적용된다(N-2 v1.1) → 호출 직후 상태를 보지 않고 반환된 `CommandReceipt`·`UndoRedoResult`로만 다음 일(이동·스크롤)을 정한다 |
 | N-3 로드 안 된 페이지의 획 명령은 `PageNotOpenException` | 제스처 명령은 마운트된(= `openPage`된) 페이지에서만 생긴다. 버튼·메뉴에서 시작하는 페이지 단위 명령(`ClearPage`·`DuplicatePages`·붙여넣기)은 `executeAsync`로 실행 |
-| N-4 `isReadOnly`면 `ReadOnlyNoteException` | 열 때와 `noteStream` 변경 때 `isReadOnly`를 읽어 읽기 전용 배너를 띄우고 도구·페이지 편집·되돌리기를 끈다(6.17.2). 그래도 예외가 오면(경합) 결과를 버리고 안내 |
+| N-4 `isReadOnly`면 `execute`·`executeAsync`·`undo`·`redo`가 `ReadOnlyNoteException`(v1.1: `undo`·`redo` 추가) | 열 때와 `noteStream` 변경 때 `isReadOnly`를 읽어 읽기 전용 배너를 띄우고 도구·페이지 편집·되돌리기를 끈다(6.17.2). 그래도 예외가 오면(경합) 세 실행 함수(`_run`·`_runAsync`·`_runHistory`, 5.1.3)가 모두 잡아 INK 대기 표시를 지우고(`discardEdit`) 안내한다 — 되돌리기·다시 실행도 `_runHistory`를 거치므로 같은 처리 |
 | N-5 세션 1개, 참조 계수 | `core.noteSessionProvider(noteId)`만 쓴다. EDITOR는 `openSession`/`close`를 직접 부르지 않는다(화면을 떠나면 autoDispose가 `close()`) |
 | N-6 `openSession`이 `markOpened`, 없는 노트는 `EntityNotFoundException` | `markOpened`를 부르지 않는다. 오류가 `EntityNotFoundException`이면 '노트를 찾을 수 없어요' 화면 |
 | N-7 원격 변경은 `PageContentChange(origin: remote)` | 같은 `pageChanges` 경로로 `updateContent` + 선택 재검증(6.6.6). 원격 변경은 되돌리기 대상이 아니므로 EDITOR가 따로 하는 일 없음 |
-| 재진입 금지(CORE 4.4 문서 주석, CORE 12.2 CP-1, CORE 5.3 E-4+) | 세션 스트림 리스너 안에서 `execute`를 부르지 않는다. 리스너가 하는 일은 `updateContent`·선택 재검증(INK `select`)·`notifyListeners`뿐. 명령이 필요한 반응이 생기면 `scheduleMicrotask`로 미룬다(`editor_commands_test`가 리스너 안 호출이 없음을 확인) |
+| N-2 재진입 금지(v1.1): 세션 스트림 리스너 안에서 `execute()`를 부르면 `StateError`(동기 broadcast 전달 중에는 다시 전달할 수 없다) | 세션 스트림 리스너(`pageChanges`·`pagesStream`·`historyStream`·`noteStream`)와 INK 컨트롤러 리스너 안에서 `execute`를 부르지 않는다. 리스너가 하는 일은 `updateContent`·선택 재검증(INK `select`)·`notifyListeners`·레이아웃 갱신뿐. 명령이 필요한 반응이 생기면 `scheduleMicrotask`로 미룬다(INK 5.3 #7). `page_mount_test`·`editor_commands_test`가 `RecordingNoteSession.executeDuringDelivery == false`로 확인하고, 실수로 불려 `StateError`가 오면 `_run`이 오류 보고(버그) |
 
 #### 5.1.3 EDITOR 동작 → CORE 명령 매핑 (계약 X2, CORE 5.3 예시와 같음)
 
@@ -840,40 +858,53 @@ class EditorDeveloperSettingsSection extends ConsumerWidget {
 
 | EDITOR 동작 | 명령 | 호출 | 결과 사용 |
 |---|---|---|---|
-| 펜 획(펜을 뗌) | `edit.toCommand()` = `core.AddStrokes(pageId, [stroke])` | `session.execute` | 최근 색 갱신. 예외 시 `controller.discardPending(id)` |
-| 지우개 제스처(획/부분) | `edit.toCommand()` = `core.RemoveStrokes` / `core.SplitStrokes`(INK `EraserSession`이 제스처 전체를 1개로) | `session.execute` | 이전 도구 복귀 옵션 |
-| 올가미 이동·크기 | `selection.commitTransform()!.toCommand()` = `core.TransformElements(pageId, ids, transform, scaleStrokeWidth: true)` | `session.execute` | id 유지 → `controller.select(ids)`로 선택 유지 |
-| 선택 삭제 | `selection.delete().toCommand()` = `core.RemoveStrokes` | `session.execute` | 선택 해제 |
-| 붙여넣기 | `core.AddStrokes(pageId, pasted)` (id = `core.idGeneratorProvider`, 6.6.7) | `session.executeAsync` | 올가미 도구로 전환, `controller.select(pastedIds)` |
+| 펜 획(펜을 뗌) | `edit.toCommand()` = `core.AddStrokes(pageId: edit.pageId, strokes: edit.added)`(획 1개) | `commitInkEdit` → `_run` → `session.execute` | 최근 색 갱신. 실패 시 `controller.discardEdit(edit)`(계약 7.2.15 v1.1 '커밋 실패') |
+| 지우개 제스처(획/부분) | `edit.toCommand()` = `core.RemoveStrokes(pageId: …, strokeIds: …)` / `core.SplitStrokes(pageId: …, removedIds: …, added: …)`(INK `EraserSession`이 제스처 전체를 1개로) | `commitInkEdit` → `_run` | 이전 도구 복귀 옵션. 실패 시 `discardEdit(edit)` → 지운 획이 바로 다시 보임 |
+| 올가미 이동·크기 | `selection.commitTransform()!.toCommand()` = `core.TransformElements(pageId: …, elementIds: …, transform: …, scaleStrokeWidth: true)` | `commitInkEdit` → `_run` | id 유지 → `controller.select(ids)`로 선택 유지. 실패 시 `discardEdit(edit)` → 원래 위치로 보임 |
+| 선택 삭제 | `selection.delete().toCommand()` = `core.RemoveStrokes(pageId: …, strokeIds: …)` | `commitInkEdit` → `_run` | 선택 해제. 실패 시 `discardEdit(edit)` |
+| 붙여넣기 | `core.AddStrokes(pageId: pageId, strokes: pasted)` (id = `core.idGeneratorProvider`, 6.6.7) | `_runAsync` → `session.executeAsync` | 올가미 도구로 전환, `controller.select(pastedIds)`. INK 대기 표시가 없으므로 실패 시 지울 것 없음 |
 | 현재 페이지 전체 지우기 | `core.ClearPage(pageId: id, filter: eraser.filter)` | `session.executeAsync` | — |
 | 페이지 추가(앞/뒤/끝) | `core.InsertPages(drafts: [core.PageDraft(size: size, background: background)], position: core.PageBefore(anchorId) / core.PageAfter(anchorId) / const core.PageAtEnd())` | `session.executeAsync` | `receipt.edit.insertedPageIds.first`로 `jumpToPage` |
 | 페이지 복제(1장/선택) | `core.DuplicatePages(pageIds: ids)`(각 사본은 원본 바로 뒤) | `session.executeAsync` | 1장이면 `insertedPageIds.first`로 이동 |
 | 페이지 삭제(1장/선택) | `core.DeletePages(pageIds: ids)` | `session.execute` | 스낵바 "페이지를 삭제했어요 [되돌리기]". 남는 페이지가 0이 되는 선택이면 버튼 비활성(`LastPageDeletionException` 사전 차단 — 계약 7.2.6) |
 | 페이지 이동 `(id, toIndex)` | `core.MovePages(pageIds: [id], position: toIndex == 0 ? const core.PageAtStart() : core.PageAfter(rest[toIndex - 1]))` — `rest` = id를 뺀 노트 순서 목록, `toIndex`는 `onReorderItem`의 최종 인덱스 | `session.execute` | 이동 후 현재 페이지 유지(6.3.4 앵커) |
-| 되돌리기 / 다시 실행 | — | `await session.undo()` / `redo()` | `result.applied`면 `result.affectedPageIds` 중 노트 순서 첫 페이지가 화면 밖일 때 `ensurePageVisible` |
-| 합성 획 N개(개발자 메뉴) | `core.AddStrokes(pageId, ink.InkDevTools.syntheticStrokes(...))` | `session.executeAsync` | 1단계라 되돌리기 1번에 사라짐 |
+| 되돌리기 / 다시 실행 | — | `_runHistory(session.undo)` / `_runHistory(session.redo)` | `result.applied`면 `result.affectedPageIds` 중 노트 순서 첫 페이지가 화면 밖일 때 `ensurePageVisible`. 읽기 전용이면 `ReadOnlyNoteException`(N-4 v1.1)을 `_runHistory`가 잡음 |
+| 합성 획 N개(개발자 메뉴) | `core.AddStrokes(pageId: current.id, strokes: ink.InkDevTools.syntheticStrokes(...))` | `_runAsync` | 1단계라 되돌리기 1번에 사라짐 |
 | 저장 오류 | — | `core.persistenceStatusProvider` | 새 `lastErrorAt`마다 스낵바(5초에 1번), `storageWarningOf` 배너(6.17.3) |
 | 노트 없음 | `EntityNotFoundException` (세션 열기) | `editorSessionProvider` 오류 | 6.17.1 |
 | 읽기 전용 | `session.isReadOnly` / `ReadOnlyNoteException` | — | 6.17.2 |
 
-명령 실행 공통 처리(`EditorCommands._run`):
+명령 실행 공통 처리(`EditorCommands._run`·`_runAsync`·`_runHistory` — CORE를 부르는 곳은 이 셋뿐):
 
 ```dart
 // src/commands/editor_commands.dart (excerpt)
-/// Runs one CORE command for one user action. Never called from a session
-/// stream listener (5.1.2). Returns null when the command was rejected.
-core.CommandReceipt? _run(core.EditCommand command, {ink.InkPageController? discardOn,
-    Iterable<String> pendingIds = const []});
+/// Runs one CORE command for one user action, synchronously (N-1). Never called from a
+/// session stream listener (N-2 v1.1: that would throw StateError). Returns null when the
+/// command was rejected; [onRejected] then runs exactly once before returning — gesture
+/// commits pass () => controller.discardEdit(edit) (contract 7.2.15 v1.1 'commit failure').
+core.CommandReceipt? _run(core.EditCommand command, {VoidCallback? onRejected});
 
-/// Same for commands that may need pages loaded first (N-3).
-Future<core.CommandReceipt?> _runAsync(core.EditCommand command);
-// Both catch:
-//   ReadOnlyNoteException     → read-only toast, readOnly state refreshed
+/// Same for commands that may need pages loaded first (N-3). Applied after the first
+/// await (N-2 v1.1).
+Future<core.CommandReceipt?> _runAsync(core.EditCommand command, {VoidCallback? onRejected});
+
+/// session.undo / session.redo (applied after the first await, N-2 v1.1). Read-only notes
+/// throw ReadOnlyNoteException here too (N-4 v1.1). null when rejected.
+Future<core.UndoRedoResult?> _runHistory(Future<core.UndoRedoResult> Function() step);
+
+// All three catch:
+//   ReadOnlyNoteException     → read-only toast, editorReadOnlyProvider refreshed
 //   PageNotOpenException      → reportError (bug: gesture on an unmounted page)
-//   LastPageDeletionException → ignored (button should have been disabled), reportError
+//   LastPageDeletionException → reportError (button should have been disabled)
 //   SessionClosedException    → ignored (screen is closing)
-// and on any failure call discardOn?.discardPending(id) for each pending id.
+//   StateError                → reportError (bug: re-entered from a listener, N-2 v1.1)
+//   anything else             → reportError + snackbar "실행하지 못했어요" (ArgumentError etc.)
+// On every rejection: onRejected?.call() once, then return null (never rethrow).
+// reportError = FlutterError.reportError(... library: 'feature_editor') (contract 7.4.5).
 ```
+
+- 성공했을 때는 `onRejected`를 부르지 않는다: INK 대기 표시는 `execute` 안의 `pageChanges` → `updateContent`가 같은 호출에서 정리한다(계약 7.2.15 '커밋 인계').
+- `controller.discardPending(id)`(id 하나)는 EDITOR가 쓰지 않는다. 커밋 실패는 언제나 `discardEdit(edit)` — `added`뿐 아니라 `removedIds`·`targetIds`의 대기 표시까지 한 번에 지워 지운 획·옮긴 획이 바로 원래대로 보인다(계약 7.2.15 v1.1, C11-16).
 
 #### 5.1.4 CORE에 기대하는 동작 (계약 번호)
 
@@ -911,16 +942,17 @@ Future<core.CommandReceipt?> _runAsync(core.EditCommand command);
 
 | 쓰임 | CORE API | 규칙 |
 |---|---|---|
-| 저장 경고 배너 | `core.storageWarningOf(ref.watch(core.storageInfoProvider), status)` (`status` = `persistenceStatusProvider`의 최신 값) | `writeFailing` / `notDurable` 문구는 LIBRARY 6.16과 같다(6.17.3). 조건은 이 함수 하나(계약 7.4.5) |
+| 저장 경고 배너 | `core.storageWarningOf(ref.watch(core.storageInfoProvider), status)` (`status` = `persistenceStatusProvider`의 최신 값 — `persistenceStatusStream`은 구독 즉시 현재 값을 1회 내므로(계약 7.2.12 v1.1, C11-09) 값이 없는 것은 첫 프레임뿐) | 조건은 이 함수 하나, 문구는 계약 7.4.5 v1.1 **고정 문장 2개**(6.17.3). EDITOR는 `editor_strings.dart`의 두 문장을 계약 문장과 비교하는 단위 테스트를 두고(E-00), 라이브러리·에디터 두 화면의 대조는 INFRA V5 스모크가 한다(C11-24 — 피처 패키지끼리는 test에서도 import 금지) |
 | 저장 오류 스낵바 | `core.persistenceStatusProvider` | 새 `lastErrorAt`가 오면 "저장 중 문제가 생겼어요"(5초에 1번) |
+| 저장 정보 갱신 | — | EDITOR는 `refreshStorageInfo()`를 부르지 않는다. 부른 쪽(INFRA)이 `ref.invalidate(core.storageInfoProvider)`를 하므로 EDITOR 배너·개발자 표시는 `ref.watch`만으로 새 값을 본다. `isDurable`은 실행 중 바뀌지 않아 `notDurable` 판정은 영향 없음(계약 7.2.12 v1.1, C11-10) |
 | 동기화 아이콘 | `core.syncBadgeProvider` (`StreamProvider<SyncBadge>`, 기본 `SyncBadge.off` 1회) | `off`·로딩·오류면 숨김, 나머지는 6.9.1 아이콘. 문구는 EDITOR 소유(계약 7.2.13) |
 | 페이지 패널 썸네일 | `core.pageThumbnailProvider(pageId)`, `core.noteContentReaderProvider`(`getPage`·`loadPage`) | 6.11.3. 캐시 쓰기(`ThumbnailCache.write`)는 하지 않는다(선택 — 계약 7.2.11, 1.3) |
 | 붙여넣기·합성 획 id·시각 | `core.idGeneratorProvider`, `core.clockProvider` | 다른 id 생성 방법을 쓰지 않는다(계약 7.4.6) |
 | 개발자 표시 | `core.storageInfoProvider`(저장 방식·`persistGranted`·용량), `PersistenceStatus.pendingOps`·`lastCommitLatency`·`consecutiveFailures` | 6.12 |
 
-#### 5.1.8 개발 도구 (`package:note_core/dev_tools.dart`, CORE 4.10)
+#### 5.1.8 개발 도구 (`package:note_core/dev_tools.dart`, 계약 7.6 'B2 테스트·개발 도우미')
 
-`seedSyntheticNote(store, title: 'perf-test', pages: 50, strokesPerPage: 300)` — 개발자 메뉴 '합성 노트 만들기'(6.12.4). 반환된 노트 id는 EDITOR가 열지 않는다(EDITOR는 다른 노트로 이동할 수단이 없음 — 스낵바로 안내).
+`seedSyntheticNote(store, title: 'perf-test', pages: 50, strokesPerPage: 300)` — 개발자 메뉴 '합성 노트 만들기'(6.12.4). 시그니처는 계약 7.6 블록(`Future<NoteId> seedSyntheticNote(NoteStore store, {String title = 'perf-test', int pages = 50, int strokesPerPage = 300, int pointsPerStroke = 100, int seed = 1})`)이고, `NoteStore` 인터페이스만으로 구현되므로 B2부터 가짜 저장소에서 동작한다(→ `dev_menu_test`는 동시 개발 중에도 돈다). 반환된 노트 id는 EDITOR가 열지 않는다(EDITOR는 다른 노트로 이동할 수단이 없음 — 스낵바로 안내).
 
 ### 5.2 INK (`package:ink_engine/ink_engine.dart`, 계약 7.2.15·7.2.16, X9)
 
@@ -928,9 +960,9 @@ Future<core.CommandReceipt?> _runAsync(core.EditCommand command);
 
 | 쓰임 | INK API (모두 `ink.` 접두사) | 계약 |
 |---|---|---|
-| 페이지 컨트롤러 | `inkPageControllerProvider(pageId)` → `InkPageController`: `updateContent`, `beginStroke`, `beginErase`, `beginLasso`, `select`, `selection`, `hitTest(pagePoint, tolerance:, filter:)`, `pendingIds`, `discardPending`, `setViewport`, `renderStats` | 7.2.15 (INK 4.8) |
-| 페이지 내용 | `InkPageContent.fromCore(page:, strokes:, revision:)` | 7.2.15 |
-| 페이지 그리기 | `InkPageView(controller:, ancestorScale:, isScaling:, visiblePageRect:)` | 7.2.15 (INK 4.9) |
+| 페이지 컨트롤러 | `inkPageControllerProvider(pageId)` → `InkPageController`: `updateContent`, `beginStroke`, `beginErase`, `beginLasso`, `select`, `selection`, `clearSelection`, `hitTest(pagePoint, tolerance:, filter:)`, `pendingIds`(테스트 단언), **`discardEdit(edit)`**(커밋 실패 — 계약 7.2.15 v1.1, C11-16), `renderStats`(테스트·개발자 표시) | 7.2.15 (INK 4.8) |
+| 페이지 내용 | `InkPageContent.fromCore(page:, strokes:, revision:)` — **유일한 생성자**(계약 7.2.15 v1.1, C11-17). 마운트 페이지는 `pageChanges`의 `PageContent`로, 페이지 추가 시트 미리보기는 `core.Page`를 `current.copyWith(size:, background:)`로 만들어 `strokes: const []`·`revision: 0`으로(6.11.4) | 7.2.15 |
+| 페이지 그리기 | `InkPageView(controller:, ancestorScale:, isScaling:, visiblePageRect:)` — EDITOR는 **이 세 인자만** 넘기고 `controller.setViewport`를 부르지 않는다. `InkPageView`가 자기 인자·레이아웃 폭·DPR로 `deviceScale = viewScale × ancestorScale × devicePixelRatio`를 계산해 레이아웃 뒤에 부른다(계약 7.2.15 v1.1, C11-15, INK 5.3 #4·#8) | 7.2.15 (INK 4.9) |
 | 입력 샘플 | `InkSampleAdapter.fromPointerEvent(event, pagePosition:)` → `InkSample` | 7.2.15 (INK 4.3) |
 | 세션 | `StrokeSession`(`addSample`, `end([last])`, `cancel`), `EraserSession`(`addSample`, `end`, `cancel`), `LassoSession`(`addPoint`, `end`, `cancel`), `InkSelection`(`strokeIds`, `bounds`, `previewBounds`, `setPreviewTransform`, `commitTransform`, `delete`) | 7.2.15 (INK 4.8) |
 | 편집 결과 | `InkEdit`(`added`, `isEmpty`, `toCommand()`) | 7.2.15 |
@@ -938,30 +970,47 @@ Future<core.CommandReceipt?> _runAsync(core.EditCommand command);
 | 선택 변형 | `SelectionGeometry.move/resize`, `SelectionHandle` (EDITOR는 핸들 적중 판정만) | 7.2.15 (INK 4.7) |
 | 필압 | `PressureMode`, `PressureCapability`, `pressureModeProvider`(`notifier.set`), `pressureCapabilityProvider`(`PressureCapabilityState.stylus`) | 7.2.15 (INK 4.3) |
 | 스타일 보조 | `StrokeStyleInk`(`previewRadius`, `highlighterStraightening`, `withHighlighterStraightening`), `HighlighterStraightening { off, snapOnLift, alwaysStraight }` | 7.2.15 |
-| 미리보기·썸네일 | `PenPreviewPainter(style:, pencilGrain:)`, `InkPageThumbnail(content:, width:)` (배경 빌더는 provider에서) | X9, 7.2.16 (INK 4.9) |
-| 배경 | `InkBackgroundSpec.fromCore` (페이지 추가 시트 미리보기의 `InkPageContent` 생성) | 7.2.16 |
+| 미리보기·썸네일 | `PenPreviewPainter(style:, pencilGrain: ref.watch(ink.pencilGrainProvider))`(`PencilGrain` 그대로 — painter가 `repaint: pencilGrain`으로 질감 준비 시 다시 그림), `InkPageThumbnail(content:, width:, backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider), pencilGrain: ref.watch(ink.pencilGrainProvider))` — INK는 `flutter_riverpod` 비의존이라 위젯이 provider를 읽지 않고 **호출자(EDITOR)가 값을 넘긴다** | X9, 7.2.16 v1.1 (C11-19, INK 4.9, INK 5.3 #15~#17) |
 | 진단 | `inkDiagnosticsProvider` → `InkDiagnostics`(`enabled`, `snapshot` = `InkStatsSnapshot`) | 7.2.15 (INK 4.12) |
 | 개발 도구 | `package:ink_engine/dev_tools.dart`의 `InkDevTools.syntheticStrokes(pageId:, pageSize:, count:, newId:, createdAt:)` | 7.2.15 |
 
-EDITOR가 쓰지 않는 것: `InkPageController.clearPage`(계약에서 삭제 — EDITOR가 `core.ClearPage` 실행), `pageBackgroundBuildersProvider` override(PDF `pdfIoOverrides()`만 — 계약 7.3.3), INK `testing.dart`의 `createTestPageController`는 단위 테스트에서만.
+EDITOR가 쓰지 않는 것(계약상 금지 또는 필요 없음):
+
+- `InkPageController.setViewport` — `InkPageView`만 부른다(계약 7.2.15 v1.1, C11-15). EDITOR는 기기 픽셀 배율·DPR을 INK에 따로 주지 않는다.
+- `InkPageController.discardPending(id)` — id 하나만 지울 때용. 커밋 실패는 항상 `discardEdit(edit)`(5.1.3).
+- `InkPageController.clearPage` — 계약에서 삭제, EDITOR가 `core.ClearPage` 실행.
+- `pageBackgroundBuildersProvider` **override** — PDF `pdfIoOverrides()`만(계약 7.3.3). EDITOR는 **읽기만** 해서 `InkPageThumbnail`에 넘긴다(4.3).
+- `InkBackgroundSpec`을 직접 만드는 일 — 미리보기도 `core.Page` → `InkPageContent.fromCore`(INK가 `InkBackgroundSpec.fromCore`로 변환).
+- INK `testing.dart`(`createTestPageController` 등)는 `test/`에서만(5.5).
 
 #### 5.2.2 호출 규약 (INK 5.3 — 계약 X9 승인, 지우개 반지름은 pt)
 
-| # | 규약 | EDITOR 구현 위치 |
+번호는 INK 5.3의 번호와 같다(이 문서의 'INK 5.3 #n' 인용은 모두 이 번호).
+
+| INK 5.3 # | 규약 | EDITOR 구현 위치 |
 |---|---|---|
-| 1 | 모든 `PointerDown/Move/Up`을 `InkSampleAdapter.fromPointerEvent(e, pagePosition: viewport.screenToPage(pageIndex, e.localPosition))`로 변환 | 6.6.3~6.6.4 |
+| 1 | 모든 `PointerDown/Move/Up`을 `InkSampleAdapter.fromPointerEvent(e, pagePosition: viewport.screenToPage(pageIndex, e.localPosition))`로 변환 | 6.6.2~6.6.4 |
 | 2 | 샘플을 버리거나 모으지 않는다. `GestureBinding.resamplingEnabled`는 기본값 `false` 유지(계약 E-1) | 6.5.1, `input_router_test` R33 |
 | 3 | down → `begin*`, move → `addSample`/`addPoint`, up → `end`, cancel·팜 리젝션 → `cancel`. 페이지당 세션 1개 | 6.6 |
-| 4 | 세션 시작 시 `viewScale` 전달(= 카메라 `scale`, 논리 px/pt — 12.2 CP-E3), 세션 중 줌 변경 없음(필기 중 핀치 무시 — 라우터 P4) | 6.6.3 |
-| 5 | `InkEdit.toCommand()`를 CORE에 실행, 실행하지 않으면 `discardPending` | 5.1.3 |
-| 6 | 페이지 CORE 데이터가 바뀔 때마다(로컬·되돌리기·원격) `updateContent` | 6.4.4 |
-| 7 | 스크롤·줌마다 `visiblePageRect` 갱신 | 6.4.3 |
-| 8 | 개발자 표시가 켜질 때 `inkDiagnostics.enabled = true`, 꺼지면 `false` | 6.12 |
-| 9 | 지우개 크기는 pt로 저장·전달(`EraserSpec.radius` = 지름/2) | 6.6.4 |
+| 4 | 세션 시작 시 `viewScale` 전달 — 계약 7.2.15 v1.1(C11-14): "viewScale (all three sessions) = logical px per page pt at gesture start (no devicePixelRatio, no ancestor transform)". EDITOR 값 = 세션 시작 시 카메라 `scale`이며, 도구 상호작용을 시작할 때 `viewport.settleNow()`로 `settledScale`을 같은 값으로 맞춰 조상 `Transform.scale`이 1이 되게 한다(6.2·6.3.4) → `viewScale` = `InkPageView` 레이아웃 배율 = 화면 논리 px/pt. 세션 중 줌 변경 없음(필기 중 핀치 무시 — 라우터 P4). 핀치 중에는 `InkPageView(ancestorScale:, isScaling: true)` 인자만 바꾸고 `setViewport`는 부르지 않는다(C11-15) | 6.2, 6.3.4, 6.6.2 |
+| 5 | `edit.toCommand()`를 `session.execute`로 실행. **던지면 `controller.discardEdit(edit)`**(계약 7.2.15 v1.1, C11-16) — `commitInkEdit`의 `onRejected` | 5.1.3, 6.6.3, 6.7 |
+| 6 | 페이지 CORE 데이터가 바뀔 때마다(load·로컬·되돌리기·원격) `updateContent` | 6.4.4 |
+| 7 | 재진입 금지: 세션 스트림·INK 컨트롤러 리스너 안에서 `execute` 금지(N-2 v1.1 — `StateError`), 필요하면 `scheduleMicrotask`. `executeAsync`·`undo`·`redo`는 첫 `await` 뒤 적용 | 5.1.2, 6.4.4, 6.6.6 |
+| 8 | 스크롤·줌마다 `InkPageView(visiblePageRect:)` 갱신. 컨트롤러에 전하는 `setViewport`는 `InkPageView`가 부른다(EDITOR는 부르지 않음 — C11-15). 보이는 페이지(±1, 최대 8장)만 컨트롤러 watch(E-2), 컨트롤러 하나에 `InkPageView` 하나 | 6.4.1, 6.4.3 |
+| 9 | 페이지 전체 지우기 = `core.ClearPage(pageId: …, filter: …)` 직접 실행 | 6.6.4 #5 |
+| 10 | 필압 모드: 설정 로드 뒤·변경 때 `ref.read(ink.pressureModeProvider.notifier).set(...)`, 감지 상태는 `ref.watch(ink.pressureCapabilityProvider)` | 4.8, 6.5.7 |
+| 11 | 개발자 표시가 보이는 동안 `inkDiagnostics.enabled = true`, 숨기면 `false`. '합성 획 N개' = `InkDevTools.syntheticStrokes` → `core.AddStrokes` | 6.12 |
+| 12 | 지우개 크기는 pt로 저장·전달(`EraserSpec.radius` = 지름/2) | 6.6.1, 6.6.4 |
+| 13 | 선택: 핸들 그리기·적중 판정은 EDITOR, 변형 계산은 `SelectionGeometry`, `setPreviewTransform` → `commitTransform()` → `execute`. 붙여넣기(`AddStrokes`) 뒤 `select(ids)` | 6.6.5, 6.6.7 |
+| 14 | 스포이드: `controller.hitTest(p)` → 그 id의 CORE 획 색(EDITOR는 `session.pageIfLoaded`의 `core.Stroke`에서 읽음 — 6.7 끝 줄) | 6.6.8 |
+| 15 | 페이지 패널 썸네일: 신선한 캐시 이미지 또는 `InkPageThumbnail(content:, width:, backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider), pencilGrain: ref.watch(ink.pencilGrainProvider))`. `pageBackgroundBuildersProvider`는 읽기만(C11-19) | 6.11.3 |
+| 16 | 속지·크기 미리보기 = `InkPageContent.fromCore(page: current.copyWith(size:, background:), strokes: const [], revision: 0)` + `ValueKey((choice, color, size))`(C11-17) | 6.11.4 |
+| 17 | 펜 미리보기 = `PenPreviewPainter(style:, pencilGrain: ref.watch(ink.pencilGrainProvider))`, `ValueListenableBuilder` 없음(C11-19) | 6.9.3 #2 |
+| 18 | 테스트 도우미: `SequentialIds` 없음 → `ink.testInkCoreServices()`·`core.SequentialIdGenerator`, `ink.MemoryPressureStore` | 5.5 |
 
 #### 5.2.3 기반 단계 INK(B3)로 할 수 있는 것
 
-계약 7.6 B3의 INK 스텁은 '단순하지만 동작하는 구현'이다: `StrokeSession.end()`가 샘플을 그대로(`widthQ` 0.25) 획으로 만든 `InkEdit`, `EraserSession`(획·부분 모드 모두 bounds 겹침), `LassoSession`(bounds 중심 포함), `InkPageView`(배경 + 폴리라인), `toCommand()` 동작. 그래서 EDITOR 위젯 테스트는 **첫날부터 실제 INK 패키지**(가짜 어댑터 없이)와 CORE `createFakeNoteStore()`로 펜·지우개·올가미·붙여넣기·되돌리기 흐름 전체를 돌린다. 기하가 단순한 것(부분 지우개 = 획 지우개)을 전제로 한 단언은 쓰지 않고, 명령 종류·단계 수·id 유지·좌표 변환처럼 INK 구현 품질과 무관한 것만 단언한다.
+계약 7.6 B3의 INK 스텁은 '단순하지만 동작하는 구현'이다: `StrokeSession.end()`가 샘플을 그대로(`widthQ` 0.25) 획으로 만든 `InkEdit`, 대기(pending) 표시와 `updateContent` 정리·`discardPending`·`discardEdit` 동작(INK 4.15 B3 표 — Q-E2 해결), `EraserSession`(획·부분 모드 모두 bounds 겹침), `LassoSession`(bounds 중심 포함), `InkPageView`(배경 + 폴리라인), `InkPageThumbnail`(종이 색 + 폴리라인), `PenPreviewPainter`(직선), `toCommand()` 동작. 그래서 EDITOR 위젯 테스트는 **첫날부터 실제 INK 패키지**(가짜 어댑터 없이)와 CORE `createFakeNoteStore()`로 펜·지우개·올가미·붙여넣기·되돌리기 흐름 전체를 돌린다. 기하가 단순한 것(부분 지우개 = 획 지우개)을 전제로 한 단언은 쓰지 않고, 명령 종류·단계 수·id 유지·좌표 변환·`pendingIds`(커밋 직후 같은 프레임에 비어 있음, 실패 → `discardEdit` 뒤 비어 있음)처럼 INK 구현 품질과 무관한 것만 단언한다.
 
 #### 5.2.4 INK에 기대하는 동작 (요청 수치)
 
@@ -982,8 +1031,8 @@ EDITOR가 쓰지 않는 것: `InkPageController.clearPage`(계약에서 삭제 �
 | 1 | 라우트 | `AppRoutes.note()` = `/notes/:noteId?page=` → `EditorScreen(key: ValueKey(noteId), noteId:, initialPageId:, onClose: nav.closeNote, onOpenSettings: nav.openSettings)` (INFRA 6.6, CD-21) |
 | 2 | 화면 전환 | 에디터 라우트는 `NoTransitionPage`(가장자리 스와이프 뒤로가기 없음 — INFRA-M7). EDITOR도 캔버스에 `EagerGestureRecognizer`를 둬 조상 인식기를 이긴다(초안 스크래치로 확인) |
 | 3 | 루트 override | `core.noteStoreProvider`(CoreModule), `editorExtensionsProvider`·`devOverlaySectionsProvider`(FeatureWiringModule), `pageBackgroundBuildersProvider`(PDF `pdfIoOverrides()`). 그 밖의 EDITOR provider는 override하지 않음(계약 7.3.3) |
-| 4 | 웹: 엔진이 이미 하는 것(Flutter 3.47.9 엔진 소스 확인, INFRA 6.9) | 호스트 요소 `touch-action: none`, `user-select: none`. viewport meta는 엔진이 교체. 브라우저 `contextmenu`는 엔진이 기본으로 막지 않는다(INFRA 6.9 확인) |
-| 5 | 웹: INFRA 6.9 | `index.html`의 Safari `gesturestart/change/end`·`dblclick` `preventDefault()`, `overscroll-behavior: none`, `-webkit-touch-callout: none`, `contextmenu` 가드(입력 칸 밖이면 `preventDefault`), 홈 화면 앱(standalone) 메타. `BrowserContextMenu.disableContextMenu()`는 쓰지 않음(INFRA 6.9 '`BrowserContextMenu` 결정', INFRA-S5) |
+| 4 | 웹: 엔진이 이미 하는 것(Flutter 3.47.9 엔진 소스 확인, INFRA 6.9) | 호스트 요소 `touch-action: none`, `user-select: none`. viewport meta는 엔진이 교체. 브라우저 `contextmenu`는 엔진이 기본으로 막지 않는다 — 엔진 `mouse/context_menu.dart`는 `_enabled = true`로 시작하고 `disable()`에서만 리스너를 단다(계약 7.4.9 v1.1, C11-28 총괄 확인) |
+| 5 | 웹: INFRA 6.9 | `index.html`의 Safari `gesturestart/change/end`·`dblclick` `preventDefault()`, `overscroll-behavior: none`, `-webkit-touch-callout: none`, `contextmenu` 가드(입력 칸 밖이면 `preventDefault`), 홈 화면 앱(standalone) 메타. `BrowserContextMenu.disableContextMenu()`는 쓰지 않음(계약 7.4.9 v1.1: 텍스트 입력의 브라우저 메뉴까지 끄고 프레임워크가 자체 선택 메뉴로 바뀜 — 콜아웃·선택은 CSS, 우클릭 메뉴는 `index.html`이 막음). EDITOR는 이 결정에 따로 할 일이 없다 |
 | 6 | 입력 | `GestureBinding.instance.resamplingEnabled` 기본값(false) 유지(계약 E-1) |
 | 7 | 키보드 | 앱 전역 `Shortcuts`에 ⌘/Ctrl+Z·C·V 등을 묶지 않음 |
 | 8 | 테마 | `buildAppTheme()`(Material 3). EDITOR는 `Theme.of(context).colorScheme`만 쓰고 자체 `MaterialApp`·`ProviderScope`(테스트 제외, 노트별 하위 scope 제외)를 만들지 않는다(계약 7.4.11) |
@@ -998,20 +1047,20 @@ EDITOR가 쓰지 않는 것: `InkPageController.clearPage`(계약에서 삭제 �
 | PDF | PDF 배경: PDF `PdfBackgroundLayerBuilder` → `pdfIoOverrides()` → INK `pageBackgroundBuildersProvider`. EDITOR는 아무것도 하지 않음(INK `InkPageView`가 그림) | 이번(INFRA 연결) |
 | PDF | 메뉴: `pdfEditorMoreMenuActions()`(export·share·print·search)·`pdfEditorAddPageSources()`(insert)를 INFRA가 `EditorMenuItem`으로 변환, `PdfMenuInvocation(noteId, currentPageId, selectedPageIds, onNavigate: menu.navigateToPage)` (계약 X14, PDF 5.5) | 이번(INFRA 연결) |
 | PDF | 개발자 표시: PDF 렌더 통계를 INFRA가 `DevOverlaySection(id: 'pdf.render', ...)`으로 | 이번 |
-| SYNC | 동기화 상태: M4에 INFRA가 `core.syncBadgeProvider`를 `syncBadgeOf(status)`로 override. 원격 변경은 CORE `pageChanges(origin: remote)` | M4 |
-| LIBRARY | 노트 열기 = LIBRARY `onOpenNote` → INFRA 라우트 → `EditorScreen`. 새 노트는 CORE가 첫 페이지 1장과 함께 생성. 저장 경고 배너 문구를 LIBRARY 6.16과 같게 | 이번 |
+| SYNC | 동기화 상태: M4에 INFRA가 `core.syncBadgeProvider`를 `syncEngine.statusStream.map(syncBadgeOf).distinct()`로 override(계약 7.3.3 v1.1 — `SyncBadge` 값 동등, C11-13). 원격 변경은 CORE `pageChanges(origin: remote)` | M4 |
+| LIBRARY | 노트 열기 = LIBRARY `onOpenNote` → INFRA 라우트 → `EditorScreen`. 새 노트는 CORE가 첫 페이지 1장과 함께 생성. 저장 경고 배너 문구는 두 영역 모두 계약 7.4.5 v1.1 고정 문장(각자 자기 문구 상수를 고정 문장과 비교하는 테스트, 두 화면 대조는 INFRA V5 — C11-24). EDITOR는 LIBRARY 코드·문구 상수를 import하지 않는다(test 포함, 계약 7.1 규칙 1) | 이번 |
 
 ### 5.5 테스트용 가짜 구현
 
 | 가짜·도구 | 위치 | 쓰임 |
 |---|---|---|
-| `core.createFakeNoteStore()` (+ `FakeNoteStoreFaults`, `storageInfo` 인자) | `package:note_core/testing.dart` | 모든 위젯 테스트의 저장소. 실제 세션 엔진(동기 `pageChanges`, undo/redo, 읽기 전용, 프리셋·설정·썸네일 캐시). 저장 실패·지연 주입(`failNextCommits`, `commitDelay`), 임시 저장(`StorageInfo(backend: webInMemory)`) |
+| `core.createFakeNoteStore({Clock? clock, IdGenerator? ids, OwnerId ownerId = kLocalOwnerId, bool seedDefaultPenPresets = true, StorageInfo storageInfo = const StorageInfo(backend: StorageBackend.nativeFile), FakeNoteStoreFaults? faults})` (시그니처 = 계약 7.6 'B2 테스트·개발 도우미' v1.1, C11-27) | `package:note_core/testing.dart` | 모든 위젯 테스트의 저장소. 실제 세션 엔진(N-1~N-6: 동기 `pageChanges`, undo/redo, 읽기 전용, 재진입 `StateError`), 프리셋(`ensureDefaults`)·설정·썸네일 캐시, `persistenceStatusStream`(구독 즉시 1회). 기본 `storageInfo` = `nativeFile` → **배너 없음**. 저장 실패·지연 주입(`FakeNoteStoreFaults.failNextCommits`, `commitDelay`), 임시 저장(`storageInfo: const StorageInfo(backend: StorageBackend.webInMemory)` → `notDurable`). EDITOR가 쓰지 않는 `SyncStore` 멤버는 대부분 `UnsupportedError`(계약 7.6), 가짜 `exportBackupJson`은 B2에서 `UnimplementedError` — EDITOR는 둘 다 부르지 않는다 |
 | `core.StrokeFixtures` | `package:note_core/testing.dart` | 미리 넣는 획(`synthetic`, `manySynthetic`) |
-| `core.openTestNoteStore()` | `package:note_core/testing_vm.dart` (VM 전용) | E-21 통합 스모크(실제 CORE) |
-| INK 기반 단계 구현 + `ink.SyntheticInk`·`FakeInkClock`·`SequentialIds`·`SolidBackgroundBuilder`·`createTestPageController` | `package:ink_engine/ink_engine.dart`, `package:ink_engine/testing.dart` | 실제 INK로 위젯 테스트, 진단 시계 고정, PDF 자리 배경 |
+| `core.openTestNoteStore({Clock? clock, IdGenerator? ids, OwnerId ownerId = kLocalOwnerId, String? filePath, String? deviceNodeId, bool seedDefaultPenPresets = true, StorageInfo? storageInfo})` (계약 7.6 v1.1) | `package:note_core/testing_vm.dart` (VM 전용) | E-21 통합 스모크(실제 CORE). `storageInfo: null`(기본) = 실제 백엔드 → 메모리 DB는 `nativeMemory` → `notDurable` 배너가 뜬다(C11-12). CORE T6 전(B2)에는 `UnimplementedError` → E-21은 `dart_test.yaml`의 `integration` skip으로 동시 개발 중 돌지 않는다(3절) |
+| INK 기반 단계 구현 + `SyntheticInk`·`FakeInkClock`·`testInkCoreServices()`(id = `core.SequentialIdGenerator`)·`MemoryPressureStore`·`SolidBackgroundBuilder`·`createTestPageController` (`ink.SequentialIds`는 없음 — INK 4.14·5.3 #18) | `package:ink_engine/ink_engine.dart`, `package:ink_engine/testing.dart` | 실제 INK로 위젯 테스트, 진단 시계 고정(`FakeInkClock`), 컨트롤러 단위 테스트의 id·시각(`testInkCoreServices()`)과 필압 감지 저장소(`MemoryPressureStore`), PDF 자리 배경(`SolidBackgroundBuilder` — `pageBackgroundBuildersProvider` override로 썸네일·미리보기에 넘어가는지 확인) |
 | `PointerDriver` | `test/helpers/` | 필압·기울기·반경·종류·타임스탬프를 지정해 `tester.sendEventToBinding`으로 이벤트 전송(초안 스크래치에서 동작 확인) |
 | `pumpEditor` | `test/helpers/` | 가짜 저장소 + 노트 시드 + `EditorScreen` (9.1) |
-| `RecordingNoteSession` | `test/helpers/` | `core.NoteSession`을 감싸 `openPage`·`closePage`·`execute`·`executeAsync`·`undo`·`redo`·`flush` 호출 순서를 기록하고, 스트림 전달 중 `execute`가 불리면 표시(5.1.2). 테스트에서만 `core.noteSessionProvider`를 override해 설치(계약 7.3.3 '테스트 제외'). CORE 값 타입을 그대로 쓰는 위임 래퍼라 계약 7.4.8 '가짜' 규칙에 맞음 |
+| `RecordingNoteSession` (`test/helpers/recording_note_session.dart`) | `test/helpers/` | `core.NoteSession`을 감싸 `openPage`·`closePage`·`execute`·`executeAsync`·`undo`·`redo`·`flush` 호출 순서를 기록하고, 스트림 전달 중 `execute`가 불리면 표시(N-2 v1.1). `rejectNext(error)`로 다음 `execute`·`executeAsync`·`undo`·`redo` 한 번을 CORE에 넘기지 않고 `error`로 던진다(커밋 실패 주입 — 예: `const core.ReadOnlyNoteException('race')`, E-08~E-11). 테스트에서만 `core.noteSessionProvider`를 override해 설치(계약 7.3.3 '테스트 제외'). CORE 값 타입을 그대로 쓰는 위임 래퍼라 계약 7.4.8 '가짜' 규칙에 맞음 |
 | `RecordingInputTargets` | `test/helpers/` | `InputTargets` 호출을 문자열 목록으로 기록(라우터 단위 테스트) |
 | `test_data.dart` | `test/helpers/` | 노트 시드(`seedNote(store, pages: 3, strokesByPage: ...)`), 페이지 좌표 도우미 |
 
@@ -1081,9 +1130,14 @@ sequenceDiagram
   P->>C: edit = stroke.end(upSample) (INK가 pending으로 계속 표시)
   P->>E: commitInkEdit(controller, edit)
   E->>S: execute(edit.toCommand())
-  S-->>M: pageChanges(local) — execute 안에서 동기
-  M->>C: updateContent(InkPageContent.fromCore(...)) → pending 정리(같은 프레임)
-  S-->>E: receipt (persisted는 비동기)
+  alt 성공
+    S-->>M: pageChanges(local) — execute 안에서 동기
+    M->>C: updateContent(InkPageContent.fromCore(...)) → pending 정리(같은 프레임)
+    S-->>E: receipt (persisted는 비동기)
+  else 던짐 (ReadOnlyNoteException 등)
+    S-->>E: throw
+    E->>C: discardEdit(edit) → 대기 표시 전부 제거(계약 7.2.15 v1.1)
+  end
 ```
 
 ### 6.2 좌표계
@@ -1092,14 +1146,15 @@ sequenceDiagram
 |---|---|---|---|
 | 화면(screen) | 논리 px | 캔버스 영역 왼쪽 위 (툴바 아래) | `PointerEvent.localPosition`, 핸들·메뉴·커서 |
 | 문서(doc) | pt | 레이아웃 원점 (첫 페이지 위 여백 포함) | 카메라, 페이지 배치 |
-| 페이지(page) | pt | 페이지 왼쪽 위 | `InkSample.position`(EDITOR가 변환해 넘김), 획 점, 선택 영역, CORE 저장, `navigateToPage`의 `focusRectPt` |
+| 페이지(page) | pt (노트 `Page.size` 기준) | 페이지 왼쪽 위, y 아래 | `InkSample.position`(EDITOR가 변환해 넘김), 획 점, 선택 영역, CORE 저장, `navigateToPage`의 `focusRectPt` — 계약 7.2.17 v1.1(C11-21): "focusRectPt is in displayed page coordinates: pt of the note's Page.size, origin top-left, y down — same as core.Stroke points (PDF converts its search hits)" |
 
 변환 (카메라 `scale`=논리 px/pt, `origin`=화면 왼쪽 위에 오는 문서 점):
 
 - `screen = (doc − origin) × scale`, `doc = screen / scale + origin`
 - `page = doc − pageRect.topLeft`
 - 획은 시작한 페이지에 속한다. 획 도중 페이지 밖으로 나간 점도 그대로 넘기고(INK·CORE가 저장), 화면에선 페이지 영역으로 잘린다.
-- INK 세션의 `viewScale` = 세션 시작 시 카메라 `scale`(논리 px/pt). 기기 픽셀 배율은 `controller.setViewport(deviceScale: scale × devicePixelRatio)`로 따로 준다(6.4.3).
+- INK 세션의 `viewScale`: 계약 7.2.15 v1.1(C11-14) "viewScale (all three sessions) = logical px per page pt at gesture start (no devicePixelRatio, no ancestor transform)". EDITOR는 세션 시작 시 카메라 `scale`을 넘기고, 같은 순간 `viewport.settleNow()`(6.3.4)로 `settledScale = scale`을 맞춰 핀치 미리보기 `Transform.scale`(조상 배율)이 1이 되게 한다 → 넘긴 값 = `InkPageView`의 레이아웃 배율(`size.width / pageSize.width`) = 화면 논리 px/pt. DPR은 곱하지 않는다.
+- 렌더 해상도(기기 px 배율)는 EDITOR가 주지 않는다. EDITOR는 `InkPageView`에 `ancestorScale`·`isScaling`·`visiblePageRect`만 넘기고, `InkPageView`가 그 인자와 DPR로 `deviceScale = viewScale × ancestorScale × devicePixelRatio`를 계산해 `controller.setViewport`를 부른다. **EDITOR는 `setViewport`를 부르지 않는다**(계약 7.2.15 v1.1, C11-15 — 6.4.3).
 
 ### 6.3 레이아웃과 카메라
 
@@ -1269,7 +1324,11 @@ class ViewportController extends ChangeNotifier {
 
   // ---- inputs from the widget tree / settings ----
   void updateViewportSize(Size size); // keeps anchor + zoom
-  void updatePages(List<core.Page> pages); // keeps anchor (by page id); sizes from page.size
+  /// Keeps anchor (by page id); sizes from page.size. Always stores the new Page values,
+  /// but does no relayout and sends no notification when the id order and sizes are
+  /// unchanged — pagesStream also emits when only a Page value such as contentRevision
+  /// changes (N-1 v1.1).
+  void updatePages(List<core.Page> pages);
   void setAxis(LayoutAxis axis); // keeps current page, zoom → 1
   void restore(ViewportAnchor? anchor, {String? initialPageId});
 
@@ -1285,6 +1344,11 @@ class ViewportController extends ChangeNotifier {
   void cancelGesture(); // no fling
   void panBy(Offset screenDelta); // wheel, keyboard
   void zoomBy(double factor, Offset screenFocal); // wheel+ctrl, trackpad
+  /// Called by InteractionHost when a tool interaction starts (6.6.2): stops animations,
+  /// ends the settle wait now (settledScale = camera.scale, isInteracting = false), so
+  /// the session's viewScale equals InkPageView's layout scale and ancestorScale is 1
+  /// (contract 7.2.15 v1.1 viewScale). No-op when already settled.
+  void settleNow();
 
   // ---- programmatic ----
   Future<void> animateTo(ViewportCamera target,
@@ -1319,6 +1383,7 @@ class ViewportController extends ChangeNotifier {
 | 제스처 | `beginGesture`에서 기준 카메라 저장 → `updateGesture`마다 `CameraMath.applyGesture`(기준에서 절대 계산, 누적 오차 없음). `rebased`면 현재 카메라를 새 기준으로 |
 | 제스처 끝 | ① 세로 모드: 속도가 50 px/s 이상이면 축별 `ClampingScrollSimulation`(위치=origin×scale, 속도=−v)으로 관성, 경계에 닿은 축은 멈춤 ② `abs(zoom − 1) ≤ 0.05`면 마지막 초점 기준으로 zoom 1에 150ms 스냅 ③ 가로 넘기기 모드 + `zoom ≤ 1.05`: 가로 속도 `> 300 px/s`면 진행 방향 다음/이전 페이지, 아니면 가운데에 가까운 페이지로 280ms 스냅(그 페이지의 너비 맞춤 배율로) |
 | 안정화 | 카메라가 바뀔 때마다 `isInteracting = true`. 제스처·관성·애니메이션이 끝나고 150ms 동안 변화가 없으면 `false`, `settledScale = camera.scale`(0.1% 이상 차이일 때만 갱신) |
+| 도구 시작 | `settleNow()`: 관성·애니메이션을 멈추고(필기 중 카메라가 움직이지 않음) 150ms를 기다리지 않고 바로 안정화 → 다음 프레임부터 페이지가 `camera.scale`로 배치되고 `Transform.scale`·`ancestorScale` = 1. 핀치 직후(150ms 안) 펜을 대도 세션 `viewScale` = `InkPageView` 레이아웃 배율(계약 7.2.15 v1.1). INK 재래스터는 INK가 유휴 때로 미룬다(INK `idleBeforeRasterMs`) |
 | 화면 크기 변경 | 앵커와 zoom 유지: 새 fit → `scale = zoom × fit` → 앵커 복원 |
 | 페이지 목록 변경 | 앵커 페이지가 남아 있으면 그 위치 유지, 없으면 같은 인덱스(범위 안으로) |
 | 현재 페이지 | `visibleDocRect.center`가 들어간 페이지, 간격이면 가장 가까운 페이지. 값이 바뀔 때만 알림 |
@@ -1362,7 +1427,7 @@ class ViewportMemory {
 | 컨트롤러 수명 | ✔ 마운트된 페이지만 `inkPageControllerProvider(pageId)` watch | ✔ autoDispose 시 캐시 해제 | |
 | 내용 전달 | ✔ `pageChanges` → `updateContent(InkPageContent.fromCore(...))` | ✔ diff(같은 id·같은 객체 = 변화 없음, K-4) | ✔ 동기 이벤트(N-1) |
 | 화면 위치·배율 | ✔ `settledScale`, 핀치 중 `Transform.scale` | | |
-| 다시 그릴 시점 | ✔ `isScaling`·`ancestorScale`·`visiblePageRect`·`setViewport` | ✔ 재래스터 연기·타일 | |
+| 다시 그릴 시점 | ✔ `InkPageView` 인자 `isScaling`·`ancestorScale`·`visiblePageRect`만(EDITOR는 `setViewport`를 부르지 않음 — 계약 7.2.15 v1.1) | ✔ `InkPageView`가 인자·DPR로 `setViewport`, 재래스터 연기·타일 | |
 | 배경(빈·속지·PDF·이미지) | | ✔ `pageBackgroundBuildersProvider`(PDF 빌더 포함) | |
 | 확정 획·형광펜 레이어 | | ✔ | |
 | 쓰는 중인 획·pending | ✔ 샘플 공급, 세션 수명 | ✔ 그리기 | |
@@ -1399,8 +1464,8 @@ EditorBody (Column)
 ```
 
 - 페이지 위치를 화면 좌표로 계산(`(rect.topLeft − origin) × scale`, double)해 `Positioned`에 넣는다. 문서 전체를 큰 `Transform` 하나로 옮기지 않는 이유: 500페이지 문서 끝에서 8배 확대하면 문서 좌표가 수백만 px가 되어 float32 행렬에서 떨림이 생길 수 있음.
-- `_PageSlot`은 `(page, settledScale)`가 같으면 같은 `EditorPageView` 인스턴스를 재사용(Map 캐시)해 스크롤 중 하위 rebuild를 막는다.
-- `InkPageView` 인자: `ancestorScale = camera.scale / settledScale`(핀치 중 `Transform.scale` 배율), `isScaling = viewport.isInteracting.value`, `visiblePageRect` = 화면에 보이는 페이지 영역(pt, 페이지 좌표)을 `ListenableBuilder` 안에서 매 카메라 변경마다 계산. 같은 시점에 `controller.setViewport(visiblePageRect:, deviceScale: camera.scale × dpr, isScaling:)`를 부른다(INK 5.3 #7). 카메라 경로에서 provider 상태는 바꾸지 않는다(6.13.1 #1).
+- `_PageSlot`은 `(page.id, page.size, settledScale)`가 같으면 같은 `EditorPageView` 인스턴스를 재사용(Map 캐시)해 스크롤 중 하위 rebuild를 막는다. 키에 `Page` 값 전체를 쓰지 않는 이유: 획 명령마다 `contentRevision`만 바뀐 `Page`가 오므로(N-1 v1.1) 그때마다 다시 만들게 된다. `EditorPageView`가 쓰는 `page` 필드는 id·size뿐이다(내용·배경은 `PageMount` → `pageChanges` → INK 컨트롤러).
+- `InkPageView` 인자: `ancestorScale = camera.scale / settledScale`(핀치 중 `Transform.scale` 배율), `isScaling = viewport.isInteracting.value`, `visiblePageRect` = 화면에 보이는 페이지 영역(pt, 페이지 좌표)을 `ListenableBuilder` 안에서 매 카메라 변경마다 계산. **EDITOR는 `InkPageView`에 `ancestorScale`·`isScaling`·`visiblePageRect`만 넘긴다** — `controller.setViewport`는 `InkPageView`가 이 인자와 레이아웃 폭·DPR로 `deviceScale`을 계산해 레이아웃 뒤에 부른다(계약 7.2.15 v1.1, C11-15, INK 5.3 #8). 카메라 경로에서 provider 상태는 바꾸지 않는다(6.13.1 #1).
 - 메뉴·버튼은 Listener의 **형제**로 둔다. Stack은 위쪽 자식이 먼저 히트되므로 메뉴를 누르면 Listener는 이벤트를 받지 않는다.
 
 #### 6.4.4 페이지 한 장 — `EditorPageView` · `PageMount` · `MountedPages`
@@ -1432,7 +1497,8 @@ class EditorPageView extends ConsumerStatefulWidget {
 ///   - _onChange(c): controller.updateContent(ink.InkPageContent.fromCore(
 ///         page: c.content.page, strokes: c.content.strokes, revision: c.content.revision));
 ///     isLoaded.value = true; then onContentChanged(c) (selection revalidation, 6.6.6;
-///     dev metrics stroke count). MUST NOT call session.execute (5.1.2 re-entrancy).
+///     dev metrics stroke count). MUST NOT call session.execute — inside a session
+///     stream listener it throws StateError (contract 7.2.8 N-2 v1.1).
 ///   - dispose(): cancel subscription, session.closePage(page.id). Idempotent.
 /// openPage errors (page deleted meanwhile, session closed) are reported and leave
 /// isLoaded false; the page then shows the loading cover until it is unmounted.
@@ -1938,15 +2004,15 @@ class InteractionHost implements InputTargets {
 
 `beginInteraction` 결정 순서: ① 스포이드 모드 → `EyedropperInteraction`(읽기 전용에서도 허용) ② 읽기 전용 노트 → null ③ 올가미 도구이고 선택 영역 적중 → `SelectionTransformInteraction` ④ `viewport.hitPage` 실패(간격·바깥) → null(올가미면 선택 해제) ⑤ 그 페이지가 `pages[pageId]`에 없거나 `!isLoaded` → null ⑥ 도구별 `PenInteraction` / `EraseInteraction` / `LassoInteraction`. 다른 페이지를 누르면 기존 선택 해제.
 
-공통: 상호작용은 시작 시 `mount = pages[pageId]!`, `controller = mount.controller`, `pageIndex`, `scale = viewport.camera.scale`를 잡고, 모든 이벤트를 `toInk(e) = ink.InkSampleAdapter.fromPointerEvent(e, pagePosition: viewport.screenToPage(pageIndex, e.localPosition))`로 바꾼다(페이지 밖 점도 그대로 — 6.2).
+공통: 상호작용은 시작 시 `viewport.settleNow()`(6.3.4) 뒤 `mount = pages[pageId]!`, `controller = mount.controller`, `pageIndex`, `scale = viewport.camera.scale`(= 세션 `viewScale`, 논리 px/pt — 계약 7.2.15 v1.1)를 잡고, 모든 이벤트를 `toInk(e) = ink.InkSampleAdapter.fromPointerEvent(e, pagePosition: viewport.screenToPage(pageIndex, e.localPosition))`로 바꾼다(페이지 밖 점도 그대로 — 6.2). 스포이드는 세션이 없으므로 `settleNow`를 부르지 않는다.
 
 `tapGesture`: 1 → 팝업 닫기 → 선택 해제, 2 → `commands.undo()`, 3 → `commands.redo()`. `longPress`·`secondaryClick` → 선택 영역 위면 선택 메뉴, 아니면 컨텍스트 메뉴(`붙여넣기`(클립보드 있을 때), `올가미 도구`). `navigation*` → `ViewportController`의 `beginGesture/updateGesture/endGesture/cancelGesture`.
 
 #### 6.6.3 펜
 
-1. 시작: `stroke = controller.beginStroke(toInk(down), style: toolState.currentPen, viewScale: scale)` (`style`은 정규화된 `core.StrokeStyle`, 계약 K-5)
+1. 시작: `stroke = controller.beginStroke(toInk(down), style: toolState.currentPen, viewScale: scale)` (`style`은 정규화된 `core.StrokeStyle`, 계약 K-5. `viewScale`은 6.6.2 공통 규칙 — 계약 7.2.15 v1.1, INK 5.3 #4)
 2. 이동: 모든 `PointerMove`마다 `stroke.addSample(toInk(e))` — 거르거나 모으지 않는다(계약 E-1, INK 5.3 #2). 화면 갱신은 INK 활성 레이어(위젯 rebuild 없음)
-3. 끝: `edit = stroke.end(toInk(up))` → `edit != null`이면 `commands.commitInkEdit(controller, edit)`(5.1.3) → 성공 시 `colorPalette.pushRecent(style.colorArgb)`
+3. 끝: `edit = stroke.end(toInk(up))` → `edit != null`이면 `commands.commitInkEdit(controller, edit)`(5.1.3) → 성공 시 `colorPalette.pushRecent(style.colorArgb)`. 실패하면 `commitInkEdit`이 `controller.discardEdit(edit)`를 불러 대기 중인 획이 사라지고 안내가 뜬다(최근 색은 갱신하지 않음)
 4. 취소(팜 리젝션 P4·P6, `PointerCancel`, 화면 이탈): `stroke.cancel()` — 명령 없음, INK가 미리보기 제거
 5. 펜 탭 한 번(점 1개)도 획이다(INK가 점으로 그림)
 6. 녹음(M6)이 붙으면 `meta: ink.InkStrokeMeta(recordingId:, recordingOffsetMs:)`만 추가한다
@@ -1956,18 +2022,23 @@ class InteractionHost implements InputTargets {
 ```dart
 // src/commands/editor_commands.dart (excerpt)
 /// One gesture = one InkEdit = one execute (contract E-1, 7.2.15 hand-off).
-/// On failure (5.1.3 _run) every id in edit.added is passed to controller.discardPending.
-void commitInkEdit(ink.InkPageController controller, ink.InkEdit edit) {
-  if (edit.isEmpty) return;
-  _run(edit.toCommand(), discardOn: controller, pendingIds: edit.added.map((s) => s.id));
+/// Commit failure (contract 7.2.15 v1.1, C11-16): when execute throws (ReadOnlyNoteException
+/// etc.), _run calls onRejected → controller.discardEdit(edit), which drops the pending
+/// display of every id of the edit (added, removedIds, targetIds) — erased / split /
+/// moved strokes show their committed state again at once. Returns true when committed.
+bool commitInkEdit(ink.InkPageController controller, ink.InkEdit edit) {
+  if (edit.isEmpty) return false;   // nothing pending (INK 4.6)
+  return _run(edit.toCommand(), onRejected: () => controller.discardEdit(edit)) != null;
 }
 ```
 
+- 펜·지우개·올가미 변형·선택 삭제가 모두 이 함수 하나로 커밋한다(5.1.3 표). 반환값 `true`일 때만 후속 처리(최근 색, 이전 도구 복귀, `controller.select(ids)`)를 한다.
+
 #### 6.6.4 지우개
 
-1. 시작: `erase = controller.beginErase(toInk(down), spec: toolState.eraser.toSpec(), viewScale: scale)` — 반지름 pt(계약 7.2.15 `EraserSpec`, INK 5.3 #9), 필터 `core.StrokeFilter`. 커서 `EraserRingCursor`
+1. 시작: `erase = controller.beginErase(toInk(down), spec: toolState.eraser.toSpec(), viewScale: scale)` — 반지름 pt(계약 7.2.15 `EraserSpec`, INK 5.3 #12), 필터 `core.StrokeFilter`. 커서 `EraserRingCursor`
 2. 이동: `erase.addSample(toInk(e))` (모든 이벤트). 부분 지우개의 조각 누적·조각 재절단은 INK `EraserSession`(계약 7.2.7·CD-10)
-3. 끝: `edit = erase.end(toInk(up))` → `commitInkEdit` — 제스처 전체가 `RemoveStrokes` 또는 `SplitStrokes` **1개**(F-08 1단계). 커서 숨김. `returnToPreviousTool`이면 `toolController.returnFromEraser()`
+3. 끝: `edit = erase.end(toInk(up))` → `commitInkEdit` — 제스처 전체가 `RemoveStrokes` 또는 `SplitStrokes` **1개**(F-08 1단계). 커서 숨김. 성공하고 `returnToPreviousTool`이면 `toolController.returnFromEraser()`. 실패하면 `discardEdit(edit)`로 지운 획·잘린 원본이 바로 다시 보이고 조각 미리보기는 사라진다(계약 7.2.15 v1.1)
 4. 취소: `erase.cancel()`, 커서 숨김
 5. 현재 페이지 전체 지우기: 지우개 팝업 버튼 → 확인 대화상자("이 페이지의 필기를 모두 지울까요? 되돌리기로 복구할 수 있어요", 필터가 `highlighterOnly`면 "형광펜만", `exceptHighlighter`면 "형광펜을 빼고") → `commands.clearCurrentPage()` = `_runAsync(core.ClearPage(pageId: currentPageId, filter: eraser.filter))`. INK `clearPage`는 쓰지 않는다(계약 7.2.15)
 
@@ -2021,14 +2092,14 @@ abstract final class SelectionHitTest {
 ```
 
 - **올가미 그리기**: 시작 시 선택 해제 → `lasso = controller.beginLasso(pagePoint, viewScale: scale)` → 화면 거리 3px 이상 움직였을 때만 `lasso.addPoint(pagePoint)` → 끝에서 `sel = lasso.end()`. `sel == null`(퇴화·빈 선택)이면 끝, 아니면 `selection.select(pageId, sel.strokeIds)`. 경로는 INK 오버레이가 그린다. 포함 규칙은 INK(중심선 길이 비율 ≥ 0.5, nonzero — Q9 답). 올가미는 시작한 페이지 안에서만.
-- **변형**: 시작 시 `SelectionHitTest.hitHandle` 적중 → 크기 조절, 본체 적중 → 이동. `setDragging(true)`. 이동마다 페이지 pt 변위 `delta`를 구해 `t = ink.SelectionGeometry.move(SelectionHitTest.clampTranslation(sel.bounds, delta, pageSize))` 또는 `t = ink.SelectionGeometry.resize(bounds: sel.bounds, handle: h, delta: delta, keepAspect: true)` → `sel.setPreviewTransform(t)`(INK가 미리보기를 그림). 끝: `edit = sel.commitTransform()` → `edit != null`이면 `commitInkEdit` → `controller.select(ids)`(같은 id — `TransformElements`는 id 유지) → `setDragging(false)`. 취소면 `sel.setPreviewTransform(항등)` + `setDragging(false)`. 배율 한계·최소 크기·굵기 한계 [0.1, 30]은 INK `SelectionGeometry`/CORE `Stroke.transformed`가 정한다(EDITOR에 수치 없음).
+- **변형**: 시작 시 `SelectionHitTest.hitHandle` 적중 → 크기 조절, 본체 적중 → 이동. `setDragging(true)`. 이동마다 페이지 pt 변위 `delta`를 구해 `t = ink.SelectionGeometry.move(SelectionHitTest.clampTranslation(sel.bounds, delta, pageSize))` 또는 `t = ink.SelectionGeometry.resize(bounds: sel.bounds, handle: h, delta: delta, keepAspect: true)` → `sel.setPreviewTransform(t)`(INK가 미리보기를 그림). 끝: `edit = sel.commitTransform()` → `edit != null`이면 `commitInkEdit` → 성공 시 `controller.select(ids)`(같은 id — `TransformElements`는 id 유지), 실패 시 `discardEdit(edit)`가 대상 획을 원래 위치로 되돌려 보이고 선택은 그대로 → `setDragging(false)`. 취소면 `sel.setPreviewTransform(항등)` + `setDragging(false)`. 배율 한계·최소 크기·굵기 한계 [0.1, 30]은 INK `SelectionGeometry`/CORE `Stroke.transformed`가 정한다(EDITOR에 수치 없음).
 - 획 굵기는 균일 배율과 같은 비율(`scaleStrokeWidth: true`, CORE `Stroke.transformed`).
 - **선택 표시**(EDITOR 오버레이): `sel.previewBounds`를 화면 좌표로 바꿔 점선 사각형(1px, `colorScheme.primary`, 대시 6/4) + 모서리 원 핸들 4개(지름 12px, 흰 채움 + primary 테두리). 컨트롤러(`ChangeNotifier`)를 듣고 다시 그린다(드래그 중에도 provider 상태는 바꾸지 않음).
 - **선택 메뉴**: 선택 사각형 위쪽 8px(공간이 없으면 아래)에 둥근 막대: `[복사] [삭제] [선택 해제]`. 삭제 = `commitInkEdit(controller, sel.delete())`. M5에서 회전·색 변경(INK `rotate`·`recolor` 이미 있음)·잘라내기, M7에서 텍스트/수식 변환이 이 목록에 붙는다.
 
 #### 6.6.6 선택 재검증
 
-선택 페이지의 `PageMount.onContentChanged`(로컬 명령·되돌리기·원격 — N-7)마다, 드래그 중이 아니면 `EditorSelectionNotifier.revalidate`: `ids ∩ content.strokes의 id` → 비면 `clear()`, 줄었으면 `controller.select(남은 ids)`. INK 컨트롤러 호출만 하고 CORE 명령은 실행하지 않는다(5.1.2 재진입 규칙). 페이지가 삭제되면(`pagesStream`에서 사라짐) 해제. 도구를 펜·지우개로 바꾸거나 Esc를 누르면 해제. 드래그 중에 원격 변경으로 선택 획이 사라지면 드래그 끝의 `commitTransform` 결과 명령은 CORE가 없는 id를 무시한다(7.2.7).
+선택 페이지의 `PageMount.onContentChanged`(로컬 명령·되돌리기·원격 — N-7)마다, 드래그 중이 아니면 `EditorSelectionNotifier.revalidate`: `ids ∩ content.strokes의 id` → 비면 `clear()`, 줄었으면 `controller.select(남은 ids)`. INK 컨트롤러 호출만 하고 CORE 명령은 실행하지 않는다(계약 7.2.8 N-2 v1.1 — 리스너 안 `execute`는 `StateError`). 페이지가 삭제되면(`pagesStream`에서 사라짐) 해제. 도구를 펜·지우개로 바꾸거나 Esc를 누르면 해제. 드래그 중에 원격 변경으로 선택 획이 사라지면 드래그 끝의 `commitTransform` 결과 명령은 CORE가 없는 id를 무시한다(7.2.7).
 
 #### 6.6.7 복사 · 붙여넣기 (앱 내부 클립보드)
 
@@ -2086,11 +2157,11 @@ final editorClipboardProvider =
 | 상황 | 화면 |
 |---|---|
 | 펜을 뗌 → `execute` 성공 | `end()` 순간부터 INK pending으로 보임 → `execute` 안에서 `updateContent` → 같은 프레임에 확정 획(깜박임 없음, E-08 테스트) |
-| `execute` 실패(읽기 전용 경합·버그) | `_run`이 `discardPending(id)` → 획이 사라지고 안내/오류 보고 |
-| 지우개·변형 | 제스처 중엔 INK 미리보기, 끝의 `execute`로 확정. 실패 시 INK 미리보기 원상(INK가 세션 종료 시 처리) |
+| `execute` 실패(읽기 전용 경합·버그) — 펜 | `_run`이 `onRejected` → **EDITOR가 `controller.discardEdit(edit)`**(계약 7.2.15 v1.1, C11-16) → 대기 중이던 새 획이 사라지고 안내/오류 보고. `pendingIds`는 비어 있다(E-08) |
+| 지우개·변형·선택 삭제 | 제스처 중엔 INK 미리보기, 끝의 `execute`로 확정. 실패 시 **EDITOR가 `controller.discardEdit(edit)`** → `removedIds`·`targetIds`의 대기 표시까지 한 번에 지워져 지운 획·옮긴 획이 바로 원래대로 다시 보인다(E-09·E-10). INK는 실패를 모르므로 EDITOR가 부르지 않으면 `pendingCommitTimeoutMs`(3초) 동안 지운 획이 안 보이는 채로 남는다 — 그래서 실패 경로는 항상 `discardEdit` |
 | 저장(DB) 실패 | 화면 상태는 그대로(메모리 반영됨), `persistenceStatusProvider`로 스낵바·배너(6.17.3). CORE 쓰기 큐가 재시도 |
 | 원격 변경 | `pageChanges(remote)` → `updateContent` |
-| pending 시한 | INK `pendingCommitTimeoutMs`(INK 4.9)가 지나도 `updateContent`에 안 나타나면 INK가 제거하고 경고(`InkStatsSnapshot.warnings`) — EDITOR 경로에선 생기지 않아야 함 |
+| pending 시한 | INK `pendingCommitTimeoutMs`(INK 4.9)가 지나도 `updateContent`에 안 나타나면 INK가 제거하고 경고(`InkStatsSnapshot.warnings`) — 안전망일 뿐 실패 처리 경로가 아니다. EDITOR 경로에선 생기지 않아야 함(성공 = `updateContent`, 실패 = `discardEdit`) |
 
 - 썸네일·스포이드·클립보드는 항상 CORE 상태(`session.pageIfLoaded`)를 읽는다.
 
@@ -2105,8 +2176,11 @@ class EditorCommands {
       required ViewportController viewport, required MountedPages pages});
 
   // ---- commands (5.1.3) ----
-  void commitInkEdit(ink.InkPageController controller, ink.InkEdit edit);
-  Future<void> undo(); // ignored while an interaction is active or read-only
+  /// true = committed; false = empty or rejected (then controller.discardEdit(edit) ran).
+  bool commitInkEdit(ink.InkPageController controller, ink.InkEdit edit);
+  /// Through _runHistory (5.1.3): ignored while an interaction is active or read-only;
+  /// a racing ReadOnlyNoteException (N-4 v1.1) is caught there.
+  Future<void> undo();
   Future<void> redo();
   void copySelection();
   Future<void> paste({Offset? screenPoint});
@@ -2142,7 +2216,7 @@ class EditorCommands {
 }
 ```
 
-되돌리기 흐름: `router.hasActiveInteraction`이면 무시 → 읽기 전용이면 무시 → `r = await session.undo()`(`ReadOnlyNoteException`은 5.1.3 처리) → `r.applied`면 `r.affectedPageIds` 중 **노트 순서로 첫 페이지**의 인덱스가 화면 밖이면 `viewport.ensurePageVisible(index)` → 선택은 6.6.6 재검증이 처리. 툴바 버튼 활성 = `ref.watch(core.historyStateProvider(noteId))`의 값(`canUndo`/`canRedo`, 로딩 중엔 `HistoryState.empty`), 읽기 전용이면 둘 다 비활성. EDITOR는 히스토리 provider를 따로 정의하지 않는다(계약 7.2.0).
+되돌리기 흐름: `router.hasActiveInteraction`이면 무시 → 읽기 전용이면 무시 → `r = await _runHistory(session.undo)`(첫 `await` 뒤 적용 — N-2 v1.1. 그 사이 노트가 휴지통으로 가면 `ReadOnlyNoteException`(N-4 v1.1)을 `_runHistory`가 잡아 안내하고 `null` → 끝) → `r != null && r.applied`면 `r.affectedPageIds` 중 **노트 순서로 첫 페이지**의 인덱스가 화면 밖이면 `viewport.ensurePageVisible(index)` → 선택은 6.6.6 재검증이 처리. 툴바 버튼 활성 = `ref.watch(core.historyStateProvider(noteId))`의 값(`canUndo`/`canRedo`, 로딩 중엔 `HistoryState.empty`), 읽기 전용이면 둘 다 비활성. EDITOR는 히스토리 provider를 따로 정의하지 않는다(계약 7.2.0).
 
 키보드 (`EditorShortcuts` = `Shortcuts` + `Actions`, 에디터 루트를 감쌈):
 
@@ -2184,7 +2258,7 @@ class EditorCommands {
 - 펜 버튼: 현재 펜 종류 아이콘 + 아래 8px 색 점. 활성 도구는 `primaryContainer` 배경.
 - 탭: 비활성 도구 → 선택 / 활성 펜·지우개를 다시 탭 → 설정 팝업. 펜 버튼 **길게 누르기 → 빠른 팝업**(활성 여부 무관). 지우개 길게 누르기 → 지우개 팝업.
 - [✋]: 손가락 필기 토글(켜짐 = `fingerDrawing`, 꺼짐 = `penOnly`). [100%]: 현재 확대율, 탭하면 너비 맞춤.
-- [☁] 동기화 아이콘(`EditorSyncBadgeIcon`, 20px, 터치 영역 44): `ref.watch(core.syncBadgeProvider)` — `off`·로딩·오류면 **숨김**(공간도 차지하지 않음). `done` → `Icons.cloud_done`, `inProgress` → `Icons.cloud_sync`(`pendingChanges > 0`이면 작은 숫자 배지), `offline` → `Icons.cloud_off`, `error` → `Icons.sync_problem`(`colorScheme.error`). `Semantics` 문구: '동기화됨' / '동기화 중' / '오프라인' / '동기화 오류'(LIBRARY 6.16과 같은 낱말). 탭 동작 없음(계정·동기화 설정은 INFRA 설정 화면). `EditorExtensions.appBarTrailing`은 이번에 그리지 않는다(예약).
+- [☁] 동기화 아이콘(`EditorSyncBadgeIcon`, 20px, 터치 영역 44): `ref.watch(core.syncBadgeProvider)` — `off`·로딩·오류면 **숨김**(공간도 차지하지 않음). `done` → `Icons.cloud_done`, `inProgress` → `Icons.cloud_sync`(`pendingChanges > 0`이면 작은 숫자 배지), `offline` → `Icons.cloud_off`, `error` → `Icons.sync_problem`(`colorScheme.error`). `Semantics` 문구: '동기화됨' / '동기화 중' / '오프라인' / '동기화 오류'(LIBRARY 6.16과 같은 낱말). 탭 동작 없음(계정·동기화 설정은 INFRA 설정 화면). `SyncBadge`는 값 동등(계약 7.2.13 v1.1)이고 M4 override가 `.distinct()`를 거치므로 같은 상태가 반복돼도 아이콘이 다시 그려지지 않는다. `EditorExtensions.appBarTrailing`은 이번에 그리지 않는다(예약).
 - [⋯] 더보기(`MenuAnchor`): 페이지 넘김(세로 스크롤/좌우 넘기기) · 현재 페이지 지우기 · 개발자 표시(체크) · 노트 정보 · 설정(`onOpenSettings != null`일 때만) · 개발자 메뉴(개발자 표시가 보일 때만, 6.12.4) · 구분선 · `extensions.moreMenuItems`(4.5).
 - 읽기 전용: 펜·지우개·올가미·되돌리기·다시 실행·프리셋 바·'현재 페이지 지우기'·페이지 추가·삭제·복제·이동 비활성. 스크롤·확대·페이지 이동·스포이드·노트 정보·확장 항목(각자 `isEnabled`)은 그대로.
 - 폭 < 700px이면 제목 숨김.
@@ -2233,7 +2307,7 @@ class EditorPopupNotifier extends Notifier<EditorPopup?> {
 #### 6.9.3 펜 설정 패널 (폭 340, 높이 최대 min(600, 가용) — 넘치면 스크롤)
 
 1. 펜 종류 선택기: P0 5종(`core.PenTool.values.where((t) => t.isP0)`) 아이콘 + 이름(볼펜·만년필·형광펜·연필·마커). 바꾸면 그 종류의 마지막 스타일로(`penStyles[tool]`)
-2. 굵기: "굵기 2.4 pt" 라벨(탭하면 숫자 입력 0.1–30) · [−] 슬라이더 [+] (±0.1, 길게 누르면 400ms 뒤 80ms마다 반복) · 미리보기 300×56 (`ink.PenPreviewPainter(style: currentPen, pencilGrain: grain)` — `grain`은 `ref.watch(ink.pencilGrainProvider)`(`ValueListenable<ui.Image?>`)를 `ValueListenableBuilder`로 받은 값, 미리보기 배율 = `clamp(settledScale, 0.5, 4.0)`로 캔버스를 `Transform.scale`, 굵기 × 배율이 48px를 넘으면 잘림 표시 '확대 n%')
+2. 굵기: "굵기 2.4 pt" 라벨(탭하면 숫자 입력 0.1–30) · [−] 슬라이더 [+] (±0.1, 길게 누르면 400ms 뒤 80ms마다 반복) · 미리보기 300×56 (`CustomPaint(painter: ink.PenPreviewPainter(style: currentPen, pencilGrain: ref.watch(ink.pencilGrainProvider)))` — `PencilGrain` 객체를 그대로 넘기고, painter가 `repaint: pencilGrain`으로 질감이 준비되면 스스로 다시 그린다(계약 7.2.16 v1.1, C11-19, INK 5.3 #17). 미리보기 배율 = `clamp(settledScale, 0.5, 4.0)`로 캔버스를 `Transform.scale`, 굵기 × 배율이 48px를 넘으면 잘림 표시 '확대 n%')
 3. 투명도 슬라이더 (체커보드 배경 + 투명→불투명 그라데이션, 5–100%)
 4. 색: `SegmentedButton[휠 | 사각]` → `HsvWheel`+`ValueSlider` 또는 `SvSquare`+`HueSlider` · HEX 칸 · R/G/B 칸 · [스포이드]
 5. 최근 색 12개 (지름 28 원)
@@ -2248,7 +2322,7 @@ class EditorPopupNotifier extends Notifier<EditorPopup?> {
 
 설정 > 펜(`EditorPenSettingsSection`)은 같은 '고급' 위젯(`PenAdvancedControls`)을 펜 종류 칩과 함께 보여 준다 — 같은 `editorToolProvider` 값을 편집하므로 두 곳이 항상 같다(계약 7.2.4 '전역 필압 곡선 설정 없음').
 
-빠른 팝업(폭 300): 굵기 줄 + 미리보기, 투명도, 최근 색 12개, 팔레트 앞 16개.
+빠른 팝업(폭 300): 굵기 줄 + 미리보기(#2와 같은 `PenPreviewPainter` 호출), 투명도, 최근 색 12개, 팔레트 앞 16개.
 
 지우개 패널(폭 300): `SegmentedButton[획 | 부분]`(`ink.EraserMode`) · 크기 슬라이더(지름 = 1 + 99·t², 0.5 단위) + 원 미리보기(지름 × 배율, 최대 80px) · `SegmentedButton[전체 | 형광펜만 | 형광펜 제외]`(`core.StrokeFilter.all` / `highlighterOnly` / `exceptHighlighter`) · 스위치 "지운 뒤 이전 도구로 돌아가기" · [현재 페이지 모두 지우기](빨간 글씨, 읽기 전용이면 비활성).
 
@@ -2378,7 +2452,7 @@ abstract final class PresetOrdering {
 - 탭 → `toolController.applyStyle(preset.style)`. 길게 누르기(500ms) → 드래그로 순서 변경: 가로 `ReorderableListView.builder(buildDefaultDragHandles: false, onReorderItem:)` + `ReorderableDelayedDragStartListener`(`onReorder`는 `@Deprecated` — V6) → `PresetOrdering.reorderSubset` → `repo.reorderPresets(orderedIds)`(CORE 한 커밋).
 - 빈 상태: "자주 쓰는 펜을 저장해 보세요" + [현재 펜 저장].
 - [+] → `SavePresetDialog`: 이름(기본 "{펜 이름} {굵기}pt", 앞뒤 공백 제거 후 1–20자, 넘으면 입력 막음), 그룹(기존 그룹 목록 / 그룹 없음 / 새 그룹 입력), '툴바에 고정' 스위치(기본 켬) → `repo.createPreset(name:, style: currentPen, group:, pinned:)`.
-- [⚙] → `PresetManagerSheet`: 전체 프리셋 세로 목록(드래그 핸들로 순서 → `reorderPresets`), 행마다 미리보기·이름·그룹·고정 스위치·⋯[이름 바꾸기, 그룹 변경, 현재 펜으로 업데이트, 삭제(확인)] → `updatePreset(p.copyWith(...))`·`deletePreset(id)`.
+- [⚙] → `PresetManagerSheet`: 전체 프리셋 세로 목록(드래그 핸들로 순서 → `reorderPresets`), 행마다 미리보기(`ink.PenPreviewPainter(style: p.style, shape: ink.PenPreviewShape.line, pencilGrain: ref.watch(ink.pencilGrainProvider))`)·이름·그룹·고정 스위치·⋯[이름 바꾸기, 그룹 변경, 현재 펜으로 업데이트, 삭제(확인)] → `updatePreset(p.copyWith(...))`·`deletePreset(id)`.
 - 기본 프리셋 5종(볼펜·만년필·형광펜·연필·마커)은 CORE가 넣는다. 사용자가 지우면 다시 생기지 않는다(CORE 4.5).
 - 읽기 전용 노트에서는 프리셋 바 전체 비활성(도구가 꺼져 있으므로).
 
@@ -2388,7 +2462,7 @@ abstract final class PresetOrdering {
 
 - 왼쪽 겹침 패널(폭 176, 툴바·프리셋 바 아래부터 바닥까지, elevation 2). 뷰포트 크기를 바꾸지 않으므로 확대율이 튀지 않음. 토글: 툴바 [▤].
 - 머리: "페이지 12" + [선택](`Icons.checklist`, 선택 모드 토글) + [+](→ `AddPagePopup`).
-- 목록: `core.notePagesProvider(noteId)`의 페이지(노트 순서). 세로 `ReorderableListView.builder(buildDefaultDragHandles: false, onReorderItem: (o, n) => commands.movePage(pages[o].id, n))`, 항목은 `ReorderableDelayedDragStartListener`(길게 누르기 500ms 후 드래그). 선택 모드·읽기 전용에서는 드래그 끔.
+- 목록: `core.notePagesProvider(noteId)`의 페이지(노트 순서). 이 값은 획 명령으로 `contentRevision`만 바뀌어도 새 목록이 온다(N-1 v1.1) → 항목은 `ValueKey(page.id)`로 유지되어 다시 만들어지지 않고, 각 `PagePanelThumbnail`이 받은 `page.contentRevision`으로 캐시 신선도만 다시 본다(6.11.3). 세로 `ReorderableListView.builder(buildDefaultDragHandles: false, onReorderItem: (o, n) => commands.movePage(pages[o].id, n))`, 항목은 `ReorderableDelayedDragStartListener`(길게 누르기 500ms 후 드래그). 선택 모드·읽기 전용에서는 드래그 끔.
 - 항목: 썸네일 `PagePanelThumbnail`(폭 120, 높이 = 120 × h/w, 최대 200) + 번호 + ⋯[앞에 페이지 추가, 뒤에 페이지 추가, 복제, 삭제]. 탭 → `viewport.jumpToPage(i)`. 현재 페이지는 2px primary 테두리, 현재 페이지가 바뀌면 목록을 그 항목이 보이게 200ms 스크롤(항목 높이를 비율로 미리 계산해 오프셋 산출).
 - 삭제: 남는 페이지가 0이 되면 비활성(1장 노트의 삭제, 전부 선택한 상태의 삭제 — 계약 7.2.6). 삭제 후 스낵바 "페이지를 삭제했어요 [되돌리기]"(되돌리기 = `commands.undo()`).
 - 복제: 원본 바로 뒤에 생김(CORE `DuplicatePages`).
@@ -2439,12 +2513,17 @@ class PagePanelNotifier extends Notifier<PagePanelState> {
 /// Page-panel thumbnail (renamed from the draft's PageThumbnail — core.PageThumbnail is
 /// the CORE data type). Never pins the page (contract E-2): it reads, in this order,
 ///   1. session.pageIfLoaded(page.id) != null → ink.InkPageThumbnail(content:
-///      InkPageContent.fromCore(...), width:) and rebuilds 500 ms after the last
-///      pageChanges event of that page (listened only while visible);
+///      InkPageContent.fromCore(...), width:, backgroundBuilders:, pencilGrain:) and
+///      rebuilds 500 ms after the last pageChanges event of that page (listened only
+///      while visible);
 ///   2. else core.pageThumbnailProvider(page.id) when its value isStaleFor(committed) is
 ///      false, committed = await core.noteContentReaderProvider.getPage(page.id)
 ///      → Image.memory(bytes, cacheWidth: width × dpr);
-///   3. else noteContentReader.loadPage(page.id) once → ink.InkPageThumbnail.
+///   3. else noteContentReader.loadPage(page.id) once → ink.InkPageThumbnail (same args).
+/// INK arguments (contract 7.2.16 v1.1, C11-19 — the INK widget reads no provider):
+///   backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider)  // read only, never
+///                       overridden by EDITOR → PDF pages show their page (PDF builder)
+///   pencilGrain:        ref.watch(ink.pencilGrainProvider)
 /// Placeholder (paper colour) while loading. Does not write ThumbnailCache (optional,
 /// not in this scope). RepaintBoundary.
 class PagePanelThumbnail extends ConsumerStatefulWidget {
@@ -2462,11 +2541,22 @@ class PagePanelThumbnail extends ConsumerStatefulWidget {
 ```dart
 // src/ui/pages/page_choices.dart — UI choices built only from CORE values (no EDITOR tables)
 /// Template row: blank + every core.PageTemplateKind (6, contract 7.8).
+/// Value equality: preview cells are keyed by ValueKey((choice, color, size)) (6.11.4).
 sealed class TemplateChoice { const TemplateChoice(); }
-final class BlankChoice extends TemplateChoice { const BlankChoice(); }
+final class BlankChoice extends TemplateChoice {
+  const BlankChoice();
+  @override
+  bool operator ==(Object other);   // other is BlankChoice
+  @override
+  int get hashCode;
+}
 final class KindChoice extends TemplateChoice {
   const KindChoice(this.kind);
   final core.PageTemplateKind kind;
+  @override
+  bool operator ==(Object other);   // other is KindChoice && other.kind == kind
+  @override
+  int get hashCode;
 }
 /// Size row: core.PageSizePreset.values + custom (null).
 /// Labels: a4 'A4', letter 'Letter', widescreen16x9 '16:9', null '사용자 지정'.
@@ -2500,11 +2590,34 @@ class AddPageRequest {
 | 항목 | 선택지 | 초기값 |
 |---|---|---|
 | 위치 | 현재 페이지 앞 / 현재 페이지 뒤 / 맨 끝 | 요청값(기본 '뒤') |
-| 속지 | 빈 페이지 + 6종(줄·모눈·점·코넬·악보·플래너). 각 칸 미리보기 = `ink.InkPageThumbnail(content: ink.InkPageContent(pageId: 'preview', pageSize:, background: ink.InkBackgroundSpec.fromCore(backgroundFor(choice, color)), strokes: const [], revision: 0), width: 64)`(INK 4.8 기본 생성자) | 현재 페이지와 같게(현재가 PDF·이미지면 빈 페이지, 속지 매개변수는 기본값으로) |
+| 속지 | 빈 페이지 + 6종(줄·모눈·점·코넬·악보·플래너). 각 칸 미리보기 = 아래 `templatePreviewCell`(폭 64) | 현재 페이지와 같게(현재가 PDF·이미지면 빈 페이지, 속지 매개변수는 기본값으로) |
 | 색 | `core.PaperColors.all` | 현재 페이지 `paperColorArgb`(목록에 없으면 흰색) |
 | 크기 | `core.PageSizePreset.values`(A4·Letter·16:9) · 사용자 지정(가로·세로 pt 칸, `PageSizeLimits.userMinSidePt`~`userMaxSidePt` = 100–3000, 범위 밖이면 "100~3000pt 사이로 입력해 주세요"·[추가] 비활성) | `PageSizePreset.match(현재 크기)`, 없으면 사용자 지정 + 현재 값 |
 | 방향 | 세로 / 가로 (`PageSize.portrait`/`landscape`) | 현재 페이지 방향(`isLandscape`) |
 | 다른 소스 | `extensions.addPageSources`(M3: PDF에서 가져오기) — 누르면 시트를 닫고 `onSelected(context, commands.menuContext())` | — |
+
+속지 칸 미리보기(EDITOR-2-3 — 계약 7.2.15 v1.1 C11-17, 7.2.16 v1.1 C11-19, INK 5.3 #16):
+
+```dart
+// src/ui/pages/add_page_sheet.dart (excerpt)
+/// [current] = the current page (core.Page); [size] = the size row's value with the
+/// orientation applied (the last valid one while the custom fields are out of range).
+Widget templatePreviewCell(WidgetRef ref, core.Page current, TemplateChoice choice,
+    int color, core.PageSize size) {
+  return ink.InkPageThumbnail(
+    key: ValueKey((choice, color, size)),        // one widget (State) per cell
+    content: ink.InkPageContent.fromCore(        // the ONLY InkPageContent constructor
+        page: current.copyWith(size: size, background: backgroundFor(choice, color)),
+        strokes: const [], revision: 0),
+    width: 64,
+    backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider),   // read only
+    pencilGrain: ref.watch(ink.pencilGrainProvider),
+  );
+}
+```
+
+- 미리보기용 `core.Page`는 현재 페이지를 `copyWith`로 바꾼 값이다(새 API 없음 — 초안의 `InkPageContent(pageId: 'preview', …)` 기본 생성자·`InkBackgroundSpec.fromCore` 직접 사용은 계약에 없으므로 삭제). `copyWith`라 id가 현재 페이지 id 그대로지만 저장하지 않는 값이고, `strokes: const []`라 `fromCore`의 pageId 검사도 통과한다.
+- 7칸이 같은 pageId·같은 `revision: 0`을 가지므로 칸마다 `ValueKey((choice, color, size))`로 위젯(State)을 나눈다 → 색·크기·방향을 바꾸면 그 조합의 새 칸이 만들어지고, 칸 사이에 래스터·배경 상태가 섞이지 않는다(`TemplateChoice`·`core.PageSize`는 값 동등).
 
 [추가] → `commands.addPage(request)` = `_runAsync(core.InsertPages(drafts: [core.PageDraft(size: size, background: background)], position: request.positionFor(currentId)))` → `receipt.edit.insertedPageIds.first`로 `jumpToPage`. 문서 끝 '+ 페이지' 버튼은 마지막 페이지와 같은 크기·배경(PDF·이미지면 같은 종이 색의 빈 페이지)으로 `PageAtEnd`에 바로 추가.
 
@@ -2517,13 +2630,16 @@ class AddPageRequest {
 ```dart
 // src/viewport/viewport_controller.dart (addition to 6.3.4)
 /// Brings page [index] into view. Without [focusRectPt]: same as jumpToPage(index).
-/// With it (page pt): keeps the current zoom unless the rect does not fit (then zooms
+/// [focusRectPt] (contract 7.2.17 v1.1): displayed page coordinates — pt of the note's
+/// Page.size, origin top-left, y down (same as core.Stroke points); used as is.
+/// With it: keeps the current zoom unless the rect does not fit (then zooms
 /// out to fit it with 24 px margin, never below fit width × minZoom), and pans so the
 /// rect is centred when it is not fully visible (no-op when already fully visible).
 Future<void> revealPageRect(int index, {Rect? focusRectPt, bool animate = true});
 ```
 
-- `commands.navigateToPage`: `index = session.pages.indexWhere((p) => p.id == pageId)`, `-1`이면 무시(삭제된 페이지) → 선택 모드는 그대로 두고 `viewport.revealPageRect(index, focusRectPt: focusRectPt)`. 사각형은 페이지 범위로 자른다. 가로 넘기기 모드에서는 그 페이지로 넘긴 뒤 같은 규칙.
+- `commands.navigateToPage`: `index = session.pages.indexWhere((p) => p.id == pageId)`, `-1`이면 무시(삭제된 페이지) → 선택 모드는 그대로 두고 `viewport.revealPageRect(index, focusRectPt: focusRectPt)`. 사각형은 페이지 범위(`Rect.fromLTWH(0, 0, page.size.width, page.size.height)`)로 자른다. 가로 넘기기 모드에서는 그 페이지로 넘긴 뒤 같은 규칙.
+- 좌표 해석은 계약 7.2.17 v1.1(C11-21, CP-E1 승인): "focusRectPt is in displayed page coordinates: pt of the note's Page.size, origin top-left, y down — same as core.Stroke points (PDF converts its search hits)". EDITOR는 y 뒤집기·PDF 크기 변환을 하지 않는다(P-1로 노트 페이지 크기가 PDF 원본과 달라도 PDF가 변환해 넘김). `navigate_to_page_test`는 노트 `Page.size` 기준 사각형을 넘겨 그 사각형이 화면 안에 들어오는지 확인한다.
 - 쓰임: PDF '찾기' 결과 탭(사각형 = 찾은 글자 상자), PDF 페이지 삽입 후 첫 삽입 페이지(사각형 없음).
 
 ### 6.12 개발자 표시
@@ -2577,7 +2693,7 @@ final editorDevMetricsProvider = Provider<DevMetrics>((ref) {
 }, name: 'editorDevMetricsProvider');
 ```
 
-- 켜고 끄기: `editorDevOverlayVisibleProvider`(= `settings.showDevOverlay || devUrlFlag`)가 `true`가 되면 `DevMetrics.start()` + `ref.read(ink.inkDiagnosticsProvider).enabled = true`, `false`가 되면 둘 다 멈춤(INK 5.3 #8). 에디터 화면을 떠나면 끈다.
+- 켜고 끄기: `editorDevOverlayVisibleProvider`(= `settings.showDevOverlay || devUrlFlag`)가 `true`가 되면 `DevMetrics.start()` + `ref.read(ink.inkDiagnosticsProvider).enabled = true`, `false`가 되면 둘 다 멈춤(INK 5.3 #11). 에디터 화면을 떠나면 끈다.
 - 화면 갱신은 `Listenable.merge([inkDiagnostics, devMetrics, ...sections.lines])` + 250ms 이하 조절. `RepaintBoundary`, `IgnorePointer`.
 
 #### 6.12.2 화면 (오른쪽 위, 고정폭 11px, 70% 검정 배경)
@@ -2593,7 +2709,7 @@ final editorDevMetricsProvider = Provider<DevMetrics>((ref) {
 [PDF 렌더] …(devOverlaySectionsProvider 섹션, 섹션마다 제목 + lines)
 ```
 
-켜는 방법: ① 설정 > 개발자 표시 ② 에디터 ⋯ 메뉴 '개발자 표시' ③ ⌘/Ctrl+Shift+D ④ 주소 끝 `?dev=1`(웹, `Uri.base`로 읽음, 저장은 안 함). `editorDevOverlayVisibleProvider = settings.showDevOverlay || devUrlFlag`.
+켜는 방법: ① 설정 > 개발자 표시 ② 에디터 ⋯ 메뉴 '개발자 표시' ③ ⌘/Ctrl+Shift+D ④ 주소 끝 `?dev=1`(웹, `Uri.base.queryParameters`로 읽음, 저장은 안 함 — 주소 질의 읽기는 계약 7.4.3 v1.1 '정적 파일·에셋 URL은 `Uri.base` 상대 금지' 규칙의 대상이 아님, C11-11. EDITOR는 정적 파일·에셋 URL을 만들지 않는다). `editorDevOverlayVisibleProvider = settings.showDevOverlay || devUrlFlag`.
 
 #### 6.12.3 측정 해석 메모
 
@@ -2624,7 +2740,7 @@ final editorDevMetricsProvider = Provider<DevMetrics>((ref) {
 5. 세션 열기·닫기·재시도는 CORE `noteSessionProvider`가 한다(`retry: noRetry`, dispose 시 `close()`, 열기 전 dispose면 완료 직후 `close()` — CORE 6.16). EDITOR의 `editorSessionProvider`도 `retry: core.noRetry`를 준다(Riverpod 3 기본 재시도 끔). 오류 화면 [다시 시도] = `ref.invalidate(core.noteSessionProvider(noteId))`.
 6. 이름: 모든 provider는 최상위 `final`, `name:` = 변수 이름, EDITOR 내부 provider는 `editor` 접두사(워크스페이스 전체에서 유일 — 계약 7.4.4·7.2.0). CORE·INK와 같은 이름을 정의하지 않는다(`penPresetsProvider`·`historyStateProvider`·`penPresetRepositoryProvider`·`pressureCapabilityProvider` 삭제).
 7. **`build()` 안에서 다른 provider의 상태를 바꾸지 않는다**(V4 — Riverpod 3.4.3에서 그 provider가 오류 상태가 됨). INK `pressureModeProvider.notifier.set()`은 설정 로드가 끝난 뒤(`await` 뒤)와 setter에서만 부른다.
-8. 세션 스트림 리스너 안에서 CORE 명령을 실행하지 않는다(5.1.2).
+8. 세션 스트림 리스너 안에서 CORE 명령을 실행하지 않는다(계약 7.2.8 N-2 v1.1 — `StateError`, 5.1.2).
 
 #### 6.13.2 provider 목록
 
@@ -2647,7 +2763,7 @@ final editorDevMetricsProvider = Provider<DevMetrics>((ref) {
 | `editorDevOverlayVisibleProvider` | `Provider<bool>` | 설정 ∨ URL |
 | `editorViewportMemoryProvider` | `Provider<ViewportMemory>` | 6.3.5 (dispose 연결) |
 
-전역 — 다른 영역 정의, EDITOR가 읽기만: 4.3 표(CORE 14개, INK 5개).
+전역 — 다른 영역 정의, EDITOR가 읽기만(override 안 함, 테스트 제외): 4.3 표(CORE 14개, INK 6개 — `inkPageControllerProvider`·`pressureModeProvider`(값은 `notifier.set()`으로 넣음)·`pressureCapabilityProvider`·`inkDiagnosticsProvider`·`pencilGrainProvider`·`pageBackgroundBuildersProvider`(읽기만, override 안 함 — 계약 7.3.3·7.2.16 v1.1)).
 
 노트별 (`EditorScreen`의 중첩 `ProviderScope`, 화면 수명):
 
@@ -2659,7 +2775,7 @@ final editorDevMetricsProvider = Provider<DevMetrics>((ref) {
 | `editorSessionValueProvider` | `Provider<core.NoteSession>` | session | `requireValue` (본문은 세션이 열린 뒤에만 그려짐) |
 | `editorReadOnlyProvider` | `NotifierProvider<ReadOnlyNotifier, bool>` | sessionValue | `session.isReadOnly`로 시작, `noteStream` 변경마다 갱신 |
 | `editorMountedPagesProvider` | `Provider<MountedPages>` | noteId | 6.4.4 |
-| `editorViewportProvider` | `Provider<ViewportController>` | sessionValue, settings 구독 | 6.3.4. `session.pages`로 시작, `session.pagesStream`을 직접 구독(동기 — N-1, 삽입 직후 `jumpToPage` 가능). `pageFlipMode`는 `ref.listen` |
+| `editorViewportProvider` | `Provider<ViewportController>` | sessionValue, settings 구독 | 6.3.4. `session.pages`로 시작, `session.pagesStream`을 직접 구독(동기 — N-1, 삽입 직후 `jumpToPage` 가능. 획 명령마다도 오지만(N-1 v1.1) `updatePages`가 id·크기가 같으면 무시). `pageFlipMode`는 `ref.listen` |
 | `editorCurrentPageIndexProvider` | `NotifierProvider<CurrentPageBridge, int>` | viewport | 패널 강조·추가 위치 |
 | `editorSelectionProvider` | `NotifierProvider<EditorSelectionNotifier, EditorSelection?>` | noteId, mountedPages | 6.6.5 |
 | `editorPagePanelProvider` | `NotifierProvider<PagePanelNotifier, PagePanelState>` | noteId | 6.11.2 |
@@ -2745,7 +2861,7 @@ abstract final class EditorSettingKeys {
 | `editor.eraser` | synced | `EraserSettings.toJson()`: `{"v":1,"mode":"partial","diameter":12.0,"filter":"all","returnToPrevious":false}` (`mode` = `ink.EraserMode.name`, `filter` = `core.StrokeFilter.name`) | 변경 500ms 뒤 |
 | `editor.colors` | synced | `{"v":1,"recent":[ARGB...],"palette":[ARGB...]}` | 변경 1000ms 뒤 |
 
-- 7.4.6에 명시되지 않은 '현재 도구·펜 종류'(`editor.toolSelection`)는 기기마다 손에 든 도구가 다르므로 `device`로 둔다(12.2 CP-E2에서 계약 문구 추가 제안).
+- '현재 도구·펜 종류'(`editor.toolSelection`)는 `device`다 — 계약 7.4.6 v1.1(C11-25, CP-E2 승인)의 `device` 목록 "현재 도구·펜 종류 선택(`editor.toolSelection`, v1.1)". 손에 든 도구는 기기마다 다르다. 펜 종류별 스타일(`editor.penStyles`)은 `synced` 그대로라 F-05(다른 기기에서도 같은 펜)와 충돌하지 않는다.
 - 읽기: 각 notifier의 `build()`는 기본값을 동기로 돌려주고 `settings.get(key)`를 `await`한 뒤 상태를 바꾼다. `synced` 키는 `settings.watch(key)`도 구독해 다른 기기 값을 반영한다(이 기기가 마지막으로 쓴 값과 같으면 무시).
 - 형식 오류: CORE `decode` 실패는 기본값으로 온다(CORE 4.5). EDITOR는 `v`가 더 크면 아는 필드만 읽고, 필드별로 범위를 검사해 틀린 값은 기본값(오류 보고 1회). 실수 필드는 정수도 받는다(`(v as num).toDouble()` — 계약 7.4.6).
 - 이전 초안 키(`editor.settings.v1` 등)는 배포된 적이 없으므로 이전(migration)하지 않는다.
@@ -2782,8 +2898,8 @@ class DebouncedSettingWriter {
 
 - Material은 **`package:material_ui/material_ui.dart`만**(lib·test 모두, 계약 7.4.3·R7). `package:flutter/material.dart`·`package:flutter/cupertino.dart` 금지. 위젯 테스트의 `MaterialApp`·`Scaffold`도 material_ui 것(V2). `MaterialUiCompatibilityBridge`는 쓰지 않는다(deprecated — 계약 7.4.2).
 - `lib/`에서 `dart:io`·`dart:ffi`·`dart:html`·`dart:js`·`dart:js_util`·`package:js`·`package:web` 금지. EDITOR는 플랫폼별 파일(`*_browser.dart`/`*_native.dart`)이 필요 없다.
-- `unit/no_platform_imports_test.dart`: `lib/`·`test/` 모든 `.dart` 파일의 import/export 문을 읽어 ① SDK Material·Cupertino(lib·test) ② 위 플랫폼 import(lib) ③ 다른 패키지의 `src/`(lib·test) ④ `testing.dart`·`testing_vm.dart`(lib)를 찾으면 실패. INFRA `ws check`(R7)와 같은 규칙을 패키지 안에서 먼저 잡는다.
-- 개발자 표시 URL 플래그는 `Uri.base`(dart:core) — 웹은 페이지 주소, 네이티브는 항상 false.
+- `unit/no_platform_imports_test.dart`: `lib/`·`test/` 모든 `.dart` 파일의 import/export 문을 읽어 ① SDK Material·Cupertino(lib·test) ② 위 플랫폼 import(lib) ③ 다른 패키지의 `src/`(lib·test) ④ `testing.dart`·`testing_vm.dart`(lib)를 찾으면 실패. INFRA `ws check`(R7)와 같은 규칙을 패키지 안에서 먼저 잡는다. 같은 테스트가 ⑤ `lib/`의 `.setViewport(`·`.discardPending(` 호출(주석 제외)과 `package:feature_library/` import(lib·test)도 찾으면 실패한다 — `setViewport`는 `InkPageView`만 부르고(계약 7.2.15 v1.1, C11-15), 커밋 실패는 `discardEdit`(C11-16), 피처끼리는 test에서도 import 금지(계약 7.1 규칙 1).
+- 개발자 표시 URL 플래그는 `Uri.base.queryParameters`(dart:core) — 웹은 페이지 주소, 네이티브는 항상 false. 질의 읽기는 계약 7.4.3 v1.1의 정적 파일 URL 규칙 대상이 아니다(C11-11). EDITOR는 정적 파일·에셋 주소를 만들지 않는다.
 - 네이티브 전용 펜 기능은 `StylusExtrasSource`(4.7)로만 들어온다. 이번 범위에선 구독하지 않음.
 - hover·키보드·휠·트랙패드는 같은 Flutter 이벤트 코드로 양쪽 동작.
 - 접촉 반경(P5)은 값이 0이면 자동으로 꺼짐 → 플랫폼 분기 코드 없음.
@@ -2810,7 +2926,10 @@ class DebouncedSettingWriter {
 
 #### 6.17.3 저장 상태 (EDITOR-S2)
 
-- `StorageWarningBanner`(EDITOR 위젯, 높이 0 또는 1줄): `w = core.storageWarningOf(ref.watch(core.storageInfoProvider), status)`(`status` = `persistenceStatusProvider`의 최신 값, 로딩 중엔 배너 없음). 문구는 LIBRARY 6.16과 **같은 문장**을 `editor_strings.dart`에 둔다: `writeFailing` → "저장에 계속 실패하고 있어요. 브라우저 저장 공간을 확인해 주세요." / `notDurable` → "이 브라우저에서는 노트가 임시로만 저장돼요. 테스트 용도로만 사용하세요." LIBRARY가 문구를 바꾸면 통합 단계에 맞춘다(문자열 대조 테스트를 통합 태그로 — E-21).
+- `StorageWarningBanner`(EDITOR 위젯, 높이 0 또는 1줄, 닫기 버튼 없음): `w = core.storageWarningOf(ref.watch(core.storageInfoProvider), status)`(`status` = `persistenceStatusProvider`의 최신 값).
+- 배너가 없는 상태는 **첫 프레임뿐**이다: `persistenceStatusStream`은 구독 즉시 현재 값을 1회 내고 이후 바뀔 때마다 내므로(계약 7.2.12 v1.1, C11-09) `persistenceStatusProvider`가 `AsyncLoading`인 것은 첫 프레임(구독 직후)뿐이고, 그 동안만 배너를 그리지 않는다(`NoteStore.persistenceStatus` 대체 읽기는 두지 않음). 다음 프레임부터 `storageWarningOf`로 판정 → `notDurable`(메모리·임시 저장)이면 화면을 연 직후부터 배너가 보인다. `storage_banner_test`는 `pump()` 한 번 뒤에 배너를 단언한다.
+- 문구는 계약 7.4.5 v1.1 **고정 문장**(C11-24)을 `editor_strings.dart`의 상수 두 개(`EditorStrings.storageWriteFailing`·`storageNotDurable`)로 둔다: `writeFailing` → "저장에 계속 실패하고 있어요. 브라우저 저장 공간을 확인해 주세요." / `notDurable` → "이 브라우저에서는 노트가 임시로만 저장돼요. 테스트 용도로만 사용하세요." 바꿀 때는 계약 7.4.12 절차.
+- 대조 방법(C11-24, EDITOR-2-5): ① EDITOR 단위 테스트 `unit/editor_strings_test.dart`가 두 상수를 계약 7.4.5의 고정 문장(테스트 파일 안의 문자열 리터럴)과 `==`로 비교한다(E-00). ② 라이브러리·에디터 **두 화면이 같은 문장을 보이는지**는 INFRA V5 통합 스모크(메모리 CORE = `nativeMemory` → `notDurable` 배너, `find.text`)가 확인한다(INFRA-2-7). EDITOR는 LIBRARY 문구 상수를 import하지 않는다 — 피처 패키지끼리는 test에서도 import 금지(계약 7.1 규칙 1).
 - 저장 오류 스낵바: `PersistenceStatus.lastErrorAt`이 새 값이면 "저장 중 문제가 생겼어요"(5초에 1번까지). 배너와 별개(1~2회 실패도 알림, 3회 이상이면 배너도).
 - 진단(개발자 표시)은 6.12.
 
@@ -2825,7 +2944,7 @@ class DebouncedSettingWriter {
 
 ## 7. 외부 패키지
 
-계약 7.5 고정표와 같은 버전만 쓴다. 2026-11-04에 pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 다시 확인했다(최신 버전·게시일·SDK 제약·플랫폼 태그·라이선스). V1~V6은 1차 수정 스크래치(`v2_probe`) 확인.
+계약 7.5 고정표와 같은 버전만 쓴다. 2026-11-04에 pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 다시 확인했다(최신 버전·게시일·SDK 제약·플랫폼 태그·라이선스). V1~V6은 1차 수정 스크래치(`v2_probe`) 확인. 계약 v1.1의 7.5 변경(C11-29: `collection`·dev `clock`에 feature_library, `crypto`에 루트 dev)은 feature_editor 행에 영향이 없다 — 3절 pubspec 그대로, 의존 추가 없음. `dart_test.yaml`(3절)은 패키지 파일이라 의존과 무관하다.
 
 | 패키지 | 버전 (최신·게시일) | 용도 | Dart 3.13 호환 (pubspec 제약) | 웹 지원 | 라이선스 | 결정 |
 |---|---|---|---|---|---|---|
@@ -2862,27 +2981,27 @@ Flutter SDK 기능 중 쓰는 것(별도 패키지 아님, 3.47.9 소스로 존�
 
 | ID | 작업 | 선행 | 산출물 | 완료 조건 |
 |---|---|---|---|---|
-| E-00 | 패키지 정리: `README.md`, import 규칙 검사 확장(6.16 ①~④), 문구 상수 파일 | B5 | lib 틀 | `unit/no_platform_imports_test.dart`(SDK Material·Cupertino를 lib·test에서, 플랫폼 import를 lib에서, 다른 패키지 `src/`, lib의 `testing*.dart`를 찾으면 실패 — 일부러 위반한 임시 파일로 검사 자체를 테스트) |
-| E-01 | 테스트 도구: `PointerDriver`, `pumpEditor`(가짜 저장소 + 노트 시드, 1032×1376), `RecordingNoteSession`, `RecordingInputTargets`, `test_data.dart` | E-00 | test/helpers | `unit/helpers_smoke_test.dart`(`pumpEditor`가 3쪽 A4 노트를 열고 `EditorTestHandles`를 돌려줌, `PointerDriver`의 필압·기울기·반경·시각이 `Listener`에 그대로 도착, `RecordingNoteSession`이 호출 순서를 기록하고 스트림 전달 중 `execute`를 표시) |
+| E-00 | 패키지 정리: `README.md`, **`dart_test.yaml`**(3절 — `golden: {}`, `integration: {skip: …}`, 계약 7.4.8 v1.1 C11-26), import 규칙 검사 확장(6.16 ①~⑤), 문구 상수 파일(`editor_strings.dart` — 저장 경고 2문장 = 계약 7.4.5 고정 문장) | B5 | lib 틀, `dart_test.yaml` | `unit/no_platform_imports_test.dart`(SDK Material·Cupertino를 lib·test에서, 플랫폼 import를 lib에서, 다른 패키지 `src/`, lib의 `testing*.dart`, lib의 `.setViewport(`·`.discardPending(` 호출, `package:feature_library/` import를 찾으면 실패 — 일부러 위반한 임시 파일로 검사 자체를 테스트), `unit/editor_strings_test.dart`(`EditorStrings.storageWriteFailing`·`storageNotDurable`이 계약 7.4.5 v1.1 고정 문장과 글자 그대로 같음 — C11-24), 기본 `flutter test`에서 `test/integration/`이 '건너뜀'으로 집계되고 `flutter test --run-skipped -t integration`에서만 실행됨(V7과 같은 확인), `ws check`의 태그 선언 검사(INFRA R15 — 있으면) 위반 0 |
+| E-01 | 테스트 도구: `PointerDriver`, `pumpEditor`(가짜 저장소 + 노트 시드, 1032×1376), `RecordingNoteSession`, `RecordingInputTargets`, `test_data.dart` | E-00 | test/helpers | `unit/helpers_smoke_test.dart`(`pumpEditor`가 3쪽 A4 노트를 열고 `EditorTestHandles`를 돌려줌, `PointerDriver`의 필압·기울기·반경·시각이 `Listener`에 그대로 도착, `RecordingNoteSession`이 호출 순서를 기록하고 스트림 전달 중 `execute`를 표시, `rejectNext(error)` 뒤 다음 `execute`·`undo` 한 번이 CORE에 닿지 않고 그 오류로 던져짐) |
 | E-02 | 레이아웃·카메라 수학: `PageLayout`, `ViewportCamera`, `CameraMath`, `ViewportConstants` | E-00 | viewport/*.dart | `unit/page_layout_test.dart`(세로·가로, 크기 섞임, 이진 탐색 경계, 간격 점 → null, 빈 목록), `unit/camera_math_test.dart`(변환 왕복 오차 < 1e-9, 초점 고정, 가운데 고정/범위 제한, fit 계산, 같은 제스처를 100조각으로 나눠 적용해도 한 번 적용과 오차 < 1e-6) |
-| E-03 | `ViewportController`(+ `revealPageRect`) + `ViewportMemory` | E-02 | | `unit/viewport_controller_test.dart`(관성 후 정지·경계 정지, 100% 스냅, 150ms 뒤 `isInteracting=false`·`settledScale` 갱신, 크기 변경 시 앵커·zoom 유지, 앞에 페이지 삽입해도 보던 페이지 유지, `jumpToPage`, `currentPageIndex` 알림이 페이지 바뀔 때만, `revealPageRect`: 이미 보이면 움직이지 않음·안 보이면 가운데·안 들어가면 축소), `unit/viewport_memory_test.dart`(가짜 저장소의 `editor.viewport`(device)에 50개 LRU, 2s 디바운스, 없는 페이지 → 0쪽) |
-| E-04 | `PageViewport`, `EditorPageView`, `PageMount`, `MountedPages`, `editor_scope.dart` 기본 provider | E-01, E-03 | | `widget/page_viewport_test.dart`(A4 50장: 마운트 = 보이는 ±1 ≤ 8, 스크롤 시 범위 밖 페이지의 `closePage` 호출(`RecordingNoteSession`으로 계수 — `pageIfLoaded`는 LRU로 남을 수 있어 핀 여부를 직접 볼 수 없음)·INK 컨트롤러 dispose, 마운트된 페이지의 `controller.content!.revision == session.pageIfLoaded(id)!.revision`, 핀치 중 `InkPageView.isScaling == true`·`ancestorScale` 반영, 로딩 덮개), `unit/page_mount_test.dart`(`load` 변경 → `updateContent`, 로컬·되돌리기 변경 → `updateContent` 1회씩, dispose 후 구독 없음·`closePage` 1회, 리스너 안에서 `execute`를 부르지 않음 — 세션 감시 래퍼로 확인) |
+| E-03 | `ViewportController`(+ `revealPageRect`) + `ViewportMemory` | E-02 | | `unit/viewport_controller_test.dart`(관성 후 정지·경계 정지, 100% 스냅, 150ms 뒤 `isInteracting=false`·`settledScale` 갱신, 크기 변경 시 앵커·zoom 유지, 앞에 페이지 삽입해도 보던 페이지 유지, `jumpToPage`, `currentPageIndex` 알림이 페이지 바뀔 때만, `revealPageRect`: 이미 보이면 움직이지 않음·안 보이면 가운데·안 들어가면 축소, `settleNow`: 핀치 직후 호출 → 즉시 `settledScale == camera.scale`·`isInteracting == false`·관성 정지, 이미 안정이면 알림 없음, `updatePages`: id·크기가 같고 `contentRevision`만 다른 목록 → 레이아웃 재계산·알림 없음(새 값은 보관), 크기가 바뀐 목록(`ResizePages`) → 재계산), `unit/viewport_memory_test.dart`(가짜 저장소의 `editor.viewport`(device)에 50개 LRU, 2s 디바운스, 없는 페이지 → 0쪽) |
+| E-04 | `PageViewport`, `EditorPageView`, `PageMount`, `MountedPages`, `editor_scope.dart` 기본 provider | E-01, E-03 | | `widget/page_viewport_test.dart`(A4 50장: 마운트 = 보이는 ±1 ≤ 8, 스크롤 시 범위 밖 페이지의 `closePage` 호출(`RecordingNoteSession`으로 계수 — `pageIfLoaded`는 LRU로 남을 수 있어 핀 여부를 직접 볼 수 없음)·INK 컨트롤러 dispose, 마운트된 페이지의 `controller.content!.revision == session.pageIfLoaded(id)!.revision`, 핀치 중 `InkPageView.isScaling == true`·`ancestorScale` 반영(EDITOR가 넘기는 것은 `InkPageView`의 세 인자뿐 — `setViewport` 미호출은 6.16 ⑤ 소스 검사), 로딩 덮개), `unit/page_mount_test.dart`(`load` 변경 → `updateContent`, 로컬·되돌리기 변경 → `updateContent` 1회씩, dispose 후 구독 없음·`closePage` 1회, 리스너 안에서 `execute`를 부르지 않음 — 세션 감시 래퍼로 확인) |
 | E-05 | `InputRouter`, `InputSample`, `InputThresholds` | E-00 | input/*.dart | `unit/input_router_test.dart` R1~R33 전부 |
 | E-06 | `EditorSettings`·`EditorSettingsNotifier`·`EditorSettingKeys`·`DebouncedSettingWriter` | E-01 | | `unit/editor_settings_test.dart`(scope별 JSON 왕복, 잘못된 값 → 기본값, 옛 `always`/`never` → `alwaysReal`/`alwaysSimulated`, `isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`(모든 키 `editor.` 접두사·이름 규칙, scope 표 = 6.14 — device 4개·synced 4개), `unit/editor_settings_notifier_test.dart`(fake_async: 로드 후 교체, 연속 변경 시 500ms 뒤 해당 키 쓰기 1회, 다른 scope 키는 안 씀, `watch`로 온 원격 synced 값 반영·자기 echo 무시), `unit/pressure_mode_bridge_test.dart`(로드 완료 후·`setPressureMode` 후 `ink.pressureModeProvider` 값이 같음, build 중 변경 없음) |
 | E-07 | `ToolState`·`ToolController` | E-06 | | `unit/tool_controller_test.dart`(기본값 = `StrokeStyle.defaultsFor`, 지우개 전환 시 previousTool, `returnFromEraser`, 펜 종류별 스타일 유지, `normalized()`(알파 0xFF·범위), 곡선 3종 설정, 형광펜만 직선 보정 반영, `editor.penStyles`·`editor.eraser`(synced)·`editor.toolSelection`(device)에 저장 후 새 컨테이너에서 복원, P1 도구 스타일 왕복) |
-| E-08 | `InteractionHost` 골격 + `EditorCommands`(commitInkEdit·_run) + 펜 상호작용 + hover 커서 | E-04, E-05, E-07 | tools/pen_*.dart, commands | `widget/pen_stroke_test.dart`(실제 INK 기반 구현 + 가짜 저장소: 스타일러스 획 → `session.history.undoDepth` 1·`undoLabel == 'add-strokes'`·페이지 획 1개, 확대 200%·스크롤 상태에서 저장된 점 좌표 오차 ≤ CORE 양자화 단위 + 0.01pt(B3 구현은 샘플을 그대로 점으로 저장), 간격에서 시작 → 무시, 로딩 중 페이지 → 무시, 커밋 직후 같은 프레임에 `controller.pendingIds` 비어 있음, cancel → 명령 없음, 최근 색 갱신, 읽기 전용 → 명령 없음·`discardPending`), `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`(5.1.3 예외 처리 4종) |
-| E-09 | 지우개 상호작용 + 커서 + 페이지 전체 지우기 | E-08 | | `widget/erase_test.dart`(여러 획을 지나도 명령 1회·되돌리기 1번에 모두 복구, 획 모드 `remove-strokes`, 반지름 = 지름/2 pt(경로에서 거리 d인 획은 지름 2d + 1이면 지워지고 2d − 1이면 남음, 확대율과 무관), 필터 전달(형광펜만 → 볼펜 획은 남음), 변화 없으면 명령 없음, 취소 시 원상, 이전 도구 복귀, 전체 지우기 확인 → `clear-page` 1단계·필터 반영, 커서 표시/숨김) |
-| E-10 | 올가미·선택·변형·메뉴·클립보드·붙여넣기·길게 누르기 메뉴·선택 재검증 | E-08 | | `unit/selection_hit_test_test.dart`(핸들·본체·클램프), `unit/stroke_clipboard_test.dart`(배치·클램프·반복 +16pt·새 id·`createdAt + i`·z 순서 유지), `widget/lasso_test.dart`(선택 → 프레임·메뉴, 이동 → `transform` 1단계·id·선택 유지, 모서리 크기 조절, 삭제 → `remove-strokes`, 다른 페이지에 붙여넣기 → `add-strokes`·`controller.selection` = 붙여 넣은 id, 다른 경로로 선택 획 삭제 시 선택 해제, 손가락 길게 누르기 메뉴) |
-| E-11 | 되돌리기·다시 실행 연결 (`EditorCommands.undo/redo`, `core.historyStateProvider`) | E-08 | | `widget/undo_redo_test.dart`(버튼 활성 상태, 두 손가락 탭 → undo 1회, 세 손가락 → redo 1회, 상호작용 중 무시, 화면 밖 페이지 변경을 되돌리면 `affectedPageIds` 첫 페이지로 스크롤, 읽기 전용이면 비활성) |
+| E-08 | `InteractionHost` 골격 + `EditorCommands`(commitInkEdit·_run) + 펜 상호작용 + hover 커서 | E-04, E-05, E-07 | tools/pen_*.dart, commands | `widget/pen_stroke_test.dart`(실제 INK 기반 구현 + 가짜 저장소: 스타일러스 획 → `session.history.undoDepth` 1·`undoLabel == 'add-strokes'`·페이지 획 1개, 확대 200%·스크롤 상태에서 저장된 점 좌표 오차 ≤ CORE 양자화 단위 + 0.01pt(B3 구현은 샘플을 그대로 점으로 저장), 간격에서 시작 → 무시, 로딩 중 페이지 → 무시, 커밋 직후 같은 프레임에 `controller.pendingIds` 비어 있음, cancel → 명령 없음, 최근 색 갱신, 읽기 전용 노트 → 상호작용 없음·명령 없음, **실패(읽기 전용 경합 주입 — `recorder.rejectNext(const core.ReadOnlyNoteException('race'))`) → `discardEdit` 뒤 `controller.pendingIds` 비어 있음·새 획이 화면·`controller.content`에 없음·`undoDepth` 그대로·최근 색 그대로·안내 표시**(계약 7.2.15 v1.1), 핀치 직후 150ms 안 펜 down → `settleNow`로 `InkPageView.ancestorScale == 1`·세션 `viewScale` = 레이아웃 배율), `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`(5.1.3 예외 처리: `ReadOnlyNoteException`·`PageNotOpenException`·`LastPageDeletionException`·`SessionClosedException`·`StateError`·기타 → 각각 `onRejected` 정확히 1회·`null` 반환·다시 던지지 않음, 성공 시 `onRejected` 0회, `_runHistory`가 `undo`/`redo`의 `ReadOnlyNoteException`을 잡음(N-4 v1.1), 리스너 안 호출 없음 — `executeDuringDelivery == false`) |
+| E-09 | 지우개 상호작용 + 커서 + 페이지 전체 지우기 | E-08 | | `widget/erase_test.dart`(여러 획을 지나도 명령 1회·되돌리기 1번에 모두 복구, 획 모드 `remove-strokes`, 반지름 = 지름/2 pt(경로에서 거리 d인 획은 지름 2d + 1이면 지워지고 2d − 1이면 남음, 확대율과 무관), 필터 전달(형광펜만 → 볼펜 획은 남음), 변화 없으면 명령 없음, 취소 시 원상, 이전 도구 복귀, **실패(읽기 전용 경합 주입) → `discardEdit` 뒤 `controller.pendingIds` 비어 있음·지운 획이 다시 보임(`controller.content`·화면에 그대로, 획 모드·부분 모드 둘 다)·이전 도구로 돌아가지 않음**, 전체 지우기 확인 → `clear-page` 1단계·필터 반영, 커서 표시/숨김) |
+| E-10 | 올가미·선택·변형·메뉴·클립보드·붙여넣기·길게 누르기 메뉴·선택 재검증 | E-08 | | `unit/selection_hit_test_test.dart`(핸들·본체·클램프), `unit/stroke_clipboard_test.dart`(배치·클램프·반복 +16pt·새 id·`createdAt + i`·z 순서 유지), `widget/lasso_test.dart`(선택 → 프레임·메뉴, 이동 → `transform` 1단계·id·선택 유지, 모서리 크기 조절, 삭제 → `remove-strokes`, 다른 페이지에 붙여넣기 → `add-strokes`·`controller.selection` = 붙여 넣은 id, 다른 경로로 선택 획 삭제 시 선택 해제, 손가락 길게 누르기 메뉴, **실패(읽기 전용 경합 주입) → 이동: `discardEdit` 뒤 `pendingIds` 비어 있음·획이 원래 위치에 보임·선택 유지 / 삭제: `discardEdit` 뒤 `pendingIds` 비어 있음·지운 획이 다시 보임**) |
+| E-11 | 되돌리기·다시 실행 연결 (`EditorCommands.undo/redo`, `core.historyStateProvider`) | E-08 | | `widget/undo_redo_test.dart`(버튼 활성 상태, 두 손가락 탭 → undo 1회, 세 손가락 → redo 1회, 상호작용 중 무시, 화면 밖 페이지 변경을 되돌리면 `affectedPageIds` 첫 페이지로 스크롤, 읽기 전용이면 비활성, `undo`가 `ReadOnlyNoteException`으로 거부되는 경합(`rejectNext`) → 안내만·스크롤 없음·예외가 밖으로 나가지 않음(N-4 v1.1)) |
 | E-12 | 키보드 단축키 | E-11 | input/editor_shortcuts.dart | `widget/shortcuts_test.dart`(6.8 표 전부, meta·control 양쪽, HEX 칸 포커스 중 ⌘Z가 노트 undo를 부르지 않음, P/E/L은 캔버스 포커스일 때만) |
-| E-13 | `EditorScreen`·`EditorRoot`·`EditorBody`·툴바·동기화 아이콘·더보기·노트 정보·확장점·배너·진입/이탈 | E-11 | | `widget/editor_screen_test.dart`(로딩 → 본문, 없는 노트 → 문구 + 버튼 → `onClose`, 다시 시도 → `noteSessionProvider` 재생성, 뒤로 시 `flush` 완료 **후** `onClose`(순서 기록), 앱 hide 시 flush, 마지막 위치 복원, `initialPageId`·모르는 `initialPageId` 무시), `widget/read_only_test.dart`(휴지통 노트 → 배너·도구 비활성·스크롤 가능, 열린 중 휴지통 이동 → 즉시 전환), `widget/storage_banner_test.dart`(`storageInfo: StorageInfo(backend: webInMemory)` → 임시 문구, `failNextCommits(3)` → 실패 문구, 1회 실패 → 스낵바만), `widget/sync_badge_test.dart`(기본 off → 아이콘 없음, override `done`/`inProgress(3)`/`offline`/`error` → 아이콘·의미 문구), `widget/toolbar_test.dart`(도구 전환, 활성 펜 재탭 → 팝업, 길게 누르기 → 빠른 팝업, 손가락 토글, 줌 칩, `onOpenSettings` null이면 '설정' 숨김), `widget/extensions_test.dart`(`moreMenuItems`·`addPageSources`가 `EditorMenuContext`(noteId·pageIds·currentPageId·selectedPageIds)를 받음, `isEnabled` false → 회색, 예외 → 스낵바), `widget/scope_test.dart`(두 노트 화면의 선택·팝업·패널 상태 분리) |
+| E-13 | `EditorScreen`·`EditorRoot`·`EditorBody`·툴바·동기화 아이콘·더보기·노트 정보·확장점·배너·진입/이탈 | E-11 | | `widget/editor_screen_test.dart`(로딩 → 본문, 없는 노트 → 문구 + 버튼 → `onClose`, 다시 시도 → `noteSessionProvider` 재생성, 뒤로 시 `flush` 완료 **후** `onClose`(순서 기록), 앱 hide 시 flush, 마지막 위치 복원, `initialPageId`·모르는 `initialPageId` 무시), `widget/read_only_test.dart`(휴지통 노트 → 배너·도구 비활성·스크롤 가능, 열린 중 휴지통 이동 → 즉시 전환), `widget/storage_banner_test.dart`(기본 가짜 저장소(`nativeFile`) → 배너 없음, `storageInfo: const StorageInfo(backend: StorageBackend.webInMemory)` → 화면을 연 뒤 `pump()` 한 번에 `EditorStrings.storageNotDurable` 배너(첫 값이 구독 즉시 — 계약 7.2.12 v1.1), `faults.failNextCommits(3)` → `EditorStrings.storageWriteFailing`, 1회 실패 → 스낵바만), `widget/sync_badge_test.dart`(기본 off → 아이콘 없음, override `done`/`inProgress(3)`/`offline`/`error` → 아이콘·의미 문구), `widget/toolbar_test.dart`(도구 전환, 활성 펜 재탭 → 팝업, 길게 누르기 → 빠른 팝업, 손가락 토글, 줌 칩, `onOpenSettings` null이면 '설정' 숨김), `widget/extensions_test.dart`(`moreMenuItems`·`addPageSources`가 `EditorMenuContext`(noteId·pageIds·currentPageId·selectedPageIds)를 받음, `isEnabled` false → 회색, 예외 → 스낵바), `widget/scope_test.dart`(두 노트 화면의 선택·팝업·패널 상태 분리) |
 | E-14 | 색 계산·피커·최근 색·팔레트·획 스포이드 | E-13 | ui/color/* | `unit/color_math_test.dart`(HEX 정상 9·오류 6가지, HSV 왕복 오차 ≤ 1/255), `widget/color_picker_test.dart`(휠·사각 드래그, HEX·RGB 입력·되돌림, 최근 색 탭, 팔레트 추가·삭제·40 제한, `editor.colors`(synced) 저장, 스포이드 흐름(`controller.hitTest` → CORE 색)·배너·취소), `goldens/hsv_wheel_golden_test.dart` |
-| E-15 | 펜 설정 패널·굵기 슬라이더·미리보기·빠른 팝업·지우개 패널·'고급'(필압 곡선·형광펜 직선 보정) | E-14 | ui/pen/*, ui/eraser/* | `unit/width_mapping_test.dart`(경계 = `StrokeStyle.minWidth/maxWidth`, 왕복, 0.1 스냅), `widget/pen_settings_panel_test.dart`(종류 전환, 슬라이더·±·숫자 입력, 투명도 하한 5%, 곡선 3칸 → `pressureCurve` soft/linear/firm·사용자 지정 곡선은 선택 없음, 형광펜일 때만 직선 보정 3칸 → `highlighterStraightening`, 필압 없음(INK 상태 `unsupported` override)·`alwaysSimulated`에서 감도·곡선 비활성), `widget/quick_pen_panel_test.dart`, `widget/eraser_panel_test.dart`(`ink.EraserMode`·`core.StrokeFilter` 선택) |
+| E-15 | 펜 설정 패널·굵기 슬라이더·미리보기·빠른 팝업·지우개 패널·'고급'(필압 곡선·형광펜 직선 보정) | E-14 | ui/pen/*, ui/eraser/* | `unit/width_mapping_test.dart`(경계 = `StrokeStyle.minWidth/maxWidth`, 왕복, 0.1 스냅), `widget/pen_settings_panel_test.dart`(종류 전환, 슬라이더·±·숫자 입력, 투명도 하한 5%, 곡선 3칸 → `pressureCurve` soft/linear/firm·사용자 지정 곡선은 선택 없음, 형광펜일 때만 직선 보정 3칸 → `highlighterStraightening`, 필압 없음(INK 상태 `unsupported` override)·`alwaysSimulated`에서 감도·곡선 비활성, 미리보기 `CustomPaint`의 painter가 `ink.PenPreviewPainter`이고 `pencilGrain`이 `container.read(ink.pencilGrainProvider)`와 같은 객체(계약 7.2.16 v1.1)), `widget/quick_pen_panel_test.dart`, `widget/eraser_panel_test.dart`(`ink.EraserMode`·`core.StrokeFilter` 선택) |
 | E-16 | 프리셋 바·저장 대화상자·관리 시트 (CORE 저장소 직접) | E-15 | ui/presets/*, state/preset_bar.dart | `unit/preset_ordering_test.dart`(부분집합 이동 → 전체 순서), `widget/preset_bar_test.dart`(가짜 저장소 기본 프리셋 5종 표시, 필터, 탭 → `applyStyle`, 활성 테두리(`StrokeStyle ==`), 드래그 → `reorderPresets` 후 CORE 순서 반영, 저장 기본 이름·1~20자·그룹 → `createPreset`, 관리 시트 이름·그룹·고정·업데이트·삭제 → CORE 반영) |
-| E-17 | 페이지 패널·썸네일·선택 모드·페이지 추가 시트·문서 끝 버튼·`navigateToPage` | E-13 | ui/pages/*, state/page_panel.dart | `widget/page_panel_test.dart`(탭 이동, ⋯ 메뉴 4가지, 1장일 때 삭제 비활성, 스낵바 되돌리기, 드래그 → `MovePages`(앞으로·뒤로·맨 앞)·되돌리기 1번, 현재 페이지 강조·자동 스크롤), `widget/page_panel_thumbnail_test.dart`(로드된 페이지 → `InkPageThumbnail`·획 추가 500ms 뒤 갱신, 신선한 캐시 → 이미지, 오래된 캐시 → `loadPage` 경로, `openPage` 호출 없음), `widget/page_panel_selection_test.dart`(선택 모드 진입·토글·모두 선택, `selectedPageIds`가 노트 순서(선택 순서와 무관), 더보기 항목이 받은 `EditorMenuContext.selectedPageIds`, 일괄 삭제·복제 각 1단계, 전부 선택 시 삭제 비활성, 원격·로컬 삭제된 페이지가 선택에서 빠짐, Esc·완료 → 비움), `widget/navigate_to_page_test.dart`(확장 항목에서 `navigateToPage(id, null)` → 그 페이지가 현재 페이지, `focusRectPt` → 사각형이 화면 안, 모르는 id 무시, 가로 넘기기 모드), `widget/add_page_sheet_test.dart`(초기값 = 현재 페이지, 속지 7칸(빈 + 6종)·종이 색 4종·크기 프리셋 3 + 사용자 지정, 100~3000 범위 검사, 방향, 결과 `PageDraft`·`PagePosition`, 삽입 후 새 페이지로 이동), `unit/page_choices_test.dart`(`backgroundFor`·라벨·`PageSizePreset.match` 사용), `widget/add_page_button_test.dart` |
+| E-17 | 페이지 패널·썸네일·선택 모드·페이지 추가 시트·문서 끝 버튼·`navigateToPage` | E-13 | ui/pages/*, state/page_panel.dart | `widget/page_panel_test.dart`(탭 이동, ⋯ 메뉴 4가지, 1장일 때 삭제 비활성, 스낵바 되돌리기, 드래그 → `MovePages`(앞으로·뒤로·맨 앞)·되돌리기 1번, 현재 페이지 강조·자동 스크롤), `widget/page_panel_thumbnail_test.dart`(로드된 페이지 → `InkPageThumbnail`·획 추가 500ms 뒤 갱신, 신선한 캐시 → 이미지, 오래된 캐시 → `loadPage` 경로, `openPage` 호출 없음, `ink.pageBackgroundBuildersProvider`를 `[ink.SolidBackgroundBuilder(), const ink.TemplateBackgroundLayerBuilder()]`로 override한 컨테이너에서 위젯의 `backgroundBuilders`가 그 목록·`pencilGrain`이 `pencilGrainProvider` 값 — 계약 7.2.16 v1.1), `widget/page_panel_selection_test.dart`(선택 모드 진입·토글·모두 선택, `selectedPageIds`가 노트 순서(선택 순서와 무관), 더보기 항목이 받은 `EditorMenuContext.selectedPageIds`, 일괄 삭제·복제 각 1단계, 전부 선택 시 삭제 비활성, 원격·로컬 삭제된 페이지가 선택에서 빠짐, Esc·완료 → 비움), `widget/navigate_to_page_test.dart`(확장 항목에서 `navigateToPage(id, null)` → 그 페이지가 현재 페이지, `focusRectPt` → 사각형이 화면 안, 모르는 id 무시, 가로 넘기기 모드), `widget/add_page_sheet_test.dart`(초기값 = 현재 페이지, 속지 7칸(빈 + 6종)·종이 색 4종·크기 프리셋 3 + 사용자 지정, 100~3000 범위 검사, 방향, 결과 `PageDraft`·`PagePosition`, 삽입 후 새 페이지로 이동, 미리보기 칸 7개가 서로 다른 `ValueKey((choice, color, size))`를 갖고 각 `content.page` = `current.copyWith(size:, background: backgroundFor(...))`·`strokes` 빈 목록·`revision` 0, 색·방향을 바꾸면 키가 바뀐 새 칸, `backgroundBuilders`·`pencilGrain`이 provider 값), `unit/page_choices_test.dart`(`backgroundFor`·라벨·`PageSizePreset.match` 사용, `TemplateChoice` 값 동등), `widget/add_page_button_test.dart` |
 | E-19 | 개발자 표시 · 개발자 메뉴 | E-13 | ui/dev/*, toolbar/dev_menu.dart | `unit/dev_metrics_test.dart`(EDITOR 고유 값만: 포인터·팜 거부·뷰포트·획 수, 4Hz 이하 발행), `widget/dev_overlay_test.dart`(설정·메뉴·단축키·URL 플래그 override로 켜짐 → `ink.inkDiagnosticsProvider.enabled == true`, 숨기면 `false`·수집 중지, INK 스냅숏 값(`FakeInkClock`로 만든 진단)·CORE 저장 줄(`lastCommitLatency`)·`devOverlaySectionsProvider` 섹션 줄이 보임, 섹션 lines 변경 반영), `widget/dev_menu_test.dart`(합성 노트 → 가짜 저장소에 노트 1개 추가·스낵바, 합성 획 1,000 → 현재 페이지 획 +1,000·`undoDepth` +1·되돌리기 1번에 원상, 읽기 전용이면 비활성) |
 | E-20 | 설정 섹션 위젯 4개 | E-06, E-07 | ui/settings/* | `widget/settings_sections_test.dart`(설정 화면 없이 `ListView`에 4개를 넣고: 각 컨트롤 → notifier 값·CORE 키, 필압 모드 3칸 → `ink.pressureModeProvider`, 감지 상태 문구(INK 상태 override), 펜 섹션의 곡선·보정·직선 보정이 펜 팝업과 같은 `editorToolProvider` 값, 기본값 초기화, 읽기 전용 제스처 표, 개발자 섹션 '합성 노트 만들기', 안내 문구) |
-| E-21 | 통합 스모크: 실제 INK + 실제 CORE | INK·CORE 구현 합류(통합 단계 7.7 ③) | test/integration | `integration/real_core_ink_smoke_test.dart`(`@Tags(['integration'])`, VM, `openTestNoteStore()`: 노트 열기 → 펜 획 3개 → 부분 지우개로 2개 절단 → 되돌리기 1번에 복구 → 올가미 이동 → 화면 닫기 → 다시 열어 획·위치 유지, 저장 경고 문구 = LIBRARY 문구 상수 대조), `web/editor_browser_smoke_test.dart`(`@TestOn('browser')`: 가짜 저장소 + INK로 획 1개·되돌리기 — 웹 런타임 확인) |
+| E-21 | 통합 스모크: 실제 INK + 실제 CORE | INK·CORE 구현 합류(통합 단계 7.7 ③) | test/integration | `integration/real_core_ink_smoke_test.dart`(`@Tags(['integration'])` + `@TestOn('vm')` — `dart_test.yaml`이 기본 skip, 통합 단계 `ws test --run-skipped -t integration`에서만, 계약 7.7 5단계. `openTestNoteStore()` 기본값(`storageInfo: null` = 실제 백엔드, 메모리 DB): 노트 열기 → **`EditorStrings.storageNotDurable` 배너가 보임**(메모리 CORE = `nativeMemory` → `notDurable`, 계약 7.2.12·7.6 v1.1 C11-12 — 이후 단계는 좌표를 `h.viewport.pageToScreen`으로 구해 배너 높이에 기대지 않음) → 펜 획 3개 → 부분 지우개로 2개 절단 → 되돌리기 1번에 복구 → 올가미 이동 → 화면 닫기 → 다시 열어 획·위치 유지. 실제 drift 스트림 타이머가 남지 않게 저장소 열기·닫기는 `tester.runAsync` 안에서, 끝에 `store.close()`. 문구 대조는 하지 않는다 — 고정 문장 비교는 E-00 `editor_strings_test`, 두 화면 대조는 INFRA V5(C11-24)), `web/editor_browser_smoke_test.dart`(`@TestOn('browser')`: 가짜 저장소 + INK로 획 1개·되돌리기 — 웹 런타임 확인) |
 | E-22 | 마무리: 골든·성능 스모크·결과 보고 | 전부(E-18 제외 가능) | | `goldens/selection_frame_golden_test.dart`, `goldens/page_viewport_layout_golden_test.dart`(INK 출력은 `SolidBackgroundBuilder`·빈 페이지로 고정, EDITOR 오버레이만 비교), `unit/performance_smoke_test.dart`(6.15 #9 수치), 전체 통과, 결과 보고서(변경 요청 목록, iPad 체크리스트) |
 | E-18 | 좌우 넘기기 모드 — **마지막 순위**(EDITOR-S8, 계약 7.8) | E-03, E-13 | | `widget/paged_mode_test.dart`(가로 배치, 빠른 스와이프 → 다음 장, 느리면 가까운 장, 확대 상태는 스냅 없음, 모드 전환 시 현재 페이지 유지, `navigateToPage`도 동작). 동시 개발 기간에 못 끝내면 통합 단계에서 하되 **M1 합격(9.2 ★) 전 완료** |
 
@@ -2894,7 +3013,7 @@ Flutter SDK 기능 중 쓰는 것(별도 패키지 아님, 3.47.9 소스로 존�
 
 ### 9.1 컨테이너에서 자동 실행
 
-실행: `cd packages/feature_editor && /opt/flutter/bin/flutter test`(VM, `test/web/` 제외 — 계약 7.4.8), 브라우저: 루트에서 `dart run tool/ws.dart test --platform chrome`(`test/web/`만), 골든 처음 생성 시 `flutter test --update-goldens --tags golden`(별도 커밋), 통합 태그는 통합 단계에 `ws test --run-skipped -t integration`. 네트워크·실제 시간 대기 금지(`fake_async`·`tester.pump`). EDITOR는 준비 스크립트(`tool/prepare_web_test.dart`)가 필요 없다.
+실행: `cd packages/feature_editor && /opt/flutter/bin/flutter test`(VM, `test/web/` 제외 — 계약 7.4.8), 브라우저: 루트에서 `dart run tool/ws.dart test --platform chrome`(`test/web/`만), 골든 처음 생성 시 `flutter test --update-goldens --tags golden`(별도 커밋), 통합 태그는 통합 단계에 `ws test --run-skipped -t integration`. **근거: 패키지 `dart_test.yaml`**(3절 — `golden: {}`, `integration: {skip: "integration stage only — ws test --run-skipped -t integration"}`, 계약 7.4.8 v1.1 C11-26)이 `integration`을 기본 skip으로 선언하므로, 동시 개발 중 기본 `flutter test`·`ws test`에서는 E-21이 '건너뜀'으로 집계되고 B2 CORE(`openTestNoteStore` = `UnimplementedError`)로 돌지 않는다(스크래치 V7). 네트워크·실제 시간 대기 금지(`fake_async`·`tester.pump`). EDITOR는 준비 스크립트(`tool/prepare_web_test.dart`)가 필요 없다.
 
 공통 도구:
 
@@ -2932,9 +3051,17 @@ class EditorTestHandles {
 // test/helpers/recording_note_session.dart
 /// Delegating core.NoteSession that records openPage / closePage / execute /
 /// executeAsync / undo / redo / flush calls (in order) and flags any execute made
-/// while one of its streams is delivering (5.1.2 re-entrancy rule). Installed with
+/// while one of its streams is delivering (N-2 v1.1 re-entrancy rule). Installed with
 /// core.noteSessionProvider.overrideWith(...) — test only.
-class RecordingNoteSession implements core.NoteSession { /* ... */ }
+class RecordingNoteSession implements core.NoteSession {
+  RecordingNoteSession(core.NoteSession inner);
+  List<String> get calls;                // e.g. ['openPage:p1', 'execute:add-strokes']
+  bool get executeDuringDelivery;
+  /// The next execute / executeAsync / undo / redo throws [error] without reaching the
+  /// inner session (commit-failure injection, e.g. const core.ReadOnlyNoteException('race')).
+  void rejectNext(Object error);
+  // + every core.NoteSession member, delegated
+}
 ```
 
 ```dart
@@ -2974,7 +3101,7 @@ class PointerDriver {
 
 | 구분 | 파일 | 핵심 검증 |
 |---|---|---|
-| 단위 | `api_surface_test`, `no_platform_imports_test` | 공개 이름 = 4.1(계약 7.2.17), SDK Material·플랫폼 import 없음(6.16) |
+| 단위 | `api_surface_test`, `no_platform_imports_test`, `editor_strings_test` | 공개 이름 = 4.1(계약 7.2.17), SDK Material·플랫폼 import 없음·`setViewport`/`discardPending` 호출 없음·LIBRARY import 없음(6.16), 저장 경고 2문장 = 계약 7.4.5 v1.1 고정 문장(C11-24) |
 | 단위 | `page_layout_test`, `camera_math_test`, `viewport_controller_test`, `viewport_memory_test` | 6.3 수식·규칙 전부, `revealPageRect` |
 | 단위 | `input_router_test` | 6.5.6 표 R1~R33 (`RecordingInputTargets` 호출 기록 비교) |
 | 단위 | `editor_settings_test`, `editor_setting_keys_test`, `editor_settings_notifier_test`, `pressure_mode_bridge_test`, `tool_controller_test` | 상태·CORE 키·scope·INK 필압 모드 연결 |
@@ -2988,7 +3115,7 @@ class PointerDriver {
 | 위젯 | `page_panel_test`, `page_panel_thumbnail_test`, `page_panel_selection_test`, `navigate_to_page_test`, `add_page_sheet_test`, `add_page_button_test`, `paged_mode_test` | 페이지 관리·선택·이동 |
 | 위젯 | `dev_overlay_test`, `dev_menu_test`, `settings_sections_test` | 개발자 표시·메뉴·설정 섹션 |
 | 골든 | `goldens/hsv_wheel_golden_test`, `goldens/selection_frame_golden_test`, `goldens/page_viewport_layout_golden_test` | `@Tags(['golden'])`·`@TestOn('vm')`, EDITOR가 그리는 것만(INK 출력은 단색 배경·빈 페이지로 고정), 글자 없는 화면 |
-| 통합 | `integration/real_core_ink_smoke_test` | 실제 INK + 실제 CORE(`openTestNoteStore`), 통합 단계에서만(E-21) |
+| 통합 | `integration/real_core_ink_smoke_test` | 실제 INK + 실제 CORE(`openTestNoteStore`, `notDurable` 배너 단언), 통합 단계에서만(E-21 — `dart_test.yaml` skip) |
 | 브라우저 | `web/editor_browser_smoke_test` | `@TestOn('browser')`, 획 1개 + 되돌리기(웹 런타임) |
 
 제스처 시뮬레이션 예 (`lasso_test.dart` 중):
@@ -3014,6 +3141,28 @@ testWidgets('dragging a selection commits one TransformElements and keeps ids',
   expect(page.strokeById(strokeA.id), isNotNull);             // id kept
   expect(h.controllerOf(0).selection!.strokeIds, {strokeA.id}); // still selected
   expect(h.recorder!.executeDuringDelivery, isFalse);          // 5.1.2
+});
+```
+
+커밋 실패 예 (`erase_test.dart` 중 — EDITOR-2-1, 계약 7.2.15 v1.1):
+
+```dart
+testWidgets('rejected erase → discardEdit, erased strokes visible again', (tester) async {
+  final h = await pumpEditor(tester, strokesByPageIndex: {0: [strokeA, strokeB]});
+  h.container.read(editorCommandsProvider).selectTool(EditorTool.eraser);
+  await tester.pump();
+  final before = h.session.history.undoDepth;
+
+  h.recorder!.rejectNext(const core.ReadOnlyNoteException('race'));   // injected race
+  await h.driver.stylusStroke(pathThrough([strokeA, strokeB], pageIndex: 0, viewport: h.viewport));
+
+  final c = h.controllerOf(0);
+  expect(c.pendingIds, isEmpty);                                      // discardEdit ran
+  // committed content still has both and no pending override hides them → drawn again
+  expect(c.content!.strokeById(strokeA.id), isNotNull);
+  expect(c.content!.strokeById(strokeB.id), isNotNull);
+  expect(h.session.history.undoDepth, before);                        // nothing committed
+  expect(find.text(EditorStrings.readOnlyToast), findsOneWidget);
 });
 ```
 
@@ -3058,7 +3207,7 @@ testWidgets('dragging a selection commits one TransformElements and keeps ids',
 ## 10. 완료 기준
 
 1. B5, E-00~E-22 완료 조건 충족. E-18은 마지막 순위이며 동시 개발 기간에 못 끝내면 통합 단계로 넘기되 M1 합격(9.2 ★ — A18 포함) 전에 완료. E-21은 통합 단계(CORE·INK 병합 뒤)에 통과.
-2. 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws check`(R1~R14) 위반 0, `packages/feature_editor`에서 `flutter test` 전부 통과(골든 포함), `ws test --platform chrome`의 `test/web/` 통과, 전체 VM 실행 3분 이내(컨테이너 CPU 4).
+2. 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws check`(R1~R14, INFRA가 추가하는 R15 태그 선언 검사가 있으면 그것도) 위반 0, `packages/feature_editor`에서 `flutter test` 전부 통과(골든 포함, `integration`은 `dart_test.yaml`로 건너뜀 — 통합 단계에 `--run-skipped -t integration`으로 E-21 통과), `ws test --platform chrome`의 `test/web/` 통과, 전체 VM 실행 3분 이내(컨테이너 CPU 4).
 3. import 규칙(6.16) 통과: lib·test 모두 `package:material_ui/material_ui.dart`만, 플랫폼 import 없음. 통합 단계에서 앱 `flutter build web --release` 통과.
 4. 줄 커버리지(`flutter test --coverage`): `src/input`·`src/viewport`·`src/tools`·`src/document`·`src/commands` 각 85% 이상, 패키지 전체 70% 이상. 측정 스크립트는 INFRA 것을 쓰고, 없으면 lcov 수치를 결과 보고에 기록.
 5. 2절에서 '이번'으로 표시한 모든 항목이 하나 이상의 통과 테스트와 연결됨(결과 보고에 표로).
@@ -3079,9 +3228,11 @@ testWidgets('dragging a selection commits one TransformElements and keeps ids',
 | Safari 기본 제스처 개입 | 화면 확대·콜아웃 | 엔진 기본 + INFRA 6.9, A9a |
 | Safari 탭에서 왼쪽 가장자리 스와이프 뒤로가기 | 필기 중 화면 이탈 | 홈 화면 앱 기준 합격(A9b), 무전환 라우트(INFRA-M7) + `EagerGestureRecognizer`, 이탈해도 flush·위치 복원(A9c) |
 | 기반 단계 INK(B3)가 단순 구현이라 실제 INK와 동작이 다름 | 통합 때 EDITOR 테스트 실패 | 기하 품질과 무관한 것만 단언(5.2.3), E-21에서 실제 INK + 실제 CORE로 다시 확인 |
-| 세션 스트림 리스너 안에서 명령 실행(재진입) | `StateError` | 리스너는 `updateContent`·선택 재검증만(5.1.2), `RecordingNoteSession.executeDuringDelivery` 단언 |
+| 세션 스트림 리스너 안에서 명령 실행(재진입) | `StateError`(계약 7.2.8 N-2 v1.1) | 리스너는 `updateContent`·선택 재검증만(5.1.2), `RecordingNoteSession.executeDuringDelivery` 단언, 그래도 오면 `_run`이 잡아 오류 보고 |
 | `build()` 안에서 INK provider 변경 | provider 오류 상태(V4) | 로드 `await` 뒤·setter에서만 `set()`(6.13.1 #7), `pressure_mode_bridge_test` |
-| 읽기 전용 전환과 진행 중 제스처 경합 | `ReadOnlyNoteException` | `_run`이 잡아 `discardPending` + 안내, `noteStream`으로 즉시 도구 끔 |
+| 읽기 전용 전환과 진행 중 제스처·되돌리기 경합 | `ReadOnlyNoteException`(`undo`·`redo` 포함 — N-4 v1.1) | `_run`·`_runAsync`·`_runHistory`가 잡아 `controller.discardEdit(edit)`(계약 7.2.15 v1.1) + 안내, `noteStream`으로 즉시 도구 끔. E-08~E-11에서 `rejectNext`로 주입해 확인 |
+| 통합 태그 테스트가 동시 개발 중 기본 실행에 섞임 | B2 CORE `openTestNoteStore` = `UnimplementedError` → 실패 | 패키지 `dart_test.yaml`에 `integration` skip(3절, 계약 7.4.8 v1.1 C11-26, 스크래치 V7), INFRA R15 검사 |
+| 미리보기 칸끼리 썸네일 상태가 섞임(같은 pageId·`revision: 0`) | 색·크기를 바꿔도 미리보기가 안 바뀜 | 칸마다 `ValueKey((choice, color, size))`(6.11.4), `add_page_sheet_test` |
 | 스크롤·핀치 중 rebuild 비용 | 끊김 | 인스턴스 캐시, `RepaintBoundary`, 카메라 경로 provider 금지, 성능 스모크 테스트 |
 | 확대 끝날 때 INK 재래스터 | 순간 끊김 | 150ms 안정화 후 `isScaling: false` 한 번, INK 타일 |
 | 페이지 패널 썸네일 비용(로드 안 된 페이지의 `loadPage`) | 패널 스크롤 끊김·메모리 | 보이는 항목만, 신선한 캐시 우선, 500ms 지연 갱신, 핀하지 않음(E-2) |
@@ -3112,7 +3263,7 @@ testWidgets('dragging a selection commits one TransformElements and keeps ids',
 | Q8 배경 분담 | INK `PageBackgroundLayerBuilder` 목록, 합성은 INK `InkPageView`, EDITOR는 오버레이만 | 1.1, 6.4.2 |
 | Q9 올가미 포함 규칙 | INK 규칙(중심선 길이 비율 ≥ 0.5, nonzero) | 6.6.5 |
 | Q10 썸네일 | 표지·캐시는 CORE 자리 + INK 렌더러, 패널은 `InkPageThumbnail`(EDITOR-S7) | 6.11.3 |
-| Q11 INFRA 요청 | 무전환 라우트·index.html 대책 수용, `disableContextMenu()` 불필요 | 5.3 #2·#4·#5 (근거는 INFRA 6.9 갱신본: 엔진은 `contextmenu`를 막지 않고 `index.html` 가드가 막음 — 결론은 같음) |
+| Q11 INFRA 요청 | 무전환 라우트·index.html 대책 수용, `disableContextMenu()` 미사용(근거는 2차 검토에서 계약 7.4.9 v1.1로 정정 — C11-28: 엔진 기본은 `contextmenu`를 막지 않고 CSS + `index.html`이 막음, 결정은 그대로) | 5.3 #2·#4·#5 |
 | Q12 입력 모드 기본 `auto` | 동의 | 4.8, 6.5.3 |
 | Q13 좌우 넘기기 | 이번 범위, 마지막 순위(EDITOR-S8) | 8.2 E-18, 10 #1, 9.2 A18 |
 | Q14 지우개 기본 부분·pt | 동의 | 6.6.1, 6.6.4 |
@@ -3121,22 +3272,28 @@ testWidgets('dragging a selection commits one TransformElements and keeps ids',
 | Q17 M0 프로토타입 | EDITOR `EditorScreen` + INK, INFRA 기반 단계는 자리표시 | 2.3, 8.1 B5 |
 | Q18 페이지 명령 되돌리기 | 모두 각 1단계 | 5.1.3 |
 
-### 12.2 계약 변경 제안 (계획서는 현재 계약대로 썼다 — 승인 시 7장 수정)
+### 12.2 계약 변경 제안
 
-| # | 대상 | 제안 | 이유 |
+1차 수정에서 낸 제안 3건은 2차 검토에서 모두 **승인**되어 계약 v1.1에 들어갔다(00-review '2차 검토' 2.2, 00-overview 7.9). 본문은 계약 문장을 인용하도록 바꿨다.
+
+| # | 대상 | 제안 (1차) | 결정 (2차 검토) | 이 문서 반영 |
+|---|---|---|---|---|
+| CP-E1 | 7.2.17 `EditorMenuContext.navigateToPage` 주석 | "`focusRectPt` is in page coordinates (pt, origin top-left, y down — same as core.Stroke points)" | **승인 + 보충** → C11-21: "pt of the note's Page.size"까지 명시(P-1로 크기가 바뀐 PDF 페이지 대비) | 4.5 계약 블록(v1.1 주석 그대로), 4.5 표, 6.2, 6.11.6 |
+| CP-E2 | 7.4.6 `device` 목록 | '현재 도구·펜 종류 선택'(`editor.toolSelection`)을 `device` 목록에 | **승인** → C11-25 | 6.14 |
+| CP-E3 | 7.2.15 세션 3종의 `viewScale` | "viewScale = logical px per page pt (no devicePixelRatio)" | **승인** → C11-14: "… at gesture start (no devicePixelRatio, no ancestor transform)" | 5.2.2 #4, 6.2, 6.3.4 `settleNow`, 6.6.2 |
+
+2차 수정에서 새로 내는 계약 변경 제안: **없음**. 계약 v1.1 그대로 썼다. (참고: C11-14의 'no ancestor transform'과 EDITOR의 '카메라 `scale`'이 핀치 직후 150ms 안정화 창에서 달라질 수 있는 점은 계약을 바꾸지 않고 EDITOR 쪽 `settleNow()`(6.3.4)로 두 값을 같게 만들어 해결했다.)
+
+### 12.3 1차 수정에서 낸 질문 (Q-E1~Q-E4) — 모두 해결
+
+| # | 질문 (1차) | 결과 (2차 검토) | 이 문서 반영 |
 |---|---|---|---|
-| CP-E1 | 7.2.17 `EditorMenuContext.navigateToPage` 주석 | "`focusRectPt` is in page coordinates (pt, origin top-left, y down — same as core.Stroke points)" 한 줄 추가 | PDF '찾기' 결과 사각형을 PDF 좌표(y 위)로 넘기면 EDITOR가 엉뚱한 곳으로 스크롤한다. PDF·INFRA·EDITOR가 같은 좌표계로 해석하게 계약에 고정(EDITOR는 이 해석으로 구현 — 6.2, 6.11.6) |
-| CP-E2 | 7.4.6 `device` 목록 | '현재 도구·펜 종류 선택'(EDITOR `editor.toolSelection`)을 `device` 목록에 추가 | 목록에 없어 분류가 갈릴 수 있다. 손에 든 도구는 기기마다 다르고, 동기화되면 다른 기기에서 쓰던 도구가 갑자기 바뀐다(EDITOR는 device로 구현 — 6.14) |
-| CP-E3 | 7.2.15 `beginStroke`/`beginErase`/`beginLasso`의 `viewScale` | "viewScale = logical px per page pt (no devicePixelRatio)" 주석 추가 | INK 4.9 `InkPageView`는 논리 배율(`size.width / pageSize.width`)을 쓰지만 세션 API에 단위가 없다. EDITOR가 기기 px 배율을 넘기면 INK의 화면 거리 임계(샘플 병합 0.15px, 올가미 단순화 px)가 DPR만큼 틀어진다. EDITOR는 논리 배율로 구현(6.2, 5.2.2 #4), 기기 배율은 `setViewport(deviceScale:)` |
+| Q-E1 | `NoteSession.pagesStream`이 페이지 **내용** 변경(획 추가로 `Page.contentRevision`이 오를 때)에도 새 목록을 내는가? | **해결(N-1 v1.1, C11-02)** — `contentRevision` 변경에도 낸다. EDITOR의 걸러 쓰기 유지: id·크기·배경이 같으면 레이아웃을 다시 계산하지 않고, 썸네일 신선도는 그 `contentRevision`으로 본다 | 5.1.2 N-1, 6.3.4 `updatePages`, 6.11.1, 6.13.2, E-03 |
+| Q-E2 | 기반 단계 B3의 INK 스텁이 `pendingIds`·`discardPending`을 실제로 추적하는가? | **해결(INK 4.15 B3 표)** — `StrokeSession` 행에 '대기 표시와 `updateContent` 정리·`discardPending`·`discardEdit` 동작'. E-08 '같은 프레임 pending 정리' 단언은 E-08에 그대로 두고, 실패 → `discardEdit` 단언도 B3로 돈다 | 5.2.3, E-08~E-10 |
+| Q-E3 | `InkStatsSnapshot`에 fps가 없다. PLAN 9.4 '프레임 시간'은 p95로 충족된다고 보고 fps 줄은 뺐다 | **승인(fps 없이)** — INK가 필드를 더하면 표시만 추가 | 6.12.2 그대로 |
+| Q-E4 | 저장 경고 배너 문구를 LIBRARY와 같은 문장으로 둘 방법 | **해결(계약 7.4.5 v1.1, C11-24 — 총괄이 방식 결정)** — 문구는 계약에 고정 문장 2개. ① EDITOR는 `editor_strings.dart`의 두 문장을 계약 고정 문장과 비교하는 단위 테스트(`editor_strings_test`, E-00) ② 라이브러리·에디터 두 화면 대조는 INFRA V5 스모크(INFRA-2-7). 'LIBRARY 문구 상수 대조'는 삭제(피처 간 import 금지 — test 포함) | 5.1.7, 5.4, 6.17.3, E-00, E-21 |
 
-### 12.3 새 질문
-
-| # | 질문 | 관련 영역 | EDITOR 기본안 |
-|---|---|---|---|
-| Q-E1 | `NoteSession.pagesStream`이 페이지 **내용** 변경(획 추가로 `Page.contentRevision`이 오를 때)에도 새 목록을 내는가? 내면 페이지 패널·뷰포트가 획마다 다시 계산된다 | CORE | EDITOR가 id·크기·배경이 같은 목록 변화는 걸러 레이아웃을 다시 계산하지 않는다. 썸네일 신선도는 `NoteContentReader.getPage`로 본다(6.11.3) — 어느 쪽이어도 동작 |
-| Q-E2 | 기반 단계 B3의 INK 스텁이 `pendingIds`·`discardPending`을 실제로 추적하는가? | INK | 추적(단순 `Set`)한다고 보고 E-08 '같은 프레임 pending 정리' 테스트를 쓴다. 추적하지 않으면 그 단언만 E-21로 옮긴다 |
-| Q-E3 | `InkStatsSnapshot`에 fps(최근 1초 프레임 수)가 없다. PLAN 9.4 '프레임 시간'은 p95로 충족된다고 보고 fps 줄은 뺐다 | INK | fps 없이 진행. INK가 필드를 더하면 표시만 추가 |
-| Q-E4 | 저장 경고 배너 문구를 LIBRARY와 '같은 문장'으로 두려면 피처 간 import가 금지라 각자 문자열을 둔다. LIBRARY가 문구를 바꾸면 EDITOR에 공지해 주길 | LIBRARY | 같은 문장을 `editor_strings.dart`에 두고 E-21 통합 테스트에서 두 문자열을 대조 |
+2차 수정에서 새로 묻는 질문: 없음.
 
 ---
 
@@ -3178,3 +3335,46 @@ testWidgets('dragging a selection commits one TransformElements and keeps ids',
 - CORE 5.3의 EDITOR 기대(E-4+ 재진입 금지, E-5+ 키 scope, E-6+ 썸네일 캐시 선택, E-7+ 개발자 표시·합성 노트·배너, E-8+ 노트 없음·읽기 전용·`markOpened` 안 부름): 5.1.2, 6.11.3, 6.12, 6.14, 6.17.
 - 계약 7.4.8 테스트 배치: 골든 `test/goldens/`(`@Tags(['golden'])`·`@TestOn('vm')`), 브라우저 `test/web/`, 통합 `integration` 태그.
 - 미반영 항목: 없음. 선택으로 남긴 것: 페이지 패널 썸네일 캐시 쓰기(EDITOR-S7·계약 7.2.11이 '선택'으로 둔 항목 — 이번에 하지 않음).
+
+13.1의 '반영 내용' 칸은 1차 수정 당시 기록이다(예: EDITOR-S2의 'LIBRARY 6.16과 같은 문장'). 지금 본문은 13.2 기준이다.
+
+### 13.2 2차 수정 (총괄 2차 승인 검토 00-review.md '2차 검토' 2.4.4 + 통합 계약 v1.1 반영, 2026-11-05)
+
+지시 번호는 00-review '2차 검토' 2.4.4를 그대로 인용한다.
+
+필수·계약 반영
+
+| # | 종류 | 피드백 | 반영 내용 | 위치 |
+|---|---|---|---|---|
+| EDITOR-2-1 | 필수 (C11-16) | 커밋 실패 시 `controller.discardEdit(edit)`. `discardPending` 문장 6곳, 6.7 'INK가 세션 종료 시 처리', 5.2.1 사용 API, E-08·E-09·E-10 단언 | `_run(command, {VoidCallback? onRejected})`·`_runAsync(…, {onRejected})`로 바꾸고 `commitInkEdit`은 `onRejected: () => controller.discardEdit(edit)`(반환 `bool`). 옛 843·875·956·1959·2089·3084행의 `discardPending` 문장을 모두 이 규칙으로: 5.1.3 표(펜·지우개·올가미 이동·선택 삭제 행에 '실패 시 `discardEdit(edit)`'), 5.1.3 `_run` 블록, 5.2.2 #5, 6.6.3 `commitInkEdit`, 6.7 표, 11절 리스크. 6.7 '지우개·변형 실패 시 INK가 세션 종료 시 처리' → 'EDITOR가 `discardEdit(edit)`'(`removedIds`·`targetIds`까지 지워 지운 획이 바로 다시 보임, `pendingCommitTimeoutMs`는 안전망일 뿐). 5.2.1 컨트롤러 행에 `discardEdit`, '쓰지 않는 것'에 `discardPending`(+ 6.16 ⑤ 소스 검사). 6.1 시퀀스에 실패 분기. 실패 주입 도구 `RecordingNoteSession.rejectNext(error)`. E-08·E-09·E-10 완료 조건에 '실패(읽기 전용 경합 주입) → `discardEdit` 뒤 `pendingIds` 비어 있음, 지운 획이 다시 보임'(E-08은 새 획 없음, E-10은 이동 원위치·삭제 복구), 9.1 `erase_test` 예시 코드 | 5.1.3, 5.2.1, 5.2.2, 5.5, 6.1, 6.6.3~6.6.5, 6.7, 6.8, 6.16, 8 E-01·E-08~E-10, 9.1, 11 |
+| EDITOR-2-2 | 필수 (C11-19) | `InkPageThumbnail`에 `backgroundBuilders`·`pencilGrain`을 provider 값으로. 4.3 표·6.13.2 개수에 `pageBackgroundBuildersProvider`(읽기만, override 안 함) | 5.2.1 '미리보기·썸네일' 행(옛 941행), 6.11.3 `PagePanelThumbnail`(옛 2441행), 6.11.4 추가 시트 미리보기 모두 `InkPageThumbnail(content:, width:, backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider), pencilGrain: ref.watch(ink.pencilGrainProvider))`. 4.3 'EDITOR가 직접 읽는 provider' 표에 `pageBackgroundBuildersProvider` 행('읽기만, override 안 함'), 6.13.2 'INK 5개' → 'INK 6개'(이름 나열). 5.2.1 '쓰지 않는 것'은 'override하지 않음(읽기만)'으로. E-17 `page_panel_thumbnail_test`에 provider override 값 전달 단언 | 4.3, 5.2.1, 5.2.2 #15, 6.11.3, 6.11.4, 6.13.2, 8 E-17 |
+| EDITOR-2-3 | 필수 (C11-17) | 6.11.4 속지 미리보기 = `InkPageContent.fromCore(page: current.copyWith(size:, background: backgroundFor(choice, color)), strokes: const [], revision: 0)`, 칸마다 `ValueKey((choice, color, size))` | 옛 2503행의 `ink.InkPageContent(pageId: 'preview', …)` 기본 생성자·`InkBackgroundSpec.fromCore` 직접 사용 삭제. `templatePreviewCell(ref, current, choice, color, size)` 시그니처 블록 추가(키·`fromCore`·provider 인자). `TemplateChoice`(`BlankChoice`·`KindChoice`)에 `==`/`hashCode`(레코드 키 값 동등). 5.2.1 '배경' 행 삭제(EDITOR는 `InkBackgroundSpec`을 직접 만들지 않음). E-17 `add_page_sheet_test`·`page_choices_test` 단언, 11절 리스크 행 | 5.2.1, 5.2.2 #16, 6.11.4, 8 E-17, 11 |
+| EDITOR-2-4 | 필수 (C11-19) | 6.9.3 #2 = `PenPreviewPainter(style:, pencilGrain: ref.watch(ink.pencilGrainProvider))`, `ValueListenableBuilder` 설명 삭제, 4.3 `pencilGrainProvider` 용도에 `InkPageThumbnail` | 6.9.3 #2(옛 2236행)를 `CustomPaint(painter: ink.PenPreviewPainter(style: currentPen, pencilGrain: ref.watch(ink.pencilGrainProvider)))`로, `PencilGrain` 그대로·painter가 `repaint: pencilGrain`. `ValueListenable<ui.Image?>`·`ValueListenableBuilder` 설명 삭제. 빠른 팝업·프리셋 관리 시트 미리보기도 같은 호출. 4.3 `pencilGrainProvider` 용도 = `PenPreviewPainter.pencilGrain` + `InkPageThumbnail.pencilGrain`. E-15 단언 | 4.3, 5.2.1, 5.2.2 #17, 6.9.3, 6.10, 8 E-15 |
+| EDITOR-2-5 | 필수 (C11-24) | E-21·6.17.3·Q-E4의 'LIBRARY 문구 상수 대조' 삭제. ① EDITOR 단위 테스트가 `editor_strings` 두 문장을 계약 7.4.5 고정 문장과 비교 ② 두 화면 대조는 INFRA V5 | 세 곳을 같은 문장으로: E-21에서 대조 삭제('고정 문장 비교는 E-00, 두 화면은 INFRA V5'), 6.17.3 '대조 방법' ①② bullet, 12.3 Q-E4 '해결'. E-00에 `unit/editor_strings_test.dart`(상수 `EditorStrings.storageWriteFailing`·`storageNotDurable` = 계약 고정 문장). 5.1.7·5.4 LIBRARY 행도 '계약 7.4.5 v1.1 고정 문장'으로, 6.16 ⑤에 `package:feature_library/` import 금지(lib·test) 검사 | 5.1.7, 5.4, 6.16, 6.17.3, 8 E-00·E-21, 9.1, 12.3 |
+| EDITOR-2-6 | 필수 (C11-15) | EDITOR는 `setViewport`를 부르지 않는다. 6.4.3(옛 1403행)·옛 1102행·5.2.1(옛 931행)·6.2·6.4.2(옛 1365행)의 직접 호출 삭제, 'InkPageView에 `ancestorScale`·`isScaling`·`visiblePageRect`만 넘김', 'INK 5.3 #7' → '#8' | 5곳 모두 직접 호출 삭제 → "EDITOR는 `InkPageView`에 `ancestorScale`·`isScaling`·`visiblePageRect`만 넘긴다, `setViewport`는 `InkPageView`가 그 인자·레이아웃 폭·DPR로 부른다(계약 7.2.15 v1.1)". 6.4.3 인용을 'INK 5.3 #8'로. 5.2.2 표를 INK 5.3 번호(#1~#18)와 1:1로 다시 매겨 다른 인용도 정정(지우개 크기 #9 → #12, 개발자 표시 #8 → #11). 5.2.1 '쓰지 않는 것'에 `setViewport`, 6.16 ⑤ 소스 검사(`lib/`에 `.setViewport(` 없음), E-04 단언 문구 | 5.2.1, 5.2.2, 6.2, 6.4.2, 6.4.3, 6.6.4, 6.12.1, 6.16, 8 E-04 |
+| EDITOR-2-7 | 필수 (C11-26, 총괄 추가) | `packages/feature_editor/dart_test.yaml`을 3절 트리와 E-00에(`golden: {}`, `integration: {skip: …}`), 9.1·옛 2897행 문장의 근거로 | 3절 트리에 `dart_test.yaml`, 3절에 파일 내용 블록과 이유(없으면 E-21이 기본 `ws test`에서 B2 CORE `openTestNoteStore` = `UnimplementedError`로 실패). E-00 산출물·완료 조건(기본 실행에서 '건너뜀', `--run-skipped -t integration`에서만 실행, R15 위반 0). 9.1 실행 문단(옛 2897행)에 '근거: 패키지 `dart_test.yaml`'. 스크래치 V7(`v3_probe`)로 skip 동작과 파일이 없을 때의 실패를 직접 확인. 10절 #2, 11절 리스크 행 | 머리말 V7, 3, 8 E-00, 9.1, 10, 11 |
+| EDITOR-2-8 | 계약 (C11-01·02·09·12) | 리스너 안 `execute` 금지 = N-2(v1.1) 인용, `_run`이 `undo`/`redo`의 `ReadOnlyNoteException`도 잡는지, Q-E1 해결, 6.17.3 '로딩 중 배너 없음' = 첫 프레임만, E-21의 `openTestNoteStore` 기본 `notDurable` 배너 | 5.1.2 재진입 행·6.4.4 `PageMount`·6.6.6·6.13.1 #8·11절을 'N-2 v1.1 — `StateError`' 인용으로. **확인 결과 1차본 `_run`은 `execute`·`executeAsync`만 감쌌고 `undo`/`redo`는 `await session.undo()` 직접 호출이었다** → `_runHistory(Future<UndoRedoResult> Function())` 추가(첫 `await` 뒤 적용·`ReadOnlyNoteException` 잡음 — N-2·N-4 v1.1), 5.1.3 되돌리기 행·6.8 흐름·`EditorCommands.undo/redo` 주석, `_run` 계열이 `StateError`(재진입)도 잡음. E-08 `editor_commands_test`·E-11 단언. Q-E1 '해결(N-1 v1.1 — `contentRevision` 변경에도 냄, 걸러 쓰기 유지)' + `updatePages` 무변화 시 재계산 없음(6.3.4, E-03)·페이지 패널 키 유지(6.11.1). 6.17.3: 배너 없는 상태는 `persistenceStatusProvider`가 `AsyncLoading`인 첫 프레임뿐(첫 값이 구독 즉시 — 7.2.12 v1.1), `storage_banner_test`는 `pump()` 한 번 뒤 단언. E-21: 기본 `openTestNoteStore()`(`nativeMemory`)에서 `notDurable` 배너가 보인다고 단언하고 이후 좌표는 `viewport.pageToScreen`(배너 높이 무관), `tester.runAsync` + `store.close()`. 5.5 표에 `createFakeNoteStore`·`openTestNoteStore` 계약 7.6 시그니처(기본 `nativeFile` = 배너 없음) | 5.1.2, 5.1.3, 5.1.7, 5.5, 6.3.4, 6.4.4, 6.6.6, 6.8, 6.11.1, 6.13, 6.17.3, 8 E-03·E-08·E-11·E-13·E-21, 11, 12.3 |
+| EDITOR-2-9 | 계약 (C11-14·21·25) | `viewScale` 정의(5.2.2 #4·6.2), `focusRectPt` 해석(6.2·6.11.6), `editor.toolSelection` device(6.14)를 계약 v1.1 인용으로, 12.2 CP-E1~E3 '승인' | 5.2.2 #4·6.2에 계약 7.2.15 v1.1 문장 인용("logical px per page pt at gesture start (no devicePixelRatio, no ancestor transform)"). 'no ancestor transform'과 EDITOR 값(카메라 `scale`)이 핀치 직후 150ms 안정화 창에서 갈리지 않도록 `ViewportController.settleNow()` 추가(도구 시작 시 즉시 안정화 → `ancestorScale` 1, 6.3.4·6.6.2, E-03·E-08 단언). 4.5 계약 블록에 7.2.17 v1.1 `focusRectPt` 주석 두 줄을 글자 그대로, 4.5 표·6.2 표·6.11.6에 같은 문장 인용. 6.14 `editor.toolSelection` = 계약 7.4.6 v1.1 device 목록 인용. 12.2 CP-E1~E3 '승인'(결정·C11 번호·반영 위치) | 4.5, 5.2.2, 6.2, 6.3.4, 6.6.2, 6.11.6, 6.14, 8 E-03·E-08, 12.2 |
+
+권장 반영
+
+| # | 피드백 | 반영 내용 | 위치 |
+|---|---|---|---|
+| EDITOR-2-10 | 5.5 가짜 표(옛 1011행) `SequentialIds` → `ink.testInkCoreServices()` 또는 `core.SequentialIdGenerator`, 필요하면 `ink.MemoryPressureStore` | INK 행을 `SyntheticInk`·`FakeInkClock`·`testInkCoreServices()`(id = `core.SequentialIdGenerator`)·`MemoryPressureStore`·`SolidBackgroundBuilder`·`createTestPageController`로, 용도 칸에 각각의 쓰임. 5.2.2 #18 | 5.5, 5.2.2 |
+| EDITOR-2-11 | 5.1.3 매핑 표 `AddStrokes`를 named 인자 형태로 통일 | 펜 획·붙여넣기·합성 획 행 = `core.AddStrokes(pageId: …, strokes: …)`. 같은 표의 `RemoveStrokes`·`SplitStrokes`·`TransformElements`도 CORE 4.3 생성자대로 named로 맞춤 | 5.1.3 |
+| EDITOR-2-12 | 3절 `test/helpers/`에 `recording_note_session.dart`, Q-E2 '해결(INK 4.15)', Q-E3 '승인(fps 없음)', 13장 2차 반영 표 | 3절 트리 helpers에 추가, 9.1 `RecordingNoteSession` 시그니처(`calls`·`executeDuringDelivery`·`rejectNext`). 12.3 Q-E2 '해결(INK 4.15 B3 표 — E-08 같은 프레임 pending 정리 단언 유지)', Q-E3 '승인(fps 없이)'. 이 13.2 표 | 3, 9.1, 12.3, 13.2 |
+
+계약 v1.1 항목 확인 (EDITOR 지시 밖)
+
+| 계약 항목 | 이 문서 반영 |
+|---|---|
+| C11-10 `refreshStorageInfo()` 뒤 `invalidate` | 5.1.7: EDITOR는 부르지 않고 `ref.watch(storageInfoProvider)`로 새 값을 봄, `isDurable` 불변 |
+| C11-11 정적 파일 URL | 6.12.2·6.16: `?dev=1` 질의 읽기는 규칙 대상 밖, EDITOR는 정적 파일·에셋 URL을 만들지 않음 |
+| C11-13 `SyncBadge` 값 동등·`.distinct()` | 5.4 SYNC 행, 6.9.1 |
+| C11-27 B2 도우미 시그니처 | 5.1.8 `seedSyntheticNote`(B2부터 동작), 5.5 `createFakeNoteStore`·`openTestNoteStore` |
+| C11-28 `disableContextMenu()` 근거 정정 | 5.3 #4·#5, 12.1 Q11 |
+| C11-29 7.5 | 7절: feature_editor 행 변화 없음 |
+| C11-30 7.7 | E-21이 7.7 5단계(`ws test --run-skipped -t integration`) |
+| C11-03~08·18·20·22·23 | EDITOR 표면에 닿지 않음(CORE·SYNC·PDF·INK 내부) |
+
+미반영 항목: 없음. 계약 변경 제안: 없음(12.2).

@@ -1,9 +1,9 @@
 # 03. 필기 엔진 (INK) 상세 계획서
 
-> 상태: **v0.2 — 1차 검토 반영본** (총괄 재검토 대기) · 영역 ID: **INK** · 소유 경로: `packages/ink_engine/`
-> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 '통합 계약' v1.0 (이 문서와 다르면 **계약이 우선**) · 검토: [00-review.md](00-review.md) 3.3
+> 상태: **v0.4 — 3차 검토 반영본** (총괄 4차 검토 대기) · 영역 ID: **INK** · 소유 경로: `packages/ink_engine/`
+> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 '통합 계약' **v1.2** (이 문서와 다르면 **계약이 우선**) · 검토: [00-review.md](00-review.md) 3.3(1차), '2차 검토' 2.4.3(INK-2-1~11), '3차 검토' 3.4.3(INK-3-1~5)
 > 근거 환경: Flutter 3.47.9 / Dart 3.13.7 (`/opt/flutter`). 이 문서의 Flutter 엔진·프레임워크 근거는 이 버전 소스에서 확인했다 (6.2).
-> 검토 반영 내역은 13장, 계약 변경 제안은 12.1.
+> 검토 반영 내역은 13장(13.1 1차, 13.2 2차, 13.3 3차), 계약 변경 제안은 12.1.
 
 **표기 규칙**
 
@@ -13,7 +13,7 @@
 - 굵기 계수: 점마다 `f`(0 < f ≤ 4)를 구해 **`widthQ = f / 4`** 로 저장(계약 7.2.3). 렌더 반지름 `r = max(minRadiusPt, 2 · width · widthQ)`
 - `core.X` = `package:note_core/note_core.dart`의 타입(`import ... as core`). 획·점·펜 스타일·페이지·배경·속지·명령은 모두 CORE 타입이다(7.2.0)
 - "웹" = iPad Safari 웹 빌드. iPad Safari는 CanvasKit 렌더러로 동작한다 (6.2 근거 W10)
-- `viewScale` = 화면 논리 px / pt, `deviceScale` = 기기 px / pt (= viewScale × 조상 Transform 배율 × devicePixelRatio)
+- `viewScale` = 화면 논리 px / pt(devicePixelRatio·조상 Transform 제외), `deviceScale` = 기기 px / pt (= viewScale × 조상 Transform 배율 `ancestorScale` × devicePixelRatio). 세션의 화면 거리 임계와 위젯 레이아웃·painter 배율은 `viewScale`만, `ancestorScale`은 `deviceScale`(해상도·버킷 선택)으로만 들어간다(계약 7.2.15·7.2.16 v1.1)
 - 코드 블록은 **본문을 생략한 시그니처**다. 식별자·주석은 영어, 설명은 한국어. 계약(7.2.15·7.2.16)에 있는 시그니처는 글자 그대로 옮겼다
 
 ---
@@ -64,7 +64,7 @@ INK는 **"포인터 샘플 → 벡터 획 → 화면 / 썸네일 / PDF 벡터"**
 | 항목 | INK | 담당 영역 |
 |---|---|---|
 | 포인터 이벤트 수신(`Listener`), 펜/손가락 판정, 팜 리젝션, 제스처(두 손가락 탭·핀치 등) | ✗ | EDITOR |
-| 화면 → 페이지 좌표 변환, 줌·스크롤 상태 | `viewScale`·`visiblePageRect`를 받기만 함 | EDITOR |
+| 화면 → 페이지 좌표 변환, 줌·스크롤 상태 | 세션의 `viewScale`, `InkPageView` 인자(`ancestorScale`·`isScaling`·`visiblePageRect`)를 받기만 함. `controller.setViewport`는 `InkPageView`가 부름(계약 7.2.15 v1.1, 6.12 R9) | EDITOR |
 | `PointerEvent` → `InkSample` 정규화 규칙(필압 범위, tilt 부호, kind), 필압 유무 감지 | ✓ `InkSampleAdapter`, 6.4 (유일한 규칙) | EDITOR가 호출·표시 |
 | 필압 모드 설정 저장 | 값만 받음(`pressureModeProvider.notifier.set`) | EDITOR |
 | 현재 도구·프리셋 선택, 지운 뒤 이전 펜 복귀, 펜 버튼 전환 | ✗ | EDITOR |
@@ -180,7 +180,7 @@ INK는 **"포인터 샘플 → 벡터 획 → 화면 / 썸네일 / PDF 벡터"**
 ```text
 packages/ink_engine/
 ├─ pubspec.yaml                  # INFRA가 B1에서 생성 (7.4.1 형식 · 7.5 버전, 5.5)
-├─ dart_test.yaml                # tags: golden, bench
+├─ dart_test.yaml                # tags: golden, bench (7.4.8 v1.1·v1.2 — 아래)
 ├─ README.md                     # 진입점·호출 규약(5.3) 요약
 ├─ THIRD_PARTY_NOTICES.md        # perfect-freehand (MIT) 알고리즘 참고 고지
 ├─ lib/
@@ -224,17 +224,27 @@ packages/ink_engine/
 ```
 
 - 패키지 안에 `analysis_options.yaml`을 두지 않는다(루트가 적용, 7.4.1 · R3).
+- `dart_test.yaml`(계약 7.4.8 v1.1 — 태그를 쓰는 패키지는 선언): INK가 쓰는 태그는 `golden`·`bench` 둘뿐이고 `integration`·`perf`는 쓰지 않는다(INK에는 통합 단계 전용 테스트가 없음 — 실제 INK + 실제 CORE 흐름은 EDITOR E-21). 나중에 `integration`·`perf`를 쓰게 되면 같은 파일에 `skip: "<사유>"`로 선언한다.
+- `ws check` R15(계약 7.4.2·7.4.8 v1.2, C12-01)는 **기반 단계 B1부터** 이 선언을 검사한다(누락 = 종료 코드 1). 그래서 ① 이 파일은 태그를 쓰는 첫 테스트(T08 `goldens/pens_golden_test.dart`)보다 먼저 T01에서 만든다 — B3(T00)의 테스트는 태그를 쓰지 않으므로 그 시점에는 파일이 없어도 R15 위반이 아니다 ② R15 스캐너는 **문자열 리터럴 태그만** 인식하므로 태그는 `@Tags(['golden'])`·`@Tags(['bench'])`처럼 리터럴로 쓰고 상수·변수로 넘기지 않는다.
+
+```yaml
+# packages/ink_engine/dart_test.yaml
+tags:
+  golden: {}   # test/goldens/ (@TestOn('vm'))
+  bench: {}    # benchmark/ only — not under test/, so `flutter test` / `ws test` never run it
+```
+
 - `lib/`에서 `dart:io`·`dart:ffi`·`dart:html`·`dart:js`·`dart:js_util`·`package:js` 금지, `package:flutter/material.dart`·`cupertino.dart`도 쓰지 않는다(INK는 Material 비의존 — `widgets`·`rendering`·`painting`·`foundation`·`scheduler`·`gestures`만). `test/unit/no_platform_imports_test.dart`(VM)가 lib/ 전체를 검사 (7.4.3)
 - 플랫폼 분기는 조건부 import 하나뿐: `diagnostics/ink_clock.dart` → `import 'ink_clock_stub.dart' if (dart.library.js_interop) 'ink_clock_browser.dart';`. stub = `Stopwatch`(VM·네이티브), browser = `dart:js_interop`의 `performance.now()` (7.4.3 이름 규칙, scratch에서 VM·Chrome 컴파일·동작 확인)
 - 웹 안전 수치(7.4.3): 64비트 정수 연산·비트 연산을 쓰지 않는다(색 성분·난수 포함 — 난수는 산술 MINSTD, 6.26)
-- `src/interop/core_interop.dart` 외의 파일은 CORE 객체를 **만들지 않는다**(읽기·전달만). 새 획·조각·복제 `core.Stroke` 생성, `PageRect`↔`Rect`·`Affine2`↔행렬 변환은 이 파일에만 둔다 → CORE 계약이 바뀌어도 수정 범위가 한 파일
+- **CORE 객체 생성 지점**: `core.Stroke`를 만드는 코드(펜 획·부분 지우개 조각·올가미 복제·합성 획, 그리고 **미리보기용 메모리 전용 획** `previewFragmentOf`·`previewTransformedOf`), 썸네일 결과 `core.PageThumbnail`(`thumbnailOf` — `InkPageThumbnailRenderer.render`가 부름, 6.17 4단계)과 `PageRect`↔`Rect`·`Affine2`↔행렬 변환은 `src/interop/core_interop.dart`에만 둔다(6.23 함수표). 그 밖의 파일은 CORE 객체를 읽고 전달만 한다. 예외는 CORE가 정한 값·명령을 그대로 만드는 세 곳: ① `InkEdit.toCommand()`의 `core.EditCommand`·`core.StrokeStylePatch`(4.6 표) ② `SelectionGeometry`가 돌려주는 `core.Affine2`(CORE 팩토리 `translation`·`scaling`·`rotation`) ③ `InkPoints[i]`·`lerpAt`의 `core.StrokePoint` 값. `dev_tools.dart`(`InkDevTools`)도 획은 이 파일의 `strokeFromData`로 만들고, `testing.dart`의 테스트용 `core.Page`(`SyntheticInk.page`)만 테스트 전용이라 예외 → CORE 계약이 바뀌어도 수정 범위가 한 파일
 - "(내부)" 표시 파일은 `ink_engine.dart`에서 export하지 않는다(INK 자체 테스트만 `src/`를 import)
 
 ---
 
 ## 4. 공개 API
 
-> 계약 대응: 이 장의 4.3~4.9·4.12~4.14가 00-overview **7.2.15**, 4.9(썸네일)·4.10·4.11이 **7.2.16**이다. 계약 블록에 있는 시그니처는 글자 그대로 옮겼고(주석 `// contract 7.2.x`), 계약이 "INK 4.x"로 위임한 나머지는 이 장이 정한다. 계약과 다르게 보이는 곳이 있으면 계약이 우선이며, 고칠 점은 12.1에 '계약 변경 제안'으로 남겼다.
+> 계약 대응: 이 장의 4.3~4.9·4.12~4.14가 00-overview **7.2.15**, 4.9(썸네일)·4.10·4.11이 **7.2.16**이다(계약 **v1.2** — v1.2는 시그니처 변경이 없고, INK 표면에서 바뀐 것은 4.13 `pageBackgroundBuildersProvider` 문서 주석 한 줄뿐(C12-03)). 계약 블록에 있는 시그니처·문서 주석은 글자 그대로 옮겼고(주석 `// contract 7.2.x`, v1.1·v1.2에서 바뀐 줄은 계약과 같이 `(v1.1)`·`(v1.2)` 표시), 계약이 "INK 4.x"로 위임한 나머지는 이 장이 정한다. 계약 줄 사이에 INK가 덧붙인 문서 주석 줄은 계약 의미를 좁히거나 바꾸지 않는 보충이다. 계약과 다르게 보이는 곳이 있으면 계약이 우선이며, 고칠 점은 12.1에 '계약 변경 제안'으로 남겼다.
 
 ### 4.0 공통 규칙과 진입점
 
@@ -381,7 +391,8 @@ final class InkStroke {
 // src/pen/style_ink.dart — contract 7.2.15
 import 'package:note_core/note_core.dart' as core;
 
-enum HighlighterStraightening { off, snapOnLift, alwaysStraight }   // wire value = name
+// wire value of HighlighterStraightening = name
+enum HighlighterStraightening { off, snapOnLift, alwaysStraight }
 abstract final class InkStyleExtras { static const String highlighterStraightening = 'hlStraight'; }
 extension StrokeStyleInk on core.StrokeStyle {
   PenProfile get profile;                    // PenProfile.of(tool); P1 tools → ballpoint profile
@@ -511,7 +522,8 @@ abstract final class InkSampleAdapter {
 // src/input/pressure_mode.dart — contract 7.2.15
 import 'package:riverpod/riverpod.dart';
 
-enum PressureMode { auto, alwaysReal, alwaysSimulated }   // wire value = name (EDITOR settings JSON)
+// wire value of PressureMode = name (EDITOR settings JSON)
+enum PressureMode { auto, alwaysReal, alwaysSimulated }
 /// Set by EDITOR from its persisted settings (no override needed).
 class PressureModeNotifier extends Notifier<PressureMode> {
   @override PressureMode build();            // PressureMode.auto
@@ -525,8 +537,9 @@ class PressureModeNotifier extends Notifier<PressureMode> {
 // src/input/pressure_capability.dart
 import 'package:riverpod/riverpod.dart';
 
-enum PressureCapability { unknown, supported, unsupported }   // contract 7.2.15
-enum PressureSource { pending, real, simulated }              // contract 7.2.15
+// contract 7.2.15
+enum PressureCapability { unknown, supported, unsupported }
+enum PressureSource { pending, real, simulated }
 
 /// Session-wide memory of what each pointer kind supports (reset on app restart).
 @immutable
@@ -729,7 +742,7 @@ final class InkEdit {
 
 | `InkEditKind` | 채우는 필드 | `toCommand()` |
 |---|---|---|
-| `addStroke` | `added` 1개 | `core.AddStrokes(pageId: pageId, strokes: added)` |
+| `addStroke` | `added` 1개(펜을 대고 500초를 넘긴 획만 여러 개 — 6.7 F8 롤오버) | `core.AddStrokes(pageId: pageId, strokes: added)` |
 | `duplicateStrokes` | `added`(새 id·새 `createdAt`, 6.22) | `core.AddStrokes(pageId: pageId, strokes: added)` |
 | `eraseStrokes`, `deleteStrokes` | `removedIds` | `core.RemoveStrokes(pageId: pageId, strokeIds: removedIds.toList())` |
 | `splitStrokes` | `removedIds` + `added`(조각 = `core.Stroke.fragment`, 비어 있을 수 있음) | `added`가 있으면 `core.SplitStrokes(pageId: pageId, removedIds: removedIds.toList(), added: added)`, 없으면 `core.RemoveStrokes(pageId: pageId, strokeIds: removedIds.toList())` |
@@ -833,13 +846,16 @@ abstract final class SelectionGeometry {
 ### 4.8 페이지 내용 · 컨트롤러 · 세션 · 선택
 
 ```dart
-// src/render/ink_page_content.dart
+// src/render/ink_page_content.dart — contract 7.2.15
 import 'package:note_core/note_core.dart' as core;
 
-/// Immutable drawable snapshot of one page, built from CORE state. fromCore is the ONLY
-/// constructor (so every stroke carries CORE's bounds).
+/// Immutable drawable snapshot of one page, built from CORE state (so every stroke carries
+/// CORE's bounds).
 @immutable
 final class InkPageContent {
+  /// (v1.1) The ONLY constructor. Previews build a core.Page first, e.g.
+  /// InkPageContent.fromCore(page: current.copyWith(size: s, background: b),
+  ///     strokes: const [], revision: 0).
   factory InkPageContent.fromCore({required core.Page page, required List<core.Stroke> strokes,
       required int revision});                   // order = core.Stroke.compareOrder
 
@@ -855,6 +871,7 @@ final class InkPageContent {
 ```
 
 - `fromCore`: `deletedAt != null`인 획은 뺀다(CORE `PageContent.strokes`는 이미 활성만). 입력이 `compareOrder` 순이면 그대로(O(n) 확인), 아니면 정렬. 각 획은 `InkStroke.of`(같은 CORE 객체 → 같은 `InkStroke`, 점 무복사). `strokes`의 모든 `pageId`가 `page.id`와 같아야 한다(`ArgumentError`).
+- 미리보기(계약 7.2.15 v1.1, C11-17): 다른 생성자를 두지 않는다. 속지·크기 미리보기는 지금 페이지의 `core.Page`를 `current.copyWith(size: s, background: b)`로 바꿔 `strokes: const [], revision: 0`과 함께 넘긴다(CORE `Page.copyWith`에 `size`·`background` 있음). id가 현재 페이지와 같아도 되는 이유는 6.17(썸네일 위젯은 pageId 전역 캐시가 없고, 획이 없으면 래스터하지 않음).
 
 ```dart
 // src/render/ink_page_controller.dart
@@ -922,7 +939,12 @@ final class InkPageController extends ChangeNotifier {
 
   // --- sessions (one active at a time; starting a new one cancels the previous) ---
   InkGestureSession? get activeSession;
-  /// [style] is normalized() here. Pen-down time for createdAt = services.nowMillis() (now).
+  /// (v1.1) viewScale (all three sessions) = logical px per page pt at gesture start
+  /// (no devicePixelRatio, no ancestor transform). INK's screen-distance thresholds use it.
+  /// viewScale: logical px per page pt (no devicePixelRatio; the device scale reaches
+  /// setViewport through InkPageView, never from EDITOR).
+  /// beginStroke: [style] is normalized() here; pen-down time for createdAt =
+  /// services.nowMillis() (now).
   StrokeSession beginStroke(InkSample first, {required core.StrokeStyle style,
       required double viewScale, InkStrokeMeta meta = const InkStrokeMeta()});
   EraserSession beginErase(InkSample first, {required EraserSpec spec, required double viewScale});
@@ -941,17 +963,26 @@ final class InkPageController extends ChangeNotifier {
   InkStroke? hitTest(Offset pagePoint, {double tolerance = 4.0, core.StrokeFilter filter = core.StrokeFilter.all});
   List<String> strokeIdsInRect(Rect pageRect);
 
-  // --- commit hand-off (6.12 R6) -------------------------------------------
+  // --- commit hand-off (6.12 R6) — pendingIds / discardPending / discardEdit: contract 7.2.15
   /// Ids whose display is overridden until CORE content reflects the edit
   /// (new / duplicated strokes, erased or split originals, transformed / recolored targets).
   Set<String> get pendingIds;
-  /// EDITOR decided not to commit (e.g. execute threw ReadOnlyNoteException): drop the
-  /// pending override that involves [strokeId].
+  /// Drops the pending override of ONE id only (rare). On a failed commit EDITOR calls
+  /// discardEdit, not this (contract 7.2.15 v1.1).
   void discardPending(String strokeId);
-  /// Same for every id of [edit] (added ids, removedIds, targetIds).
+  /// (v1.1) EDITOR calls this when execute(edit.toCommand()) throws (ReadOnlyNoteException
+  /// etc.): drops the pending display of EVERY id of [edit] (added ids, removedIds,
+  /// targetIds) in the same call → erased / split strokes reappear at once, previews end.
   void discardEdit(InkEdit edit);
 
-  // --- render side (used by InkPageView) -----------------------------------
+  // --- render side -----------------------------------------------------------
+  /// (v1.1) Called ONLY by InkPageView from its own arguments (visiblePageRect, isScaling,
+  /// deviceScale = viewScale × ancestorScale × devicePixelRatio). EDITOR never calls it;
+  /// it passes ancestorScale / isScaling / visiblePageRect to InkPageView.
+  /// INK timing (6.12 R9): InkPageView calls it from a post-frame callback after layout,
+  /// never during build / layout. It never calls notifyListeners(); it stores the values,
+  /// updates renderStats.currentBucket and the raster plan, and repaints through
+  /// layerRepaint(inkBase) only if the picture must change.
   void setViewport({Rect? visiblePageRect, required double deviceScale, required bool isScaling});
   Listenable layerRepaint(InkRenderLayer layer);
   InkPageRenderStats get renderStats;
@@ -990,8 +1021,10 @@ final class StrokeSession implements InkGestureSession {
   void addSamples(Iterable<InkSample> samples);
   /// addStroke edit with ONE core.Stroke: id = services.newStrokeId(), createdAt = pen-down
   /// nowMillis (the contract's createdAt), points = core.StrokePoints.fromInterleaved(...).
+  /// Several strokes (still one edit / one command) only when the pen stayed down longer
+  /// than t's range of 500 000 ms (rollover, 6.7 F8).
   /// null if discarded / nothing drawn. The stroke stays visible as pending until
-  /// updateContent contains it, discardPending / discardEdit is called, or the timeout passes.
+  /// updateContent contains it, discardEdit (failed commit) is called, or the timeout passes.
   InkEdit? end([InkSample? last]);
   @override
   bool get isActive;
@@ -1064,6 +1097,10 @@ import 'package:note_core/note_core.dart' as core;
 /// Paints one page: background → highlighter → active highlighter → ink → active ink → overlay.
 /// Fills its box; page pt are mapped uniformly (viewScale = size.width / pageSize.width).
 /// No gesture handling (EDITOR wraps it with its own Listener).
+/// The ONLY caller of controller.setViewport (contract 7.2.15 v1.1): after layout, from one
+/// post-frame callback per changed (visiblePageRect, deviceScale, isScaling), with
+/// deviceScale = viewScale × ancestorScale × MediaQuery.devicePixelRatioOf(context) —
+/// never during build / layout (6.12 R9). One InkPageView per controller (debug assert).
 class InkPageView extends StatefulWidget {
   const InkPageView({
     super.key,
@@ -1074,7 +1111,7 @@ class InkPageView extends StatefulWidget {
     this.showBackground = true,
   });
   final InkPageController controller;
-  final double ancestorScale;  // scale applied by ancestor Transforms (pinch preview)
+  final double ancestorScale;  // ancestor Transforms (pinch preview): deviceScale only, never layout
   final bool isScaling;        // true while zoom animates → no re-raster
   final Rect? visiblePageRect; // page-space visible rect; null = whole page
   final bool showBackground;
@@ -1204,27 +1241,25 @@ final class PencilGrain extends ValueNotifier<ui.Image?> {
 ```
 
 ```dart
-// src/render/thumbnail.dart — InkPageThumbnail: INK 4.9, backgroundBuilders from the provider
+// src/render/thumbnail.dart — contract 7.2.16 (v1.1): the CALLER passes the provider values
 
-/// Page-panel thumbnail widget: background builders' widgets with isThumbnail: true, plus
-/// committed strokes rasterized once per content.revision.
+/// (v1.1) INK 4.9. ink_engine does not depend on flutter_riverpod, so the widget reads no
+/// provider: the CALLER passes ref.watch(pageBackgroundBuildersProvider) and
+/// ref.watch(pencilGrainProvider).
 class InkPageThumbnail extends StatefulWidget {
-  const InkPageThumbnail({
-    super.key,
-    required this.content,
-    required this.width,
-    required this.backgroundBuilders,
-    this.pencilGrain,
-  });
+  const InkPageThumbnail({super.key, required this.content, required this.width,
+      required this.backgroundBuilders, this.pencilGrain});
   final InkPageContent content;
-  final double width;                                // logical px; height follows page aspect
-  /// Pass ref.watch(ink.pageBackgroundBuildersProvider) so PDF pages show their page (7.2.16).
+  final double width;                                  // logical px; height = page aspect
   final List<PageBackgroundLayerBuilder> backgroundBuilders;
-  final PencilGrain? pencilGrain;                    // ref.watch(ink.pencilGrainProvider)
+  final PencilGrain? pencilGrain;
   @override
-  State<InkPageThumbnail> createState();
+  State<InkPageThumbnail> createState();               // StatefulWidget member (not in the block)
 }
 ```
+
+- 호출자가 provider 값을 넘긴다(계약 7.2.16 v1.1, C11-19): `backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider)`(PDF 페이지가 원본으로 보이게 — 목록 override는 `pdfIoOverrides()`뿐), `pencilGrain: ref.watch(ink.pencilGrainProvider)`. INK는 `flutter_riverpod`에 의존하지 않으므로 위젯이 provider를 읽을 수 없다. 호출 형태는 5.3 #15·#16.
+- 동작(6.17): 배경 = 목록에서 `handles`가 처음 true인 빌더의 `build`(`isThumbnail: true`, 작은 `viewScale`, `ancestorScale` 1), 그 위에 완료 획을 비동기로 한 번 래스터한 이미지. 래스터 키 = (`content.pageId`, `content.pageSize`, `content.revision`), 획이 없으면 래스터하지 않음. 배경은 build마다 `content.background`로 다시 만든다 → 미리보기처럼 `revision`이 0으로 같아도 크기·배경이 바뀌면 바로 보인다.
 
 ```dart
 // src/render/thumbnail_renderer.dart — contract 7.2.16
@@ -1236,12 +1271,14 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
   /// Paper + background (first builder that handles it AND is a PageBackgroundStillRenderer)
   /// + committed strokes → PNG via Picture.toImage + toByteData(png). Web (CanvasKit) safe.
   /// Returns null when the background still renderer returns null (e.g. PDF bytes missing).
+  /// (v1.1) Also null for pdf / image backgrounds when no listed builder is a still renderer
+  /// that handles them. Callers never cache a null result and retry later (LIBRARY 6.15.3).
   @override
   Future<core.PageThumbnail?> render(core.PageContent content, {int maxSidePx = 512});
 }
 ```
 
-- 동작 상세는 6.17. 보충(12.1 P1에서 계약 문구로 제안): pdf·image 배경인데 그것을 처리하는 still renderer가 목록에 없으면(PDF 모듈 시작 실패 등) 역시 `null`. 결과의 `pageId`·`contentRevision` = `content.page.id`·`content.page.contentRevision`(K-9+), 긴 변 = `maxSidePx`.
+- 동작 상세는 6.17. `null` 규칙은 계약 7.2.16 v1.1(C11-18, 12.1 P1 승인): still renderer가 `null`(지금 그릴 수 없음)을 돌려주거나, pdf·image 배경인데 그것을 처리하는 still renderer가 목록에 없으면(PDF 모듈 시작 실패 등) `null`. 호출자(LIBRARY 예약기·PDF 가져오기·EDITOR)는 `null`을 캐시하지 않고 나중에 다시 시도한다. 결과의 `pageId`·`contentRevision` = `content.page.id`·`content.page.contentRevision`(K-9+), 긴 변 = `maxSidePx`.
 
 ```dart
 // src/render/pen_preview.dart
@@ -1251,6 +1288,8 @@ enum PenPreviewShape { sCurve, line }
 
 /// Draws a sample stroke for a style (F-04 size preview, preset bar icons). Built with the
 /// real stroke pipeline from a fixed synthetic sample script (real-pressure S curve).
+/// (v1.1) pencilGrain is the PencilGrain itself (ref.watch(pencilGrainProvider)), not its
+/// ui.Image; the painter repaints on it (repaint: pencilGrain).
 class PenPreviewPainter extends CustomPainter {
   PenPreviewPainter({
     required this.style,
@@ -1268,6 +1307,8 @@ class PenPreviewPainter extends CustomPainter {
   bool shouldRepaint(PenPreviewPainter oldDelegate);
 }
 ```
+
+- 호출 형태(5.3 #17): `CustomPaint(painter: ink.PenPreviewPainter(style: currentPen, pencilGrain: ref.watch(ink.pencilGrainProvider)))`. `PencilGrain`(`ValueNotifier<ui.Image?>`)을 그대로 받아 `repaint`로 쓰므로 질감이 준비되는 순간 painter가 스스로 다시 그린다 → 호출자에 `ValueListenableBuilder`가 필요 없다. `shouldRepaint` = `style`·`shape`·`paperColorArgb`가 값으로 다르거나 `pencilGrain`이 다른 객체일 때.
 
 ### 4.10 배경 (속지 · 확장 지점) — 계약 7.2.16
 
@@ -1313,12 +1354,15 @@ final class PageBackgroundContext {
   final String pageId;
   final Size pageSize;           // pt
   final InkBackgroundSpec background;
+  /// (v1.1) viewScale = logical px per pt (layout). ancestorScale = scale of ancestor
+  /// Transforms (pinch preview) — already applied on screen. deviceScale = viewScale ×
+  /// ancestorScale × devicePixelRatio (render resolution only).
   final double viewScale;        // logical px per pt (layout)
   final double ancestorScale;
   final double devicePixelRatio;
   final bool isScaling;          // avoid expensive re-render while true
   final Rect? visiblePageRect;   // pt; render only this part at high zoom
-  final bool isThumbnail;        // added: page panel / thumbnail rendering
+  final bool isThumbnail;              // added: page panel / thumbnail rendering
   double get deviceScale;        // viewScale * ancestorScale * devicePixelRatio
 }
 
@@ -1326,16 +1370,21 @@ final class PageBackgroundContext {
 abstract interface class PageBackgroundLayerBuilder {
   bool handles(InkBackgroundSpec background);
   /// Widget filling pageSize * viewScale; must paint opaque paper; no pointer handling.
+  /// (v1.1) Layout size / painter scale use ctx.viewScale ONLY; ancestorScale enters only
+  /// through ctx.deviceScale (resolution / bucket choice). Multiplying the layout by
+  /// ancestorScale would double the pinch zoom.
   Widget build(BuildContext context, PageBackgroundContext ctx);
 }
 /// Optional second interface for offscreen thumbnails (checked with `is`).
 abstract interface class PageBackgroundStillRenderer {
   Future<ui.Image?> renderStill(InkBackgroundSpec background,
-      {required Size pageSize, required Size pixelSize});   // null → paper color only
+      {required Size pageSize, required Size pixelSize});
+      // (v1.1) null → cannot render now (InkPageThumbnailRenderer returns null)
 }
 ```
 
-- `renderStill`이 돌려주는 이미지는 종이를 포함한 페이지 전체 배경(불투명, `pixelSize` 크기). `InkPageThumbnailRenderer`는 `null`을 받으면 결과 `null`(계약 7.2.16 렌더러 주석). 이 interface 주석과의 표현 차이는 12.1 P1.
+- 배율 규칙(계약 7.2.16 v1.1, C11-20): 배경 위젯의 크기 = `ctx.pageSize × ctx.viewScale`, painter는 `canvas.scale(ctx.viewScale)`로 pt를 그린다. `ancestorScale`은 조상 `Transform`이 이미 화면에 적용했으므로 레이아웃에 곱하지 않고 `ctx.deviceScale`(해상도·버킷·선 최소 굵기)로만 쓴다. `InkPageView`가 넘기는 값은 6.12 R1·R9, 썸네일은 `ancestorScale` 1.
+- `renderStill`이 돌려주는 이미지는 종이를 포함한 페이지 전체 배경(불투명, `pixelSize` 크기). `null` = 지금 그릴 수 없음(예: PDF 원본 바이트가 이 기기에 없음) → `InkPageThumbnailRenderer` 결과도 `null`, 호출자는 캐시하지 않고 다시 시도(계약 7.2.16 v1.1, C11-18 — 12.1 P1 승인).
 
 ```dart
 // src/background/template_builder.dart — contract 7.2.16
@@ -1353,6 +1402,7 @@ final class TemplateBackgroundLayerBuilder
 ```
 
 - 대체(fallback): `InkPageView`·`InkPageThumbnail`은 어떤 빌더도 `handles`하지 않는 배경(`image`·`unknown`, PDF 빌더가 없을 때의 `pdf`)을 이 빌더의 `build`로 종이 색만 칠한다(6.17).
+- 이 빌더도 위 배율 규칙을 따른다: `build` = `SizedBox(pageSize × ctx.viewScale)` 안의 `CustomPaint`(painter `canvas.scale(ctx.viewScale)`), `ctx.deviceScale`은 선 최소 굵기 `max(lineWidth, 1 / deviceScale)`와 Picture 재사용 버킷에만(6.16·6.17).
 
 ```dart
 // src/background/template_vectors.dart — TemplateVectorItem / TemplateLine / TemplateDot (INK 4.10)
@@ -1568,7 +1618,8 @@ final inkRenderConfigProvider = Provider<InkRenderConfig>(
 /// Clock aligned with pointer timestamps where possible. Tests override with FakeInkClock.
 final inkClockProvider = Provider<InkClock>((ref) => InkClock.platform(), name: 'inkClockProvider');
 
-/// Set by EDITOR from its persisted settings (no override needed).   — contract 7.2.15
+// contract 7.2.15
+/// Set by EDITOR from its persisted settings (no override needed).
 final pressureModeProvider =
     NotifierProvider<PressureModeNotifier, PressureMode>(PressureModeNotifier.new, name: 'pressureModeProvider');
 final pressureCapabilityProvider =
@@ -1604,7 +1655,9 @@ final pencilGrainProvider = Provider<PencilGrain>((ref) {
   return g;
 }, name: 'pencilGrainProvider');
 
-/// Read by INK controllers, INK thumbnails and InkPageThumbnailRenderer.   — contract 7.2.16
+// contract 7.2.16 v1.2
+/// (v1.2) Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of
+/// InkPageThumbnail pass its value (the widget reads no provider).
 /// Overridden ONLY through pdf_io's pdfIoOverrides() (7.3.3).
 final pageBackgroundBuildersProvider = Provider<List<PageBackgroundLayerBuilder>>(
     (ref) => const [TemplateBackgroundLayerBuilder()], name: 'pageBackgroundBuildersProvider');
@@ -1628,7 +1681,8 @@ final inkPageControllerProvider =
   return controller;
 }, name: 'inkPageControllerProvider');
 
-/// The app shell overrides core.pageThumbnailRendererProvider with this (7.3.3).   — contract 7.2.16
+// contract 7.2.16
+/// The app shell overrides core.pageThumbnailRendererProvider with this (7.3.3).
 final inkPageThumbnailRendererProvider = Provider<core.PageThumbnailRenderer>(
     (ref) => InkPageThumbnailRenderer(backgroundBuilders: ref.watch(pageBackgroundBuildersProvider),
         pencilGrain: ref.watch(pencilGrainProvider)),
@@ -1644,8 +1698,8 @@ final inkPageThumbnailRendererProvider = Provider<core.PageThumbnailRenderer>(
 | `inkCoreServicesProvider` | `Provider<InkCoreServices>` | keepAlive | 테스트(또는 테스트가 `core.idGeneratorProvider`·`clockProvider`·`noteStoreProvider`를 override) | 컨트롤러 |
 | `inkCachePoolProvider` | `Provider<InkCachePool>` | keepAlive | — | 컨트롤러 |
 | `inkDiagnosticsProvider` | `Provider<InkDiagnostics>` | keepAlive | — | EDITOR 개발자 표시(`enabled`·`snapshot`) |
-| `pencilGrainProvider` | `Provider<PencilGrain>` | keepAlive | — | 컨트롤러, EDITOR(`InkPageThumbnail`·`PenPreviewPainter`에 전달), 썸네일 렌더러 |
-| `pageBackgroundBuildersProvider` | `Provider<List<PageBackgroundLayerBuilder>>` | keepAlive | INFRA `PdfModule` → `pdfIoOverrides()` **만** (7.3.3) | 컨트롤러, EDITOR(`InkPageThumbnail`), 썸네일 렌더러 |
+| `pencilGrainProvider` | `Provider<PencilGrain>` | keepAlive | — | 컨트롤러, EDITOR(`ref.watch`해서 `InkPageThumbnail`·`PenPreviewPainter`에 `PencilGrain` 그대로 전달 — 계약 7.2.16 v1.1), 썸네일 렌더러 |
+| `pageBackgroundBuildersProvider` | `Provider<List<PageBackgroundLayerBuilder>>` | keepAlive | INFRA `PdfModule` → `pdfIoOverrides()` **만** (7.3.3) | provider로 읽는 것은 `inkPageControllerProvider`(컨트롤러)·`inkPageThumbnailRendererProvider`(썸네일 렌더러) 둘(계약 7.2.16 v1.2 주석, C12-03). `InkPageThumbnail` 위젯은 provider를 읽지 않고 호출자(EDITOR)가 `ref.watch`한 값을 넘긴다 — 읽기만, override 안 함(계약 7.2.16 v1.1 C11-19·v1.2) |
 | `inkPageControllerProvider` | `Provider.autoDispose.family<InkPageController, String>` | 페이지 위젯이 watch하는 동안 | — | EDITOR(페이지마다) |
 | `inkPageThumbnailRendererProvider` | `Provider<core.PageThumbnailRenderer>` | keepAlive | — | INFRA `FeatureWiringModule`이 `core.pageThumbnailRendererProvider` override에 사용 (X11) |
 
@@ -1667,7 +1721,7 @@ abstract final class InkDevTools {
 }
 ```
 
-- 생성 규칙(결정적, VM·웹 같은 결과): 스타일 = `core.StrokeStyle.defaultsFor(tool)`, 획마다 점 40~160개(평균 100), 시작점은 페이지 안 24pt 여백, 진행 각도·속도 무작위 걸음(손글씨 크기 ≈ 6~40pt), `widthQ` 0.2~0.3 무작위 걸음(형광펜은 0.25 고정), `t` = 120Hz 간격, `hasTilt`/`hasAzimuth` = false, 획 `i`의 `createdAt` = `createdAt + i`(z 순서 고정), 점은 `core.StrokePoints.fromInterleaved`, 난수 = MINSTD(`seed`, 6.26). 결과는 그대로 `core.AddStrokes(pageId:, strokes:)`에 넣을 수 있다(`version == null`).
+- 생성 규칙(결정적, VM·웹 같은 결과): 스타일 = `core.StrokeStyle.defaultsFor(tool)`, 획마다 점 40~160개(평균 100), 시작점은 페이지 안 24pt 여백, 진행 각도·속도 무작위 걸음(손글씨 크기 ≈ 6~40pt), `widthQ` 0.2~0.3 무작위 걸음(형광펜은 0.25 고정), `t` = 120Hz 간격, `hasTilt`/`hasAzimuth` = false, 획 `i`의 `createdAt` = `createdAt + i`(z 순서 고정), 획은 interop `strokeFromData`(`core.StrokePoints.fromInterleaved`, 6.23 — 3장 생성 지점 규칙), 난수 = MINSTD(`seed`, 6.26). 결과는 그대로 `core.AddStrokes(pageId:, strokes:)`에 넣을 수 있다(`version == null`).
 - EDITOR 개발자 메뉴 '현재 페이지에 합성 획 1,000/3,000개'가 사용(EDITOR-S1). `testing.dart`는 앱 코드에서 import 금지라 따로 둔다.
 
 ```dart
@@ -1764,7 +1818,7 @@ InkPageController createTestPageController({
 });
 ```
 
-- ID 생성은 CORE `SequentialIdGenerator`를 쓴다(초안의 INK `SequentialIds` 삭제 — ID 생성 방법은 CORE 하나, 7.4.6). 합성 CORE 획이 필요하면 `InkDevTools.syntheticStrokes` 또는 CORE `StrokeFixtures`.
+- ID 생성은 CORE `SequentialIdGenerator`를 쓴다(초안의 INK `SequentialIds` 삭제 — ID 생성 방법은 CORE 하나, 7.4.6). **`testing.dart`에 `SequentialIds`는 없다**: 다른 영역 테스트는 `core.SequentialIdGenerator(prefix: …)` 또는 `ink.testInkCoreServices()`를 쓴다(5.3 #18). 합성 CORE 획이 필요하면 `InkDevTools.syntheticStrokes` 또는 CORE `StrokeFixtures`.
 
 ### 4.15 기반 단계 B3 — 단순하지만 동작하는 구현 (7.6 B3, INK-M9)
 
@@ -1783,10 +1837,10 @@ InkPageController createTestPageController({
 | `InkSelection` | `setPreviewTransform`(행렬 미리보기)·`commitTransform`·`delete`·`duplicate`·`recolor`가 실제 `InkEdit` | T18 |
 | `SelectionGeometry` | 실제 구현(작음) | T18 |
 | `hitTest`·`strokeIdsInRect` | `bounds` 기반 | T14 |
-| `InkPageView` | 배경 빌더 + 폴리라인(굵기 `style.width`, 둥근 끝, `opacity`) — 완료·대기·쓰는 중 획, 선택 미리보기, 올가미 경로 | T10 |
+| `InkPageView` | 배경 빌더 + 폴리라인(굵기 `style.width`, 둥근 끝, `opacity`) — 완료·대기·쓰는 중 획, 선택 미리보기, 올가미 경로. **뷰포트 보고는 최종 규칙 그대로**(6.12 R9: 레이아웃 뒤 post-frame `setViewport`, `setViewport`는 알림 없음, `currentBucket` 계산) — EDITOR가 첫날부터 `setViewport`를 부르지 않고 동작 | T10 |
 | `TemplateBackgroundLayerBuilder` | 종이 색(`build`·`renderStill`) | T13 |
 | `TemplateVectors.build` | 빈 목록 | T13·T13b |
-| `InkPageThumbnail` | 종이 색 + 폴리라인 | T20 |
+| `InkPageThumbnail` | 종이 색 + 폴리라인(계약 7.2.16 v1.1 시그니처 그대로, 미리보기 `fromCore(page: current.copyWith(...), strokes: const [], revision: 0)` 동작) | T20 |
 | `InkPageThumbnailRenderer` | 종이 색 PNG(크기·`pageId`·`contentRevision` 정확, pdf 배경은 still renderer 규칙대로 `null`) | T20 |
 | `PenPreviewPainter` | 직선 하나 | T20 |
 | `InkVectorExport` | 빈 `InkPageVectors` | T21 |
@@ -1794,7 +1848,7 @@ InkPageController createTestPageController({
 | `PencilGrain` | 실제 | T08 |
 | provider 전부, `testing.dart`, `dev_tools.dart`(`InkDevTools`) | 실제 | T12 |
 
-B3 완료 조건(T00): 8장 T00의 테스트 + `flutter analyze --fatal-infos` 0건 + 앱 웹 빌드(B8)에 포함 가능.
+B3 완료 조건(T00): 8장 T00의 테스트 + `flutter analyze --fatal-infos` 0건 + `ws check` 위반 0(계약 7.6 '모든 단계 후' — B3 테스트는 태그를 쓰지 않아 R15 해당 없음, 3장) + 앱 웹 빌드(B8)에 포함 가능. 시점(계약 7.6 v1.2, C12-08): CORE T4(계약 타입 고정) 커밋 뒤 INK 작업 트리에서 작성을 시작할 수 있고, B3의 main 커밋과 이 완료 조건은 B2 완료(CORE T1~T5 — 스모크가 쓰는 `createFakeNoteStore`는 T5) 뒤다. `ink_engine`을 쓰는 B4(PDF)·B5(EDITOR)는 B3 커밋 뒤.
 
 ---
 
@@ -1804,7 +1858,7 @@ B3 완료 조건(T00): 8장 T00의 테스트 + `flutter analyze --fatal-infos` 0
 
 ### 5.1 CORE — 계약 7.2.2~7.2.14 (X8)
 
-INK는 CORE 데이터를 읽기만 하고 명령은 만들기만 한다(실행은 EDITOR, X8). CORE 객체 생성·기하 변환은 `src/interop/core_interop.dart` 한 곳(6.23 함수표).
+INK는 CORE 데이터를 읽기만 하고 명령은 만들기만 한다(실행은 EDITOR, X8). CORE 객체 생성·기하 변환은 `src/interop/core_interop.dart` 한 곳(6.23 함수표 — 미리보기용 임시 획·썸네일 결과 `core.PageThumbnail` 포함, CORE 값·명령을 만드는 예외 3곳은 3장).
 
 | CORE 표면 (계약 절) | INK가 쓰는 방식 |
 |---|---|
@@ -1815,9 +1869,9 @@ INK는 CORE 데이터를 읽기만 하고 명령은 만들기만 한다(실행�
 | `PageRect`, `Affine2`, `EpochMillis`, `SequentialIdGenerator`(7.2.2) | `bounds` → `Rect`, 선택 변형(`Affine2.translation/scaling/rotation`, `uniformScale`, `rotation`), `createdAt`. 테스트 id |
 | `StrokeFilter`, `EditCommand` 계열(`AddStrokes`·`RemoveStrokes`·`SplitStrokes`·`TransformElements`·`RestyleStrokes`)(7.2.7) | 지우개·`hitTest` 필터, `InkEdit.toCommand()`(4.6 표). `ClearPage`는 INK가 만들지 않음 |
 | `PageContent`(7.2.8) | `InkPageThumbnailRenderer.render` 입력. EDITOR가 `pageChanges`의 `content`로 `InkPageContent.fromCore`를 부름 |
-| `PageThumbnail`, `PageThumbnailRenderer`(7.2.11) | `InkPageThumbnailRenderer`가 구현·생성(PNG) |
+| `PageThumbnail`, `PageThumbnailRenderer`(7.2.11) | `InkPageThumbnailRenderer`가 구현(PNG). 결과 `core.PageThumbnail`은 interop `thumbnailOf`로 만든다(6.23, 6.17 4단계) |
 | `idGeneratorProvider`, `clockProvider`(7.2.14) | `inkCoreServicesProvider` |
-| `createFakeNoteStore()`, `StrokeFixtures`(CORE `testing.dart`, 7.6 B2) | INK 테스트(5.6) |
+| `createFakeNoteStore()`, `StrokeFixtures`(CORE `testing.dart` — 시그니처는 계약 7.6 'B2 테스트·개발 도우미' v1.1) | INK 테스트(5.6). 기본 `ids` = `SequentialIdGenerator`, 세션은 N-1~N-6을 따름. INK는 `openTestNoteStore`(`testing_vm.dart`)를 쓰지 않는다(실제 CORE 흐름은 EDITOR E-21) |
 
 ```dart
 // INK — how CORE types are used (creation only in src/interop/core_interop.dart)
@@ -1851,7 +1905,7 @@ final copy = original
     .copyWith(id: services.newStrokeId(), createdAt: base + k, updatedAt: base + k);
 ```
 
-CORE에 기대하는 동작(계약 그대로): N-1 `execute`가 같은 호출 안에서 `pageChanges`를 동기 전달(커밋 인계, 6.12 R6), K-4 바뀌지 않은 획은 새 `PageContent`에서도 같은 인스턴스, 저장 시 `style.normalized()`, `fragment`·`transformed`·`copyWith` 결과의 `version == null`.
+CORE에 기대하는 동작(계약 그대로): N-1 `execute`가 같은 호출 안에서 `pageChanges`를 동기 전달(커밋 인계, 6.12 R6), N-2(v1.1) 세션 스트림 리스너 안의 `execute()`는 `StateError`(재진입 금지 — INK는 CORE를 부르지 않으므로 EDITOR 규칙, 5.3 #7), N-4(v1.1) 읽기 전용 노트는 `execute`·`executeAsync`·`undo`·`redo`가 `ReadOnlyNoteException`(INK 쪽 결과: EDITOR가 `discardEdit`, 5.3 #5), K-4 바뀌지 않은 획은 새 `PageContent`에서도 같은 인스턴스, 저장 시 `style.normalized()`, `fragment`·`transformed`·`copyWith` 결과의 `version == null`, `StrokePoints` 빌드 시 `t`를 [0, 500000]으로 자름(그 전에 INK가 롤오버, 6.7 F8).
 
 ### 5.2 초안 의미 규약 제안(R1~R10)의 결과
 
@@ -1868,31 +1922,50 @@ CORE에 기대하는 동작(계약 그대로): N-1 `execute`가 같은 호출 �
 | R9 | `PenPreset.pressureCurve` 불투명 JSON | INK 정의 JSON 맵 | **철회** — `StrokeStyle.pressureSensitivity`·`pressureCurve`·`smoothing`이 정식 필드, 형광펜 직선 보정은 `extras['hlStraight']`(`InkStyleExtras`) |
 | R10 | 문자열 속지 id + 매개변수 맵 | `PageTemplateSpec.id` + `paramsToJson()` | **철회** — `TemplateBackground(PageTemplate)`, 매개변수는 `PageTemplate` 필드·`extras`(`TemplateExtrasKeys`), 기본값은 INK 6.16 |
 
-### 5.3 EDITOR 호출 규약 (X9 — 승인됨, 확정 이름으로 갱신)
+### 5.3 EDITOR 호출 규약 (X9 — 승인됨, 계약 v1.1 확정 형태)
+
+EDITOR에 대한 수정 지시는 총괄이 EDITOR-2-*로 냈다(00-review 2차 2.4.4). 아래는 그 지시와 같은 형태를 INK 쪽에서 적은 것이다.
 
 1. **샘플 변환**: 모든 `PointerDown`/`PointerMove`(coalesced 포함)/`PointerUp`을 `InkSampleAdapter.fromPointerEvent(e, pagePosition: …)`로 변환. 페이지 좌표 변환은 EDITOR (E-1)
 2. **샘플을 버리지 않음**: 웹은 coalesced 이벤트를 각각 별도 `PointerMoveEvent`로 전달한다(6.2 W5). 모으거나 버리지 말고 전부 `addSample`. `GestureBinding.resamplingEnabled`는 기본값 `false` 유지(6.2 F1, E-1)
 3. **세션 수명**: down → `beginStroke`/`beginErase`/`beginLasso`, move → `addSample`/`addPoint`, up → `end`, cancel·팜 리젝션 판정 → `cancel`. 페이지당 동시에 세션 1개
-4. **줌**: 세션 시작 시 그 시점 `viewScale` 전달, 세션 중 줌 변경 금지(필기 중 핀치 무시). 줌 애니메이션 중 `InkPageView(isScaling: true, ancestorScale: …)`
-5. **커밋**: `final edit = s.end(up); if (edit != null) noteSession.execute(edit.toCommand());` → N-1에 따라 같은 호출 안에서 `pageChanges` → EDITOR 리스너가 `controller.updateContent(InkPageContent.fromCore(page: c.content.page, strokes: c.content.strokes, revision: c.content.revision))` → 대기 표시가 같은 프레임에 정리. EDITOR는 별도의 낙관적 표시층을 두지 않는다. `execute`가 던지면(`ReadOnlyNoteException` 등) `controller.discardEdit(edit)`. (`updateContent`가 한 프레임 늦게 와도 대기 표시가 유지되므로 깜빡이지 않는다 — 6.12 R6)
+4. **줌**: 세션 시작 시 그 시점 `viewScale` = **논리 px / pt**(devicePixelRatio·조상 `Transform` 제외 — 계약 7.2.15 v1.1, C11-14) 전달, 세션 중 줌 변경 금지(필기 중 핀치 무시). 핀치·줌 애니메이션 중에는 `InkPageView(ancestorScale: …, isScaling: true)` 인자만 바꾼다. **EDITOR는 `controller.setViewport`를 부르지 않는다**(계약 7.2.15 v1.1, C11-15): `InkPageView`가 자기 인자(`ancestorScale`·`isScaling`·`visiblePageRect`)와 레이아웃 폭·`devicePixelRatio`로 `deviceScale`을 계산해 레이아웃 뒤 post-frame에서 부른다(6.12 R9)
+5. **커밋**: `final edit = s.end(up); if (edit != null) noteSession.execute(edit.toCommand());` → N-1에 따라 같은 호출 안에서 `pageChanges` → EDITOR 리스너가 `controller.updateContent(InkPageContent.fromCore(page: c.content.page, strokes: c.content.strokes, revision: c.content.revision))` → 대기 표시가 같은 프레임에 정리. EDITOR는 별도의 낙관적 표시층을 두지 않는다. **커밋 실패**(계약 7.2.15 v1.1, C11-16): `execute`가 던지면(`ReadOnlyNoteException` 등) EDITOR는 `controller.discardEdit(edit)`를 부른다 — `added`뿐 아니라 `removedIds`·`targetIds`의 대기 표시까지 지움 → 지운 획이 바로 다시 보임. `discardPending(id)`는 id 하나만 지울 때만 쓴다. (`updateContent`가 한 프레임 늦게 와도 대기 표시가 유지되므로 깜빡이지 않는다 — 6.12 R6. `pendingCommitTimeoutMs` 3초는 안전망일 뿐 실패 처리 경로가 아니다)
 6. **내용 갱신**: 그 페이지의 모든 `pageChanges` 이벤트(load·local·undo·redo·remote)마다 `updateContent`
-7. **재진입 금지**: INK는 CORE를 부르지 않는다. EDITOR는 컨트롤러 리스너·`pageChanges` 리스너 안에서 `execute`를 동기로 부르지 않는다(CORE 4.4, 필요하면 `scheduleMicrotask`)
-8. **가시 영역**: 스크롤/줌마다 `visiblePageRect` 갱신(없으면 페이지 전체로 간주 → 메모리 사용 증가). 보이는 페이지(±1, 최대 8장)만 컨트롤러를 watch(E-2)
+7. **재진입 금지**: INK는 CORE를 부르지 않는다. 세션 스트림(`pageChanges` 등) 리스너 안에서 `execute()`를 부르면 `StateError`다(계약 7.2.8 **N-2 v1.1**, C11-01 — 동기 broadcast 전달 중 재전달 불가). 리스너에서 명령이 필요하면 `scheduleMicrotask`로 미룬다. INK 컨트롤러 리스너 안에서도 같은 이유로 `execute`를 동기로 부르지 않는다. `executeAsync`·`undo`·`redo`는 첫 `await` 뒤에 적용된다(N-2)
+8. **가시 영역**: 스크롤/줌마다 `InkPageView(visiblePageRect: …)`를 갱신(없으면 페이지 전체로 간주 → 메모리 사용 증가). 컨트롤러에 전하는 것은 `InkPageView`의 `setViewport`(6.12 R9) — EDITOR가 직접 부르지 않는다(#4). 보이는 페이지(±1, 최대 8장)만 컨트롤러를 watch(E-2), 한 컨트롤러에 `InkPageView` 하나
 9. **페이지 전체 지우기**: EDITOR가 `core.ClearPage(pageId: …, filter: …)`를 직접 실행(INK API 없음)
 10. **필압 모드**: 설정 로드·변경 때 `ref.read(ink.pressureModeProvider.notifier).set(settings.pressureMode)`. 감지 상태 표시는 `ref.watch(ink.pressureCapabilityProvider)`. EDITOR는 감지 규칙을 따로 두지 않는다
 11. **개발자 표시**: 보이는 동안 `ref.read(ink.inkDiagnosticsProvider).enabled = true`, `snapshot` 표시(지연·입력 Hz·필압·프레임 p95·캐시·`tileRaster`). '합성 획 N개' = `InkDevTools.syntheticStrokes(...)` → `core.AddStrokes`
 12. **지우개 크기**: pt로 저장·전달 → `EraserSpec(radius: …)`
 13. **선택**: 핸들 그리기·적중 판정은 EDITOR, 변형 계산은 `SelectionGeometry`. 끄는 동안 `selection.setPreviewTransform(m)`, 손을 떼면 `commitTransform()` → `execute`. 복제 커밋 후 `controller.select(edit.added.map((s) => s.id).toSet())`, 붙여넣기(`AddStrokes`) 후에도 `select(ids)`
 14. **스포이드**: `controller.hitTest(p)?.style.colorArgb`
-15. **페이지 패널 썸네일**: 신선한 `core.pageThumbnailProvider` 이미지가 있으면 그것, 없으면 `InkPageThumbnail(content:, width:, backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider), pencilGrain: ref.watch(ink.pencilGrainProvider))`
+15. **페이지 패널 썸네일**: 신선한 `core.pageThumbnailProvider` 이미지가 있으면 그것, 없으면 `InkPageThumbnail(content:, width:, backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider), pencilGrain: ref.watch(ink.pencilGrainProvider))` — 위젯은 provider를 읽지 않고 **호출자가 값을 넘긴다**(계약 7.2.16 v1.1, C11-19). EDITOR는 `ink.pageBackgroundBuildersProvider`를 읽기만 하고 override하지 않는다
+16. **속지·페이지 크기 미리보기**(추가 시트 칸 — INK-2-1 (a)·(c)): 새 API 없이 지금 페이지의 `core.Page`(`current`)로 만든다:
+
+    ```dart
+    ink.InkPageThumbnail(
+      key: ValueKey((choice, color, size)),             // one widget per cell (EDITOR-2-3)
+      content: ink.InkPageContent.fromCore(
+          page: current.copyWith(size: size, background: backgroundFor(choice, color)),
+          strokes: const [], revision: 0),              // contract 7.2.15 v1.1 (C11-17)
+      width: 64,
+      backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider),
+      pencilGrain: ref.watch(ink.pencilGrainProvider));
+    ```
+
+    `InkPageContent`의 다른 생성자는 없다(4.8). 칸들이 같은 pageId를 가져도 섞이지 않는다(4.9 — pageId 전역 캐시 없음, 획 없으면 래스터 없음, 배경은 build마다 `content.background`로)
+17. **펜 미리보기**(INK-2-1 (b)): `CustomPaint(painter: ink.PenPreviewPainter(style: currentPen, pencilGrain: ref.watch(ink.pencilGrainProvider)))` — `PencilGrain` 객체 그대로(그 `ui.Image`가 아님). painter가 `repaint: pencilGrain`으로 질감이 준비되면 스스로 다시 그리므로 `ValueListenableBuilder`가 필요 없다(계약 7.2.16 v1.1, C11-19)
+18. **테스트 도우미**(INK-2-1 (d)): `ink.SequentialIds`는 **없다**. id는 `core.SequentialIdGenerator(prefix: …)` 또는 `ink.testInkCoreServices()`(4.14), 필압 저장소는 `ink.MemoryPressureStore`, 컨트롤러는 `ink.createTestPageController()`, 입력은 `ink.SyntheticInk`, PDF 자리 배경은 `ink.SolidBackgroundBuilder`
 
 ### 5.4 PDF (X10 — PDF K-1~K-7 승인)
 
 - PDF가 INK의 다음을 **구현·사용**한다
   - `PdfBackgroundLayerBuilder implements ink.PageBackgroundLayerBuilder, ink.PageBackgroundStillRenderer` (`handles(bg) => bg.kind == InkBackgroundKind.pdf`). `ctx.deviceScale`·`visiblePageRect`로 필요한 해상도·영역만, `ctx.isThumbnail`이면 썸네일 모드
   - `InkVectorExport.exportPage(InkPageContent.fromCore(page: page, strokes: strokes, revision: 0), options: InkExportOptions(paperColorArgb: …))` + `TemplateVectors.build(template, pageSize:, paperColorArgb:)` → PDF 페이지에 그림. 속지 6종 모두 항목을 낸다(빈 목록 가정 삭제)
-- 기대 동작: 배경 위젯은 불투명하게 칠하고 `isScaling == true`이면 재렌더하지 않음. `renderStill`은 종이를 포함한 불투명 전체 이미지 또는 원본이 없을 때 `null`
+- 기대 동작: 배경 위젯은 불투명하게 칠하고 `isScaling == true`이면 재렌더하지 않음. 위젯 크기·painter 배율은 `ctx.viewScale`만, `ancestorScale`은 `ctx.deviceScale`(해상도·버킷)로만(계약 7.2.16 v1.1, C11-20 — PDF-2-1). `renderStill`은 종이를 포함한 불투명 전체 이미지, 또는 `null` = 지금 그릴 수 없음(원본 바이트 없음 등, 계약 7.2.16 v1.1, C11-18 — PDF P1과 한 벌)
 - `ink.pageBackgroundBuildersProvider`의 override는 `pdfIoOverrides()` 하나뿐(7.3.3)
+- 기반 단계 B4·동시 개발 중(계약 7.6 B4 v1.2, C12-06): `pdfIoOverrides()`가 넣는 자리표시 PDF 빌더(종이만 칠함)는 렌더 사슬을 watch하지 않고 예외 없이 만들어진다 → 그 override만 넣은 컨테이너에서 INK `inkPageControllerProvider`·`inkPageThumbnailRendererProvider`를 읽어도 예외가 없다. INK 쪽 변경은 없다(INK provider는 목록 값만 받음)
 
 ### 5.5 INFRA (X11)
 
@@ -1900,7 +1973,7 @@ CORE에 기대하는 동작(계약 그대로): N-1 `execute`가 같은 호출 �
 - `ws test`: `packages/ink_engine`에서 `flutter test`(VM — `test/web/`은 `@TestOn('browser')`로 자동 제외), `ws test --platform chrome` → `flutter test --platform chrome test/web`. INK는 준비 스크립트(`tool/prepare_web_test.dart`)가 필요 없다(웹 자산 없음). `benchmark/`는 실행하지 않음
 - `FeatureWiringModule`: `core.pageThumbnailRendererProvider.overrideWith((ref) => ref.watch(ink.inkPageThumbnailRendererProvider))`. `PdfModule`: `pdfIoOverrides()`(유일한 `pageBackgroundBuildersProvider` override)
 - R14(export 이름 충돌): INK 이름 목록 = 4.0 `show` 목록 + `testing.dart`·`dev_tools.dart`
-- (선택, INK-O1) `packages/ink_engine/example`(ink lab) 멤버 등록·`web-experiment` 채널 배포
+- (선택, INK-O1 — 12.2 Q4 선택 승인, INFRA-O1) `packages/ink_engine/example`(ink lab) 멤버 등록·`web-experiment` 채널 배포. ink lab의 `example/lib/`은 `package:note_core/testing.dart`(`createFakeNoteStore()`)와 `package:ink_engine/testing.dart`를 쓰므로 INFRA가 `workspace_rules.yaml` `lib_exceptions`에 `packages/ink_engine/example/lib/`를 넣는다(01-infra 1.3, INFRA-2-12)
 
 ```yaml
 # packages/ink_engine/pubspec.yaml — 7.4.1 format, 7.5 versions (resolution checked, 7장)
@@ -1927,7 +2000,7 @@ dev_dependencies:
 
 | 가짜 | 위치 | 대체 대상 |
 |---|---|---|
-| `createFakeNoteStore()` | CORE `testing.dart` | 실제 세션 `execute` → 동기 `pageChanges` 흐름(T09 인계 테스트, T12 provider 테스트) |
+| `createFakeNoteStore()` | CORE `testing.dart`(계약 7.6 v1.1 시그니처) | 실제 세션 `execute` → 동기 `pageChanges` 흐름(T09 인계 테스트, T12 provider 테스트). 커밋 실패는 휴지통에 넣은 노트의 세션(`isReadOnly`, N-4 → `ReadOnlyNoteException`)으로 만든다 |
 | `core.SequentialIdGenerator`, `StrokeFixtures` | CORE (`note_core.dart`, `testing.dart`) | id, 합성 CORE 획 |
 | `testInkCoreServices`, `FakeInkClock`, `MemoryPressureStore`, `SolidBackgroundBuilder`(still renderer 겸용), `createTestPageController`, `SyntheticInk` | `lib/testing.dart` (공개, test/ 전용) | CORE 서비스·입력 시계·필압 저장소·PDF 배경 |
 | `test/fixtures/*.dart` | INK test | 기록된 샘플 스크립트(손글씨 'ㄱ', 'a', 빠른 지그재그, 고정 0.5 필압, 손가락) |
@@ -1970,7 +2043,7 @@ sequenceDiagram
 
 | # | 사실 | 근거 | INK 설계 반영 |
 |---|---|---|---|
-| W1 | 웹 `kind`: DOM `pointerType` 'pen'→`stylus`, 'touch'→`touch`, 'mouse'→`mouse`, 그 외 `unknown` | `WEB/pointer_binding.dart:1334` `_pointerTypeToDeviceKind` | `InkSampleAdapter.kindOf` |
+| W1 | 웹 `kind`: DOM `pointerType` 'pen'→`stylus`, 'touch'→`touch`, 'mouse'→`mouse`, 그 외 `unknown` | `WEB/pointer_binding.dart:1334` `_pointerTypeToDeviceKind` | 내부 kind 매핑 함수(6.3, `PointerDeviceKind` → `InkPointerKind`) |
 | W2 | 웹 `pressure` = DOM `event.pressure`(없으면 0.0), `pressureMax` = 1.0, `pressureMin` = 0.0(기본값) | `pointer_binding.dart:1282–1312` `_convertEventsToPointerData`, `WEB/pointer_converter.dart:250` | 정규화 범위 그대로. 필압 미지원 하드웨어는 고정값 → 감지 (6.4) |
 | W3 | 웹 `tilt` = `(abs(tiltX) > abs(tiltY) ? tiltX : tiltY) / 180 · π` → **부호 있음**, 실제 기울기가 아닌 "큰 축 편향" 근사 | `pointer_binding.dart:1360` `_computeHighestTilt` | `abs(tilt)`를 [0, π/2]로 자름. 연필 기울기 효과는 근사값으로 동작 (iPad 확인 항목) |
 | W4 | 웹 `orientation`(방위각)은 전달하지 않음 → 항상 0.0. altitude/azimuth/twist도 전달 안 함 | `pointer_converter.dart:259` 기본값 `orientation = 0.0`, `_convertEventsToPointerData`에 인자 없음 | 웹에서 azimuth = 0 저장. 방위각 사용 펜은 M5·네이티브 |
@@ -2008,7 +2081,7 @@ sequenceDiagram
 `StrokeBuilder.add` 입구 처리
 
 1. 시간 역전(`timeUs` < 이전) → 이전 + 1µs로 보정
-2. 중복 병합: 이전 샘플과 화면 거리 < `minSampleDistancePx`(0.15px, 즉 0.15 / viewScale pt) **이고** Δt < 4ms → 위치는 버리고 필압만 갱신
+2. 중복 병합: 이전 샘플과 화면 거리 < `minSampleDistancePx`(0.15 논리 px, 즉 0.15 / viewScale pt — viewScale에 DPR 없음, 계약 7.2.15 v1.1) **이고** Δt < 4ms → 위치는 버리고 필압만 갱신
 3. Δt = 0인 샘플은 Δt = 1ms로 간주(속도 계산 0으로 나누기 방지)
 
 ### 6.4 필압 유무 감지 (`PressureDetector`) — 앱의 유일한 감지 규칙 (계약 7.2.15)
@@ -2081,9 +2154,9 @@ xh  = lerp(xh_prev, x, alpha(fc, dt))
 | K1 필압 | 실제: `p = style.pressureCurve.evaluate(pn)` (평활 후, CORE `PressureCurve.evaluate` — 입력 시점에 실제 필압에만, K-7+) / 가상: `p = p_sim` (6.5, 곡선 적용 안 함) |
 | K2 필압 반응 | `f = 1 + profile.pressureGain · style.pressureSensitivity · (2p − 1)`, `clamp(f, minFactor, maxFactor)` |
 | K3 속도 가늘어짐 | 실제 필압 + `velocityThinning > 0`(만년필): `f *= 1 − velocityThinning · smoothstep(0.3, 2.0, vf)` |
-| K4 기울기 (연필) | `k = smoothstep(0.35, 1.15, tilt)`(약 20°~66°), `f *= 1 + tiltWidthGain · k` |
+| K4 기울기 (연필) | `k = smoothstep(0.35, 1.15, tilt)`(약 20°~66°), `f *= 1 + tiltWidthGain · k`. 연필 최대 필압(K2 `maxFactor` 1.6) + 최대 기울기(k = 1, `tiltWidthGain` 1.8)면 f = 1.6 × 2.8 = **4.48** → `kMaxWidthFactor` 4를 넘는다 → K6에서 포화 |
 | K5 taper | 아래 F5. `f *= taperMul` |
-| K6 저장 | `widthQ = clamp(f / core.kMaxWidthFactor, 0, 1)`(CORE가 0.001 단위로 양자화). 형광펜은 항상 f = 1 → `widthQ = core.kNominalWidthQ`(0.25) |
+| K6 저장 | `widthQ = clamp(f / core.kMaxWidthFactor, 0, 1)`(CORE가 0.001 단위로 양자화) — 연필의 f 4.48은 `widthQ` 1(f 4)로 포화. **라이브 미리보기(활성 레이어 `LiveStrokeGeometry`)도 같은 `min(f, kMaxWidthFactor)`로 반지름을 구한다** → 펜을 뗄 때 굵기가 튀지 않고, 렌더 반지름 상한 `2 · width`가 K-1 증명(아래 5)과 같다. 형광펜은 항상 f = 1 → `widthQ = core.kNominalWidthQ`(0.25) |
 
 **펜을 떼면 (`finish`)**
 
@@ -2096,19 +2169,30 @@ xh  = lerp(xh_prev, x, alpha(fc, dt))
 | F5 taper | 시작 `Ls = min(taperStart · width, 0.4 · S)`, 끝 `Le = min(taperEnd · width, 0.4 · S)` (S = 전체 길이, s = 누적 길이). `ts = easeOutCubic(clamp(s / Ls))`, `te = easeOutCubic(clamp((S − s) / Le))`, `taperMul = taperMin + (1 − taperMin) · min(ts, te)`. 길이 0인 쪽은 1 | `easeOutCubic(t) = 1 − (1 − t)³` |
 | F6 형광펜 직선 보정 | `style.highlighterStraightening`(= `extras['hlStraight']`). `alwaysStraight`: 시작점→끝점 2점(라이브도 시작점→현재 위치 직선). `snapOnLift`: 현 길이 L ≥ 2 · width **이고** 최대 수직 편차 ≤ max(0.6 · width, 0.04 · L)이면 2점 직선으로 교체. 두 모드 모두 수평·수직 ±4° 이내면 축에 맞춤 | — |
 | F7 단순화 | x·y에 RDP(허용 0.03pt), 단 widthQ 편차 > 0.004(굵기 1.6%)인 점은 유지. 양 끝점 항상 유지. 결과가 `core.StrokePoints.maxLength`(100,000)를 넘으면 허용을 2배씩 늘려 다시(최대 4회), 그래도 넘으면 앞 100,000점 | 저장 크기 절감 |
-| F8 결과 | `FinishedStroke.data` = interleaved `Float32List` `[x, y, widthQ, tilt, azimuth, t]`. **t 기준**: `t = (샘플 timeUs − 펜 다운 샘플 timeUs) / 1000` ms, `createdAt = penDownMillis`(펜 다운 때의 `services.nowMillis()`, 계약 7.2.3 주석 그대로 — 다시 맞추지 않음). 보통 첫 점 t = 0이고, F3가 시작 갈고리를 잘랐을 때만 첫 점 t가 수십 ms 이하로 0보다 크다(계약 범위 [0, 500000] 안, 12.2 Q5). `recordingOffsetMs`는 EDITOR가 준 펜 다운 시점 값 그대로 → 점 i의 녹음 시각 = `recordingOffsetMs + t(i)`. `hasTilt` = stylus 계열이고 \|tilt\| > 1e-3인 샘플이 있었음, `hasAzimuth` = \|orientation\| > 1e-3인 샘플이 있었음(웹은 항상 false). 이것으로 `core.Stroke(points: StrokePoints.fromInterleaved(data, hasTilt:, hasAzimuth:))`(5.1) | — |
+| F8 결과 | `FinishedStroke.data` = interleaved `Float32List` `[x, y, widthQ, tilt, azimuth, t]`. **t 기준**: `t = (샘플 timeUs − 펜 다운 샘플 timeUs) / 1000` ms, `createdAt = penDownMillis`(펜 다운 때의 `services.nowMillis()`, 계약 7.2.3 주석 그대로 — 다시 맞추지 않음). 보통 첫 점 t = 0이고, F3가 시작 갈고리를 잘랐을 때만 첫 점 t가 수십 ms 이하로 0보다 크다(계약 범위 [0, 500000] 안 — 12.2 Q5 승인, CORE가 02-core 5.2 K-6+ 문구를 이렇게 고침, CORE-2-16). `recordingOffsetMs`는 EDITOR가 준 펜 다운 시점 값 그대로 → 점 i의 녹음 시각 = `recordingOffsetMs + t(i)`. `hasTilt` = stylus 계열이고 \|tilt\| > 1e-3인 샘플이 있었음, `hasAzimuth` = \|orientation\| > 1e-3인 샘플이 있었음(웹은 항상 false). 이것으로 `core.Stroke(points: StrokePoints.fromInterleaved(data, hasTilt:, hasAzimuth:))`(5.1). **t 상한 롤오버**: 펜을 댄 채 `t`가 계약 범위 상한 500 000 ms(`InkTuning.strokeRolloverMs`)를 넘는 샘플이 오면(CORE는 넘는 값을 자르므로 그 전에) 그 시점에 획을 나눈다 — 아래 '롤오버' | — |
 
 시작 taper(ts)는 라이브 중에도 누적 길이로 바로 계산해 반영하고, 끝 taper(te)는 `finish`에서만 적용한다 → 펜을 뗄 때 끝이 가늘어지는 변화가 한 번 보인다 (일반적인 필기 앱 동작, iPad 확인 항목).
 
+**롤오버 — 펜을 댄 채 500초를 넘긴 획** (F8 보충, INK-2-11). 계약 7.2.3의 `t` 범위는 [0, 500000] ms이고 CORE는 빌드할 때 넘는 값을 자른다 → 그대로 두면 8분 20초 뒤 점들의 `t`가 모두 500000이 되어 녹음 연동(F-16)이 틀어진다. 실제로는 펜을 화면에 대고 쉬는 경우뿐이지만 데이터가 깨지지 않게 처리한다.
+
+1. 조건: 새 샘플의 `t = (timeUs − 이 획 첫 샘플 timeUs) / 1000`이 `InkTuning.strokeRolloverMs`(500 000)를 넘음
+2. 나누기: **직전 샘플까지**로 지금 획을 F1–F8로 마치되 끝 taper(F5 `te`)와 끝 갈고리 제거(F3)는 하지 않는다. 직전 샘플(경계 샘플 b)을 첫 샘플로 하는 새 빌더를 같은 스타일·같은 필압 판정(`PressureSource`)·같은 필터 상태로 이어서 시작하고, 시작 taper·시작 갈고리 제거는 하지 않는다 → 이음점에서 두 획이 같은 점·같은 반지름으로 만나 끊김이 보이지 않음
+3. 새 획: `createdAt` = 앞 획 `createdAt` + ⌊t_b⌋(계약 7.2.3 '첫 입력 샘플의 벽시계 ms' — 이어진 획의 첫 샘플은 b), `t`는 b 기준으로 다시 0부터, `recordingOffsetMs`(있으면) += ⌊t_b⌋, `recordingId`는 같음. z 순서는 `createdAt`이 커서 앞 획 위(`compareOrder`)
+4. 결과: 세션은 계속되고 `end()`가 돌려주는 `InkEdit(addStroke)`의 `added`에 나뉜 획이 순서대로 모두 들어간다 → `core.AddStrokes` **1개** = 되돌리기 1단계(F-08 '펜을 한 번 대었다 뗀 동작 = 1단계' 유지). 대기 표시는 모든 id가 `updateContent`에 보이면 함께 정리
+5. 점 수: 500초 × 240Hz = 12만 샘플도 F7 재단순화로 `maxLength`(100 000) 안
+6. 테스트: T06 `finish_data_test`(롤오버 케이스)
+
 **굽기(bake)의 결과**: 렌더러·지우개·PDF·썸네일은 `r = max(minRadiusPt, 2 · width · widthQ)`만 알면 된다. 부분 지우개로 잘린 끝은 widthQ가 그대로라 둥글고 뭉툭한 절단면이 된다(다시 가늘어지지 않음). 대기(pending) 표시부터는 CORE가 양자화한 점(`rawData`)으로 그린다 → 메모리 값 = 저장 값 = 다른 기기에서 보는 값(x·y 0.01pt, widthQ 0.001, t 0.1ms 단위 — 화면 차이 없음).
 
-**K-1 불변식 — 렌더 외곽 ⊆ CORE `Stroke.bounds`** (계약 7.3.2, `bounds = pointBounds.inflate(width · max(2·maxWidthQ, 0.75))`)
+**K-1 불변식 — 렌더 외곽 ⊆ CORE `Stroke.bounds`** (계약 7.3.2 K-1, `bounds = pointBounds.inflate(width · max(2·maxWidthQ, 0.75))`)
+
+계약 7.3.2 K-1의 근거(v1.1, C11-23 — 12.1 P2 승인): "팽창 = `width · max(2·maxWidthQ, 0.75)` ≥ 0.75 × `StrokeStyle.minWidth` = 0.075pt ≥ INK 렌더 반지름 하한 `minRadiusPt` 0.05(굵기는 `normalized()`·`transformed`가 항상 0.1 이상으로 자름), 형광펜 사각 캡 모서리 0.7071·w ≤ 0.75·w → 공식 그대로 성립(CORE CP-3 기각)". 아래는 INK 쪽 증명이다.
 
 1. 채움 펜(볼펜·만년필·연필·마커, P1 대체 포함): 외곽선의 모든 정점은 어떤 점 `p_i`에서 정확히 `r_i` 거리에 있다(O4 좌우 점, O6 캡은 원 위의 정점). 평활 경로(O7 2차 베지어)는 정점의 볼록 껍질 안이므로 외곽 ⊆ ∪ disk(p_i, r_i) ⊆ `pointBounds.inflate(max r_i)`
-2. `r_i = max(0.05, 2·w·widthQ_i) ≤ max(0.05, 2·w·maxWidthQ)`. CORE 팽창 = `w·max(2·maxWidthQ, 0.75)` ≥ `2·w·maxWidthQ`이고 ≥ `0.75·w` ≥ 0.075(w ≥ `StrokeStyle.minWidth` 0.1 — CORE가 저장 시 `normalized()`, `Stroke.transformed`도 0.1로 자름) > 0.05 → **항상 성립**. 따라서 CORE CP-3(팽창 하한 추가)은 필요 없다(12.1 P2)
+2. `r_i = max(0.05, 2·w·widthQ_i) ≤ max(0.05, 2·w·maxWidthQ)`. CORE 팽창 = `w·max(2·maxWidthQ, 0.75)` ≥ `2·w·maxWidthQ`이고 ≥ `0.75·w` ≥ 0.075(w ≥ `StrokeStyle.minWidth` 0.1 — CORE가 저장 시 `normalized()`, `Stroke.transformed`도 0.1로 자름) > 0.05 → **항상 성립**(계약 K-1 근거와 같음 — CORE CP-3 기각, 계약 7.9)
 3. 형광펜: 중심선 폴리라인을 굵기 w, `StrokeCap.square`, `StrokeJoin.round`로 stroke → 끝점 모서리까지 `w/2·√2 ≈ 0.7071·w ≤ 0.75·w`, 나머지는 w/2(widthQ는 렌더에 쓰지 않음)
 4. 점 획: 원 반지름 `r_0`
-5. 연필 기울기·만년필 필압은 widthQ에 이미 굽혀 있다(f ≤ 4 → widthQ ≤ 1 → `maxWidthQ`가 반영)
+5. 연필 기울기·만년필 필압은 widthQ에 이미 굽혀 있다(K6에서 f는 4로 포화 → widthQ ≤ 1 → `maxWidthQ`가 반영. 연필 f 4.48도 저장·라이브 모두 4로 자름)
 6. 안티앨리어싱 번짐(≤ 0.5 기기 px)은 기하 불변식의 대상이 아니다(래스터 타일은 청크 clip, 형광펜 그룹은 그룹 bounds + 여유 1 기기 px로 `saveLayer`)
 7. 검증: T07 `bounds_invariant_test`(5종 × 굵기 0.1·1.6·30 × 최대 필압·최대 기울기·taper·점 획·되돌아오기·형광펜 캡, 허용 0.01pt) + 무작위 300획. Chrome에서도 같은 테스트(9.1)
 
@@ -2201,14 +2285,15 @@ flowchart TB
 
 | 단계 | 내용 |
 |---|---|
-| R1 좌표 | 각 painter는 `canvas.scale(viewScale)` 후 pt로 그림. `deviceScale = viewScale × ancestorScale × dpr` |
+| R1 좌표 | 각 painter는 `canvas.scale(viewScale)` 후 pt로 그림(viewScale = 레이아웃 폭 / `pageSize.width`). `deviceScale = viewScale × ancestorScale × dpr`. 레이어·배경 위젯의 크기와 painter 배율은 `viewScale`만, `ancestorScale`은 `deviceScale`(버킷·해상도·선 최소 굵기)로만 — 조상 `Transform`이 이미 화면에 적용(계약 7.2.16 v1.1). 배경 레이어에 넘기는 `PageBackgroundContext`도 같은 `viewScale`·`ancestorScale`·`dpr` |
 | R2 내용 diff | `updateContent`: 이전 맵과 비교 — 같은 id·같은 객체 → 유지 / 새 id → 추가 / 같은 id·다른 객체 → 변경 / 사라진 id → 삭제. O(n) |
 | R3 추가 경로 | 추가 획이 z 목록의 **끝부분(suffix)** 이면 "덧붙이기": 해당 청크의 `appended` Picture 목록에 획 하나짜리 작은 Picture 추가. 아니면(되돌리기로 옛 획 복원 등) 해당 청크 dirty |
 | R4 청크 | 일반 필기 레이어를 `chunkSizePt` 격자 청크로 나눔(네이티브 256pt: A4 = 3×4, 웹 128pt: A4 = 5×7, 6.13). 청크 Picture = 청크와 겹치는 획(z 순서)을 청크 사각형으로 clip해 기록. 삭제·변경 → 해당 청크 dirty → 다음 paint 때 다시 기록. `appended` > 16개면 dirty(통합) |
 | R5 활성 획 | 채움 펜: `frozenPath`(64점마다 고정되는 청크 외곽선들) + `tailPath`(열린 청크 + 원시 꼬리)를 그림. 투명도 = 1이면 그냥 두 번 `drawPath`, < 1이면 `saveLayer(bounds, alpha)` 안에서 불투명으로 그려 청크 이음매 이중 칠 방지. 형광펜은 6.10-6 |
-| R6 커밋 인계 | 세션·선택이 돌려준 `InkEdit`마다 대기(pending) 표시를 둔다(여러 개 가능 — 커밋 전에 다음 획을 시작해도 됨). 새 획·복제본(`added`)은 활성 레이어에 계속 그려짐(형광펜은 highlighterActive에서 6.10-6 그룹 합성 유지), 지운·나눈 원본(`removedIds`)은 숨기고 조각을 그림, 변형·색 변경 대상(`targetIds`)은 미리보기 유지. `updateContent`가 그 결과를 담으면(새 id 있음 / 지운 id 없음 / 대상 id의 객체가 바뀜) 같은 호출 안에서 base 갱신과 대기 제거를 함께 표시 → 다음 프레임에 동시에 반영(깜빡임·이중 칠 없음). CORE N-1이면 `execute` 안에서 바로, 늦게 와도 그때까지 대기 표시가 남아 같은 결과. `discardPending`·`discardEdit`이나 `pendingCommitTimeoutMs`(3s) → 제거(타임아웃은 + 경고) |
+| R6 커밋 인계 | 세션·선택이 돌려준 `InkEdit`마다 대기(pending) 표시를 둔다(여러 개 가능 — 커밋 전에 다음 획을 시작해도 됨). 새 획·복제본(`added`)은 활성 레이어에 계속 그려짐(형광펜은 highlighterActive에서 6.10-6 그룹 합성 유지), 지운·나눈 원본(`removedIds`)은 숨기고 조각을 그림, 변형·색 변경 대상(`targetIds`)은 미리보기 유지. `updateContent`가 그 결과를 담으면(새 id 있음 / 지운 id 없음 / 대상 id의 객체가 바뀜) 같은 호출 안에서 base 갱신과 대기 제거를 함께 표시 → 다음 프레임에 동시에 반영(깜빡임·이중 칠 없음). CORE N-1이면 `execute` 안에서 바로, 늦게 와도 그때까지 대기 표시가 남아 같은 결과. 커밋 실패 → EDITOR가 `discardEdit(edit)`(계약 7.2.15 v1.1): 그 편집의 대기 표시 전부(`added`·`removedIds`·`targetIds`)를 같은 호출에서 지우고 base를 다시 표시 → 지운 획이 바로 보이고 변형 미리보기가 끝남. `discardPending(id)`는 id 하나만. `pendingCommitTimeoutMs`(3s)는 안전망(제거 + 경고) |
 | R7 미리보기 | 지우개: 숨길 id·조각 대체를 해당 청크에 반영해 다시 기록(벡터). 선택 변형: 선택 획을 base에서 숨기고(시작 시 1회 재기록), 선택 획 Picture를 1회 기록해 활성 레이어에서 `canvas.transform(InkPageGeometry.matrix4Of(m))`로 그림(형광펜은 highlighterActive, 나머지는 inkActive, 비등방 변형은 6.22처럼 다시 기록). 미리보기는 해당 `updateContent`가 올 때까지 유지(R6과 같은 인계) |
-| R8 오버레이 | 올가미 경로: 화면 1.5px 점선(6px/4px), 색 0xFF2F80ED, 내부 0x142F80ED |
+| R8 오버레이 | 올가미 경로: 화면 1.5px 점선(6px/4px), 선 색 `InkTuning.lassoPathArgb`(0xFF2F80ED), 내부 `InkTuning.lassoFillArgb`(0x142F80ED). 종이 위에 겹쳐 그리는 표시 색이라 기준은 UI 테마가 아니라 종이와의 대비이고, INK는 Material 비의존(3장)이라 `colorScheme`을 읽지 않는다. 색 상수는 `InkTuning` 한 곳에만 두고 painter에 색 리터럴을 쓰지 않는다(계약 7.4.11 v1.2가 PDF 검색 하이라이트에 둔 예외와 같은 성격 — 예외 목록 명시는 12.1 P5로 제안) |
+| R9 뷰포트 보고 | `controller.setViewport`의 **유일한 호출자는 `InkPageView`**(계약 7.2.15 v1.1, C11-15). EDITOR는 `InkPageView`에 `ancestorScale`·`isScaling`·`visiblePageRect`만 넘긴다. ① `InkPageView`가 build에 둔 `LayoutBuilder`의 builder(레이아웃 단계)가 viewScale = 폭 / `pageSize.width`, `deviceScale = viewScale × widget.ancestorScale × MediaQuery.devicePixelRatioOf(context)`를 구하고 (`visiblePageRect`, `deviceScale`, `isScaling`)를 지난 보고값과 비교 ② 다르면 `SchedulerBinding.instance.addPostFrameCallback`을 **한 번만** 걸고(같은 프레임의 여러 변경은 마지막 값으로 합침), 콜백에서 `mounted`이면 `controller.setViewport(...)` → **build·layout 중에는 부르지 않는다**(인자 변경은 `didUpdateWidget` → 다시 build → ①, DPR 변경은 `MediaQuery` 의존으로 다시 build) ③ `setViewport`는 **`notifyListeners()`를 부르지 않는다**: 값을 저장하고 버킷(`renderStats.currentBucket`, 6.13 1단계)·래스터 예약·해제 대상(6.13 7단계)을 다시 계산한 뒤, 그림이 바뀌어야 할 때만 `layerRepaint(inkBase)`를 알린다(프레임 뒤라 다음 프레임 예약일 뿐 — "build 중 markNeedsBuild" 예외 없음) ④ 첫 프레임은 보고 전이라 `currentBucket == null` → 벡터 청크로 그림(래스터는 어차피 유휴 300ms 뒤라 체감 차이 없음) ⑤ 한 컨트롤러에 `InkPageView` 하나(두 번째가 붙으면 debug assert) ⑥ 테스트: T10 `widget/viewport_report_test.dart` ⑦ 확인(2026-11-05, scratch `/tmp/claude-0/plan-scratch/ink/r2/vp`, Flutter 3.47.9 위젯 테스트 3건 통과): 이 방식은 DPR 2에서 `ancestorScale` 1 → 1.5 → 5에 버킷 2.0 → 3.0 → `null`, 예외 0, 컨트롤러 알림 0. post-frame 콜백은 그 프레임 끝에 돌아 `pumpWidget` 직후 값이 이미 갱신됨. 대조군 — 레이아웃 중에 알림을 내는 `setViewport`를 부르고 부모가 그 알림으로 `setState`하면 `FlutterError: setState() or markNeedsBuild() called during build.` |
 
 ### 6.13 캐시와 메모리
 
@@ -2223,7 +2308,7 @@ flowchart TB
 
 **래스터 타일 (T19, `rasterTiles` 플래그)**
 
-1. 버킷 선택: `deviceScale` 이상인 가장 작은 버킷 (`[0.5, 1, 1.5, 2, 3, 4]`). `deviceScale > 4`이면 래스터 없이 벡터 청크 Picture를 그림(확대 시에는 보이는 획 수가 적음)
+1. 버킷 선택: `deviceScale`(`InkPageView`가 `setViewport`로 알린 값, 6.12 R9) 이상인 가장 작은 버킷 (`[0.5, 1, 1.5, 2, 3, 4]`) = `renderStats.currentBucket`. `deviceScale > 4`이면 `null` — 래스터 없이 벡터 청크 Picture를 그림(확대 시에는 보이는 획 수가 적음). 버킷 계산은 T10부터(타일 생성은 T19)
 2. 생성 조건: (a) 활성 세션 없음 (b) 마지막 입력 후 `idleBeforeRasterMs`(300ms) 경과 (c) `isScaling == false`이고 마지막 배율 변화 후 150ms. 프레임당 최대 1개, `frameWorkBudgetMs`(4ms) 초과 시 다음 프레임으로
 3. 우선순위: 보이는 청크, 화면 중심에 가까운 순
 4. 생성: Picture 기록(scale(버킷), 청크 Picture + appended) → `toImageSync(w, h)` (웹에서 GPU→CPU 읽기 비용 — W11). 걸린 시간을 `InkDiagnostics.onTileRaster`로 기록
@@ -2284,22 +2369,23 @@ flowchart TB
 | `planner` (주간) | 20 | `layout` 'weekly' · `marginTop` 36 · `marginLeft` 36 · `headerHeight` 56 | `layout`은 'weekly'만(모르는 값도 weekly). 머리 띠 y = marginTop ~ marginTop + headerHeight(아래쪽 구조선). 본문 = 머리 아래 ~ H − marginTop, 좌우 marginLeft. 세로 페이지(W ≤ H) 2열×4행, 가로 페이지 4열×2행 = 8칸(요일 7 + 메모 1): 외곽 사각형과 칸 경계는 구조선. 칸마다 칸 위 20pt에 제목선(일반선) 1개, 그 아래 spacing 간격 일반선(칸 아래 4pt 전까지). 글자는 그리지 않는다(요일·날짜는 사용자가 씀) |
 
 - 모든 선은 페이지 사각형으로 자른다. 점은 페이지 안(반지름 포함)인 것만.
-- 화면에서 선이 1 기기 px보다 가늘면 `max(lineWidth, 1 / deviceScale)`로 그림(확대·축소에도 보임). `TemplateVectors`·PDF 내보내기는 원래 굵기.
-- 그리기: `TemplateVectors.build(template, pageSize:, paperColorArgb:, clip: visiblePageRect)`의 결과를 Picture로 기록, (template, 페이지 크기, 종이 색, 선 굵기 보정 버킷)이 같으면 재사용. `renderStill`은 같은 항목을 `pixelSize`로 기록 후 `Picture.toImage`.
+- 화면에서 선이 1 기기 px보다 가늘면 `max(lineWidth, 1 / deviceScale)`로 그림(확대·축소에도 보임 — `deviceScale` = `ctx.deviceScale`, `ancestorScale` 포함). `TemplateVectors`·PDF 내보내기는 원래 굵기.
+- 그리기: `TemplateVectors.build(template, pageSize:, paperColorArgb:, clip: visiblePageRect)`의 결과를 Picture로 기록, (template, 페이지 크기, 종이 색, 선 굵기 보정 버킷)이 같으면 재사용. 위젯 크기 = `pageSize × ctx.viewScale`, painter 배율 = `ctx.viewScale`(`ancestorScale`을 곱하지 않음 — 계약 7.2.16 v1.1, 4.10). `renderStill`은 같은 항목을 `pixelSize`로 기록 후 `Picture.toImage`.
 - 종이 색: `core.PaperColors`(white · ivory 미색 · gray · black) + 임의 ARGB. 빈 페이지(`BlankBackground`) = 종이 색만.
-- 악보·플래너 기본 배치는 사용자 확인 항목(9.3 #12, 12.2 Q3) — 수치 조정은 이 표만 바꾸면 된다.
+- 악보·플래너 기본 배치(악보 A4 세로 12단·줄 간격 7pt, 주간 플래너 세로 2×4칸)는 **총괄 승인**(12.2 Q3, 00-review 2차 2.5): 이 기본값으로 시작하고 iPad 확인 9.3 #12 피드백이 오면 이 표만 조정한다(사용자 사전 확인 없음). 골든·테스트도 이 표 기준이라 함께 갱신.
 
 ### 6.17 배경 확장 지점과 썸네일 경로
 
 - **화면**: `InkPageView`의 1번 레이어 = `controller.backgroundBuilders`(= `pageBackgroundBuildersProvider`)에서 `handles(spec)`가 처음 true인 빌더의 `build(context, ctx)`. 없으면 `TemplateBackgroundLayerBuilder`가 종이 색만 칠함(`image`·`unknown`, PDF 빌더가 없을 때의 `pdf`)
 - 빌더 목록 override는 `pdfIoOverrides()` 하나뿐(7.3.3): `[pdfBackgroundLayerBuilder, const TemplateBackgroundLayerBuilder()]`. PDF 시작 실패 시 기본값(속지 빌더만)
 - `PageBackgroundContext`: `deviceScale`로 해상도, `visiblePageRect`로 확대 시 부분 렌더, `isScaling`으로 재렌더 억제, **`isThumbnail`로 페이지 패널·썸네일 렌더임을 알림**(PDF는 썸네일 모드로 작은 캐시 사용)
-- **페이지 패널 위젯** `InkPageThumbnail`: 같은 빌더 목록의 `build`를 `isThumbnail: true`·작은 `viewScale`로 부르고, 그 위에 완료 획을 `content.revision`마다 한 번 래스터한 이미지(`RawImage`)를 얹는다. 래스터는 비동기(`Picture.toImage`), 끝나기 전에는 이전 이미지 유지
+- **배율 규칙**(계약 7.2.16 v1.1, C11-20): 모든 빌더(`TemplateBackgroundLayerBuilder` 포함)는 위젯 크기 = `pageSize × ctx.viewScale`, painter 배율 = `ctx.viewScale`만 쓰고 `ancestorScale`은 `ctx.deviceScale`로만 쓴다. `TemplateBackgroundLayerBuilder`에서 `deviceScale`이 쓰이는 곳은 선 최소 굵기(6.16)와 Picture 재사용 버킷뿐. T13 `background_builder_test`가 `ancestorScale: 2`로 확인
+- **페이지 패널 위젯** `InkPageThumbnail`(시그니처 = 계약 7.2.16 v1.1, 호출자가 `backgroundBuilders`·`pencilGrain` provider 값을 넘김): 같은 빌더 목록의 `build`를 `isThumbnail: true`·작은 `viewScale`·`ancestorScale` 1로 부르고, 그 위에 완료 획을 한 번 래스터한 이미지(`RawImage`)를 얹는다. 래스터 키 = (`content.pageId`, `content.pageSize`, `content.revision`), 획이 없으면 래스터 없음. 배경은 build마다 `content.background`로 다시 만든다(속지 미리보기 — `revision` 0이 같아도 크기·배경 변화가 바로 보임, 5.3 #16). 위젯 상태 밖에 pageId 기준 캐시를 두지 않는다(같은 id 미리보기 여러 칸이 섞이지 않음). 래스터는 비동기(`Picture.toImage`), 끝나기 전에는 이전 이미지 유지
 - **화면 밖 썸네일** `InkPageThumbnailRenderer.render(content, maxSidePx)` (CORE `PageThumbnailRenderer` 구현, 7.2.11 — LIBRARY 표지 예약·EDITOR 캐시 쓰기·PDF 가져오기 표지가 INFRA 주입을 거쳐 사용)
   1. 픽셀 크기: 긴 변 = `maxSidePx`, 짧은 변 = max(1, round(maxSidePx × 짧은 변 / 긴 변)). 페이지 방향 그대로
-  2. 배경: `spec = InkBackgroundSpec.fromCore(content.page.background)`. 목록에서 `handles(spec) && builder is PageBackgroundStillRenderer`인 첫 빌더의 `renderStill(spec, pageSize:, pixelSize:)`. 결과 `null` → **render 결과 `null`**(예: PDF 원본이 이 기기에 없음 → LIBRARY가 나중에 다시 시도, `bytesArrived`). 그런 빌더가 없으면: `pdf`·`image` → `null`(PDF 모듈이 꺼진 상태에서 종이만 그린 표지가 신선한 캐시로 남지 않게, 12.1 P1), `blank`·`template`(속지 빌더는 항상 있음)·`unknown` → 종이 색
+  2. 배경: `spec = InkBackgroundSpec.fromCore(content.page.background)`. 목록에서 `handles(spec) && builder is PageBackgroundStillRenderer`인 첫 빌더의 `renderStill(spec, pageSize:, pixelSize:)`. 결과 `null`(= 지금 그릴 수 없음) → **render 결과 `null`**(예: PDF 원본이 이 기기에 없음 → LIBRARY 예약기가 캐시하지 않고 `bytesArrived`로 다시 시도, 05-library 6.15.3). 그런 빌더가 없으면: `pdf`·`image` → `null`(PDF 모듈이 꺼진 상태에서 종이만 그린 표지가 신선한 캐시로 남지 않게 — 계약 7.2.16 v1.1, C11-18), `blank`·`template`(속지 빌더는 항상 있음)·`unknown` → 종이 색
   3. 획: `content.strokes`(compareOrder) → 형광펜 그룹 합성(6.10, 종이 밝기로 혼합) → 일반 펜 외곽선(6.8) → 연필 질감(`pencilGrain.ready`를 최대 1초 기다림, 넘으면 질감 없이). 화면과 같은 외곽선 생성기를 쓰고 캐시 풀은 쓰지 않음
-  4. `PictureRecorder` → `Picture.toImage(w, h)` → `toByteData(format: ui.ImageByteFormat.png)` → `core.PageThumbnail(pageId: content.page.id, contentRevision: content.page.contentRevision, width: w, height: h, mimeType: 'image/png', bytes: …)`. 중간 이미지·Picture는 `dispose`
+  4. `PictureRecorder` → `Picture.toImage(w, h)` → `toByteData(format: ui.ImageByteFormat.png)` → interop **`thumbnailOf(content.page, width: w, height: h, png: bytes)`**(6.23 — `core.PageThumbnail(pageId: page.id, contentRevision: page.contentRevision, width:, height:, mimeType: 'image/png', bytes:)`를 만드는 유일한 곳, 3장 생성 지점 규칙). 렌더러 파일은 `core.PageThumbnail` 생성자를 직접 부르지 않는다. 중간 이미지·Picture는 `dispose`
   5. 시간 분할: 외곽선 생성 4ms마다 `await Future<void>.delayed(Duration.zero)`로 이벤트 루프에 양보(획 3,000개 페이지에서도 한 프레임을 오래 막지 않음)
   6. 확인(2026-11-04, `/tmp/claude-0/plan-scratch/ink/r1`): `Picture.toImage` → `toByteData(png)` → `instantiateImageCodec` 왕복이 VM과 Chrome(CanvasKit) 모두 동작, 362×512 PNG 3.3~3.5KB, 디코드한 픽셀 값 동일
 - 썸네일 저장(`ThumbnailCache`)·신선도(`isStaleFor`)·표지 예약(LIBRARY)·주입(INFRA `FeatureWiringModule`)은 INK 밖이다. INK 렌더러는 CORE를 부르지 않는다
@@ -2334,7 +2420,7 @@ flowchart TB
 | P5 남는 조각 | 여집합 [a, b]마다 점 = `lerpAt(a)` + 정수 인덱스 a < k < b인 원래 점 + `lerpAt(b)` (a·b가 정수면 중복 없이). 모든 채널(x, y, widthQ, tilt, azimuth, t) 선형 보간 → interleaved `Float32List` |
 | P6 부스러기 제거 | 조각 길이 < max(0.3pt, 0.25 · width)이면 버림. 원본이 점 획이면 닿는 순간 전체 삭제 |
 | P7 새 획 | 조각마다 `original.fragment(id: services.newStrokeId(), points: core.StrokePoints.fromInterleaved(조각, hasTilt: original.points.hasTilt, hasAzimuth: original.points.hasAzimuth))`. 스타일·`createdAt`·`recordingId`·`recordingOffsetMs`는 CORE `fragment`가 원본에서 복사(z 위치 유지, `compareOrder`), `t`는 보간 값 그대로(다시 0부터 매기지 않음 — CORE 7.2.3). `bounds`는 CORE가 계산 |
-| P8 결과 | `end()` → `InkEdit(kind: splitStrokes, removedIds: 닿은 원본 전부, added: 모든 조각)` → `toCommand()` = 조각이 있으면 `core.SplitStrokes`, 모두 지워졌으면 `core.RemoveStrokes` — 어느 쪽이든 명령 1개 = 되돌리기 1단계. 미리보기(R7)는 임시 id의 메모리 전용 `fragment`로 그리고, `end()`에서 실제 id로 다시 만든다 |
+| P8 결과 | `end()` → `InkEdit(kind: splitStrokes, removedIds: 닿은 원본 전부, added: 모든 조각)` → `toCommand()` = 조각이 있으면 `core.SplitStrokes`, 모두 지워졌으면 `core.RemoveStrokes` — 어느 쪽이든 명령 1개 = 되돌리기 1단계. 미리보기(R7)는 interop의 `previewFragmentOf`(임시 id `pv-<n>`, 메모리 전용, 외곽선은 풀 캐시에 넣지 않음 — 6.23)로 그리고, `end()`에서 `fragmentOf`로 실제 id(`services.newStrokeId()`)를 붙여 다시 만든다 |
 
 절단면 모양: 지우개가 획에 수직으로 지나가면 남은 획 끝(둥근 캡)의 가장 가까운 점이 지우개 중심에서 정확히 R → 지우개 원 안의 잉크만 사라진 것처럼 보임. 형광펜은 사각 캡이라 잘린 끝이 평평하다(지우개 원에 접하는 직선).
 
@@ -2371,7 +2457,7 @@ B3 스텁은 L5 대신 "획 `bounds` 중심이 내부"를 쓴다(4.15). EDITOR�
 - **최종 획은 CORE가 만든다**: `TransformElements` 해석 시 `core.Stroke.transformed(m, scaleWidth: true)` — 점 변환, `width = clamp(width × m.uniformScale, 0.1, 30)`(= `StrokeStyle.minWidth/maxWidth`), `azimuth += m.rotation`, widthQ·tilt·t 유지. INK는 이것을 다시 구현하지 않고, 같은 값을 `transformedWidth`로 미리 알려 준다
 - 미리보기(`setPreviewTransform`):
   - 닮음 변환(`a == d && b == −c` ±1e-9: 이동·모서리 비율 유지·회전)이고 굵기가 한계에 걸리지 않으면 선택 획 Picture를 한 번 기록해 `canvas.transform(InkPageGeometry.matrix4Of(m))`로 그림 — 최종과 같은 모양
-  - 비등방(변 핸들) 또는 굵기 한계에 걸리면 메모리 전용 `source.transformed(m)`의 외곽선으로 미리보기 Picture를 다시 기록(프레임당 4ms 예산, 넘으면 그 프레임은 직전 Picture를 행렬로 보정해 그림). 손을 떼면 정확한 모양
+  - 비등방(변 핸들) 또는 굵기 한계에 걸리면 메모리 전용 `previewTransformedOf(source, m)`(= `source.transformed(m)`, interop 6.23 — 같은 id, CORE에 넘기지 않고 풀 캐시에 넣지 않음)의 외곽선으로 미리보기 Picture를 다시 기록(프레임당 4ms 예산, 넘으면 그 프레임은 직전 Picture를 행렬로 보정해 그림). 손을 떼면 정확한 모양
   - 최종 좌표와의 차이 ≤ 0.01pt(양자화, 7.2.15). T18이 CORE `transformed` 결과와 대조
 - 커밋: `commitTransform()` → `InkEdit(kind: transformStrokes, targetIds: 선택 id, transform: m)` → `core.TransformElements(..., scaleStrokeWidth: true)`. id·`createdAt` 유지(CORE). 항등 변환이면 `null`
 - 복제: `duplicate()` → 선택 획마다 `source.transformed(Affine2.translation(16, 16), scaleWidth: false).copyWith(id: 새 id, createdAt: base + k, updatedAt: base + k)` (`base = services.nowMillis()`, k = 선택 안 z 순위 0, 1, 2… → 복제본끼리 원래 위아래 유지, 모두 기존 획 위). 녹음 필드·`t`는 유지 → `InkEdit(kind: duplicateStrokes, added: 복제본)` → `core.AddStrokes`
@@ -2382,13 +2468,17 @@ B3 스텁은 L5 대신 "획 `bounds` 중심이 내부"를 쓴다(4.15). EDITOR�
 
 매핑은 4.6 표(= 계약 7.2.15 표) 그대로다. 구현 위치 `src/edit/ink_edit.dart`, 테스트 `ink_edit_test`(T09).
 
-CORE 객체 생성·변환은 `src/interop/core_interop.dart`(내부)에만 둔다:
+CORE 객체 생성·변환은 `src/interop/core_interop.dart`(내부)에만 둔다(3장 규칙 — 예외 세 곳과 `testing.dart`는 3장). 미리보기용 메모리 전용 획(INK-2-10)과 썸네일 결과 `core.PageThumbnail`(INK-3-3)도 여기서 만든다:
 
 | 함수 | 용도 |
 |---|---|
-| `core.Stroke newCoreStroke(FinishedStroke f, {required String id, required String pageId, required core.EpochMillis penDownMillis})` | 펜 획(6.7 F8: `createdAt = penDownMillis`, 녹음 필드, `style.normalized()`) |
+| `core.Stroke strokeFromData(Float32List data, {required String id, required String pageId, required core.StrokeStyle style, required core.EpochMillis createdAt, bool hasTilt = false, bool hasAzimuth = false, String? recordingId, int? recordingOffsetMs})` | 모든 새 획의 공통 생성기(`core.Stroke(points: StrokePoints.fromInterleaved(data, ...), style: style.normalized(), ...)`). `newCoreStroke`와 `InkDevTools.syntheticStrokes`가 사용 |
+| `core.Stroke newCoreStroke(FinishedStroke f, {required String id, required String pageId, required core.EpochMillis penDownMillis})` | 펜 획(6.7 F8: `createdAt = penDownMillis`, 녹음 필드, `style.normalized()`). 롤오버로 이어진 획은 `penDownMillis + ⌊t_b⌋`·`recordingOffsetMs + ⌊t_b⌋`로 부름(6.7 '롤오버') |
 | `core.Stroke fragmentOf(core.Stroke original, Float32List data, {required String id})` | 부분 지우개 조각 = `original.fragment(...)` (6.20 P7) |
+| `core.Stroke previewFragmentOf(core.Stroke original, Float32List data, {required int seq})` | 부분 지우개 **미리보기** 조각(6.20 P8) = `original.fragment(id: 'pv-$seq', ...)`. 메모리 전용 — `InkEdit`·CORE로 나가지 않고 외곽선을 `InkCachePool`에 넣지 않음. `end()`에서 `fragmentOf`로 다시 만듦 |
+| `core.Stroke previewTransformedOf(core.Stroke source, core.Affine2 m)` | 비등방·굵기 한계 선택 변형 **미리보기**(6.22) = `source.transformed(m, scaleWidth: true)`(같은 id, CORE 최종값과 같은 모양). 메모리 전용 — 커밋은 `transform`만 보냄(`transformStrokes`), 풀 캐시에 넣지 않음(같은 id의 원본 캐시를 밀어내지 않게) |
 | `core.Stroke duplicateOf(core.Stroke original, {required String id, required core.EpochMillis createdAt, required Offset offset})` | 올가미 복제 (6.22) |
+| `core.PageThumbnail thumbnailOf(core.Page page, {required int width, required int height, required Uint8List png})` | 썸네일 결과(6.17 4단계) = `core.PageThumbnail(pageId: page.id, contentRevision: page.contentRevision, width: width, height: height, mimeType: 'image/png', bytes: png)`. `InkPageThumbnailRenderer.render`가 부름 → 계약 7.2.11 `render` 주석(`result.pageId == content.page.id`, `result.contentRevision == content.page.contentRevision`)을 이 한 곳이 보장 |
 | `InkStroke inkStrokeOf(core.Stroke s)` | Expando 캐시(`InkStroke.of`가 부름) |
 | `InkBackgroundSpec backgroundSpecOf(core.PageBackground b)` | `InkBackgroundSpec.fromCore` |
 | `Size sizeOf(core.PageSize)`, `Rect rectOf(core.PageRect)`, `core.PageRect pageRectOf(Rect)`, `Offset applyAffine(core.Affine2, Offset)`, `Float64List matrix4Of(core.Affine2)` | `InkPageGeometry` 정적 함수가 위임. 초안의 `InkAffine`을 대신함 |
@@ -2411,7 +2501,7 @@ CORE 객체 생성·변환은 `src/interop/core_interop.dart`(내부)에만 둔�
 - Riverpod 상태는 4.13 표의 provider뿐. 그 밖의 런타임 상태(세션, 캐시, 미리보기)는 `InkPageController`(ChangeNotifier) 내부
 - 외부에서 값이 들어오는 상태는 `pressureModeProvider` 하나이며 override가 아니라 EDITOR가 `notifier.set()`으로 넣는다(7.3.3). 루트 override는 `pageBackgroundBuildersProvider`(PDF `pdfIoOverrides()`)뿐이고, INK provider는 앱 셸이 그 밖에 override하지 않는다(테스트 제외)
 - 매 입력 샘플마다 Riverpod 상태를 바꾸지 않는다(리빌드 방지). 활성 레이어는 `layerRepaint(...)` Listenable로 painter만 다시 그림
-- 위젯 리빌드 트리거: `controller.notifyListeners()`는 세션 시작/종료, 선택 변경, 배경 변경 때만
+- 위젯 리빌드 트리거: `controller.notifyListeners()`는 세션 시작/종료, 선택 변경, 배경 변경 때만. `setViewport`는 알리지 않는다(6.12 R9 — `InkPageView`가 post-frame에서 부르고, 그림 변화는 `layerRepaint`로만)
 
 ### 6.26 결정성·수치 안정성
 
@@ -2460,15 +2550,17 @@ abstract interface class InkInputExtension {
 | `straightenDevWidthRatio` / `straightenDevLengthRatio` / `axisSnapDeg` | 0.6 / 0.04 / 4 | 6.7 F6 |
 | `finishSimplifyPt` / `finishSimplifyWidthQ` / `maxSimplifyRetries` | 0.03 / 0.004 / 4 | 6.7 F7 |
 | `tiltPresentRad` / `azimuthPresentRad` | 1e-3 / 1e-3 | 6.7 F8 |
-| `minRadiusPt` | 0.05 (≤ 0.75 × `StrokeStyle.minWidth` — K-1, `tuning_test`가 확인) | 6.7, 6.8 |
+| `minRadiusPt` | 0.05 (≤ 0.75 × `StrokeStyle.minWidth` = 0.075 — 계약 7.3.2 K-1 근거 v1.1, `tuning_test`가 확인) | 6.7, 6.8 |
 | `sharpCornerCos` / `capChordPt` / `maxCapSegments` / `outlineSimplifyPt` | −0.17 / 0.75 / 16 / 0.03 | 6.8 |
 | `liveChunkPoints` | 64 | 6.12 R5 |
 | `gridCellPt` | 64 | 6.18 |
 | `goldenSectionIterations` / `bisectionIterations` | 24 / 12 | 6.20 |
 | `minPieceLengthPt` / `minPieceWidthRatio` | 0.3 / 0.25 | 6.20 P6 |
 | `lassoCoverage` / `lassoSimplifyPx` / `lassoMinAreaPt2` / `lassoBandMinPt` | 0.5 / 0.75 / 4.0 / 8.0 | 6.21 (포함 규칙은 계약) |
+| `lassoPathArgb` / `lassoFillArgb` | 0xFF2F80ED / 0x142F80ED | 6.12 R8 — INK의 유일한 비(非)종이 표시 색 상수(종이 위 오버레이, 12.1 P5) |
 | `selectionMinSizePt` / `scaleMin` / `scaleMax` / `duplicateOffsetPt` | 4 / 0.05 / 20 / 16 | 6.22 (계약 수치). 굵기 한계는 `core.StrokeStyle.minWidth/maxWidth`(0.1 / 30) |
 | `similarityEpsilon` / `previewRebuildBudgetMs` | 1e-9 / 4 | 6.22 |
+| `strokeRolloverMs` | 500000 | 6.7 F8 롤오버 — 계약 7.2.3 `StrokePoint.t` 범위 상한과 같은 값(CORE에 이름 있는 상수가 없어 INK가 둠, `tuning_test`가 CORE가 자르는 경계와 대조) |
 | `grainSize` / `grainSeed` / `grainTexelPt` | 256 / 20261104 / 0.5 | 6.11 (MINSTD 시드 ∈ [1, 2³¹ − 2]) |
 | `exportPencilOpacityFactor` | 0.85 | 6.24 |
 | `latencyWindow` / `diagnosticsNotifyMs` | 240 / 250 | 6.15 |
@@ -2514,14 +2606,14 @@ pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 **2026-11-0
 ### B3 (기반 단계 — 동시 개발 시작 전 main에 커밋, 7.6)
 
 **T00. 계약 표면 + 단순 동작 구현**
-- 4.0~4.14의 공개 표면 전부(최종 시그니처), 본문은 4.15 표. `providers.dart`, `testing.dart`, `dev_tools.dart` 포함. B2(CORE 계약 파일) 커밋 후 시작
+- 4.0~4.14의 공개 표면 전부(최종 시그니처), 본문은 4.15 표. `providers.dart`, `testing.dart`, `dev_tools.dart` 포함. 시점(계약 7.6 v1.2, C12-08): CORE T4(계약 타입 고정) 커밋 뒤 작업 트리에서 작성 시작 가능, main 커밋·아래 완료 조건은 B2 완료(CORE T1~T5 — `createFakeNoteStore`는 T5) 뒤. B4(PDF)·B5(EDITOR)는 이 커밋 뒤
 - 완료: `foundation/b3_smoke_test.dart`(위젯: 합성 펜 입력 → `end()` → `toCommand()` → CORE `createFakeNoteStore()` 세션 `execute` → `pageChanges` 리스너의 `updateContent` → `pendingIds` 빔 + 폴리라인 픽셀이 보임 · 지우개 두 모드 → `RemoveStrokes` · 올가미 → 선택 → 이동 커밋 → `TransformElements` · 썸네일 렌더러 PNG 디코드·크기·`contentRevision`) · `unit/api_surface_test.dart`(계약 7.2.15·7.2.16의 모든 이름·생성자·메서드 시그니처를 타입 단언으로 참조 — 시그니처가 바뀌면 컴파일 실패) · `unit/export_list_test.dart`(VM: `lib/ink_engine.dart`·`dev_tools.dart`의 `show` 이름 집합 + `testing.dart`의 최상위 선언 = 4.0·4.14 목록) · `unit/no_platform_imports_test.dart`(VM: lib/에 금지 import 없음, SDK Material/Cupertino 없음) · 앱 B8 웹 빌드에 포함 가능
 
 ### INK-α (M0 지원)
 
 **T01. 패키지 골격 점검**
-- `dart_test.yaml`(태그 `golden`·`bench`), `test/flutter_test_config.dart`(허용 오차 비교기 9.2), `THIRD_PARTY_NOTICES.md`, `tuning.dart`
-- 완료: `unit/smoke_test.dart` · `unit/tuning_test.dart`(`minRadiusPt ≤ 0.75 × core.StrokeStyle.minWidth`, MINSTD 시드 범위) · (웹) `web/smoke_web_test.dart`
+- `dart_test.yaml`(3장 내용 그대로 — 태그 `golden`·`bench` 선언, 계약 7.4.8 v1.1). 태그를 쓰는 첫 테스트(T08 골든)보다 먼저 만든다 — `ws check` R15가 B1부터 검사(계약 7.4.2·7.4.8 v1.2, C12-01), 태그는 문자열 리터럴로. `test/flutter_test_config.dart`(허용 오차 비교기 9.2), `THIRD_PARTY_NOTICES.md`, `tuning.dart`
+- 완료: `unit/smoke_test.dart` · `unit/tuning_test.dart`(`minRadiusPt ≤ 0.75 × core.StrokeStyle.minWidth`(계약 K-1 근거), `strokeRolloverMs` = CORE가 자르는 `t` 상한(`StrokePoints.fromInterleaved`에 t 500 001을 넣으면 500 000 — 02-core 4.2 잘라냄 규칙), MINSTD 시드 범위) · (웹) `web/smoke_web_test.dart` · `flutter test` 출력에 '태그 미선언' 경고 없음 · `ws check` R15 위반 0
 
 **T02. 모델·펜**
 - `InkPoints`(rawData 무복사), `InkStroke.of`(Expando), `InkLayer`, `PenProfile`(6.9), `StrokeStyleInk`·`InkStyleExtras`·`HighlighterStraightening`
@@ -2537,11 +2629,11 @@ pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 **2026-11-0
 
 **T05. 중심선 처리·굵기 계수 굽기**
 - 중복 병합, Catmull-Rom 보간, 갈고리 제거, 점 획, K1–K6(`pressureCurve.evaluate`·`pressureSensitivity`·`widthQ`), F5 taper, F6 직선 보정(`extras['hlStraight']`), F7 단순화
-- 완료: `unit/stroke/subdivide_test.dart`(모든 간격 ≤ maxSeg + 1e-6, 원래 샘플 통과) · `unit/stroke/hook_test.dart`(끝 3점 역방향 갈고리 제거, 긴 정상 꺾임('ㄱ')은 유지) · `unit/stroke/dot_test.dart` · `unit/stroke/width_factor_test.dart`(각 펜 f 범위, `widthQ = f/4`, 형광펜 0.25 고정, 만년필 속도 가늘어짐, 연필 기울기 → 굵기↑, `soft`/`firm` 곡선이 실제 필압에만 적용·가상 필압엔 미적용, `pressureSensitivity` 0 → f = 1) · `unit/stroke/taper_test.dart`(끝으로 갈수록 단조 감소, 끝점 = taperMin, 짧은 획 taper 길이 ≤ 0.4S) · `unit/stroke/straighten_test.dart`(거의 직선 → 2점, 물결 → 유지, 3° 기울기 → 수평 맞춤, alwaysStraight 라이브 직선) · `unit/stroke/simplify_test.dart`(직선 100점 → 2점, widthQ 변화 점 유지, 10만 점 초과 → 재단순화)
+- 완료: `unit/stroke/subdivide_test.dart`(모든 간격 ≤ maxSeg + 1e-6, 원래 샘플 통과) · `unit/stroke/hook_test.dart`(끝 3점 역방향 갈고리 제거, 긴 정상 꺾임('ㄱ')은 유지) · `unit/stroke/dot_test.dart` · `unit/stroke/width_factor_test.dart`(각 펜 f 범위, `widthQ = f/4`, 형광펜 0.25 고정, 만년필 속도 가늘어짐, 연필 기울기 → 굵기↑, `soft`/`firm` 곡선이 실제 필압에만 적용·가상 필압엔 미적용, `pressureSensitivity` 0 → f = 1, **연필 최대 필압 + 최대 기울기 → f 4.48 → `widthQ` 1 포화, 라이브 반지름 = 최종 반지름 = `2 · width`**(K4·K6)) · `unit/stroke/taper_test.dart`(끝으로 갈수록 단조 감소, 끝점 = taperMin, 짧은 획 taper 길이 ≤ 0.4S) · `unit/stroke/straighten_test.dart`(거의 직선 → 2점, 물결 → 유지, 3° 기울기 → 수평 맞춤, alwaysStraight 라이브 직선) · `unit/stroke/simplify_test.dart`(직선 100점 → 2점, widthQ 변화 점 유지, 10만 점 초과 → 재단순화)
 
 **T06. `StrokeBuilder` (라이브·완료)**
 - 안정 접두부, 원시 꼬리, 64점 청크 고정, pending→real 재계산, `finish`(F8 interleaved·t 기준·`hasTilt`/`hasAzimuth`), `buildStroke`, `cancel` 대비 상태
-- 완료: `unit/stroke/stroke_builder_test.dart`(샘플을 1개씩 vs 10개씩 넣어도 `finish` 결과 동일 · `buildStroke`와 동일 · 라이브 tail 끝 = 마지막 원시 위치 · 2000샘플에서 `frozenPath`가 append-only · 0샘플 → null · 1샘플 → 점 획 · pending 11점 후 real 결정 시 앞 점 widthQ 재계산) · `unit/stroke/finish_data_test.dart`(t = 펜 다운 기준 ms·보통 첫 점 0, 시작 갈고리 제거 시 첫 점 t > 0이고 `createdAt`은 그대로, 웹형 입력(orientation 0) → `hasAzimuth` false, 손가락 → `hasTilt` false) · (웹) `web/determinism_test.dart`(고정 샘플 스크립트의 `FinishedStroke.data` 체크섬 = VM 기록값)
+- 완료: `unit/stroke/stroke_builder_test.dart`(샘플을 1개씩 vs 10개씩 넣어도 `finish` 결과 동일 · `buildStroke`와 동일 · 라이브 tail 끝 = 마지막 원시 위치 · 2000샘플에서 `frozenPath`가 append-only · 0샘플 → null · 1샘플 → 점 획 · pending 11점 후 real 결정 시 앞 점 widthQ 재계산) · `unit/stroke/finish_data_test.dart`(t = 펜 다운 기준 ms·보통 첫 점 0, 시작 갈고리 제거 시 첫 점 t > 0이고 `createdAt`은 그대로, 웹형 입력(orientation 0) → `hasAzimuth` false, 손가락 → `hasTilt` false, **롤오버**: `FakeInkClock` + 10Hz 샘플로 501초 획 → `end()`의 `added` 2개·모든 `t` ∈ [0, 500000]·두 번째 `createdAt` = 첫 `createdAt` + ⌊t_b⌋·`recordingOffsetMs`도 같은 만큼·이음점 좌표와 반지름 일치·끝/시작 taper 없음·`toCommand()` = `AddStrokes` 1개) · (웹) `web/determinism_test.dart`(고정 샘플 스크립트의 `FinishedStroke.data` 체크섬 = VM 기록값)
 
 **T07. 외곽선 + K-1 불변식** (INK-M7)
 - O1–O9, `toPath`, `toVectorPath`, `polyline`
@@ -2553,11 +2645,11 @@ pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 **2026-11-0
 
 **T09. CORE 인터롭 + `InkEdit`** (INK-M1·M3)
 - `core_interop.dart`(6.23 함수표), `InkEdit.toCommand`(7.2.15), `InkPageContent.fromCore`, `InkBackgroundSpec.fromCore`
-- 완료: `unit/interop/core_interop_test.dart`(`newCoreStroke`: 정규화 스타일·`version == null`·`pageId`·`createdAt` = 펜 다운 `nowMillis`·녹음 필드·렌더는 양자화된 `rawData` · `fragmentOf`: 새 id, `createdAt`·스타일·녹음·t 보존 · `duplicateOf`: 새 id·`createdAt` base+k·16pt 이동·굵기 유지 · `matrix4Of`·`applyAffine`이 `core.Affine2.apply`와 일치 · `fromCore`: deletedAt 제외·정렬·같은 객체 → 같은 `InkStroke`·pageId 불일치 → ArgumentError · 배경 4종 → spec) · `unit/edit/ink_edit_test.dart`(4.6 표 6행: 명령 타입·필드 값, `splitStrokes` 조각 없음 → `RemoveStrokes`, `isEmpty` → StateError, recolor 알파 0xFF, `removedIds` 순서 = z 순서) · `unit/interop/fake_store_handoff_test.dart`(CORE `createFakeNoteStore()` 세션: `execute(edit.toCommand())`가 반환하기 **전에** `pageChanges` 리스너의 `updateContent`로 `pendingIds`가 빔(N-1) — 종류 7개 모두, `ReadOnlyNoteException` 후 `discardEdit` → 원래 표시)
+- 완료: `unit/interop/core_interop_test.dart`(`newCoreStroke`: 정규화 스타일·`version == null`·`pageId`·`createdAt` = 펜 다운 `nowMillis`·녹음 필드·렌더는 양자화된 `rawData` · `fragmentOf`: 새 id, `createdAt`·스타일·녹음·t 보존 · `duplicateOf`: 새 id·`createdAt` base+k·16pt 이동·굵기 유지 · `strokeFromData`: 정규화 스타일·`fromInterleaved` 양자화 · `previewFragmentOf`: id `pv-<n>`(`isValidEntityId` 통과)·원본 스타일·`createdAt` 유지, `InkCachePool`에 들어가지 않음 · `previewTransformedOf` = `core.Stroke.transformed(m)`(같은 id, 풀 캐시 그대로) · `matrix4Of`·`applyAffine`이 `core.Affine2.apply`와 일치 · `thumbnailOf`: `pageId`·`contentRevision` = 넘긴 `core.Page` 값, `mimeType == 'image/png'`, `width`·`height`·`bytes` 그대로(같은 `Uint8List`) · `fromCore`: deletedAt 제외·정렬·같은 객체 → 같은 `InkStroke`·pageId 불일치 → ArgumentError · 배경 4종 → spec) · `unit/edit/ink_edit_test.dart`(4.6 표 6행: 명령 타입·필드 값, `splitStrokes` 조각 없음 → `RemoveStrokes`, `isEmpty` → StateError, recolor 알파 0xFF, `removedIds` 순서 = z 순서) · `unit/interop/fake_store_handoff_test.dart`(CORE `createFakeNoteStore()` 세션: `execute(edit.toCommand())`가 반환하기 **전에** `pageChanges` 리스너의 `updateContent`로 `pendingIds`가 빔(N-1) — 종류 7개 모두 · **커밋 실패(계약 7.2.15 v1.1)**: 휴지통에 넣은 노트의 세션(`isReadOnly`, N-4)에서 `execute`가 `ReadOnlyNoteException` → `discardEdit(edit)` 한 번으로 `pendingIds` 빔, 지운·나눈 원본이 다시 보이고 변형·색 변경 미리보기가 끝남(eraseStrokes·splitStrokes·transformStrokes·recolorStrokes·addStroke) · 리스너 안의 `updateContent` 경로가 CORE를 다시 부르지 않음(N-2 v1.1 `StateError`가 나지 않음))
 
 **T10. 렌더 캐시 1단계 (벡터) + `InkPageView` + 펜 세션**
 - `InkPageController`(콘텐츠 diff R2, 세션, 대기 인계 R6 일반화), 청크 Picture(R3·R4), 형광펜 페이지 Picture + 활성 그룹 제외, 레이어 위젯 스택, `InkPageGeometry`
-- 완료: `widget/ink_page_view_test.dart`(콘텐츠 획이 보임 · 페이지 밖 clip) · `widget/handoff_test.dart`(opacity 0.5 펜: end → updateContent 직후 프레임에 획 픽셀이 커밋 전과 같음(이중 칠 없음), `pendingIds` 빔 · `updateContent`가 한 프레임 늦어도 깜빡임 없음 · discardPending → 사라짐 · 타임아웃 → 사라짐 + 경고) · `widget/highlighter_active_test.dart`(기존 같은 색 형광펜 위에 쓰는 중 겹침 픽셀 = 단일 픽셀, 일반 획이 위에 보임) · `unit/render/content_diff_test.dart`(추가 suffix → append, 중간 삽입 → dirty, 삭제 → dirty, 동일 revision → no-op) · `unit/render/session_rules_test.dart`(새 세션 시작 시 이전 세션 cancel, cancel 후 addSample → StateError)
+- 완료: `widget/ink_page_view_test.dart`(콘텐츠 획이 보임 · 페이지 밖 clip) · **`widget/viewport_report_test.dart`**(INK-2-4, 6.12 R9: DPR 2·viewScale 1로 `pumpWidget` → 직후(그 프레임 끝 post-frame) `renderStats.currentBucket == 2.0` · 같은 위젯을 `ancestorScale: 1.5`로 다시 펌프 → `3.0`, `ancestorScale: 5` → `null`(벡터만) · `visiblePageRect`·`isScaling` 변경도 반영 · `setViewport`가 컨트롤러 `notifyListeners`를 부르지 않음(리스너 호출 0) · 컨트롤러를 듣고 `setState`하는 부모 위젯이 있어도 `tester.takeException() == null`(build 중 알림 없음) · 테스트 코드는 `setViewport`를 부르지 않음 · 같은 컨트롤러에 두 번째 `InkPageView` → debug assert) · `widget/handoff_test.dart`(opacity 0.5 펜: end → updateContent 직후 프레임에 획 픽셀이 커밋 전과 같음(이중 칠 없음), `pendingIds` 빔 · `updateContent`가 한 프레임 늦어도 깜빡임 없음 · `discardEdit` → 그 편집의 대기 표시 전부 사라짐(지운 획 다시 보임) · `discardPending(id)` → 그 id만 · 타임아웃 → 사라짐 + 경고) · `widget/highlighter_active_test.dart`(기존 같은 색 형광펜 위에 쓰는 중 겹침 픽셀 = 단일 픽셀, 일반 획이 위에 보임) · `unit/render/content_diff_test.dart`(추가 suffix → append, 중간 삽입 → dirty, 삭제 → dirty, 동일 revision → no-op) · `unit/render/session_rules_test.dart`(새 세션 시작 시 이전 세션 cancel, cancel 후 addSample → StateError)
 
 **T11. 진단**
 - `InkClock`(`ink_clock_stub.dart` / `ink_clock_browser.dart`), `InkDiagnostics`(지연·Hz·프레임·필압·캐시·`tileRaster`), FrameTiming 매칭
@@ -2568,14 +2660,14 @@ pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 **2026-11-0
 - 완료: `unit/providers_test.dart`(`ProviderContainer` + `core.noteStoreProvider.overrideWithValue(createFakeNoteStore())`로 컨트롤러 생성 · 리스너 제거 후 autoDispose로 dispose · `pressureModeProvider.notifier.set` 반영 · 각 provider `name` = 변수 이름 · `inkPageThumbnailRendererProvider`가 `pageBackgroundBuildersProvider` override를 따름) · `unit/testing_helpers_test.dart` · `unit/dev_tools_test.dart`(같은 시드 → 같은 점 바이트, `count`·`pageId`·스타일 = `defaultsFor(tool)`, 모든 점 페이지 안, `createdAt` 증가, `version == null`이라 `AddStrokes`에 유효, 형광펜 widthQ 0.25) · (웹) `web/dev_tools_web_test.dart`(VM과 같은 체크섬) · `widget/m0_scenario_test.dart`(가짜 포인터 스크립트로 빈 페이지에 만년필 획 → 커밋 → 굵기 변화가 필압에 비례)
 
 **T23. (선택, INK-O1) ink lab 예제** — INK-α 직후 (EDITOR 통합 전 M0 확인용)
-- `example/`: 페이지 1장, 펜 5종·지우개·올가미 버튼, 개발자 수치 표시, `createFakeNoteStore()`. INFRA가 멤버 등록·`web-experiment` 채널 배포(INFRA-O1)
+- `example/`: 페이지 1장, 펜 5종·지우개·올가미 버튼, 개발자 수치 표시, `createFakeNoteStore()`. INFRA가 멤버 등록·`web-experiment` 채널 배포·`lib_exceptions`에 `packages/ink_engine/example/lib/`(R4 — `testing.dart` 사용, 01-infra 1.3) (INFRA-O1, 12.2 Q4 선택 승인)
 - 완료: `flutter build web` 성공, `example/test/smoke_test.dart`
 
 ### INK-β (M1 지원)
 
 **T13. 속지 4종 + 배경 확장 지점** (INK-M4)
 - `TemplateVectors`(`lined`·`grid`·`dotted`·`cornell`), 내부 `template_defaults`(6.16 단일 출처)·`template_painter`, `TemplateBackgroundLayerBuilder`(`build` + `renderStill`), 빌더 선택·대체, `PageBackgroundContext.isThumbnail`
-- 완료: `unit/background/template_vectors_test.dart`(줄 y = 72 + 24k, 모눈 가운데 정렬, 점 지름 1.5, 코넬 구조선 위치, `clip` 밖 항목 없음·선 자르기, 어두운 종이 선 색, `lineColorArgb` 덮어쓰기, extras 타입 오류 → 그 키만 기본값) · `unit/background/template_defaults_test.dart`(6.16 표 값 전부) · `unit/background/background_spec_test.dart`(`fromCore` 4종, `isDarkPaper`) · `widget/background_builder_test.dart`(`SolidBackgroundBuilder`(pdf) 선택, 미지원 kind → 종이 색 대체, `isThumbnail` 전달) · `widget/template_still_test.dart`(`renderStill` 크기·종이 색·선 픽셀) · `goldens/templates_golden_test.dart`(4종 × 흰/검정 = 8장)
+- 완료: `unit/background/template_vectors_test.dart`(줄 y = 72 + 24k, 모눈 가운데 정렬, 점 지름 1.5, 코넬 구조선 위치, `clip` 밖 항목 없음·선 자르기, 어두운 종이 선 색, `lineColorArgb` 덮어쓰기, extras 타입 오류 → 그 키만 기본값) · `unit/background/template_defaults_test.dart`(6.16 표 값 전부) · `unit/background/background_spec_test.dart`(`fromCore` 4종, `isDarkPaper`) · `widget/background_builder_test.dart`(`SolidBackgroundBuilder`(pdf) 선택, 미지원 kind → 종이 색 대체, `isThumbnail` 전달, **배율 규칙(계약 7.2.16 v1.1)**: `InkPageView(ancestorScale: 2)` 아래 속지 위젯 크기 = `pageSize × viewScale`(× 2 아님), 빌더가 받은 `ctx.deviceScale` = viewScale × 2 × DPR, 선 최소 굵기는 그 `deviceScale` 기준) · `widget/template_still_test.dart`(`renderStill` 크기·종이 색·선 픽셀) · `goldens/templates_golden_test.dart`(4종 × 흰/검정 = 8장)
 
 **T13b. 악보·플래너 속지** (INK-M4, 7.8 — F-13 P0)
 - `music`(오선, `staffGap`, 세로 가운데 정렬), `planner`(`layout: 'weekly'`, 세로 2×4 / 가로 4×2)
@@ -2593,7 +2685,7 @@ pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 **2026-11-0
 
 **T17. 올가미**
 - `LassoOptions` 포함 규칙(계약, 6.21)
-- 완료: `unit/edit/lasso_test.dart`(사각 올가미 안 획 선택 · 40% 포함 → 미선택, 60% → 선택 · 8자 올가미 두 고리 모두 · 오목 다각형 · 퇴화 → null · 띠 색인 결과 = 단순 감김수 결과(무작위 1만 점) · 모든 도구 선택됨) · `widget/lasso_preview_test.dart`
+- 완료: `unit/edit/lasso_test.dart`(사각 올가미 안 획 선택 · 40% 포함 → 미선택, 60% → 선택 · 8자 올가미 두 고리 모두 · 오목 다각형 · 퇴화 → null · 띠 색인 결과 = 단순 감김수 결과(무작위 1만 점) · 모든 도구 선택됨) · `widget/lasso_preview_test.dart`(경로·내부 픽셀 색 = `InkTuning.lassoPathArgb`·`lassoFillArgb`, 6.12 R8)
 
 **T18. 선택 변형** (INK-M3·S4)
 - `SelectionGeometry`(`core.Affine2`), `InkSelection`(미리보기·커밋·삭제·복제·색 변경), 선택 미리보기 레이어(R7, 6.22)
@@ -2605,7 +2697,7 @@ pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 **2026-11-0
 
 **T20. 썸네일 위젯·렌더러·펜 미리보기** (INK-M5)
 - `InkPageThumbnail`(빌더 목록 필수, `isThumbnail`), `InkPageThumbnailRenderer`(6.17), `inkPageThumbnailRendererProvider`, `PenPreviewPainter`
-- 완료: `widget/thumbnail_renderer_test.dart`(`tester.runAsync`: PNG 디코드 가능 · 긴 변 = `maxSidePx`(512·320) · 가로·세로 페이지 비율 · `pageId`·`contentRevision` = `content.page` 값 · 속지 선·획 픽셀 존재 · `SolidBackgroundBuilder`(still) 배경 색 합성 · still이 `null` → 결과 `null` · pdf인데 still 빌더 없음 → `null` · blank → 종이 색 · 획 3,000개에서 4ms마다 양보(양보 횟수 > 0)) · (웹) `web/thumbnail_png_web_test.dart`(같은 테스트 일부, CanvasKit PNG) · `widget/thumbnail_test.dart`(revision 바뀔 때만 다시 래스터, `isThumbnail: true` 전달, 빌더 목록의 PDF 빌더 사용) · `goldens/thumbnail_golden_test.dart` · `goldens/pen_preview_golden_test.dart`(5종 S곡선)
+- 완료: `widget/thumbnail_renderer_test.dart`(`tester.runAsync`: PNG 디코드 가능 · 긴 변 = `maxSidePx`(512·320) · 가로·세로 페이지 비율 · `pageId`·`contentRevision` = `content.page` 값 · 속지 선·획 픽셀 존재 · `SolidBackgroundBuilder`(still) 배경 색 합성 · still이 `null` → 결과 `null` · pdf인데 still 빌더 없음 → `null` · blank → 종이 색 · 획 3,000개에서 4ms마다 양보(양보 횟수 > 0)) · (웹) `web/thumbnail_png_web_test.dart`(같은 테스트 일부, CanvasKit PNG) · `widget/thumbnail_test.dart`(revision 바뀔 때만 다시 래스터, `isThumbnail: true`·`ancestorScale` 1 전달, 넘겨받은 빌더 목록의 PDF 빌더 사용 · **미리보기 형태(5.3 #16)**: `InkPageContent.fromCore(page: page.copyWith(size:, background:), strokes: const [], revision: 0)`를 같은 위젯에 배경만 바꿔 넣으면 다음 프레임에 새 배경·새 크기, 획 래스터 0회, 같은 pageId 두 칸이 서로 다른 배경을 유지) · `widget/pen_preview_test.dart`(`PenPreviewPainter(style:, pencilGrain:)`: `PencilGrain`이 준비되기 전 프레임은 질감 없음 → `ready` 뒤 호출자 rebuild 없이 다시 그려져 질감 픽셀이 생김, `shouldRepaint` 규칙) · `goldens/thumbnail_golden_test.dart` · `goldens/pen_preview_golden_test.dart`(5종 S곡선)
 
 ### INK-γ (M3 지원)
 
@@ -2629,7 +2721,9 @@ pub.dev API(`/api/packages/<name>`, `/api/packages/<name>/score`)로 **2026-11-0
 | 위젯·픽셀 | `test/widget/**` | `flutter test` (VM) | `tester.runAsync`로 `toImage` 후 픽셀 비교 |
 | 골든 | `test/goldens/*_golden_test.dart` (`@Tags(['golden'])`, `@TestOn('vm')`), 이미지 `test/goldens/images/` | `flutter test`, 갱신 `flutter test --update-goldens test/goldens` (별도 커밋) | 9.2 |
 | 브라우저 | `test/web/**` (`@TestOn('browser')`) — **Chrome은 여기만** | `flutter test --platform chrome test/web` (= `ws test --platform chrome`) | 시계·체크섬·썸네일 PNG + 결정성이 중요한 VM 단위 테스트를 `import ... as x; main() => x.main()`으로 감싸 재실행: 외곽선, **K-1 불변식**, 부분 지우개 성질(50개로 축소), 올가미, 속지 벡터, dev_tools, render_config. 준비 스크립트 없음 |
-| 벤치마크 | `benchmark/**` (`@Tags(['bench'])`) | `flutter test benchmark/` (+ 선택 `--platform chrome`) | 기본 실행·CI 제외 |
+| 벤치마크 | `benchmark/**` (`@Tags(['bench'])`) | `flutter test benchmark/` (+ 선택 `--platform chrome`) | 기본 실행·CI 제외(`test/` 밖) |
+
+- 태그 선언: `golden`·`bench`는 `packages/ink_engine/dart_test.yaml`에 선언한다(3장, 계약 7.4.8 v1.1). INK는 `integration`·`perf` 태그를 쓰지 않으므로 기본 `ws test`에서 건너뛸 테스트가 없다. v1.2(C12-01): `ws check` R15가 기반 단계 B1부터 이 선언을 검사하고(누락 = 종료 1), 스캐너는 문자열 리터럴 태그만 인식하므로 모든 태그는 `@Tags(['golden'])`·`@Tags(['bench'])` 리터럴로 쓴다. `dart_test.yaml`은 첫 태그 테스트(T08)보다 앞선 T01에서 만든다.
 
 계약 불변식 테스트(통합 7.3.2 K-1~K-5에 대응)
 
@@ -2683,7 +2777,7 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 | 9 | 올가미 | 단어 감싸 이동·크기 조절 | 의도한 획만 선택(절반 이상 감싼 획), 미리보기 끊김 없음, 손을 뗀 뒤 모양이 튀지 않음 |
 | 10 | 확대 | 4배 확대 후 잠시 대기 | 0.5초 안에 선명해짐, 확대 중 깜빡임 없음 |
 | 11 | 많은 획 | 개발자 메뉴 '합성 획 3,000개'(`InkDevTools`) 페이지 스크롤·필기 | 개발자 표시 프레임 시간 p95 ≤ 16.7ms |
-| 12 | 속지 | **6종**(줄·모눈·점·코넬·악보·플래너) × 흰/미색/검정, 세로·가로 | 선이 보이고 확대해도 선명. 악보 단 수·플래너 칸 배치가 쓰기 좋은지 의견(12.2 Q3) |
+| 12 | 속지 | **6종**(줄·모눈·점·코넬·악보·플래너) × 흰/미색/검정, 세로·가로 | 선이 보이고 확대해도 선명. 악보 단 수·플래너 칸 배치가 쓰기 좋은지 의견 — 기본값은 승인됨(12.2 Q3), 의견이 오면 6.16 표만 조정 |
 | 13 | 메모리 | 50페이지 노트 끝까지 스크롤 후 되돌아오기 | Safari 탭 재로드(크래시) 없음 |
 | 14 | 지연 수치 | 개발자 표시 `eventToRasterEnd` p95 | 기록만 (웹 기준선, 네이티브 전환 비교용) |
 | 15 | 형광펜 가장자리 부분 지우기 (INK-S3) | 굵은 형광펜(12pt) 가장자리를 작은 부분 지우개(반지름 2~3pt)로 스치기 | 기록: 폭 전체가 잘려 보이는지, 거슬리는지(6.20 한계 → 11장) |
@@ -2696,7 +2790,7 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 ## 10. 완료 기준
 
 1. 8장 T00–T22(T13b 포함) 완료 조건 모두 충족 (T23은 선택)
-2. 루트에서 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws check`(R1~R13) 위반 0. 패키지 안에 `analysis_options.yaml` 없음, lib/에 금지 import 없음
+2. 루트에서 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws check` R1~R13·R15 위반 0(R15는 B1부터 — 3장 `dart_test.yaml`), 통합 단계 R14는 4.0 `show` 목록 + `testing.dart`·`dev_tools.dart` 이름(5.5)으로 검사(계약 7.4.2·7.7 V1 v1.2, C12-01). 패키지 안에 `analysis_options.yaml` 없음, lib/에 금지 import 없음
 3. `flutter test`(VM, 골든 포함) 전부 통과, `flutter test --platform chrome test/web` 전부 통과
 4. 벤치마크 9.1 VM 기준 충족(미달은 사유·조정안 보고)
 5. 공개 API = 4장 = 계약 7.2.15·7.2.16 (`api_surface_test`·`export_list_test`). 계약을 바꿔야 하면 7.4.12 절차(결과 보고 '변경 요청' → 총괄 승인 전까지 계약 이름 그대로)
@@ -2719,34 +2813,40 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 | 비등방 선택 변형 미리보기와 최종 모양 차이 | 손을 뗄 때 굵기가 튐 | 비등방이면 `source.transformed(m)`로 미리보기 다시 기록(6.22), T18이 CORE 결과와 대조 |
 | 형광펜 가장자리 스침이 폭 전체를 자름 | 지운 범위가 기대보다 큼 | iPad 기록(9.3 #15). 거슬리면 M5에 '중심선에서 먼 스침 무시' 규칙 검토 |
 | 썸네일 렌더가 메인 스레드를 오래 점유 | 라이브러리 스크롤 끊김 | 외곽선 4ms마다 양보(6.17), B10 벤치마크. LIBRARY 예약은 화면에 보이는 타일만 |
-| PDF 모듈이 꺼진 상태의 표지 | 종이만 그린 표지가 고정 | pdf·image 배경에 still renderer가 없으면 `null`(6.17, 12.1 P1) |
+| PDF 모듈이 꺼진 상태의 표지 | 종이만 그린 표지가 고정 | pdf·image 배경에 still renderer가 없으면 `null`, 호출자는 캐시하지 않고 다시 시도(6.17, 계약 7.2.16 v1.1) |
+| 뷰포트 보고가 한 프레임 늦음(6.12 R9 post-frame) | 확대·DPR 변경 직후 한 프레임 동안 이전 버킷 | 그 프레임은 이전 이미지 늘림/벡터 청크로 그림(6.13 5단계). 타일 생성은 어차피 확대 정지 150ms·유휴 300ms 뒤라 체감 없음. 대신 build 중 알림 예외가 구조적으로 생기지 않음 |
+| 펜을 댄 채 500초 넘게 쉼 | `t` 상한 초과로 녹음 연동 틀어짐 | 롤오버(6.7 F8): 이어지는 획으로 나누고 한 편집·한 명령으로 커밋 |
 | 악보·플래너 기본 배치가 사용자 취향과 다름 | 다시 그림 | 수치는 6.16 표 한 곳, 골든·테스트도 그 표 기준. iPad 확인 #12 후 조정 |
 | 형광펜 그룹 합성이 z 순서를 바꿈 (다른 색끼리) | 겹친 다른 색 형광펜 위아래가 직관과 다를 수 있음 | 그룹 순서 = 그룹의 가장 낮은 z. iPad 확인 후 필요하면 연속 구간 그룹으로 변경 |
 | 형광펜 획이 매우 많은 페이지 | 프레임 시간 증가 | 벤치마크로 감시, 기준 초과 시 형광펜 레이어도 래스터 대상 |
 | 골든 불안정 (Flutter 버전·렌더러 차이) | CI 실패 | 허용 오차 0.5%, 핵심 성질은 픽셀 단언, 골든 갱신 절차 분리 |
 | 긴 획(수천 점) 라이브 비용 | 프레임 드랍 | 64점 청크 고정, tail만 재계산, B2 벤치마크. 10만 점 초과는 재단순화(F7) |
-| CORE 계약 파일(B2)이 늦게 커밋됨 | B3(T00) 시작 지연 | B3는 B2 뒤(7.6). 그동안 입력이 `Float32List`·숫자뿐인 내부 계산(1€ 필터·가상 필압·외곽선·부분 지우개 구간·올가미 다각형)을 scratch에서 먼저 작성하고, B2가 들어오면 CORE 타입으로 감싼다 |
+| CORE 계약 파일(B2)이 늦게 커밋됨 | B3(T00) 시작 지연 | B3 작성은 CORE T4(계약 타입 고정) 커밋 뒤 작업 트리에서 시작하고, main 커밋·완료 조건만 B2(T1~T5) 완료 뒤(계약 7.6 v1.2, C12-08). T4 전에는 입력이 `Float32List`·숫자뿐인 내부 계산(1€ 필터·가상 필압·외곽선·부분 지우개 구간·올가미 다각형)을 scratch에서 먼저 작성하고, T4 계약 타입이 들어오면 CORE 타입으로 감싼다 |
 
 ---
 
 ## 12. 총괄 관리자에게 묻는 질문
 
-### 12.1 계약 변경 제안 (계획서 본문은 현재 계약대로 썼다)
+### 12.1 계약 변경 제안 (계획서 본문은 현재 계약 v1.2대로 썼다)
 
-| # | 대상 (계약 절) | 제안 | 이유 |
-|---|---|---|---|
-| P1 | 7.2.16 `PageBackgroundStillRenderer.renderStill` 주석, `InkPageThumbnailRenderer` 주석 | `renderStill` 주석 `// null → paper color only`를 `// null → cannot render now (InkPageThumbnailRenderer returns null)`로. `InkPageThumbnailRenderer` 주석에 "Also null for pdf / image backgrounds when no listed builder is a still renderer that handles them" 한 줄 추가 | 같은 절의 두 주석이 `null`의 의미를 다르게 읽힌다(종이만 칠함 vs 결과 null). 종이만 그린 PDF 표지가 신선한 캐시로 남으면 원본이 도착해도 `contentRevision`이 그대로라 LIBRARY 예약기(`isStaleFor == false`면 건너뜀)가 다시 그리지 않는다. INK 구현은 6.17처럼 결과 `null`로 한다(렌더러 주석과 일치) |
-| P2 | 7.3.2 K-1 (CORE 02-core 12.2 **CP-3**에 대한 의견) | K-1 문구에 근거 한 줄 추가: "INK 렌더 반지름 하한 `minRadiusPt` 0.05 ≤ 0.75 × `StrokeStyle.minWidth`(= 0.075)이므로 `bounds` 공식 그대로 성립". **CP-3(팽창에 0.05 하한 추가)은 채택하지 않기를 제안** | CP-3의 반례(width 0.1, widthQ 0.075 → 팽창 0.015pt)는 공식의 `max(…, 0.75)` 하한을 빠뜨린 계산이다: 팽창 = 0.1 × max(0.15, 0.75) = 0.075 > 0.05. 굵기는 저장(`normalized()`)·변형(`transformed`) 모두 0.1 이상으로 잘린다. INK는 width 0.1 경우를 불변식 테스트에 넣고(T07), `tuning_test`가 상수 관계를 고정한다 |
+| # | 대상 (계약 절) | 제안 | 이유 | 결정 (2차·3차 검토) |
+|---|---|---|---|---|
+| P1 | 7.2.16 `PageBackgroundStillRenderer.renderStill` 주석, `InkPageThumbnailRenderer` 주석 | `renderStill` 주석 `// null → paper color only`를 `// null → cannot render now (InkPageThumbnailRenderer returns null)`로. `InkPageThumbnailRenderer` 주석에 "Also null for pdf / image backgrounds when no listed builder is a still renderer that handles them" 한 줄 추가 | 같은 절의 두 주석이 `null`의 의미를 다르게 읽힌다(종이만 칠함 vs 결과 null). 종이만 그린 PDF 표지가 신선한 캐시로 남으면 원본이 도착해도 `contentRevision`이 그대로라 LIBRARY 예약기(`isStaleFor == false`면 건너뜀)가 다시 그리지 않는다 | **승인(PDF P1과 한 벌)** — 계약 7.2.16 v1.1(C11-18). 렌더러 주석에 '호출자는 null을 캐시하지 않고 다시 시도'도 추가됨. 4.9·4.10·6.17을 계약 문구로 바꿈 |
+| P2 | 7.3.2 K-1 (CORE 02-core 12.2 **CP-3**에 대한 의견) | K-1 문구에 근거 한 줄 추가: "INK 렌더 반지름 하한 `minRadiusPt` 0.05 ≤ 0.75 × `StrokeStyle.minWidth`(= 0.075)이므로 `bounds` 공식 그대로 성립". **CP-3(팽창에 0.05 하한 추가)은 채택하지 않기를 제안** | CP-3의 반례(width 0.1, widthQ 0.075 → 팽창 0.015pt)는 공식의 `max(…, 0.75)` 하한을 빠뜨린 계산이다: 팽창 = 0.1 × max(0.15, 0.75) = 0.075 > 0.05. 굵기는 저장(`normalized()`)·변형(`transformed`) 모두 0.1 이상으로 잘린다 | **승인** — 계약 7.3.2 K-1 v1.1(C11-23), CORE CP-3 기각(7.9). 6.7 K-1 증명·6.28 `minRadiusPt`에 계약 인용 |
+| P4 | 7.2.16 `pageBackgroundBuildersProvider` 문서 주석(급하지 않음 — 다음 계약 개정 때 함께, 재승인 조건 아님) | `/// Read by INK controllers, INK thumbnails and InkPageThumbnailRenderer.` → `/// Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of InkPageThumbnail pass its value (the widget reads no provider).` | 같은 절의 `InkPageThumbnail` 주석(v1.1)은 "the widget reads no provider: the CALLER passes ..."인데 provider 주석은 "Read by ... INK thumbnails"라 C11-19가 고친 오해(위젯이 provider를 읽음)를 다시 부를 수 있다. 의미 변경 없음(INK 4.13 provider 정의는 계약 글자 그대로 유지). P3 번호는 2차 검토의 'INK 담당 요청 P3'(총괄 직접 채택, C11-19)과 헷갈리지 않게 비워 둔다 | **승인 — 계약 v1.2 C12-03**(00-review 3차 3.2 '같은 절 두 주석이 반대로 읽히는 실제 모순, 의미 변경 없음'). 4.13 provider 주석 첫 줄을 계약 v1.2 문구 그대로(`(v1.2)` 표시 포함), 표시는 `// contract 7.2.16 v1.2`. 4.13 표 '누가 읽나' 칸도 같은 뜻으로 |
+| P5 | 7.4.11 색 하드코딩 예외(v1.2 C12-07에 한 항목 추가 — 급하지 않음, 재승인 조건 아님) | 예외 목록에 "INK 올가미 경로 오버레이(종이 위에 겹쳐 그리는 표시 색, 상수는 `ink_engine`의 `InkTuning` 한 곳 — `lassoPathArgb`·`lassoFillArgb`)"를 PDF 검색 하이라이트와 나란히 적는다 | INK는 올가미 경로를 페이지 위 오버레이 레이어(6.12 R8)에 고정 색으로 그린다. C12-07의 근거('종이 위에 겹치는 표시라 기준은 UI 테마가 아니라 종이와의 대비, 다크 모드가 와도 종이 위 색은 테마를 따르지 않아야 함')가 그대로 적용되고, INK는 Material 비의존(7.1·3장 — `widgets`만)이라 `Theme.of(context).colorScheme`을 읽을 수 없다. 위젯 계층의 `DefaultSelectionStyle`도 대용이 되지 못함을 확인했다: material_ui 1.10.0 `Theme`는 `textSelectionTheme`의 색만 넣고(`theme.dart` `_wrapsWidgetThemes`), `ThemeData` 기본 `textSelectionTheme`은 `const TextSelectionThemeData()`(색 null, `theme_data.dart`)이며 01-infra `buildAppTheme()`은 seed만 정한다. 지금 설계 그대로이며 상수를 `InkTuning` 한 곳으로 모았다(이번 수정, 6.28). 기각되면 대안: `InkPageView`에 선택 인자 `overlayColor`(`Color?`)를 두고 EDITOR가 `colorScheme.primary`를 넘김(이때 `null`이면 `InkTuning` 값 — EDITOR 호출 변경 필요) | (4차 검토 대기) |
 
-### 12.2 남은 질문
+### 12.2 남은 질문 — 2차 검토 결정
 
-| # | 대상 | 질문 | INK 기본 진행 |
-|---|---|---|---|
-| Q1 | EDITOR | `execute`가 던질 때(`ReadOnlyNoteException` 등) `controller.discardEdit(edit)`를 부르는 것을 04-editor 5.1 매핑 표에 넣어 줄 수 있는가? | 넣지 않아도 대기 표시는 3초 뒤 자동 제거 + 경고(6.12 R6) |
-| Q2 | LIBRARY | 썸네일 렌더러가 `null`(PDF 원본 없음·PDF 모듈 꺼짐)을 돌려주면 예약기는 그 페이지를 '다시 시도'로 두고 `AssetStore.bytesArrived`(LIBRARY-O1) 또는 다음 표시 때 재시도하는가? | 6.17대로 `null`. 재시도 정책은 LIBRARY |
-| Q3 | 사용자(총괄 경유) | 악보(A4 세로 12단, 줄 간격 7pt)·주간 플래너(세로 2×4칸) 기본 배치로 시작해도 되는가? | 6.16 값으로 진행, iPad 확인 #12 피드백으로 표만 조정 |
-| Q4 | INFRA | (선택) ink lab을 INK-α 직후 `web-experiment` 채널에 올릴 수 있는가? (INFRA-O1) | 승인되면 T23을 INK-α 직후에 진행 |
-| Q5 | CORE | INK는 계약 7.2.3 주석대로 `createdAt` = 펜 다운 `nowMillis`, `t` = 펜 다운 기준 ms로 저장한다. 그래서 시작 갈고리를 잘라낸 획은 첫 점 t가 0보다 조금 클 수 있다(계약 범위 [0, 500000] 안). 02-core 5.2 K-6+의 "새 획의 첫 점 0"과 `Stroke.recordingOffsetMs` 주석 "to points[0]"을 각각 "보통 0(시작이 잘리면 > 0)", "to createdAt"으로 읽어도 되는가? | 그렇게 구현(6.7 F8). CORE 동작에는 영향 없음(검증·양자화는 범위만 봄) |
+| # | 대상 | 질문 | 결정 (00-review 2차 INK-2-5·2-8) | 이 계획서 반영 |
+|---|---|---|---|---|
+| Q1 | EDITOR | `execute`가 던질 때(`ReadOnlyNoteException` 등) `controller.discardEdit(edit)`를 부르는 것을 04-editor 5.1 매핑 표에 넣어 줄 수 있는가? | **해결(EDITOR 채택)** — 계약 7.2.15 v1.1(C11-16) '커밋 실패 시 `discardEdit(edit)`', EDITOR-2-1 | 4.8 주석, 5.3 #5, 6.12 R6, T09·T10 |
+| Q2 | LIBRARY | 썸네일 렌더러가 `null`(PDF 원본 없음·PDF 모듈 꺼짐)을 돌려주면 예약기는 그 페이지를 '다시 시도'로 두고 `AssetStore.bytesArrived` 또는 다음 표시 때 재시도하는가? | **해결(LIBRARY 6.15.3)** — 예약기가 `null`을 캐시하지 않고 `bytesArrived`로 다시 시도. 계약 7.2.16 v1.1 렌더러 주석에도 명시 | 4.9, 6.17 |
+| Q3 | 사용자(총괄 경유) | 악보(A4 세로 12단, 줄 간격 7pt)·주간 플래너(세로 2×4칸) 기본 배치로 시작해도 되는가? | **승인** — 6.16 기본 배치로 시작, iPad 확인 #12 피드백으로 표만 조정(사용자 사전 확인 없음, 00-review 2차 2.5) | 6.16, 9.3 #12 |
+| Q4 | INFRA | (선택) ink lab을 INK-α 직후 `web-experiment` 채널에 올릴 수 있는가? (INFRA-O1) | **선택 승인(INFRA-O1)** — INK가 만들면 INFRA가 멤버 등록·`allowed_dependencies`·`lib_exceptions`(`example/lib/`)·`web-experiment` `target` 입력 | 5.5, T23 |
+| Q5 | CORE | INK는 `createdAt` = 펜 다운 `nowMillis`, `t` = 펜 다운 기준 ms로 저장한다. 시작 갈고리를 잘라낸 획은 첫 점 t가 0보다 조금 클 수 있다. 02-core 5.2 K-6+ "새 획의 첫 점 0"·`recordingOffsetMs` 주석 "to points[0]"을 "보통 0(시작이 잘리면 > 0)"·"to createdAt"으로 읽어도 되는가? | **승인** — CORE가 문구 수정(CORE-2-16). CORE 동작은 그대로 | 6.7 F8 |
+
+새로 묻는 질문은 없다(EDITOR 호출 형태는 총괄이 EDITOR-2-*로 지시했으므로 Q6을 두지 않음 — INK-2-1).
 
 ### 12.3 1차 질문(Q1~Q17) 처리 결과
 
@@ -2814,12 +2914,93 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 - `InkSampleAdapter.kindOf` 공개 삭제(계약 블록에 없음 — 내부 함수)
 - 연필 질감 난수 xorshift32(비트 연산) → 산술 MINSTD(7.4.3 웹 안전 수치 규칙), `grainSeed` 변경
 - 모든 provider에 `name:`(7.4.4), `InkPageController.discardEdit` 추가(EDITOR 실행 실패 시 정리), 대기(pending) 인계를 7종 편집 전체로 일반화(6.12 R6)
-- `InkPageThumbnail`의 `backgroundBuilders`를 필수로(계약 "backgroundBuilders from the provider" — PDF 페이지 누락 방지), `pencilGrain`·`PenPreviewPainter.pencilGrain`을 `PencilGrain?`(준비되면 다시 그림)
+- `InkPageThumbnail`의 `backgroundBuilders`를 필수로 — 위젯은 provider를 읽지 않고 **호출자가 `ref.watch(pageBackgroundBuildersProvider)`·`ref.watch(pencilGrainProvider)` 값을 넘긴다**(계약 7.2.16 v1.1 시그니처, C11-19 — PDF 페이지 누락 방지). `pencilGrain`·`PenPreviewPainter.pencilGrain`은 `PencilGrain?`(그 `ui.Image`가 아니라 객체 그대로, 준비되면 painter가 다시 그림 — 계약 7.2.16 v1.1). *(2차 수정에서 계약 인용으로 고침 — INK-2-2)*
 - `PenProfile`에서 기본 스타일 값 필드 삭제(CORE `defaultsFor`가 소유, 6.9 표가 값 출처) + 대조 테스트
 - 획 F8: 점 수 한도(`StrokePoints.maxLength`) 처리, `hasTilt`/`hasAzimuth` 판정 규칙, t·`createdAt`·`recordingOffsetMs` 기준(펜 다운) 명시
 - 부분 지우개 성질 테스트 허용 오차에 CORE 양자화(좌표 0.01pt, widthQ 0.001) 반영
-- 12.1 P2: CORE CP-3(bounds 팽창 하한)이 불필요함을 증명(6.7)
+- 12.1 P2: CORE CP-3(bounds 팽창 하한)이 불필요함을 증명(6.7) *(2차 검토에서 승인 — 계약 7.3.2 K-1 v1.1, CP-3 기각)*
 - 공개 이름 충돌 확인: 4.0 목록의 모든 이름을 01·02·04~07 계획서의 `class`/`enum`/`extension`/provider 정의와 대조 — 겹치는 것은 EDITOR `SelectionHandle`뿐이며 7.2.0에서 EDITOR 쪽 삭제가 확정됨(PDF 계획서의 `TemplateLine`·`InkBlendMode` 등은 INK 타입을 옮겨 적은 것)
 - 실험(`/tmp/claude-0/plan-scratch/ink/r1`): 5.5 pubspec으로 총괄 워크스페이스 사본 `flutter pub get` 해석 성공, 썸네일 PNG 경로(`Picture.toImage` → `toByteData(png)` → 디코드)가 VM·Chrome에서 같은 픽셀(6.17)
 
 **미반영**: 없음. (INK-O1은 '선택' 그대로 두되 순서만 앞당김.)
+
+### 13.2 2차 수정 (2026-11-05, 00-review '2차 검토' 2.4.3 + 통합 계약 v1.1 기준 — v0.2 → v0.3)
+
+**지시 반영 (INK-2-1 ~ INK-2-11)**
+
+| 지시 | 종류 | 반영 내용 | 절 |
+|---|---|---|---|
+| INK-2-1 | 필수 | 5.3에 확정 형태 4건: #16 속지·크기 미리보기 = `InkPageThumbnail(content: InkPageContent.fromCore(page: current.copyWith(size:, background:), strokes: const [], revision: 0), width:, backgroundBuilders: ref.watch(ink.pageBackgroundBuildersProvider), pencilGrain: ref.watch(ink.pencilGrainProvider))`(a·c), #17 `PenPreviewPainter(style:, pencilGrain: ref.watch(ink.pencilGrainProvider))` — `PencilGrain` 그대로, painter가 `repaint: pencilGrain`으로 다시 그림(b), #18 `SequentialIds`는 없음 → `core.SequentialIdGenerator` 또는 `testInkCoreServices()`(d). 4.8 `fromCore` 문서 주석에 계약 7.2.15 v1.1의 미리보기 예를 글자 그대로. 미리보기가 같은 pageId·`revision` 0을 쓰므로 썸네일 위젯 동작을 보충(래스터 키 = pageId·pageSize·revision, 획 없으면 래스터 없음, 배경은 build마다 `content.background`, pageId 전역 캐시 없음) + T20 테스트. 12.2에 Q6은 두지 않음 | 4.8, 4.9, 4.14, 5.3 #15~#18, 6.17, T20 |
+| INK-2-2 | 필수 (C11-19) | 4.9 `thumbnail.dart` 머리 주석 'backgroundBuilders from the provider' → 'contract 7.2.16 (v1.1): the CALLER passes the provider values', 클래스 블록을 계약 7.2.16 v1.1 글자 그대로(+ `createState` 한 줄), 설명 bullet '호출자가 provider 값을 넘긴다(계약 7.2.16 v1.1)'. 4.13 표의 EDITOR 사용 칸도 같게. 13.1 '자체 정리'의 해당 줄을 계약 인용으로 고침. P3 제안은 내지 않음 | 4.9, 4.13, 13.1 |
+| INK-2-3 | 계약 C11-14 | 4.8 세션 3종 앞에 계약 v1.1 문서 주석 2줄 그대로 + 지시 문구 `/// viewScale: logical px per page pt (no devicePixelRatio; device scale goes to setViewport).`. 표기 규칙·5.3 #4·6.3 병합 거리(논리 px)도 같은 정의로 | 표기 규칙, 4.8, 5.3 #4, 6.3 |
+| INK-2-4 | 계약 C11-15 | 4.8 `setViewport` 주석 = 계약 v1.1 3줄 그대로 + INK 호출 시점 4줄. 4.9 `InkPageView` 문서 주석(유일한 호출자, post-frame, 뷰 하나). 5.3 #4·#8 'EDITOR는 부르지 않고 `InkPageView` 인자만'. **6.12 R9 신설**: `LayoutBuilder`에서 (`visiblePageRect`, `deviceScale`, `isScaling`)를 구해 바뀌면 post-frame 콜백 1회로 `setViewport` → build·layout 중 호출 없음, `setViewport`는 `notifyListeners()` 없이 저장·버킷·래스터 계획만 바꾸고 필요하면 `layerRepaint(inkBase)`, 첫 프레임은 벡터. scratch 위젯 테스트로 확인(예외 0, 대조군은 'setState() or markNeedsBuild() called during build'). 위젯 테스트 1건 T10 `viewport_report_test`(인자 변경 → `renderStats.currentBucket` 갱신, build 중 예외 없음, 알림 0). 4.15 B3 표·1.4 경계표·6.13 버킷·11장 리스크 | 1.4, 4.8, 4.9, 4.15, 5.3 #4·#8, 6.12 R9, 6.13, 11, T10 |
+| INK-2-5 | 계약 C11-16·01 | 5.3 #5 커밋 실패 = 계약 7.2.15 v1.1 인용(`discardEdit(edit)`이 `added`·`removedIds`·`targetIds` 대기 표시를 모두 지움, `discardPending`은 id 하나만, 3초 타임아웃은 안전망). 4.8 `discardPending`·`discardEdit` 주석, 6.12 R6, T09(휴지통 노트 세션으로 `ReadOnlyNoteException` 주입)·T10. 5.3 #7 = 계약 7.2.8 **N-2(v1.1)** 인용(리스너 안 `execute` = `StateError`, `scheduleMicrotask`, `executeAsync`·`undo`·`redo`는 첫 `await` 뒤). 5.1 'CORE에 기대하는 동작'에 N-2·N-4(v1.1). 12.2 Q1 '해결(EDITOR 채택)' | 4.8, 5.1, 5.3 #5·#7, 5.6, 6.12 R6, 12.2, T09·T10 |
+| INK-2-6 | 계약 C11-18·20 | 4.10 `renderStill` 주석 = 계약 v1.1 줄 그대로(`// (v1.1) null → cannot render now (InkPageThumbnailRenderer returns null)`), 4.9 렌더러 주석에 v1.1 2줄(pdf·image에 still renderer 없음 → null, 호출자는 null을 캐시하지 않고 다시 시도). 12.1 P1 '승인(PDF P1과 한 벌)'. `PageBackgroundContext`·`PageBackgroundLayerBuilder.build` 주석에 계약 v1.1 줄 그대로 + '레이아웃은 `viewScale`만, `ancestorScale`은 `deviceScale`로만' bullet. `TemplateBackgroundLayerBuilder`도 같은 규칙(4.10 bullet, 6.16, 6.17), 6.12 R1. T13 `background_builder_test`에 `ancestorScale: 2` 케이스 | 4.9, 4.10, 5.4, 6.12 R1, 6.16, 6.17, 12.1, T13 |
+| INK-2-7 | 계약 C11-23 | 12.1 P2 '승인'. 6.7 K-1 증명 첫머리에 계약 7.3.2 K-1 v1.1 근거 인용, 2단계는 'CORE CP-3 기각(7.9)'. 6.28 `minRadiusPt`·T01 `tuning_test`에 계약 인용 | 6.7, 6.28, 12.1, T01 |
+| INK-2-8 | 계약 | 12.2를 결정 표로: Q2 '해결(LIBRARY 6.15.3 — null을 캐시하지 않고 `bytesArrived`로 재시도)', Q3 '승인(6.16 기본 배치로 시작, iPad #12 피드백으로 표만 조정)', Q4 '선택 승인(INFRA-O1)', Q5 '승인(CORE가 문구 수정, CORE-2-16)'. 본문 인용(6.7 F8, 6.16, 9.3 #12, 5.5·T23)도 같게. 이 13.2 표 | 5.5, 6.7, 6.16, 9.3, 12.2, T23, 13.2 |
+| INK-2-9 | 사소 | 6.2 W1 'INK 설계 반영' = '내부 kind 매핑 함수(6.3, `PointerDeviceKind` → `InkPointerKind`)' | 6.2 |
+| INK-2-10 | 사소 | 두 방법을 함께: 6.23 함수표에 `previewFragmentOf`·`previewTransformedOf`(+ 모든 새 획의 공통 생성기 `strokeFromData`) 추가, 3장 규칙을 '`core.Stroke` 생성(미리보기용 메모리 전용 획 포함)·기하 변환은 interop에만, 예외는 CORE 값·명령 3곳(`toCommand`의 명령, `SelectionGeometry`의 `Affine2`, `InkPoints`의 `StrokePoint`) + `testing.dart`'로 정밀화. 6.20 P8·6.22 미리보기·4.14 `InkDevTools`가 이 함수를 쓴다고 명시 | 3, 4.14, 6.20, 6.22, 6.23 |
+| INK-2-11 | 사소 | 6.7 F8 + '롤오버' 항: `t`가 500 000 ms를 넘는 샘플이 오면 직전 샘플에서 획을 나누고(이음점은 끝·시작 taper·갈고리 제거 없음) 같은 세션에서 이어 감, 이어진 획 `createdAt`·`recordingOffsetMs` += ⌊t_b⌋, `end()`의 `added`에 모두 → `AddStrokes` 1개 = 되돌리기 1단계. `InkTuning.strokeRolloverMs`, 4.6 표·4.8 `end()` 주석, 6.23 `newCoreStroke`, T06·T01 테스트. K4·K6: 연필 f = 1.6 × 2.8 = 4.48 → `widthQ` 1로 포화, 라이브 미리보기도 같은 `min(f, kMaxWidthFactor)`, T05 테스트, K-1 증명 5단계 | 4.6, 4.8, 5.1, 6.7, 6.23, 6.28, 11, T01·T05·T06 |
+
+**계약 v1.1 반영 확인 (00-overview 7.9 중 INK 관련)**
+
+| 변경 | 이 계획서 반영 |
+|---|---|
+| C11-01 N-2·N-4 | 5.1, 5.3 #7, T09 (INK-2-5) |
+| C11-14 `viewScale` = 논리 px/pt | 표기 규칙, 4.8, 5.3 #4, 6.3 (INK-2-3) |
+| C11-15 `setViewport`는 `InkPageView`만 | 1.4, 4.8, 4.9, 5.3 #4·#8, 6.12 R9, T10 (INK-2-4) |
+| C11-16 커밋 실패 `discardEdit` | 4.8, 5.3 #5, 6.12 R6, T09·T10 (INK-2-5) |
+| C11-17 `fromCore`가 유일한 생성자 | 4.8, 5.3 #16, T20 (INK-2-1) |
+| C11-18 `renderStill` null·렌더러 null | 4.9, 4.10, 5.4, 6.17, 11 (INK-2-6) |
+| C11-19 `InkPageThumbnail` 시그니처·`PenPreviewPainter.pencilGrain` | 4.9(계약 블록 그대로), 4.13 표, 5.3 #15~#17, 13.1 (INK-2-1·2-2) |
+| C11-20 배경 위젯 배율 | 4.10, 5.4, 6.12 R1, 6.16, 6.17, T13 (INK-2-6) |
+| C11-23 K-1 근거 | 6.7, 6.28, T01 (INK-2-7) |
+| C11-26 `dart_test.yaml` 태그 선언 | 3장에 파일 내용(`golden`·`bench` 선언, `integration`·`perf`는 쓰지 않음 — 쓰게 되면 skip 선언), T01, 9.1 |
+| C11-27 B2 테스트 도우미 시그니처 | 5.1·5.6: `createFakeNoteStore`는 계약 7.6 시그니처, INK는 `openTestNoteStore`를 쓰지 않음 |
+| C11-11 정적 파일 URL | 해당 없음 — INK는 정적 파일·에셋 URL을 만들지 않는다(연필 질감은 코드로 생성, 6.11) |
+| 그 밖(C11-02~10, 12, 13, 21, 22, 24, 25, 28~30) | INK 표면과 무관 — 확인만 함(변경 없음) |
+
+**검토 외 자체 정리**
+
+- 계약 줄 대조: `/tmp/claude-0/plan-scratch/ink/r2/tools/check_contract_lines.py`로 00-overview 7.2.15·7.2.16 코드 블록의 모든 줄(주석 포함)이 이 문서에 그대로 있는지 확인했다. 남은 차이는 계약의 생략 표시·요약 주석(`/* INK 4.x */`, `// StrokeSession / … — INK 4.8` 등 — 정의는 이 문서 4장)뿐이다. 이를 위해 enum 4개(`HighlighterStraightening`·`PressureMode`·`PressureCapability`·`PressureSource`)의 줄 끝 주석을 윗줄로 옮기고, `isThumbnail` 줄 공백, provider 문서 주석 끝의 '— contract' 표시, `PenPreviewPainter`의 v1.1 주석 줄바꿈을 계약과 같게 했다
+- 4장 머리말: 계약 줄 사이에 INK가 덧붙인 문서 주석은 의미를 좁히거나 바꾸지 않는 보충이라고 명시
+- ink lab `example/lib/`의 `lib_exceptions` 등록(INFRA-2-12, 01-infra 1.3)을 5.5·T23에 한 줄
+- 11장 리스크 2행 추가(뷰포트 보고 한 프레임 지연, 펜을 댄 채 500초)
+- 12.1 **P4**(급하지 않음, 재승인 조건 아님): 7.2.16 `pageBackgroundBuildersProvider` 문서 주석 'Read by … INK thumbnails'가 C11-19가 고친 오해를 다시 부를 수 있어 문구만 바꾸자는 제안. 본문은 계약 문구 그대로 둠 *(3차 검토에서 승인 — 계약 v1.2 C12-03, 3차 수정에서 4.13을 새 계약 문구로 — INK-3-1)*
+
+**미반영**: 없음.
+
+### 13.3 3차 수정 (2026-11-05, 00-review '3차 검토' 3.4.3 + 통합 계약 v1.2 기준 — v0.3 → v0.4)
+
+**지시 반영 (INK-3-1 ~ INK-3-5)**
+
+| 지시 | 종류 | 반영 내용 | 절 |
+|---|---|---|---|
+| INK-3-1 | 계약 C12-03 | 4.13 `pageBackgroundBuildersProvider` 문서 주석 첫 줄 'Read by INK controllers, INK thumbnails and InkPageThumbnailRenderer.'를 계약 7.2.16 v1.2 두 줄 그대로(`/// (v1.2) Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of` / `/// InkPageThumbnail pass its value (the widget reads no provider).`)로 바꿈(계약과 같이 `(v1.2)` 표시, 셋째 줄 'Overridden ONLY …'는 그대로). 표시 `// contract 7.2.16 (doc wording: 12.1 P4)` → `// contract 7.2.16 v1.2`. 4.13 표 '누가 읽나' 칸을 같은 뜻으로(provider로 읽는 것은 두 provider, 위젯은 호출자가 값을 넘김). 12.1 P4 결정 '승인 — 계약 v1.2 C12-03' | 4.13, 12.1 |
+| INK-3-2 | 계약 C12-01 | 10절 2 '`ws check`(R1~R13) 위반 0' → '`ws check` R1~R13·R15 위반 0(R15는 B1부터 — 3장 `dart_test.yaml`), 통합 단계 R14는 4.0 `show` 목록 + `testing.dart`·`dev_tools.dart` 이름(5.5)으로 검사'. 같은 계약 변경을 3장 `dart_test.yaml` bullet(B1부터 검사, 첫 태그 테스트 T08보다 먼저 T01에서 생성, 리터럴 태그만), T01 산출물·완료 조건(`ws check` R15 0), 9.1 태그 선언 문단, 4.15 B3 완료 조건(`ws check` 0 — B3 테스트는 태그 없음)에도 적음 | 3, 4.15, 9.1, 10, T01 |
+| INK-3-3 | 사소 | 두 안 중 **6.23 함수표 안**을 택함(생성 지점을 한 파일로 유지하는 3장 원칙과 맞음): 6.23에 `core.PageThumbnail thumbnailOf(core.Page page, {required int width, required int height, required Uint8List png})` 행 추가, 6.17 4단계가 그것을 부르고 렌더러 파일은 `core.PageThumbnail` 생성자를 직접 부르지 않는다고 고침. 3장 'CORE 객체 생성 지점' 목록에 썸네일 결과(`thumbnailOf`)를 넣어 예외 목록(①~③)은 그대로 둠. 5.1 머리말·`PageThumbnail` 행, T09 `core_interop_test`에 `thumbnailOf` 단언(pageId·contentRevision = 넘긴 `core.Page`, `image/png`, 크기·바이트 그대로) | 3, 5.1, 6.17, 6.23, T09 |
+| INK-3-4 | 사소(선택) | 반영. 4.8 세션 3종 앞 INK 보충 주석을 `/// viewScale: logical px per page pt (no devicePixelRatio; the device scale reaches` / `/// setViewport through InkPageView, never from EDITOR).`로(줄 폭 때문에 두 줄). 그 위 계약 줄 2개(`(v1.1) viewScale (all three sessions) …`)는 그대로 | 4.8 |
+| INK-3-5 | 절차 | 머리 상태 줄 **v0.4 — 3차 검토 반영본**(총괄 4차 검토 대기), 기준 계약 **v1.2**, 검토 근거에 '3차 검토' 3.4.3. 4장 머리말 계약 대응을 v1.2로(시그니처 변경 없음, `(v1.2)` 표시 규칙), 12.1 제목 '현재 계약 v1.2대로'. 이 13.3 표 | 머리, 4, 12.1, 13.3 |
+
+**계약 v1.2 반영 확인 (00-overview 7.9 v1.2 — C12-01~09)**
+
+| 변경 | 이 계획서 반영 |
+|---|---|
+| C12-01 R15를 B1부터, 리터럴 태그, `dart_test.yaml` 먼저 | 3장 bullet, T01, 9.1, 10절 2, 4.15 (INK-3-2). INK 태그는 `golden`·`bench` 둘 다 리터럴(`@Tags(['golden'])`·`@Tags(['bench'])`), `integration`·`perf`는 쓰지 않음 |
+| C12-02 원격 고아 획 `EntityChange` | 해당 없음 — INK는 `ChangeBatch`·`EntityChange`를 읽지 않는다(EDITOR가 넘긴 `pageChanges`의 내용만 그림) |
+| C12-03 `pageBackgroundBuildersProvider` 주석 | 4.13 주석·표, 12.1 P4 (INK-3-1) |
+| C12-04 `AuthUser` 값 동등 | 해당 없음 |
+| C12-05 SYNC T16 설명 | 해당 없음 |
+| C12-06 B4 PDF provider는 예외 없이 생성 | 5.4에 확인 한 줄: `pdfIoOverrides()`의 자리표시 빌더만 넣은 컨테이너에서 INK `inkPageControllerProvider`·`inkPageThumbnailRendererProvider`도 예외 없음(INK provider는 목록 값만 받음). INK 변경 없음 |
+| C12-07 색 하드코딩 예외(PDF 검색 하이라이트) | INK의 같은 성격 색(올가미 경로 오버레이)을 점검 → 상수를 `InkTuning` 한 곳으로 모으고(6.12 R8, 6.28, T17 `lasso_preview_test`) 예외 목록 명시를 **12.1 P5**로 제안(급하지 않음, 재승인 조건 아님). 그 밖의 INK 색 상수는 종이·속지 팔레트(6.16)와 펜 기본 스타일 값(6.9 — 데이터)뿐 |
+| C12-08 B3~B7 시점 | 4.15 B3 완료 조건·T00·11장 리스크 행: CORE T4 뒤 작업 트리에서 작성 시작 가능, B3 main 커밋·완료 조건은 B2(T1~T5, `createFakeNoteStore`는 T5) 뒤, B4·B5는 B3 뒤 |
+| C12-09 쓰기 `Future` 완료 시점 | 해당 없음 — INK는 CORE를 부르지 않고 `receipt.persisted`도 기다리지 않는다(5.3 #7). INK 테스트의 커밋 실패는 `ReadOnlyNoteException`(N-4) 경로로만 만든다(5.6) |
+| 보류 SYNC-CP7 | 해당 없음 |
+
+**검토 외 자체 정리**
+
+- 계약 줄 대조 재실행(`/tmp/claude-0/plan-scratch/ink/r2/tools/check_contract_lines.py` — 00-overview 7.2.15·7.2.16 코드 블록의 모든 줄이 이 문서에 그대로 있는지): 수정 전 7.2.16에서 빠졌던 v1.2 두 줄이 이제 그대로 있고, 남은 차이는 2차 때와 같은 계약 생략 표시·요약 주석(`/* INK 4.x */` 등)뿐
+- 6.12 R8 올가미 오버레이 색 리터럴을 `InkTuning.lassoPathArgb`·`lassoFillArgb`(6.28)로 옮김 — painter에 색 리터럴 없음(C12-07과 같은 '상수 한 곳' 조건). 12.1 P5에 근거와 기각 시 대안(`InkPageView.overlayColor`) 기록
+- 12.1 결정 칸 제목 '결정 (2차·3차 검토)'
+
+**미반영**: 없음. (INK-3-4는 '선택'이지만 반영했다.)

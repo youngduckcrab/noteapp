@@ -1,7 +1,7 @@
 # 01. 기반 · 빌드 · 배포 (INFRA) 상세 계획서
 
-> 상태: **1차 수정 v0.2** (총괄 관리자 1차 검토 반영, 재검토 대기) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 v1.0 · 검토: [00-review.md](00-review.md) 3.1
-> 작성 기준일: 2026-11-04 · 검증 환경: Flutter 3.47.9 / Dart 3.13.7, 리눅스 컨테이너
+> 상태: **3차 수정 v0.4** (총괄 관리자 3차 검토(승인 검토) 3.4.1 반영, 재승인 대기) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 **v1.2** · 검토: [00-review.md](00-review.md) 3.1(1차), '2차 검토' 2.4.1, '3차 검토' 3.4.1
+> 작성 기준일: 2026-11-05 · 검증 환경: Flutter 3.47.9 / Dart 3.13.7, 리눅스 컨테이너
 >
 > 이 문서에서 **(확인함)** 은 저장소 밖 실험 폴더(`/tmp/claude-0/plan-scratch/`)에서 실제로 실행해 확인한 사실이고, **(미확인)** 은 문서·기억에 근거해 구현 때 다시 확인해야 하는 사항이다.
 > 다른 영역의 타입·provider·함수 이름은 모두 00-overview 7장 '통합 계약'을 따른다(이하 '계약 7.x'). 이 문서와 계약이 다르면 계약이 우선하며, 계약에 대한 의견은 12.3 '계약 변경 제안'에만 적는다. 검토 반영 내역은 13절.
@@ -21,21 +21,21 @@
 
 | 단계 | 내용 |
 |---|---|
-| 기반 단계 (계약 7.6 **B1**·**B8**, 8.1) | B1: 루트 파일(`pubspec.yaml`·`pubspec.lock`·`analysis_options.yaml`·`.gitignore`·`.gitattributes`), 패키지 6개 골격(**계약 7.5의 외부 의존 전부 선반영**, `note_core`는 순수 Dart), `app/` 생성(`sync_engine` 미의존), 최소 `tool/ws.dart`(list·test·check R1–R3·R7–R9, 브라우저 테스트 준비 스크립트 선실행 포함), 최소 CI(배포 없음). B8: 최소 라우터 + B5·B6 자리표시 화면 연결 + 전체 확인 + **실측**(CI 1회 시간·`main.dart.js` 크기·가능하면 Chrome 첫 `openNoteStore` 시간) 후 6.13 예산표 갱신. B2~B7은 각 영역 담당 |
-| 동시 개발 단계 (8.2) | 검사 스크립트 완성(R1–R13, 테스트 실행 옵션), 빌드 정보, 오류 처리, 부트스트랩, 모듈 어댑터(`CoreModule`·`PdfModule`·**`FeatureWiringModule`**), 라우팅(무전환 페이지·라이브러리 공용 페이지 키), 테마, 수명주기 연결, 웹 플랫폼 파사드(새 버전 감지·파일 내려받기·기준 URL), 설정 화면 틀 + **섹션 조립**(EDITOR 4종 · LIBRARY 새 노트 기본값 · INFRA 저장 공간·앱 정보) + **백업 내보내기**, `web/` 파일(index.html · 부트스트랩 · PWA · 아이콘), 웹 정적 파일 2개(`sqlite3.wasm`·`drift_worker.js`), Firebase Hosting 설정, GitHub Actions 4종, 이슈 템플릿, 사용자 안내서 |
+| 기반 단계 (계약 7.6 **B1**·**B8** v1.2, 8.1) | B1: 루트 파일(`pubspec.yaml`·`pubspec.lock`·`analysis_options.yaml`·`.gitignore`·`.gitattributes`), 패키지 6개 골격(**계약 7.5의 외부 의존 전부 선반영**, `note_core`는 순수 Dart), `app/` 생성(`sync_engine` 미의존), 최소 `tool/ws.dart`(list·test·check R1–R3·R7–R9·**R15**(계약 7.6 B1 v1.2, C12-01 — 태그 선언 검사, `skip_by_default_tags`·`test_tags_test` 포함), 브라우저 테스트 준비 스크립트 선실행 포함), 최소 CI(배포 없음). B8: 최소 라우터 + B5·B6 자리표시 화면 연결 + 전체 확인 + **실측**(CI 1회 시간·`main.dart.js` 크기·가능하면 Chrome 첫 `openNoteStore` 시간) 후 6.13 예산표 갱신. B2~B7은 각 영역 담당 |
+| 동시 개발 단계 (8.2) | 검사 스크립트 완성(R4–R6·R10–R13 추가 → R1–R13·R15 — R15는 B1에서 완료, 테스트 실행 옵션), 빌드 정보, 오류 처리, 부트스트랩, 모듈 어댑터(`CoreModule`·`PdfModule`·**`FeatureWiringModule`**), 라우팅(무전환 페이지·라이브러리 공용 페이지 키), 테마, 수명주기 연결, 웹 플랫폼 파사드(새 버전 감지·파일 내려받기·기준 URL), 설정 화면 틀 + **섹션 조립**(EDITOR 4종 · LIBRARY 새 노트 기본값 · INFRA 저장 공간·앱 정보) + **백업 내보내기**, `web/` 파일(index.html · 부트스트랩 · PWA · 아이콘), 웹 정적 파일 2개(`sqlite3.wasm`·`drift_worker.js`), Firebase Hosting 설정, GitHub Actions 4종, 이슈 템플릿, 사용자 안내서 |
 | 통합 단계 지원 (계약 7.7, 8.3) | lock 재생성, 실제 패키지 구현을 앱 셸에 연결, 통합 스모크 테스트(V5 VM · V6 Chrome), **R14 export 이름 충돌 검사**(`package:analyzer` 13.3.0), 미리보기 배포 |
 
 ### 1.3 이후 범위
 
 - iOS TestFlight 워크플로 **실행·검증** (이번엔 비활성 초안만) — 네이티브 전환 단계
-- **M4 동기화 연결**(Firebase 프로젝트 생성 후, 6.4 끝의 'M4 연결' 참고): `app/pubspec.yaml`에 `sync_engine` 추가 + `allowed_dependencies` 간선 추가, `SyncModule`(계약 7.3.3의 M4 행: `syncBadgeProvider`·`remoteAssetFetcherProvider`·`syncConfigProvider`·`authBackendProvider`·`syncBackendFactoryProvider`·`connectivitySignalProvider`), `FIREBASE_ENABLED` dart-define과 `firebase_options.dart`, 로그인 화면(`/login`)과 리디렉션, 설정 '계정 · 동기화' 섹션, 루트 `ScaffoldMessenger`의 동기화 알림 스낵바(`syncNoticesProvider`), `app/firebase.json`의 규칙·색인 참조(6.12)와 CI 규칙 배포
+- **M4 동기화 연결**(Firebase 프로젝트 생성 후, 6.4 끝의 'M4 연결' 참고): `app/pubspec.yaml`에 `sync_engine` 추가 + `allowed_dependencies` 간선 추가, `SyncModule`(계약 7.3.3의 M4 행: `syncBadgeProvider`·`remoteAssetFetcherProvider`·`syncConfigProvider`·`authBackendProvider`·`syncBackendFactoryProvider`·`connectivitySignalProvider`. 계약 7.9 v1.2 '보류'의 SYNC-CP7 — SYNC 소유 선택 자리 `syncLogSinkProvider`(기본 `null`)를 `SyncModule`이 override해 SYNC 로그를 `AppErrorLog`로 넘기는 방향은 승인됐고, 7.3.3 표 반영은 M4 연결 계획 때. 이름·모양은 그때 계약을 따른다), `FIREBASE_ENABLED` dart-define과 `firebase_options.dart`, 로그인 화면(`/login`)과 리디렉션, 설정 '계정 · 동기화' 섹션, 루트 `ScaffoldMessenger`의 동기화 알림 스낵바(`syncNoticesProvider`), `app/firebase.json`의 규칙·색인 참조(6.12)와 CI 규칙 배포
 - 기능 스위치(feature flag) 주입 — 유료 기능이 생길 때 (PLAN 7.6)
 - 다크 모드 테마 전환 (PLAN 5.2) — `buildAppTheme(brightness:)` 매개변수만 미리 둔다
 - 네이티브 앱 아이콘 · 스플래시 (`flutter_launcher_icons` 등) — 네이티브 전환 단계
 - 안드로이드 고정 서명 키 (태블릿 보유 확인 후, 6.14)
 - 크래시 리포트 수집 서버 (2단계)
 - 한국어 웹 폰트 번들링 (iPad 확인 결과에 따라, 11절)
-- (선택, INFRA-O1) INK가 ink lab(`packages/ink_engine/example`)을 만들기로 하면 워크스페이스 멤버 등록 + `web-experiment.yml`에 `target` 입력(`app`/`ink_lab`) 추가
+- (선택, INFRA-O1 — INK 12.2 Q4는 이 방식으로 **선택 승인**, 00-review 2차 INFRA-2-14) INK가 ink lab(`packages/ink_engine/example`)을 만들기로 하면 워크스페이스 멤버 등록 + `allowed_dependencies`에 그 멤버(이름 예: `ink_lab`) → `[note_core, ink_engine]`(계약 7.1 표) + `web-experiment.yml`에 `target` 입력(`app`/`ink_lab`) 추가 + **`workspace_rules.yaml` `lib_exceptions`에 `packages/ink_engine/example/lib/`**(ink lab `lib/`이 `package:note_core/testing.dart`의 `createFakeNoteStore()`를 쓰므로 R4 test-only 규칙 예외 — INFRA-2-12)
 
 ### 1.4 제외 (다른 영역 책임)
 
@@ -88,7 +88,7 @@
 | 5.4 보안 | TLS | Firebase Hosting 기본 HTTPS | 이번 |
 | 5.4 측정 | 개발자 표시 | EDITOR. INFRA는 앱 정보(빌드·렌더러·시작 시간) + PDF 렌더 통계 섹션 연결(I10b) | 다른 영역 / 이번 일부 |
 | 5.2 다크 모드 | UI + 페이지 색 반전 | `buildAppTheme(brightness:)` 매개변수만 | 이후 |
-| 5.2 전체 백업 / 12 리스크 'M4 전 백업 내보내기' | 데이터 손실 대비 | I9 앱 정보 '백업 내보내기'(CORE `exportBackupJson()` → 웹 다운로드) — **M4 실연결 전 선행 조건**(계약 7.8) | 이번 |
+| 5.2 전체 백업 / 12 리스크 'M4 전 백업 내보내기' | 데이터 손실 대비 | I9 앱 정보 '백업 내보내기'(CORE `NoteStore.exportBackupJson()`(계약 7.2.12 v1.1) → 웹 공유 시트 '파일에 저장' 또는 다운로드) — **M4 실연결 전 선행 조건**(계약 7.8) | 이번 |
 | 5.3 웹 버전(출시) | 2단계 이후 | — | 제외 |
 | 6.1 Flutter · 웹 빌드로 Safari 테스트 | | B1, B8, I11 | 이번 |
 | 6.2 상태 관리 Riverpod | | 6.5 주입 방식, 계약 7.5 버전 고정 | 이번 |
@@ -175,7 +175,7 @@ noteapp/
 | `environment.sdk` | `^3.13.0` | 모든 멤버 동일 (R2) |
 | `environment.flutter` | `3.47.9` | **정확 고정**. CI가 이 값을 읽음 (D10) |
 | `workspace` | `app`, `packages/note_core`, `packages/ink_engine`, `packages/feature_editor`, `packages/feature_library`, `packages/pdf_io`, `packages/sync_engine` | 목록 순서 고정 |
-| `dev_dependencies` | `flutter_lints: 6.0.0`, `yaml: 3.1.4`, `args: 2.7.0`, `path: 1.9.1`, `test: 1.31.1`, `image: 4.12.0` (+ 통합 단계 G3에 `analyzer: 13.3.0`) | `tool/` 스크립트·테스트 전용, 계약 7.5. `test`는 Flutter 3.47.9의 `test_api 0.7.12` 고정과 호환되는 최신이 1.31.1 (확인함) |
+| `dev_dependencies` | `flutter_lints: 6.0.0`, `yaml: 3.1.4`, `args: 2.7.0`, `path: 1.9.1`, `test: 1.31.1`, `image: 4.12.0`, **`crypto: 3.0.8`**(계약 7.5 v1.1 — `ws web-assets` sha256 계산, C11-29) (+ 통합 단계 G3에 `analyzer: 13.3.0`) | `tool/` 스크립트·테스트 전용, 계약 7.5. `test`는 Flutter 3.47.9의 `test_api 0.7.12` 고정과 호환되는 최신이 1.31.1 (확인함). 이 구성(+ 아래 3.3 표)으로 `flutter pub get --offline --enforce-lockfile` 해석 성공, lock은 `crypto`가 `direct dev`로만 바뀜 (확인함: 총괄 `lead/ws-v11`의 사본 `/tmp/claude-0/plan-scratch/infra3/ws-v11`) |
 | `dependency_overrides` | 없음 | 필요 시 루트에만 (R10) |
 
 ### 3.3 패키지 골격 (기반 단계 B1에서 생성)
@@ -235,18 +235,19 @@ dev_dependencies:
   drift_dev: 2.35.2
 ```
 
-기반 단계의 패키지별 의존성 (계약 7.1 의존 방향 + 7.5 '쓰는 멤버' 열 그대로. 총괄이 같은 구성으로 `flutter pub get` 해석 성공을 확인함):
+기반 단계의 패키지별 의존성 (계약 7.1 의존 방향 + 7.5 v1.1 '쓰는 멤버' 열 그대로. 총괄이 같은 구성으로 `flutter pub get` 해석 성공을 확인함 — v1.1 추가 3건 포함, INFRA도 사본으로 다시 확인함):
 
 | 패키지 | 종류 | dependencies | dev_dependencies |
 |---|---|---|---|
 | `note_core` | **순수 Dart** | `riverpod: 3.4.3`, `web: 1.1.2`, `meta: 1.19.0`, `collection: 1.19.1`, `clock: 1.1.3`, `crypto: 3.0.8`, `drift: 2.35.3`, `sqlite3: 3.8.0`, `idb_shim: 2.11.2`, `uuid: 4.6.0` | `test: 1.31.1`, `fake_async: 1.3.3`, `build_runner: 2.16.1`, `drift_dev: 2.35.2` |
 | `ink_engine` | Flutter | `flutter`(sdk), `note_core: any`, `riverpod: 3.4.3`, `meta: 1.19.0` | `flutter_test`(sdk), `fake_async: 1.3.3`, `perfect_freehand: 2.5.2+1` |
 | `feature_editor` | Flutter | `flutter`(sdk), `note_core: any`, `ink_engine: any`, `flutter_riverpod: 3.4.3`, `material_ui: 1.10.0`, `meta: 1.19.0`, `collection: 1.19.1` | `flutter_test`(sdk), `fake_async: 1.3.3` |
-| `feature_library` | Flutter | `flutter`(sdk), `note_core: any`, `flutter_riverpod: 3.4.3`, `material_ui: 1.10.0` | `flutter_test`(sdk), `fake_async: 1.3.3` |
+| `feature_library` | Flutter | `flutter`(sdk), `note_core: any`, `flutter_riverpod: 3.4.3`, `material_ui: 1.10.0`, **`collection: 1.19.1`**(계약 7.5 v1.1) | `flutter_test`(sdk), `fake_async: 1.3.3`, **`clock: 1.1.3`**(계약 7.5 v1.1 — 테스트 시계용 dev 의존만, 프로덕션 코드는 `clockProvider`) |
 | `pdf_io` | Flutter | `flutter`(sdk), `note_core: any`, `ink_engine: any`, `flutter_riverpod: 3.4.3`, `material_ui: 1.10.0`, `web: 1.1.2`, `meta: 1.19.0`, `collection: 1.19.1`, `crypto: 3.0.8`, `pdfrx: 2.11.0`, `pdfium_dart: 0.4.1`, `ffi: 2.2.0`, `file_picker: 13.3.2` | `flutter_test`(sdk), `fake_async: 1.3.3` |
 | `sync_engine` | Flutter (주 라이브러리는 순수 Dart) | `flutter`(sdk), `note_core: any`, `riverpod: 3.4.3`, `web: 1.1.2`, `meta: 1.19.0`, `collection: 1.19.1`, `clock: 1.1.3`, `crypto: 3.0.8`, `firebase_core: 5.1.0`, `firebase_auth: 7.0.1`, `cloud_firestore: 7.1.0`, `firebase_storage: 14.0.1`, `connectivity_plus: 7.3.2` | `flutter_test`(sdk), `fake_async: 1.3.3`, `fake_cloud_firestore: 4.5.0`, `firebase_auth_mocks: 0.16.0` |
 | `noteapp` (app) | Flutter 앱 | `flutter`(sdk), `flutter_web_plugins`(sdk), `note_core: any`, `ink_engine: any`, `feature_editor: any`, `feature_library: any`, `pdf_io: any`, `flutter_riverpod: 3.4.3`, `material_ui: 1.10.0`, `go_router: 18.1.2`, `cupertino_icons: 2.0.0`, `web: 1.1.2` — **`sync_engine` 없음**(M4 연결 때 추가, 계약 7.1) | `flutter_test`(sdk), `fake_async: 1.3.3` |
 
+- 계약 v1.1 영향: `feature_library` 행에 `collection`·dev `clock`, 루트(3.2)에 dev `crypto`가 더해졌다(C11-29). SYNC `testing.dart`는 lib에서 `fake_async`·matcher를 쓰지 않기로 해(C11-22) `sync_engine` 행은 그대로다(`fake_async`는 dev 유지).
 - 동시 개발 중 외부 의존 추가는 자기 pubspec에 정확 버전으로 넣고 결과 보고에 '의존성 추가'로 남긴다. `ws check`는 7.5 표에 없는 외부 의존을 경고(R9w)로만 알리고, 통합 G1에서 INFRA가 `pinned_external`에 올린 뒤 `--strict`로 확인한다.
 - 기반 단계 smoke test: 순수 Dart 멤버는 `package:test/test.dart`, Flutter 멤버는 `package:flutter_test/flutter_test.dart`. 둘 다 `ws test`가 각 멤버 디렉터리에서 `flutter test`로 실행(순수 Dart 멤버도 동작함을 총괄이 확인).
 
@@ -255,7 +256,7 @@ dev_dependencies:
 ```text
 app/
 ├─ pubspec.yaml                  # name: noteapp, version: 0.1.0+1 (deps: 3.3 table)
-├─ dart_test.yaml                # tags: integration (skip by default), perf (skip)
+├─ dart_test.yaml                # tags: integration {skip: "..."} (계약 7.4.8 v1.1, content in 8.2 I12)
 ├─ .gitignore                    # flutter create default + test/web/sqlite3.wasm, test/web/drift_worker.js
 ├─ firebase.json                 # Hosting config (6.12); M4 adds rules refs to ../packages/sync_engine/firebase/*
 ├─ tool/
@@ -302,7 +303,8 @@ app/
 │     │  ├─ settings_sections.dart     # SettingsSectionEntry, defaultSettingsSections()
 │     │  ├─ storage_section.dart       # '저장 공간' (CORE StorageInfo / PersistenceStatus)
 │     │  ├─ about_section.dart         # '앱 정보'
-│     │  └─ backup_export.dart         # exportBackup(): flush → exportBackupJson → download
+│     │  ├─ backup_export.dart         # BackupCancelToken, prepareBackup(): flush → exportBackupJson (cancellable wait); deliverBackup(): share / download
+│     │  └─ backup_sheet.dart          # BackupReadySheet: [공유 · 파일에 저장] [내려받기] (fresh user activation)
 │     ├─ update/
 │     │  ├─ update_checker.dart
 │     │  └─ update_banner.dart
@@ -314,6 +316,7 @@ app/
 │  ├─ fakes/                     # FakeWebPlatform, FakeAppModule, CountingNoteStore, fakeOpenNoteStore,
 │  │                             # RecordingLocalDataEraser, fake PDF actions (5.7)
 │  ├─ app/  bootstrap/  build/  errors/  modules/  routing/  settings/  update/
+│  ├─ support/contract_strings.dart  # 계약 7.4.5 fixed banner sentences (V5·V6 compare screens with these)
 │  ├─ integration/               # @Tags(['integration']) — V5 smoke (G2)
 │  └─ web/                       # @TestOn('browser') only, run by `ws test --platform chrome`
 ├─ web/
@@ -338,7 +341,8 @@ tool/
 ├─ web_assets.yaml            # files required in app/web (4.3, 계약 7.4.9)
 ├─ src/
 │  ├─ workspace.dart          # Workspace, WorkspaceMember (pubspec parsing, graph, pure Dart flag)
-│  ├─ rules.dart              # WorkspaceRules, checkWorkspace(), RuleViolation (R1–R13)
+│  ├─ rules.dart              # WorkspaceRules, checkWorkspace(), RuleViolation (R1–R13, R15)
+│  ├─ test_tags.dart          # R15 (B1-4): @Tags / tags: literal scanner + dart_test.yaml check (계약 7.4.8 v1.2)
 │  ├─ export_names.dart       # R14 (integration stage G3, package:analyzer 13.3.0)
 │  ├─ dart_imports.dart       # import/export directive scanner
 │  ├─ affected.dart           # affectedPackages()
@@ -347,7 +351,7 @@ tool/
 │  ├─ channel_id.dart         # previewChannelId()
 │  ├─ build_info_file.dart    # build_info.json writer
 │  ├─ web_finalize.dart       # finalize build/web (copy info, manifest label, verify, size report)
-│  ├─ web_assets.dart         # verify/fetch tool/web_assets.yaml entries
+│  ├─ web_assets.dart         # verify/fetch tool/web_assets.yaml entries (sha256: package:crypto 3.0.8)
 │  └─ png_size.dart           # read PNG IHDR width/height
 └─ test/
    ├─ fixtures/               # tiny fake workspaces for rule / test-plan / export-name tests
@@ -398,13 +402,13 @@ INFRA는 의존 그래프의 맨 위(앱)라서 다른 패키지가 import하는
 | 새 외부 의존성 | 자기 pubspec에 정확 버전으로 추가 가능, 결과 보고에 '의존성 추가'. `pubspec.lock`은 루트 단일 파일이라 통합 때 INFRA가 재생성(6.1). 7.5 표에 없는 패키지는 `ws check`가 경고(R9w), 통합 G1 이후 `--strict`에서 위반 | R9 |
 | analysis_options | 패키지에 **두지 않는다**. 루트 파일이 자동 적용 (확인함) | R3 |
 | Material | `package:material_ui/material_ui.dart`만 사용. `package:flutter/material.dart` · `package:flutter/cupertino.dart` 금지 (lib, test 모두). `MaterialUiCompatibilityBridge` 사용 안 함 | R7 |
-| 진입점만 import | 다른 워크스페이스 패키지는 `lib/` 최상위 진입점만 import(`package:<pkg>/src/` 금지, lib·test 모두). `testing.dart`·`testing_vm.dart`는 `test/`에서만 | R7, R4 |
-| 플랫폼 분리 | `lib/`에서 `dart:io` · `dart:ffi` · `dart:html` · `dart:js` · `dart:js_util` · `package:js` 금지. 네이티브 전용은 `*_native.dart`(또는 `*_io.dart`), 웹 전용(`dart:js_interop`, `package:web`)은 `*_browser.dart`에 두고 **조건부 import/export로만** 불러온다. 예외 파일: `packages/note_core/lib/testing_vm.dart`(VM 테스트 전용) | R4·R5·R6 |
+| 진입점만 import | 다른 워크스페이스 패키지는 `lib/` 최상위 진입점만 import(`package:<pkg>/src/` 금지, lib·test 모두). `testing.dart`·`testing_vm.dart`는 `test/`에서만 — `lib/`에서는 `package:` URI로 import 금지(같은 패키지의 `lib/testing*.dart`끼리 상대 import는 허용) | R7, R4 |
+| 플랫폼 분리 | `lib/`에서 `dart:io` · `dart:ffi` · `dart:html` · `dart:js` · `dart:js_util` · `package:js` 금지. 네이티브 전용은 `*_native.dart`(또는 `*_io.dart`), 웹 전용(`dart:js_interop`, `package:web`)은 `*_browser.dart`에 두고 **조건부 import/export로만** 불러온다. 네이티브 전용 패키지(`package:ffi/`, `package:pdfium_dart/`, `package:drift/native.dart`)도 `*_native.dart`·`*_io.dart`에서만. 예외 파일: `packages/note_core/lib/testing_vm.dart`(VM 테스트 전용) | R4·R5·R6 |
 | 조건부 import 형태 | `import 'x_stub.dart' if (dart.library.js_interop) 'x_browser.dart' if (dart.library.ffi) 'x_native.dart';` (계약 7.4.3) | R6 |
 | VM 테스트 | `test/` 아래 (`test/web/` 제외). **테스트 코드의 네트워크 접근 금지**, 실제 시간 대기 금지 (`fake_async`·`tester.pump`) | 리뷰 |
 | 브라우저 테스트 | **`test/web/` 한 곳**, 파일 첫 줄 `@TestOn('browser')`. 준비가 필요한 멤버는 `tool/prepare_web_test.dart`를 두면 `ws test --platform chrome`이 먼저 실행한다(멤버 디렉터리에서 `dart run tool/prepare_web_test.dart`). 복사된 자산은 패키지 `.gitignore`로 제외 | `ws test` |
 | 다운로드 | 테스트 코드는 네트워크 금지. **빌드 훅**(sqlite3 미리 빌드 라이브러리, pdfium_dart의 PDFium 바이너리·gcc)과 **준비 스크립트**의 다운로드는 허용하고 CI에서 캐시한다(6.13) | CI 캐시 |
-| 태그 | `golden`(VM), `perf`(기본 skip), `bench`(기본 제외 — `ws test`가 `-x bench`), `pdfium`, `integration`(통합 단계에서만, 패키지 `dart_test.yaml`에서 skip → `ws test --run-skipped -t integration`), `scenario`(SYNC) | `ws test` |
+| 태그 | `golden`(VM), `perf`(기본 skip), `bench`(기본 제외 — `ws test`가 `-x bench`), `pdfium`, `integration`(통합 단계에서만 → `ws test --run-skipped -t integration`), `scenario`(SYNC). **계약 7.4.8 v1.1**: 태그를 쓰는 패키지는 패키지 `dart_test.yaml`의 `tags:`에 모두 선언하고 `integration`·`perf`는 거기서 `skip: "<사유>"`(예: `integration: {skip: "integration stage only — ws test --run-skipped -t integration"}`). `ws test`의 기본 제외는 `-x bench`뿐이라 선언이 없으면 동시 개발 중 B2 상태 CORE로 통합 테스트가 돌아 실패한다. **계약 7.4.8 v1.2**(C12-01): `ws check` R15가 **B1부터** 이 규칙을 위반(종료 1)으로 검사하므로 각 영역 브랜치에서 바로 잡힌다. R15 스캐너는 **문자열 리터럴 태그만** 인식하므로 태그는 `@Tags(['integration'])`·`tags: ['golden']`처럼 리터럴로 쓴다(변수·상수로 넘기지 않는다). `dart_test.yaml`은 그 패키지에서 태그를 쓰는 첫 테스트보다 먼저(보통 골격 작업에서) 만든다 | `ws test`, R15(B1부터) |
 | 골든 테스트 | `test/goldens/` 아래, `@Tags(['golden'])` + `@TestOn('vm')`. 컨테이너(리눅스)에서 생성하고 CI(ubuntu)에서 비교 | 리뷰 |
 | 화면 크기 | 위젯 테스트 기준 iPad Pro 13" 논리 크기(DPR 2) 세로 1032×1376, 가로 1376×1032 (계약 7.4.8) | 리뷰 |
 | 앱이 주입할 provider | 기본 구현이 없으면 `throw UnimplementedError('<name> must be overridden by the app shell')`, 선택 자리는 `Provider<T?>((ref) => null)`. 모든 provider는 `name:` 인자에 같은 이름(계약 7.4.4). 루트 override는 계약 7.3.3 표에 있는 것만 | G2 스모크 |
@@ -419,7 +423,7 @@ INFRA는 의존 그래프의 맨 위(앱)라서 다른 패키지가 import하는
 | 명령 | 옵션 | 동작 | 종료 코드 |
 |---|---|---|---|
 | `list` | | 멤버를 위상 순서(의존 대상 먼저)로 출력 | 0 |
-| `check` | `--no-format`, `--strict`, `--no-exports` | 규칙 R1–R13 검사 (통합 단계 G3부터 R14 포함, `--no-exports`로 건너뜀). 위반은 `경로:줄: [규칙] 메시지`로 출력. 경고(R9w)는 `--strict`일 때만 위반 | 0 / 1 |
+| `check` | `--no-format`, `--strict`, `--no-exports` | 규칙 R1–R13·R15 검사 (B1 판은 R1–R3·R7–R9·R15 — 계약 7.6 B1 v1.2, I1에서 R4–R6·R10–R13 추가, 통합 단계 G3부터 R14 포함, `--no-exports`로 건너뜀). 위반은 `경로:줄: [규칙] 메시지`로 출력. 경고(R9w)는 `--strict`일 때만 위반 | 0 / 1 |
 | `analyze` | | 루트에서 `flutter analyze --fatal-infos` | analyze 종료 코드 |
 | `test` | `--package <name>`(반복), `--affected-since <git-ref>`, `--platform vm\|chrome`(기본 vm), `-t/--tags <tag>`(반복), `-x/--exclude-tags <tag>`(반복, 기본 `bench`), `--run-skipped`, `--reporter <r>` | 멤버마다 멤버 디렉터리에서 `flutter test` 실행. **vm**: `test/` 아래 `*_test.dart` 중 `test/web/` 밖의 파일만 넘긴다. **chrome**: `test/web/`가 있는 멤버만, ① 그 멤버에 `tool/prepare_web_test.dart`가 있으면 먼저 `dart run tool/prepare_web_test.dart`(5분 제한, 실패하면 그 멤버를 '준비 실패'로 기록하고 테스트 건너뜀) ② `flutter test --platform chrome test/web`. Chrome: 환경 변수 `CHROME_EXECUTABLE`이 있으면 그대로 전달, 없으면 `PATH`에서 `google-chrome`·`google-chrome-stable`·`chromium`·`chromium-browser`를 찾고 없으면 종료 코드 3. 태그 옵션은 그대로 `flutter test`에 전달(통합 단계: `ws test --run-skipped -t integration`). 끝에 멤버별 결과 요약 표(멤버·플랫폼·준비·통과/실패/건너뜀·시간) | 하나라도 실패 시 1 |
 | `affected` | `--since <git-ref>` | 바뀐 멤버 + 그 멤버에 의존하는 멤버를 위상 순서로 출력 | 0 |
@@ -487,13 +491,24 @@ pinned_external:               # R9: must be identical wherever declared = 00-ov
 forbidden_imports:
   lib: [dart:io, dart:ffi, dart:html, dart:js, dart:js_util, package:js/]
   lib_and_test: [package:flutter/material.dart, package:flutter/cupertino.dart]
-test_only_entrypoints: [testing.dart, testing_vm.dart]   # R4: never imported from lib/
-lib_exceptions:                # R4 file-level exceptions (00-overview 7.4.2)
-  - packages/note_core/lib/testing_vm.dart   # VM test helper (drift native); imported from test/ only
+native_only_imports:           # R4: in lib/, only from files ending with native_suffixes
+  - package:ffi/
+  - package:pdfium_dart/
+  - package:drift/native.dart
+test_only_entrypoints: [testing.dart, testing_vm.dart]
+  # R4: a lib/ file must not import/export package:<member>/<entry> for these entries.
+  # Checked on package: URIs. Relative imports between the SAME package's
+  # lib/testing*.dart files are allowed (e.g. testing_vm.dart → 'testing.dart');
+  # a relative URI from any other lib/ file that resolves to lib/testing*.dart is a violation.
+lib_exceptions:                # R4 exceptions (00-overview 7.4.2); a trailing '/' = whole directory
+  - packages/note_core/lib/testing_vm.dart   # VM test helper (dart:ffi, drift native); imported from test/ only
+  # - packages/ink_engine/example/lib/       # added only if the ink lab becomes a member (1.3, INFRA-O1)
 web_only_imports: [dart:js_interop, dart:js_interop_unsafe, package:web/]
 native_suffixes: [_io.dart, _native.dart]
 web_suffixes: [_browser.dart]
 generated_files: ['*.g.dart', '*.freezed.dart', 'schema_versions.dart']   # skipped by R11 format
+fixture_dirs: [tool/test/fixtures/]   # skipped by R11 format and by root analysis (6.2 exclude): checker test fixtures
+skip_by_default_tags: [integration, perf]   # R15 (from B1, 계약 7.4.8 v1.2): must have `skip:` in the package dart_test.yaml
 global_triggers: [pubspec.yaml, pubspec.lock, analysis_options.yaml, tool/, .github/workflows/]
 ```
 
@@ -515,7 +530,7 @@ assets:
     reason: drift web worker (drift 2.35.3 — same bytes as pub cache drift-2.35.3/drift_worker.js)
 ```
 
-- `web-assets fetch`는 sha256이 일치할 때만 파일을 쓴다. sha256 계산은 GNU coreutils `sha256sum` 프로세스 호출(컨테이너·ubuntu 러너에 있음). 계약 7.5에 루트용 `crypto`가 없어서다 — 12.3 계약 변경 제안 P4가 승인되면 `package:crypto` 3.0.8로 바꾼다.
+- `web-assets fetch`는 sha256이 일치할 때만 파일을 쓴다. sha256은 `package:crypto` 3.0.8(`sha256.convert(bytes)`)로 계산한다 — 루트 dev 의존(3.2, 계약 7.5 v1.1 C11-29, 12.3 P4 승인). 외부 프로그램(`sha256sum`)에는 기대지 않는다.
 - 두 파일은 커밋한다(빌드·배포에 네트워크가 필요 없게). CORE·`sqlite3`·`drift` 버전을 올리면 이 표도 같이 바꾼다(R12가 불일치를 잡음).
 
 ### 4.4 앱 셸 런타임 규약 (다른 영역이 기대할 수 있는 것)
@@ -530,7 +545,7 @@ assets:
 | 수명주기 | 앱이 숨겨지면(웹 `visibilitychange: hidden`·`pagehide`, 네이티브 `AppLifecycleState.hidden/paused/detached`) 시작된 모듈의 `onAppHidden()` 호출 → CORE `store.flush()`(500ms 제한). 최소 간격 1초. 종료·재시도 때 `stop()` → `store.close()` |
 | 오류 수집 | `FlutterError.onError`, `PlatformDispatcher.onError`, Riverpod `providerDidFail`, CORE `PersistenceStatus.lastError`(CoreModule이 구독) 모두 `AppErrorLog`로 (최근 100건) |
 | 런타임 정보 | 렌더러·빌드 정보는 앱 셸 내부 전용. 패키지가 렌더러를 알아야 하면 `kIsWasm`(flutter/foundation, 확인함) 사용 |
-| 웹 기준 URL | 경로 URL 전략이라 `Uri.base`(dart2js = `self.location.href`, 확인함)는 `/notes/<id>` 같은 깊은 경로가 된다. 앱 셸은 CORE에 정적 파일 경로를 `document.baseURI` 기준 **절대 URL**로 넘긴다(6.4). 다른 패키지도 정적 파일 주소를 `Uri.base` 상대 경로로 만들지 않는다(12.3 P3) |
+| 웹 기준 URL | **계약 7.2.12·7.4.3(v1.1, C11-11)**. 경로 URL 전략이라 `Uri.base`(dart2js = `self.location.href`, 확인함)는 `/notes/<id>` 같은 깊은 경로가 된다. 앱 셸은 운영에서 CORE `WebStorageConfig`에 `document.baseURI` 기준으로 해석한 **절대 URL**을 넘긴다(6.4). CORE는 `Uri.base.resolve(path)`를 그대로 쓰고 절대 URL은 그 호출을 그대로 통과하므로, INFRA는 절대 URL만 넘기면 된다(CORE 쪽 변경 없음). 상대 경로는 테스트에서만. 어떤 패키지도 정적 파일·에셋 주소를 `Uri.base` 상대로 만들지 않는다(주소 질의 읽기 `Uri.base.queryParameters`는 대상 밖) |
 
 ### 4.5 앱 셸 내부 API (시그니처 전체)
 
@@ -627,6 +642,8 @@ final class RuntimeInfo {
 ```dart
 enum WebVisibility { visible, hidden }
 
+enum WebShareResult { shared, cancelled, unsupported, failed }
+
 /// Browser-only APIs behind an interface. The VM/native implementation is a
 /// no-op so that every caller works in `flutter test` and on native builds.
 abstract interface class WebPlatform {
@@ -642,7 +659,9 @@ abstract interface class WebPlatform {
   /// Absolute URL of [relativePath] resolved against `document.baseURI`
   /// (honours `<base href>`; dart2js `Uri.base` is `location.href`, which is a
   /// deep path such as `/notes/<id>` under the path URL strategy).
-  /// Non-web: returns [relativePath] unchanged.
+  /// 계약 7.2.12 · 7.4.3 (v1.1): production passes ONLY these absolute URLs to
+  /// CORE WebStorageConfig; CORE keeps Uri.base.resolve(path), which returns an
+  /// absolute URL unchanged. Non-web: returns [relativePath] unchanged.
   String resolveAppUrl(String relativePath);
 
   /// GET [relativePath] (resolved by fetch() against document.baseURI) with
@@ -656,8 +675,24 @@ abstract interface class WebPlatform {
   /// Starts a browser download of [bytes]: Blob + `<a download=fileName>` click,
   /// object URL revoked after 30 s (Safari needs the delay).
   /// Returns false when unsupported (non-web) or when the browser threw.
-  /// Never throws.
+  /// Never throws. NOTE (미확인, 11절): an iPadOS home-screen app may ignore
+  /// `<a download>`; [shareFile] is the second path. Call from a tap handler.
   Future<bool> downloadBytes(
+    Uint8List bytes, {
+    required String fileName,
+    String mimeType = 'application/octet-stream',
+  });
+
+  /// navigator.canShare({files: [File([], 'probe', {type: mimeType})]}).
+  /// False off-web, when navigator.share / canShare is missing, or when it
+  /// throws. Never throws.
+  bool canShareFiles({String mimeType = 'application/octet-stream'});
+
+  /// navigator.share({files: [File([bytes], fileName, {type: mimeType})]})
+  /// (Safari 15+ — 미확인). Must be called directly from a tap handler (user
+  /// activation). AbortError → cancelled; missing API → unsupported; any
+  /// other error → failed. Never throws.
+  Future<WebShareResult> shareFile(
     Uint8List bytes, {
     required String fileName,
     String mimeType = 'application/octet-stream',
@@ -808,6 +843,14 @@ abstract class AppModule {
 
   /// Release resources. Called in reverse start order on retry/shutdown.
   Future<void> stop() async {}
+
+  /// Called by AppBootstrapper right after [start] exceeded [startTimeout].
+  /// The start future is NOT cancelled and may still complete later; the
+  /// returned future completes once that late result has been cleaned up
+  /// (CoreModule: a late NoteStore is closed at once). AppBootstrapper.shutdown
+  /// awaits it (at most 2 s) so a retry never runs next to a late resource.
+  /// Must not throw; log failures to the context's errorLog.
+  Future<void> onStartAbandoned() async {}
 
   /// Destructive last-resort recovery for the startup error screen
   /// ("이 기기 데이터 지우고 다시 시작"). Only CoreModule provides one.
@@ -991,7 +1034,11 @@ final class AppBootstrapper {
   /// Errors are logged (source: module), never thrown.
   Future<void> notifyAppHidden();
 
-  /// Stops started modules in reverse order (2 s timeout each).
+  /// Stops started modules in reverse order (2 s timeout each), then awaits
+  /// the onStartAbandoned() cleanups of modules whose start timed out (2 s
+  /// max in total; a cleanup still running after that is logged, source:
+  /// module). BootstrapApp's "다시 시도" creates the next bootstrapper only
+  /// after this completes (6.4 2-2).
   Future<void> shutdown();
 }
 
@@ -1004,7 +1051,9 @@ class BootstrapApp extends StatefulWidget {
     this.appBuilder,
   });
 
-  /// Called for the first attempt and for every retry.
+  /// Called for the first attempt and for every retry — a retry calls it only
+  /// after the previous bootstrapper's shutdown() completed (late-store
+  /// cleanup included, 6.4 2-2).
   final AppBootstrapper Function() createBootstrapper;
   final AppErrorLog errorLog;
 
@@ -1306,11 +1355,20 @@ class SettingsScreen extends ConsumerWidget {
   final VoidCallback onClose;
 }
 
-/// '저장 공간': CORE StorageInfo (re-queried when shown and by "다시 확인"
-/// via latestStorageInfoProvider; storageInfoProvider while loading) and
-/// PersistenceStatus (persistenceStatusProvider). Shows backend, durable,
-/// multi-tab safety, persistGranted, usage / quota, missing browser
-/// features, pending writes, last commit time + latency, consecutive failures.
+/// '저장 공간': CORE StorageInfo and PersistenceStatus.
+/// - StorageInfo: shows latestStorageInfoProvider (re-queried when the section
+///   is shown; "다시 확인" = ref.invalidate(latestStorageInfoProvider)), and
+///   storageInfoProvider while that is loading. latestStorageInfoProvider is
+///   the ONLY place in the app shell that calls refreshStorageInfo(); right
+///   after it returns it calls ref.invalidate(storageInfoProvider) (계약 7.2.12
+///   v1.1, C11-10) so the LIBRARY / EDITOR banners and diagnostics see the new
+///   persistGranted / usage. This section uses the returned value directly.
+/// - PersistenceStatus: persistenceStatusProvider (first value arrives right
+///   after subscribing — 계약 7.2.12 v1.1, C11-09; the first frame falls back
+///   to NoteStore.persistenceStatus).
+/// Shows backend, durable, multi-tab safety, persistGranted, usage / quota,
+/// missing browser features, pending writes, last commit time + latency,
+/// consecutive failures.
 class StorageSection extends ConsumerWidget {
   const StorageSection({super.key});
 }
@@ -1318,22 +1376,81 @@ class StorageSection extends ConsumerWidget {
 /// '앱 정보': build label, renderer, standalone, startup times, error count
 /// + list, "진단 정보 복사", "새 버전 확인", "백업 내보내기",
 /// "오픈소스 라이선스" (showLicensePage).
-class AboutSection extends ConsumerWidget {
+/// "백업 내보내기": prepareBackup() with a progress row (button disabled):
+/// spinner + '백업을 만드는 중…' + [취소]. [취소] calls
+/// BackupCancelToken.cancel() → prepareBackup returns null at once, the
+/// button is enabled again, no snackbar, no errorLog record (only the wait
+/// ends; CORE's write queue keeps retrying — 계약 7.2.9 v1.2, C12-09).
+/// While waiting, if storageWarningOf(storageInfoProvider,
+/// persistenceStatusProvider) == StorageWarning.writeFailing the row adds
+/// '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.'.
+/// On a BackupFile → BackupReadySheet; the sheet's buttons call
+/// deliverBackup() from their own tap (fresh user activation for share /
+/// download).
+class AboutSection extends ConsumerStatefulWidget {
   const AboutSection({super.key});
 }
 
-enum BackupExportOutcome { downloaded, unsupported, failed }
+/// Backup bytes ready to hand to the browser.
+@immutable
+final class BackupFile {
+  const BackupFile({required this.bytes, required this.fileName});
+  final Uint8List bytes;
+  final String fileName;               // backupFileName(now)
+  String get mimeType => 'application/json';
+}
 
-/// store.flush() → store.exportBackupJson() (CORE-S3) →
-/// web.downloadBytes(bytes, fileName: backupFileName(now), mimeType:
-/// 'application/json'). Never throws; failures go to [errorLog]
-/// (source: manual).
-Future<BackupExportOutcome> exportBackup({
+enum BackupDelivery { share, download }
+
+enum BackupExportOutcome { shared, downloaded, cancelled, unsupported, failed }
+
+/// Ends the WAIT of one prepareBackup call (계약 7.2.9 v1.2, C12-09: flush()
+/// and exportBackupJson() — which flushes first — neither complete nor fail
+/// while a commit is being retried). Cancelling does not touch the store.
+final class BackupCancelToken {
+  BackupCancelToken();
+  bool get isCancelled;
+  /// Idempotent. The pending prepareBackup completes with null right away.
+  void cancel();
+}
+
+/// Step 1: store.flush() → store.exportBackupJson() (계약 7.2.12 v1.1,
+/// C11-08). Never throws. No timeout of its own: during a write retry both
+/// calls stay pending (계약 7.2.9 v1.2), so the caller offers [cancel].
+/// - success → BackupFile.
+/// - flush / export error → null + one record in [errorLog] (source: manual).
+/// - cancel.cancel() before completion → null at once, NO errorLog record;
+///   a late result or error of the abandoned calls is dropped (a storage
+///   failure is already logged by CoreModule via PersistenceStatus.lastError).
+Future<BackupFile?> prepareBackup({
   required NoteStore store,
-  required WebPlatform web,
   required AppErrorLog errorLog,
+  BackupCancelToken? cancel,
   DateTime? now,
 });
+
+/// Step 2, called directly from a BackupReadySheet button:
+/// share → web.shareFile(...) (shared / cancelled / unsupported / failed),
+/// download → web.downloadBytes(...) (downloaded / unsupported).
+/// Never throws; `failed` adds one record to [errorLog] (source: manual),
+/// `cancelled` adds none.
+Future<BackupExportOutcome> deliverBackup(
+  BackupFile file, {
+  required BackupDelivery via,
+  required WebPlatform web,
+  required AppErrorLog errorLog,
+});
+
+/// Bottom sheet: file name + size, [공유 · 파일에 저장] (only when
+/// web.canShareFiles(mimeType: 'application/json')) and [내려받기].
+/// Closes with the BackupExportOutcome of the pressed button (null = dismissed).
+class BackupReadySheet extends StatelessWidget {
+  const BackupReadySheet({super.key, required this.file, required this.web,
+      required this.errorLog});
+  final BackupFile file;
+  final WebPlatform web;
+  final AppErrorLog errorLog;
+}
 
 /// 'noteapp-backup-20261104-182031.json' (local time).
 String backupFileName(DateTime localTime);
@@ -1353,7 +1470,10 @@ String backupFileName(DateTime localTime);
 | 7 | `app.about` | — | 앱 정보 | `AboutSection()` | INFRA | 이번 |
 
 - 테마 설정(PLAN 8 '일반 › 테마')은 다크 모드와 함께 이후(1.3).
-- 백업 내보내기 문구: 성공 '백업 파일을 내려받았어요. 파일 앱에 보관해 주세요.', 미지원 '이 기기에서는 아직 백업 파일을 저장할 수 없어요.', 실패 '백업을 만들지 못했어요. 진단 정보를 복사해 보내 주세요.' 진행 중에는 버튼 비활성 + 진행 표시.
+- 백업 내보내기 문구: 내려받음 '백업 파일을 내려받았어요. 파일 앱에 보관해 주세요.', 공유함 '공유 시트로 보냈어요. 파일 앱에 저장됐는지 확인해 주세요.', 취소 — 문구 없음, 미지원 '이 기기에서는 이 방법으로 백업 파일을 저장할 수 없어요. 다른 방법을 눌러 주세요.', 실패(만들기·공유 오류) '백업을 만들지 못했어요. 진단 정보를 복사해 보내 주세요.' 만드는 중에는 버튼 비활성 + 진행 표시('백업을 만드는 중…' + [취소]).
+- **백업 준비 대기** (INFRA-3-3, 계약 7.2.9 v1.2 C12-09): CORE 쓰기 `Future`는 커밋 뒤 완료되고, 커밋이 실패해 재시도하는 동안에는 **완료도 오류도 없다**(`NoteStore.flush()`도 같음 — 앞에 쌓인 쓰기가 재시도 중이면 그 뒤). `exportBackupJson()`은 먼저 flush하므로 같다. 그래서 `prepareBackup`은 시간 제한으로 실패 처리하지 않고(재시도가 곧 성공하면 그대로 백업이 나온다) 진행 표시에 **[취소]**를 둔다: 누르면 대기만 끊고 `null`, 버튼 다시 활성, 스낵바·errorLog 없음(쓰기 큐·메모리 상태는 그대로 — 계약 7.2.9 '소비하는 쪽은 저장 실패를 예외로 기대하지 않는다'). 기다리는 동안 `storageWarningOf(info, status) == StorageWarning.writeFailing`이면 진행 줄 아래에 '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.'(셸 문구, `AppStrings`)를 띄운다 — 배너 문구(계약 7.4.5 고정 문장)와는 다른 진행 표시 문구다. 저장 실패 자체는 `CoreModule`이 `PersistenceStatus.lastError`로 errorLog에 남기므로 취소가 따로 기록하지 않는다.
+- 두 단계로 나눈 이유: `navigator.share`는 사용자 탭 직후(사용자 활성화)에만 허용되고, Safari가 `await`(flush·JSON 생성) 뒤에도 활성화를 유지하는지 미확인이다. 바이트를 먼저 만들고 시트의 버튼 탭에서 바로 공유·내려받기를 부르면 두 경로 모두 새 활성화를 받는다. iPadOS 홈 화면 앱에서 `<a download>`가 동작하지 않을 수 있는 위험(11절)에 대한 두 번째 경로가 공유 시트의 '파일에 저장'이다.
+- **기반 단계 주의** (INFRA-2-2): B2 가짜 저장소의 `exportBackupJson`은 `UnimplementedError`다(계약 7.6, CORE T19에서 구현). 그래서 `backup_export_test`·`about_section_test`는 가짜 저장소에 위임하지 않고 `CountingNoteStore`의 `exportBackupResult`(결과·예외 주입, 5.7)를 쓴다. 실제 형식 확인은 CORE T19 테스트 몫이다.
 
 #### 4.5.9 모듈 어댑터 — `src/modules/`
 
@@ -1379,12 +1499,26 @@ final class CoreModule extends AppModule {
   @override
   Duration get startTimeout => const Duration(seconds: 20); // critical
 
-  /// config = configFor(context); store = await open(config);
-  /// context.publish<NoteStore>(store); subscribes
-  /// store.persistenceStatusStream and logs every NEW lastError
-  /// (lastErrorAt changed) to context.errorLog (source: module, 계약 7.4.5).
+  /// config = configFor(context); _opening = open(config); store = await
+  /// _opening; if onStartAbandoned() already ran → return without publishing
+  /// (the late store is closed there). Else context.publish<NoteStore>(store);
+  /// subscribes store.persistenceStatusStream (its first event is the current
+  /// status, right after listen — 계약 7.2.12 v1.1) and logs every NEW
+  /// lastError (lastErrorAt differs from the last seen event; a non-null
+  /// lastError in the first event is logged once) to context.errorLog
+  /// (source: module, 계약 7.4.5).
   @override
   Future<void> start(AppModuleContext context);
+
+  /// start() exceeded 20 s (INFRA-2-9). Marks the attempt abandoned; when
+  /// _opening later completes with a NoteStore it is closed AT ONCE (close
+  /// failure → errorLog, source: module); a late open failure is ignored (the
+  /// timeout is already reported). Completes when that close has finished, so
+  /// a retry's openNoteStore / deleteLocalNoteData never meets the late store
+  /// (CORE 6.18: StateError while a store with that config is open).
+  /// Idempotent; never closes a store twice.
+  @override
+  Future<void> onStartAbandoned();
 
   /// [noteStoreProvider.overrideWithValue(store)] — the only CORE override.
   @override
@@ -1417,6 +1551,9 @@ final class CoreModule extends AppModule {
 ///   ),
 /// ) — every other field keeps the CORE 4.8 default
 /// (databaseName 'noteapp', requestPersistentStorage true, …).
+/// 계약 7.2.12 · 7.4.3 (v1.1, C11-11): on the web both paths are ABSOLUTE
+/// URLs resolved against document.baseURI; CORE's Uri.base.resolve(path)
+/// returns them unchanged. Never relative in production.
 NoteStoreConfig defaultNoteStoreConfig(AppModuleContext context);
 
 /// Initializes package:pdf_io. Non-critical: PDF failure must not block notes.
@@ -1451,6 +1588,8 @@ final class PdfModule extends AppModule {
 
 /// Static wiring between feature packages (계약 7.3.3). No async work.
 /// PDF-related overrides are added only when the PDF module started.
+/// The PDF render stats section takes no injected stats: pdfRenderStatsProvider
+/// is read as is (B4: zero-stats notifier, 계약 7.6 B4 v1.2 — C12-06).
 final class FeatureWiringModule extends AppModule {
   FeatureWiringModule({
     LibraryPdfImportAction importPdf = importPdfAsNewNote,
@@ -1493,6 +1632,9 @@ final class FeatureWiringModule extends AppModule {
 // --- src/modules/pdf_wiring.dart (pure mapping, unit-tested) ---
 
 /// EditorMenuContext → PdfMenuInvocation (06-pdf 5.5 example).
+/// onNavigate is navigateToPage itself: focusRectPt is passed through
+/// unchanged (계약 7.2.17 v1.1, C11-21 — displayed page pt of the note's
+/// Page.size, origin top-left, y down; INFRA never converts it).
 PdfMenuInvocation pdfMenuInvocationOf(EditorMenuContext menu) =>
     PdfMenuInvocation(
       noteId: menu.noteId,
@@ -1536,6 +1678,10 @@ List<String> formatPdfRenderStats(PdfRenderStats stats);
 /// DevOverlaySection(id: 'pdf.render', title: 'PDF 렌더',
 ///   lines: PdfRenderStatsLines(ref.watch(pdfRenderStatsProvider)))
 /// — the lines object is disposed with the provider (ref.onDispose).
+/// Reads the REAL pdfRenderStatsProvider (no injection parameter): in the
+/// foundation stage PDF B4 builds it without exception as
+/// ValueNotifier(PdfRenderStats.zero) (계약 7.6 B4 v1.2, C12-06), so a
+/// container holding only the module overrides can build this section.
 DevOverlaySection pdfRenderStatsSection(Ref ref);
 
 /// [CoreModule(), PdfModule(), FeatureWiringModule()] — ids unique.
@@ -1580,10 +1726,23 @@ final appNavigatorProvider = Provider<AppNavigator>(
     name: 'appNavigatorProvider');
 
 /// CORE StorageInfo re-queried (persisted() / estimate() inside CORE) each
-/// time the storage section or a diagnostics copy needs it.
-final latestStorageInfoProvider = FutureProvider.autoDispose<StorageInfo>(
-    (ref) => ref.watch(noteStoreProvider).refreshStorageInfo(),
-    retry: noRetry, name: 'latestStorageInfoProvider');
+/// time the storage section or a diagnostics copy needs it. The app shell's
+/// ONLY caller of refreshStorageInfo(). 계약 7.2.12 (v1.1, C11-10): after it
+/// returns, invalidate storageInfoProvider (a plain Provider that never
+/// re-reads by itself) so other screens — LIBRARY / EDITOR banners,
+/// diagnostics — see the new persistGranted / usage; this provider's own
+/// readers use the returned value. backend / isDurable never change at
+/// runtime, so the notDurable banner decision is unaffected.
+/// `ref.mounted` guards the case where the section was closed during the
+/// await — that value then reaches other screens with the next refresh
+/// (Riverpod 3.4.3: Ref use after dispose throws UnmountedRefException;
+/// invalidate after await + mounted guard 확인함, scratch infra3/invalidate).
+final latestStorageInfoProvider =
+    FutureProvider.autoDispose<StorageInfo>((ref) async {
+  final info = await ref.watch(noteStoreProvider).refreshStorageInfo();
+  if (ref.mounted) ref.invalidate(storageInfoProvider);
+  return info;
+}, retry: noRetry, name: 'latestStorageInfoProvider');
 ```
 
 ---
@@ -1592,7 +1751,7 @@ final latestStorageInfoProvider = FutureProvider.autoDispose<StorageInfo>(
 
 초안의 '가정한 시그니처'(`openNoteCore`, `NoteCoreHandle`, `NoteCoreConfig`, `NoteCoreOpenException`, `EditorSettingsSection`, `startSync` 등)는 **모두 폐기**했다. 아래 코드 블록은 계약 7장의 원문 발췌(본문 생략)이고, 앱 셸에서 이 이름을 쓰는 곳은 모듈 어댑터(`app/lib/src/modules/*`), 화면 빌더(`screen_builders.dart`), 설정 섹션 목록(`settings_sections.dart`), 백업(`backup_export.dart`)뿐이다.
 
-### 5.1 CORE (`package:note_core/note_core.dart`, 계약 7.2.2 · 7.2.12 · 7.2.14)
+### 5.1 CORE (`package:note_core/note_core.dart`, 계약 7.2.2 · 7.2.9 · 7.2.12 · 7.2.14 — v1.2 기준)
 
 ```dart
 // 계약 7.2.2 (원문 발췌)
@@ -1605,27 +1764,48 @@ final class NoteStoreOpenException extends NoteCoreException {
   final Object? cause;
 }
 
-// 계약 7.2.12 (원문 발췌)
+// 계약 7.2.12 (v1.2 기준 원문 그대로 — 블록은 v1.1 이후 바뀌지 않음, v1.2는 시그니처 변경 없음)
 final class PersistenceStatus { /* CORE 4.8 */ }
 enum StorageBackend { /* CORE 4.8 */ }
 final class StorageInfo { /* CORE 4.8: backend, isDurable, isMultiTabSafe, missingBrowserFeatures,
                              persistGranted, usageBytes, quotaBytes */ }
+
 enum StorageWarning { writeFailing, notDurable }
+/// writeFailing when status.consecutiveFailures >= 3, else notDurable when !info.isDurable,
+/// else null. LIBRARY (library screen) and EDITOR (editor screen) show the same banner text.
 StorageWarning? storageWarningOf(StorageInfo info, PersistenceStatus status);
-final class WebStorageConfig { /* CORE 4.8: sqlite3.wasm, drift_worker.js, blob DB name */ }
+
+final class WebStorageConfig {
+  /* CORE 4.8: sqlite3.wasm, drift_worker.js, blob DB name.
+     (v1.1) Paths are resolved with Uri.base.resolve(path), so an absolute URL is used as is.
+     In production the app shell ALWAYS passes absolute URLs resolved against
+     document.baseURI (01-infra 6.4) — dart2js Uri.base is location.href, which breaks
+     relative paths on deep links such as /notes/<id>. Relative paths are for tests only. */
+}
 final class NoteStoreConfig {
   /* CORE 4.8. ownerId is used only when a new database is created; a persisted owner
      (after reassignOwner) wins. requestPersistentStorage: web persist() is called during
-     open and awaited at most 1 s; the result goes to StorageInfo.persistGranted. */
+     open and awaited at most 1 s; the result goes to StorageInfo.persistGranted.
+     (v1.1) inMemory: true reports StorageBackend.nativeMemory → isDurable == false →
+     storageWarningOf == notDurable, i.e. the storage banner shows (tests expect it). */
 }
+
 abstract interface class NoteStore {
   // ... CORE 4.8 (ownerId, library, trash, penPresets, settings, content, assets,
-  //     thumbnails, sync, changes, persistenceStatus(+Stream), storageInfo, openSession,
+  //     thumbnails, sync, changes, persistenceStatus, storageInfo, openSession,
   //     flush, close) ...
+  /// (v1.1) Emits the current persistenceStatus ONCE right after each listen, then on every
+  /// change (same rule as the watch streams, LIBRARY C-1). The fake store does the same.
+  Stream<PersistenceStatus> get persistenceStatusStream;
   IdGenerator get ids;                  // the store's generator (UUIDv7 in production)
   Clock get clock;                      // package:clock
   Future<StorageInfo> refreshStorageInfo();   // re-query persisted() / estimate()
+  /// (v1.1) Backup (7.8, CORE 6.17): every active and trashed entity as CORE 6.3 JSON with
+  /// field versions + asset metadata, NO asset bytes, no device settings / sync meta /
+  /// thumbnails. One UTF-8 JSON document, deterministic order. Flushes first.
+  Future<Uint8List> exportBackupJson();
 }
+
 /// Opens (and migrates) the database. Throws NoteStoreOpenException.
 Future<NoteStore> openNoteStore(NoteStoreConfig config);
 /// Drops the SQLite DB and the blob IndexedDB of [config] (startup error screen reset).
@@ -1637,28 +1817,67 @@ final pageThumbnailRendererProvider = Provider<PageThumbnailRenderer?>(
 final remoteAssetFetcherProvider = Provider<RemoteAssetFetcher?>(
     (ref) => null, name: 'remoteAssetFetcherProvider');
 // syncBadgeProvider — 7.2.13
-// 승인된 CORE provider 중 INFRA가 쓰는 것: noteStoreProvider(앱 셸 override 필수, 기본
-// UnimplementedError), persistenceStatusProvider, storageInfoProvider, noRetry.
+// (INFRA 메모, 계약 원문 아님) 계약 7.2.14의 승인된 CORE provider 중 INFRA가 쓰는 것:
+// noteStoreProvider(앱 셸 override 필수, 기본 UnimplementedError), persistenceStatusProvider,
+// storageInfoProvider, noRetry.
+```
+
+계약 7.2.12 본문 규칙(v1.2 기준, INFRA에 해당하는 두 문장, 원문 그대로):
+
+- 웹 `navigator.storage.persist()`·`estimate()` 호출은 **CORE만** 한다. INFRA 앱 정보·진단은 `storageInfoProvider`/`refreshStorageInfo()` 값을 표시한다.
+- `storageInfoProvider`는 plain `Provider`라 자동으로 다시 읽지 않는다(v1.1). `refreshStorageInfo()`를 부른 쪽은 끝난 뒤 `ref.invalidate(storageInfoProvider)`를 불러 다른 화면(LIBRARY·EDITOR 배너, 진단)이 새 `persistGranted`·사용량을 보게 한다. 부른 화면 자신은 반환값을 바로 써도 된다. `backend`·`isDurable`은 실행 중 바뀌지 않으므로 `storageWarningOf`의 `notDurable` 판정에는 영향이 없다.
+
+계약 7.2.9 v1.2 '쓰기 `Future`의 완료 시점'(C12-09 — INFRA에 해당하는 두 문장, 원문 그대로):
+
+- 저장소 변경 메서드(`LibraryRepository`·`TrashRepository`·`PenPresetRepository`·`SettingsRepository`의 쓰기, `createNote` 포함)는 **DB 커밋 뒤** 완료된다. 커밋이 실패하면 CORE `WriteQueue`가 무한 재시도(02-core 6.9: 100 ms → 400 ms → 1.6 s → 5 s 간격)하므로 그동안 **완료되지도, 오류로 끝나지도 않는다**. 원인은 `PersistenceStatus`·`storageWarningOf`(`writeFailing`)로만 보인다. `NoteStore.flush()`·`NoteSession.flush()`도 같다(앞에 쌓인 쓰기가 재시도 중이면 그 뒤).
+- 소비하는 쪽은 저장 실패를 예외로 기대하지 않는다(대기가 끝나지 않을 수 있음). 기다리는 화면의 처리는 각 영역이 정한다: PDF 가져오기·내보내기 진행 창은 `writeFailing`이면 지연 문구 + 닫기·취소(06-pdf), EDITOR 뒤로가기는 '저장하는 중…'을 띄우고 계속 기다림(04-editor 6.17.4). 어느 경우든 메모리 상태와 쓰기 큐는 그대로 남아 계속 재시도된다.
+
+INFRA의 `flush()` 대기는 모두 상한이나 취소가 있다(INFRA-3-3): `onAppHidden()` → 호출자 500 ms 제한(4.5.4), `UpdateChecker.applyUpdate()` → `notifyAppHidden()`(500 ms) 뒤 새로고침(6.11), 백업 준비 `prepareBackup` → 사용자 [취소](4.5.8 — `exportBackupJson()`도 먼저 flush하므로 같다). `shutdown()`의 `stop()`(= `store.close()`)도 모듈마다 2초 제한이다(4.5.4 `AppBootstrapper.shutdown`).
+
+```dart
+// 계약 7.6 'B2 테스트·개발 도우미' (v1.1 도입, v1.2 기준 변경 없음 — INFRA가 쓰는 두 진입점, 원문 그대로)
+// package:note_core/testing.dart — web-safe, test/ only
+NoteStore createFakeNoteStore({Clock? clock, IdGenerator? ids, OwnerId ownerId = kLocalOwnerId,
+    bool seedDefaultPenPresets = true,
+    StorageInfo storageInfo = const StorageInfo(backend: StorageBackend.nativeFile),
+    FakeNoteStoreFaults? faults});
+/// Failure / latency injection for other areas' tests.
+final class FakeNoteStoreFaults {
+  FakeNoteStoreFaults();
+  /// The next [count] commits fail with [error]; PersistenceStatus reports them and the
+  /// in-memory state is kept (like the real WriteQueue retry).
+  void failNextCommits(int count, {Object error = const FormatException('injected')});
+  /// Every commit completes after [delay] (use with fake_async).
+  Duration commitDelay = Duration.zero;
+}
+// StrokeFixtures, newerVersionWinsPolicy — CORE 4.10
+
+// package:note_core/testing_vm.dart — VM tests only (lib_exceptions, 7.4.2)
+/// Real CORE on NativeDatabase (filePath null = in-memory). deviceNodeId fixes the HLC node.
+/// storageInfo: value reported by NoteStore.storageInfo; null = the real backend
+/// (in-memory → nativeMemory → notDurable banner).
+Future<NoteStore> openTestNoteStore({Clock? clock, IdGenerator? ids,
+    OwnerId ownerId = kLocalOwnerId, String? filePath, String? deviceNodeId,
+    bool seedDefaultPenPresets = true, StorageInfo? storageInfo});
 ```
 
 INFRA가 쓰는 CORE 멤버 (CORE 4.8·4.10 승인분 — 필드 이름은 02-core 확정본을 따른다):
 
 | 사용처 | CORE 멤버 |
 |---|---|
-| `CoreModule` (I10) | `NoteStoreConfig(ownerId:, web:)`, `WebStorageConfig(sqlite3WasmPath:, driftWorkerPath:)`, `openNoteStore`, `NoteStore.flush()`·`close()`·`persistenceStatusStream`·`storageInfo`·`ownerId`, `deleteLocalNoteData`, `noteStoreProvider.overrideWithValue` |
+| `CoreModule` (I10) | `NoteStoreConfig(ownerId:, web:)`, `WebStorageConfig(sqlite3WasmPath:, driftWorkerPath:)`(절대 URL — 계약 7.2.12·7.4.3 v1.1), `openNoteStore`, `NoteStore.flush()`·`close()`·`persistenceStatusStream`(구독 즉시 현재 값 1회 — 계약 7.2.12 v1.1)·`storageInfo`·`ownerId`, `deleteLocalNoteData`, `noteStoreProvider.overrideWithValue` |
 | 시작 오류 화면 (I5) | `NoteStoreOpenException.reason`(`NoteStoreOpenFailure` 5종) |
-| 저장 공간 섹션·진단 (I9, I3) | `storageInfoProvider`, `NoteStore.refreshStorageInfo()`(`latestStorageInfoProvider`), `persistenceStatusProvider`, `StorageInfo`·`StorageBackend`·`PersistenceStatus` 필드(`pendingOps`, `isWriting`, `lastCommittedAt`, `lastCommitLatency`, `lastError`, `lastErrorAt`, `consecutiveFailures`) |
-| 앱 정보 '백업 내보내기' (I9) | `exportBackupJson()` — 아래 블록 |
+| 저장 공간 섹션·진단 (I9, I3) | `storageInfoProvider`, `NoteStore.refreshStorageInfo()`(`latestStorageInfoProvider` 한 곳, 끝나면 `ref.invalidate(storageInfoProvider)` — 계약 7.2.12 v1.1), `persistenceStatusProvider`, `StorageInfo`·`StorageBackend`·`PersistenceStatus` 필드(`pendingOps`, `isWriting`, `lastCommittedAt`, `lastCommitLatency`, `lastError`, `lastErrorAt`, `consecutiveFailures`) |
+| 앱 정보 '백업 내보내기' (I9) | `NoteStore.flush()`·`NoteStore.exportBackupJson()` — **계약 7.2.12 v1.1**(C11-08, 위 블록). `prepareBackup`(4.5.8) 한 곳에서만 부른다. 쓰기 재시도 중에는 둘 다 끝나지 않으므로(계약 7.2.9 v1.2, C12-09) 대기는 사용자 [취소]로 끊는다(INFRA-3-3), `persistenceStatusProvider`·`storageInfoProvider` → `storageWarningOf`로 지연 문구 |
 | `FeatureWiringModule` (I10b) | `pageThumbnailRendererProvider` |
-| 테스트 | `createFakeNoteStore({Clock? clock, IdGenerator? ids})` (`testing.dart`, 기반 단계 B2), `openTestNoteStore(...)` (`testing_vm.dart`, VM 전용, 통합 스모크) |
+| 테스트 | `createFakeNoteStore({Clock? clock, IdGenerator? ids, OwnerId ownerId = kLocalOwnerId, bool seedDefaultPenPresets = true, StorageInfo storageInfo = const StorageInfo(backend: StorageBackend.nativeFile), FakeNoteStoreFaults? faults})` (`testing.dart`, 기반 단계 B2 — 위 블록), `openTestNoteStore({Clock? clock, IdGenerator? ids, OwnerId ownerId = kLocalOwnerId, String? filePath, String? deviceNodeId, bool seedDefaultPenPresets = true, StorageInfo? storageInfo})` (`testing_vm.dart`, VM 전용 — 위 블록. INFRA V5는 실제 경로 `CoreModule` → `openNoteStore(NoteStoreConfig(inMemory: true))`를 쓰므로 직접 부르지 않고, 필요할 때만 쓴다) |
 | M4 `SyncModule` | `syncBadgeProvider`·`remoteAssetFetcherProvider` override, `NoteStore.ownerId`(실제 소유자) |
 
-```dart
-// CORE-S3 (00-review 3.2 권장, 계약 7.8 '백업 내보내기 — M4 실제 연결 전 선행 조건').
-// 계약 7.2.12의 NoteStore 시그니처에는 아직 없다 → 12.3 P2로 명시 요청.
-// INFRA는 NoteStore의 멤버로 가정하고 backup_export.dart 한 곳에서만 부른다.
-Future<Uint8List> exportBackupJson();   // active + trashed entities (JSON) + asset metadata, no bytes
-```
+B2 단계 값(계약 7.6 v1.1)과 INFRA 테스트:
+
+- 가짜 저장소 기본 `storageInfo` = `nativeFile` → 배너 없음. 가짜 `exportBackupJson`은 B2에서 `UnimplementedError`(CORE T19에서 구현) → `backup_export_test`·`about_section_test`는 지금처럼 `CountingNoteStore`의 결과 주입(`exportBackupResult`, 5.7)을 쓴다.
+- 가짜 `SyncStore`는 `ownerId`·`deviceNodeId`·`pendingChanges()`(빈 목록)·`watchPendingCount()`(0)만 값을 주고 나머지는 `UnsupportedError` — 이번 범위 INFRA는 `SyncStore`를 쓰지 않는다.
+- `openTestNoteStore`는 CORE T6 전까지 `UnimplementedError`, 실제 `openNoteStore`도 B2에서 `UnimplementedError` 허용 → 실제 CORE를 쓰는 INFRA 테스트(V5·V6)는 `integration` 태그라 동시 개발 중 기본 `ws test`에서 건너뛴다(`app/dart_test.yaml`, 계약 7.4.8 v1.1).
 
 CORE에 대한 기대 (초안의 '추가 요청'은 계약 7.4.9·CORE-S5로 모두 답이 났다):
 
@@ -1666,15 +1885,15 @@ CORE에 대한 기대 (초안의 '추가 요청'은 계약 7.4.9·CORE-S5로 모
 |---|---|---|
 | C-I1 | `openNoteStore`의 알려진 실패는 `NoteStoreOpenException(reason)`로만 던진다. 그 밖의 예외는 오류 화면의 '그 외' 문구 | 계약 7.2.2 |
 | C-I2 | 웹 `persist()`는 열기 안에서 최대 1초 기다리고 결과는 `StorageInfo.persistGranted`. INFRA는 따로 요청하지 않는다 | 계약 7.2.12 |
-| C-I3 | `WebStorageConfig`의 두 경로에 **절대 URL**이 와도 동작한다(`Uri.base.resolve(절대 URL)` = 그대로). 앱 셸은 `document.baseURI` 기준 절대 URL을 넘긴다(4.4, 6.4) | 12.3 P3 |
-| C-I4 | `flush()`는 보통 500ms 안에 끝난다. 넘으면 앱 셸이 기다림만 끊고(쓰기는 계속) `errorLog`에 남긴다 | 계약 X1 |
-| C-I5 | `deleteLocalNoteData(config)`는 스토어가 열려 있지 않을 때(열기 실패 후) 호출된다 | 계약 7.2.12 |
+| C-I3 | `WebStorageConfig`의 두 경로는 `Uri.base.resolve(path)`로 해석되므로 **절대 URL**은 그대로 쓰인다(CORE 변경 없음). 앱 셸은 운영에서 항상 `document.baseURI` 기준 절대 URL만 넘긴다(4.4, 6.4) | 계약 7.2.12·7.4.3 v1.1 (C11-11) |
+| C-I4 | `flush()`는 보통 500ms 안에 끝난다. 넘으면 앱 셸이 기다림만 끊고(쓰기는 계속) `errorLog`에 남긴다. 커밋 재시도 중에는 끝나지도 오류로 끝나지도 않는다 — INFRA는 이를 예외로 기대하지 않고 모든 대기에 상한(500ms)이나 취소(백업)를 둔다(위 7.2.9 요약) | 계약 X1, 계약 7.2.9 v1.2 (C12-09) |
+| C-I5 | `deleteLocalNoteData(config)`는 스토어가 열려 있지 않을 때(열기 실패 후, 또는 `shutdown()`으로 닫은 뒤) 호출된다. 열린 저장소가 있으면 `StateError`(CORE 6.18) — 시간 초과 뒤 늦게 열린 저장소도 먼저 닫는다(6.4 2-2) | 계약 7.2.12, CORE 6.18 |
 | C-I6 | Chrome 첫 `openNoteStore` 시간(빈 DB / 획 1만 개, CORE-S5)을 9.2 결과로 공유 → `CoreModule.startTimeout` 20초 근거 | CORE-S5, INFRA-S2 |
 
 ### 5.2 EDITOR (`package:feature_editor/feature_editor.dart`, 계약 7.2.17)
 
 ```dart
-// 계약 7.2.17 (원문 발췌)
+// 계약 7.2.17 (v1.2 기준 원문 그대로 — v1.1 이후 변경 없음)
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({super.key, required this.noteId, this.initialPageId, required this.onClose,
       this.onOpenSettings});
@@ -1698,6 +1917,8 @@ class EditorMenuContext {
   final int currentPageIndex;
   final List<String> selectedPageIds;         // page panel multi-select, note order
   /// Jump/scroll to the page; when focusRectPt is given, bring that page rect into view.
+  /// (v1.1) focusRectPt is in displayed page coordinates: pt of the note's Page.size,
+  /// origin top-left, y down — same as core.Stroke points (PDF converts its search hits).
   final void Function(String pageId, Rect? focusRectPt) navigateToPage;
   String? get currentPageId;
 }
@@ -1725,17 +1946,24 @@ class DevOverlaySection {
 final devOverlaySectionsProvider = Provider<List<DevOverlaySection>>(
     (ref) => const [], name: 'devOverlaySectionsProvider');
 
+// EditorSettings / InputMode / PageFlipMode / PalmRejectionSettings / GestureSettings
+// — EDITOR 4.8, with `final ink.PressureMode pressureMode` (EDITOR's own enum removed).
+final editorSettingsProvider =
+    NotifierProvider<EditorSettingsNotifier, EditorSettings>(EditorSettingsNotifier.new,
+        name: 'editorSettingsProvider');
 // Settings sections (Column only, no Scaffold): EditorInputSettingsSection,
 // EditorPenSettingsSection, EditorPageSettingsSection, EditorDeveloperSettingsSection.
+// StylusExtrasSource / stylusExtrasProvider — EDITOR 4.7 (unchanged, default NoStylusExtras).
 ```
 
+- `focusRectPt`(v1.1, C11-21): INFRA는 `pdf_wiring`에서 `navigateToPage`를 `PdfMenuInvocation.onNavigate`로 **그대로 넘길 뿐** 좌표를 바꾸지 않는다(계약 7.2.17 'INFRA(전달만)').
 - `EditorMenuItem` 필드(EDITOR 4.5, 계약 승인): `id`(String), `label`(String), `icon`(IconData), `onSelected`(`Future<void> Function(BuildContext context, EditorMenuContext menu)`), `isEnabled`(`bool Function(EditorMenuContext menu)?`). `editorMenuItemFromPdf`(4.5.9)가 이 생성자를 쓴다.
 - INFRA는 `editorSettingsProvider`·`stylusExtrasProvider`를 override하지 않는다(계약 7.3.3 표에 없음). 필압 모드는 EDITOR가 `ink.pressureModeProvider.notifier.set()`으로 넣는다.
 
 ### 5.3 LIBRARY (`package:feature_library/feature_library.dart`, 계약 7.2.18)
 
 ```dart
-// 계약 7.2.18 (원문 발췌)
+// 계약 7.2.18 (v1.2 기준 원문 그대로 — v1.1 이후 변경 없음)
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key, this.folderId, required this.onOpenFolder,
       required this.onOpenNote, required this.onOpenSettings});
@@ -1757,14 +1985,17 @@ final libraryPdfExportActionProvider = Provider<LibraryPdfExportAction?>(
     (ref) => null, name: 'libraryPdfExportActionProvider');
 
 class LibrarySettingsSection extends ConsumerWidget { const LibrarySettingsSection({super.key}); }
+// FolderIcons, FolderPalette, CoverPalette, coverForegroundFor — LIBRARY 4.4 (approved)
 ```
+
+- 저장 경고 배너(계약 7.4.5 v1.1, C11-24): 라이브러리 화면의 배너 문구는 고정 문장이다. `notDurable` 배너에는 닫기 버튼이 있다(05-library 6.16.2) → INFRA V5 스모크는 **닫기 전에** 문구를 대조한다(8.3 G2).
 
 - 라우트가 바뀌어도 `LibraryScreen`의 `State`가 유지된다(같은 페이지 키, 6.6) → LIBRARY는 `didUpdateWidget`에서 `folderId` 변화를 처리한다(05-library I-2 기대와 같음).
 
 ### 5.4 PDF (`package:pdf_io/pdf_io.dart`, 계약 7.2.19)
 
 ```dart
-// 계약 7.2.19 (원문 발췌)
+// 계약 7.2.19 (v1.2 기준 원문 그대로 — v1.1 이후 변경 없음)
 Future<void> initializePdfIo({PdfIoConfig config = const PdfIoConfig()});   // idempotent, < 10 ms
 /// The ONLY override of ink.pageBackgroundBuildersProvider:
 ///   [pdfBackgroundLayerBuilder, const ink.TemplateBackgroundLayerBuilder()] (+ pdfIoConfigProvider).
@@ -1778,11 +2009,13 @@ List<PdfMenuAction> pdfEditorAddPageSources();    // pdf.insert
 final class PdfMenuAction { /* PDF 4.11 */ }
 final class PdfMenuInvocation { /* PDF 4.11: noteId, currentPageId, selectedPageIds, onNavigate */ }
 final pdfRenderStatsProvider = Provider<ValueListenable<PdfRenderStats>>(/* PDF 4.12 */);
+// PdfBackgroundLayerBuilder implements ink.PageBackgroundLayerBuilder, ink.PageBackgroundStillRenderer
 ```
 
 - PDF 4.11 필드(계약 승인): `PdfMenuAction(id, label, icon, run, isEnabled)` — `run`은 `Future<void> Function(BuildContext context, PdfMenuInvocation invocation)`, `isEnabled`는 `bool Function(PdfMenuInvocation invocation)?`. `PdfMenuInvocation(noteId, currentPageId, selectedPageIds = const [], onNavigate)` — `onNavigate`는 `void Function(PageId pageId, Rect? focusRectPt)?`로 `EditorMenuContext.navigateToPage`와 같은 모양이다.
 - `PdfRenderStats` 필드(PDF 4.7): `previewBytes`, `tileBytes`, `thumbnailBytes`, `liveImages`, `queued`, `inflight`, `rendered`, `cancelled`, `lastRenderMs`, `p95RenderMs`, `openDocuments`, `overBudgetBytes`.
-- 기반 단계 B4의 자리표시(`importPdfAsNewNote`는 `null`, 메뉴 함수는 빈 목록)로도 `FeatureWiringModule`은 그대로 동작한다.
+- 기반 단계 B4의 자리표시(`importPdfAsNewNote`는 `null`, 메뉴 함수는 빈 목록)로도 `FeatureWiringModule`은 그대로 동작한다. B4 `pdfIoOverrides()`의 빌더 목록은 본문이 `UnimplementedError`일 수 있는 provider를 watch하지 않는다(00-review 2차 PDF-2-2) → `PdfModule`이 켜진 INFRA 테스트에서 INK가 `pageBackgroundBuildersProvider`를 읽어도 예외가 없다. INFRA `overrides_unique_test`는 가짜 `pdfOverrides`를 쓰고, `pdf_module_test`는 기본 인자(실제 `pdfIoOverrides`)의 `overrides()`로 만든 컨테이너에서 `ink.pageBackgroundBuildersProvider`를 한 번 read해(예외 없음, 2개) 이를 확인한다.
+- **계약 7.6 B4 v1.2 (C12-06)**: 다른 영역이 기반 단계·동시 개발 중 읽는 PDF provider(`pdfIoOverrides()`가 override하는 provider, `pdfRenderStatsProvider`)는 B4에서도 예외 없이 만들어지고, `pdfRenderStatsProvider`의 B4 본문은 `ValueNotifier(PdfRenderStats.zero)`다. 그래서 `FeatureWiringModule`·`pdfRenderStatsSection(ref)`는 지금 모양 그대로(통계 주입 함수·테스트 전용 override 없이) 실제 `pdfRenderStatsProvider`를 읽는다(4.5.9). INFRA `feature_wiring_module_test`·`pdf_wiring_test`가 '모듈 overrides만 넣은 컨테이너에서 `pdf.render` 섹션의 `lines` 값을 읽어도 예외 없음'으로 확인한다(9.1). 실제 통계(PDF T8) 병합 뒤 G2에서도 같은 단언이 돈다 — 운영 루트 컨테이너도 모듈 overrides만 가지므로, 그때 예외가 나면 7.3.3 연결 누락이다.
 - PDF 기대(06-pdf 5.5): 웹 정적 파일 추가 없음, COOP/COEP 불필요, `.wasm`은 `application/wasm`, `<base href>` 유지(6.9·6.12), VM 테스트의 빌드 훅 다운로드·gcc → CI 캐시(6.13), 브라우저 테스트는 `test/web/` + `tool/prepare_web_test.dart`(계약 7.4.8).
 
 ### 5.5 INK · SYNC
@@ -1796,13 +2029,43 @@ final inkPageThumbnailRendererProvider = Provider<core.PageThumbnailRenderer>(
     name: 'inkPageThumbnailRendererProvider');
 ```
 
-- `pageBackgroundBuildersProvider`는 INFRA가 직접 override하지 않는다(`pdfIoOverrides()`만, 계약 7.2.16).
+- `pageBackgroundBuildersProvider`는 INFRA가 직접 override하지 않는다(`pdfIoOverrides()`만, 계약 7.2.16). v1.2 C12-03의 주석 정리('Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of InkPageThumbnail pass its value (the widget reads no provider).')는 앱 셸에 영향이 없다 — 앱 셸은 이 provider를 읽지 않고 `InkPageThumbnail`도 쓰지 않으며, 썸네일은 위 `inkPageThumbnailRendererProvider`를 `pageThumbnailRendererProvider`로 연결할 뿐이다.
 
 SYNC (`package:sync_engine`, 계약 7.2.20 · 7.3.3 M4 행) — **이번 범위 앱은 `sync_engine`에 의존하지 않는다**(계약 7.1). M4 연결 때 쓸 이름(초안의 `startSync`/`SyncHandle` 가정은 폐기):
 
+```dart
+// 계약 7.2.13 (CORE, v1.2 기준 원문 그대로 — v1.1 이후 변경 없음)
+@immutable
+final class SyncBadge {
+  const SyncBadge({required this.display, this.pendingChanges = 0, this.lastSyncedAt, this.issueCode});
+  static const SyncBadge off = SyncBadge(display: SyncDisplayState.off);
+  final SyncDisplayState display;
+  final int pendingChanges;          // local changes not yet acknowledged
+  final EpochMillis? lastSyncedAt;
+  final String? issueCode;           // SYNC SyncIssueCode.name of the first blocking issue
+  /// (v1.1) Value equality over all four fields (7.4.4) — the M4 override uses .distinct().
+  @override bool operator ==(Object other);
+  @override int get hashCode;
+}
+
+/// Default: off ("이 기기에 저장"). From M4 the app shell overrides it with SYNC's status.
+final syncBadgeProvider = StreamProvider<SyncBadge>(
+    (ref) => Stream<SyncBadge>.value(SyncBadge.off), name: 'syncBadgeProvider');
+
+// 계약 7.2.20 (SYNC, v1.2 기준 원문 그대로 — v1.2 C12-04는 '값 동등' 표에 AuthUser 추가뿐)
+/// For the app shell's syncBadgeProvider override (M4).
+core.SyncBadge syncBadgeOf(SyncStatus status);
+/// core.RemoteAssetFetcher over SyncAssetService (M4 wiring by INFRA).
+final class SyncRemoteAssetFetcher implements core.RemoteAssetFetcher {
+  SyncRemoteAssetFetcher(SyncAssetService service);
+}
+```
+
+- 계약 7.2.20 v1.1 표면 갱신(C11-22) 확인: INFRA가 M4에 쓰는 이름(아래 표 — `syncEngineProvider`·`authServiceProvider`·`syncNoticesProvider`·`FirebaseSyncBindings`·`syncBadgeOf`·`SyncRemoteAssetFetcher`, 설정 provider 4개)은 바뀌지 않았다. 삭제된 `syncClockProvider`(→ CORE `clockProvider`)·`syncDisplayStateProvider`는 INFRA가 override하지 않는다.
+
 | 용도 | SYNC 이름 | INFRA 작업 (M4) |
 |---|---|---|
-| 화면용 상태 | `syncBadgeOf(SyncStatus)` | `syncBadgeProvider.overrideWith((ref) => syncEngine.statusStream.map(syncBadgeOf))` |
+| 화면용 상태 | `syncBadgeOf(SyncStatus)` | `syncBadgeProvider.overrideWith((ref) => ref.watch(syncEngineProvider).statusStream.map(syncBadgeOf).distinct())` — 값 = 계약 7.3.3 v1.1 `syncEngine.statusStream.map(syncBadgeOf).distinct()`(C11-13: `SyncBadge` 값 동등이라 배지가 같으면 다시 그리지 않음) |
 | 원격 에셋 | `SyncRemoteAssetFetcher(SyncAssetService)` | `remoteAssetFetcherProvider` override |
 | 엔진·인증·알림 | `syncEngineProvider`, `authServiceProvider`, `syncNoticesProvider`, `FirebaseSyncBindings` | 시작 시 `syncEngineProvider`를 한 번 읽어 즉시 시작(SYNC I-2), 수명주기 → `setLifecycle`/`flushPendingUploads`, `/login`·리디렉션, 계정·동기화 섹션, 루트 `ScaffoldMessenger` 알림 스낵바 |
 | 설정 | `syncConfigProvider`, `authBackendProvider`, `syncBackendFactoryProvider`, `connectivitySignalProvider` | `SyncModule.overrides()`, Firebase 미설정이면 override 없음 |
@@ -1819,12 +2082,12 @@ SYNC (`package:sync_engine`, 계약 7.2.20 · 7.3.3 M4 행) — **이번 범위 
 
 | 가짜 | 대신하는 것 | 동작 |
 |---|---|---|
-| `FakeWebPlatform` | `WebPlatform` | 필드로 지정한 응답(`buildInfoJson`, `isStandalone`, `baseUri`, `downloadResult`), `visibility` 이벤트 수동 발생(`emitVisibility`), `fetchCount`·`reloadCount`·`downloads`(파일 이름·크기·MIME) 기록. `resolveAppUrl`은 `baseUri.resolve(path)` |
-| `FakeAppModule` | `AppModule` | 생성자: `id`, `critical`, `startDelay`, `startError`, `gate`(`Completer`로 완료 시점 제어), `overrides`, `hiddenDelay`, `resetLocalData`, `resettable`. `started`·`stopped`·`hiddenCalls` 기록 |
-| `CountingNoteStore` | `NoteStore` (CORE 인터페이스 구현) | `createFakeNoteStore()`에 모든 멤버를 위임하고 `flushCount`·`closeCount`를 센다. `flushDelay`·`flushError`·`exportBackupResult` 주입 |
-| `fakeOpenNoteStore` | `openNoteStore` | `({Duration delay, Object? error, NoteStore? store})` → `Future<NoteStore> Function(NoteStoreConfig)`. 받은 `config`를 `lastConfig`에 기록 |
+| `FakeWebPlatform` | `WebPlatform` | 필드로 지정한 응답(`buildInfoJson`, `isStandalone`, `baseUri`, `downloadResult`, `canShareFilesResult`, `shareResult`), `visibility` 이벤트 수동 발생(`emitVisibility`), `fetchCount`·`reloadCount`·`downloads`·`shares`(파일 이름·크기·MIME) 기록. `resolveAppUrl`은 `baseUri.resolve(path)` |
+| `FakeAppModule` | `AppModule` | 생성자: `id`, `critical`, `startDelay`, `startError`, `gate`(`Completer`로 완료 시점 제어), `overrides`, `hiddenDelay`, `resetLocalData`, `resettable`, `abandonDelay`. `started`·`stopped`·`hiddenCalls`·`abandonedCalls` 기록 |
+| `CountingNoteStore` | `NoteStore` (CORE 인터페이스 구현) | `createFakeNoteStore(...)`(계약 7.6 시그니처, 5.1)에 멤버를 위임하고 `flushCount`·`closeCount`·`refreshCount`를 센다. 주입: `flushDelay`·`flushError`·`closeError`·`closeDelay`, **`flushGate`**(`Completer<void>?` — 설정하면 `flush()`와 `exportBackupJson()`이 그 Completer가 끝날 때까지 끝나지 않음: 쓰기 재시도 중 상태 재현, 계약 7.2.9 v1.2), **`emitStatus(PersistenceStatus)`**(그 값을 `persistenceStatus`로 바꾸고 `persistenceStatusStream`에 내보냄 — 구독 즉시 현재 값 1회 규칙 유지, `consecutiveFailures: 3`으로 `writeFailing` 재현), `refreshResult`(설정하면 `refreshStorageInfo()`가 그 값을 돌려주고 그 뒤 `storageInfo`도 그 값 — '다시 확인 후 `storageInfoProvider` 갱신' 테스트용), `exportBackupResult`(`Uint8List` 또는 던질 예외). **`exportBackupJson`은 가짜에 위임하지 않는다** — B2 가짜는 `UnimplementedError`(계약 7.6) |
+| `fakeOpenNoteStore` | `openNoteStore` | `({Duration delay, Object? error, NoteStore? store, Completer<NoteStore>? gate})` → `Future<NoteStore> Function(NoteStoreConfig)`. 받은 `config`를 `lastConfig`에, 호출 횟수를 `openCount`에 기록. `gate`로 시간 초과 뒤 늦은 완료를 만든다(INFRA-2-9) |
 | `RecordingLocalDataEraser` | `deleteLocalNoteData` | 호출된 `NoteStoreConfig` 목록, 지정한 예외 |
-| 가짜 PDF 동작 | `importPdfAsNewNote` 등 | 닫힘(closure)으로 만든 `LibraryPdfImportAction`·`LibraryPdfExportAction`, `PdfMenuAction` 목록(호출된 `PdfMenuInvocation` 기록), `ValueNotifier<PdfRenderStats>`(`PdfRenderStats.zero`에서 시작). 필요하면 `package:pdf_io/testing.dart`(PDF 4.14) |
+| 가짜 PDF 동작 | `importPdfAsNewNote` 등 | 닫힘(closure)으로 만든 `LibraryPdfImportAction`·`LibraryPdfExportAction`, `PdfMenuAction` 목록(호출된 `PdfMenuInvocation` 기록), `ValueNotifier<PdfRenderStats>`(`PdfRenderStats.zero`에서 시작 — `PdfRenderStatsLines` 단위 테스트에 직접 넘김). 필요하면 `package:pdf_io/testing.dart`(PDF 4.14). **PDF T8 전(B4): `pdfRenderStatsProvider` = 0 통계 notifier(`ValueNotifier(PdfRenderStats.zero)`, 계약 7.6 B4 v1.2 C12-06) — 테스트 컨테이너에 `pdfRenderStatsProvider`를 따로 override하지 않는다**(`pdfRenderStatsSection`은 실제 provider를 읽음) |
 | `AppScreenBuilders.placeholders()` | 피처 화면 | 인자를 텍스트로 표시하고 콜백 버튼 제공 (`Key('open-note')` 등). 라이브러리 자리표시는 `initState` 횟수를 센다 |
 
 - `createFakeNoteStore()`는 CORE 기반 단계 B2에 포함된다(계약 7.6). 초안의 `FakeNoteCoreHandle`·`fakeOpenNoteCore`는 삭제했다.
@@ -1863,30 +2126,33 @@ lock 충돌 정책 (동시 개발, 계약 7.4.1):
 | formatter | `page_width: 80` (Dart 3.13 tall style, 후행 쉼표는 포매터가 관리 → `require_trailing_commas` 사용 안 함) |
 | language | `strict-casts`, `strict-inference`, `strict-raw-types` 모두 true |
 | errors 승격 | `invalid_use_of_visible_for_testing_member`, `invalid_use_of_protected_member`, `missing_required_argument`, `unused_import` → error; `todo` → ignore |
-| exclude | `**/build/**`, `**/*.g.dart`, `**/*.freezed.dart`, `app/android/**`, `app/ios/**`, `app/web/**` |
+| exclude | `**/build/**`, `**/*.g.dart`, `**/*.freezed.dart`, `app/android/**`, `app/ios/**`, `app/web/**`, `tool/test/fixtures/**`(규칙 검사기 시험용 가짜 작업 공간 — 일부러 위반·미해석 import·포맷 안 된 코드를 담는다. B1부터 `test_tags_test` 픽스처가 생기므로 B1-1에서 함께 넣는다). 비고(INFRA-2-13, CORE 02-core 11절·6.16 요청): drift v2부터 생기는 생성 파일(`schema_versions.dart`, `make-migrations`가 만드는 생성 테스트)이 루트 lint에 걸리면 그 경로를 여기에 추가한다(INFRA 단독 커밋, R11 `generated_files`에도 같은 패턴). v1에서는 `*.g.dart`만 생겨 추가할 것이 없다 |
 | 추가 lint (18개) | `always_declare_return_types`, `avoid_dynamic_calls`, `avoid_slow_async_io`, `avoid_type_to_string`, `cancel_subscriptions`, `close_sinks`, `directives_ordering`, `no_adjacent_strings_in_list`, `only_throw_errors`, `prefer_final_locals`, `prefer_single_quotes`, `prefer_void_to_null`, `test_types_in_equals`, `unawaited_futures`, `unnecessary_lambdas`, `unnecessary_parenthesis`, `use_named_constants`, `use_super_parameters` |
 | CI 실행 | `flutter analyze --fatal-infos` (info도 실패) — `@Deprecated` API 사용(`deprecated_member_use`)도 실패하므로 꼭 필요하면 그 줄에 `// ignore: deprecated_member_use` + 사유 주석, INFRA 승인(계약 7.4.2) |
 
-`tool/ws.dart check` 규칙 (계약 7.4.2의 보완 포함):
+`tool/ws.dart check` 규칙 (계약 7.4.2 v1.2의 보완 포함 — R1~R13·R15, 통합 단계 R14. B1 판 범위는 R1–R3·R7–R9·R15, 계약 7.6 B1 v1.2):
 
 | ID | 규칙 | 대상 |
 |---|---|---|
 | R1 | 루트 `workspace` 목록 = 실제 멤버 디렉터리, 각 멤버 `resolution: workspace` | pubspec |
 | R2 | 모든 멤버 `environment`가 루트와 동일(`sdk: ^3.13.0`, `flutter: 3.47.9`) — **순수 Dart 멤버도**. `pure_dart_members`(= `note_core`)는 추가로 `dependencies`·`dev_dependencies`에 `sdk: flutter` 항목이 없고, `lib/`·`test/`에서 `package:flutter/`·`package:flutter_test/` import가 없어야 함 | pubspec, Dart |
 | R3 | 멤버 디렉터리에 `analysis_options.yaml` 없음 | 파일 |
-| R4 | `lib/`에서 `forbidden_imports.lib` 금지(파일명이 `native_suffixes`로 끝나면 `dart:io`·`dart:ffi` 허용). `lib/`에서 워크스페이스 패키지의 `test_only_entrypoints`(`testing.dart`·`testing_vm.dart`) import 금지. **파일 단위 예외 `lib_exceptions`**: `packages/note_core/lib/testing_vm.dart` | Dart |
+| R4 | `lib/`에서 ① `forbidden_imports.lib` 금지(파일명이 `native_suffixes`로 끝나면 `dart:io`·`dart:ffi` 허용) ② **`native_only_imports`**(`package:ffi/`, `package:pdfium_dart/`, `package:drift/native.dart`)는 파일명이 `native_suffixes`(`_io.dart`·`_native.dart`)로 끝나는 파일에서만 ③ 워크스페이스 패키지의 `test_only_entrypoints`(`testing.dart`·`testing_vm.dart`) import·export 금지 — **`package:` URI 기준**(`package:<멤버>/testing*.dart`). 같은 패키지의 `lib/testing*.dart`끼리는 상대 import 허용(예: `testing_vm.dart` → `'testing.dart'`), 그 밖의 `lib/` 파일이 상대 경로로 `lib/testing*.dart`에 닿으면 위반. **예외 `lib_exceptions`**(파일, 또는 `/`로 끝나면 디렉터리 전체 — ①②③ 모두 면제): `packages/note_core/lib/testing_vm.dart`(+ ink lab이 멤버가 되면 `packages/ink_engine/example/lib/`, 1.3) | Dart |
 | R5 | `web_only_imports`는 파일명이 `web_suffixes`(`_browser.dart`)로 끝나는 파일에서만 — `lib/`와, `test/` 중 `test/web/` 밖의 파일이 대상(`test/web/`의 브라우저 테스트는 직접 import 허용) | Dart |
 | R6 | **`lib/` 안의 import·export에만 적용**: `_io/_native/_browser` 파일은 조건부 절(`if (dart.library.…)`)로만 불러오고, 같은 지시문에 기본(스텁) 파일이 있어야 함. `test/`는 플랫폼 구현 파일을 직접 import해도 됨 | Dart |
 | R7 | `lib/`·`test/`에서 `forbidden_imports.lib_and_test`(SDK `material.dart`·`cupertino.dart`) 금지 + 다른 워크스페이스 패키지의 `package:<pkg>/src/` import 금지 (`tool/` 제외) | Dart |
 | R8 | 형제 의존은 `allowed_dependencies` 안에서만, 버전은 `any`(`path:` 금지) | pubspec |
 | R9 | 외부 의존은 정확 버전(`^`, `>=`, `any` 금지, `sdk:` 의존은 제외), `pinned_external`(= 계약 7.5 표 전부)에 있으면 그 버전과 일치. 표에 없는 외부 의존은 경고 `R9w`(종료 코드 0) — `--strict`(main CI·통합 G1)에서는 위반 | pubspec |
 | R10 | `dependency_overrides`는 루트에만 | pubspec |
-| R11 | `dart format --output=none --set-exit-if-changed <파일 목록>` — `app`·`packages`·`tool`의 `*.dart` 중 `generated_files`(`*.g.dart`, `*.freezed.dart`, `schema_versions.dart`) 제외(drift 생성 코드는 `build_runner`가 자기 포매터로 쓴다) | 포맷 |
+| R11 | `dart format --output=none --set-exit-if-changed <파일 목록>` — `app`·`packages`·`tool`의 `*.dart` 중 `generated_files`(`*.g.dart`, `*.freezed.dart`, `schema_versions.dart`)와 `tool/test/fixtures/` 아래 제외(drift 생성 코드는 `build_runner`가 자기 포매터로 쓴다, 픽스처는 일부러 포맷 안 된 파일을 담는다). **이 파일 집합이 'dart format 변경 없음'(G4·10절 7·계약 V2)의 대상이다**(R11 기준 — 생성 파일 제외) | 포맷 |
 | R12 | `web_assets.yaml` 파일이 `app/web/`에 있고 크기·sha256 일치 | 파일 |
 | R13 | `app/web/icons/*`, `favicon.png` PNG 크기가 파일명과 일치 (IHDR 읽기) | 파일 |
 | R14 | **통합 단계 G3부터**: 6개 패키지(`app` 제외) 공개 진입점(`lib/` 최상위 `*.dart` 전부)의 export 이름 교집합 = ∅ (같은 패키지 안의 진입점끼리는 비교하지 않음, 예외 목록 없음). 구현: 루트 dev `analyzer: 13.3.0`, `AnalysisContextCollection(includedPaths: 진입점)` → `getResolvedLibrary` → `ResolvedLibraryResult.element.exportNamespace.definedNames2`의 키를 패키지별로 모아 비교. 출력 `R14 <이름>: <pkgA>/<entry> & <pkgB>/<entry>` | Dart |
+| R15 | **태그 선언**(계약 7.4.2·7.4.8 v1.2 C12-01 — **기반 단계 B1부터 위반 = 종료 코드 1**, 규칙 자체는 7.4.8 v1.1 C11-26): 멤버의 `test/**/*.dart`에서 쓰인 태그(`@Tags([...])`·`@Tags(<String>[...])`, `test(`/`testWidgets(`/`group(`의 `tags: '...'`·`tags: [...]` 문자열 리터럴)를 모아, ① 모두 그 멤버 `dart_test.yaml`의 `tags:` 아래에 선언돼 있어야 하고 ② `skip_by_default_tags`(`integration`, `perf`)는 그 선언에 `skip:`(문자열 사유 또는 `true`)이 있어야 한다. 태그를 하나도 안 쓰면 `dart_test.yaml`이 없어도 된다. 출력 `R15 <멤버>: tag 'integration' used in test/x_test.dart but dart_test.yaml does not skip it` | Dart, YAML |
 
-import 스캐너: 줄 시작이 `import`/`export`인 지시문을 `;`까지 이어 붙여 파싱(주석 줄·블록 주석 제외), 조건부 절(`if (dart.library.X) 'uri'`)을 분리 저장. 생성 파일(`*.g.dart`)도 import 검사(R4–R7)는 한다.
+import 스캐너: 줄 시작이 `import`/`export`인 지시문을 `;`까지 이어 붙여 파싱(주석 줄·블록 주석 제외), 조건부 절(`if (dart.library.X) 'uri'`)을 분리 저장. 상대 URI는 파일 경로로 풀어 같은 멤버의 `lib/` 파일인지 판정한다(R4 ③). 생성 파일(`*.g.dart`)도 import 검사(R4–R7)는 한다.
+
+R15 태그 스캐너(`tool/src/test_tags.dart`): 주석을 뺀 테스트 파일 본문에서 `@Tags(` 뒤 대괄호 안, `tags:` 뒤 문자열 리터럴 또는 대괄호 안의 `'…'`/`"…"` 리터럴만 모은다. 이 제약은 계약 7.4.8 v1.2(C12-01)가 규칙으로 정했다: "R15 스캐너는 **문자열 리터럴 태그만** 인식하므로 태그는 `@Tags(['integration'])`·`tags: ['golden']`처럼 리터럴로 쓴다(변수·상수로 넘기지 않는다). `dart_test.yaml`은 그 패키지에서 태그를 쓰는 첫 테스트보다 먼저(보통 골격 작업에서) 만든다". `dart_test.yaml`은 `package:yaml`로 읽고 `tags.<name>`이 맵이면 `skip` 키, 문자열·null이면 '선언만'으로 본다. **R15는 B1-4에서 만든다**(계약 7.6 B1 v1.2: `ws.dart`(list·test·check R1–R3·R7–R9·R15)·`workspace_rules.yaml`(`skip_by_default_tags` 포함)·`tool/test/`(`test_tags_test.dart` 포함)) — 기반 단계부터 main의 `ws check`에 들어가므로, 동시 개발 중 각 영역 브랜치의 `ws check`가 선언 누락·`skip` 누락을 위반(종료 1)으로 잡는다(EDITOR·LIBRARY가 2차에서 놓쳤던 C11-26의 재발 방지). B1 시점에는 태그를 쓰는 테스트가 없어(골격의 `test/<name>_smoke_test.dart`는 태그 없음) B1의 `ws check`는 0이다. I1은 R15를 다시 만들지 않고 나머지 규칙(R4–R6·R10–R13)만 더한다.
 
 R14 확인 실험 (확인함, `/tmp/claude-0/plan-scratch/infra2/r14`): `analyzer 13.3.0`(SDK `^3.11.0`, BSD-3-Clause)으로 ① 순수 Dart 픽스처 2개(`show`로 일부만 export, private·숨긴 이름 제외)에서 겹친 이름 1개만 보고 ② material_ui·flutter_riverpod을 쓰는 Flutter 패키지 진입점도 오류 없이 해석되어 `[probeProvider, ProbeScreen]`을 얻음(`dart:ui`는 sky_engine으로 해석). 2개 패키지 해석 15초 → 7개 멤버는 1분 안팎 예상(미확인) — `ws check --no-exports`로 로컬에서 건너뛸 수 있다. `analyzer`는 `test 1.31.1`이 이미 13.3.0으로 해석하므로 직접 의존을 더해도 lock의 버전은 바뀌지 않는다(계약 7.5).
 
@@ -1946,21 +2212,22 @@ sequenceDiagram
    2. 모듈을 목록 순서대로 하나씩: `stageLabel = module.label` → `module.start(ctx).timeout(module.startTimeout)` → `ctx.recordOutcome(module.id, outcome)`
       - 단계가 3초(`slowStageThreshold`)를 넘으면 `isSlow = true` → 스플래시에 "시간이 걸리고 있어요… (n초)"
       - 실패: `critical`이면 이미 시작한 모듈을 역순 `stop()`(각 2초 제한) 후 `BootstrapFailure`(그 모듈의 `canResetAfter(error)`가 참이면 `resetLocalData` 포함). 아니면 `failedNonCritical`/`timedOut` 기록, `errorLog`에 남기고 그 모듈의 overrides 제외 → 뒤 모듈은 `ctx.isStarted(id)`로 알 수 있다(`FeatureWiringModule`이 PDF override를 생략).
+      - **시간 초과 뒤 늦은 완료**(INFRA-2-9): `.timeout`은 `start`를 취소하지 않는다. 시간이 넘으면 부트스트래퍼가 바로 그 모듈의 `onStartAbandoned()`를 부르고 그 Future를 보관한다. `CoreModule`은 20초 뒤에 늦게 열린 `NoteStore`를 **즉시 `close()`**(실패하면 `errorLog`, source: module)하고 publish·override하지 않는다(늦은 열기 실패는 무시 — 시간 초과로 이미 보고됨). "다시 시도"는 `shutdown()`이 그 close가 끝나기를 **최대 2초** 기다린 뒤에만 새 부트스트래퍼를 만든다 — 웹에서 늦게 열린 저장소가 DB(IndexedDB/OPFS)를 쥔 채 다음 `openNoteStore`와 겹치거나, `deleteLocalNoteData`가 `StateError`(CORE 6.18)를 내지 않게. 2초 안에 안 끝나면 기록하고 진행(그래도 막히면 오류 화면이 다시 뜬다).
    3. overrides 조립: 셸 overrides(`buildInfoProvider`, `webPlatformProvider`, `runtimeInfoProvider`, `appErrorLogProvider`, `startupReportProvider`, `appBootstrapperProvider`) → 모듈 순서대로(`core` → `pdf` → `featureWiring`). 결과 목록 = 계약 7.3.3 표의 '이번' 행 전부.
    4. `StartupReport(bootstrapElapsed, sinceNavigationStart: web.millisecondsSinceNavigationStart, storage: ctx.maybe<NoteStore>()?.storageInfo)`
 3. 성공 → `ProviderScope(key: ValueKey(attempt), overrides: …, observers: [AppProviderObserver(errorLog)], child: AppLifecycleBridge(child: NoteApp()))`
-4. 실패 → `StartupErrorScreen` (6.7). "다시 시도"는 `shutdown()` 후 `createBootstrapper()`로 새 인스턴스, `attempt + 1`. "이 기기 데이터 지우고 다시 시작"은 2단계 확인 → `failure.resetLocalData()` → 성공하면 자동 다시 시도.
+4. 실패 → `StartupErrorScreen` (6.7). "다시 시도"는 `shutdown()` 후 `createBootstrapper()`로 새 인스턴스, `attempt + 1`. "이 기기 데이터 지우고 다시 시작"은 2단계 확인 → `shutdown()`(열린 저장소가 없게 — CORE 6.18) → `failure.resetLocalData()` → 성공하면 자동 다시 시도.
 5. 목표 수치 (PLAN 5.4 '앱 시작 2초'): 캐시된 재방문 기준 `sinceNavigationStart ≤ 2,000 ms`, 빈 DB 기준 `bootstrapElapsed ≤ 500 ms`. 앱 정보에 표시해 iPad에서 측정. `CoreModule.startTimeout` 20초는 CORE의 Chrome 첫 `openNoteStore` 측정(CORE-S5)과 B8·G2 실측(INFRA-S2)으로 다시 정한다.
 
 `CoreModule` 세부 (INFRA-M1, S7):
 
 - 설정: `defaultNoteStoreConfig(ctx)` = `NoteStoreConfig(ownerId: ctx.ownerId, web: WebStorageConfig(sqlite3WasmPath: ctx.web.resolveAppUrl('sqlite3.wasm'), driftWorkerPath: ctx.web.resolveAppUrl('drift_worker.js')))`, 나머지는 CORE 기본값.
 - **소유자**: `ctx.ownerId`(이번 범위 `kLocalOwnerId`)는 CORE가 **새 DB를 만들 때만** 쓴다. 저장된 소유자(M4 첫 로그인 후 `SyncStore.reassignOwner`)가 우선하며, 실제 소유자는 언제나 `store.ownerId`다. 앱 셸은 `ctx.ownerId`를 다른 곳에 쓰지 않는다.
-- **절대 URL**: 경로 URL 전략에서 `/notes/<id>`로 새로고침하면 dart2js `Uri.base`(= `self.location.href`, Dart SDK `js_helper.dart` `currentUri()` 확인함)가 그 깊은 경로가 되어, 상대 경로 `sqlite3.wasm`이 `/notes/sqlite3.wasm`으로 해석되고 Hosting 재작성 규칙이 `index.html`을 돌려준다(wasm 컴파일 실패 → 시작 실패). 그래서 `document.baseURI`(= `<base href>` 반영) 기준 절대 URL을 넘긴다. `fetch('build_info.json')`(새 버전 감지)과 pdfrx 자산은 브라우저가 `document.baseURI` 기준으로 해석하므로 그대로 둔다.
-- 상태 전달: `store.persistenceStatusStream`에서 `lastErrorAt`이 바뀔 때마다 `AppErrorRecord.fromError(lastError, null, source: module)`(요약에 `consecutiveFailures`)를 `errorLog`에 넣는다(계약 7.4.5). 저장 경고 배너 자체는 LIBRARY·EDITOR 몫.
-- 수명주기: `onAppHidden()` = `store.flush()`(호출자가 500ms 제한), `stop()` = 구독 취소 후 `store.close()`.
+- **절대 URL** (계약 7.2.12·7.4.3 v1.1, C11-11 — 초안의 12.3 P3가 수정 채택됨): 경로 URL 전략에서 `/notes/<id>`로 새로고침하면 dart2js `Uri.base`(= `self.location.href`, Dart SDK `js_helper.dart` `currentUri()` 확인함)가 그 깊은 경로가 되어, 상대 경로 `sqlite3.wasm`이 `/notes/sqlite3.wasm`으로 해석되고 Hosting 재작성 규칙이 `index.html`을 돌려준다(wasm 컴파일 실패 → 시작 실패). 그래서 운영에서는 **항상** `document.baseURI`(= `<base href>` 반영) 기준 절대 URL을 넘긴다. CORE는 해석 기준을 바꾸지 않고 `Uri.base.resolve(path)`를 그대로 쓰며, 절대 URL은 그 호출에서 그대로 돌아오므로 INFRA는 절대 URL만 넘기면 된다(CORE 브라우저 테스트의 상대 경로도 그대로 동작). `fetch('build_info.json')`(새 버전 감지)과 pdfrx 자산은 Dart `Uri.base`를 거치지 않고 브라우저가 `document.baseURI` 기준으로 해석하므로 계약 규칙에 맞는다.
+- 상태 전달: `store.persistenceStatusStream`(구독 즉시 현재 값 1회 — 계약 7.2.12 v1.1, C11-09)에서 `lastErrorAt`이 직전 이벤트와 달라질 때마다 `AppErrorRecord.fromError(lastError, null, source: module)`(요약에 `consecutiveFailures`)를 `errorLog`에 넣는다(계약 7.4.5). 첫 이벤트에 이미 `lastError`가 있으면 그것도 1건. 저장 경고 배너 자체는 LIBRARY·EDITOR 몫.
+- 수명주기: `onAppHidden()` = `store.flush()`(호출자가 500ms 제한), `stop()` = 구독 취소 후 `store.close()`. 시간 초과 뒤 늦게 열린 저장소는 `onStartAbandoned()`가 닫는다(위 2-2).
 
-M4 연결 (이후, 1.3): `productionModules()` 끝에 `SyncModule`(비필수) 추가 — `start`는 `FIREBASE_ENABLED`일 때만 Firebase 초기화(`firebase_options.dart`), `overrides()` = 계약 7.3.3 M4 두 행(Firebase 미설정이면 SYNC 설정 override 없음 → `SyncPhase.disabled`). 루트 위젯(`AppLifecycleBridge`)이 `syncEngineProvider`를 한 번 읽어 엔진을 즉시 시작하고(SYNC I-2, 지연 생성 금지) 숨김·표시를 `setLifecycle`·`flushPendingUploads`로 넘긴다. 라우터에 `/login` + `authServiceProvider` 기반 리디렉션, 설정에 `app.account` 섹션, 루트 `ScaffoldMessenger`에 `syncNoticesProvider` 스낵바. 이때 `app/pubspec.yaml`·`allowed_dependencies`에 `sync_engine`을 더한다.
+M4 연결 (이후, 1.3): `productionModules()` 끝에 `SyncModule`(비필수) 추가 — `start`는 `FIREBASE_ENABLED`일 때만 Firebase 초기화(`firebase_options.dart`), `overrides()` = 계약 7.3.3 M4 두 행: `syncBadgeProvider.overrideWith((ref) => ref.watch(syncEngineProvider).statusStream.map(syncBadgeOf).distinct())`(계약 7.3.3 v1.1 값 `syncEngine.statusStream.map(syncBadgeOf).distinct()`, C11-13 — `SyncBadge` 값 동등), `remoteAssetFetcherProvider` ← `SyncRemoteAssetFetcher`, SYNC 설정 4종(Firebase 미설정이면 SYNC 설정 override 없음 → `SyncPhase.disabled`). 루트 위젯(`AppLifecycleBridge`)이 `syncEngineProvider`를 한 번 읽어 엔진을 즉시 시작하고(SYNC I-2, 지연 생성 금지) 숨김·표시를 `setLifecycle`·`flushPendingUploads`로 넘긴다. 라우터에 `/login` + `authServiceProvider` 기반 리디렉션, 설정에 `app.account` 섹션, 루트 `ScaffoldMessenger`에 `syncNoticesProvider` 스낵바. 이때 `app/pubspec.yaml`·`allowed_dependencies`에 `sync_engine`을 더한다.
 
 ### 6.5 의존성 주입 (D4)
 
@@ -2052,7 +2319,7 @@ M4 연결 (이후, 1.3): `productionModules()` 끝에 `SyncModule`(비필수) �
 | provider | 타입 | 기본값 / 덮어쓰기 | 사용처 |
 |---|---|---|---|
 | `buildInfoProvider` | `Provider<BuildInfo>` | `fromEnvironment()` / `BootstrapApp`이 같은 인스턴스로 | 앱 정보, 업데이트 감지, 진단 |
-| `webPlatformProvider` | `Provider<WebPlatform>` | `createWebPlatform()` / `BootstrapApp` | 업데이트 감지, 수명주기, 백업 다운로드 |
+| `webPlatformProvider` | `Provider<WebPlatform>` | `createWebPlatform()` / `BootstrapApp` | 업데이트 감지, 수명주기, 백업 공유·다운로드 |
 | `runtimeInfoProvider` | `Provider<RuntimeInfo>` | `detect()` / `BootstrapApp` | 앱 정보, 진단 |
 | `appErrorLogProvider` | `Provider<AppErrorLog>` | 덮어쓰기 필수 | 앱 정보, 진단, 백업 |
 | `startupReportProvider` | `Provider<StartupReport>` | 덮어쓰기 필수 | 앱 정보, 진단 |
@@ -2063,7 +2330,7 @@ M4 연결 (이후, 1.3): `productionModules()` 끝에 `SyncModule`(비필수) �
 | `updateCheckConfigProvider` | `Provider<UpdateCheckConfig>` | 기본값 / 테스트에서 짧은 간격 | 업데이트 감지 |
 | `updateCheckerProvider` | `NotifierProvider<UpdateChecker, UpdateStatus>` | — | `UpdateBanner`, 앱 정보 |
 | `settingsSectionsProvider` | `Provider<List<SettingsSectionEntry>>` | `defaultSettingsSections()` (4.5.8 표) | 설정 화면 |
-| `latestStorageInfoProvider` | `FutureProvider.autoDispose<StorageInfo>` | `noteStore.refreshStorageInfo()`, `retry: noRetry` | 저장 공간 섹션, 진단 복사 |
+| `latestStorageInfoProvider` | `FutureProvider.autoDispose<StorageInfo>` | `noteStore.refreshStorageInfo()` → 끝나면 `ref.invalidate(storageInfoProvider)`(계약 7.2.12 v1.1), `retry: noRetry` | 저장 공간 섹션, 진단 복사 (앱 셸의 유일한 `refreshStorageInfo()` 호출처) |
 
 앱 셸이 루트에서 덮어쓰는 다른 영역 provider (계약 7.3.3 그대로):
 
@@ -2077,7 +2344,7 @@ M4 연결 (이후, 1.3): `productionModules()` 끝에 `SyncModule`(비필수) �
 | `editorExtensionsProvider` (EDITOR) | `FeatureWiringModule` | `editorExtensionsFromPdf(...)` (PDF 실패 시 생략) | 이번 |
 | `devOverlaySectionsProvider` (EDITOR) | `FeatureWiringModule` | `[pdfRenderStatsSection(ref)]` (PDF 실패 시 생략) | 이번 |
 | (`featureEditorOverrides()`, `featureLibraryOverrides()`의 항목) | `FeatureWiringModule` | 각 패키지가 정한 값(현재 빈 목록) | 이번 |
-| `syncBadgeProvider`, `remoteAssetFetcherProvider` (CORE) + SYNC 설정 4종 | `SyncModule` | 계약 7.3.3 M4 행 | M4 |
+| `syncBadgeProvider`, `remoteAssetFetcherProvider` (CORE) + SYNC 설정 4종 | `SyncModule` | 계약 7.3.3 M4 행: `syncEngine.statusStream.map(syncBadgeOf).distinct()`(v1.1), `SyncRemoteAssetFetcher`, SYNC 5.2 | M4 |
 
 PDF 렌더 통계 섹션 문구(`formatPdfRenderStats`, 4 Hz 이하 갱신):
 
@@ -2096,7 +2363,7 @@ PDF 렌더 통계 섹션 문구(`formatPdfRenderStats`, 4 Hz 이하 갱신):
 - `<meta name="viewport">`를 **모두 지우고** `width=device-width, initial-scale=1.0, maximum-scale=5.0`을 새로 넣는다(`view_embedder/embedding_strategy/full_page_embedding_strategy.dart` `_applyViewportMeta`) → index.html에 쓴 viewport는 무시된다.
 - 호스트 요소(`body`)에 `position: fixed; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none`(같은 파일 `_setHostStyles`).
 - 포인터 다운이 Flutter 뷰에 떨어지면 `pointerdown`을 `preventDefault`(포커스 처리용, `pointer_binding.dart`).
-- **브라우저 `contextmenu`는 기본으로 막지 않는다.** 엔진 `mouse/context_menu.dart`의 `ContextMenu`는 `_enabled = true`로 시작하고, `contextmenu` `preventDefault` 리스너는 프레임워크가 `flutter/contextmenu` 채널로 `disableContextMenu`를 보낼 때만 붙는다(`platform_dispatcher.dart`). 프레임워크·material_ui는 기본으로 이 호출을 하지 않는다(`BrowserContextMenu.enabled` 기본 true). 초안의 "엔진이 contextmenu를 막는다"는 틀린 기록이라 바로잡는다(12.3 P1).
+- **브라우저 `contextmenu`는 기본으로 막지 않는다.** 엔진 `mouse/context_menu.dart`의 `ContextMenu`는 `_enabled = true`로 시작하고, `contextmenu` `preventDefault` 리스너는 프레임워크가 `flutter/contextmenu` 채널로 `disableContextMenu`를 보낼 때만 붙는다(`platform_dispatcher.dart`). 프레임워크·material_ui는 기본으로 이 호출을 하지 않는다(`BrowserContextMenu.enabled` 기본 true). 초안의 "엔진이 contextmenu를 막는다"는 틀린 기록이었고, 이 확인 결과가 계약 7.4.9 v1.1에 반영됐다(12.3 P1 승인, C11-28 — 총괄도 엔진 소스로 확인).
 - `-webkit-touch-callout`, `overscroll-behavior`, `gesturestart`는 다루지 않는다.
 - 첫 프레임에 `window`로 `flutter-first-frame` 이벤트.
 
@@ -2114,11 +2381,15 @@ PDF 렌더 통계 섹션 문구(`formatPdfRenderStats`, 4 Hz 이하 갱신):
 | 로딩 실패 표시 | 30초 안에 첫 프레임이 없거나, 그 전에 `error`/`unhandledrejection` 발생 → `#app-loader-error`에 "불러오지 못했어요" + 메시지 + [새로고침] 버튼 |
 | 기타 | `<noscript>` 안내, `<script src="flutter_bootstrap.js" async>`. CSP 메타는 두지 않는다(계약 7.4.9) |
 
-#### `BrowserContextMenu` 결정 (EDITOR 5.3 #5(a) 답, INFRA-S5)
+#### `BrowserContextMenu` 결정 (EDITOR 5.3 #5(a) 답, INFRA-S5 → 계약 7.4.9 v1.1)
 
-- **`BrowserContextMenu.disableContextMenu()`는 쓰지 않는다**(계약 7.4.9). 근거: 이 호출은 루트 요소 전체의 `contextmenu`를 막아 텍스트 입력의 브라우저 메뉴까지 끄고, `BrowserContextMenu.enabled == false`가 되면 프레임워크가 웹에서도 자체 텍스트 선택 메뉴로 바꾼다(`editable_text.dart` `_webContextMenuEnabled`) — 필기 영역 보호에 비해 부작용이 크다.
-- 다만 계약 7.4.9 괄호 안의 근거("엔진이 `contextmenu`를 이미 막으므로")는 위 확인 결과와 다르다. 실제로 필기 영역을 지키는 것은 ① 엔진 호스트 CSS `user-select:none` + index.html `-webkit-touch-callout:none`(iPad 길게 누르기 콜아웃·선택) ② index.html `contextmenu` 가드(입력 요소 밖 우클릭 메뉴)다. 근거 문구 정정은 12.3 P1로 제안한다.
-- 확인: 9.3 #5(손가락·펜슬 길게 누르기)·#19(트랙패드 우클릭). 가드가 부족하면(메뉴가 뜨면) 그때 총괄 승인 후 `disableContextMenu()`를 켜는 한 줄 변경으로 대응한다.
+계약 7.4.9 v1.1 문장(C11-28, 원문 그대로):
+
+> `BrowserContextMenu.disableContextMenu()`는 쓰지 않는다(텍스트 입력의 브라우저 메뉴까지 끄고 프레임워크가 자체 선택 메뉴로 바뀜). iPad 길게 누르기 콜아웃·선택은 CSS(엔진 `user-select:none` + index.html `-webkit-touch-callout:none`)로, 우클릭 메뉴는 index.html이 입력 요소 밖에서만 `contextmenu`를 `preventDefault`해 막는다(v1.1 근거 정정 — Flutter 3.47.9 엔진 `mouse/context_menu.dart`는 `_enabled = true`로 시작하고 `disable()`에서만 리스너를 단다. 총괄 확인).
+
+- INFRA 구현은 이 문장 그대로다: ① 엔진 호스트 CSS `user-select:none` + index.html `html, body`의 `-webkit-touch-callout:none`·`user-select:none`(iPad 길게 누르기 콜아웃·선택) ② index.html `contextmenu` 가드(입력 요소 밖 우클릭 메뉴, 위 표). `disableContextMenu()`를 쓰지 않는 이유: 루트 요소 전체의 `contextmenu`를 막아 텍스트 입력의 브라우저 메뉴까지 끄고, `BrowserContextMenu.enabled == false`가 되면 프레임워크가 웹에서도 자체 텍스트 선택 메뉴로 바꾼다(`editable_text.dart` `_webContextMenuEnabled`).
+- 00-review 3.1 INFRA-S5·3.4 Q11의 옛 근거('엔진이 이미 막음')는 이 문장으로 대체됐다(00-review 2차 2.2 INFRA P1 '수용').
+- 확인: 9.3 #5(손가락·펜슬 길게 누르기)·#19(트랙패드 우클릭). 가드가 부족하면(메뉴가 뜨면) 직접 바꾸지 않고 계약 7.4.12 절차(결과 보고 '변경 요청' → 총괄 승인 → 7.4.9 개정)로 `disableContextMenu()` 사용 여부를 다시 정한다.
 
 #### `app/web/flutter_bootstrap.js` (사용자 지정 템플릿, 확인함)
 
@@ -2342,7 +2613,7 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 | `01-firebase-project.md` | console.firebase.google.com → 프로젝트 추가 → 이름 → Google 애널리틱스 끄기 → 만들기. 왼쪽 메뉴 Hosting → 시작하기 (CLI 단계는 건너뛰기 — Claude가 처리). 프로젝트 설정에서 **프로젝트 ID** 확인 → Claude에게 전달. 요금제가 Spark(무료)인지 확인. **'M4 때 정할 것(지금은 만들지 않음)' 상자**(INFRA-S4, SYNC-S3): Firestore 데이터베이스 위치 권장 `asia-northeast3`(서울), Cloud Storage 버킷 위치는 무료 사용량 조건 때문에 US 리전(예: `us-central1`) 권장 — **위치는 만든 뒤 바꿀 수 없고, 무료 조건은 작성 시점 기억 기반이라 콘솔에서 다시 확인(미확인)**, 최종 선택은 사용자(00-review U3). Google 로그인용 `authDomain`은 앱이 서비스되는 Hosting 도메인(`<프로젝트 ID>.web.app`)으로 두고 '승인된 도메인'에 live 주소가 있는지 확인(상세 절차는 M4 때 갱신) |
 | `02-github-secrets.md` | Google Cloud 콘솔 → IAM 및 관리자 → 서비스 계정 → 만들기 (`github-deploy`) → 역할 4개: Firebase Hosting 관리자(`roles/firebasehosting.admin`), Firebase 인증 관리자(`roles/firebaseauth.admin`), Cloud Run 뷰어(`roles/run.viewer`), API 키 뷰어(`roles/serviceusage.apiKeysViewer`) (action 문서 확인함) → 키 → JSON 만들기 → GitHub 저장소 Settings → Secrets and variables → Actions → Secret `FIREBASE_SERVICE_ACCOUNT`(JSON 전체), Variables 탭 `FIREBASE_PROJECT_ID`. 받은 JSON 파일은 등록 후 삭제. 문제 해결: 조직 정책으로 키 생성이 막힌 경우(`iam.disableServiceAccountKeyCreation`), 개인 Gmail 계정이면 보통 해당 없음. 확인: Actions → CI → Re-run → 요약에 주소. (M4에 규칙 배포 역할 추가 예정 표시) |
 | `03-budget-alert.md` | Spark 요금제에는 결제 계정이 없어 예산 알림을 걸 수 없음 → **Blaze로 바꿀 때(M4 Storage·Functions) 즉시** 설정: Google Cloud 콘솔 → 결제 → 예산 및 알림 → 예산 만들기 (금액 예: 1,000원, 알림 50·90·100%). 예산 알림은 과금을 멈추지 않는다는 점. Hosting → 릴리스 기록 보관 개수 10개로 설정 (저장 용량 절약). 무료 한도(Hosting 저장 10GB · 전송 360MB/일)는 기억 기반 수치 — 콘솔 '사용량 및 결제'에서 확인 (미확인) |
-| `04-ipad-web-test.md` | 주소 찾기(live 고정 주소 / 브랜치 미리보기 주소는 Actions 실행 요약), Safari로 열기, 공유 버튼 → '홈 화면에 추가'(**필기는 홈 화면 앱으로** — Safari 탭은 왼쪽 가장자리 스와이프가 뒤로 가기를 일으킬 수 있음, EDITOR-S5), 설정 → 앱 정보에서 빌드 라벨 확인, 새 버전 배너와 새로고침, 홈 화면 앱 완전 종료 방법, **웹 버전은 테스트 전용 — 중요한 노트 금지**, 설정 → 저장 공간에서 '영구 보관' 확인, **설정 → 앱 정보 → 백업 내보내기**로 백업 파일을 파일 앱에 보관하는 방법, **미리보기 주소는 live와 데이터·홈 화면 앱·로그인이 따로이고 임시**(7일 뒤 주소가 사라지면 그 데이터도 못 씀), 로그인·동기화 확인은 live 주소에서만(M4), 문제 해결(흰 화면 → 30초 후 오류 표시 확인 → 새로고침 → 시작 오류 화면의 '진단 정보 복사' → 웹사이트 데이터 삭제·'이 기기 데이터 지우기'는 최후 수단, 테스트 노트 삭제됨), 피드백 방법(진단 정보 복사 → 채팅 / GitHub 이슈 양식), 펜슬 종류·모델 확인 방법(설정 → 일반 → 정보 → 모델 이름), 9.3 체크리스트 |
+| `04-ipad-web-test.md` | 주소 찾기(live 고정 주소 / 브랜치 미리보기 주소는 Actions 실행 요약), Safari로 열기, 공유 버튼 → '홈 화면에 추가'(**필기는 홈 화면 앱으로** — Safari 탭은 왼쪽 가장자리 스와이프가 뒤로 가기를 일으킬 수 있음, EDITOR-S5), 설정 → 앱 정보에서 빌드 라벨 확인, 새 버전 배너와 새로고침, 홈 화면 앱 완전 종료 방법, **웹 버전은 테스트 전용 — 중요한 노트 금지**, 설정 → 저장 공간에서 '영구 보관' 확인, **설정 → 앱 정보 → 백업 내보내기**로 백업 파일을 파일 앱에 보관하는 방법(시트의 두 버튼: [내려받기] → 다운로드 폴더 / [공유 · 파일에 저장] → 공유 시트의 '파일에 저장'. **홈 화면 앱에서는 [내려받기]가 아무 일도 안 할 수 있으니(미확인) 그때는 [공유 · 파일에 저장]**. 둘 다 안 되면 백업은 아직 못 하는 상태이므로 바로 알려 주기. 백업을 만드는 중 '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.'가 뜨고 끝나지 않으면 [취소] → 설정 → 저장 공간 확인 → 진단 정보 복사로 알려 주기(노트 저장이 재시도 중이라는 뜻 — 4.5.8) — 홈 화면 앱과 Safari 탭은 저장 공간이 따로일 수 있어(미확인) Safari 탭에서 백업해도 홈 화면 앱의 노트가 들어가지 않을 수 있다), **미리보기 주소는 live와 데이터·홈 화면 앱·로그인이 따로이고 임시**(7일 뒤 주소가 사라지면 그 데이터도 못 씀), 로그인·동기화 확인은 live 주소에서만(M4), 문제 해결(흰 화면 → 30초 후 오류 표시 확인 → 새로고침 → 시작 오류 화면의 '진단 정보 복사' → 웹사이트 데이터 삭제·'이 기기 데이터 지우기'는 최후 수단, 테스트 노트 삭제됨), 피드백 방법(진단 정보 복사 → 채팅 / GitHub 이슈 양식), 펜슬 종류·모델 확인 방법(설정 → 일반 → 정보 → 모델 이름), 9.3 체크리스트 |
 | `05-android-apk.md` | 태블릿 브라우저로 GitHub 로그인 → Actions → Android APK → 최근 실행 → Artifacts 내려받기 → zip 풀기 → '출처를 알 수 없는 앱' 허용 → 설치. 서명 때문에 업데이트 시 삭제 후 설치가 필요할 수 있음(6.14) |
 | `06-ios-testflight.md` | 초안: Apple Developer Program 가입, App Store Connect 앱 등록(번들 ID), API 키(App Manager) 발급 → 시크릿 4개, 저장소 변수 `IOS_TESTFLIGHT_ENABLED=true`, TestFlight 앱 설치. "네이티브 전환 때 Claude가 최신 화면 기준으로 갱신" 표시 |
 
@@ -2360,7 +2631,7 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 | `go_router` | app | 18.1.2 | 18.1.3 (2026-11-04) — 계약 7.5대로 18.1.2 유지 | sdk ^3.12.0, flutter >=3.44.0 | ✓, wasm-ready | BSD-3-Clause | 18.0.0부터 material_ui 사용. 같은 키 `NoTransitionPage`로 State 유지 (확인함) |
 | `material_ui` | app | 1.10.0 | 1.10.0 (2026-11-03) | sdk ^3.13.0, flutter >=3.47.0 | ✓, wasm-ready | BSD-3-Clause | 매주 릴리스 — 올리는 것은 INFRA 단독 작업(계약 7.5). `MaterialUiCompatibilityBridge`는 deprecated → 미사용 |
 | `cupertino_icons` | app | 2.0.0 | 2.0.0 (2026-09-29) | sdk ^3.12.0 | ✓ | MIT | 없으면 웹 빌드에 폰트 경고 (추가 시 사라짐 확인함) |
-| `web` | app (`*_browser.dart`) | 1.1.2 | 1.1.2 (2026-10-23) | sdk ^3.13.0 | 웹 전용 | BSD-3-Clause | `fetch`·`visibilitychange`·`Blob`·`URL.createObjectURL` 사용 코드가 analyze·Chrome 테스트 통과 (fetch·visibilitychange 확인함, 다운로드는 I4에서 확인) |
+| `web` | app (`*_browser.dart`) | 1.1.2 | 1.1.2 (2026-10-23) | sdk ^3.13.0 | 웹 전용 | BSD-3-Clause | `fetch`·`visibilitychange`·`Blob`·`URL.createObjectURL` 사용 코드가 analyze·Chrome 테스트 통과 (fetch·visibilitychange 확인함, 다운로드는 I4에서 확인). 공유: `Navigator.share([ShareData])`·`Navigator.canShare([ShareData])`·`ShareData.files`(`JSArray<File>`) 바인딩이 1.1.2에 있음 (확인함: `lib/src/dom/html.dart`·`web_share.dart`), 실제 동작은 I4·iPad 18a/18b |
 | `flutter_web_plugins` | app | SDK | — | — | ✓ | BSD-3-Clause | `usePathUrlStrategy` |
 | `flutter_test` | app dev | SDK | — | — | — | BSD-3-Clause | |
 | `fake_async` | app dev | 1.3.3 | 1.3.3 (2025-01-28) | sdk ^3.3.0 | ✓ | Apache-2.0 | flutter_test가 해석한 버전과 동일 |
@@ -2370,6 +2641,7 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 | `path` | 루트 dev | 1.9.1 | 1.9.1 (2024-10-17) | sdk ^3.4.0 | ✓ | BSD-3-Clause | |
 | `test` | 루트 dev | **1.31.1** | 1.33.0 (2026-10-08) | sdk ^3.11.0 | ✓ | BSD-3-Clause | 최신은 Flutter 3.47.9의 `test_api 0.7.12` 고정과 충돌 → 1.31.1 (확인함, 계약 7.5). `note_core`도 이 버전 |
 | `image` | 루트 dev (아이콘 생성) | 4.12.0 | 4.12.0 (2026-10-11) | sdk ^3.0.0 | ✓ | MIT | |
+| `crypto` | 루트 dev (`ws web-assets` sha256) | 3.0.8 | 3.0.8 (2026-10-26) | sdk ^3.4.0 | ✓, wasm-ready | BSD-3-Clause | 계약 7.5 v1.1(C11-29, 12.3 P4 승인). note_core·pdf_io·sync_engine과 같은 버전이라 lock의 해석 버전은 그대로, 표기만 `direct dev` (확인함, 3.2) |
 | `analyzer` | 루트 dev (R14, **통합 G3부터**) | **13.3.0** | 14.7.0 (2026-10-29) | sdk ^3.11.0 (13.3.0) | — (VM 도구) | BSD-3-Clause | `test 1.31.1`이 해석한 버전과 같게(계약 7.5). 13.3.0 게시일 2026-06-11. `exportNamespace.definedNames2` 동작 확인함(6.2) |
 
 앱 셸이 쓰는 워크스페이스 패키지: `note_core`, `ink_engine`(썸네일 렌더러 provider), `feature_editor`, `feature_library`, `pdf_io` — 모두 `any`. `sync_engine`은 M4에 추가.
@@ -2384,7 +2656,6 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 | `package_info_plus` | 10.2.2 | BSD-3-Clause | dart-define 빌드 정보로 대체 |
 | `flutter_native_splash` | 2.4.8 | MIT (미확인) | index.html 로더로 대체 |
 | `flutter_launcher_icons` | 0.14.4 | MIT | 웹 미지원 태그. 네이티브 아이콘은 이후 |
-| `crypto` (루트 tool용) | 3.0.8 | BSD-3-Clause | `web-assets` sha256용으로 쓰고 싶지만 계약 7.5의 '쓰는 멤버'에 루트가 없음 → `sha256sum` 프로세스로 대체, 12.3 P4 |
 | `firebase_core` 등 Firebase 패키지 | 5.1.0 … | BSD-3-Clause | 앱은 이번 범위에 직접 의존하지 않음. M4에 `sync_engine`을 통해 들어옴 |
 
 ### 7.3 도구 · GitHub Actions
@@ -2400,7 +2671,6 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 | `FirebaseExtended/action-hosting-deploy` | `@v0` | v1 없음, 런타임 node24, Apache-2.0 (action.yml 머리말), 입력 `channelId`·`expires`·`entryPoint`·`firebaseToolsVersion`·`disableComment` 확인 |
 | `firebase-tools` | 15.34.2 | npm 최신, Node >=20 |
 | Chrome (브라우저 테스트) | — | 컨테이너: `/usr/bin/google-chrome`(Chrome for Testing 153.0.8010.12), `CHROME_EXECUTABLE` 없이 동작 (확인함). GitHub ubuntu 러너 기본 설치 (미확인) |
-| `sha256sum` | GNU coreutils | 컨테이너에 있음, ubuntu 러너 기본 (미확인) |
 | 커밋 SHA 고정 | — | github.com 태그 목록 접근 불가로 메이저 태그 사용. 구현 시 가능하면 SHA 고정 |
 
 ---
@@ -2411,37 +2681,37 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 
 ### 8.1 기반 단계 (동시 개발 전, main에 커밋 — 계약 7.6)
 
-INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`createFakeNoteStore()`) → B3(INK) → B4(PDF) / B5(EDITOR) / B6(LIBRARY) / B7(SYNC)은 각 영역이 자기 경로만 커밋하며, 단계마다 `ws check`·`flutter analyze --fatal-infos`·`ws test`가 통과해야 다음 단계로 간다.
+INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`createFakeNoteStore()`) → B3(INK) / B6(LIBRARY) / B7(SYNC) → B4(PDF) / B5(EDITOR)(`ink_engine`을 쓰므로 B3 뒤)는 각 영역이 자기 경로만 커밋한다. 계약 7.6 v1.2(C12-08): 각 영역은 CORE T4 커밋 뒤 자기 작업 트리에서 미리 작성할 수 있지만 B3~B7의 main 커밋·완료 조건은 B2 완료(T1~T5) 뒤다. 단계마다 `ws check`(B1부터 R15 포함)·`flutter analyze --fatal-infos`·`ws test`가 통과해야 다음 단계로 간다. B8은 B2~B7이 모두 main에 들어간 뒤다.
 
 | ID | 작업 | 완료 조건 |
 |---|---|---|
-| B1-1 | 루트 `pubspec.yaml`(3.2), `analysis_options.yaml`(6.2), `.gitignore`·`.gitattributes`(3.1) | 루트 `flutter pub get` 성공, `pubspec.lock` 생성 |
+| B1-1 | 루트 `pubspec.yaml`(3.2), `analysis_options.yaml`(6.2 — exclude에 `tool/test/fixtures/**` 포함), `.gitignore`·`.gitattributes`(3.1) | 루트 `flutter pub get` 성공, `pubspec.lock` 생성 |
 | B1-2 | 패키지 6개 골격(3.3): `pubspec.yaml`(**계약 7.5의 모든 외부 의존**, `note_core`는 순수 Dart), `README.md`, `lib/<name>.dart`(빈 barrel), `test/<name>_smoke_test.dart` | 각 멤버 디렉터리 `flutter test` 통과 |
 | B1-3 | `flutter create --platforms=web,android,ios --org dev.noteapp --project-name noteapp app` → `app/analysis_options.yaml`·`test/widget_test.dart` 삭제, pubspec 교체(3.3 — `sync_engine` 없음), 최소 `main.dart`(자리표시 문구) | `cd app && flutter build web` 성공 |
-| B1-4 | `tool/ws.dart` 최소: `list`, `test`(vm/chrome, `--package`, **chrome 전 `tool/prepare_web_test.dart` 선실행**, Chrome 찾기), `check`(R1–R3·R7–R9) + `tool/workspace_rules.yaml`(4.3 전체 — `pinned_external` 7.5 전부, `lib_exceptions`, `pure_dart_members`) + `tool/test/` | `dart test tool/test` 통과, `ws check` 0 |
+| B1-4 | `tool/ws.dart` 최소: `list`, `test`(vm/chrome, `--package`, **chrome 전 `tool/prepare_web_test.dart` 선실행**, Chrome 찾기), `check`(R1–R3·R7–R9·**R15** — 계약 7.6 B1 v1.2, C12-01) + **`tool/src/test_tags.dart`**(R15 리터럴 태그 스캐너 + `dart_test.yaml` 확인, 6.2) + `tool/workspace_rules.yaml`(4.3 전체 — `pinned_external` 7.5 전부, `lib_exceptions`, `pure_dart_members`, **`skip_by_default_tags: [integration, perf]`**) + `tool/test/`(**`test_tags_test.dart`** 포함 — 9.1 행 그대로) | `dart test tool/test` 통과(**`test_tags_test.dart`** 포함), `ws check` 0(R15 포함 — B1 시점에 태그를 쓰는 테스트 없음). 이후 각 영역 브랜치의 `ws check`가 태그 선언·`integration`·`perf` `skip` 누락을 위반(종료 1)으로 잡는다 |
 | B1-5 | 최소 `ci.yml`: 6.13의 1·2·5–9·14단계(배포 없음) | `tool/test/workflows_test.dart`(YAML 파싱·`timeout-minutes`·`flutter-version-file`) 통과 |
-| B1 완료 | | `flutter pub get --enforce-lockfile`, `ws check`, `ws test` → 커밋 |
-| B8-1 | `app/lib/**`·`app/test/**`: 최소 go_router(`/`, `/folders/:folderId`, `/notes/:noteId`, `/settings`) + B6 `LibraryScreen`·B5 `EditorScreen` 자리표시 연결 + 셸 설정 자리표시. `main.dart`는 `openNoteStore(const NoteStoreConfig())`를 시도하고, 실패(B2의 `UnimplementedError` 포함)하면 안내 문구만 표시(전체 부트스트랩은 I5) | `app/test/foundation_routing_test.dart`: `noteStoreProvider` ← `createFakeNoteStore()` → `LibraryScreen` 표시 → 그 위젯의 `onOpenNote('n1')` → `/notes/n1`에 `EditorScreen(noteId: 'n1')` → `onClose()` → `LibraryScreen` (자리표시 본문 문구에 의존하지 않음) |
-| B8-2 | 전체 확인 | `ws check` 0, `flutter analyze --fatal-infos` 0, `ws test`, `ws test --platform chrome`, `cd app && flutter build web --release` 성공 → 커밋 |
+| B1 완료 | | `flutter pub get --enforce-lockfile`, `ws check`(R1–R3·R7–R9·R15), `ws test`, `dart test tool/test`(12.3 P6 — 계약 문구보다 엄격) → 커밋 |
+| B8-1 | `app/lib/**`·`app/test/**`: 최소 go_router(`/`, `/folders/:folderId`, `/notes/:noteId`, `/settings`) + B6 `LibraryScreen`·B5 `EditorScreen` 자리표시 연결 + 셸 설정 자리표시. `main.dart`는 `openNoteStore(const NoteStoreConfig())`를 시도하고, 실패(B2의 `UnimplementedError` 포함)하면 안내 문구만 표시(전체 부트스트랩은 I5). **비고**(INFRA-3-4): 이 `openNoteStore(const NoteStoreConfig())`(정적 파일 경로가 기본 상대 경로 `'sqlite3.wasm'`·`'drift_worker.js'`)는 **임시 진입점**이다 — 배포 없음(B1·B8 CI는 배포하지 않음, 6.13)이라 깊은 경로 새로고침 문제(계약 7.4.3)가 사용자에게 닿지 않는다. I5에서 `runNoteApp`·`CoreModule`의 `defaultNoteStoreConfig`(`document.baseURI` 기준 절대 URL, 계약 7.2.12·7.4.3)로 교체한다 | `app/test/foundation_routing_test.dart`: `noteStoreProvider` ← `createFakeNoteStore()` → `LibraryScreen` 표시 → 그 위젯의 `onOpenNote('n1')` → `/notes/n1`에 `EditorScreen(noteId: 'n1')` → `onClose()` → `LibraryScreen` (자리표시 본문 문구에 의존하지 않음) |
+| B8-2 | 전체 확인 | `ws check` 0, `flutter analyze --fatal-infos` 0, `ws test`, `ws test --platform chrome`, `dart test tool/test`(12.3 P6), `cd app && flutter build web --release` 성공 → 커밋 |
 | B8-3 | **실측**(INFRA-S2): 체크포인트 푸시로 첫 CI 1회 실행 → 단계별 시간, `main.dart.js` 크기, (CORE가 구현돼 있으면) Chrome 첫 `openNoteStore` 시간 | 6.13 예산표·실측표 갱신, 값은 결과 보고에 |
 
 ### 8.2 동시 개발 단계 (INFRA worktree, 브랜치 `area/infra`)
 
 | ID | 작업 | 선행 | 완료 조건 (통과해야 할 테스트) |
 |---|---|---|---|
-| I1 | `tool/ws.dart` 완성: R1–R13(4.3·6.2 — R2 순수 Dart, R4 `lib_exceptions`·`testing.dart` 금지, R5 `test/web` 제외, R6 `lib/`만, R7 `src/` 금지, R9 전체 고정·R9w·`--strict`, R11 생성 파일 제외), `test` 옵션(`--affected-since`, `-t`, `-x`(기본 `bench`), `--run-skipped`, `--reporter`), `affected`, `channel-id`, `build-info`, `finalize-web`, `web-assets`(`sha256sum`), `hosting-config`, flutter·Chrome 실행 파일 찾기 | B1 | `tool/test/rules_test.dart`, `test_command_test.dart`, `affected_test.dart`, `channel_id_test.dart`, `build_info_file_test.dart`, `web_finalize_test.dart`, `web_assets_test.dart`, `dart_imports_test.dart`, `flutter_runner_test.dart` |
+| I1 | `tool/ws.dart` 완성: R1–R13(4.3·6.2 — R2 순수 Dart, R4 `lib_exceptions`(디렉터리 항목 포함)·`native_only_imports`·test-only 진입점(`package:` URI 기준, 같은 패키지 `lib/testing*.dart`끼리 상대 허용), R5 `test/web` 제외, R6 `lib/`만, R7 `src/` 금지, R9 전체 고정·R9w·`--strict`, R11 생성 파일·픽스처 제외). **R15 태그 선언은 B1-4에서 완료**(계약 7.6 B1 v1.2, C12-01 — I1은 새로 만들지 않고 회귀만 확인), `test` 옵션(`--affected-since`, `-t`, `-x`(기본 `bench`), `--run-skipped`, `--reporter`), `affected`, `channel-id`, `build-info`, `finalize-web`, `web-assets`(**`package:crypto` 3.0.8** sha256), `hosting-config`, flutter·Chrome 실행 파일 찾기 | B1 | `tool/test/rules_test.dart`, `test_tags_test.dart`(B1-4에서 완료 — 회귀), `test_command_test.dart`, `affected_test.dart`, `channel_id_test.dart`, `build_info_file_test.dart`, `web_finalize_test.dart`, `web_assets_test.dart`, `dart_imports_test.dart`, `flutter_runner_test.dart` |
 | I2 | `BuildInfo`, `RuntimeInfo` | — | `app/test/build/build_info_test.dart`, `runtime_info_test.dart` |
 | I3 | 오류 처리: `AppErrorLog`, `installGlobalErrorHandlers`, `appErrorWidgetBuilder`, `AppProviderObserver`, `DiagnosticReport`(CORE `StorageInfo`·`PersistenceStatus`) | I2 | `test/errors/app_error_log_test.dart`, `error_handlers_test.dart`, `diagnostic_report_test.dart`, `app_provider_observer_test.dart` |
-| I4 | `WebPlatform` (스텁·브라우저 구현: `resolveAppUrl`, `fetchTextNoStore`, `downloadBytes`, `visibilityChanges`, `reload`, standalone, 내비게이션 시각 — **persist·estimate 없음**) + `FakeWebPlatform` | — | `test/web/web_platform_browser_test.dart` (Chrome), VM: `test/build/runtime_info_test.dart`가 스텁 사용 |
-| I5 | 부트스트랩: `AppModule`(+`resetLocalData`·`canResetAfter`), `StaticOverridesModule`, `AppModuleContext`(+`web`·`outcomeOf`·`isStarted`), `AppBootstrapper`, `StartupReport`(+`storage`), `BootstrapApp`, `SplashView`, `StartupErrorScreen`(+새로고침·데이터 지우기), `runNoteApp` | I2–I4 | `test/bootstrap/app_bootstrapper_test.dart`, `overrides_unique_test.dart`, `bootstrap_app_test.dart`, `startup_error_screen_test.dart` |
+| I4 | `WebPlatform` (스텁·브라우저 구현: `resolveAppUrl`, `fetchTextNoStore`, `downloadBytes`, **`canShareFiles`·`shareFile`**, `visibilityChanges`, `reload`, standalone, 내비게이션 시각 — **persist·estimate 없음**) + `FakeWebPlatform` | — | `test/web/web_platform_browser_test.dart` (Chrome), VM: `test/build/runtime_info_test.dart`가 스텁 사용 |
+| I5 | 부트스트랩: `AppModule`(+`resetLocalData`·`canResetAfter`·**`onStartAbandoned`**), `StaticOverridesModule`, `AppModuleContext`(+`web`·`outcomeOf`·`isStarted`), `AppBootstrapper`(시간 초과 → `onStartAbandoned`, `shutdown`이 그 정리를 최대 2초 기다림), `StartupReport`(+`storage`), `BootstrapApp`, `SplashView`, `StartupErrorScreen`(+새로고침·데이터 지우기), `runNoteApp` | I2–I4 | `test/bootstrap/app_bootstrapper_test.dart`, `overrides_unique_test.dart`, `bootstrap_app_test.dart`, `startup_error_screen_test.dart` |
 | I6 | 라우팅: `AppRoutes`(+`libraryPageKey`), `AppNavigator`, `AppScreenBuilders`, `createAppRouter`(무전환 페이지·공용 키), `NotFoundScreen` | B8 | `test/routing/app_routes_test.dart`, `app_router_test.dart` |
 | I7 | `NoteApp`(브리지 없음), `buildAppTheme`, `AppStrings`(해요체), `AppLifecycleBridge`(hide·pause·detach + 웹 hidden), 셸 provider(`name:`) | I5, I6 | `test/app/note_app_test.dart`, `lifecycle_bridge_test.dart` |
 | I8 | `UpdateChecker`, `UpdateBanner` | I7 | `test/update/update_checker_test.dart`, `update_banner_test.dart` |
-| I9 | 설정 화면 틀 + `defaultSettingsSections()`(EDITOR 4종 · LIBRARY · INFRA 2종) + `StorageSection`(CORE `StorageInfo`·`PersistenceStatus`, `latestStorageInfoProvider`) + `AboutSection`(빌드 라벨 · 렌더러 · 홈 화면 앱 여부 · 시작 시간 · 오류 목록 · 진단 복사 · 새 버전 확인 · **백업 내보내기** · 라이선스) + `exportBackup` | I4, I7, I8 | `test/settings/settings_screen_test.dart`, `settings_sections_test.dart`, `storage_section_test.dart`, `about_section_test.dart`, `backup_export_test.dart` |
-| I10 | 모듈 어댑터: `CoreModule`(계약 7.2.12: `openNoteStore`/`NoteStoreOpenException`/`deleteLocalNoteData`, 절대 URL 설정, 상태 오류 기록), `PdfModule`, `productionModules()` | I5 | `test/modules/core_module_test.dart`, `pdf_module_test.dart`, `production_modules_test.dart` |
+| I9 | 설정 화면 틀 + `defaultSettingsSections()`(EDITOR 4종 · LIBRARY · INFRA 2종) + `StorageSection`(CORE `StorageInfo`·`PersistenceStatus`, `latestStorageInfoProvider` → `ref.invalidate(storageInfoProvider)`) + `AboutSection`(빌드 라벨 · 렌더러 · 홈 화면 앱 여부 · 시작 시간 · 오류 목록 · 진단 복사 · 새 버전 확인 · **백업 내보내기** · 라이선스 — PDF 12.2 Q1 답) + `prepareBackup`·`deliverBackup`·`BackupReadySheet` | I4, I7, I8 | `test/settings/settings_screen_test.dart`, `settings_sections_test.dart`, `storage_section_test.dart`, `about_section_test.dart`, `backup_export_test.dart` |
+| I10 | 모듈 어댑터: `CoreModule`(계약 7.2.12: `openNoteStore`/`NoteStoreOpenException`/`deleteLocalNoteData`, 절대 URL 설정, 상태 오류 기록, **시간 초과 뒤 늦게 열린 저장소 즉시 close**), `PdfModule`, `productionModules()` | I5 | `test/modules/core_module_test.dart`, `pdf_module_test.dart`, `production_modules_test.dart` |
 | **I10b** | **`FeatureWiringModule` + `pdf_wiring.dart`**: 계약 7.3.3 '이번' 행 중 `FeatureWiringModule` 몫 전부(썸네일 렌더러, PDF 가져오기·내보내기 자리, `EditorExtensions` 변환, PDF 렌더 통계 `DevOverlaySection`), PDF 시작 실패 시 PDF 관련 생략 | I10 | `test/modules/feature_wiring_module_test.dart`, `pdf_wiring_test.dart` |
 | I11 | 웹 파일: `index.html`(contextmenu 가드 포함), `flutter_bootstrap.js`, `manifest.json`, `tool/gen_icons.dart` + 아이콘 생성 | — | `tool/test/web_files_test.dart`, `ws check`(R13), `test/web/app_boot_browser_test.dart` (Chrome에서 `BootstrapApp` + 가짜 모듈 → 라이브러리 자리표시 표시), `cd app && flutter build web` 결과의 `flutter_bootstrap.js`에 `serviceWorkerSettings` 없음 (`web_finalize_test`가 검사) |
-| I12 | `app/firebase.json`(`.wasm` 헤더, COOP/COEP 없음), `tool/web_assets.yaml`(2개) + `web-assets fetch` + `app/web/sqlite3.wasm`·`drift_worker.js` 커밋, `app/tool/prepare_web_test.dart`, `app/dart_test.yaml`, `app/.gitignore` | I1 | `tool/test/hosting_config_test.dart`, `web_assets_test.dart`, `ws check`(R12), `ws web-assets verify` |
+| I12 | `app/firebase.json`(`.wasm` 헤더, COOP/COEP 없음), `tool/web_assets.yaml`(2개) + `web-assets fetch` + `app/web/sqlite3.wasm`·`drift_worker.js` 커밋, `app/tool/prepare_web_test.dart`, `app/dart_test.yaml`(계약 7.4.8 v1.1: `tags:` 아래 `integration: {skip: "integration stage only — ws test --run-skipped -t integration"}` — 앱이 쓰는 태그는 이것뿐. 계약 7.4.8 v1.2: 앱에서 태그를 쓰는 첫 테스트(`app_smoke_test`·`app_smoke_browser_test`, 리터럴 `@Tags(['integration'])`)보다 먼저 만든다 — 그 두 파일은 이 작업 뒤에만 추가), `app/.gitignore` | I1 | `tool/test/hosting_config_test.dart`, `web_assets_test.dart`, `ws check`(R12·R15), `ws web-assets verify`, 기본 `ws test`에서 `app/test/integration/`·`app_smoke_browser_test`가 '건너뜀'으로 집계됨 |
 | I13 | 워크플로 4종 완성(캐시 2종, 브라우저 테스트, 통합 입력) + 이슈 템플릿 | I1, I12 | `tool/test/workflows_test.dart` (6.13 표의 트리거·동시성·시간 제한·캐시 키·게이트·고정 버전·시크릿 조건 검사) |
 | I14 | `docs/guides/` 7개 파일 (6.16 — 미리보기 데이터·로그인 분리, Firebase 위치 권장·`authDomain`, 백업 내보내기, 홈 화면 앱 권장) | I13 | `tool/test/guides_test.dart` (파일 존재, 상대 링크 대상 존재, 필수 제목: '준비물' · '확인 방법' · '문제 해결', 04에 '미리보기'·'백업' 문구) |
 | I15 | 동시 개발 마감 확인 | 전부 | 8.2 전체 테스트 + `ws check` + `ws analyze` + `ws test` + `ws test --platform chrome` + `flutter build web` |
@@ -2451,10 +2721,47 @@ INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`
 | ID | 작업 | 완료 조건 |
 |---|---|---|
 | G1 | 병합 후 `pubspec.lock` 재생성(6.1 정책), 영역 결과 보고의 '의존성 추가'를 `pinned_external`에 반영(총괄이 계약 7.5 갱신) | `flutter pub get --enforce-lockfile`, `ws check --strict` 0 (V1 일부) |
-| G2 | `AppScreenBuilders.production()`·`CoreModule`·`PdfModule`·`FeatureWiringModule`을 실제 구현에 연결(계약 7.7 4단계). **통합 스모크 V5** `app/test/integration/app_smoke_test.dart`(`@Tags(['integration'])`): 실제 모듈(`CoreModule(configFor: (_) => const NoteStoreConfig(inMemory: true))`, 실제 PDF·피처 모듈) → 라이브러리 → 새 노트 → 에디터에서 합성 스타일러스 포인터로 획 1개 → EDITOR 닫기 버튼(flush 후 `onClose`) → 다시 열어 획 1개 유지 → 되돌리기 → 빈 페이지. 계약 7.3.3 '이번' 행의 override가 모두 실제 구현이고 `Override.origin` 기준 중복 없음. **V6** 같은 시나리오를 `app/test/web/app_smoke_browser_test.dart`로 Chrome에서(실제 CORE 웹 저장, `app/tool/prepare_web_test.dart`가 복사한 두 파일 사용, 테스트마다 다른 `databaseName` + 끝에 `deleteLocalNoteData`). Chrome 첫 `openNoteStore` 시간 기록(B8에서 못 쟀으면) | `ws test --run-skipped -t integration`, `ws test --platform chrome --run-skipped -t integration` 통과 (V3·V5·V6) |
-| G3 | **R14**: 루트 dev `analyzer: 13.3.0` + `pinned_external` 추가, `tool/src/export_names.dart`, `ws check`에 R14 포함 | `tool/test/export_names_test.dart`, `ws check`(R1–R14) 0 (V1) |
-| G4 | 최종 확인: 루트 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음, `ws test`·`ws test --platform chrome`·`dart test tool/test`, `cd app && flutter build web --release`, `ws web-assets verify` | V2·V3·V4 |
+| G2 | `AppScreenBuilders.production()`·`CoreModule`·`PdfModule`·`FeatureWiringModule`을 실제 구현에 연결(계약 7.7 4단계). **통합 스모크 V5** `app/test/integration/app_smoke_test.dart`(`@Tags(['integration'])`) — 아래 'V5 스모크 단계'. **V6** 같은 시나리오를 `app/test/web/app_smoke_browser_test.dart`(`@TestOn('browser')`, `@Tags(['integration'])`)로 Chrome에서: 실제 CORE 웹 저장, `app/tool/prepare_web_test.dart`가 복사한 두 파일 사용, 테스트마다 다른 `databaseName`과 `WebStorageConfig.blobDatabaseName`(INFRA-3-5 — `NoteStoreConfig`에 `copyWith`가 없으므로 아래 'V6 설정'처럼 직접 생성), 끝에 **`bootstrapper.shutdown()`(= `store.close()`)을 기다린 뒤 `deleteLocalNoteData(config)`**(INFRA-2-10 — 열린 저장소가 있으면 `StateError`, CORE 6.18). Chrome 첫 `openNoteStore` 시간 기록(B8에서 못 쟀으면). 계약 7.7 5단계의 다른 영역 통합 태그 테스트(LIBRARY L21, PDF `integration`, SYNC T16, EDITOR E-21)도 같은 명령으로 함께 돈다 | `ws test --run-skipped -t integration`, `ws test --platform chrome --run-skipped -t integration` 통과 (V3·V5·V6) |
+| G3 | **R14**: 루트 dev `analyzer: 13.3.0` + `pinned_external` 추가, `tool/src/export_names.dart`, `ws check`에 R14 포함 | `tool/test/export_names_test.dart`, `ws check`(R1–R15) 0 (V1) |
+| G4 | 최종 확인: 루트 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음(**R11 기준** — `app`·`packages`·`tool`의 `*.dart`에서 `generated_files`·`fixture_dirs` 제외, INFRA-2-13), `ws test`·`ws test --platform chrome`·`dart test tool/test`, `cd app && flutter build web --release`, `ws web-assets verify` | V2·V3·V4 |
 | G5 | 브랜치 푸시 → CI 녹색 → 미리보기 배포(`curl -I`로 `.wasm` MIME·`Cache-Control` 확인) → 사용자 iPad 체크리스트(9.3 + 계약 V7 복합 항목) | 사용자 확인 결과를 PLAN.md 체크리스트에 반영 (총괄) |
+
+V5 스모크 단계 (계약 7.7 V5 + 7.4.5 v1.1 배너 대조, INFRA-2-7 — C11-12·24·30):
+
+1. 실제 모듈로 부트스트랩: `CoreModule(configFor: (_) => const NoteStoreConfig(inMemory: true))`, 실제 `PdfModule()`·`FeatureWiringModule()`, `AppScreenBuilders.production()`. 화면 크기 1032×1376(DPR 2). 부트스트랩 결과의 overrides가 계약 7.3.3 '이번' 행 전부이고 `Override.origin` 기준 중복 없음.
+2. 메모리 CORE 전제 확인: `container.read(storageInfoProvider).backend == StorageBackend.nativeMemory`, `storageWarningOf(info, store.persistenceStatus) == StorageWarning.notDurable`(계약 7.2.12 v1.1 `NoteStoreConfig` 주석 — `inMemory`는 `nativeMemory` → `isDurable == false`).
+3. **라이브러리 배너 대조**: `LibraryScreen`이 뜬 첫 화면에서, LIBRARY 배너의 [닫기]를 누르기 **전에** `find.text(ContractStrings.storageNotDurable)` → `findsOneWidget`. `ContractStrings`(`app/test/support/contract_strings.dart`)는 계약 7.4.5 v1.1 고정 문장을 글자 그대로 담는다: `storageNotDurable` = "이 브라우저에서는 노트가 임시로만 저장돼요. 테스트 용도로만 사용하세요.", `storageWriteFailing` = "저장에 계속 실패하고 있어요. 브라우저 저장 공간을 확인해 주세요."(V5에서는 실패를 만들 수 없어 `writeFailing`은 각 영역의 문구 상수 테스트가 맡는다 — 계약 7.4.5). 배너는 닫지 않는다(닫기 동작은 LIBRARY 자체 테스트 몫).
+4. 새 노트: LIBRARY의 '새 노트' 흐름(라벨 텍스트로 찾음) → `EditorScreen` 표시.
+5. **에디터 배너 대조**: `find.text(ContractStrings.storageNotDurable)` → `findsOneWidget`(라이브러리 라우트는 에디터 아래에 남아 있어도 `Offstage`라 기본 finder에 잡히지 않음 — `skipOffstage: true`). 두 화면이 같은 문장을 보인다는 대조가 이것으로 끝난다(계약 7.4.5 '두 화면 대조는 INFRA V5').
+6. 합성 스타일러스 포인터로 획 1개: 시작·끝 좌표는 **`tester.getRect(find.byType(InkPageView).first)`에서 계산**(페이지 영역 중앙 근처, 폭의 ±20%) — 고정 좌표를 쓰지 않으므로 배너 높이(최소 48, 줄 수에 따라 다름)·툴바 높이가 바뀌어도 같은 위치에 닿는다. 이후 단계의 모든 탭도 finder로 찾은 위젯을 누르고 위치를 가정하지 않는다.
+7. EDITOR 닫기(뒤로 버튼 → flush 뒤 `onClose`) → 라이브러리 → 같은 노트 다시 열기(노트 타일을 제목 텍스트로 찾음) → 획 1개 유지: `await store.flush()` 뒤 `store.content.pagesOf(noteId)` 첫 페이지의 `store.content.loadPage(pageId)`가 `strokes.length == 1`(CORE `NoteContentReader`, 계약 7.2.9 — 화면 구조에 기대지 않음).
+8. 되돌리기(EDITOR 툴바 되돌리기 버튼) → 같은 방법으로 `strokes.length == 0`(빈 페이지).
+9. 정리: `bootstrapper.shutdown()`.
+
+V6(Chrome)는 1·4·6~9를 같게 하고, 2·3·5의 배너 단언은 실제 웹 백엔드에 맞춘다: `w = storageWarningOf(storageInfoProvider 값, store.persistenceStatus)`가 `notDurable`이면 두 화면 모두 `ContractStrings.storageNotDurable` 1개, `null`이면 두 문장 모두 0개(헤드리스 Chrome의 웹 백엔드가 무엇일지는 미확인이라 결과에 맞춰 단언). 1의 설정은 아래 'V6 설정', 9 뒤에 `deleteLocalNoteData(config)`(shutdown이 `store.close()`를 끝낸 뒤 — INFRA-2-10).
+
+V6 설정 (INFRA-3-5): 테스트마다 SQLite DB 이름과 blob IndexedDB 이름(CORE 기본 `'noteapp_blobs'`, 02-core 4.8)을 **둘 다** 다르게 준다 — 하나라도 같으면 앞 테스트(또는 정리 실패한 이전 실행)의 에셋·썸네일이 남아 보인다. CORE `NoteStoreConfig`·`WebStorageConfig`에는 `copyWith`가 없으므로 `defaultNoteStoreConfig`를 고쳐 쓰지 않고 테스트가 직접 만든다(필드 이름은 02-core 4.8 생성자 그대로, 나머지 필드는 CORE 기본값):
+
+```dart
+// app/test/web/app_smoke_browser_test.dart — one config per test (n = test index + run id)
+NoteStoreConfig smokeConfigFor(AppModuleContext context, String n) =>
+    NoteStoreConfig(
+      databaseName: 'noteapp_smoke_$n',
+      ownerId: context.ownerId,
+      web: WebStorageConfig(
+        // Absolute URLs as in production (resolveAppUrl = document.baseURI).
+        // If the test page's baseURI does not reach test/web/ (unverified),
+        // the relative defaults are allowed here — tests only (계약 7.4.3).
+        sqlite3WasmPath: context.web.resolveAppUrl('sqlite3.wasm'),
+        driftWorkerPath: context.web.resolveAppUrl('drift_worker.js'),
+        blobDatabaseName: 'noteapp_smoke_${n}_blobs',
+      ),
+    );
+// late NoteStoreConfig config;
+// CoreModule(configFor: (ctx) => config = smokeConfigFor(ctx, n));
+// after `await bootstrapper.shutdown()`: `await deleteLocalNoteData(config)`
+// drops both databases (SQLite DB + blob IndexedDB).
+```
 
 ---
 
@@ -2469,13 +2776,14 @@ INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`
 | 파일 | 주요 경우 |
 |---|---|
 | `tool/test/dart_imports_test.dart` | 단일 줄·여러 줄 import, 조건부 절 2개(`dart.library.js_interop`·`dart.library.ffi`), 주석 처리된 import 무시, `export` 포함 |
-| `tool/test/rules_test.dart` | 픽스처별 R1–R13 위반 각각 1건 검출 + 정상 픽스처 0건. 추가 경우: **R2** 순수 Dart 멤버에 `flutter: sdk` 의존 → 위반, `environment.flutter` 누락 → 위반, `package:flutter_test` import → 위반 · **R4** `lib/a.dart`의 `dart:io` → 위반, `lib/a_native.dart` 허용, `packages/note_core/lib/testing_vm.dart`의 `dart:io`·`package:drift/native.dart` → 허용(`lib_exceptions`), `lib/`에서 `package:note_core/testing.dart` → 위반 · **R5** `test/web/x_test.dart`의 `package:web` 허용, `test/unit/x_test.dart`면 위반 · **R6** `lib/`의 `_native.dart` 무조건 import → 위반, `test/`에서는 허용 · **R7** test의 `material.dart` → 위반, `ink_engine/lib`의 `package:note_core/src/x.dart` → 위반 · **R8** `feature_library → feature_editor` → 위반, `noteapp → sync_engine` → 위반(이번 범위), `path:` → 위반 · **R9** `^1.0.0` → 위반, `riverpod: 3.4.2` → 고정값 불일치, 표에 없는 `foo: 1.0.0` → R9w(종료 0), `--strict`면 종료 1 · **R11** 포맷 안 된 `*.g.dart`는 보고하지 않음 · `pinned_external`이 계약 7.5 표의 행 수·값과 같음(표를 픽스처로 둔 스냅숏) |
+| `tool/test/rules_test.dart` | 픽스처별 R1–R13 위반 각각 1건 검출 + 정상 픽스처 0건. 추가 경우: **R2** 순수 Dart 멤버에 `flutter: sdk` 의존 → 위반, `environment.flutter` 누락 → 위반, `package:flutter_test` import → 위반 · **R4** `lib/a.dart`의 `dart:io` → 위반, `lib/a_native.dart` 허용, `packages/note_core/lib/testing_vm.dart`의 `dart:io`·`package:drift/native.dart` → 허용(`lib_exceptions`), `lib/`에서 `package:note_core/testing.dart` → 위반 · **R4 native_only**(INFRA-2-12): `pdf_io/lib/src/compose/compose_backend.dart`의 `package:pdfium_dart/pdfium_dart.dart` → 위반 1, 같은 import가 `compose_backend_native.dart`에 있으면 허용 1 · **R4 test-only**: `note_core/lib/src/a.dart`의 `package:note_core/testing.dart` → 위반 1, `note_core/lib/testing_vm.dart`의 `import 'testing.dart'`(같은 패키지 상대) → 허용 1, `note_core/lib/src/a.dart`의 `import '../testing.dart'` → 위반, 디렉터리 항목 `lib_exceptions: [packages/x/example/lib/]` 아래 파일의 `package:note_core/testing.dart` → 허용 · **R5** `test/web/x_test.dart`의 `package:web` 허용, `test/unit/x_test.dart`면 위반 · **R6** `lib/`의 `_native.dart` 무조건 import → 위반, `test/`에서는 허용 · **R7** test의 `material.dart` → 위반, `ink_engine/lib`의 `package:note_core/src/x.dart` → 위반 · **R8** `feature_library → feature_editor` → 위반, `noteapp → sync_engine` → 위반(이번 범위), `path:` → 위반 · **R9** `^1.0.0` → 위반, `riverpod: 3.4.2` → 고정값 불일치, 표에 없는 `foo: 1.0.0` → R9w(종료 0), `--strict`면 종료 1 · **R11** 포맷 안 된 `*.g.dart`·`fixture_dirs`(`tool/test/fixtures/`) 아래 파일은 보고하지 않음 · `pinned_external`이 계약 7.5 표의 행 수·값과 같음(표를 픽스처로 둔 스냅숏) |
+| `tool/test/test_tags_test.dart` (R15, **B1-4** — 계약 7.6 B1 v1.2) | 픽스처: `@Tags(['integration'])` + `dart_test.yaml` 없음 → 위반 · 선언은 있으나 `skip` 없음 → 위반 · `integration: {skip: "..."}` → 0건 · `perf`도 같게 · `golden`은 선언만 있으면 0건, 선언 없으면 위반 · `testWidgets('x', tags: ['golden'], ...)`·`tags: 'golden'` 인식 · 주석 처리된 `@Tags` 무시 · 태그를 안 쓰는 멤버는 `dart_test.yaml`이 없어도 0건 · 같은 멤버의 여러 파일 태그를 합쳐 한 번만 보고 · 변수로 넘긴 태그(`const kTags = ['integration']; … tags: kTags`)는 인식하지 않음(0건 — 계약 7.4.8 v1.2 '리터럴만 인식' 제약을 고정하는 경우) · 위반이 있으면 `ws check` 종료 코드 1 |
 | `tool/test/test_command_test.dart` | 가짜 프로세스 실행기로: vm은 `test/web/` 밖 파일만 넘김 · chrome은 `test/web/`가 있는 멤버만 · `tool/prepare_web_test.dart`가 있으면 **먼저** 멤버 디렉터리에서 실행, 없으면 실행 안 함 · 준비 실패 → 그 멤버 '준비 실패'·테스트 건너뜀·전체 종료 1 · `--run-skipped -t integration` 전달 · 기본 `-x bench` · `CHROME_EXECUTABLE` 있으면 그대로 환경에 전달, 없고 `PATH`에도 없으면 종료 3 · `--affected-since` 필터 · 요약 표 |
 | `tool/test/affected_test.dart` | `packages/note_core/lib/x.dart` 변경 → note_core + 의존 멤버 5개(ink_engine·feature_editor·feature_library·pdf_io·sync_engine) + noteapp, `packages/feature_library/…` → feature_library, noteapp, `pubspec.lock` → 전체, `docs/a.md` → 없음, 위상 순서 |
 | `tool/test/channel_id_test.dart` | 예시 브랜치 → 기대값, `area/infra` 예, 길이 ≤ 21, `[a-z0-9-]`만, 같은 입력 같은 결과, 대소문자만 다른 브랜치 → 다른 hash, 빈 slug 처리 |
 | `tool/test/build_info_file_test.dart` | 환경 변수 있음/없음, 값 모두 문자열, `--channel` 검증, sha 40자 |
 | `tool/test/web_finalize_test.dart` | 가짜 build 디렉터리: info 복사, preview면 manifest 이름 변경·live면 유지, 필수 파일 누락 시 1, `flutter_bootstrap.js`에 `serviceWorkerSettings` 있으면 실패, `main.dart.js` 크기 줄 출력 |
-| `tool/test/web_assets_test.dart` | 계약 7.4.9 두 항목(경로·크기·sha256) 파싱, 파일 없음/크기 불일치/sha 불일치 실패, fetch는 로컬 HTTP 서버로(sha 일치할 때만 기록) |
+| `tool/test/web_assets_test.dart` | 계약 7.4.9 두 항목(경로·크기·sha256) 파싱, 파일 없음/크기 불일치/sha 불일치 실패(sha256은 `package:crypto` — 외부 프로세스 호출 없음), fetch는 로컬 HTTP 서버로(sha 일치할 때만 기록) |
 | `tool/test/web_files_test.dart` | `manifest.json` 필수 필드·아이콘 경로 존재, `index.html` 필수 메타·CSS 속성·`flutter-first-frame`·`gesturestart`·viewport 덮어쓰기 문자열·`contextmenu` 가드(입력 요소 예외 포함)·`<base href`·`lang="ko"`·CSP 메타 없음, `flutter_bootstrap.js` 토큰 2개·`unregister`·`wasmAllowList` |
 | `tool/test/hosting_config_test.dart` | `firebase.json` JSON 유효, `public`, 재작성, `no-cache`, `**/*.wasm` → `application/wasm`, 기본 설정에 COOP/COEP **없음**, `--isolate` 결과에 COOP/COEP, M4 픽스처의 `firestore.rules`·`firestore.indexes`·`storage.rules` 경로가 `app/` 기준으로 존재(없는 경로 → 실패) |
 | `tool/test/workflows_test.dart` | 모든 잡 `timeout-minutes`, ci 동시성, `flutter-version-file: pubspec.yaml`, `actions/cache@v6` 2개(키에 `hashFiles('pubspec.lock'`), 브라우저 테스트 단계, 통합 단계는 `inputs.integration` 조건, main은 `check --strict`, 배포 단계 `if`에 시크릿 조건, `firebaseToolsVersion` 고정, iOS 잡 변수 게이트, android `retention-days` |
@@ -2487,9 +2795,9 @@ INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`
 | `app/test/errors/app_error_log_test.dart` | 용량 초과 시 오래된 것 삭제, `totalCount`, `notifyListeners` |
 | `app/test/errors/error_handlers_test.dart` | `FlutterError.reportError` → 기록, `PlatformDispatcher.onError` → 기록·true, 복원 콜백 |
 | `app/test/errors/diagnostic_report_test.dart` | 고정 시각으로 텍스트 스냅샷(6.7 예시 형식), CORE `StorageInfo`·`PersistenceStatus` 값 → 저장소·저장 상태 줄, null → '알 수 없음', 8,000자 자르기, 오류 5건·스택 15줄 제한 |
-| `app/test/bootstrap/app_bootstrapper_test.dart` (fake_async) | 순서대로 시작, 단계 라벨 변화, `recordOutcome`·`isStarted`, critical 실패 → 역순 stop + Failure(`canResetAfter`가 참일 때만 `resetLocalData`), non-critical 실패 → Success + 기록 + 그 모듈 overrides 제외 + 뒤 모듈에서 `isStarted == false`, 시간 초과 → `timedOut`, 3초 초과 → `isSlow`, `run()` 두 번 → 같은 Future, `notifyAppHidden` 500ms 제한, `StartupReport.storage` = 공개된 `NoteStore.storageInfo`, **`persist` 관련 호출 없음** |
+| `app/test/bootstrap/app_bootstrapper_test.dart` (fake_async) | 순서대로 시작, 단계 라벨 변화, `recordOutcome`·`isStarted`, critical 실패 → 역순 stop + Failure(`canResetAfter`가 참일 때만 `resetLocalData`), non-critical 실패 → Success + 기록 + 그 모듈 overrides 제외 + 뒤 모듈에서 `isStarted == false`, 시간 초과 → `timedOut` + 그 모듈의 `onStartAbandoned` 1회(`FakeAppModule.abandonedCalls`), `shutdown()`은 `abandonDelay` 1초면 그 완료를 기다리고 5초면 2초 뒤 진행 + `errorLog` 1건, 3초 초과 → `isSlow`, `run()` 두 번 → 같은 Future, `notifyAppHidden` 500ms 제한, `StartupReport.storage` = 공개된 `NoteStore.storageInfo`, **`persist` 관련 호출 없음** |
 | `app/test/bootstrap/overrides_unique_test.dart` | 가짜를 넣은 실제 모듈 3개(`CoreModule(open: fakeOpenNoteStore(store: CountingNoteStore()))`, `PdfModule(initialize: …, pdfOverrides: …)`, `FeatureWiringModule(가짜 PDF 동작)`)로 부트스트랩 → `overrides`의 `Override.origin`이 모두 다름, `ProviderContainer.test(overrides:)` 생성 시 assert 없음. 일부러 같은 provider를 두 모듈에 넣으면 이 검사가 실패함을 확인 |
-| `app/test/bootstrap/bootstrap_app_test.dart` | 스플래시 → 앱, 실패 → 오류 화면 → 다시 시도 → 성공 (새 bootstrapper 생성 확인), 초기화 가능 실패 → 대화상자 2단계 → `RecordingLocalDataEraser` 호출 → 자동 다시 시도 |
+| `app/test/bootstrap/bootstrap_app_test.dart` | 스플래시 → 앱, 실패 → 오류 화면 → 다시 시도 → 성공 (새 bootstrapper 생성 확인), 초기화 가능 실패 → 대화상자 2단계 → `RecordingLocalDataEraser` 호출 → 자동 다시 시도, **CORE 시간 초과 → 오류 화면 → 늦게 열린 저장소 → 다시 시도: 새 `open` 호출(`openCount == 2`)이 늦은 저장소의 `closeCount == 1` 이후**(fake_async) |
 | `app/test/bootstrap/startup_error_screen_test.dart` | `NoteStoreOpenFailure` 5종 + 시간 초과 + 그 외 문구(6.7 표), 새로고침 버튼은 `newerSchema`(웹)만, 데이터 지우기 버튼은 콜백이 있을 때만·2단계 확인, 진단 복사(Clipboard 모의) |
 | `app/test/routing/app_routes_test.dart` | 인코딩, `?page=`, `libraryPageKey` |
 | `app/test/routing/app_router_test.dart` (placeholders) | `/` · `/folders/f1` · `/notes/n1?page=p3` 인자, 없는 경로 → NotFound → 홈, openNote → 닫기 시 이전 폴더, 새로고침 시나리오(초기 위치 `/notes/n1`) 닫기 → `/`. **페이지 종류**: `/`·`/folders/:id`는 `NoTransitionPage`이고 key == `AppRoutes.libraryPageKey`, `/notes/:id`는 `NoTransitionPage`. **폴더 이동 시 `LibraryScreen` State 유지**: `/` → `/folders/a` → `/folders/b` → `/` 동안 라이브러리 자리표시 `initState` 1회, push `/notes/n1` → pop 뒤에도 1회 |
@@ -2499,18 +2807,18 @@ INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`
 | `app/test/update/update_banner_test.dart` | Available일 때만 배너, 버튼 동작, 문구 해요체 |
 | `app/test/settings/settings_screen_test.dart` | provider 목록 순서대로 머리글 + 섹션, `group` '일반' 머리글 한 번, 닫기 → `onClose`, 가로·세로 크기에서 넘침 없음 |
 | `app/test/settings/settings_sections_test.dart` | `defaultSettingsSections()` id 순서 == `app.storage, editor.input, editor.pen, editor.page, library.newNote, editor.developer, app.about`, 각 builder가 계약 위젯 타입(`EditorInputSettingsSection` … `LibrarySettingsSection`, `StorageSection`, `AboutSection`)을 만듦, M4 전 `app.account` 없음 |
-| `app/test/settings/storage_section_test.dart` | `createFakeNoteStore()` 기반 `CountingNoteStore`로 backend·영구 보관·사용량 표시, '다시 확인' → `refreshStorageInfo` 재호출, `consecutiveFailures ≥ 3` 문구, 로딩 중에는 `storageInfoProvider` 값 |
-| `app/test/settings/about_section_test.dart` | 표시 값, 진단 복사, 라이선스 페이지 열림, 백업 버튼 → `exportBackup` → 결과별 스낵바 문구, 진행 중 버튼 비활성 |
-| `app/test/settings/backup_export_test.dart` | `flush` → `exportBackupJson` 순서, `downloadBytes`의 파일 이름 패턴·`application/json`, `downloadResult == false` → `unsupported`, 내보내기 예외 → `failed` + `errorLog` 1건 |
-| `app/test/modules/core_module_test.dart` | `start` → `open`이 받은 `config.ownerId == ctx.ownerId`, `config.web.sqlite3WasmPath`·`driftWorkerPath`가 `FakeWebPlatform.baseUri` 기준 절대 URL(현재 위치가 `/notes/x`여도), `NoteStore` publish · `overrides()`로 만든 컨테이너의 `noteStoreProvider`가 같은 인스턴스 · `onAppHidden` → `flushCount` 1 · `stop` → `closeCount` 1 + 상태 구독 해제 · `NoteStoreOpenException` 그대로 전파 · `canResetAfter` 표(6.7) · `resetLocalData` → 마지막 config로 eraser 호출 · `PersistenceStatus.lastErrorAt`이 바뀔 때마다 `errorLog` 1건(같은 오류 반복 이벤트는 1건) |
-| `app/test/modules/pdf_module_test.dart` | non-critical, `initialize` 호출, `overrides()` == `pdfOverrides()` 결과, 실패 시 부트스트랩이 overrides 제외 |
-| `app/test/modules/feature_wiring_module_test.dart` | PDF 시작됨: 컨테이너에서 `pageThumbnailRendererProvider`가 `inkPageThumbnailRendererProvider`와 같은 인스턴스, `libraryPdfImportActionProvider`·`libraryPdfExportActionProvider`가 주입한 함수와 `identical`, `editorExtensionsProvider`의 메뉴 id가 가짜 동작 순서와 같음, `devOverlaySectionsProvider`에 `pdf.render` · PDF 실패(`isStarted('pdf') == false`): 두 자리 null, `editorExtensionsProvider` 기본값(빈 목록), `devOverlaySectionsProvider` 빈 목록, 썸네일 렌더러는 그대로 · `featureEditorOverrides()`·`featureLibraryOverrides()` 항목 포함 |
-| `app/test/modules/pdf_wiring_test.dart` | `pdfMenuInvocationOf` 4개 필드 대응, `editorMenuItemFromPdf`의 id·label·icon 동일·`onSelected` → `run(ctx, invocation)`·`isEnabled` null 유지/변환, `PdfRenderStatsLines`: 1초 동안 통계 100번 변경 → 갱신 ≤ 4번(fake_async)·dispose 후 리스너 없음, `formatPdfRenderStats` 텍스트 스냅숏(6.8) |
+| `app/test/settings/storage_section_test.dart` | `createFakeNoteStore()` 기반 `CountingNoteStore`로 backend·영구 보관·사용량 표시, '다시 확인' → `refreshStorageInfo` 재호출(`refreshCount`), `consecutiveFailures ≥ 3` 문구, 로딩 중에는 `storageInfoProvider` 값, 첫 프레임부터 저장 상태 줄 표시(`persistenceStatusStream` 첫 값 — 계약 7.2.12 v1.1). **'다시 확인' 후 `storageInfoProvider` 값 갱신**(INFRA-2-5): `refreshResult = StorageInfo(backend: webSharedIndexedDb, persistGranted: true)`를 주고 '다시 확인' → 같은 트리의 별도 `Consumer`가 `ref.watch(storageInfoProvider).persistGranted == true`로 다시 그려짐, `ProviderContainer`의 `storageInfoProvider` 값도 같음 · 섹션을 닫는 중(`await` 사이 dispose)에 끝나도 예외 없음 |
+| `app/test/settings/about_section_test.dart` | 표시 값, 진단 복사, 라이선스 페이지 열림, 백업 버튼 → `prepareBackup`(진행 중 버튼 비활성) → `BackupReadySheet`: `canShareFilesResult == false`면 [공유 · 파일에 저장] 숨김 / true면 표시, 각 버튼 → `deliverBackup` → 결과별 스낵바 문구(4.5.8), 취소 → 스낵바 없음 · **백업 준비 대기 취소**(INFRA-3-3, 계약 7.2.9 v1.2): `CountingNoteStore(flushGate: Completer<void>())`(끝나지 않는 Completer) → 백업 버튼 → 진행 줄·[취소] 표시, 버튼 비활성 → `emitStatus(PersistenceStatus(pendingOps: 1, isWriting: true, consecutiveFailures: 3))` → '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.' 표시 → [취소] → 진행 줄 사라짐, **버튼 다시 활성, 스낵바 없음, `BackupReadySheet` 없음, `errorLog.totalCount` 변화 없음**, 그 뒤 Completer를 끝내도 시트·스낵바가 뜨지 않음 |
+| `app/test/settings/backup_export_test.dart` | `prepareBackup`: `flush` → `exportBackupJson` 순서, `BackupCancelToken.cancel()`(flush 대기 중) → 즉시 `null`·errorLog 0건, 그 뒤 늦게 끝난 결과·`exportBackupResult` 예외도 기록 없음, `cancel()` 두 번 → 문제없음(INFRA-3-3), 파일 이름 패턴·`mimeType == 'application/json'`, `exportBackupResult` 예외 → null + `errorLog` 1건(가짜 저장소 `exportBackupJson`은 B2 `UnimplementedError`라 `CountingNoteStore` 주입 사용 — 계약 7.6) · `deliverBackup`: download → `downloads`에 같은 바이트·이름·MIME, `downloadResult == false` → `unsupported` · share → `shares`에 같은 값, `shareResult` `cancelled` → `cancelled`(errorLog 없음), `failed` → `failed` + errorLog 1건, `unsupported` → `unsupported` |
+| `app/test/modules/core_module_test.dart` | `start` → `open`이 받은 `config.ownerId == ctx.ownerId`, `config.web.sqlite3WasmPath`·`driftWorkerPath`가 `FakeWebPlatform.baseUri` 기준 **절대 URL**(`Uri.parse(path).isAbsolute`, 현재 위치가 `/notes/x`여도 — 계약 7.2.12·7.4.3 v1.1), `NoteStore` publish · `overrides()`로 만든 컨테이너의 `noteStoreProvider`가 같은 인스턴스 · `onAppHidden` → `flushCount` 1 · `stop` → `closeCount` 1 + 상태 구독 해제 · `NoteStoreOpenException` 그대로 전파 · `canResetAfter` 표(6.7) · `resetLocalData` → 마지막 config로 eraser 호출 · `PersistenceStatus.lastErrorAt`이 바뀔 때마다 `errorLog` 1건(같은 오류 반복 이벤트는 1건, 첫 이벤트에 오류가 있으면 1건) · **시간 초과 뒤 늦게 열린 저장소는 close 1회**(INFRA-2-9, fake_async): `fakeOpenNoteStore(gate:)` + 부트스트래퍼 → 20초 → `timedOut` → gate 완료 → 늦은 `CountingNoteStore.closeCount == 1`, publish·override 없음, 이후 `stop()`·`shutdown()`이 다시 닫지 않음(여전히 1) · 늦은 close 실패(`closeError`) → `errorLog` 1건 · 늦은 열기 실패 → close 없음·추가 기록 없음 |
+| `app/test/modules/pdf_module_test.dart` | non-critical, `initialize` 호출, `overrides()` == `pdfOverrides()` 결과, 실패 시 부트스트랩이 overrides 제외, 기본 인자(B4 자리표시 `pdfIoOverrides()`)의 `overrides()`로 만든 컨테이너에서 `ink.pageBackgroundBuildersProvider` read → 예외 없음·2개(PDF-2-2 확인) |
+| `app/test/modules/feature_wiring_module_test.dart` | PDF 시작됨: 컨테이너에서 `pageThumbnailRendererProvider`가 `inkPageThumbnailRendererProvider`와 같은 인스턴스, `libraryPdfImportActionProvider`·`libraryPdfExportActionProvider`가 주입한 함수와 `identical`, `editorExtensionsProvider`의 메뉴 id가 가짜 동작 순서와 같음, `devOverlaySectionsProvider`에 `pdf.render` · **B4 통계 provider**(INFRA-3-2, 계약 7.6 B4 v1.2 C12-06): 모듈 overrides만(`CoreModule(open: fakeOpenNoteStore(store: CountingNoteStore()))`·기본 인자 `PdfModule()`·이 모듈의 결과 — `pdfRenderStatsProvider` 테스트 override 없음) 넣은 컨테이너에서 `devOverlaySectionsProvider`를 read → `pdf.render` 섹션의 `lines.value`를 read → 예외 없음, 3줄(B4 = `PdfRenderStats.zero`) · PDF 실패(`isStarted('pdf') == false`): 두 자리 null, `editorExtensionsProvider` 기본값(빈 목록), `devOverlaySectionsProvider` 빈 목록, 썸네일 렌더러는 그대로 · `featureEditorOverrides()`·`featureLibraryOverrides()` 항목 포함 |
+| `app/test/modules/pdf_wiring_test.dart` | `pdfRenderStatsSection`(INFRA-3-2, 계약 7.6 B4 v1.2 C12-06): 모듈 overrides만 넣은 컨테이너(위와 같음, 테스트용 `pdfRenderStatsProvider` override 없음)에서 `Provider((ref) => pdfRenderStatsSection(ref))`를 read → `id == 'pdf.render'`, `lines.value` read → 예외 없음, 3줄(B4에서는 `formatPdfRenderStats(PdfRenderStats.zero)`와 같음 — G2의 실제 PDF에서도 예외 없음만 단언), 컨테이너 dispose 뒤 lines 리스너 해제 · `pdfMenuInvocationOf` 4개 필드 대응(`onNavigate('p2', Rect.fromLTWH(10, 20, 30, 40))` → `navigateToPage`가 **같은 `Rect`**를 받음 — 변환 없음, 계약 7.2.17 v1.1), `editorMenuItemFromPdf`의 id·label·icon 동일·`onSelected` → `run(ctx, invocation)`·`isEnabled` null 유지/변환, `PdfRenderStatsLines`: 1초 동안 통계 100번 변경 → 갱신 ≤ 4번(fake_async)·dispose 후 리스너 없음, `formatPdfRenderStats` 텍스트 스냅숏(6.8) |
 | `app/test/modules/production_modules_test.dart` | id 순서 `core, pdf, featureWiring`, 유일 |
-| `app/test/integration/app_smoke_test.dart` (`integration`, G2) | 계약 V5 (8.3 G2) |
-| `app/test/web/web_platform_browser_test.dart` (Chrome) | `resolveAppUrl('sqlite3.wasm')`가 절대 URL이고 `/sqlite3.wasm`으로 끝남, 404 fetch → null, `visibilityChanges` 구독·해제, `isStandalone == false`, `downloadBytes`가 예외 없이 true |
+| `app/test/integration/app_smoke_test.dart` (`integration`, G2) | 계약 V5 (8.3 'V5 스모크 단계' 1~9). **배너 단언**(INFRA-2-7, 계약 7.4.5 v1.1): 메모리 CORE = `nativeMemory` → `notDurable`, 라이브러리 화면(닫기 전)과 에디터 화면 각각 `find.text(ContractStrings.storageNotDurable)` → `findsOneWidget`. 획 좌표는 `InkPageView` 영역에서 계산(배너 높이 무관), 획 수는 `store.content`로 확인 |
+| `app/test/web/web_platform_browser_test.dart` (Chrome) | `resolveAppUrl('sqlite3.wasm')`가 절대 URL이고 `/sqlite3.wasm`으로 끝남, 404 fetch → null, `visibilityChanges` 구독·해제, `isStandalone == false`, `downloadBytes`가 예외 없이 true, `canShareFiles()`가 예외 없이 bool(헤드리스 Chrome 값은 미확인)이고 false면 `shareFile` → `unsupported` |
 | `app/test/web/app_boot_browser_test.dart` (Chrome) | 가짜 모듈로 `BootstrapApp` → 라이브러리 자리표시, 오류 화면 경로 — dart2js 컴파일 상태에서 `dart:io` 런타임 사용이 없음을 확인 |
-| `app/test/web/app_smoke_browser_test.dart` (Chrome, `integration`, G2) | 계약 V6 — V5와 같은 시나리오, 실제 CORE 웹 저장 |
+| `app/test/web/app_smoke_browser_test.dart` (Chrome, `integration`, G2) | 계약 V6 — V5와 같은 시나리오, 실제 CORE 웹 저장. 테스트마다 다른 `databaseName`·`WebStorageConfig.blobDatabaseName`을 `NoteStoreConfig(web: WebStorageConfig(sqlite3WasmPath: …, driftWorkerPath: …, blobDatabaseName: …), databaseName: …)`로 직접 생성(`copyWith` 없음 — 8.3 'V6 설정', INFRA-3-5). 배너는 `storageWarningOf` 결과에 맞춰 두 화면 모두 고정 문장 1개 또는 0개. 끝에 `bootstrapper.shutdown()` 완료 뒤 같은 config로 `deleteLocalNoteData(config)`(INFRA-2-10 — 두 DB 모두 지워짐) |
 
 ### 9.2 GitHub에서만 확인 가능한 것 (B8 체크포인트 푸시, I13 후, G5)
 
@@ -2542,7 +2850,8 @@ INFRA는 **B1**과 **B8**을 맡는다. B2(CORE: 계약 타입·동작 구현·`
 | 15 | (요청 시) `exp-wasm` 주소 `?renderer=skwasm` vs `?renderer=canvaskit` | 앱 정보 렌더러 표시가 바뀜, 필기 지연 체감 비교 |
 | 16 | 노트를 연 상태(주소 `/notes/…`)에서 Safari 새로고침 | 정상 시작, 같은 노트가 다시 열림 (깊은 경로에서도 `sqlite3.wasm`을 받는지 — 6.4 절대 URL) |
 | 17 | 라이브러리에서 폴더를 여러 번 오가기 | 화면이 새로 그려지며 미끄러지거나 깜빡이지 않고, 사이드바 펼침·스크롤 위치 유지 |
-| 18 | 설정 → 앱 정보 → 백업 내보내기 | 파일 앱(다운로드)에 `noteapp-backup-….json` 저장, 크기 0보다 큼 |
+| 18a | **Safari 탭**에서 설정 → 앱 정보 → 백업 내보내기 → 시트의 [내려받기], 다시 [공유 · 파일에 저장] → '파일에 저장' | 각각 파일 앱에 `noteapp-backup-….json`(크기 0보다 큼)이 생기는지 기록. 둘 중 하나 이상 성공 = 합격 |
+| 18b | **홈 화면 앱**에서 같은 순서 | 각각 기록(`<a download>`가 무시될 수 있음 — 11절). 둘 중 하나 이상 성공 = 합격. 둘 다 실패하면 즉시 알려 주기(백업은 M4 실연결 전 선행 조건 — 다른 경로를 계약 변경 요청으로 추가) |
 | 19 | (키보드·트랙패드가 있으면) 라이브러리·에디터 빈 곳 우클릭 / 노트 제목 입력란 우클릭 | 빈 곳에서는 브라우저 메뉴 없음, 입력란에서는 편집 메뉴 사용 가능 |
 | 20 | (통합 후) 계약 7.7 V7 ①②③ 복합 항목 | 각 영역 체크리스트와 함께 확인 |
 
@@ -2554,13 +2863,13 @@ APK 내려받기·설치, 실행 시 라이브러리 화면, 새 APK 덮어 설�
 
 ## 10. 완료 기준
 
-1. 기반 단계: B1·B8 완료 조건(계약 7.6) 충족 상태로 main에 커밋되어 다른 영역이 worktree를 만들 수 있음. B8 실측값이 6.13 표에 기록됨.
+1. 기반 단계: B1·B8 완료 조건(계약 7.6 v1.2 — B1 `ws check`에 R15 포함) 충족 상태로 main에 커밋되어 다른 영역이 worktree를 만들 수 있음. B8 실측값이 6.13 표에 기록됨.
 2. 동시 개발 마감(I15, 컨테이너): `ws check` 위반 0, `flutter analyze --fatal-infos` 0건, `ws test`·`ws test --platform chrome`·`dart test tool/test` 전부 통과, `cd app && flutter build web --release` 성공.
 3. 9.1 표의 모든 테스트 파일 존재·통과(통합 태그 2개와 `export_names_test`는 통합 단계).
 4. GitHub: `ci.yml`이 main·브랜치 푸시에서 녹색, 시크릿 등록 후 live·미리보기 주소가 실행 요약에 표시, `android.yml` APK 아티팩트 생성.
 5. 사용자가 안내서 01·02만 보고 Firebase 프로젝트와 시크릿 등록을 마침 (막히면 안내서 수정 후 재확인).
-6. iPad 체크리스트 1–9, 11, 16–18 통과 (10, 12–15, 19는 기록만).
-7. 통합 단계(G1–G4): 계약 7.7 V1(`ws check` R1–R14 위반 0)·V2·V3·V4·V5·V6 중 INFRA 몫 통과, 계약 7.3.3 '이번' 행의 override가 모두 실제 구현이고 중복 없음.
+6. iPad 체크리스트 1–9, 11, 16, 17, 18a, 18b 통과 (10, 12–15, 19는 기록만).
+7. 통합 단계(G1–G4): 계약 7.7 V1(`flutter pub get --enforce-lockfile`, `ws check` **R1~R15** 위반 0 — 계약 7.7 V1 v1.2, C12-01)·V2(`dart format` 변경 없음은 **R11 기준**: `app`·`packages`·`tool`의 `*.dart`에서 `generated_files`·`fixture_dirs` 제외)·V3·V4·V5(두 화면 배너 문구 = 계약 7.4.5 고정 문장 포함)·V6 중 INFRA 몫 통과, 계약 7.3.3 '이번' 행의 override가 모두 실제 구현이고 중복 없음.
 
 ---
 
@@ -2572,11 +2881,17 @@ APK 내려받기·설치, 실행 시 라이브러리 화면, 새 APK 덮어 설�
 | material_ui 주간 릴리스로 변경 | 동시 개발 중 동작 차이 | 정확 고정, 업그레이드는 INFRA 단독 커밋 |
 | flutter_riverpod의 pub.dev 웹 태그 없음 | 웹에서 예상 못 한 오류 | 웹 빌드 + Chrome 테스트로 실제 경로 검증 (확인함), CI에서 매번 |
 | 엔진의 viewport `maximum-scale=5.0` | iPad에서 페이지 확대·입력란 자동 확대 | MutationObserver로 덮어쓰기 + `gesturestart` 차단, 체크리스트 3·4 |
-| 엔진이 `contextmenu`를 막지 않음 (확인함) | 우클릭·일부 길게 누르기에 브라우저 메뉴 | CSS(`-webkit-touch-callout`·`user-select`) + index.html 가드, 체크리스트 5·19, 부족하면 승인 후 `disableContextMenu()`(6.9, 12.3 P1) |
-| 깊은 경로(`/notes/…`)에서 상대 자산 경로가 틀어짐 (확인함: dart2js `Uri.base` = `location.href`) | 새로고침·복원 시 `sqlite3.wasm` 대신 `index.html`이 와서 시작 실패 | CORE에 `document.baseURI` 기준 절대 URL 전달(6.4), `core_module_test`·체크리스트 16, 12.3 P3 |
+| 엔진이 `contextmenu`를 막지 않음 (확인함, 계약 7.4.9 v1.1) | 우클릭·일부 길게 누르기에 브라우저 메뉴 | CSS(`-webkit-touch-callout`·`user-select`) + index.html 가드(계약 7.4.9 v1.1 문장 그대로), 체크리스트 5·19, 부족하면 계약 7.4.12 절차로 `disableContextMenu()` 재검토(6.9) |
+| 깊은 경로(`/notes/…`)에서 상대 자산 경로가 틀어짐 (확인함: dart2js `Uri.base` = `location.href`) | 새로고침·복원 시 `sqlite3.wasm` 대신 `index.html`이 와서 시작 실패 | CORE에 `document.baseURI` 기준 절대 URL 전달(6.4, 계약 7.2.12·7.4.3 v1.1 — CORE `Uri.base.resolve`는 절대 URL을 그대로 통과), `core_module_test`·체크리스트 16 |
+| iPadOS 홈 화면 앱에서 Blob + `<a download>`가 동작하지 않을 수 있음 (미확인, INFRA-2-11) | 백업 파일을 만들 수 없음 → M4 실연결 선행 조건(계약 7.8) 미충족 | 백업 시트에 두 번째 경로 **`navigator.share({files})`**(Safari 15+, 미확인)를 [공유 · 파일에 저장]으로 둔다(4.5.8). 두 버튼 모두 시트의 탭에서 바로 불러 사용자 활성화를 받는다. 체크리스트 18a(Safari 탭)·18b(홈 화면 앱)로 경로마다 기록, 둘 다 실패하면 M4 전에 다른 경로를 계약 변경 요청으로 추가 |
+| 홈 화면 앱과 Safari 탭의 저장 공간이 따로일 수 있음 (미확인) | Safari 탭에서 백업해도 홈 화면 앱 노트가 빠짐, 사용자 혼동 | 안내서 04에 명시(6.16), 백업은 노트를 쓴 그 앱(홈 화면 앱)에서 하게 안내, 18b 결과로 확정 |
+| CORE 시작이 20초를 넘긴 뒤 늦게 열림 | 늦게 열린 저장소가 DB를 쥔 채 다시 시도·데이터 지우기와 겹침(`deleteLocalNoteData` `StateError`) | `onStartAbandoned`가 즉시 `close()`, 다시 시도는 그 close 뒤(최대 2초) — 6.4 2-2, `core_module_test`·`bootstrap_app_test` |
 | Safari에서 CanvasKit만 사용 | 필기 지연이 네이티브보다 큼 | 판정은 네이티브 전환(PLAN), skwasm 실험 채널로 비교 수단 확보 |
 | 옛 버전이 보임 | 피드백이 잘못된 버전 기준 | 서비스 워커 해제, `no-cache`, 새 버전 배너, 빌드 라벨 표시 |
-| Safari 저장 데이터 삭제 | 테스트 노트 유실 | CORE `persist()` 요청 결과 표시, 백업 내보내기(M4 전 선행 조건), 홈 화면 앱 사용 권장, 테스트 전용 안내 |
+| Safari 저장 데이터 삭제 | 테스트 노트 유실 | CORE `persist()` 요청 결과 표시, 백업 내보내기(M4 전 선행 조건, 두 경로), 홈 화면 앱 사용 권장, 테스트 전용 안내 |
+| 동시 개발 중 패키지가 `dart_test.yaml` 태그 선언·skip 없이 `integration` 테스트를 추가 (C11-26) | 기본 `ws test`가 B2 CORE로 통합 테스트를 돌려 실패 | 계약 7.4.8 v1.1, R15 검사(6.2 — B1-4부터 main의 `ws check`에 포함, 계약 7.6 B1 v1.2 C12-01: 각 영역 브랜치에서 위반 = 종료 1) |
+| 태그를 변수·상수로 넘겨 R15 스캐너가 못 봄 | 선언·skip 누락이 검사를 빠져나감 | 계약 7.4.8 v1.2(리터럴 태그만 — 규칙으로 고정), 리뷰에서 리터럴로, `test_tags_test`가 '변수 태그 = 인식 안 함'을 고정해 한계를 드러냄 |
+| CORE 쓰기 재시도 중 `flush()`·`exportBackupJson()`이 끝나지 않음 (계약 7.2.9 v1.2, C12-09) | 백업 준비 진행 표시가 끝나지 않고 버튼이 계속 비활성 | 진행 표시에 [취소](대기만 끊고 `null`, errorLog 없음)와 `writeFailing` 지연 문구(4.5.8, INFRA-3-3), 수명주기·새 버전 적용의 flush는 500ms 상한(5.1 C-I4) |
 | 한글 대체 폰트 지연 로딩(CanvasKit은 gstatic에서 Noto 글꼴을 받음) | 첫 실행 시 한글이 잠시 안 보임 | 체크리스트 10으로 측정, 문제면 한국어 서브셋 폰트 번들 (이후) |
 | GitHub Actions 무료 시간 초과 | 빌드 중단 | 6.13 절약 장치, B8 실측 후 예산 재계산, 체크포인트·통합 때만 푸시(계약 7.4.12) |
 | CI에서 빌드 훅·준비 스크립트 다운로드 실패 | 테스트 실패(코드 문제 아님) | 캐시 2종, 다시 실행. 테스트 코드 자체는 네트워크를 쓰지 않음(계약 7.4.8) |
@@ -2620,20 +2935,29 @@ APK 내려받기·설치, 실행 시 라이브러리 화면, 새 APK 덮어 설�
 
 ### 12.2 새 질문 (답이 없으면 '기본 진행'대로 한다)
 
-| # | 질문 | 기본 진행 |
+| # | 질문 | 기본 진행 | 결정 (00-review 2차 INFRA-2-14) |
+|---|---|---|---|
+| N1 | 설정 섹션 순서를 PLAN 8 IA 순서(계정·동기화 → 저장 공간 → 입력 → 펜 → 일반(페이지 넘김·새 노트 기본값) → 개발자 표시 → 앱 정보)로 해도 되는가 (계약 7.4.11은 구성만 정함) | 4.5.8 표대로 | **승인** — 4.5.8 표 그대로 |
+| N2 | 동시 개발 중 계약 7.5에 없는 외부 의존은 `ws check` 경고(R9w)로만 두고, main CI·통합 G1에서 `--strict`로 위반 처리하는 방식이 맞는가 | 그렇게 | **승인** — R9w + main·G1 `--strict`(6.2, 6.13) |
+| N3 | 계약 7.1의 '앱은 전부 허용 + 이번 범위 `sync_engine` 미의존'을 `allowed_dependencies`에서 앱 → `sync_engine` 간선을 M4까지 빼 두는 것으로 강제해도 되는가 | 그렇게(M4에 간선 추가) | **승인** — 4.3 `allowed_dependencies`, 간선은 M4에 추가(1.3, 6.4) |
+
+다른 영역 질문 중 INFRA 답(00-review 2차 INFRA-2-14):
+
+| 질문 | 답 | 위치 |
 |---|---|---|
-| N1 | 설정 섹션 순서를 PLAN 8 IA 순서(계정·동기화 → 저장 공간 → 입력 → 펜 → 일반(페이지 넘김·새 노트 기본값) → 개발자 표시 → 앱 정보)로 해도 되는가 (계약 7.4.11은 구성만 정함) | 4.5.8 표대로 |
-| N2 | 동시 개발 중 계약 7.5에 없는 외부 의존은 `ws check` 경고(R9w)로만 두고, main CI·통합 G1에서 `--strict`로 위반 처리하는 방식이 맞는가 | 그렇게 |
-| N3 | 계약 7.1의 '앱은 전부 허용 + 이번 범위 `sync_engine` 미의존'을 `allowed_dependencies`에서 앱 → `sync_engine` 간선을 M4까지 빼 두는 것으로 강제해도 되는가 | 그렇게(M4에 간선 추가) |
+| PDF 12.2 Q1 (라이선스 화면) | 이미 있음 — 앱 정보 '오픈소스 라이선스'(`showLicensePage`), 그대로 | 4.5.8 `AboutSection`, I9 |
+| INK 12.2 Q4 (ink lab 실험 채널) | **선택 승인**(INFRA-O1대로): INK가 만들면 멤버 등록 + `allowed_dependencies` + `lib_exceptions`(`example/lib/`) + `web-experiment.yml` `target` 입력 | 1.3, 4.3, 6.2 R4, 6.13 |
 
 ### 12.3 계약 변경 제안 (승인 전에는 계획서를 계약대로 유지)
 
-| # | 대상 | 제안 | 근거 |
-|---|---|---|---|
-| P1 | 7.4.9 괄호 문구(+ 00-review 3.4 Q11 답, INFRA-S5) | "엔진이 `contextmenu`를 이미 막으므로 `BrowserContextMenu.disableContextMenu()`는 쓰지 않는다" → "`BrowserContextMenu.disableContextMenu()`는 쓰지 않는다(텍스트 입력의 브라우저 메뉴까지 끄고 프레임워크가 자체 선택 메뉴로 바뀜). iPad 길게 누르기 콜아웃·선택은 CSS(엔진 `user-select:none` + index.html `-webkit-touch-callout:none`)로, 우클릭 메뉴는 index.html이 입력 요소 밖에서만 `contextmenu`를 `preventDefault`해 막는다(01-infra 6.9)" | Flutter 3.47.9 엔진 `mouse/context_menu.dart`(`_enabled = true`), `platform_dispatcher.dart`(`disableContextMenu` 채널에서만 리스너 추가), 컴파일된 `main.dart.js`에서 같은 구조 확인함. 결정(쓰지 않음)은 그대로, 근거만 정정 |
-| P2 | 7.2.12 `NoteStore` | `Future<Uint8List> exportBackupJson();`(CORE-S3: 활성·휴지통 엔티티 JSON + 에셋 메타, 바이트 제외)를 시그니처에 명시 | 계약 7.8이 'INFRA 앱 정보 버튼 + M4 실연결 전 선행 조건'으로 정했지만 7.2.12에 멤버가 없어 INFRA가 위치를 가정해야 함(5.1) |
-| P3 | 7.2.12 `WebStorageConfig` (+ 7.4.3) | "경로가 상대 경로면 `document.baseURI` 기준으로 해석한다(dart2js `Uri.base`는 `location.href`). 앱 셸은 절대 URL을 넘긴다"를 계약에 명시. 다른 패키지도 정적 파일 주소를 `Uri.base` 상대로 만들지 않는다 | Dart SDK `js_helper.dart` `Primitives.currentUri()` = `self.location.href` 확인함. 경로 URL 전략 + Hosting `**` 재작성에서 `/notes/<id>` 새로고침 시 `sqlite3.wasm` 요청이 `index.html`을 받음 → 시작 실패. INFRA는 이번 계획에서 절대 URL로 우회(6.4) |
-| P4 | 7.5 `crypto` 행 | '쓰는 멤버'에 '루트(`tool/`)' 추가(같은 3.0.8, lock 변화 없음) | `ws web-assets`의 sha256 계산. 승인 전에는 `sha256sum` 프로세스로 대체(4.3) |
+| # | 대상 | 제안 | 근거 | 결정 (00-review 2차 2.2 · 3차 3.2) |
+|---|---|---|---|---|
+| P1 | 7.4.9 괄호 문구(+ 00-review 3.4 Q11 답, INFRA-S5) | "엔진이 `contextmenu`를 이미 막으므로 `BrowserContextMenu.disableContextMenu()`는 쓰지 않는다" → "`BrowserContextMenu.disableContextMenu()`는 쓰지 않는다(텍스트 입력의 브라우저 메뉴까지 끄고 프레임워크가 자체 선택 메뉴로 바뀜). iPad 길게 누르기 콜아웃·선택은 CSS(엔진 `user-select:none` + index.html `-webkit-touch-callout:none`)로, 우클릭 메뉴는 index.html이 입력 요소 밖에서만 `contextmenu`를 `preventDefault`해 막는다(01-infra 6.9)" | Flutter 3.47.9 엔진 `mouse/context_menu.dart`(`_enabled = true`), `platform_dispatcher.dart`(`disableContextMenu` 채널에서만 리스너 추가), 컴파일된 `main.dart.js`에서 같은 구조 확인함. 결정(쓰지 않음)은 그대로, 근거만 정정 | **승인** — 계약 7.4.9 v1.1(C11-28). 6.9에 계약 문장 인용 |
+| P2 | 7.2.12 `NoteStore` | `Future<Uint8List> exportBackupJson();`(CORE-S3: 활성·휴지통 엔티티 JSON + 에셋 메타, 바이트 제외)를 시그니처에 명시 | 계약 7.8이 'INFRA 앱 정보 버튼 + M4 실연결 전 선행 조건'으로 정했지만 7.2.12에 멤버가 없어 INFRA가 위치를 가정해야 함(5.1) | **승인**(CORE CP-2와 한 건) — 계약 7.2.12 v1.1(C11-08). 5.1·4.5.8은 계약 인용 |
+| P3 | 7.2.12 `WebStorageConfig` (+ 7.4.3) | "경로가 상대 경로면 `document.baseURI` 기준으로 해석한다(dart2js `Uri.base`는 `location.href`). 앱 셸은 절대 URL을 넘긴다"를 계약에 명시. 다른 패키지도 정적 파일 주소를 `Uri.base` 상대로 만들지 않는다 | Dart SDK `js_helper.dart` `Primitives.currentUri()` = `self.location.href` 확인함. 경로 URL 전략 + Hosting `**` 재작성에서 `/notes/<id>` 새로고침 시 `sqlite3.wasm` 요청이 `index.html`을 받음 → 시작 실패. INFRA는 이번 계획에서 절대 URL로 우회(6.4) | **수정 승인** — 계약 7.2.12·7.4.3 v1.1(C11-11): CORE 해석 기준(`Uri.base.resolve`)은 유지, 운영은 `document.baseURI` 기준 절대 URL, 상대는 테스트만, 대상은 정적 파일·에셋 URL(질의 읽기 제외). INFRA 설계는 원래 절대 URL만 넘겨 그대로 맞음(4.4, 6.4) |
+| P4 | 7.5 `crypto` 행 | '쓰는 멤버'에 '루트(`tool/`)' 추가(같은 3.0.8, lock 변화 없음) | `ws web-assets`의 sha256 계산 | **승인** — 계약 7.5 v1.1(C11-29). 3.2·4.3·7.1에 반영, `sha256sum` 대체 경로 삭제 |
+| **P5** | 7.4.2 첫 bullet · 7.6 B1 · 7.7 V1 | 7.4.2 "`tool/ws.dart check` 규칙 R1~R13(01-infra 6.2)"에 **R15(태그 선언: 테스트가 쓰는 태그는 패키지 `dart_test.yaml`에 선언, `integration`·`perf`는 `skip`)**를 더하고, 7.6 B1의 `ws check` 범위를 'R1–R3·R7–R9·**R15**'로, V1을 'R1~R15'로 | 계약 7.4.8 v1.1(C11-26)이 정한 규칙을 도구가 강제한다. 지금 계약대로면 R15는 INFRA 브랜치(I1)에서 만들어져 INFRA 병합 뒤에야 전 멤버에 적용된다(6.2). 2차 검토에서 EDITOR·LIBRARY가 같은 선언을 빠뜨렸던 것처럼, 동시 개발 중 각 영역 브랜치에서 바로 잡으려면 B1부터 켜야 한다. 구현은 작다(태그 리터럴 스캔 + YAML 확인, 6.2). B1 시점에는 태그를 쓰는 테스트가 없어 다른 영역 B2~B7 작업에 추가 부담이 없다. CORE·INK·PDF·SYNC는 이미 계획에 `dart_test.yaml`이 있고, EDITOR·LIBRARY는 3차 수정 지시(EDITOR-2-7, LIBRARY-2-1)로 넣는다 | **승인 — 계약 v1.2 C12-01**(7.4.2·7.4.8·7.6 B1·7.7 V1, 00-review 3차 3.2). 담당 조건 둘(B1부터 위반 = 종료 1, '리터럴만 인식' 제약을 7.4.8에)이 그대로 들어갔다. 계획서 반영: 1.2·4.1·4.2·4.3·6.2 R15·8.1 B1-4·8.2 I1·9.1·10절·11절 (INFRA-3-1) |
+| **P6** (새, 사소) | 7.6 B1·B8 '완료 조건' 열 | B1 완료 조건 '`flutter pub get --enforce-lockfile`, `ws check`, `ws test`'에 **`dart test tool/test`**를 더하고, B8 '전체' 목록에도 같은 항목 | v1.2로 B1 경로에 `tool/test/`(`test_tags_test.dart` 포함)가 들어갔지만, `ws test`는 워크스페이스 멤버만 돌리므로(루트 `tool/test/`는 멤버가 아님, 4.2) 계약 문구대로면 R15 검사기의 테스트가 B1·B8 완료 판정에서 실행되지 않는다. V3에는 이미 `dart test tool/test`가 있어 통합 기준과 맞추는 문구 정리일 뿐이고, 다른 영역 작업에 영향 없음(B2~B7은 `tool/`을 바꾸지 않음) | (제안 — 결정 전에도 INFRA는 B1-4·B8-2 완료 조건에 `dart test tool/test`를 넣어 계약보다 엄격하게 진행, 8.1) |
 
 ---
 
@@ -2680,3 +3004,94 @@ APK 내려받기·설치, 실행 시 라이브러리 화면, 새 APK 덮어 설�
 | (자체) 중복 override 검출 | Riverpod 3.4.3 디버그 assert 확인, 릴리스 대비 `Override.origin` 기반 테스트(`@visibleForTesting`이라 앱 `lib/`에서는 쓰지 않음) |
 | (자체) 웹 자산 | 계약 7.4.9 두 파일의 URL·크기·sha256을 내려받아 확인하고 `web_assets.yaml`을 채움, Hosting `.wasm` MIME 헤더, `actions/cache@v6` 태그 확인 |
 | (자체) 기반 단계 표기 | 초안 F1–F8을 계약 7.6 B1·B8로 재구성(F4 피처 자리표시는 B5·B6 영역 몫, F7은 B2) |
+
+### 13.2 2차 수정 (00-review '2차 검토(승인 검토)' 2.4.1 · 통합 계약 v1.1, 2026-11-04)
+
+지시별 반영 (00-review 2차 2.4.1 — [계약] 8건은 재승인 조건, [권장] 5건·[사소] 2건도 모두 반영)
+
+| 지시 | 종류 | 반영 내용 (위치) |
+|---|---|---|
+| INFRA-2-1 (C11-28) | 계약 | 6.9 'BrowserContextMenu 결정'에 계약 7.4.9 v1.1 문장을 원문 그대로 인용하고 INFRA 구현(엔진 CSS + index.html `-webkit-touch-callout`·`contextmenu` 가드)을 그 문장에 맞춤. 옛 근거('엔진이 이미 막음')와 '총괄 승인 후 한 줄 변경' 문구를 '계약 7.4.12 절차로 재검토'로 교체. 6.9 '엔진이 이미 하는 일'·11절 리스크 행의 '12.3 P1' 인용을 계약 인용으로. 12.3 P1 **승인** 표시 |
+| INFRA-2-2 (C11-08) | 계약 | 5.1: 계약 7.2.12 블록을 v1.1 원문으로 교체(`exportBackupJson` 포함), 'CORE-S3 … 12.3 P2로 명시 요청' 가정 블록 삭제, 'INFRA가 쓰는 CORE 멤버' 표의 백업 행 = `NoteStore.exportBackupJson()` **계약 7.2.12 v1.1**. 4.5.8 `prepareBackup` 주석도 '계약 7.2.12 v1.1'. B2 가짜 저장소의 `exportBackupJson`은 `UnimplementedError`(계약 7.6)라서 `backup_export_test`·`about_section_test`는 `CountingNoteStore`의 `exportBackupResult` 주입을 유지한다는 줄을 4.5.8·5.1·5.7·9.1에. 12.3 P2 **승인** |
+| INFRA-2-3 (C11-11) | 계약 | 4.4 '웹 기준 URL' 행, 4.5.2 `resolveAppUrl` 주석, 4.5.9 `defaultNoteStoreConfig` 주석, 5.1 C-I3, 6.4 '절대 URL', 11절 리스크 행의 '12.3 P3' → **계약 7.2.12·7.4.3 v1.1**. CORE는 `Uri.base.resolve(path)`를 그대로 쓰고 절대 URL은 그대로 통과하므로 INFRA는 운영에서 절대 URL만 넘기면 된다(CORE 변경 없음, 상대는 테스트만, 질의 읽기는 대상 밖)를 명시. `core_module_test`에 `Uri.parse(path).isAbsolute`. 12.3 P3 **수정 승인** |
+| INFRA-2-4 (C11-29) | 계약 | 3.2 루트 dev에 `crypto: 3.0.8`, 3.3 표 `feature_library` 행에 `collection: 1.19.1`·dev `clock: 1.1.3`. 4.3 `web-assets` 비고를 `package:crypto`로(대체 경로 삭제), 7.1 표에 `crypto` 행 추가(pub.dev 3.0.8, 2026-10-26, sdk ^3.4.0, BSD-3-Clause, 웹 ✓), 7.2 표의 `crypto` 미사용 행·7.3 표의 `sha256sum` 행 삭제, 8.2 I1·9.1 `web_assets_test`를 `package:crypto`로. `pinned_external` 확인: `collection 1.19.1`·`clock 1.1.3`·`crypto 3.0.8`이 이미 있고 v1.1에서 버전 변화 없음(35개 + G3 `analyzer`). 총괄 `lead/ws-v11` 사본으로 `flutter pub get --offline --enforce-lockfile` 성공 확인(확인함, `/tmp/claude-0/plan-scratch/infra3/ws-v11`). 12.3 P4 **승인** |
+| INFRA-2-5 (C11-10) | 계약 | 4.5.10 `latestStorageInfoProvider` = `refreshStorageInfo()` 뒤 `if (ref.mounted) ref.invalidate(storageInfoProvider)`(앱 셸의 유일한 호출처), 4.5.8 `StorageSection` 주석에 같은 규칙과 '반환값은 바로 사용'. Riverpod 3.4.3에서 await 뒤 invalidate·`mounted` 가드 동작을 scratch로 확인함(`/tmp/claude-0/plan-scratch/infra3/invalidate`). 5.1 표·6.8 표 갱신. 5.7 `CountingNoteStore`에 `refreshResult`·`refreshCount`. 9.1 `storage_section_test`에 '다시 확인 후 `storageInfoProvider` 값 갱신'(별도 `Consumer`가 새 `persistGranted`로 다시 그려짐)과 dispose 중 완료 경우 |
+| INFRA-2-6 (C11-13) | 계약 | 5.5 SyncModule 표·6.4 'M4 연결'·6.8 M4 행의 `syncBadgeProvider` 값 = `syncEngine.statusStream.map(syncBadgeOf).distinct()`(override 식은 `ref.watch(syncEngineProvider)…distinct()`). 5.5에 계약 7.2.13 `SyncBadge`(`==`/`hashCode`)·`syncBadgeProvider`, 7.2.20 `syncBadgeOf`·`SyncRemoteAssetFetcher` 원문 블록 추가 |
+| INFRA-2-7 (C11-12·24·30) | 계약 | 8.3 G2에 'V5 스모크 단계' 1~9: 메모리 CORE(`NoteStoreConfig(inMemory: true)`) = `nativeMemory` → `notDurable` 전제 단언, 라이브러리(배너 **닫기 전**)·에디터 두 화면에서 `find.text(ContractStrings.storageNotDurable)` 1개(`app/test/support/contract_strings.dart` = 계약 7.4.5 고정 문장 2개), 획 좌표는 `InkPageView` 영역에서 계산·탭은 finder로·획 수는 `store.content`로 확인해 배너 높이에 기대지 않음. V6는 `storageWarningOf` 결과에 맞춰 1개/0개. 9.1 `app_smoke_test`·`app_smoke_browser_test` 행에 배너 단언, 10절 7에 V5 배너 포함. 5.3에 LIBRARY 배너 닫기 버튼 메모 |
+| INFRA-2-8 (C11-27) | 계약 | 5.1에 계약 7.6 'B2 테스트·개발 도우미' 블록(`createFakeNoteStore` 전체 시그니처·`FakeNoteStoreFaults`·`openTestNoteStore(storageInfo:)`) 원문 그대로, 'INFRA가 쓰는 CORE 멤버' 표 '테스트' 행도 전체 시그니처. B2 단계 값(가짜 `nativeFile` 기본, 가짜 `SyncStore` 멤버 처리, `openTestNoteStore`·`openNoteStore` B2 `UnimplementedError` → INFRA 실제 CORE 테스트는 `integration` 태그) 정리 |
+| INFRA-2-9 | 권장 | 4.5.4 `AppModule.onStartAbandoned()` 추가, `AppBootstrapper.shutdown()`이 그 정리를 최대 2초 기다림. 4.5.9 `CoreModule.start`·`onStartAbandoned`: 20초 시간 초과 뒤 늦게 열린 `NoteStore`는 publish하지 않고 즉시 `close()`(실패 → errorLog), 다시 시도는 그 close가 끝난 뒤(최대 2초). 6.4 2-2 항목 추가, 5.1 C-I5, 5.7 `fakeOpenNoteStore(gate:)`·`FakeAppModule.abandonDelay`, 9.1 `core_module_test`('close 1회', 늦은 close 실패, 늦은 열기 실패)·`app_bootstrapper_test`·`bootstrap_app_test`, 11절 리스크 행 |
+| INFRA-2-10 | 권장 | 8.3 G2 V6와 9.1 `app_smoke_browser_test`: 끝 정리를 `bootstrapper.shutdown()`(= `store.close()`) 뒤 `deleteLocalNoteData(config)`로(CORE 6.18 `StateError`) |
+| INFRA-2-11 | 권장 | 11절에 'iPadOS 홈 화면 앱에서 Blob + `<a download>` 미동작 가능(미확인)' 행 + 대응 `navigator.share({files})`. 4.5.2 `WebPlatform`에 `canShareFiles`·`shareFile`·`WebShareResult`(package:web 1.1.2 바인딩 확인함), 4.5.8 백업을 `prepareBackup` → `BackupReadySheet`([공유 · 파일에 저장]·[내려받기], 탭마다 새 사용자 활성화) → `deliverBackup`으로 나눔, 문구 추가. 6.16 안내서 04 백업 절차, 9.3 #18 → **18a Safari 탭 / 18b 홈 화면 앱**, 10절 6. 관련 미확인 위험 '홈 화면 앱과 Safari 탭의 저장 공간 분리'도 11절·안내서에 |
+| INFRA-2-12 | 권장 | 4.3 `native_only_imports`(`package:ffi/`·`package:pdfium_dart/`·`package:drift/native.dart` — `native_suffixes` 파일에서만, `lib_exceptions`의 `testing_vm.dart` 예외), `test_only_entrypoints` 규칙을 `package:` URI 기준(같은 패키지 `lib/testing*.dart`끼리 상대 허용)으로 명시, `lib_exceptions` 디렉터리 항목. 6.2 R4·4.1 표 갱신. 1.3 INFRA-O1에 ink lab `example/lib/`의 `lib_exceptions` 추가 줄. 9.1 `rules_test`에 native_only 위반 1·허용 1, test-only 위반 1·허용 1(+ 상대 경로 우회·디렉터리 예외) |
+| INFRA-2-13 | 권장 | 8.3 G4·10절 7·6.2 R11: 'dart format 변경 없음'의 대상 = **R11 기준**(`app`·`packages`·`tool`의 `*.dart`, `generated_files` 제외). 6.2 exclude 비고: drift 생성 파일(`schema_versions.dart`, 생성 테스트)이 lint에 걸리면 exclude·`generated_files`에 추가(CORE 11절 요청) |
+| INFRA-2-14 | 사소 | 12.2 N1~N3 **승인** 표시(결정 열). PDF 12.2 Q1은 I9·4.5.8 `AboutSection`의 '오픈소스 라이선스'로 이미 답이 있음, INK 12.2 Q4는 INFRA-O1대로 **선택 승인** — 12.2 '다른 영역 질문' 표와 1.3. 이 13.2 표 |
+| INFRA-2-15 | 사소(선택) | **반영**: `ws check` R15(6.2·4.3 `skip_by_default_tags`·`tool/src/test_tags.dart`) — 테스트가 쓰는 태그는 패키지 `dart_test.yaml`에 선언, `integration`·`perf`는 `skip`. 계약 7.6 B1 범위대로 I1에서 만들고 G1부터 전 멤버 적용, B1 선적용은 12.3 **P5**로 제안. 9.1 `test_tags_test`, 11절 리스크 행. 앱 자신의 `app/dart_test.yaml` 내용도 I12에 명시(계약 7.4.8 v1.1). *(3차: P5 승인 — R15는 B1-4로 옮김, 13.3 INFRA-3-1)* |
+
+계약 v1.1 변경 항목(00-overview 7.9)별 INFRA 영향
+
+| 항목 | INFRA 영향 · 반영 |
+|---|---|
+| C11-01·02·03·04·05·06·07 | 없음(CORE·SYNC·EDITOR·INK·PDF·LIBRARY 내부 의미). INFRA는 세션·`SyncStore`를 쓰지 않는다 |
+| C11-08 | INFRA-2-2 |
+| C11-09 | `CoreModule` 상태 구독(첫 이벤트 = 현재 값, 그 안의 오류도 1건)과 `StorageSection` 첫 프레임 — 4.5.8, 4.5.9, 6.4, 9.1 |
+| C11-10 | INFRA-2-5 |
+| C11-11 | INFRA-2-3 |
+| C11-12 | INFRA-2-7(V5 전제·배너), INFRA-2-8(`openTestNoteStore(storageInfo:)`), 5.1 `NoteStoreConfig` v1.1 주석 |
+| C11-13 | INFRA-2-6 |
+| C11-14·15·16·17·18·19·20 | 없음(INK·EDITOR·PDF 사이). INFRA는 `pageThumbnailRendererProvider` ← `inkPageThumbnailRendererProvider` 연결만이고 그 형태는 그대로 |
+| C11-21 | 5.2 `EditorMenuContext` 원문에 v1.1 주석 2줄, `pdfMenuInvocationOf`는 `focusRectPt`를 변환 없이 전달(4.5.9 주석, 9.1 `pdf_wiring_test`) — 계약 '전달만' |
+| C11-22 | 5.5에서 INFRA가 M4에 쓰는 SYNC 이름이 바뀌지 않았음을 확인, 3.3 `sync_engine` 행 변화 없음(lib에서 `fake_async` 미사용) |
+| C11-23·25 | 없음 |
+| C11-24 | INFRA-2-7 |
+| C11-26 | 4.1 '태그' 행, `app/dart_test.yaml` 내용(I12), R15(INFRA-2-15) |
+| C11-27 | INFRA-2-8 |
+| C11-28 | INFRA-2-1 |
+| C11-29 | INFRA-2-4 |
+| C11-30 | 8.3 G2(배너 대조, 5단계 통합 태그 테스트를 같은 명령으로), 6.13 10단계 명령 `ws test --run-skipped -t integration` 그대로 |
+| 기각 CORE CP-3·CP-4 | 없음 |
+
+자체 정리 (2차)
+
+| 항목 | 반영 내용 |
+|---|---|
+| 계약 원문 발췌의 글자 일치 | 5.1(7.2.12·7.6), 5.2(7.2.17 — `editorSettingsProvider`·`StylusExtrasSource` 줄 포함), 5.3(7.2.18 끝 주석), 5.4(7.2.19 끝 주석), 5.5(7.2.13·7.2.20) 블록을 v1.1 원문 그대로로 바꾸고 머리에 'v1.1 (원문 그대로)' 표시 |
+| PDF-2-2 확인 | 5.4·9.1 `pdf_module_test`: B4 자리표시 `pdfIoOverrides()`로 `ink.pageBackgroundBuildersProvider`를 읽어도 예외 없음(2개)을 INFRA 쪽에서도 확인 |
+| 데이터 지우기 순서 | INFRA-2-10과 같은 이유(CORE 6.18 `StateError`)로 시작 오류 화면의 '이 기기 데이터 지우고 다시 시작'도 `shutdown()` 뒤 `resetLocalData()`(6.4 4단계), `BootstrapApp.createBootstrapper` 주석에 '다시 시도는 이전 `shutdown()` 완료 뒤' |
+| 상태 줄 | 머리말 상태를 '2차 수정 v0.3 · 계약 v1.1'로 |
+
+### 13.3 3차 수정 (00-review '3차 검토(승인 검토)' 3.4.1 · 통합 계약 v1.2, 2026-11-05)
+
+지시별 반영 (00-review 3차 3.4.1 — [계약] 2건은 재승인 조건, [권장] 1건·[사소] 2건·[절차] 1건도 모두 반영. 미반영 없음)
+
+| 지시 | 종류 | 반영 내용 (위치) |
+|---|---|---|
+| INFRA-3-1 (C12-01) | 계약 | P5 승인으로 R15를 기반 단계 B1로 옮김. **1.2** B1 설명 'check R1–R3·R7–R9' → 'R1–R3·R7–R9·**R15**'(계약 7.6 B1 v1.2, `skip_by_default_tags`·`test_tags_test` 포함), 동시 개발 행은 'R4–R6·R10–R13 추가, R15는 B1에서 완료'. **6.2** R15 아래 문단의 'B1에는 넣지 않고 I1에서 만든다 … 12.3 P5로 제안한다' → '**R15는 B1-4에서 만든다**(계약 7.6 B1 v1.2) — 동시 개발 중 각 영역 브랜치의 `ws check`가 선언 누락을 위반(종료 1)으로 잡는다', 리터럴 태그 제약은 **계약 7.4.8 v1.2 문장 인용**으로(태그는 리터럴로, `dart_test.yaml`은 태그를 쓰는 첫 테스트보다 먼저), R15 표 행에 'B1부터 위반 = 종료 1', 규칙 표 머리에 B1 판 범위. **8.1 B1-4** 산출물에 `tool/src/test_tags.dart`·`workspace_rules.yaml` `skip_by_default_tags: [integration, perf]`·`tool/test/test_tags_test.dart`(9.1 행 그대로), 완료 조건에 `test_tags_test` 통과·`ws check` 0(R15 포함). **8.2 I1**의 R15 = 'B1-4에서 완료(회귀만)'. **10절 7** 'V1(`ws check` R1–R14 — INFRA는 R15도 0)' → '계약 7.7 V1 **R1~R15**(v1.2)'(10절 1에도 B1 R15). **11절** C11-26 행에서 '전 멤버 적용은 INFRA 병합 뒤, 12.3 P5로 B1 선적용 제안' 삭제 → 'B1-4부터 main `ws check`, 각 영역 브랜치에서 위반 = 종료 1'. **12.3 P5** 결정 = '**승인 — 계약 v1.2 C12-01**'. 함께 맞춘 곳: 3.5 `test_tags.dart` 주석(B1-4, v1.2), 4.1 '태그' 행(v1.2 문장), 4.2 `check` 행(B1 판 범위), 4.3 `skip_by_default_tags` 주석, I12 `app/dart_test.yaml`(앱의 첫 태그 테스트 G2보다 먼저), 9.1 `test_tags_test`(B1-4, 변수 태그 = 인식 안 함 경우, 종료 1) |
+| INFRA-3-2 (C12-06) | 계약 | 계약 7.6 B4 v1.2로 PDF B4의 `pdfRenderStatsProvider` = `ValueNotifier(PdfRenderStats.zero)`가 되므로 **4.5.9 `FeatureWiringModule`·`pdfRenderStatsSection(ref)`는 지금 모양 유지**(통계 주입 함수 없음) — 두 주석에 'B4: 0 통계 notifier, 실제 provider를 읽음'만 추가. **5.4**에 계약 7.6 B4 v1.2 bullet(다른 영역이 읽는 PDF provider는 B4에서도 예외 없음, G2에서 같은 단언이 7.3.3 연결 누락을 잡음). **5.7 '가짜 PDF 동작'** 행에 'PDF T8 전(B4): `pdfRenderStatsProvider` = 0 통계 notifier(계약 7.6 B4 v1.2) — 테스트 컨테이너에 따로 override하지 않음'. **9.1** `feature_wiring_module_test`·`pdf_wiring_test`에 '모듈 overrides만(`CoreModule`(가짜 열기)·기본 `PdfModule()`·`FeatureWiringModule`) 넣은 컨테이너에서 `devOverlaySectionsProvider`의 `pdf.render` 섹션을 만들고 `lines` 값을 읽어도 예외 없음(3줄 = `formatPdfRenderStats(PdfRenderStats.zero)`)' 단언 |
+| INFRA-3-3 (C12-09) | 권장 | **4.5.8**: `BackupCancelToken`(`isCancelled`·`cancel()`) 추가, `prepareBackup({…, BackupCancelToken? cancel, …})` — `flush()`·`exportBackupJson()`(먼저 flush)은 쓰기 재시도 중 끝나지 않으므로(계약 7.2.9 v1.2) 시간 제한을 두지 않고, 취소 시 **대기만 끊고 `null`, errorLog 없음**(쓰기 큐·메모리 상태는 그대로, 늦은 결과·오류는 버림 — 저장 실패는 `CoreModule`이 `PersistenceStatus.lastError`로 이미 기록). `AboutSection`(→ `ConsumerStatefulWidget`, 토큰·진행 상태 보유) 진행 줄 = '백업을 만드는 중…' + **[취소]**, `storageWarningOf(…) == writeFailing`이면 '**저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.**'(셸 문구 — 계약 7.4.5 배너 문장과 별개). 4.5.8 bullet '백업 준비 대기', 3.4 트리 주석. **5.1**: 계약 7.2.9 v1.2 '쓰기 `Future`의 완료 시점' 두 문장 원문 인용 + INFRA의 flush 대기 목록(숨김·새 버전 적용 500ms, 백업 취소), 백업 행·C-I4 갱신. **5.7** `CountingNoteStore`에 `flushGate`(끝나지 않는 `Completer`)·`emitStatus(PersistenceStatus)`. **9.1** `about_section_test`에 'flush 미완료(끝나지 않는 Completer) → `writeFailing` 문구 → 취소 → 버튼 다시 활성, 스낵바·시트 없음, errorLog 변화 없음, 뒤늦은 완료도 무시' 1건, `backup_export_test`에 취소 경우. **6.16** 안내서 04·**11절** 리스크 행 |
+| INFRA-3-4 | 사소 | **8.1 B8-1** 비고: '`main.dart`의 `openNoteStore(const NoteStoreConfig())`(기본 상대 경로)는 임시 진입점 — 배포 없음(B1·B8 CI는 배포하지 않음), I5에서 `runNoteApp`·`defaultNoteStoreConfig`(`document.baseURI` 기준 절대 URL, 계약 7.2.12·7.4.3)로 교체' |
+| INFRA-3-5 | 사소 | **8.3 G2**·V6 단락에 'V6 설정' 코드 블록: 테스트마다 다른 `databaseName`과 `WebStorageConfig.blobDatabaseName`(CORE 기본 `'noteapp_blobs'`, 02-core 4.8). `NoteStoreConfig`에 `copyWith`가 없으므로 `NoteStoreConfig(databaseName: …, ownerId: context.ownerId, web: WebStorageConfig(sqlite3WasmPath: context.web.resolveAppUrl(…), driftWorkerPath: …, blobDatabaseName: …))`를 직접 생성(필드 이름 = 02-core 4.8 생성자), 정리는 같은 config로 `deleteLocalNoteData`. **9.1** `app_smoke_browser_test` 행 같게 |
+| INFRA-3-6 | 절차 | 이 13.3 표(지시 번호 그대로 인용), 머리 상태 줄 '**3차 수정 v0.4** · 계약 **v1.2**'. 계약 인용을 v1.2로: 1.2(계약 7.6 B1·B8 v1.2), 5.1(절 머리 '7.2.2 · 7.2.9 · 7.2.12 · 7.2.14 — v1.2 기준', 블록 표시 'v1.2 기준 원문 그대로', 7.2.9 v1.2 인용 추가), 6.2(규칙 표 머리 '계약 7.4.2 v1.2', R15 행·문단 v1.2 인용). 5.2~5.5 발췌 표시도 'v1.2 기준 원문 그대로'(시그니처 변경 없음 — 발췌의 모든 줄이 00-overview 7장 현재 본문에 그대로 있음을 줄 단위로 대조함) |
+
+계약 v1.2 변경 항목(00-overview 7.9 C12-01~09)별 INFRA 영향
+
+| 항목 | INFRA 영향 · 반영 |
+|---|---|
+| C12-01 | INFRA-3-1 |
+| C12-02 | 없음 — INFRA는 `ChangeBatch`·`EntityChange`를 구독하지 않는다 |
+| C12-03 | 없음(확인) — 5.5에 한 줄: 앱 셸은 `pageBackgroundBuildersProvider`를 읽지 않고 `InkPageThumbnail`도 쓰지 않음, 썸네일 연결(`pageThumbnailRendererProvider` ← `inkPageThumbnailRendererProvider`)은 그대로 |
+| C12-04 | 없음(확인) — M4 `syncBadgeProvider` override의 `.distinct()`는 `SyncBadge` 값 동등(C11-13)에 기대고, `AuthUser` 값 동등은 SYNC 상태 클래스 쪽 보장. 5.5 7.2.20 발췌 표시에 메모 |
+| C12-05 | 없음(확인) — SYNC T16(계약 스위트 C-01~C-25·순환 대조 추가)은 같은 명령 `ws test --run-skipped -t integration`(8.3 G2, 6.13 10단계)으로 돈다. 명령·태그 변화 없음 |
+| C12-06 | INFRA-3-2 |
+| C12-07 | 없음 — PDF 검색 하이라이트 색 예외. INFRA 테마(`buildAppTheme`)와 무관 |
+| C12-08 | 8.1 머리 문단의 기반 단계 순서를 계약 7.6 v1.2 풀이대로(B3·B6·B7은 B2 뒤, B4·B5는 B3 뒤, main 커밋·완료 조건은 B2(T1~T5) 완료 뒤, B8은 B2~B7 뒤). INFRA의 B1은 B2보다 먼저라 영향 없음 |
+| C12-09 | INFRA-3-3(백업 대기). 숨김 flush·새 버전 적용 flush는 이미 500ms 상한 — 5.1 C-I4에 근거 추가 |
+| 보류 SYNC-CP7 | 1.3 M4 목록에 방향만 메모(SYNC 소유 선택 자리 `syncLogSinkProvider`, 기본 `null`, `SyncModule`이 override). 이름·모양은 M4 연결 계획 때 계약 7.3.3 반영을 따른다 — 이 계획서에 자체 시그니처를 두지 않음 |
+
+자체 정리 (3차)
+
+| 항목 | 반영 내용 |
+|---|---|
+| 검사기 픽스처 제외 | R15가 B1로 오면서 `tool/test/fixtures/`(일부러 위반·미해석 import·포맷 안 된 코드를 담은 가짜 작업 공간)가 B1부터 생긴다. 루트 `flutter analyze --fatal-infos`(계약 7.6 '모든 단계 후')와 R11·'dart format 변경 없음'(V2)이 이를 잡지 않게 6.2 `analysis_options.yaml` exclude에 `tool/test/fixtures/**`(B1-1), 4.3 `workspace_rules.yaml`에 `fixture_dirs: [tool/test/fixtures/]`(R11 제외), R11·G4·10절 7 문구, 9.1 `rules_test`에 'fixture_dirs 아래 포맷 안 된 파일 보고 안 함' |
+| `dart test tool/test`를 B1·B8 완료 조건에 | 계약 7.6 B1 완료 조건(`ws check`·`ws test`)은 루트 `tool/test/`를 돌리지 않는다(멤버가 아님). INFRA는 B1 완료·B8-2에 `dart test tool/test`를 넣어 계약보다 엄격하게 진행하고, 계약 문구 정리를 **12.3 P6**(사소)로 제안 |
+| 11절 리스크 | '태그를 변수로 넘겨 R15가 못 봄'(계약 7.4.8 v1.2 리터럴 규칙, `test_tags_test` 고정), 'CORE 쓰기 재시도 중 백업 대기가 끝나지 않음'(INFRA-3-3) 두 행 추가 |
+| 상태 줄 | 머리말 상태를 '3차 수정 v0.4 · 계약 v1.2', 작성 기준일 2026-11-05로 |
