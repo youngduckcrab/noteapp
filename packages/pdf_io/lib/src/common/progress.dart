@@ -1,6 +1,8 @@
 // lib/src/common/progress.dart — 06-pdf 4.2.
 import 'package:flutter/foundation.dart';
 
+import '../ui/strings_ko.dart';
+
 enum PdfJobPhase {
   // import
   readingFile,
@@ -25,7 +27,7 @@ final class PdfProgress {
   double? get fraction => total == 0 ? null : done / total;
 
   /// Korean, e.g. 'PDF 여는 중', '페이지 합성 중 (12/40)'
-  String get label => throw UnimplementedError('PdfProgress.label (PDF T1)');
+  String get label => PdfStringsKo.progressLabel(this);
 
   /// phase, done, total
   @override
@@ -60,8 +62,7 @@ final class PdfBatchProgress {
   double get fraction => (noteIndex + (current.fraction ?? 0)) / noteCount;
 
   /// '노트 2/5 · 페이지 합성 중 (12/40)'
-  String get label =>
-      throw UnimplementedError('PdfBatchProgress.label (PDF T1)');
+  String get label => PdfStringsKo.batchProgressLabel(this);
 
   /// noteIndex, noteCount, current
   @override

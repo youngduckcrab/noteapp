@@ -3,14 +3,14 @@
 ## 요약
 
 - 마지막 세션: 1/10 (동시 개발 단계)
-- 다음 할 일: T1 공통(오류·문구, 취소 신호, 페이지 범위, 크기 정책, 파일 이름, 자모, 제목) → T2 픽스처 · 테스트 환경
+- 다음 할 일: T2 픽스처 · 테스트 환경 → T3 엔진 어댑터
 
 ## 작업 표
 
 | ID | 상태 | 커밋 | 비고 — 완료 조건 테스트 파일 |
 |---|---|---|---|
 | T0 | 기반 단계에서 완료 | 783a5ba | B4: contract/api_surface_test, unit/init_test(B4 판), unit/value_equality_test(B4 몫), unit/page_size_policy_test(PdfPageFit), web/foundation_browser_test, dart_test.yaml |
-| T1 | 남음 | | unit/page_range_test, unit/page_size_policy_test, unit/file_naming_test, unit/hangul_jamo_test, unit/title_policy_test, unit/cancel_signal_test, unit/value_equality_test, unit/error_messages_test, unit/no_platform_imports_test |
+| T1 | 완료 | (이 커밋) | unit/page_range_test, unit/page_size_policy_test, unit/file_naming_test, unit/hangul_jamo_test, unit/title_policy_test, unit/cancel_signal_test, unit/value_equality_test, unit/error_messages_test, unit/no_platform_imports_test |
 | T2 | 남음 | | pdfium/fixture_builder_test, tool/prepare_web_test.dart, web/pdfrx_smoke_browser_test |
 | T3 | 남음 | | pdfium/pdfrx_engine_test, web/pdfrx_engine_browser_test |
 | T4 | 남음 | | unit/fake_gateway_test, unit/core_gateway_fake_store_test (integration/core_gateway_test는 미리 작성 — 통합 단계) |
@@ -41,7 +41,12 @@
 
 ## 계획과 다르게 한 점
 
-- 없음
+- T1 `PdfIoException.userMessage`: 6.14의 `{max}`(tooLarge·tooManyPages)는 예외에 담기지 않으므로 `PdfIoRuntime.config.limits`(initializePdfIo에 준 설정)에서 읽는다. 내부 `PdfStringsKo.errorMessage(code, detail:, limits:)`는 limits를 직접 받는다. assetMissing의 `{detail}`은 쪽 목록 문자열이며 없으면 괄호를 뺀다.
+- T1 진행 단계 문구(4.2·6.3): 파일 읽는 중 / PDF 여는 중 / 저장 중 / 페이지 만드는 중 / 표지 만드는 중 / 내보낼 준비 중 / 페이지 합성 중 / PDF 마무리 중, `total > 0`이면 ' (done/total)'. 내보내기 3단계 문구는 계획서에 없어 정했다.
+- T1 결과 시트 쪽 목록: 연속 구간을 한 항목으로 세어 10개(`missingPagesListMax`)까지 보이고 나머지는 ' 외 n쪽'(n = 빠진 쪽 수). 잘린 목록은 '…외 n쪽은 원본이 없어…'로 '쪽'을 겹치지 않는다.
+- T1 `PdfPageRange`: `resolve`는 쪽 오름차순(입력 순서가 아님 — 4.6 주석 'ascending'), 구분자 ','(전각 '，'·'、'도), 범위 기호 '-'·'–'·'~', 빈 조각은 건너뜀, 조각이 하나도 없으면 오류. `all().format()` = '1-', `parse('1-')`도 `isAll`. 값 동등(`format()` 기준)을 더했다(공개 이름 추가 없음).
+- T1 `PdfPageSizePolicy.toNotePageSize`: 크기가 양수·유한이 아니면 ArgumentError. 배율을 곱한 뒤 다시 0.001pt로 반올림.
+- T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
 

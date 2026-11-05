@@ -1,22 +1,30 @@
 // lib/src/common/cancel_signal.dart — 06-pdf 4.2.
-//
-// Foundation step B4 (T0): signatures only; the behaviour comes with PDF T1.
+import 'dart:async';
+
+import '../errors.dart';
 
 final class PdfCancelSignal {
   PdfCancelSignal();
 
-  bool get isCancelled =>
-      throw UnimplementedError('PdfCancelSignal.isCancelled (PDF T1)');
+  final Completer<void> _cancelled = Completer<void>();
+
+  static const PdfIoException _cancelledError = PdfIoException(
+    PdfErrorCode.cancelled,
+  );
+
+  bool get isCancelled => _cancelled.isCompleted;
 
   /// idempotent
-  void cancel() => throw UnimplementedError('PdfCancelSignal.cancel (PDF T1)');
+  void cancel() {
+    if (!_cancelled.isCompleted) _cancelled.complete();
+  }
 
-  Future<void> get whenCancelled =>
-      throw UnimplementedError('PdfCancelSignal.whenCancelled (PDF T1)');
+  Future<void> get whenCancelled => _cancelled.future;
 
   /// Throws PdfIoException(cancelled) if cancelled.
-  void throwIfCancelled() =>
-      throw UnimplementedError('PdfCancelSignal.throwIfCancelled (PDF T1)');
+  void throwIfCancelled() {
+    if (isCancelled) throw _cancelledError;
+  }
 
   /// Completes like [future], or throws PdfIoException(cancelled) as soon as cancel() is
   /// called: Future.any([future, whenCancelled.then((_) => throw cancelled)]). For waits that
@@ -24,6 +32,15 @@ final class PdfCancelSignal {
   /// failed commit (contract 7.2.9 v1.2; 6.3, 6.10.2, 6.11.2). After a cancel [future] keeps
   /// running and its later value / error is ignored (Future.any handles it — no unhandled
   /// error, not reported); CORE's write queue keeps retrying. Already cancelled → throws at once.
-  Future<T> raceCancel<T>(Future<T> future) =>
-      throw UnimplementedError('PdfCancelSignal.raceCancel (PDF T1)');
+  Future<T> raceCancel<T>(Future<T> future) {
+    if (isCancelled) {
+      // Nobody listens to [future] any more: keep its later error from being unhandled.
+      future.ignore();
+      throw _cancelledError;
+    }
+    return Future.any<T>([
+      future,
+      whenCancelled.then<T>((_) => throw _cancelledError),
+    ]);
+  }
 }

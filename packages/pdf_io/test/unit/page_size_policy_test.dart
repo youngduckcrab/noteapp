@@ -1,8 +1,9 @@
-// PdfPageFit (06-pdf 4.6, 6.5.1, 6.11.3) — real from B4 (8 T0: pure calculation).
-// PdfPageSizePolicy.toNotePageSize cases join this file with PDF T1.
+// PdfPageFit (06-pdf 4.6, 6.5.1, 6.11.3) — real from B4 (8 T0: pure calculation) — and
+// PdfPageSizePolicy.toNotePageSize (6.5, P-1, 8 T1).
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_core/note_core.dart' as core;
 import 'package:pdf_io/pdf_io.dart';
 
 const double _eps = 1e-6;
@@ -159,5 +160,71 @@ void main() {
       ),
       throwsArgumentError,
     );
+  });
+
+  group('PdfPageSizePolicy.toNotePageSize', () {
+    test('rounds to 0.001 pt: 595.2755737 → 595.276', () {
+      final size = PdfPageSizePolicy.toNotePageSize(595.2755737, 841.8897705);
+      expect(size.width, 595.276);
+      expect(size.height, 841.89);
+    });
+
+    test('keeps a normal PDF size (s = 1)', () {
+      final size = PdfPageSizePolicy.toNotePageSize(612, 792);
+      expect(size.width, 612);
+      expect(size.height, 792);
+    });
+
+    test('50×50 → 72×72 (short side below minSide, uniform scale)', () {
+      final size = PdfPageSizePolicy.toNotePageSize(50, 50);
+      expect(size.width, 72);
+      expect(size.height, 72);
+      // 36×100 keeps its aspect: s = 2.
+      final strip = PdfPageSizePolicy.toNotePageSize(36, 100);
+      expect(strip.width, 72);
+      expect(strip.height, 200);
+    });
+
+    test('20000×100 keeps its aspect (long side above maxSide)', () {
+      final size = PdfPageSizePolicy.toNotePageSize(20000, 100);
+      expect(size.width, core.PageSize.maxSide);
+      expect(size.height, closeTo(72, 1e-9));
+      expect(size.width / size.height, closeTo(20000 / 100, 1e-6));
+      final tall = PdfPageSizePolicy.toNotePageSize(100, 20000);
+      expect(tall.height, core.PageSize.maxSide);
+      expect(tall.width / tall.height, closeTo(100 / 20000, 1e-9));
+    });
+
+    test('an extreme strip ends below minSide (CORE clamped() handles it)', () {
+      final size = PdfPageSizePolicy.toNotePageSize(20, 20000);
+      expect(size.height, core.PageSize.maxSide);
+      expect(size.width, closeTo(14.4, 1e-9));
+      expect(size.width / size.height, closeTo(20 / 20000, 1e-9));
+    });
+
+    test(
+      'the note size and PdfPageFit agree: s ≠ 1 gives k = s and no margin',
+      () {
+        final note = PdfPageSizePolicy.toNotePageSize(50, 50);
+        final fit = PdfPageFit(
+          notePageSize: ui.Size(note.width, note.height),
+          pdfPageSize: const ui.Size(50, 50),
+        );
+        expect(fit.k, closeTo(1.44, _eps));
+        expect(fit.ox, closeTo(0, _eps));
+        expect(fit.oy, closeTo(0, _eps));
+      },
+    );
+
+    test('non-positive or non-finite sizes are rejected', () {
+      expect(
+        () => PdfPageSizePolicy.toNotePageSize(0, 100),
+        throwsArgumentError,
+      );
+      expect(
+        () => PdfPageSizePolicy.toNotePageSize(double.nan, 100),
+        throwsArgumentError,
+      );
+    });
   });
 }
