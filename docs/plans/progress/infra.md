@@ -31,8 +31,8 @@
 | G1 | 완료 | 52de08c | `flutter pub get --enforce-lockfile`, `ws check --strict` 0. lock은 ink lab 등록·`analyzer` 직접 의존과 함께 한 번만 재생성(해석 버전 변화 없음) |
 | G3 | 완료 | 52de08c | `tool/test/export_names_test.dart`, `ws check`(R1–R15) 0 |
 | 통합 도구 | 완료 | 52de08c, d5938c6, 5adf710 | ink lab 멤버 등록(INFRA-O1)·`ws affected` 중첩 멤버, `android.yml` 개발 브랜치 푸시·안내서 05, `ws test` 멤버별 시간 제한·재시도·신호 처리 |
-| G2 | 완료 | (이번 커밋) | `app/test/integration/app_smoke_test.dart`(V5)·`app/test/web/app_smoke_browser_test.dart`(V6, Chrome) 통과 — 3~8단계 공용 `app/test/support/smoke_scenario.dart`. 릴리스 빌드에서 찾은 라우팅 결함 2건 수정(`app_router_test`·`bootstrap_app_test` 경우 추가) |
-| G4 | 완료 | (이번 커밋) | V1~V4: `ws check`(R1–R15)·`--strict` 0, 루트 analyze 0, `dart format` 변경 없음(R11), `ws test`·`ws test --platform chrome`·`dart test tool/test`, `flutter build web --release`, `ws web-assets verify` |
+| G2 | 완료 | 3cf0b84 | `app/test/integration/app_smoke_test.dart`(V5)·`app/test/web/app_smoke_browser_test.dart`(V6, Chrome) 통과 — 3~8단계 공용 `app/test/support/smoke_scenario.dart`. 릴리스 빌드에서 찾은 라우팅 결함 2건 수정(`app_router_test`·`bootstrap_app_test` 경우 추가) |
+| G4 | 완료 | 3cf0b84 | V1~V4: `ws check`(R1–R15)·`--strict` 0, 루트 analyze 0, `dart format` 변경 없음(R11), `ws test`·`ws test --platform chrome`·`dart test tool/test`, `flutter build web --release`, `ws web-assets verify` |
 | G5 | 총괄·사용자 | | 푸시·CI·미리보기 배포·iPad 체크리스트(컨테이너 밖) |
 
 ## 변경 요청
