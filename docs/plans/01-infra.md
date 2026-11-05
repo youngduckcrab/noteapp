@@ -2586,9 +2586,9 @@ M4 형태 (INFRA-S4, 연결은 M4 — 이번에는 문서화와 검사기만): S
 
 | 실측 항목 (B8에서 채움) | 값 | 반영 |
 |---|---|---|
-| `ci.yml` 1회 총 시간 / 단계별(캐시 없음·있음) | — | 위 표 |
-| `main.dart.js` 크기 (기반 단계 / 통합 후) | — | 11절 리스크, 시작 시간 목표 |
-| Chrome 첫 `openNoteStore` (빈 DB) | — | `CoreModule.startTimeout` |
+| `ci.yml` 1회 총 시간 / 단계별(캐시 없음·있음) | GitHub 실행은 아직 없음(동시 개발 중 푸시 금지 — G5에서 채움). 로컬 컨테이너 대용 측정(빌드 훅 캐시 있음): B8 `ws test` 54.8초 · `--platform chrome` 99.0초 · 웹 빌드(`--no-wasm-dry-run`) 42.5초. I15(다른 에이전트와 CPU 공유): `ws test` 1분 56초 · `--platform chrome` 3분 44초 · `flutter build web --release`(wasm dry run 포함) 1분 37초 · `dart test tool/test` 16초 · `ws analyze` 5초 | 위 표 (G5 실측 뒤 고침) |
+| `main.dart.js` 크기 (기반 단계 / 통합 후) | B1 1,742,932 B · B8 2,471,812 B(gzip 733,501 B) · I15(다른 영역 자리표시 상태) 2,747,922 B(gzip 814,454 B) / 통합 후는 G4 | 11절 리스크, 시작 시간 목표 |
+| Chrome 첫 `openNoteStore` (빈 DB) | B8·동시 개발 중 측정 불가(이 작업 트리의 CORE는 B2 자리표시) → G2 V6에서 | `CoreModule.startTimeout` |
 
 절약 장치: 문서만 바꾼 푸시 제외, 같은 브랜치 이전 실행 취소, 브랜치는 영향받은 패키지만 테스트, 빌드 훅·준비 산출물 캐시, 통합 태그 테스트는 수동, APK는 main·수동만, iOS는 수동 + 변수 게이트, 모든 잡 시간 제한, Dependabot 미사용(PR마다 CI 소모). 동시 개발 중 영역 브랜치는 **체크포인트·통합 때만 푸시**한다(계약 7.4.12). 실측이 예산을 넘으면 브랜치 푸시의 브라우저 테스트를 영향받은 멤버로만 줄이는 것부터 조정한다.
 
