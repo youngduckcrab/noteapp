@@ -138,6 +138,7 @@
 
 - 보완 세션 1.1(독립 검토 미비점 5개):
   - ② T4: integration/core_gateway_test를 unit/core_gateway_fake_store_test와 같은 시나리오·같은 단언으로 맞췄다(재시도 시간 묶음만 제외) — 'loadPage after flush and writeThumbnail'(실제 캐시가 바이트를 볼 수 있어 1×1 PNG를 씀), 'a failed byte-chunk write → storageFailed'(실제 저장소를 감싸 `assets.put`만 던지는 `_PutFailsStore` — 나머지는 실제 저장소로 위임, 뒤이어 실제 put이 처음 저장으로 `bytesArrived`를 냄) 추가, 기존 4개에도 빠졌던 단언(type·mimeType, 499쪽 인덱스·pageCount, undoDepth·canUndo, 없는 노트 getNote null)을 채웠다. 같은 파일을 `createFakeNoteStore()`로 바꿔 `--run-skipped`로 돌려 6개 통과를 확인했다(임시 사본, 커밋 안 함). 실제 CORE 판정은 통합 단계.
+  - ③ T9: goldens/background_states_golden_test가 `setUpAll`에서 실제 MaterialIcons 글꼴(이 테스트를 돌리는 Flutter SDK 캐시 `bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf` — `FLUTTER_ROOT` 또는 `Platform.resolvedExecutable`에서 위로 찾음)을 `FontLoader('MaterialIcons')`로 불러 아이콘이 실제 모양으로 그려진다(테스트 글꼴은 모든 아이콘을 같은 사각형으로 그려 assetMissing·needsPassword·failed 골든이 바이트까지 같았다). 골든 6장이 서로 다른 이미지인지 보는 VM 테스트를 같은 파일에 더했다. 계약 7.4.8 '골든 갱신은 별도 커밋'대로 테스트 코드 커밋 다음 커밋에서 PNG 4장(asset_missing·downloading·needs_password·failed)을 다시 만들었다 — 두 커밋은 한 쌍이라 코드 커밋 하나만으로는 골든 테스트 5개가 맞지 않는다.
   - ④ T8: unit/render_stats_provider_test 'the stats notifier goes with the renderer'에 단언을 더했다 — 컨테이너 dispose 뒤 렌더러 `renderThumbnail`은 null(엔진 열기 없음), 노티파이어는 `ChangeNotifier.debugAssertNotDisposed`·`addListener`가 FlutterError(해제됨), 리스너 호출 0번.
   - ⑤ T6: web/file_source_browser_test의 `@TestOn('browser')`를 파일 첫 줄로(주석은 `library;` 아래로) — 다른 test/web 파일과 같은 모양.
 
