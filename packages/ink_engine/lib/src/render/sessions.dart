@@ -5,14 +5,13 @@
 //  * StrokeSession: the StrokeBuilder pipeline of 6.3–6.7 (INK T06) →
 //    createdAt = pen-down nowMillis() → one core.Stroke (several after a
 //    rollover, 6.7 F8) → InkEdit(addStroke) (live layers: INK T10);
-//  * EraserSession: a stroke is touched when the eraser circle (swept between
-//    samples) overlaps its CORE bounds; stroke mode → eraseStrokes, partial
-//    mode → splitStrokes without fragments (toCommand = RemoveStrokes)
-//    (exact geometry: INK T15 / T16);
+//  * EraserSession: a stroke is touched when its ink meets the capsule swept
+//    from the previous sample (6.19, INK T15: spatial index + exact contact);
+//    stroke mode → eraseStrokes; partial mode → splitStrokes still without
+//    fragments (toCommand = RemoveStrokes) (vector split P1–P8: INK T16);
 //  * LassoSession: a stroke is selected when its bounds center is inside the
 //    lasso polygon (nonzero winding) (the coverage rule of LassoOptions: T17).
 import 'dart:collection';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -20,6 +19,7 @@ import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../edit/eraser_spec.dart';
+import '../edit/hit_test.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
 import '../geometry/outline_generator.dart';
@@ -309,15 +309,19 @@ final class EraserSession implements InkGestureSession {
   void addSample(InkSample sample) {
     if (!_active) throw StateError('The eraser session has ended');
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
-    _touchAlong(_last, sample.position);
-    _last = sample.position;
+    final p = sample.position;
+    if (!p.isFinite) return;
+    _touchAlong(_last.isFinite ? _last : p, p);
+    _last = p;
   }
 
   /// stroke mode → eraseStrokes(removedIds); partial → splitStrokes(removedIds, added =
   /// fragments made with core.Stroke.fragment). null if nothing was touched.
   InkEdit? end([InkSample? last]) {
     if (!_active) throw StateError('The eraser session has ended');
-    if (last != null) _touchAlong(_last, last.position);
+    if (last != null && last.position.isFinite) {
+      _touchAlong(_last.isFinite ? _last : last.position, last.position);
+    }
     _active = false;
     InkEdit? edit;
     final content = _host.content;
@@ -350,14 +354,19 @@ final class EraserSession implements InkGestureSession {
     _host.sessionEnded(this);
   }
 
+  /// 6.19 1–2 (6.20 P1 for the partial mode): the capsule from the previous
+  /// sample to this one (the first sample: a disc) → spatial index candidates →
+  /// filter → exact ink contact (InkHitTest.capsuleTouches). The capsule fills
+  /// the gap between samples, so fast scrubbing misses nothing.
   void _touchAlong(ui.Offset a, ui.Offset b) {
-    final content = _host.content;
-    if (content == null) return;
+    if (_host.content == null || !a.isFinite || !b.isFinite) return;
+    final radius = spec.radius;
+    final near = _host.strokesNear(ui.Rect.fromPoints(a, b).inflate(radius));
     var changed = false;
-    for (final s in content.strokes) {
-      if (_touched.contains(s.id) || _host.isPendingRemoved(s.id)) continue;
+    for (final s in near) {
+      if (_touched.contains(s.id)) continue;
       if (!interop.filterAccepts(spec.filter, s.style.tool)) continue;
-      if (_segmentRectDistance(a, b, s.bounds) <= spec.radius) {
+      if (InkHitTest.capsuleTouches(s, a, b, radius)) {
         _touched.add(s.id);
         changed = true;
       }
@@ -375,58 +384,6 @@ EraserSession newEraserSession(
 
 @internal
 Set<String> eraserTouched(EraserSession s) => s._touched;
-
-double _pointRectDistance(ui.Offset p, ui.Rect r) {
-  final dx = math.max(math.max(r.left - p.dx, 0.0), p.dx - r.right);
-  final dy = math.max(math.max(r.top - p.dy, 0.0), p.dy - r.bottom);
-  return math.sqrt(dx * dx + dy * dy);
-}
-
-double _pointSegmentDistance(ui.Offset p, ui.Offset a, ui.Offset b) {
-  final abx = b.dx - a.dx, aby = b.dy - a.dy;
-  final len2 = abx * abx + aby * aby;
-  var t = 0.0;
-  if (len2 > 0) {
-    t = (((p.dx - a.dx) * abx + (p.dy - a.dy) * aby) / len2).clamp(0.0, 1.0);
-  }
-  final x = a.dx + abx * t - p.dx, y = a.dy + aby * t - p.dy;
-  return math.sqrt(x * x + y * y);
-}
-
-/// Liang–Barsky: does segment a→b cross rectangle r?
-bool _segmentHitsRect(ui.Offset a, ui.Offset b, ui.Rect r) {
-  var t0 = 0.0, t1 = 1.0;
-  final dx = b.dx - a.dx, dy = b.dy - a.dy;
-  final p = [-dx, dx, -dy, dy];
-  final q = [a.dx - r.left, r.right - a.dx, a.dy - r.top, r.bottom - a.dy];
-  for (var i = 0; i < 4; i++) {
-    if (p[i] == 0) {
-      if (q[i] < 0) return false;
-    } else {
-      final t = q[i] / p[i];
-      if (p[i] < 0) {
-        if (t > t1) return false;
-        if (t > t0) t0 = t;
-      } else {
-        if (t < t0) return false;
-        if (t < t1) t1 = t;
-      }
-    }
-  }
-  return true;
-}
-
-double _segmentRectDistance(ui.Offset a, ui.Offset b, ui.Rect r) {
-  if (_segmentHitsRect(a, b, r)) return 0;
-  return [
-    _pointRectDistance(a, r),
-    _pointRectDistance(b, r),
-    _pointSegmentDistance(r.topLeft, a, b),
-    _pointSegmentDistance(r.topRight, a, b),
-    _pointSegmentDistance(r.bottomLeft, a, b),
-    _pointSegmentDistance(r.bottomRight, a, b),
-  ].reduce(math.min);
-}
 
 // --- lasso ---------------------------------------------------------------------
 
