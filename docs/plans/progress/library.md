@@ -21,7 +21,7 @@
 | L6 | 완료 | 8dd7f5f | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
 | L7 | 완료 | 6e936b5 | `unit/actions_test.dart` |
 | L8 | 완료 | 58eb35c | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
-| L9 | 남음 | | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
+| L9 | 완료 | (이 커밋) | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
 | L10 | 남음 | | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` |
 | L11 | 남음 | | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` |
 | L12 | 남음 | | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` |
@@ -74,6 +74,11 @@
 - L8 `ContentBody`: 폴더 섹션은 **임시 본문**(B6의 '새 노트' 버튼 — 이제 `libraryActionsProvider.createNote(NewNoteSpec('제목 없는 노트', newNoteDefaults), folderId: 섹션 폴더)`, 실패 시 `showLibrarySnackBar(libraryFailureMessage(kind))`, 진행 중 비활성), 나머지 섹션은 빈 본문. **L10이 목록으로 바꿀 때 `test/feature_library_smoke_test.dart`도 고쳐야 한다**(지금은 이 임시 버튼의 '새 노트' 글자를 누름, '홈' 글자가 1개라고 확인 — L9가 사이드바 '홈' 줄을 넣으면 그 확인도 바뀜).
 - L8 `lib/src/ui/feedback/library_snack_bar.dart`: `showLibrarySnackBar`(floating, expanded 폭 480, 동작 있으면 6초·없으면 4초, `hideCurrentSnackBar` 후 표시)와 `libraryFailureMessage(kind)`(6.19)를 L8에서 만들었다(L13에서 실행 취소 스낵바가 쓴다).
 - L8 `size_class.dart`에 `breadcrumbMaxVisibleFor(sizeClass)`(4·3·2), `grid_metrics.dart`에 `libraryContentWidth(screenWidth, sizeClass:, sidebarVisible:)`(expanded + 표시 중이면 −281)를 더했다. `LibraryMetrics`에 `sidebarEdgeRowHeight = 56`(사이드바 머리·바닥 줄, 6.5)을 더했다. `GridMetrics`는 값 동등.
+- L9 사이드바: 내비 줄 아이콘은 계획에 없어 `Icons.home_outlined`·`schedule`·`star_outline`·`delete_outline`으로 정했다. 줄은 좌우 8 안쪽 여백 + 선택 시 `secondaryContainer`(모서리 12) `Material`, 아니면 `MaterialType.transparency`(색 하드코딩 없음). '폴더' 머리줄의 '+'(새 폴더)는 대화상자가 생기는 L12에서 붙인다. 트리 줄 ▸/▾는 44×44 `IconButton`(툴팁 `LibraryStrings.expandFolder` '펼치기'·`collapseFolder` '접기'), 들여쓰기 `SidebarTreeRow.indentFor(depth)`. 트리 영역 오류(6.19)는 '불러오지 못했어요' + [다시 시도](`ref.invalidate(folderTreeProvider)`), 로딩 중에는 빈 칸. 파일: `ui/sidebar/sidebar_rows.dart`(`SidebarNavRow`, `SidebarTreeRow`), `ui/sidebar/sidebar_folder_tree.dart`, `ui/sidebar/sync_badge_indicator.dart`.
+- L9 '보고 1회'(6.16.1·6.19): `lib/src/common/report_error.dart`에 `reportLibraryErrorOnce(owner, error, stack, context)`를 더했다 — `Expando`로 `ProviderContainer`마다 이미 보고한 오류 객체(identity)를 기억한다. 서랍은 열 때마다 사이드바를 새로 만들고, `WidgetRef.listen`에는 `fireImmediately`가 없어(빌드 중 listen) 위젯 State로는 '한 번'을 지킬 수 없기 때문. 빌드에서 provider 값이 오류면 이 함수를 부른다(동기화 표시·사이드바 트리). L10 목록 오류 보고도 이것을 쓰면 된다.
+- L9 `LibraryScope`에 `closeDrawer`를 더했다(사이드바 최근·즐겨찾기·휴지통이 섹션을 바꾸기 전에 서랍을 닫음). 현재 폴더 드러내기는 `LibraryScreen` State의 `_scheduleReveal`(initState·folderId가 바뀐 didUpdateWidget → post-frame → `tree.pathTo(id)`의 마지막을 뺀 조상 `expandAll`, 트리가 없으면 `listenManual` 첫 값에서 한 번).
+- L9 `SyncBadgeLook`에 값 동등을 더했고, 음수 `pendingChanges`는 0으로 본다. `SyncBadgeIndicator`는 오류·로딩이면 `SyncBadge.off`, 시각은 `clockProvider.now()`.
+- L9 B6 스모크 테스트의 '홈' 글자 확인을 `findsNWidgets(2)`(상단 막대 + 사이드바 홈 줄)로 바꿨다.
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모

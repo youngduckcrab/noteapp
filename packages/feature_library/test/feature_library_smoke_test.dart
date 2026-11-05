@@ -53,7 +53,8 @@ void main() {
     addTearDown(store.close);
     final calls = await _pumpLibrary(tester, store);
 
-    expect(find.text(LibraryStrings.home), findsOneWidget);
+    // Top bar title and the sidebar's 홈 row.
+    expect(find.text(LibraryStrings.home), findsNWidgets(2));
     await tester.tap(find.text(LibraryStrings.newNote));
     await tester.pump();
 

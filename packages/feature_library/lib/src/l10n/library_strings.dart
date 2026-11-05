@@ -23,6 +23,10 @@ abstract final class LibraryStrings {
   /// Sidebar header (app name row).
   static const String appTitle = '노트';
 
+  // Sidebar tree (6.5): tooltips of the ▸ / ▾ button.
+  static const String expandFolder = '펼치기';
+  static const String collapseFolder = '접기';
+
   // Top bar
   static const String openMenu = '메뉴 열기';
   static const String hideSidebar = '사이드바 숨기기';

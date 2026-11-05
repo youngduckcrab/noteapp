@@ -14,3 +14,25 @@ void reportLibraryError(Object error, StackTrace stack, String context) {
     ),
   );
 }
+
+/// Error objects already reported, per owner (the ProviderContainer).
+final Expando<Set<Object>> _reportedErrors = Expando(
+  'feature_library reported errors',
+);
+
+/// [reportLibraryError] at most once per [owner] and error object (6.19
+/// '보고 1회'). For errors read from a provider while building: a part that
+/// is built again — every rebuild, and the drawer builds a new sidebar each
+/// time it opens — does not report the same provider error twice. [owner] is
+/// the ProviderContainer (ProviderScope.containerOf(context, listen: false)),
+/// so separate apps / tests never share the record.
+void reportLibraryErrorOnce(
+  Object owner,
+  Object error,
+  StackTrace? stack,
+  String context,
+) {
+  final seen = _reportedErrors[owner] ??= Set<Object>.identity();
+  if (!seen.add(error)) return;
+  reportLibraryError(error, stack ?? StackTrace.empty, context);
+}

@@ -4,7 +4,8 @@
 // current section (6.4).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show FolderId, NoteId;
+import 'package:note_core/note_core.dart'
+    show FolderId, FolderTree, NoteId, folderTreeProvider;
 
 import 'state/providers.dart';
 import 'ui/content/content_pane.dart';
@@ -47,6 +48,54 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// Waits for the first folder tree when the reveal ran before it loaded.
+  ProviderSubscription<AsyncValue<FolderTree>>? _revealWait;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleReveal();
+  }
+
+  @override
+  void didUpdateWidget(LibraryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.folderId != widget.folderId) _scheduleReveal();
+  }
+
+  /// 6.4 현재 폴더 드러내기: after the frame (never while building), expands
+  /// the ancestors of the route folder in the sidebar tree. When the tree is
+  /// still loading, once on its first value.
+  void _scheduleReveal() {
+    _revealWait?.close();
+    _revealWait = null;
+    final id = widget.folderId;
+    if (id == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.folderId != id) return;
+      final tree = ref.read(folderTreeProvider).value;
+      if (tree != null) {
+        _reveal(tree, id);
+        return;
+      }
+      _revealWait = ref.listenManual(folderTreeProvider, (_, next) {
+        final loaded = next.value;
+        if (loaded == null) return;
+        _revealWait?.close();
+        _revealWait = null;
+        if (mounted && widget.folderId == id) _reveal(loaded, id);
+      });
+    });
+  }
+
+  void _reveal(FolderTree tree, FolderId id) {
+    final path = tree.pathTo(id);
+    if (path.length < 2) return; // top level, or not in the tree
+    ref.read(folderExpansionProvider.notifier).expandAll([
+      for (var i = 0; i < path.length - 1; i++) path[i].id,
+    ]);
+  }
 
   void _closeDrawer() {
     final scaffold = _scaffoldKey.currentState;
@@ -93,6 +142,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       openNote: _openNote,
       openSettings: _openSettings,
       openDrawer: _openDrawer,
+      closeDrawer: _closeDrawer,
       child: Scaffold(
         key: _scaffoldKey,
         drawer: expanded

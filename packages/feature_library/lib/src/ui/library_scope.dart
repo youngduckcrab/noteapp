@@ -15,6 +15,7 @@ class LibraryScope extends InheritedWidget {
     required this.openNote,
     required this.openSettings,
     required this.openDrawer,
+    required this.closeDrawer,
     required super.child,
   });
 
@@ -36,6 +37,9 @@ class LibraryScope extends InheritedWidget {
   /// Opens the sidebar drawer (medium / compact).
   final VoidCallback openDrawer;
 
+  /// Closes the drawer if it is open (sidebar 최근 / 즐겨찾기 / 휴지통).
+  final VoidCallback closeDrawer;
+
   static LibraryScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<LibraryScope>();
     assert(scope != null, 'No LibraryScope above this widget');
@@ -56,5 +60,6 @@ class LibraryScope extends InheritedWidget {
       openFolder != oldWidget.openFolder ||
       openNote != oldWidget.openNote ||
       openSettings != oldWidget.openSettings ||
-      openDrawer != oldWidget.openDrawer;
+      openDrawer != oldWidget.openDrawer ||
+      closeDrawer != oldWidget.closeDrawer;
 }
