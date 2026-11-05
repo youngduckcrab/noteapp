@@ -16,7 +16,7 @@
 | T4 | 완료 | 009a832 | unit/fake_gateway_test, unit/core_gateway_fake_store_test. integration/core_gateway_test는 작성만 함(통합 단계에서 실행 — 현재 `openTestNoteStore`는 CORE T6 전 자리표시) |
 | T5 | 완료 | a160abb | unit/import_service_test, pdfium/import_real_test (+ test/support/render_doubles.dart) |
 | T6 | 완료 | ad78e51 | widget/import_flow_test, web/file_source_browser_test (+ unit/file_source_test, support/fake_file_picker.dart) |
-| T7 | 완료 | (이 커밋 — 다음 커밋에서 해시 기록) | unit/document_pool_test |
+| T7 | 완료 | da17026 | unit/document_pool_test |
 | T8 | 남음 | | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test |
 | T9 | 남음 | | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test, pdfium/background_real_test |
 | T10 | 남음 | | unit/thumbnail_test, unit/cover_thumbnail_test (integration/ink_thumbnail_test는 미리 작성 — 통합 단계) |
@@ -72,7 +72,7 @@
 ## 다음 세션 메모
 
 - 세션 1 결과: T1·T2·T3·T4 완료.
-- 세션 2 결과: T5(`FakePdfEngine` 포함)·T6 완료. 가져오기 서비스 provider는 `pdfDocumentPoolProvider`(T7)·`pdfPageRendererProvider`(T8)를 watch하므로 지금 위젯 테스트는 둘을 `test/support/render_doubles.dart`로 override한다(T7·T8 뒤에도 그대로 둬도 된다). 다음은 T7(문서 풀·`FakeRemoteAssetFetcher`) — `adopt`는 같은 id 문서가 이미 열려 있으면 넘겨받은 문서를 닫아야 한다(같은 파일 재가져오기). 그다음 T8.
+- 세션 2 결과: T5(`FakePdfEngine` 포함)·T6·T7 완료. 가져오기 서비스 provider는 `pdfDocumentPoolProvider`(T7)·`pdfPageRendererProvider`(T8)를 watch하므로 지금 위젯 테스트는 둘을 `test/support/render_doubles.dart`로 override한다(T7·T8 뒤에도 그대로 둬도 된다). 다음은 T8(렌더 캐시·큐·타일 수학, `pdfRenderStatsProvider` 본문을 `ref.watch(pdfPageRendererProvider).statsListenable`로 — 커밋 때 결과 보고 메모에 PDF-4-2 공지: INFRA 컨테이너에 `core.noteStoreProvider` 필요) → T9 → T10(`renderThumbnail` 구현 뒤 표지 자체 경로 테스트 `unit/cover_thumbnail_test`는 `renderImportCover`를 직접 부른다).
 - 위젯 테스트에서 가져오기 진행 창·시트의 진행 막대는 값이 없으면 계속 움직이므로 `pumpAndSettle` 대신 `pump(100ms)` 반복(import_flow_test `_settle`). 표지는 `toByteData`(엔진 비동기)라 위젯 테스트에서는 `core.pageThumbnailRendererProvider`를 `ScriptedThumbnailRenderer`로 override해 자체 PNG 경로를 피한다.
 - Chrome 테스트: `dart run tool/ws.dart test --platform chrome --package pdf_io`(준비 스크립트 포함, 약 70초). 한 번 `flutter test --platform chrome test/web`가 900초 시간 초과로 끊겼고 다시 돌리니 59초에 통과했다(다른 영역 부하로 보임).
 - 실 PDFium VM 테스트는 `test/pdfium/`(`@Tags(['pdfium'])`, `setUpAll(initPdfiumForTests)`). 이 작업 트리에는 `build/native_assets/linux/libpdfium.so`가 이미 있다.
