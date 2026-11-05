@@ -81,6 +81,20 @@ void main() {
     expect(plan.baseScale, closeTo(1.2163, 1e-4));
   });
 
+  test('text normalizer (T11): same text and position table as on the VM', () {
+    final n = PdfTextNormalizer.normalize(
+      'The Con-\r\ntinue \u00A0 \u1100\u1161\u11A8\u00ADX caf\u00C9 ά-\n\u03b2',
+    );
+    expect(n.text, 'the continue 각x café άβ');
+    expect(n.sourceStart.length, n.text.length);
+    expect(n.sourceEnd.length, n.text.length);
+    // '각' comes from the three jamo, the collapsed run before it from ' \u00A0 '.
+    final syllable = n.text.indexOf('각');
+    expect((n.sourceStart[syllable], n.sourceEnd[syllable]), (18, 21));
+    expect((n.sourceStart[syllable - 1], n.sourceEnd[syllable - 1]), (15, 18));
+    expect(PdfTextNormalizer.normalizeQuery('  강의\u3000NOTES '), '강의 notes');
+  });
+
   test('file naming and strings', () {
     expect(PdfFileNaming.deduplicate(['a.pdf', 'A.pdf', 'a.pdf']), [
       'a.pdf',

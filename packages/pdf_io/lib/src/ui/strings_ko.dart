@@ -168,6 +168,29 @@ abstract final class PdfStringsKo {
   static const String confirm = '확인';
   static const String passwordDialogNote = '암호를 푼 사본이 노트에 저장돼요';
 
+  // ---------------------------------------------------------------- search panel (6.10.2)
+
+  static const String searchTitle = 'PDF에서 찾기';
+  static const String searchHint = '찾을 내용';
+  static const String searchPrevious = '이전 결과';
+  static const String searchNext = '다음 결과';
+
+  /// While scanning; '(scanned/total쪽)' once the PDF page count is known.
+  static String searchProgress(int scanned, int total) =>
+      total > 0 ? '찾는 중 ($scanned/$total쪽)' : '찾는 중';
+
+  /// [current] is 0-based, -1 = none selected.
+  static String searchResultCount(int count, int current) =>
+      current >= 0 ? '결과 $count개 중 ${current + 1}번째' : '결과 $count개';
+  static const String searchNoResults = '찾는 내용이 없어요';
+  static const String searchNoPdfPages = '이 노트에는 PDF 페이지가 없어요';
+
+  /// PdfSearchState.truncated (PdfTuning.maxSearchHits).
+  static String searchTruncated(int max) => '결과가 많아 처음 $max개만 보여요';
+
+  /// Leading label of a hit (PdfSearchHit.notePageNumber).
+  static String searchHitPage(int notePageNumber) => '$notePageNumber쪽';
+
   /// Progress dialogs and the search panel while core.storageWarningOf(...) == writeFailing.
   static const String storageDelay = '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.';
 

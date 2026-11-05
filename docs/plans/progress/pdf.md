@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 3/10 (동시 개발 단계)
-- 다음 할 일: T11 텍스트·검색(정규화·검색 서비스·검색 패널) → T12 벡터화·인코더
+- 마지막 세션: 4/10 (동시 개발 단계)
+- 다음 할 일: T12 벡터화·인코더 → T13 네이티브 합성 백엔드
 
 ## 작업 표
 
@@ -20,7 +20,7 @@
 | T8 | 완료 | 3829a68 | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test (+ widget/render_handle_test — 핸들 동작) |
 | T9 | 완료 | ac4fe3c | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test(+ goldens/background_states/*.png 6장), pdfium/background_real_test |
 | T10 | 완료 | 6962562 | unit/thumbnail_test, unit/cover_thumbnail_test. integration/ink_thumbnail_test는 작성함(통합 단계 판정 — 지금 INK B3 구현 + 실 PDFium으로 `--run-skipped -t integration` 수동 실행 시 통과) |
-| T11 | 남음 | | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test |
+| T11 | 완료 | (이 커밋) | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test (+ unit/search_notifier_test, web/pure_logic_browser_test 정규화 항목) |
 | T12 | 남음 | | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (integration/ink_vectorizer_test는 미리 작성 — 통합 단계) |
 | T13 | 남음 | | pdfium/compose_native_test |
 | T14 | 남음 | | web/compose_browser_test |
@@ -84,10 +84,21 @@
 - T9 `pdfBackgroundLayerBuilderProvider` 본문 = 4.12 T9 판(`renderer: () => ref.read(pdfPageRendererProvider)`, `highlights: ref.watch(pdfSearchHighlightsProvider)`). `unit/init_test`(B4 판)는 첫 빌더 `isPaperOnly == false`로 바꾸고 paperOnly 묶음은 자리표시를 직접 만든다. `web/foundation_browser_test`도 `isPaperOnly == false`.
 - T9 골든은 썸네일 모드(아이콘만)·고정 스냅숏 렌더러 더블로 6장을 만들었다(`flutter test --update-goldens test/goldens/`). 테스트 글꼴이라 아이콘은 사각형으로 그려진다.
 - T10 썸네일 경로는 T8 `renderThumbnail`·썸네일 모드 그대로(새 lib 코드 없음). 표지 자체 경로(`renderImportCover`)는 종이 색을 불투명으로 바꿔 칠하고 같은 색으로 렌더를 요청하도록 고쳤다(배경 위젯·`renderStill`과 같은 규칙). 자체 경로 표지 크기는 노트 페이지 비율로 긴 변 512(반올림 — A4 362×512), 썸네일 모드 이미지는 엔진 `fullPixelSize` 올림(A4 182×256).
+- T11 정규화(6.10.1): 한 번 훑으며 단계 1~5를 같이 한다. 1단계 '글자'는 문자·숫자(`\p{L}`·`\p{N}`, 서로게이트 반쪽도 글자로 봄)이고 줄바꿈은 `\r?\n`만. 3단계 공백류 = Dart/JS `\s`와 같은 목록(+U+0085), 공백 연속 안의 버리는 문자(2단계)는 그 연속에 포함(위치 범위가 이어짐). 4단계는 `HangulJamo.syllableAt`(내부, compose와 공유 — 자모·음절은 모두 BMP라 코드 단위로 처리). 5단계 소문자화는 ASCII 빠른 길 + 그 밖은 문자(코드 포인트)마다 `toLowerCase()` — 길이가 바뀌면(예: U+0130, JS는 2단위·VM은 1단위) 결과 코드 단위 모두가 원래 문자 범위를 가진다. 내부 함수 `normalizePdfText(raw, lowerCase:)`(barrel 비공개)는 조각글이 소문자화 없이 쓴다.
+- T11 검색 서비스(6.10.2): 결과 스트림은 `async*`. 0단계 flush는 `raceCancel`, 쪽 텍스트 읽기도 `raceCancel`(취소가 바로 끝남 — 읽던 쪽은 캐시에 남음). 검색할 것이 있으면 `pagesOf` 직후 (0/전체) 진행을 먼저 낸다(긴 검색의 '찾는 중 (0/n쪽)'). 그 뒤 10쪽마다 또는 `Timer.periodic(100ms)`가 표시한 뒤의 쪽 끝에서 낸다. 쪽 건너뛰기: `assetMissing`·`passwordCancelled`는 조용히, 그 밖의 PdfIoException(corrupt·notPdf 등)은 그 에셋을 건너뛰고 검색당 한 번 보고, `engineUnavailable`은 스트림 오류(모든 쪽이 안 됨), 없는 노트는 `noteNotFound` 스트림 오류. 원본 쪽 번호가 문서 범위 밖이면 `corrupt`. 결과 상한에 닿으면 `truncated = true`로 끝낸다(정확히 상한 개수만 있어도 truncated).
+- T11 사각형: `charRects` 길이 ≠ 텍스트 길이면 사각형 없이 결과만(경고는 `debugPrint` 한 번/쪽). 비지 않은(`!isEmpty`·유한) 글자 상자만 쓰고, 줄 합치기는 직전 합친 상자와 '세로 겹침 ≥ 작은 높이의 50%'·'가로 간격 < 큰 높이의 50%'. `PdfPageFit.isIdentity`면 변환하지 않는다(6.10.2 '항등이면 그대로' — A4 노트 595.2756 vs PDF 595.276처럼 0.001pt 차이로 생기는 1e-5 오차를 없앰).
+- T11 조각글: 원문 [시작−24, 끝+24)(서로게이트 쌍은 자르지 않음)을 앞·일치·뒤 세 조각으로 나눠 각각 소문자화 없는 정규화(하이픈 연결·버림·공백 접기·자모 합성) 후 바깥 끝 공백을 다듬는다. 말줄임표는 붙이지 않는다. `matchStart`·`matchLength`는 이 조각글 안의 위치.
+- T11 텍스트 캐시: (assetId, pdfPageIndex) LRU 600쪽에 PDF 표시 크기(문서 정보)와 정규화 결과(처음 검색 때 계산)를 같이 둔다. 같은 쪽 동시 요청은 한 번 읽기. `clearCache`는 진행 중이던 읽기 결과를 캐시에 넣지 않는다(세대 번호).
+- T11 `PdfSearchNotifier`: 검색 서비스는 `start` 때 `ref.read(pdfTextServiceProvider)` — 노티파이어·하이라이트·빌더 provider는 렌더 사슬을 watch하지 않는다(PDF-3-4 그대로). `select(i)`는 i가 이미 현재여도 새(같은 값) 상태를 넣는다 — Riverpod `previous != next`와 하이라이트 ValueNotifier가 같은 값을 건너뛴다(PDF-3-2 시험이 이 경로를 확인). 범위 밖 i는 무시. 스트림의 PdfIoException이 아닌 오류는 보고 후 `failed`(`corrupt`, cause 보존). 첫 결과가 오면 `currentIndex = 0`.
+- T11 검색 패널: `showModalBottomSheet`(isScrollControlled, 화면 높이 50% 상한, 내용은 호출 context의 컨테이너로 `UncontrolledProviderScope`). 위에 입력란(250ms 디바운스, Enter는 바로)·이전/다음(순환, 누르면 그 결과로 onNavigate)·닫기, 아래 상태 줄('찾는 중 (n/m쪽)' + 진행 막대, 그 아래 writeFailing이면 지연 문구 — writeFailing은 검색 중일 때만 watch), 결과 목록(앞에 'n쪽', 조각글의 일치 부분 굵게). 패널은 `state.noteId == noteId`인 검색만 보인다. 문구(6.14에 없던 것): 'PDF에서 찾기'(제목 상수, 지금 화면에는 안 씀)·'찾을 내용'·'이전 결과'·'다음 결과'·'찾는 중 (n/m쪽)'·'결과 n개 중 k번째'·'찾는 내용이 없어요'·'이 노트에는 PDF 페이지가 없어요'·'결과가 많아 처음 n개만 보여요'.
+- T11 패널 닫기 = 내부 함수 `stopPdfSearch(notifier)`(search_notifier.dart, barrel 비공개): 검색 중이면 취소하고 지금까지 결과는 남긴 채 상태를 `idle`로(하이라이트 유지). 끝난 검색은 그대로(하이라이트는 새 검색어·`clear()`까지 남음). 같은 노트로 패널을 다시 열면 검색어를 채우고, 상태가 `idle`(도중에 멈춘 검색)이면 다음 프레임에 다시 검색한다. 4.8에 공개 멤버를 더하지 않으려고 내부 함수로 했다.
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
+
+- 세션 4 결과: T11 완료. 다음 T12(6.11.5·6.11.8 — `compose_encoder.dart`·`vectors.dart`·`ink_vectorizer.dart`의 `PdfVectorPath` 도우미, unit/compose_encoder_test·vectorizer_box_test·template_underlay_test, integration/ink_vectorizer_test는 미리 작성).
+- 검색 위젯 테스트(widget/search_panel_test)는 실제 풀을 쓰므로 테스트 끝에 컨테이너를 fake 존 안에서 정리해야 한다(`_World.end` — 풀의 60초 유휴 타이머가 남으면 'Timer is still pending'). 가짜 게이트웨이·엔진 Future는 `tester.runAsync(pumpEventQueue)` + `pump()`로 진행.
 
 - 세션 1 결과: T1·T2·T3·T4 완료.
 - 세션 2 결과: T5(`FakePdfEngine` 포함)·T6·T7 완료. 가져오기 서비스 provider는 `pdfDocumentPoolProvider`(T7)·`pdfPageRendererProvider`(T8)를 watch하므로 지금 위젯 테스트는 둘을 `test/support/render_doubles.dart`로 override한다(T7·T8 뒤에도 그대로 둬도 된다). 다음은 T8(렌더 캐시·큐·타일 수학, `pdfRenderStatsProvider` 본문을 `ref.watch(pdfPageRendererProvider).statsListenable`로 — 커밋 때 결과 보고 메모에 PDF-4-2 공지: INFRA 컨테이너에 `core.noteStoreProvider` 필요) → T9 → T10(`renderThumbnail` 구현 뒤 표지 자체 경로 테스트 `unit/cover_thumbnail_test`는 `renderImportCover`를 직접 부른다).

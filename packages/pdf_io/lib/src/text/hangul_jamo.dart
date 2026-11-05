@@ -19,32 +19,44 @@ abstract final class HangulJamo {
   /// and LV syllable + T → precomposed syllable. Other text unchanged.
   static String compose(String text) {
     if (!_hasJamo(text)) return text;
-    final runes = text.runes.toList();
     final out = <int>[];
     var i = 0;
-    while (i < runes.length) {
-      final c = runes[i];
-      if (_isL(c) && i + 1 < runes.length && _isV(runes[i + 1])) {
-        var syllable =
-            _sBase +
-            ((c - _lBase) * _vCount + (runes[i + 1] - _vBase)) * _tCount;
-        i += 2;
-        if (i < runes.length && _isT(runes[i])) {
-          syllable += runes[i] - _tBase;
-          i++;
-        }
-        out.add(syllable);
+    while (i < text.length) {
+      final syllable = syllableAt(text, i);
+      if (syllable != null) {
+        out.add(syllable.syllable);
+        i += syllable.length;
         continue;
       }
-      if (_isLV(c) && i + 1 < runes.length && _isT(runes[i + 1])) {
-        out.add(c + runes[i + 1] - _tBase);
-        i += 2;
-        continue;
-      }
-      out.add(c);
+      out.add(text.codeUnitAt(i));
       i++;
     }
     return String.fromCharCodes(out);
+  }
+
+  /// The syllable composed from the jamo sequence starting at code unit [index] of [text]
+  /// (L + V [+ T], or LV syllable + T) and how many code units it uses; null when no
+  /// sequence starts there. All jamo and syllables are BMP, so code units = characters.
+  /// Shared by [compose] and PdfTextNormalizer (6.10.1 step 4).
+  static ({int syllable, int length})? syllableAt(String text, int index) {
+    final n = text.length;
+    final c = text.codeUnitAt(index);
+    if (_isL(c) && index + 1 < n && _isV(text.codeUnitAt(index + 1))) {
+      var syllable =
+          _sBase +
+          ((c - _lBase) * _vCount + (text.codeUnitAt(index + 1) - _vBase)) *
+              _tCount;
+      var length = 2;
+      if (index + 2 < n && _isT(text.codeUnitAt(index + 2))) {
+        syllable += text.codeUnitAt(index + 2) - _tBase;
+        length = 3;
+      }
+      return (syllable: syllable, length: length);
+    }
+    if (_isLV(c) && index + 1 < n && _isT(text.codeUnitAt(index + 1))) {
+      return (syllable: c + text.codeUnitAt(index + 1) - _tBase, length: 2);
+    }
+    return null;
   }
 
   static bool _hasJamo(String text) {

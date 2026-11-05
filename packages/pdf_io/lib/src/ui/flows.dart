@@ -3,8 +3,8 @@
 //
 // Foundation step B4 (T0, contract 7.6 B4): importPdfAsNewNote returned null and
 // exportNotesAsPdf does nothing, so INFRA could wire both into the LIBRARY slots. The import
-// flow is real from PDF T6; the others come with T11 (search), T15b (bulk export) and T16
-// (export).
+// flow is real from PDF T6 and the search panel from T11; the others come with T15b (bulk
+// export) and T16 (export).
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +16,10 @@ import '../errors.dart';
 import '../export/export_types.dart';
 import '../import/import_types.dart';
 import '../providers.dart';
+import '../text/search_notifier.dart';
 import 'import_progress_dialog.dart';
 import 'import_sheet.dart';
+import 'search_panel.dart';
 import 'strings_ko.dart';
 
 /// Same shape as EditorMenuContext.navigateToPage (contract 7.2.17).
@@ -181,8 +183,28 @@ Future<void> exportNotesAsPdf(
 ) async {}
 
 /// Search sheet (query field, progress, hit list). Tapping a hit selects it and calls [onNavigate].
+///
+/// T11: a modal bottom sheet (search_panel.dart) on the container of [context]; completes
+/// when it closes. Closing it cancels a running search (6.10.2 step 0); the hits found stay
+/// highlighted until a new query or PdfSearchNotifier.clear(), and reopening the panel for
+/// the same note shows them again (a search stopped midway runs again).
 Future<void> showPdfSearchPanel(
   BuildContext context, {
   required String noteId,
   required PdfNavigateCallback onNavigate,
-}) => throw UnimplementedError('showPdfSearchPanel (PDF T11)');
+}) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  try {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => UncontrolledProviderScope(
+        container: container,
+        child: PdfSearchPanel(noteId: noteId, onNavigate: onNavigate),
+      ),
+    );
+  } finally {
+    stopPdfSearch(container.read(pdfActiveSearchProvider.notifier));
+  }
+}
