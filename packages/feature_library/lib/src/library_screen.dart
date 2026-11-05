@@ -1,14 +1,18 @@
-// lib/src/library_screen.dart — contract 00-overview 7.2.18, 05-library 4.2.
-//
-// Foundation step B6 (contract 7.6): the final constructor with a placeholder
-// body — a '새 노트' button that creates a note through CORE and opens it with
-// onOpenNote. The real screen (sidebar, listing, dialogs, …) comes with tasks
-// L8-L18 of 05-library 8.
+// lib/src/library_screen.dart — contract 00-overview 7.2.18, 05-library 4.2 /
+// 6.1. The screen root: one Scaffold (S-2) with the sidebar pinned in the
+// expanded size class or in the drawer otherwise, and the content pane of the
+// current section (6.4).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show libraryRepositoryProvider;
+import 'package:note_core/note_core.dart' show FolderId, NoteId;
 
-import 'l10n/library_strings.dart';
+import 'state/providers.dart';
+import 'ui/content/content_pane.dart';
+import 'ui/layout/library_layout.dart';
+import 'ui/layout/library_metrics.dart';
+import 'ui/layout/size_class.dart';
+import 'ui/library_scope.dart';
+import 'ui/sidebar/library_sidebar.dart';
 
 /// The library (home) screen. The app shell routes `/` (folderId null) and
 /// `/folders/:folderId` to it; the screen knows no router and only calls the
@@ -42,60 +46,68 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
-  /// A createNote call is in flight: the button is disabled (no double taps).
-  /// CORE write Futures stay pending while a failed commit is retried, so the
-  /// button simply stays disabled meanwhile (contract 7.2.9 v1.2).
-  bool _creating = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  Future<void> _createNote() async {
-    if (_creating) return;
-    setState(() => _creating = true);
-    try {
-      final note = await ref
-          .read(libraryRepositoryProvider)
-          .createNote(title: LibraryStrings.defaultNoteTitle);
-      if (!mounted) return;
-      widget.onOpenNote(note.id);
-    } on Object catch (error, stack) {
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stack,
-          library: 'feature_library',
-          context: ErrorDescription('while creating a new note'),
-        ),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text(LibraryStrings.errorGeneric)),
-      );
-    } finally {
-      if (mounted) setState(() => _creating = false);
+  void _closeDrawer() {
+    final scaffold = _scaffoldKey.currentState;
+    if (scaffold != null && scaffold.isDrawerOpen) scaffold.closeDrawer();
+  }
+
+  /// 6.4: the route folder → back to its own section (from 최근 etc.);
+  /// another folder → the router.
+  void _openFolder(FolderId? id) {
+    _closeDrawer();
+    if (id == widget.folderId) {
+      ref
+          .read(librarySectionProvider(widget.folderId).notifier)
+          .showRouteFolder();
+    } else {
+      widget.onOpenFolder(id);
     }
   }
 
+  void _openNote(NoteId id) {
+    _closeDrawer();
+    widget.onOpenNote(id);
+  }
+
+  void _openSettings() {
+    _closeDrawer();
+    widget.onOpenSettings();
+  }
+
+  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.folderId == null
-              ? LibraryStrings.home
-              : LibraryStrings.folders,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: LibraryStrings.settings,
-            onPressed: widget.onOpenSettings,
+    final sizeClass = librarySizeClassFor(MediaQuery.sizeOf(context).width);
+    final section = ref.watch(librarySectionProvider(widget.folderId));
+    final sidebarVisible = ref.watch(
+      libraryPrefsProvider.select((p) => p.sidebarVisible),
+    );
+    final expanded = sizeClass == LibrarySizeClass.expanded;
+    return LibraryScope(
+      routeFolderId: widget.folderId,
+      sizeClass: sizeClass,
+      openFolder: _openFolder,
+      openNote: _openNote,
+      openSettings: _openSettings,
+      openDrawer: _openDrawer,
+      child: Scaffold(
+        key: _scaffoldKey,
+        drawer: expanded
+            ? null
+            : const Drawer(
+                width: LibraryMetrics.drawerWidth,
+                child: LibrarySidebar(inDrawer: true),
+              ),
+        body: SafeArea(
+          child: LibraryLayout(
+            sizeClass: sizeClass,
+            sidebarVisible: sidebarVisible,
+            sidebar: const LibrarySidebar(),
+            content: ContentPane(section: section),
           ),
-        ],
-      ),
-      body: Center(
-        child: FilledButton.icon(
-          icon: const Icon(Icons.note_add_outlined),
-          label: const Text(LibraryStrings.newNote),
-          onPressed: _creating ? null : _createNote,
         ),
       ),
     );

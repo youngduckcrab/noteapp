@@ -20,7 +20,16 @@ abstract final class LibraryStrings {
   static const String pathSeparator = ' › ';
   static const String ellipsis = '…';
 
+  /// Sidebar header (app name row).
+  static const String appTitle = '노트';
+
   // Top bar
+  static const String openMenu = '메뉴 열기';
+  static const String hideSidebar = '사이드바 숨기기';
+  static const String showSidebar = '사이드바 보기';
+
+  /// Title of the search section: `'"<query>" 검색 결과'`.
+  static String searchResultsTitle(String query) => '"$query" 검색 결과';
   static const String searchHint = '제목 검색';
   static const String newMenu = '새로 만들기';
   static const String newNote = '새 노트';

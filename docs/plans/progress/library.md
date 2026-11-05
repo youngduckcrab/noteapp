@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 2 (동시 개발 단계) — L5·L6·L7 완료(세션 1: C13-05·L0·L1·L3·L4, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L8 (레이아웃 셸: `LibraryScreen` 4.2, `librarySizeClassFor`, `GridMetrics`, `LibraryLayout`, 서랍, 상단 막대 틀, `ContentBody` 섹션 분기) → L9·L10
+- 마지막 세션: 2 (동시 개발 단계) — L5·L6·L7·L8 완료(세션 1: C13-05·L0·L1·L3·L4, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L9 (사이드바) · L10 (노트 목록) → L11~L18
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -19,8 +19,8 @@
 | L4 | 완료 | 9deed79 | `unit/section_test.dart`, `unit/selection_test.dart` |
 | L5 | 완료 | d12ef32 | `unit/tree_flatten_test.dart`, `unit/breadcrumb_test.dart`, `unit/location_label_test.dart` |
 | L6 | 완료 | 8dd7f5f | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
-| L7 | 완료 | (이 커밋) | `unit/actions_test.dart` |
-| L8 | 남음 | | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
+| L7 | 완료 | 6e936b5 | `unit/actions_test.dart` |
+| L8 | 완료 | (이 커밋) | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
 | L9 | 남음 | | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
 | L10 | 남음 | | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` |
 | L11 | 남음 | | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` |
@@ -68,6 +68,12 @@
 - L7 `rename`은 이름을 미리 검사하지 않고 CORE에 넘긴다(대화상자가 미리 막음 — 6.11). CORE `ArgumentError` → `invalidName`. `ArgumentError`의 하위 타입(`RangeError`)도 `invalidName`.
 - L7 `locate`·`uniqueNoteTitle`은 `ActionOutcome`이 아니라 값을 돌려주므로 읽기 실패는 보고 후 각각 `null`·기본 이름. `uniqueNoteTitle`은 `watchListing(LibraryQuery(folderId, name, asc)).first`로 노트 제목을 읽는다. `locate`는 휴지통에 있어도 부모를 돌려준다(없을 때만 `null`).
 - L7 `lib/src/model/folder_appearance_value.dart`(`FolderAppearance`, `NewFolderSpec`, 값 동등)를 L7에서 만들었다. `libraryActionsProvider`의 `report`는 `reportLibraryError`(문맥 `'library action: <메서드>'`).
+- L8 화면 구조: `LibraryScreen`(State) → `LibraryScope`(내부 InheritedWidget, `lib/src/ui/library_scope.dart` — `routeFolderId`·`sizeClass`·`openFolder`(6.4: 서랍 닫기 → 라우트 폴더면 `showRouteFolder()`, 아니면 `onOpenFolder`)·`openNote`·`openSettings`·`openDrawer`, 이벤트 처리기용 `LibraryScope.read`) → `Scaffold(key, drawer: expanded가 아니면 Drawer(320, LibrarySidebar(inDrawer: true)))` → `SafeArea` → `LibraryLayout`(expanded + `sidebarVisible`이면 `Row[사이드바 280, VerticalDivider(1), Expanded(ContentPane)]`) → `ContentPane`(`Column[LibraryTopBar 64, Divider, Expanded(ContentBody)]`). 크기 등급은 `MediaQuery.sizeOf(context).width`로 정한다(서랍 여부를 Scaffold 전에 알아야 해서 — 6.1 그림의 LayoutBuilder 대신). `LibraryDragScope`(L15)·`StorageWarningBanner`(L18)·`SelectionBar`(L14) 자리는 주석으로만 있다.
+- L8 `LibrarySidebar`는 틀만: 앱 이름 줄(56, `LibraryStrings.appTitle` '노트') · 빈 본문 · 구분선 · 설정 버튼 줄(56, 툴팁 '설정' → `openSettings`). 내비 줄·트리·휴지통·동기화 표시는 L9. 배경 `surfaceContainerLow`.
+- L8 `LibraryTopBar`: expanded는 ☰ = 사이드바 접기/펴기(툴팁 `hideSidebar` '사이드바 숨기기'/`showSidebar` '사이드바 보기', `setSidebarVisible`), medium/compact는 ☰ = 서랍(툴팁 `openMenu` '메뉴 열기'). 가운데는 섹션 제목(폴더는 트리의 폴더 이름 — L10에서 브레드크럼으로 바뀜, 홈은 '홈', 검색은 `searchResultsTitle(q)` = '"q" 검색 결과'). 오른쪽 버튼 자리는 비어 있다(L10·L12·L14·L17·L18).
+- L8 `ContentBody`: 폴더 섹션은 **임시 본문**(B6의 '새 노트' 버튼 — 이제 `libraryActionsProvider.createNote(NewNoteSpec('제목 없는 노트', newNoteDefaults), folderId: 섹션 폴더)`, 실패 시 `showLibrarySnackBar(libraryFailureMessage(kind))`, 진행 중 비활성), 나머지 섹션은 빈 본문. **L10이 목록으로 바꿀 때 `test/feature_library_smoke_test.dart`도 고쳐야 한다**(지금은 이 임시 버튼의 '새 노트' 글자를 누름, '홈' 글자가 1개라고 확인 — L9가 사이드바 '홈' 줄을 넣으면 그 확인도 바뀜).
+- L8 `lib/src/ui/feedback/library_snack_bar.dart`: `showLibrarySnackBar`(floating, expanded 폭 480, 동작 있으면 6초·없으면 4초, `hideCurrentSnackBar` 후 표시)와 `libraryFailureMessage(kind)`(6.19)를 L8에서 만들었다(L13에서 실행 취소 스낵바가 쓴다).
+- L8 `size_class.dart`에 `breadcrumbMaxVisibleFor(sizeClass)`(4·3·2), `grid_metrics.dart`에 `libraryContentWidth(screenWidth, sizeClass:, sidebarVisible:)`(expanded + 표시 중이면 −281)를 더했다. `LibraryMetrics`에 `sidebarEdgeRowHeight = 56`(사이드바 머리·바닥 줄, 6.5)을 더했다. `GridMetrics`는 값 동등.
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모
