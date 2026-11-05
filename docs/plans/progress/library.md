@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 6 (동시 개발 단계) — L15·L16 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L17 (최근 · 즐겨찾기 · 검색) → L18 → L19 → L20
+- 마지막 세션: 7 (동시 개발 단계) — L17 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L18 (연동 자리) → L19 → L20
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -29,7 +29,7 @@
 | L14 | 완료 | c979633 | `widget/multi_select_test.dart` |
 | L15 | 완료 | d4a2f20 | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`(touch·stylus 각 12건), `widget/auto_scroll_widget_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
 | L16 | 완료 | 82509da | `widget/trash_view_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
-| L17 | 남음 | | `widget/recent_favorites_test.dart`, `widget/search_test.dart` |
+| L17 | 완료 | (L17 커밋 — 다음 커밋에서 해시 기록) | `widget/recent_favorites_test.dart`, `widget/search_test.dart`, `unit/search_match_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, L13 `widget/item_actions_test.dart` 갱신) |
 | L18 | 남음 | | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` |
 | L19 | 남음 | | `goldens/library_golden_test.dart`, `widget/performance_test.dart`, `widget/a11y_test.dart` |
 | L20 | 남음 | | `web/library_browser_test.dart` (+ L3 `web/new_note_options_browser_test.dart`) |
@@ -131,6 +131,14 @@
 - L16 선택 막대(휴지통): 대상 순서·이름은 `libraryContentProvider`가 아니라 `trashItemsProvider`(지운 시각 최신순)에서 — '모두 선택'도 그 키들. 동작 [복원](`Icons.restore_from_trash_outlined`) [영구 삭제](`Icons.delete_forever_outlined`), 성공하면 `end()`.
 - L16 문구 추가: `trashNotice`, `emptyTrash`, `emptyTrashView`, `restore`, `purge`, `purgeTitle`, `emptyTrashTitle`, `purgeMessageOne(name)`·`purgeMessageCount(n)`, `emptyTrashMessage(n)`, `restoredOne(name)`·`restoredCount(n)`, `trashedFolderInfo(noteCount:, folderCount:)`, `trashedNoteInfo(pages)`, `deletedOn(date)`, `trashRowSemantics`.
 - L16 공유 시나리오 1건 추가: 'trash: a note trashed in a folder is restored there; [보기] opens it'(영어 안 노트 ⋯ › 휴지통으로 이동 → 사이드바 휴지통 → ⋯ › 복원 → CORE `getNote`가 `deletedAt == null`·`folderId == 영어`, [보기] → 영어 목록에 노트).
+- L17 메타 줄: `ui/content/note_meta.dart`의 `NoteMetaStyle`(`of(section)` — 폴더·휴지통 `modified`, 최근 `recent`, 즐겨찾기 `favorite`, 검색 `location`)과 `watchNoteMeta(ref, note, style, listRow:)`. 최근 = `recentNoteMeta(위치, lastOpenedAt 날짜)`(리스트 행도 같음 — 페이지 수 없음, `lastOpenedAt`이 없으면 수정 날짜), 즐겨찾기 = `favoriteNoteMeta(위치, 수정 날짜)`('<위치> · 수정 <날짜>'), 검색 = 위치. 위치는 `watchLocationLabel`(`folderTreeProvider.select`로 라벨이 바뀔 때만 다시 빌드) — 트리가 아직 없으면 위치 부분을 빼고 날짜만. `requiresNewerApp`이면 어느 섹션이든 그 문구. 타일 의미 라벨(`noteSemantics`)은 그대로 수정 날짜. `NoteTile`·`NoteListRow`에 `metaStyle`·`highlight`, `FolderListRow`에 `showLocation`·`highlight`, `TileFooterText`에 `highlight`를 더했다(기본값은 기존 표시 그대로).
+- L17 강조: `lib/src/model/search_match.dart`의 `searchMatchRange(title, query)`(6.14의 `toLowerCase().indexOf`) — 소문자로 바꿔 길이가 달라지면(브라우저의 'İ' 등) 강조하지 않는다(인덱스가 제목을 가리키지 않음). 그리는 쪽은 `highlightedTitleSpan`(note_meta.dart, w700 + `primary`) → 제목은 `Text.rich`(`find.text`는 그대로 찾음).
+- L17 **검색 다시 질의**: 계획은 '결과에서 동작하면 `ref.invalidate(librarySearchProvider(q))`'인데, 동작 흐름마다 넣는 대신 `libraryContentProvider(SearchSection)`이 `noteStoreProvider`의 `changes`를 구독해 폴더·노트 `EntityChange`가 든 batch마다 `librarySearchProvider(q)`를 invalidate한다(결과의 ⋯·선택 막대·끌어 놓기·다른 기기 변경 모두). 획·페이지 변경(`stroke`·`page` 등)만 든 batch는 무시. 구독은 provider `onDispose`에서 취소.
+- L17 검색 입력 `LibrarySearchField(routeFolderId:, autofocus:)`(`ui/top_bar/library_search_field.dart`): 디바운스는 State의 `Timer(LibraryMetrics.searchDebounce)` → `section.search(controller.text)`(조합 중 글자 포함 — `onChanged`가 조합 중에도 불림), Enter(`onSubmitted`) = 즉시, 지우기 버튼(툴팁 `clearSearch` '검색어 지우기', 값이 있을 때만) = 디바운스 취소 + 비움 + `exitSearch()`. `ref.listen(section)`이 검색이 아닌 섹션을 받으면 디바운스 취소 + 비움. 상단 막대가 **라우트 폴더로 key**를 줘 라우트가 바뀌면 새 State(빈 입력), `initState`에서 지금 섹션이 검색이면 그 검색어로 시작(선택 모드가 끝나 상단 막대가 다시 생길 때·크기 등급이 바뀔 때). 휴지통 섹션에도 검색 입력이 있다(검색을 비우면 휴지통으로 돌아감). 폭은 expanded 240 · medium 200(정렬 버튼 앞).
+- L17 compact 검색(6.2 '막대 전체가 검색 입력으로'): 상단 막대(`LibraryTopBar`가 `ConsumerStatefulWidget`이 됨)에 검색 아이콘(툴팁 `LibraryStrings.search` '검색') → `_compactSearchOpen` → 막대 = `[← 툴팁 closeSearch '검색 닫기'][검색 입력(autofocus)]`. 섹션이 검색이면 플래그와 무관하게 이 막대. ← = 닫기 + `exitSearch()`. 라우트가 바뀌면 닫힘, 섹션이 검색이 아닌 다른 곳으로 바뀌면 닫힘(단 입력이 비워져 검색 전 섹션(`returnTo`)으로 돌아간 것은 열린 채 유지 — 지우기 버튼 뒤에도 입력이 남음).
+- L17 결과 보기 `SearchResultsView`(`ui/content/search_results_view.dart`): `ContentListing`이 로딩·오류·빈 상태를 그대로 맡고, 내용이 있는 검색 섹션만 이 보기에 넘긴다. `CustomScrollView`(+ `AutoScrollRegion`): `SearchGroupHeader`('폴더 (n)' — `Semantics(header)`) + `SliverFixedExtentList`(64) `FolderListRow(showLocation: true)` / '노트 (n)' + 그리드(`SliverGrid`, `GridMetrics`, 타일 `NoteTile(metaStyle: location)`) 또는 리스트(`NoteListRow`) / `truncated`면 맨 아래 `searchTruncated`. 각 목록에 `findChildIndexCallback`. 새 노트는 검색 중이면 홈(`NewMenuButton.targetOf` 그대로).
+- L17 문구 추가: `search`, `closeSearch`, `clearSearch`, `searchFolderGroup(n)`·`searchNoteGroup(n)`, `searchTruncated`, `recentNoteMeta(location, opened)`, `favoriteNoteMeta(location, modified)`, `modifiedOn(date)`.
+- L17 테스트: 상단 막대에 `TextField`가 생겨 L13 `widget/item_actions_test.dart`의 `find.byType(TextField)`를 대화상자 안(`dialogField`)으로 좁혔다. 공유 시나리오 2건 추가: 'search: decomposed (NFD) titles and queries match composed ones'(NFD 제목을 NFC 검색어로, NFC 제목을 NFD 검색어로 — 폴더 묶음·노트 묶음, `searchLibrary '수학' limit:50`), 'recent: a note shows only after openSession (no markOpened here)'(라이브러리에서 탭 = `onOpenNote`만·`calls` 비어 있음·최근 빈 상태 → `seedOpened` 뒤 최근에 나타남).
 
 ## 다음 세션 메모
 
@@ -146,7 +154,7 @@
 - 세션 4 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 415개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 5 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 471개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - 세션 6 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 539개 통과, `flutter test --platform chrome test/web` 6개 통과.
-- L17 시작점: 최근·즐겨찾기·검색은 지금 `ContentBody`에서 같은 `ContentListing`(폴더 먼저 → 노트)으로 보인다 — 끌기·놓기(`ContentItemDraggable`·`LibraryDropZone`)·선택·⋯는 이미 동작. 검색 입력(`library_search_field.dart`, 3장)은 아직 없다 — 상단 막대 오른쪽에 둔다(`LibraryMetrics.searchFieldWidthExpanded`·`Medium`, 디바운스 `searchDebounce` 300ms, 검색어는 `librarySectionProvider(route).notifier`의 `search(q)`·`exitSearch()` — L4). 검색 결과 보기는 `ui/content/search_results_view.dart`(묶음·위치 `locationLabel`·강조·truncated). 디바운스 횟수 확인은 `backend.queries`의 `"searchLibrary '<q>' limit:50"`. 공유 시나리오 남은 것: 제목 검색 NFD, '최근'은 openSession 뒤에만(L17), 새 노트 기본값 왕복(L18), 원격 삭제 → 폴더 없음 보기.
+- (L17 완료) 공유 시나리오 남은 것: 새 노트 기본값 왕복(L18), 원격 삭제 → 폴더 없음 보기(`remoteChange` — 아직 담당 작업 없음, L18·L19 때 함께 넣어도 됨). 검색 화면 테스트 도우미: `widget/search_test.dart`의 `search(tester, text)`(enterText → `pump(300ms)` → `pumpAndSettle`), `searchInput`(`LibrarySearchField` 안의 `TextField`), `boldParts`(제목 `Text.rich`의 w700 조각). **`enterText` 뒤에는 `pump()`를 해야** 대화상자의 [저장] 등 활성 상태가 다시 그려진다(`enterText`는 프레임을 그리지 않음).
 - 끌기 테스트 도우미: `widget/drag_drop_test.dart`의 `startDrag`(down → 450ms → moveBy(0, 20)) / `moveTo` / `drop`(up + pumpAndSettle). 끄는 동안에도 상단 막대가 남아 있고 선택 막대는 끌기가 끝난 뒤 나온다.
 - 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
 - L13 시작점: ⋯ 자리는 타일 `Stack`(`note_tile.dart`·`folder_tile.dart`의 'L13' 주석)과 리스트 행(`item_list.dart`의 `SizedBox(52)`). 대화상자 틀은 `LibraryDialogFrame`·`DialogNameField`(L12), 꾸미기는 `FolderColorPicker`·`FolderIconPicker`, 표지 변경은 `CoverPicker`(+ `ColorCoverCard` 미리보기), 실행 취소 스낵바는 `showLibrarySnackBarOn`(L8), 변경은 `libraryActionsProvider`(`move`→`MoveReceipt`/`undoMove`, `trash`→`restore`). 사이드바 줄 메뉴의 '새 하위 폴더'는 `runNewFolderFlow(context, parentId: 그 폴더)`.

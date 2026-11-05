@@ -14,6 +14,7 @@ import '../../state/selection_notifier.dart';
 import '../feedback/library_snack_bar.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
+import 'note_meta.dart';
 
 /// Opens [note] (6.4), or explains why not: a note made by a newer app
 /// version (requiresNewerApp) is not opened; the same text shows in a snack
@@ -277,10 +278,18 @@ class TileCoverBox extends StatelessWidget {
 /// Text grows with the system scale up to LibraryMetrics.maxTileTextScale
 /// (the grid height is computed with the same cap, 6.2).
 class TileFooterText extends StatelessWidget {
-  const TileFooterText({super.key, required this.title, required this.meta});
+  const TileFooterText({
+    super.key,
+    required this.title,
+    required this.meta,
+    this.highlight,
+  });
 
   final String title;
   final String meta;
+
+  /// Search query whose match in [title] is highlighted (6.14).
+  final String? highlight;
 
   @override
   Widget build(BuildContext context) {
@@ -291,8 +300,8 @@ class TileFooterText extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            title,
+          Text.rich(
+            highlightedTitleSpan(context, title, highlight),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(

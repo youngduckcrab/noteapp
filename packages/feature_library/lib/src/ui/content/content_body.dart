@@ -1,7 +1,8 @@
 // lib/src/ui/content/content_body.dart — 05-library 6.1 / 6.4 / 6.7: the
 // content area by section. Folder sections (L10): the folder missing view or
-// the listing; recent / favorites use the same listing (their own views and
-// the search results view come with L17); trash → TrashView (6.13).
+// the listing; recent / favorites: the listing of their notes with the
+// location in the meta line (6.14); search: the same loading / error / empty
+// states, results in SearchResultsView; trash → TrashView (6.13).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
@@ -26,6 +27,7 @@ import 'empty_state.dart';
 import 'folder_missing_view.dart';
 import 'item_grid.dart';
 import 'item_list.dart';
+import 'search_results_view.dart';
 
 class ContentBody extends StatelessWidget {
   const ContentBody({super.key, required this.section});
@@ -129,6 +131,7 @@ class _ContentListingState extends ConsumerState<ContentListing> {
     }
     _last = content;
     if (content.isEmpty) return EmptyState(section: section);
+    if (section is SearchSection) return SearchResultsView(content: content);
     final mode = ref.watch(libraryPrefsProvider.select((p) => p.viewMode));
     if (mode == LibraryViewMode.list) return ItemList(content: content);
     final selecting = ref.watch(

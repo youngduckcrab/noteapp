@@ -21,6 +21,7 @@ import '../library_scope.dart';
 import '../menus/item_action_flows.dart';
 import '../menus/item_context_menu.dart';
 import 'note_cover_view.dart';
+import 'note_meta.dart';
 import 'tile_parts.dart';
 
 class ItemList extends StatefulWidget {
@@ -47,6 +48,7 @@ class _ItemListState extends State<ItemList> {
     final folders = content.folders;
     final notes = content.notes;
     final indexOf = {for (final (i, k) in content.orderedKeys.indexed) k: i};
+    final metaStyle = NoteMetaStyle.of(content.section);
     return AutoScrollRegion(
       controller: _controller,
       child: ListView.builder(
@@ -69,6 +71,7 @@ class _ItemListState extends State<ItemList> {
           return NoteListRow(
             key: ValueKey<LibraryItemKey>(noteKey(note.id)),
             note: note,
+            metaStyle: metaStyle,
           );
         },
       ),
@@ -121,6 +124,7 @@ class _RowMain extends StatelessWidget {
     required this.leading,
     required this.title,
     required this.meta,
+    this.highlight,
   });
 
   final LibraryItemKey itemKey;
@@ -132,6 +136,9 @@ class _RowMain extends StatelessWidget {
   final Widget leading;
   final String title;
   final String meta;
+
+  /// Search query highlighted in [title] (6.14).
+  final String? highlight;
 
   @override
   Widget build(BuildContext context) {
@@ -170,8 +177,8 @@ class _RowMain extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
+                    Text.rich(
+                      highlightedTitleSpan(context, title, highlight),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyLarge,
@@ -195,11 +202,21 @@ class _RowMain extends StatelessWidget {
   }
 }
 
-/// `[cover 40×52][16][title / date · n페이지][☆/★ 44][⋯ 44]`.
+/// `[cover 40×52][16][title / meta][☆/★ 44][⋯ 44]` — meta = `date ·
+/// n페이지` in folder sections, by section otherwise (6.14).
 class NoteListRow extends ConsumerWidget {
-  const NoteListRow({super.key, required this.note});
+  const NoteListRow({
+    super.key,
+    required this.note,
+    this.metaStyle = NoteMetaStyle.modified,
+    this.highlight,
+  });
 
   final Note note;
+  final NoteMetaStyle metaStyle;
+
+  /// Search query highlighted in the title (6.14).
+  final String? highlight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -230,9 +247,8 @@ class NoteListRow extends ConsumerWidget {
           ),
         ),
         title: note.title,
-        meta: note.requiresNewerApp
-            ? LibraryStrings.requiresNewerApp
-            : LibraryStrings.noteListMeta(date, note.pageCount),
+        meta: watchNoteMeta(ref, note, metaStyle, listRow: true),
+        highlight: highlight,
       ),
     );
     return LibraryDropZone(
@@ -271,11 +287,23 @@ class NoteListRow extends ConsumerWidget {
   }
 }
 
-/// `[folder icon 32 in 40×52][16][name / '폴더'][⋯ 44]`.
+/// `[folder icon 32 in 40×52][16][name / '폴더'][⋯ 44]`; in search results
+/// the meta is the folder's location and the match is highlighted (6.14).
 class FolderListRow extends ConsumerWidget {
-  const FolderListRow({super.key, required this.folder});
+  const FolderListRow({
+    super.key,
+    required this.folder,
+    this.showLocation = false,
+    this.highlight,
+  });
 
   final Folder folder;
+
+  /// Meta = locationLabel of the parent instead of '폴더'.
+  final bool showLocation;
+
+  /// Search query highlighted in the name.
+  final String? highlight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -295,7 +323,10 @@ class FolderListRow extends ConsumerWidget {
         onOpen: () => LibraryScope.read(context).openFolder(folder.id),
         leading: FolderPicture(folder: folder, iconSize: 32, background: false),
         title: folder.name,
-        meta: LibraryStrings.folders,
+        meta: showLocation
+            ? watchLocationLabel(ref, folder.parentId) ?? LibraryStrings.folders
+            : LibraryStrings.folders,
+        highlight: highlight,
       ),
     );
     return LibraryDropZone(

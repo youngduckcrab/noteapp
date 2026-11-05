@@ -13,6 +13,7 @@ import 'package:feature_library/src/settings/library_settings_keys.dart';
 import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:feature_library/src/ui/dialogs/folder_picker_dialog.dart';
 import 'package:feature_library/src/ui/sidebar/sidebar_rows.dart';
+import 'package:feature_library/src/ui/top_bar/library_search_field.dart';
 import 'package:feature_library/src/ui/trash/trash_row.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -61,6 +62,14 @@ final List<LibraryScenario> libraryScenarios = [
   LibraryScenario(
     'trash: a note trashed in a folder is restored there; [보기] opens it',
     _trashRestoresInPlace,
+  ),
+  LibraryScenario(
+    'search: decomposed (NFD) titles and queries match composed ones',
+    _searchNfd,
+  ),
+  LibraryScenario(
+    'recent: a note shows only after openSession (no markOpened here)',
+    _recentAfterOpenSession,
   ),
 ];
 
@@ -299,4 +308,76 @@ Future<void> _trashRestoresInPlace(
   await _tap(tester, find.widgetWithText(SnackBarAction, LibraryStrings.show));
   expect(find.text('단어장'), findsOneWidget);
   expect(find.byType(TrashRow), findsNothing);
+}
+
+/// Types [text] into the top bar search field and waits for the debounce
+/// (300 ms) and the results.
+Future<void> _search(WidgetTester tester, String text) async {
+  await tester.enterText(
+    find.descendant(
+      of: find.byType(LibrarySearchField),
+      matching: find.byType(TextField),
+    ),
+    text,
+  );
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pumpAndSettle();
+}
+
+Set<String> _noteTileIds(WidgetTester tester) => {
+  for (final t in tester.widgetList<NoteTile>(find.byType(NoteTile))) t.note.id,
+};
+
+/// 6.14 / CORE 6.8: a title stored with decomposed Hangul jamo (as macOS
+/// file names give it) is found by the composed query, and a decomposed query
+/// finds a composed title; the whole library is searched.
+Future<void> _searchNfd(WidgetTester tester, LibraryTestHarness h) async {
+  const decomposedMath = '\u1109\u116e\u1112\u1161\u11a8'; // 수학
+  final (nfdNote, nfcNote) = await _real(tester, () async {
+    final folder = await h.backend.seedFolder('수학 자료');
+    final nfdNote = await h.backend.seedNote('$decomposedMath 정리');
+    final nfcNote = await h.backend.seedNote('수학 숙제', folderId: folder.id);
+    await h.backend.seedNote('영어 단어');
+    return (nfdNote, nfcNote);
+  });
+  await h.pump(tester);
+  await tester.pumpAndSettle();
+
+  await _search(tester, '수학');
+  expect(h.backend.queries, contains("searchLibrary '수학' limit:50"));
+  expect(find.text(LibraryStrings.searchFolderGroup(1)), findsOneWidget);
+  expect(find.text(LibraryStrings.searchNoteGroup(2)), findsOneWidget);
+  expect(_noteTileIds(tester), {nfdNote.id, nfcNote.id});
+
+  await _search(tester, '$decomposedMath 숙제');
+  expect(_noteTileIds(tester), {nfcNote.id});
+  expect(find.text(LibraryStrings.searchFolderGroup(1)), findsNothing);
+  expect(h.log.entries, isEmpty);
+  expect(h.backend.calls, isEmpty);
+}
+
+/// 6.14 / S-5: opening a note from the library is only onOpenNote; the note
+/// joins 최근 when a session opens it (the editor's openSession, N-6).
+Future<void> _recentAfterOpenSession(
+  WidgetTester tester,
+  LibraryTestHarness h,
+) async {
+  final note = await _real(tester, () => h.backend.seedNote('일기'));
+  await h.pump(tester);
+  await tester.pumpAndSettle();
+  Finder nav(String label) => find.widgetWithText(SidebarNavRow, label);
+
+  await _tap(tester, nav(LibraryStrings.recent));
+  expect(find.text(LibraryStrings.emptyRecent), findsOneWidget);
+  await _tap(tester, nav(LibraryStrings.home));
+  await _tap(tester, find.widgetWithText(NoteTile, '일기'));
+  expect(h.log.entries, ['note:${note.id}']);
+  expect(h.backend.calls, isEmpty);
+
+  await _tap(tester, nav(LibraryStrings.recent));
+  expect(find.text(LibraryStrings.emptyRecent), findsOneWidget);
+  await _real(tester, () => h.backend.seedOpened(note.id));
+  await tester.pumpAndSettle();
+  expect(find.text(LibraryStrings.emptyRecent), findsNothing);
+  expect(_noteTileIds(tester), {note.id});
 }

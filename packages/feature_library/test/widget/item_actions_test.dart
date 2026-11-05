@@ -25,6 +25,12 @@ import '../support/fixtures.dart';
 import '../support/library_test_harness.dart';
 import '../support/test_sizes.dart';
 
+/// The name field of the open dialog (the top bar has a search field too).
+final Finder dialogField = find.descendant(
+  of: find.byType(Dialog),
+  matching: find.byType(TextField),
+);
+
 void main() {
   late FakeLibraryBackend backend;
 
@@ -134,7 +140,7 @@ void main() {
       final h = await pumpAt(tester);
       await menu(tester, '회의록', LibraryStrings.rename);
       expect(find.byType(RenameDialog), findsOneWidget);
-      final field = find.byType(TextField);
+      final field = dialogField;
       final controller = tester.widget<TextField>(field).controller!;
       expect(controller.text, '회의록');
       expect(
@@ -173,7 +179,7 @@ void main() {
       expect(backend.calls, isEmpty);
 
       await menu(tester, '영어', LibraryStrings.rename);
-      await tester.enterText(find.byType(TextField), '외국어');
+      await tester.enterText(dialogField, '외국어');
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, LibraryStrings.save));
       await tester.pumpAndSettle();
@@ -191,17 +197,15 @@ void main() {
       await pumpAt(tester);
       await menu(tester, name, LibraryStrings.rename);
       expect(find.text(LibraryStrings.characterCount(179, 200)), findsNothing);
-      await tester.enterText(find.byType(TextField), 'ㄴ' * 180);
+      await tester.enterText(dialogField, 'ㄴ' * 180);
       await tester.pump();
       expect(
         find.text(LibraryStrings.characterCount(180, 200)),
         findsOneWidget,
       );
-      await tester.enterText(find.byType(TextField), 'ㄴ' * 205);
+      await tester.enterText(dialogField, 'ㄴ' * 205);
       await tester.pump();
-      final controller = tester
-          .widget<TextField>(find.byType(TextField))
-          .controller!;
+      final controller = tester.widget<TextField>(dialogField).controller!;
       expect(controller.text.length, 200);
       expect(
         find.text(LibraryStrings.characterCount(200, 200)),
@@ -216,7 +220,7 @@ void main() {
       await seed(tester);
       await pumpAt(tester);
       await menu(tester, '일기', LibraryStrings.rename);
-      await tester.enterText(find.byType(TextField), '일기장');
+      await tester.enterText(dialogField, '일기장');
       await tester.pump();
       backend.failNextMutation = StateError('disk');
       await tester.tap(find.widgetWithText(FilledButton, LibraryStrings.save));
@@ -580,7 +584,7 @@ void main() {
         find.widgetWithText(MenuItemButton, LibraryStrings.rename),
       );
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '물리');
+      await tester.enterText(dialogField, '물리');
       await tester.pump();
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();

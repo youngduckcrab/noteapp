@@ -1,11 +1,13 @@
 // lib/src/ui/top_bar/library_top_bar.dart — 05-library 6.2 (top bar table).
 // Leading button, the breadcrumb (folder sections) or the section title, and
-// on the right the sort menu, the view toggle (L10) and '선택' (L14) — in the
-// compact class all three live in ⋯ — and '새로 만들기' (L12; not in the
-// trash). Still to come on the right: search (L17), 'PDF 가져오기' in the new
-// menu (L18). In selection mode the selection bar replaces this bar.
+// on the right the search field (240 / 200, L17), the sort menu, the view
+// toggle (L10) and '선택' (L14) — in the compact class a search icon (the
+// whole bar becomes the search field, 6.2) and ⋯ with the other three — and
+// '새로 만들기' (L12; not in the trash). Still to come: 'PDF 가져오기' in the
+// new menu (L18). In selection mode the selection bar replaces this bar.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' show FolderId;
 
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
@@ -14,24 +16,79 @@ import '../layout/library_metrics.dart';
 import '../layout/size_class.dart';
 import '../library_scope.dart';
 import 'breadcrumb_bar.dart';
+import 'library_search_field.dart';
 import 'new_menu_button.dart';
 import 'sort_menu_button.dart';
 
-class LibraryTopBar extends ConsumerWidget {
+class LibraryTopBar extends ConsumerStatefulWidget {
   const LibraryTopBar({super.key, required this.section});
 
   final LibrarySection section;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryTopBar> createState() => _LibraryTopBarState();
+}
+
+class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
+  /// Compact class: the search icon was pressed (the bar is the search
+  /// field). The bar is also the field whenever the section is a search.
+  bool _compactSearchOpen = false;
+  FolderId? _route;
+
+  void _closeCompactSearch(FolderId? route) {
+    setState(() => _compactSearchOpen = false);
+    ref.read(librarySectionProvider(route).notifier).exitSearch();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final section = widget.section;
     final scope = LibraryScope.of(context);
+    final route = scope.routeFolderId;
+    if (route != _route) {
+      _route = route;
+      _compactSearchOpen = false;
+    }
+    // Leaving the search for another place (not the field going back to
+    // where the search started) closes the compact search bar.
+    ref.listen(librarySectionProvider(route), (previous, next) {
+      if (next is SearchSection || !_compactSearchOpen) return;
+      if (previous is SearchSection && previous.returnTo == next) return;
+      setState(() => _compactSearchOpen = false);
+    });
     final theme = Theme.of(context);
+    final compact = scope.sizeClass == LibrarySizeClass.compact;
+    final searchField = LibrarySearchField(
+      key: ValueKey<FolderId?>(route),
+      routeFolderId: route,
+      autofocus: compact && _compactSearchOpen,
+    );
+    if (compact && (_compactSearchOpen || section is SearchSection)) {
+      return Material(
+        color: theme.colorScheme.surface,
+        child: SizedBox(
+          height: LibraryMetrics.topBarHeight,
+          child: Row(
+            children: [
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: LibraryStrings.closeSearch,
+                onPressed: () => _closeCompactSearch(route),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: searchField),
+              const SizedBox(width: 16),
+            ],
+          ),
+        ),
+      );
+    }
     final sortEnabled = section is FolderSection;
     final showViewToggle = section is! TrashSection;
     // '선택' (6.9): selection mode with nothing selected yet.
-    void beginSelection() => ref
-        .read(librarySelectionProvider(scope.routeFolderId).notifier)
-        .begin();
+    void beginSelection() =>
+        ref.read(librarySelectionProvider(route).notifier).begin();
     return Material(
       color: theme.colorScheme.surface,
       child: SizedBox(
@@ -57,13 +114,25 @@ class LibraryTopBar extends ConsumerWidget {
               },
             ),
             const SizedBox(width: 8),
-            if (scope.sizeClass == LibrarySizeClass.compact)
+            if (compact) ...[
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: LibraryStrings.search,
+                onPressed: () => setState(() => _compactSearchOpen = true),
+              ),
               CompactListingMenu(
                 sortEnabled: sortEnabled,
                 showViewToggle: showViewToggle,
                 onSelect: beginSelection,
-              )
-            else ...[
+              ),
+            ] else ...[
+              SizedBox(
+                width: scope.sizeClass == LibrarySizeClass.expanded
+                    ? LibraryMetrics.searchFieldWidthExpanded
+                    : LibraryMetrics.searchFieldWidthMedium,
+                child: searchField,
+              ),
+              const SizedBox(width: 8),
               SortMenuButton(enabled: sortEnabled),
               if (showViewToggle) const ViewModeButton(),
               const SizedBox(width: 4),

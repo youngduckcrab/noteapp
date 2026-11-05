@@ -1,9 +1,10 @@
 // lib/src/ui/content/note_tile.dart — 05-library 6.8: a note in the grid.
 // Cover (width × width / 0.75) with the favorite ★ and the newer-app badge,
-// then `[title 2 lines][⋯ 44]` and the modified date. In selection mode a
-// tap toggles, the cover shows the check mark and the ⋯ is hidden (6.9). A
-// long press starts a drag (selection mode with the tile, 6.10); in the
-// custom order a drop on the tile reorders (insertion bar in the gap).
+// then `[title 2 lines][⋯ 44]` and the meta line (by section, 6.14). In
+// selection mode a tap toggles, the cover shows the check mark and the ⋯ is
+// hidden (6.9). A long press starts a drag (selection mode with the tile,
+// 6.10); in the custom order a drop on the tile reorders (insertion bar in
+// the gap).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Note, clockProvider;
@@ -17,13 +18,26 @@ import '../layout/grid_metrics.dart';
 import '../layout/library_metrics.dart';
 import '../menus/item_context_menu.dart';
 import 'note_cover_view.dart';
+import 'note_meta.dart';
 import 'tile_parts.dart';
 
 class NoteTile extends ConsumerWidget {
-  const NoteTile({super.key, required this.note, required this.metrics});
+  const NoteTile({
+    super.key,
+    required this.note,
+    required this.metrics,
+    this.metaStyle = NoteMetaStyle.modified,
+    this.highlight,
+  });
 
   final Note note;
   final GridMetrics metrics;
+
+  /// What the meta line says (by section, 6.14).
+  final NoteMetaStyle metaStyle;
+
+  /// Search query highlighted in the title (search results, 6.14).
+  final String? highlight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,7 +120,8 @@ class NoteTile extends ConsumerWidget {
                 ),
                 child: TileFooterText(
                   title: note.title,
-                  meta: newer ? LibraryStrings.requiresNewerApp : date,
+                  meta: watchNoteMeta(ref, note, metaStyle, listRow: false),
+                  highlight: highlight,
                 ),
               ),
             ],

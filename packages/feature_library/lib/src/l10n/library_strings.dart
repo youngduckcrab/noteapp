@@ -37,6 +37,35 @@ abstract final class LibraryStrings {
   /// Title of the search section: `'"<query>" 검색 결과'`.
   static String searchResultsTitle(String query) => '"$query" 검색 결과';
   static const String searchHint = '제목 검색';
+
+  // Search (6.14)
+  /// Compact top bar: the search icon's tooltip (opens the search field).
+  static const String search = '검색';
+
+  /// Compact search bar: ← back to the normal top bar.
+  static const String closeSearch = '검색 닫기';
+
+  /// Tooltip of the clear button inside the search field.
+  static const String clearSearch = '검색어 지우기';
+
+  /// Result group headers: '폴더 (3)', '노트 (12)'.
+  static String searchFolderGroup(int n) => '폴더 ($n)';
+  static String searchNoteGroup(int n) => '노트 ($n)';
+
+  /// Below results cut at the search limit.
+  static const String searchTruncated = '결과가 많아요. 검색어를 더 입력해 보세요.';
+
+  /// Meta line of a recent note: `'<location> · <last opened>'`.
+  static String recentNoteMeta(String location, String opened) =>
+      '$location · $opened';
+
+  /// Meta line of a favorite note: `'<location> · 수정 <modified>'`.
+  static String favoriteNoteMeta(String location, String modified) =>
+      '$location · ${modifiedOn(modified)}';
+
+  /// `'수정 <date>'`.
+  static String modifiedOn(String date) => '수정 $date';
+
   static const String newMenu = '새로 만들기';
   static const String newNote = '새 노트';
   static const String newFolder = '새 폴더';

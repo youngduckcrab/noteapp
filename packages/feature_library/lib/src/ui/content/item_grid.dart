@@ -11,6 +11,7 @@ import '../layout/grid_metrics.dart';
 import '../library_scope.dart';
 import 'folder_tile.dart';
 import 'new_note_tile.dart';
+import 'note_meta.dart';
 import 'note_tile.dart';
 
 class ItemGrid extends StatefulWidget {
@@ -55,6 +56,7 @@ class _ItemGridState extends State<ItemGrid> {
     final indexOf = {
       for (final (i, k) in content.orderedKeys.indexed) k: i + lead,
     };
+    final metaStyle = NoteMetaStyle.of(content.section);
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = GridMetrics.forWidth(
@@ -99,6 +101,7 @@ class _ItemGridState extends State<ItemGrid> {
                         key: ValueKey<LibraryItemKey>(noteKey(note.id)),
                         note: note,
                         metrics: metrics,
+                        metaStyle: metaStyle,
                       );
                     },
                     childCount: lead + folders.length + notes.length,

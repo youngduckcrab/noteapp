@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart'
     show
         AssetId,
+        EntityChange,
+        EntityKind,
         FolderId,
         assetStoreProvider,
         favoriteNotesProvider,
@@ -97,6 +99,10 @@ LibrarySort? _sortOnceLoaded(Ref ref) {
 /// Search groups are cut at this many hits by CORE (searchLibrary limit).
 const int kLibrarySearchLimit = 50;
 
+/// A folder or note change can change search results (names, trash, …).
+bool _changesSearchResults(EntityChange change) =>
+    change.kind == EntityKind.folder || change.kind == EntityKind.note;
+
 /// The CORE stream / query of [section] as LibraryContent (6.3.3 table).
 /// AsyncLoading until the view settings are loaded. TrashSection →
 /// AsyncData(LibraryContent(section)) (the trash view reads trashItemsProvider).
@@ -124,6 +130,14 @@ final libraryContentProvider = Provider.autoDispose
               .watch(favoriteNotesProvider)
               .whenData((n) => LibraryContent(section: section, notes: n));
         case SearchSection(:final query):
+          // 6.14: the search is a one-time query — a folder / note change
+          // (an action on a result, a drop, another device) asks again.
+          final changes = ref
+              .watch(noteStoreProvider)
+              .changes
+              .where((batch) => batch.changes.any(_changesSearchResults))
+              .listen((_) => ref.invalidate(librarySearchProvider(query)));
+          ref.onDispose(() => unawaited(changes.cancel()));
           return ref
               .watch(librarySearchProvider(query))
               .whenData(
