@@ -195,7 +195,12 @@ void main() {
         strokes: [strokeA.copyWith(pageId: h.pageId(4))],
       ),
     );
-    await tester.pump();
+    // The history state reaches [↶] through a stream (a frame or two later on
+    // the web).
+    for (var i = 0; i < 5 && !_enabled(tester, UndoRedoButtons.undoKey); i++) {
+      await tester.pump();
+    }
+    expect(_enabled(tester, UndoRedoButtons.undoKey), isTrue);
     final camera = h.viewport.camera;
     final depth = h.session.history.undoDepth;
 
