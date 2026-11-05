@@ -1,6 +1,6 @@
 // E-08: pen strokes through the whole editor (04-editor 6.6.2, 6.6.3, 6.7):
 // PointerDriver → Listener → InputRouter → InteractionHost → PenInteraction →
-// B3 INK StrokeSession → EditorCommands.commitInkEdit → fake CORE session.
+// INK StrokeSession → EditorCommands.commitInkEdit → fake CORE session.
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/state/color_palette.dart';
 import 'package:feature_editor/src/tools/pen_interaction.dart';
@@ -79,17 +79,38 @@ void main() {
       hit.index,
       viewport.viewportSize.center(Offset.zero),
     );
+    // A straight path in page pt. INK (03-ink 6.6–6.7) does not store the
+    // samples one to one: its One Euro filter moves a point only towards the
+    // previous filtered one (one alpha for both axes, so along this line), F1
+    // ends the stroke at the raw last sample and F7 (RDP) drops the collinear
+    // points in between. What is checked is the screen → page pt mapping at
+    // 200 % and scrolled: both ends land on their page pt and no stored point
+    // leaves the path.
+    final start = centre, end = centre + const Offset(5 * 7.3, 5 * 3.1);
     final pagePoints = [
-      for (var i = 0; i < 6; i++) centre + Offset(i * 7.3, i * 3.1),
+      for (var i = 0; i < 6; i++) Offset.lerp(start, end, i / 5)!,
     ];
     await h.driver.stylusStroke(pathThrough(h, hit.index, pagePoints));
 
     final stroke = h.session.pageIfLoaded(hit.pageId)!.strokes.single;
-    expect(stroke.points.length, pagePoints.length);
-    for (var i = 0; i < pagePoints.length; i++) {
-      // CORE quantization unit (0.01 pt) + 0.01 pt.
-      expect(stroke.points.x(i), closeTo(pagePoints[i].dx, 0.02));
-      expect(stroke.points.y(i), closeTo(pagePoints[i].dy, 0.02));
+    final points = stroke.points;
+    expect(points.length, greaterThanOrEqualTo(2));
+    // CORE quantization unit (0.01 pt) + 0.01 pt.
+    const tolerance = 0.02;
+    final last = points.length - 1;
+    expect(points.x(0), closeTo(start.dx, tolerance));
+    expect(points.y(0), closeTo(start.dy, tolerance));
+    expect(points.x(last), closeTo(end.dx, tolerance));
+    expect(points.y(last), closeTo(end.dy, tolerance));
+    final path = end - start;
+    final direction = path / path.distance;
+    for (var i = 0; i < points.length; i++) {
+      final d = Offset(points.x(i), points.y(i)) - start;
+      // Distance from the line, and the position along it (within the ends).
+      final across = d.dx * direction.dy - d.dy * direction.dx;
+      final along = d.dx * direction.dx + d.dy * direction.dy;
+      expect(across.abs(), lessThanOrEqualTo(tolerance), reason: 'point $i');
+      expect(along, inInclusiveRange(-tolerance, path.distance + tolerance));
     }
   });
 

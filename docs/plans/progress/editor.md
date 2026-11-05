@@ -4,9 +4,9 @@
 
 ## 요약
 
-- 마지막 세션: **9** (동시 개발 단계 개발 세션 9/10) — 이번 세션 완료: E-22·E-18 (세션 8: E-17·E-19, 세션 7: E-16·E-20, 세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 상태: **동시 개발 단계 몫 전부 완료**(B5·E-00~E-20·E-22·E-18). 남은 것은 통합 단계 몫 E-21뿐
-- 다음 할 일: (동시 개발) 없음 — 세션 10은 확인·정리만(아래 메모). 통합 단계: E-21
+- 마지막 세션: **통합 단계(1차 통합)** — 이번 세션 완료: 실제 INK로 깨진 테스트 2개 수정·E-21·브라우저 스모크. 동시 개발 마지막은 세션 9: E-22·E-18 (세션 8: E-17·E-19, 세션 7: E-16·E-20, 세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 상태: **동시 개발 단계 몫 전부 완료**(B5·E-00~E-20·E-22·E-18). **1차 통합(CORE → INK → EDITOR·LIBRARY 병합 뒤) 완료** — 실제 INK로 깨진 테스트 2개 고침, E-21 통합 스모크·브라우저 스모크 통과(아래 '## 통합 단계')
+- 다음 할 일: 통합 단계 나머지는 다른 영역 합류 뒤 — 앱 `flutter build web --release`(10절 #3), INFRA V5(10절 #7), iPad 확인(9.2)
 
 ## 작업 표
 
@@ -33,7 +33,7 @@
 | E-17 | 완료 | c363bfb | `widget/page_panel_test.dart`(+ EDITOR-3-1 `rejectNext` 삭제 거부 1건, 읽기 전용), `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart`, `widget/navigate_to_page_test.dart`, `widget/add_page_sheet_test.dart`, `unit/page_choices_test.dart`, `widget/add_page_button_test.dart`, `widget/extensions_test.dart`(`addPageSources`), `widget/scope_test.dart`(패널 상태 분리) |
 | E-19 | 완료 | 57635cd | `unit/dev_metrics_test.dart`(≤ 4Hz 발행·멈춤·초기화·라벨), `widget/dev_overlay_test.dart`(설정·더보기·Ctrl+Shift+D·URL 플래그 → `inkDiagnosticsProvider.enabled`·`DevMetrics.isRunning`, 숨김·화면 이탈 → 멈춤, `FakeInkClock` INK 줄·EDITOR 줄·저장 줄, 팜 거부 계수, 섹션 줄 변경·숨기면 구독 해제), `widget/dev_menu_test.dart`(보일 때만, 합성 노트, 합성 획 1,000 → +1,000·1단계·되돌리기, 읽기 전용 비활성, 진단 초기화) |
 | E-20 | 완료 | 35be2bf | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
-| E-21 | 통합 단계 | | `integration/real_core_ink_smoke_test.dart`(뼈대만 E-00에서 작성 — 열기·`storageNotDurable` 배너·닫기. 전체 시나리오는 E-13 뒤 채움), `web/editor_browser_smoke_test.dart`(동시 개발 중 작성 가능) |
+| E-21 | 완료(통합 단계) | 아래 '## 통합 단계' | `integration/real_core_ink_smoke_test.dart`(실제 CORE `openTestNoteStore()` + 실제 INK: 배너 → 펜 3 → 부분 지우개 2개 절단 → 되돌리기 → 올가미 이동 → 나가기 → 다시 열기, `--run-skipped -t integration`), `web/editor_browser_smoke_test.dart`(Chrome: 가짜 저장소 + INK, 획 1개 → 되돌리기) |
 | E-22 | 완료 | 7d81713(골든), e53c351 | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`), `unit/performance_smoke_test.dart`(6.15 #9 수치 4개), 전체 통과, 결과 보고 = 아래 '## 결과 보고 (E-22)' |
 | E-18 | 완료 | 093a76e | `widget/paged_mode_test.dart`(가로 배치·첫 페이지 가운데·마운트 ±1, 빠른 스와이프 → 다음/이전 장·한 장만·양 끝에서 멈춤, 느리면 가까운 장, 200%는 스냅 없음(팬·관성), 모드 전환 시 현재 페이지 유지(가로 = 가운데, 세로 = 페이지 위), 화면 회전 뒤 가운데 유지, `navigateToPage`·PageDown/PageUp), `unit/camera_math_test.dart`(가로 첫·끝 페이지 가운데 허용 1건 더함) |
 
@@ -164,6 +164,55 @@
 - 세션 9 끝 확인(E-18 뒤): 패키지 VM 테스트 591개 통과(`~1`은 integration 건너뜀), 전체 VM 실행 165초(CPU 공유 중), `paged_mode`·`camera_math`는 `flutter test --platform chrome`에서도 통과(웹 컴파일 확인용, test/web 아님), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
 - 세션 10 메모: 동시 개발 몫은 끝났다. 남은 일은 확인뿐 — 끝 확인 4가지(`ws check`, 루트 analyze, 패키지 VM 테스트, `git status`) 재확인, 필요하면 결과 보고 수치 갱신. E-21 테스트(`integration/real_core_ink_smoke_test.dart` 전체 시나리오, `web/editor_browser_smoke_test.dart`)는 통합 단계 몫이지만 미리 써 둘 수 있다(`@Tags(['integration'])`는 기본 skip, `test/web/`는 `@TestOn('browser')` — 가짜 저장소 + INK로 획 1개·되돌리기, 펜 패널·미리보기는 열지 않음(세션 6 Chrome 메모)).
 - (끝남) E-18 준비(세션 9): 컨트롤러 쪽 가로 넘기기 스냅(속도 > 300 → 제스처 시작 페이지 ±1, 아니면 가운데 페이지, `cancelGesture`도 스냅)·가로 `fitScale`(현재 페이지 기준)·`setAxis`는 E-03에서 이미 구현. 화면 쪽은 `EditorSettings.pageFlipMode`·`EditorCommands`의 넘기기 모드 전환(E-13)을 확인하고 `widget/paged_mode_test.dart`(가로 배치, 빠른 스와이프 → 다음 장, 느리면 가까운 장, 확대 상태는 스냅 없음, 모드 전환 시 현재 페이지 유지, `navigateToPage`도 동작)를 쓰면 된다. `navigate_to_page_test`에 가로 넘기기 경우가 이미 있다(E-17). 가로 모드 레이아웃 골든이 필요하면 `page_viewport_layout_golden_test`에 경우를 더하고 별도 커밋.
+
+## 통합 단계
+
+1차 통합(계약 7.7 순서 CORE → INK → EDITOR·LIBRARY 병합 뒤, 통합 브랜치 `claude/note-app-planning-bk29xb`). PDF·SYNC·INFRA는 아직 동시 개발 중이라 이 브랜치의 `pdf_io`·`sync_engine`·`app`은 기반 단계 자리표시다. EDITOR `lib/`는 바꾸지 않았다(테스트·계획서·이 기록만).
+
+### 실제 INK 합류로 실패한 VM 테스트 2개 — 원인과 고침
+
+둘 다 테스트가 기반 단계 INK(B3 단순 구현)의 세부 동작을 전제한 것이고 EDITOR 코드 결함도 INK 결함도 아니다(변경 요청 없음). 계획이 정한 의미를 검사하도록 고쳤다.
+
+- `widget/pen_stroke_test.dart` 'zoomed 200% and scrolled: points land on the page pt'(점 6개 기대, 실제 2개): B3는 샘플을 그대로 점으로 저장했지만 실제 INK는 03-ink 6.6~6.7 대로 One Euro 필터(두 축에 같은 alpha — 직선 위에서만 움직임) → F1(끝점 = 마지막 원시 샘플) → F7 RDP(0.03pt, 직선 위 점 제거)를 거치므로 직선 6샘플이 2점이 된다. **고침**: 점 개수 대신 E-08이 정한 의미(200%·스크롤 상태의 화면 → 페이지 pt 변환)를 본다 — 직선 경로의 두 끝점이 그 페이지 pt에(오차 ≤ CORE 양자화 0.01pt + 0.01pt), 저장된 모든 점이 경로 위(경로와의 거리 ≤ 0.02pt, 두 끝 사이). 계획서 8.2 E-08 행 문장도 같이 고침.
+- `widget/dev_overlay_test.dart` 'INK snapshot (FakeInkClock), EDITOR values and the storage line'(캐시 줄 '타일 4.0MB(1)' 기대, 오버레이는 '타일 0.0MB(0)'): 실제 INK는 커밋된 획의 타일을 뒤 프레임에서 래스터하고 그때 캐시 수치를 보고하며, 진단 알림은 250ms 묶음(뒤끝 알림 포함, 03-ink 4.12), 오버레이는 알림 뒤 최대 250ms에 다시 그린다(6.12). 테스트는 `pump(300ms)` 한 번 뒤 '지금' 스냅숏과 '그 전에 그린' 오버레이 글자를 비교해 어긋났다(B3는 같은 프레임에 끝나서 맞았음). **고침**: INK 스냅숏이 값으로 더 바뀌지 않을 때까지 300ms씩 pump(최대 20번) → 2번 더(INK 뒤끝 알림 + 오버레이 타이머) → 오버레이가 그 스냅숏의 `devInkLines` 네 줄·`devEditorLines`·저장 줄을 그대로 보이는지(개발자 표시 형식 6.12.2). 실제 INK 진단이 들어오는지 `eventToPaint.count > 0`·`visibleStrokeCount == 1`도 단언.
+- 참고: 이 테스트의 `FakeInkClock`은 0에서 멈춰 있고 `PointerDriver` 시각은 1초부터라 오버레이 지연 값이 음수(약 −1000ms)로 나온다. 고정 시계라서 생기는 값이고 형식 검사와 무관 — 실제 시계(`InkClock.platform`)에서는 해당 없음.
+- 나머지 B3 언급 주석(`erase_test`·`lasso_test`·`page_viewport_test`·`color_picker_test` 머리말)은 실제 INK에서도 단언이 그대로 성립해 손대지 않았다(`erase_test`의 부분 모드는 원래부터 `remove-strokes`/`split-strokes` 둘 다 허용 — 실제 INK의 `split-strokes`는 E-21이 확정 단언).
+
+### E-21 통합 스모크 — `integration/real_core_ink_smoke_test.dart`
+
+실제 CORE(`openTestNoteStore()` 기본값 — drift + 메모리 SQLite, `nativeMemory`) + 실제 INK, 합성 포인터로 화면 전체를 거친다(좌표는 모두 `h.toGlobal` = `viewport.pageToScreen` + 페이지 영역 원점, 배너 높이 무관):
+
+1. 노트 열기(`pumpEditor(store:, recordSession: false)` — CORE 자신의 `noteSessionProvider`) → `storageInfo.backend == nativeMemory`, **`EditorStrings.storageNotDurable` 배너가 보임**.
+2. 펜 획 3개(y 150·250·350pt, x 100→300) → 각각 `add-strokes`, `undoDepth` 3, CORE 획 3개가 각 줄 위, INK 컨트롤러 내용 = CORE, `pendingIds` 빔.
+3. 툴바 지우개 + 부분 모드(지름 12) → x 200 세로 경로로 위 두 획만 지남 → **`split-strokes` 1단계**, 원래 두 id 없음·셋째 id 그대로, 조각 4개(줄마다 x 200 왼쪽 1·오른쪽 1).
+4. 툴바 [↶] 1번 → `undoDepth` 3·`canRedo`, 세 획이 같은 id·같은 점으로 복구, INK 표시도 복구.
+5. 툴바 올가미로 셋째 획 선택 → 스타일러스로 (60, 40)px 끌기 → `transform` 1단계, 점이 (60, 40)/scale pt 이동(오차 ≤ 0.02pt), 다른 두 획 그대로.
+6. 마지막 위치를 1쪽으로(`jumpToPage(1)`) → 툴바 [←] → `flushAll` 뒤 `onClose` 1번, `persistenceStatus.pendingOps == 0` → 화면을 내리면 첫 세션 `isClosed`.
+7. 같은 저장소에 새 `ProviderScope` + `EditorScreen`으로 다시 열기 → 새 세션(첫 세션과 다른 객체)·배너·**현재 페이지 1·같은 확대율**·`undoDepth` 0 → 0쪽으로 가서 **세 획의 id·점(옮긴 위치 포함)이 나가기 전과 같음**, INK 표시도 같음 → [←] 다시 → `store.close()`(runAsync).
+
+실행: `cd packages/feature_editor && flutter test --run-skipped -t integration` → 1개 통과(약 25초, 대부분 컴파일). 루트 `dart run tool/ws.dart test --run-skipped -t integration --package feature_editor`도 통과(32.6초). 기본 `flutter test`에서는 `dart_test.yaml`로 '건너뜀'(~1) 그대로.
+
+메모: 실제 저장소도 `pumpEditor`가 fake async 안에서 그대로 쓸 수 있다 — `NativeDatabase`가 테스트 isolate에서 돌아 마이크로태스크만 쓰므로 시드·명령·`flush`가 `runAsync` 없이 끝난다. `runAsync`가 필요한 것은 저장소 열기·닫기(휴지통 자동 비우기 `Timer`)와 나가기 대기뿐. 다시 열기 뒤에도 `h.container`·`h.session`·`h.viewport`·`h.controllerOf`는 지금 트리에서 다시 찾으므로 그대로 쓴다(`recordSession: true`면 `h.session`이 첫 화면의 recorder를 가리키므로 여기서는 false). 첫 프레임 뒤 `pump()` 한 번이 더 있어야 배너가 보인다(상태 provider 첫 값 — 6.17.3과 같음).
+
+### 브라우저 스모크 — `web/editor_browser_smoke_test.dart`
+
+`@TestOn('browser')`(계획 3절 트리·9.1 표·10절 #2, 계약 7.4.8). Chrome에서 `pumpEditor`(CORE `createFakeNoteStore()` — 웹 안전, 메모리) + 실제 INK: `kIsWeb` → 스타일러스 획 1개 → `execute:add-strokes` 1번·`undoDepth` 1·CORE 획 1개(시작·끝점이 페이지 pt에, 오차 ≤ 0.02pt)·INK 컨트롤러 내용 = 그 획·`pendingIds` 빔·리스너 안 `execute` 없음 → 툴바 [↶] → `undo` 1번·`undoDepth` 0·`canRedo`·CORE·INK 모두 빔. 준비 스크립트 필요 없음.
+
+실행: `cd packages/feature_editor && flutter test --platform chrome test/web` → 1개 통과(약 58초, 대부분 웹 컴파일). 루트 `dart run tool/ws.dart test --platform chrome --package feature_editor` → 통과(61.6초).
+
+### 확인 (통합 커밋 기준)
+
+- `packages/feature_editor`에서 `flutter test`: **591개 통과**, `~1`은 integration 건너뜀(골든 9개 포함), 전체 146초(다른 에이전트와 CPU 공유 — 10절 #2 '3분 이내' 안).
+- `flutter test --run-skipped -t integration`: 1개 통과. `flutter test --platform chrome test/web`: 1개 통과.
+- `packages/feature_editor`의 `flutter analyze --fatal-infos` 0건. 루트 `flutter analyze --fatal-infos`는 10건이 나오나 모두 `packages/feature_library/test/integration/zz_debug_test.dart`(같은 컨테이너의 LIBRARY 통합 담당이 만든 추적 안 된 임시 파일, `avoid_print`)이고 EDITOR 몫은 0건.
+- `dart format` 변경 없음, `ws check`(R1·R2·R3·R7·R8·R9·R15) 위반 0.
+- 변경 요청: 없음. 의존성 요청: 없음(`pubspec.lock` 변경 없음). 공개 API 변경 없음.
+
+### 남은 것
+
+- 10절 #3: 앱 `flutter build web --release` — INFRA(앱 셸) 합류 뒤.
+- 10절 #7: INFRA V5 스모크(새 노트 → 획 1개 → 닫기 → 다시 열기 → 되돌리기)가 EDITOR 화면으로 통과 — INFRA 몫.
+- 9.2 iPad 확인(★ = M1 합격). A4·A19의 INK 값(필압·지연·캐시)과 A22b 캐시 합계는 이제 실제 INK 값이다.
 
 ## 결과 보고 (E-22)
 

@@ -47,6 +47,30 @@ String _overlayText(WidgetTester tester) => tester
     )
     .data!;
 
+/// Pumps until the INK snapshot stops changing, then long enough for the
+/// overlay to show it. INK keeps reporting after a commit — it rasterizes the
+/// committed stroke's tiles in later frames and reports the cache then — and
+/// notifies at most every 250 ms (03-ink 4.12, trailing edge included); the
+/// overlay rebuilds at most [DevOverlay.refreshInterval] after a notification.
+Future<ink.InkStatsSnapshot> _settledInkSnapshot(
+  WidgetTester tester,
+  ink.InkDiagnostics diagnostics,
+) async {
+  const step = Duration(milliseconds: 300);
+  var last = diagnostics.snapshot;
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(step);
+    final now = diagnostics.snapshot;
+    if (now == last) break;
+    last = now;
+  }
+  // INK's trailing notification (≤ 250 ms) + the overlay's refresh timer.
+  await tester.pump(step);
+  await tester.pump(step);
+  expect(diagnostics.snapshot, last, reason: 'INK snapshot did not settle');
+  return last;
+}
+
 /// Overlay shown, INK collecting, DevMetrics running — or none of them.
 void _expectOn(WidgetTester tester, EditorTestHandles h, bool on) {
   expect(find.byKey(DevOverlay.overlayKey), on ? findsOneWidget : findsNothing);
@@ -121,11 +145,11 @@ void main() {
         Offset(220, 150),
       ]),
     );
-    await tester.pump(const Duration(milliseconds: 300));
-
     final diagnostics = h.container.read(ink.inkDiagnosticsProvider);
-    final snapshot = diagnostics.snapshot;
+    final snapshot = await _settledInkSnapshot(tester, diagnostics);
     expect(snapshot.lastKind, ink.InkPointerKind.stylus);
+    expect(snapshot.eventToPaint.count, greaterThan(0));
+    expect(snapshot.visibleStrokeCount, 1);
     final metrics = h.container.read(editorDevMetricsProvider).snapshot;
     expect(metrics.lastKind, PointerDeviceKind.stylus);
     expect(metrics.lastStrokePoints, greaterThan(0));
