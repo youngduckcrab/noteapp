@@ -23,7 +23,7 @@
 | T11 | 완료 | 03c2568 | unit/text_normalizer_test, unit/search_service_test, unit/search_equality_test, pdfium/search_real_test, widget/search_panel_test (+ unit/search_notifier_test, web/pure_logic_browser_test 정규화 항목) |
 | T12 | 완료 | 405875c | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
 | T13 | 완료 | 4081b1a | pdfium/compose_native_test (+ support/compose_probes.dart — T14와 같은 탐침 목록, unit/compose_layout_test) |
-| T14 | 완료 | (이 커밋) | web/compose_browser_test (T13과 같은 탐침 20개 + 워커 관리 7개), web/foundation_browser_test(웹 합성 팩토리 `isSupported`) |
+| T14 | 완료 | 0da121f | web/compose_browser_test (T13과 같은 탐침 20개 + 워커 관리 7개), web/foundation_browser_test(웹 합성 팩토리 `isSupported`) |
 | T15 | 남음 | | unit/export_service_test, pdfium/export_e2e_test |
 | T15b | 남음 | | unit/batch_export_test, widget/batch_export_flow_test |
 | T16 | 남음 | | widget/export_flow_test, web/output_sink_browser_test |
@@ -108,6 +108,10 @@
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
+
+- 세션 5 결과: T13(4081b1a)·T14(0da121f) 완료. 다음 T15(6.11.2·6.11.9·6.11.10, `DefaultPdfExportService`·`pdfExportJobProvider`, testing.dart `RecordingComposeBackend` 본문 — 지금 `_todo`). 네이티브 묶음 8쪽(`PdfTuning.nativeExportChunkPages`)·웹 16쪽(`exportChunkPages`)은 백엔드에 크기 멤버가 없으므로(4.9) 서비스가 `kIsWeb`로 고른다. pdfium/export_e2e_test는 `NativePdfComposeBackend()`(src import)와 탐침 도우미(`expectMarkersAt` 등, test/support/compose_probes.dart)를 다시 쓸 수 있다. 합성 백엔드는 비어 있는 ops를 건너뛰므로 서비스가 빈 ops를 걸러도 되고 그대로 넘겨도 된다.
+- 세션 5 검사: 패키지 VM 테스트 482개 통과(+3 skip), Chrome 47개 통과(`ws test --platform chrome --package pdf_io`, 122초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0. pdfium/compose_native_test는 실 PDFium으로 약 2초, web/compose_browser_test는 Chrome에서 약 60초(컴파일 포함).
+- 합성 백엔드 시험 훅(내부): 네이티브 `debugNativeComposeJobCount()`(워커 isolate 작업 맵 크기)·`openJobCount`, 웹 `debugWorkerJobCount()`·`hasWorker`·`openJobCount`. 탐침은 컨텍스트마다 연 문서를 `ctx.dispose()`로 닫는다.
 
 - 세션 4 결과: T11·T12 완료. 다음 T13(6.11.3·6.11.4·6.11.5·6.11.7 — compose_backend_native.dart: pdfrx 워커 isolate에서 `PdfrxEntryFunctions.instance.compute`, `pdfium_dart` 바인딩, `test/support/compose_probes.dart` 탐침 + pdfium/compose_native_test). 해석기는 test/support/compose_fixture.dart의 형식(verbs·coords·paints, endObject 좌표 = paint 인덱스, 빈 페이지 plan −1)을 읽는다.
 - 세션 4 검사: 패키지 VM 테스트 442개 통과(+3 skip — integration·perf), Chrome 20개 통과(`ws test --platform chrome --package pdf_io`, 76~113초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0. 실 PDFium 검색 테스트(pdfium/search_real_test)는 VM 기본 실행에 포함된다.
