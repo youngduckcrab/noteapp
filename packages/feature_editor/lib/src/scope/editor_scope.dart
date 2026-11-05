@@ -169,13 +169,15 @@ final editorCommandsProvider = Provider<EditorCommands>(
 /// Router → editor (6.6.2).
 final editorInteractionHostProvider = Provider<InteractionHost>(
   (ref) {
+    final commands = ref.watch(editorCommandsProvider);
     final host = InteractionHost(
       ref: ref,
       session: ref.watch(editorSessionValueProvider),
       viewport: ref.watch(editorViewportProvider),
       pages: ref.watch(editorMountedPagesProvider),
-      commands: ref.watch(editorCommandsProvider),
+      commands: commands,
     );
+    commands.bindHost(host);
     ref.onDispose(host.dispose);
     return host;
   },

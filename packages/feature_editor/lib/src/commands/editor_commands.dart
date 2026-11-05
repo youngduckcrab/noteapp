@@ -3,8 +3,9 @@
 // E-08: the three CORE entry points (_run, _runAsync, _runHistory), the ink
 // hand-off (commitInkEdit), undo / redo and the user messages. E-09: clearing
 // the current page. E-10: copy / paste / delete of the selection, clearing it
-// and selecting a tool. Page commands, navigation and UI actions join with
-// E-11..E-19.
+// and selecting a tool. E-12: zoom, screen scrolling, the developer overlay
+// toggle and Esc for the keyboard shortcuts. Page commands, navigation and the
+// remaining UI actions join with E-13..E-19.
 import 'dart:async';
 import 'dart:ui' show Offset, Size;
 
@@ -16,6 +17,8 @@ import 'package:note_core/note_core.dart' as core;
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../state/settings/editor_settings_notifier.dart';
+import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
 import '../tools/stroke_clipboard.dart';
 import '../tools/tool_controller.dart';
@@ -39,6 +42,7 @@ class EditorCommands {
   final MountedPages _pages;
   final StreamController<String> _messages = StreamController.broadcast();
   InputRouter? _router;
+  InteractionHost? _host;
   bool _disposed = false;
 
   /// Short notices for the user (snackbar text): a command refused on a
@@ -51,6 +55,10 @@ class EditorCommands {
   /// Called by editorInputRouterProvider: undo / redo are ignored while the
   /// router drives a tool interaction.
   void bindRouter(InputRouter router) => _router = router;
+
+  /// Called by editorInteractionHostProvider: Esc closes the host's context
+  /// menu (the host depends on these commands, so it is bound afterwards).
+  void bindHost(InteractionHost host) => _host = host;
 
   // ---- commands (5.1.3) ----
 
@@ -165,6 +173,53 @@ class EditorCommands {
   void selectTool(EditorTool tool) {
     if (_disposed) return;
     _ref.read(editorToolProvider.notifier).selectTool(tool);
+  }
+
+  // ---- navigation / UI (6.8) ----
+
+  /// ×1.25 about the screen centre (ViewportController.zoomStep).
+  void zoomIn() {
+    if (!_disposed) unawaited(_viewport.zoomStep(zoomIn: true));
+  }
+
+  /// ÷1.25 about the screen centre.
+  void zoomOut() {
+    if (!_disposed) unawaited(_viewport.zoomStep(zoomIn: false));
+  }
+
+  /// Zoom 1 = fit width (paged mode: the current page centred).
+  void zoomToFit() {
+    if (!_disposed) unawaited(_viewport.zoomToFit());
+  }
+
+  /// ±0.9 viewport along the main axis; the next / previous page in paged
+  /// mode. [direction] > 0 = forward.
+  void scrollByViewport(int direction) {
+    if (!_disposed) unawaited(_viewport.scrollByViewport(direction));
+  }
+
+  /// Flips EditorSettings.showDevOverlay (device setting). The overlay is
+  /// shown when this or the URL flag is on (6.12, E-19).
+  void toggleDevOverlay() {
+    if (_disposed) return;
+    _ref.read(editorSettingsProvider.notifier).toggleDevOverlay();
+  }
+
+  /// Esc: close popup → cancel eyedropper → leave page selection mode → clear selection
+  /// (first that applies). The open context menu counts as a popup (E-10);
+  /// the toolbar popups (E-13) and the page selection mode (E-17) join here.
+  void escape() {
+    if (_disposed) return;
+    final host = _host;
+    if (host != null && host.contextMenu.value != null) {
+      host.closeContextMenu();
+      return;
+    }
+    if (_ref.read(editorToolProvider).eyedropperActive) {
+      _ref.read(editorToolProvider.notifier).setEyedropper(false);
+      return;
+    }
+    _ref.read(editorSelectionProvider.notifier).clear();
   }
 
   /// Through _runHistory (5.1.3): ignored while an interaction is active or read-only;
@@ -306,6 +361,7 @@ class EditorCommands {
   void dispose() {
     _disposed = true;
     _router = null;
+    _host = null;
     unawaited(_messages.close());
   }
 }

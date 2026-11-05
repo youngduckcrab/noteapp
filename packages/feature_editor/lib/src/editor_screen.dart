@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import 'input/editor_shortcuts.dart';
 import 'scope/editor_scope.dart';
 import 'ui/editor_strings.dart';
 import 'ui/toolbar/undo_redo_buttons.dart';
@@ -210,7 +211,7 @@ class _BackButton extends StatelessWidget {
 
 /// Ready body until E-13: an app bar with the back button, the note title,
 /// [↶] [↷] (E-11) and '설정' in the more menu (when onOpenSettings is given),
-/// over the page viewport.
+/// over the page viewport — all inside the keyboard shortcuts (E-12).
 class _ReadyView extends StatelessWidget {
   const _ReadyView({
     required this.session,
@@ -225,16 +226,18 @@ class _ReadyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final openSettings = onOpenSettings;
-    return Scaffold(
-      appBar: AppBar(
-        leading: _BackButton(onPressed: onBack),
-        title: Text(session.note.title, overflow: TextOverflow.ellipsis),
-        actions: [
-          const UndoRedoButtons(),
-          if (openSettings != null) _MoreMenu(onOpenSettings: openSettings),
-        ],
+    return EditorShortcuts(
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _BackButton(onPressed: onBack),
+          title: Text(session.note.title, overflow: TextOverflow.ellipsis),
+          actions: [
+            const UndoRedoButtons(),
+            if (openSettings != null) _MoreMenu(onOpenSettings: openSettings),
+          ],
+        ),
+        body: const _CommandMessages(child: PageViewport()),
       ),
-      body: const _CommandMessages(child: PageViewport()),
     );
   }
 }
