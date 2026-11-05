@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 통합 단계 1/2(G1·G3·INFRA-O1·도구 정리) — 동시 개발 단계 세션 1–5(I1–I15, I10b) 완료 뒤. 아래 '## 통합 단계'
-- 다음 할 일: 통합 단계 2/2 — G2(실제 모듈 연결·V5·V6 스모크), G4(최종 확인), G5(푸시·CI·미리보기 배포 — 총괄)
+- 마지막 세션: 통합 단계 2/2(G2·G4 — V5·V6 스모크, 릴리스 빌드 실제 실행 확인, 라우팅 결함 2건 수정) — 그 앞은 통합 단계 1/2(G1·G3·INFRA-O1·도구 정리). 아래 '## 통합 단계'
+- 다음 할 일: G5(푸시·CI·미리보기 배포·iPad 확인 — 총괄·사용자, 아래 '### G5 — 컨테이너 밖에서 할 일')
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -31,11 +31,13 @@
 | G1 | 완료 | 52de08c | `flutter pub get --enforce-lockfile`, `ws check --strict` 0. lock은 ink lab 등록·`analyzer` 직접 의존과 함께 한 번만 재생성(해석 버전 변화 없음) |
 | G3 | 완료 | 52de08c | `tool/test/export_names_test.dart`, `ws check`(R1–R15) 0 |
 | 통합 도구 | 완료 | 52de08c, d5938c6, 5adf710 | ink lab 멤버 등록(INFRA-O1)·`ws affected` 중첩 멤버, `android.yml` 개발 브랜치 푸시·안내서 05, `ws test` 멤버별 시간 제한·재시도·신호 처리 |
-| G2·G4·G5 | 통합 단계 2/2 | | 계획서 8.3 |
+| G2 | 완료 | (이번 커밋) | `app/test/integration/app_smoke_test.dart`(V5)·`app/test/web/app_smoke_browser_test.dart`(V6, Chrome) 통과 — 3~8단계 공용 `app/test/support/smoke_scenario.dart`. 릴리스 빌드에서 찾은 라우팅 결함 2건 수정(`app_router_test`·`bootstrap_app_test` 경우 추가) |
+| G4 | 완료 | (이번 커밋) | V1~V4: `ws check`(R1–R15)·`--strict` 0, 루트 analyze 0, `dart format` 변경 없음(R11), `ws test`·`ws test --platform chrome`·`dart test tool/test`, `flutter build web --release`, `ws web-assets verify` |
+| G5 | 총괄·사용자 | | 푸시·CI·미리보기 배포·iPad 체크리스트(컨테이너 밖) |
 
 ## 변경 요청
 
-- 없음
+- (통합 단계 2/2, 총괄에게) 계약 7.7 V5 문구 '획 1개 → 닫기 → 다시 열어 획 1개 유지 → **되돌리기 → 빈 페이지**'는 CORE 02-core 6.16(`noteSessionProvider` autoDispose — 에디터를 떠나면 세션·히스토리가 닫힘, '재진입 시 빈 히스토리', 승인된 설계)과 함께 성립하지 않는다(실제 CORE로 확인: 다시 연 뒤 되돌리기 버튼 비활성). INFRA V5는 '획 1개 → 되돌리기 → 빈 페이지 → 다시 실행 → 닫기 → 다시 열어 같은 획 1개 유지(새 세션은 되돌리기 없음)' 순서로 끝 상태를 모두 단언했다(01-infra 8.3 'G2 실행 순서'). 제안: V5 문구를 이 순서로 고치고, 04-editor 10장 7의 같은 문구도 함께.
 
 ## 의존성 요청
 
@@ -97,6 +99,11 @@
 - (세션 5, I14) 워크플로 `name:`을 안내서에 보이는 이름으로 바꿨다: `CI`·`Android APK`·`Web experiment`·`iOS TestFlight`(6.16의 'Actions → CI'·'Actions → Android APK'와 맞춤 — 파일 이름·동시성 그룹은 그대로). 루트 `README.md`에 안내서·`ws` 줄을 더했다.
 - (세션 5, I15) 계획서 6.13 '실측 항목' 표 세 줄을 채웠다(B8 결과 보고의 로컬 측정값 + I15 측정값, GitHub 실측은 G5·Chrome 첫 `openNoteStore`는 G2). 10장 1의 'B8 실측값이 6.13 표에 기록됨'은 로컬 값으로만 채운 상태다.
 
+- (통합 단계 2/2, G2) V5 순서: 계획서 8.3의 7(닫기·다시 열기) → 8(되돌리기)을 8 → 7로 했다(위 '변경 요청' — 히스토리는 세션과 함께 닫힘). 8에 '다시 실행'을 더해 같은 획 id가 돌아오는지도 본다.
+- (통합 단계 2/2, G2) V5·V6의 3~8단계는 한 파일(`app/test/support/smoke_scenario.dart`)에 두고 두 테스트가 배너 기대값(V5 1개, V6 `storageWarningOf`에 따라)만 달리 준다. 화면 조작은 보이는 문구·접근성 라벨(`SmokeLabels`: '새 노트'·'만들기'·'제목 없는 노트'·'뒤로'·'되돌리기'·'다시 실행')로 찾는다 — 각 패키지의 문구 상수는 `src/` 아래라 앱 테스트가 import하지 않는다(R7).
+- (통합 단계 2/2, G2) 저장소 읽기는 `tester.runAsync`가 아니라 `settle()`(작업을 테스트 영역에서 시작하고 실제 시간을 흘리며 pump)로 한다: 저장소는 부트스트래퍼가 위젯 테스트의 fake-async 영역에서 열었으므로 웹에서는 Web Worker 응답이 그 영역에서 처리돼 pump해야만 진행된다 — `runAsync` 안에서 기다리면 끝나지 않았다(V6 첫 실행이 4단계에서 멈춘 원인).
+- (통합 단계 2/2, G2) 계획서 6.4·6.6에 없던 라우팅 설정 2가지를 더했다(아래 '통합 단계 2/2 — 릴리스 빌드에서 찾은 결함'): `GoRouter.optionURLReflectsImperativeAPIs = true`, 스플래시·오류 화면 틀의 Navigator가 엔진에 라우트를 보고하지 않음. 계획서 6.4·6.6에 적었다.
+
 ## 다음 세션 메모
 
 - 세션 1 끝 상태: `ws check`(R1–R13·R15) 0, 루트 `flutter analyze --fatal-infos` 0, `dart test tool/test` 182건, `ws test` 7개 멤버 통과(noteapp VM 38건), `ws test --package noteapp --platform chrome` 8건 통과.
@@ -121,6 +128,9 @@
 - (세션 5) 세션 5 끝 상태: `ws check`(R1–R13·R15)·`--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart test tool/test` 265건, `ws test` 7개 멤버 통과, `ws test --platform chrome` 4개 멤버 통과, `flutter build web --release` → `finalize-web` ok.
 - (세션 5) 통합 단계 G 준비 메모: G1 `pubspec.lock` 재생성 뒤 `ci.yml`의 캐시 키(`hashFiles('pubspec.lock')`)가 바뀌어 첫 실행은 캐시가 빗나간다(정상). G2 스모크 뼈대 두 파일(세션 4 메모)과 `ci.yml` 10단계(`workflow_dispatch`의 `integration` 입력)로 통합 태그 테스트를 GitHub에서도 돌릴 수 있다. G5에서 확인할 것(9.2): 러너 Chrome(없으면 `browser-actions/setup-chrome`), 두 번째 실행의 캐시 적중, 요약의 주소·단계 시간 표, `android.yml` 아티팩트 경로, 배포 뒤 `curl -I …/sqlite3.wasm`. 워크플로에 actionlint를 돌려 본 적은 없다(컨테이너에 없음) — G5 첫 푸시에서 GitHub가 YAML 오류를 보이면 고친다.
 - (세션 5) 6.14 안드로이드 release 서명(키스토어 시크릿 4개 → `key.properties`, `build.gradle.kts`가 있을 때만 사용)은 태블릿 보유 확인 뒤 할 일로 남겼다(동시 개발 몫 아님).
+- (통합 2/2) 끝 상태: `ws check`(R1–R15)·`--strict` 0, 루트 analyze 0, `dart test tool/test` 295, `ws test` 8개 멤버·`ws test --platform chrome` 7개 멤버 통과, 통합 태그 VM·Chrome 통과(V5·V6 포함), `flutter build web --release` 성공(`main.dart.js` 4,633,843 B). 남은 것은 G5(컨테이너 밖)뿐.
+- (통합 2/2) 릴리스 빌드를 직접 볼 때: 127.0.0.1 정적 서버(없는 경로 → `index.html`) + Playwright `chromium.launch()`, CanvasKit은 `build/web/canvaskit/`에서 route로 주고(`www.gstatic.com`은 프록시가 403), 글꼴은 `fonts.gstatic.com`을 프록시 `curl`로 받아 넘긴다. Flutter 화면 조작은 `flt-semantics-placeholder`를 눌러 접근성 트리를 켠 뒤 `getByRole('button', {name, exact: true})`. Playwright route는 나중에 등록한 것이 먼저 맞으므로 '그 밖의 외부 요청 막기'를 가장 먼저 등록한다.
+- (통합 2/2) 위젯 테스트에서 앱이 연 실제 저장소를 읽을 때는 `tester.runAsync`로 감싸지 말고 `smoke_scenario.dart`의 `settle()`을 쓴다(웹에서 끝나지 않음 — '계획과 다르게 한 점').
 
 ## 통합 단계
 
@@ -191,3 +201,68 @@
 
 - `flutter pub get --enforce-lockfile` 통과, `ws check`(R1–R15) 0 · `--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음, `dart test tool/test` 295건 통과, `ws test --package ink_lab` 1건, 전체 `ws test --platform chrome` 7개 멤버 통과.
 - 다른 통합 담당에게: 잠금 파일·도구 변경은 52de08c에서 끝났다(이후 lock 변경 없음). `ws check`는 이제 R14 때문에 약 1분 더 걸린다 — 빠른 확인은 `ws check --no-exports`. 전체 Chrome 실행이 멈추면 `ws`가 15분 뒤 그 멤버를 끝내고 다시 시도하며, `timeout`으로 감싸 SIGTERM을 보내면 자식까지 끝내고 143으로 종료한다.
+
+## 통합 단계 2/2 — G2·G4 (계획서 8.3, 계약 7.7 4단계)
+
+### G2 — 실제 구현 연결
+
+- 병합 뒤 상태 확인: 모듈 어댑터의 기본 인자가 이미 실제 함수다(I10·I10b) — `productionModules()` = `CoreModule()`(`openNoteStore`·`deleteLocalNoteData`·`defaultNoteStoreConfig` 절대 URL) → `PdfModule()`(`initializePdfIo`·`pdfIoOverrides`) → `FeatureWiringModule()`(`importPdfAsNewNote`·`exportNotesAsPdf`·`pdfEditorMoreMenuActions`·`pdfEditorAddPageSources`, 실제 `pdfRenderStatsProvider`), `AppScreenBuilders.production()` = `LibraryScreen`·`EditorScreen`·`SettingsScreen`, `main.dart` → `runNoteApp()` → `productionModules()`. 그래서 연결 코드는 바꿀 것이 없었고 B4 시절 주석만 고쳤다(`feature_wiring_module.dart`·`pdf_wiring.dart`, 테스트 이름 1개).
+- V5·V6가 확인하는 연결(공용 `expectContractOverrides`): 세 모듈 모두 `ok`; 루트 overrides의 `origin` 집합 == 계약 7.3.3 '이번' 8개(`noteStoreProvider`, `ink.pageBackgroundBuildersProvider`, `pdfIoConfigProvider`, `pageThumbnailRendererProvider`, `libraryPdfImportActionProvider`, `libraryPdfExportActionProvider`, `editorExtensionsProvider`, `devOverlaySectionsProvider`) + 셸 6개 + `featureEditorOverrides()`·`featureLibraryOverrides()`(지금 빈 목록), 중복 없음; 값: 배경 빌더 [`PdfBackgroundLayerBuilder`, `TemplateBackgroundLayerBuilder`], `pdfIoConfigProvider == PdfIoConfig()`, 썸네일 렌더러 = INK 인스턴스, 가져오기·내보내기 자리 = pdf_io 함수와 `identical`, 에디터 메뉴 id = pdf_io 동작 id 순서, 개발자 표시 `pdf.render` 3줄.
+
+### V5·V6 스모크
+
+- `app/test/integration/app_smoke_test.dart`(V5, 메모리 CORE): 1(실제 모듈, 1032×1376 DPR 2, overrides) → 2(`nativeMemory` → `notDurable`) → 3(라이브러리 배너 `ContractStrings.storageNotDurable` 1개, 닫기 전) → 4('새 노트' → 대화상자 '만들기' → `EditorScreen`, 저장소에 제목 '제목 없는 노트'·빈 첫 페이지) → 5(에디터 배너 1개 — 라이브러리 라우트는 Offstage) → 6(합성 스타일러스 획 1개 — `InkPageView` 영역 가운데 폭 40%, 저장소 획 1개, 획 폭/페이지 폭 ≈ 0.4·가운데 ≈ 0.5) → 8(되돌리기 → 빈 페이지, 다시 실행 → 같은 획 id) → 7(뒤로 → 라이브러리 → 제목 타일 → 같은 노트, 저장소 같은 획 1개, 새 세션 되돌리기 비활성, 배너 1개) → 9(`shutdown`). `errorLog` 0건. VM 약 4초.
+- `app/test/web/app_smoke_browser_test.dart`(V6, Chrome): 같은 시나리오, 'V6 설정'대로 실행마다 다른 `databaseName`·`blobDatabaseName`(절대 URL). 결과: 백엔드 `webSharedIndexedDb`, `storageWarningOf` = `null` → 두 화면 모두 고정 문장 0개(`writeFailing` 문장도 0개). 정리: `shutdown()` 뒤 그 실행의 IndexedDB 2개(`noteapp_smoke_<n>`·`noteapp_smoke_<n>_blobs`)가 있는 것을 기록 → `deleteLocalNoteData(config)` → 그 실행의 IndexedDB 0개, 같은 config로 다시 열면 그 노트 없음 → 닫고 다시 지움 → 0개. Chrome 약 13초(컴파일 제외). 단계마다 `V6: step …` 줄을 출력한다(멈추면 어디서인지 보인다).
+- Chrome 첫 `openNoteStore`(빈 DB, 헤드리스 Chrome, 다른 에이전트와 CPU 공유): `core` 단계 2.8~3.0초, 부트스트랩 → 라이브러리 3.4~3.8초(3회). 계획서 6.13 실측표에 적었다 — `CoreModule.startTimeout` 20초는 그대로.
+
+### 통합 태그 테스트 (계약 7.7 5단계)
+
+`dart run tool/ws.dart test --run-skipped -t integration`(VM, 4분 3초) — 8개 멤버 통과:
+
+| 멤버 | 통과 | 내용 |
+|---|---|---|
+| feature_editor | 1 | E-21 `real_core_ink_smoke_test` |
+| feature_library | 10 | L21 `core_contract_test` |
+| pdf_io | 19 | `core_gateway_test`·`ink_thumbnail_test`·`ink_vectorizer_test` |
+| noteapp | 1 | V5 |
+| sync_engine | 42 | T16(그때 작업 트리 — SYNC 통합 담당이 `test/integration/`을 고치는 중이었다) |
+| note_core·ink_engine·ink_lab | 0 | 통합 태그 없음 |
+
+`dart run tool/ws.dart test --platform chrome --run-skipped -t integration`(7분 34초) — 7개 멤버 통과, 통합 태그 Chrome 테스트는 noteapp V6 1개(다른 멤버는 '일치하는 테스트 없음').
+
+### 통합 단계 2/2 — 릴리스 빌드에서 찾은 결함 (INFRA, 고침)
+
+릴리스 빌드를 실제로 띄워 보다가(아래 '앱 실행 확인') 앱 셸 라우팅 결함 2개를 찾아 고쳤다. 둘 다 위젯 테스트(VM)의 기존 경우로는 잡히지 않았다.
+
+1. **노트를 열어도 주소가 `/`에 남음**: go_router 기본값(`GoRouter.optionURLReflectsImperativeAPIs = false`)에서는 `push`(= `AppNavigator.openNote`·`openSettings`)가 브라우저 주소를 바꾸지 않는다. → `createAppRouter`가 이 옵션을 켠다(전역 정적 값, 멱등). 테스트: `app_router_test` 'the reported browser address follows push and pop' — `SystemChannels.navigation`의 `routeInformationUpdated` `uri`가 `/folders/f1` → `/notes/n1?page=p3` → `/settings` → `/notes/n1?page=p3` → `/folders/f1`(고치기 전 코드로 돌리면 `/notes/n1?page=p3` 자리에서 `/folders/f1`이 나와 실패함을 확인).
+2. **`/notes/<id>`에서 새로고침하면 라이브러리가 열림**(9.3 #16, 계약 7.4.3): 스플래시·오류 화면 틀(`_ShellFrame`)의 `MaterialApp(home:)` 루트 Navigator가 시작 중에 `/`를 엔진에 보고하고, 웹 엔진은 첫 navigation 메시지에서 `defaultRouteName`을 `/`로 바꾼다(엔진 `platform_dispatcher.dart`) — 시작 뒤 만들어지는 GoRouter는 `/`에서 시작했다(Playwright로 `history.replaceState` 순서 확인). → `_ShellFrame`이 `MaterialApp(builder:)` 안에 자기 `Navigator(pages: [MaterialPage(key: 'shell', child)])`를 둔다(`reportsRouteUpdateToEngine` 기본 false, 오류 화면의 2단계 확인 대화상자는 그대로 동작). 테스트: `bootstrap_app_test` 'the splash and the error screen report no route to the engine …' — 스플래시·오류 화면 동안 `SystemChannels.navigation` 호출 0건, 다시 시도 뒤 앱은 보고함(고치기 전 코드로는 `['selectSingleEntryHistory', 'routeInformationUpdated']`로 실패함을 확인). 첫 수정(`onGenerateRoute`)은 첫 child(스플래시)를 붙잡아 오류 화면으로 바뀌지 않았다 — 기존 bootstrap 테스트 6개가 잡았고 `pages`로 고쳤다.
+
+### G4 — 최종 확인 (V1~V4)
+
+| 명령 | 결과 | 시간 |
+|---|---|---|
+| 루트 `flutter analyze --fatal-infos` | 0건 | 10초 |
+| `ws check` (R1–R15) / `ws check --strict` | 0 · 0 (R11 = `dart format` 변경 없음 포함) | 59초 · 58초 |
+| `ws web-assets verify` | 2개, 문제 0 | 2초 |
+| `dart test tool/test` | 295 통과 | 54초 |
+| `ws test` (VM) | 8개 멤버 통과 — note_core 617(+5 건너뜀)·ink_engine 779·feature_editor 591(+1)·feature_library 626(+1)·pdf_io 580(+7)·noteapp 261(+1 = V5)·sync_engine 777(+4)·ink_lab 1 | 8분 49초 |
+| `ws test --platform chrome` (전체 한 번) | 7개 멤버 통과, 시간 초과·재시도 없음 — note_core 47(+1)·ink_engine 193·feature_editor 1·feature_library 17·pdf_io 54(+1)·noteapp 11(+1 = V6)·sync_engine 26, ink_lab은 `test/web/` 없음 | 8분 2초 |
+| `cd app && flutter build web --release` | 성공(wasm dry run 성공) — `main.dart.js` **4,633,843 B**(gzip 1,366,038 B, I15보다 +1.89 MB) | 1분 52초(컴파일 110초) |
+
+`ws test`의 sync_engine 수는 SYNC 통합 담당의 커밋 전 작업 트리 기준이다(경로가 겹치지 않아 건드리지 않음).
+
+### 앱 실행 확인 (릴리스 빌드, 헤드리스 Chromium)
+
+- 방법: 위 릴리스 빌드(`app/build/web`)를 127.0.0.1의 정적 서버(Hosting처럼 없는 경로 → `index.html`, `Cache-Control: no-cache` — 스크래치 디렉터리의 작은 Python 서버)로 띄우고 Playwright `chromium.launch()`(1032×1376, deviceScaleFactor 1, `ko-KR`)로 연다. 컨테이너 프록시가 `www.gstatic.com`을 막아 CanvasKit은 빌드에 든 `canvaskit/`에서 주고(Playwright route), Google Fonts(`fonts.gstatic.com`)는 프록시를 거친 `curl`(TLS 검증)로 받아 넘겼다. 그 밖의 외부 요청은 막았다. 조작은 Flutter 접근성 트리(semantics)를 켜고 버튼 이름으로 찾았다. 서버·브라우저는 끝나고 PID로 종료.
+- 결과(고친 뒤): 첫 프레임 약 1.7초 → 라이브러리(빈 홈 '노트가 없어요', '새 노트'·'새 폴더') → '새 노트' → 대화상자(제목 '제목 없는 노트', A4·세로·줄 속지) → '만들기' → 주소 `/notes/<id>`의 에디터(줄 속지, 툴바·펜 프리셋) → '뒤로' → 라이브러리에 '제목 없는 노트' 타일(썸네일) → 그 주소로 새로고침 → 같은 노트의 에디터. **콘솔 오류 0건, 페이지 오류 0건, 실패한 요청 0건.** 경고는 헤드리스 소프트웨어 WebGL의 'GPU stall due to ReadPixels' 4줄뿐. 저장소 경고 배너는 이 Chromium에서 보이지 않았다(V6와 같은 `webSharedIndexedDb`·경고 없음).
+- 고치기 전에는 '만들기' 뒤 주소가 `/`에 남았고(결함 1), `/notes/<id>`를 직접 열면 라이브러리가 떴다(결함 2).
+- 스크린숏(커밋하지 않음): `/tmp/claude-0/-home-user-noteapp/43ee6a27-03fc-5e99-8039-9d32bef92c40/scratchpad/integration-shots/` — `01-library.png`, `02-new-note-dialog.png`, `03-editor.png`, `04-library-with-note.png`, `05-reload-on-note.png`, `report.json`.
+
+### G5 — 컨테이너 밖에서 할 일 (총괄·사용자)
+
+- 총괄: 통합 브랜치 푸시 → `ci.yml` 녹색 확인. 첫 실행은 `pubspec.lock` 캐시 키가 바뀌어 캐시가 빗나간다(정상). 잡 제한 25분 안에 드는지 단계 시간 요약으로 확인 — 로컬 Chrome 단계만 약 8분, VM `ws test` 약 9분(CPU 공유 시). 넘으면 잡 제한을 올리거나 브랜치 푸시의 브라우저 테스트를 영향받은 멤버로 줄인다(6.13).
+- 총괄: 통합 태그 테스트를 GitHub에서도 돌리려면 `ci.yml`을 `workflow_dispatch`로 `integration: true` 입력과 함께 실행.
+- 사용자: Firebase 프로젝트 만들기·GitHub 시크릿 등록(안내서 `docs/guides/01-firebase-project.md`·`02-github-secrets.md`) — 없으면 CI가 배포를 건너뛴다. 등록 뒤 미리보기 배포 → `curl -I https://<프로젝트 ID>.web.app/sqlite3.wasm`(또는 미리보기 주소)로 `Content-Type: application/wasm`·`Cache-Control: no-cache`·COOP/COEP 없음 확인(9.2).
+- 사용자: iPad 체크리스트(계획서 9.3, 안내서 `docs/guides/04-ipad-web-test.md`) — 특히 #16(노트에서 새로고침 → 같은 노트, 이번에 고친 결함 2), #1(재방문 시작 2초 — `main.dart.js`가 4.6 MB로 커짐), #18a·18b(백업 내보내기), 계약 V7 ①②③ 복합 항목.
+- 사용자(선택): 안드로이드 태블릿이 있으면 `android.yml` 개발 브랜치 푸시 APK 설치(안내서 05).
+- 기본 브랜치에 합친 뒤: `android.yml` `on.push.branches`에서 `claude/note-app-planning-bk29xb` 삭제(워크플로 주석).

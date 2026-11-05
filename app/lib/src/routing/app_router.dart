@@ -25,11 +25,18 @@ const String _noteIdParam = 'noteId';
 ///
 /// The screens get a [GoRouterAppNavigator] over the returned router. The
 /// caller owns the router and disposes it.
+///
+/// Sets [GoRouter.optionURLReflectsImperativeAPIs] (process-wide, idempotent):
+/// without it go_router leaves the browser address at the last `go` location
+/// after `push` — an open note would show `/`, so a Safari reload would not
+/// reopen it (9.3 #16) and the address bar would not match the screen
+/// (found in G2 on the release build).
 GoRouter createAppRouter({
   required AppScreenBuilders screens,
   String initialLocation = AppRoutes.library,
   List<NavigatorObserver>? observers,
 }) {
+  GoRouter.optionURLReflectsImperativeAPIs = true;
   late final GoRouter router;
   late final AppNavigator navigator = GoRouterAppNavigator(router);
 

@@ -135,7 +135,7 @@ void main() {
     });
 
     test(
-      'default arguments (pdf_io B4 functions) build the same rows',
+      'default arguments (the real pdf_io functions) build the same rows',
       () async {
         final (container, _) = await _boot(FeatureWiringModule());
         expect(

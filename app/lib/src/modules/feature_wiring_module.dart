@@ -16,7 +16,9 @@ import 'pdf_wiring.dart';
 /// Static wiring between feature packages (계약 7.3.3). No async work.
 /// PDF-related overrides are added only when the PDF module started.
 /// The PDF render stats section takes no injected stats: pdfRenderStatsProvider
-/// is read as is (B4: zero-stats notifier, 계약 7.6 B4 v1.2 — C12-06).
+/// is read as is (계약 7.6 B4 v1.2 — C12-06; since PDF T8 the renderer's own
+/// stats, which need noteStoreProvider — CoreModule starts first).
+/// The default arguments are the real pdf_io functions (계약 7.3.3).
 final class FeatureWiringModule extends AppModule {
   FeatureWiringModule({
     this._importPdf = importPdfAsNewNote,

@@ -123,10 +123,11 @@ String _mb(int bytes) =>
 /// DevOverlaySection(id: 'pdf.render', title: 'PDF 렌더',
 ///   lines: PdfRenderStatsLines(ref.watch(pdfRenderStatsProvider)))
 /// — the lines object is disposed with the provider (ref.onDispose).
-/// Reads the REAL pdfRenderStatsProvider (no injection parameter): in the
-/// foundation stage PDF B4 builds it without exception as
-/// ValueNotifier(PdfRenderStats.zero) (계약 7.6 B4 v1.2, C12-06), so a
-/// container holding only the module overrides can build this section.
+/// Reads the REAL pdfRenderStatsProvider (no injection parameter): it builds
+/// without exception from the module overrides alone (계약 7.6 B4 v1.2,
+/// C12-06 — B4 a zero-stats notifier, since PDF T8 the renderer's stats
+/// listenable, which needs noteStoreProvider only), so a container holding
+/// only the module overrides can build this section.
 DevOverlaySection pdfRenderStatsSection(Ref ref) {
   final lines = PdfRenderStatsLines(ref.watch(pdfRenderStatsProvider));
   ref.onDispose(lines.dispose);

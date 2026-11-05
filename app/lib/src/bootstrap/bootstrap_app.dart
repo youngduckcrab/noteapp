@@ -186,6 +186,19 @@ class _BootstrapAppState extends State<BootstrapApp> {
 Widget _defaultApp(BootstrapSuccess success) => const NoteApp();
 
 /// MaterialApp for the splash and the startup error screen.
+///
+/// It reports no route to the engine: `home:` would give MaterialApp a root
+/// Navigator that tells the browser its route `/`, and the web engine then
+/// forgets the address the page was opened at (its defaultRouteName becomes
+/// `/` on the first navigation message) — the GoRouter created after the
+/// start would open the library instead of a reloaded `/notes/<id>` (9.3 #16,
+/// contract 7.4.3; found in G2 on the release build). So [child] sits in a
+/// Navigator of its own (reportsRouteUpdateToEngine: false — the error
+/// screen's dialogs need one) under `builder:`, where WidgetsApp builds no
+/// Navigator. One page with a fixed key: the splash → error screen change
+/// updates that page's child.
+const ValueKey<String> _shellPageKey = ValueKey<String>('shell');
+
 class _ShellFrame extends StatelessWidget {
   const _ShellFrame({required this.child});
 
@@ -197,7 +210,10 @@ class _ShellFrame extends StatelessWidget {
       title: AppStrings.appName,
       locale: const Locale('ko'),
       debugShowCheckedModeBanner: false,
-      home: child,
+      builder: (context, _) => Navigator(
+        pages: [MaterialPage<void>(key: _shellPageKey, child: child)],
+        onDidRemovePage: (page) {},
+      ),
     );
   }
 }

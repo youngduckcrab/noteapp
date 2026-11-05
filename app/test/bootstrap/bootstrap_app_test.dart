@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -205,6 +206,52 @@ void main() {
       'start:b',
       'started:b',
     ]);
+  });
+
+  testWidgets('the splash and the error screen report no route to the '
+      'engine, so a reloaded /notes/<id> still reaches the router', (
+    tester,
+  ) async {
+    // On the web the first navigation message makes the engine forget the
+    // address the page was opened at (defaultRouteName → '/'), before the
+    // GoRouter reads it (bootstrap_app.dart _ShellFrame).
+    final navigation = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.navigation,
+      (call) async {
+        navigation.add(call.method);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation,
+        null,
+      ),
+    );
+    final attempts = _Attempts([
+      () => [
+        FakeAppModule(
+          id: 'core',
+          startDelay: const Duration(seconds: 1),
+          startError: StateError('first try'),
+        ),
+      ],
+      () => [FakeAppModule(id: 'core')],
+    ]);
+    await _pumpApp(tester, attempts);
+    await tester.pump();
+    expect(find.byType(SplashView), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byType(StartupErrorScreen), findsOneWidget);
+    expect(navigation, isEmpty);
+
+    await tester.tap(find.text(AppStrings.retry));
+    await tester.pumpAndSettle();
+    expect(_app, findsOneWidget);
+    // The app's own navigator does report (the mock sees route messages).
+    expect(navigation, isNotEmpty);
   });
 
   testWidgets('the error screen gets the diagnostic text with the errors', (

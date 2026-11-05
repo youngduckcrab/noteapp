@@ -1,5 +1,6 @@
 // createAppRouter + AppScreenBuilders.placeholders() + GoRouterAppNavigator
 // + NotFoundScreen (docs/plans/01-infra.md 4.5.5, 6.6, 9.1).
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -260,6 +261,46 @@ void main() {
       expect(shell.location, '/folders/f1');
       expect(find.text('folderId: f1'), findsOneWidget);
       expect(_pages(tester), hasLength(1));
+    });
+
+    testWidgets('the reported browser address follows push and pop (6.6 — '
+        'GoRouter.optionURLReflectsImperativeAPIs)', (tester) async {
+      final reported = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation,
+        (call) async {
+          if (call.method == 'routeInformationUpdated') {
+            reported.add((call.arguments as Map)['uri'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.navigation,
+          null,
+        ),
+      );
+      final shell = await _pump(tester);
+      shell.navigator.openLibrary(folderId: 'f1');
+      await _settle(tester);
+      expect(reported.last, '/folders/f1');
+
+      shell.navigator.openNote('n1', pageId: 'p3');
+      await _settle(tester);
+      expect(reported.last, '/notes/n1?page=p3');
+
+      shell.navigator.openSettings();
+      await _settle(tester);
+      expect(reported.last, AppRoutes.settings);
+
+      shell.navigator.closeSettings();
+      await _settle(tester);
+      expect(reported.last, '/notes/n1?page=p3');
+
+      shell.navigator.closeNote();
+      await _settle(tester);
+      expect(reported.last, '/folders/f1');
     });
 
     testWidgets('folder changes do not stack routes', (tester) async {
