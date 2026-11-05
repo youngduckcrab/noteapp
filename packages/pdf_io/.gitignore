@@ -1,0 +1,4 @@
+# pdf_io local files (06-pdf 3, 9.1). The root .gitignore already covers .dart_tool/ and build/.
+# Assets copied by `dart run tool/prepare_web_test.dart` for `flutter test --platform chrome`.
+test/web/pdfium/
+build/
