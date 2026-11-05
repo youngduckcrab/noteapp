@@ -2,9 +2,10 @@
 // allowed to import package:ink_engine (always `as ink`, 3).
 //
 // Foundation step B4 (T0, contract 7.6 B4): initializePdfIo does nothing; pdfIoOverrides()
-// already returns its final two overrides, and the PDF builder in the INK list is the
-// paperOnly placeholder (pdfBackgroundLayerBuilderProvider). Engine warm-up, the pdfrx
-// configuration and the PDFium license registration come with PDF T17.
+// already returns its final two overrides. The PDF builder in the INK list was the paperOnly
+// placeholder until PDF T9; it is now the renderer-backed builder, which reaches the render
+// chain lazily (pdfBackgroundLayerBuilderProvider). Engine warm-up, the pdfrx configuration
+// and the PDFium license registration come with PDF T17.
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:ink_engine/ink_engine.dart' as ink;
 

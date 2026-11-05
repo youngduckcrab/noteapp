@@ -4,7 +4,9 @@
 // (PDF T8): one render queue (render_scheduler.dart), one image cache with byte budgets
 // (render_cache.dart) and one handle per mounted page background that decides what to draw
 // (tile_math.dart, 6.7.2), keeps its images referenced while they are in its snapshot and
-// releases them a frame after they leave it (6.7.5). Remote originals (6.7.7) come with T9.
+// releases them a frame after they leave it (6.7.5). A page whose original is not on this
+// device asks core.RemoteAssetFetcher for it through the pool and opens it again when it
+// arrives (6.7.7, PDF T9).
 //
 // PdfRenderService keeps the 4.7 parameter list word for word (plain named parameters
 // assigned to private fields), hence:
@@ -441,6 +443,7 @@ final class _Slot {
 /// One mounted page background (6.7.2–6.7.6).
 final class _PageHandle extends ChangeNotifier implements PdfPageRenderHandle {
   _PageHandle(this._service, this._params) : _quiet = _params.isScaling {
+    _arrivedSub = _service._pool.assetArrived.listen(_onArrived);
     _acquire();
   }
 
@@ -456,9 +459,20 @@ final class _PageHandle extends ChangeNotifier implements PdfPageRenderHandle {
   bool _openRetried = false;
   Timer? _retryTimer;
 
-  /// Set when opening failed for good (assetMissing / needsPassword / failed).
+  /// Set when the document is not open: assetMissing / downloading (6.7.7) / needsPassword /
+  /// failed.
   PdfRenderStatus? _openStatus;
   PdfIoException? _error;
+
+  // remote original (6.7.7)
+  late final StreamSubscription<core.AssetId> _arrivedSub;
+  StreamSubscription<core.RemoteAssetProgress>? _remoteSub;
+  core.RemoteAssetProgress? _remote;
+
+  /// A `local` progress already made this handle open again (the shared watch replays its
+  /// latest value to a new listener: if the bytes are still unreadable, no second reopen
+  /// until pool.assetArrived).
+  bool _reopenedOnLocal = false;
 
   // images
   _Slot? _base;
@@ -538,6 +552,9 @@ final class _PageHandle extends ChangeNotifier implements PdfPageRenderHandle {
     _generation++;
     _retryTimer?.cancel();
     _settleTimer?.cancel();
+    // Not awaited: a cancel Future may finish in another zone (fake_async, T7 notes).
+    unawaited(_arrivedSub.cancel());
+    _stopRemote();
     for (final slot in [..._tiles.values, ..._oldTiles]) {
       slot.job?.cancel();
       slot.image?.release(dropIfUnused: true);
@@ -579,6 +596,9 @@ final class _PageHandle extends ChangeNotifier implements PdfPageRenderHandle {
     _openRetried = false;
     _openStatus = null;
     _error = null;
+    _stopRemote();
+    _remote = null;
+    _reopenedOnLocal = false;
     _snapshot = PdfRenderSnapshot.loading;
     _acquire();
   }
@@ -630,8 +650,8 @@ final class _PageHandle extends ChangeNotifier implements PdfPageRenderHandle {
           );
     switch (e.code) {
       case PdfErrorCode.assetMissing:
-        // 6.7.7 (remote request, arrival) comes with T9.
         _setOpenStatus(PdfRenderStatus.assetMissing, e);
+        _requestRemote();
       case PdfErrorCode.passwordCancelled:
         _setOpenStatus(PdfRenderStatus.needsPassword, e);
       default:
@@ -647,6 +667,72 @@ final class _PageHandle extends ChangeNotifier implements PdfPageRenderHandle {
         reportPdfError(e, stack, 'pdf background ${_params.assetId}');
         _setOpenStatus(PdfRenderStatus.failed, e);
     }
+  }
+
+  /// 6.7.7 step 1: ask the fetcher (through the pool: one request per asset) and follow its
+  /// progress. No fetcher (before M4) → stays assetMissing with remote == null.
+  void _requestRemote() {
+    if (_remoteSub != null) return;
+    final progress = _service._pool.requestRemote(_params.assetId);
+    if (progress == null) return;
+    // The pool reports fetcher errors and turns them into a `failed` progress (6.6).
+    _remoteSub = progress.listen(_onRemote, onError: (Object _) {});
+  }
+
+  void _onRemote(core.RemoteAssetProgress progress) {
+    if (_disposed) return;
+    final PdfRenderStatus status;
+    switch (progress.state) {
+      case core.RemoteAssetState.local:
+        if (!_reopenedOnLocal) {
+          _reopenedOnLocal = true;
+          _reopenMissing();
+          return;
+        }
+        status = PdfRenderStatus.assetMissing;
+      case core.RemoteAssetState.downloading:
+      case core.RemoteAssetState.waiting:
+        status = PdfRenderStatus.downloading;
+      case core.RemoteAssetState.offline:
+      case core.RemoteAssetState.failed:
+      case core.RemoteAssetState.unavailable:
+        status = PdfRenderStatus.assetMissing;
+    }
+    if (_openStatus != PdfRenderStatus.assetMissing &&
+        _openStatus != PdfRenderStatus.downloading) {
+      return;
+    }
+    _openStatus = status;
+    _remote = progress;
+    _rebuildSnapshot();
+    notifyListeners();
+  }
+
+  /// 6.7.7 step 2: pool.assetArrived for this asset → open again.
+  void _onArrived(core.AssetId assetId) {
+    if (_disposed || assetId != _params.assetId) return;
+    _reopenedOnLocal = false;
+    _reopenMissing();
+  }
+
+  void _reopenMissing() {
+    if (_openStatus != PdfRenderStatus.assetMissing &&
+        _openStatus != PdfRenderStatus.downloading) {
+      return;
+    }
+    _stopRemote();
+    _openStatus = null;
+    _error = null;
+    _remote = null;
+    _openRetried = false;
+    _acquire();
+    _rebuildSnapshot();
+    notifyListeners();
+  }
+
+  void _stopRemote() {
+    unawaited(_remoteSub?.cancel());
+    _remoteSub = null;
   }
 
   void _setOpenStatus(PdfRenderStatus status, PdfIoException error) {
@@ -910,6 +996,11 @@ final class _PageHandle extends ChangeNotifier implements PdfPageRenderHandle {
               for (final slot in _tiles.values) ?slot.placed(),
             ]
           : const [],
+      remote:
+          status == PdfRenderStatus.assetMissing ||
+              status == PdfRenderStatus.downloading
+          ? _remote
+          : null,
       error: status == PdfRenderStatus.ready ? null : _error,
     );
   }

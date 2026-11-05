@@ -24,7 +24,8 @@ void main() {
     addTearDown(container.dispose);
     final builders = container.read(ink.pageBackgroundBuildersProvider);
     expect(builders, hasLength(2));
-    expect((builders.first as PdfBackgroundLayerBuilder).isPaperOnly, isTrue);
+    // PDF T9: the renderer-backed builder (render chain reached lazily).
+    expect((builders.first as PdfBackgroundLayerBuilder).isPaperOnly, isFalse);
     expect(builders.last, isA<ink.TemplateBackgroundLayerBuilder>());
     // pdfRenderStatsProvider (T8 body) needs core.noteStoreProvider (PDF-4-2).
     final store = core_testing.createFakeNoteStore();

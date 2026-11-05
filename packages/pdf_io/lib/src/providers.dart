@@ -8,8 +8,9 @@
 //
 // Foundation step B4 (T0, contract 7.6 B4 v1.2): the providers other areas read during the
 // foundation stage and concurrent development never throw —
-//   - pdfBackgroundLayerBuilderProvider = const PdfBackgroundLayerBuilder.paperOnly()
-//     (read by pdfIoOverrides() for ink.pageBackgroundBuildersProvider; until PDF T9),
+//   - pdfBackgroundLayerBuilderProvider: B4 const PdfBackgroundLayerBuilder.paperOnly(); from
+//     PDF T9 the renderer-backed builder, which reaches the render chain only lazily
+//     (read by pdfIoOverrides() for ink.pageBackgroundBuildersProvider),
 //   - pdfRenderStatsProvider: B4 ValueNotifier(PdfRenderStats.zero); from PDF T8 the
 //     renderer's statsListenable, which needs core.noteStoreProvider (PDF-4-2 — every real
 //     container has it: INFRA CoreModule runs first).
@@ -158,8 +159,11 @@ final pdfSearchHighlightsProvider = Provider<ValueListenable<PdfSearchState>>((
 /// do NOT add a ref.watch here or in pdfSearchHighlightsProvider. T17 asserts the same
 /// instance after search start / select / clear.
 final pdfBackgroundLayerBuilderProvider = Provider<PdfBackgroundLayerBuilder>(
-  // B4 (T0) body.
-  (ref) => const PdfBackgroundLayerBuilder.paperOnly(),
+  // T9 body.
+  (ref) => PdfBackgroundLayerBuilder(
+    renderer: () => ref.read(pdfPageRendererProvider),
+    highlights: ref.watch(pdfSearchHighlightsProvider),
+  ),
   name: 'pdfBackgroundLayerBuilderProvider',
 );
 

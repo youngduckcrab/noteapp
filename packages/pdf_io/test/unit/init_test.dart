@@ -1,11 +1,13 @@
 // PDF T0 init_test, B4 version (contract 00-overview 7.6 B4 v1.2, 06-pdf 8 T0, PDF-2-2): a
 // ProviderContainer that holds ONLY pdfIoOverrides() — no other override, not even
 // core.noteStoreProvider — reads ink.pageBackgroundBuildersProvider =
-// [PdfBackgroundLayerBuilder.paperOnly(), TemplateBackgroundLayerBuilder()] without an
-// exception (INK controllers / thumbnail renderer, INFRA pdf_module_test).
-// pdfRenderStatsProvider has its T8 body since PDF T8: it needs core.noteStoreProvider
-// (PDF-4-2), so its reads moved to unit/render_stats_provider_test (06-pdf 4.12). T17
-// rewrites this file for the real builder.
+// [PdfBackgroundLayerBuilder, TemplateBackgroundLayerBuilder()] without an exception (INK
+// controllers / thumbnail renderer, INFRA pdf_module_test). Since PDF T9 the first entry is
+// the renderer-backed builder (isPaperOnly == false), still built without the render chain
+// (widget/ink_builder_adapter_test counts renderer builds); the paperOnly group below uses
+// the placeholder directly. pdfRenderStatsProvider has its T8 body since PDF T8: it needs
+// core.noteStoreProvider (PDF-4-2), so its reads moved to unit/render_stats_provider_test
+// (06-pdf 4.12). T17 rewrites this file for initializePdfIo.
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,7 +43,7 @@ void main() {
     expect(builders, hasLength(2));
     final first = builders[0];
     expect(first, isA<PdfBackgroundLayerBuilder>());
-    expect((first as PdfBackgroundLayerBuilder).isPaperOnly, isTrue);
+    expect((first as PdfBackgroundLayerBuilder).isPaperOnly, isFalse);
     expect(builders[1], isA<ink.TemplateBackgroundLayerBuilder>());
     expect(
       identical(first, container.read(pdfBackgroundLayerBuilderProvider)),
@@ -50,7 +52,8 @@ void main() {
   });
 
   test('the builder read does not touch core.noteStoreProvider', () {
-    container.read(ink.pageBackgroundBuildersProvider);
+    final builders = container.read(ink.pageBackgroundBuildersProvider);
+    expect(builders.first.handles(_pdfSpec()), isTrue);
     // The container really has no store: reading it fails, the read above did not.
     expect(() => container.read(core.noteStoreProvider), throwsA(anything));
   });
@@ -88,12 +91,7 @@ void main() {
   });
 
   group('paperOnly builder', () {
-    late PdfBackgroundLayerBuilder builder;
-    setUp(() {
-      builder =
-          container.read(ink.pageBackgroundBuildersProvider).first
-              as PdfBackgroundLayerBuilder;
-    });
+    const builder = PdfBackgroundLayerBuilder.paperOnly();
 
     test('handles pdf backgrounds with an asset and a page index only', () {
       expect(builder.handles(_pdfSpec()), isTrue);
