@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 3 (동시 개발 단계) — L9·L10 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L11 (표지 · 썸네일 예약기) → L12 (만들기 대화상자) → L13~L18 → L19 → L20
+- 마지막 세션: 4 (동시 개발 단계) — L11 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L12 (만들기 대화상자) → L13~L18 → L19 → L20
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -23,7 +23,7 @@
 | L8 | 완료 | 58eb35c | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
 | L9 | 완료 | 80b8ddd | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
 | L10 | 완료 | 581329e | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` (+ B6 `feature_library_smoke_test.dart` 갱신) |
-| L11 | 남음 | | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` |
+| L11 | 완료 | (이 커밋) | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` (+ `support/recording_thumbnail_io.dart`) |
 | L12 | 남음 | | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` |
 | L13 | 남음 | | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` |
 | L14 | 남음 | | `widget/multi_select_test.dart` |
@@ -88,6 +88,12 @@
 - L10 상단 막대: 폴더 섹션은 `BreadcrumbBar`(트리 로딩 중엔 빈 칸, 현재 칸 굵게 w700·버튼 아님, 조상 칸 `TextButton` 44, '…'은 `IconButton(Icons.more_horiz, 툴팁 LibraryStrings.hiddenPath '숨은 경로')` + `MenuAnchor`의 `MenuItemButton`들). 오른쪽은 expanded·medium이면 `SortMenuButton`(폴더 섹션만 활성, 아니면 비활성 + 툴팁 `sortFixed`) · `ViewModeButton`(휴지통 제외), compact면 `CompactListingMenu`(⋯ '더 보기' — '정렬' 하위 메뉴 + 보기 전환; **L14가 '선택'을 여기에 더한다**). 파일 `ui/top_bar/breadcrumb_bar.dart`, `ui/top_bar/sort_menu_button.dart`.
 - L10 문구 추가: `sort`, `sortFixed`, `viewAsList`/`viewAsGrid`, `moreActions`, `hiddenPath`, `pageCount(n)`, `noteListMeta(date, n)`, `noteSemantics`/`folderSemantics`, `requiresNewerApp`, 빈 상태 5종(`emptyHome`…`emptySearch(q)`), `listLoadFailed`, `folderInTrash`·`folderNotFound`·`showTrash`·`goHome`.
 - L10 B6 스모크 테스트: 이제 빈 홈의 [새 노트]를 누른다(`pumpAndSettle`로 목록 로드 후). '실패' 테스트는 목록이 뜬 뒤 저장소를 닫고 누른다.
+- L11 `CoverThumbnailScheduler`(`lib/src/thumbnails/cover_thumbnail_scheduler.dart`): 렌더러가 `null`이면(꺼짐) `assetArrivals`·`changes`를 아예 구독하지 않는다. `startDelay`는 처음 한 번만이고, 대기열이 비어 작업자가 쉰 뒤의 요청은 `Timer(Duration.zero)`로 바로 시작한다(작업 사이는 `gap`). `request`가 FirstPageCover가 아니거나 `firstPageId == null`인 노트를 받으면 무시하면서 그 노트의 `_visible`·대기열·`_rerun` 항목도 지운다(타일의 최신 판이 표지 썸네일을 쓰지 않는데 예전 판이 에셋·원격 재시도로 그려지지 않게). `remoteSettle` 타이머는 `_remoteTimer ??=`로 한 창에 하나만(취소로 `_remoteDirty`가 비었다가 다시 채워져도 타이머가 둘이 되지 않게). `cancel`은 `_remoteDirty`에서도 뺀다. `null` 결과의 대기 에셋은 `content.page.background.referencedAssets`(작업이 읽은 페이지)로 정한다. `idle()`은 `dispose`에서도 완료된다. 실패 보고 문맥은 `'library cover thumbnail'`.
+- L11 `NoteCoverView`: `initState`에서 `ref.listenManual(coverThumbnailSchedulerProvider, fireImmediately: true)`로 예약기를 받아 `request`(렌더러 자리가 바뀌어 예약기가 다시 만들어지면 새 예약기에 다시 요청). `didUpdateWidget`은 계획의 세 필드(`updatedAt`·`firstPageId`·`cover`)에 더해 **노트 id가 바뀐 경우**(키 없는 요소 재사용)도 옛 id `cancel` + 새 노트 `request`. 이미지는 `errorBuilder` → 자리표시(디코드 실패). 첫 페이지 썸네일은 `pageThumbnailProvider(id).value`(다시 읽는 동안에도 이전 값 유지).
+- L11 색 표지 카드 `ColorCoverCard`(같은 파일): 띠 색은 `cover_palette.dart`의 `coverSpineColorFor(argb)`(= `Color.lerp(c, 검정, 0.2)`, 상수 `_spineShade`·`_spineShadeAmount` — 색 규칙 7.4.11). 제목은 띠 뒤 12·오른쪽 12 안쪽, 글자 배율 1.3 제한. **폭이 `LibraryMetrics.coverTitleMinWidth`(96)보다 좁으면(리스트 행 썸네일 40×52) 제목을 그리지 않는다**(제목이 바로 옆에 있음 — 계획에 없는 규칙).
+- L11 `assetCoverBytesProvider`: `readBytes`에 더해 `bytesArrived`가 그 id를 내면 `invalidateSelf`(동기화로 나중에 내려온 표지 그림이 저절로 보이게).
+- L11 테스트: 예약기 단위 테스트의 원격 내용 변경은 세션 `AddStrokes`에 `StrokeFixtures.synthetic(pointCount: 8)`을 썼다(5.1.1의 '쓰지 않는 것'에 있지만 테스트에서 획 하나를 만드는 데만 씀). 원격 batch·에셋 도착은 주입한 `StreamController`, provider 연결 테스트 1건은 가짜 저장소의 실제 `bytesArrived`(다른 가짜 저장소에서 같은 바이트를 `put`해 에셋 id(SHA-256)를 미리 얻음). 호출 기록 래퍼 `RecordingContentReader`·`RecordingThumbnailCache`는 `test/support/recording_thumbnail_io.dart`.
+- L11 위젯 테스트 주의: `tester.pump(duration)`은 시간을 먼저 흘리고 프레임을 그리므로, 위젯을 바꾼 뒤(`didUpdateWidget → request`) 예약기 작업을 보려면 `pump()`로 먼저 빌드하고 `pump(1s)`.
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모
@@ -101,7 +107,7 @@
 - 세션 2 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 293개 통과, `flutter test --platform chrome test/web` 6개 통과.
 - L9·L10 시작점: 화면 부분은 `LibraryScope.of(context)`(빌드)/`LibraryScope.read(context)`(이벤트)로 `openFolder`·`openNote`·`openSettings`·`sizeClass`·`routeFolderId`를 얻는다. 섹션은 `ref.watch(librarySectionProvider(scope.routeFolderId))`. 사이드바 행은 `sidebarRowsProvider`, 펼침은 `folderExpansionProvider`, 휴지통 개수는 `trashCountProvider`, 목록은 `libraryContentProvider(section)`, 폴더 없음 판정은 `folderLookupProvider(id)`, 변경은 `libraryActionsProvider`, 스낵바는 `showLibrarySnackBar`. 브레드크럼은 `breadcrumbPath(tree, id)` + `compressBreadcrumb(maxVisible: breadcrumbMaxVisibleFor(sizeClass))`, 그리드 치수는 `GridMetrics.forWidth(LayoutBuilder 폭, sizeClass:, textScale:)`.
 - 세션 3 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 테스트 352개 통과, `flutter test --platform chrome test/web` 6개 통과.
-- L11 시작점: `NoteCoverView`(`ui/content/note_cover_view.dart`)를 4가지 표지 + `ConsumerStatefulWidget`으로 바꾸고, 예약기는 `lib/src/thumbnails/cover_thumbnail_scheduler.dart` + `providers.dart`의 `coverThumbnailSchedulerProvider`·`assetCoverBytesProvider`(6.3.2). 타일(`NoteTile`)·행(`NoteListRow`)은 이미 `NoteCoverView(note:, width:, height:)`를 쓰므로 바꿀 필요 없다. 색 카드의 왼쪽 띠(검정 20% 섞음)는 색 규칙(7.4.11)상 리터럴 대신 `cover_palette.dart`에 상수·함수로 둔다.
+- 세션 4 L11: 표지는 `NoteCoverView`(4가지 + 예약기 요청), 예약기는 `coverThumbnailSchedulerProvider`, 에셋 표지는 `assetCoverBytesProvider`(`providers.dart`). 테스트 기본은 렌더러 자리 `null`(예약기 꺼짐, 자리표시) — 표지를 그려 보려면 `pageThumbnailRendererProvider.overrideWithValue(FakeThumbnailRenderer())`. L13의 '표지 변경'(`setCover`)은 `CoverPalette`·`ColorCoverCard`를 미리보기로 쓸 수 있다.
 - L12 시작점: `NewNoteTrigger` 안에서 대화상자를 열고, 빈 상태에 [새 폴더], 사이드바 '폴더' 머리줄에 '+'(6.5), 상단 막대 오른쪽에 '새로 만들기'(L18의 PDF 가져오기 메뉴와 같은 버튼).
 - 화면 테스트 도우미 관례: provider 오류 보고 횟수는 `FlutterError.onError`를 try/finally로 잠시 바꿔 센다(`widget/sidebar_test.dart`·`widget/listing_test.dart`의 `collectReports`). 정렬 메뉴는 `find.byTooltip(LibraryStrings.sort)` → `find.widgetWithText(MenuItemButton, …)`.
 - 위젯 테스트에서 provider 컨테이너는 `ProviderScope.containerOf(tester.element(find.byType(LibraryTopBar)))`로 얻을 수 있다(`widget/layout_test.dart`).

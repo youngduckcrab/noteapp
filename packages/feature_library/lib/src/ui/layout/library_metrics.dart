@@ -31,6 +31,10 @@ abstract final class LibraryMetrics {
   /// 8 gap + 2 title lines (20) + meta line (16).
   static const double tileFooterBase = 64;
   static const double maxTileTextScale = 1.3;
+
+  /// A ColorCover card narrower than this (list row thumbnail) shows no
+  /// title (6.15.1).
+  static const double coverTitleMinWidth = 96;
   static const double searchFieldWidthExpanded = 240,
       searchFieldWidthMedium = 200;
   static const double breadcrumbCrumbMaxWidth = 200;

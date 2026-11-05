@@ -1,18 +1,27 @@
 // lib/src/state/providers.dart — every LIBRARY provider (05-library 6.3.2).
 // Riverpod 3.4.3 without code generation; name: == the variable name
 // (contract 7.4.4). None of them has to be overridden by the app shell.
+import 'dart:async' show unawaited;
+import 'dart:typed_data' show Uint8List;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart'
     show
+        AssetId,
         FolderId,
+        assetStoreProvider,
         favoriteNotesProvider,
         folderTreeProvider,
         libraryListingProvider,
         libraryRepositoryProvider,
         librarySearchProvider,
         noRetry,
+        noteContentReaderProvider,
+        noteStoreProvider,
+        pageThumbnailRendererProvider,
         recentNotesProvider,
         settingsSnapshotProvider,
+        thumbnailCacheProvider,
         trashItemsProvider,
         trashRepositoryProvider;
 
@@ -25,6 +34,7 @@ import '../model/selection.dart';
 import '../model/tree_rows.dart';
 import '../model/view_prefs.dart';
 import '../settings/library_settings_keys.dart';
+import '../thumbnails/cover_thumbnail_scheduler.dart';
 import 'expansion_notifier.dart';
 import 'library_actions.dart';
 import 'prefs_notifier.dart';
@@ -187,3 +197,39 @@ final libraryActionsProvider = Provider<LibraryActions>(
   ),
   name: 'libraryActionsProvider',
 );
+
+/// Cover thumbnail scheduler (6.15.3). Disabled (isEnabled == false, does
+/// nothing) while the CORE renderer slot is null — foundation stage, before
+/// the app shell wires INK, and the test default. A new renderer value
+/// rebuilds it; the old one is disposed.
+final coverThumbnailSchedulerProvider = Provider<CoverThumbnailScheduler>((
+  ref,
+) {
+  final scheduler = CoverThumbnailScheduler(
+    reader: ref.watch(noteContentReaderProvider),
+    cache: ref.watch(thumbnailCacheProvider),
+    renderer: ref.watch(pageThumbnailRendererProvider),
+    assetArrivals: ref.watch(assetStoreProvider).bytesArrived,
+    changes: ref.watch(noteStoreProvider).changes,
+    report: (error, stack) =>
+        reportLibraryError(error, stack, 'library cover thumbnail'),
+  );
+  ref.onDispose(scheduler.dispose);
+  return scheduler;
+}, name: 'coverThumbnailSchedulerProvider');
+
+/// Bytes of an AssetCover image (AssetStore.readBytes); null while they are
+/// not on this device. Reads again when AssetStore.bytesArrived names [id].
+final assetCoverBytesProvider = FutureProvider.autoDispose
+    .family<Uint8List?, AssetId>(
+      (ref, id) {
+        final assets = ref.watch(assetStoreProvider);
+        final sub = assets.bytesArrived
+            .where((arrived) => arrived == id)
+            .listen((_) => ref.invalidateSelf());
+        ref.onDispose(() => unawaited(sub.cancel()));
+        return assets.readBytes(id);
+      },
+      retry: noRetry,
+      name: 'assetCoverBytesProvider',
+    );
