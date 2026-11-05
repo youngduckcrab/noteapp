@@ -66,6 +66,7 @@ void main() {
   ) async {
     final h = await pumpEditor(tester);
     await _openPenSettings(tester);
+    await _scrollTo(tester, find.byKey(ColorPickerPanel.wheelKey));
     // Default ballpoint 0xFF1A1A1A: grey, value ≈ 0.1.
     final slider = tester.getRect(find.byKey(ColorPickerPanel.valueSliderKey));
     await tester.tapAt(slider.centerRight - const Offset(2, 0));
@@ -109,6 +110,7 @@ void main() {
     final h = await pumpEditor(tester);
     await _openPenSettings(tester);
     final wheel = find.byKey(ColorPickerPanel.wheelKey);
+    await _scrollTo(tester, wheel);
     final before = tester.getRect(wheel);
     final g = await tester.startGesture(before.center + const Offset(0, 80));
     for (var i = 1; i <= 5; i++) {
@@ -128,9 +130,11 @@ void main() {
       'hue', (tester) async {
     final h = await pumpEditor(tester);
     await _openPenSettings(tester);
+    await _scrollTo(tester, find.byKey(ColorPickerPanel.squareSegmentKey));
     await tester.tap(find.byKey(ColorPickerPanel.squareSegmentKey));
     await tester.pump();
     expect(find.byKey(ColorPickerPanel.wheelKey), findsNothing);
+    await _scrollTo(tester, find.byKey(ColorPickerPanel.squareKey));
     final square = tester.getRect(find.byKey(ColorPickerPanel.squareKey));
     expect(square.size, const Size(220, 180));
     final g = await tester.startGesture(square.topLeft + const Offset(1, 1));
@@ -181,6 +185,7 @@ void main() {
     final h = await pumpEditor(tester);
     await _openPenSettings(tester);
     final hex = find.byKey(HexRgbFields.hexKey);
+    await _scrollTo(tester, hex);
     String text(Finder f) => tester.widget<TextField>(f).controller!.text;
     expect(text(hex), '#1A1A1A');
 
@@ -225,6 +230,7 @@ void main() {
     final h = await pumpEditor(tester);
     await _openPenSettings(tester);
     final red = find.byKey(HexRgbFields.redKey);
+    await _scrollTo(tester, red);
     String text(Finder f) => tester.widget<TextField>(f).controller!.text;
 
     await tester.enterText(red, '200');

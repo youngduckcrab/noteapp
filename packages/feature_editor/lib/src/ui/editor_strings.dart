@@ -99,6 +99,59 @@ abstract final class EditorStrings {
   static const eraserSettings = '지우개 설정';
 
   // ---------------------------------------------------------------------------
+  // Pen settings (04-editor 6.9.3 #1–#3, #7) and the eraser panel.
+  // ---------------------------------------------------------------------------
+
+  /// "굵기 2.4 pt" (tap → number input 0.1–30).
+  static String widthLabel(double width) => '굵기 ${width.toStringAsFixed(1)} pt';
+
+  /// Semantics labels of [−] / [+] next to the width slider and of the slider.
+  static const widthDecrease = '굵기 줄이기';
+  static const widthIncrease = '굵기 늘리기';
+  static const width = '굵기';
+
+  /// Shown on the preview when width × zoom is cut at 48 px.
+  static String previewZoom(int percent) => '확대 $percent%';
+
+  /// "투명도 60%".
+  static String opacityLabel(int percent) => '투명도 $percent%';
+  static const opacity = '투명도';
+
+  /// The folded '고급' part (EDITOR-S3).
+  static const advanced = '고급';
+  static String pressureSensitivityLabel(int percent) => '필압 감도 $percent%';
+  static const pressureSensitivity = '필압 감도';
+  static const pressureCurve = '필압 곡선';
+  static const curveSoft = '부드럽게';
+  static const curveLinear = '보통';
+  static const curveFirm = '단단하게';
+
+  /// The pen's curve matches none of the three (a synced custom value).
+  static const customCurve = '사용자 지정 곡선';
+
+  /// Sensitivity and curve are disabled (6.5.7).
+  static const noPressureHint = '이 펜은 필압이 없어 속도로 흉내 내요';
+  static String smoothingLabel(int percent) => '손떨림 보정 $percent%';
+  static const smoothing = '손떨림 보정';
+
+  /// Highlighter only.
+  static const straightening = '직선 보정';
+  static const straighteningOff = '끔';
+  static const straighteningOnLift = '뗄 때 보정';
+  static const straighteningAlways = '항상 직선';
+
+  /// Eraser panel (6.9.3 end).
+  static const eraserModeStroke = '획';
+  static const eraserModePartial = '부분';
+  static String eraserSizeLabel(double diameter) =>
+      '크기 ${diameter == diameter.roundToDouble() ? diameter.toStringAsFixed(0) : diameter.toStringAsFixed(1)} pt';
+  static const eraserSize = '지우개 크기';
+  static const filterAll = '전체';
+  static const filterHighlighterOnly = '형광펜만';
+  static const filterExceptHighlighter = '형광펜 제외';
+  static const returnToPreviousTool = '지운 뒤 이전 도구로 돌아가기';
+
+  // ---------------------------------------------------------------------------
   // Colour (04-editor 6.9.3 #4–#6, 6.9.5) and the stroke eyedropper (6.6.8).
   // ---------------------------------------------------------------------------
 

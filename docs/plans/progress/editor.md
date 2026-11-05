@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **6** (동시 개발 단계 개발 세션 6/10) — 이번 세션 완료: E-14 (세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-15 → E-16 → E-17 → E-19 → E-20 (E-13 뒤 서로 독립) → E-22 → E-18
+- 마지막 세션: **6** (동시 개발 단계 개발 세션 6/10) — 이번 세션 완료: E-14·E-15 (세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-16 → E-17 → E-19 → E-20 (E-13 뒤 서로 독립) → E-22 → E-18
 
 ## 작업 표
 
@@ -26,8 +26,8 @@
 | E-11 | 완료 | 6ce75a2 | `widget/undo_redo_test.dart` |
 | E-12 | 완료 | d67a3c9 | `widget/shortcuts_test.dart` (⌘·Ctrl 각각: Z·⇧Z·C·V·=·⇧=·+·키패드 +/−/0·−·0·⇧D, 텍스트 칸 포커스 중 무시, Ctrl+Y, Delete·Backspace, Esc 순서, PageDown·Space·PageUp·⇧Space, P/E/L 캔버스 포커스·읽기 전용, ⌘↔Ctrl 짝 검사) |
 | E-13 | 완료 | 7b1c8b2 | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart`, `widget/sync_badge_test.dart`, `widget/toolbar_test.dart`, `widget/extensions_test.dart`(moreMenuItems — `addPageSources`는 페이지 추가 시트가 생기는 E-17에서 같은 파일에 더함), `widget/scope_test.dart`(선택·팝업·세션·뷰포트·명령 분리 — 패널 상태는 E-17) |
-| E-14 | 완료 | 90b4bb9 + 골든 커밋('E-14 - HSV wheel goldens') | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart`(+ `hsv_wheel.png`·`hsv_wheel_value_40.png`, 골든은 별도 커밋) |
-| E-15 | 남음 | | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart`, `widget/eraser_panel_test.dart` |
+| E-14 | 완료 | 90b4bb9, db03b35(골든) | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart`(+ `hsv_wheel.png`·`hsv_wheel_value_40.png`, 골든은 별도 커밋) |
+| E-15 | 완료 | (기록 예정) | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart`, `widget/eraser_panel_test.dart`(+ `EraserSizeMapping` 단위 검사) |
 | E-16 | 남음 | | `unit/preset_ordering_test.dart`, `widget/preset_bar_test.dart` |
 | E-17 | 남음 | | `widget/page_panel_test.dart`(+ EDITOR-3-1 `rejectNext` 삭제 거부 1건), `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart`, `widget/navigate_to_page_test.dart`, `widget/add_page_sheet_test.dart`, `unit/page_choices_test.dart`, `widget/add_page_button_test.dart` |
 | E-19 | 남음 | | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
@@ -92,6 +92,11 @@
 - (세션 6) E-14 팔레트는 **8열이 아니라 7열**이다: 계약 7.4.8 '누를 수 있는 요소 44×44 이상'(계획 6.9.1도 같음)과 패널 폭 340(안쪽 308) 안에서 8열(8 × 44 = 352)은 들어가지 않는다(7 × 44 = 308). 최근 색 12개도 같은 44 칸이라 두 줄. 팔레트 [+]는 40개면 비활성, 중복은 `addToPalette`가 거절(버튼은 켜져 있음). 길게 누르기 '삭제'는 `showMenu`(모달 경로 — 메뉴 바깥 탭이 팝업 장벽까지 가지 않아 펜 패널이 닫히지 않음). 최근 색이 없으면 안내 문구('획을 그리면 그 색이 여기에 모여요').
 - (세션 6) E-14 HEX·RGB 칸: HEX는 `#`·16진 숫자·공백만 받음(최대 11자), 유효해지는 순간 적용하고 입력한 글자는 그대로 둠(소문자 등 — 바깥에서 색이 바뀌어 지금 글자와 다를 때만 다시 씀). 8자리는 색(불투명) + 투명도 `max(0.05, AA/255)`(`setOpacity`가 0.01로 반올림). R/G/B는 숫자만·최대 3자, 0..255만 적용(300 등은 적용 안 하고 제출·포커스 이탈 때 되돌림). `ColorMath`에 `alphaOf(argb)`를 더했다(8자리 HEX의 AA).
 - (세션 6) E-14 스포이드: `EyedropperInteraction`(`tools/eyedropper_interaction.dart`)은 **down에서 바로** 고른다(6.6.8 '다음 down') — `viewport.hitPage` → 마운트·로드된 페이지의 `controller.hitTest(pagePoint, tolerance: 6 / scale)` → `session.pageIfLoaded(pageId)?.strokeById(id)?.style.colorArgb`. 나머지 move/end/cancel은 아무것도 안 함(이미 고름 — 명령 없음). 간격·로딩 중 페이지·획 없음 = '여기엔 획이 없어요'. 호스트 ①은 항상 이 상호작용을 돌려줘 그 제스처를 소비한다(손가락이면 탐색으로 넘어가지 않음). `settleNow` 없음, 읽기 전용에서도 동작. `EditorCommands`에 `startEyedropper()`(팝업·컨텍스트 메뉴 닫고 `setEyedropper(true)`)와 `notify(message)`(스낵바 문구 — 스포이드 결과)를 더했다. `EyedropperBanner`(`ui/overlays/eyedropper_banner.dart`)는 `PageViewport` 바깥 Stack의 형제(맨 위 가운데, `inverseSurface`, [취소] → `setEyedropper(false)`). 도구 선택·Esc·[취소]로 끝남(Esc 순서는 E-12에서 이미 있음).
+- (세션 6) E-15 펜 설정 패널(`PenSettingsPanel`, 6.9.3 순서): `PenTypeSelector`(P0 5종, 아이콘은 툴바의 `penTypeIcon`) → `WidthSlider` → `PenPreview` → `OpacitySlider` → 색(E-14) → 최근 색 → 팔레트 → '고급'(`ExpansionTile` 안의 `PenAdvancedControls`). **[프리셋으로 저장](#8)은 E-16**에서 넣는다(저장 대화상자가 아직 없어 지금 넣으면 팝업만 닫힘). 빠른 팝업(`QuickPenPanel`, 폭 300): 굵기 줄 + 미리보기 + 투명도 + 최근 색 + 팔레트 앞 16개(`UserPaletteGrid(limit: 16, editable: false)` — [+]·삭제 없음). `PopupPanelFrame`에 `width`(기본 340)·`padding` 상수를 더했다.
+- (세션 6) E-15 굵기 줄(`WidthSlider`): 라벨 탭 → 그 자리에 숫자 칸(숫자·'.'만, 최대 5자, 제출·포커스 이탈 때 0.1–30이면 `setWidth`(0.1 스냅), 아니면 버림 — 칸 밖을 누르면 `onTapOutside`로 포커스를 놓는다: iPad·안드로이드 터치는 기본으로 포커스를 유지하므로). [−]/[+]는 `RepeatButton`(공개 아님, 44×44, `TapGestureRecognizer` + `LongPressGestureRecognizer(duration: 400ms)` → 한 번 + 80ms마다 반복, 끝에서 비활성). 슬라이더는 Material `Slider`(`WidthMapping.positionOf/widthAt`).
+- (세션 6) E-15 미리보기(`ui/pen/pen_preview.dart` `PenPreview`): 300×56(공간이 좁으면 그 폭 — 빠른 팝업 268), 배율 = `clamp(viewport.settledScale, 0.5, 4.0)`, 캔버스 크기 = 칸 ÷ 배율을 `Transform.scale`, painter = `ink.PenPreviewPainter(style:, pencilGrain: ref.watch(ink.pencilGrainProvider))`, 굵기 × 배율 > 48px면 '확대 n%'(B3 painter가 선 굵기를 캔버스 높이로 자름). 투명도(`ui/color/opacity_slider.dart` `OpacitySlider`): 트랙 왼쪽 끝 = `StrokeStyle.minOpacity`(5%), 오른쪽 끝 = 100%, 체커보드(`CheckerboardPainter`, `surface`/`surfaceContainerHighest`) 위 투명→불투명 그라데이션.
+- (세션 6) E-15 '고급'(`ui/pen/pen_advanced_controls.dart` `PenAdvancedControls({tool})` — 계획 3장 파일 목록에 없는 파일, E-20 설정 > 펜 섹션이 같은 위젯을 `tool:`로 씀): 필압 감도·손떨림 보정 `Slider(divisions: 20)` → `updateStyleOf(tool, …)`(0.05 반올림을 위젯에서 — 다른 도구도 편집해야 해서 `setPressureSensitivity` 등 현재 펜 전용 setter를 쓰지 않음), 곡선 `PressureCurveSelector`(사용자 지정 곡선이면 선택 없음 + '사용자 지정 곡선'), 형광펜만 `HighlighterStraighteningSelector`(`ink.StrokeStyleInk(style).withHighlighterStraightening`). 비활성 조건은 최상위 함수 `pressureUnavailable(mode, stylus)`(6.5.7 표 — `alwaysSimulated` 또는 `auto` + `ink.pressureCapabilityProvider.stylus == unsupported`).
+- (세션 6) E-15 지우개 패널(`EraserSettingsPanel`, 폭 300): 모드·필터 `SegmentedButton`, 크기 `Slider` + `EraserSizeMapping`(`eraser_popup.dart`의 공개 아닌 클래스 — 지름 = 1 + 99·t², `EraserSettings.snapDiameter`), 원 미리보기(지름 × `settledScale`, 최대 80px, `onSurface` 60% 1.5px), `SwitchListTile`('지운 뒤 이전 도구로 돌아가기'), '현재 페이지 지우기'는 `TextButton`(글자 `colorScheme.error`, 읽기 전용이면 비활성 — 확인 대화상자 흐름은 E-09 그대로). 지우개 설정은 `updateEraser`로만 바꾼다(`editor.eraser` 500ms 디바운스).
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모
@@ -113,4 +118,5 @@
 - 위젯 테스트 메모(세션 5): 카메라 애니메이션(250ms)은 `pump(100ms)`를 여러 번 해야 끝난다(한 번의 긴 pump는 Ticker 첫 틱만). 팝업이 열려 있으면 장벽이 포인터를 먹으므로 그리기 테스트는 팝업을 닫고 한다. 같은 노트를 다시 여는 테스트는 `tester.pumpWidget(SizedBox)` 뒤 새 `ProviderScope`+`EditorScreen`을 pump(`editor_screen_test`의 `_reopen`) — `h.container`/`h.viewport`는 지금 트리에서 다시 찾으므로 그대로 쓸 수 있지만 `h.session`·`h.recorder`는 옛 세션이다(`h.container.read(editorSessionValueProvider)` 사용).
 - 세션 6 끝 확인: 패키지 VM 테스트 436개 통과(`~1`은 integration 건너뜀), 새 테스트 2개 파일(`color_math`·`color_picker`)은 `flutter test --platform chrome`에서도 통과(웹 컴파일 확인용, test/web 아님). 골든은 `flutter test --update-goldens --tags golden test/goldens/hsv_wheel_golden_test.dart`로 만들었다(컨테이너 리눅스).
 - 색 피커 테스트 메모(세션 6): 펜 패널은 `tester.tap(find.byKey(EditorToolbar.penKey))`(펜이 활성이면 팝업). 패널은 최대 높이 600에서 스크롤되므로 아래쪽(최근 색·팔레트·[스포이드])은 `tester.ensureVisible` 뒤 탭. 팝업이 열린 채 툴바를 탭하면 장벽이 먹으므로(경고만 뜸) 닫을 때는 `tester.tapAt(const Offset(100, 1300))`. 낮은 채도·명도 색은 8비트 양자화로 `toHsv`의 hue가 크게 어긋나므로 휠 위치 단언은 `tester.widget<HsvWheel>(…).hsv`로 한다.
+- 세션 6 E-15 확인: 패키지 VM 테스트 466개 통과. **Chrome 메모**: 펜 설정·빠른 팝업을 여는 위젯 테스트(`color_picker`·`pen_settings_panel`·`quick_pen_panel`)는 `flutter test --platform chrome`에서 'Pending timers: Timer(0)'로 실패한다 — `PenPreview`가 그리는 `ink.PenPreviewPainter(repaint: pencilGrain)`가 INK `PencilGrain` 생성을 시작하고, 웹에서는 `decodeImageFromPixels`가 엔진 `Timer.run`을 (실제 비동기 뒤에) 건다(INK `pencil_grain.dart` 주석 그대로). VM에서는 문제없고 이 파일들은 VM 테스트(test/)다. E-21 `test/web/` 스모크는 펜 패널·미리보기를 열지 않게 쓴다. `eraser_panel`·`width_mapping`은 Chrome에서도 통과.
 - 기반 단계 메모: `/home/user/wt/notes/foundation-editor.md`. 스모크 테스트에서 커밋 지연을 쓰는 저장소는 tear-down이 아니라 본문 끝에서 `close()`(실패 시 멈춤 방지).

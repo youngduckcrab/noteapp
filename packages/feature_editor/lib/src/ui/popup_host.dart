@@ -136,17 +136,23 @@ class _PopupAnchorsScope extends InheritedWidget {
       !identical(anchors, oldWidget.anchors);
 }
 
-/// Frame of a popup panel: 340 px wide, at most min(600, available) high,
-/// scrolls when longer (6.9.3).
+/// Frame of a popup panel: [width] px wide (pen settings 340, quick pen and
+/// eraser 300), at most min(600, available) high, scrolls when longer
+/// (6.9.3).
 class PopupPanelFrame extends StatelessWidget {
   const PopupPanelFrame({
     super.key,
     required this.title,
     required this.children,
+    this.width = 340,
   });
 
   final String title;
   final List<Widget> children;
+  final double width;
+
+  /// Inner padding on every side.
+  static const double padding = 16;
 
   @override
   Widget build(BuildContext context) {
@@ -159,12 +165,12 @@ class PopupPanelFrame extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 340,
-          minWidth: 340,
+          maxWidth: width,
+          minWidth: width,
           maxHeight: maxHeight.clamp(120, 600),
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(padding),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
