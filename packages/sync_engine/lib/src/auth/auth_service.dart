@@ -52,6 +52,7 @@ final class AuthService {
   final StreamController<AuthState> _changes = StreamController.broadcast();
   StreamSubscription<AuthUser?>? _subscription;
   Future<void>? _initializing;
+  Future<AuthUser>? _signingIn;
   bool _disposed = false;
 
   AuthState get state => _state;
@@ -65,7 +66,8 @@ final class AuthService {
       last = s;
       controller.add(s);
     }, onDone: controller.close);
-    controller.onCancel = sub.cancel;
+    // Not returned: done reaches the listener without waiting for this cancel.
+    controller.onCancel = () => unawaited(sub.cancel());
   });
 
   bool get isAvailable => _backend != null;
@@ -79,8 +81,10 @@ final class AuthService {
     SignInException? error;
     try {
       await backend.completePendingSignIn();
-    } on SignInException catch (e) {
-      error = e;
+    } on Object catch (e) {
+      // A failed redirect sign-in is a failed attempt: shown as lastError. Never left in
+      // initializing (the provider does not await initialize()).
+      error = _asSignInError(e);
     }
     if (_disposed) return;
     final user = backend.currentUser;
@@ -103,13 +107,26 @@ final class AuthService {
   }
 
   /// Throws SignInException (state.lastError is also set).
-  Future<AuthUser> signInWithGoogle() async {
+  Future<AuthUser> signInWithGoogle() {
+    // A second tap while a sign-in runs joins it (one popup / redirect).
+    return _signingIn ??= _signInWithGoogle().whenComplete(
+      () => _signingIn = null,
+    );
+  }
+
+  Future<AuthUser> _signInWithGoogle() async {
     final backend = _backend;
     if (backend == null) {
-      throw const SignInException(
+      const error = SignInException(
         SignInErrorCode.misconfigured,
         'sign-in is not configured',
       );
+      // Status stays unavailable (no backend); the attempt is still reported.
+      _emit(const AuthState(status: AuthStatus.unavailable, lastError: error));
+      throw error;
+    }
+    if (_disposed) {
+      throw StateError('AuthService is disposed');
     }
     final before = _state;
     _emit(const AuthState(status: AuthStatus.signingIn));
@@ -117,16 +134,27 @@ final class AuthService {
       final user = await backend.signInWithGoogle();
       _emit(AuthState(status: AuthStatus.signedIn, user: user));
       return user;
-    } on SignInException catch (e) {
+    } on Object catch (e, stack) {
+      final error = _asSignInError(e);
       final user = backend.currentUser;
       _emit(
         user == null || before.status != AuthStatus.signedIn
-            ? AuthState(status: AuthStatus.signedOut, lastError: e)
-            : AuthState(status: AuthStatus.signedIn, user: user, lastError: e),
+            ? AuthState(status: AuthStatus.signedOut, lastError: error)
+            : AuthState(
+                status: AuthStatus.signedIn,
+                user: user,
+                lastError: error,
+              ),
       );
-      rethrow;
+      Error.throwWithStackTrace(error, stack);
     }
   }
+
+  /// Backends throw SignInException (4.3); anything else becomes SignInErrorCode.unknown.
+  static SignInException _asSignInError(Object error) =>
+      error is SignInException
+      ? error
+      : SignInException(SignInErrorCode.unknown, '$error', cause: error);
 
   Future<void> signOut() async {
     final backend = _backend;
@@ -153,9 +181,11 @@ final class AuthService {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    // states listeners see done right away; the backend subscription ends meanwhile.
+    final closed = _changes.close();
     await _subscription?.cancel();
     _subscription = null;
-    await _changes.close();
+    await closed;
   }
 
   void _emit(AuthState next) {
