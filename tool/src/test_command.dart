@@ -13,6 +13,12 @@
 /// fails the member and the next member runs. A run ended by a signal from
 /// outside (or `ws` itself stopping on SIGINT / SIGTERM) stops `ws test`:
 /// the remaining members are listed as not run.
+///
+/// 2차 (docs/plans/m5-7/01-infra.md 6.13): the command around [TestRunner]
+/// may take the heavy test lock (`heavy_lock.dart`) for the whole run —
+/// retries included — and swap Chrome for `tool/chrome-fakemedia`
+/// ([chromeFakeMediaPath]) for `media`-tagged runs; [TestRunner.environment]
+/// carries `NOTEAPP_HEAVY_LOCK_HELD` / `NOTEAPP_REAL_CHROME` to every child.
 library;
 
 import 'dart:io';
@@ -42,6 +48,17 @@ const String prepareScriptPath = 'tool/prepare_web_test.dart';
 
 /// Exit code of `flutter test` / `dart test` when no test matched.
 const int noTestsRanExitCode = 79;
+
+/// The Chrome wrapper with a fake microphone / camera, relative to the
+/// repository root (contract 7.4.6).
+const String chromeFakeMediaPath = 'tool/chrome-fakemedia';
+
+/// Environment variable that tells [chromeFakeMediaPath] which Chrome to
+/// start.
+const String realChromeVariable = 'NOTEAPP_REAL_CHROME';
+
+/// Tags whose runs take the heavy test lock (contract 7.4.6 v2.1).
+const Set<String> heavyTestTags = {'media', 'emulator'};
 
 /// Options of `ws test`.
 final class TestOptions {
@@ -89,6 +106,18 @@ final class TestOptions {
 
   List<String> get effectiveExcludeTags =>
       excludeTags ?? (tags.contains('bench') ? const [] : const ['bench']);
+
+  /// `media` tests in Chrome: Chrome is started through
+  /// [chromeFakeMediaPath].
+  bool get usesFakeMediaChrome =>
+      platform == TestPlatform.chrome && tags.contains('media');
+
+  /// Whether this run takes the heavy test lock: the `media` / `emulator`
+  /// tags, or a Chrome run without `--package` ([packagesChosen] false —
+  /// contract 7.4.6 'full Chrome run').
+  bool isHeavy({required bool packagesChosen}) =>
+      tags.any(heavyTestTags.contains) ||
+      (platform == TestPlatform.chrome && !packagesChosen);
 }
 
 /// `--package` named a directory that is not a workspace member.
@@ -288,9 +317,15 @@ final class TestRunner {
     required this.dart,
     required this.out,
     this.chrome,
+    this.environment = const {},
   });
 
   final ProcessRunner processes;
+
+  /// Added to the environment of every child (preparation scripts and
+  /// `flutter test`): `NOTEAPP_HEAVY_LOCK_HELD=1` while `ws` holds the heavy
+  /// test lock, `NOTEAPP_REAL_CHROME` for the fake media wrapper.
+  final Map<String, String> environment;
 
   /// `flutter` executable.
   final String flutter;
@@ -346,6 +381,7 @@ final class TestRunner {
         dart,
         const ['run', prepareScriptPath],
         workingDirectory: target.member.directory,
+        environment: environment,
         timeout: prepareTimeout,
       );
       if (result.interrupted || result.killedBySignal) {
@@ -390,6 +426,7 @@ final class TestRunner {
         arguments,
         workingDirectory: target.member.directory,
         environment: {
+          ...environment,
           if (target.platform == TestPlatform.chrome && chrome != null)
             'CHROME_EXECUTABLE': chrome!,
         },

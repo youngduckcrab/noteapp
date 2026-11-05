@@ -1,6 +1,8 @@
 /// `ws hosting-config`: `app/firebase.json`, optionally with cross-origin
 /// isolation headers for the `exp-wasm` experiment channel
-/// (docs/plans/01-infra.md 6.12, contract 00-overview 7.4.9).
+/// (docs/plans/01-infra.md 6.12, contract 00-overview 7.4.9). 2차: the file
+/// also has the `functions` and `emulators` entries of
+/// docs/plans/m5-7/01-infra.md 6.14 (contract 7.4.7).
 library;
 
 import 'dart:convert';
@@ -73,6 +75,43 @@ Map<String, Object?> isolatedHostingConfig(Map<String, Object?> config) {
 String encodeHostingConfig(Map<String, Object?> config) =>
     '${const JsonEncoder.withIndent('  ').convert(config)}\n';
 
+/// The `functions` entry of `app/firebase.json` (2차, docs/plans/m5-7/
+/// 01-infra.md 6.14, contract 7.4.7): the SYNC server functions at the
+/// repository root, built before a deploy; tests, tools and local files stay
+/// out of the deploy bundle (SYNC RQ-6).
+const List<Map<String, Object?>> expectedFunctionsConfig = [
+  {
+    'source': '../functions',
+    'codebase': 'default',
+    'ignore': [
+      'node_modules',
+      '.git',
+      'firebase-debug.log',
+      'firebase-debug.*.log',
+      '*.local',
+      'src',
+      'test',
+      'test-emulator',
+      'tool',
+      'lib/test',
+      'lib/test-emulator',
+      'lib/tool',
+      'scripts',
+      'eval-out',
+    ],
+    'predeploy': [r'npm --prefix "$RESOURCE_DIR" run build'],
+  },
+];
+
+/// The `emulators` entry (2차, 6.14): functions and auth on IPv4 loopback
+/// (the container has no IPv6), no UI, one project (`demo-noteapp`).
+const Map<String, Object?> expectedEmulatorsConfig = {
+  'functions': {'host': '127.0.0.1', 'port': 5001},
+  'auth': {'host': '127.0.0.1', 'port': 9099},
+  'ui': {'enabled': false},
+  'singleProjectMode': true,
+};
+
 /// Rule files of the M4 shape (6.12): `firestore.rules`, `firestore.indexes`
 /// and `storage.rules`, relative to the directory of `firebase.json`.
 const List<(String, String)> hostingRuleFileKeys = [
@@ -142,6 +181,24 @@ List<String> hostingConfigProblems(
         }
       }
     }
+  }
+
+  // 2차 (6.14): functions / emulators may only have the planned shape.
+  final functions = config['functions'];
+  if (config.containsKey('functions') &&
+      jsonEncode(functions) != jsonEncode(expectedFunctionsConfig)) {
+    problems.add(
+      'functions must be exactly the 01-infra 6.14 entry (source '
+      '"../functions", codebase "default", the ignore list, predeploy build)',
+    );
+  }
+  final emulators = config['emulators'];
+  if (config.containsKey('emulators') &&
+      jsonEncode(emulators) != jsonEncode(expectedEmulatorsConfig)) {
+    problems.add(
+      'emulators must be exactly the 01-infra 6.14 entry (functions '
+      '127.0.0.1:5001, auth 127.0.0.1:9099, ui off, singleProjectMode)',
+    );
   }
 
   for (final (section, key) in hostingRuleFileKeys) {

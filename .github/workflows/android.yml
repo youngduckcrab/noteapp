@@ -1,14 +1,13 @@
 # Android APK (INFRA, docs/plans/01-infra.md 6.13 `android.yml`, 6.14):
-# release APK for arm64 tablets on every push to main and on demand, kept as
-# a 7-day workflow artifact (docs/guides/05-android-apk.md).
+# release APK for arm64 tablets, kept as a 7-day workflow artifact
+# (docs/guides/05-android-apk.md).
 #
-# The remote has no main yet: the development branch
-# claude/note-app-planning-bk29xb is the repository's default branch, so
-# Run workflow (`workflow_dispatch`, offered for the default branch's
-# workflows) already works there, and its pushes build the APK too. When
-# main is created and made the default branch, drop the development branch
-# from the list. The channel stays `preview` off main (live = main only, as
-# in ci.yml).
+# Manual only (2차 R2-B1 — the free Actions minutes, docs/plans/m5-7/
+# 01-infra.md 6.16): Actions → Android APK → Run workflow. GitHub offers Run
+# workflow for the workflows of the default branch — now the development
+# branch claude/note-app-planning-bk29xb (the remote has no main yet) — and
+# the branch to build can be chosen there. The channel is `live` for main and
+# `preview` for every other branch (as in ci.yml).
 #
 # Signing: the template's debug key, made fresh on every runner — a new APK
 # cannot be installed over the previous one (uninstall first, local data is
@@ -18,12 +17,6 @@
 name: Android APK
 
 on:
-  push:
-    branches: [main, claude/note-app-planning-bk29xb]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
 
 concurrency:

@@ -2402,7 +2402,7 @@ android {
 
 | 단계 | 내용 |
 |---|---|
-| 트리거·러너 | 통합 HEAD 그대로(`push`: `main` + 개발 브랜치, `workflow_dispatch`, `ubuntu-latest`, 30분, `contents: read`). (수정 2회차 — `bb1bc60`) 원격에 `main`이 없고 개발 브랜치가 **기본 브랜치**라 **Run workflow**는 지금도 보이고, 개발 브랜치 푸시가 곧 통합 브랜치 푸시다. 개발 브랜치 줄은 **`main`이 생겨 기본 브랜치가 된 뒤** 지운다(그때 안내서 05의 '개발 브랜치에서 받기' 절도 지움). 2차 영역 브랜치(`area2/*`)는 푸시로 돌지 않는다 — 필요하면 **Run workflow**의 **Use workflow from**에서 그 브랜치를 골라 수동 실행(그 브랜치에 `android.yml`이 있어야 한다) |
+| 트리거·러너 | (R2-B1, 총괄 지시 — 6.16 'R2-B1 정책') **`workflow_dispatch`만**(push 트리거 없음 — 개발 브랜치가 기본 브랜치라 **Run workflow**가 된다), `ubuntu-latest`, 30분, `contents: read`. 아래 이 칸의 나머지는 R2-B1 전 기록이다 — 통합 HEAD(`push`: `main` + 개발 브랜치, `workflow_dispatch`). (수정 2회차 — `bb1bc60`) 원격에 `main`이 없고 개발 브랜치가 **기본 브랜치**라 **Run workflow**는 지금도 보이고, 개발 브랜치 푸시가 곧 통합 브랜치 푸시다. 개발 브랜치 줄은 **`main`이 생겨 기본 브랜치가 된 뒤** 지운다(그때 안내서 05의 '개발 브랜치에서 받기' 절도 지움). 2차 영역 브랜치(`area2/*`)는 푸시로 돌지 않는다 — 필요하면 **Run workflow**의 **Use workflow from**에서 그 브랜치를 골라 수동 실행(그 브랜치에 `android.yml`이 있어야 한다) |
 | NDK 캐시 (새) | `actions/cache@v6` path `/usr/local/lib/android/sdk/ndk/28.2.13676358`, key `ndk-28.2.13676358` — 러너에 Flutter 기본 NDK 28.2가 없다(조사 04 요약 6). 첫 실행 시간은 J0·H6에서 재서 6.16에 적는다 |
 | 빌드 훅 네트워크 (새, 검토 X-4) | `sqlite3 3.8.0` 빌드 훅이 CI에서 GitHub 릴리스(sqlite3 바이너리)를 받는다(02-core) — 1차와 같은 `.dart_tool/hooks_runner` 캐시 키를 쓰고, 캐시가 빗나가면 받는다는 주석·단계 이름('Build hooks (downloads sqlite3 when not cached)')으로 드러낸다 |
 | 서명 재료 (새) | 잡 `env`로 시크릿 4개(`ANDROID_KEYSTORE_BASE64`·`ANDROID_KEYSTORE_PASSWORD`·`ANDROID_KEY_ALIAS`·`ANDROID_KEY_PASSWORD`)와 변수 `ANDROID_CERT_SHA256`(`vars.`)를 받는다. 단계 `signing`(`id: signing`): 네 값이 모두 있으면 `base64 -d > "$RUNNER_TEMP/release.jks"`, `app/android/key.properties`에 4줄(`storeFile=$RUNNER_TEMP/release.jks` 등), `mode=release` 출력. **하나라도 없고 `ANDROID_CERT_SHA256`이 있으면**(= 고정 키를 쓰기로 한 저장소 — 시크릿 삭제·이름 오타·`pull_request`·포크 실행) `::error::` '고정 키 서명 재료가 없어요 — 이 APK는 덮어 설치할 수 없어 만들지 않아요(docs/guides/07-android-signing.md)'와 함께 **잡 실패**(빌드·아티팩트 없음 — D2-7, 계약 V14 v2.1). 둘 다 없으면(고정 키 전) `mode=debug`. 1차 6.13 '`if`에서 secrets 직접 참조 불가' 규칙 — 조건은 `env.` 값으로만 |
@@ -2411,7 +2411,7 @@ android {
 | 정리 (새) | `if: always()` — `key.properties`·`release.jks` 삭제 |
 | 올리기 | 아티팩트 7일(1차). (v2.1) 이름이 서명을 드러낸다: `mode=release` → `noteapp-apk-<run>`(통합 HEAD 이름 그대로), `mode=debug` → **`noteapp-debug-signed-<run>`**(계약 V14 v2.1) — 아티팩트만 받는 사용자도 덮어 설치할 수 없는 판임을 안다(안내서 05) |
 
-시험(`workflows_test` 추가): 서명 단계가 `env.`·`vars.` 조건만 쓰는지(`if`에 `secrets.` 없음), **세 갈래 표**(시크릿 4개 있음 → release·이름 `noteapp-apk-`, 시크릿 없음 + 변수 있음 → 실패·빌드 단계 실행 안 됨, 둘 다 없음 → debug·이름 `noteapp-debug-signed-`) — 서명 단계 `run` 셸 조각을 `bash -n`과 가짜 환경 세 가지로 실제 실행해 종료 코드·`$GITHUB_OUTPUT` 내용을 확인, 아티팩트 `name` 식이 `mode` 출력으로 두 이름을 만드는지, `key.properties` 경로가 `build.gradle.kts`의 `rootProject.file("key.properties")`와 같은지, 정리 단계가 `always()`인지, `apksigner` 출력 파싱 셸 조각을 고정 표본 출력(가짜 `apksigner`)으로 실행(일치·불일치), 트리거 브랜치 = 통합 HEAD 값(1차 `workflows_test`의 개발 브랜치 사례 유지 — `main`이 기본 브랜치가 되어 줄을 지울 때 이 사례도 함께 고친다).
+시험(`workflows_test` 추가): 서명 단계가 `env.`·`vars.` 조건만 쓰는지(`if`에 `secrets.` 없음), **세 갈래 표**(시크릿 4개 있음 → release·이름 `noteapp-apk-`, 시크릿 없음 + 변수 있음 → 실패·빌드 단계 실행 안 됨, 둘 다 없음 → debug·이름 `noteapp-debug-signed-`) — 서명 단계 `run` 셸 조각을 `bash -n`과 가짜 환경 세 가지로 실제 실행해 종료 코드·`$GITHUB_OUTPUT` 내용을 확인, 아티팩트 `name` 식이 `mode` 출력으로 두 이름을 만드는지, `key.properties` 경로가 `build.gradle.kts`의 `rootProject.file("key.properties")`와 같은지, 정리 단계가 `always()`인지, `apksigner` 출력 파싱 셸 조각을 고정 표본 출력(가짜 `apksigner`)으로 실행(일치·불일치), 트리거 = `workflow_dispatch`만(R2-B1 — `workflows_test`가 push 트리거가 없음을 단언).
 
 #### 6.10.4 고정 키 만들기 (안내서 07, 사용자와 함께 — U20 ①, 파일로 전달)
 
@@ -2693,6 +2693,13 @@ dart run tool/ws.dart with-heavy-lock -- \
 
 **1차 통합 실측으로 다시 본 출발점**(3.0 — 컨테이너 4 CPU, 다른 에이전트와 CPU 공유): `ws check` 59초 + analyze 10초 + `dart test tool/test` 54초 + `ws test` VM 8분 49초 + Chrome 8분 2초 + 웹 빌드 1분 52초 ≈ **21분**, 여기에 체크아웃·Flutter·캐시·`pub get`(약 2~3분 — 미측정)이 붙는다. 1차 `ci.yml`은 지금(`bb1bc60`) **단일 잡 `timeout-minutes: 60`**이다 — 25분이던 제한(1차 진행 기록 G5 경고)을, 기본 브랜치(= 개발 브랜치) 푸시가 `FULL_RUN`으로 전 멤버를 돌게 되면서 올렸고, 그 주석은 비공개 저장소 2코어 러너의 전체 실행을 **30~40분**(추정, 미측정 — 로컬 4코어 21분의 약 1.5~2배)으로 본다. 아래 잡 분리·월 분 추정은 이 2코어 추정을 쓴다. 2차는 멤버 3개(각자 VM·Chrome 시험), `media` 단계, `native-reqs`·`web-budget`, 통합 태그 확대가 더해진다 — 초안의 '1회 9분·월 1,080분'은 성립하지 않는다(검토 M-6).
 
+**실측과 R2-B1 정책 (총괄 지시, 2026-11-05 — 비공개 저장소 월 2,000분)**: 1차 통합 뒤 기본 브랜치 **전체 실행 1회 = 약 30분**(GitHub 2코어 러너 실측 — VM 테스트 15분 · Chrome 테스트 10분 · 웹 빌드 1분 · 나머지(준비·검사·분석·도구 시험·배포) 약 4분). 위 '30~40분'은 이 값으로 바꾼다. 그대로면 월 2,000분이 기본 브랜치 푸시 약 66회분이라 R2-B1에서 다음을 적용했다(`ci.yml` 'Test scope' 단계·`android.yml`·`functions.yml`, `workflows_test`):
+- **기본 브랜치 푸시**(`main`이 아닐 때 — 지금 개발 브랜치): 직전 푸시 이후 바뀐 멤버만 — `--affected-since <github.event.before> --all-if-no-base`. `before`가 `0000…`이거나 없으면(새 브랜치·수동 실행) 전체, 기록에 없는 `before`(강제 푸시)는 `--all-if-no-base`가 전체로 돌린다. 기본 브랜치 푸시는 자기 변경만 시험하므로 다음 푸시가 취소·대체하면 그 변경이 시험되지 않는다 → 이 푸시들만 실행마다 따로 `concurrency` 그룹(`run_id`)을 쓴다. `check --strict`는 기본 브랜치에서 계속 돈다(1분 미만). 전역 경로(`pubspec.yaml`·`pubspec.lock`·`analysis_options.yaml`·`tool/`·`.github/workflows/` — `global_triggers`)가 바뀐 푸시는 여전히 전 멤버다.
+- **수동 실행 입력 `full`**(기본 끔): 켜면 전체(+ `check --strict`), 끄면 위와 같은 범위(기본 브랜치의 수동 실행은 `before`가 없어 전체).
+- **`main` 푸시**: 그대로 전체 + `check --strict` + live 채널. 영역 브랜치 푸시: 그대로 기본 브랜치 대비 바뀐 멤버.
+- **`android.yml`**: push 트리거를 없애고 `workflow_dispatch`만(개발 브랜치가 기본 브랜치라 **Run workflow**가 된다 — 안내서 05). **`functions.yml`**(새): `functions/**`·`app/firebase.json`·워크플로 자신·`packages/ink_recognition/**` 경로가 바뀐 푸시와 수동만. `ios-compile.yml`(J3)·`ios-testflight.yml`·`android-emulator.yml`(J21)·`web-experiment.yml`은 수동만.
+- 실행 요약에 '시험 범위:' 줄(전체 / `<before 7자>` 이후 / 기본 브랜치 대비)을 낸다. 아래 J15 잡 분리의 `FULL_RUN`은 이 정의를 따른다(`heavy`는 `FULL_RUN` 푸시와 수동 `integration`만).
+
 **J0 완료 조건**(R2-B8b 뒤 첫 체크포인트 푸시 — 사용자가 GitHub에 올린 뒤): `ci.yml` 단계별 시간 표(1차 I13의 'Start clock' + 단계마다 `$SECONDS` 기록 → 요약)를 실행 1회 이상 읽어, 아래 표의 '추정'을 **실측으로 바꾸고 월 분을 다시 계산**해 진행 기록과 이 절에 적는다. 실측이 표보다 크면 아래 절약 장치를 순서대로 켠다.
 
 **잡 분리안**(J15 — J0 실측으로 확정, 같은 워크플로 안의 잡 5개, `needs`로 순서. 검토 M-6의 4묶음 중 'check·analyze·VM'을 VM이 9분이라 둘로 나눔):
@@ -2705,23 +2712,24 @@ dart run tool/ws.dart with-heavy-lock -- \
 | `heavy` | 통합 태그 VM·Chrome(`-t integration`), `-t media`(Chrome 가짜 마이크) | 30분 | **`FULL_RUN` 푸시와 수동 실행(입력 `integration`)만** — 잡 `if: (github.event_name == 'push' && needs.check.outputs.full_run == 'true') \|\| inputs.integration == true`(`needs: check`). 영역 브랜치 푸시에서는 `media_io`가 영향받아도 돌지 않는다(6.13 CI) |
 | `web` | 웹 빌드 → `finalize-web` → `ws web-budget check` → (Hosting 시크릿이 있으면) 배포 → 요약 | 15분 | 모든 푸시(`needs: [vm, chrome]` — 시험이 실패하면 배포 안 함). live 채널은 `main`만(1차 Channel 단계 그대로 — 기본 브랜치인 개발 브랜치는 미리보기) |
 
-- (수정 2회차 — `bb1bc60`) **기준 브랜치와 `FULL_RUN`은 1차 식을 그대로 옮긴다**: `DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}`·`FULL_RUN: ${{ github.ref == 'refs/heads/main' || github.ref_name == github.event.repository.default_branch }}`를 1차 잡 `env`에서 **워크플로 `env`**로 올려 다섯 잡의 단계가 같은 값을 읽는다. 잡 수준 `if`에서는 `env` 문맥을 읽을 수 없어(GitHub 문맥 표 — 기억, 미확인 → J15 `workflows_test` + 첫 푸시로 확인) `heavy`는 `check` 잡 출력 `full_run`을 본다. `--affected-since origin/main`처럼 `main`을 기준으로 박으면 `main`이 없는 지금 원격에서 `bb1bc60`이 고친 **종료 코드 3 실패가 되살아나므로** 어느 워크플로에도 `origin/main` 글자를 두지 않는다(1차 `workflows_test` 단언 유지). `main`이 생겨 기본 브랜치가 되면 식은 그대로 두고 `android.yml`의 개발 브랜치 줄만 지운다(6.10.3).
+- (수정 2회차 — `bb1bc60`) **기준 브랜치와 `FULL_RUN`은 1차 식을 그대로 옮긴다**: `DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}`·`FULL_RUN: ${{ github.ref == 'refs/heads/main' || github.ref_name == github.event.repository.default_branch }}`를 1차 잡 `env`에서 **워크플로 `env`**로 올려 다섯 잡의 단계가 같은 값을 읽는다. 잡 수준 `if`에서는 `env` 문맥을 읽을 수 없어(GitHub 문맥 표 — 기억, 미확인 → J15 `workflows_test` + 첫 푸시로 확인) `heavy`는 `check` 잡 출력 `full_run`을 본다. `--affected-since origin/main`처럼 `main`을 기준으로 박으면 `main`이 없는 지금 원격에서 `bb1bc60`이 고친 **종료 코드 3 실패가 되살아나므로** 어느 워크플로에도 `origin/main` 글자를 두지 않는다(1차 `workflows_test` 단언 유지). `main`이 생겨 기본 브랜치가 되면 식은 그대로 두고 `android.yml`의 개발 브랜치 줄만 지운다(6.10.3). (R2-B1) `FULL_RUN`은 이제 'Test scope' 단계가 정하고(위 'R2-B1 정책'), `android.yml`은 수동 실행만이라 지울 줄이 없다.
 - 병렬로 나누면 **벽시계는 줄지만 사용 분은 는다** — 잡마다 준비(체크아웃·Flutter 캐시 복원·`pub get`·빌드 훅 캐시)가 반복되어 잡당 약 2~3분이 더 든다(추정 — J0에서 잼). 1차 단일 잡 60분(`bb1bc60`)은 잡별 제한으로 바뀌어 한 잡이 늘어도 나머지가 막히지 않는다.
 - **시간 제한 대책**(J15 완료 조건에 넣음 — 수정 1회차의 '25분 제한 대책'. 1차 제한은 `bb1bc60`에서 60분이 됐지만 2차는 잡별 제한이라 대책은 그대로 둔다): ① 잡 분리(위) ② 영역 브랜치 푸시는 affected만(`--all-if-no-base` 포함 — 1차 장치 그대로), `media`·통합 태그(`heavy`)는 **`FULL_RUN` 푸시·수동만**(영역 브랜치는 `media_io`가 영향받아도 돌지 않음 — 6.13 CI) ③ Chrome 잡은 1차 `--member-timeout`(기본 15분)·1회 재시도 그대로 — 멈춘 멤버 하나가 잡 전체 시간을 먹지 않게 ④ 그래도 넘으면 Chrome 잡을 멤버 묶음 둘로(`--package` 목록 — 행렬 2개) 나눈다 ⑤ 잡 제한은 실측 × 1.5로 정하고(위 표의 값은 2코어 추정에서 잡은 임시값, 1차 단일 잡 60분은 나눈 잡에 쓰지 않음), 올릴 때는 진행 기록에 근거를 남긴다.
 
-| 워크플로 | 1회 (추정 — J0·H6에서 실측으로 바꿈) | 월 가정 (2차 동안) | 월 분 |
+| 워크플로 | 1회 (R2-B1 실측·추정 — J0·H6에서 실측으로 바꿈) | 월 가정 (2차 동안) | 월 분 |
 |---|---|---|---|
-| `ci.yml` `FULL_RUN` 푸시(기본 브랜치 — 지금 개발 브랜치, `main`이 기본이 되면 `main`. 잡 5개 합) | 약 55분(2코어 전체 실행 30~40(`bb1bc60` 추정) + 잡 4개의 준비 약 10 + `heavy` 약 10 — 2차 멤버 증가분 포함) | 30회 | 1,650 |
-| `ci.yml` 영역 브랜치 푸시(affected, `heavy` 없음) | 약 20분(2코어) | 50회 | 1,000 |
-| `android.yml` | 9분 (첫 회 NDK 내려받기 +5분 — 미측정) | 15회 | 135 |
-| `functions.yml` | 3분 (npm ci 1 + 시험 1 + Flutter·Dart 1) | 20회 | 60 |
+| `ci.yml` 전체 실행(`main` 푸시·수동 `full`·직전 푸시 없는 기본 브랜치 실행·전역 경로가 바뀐 푸시) | 30분 실측(1차 통합 뒤) + 2차 멤버 3개·`media` 등 약 5 = 약 35분 | 12회 (INFRA `tool/`·lock 변경 푸시 포함) | 420 |
+| `ci.yml` 기본 브랜치 푸시(직전 푸시 이후 바뀐 멤버) | 약 12분(추정 — 준비·검사·분석·도구 시험·웹 빌드·배포 약 8 + 바뀐 멤버 시험 약 4) | 25회 | 300 |
+| `ci.yml` 영역 브랜치 푸시(기본 브랜치 대비 바뀐 멤버, 체크포인트·통합 때만) | 약 12분(추정, 같음) | 25회 | 300 |
+| `android.yml` (수동만) | 9분 (첫 회 NDK 내려받기 +5분 — 미측정) | 5회 | 45 |
+| `functions.yml` (경로·수동만) | 3분 (npm ci 1 + 시험 1 + Flutter·Dart 1 — J16 뒤) | 20회 | 60 |
 | `ios-compile.yml` | 20분 × 10배 | 1회 (U19 기본값) | 200 |
 | `android-emulator.yml` (P-C) | 15분 | 1회 | 15 |
 | `web-experiment.yml` | 6분 | 1회 | 6 |
 | `ios-testflight.yml` | — | 0 (계정 전) | 0 |
-| 합계 | | | 약 3,066 (월 2,000분을 **넘는다** — 아래 절약 장치 필요. 수정 1회차의 2,066은 로컬 4코어 시간으로 잰 값) |
+| 합계 | | | 약 1,346 (월 2,000분의 약 67% — R2-B1 전 정책의 약 3,066에서 줄임) |
 
-- 위 추정으로는 무료 2,000분을 넘으므로 2차 동안 기본 운영은: 영역 브랜치는 **체크포인트·통합 때만** 푸시한다(계약 7.4.9 '푸시는 체크포인트·통합 때만' — 월 50회 → 25회, 500분), 기본 브랜치(`FULL_RUN`) 푸시는 묶어서(기반 단계 묶음별·통합 단계별 1회 — 월 30회 → 15회, 825분), `ios-compile.yml`은 통합 뒤 1회 → 합계 약 **1,740분**. 개발 브랜치가 기본 브랜치인 동안은 개발 브랜치 푸시 하나하나가 `FULL_RUN`(전 멤버 + `heavy`)이라 이 묶음 규칙이 가장 큰 절약이다. J0 실측이 추정보다 작으면 이 제한을 푼다.
+- (R2-B1 전 추정 — 기록) 기본 브랜치 푸시가 모두 전체 실행이던 정책에서는 `FULL_RUN` 푸시 약 55분 × 30회 + 영역 브랜치 20분 × 50회 + `android.yml` 9분 × 15회(푸시마다) … = 약 3,066분이었다. 2차 동안의 운영 규칙은 그대로 둔다: 영역 브랜치는 **체크포인트·통합 때만** 푸시(계약 7.4.9), 기본 브랜치 푸시는 묶어서(기반 단계 묶음별·통합 단계별 1회), `ios-compile.yml`은 통합 뒤 1회. 기본 브랜치 푸시가 이제 바뀐 멤버만 돌므로 묶음 규칙의 효과는 전역 경로(`tool/`·lock)를 바꾸는 INFRA 푸시에서 가장 크다 — INFRA는 `tool/` 변경을 체크포인트마다 한 번에 올린다. J0 실측이 추정보다 크면 J15 절약 장치(위 ①~⑤)를 켜고, 월 사용량이 1,600분(80%)을 넘으면 총괄에게 알린다(INFRA-F3·Q15).
 - 저장소를 공개로 바꾸면(U19) 제한이 풀리지만 사용자는 비공개를 유지한다(3.7). 월 사용량은 GitHub 설정의 Billing에서 보이며, 80%를 넘으면 브라우저 시험 브랜치 실행을 끄는 수동 입력(`ci.yml` `workflow_dispatch` 입력 `browser: false`)을 쓴다.
 
 ### 6.17 녹음 중 보호 (D2-14 — v2.1 시점)

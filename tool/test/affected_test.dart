@@ -26,16 +26,19 @@ void main() {
     for (final m in affectedMembers(workspace, paths, triggers)) m.name,
   ];
 
-  test('note_core change: note_core, its five dependents and the two apps', () {
+  test('note_core change: note_core, its seven dependents (2차 service '
+      'packages media_io and ink_recognition included) and the two apps', () {
     expect(affected(['packages/note_core/lib/x.dart']), [
       'note_core',
       'ink_engine',
       'feature_editor',
       'feature_library',
       'pdf_io',
-      'noteapp',
       'sync_engine',
       'ink_lab',
+      'media_io',
+      'ink_recognition',
+      'noteapp',
     ]);
   });
 
@@ -46,15 +49,23 @@ void main() {
     ]);
   });
 
-  test('ink_engine change reaches editor, pdf, app and ink lab, not '
-      'library', () {
+  test('ink_engine change reaches editor, pdf, ink lab, ink_recognition and '
+      'the app, not library or media_io', () {
     expect(affected(['packages/ink_engine/test/a_test.dart']), [
       'ink_engine',
       'feature_editor',
       'pdf_io',
-      'noteapp',
       'ink_lab',
+      'ink_recognition',
+      'noteapp',
     ]);
+  });
+
+  test('pencil_bridge change (2차): pencil_bridge and the app only', () {
+    expect(
+      affected(['packages/pencil_bridge/ios/pencil_bridge/Package.swift']),
+      ['pencil_bridge', 'noteapp'],
+    );
   });
 
   test('a file of the nested ink lab affects only the ink lab, not '

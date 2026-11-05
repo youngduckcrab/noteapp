@@ -18,13 +18,24 @@ dependencies:
   feature_editor: any
   feature_library: any
   pdf_io: any
+  # 2차 service packages (contract 7.1 v2.1, 01-infra 3.4).
+  media_io: any
+  ink_recognition: any
+  pencil_bridge: any
   flutter_riverpod: 3.4.3
   material_ui: 1.10.0
   go_router: 18.1.2
   cupertino_icons: 2.0.0
   web: 1.1.2
+  # src/storage/native_storage_paths_native.dart only (native_only_imports —
+  # contract 7.4.1, 7.5).
+  path_provider: 2.1.6
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  # 2차 (contract 7.5 v2.1): the Android emulator job (01-infra J21). Resolved
+  # in R2-B1 so its hosted transitive entries enter the lock once.
+  integration_test:
     sdk: flutter
   fake_async: 1.3.3
 flutter:

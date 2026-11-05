@@ -1,0 +1,8 @@
+# Test tags of media_io (PDF, docs/plans/m5-7/06-pdf.md 3.3; contract
+# 00-overview 7.4.6). Created by INFRA in R2-B1. Every tag used by a test in
+# this package is declared here first (ws check R15). `media` runs in Chrome
+# with a fake microphone: `ws test --platform chrome --run-skipped -t media`
+# uses tool/chrome-fakemedia by itself (do not set CHROME_EXECUTABLE).
+tags:
+  media: {skip: "Chrome fake microphone only — ws test --platform chrome --run-skipped -t media"}
+  integration: {skip: "integration stage only — ws test --run-skipped -t integration"}

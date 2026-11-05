@@ -31,9 +31,12 @@ void main() {
       'feature_editor',
       'feature_library',
       'pdf_io',
-      'noteapp',
       'sync_engine',
       'ink_lab',
+      'media_io',
+      'ink_recognition',
+      'pencil_bridge',
+      'noteapp',
     ]);
   });
 

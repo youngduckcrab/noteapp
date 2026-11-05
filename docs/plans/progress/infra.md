@@ -2,9 +2,9 @@
 
 ## 요약
 
-- 마지막 세션: 통합 단계 2/2(G2·G4 — V5·V6 스모크, 릴리스 빌드 실제 실행 확인, 라우팅 결함 2건 수정) — 그 앞은 통합 단계 1/2(G1·G3·INFRA-O1·도구 정리). 아래 '## 통합 단계'
-- 다음 할 일: G5(푸시·CI·미리보기 배포·iPad 확인 — 총괄·사용자, 아래 '### G5 — 컨테이너 밖에서 할 일')
-- 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
+- 마지막 세션: **2차 기반 단계 R2-B1**(아래 '## 2차' — 계획 docs/plans/m5-7/01-infra.md 8.1, 계약 v2.2 7.6.2) — 그 앞은 1차 통합 단계 2/2(G2·G4).
+- 다음 할 일: R2-B2i(CORE B2-α 해시 위에서 `app/test/fakes/counting_note_store.dart` 위임 4줄 — R2-B2·R2-B7a와 한 묶음), 그 뒤 동시 개발 R2-B8a → R2-B8b → J0.
+- 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
 
@@ -34,6 +34,7 @@
 | G2 | 완료 | 3cf0b84 | `app/test/integration/app_smoke_test.dart`(V5)·`app/test/web/app_smoke_browser_test.dart`(V6, Chrome) 통과 — 3~8단계 공용 `app/test/support/smoke_scenario.dart`. 릴리스 빌드에서 찾은 라우팅 결함 2건 수정(`app_router_test`·`bootstrap_app_test` 경우 추가) |
 | G4 | 완료 | 3cf0b84 | V1~V4: `ws check`(R1–R15)·`--strict` 0, 루트 analyze 0, `dart format` 변경 없음(R11), `ws test`·`ws test --platform chrome`·`dart test tool/test`, `flutter build web --release`, `ws web-assets verify` |
 | G5 | 총괄·사용자 | | 푸시·CI·미리보기 배포·iPad 체크리스트(컨테이너 밖) |
+| R2-B1 (2차) | 완료 | (아래 '## 2차') | `tool/test/rules_test.dart`(R4 `Platform`·R16·2차 목록)·`chrome_fakemedia_test`·`heavy_lock_test`·`test_command_test`(잠금·`media` 래퍼)·`hosting_config_test`(`functions`·`emulators`)·`workflows_test`(시험 범위·`functions.yml`·수동 APK)·`repo_hygiene_test`·`workspace_test`(`functions/`)·`guides_test`(05), `packages/pencil_bridge/test/pencil_wire_contract_test.dart` |
 
 ## 변경 요청
 
@@ -268,3 +269,48 @@
 - 사용자: iPad 체크리스트(계획서 9.3, 안내서 `docs/guides/04-ipad-web-test.md`) — 특히 #16(노트에서 새로고침 → 같은 노트, 이번에 고친 결함 2), #1(재방문 시작 2초 — `main.dart.js`가 4.6 MB로 커짐), #18a·18b(백업 내보내기), 계약 V7 ①②③ 복합 항목.
 - 사용자(선택): 안드로이드 태블릿이 있으면 `android.yml` 개발 브랜치 푸시 APK 설치(안내서 05).
 - `main`이 생겨 기본 브랜치가 된 뒤: `android.yml` `on.push.branches`에서 `claude/note-app-planning-bk29xb` 삭제(워크플로 주석). 지금은 이 개발 브랜치가 기본 브랜치라 Run workflow도 이미 된다.
+
+## 2차
+
+계획 docs/plans/m5-7/01-infra.md(승인 · 계약 v2.2). 바탕: `main` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f`.
+
+### R2-B1 — 기반 단계 (계약 7.6.2, 계획 8.1)
+
+- 커밋: (이 절 아래 '커밋' 줄)
+- **새 패키지 골격 3개**(소유 영역에 넘김): `packages/media_io`(PDF — 06-pdf 3.4 확정본 pubspec: 직접 의존 CP-PDF-9 6줄·간접 고정 CP1 2줄·`image_picker_ios` 간접 고정, `dart_test.yaml` `media`·`integration` skip), `packages/ink_recognition`(LIBRARY — 05-library 3.3, `google_mlkit_commons` 직접 의존 없음, `dart_test.yaml` `golden`·`integration`·`emulator`), `packages/pencil_bridge`(INFRA — iOS 전용 플러그인 `pluginClass: PencilBridgePlugin`, 빈 `register(with:)` Swift·`Package.swift`(`.iOS("15.0")`, `FlutterFramework` — Flutter 3.47.9 템플릿)·podspec). 각 README·빈 진입점·스모크 시험. 진입점 본문은 R2-B4·R2-B6·R2-B8b.
+- **pubspec**: 루트(멤버 3줄, dev `xml 7.0.1`), `app`(`media_io`·`ink_recognition`·`pencil_bridge`·`path_provider 2.1.6`, dev `integration_test`), `ink_engine`(CP3 한 번 예외 — `flutter_math_fork 0.7.4`·간접 고정 `flutter_svg 2.3.0`·`vector_graphics 1.2.3`·`vector_graphics_compiler 1.3.0` 4줄만).
+- **lock**(`flutter pub get` 한 번 — 계약 7.5와 같음): 기존 변화는 `xml 7.1.0 → 7.0.1`(transitive → direct dev) 한 건, 추가 49개 = 계약 7.5의 44개 + `integration_test`가 끌어온 5개(SDK `flutter_driver`·`fuchsia_remote_debug_protocol`·`integration_test`, hosted `sync_http 0.3.1`·`webdriver 3.2.0`). CP1 간접 고정 결과 `shared_preferences_android 2.5.3`·`shared_preferences_foundation 2.6.0`. 그 밖의 변화 없음. `flutter pub get --enforce-lockfile` 통과.
+- **게시 14일 재확인**(2026-11-05 21:46 UTC, pub.dev API — 새로 잠긴·바뀐 hosted 47개): 모두 날짜로 14일 이상. 가장 가까운 것은 `image_picker_ios 0.8.13+13`(2026-10-22T22:00Z)·`shared_preferences_android 2.5.3`(2026-10-22T19:57Z) — 날짜로 꼭 14일(계약 표가 고른 판 그대로), 그다음 `file_selector_macos 0.9.5+2`(10-19, 17일)·`xml 7.0.1`(04-25). **`firebase-tools 15.34.2`**(npm 2026-10-28T23:18Z)는 아직 8일 — R2-B1은 새로 채택하지 않는다(`ci.yml` 배포 단계의 1차 고정값 그대로, `functions.yml` 골격에는 firebase 단계 없음). `functions/package.json` devDependency(SYNC R2-B7b)는 2026-11-11 이후(SYNC-F2).
+- **`plugin_packages`** = 실제 `app/.flutter-plugins-dependencies` `dependencyGraph` 이름 53개(계획 4.3.1 목록과 같음 — 빠짐·남음 0). `rules_test`가 해석된 워크스페이스에서 같음을 단언한다.
+- **`workspace_rules.yaml` v2**(계획 4.3.1 전체): R8 새 3행·`noteapp` 3개, `pinned_external` 2차 21줄(57줄), `native_only_imports` 4줄, `forbidden_io_members: [Platform]`, `test_only_entrypoints`·`lib_exceptions`에 `note_core/lib/testing_web.dart`, `generated_files` `*.steps.dart`, `skip_by_default_tags` `media`·`emulator`, R16 `plugin_free_members`·`plugin_exceptions`·`plugin_packages`. `rules.dart`: R4 `dart:io` `Platform`(식별자 토큰 — 직접·`show`·`as io` 접두어, `lib_exceptions` 면제), **R16**(목록 ∪ pubspec `flutter: plugin:`을 `.dart_tool/package_config.json`으로 찾아 판정, 예외 확장·`plugin_free_members` 축소도 위반 — 규칙 코드의 기준 상수). `implementedRules` R1–R16.
+- **`tool/chrome-fakemedia`**(100755, LF) + `ws test -t media --platform chrome` 래퍼 연결(`NOTEAPP_REAL_CHROME` = `locateChrome` 결과, `CHROME_EXECUTABLE` = 래퍼).
+- **무거운 시험 잠금**(`tool/src/heavy_lock.dart`): `/tmp/noteapp-heavy-tests.lock`(`NOTEAPP_HEAVY_LOCK`), 한 줄 `<pid> <ISO UTC> <명령 120자>`, 배타 생성, 죽은 pid·1분 지난 깨진 파일 회수, 1분마다 대기 출력, 로그 `noteapp-heavy-tests.log`. `ws test`는 태그 `media`·`emulator`와 `--package` 없는 Chrome 실행에서 실행 계획 뒤 첫 멤버 전에 잡아 마지막 멤버(재시도 포함) 뒤 푼다, `NOTEAPP_HEAVY_LOCK_HELD=1`이면 잡지 않고 자식 전부에 넘긴다, `--no-heavy-lock`·`--heavy-lock-timeout`(기본 20분, 종료 코드 4), 요약 끝 '잠금 대기 n초'. **`ws with-heavy-lock [--timeout] -- <명령>`**. SIGINT·SIGTERM은 자식 트리를 끝낸 뒤 잠금을 풀고 130·143(`TerminationGuard.watch(beforeExit:)`).
+- **`app/firebase.json`**: `functions`(`../functions`, `default`, `ignore` 14개 — SYNC RQ-6, `predeploy` 빌드)·`emulators`(functions 127.0.0.1:5001, auth 127.0.0.1:9099, UI 끔, `singleProjectMode`). `hosting_config`가 두 항목은 이 모양만 허용.
+- **`.gitignore`**(계약 7.4.7 + 서명 재료 4종)·**`.gitattributes`**(스크립트 LF 4종·`binary` 5종)·`analysis_options.yaml` exclude `functions/**`.
+- **CI(총괄 지시 — 월 2,000분, 1차 통합 뒤 전체 1회 30분 실측)**: `ci.yml` 'Test scope' 단계 — 기본 브랜치(`main` 아님) 푸시는 `--affected-since <github.event.before> --all-if-no-base`(`before`가 0000…·없음 → 전체), 수동 입력 `full`(기본 끔) → 전체, `main` 푸시 그대로 전체, 영역 브랜치 그대로 기본 브랜치 대비. `check --strict`는 `main`·기본 브랜치·수동 full. 기본 브랜치 푸시는 실행마다 다른 `concurrency` 그룹(자기 변경만 시험하므로 취소·대체 금지). 요약에 '시험 범위:' 줄. `android.yml` push 트리거 제거(수동만), 새 `functions.yml`(경로·수동만, 체크아웃 뒤 모든 단계 `hashFiles` 가드, 시험 수 > 0 확인, 에뮬레이터 단계는 J16). 안내서 05(수동 APK)·02(실행 시간), 1차 계획 6.13 실측·정책, 2차 계획 6.16(실측·정책·월 분 재계산 약 1,346분)·6.10.3.
+- `tool/README.md`(새, 개발자용): `ws` 명령·잠금·`emulator`·`media` 실행 명령(계획 6.13 '이 명령은 tool/README에').
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `flutter pub get --enforce-lockfile` | 통과 | — |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 20초 |
+| `ws check` / `ws check --strict` (R1–R16) | 0 · 0 | 54초 · 53초 |
+| `dart test tool/test` | 371 통과 · 1 건너뜀(`chrome_fakemedia_test`의 'git 100755' — 커밋 전이라 추적되지 않음, 커밋 뒤 통과) | 59초 |
+| `ws test --package pencil_bridge` | 6 통과(`pencil_wire_contract_test` R2-B1 묶음 5 + 스모크) | — |
+| `ws test` (VM, 11개 멤버) | 모두 통과 — note_core 619(+5 건너뜀)·ink_engine 780·feature_editor 591(+1)·feature_library 626(+1)·pdf_io 580(+7)·sync_engine 777(+4)·ink_lab 1·media_io 1·ink_recognition 1·pencil_bridge 6·noteapp 261(+1 = V5) | 8분 49초 |
+| `ws test --platform chrome --package noteapp` (앱 웹 플러그인 등록에 `record_web`·`just_audio_web`·`image_picker_for_web`·`shared_preferences_web`이 새로 들어가므로) | 준비 ok · 11 통과 · 1 건너뜀(V6) | 1분 3초 |
+
+- 전체 Chrome 실행(`ws test --platform chrome`, 무거운 시험 — 다른 에이전트와 CPU 공유)은 돌리지 않았다: 새 멤버 3개는 `test/web/`이 없고, 다른 멤버의 Chrome 입력 중 바뀐 것은 앱의 웹 플러그인 등록(위 표에서 확인)과 `ink_engine`의 import하지 않는 의존 4줄뿐이다. 통합 묶음(R2-B2 + B7a + B2i) 뒤 `ws test --platform chrome` 전체를 돌린다.
+- `firebase-tools 15.34.2` 14일 재확인: 2026-11-11 23:18 UTC 이후 통과 — R2-B7b(SYNC)가 그 뒤에 `functions/package.json`에 넣는다.
+
+#### 계획과 다르게 한 점 (R2-B1)
+
+- 잠금 회수: 낡은 잠금을 지우는 '읽고-지우기'를 `<잠금 경로>.guard` 파일의 배타 `flock`(짧게) 안에서 한다 — 두 `ws`가 같은 낡은 잠금을 보고 둘 다 지우면 두 번째가 첫 번째의 새 잠금을 지우기 때문(계획 6.13에 없음). `.guard` 파일은 /tmp에 남는다(빈 파일).
+- `chrome-fakemedia`: `NOTEAPP_REAL_CHROME`이 래퍼 자신이면(`-ef`) 무시하고 찾는다, `ws`도 `CHROME_EXECUTABLE`이 이미 래퍼면 `NOTEAPP_REAL_CHROME`을 넣지 않는다(자기 자신을 끝없이 실행하는 것 방지).
+- '전체 Chrome 실행' 판정 = 사용자가 `--package`를 주지 않은 Chrome 실행(`--affected-since`만 있어도 잠금을 잡음 — 보수적으로).
+- R16은 계획의 '예외 확장 = 위반'에 더해 `plugin_free_members`에서 기준 멤버 4개가 빠져도 위반으로 본다.
+- `ws with-heavy-lock`: 신호로 끝난 자식의 종료 코드는 셸처럼 128 + n.
+- `ci.yml`: 기본 브랜치에서는 바뀐 멤버만 시험해도 `check --strict`(1분 미만)를 계속 돌린다(`STRICT_CHECK`와 `FULL_RUN`을 나눔). 기본 브랜치 푸시의 `concurrency` 그룹을 실행마다 다르게 했다(계획에 없음 — 위 이유). 같은 미리보기 채널에 겹친 두 실행이 거의 같은 때 배포하면 나중에 끝난 쪽이 남는다(보통 순서대로 끝남).
+- `app/firebase.json`의 `hosting.ignore`가 JSON 정리로 여러 줄이 됐다(값 같음).
+- `packages/media_io`·`ink_recognition` pubspec은 블록 형식으로 썼다(06-pdf 3.4·01-infra 3.3의 흐름 형식 `{sdk: flutter}`과 값 같음), `version:` 줄 없음(확정본 그대로).
+

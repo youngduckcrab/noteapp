@@ -1,0 +1,22 @@
+# packages/pencil_bridge/pubspec.yaml (INFRA, docs/plans/m5-7/01-infra.md 3.3
+# and 4.4, contract 00-overview 7.2.13). A Flutter plugin implemented on iOS
+# only; every other platform reports unsupported from Dart (no channel call).
+name: pencil_bridge
+description: Apple Pencil double tap, squeeze, hover and barrel roll events (iOS only; other platforms report unsupported).
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: PencilBridgePlugin

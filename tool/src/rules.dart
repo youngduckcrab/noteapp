@@ -1,17 +1,20 @@
-/// `ws check` rules (docs/plans/01-infra.md 6.2, contract 00-overview 7.4.2).
+/// `ws check` rules (docs/plans/01-infra.md 6.2 and docs/plans/m5-7/01-infra.md
+/// 6.2, contract 00-overview 7.4.2 and 2차 7.4.1).
 ///
-/// [checkWorkspace] runs the static rules R1–R10, R12, R13 and R15; the
+/// [checkWorkspace] runs the static rules R1–R10, R12, R13, R15 and R16; the
 /// format rule R11 runs `dart format` and lives in [checkFormat]; the export
 /// name rule R14 (integration step G3) resolves the entry points in a
 /// separate process and lives in `export_names.dart` (`checkExports`).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'dart_imports.dart';
+import 'dart_tokens.dart';
 import 'flutter_runner.dart';
 import 'png_size.dart';
 import 'rule_violation.dart';
@@ -39,6 +42,7 @@ const List<String> implementedRules = [
   'R13',
   'R14',
   'R15',
+  'R16',
 ];
 
 /// Thrown when `tool/workspace_rules.yaml` is missing or malformed.
@@ -70,6 +74,10 @@ final class WorkspaceRules {
     required this.fixtureDirs,
     required this.skipByDefaultTags,
     required this.globalTriggers,
+    this.forbiddenIoMembers = const [],
+    this.pluginFreeMembers = const [],
+    this.pluginExceptions = const {},
+    this.pluginPackages = const [],
   });
 
   /// Reads the rules file at [path].
@@ -127,6 +135,19 @@ final class WorkspaceRules {
     }
     final forbiddenMap = forbidden is YamlMap ? forbidden : YamlMap();
 
+    final exceptionsRaw = yaml['plugin_exceptions'];
+    if (exceptionsRaw != null && exceptionsRaw is! YamlMap) {
+      throw const RulesFormatException('`plugin_exceptions` must be a map');
+    }
+    final pluginExceptions = <String, List<String>>{
+      if (exceptionsRaw is YamlMap)
+        for (final entry in exceptionsRaw.entries)
+          '${entry.key}': strings(
+            entry.value,
+            'plugin_exceptions.${entry.key}',
+          ),
+    };
+
     return WorkspaceRules(
       allowedDependencies: Map.unmodifiable(allowed),
       appMembers: strings(yaml['app_members'], 'app_members'),
@@ -159,6 +180,16 @@ final class WorkspaceRules {
         'skip_by_default_tags',
       ),
       globalTriggers: strings(yaml['global_triggers'], 'global_triggers'),
+      forbiddenIoMembers: strings(
+        yaml['forbidden_io_members'],
+        'forbidden_io_members',
+      ),
+      pluginFreeMembers: strings(
+        yaml['plugin_free_members'],
+        'plugin_free_members',
+      ),
+      pluginExceptions: Map.unmodifiable(pluginExceptions),
+      pluginPackages: strings(yaml['plugin_packages'], 'plugin_packages'),
     );
   }
 
@@ -208,6 +239,21 @@ final class WorkspaceRules {
 
   /// `affected`: paths that make every member affected.
   final List<String> globalTriggers;
+
+  /// R4 (2차): `dart:io` identifiers that `lib/` must not use, even in
+  /// `*_native.dart` / `*_io.dart` files (contract 7.4.1 — `Platform`).
+  final List<String> forbiddenIoMembers;
+
+  /// R16 (2차): members whose direct dependencies contain no plugin.
+  final List<String> pluginFreeMembers;
+
+  /// R16 (2차): members with 1차 plugin dependencies → the only plugins they
+  /// may depend on. Never extended (see [r16BaselineExceptions]).
+  final Map<String, List<String>> pluginExceptions;
+
+  /// R16 / NR6 (2차): every plugin the app resolves (the names of
+  /// `app/.flutter-plugins-dependencies` `dependencyGraph`).
+  final List<String> pluginPackages;
 }
 
 /// Runs every static rule (all implemented rules except the format rule R11,
@@ -227,6 +273,7 @@ List<RuleViolation> checkWorkspace(Workspace workspace, WorkspaceRules rules) {
     ..._checkR10(workspace),
     ..._checkR12(workspace),
     ..._checkR13(workspace),
+    ..._checkR16(workspace, rules),
     for (final member in workspace.members)
       ...checkMemberTestTags(
         root: workspace.root,
@@ -470,7 +517,12 @@ Iterable<RuleViolation> _checkR4(Workspace ws, WorkspaceRules rules) sync* {
       final isTestEntry = rules.testOnlyEntrypoints.any(
         (entry) => file == '$libDir/$entry',
       );
-      for (final directive in _directivesOf(ws.root, file)) {
+      final directives = _directivesOf(ws.root, file);
+      if (rules.forbiddenIoMembers.isNotEmpty &&
+          directives.any((d) => d.allUris.contains('dart:io'))) {
+        yield* _forbiddenIoMembers(ws.root, file, rules.forbiddenIoMembers);
+      }
+      for (final directive in directives) {
         for (final uri in directive.allUris) {
           if (_matchesAny(uri, rules.forbiddenImportsLib) &&
               !(native && (uri == 'dart:io' || uri == 'dart:ffi'))) {
@@ -537,6 +589,34 @@ Iterable<RuleViolation> _checkR4(Workspace ws, WorkspaceRules rules) sync* {
 }
 
 bool _isRelative(String uri) => !uri.contains(':');
+
+/// R4 (2차, contract 7.4.1): a `lib/` file that imports `dart:io` must not use
+/// the identifiers of [members] (`Platform`) — not even in `*_native.dart`.
+/// Identifier tokens only (comments and strings are skipped), so
+/// `io.Platform` and `show Platform` are caught and `TargetPlatform` /
+/// `defaultTargetPlatform` are not.
+Iterable<RuleViolation> _forbiddenIoMembers(
+  String root,
+  String file,
+  List<String> members,
+) sync* {
+  final source = File(p.join(root, file)).readAsStringSync();
+  final lines = LineIndex(source);
+  for (final token in tokenizeDart(source)) {
+    for (final member in members) {
+      if (token.isIdentifier(member)) {
+        yield RuleViolation(
+          rule: 'R4',
+          path: file,
+          line: lines.lineOf(token.offset),
+          message:
+              'dart:io $member is not allowed (계약 7.4.1): use kIsWeb + '
+              'defaultTargetPlatform, or the service capability API',
+        );
+      }
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // R5 — web-only imports only in *_browser.dart (lib/, test/ outside test/web/)
@@ -997,6 +1077,147 @@ Iterable<RuleViolation> _checkR13(Workspace ws) sync* {
             'is ${size.width}x${size.height}, its name says '
             '${expected}x$expected',
       );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// R16 — no plugin in the direct dependencies of plugin-free members (2차)
+
+/// The 1차 plugin dependencies that `plugin_exceptions` may keep (contract
+/// 7.4.1 v2.1). The rules file must not extend them: a new plugin goes to a
+/// service package (`media_io`, `ink_recognition`, `pencil_bridge`).
+const Map<String, Set<String>> r16BaselineExceptions = {
+  'pdf_io': {'file_picker'},
+  'sync_engine': {
+    'firebase_core',
+    'firebase_auth',
+    'cloud_firestore',
+    'firebase_storage',
+    'connectivity_plus',
+  },
+};
+
+/// The members that `plugin_free_members` must keep (contract 7.4.1 v2.1).
+const Set<String> r16BaselinePluginFreeMembers = {
+  'feature_editor',
+  'feature_library',
+  'ink_engine',
+  'note_core',
+};
+
+const String _rulesFile = 'tool/workspace_rules.yaml';
+
+Iterable<RuleViolation> _checkR16(Workspace ws, WorkspaceRules rules) sync* {
+  for (final member in r16BaselinePluginFreeMembers) {
+    if (!rules.pluginFreeMembers.contains(member)) {
+      yield RuleViolation(
+        rule: 'R16',
+        path: _rulesFile,
+        line: 1,
+        message:
+            'plugin_free_members must keep $member (계약 7.4.1 — R16 '
+            'baseline)',
+      );
+    }
+  }
+  for (final MapEntry(key: member, value: plugins)
+      in rules.pluginExceptions.entries) {
+    final baseline = r16BaselineExceptions[member];
+    for (final plugin in plugins) {
+      if (baseline == null || !baseline.contains(plugin)) {
+        yield RuleViolation(
+          rule: 'R16',
+          path: _rulesFile,
+          line: 1,
+          message:
+              'plugin_exceptions.$member must not add $plugin: the 1차 '
+              'exceptions are never extended (계약 7.4.1)',
+        );
+      }
+    }
+  }
+
+  final checked = {
+    for (final m in rules.pluginFreeMembers) m: const <String>{},
+    for (final e in rules.pluginExceptions.entries)
+      if (!rules.pluginFreeMembers.contains(e.key)) e.key: e.value.toSet(),
+  };
+  if (checked.isEmpty) return;
+  final locator = _PluginLocator(ws.root, rules.pluginPackages.toSet());
+  for (final member in ws.members) {
+    final allowed = checked[member.name];
+    if (allowed == null) continue;
+    for (final section in const ['dependencies', 'dev_dependencies']) {
+      final deps = member.pubspec[section];
+      if (deps is! YamlMap) continue;
+      for (final entry in deps.entries) {
+        final dep = entry.key;
+        if (dep is! String || allowed.contains(dep)) continue;
+        if (!locator.isPlugin(dep)) continue;
+        yield RuleViolation(
+          rule: 'R16',
+          path: member.pubspecPath,
+          line: lineOfKey(deps, dep),
+          message: "${member.name}: depends on plugin '$dep' (계약 7.4.1)",
+        );
+      }
+    }
+  }
+}
+
+/// Decides whether a package is a Flutter plugin: listed in
+/// `plugin_packages`, or its pubspec (found through the workspace's
+/// `.dart_tool/package_config.json`) has `flutter: plugin:` — so a plugin
+/// that is not listed yet is caught too.
+final class _PluginLocator {
+  _PluginLocator(this._root, this._listed);
+
+  final String _root;
+  final Set<String> _listed;
+  Map<String, String>? _packageRoots;
+  final Map<String, bool> _cache = {};
+
+  bool isPlugin(String name) {
+    if (_listed.contains(name)) return true;
+    return _cache.putIfAbsent(name, () {
+      final dir = _roots()[name];
+      if (dir == null) return false;
+      final pubspec = File(p.join(dir, 'pubspec.yaml'));
+      if (!pubspec.existsSync()) return false;
+      try {
+        final yaml = loadYaml(pubspec.readAsStringSync());
+        if (yaml is! YamlMap) return false;
+        final flutter = yaml['flutter'];
+        return flutter is YamlMap && flutter.containsKey('plugin');
+      } on YamlException {
+        return false;
+      }
+    });
+  }
+
+  Map<String, String> _roots() => _packageRoots ??= _readPackageConfig();
+
+  Map<String, String> _readPackageConfig() {
+    final config = File(p.join(_root, '.dart_tool', 'package_config.json'));
+    if (!config.existsSync()) return const {};
+    try {
+      final json = jsonDecode(config.readAsStringSync());
+      if (json is! Map<String, Object?>) return const {};
+      final packages = json['packages'];
+      if (packages is! List<Object?>) return const {};
+      final base = config.parent.uri;
+      return {
+        for (final entry in packages)
+          if (entry is Map<String, Object?> &&
+              entry['name'] is String &&
+              entry['rootUri'] is String)
+            entry['name']! as String: p.fromUri(
+              base.resolve(entry['rootUri']! as String),
+            ),
+      };
+    } on FormatException {
+      return const {};
     }
   }
 }

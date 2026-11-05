@@ -193,8 +193,8 @@ void main() {
       );
     });
 
-    test('the real workspace: the six packages of contract 7.1 (15 entry '
-        'points), not the app nor the ink lab', () {
+    test('the real workspace: the nine packages of contract 7.1 v2.1 (the '
+        '2차 service packages included), not the app nor the ink lab', () {
       final entries = exportEntryPoints(Workspace.load(repoRoot), rules);
       expect(
         {for (final e in entries) e.package},
@@ -205,6 +205,9 @@ void main() {
           'feature_library',
           'pdf_io',
           'sync_engine',
+          'media_io',
+          'ink_recognition',
+          'pencil_bridge',
         },
       );
       expect(
@@ -427,7 +430,7 @@ void main() {
           out.toString(),
           contains('packages/alpha/lib/alpha.dart:1: [R14] Shared: '),
         );
-        expect(out.toString(), contains('R13, R14, R15): 1 violation(s)'));
+        expect(out.toString(), contains('R13, R14, R15, R16): 1 violation(s)'));
       },
     );
 
@@ -445,11 +448,11 @@ void main() {
       );
       expect(code, 0);
       expect(processes.calls, isEmpty);
-      expect(out.toString(), contains('R13, R15): 0 violation(s)'));
+      expect(out.toString(), contains('R13, R15, R16): 0 violation(s)'));
     });
 
-    test('implementedRules lists R1-R15', () {
-      expect(implementedRules, [for (var i = 1; i <= 15; i++) 'R$i']);
+    test('implementedRules lists R1-R16 (R16 since the 2차 step R2-B1)', () {
+      expect(implementedRules, [for (var i = 1; i <= 16; i++) 'R$i']);
     });
   });
 

@@ -1,11 +1,13 @@
 // .github checks (docs/plans/01-infra.md 6.13 and the 9.1 workflows_test row,
-// I13): the four workflows (triggers, concurrency, time limits, the two
-// caches and their keys, browser and integration tests, the default-branch
-// base of `--affected-since` with its full-run fallback, the live channel on
-// main only, the deploy gate on secrets, pinned versions, the iOS gate, the
-// APK artifact) and the issue templates. Every `ws` call in a workflow
-// is parsed by the real `ws` argument parser, and every `run` script passes
-// `bash -n`.
+// I13; docs/plans/m5-7/01-infra.md 6.14 and 6.16 for 2차 R2-B1): the five
+// workflows (triggers, concurrency, time limits, the two caches and their
+// keys, browser and integration tests, the test scope — main / manual full
+// runs, the default branch since its previous push, other branches since the
+// default branch, with the full-run fallbacks —, the live channel on main
+// only, the deploy gate on secrets, pinned versions, the iOS gate, the manual
+// APK build, the functions skeleton with its `hashFiles` guard) and the issue
+// templates. Every `ws` call in a workflow is parsed by the real `ws`
+// argument parser, and every `run` script passes `bash -n`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -28,6 +30,8 @@ const _pinnedActions = {
   'actions/setup-java': 'v6',
   'actions/upload-artifact': 'v7',
   'FirebaseExtended/action-hosting-deploy': 'v0',
+  // 2차 (m5-7/01-infra 7.3): functions.yml.
+  'actions/setup-node': 'v6',
 };
 
 /// `paths-ignore` of every push trigger (6.13).
@@ -37,6 +41,7 @@ const _ignoredPaths = ['docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**'];
 const _timeouts = {
   'android.yml': 30,
   'ci.yml': 60,
+  'functions.yml': 15,
   'ios-testflight.yml': 45,
   'web-experiment.yml': 25,
 };
@@ -60,15 +65,15 @@ const _prepKey =
 
 const _onMain = "github.ref == 'refs/heads/main'";
 
-/// ci.yml: main and the default branch itself run the strict check and every
-/// member; the others the affected members since the default branch.
+/// ci.yml (2차 R2-B1, m5-7/01-infra 6.16): the "Test scope" step sets
+/// FULL_RUN, STRICT_CHECK and AFFECTED_BASE.
 const _fullRun = "env.FULL_RUN == 'true'";
 const _notFullRun = "env.FULL_RUN != 'true'";
-const _fullRunValue =
-    r"${{ github.ref == 'refs/heads/main' || "
-    r'github.ref_name == github.event.repository.default_branch }}';
+const _strict = "env.STRICT_CHECK == 'true'";
+const _notStrict = "env.STRICT_CHECK != 'true'";
 const _defaultBranchValue = r'${{ github.event.repository.default_branch }}';
-const _affected = r'--affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base';
+const _affected = r'--affected-since "$AFFECTED_BASE" --all-if-no-base';
+const _zeroSha = '0000000000000000000000000000000000000000';
 const _ws = 'dart run tool/ws.dart';
 const _defineFile = '--dart-define-from-file=../build/build_info.json';
 const _buildNumber = r'--build-number=$GITHUB_RUN_NUMBER';
@@ -82,7 +87,8 @@ const _apkBuild =
     'flutter build apk --release --split-per-abi $_buildNumber $_defineFile';
 const _inkLabDir = 'packages/ink_engine/example';
 
-/// The development branch whose pushes also build the APK (android.yml).
+/// The development branch: the repository's default branch while the remote
+/// has no main.
 const _devBranch = 'claude/note-app-planning-bk29xb';
 
 final _workflowsDir = p.join(repoRoot, '.github', 'workflows');
@@ -191,6 +197,7 @@ const _sampleVariables = {
   'BUILD_CHANNEL': 'preview',
   'DEFAULT_BRANCH': _devBranch,
   'GITHUB_REF_NAME': 'area/infra',
+  'AFFECTED_BASE': 'origin/$_devBranch',
 };
 
 /// Evaluates the `||` / `&&` / `==` / `!=` expressions of [expression]
@@ -251,10 +258,12 @@ void main() {
   });
 
   group('all workflows', () {
-    test('the four workflows of 6.13 exist and parse', () {
+    test('the four workflows of 6.13 and functions.yml (2차) exist and '
+        'parse', () {
       expect(_workflowNames(), [
         'android.yml',
         'ci.yml',
+        'functions.yml',
         'ios-testflight.yml',
         'web-experiment.yml',
       ]);
@@ -550,38 +559,54 @@ void main() {
 
     YamlMap step(String name) => _named(steps, name);
 
-    test('push on every branch (docs ignored) and manual dispatch', () {
+    test('push on every branch (docs ignored) and manual dispatch with '
+        'deploy, integration and full', () {
       final on = ci['on'] as YamlMap;
       expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
       final push = on['push'] as YamlMap;
       expect(push.keys, ['paths-ignore'], reason: 'no branch filter');
       expect(push['paths-ignore'], _ignoredPaths);
       final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
-      expect(inputs.keys, unorderedEquals(['deploy', 'integration']));
+      expect(inputs.keys, unorderedEquals(['deploy', 'integration', 'full']));
       expect((inputs['deploy'] as YamlMap)['type'], 'boolean');
       expect((inputs['deploy'] as YamlMap)['default'], isTrue);
       expect((inputs['integration'] as YamlMap)['type'], 'boolean');
       expect((inputs['integration'] as YamlMap)['default'], isFalse);
+      // 2차 R2-B1: a manual run tests only the changed members unless full.
+      expect((inputs['full'] as YamlMap)['type'], 'boolean');
+      expect((inputs['full'] as YamlMap)['default'], isFalse);
     });
 
-    test('concurrency per ref with cancel-in-progress', () {
+    test('concurrency per ref with cancel-in-progress; default-branch '
+        'pushes (not main) get one group per run', () {
       final concurrency = ci['concurrency'] as YamlMap;
-      expect(concurrency['group'], r'ci-${{ github.ref }}');
+      // Each default-branch push tests only its change since
+      // github.event.before: a cancelled or replaced run would leave that
+      // change untested.
+      expect(
+        concurrency['group'],
+        r'ci-${{ github.ref }}'
+        r"${{ github.event_name == 'push' && "
+        r"github.ref != 'refs/heads/main' && "
+        r'github.ref_name == github.event.repository.default_branch && '
+        r"format('-{0}', github.run_id) || '' }}",
+      );
       expect(concurrency['cancel-in-progress'], isTrue);
     });
 
     test('single job on ubuntu with a 60 minute limit and the env', () {
       expect(_jobs(ci), hasLength(1));
       expect(job['runs-on'], 'ubuntu-latest');
-      // A full run on main or the default branch (every member, VM and
-      // Chrome — locally about 9 + 8 minutes on 4 cores) on the 2-core
-      // runner of a private repository, plus the integration input.
+      // A full run (every member, VM and Chrome) on the 2-core runner of a
+      // private repository: 30 minutes measured after the 1차 integration
+      // (VM 15, Chrome 10, web build 1), plus the integration input.
       expect(job['timeout-minutes'], 60);
       expect((job['env'] as YamlMap).value, {
         'FIREBASE_SA': r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
         'FIREBASE_PROJECT_ID': r'${{ vars.FIREBASE_PROJECT_ID }}',
         'DEFAULT_BRANCH': _defaultBranchValue,
-        'FULL_RUN': _fullRunValue,
+        'BEFORE_SHA': r'${{ github.event.before }}',
+        'FULL_INPUT': r'${{ inputs.full }}',
       });
     });
 
@@ -590,6 +615,7 @@ void main() {
         [for (final s in steps) s['name']],
         [
           'Start clock',
+          'Test scope', // 2차 R2-B1
           'Checkout', // 1
           'Set up Flutter', // 2
           'Cache build hooks', // 3
@@ -685,23 +711,21 @@ void main() {
       );
     });
 
-    test('main and the default branch run the strict check and every '
-        'member, other branches the affected ones', () {
+    test('FULL_RUN picks every member or the affected ones, STRICT_CHECK the '
+        'strict check', () {
+      expect(step('Workspace rules (strict)')['if'], _strict);
+      expect(step('Workspace rules')['if'], _notStrict);
       for (final name in [
-        'Workspace rules (strict)',
         'VM tests (all members)',
         'Browser tests (all members)',
       ]) {
         expect(step(name)['if'], _fullRun, reason: name);
       }
-      for (final name in [
-        'Workspace rules',
-        'VM tests (affected)',
-        'Browser tests (affected)',
-      ]) {
+      for (final name in ['VM tests (affected)', 'Browser tests (affected)']) {
         expect(step(name)['if'], _notFullRun, reason: name);
       }
       for (final name in [
+        'Test scope',
         'Dependencies',
         'Analyze',
         'Tool tests',
@@ -715,10 +739,11 @@ void main() {
       }
     });
 
-    // 01-infra 6.13: the base is the repository's default branch, which is
-    // the development branch while the remote has no main. On the default
-    // branch itself nothing is compared (every member); live stays main's.
-    test('per push: full run or the default-branch base, and the channel', () {
+    // m5-7/01-infra 6.16 (2차 R2-B1): main and manual full runs test every
+    // member; the default branch only what changed since its previous push
+    // (every member without one); other branches what changed since the
+    // default branch. Live stays main's.
+    test('per push: the test scope (Test scope script) and the channel', () {
       final scratch = Directory.systemTemp.createTempSync('ws_ci_channel_');
       addTearDown(() => scratch.deleteSync(recursive: true));
       final fakeDart = File(p.join(scratch.path, 'bin', 'dart'))
@@ -729,29 +754,154 @@ void main() {
           'echo b-fake-channel\n',
         );
       Process.runSync('chmod', ['+x', fakeDart.path]);
-      final pairs = [
-        ('Workspace rules (strict)', 'Workspace rules'),
-        ('VM tests (all members)', 'VM tests (affected)'),
-        ('Browser tests (all members)', 'Browser tests (affected)'),
-      ];
-      // (pushed branch, default branch, full run, Hosting channel)
+      const before = '1234567890abcdef1234567890abcdef12345678';
+      // (event, pushed branch, default branch, before, full input) →
+      // (full run, strict, affected base, Hosting channel)
       final scenarios = [
-        (_devBranch, _devBranch, true, 'b-fake-channel'), // now
-        ('area/infra', _devBranch, false, 'b-fake-channel'),
-        ('main', _devBranch, true, 'live'), // main before it is the default
-        ('main', 'main', true, 'live'),
-        ('feature/x', 'main', false, 'b-fake-channel'),
+        // now: the development branch is the default branch
+        (
+          'push',
+          _devBranch,
+          _devBranch,
+          before,
+          '',
+          false,
+          true,
+          before,
+          'b-fake-channel',
+        ),
+        (
+          'push',
+          _devBranch,
+          _devBranch,
+          _zeroSha,
+          '',
+          true,
+          true,
+          '',
+          'b-fake-channel',
+        ), // first push of the branch
+        (
+          'workflow_dispatch',
+          _devBranch,
+          _devBranch,
+          '',
+          'false',
+          true,
+          true,
+          '',
+          'b-fake-channel',
+        ), // no previous push to compare with
+        (
+          'workflow_dispatch',
+          _devBranch,
+          _devBranch,
+          '',
+          'true',
+          true,
+          true,
+          '',
+          'b-fake-channel',
+        ),
+        (
+          'push',
+          'area2/infra',
+          _devBranch,
+          before,
+          '',
+          false,
+          false,
+          'origin/$_devBranch',
+          'b-fake-channel',
+        ),
+        (
+          'workflow_dispatch',
+          'area2/infra',
+          _devBranch,
+          '',
+          'false',
+          false,
+          false,
+          'origin/$_devBranch',
+          'b-fake-channel',
+        ),
+        (
+          'workflow_dispatch',
+          'area2/infra',
+          _devBranch,
+          '',
+          'true',
+          true,
+          true,
+          '',
+          'b-fake-channel',
+        ),
+        // main: always every member, live channel
+        ('push', 'main', _devBranch, before, '', true, true, '', 'live'),
+        ('push', 'main', 'main', before, '', true, true, '', 'live'),
+        (
+          'push',
+          'feature/x',
+          'main',
+          before,
+          '',
+          false,
+          false,
+          'origin/main',
+          'b-fake-channel',
+        ),
       ];
-      for (final (branch, defaultBranch, full, channel) in scenarios) {
-        final reason = '$branch (default $defaultBranch)';
-        final github = {
-          'github.ref': 'refs/heads/$branch',
-          'github.ref_name': branch,
-          'github.event.repository.default_branch': defaultBranch,
+      for (final (
+            event,
+            branch,
+            defaultBranch,
+            beforeSha,
+            fullInput,
+            full,
+            strict,
+            base,
+            channel,
+          )
+          in scenarios) {
+        final reason =
+            '$event $branch (default $defaultBranch, before '
+            '${beforeSha.isEmpty ? '-' : beforeSha.substring(0, 4)}, '
+            'full=$fullInput)';
+        // The Test scope script itself.
+        final githubEnv = File(p.join(scratch.path, 'github-env'))
+          ..writeAsStringSync('');
+        final scope = Process.runSync(
+          'bash',
+          ['-e', '-c', '${step('Test scope')['run']}'],
+          environment: {
+            'PATH': '/usr/bin:/bin',
+            'GITHUB_REF': 'refs/heads/$branch',
+            'GITHUB_REF_NAME': branch,
+            'GITHUB_ENV': githubEnv.path,
+            'DEFAULT_BRANCH': defaultBranch,
+            'BEFORE_SHA': beforeSha,
+            'FULL_INPUT': fullInput,
+          },
+        );
+        expect(scope.exitCode, 0, reason: '$reason: ${scope.stderr}');
+        final values = {
+          for (final line in githubEnv.readAsLinesSync())
+            line.substring(0, line.indexOf('=')): line.substring(
+              line.indexOf('=') + 1,
+            ),
         };
-        expect(_evaluate(_fullRunValue, github), full, reason: reason);
-        final env = {'env.FULL_RUN': '$full'};
-        for (final (all, affected) in pairs) {
+        expect(values['FULL_RUN'], '$full', reason: reason);
+        expect(values['STRICT_CHECK'], '$strict', reason: reason);
+        expect(values['AFFECTED_BASE'], base, reason: reason);
+        expect(values['TEST_SCOPE'], isNotEmpty, reason: reason);
+        final env = {
+          for (final MapEntry(:key, :value) in values.entries)
+            'env.$key': value,
+        };
+        for (final (all, affected) in [
+          ('VM tests (all members)', 'VM tests (affected)'),
+          ('Browser tests (all members)', 'Browser tests (affected)'),
+        ]) {
           expect(_evaluate('${step(all)['if']}', env), full, reason: reason);
           expect(
             _evaluate('${step(affected)['if']}', env),
@@ -759,18 +909,30 @@ void main() {
             reason: reason,
           );
         }
+        expect(
+          _evaluate('${step('Workspace rules (strict)')['if']}', env),
+          strict,
+          reason: reason,
+        );
+        expect(
+          _evaluate('${step('Workspace rules')['if']}', env),
+          !strict,
+          reason: reason,
+        );
         if (!full) {
-          // The affected run compares with origin/<default branch>.
-          final args = _shellWords(
-            _commands(step('VM tests (affected)')).single,
-            {'DEFAULT_BRANCH': defaultBranch},
-          );
-          expect(args.sublist(3), [
-            'test',
-            '--affected-since',
-            'origin/$defaultBranch',
-            '--all-if-no-base',
-          ], reason: reason);
+          for (final name in [
+            'VM tests (affected)',
+            'Browser tests (affected)',
+          ]) {
+            final args = _shellWords(_commands(step(name)).single, {
+              'AFFECTED_BASE': values['AFFECTED_BASE']!,
+            });
+            expect(args.sublist(args.indexOf('--affected-since')), [
+              '--affected-since',
+              base,
+              '--all-if-no-base',
+            ], reason: '$reason: $name');
+          }
         }
         // The Channel script itself, with a fake `dart` for ws channel-id.
         final output = File(p.join(scratch.path, 'output'))
@@ -800,6 +962,14 @@ void main() {
       }
     });
 
+    test('the summary reports the test scope', () {
+      expect('${step('Summary')['run']}', contains(r'${TEST_SCOPE:-'));
+      expect(
+        steps.indexOf(step('Test scope')),
+        lessThan(steps.indexOf(step('Workspace rules (strict)'))),
+      );
+    });
+
     test('no fixed main base; main is named only where live is decided', () {
       for (final name in _workflowNames()) {
         final text = File(p.join(_workflowsDir, name)).readAsStringSync();
@@ -810,7 +980,7 @@ void main() {
           for (final s in steps)
             if ('${s.value}'.contains('refs/heads/main')) s['name'],
         ],
-        ['Channel'],
+        ['Test scope', 'Channel'],
       );
       // Deploying does not look at the branch: Channel picks live or the
       // preview channel, the secrets and the event gate the step.
@@ -921,16 +1091,11 @@ void main() {
       steps = _steps(job);
     });
 
-    test('pushes to main and to the development branch (docs ignored), and '
-        'manual runs', () {
+    test('manual runs only (2차 R2-B1 — the free Actions minutes; Run '
+        'workflow on the default branch, guide 05)', () {
       final on = android['on'] as YamlMap;
-      expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
-      final push = on['push'] as YamlMap;
-      // The development branch (the default branch while the remote has no
-      // main) builds an APK on every push too, until main is the default
-      // branch — guide 05.
-      expect(push['branches'], ['main', _devBranch]);
-      expect(push['paths-ignore'], _ignoredPaths);
+      expect(on.keys, ['workflow_dispatch']);
+      expect(on['workflow_dispatch'], isNull, reason: 'no inputs');
       // Off main the build is labelled `preview` (main: `live`).
       expect(
         (_named(steps, 'Build info')['env'] as YamlMap)['BUILD_CHANNEL'],
@@ -977,6 +1142,125 @@ void main() {
       );
       expect(upload['retention-days'], 7);
       expect(upload['compression-level'], 0);
+    });
+  });
+
+  group('functions.yml (2차 R2-B1 skeleton, m5-7/01-infra 6.14)', () {
+    late YamlMap functions;
+    late YamlMap job;
+    late List<YamlMap> steps;
+
+    setUp(() {
+      functions = _workflow('functions.yml');
+      job = _jobs(functions).values.single;
+      steps = _steps(job);
+    });
+
+    test('runs on its paths only, or by hand', () {
+      final on = functions['on'] as YamlMap;
+      expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
+      final push = on['push'] as YamlMap;
+      expect(push.keys, ['paths']);
+      expect(push['paths'], [
+        'functions/**',
+        'app/firebase.json',
+        '.github/workflows/functions.yml',
+        'packages/ink_recognition/**',
+      ]);
+      expect(
+        (functions['concurrency'] as YamlMap)['group'],
+        r'functions-${{ github.ref }}',
+      );
+    });
+
+    test('ubuntu, 15 minutes, no job-level if, no secrets', () {
+      expect(job['runs-on'], 'ubuntu-latest');
+      expect(job['timeout-minutes'], 15);
+      // hashFiles cannot be used in a job-level `if:` — every step has it.
+      expect(job.containsKey('if'), isFalse);
+      expect(
+        File(p.join(_workflowsDir, 'functions.yml')).readAsStringSync(),
+        isNot(contains('secrets.')),
+      );
+    });
+
+    test('every step after the checkout is guarded by hashFiles', () {
+      expect(steps.first['uses'], 'actions/checkout@v7');
+      expect(steps.first.containsKey('if'), isFalse);
+      const present = "hashFiles('functions/package.json') != ''";
+      const absent = "hashFiles('functions/package.json') == ''";
+      for (final s in steps.skip(1)) {
+        expect(s['if'], isIn([present, absent]), reason: '${s['name']}');
+      }
+      final skipped = _named(steps, 'Skipped (no functions/)');
+      expect(skipped['if'], absent);
+      expect('${skipped['run']}', contains('functions/ 없음 — 건너뜀'));
+      expect(
+        [
+          for (final s in steps.skip(1))
+            if (s['if'] == present) s['name'],
+        ],
+        ['Set up Node', 'Install', 'Unit tests'],
+      );
+    });
+
+    test('Node 22 with the npm cache of functions/package-lock.json; npm ci '
+        'only', () {
+      final node = _with(_usesSteps(functions, 'actions/setup-node').single);
+      expect('${node['node-version']}', '22');
+      expect(node['cache'], 'npm');
+      expect(node['cache-dependency-path'], 'functions/package-lock.json');
+      final install = _named(steps, 'Install');
+      expect(install['working-directory'], 'functions');
+      expect(_runLines(install), ['npm ci']);
+      for (final s in steps) {
+        expect('${s['run'] ?? ''}', isNot(contains('npm install')));
+      }
+    });
+
+    test('npm test must run at least one test (contract 7.4.7)', () {
+      final unit = _named(steps, 'Unit tests');
+      expect(unit['working-directory'], 'functions');
+      final run = '${unit['run']}';
+      expect(run, contains('set -o pipefail'));
+      expect(run, contains('npm test'));
+      final scratch = Directory.systemTemp.createTempSync('ws_fn_');
+      addTearDown(() => scratch.deleteSync(recursive: true));
+      // A fake npm that prints [output] and exits with [exitCode].
+      final printed = File(p.join(scratch.path, 'printed'));
+      final npm = File(p.join(scratch.path, 'bin', 'npm'))
+        ..createSync(recursive: true);
+      Process.runSync('chmod', ['+x', npm.path]);
+      int runWith(List<String> output, {int exitCode = 0}) {
+        printed.writeAsStringSync('${output.join('\n')}\n');
+        npm.writeAsStringSync(
+          '#!/bin/sh\ncat "${printed.path}"\nexit $exitCode\n',
+        );
+        final summary = File(p.join(scratch.path, 'summary'))
+          ..writeAsStringSync('');
+        return Process.runSync(
+          'bash',
+          ['-e', '-c', run],
+          environment: {
+            'PATH': '${p.dirname(npm.path)}:/usr/bin:/bin',
+            'RUNNER_TEMP': scratch.path,
+            'GITHUB_STEP_SUMMARY': summary.path,
+          },
+        ).exitCode;
+      }
+
+      expect(runWith(['TAP version 13', '# tests 3', '# pass 3']), 0);
+      expect(runWith(['ℹ tests 2', 'ℹ pass 2']), 0);
+      expect(runWith(['# tests 0', '# pass 0']), isNot(0));
+      expect(runWith(['no counter']), isNot(0));
+      expect(runWith(['# tests 3'], exitCode: 1), isNot(0));
+    });
+
+    test('the emulator steps are J16 (not in the skeleton)', () {
+      final text = File(p.join(_workflowsDir, 'functions.yml'))
+          .readAsStringSync();
+      expect(text, isNot(contains('emulators:exec')));
+      expect(text, contains('J16'));
     });
   });
 

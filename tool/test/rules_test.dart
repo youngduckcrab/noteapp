@@ -1,6 +1,8 @@
-// ws check rules R1–R13 (R15 lives in test_tags_test.dart, R14 in
-// export_names_test.dart). docs/plans/01-infra.md 6.2 and 9.1.
+// ws check rules R1–R13 and R16 (R15 lives in test_tags_test.dart, R14 in
+// export_names_test.dart). docs/plans/01-infra.md 6.2 and 9.1,
+// docs/plans/m5-7/01-infra.md 4.3.1 and 6.2 (2차: R4 `dart:io` Platform, R16).
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:image/image.dart' as img;
@@ -11,12 +13,14 @@ import '../src/cli.dart';
 import '../src/flutter_runner.dart';
 import '../src/rules.dart';
 import '../src/web_assets.dart';
+import '../src/workspace.dart';
 import 'support/fake_processes.dart';
 import 'support/fixture_workspace.dart';
 
-/// Contract 00-overview 7.5 (v1.3) external packages — the snapshot that
-/// `pinned_external` must equal (every row; the root dev `analyzer` since
-/// the integration step G3 with R14).
+/// Contract 00-overview 7.5 external packages — the snapshot that
+/// `pinned_external` must equal (every row: 1차 v1.5 with the root dev
+/// `analyzer` since the integration step G3, and the 2차 rows of
+/// docs/plans/m5-7/00-overview.md 7.5 v2.1 including the transitive pins).
 const _contract75 = <String, String>{
   'flutter_riverpod': '3.4.3',
   'riverpod': '3.4.3',
@@ -54,7 +58,87 @@ const _contract75 = <String, String>{
   'path': '1.9.1',
   'image': '4.12.0',
   'analyzer': '13.3.0',
+  // 2차 (contract 7.5 v2.1)
+  'record': '7.1.2',
+  'just_audio': '0.10.6',
+  'audio_session': '0.2.4',
+  'flutter_foreground_task': '11.0.3',
+  'image_picker': '1.2.4',
+  'image_picker_ios': '0.8.13+13',
+  'shared_preferences_android': '2.5.3',
+  'shared_preferences_foundation': '2.6.0',
+  'record_web': '2.1.3',
+  'just_audio_web': '0.4.16',
+  'record_platform_interface': '2.1.0',
+  'just_audio_platform_interface': '4.6.0',
+  'image_picker_platform_interface': '2.11.2',
+  'path_provider': '2.1.6',
+  'google_mlkit_digital_ink_recognition': '0.16.1',
+  'http': '1.6.0',
+  'flutter_math_fork': '0.7.4',
+  'flutter_svg': '2.3.0',
+  'vector_graphics': '1.2.3',
+  'vector_graphics_compiler': '1.3.0',
+  'xml': '7.0.1',
 };
+
+/// The plugins the app resolves after R2-B1 (`app/.flutter-plugins-
+/// dependencies` `dependencyGraph`, docs/plans/m5-7/01-infra.md 4.3.1).
+const _appPlugins = [
+  'android_file_picker',
+  'audio_session',
+  'file_picker',
+  'file_picker_darwin',
+  'file_picker_linux',
+  'file_picker_web',
+  'file_selector_linux',
+  'file_selector_macos',
+  'file_selector_windows',
+  'flutter_foreground_task',
+  'flutter_plugin_android_lifecycle',
+  'google_mlkit_commons',
+  'google_mlkit_digital_ink_recognition',
+  'image_picker',
+  'image_picker_android',
+  'image_picker_for_web',
+  'image_picker_ios',
+  'image_picker_linux',
+  'image_picker_macos',
+  'image_picker_windows',
+  'integration_test',
+  'jni',
+  'jni_flutter',
+  'just_audio',
+  'just_audio_web',
+  'path_provider',
+  'path_provider_android',
+  'path_provider_foundation',
+  'path_provider_linux',
+  'path_provider_windows',
+  'pdfium_flutter',
+  'pencil_bridge',
+  'record',
+  'record_android',
+  'record_ios',
+  'record_linux',
+  'record_macos',
+  'record_web',
+  'record_windows',
+  'shared_preferences',
+  'shared_preferences_android',
+  'shared_preferences_foundation',
+  'shared_preferences_linux',
+  'shared_preferences_web',
+  'shared_preferences_windows',
+  'url_launcher',
+  'url_launcher_android',
+  'url_launcher_ios',
+  'url_launcher_linux',
+  'url_launcher_macos',
+  'url_launcher_web',
+  'url_launcher_windows',
+  'windows_file_picker',
+];
 
 void main() {
   late WorkspaceRules rules;
@@ -79,41 +163,50 @@ void main() {
   });
 
   group('rules file', () {
-    test('pinned_external equals the contract 7.5 table', () {
+    test('pinned_external equals the contract 7.5 table (1차 + 2차)', () {
       expect(rules.pinnedExternal, _contract75);
-      expect(rules.pinnedExternal.length, 36);
+      expect(rules.pinnedExternal.length, 36 + 21);
     });
 
-    test(
-      'allowed_dependencies equals contract 7.1 (app without sync_engine)',
-      () {
-        expect(rules.allowedDependencies, {
-          'note_core': <String>[],
-          'ink_engine': ['note_core'],
-          'feature_editor': ['note_core', 'ink_engine'],
-          'feature_library': ['note_core'],
-          'pdf_io': ['note_core', 'ink_engine'],
-          'sync_engine': ['note_core'],
-          'noteapp': [
-            'note_core',
-            'ink_engine',
-            'feature_editor',
-            'feature_library',
-            'pdf_io',
-          ],
-          'ink_lab': ['note_core', 'ink_engine'],
-        });
-      },
-    );
+    test('allowed_dependencies equals contract 7.1 v2.1 (app without '
+        'sync_engine, service packages)', () {
+      expect(rules.allowedDependencies, {
+        'note_core': <String>[],
+        'ink_engine': ['note_core'],
+        'feature_editor': ['note_core', 'ink_engine'],
+        'feature_library': ['note_core'],
+        'pdf_io': ['note_core', 'ink_engine'],
+        'sync_engine': ['note_core'],
+        'media_io': ['note_core'],
+        'ink_recognition': ['note_core', 'ink_engine'],
+        'pencil_bridge': <String>[],
+        'noteapp': [
+          'note_core',
+          'ink_engine',
+          'feature_editor',
+          'feature_library',
+          'pdf_io',
+          'media_io',
+          'ink_recognition',
+          'pencil_bridge',
+        ],
+        'ink_lab': ['note_core', 'ink_engine'],
+      });
+    });
 
     test('keeps the data of the later rules (4.3 full format)', () {
       expect(rules.pureDartMembers, ['note_core']);
       expect(rules.libExceptions, [
         'packages/note_core/lib/testing_vm.dart',
+        'packages/note_core/lib/testing_web.dart',
         'packages/ink_engine/example/lib/',
       ]);
       expect(rules.appMembers, ['noteapp', 'ink_lab']);
-      expect(rules.testOnlyEntrypoints, ['testing.dart', 'testing_vm.dart']);
+      expect(rules.testOnlyEntrypoints, [
+        'testing.dart',
+        'testing_vm.dart',
+        'testing_web.dart',
+      ]);
       expect(rules.forbiddenImportsLibAndTest, [
         'package:flutter/material.dart',
         'package:flutter/cupertino.dart',
@@ -122,6 +215,61 @@ void main() {
       expect(rules.nativeOnlyImports, isNotEmpty);
       expect(rules.webOnlyImports, isNotEmpty);
       expect(rules.globalTriggers, contains('pubspec.lock'));
+    });
+
+    test('2차 data (contract 7.4.1 / 7.4.6 v2.1)', () {
+      expect(rules.nativeOnlyImports, [
+        'package:ffi/',
+        'package:pdfium_dart/',
+        'package:drift/native.dart',
+        'package:google_mlkit_digital_ink_recognition/',
+        'package:google_mlkit_commons/',
+        'package:flutter_foreground_task/',
+        'package:path_provider/',
+      ]);
+      expect(rules.forbiddenIoMembers, ['Platform']);
+      expect(rules.generatedFiles, contains('*.steps.dart'));
+      expect(rules.skipByDefaultTags, [
+        'integration',
+        'perf',
+        'media',
+        'emulator',
+      ]);
+      expect(rules.pluginFreeMembers, [
+        'feature_editor',
+        'feature_library',
+        'ink_engine',
+        'note_core',
+      ]);
+      expect(rules.pluginExceptions, {
+        'pdf_io': ['file_picker'],
+        'sync_engine': [
+          'firebase_core',
+          'firebase_auth',
+          'cloud_firestore',
+          'firebase_storage',
+          'connectivity_plus',
+        ],
+      });
+      expect(rules.pluginPackages, _appPlugins);
+      expect(rules.pluginPackages, hasLength(53));
+    });
+
+    test('plugin_packages equals the app dependencyGraph (NR6) when the '
+        'workspace is resolved', () {
+      final file = File(
+        p.join(repoRoot, 'app', '.flutter-plugins-dependencies'),
+      );
+      if (!file.existsSync()) {
+        markTestSkipped('run `flutter pub get` first');
+        return;
+      }
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      final graph = [
+        for (final e in json['dependencyGraph']! as List<Object?>)
+          (e! as Map<String, Object?>)['name']! as String,
+      ]..sort();
+      expect(rules.pluginPackages.toList()..sort(), graph);
     });
   });
 
@@ -654,6 +802,233 @@ dependencies:
         'packages/pdf_io/lib/pdf_io.dart',
       );
       expect(v.where((e) => e.rule == 'R6'), isEmpty);
+    });
+  });
+
+  group('R4 dart:io Platform (2차, contract 7.4.1)', () {
+    test('Platform in a native file: direct, show and an `as io` prefix', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a_native.dart':
+            "import 'dart:io';\n\nbool get ios => Platform.isIOS;\n",
+        'packages/ink_engine/lib/src/b_native.dart':
+            "import 'dart:io' show Platform;\n",
+        'packages/ink_engine/lib/src/c_io.dart':
+            "import 'dart:io' as io;\n\n"
+            'String get os => io.Platform.operatingSystem;\n',
+      }, rule: 'R4');
+      expect(
+        [for (final e in v) '${e.path}:${e.line}'],
+        [
+          'packages/ink_engine/lib/src/a_native.dart:3',
+          'packages/ink_engine/lib/src/b_native.dart:1',
+          'packages/ink_engine/lib/src/c_io.dart:3',
+        ],
+      );
+      expect(
+        v.first.format(),
+        startsWith(
+          'packages/ink_engine/lib/src/a_native.dart:3: [R4] dart:io '
+          'Platform is not allowed (계약 7.4.1)',
+        ),
+      );
+    });
+
+    test('TargetPlatform, defaultTargetPlatform, comments, strings and a '
+        'file without dart:io are fine', () {
+      final v = check({
+        'packages/ink_engine/lib/src/a_native.dart': '''
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
+// Platform.isIOS is not used here.
+final ios = defaultTargetPlatform == TargetPlatform.iOS;
+const label = 'Platform';
+File? file;
+''',
+        'packages/ink_engine/lib/src/plain.dart': '''
+class Platform {}
+final p = Platform();
+''',
+      }, rule: 'R4');
+      expect(v, isEmpty);
+    });
+
+    test('lib_exceptions are exempt; test/ is not checked', () {
+      final v = check({
+        'packages/note_core/lib/testing_vm.dart':
+            "import 'dart:io';\nfinal s = Platform.pathSeparator;\n",
+        'packages/note_core/test/p_test.dart':
+            "import 'dart:io';\nfinal s = Platform.pathSeparator;\n",
+      }, rule: 'R4');
+      expect(v, isEmpty);
+    });
+  });
+
+  group('R16 (2차, contract 7.4.1 v2.1)', () {
+    // A pub cache stand-in outside app/ and packages/ (so R1 does not see
+    // it), found through .dart_tool/package_config.json like the real
+    // workspace.
+    Map<String, String> packageConfig(Map<String, bool> packages) => {
+      '.dart_tool/package_config.json': jsonEncode({
+        'configVersion': 2,
+        'packages': [
+          for (final name in packages.keys)
+            {
+              'name': name,
+              'rootUri': '../fake_pub/$name',
+              'packageUri': 'lib/',
+            },
+        ],
+      }),
+      for (final MapEntry(key: name, value: plugin) in packages.entries)
+        'fake_pub/$name/pubspec.yaml':
+            'name: $name\n'
+            '${plugin ? 'flutter:\n  plugin:\n    platforms:\n      ios:\n'
+                      '        pluginClass: X\n' : ''}',
+    };
+
+    String libraryPubspec(String extra) => '''
+name: feature_library
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  flutter:
+    sdk: flutter
+  note_core: any
+$extra''';
+
+    Map<String, String> withPdfIo(String deps) => {
+      'pubspec.yaml': cleanWorkspaceFiles()['pubspec.yaml']!.replaceFirst(
+        '  - packages/feature_library\n',
+        '  - packages/feature_library\n  - packages/pdf_io\n',
+      ),
+      'packages/pdf_io/pubspec.yaml': '''
+name: pdf_io
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  note_core: any
+  ink_engine: any
+$deps''',
+    };
+
+    test('a listed plugin in a plugin-free member (dependencies and '
+        'dev_dependencies)', () {
+      final v = check({
+        'packages/feature_library/pubspec.yaml': libraryPubspec(
+          '  image_picker: 1.2.4\n'
+          'dev_dependencies:\n  integration_test:\n    sdk: flutter\n',
+        ),
+      }, rule: 'R16');
+      expect(v, hasLength(2));
+      expect(
+        v.first.format(),
+        'packages/feature_library/pubspec.yaml:11: [R16] feature_library: '
+        "depends on plugin 'image_picker' (계약 7.4.1)",
+      );
+      expect(
+        v.last.format(),
+        'packages/feature_library/pubspec.yaml:13: [R16] feature_library: '
+        "depends on plugin 'integration_test' (계약 7.4.1)",
+      );
+    });
+
+    test('an unlisted package with `flutter: plugin:` is a plugin too; a '
+        'plain package is not', () {
+      final v = check({
+        ...packageConfig({'new_plugin': true, 'plain_pkg': false}),
+        'packages/ink_engine/pubspec.yaml': '''
+name: ink_engine
+publish_to: none
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  flutter:
+    sdk: flutter
+  note_core: any
+  new_plugin: 1.0.0
+  plain_pkg: 1.0.0
+''',
+      }, rule: 'R16');
+      expect(
+        v.single.message,
+        "ink_engine: depends on plugin 'new_plugin' "
+        '(계약 7.4.1)',
+      );
+    });
+
+    test('pdf_io: file_picker is the 1차 exception, image_picker is not, '
+        'pdfrx is not a plugin', () {
+      final v = check({
+        ...packageConfig({'pdfrx': false}),
+        ...withPdfIo(
+          '  pdfrx: 2.11.0\n  file_picker: 13.3.2\n  image_picker: 1.2.4\n',
+        ),
+      }, rule: 'R16');
+      expect(v.single.path, 'packages/pdf_io/pubspec.yaml');
+      expect(
+        v.single.message,
+        "pdf_io: depends on plugin 'image_picker' "
+        '(계약 7.4.1)',
+      );
+    });
+
+    test('service packages and the app may depend on plugins', () {
+      final v = check({
+        'app/pubspec.yaml': cleanWorkspaceFiles()['app/pubspec.yaml']!
+            .replaceFirst(
+              '  go_router: 18.1.2\n',
+              '  go_router: 18.1.2\n  path_provider: 2.1.6\n',
+            ),
+      }, rule: 'R16');
+      expect(v, isEmpty);
+    });
+
+    test('extending plugin_exceptions or shrinking plugin_free_members is a '
+        'violation of the rules file', () {
+      final text = File(realRulesPath)
+          .readAsStringSync()
+          .replaceFirst(
+            '  pdf_io: [file_picker]',
+            '  pdf_io: [file_picker, image_picker]\n  feature_editor: [record]',
+          )
+          .replaceFirst(
+            'plugin_free_members: [feature_editor, feature_library, '
+                'ink_engine, note_core]',
+            'plugin_free_members: [feature_editor, feature_library, '
+                'note_core]',
+          );
+      final custom = WorkspaceRules.parse(text);
+      expect(custom.pluginExceptions['pdf_io'], [
+        'file_picker',
+        'image_picker',
+      ]);
+      fixture = FixtureWorkspace.clean();
+      final v = [
+        for (final r in checkWorkspace(fixture!.load(), custom))
+          if (r.rule == 'R16') r.message,
+      ];
+      expect(v, [
+        contains('plugin_exceptions.feature_editor must not add record'),
+        contains('plugin_exceptions.pdf_io must not add image_picker'),
+        contains('plugin_free_members must keep ink_engine'),
+      ]);
+    });
+
+    test('the real workspace has no R16 violation', () {
+      final v = [
+        for (final r in checkWorkspace(Workspace.load(repoRoot), rules))
+          if (r.rule == 'R16') r,
+      ];
+      expect(v, isEmpty);
     });
   });
 

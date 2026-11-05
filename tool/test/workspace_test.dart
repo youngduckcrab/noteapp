@@ -3,6 +3,7 @@
 import 'package:test/test.dart';
 
 import '../src/cli.dart';
+import '../src/rules.dart';
 import '../src/workspace.dart';
 import 'support/fixture_workspace.dart';
 
@@ -74,8 +75,9 @@ dev_dependencies:
     );
   });
 
-  test('the real workspace lists the 7 members of contract 7.1 and the '
-      'ink lab (7.1 optional row, INFRA-O1)', () {
+  test('the real workspace lists the 7 members of contract 7.1, the ink lab '
+      '(7.1 optional row, INFRA-O1) and the 3 service packages of 2차 7.1 '
+      'v2.1', () {
     final ws = Workspace.load(repoRoot);
     expect(ws.topologicalOrder().map((m) => m.name), [
       'note_core',
@@ -83,12 +85,32 @@ dev_dependencies:
       'feature_editor',
       'feature_library',
       'pdf_io',
-      'noteapp',
       'sync_engine',
       'ink_lab',
+      'media_io',
+      'ink_recognition',
+      'pencil_bridge',
+      'noteapp',
     ]);
     expect(ws.memberNamed('noteapp')!.path, 'app');
     expect(ws.memberNamed('ink_lab')!.path, 'packages/ink_engine/example');
+    expect(ws.memberNamed('pencil_bridge')!.path, 'packages/pencil_bridge');
+    // functions/ (SYNC, Node) is not a workspace member (contract 7.1 rule 6).
+    expect(ws.declaredMemberPaths, isNot(contains('functions')));
+  });
+
+  test('a functions/ directory with only package.json is not a member and '
+      'not an R1 violation (contract 7.1 rule 6)', () {
+    fixture = FixtureWorkspace.clean({
+      'functions/package.json': '{"name": "functions", "private": true}\n',
+      'functions/src/index.ts': 'export {};\n',
+      // Even a stray pubspec under functions/ is outside app/ and packages/.
+      'functions/node_modules/x/pubspec.yaml':
+          'name: x\nresolution: workspace\n',
+    });
+    final ws = fixture!.load();
+    expect(ws.members.map((m) => m.name), isNot(contains('functions')));
+    expect(checkWorkspace(ws, WorkspaceRules.load(realRulesPath)), isEmpty);
   });
 
   test('ws list prints name and path in topological order', () async {

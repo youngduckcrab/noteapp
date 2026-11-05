@@ -1,5 +1,7 @@
-// ws test (docs/plans/01-infra.md 4.2 and 9.1, contract 00-overview 7.4.8),
-// with a fake process runner: no real flutter / Chrome is started.
+// ws test (docs/plans/01-infra.md 4.2 and 9.1, contract 00-overview 7.4.8;
+// 2차: the heavy test lock and the fake media Chrome, docs/plans/m5-7/
+// 01-infra.md 6.13), with a fake process runner: no real flutter / Chrome is
+// started.
 
 import 'dart:io';
 
@@ -8,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../src/cli.dart';
 import '../src/flutter_runner.dart';
+import '../src/heavy_lock.dart';
 import '../src/test_command.dart';
 import 'support/fixture_workspace.dart';
 
@@ -47,6 +50,9 @@ final class _FakeProcesses implements ProcessRunner {
   /// Exit code of `/usr/bin/git <first argument> ...` (default 0).
   final gitExitCodes = <String, int>{};
 
+  /// Called with every call before it is answered.
+  void Function(_Call call)? onRun;
+
   @override
   Future<RunResult> run(
     String executable,
@@ -56,9 +62,15 @@ final class _FakeProcesses implements ProcessRunner {
     Duration? timeout,
     bool echo = true,
   }) async {
-    calls.add(
-      _Call(executable, arguments, workingDirectory, environment, timeout),
+    final call = _Call(
+      executable,
+      arguments,
+      workingDirectory,
+      environment,
+      timeout,
     );
+    calls.add(call);
+    onRun?.call(call);
     if (executable == '/usr/bin/git') {
       final exitCode = gitExitCodes[arguments.first] ?? 0;
       return RunResult(
@@ -114,11 +126,17 @@ void main() {
         root: fixture.root,
         out: out,
         err: err,
-        environment: {'FLUTTER_BIN': '/fake/flutter', ...env},
+        environment: {
+          'FLUTTER_BIN': '/fake/flutter',
+          // Never the real container-wide lock in these tests.
+          heavyLockPathVariable: p.join(fixture.root, 'heavy.lock'),
+          ...env,
+        },
         isFile: (path) =>
             path == '/fake/flutter' ||
             path == '/usr/bin/google-chrome' ||
-            path == '/usr/bin/git',
+            path == '/usr/bin/git' ||
+            path == p.join(fixture.root, chromeFakeMediaPath),
         resolvedExecutable: '/fake/dart',
         processes: processes,
       ),
@@ -647,6 +665,205 @@ void main() {
       expect(code, usageExitCode);
       expect(err, contains('--all-if-no-base needs --affected-since'));
       expect(processes.calls, isEmpty);
+    });
+  });
+
+  group('heavy test lock and fake media Chrome (2차, 01-infra 6.13)', () {
+    String lockPath() => p.join(fixture.root, 'heavy.lock');
+    String wrapper() => p.join(fixture.root, chromeFakeMediaPath);
+
+    /// The lock file content seen by every flutter / dart child.
+    List<String?> watchLock() {
+      final seen = <String?>[];
+      processes.onRun = (call) {
+        if (call.executable == '/usr/bin/git') return;
+        final file = File(lockPath());
+        seen.add(file.existsSync() ? file.readAsStringSync() : null);
+      };
+      return seen;
+    }
+
+    test('-t media --platform chrome: Chrome is tool/chrome-fakemedia, the '
+        'located Chrome is NOTEAPP_REAL_CHROME, the lock is held', () async {
+      final seen = watchLock();
+      final (code, out, _) = await ws([
+        '--platform',
+        'chrome',
+        '--run-skipped',
+        '-t',
+        'media',
+        '--package',
+        'ink_engine',
+      ]);
+      expect(code, 0);
+      final call = flutterCalls().single;
+      expect(call.env['CHROME_EXECUTABLE'], wrapper());
+      expect(call.env[realChromeVariable], '/opt/chrome-nosandbox');
+      expect(call.env[heavyLockHeldVariable], '1');
+      expect(call.arguments, containsAllInOrder(['--tags', 'media']));
+      expect(seen.single, startsWith('$pid '));
+      expect(seen.single, contains('ws test --platform chrome'));
+      expect(File(lockPath()).existsSync(), isFalse, reason: 'released');
+      expect(out, contains('heavy test lock waited 0s (잠금 대기 0초)'));
+    });
+
+    test('the wrapper is used for media + chrome only', () async {
+      await ws(['--platform', 'chrome', '--package', 'ink_engine']);
+      expect(flutterCalls().single.env['CHROME_EXECUTABLE'], isNot(wrapper()));
+      expect(flutterCalls().single.env, isNot(contains(realChromeVariable)));
+      processes.calls.clear();
+      await ws(['-t', 'media', '--run-skipped', '--package', 'note_core']);
+      final vm = flutterCalls().single;
+      expect(vm.env, isNot(contains('CHROME_EXECUTABLE')));
+      expect(vm.env, isNot(contains(realChromeVariable)));
+      // media in the VM is still a heavy run.
+      expect(vm.env[heavyLockHeldVariable], '1');
+    });
+
+    test('CHROME_EXECUTABLE already set to the wrapper: no '
+        'NOTEAPP_REAL_CHROME (the wrapper must not start itself)', () async {
+      final (code, _, _) = await ws(
+        ['--platform', 'chrome', '-t', 'media', '--package', 'ink_engine'],
+        env: {'PATH': '/usr/bin', 'CHROME_EXECUTABLE': wrapper()},
+      );
+      expect(code, 0);
+      final call = flutterCalls().single;
+      expect(call.env['CHROME_EXECUTABLE'], wrapper());
+      expect(call.env, isNot(contains(realChromeVariable)));
+    });
+
+    test('a missing tool/chrome-fakemedia is an environment error', () async {
+      final out = StringBuffer();
+      final err = StringBuffer();
+      final code = await runWs(
+        ['test', '--platform', 'chrome', '-t', 'media'],
+        context: WsContext(
+          root: fixture.root,
+          out: out,
+          err: err,
+          environment: {
+            'FLUTTER_BIN': '/fake/flutter',
+            'CHROME_EXECUTABLE': '/opt/chrome',
+            heavyLockPathVariable: lockPath(),
+          },
+          isFile: (path) => path == '/fake/flutter',
+          resolvedExecutable: '/fake/dart',
+          processes: processes,
+        ),
+      );
+      expect(code, environmentExitCode);
+      expect(err.toString(), contains('tool/chrome-fakemedia not found'));
+      expect(processes.calls, isEmpty);
+    });
+
+    test('heavy runs: media, emulator and Chrome without --package; not a VM '
+        'run or a Chrome run of chosen members', () {
+      const chrome = TestOptions(platform: TestPlatform.chrome);
+      expect(chrome.isHeavy(packagesChosen: false), isTrue);
+      expect(chrome.isHeavy(packagesChosen: true), isFalse);
+      expect(const TestOptions().isHeavy(packagesChosen: false), isFalse);
+      for (final tag in ['media', 'emulator']) {
+        expect(
+          TestOptions(tags: [tag]).isHeavy(packagesChosen: true),
+          isTrue,
+          reason: tag,
+        );
+      }
+      expect(
+        const TestOptions(tags: ['integration']).isHeavy(packagesChosen: true),
+        isFalse,
+      );
+    });
+
+    test('a full Chrome run holds the lock from before the first member '
+        '(its prepare script) to after the last one', () async {
+      final seen = watchLock();
+      final (code, _, _) = await ws(['--platform', 'chrome']);
+      expect(code, 0);
+      // dart prepare @note_core, flutter @note_core, flutter @ink_engine.
+      expect(seen, hasLength(3));
+      expect(seen, everyElement(startsWith('$pid ')));
+      for (final call in processes.calls) {
+        expect(call.env[heavyLockHeldVariable], '1', reason: '$call');
+      }
+      expect(File(lockPath()).existsSync(), isFalse);
+    });
+
+    test('the lock stays held across a time-out and its retry', () async {
+      final seen = watchLock();
+      processes.queued['ink_engine:flutter'] = [
+        const RunResult(exitCode: -15, timedOut: true),
+      ];
+      final (code, out, _) = await ws(['--platform', 'chrome']);
+      expect(code, 0);
+      expect(out, contains('trying again'));
+      expect(seen, hasLength(4));
+      expect(seen.toSet(), hasLength(1), reason: 'one lease for every try');
+      expect(seen.first, startsWith('$pid '));
+      expect(File(lockPath()).existsSync(), isFalse);
+    });
+
+    test('a failing run releases the lock too', () async {
+      processes.results['ink_engine:flutter'] = const RunResult(exitCode: 1);
+      final (code, _, _) = await ws(['--platform', 'chrome']);
+      expect(code, 1);
+      expect(File(lockPath()).existsSync(), isFalse);
+    });
+
+    test('NOTEAPP_HEAVY_LOCK_HELD=1: the caller holds it — not taken again, '
+        'passed on', () async {
+      // A live holder (this process): taking it would wait.
+      File(lockPath()).writeAsStringSync(
+        '$pid 2026-11-05T00:00:00.000Z outer with-heavy-lock\n',
+      );
+      final (code, out, _) = await ws(
+        ['-t', 'emulator', '--run-skipped', '--heavy-lock-timeout', '0'],
+        env: {'PATH': '/usr/bin', heavyLockHeldVariable: '1'},
+      );
+      expect(code, 0);
+      expect(out, contains('held by the caller'));
+      for (final call in flutterCalls()) {
+        expect(call.env[heavyLockHeldVariable], '1');
+      }
+      expect(File(lockPath()).readAsStringSync(), contains('outer'));
+    });
+
+    test('a lock held by a live process: exit code 4 after the time-out, '
+        'nothing run', () async {
+      File(
+        lockPath(),
+      ).writeAsStringSync('$pid 2026-11-05T00:00:00.000Z ws test -t media\n');
+      final (code, out, err) = await ws([
+        '-t',
+        'media',
+        '--heavy-lock-timeout',
+        '0',
+      ]);
+      expect(code, heavyLockTimeoutExitCode);
+      expect(out, contains('pid $pid'));
+      expect(err, contains('did not come free'));
+      expect(flutterCalls(), isEmpty);
+      expect(File(lockPath()).existsSync(), isTrue, reason: 'not ours');
+    });
+
+    test(
+      '--no-heavy-lock and VM / chosen Chrome runs do not take it',
+      () async {
+        final seen = watchLock();
+        await ws(['--platform', 'chrome', '--no-heavy-lock']);
+        await ws(['--platform', 'chrome', '--package', 'ink_engine']);
+        await ws([]);
+        expect(seen, everyElement(isNull));
+        for (final call in processes.calls) {
+          expect(call.env, isNot(contains(heavyLockHeldVariable)));
+        }
+      },
+    );
+
+    test('--heavy-lock-timeout must be minutes', () async {
+      final (code, _, err) = await ws(['--heavy-lock-timeout', 'x']);
+      expect(code, usageExitCode);
+      expect(err, contains('--heavy-lock-timeout must be a number'));
     });
   });
 

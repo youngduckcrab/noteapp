@@ -1,8 +1,8 @@
 # 05. 안드로이드 APK 설치하기
 
-안드로이드 태블릿이 있을 때 GitHub Actions가 만든 APK(설치 파일)를 내려받아 설치해요. `main`에 코드가 올라갈 때마다 새 APK가 만들어져요. `main`이 아직 없는 지금은 저장소의 기본 브랜치인 개발 브랜치 `claude/note-app-planning-bk29xb`에 코드가 올라갈 때 만들어져요(아래 '개발 브랜치에서 받기').
+안드로이드 태블릿이 있을 때 GitHub Actions가 만든 APK(설치 파일)를 내려받아 설치해요. APK는 **Run workflow** 버튼을 눌렀을 때만 만들어져요 — 코드가 올라갈 때마다 자동으로 만들지 않아요(GitHub Actions 무료 사용 시간을 아끼려고요).
 
-- **소요 시간**: 약 10분
+- **소요 시간**: 약 15분 (APK 만들기 약 10분 포함)
 - **끝나면 Claude에게 알려줄 것**: 설치가 됐는지, 실행하면 라이브러리 화면이 나오는지, 새 APK를 지우지 않고 덮어 설치할 수 있었는지
 
 ## 준비물
@@ -12,24 +12,22 @@
 
 ## 따라 하기
 
-### 1단계 — APK 내려받기
+### 1단계 — APK 만들기
 
-1. 태블릿 브라우저로 <https://github.com> 에 로그인하고 저장소를 열어요.
+1. 태블릿(또는 컴퓨터) 브라우저로 <https://github.com> 에 로그인하고 저장소를 열어요.
 2. 위쪽 **Actions**를 누르고 왼쪽 목록에서 **Android APK**를 눌러요.
-3. 녹색 체크가 있는 가장 최근 실행을 눌러요.
-4. 아래쪽 **Artifacts**에서 `noteapp-apk-<번호>`를 눌러 내려받아요(zip 파일).
+3. 실행 목록 오른쪽 위 **Run workflow**를 눌러요.
+4. **Use workflow from**이 `claude/note-app-planning-bk29xb`인지 보고 아래 초록색 **Run workflow**를 눌러요.
+5. 목록 맨 위에 새 실행이 생겨요. 녹색 체크가 될 때까지 약 10분 기다려요.
 
-아티팩트는 7일 뒤 사라져요. 없으면 **Android APK** 화면 오른쪽 **Run workflow** → **Run workflow**로 새로 만들 수 있어요(약 10분).
+GitHub는 저장소의 기본 브랜치에 있는 워크플로만 버튼으로 실행하게 해 줘요. `main`이 아직 없는 지금은 개발 브랜치 `claude/note-app-planning-bk29xb`가 기본 브랜치라 버튼이 보여요. 이 APK의 **설정 → 앱 정보 → 빌드** 줄 끝에는 브랜치 이름 `claude/note-app-planning-bk29xb`가 보여요. `main`이 생기면 **Use workflow from**에서 `main`을 고르면 돼요.
 
-### 개발 브랜치에서 받기 (`main`이 생기기 전)
+### 내려받기
 
-지금은 작업이 `claude/note-app-planning-bk29xb` 브랜치에 있고, 이 브랜치가 저장소의 기본 브랜치예요. 이 브랜치에 코드가 올라갈 때마다(문서만 바뀐 때는 빼고) APK가 만들어져요.
+1. **Android APK** 실행 목록에서 녹색 체크가 있는 가장 최근 실행을 눌러요. 다른 브랜치 실행과 섞여 있으면 목록 위 **Branch** 필터에서 `claude/note-app-planning-bk29xb`를 골라요.
+2. 아래쪽 **Artifacts**에서 `noteapp-apk-<번호>`를 눌러 내려받아요(zip 파일).
 
-1. **Actions** → 왼쪽 **Android APK**를 눌러요.
-2. 실행 목록 위 **Branch** 필터에서 `claude/note-app-planning-bk29xb`를 골라요.
-3. 녹색 체크가 있는 가장 최근 실행을 누르고, 아래쪽 **Artifacts**에서 `noteapp-apk-<번호>`를 내려받아요. 그다음은 2단계부터 똑같아요.
-
-새 APK가 필요하거나 7일이 지나 아티팩트가 사라졌으면 **Android APK** 화면 오른쪽 **Run workflow**를 눌러요. **Use workflow from**이 `claude/note-app-planning-bk29xb`인지 보고 아래 **Run workflow**를 누르면 돼요(약 10분). GitHub는 기본 브랜치에 있는 워크플로만 버튼으로 실행하게 해 주는데, 이 브랜치가 기본 브랜치라 버튼이 보여요. 이 APK의 **설정 → 앱 정보 → 빌드** 줄 끝에는 브랜치 이름 `claude/note-app-planning-bk29xb`가 보여요.
+아티팩트는 7일 뒤 사라져요. 없으면 1단계처럼 **Run workflow**로 새로 만들어요.
 
 ### 2단계 — 압축 풀기
 
@@ -56,8 +54,9 @@ CI가 실행마다 새 서명 키를 쓰기 때문에 **새 APK를 기존 앱 �
 | 증상 | 해결 |
 |---|---|
 | **Artifacts**가 없어요 | 7일이 지났거나 실행이 실패했어요. **Run workflow**로 새로 만들어요. 실패하면 Claude에게 알려 주세요. |
+| 코드를 올렸는데 새 APK가 없어요 | APK는 자동으로 만들지 않아요. 1단계처럼 **Run workflow**를 눌러 주세요. |
 | **Run workflow** 버튼이 없어요 | 왼쪽 목록에서 **Android APK**를 먼저 눌러야 보여요. 그래도 없으면 저장소 주인 계정으로 로그인했는지 확인하고 Claude에게 알려 주세요(GitHub는 기본 브랜치에 있는 워크플로만 버튼으로 실행해요). |
-| **Branch** 필터에 개발 브랜치가 없어요 | 그 브랜치에서 아직 APK를 만든 적이 없어요(문서만 바뀐 푸시는 만들지 않아요). Claude에게 알려 주세요. |
+| **Branch** 필터에 개발 브랜치가 없어요 | 그 브랜치에서 아직 APK를 만든 적이 없어요. 1단계처럼 **Run workflow**를 눌러 주세요. |
 | zip이 안 풀려요 | Play 스토어의 **Files by Google** 앱으로 풀어요. |
 | '앱이 설치되지 않았습니다' / '패키지가 기존 패키지와 충돌합니다' | 위 '새 버전으로 바꿀 때'처럼 기존 앱을 지우고 설치해요. |
 | Play 프로텍트 경고가 떠요 | 직접 만든 앱이라 나오는 경고예요. **세부정보 더보기** → **무시하고 설치**(문구는 기기마다 달라요 — 미확인). |

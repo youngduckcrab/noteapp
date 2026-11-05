@@ -1,16 +1,30 @@
 # CI — checks, analysis, tests, web build and Firebase Hosting deploy in one
 # job (INFRA, docs/plans/01-infra.md 6.13: one job keeps the per-minute
-# rounding of the free minutes low). main deploys to the live channel, every
-# other branch to its own 7-day preview channel (`ws channel-id`, 6.12) —
-# also the repository's default branch while that is not main (now the
-# development branch claude/note-app-planning-bk29xb: the remote has no
-# main yet).
+# rounding of the free minutes low; docs/plans/m5-7/01-infra.md 6.16 for the
+# 2차 budget). main deploys to the live channel, every other branch to its
+# own 7-day preview channel (`ws channel-id`, 6.12) — also the repository's
+# default branch while that is not main (now the development branch
+# claude/note-app-planning-bk29xb: the remote has no main yet).
 #
-# Tests: main and the default branch run the strict check and every member;
-# other branches only the members changed since the default branch
-# (`--affected-since origin/<default branch>`) and their dependents. Without
-# that base (no such remote branch, no merge base) `--all-if-no-base` tests
-# every member instead of failing.
+# Test scope (step "Test scope", 2차 R2-B1 — the free 2,000 minutes a month
+# of a private repository; one full run measured 30 minutes after the 1차
+# integration):
+# - main, or a manual run with the input `full`: the strict check and every
+#   member.
+# - the default branch (not main): only the members changed since the
+#   previous push of the branch (`--affected-since <github.event.before>`)
+#   and their dependents. Without a previous push (all-zero or empty
+#   `before`: a new branch, a manual run) every member; a `before` that is not
+#   in the history (force push) falls back to every member through
+#   `--all-if-no-base`. Each of these pushes tests only its own change, so
+#   none of them is cancelled or replaced by the next one (one concurrency
+#   group per run there).
+# - other branches: the members changed since the default branch
+#   (`--affected-since origin/<default branch>`) and their dependents;
+#   without that base (no such remote branch, no merge base)
+#   `--all-if-no-base` tests every member.
+# The strict check (warnings fail) runs on main, the default branch and
+# manual full runs.
 #
 # Without the secret FIREBASE_SERVICE_ACCOUNT or the repository variable
 # FIREBASE_PROJECT_ID the deploy step is skipped and the summary points to
@@ -38,9 +52,16 @@ on:
         description: '통합 태그 테스트 실행 (통합 단계 G2 이후)'
         type: boolean
         default: false
+      full:
+        description: '전체 실행 (모든 멤버 + check --strict — 끄면 바뀐 멤버만)'
+        type: boolean
+        default: false
 
+# Default-branch pushes (not main) test only their own change, so each gets
+# its own group (never cancelled or replaced); everything else cancels the
+# older run of the same ref.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref_name == github.event.repository.default_branch && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 permissions:
@@ -51,27 +72,62 @@ jobs:
     name: Check, test, build and deploy web
     runs-on: ubuntu-latest
     # A full run (every member, VM and Chrome) on the 2-core runner of a
-    # private repository: estimated 30-40 minutes, more with the integration
-    # input (local 4 cores: VM 9, Chrome 8, build 2 minutes — 6.13).
+    # private repository: measured 30 minutes after the 1차 integration (VM
+    # tests 15, Chrome tests 10, web build 1 — m5-7/01-infra 6.16), more with
+    # the integration input.
     timeout-minutes: 60
     env:
       FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-      # Base of `--affected-since` (6.13): the repository's default branch.
+      # Inputs of the "Test scope" step.
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-      # 'true' on main and on the default branch itself (nothing to compare
-      # with): strict check and every member.
-      FULL_RUN: ${{ github.ref == 'refs/heads/main' || github.ref_name == github.event.repository.default_branch }}
+      BEFORE_SHA: ${{ github.event.before }}
+      FULL_INPUT: ${{ inputs.full }}
     steps:
       - name: Start clock
         run: date +%s > "$RUNNER_TEMP/ci-start"
+
+      # Sets FULL_RUN (every member), STRICT_CHECK and AFFECTED_BASE (the
+      # --affected-since ref when FULL_RUN is false) for the later steps.
+      - name: Test scope
+        run: |
+          zero=0000000000000000000000000000000000000000
+          strict=false
+          base=''
+          if [ "$GITHUB_REF" = 'refs/heads/main' ] || [ "$FULL_INPUT" = 'true' ]; then
+            full=true
+            strict=true
+            scope='전체 (main 또는 수동 full)'
+          elif [ "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH" ]; then
+            strict=true
+            if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "$zero" ]; then
+              full=true
+              scope='전체 (기본 브랜치 — 이전 푸시 없음)'
+            else
+              full=false
+              base="$BEFORE_SHA"
+              scope="기본 브랜치 — ${BEFORE_SHA:0:7} 이후 바뀐 멤버"
+            fi
+          else
+            full=false
+            base="origin/$DEFAULT_BRANCH"
+            scope="$DEFAULT_BRANCH 대비 바뀐 멤버"
+          fi
+          {
+            echo "FULL_RUN=$full"
+            echo "STRICT_CHECK=$strict"
+            echo "AFFECTED_BASE=$base"
+            echo "TEST_SCOPE=$scope"
+          } >> "$GITHUB_ENV"
+          echo "test scope: $scope (full=$full strict=$strict base=$base)"
 
       # 1
       - name: Checkout
         uses: actions/checkout@v7
         with:
           # Full history and every branch: `--affected-since
-          # origin/<default branch>` needs the merge base.
+          # origin/<default branch>` needs the merge base, `--affected-since
+          # <github.event.before>` the previous push.
           fetch-depth: 0
 
       # 2
@@ -115,13 +171,13 @@ jobs:
 
       # 6
       - name: Workspace rules (strict)
-        if: env.FULL_RUN == 'true'
+        if: env.STRICT_CHECK == 'true'
         run: |
           dart run tool/ws.dart check --strict
           printf '%s %s\n' "$SECONDS" '규칙 (check --strict)' >> "$RUNNER_TEMP/step-seconds"
 
       - name: Workspace rules
-        if: env.FULL_RUN != 'true'
+        if: env.STRICT_CHECK != 'true'
         run: |
           dart run tool/ws.dart check
           printf '%s %s\n' "$SECONDS" '규칙 (check)' >> "$RUNNER_TEMP/step-seconds"
@@ -132,8 +188,8 @@ jobs:
           dart run tool/ws.dart analyze
           printf '%s %s\n' "$SECONDS" '분석' >> "$RUNNER_TEMP/step-seconds"
 
-      # 8 — other branches test only the members changed since the default
-      # branch and their dependents (PDF `pdfium` tests too — PDF-S8).
+      # 8 — without FULL_RUN only the members changed since AFFECTED_BASE
+      # and their dependents (PDF `pdfium` tests too — PDF-S8).
       - name: VM tests (all members)
         if: env.FULL_RUN == 'true'
         run: |
@@ -143,7 +199,7 @@ jobs:
       - name: VM tests (affected)
         if: env.FULL_RUN != 'true'
         run: |
-          dart run tool/ws.dart test --affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base
+          dart run tool/ws.dart test --affected-since "$AFFECTED_BASE" --all-if-no-base
           printf '%s %s\n' "$SECONDS" 'VM 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
 
       # Contract 7.6 B1 v1.3 / 7.7 V3: the workspace tool's own tests.
@@ -164,7 +220,7 @@ jobs:
       - name: Browser tests (affected)
         if: env.FULL_RUN != 'true'
         run: |
-          dart run tool/ws.dart test --platform chrome --affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base
+          dart run tool/ws.dart test --platform chrome --affected-since "$AFFECTED_BASE" --all-if-no-base
           printf '%s %s\n' "$SECONDS" '브라우저 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
 
       # 10 — manual only (integration stage G2 and later). On push `inputs`
@@ -253,6 +309,7 @@ jobs:
               echo '- 빌드 라벨: (빌드 정보 없음 — 앞 단계에서 멈춤)'
             fi
             echo "- 채널: \`${CHANNEL_ID:-없음}\`"
+            echo "- 시험 범위: ${TEST_SCOPE:-정해지지 않음}"
             if [ "$DEPLOY_OUTCOME" = 'success' ]; then
               echo "- 주소: $DEPLOY_URL"
               if [ -f "$RUNNER_TEMP/deploy-start" ]; then

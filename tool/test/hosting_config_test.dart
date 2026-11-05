@@ -145,8 +145,39 @@ void main() {
       expect(isolated, contains('"Cross-Origin-Embedder-Policy"'));
     });
 
-    test('no M4 rule references in this scope', () {
-      expect(config.keys, ['hosting']);
+    test('no M4 rule references in this scope; 2차 functions and '
+        'emulators (01-infra 6.14, contract 7.4.7)', () {
+      expect(config.keys, ['hosting', 'functions', 'emulators']);
+      for (final (section, _) in hostingRuleFileKeys) {
+        expect(config, isNot(contains(section)));
+      }
+      expect(config['functions'], expectedFunctionsConfig);
+      expect(config['emulators'], expectedEmulatorsConfig);
+      final functions =
+          (config['functions']! as List<Object?>).single!
+              as Map<String, Object?>;
+      expect(functions['source'], '../functions');
+      // functions/.env.demo-noteapp (demo values, committed) is not caught
+      // by the `*.local` pattern; .env.local / .secret.local are.
+      final ignore = (functions['ignore']! as List<Object?>).cast<String>();
+      expect(ignore, contains('*.local'));
+      expect(ignore, isNot(contains('.env*')));
+      expect(ignore, containsAll(['test', 'lib/test', 'tool', 'eval-out']));
+    });
+
+    test('a changed functions or emulators entry is a problem', () {
+      final appDir = p.join(repoRoot, 'app');
+      final changed = jsonDecode(jsonEncode(config)) as Map<String, Object?>;
+      ((changed['functions']! as List<Object?>).single!
+              as Map<String, Object?>)['source'] =
+          'functions';
+      ((changed['emulators']! as Map<String, Object?>)['auth']!
+              as Map<String, Object?>)['host'] =
+          'localhost';
+      expect(hostingConfigProblems(changed, appDir: appDir), [
+        startsWith('functions must be exactly'),
+        startsWith('emulators must be exactly'),
+      ]);
     });
   });
 

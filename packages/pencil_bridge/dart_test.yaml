@@ -1,0 +1,4 @@
+# Test tags of pencil_bridge (INFRA, docs/plans/m5-7/01-infra.md 3.3). VM
+# tests only, no tags yet. Declare a tag here before the first test uses it
+# (ws check R15).
+tags: {}

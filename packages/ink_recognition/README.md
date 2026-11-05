@@ -1,0 +1,8 @@
+# ink_recognition — owned by LIBRARY: handwriting / math recognition ports, ML Kit adapter, indexer, conversion UI. Plan: [docs/plans/m5-7/05-library.md](../../docs/plans/m5-7/05-library.md)
+
+Skeleton created by INFRA in the 2차 foundation step R2-B1 (contract [00-overview 7.6.2](../../docs/plans/m5-7/00-overview.md)); LIBRARY fills it from R2-B6 on.
+
+- **Entry points**: `package:ink_recognition/ink_recognition.dart` (web-safe barrel, contract 7.2.11) and `package:ink_recognition/testing.dart` (tests only, contract 7.6).
+- **Service package** (contract 7.1 rules 4–5): depends on `note_core` and `ink_engine` only; feature packages never import it and it imports none of them. The app shell wires it (`recognitionOverrides()`).
+- **Web / native boundary** (contract 7.4.1): `package:google_mlkit_digital_ink_recognition/` (always `as mlkit`) and `package:google_mlkit_commons/` only in `*_native.dart`, chosen by a conditional import with a stub — on the web the recognizer reports unavailable. No `dart:io` `Platform` anywhere.
+- **Tests**: `ws test --package ink_recognition`; `emulator`-tagged tests need the functions emulator: `dart run tool/ws.dart with-heavy-lock -- npx --prefix functions firebase emulators:exec --config app/firebase.json --only functions,auth --project demo-noteapp "dart run tool/ws.dart test --run-skipped -t emulator --package ink_recognition"` (contract 7.4.6).

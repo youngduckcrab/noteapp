@@ -1,0 +1,5 @@
+# packages/ink_recognition/dart_test.yaml — contract 7.4.6 (R15: every tag used is declared here)
+tags:
+  golden: {}
+  integration: {skip: "integration stage only — ws test --run-skipped -t integration"}
+  emulator: {skip: "functions emulator only — ws with-heavy-lock -- npx --prefix functions firebase emulators:exec … ws test --run-skipped -t emulator (container + CI; 05-library 6.11.7)"}

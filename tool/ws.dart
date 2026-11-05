@@ -6,12 +6,18 @@ import 'dart:io';
 
 import 'src/cli.dart';
 import 'src/flutter_runner.dart';
+import 'src/heavy_lock.dart';
 
 Future<void> main(List<String> arguments) async {
   final processes = IoProcessRunner();
   // SIGINT / SIGTERM: kill the running flutter / Chrome process trees and
-  // exit 130 / 143 instead of going on with the next member.
-  final guard = TerminationGuard.watch(processes);
+  // exit 130 / 143 instead of going on with the next member. The heavy test
+  // lock is released after the children are gone (docs/plans/m5-7/01-infra.md
+  // 6.13).
+  final guard = TerminationGuard.watch(
+    processes,
+    beforeExit: releaseHeldHeavyLocks,
+  );
   final code = await runWs(arguments, context: WsContext(processes: processes));
   // A signal arrived: the guard exits with 130 / 143 once the process trees
   // are gone.

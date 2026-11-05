@@ -1,5 +1,6 @@
 # Shared lint configuration for the whole workspace (INFRA,
-# docs/plans/01-infra.md 6.2, contract 00-overview 7.4.2). Members must not
+# docs/plans/01-infra.md 6.2 and docs/plans/m5-7/01-infra.md 6.2, contract
+# 00-overview 7.4.2). Members must not
 # add their own analysis_options.yaml (ws check R3). CI runs
 # `flutter analyze --fatal-infos`, so infos fail the build too.
 include: package:flutter_lints/flutter.yaml
@@ -28,6 +29,9 @@ analyzer:
     # Fake workspaces for the checker tests: they contain rule violations,
     # unresolved imports and unformatted code on purpose.
     - "tool/test/fixtures/**"
+    # Server functions (SYNC, Node + TypeScript — not a Dart member,
+    # contract 7.1 rule 6; docs/plans/m5-7/01-infra.md 6.2).
+    - "functions/**"
 
 linter:
   rules:

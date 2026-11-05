@@ -312,7 +312,12 @@ final class TerminationGuard {
   }
 
   /// Watches the real SIGINT (and SIGTERM, not on Windows) of this process.
-  factory TerminationGuard.watch(ChildTerminator children) {
+  /// [beforeExit] runs after the children are stopped, right before `exit`
+  /// (releases the heavy test lock).
+  factory TerminationGuard.watch(
+    ChildTerminator children, {
+    void Function()? beforeExit,
+  }) {
     final watched = [
       ProcessSignal.sigint,
       if (!Platform.isWindows) ProcessSignal.sigterm,
@@ -328,7 +333,10 @@ final class TerminationGuard {
     return TerminationGuard(
       signals: signals,
       children: children,
-      exit: exit,
+      exit: (code) {
+        beforeExit?.call();
+        exit(code);
+      },
       err: stderr,
     );
   }

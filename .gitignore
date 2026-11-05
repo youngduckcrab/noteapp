@@ -1,5 +1,5 @@
-# Root ignores (INFRA, docs/plans/01-infra.md 3.1). Members and app/ may add
-# their own .gitignore for package-local files.
+# Root ignores (INFRA, docs/plans/01-infra.md 3.1, docs/plans/m5-7/01-infra.md
+# 3.1). Members and app/ may add their own .gitignore for package-local files.
 .dart_tool/
 build/
 **/.flutter-plugins-dependencies
@@ -7,6 +7,20 @@ build/
 # Signing material never goes into git.
 app/android/key.properties
 *.jks
+# More signing material (Android upload / iOS distribution — never in git).
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# Server functions (SYNC, contract 7.4.7). functions/.env.demo-noteapp is
+# committed (demo values only) — no pattern here may match it.
+functions/node_modules/
+functions/lib/
+functions/eval-out/
+functions/.env.local
+functions/.secret.local
+firebase-debug*.log
 
 # Firebase CLI local state.
 .firebase/

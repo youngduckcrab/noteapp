@@ -251,6 +251,36 @@ library;
       expect(r15(), isEmpty);
     });
 
+    test('media and emulator (2차, contract 7.4.6) are checked like '
+        'integration', () {
+      expect(rules.skipByDefaultTags, containsAll(['media', 'emulator']));
+      fixture = FixtureWorkspace.clean({
+        'packages/ink_engine/dart_test.yaml':
+            'tags:\n  media: {}\n  emulator: {}\n',
+        'packages/ink_engine/test/web/rec_test.dart':
+            "@Tags(['media'])\nlibrary;\n",
+        'packages/ink_engine/test/emu_test.dart':
+            "void main() { test('e', () {}, tags: ['emulator']); }\n",
+      });
+      expect(r15().map((v) => v.message), [
+        contains(
+          "tag 'emulator' used in test/emu_test.dart but "
+          'dart_test.yaml does not skip it',
+        ),
+        contains(
+          "tag 'media' used in test/web/rec_test.dart but "
+          'dart_test.yaml does not skip it',
+        ),
+      ]);
+
+      fixture.write(
+        'packages/ink_engine/dart_test.yaml',
+        'tags:\n  media: {skip: "Chrome fake microphone"}\n'
+            '  emulator: {skip: "functions emulator"}\n',
+      );
+      expect(r15(), isEmpty);
+    });
+
     test('golden only needs a declaration', () {
       fixture = FixtureWorkspace.clean({
         'packages/ink_engine/dart_test.yaml': _integrationSkipped,
@@ -390,10 +420,11 @@ void main() {
     );
   });
 
-  test('the real rules file skips integration and perf by default', () {
+  test('the real rules file skips integration, perf and (2차) media and '
+      'emulator by default', () {
     expect(
       WorkspaceRules.load(realRulesPath).skipByDefaultTags,
-      unorderedEquals(['integration', 'perf']),
+      unorderedEquals(['integration', 'perf', 'media', 'emulator']),
     );
   });
 }

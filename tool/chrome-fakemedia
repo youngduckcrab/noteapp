@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Chrome with a fake microphone / camera for `media`-tagged tests (contract 7.4.6). `ws test -t media
+# --platform chrome` passes this file as CHROME_EXECUTABLE and the Chrome that locateChrome found as
+# NOTEAPP_REAL_CHROME. (INFRA, docs/plans/m5-7/01-infra.md 6.13)
+set -euo pipefail
+real="${NOTEAPP_REAL_CHROME:-}"
+# Never start this wrapper itself (CHROME_EXECUTABLE pointing here).
+if [[ -n "$real" && "$real" -ef "$0" ]]; then real=""; fi
+if [[ -z "$real" ]]; then
+  for c in /usr/local/bin/chrome-nosandbox google-chrome google-chrome-stable chromium chromium-browser; do
+    if command -v "$c" >/dev/null 2>&1; then real="$(command -v "$c")"; break; fi
+  done
+fi
+[[ -n "$real" ]] || { echo 'chrome-fakemedia: no Chrome found' >&2; exit 3; }
+exec "$real" --use-fake-device-for-media-stream --use-fake-ui-for-media-stream \
+  --autoplay-policy=no-user-gesture-required "$@"

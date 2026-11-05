@@ -419,31 +419,27 @@ void main() {
     ]) {
       expect(text, contains(phrase));
     }
-    // Every push branch other than main (the development branch — the
-    // repository's default branch while there is no main) has its own
-    // how-to: filter the runs by that branch, or Run workflow from it.
-    final branches = [
-      for (final b
-          in ((android['on'] as YamlMap)['push'] as YamlMap)['branches']
-              as YamlList)
-        '$b',
-    ];
-    expect(branches.first, 'main');
-    expect(branches.skip(1), isNotEmpty);
-    expect(text, contains('### 개발 브랜치에서 받기'));
-    for (final branch in branches.skip(1)) {
-      expect(text, contains('`$branch`'));
-    }
+    // 2차 R2-B1 (m5-7/01-infra 6.16): the APK is built by hand only — the
+    // guide says so and walks through Run workflow on the default branch
+    // (the development branch while there is no main).
+    final on = android['on'] as YamlMap;
+    expect(on.keys, ['workflow_dispatch']);
     for (final phrase in [
-      '**Branch** 필터',
-      '저장소의 기본 브랜치',
-      '기본 브랜치에 있는 워크플로만',
-      '이 브랜치가 기본 브랜치라 버튼이 보여요',
+      '**Run workflow** 버튼을 눌렀을 때만 만들어져요',
+      '자동으로 만들지 않아요',
+      '### 1단계 — APK 만들기',
       '**Use workflow from**',
+      '`claude/note-app-planning-bk29xb`',
+      '저장소의 기본 브랜치에 있는 워크플로만',
+      '기본 브랜치라 버튼이 보여요',
+      '**Branch** 필터',
     ]) {
       expect(text, contains(phrase));
     }
-    // The development branch is the default branch: Run workflow is there.
+    // No promise of an APK on every push any more.
+    for (final phrase in ['올라갈 때마다 새 APK', '올라갈 때 만들어져요']) {
+      expect(text, isNot(contains(phrase)));
+    }
     expect(text, isNot(contains('버튼이 보이지 않아요')));
   });
 

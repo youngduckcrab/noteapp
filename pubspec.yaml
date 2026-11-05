@@ -1,4 +1,4 @@
-# Workspace root (INFRA, docs/plans/01-infra.md 3.2). No lib/: the root
+# Workspace root (INFRA, docs/plans/m5-7/01-infra.md 3.2). No lib/: the root
 # package only hosts the workspace scripts in tool/ and their tests.
 name: noteapp_workspace
 publish_to: none
@@ -18,6 +18,10 @@ workspace:
   # ink lab (03-ink T23, INFRA-O1): an app, not a public package — R14 skips
   # it (tool/workspace_rules.yaml `app_members`).
   - packages/ink_engine/example
+  # 2차 service packages (contract 7.1 v2.1).
+  - packages/media_io          # PDF
+  - packages/ink_recognition   # LIBRARY
+  - packages/pencil_bridge     # INFRA
 dev_dependencies:
   flutter_lints: 6.0.0
   yaml: 3.1.4
@@ -29,3 +33,6 @@ dev_dependencies:
   # R14 export name check (tool/src/export_names.dart, integration step G3);
   # the version test 1.31.1 already resolves (contract 7.5).
   analyzer: 13.3.0
+  # 2차 (contract 7.5 v2.1, CP2): native_config_test parses AndroidManifest /
+  # Info.plist. Already resolved transitively at 7.0.1 — no lock change.
+  xml: 7.0.1

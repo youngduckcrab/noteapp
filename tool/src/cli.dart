@@ -1,13 +1,17 @@
-/// Command line of `dart run tool/ws.dart` (docs/plans/01-infra.md 4.2).
+/// Command line of `dart run tool/ws.dart` (docs/plans/01-infra.md 4.2,
+/// docs/plans/m5-7/01-infra.md 4.2).
 ///
-/// Commands: `list`, `check` (R1–R15; R14 since the integration step G3),
-/// `analyze`, `test` (vm / chrome, `--affected-since`, `--all-if-no-base`),
-/// `affected`, `channel-id`, `build-info`, `finalize-web`,
-/// `web-assets verify|fetch` and `hosting-config`.
+/// Commands: `list`, `check` (R1–R16; R14 since the integration step G3,
+/// R16 since the 2차 step R2-B1), `analyze`, `test` (vm / chrome,
+/// `--affected-since`, `--all-if-no-base`, the heavy test lock and the fake
+/// media Chrome for `media`), `with-heavy-lock`, `affected`, `channel-id`,
+/// `build-info`, `finalize-web`, `web-assets verify|fetch` and
+/// `hosting-config`.
 ///
 /// Exit codes: 0 success, 1 check / test failure, 2 usage error, 3
 /// environment error (no workspace, flutter, git or Chrome not found, no
-/// base for `--affected-since` without `--all-if-no-base`).
+/// base for `--affected-since` without `--all-if-no-base`), 4 the heavy test
+/// lock did not come free in time, 130 / 143 stopped by SIGINT / SIGTERM.
 library;
 
 import 'dart:io';
@@ -20,6 +24,7 @@ import 'build_info_file.dart';
 import 'channel_id.dart';
 import 'export_names.dart';
 import 'flutter_runner.dart';
+import 'heavy_lock.dart';
 import 'hosting_config.dart';
 import 'rules.dart';
 import 'test_command.dart';
@@ -46,6 +51,7 @@ final class WsContext {
     String? workingDirectory,
     Downloader? download,
     DateTime Function()? now,
+    HeavyLocker? heavyLocker,
   }) : out = out ?? stdout,
        err = err ?? stderr,
        environment = environment ?? Platform.environment,
@@ -54,6 +60,7 @@ final class WsContext {
        workingDirectory = workingDirectory ?? Directory.current.path,
        download = download ?? httpDownload,
        now = now ?? DateTime.now,
+       heavyLocker = heavyLocker ?? HeavyLocker(),
        processes = processes ?? IoProcessRunner(out: out ?? stdout);
 
   /// Workspace root; `null` = search upwards from [workingDirectory].
@@ -78,6 +85,9 @@ final class WsContext {
 
   /// Clock for `build-info`.
   final DateTime Function() now;
+
+  /// Takes the heavy test lock (`ws test`, `ws with-heavy-lock`).
+  final HeavyLocker heavyLocker;
 }
 
 final class _EnvironmentError implements Exception {
@@ -104,6 +114,7 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
         ..addCommand(_ListCommand(ctx))
         ..addCommand(_CheckCommand(ctx))
         ..addCommand(_TestCommand(ctx))
+        ..addCommand(_WithHeavyLockCommand(ctx))
         ..addCommand(_AnalyzeCommand(ctx))
         ..addCommand(_AffectedCommand(ctx))
         ..addCommand(_ChannelIdCommand(ctx))
@@ -141,7 +152,16 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
   } on ExportNamesException catch (e) {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
+  } on _HeavyLockTimeout catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return heavyLockTimeoutExitCode;
   }
+}
+
+final class _HeavyLockTimeout implements Exception {
+  const _HeavyLockTimeout(this.message);
+
+  final String message;
 }
 
 abstract base class _WsCommand extends Command<int> {
@@ -197,6 +217,37 @@ abstract base class _WsCommand extends Command<int> {
   void rejectRest() {
     final rest = argResults!.rest;
     if (rest.isNotEmpty) usageException('Unexpected arguments: $rest');
+  }
+
+  /// Minutes of the option [name] (`null` when not given).
+  Duration? minutesOption(String name) {
+    final text = argResults![name] as String?;
+    if (text == null) return null;
+    final minutes = num.tryParse(text);
+    if (minutes == null || minutes < 0) {
+      usageException('--$name must be a number of minutes, got `$text`');
+    }
+    return Duration(milliseconds: (minutes * 60000).round());
+  }
+
+  /// Takes the heavy test lock for [command] (docs/plans/m5-7/01-infra.md
+  /// 6.13). Throws [_HeavyLockTimeout] (exit code 4) after [timeout].
+  Future<HeavyLockLease> takeHeavyLock(String command, Duration timeout) async {
+    final path = heavyLockPath(ctx.environment);
+    final lease = await ctx.heavyLocker.acquire(
+      path: path,
+      command: command,
+      timeout: timeout,
+      log: ctx.out,
+    );
+    if (lease == null) {
+      throw _HeavyLockTimeout(
+        'the heavy test lock $path did not come free within '
+        '${timeout.inMinutes} min (another media / emulator / full Chrome '
+        'run is going on — see the lock file and $heavyLockLogName)',
+      );
+    }
+    return lease;
   }
 
   /// The members changed since [ref] (see `affectedMembers`).
@@ -394,6 +445,23 @@ final class _TestCommand extends _WsCommand {
             '${defaultChromeMemberTimeout.inMinutes} for chrome, none for vm; '
             '0 = none.',
         valueHelp: 'minutes',
+      )
+      ..addFlag(
+        'heavy-lock',
+        defaultsTo: true,
+        help:
+            'Take the container-wide heavy test lock ($defaultHeavyLockPath, '
+            '\$$heavyLockPathVariable) for media / emulator runs and full '
+            'Chrome runs (no --package), for the whole run including '
+            'retries. Not taken when \$$heavyLockHeldVariable=1.',
+      )
+      ..addOption(
+        'heavy-lock-timeout',
+        help:
+            'How long to wait for the heavy test lock (default '
+            '${defaultHeavyLockTimeout.inMinutes}); exit code '
+            '$heavyLockTimeoutExitCode when it does not come free.',
+        valueHelp: 'minutes',
       );
   }
 
@@ -416,6 +484,7 @@ final class _TestCommand extends _WsCommand {
       usageException('--all-if-no-base needs --affected-since');
     }
     var packages = args['package'] as List<String>;
+    final packagesChosen = packages.isNotEmpty;
     List<String>? affected;
     if (since != null) {
       try {
@@ -458,17 +527,9 @@ final class _TestCommand extends _WsCommand {
         return 0;
       }
     }
-    final timeoutText = args['member-timeout'] as String?;
-    Duration? memberTimeout;
-    if (timeoutText != null) {
-      final minutes = num.tryParse(timeoutText);
-      if (minutes == null || minutes < 0) {
-        usageException(
-          '--member-timeout must be a number of minutes, got `$timeoutText`',
-        );
-      }
-      memberTimeout = Duration(milliseconds: (minutes * 60000).round());
-    }
+    final memberTimeout = minutesOption('member-timeout');
+    final lockTimeout =
+        minutesOption('heavy-lock-timeout') ?? defaultHeavyLockTimeout;
     final options = TestOptions(
       memberTimeout: memberTimeout,
       packages: packages,
@@ -494,6 +555,7 @@ final class _TestCommand extends _WsCommand {
     }
     final flutter = requireFlutter();
     String? chrome;
+    final environment = <String, String>{};
     if (plan.platform == TestPlatform.chrome) {
       chrome = locateChrome(
         environment: ctx.environment,
@@ -506,19 +568,116 @@ final class _TestCommand extends _WsCommand {
           '${chromeExecutableNames.join(', ')} on PATH',
         );
       }
+      if (options.usesFakeMediaChrome) {
+        // contract 7.4.6 v2.1 (CP10): media tests always get the fake
+        // microphone; areas never set CHROME_EXECUTABLE themselves.
+        final wrapper = p.join(workspace.root, chromeFakeMediaPath);
+        if (!ctx.isFile(wrapper)) {
+          throw _EnvironmentError(
+            '$chromeFakeMediaPath not found (needed for -t media)',
+          );
+        }
+        // A CHROME_EXECUTABLE that already is the wrapper would make it
+        // start itself; it then searches PATH on its own.
+        if (!p.equals(chrome, wrapper)) {
+          environment[realChromeVariable] = chrome;
+        }
+        chrome = wrapper;
+      }
     }
-    final runner = TestRunner(
-      processes: ctx.processes,
-      flutter: flutter,
-      dart: ctx.resolvedExecutable,
-      chrome: chrome,
-      out: ctx.out,
+
+    final heavy = options.isHeavy(packagesChosen: packagesChosen);
+    final lockByParent = heavyLockHeldByParent(ctx.environment);
+    HeavyLockLease? lease;
+    if (heavy && !lockByParent && args['heavy-lock'] as bool) {
+      lease = await takeHeavyLock(
+        'ws test ${[...?argResults?.arguments].join(' ')}',
+        lockTimeout,
+      );
+    }
+    if (lease != null || (heavy && lockByParent)) {
+      environment[heavyLockHeldVariable] = '1';
+    }
+    try {
+      final runner = TestRunner(
+        processes: ctx.processes,
+        flutter: flutter,
+        dart: ctx.resolvedExecutable,
+        chrome: chrome,
+        out: ctx.out,
+        environment: environment,
+      );
+      final results = await runner.run(plan, options);
+      ctx.out
+        ..writeln()
+        ..writeln(formatTestSummary(results, plan));
+      if (lease != null) {
+        ctx.out.writeln(
+          'ws test: heavy test lock waited ${lease.waited.inSeconds}s '
+          '(잠금 대기 ${lease.waited.inSeconds}초)',
+        );
+      } else if (heavy && lockByParent) {
+        ctx.out.writeln(
+          'ws test: heavy test lock held by the caller '
+          '($heavyLockHeldVariable=1)',
+        );
+      }
+      return results.any((r) => r.isFailure) ? 1 : 0;
+    } finally {
+      lease?.release();
+    }
+  }
+}
+
+final class _WithHeavyLockCommand extends _WsCommand {
+  _WithHeavyLockCommand(super.ctx) {
+    argParser.addOption(
+      'timeout',
+      help:
+          'How long to wait for the lock (default '
+          '${defaultHeavyLockTimeout.inMinutes}); exit code '
+          '$heavyLockTimeoutExitCode when it does not come free.',
+      valueHelp: 'minutes',
     );
-    final results = await runner.run(plan, options);
-    ctx.out
-      ..writeln()
-      ..writeln(formatTestSummary(results, plan));
-    return results.any((r) => r.isFailure) ? 1 : 0;
+  }
+
+  @override
+  String get name => 'with-heavy-lock';
+
+  @override
+  String get invocation =>
+      'ws with-heavy-lock [--timeout <minutes>] -- <command> [arguments]';
+
+  @override
+  String get description =>
+      'Run a command under the container-wide heavy test lock '
+      '($defaultHeavyLockPath, \$$heavyLockPathVariable) with '
+      '$heavyLockHeldVariable=1, and return its exit code (contract 7.4.6 — '
+      'npm / shell scripts; a `ws test` inside does not take the lock again).';
+
+  @override
+  Future<int> run() async {
+    final rest = argResults!.rest;
+    if (rest.isEmpty) usageException('missing the command after `--`');
+    final timeout = minutesOption('timeout') ?? defaultHeavyLockTimeout;
+    final lease = heavyLockHeldByParent(ctx.environment)
+        ? null
+        : await takeHeavyLock(
+            'ws with-heavy-lock -- ${rest.join(' ')}',
+            timeout,
+          );
+    try {
+      final result = await ctx.processes.run(
+        rest.first,
+        rest.sublist(1),
+        workingDirectory: ctx.workingDirectory,
+        environment: const {heavyLockHeldVariable: '1'},
+      );
+      // A child ended by a signal: report it the shell way (128 + n).
+      return result.exitCode < 0 ? 128 - result.exitCode : result.exitCode;
+    } finally {
+      lease?.release();
+    }
   }
 }
 

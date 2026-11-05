@@ -1,0 +1,72 @@
+# Server functions (INFRA workflow, SYNC scripts — docs/plans/m5-7/01-infra.md
+# 6.14, contract 00-overview 7.4.7): `npm ci` and `npm test` of functions/
+# (Node 22). R2-B1 skeleton: the emulator run (`npm run test:emulator`) and
+# the Dart `emulator` tests of ink_recognition are turned on in J16, once
+# SYNC's functions/ (R2-B7b) and LIBRARY's emulator tests exist.
+#
+# Runs only when its paths change, or by hand (the free Actions minutes —
+# 01-infra 6.16). Until functions/ exists (R2-B7b) every step after the
+# checkout is skipped (`hashFiles` guard on each step — it cannot be used in
+# a job-level `if:`) and the summary says so. No secrets: the emulator reads
+# the committed demo values of functions/.env.demo-noteapp (SYNC).
+name: Functions
+
+on:
+  push:
+    paths:
+      - 'functions/**'
+      - 'app/firebase.json'
+      - '.github/workflows/functions.yml'
+      - 'packages/ink_recognition/**'
+  workflow_dispatch:
+
+concurrency:
+  group: functions-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  functions:
+    name: Server functions (npm test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        if: hashFiles('functions/package.json') != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install
+        if: hashFiles('functions/package.json') != ''
+        working-directory: functions
+        run: npm ci
+
+      # Contract 7.4.7: the run must have run at least one test (node --test
+      # prints `# tests N` with the TAP reporter, `ℹ tests N` with spec).
+      - name: Unit tests
+        if: hashFiles('functions/package.json') != ''
+        working-directory: functions
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/npm-test.log"
+          count="$(grep -Eo '^(# |ℹ )tests [0-9]+' "$RUNNER_TEMP/npm-test.log" | tail -n 1 | grep -Eo '[0-9]+$' || true)"
+          if [ -z "$count" ] || [ "$count" -eq 0 ]; then
+            echo "::error::npm test ran no test (tests: ${count:-not reported})"
+            exit 1
+          fi
+          echo "## 서버 함수" >> "$GITHUB_STEP_SUMMARY"
+          echo "- npm test: 시험 ${count}개 통과" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Skipped (no functions/)
+        if: hashFiles('functions/package.json') == ''
+        run: |
+          echo '## 서버 함수' >> "$GITHUB_STEP_SUMMARY"
+          echo '- functions/ 없음 — 건너뜀 (SYNC R2-B7b 전)' >> "$GITHUB_STEP_SUMMARY"
