@@ -165,7 +165,14 @@ final class DriftSessions {
       final noteRow = await (_db.select(
         _db.notes,
       )..where((r) => r.id.equals(noteId))).getSingleOrNull();
-      final note = noteRow == null ? null : noteOf(noteRow);
+      // A purged note (trash purge, RemotePurge) keeps its last state, read-only (6.10.3).
+      final note = noteRow != null
+          ? noteOf(noteRow)
+          : session.note.isDeleted
+          ? null
+          : session.note.copyWith(
+              deletedAt: s.clock.now().millisecondsSinceEpoch,
+            );
       if (!t.remote) {
         if (note != null) session.noteCommitted(note);
         continue;

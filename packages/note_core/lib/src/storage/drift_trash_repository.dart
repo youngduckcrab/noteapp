@@ -277,44 +277,7 @@ final class DriftTrashRepository implements TrashRepository {
       await tx.purge(EntityRef(EntityKind.folder, f.id));
     }
     final noteIds = [for (final n in notes) n.id];
-    final purgedPages = <PageId>[];
-    for (final chunk in _chunks(noteIds)) {
-      final pageIds = [
-        for (final r
-            in await (_db.selectOnly(_db.pages)
-                  ..addColumns([_db.pages.id])
-                  ..where(_db.pages.noteId.isIn(chunk)))
-                .get())
-          r.read(_db.pages.id)!,
-      ];
-      purgedPages.addAll(pageIds);
-      await (_db.delete(_db.strokes)..where((t) => t.noteId.isIn(chunk))).go();
-      for (final pages in _chunks(pageIds)) {
-        await (_db.delete(
-          _db.strokes,
-        )..where((t) => t.pageId.isIn(pages))).go();
-      }
-      await (_db.delete(_db.pages)..where((t) => t.noteId.isIn(chunk))).go();
-      await (_db.delete(
-        _db.recordings,
-      )..where((t) => t.noteId.isIn(chunk))).go();
-      await (_db.delete(_db.outbox)..where(
-            (t) =>
-                t.noteId.isIn(chunk) &
-                t.entityKind.isIn([
-                  EntityKind.page.name,
-                  EntityKind.stroke.name,
-                  EntityKind.recording.name,
-                ]),
-          ))
-          .go();
-    }
-    if (noteIds.isNotEmpty) {
-      tx
-        ..touch(EntityKind.page)
-        ..touch(EntityKind.stroke)
-        ..touch(EntityKind.recording);
-    }
+    final purgedPages = await deleteNoteContents(tx, noteIds);
     for (final id in noteIds) {
       await tx.purge(EntityRef(EntityKind.note, id));
     }
@@ -360,4 +323,56 @@ final class DriftTrashRepository implements TrashRepository {
     }
     return count;
   });
+}
+
+/// Deletes the pages, strokes and recordings of [noteIds] and their pending outbox
+/// entries (purge of a trash group, 6.8; RemotePurge, 6.10.3). The note rows stay.
+/// Returns the deleted page ids (their thumbnails go after the commit).
+Future<List<PageId>> deleteNoteContents(
+  WriteTxn tx,
+  List<NoteId> noteIds,
+) async {
+  final db = tx.db;
+  final purgedPages = <PageId>[];
+  for (final chunk in _chunks(noteIds)) {
+    final pageIds = [
+      for (final r
+          in await (db.selectOnly(db.pages)
+                ..addColumns([db.pages.id])
+                ..where(db.pages.noteId.isIn(chunk)))
+              .get())
+        r.read(db.pages.id)!,
+    ];
+    purgedPages.addAll(pageIds);
+    await (db.delete(db.strokes)..where((t) => t.noteId.isIn(chunk))).go();
+    for (final pages in _chunks(pageIds)) {
+      await (db.delete(db.strokes)..where((t) => t.pageId.isIn(pages))).go();
+      await (db.delete(db.outbox)..where(
+            (t) =>
+                t.entityKind.equals(EntityKind.stroke.name) &
+                t.pageId.isIn(pages),
+          ))
+          .go();
+    }
+    await (db.delete(db.pages)..where((t) => t.noteId.isIn(chunk))).go();
+    await (db.delete(db.recordings)..where((t) => t.noteId.isIn(chunk))).go();
+    await (db.delete(db.outbox)..where(
+          (t) =>
+              t.noteId.isIn(chunk) &
+              t.entityKind.isIn([
+                EntityKind.page.name,
+                EntityKind.stroke.name,
+                EntityKind.recording.name,
+              ]),
+        ))
+        .go();
+  }
+  if (noteIds.isNotEmpty) {
+    tx
+      ..touch(EntityKind.page)
+      ..touch(EntityKind.stroke)
+      ..touch(EntityKind.recording)
+      ..forgetPageNotes();
+  }
+  return purgedPages;
 }

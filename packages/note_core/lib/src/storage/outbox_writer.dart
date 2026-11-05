@@ -125,3 +125,77 @@ Future<List<OutboxEntry>> readOutbox(
   if (afterSeq != null) q.where((t) => t.seq.isBiggerThanValue(afterSeq));
   return [for (final r in await q.get()) outboxEntryOf(r)];
 }
+
+/// The pending outbox row of ([kind], [id]); null if none.
+Future<OutboxRow?> outboxRowOf(NoteDatabase db, EntityKind kind, String id) =>
+    (db.select(
+          db.outbox,
+        )..where((t) => t.entityKind.equals(kind.name) & t.entityId.equals(id)))
+        .getSingleOrNull();
+
+/// The changed fields stored in an outbox row.
+Set<String> outboxFieldsOf(OutboxRow row) => _fieldsOf(row.changedFields);
+
+/// Deletes the pending entry of ([kind], [id]); returns whether there was one.
+Future<bool> deleteOutboxEntry(
+  NoteDatabase db,
+  EntityKind kind,
+  String id,
+) async =>
+    await (db.delete(
+          db.outbox,
+        )..where((t) => t.entityKind.equals(kind.name) & t.entityId.equals(id)))
+        .go() >
+    0;
+
+/// WriteMerged.fieldsToUpload (6.10.3): the entry's fields become EXACTLY [fields] —
+/// empty deletes it; no entry and non-empty adds one (new seq); an existing entry
+/// (upsert or purge) becomes an upsert of [fields], seq kept, rev + 1, hlc = [hlc].
+Future<void> setOutboxFields(
+  NoteDatabase db, {
+  required OutboxRow? current,
+  required EntityKind kind,
+  required String id,
+  NoteId? noteId,
+  PageId? pageId,
+  required Set<String> fields,
+  required Hlc hlc,
+  required EpochMillis now,
+}) async {
+  if (fields.isEmpty) {
+    if (current != null) {
+      await (db.delete(
+        db.outbox,
+      )..where((t) => t.seq.equals(current.seq))).go();
+    }
+    return;
+  }
+  if (current == null) {
+    await db
+        .into(db.outbox)
+        .insert(
+          OutboxCompanion.insert(
+            rev: 1,
+            entityKind: kind.name,
+            entityId: id,
+            noteId: Value(noteId),
+            pageId: Value(pageId),
+            op: OutboxOp.upsert.name,
+            changedFields: _fieldsText(fields),
+            hlc: hlc.toString(),
+            enqueuedAt: now,
+          ),
+        );
+    return;
+  }
+  await (db.update(db.outbox)..where((t) => t.seq.equals(current.seq))).write(
+    OutboxCompanion(
+      rev: Value(current.rev + 1),
+      noteId: Value(noteId ?? current.noteId),
+      pageId: Value(pageId ?? current.pageId),
+      op: Value(OutboxOp.upsert.name),
+      changedFields: Value(_fieldsText(fields)),
+      hlc: Value(hlc.toString()),
+    ),
+  );
+}

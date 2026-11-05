@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 3 (동시 개발 단계)
-- 다음 할 일: T14 (동기화 창구 `DriftSyncStore` — 9.1 '동기화 창구 테스트' 전부) — 그다음 (T15·T16 언제든), T19, T17·T18
+- 마지막 세션: 4 (동시 개발 단계)
+- 다음 할 일: T19 (백업 내보내기) 또는 T15·T16(언제든) — 그다음 T17·T18
 
 ## 작업 표
 
@@ -23,7 +23,7 @@
 | T11 | 완료 | 7fa9c6d | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart`(필드 버전·outbox 필드, 100단계 undo 후 초기 상태, 별칭 정리) |
 | T12 | 완료 | 3503f6c | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
 | T13 | 완료 | ac1965c | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
-| T14 | 남음 | | 9.1 '동기화 창구 테스트' 전부 (`test/sync/*`) |
+| T14 | 완료 | (이 커밋) | `test/sync/sync_store_test.dart`(outbox·readVersioned·세 결정·기기 로컬 필드·pendingLocalFields·origin·세션 N-7/영구 삭제·쓰기 Future 규칙), `field_lww_convergence_test.dart`, `version_invariant_test.dart`(500단계), `commit_repairs_test.dart`, `meta_kv_test.dart`, `reassign_owner_test.dart`, `duplicate_for_recovery_test.dart`, 도우미 `test/sync/support/sync_support.dart` |
 | T15 | 남음 | | `test/migration/note_migrator_test.dart` |
 | T16 | 남음 | | `test/web/drift_web_persistence_test.dart`, `storage_info_browser_test.dart`, `delete_local_data_browser_test.dart`, `open_time_browser_test.dart`(perf) |
 | T17 | 남음 | | `test/providers/providers_real_test.dart` |
@@ -80,15 +80,27 @@
 - T11: 별칭 정리 — B2는 '히스토리가 빌 때까지 유지'였다. T11은 엔티티마다 그 엔티티를 건드리는 단계 수(undo + redo 스택)를 세어, 마지막 단계가 빠질 때 그 엔티티의 별칭을 함께 지운다(`EditHistory._steps`, 계획서 6.7.3 '해당 항목이 빠질 때'를 엔티티 단위로 해석 — 아래 단계가 같은 엔티티의 별칭을 필요로 하는 경우(지우개 → undo → 새 편집 → 추가 undo)를 지키려고). 새 단계는 redo를 비우기 전에 센다. 어떤 단계도 건드리지 않는 엔티티의 별칭은 만들지 않는다. 테스트용 `debugAliasedEntityCount`.
 - T11: 원격 충돌·바뀐 필드 계산은 B2 엔진(`changedFieldsOf`, 버전 + 별칭 비교)이 이미 하고 있었고, T10에서 세션 쓰기가 엔진 버전을 그대로 쓰게 되어 실제 저장소에서도 성립한다. T11은 실제 저장소 테스트로 고정했다.
 
+- T14: `DriftSyncStore`(`storage/drift_sync_store.dart`). 모든 쓰기는 쓰기 큐 작업 1개(= 그 트랜잭션의 savepoint). `ArgumentError`는 큐 전(검증), `StateError`(WriteMerged 불변식·종류/ID 불일치, reassignOwner `from` 불일치)는 작업 안에서. **정책 예외**는 내부 `Error` 래퍼(`_PolicyFailure`)로 작업 밖에 실어 재시도 없이 savepoint만 되돌리고, `applyRemote`가 원래 예외를 원래 스택으로 다시 던진다(쓰기 큐의 '그 밖의 예외 = 저장 실패 → 재시도' 규칙을 피함). 커밋 실패는 재시도(정책도 다시 호출 — 순수 함수라 같은 결과).
+- T14: `HlcClock.receive`는 작업 끝에서 한 번(모든 `RemoteUpsert`의 최대 버전) — `WriteTxn.putRemote(advanceClock: false)`. 정책 예외로 끝나면 시계도 그대로.
+- T14: 원격·복구 행 쓰기 = `putRemote`(받은 버전 그대로, 기존 행의 로컬 열 유지) + 새 행 규칙(노트는 로컬 값 없이 — `lastOpenedAt` null·`pageCount` 0 뒤 재계산, 페이지 `contentRevision` 0, 에셋은 `AssetStoreImpl.localStateOf`로 `hasLocalBytes`·`chunk_count`). 노트 행 자체의 `updatedAt`도 max(현재, 받은 값). 작업 끝에 쓰인(이미 있던) 페이지 `content_rev + 1`(한 번), 영향 노트마다 `refreshNoteDerived(updatedAt: 받은 값 최대)`.
+- T14: `RemotePurge`는 그 id의 폴더/노트 행(**로컬에서 활성이어도**) + `trashRootId == id`인 폴더·노트 + 노트들의 페이지·획·녹음과 그 outbox 항목 전부를 지우고 새 outbox 항목은 없다. 지운 행이 하나라도 있을 때만 `purged++`. `affectedNoteIds` = taken/merged로 쓰인 노트(페이지·획·녹음의 노트 포함) ∪ 영구 삭제된 노트. 트래시 `_purgeGroup`의 페이지·획·녹음 삭제를 `deleteNoteContents(tx, noteIds)`로 빼서 같이 쓴다(획 outbox는 `pageId`로도 지움).
+- T14: `WriteMerged.fieldsToUpload`는 걸러내지 않고 그대로 저장(계약 'EXACTLY'). 항목 `hlc` = `versions.max`, 힌트 채움. `TakeRemote`는 purge 항목이면 `dropPendingLocal`과 무관하게 지움(v1.3).
+- T14: `commitRepairs`의 `fields`는 `syncedFieldsOf`로 메타 키·로컬 전용 키를 빼고, 남는 것이 없으면 `ArgumentError`. `*`가 있으면(또는 행이 없으면) 엔티티 전체를 `*`·새 HLC로. 엔티티 ID 검사는 `isValidEntityId`, 설정은 설정 키 규칙(`checkSettingKeyName` — 키에 `.`가 있어 ID 규칙과 다름).
+- T14: `reassignOwner` — `to`가 빈 문자열이면 `ArgumentError`. `from` 비교는 트랜잭션 안에서 kv `store.ownerId`(같은 트랜잭션에 앞서 큐에 든 reassign 반영)와. 바뀐 행(folders·notes·pen_presets·assets)마다 `EntityChange`, 커밋 뒤(`afterCommit`) `DriftNoteStore.switchOwner(to)` → watch 재질의가 새 소유자로. `from == to`면 쓰기 없음.
+- T14: `duplicateNoteForRecovery` — 원본 행은 소유자를 따지지 않는다(행이 있으면 복사). 폴더 = 원래 폴더가 (현재 소유자의) 활성이면 그 폴더, 아니면 최상위. 대상 위치의 맨 뒤 sortKey. `titleSuffix`가 200자 이상이면 `ArgumentError`(`copyItems`와 같음). 복사는 `DriftLibraryRepository.copyNote`.
+- T14: `watchPendingCount` = `WatchHub` 재질의(엔티티 종류를 건드린 커밋, 또는 의사 kv 키 `#outbox`를 건드린 커밋 — `acknowledge` 등) + distinct. `pendingChanges(limit < 1)` → `ArgumentError`. `readVersioned`는 종류별 `IN` 질의(500개씩), 요청 순서대로(중복 허용). `readMeta`는 큐를 flush하지 않고 커밋된 값을 읽는다.
+- T14: 열린 세션의 노트가 영구 삭제되면(트래시 purge·`RemotePurge`) 세션 노트를 `deletedAt`을 찍은 마지막 상태로 바꿔 읽기 전용으로 만든다(`DriftSessions.committed`, 6.10.3 끝 문단).
+
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
 
 ## 다음 세션 메모
 
-- T14 메모(세션): `applyRemote`·`commitRepairs`가 커밋 batch에 `EntityChange` 힌트(page·stroke의 `noteId`, stroke의 `pageId`)를 채우면 열린 세션 반영(N-7)은 `onCommitted` 훅으로 저절로 된다. 노트 파생 값 재계산(6.10.3 (c))은 `refreshNoteDerived`를 쓰면 된다(`updatedAt:`에 적용값을 넘기면 max). `content_rev` + 1(6.10.3 (d))은 T14에서 DB에 쓴다(세션 메모리는 위 규칙으로 맞춤).
+- 세션 4 끝 상태: T14 완료. 실제 저장소의 `SyncStore` 전부가 동작한다. 남은 `UnimplementedError`: `exportBackupJson`(T19, 실제·가짜 둘 다). 검사: 패키지 VM 567개 통과(Chrome은 test/web 변경 없음 — 24개), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
+- T14 테스트 도우미(`test/sync/support/sync_support.dart`): `upsert(entity, hlc, overrides)`(JSON 디코드 + version = max, SYNC가 넘기는 모양), `remoteAfter(store)`(로컬 스탬프보다 새 원격 HLC), `RecordingPolicy`(호출 기록), `fieldLwwPolicy()`(SYNC 6.3.4 모양의 필드 단위 LWW, `entityVersionOnly: true`는 대조군), `push(from, to, policy)`(outbox → readVersioned → applyRemote → ack). 두 저장소를 동시에 여는 테스트는 `driftRuntimeOptions.dontWarnAboutMultipleDatabases`를 켠다.
+- 원격 쓰기 흉내는 이제 `store.sync.applyRemote([...], policy: newerVersionWinsPolicy)`로 써도 된다(T10·T11 테스트의 `queue.run(... putRemote ...)`는 그대로 둠).
 - 테스트 도우미: 원격 쓰기 흉내는 `store.queue.run((tx) => tx.putRemote(...), origin: ChangeOrigin.remote)`(`test/edit/undo_support.dart` `UndoFixture.remote`, `note_session_test`의 `_putRemote`). T14가 `applyRemote`를 만들면 그것으로 바꿔도 된다.
 - 세션 3 끝 상태: T13·T10·T11 완료. 실제 저장소의 `assets`·`thumbnails`·`openSession`(N-1~N-7)·undo/redo(원격 충돌 건너뜀, 필드 단위 outbox)가 동작한다. 남은 `UnimplementedError`: `SyncStore` 나머지(T14), `exportBackupJson`(T19). 검사: 패키지 VM 513개·Chrome 24개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 - **fake_async 주의(다른 영역에도 알릴 것)**: idb_shim 메모리 IndexedDB(sembast)는 0.1 ms 타이머로 끝난다. `openTestNoteStore` 저장소에서 에셋 `put`·썸네일 쓰기를 fake_async 안에서 쓰면 `flushMicrotasks`만으로는 안 끝나고 시간을 진행해야 한다(`asset_store_test`의 `pumpUntil` — 1 ms씩 elapse). 라이브러리·세션 쓰기(SQLite)는 전처럼 마이크로태스크만으로 끝난다.
-- T14 메모(에셋): `applyRemote`의 새 에셋 행은 `store.assets.localStateOf(id, size)`로 `hasLocalBytes`·`chunk_count`를 정해 `writeEntityRow(..., assetChunkCount:)`에 넘긴다(지금 `putRemote`는 새 행이면 엔티티 값 `false`·`chunk_count 0`). 기존 행은 `keepLocal`로 유지(이미 그렇게 동작).
 - T13 사용법: 에셋 바이트 경로 도우미는 `assets/blob_store.dart`(`writeChunks`·`readChunks`·`hasAllChunks`·`chunkCountFor`·`chunkKey`·`chunkPrefix`, 청크 4 MiB). 저장소의 블롭 DB는 `store.blobs`(`chunks`·`thumbnails`). `putLocal(..., assetChunkCount:)` 추가(null = 행 값 유지).
 
 - T7 쓰기 경로 사용법(T8 이후 모든 쓰기는 이것으로): `store.queue.run((tx) async { ... }, origin: ChangeOrigin.local, bytes: 점 바이트)`. 작업 안에서 `tx.putLocal(entity, 바뀐 JSON 키)`(HLC 찍기·필드 버전·행·outbox·`EntityChange`, `{*}` = 새로/전체, 로컬 전용·메타 키만이면 버전 유지·outbox 없음), `tx.putRemote(entity, versions)`(원격·복구 경로: 그대로 저장·outbox 없음·로컬 열 유지·고아 획 처리·HLC receive), `tx.purge(ref)`(행 삭제 + outbox purge), `tx.addChange`, `tx.afterCommit(f)`(커밋 뒤·ChangeBatch 전 메모리 갱신), `tx.noteIdOfPage`. 작업이 `Error`·`NoteCoreException`을 던지면 그 작업만 savepoint로 되돌리고 재시도 없이 그 오류로 완료, 그 밖의 예외는 트랜잭션 전체 롤백·재시도. 테스트 주입은 `store.queue.failNextCommits(n)`, 트랜잭션 수는 `debugTransactionCount`. 행 변환은 `row_mappers.dart`(`writeEntityRow`·`readVersionedRow`·`*Of(row)`), outbox 읽기는 `readOutbox`.

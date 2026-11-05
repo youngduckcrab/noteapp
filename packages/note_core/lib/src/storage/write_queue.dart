@@ -437,14 +437,18 @@ final class WriteTxn {
   }
 
   /// Remote write (internal path of applyRemote / commitRepairs): stores [entity] with
-  /// [versions] as given (no re-stamp, no outbox), keeps local-only columns, merges the
-  /// version into the HLC. A stroke whose page row is not here is an orphan: it is
+  /// [versions] as given (no re-stamp, no outbox), keeps local-only columns of an
+  /// existing row, merges the version into the HLC unless [advanceClock] is false (the
+  /// caller receives once). A stroke whose page row is not here is an orphan: it is
   /// stored with note_id '' and listed in the batch of the commit that brings its page
-  /// (6.10.1, 6.10.3, contract 7.2.10 v1.2).
-  Future<void> putRemote(
+  /// (6.10.1, 6.10.3, contract 7.2.10 v1.2). [assetChunkCount]: chunk_count of a new
+  /// asset row. Returns the routing hints (noteId null for an orphan stroke).
+  Future<({NoteId? noteId, PageId? pageId})> putRemote(
     SyncEntity entity,
-    EntityFieldVersions versions,
-  ) async {
+    EntityFieldVersions versions, {
+    bool advanceClock = true,
+    int? assetChunkCount,
+  }) async {
     _touched.add(entity.kind);
     final hints = await _hints(entity, null);
     final orphan = entity is Stroke && hints.noteId == null;
@@ -454,6 +458,7 @@ final class WriteTxn {
       versions,
       keepLocal: true,
       strokeNoteId: hints.noteId ?? '',
+      assetChunkCount: assetChunkCount,
     );
     if (!orphan) {
       addChange(
@@ -467,8 +472,12 @@ final class WriteTxn {
       );
     }
     if (entity is Page) await _adoptOrphans(entity);
-    receive(versions.max);
+    if (advanceClock) receive(versions.max);
+    return hints;
   }
+
+  /// Forgets the cached page → note lookups (after page rows were deleted).
+  void forgetPageNotes() => _pageNotes.clear();
 
   /// Deletes the row of [ref]; records an outbox purge unless [outbox] is false.
   Future<void> purge(

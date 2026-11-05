@@ -3,9 +3,8 @@
 // T6 opens the database, classifies open errors and keeps the per-device kv
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
 // content reader; T9 the trash; T10 note sessions; T12 pen presets and settings;
-// T13 assets and thumbnails (blob IndexedDB). The sync window and the backup are
-// filled in by CORE T14 / T19; until then their members throw UnimplementedError
-// naming the task.
+// T13 assets and thumbnails (blob IndexedDB); T14 the sync window. The backup arrives
+// with CORE T19; until then exportBackupJson throws UnimplementedError.
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -24,7 +23,6 @@ import '../repo/events.dart';
 import '../repo/note_store.dart';
 import '../repo/status.dart';
 import '../session/note_session.dart';
-import '../sync/sync_store.dart';
 import 'change_bus.dart';
 import 'db/note_database.dart';
 import 'drift_content_reader.dart';
@@ -32,6 +30,7 @@ import 'drift_library_repository.dart';
 import 'drift_pen_preset_repository.dart';
 import 'drift_sessions.dart';
 import 'drift_settings_repository.dart';
+import 'drift_sync_store.dart';
 import 'drift_trash_repository.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
@@ -89,7 +88,7 @@ final class DriftNoteStore implements NoteStore {
       chunks: assetChunks ?? blobs.chunks,
       thumbnailBytes: thumbnails.totalBytes,
     );
-    sync = _DriftSyncStore(this);
+    sync = DriftSyncStore(this);
     sessions = DriftSessions(this);
     queue.onCommitted = sessions.committed;
   }
@@ -169,7 +168,7 @@ final class DriftNoteStore implements NoteStore {
   final IdGenerator ids;
   final String? _storeKey;
   final StorageInfo _storageInfo;
-  final OwnerId _ownerId;
+  OwnerId _ownerId;
   bool _closed = false;
 
   final ChangeBus bus = ChangeBus();
@@ -186,6 +185,9 @@ final class DriftNoteStore implements NoteStore {
   @override
   OwnerId get ownerId => _ownerId;
 
+  /// reassignOwner committed (6.10.5): library queries use [to] from now on.
+  void switchOwner(OwnerId to) => _ownerId = to;
+
   @override
   late final DriftLibraryRepository library;
   @override
@@ -201,7 +203,7 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final ThumbnailCacheImpl thumbnails;
   @override
-  late final SyncStore sync;
+  late final DriftSyncStore sync;
 
   /// Open note sessions (6.14).
   late final DriftSessions sessions;
@@ -320,29 +322,3 @@ Future<_KvValues> _readOrCreateKv(
 Future<void> _putKv(NoteDatabase db, String key, String value) => db
     .into(db.kv)
     .insertOnConflictUpdate(KvCompanion.insert(key: key, value: value));
-
-/// Placeholders for members that later CORE tasks implement.
-Never _pending(String type, Invocation i, String task) =>
-    throw UnimplementedError('$type.${_name(i)}: arrives with CORE $task');
-
-String _name(Invocation i) {
-  final s = i.memberName.toString(); // Symbol("name")
-  final start = s.indexOf('"');
-  final end = s.lastIndexOf('"');
-  return start >= 0 && end > start ? s.substring(start + 1, end) : s;
-}
-
-/// SyncStore of the SQLite store. T6: identity values only; CORE T14 fills the rest.
-final class _DriftSyncStore implements SyncStore {
-  _DriftSyncStore(this._store);
-  final DriftNoteStore _store;
-
-  @override
-  String get deviceNodeId => _store.nodeId;
-
-  @override
-  OwnerId get ownerId => _store.ownerId;
-
-  @override
-  Never noSuchMethod(Invocation i) => _pending('SyncStore', i, 'T14');
-}
