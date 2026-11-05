@@ -1,7 +1,10 @@
 // lib/src/storage/connect/connect_browser.dart (internal) — web (drift WasmDatabase).
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:drift/wasm.dart';
 import 'package:idb_shim/idb_browser.dart';
+import 'package:meta/meta.dart';
 
 import '../../common/errors.dart';
 import '../../repo/note_store.dart';
@@ -39,9 +42,25 @@ Future<(QueryExecutor, StorageInfo)> openNoteDatabaseExecutor(
 IdbFactory blobIdbFactory(NoteStoreConfig config) =>
     config.inMemory ? newIdbFactoryMemory() : idbFactoryBrowser;
 
+/// How long the web reset waits while another tab keeps a database open (6.18).
+const Duration deleteBlockedTimeout = Duration(seconds: 10);
+
 /// Deletes every stored database with this name (IndexedDB or OPFS) and the blob
-/// IndexedDB (6.18).
-Future<void> deleteLocalData(NoteStoreConfig config) async {
+/// IndexedDB (6.18). A deletion blocked by another tab's open connection throws
+/// TimeoutException after [timeout] (the browser keeps the request pending).
+Future<void> deleteLocalData(
+  NoteStoreConfig config, {
+  @visibleForTesting Duration timeout = deleteBlockedTimeout,
+}) => _deleteAll(config).timeout(
+  timeout,
+  onTimeout: () => throw TimeoutException(
+    'The local databases of "${config.databaseName}" are still open in '
+    'another tab',
+    timeout,
+  ),
+);
+
+Future<void> _deleteAll(NoteStoreConfig config) async {
   await idbFactoryBrowser.deleteDatabase(config.web.blobDatabaseName);
   final probe = await WasmDatabase.probe(
     sqlite3Uri: Uri.base.resolve(config.web.sqlite3WasmPath),

@@ -3148,7 +3148,7 @@ final class NoteMigrator {
 | `unknown` | 그 밖의 예외(`cause`에 원본) | INFRA |
 
 - 실패 시 열던 연결·워커는 닫고 던진다(재시도·초기화가 바로 가능하게).
-- 웹 첫 열기 시간(Chrome 헤드리스, 7.3): 빈 DB(워커·wasm 로드 + 테이블 생성) 0.27~0.31 s, 획 1만 개 0.28~0.30 s, 획 10만 개(≈ 76 MB) 1.6~1.7 s. INFRA 부트스트랩 시간 제한 20초의 근거로 전달(I-6). iPad Safari 실측은 9.2·B8에서.
+- 웹 첫 열기 시간(Chrome 헤드리스, 7.3): 빈 DB(워커·wasm 로드 + 테이블 생성) 0.27~0.31 s, 획 1만 개 0.28~0.30 s, 획 10만 개(≈ 76 MB) 1.6~1.7 s. INFRA 부트스트랩 시간 제한 20초의 근거로 전달(I-6). iPad Safari 실측은 9.2·B8에서. **T16 실측**(실제 `openNoteStore` + 첫 `watchListing` 값, persist 요청 포함, `flutter test --platform chrome` = DDC 디버그 컴파일, 다른 영역 테스트와 CPU 공유, 2026-11-05): 빈 DB **567 ms**, 획 1만 개(50쪽 × 200획, 100점) 다시 열기 **338~411 ms**(3회), 200획 페이지 `openPage` 64 ms, `sharedIndexedDb`·`persist: false`(헤드리스 Chrome은 persist()를 바로 거절). 7.3 기준값의 2배 이내 — `test/web/open_time_browser_test.dart`(perf).
 - `deleteLocalNoteData(config)`: 같은 `config`(이름)로 이 프로세스에서 열린 저장소가 있으면 `StateError`. 웹은 drift `WasmDatabase.probe(databaseName:)`의 `existingDatabases` 중 같은 이름을 모두 `deleteDatabase`(IndexedDB·OPFS 어느 쪽이든) + blob IndexedDB(`config.web.blobDatabaseName`) 삭제. 다른 탭이 열고 있어 IndexedDB 삭제가 막히면 10초 뒤 `TimeoutException`. VM·네이티브는 DB 파일과 `-wal`·`-shm` 삭제, `inMemory`면 아무것도 안 함. 끝나면 같은 `config`로 `openNoteStore`가 빈 DB를 만든다(시작 오류 화면 '초기화' → 다시 열기, INFRA-M1).
 
 ### 6.19 공용 가짜 저장소 (`createFakeNoteStore`, 7.4.8 · 7.6 B2)

@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 4 (동시 개발 단계)
-- 다음 할 일: T16 (웹 저장 — `tool/prepare_web_test.dart`·브라우저 테스트 4개) → T17 (provider 실제 저장소) → T18 (성능·README)
+- 마지막 세션: 5 (동시 개발 단계)
+- 다음 할 일: T17 (provider 실제 저장소) → T18 (성능·README)
 
 ## 작업 표
 
@@ -25,7 +25,7 @@
 | T13 | 완료 | ac1965c | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
 | T14 | 완료 | 4f43deb | `test/sync/sync_store_test.dart`(outbox·readVersioned·세 결정·기기 로컬 필드·pendingLocalFields·origin·세션 N-7/영구 삭제·쓰기 Future 규칙), `field_lww_convergence_test.dart`, `version_invariant_test.dart`(500단계), `commit_repairs_test.dart`, `meta_kv_test.dart`, `reassign_owner_test.dart`, `duplicate_for_recovery_test.dart`, 도우미 `test/sync/support/sync_support.dart` |
 | T15 | 완료 | 8f001f9 | `test/migration/note_migrator_test.dart`(v0→v1 1회·outbox 바뀐 필드, 실패 시 롤백·재시도 없음, 단계 없음 `StateError`, `openSession` 이주 후 열기·실패 시 읽기 전용, 새 버전 노트 `ReadOnlyNoteException`·이주 안 함) |
-| T16 | 남음 | | `test/web/drift_web_persistence_test.dart`, `storage_info_browser_test.dart`, `delete_local_data_browser_test.dart`, `open_time_browser_test.dart`(perf) |
+| T16 | 완료 | (이 커밋) | `test/web/drift_web_persistence_test.dart`(쓰기→닫기→같은 이름 다시 열기: 백업 바이트·outbox·획 점·에셋 바이트·설정 동일, `deviceNodeId`·HLC 이어짐, backend 보고), `storage_info_browser_test.dart`(persist 요청·estimate 채움, 응답 없는 persist 상한, `refreshStorageInfo`), `delete_local_data_browser_test.dart`(삭제 후 빈 DB·새 노드, 열린 동안 `StateError`, 막히면 `TimeoutException`), `open_time_browser_test.dart`(perf), VM `test/storage/storage_query_test.dart`(fake_async: 1 s 상한·늦은 응답은 refresh가 읽음), `backup_export_browser_test.dart`에 실제 웹 저장소 그룹 추가 |
 | T17 | 남음 | | `test/providers/providers_real_test.dart` |
 | T18 | 남음 | | `test/perf/*`(perf 태그), README |
 | T19 | 완료 | 2c2b1e2 | 공유 본문 `test/shared/backup_cases.dart` → 실제 `test/backup/backup_export_test.dart`, 가짜 `test/testing/fake_backup_export_test.dart`(같은 골든 바이트 `test/goldens/backup/backup_v1.json`, `golden` 태그), 브라우저 `test/web/backup_export_browser_test.dart`(가짜 저장소로 웹 생성·파싱) |
@@ -93,18 +93,24 @@
 
 - T19: 문서 작성기 `BackupJsonWriter`(`backup/backup_export.dart`)를 실제·가짜가 같이 쓴다 — 압축 JSON(들여쓰기 없음), 머리 키 순서 `format, formatVersion, exportedAt, ownerId, deviceNodeId, schema, entities`, 엔티티 `{"kind","data"(6.3 JSON),"versions"}`를 하나씩 바이트로 붙임(`JsonUtf8Encoder`, `BytesBuilder(copy: false)` + `takeBytes`). 순서 = `EntityKind.values` 순 → id(설정은 key) 순. 소유자로 거르지 않는다(기기 전체). 실제 저장소는 `flush()` 뒤 읽기 트랜잭션 하나에서 종류별 keyset 페이지(2,000행, `readVersionedPage`)로 읽는다(쓰기 큐는 그동안 뒤에서 기다림 — 세션 메모리 편집은 막히지 않음). 가짜는 맵을 id 정렬, 버전 = `EntityFieldVersions(entity.version)`(필드 버전 없음 → 골든 상태는 엔티티 단위 버전만 씀). 닫힌 저장소 → `StateError`.
 - T19: 골든 상태의 획 `updatedAt`은 노트 `updatedAt` 이하로 둔다 — 실제 저장소 시드(`applyRemote` TakeRemote)가 노트 `updatedAt`을 자식 적용값의 max로 올리기 때문(6.10.3). 골든 파일 갱신은 `UPDATE_BACKUP_GOLDEN=1 flutter test test/backup/backup_export_test.dart`(VM 전용 — 웹은 1.0을 1로 씀).
-- T19: 웹 테스트는 지금 가짜 저장소로 공유 본문을 돈다(작성기·파싱이 웹 컴파일러에서 동작). 실제 저장소(WasmDatabase)로 웹 내보내기는 T16에서 `drift_web_persistence_test` 등과 함께 추가한다.
+- T19: 웹 테스트는 가짜 저장소와 (T16부터) 실제 웹 저장소(WasmDatabase, `openWebStoreWithNode`)에서 공유 본문을 돌고, 골든 상태에서 두 저장소의 바이트가 같은지도 본다.
 - T19: `fake_store_test`의 'exportBackupJson is UnimplementedError in B2'를 '백업 형식을 씀'으로 바꿨다. `lib/testing.dart` 주석('UnimplementedError in B2; the same format as the real store from CORE T19')은 계약 7.6 문구라 그대로 둔다.
 
 - T15: `NoteMigrator(steps, store:)`(`migration/note_migrator.dart`, 계획서 6.15 모양에 `store:`만 더함). 단계들은 쓰기 큐 작업 하나(= 한 트랜잭션)에서 돌고, `putPage`·`putStroke`는 모아 두었다가 끝에 바뀐 JSON 키만 로컬 쓰기(`putLocal` — 필드 버전·outbox), 노트는 `{schemaVersion}`(+ `updatedAt` = max(현재, 지금)). 단계 예외는 내부 `Error` 래퍼로 재시도 없이 되돌린 뒤 원래 예외를 다시 던지고, 단계가 없으면 `StateError`. 앱의 단계 표 `kNoteMigrationSteps`는 비어 있다(v1이 첫 형식). 테스트는 `store.noteMigrator = NoteMigrator(...)`(@visibleForTesting).
 - T15: `openSession`은 `schemaVersion < kNoteSchemaVersion`이면 먼저 이주하고, 실패하면 열기 실패가 아니라 그 노트를 옛 버전 그대로 연다 — `SessionEngine.isReadOnly`에 `schemaVersion < kNoteSchemaVersion`을 더해 읽기 전용(6.15 '그 노트만 읽기 전용'; 계약 N-4의 두 경우(휴지통·새 스키마)에 더해지는 CORE 내부 경우).
 
+- T16: `tool/prepare_web_test.dart` — `drift_worker.js`는 `Isolate.resolvePackageUri(package:drift)`로 찾은 drift 패키지에서 복사(작업 공간이라 멤버 `.dart_tool/package_config.json`이 없음). `sqlite3.wasm`은 캐시(`.dart_tool/note_core_web_test/sqlite3-3.8.0.wasm`) → **drift 패키지의 `extension/devtools/build/sqlite3.wasm`(같은 릴리스 파일, sha256 일치)** → 7.1 주소 다운로드(`HttpClient.findProxyFromEnvironment`) 순. 둘 다 sha256 검증. 다운로드 경로도 컨테이너 프록시로 200·758,619 B 확인.
+- T16: `navigator.storage` 처리를 순수 Dart `storage/web_storage/storage_query.dart`(`StorageQuery` 인터페이스, `storageInfoAtOpen`·`refreshedStorageInfo`)와 브라우저 바인딩 `persistence_browser.dart`(`platformStorageQuery()`, stub은 null)로 나눴다 — 1초 상한을 VM fake_async로 검증하려고. persist()뿐 아니라 persisted()·estimate()도 호출마다 1초 상한(멈춘 브라우저 API가 열기를 막지 않게), 실패·초과는 그 필드 null(refresh는 이전 값 유지). `openNoteStore`는 이 조회를 DB 열기와 **동시에** 돌리고 끝나면 `DriftNoteStore.storageInfoAtOpen`에 넣는다(열기 시간에 persist 대기가 더해지지 않음).
+- T16: 웹 `deleteLocalNoteData`의 10초 제한은 `connect_browser.dart` `deleteLocalData(config, {timeout})`(`deleteBlockedTimeout`). 브라우저 테스트는 300 ms로 막힘을 확인한다.
+- T16: `flutter test --platform chrome`은 DDC(디버그) 컴파일이라 웹 시간 기록은 운영 빌드보다 느린 값이다. 실측(다른 영역과 CPU 공유): 빈 DB 567 ms, 획 1만 개 다시 열기 338~411 ms(계획서 6.18에 기록, 7.3 기준값 2배 이내).
+
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
 
 ## 다음 세션 메모
 
+- 세션 5: T16 완료. 브라우저 테스트 도우미 `test/web/web_store_support.dart` — `freshWebConfig(tag)`(테스트마다 새 DB·블롭 DB 이름), `dropAfterTest(config)`(닫은 뒤 삭제 — 저장소 close보다 **먼저** 등록), `closeAndDropAfterTest(store, config)`(그룹 tearDown보다 먼저 돌아야 할 때, 예: 공유 본문의 setUp에서 연 저장소), `openWebStoreWithNode(config, node)`(고정 HLC 노드 — 백업 골든 비교용). 브라우저에서 두 저장소를 동시에 열면 `driftRuntimeOptions.dontWarnAboutMultipleDatabases = true`.
+- 웹 자산 준비: 패키지 디렉터리에서 `dart run tool/prepare_web_test.dart`(ws가 먼저 실행). 헤드리스 Chrome은 `sharedIndexedDb`, `persist()` = false, 할당량 약 10 GiB.
 - 세션 4 끝 상태: T14·T19·T15 완료. 실제 저장소의 `SyncStore` 전부, `exportBackupJson`(실제·가짜), 노트 형식 이주가 동작한다 — 실제 저장소에 남은 `UnimplementedError` 없음. 검사: 패키지 VM 591개·Chrome 29개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
-- T16 메모: `connect_browser.dart`(WasmDatabase)는 T6에서 썼지만 브라우저에서 실제로 연 적이 없다. `tool/prepare_web_test.dart`(drift_worker.js 복사·sqlite3.wasm 받기·sha256 검증, 캐시 `.dart_tool/note_core_web_test/`)부터 — 계획서 9.1. 웹 백업 내보내기도 실제 저장소로 한 번 돌린다(지금 `backup_export_browser_test`는 가짜).
 - T14 테스트 도우미(`test/sync/support/sync_support.dart`): `upsert(entity, hlc, overrides)`(JSON 디코드 + version = max, SYNC가 넘기는 모양), `remoteAfter(store)`(로컬 스탬프보다 새 원격 HLC), `RecordingPolicy`(호출 기록), `fieldLwwPolicy()`(SYNC 6.3.4 모양의 필드 단위 LWW, `entityVersionOnly: true`는 대조군), `push(from, to, policy)`(outbox → readVersioned → applyRemote → ack). 두 저장소를 동시에 여는 테스트는 `driftRuntimeOptions.dontWarnAboutMultipleDatabases`를 켠다.
 - 원격 쓰기 흉내는 이제 `store.sync.applyRemote([...], policy: newerVersionWinsPolicy)`로 써도 된다(T10·T11 테스트의 `queue.run(... putRemote ...)`는 그대로 둠).
 - 테스트 도우미: 원격 쓰기 흉내는 `store.queue.run((tx) => tx.putRemote(...), origin: ChangeOrigin.remote)`(`test/edit/undo_support.dart` `UndoFixture.remote`, `note_session_test`의 `_putRemote`). T14가 `applyRemote`를 만들면 그것으로 바꿔도 된다.

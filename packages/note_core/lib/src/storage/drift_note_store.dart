@@ -38,6 +38,7 @@ import 'kv_keys.dart';
 import 'open_errors.dart';
 import 'row_mappers.dart';
 import 'watch_hub.dart';
+import 'web_storage/storage_query.dart';
 import 'write_queue.dart';
 
 /// Open stores per durable database in this process (deleteLocalNoteData refuses
@@ -62,6 +63,7 @@ final class DriftNoteStore implements NoteStore {
     required this.db,
     required this.config,
     required this._storageInfo,
+    required this._storageQuery,
     required this.nodeId,
     required this.hlc,
     required this._ownerId,
@@ -106,10 +108,13 @@ final class DriftNoteStore implements NoteStore {
   /// clean-up timers (openNoteStore, 6.8). [blobFactory]: the IndexedDB factory of
   /// asset chunks and thumbnails (null = a fresh in-memory one, 6.13); the blob
   /// database opens on first use. [assetChunks] replaces the chunk store (tests).
+  /// [storageQuery]: navigator.storage for refreshStorageInfo (6.12; null off
+  /// the web — storageInfo then stays as given).
   static Future<DriftNoteStore> open({
     required QueryExecutor executor,
     required StorageInfo storageInfo,
     required NoteStoreConfig config,
+    StorageQuery? storageQuery,
     String? deviceNodeId,
     bool autoPurge = false,
     IdbFactory? blobFactory,
@@ -132,6 +137,7 @@ final class DriftNoteStore implements NoteStore {
         db: db,
         config: config,
         storageInfo: storageInfo,
+        storageQuery: storageQuery,
         nodeId: values.nodeId,
         hlc: HlcClock(nodeId: values.nodeId, clock: clock, last: values.hlc),
         ownerId: values.ownerId,
@@ -171,7 +177,8 @@ final class DriftNoteStore implements NoteStore {
   @override
   final IdGenerator ids;
   final String? _storeKey;
-  final StorageInfo _storageInfo;
+  StorageInfo _storageInfo;
+  final StorageQuery? _storageQuery;
   OwnerId _ownerId;
   bool _closed = false;
 
@@ -236,8 +243,14 @@ final class DriftNoteStore implements NoteStore {
   @override
   StorageInfo get storageInfo => _storageInfo;
 
+  /// The value read at open (openNoteStore runs the 6.12 ① probe while the
+  /// database opens and hands its result here).
+  set storageInfoAtOpen(StorageInfo info) => _storageInfo = info;
+
+  /// 6.12 ②: persisted() / estimate() again; the previous value off the web.
   @override
-  Future<StorageInfo> refreshStorageInfo() async => _storageInfo;
+  Future<StorageInfo> refreshStorageInfo() async =>
+      _storageInfo = await refreshedStorageInfo(_storageInfo, _storageQuery);
 
   @override
   Future<NoteSession> openSession(

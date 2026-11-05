@@ -13,6 +13,8 @@ import '../session/note_session.dart';
 import '../storage/connect/connect.dart';
 import '../storage/drift_note_store.dart';
 import '../storage/open_errors.dart';
+import '../storage/web_storage/persistence.dart';
+import '../storage/web_storage/storage_query.dart';
 import '../sync/sync_store.dart';
 import 'content_reader.dart';
 import 'events.dart';
@@ -134,13 +136,24 @@ Future<NoteStore> openNoteStore(NoteStoreConfig config) async {
   } on Object catch (e, s) {
     Error.throwWithStackTrace(classifyOpenError(e), s);
   }
-  return DriftNoteStore.open(
+  // 6.12 ①: persisted() / persist() (≤ 1 s) / estimate() while the database
+  // opens; storageInfoAtOpen never throws.
+  final query = platformStorageQuery();
+  final probed = storageInfoAtOpen(
+    info,
+    query,
+    requestPersist: config.requestPersistentStorage,
+  );
+  final store = await DriftNoteStore.open(
     executor: executor,
     storageInfo: info,
     config: config,
+    storageQuery: query,
     autoPurge: true,
     blobFactory: blobIdbFactory(config),
   );
+  store.storageInfoAtOpen = await probed;
+  return store;
 }
 
 /// Drops the SQLite DB and the blob IndexedDB of [config] (startup error screen reset).
