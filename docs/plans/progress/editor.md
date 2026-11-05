@@ -5,7 +5,7 @@
 ## 요약
 
 - 마지막 세션: **1** (동시 개발 단계 개발 세션 1/10)
-- 다음 할 일: E-02(레이아웃·카메라 수학) → E-05(입력 라우터)·E-06(설정 저장)은 E-02와 병렬 가능 → E-03 → E-04 …
+- 다음 할 일: E-03(뷰포트 컨트롤러·위치 기억) · E-05(입력 라우터) · E-06(설정 저장) → E-04(페이지 뷰포트) → E-07 → E-08 …
 
 ## 작업 표
 
@@ -13,8 +13,8 @@
 |---|---|---|---|
 | B5 | 기반 단계에서 완료 | 4828e59 | `widget/smoke_test.dart`, `unit/api_surface_test.dart`, `unit/no_platform_imports_test.dart`. `dart_test.yaml`·6.16 ①~⑤ 검사·설정 모델 JSON도 B5에서 먼저 함 |
 | E-00 | 완료 | f203d9b | `unit/no_platform_imports_test.dart`(B5에서 6.16 ①~⑤ 이미 완성), `unit/editor_strings_test.dart`, `dart_test.yaml`(B5), `integration/` 기본 '건너뜀' 확인(아래 메모), README |
-| E-01 | 완료 | (이 커밋) | `unit/helpers_smoke_test.dart`. `EditorTestHandles.viewport`·`controllerOf`는 E-03/E-04, `pumpEditor(settings:)`는 E-06, `test_data`의 화면 좌표 도우미(`pageCenterOf`·`lassoAround`·`pathThrough`)는 E-04에서 더함 |
-| E-02 | 남음 | | `unit/page_layout_test.dart`, `unit/camera_math_test.dart` |
+| E-01 | 완료 | d32032e | `unit/helpers_smoke_test.dart`. `EditorTestHandles.viewport`·`controllerOf`는 E-03/E-04, `pumpEditor(settings:)`는 E-06, `test_data`의 화면 좌표 도우미(`pageCenterOf`·`lassoAround`·`pathThrough`)는 E-04에서 더함 |
+| E-02 | 완료 | (이 커밋) | `unit/page_layout_test.dart`, `unit/camera_math_test.dart` |
 | E-03 | 남음 | | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
 | E-04 | 남음 | | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
 | E-05 | 남음 | | `unit/input_router_test.dart` (R1~R33) |
@@ -50,6 +50,7 @@
 - (세션 1) `editor_strings_test`에 계약 비교 2건 외에 'lib/에서 고정 문장이 `editor_strings.dart`에만 있음' 1건을 더했다(배너가 상수를 읽도록 강제).
 - (세션 1) E-01: 6.5.5의 인터페이스 파일 3개(`lib/src/input/input_sample.dart`·`input_targets.dart`, `lib/src/tools/tool_interaction.dart`)를 E-05보다 먼저 만들었다 — `RecordingInputTargets`가 구현할 인터페이스라서. 시그니처는 6.5.5 그대로, `InputPolicy`·`NavigationUpdate`에 `==`/`hashCode`만 더함.
 - (세션 1) E-01: `pumpEditor`가 시드 노트의 페이지 id를 `seededPageId(seedKey, i)`(= `seed<n>-p<i>`)로 고정하고, `strokesByPageIndex`의 획은 `copyWith(pageId:)`로 그 페이지에 맞춰 세션 `AddStrokes`로 넣은 뒤 `clearHistory()` — 획 id를 유지하려고(`PageDraft.strokes`는 id를 새로 매김). `EditorTestHandles`에 `pageId(i)`·`seedKey`·`closeCount`를 더함. `RecordingNoteSession`은 거부된 호출을 `'execute:<label>:rejected'`로 기록하고, `close`·`clearHistory`도 기록한다. `executeDuringDelivery`는 계획 문장대로 `execute`만 본다(`executeAsync`·`undo`·`redo`는 첫 await 뒤 적용이라 N-2상 허용).
+- (세션 1) E-02: `PageLayout`의 세부 규칙(계획에 없던 것): `pageIndexAt`은 페이지 가장자리 포함, `nearestPageIndex`는 간격에서 가까운 쪽(같으면 앞 페이지), `rangeIntersecting`은 주축 구간만 보고 맞닿음도 포함, 빈 목록은 `contentSize` 주축 = 앞뒤 여백 합·`nearestPageIndex`는 `StateError`. `CameraMath.clampScale`(공개 아님, 내부 도우미)과 `ViewportCamera.copyWith`, `PageLayout`의 `==`를 더함. `fitScale`은 빈 레이아웃·0 크기에서 1.
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모
