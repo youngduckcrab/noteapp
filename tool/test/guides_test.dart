@@ -396,6 +396,28 @@ void main() {
     ]) {
       expect(text, contains(phrase));
     }
+    // Every push branch other than main (the development branch, until it
+    // is merged into the default branch) has its own how-to: filter the
+    // runs by that branch; Run workflow does not exist there.
+    final branches = [
+      for (final b
+          in ((android['on'] as YamlMap)['push'] as YamlMap)['branches']
+              as YamlList)
+        '$b',
+    ];
+    expect(branches.first, 'main');
+    expect(branches.skip(1), isNotEmpty);
+    expect(text, contains('### 개발 브랜치에서 받기'));
+    for (final branch in branches.skip(1)) {
+      expect(text, contains('`$branch`'));
+    }
+    for (final phrase in [
+      '**Branch** 필터',
+      '**Run workflow** 버튼이 보이지 않아요',
+      '기본 브랜치에 있는 워크플로만',
+    ]) {
+      expect(text, contains(phrase));
+    }
   });
 
   test('06: draft, the iOS workflow names and gate', () {

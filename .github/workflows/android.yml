@@ -2,6 +2,11 @@
 # release APK for arm64 tablets on every push to main and on demand, kept as
 # a 7-day workflow artifact (docs/guides/05-android-apk.md).
 #
+# Until the work is merged into the default branch, pushes to the
+# development branch build the APK too: `workflow_dispatch` (Run workflow)
+# only shows up once this file is on the default branch. Drop the branch
+# from the list after that merge.
+#
 # Signing: the template's debug key, made fresh on every runner — a new APK
 # cannot be installed over the previous one (uninstall first, local data is
 # lost). Release signing from secrets waits until an Android tablet is
@@ -11,7 +16,7 @@ name: Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/note-app-planning-bk29xb]
     paths-ignore:
       - 'docs/**'
       - '**/*.md'

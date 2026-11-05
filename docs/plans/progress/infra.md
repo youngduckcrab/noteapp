@@ -147,3 +147,9 @@
 - 결과: 진입점 15개(note_core 4·ink_engine 3·feature_editor 1·feature_library 1·pdf_io 2·sync_engine 4) 모두 해석, **겹치는 이름 0**. 이름 수: note_core.dart 198, pdf_io.dart 150, ink_engine.dart 85, sync_engine.dart 73, feature_editor.dart 26, feature_library.dart 11 등. 해석 약 43초(+ 스크립트 컴파일 13초) — `ws check` 전체 약 64초(load 5 안팎).
 - `ws check --no-exports`로 건너뜀(픽스처 작업 공간으로 다른 규칙을 보는 기존 테스트 5곳에 `--no-exports`를 더했다 — 픽스처에는 해석기 스크립트·package config가 없다).
 - `tool/test/export_names_test.dart` 13건: 픽스처 패키지 3개 + 앱(직접 쓴 `package_config.json`, pub get 없음) — 겹친 이름 1개만(`Shared`, 진입점 3개 나열), `show`/`hide`·private 반영, 같은 패키지 진입점끼리 비교 안 함, `exportOverlaps` 3개 패키지 정렬, 해석 실패(없는 패키지 export → 스크립트 종료 3 → `ws check` 종료 3, part 파일·없는 파일), 해석기 프로세스 문제(비정상 종료·시간 초과·JSON 아님·진입점 누락·스크립트 없음) → 환경 오류, `ws check`가 진입점 전부를 스크립트에 넘김, `--no-exports`면 프로세스 없음, 실제 스크립트 프로세스(종료 3·0, `process` 태그).
+
+### 실기기 경로 — `android.yml` 개발 브랜치 푸시
+
+- `on.push.branches`에 `claude/note-app-planning-bk29xb` 추가(`main`과 함께, `paths-ignore` 같음). 기본 브랜치에 이 파일이 없으면 GitHub가 **Run workflow** 버튼을 보여 주지 않으므로(`workflow_dispatch`), 합치기 전까지는 이 브랜치 푸시가 APK를 받는 길이다. 빌드 정보 채널은 main 밖이라 `preview`, 앱 정보 빌드 줄 끝에 브랜치 이름. 합친 뒤 이 줄을 지운다(워크플로 주석에 적음).
+- 안내서 `docs/guides/05-android-apk.md`: 머리말에 개발 브랜치 한 줄, `### 개발 브랜치에서 받기`(Actions → Android APK → **Branch** 필터 → 최근 녹색 실행 → Artifacts, Run workflow 없음 — 새 APK는 Claude에게 푸시 요청), 문제 해결 2행(버튼 없음·필터에 브랜치 없음).
+- 테스트: `workflows_test` android 트리거(`[main, <개발 브랜치>]`, main 밖 `preview`), `guides_test` 05(push 목록의 main 밖 브랜치가 모두 안내서에 있고, 받는 방법 문구 3개).

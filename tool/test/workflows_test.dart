@@ -72,6 +72,9 @@ const _apkBuild =
     'flutter build apk --release --split-per-abi $_buildNumber $_defineFile';
 const _inkLabDir = 'packages/ink_engine/example';
 
+/// The development branch whose pushes also build the APK (android.yml).
+const _devBranch = 'claude/note-app-planning-bk29xb';
+
 final _workflowsDir = p.join(repoRoot, '.github', 'workflows');
 
 YamlMap _load(String path) {
@@ -757,12 +760,20 @@ void main() {
       steps = _steps(job);
     });
 
-    test('main pushes (docs ignored) and manual runs only', () {
+    test('pushes to main and to the development branch (docs ignored), and '
+        'manual runs', () {
       final on = android['on'] as YamlMap;
       expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
       final push = on['push'] as YamlMap;
-      expect(push['branches'], ['main']);
+      // The development branch builds APKs until it is merged into the
+      // default branch (Run workflow needs the file there) — guide 05.
+      expect(push['branches'], ['main', _devBranch]);
       expect(push['paths-ignore'], _ignoredPaths);
+      // Off main the build is labelled `preview` (main: `live`).
+      expect(
+        (_named(steps, 'Build info')['env'] as YamlMap)['BUILD_CHANNEL'],
+        "\${{ $_onMain && 'live' || 'preview' }}",
+      );
     });
 
     test('ubuntu with a 30 minute limit', () {
