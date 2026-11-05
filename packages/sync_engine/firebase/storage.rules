@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/assets/{assetId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && assetId.matches('^[0-9a-f]{64}$')
+        && request.resource.size <= 300 * 1024 * 1024
+        && request.resource.metadata.sha256 == assetId;
+      allow update: if false;                       // content-addressed, immutable
+      allow delete: if request.auth != null && request.auth.uid == uid;   // GC later
+    }
+  }
+}

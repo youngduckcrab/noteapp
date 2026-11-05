@@ -2,8 +2,9 @@
 // 9.1.3; 5.2 I-7). The app does not depend on sync_engine in this scope
 // (contract 00-overview 7.1), so this test is what catches web compile errors
 // in the Firebase plugins, connectivity_plus and the package:web conditional
-// export. It only references types and tear-offs: Firebase is never
-// initialised and nothing talks to the network.
+// export. It only references types and tear-offs (T17: every adapter's
+// constructor and members): Firebase is never initialised and nothing talks to
+// the network.
 @TestOn('browser')
 library;
 
@@ -42,6 +43,45 @@ void main() {
     expect(const FirebaseSyncOptions().webSignInMode, WebSignInMode.auto);
     final Object mappers = [mapFirebaseError, mapSignInError];
     expect(mappers, hasLength(2));
+  });
+
+  test('every adapter constructor and member compiles for the web (T17)', () {
+    // Tear-offs and closures that are never called: they keep the adapter
+    // bodies reachable for the web compiler.
+    final refs = <Object>[
+      FirebaseSyncBindings.new,
+      (FirebaseSyncBindings b) => [b.authBackend, b.backendFactory],
+      FirebaseSyncBackend.new,
+      FirestoreChunkMapper.toFirestore,
+      FirestoreChunkMapper.fromFirestore,
+      FirebaseBlobStore.new,
+      (FirebaseBlobStore s, Uint8List bytes) => [
+        s.pathFor(''),
+        s.stat(''),
+        s.upload('', bytes, contentType: '', metadata: const {}),
+        s.download('', maxBytes: 1),
+      ],
+      FirebaseAuthBackend.new,
+      (FirebaseAuthBackend a) => [
+        a.currentUser,
+        a.authStateChanges(),
+        a.supportsGoogleSignIn,
+        a.signInWithGoogle(),
+        a.completePendingSignIn(),
+        a.refreshSession(),
+        a.signOut(),
+      ],
+      ConnectivityPlusSignal.new,
+      (ConnectivityPlusSignal c) => [c.isOnline, c.changes, c.dispose()],
+      (FirebaseAuth auth) => auth.signInWithRedirect(GoogleAuthProvider()),
+      (FirebaseAuth auth) =>
+          auth.signInWithCredential(GoogleAuthProvider.credential(idToken: '')),
+      (User user) => user.getIdToken(true),
+      (Reference ref) => [ref.getMetadata(), ref.getData(1)],
+      (UploadTask task) => [task.snapshotEvents, task.cancel()],
+      () => const Settings(persistenceEnabled: false),
+    ];
+    expect(refs, hasLength(17));
   });
 
   test('the plugin APIs the adapters build on compile for the web', () {

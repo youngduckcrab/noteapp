@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+
+    function validChunk() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['fmt', 'scope', 'by', 'n', 'bytes', 'maxHlc', 'kind', 'data', 'su'])
+        && d.fmt is int && d.fmt >= 1 && d.fmt <= 16
+        && d.scope is string && d.scope.size() >= 1 && d.scope.size() <= 64
+        && d.by is string && d.by.matches('^[0-9a-f]{16}$')
+        && d.n is int && d.n >= 1 && d.n <= 5000
+        && d.data is bytes && d.data.size() <= 1000000
+        && d.bytes == d.data.size()
+        && d.maxHlc is string && d.maxHlc.size() == 37
+        && d.kind in ['delta', 'snapshot']
+        && d.su == request.time;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['email', 'displayName', 'createdAt', 'lastSeenAt', 'schema']);
+      allow delete: if false;                       // account deletion: a server function (phase 2)
+
+      match /devices/{nodeId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && nodeId.matches('^[0-9a-f]{16}$')
+          && request.resource.data.keys().hasOnly(['platform', 'appVersion', 'firstSeenAt', 'lastSeenAt', 'cursorMicros']);
+        allow delete: if isOwner(uid);
+      }
+
+      match /changes/{chunkId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && validChunk()
+          && chunkId.matches('^[0-9a-f]{16}-[0-9a-f]{24}$')
+          && chunkId.split('-')[0] == request.resource.data.by;
+        // lost-ack retry: identical content, only the server time changes
+        allow update: if isOwner(uid) && validChunk()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['su']);
+        allow delete: if isOwner(uid);              // compaction
+      }
+    }
+    // everything else is denied by default
+  }
+}

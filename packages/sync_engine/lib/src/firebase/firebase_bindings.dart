@@ -1,10 +1,13 @@
+// cloud_firestore 7.1.0 exports its own `Type` (pipeline expressions).
+import 'package:cloud_firestore/cloud_firestore.dart' hide Type;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:meta/meta.dart';
 
 import '../auth/auth_backend.dart';
-import '../auth/auth_user.dart';
 import '../engine/sync_engine.dart';
+import 'backend_factory.dart';
 import 'firebase_auth_backend.dart';
 
 enum WebSignInMode { auto, popup, redirect }
@@ -36,14 +39,21 @@ final class FirebaseSyncBindings {
          webSignInMode: options.webSignInMode,
          native: native,
        ),
-       backendFactory = _unimplementedFactory;
+       backendFactory = firebaseBackendFactory(
+         firestore: () => FirebaseFirestore.instanceFor(app: app),
+         storage: () => FirebaseStorage.instanceFor(
+           app: app,
+           bucket: options.storageBucket,
+         ),
+         disablePersistence: options.disableFirestorePersistence,
+       );
 
   final AuthBackend authBackend;
+
+  /// A FirebaseSyncBackend on the Firestore of the app (persistence off by default, D8)
+  /// and its Storage bucket, both set up at the first sign-in.
   final SyncBackendFactory backendFactory;
 }
-
-Future<Never> _unimplementedFactory(AuthUser user) =>
-    throw UnimplementedError('SYNC T17');
 
 /// Native Google sign-in (iOS/Android) — implemented at the native transition
 /// with google_sign_in 7.x: authenticate() → idToken.
