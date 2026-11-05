@@ -1,10 +1,16 @@
 // lib/src/render/ink_page_controller.dart — contract 7.2.15 (03-ink 4.8).
 //
-// Foundation step B3 (03-ink 4.15): content diff by identity, the three
-// gesture sessions, selection, pending hand-off (6.12 R6: pendingIds,
-// updateContent resolution, discardPending, discardEdit, timeout), bounds-based
-// hitTest / strokeIdsInRect and the viewport report of 6.12 R9 (currentBucket).
-// Chunk pictures and raster tiles come with INK T10 / T19.
+// Content diff by id + identity (6.12 R2) feeding the vector caches of the
+// base layers (INK T10: ink chunk pictures R3/R4, highlighter page picture
+// with the active groups left out, 6.10-6), the three gesture sessions,
+// selection with its live preview pictures (6.22 / R7, INK T18:
+// selection_preview.dart), pending hand-off (6.12 R6: pendingIds, updateContent
+// resolution, discardPending, discardEdit, timeout), the spatial index with
+// exact ink hitTest / strokeIdsInRect (6.18, INK T14), the viewport report
+// of 6.12 R9 (currentBucket) and the second render cache stage (6.13 L3,
+// INK T19: raster tiles of the ink chunks in the pool LRU, made one per frame
+// when quiet, plus the time-sliced first recording of a page's chunks).
+import 'dart:async' show scheduleMicrotask;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -15,8 +21,12 @@ import '../background/background_builder.dart';
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/ink_clock.dart';
 import '../edit/eraser_spec.dart';
+import '../edit/hit_test.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
+import '../edit/spatial_index.dart';
+import '../geometry/outline_generator.dart';
+import '../geometry/stroke_outline.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../input/pressure_detector.dart';
@@ -27,13 +37,17 @@ import '../model/ink_stroke.dart';
 import '../pen/style_ink.dart';
 import '../stroke/stroke_builder.dart';
 import '../stroke/stroke_meta.dart';
-import '../tuning.dart';
+import 'base_cache.dart';
 import 'cache_pool.dart';
+import 'highlighter_compositor.dart';
 import 'ink_page_content.dart';
+import 'lasso_overlay.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
+import 'raster_tiles.dart';
 import 'render_config.dart';
 import 'selection.dart';
+import 'selection_preview.dart';
 import 'sessions.dart';
 import 'stroke_painter.dart';
 
@@ -129,6 +143,10 @@ final class InkPageController extends ChangeNotifier {
     for (final layer in InkRenderLayer.values) {
       _repaints[layer] = _Repaint();
     }
+    _removePictureCount = addChunkPictureCount(
+      cachePool,
+      () => _chunks.pictureCount,
+    );
   }
 
   final String pageId;
@@ -156,6 +174,55 @@ final class InkPageController extends ChangeNotifier {
   _Display? _display;
   bool _disposed = false;
 
+  // base-layer vector caches (6.12 R2–R4, 6.10-6/-7, 6.13 L2/L4)
+  late final InkChunkCache _chunks = InkChunkCache(
+    chunkSizePt: config.chunkSizePt,
+    maxAppended: config.maxAppendedPictures,
+    onChunkCleared: _tiles.dropChunk,
+  );
+  late final void Function() _removePictureCount;
+
+  // raster tiles (6.13 L3, INK T19)
+  late final PageRasterTiles _tiles = PageRasterTiles(
+    rasterTileLruOf(cachePool),
+    config.scaleBuckets,
+  );
+  late final RasterScheduler _rasterSchedule = RasterScheduler(
+    idleMs: config.idleBeforeRasterMs,
+    settleMs: config.zoomSettleMs,
+    releaseMs: config.releaseInvisibleAfterMs,
+    onQuiet: _rasterQuiet,
+    onRelease: _releaseInvisibleTiles,
+  );
+  final InkBaseStats _baseStats = InkBaseStats();
+  bool _baseFrameRequested = false;
+
+  /// Chunk indices, visible ones first (6.13-3), for [_chunkOrderRect].
+  List<int>? _chunkOrder;
+  ui.Rect? _chunkOrderRect;
+
+  /// The view's visible rect at paint time: the loading order of the first
+  /// frames, before the first setViewport report (6.12 R9 ④).
+  ui.Rect? _paintVisibleHint;
+  final HighlighterBaseCache _hl = HighlighterBaseCache();
+
+  /// R7 selection preview pictures (6.22).
+  late final SelectionPreviewCache _selectionPreview = SelectionPreviewCache(
+    budgetUs: config.frameWorkBudgetMs * 1000,
+    nowUs: clock.nowUs,
+    requestFrame: _requestActiveInkFrame,
+  );
+  bool _activeInkFrameRequested = false;
+
+  /// The ids the base caches were last told to leave out (display.hidden).
+  Set<String> _baseHidden = const {};
+
+  /// A chunk was recorded with a pencil stroke before the grain was ready.
+  bool _chunksMissingGrain = false;
+
+  /// 6.18: built on first use, then kept up to date from the R2 diff.
+  StrokeSpatialIndex? _spatial;
+
   // viewport (6.12 R9)
   ui.Rect? _visiblePageRect;
   double? _deviceScale;
@@ -182,7 +249,9 @@ final class InkPageController extends ChangeNotifier {
         old == null ||
         old.page.size != content.page.size ||
         old.page.background != content.page.background;
+    final diff = InkContentDiff.between(old, content);
     _content = content;
+    _applyDiff(diff, content);
     _resolvePending(content);
     _pruneTimedOut();
     _refreshSelection(content);
@@ -212,13 +281,13 @@ final class InkPageController extends ChangeNotifier {
     final kind = first.kind;
     final mode = pressureMode();
     final prior = pressureStore.capabilityOf(kind);
-    final detector = PressureDetector(kind: kind, mode: mode, prior: prior);
-    if (mode == PressureMode.auto &&
-        detector.capability != prior &&
-        (kind == InkPointerKind.stylus ||
-            kind == InkPointerKind.invertedStylus)) {
-      pressureStore.report(kind, detector.capability);
-    }
+    // 6.4: the detector reports its decisions to the store as it makes them.
+    final detector = PressureDetector(
+      kind: kind,
+      mode: mode,
+      prior: prior,
+      store: pressureStore,
+    );
     final builder = StrokeBuilder(
       style: style,
       viewScale: viewScale,
@@ -263,7 +332,7 @@ final class InkPageController extends ChangeNotifier {
     LassoOptions options = const LassoOptions(),
   }) {
     _beginGesture(viewScale);
-    final session = newLassoSession(_host, firstPagePoint, options);
+    final session = newLassoSession(_host, firstPagePoint, viewScale, options);
     _active = session;
     _sessionStarted();
     return session;
@@ -324,30 +393,55 @@ final class InkPageController extends ChangeNotifier {
 
   // --- queries -------------------------------------------------------------
   /// Topmost stroke whose ink lies within [tolerance] pt of [pagePoint] (eyedropper, tap).
-  /// B3: the stroke's CORE bounds inflated by [tolerance] (exact distance: INK T14).
+  /// 6.18: spatial index candidates → exact ink distance (radiusAt per point;
+  /// highlighter width / 2) → the largest z. Strokes hidden by a pending erase
+  /// or delete are skipped.
   InkStroke? hitTest(
     ui.Offset pagePoint, {
     double tolerance = 4.0,
     core.StrokeFilter filter = core.StrokeFilter.all,
   }) {
     final content = _content;
-    if (content == null) return null;
-    for (var i = content.strokes.length - 1; i >= 0; i--) {
-      final s = content.strokes[i];
-      if (_isPendingRemoved(s.id)) continue;
-      if (!interop.filterAccepts(filter, s.style.tool)) continue;
-      if (s.bounds.inflate(tolerance).contains(pagePoint)) return s;
-    }
-    return null;
+    if (content == null || !pagePoint.isFinite) return null;
+    final radius = tolerance > 0 && tolerance.isFinite ? tolerance : 0.0;
+    final candidates = [
+      for (final s in _strokesNear(
+        ui.Rect.fromCircle(center: pagePoint, radius: radius),
+      ))
+        if (interop.filterAccepts(filter, s.style.tool)) s,
+    ];
+    return InkHitTest.topmostAt(
+      candidates,
+      pagePoint,
+      radius,
+      zOf: (s) => content.zIndexOf(s.id),
+    );
   }
 
-  /// Ids (z-order) of the strokes whose CORE bounds overlap [pageRect].
+  /// Ids (z-order) of the strokes whose ink meets [pageRect] (closed; 6.18
+  /// exact test). Strokes hidden by a pending erase or delete are left out.
   List<String> strokeIdsInRect(ui.Rect pageRect) {
     final content = _content;
     if (content == null) return const [];
+    final hits = [
+      for (final s in _strokesNear(pageRect))
+        if (InkHitTest.rectTouches(s, pageRect)) s,
+    ]..sort((a, b) => content.zIndexOf(a.id).compareTo(content.zIndexOf(b.id)));
+    return [for (final s in hits) s.id];
+  }
+
+  /// 6.18: the committed strokes whose CORE bounds meet [pageRect] (closed),
+  /// without those a pending edit hides; no particular order.
+  List<InkStroke> _strokesNear(ui.Rect pageRect) {
+    final content = _content;
+    if (content == null) return const [];
+    final index = _spatial ??= StrokeSpatialIndex.of(
+      content.pageSize,
+      content.strokes,
+    );
     return [
-      for (final s in content.strokes)
-        if (!_isPendingRemoved(s.id) && s.bounds.overlaps(pageRect)) s.id,
+      for (final s in index.query(pageRect))
+        if (!_isPendingRemoved(s.id)) s,
     ];
   }
 
@@ -412,29 +506,35 @@ final class InkPageController extends ChangeNotifier {
     required double deviceScale,
     required bool isScaling,
   }) {
+    final visibleChanged = visiblePageRect != _visiblePageRect;
+    final scaleChanged = deviceScale != _deviceScale;
+    final scalingChanged = isScaling != _isScaling;
+    final oldBucket = _bucket;
     _visiblePageRect = visiblePageRect;
     _deviceScale = deviceScale;
     _isScaling = isScaling;
-    _bucket = _bucketFor(deviceScale);
-    // B3 draws vectors only: no picture depends on the bucket yet.
-  }
-
-  /// Smallest scale bucket >= [deviceScale]; null above the largest (vector only, 6.13).
-  double? _bucketFor(double deviceScale) {
-    double? best;
-    for (final b in config.scaleBuckets) {
-      if (b + 1e-9 >= deviceScale && (best == null || b < best)) best = b;
+    _bucket = scaleBucketFor(config.scaleBuckets, deviceScale);
+    if (_disposed) return;
+    if (!config.rasterTiles) return;
+    if (visibleChanged || scaleChanged) _tiles.clearEvicted();
+    if (visibleChanged || scaleChanged || scalingChanged) {
+      _rasterSchedule.viewportChanged(isScaling: isScaling);
     }
-    return best;
+    if (visibleChanged) _rasterSchedule.scheduleRelease();
+    // 6.13-5: another bucket keeps drawing the tiles there are (stretched);
+    // only crossing the vector-only line changes the picture now.
+    if ((oldBucket == null) != (_bucket == null) && _tiles.count > 0) {
+      _repaints[InkRenderLayer.inkBase]!.fire();
+    }
   }
 
   Listenable layerRepaint(InkRenderLayer layer) => _repaints[layer]!;
 
   InkPageRenderStats get renderStats => InkPageRenderStats(
     strokeCount: _content?.strokes.length ?? 0,
-    chunkPictures: 0,
-    rasterTiles: 0,
-    rasterBytes: 0,
+    chunkPictures: _chunks.pictureCount,
+    rasterTiles: _tiles.count,
+    rasterBytes: _tiles.bytes,
     pendingCommits: _pending.length,
     currentBucket: _bucket,
   );
@@ -450,6 +550,12 @@ final class InkPageController extends ChangeNotifier {
     if (sel != null) disposeInkSelection(sel);
     _selection = null;
     _pending.clear();
+    _rasterSchedule.dispose();
+    _chunks.dispose();
+    _tiles.dropAll();
+    _removePictureCount();
+    _hl.dispose();
+    _selectionPreview.dispose();
     for (final r in _repaints.values) {
       r.dispose();
     }
@@ -538,12 +644,105 @@ final class InkPageController extends ChangeNotifier {
   void _invalidate() {
     _display = null;
     if (_disposed) return;
+    // 6.13-2 (b): input and display changes put raster tiles off
+    if (config.rasterTiles) _rasterSchedule.activity();
     for (final r in _repaints.values) {
       r.fire();
     }
   }
 
-  _Display _currentDisplay() => _display ??= _computeDisplay();
+  _Display _currentDisplay() {
+    final cached = _display;
+    if (cached != null) return cached;
+    final d = _display = _computeDisplay();
+    _syncHidden(d.hidden);
+    return d;
+  }
+
+  /// R2–R4: what the content change means for the base caches. Appended
+  /// strokes (top of the z order) become small chunk pictures; everything
+  /// else marks the chunks it touches dirty. Highlighters: one page picture.
+  void _applyDiff(InkContentDiff diff, InkPageContent content) {
+    if (diff.isNoop) return;
+    if (diff.isReset) {
+      _chunks.reset(content.pageSize);
+      _chunkOrder = null;
+      _hl.markDirty();
+      _spatial = null;
+      return;
+    }
+    final spatial = _spatial;
+    if (spatial != null) {
+      for (final s in diff.removed) {
+        spatial.remove(s.id);
+      }
+      diff.inserted.forEach(spatial.insert);
+      diff.appended.forEach(spatial.insert);
+      for (final (_, now) in diff.changed) {
+        spatial.insert(now);
+      }
+    }
+    var highlighters = diff.backgroundChanged;
+    void dirty(InkStroke s) {
+      if (s.layer == InkLayer.highlighter) {
+        highlighters = true;
+      } else {
+        _chunks.markDirty(s.bounds);
+      }
+    }
+
+    diff.inserted.forEach(dirty);
+    diff.removed.forEach(dirty);
+    for (final (before, now) in diff.changed) {
+      dirty(before);
+      dirty(now);
+    }
+    for (final s in diff.appended) {
+      if (s.layer == InkLayer.highlighter) {
+        highlighters = true;
+      } else if (!_baseHidden.contains(s.id)) {
+        _chunks.append(s, _drawInk);
+      }
+    }
+    if (highlighters) _hl.markDirty();
+  }
+
+  /// R7: ids that start or stop being hidden (pending erase, previews,
+  /// discarded edits) mark the base pictures they appear in dirty.
+  void _syncHidden(Set<String> hidden) {
+    final content = _content;
+    if (content != null) {
+      var highlighters = false;
+      void touch(String id) {
+        final s = content.strokeById(id);
+        if (s == null) return;
+        if (s.layer == InkLayer.highlighter) {
+          highlighters = true;
+        } else {
+          _chunks.markDirty(s.bounds);
+        }
+      }
+
+      for (final id in hidden) {
+        if (!_baseHidden.contains(id)) touch(id);
+      }
+      for (final id in _baseHidden) {
+        if (!hidden.contains(id)) touch(id);
+      }
+      if (highlighters) _hl.markDirty();
+    }
+    _baseHidden = hidden;
+  }
+
+  /// One committed ink stroke into a chunk picture (6.8 fill, 6.11 grain).
+  void _drawInk(ui.Canvas canvas, InkStroke s) {
+    ui.Image? grain;
+    if (s.profile.textured) {
+      grain = _grain();
+      if (grain == null) _chunksMissingGrain = true;
+    }
+    paintFillStroke(canvas, s, cachePool.outlineFor(s), grain: grain);
+  }
 
   _Display _computeDisplay() {
     final content = _content;
@@ -573,13 +772,19 @@ final class InkPageController extends ChangeNotifier {
       }
     }
     final active = _active;
+    final previews = <core.Stroke>[];
     if (active is EraserSession && active.isActive) {
       removed.addAll(eraserTouched(active));
+      // 6.20 P8: the pieces the partial eraser leaves, instead of the originals
+      previews.addAll(eraserPreviewPieces(active));
     }
     final sel = _selection;
+    final selectionPreviewIds = <String>{};
     if (sel != null && !sel.isDisposed && !sel.previewTransform.isIdentity) {
       for (final id in sel.strokeIds) {
-        transforms.putIfAbsent(id, () => sel.previewTransform);
+        if (transforms.containsKey(id)) continue; // a pending transform wins
+        transforms[id] = sel.previewTransform;
+        selectionPreviewIds.add(id);
       }
     }
     final overrides = <_Override>[
@@ -587,12 +792,39 @@ final class InkPageController extends ChangeNotifier {
         for (final s in content.strokes)
           if (!removed.contains(s.id) &&
               (transforms.containsKey(s.id) || colors.containsKey(s.id)))
-            _Override(s, transforms[s.id], colors[s.id]),
+            _Override(
+              s,
+              transforms[s.id],
+              colors[s.id],
+              fromSelection: selectionPreviewIds.contains(s.id),
+            ),
     ];
+    final hidden = {...removed, ...transforms.keys, ...colors.keys};
+    // 6.10-6: a group with anything being written, pending or previewed is
+    // composited by the active layer only (committed lines included).
+    final activeKeys = <HighlighterGroupKey>{
+      for (final o in overrides)
+        if (o.stroke.layer == InkLayer.highlighter)
+          HighlighterGroupKey.of(o.stroke.style, colorArgb: o.colorArgb),
+      for (final s in [...added, ...previews])
+        if (s.style.profile.layer == InkLayer.highlighter)
+          HighlighterGroupKey.of(s.style),
+      if (active is StrokeSession &&
+          active.isActive &&
+          active.style.profile.layer == InkLayer.highlighter)
+        HighlighterGroupKey.of(active.style),
+    };
     return _Display(
-      hidden: {...removed, ...transforms.keys, ...colors.keys},
+      hidden: hidden,
       overrides: overrides,
       added: added,
+      previews: previews,
+      highlighters: [
+        if (content != null)
+          for (final s in content.strokes)
+            if (s.layer == InkLayer.highlighter && !hidden.contains(s.id)) s,
+      ],
+      activeHighlighterKeys: activeKeys,
     );
   }
 
@@ -600,74 +832,430 @@ final class InkPageController extends ChangeNotifier {
     if (_disposed) return;
     final content = _content;
     final display = _currentDisplay();
+    final margin = 1 / _currentViewScale; // 1 logical px (6.7 K-1 6)
+    final paper = content?.background.paperColorArgb ?? core.PaperColors.white;
     switch (layer) {
       case InkRenderLayer.background:
         return;
       case InkRenderLayer.highlighterBase:
-      case InkRenderLayer.inkBase:
-        final want = layer == InkRenderLayer.highlighterBase
-            ? InkLayer.highlighter
-            : InkLayer.ink;
         if (content == null) return;
-        for (final s in content.strokes) {
-          if (s.layer != want || display.hidden.contains(s.id)) continue;
-          paintStrokePolyline(canvas, s.source);
+        _hl.paintBase(
+          canvas,
+          display.highlighters,
+          excluded: display.activeHighlighterKeys,
+          paperColorArgb: paper,
+          marginPt: margin,
+        );
+      case InkRenderLayer.inkBase:
+        if (content == null) return;
+        _paintInkBase(canvas, content, display);
+        if (diagnostics.enabled) {
+          diagnostics.onCacheStats(
+            cachePool.stats,
+            visibleStrokes: content.strokes.length - display.hidden.length,
+          );
         }
       case InkRenderLayer.highlighterActive:
+        _paintActiveHighlighters(canvas, display, paper, margin);
       case InkRenderLayer.inkActive:
-        final want = layer == InkRenderLayer.highlighterActive
-            ? InkLayer.highlighter
-            : InkLayer.ink;
-        for (final o in display.overrides) {
-          if (o.stroke.layer != want) continue;
-          paintStrokePolyline(
-            canvas,
-            o.stroke.source,
-            transform: o.transform,
-            colorArgb: o.colorArgb,
-          );
-        }
-        for (final s in display.added) {
-          if (s.style.profile.layer != want) continue;
-          paintStrokePolyline(canvas, s);
-        }
-        final active = _active;
-        if (active is StrokeSession &&
-            active.isActive &&
-            active.style.profile.layer == want) {
-          final start = clock.nowUs();
-          paintLivePolyline(canvas, livePoints(active.live), active.style);
-          final end = clock.nowUs();
-          diagnostics.onActivePaint(
-            paintUs: end,
-            updateMs: (end - start) / 1000,
-          );
-        }
+        _paintActiveInk(canvas, display, margin);
       case InkRenderLayer.overlay:
         final active = _active;
         if (active is! LassoSession || !active.isActive) return;
         if (active.points.length < 2) return;
-        final path = active.previewPath;
-        final scale = _currentViewScale;
-        canvas
-          ..drawPath(
-            path,
-            ui.Paint()
-              ..style = ui.PaintingStyle.fill
-              ..color = const ui.Color(InkTuning.lassoFillArgb),
-          )
-          ..drawPath(
-            path,
-            ui.Paint()
-              ..style = ui.PaintingStyle.stroke
-              ..strokeWidth = 1.5 / scale
-              ..color = const ui.Color(InkTuning.lassoPathArgb),
-          );
+        paintLassoOverlay(canvas, active.previewPath, _currentViewScale);
     }
+  }
+
+  /// 6.12 R4 + 6.13: records what the chunks miss (a newly shown page within
+  /// the frame budget, visible chunks first), makes at most
+  /// maxTileRastersPerFrame raster tiles when quiet and the budget is left,
+  /// then draws each chunk from its tile (+ later appends) or its pictures.
+  /// Unfinished work asks for the next frame.
+  void _paintInkBase(
+    ui.Canvas canvas,
+    InkPageContent content,
+    _Display display,
+  ) {
+    final startUs = clock.nowUs();
+    final budgetUs = config.frameWorkBudgetMs * 1000;
+    bool outOfTime() => clock.nowUs() - startUs >= budgetUs;
+    final order = _currentChunkOrder();
+    final recorded = _chunks.record(
+      [
+        for (final s in content.strokes)
+          if (s.layer == InkLayer.ink && !display.hidden.contains(s.id)) s,
+      ],
+      _drawInk,
+      order: order,
+      outOfTime: outOfTime,
+    );
+    var more = !recorded;
+    var tiles = 0;
+    final bucket = config.rasterTiles ? _bucket : null;
+    if (bucket != null && _rasterAllowed) {
+      while (tiles < config.maxTileRastersPerFrame && !outOfTime()) {
+        final next = _nextTileChunk(bucket, order);
+        if (next == null) break;
+        _rasterTile(next, bucket);
+        tiles++;
+      }
+      more |= _nextTileChunk(bucket, order) != null;
+    }
+    _chunks.drawChunks(
+      canvas,
+      other: bucket == null ? null : (c, i) => _drawTile(c, i, bucket),
+    );
+    _baseStats
+      ..lastPaintUs = clock.nowUs() - startUs
+      ..lastPaintTiles = tiles
+      ..paints += 1;
+    if (more) _requestBaseFrame();
+  }
+
+  /// The chunk priority order for the visible rect (the reported one, or the
+  /// view's own before the first report).
+  List<int> _currentChunkOrder() {
+    final visible = _deviceScale == null ? _paintVisibleHint : _visiblePageRect;
+    final cached = _chunkOrder;
+    if (cached != null && visible == _chunkOrderRect) return cached;
+    _chunkOrderRect = visible;
+    return _chunkOrder = _chunks.priorityOrder(visible);
+  }
+
+  /// 6.13-2: tiles are made only when the scheduler is quiet (idle after
+  /// input, zoom settled, not scaling), with no gesture and a view attached.
+  bool get _rasterAllowed =>
+      !_disposed &&
+      config.rasterTiles &&
+      _bucket != null &&
+      _rasterSchedule.quiet &&
+      activeSession == null;
+
+  /// 6.13-3: the first chunk of [order] (visible, nearest the centre) within
+  /// the visible rect + 1 chunk that has strokes and no [bucket] tile.
+  int? _nextTileChunk(double bucket, List<int> order) {
+    final keep = _keepRect();
+    for (final i in order) {
+      if (_chunks.pictureOf(i) == null) continue;
+      if (_chunks.strokeCountOf(i) == 0) continue;
+      if (!_chunks.cellRectOf(i).overlaps(keep)) continue;
+      if (_tiles.wasEvicted(i) || _tiles.has(i, bucket)) continue;
+      return i;
+    }
+    return null;
+  }
+
+  /// The visible rect (whole page when null) + one chunk on every side
+  /// (6.13-7).
+  ui.Rect _keepRect() {
+    final content = _content;
+    final page = content == null
+        ? ui.Rect.zero
+        : ui.Offset.zero & content.pageSize;
+    return (_visiblePageRect ?? page).inflate(config.chunkSizePt);
+  }
+
+  /// 6.13-4: the chunk picture + appended pictures → toImageSync at
+  /// [bucket]; the time goes to InkDiagnostics.onTileRaster.
+  void _rasterTile(int index, double bucket) {
+    final start = clock.nowUs();
+    final RasterTile tile;
+    try {
+      tile = rasterizeChunk(
+        picture: _chunks.pictureOf(index)!,
+        appended: _chunks.appendedOf(index),
+        chunkRect: _chunks.pageRectOf(index),
+        bucket: bucket,
+        generation: _chunks.generationOf(index),
+      );
+    } on Object catch (error, stack) {
+      // 4.0: the render path never throws — the chunk stays vector
+      _tiles.tileEvicted((owner: _tiles, chunk: index, bucket: bucket));
+      diagnostics.onWarning('tileRasterFailed');
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'ink_engine',
+          context: ErrorDescription('while making a raster tile'),
+        ),
+      );
+      return;
+    }
+    _tiles.store(index, tile);
+    final end = clock.nowUs();
+    _baseStats.tilesMade++;
+    diagnostics.onTileRaster((end - start) / 1000);
+  }
+
+  /// 6.13-5: the chunk's tile (this bucket's, else another's stretched) and
+  /// the pictures appended after it; false → vector.
+  bool _drawTile(ui.Canvas canvas, int index, double bucket) {
+    final tile = _tiles.tileFor(index, bucket, _chunks.generationOf(index));
+    if (tile == null) return false;
+    tile.draw(canvas);
+    final appended = _chunks.appendedOf(index);
+    for (var k = tile.appendedCount; k < appended.length; k++) {
+      canvas.drawPicture(appended[k]);
+    }
+    return true;
+  }
+
+  /// The scheduler became quiet: one inkBase frame if a tile is due.
+  void _rasterQuiet() {
+    final bucket = _bucket;
+    if (!_rasterAllowed || bucket == null || _content == null) return;
+    if (_nextTileChunk(bucket, _currentChunkOrder()) != null) {
+      _repaints[InkRenderLayer.inkBase]!.fire();
+    }
+  }
+
+  /// 6.13-7: the tiles of chunks outside the visible rect + 1 chunk go
+  /// (releaseInvisibleAfterMs after the last viewport change).
+  void _releaseInvisibleTiles() {
+    if (_disposed) return;
+    final keep = _keepRect();
+    _tiles.dropWhere((i) => !_chunks.cellRectOf(i).overlaps(keep));
+  }
+
+  /// The next inkBase frame (unfinished loading or tiles). Not during paint:
+  /// after the current task.
+  void _requestBaseFrame() {
+    if (_baseFrameRequested) return;
+    _baseFrameRequested = true;
+    scheduleMicrotask(() {
+      _baseFrameRequested = false;
+      if (!_disposed) _repaints[InkRenderLayer.inkBase]!.fire();
+    });
+  }
+
+  void _viewAttached() {
+    if (_disposed || !config.rasterTiles) return;
+    _rasterSchedule.attach(isScaling: _isScaling);
+  }
+
+  /// No view draws the tiles any more: they go at once.
+  void _viewDetached() {
+    _rasterSchedule.detach();
+    if (!_disposed) _tiles.dropAll();
+  }
+
+  /// The previewed copy of an override (transform → core.Stroke.transformed).
+  InkStroke _overrideStroke(_Override o) {
+    final m = o.transform;
+    return m == null
+        ? o.stroke
+        : InkStroke.of(interop.previewTransformedOf(o.stroke.source, m));
+  }
+
+  /// Ink-layer previews, pending strokes and the stroke being written (R5–R7).
+  void _paintActiveInk(ui.Canvas canvas, _Display display, double margin) {
+    // Committed-looking strokes are drawn under the chunk clips, like the
+    // chunk pictures that take them over (pixel-exact hand-off, R6).
+    final selectionItems = <SelectionPreviewItem>[];
+    core.Affine2? selectionTransform;
+    for (final o in display.overrides) {
+      if (o.stroke.layer != InkLayer.ink) continue;
+      if (o.fromSelection) {
+        // R7 / 6.22: the live selection preview has its own pictures
+        selectionItems.add((stroke: o.stroke, colorArgb: o.colorArgb));
+        selectionTransform = o.transform;
+        continue;
+      }
+      final s = _overrideStroke(o);
+      final outline = o.transform == null
+          ? cachePool.outlineFor(s)
+          : OutlineGenerator.outline(s);
+      final grain = s.profile.textured ? _grain() : null;
+      _chunks.paintClipped(
+        canvas,
+        s,
+        (c, s) => paintFillStroke(
+          c,
+          s,
+          outline,
+          colorArgb: o.colorArgb,
+          grain: grain,
+        ),
+      );
+    }
+    if (selectionTransform == null) {
+      _selectionPreview.reset();
+    } else {
+      _selectionPreview.paint(
+        canvas,
+        selectionItems,
+        selectionTransform,
+        grain: _grain,
+        outlineOf: cachePool.outlineFor,
+      );
+    }
+    for (final added in display.added) {
+      final s = InkStroke.of(added);
+      if (s.layer != InkLayer.ink) continue;
+      _chunks.paintClipped(canvas, s, _drawInk);
+    }
+    for (final piece in display.previews) {
+      final s = InkStroke.of(piece);
+      if (s.layer != InkLayer.ink) continue;
+      final outline = _previewOutlines[s] ??= OutlineGenerator.outline(s);
+      final grain = s.profile.textured ? _grain() : null;
+      _chunks.paintClipped(
+        canvas,
+        s,
+        (c, s) => paintFillStroke(c, s, outline, grain: grain),
+      );
+    }
+    final active = _active;
+    if (active is StrokeSession &&
+        active.isActive &&
+        active.style.profile.layer == InkLayer.ink) {
+      final start = clock.nowUs();
+      final live = active.live;
+      final style = active.style;
+      if (!live.isEmpty) {
+        paintFillPaths(
+          canvas,
+          [live.frozenPath, live.tailPath],
+          profile: style.profile,
+          colorArgb: style.colorArgb,
+          opacity:
+              style.opacity *
+              tiltOpacityFactor(style.profile, liveMeanTiltK(live)),
+          bounds: live.bounds.inflate(margin),
+          grain: style.profile.textured ? _grain() : null,
+        );
+      }
+      final end = clock.nowUs();
+      diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);
+    }
+  }
+
+  /// The active highlighter groups (6.10-6): for each, ONE composite of its
+  /// committed lines (cached opaque picture), its previews, its pending
+  /// strokes and the highlighter being written — so a new stroke over a
+  /// committed one of the same color never darkens the overlap.
+  void _paintActiveHighlighters(
+    ui.Canvas canvas,
+    _Display display,
+    int paper,
+    double margin,
+  ) {
+    final keys = display.activeHighlighterKeys;
+    _hl.retainGroups(keys);
+    if (keys.isEmpty) return;
+    // group order: lowest z of the committed lines, then the rest
+    final groups = <HighlighterGroupKey, HighlighterGroup>{};
+    HighlighterGroup groupOf(HighlighterGroupKey key) =>
+        groups.putIfAbsent(key, () => HighlighterGroup(key));
+    for (final s in display.highlighters) {
+      final key = HighlighterGroupKey.of(s.style);
+      if (keys.contains(key)) groupOf(key);
+    }
+    for (final o in display.overrides) {
+      if (o.stroke.layer != InkLayer.highlighter) continue;
+      groupOf(HighlighterGroupKey.of(o.stroke.style, colorArgb: o.colorArgb))
+          .lines
+          .add(HighlighterLine.of(_overrideStroke(o)));
+    }
+    for (final added in [...display.added, ...display.previews]) {
+      if (added.style.profile.layer != InkLayer.highlighter) continue;
+      groupOf(HighlighterGroupKey.of(added.style)).lines
+          .add(HighlighterLine.of(InkStroke.of(added)));
+    }
+    final active = _active;
+    final writing =
+        active is StrokeSession &&
+        active.isActive &&
+        active.style.profile.layer == InkLayer.highlighter;
+    final start = writing ? clock.nowUs() : 0;
+    HighlighterGroupKey? liveKey;
+    HighlighterLine? liveLine;
+    if (writing) {
+      final xy = active.live.polyline;
+      if (xy != null && xy.isNotEmpty) {
+        liveKey = HighlighterGroupKey.of(active.style);
+        liveLine = HighlighterLine(xy, active.style.width);
+        groupOf(liveKey);
+      }
+    }
+    final blend = highlighterBlendFor(paper);
+    for (final g in groups.values) {
+      final committed = _hl.groupOpaque(g.key, display.highlighters);
+      final line = g.key == liveKey ? liveLine : null;
+      ui.Rect? extraBounds = committed?.bounds;
+      final lineBounds = line?.bounds;
+      if (lineBounds != null) {
+        extraBounds = extraBounds == null
+            ? lineBounds
+            : extraBounds.expandToInclude(lineBounds);
+      }
+      if (g.lines.isEmpty && extraBounds == null) continue;
+      paintHighlighterGroup(
+        canvas,
+        g,
+        blend: blend,
+        marginPt: margin,
+        extraBounds: extraBounds,
+        extra: committed == null && line == null
+            ? null
+            : (c, color) {
+                if (committed != null) c.drawPicture(committed.picture);
+                if (line != null) {
+                  drawHighlighterLine(
+                    c,
+                    line.xy,
+                    highlighterLinePaint(line.width, color),
+                  );
+                }
+              },
+      );
+    }
+    if (writing) {
+      final end = clock.nowUs();
+      diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);
+    }
+  }
+
+  bool _grainWaiting = false;
+
+  /// Outlines of the partial-eraser preview pieces (6.23: not in the pool;
+  /// gone with the piece objects).
+  final Expando<StrokeOutline> _previewOutlines = Expando('previewOutline');
+
+  /// The pencil grain when ready; otherwise null (paint without grain, 6.11)
+  /// and one repaint once it is ready. Only asked for when a textured stroke
+  /// is painted, so pages without pencil never start the generation.
+  ui.Image? _grain() {
+    final image = pencilGrain.value;
+    if (image == null && !_grainWaiting) {
+      _grainWaiting = true;
+      pencilGrain.ready.then((_) {
+        if (_disposed) return;
+        if (_chunksMissingGrain) {
+          _chunksMissingGrain = false;
+          _chunks.markAllDirty();
+        }
+        _invalidate();
+      }, onError: (Object _) {});
+    }
+    return image;
   }
 
   /// Logical px per pt of the view being painted (set by InkPageRender.paint).
   double _currentViewScale = 1;
+
+  /// One more inkActive frame after this one (an unfinished selection
+  /// preview recording). Not during paint: after the current task.
+  void _requestActiveInkFrame() {
+    if (_activeInkFrameRequested) return;
+    _activeInkFrameRequested = true;
+    scheduleMicrotask(() {
+      _activeInkFrameRequested = false;
+      if (!_disposed) _repaints[InkRenderLayer.inkActive]!.fire();
+    });
+  }
 }
 
 /// INTERNAL render access for InkPageView (not exported).
@@ -679,22 +1267,36 @@ final class InkPageRender {
   Object? _view;
 
   /// Paints [layer] in page pt (the caller already scaled the canvas by [viewScale]).
-  void paint(ui.Canvas canvas, InkRenderLayer layer, double viewScale) {
-    _controller._currentViewScale = viewScale;
-    _controller._paintLayer(canvas, layer);
+  /// [visiblePageRect]: the view's own argument — the chunk loading order of
+  /// the frames before its first setViewport report (6.13 time slicing).
+  void paint(
+    ui.Canvas canvas,
+    InkRenderLayer layer,
+    double viewScale, {
+    ui.Rect? visiblePageRect,
+  }) {
+    _controller
+      .._currentViewScale = viewScale
+      .._paintVisibleHint = visiblePageRect
+      .._paintLayer(canvas, layer);
   }
 
-  /// One InkPageView per controller (debug assert, 6.12 R9 ⑤).
+  /// One InkPageView per controller (debug assert, 6.12 R9 ⑤). Raster
+  /// tiles (6.13 L3) are made and kept only while a view is attached.
   void attachView(Object view) {
     assert(
       _view == null || identical(_view, view),
       'InkPageController(${_controller.pageId}) already has an InkPageView',
     );
+    if (identical(_view, view)) return;
     _view = view;
+    _controller._viewAttached();
   }
 
   void detachView(Object view) {
-    if (identical(_view, view)) _view = null;
+    if (!identical(_view, view)) return;
+    _view = null;
+    _controller._viewDetached();
   }
 
   ui.Rect? get visiblePageRect => _controller._visiblePageRect;
@@ -706,6 +1308,47 @@ final class InkPageRender {
 @meta.internal
 InkPageRender inkPageRenderOf(InkPageController controller) =>
     controller._render;
+
+/// INTERNAL (tests): the ink chunk pictures of [controller] (6.12 R3/R4).
+@meta.internal
+InkChunkCache inkChunkCacheOf(InkPageController controller) =>
+    controller._chunks;
+
+/// INTERNAL (tests): the inkBase paint counters of [controller] (6.13).
+@meta.internal
+InkBaseStats inkBaseStatsOf(InkPageController controller) =>
+    controller._baseStats;
+
+/// INTERNAL (tests): the raster tiles of [controller] (6.13 L3).
+@meta.internal
+PageRasterTiles inkRasterTilesOf(InkPageController controller) =>
+    controller._tiles;
+
+/// INTERNAL: inkBase paint counters (6.13 time slicing and raster tiles).
+@meta.internal
+final class InkBaseStats {
+  /// Clock time of the last inkBase paint (recording + tiles + drawing).
+  int lastPaintUs = 0;
+
+  /// Tiles made by the last inkBase paint.
+  int lastPaintTiles = 0;
+
+  /// Tiles made since the controller was created.
+  int tilesMade = 0;
+
+  /// inkBase paints since the controller was created.
+  int paints = 0;
+}
+
+/// INTERNAL (tests): the R7 selection preview counters of [controller] (6.22).
+@meta.internal
+SelectionPreviewStats selectionPreviewStatsOf(InkPageController controller) =>
+    controller._selectionPreview.stats;
+
+/// INTERNAL (tests): the highlighter page picture of [controller] (6.10-6/-7).
+@meta.internal
+HighlighterBaseCache inkHighlighterCacheOf(InkPageController controller) =>
+    controller._hl;
 
 final class _Repaint extends ChangeNotifier {
   void fire() => notifyListeners();
@@ -729,10 +1372,18 @@ final class _Pending {
 }
 
 final class _Override {
-  _Override(this.stroke, this.transform, this.colorArgb);
+  _Override(
+    this.stroke,
+    this.transform,
+    this.colorArgb, {
+    required this.fromSelection,
+  });
   final InkStroke stroke;
   final core.Affine2? transform;
   final int? colorArgb;
+
+  /// [transform] is the live selection preview (not a pending edit).
+  final bool fromSelection;
 }
 
 final class _Display {
@@ -740,10 +1391,23 @@ final class _Display {
     required this.hidden,
     required this.overrides,
     required this.added,
+    required this.previews,
+    required this.highlighters,
+    required this.activeHighlighterKeys,
   });
   final Set<String> hidden;
   final List<_Override> overrides;
   final List<core.Stroke> added;
+
+  /// Memory-only partial-eraser pieces (6.20 P8): outlines never enter the
+  /// cache pool.
+  final List<core.Stroke> previews;
+
+  /// Committed highlighters not hidden, z order.
+  final List<InkStroke> highlighters;
+
+  /// Groups composited by highlighterActive instead of highlighterBase (6.10-6).
+  final Set<HighlighterGroupKey> activeHighlighterKeys;
 }
 
 final class _Host implements InkPageHost {
@@ -759,9 +1423,14 @@ final class _Host implements InkPageHost {
   @override
   InkDiagnostics get diagnostics => _c.diagnostics;
   @override
+  PressureCapability get stylusCapability =>
+      _c.pressureStore.capabilityOf(InkPointerKind.stylus);
+  @override
   InkPageContent? get content => _c._content;
   @override
   bool isPendingRemoved(String id) => _c._isPendingRemoved(id);
+  @override
+  List<InkStroke> strokesNear(ui.Rect pageRect) => _c._strokesNear(pageRect);
   @override
   void addPending(InkEdit edit) => _c._addPending(edit);
 

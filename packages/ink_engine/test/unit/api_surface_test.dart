@@ -429,7 +429,8 @@ void main() {
     final bool liveEmpty = live.isEmpty;
     expect(
       [g.isActive, sStyle.tool, src, poly, liveEmpty],
-      [true, core.PenTool.ballpoint, PressureSource.real, null, false],
+      // 6.4: a stylus with an unknown capability starts pending.
+      [true, core.PenTool.ballpoint, PressureSource.pending, null, false],
     );
     expect([frozen, tail, liveBounds, version], hasLength(4));
     final void Function(InkSample) addSample = ss.addSample;

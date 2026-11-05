@@ -1,18 +1,19 @@
 // lib/src/render/sessions.dart — StrokeSession / EraserSession / LassoSession
 // (end() → InkEdit?), contract 7.2.15 (03-ink 4.8).
 //
-// Foundation step B3 (03-ink 4.15):
-//  * StrokeSession: sample positions as they come, widthQ = kNominalWidthQ,
-//    t = ms since the first sample, createdAt = pen-down nowMillis() → one
-//    core.Stroke → InkEdit(addStroke) (INK T06 / T10 bring the real pipeline);
-//  * EraserSession: a stroke is touched when the eraser circle (swept between
-//    samples) overlaps its CORE bounds; stroke mode → eraseStrokes, partial
-//    mode → splitStrokes without fragments (toCommand = RemoveStrokes)
-//    (exact geometry: INK T15 / T16);
-//  * LassoSession: a stroke is selected when its bounds center is inside the
-//    lasso polygon (nonzero winding) (the coverage rule of LassoOptions: T17).
+// Foundation step B3 (03-ink 4.15), replaced step by step:
+//  * StrokeSession: the StrokeBuilder pipeline of 6.3–6.7 (INK T06) →
+//    createdAt = pen-down nowMillis() → one core.Stroke (several after a
+//    rollover, 6.7 F8) → InkEdit(addStroke) (live layers: INK T10);
+//  * EraserSession: a stroke is touched when its ink meets the capsule swept
+//    from the previous sample (6.19, INK T15: spatial index + exact contact);
+//    stroke mode → eraseStrokes; partial mode → the vector split of 6.20
+//    (INK T16: PartialEraser P2–P6, CORE fragments P7, splitStrokes P8 —
+//    toCommand = SplitStrokes, or RemoveStrokes when nothing is left);
+//  * LassoSession: the LassoOptions rule of 6.21 (INK T17): RDP-simplified
+//    closed polygon, nonzero winding with a y-band index, spatial index
+//    candidates, centerline coverage of segment midpoints >= coverage.
 import 'dart:collection';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -20,12 +21,17 @@ import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../edit/eraser_spec.dart';
+import '../edit/hit_test.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
+import '../edit/lasso_polygon.dart';
+import '../edit/partial_eraser.dart';
+import '../geometry/outline_generator.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
+import '../model/ink_points.dart';
 import '../pen/style_ink.dart';
 import '../stroke/stroke_builder.dart';
 import 'ink_page_controller.dart';
@@ -42,23 +48,44 @@ abstract interface class InkGestureSession {
 /// Live geometry for the active layer (page pt). Unquantized; replaced by the CORE
 /// (quantized) stroke when the session ends.
 final class LiveStrokeGeometry {
-  LiveStrokeGeometry._(this._polylineMode);
+  LiveStrokeGeometry._(this._style)
+    : _polylineMode = _style.profile.layer == InkLayer.highlighter;
 
+  final core.StrokeStyle _style;
   final bool _polylineMode;
-  final List<ui.Offset> _points = [];
+
+  /// stable (filtered) centerline positions, append-only during one stroke
+  final List<ui.Offset> _stable = [];
+
+  /// raw tail (+ predicted samples) after the stable points, replaced on every update
+  List<ui.Offset> _tail = const [];
+
+  /// highlighter alwaysStraight: start → current position (replaces the centerline)
+  (ui.Offset, ui.Offset)? _straight;
+
+  /// Σ K4 tilt weight of the stable points (pencil opacity, 6.11)
+  double _tiltKSum = 0;
+
+  final ui.Path _frozen = ui.Path();
+  final List<ui.Path> _frozenChunks = [];
+  InkPoints? _open;
+  ui.Path? _tailPath;
+  Float32List? _polyline;
   ui.Rect _bounds = ui.Rect.zero;
   int _version = 0;
-  ui.Path? _tail;
-  Float32List? _polyline;
-  final ui.Path _frozen = ui.Path();
 
   /// frozen chunks (append-only during one stroke), fill pens only
   ui.Path get frozenPath => _frozen;
 
   /// open chunk + raw tail, rebuilt on every update, fill pens only
   ui.Path get tailPath {
-    if (_polylineMode) return ui.Path();
-    return _tail ??= _pathOf(_points);
+    final open = _open;
+    if (_polylineMode || open == null) return ui.Path();
+    return _tailPath ??= OutlineGenerator.outlineOf(
+      open,
+      width: _style.width,
+      profile: _style.profile,
+    ).toPath();
   }
 
   /// highlighter centerline x,y pairs (stroked); null for fill pens
@@ -73,50 +100,95 @@ final class LiveStrokeGeometry {
 
   /// increments on every change
   int get version => _version;
-  bool get isEmpty => _points.isEmpty;
+  bool get isEmpty => _stable.isEmpty;
 
-  void _append(ui.Offset p) {
-    _bounds = _points.isEmpty
-        ? ui.Rect.fromLTWH(p.dx, p.dy, 0, 0)
-        : _bounds.expandToInclude(ui.Rect.fromLTWH(p.dx, p.dy, 0, 0));
-    _points.add(p);
-    _tail = null;
+  List<ui.Offset> get _points {
+    final s = _straight;
+    if (s != null) return [s.$1, s.$2];
+    return [..._stable, ..._tail];
+  }
+
+  void _changed() {
+    _tailPath = null;
     _polyline = null;
     _version++;
   }
 
   void _clear() {
-    if (_points.isEmpty) return;
-    _points.clear();
+    if (_stable.isEmpty && _frozenChunks.isEmpty) return;
+    _stable.clear();
+    _tiltKSum = 0;
+    _tail = const [];
+    _straight = null;
+    _frozen.reset();
+    _frozenChunks.clear();
+    _open = null;
     _bounds = ui.Rect.zero;
-    _tail = null;
-    _polyline = null;
-    _version++;
-  }
-
-  static ui.Path _pathOf(List<ui.Offset> points) {
-    final path = ui.Path();
-    if (points.isEmpty) return path;
-    path.moveTo(points.first.dx, points.first.dy);
-    for (var i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
-    }
-    return path;
+    _changed();
   }
 }
 
 @internal
-LiveStrokeGeometry newLiveStrokeGeometry({required bool polyline}) =>
-    LiveStrokeGeometry._(polyline);
+LiveStrokeGeometry newLiveStrokeGeometry(core.StrokeStyle style) =>
+    LiveStrokeGeometry._(style);
 
+/// Appends one stable centerline position (StrokeBuilder) with its K4 tilt
+/// weight [tiltK] (6.11).
 @internal
-void liveAppend(LiveStrokeGeometry live, ui.Offset p) => live._append(p);
+void liveAddStable(LiveStrokeGeometry live, ui.Offset p, {double tiltK = 0}) {
+  live._stable.add(p);
+  live._tiltKSum += tiltK;
+  live._changed();
+}
+
+/// Mean K4 tilt weight of the stable points so far: the live pencil opacity
+/// loss (6.11), like the committed stroke's mean over its points.
+@internal
+double liveMeanTiltK(LiveStrokeGeometry live) =>
+    live._stable.isEmpty ? 0 : live._tiltKSum / live._stable.length;
+
+/// Freezes one chunk (fill pens): its outline joins frozenPath for good.
+@internal
+void liveFreezeChunk(LiveStrokeGeometry live, InkPoints chunk) {
+  final path = OutlineGenerator.outlineOf(
+    chunk,
+    width: live._style.width,
+    profile: live._style.profile,
+  ).toPath();
+  live._frozenChunks.add(path);
+  live._frozen.addPath(path, ui.Offset.zero);
+  live._changed();
+}
+
+/// Replaces the open part: [tail] after the stable points, [open] = open chunk
+/// + tail with live widthQ (fill pens), [straight] (highlighter alwaysStraight).
+@internal
+void liveSetOpen(
+  LiveStrokeGeometry live, {
+  required List<ui.Offset> tail,
+  required InkPoints? open,
+  required (ui.Offset, ui.Offset)? straight,
+  required ui.Rect bounds,
+}) {
+  live
+    .._tail = tail
+    .._open = open
+    .._straight = straight
+    .._bounds = bounds
+    .._changed();
+}
 
 @internal
 void liveClear(LiveStrokeGeometry live) => live._clear();
 
+/// The live centerline: stable points + raw tail (or the straight line).
 @internal
 List<ui.Offset> livePoints(LiveStrokeGeometry live) => live._points;
+
+/// The frozen chunk outlines, oldest first (tests: append-only).
+@internal
+List<ui.Path> liveFrozenChunks(LiveStrokeGeometry live) =>
+    List.unmodifiable(live._frozenChunks);
 
 // --- pen -----------------------------------------------------------------------
 
@@ -141,6 +213,7 @@ final class StrokeSession implements InkGestureSession {
     _checkActive();
     _builder.add(sample);
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
+    _reportWidthFactor();
     _host.repaint(_layer);
   }
 
@@ -150,7 +223,19 @@ final class StrokeSession implements InkGestureSession {
     if (list.isEmpty) return;
     list.forEach(_builder.add);
     _host.diagnostics.onSamples(list, receiveUs: _host.clock.nowUs());
+    _reportWidthFactor();
     _host.repaint(_layer);
+  }
+
+  /// 4.12 lastWidthFactor / pressureSource / stylusCapability.
+  void _reportWidthFactor() {
+    final d = _host.diagnostics;
+    if (!d.enabled) return;
+    d.onWidthFactor(
+      _builder.lastWidthFactor ?? 1.0,
+      _builder.pressureSource,
+      _host.stylusCapability,
+    );
   }
 
   /// addStroke edit with ONE core.Stroke: id = services.newStrokeId(), createdAt = pen-down
@@ -163,18 +248,22 @@ final class StrokeSession implements InkGestureSession {
     _checkActive();
     _active = false;
     final finished = _builder.finish(last: last);
+    final parts = [..._builder.rolledOver, ?finished];
     InkEdit? edit;
-    if (finished != null) {
-      final stroke = interop.newCoreStroke(
-        finished,
-        id: _host.services.newStrokeId(),
-        pageId: _host.pageId,
-        penDownMillis: _penDownMillis,
-      );
+    if (parts.isNotEmpty) {
+      final strokes = [
+        for (final f in parts)
+          interop.newCoreStroke(
+            f,
+            id: _host.services.newStrokeId(),
+            pageId: _host.pageId,
+            penDownMillis: _penDownMillis,
+          ),
+      ];
       edit = InkEdit(
         pageId: _host.pageId,
         kind: InkEditKind.addStroke,
-        added: List.unmodifiable([stroke]),
+        added: List.unmodifiable(strokes),
       );
       _host.addPending(edit);
     }
@@ -209,7 +298,11 @@ StrokeSession newStrokeSession(
 // --- eraser --------------------------------------------------------------------
 
 final class EraserSession implements InkGestureSession {
-  EraserSession._(this._host, this.spec, ui.Offset first) : _last = first {
+  EraserSession._(this._host, this.spec, ui.Offset first)
+    : _last = first,
+      _partial = spec.mode == EraserMode.partial
+          ? PartialEraser(spec.radius)
+          : null {
     _touchAlong(first, first);
   }
 
@@ -219,37 +312,60 @@ final class EraserSession implements InkGestureSession {
   ui.Offset _last;
   bool _active = true;
 
+  /// partial mode (6.20): the erased intervals per original
+  final PartialEraser? _partial;
+
+  /// partial mode: the kept pieces (P5/P6) of each touched original as
+  /// memory-only preview strokes (P8, ids `pv-<n>`; end() gives their points
+  /// to the fragments)
+  final Map<String, List<core.Stroke>> _previews = {};
+  int _previewSeq = 0;
+
   Set<String> get touchedStrokeIds => UnmodifiableSetView(_touched);
 
   void addSample(InkSample sample) {
     if (!_active) throw StateError('The eraser session has ended');
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
-    _touchAlong(_last, sample.position);
-    _last = sample.position;
+    final p = sample.position;
+    if (!p.isFinite) return;
+    _touchAlong(_last.isFinite ? _last : p, p);
+    _last = p;
   }
 
   /// stroke mode → eraseStrokes(removedIds); partial → splitStrokes(removedIds, added =
   /// fragments made with core.Stroke.fragment). null if nothing was touched.
   InkEdit? end([InkSample? last]) {
     if (!_active) throw StateError('The eraser session has ended');
-    if (last != null) _touchAlong(_last, last.position);
+    if (last != null && last.position.isFinite) {
+      _touchAlong(_last.isFinite ? _last : last.position, last.position);
+    }
     _active = false;
     InkEdit? edit;
     final content = _host.content;
     if (_touched.isNotEmpty && content != null) {
-      final ordered = _touched.toList()
-        ..sort((a, b) => content.zIndexOf(a).compareTo(content.zIndexOf(b)));
-      final removed = Set<String>.unmodifiable(LinkedHashSet.of(ordered));
-      edit = InkEdit(
-        pageId: _host.pageId,
-        kind: spec.mode == EraserMode.stroke
-            ? InkEditKind.eraseStrokes
-            : InkEditKind.splitStrokes,
-        removedIds: removed,
-      );
-      _host.addPending(edit);
+      // originals another update removed meanwhile are left out
+      final ordered = [
+        for (final id in _touched)
+          if (content.zIndexOf(id) >= 0) id,
+      ]..sort((a, b) => content.zIndexOf(a).compareTo(content.zIndexOf(b)));
+      if (ordered.isNotEmpty) {
+        final removed = Set<String>.unmodifiable(LinkedHashSet.of(ordered));
+        edit = _partial == null
+            ? InkEdit(
+                pageId: _host.pageId,
+                kind: InkEditKind.eraseStrokes,
+                removedIds: removed,
+              )
+            : InkEdit(
+                pageId: _host.pageId,
+                kind: InkEditKind.splitStrokes,
+                removedIds: removed,
+                added: List.unmodifiable(_fragments(ordered)),
+              );
+        _host.addPending(edit);
+      }
     }
-    _touched.clear();
+    _clear();
     _host.sessionEnded(this);
     return edit;
   }
@@ -261,20 +377,62 @@ final class EraserSession implements InkGestureSession {
   void cancel() {
     if (!_active) return;
     _active = false;
-    _touched.clear();
+    _clear();
     _host.sessionEnded(this);
   }
 
+  void _clear() {
+    _touched.clear();
+    _partial?.clear();
+    _previews.clear();
+  }
+
+  /// P7: the CORE fragments of every touched original (z order), each piece
+  /// with a real id — from the gesture's merged intervals (the pieces of the
+  /// last change). Their points are the preview pieces' points, made from
+  /// the same data (T22 B5: no second StrokePoints.fromInterleaved).
+  List<core.Stroke> _fragments(List<String> ordered) {
+    final partial = _partial!;
+    return [
+      for (final id in ordered)
+        if (partial.strokeOf(id) case final original?)
+          for (final preview in _previews[id] ?? const <core.Stroke>[])
+            interop.fragmentFromPreview(
+              original.source,
+              preview,
+              id: _host.services.newStrokeId(),
+            ),
+    ];
+  }
+
+  /// 6.19 1–2 / 6.20 P1: the capsule from the previous sample to this one
+  /// (the first sample: a disc) → spatial index candidates → filter → exact
+  /// ink contact (stroke mode: InkHitTest.capsuleTouches; partial mode: the
+  /// cut intervals of PartialEraser). The capsule fills the gap between
+  /// samples, so fast scrubbing misses nothing.
   void _touchAlong(ui.Offset a, ui.Offset b) {
-    final content = _host.content;
-    if (content == null) return;
+    if (_host.content == null || !a.isFinite || !b.isFinite) return;
+    final radius = spec.radius;
+    final near = _host.strokesNear(ui.Rect.fromPoints(a, b).inflate(radius));
+    final partial = _partial;
     var changed = false;
-    for (final s in content.strokes) {
-      if (_touched.contains(s.id) || _host.isPendingRemoved(s.id)) continue;
+    for (final s in near) {
       if (!interop.filterAccepts(spec.filter, s.style.tool)) continue;
-      if (_segmentRectDistance(a, b, s.bounds) <= spec.radius) {
+      if (partial != null) {
+        if (!partial.addCapsule(s, a, b)) continue;
         _touched.add(s.id);
+        final pieces = partial.piecesOf(s.id);
+        _previews[s.id] = [
+          for (final data in pieces)
+            interop.previewFragmentOf(s.source, data, seq: ++_previewSeq),
+        ];
         changed = true;
+      } else {
+        if (_touched.contains(s.id)) continue;
+        if (InkHitTest.capsuleTouches(s, a, b, radius)) {
+          _touched.add(s.id);
+          changed = true;
+        }
       }
     }
     if (changed) _host.displayChanged();
@@ -291,73 +449,36 @@ EraserSession newEraserSession(
 @internal
 Set<String> eraserTouched(EraserSession s) => s._touched;
 
-double _pointRectDistance(ui.Offset p, ui.Rect r) {
-  final dx = math.max(math.max(r.left - p.dx, 0.0), p.dx - r.right);
-  final dy = math.max(math.max(r.top - p.dy, 0.0), p.dy - r.bottom);
-  return math.sqrt(dx * dx + dy * dy);
-}
+/// Partial mode: the memory-only preview pieces of the touched originals
+/// (6.20 P8), drawn instead of them while the gesture lasts.
+@internal
+Iterable<core.Stroke> eraserPreviewPieces(EraserSession s) =>
+    s._previews.values.expand((pieces) => pieces);
 
-double _pointSegmentDistance(ui.Offset p, ui.Offset a, ui.Offset b) {
-  final abx = b.dx - a.dx, aby = b.dy - a.dy;
-  final len2 = abx * abx + aby * aby;
-  var t = 0.0;
-  if (len2 > 0) {
-    t = (((p.dx - a.dx) * abx + (p.dy - a.dy) * aby) / len2).clamp(0.0, 1.0);
-  }
-  final x = a.dx + abx * t - p.dx, y = a.dy + aby * t - p.dy;
-  return math.sqrt(x * x + y * y);
-}
-
-/// Liang–Barsky: does segment a→b cross rectangle r?
-bool _segmentHitsRect(ui.Offset a, ui.Offset b, ui.Rect r) {
-  var t0 = 0.0, t1 = 1.0;
-  final dx = b.dx - a.dx, dy = b.dy - a.dy;
-  final p = [-dx, dx, -dy, dy];
-  final q = [a.dx - r.left, r.right - a.dx, a.dy - r.top, r.bottom - a.dy];
-  for (var i = 0; i < 4; i++) {
-    if (p[i] == 0) {
-      if (q[i] < 0) return false;
-    } else {
-      final t = q[i] / p[i];
-      if (p[i] < 0) {
-        if (t > t1) return false;
-        if (t > t0) t0 = t;
-      } else {
-        if (t < t0) return false;
-        if (t < t1) t1 = t;
-      }
-    }
-  }
-  return true;
-}
-
-double _segmentRectDistance(ui.Offset a, ui.Offset b, ui.Rect r) {
-  if (_segmentHitsRect(a, b, r)) return 0;
-  return [
-    _pointRectDistance(a, r),
-    _pointRectDistance(b, r),
-    _pointSegmentDistance(r.topLeft, a, b),
-    _pointSegmentDistance(r.topRight, a, b),
-    _pointSegmentDistance(r.bottomLeft, a, b),
-    _pointSegmentDistance(r.bottomRight, a, b),
-  ].reduce(math.min);
-}
+/// Partial mode: the merged erased intervals of [strokeId] so far.
+@internal
+List<ParamInterval> eraserIntervalsOf(EraserSession s, String strokeId) =>
+    s._partial?.erasedOf(strokeId) ?? const [];
 
 // --- lasso ---------------------------------------------------------------------
 
 final class LassoSession implements InkGestureSession {
-  LassoSession._(this._host, ui.Offset first, this._options) {
-    _points.add(first);
+  LassoSession._(this._host, ui.Offset first, this._viewScale, this._options) {
+    if (first.isFinite) _points.add(first);
   }
 
   final InkPageHost _host;
+
+  /// logical px per page pt at gesture start (the RDP tolerance, L2)
+  final double _viewScale;
   final LassoOptions _options;
   final List<ui.Offset> _points = [];
   bool _active = true;
 
+  /// The collected points (page pt; non-finite points are not kept).
   List<ui.Offset> get points => UnmodifiableListView(_points);
 
-  /// The lasso polygon, closed end → start.
+  /// The collected path, closed end → start (not simplified — L1 preview).
   ui.Path get previewPath {
     final path = ui.Path();
     if (_points.isEmpty) return path;
@@ -368,29 +489,39 @@ final class LassoSession implements InkGestureSession {
     return path..close();
   }
 
+  /// L1: one more point (page pt); a non-finite point is ignored.
   void addPoint(ui.Offset pagePoint) {
     if (!_active) throw StateError('The lasso session has ended');
+    if (!pagePoint.isFinite) return;
     _points.add(pagePoint);
     _host.repaint(InkRenderLayer.overlay);
   }
 
   /// Selection by the LassoOptions rule (null if degenerate or empty).
   /// A non-null result becomes controller.selection.
+  ///
+  /// L2 polygon (RDP simplifyPx / viewScale, degenerate → null) → L4 spatial
+  /// index candidates of its bounds (every tool; strokes a pending edit hides
+  /// are left out) → L5 coverage → ids in z order.
   InkSelection? end() {
     if (!_active) throw StateError('The lasso session has ended');
     _active = false;
     InkSelection? result;
     final content = _host.content;
-    if (content != null && !_isDegenerate()) {
-      final ids = <String>[
-        for (final s in content.strokes)
-          if (!_host.isPendingRemoved(s.id) &&
-              _windingNumber(s.bounds.center) != 0)
-            s.id,
-      ];
-      if (ids.isNotEmpty) {
-        result = newInkSelection(_host, ids);
-        _host.lassoSelected(result);
+    if (content != null) {
+      final polygon = lassoPolygonOf(this);
+      if (!polygon.isDegenerate(_options.minAreaPt2)) {
+        // z looked up once per pick, not per comparison (T22 B6)
+        final zPicked = [
+          for (final s in _host.strokesNear(polygon.bounds))
+            if (LassoSelector.selects(s, polygon, _options.coverage))
+              (content.zIndexOf(s.id), s.id),
+        ]..sort((a, b) => a.$1.compareTo(b.$1));
+        final picked = [for (final (_, id) in zPicked) id];
+        if (picked.isNotEmpty) {
+          result = newInkSelection(_host, picked);
+          _host.lassoSelected(result);
+        }
       }
     }
     _host.sessionEnded(this);
@@ -406,38 +537,19 @@ final class LassoSession implements InkGestureSession {
     _active = false;
     _host.sessionEnded(this);
   }
-
-  bool _isDegenerate() {
-    if (_points.length < 3) return true;
-    var area2 = 0.0;
-    for (var i = 0; i < _points.length; i++) {
-      final a = _points[i], b = _points[(i + 1) % _points.length];
-      area2 += a.dx * b.dy - b.dx * a.dy;
-    }
-    return area2.abs() / 2 < _options.minAreaPt2;
-  }
-
-  /// Nonzero winding number of [p] around the closed lasso polygon.
-  int _windingNumber(ui.Offset p) {
-    var wn = 0;
-    final n = _points.length;
-    for (var i = 0; i < n; i++) {
-      final a = _points[i], b = _points[(i + 1) % n];
-      final cross =
-          (b.dx - a.dx) * (p.dy - a.dy) - (p.dx - a.dx) * (b.dy - a.dy);
-      if (a.dy <= p.dy) {
-        if (b.dy > p.dy && cross > 0) wn++;
-      } else {
-        if (b.dy <= p.dy && cross < 0) wn--;
-      }
-    }
-    return wn;
-  }
 }
+
+/// L2: the closed, simplified polygon of [s]'s points so far.
+@internal
+LassoPolygon lassoPolygonOf(LassoSession s) => LassoPolygon.simplified(
+  s._points,
+  tolerancePt: s._options.simplifyPx / s._viewScale,
+);
 
 @internal
 LassoSession newLassoSession(
   InkPageHost host,
   ui.Offset first,
+  double viewScale,
   LassoOptions options,
-) => LassoSession._(host, first, options);
+) => LassoSession._(host, first, viewScale, options);

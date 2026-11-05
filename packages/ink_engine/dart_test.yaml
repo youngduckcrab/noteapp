@@ -1,0 +1,7 @@
+# packages/ink_engine/dart_test.yaml (03-ink 3, contract 00-overview 7.4.8).
+# INK uses only these two tags, always as string literals. It has no
+# `integration` or `perf` tests; if it ever does, declare them here with
+# `skip: "<reason>"`.
+tags:
+  golden: {}   # test/goldens/ (@TestOn('vm'))
+  bench: {}    # benchmark/ only — not under test/, so `flutter test` / `ws test` never run it

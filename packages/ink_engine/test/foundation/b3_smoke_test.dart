@@ -115,7 +115,8 @@ void main() {
   ) async {
     await pumpView(tester);
     final before = await capture(tester);
-    final width = core.PageSize.a4Portrait.width.floor();
+    // the captured image is ceil(595.28) = 596 px wide (row stride)
+    final width = core.PageSize.a4Portrait.width.ceil();
     expect(pixel(before, width, 200, 100), [255, 255, 255, 255]);
 
     final samples = SyntheticInk.line(
@@ -156,7 +157,7 @@ void main() {
     expect(controller.renderStats.currentBucket, 1.0);
   });
 
-  testWidgets('eraser: stroke and partial modes → RemoveStrokes', (
+  testWidgets('eraser: stroke mode → RemoveStrokes, partial → SplitStrokes', (
     tester,
   ) async {
     await pumpView(tester);
@@ -208,11 +209,15 @@ void main() {
     expect(partial.touchedStrokeIds, {second.added.single.id});
     final split = partial.end()!;
     expect(split.kind, InkEditKind.splitStrokes);
-    expect(split.added, isEmpty);
+    // INK T16 (vector split): the pass through the middle leaves two pieces
+    // (B3 removed the whole stroke).
+    expect(split.added, hasLength(2));
     final splitCommand = split.toCommand();
-    expect(splitCommand, isA<core.RemoveStrokes>());
+    expect(splitCommand, isA<core.SplitStrokes>());
     session.execute(splitCommand);
-    expect(controller.content!.strokes, isEmpty);
+    expect([
+      for (final s in controller.content!.strokes) s.id,
+    ], unorderedEquals([for (final s in split.added) s.id]));
     expect(controller.pendingIds, isEmpty);
 
     // Nothing touched → null.

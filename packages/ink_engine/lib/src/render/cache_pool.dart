@@ -1,8 +1,10 @@
 // lib/src/render/cache_pool.dart — 03-ink 4.9, 6.13.
 //
-// Foundation step B3: the L1 outline LRU is real (keyed by stroke id, valid
-// while the InkStroke instance is identical). Raster tiles and chunk pictures
-// come with INK T10 / T19, so their counters stay 0.
+// L1: the outline LRU (keyed by stroke id, valid while the InkStroke instance
+// is identical), outlineBudgetBytes. L3 (INK T19): the raster tile LRU of
+// raster_tiles.dart, rasterBudgetBytes, least recently used first. The chunk
+// picture count is the sum over the live page controllers (L2 lives in each
+// controller).
 import 'dart:collection';
 
 import 'package:meta/meta.dart';
@@ -10,15 +12,20 @@ import 'package:meta/meta.dart';
 import '../geometry/outline_generator.dart';
 import '../geometry/stroke_outline.dart';
 import '../model/ink_stroke.dart';
+import 'raster_tiles.dart';
 import 'render_config.dart';
 
 /// App-wide caches shared by page controllers (6.13).
 final class InkCachePool {
-  InkCachePool(InkRenderConfig config) : _config = config;
+  InkCachePool(InkRenderConfig config)
+    : _config = config,
+      _tiles = RasterTileLru(budgetBytes: config.rasterBudgetBytes);
 
   final InkRenderConfig _config;
   final LinkedHashMap<String, _OutlineEntry> _outlines = LinkedHashMap();
   int _outlineBytes = 0;
+  final RasterTileLru _tiles;
+  final Set<int Function()> _pictureCounts = {};
   bool _disposed = false;
 
   /// LRU keyed by stroke id, valid while the InkStroke instance is identical (K-4).
@@ -38,28 +45,51 @@ final class InkCachePool {
     return outline;
   }
 
-  InkCacheStats get stats => InkCacheStats(
-    outlineEntries: _outlines.length,
-    outlineBytes: _outlineBytes,
-    rasterTiles: 0,
-    rasterBytes: 0,
-    chunkPictures: 0,
-  );
+  InkCacheStats get stats {
+    var pictures = 0;
+    for (final count in _pictureCounts) {
+      pictures += count();
+    }
+    return InkCacheStats(
+      outlineEntries: _outlines.length,
+      outlineBytes: _outlineBytes,
+      rasterTiles: _tiles.length,
+      rasterBytes: _tiles.bytes,
+      chunkPictures: pictures,
+    );
+  }
 
   /// Evicts least recently used entries until the totals fit.
   void trimTo({int? outlineBytes, int? rasterBytes}) {
-    if (outlineBytes == null) return;
-    while (_outlineBytes > outlineBytes && _outlines.isNotEmpty) {
-      final key = _outlines.keys.first;
-      _outlineBytes -= _outlines.remove(key)!.outline.approximateBytes;
+    if (outlineBytes != null) {
+      while (_outlineBytes > outlineBytes && _outlines.isNotEmpty) {
+        final key = _outlines.keys.first;
+        _outlineBytes -= _outlines.remove(key)!.outline.approximateBytes;
+      }
     }
+    if (rasterBytes != null) _tiles.trimTo(rasterBytes);
   }
 
   void dispose() {
     _disposed = true;
     _outlines.clear();
     _outlineBytes = 0;
+    _tiles.dispose();
+    _pictureCounts.clear();
   }
+}
+
+/// INTERNAL: the raster tile LRU of [pool] (6.13 L3).
+@internal
+RasterTileLru rasterTileLruOf(InkCachePool pool) => pool._tiles;
+
+/// INTERNAL: a page controller adds its chunk picture count to
+/// [InkCachePool.stats] while it lives; returns the removal.
+@internal
+void Function() addChunkPictureCount(InkCachePool pool, int Function() count) {
+  if (pool._disposed) return () {};
+  pool._pictureCounts.add(count);
+  return () => pool._pictureCounts.remove(count);
 }
 
 final class _OutlineEntry {

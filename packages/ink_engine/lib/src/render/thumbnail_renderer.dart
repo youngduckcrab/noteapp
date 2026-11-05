@@ -1,31 +1,49 @@
 // lib/src/render/thumbnail_renderer.dart — contract 7.2.16 (03-ink 4.9, 6.17).
 //
-// Foundation step B3 (03-ink 4.15): paper (or the still renderer's background)
-// + polylines → PNG with the exact size, pageId and contentRevision; pdf / image
-// backgrounds follow the still-renderer null rule already. Outlines, highlighter
-// composite, grain and time slicing come with INK T20.
+// 6.17: paper (or the still renderer's background, with its null rule) +
+// strokes (layer painters: highlighter groups on the paper + fill outlines,
+// pencil grain awaited up to 1 s) → Picture.toImage → PNG with the exact size,
+// pageId and contentRevision (interop.thumbnailOf). The outlines are made with
+// a yield to the event loop every 4 ms (INK T20), so a 3,000-stroke page never
+// blocks a frame for long. No cache pool (6.17 step 3).
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:meta/meta.dart' show internal;
 import 'package:note_core/note_core.dart' as core;
 
 import '../background/background_builder.dart';
 import '../background/background_spec.dart';
 import '../background/builder_choice.dart';
+import '../geometry/outline_generator.dart';
+import '../geometry/stroke_outline.dart';
 import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
-import '../pen/style_ink.dart';
+import '../model/ink_stroke.dart';
+import 'layer_painters.dart';
 import 'pencil_grain.dart';
-import 'stroke_painter.dart';
 
 final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
   InkPageThumbnailRenderer({
     required List<PageBackgroundLayerBuilder> backgroundBuilders,
     PencilGrain? pencilGrain,
-  }) : _backgroundBuilders = List.unmodifiable(backgroundBuilders);
+  }) : _backgroundBuilders = List.unmodifiable(backgroundBuilders),
+       // the contract names the parameter pencilGrain; the field stays private
+       // ignore: prefer_initializing_formals
+       _pencilGrain = pencilGrain;
 
-  // [pencilGrain] is used for the pencil texture from INK T20 (B3 draws polylines).
   final List<PageBackgroundLayerBuilder> _backgroundBuilders;
+  final PencilGrain? _pencilGrain;
+
+  /// Event-loop yields of the last render (6.17 step 5; tests).
+  int _lastYields = 0;
+
+  /// How long render waits for the pencil grain (6.17 step 3).
+  static const Duration _grainWait = Duration(seconds: 1);
+
+  /// Outline work between two yields (6.17 step 5).
+  static const int _sliceUs = 4000;
 
   /// Paper + background (first builder that handles it AND is a PageBackgroundStillRenderer)
   /// + committed strokes → PNG via Picture.toImage + toByteData(png). Web (CanvasKit) safe.
@@ -90,12 +108,35 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
       );
     }
     canvas.scale(w / pw, h / ph);
-    for (final layer in InkLayer.values) {
-      for (final s in content.strokes) {
-        if (s.deletedAt != null || s.style.profile.layer != layer) continue;
-        paintStrokePolyline(canvas, s);
+    final strokes = [
+      for (final s in content.strokes)
+        if (s.deletedAt == null) InkStroke.of(s),
+    ]..sort((a, b) => core.Stroke.compareOrder(a.source, b.source));
+    // 6.17 step 5: outlines with a yield every 4 ms
+    final outlines = <InkStroke, StrokeOutline>{};
+    var yields = 0;
+    final watch = Stopwatch()..start();
+    for (final s in strokes) {
+      if (s.layer != InkLayer.ink) continue;
+      outlines[s] = OutlineGenerator.outline(s);
+      if (watch.elapsedMicroseconds >= _sliceUs) {
+        yields++;
+        await Future<void>.delayed(Duration.zero);
+        watch.reset();
       }
     }
+    _lastYields = yields;
+    // 6.17 step 3: the pencil grain, waited for up to 1 s
+    ui.Image? grain;
+    if (strokes.any((s) => s.profile.textured)) grain = await _grain();
+    paintStrokeLayers(
+      canvas,
+      strokes,
+      paperColorArgb: spec.paperColorArgb,
+      outlineOf: (s) => outlines[s] ?? OutlineGenerator.outline(s),
+      grain: grain,
+      marginPt: pw / w,
+    );
     final picture = recorder.endRecording();
     ui.Image? image;
     try {
@@ -115,4 +156,22 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
       backgroundImage?.dispose();
     }
   }
+
+  /// The grain when ready within [_grainWait]; null otherwise (no texture).
+  Future<ui.Image?> _grain() async {
+    final g = _pencilGrain;
+    if (g == null) return null;
+    final ready = g.value;
+    if (ready != null) return ready;
+    try {
+      return await g.ready.timeout(_grainWait);
+    } on Object {
+      return null;
+    }
+  }
 }
+
+/// INTERNAL (tests): the event-loop yields of [renderer]'s last render.
+@internal
+int thumbnailRendererYieldsOf(InkPageThumbnailRenderer renderer) =>
+    renderer._lastYields;

@@ -19,5 +19,16 @@ Calling rules for EDITOR (03-ink 5.3, summary): feed every pointer sample throug
 `controller.updateContent(InkPageContent.fromCore(...))`; never call
 `controller.setViewport` (InkPageView does); `viewScale` = logical px per pt.
 
-Status: foundation step B3 — the whole contract surface with simple but working
-bodies (03-ink 4.15). The full pipeline replaces them task by task (03-ink 8).
+Name clash (contract v1.4 C14-01): `SelectionGeometry` is also a class in
+`package:flutter/rendering.dart`. A file that imports both uses
+`import 'package:flutter/rendering.dart' hide SelectionGeometry;` or
+`import 'package:ink_engine/ink_engine.dart' as ink;`. `widgets.dart` and
+`material_ui` do not export the Flutter class.
+
+ink lab (`example/`, 03-ink T23): the engine on one page with the CORE fake
+store for the M0 checks on the iPad — see [example/README.md](example/README.md).
+
+Status: INK-α done (03-ink 8 T01–T12: input, pressure, stroke pipeline,
+outlines, pen renderers, vector chunk caches, diagnostics). Erasers, lasso,
+selection, templates, raster tiles, thumbnails and vector export still run the
+simple foundation (B3) bodies (03-ink 4.15) until their INK-β/γ tasks.

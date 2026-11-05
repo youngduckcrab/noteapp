@@ -34,6 +34,10 @@ abstract final class InkDevTools {
     final pw = pageSize.width, ph = pageSize.height;
     final usableW = math.max(0.0, pw - 2 * margin);
     final usableH = math.max(0.0, ph - 2 * margin);
+    // Upper clamp on CORE's 0.01 pt grid, a little inside the edge, so the
+    // quantized Float32 coordinate never lands past the page (A4 595.2756 →
+    // 595.27, not 595.28).
+    final maxX = _gridInside(pw), maxY = _gridInside(ph);
     const stride = core.StrokePoints.stride;
     final out = <core.Stroke>[];
     for (var i = 0; i < count; i++) {
@@ -67,8 +71,8 @@ abstract final class InkDevTools {
           x += vx / len * step;
           y += vy / len * step;
         }
-        x = x.clamp(0.0, pw).toDouble();
-        y = y.clamp(0.0, ph).toDouble();
+        x = x.clamp(0.0, maxX).toDouble();
+        y = y.clamp(0.0, maxY).toDouble();
         q = (q + (rng.next() - 0.5) * 0.02).clamp(0.2, 0.3).toDouble();
       }
       out.add(
@@ -84,6 +88,11 @@ abstract final class InkDevTools {
     return out;
   }
 }
+
+/// The largest 0.01 pt grid value at least 0.005 pt inside [side] (Float32
+/// rounding stays below 0.001 pt up to core.PageSize.maxSide).
+double _gridInside(double side) =>
+    math.max(0.0, ((side - 0.005) * 100).floorToDouble() / 100);
 
 /// MINSTD (Park–Miller): s ← s · 48271 mod (2³¹ − 1). Arithmetic only (6.26).
 final class _Minstd {

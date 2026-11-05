@@ -37,7 +37,8 @@ core.Stroke strokeFromData(
   createdAt: createdAt,
 );
 
-/// Pen stroke (6.7 F8): createdAt = penDownMillis, recording fields from the meta.
+/// Pen stroke (6.7 F8): createdAt = penDownMillis (+ Σ⌊t_b⌋ for a part after a
+/// rollover), recording fields from the meta.
 core.Stroke newCoreStroke(
   FinishedStroke f, {
   required String id,
@@ -48,7 +49,7 @@ core.Stroke newCoreStroke(
   id: id,
   pageId: pageId,
   style: f.style,
-  createdAt: penDownMillis,
+  createdAt: penDownMillis + f.createdAtOffsetMs,
   hasTilt: f.hasTilt,
   hasAzimuth: f.hasAzimuth,
   recordingId: f.meta.recordingId,
@@ -69,6 +70,15 @@ core.Stroke fragmentOf(
   ),
 );
 
+/// Partial-eraser fragment with the points of its PREVIEW piece
+/// ([previewFragmentOf] of the same data): the same stroke as
+/// fragmentOf(original, data, id: id) without encoding the points again.
+core.Stroke fragmentFromPreview(
+  core.Stroke original,
+  core.Stroke preview, {
+  required String id,
+}) => original.fragment(id: id, points: preview.points);
+
 /// Partial-eraser PREVIEW piece (6.20 P8): id `pv-<seq>`, memory only — never leaves INK
 /// and never enters InkCachePool.
 core.Stroke previewFragmentOf(
@@ -80,7 +90,7 @@ core.Stroke previewFragmentOf(
 /// Selection-transform PREVIEW (6.22) = source.transformed(m, scaleWidth: true): same id,
 /// memory only (the commit sends only the transform).
 core.Stroke previewTransformedOf(core.Stroke source, core.Affine2 m) =>
-    source.transformed(m);
+    source.transformed(m, scaleWidth: true);
 
 /// Lasso duplicate (6.22): moved by [offset] without width scaling, new id and createdAt.
 core.Stroke duplicateOf(
