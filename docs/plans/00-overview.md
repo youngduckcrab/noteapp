@@ -1,6 +1,6 @@
 # 동시 개발 영역 개요
 
-> 상태: **확정 — 개발 시작 가능** (통합 계약 v1.3, 4차 승인 검토 · 최종 승인 2026-11-05 — 7개 영역 계획서 01~07 모두 승인) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 검토 결과: [00-review.md](00-review.md) ('최종 승인' 절에 개발 중 주의할 점)
+> 상태: **확정 — 기반 단계 완료, 동시 개발 중** (통합 계약 v1.4, 4차 승인 검토 · 최종 승인 2026-11-05 — 7개 영역 계획서 01~07 모두 승인) · 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 검토 결과: [00-review.md](00-review.md) ('최종 승인' 절에 개발 중 주의할 점)
 
 ## 1. 목적
 
@@ -1497,6 +1497,15 @@ Future<NoteId> seedSyntheticNote(NoteStore store,
 | 다중 탭 리더 선출, tombstone 정리, 고아 에셋 GC | 이후(SYNC 12절 Q15 방향 승인: 기기 커서 최솟값 기준, 90일 미접속 기기 제외) |
 
 ### 7.9 계약 변경 이력
+
+#### v1.4 (2026-11-05, 기반 단계 B1~B8 완료 후 — 총괄)
+
+시그니처 변경 없음. 기반 단계 결과 보고의 변경 요청 2건을 처리했다.
+
+| # | 절 | 변경 | 출처 | 반영할 영역 (개발 중) |
+|---|---|---|---|---|
+| C14-01 | 7.2.15, 7.4 | INK 계약 이름 `SelectionGeometry`는 Flutter `package:flutter/rendering.dart`의 같은 이름과 겹친다. 이름은 **유지**하고, `rendering.dart`(또는 그것을 다시 내보내는 `package:flutter/widgets.dart` 이외 파일)를 함께 가져오는 파일은 `import 'package:flutter/rendering.dart' hide SelectionGeometry;` 또는 `import 'package:ink_engine/ink_engine.dart' as ink;`로 가져온다. `widgets.dart`·`material_ui`는 Flutter 쪽 이름을 내보내지 않으므로 대부분의 파일은 영향 없음 | INK B3 | EDITOR·PDF(해당 파일에서만), INK(README 한 줄) |
+| C14-02 | 7.4.8 (R15) | R15 리터럴 태그 검사는 `test(`·`testWidgets(`·`group(` 호출의 `tags:` 인자와 `@Tags([...])`만 센다(데이터 생성자 `Note(tags: [...])`는 대상 아님) — B8에서 `tool/src/test_tags.dart` 수정 완료 | CORE B2 | 없음(완료). CORE는 `kSampleTags` 우회를 그대로 둬도 됨 |
 
 #### v1.3 (2026-11-05, 4차 승인 검토(최종) — 근거: [00-review.md '4차 검토'](00-review.md#4차-검토-승인-검토))
 
