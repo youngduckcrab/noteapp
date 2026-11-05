@@ -6,7 +6,7 @@
 #
 # Secrets: APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (the
 # content of the App Store Connect API key .p8 file).
-name: ios-testflight
+name: iOS TestFlight
 
 on:
   workflow_dispatch:

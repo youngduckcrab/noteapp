@@ -11,7 +11,7 @@
 # Each timed `run` step ends by writing "<seconds> <label>" to
 # $RUNNER_TEMP/step-seconds ($SECONDS = time spent in that step's shell); the
 # summary step prints them as the per-step timing table.
-name: ci
+name: CI
 
 on:
   push:

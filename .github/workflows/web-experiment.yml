@@ -5,7 +5,7 @@
 # branch channels (contract 7.4.9). Deploys to the 7-day channel `exp-wasm`.
 # Compare on the iPad with `?renderer=skwasm` / `?renderer=canvaskit` (9.3
 # item 15).
-name: web-experiment
+name: Web experiment
 
 on:
   workflow_dispatch:
