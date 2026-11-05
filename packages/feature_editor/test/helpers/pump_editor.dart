@@ -9,6 +9,7 @@ import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/document/mounted_pages.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
+import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:feature_editor/src/viewport/viewport_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -261,6 +262,21 @@ class EditorTestHandles {
     }
     return mount.controller;
   }
+
+  /// Top-left of the page area (PageViewport) in global coordinates — the
+  /// origin of the viewport's screen coordinates.
+  Offset get viewportOrigin => _tester.getTopLeft(find.byType(PageViewport));
+
+  /// Global position of page point [pagePt] (pt) on page [pageIndex].
+  Offset toGlobal(int pageIndex, Offset pagePt) =>
+      viewportOrigin + viewport.pageToScreen(pageIndex, pagePt);
+
+  /// Page point (pt) on page [pageIndex] under the global position [global].
+  Offset toPage(int pageIndex, Offset global) =>
+      viewport.screenToPage(pageIndex, global - viewportOrigin);
+
+  /// Global position of viewport point [screen] (viewport coordinates).
+  Offset viewportToGlobal(Offset screen) => viewportOrigin + screen;
 
   /// Pumps frames (no fake time) until the viewport has its size and every
   /// mounted page is loaded; at most [maxFrames].

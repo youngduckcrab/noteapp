@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **3** (동시 개발 단계 개발 세션 3/10) — 이번 세션 완료: E-04 (세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-08(InteractionHost·EditorCommands·펜·hover 커서, E-04·E-05·E-07 뒤) → E-09·E-10·E-11 …
+- 마지막 세션: **3** (동시 개발 단계 개발 세션 3/10) — 이번 세션 완료: E-04·E-08 (세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-09(지우개·커서·페이지 전체 지우기, E-08 뒤) → E-10(올가미·선택·클립보드) → E-11(되돌리기 연결) → E-12 → E-13 …
 
 ## 작업 표
 
@@ -16,11 +16,11 @@
 | E-01 | 완료 | d32032e | `unit/helpers_smoke_test.dart`. `EditorTestHandles.viewport`·`controllerOf`는 E-03/E-04, `pumpEditor(settings:)`는 E-06, `test_data`의 화면 좌표 도우미(`pageCenterOf`·`lassoAround`·`pathThrough`)는 E-04에서 더함 |
 | E-02 | 완료 | 9b78333 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart` |
 | E-03 | 완료 | 261c01f | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
-| E-04 | 완료 | (이 커밋) | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
+| E-04 | 완료 | 1f96175 | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
 | E-05 | 완료 | 21450fe | `unit/input_router_test.dart` (R1~R33 + R29b·관성 속도·`cancelAll`·간격·트랙패드·observe) |
 | E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
 | E-07 | 완료 | 6433a32 | `unit/tool_controller_test.dart` |
-| E-08 | 남음 | | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
+| E-08 | 완료 | (이 커밋) | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
 | E-09 | 남음 | | `widget/erase_test.dart` |
 | E-10 | 남음 | | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
 | E-11 | 남음 | | `widget/undo_redo_test.dart` |
@@ -64,6 +64,13 @@
 - (세션 3) E-04 `MountedPages`: `register`/`unregister`가 위젯 `initState`/`dispose`(build 중)에서 불리므로 알림은 한 마이크로태스크 뒤에 모아서 1번. `pageIds` getter 추가.
 - (세션 3) E-04 `EditorScreen`: 노트별 `ProviderScope(key: ValueKey(noteId), overrides: [editorNoteIdProvider, editorInitialPageIdProvider])`를 만들고, 그 안의 `_EditorRoot`가 `editorSessionProvider`로 여는 중/없음/실패/본문을 고른다(B5는 CORE provider를 직접 봄 — 본문이 `editorSessionValueProvider.requireValue`를 읽으려면 scoped provider 값이 있어야 함). 열기 오류 보고 `ref.listen`은 바깥 상태에 그대로. 본문은 E-13 전까지 앱 바(뒤로·제목·더보기) + `PageViewport`. `EditorStrings.placeholderBody` 삭제. `editor_scope.dart`에는 E-04 몫(noteId·initialPageId·session·sessionValue·mountedPages·viewport·currentPageIndex)만 — `editorInitialPageIdProvider` 기본값도 throw. 뷰포트 복원(`ViewportMemory`·`initialPageId`)은 E-13.
 - (세션 3) E-04 테스트 도구: `pumpEditor`에 `settings:`(두 CORE 설정 키에 씀)·`pageSize:`·`settle:`(기본 true — 뷰포트 크기·마운트·로드까지 프레임만 돌림, 가짜 시간은 안 흐름), `EditorTestHandles`에 `viewport`·`mountedPages`·`controllerOf(i)`·`settlePages()`. `container`는 `UncontrolledProviderScope.container`를 읽도록 고침(이전 방식은 `ProviderScope` 요소에서 `containerOf`를 불러 **바깥** 컨테이너가 나왔다 — 중첩 scope가 생기며 드러남). `RecordingNoteSession`에 `holdPageLoads()`/`releasePageLoads()`(openPage를 붙잡아 로딩 상태 유지), `countOf(call)`, `activeSubscriptions`. `test_data`의 화면 좌표 도우미(`pageCenterOf`·`lassoAround`·`pathThrough`)는 E-04가 아니라 E-08에서 더한다(펜 테스트가 처음 쓰는 곳).
+- (세션 3) E-08 `EditorCommands`: 사용자 안내는 `Stream<String> messages`(스낵바 문구)로 내보내고 화면의 `_CommandMessages`(E-13 전까지 `editor_screen.dart` 안)가 `ScaffoldMessenger`로 띄운다. 라우터는 `editorInputRouterProvider`가 만들 때 `commands.bindRouter(router)`로 알려 준다(되돌리기 중 상호작용 확인 — provider 의존 순환을 피하려고). `_rejected`는 `onRejected`를 먼저 부르고(예외는 보고) 5.1.3 표대로 처리. 테스트용 `@visibleForTesting debugRun`·`debugRunAsync`·`debugRunHistory`. E-08 범위 밖이지만 바로 쓸 수 있어 먼저 만든 것: `undo`/`redo`(상호작용 중·읽기 전용 무시, 적용되면 노트 순서 첫 영향 페이지로 `ensurePageVisible` — 완료 조건 테스트는 E-11), `clearCurrentPage()`(`_runAsync(ClearPage(현재 페이지, 지우개 필터))` — 확인 대화상자는 E-09).
+- (세션 3) E-08 `editorReadOnlyProvider`(`ReadOnlyNotifier`: `session.isReadOnly`로 시작, `noteStream`마다·`refresh()`로 다시 읽음)를 E-13보다 먼저 만들었다(호스트·명령이 읽음). 배너·도구 비활성 UI는 E-13.
+- (세션 3) E-08 `ColorPaletteNotifier`·`ColorPaletteState`·`editorColorPaletteProvider`(6.9.5, `state/color_palette.dart`)를 E-14보다 먼저 만들었다 — 펜 커밋이 `pushRecent`를 부른다. `editor.colors`(synced, 1000ms) 로드·저장·`watch`(자기 echo 무시)까지 다른 notifier와 같은 규칙으로 구현, `toJson`/`fromJson(invalidFields:)`, 불투명화는 비트 연산 없이 `0xFF000000 + argb % 0x1000000`. 완료 조건 테스트(`editor.colors` 저장 등)는 E-14.
+- (세션 3) E-08 `InteractionHost`: `beginInteraction` 결정 순서 ①~⑥ 중 E-08은 ②④⑤와 펜(⑥)만 — 스포이드(①, E-14)·선택 변형(③, E-10)·지우개·올가미(⑥, E-09·E-10)는 지금 `null`. `tapGesture(1)`(팝업·선택 닫기)·`longPress`·`secondaryClick`·`palmRejected`·`observe`는 빈 몸통(E-10·E-13·E-19). 2·3손가락 탭 → `commands.undo/redo`. 휠: Ctrl/⌘이면 `zoomBy(exp(−dy/300), at)`, 아니면 `panBy(delta)`. `panZoomSignal`의 `panDelta`(손가락 방향)는 부호를 바꿔 `panBy`. `stylusDetected` → `markStylusSeen`. 펜이 닿으면(`beginInteraction`) 커서 숨김, hover 타이머 300ms(`kHoverCursorTimeout`). 마우스 hover는 지우개 원만. 테스트용 `lastStarted`(마지막으로 시작한 상호작용) getter.
+- (세션 3) E-08 `PenInteraction`(`tools/pen_interaction.dart`): `PenInteraction.start(...)`가 `beginStroke`(viewScale = `settleNow()` 뒤 `camera.scale`), `viewScale`·`style` 노출, 커밋 성공 때만 `onCommitted`(최근 색). 화면 → INK 샘플 변환은 최상위 `toInkSample(viewport, pageIndex, event)`(E-09·E-10이 같이 씀).
+- (세션 3) E-08 `PageViewport`: 6.4.3대로 `RawGestureDetector(EagerGestureRecognizer)` → `Listener`(down·move·up·cancel·hover·signal·panZoom → `router.handlePointerEvent`) → `ClipRect` → `Stack[페이지들, IgnorePointer(CursorPainter)]`. 커서 그리기 `ui/overlays/cursor_painter.dart`(`repaint: host.cursor`, 지우개 원 1.5px `onSurface` 60%).
+- (세션 3) E-08 테스트 도구: `EditorTestHandles.viewportOrigin`·`toGlobal(i, pt)`·`toPage(i, global)`·`viewportToGlobal(screen)`, `test_data`의 `pageCenterOf`·`pathThrough`·`lassoAround`(전역 좌표 — `PointerDriver`에 그대로).
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모
@@ -77,5 +84,6 @@
 - E-04 준비(세션 2): `ViewportController`는 크기 0·페이지 0이면 카메라가 없고(`hitPage`·`visibleRange`·`captureAnchor` null), `restore`는 둘 다 생길 때 적용된다 → 6.13.2 스케치대로 `editorViewportProvider`에서 `updatePages(session.pages)`, `PageViewport`의 `LayoutBuilder`에서 `updateViewportSize`, 마지막 위치는 `ViewportMemory.load` 뒤 `restore(anchor, initialPageId:)`(E-13). 마운트 범위는 `controller.mountedRange`(±1, ≤ 8 — 단위 테스트 있음). `InkPageView` 인자: `ancestorScale = camera.scale / settledScale.value`, `isScaling = isInteracting.value`. E-01 메모대로 `EditorTestHandles.viewport`·`controllerOf`와 `test_data`의 화면 좌표 도우미를 E-04에서 더한다.
 - 뷰포트 테스트(세션 2): `test/unit/viewport_controller_test.dart`의 `_viewportTest`·`_controller()` 패턴 — `testWidgets` 안에서 `tester.pump`가 컨트롤러 `Ticker`·150ms 안정화 `Timer`를 움직인다. 컨트롤러는 **본문 끝에서** dispose(testWidgets의 남은 타이머 검사가 tear-down보다 먼저라 `addTearDown`으로는 안 됨). 1032×1376에서 A4 fit = 1000/595.2756 ≈ 1.68, 페이지 i 위 = 24 + i·865.89 pt.
 - 라우터 테스트(세션 2): `test/unit/input_router_test.dart`의 `_Input`(합성 시각 + `tester.pump`) — `VelocityTracker`가 `GestureBinding.samplingClock`을 쓰므로 fake_async가 아니라 `testWidgets` 안에서 돌린다. 본문 끝 `router.cancelAll()`로 길게 누르기 타이머를 지운다.
-- E-08 준비(세션 3): 화면 위젯 테스트는 `pumpEditor`가 기본으로 페이지 로드까지 끝낸 뒤 돌려준다. 뷰포트 원점은 `PageViewport`의 왼쪽 위(앱 바 아래) — 화면 좌표 = `tester.getTopLeft(find.byType(PageViewport)) + h.viewport.pageToScreen(i, pt)`. `h.viewport.viewportSize`는 1032×(1376 − 앱 바 56) = 1032×1320(E-13에서 툴바·프리셋 바가 생기면 바뀜 — 좌표는 항상 뷰포트로 구할 것). 로딩 중 페이지 테스트는 `pumpEditor(settle: false)` 뒤 `h.recorder!.holdPageLoads()`, 프레임 몇 번 → 덮개, `releasePageLoads()`. `InputRouter`·`Listener`는 아직 `PageViewport`에 없다(E-08에서 `ClipRect` 바깥에 `RawGestureDetector` + `Listener`로 감싼다 — 6.4.3).
+- 화면 위젯 테스트(세션 3): `pumpEditor`가 기본으로 페이지 로드까지 끝낸 뒤 돌려준다. 뷰포트 원점은 `PageViewport`의 왼쪽 위(앱 바 아래) — 전역 좌표는 `h.toGlobal(i, pt)`·`pathThrough(h, i, pts)`·`pageCenterOf(h, i)`로만 구한다(E-13에서 툴바·프리셋 바가 생기면 원점이 바뀜). 로딩 중 페이지 테스트는 `pumpEditor(settle: false)` 뒤 `h.recorder!.holdPageLoads()`, 프레임 몇 번 → 덮개, `releasePageLoads()`. 커밋 거부는 `h.recorder!.rejectNext(const core.ReadOnlyNoteException('race'))`, 안내 스낵바가 뜨므로 테스트 끝에 `tester.pump(const Duration(seconds: 5))`. 보고되는 오류를 단언하는 테스트는 `FlutterError.onError`를 바꿨다가 **본문 안에서** 되돌린다(`unit/editor_commands_test.dart`의 `_Probe`). 명령·호스트·라우터는 `h.container.read(editorCommandsProvider / editorInteractionHostProvider / editorInputRouterProvider)`.
+- E-09 준비(세션 3): `InteractionHost.beginInteraction`의 `case EditorTool.eraser:`에 `EraseInteraction`을 넣고(펜처럼 `settleNow` 뒤 `controller.beginErase(toInkSample(...), spec: tools.eraser.toSpec(), viewScale: camera.scale)`), 지우는 동안 `EraserRingCursor`가 펜 위치를 따라가게 호스트의 `_cursor`를 갱신(지금 `beginInteraction`이 커서를 숨김 — 지우개는 예외로). 성공 + `returnToPreviousTool`이면 `editorToolProvider.notifier.returnFromEraser()`. `commands.clearCurrentPage()`는 이미 있음 — 지우개 팝업의 확인 대화상자만 E-09에서(팝업 자체는 E-15 `eraser_popup.dart`와 겹치므로 E-09는 확인 대화상자 함수 + 테스트에서 직접 호출로 충분한지 계획 6.6.4 #5 확인).
 - 기반 단계 메모: `/home/user/wt/notes/foundation-editor.md`. 스모크 테스트에서 커밋 지연을 쓰는 저장소는 tear-down이 아니라 본문 끝에서 `close()`(실패 시 멈춤 방지).

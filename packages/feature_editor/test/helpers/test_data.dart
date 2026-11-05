@@ -3,9 +3,14 @@
 // Fixtures are built for page 0 with the placeholder page id [kFixturePageId];
 // pumpEditor(strokesByPageIndex: ...) rewrites the page id to the seeded
 // note's real page and keeps the stroke ids, so tests can look strokes up by
-// `strokeA.id`. Viewport helpers (pageCenterOf, lassoAround, pathThrough)
-// join this file with the viewport controller (E-03/E-04).
+// `strokeA.id`. The screen helpers (pageCenterOf, pathThrough, lassoAround)
+// turn page points into global positions through the editor's viewport
+// (E-08).
+import 'dart:ui' show Offset, Rect;
+
 import 'package:note_core/note_core.dart' as core;
+
+import 'pump_editor.dart';
 
 /// Page id the fixtures are made with (replaced when they are seeded).
 const String kFixturePageId = 'fixture-page';
@@ -73,3 +78,41 @@ final core.Stroke highlighterStroke = lineStroke(
   tool: core.PenTool.highlighter,
   createdAt: 3,
 );
+
+// ---- screen positions (global, for PointerDriver) -----------------------------
+
+/// Global position of the centre of page [pageIndex].
+Offset pageCenterOf(EditorTestHandles h, int pageIndex) {
+  final size = h.session.pages[pageIndex].size;
+  return h.toGlobal(pageIndex, Offset(size.width / 2, size.height / 2));
+}
+
+/// Global positions of [pagePoints] (pt) on page [pageIndex].
+List<Offset> pathThrough(
+  EditorTestHandles h,
+  int pageIndex,
+  List<Offset> pagePoints,
+) => [for (final p in pagePoints) h.toGlobal(pageIndex, p)];
+
+/// A closed lasso path (global) around [pageRect] (pt) on page [pageIndex],
+/// [margin] pt outside it, [perSide] points per side.
+List<Offset> lassoAround(
+  EditorTestHandles h,
+  int pageIndex,
+  Rect pageRect, {
+  double margin = 8,
+  int perSide = 4,
+}) {
+  final r = pageRect.inflate(margin);
+  final corners = [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft];
+  final points = <Offset>[];
+  for (var c = 0; c < 4; c++) {
+    final a = corners[c];
+    final b = corners[(c + 1) % 4];
+    for (var i = 0; i < perSide; i++) {
+      points.add(Offset.lerp(a, b, i / perSide)!);
+    }
+  }
+  points.add(corners.first);
+  return pathThrough(h, pageIndex, points);
+}

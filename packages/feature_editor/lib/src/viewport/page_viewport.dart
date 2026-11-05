@@ -1,20 +1,26 @@
-// lib/src/viewport/page_viewport.dart — 04-editor 6.4.1, 6.4.3 (E-04).
+// lib/src/viewport/page_viewport.dart — 04-editor 6.4.1, 6.4.3, 6.5.1.
 //
-// E-04: page placement and virtualization. The input Listener
-// (RawGestureDetector + Listener → InputRouter) and the overlays (selection
-// frame, cursor, menus, page indicator, add-page button, …) are added by
-// E-08..E-17 around the page stack built here.
+// Page placement and virtualization (E-04), the input Listener that feeds the
+// InputRouter and the hover cursor layer (E-08). The selection frame, menus,
+// page indicator, add-page button, panel and developer overlay join with
+// E-10..E-19 (6.4.3 tree).
+import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../ui/overlays/cursor_painter.dart';
 import 'editor_page_view.dart';
 import 'viewport_controller.dart';
 
 /// The page area: reports its size to the ViewportController and places the
 /// mounted pages (visible ±1, at most 8 — 6.4.1) at screen coordinates.
+/// Every pointer event over it goes to the note's InputRouter (6.5.1); an
+/// EagerGestureRecognizer wins the gesture arena against ancestor recognizers
+/// (route back swipe). The hover cursor is painted above the pages.
 ///
 /// The viewport size reaches the controller one post-frame callback after a
 /// layout with a new size (the controller notifies listeners outside this
@@ -85,17 +91,41 @@ class _PageViewportState extends ConsumerState<PageViewport> {
   @override
   Widget build(BuildContext context) {
     final viewport = ref.watch(editorViewportProvider);
+    final router = ref.watch(editorInputRouterProvider);
+    final host = ref.watch(editorInteractionHostProvider);
     final camera = _cameraOf(viewport);
-    final background = Theme.of(context).colorScheme.surfaceContainer;
+    final scheme = Theme.of(context).colorScheme;
     return ColoredBox(
-      color: background,
+      color: scheme.surfaceContainer,
       child: LayoutBuilder(
         builder: (context, constraints) {
           _reportSize(viewport, constraints.biggest);
-          return ClipRect(
-            child: ListenableBuilder(
-              listenable: camera,
-              builder: (context, _) => _buildPages(viewport),
+          return RawGestureDetector(
+            behavior: HitTestBehavior.opaque,
+            gestures: const {EagerGestureRecognizer: _eagerFactory},
+            child: _InputListener(
+              router: router,
+              child: ClipRect(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ListenableBuilder(
+                      listenable: camera,
+                      builder: (context, _) => _buildPages(viewport),
+                    ),
+                    IgnorePointer(
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: CursorPainter(
+                            cursor: host.cursor,
+                            ringColor: scheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         },
@@ -138,5 +168,46 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     }
     _views.removeWhere((id, _) => !keep.contains(id));
     return Stack(clipBehavior: Clip.none, children: slots);
+  }
+}
+
+const _eagerFactory = _EagerFactory();
+
+/// Factory of the EagerGestureRecognizer in front of the page area.
+final class _EagerFactory
+    extends GestureRecognizerFactory<EagerGestureRecognizer> {
+  const _EagerFactory();
+
+  @override
+  EagerGestureRecognizer constructor() => EagerGestureRecognizer();
+
+  @override
+  void initializer(EagerGestureRecognizer instance) {}
+}
+
+/// Raw pointer events → InputRouter.handlePointerEvent (positions are local to
+/// the page area = viewport coordinates).
+class _InputListener extends StatelessWidget {
+  const _InputListener({required this.router, required this.child});
+
+  final InputRouter router;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final handle = router.handlePointerEvent;
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: handle,
+      onPointerMove: handle,
+      onPointerUp: handle,
+      onPointerCancel: handle,
+      onPointerHover: handle,
+      onPointerSignal: handle,
+      onPointerPanZoomStart: handle,
+      onPointerPanZoomUpdate: handle,
+      onPointerPanZoomEnd: handle,
+      child: child,
+    );
   }
 }

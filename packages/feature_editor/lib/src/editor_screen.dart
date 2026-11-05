@@ -232,9 +232,46 @@ class _ReadyView extends StatelessWidget {
           if (openSettings != null) _MoreMenu(onOpenSettings: openSettings),
         ],
       ),
-      body: const PageViewport(),
+      body: const _CommandMessages(child: PageViewport()),
     );
   }
+}
+
+/// Shows EditorCommands.messages (read-only refusal, failed command) as
+/// snackbars of the enclosing Scaffold.
+class _CommandMessages extends ConsumerStatefulWidget {
+  const _CommandMessages({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_CommandMessages> createState() => _CommandMessagesState();
+}
+
+class _CommandMessagesState extends ConsumerState<_CommandMessages> {
+  StreamSubscription<String>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = ref.read(editorCommandsProvider).messages.listen(_show);
+  }
+
+  void _show(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  void dispose() {
+    unawaited(_sub?.cancel());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// [⋯] more menu (04-editor 6.9.1). B5 has only '설정'.

@@ -8,14 +8,17 @@
 // container and are watched from here (V3).
 //
 // E-04: note id, initial page id, session, mounted pages, viewport and the
-// current page bridge. Read-only state, selection, page panel, commands,
-// interaction host, input router and popup come with E-08..E-17.
+// current page bridge. E-08: read-only state, commands, interaction host and
+// input router. Selection, page panel and popup come with E-10..E-17.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
+import '../input/input_router.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
+import '../tools/interaction_host.dart';
 import '../viewport/page_layout.dart';
 import '../viewport/viewport_controller.dart';
 
@@ -112,4 +115,87 @@ final editorCurrentPageIndexProvider = NotifierProvider<CurrentPageBridge, int>(
   CurrentPageBridge.new,
   dependencies: [editorViewportProvider],
   name: 'editorCurrentPageIndexProvider',
+);
+
+/// Read-only state of the note (N-4, 6.17.2): session.isReadOnly at open,
+/// re-read on every noteStream change (trashed / restored while open).
+class ReadOnlyNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final session = ref.watch(editorSessionValueProvider);
+    final sub = session.noteStream.listen((_) => refresh());
+    ref.onDispose(sub.cancel);
+    return session.isReadOnly;
+  }
+
+  /// Re-reads session.isReadOnly (also after a racing ReadOnlyNoteException).
+  void refresh() {
+    final value = ref.read(editorSessionValueProvider).isReadOnly;
+    if (value != state) state = value;
+  }
+}
+
+final editorReadOnlyProvider = NotifierProvider<ReadOnlyNotifier, bool>(
+  ReadOnlyNotifier.new,
+  dependencies: [editorSessionValueProvider],
+  name: 'editorReadOnlyProvider',
+);
+
+/// Actions shared by toolbar, gestures, shortcuts and menus; the only place
+/// that runs CORE commands (6.8, 5.1.3).
+final editorCommandsProvider = Provider<EditorCommands>(
+  (ref) {
+    final commands = EditorCommands(
+      ref,
+      session: ref.watch(editorSessionValueProvider),
+      viewport: ref.watch(editorViewportProvider),
+      pages: ref.watch(editorMountedPagesProvider),
+    );
+    ref.onDispose(commands.dispose);
+    return commands;
+  },
+  dependencies: [
+    editorSessionValueProvider,
+    editorViewportProvider,
+    editorMountedPagesProvider,
+    editorReadOnlyProvider,
+  ],
+  name: 'editorCommandsProvider',
+);
+
+/// Router → editor (6.6.2).
+final editorInteractionHostProvider = Provider<InteractionHost>(
+  (ref) {
+    final host = InteractionHost(
+      ref: ref,
+      session: ref.watch(editorSessionValueProvider),
+      viewport: ref.watch(editorViewportProvider),
+      pages: ref.watch(editorMountedPagesProvider),
+      commands: ref.watch(editorCommandsProvider),
+    );
+    ref.onDispose(host.dispose);
+    return host;
+  },
+  dependencies: [
+    editorSessionValueProvider,
+    editorViewportProvider,
+    editorMountedPagesProvider,
+    editorCommandsProvider,
+    editorReadOnlyProvider,
+  ],
+  name: 'editorInteractionHostProvider',
+);
+
+/// The input state machine of this note's page viewport (6.5).
+final editorInputRouterProvider = Provider<InputRouter>(
+  (ref) {
+    final router = InputRouter(
+      targets: ref.watch(editorInteractionHostProvider),
+    );
+    ref.watch(editorCommandsProvider).bindRouter(router);
+    ref.onDispose(router.cancelAll);
+    return router;
+  },
+  dependencies: [editorInteractionHostProvider, editorCommandsProvider],
+  name: 'editorInputRouterProvider',
 );
