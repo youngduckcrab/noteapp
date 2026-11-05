@@ -217,10 +217,12 @@ void syncStoreContract(
   group('SyncStore contract ($implementation)', () {
     late ContractClock clock;
     late SyncStoreContractDriver d;
-    var closed = false;
+    // true until open succeeds: a failing open leaves nothing to close.
+    var closed = true;
 
     setUp(() async {
       clock = ContractClock(kContractStart);
+      closed = true;
       d = await open(deviceNodeId: kContractNode, clock: clock.clock);
       closed = false;
     });
