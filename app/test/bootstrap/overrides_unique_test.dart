@@ -2,32 +2,46 @@
 // (docs/plans/01-infra.md 6.5, 9.1; contract 7.3.3). Riverpod only asserts
 // on duplicates in debug builds, so this test checks Override.origin.
 //
-// The modules are the production ones with fakes inside: CoreModule with
-// fakeOpenNoteStore, PdfModule with a no-op initialize (the real
-// pdfIoOverrides()), and the production feature wiring.
+// The modules are the three production modules with fakes inside:
+// CoreModule with fakeOpenNoteStore, PdfModule with a no-op initialize (the
+// real pdfIoOverrides()), FeatureWiringModule with fake PDF actions.
+import 'package:feature_editor/feature_editor.dart';
+import 'package:feature_library/feature_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/modules/core_module.dart';
+import 'package:noteapp/src/modules/feature_wiring_module.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
-import 'package:noteapp/src/modules/production_modules.dart';
+import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
+import 'package:pdf_io/pdf_io.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_note_store_opener.dart';
+import '../fakes/fake_pdf_actions.dart';
 import '../fakes/fake_web_platform.dart';
 
-/// productionModules() with fakes inside CoreModule and PdfModule.
-List<AppModule> _modules(NoteStore store) => [
-  CoreModule(open: fakeOpenNoteStore(store: store).call),
-  PdfModule(initialize: () async {}),
-  ...productionModules().skip(2),
-];
+/// The production modules with fakes inside.
+List<AppModule> _modules(NoteStore store) {
+  final pdf = FakePdfActions();
+  return [
+    CoreModule(open: fakeOpenNoteStore(store: store).call),
+    PdfModule(initialize: () async {}),
+    FeatureWiringModule(
+      importPdf: pdf.importPdf,
+      exportPdf: pdf.exportPdf,
+      moreMenuActions: pdf.moreMenuActions,
+      addPageActions: pdf.addPageActions,
+    ),
+  ];
+}
 
 Future<BootstrapSuccess> _boot(List<AppModule> modules) async {
   final web = FakeWebPlatform();
@@ -62,6 +76,29 @@ void main() {
       expect(success.report.steps, hasLength(3));
       expect(success.overrides, isNotEmpty);
       expect(_duplicateOrigins(success.overrides), isEmpty);
+      // Exactly the contract 7.3.3 rows of this scope (+ the shell
+      // providers and the feature packages' own lists).
+      expect(success.overrides.map((o) => o.origin).toSet(), {
+        buildInfoProvider,
+        webPlatformProvider,
+        runtimeInfoProvider,
+        appErrorLogProvider,
+        startupReportProvider,
+        appBootstrapperProvider,
+        noteStoreProvider,
+        ink.pageBackgroundBuildersProvider,
+        pdfIoConfigProvider,
+        pageThumbnailRendererProvider,
+        libraryPdfImportActionProvider,
+        libraryPdfExportActionProvider,
+        editorExtensionsProvider,
+        devOverlaySectionsProvider,
+        for (final o in [
+          ...featureEditorOverrides(),
+          ...featureLibraryOverrides(),
+        ])
+          o.origin,
+      });
       // And Riverpod accepts the list (no "overridden twice" assertion).
       final container = ProviderContainer.test(overrides: success.overrides);
       expect(container.read(noteStoreProvider), same(store));

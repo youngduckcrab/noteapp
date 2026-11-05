@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 3 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7, 세션 3: I8·I10 …
-- 다음 할 일: I10b → I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다(I10b는 I10 뒤, I13은 I12 뒤).
+- 마지막 세션: 3 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6·I5·I7, 세션 3: I8·I10·I10b
+- 다음 할 일: I9 → I11 → I12 → I13 → I14 → I15. 계획서 8.2 표의 선행 관계를 따른다(I9는 I4·I7·I8 뒤, I13은 I1·I12 뒤, I14는 I13 뒤).
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -21,8 +21,8 @@
 | I7 | 완료 | d715ce0 | `app/test/app/note_app_test.dart`(material_ui `MaterialApp`·locale ko·seed `0xFF3949AB`·브리지 없음·라우터 provider dispose·셸 provider `name:`), `lifecycle_bridge_test.dart`(hidden·paused·detached·웹 hidden, 1초 안 반복 무시, dispose 뒤 없음). `builder`의 `UpdateBanner` 감싸기·그 테스트는 I8 |
 | I8 | 완료 | f155981 | `app/test/update/update_checker_test.dart`(fake_async: 비활성 3경우·초기 5초·10분 주기·숨김 동안 없음·visible 60초 규칙·실패 4종 상태 유지·dismiss·applyUpdate flush → reload·500ms 상한·dispose), `update_banner_test.dart`(Available일 때만·버튼 2개·해요체·Overlay 없음·위 여백 이동·아래 State 유지). `note_app_test`에 `builder` = `UpdateBanner` 단언 |
 | I9 | 남음 | | `app/test/settings/settings_screen_test.dart`, `settings_sections_test.dart`, `storage_section_test.dart`, `about_section_test.dart`, `backup_export_test.dart` |
-| I10 | 완료 | (이 커밋) | `app/test/modules/core_module_test.dart`(절대 URL·기본값·publish/override·flush·close·예외 전파·`canResetAfter` 표·reset 마지막 config·상태 오류 기록·늦은 저장소 close 1회(모듈 단독·부트스트래퍼·shutdown 2초 대기)·늦은 close 실패 기록·늦은 열기 실패), `pdf_module_test.dart`(실패 시 overrides 제외·기본 `pdfIoOverrides()`로 INK 배경 2개), `production_modules_test.dart`(id 순서·유일·새 인스턴스, 세 모듈 함께, `BootstrapApp` 기본 앱 → 라이브러리). `overrides_unique_test`를 실제 모듈로, `bootstrap_app_test`에 CoreModule 늦은 저장소 → 다시 시도(두 번째 open 때 늦은 저장소 `closeCount == 1`) |
-| I10b | 남음 | | `app/test/modules/feature_wiring_module_test.dart`, `pdf_wiring_test.dart` |
+| I10 | 완료 | 50d1300 | `app/test/modules/core_module_test.dart`(절대 URL·기본값·publish/override·flush·close·예외 전파·`canResetAfter` 표·reset 마지막 config·상태 오류 기록·늦은 저장소 close 1회(모듈 단독·부트스트래퍼·shutdown 2초 대기)·늦은 close 실패 기록·늦은 열기 실패), `pdf_module_test.dart`(실패 시 overrides 제외·기본 `pdfIoOverrides()`로 INK 배경 2개), `production_modules_test.dart`(id 순서·유일·새 인스턴스, 세 모듈 함께, `BootstrapApp` 기본 앱 → 라이브러리). `overrides_unique_test`를 실제 모듈로, `bootstrap_app_test`에 CoreModule 늦은 저장소 → 다시 시도(두 번째 open 때 늦은 저장소 `closeCount == 1`) |
+| I10b | 완료 | (이 커밋) | `app/test/modules/feature_wiring_module_test.dart`(PDF 시작됨: 썸네일 렌더러 = INK 인스턴스·가져오기/내보내기 = 주입 함수 `identical`·메뉴 id 순서·`pdf.render` 섹션 3줄(B4 0 통계, 통계 provider override 없음)·기본 인자; PDF 실패: 두 자리 null·확장 빈 목록·섹션 없음·썸네일은 그대로; `overrides()` 순서), `pdf_wiring_test.dart`(`pdfMenuInvocationOf` 4필드·같은 `Rect`, `editorMenuItemFromPdf` id·label·icon·`onSelected` → `run`·`isEnabled` 변환, `editorExtensionsFromPdf`, `formatPdfRenderStats` 6.8 스냅숏, `PdfRenderStatsLines` 1초 100번 → ≤ 4번·dispose, 모듈 overrides만 넣은 컨테이너의 `pdfRenderStatsSection` 3줄·dispose). `overrides_unique_test`가 7.3.3 '이번' 행 전부 = 루트 overrides의 origin 집합임을 단언 |
 | I11 | 남음 | | `tool/test/web_files_test.dart`, `ws check`(R13), `app/test/web/app_boot_browser_test.dart`, 빌드 결과 `flutter_bootstrap.js`에 `serviceWorkerSettings` 없음 |
 | I12 | 남음 | | `tool/test/hosting_config_test.dart`, `web_assets_test.dart`, `ws check`(R12·R15), `ws web-assets verify`, 기본 `ws test`에서 integration 건너뜀 |
 | I13 | 남음 | | `tool/test/workflows_test.dart` (6.13 표) |
@@ -71,17 +71,22 @@
 - (세션 3, I10) 상태 구독 해제는 `cancel()`을 부르고 그 Future를 기다리지 않는다(부른 뒤로는 이벤트가 오지 않음). CORE 가짜 저장소의 broadcast 구독 `cancel()`은 루트 zone의 완료된 Future를 돌려줘 fake_async(위젯 테스트)에서 끝나지 않으므로, 기다리면 `stop()`이 2초 제한까지 막혔다. 계획서 '구독 취소 후 `store.close()`' 순서는 지킨다.
 - (세션 3, I10) 저장 오류 기록: 요약 `note_core write failed (consecutiveFailures: n): <오류>`, 기록 시각은 `lastErrorAt`(없으면 지금). 상태 스트림 자체 오류도 source module로 기록. 시간 초과와 같은 턴에 시작이 끝나 이미 publish된 저장소도 `onStartAbandoned`가 구독 해제 후 닫는다.
 - (세션 3, I10) `overrides_unique_test`의 `PdfModule`은 계획서 5.4의 '가짜 `pdfOverrides`' 대신 실제 `pdfIoOverrides()`(기본 인자)를 쓴다 — 운영 목록에서 중복을 찾는 것이 목적이라서. `initialize`만 빈 함수. 가짜 `fake_note_store_opener.dart`: `fakeOpenNoteStore(...)`는 `FakeNoteStoreOpener`(호출 가능 객체, `openCount`·`lastConfig`·`configs`)를 돌려주고 `CoreModule(open: opener.call)`로 넘긴다. `RecordingLocalDataEraser`는 `calls`·`error`·`delay`.
+- (세션 3, I10b) `productionModules()` = `[CoreModule(), PdfModule(), FeatureWiringModule()]`(임시 featureWiring 제거). `FeatureWiringModule` 생성자도 비공개 이름 매개변수로 공개 이름(`importPdf`·`exportPdf`·`moreMenuActions`·`addPageActions`)을 유지한다. PDF가 시작되지 않았으면 `moreMenuActions()`·`addPageActions()`를 부르지 않는다.
+- (세션 3, I10b) `PdfRenderStatsLines`는 통계가 바뀌면 `minInterval`(250ms) Timer를 걸고 그 Timer가 끝날 때 마지막 통계로 다시 계산한다(뒤쪽 throttle — 1초에 최대 4번, 앞쪽 즉시 갱신은 하지 않음). 줄이 같으면 알리지 않는다. `formatPdfRenderStats`의 MB는 1024×1024 기준 소수 한 자리, 0이면 `0`(6.8 예시의 '초과 0 MB'와 맞춤), ms는 반올림 정수. `editorExtensionsFromPdf`의 두 목록은 수정 불가 목록.
+- (세션 3, I10b) 가짜 `test/fakes/fake_pdf_actions.dart`: `FakePdfActions`(`importPdf`·`exportPdf` 함수 객체 하나씩 — `identical` 비교용, `action(id, withIsEnabled:)`, `moreMenuActions()`·`addPageActions()`, 기록 `importFolders`·`exports`·`runs`·`enabledChecks`).
 - (세션 1) 계약 v1.3 C13-05 절차: 계획서 머리 상태 줄 '승인'·계약 인용 v1.4, 12.3 P6 결정 칸·8.1 B1 완료/B8-2 인용(INFRA-4-1), 13.4 '최종 승인' 한 줄(INFRA-4-2). 본문 개별 조항의 v1.1/v1.2 인용은 그 조항이 들어간 판이라 그대로 뒀다.
 
 ## 다음 세션 메모
 
 - 세션 1 끝 상태: `ws check`(R1–R13·R15) 0, 루트 `flutter analyze --fatal-infos` 0, `dart test tool/test` 182건, `ws test` 7개 멤버 통과(noteapp VM 38건), `ws test --package noteapp --platform chrome` 8건 통과.
-- 이미 있는 앱 셸 조각: `src/web/`(WebPlatform), `src/runtime/`(BuildInfo·RuntimeInfo), `src/errors/`(AppErrorLog 등·DiagnosticReport), `src/bootstrap/`(AppModule·AppBootstrapper·BootstrapApp·SplashView·StartupErrorScreen·`runNoteApp`·임시 `foundationModules`), `src/routing/`(I6 전부), `src/providers.dart`(9개), `src/app/`(NoteApp·buildAppTheme·AppStrings·AppLifecycleBridge). 남은 B8 임시 이름: `SettingsPlaceholderScreen`(I9에서 `SettingsScreen`). `productionModules()`의 임시 featureWiring(I10b에서 `FeatureWiringModule`).
+- 이미 있는 앱 셸 조각: `src/web/`(WebPlatform), `src/runtime/`(BuildInfo·RuntimeInfo), `src/errors/`(AppErrorLog 등·DiagnosticReport), `src/bootstrap/`(AppModule·AppBootstrapper·BootstrapApp·SplashView·StartupErrorScreen·`runNoteApp`·임시 `foundationModules`), `src/routing/`(I6 전부), `src/providers.dart`(9개), `src/app/`(NoteApp·buildAppTheme·AppStrings·AppLifecycleBridge). 남은 B8 임시 이름: `SettingsPlaceholderScreen`(I9에서 `SettingsScreen`).
 - (세션 2) 5.7은 자리표시 화면에 `Key('open-note')` 같은 콜백 버튼을 적었는데 I6 자리표시는 설정·뒤로 버튼(툴팁)만 있다. I11 `app_boot_browser_test`에 필요하면 그때 더한다.
 - (세션 2) 세션 2 끝 상태: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 앱 VM 132건, 앱 Chrome(`flutter test --platform chrome test/web`) 8건, `dart test tool/test` 182건, I5 뒤 `cd app && flutter build web --release --no-wasm-dry-run` 성공(55초).
-- 가짜: `app/test/fakes/fake_web_platform.dart`. `FakeAppModule`·`CountingNoteStore`(I5), `fakeOpenNoteStore`·`RecordingLocalDataEraser`(I10)는 있다. 가짜 PDF 동작은 I10b에서 만든다.
+- 가짜: `app/test/fakes/fake_web_platform.dart`. `FakeAppModule`·`CountingNoteStore`(I5), `fakeOpenNoteStore`·`RecordingLocalDataEraser`(I10)는 있다. 가짜 PDF 동작 `FakePdfActions`(I10b)도 있다.
 - 앱에는 아직 `app/dart_test.yaml`이 없다(I12). 그 전에는 앱 테스트에 태그를 쓰지 않는다(R15).
 - 앱 폴더 이름에 `build`를 쓰지 않는다(`.gitignore`·분석 제외·`ws`가 빌드 산출물로 본다).
 
+- (세션 3) 세션 3 끝 상태: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 앱 VM 211건, 앱 Chrome(`test/web`, 바뀌지 않음) 8건, `cd app && flutter build web --release --no-wasm-dry-run` 성공(47초, `main.dart.js` 2,605,325 B). `modules/` 전부(CoreModule·PdfModule·FeatureWiringModule·pdf_wiring)가 웹 빌드에 들어간다.
+- (세션 3) I9 메모: 설정 라우트는 아직 `SettingsPlaceholderScreen`. `AboutSection`의 '새 버전 확인'은 `updateCheckerProvider.notifier.checkNow()`(비활성이면 아무것도 안 함 — 버튼을 숨기거나 상태 문구로 `UpdateDisabled` 표시), 상태 표시는 `updateCheckerProvider` 값. `UpdateUpToDate.checkedAt`이 있다. CORE 가짜 저장소의 broadcast `cancel()` Future는 fake_async 위젯 테스트에서 끝나지 않으니 구독 해제를 기다리지 않는다(I10 메모).
 - 환경: `export PATH=/opt/flutter/bin:$PATH CHROME_EXECUTABLE=/usr/local/bin/chrome-nosandbox`, `ws` = `dart run tool/ws.dart`.
 - 다른 영역 구현은 이 작업 트리에서 기반 단계 자리표시다. CORE `createFakeNoteStore()`와 계획서 5.7의 가짜로 개발한다.

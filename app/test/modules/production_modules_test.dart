@@ -15,6 +15,7 @@ import 'package:noteapp/src/bootstrap/startup_error_screen.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/modules/core_module.dart';
+import 'package:noteapp/src/modules/feature_wiring_module.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
 import 'package:noteapp/src/modules/production_modules.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
@@ -55,7 +56,8 @@ void main() {
     expect(modules.map((m) => m.id).toSet(), hasLength(modules.length));
     expect(modules[0], isA<CoreModule>());
     expect(modules[1], isA<PdfModule>());
-    expect(modules.map((m) => m.critical).take(2), [true, false]);
+    expect(modules[2], isA<FeatureWiringModule>());
+    expect(modules.map((m) => m.critical), [true, false, false]);
     expect(modules.map((m) => m.startTimeout), const [
       Duration(seconds: 20),
       Duration(seconds: 10),
