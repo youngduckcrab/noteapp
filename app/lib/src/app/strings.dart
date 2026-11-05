@@ -13,8 +13,14 @@ abstract final class AppStrings {
   static const String errorWidgetMessage = '이 부분을 표시하지 못했어요';
 
   static const String back = '뒤로';
+  static const String close = '닫기';
   static const String settings = '설정';
   static const String settingsPlaceholder = '설정 화면은 준비 중이에요.';
+
+  /// NotFoundScreen (unknown location, 6.6).
+  static const String notFoundTitle = '페이지를 찾을 수 없어요';
+  static const String notFoundDetail = '주소가 바뀌었거나 없는 페이지예요.';
+  static const String goHome = '홈으로 가기';
 
   /// Shown when openNoteStore fails at start (B8 has no startup error screen
   /// yet; I5 replaces this with StartupErrorScreen).

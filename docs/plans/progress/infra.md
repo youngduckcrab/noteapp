@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 1 / 8 (동시 개발 단계) — I1·I4·I2·I3 완료
-- 다음 할 일: I6 (라우팅) → I5 (부트스트랩) → I7 순서. I5 전에 계획서 4.5.4·6.4를 읽는다. 계획서 8.2 표의 선행 관계를 따른다.
+- 마지막 세션: 2 / 8 (동시 개발 단계) — 세션 1: I1·I4·I2·I3, 세션 2: I6
+- 다음 할 일: I5 (부트스트랩) → I7 순서. I5 전에 계획서 4.5.4·6.4를 읽는다. 계획서 8.2 표의 선행 관계를 따른다.
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
 ## 작업 표
@@ -17,7 +17,7 @@
 | I3 | 완료 | 99d47c9 | `app/test/errors/app_error_log_test.dart`, `error_handlers_test.dart`(+`appErrorWidgetBuilder`), `diagnostic_report_test.dart`(6.7 형식 스냅숏·알 수 없음·8,000자·오류 5건·스택 15줄), `app_provider_observer_test.dart`. `StartupReport`·`StartupStep`·`StartupStepOutcome`(4.5.4)을 `src/bootstrap/startup_report.dart`에 먼저 만들었다(I5가 사용) |
 | I4 | 완료 | d25743b | `app/test/web/web_platform_browser_test.dart`(Chrome 8건: 절대 URL, 404·시간 초과 → null, `pagehide`·`visibilitychange` 대응·구독 해제, standalone false, 내려받기 true, 공유 불가면 `unsupported`). `app/test/fakes/fake_web_platform.dart`(5.7). VM 스텁 사용은 I2 `test/runtime/runtime_info_test.dart`에서 |
 | I5 | 남음 | | `app/test/bootstrap/app_bootstrapper_test.dart`, `overrides_unique_test.dart`, `bootstrap_app_test.dart`, `startup_error_screen_test.dart` |
-| I6 | 남음 | | `app/test/routing/app_routes_test.dart`, `app_router_test.dart` (B8의 `AppRoutes`·임시 라우터를 교체) |
+| I6 | 완료 | (이 커밋) | `app/test/routing/app_routes_test.dart`, `app_router_test.dart`(자리표시 화면: 인자·페이지 종류·라이브러리 State 유지·닫기·새로고침·NotFound·observers). B8 `foundation_routing_test.dart` → `test/routing/production_screens_test.dart`(`AppScreenBuilders.production()` 연결, `FoundationApp`·`foundationOverrides` 없이) |
 | I7 | 남음 | | `app/test/app/note_app_test.dart`, `lifecycle_bridge_test.dart` |
 | I8 | 남음 | | `app/test/update/update_checker_test.dart`, `update_banner_test.dart` |
 | I9 | 남음 | | `app/test/settings/settings_screen_test.dart`, `settings_sections_test.dart`, `storage_section_test.dart`, `about_section_test.dart`, `backup_export_test.dart` |
@@ -50,6 +50,9 @@
 - (세션 1, I4) `createWebPlatform()`은 `web_platform.dart`가 스텁/브라우저 파일을 조건부 `export … show createWebPlatform`으로 내보낸다(두 구현 클래스는 비공개). `shareFile`의 `AbortError` 판정은 오류 문자열로 한다(dart2js가 DOMException을 그대로 던짐 — 헤드리스 Chrome에서는 공유 API가 없어 미확인).
 - (세션 1, I2) 계획서 3.4의 `app/lib/src/build/`·`app/test/build/`를 `src/runtime/`·`test/runtime/`으로 바꿨다. 루트 `.gitignore`의 `build/`, `analysis_options.yaml`의 `**/build/**`, `ws`의 `build` 디렉터리 건너뛰기가 모두 그 폴더를 빌드 산출물로 보아 커밋·분석·테스트에서 빠졌다. 파일 이름(`build_info.dart`·`runtime_info.dart`·`*_test.dart`)과 API는 그대로. `RuntimeInfo.rendererLabel`의 '네이티브'는 `AppStrings.rendererNative`. `BuildInfo`에 값 동등(`==`)을 더했다(JSON 왕복 테스트용). `isLocal` = `gitSha == 'local'`.
 - (세션 1, I3) `installGlobalErrorHandlers(presentToConsole: true)`는 `FlutterError.presentError`로 콘솔에 출력하고, 이전 처리기가 그 기본 함수이면 다시 부르지 않는다(두 번 출력 방지). 그 밖의 이전 처리기는 기록 뒤에 호출한다. `AppErrorLog.clear()`는 `totalCount`를 유지한다. `add()`의 알림은 동기라서 이 로그를 듣는 위젯(I9 `AboutSection`)은 프레임 뒤에 setState해야 한다(빌드 중 오류 기록 가능). `appErrorWidgetBuilder`는 `Directionality`가 없는 곳(앱 위)에서도 그려지도록 감싼다. 진단 정보 문구(머리·줄 이름)는 `diagnostic_report.dart` 안의 상수, `AppStrings`에는 화면 문구만 둔다(`errorWidgetMessage`). 진단 정보의 저장소 줄은 `isDurable == false`일 때만 '임시 저장(새로고침하면 사라짐)'을 더하고, 용량은 1024 기준 `12.3MB`.
+- (세션 2, I6) `LibraryRouteArgs`·`EditorRouteArgs`에 값 동등(`==`·`hashCode`·`toString`)을 더했다(테스트 비교용). B8의 `AppRoutes.folderIdParam`·`noteIdParam`(4.5.5에 없는 멤버)은 지우고 `app_router.dart`의 비공개 상수로 옮겼다. 라우트 인자 두 클래스는 `app_routes.dart`에 둔다(3.4에 따로 파일이 없음).
+- (세션 2, I6) `AppScreenBuilders.production()`의 설정 라우트는 I9 전까지 `SettingsPlaceholderScreen(onClose: navigator.closeSettings)`. 무전환 페이지 두 종류에 `name: state.name`을 넣었다(observers·진단에서 라우트 이름이 보이도록 — go_router 기본 페이지와 같게). go_router는 끝 `/`를 떼므로 `/notes/`는 `/notes`로 보고 NotFound가 된다.
+- (세션 2, I6) `AppScreenBuilders.placeholders()`의 라이브러리 자리표시는 제목 `library #<n>`(n = 그 State의 `initState` 일련번호, 전역 카운터)을 보인다. 테스트는 번호가 그대로인지로 '`initState` 1회'를 확인한다. 자리표시 화면에는 설정·뒤로 버튼(툴팁 `AppStrings.settings`·`back`)이 있어 스모크 빌드에서도 이동할 수 있다. 자리표시 본문 문구(`folderId: …`, `noteId: …`)는 개발용 영어.
 - (세션 1) 계약 v1.3 C13-05 절차: 계획서 머리 상태 줄 '승인'·계약 인용 v1.4, 12.3 P6 결정 칸·8.1 B1 완료/B8-2 인용(INFRA-4-1), 13.4 '최종 승인' 한 줄(INFRA-4-2). 본문 개별 조항의 v1.1/v1.2 인용은 그 조항이 들어간 판이라 그대로 뒀다.
 
 ## 다음 세션 메모

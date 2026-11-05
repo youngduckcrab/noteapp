@@ -1,12 +1,14 @@
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../routing/app_router.dart';
 import '../routing/app_routes.dart';
-import '../routing/foundation_router.dart';
+import '../routing/screen_builders.dart';
 import 'strings.dart';
 
 /// Root widget of foundation step B8: material_ui MaterialApp.router over
-/// [createFoundationRouter]. It owns the router and disposes it.
+/// [createAppRouter] with the production screens. It owns the router and
+/// disposes it.
 ///
 /// I7 replaces it with NoteApp (theme, UpdateBanner, router provider —
 /// docs/plans/01-infra.md 4.5.6). Must sit below a ProviderScope that
@@ -22,7 +24,8 @@ class FoundationApp extends StatefulWidget {
 }
 
 class _FoundationAppState extends State<FoundationApp> {
-  late final GoRouter _router = createFoundationRouter(
+  late final GoRouter _router = createAppRouter(
+    screens: AppScreenBuilders.production(),
     initialLocation: widget.initialLocation,
   );
 
