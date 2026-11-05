@@ -88,19 +88,46 @@ void main() {
   });
 
   test('the stats notifier goes with the renderer', () async {
+    final engine = FakePdfEngine();
     final container = ProviderContainer(
       overrides: [
         ...pdfIoOverrides(),
         core.noteStoreProvider.overrideWithValue(store),
-        pdfEngineProvider.overrideWithValue(FakePdfEngine()),
+        pdfEngineProvider.overrideWithValue(engine),
       ],
     );
+    final renderer = container.read(pdfPageRendererProvider);
     final stats = container.read(pdfRenderStatsProvider);
-    void listener() {}
+    expect(identical(stats, renderer.statsListenable), isTrue);
+    expect(stats, isA<ChangeNotifier>());
+    final notifier = stats as ChangeNotifier;
+    var notified = 0;
+    void listener() => notified++;
     stats.addListener(listener);
+    expect(ChangeNotifier.debugAssertNotDisposed(notifier), isTrue);
+
     container.dispose();
     await pumpEventQueue();
-    // Removing a listener after dispose is allowed (ChangeNotifier).
+
+    // The renderer was disposed with the container: it renders nothing any more …
+    expect(
+      await renderer.renderThumbnail(
+        assetId: 'gone',
+        pdfPageIndex: 0,
+        longSidePx: 64,
+      ),
+      isNull,
+    );
+    expect(engine.openCalls, isEmpty);
+    // … and its stats notifier went with it: using it now is a "used after being
+    // disposed" error, and the listener was never called.
+    expect(
+      () => ChangeNotifier.debugAssertNotDisposed(notifier),
+      throwsFlutterError,
+    );
+    expect(() => stats.addListener(() {}), throwsFlutterError);
+    expect(notified, 0);
+    // Removing a listener after dispose is still allowed (ChangeNotifier).
     stats.removeListener(listener);
   });
 }

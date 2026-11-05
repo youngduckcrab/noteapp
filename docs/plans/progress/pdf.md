@@ -137,6 +137,7 @@
 ## 다음 세션 메모
 
 - 보완 세션 1.1(독립 검토 미비점 5개):
+  - ④ T8: unit/render_stats_provider_test 'the stats notifier goes with the renderer'에 단언을 더했다 — 컨테이너 dispose 뒤 렌더러 `renderThumbnail`은 null(엔진 열기 없음), 노티파이어는 `ChangeNotifier.debugAssertNotDisposed`·`addListener`가 FlutterError(해제됨), 리스너 호출 0번.
   - ⑤ T6: web/file_source_browser_test의 `@TestOn('browser')`를 파일 첫 줄로(주석은 `library;` 아래로) — 다른 test/web 파일과 같은 모양.
 
 - 세션 8 결과(2): T19(4d6dd02) 완료 — 동시 개발 단계 몫 전부 끝. 통합 단계 몫: ① integration 태그 3개(`dart run tool/ws.dart test --run-skipped -t integration`) — core_gateway_test는 실제 CORE(`openTestNoteStore`), ink_thumbnail_test·ink_vectorizer_test는 INK 실제 썸네일·벡터 내보내기·속지로(지금 INK B3 자리에서는 ink_vectorizer_test 실패가 정상) ② perf는 선택(`flutter test --run-skipped -t perf test/perf`, 웹은 README 표) ③ 열린 항목: FreeType·IJG 문서 고지 문구(THIRD_PARTY_NOTICES.md 3절, 2단계 출시 전 — INFRA 앱 정보 화면·스토어 설명), 계획 10장 iPad 확인(9.2 U1~U19)은 사용자 몫.
