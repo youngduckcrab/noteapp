@@ -4,6 +4,8 @@
 // Developer-only details and logs stay in English. Every user-visible sentence
 // of feature_editor lives in this one table; later tasks add the strings of
 // their screens (toolbar, pen settings, page panel, developer overlay) here.
+import 'package:note_core/note_core.dart' as core;
+
 abstract final class EditorStrings {
   // ---------------------------------------------------------------------------
   // Storage warning banner (04-editor 6.17.3) — contract 7.4.5 v1.1 FIXED
@@ -40,6 +42,61 @@ abstract final class EditorStrings {
 
   /// Semantics label of [↷].
   static const redo = '다시 실행';
+
+  /// Tool buttons (6.9.1).
+  static const pen = '펜';
+  static const eraser = '지우개';
+  static const lasso = '올가미';
+
+  /// [✋] on (InputMode.fingerDrawing) / off (InputMode.penOnly).
+  static const fingerDrawingOn = '손가락 필기 켜짐';
+  static const fingerDrawingOff = '손가락 필기 꺼짐';
+
+  /// Semantics hint of the zoom chip (tap = fit width).
+  static const zoomToFit = '너비 맞춤';
+
+  /// Pen type names (6.9.3 #1; P1 types for stored styles).
+  static String penTypeName(core.PenTool tool) => switch (tool) {
+    core.PenTool.ballpoint => '볼펜',
+    core.PenTool.fountain => '만년필',
+    core.PenTool.highlighter => '형광펜',
+    core.PenTool.pencil => '연필',
+    core.PenTool.marker => '마커',
+    core.PenTool.brush => '붓',
+    core.PenTool.calligraphy => '캘리그래피',
+    core.PenTool.dashed => '점선 펜',
+    core.PenTool.laser => '레이저 펜',
+    core.PenTool.tape => '테이프',
+  };
+
+  /// Sync icon semantics (6.9.1 — same words as LIBRARY 6.16).
+  static const syncDone = '동기화됨';
+  static const syncInProgress = '동기화 중';
+  static const syncOffline = '오프라인';
+  static const syncError = '동기화 오류';
+
+  // ---------------------------------------------------------------------------
+  // More menu (04-editor 6.9.1) and note info (6.17.4).
+  // ---------------------------------------------------------------------------
+
+  static const pageFlip = '페이지 넘김';
+  static const pageFlipVertical = '세로 스크롤';
+  static const pageFlipHorizontal = '좌우 넘기기';
+  static const devOverlay = '개발자 표시';
+  static const noteInfo = '노트 정보';
+  static const noteInfoTitle = '제목';
+  static const noteInfoPages = '페이지 수';
+  static const noteInfoCreated = '만든 날짜';
+  static const noteInfoUpdated = '고친 날짜';
+  static const close = '닫기';
+
+  // ---------------------------------------------------------------------------
+  // Popups (04-editor 6.9.2). The panels' own strings come with E-14..E-16.
+  // ---------------------------------------------------------------------------
+
+  static const penSettings = '펜 설정';
+  static const quickPen = '빠른 펜';
+  static const eraserSettings = '지우개 설정';
 
   // ---------------------------------------------------------------------------
   // Screen states (04-editor 6.17.1) and leaving (6.17.4).

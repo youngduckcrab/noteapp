@@ -189,7 +189,13 @@ void main() {
 
     await _pumpEditor(tester, store, note.id);
     await tester.pump();
-    expect(find.bySemanticsLabel(EditorStrings.more), findsNothing);
+    // E-13: the more menu is always there; '설정' only with onOpenSettings.
+    await tester.tap(find.bySemanticsLabel(EditorStrings.more));
+    await tester.pumpAndSettle();
+    expect(find.text(EditorStrings.noteInfo), findsOneWidget);
+    expect(find.text(EditorStrings.settings), findsNothing);
+    await tester.tap(find.bySemanticsLabel(EditorStrings.more)); // closes it
+    await tester.pumpAndSettle();
 
     final calls = await _pumpEditor(tester, store, note.id, withSettings: true);
     await tester.pump();

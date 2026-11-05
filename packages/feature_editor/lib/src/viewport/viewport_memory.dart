@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../state/settings/editor_setting_keys.dart';
@@ -190,3 +191,14 @@ final class _Entry {
     'at': at,
   };
 }
+
+/// Global (app lifetime): one ViewportMemory over CORE's settings repository
+/// (6.13.2). `now` = core.clockProvider (6.3.5).
+final editorViewportMemoryProvider = Provider<ViewportMemory>((ref) {
+  final memory = ViewportMemory(
+    ref.watch(core.settingsRepositoryProvider),
+    now: () => ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+  );
+  ref.onDispose(memory.dispose);
+  return memory;
+}, name: 'editorViewportMemoryProvider');

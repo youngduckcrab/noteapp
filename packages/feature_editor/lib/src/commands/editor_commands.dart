@@ -4,19 +4,24 @@
 // hand-off (commitInkEdit), undo / redo and the user messages. E-09: clearing
 // the current page. E-10: copy / paste / delete of the selection, clearing it
 // and selecting a tool. E-12: zoom, screen scrolling, the developer overlay
-// toggle and Esc for the keyboard shortcuts. Page commands, navigation and the
-// remaining UI actions join with E-13..E-19.
+// toggle and Esc for the keyboard shortcuts. E-13: flushAll (leaving), the
+// menu context and navigateToPage, the finger-drawing toggle, the page flip
+// mode, adding a page at the end. The page panel commands join with E-17.
 import 'dart:async';
-import 'dart:ui' show Offset, Size;
+import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
+import '../di/editor_extensions.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../state/color_palette.dart';
+import '../state/popup.dart';
+import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
@@ -25,6 +30,7 @@ import '../tools/tool_controller.dart';
 import '../tools/tool_state.dart';
 import '../ui/editor_strings.dart';
 import '../viewport/viewport_controller.dart';
+import '../viewport/viewport_memory.dart';
 
 /// Single place for actions shared by toolbar, gestures, shortcuts, menus — and the
 /// only place that runs CORE commands (5.1.3). Per note (scoped).
@@ -207,9 +213,13 @@ class EditorCommands {
 
   /// Esc: close popup → cancel eyedropper → leave page selection mode → clear selection
   /// (first that applies). The open context menu counts as a popup (E-10);
-  /// the toolbar popups (E-13) and the page selection mode (E-17) join here.
+  /// the page selection mode joins with E-17.
   void escape() {
     if (_disposed) return;
+    if (_ref.read(editorPopupProvider) != null) {
+      _ref.read(editorPopupProvider.notifier).close();
+      return;
+    }
     final host = _host;
     if (host != null && host.contextMenu.value != null) {
       host.closeContextMenu();
@@ -220,6 +230,105 @@ class EditorCommands {
       return;
     }
     _ref.read(editorSelectionProvider.notifier).clear();
+  }
+
+  /// Finger drawing on ↔ off: on = InputMode.fingerDrawing, off =
+  /// InputMode.penOnly (6.9.1 [✋]). From auto it goes to the opposite of
+  /// what auto does now (EditorSettings.isPenOnlyEffective).
+  void toggleFingerDrawing() {
+    if (_disposed) return;
+    final settings = _ref.read(editorSettingsProvider);
+    _ref
+        .read(editorSettingsProvider.notifier)
+        .setInputMode(
+          settings.isPenOnlyEffective
+              ? InputMode.fingerDrawing
+              : InputMode.penOnly,
+        );
+  }
+
+  /// More menu '페이지 넘김' (vertical scroll / horizontal paging). The
+  /// viewport follows the setting (editorViewportProvider).
+  void setPageFlipMode(PageFlipMode mode) {
+    if (_disposed) return;
+    _ref.read(editorSettingsProvider.notifier).setPageFlipMode(mode);
+  }
+
+  /// 04-editor 4.5 table: built when the more menu opens (6.11.5).
+  /// selectedPageIds stays empty until the page panel selection mode (E-17).
+  EditorMenuContext menuContext() {
+    final ids = [for (final p in _session.pages) p.id];
+    return EditorMenuContext(
+      noteId: _session.noteId,
+      pageIds: ids,
+      currentPageIndex: _viewport.currentPageIndex.value,
+      navigateToPage: navigateToPage,
+    );
+  }
+
+  /// 6.11.6: an unknown id (deleted page) is ignored; else the page is
+  /// brought into view, and [focusRectPt] (displayed page pt, clipped to the
+  /// page) is shown when given.
+  void navigateToPage(String pageId, Rect? focusRectPt) {
+    if (_disposed) return;
+    final pages = _session.pages;
+    final index = pages.indexWhere((p) => p.id == pageId);
+    if (index < 0) return;
+    final size = pages[index].size;
+    final rect = focusRectPt?.intersect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+    );
+    unawaited(
+      _viewport.revealPageRect(
+        index,
+        focusRectPt: rect == null || rect.isEmpty ? null : rect,
+      ),
+    );
+  }
+
+  /// A page like the last one (size, background) at the end, then the
+  /// viewport goes to it (6.11.4 '+ 페이지'; also the '페이지가 없어요' state —
+  /// blank A4 when there is no page). Ignored on a read-only note.
+  Future<void> addPageAtEndLikeLast() async {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final pages = _session.pages;
+    final draft = pages.isEmpty
+        ? core.PageDraft.blankA4
+        : core.PageDraft(
+            size: pages.last.size,
+            background: pages.last.background,
+          );
+    final receipt = await _runAsync(
+      core.InsertPages(drafts: [draft], position: const core.PageAtEnd()),
+    );
+    if (_disposed || receipt == null) return;
+    unawaited(_viewport.jumpToPage(_session.pages.length - 1));
+  }
+
+  /// session.flush() + settings / tool / colour / viewport debounced writers (6.17).
+  /// The current position is saved first. Each failure is reported; the
+  /// Future completes when every write has finished (no timeout — contract
+  /// 7.2.9 v1.2).
+  Future<void> flushAll() async {
+    if (_disposed) return;
+    final memory = _ref.read(editorViewportMemoryProvider);
+    final anchor = _viewport.captureAnchor();
+    if (anchor != null) memory.save(_session.noteId, anchor);
+    Future<void> guarded(Future<void> Function() write, String what) async {
+      try {
+        await write();
+      } on Object catch (error, stack) {
+        _report(error, stack, 'while flushing $what');
+      }
+    }
+
+    await Future.wait([
+      guarded(_session.flush, 'the note session'),
+      guarded(_ref.read(editorSettingsProvider.notifier).flush, 'settings'),
+      guarded(_ref.read(editorToolProvider.notifier).flush, 'tool state'),
+      guarded(_ref.read(editorColorPaletteProvider.notifier).flush, 'colours'),
+      guarded(memory.flush, 'the last position'),
+    ]);
   }
 
   /// Through _runHistory (5.1.3): ignored while an interaction is active or read-only;

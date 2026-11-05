@@ -3,9 +3,8 @@
 // Foundation step B5 (contract 7.6) gave the final constructor, the screen
 // states of 04-editor 6.17.1 (opening / note not found / open failed / ready)
 // and the back button that flushes the note session before onClose.
-// E-04 adds the per-note ProviderScope (6.13.1 #4) and the page viewport as
-// the ready body. EditorRoot / EditorBody, toolbar, banners and the rest of
-// the screen come with E-13.
+// E-04 adds the per-note ProviderScope (6.13.1 #4). E-13: EditorRoot (states,
+// leaving with flushAll and '저장하는 중…') and EditorBody (ui/editor_body.dart).
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -14,11 +13,9 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
-import 'input/editor_shortcuts.dart';
 import 'scope/editor_scope.dart';
+import 'ui/editor_body.dart';
 import 'ui/editor_strings.dart';
-import 'ui/toolbar/undo_redo_buttons.dart';
-import 'viewport/page_viewport.dart';
 
 /// The note editor screen. The app shell routes `/notes/:noteId` to it with
 /// `key: ValueKey(noteId)`; the screen knows no router and only calls the
@@ -55,38 +52,6 @@ class EditorScreen extends ConsumerStatefulWidget {
 List<Override> featureEditorOverrides() => const <Override>[];
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
-  /// A close is in progress (waiting for session.flush()): further back
-  /// presses are ignored, so onClose runs once.
-  bool _closing = false;
-
-  core.NoteSession? get _session =>
-      ref.read(core.noteSessionProvider(widget.noteId)).value;
-
-  /// Back button, system back and the 'not found' / 'open failed' buttons.
-  /// With an open session, onClose runs only after session.flush() has
-  /// completed. There is no timeout: CORE write Futures stay pending while a
-  /// failed commit is retried (contract 7.2.9 v1.2, 04-editor 6.17.4).
-  Future<void> _close() async {
-    if (_closing) return;
-    _closing = true;
-    final session = _session;
-    if (session != null) {
-      try {
-        await session.flush();
-      } on Object catch (error, stack) {
-        // 6.17.4: a failed flush is reported and the screen still closes;
-        // CORE's write queue keeps retrying the in-memory state.
-        _report(error, stack, 'while flushing the note session on close');
-      }
-    }
-    if (!mounted) return;
-    widget.onClose();
-  }
-
-  void _retry() {
-    ref.invalidate(core.noteSessionProvider(widget.noteId));
-  }
-
   void _report(Object error, StackTrace? stack, String context) {
     FlutterError.reportError(
       FlutterErrorDetails(
@@ -112,108 +77,142 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       },
     );
 
-    return PopScope<Object?>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) unawaited(_close());
-      },
-      // Per-note scope: only EDITOR providers are overridden here (contract
-      // 7.3.3); CORE and INK providers stay in the root container.
-      child: ProviderScope(
-        key: ValueKey(widget.noteId),
-        overrides: [
-          editorNoteIdProvider.overrideWithValue(widget.noteId),
-          editorInitialPageIdProvider.overrideWithValue(widget.initialPageId),
-        ],
-        child: _EditorRoot(
-          onBack: _close,
-          onRetry: _retry,
-          onOpenSettings: widget.onOpenSettings,
-        ),
+    // Per-note scope: only EDITOR providers are overridden here (contract
+    // 7.3.3); CORE and INK providers stay in the root container.
+    return ProviderScope(
+      key: ValueKey(widget.noteId),
+      overrides: [
+        editorNoteIdProvider.overrideWithValue(widget.noteId),
+        editorInitialPageIdProvider.overrideWithValue(widget.initialPageId),
+      ],
+      child: EditorRoot(
+        onClose: widget.onClose,
+        onOpenSettings: widget.onOpenSettings,
       ),
     );
   }
 }
 
-/// Opening / not found / open failed / ready (6.17.1), from
-/// editorSessionProvider — the body is built only once it has a value, so
-/// everything below may read editorSessionValueProvider.
-class _EditorRoot extends ConsumerWidget {
-  const _EditorRoot({
-    required this.onBack,
-    required this.onRetry,
-    required this.onOpenSettings,
-  });
+/// Shown when leaving waits on flushAll for longer than this (6.17.4).
+const Duration _savingNoticeDelay = Duration(milliseconds: 300);
 
-  final VoidCallback onBack;
-  final VoidCallback onRetry;
+/// Inside the per-note scope: opening / not found / open failed / no pages /
+/// ready (6.17.1) from editorSessionProvider — the body is built only once it
+/// has a value, so everything below may read editorSessionValueProvider —
+/// and leaving (6.17.4): back button, system back (PopScope) and the
+/// 'not found' / 'open failed' buttons.
+class EditorRoot extends ConsumerStatefulWidget {
+  const EditorRoot({super.key, required this.onClose, this.onOpenSettings});
+
+  final VoidCallback onClose;
   final VoidCallback? onOpenSettings;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EditorRoot> createState() => _EditorRootState();
+}
+
+class _EditorRootState extends ConsumerState<EditorRoot> {
+  /// A close is in progress (waiting for flushAll): further back presses are
+  /// ignored, so onClose runs once.
+  bool _closing = false;
+  bool _showSaving = false;
+  Timer? _savingTimer;
+
+  /// With an open session: the running interaction is cancelled (a stroke
+  /// whose pen has not lifted is not committed), then flushAll —
+  /// session.flush() and the editor's own debounced writes — and onClose
+  /// runs only after it has completed. No timeout: CORE write Futures stay
+  /// pending while a failed commit is retried (contract 7.2.9 v1.2). After
+  /// 300 ms '저장하는 중…' shows. Failed writes are reported by flushAll.
+  Future<void> _close() async {
+    if (_closing) return;
+    _closing = true;
+    if (ref.read(editorSessionProvider).value != null) {
+      ref.read(editorInputRouterProvider).cancelAll();
+      _savingTimer = Timer(_savingNoticeDelay, () {
+        if (mounted) setState(() => _showSaving = true);
+      });
+      await ref.read(editorCommandsProvider).flushAll();
+      _savingTimer?.cancel();
+    }
+    if (!mounted) return;
+    widget.onClose();
+  }
+
+  void _retry() {
+    ref.invalidate(core.noteSessionProvider(ref.read(editorNoteIdProvider)));
+  }
+
+  @override
+  void dispose() {
+    _savingTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_close());
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [_buildState(), if (_showSaving) const _SavingNotice()],
+      ),
+    );
+  }
+
+  Widget _buildState() {
     final session = ref.watch(editorSessionProvider);
     if (session.value case final core.NoteSession open) {
-      return _ReadyView(
+      return _ReadyOrEmpty(
         session: open,
-        onBack: onBack,
-        onOpenSettings: onOpenSettings,
+        onBack: _close,
+        onOpenSettings: widget.onOpenSettings,
       );
     }
     if (session.hasError && !session.isLoading) {
       final error = session.error;
       return error is core.EntityNotFoundException
           ? _MessageView(
-              onBack: onBack,
+              onBack: _close,
               message: EditorStrings.noteNotFound,
               actions: [
                 FilledButton(
-                  onPressed: onBack,
+                  onPressed: _close,
                   child: const Text(EditorStrings.goBack),
                 ),
               ],
             )
           : _MessageView(
-              onBack: onBack,
+              onBack: _close,
               message: EditorStrings.openFailed,
               detail: kDebugMode ? '$error' : null,
               actions: [
                 FilledButton(
-                  onPressed: onRetry,
+                  onPressed: _retry,
                   child: const Text(EditorStrings.retry),
                 ),
                 OutlinedButton(
-                  onPressed: onBack,
+                  onPressed: _close,
                   child: const Text(EditorStrings.goBack),
                 ),
               ],
             );
     }
     return _MessageView(
-      onBack: onBack,
+      onBack: _close,
       message: EditorStrings.openingNote,
       showProgress: true,
     );
   }
 }
 
-/// [←] of the toolbar (04-editor 6.9.1: no tooltip, a semantics label only).
-class _BackButton extends StatelessWidget {
-  const _BackButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    onPressed: onPressed,
-    icon: const Icon(Icons.arrow_back, semanticLabel: EditorStrings.back),
-  );
-}
-
-/// Ready body until E-13: an app bar with the back button, the note title,
-/// [↶] [↷] (E-11) and '설정' in the more menu (when onOpenSettings is given),
-/// over the page viewport — all inside the keyboard shortcuts (E-12).
-class _ReadyView extends StatelessWidget {
-  const _ReadyView({
+/// EditorBody, or '페이지가 없어요' + [페이지 추가] (not on a read-only note)
+/// for a note without pages (guard against a CORE rule violation, 6.17.1).
+class _ReadyOrEmpty extends ConsumerWidget {
+  const _ReadyOrEmpty({
     required this.session,
     required this.onBack,
     required this.onOpenSettings,
@@ -224,80 +223,75 @@ class _ReadyView extends StatelessWidget {
   final VoidCallback? onOpenSettings;
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pages =
+        ref.watch(core.notePagesProvider(session.noteId)).value ??
+        session.pages;
+    if (pages.isNotEmpty) {
+      return EditorBody(onBack: onBack, onOpenSettings: onOpenSettings);
+    }
+    final readOnly = ref.watch(editorReadOnlyProvider);
+    return _MessageView(
+      onBack: onBack,
+      message: EditorStrings.noPages,
+      actions: [
+        if (!readOnly)
+          FilledButton(
+            onPressed: () => unawaited(
+              ref.read(editorCommandsProvider).addPageAtEndLikeLast(),
+            ),
+            child: const Text(EditorStrings.addPage),
+          ),
+      ],
+    );
+  }
+}
+
+/// '저장하는 중…' over the screen while leaving waits on the writes; it also
+/// keeps further input away.
+class _SavingNotice extends StatelessWidget {
+  const _SavingNotice();
+
+  @override
   Widget build(BuildContext context) {
-    final openSettings = onOpenSettings;
-    return EditorShortcuts(
-      child: Scaffold(
-        appBar: AppBar(
-          leading: _BackButton(onPressed: onBack),
-          title: Text(session.note.title, overflow: TextOverflow.ellipsis),
-          actions: [
-            const UndoRedoButtons(),
-            if (openSettings != null) _MoreMenu(onOpenSettings: openSettings),
-          ],
+    final scheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: scheme.scrim.withValues(alpha: 0.2),
+      child: Center(
+        child: Material(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(12),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 16),
+                Text(EditorStrings.saving),
+              ],
+            ),
+          ),
         ),
-        body: const _CommandMessages(child: PageViewport()),
       ),
     );
   }
 }
 
-/// Shows EditorCommands.messages (read-only refusal, failed command) as
-/// snackbars of the enclosing Scaffold.
-class _CommandMessages extends ConsumerStatefulWidget {
-  const _CommandMessages({required this.child});
+/// [←] of the message screens (04-editor 6.9.1: no tooltip, a semantics
+/// label only).
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onPressed});
 
-  final Widget child;
-
-  @override
-  ConsumerState<_CommandMessages> createState() => _CommandMessagesState();
-}
-
-class _CommandMessagesState extends ConsumerState<_CommandMessages> {
-  StreamSubscription<String>? _sub;
+  final VoidCallback onPressed;
 
   @override
-  void initState() {
-    super.initState();
-    _sub = ref.read(editorCommandsProvider).messages.listen(_show);
-  }
-
-  void _show(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.maybeOf(context)
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  @override
-  void dispose() {
-    unawaited(_sub?.cancel());
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
-}
-
-/// [⋯] more menu (04-editor 6.9.1). B5 has only '설정'.
-class _MoreMenu extends StatelessWidget {
-  const _MoreMenu({required this.onOpenSettings});
-
-  final VoidCallback onOpenSettings;
-
-  @override
-  Widget build(BuildContext context) => MenuAnchor(
-    menuChildren: [
-      MenuItemButton(
-        onPressed: onOpenSettings,
-        child: const Text(EditorStrings.settings),
-      ),
-    ],
-    builder: (context, controller, child) => IconButton(
-      onPressed: () =>
-          controller.isOpen ? controller.close() : controller.open(),
-      icon: const Icon(Icons.more_horiz, semanticLabel: EditorStrings.more),
-    ),
+  Widget build(BuildContext context) => IconButton(
+    onPressed: onPressed,
+    icon: const Icon(Icons.arrow_back, semanticLabel: EditorStrings.back),
   );
 }
 

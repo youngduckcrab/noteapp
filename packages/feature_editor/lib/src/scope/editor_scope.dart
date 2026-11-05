@@ -10,19 +10,23 @@
 // E-04: note id, initial page id, session, mounted pages, viewport and the
 // current page bridge. E-08: read-only state, commands, interaction host and
 // input router. E-10: the selection (tools/selection.dart — listed here as a
-// dependency). Page panel and popup come with E-13..E-17.
+// dependency). E-13: start position and last position (ViewportMemory); the
+// popup lives in state/popup.dart. The page panel comes with E-17.
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
+import '../state/popup.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
 import '../viewport/page_layout.dart';
 import '../viewport/viewport_controller.dart';
+import '../viewport/viewport_memory.dart';
 
 /// Overridden by EditorScreen (throws elsewhere).
 final editorNoteIdProvider = Provider<String>(
@@ -76,12 +80,53 @@ LayoutAxis _axisOf(PageFlipMode mode) => mode == PageFlipMode.horizontalPaged
 /// directly (synchronous — N-1, so an inserted page can be jumped to right after
 /// the command; updatePages ignores lists whose ids and sizes did not change).
 /// The page flip mode follows editorSettingsProvider.
+///
+/// Start position (6.3.5, 4.2): a known EditorScreen.initialPageId → that page
+/// at fit width; else the last viewed position of the note
+/// (ViewportMemory.load — a page no longer in the note → page 0), else page 0.
+/// Every settle after a camera change (isInteracting → false) saves the
+/// position (ViewportMemory debounces 2 s); EditorCommands.flushAll saves and
+/// writes it on leaving.
 final editorViewportProvider = Provider<ViewportController>(
   (ref) {
     final session = ref.watch(editorSessionValueProvider);
+    final noteId = ref.watch(editorNoteIdProvider);
+    final initialPageId = ref.watch(editorInitialPageIdProvider);
+    final memory = ref.watch(editorViewportMemoryProvider);
     final controller = ViewportController()
       ..setAxis(_axisOf(ref.read(editorSettingsProvider).pageFlipMode))
       ..updatePages(session.pages);
+    var disposed = false;
+    if (initialPageId != null &&
+        session.pages.any((p) => p.id == initialPageId)) {
+      controller.restore(null, initialPageId: initialPageId);
+    } else {
+      memory
+          .load(noteId)
+          .then(
+            (anchor) {
+              if (!disposed) controller.restore(anchor);
+            },
+            onError: (Object error, StackTrace stack) {
+              if (!disposed) controller.restore(null);
+              FlutterError.reportError(
+                FlutterErrorDetails(
+                  exception: error,
+                  stack: stack,
+                  library: 'feature_editor',
+                  context: ErrorDescription('while loading the last position'),
+                ),
+              );
+            },
+          );
+    }
+    void settled() {
+      if (controller.isInteracting.value) return;
+      final anchor = controller.captureAnchor();
+      if (anchor != null) memory.save(noteId, anchor);
+    }
+
+    controller.isInteracting.addListener(settled);
     final sub = session.pagesStream.listen(
       controller.updatePages,
     ); // sync (N-1)
@@ -90,12 +135,18 @@ final editorViewportProvider = Provider<ViewportController>(
       (_, mode) => controller.setAxis(_axisOf(mode)),
     );
     ref.onDispose(() {
+      disposed = true;
+      controller.isInteracting.removeListener(settled);
       sub.cancel();
       controller.dispose();
     });
     return controller;
   },
-  dependencies: [editorSessionValueProvider],
+  dependencies: [
+    editorSessionValueProvider,
+    editorNoteIdProvider,
+    editorInitialPageIdProvider,
+  ],
   name: 'editorViewportProvider',
 );
 
@@ -162,6 +213,7 @@ final editorCommandsProvider = Provider<EditorCommands>(
     editorMountedPagesProvider,
     editorReadOnlyProvider,
     editorSelectionProvider,
+    editorPopupProvider,
   ],
   name: 'editorCommandsProvider',
 );
@@ -188,6 +240,7 @@ final editorInteractionHostProvider = Provider<InteractionHost>(
     editorCommandsProvider,
     editorReadOnlyProvider,
     editorSelectionProvider,
+    editorPopupProvider,
   ],
   name: 'editorInteractionHostProvider',
 );

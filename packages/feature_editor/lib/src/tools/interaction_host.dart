@@ -22,6 +22,7 @@ import '../input/input_sample.dart';
 import '../input/input_targets.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
+import '../state/popup.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../viewport/viewport_constants.dart';
 import '../viewport/viewport_controller.dart';
@@ -315,7 +316,7 @@ class InteractionHost implements InputTargets {
   @override
   void navigationCancel() => _viewport.cancelGesture();
 
-  /// 1 = dismiss (context menu → popup (E-13) → selection), 2 = undo,
+  /// 1 = dismiss (context menu → popup → selection), 2 = undo,
   /// 3 = redo. The router already applied GestureSettings.
   @override
   void tapGesture(int fingerCount, Offset centroid) {
@@ -323,6 +324,8 @@ class InteractionHost implements InputTargets {
       case 1:
         if (_contextMenu.value != null) {
           closeContextMenu();
+        } else if (_ref.read(editorPopupProvider) != null) {
+          _ref.read(editorPopupProvider.notifier).close();
         } else {
           _commands.clearSelection();
         }

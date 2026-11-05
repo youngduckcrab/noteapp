@@ -4,11 +4,18 @@
 // The eraser popup itself (mode, size, filter, return to the previous tool)
 // joins with E-15; its "현재 페이지 지우기" button and the more menu item
 // (E-13) both call [confirmClearCurrentPage].
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../../commands/editor_commands.dart';
+import '../../scope/editor_scope.dart';
+import '../../state/popup.dart';
+import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
+import '../popup_host.dart';
 
 /// The confirmation title for the eraser [filter] (6.6.4 #5).
 String clearPageTitleFor(core.StrokeFilter filter) => switch (filter) {
@@ -71,6 +78,44 @@ class ClearPageDialog extends StatelessWidget {
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text(EditorStrings.clearPageConfirm),
+        ),
+      ],
+    );
+  }
+}
+
+/// Eraser settings popup panel (6.6.4). E-13: '현재 페이지 지우기' (disabled on
+/// a read-only note); mode, size and filter come with E-15.
+class EraserSettingsPanel extends ConsumerWidget {
+  const EraserSettingsPanel({super.key});
+
+  static const panelKey = ValueKey('editor.popup.eraserSettings');
+  static const clearPageKey = ValueKey('editor.popup.eraser.clearPage');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final readOnly = ref.watch(editorReadOnlyProvider);
+    final commands = ref.watch(editorCommandsProvider);
+    return PopupPanelFrame(
+      key: panelKey,
+      title: EditorStrings.eraserSettings,
+      children: [
+        OutlinedButton(
+          key: clearPageKey,
+          onPressed: readOnly
+              ? null
+              : () {
+                  final filter = ref.read(editorToolProvider).eraser.filter;
+                  ref.read(editorPopupProvider.notifier).close();
+                  unawaited(
+                    confirmClearCurrentPage(
+                      context,
+                      commands: commands,
+                      filter: filter,
+                    ),
+                  );
+                },
+          child: const Text(EditorStrings.clearPage),
         ),
       ],
     );
