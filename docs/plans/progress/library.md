@@ -28,7 +28,7 @@
 | L13 | 완료 | 7be0606 | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`) |
 | L14 | 완료 | c979633 | `widget/multi_select_test.dart` |
 | L15 | 완료 | d4a2f20 | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`(touch·stylus 각 12건), `widget/auto_scroll_widget_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
-| L16 | 완료 | (이 커밋) | `widget/trash_view_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
+| L16 | 완료 | 82509da | `widget/trash_view_test.dart` (+ 공유 시나리오 1건 `shared/library_scenarios.dart`) |
 | L17 | 남음 | | `widget/recent_favorites_test.dart`, `widget/search_test.dart` |
 | L18 | 남음 | | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` |
 | L19 | 남음 | | `goldens/library_golden_test.dart`, `widget/performance_test.dart`, `widget/a11y_test.dart` |
