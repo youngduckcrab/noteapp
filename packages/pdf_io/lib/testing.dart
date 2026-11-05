@@ -6,8 +6,8 @@
 /// unit tests.
 ///
 /// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5) and
-/// FakePdfFileSource (PDF T6) are real. The other fakes are signatures only until the PDF
-/// task named in each UnimplementedError (T7 remote fetcher, T12–T16 export fakes).
+/// FakePdfFileSource (PDF T6) and FakeRemoteAssetFetcher (PDF T7) are real. The export fakes
+/// are signatures only until the PDF task named in each UnimplementedError (T12–T16).
 library;
 
 import 'dart:async';
@@ -1117,25 +1117,62 @@ final class BoxInkVectorizer implements PdfInkVectorizer {
 }
 
 /// Scripted core.RemoteAssetFetcher (P-2 tests, also usable by INFRA before M4).
+///
+/// ensureLocal(id) stays pending until completeEnsureLocal / failEnsureLocal (concurrent
+/// calls for one id share one future). Beyond 4.14: [failEnsureLocal], [watchListenerCount].
 final class FakeRemoteAssetFetcher implements core.RemoteAssetFetcher {
   FakeRemoteAssetFetcher();
 
+  final List<core.AssetId> _ensureLocalCalls = [];
+  final Map<core.AssetId, Completer<bool>> _pending = {};
+  final Map<core.AssetId, StreamController<core.RemoteAssetProgress>>
+  _watchers = {};
+  final Map<core.AssetId, core.RemoteAssetProgress> _latest = {};
+  final Map<core.AssetId, int> _listeners = {};
+
+  /// Every ensureLocal call, in order.
   List<core.AssetId> get ensureLocalCalls =>
-      _todo('FakeRemoteAssetFetcher.ensureLocalCalls', 'T7');
+      List.unmodifiable(_ensureLocalCalls);
 
   /// Pushes a progress value to watch(id) listeners (broadcast; replays the latest on listen).
-  void emit(core.AssetId id, core.RemoteAssetProgress progress) =>
-      _todo('FakeRemoteAssetFetcher.emit', 'T7');
+  void emit(core.AssetId id, core.RemoteAssetProgress progress) {
+    _latest[id] = progress;
+    _watchers[id]?.add(progress);
+  }
 
   /// Completes the pending ensureLocal(id) future with [local].
   void completeEnsureLocal(core.AssetId id, bool local) =>
-      _todo('FakeRemoteAssetFetcher.completeEnsureLocal', 'T7');
+      _pending.remove(id)?.complete(local);
+
+  /// Fails the pending ensureLocal(id) future with [error].
+  void failEnsureLocal(core.AssetId id, Object error) =>
+      _pending.remove(id)?.completeError(error);
+
+  /// Current watch(id) subscriptions.
+  int watchListenerCount(core.AssetId id) => _listeners[id] ?? 0;
 
   @override
-  Future<bool> ensureLocal(core.AssetId id) =>
-      _todo('FakeRemoteAssetFetcher.ensureLocal', 'T7');
+  Future<bool> ensureLocal(core.AssetId id) {
+    _ensureLocalCalls.add(id);
+    return (_pending[id] ??= Completer<bool>()).future;
+  }
+
+  StreamController<core.RemoteAssetProgress> _watcher(core.AssetId id) =>
+      _watchers[id] ??= StreamController<core.RemoteAssetProgress>.broadcast(
+        sync: true,
+      );
 
   @override
   Stream<core.RemoteAssetProgress> watch(core.AssetId id) =>
-      _todo('FakeRemoteAssetFetcher.watch', 'T7');
+      Stream<core.RemoteAssetProgress>.multi((listener) {
+        _listeners[id] = watchListenerCount(id) + 1;
+        final latest = _latest[id];
+        if (latest != null) listener.add(latest);
+        final sub = _watcher(id).stream
+            .listen(listener.add, onError: listener.addError);
+        listener.onCancel = () {
+          _listeners[id] = watchListenerCount(id) - 1;
+          return sub.cancel();
+        };
+      });
 }

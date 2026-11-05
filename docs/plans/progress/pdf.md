@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 2/10 (동시 개발 단계)
-- 다음 할 일: T7 문서 풀·원격 원본(`FakeRemoteAssetFetcher`) → T8 렌더 캐시·큐·타일 수학
+- 다음 할 일: T8 렌더 캐시·큐·타일 수학(+ `pdfRenderStatsProvider` 본문 교체, PDF-4-2 공지) → T9 배경 위젯·INK 어댑터
 
 ## 작업 표
 
@@ -15,8 +15,8 @@
 | T3 | 완료 | bd58dde | pdfium/pdfrx_engine_test, web/pdfrx_engine_browser_test |
 | T4 | 완료 | 009a832 | unit/fake_gateway_test, unit/core_gateway_fake_store_test. integration/core_gateway_test는 작성만 함(통합 단계에서 실행 — 현재 `openTestNoteStore`는 CORE T6 전 자리표시) |
 | T5 | 완료 | a160abb | unit/import_service_test, pdfium/import_real_test (+ test/support/render_doubles.dart) |
-| T6 | 완료 | (이 커밋 — 다음 커밋에서 해시 기록) | widget/import_flow_test, web/file_source_browser_test (+ unit/file_source_test, support/fake_file_picker.dart) |
-| T7 | 남음 | | unit/document_pool_test |
+| T6 | 완료 | ad78e51 | widget/import_flow_test, web/file_source_browser_test (+ unit/file_source_test, support/fake_file_picker.dart) |
+| T7 | 완료 | (이 커밋 — 다음 커밋에서 해시 기록) | unit/document_pool_test |
 | T8 | 남음 | | unit/tile_math_test, unit/render_scheduler_test, unit/render_cache_test, unit/render_stats_provider_test |
 | T9 | 남음 | | widget/page_background_view_test, widget/ink_builder_adapter_test, goldens/background_states_golden_test, pdfium/background_real_test |
 | T10 | 남음 | | unit/thumbnail_test, unit/cover_thumbnail_test (integration/ink_thumbnail_test는 미리 작성 — 통합 단계) |
@@ -64,6 +64,9 @@
 - T6 흐름 세부: 시트에서 파일 선택이 취소되면(첫 선택) 시트를 닫고 흐름은 null. 열기 오류(notPdf·passwordCancelled 등)는 시트 안에 문구 + '다른 파일 선택'. 시트에서 세션을 열어 두고(암호 창 포함) 범위를 받는다 — 빈 칸 = 전체, 잘못된 범위는 입력란 오류 문구. 큰 파일 확인 창은 시트를 닫은 뒤(`isLargeFile`, 세션 열린 뒤). 진행 창은 `DialogRoute`를 흐름이 직접 넣고 뺀다. 성공은 스낵바 '{n}쪽을 가져왔어요', 실패는 스낵바 `userMessage`, 취소는 문구 없음. '취소' 버튼은 진행 단계가 `creatingPages` 전일 때만 보인다. 문구는 strings_ko.dart(가져오기 시트·암호 창·큰 파일 확인 — 계획 6.14에 없던 문구를 정함).
 - T6 `PdfImportJobNotifier`: busy = 자기 가져오기 또는 내보내기·일괄 내보내기 상태가 Running. 자기 가져오기가 도는 중의 두 번째 `run`은 상태를 바꾸지 않고 null(돌고 있는 작업의 Running을 덮지 않음), 다른 작업이 도는 중이면 `PdfJobFailed(busy)`. 진행률은 `PdfTuning.jobProgressInterval`(100ms, 4.13에 새로 추가)마다 묶어 상태에 반영. 예상 밖 예외는 보고 후 `PdfJobFailed(storageFailed, cause)`. '닫기' 뒤 작업이 실패하면 `reportPdfError`.
 - T6 `api_surface_test`의 B4 몫 'importPdfAsNewNote → null'은 지웠다(실제 흐름 — widget/import_flow_test).
+- T7 `DefaultPdfDocumentPool`: 생성 때 `gateway.bytesArrived`를 구독한다(문서는 열지 않음). 실패 기억(2초)은 모든 열기 실패(assetMissing 포함)에 적용하되, 열기를 시작한 뒤 그 id의 원본이 도착했으면 기억하지 않는다. 엔진·게이트웨이의 PdfIoException이 아닌 오류는 `corrupt`(cause 보존). `adopt`: 이미 열린 문서가 있으면 넘겨받은 문서를 닫고(같은 파일 재가져오기), 아니면 참조 0 유휴로 넣고 그 id의 실패 기억을 지운다. 열기 중에 `adopt`가 먼저 넣으면 열린 문서를 닫고 adopt한 것을 쓴다. `dispose`는 빌려 간 문서까지 모두 닫고 이후 `acquire`는 StateError, 진행 중이던 열기는 끝나면 닫는다. `requestRemote`의 `ensureLocal` 예외·`watch` 오류는 보고 후 공유 스트림에 `RemoteAssetProgress(failed)`를 내고 요청 기록을 지운다. 공유 watch는 `Stream.multi`(새 구독자에게 마지막 값을 먼저 줌), 구독자가 0이면 fetcher 구독 해제. `bytesArrived`와 `ensureLocal == true`가 겹치면 `assetArrived`가 두 번 나온다(6.6대로 — `acquire`가 중복 열기를 막음).
+- T7 `FakeRemoteAssetFetcher`: 4.14 멤버 + `failEnsureLocal(id, error)`·`watchListenerCount(id)`. 같은 id의 동시 `ensureLocal`은 한 Future를 공유.
+- fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
