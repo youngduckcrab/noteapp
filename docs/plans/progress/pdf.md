@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: 8/10 (동시 개발 단계)
+- 마지막 세션: 보완 세션 1.1 (동시 개발 단계 검토 미비점 5개 처리 중 — '다음 세션 메모'의 세션 1.1 항목)
 - 다음 할 일: 없음 — 동시 개발 단계 몫(T1~T19, T15b 포함)을 모두 끝냈다. 통합 단계에서 integration 태그 테스트 3개(integration/core_gateway_test·ink_thumbnail_test·ink_vectorizer_test)를 실제 CORE·INK로 판정하고, 남은 열린 항목은 '다음 세션 메모' 참고
 
 ## 작업 표
@@ -135,6 +135,9 @@
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 
 ## 다음 세션 메모
+
+- 보완 세션 1.1(독립 검토 미비점 5개):
+  - ⑤ T6: web/file_source_browser_test의 `@TestOn('browser')`를 파일 첫 줄로(주석은 `library;` 아래로) — 다른 test/web 파일과 같은 모양.
 
 - 세션 8 결과(2): T19(4d6dd02) 완료 — 동시 개발 단계 몫 전부 끝. 통합 단계 몫: ① integration 태그 3개(`dart run tool/ws.dart test --run-skipped -t integration`) — core_gateway_test는 실제 CORE(`openTestNoteStore`), ink_thumbnail_test·ink_vectorizer_test는 INK 실제 썸네일·벡터 내보내기·속지로(지금 INK B3 자리에서는 ink_vectorizer_test 실패가 정상) ② perf는 선택(`flutter test --run-skipped -t perf test/perf`, 웹은 README 표) ③ 열린 항목: FreeType·IJG 문서 고지 문구(THIRD_PARTY_NOTICES.md 3절, 2단계 출시 전 — INFRA 앱 정보 화면·스토어 설명), 계획 10장 iPad 확인(9.2 U1~U19)은 사용자 몫.
 - 세션 8 검사(T19 뒤): 패키지 VM 테스트 575개 통과(+6 skip), Chrome 54개 통과(+1 skip — 웹 perf, `ws test --platform chrome --package pdf_io`, 120초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.

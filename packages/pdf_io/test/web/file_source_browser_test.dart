@@ -1,8 +1,9 @@
+@TestOn('browser')
+library;
+
 // FilePickerPdfSource in the browser (06-pdf 4.5, 8 T6): a real web.File behind the picked
 // file (as file_picker's web PlatformFile wraps it — size from File.size, bytes read on
 // demand with arrayBuffer) → PickedPdfFile name, size and bytes.
-@TestOn('browser')
-library;
 
 import 'dart:js_interop';
 import 'dart:typed_data';
