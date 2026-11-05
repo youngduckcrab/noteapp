@@ -6,9 +6,9 @@
 /// unit tests.
 ///
 /// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5) and
-/// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7) and BoxInkVectorizer (PDF T12)
-/// are real. The other export fakes are signatures only until the PDF task named in each
-/// UnimplementedError (T15–T16).
+/// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7), BoxInkVectorizer (PDF T12)
+/// and RecordingComposeBackend (PDF T15) are real. FakePdfOutputSink is signatures only
+/// until the PDF task named in its UnimplementedError.
 library;
 
 import 'dart:async';
@@ -1090,18 +1090,134 @@ final class FakePdfOutputSink implements PdfOutputSink {
 }
 
 /// records plan/ops, returns '%PDF-fake'
+///
+/// begin records the plan and opens a job; addPages records each call's pages; finish
+/// returns [result] of the plan (default: the ASCII bytes of '%PDF-fake'); abort is
+/// idempotent and does nothing once finish has started (finish cleans up, like the real
+/// backends). Beyond 4.14 (PDF T15): [supported]; records [plans], [chunks] (every addPages
+/// call, all jobs in order), [events] ('begin#1', 'addPages#1', 'finish#1', 'abort#1' — the
+/// job number is the plan's position in [plans], from 1), [openJobCount], [disposed]; while
+/// [beginError] / [addPagesError] / [finishError] is set that call throws it; the hooks
+/// [beforeBegin] / [beforeAddPages] / [beforeFinish] are awaited first (hold a step).
+/// Checks like the real backends: an empty plan, a source index or an output index out of
+/// range → ArgumentError; addPages / finish after finish or abort, begin after [dispose] →
+/// StateError. [dispose] aborts the open jobs.
 final class RecordingComposeBackend implements PdfComposeBackend {
-  RecordingComposeBackend();
+  RecordingComposeBackend({this.supported = true, this.result});
+
+  /// isSupported
+  bool supported;
+
+  /// Bytes finish returns for a plan; null → '%PDF-fake'.
+  Uint8List Function(PdfComposePlan plan)? result;
+
+  final List<PdfComposePlan> plans = [];
+  final List<List<PdfComposePageOps>> chunks = [];
+  final List<String> events = [];
+  Object? beginError, addPagesError, finishError;
+  Future<void> Function()? beforeBegin, beforeAddPages, beforeFinish;
+  bool disposed = false;
+  final Set<_RecordingComposeJob> _open = {};
+
+  /// Jobs begun and neither finished nor aborted.
+  int get openJobCount => _open.length;
+
+  /// Every page of every addPages call of job [number] (1-based), in order.
+  List<PdfComposePageOps> pagesOfJob(int number) => [
+    for (final job in _sent)
+      if (job.$1 == number) ...job.$2,
+  ];
+  final List<(int, List<PdfComposePageOps>)> _sent = [];
 
   @override
-  bool get isSupported => _todo('RecordingComposeBackend.isSupported', 'T15');
+  bool get isSupported => supported;
 
   @override
-  Future<PdfComposeJob> begin(PdfComposePlan plan) =>
-      _todo('RecordingComposeBackend.begin', 'T15');
+  Future<PdfComposeJob> begin(PdfComposePlan plan) async {
+    if (disposed) throw StateError('RecordingComposeBackend is disposed');
+    if (plan.pages.isEmpty) {
+      throw ArgumentError.value(plan, 'plan', 'no pages');
+    }
+    for (final page in plan.pages) {
+      if (page is PdfComposeSourcePage &&
+          (page.sourceIndex < 0 || page.sourceIndex >= plan.sources.length)) {
+        throw ArgumentError.value(page.sourceIndex, 'sourceIndex');
+      }
+    }
+    plans.add(plan);
+    final number = plans.length;
+    events.add('begin#$number');
+    await beforeBegin?.call();
+    final error = beginError;
+    if (error != null) Error.throwWithStackTrace(error, StackTrace.current);
+    if (disposed) throw StateError('RecordingComposeBackend is disposed');
+    final job = _RecordingComposeJob(this, plan, number);
+    _open.add(job);
+    return job;
+  }
 
   @override
-  Future<void> dispose() => _todo('RecordingComposeBackend.dispose', 'T15');
+  Future<void> dispose() async {
+    disposed = true;
+    for (final job in [..._open]) {
+      await job.abort();
+    }
+  }
+}
+
+final class _RecordingComposeJob implements PdfComposeJob {
+  _RecordingComposeJob(this._backend, this._plan, this._number);
+
+  final RecordingComposeBackend _backend;
+  final PdfComposePlan _plan;
+  final int _number;
+  bool _closed = false, _finishing = false;
+
+  @override
+  Future<void> addPages(List<PdfComposePageOps> pages) async {
+    if (_closed || _finishing) {
+      throw StateError('compose job $_number is finished or aborted');
+    }
+    for (final page in pages) {
+      if (page.outputIndex < 0 || page.outputIndex >= _plan.pages.length) {
+        throw ArgumentError.value(page.outputIndex, 'outputIndex');
+      }
+    }
+    final copy = List<PdfComposePageOps>.unmodifiable(pages);
+    _backend.events.add('addPages#$_number');
+    _backend.chunks.add(copy);
+    _backend._sent.add((_number, copy));
+    await _backend.beforeAddPages?.call();
+    final error = _backend.addPagesError;
+    if (error != null) Error.throwWithStackTrace(error, StackTrace.current);
+  }
+
+  @override
+  Future<Uint8List> finish() async {
+    if (_closed || _finishing) {
+      throw StateError('compose job $_number is finished or aborted');
+    }
+    _finishing = true;
+    _backend.events.add('finish#$_number');
+    try {
+      await _backend.beforeFinish?.call();
+      final error = _backend.finishError;
+      if (error != null) Error.throwWithStackTrace(error, StackTrace.current);
+      return _backend.result?.call(_plan) ??
+          Uint8List.fromList('%PDF-fake'.codeUnits);
+    } finally {
+      _closed = true;
+      _backend._open.remove(this);
+    }
+  }
+
+  @override
+  Future<void> abort() async {
+    if (_closed || _finishing) return;
+    _closed = true;
+    _backend._open.remove(this);
+    _backend.events.add('abort#$_number');
+  }
 }
 
 /// each stroke → filled rect of its bounds

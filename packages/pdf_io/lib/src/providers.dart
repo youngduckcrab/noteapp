@@ -351,21 +351,118 @@ class PdfImportJobNotifier extends Notifier<PdfJobState<PdfImportResult>> {
   }
 }
 
+/// Hands progress values to [_apply] at most every PdfTuning.jobProgressInterval (6.13):
+/// the first one at once, then the latest one when the interval ends.
+final class _ProgressThrottle<P extends Object> {
+  _ProgressThrottle(this._apply);
+
+  final void Function(P progress) _apply;
+  Timer? _timer;
+  P? _pending;
+
+  void add(P progress) {
+    if (_timer != null) {
+      _pending = progress;
+      return;
+    }
+    _apply(progress);
+    _timer = Timer(PdfTuning.jobProgressInterval, () {
+      _timer = null;
+      final pending = _pending;
+      _pending = null;
+      if (pending != null) add(pending);
+    });
+  }
+
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+    _pending = null;
+  }
+}
+
 class PdfExportJobNotifier extends Notifier<PdfJobState<PdfExportResult>> {
+  PdfCancelSignal? _cancel;
+  _ProgressThrottle<PdfProgress>? _progress;
+
   @override
-  PdfJobState<PdfExportResult> build() => const PdfJobIdle<PdfExportResult>();
+  PdfJobState<PdfExportResult> build() {
+    ref.onDispose(() {
+      _progress?.stop();
+      _cancel?.cancel();
+    });
+    return const PdfJobIdle<PdfExportResult>();
+  }
 
+  /// True while an export runs, or while an import / bulk export runs (one PDF job at a
+  /// time — another export is busy).
   bool get isBusy =>
-      throw UnimplementedError('PdfExportJobNotifier.isBusy (PDF T15)');
+      state is PdfJobRunning || _pdfJobRunning(ref, export: false);
 
-  Future<PdfExportResult?> run(String noteId, PdfExportOptions options) =>
-      throw UnimplementedError('PdfExportJobNotifier.run (PDF T15)');
+  /// pdfExportServiceProvider.exportNote. Throws nothing; failures end in PdfJobFailed
+  /// (cancel → PdfJobFailed(cancelled)). Returns null unless succeeded.
+  ///
+  /// While another PDF job runs: PdfJobFailed(busy) — except while this notifier's own
+  /// export runs, whose Running state is kept (the caller sees null). Progress reaches the
+  /// state at most every PdfTuning.jobProgressInterval (6.13). An unexpected error is
+  /// reported and ends in PdfJobFailed(exportFailed) with the cause.
+  Future<PdfExportResult?> run(String noteId, PdfExportOptions options) async {
+    if (state is PdfJobRunning) return null;
+    if (_pdfJobRunning(ref, export: false)) {
+      state = const PdfJobFailed<PdfExportResult>(
+        PdfIoException(PdfErrorCode.busy),
+      );
+      return null;
+    }
+    final cancel = _cancel = PdfCancelSignal();
+    final progress = _progress = _ProgressThrottle<PdfProgress>((p) {
+      if (ref.mounted && state is PdfJobRunning) {
+        state = PdfJobRunning<PdfExportResult>(p);
+      }
+    });
+    state = const PdfJobRunning<PdfExportResult>(
+      PdfProgress(PdfJobPhase.preparingExport),
+    );
+    PdfJobState<PdfExportResult> end;
+    PdfExportResult? result;
+    try {
+      result = await ref
+          .read(pdfExportServiceProvider)
+          .exportNote(
+            noteId,
+            options,
+            onProgress: progress.add,
+            cancel: cancel,
+          );
+      end = PdfJobSucceeded<PdfExportResult>(result);
+    } on PdfIoException catch (e) {
+      end = PdfJobFailed<PdfExportResult>(e);
+    } on Object catch (e, s) {
+      reportPdfError(e, s, 'pdf export job');
+      end = PdfJobFailed<PdfExportResult>(
+        PdfIoException(
+          PdfErrorCode.exportFailed,
+          detail: 'unexpected export error',
+          cause: e,
+        ),
+      );
+    }
+    progress.stop();
+    if (identical(_progress, progress)) _progress = null;
+    if (identical(_cancel, cancel)) _cancel = null;
+    if (ref.mounted) state = end;
+    return result;
+  }
 
-  void cancel() =>
-      throw UnimplementedError('PdfExportJobNotifier.cancel (PDF T15)');
+  /// Cancels the running export (no-op when idle): it ends in PdfJobFailed(cancelled) at
+  /// once, even while the pre-export flush waits for CORE (6.11.2 step 1).
+  void cancel() => _cancel?.cancel();
 
-  void reset() =>
-      throw UnimplementedError('PdfExportJobNotifier.reset (PDF T15)');
+  /// Back to idle unless an export runs.
+  void reset() {
+    if (state is PdfJobRunning) return;
+    state = const PdfJobIdle<PdfExportResult>();
+  }
 }
 
 /// Batch job state: idle / running(PdfBatchProgress) / finished(PdfBatchExportResult) / failed.

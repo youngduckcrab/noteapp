@@ -42,6 +42,14 @@ void main() {
       ).userMessage,
       '이 기기에 PDF 원본이 없어요. (3, 5쪽)',
     );
+    // A cut list (PdfStringsKo.pageList) already ends with '쪽'.
+    expect(
+      const PdfIoException(
+        PdfErrorCode.assetMissing,
+        detail: '1, 3 외 4쪽',
+      ).userMessage,
+      '이 기기에 PDF 원본이 없어요. (1, 3 외 4쪽)',
+    );
   });
 
   test('{max} follows the import limits', () {

@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 5/10 (동시 개발 단계)
-- 다음 할 일: T15 내보내기 서비스 → T15b 일괄 내보내기
+- 마지막 세션: 6/10 (동시 개발 단계)
+- 다음 할 일: T15b 일괄 내보내기(테스트·노티파이어·`exportNotesAsPdf` 흐름) → T16 출력·내보내기 UI
 
 ## 작업 표
 
@@ -24,7 +24,7 @@
 | T12 | 완료 | 405875c | unit/compose_encoder_test, unit/vectorizer_box_test, unit/template_underlay_test (+ support/compose_fixture.dart, web/pure_logic_browser_test 인코더 항목). integration/ink_vectorizer_test는 작성함(통합 단계 판정 — 지금 INK B3는 내보내기·속지가 비어 있어 `--run-skipped`로 돌리면 실패하는 것이 정상) |
 | T13 | 완료 | 4081b1a | pdfium/compose_native_test (+ support/compose_probes.dart — T14와 같은 탐침 목록, unit/compose_layout_test) |
 | T14 | 완료 | 0da121f | web/compose_browser_test (T13과 같은 탐침 20개 + 워커 관리 7개), web/foundation_browser_test(웹 합성 팩토리 `isSupported`) |
-| T15 | 남음 | | unit/export_service_test, pdfium/export_e2e_test |
+| T15 | 완료 | (이 커밋) | unit/export_service_test, pdfium/export_e2e_test (+ support/export_world.dart, web/pure_logic_browser_test 웹 묶음 16쪽, unit/error_messages_test 잘린 쪽 목록) |
 | T15b | 남음 | | unit/batch_export_test, widget/batch_export_flow_test |
 | T16 | 남음 | | widget/export_flow_test, web/output_sink_browser_test |
 | T17 | 남음 | | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test |
@@ -104,6 +104,11 @@
 - T14 `BrowserPdfComposeBackend`(compose_backend_browser.dart, barrel 비공개): 첫 `begin`에서 Worker를 만든다 — 주소는 `document.baseURI` 기준(`modules` = `pdfiumWasmModulesUrl ?? 'assets/packages/pdfrx/assets/'`, ext = `composeExtensionUrl`), Blob 내용은 `const pdfiumWasmUrl=…;importScripts(worker);importScripts(ext);`(문자열은 `jsonEncode`), `init` 응답 뒤 Blob URL 해제. 요청 id는 1부터(pdfrx 워커는 falsy id를 무시). 초기화 실패(wasm·확장 스크립트 없음 포함) → `engineUnavailable`. 워커 `onerror` → 그 워커를 끝내고 대기 요청은 `exportFailed`('compose worker stopped …'), 다음 `begin`이 새로 만든다. 마지막 작업이 끝나면(finish/abort/실패한 begin) `idleTimeout`(기본 `PdfTuning.composeWorkerIdleTimeout` 60초) 뒤 종료, `begin`이 타이머를 끈다. `abort`가 `abortTimeout`(기본 5초) 안에 답하지 않으면 워커를 끝낸다. 바이트 전달(6.11.6과 다름): 호출자 바이트가 버퍼 전체이면 structured clone(옮기지 않음 — 호출자 `Uint8List`가 분리되지 않게), 더 큰 버퍼의 view이면 복사본을 만들어 transfer, `encodePages()` 버퍼는 transfer. 시험 훅: `hasWorker`, `openJobCount`, `debugWorkerJobCount()`. 작업 수명 규칙은 네이티브와 같다(finish/abort 뒤 StateError, abort 멱등, dispose 뒤 begin StateError).
 - T14 pubspec에 `flutter: assets: - path: web/ (platforms: [web])`을 더했다(3.1 — `licenses/`는 T19). `pubspec.lock` 변화 없음.
 - T14 web 시험의 시간: Worker는 진짜라 fake_async 대신 짧은 설정값(`idleTimeout` 200ms, `abortTimeout` 100ms)을 쓰고, 종료는 상한 30초 폴링으로 기다린다(시간 단언 없음). '응답 없는 abort'는 Blob으로 감싼 확장이 abort 명령을 3초 바쁜 대기로 바꿔 만든다, '호환 안 됨'은 Blob 확장이 `encodePdf = undefined` 뒤 진짜 확장을 `importScripts`.
+- T15 `DefaultPdfExportService`(4.9 주석 외 세부): busy는 서비스 하나에 한 내보내기(단일·일괄 공용 플래그 — 가져오기와의 배타는 작업 노티파이어 몫). 백엔드 `isSupported == false`면 단일·일괄 모두 `unsupportedPlatform`. 범위: 현재 페이지가 노트에 없으면 ArgumentError, 선택은 노트 순서·없는 id 무시·남는 것이 없으면 ArgumentError, 페이지 없는 노트는 `exportFailed`. 진행률은 preparingExport → composing (0/n … n/n) → finishingExport **(n/n)** — 마무리 단계도 비율 1이라 일괄 전체 비율이 뒤로 가지 않는다(문구 'PDF 마무리 중 (n/n)'). 묶음: 웹 16쪽·그 밖 8쪽(`kIsWeb`, 백엔드에 크기 멤버가 없어서), ops 8MB — 다음 쪽을 더하면 8MB를 넘을 때 먼저 보내고, 한 쪽이 8MB보다 크면 그 쪽만 따로. ops가 없는 쪽은 보내지 않는다. `includeInk == false`면 `loadPage`를 부르지 않는다(pagesOf의 페이지로 속지만). 취소: flush·getNote·pagesOf·원본 읽기·begin·loadPage·addPages·finish 모두 `raceCancel` — begin 중 취소면 늦게 온 작업을 abort, finish 중 취소면 abort하지 않음(finish가 정리). begin 뒤 오류는 abort(기다리지 않음 — 웹 abort는 5초까지 걸릴 수 있음) 후 PdfIoException은 그대로, 그 밖은 `exportFailed`(cause 보존). `exportFailed`는 서비스가 한 번 보고한다(노티파이어·일괄은 다시 보고하지 않음). `options.fileName`이 있으면 끝의 '.pdf'(대소문자 무시)를 떼고 `sanitize` + '.pdf'. `assetMissing`(fail 정책)의 detail = `PdfStringsKo.pageList(쪽 번호)`, 원본 읽기는 에셋마다 한 번(없는 에셋 포함).
+- T15 `exportNotes`도 이 작업에서 구현했다(T15 완료 조건의 일괄 취소 시험 때문). 없는 노트 → 항목 `noteNotFound`(제목 ''), 노트별 PdfIoException은 항목에 기록, `cancelled`면 그 노트는 항목에 넣지 않고 끝(`notReachedCount`에 포함), `engineUnavailable`·`unsupportedPlatform`은 일괄 전체를 그 오류로 끝냄, 예상 밖 오류는 보고 + 항목 `exportFailed`. **150MB 상한(`batchMaxTotalBytesWeb`)은 웹만이 아니라 모든 플랫폼에 적용**(결과를 모두 메모리에 쥐는 것은 네이티브도 같고, VM 시험이 가능). 상한 확인은 다음 노트 시작 전. 파일 이름 중복 제거는 끝난 뒤 성공 항목에 `deduplicate`(이름이 바뀐 결과는 같은 바이트로 새 `PdfExportResult`). `options.fileName`은 `copyWith`대로 그대로 남는다(모든 노트가 같은 이름 → ' (2)'…). T15b는 일괄 시험·노티파이어·흐름이 남는다.
+- T15 `PdfExportJobNotifier`: 가져오기 노티파이어와 같은 규칙(자기 작업 중 두 번째 run → null·상태 유지, 다른 PDF 작업 중 → `Failed(busy)`, 서비스 busy도 `Failed(busy)`, 예상 밖 오류는 보고 + `Failed(exportFailed, cause)`). 진행률 묶음은 내부 `_ProgressThrottle`(providers.dart — 가져오기 노티파이어는 그대로 둠). `cancel()`은 flush 대기 중에도 바로 `Failed(cancelled)`.
+- T15 `RecordingComposeBackend`(4.14 '계획·ops 기록, %PDF-fake'): 생성자 `supported`·`result`(계획 → 바이트), 기록 `plans`·`chunks`·`events`('begin#1'·'addPages#1'·'finish#1'·'abort#1' — 작업 번호 = plans 위치)·`pagesOfJob(n)`·`openJobCount`·`disposed`, 오류 `beginError`·`addPagesError`·`finishError`(설정되어 있는 동안 매번), 훅 `beforeBegin`·`beforeAddPages`·`beforeFinish`. 실제 백엔드처럼 빈 계획·sourceIndex/outputIndex 범위 밖은 ArgumentError, finish/abort 뒤 addPages·finish와 dispose 뒤 begin은 StateError, finish가 시작되면 abort는 아무것도 안 함, dispose는 열린 작업을 abort. 공개 최상위 이름 추가 없음(작업 클래스는 비공개).
+- T15 `assetMissing` 문구: 잘린 쪽 목록('… 외 n쪽')에는 '쪽'을 다시 붙이지 않는다(strings_ko `errorMessage`).
 - fake_async 주의: `StreamSubscription.cancel()`이 돌려주는 Future는 루트 존에서 끝날 수 있어 fake_async 안에서 기다리면 끝나지 않는다 — lib 코드는 cancel을 기다리지 않는다(`unawaited`).
 - T1 `no_platform_imports_test`: 색 리터럴 검사 범위를 render/·ui/에 ink_adapter/까지 넓히고 `Color.fromARGB(`·`Color.fromRGBO(`·`Colors.`도 잡는다. `package:flutter/material.dart` 금지, 조건부 export는 두 factory 파일에만 있음도 검사.
 

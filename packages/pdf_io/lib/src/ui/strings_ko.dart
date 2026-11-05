@@ -28,7 +28,9 @@ abstract final class PdfStringsKo {
     PdfErrorCode.assetMissing =>
       detail == null || detail.isEmpty
           ? '이 기기에 PDF 원본이 없어요.'
-          : '이 기기에 PDF 원본이 없어요. ($detail쪽)',
+          // A cut page list (pageList) already ends with '외 n쪽'.
+          : '이 기기에 PDF 원본이 없어요. '
+                '($detail${detail.endsWith('쪽') ? '' : '쪽'})',
     PdfErrorCode.noteNotFound => '노트를 찾을 수 없어요.',
     PdfErrorCode.readOnlyNote => '읽기 전용 노트라 페이지를 넣을 수 없어요.',
     PdfErrorCode.storageFailed => 'PDF를 저장하지 못했어요. 저장 공간을 확인해 주세요.',
