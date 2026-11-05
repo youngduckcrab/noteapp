@@ -1,8 +1,9 @@
 // .github checks (docs/plans/01-infra.md 6.13 and the 9.1 workflows_test row,
 // I13): the four workflows (triggers, concurrency, time limits, the two
-// caches and their keys, browser and integration tests, the main-only
-// strict check, the deploy gate on secrets, pinned versions, the iOS gate,
-// the APK artifact) and the issue templates. Every `ws` call in a workflow
+// caches and their keys, browser and integration tests, the default-branch
+// base of `--affected-since` with its full-run fallback, the live channel on
+// main only, the deploy gate on secrets, pinned versions, the iOS gate, the
+// APK artifact) and the issue templates. Every `ws` call in a workflow
 // is parsed by the real `ws` argument parser, and every `run` script passes
 // `bash -n`.
 
@@ -35,7 +36,7 @@ const _ignoredPaths = ['docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**'];
 /// Job time limits (6.13).
 const _timeouts = {
   'android.yml': 30,
-  'ci.yml': 25,
+  'ci.yml': 60,
   'ios-testflight.yml': 45,
   'web-experiment.yml': 25,
 };
@@ -58,7 +59,16 @@ const _prepKey =
     r"'**/tool/prepare_web_test.dart') }}";
 
 const _onMain = "github.ref == 'refs/heads/main'";
-const _offMain = "github.ref != 'refs/heads/main'";
+
+/// ci.yml: main and the default branch itself run the strict check and every
+/// member; the others the affected members since the default branch.
+const _fullRun = "env.FULL_RUN == 'true'";
+const _notFullRun = "env.FULL_RUN != 'true'";
+const _fullRunValue =
+    r"${{ github.ref == 'refs/heads/main' || "
+    r'github.ref_name == github.event.repository.default_branch }}';
+const _defaultBranchValue = r'${{ github.event.repository.default_branch }}';
+const _affected = r'--affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base';
 const _ws = 'dart run tool/ws.dart';
 const _defineFile = '--dart-define-from-file=../build/build_info.json';
 const _buildNumber = r'--build-number=$GITHUB_RUN_NUMBER';
@@ -179,10 +189,53 @@ List<String> _shellWords(String line, Map<String, String> variables) {
 /// Sample values of the shell variables the workflows pass to `ws`.
 const _sampleVariables = {
   'BUILD_CHANNEL': 'preview',
+  'DEFAULT_BRANCH': _devBranch,
   'GITHUB_REF_NAME': 'area/infra',
 };
 
+/// Evaluates the `||` / `&&` / `==` / `!=` expressions of [expression]
+/// (`${{ … }}` or a bare `if:`) against [context] (`github.ref`, …, `env.X`):
+/// enough for the conditions of ci.yml, not the whole GitHub grammar.
+bool _evaluate(String expression, Map<String, String> context) {
+  var text = expression.trim();
+  if (text.startsWith(r'${{') && text.endsWith('}}')) {
+    text = text.substring(3, text.length - 2).trim();
+  }
+  String value(String operand) {
+    final o = operand.trim();
+    if (o.startsWith("'") && o.endsWith("'")) {
+      return o.substring(1, o.length - 1);
+    }
+    expect(context, contains(o), reason: 'no sample for `$o`');
+    return context[o]!;
+  }
+
+  bool comparison(String term) {
+    for (final op in ['==', '!=']) {
+      final parts = term.split(op);
+      if (parts.length == 2) {
+        final equal = value(parts[0]) == value(parts[1]);
+        return op == '==' ? equal : !equal;
+      }
+    }
+    fail('unsupported term `$term` in `$expression`');
+  }
+
+  return text.split('||').any((any) => any.split('&&').every(comparison));
+}
+
 void main() {
+  test('_evaluate reads the condition forms used here', () {
+    const context = {'github.ref': 'refs/heads/a', 'env.X': 'true'};
+    expect(_evaluate("github.ref == 'refs/heads/a'", context), isTrue);
+    expect(_evaluate("github.ref != 'refs/heads/a'", context), isFalse);
+    expect(
+      _evaluate(r"${{ github.ref == 'x' || env.X == 'true' }}", context),
+      isTrue,
+    );
+    expect(_evaluate("env.X == 'true' && github.ref == 'x'", context), isFalse);
+  });
+
   test('_shellWords splits like the shell for the forms used here', () {
     expect(
       _shellWords(r'channel-id --branch "$GITHUB_REF_NAME")"', {
@@ -517,13 +570,18 @@ void main() {
       expect(concurrency['cancel-in-progress'], isTrue);
     });
 
-    test('single job on ubuntu with a 25 minute limit and the env', () {
+    test('single job on ubuntu with a 60 minute limit and the env', () {
       expect(_jobs(ci), hasLength(1));
       expect(job['runs-on'], 'ubuntu-latest');
-      expect(job['timeout-minutes'], 25);
+      // A full run on main or the default branch (every member, VM and
+      // Chrome — locally about 9 + 8 minutes on 4 cores) on the 2-core
+      // runner of a private repository, plus the integration input.
+      expect(job['timeout-minutes'], 60);
       expect((job['env'] as YamlMap).value, {
         'FIREBASE_SA': r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
         'FIREBASE_PROJECT_ID': r'${{ vars.FIREBASE_PROJECT_ID }}',
+        'DEFAULT_BRANCH': _defaultBranchValue,
+        'FULL_RUN': _fullRunValue,
       });
     });
 
@@ -537,13 +595,13 @@ void main() {
           'Cache build hooks', // 3
           'Cache browser test assets', // 4
           'Dependencies', // 5
-          'Workspace rules (main, strict)', // 6
+          'Workspace rules (strict)', // 6
           'Workspace rules',
           'Analyze', // 7
-          'VM tests (main)', // 8
+          'VM tests (all members)', // 8
           'VM tests (affected)',
           'Tool tests', // contract 7.6 B1 v1.3, V3
-          'Browser tests (main)', // 9
+          'Browser tests (all members)', // 9
           'Browser tests (affected)',
           'Integration tests (VM)', // 10
           'Integration tests (Chrome)',
@@ -561,16 +619,14 @@ void main() {
     test('commands of each step', () {
       final expected = {
         'Dependencies': ['flutter pub get --enforce-lockfile'],
-        'Workspace rules (main, strict)': ['$_ws check --strict'],
+        'Workspace rules (strict)': ['$_ws check --strict'],
         'Workspace rules': ['$_ws check'],
         'Analyze': ['$_ws analyze'],
-        'VM tests (main)': ['$_ws test'],
-        'VM tests (affected)': ['$_ws test --affected-since origin/main'],
+        'VM tests (all members)': ['$_ws test'],
+        'VM tests (affected)': ['$_ws test $_affected'],
         'Tool tests': ['dart test tool/test'],
-        'Browser tests (main)': ['$_ws test --platform chrome'],
-        'Browser tests (affected)': [
-          '$_ws test --platform chrome --affected-since origin/main',
-        ],
+        'Browser tests (all members)': ['$_ws test --platform chrome'],
+        'Browser tests (affected)': ['$_ws test --platform chrome $_affected'],
         'Integration tests (VM)': ['$_ws test --run-skipped -t integration'],
         'Integration tests (Chrome)': [
           '$_ws test --platform chrome --run-skipped -t integration',
@@ -629,21 +685,21 @@ void main() {
       );
     });
 
-    test('main runs the strict check and every member, branches the '
-        'affected ones', () {
+    test('main and the default branch run the strict check and every '
+        'member, other branches the affected ones', () {
       for (final name in [
-        'Workspace rules (main, strict)',
-        'VM tests (main)',
-        'Browser tests (main)',
+        'Workspace rules (strict)',
+        'VM tests (all members)',
+        'Browser tests (all members)',
       ]) {
-        expect(step(name)['if'], _onMain, reason: name);
+        expect(step(name)['if'], _fullRun, reason: name);
       }
       for (final name in [
         'Workspace rules',
         'VM tests (affected)',
         'Browser tests (affected)',
       ]) {
-        expect(step(name)['if'], _offMain, reason: name);
+        expect(step(name)['if'], _notFullRun, reason: name);
       }
       for (final name in [
         'Dependencies',
@@ -657,6 +713,111 @@ void main() {
       ]) {
         expect(step(name).containsKey('if'), isFalse, reason: name);
       }
+    });
+
+    // 01-infra 6.13: the base is the repository's default branch, which is
+    // the development branch while the remote has no main. On the default
+    // branch itself nothing is compared (every member); live stays main's.
+    test('per push: full run or the default-branch base, and the channel', () {
+      final scratch = Directory.systemTemp.createTempSync('ws_ci_channel_');
+      addTearDown(() => scratch.deleteSync(recursive: true));
+      final fakeDart = File(p.join(scratch.path, 'bin', 'dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          'echo "\$*" > "${p.join(scratch.path, 'dart-args')}"\n'
+          'echo b-fake-channel\n',
+        );
+      Process.runSync('chmod', ['+x', fakeDart.path]);
+      final pairs = [
+        ('Workspace rules (strict)', 'Workspace rules'),
+        ('VM tests (all members)', 'VM tests (affected)'),
+        ('Browser tests (all members)', 'Browser tests (affected)'),
+      ];
+      // (pushed branch, default branch, full run, Hosting channel)
+      final scenarios = [
+        (_devBranch, _devBranch, true, 'b-fake-channel'), // now
+        ('area/infra', _devBranch, false, 'b-fake-channel'),
+        ('main', _devBranch, true, 'live'), // main before it is the default
+        ('main', 'main', true, 'live'),
+        ('feature/x', 'main', false, 'b-fake-channel'),
+      ];
+      for (final (branch, defaultBranch, full, channel) in scenarios) {
+        final reason = '$branch (default $defaultBranch)';
+        final github = {
+          'github.ref': 'refs/heads/$branch',
+          'github.ref_name': branch,
+          'github.event.repository.default_branch': defaultBranch,
+        };
+        expect(_evaluate(_fullRunValue, github), full, reason: reason);
+        final env = {'env.FULL_RUN': '$full'};
+        for (final (all, affected) in pairs) {
+          expect(_evaluate('${step(all)['if']}', env), full, reason: reason);
+          expect(
+            _evaluate('${step(affected)['if']}', env),
+            !full,
+            reason: reason,
+          );
+        }
+        if (!full) {
+          // The affected run compares with origin/<default branch>.
+          final args = _shellWords(
+            _commands(step('VM tests (affected)')).single,
+            {'DEFAULT_BRANCH': defaultBranch},
+          );
+          expect(args.sublist(3), [
+            'test',
+            '--affected-since',
+            'origin/$defaultBranch',
+            '--all-if-no-base',
+          ], reason: reason);
+        }
+        // The Channel script itself, with a fake `dart` for ws channel-id.
+        final output = File(p.join(scratch.path, 'output'))
+          ..writeAsStringSync('');
+        final result = Process.runSync(
+          'bash',
+          ['-e', '-c', '${step('Channel')['run']}'],
+          environment: {
+            'PATH': '${p.dirname(fakeDart.path)}:/usr/bin:/bin',
+            'GITHUB_REF': 'refs/heads/$branch',
+            'GITHUB_REF_NAME': branch,
+            'GITHUB_OUTPUT': output.path,
+          },
+        );
+        expect(result.exitCode, 0, reason: '$reason: ${result.stderr}');
+        expect(output.readAsLinesSync(), [
+          'id=$channel',
+          'build=${channel == 'live' ? 'live' : 'preview'}',
+        ], reason: reason);
+        if (channel != 'live') {
+          expect(
+            File(p.join(scratch.path, 'dart-args')).readAsStringSync().trim(),
+            'run tool/ws.dart channel-id --branch $branch',
+            reason: reason,
+          );
+        }
+      }
+    });
+
+    test('no fixed main base; main is named only where live is decided', () {
+      for (final name in _workflowNames()) {
+        final text = File(p.join(_workflowsDir, name)).readAsStringSync();
+        expect(text, isNot(contains('origin/main')), reason: name);
+      }
+      expect(
+        [
+          for (final s in steps)
+            if ('${s.value}'.contains('refs/heads/main')) s['name'],
+        ],
+        ['Channel'],
+      );
+      // Deploying does not look at the branch: Channel picks live or the
+      // preview channel, the secrets and the event gate the step.
+      expect(
+        '${step('Deploy to Firebase Hosting')['if']}',
+        isNot(contains('github.ref')),
+      );
     });
 
     test('integration tag tests only on manual dispatch with the input', () {
@@ -732,9 +893,9 @@ void main() {
         containsAll([
           'Dependencies',
           'Analyze',
-          'VM tests (main)',
+          'VM tests (all members)',
           'VM tests (affected)',
-          'Browser tests (main)',
+          'Browser tests (all members)',
           'Browser tests (affected)',
           'Web build',
         ]),
@@ -765,8 +926,9 @@ void main() {
       final on = android['on'] as YamlMap;
       expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
       final push = on['push'] as YamlMap;
-      // The development branch builds APKs until it is merged into the
-      // default branch (Run workflow needs the file there) — guide 05.
+      // The development branch (the default branch while the remote has no
+      // main) builds an APK on every push too, until main is the default
+      // branch — guide 05.
       expect(push['branches'], ['main', _devBranch]);
       expect(push['paths-ignore'], _ignoredPaths);
       // Off main the build is labelled `preview` (main: `live`).

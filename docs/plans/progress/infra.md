@@ -136,6 +136,8 @@
 
 통합 브랜치 `claude/note-app-planning-bk29xb`, 7개 영역 병합(efc5511) 뒤. 이번 몫(1/2): 8.3의 G1·G3, ink lab 등록(INFRA-O1), Chrome 실행 안정화, `android.yml` 개발 브랜치 푸시.
 
+- (1차 통합 뒤, V1~V6 통과 88808e3 이후) GitHub CI가 푸시마다 종료 3(`git merge-base origin/main HEAD` — 원격에 `main` 없음, 기본 브랜치 = 이 개발 브랜치) → `ci.yml` 비교 기준 = `github.event.repository.default_branch`, `FULL_RUN`(main·기본 브랜치 자신) = `check --strict`·모든 멤버, 그 밖은 `ws test --affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base`(새 플래그: 커밋이 아닌 기준·merge base 없음 → 모든 멤버, 다른 git 실패는 종료 3), 잡 제한 25 → 60분(2코어 러너 전체 실행 30~40분 추정), live는 `main`만(바뀌지 않음 — 개발 브랜치는 미리보기 채널, 시크릿 없으면 배포 건너뜀), `android.yml`·`web-experiment.yml` 주석·안내서 02·04·05(개발 브랜치가 기본 브랜치라 Run workflow 있음, `main` 전 live 주소 비어 있음), 계약 v1.5 C15-02 계획서 6.2 R6 행. `dart test tool/test` 306 통과, `ws check --strict` 0·0, `ws analyze` 0. 위험: 기본 브랜치 푸시마다 전체 실행 → 월 2,000분이면 약 50회(계획서 6.13 메모).
+
 ### G1 — lock 정책 (6.1)
 
 - 병합 직후 `flutter pub get --enforce-lockfile` 통과, `ws check --strict` 0. 영역 진행 기록의 '의존성 요청'은 INK의 ink lab 항목(새 패키지·버전 없음)뿐 — `pinned_external` 값 변경 없음.
@@ -260,9 +262,9 @@
 
 ### G5 — 컨테이너 밖에서 할 일 (총괄·사용자)
 
-- 총괄: 통합 브랜치 푸시 → `ci.yml` 녹색 확인. 첫 실행은 `pubspec.lock` 캐시 키가 바뀌어 캐시가 빗나간다(정상). 잡 제한 25분 안에 드는지 단계 시간 요약으로 확인 — 로컬 Chrome 단계만 약 8분, VM `ws test` 약 9분(CPU 공유 시). 넘으면 잡 제한을 올리거나 브랜치 푸시의 브라우저 테스트를 영향받은 멤버로 줄인다(6.13).
+- 총괄: 통합 브랜치 푸시 → `ci.yml` 녹색 확인. 첫 실행은 `pubspec.lock` 캐시 키가 바뀌어 캐시가 빗나간다(정상). 잡 제한(1차 통합 뒤 25 → 60분) 안에 드는지 단계 시간 요약으로 확인 — 로컬 Chrome 단계만 약 8분, VM `ws test` 약 9분(CPU 공유 시). 넘으면 잡 제한을 올리거나 브랜치 푸시의 브라우저 테스트를 영향받은 멤버로 줄인다(6.13).
 - 총괄: 통합 태그 테스트를 GitHub에서도 돌리려면 `ci.yml`을 `workflow_dispatch`로 `integration: true` 입력과 함께 실행.
 - 사용자: Firebase 프로젝트 만들기·GitHub 시크릿 등록(안내서 `docs/guides/01-firebase-project.md`·`02-github-secrets.md`) — 없으면 CI가 배포를 건너뛴다. 등록 뒤 미리보기 배포 → `curl -I https://<프로젝트 ID>.web.app/sqlite3.wasm`(또는 미리보기 주소)로 `Content-Type: application/wasm`·`Cache-Control: no-cache`·COOP/COEP 없음 확인(9.2).
 - 사용자: iPad 체크리스트(계획서 9.3, 안내서 `docs/guides/04-ipad-web-test.md`) — 특히 #16(노트에서 새로고침 → 같은 노트, 이번에 고친 결함 2), #1(재방문 시작 2초 — `main.dart.js`가 4.6 MB로 커짐), #18a·18b(백업 내보내기), 계약 V7 ①②③ 복합 항목.
 - 사용자(선택): 안드로이드 태블릿이 있으면 `android.yml` 개발 브랜치 푸시 APK 설치(안내서 05).
-- 기본 브랜치에 합친 뒤: `android.yml` `on.push.branches`에서 `claude/note-app-planning-bk29xb` 삭제(워크플로 주석).
+- `main`이 생겨 기본 브랜치가 된 뒤: `android.yml` `on.push.branches`에서 `claude/note-app-planning-bk29xb` 삭제(워크플로 주석). 지금은 이 개발 브랜치가 기본 브랜치라 Run workflow도 이미 된다.

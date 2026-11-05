@@ -7,7 +7,9 @@
 # item 15). Input `target` (INFRA-O1, 01-infra 1.3): `app` (the note app,
 # channel `exp-wasm`) or `ink_lab` (the INK lab packages/ink_engine/example,
 # channel `exp-ink-lab`, its build copied to app/build/web — the Hosting
-# `public` directory of app/firebase.json).
+# `public` directory of app/firebase.json). Run workflow needs this file on
+# the repository's default branch (now the development branch
+# claude/note-app-planning-bk29xb, not main); no step compares branches.
 name: Web experiment
 
 on:

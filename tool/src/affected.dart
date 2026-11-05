@@ -15,6 +15,17 @@ final class AffectedException implements Exception {
   String toString() => 'AffectedException: $message';
 }
 
+/// The base of the comparison is missing: the ref names no commit in the
+/// repository (e.g. `origin/main` while the remote has no `main`), or it
+/// has no merge base with `HEAD` (unrelated or shallow history).
+/// `ws test --all-if-no-base` tests every member then (01-infra 6.13).
+final class MissingBaseException extends AffectedException {
+  const MissingBaseException(super.message);
+
+  @override
+  String toString() => 'MissingBaseException: $message';
+}
+
 /// Whether [path] (repo-relative, `/`) matches a global trigger: an entry
 /// ending with `/` matches every path below it, any other entry exactly.
 bool isGlobalTrigger(String path, List<String> globalTriggers) =>
@@ -78,19 +89,28 @@ WorkspaceMember? memberOfPath(Workspace workspace, String path) {
 /// The paths changed since [ref], relative to [root]: committed changes since
 /// the merge base of [ref] and `HEAD`, uncommitted changes to tracked files
 /// and untracked files that are not ignored.
+///
+/// Throws [MissingBaseException] when [ref] names no commit or has no merge
+/// base with `HEAD`, and [AffectedException] when git fails otherwise (not a
+/// repository, no `HEAD`).
 Future<List<String>> changedPathsSince(
   String ref, {
   required ProcessRunner processes,
   required String git,
   required String root,
 }) async {
-  Future<String> runGit(List<String> arguments) async {
+  // [missingBase]: exit code 1 means the base is missing (`rev-parse
+  // --verify --quiet`: not a commit; `merge-base`: no common ancestor).
+  Future<String> runGit(List<String> arguments, {String? missingBase}) async {
     final result = await processes.run(
       git,
       arguments,
       workingDirectory: root,
       echo: false,
     );
+    if (result.exitCode == 1 && missingBase != null) {
+      throw MissingBaseException(missingBase);
+    }
     if (result.exitCode != 0) {
       throw AffectedException(
         '`git ${arguments.join(' ')}` failed (exit code ${result.exitCode}): '
@@ -100,10 +120,20 @@ Future<List<String>> changedPathsSince(
     return result.output;
   }
 
-  final base = (await runGit(['merge-base', ref, 'HEAD'])).trim();
-  if (base.isEmpty) {
-    throw AffectedException('no merge base between $ref and HEAD');
-  }
+  await runGit([
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    '$ref^{commit}',
+  ], missingBase: '`$ref` names no commit in this repository');
+  final noMergeBase =
+      'no merge base between `$ref` and HEAD (unrelated or shallow history)';
+  final base = (await runGit([
+    'merge-base',
+    ref,
+    'HEAD',
+  ], missingBase: noMergeBase)).trim();
+  if (base.isEmpty) throw MissingBaseException(noMergeBase);
   final diff = await runGit(['diff', '--name-only', '--relative', base]);
   final untracked = await runGit([
     'ls-files',

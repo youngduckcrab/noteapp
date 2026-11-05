@@ -2,10 +2,13 @@
 # release APK for arm64 tablets on every push to main and on demand, kept as
 # a 7-day workflow artifact (docs/guides/05-android-apk.md).
 #
-# Until the work is merged into the default branch, pushes to the
-# development branch build the APK too: `workflow_dispatch` (Run workflow)
-# only shows up once this file is on the default branch. Drop the branch
-# from the list after that merge.
+# The remote has no main yet: the development branch
+# claude/note-app-planning-bk29xb is the repository's default branch, so
+# Run workflow (`workflow_dispatch`, offered for the default branch's
+# workflows) already works there, and its pushes build the APK too. When
+# main is created and made the default branch, drop the development branch
+# from the list. The channel stays `preview` off main (live = main only, as
+# in ci.yml).
 #
 # Signing: the template's debug key, made fresh on every runner — a new APK
 # cannot be installed over the previous one (uninstall first, local data is

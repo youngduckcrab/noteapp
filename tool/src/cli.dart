@@ -1,13 +1,13 @@
 /// Command line of `dart run tool/ws.dart` (docs/plans/01-infra.md 4.2).
 ///
 /// Commands: `list`, `check` (R1–R15; R14 since the integration step G3),
-/// `analyze`,
-/// `test` (vm / chrome, `--affected-since`), `affected`, `channel-id`,
-/// `build-info`, `finalize-web`, `web-assets verify|fetch` and
-/// `hosting-config`.
+/// `analyze`, `test` (vm / chrome, `--affected-since`, `--all-if-no-base`),
+/// `affected`, `channel-id`, `build-info`, `finalize-web`,
+/// `web-assets verify|fetch` and `hosting-config`.
 ///
 /// Exit codes: 0 success, 1 check / test failure, 2 usage error, 3
-/// environment error (no workspace, flutter, git or Chrome not found).
+/// environment error (no workspace, flutter, git or Chrome not found, no
+/// base for `--affected-since` without `--all-if-no-base`).
 library;
 
 import 'dart:io';
@@ -348,6 +348,14 @@ final class _TestCommand extends _WsCommand {
             'dependents (see `ws affected`).',
         valueHelp: 'git-ref',
       )
+      ..addFlag(
+        'all-if-no-base',
+        negatable: false,
+        help:
+            'With --affected-since: when the ref names no commit or has no '
+            'merge base with HEAD, test every member (or the --package '
+            'ones) instead of failing with exit code 3.',
+      )
       ..addOption(
         'platform',
         allowed: ['vm', 'chrome'],
@@ -403,11 +411,27 @@ final class _TestCommand extends _WsCommand {
     final excluded = args['exclude-tags'] as List<String>;
     final workspace = loadWorkspace();
     final since = args['affected-since'] as String?;
+    final allIfNoBase = args['all-if-no-base'] as bool;
+    if (allIfNoBase && since == null) {
+      usageException('--all-if-no-base needs --affected-since');
+    }
     var packages = args['package'] as List<String>;
+    List<String>? affected;
     if (since != null) {
-      final affected = [
-        for (final m in await affectedSince(workspace, since)) m.name,
-      ];
+      try {
+        affected = [
+          for (final m in await affectedSince(workspace, since)) m.name,
+        ];
+      } on MissingBaseException catch (e) {
+        if (!allIfNoBase) rethrow;
+        ctx.out.writeln(
+          'ws test: ${e.message}; testing '
+          '${packages.isEmpty ? 'every member' : packages.join(', ')} '
+          '(--all-if-no-base)',
+        );
+      }
+    }
+    if (affected != null) {
       ctx.out.writeln(
         'ws test: affected since $since: '
         '${affected.isEmpty ? '(none)' : affected.join(', ')}',

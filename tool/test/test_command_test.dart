@@ -44,6 +44,9 @@ final class _FakeProcesses implements ProcessRunner {
   /// Output of `/usr/bin/git <first argument> ...`.
   final git = <String, String>{'merge-base': 'base\n'};
 
+  /// Exit code of `/usr/bin/git <first argument> ...` (default 0).
+  final gitExitCodes = <String, int>{};
+
   @override
   Future<RunResult> run(
     String executable,
@@ -57,7 +60,11 @@ final class _FakeProcesses implements ProcessRunner {
       _Call(executable, arguments, workingDirectory, environment, timeout),
     );
     if (executable == '/usr/bin/git') {
-      return RunResult(exitCode: 0, output: git[arguments.first] ?? '');
+      final exitCode = gitExitCodes[arguments.first] ?? 0;
+      return RunResult(
+        exitCode: exitCode,
+        output: exitCode == 0 ? git[arguments.first] ?? '' : '',
+      );
     }
     final kind = executable == '/fake/flutter' ? 'flutter' : 'dart';
     final key = '${p.basename(workingDirectory)}:$kind';
@@ -515,7 +522,7 @@ void main() {
         for (final c in processes.calls)
           if (c.executable == '/usr/bin/git') c.arguments.first,
       ];
-      expect(git, ['merge-base', 'diff', 'ls-files']);
+      expect(git, ['rev-parse', 'merge-base', 'diff', 'ls-files']);
     });
 
     test('a global trigger tests every member', () async {
@@ -542,6 +549,104 @@ void main() {
       expect(code, 0);
       expect(out, contains('nothing affected'));
       expect(flutterCalls(), isEmpty);
+    });
+
+    // 01-infra 6.13: CI compares with the default branch, which may not
+    // exist on the remote (`origin/main` while the repository has no main).
+    test('a ref that names no commit: exit code 3, nothing runs', () async {
+      processes.gitExitCodes['rev-parse'] = 1;
+      final (code, out, err) = await ws(['--affected-since', 'origin/main']);
+      expect(code, environmentExitCode);
+      expect(err, contains('`origin/main` names no commit'));
+      expect(out, isNot(contains('affected since')));
+      expect(flutterCalls(), isEmpty);
+    });
+
+    test('--all-if-no-base: an unknown ref or no merge base tests every '
+        'member', () async {
+      processes.gitExitCodes['rev-parse'] = 1;
+      var (code, out, _) = await ws([
+        '--affected-since',
+        'origin/main',
+        '--all-if-no-base',
+      ]);
+      expect(code, 0);
+      expect(
+        out,
+        contains(
+          'ws test: `origin/main` names no commit in this repository; '
+          'testing every member (--all-if-no-base)',
+        ),
+      );
+      expect(flutterCalls().map((c) => p.basename(c.workingDirectory)), [
+        'note_core',
+        'ink_engine',
+        'app',
+      ]);
+
+      processes
+        ..calls.clear()
+        ..gitExitCodes.clear()
+        ..gitExitCodes['merge-base'] = 1;
+      (code, out, _) = await ws([
+        '--affected-since',
+        'origin/main',
+        '--all-if-no-base',
+      ]);
+      expect(code, 0);
+      expect(out, contains('no merge base between `origin/main` and HEAD'));
+      expect(flutterCalls(), hasLength(3));
+    });
+
+    test('--all-if-no-base keeps --package and the platform', () async {
+      processes.gitExitCodes['rev-parse'] = 1;
+      final (code, out, _) = await ws([
+        '--affected-since',
+        'origin/main',
+        '--all-if-no-base',
+        '--package',
+        'note_core',
+        '--platform',
+        'chrome',
+      ]);
+      expect(code, 0);
+      expect(out, contains('testing note_core (--all-if-no-base)'));
+      expect(flutterCalls().map((c) => p.basename(c.workingDirectory)), [
+        'note_core',
+      ]);
+      expect(flutterCalls().single.arguments, contains('chrome'));
+    });
+
+    test('--all-if-no-base with a base: only the affected members', () async {
+      processes.git['diff'] = 'packages/ink_engine/lib/a.dart\n';
+      final (code, out, _) = await ws([
+        '--affected-since',
+        'origin/main',
+        '--all-if-no-base',
+      ]);
+      expect(code, 0);
+      expect(out, contains('affected since origin/main: ink_engine, noteapp'));
+      expect(out, isNot(contains('--all-if-no-base')));
+      expect(flutterCalls(), hasLength(2));
+    });
+
+    test('--all-if-no-base does not cover other git failures', () async {
+      processes.gitExitCodes['rev-parse'] = 128;
+      final (code, _, err) = await ws([
+        '--affected-since',
+        'origin/main',
+        '--all-if-no-base',
+      ]);
+      expect(code, environmentExitCode);
+      expect(err, contains('exit code 128'));
+      expect(flutterCalls(), isEmpty);
+    });
+
+    test('--all-if-no-base needs --affected-since', () async {
+      final (code, _, err) = await ws(['--all-if-no-base']);
+      expect(code, usageExitCode);
+      expect(err, contains('--all-if-no-base needs --affected-since'));
+      expect(processes.calls, isEmpty);
     });
   });
 

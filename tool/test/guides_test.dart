@@ -208,6 +208,29 @@ void main() {
     }
   });
 
+  test('02, 04: live is main only; without main the development branch '
+      'deploys a preview', () {
+    final ci = _workflow('ci.yml');
+    final steps = ((ci['jobs'] as YamlMap).values.single as YamlMap)['steps'];
+    final channel = [
+      for (final step in steps as YamlList)
+        if ((step as YamlMap)['name'] == 'Channel') '${step['run']}',
+    ].single;
+    expect(channel, contains("'refs/heads/main'"));
+    expect(channel, contains("echo 'id=live'"));
+    expect(
+      _read('02-github-secrets.md'),
+      contains(
+        '`main`이 아직 없는 지금은 개발 브랜치(저장소의 기본 브랜치)도 '
+        '미리보기 주소로 가요',
+      ),
+    );
+    expect(
+      _read('04-ipad-web-test.md'),
+      contains('live 주소에는 `main`에 올린 코드만 배포돼요'),
+    );
+  });
+
   test('03: budget alert only with Blaze, does not stop billing', () {
     final text = _read('03-budget-alert.md');
     for (final phrase in [
@@ -396,9 +419,9 @@ void main() {
     ]) {
       expect(text, contains(phrase));
     }
-    // Every push branch other than main (the development branch, until it
-    // is merged into the default branch) has its own how-to: filter the
-    // runs by that branch; Run workflow does not exist there.
+    // Every push branch other than main (the development branch — the
+    // repository's default branch while there is no main) has its own
+    // how-to: filter the runs by that branch, or Run workflow from it.
     final branches = [
       for (final b
           in ((android['on'] as YamlMap)['push'] as YamlMap)['branches']
@@ -413,11 +436,15 @@ void main() {
     }
     for (final phrase in [
       '**Branch** 필터',
-      '**Run workflow** 버튼이 보이지 않아요',
+      '저장소의 기본 브랜치',
       '기본 브랜치에 있는 워크플로만',
+      '이 브랜치가 기본 브랜치라 버튼이 보여요',
+      '**Use workflow from**',
     ]) {
       expect(text, contains(phrase));
     }
+    // The development branch is the default branch: Run workflow is there.
+    expect(text, isNot(contains('버튼이 보이지 않아요')));
   });
 
   test('06: draft, the iOS workflow names and gate', () {

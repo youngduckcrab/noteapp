@@ -160,6 +160,7 @@ void main() {
       expect(
         [for (final c in processes.calls) c.arguments.join(' ')],
         [
+          'rev-parse --verify --quiet origin/main^{commit}',
           'merge-base origin/main HEAD',
           'diff --name-only --relative abc123',
           'ls-files --others --exclude-standard',
@@ -193,14 +194,36 @@ void main() {
         (await ws(['affected', '--since', 'x'], hasGit: false)).$1,
         environmentExitCode,
       );
-      processes.handler = (_) => const RunResult(
-        exitCode: 128,
-        output: 'fatal: Not a valid object name nope',
-      );
-      final (code, _, err) = await ws(['affected', '--since', 'nope']);
+      // `rev-parse --verify --quiet` exits 1 without output for a name that
+      // is not a commit.
+      processes.handler = (call) => call.arguments.first == 'rev-parse'
+          ? const RunResult(exitCode: 1)
+          : const RunResult(exitCode: 0);
+      final (code, _, err) = await ws(['affected', '--since', 'origin/main']);
       expect(code, environmentExitCode);
-      expect(err, contains('Not a valid object name'));
+      expect(err, contains('`origin/main` names no commit'));
+      expect(processes.calls.last.arguments.first, 'rev-parse');
     });
+
+    test(
+      'no merge base and other git failures are environment errors',
+      () async {
+        processes.handler = (call) => call.arguments.first == 'merge-base'
+            ? const RunResult(exitCode: 1)
+            : const RunResult(exitCode: 0);
+        var (code, _, err) = await ws(['affected', '--since', 'other']);
+        expect(code, environmentExitCode);
+        expect(err, contains('no merge base between `other` and HEAD'));
+
+        processes.handler = (_) => const RunResult(
+          exitCode: 128,
+          output: 'fatal: not a git repository',
+        );
+        (code, _, err) = await ws(['affected', '--since', 'main']);
+        expect(code, environmentExitCode);
+        expect(err, contains('fatal: not a git repository'));
+      },
+    );
   });
 
   test('changedPathsSince on a real git repository', () async {
@@ -245,5 +268,50 @@ void main() {
       'new/untracked.dart',
       'packages/x/lib/committed.dart',
     ]);
+
+    Future<List<String>> since(String ref, {String? root}) => changedPathsSince(
+      ref,
+      processes: IoProcessRunner(out: StringBuffer()),
+      git: 'git',
+      root: root ?? dir.path,
+    );
+
+    // The base is missing: an unknown ref (the remote has no `main`) or a
+    // history with no common ancestor.
+    await expectLater(
+      since('origin/main'),
+      throwsA(
+        isA<MissingBaseException>().having(
+          (e) => e.message,
+          'message',
+          contains('`origin/main` names no commit'),
+        ),
+      ),
+    );
+    await git(['checkout', '-q', '--orphan', 'unrelated']);
+    await git(['commit', '-q', '-m', 'unrelated']);
+    await expectLater(
+      since('main'),
+      throwsA(
+        isA<MissingBaseException>().having(
+          (e) => e.message,
+          'message',
+          contains('no merge base'),
+        ),
+      ),
+    );
+    // Not a repository: a git failure, not a missing base.
+    final outside = Directory.systemTemp.createTempSync('ws_no_git_');
+    addTearDown(() => outside.deleteSync(recursive: true));
+    await expectLater(
+      since('main', root: outside.path),
+      throwsA(
+        isA<AffectedException>().having(
+          (e) => e is MissingBaseException,
+          'is MissingBaseException',
+          isFalse,
+        ),
+      ),
+    );
   }, tags: ['process']);
 }

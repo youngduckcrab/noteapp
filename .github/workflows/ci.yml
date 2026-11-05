@@ -1,7 +1,16 @@
 # CI — checks, analysis, tests, web build and Firebase Hosting deploy in one
 # job (INFRA, docs/plans/01-infra.md 6.13: one job keeps the per-minute
 # rounding of the free minutes low). main deploys to the live channel, every
-# other branch to its own 7-day preview channel (`ws channel-id`, 6.12).
+# other branch to its own 7-day preview channel (`ws channel-id`, 6.12) —
+# also the repository's default branch while that is not main (now the
+# development branch claude/note-app-planning-bk29xb: the remote has no
+# main yet).
+#
+# Tests: main and the default branch run the strict check and every member;
+# other branches only the members changed since the default branch
+# (`--affected-since origin/<default branch>`) and their dependents. Without
+# that base (no such remote branch, no merge base) `--all-if-no-base` tests
+# every member instead of failing.
 #
 # Without the secret FIREBASE_SERVICE_ACCOUNT or the repository variable
 # FIREBASE_PROJECT_ID the deploy step is skipped and the summary points to
@@ -41,10 +50,18 @@ jobs:
   verify:
     name: Check, test, build and deploy web
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # A full run (every member, VM and Chrome) on the 2-core runner of a
+    # private repository: estimated 30-40 minutes, more with the integration
+    # input (local 4 cores: VM 9, Chrome 8, build 2 minutes — 6.13).
+    timeout-minutes: 60
     env:
       FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      # Base of `--affected-since` (6.13): the repository's default branch.
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      # 'true' on main and on the default branch itself (nothing to compare
+      # with): strict check and every member.
+      FULL_RUN: ${{ github.ref == 'refs/heads/main' || github.ref_name == github.event.repository.default_branch }}
     steps:
       - name: Start clock
         run: date +%s > "$RUNNER_TEMP/ci-start"
@@ -53,7 +70,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Full history: `--affected-since origin/main` needs the merge base.
+          # Full history and every branch: `--affected-since
+          # origin/<default branch>` needs the merge base.
           fetch-depth: 0
 
       # 2
@@ -96,14 +114,14 @@ jobs:
           printf '%s %s\n' "$SECONDS" '의존성' >> "$RUNNER_TEMP/step-seconds"
 
       # 6
-      - name: Workspace rules (main, strict)
-        if: github.ref == 'refs/heads/main'
+      - name: Workspace rules (strict)
+        if: env.FULL_RUN == 'true'
         run: |
           dart run tool/ws.dart check --strict
           printf '%s %s\n' "$SECONDS" '규칙 (check --strict)' >> "$RUNNER_TEMP/step-seconds"
 
       - name: Workspace rules
-        if: github.ref != 'refs/heads/main'
+        if: env.FULL_RUN != 'true'
         run: |
           dart run tool/ws.dart check
           printf '%s %s\n' "$SECONDS" '규칙 (check)' >> "$RUNNER_TEMP/step-seconds"
@@ -114,18 +132,18 @@ jobs:
           dart run tool/ws.dart analyze
           printf '%s %s\n' "$SECONDS" '분석' >> "$RUNNER_TEMP/step-seconds"
 
-      # 8 — branches test only the members changed since main and their
-      # dependents (PDF `pdfium` tests too — PDF-S8).
-      - name: VM tests (main)
-        if: github.ref == 'refs/heads/main'
+      # 8 — other branches test only the members changed since the default
+      # branch and their dependents (PDF `pdfium` tests too — PDF-S8).
+      - name: VM tests (all members)
+        if: env.FULL_RUN == 'true'
         run: |
           dart run tool/ws.dart test
           printf '%s %s\n' "$SECONDS" 'VM 테스트' >> "$RUNNER_TEMP/step-seconds"
 
       - name: VM tests (affected)
-        if: github.ref != 'refs/heads/main'
+        if: env.FULL_RUN != 'true'
         run: |
-          dart run tool/ws.dart test --affected-since origin/main
+          dart run tool/ws.dart test --affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base
           printf '%s %s\n' "$SECONDS" 'VM 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
 
       # Contract 7.6 B1 v1.3 / 7.7 V3: the workspace tool's own tests.
@@ -137,16 +155,16 @@ jobs:
       # 9 — `ws` runs each member's tool/prepare_web_test.dart first. Uses the
       # runner's google-chrome (unverified; if it is missing add
       # browser-actions/setup-chrome and CHROME_EXECUTABLE).
-      - name: Browser tests (main)
-        if: github.ref == 'refs/heads/main'
+      - name: Browser tests (all members)
+        if: env.FULL_RUN == 'true'
         run: |
           dart run tool/ws.dart test --platform chrome
           printf '%s %s\n' "$SECONDS" '브라우저 테스트' >> "$RUNNER_TEMP/step-seconds"
 
       - name: Browser tests (affected)
-        if: github.ref != 'refs/heads/main'
+        if: env.FULL_RUN != 'true'
         run: |
-          dart run tool/ws.dart test --platform chrome --affected-since origin/main
+          dart run tool/ws.dart test --platform chrome --affected-since "origin/$DEFAULT_BRANCH" --all-if-no-base
           printf '%s %s\n' "$SECONDS" '브라우저 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
 
       # 10 — manual only (integration stage G2 and later). On push `inputs`
@@ -163,7 +181,9 @@ jobs:
           dart run tool/ws.dart test --platform chrome --run-skipped -t integration
           printf '%s %s\n' "$SECONDS" '통합 테스트 (Chrome)' >> "$RUNNER_TEMP/step-seconds"
 
-      # 11 — Hosting channel id (`id`) and build channel (`build`).
+      # 11 — Hosting channel id (`id`) and build channel (`build`). Live is
+      # main only, not "the default branch": the development branch keeps
+      # its preview channel while it is the default branch.
       - name: Channel
         id: channel
         run: |
