@@ -2,9 +2,9 @@
 //
 // T6 opens the database, classifies open errors and keeps the per-device kv
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
-// content reader; T9 the trash. The other repositories, sessions and the sync
-// window are filled in by CORE T10–T19; until then their members throw
-// UnimplementedError naming the task.
+// content reader; T9 the trash; T12 pen presets and settings. Sessions, assets,
+// thumbnails and the sync window are filled in by CORE T10–T19; until then their
+// members throw UnimplementedError naming the task.
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -17,8 +17,6 @@ import '../common/ids.dart';
 import '../repo/content_reader.dart';
 import '../repo/events.dart';
 import '../repo/note_store.dart';
-import '../repo/pen_preset_repository.dart';
-import '../repo/settings_repository.dart';
 import '../repo/status.dart';
 import '../session/note_session.dart';
 import '../sync/sync_store.dart';
@@ -26,6 +24,8 @@ import 'change_bus.dart';
 import 'db/note_database.dart';
 import 'drift_content_reader.dart';
 import 'drift_library_repository.dart';
+import 'drift_pen_preset_repository.dart';
+import 'drift_settings_repository.dart';
 import 'drift_trash_repository.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
@@ -72,6 +72,8 @@ final class DriftNoteStore implements NoteStore {
     );
     library = DriftLibraryRepository(this);
     trash = DriftTrashRepository(this);
+    penPresets = DriftPenPresetRepository(this);
+    settings = DriftSettingsRepository(this);
     content = DriftContentReader(db);
     sync = _DriftSyncStore(this);
   }
@@ -118,6 +120,8 @@ final class DriftNoteStore implements NoteStore {
       if (key != null) {
         _openStoreCounts.update(key, (n) => n + 1, ifAbsent: () => 1);
       }
+      // 6.2.2: the default presets exist right after open (one commit, once per DB).
+      if (config.seedDefaultPenPresets) await store.penPresets.ensureDefaults();
       if (autoPurge) store.trash.startAutoPurge();
       return store;
     } on Object catch (e, s) {
@@ -159,9 +163,9 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final DriftTrashRepository trash;
   @override
-  final PenPresetRepository penPresets = const _PendingPresets();
+  late final DriftPenPresetRepository penPresets;
   @override
-  final SettingsRepository settings = const _PendingSettings();
+  late final DriftSettingsRepository settings;
   @override
   late final NoteContentReader content;
   @override
@@ -287,18 +291,6 @@ String _name(Invocation i) {
   final start = s.indexOf('"');
   final end = s.lastIndexOf('"');
   return start >= 0 && end > start ? s.substring(start + 1, end) : s;
-}
-
-final class _PendingPresets implements PenPresetRepository {
-  const _PendingPresets();
-  @override
-  Never noSuchMethod(Invocation i) => _pending('PenPresetRepository', i, 'T12');
-}
-
-final class _PendingSettings implements SettingsRepository {
-  const _PendingSettings();
-  @override
-  Never noSuchMethod(Invocation i) => _pending('SettingsRepository', i, 'T12');
 }
 
 final class _PendingAssets implements AssetStore {
