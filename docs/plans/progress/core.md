@@ -20,7 +20,7 @@
 | T8 | 완료 | 6d0c569 | `test/shared/library_contract.dart` → `test/repo/library_contract_fake_test.dart`·`library_contract_real_test.dart`, `test/repo/library_repository_test.dart` |
 | T9 | 완료 | 6bb6c01 | `test/repo/trash_repository_test.dart`, 공유 계약 `test/shared/library_contract.dart` 'C-8 / trash'(가짜·실제). 열린 세션 읽기 전용 전환·복원 시 해제는 세션 DB 백엔드가 있어야 해 T10 테스트로 |
 | T10 | 완료 | aaa6285 | `test/session/note_session_contract_real_test.dart`(공유 본문 + N-7), `note_session_test.dart`, `content_reader_test.dart`, `test/repo/trash_repository_test.dart` '열린 세션 읽기 전용 전환·복원 시 해제'(T9 남은 몫) |
-| T11 | 완료 | (이 커밋) | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart`(필드 버전·outbox 필드, 100단계 undo 후 초기 상태, 별칭 정리) |
+| T11 | 완료 | 7fa9c6d | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart`(필드 버전·outbox 필드, 100단계 undo 후 초기 상태, 별칭 정리) |
 | T12 | 완료 | 3503f6c | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
 | T13 | 완료 | ac1965c | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
 | T14 | 남음 | | 9.1 '동기화 창구 테스트' 전부 (`test/sync/*`) |
