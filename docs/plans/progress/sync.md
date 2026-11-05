@@ -164,3 +164,36 @@
 - 가짜 서버 테스트는 `fakeAsync` + `test/support/fake_time.dart`의 `runFake`로 쓴다(가짜 서버·Blob은 `Future.delayed`·`Timer`로 지연을 만든다 — 실제 시간에서 돌리지 않는다).
 - 공용 테스트 자료: `test/support/entity_fixtures.dart`(엔티티 8종 JSON·`kCoreJsonKeys`·`hlcText`·`kNodeA`), `test/shared/*_cases.dart`(VM·Chrome 공용 본문 — T4 병합 성질도 여기에 두고 `test/web/pure_logic_browser_test.dart`에 group 추가).
 - 다른 영역은 이 작업 트리에서 기반 단계 상태다. CORE는 `createFakeNoteStore()`(SyncStore 대부분 `UnsupportedError`)와 실제 값 타입(B2)만 쓸 수 있다.
+
+## 2차
+
+계획 docs/plans/m5-7/07-sync.md(승인 · 계약 v2.2). 바탕: `main` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6`.
+
+### R2-B7b — `functions/` 골격 (계약 7.6.2, 계획 6.4 끝 문단·8.1 B7b)
+
+- 커밋: `9cdd3fb`(R2-B7b `functions/` 전체), 이 기록 줄은 그 뒤 커밋. 커밋 뒤 `git archive HEAD functions`로 꺼낸 트리에서 `npm ci && npm test` 다시 — `# tests 37` 통과
+- **파일**: `package.json`(3.4 — 정확한 고정, 스크립트 `build`·`test`·`test:emulator`, `eval:math`는 S2-13), `package-lock.json`(lockfileVersion 3, 721개), `tsconfig.json`(3.4 — `rootDir "."`, `include` src·test·test-emulator·tool, `outDir lib`, strict), `.env.demo-noteapp`(계약 7.4.7 다섯 값), `README.md`, `scripts/emulator_suite.sh`(6.8.11 그대로, 100755·LF), `src/index.ts`·`src/recognize_math.ts`(6.8.2의 1–4·6단계: 로그인·소유자·요청 모양·엔진 해석·`engineSignal` 주입 + `onCall` 옵션 7.2.13 그대로)·`src/protocol.ts`(4.5 타입·`LIMITS`, `parseRequest`는 모양 검사만 — 크기·`t` 순서·base64·PNG 서명은 S2-10a)·`src/params.ts`(`MATH_API_KEY`·`OWNER_UIDS`·`MATH_ENGINE`·`ALLOW_FAKE_ENGINE`)·`src/errors.ts`(6.8.8 `EngineError` 표)·`src/engines/{engine,fake,registry}.ts`(포트 4.5, 가짜 = 계약 7.6 규칙, 등록부는 가짜만 — 다른 이름은 `notConfigured`), `test/fake_engine.test.ts`(11)·`test/handler.test.ts`(26).
+- **npm 판 (게시 14일 — 2026-11-05 22:31 UTC 기준, `npm view <pkg> time --json`)**: `firebase-functions 7.4.0`(2026-09-15)·`firebase-admin 14.5.0`(09-23)·`typescript 6.0.3`(04-16)·`@types/node 22.20.5`(10-01) — 계약 7.5 그대로. **`firebase-tools`는 15.34.1**(2026-10-21T22:18Z — 14일 지난 판 중 최신, 총괄 결정·계약 v2.3 예정). 계약 판 15.34.2(10-28T23:18Z)는 2026-11-11 23:18 UTC부터, 15.35.0은 11-04 게시.
+- **간접 의존**: lock을 `npm install --before=2026-10-22T22:00:00Z`로 만들어 모든 판이 그 시각 이전 게시분이다. 확인: lock의 633개 판(540개 이름) 전부 `npm view` 게시일 ≤ 2026-10-22T22:31Z(가장 늦은 것 `on-finished 2.4.2` 10-22T13:21Z·`body-parser 2.4.0`/`1.20.9` 10-22T11:3xZ·`@fastify/busboy 3.2.4` 10-22T00:17Z). `overrides` 없음.
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `cd functions && npm ci && npm test` (`# tests N`, N > 0 — 3.4 명령) | `# tests 37`·`# pass 37`(`fake_engine` 11 + `handler` 26) | ci 8초(캐시) · test 약 3초 |
+| `npm run build` (`tsc --strict`) | 오류 0 | — |
+| `git check-ignore functions/.env.demo-noteapp` | 출력 없음(종료 1) | — |
+| `npm run test:emulator` (`ws with-heavy-lock` 아래, 잠금 대기 0초) | 에뮬레이터 functions·auth 시작, `.env.demo-noteapp` 읽음, `# tests 0`(에뮬레이터 시험 파일은 S2-11), 종료 0 | 16초 (잠금 22:39:39 → 22:39:52 UTC) |
+| 에뮬레이터 손 확인(커밋 안 함 — curl, 6.8.11 규약 사용자) | E1 401 · E2 403 · E3·E4 400 · E5 `\frac{2}{5}`/`fake`/`1` · E6 `\sqrt{67}` · E7 가짜 · E8 503 · (−1,−1)/(−2,−2)/(−3,−3) → 503/500/503. E10(2 MB 넘는 PNG)은 S2-10a 크기 검사 뒤 | 약 15초 |
+| `ws check` (HEAD + `functions/`의 깨끗한 내보내기) | 0 · 0 | 48초 |
+| `dart test tool/test/repo_hygiene_test.dart tool/test/workspace_test.dart` | 16 통과 | — |
+| `packages/sync_engine` `flutter analyze --fatal-infos` | 0건 (변경 없음) | 4초 |
+| `packages/sync_engine` `flutter test` (VM, 변경 없음) | 777 통과 · 4 건너뜀(`integration` 기본 skip — 1차와 같음) | 55초 |
+
+- 컨테이너 Java: OpenJDK 21.0.12 있음. functions·auth 에뮬레이터는 Java가 필요 없다(Node). Firestore 에뮬레이터(6.8.7 P-C 선택 실행)는 Java 필요 — 이 컨테이너에서 가능할 것으로 보이나 실행하지 않음.
+- 작업 트리의 `ws check`는 다른 영역의 커밋 전 파일(`packages/note_core/tool/src/v1_dump.dart`, 추적 안 됨 — R11 포맷) 때문에 1건이었다. `functions/`와 무관해서 HEAD + `functions/` 내보내기로 다시 돌려 0을 확인했다.
+
+#### 계획과 다르게 한 점 (R2-B7b)
+
+- `firebase-tools` devDependency `15.34.1`(계획 3.4·7.2·계약 7.4.7/7.5는 `15.34.2`) — 14일 규칙 때문, 총괄 결정. 2026-11-11 23:18 UTC 뒤 `15.34.2`로 올릴지는 총괄(계약 v2.3)이 정한다.
+- 계획 6.4 끝 문단 목록에 더한 파일: `src/protocol.ts`·`src/params.ts`·`src/errors.ts`·`src/engines/engine.ts`·`src/engines/registry.ts`·`README.md`·`test/handler.test.ts`. 가짜 엔진이 포트 타입을, 처리 본문이 요청 타입·오류 변환을, 데모 설정(`ALLOW_FAKE_ENGINE`·`MATH_ENGINE`)이 등록부를 필요로 해서다. 각 파일은 기반 단계 몫만 담았다(머리 주석에 이어 할 작업 번호).
+- `HandlerDeps`는 이번에 `ownerUids`·`engines`·`now`·`engineSignal`만 있다. `quota`·`dailyCap`·`log`는 S2-10b, `EngineSettings`의 `apiKey`·`mathpixAppId` 등은 S2-10a·S2-12에서 더한다(4.5 최종 모양).
+- `'fake'`를 허용하지 않는 곳에서 이름으로 고르면 등록부가 `EngineError('unsupportedInput')`을 돌려 `invalid-argument`가 된다(6.8.2 "'fake' not allowed → invalid-argument"를 `EngineErrorKind` 7개 안에서 나타냄). `'auto'`인데 `MATH_ENGINE=fake`·`ALLOW_FAKE_ENGINE=false`면 `notConfigured` → `unavailable`.
