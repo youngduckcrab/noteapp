@@ -30,7 +30,7 @@
 | I15 | 완료 | abe97df | 8.2 전체(9.1 표의 테스트 파일 전부 있음 — `export_names_test`만 G3) + `ws check` 0·`ws check --strict` 0 · `ws analyze` 0 · `dart test tool/test` 265 통과 · `ws test` 7개 멤버 통과(noteapp 259 통과·1 건너뜀 = `integration/app_smoke_test`) · `ws test --platform chrome` 4개 멤버 통과(noteapp 준비 ok·11 통과·1 건너뜀 = `app_smoke_browser_test`) · `dart format` 352개 변경 없음 · `ws build-info --channel preview` → `cd app && flutter build web --release --dart-define-from-file=../build/build_info.json`(wasm dry run 성공, 1분 37초) → `ws finalize-web` ok(`main.dart.js` 2,747,922 B · gzip 814,454 B)·`ws web-assets verify` 0·`ws hosting-config` 0. 계획서 6.13 '실측 항목' 표에 로컬 측정값을 적었다(GitHub 실측은 G5) |
 | G1 | 완료 | 52de08c | `flutter pub get --enforce-lockfile`, `ws check --strict` 0. lock은 ink lab 등록·`analyzer` 직접 의존과 함께 한 번만 재생성(해석 버전 변화 없음) |
 | G3 | 완료 | 52de08c | `tool/test/export_names_test.dart`, `ws check`(R1–R15) 0 |
-| 통합 도구 | 완료 | 52de08c, d5938c6, (Chrome 안정화 커밋 — 아래 '통합 단계') | ink lab 멤버 등록(INFRA-O1)·`ws affected` 중첩 멤버, `android.yml` 개발 브랜치 푸시·안내서 05, `ws test` 멤버별 시간 제한·재시도·신호 처리 |
+| 통합 도구 | 완료 | 52de08c, d5938c6, 5adf710 | ink lab 멤버 등록(INFRA-O1)·`ws affected` 중첩 멤버, `android.yml` 개발 브랜치 푸시·안내서 05, `ws test` 멤버별 시간 제한·재시도·신호 처리 |
 | G2·G4·G5 | 통합 단계 2/2 | | 계획서 8.3 |
 
 ## 변경 요청
