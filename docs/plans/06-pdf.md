@@ -1,7 +1,7 @@
 # 06 · PDF — PDF 입출력
 
-> 상태: 3차 수정 (총괄 3차 승인 검토 00-review '3차 검토' 3.4.6 반영, v0.3 → v0.4) · 작성일: 2026-11-04 · 3차 수정: 2026-11-05
-> 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 **계약 v1.2**(변경 이력 7.9, v1.2 = C12-01~09) · 검토: [00-review.md](00-review.md) 3.6, '2차 검토' 2.4.6, '3차 검토' 3.4.6
+> 상태: **승인** (00-review '4차 검토' 4.4.6·'최종 승인', 승인 판본 v0.4 — 개발 중 반영 PDF-4-1~4-3은 13.4) · 작성일: 2026-11-04 · 3차 수정: 2026-11-05
+> 마스터 기획서: [docs/PLAN.md](../PLAN.md) v1.1 · 영역 지도·통합 계약: [00-overview.md](00-overview.md) 7장 **계약 v1.4**(변경 이력 7.9, v1.2 = C12-01~09, v1.3 = C13-01~05, v1.4 = C14-01·02 — 모두 시그니처 변경 없음) · 검토: [00-review.md](00-review.md) 3.6, '2차 검토' 2.4.6, '3차 검토' 3.4.6, '4차 검토' 4.4.6, '최종 승인'
 > 소유 경로: `packages/pdf_io/` · 패키지 이름: `pdf_io` (Flutter 패키지)
 
 이 문서만 보고 별도 git worktree에서 PDF 영역을 구현할 수 있게 쓴다. 코드 블록의 Dart 시그니처는 **계약**이다. 이름·타입을 바꾸려면 총괄 관리자 승인이 필요하다. 구현 본문(`...`, `;`로 끝난 선언)은 개발자가 채운다. 수치(기본값·임계값)는 `PdfTuning`(4.13)에 모으고, 바꾸면 이 문서도 고친다.
@@ -174,7 +174,7 @@ packages/pdf_io/
 - `package:pdfrx`는 `engine/pdfrx_engine.dart`, `init.dart`, `compose/compose_backend_native.dart`(pdfrx 워커 isolate `compute`)에서만 `as rx` 접두사로 import한다. pdfrx가 내보내는 `PdfDocument`·`PdfPage`·`PdfRect`·`PdfPasswordException`과 섞이지 않게 하기 위함이다(PDF 공개 이름은 pdfrx 공개 이름 224개와 겹치지 않음을 확인함).
 - `package:ink_engine`은 `ink_adapter/` 세 파일과 `init.dart`(빌더 목록 override)에서만 `as ink`로 import한다 → INK API가 바뀌어도 고칠 곳이 네 파일.
 - `package:note_core`는 모든 파일에서 `as core`로 import한다(Flutter `Page`(Navigator)와 CORE `Page` 이름 충돌 방지).
-- Material은 `package:material_ui/material_ui.dart`만 쓴다(lib·test 모두, R7). 자체 `MaterialApp`·`ProviderScope`를 만들지 않는다(테스트 제외). 색은 `Theme.of(context).colorScheme`만 쓴다(종이 팔레트·PDF 검색 하이라이트 — 계약 7.4.11 v1.2 예외, C12-07). 검색 하이라이트 색은 종이 위에 겹쳐 그리는 표시 색이라 UI 테마가 아니라 종이와의 대비가 기준이며, 상수는 `PdfTuning`(4.13) **한 곳**에만 둔다 — painter·위젯 파일에 색 리터럴을 쓰지 않고, 테마 색으로 바꾸지 않는다. 종이 색은 데이터 값(`paperColorArgb`)을 그대로 칠한다.
+- Material은 `package:material_ui/material_ui.dart`만 쓴다(lib·test 모두, R7). 자체 `MaterialApp`·`ProviderScope`를 만들지 않는다(테스트 제외). 색은 `Theme.of(context).colorScheme`만 쓴다(종이 팔레트·PDF 검색 하이라이트 — 계약 7.4.11 v1.3 예외, C12-07·C13-03). 검색 하이라이트 색은 종이 위에 겹쳐 그리는 표시 색이라 UI 테마가 아니라 종이와의 대비가 기준이며, 상수는 `PdfTuning`(4.13) **한 곳**에만 둔다 — painter·위젯 파일에 색 리터럴을 쓰지 않고, 테마 색으로 바꾸지 않는다. 종이 색은 데이터 값(`paperColorArgb`)을 그대로 칠한다.
 - Riverpod은 `package:flutter_riverpod/flutter_riverpod.dart`, `Override`는 `package:flutter_riverpod/misc.dart`(계약 7.4.4). 코드 생성 없음.
 - 패키지 안에 `analysis_options.yaml`을 두지 않는다(루트가 적용, R3). 패키지 `.gitignore`는 PDF 소유(준비 스크립트 산출물, 계약 7.4.1).
 
@@ -1869,7 +1869,7 @@ export 'src/providers.dart'
 
 ## 5. 사용하는 다른 영역의 계약
 
-00-overview 7장 **계약 v1.2**의 이름·형태를 그대로 쓴다(초안의 '가정한 시그니처'는 모두 폐기. v1.2는 시그니처 변경 없이 주석·규칙만 바뀜 — 이 절에서는 7.2.9 쓰기 완료 시점, 7.2.11 `put` 주석, 7.2.16 provider 주석을 반영). 아래 코드 블록은 PDF가 실제로 호출·구현하는 부분만 계약 본문과, 계약이 '승인'으로 가리키는 각 계획서의 절(CORE 4.x, INK 4.x, EDITOR 4.5)에서 **글자 그대로** 발췌했다. 발췌에서 뺀 멤버는 빠짐없이 `// ...` 줄(빠진 이름 + 출처 절)로 표시한다 — 표시 없는 생략은 없다. 기반 단계(계약 7.6 B2·B3·B5·B6)가 끝나면 실제 타입으로 컴파일된다. PDF는 포트(`PdfNoteGateway`, `PdfInkVectorizer`, INK 빌더 어댑터)를 유지하므로, 계약이 바뀌어도 고칠 곳은 `gateway/core_note_gateway.dart`와 `ink_adapter/` 세 파일, `init.dart`뿐이다.
+00-overview 7장 **계약 v1.4**의 이름·형태를 그대로 쓴다(v1.3·v1.4는 시그니처·PDF 사용 표면 변경 없음 — 13.4. 초안의 '가정한 시그니처'는 모두 폐기. v1.2는 시그니처 변경 없이 주석·규칙만 바뀜 — 이 절에서는 7.2.9 쓰기 완료 시점, 7.2.11 `put` 주석, 7.2.16 provider 주석을 반영). 아래 코드 블록은 PDF가 실제로 호출·구현하는 부분만 계약 본문과, 계약이 '승인'으로 가리키는 각 계획서의 절(CORE 4.x, INK 4.x, EDITOR 4.5)에서 **글자 그대로** 발췌했다. 발췌에서 뺀 멤버는 빠짐없이 `// ...` 줄(빠진 이름 + 출처 절)로 표시한다 — 표시 없는 생략은 없다. 기반 단계(계약 7.6 B2·B3·B5·B6)가 끝나면 실제 타입으로 컴파일된다. PDF는 포트(`PdfNoteGateway`, `PdfInkVectorizer`, INK 빌더 어댑터)를 유지하므로, 계약이 바뀌어도 고칠 곳은 `gateway/core_note_gateway.dart`와 `ink_adapter/` 세 파일, `init.dart`뿐이다.
 
 ### 5.1 CORE (`package:note_core`) — 계약 7.2.2·7.2.5·7.2.7~7.2.9·7.2.11·7.2.12·7.2.14, X6
 
@@ -3185,7 +3185,7 @@ CI (INFRA 01-infra 6.13, PDF-S8)
 
 ## 12. 총괄 관리자에게 묻는 질문
 
-### 12.1 계약 변경 제안 (계획서 본문은 현재 계약 v1.2대로 썼다)
+### 12.1 계약 변경 제안 (계획서 본문은 계약 v1.2대로 썼고 v1.3·v1.4에서 바뀐 PDF 표면은 없다 — 13.4)
 
 | # | 대상 (계약 절) | 제안 | 이유 | 결정 |
 |---|---|---|---|---|
@@ -3323,7 +3323,7 @@ CI (INFRA 01-infra 6.13, PDF-S8)
 | PDF-3-2 | 필수 (계약 7.4.4) | 4.2 `PdfProgress`·`PdfBatchProgress`·`PdfJob*`, 4.8 `PdfSearchHit`·`PdfSearchState`(`ListEquality`), 4.12 `PdfBatchJob*`, 4.7 `PdfRenderStats`에 `==`/`hashCode`. `PdfIoException`은 `code`·`detail`. 결과 페이로드는 `PdfImportResult`만 값 동등, 내보내기 결과는 동일 객체. family 키도 값 동등. 6.13 한 줄, T1·T11 동등 테스트 | 4절 머리말에 '값 동등' 문단(대상 목록, `ListEquality`, 결과 페이로드 규칙, family 없음, 근거 — Riverpod 3.4.3 `ProviderElement.defaultUpdateShouldNotify` = `previous != next`를 pub 캐시 소스로 확인, `ValueNotifier`도 `==`로 거름). `@override bool operator ==(Object other); @override int get hashCode;` 시그니처: 4.2 `PdfIoException`(`code`·`detail`, `cause` 무시)·`PdfProgress`·`PdfBatchProgress`·`PdfJobIdle/Running/Succeeded/Failed`(`Succeeded` 주석: `PdfImportResult` 값 동등, `PdfExportResult` 동일 객체), 4.6 `PdfImportResult`(`insertedPageIds` `ListEquality`), 4.7 `PdfRenderStats`(`zero`를 필드 0인 const 값으로 명시), 4.8 `PdfSearchHit`(`rects` `ListEquality`)·`PdfSearchState`(`hits` 깊은 `ListEquality`, `error` = `PdfIoException ==`), 4.12 `PdfBatchJobIdle/Running/Finished/Failed`(`Finished`는 결과 동일 객체). 4.9 `PdfExportResult` 위에 '`==` 재정의 없음 — 동일 객체(바이트), `PdfBatchExportItem`·`PdfBatchExportResult`도 같음' 주석. family: PDF provider에 family 없음을 4절 머리말·6.13에 명시. 보충: 4.1 `PdfImportLimits`·`PdfRenderBudget`·`PdfIoConfig`도 값 동등(`pdfIoConfigProvider` 값이고 `initializePdfIo`의 '다른 config' 검사가 쓴다). 6.13에 '상태 클래스는 값 동등(계약 7.4.4)' 항목. T1 `unit/value_equality_test.dart`(진행률·작업 상태·예외·`PdfImportResult`·설정·`PdfRenderStats`·`PdfBatchJob*`, `PdfJobSucceeded<PdfExportResult>` 동일 객체, 같은 값 `ValueNotifier` 무알림), T11 `unit/search_equality_test.dart`(`PdfSearchHit`·`PdfSearchState` 깊은 비교, 같은 `select(0)` 두 번 → 알림 1번). T8 `statsListenable` 같은 값 무알림, 11절 리스크 행 |
 | PDF-3-3 | 필수 (계약 C12-06, 권장 → 필수) | T0 B4 본문 `pdfRenderStatsProvider = (ref) => ValueNotifier(PdfRenderStats.zero)`(렌더 사슬 watch 안 함), 4.12 주석에 B4·T8 본문 구분, T0 `unit/init_test`에 '`pdfIoOverrides()`만 넣은 컨테이너에서 read → 예외 없음, `value == zero`' | 4.12 `pdfRenderStatsProvider` 주석: B4(T0) `(ref) => ValueNotifier(PdfRenderStats.zero)` — 아무것도 watch하지 않음 / T8부터 `(ref) => ref.watch(pdfPageRendererProvider).statsListenable` — 렌더 사슬(엔진은 configure만, 초기화·문서 열기 없음)과 `core.noteStoreProvider`가 필요하지만 실제 컨테이너는 모두 `CoreModule`이 그것을 가짐(INFRA 테스트도). 4.12 표 행, 4.7 `PdfRenderStats`는 B4부터 실제(const `zero`·`==`). T0 내용에 B4 본문, 완료 조건 `init_test`에 '같은 컨테이너에서 `pdfRenderStatsProvider` read → 예외 없음, `value == PdfRenderStats.zero`'(INFRA `feature_wiring_module_test`·`pdf_wiring_test`가 같은 read). T8 작업 내용에 본문 교체 + `unit/render_stats_provider_test.dart`(T8 본문: `pdfIoOverrides()` + 가짜 `core.noteStoreProvider`로 read → 예외 없음·처음 값 zero, read만으로 엔진 초기화 0회). T17 `init_test`는 T8 본문 기준(가짜 `noteStoreProvider` 추가)으로 정리. 5.5 I-5, 11절 리스크 행, 12.1 참고 문단 |
 | PDF-3-4 | 권장 | 4.12 `pdfBackgroundLayerBuilderProvider`가 `ref`를 클로저에 가둠 → '앱 수명 동안 다시 만들어지지 않음'을 주석에, T17에 '검색 시작·선택·지우기 뒤 인스턴스 동일' | 4.12 주석: 클로저가 이 provider의 `ref`를 가두며, 유일한 watch 대상 `pdfSearchHighlightsProvider`가 `pdfActiveSearchProvider`를 `ref.listen`만 하므로 검색 시작·선택·지우기에도 다시 만들어지지 않음 → 가둔 `ref`가 유효. 다시 만들어지면 옛 클로저의 `ref.read`가 `UnmountedRefException`(Riverpod 3.4.3, scratch `/tmp/claude-0/plan-scratch/pdf-v3/stable_ref`에서 확인: 검색 3단계 뒤 `identical == true`·빌더 생성 1회, watch를 넣은 변형은 다시 만들어지고 옛 클로저가 `UnmountedRefException`) → 'ref.watch를 넣지 말 것'. `pdfSearchHighlightsProvider` 주석에 본문 윤곽(`ref.read` + `ref.listen` + `onDispose`, watch 없음). 4.12 표 행. T17 `providers_test`: 검색 `start` → `select(0)` → `clear()` 뒤 `identical`, 생성 1회씩, 처음 인스턴스로 `build`해도 예외 없음 |
-| PDF-3-5 | 계약 C12-07 | 검색 하이라이트 색은 계약 7.4.11 v1.2 예외. 3절 원칙과 4.13 주석을 계약 인용으로, 상수는 `PdfTuning` 한 곳(테마 색으로 바꾸지 않음) | 3절 원칙 '(종이 팔레트·PDF 검색 하이라이트 — 계약 7.4.11 v1.2 예외, C12-07)' + 근거(종이 위 표시 색, 종이와의 대비 기준)·`PdfTuning` 한 곳·painter·위젯에 색 리터럴 없음·테마 색으로 바꾸지 않음. 4.13 `// colors` 주석을 같은 인용으로. 6.8 ④의 색 리터럴 → `PdfTuning.searchHighlightArgb`·`searchCurrentArgb`·`searchCurrentOutlinePt`. T1 `no_platform_imports_test`에 '`lib/src/render/`·`lib/src/ui/`에 `Color(0x…)` 리터럴 없음' |
+| PDF-3-5 | 계약 C12-07 | 검색 하이라이트 색은 계약 7.4.11 v1.2 예외. 3절 원칙과 4.13 주석을 계약 인용으로, 상수는 `PdfTuning` 한 곳(테마 색으로 바꾸지 않음) | 3절 원칙 '(종이 팔레트·PDF 검색 하이라이트 — 계약 7.4.11 v1.3 예외, C12-07·C13-03)' + 근거(종이 위 표시 색, 종이와의 대비 기준)·`PdfTuning` 한 곳·painter·위젯에 색 리터럴 없음·테마 색으로 바꾸지 않음. 4.13 `// colors` 주석을 같은 인용으로. 6.8 ④의 색 리터럴 → `PdfTuning.searchHighlightArgb`·`searchCurrentArgb`·`searchCurrentOutlinePt`. T1 `no_platform_imports_test`에 '`lib/src/render/`·`lib/src/ui/`에 `Color(0x…)` 리터럴 없음' |
 | PDF-3-6 | 사소 | 6.7.1 버킷 지수 `k` → `n` | `b(s) = 1.25^n`, `n = ceil(…)`, '(지수는 `n` — `PdfPageFit.k`와 다른 값)' |
 | PDF-3-7 | 계약 C12-03 | 5.2 발췌의 `pageBackgroundBuildersProvider` 주석을 계약 7.2.16 v1.2 문구로 | `/// (v1.2) Read by inkPageControllerProvider and inkPageThumbnailRendererProvider; callers of` / `/// InkPageThumbnail pass its value (the widget reads no provider).` (계약 글자 그대로, 다음 줄 'Overridden ONLY …' 유지) |
 | PDF-3-8 | 계약 C12-01 | 9.1 `dart_test.yaml`을 만드는 작업을 T0(B4) 산출물로(첫 태그 테스트 T2보다 먼저), 10절 1 'R1–R13' → 'R1–R13·R15', 태그는 리터럴 | T0 내용에 '`packages/pdf_io/dart_test.yaml`(9.1 그대로)을 이 작업에서 만든다 — 첫 태그 테스트 T2 `test/pdfium/`보다 먼저, R15가 B1부터 검사', 완료 조건 `ws check` 0(B1 범위 R1–R3·R7–R9·R15). 3절 트리 주석, 8절 머리말(태그는 문자열 리터럴만 — R15 스캐너, 계약 7.4.8 v1.2), 9.1 `dart_test.yaml` 아래 두 항목(T0 산출물·R15, 리터럴 태그 4종만 사용). 10절 1 'R1–R13·R15'(+ V1 = R1~R15) |
@@ -3353,3 +3353,13 @@ CI (INFRA 01-infra 6.13, PDF-S8)
 | 내보내기·검색의 지연 문구 | 지시 (c)는 가져오기 진행 창이지만, 계약 7.2.9 v1.2가 'PDF 가져오기·내보내기 진행 창 = 지연 문구 + 닫기·취소'로 적었으므로 내보내기 진행 창(단일·일괄)과 검색 패널에도 같은 문구를 두었다(버튼은 '취소') |
 
 미반영 항목: 없음(필수·계약·권장·사소·절차 9건 모두 반영). 새 계약 변경 제안: 없음(12.1).
+
+### 13.4 개발 중 반영 (2026-11-05, 00-review '4차 검토' 4.4.6·'최종 승인' · 계약 v1.4 기준 — 동시 개발 첫 세션)
+
+| # | 종류 | 반영 |
+|---|---|---|
+| PDF-4-1 | 확인 (C13-03) | 3절 원칙의 인용을 '계약 7.4.11 v1.3 예외, C12-07·C13-03'으로. 하이라이트 색은 `PdfTuning` 한 곳, painter·위젯에 리터럴 없음(T1 `no_platform_imports_test`) — 설계 그대로 |
+| PDF-4-2 | 개발 중 주의 | T8 커밋 때 `pdfRenderStatsProvider` 본문이 `core.noteStoreProvider`를 필요로 함을 진행 기록·결과 보고로 INFRA에 공지한다(4.12) |
+| PDF-4-3 | 절차 (C13-05) | 머리 상태 줄 '승인'·계약 v1.4 인용, 5절 머리말·12.1 머리, 이 13.4 |
+| C14-01 | 계약 v1.4 | `package:flutter/rendering.dart`를 가져오는 PDF 파일은 `hide SelectionGeometry` 또는 `ink_engine`을 `as ink`로 가져온다(PDF는 이미 `ink.` 접두사 사용 — 4.7·5.2) |
+| C14-02 | 계약 v1.4 | 영향 없음(R15 검사 범위 정리, PDF 태그는 `@Tags`·`tags:` 리터럴) |
