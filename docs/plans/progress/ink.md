@@ -4,7 +4,7 @@
 
 - 마지막 세션: 10 = 동시 개발 단계 보완 1.1 — 독립 검토 미비점 5개 처리(① `InkPageThumbnailRenderer`의 계약 밖 공개 static `grainWait`·`sliceUs` → 비공개 ② 9.1 '속지 벡터' Chrome 감싸기 `web/template_vectors_web_test.dart` ③ ink lab 등록을 '변경 요청'·'의존성 요청'에 명시(대상 INFRA) ④ 골든 9.2 — `images/`, ≤ 400×400, 불투명 ⑤ `pen_preview_test` 빈 크기 단언). 세션 9까지: T21 벡터 내보내기, T22 벤치마크 스위트 완료 — **동시 개발 단계 몫 전부 완료**(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b, 세션 6: T14~T16, 세션 7: T17·T18, 세션 8: T19·T20(INK-β 완료))
 - 통합 단계(1차 통합 — CORE → INK → EDITOR·LIBRARY 병합 뒤): 실제 CORE와 합친 INK 확인(VM·골든·Chrome·벤치마크·ink lab·R14 미리 보기) 통과, INK 코드 변경 없음. EDITOR E-21 통과(EDITOR 확인). 전체 병합 뒤 변경 요청 1건(ink lab README의 '워크스페이스 밖' 문단) 처리. 아래 '## 통합 단계'
-- 다음 할 일: 동시 개발 단계 몫 없음. PDF 병합 뒤 `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`가 INK 출력을 판정한다. 총괄 결정 대기 1건(LassoOptions 문구 — '## 통합 단계'; ink lab 등록은 INFRA가 처리). 9.3 iPad 확인은 사용자 몫
+- 다음 할 일: 동시 개발 단계 몫 없음. PDF 병합 뒤 `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`가 INK 출력을 판정한다. 총괄 결정 대기 없음(LassoOptions 문구는 계약 v1.5 C15-01로 반영 — '## 통합 단계'; ink lab 등록은 INFRA가 처리). 9.3 iPad 확인은 사용자 몫
 
 ## 작업 표
 
@@ -217,3 +217,5 @@
 | [ink] `example/README.md` 마지막 문단이 아직 'Not a workspace member yet: it resolves on its own (path dependencies, its `pubspec.lock` is not in git)…'. INFRA-O1로 멤버(`ink_lab`, `resolution: workspace`)가 됐으니 고칠 것 | **타당**(재현: README 마지막 문단 — path 의존·`.gitignore`의 `pubspec.lock` 줄은 INFRA 등록 때 이미 사라짐) | 마지막 문단을 '통합 단계부터 워크스페이스 멤버'로 바꿈: `ink_lab`·`resolution: workspace`, 루트 `workspace:`·루트 `pubspec.lock`이라 `flutter pub get`은 저장소 루트에서, `workspace_rules.yaml`의 `allowed_dependencies`(`note_core`·`ink_engine`)·`lib_exceptions`(`testing.dart`)·`app_members`(R14 제외), 수동 `web-experiment` 입력 `target: ink_lab` → 7일 채널 `exp-ink-lab`. 명령 블록도 맞춤: 루트에서 `flutter pub get`·`dart run tool/ws.dart test --package ink_lab`, `flutter build web`·`flutter run -d web-server`는 example 디렉터리에서(워크플로 `working-directory`와 같음) |
 
 확인: 루트 `flutter pub get` — 루트 `pubspec.lock` 변경 없음. `ws test --package ink_lab` 스모크 1개 통과(VM). `packages/ink_engine/example`에서 `flutter build web` 성공(`build/web`, git 밖). INK `lib/`·`test/`·`example/` 코드 변경 없음(README와 이 기록만, 1689f7e). 03-ink.md는 바꿀 곳 없음(1976·2663행 모두 '등록은 INFRA' — 사실과 맞음).
+
+- (계약 v1.5 C15-01, 2026-11-05) `lasso_options.dart` 주석·03-ink 4.7·6.21 L2 표의 퇴화 기준을 '∫\|winding\| dA < minAreaPt2 (= shoelace \|area\| for simple polygons; a figure 8 adds its loops)' 글자 그대로로(내부 `lasso_polygon.dart` 머리 주석도 같게, 03-ink 머리·4장·12.1 기준 계약 v1.5, 13.5). 구현 `isDegenerate`는 이미 이 뜻 — `unit/edit/lasso_test.dart`에 대칭 8자 경계 테스트(3pt² 고리 2개: 신발끈 0, ∫\|w\| dA 6 → 4pt²·5.9pt²에서 퇴화 아님·선택 {a}, 6.1pt²에서 null) 추가. 패키지 analyze 0, `ws test --package ink_engine` 780개·Chrome `web/lasso_web_test` 통과, `ws check` 0. 동작·공개 API 변경 없음

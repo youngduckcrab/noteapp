@@ -376,6 +376,32 @@ void main() {
       );
     });
 
+    test('the area is ∫|winding| dA: a figure 8 adds its loops', () {
+      // a symmetric bowtie crossing at (101, 100.5): two 3 pt² triangles
+      // wound opposite ways — shoelace area 0, ∫|winding| dA = 6 pt². Each
+      // loop alone is under the default 4 pt² (like the 2 × 3 triangle
+      // above); the figure 8 is not degenerate. Stroke 'a' is in the left loop.
+      const bowtie = [
+        ui.Offset(99, 99),
+        ui.Offset(103, 102),
+        ui.Offset(103, 99),
+        ui.Offset(99, 102),
+      ];
+      final p = LassoPolygon.of(bowtie);
+      expect(p.signedArea, closeTo(0, 1e-9), reason: 'symmetric');
+      expect(p.absWindingArea(), closeTo(6, 1e-9));
+      expect(p.windingNumber(100, 100.5), -p.windingNumber(102, 100.5));
+      expect(InkTuning.lassoMinAreaPt2, 4);
+      expect(p.isDegenerate(InkTuning.lassoMinAreaPt2), isFalse);
+      expect(p.isDegenerate(5.9), isFalse);
+      expect(p.isDegenerate(6.1), isTrue);
+      expect(lasso(bowtie)!.strokeIds, {'a'});
+      expect(
+        lasso(bowtie, options: const LassoOptions(minAreaPt2: 6.1)),
+        isNull,
+      );
+    });
+
     test('closing copy and duplicates are dropped', () {
       final p = LassoPolygon.of(const [
         ui.Offset.zero,

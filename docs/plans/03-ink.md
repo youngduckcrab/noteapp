@@ -1,9 +1,9 @@
 # 03. 필기 엔진 (INK) 상세 계획서
 
 > 상태: **승인** (4차 검토 승인 — [00-review.md '최종 승인'](00-review.md#최종-승인), 승인 판본 v0.4) · 영역 ID: **INK** · 소유 경로: `packages/ink_engine/`
-> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 '통합 계약' **v1.4** (이 문서와 다르면 **계약이 우선**) · 검토: [00-review.md](00-review.md) 3.3(1차), '2차 검토' 2.4.3(INK-2-1~11), '3차 검토' 3.4.3(INK-3-1~5), '4차 검토' 4.4.3(INK-4-1·4-2)·'최종 승인'
+> 기준 문서: [PLAN.md](../PLAN.md) v1.1 · [00-overview.md](00-overview.md) 7장 '통합 계약' **v1.5** (이 문서와 다르면 **계약이 우선**) · 검토: [00-review.md](00-review.md) 3.3(1차), '2차 검토' 2.4.3(INK-2-1~11), '3차 검토' 3.4.3(INK-3-1~5), '4차 검토' 4.4.3(INK-4-1·4-2)·'최종 승인'
 > 근거 환경: Flutter 3.47.9 / Dart 3.13.7 (`/opt/flutter`). 이 문서의 Flutter 엔진·프레임워크 근거는 이 버전 소스에서 확인했다 (6.2).
-> 검토 반영 내역은 13장(13.1 1차, 13.2 2차, 13.3 3차, 13.4 최종 승인), 계약 변경 제안은 12.1. 개발 진행은 [progress/ink.md](progress/ink.md).
+> 검토 반영 내역은 13장(13.1 1차, 13.2 2차, 13.3 3차, 13.4 최종 승인, 13.5 1차 통합), 계약 변경 제안은 12.1. 개발 진행은 [progress/ink.md](progress/ink.md).
 
 **표기 규칙**
 
@@ -244,7 +244,7 @@ tags:
 
 ## 4. 공개 API
 
-> 계약 대응: 이 장의 4.3~4.9·4.12~4.14가 00-overview **7.2.15**, 4.9(썸네일)·4.10·4.11이 **7.2.16**이다(계약 **v1.4** — v1.2~v1.4는 시그니처 변경이 없고, INK 표면에서 바뀐 것은 4.13 `pageBackgroundBuildersProvider` 문서 주석 한 줄뿐(C12-03). v1.4 C14-01: 이름 `SelectionGeometry`는 Flutter `rendering.dart`의 같은 이름과 겹치므로 둘을 함께 가져오는 파일은 `hide SelectionGeometry` 또는 `as ink` 접두사로 가져온다). 계약 블록에 있는 시그니처·문서 주석은 글자 그대로 옮겼고(주석 `// contract 7.2.x`, v1.1·v1.2에서 바뀐 줄은 계약과 같이 `(v1.1)`·`(v1.2)` 표시), 계약이 "INK 4.x"로 위임한 나머지는 이 장이 정한다. 계약 줄 사이에 INK가 덧붙인 문서 주석 줄은 계약 의미를 좁히거나 바꾸지 않는 보충이다. 계약과 다르게 보이는 곳이 있으면 계약이 우선이며, 고칠 점은 12.1에 '계약 변경 제안'으로 남겼다.
+> 계약 대응: 이 장의 4.3~4.9·4.12~4.14가 00-overview **7.2.15**, 4.9(썸네일)·4.10·4.11이 **7.2.16**이다(계약 **v1.5** — v1.2~v1.5는 시그니처 변경이 없고, INK 표면에서 바뀐 것은 4.13 `pageBackgroundBuildersProvider` 문서 주석 한 줄(C12-03)과 4.7 `LassoOptions` 문서 주석의 퇴화 기준 문구(v1.5 C15-01 — `∫|winding| dA < minAreaPt2 (= shoelace |area| for simple polygons; a figure 8 adds its loops)`, 동작 변화 없음)뿐. v1.4 C14-01: 이름 `SelectionGeometry`는 Flutter `rendering.dart`의 같은 이름과 겹치므로 둘을 함께 가져오는 파일은 `hide SelectionGeometry` 또는 `as ink` 접두사로 가져온다). 계약 블록에 있는 시그니처·문서 주석은 글자 그대로 옮겼고(주석 `// contract 7.2.x`, v1.1·v1.2에서 바뀐 줄은 계약과 같이 `(v1.1)`·`(v1.2)` 표시), 계약이 "INK 4.x"로 위임한 나머지는 이 장이 정한다. 계약 줄 사이에 INK가 덧붙인 문서 주석 줄은 계약 의미를 좁히거나 바꾸지 않는 보충이다. 계약과 다르게 보이는 곳이 있으면 계약이 우선이며, 고칠 점은 12.1에 '계약 변경 제안'으로 남겼다.
 
 ### 4.0 공통 규칙과 진입점
 
@@ -776,7 +776,8 @@ final class EraserSpec {
 
 /// Lasso inclusion rule — CONTRACT (00-review INK-S5, EDITOR Q9):
 ///  * The lasso path is closed end → start and simplified with RDP (simplifyPx / viewScale pt).
-///    Fewer than 3 vertices or |area| < minAreaPt2 → degenerate → no selection (EDITOR: tap).
+///    Fewer than 3 vertices or ∫|winding| dA < minAreaPt2 (= shoelace |area| for simple polygons;
+///    a figure 8 adds its loops) → degenerate → no selection (EDITOR: tap).
 ///  * Inside test = NONZERO winding rule (figure-8 and doubly wound lassos select both loops).
 ///  * A stroke is selected iff (sum of lengths of its centerline segments whose MIDPOINT is
 ///    inside) / (centerline length) >= coverage (0.5). A dot (one point / zero length) is
@@ -2439,7 +2440,7 @@ flowchart TB
 | 단계 | 내용 |
 |---|---|
 | L1 수집 | `LassoSession.addPoint` (pt). 미리보기 경로 매 프레임 |
-| L2 다각형 | 끝 → 시작을 잇는 닫힌 다각형. RDP 허용 = `simplifyPx`(0.75px) / viewScale. 꼭짓점 < 3 또는 \|면적\| < `minAreaPt2`(4pt²)이면 `isDegenerate` → 선택 없음(EDITOR가 탭으로 처리) |
+| L2 다각형 | 끝 → 시작을 잇는 닫힌 다각형. RDP 허용 = `simplifyPx`(0.75px) / viewScale. 꼭짓점 < 3 또는 ∫\|winding\| dA < minAreaPt2 (= shoelace \|area\| for simple polygons; a figure 8 adds its loops)이면 `isDegenerate` → 선택 없음(EDITOR가 탭으로 처리). `minAreaPt2` 기본 4pt² |
 | L3 내부 판정 | **nonzero 감김수**(손으로 그린 8자·두 번 감은 올가미도 직관대로 내부). y 띠 색인: 띠 높이 = max(8pt, 다각형 높이/64), 변을 걸치는 띠에 등록 → 점마다 그 띠의 변만 검사 |
 | L4 후보 | 다각형 bounds로 공간 색인 질의(모든 도구 — 필터 없음) |
 | L5 포함 기준 (계약) | 중심선 길이 가중 포함률 = Σ(**구간 중점**이 내부인 구간 길이) / 전체 길이 **≥ `coverage`(0.5)**. 점 획(점 1개·길이 0)은 그 점이 내부면 포함 |
@@ -2827,7 +2828,7 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 
 ## 12. 총괄 관리자에게 묻는 질문
 
-### 12.1 계약 변경 제안 (계획서 본문은 현재 계약 v1.4대로 읽는다 — v1.3·v1.4는 시그니처 변경 없음)
+### 12.1 계약 변경 제안 (계획서 본문은 현재 계약 v1.5대로 읽는다 — v1.3~v1.5는 시그니처 변경 없음)
 
 | # | 대상 (계약 절) | 제안 | 이유 | 결정 (2차·3차 검토) |
 |---|---|---|---|---|
@@ -3014,3 +3015,9 @@ Chrome(SwiftShader) 수치는 참고용으로만 기록한다(GPU·컴파일 모
 | C14-01 | 계약 v1.4 | `SelectionGeometry` 이름 유지 + `hide`/`as ink` 규칙을 4장 머리말과 패키지 README에 한 줄 | 4, README |
 
 - 기반 단계 B3(T00)은 완료(커밋 955931c). 동시 개발 진행·계획과 다르게 한 점은 [progress/ink.md](progress/ink.md)에 적는다.
+
+### 13.5 1차 통합 (2026-11-05, 통합 계약 v1.5 기준)
+
+| 지시 | 근거 | 반영 | 위치 |
+|---|---|---|---|
+| C15-01 | 계약 v1.5(INK T17 제안 — progress '총괄에게 넘길 결정' 1) | 올가미 퇴화 기준 '\|area\| < minAreaPt2' → '∫\|winding\| dA < minAreaPt2 (= shoelace \|area\| for simple polygons; a figure 8 adds its loops)'를 4.7 `LassoOptions` 주석·6.21 L2 표·`lib/src/edit/lasso_options.dart` 주석에 글자 그대로. 구현 `LassoPolygon.isDegenerate`는 이미 이 뜻 — `unit/edit/lasso_test.dart`에 대칭 8자(3pt² 고리 2개, 신발끈 0, ∫\|w\| dA 6pt²)가 기본 4pt²에서 퇴화가 아니고 6.1pt²에서 퇴화인 경계 테스트 추가. 동작·EDITOR 영향 없음 | 머리, 4, 4.7, 6.21, 12.1, 13.5 |

@@ -5,7 +5,8 @@ import '../tuning.dart';
 
 /// Lasso inclusion rule — CONTRACT (00-review INK-S5, EDITOR Q9):
 ///  * The lasso path is closed end → start and simplified with RDP (simplifyPx / viewScale pt).
-///    Fewer than 3 vertices or |area| < minAreaPt2 → degenerate → no selection (EDITOR: tap).
+///    Fewer than 3 vertices or ∫|winding| dA < minAreaPt2 (= shoelace |area| for simple polygons;
+///    a figure 8 adds its loops) → degenerate → no selection (EDITOR: tap).
 ///  * Inside test = NONZERO winding rule (figure-8 and doubly wound lassos select both loops).
 ///  * A stroke is selected iff (sum of lengths of its centerline segments whose MIDPOINT is
 ///    inside) / (centerline length) >= coverage (0.5). A dot (one point / zero length) is

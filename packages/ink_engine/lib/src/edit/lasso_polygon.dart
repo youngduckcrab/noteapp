@@ -3,8 +3,9 @@
 // The lasso inclusion rule is a CONTRACT (LassoOptions doc comment, 4.7):
 //  * L2: the collected path is closed end → start and simplified with RDP
 //    (tolerance simplifyPx / viewScale pt). Fewer than 3 vertices or
-//    |area| < minAreaPt2 → degenerate → no selection (EDITOR treats it as a
-//    tap);
+//    ∫|winding| dA < minAreaPt2 (= shoelace |area| for simple polygons; a
+//    figure 8 adds its loops) → degenerate → no selection (EDITOR treats it
+//    as a tap);
 //  * L3: inside = NONZERO winding number. A y-band index (band height
 //    max(InkTuning.lassoBandMinPt, polygon height / 64)) lists, per band, the
 //    edges whose y range meets the band, so a point only tests the edges of
@@ -13,11 +14,11 @@
 //    MIDPOINT is inside) / centerline length >= coverage; a dot (one point or
 //    zero length) iff its point is inside.
 //
-// |area| is the winding-weighted area ∫|w| dA. It equals the shoelace |area|
-// whenever the winding number keeps one sign (every simple polygon, a loop
-// wound twice the same way) and adds the loops of a figure 8 instead of
-// cancelling them — a symmetric figure 8 has a shoelace area of 0 but must
-// select both loops (the same contract comment).
+// ∫|winding| dA (∫|w| dA below) equals the shoelace |area| whenever the
+// winding number keeps one sign (every simple polygon, a loop wound twice the
+// same way) and adds the loops of a figure 8 instead of cancelling them — a
+// symmetric figure 8 has a shoelace area of 0 but must select both loops (the
+// same contract comment).
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show Offset, Rect;
