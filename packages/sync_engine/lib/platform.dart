@@ -5,6 +5,7 @@
 /// shell imports it, when sync is wired in at M4 (contract 00-overview
 /// 7.3.3).
 ///
-/// Foundation step B7 (00-overview 7.6): empty frame. The exports are added
-/// during concurrent development (07-sync 8).
+/// Exports `ConnectivityPlusSignal` (07-sync 4.0 table).
 library;
+
+export 'src/platform/connectivity_plus_signal.dart';

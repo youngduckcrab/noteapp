@@ -10,7 +10,7 @@
 
 | ID | 상태 | 커밋 | 비고 — 완료 조건 테스트 파일 |
 |---|---|---|---|
-| T1 | 진행 중 (앞부분 B7은 기반 단계에서 완료) | 4d7a82f (B7) | B7: 진입점 4개 빈 틀 + `test/no_dart_io_test.dart`(+ `test/support/lib_boundary.dart`). 남은 것: `dart_test.yaml`, `display_mode.dart` 조건부 export, 4장 시그니처 빈 구현, `test/web/firebase_compile_test.dart` |
+| T1 | 완료 (앞부분 B7은 기반 단계에서 완료) | 4d7a82f (B7), 1a894b2 | `test/no_dart_io_test.dart`(B7), `test/dart_test_yaml_test.dart`(태그 선언·`integration` skip 소스 검사), `test/web/firebase_compile_test.dart`(Chrome), `ws check` 0. 4장 시그니처 파일 전부(본문은 `UnimplementedError('SYNC Tn')` — n = 채울 작업). 값 클래스 7종 `==`·`SyncConfig.copyWith`·`syncBadgeOf`·`ManualConnectivitySignal`은 이미 구현(테스트는 T10) |
 | T2 | 남음 | | `common/server_cursor_test.dart`, `common/varuint_test.dart`, `common/lru_set_test.dart`, `model/field_versions_ext_test.dart`, `model/field_units_test.dart`, `model/sync_doc_test.dart`, `model/records_test.dart`, `codec/canonical_json_test.dart` |
 | T3 | 남음 | | `goldens/chunk_v1_golden_test.dart`, `codec/chunk_codec_test.dart`, `codec/chunk_packer_test.dart`, `test/web/pure_logic_browser_test.dart`(코덱 부분) |
 | T4 | 남음 | | `merge/field_merge_test.dart`, `merge/field_merge_properties_test.dart`, `merge/sync_merge_policy_test.dart`, `merge/merge_recorder_test.dart`, `merge/record_gate_test.dart` |
@@ -40,7 +40,13 @@
 ## 계획과 다르게 한 점
 
 - (B7) `test/support/lib_boundary.dart`를 테스트 도우미 위치로 추가(계획 3장 트리에 없는 경로). B1의 `test/sync_engine_smoke_test.dart` 삭제.
+- (T1) pubspec은 B1(INFRA) 그대로 둠: 의존 목록·버전은 3.1과 같고 `description` 문구만 다름(INFRA B1 값 유지 — LIBRARY-3-3과 같은 처리).
+- (T1) `dart_test.yaml` 소스 검사는 `test/dart_test_yaml_test.dart`(3장 트리에 없는 파일)로 둠. `ws check` R15가 기준이고 이 테스트는 같은 규칙 + '선언 태그 = 3.2의 3개'를 본다.
+- (T1) 4장에 생성자가 없는 테스트 도우미(`FakeSyncBackend`·`FakeBlobStore`·`TestDevice`)는 `@internal` 이름 붙은 생성자(`.internal`)로 둠(패키지 밖에서 만들지 않음 — 각각 `FakeSyncServer.connect`·`blobsOf`·`SyncTestHarness.device`가 만든다).
+- (T1) `FirebaseSyncBackend`의 `uid`·`blobs`는 생성자 인자를 받는 `final` 필드(이름 있는 인자 이름은 4.10 그대로).
 
 ## 다음 세션 메모
 
+- cloud_firestore 7.1.0은 `Type`(파이프라인 식)을 export해 `dart:core`의 `Type`을 가린다. Firestore를 import하면서 `Type`을 쓰는 파일은 `import 'package:cloud_firestore/cloud_firestore.dart' hide Type;`(T1 `firebase_compile_test`에서 발견, T17 주의).
+- `lib/src/firebase/display_mode.dart`의 내부 함수 이름은 `isStandaloneDisplayMode()`(export 안 함). `FirebaseAuthBackend(isStandaloneWebApp:)` 기본값.
 - 다른 영역은 이 작업 트리에서 기반 단계 상태다. CORE는 `createFakeNoteStore()`(SyncStore 대부분 `UnsupportedError`)와 실제 값 타입(B2)만 쓸 수 있다.
