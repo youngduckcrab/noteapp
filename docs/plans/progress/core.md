@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 3 (동시 개발 단계)
-- 다음 할 일: T11 (히스토리 + 원격 충돌 — 별칭 정리, 바뀐 필드 계산 6.7.6) — 그다음 T14, (T15·T16 언제든), T19, T17·T18
+- 다음 할 일: T14 (동기화 창구 `DriftSyncStore` — 9.1 '동기화 창구 테스트' 전부) — 그다음 (T15·T16 언제든), T19, T17·T18
 
 ## 작업 표
 
@@ -19,8 +19,8 @@
 | T7 | 완료 | 4a3cfaa (+ 다음 커밋: close 수정) | `test/storage/write_queue_test.dart`, `outbox_test.dart`, `change_bus_test.dart`, `field_version_writer_test.dart` |
 | T8 | 완료 | 6d0c569 | `test/shared/library_contract.dart` → `test/repo/library_contract_fake_test.dart`·`library_contract_real_test.dart`, `test/repo/library_repository_test.dart` |
 | T9 | 완료 | 6bb6c01 | `test/repo/trash_repository_test.dart`, 공유 계약 `test/shared/library_contract.dart` 'C-8 / trash'(가짜·실제). 열린 세션 읽기 전용 전환·복원 시 해제는 세션 DB 백엔드가 있어야 해 T10 테스트로 |
-| T10 | 완료 | (이 커밋) | `test/session/note_session_contract_real_test.dart`(공유 본문 + N-7), `note_session_test.dart`, `content_reader_test.dart`, `test/repo/trash_repository_test.dart` '열린 세션 읽기 전용 전환·복원 시 해제'(T9 남은 몫) |
-| T11 | 남음 | | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart` |
+| T10 | 완료 | aaa6285 | `test/session/note_session_contract_real_test.dart`(공유 본문 + N-7), `note_session_test.dart`, `content_reader_test.dart`, `test/repo/trash_repository_test.dart` '열린 세션 읽기 전용 전환·복원 시 해제'(T9 남은 몫) |
+| T11 | 완료 | (이 커밋) | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart`(필드 버전·outbox 필드, 100단계 undo 후 초기 상태, 별칭 정리) |
 | T12 | 완료 | 3503f6c | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
 | T13 | 완료 | ac1965c | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
 | T14 | 남음 | | 9.1 '동기화 창구 테스트' 전부 (`test/sync/*`) |
@@ -77,13 +77,16 @@
 - T10: 아직 커밋 안 된 세션 쓰기의 엔티티는 `write()`부터 그 커밋의 `afterCommit`까지 잡아 두고(도메인 오류로 끝나면 완료 때 해제), 원격 반영은 잡힌 엔티티를 건너뛴다(뒤에 커밋될 로컬 쓰기가 메모리 값과 같아짐). 같은 트랜잭션에 든 로컬 쓰기는 이미 풀려 있어 DB 최종 값을 읽는다.
 - T10: `loadStrokes`는 그 페이지만이 아니라 쓰기 큐 전체를 flush한 뒤 읽는다. 동시에 들어온 `openSession` 두 번은 생성 하나를 공유한다. 다른 소유자 노트는 `EntityNotFoundException`. `schemaVersion >` 현재 → `requiresNewerApp`로 읽기 전용, `<`(마이그레이션)은 T15(지금은 v1뿐). 저장소 `close()`는 열린 세션을 잊는다.
 
+- T11: 별칭 정리 — B2는 '히스토리가 빌 때까지 유지'였다. T11은 엔티티마다 그 엔티티를 건드리는 단계 수(undo + redo 스택)를 세어, 마지막 단계가 빠질 때 그 엔티티의 별칭을 함께 지운다(`EditHistory._steps`, 계획서 6.7.3 '해당 항목이 빠질 때'를 엔티티 단위로 해석 — 아래 단계가 같은 엔티티의 별칭을 필요로 하는 경우(지우개 → undo → 새 편집 → 추가 undo)를 지키려고). 새 단계는 redo를 비우기 전에 센다. 어떤 단계도 건드리지 않는 엔티티의 별칭은 만들지 않는다. 테스트용 `debugAliasedEntityCount`.
+- T11: 원격 충돌·바뀐 필드 계산은 B2 엔진(`changedFieldsOf`, 버전 + 별칭 비교)이 이미 하고 있었고, T10에서 세션 쓰기가 엔진 버전을 그대로 쓰게 되어 실제 저장소에서도 성립한다. T11은 실제 저장소 테스트로 고정했다.
+
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
 
 ## 다음 세션 메모
 
 - T14 메모(세션): `applyRemote`·`commitRepairs`가 커밋 batch에 `EntityChange` 힌트(page·stroke의 `noteId`, stroke의 `pageId`)를 채우면 열린 세션 반영(N-7)은 `onCommitted` 훅으로 저절로 된다. 노트 파생 값 재계산(6.10.3 (c))은 `refreshNoteDerived`를 쓰면 된다(`updatedAt:`에 적용값을 넘기면 max). `content_rev` + 1(6.10.3 (d))은 T14에서 DB에 쓴다(세션 메모리는 위 규칙으로 맞춤).
-- T11 메모: 엔진·히스토리는 B2(T5)에 있고 T10에서 실제 저장소에 붙었다. T11 완료 조건 테스트(`undo_remote_conflict_test`·`undo_field_versions_test`)는 원격 쓰기를 `store.queue.run((tx) => tx.putRemote(...), origin: ChangeOrigin.remote)`로 흉내 내면 된다(`note_session_test`의 `_putRemote`).
-- 세션 3 끝 상태: T13·T10 완료. 실제 저장소의 `assets`·`thumbnails`·`openSession`(N-1~N-7)이 동작한다. 남은 `UnimplementedError`: `SyncStore` 나머지(T14), `exportBackupJson`(T19). 검사: 패키지 VM 501개·Chrome 24개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
+- 테스트 도우미: 원격 쓰기 흉내는 `store.queue.run((tx) => tx.putRemote(...), origin: ChangeOrigin.remote)`(`test/edit/undo_support.dart` `UndoFixture.remote`, `note_session_test`의 `_putRemote`). T14가 `applyRemote`를 만들면 그것으로 바꿔도 된다.
+- 세션 3 끝 상태: T13·T10·T11 완료. 실제 저장소의 `assets`·`thumbnails`·`openSession`(N-1~N-7)·undo/redo(원격 충돌 건너뜀, 필드 단위 outbox)가 동작한다. 남은 `UnimplementedError`: `SyncStore` 나머지(T14), `exportBackupJson`(T19). 검사: 패키지 VM 513개·Chrome 24개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 - **fake_async 주의(다른 영역에도 알릴 것)**: idb_shim 메모리 IndexedDB(sembast)는 0.1 ms 타이머로 끝난다. `openTestNoteStore` 저장소에서 에셋 `put`·썸네일 쓰기를 fake_async 안에서 쓰면 `flushMicrotasks`만으로는 안 끝나고 시간을 진행해야 한다(`asset_store_test`의 `pumpUntil` — 1 ms씩 elapse). 라이브러리·세션 쓰기(SQLite)는 전처럼 마이크로태스크만으로 끝난다.
 - T14 메모(에셋): `applyRemote`의 새 에셋 행은 `store.assets.localStateOf(id, size)`로 `hasLocalBytes`·`chunk_count`를 정해 `writeEntityRow(..., assetChunkCount:)`에 넘긴다(지금 `putRemote`는 새 행이면 엔티티 값 `false`·`chunk_count 0`). 기존 행은 `keepLocal`로 유지(이미 그렇게 동작).
 - T13 사용법: 에셋 바이트 경로 도우미는 `assets/blob_store.dart`(`writeChunks`·`readChunks`·`hasAllChunks`·`chunkCountFor`·`chunkKey`·`chunkPrefix`, 청크 4 MiB). 저장소의 블롭 DB는 `store.blobs`(`chunks`·`thumbnails`). `putLocal(..., assetChunkCount:)` 추가(null = 행 값 유지).
