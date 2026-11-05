@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **2** (동시 개발 단계 개발 세션 2/10) — 이번 세션 완료: E-03·E-07 (세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-05(입력 라우터 R1~R33) → E-04(페이지 뷰포트, E-01·E-03 뒤) → E-08(E-04·E-05·E-07 뒤) …
+- 마지막 세션: **2** (동시 개발 단계 개발 세션 2/10) — 이번 세션 완료: E-03·E-07·E-05 (세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-04(페이지 뷰포트·`editor_scope.dart` 기본 provider, E-01·E-03 뒤) → E-08(InteractionHost·EditorCommands·펜, E-04·E-05·E-07 뒤) → E-09·E-10·E-11 …
 
 ## 작업 표
 
@@ -17,9 +17,9 @@
 | E-02 | 완료 | 9b78333 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart` |
 | E-03 | 완료 | 261c01f | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
 | E-04 | 남음 | | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
-| E-05 | 남음 | | `unit/input_router_test.dart` (R1~R33) |
+| E-05 | 완료 | (이 커밋) | `unit/input_router_test.dart` (R1~R33 + R29b·관성 속도·`cancelAll`·간격·트랙패드·observe) |
 | E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
-| E-07 | 완료 | (이 커밋) | `unit/tool_controller_test.dart` |
+| E-07 | 완료 | 6433a32 | `unit/tool_controller_test.dart` |
 | E-08 | 남음 | | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
 | E-09 | 남음 | | `widget/erase_test.dart` |
 | E-10 | 남음 | | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
@@ -57,6 +57,7 @@
 - (세션 2) E-03 `ViewportMemory`: 쓰기 때마다 저장된 목록을 먼저 읽어 이 인스턴스의 저장분을 합친다(다른 화면이 쓴 항목 유지). 틀린 항목은 버리고 읽기 1회당 1번 보고(`FormatException`, library `feature_editor`). `dispose` 뒤 `save`는 무시. 생성자는 `ViewportMemory(this._settings, {required this._now})`(호출 모양은 계획과 같음).
 - (세션 2) E-07: `WidthMapping`(6.9.4, `src/ui/pen/width_mapping.dart`)을 E-15보다 먼저 만들었다 — `setWidth`가 `WidthMapping.snap`을 쓴다. 완료 조건 테스트(`unit/width_mapping_test.dart`)는 E-15에서 쓴다.
 - (세션 2) E-07 세부: `ToolState.defaults()`·`ToolState.defaultPenStyles()`·`copyWith(clearPreviousTool:)`, `EraserSettings.normalized()`·`snapDiameter`(1~100, 0.5 단위), `EraserSettings.fromJson(json, invalidFields:)`(틀린 필드 이름 수집 — 범위 밖은 기본값, 클램프 아님)를 더했다. `previousTool`은 지우개가 활성일 때만 유지(지우개를 떠나면 지움, 복원 시 지우개가 아니면 버림). `selectTool`·`selectPenType`·`applyStyle`은 스포이드를 끈다. `updateStyleOf`는 `tool`을 그 도구로 고정. 펜 스타일 저장은 모든 `PenTool`(P1 포함). `editor.penStyles`의 모르는 도구 이름은 오류가 아님(건너뜀), 디코드 실패·다른 도구 이름 항목은 기본값 + 보고. 세 키의 JSON 변환은 `tool_controller.dart` 안의 비공개 `_ToolStateJson`. `resetPenDefaults`는 `reset`이 아니라 기본값을 `set`(디바운스).
+- (세션 2) E-05 `InputRouter` 세부(계획에 없던 것): 손가락이 혼자 닿았는데 도구 상호작용이 `null`(간격·로딩 중 페이지)이면 `consumed`가 아니라 **탐색**으로 넘긴다(손가락 필기 모드에서 간격을 끌면 스크롤, 짧게 치면 tap(1)). 펜의 `null`은 계획대로 `consumed`. P4(진행 중 터치 취소)는 스타일러스만 — 마우스 왼쪽은 P4·쿨다운·`stylusSeen`에 반영 안 함, 마우스가 그리는 중 온 손가락은 `rejected`. `stylusDetected`는 라우터 수명당 1회(정책 `stylusSeen`이 아직 false여도). hover 시각은 따로 두고 손가락 down 때 `treatHoverAsPenActivity`로 판정. `navigationCancel`은 탐색이 시작된 경우만 부르고, 취소된 탐색의 나머지 손가락은 뗄 때까지 무시. 탐색 시작 시 기준을 현재 값으로 다시 잡는다(그래서 첫 18px는 카메라에 반영 안 됨 — 계획 문장 그대로). 탭 이동 판정(20px)은 그리던 손가락 포함 모든 손가락. 관성 속도는 50px/s 미만이면 `Velocity.zero`, 8000 상한. 휠 Ctrl/⌘은 `HardwareKeyboard.instance`. 생성자는 `InputRouter({required this._targets, this._thresholds = …, this._timerFactory = Timer.new})`(호출 모양은 계획과 같음).
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모
@@ -68,4 +69,5 @@
 - 테스트 도구 사용법: `final h = await pumpEditor(tester, strokesByPageIndex: {0: [strokeA]})` → `h.session`(실제 가짜 저장소 세션), `h.recorder!.calls`·`rejectNext(e)`, `h.container`(EditorScreen 아래 가장 안쪽 ProviderScope — E-04/E-13에서 노트별 scope가 생기면 자동으로 그것), `h.driver`(PointerDriver — 논리 포인터 번호는 `device`, 이벤트 `pointer`는 down마다 새 값), `h.pageId(i)`. 위젯 밖 `Listener`로 받은 이벤트는 `_TransformedPointer*Event`라 `isA<PointerDownEvent>()`로 비교.
 - 설정 테스트 환경: `test/helpers/settings_env.dart`의 `runSettingsEnv((env) { env.storeValue(key, {...}); env.load(); ... })` — fake_async + 가짜 저장소 + `RecordingSettings`(CORE에 닿은 set/reset 기록, `writesOf(name)`). `commitDelay:`로 커밋 지연. E-07 `tool_controller_test`도 이것을 쓰면 된다.
 - 뷰포트 테스트(세션 2): `test/unit/viewport_controller_test.dart`의 `_viewportTest`·`_controller()` 패턴 — `testWidgets` 안에서 `tester.pump`가 컨트롤러 `Ticker`·150ms 안정화 `Timer`를 움직인다. 컨트롤러는 **본문 끝에서** dispose(testWidgets의 남은 타이머 검사가 tear-down보다 먼저라 `addTearDown`으로는 안 됨). 1032×1376에서 A4 fit = 1000/595.2756 ≈ 1.68, 페이지 i 위 = 24 + i·865.89 pt.
+- 라우터 테스트(세션 2): `test/unit/input_router_test.dart`의 `_Input`(합성 시각 + `tester.pump`) — `VelocityTracker`가 `GestureBinding.samplingClock`을 쓰므로 fake_async가 아니라 `testWidgets` 안에서 돌린다. 본문 끝 `router.cancelAll()`로 길게 누르기 타이머를 지운다.
 - 기반 단계 메모: `/home/user/wt/notes/foundation-editor.md`. 스모크 테스트에서 커밋 지연을 쓰는 저장소는 tear-down이 아니라 본문 끝에서 `close()`(실패 시 멈춤 방지).
