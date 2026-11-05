@@ -207,8 +207,10 @@ Future<List<RuleViolation>> checkExports(
   final temp = Directory.systemTemp.createTempSync('ws_r14_');
   try {
     final outFile = p.join(temp.path, 'export_names.json');
+    // Normalized like the resolver's report keys.
     final absolute = {
-      for (final entry in entries) entry: p.join(workspace.root, entry.path),
+      for (final entry in entries)
+        entry: p.normalize(p.join(workspace.root, entry.path)),
     };
     final result = await processes.run(
       dart,

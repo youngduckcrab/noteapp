@@ -6,6 +6,13 @@
 ///   `tool/prepare_web_test.dart` it runs first (`dart run`, 5 minutes); if
 ///   it fails the member is reported as "prepare failed" and its browser
 ///   tests are skipped.
+///
+/// Each member run has a time limit (chrome: [defaultChromeMemberTimeout],
+/// vm: none — `--member-timeout`). A run that exceeds it is killed with its
+/// process tree and retried once ([timeoutRetries]); a second time-out
+/// fails the member and the next member runs. A run ended by a signal from
+/// outside (or `ws` itself stopping on SIGINT / SIGTERM) stops `ws test`:
+/// the remaining members are listed as not run.
 library;
 
 import 'dart:io';
@@ -22,6 +29,14 @@ enum TestPlatform { vm, chrome }
 /// Time limit of a member's `tool/prepare_web_test.dart`.
 const Duration prepareTimeout = Duration(minutes: 5);
 
+/// Default time limit of one member's `flutter test --platform chrome`
+/// (the slowest member, ink_engine, takes about 4 minutes on the
+/// container; a hung CanvasKit start never ends).
+const Duration defaultChromeMemberTimeout = Duration(minutes: 15);
+
+/// How often a member run that exceeded its time limit is started again.
+const int timeoutRetries = 1;
+
 /// Path of the browser test preparation script inside a member.
 const String prepareScriptPath = 'tool/prepare_web_test.dart';
 
@@ -37,6 +52,7 @@ final class TestOptions {
     this.excludeTags,
     this.runSkipped = false,
     this.reporter,
+    this.memberTimeout,
   });
 
   /// Member names to test; empty = every member.
@@ -57,6 +73,19 @@ final class TestOptions {
 
   /// `--reporter` passed to `flutter test`.
   final String? reporter;
+
+  /// Time limit of one member's `flutter test` run; `null` = the platform
+  /// default ([defaultChromeMemberTimeout] for chrome, none for vm),
+  /// [Duration.zero] = none.
+  final Duration? memberTimeout;
+
+  /// The time limit that applies, `null` = none.
+  Duration? get effectiveMemberTimeout {
+    final limit =
+        memberTimeout ??
+        (platform == TestPlatform.chrome ? defaultChromeMemberTimeout : null);
+    return limit == null || limit == Duration.zero ? null : limit;
+  }
 
   List<String> get effectiveExcludeTags =>
       excludeTags ?? (tags.contains('bench') ? const [] : const ['bench']);
@@ -185,7 +214,22 @@ List<String> flutterTestArguments(TestTarget target, TestOptions options) => [
 ];
 
 /// The outcome of one member.
-enum MemberOutcome { passed, failed, noTests, prepareFailed }
+enum MemberOutcome {
+  passed,
+  failed,
+  noTests,
+  prepareFailed,
+
+  /// Every try exceeded the time limit.
+  timedOut,
+
+  /// Stopped by a signal (from outside, or `ws` stopping); `ws test` does
+  /// not go on with the next members.
+  interrupted,
+
+  /// Not started because an earlier member was [interrupted].
+  notRun,
+}
 
 /// Result row of the summary table.
 final class MemberTestResult {
@@ -198,6 +242,7 @@ final class MemberTestResult {
     this.passed = 0,
     this.failed = 0,
     this.skipped = 0,
+    this.tries = 1,
   });
 
   final String member;
@@ -212,8 +257,13 @@ final class MemberTestResult {
   final int failed;
   final int skipped;
 
-  bool get isFailure =>
-      outcome == MemberOutcome.failed || outcome == MemberOutcome.prepareFailed;
+  /// `flutter test` starts (more than 1 after a time-out).
+  final int tries;
+
+  bool get isFailure => switch (outcome) {
+    MemberOutcome.passed || MemberOutcome.noTests => false,
+    _ => true,
+  };
 }
 
 /// Reads the final `+passed ~skipped -failed:` counter of a `flutter test`
@@ -255,8 +305,30 @@ final class TestRunner {
 
   Future<List<MemberTestResult>> run(TestPlan plan, TestOptions options) async {
     final results = <MemberTestResult>[];
+    var stopped = false;
     for (final target in plan.targets) {
-      results.add(await _runTarget(target, options));
+      if (stopped) {
+        results.add(
+          MemberTestResult(
+            member: target.member.name,
+            platform: target.platform,
+            prepare: '-',
+            outcome: MemberOutcome.notRun,
+            elapsed: Duration.zero,
+            tries: 0,
+          ),
+        );
+        continue;
+      }
+      final result = await _runTarget(target, options);
+      results.add(result);
+      if (result.outcome == MemberOutcome.interrupted) {
+        stopped = true;
+        out.writeln(
+          '== ${result.member}: stopped by a signal — the remaining members '
+          'are not run',
+        );
+      }
     }
     return results;
   }
@@ -276,6 +348,15 @@ final class TestRunner {
         workingDirectory: target.member.directory,
         timeout: prepareTimeout,
       );
+      if (result.interrupted || result.killedBySignal) {
+        return MemberTestResult(
+          member: name,
+          platform: target.platform,
+          prepare: 'failed',
+          outcome: MemberOutcome.interrupted,
+          elapsed: stopwatch.elapsed,
+        );
+      }
       if (result.exitCode != 0 || result.timedOut) {
         final reason = result.timedOut
             ? 'timed out after ${prepareTimeout.inMinutes} min'
@@ -295,27 +376,47 @@ final class TestRunner {
     }
 
     final arguments = flutterTestArguments(target, options);
-    out.writeln(
-      '== $name (${target.platform.name}): flutter ${arguments.join(' ')}',
-    );
-    final result = await processes.run(
-      flutter,
-      arguments,
-      workingDirectory: target.member.directory,
-      environment: {
-        if (target.platform == TestPlatform.chrome && chrome != null)
-          'CHROME_EXECUTABLE': chrome!,
-      },
-    );
+    final limit = options.effectiveMemberTimeout;
+    late RunResult result;
+    var tries = 0;
+    while (true) {
+      tries++;
+      out.writeln(
+        '== $name (${target.platform.name}'
+        '${tries > 1 ? ', try $tries' : ''}): flutter ${arguments.join(' ')}',
+      );
+      result = await processes.run(
+        flutter,
+        arguments,
+        workingDirectory: target.member.directory,
+        environment: {
+          if (target.platform == TestPlatform.chrome && chrome != null)
+            'CHROME_EXECUTABLE': chrome!,
+        },
+        timeout: limit,
+      );
+      if (!result.timedOut || result.interrupted) break;
+      out.writeln(
+        '== $name: timed out after ${_minutes(limit!)} — killed'
+        '${tries <= timeoutRetries ? ', trying again' : ''}',
+      );
+      if (tries > timeoutRetries) break;
+    }
     final counts = parseTestCounts(result.output);
     final MemberOutcome outcome;
-    if (result.exitCode == 0) {
+    if (result.interrupted || result.killedBySignal) {
+      outcome = MemberOutcome.interrupted;
+    } else if (result.timedOut) {
+      outcome = MemberOutcome.timedOut;
+    } else if (result.exitCode == 0) {
       outcome = MemberOutcome.passed;
     } else if (result.exitCode == noTestsRanExitCode) {
       outcome = MemberOutcome.noTests;
     } else {
       outcome = MemberOutcome.failed;
     }
+    final failedRun =
+        outcome == MemberOutcome.failed || outcome == MemberOutcome.timedOut;
     return MemberTestResult(
       member: name,
       platform: target.platform,
@@ -324,7 +425,8 @@ final class TestRunner {
       elapsed: stopwatch.elapsed,
       passed: counts?.passed ?? 0,
       skipped: counts?.skipped ?? 0,
-      failed: counts?.failed ?? (outcome == MemberOutcome.failed ? 1 : 0),
+      failed: counts?.failed ?? (failedRun ? 1 : 0),
+      tries: tries,
     );
   }
 }
@@ -352,10 +454,17 @@ String formatTestSummary(List<MemberTestResult> results, TestPlan plan) {
         '${r.skipped}',
         '${(r.elapsed.inMilliseconds / 1000).toStringAsFixed(1)}s',
         switch (r.outcome) {
+          MemberOutcome.passed when r.tries > 1 =>
+            'ok (try ${r.tries}, after a time-out)',
           MemberOutcome.passed => 'ok',
+          MemberOutcome.failed when r.tries > 1 =>
+            'FAILED (try ${r.tries}, after a time-out)',
           MemberOutcome.failed => 'FAILED',
           MemberOutcome.noTests => 'no matching tests',
           MemberOutcome.prepareFailed => 'PREPARE FAILED',
+          MemberOutcome.timedOut => 'TIMED OUT (${r.tries} tries)',
+          MemberOutcome.interrupted => 'INTERRUPTED',
+          MemberOutcome.notRun => 'not run (interrupted)',
         },
       ],
     for (final s in plan.skipped)
@@ -381,3 +490,7 @@ String formatTestSummary(List<MemberTestResult> results, TestPlan plan) {
         : 'ws test: $failures of ${results.length} member run(s) failed',
   ].join('\n');
 }
+
+String _minutes(Duration d) => d.inSeconds % 60 == 0
+    ? '${d.inMinutes} min'
+    : '${(d.inMilliseconds / 60000).toStringAsFixed(1)} min';

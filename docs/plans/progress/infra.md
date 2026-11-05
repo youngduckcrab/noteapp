@@ -28,8 +28,9 @@
 | I13 | 완료 | af088b2 | `tool/test/workflows_test.dart`(42건: 워크플로 4개·이슈 템플릿 2개 존재·파싱, 잡별 `timeout-minutes`(25·30·25·45)·`permissions: contents: read`, 액션 버전 = 7.3 고정표, flutter-action `flutter-version-file: pubspec.yaml`·`cache: true`, `pub get --enforce-lockfile`만, `if`에 `secrets.` 없음, `steps.<id>`는 앞 단계만, 빌드 훅 캐시 3곳 같은 키, `flutter build` 4곳 `--release`·빌드 정보·실행 번호·`app/`, **워크플로의 `ws` 호출 19개를 실제 `ws` 인자 해석기로 `--help` 파싱**, `build-info` 채널 값, 배포 2곳 시크릿·변수 게이트·`firebaseToolsVersion: 15.34.2`·`disableComment`·repoToken 없음, **`run` 스크립트 전부 `bash -n`**; ci: 트리거·입력 2개·동시성·잡 env·6.13 1–17단계 순서와 명령·`fetch-depth: 0`·캐시 2종 키·준비 산출물 경로(앱 `.gitignore`와 대조)·main `check --strict`/브랜치 `--affected-since origin/main`·통합 단계 `inputs.integration`·채널·배포 `if`·요약·단계 시간 기록; android: main 푸시·Java 17·단계 순서·APK 아티팩트 7일·압축 0; web-experiment: 입력 2개·`--wasm`·격리(`hosting-config --isolate`·`--no-web-resources-cdn`)·`exp-wasm`; ios: 수동·변수 게이트·시크릿 4개·`ExportOptions.plist`·`CFBundleDisplayName`; 이슈 양식 입력 8개·필수 5개). 실제 GitHub 실행은 하지 않음(G5) |
 | I14 | 완료 | 819ce39 | `tool/test/guides_test.dart`(21건: 3.7의 7개 파일만 있음, 상대 링크 대상 존재(안내서 7개 + 루트 README, 링크 검사 자체 확인), README 순서 01 → 02 → 04 → 03·05·06과 루트 README의 안내서 링크, 01–06 공통 형식(맨 위 '소요 시간'·'끝나면 Claude에게 알려줄 것', `##` 첫 제목 '준비물'·'확인 방법'·마지막 '문제 해결', '스크린샷을 보내 주세요', 합니다체·한다체 문장 끝 없음), 01 M4 위치 권장(`asia-northeast3`·`us-central1`·바꿀 수 없음·미확인)·`authDomain`·승인된 도메인, 02 `ci.yml`이 읽는 Secret·Variable 이름·워크플로 이름·요약의 'Firebase 미설정' 문장 글자 그대로·역할 4개·조직 정책, 03 Blaze 때만·요금을 멈추지 않음·50/90/100%·릴리스 10개, 04 미리보기 데이터 분리·임시·테스트 전용·홈 화면 앱 권장·백업 두 버튼과 대안·**인용한 화면 문구 22개 = `AppStrings` 값**·배너 문장·로더 문구 = `index.html`·백업 파일 이름 = `backupFileName`·9.3 체크리스트 1–17·18a·18b·19·20, 05 워크플로 이름·아티팩트 이름·APK 파일 이름·보관 일수 = `android.yml`, 06 초안 표시·워크플로 이름·Secret 4개·게이트 변수 = `ios-testflight.yml`) |
 | I15 | 완료 | abe97df | 8.2 전체(9.1 표의 테스트 파일 전부 있음 — `export_names_test`만 G3) + `ws check` 0·`ws check --strict` 0 · `ws analyze` 0 · `dart test tool/test` 265 통과 · `ws test` 7개 멤버 통과(noteapp 259 통과·1 건너뜀 = `integration/app_smoke_test`) · `ws test --platform chrome` 4개 멤버 통과(noteapp 준비 ok·11 통과·1 건너뜀 = `app_smoke_browser_test`) · `dart format` 352개 변경 없음 · `ws build-info --channel preview` → `cd app && flutter build web --release --dart-define-from-file=../build/build_info.json`(wasm dry run 성공, 1분 37초) → `ws finalize-web` ok(`main.dart.js` 2,747,922 B · gzip 814,454 B)·`ws web-assets verify` 0·`ws hosting-config` 0. 계획서 6.13 '실측 항목' 표에 로컬 측정값을 적었다(GitHub 실측은 G5) |
-| G1 | 완료 | (통합 1/2 커밋) | `flutter pub get --enforce-lockfile`, `ws check --strict` 0. lock은 ink lab 등록·`analyzer` 직접 의존과 함께 한 번만 재생성(해석 버전 변화 없음) |
-| G3 | 완료 | (통합 1/2 커밋) | `tool/test/export_names_test.dart`, `ws check`(R1–R15) 0 |
+| G1 | 완료 | 52de08c | `flutter pub get --enforce-lockfile`, `ws check --strict` 0. lock은 ink lab 등록·`analyzer` 직접 의존과 함께 한 번만 재생성(해석 버전 변화 없음) |
+| G3 | 완료 | 52de08c | `tool/test/export_names_test.dart`, `ws check`(R1–R15) 0 |
+| 통합 도구 | 완료 | 52de08c, d5938c6, (Chrome 안정화 커밋 — 아래 '통합 단계') | ink lab 멤버 등록(INFRA-O1)·`ws affected` 중첩 멤버, `android.yml` 개발 브랜치 푸시·안내서 05, `ws test` 멤버별 시간 제한·재시도·신호 처리 |
 | G2·G4·G5 | 통합 단계 2/2 | | 계획서 8.3 |
 
 ## 변경 요청
@@ -153,3 +154,40 @@
 - `on.push.branches`에 `claude/note-app-planning-bk29xb` 추가(`main`과 함께, `paths-ignore` 같음). 기본 브랜치에 이 파일이 없으면 GitHub가 **Run workflow** 버튼을 보여 주지 않으므로(`workflow_dispatch`), 합치기 전까지는 이 브랜치 푸시가 APK를 받는 길이다. 빌드 정보 채널은 main 밖이라 `preview`, 앱 정보 빌드 줄 끝에 브랜치 이름. 합친 뒤 이 줄을 지운다(워크플로 주석에 적음).
 - 안내서 `docs/guides/05-android-apk.md`: 머리말에 개발 브랜치 한 줄, `### 개발 브랜치에서 받기`(Actions → Android APK → **Branch** 필터 → 최근 녹색 실행 → Artifacts, Run workflow 없음 — 새 APK는 Claude에게 푸시 요청), 문제 해결 2행(버튼 없음·필터에 브랜치 없음).
 - 테스트: `workflows_test` android 트리거(`[main, <개발 브랜치>]`, main 밖 `preview`), `guides_test` 05(push 목록의 main 밖 브랜치가 모두 안내서에 있고, 받는 방법 문구 3개).
+
+### Chrome 실행 안정화 (`ws test`, CI 권고)
+
+알려진 문제: 전체 `ws test --platform chrome`이 헤드리스 Chrome의 CanvasKit 초기화에서 무기한 멈춘 적이 있고, `ws`의 flutter 실행에 시간 제한이 없었으며, SIGTERM 뒤에도 `ws`가 다음 멤버로 넘어갔다.
+
+- `IoProcessRunner`(`tool/src/flutter_runner.dart`): 시간 제한을 넘으면 **프로세스 트리 전체**를 끝낸다 — `ps -A -o pid=,ppid=`로 자손을 먼저 모은 뒤(부모가 죽으면 손자가 init으로 옮겨 가 못 찾으므로) 전부 SIGTERM → 루트 종료를 최대 5초 기다림 → 남은 것 SIGKILL(Windows `taskkill /T /F`). 전에는 `process.kill()`로 `flutter`만 SIGTERM했다. 출력 파이프는 프로세스가 끝난 뒤 최대 10초만 기다린다(남은 손자가 파이프를 쥐고 있어도 멈추지 않음). 출력 디코딩은 `allowMalformed`.
+- `TerminationGuard`(같은 파일) + `tool/ws.dart`: SIGINT·SIGTERM(Windows는 SIGINT만)을 받으면 실행 중인 자식 트리를 끝내고(`terminateAll` — 이후 새 프로세스는 시작하지 않고 `interrupted` 결과) `128 + 신호 번호`(130·143)로 종료. 명령이 먼저 끝나도 `main`이 가드의 종료를 기다린다. 두 번째 신호는 바로 종료.
+- `ws test`(`tool/src/test_command.dart`): 멤버 실행마다 시간 제한 — chrome 기본 15분(`defaultChromeMemberTimeout`), vm 없음, `--member-timeout <분>`(0 = 없음). 넘으면 트리를 끝내고 **1회 다시 실행**(준비 스크립트는 다시 돌리지 않음) — 통과하면 `ok (try 2, after a time-out)`, 또 넘으면 `TIMED OUT (2 tries)`(실패)로 다음 멤버 진행. 밖에서 온 신호로 자식이 끝나면(종료 코드 음수, 시간 제한·`ws` 종료가 아님) 그 멤버는 `INTERRUPTED`, 남은 멤버는 `not run (interrupted)`로 실행하지 않는다(관찰된 '다음 멤버로 넘어감'을 막음). 준비 스크립트도 같은 트리 종료를 쓴다.
+- 테스트(가짜 프로세스 러너): `test_command_test` 7건(기본 제한 chrome 15분·vm 없음, `--member-timeout` 값·0·잘못된 값 → 2, 시간 초과 → 재시도 → 통과, 두 번 초과 → 실패·다음 멤버 진행, 밖의 신호 → 중단·남은 멤버 미실행, `ws` 종료 중 준비·실행 → 중단, `killedBySignal`), `flutter_runner_test` 7건(가드: SIGTERM → 자식 정리 뒤 143, SIGINT 130·두 번째 신호 즉시, 정리 실패해도 종료; `terminateAll` 뒤 새 프로세스 없음; 실제 `sh` 트리로 시간 초과·`terminateAll`이 손자까지 끝냄·`processTree` — `process` 태그, Linux `/proc`), `cli_process_test` 1건(실제 `dart run tool/ws.dart test`에 SIGTERM → 143, 가짜 flutter의 손자 종료, 다음 멤버 시작 안 함).
+- 개발 중 고친 것: 첫 구현에서 출력 스트림의 `asFuture`를 프로세스 종료 뒤에 걸어, 이미 끝난 스트림의 future가 완료되지 않아 10초 상한까지 기다렸다 — 구독 직후에 걸도록 고침(위 테스트가 잡음).
+
+전체 실행 확인(2026-11-05 15:07–15:15, load 1–2): `timeout 6000 dart run tool/ws.dart test --platform chrome` → **7개 멤버 통과, 끝까지 감(약 8분 30초)**, 시간 초과·재시도 없음.
+
+| 멤버 | 준비 | 통과 | 건너뜀 | 시간 |
+|---|---|---|---|---|
+| note_core | ok | 47 | 1 | 76.4s |
+| ink_engine | - | 193 | 0 | 78.7s |
+| feature_editor | - | 1 | 0 | 51.7s |
+| feature_library | - | 17 | 0 | 72.3s |
+| pdf_io | ok | 54 | 1 | 94.9s |
+| noteapp | ok | 11 | 1 | 77.8s |
+| sync_engine | - | 26 | 0 | 52.7s |
+| ink_lab | | | | `test/web/` 없음 |
+
+멈춤 원인 조사(재현 안 됨 — 위 전체 실행과, 다른 멤버 3개(ink_engine·feature_library·sync_engine)를 동시에 돌린 부하 실험(`--member-timeout 6`, 1분 43초) 모두 멈춤·시간 초과 없음):
+
+- Chrome 프로필: flutter_tools(`web/chrome.dart`)가 실행마다 새 임시 `--user-data-dir`(`flutter_tools_chrome_device.*`)를 만든다 — `ws`는 이 플래그를 넘기지 않으므로 재사용 없음. 실행 뒤 남은 프로필 디렉터리 0개.
+- 포트: `--remote-debugging-port`와 테스트 서버 모두 실행마다 빈 포트를 새로 고른다. 멤버 사이에 남은 Chrome 프로세스 0개(전체 실행 중 확인).
+- CanvasKit 경로: flutter_tools(`test/flutter_web_platform.dart`)가 `canvasKitBaseUrl: "/canvaskit/"`로 엔진 산출물(`/opt/flutter/bin/cache/flutter_web_sdk/canvaskit/`, `chromium/` 변형 포함)을 로컬에서 준다 — CDN·네트워크를 쓰지 않음. Chrome의 배경 연결(`www.google.com`·`android.clients.google.com`·`*.gvt1.com`)은 프록시가 곧바로 403으로 거절해 기다림이 없다.
+- 남은 가능성: 다른 에이전트가 동시에 돌린 무거운 실행에서 헤드리스 Chrome의 소프트웨어 WebGL(CanvasKit) 초기화가 끝나지 않은 경우 — 재현하지 못했다. 컨테이너에는 3시간 전에 끝난 실행이 남긴 고아 `flutter_tester` 2개(PPID 1, CPU 0%)가 있었다 — 부모만 죽이면 자식이 남는다는 증거이고, 이번 트리 종료가 막는 경우다(다른 에이전트 것일 수 있어 건드리지 않음).
+- 결론: 원인을 하나로 확정하지 못했지만, 이제 멈춤 하나가 멤버 하나의 제한 시간(기본 15분)만 쓰고 자동으로 1회 다시 시도하며, 남는 프로세스 없이 끝난다.
+- CI 주의(G5): 이제 7개 멤버 모두 실제 브라우저 테스트가 있어 main의 Chrome 단계만 로컬 약 8.5분이다. `ci.yml` 잡 제한 25분(6.13)에 R14(약 1분)·VM 테스트·도구 테스트(약 1분)·웹 빌드가 함께 들어가므로 첫 GitHub 실행에서 단계 시간 표로 확인하고, 넘치면 잡 제한 또는 `--member-timeout`을 조정한다.
+
+### 이번 몫 끝 확인
+
+- `flutter pub get --enforce-lockfile` 통과, `ws check`(R1–R15) 0 · `--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음, `dart test tool/test` 295건 통과, `ws test --package ink_lab` 1건, 전체 `ws test --platform chrome` 7개 멤버 통과.
+- 다른 통합 담당에게: 잠금 파일·도구 변경은 52de08c에서 끝났다(이후 lock 변경 없음). `ws check`는 이제 R14 때문에 약 1분 더 걸린다 — 빠른 확인은 `ws check --no-exports`. 전체 Chrome 실행이 멈추면 `ws`가 15분 뒤 그 멤버를 끝내고 다시 시도하며, `timeout`으로 감싸 SIGTERM을 보내면 자식까지 끝내고 143으로 종료한다.

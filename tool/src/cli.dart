@@ -377,6 +377,15 @@ final class _TestCommand extends _WsCommand {
         'reporter',
         help: 'Reporter passed to flutter test.',
         valueHelp: 'name',
+      )
+      ..addOption(
+        'member-timeout',
+        help:
+            "Time limit of one member's flutter test run; a run over it is "
+            'killed (with its Chrome) and started once more. Default: '
+            '${defaultChromeMemberTimeout.inMinutes} for chrome, none for vm; '
+            '0 = none.',
+        valueHelp: 'minutes',
       );
   }
 
@@ -425,7 +434,19 @@ final class _TestCommand extends _WsCommand {
         return 0;
       }
     }
+    final timeoutText = args['member-timeout'] as String?;
+    Duration? memberTimeout;
+    if (timeoutText != null) {
+      final minutes = num.tryParse(timeoutText);
+      if (minutes == null || minutes < 0) {
+        usageException(
+          '--member-timeout must be a number of minutes, got `$timeoutText`',
+        );
+      }
+      memberTimeout = Duration(milliseconds: (minutes * 60000).round());
+    }
     final options = TestOptions(
+      memberTimeout: memberTimeout,
       packages: packages,
       platform: args['platform'] == 'chrome'
           ? TestPlatform.chrome

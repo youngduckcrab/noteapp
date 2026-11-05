@@ -37,6 +37,10 @@ final class _FakeProcesses implements ProcessRunner {
   /// (`flutter` / `dart`), default: success with one passing test.
   final results = <String, RunResult>{};
 
+  /// Results used one after the other (before [results]) for the same key:
+  /// e.g. a time-out, then a pass.
+  final queued = <String, List<RunResult>>{};
+
   /// Output of `/usr/bin/git <first argument> ...`.
   final git = <String, String>{'merge-base': 'base\n'};
 
@@ -56,7 +60,10 @@ final class _FakeProcesses implements ProcessRunner {
       return RunResult(exitCode: 0, output: git[arguments.first] ?? '');
     }
     final kind = executable == '/fake/flutter' ? 'flutter' : 'dart';
-    return results['${p.basename(workingDirectory)}:$kind'] ??
+    final key = '${p.basename(workingDirectory)}:$kind';
+    final queue = queued[key];
+    if (queue != null && queue.isNotEmpty) return queue.removeAt(0);
+    return results[key] ??
         RunResult(
           exitCode: 0,
           output: kind == 'flutter' ? '00:01 +1: All tests passed!\n' : '',
@@ -214,6 +221,147 @@ void main() {
       );
     },
   );
+
+  group('member time limit (CI: a hung CanvasKit start)', () {
+    const timedOut = RunResult(
+      exitCode: -15,
+      output: '00:00 +0: loading test/web/db_browser_test.dart\n',
+      timedOut: true,
+    );
+
+    test('chrome: 15 minutes per member run by default, vm: none', () async {
+      await ws(['--platform', 'chrome']);
+      expect(
+        flutterCalls().map((c) => c.timeout),
+        everyElement(const Duration(minutes: 15)),
+      );
+      expect(defaultChromeMemberTimeout, const Duration(minutes: 15));
+      processes.calls.clear();
+      await ws([]);
+      expect(flutterCalls(), isNotEmpty);
+      expect(flutterCalls().map((c) => c.timeout), everyElement(isNull));
+    });
+
+    test('--member-timeout sets the limit; 0 removes it; a bad value is a '
+        'usage error', () async {
+      await ws(['--platform', 'chrome', '--member-timeout', '2.5']);
+      expect(
+        flutterCalls().map((c) => c.timeout),
+        everyElement(const Duration(seconds: 150)),
+      );
+      processes.calls.clear();
+      await ws(['--member-timeout', '3']);
+      expect(
+        flutterCalls().map((c) => c.timeout),
+        everyElement(const Duration(minutes: 3)),
+      );
+      processes.calls.clear();
+      await ws(['--platform', 'chrome', '--member-timeout', '0']);
+      expect(flutterCalls().map((c) => c.timeout), everyElement(isNull));
+      final (code, _, err) = await ws(['--member-timeout', 'soon']);
+      expect(code, 2);
+      expect(err, contains('--member-timeout must be a number of minutes'));
+    });
+
+    test('a timed-out run is tried once more; passing then is ok', () async {
+      processes.queued['note_core:flutter'] = [timedOut];
+      final (code, out, _) = await ws(['--platform', 'chrome']);
+      expect(code, 0);
+      final calls = flutterCalls();
+      expect(calls.map((c) => p.basename(c.workingDirectory)), [
+        'note_core',
+        'note_core',
+        'ink_engine',
+      ]);
+      expect(calls[1].arguments, calls[0].arguments);
+      // The prepare script is not run again.
+      expect(
+        processes.calls.where((c) => c.executable == '/fake/dart'),
+        hasLength(1),
+      );
+      expect(
+        out,
+        contains(
+          '== note_core: timed out after 15 min — killed, '
+          'trying again',
+        ),
+      );
+      expect(out, contains('== note_core (chrome, try 2): flutter test'));
+      expect(out, contains('ok (try 2, after a time-out)'));
+      expect(out, contains('ws test: 2 member run(s), all passed'));
+    });
+
+    test('two time-outs fail the member; the next member still runs', () async {
+      processes.queued['note_core:flutter'] = [timedOut, timedOut];
+      final (code, out, _) = await ws(['--platform', 'chrome']);
+      expect(code, 1);
+      expect(flutterCalls().map((c) => p.basename(c.workingDirectory)), [
+        'note_core',
+        'note_core',
+        'ink_engine',
+      ]);
+      expect(out, contains('TIMED OUT (2 tries)'));
+      expect(out, contains('ws test: 1 of 2 member run(s) failed'));
+    });
+
+    test('a run killed by a signal from outside stops ws test: the next '
+        'members are not run', () async {
+      processes.results['note_core:flutter'] = const RunResult(
+        exitCode: -15,
+        output: '00:20 +3: loading test/web/db_browser_test.dart\n',
+      );
+      final (code, out, _) = await ws(['--platform', 'chrome']);
+      expect(code, 1);
+      expect(flutterCalls().map((c) => p.basename(c.workingDirectory)), [
+        'note_core',
+      ]);
+      expect(out, contains('stopped by a signal'));
+      expect(out, contains('INTERRUPTED'));
+      expect(
+        out,
+        matches(RegExp(r'ink_engine +chrome .*not run \(interrupted\)')),
+      );
+    });
+
+    test('ws stopping (SIGINT / SIGTERM) during a run or a prepare script '
+        'runs nothing more', () async {
+      processes.results['note_core:dart'] = const RunResult(
+        exitCode: -1,
+        interrupted: true,
+      );
+      final (code, out, _) = await ws(['--platform', 'chrome']);
+      expect(code, 1);
+      expect(flutterCalls(), isEmpty);
+      expect(out, contains('INTERRUPTED'));
+
+      processes.calls.clear();
+      processes.results
+        ..remove('note_core:dart')
+        ..['note_core:flutter'] = const RunResult(
+          exitCode: -1,
+          interrupted: true,
+        );
+      final (code2, out2, _) = await ws([]);
+      expect(code2, 1);
+      expect(flutterCalls().map((c) => p.basename(c.workingDirectory)), [
+        'note_core',
+      ]);
+      expect(out2, contains('not run (interrupted)'));
+    });
+
+    test('RunResult.killedBySignal: negative exit code from outside only', () {
+      expect(const RunResult(exitCode: -15).killedBySignal, isTrue);
+      expect(const RunResult(exitCode: 1).killedBySignal, isFalse);
+      expect(
+        const RunResult(exitCode: -15, timedOut: true).killedBySignal,
+        isFalse,
+      );
+      expect(
+        const RunResult(exitCode: -15, interrupted: true).killedBySignal,
+        isFalse,
+      );
+    });
+  });
 
   test('chrome: no Chrome anywhere is an environment error (3)', () async {
     final (code, _, err) = await ws(
