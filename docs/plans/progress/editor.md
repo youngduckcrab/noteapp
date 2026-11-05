@@ -33,7 +33,7 @@
 | E-19 | 완료 | 57635cd | `unit/dev_metrics_test.dart`(≤ 4Hz 발행·멈춤·초기화·라벨), `widget/dev_overlay_test.dart`(설정·더보기·Ctrl+Shift+D·URL 플래그 → `inkDiagnosticsProvider.enabled`·`DevMetrics.isRunning`, 숨김·화면 이탈 → 멈춤, `FakeInkClock` INK 줄·EDITOR 줄·저장 줄, 팜 거부 계수, 섹션 줄 변경·숨기면 구독 해제), `widget/dev_menu_test.dart`(보일 때만, 합성 노트, 합성 획 1,000 → +1,000·1단계·되돌리기, 읽기 전용 비활성, 진단 초기화) |
 | E-20 | 완료 | 35be2bf | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
 | E-21 | 통합 단계 | | `integration/real_core_ink_smoke_test.dart`(뼈대만 E-00에서 작성 — 열기·`storageNotDurable` 배너·닫기. 전체 시나리오는 E-13 뒤 채움), `web/editor_browser_smoke_test.dart`(동시 개발 중 작성 가능) |
-| E-22 | 남음 | | `goldens/selection_frame_golden_test.dart`, `goldens/page_viewport_layout_golden_test.dart`, `unit/performance_smoke_test.dart`, 결과 보고 |
+| E-22 | 진행 중 | (골든 커밋 — 아래 메모) | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`) — 완료. `unit/performance_smoke_test.dart`, 결과 보고 — 남음 |
 | E-18 | 남음 (마지막 순위) | | `widget/paged_mode_test.dart` |
 
 ## 변경 요청
