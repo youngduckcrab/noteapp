@@ -33,7 +33,7 @@
 | E-17 | 완료 | c363bfb | `widget/page_panel_test.dart`(+ EDITOR-3-1 `rejectNext` 삭제 거부 1건, 읽기 전용), `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart`, `widget/navigate_to_page_test.dart`, `widget/add_page_sheet_test.dart`, `unit/page_choices_test.dart`, `widget/add_page_button_test.dart`, `widget/extensions_test.dart`(`addPageSources`), `widget/scope_test.dart`(패널 상태 분리) |
 | E-19 | 완료 | 57635cd | `unit/dev_metrics_test.dart`(≤ 4Hz 발행·멈춤·초기화·라벨), `widget/dev_overlay_test.dart`(설정·더보기·Ctrl+Shift+D·URL 플래그 → `inkDiagnosticsProvider.enabled`·`DevMetrics.isRunning`, 숨김·화면 이탈 → 멈춤, `FakeInkClock` INK 줄·EDITOR 줄·저장 줄, 팜 거부 계수, 섹션 줄 변경·숨기면 구독 해제), `widget/dev_menu_test.dart`(보일 때만, 합성 노트, 합성 획 1,000 → +1,000·1단계·되돌리기, 읽기 전용 비활성, 진단 초기화) |
 | E-20 | 완료 | 35be2bf | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
-| E-21 | 완료(통합 단계) | 아래 '## 통합 단계' | `integration/real_core_ink_smoke_test.dart`(실제 CORE `openTestNoteStore()` + 실제 INK: 배너 → 펜 3 → 부분 지우개 2개 절단 → 되돌리기 → 올가미 이동 → 나가기 → 다시 열기, `--run-skipped -t integration`), `web/editor_browser_smoke_test.dart`(Chrome: 가짜 저장소 + INK, 획 1개 → 되돌리기) |
+| E-21 | 완료(통합 단계) | 299001b | `integration/real_core_ink_smoke_test.dart`(실제 CORE `openTestNoteStore()` + 실제 INK: 배너 → 펜 3 → 부분 지우개 2개 절단 → 되돌리기 → 올가미 이동 → 나가기 → 다시 열기, `--run-skipped -t integration`), `web/editor_browser_smoke_test.dart`(Chrome: 가짜 저장소 + INK, 획 1개 → 되돌리기) |
 | E-22 | 완료 | 7d81713(골든), e53c351 | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`), `unit/performance_smoke_test.dart`(6.15 #9 수치 4개), 전체 통과, 결과 보고 = 아래 '## 결과 보고 (E-22)' |
 | E-18 | 완료 | 093a76e | `widget/paged_mode_test.dart`(가로 배치·첫 페이지 가운데·마운트 ±1, 빠른 스와이프 → 다음/이전 장·한 장만·양 끝에서 멈춤, 느리면 가까운 장, 200%는 스냅 없음(팬·관성), 모드 전환 시 현재 페이지 유지(가로 = 가운데, 세로 = 페이지 위), 화면 회전 뒤 가운데 유지, `navigateToPage`·PageDown/PageUp), `unit/camera_math_test.dart`(가로 첫·끝 페이지 가운데 허용 1건 더함) |
 
@@ -200,7 +200,7 @@
 
 실행: `cd packages/feature_editor && flutter test --platform chrome test/web` → 1개 통과(약 58초, 대부분 웹 컴파일). 루트 `dart run tool/ws.dart test --platform chrome --package feature_editor` → 통과(61.6초).
 
-### 확인 (통합 커밋 기준)
+### 확인 (통합 커밋 299001b 기준)
 
 - `packages/feature_editor`에서 `flutter test`: **591개 통과**, `~1`은 integration 건너뜀(골든 9개 포함), 전체 146초(다른 에이전트와 CPU 공유 — 10절 #2 '3분 이내' 안).
 - `flutter test --run-skipped -t integration`: 1개 통과. `flutter test --platform chrome test/web`: 1개 통과.
