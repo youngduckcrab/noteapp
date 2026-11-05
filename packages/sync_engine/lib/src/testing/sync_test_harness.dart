@@ -1,5 +1,6 @@
 // Pure Dart: no package:fake_async / test / matcher (contract 7.2.20 v1.1). Virtual time is
 // injected by the caller.
+import 'dart:async';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
@@ -9,9 +10,12 @@ import 'package:meta/meta.dart';
 import '../auth/auth_service.dart';
 import '../auth/auth_user.dart';
 import '../codec/canonical_json.dart';
+import '../common/server_cursor.dart';
 import '../config.dart';
 import '../engine/connectivity.dart';
+import '../engine/engine_controller.dart';
 import '../engine/sync_engine.dart';
+import '../status/sync_status.dart';
 import 'canonical_dump.dart';
 import 'fake_auth_backend.dart';
 import 'fake_network.dart';
@@ -88,6 +92,9 @@ final class SyncTestHarness {
       ),
     );
     _devices[name] = device;
+    // The engine follows the device's auth state from now on: signed in → attach, push and
+    // receive as virtual time moves (settle / elapse / run).
+    unawaited(device.startEngine());
     return device;
   }
 
@@ -153,7 +160,8 @@ final class SyncTestHarness {
     while (true) {
       final busy = <String>[
         for (final d in _devices.values)
-          if (d.busyReason case final reason?) '${d.name}: $reason',
+          if (d.busyReason ?? _receiving(d) case final reason?)
+            '${d.name}: $reason',
       ];
       if (busy.isEmpty) return;
       if (waited >= max) {
@@ -165,6 +173,25 @@ final class SyncTestHarness {
       elapse(step);
       waited += step;
     }
+  }
+
+  /// A live device whose cursor is behind the newest chunk the server shows its account:
+  /// the live query has not delivered it yet.
+  String? _receiving(TestDevice d) {
+    final engine = EngineController.of(d.engine);
+    final uid = engine.attachedUid;
+    if (uid == null || engine.status.phase != SyncPhase.live) return null;
+    final now = ServerCursor.fromDateTime(_clock.now());
+    ServerCursor? newest;
+    for (final stored in server.chunksOf(uid)) {
+      if (stored.visibleAt > now) continue;
+      final t = stored.chunk.serverTime;
+      if (newest == null || t > newest) newest = t;
+    }
+    if (newest == null) return null;
+    final cursor = engine.cursor;
+    if (cursor != null && cursor >= newest) return null;
+    return 'receiving (cursor $cursor < $newest)';
   }
 
   /// Convergence check without matcher: canonicalDump() equal on all devices (and equal to

@@ -124,6 +124,13 @@ final class ServerClock {
     _add(probe, serverTime);
   }
 
+  /// Keeps only the newest sample (the anchor stays): it alone decides the verdict. Used
+  /// after re-measuring a blocked clock (6.2.5 K3) — the samples taken before the user fixed
+  /// the device clock no longer describe it.
+  void keepLatestSample() {
+    if (_samples.length > 1) _samples.removeRange(0, _samples.length - 1);
+  }
+
   void _add(ClockProbe probe, ServerCursor serverTime) {
     final half = probe.roundTripMicros! ~/ 2;
     _samples.add(serverTime.micros - (probe.wallMicros + half));

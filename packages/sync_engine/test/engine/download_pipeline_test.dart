@@ -180,6 +180,43 @@ void main() {
       }, config: const SyncConfig(appliedChunkMemory: 2));
     });
 
+    test('an applied chunk committed again (lost ack) skips the apply but the '
+        'cursor follows its newer serverTime', () {
+      withDownloadRig((r) {
+        r.b.localWrite([noteWrite('n0')]);
+        r.pushB();
+        r.connect();
+        final c = r.serverChunks().single;
+        r.apply([c]);
+        expect(r.pipeline.cursor, c.serverTime);
+        final applies = r.sync.applyRefs.length;
+        final metas = r.sync.writeMetaCalls.length;
+        final again = RemoteChunk(
+          id: c.id,
+          scope: c.scope,
+          authorNodeId: c.authorNodeId,
+          recordCount: c.recordCount,
+          format: c.format,
+          kind: c.kind,
+          maxHlc: c.maxHlc,
+          payload: c.payload,
+          serverTime: ServerCursor(c.serverTime.micros + 5000000),
+        );
+        final result = r.apply([again]);
+        expect((result.chunks, result.duplicates), (0, 1));
+        expect(r.sync.applyRefs, hasLength(applies));
+        expect(r.pipeline.cursor, again.serverTime);
+        expect(r.sync.writeMetaCalls, hasLength(metas + 1));
+        expect(
+          r.sync.writeMetaCalls.last['sync.cursor'],
+          '${again.serverTime}',
+        );
+        // An older copy does not move it back.
+        r.apply([c]);
+        expect(r.pipeline.cursor, again.serverTime);
+      });
+    });
+
     test('an undecodable chunk is skipped (malformedRemoteData) and the '
         'cursor moves past it', () {
       withDownloadRig((r) {

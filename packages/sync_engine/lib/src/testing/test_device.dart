@@ -6,9 +6,9 @@ import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart';
 
 import '../engine/connectivity.dart';
+import '../engine/engine_controller.dart';
 import '../engine/sync_engine.dart';
 import '../model/sync_doc.dart';
-import '../status/sync_status.dart';
 import 'fake_auth_backend.dart';
 import 'fake_local_store.dart';
 import 'fake_network.dart';
@@ -69,20 +69,12 @@ final class TestDevice {
 
   /// Why SyncTestHarness.settle must keep waiting for this device, or null when it is idle:
   /// an engine that was never started is idle; a started one is busy while connecting or
-  /// downloading, and while live with uploads pending or a push running.
+  /// downloading, and while live with queued work, a push running or due, or uploads
+  /// waiting that are neither quarantined nor held back by K4 (EngineController.busyReason).
   @internal
   String? get busyReason {
     if (!_engineStarted) return null;
-    final status = engine.status;
-    return switch (status.phase) {
-      SyncPhase.connecting ||
-      SyncPhase.initialSync ||
-      SyncPhase.catchingUp => status.phase.name,
-      SyncPhase.live when status.isPushing => 'pushing',
-      SyncPhase.live when status.pendingUploads > status.quarantinedUploads =>
-        '${status.pendingUploads} uploads pending',
-      _ => null,
-    };
+    return EngineController.of(engine).busyReason;
   }
 
   /// Link + connectivity.

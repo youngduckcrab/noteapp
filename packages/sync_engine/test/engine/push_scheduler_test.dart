@@ -191,6 +191,44 @@ void main() {
     });
   });
 
+  test('drain fires windows that open during a push at once and completes when '
+      'nothing runs or is due', () {
+    fakeAsync((async) {
+      final r = Rig(async, pushTime: ms100);
+      var drained = false;
+      r.scheduler.trigger(immediate: true);
+      r.scheduler.drain().then((_) => drained = true);
+      async.elapse(ms(50));
+      r.scheduler.trigger(); // during the push: a new 500 ms window
+      async.elapse(ms(50));
+      // The first push ended at 100 ms; drain fired the window instead of waiting 500 ms.
+      expect(r.starts, [Duration.zero, ms100]);
+      expect(drained, isFalse);
+      async.elapse(ms100);
+      expect(drained, isTrue);
+      expect(r.scheduler.isPending, isFalse);
+      async.elapse(const Duration(seconds: 2));
+      expect(r.starts, hasLength(2));
+    });
+  });
+
+  test('drain completes at once while not live or when nothing waits', () {
+    fakeAsync((async) {
+      final r = Rig(async, live: false);
+      r.scheduler.trigger(immediate: true);
+      var drained = false;
+      r.scheduler.drain().then((_) => drained = true);
+      async.flushMicrotasks();
+      expect(drained, isTrue);
+      expect(r.starts, isEmpty);
+      final idle = Rig(async);
+      var idleDrained = false;
+      idle.scheduler.drain().then((_) => idleDrained = true);
+      async.flushMicrotasks();
+      expect(idleDrained, isTrue);
+    });
+  });
+
   test('push errors go to onError and the scheduler keeps going', () {
     fakeAsync((async) {
       final errors = <Object>[];

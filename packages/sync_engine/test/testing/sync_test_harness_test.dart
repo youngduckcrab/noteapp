@@ -1,6 +1,6 @@
 // SyncTestHarness built with fakeAsync (T6): run / elapse / settle on injected virtual time,
-// device clocks, checkConverged without matcher. Engine-driven settling (busy engines and
-// the settle limit) is covered with the engine (T10).
+// device clocks, checkConverged without matcher. Devices start their engines (T10); tests that
+// build server state by hand use signed-out devices so no engine touches it.
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
@@ -115,10 +115,56 @@ void main() {
 
   test('settle returns at once when no engine has work', () {
     withHarness((h, async) {
-      final a = h.device('A');
-      a.createNote('pending but not started');
+      final a = h.device('A', signedIn: false);
+      a.createNote('pending while signed out');
       h.settle(max: const Duration(seconds: 1));
       expect(async.elapsed, Duration.zero);
+    });
+  });
+
+  test('settle waits until the engines have connected and exchanged their '
+      'changes', () {
+    withHarness((h, async) {
+      final a = h.device('A');
+      final b = h.device('B');
+      final n = a.createNote('N');
+      h.settle();
+      expect(async.elapsed, greaterThan(Duration.zero));
+      expect(a.engine.status.phase, SyncPhase.live);
+      expect(b.engine.status.phase, SyncPhase.live);
+      expect(b.doc(EntityKind.note, n), isNotNull);
+      h.checkConverged([a, b]);
+    });
+  });
+
+  test('settle limit: StateError naming each busy device and why', () {
+    withHarness((h, async) {
+      final a = h.device('A');
+      final b = h.device('B');
+      h.settle();
+      a.link.failNext(
+        const FakeErrorCode(SyncErrorCode.aborted),
+        op: FakeOp.commit,
+        times: 1000,
+      );
+      a.createNote('never acknowledged');
+      final before = async.elapsed;
+      expect(
+        () => h.settle(max: const Duration(minutes: 1)),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains('still busy after 0:01:00'),
+              contains('A: '),
+              isNot(contains('B: ')),
+            ),
+          ),
+        ),
+      );
+      expect(async.elapsed - before, const Duration(minutes: 1));
+      expect(b.engine.status.phase, SyncPhase.live);
     });
   });
 
@@ -229,8 +275,8 @@ void main() {
 
     test("compares with the server's merged state when includeServer", () {
       withHarness((h, async) {
-        final a = h.device('A');
-        final b = h.device('B');
+        final a = h.device('A', signedIn: false);
+        final b = h.device('B', signedIn: false);
         for (final d in [a, b]) {
           d.seedDefaultPresets();
           h.run(d.store.sync.reassignOwner(from: kLocalOwnerId, to: 'user-1'));

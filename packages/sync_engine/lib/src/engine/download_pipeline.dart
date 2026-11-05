@@ -37,6 +37,7 @@ final class ApplyResult {
     this.dropped = 0,
     this.rejected = 0,
     this.pages = 0,
+    this.ownSkipped = 0,
     this.issues = const [],
     this.latestServerTime,
     this.rewound = false,
@@ -64,6 +65,9 @@ final class ApplyResult {
 
   /// Fetched pages (catchUp).
   final int pages;
+
+  /// This device's own delta chunks, skipped (6.6.3 step 2).
+  final int ownSkipped;
 
   /// Non-blocking issues to report (malformedRemoteData, foreignOwnerData,
   /// needsAppUpdate), one per event.
@@ -95,6 +99,7 @@ final class ApplyResult {
     dropped: dropped + o.dropped,
     rejected: rejected + o.rejected,
     pages: pages + o.pages,
+    ownSkipped: ownSkipped + o.ownSkipped,
     issues: [...issues, ...o.issues],
     latestServerTime: switch ((latestServerTime, o.latestServerTime)) {
       (final a?, final b?) => ServerCursor.max(a, b),
@@ -342,20 +347,28 @@ final class DownloadPipeline {
     final seen = <String>{};
     final fresh = <RemoteChunk>[];
     var duplicates = 0;
+    // Working copies: memory changes only once the meta is stored.
+    var cursor = _cursor;
     for (final c in chunks) {
       if (!seen.add(c.id) || (!release && _applied.contains(c.id))) {
         duplicates++;
+        // Already applied: a re-commit (lost ack, 6.5.3) brings the same content with a
+        // newer serverTime — the cursor may follow it.
+        if (!release && _applied.contains(c.id)) {
+          cursor = cursor == null
+              ? c.serverTime
+              : ServerCursor.max(cursor, c.serverTime);
+        }
       } else {
         fresh.add(c);
       }
     }
 
-    // Working copies: memory changes only once the meta is stored.
-    var cursor = _cursor;
     final stats = _stats.copy();
     final held = _held.copy();
     var deferredFrom = _deferredFrom;
     ServerCursor? latest;
+    var ownSkipped = 0;
     var heldChanged = false;
     for (final id in forgetHeld) {
       heldChanged = held.release(id) || heldChanged;
@@ -377,7 +390,10 @@ final class DownloadPipeline {
       if (!release && !(own && c.kind == ChunkKind.snapshot)) {
         stats.addChunk(c.scope);
       }
-      if (own && c.kind == ChunkKind.delta) continue;
+      if (own && c.kind == ChunkKind.delta) {
+        ownSkipped++;
+        continue;
+      }
       if (c.format > codecFormat) {
         issue(
           SyncIssueCode.needsAppUpdate,
@@ -500,6 +516,7 @@ final class DownloadPipeline {
       held: heldCount,
       dropped: dropped,
       rejected: rejected,
+      ownSkipped: ownSkipped,
       issues: issues,
       latestServerTime: latest,
       error: error,

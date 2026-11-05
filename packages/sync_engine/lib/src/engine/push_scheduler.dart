@@ -31,6 +31,7 @@ final class PushScheduler {
   Timer? _maxTimer;
   final Set<Timer> _delayed = {};
   final List<Completer<void>> _idleWaiters = [];
+  final List<Completer<void>> _runWaiters = [];
 
   /// Pushes started so far.
   int get runCount => _runCount;
@@ -42,6 +43,9 @@ final class PushScheduler {
   /// A push is waiting: a debounce window is open, a push is due (also while
   /// not live) or a delayed trigger is set.
   bool get isPending => _due || _maxTimer != null || _delayed.isNotEmpty;
+
+  /// A push is due or a debounce window is open (delayed triggers not counted).
+  bool get hasWindow => _due || _maxTimer != null;
 
   /// Records a trigger. [immediate] skips the debounce: the push runs now, or
   /// right after the running one, or when the engine becomes live.
@@ -93,6 +97,19 @@ final class PushScheduler {
     return whenIdle();
   }
 
+  /// Runs what is waiting now, one push after another — an open window fires at once, also
+  /// one that opens while a push runs (syncNow, flushPendingUploads) — and completes when no
+  /// push is running or due. Completes at once while not live. Delayed triggers stay.
+  Future<void> drain() async {
+    while (!_disposed && _live) {
+      if (_maxTimer != null) _fire();
+      if (!_running && !_due) return;
+      final waiter = Completer<void>();
+      _runWaiters.add(waiter);
+      await waiter.future;
+    }
+  }
+
   /// Completes when no push is running, due or in an open window.
   Future<void> whenIdle() {
     if (_disposed || _isIdle) return Future.value();
@@ -108,6 +125,7 @@ final class PushScheduler {
     cancelDelayed();
     _due = false;
     _completeIdle();
+    _completeRun();
   }
 
   bool get _isIdle => !_running && !_due && _maxTimer == null;
@@ -137,6 +155,7 @@ final class PushScheduler {
       } else if (_isIdle) {
         _completeIdle();
       }
+      _completeRun();
     });
   }
 
@@ -147,6 +166,14 @@ final class PushScheduler {
       final onError = _onError;
       if (onError == null) rethrow;
       onError(e, s);
+    }
+  }
+
+  void _completeRun() {
+    final waiters = List.of(_runWaiters);
+    _runWaiters.clear();
+    for (final w in waiters) {
+      w.complete();
     }
   }
 

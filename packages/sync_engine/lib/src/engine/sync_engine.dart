@@ -14,6 +14,7 @@ import '../local/sync_local_store.dart';
 import '../status/sync_notice.dart';
 import '../status/sync_status.dart';
 import 'connectivity.dart';
+import 'engine_controller.dart';
 
 typedef SyncBackendFactory = Future<SyncBackend> Function(AuthUser user);
 
@@ -54,47 +55,60 @@ final class SyncEngine {
     /// Tests pass the harness base clock's stopwatch (device clock offsets do not move it).
     Stopwatch Function()? stopwatch,
     SyncLogSink? log,
-  });
+  }) : _c = EngineController(
+         local: local,
+         auth: auth,
+         backendFactory: backendFactory,
+         config: config,
+         connectivity: connectivity,
+         clock: clock,
+         random: random ?? Random(),
+         stopwatch: stopwatch ?? Stopwatch.new,
+         log: log,
+       ) {
+    _c.bind(this);
+  }
 
-  SyncStatus get status => throw UnimplementedError('SYNC T10');
+  final EngineController _c;
+
+  SyncStatus get status => _c.status;
 
   /// Emits current status on listen, then changes (throttled to
   /// SyncConfig.statusThrottle, phase/display changes are emitted immediately).
   /// A value equal (==) to the last emitted one is not emitted again.
-  Stream<SyncStatus> get statusStream => throw UnimplementedError('SYNC T10');
+  Stream<SyncStatus> get statusStream => _c.statusStream;
 
   /// Broadcast.
-  Stream<SyncNotice> get notices => throw UnimplementedError('SYNC T10');
+  Stream<SyncNotice> get notices => _c.notices;
 
   SyncAssetService get assets => throw UnimplementedError('SYNC T12');
 
-  bool get isStarted => throw UnimplementedError('SYNC T10');
+  bool get isStarted => _c.isStarted;
 
   /// Idempotent. Follows auth state: signed in → attach (6.10), signed out → detach.
-  Future<void> start() => throw UnimplementedError('SYNC T10');
+  Future<void> start() => _c.start();
 
   /// Skips the debounce: push everything pending and pull once. Completes when
   /// that cycle ends (success or recorded failure). No-op unless phase == live.
-  Future<void> syncNow() => throw UnimplementedError('SYNC T10');
+  Future<void> syncNow() => _c.syncNow();
 
-  Future<void> setPaused(bool paused) => throw UnimplementedError('SYNC T10');
+  Future<void> setPaused(bool paused) => _c.setPaused(paused);
 
   /// background → flush pending uploads (no debounce); foreground after
   /// > 30 s in background → reconnect listener (catch-up from cursor).
-  void setLifecycle(SyncLifecycle lifecycle) =>
-      throw UnimplementedError('SYNC T10');
+  void setLifecycle(SyncLifecycle lifecycle) => _c.setLifecycle(lifecycle);
 
   /// Pushes until the outbox is empty or [timeout] (default
   /// SyncConfig.backgroundFlushTimeout). True if nothing is left pending.
   Future<bool> flushPendingUploads({Duration? timeout}) =>
-      throw UnimplementedError('SYNC T10');
+      _c.flushPendingUploads(timeout: timeout);
 
   Future<SyncUsage> usage() => throw UnimplementedError('SYNC T12');
 
-  Future<void> dispose() => throw UnimplementedError('SYNC T10');
+  Future<void> dispose() => _c.dispose();
 
   @visibleForTesting
-  SyncEngineDebug get debug => throw UnimplementedError('SYNC T10');
+  SyncEngineDebug get debug => _c.debug;
 }
 
 /// Counters for tests and the developer overlay.

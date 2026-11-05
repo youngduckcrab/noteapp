@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import '../auth/auth_backend.dart';
 import '../auth/auth_user.dart';
 import '../common/errors.dart';
 
 final class FakeAuthBackend implements AuthBackend {
   FakeAuthBackend({AuthUser? user, this.supportsGoogleSignIn = true})
-    : nextSignInUser = user ?? const AuthUser(uid: 'user-1');
+    : _user = user,
+      nextSignInUser = user ?? const AuthUser(uid: 'user-1');
 
   @override
   final bool supportsGoogleSignIn;
@@ -12,31 +15,65 @@ final class FakeAuthBackend implements AuthBackend {
   /// signInWithGoogle() resolves to this user.
   AuthUser nextSignInUser;
 
-  void failNextSignIn(SignInException error) =>
-      throw UnimplementedError('SYNC T10');
+  AuthUser? _user;
+  SignInException? _signInFailure;
+  bool _refreshFails = false;
+  final StreamController<AuthUser?> _changes = StreamController.broadcast();
+
+  void failNextSignIn(SignInException error) => _signInFailure = error;
 
   /// refreshSession → unauthenticated.
-  void failNextRefresh() => throw UnimplementedError('SYNC T10');
+  void failNextRefresh() => _refreshFails = true;
 
   /// External change (e.g. token revoked).
-  void setUser(AuthUser? user) => throw UnimplementedError('SYNC T10');
+  void setUser(AuthUser? user) {
+    if (user == _user) return;
+    _user = user;
+    _changes.add(user);
+  }
 
   @override
-  AuthUser? get currentUser => throw UnimplementedError('SYNC T10');
+  AuthUser? get currentUser => _user;
 
   @override
-  Stream<AuthUser?> authStateChanges() => throw UnimplementedError('SYNC T10');
+  Stream<AuthUser?> authStateChanges() => Stream.multi((controller) {
+    controller.add(_user);
+    final sub = _changes.stream.listen(controller.add);
+    controller.onCancel = sub.cancel;
+  });
 
   @override
-  Future<AuthUser> signInWithGoogle() => throw UnimplementedError('SYNC T10');
+  Future<AuthUser> signInWithGoogle() async {
+    final failure = _signInFailure;
+    if (failure != null) {
+      _signInFailure = null;
+      throw failure;
+    }
+    final user = nextSignInUser;
+    setUser(user);
+    return user;
+  }
 
   @override
-  Future<AuthUser?> completePendingSignIn() =>
-      throw UnimplementedError('SYNC T10');
+  Future<AuthUser?> completePendingSignIn() async => null;
 
   @override
-  Future<void> refreshSession() => throw UnimplementedError('SYNC T10');
+  Future<void> refreshSession() async {
+    if (_refreshFails) {
+      _refreshFails = false;
+      throw const SyncBackendException(
+        SyncErrorCode.unauthenticated,
+        'session cannot be refreshed (fake)',
+      );
+    }
+    if (_user == null) {
+      throw const SyncBackendException(
+        SyncErrorCode.unauthenticated,
+        'not signed in (fake)',
+      );
+    }
+  }
 
   @override
-  Future<void> signOut() => throw UnimplementedError('SYNC T10');
+  Future<void> signOut() async => setUser(null);
 }
