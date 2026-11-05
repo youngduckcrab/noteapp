@@ -24,7 +24,7 @@
 | T12 | 완료 | 3503f6c | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
 | T13 | 완료 | ac1965c | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
 | T14 | 완료 | 4f43deb | `test/sync/sync_store_test.dart`(outbox·readVersioned·세 결정·기기 로컬 필드·pendingLocalFields·origin·세션 N-7/영구 삭제·쓰기 Future 규칙), `field_lww_convergence_test.dart`, `version_invariant_test.dart`(500단계), `commit_repairs_test.dart`, `meta_kv_test.dart`, `reassign_owner_test.dart`, `duplicate_for_recovery_test.dart`, 도우미 `test/sync/support/sync_support.dart` |
-| T15 | 완료 | (이 커밋) | `test/migration/note_migrator_test.dart`(v0→v1 1회·outbox 바뀐 필드, 실패 시 롤백·재시도 없음, 단계 없음 `StateError`, `openSession` 이주 후 열기·실패 시 읽기 전용, 새 버전 노트 `ReadOnlyNoteException`·이주 안 함) |
+| T15 | 완료 | 8f001f9 | `test/migration/note_migrator_test.dart`(v0→v1 1회·outbox 바뀐 필드, 실패 시 롤백·재시도 없음, 단계 없음 `StateError`, `openSession` 이주 후 열기·실패 시 읽기 전용, 새 버전 노트 `ReadOnlyNoteException`·이주 안 함) |
 | T16 | 남음 | | `test/web/drift_web_persistence_test.dart`, `storage_info_browser_test.dart`, `delete_local_data_browser_test.dart`, `open_time_browser_test.dart`(perf) |
 | T17 | 남음 | | `test/providers/providers_real_test.dart` |
 | T18 | 남음 | | `test/perf/*`(perf 태그), README |
