@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 1 (동시 개발 단계)
-- 다음 할 일: L4 (섹션 · 선택) → L5 (트리 평탄화 · 브레드크럼 · 위치)
+- 다음 할 일: L5 (트리 평탄화 · 브레드크럼 · 위치) → L6·L7 → L8
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -15,8 +15,8 @@
 | L0 | 완료 | 1d25517 | `unit/fake_library_backend_test.dart`, `widget/scenarios_on_fake_test.dart` — `test/support/`(TestClock, FakeLibraryBackend, FakeThumbnailRenderer, TestSizes, fixtures, pump_library, LibraryTestHarness), `test/shared/library_scenarios.dart` |
 | L1 | 완료 | c2a55ea | `unit/date_format_test.dart`, `unit/josa_test.dart`, `unit/names_test.dart`, `unit/strings_contract_test.dart` |
 | L2 | 기반 단계에서 완료 | 676d241 | `unit/appearance_test.dart` (B6에서 4.4 실제 값·L2 검사 전부) |
-| L3 | 완료 | (L3 커밋) | `unit/sort_test.dart`, `unit/prefs_notifier_test.dart`, `unit/settings_keys_test.dart`, `unit/page_size_mm_test.dart`, `unit/new_note_options_test.dart`, `shared/new_note_options_cases.dart`, `web/new_note_options_browser_test.dart` |
-| L4 | 남음 | | `unit/section_test.dart`, `unit/selection_test.dart` |
+| L3 | 완료 | 9c8ebc2 | `unit/sort_test.dart`, `unit/prefs_notifier_test.dart`, `unit/settings_keys_test.dart`, `unit/page_size_mm_test.dart`, `unit/new_note_options_test.dart`, `shared/new_note_options_cases.dart`, `web/new_note_options_browser_test.dart` |
+| L4 | 완료 | (L4 커밋) | `unit/section_test.dart`, `unit/selection_test.dart` |
 | L5 | 남음 | | `unit/tree_flatten_test.dart`, `unit/breadcrumb_test.dart`, `unit/location_label_test.dart` |
 | L6 | 남음 | | `unit/content_provider_test.dart`, `unit/expansion_test.dart` |
 | L7 | 남음 | | `unit/actions_test.dart` |
@@ -54,6 +54,7 @@
 - L3 `NewNoteOptions.fromJson`: `"template": null`(키 있음)은 빈 페이지, 키가 없거나 모르는 값이면 기본값(`lined`) — `toJson`이 빈 페이지를 `null`로 쓰므로 왕복을 위해 둘을 구분했다. `paper`는 정수로 표현되는 수(웹 `int`/VM `double` 정수값)만 받고 `PaperColors.all` 밖이면 흰색. `isCustom` getter와 `NewNoteSpec`(6.12, `toPageDraft`)·값 동등도 L3에서 같이 만들었다.
 - L3 `LibraryPrefsNotifier.selectSort`: `sortField`·`sortDescending` 두 쓰기를 기다리지 않고 연달아 넣어 한 커밋으로 묶는다(중간 스냅숏에 한쪽만 바뀐 값이 오지 않게). 쓰기 실패는 `reportLibraryError`(`lib/src/common/report_error.dart`, `library: 'feature_library'`)로 보고하고 낙관적 상태는 유지.
 - L3 `providers.dart`에는 지금 `libraryPrefsProvider`·`newNoteDefaultsProvider`만 있다. 나머지 provider는 해당 작업 때 같은 파일에 더한다.
+- L4 `LibrarySelection`: 계획의 private 생성자 대신 공개 팩터리 `LibrarySelection.activeWith(keys)`(중복 제거, 첫 순서 유지)를 두었다 — 알림자 파일에서 만들 수 있어야 해서. `contains`용 `Set`을 함께 들고 있다(1,000개 타일에서 O(n²) 방지). `isEmpty`, `keyOfRef(LibraryItemRef)` 도우미를 더했다. `begin(first)`는 이미 선택된 키를 유지하고 `first`를 덧붙인다. 같은 섹션 값을 다시 넣으면(`showRouteFolder` 등) 선택은 유지되고, 검색어가 바뀌면 다른 섹션이라 선택이 비워진다.
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모
