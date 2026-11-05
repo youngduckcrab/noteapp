@@ -3,7 +3,8 @@
 ## 요약
 
 - 마지막 세션: 10 = 동시 개발 단계 보완 1.1 — 독립 검토 미비점 5개 처리(① `InkPageThumbnailRenderer`의 계약 밖 공개 static `grainWait`·`sliceUs` → 비공개 ② 9.1 '속지 벡터' Chrome 감싸기 `web/template_vectors_web_test.dart` ③ ink lab 등록을 '변경 요청'·'의존성 요청'에 명시(대상 INFRA) ④ 골든 9.2 — `images/`, ≤ 400×400, 불투명 ⑤ `pen_preview_test` 빈 크기 단언). 세션 9까지: T21 벡터 내보내기, T22 벤치마크 스위트 완료 — **동시 개발 단계 몫 전부 완료**(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b, 세션 6: T14~T16, 세션 7: T17·T18, 세션 8: T19·T20(INK-β 완료))
-- 다음 할 일: 동시 개발 단계 몫 없음. 통합 단계에서 EDITOR E-21(실제 INK + 실제 CORE), PDF `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`가 INK 출력을 판정한다. 9.3 iPad 확인은 사용자 몫
+- 통합 단계(1차 통합 — CORE → INK → EDITOR·LIBRARY 병합 뒤): 실제 CORE와 합친 INK 확인(VM·골든·Chrome·벤치마크·ink lab·R14 미리 보기) 통과, INK 코드 변경 없음. EDITOR E-21 통과(EDITOR 확인). 아래 '## 통합 단계'
+- 다음 할 일: 동시 개발 단계 몫 없음. PDF 병합 뒤 `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`가 INK 출력을 판정한다. 총괄 결정 대기 2건(LassoOptions 문구, ink lab 등록 — '## 통합 단계' 끝). 9.3 iPad 확인은 사용자 몫
 
 ## 작업 표
 
@@ -173,3 +174,37 @@
 - 결정성 테스트: `test/support/stroke_scripts.dart`의 `recordedScriptChecksum`(283364609)은 파이프라인 수치를 바꾸면(T07은 외곽선만이라 영향 없음) VM에서 다시 기록하고 Chrome(`web/determinism_test.dart`)에서 같은지 확인한다. 체크섬은 CORE 양자화 격자에서 산술로만 계산(비트 연산 없음).
 - 테스트 도우미 파일은 `test/support/`(골든 허용 오차 비교기 3개 + `stroke_scripts.dart`).
 - B3 본문은 단순 구현이다(4.15 표). 각 T 작업이 해당 파일 본문을 교체한다.
+
+## 통합 단계
+
+1차 통합(계약 7.7 순서 CORE → INK → EDITOR·LIBRARY 병합 뒤, 통합 브랜치 `claude/note-app-planning-bk29xb`, 기준 7632d20). PDF·SYNC·INFRA는 아직 동시 개발 중이라 이 브랜치의 `pdf_io`·`sync_engine`·`app`은 기반 단계 자리표시다. 병합으로 INK가 처음으로 동시 개발을 끝낸 CORE(실제 저장소 + 고친 가짜 저장소 — 커밋마다 `ChangeBatch` 1개, 히스토리 별칭 정리, 세션 엔진 DB 백엔드)와 함께 돈다. 이 브랜치의 `packages/ink_engine`는 영역 브랜치 끝(17d19bb)과 같다 — INK `lib/`·`test/`·`example/`은 바꾸지 않았다(이 기록만).
+
+### 확인 (2026-11-05, CPU 4를 다른 영역 통합 담당과 공유 — load 5~6)
+
+| 검사 | 결과 |
+|---|---|
+| `ws test --run-skipped -t integration --package ink_engine` | 해당 테스트 없음(`no matching tests` — ws는 통과로 셈). INK는 `integration` 태그를 쓰지 않는다(3장 `dart_test.yaml`) — 실제 INK + 실제 CORE는 EDITOR E-21 |
+| `ws test --package ink_engine` (VM, 골든 포함 — 7.7 2단계 'INK 골든') | 779개 통과(골든 17장·골든 이미지 가드 포함) |
+| `ws test --platform chrome --package ink_engine` | 193개 통과 |
+| 벤치마크 `flutter test benchmark/ --concurrency=1`(10절 #4) | 12개 테스트·14케이스 모두 9.1 기준 충족(load 5.5): B1 200pt 0.08·1000pt 0.49(< 0.5), B2 평균 0.03·최대(위치별 5획 최솟값) 0.12, B3 217, B4 평균 0.09, B5 1.22, B6 22.5(< 25), B7 3.1, B8 1.95, B9 129, B10 442, B11 3.3 ms. B1 1000pt·B6은 부하 때문에 기준 근처 — 세션 9 기록(0.33–0.44, 16–18)과 같은 코드 |
+| example(ink lab — 워크스페이스 밖, path 의존으로 병합된 CORE를 씀) | `flutter analyze --fatal-infos` 0, `flutter test` 스모크 1개 통과 |
+| `ws check` · 루트 `flutter analyze --fatal-infos` · `dart format` | 0 · 0 · 변경 없음 |
+| R14 미리 보기(10절 #2 '통합 단계 R14' — INFRA G3 전, scratch 스크립트로 루트 lock의 `analyzer` 13.3.0, 6개 패키지 `lib/` 최상위 진입점 15개의 `exportNamespace` 비교) | 패키지 사이 겹치는 이름 **0**. ink_engine 진입점 3개 = `ink_engine.dart` 85·`testing.dart` 6·`dev_tools.dart` 1 이름. PDF·SYNC는 기반 단계 표면 기준이라 그 병합 뒤 INFRA G3가 정식 판정 |
+
+### 다른 영역 통합 테스트에서 본 INK
+
+- EDITOR: 실제 INK 합류로 깨진 VM 테스트 2개(`widget/pen_stroke_test` 점 개수 6 → 2, `widget/dev_overlay_test` 캐시 줄 시점)는 둘 다 B3 단순 구현의 세부 동작(샘플 = 점, 같은 프레임 안 진단)을 전제한 테스트였고, EDITOR가 계획 의미(E-08 좌표 변환, 6.12.2 표시 형식)를 검사하도록 고쳤다(editor.md '통합 단계'). 실제 INK의 동작은 03-ink 6.6~6.7(1€ 필터 → F1 끝점 → F7 RDP)·4.12(진단 250 ms 묶음)대로 — **INK 결함 아님, INK 쪽 변경 없음**.
+- EDITOR E-21(실제 CORE 메모리 저장소 + 실제 INK): 펜 획 3개 → 부분 지우개 `split-strokes` 1단계(조각 4개) → undo 복구 → 올가미 이동 `transform`(오차 ≤ 0.02pt) → 닫기·다시 열기에서 id·점 유지 — 통과(EDITOR 확인, 299001b). 브라우저 스모크(가짜 CORE + 실제 INK)도 통과.
+- PDF `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`: PDF 병합 뒤.
+
+### 총괄에게 넘길 결정 2건 (INK 소유 경로만으로 끝낼 수 없어 이번 통합에서 처리하지 않음)
+
+1. **`LassoOptions` 문구 명확화**(T17, 위 '변경 요청' 둘째 항목 — 급하지 않음, 시그니처·동작 변화 없음). 대상 글: 계약 7.2.15가 승인한 03-ink 4.7 `LassoOptions` 문서 주석(같은 글이 `lib/src/edit/lasso_options.dart` 주석과 6.21 L2 표에 있음)의 `|area| < minAreaPt2`. 제안: `∫|winding| dA < minAreaPt2 (= shoelace |area| for simple polygons; a figure 8 adds its loops)`. 이유: 신발끈(부호) 면적으로 읽으면 대칭 8자(면적 0)가 퇴화 = 선택 없음이 되어, 같은 주석의 'figure-8 and doubly wound lassos select both loops'와 모순. 구현은 이미 제안한 뜻이다 — `LassoPolygon.isDegenerate`(꼭짓점 < 3이면 퇴화, 신발끈 |면적| ≥ 기준이면 바로 아님, 아니면 `absWindingArea` 정확 적분), 테스트 `unit/edit/lasso_test.dart` 'figure 8: both loops are inside (nonzero winding)'·'simple polygon = |shoelace|; figure 8 = both loops'. 승인되면 7.9 이력 한 줄로 충분하고, INK가 4.7·6.21 L2·`lasso_options.dart` 주석을 한 커밋으로 맞춘다. EDITOR 영향 없음(퇴화 = 탭 처리 규칙 그대로).
+2. **ink lab 워크스페이스 등록**(T23, 대상 **INFRA** — INFRA-O1 선택 승인, 01-infra 1.3·6.2 R4·6.13). 위 '변경 요청'·'의존성 요청' 그대로: ① 루트 `pubspec.yaml` `workspace:`에 `packages/ink_engine/example` ② `tool/workspace_rules.yaml` `allowed_dependencies`에 `ink_lab: [note_core, ink_engine]`(계약 7.1 선택 행) ③ `lib_exceptions`에 `packages/ink_engine/example/lib/`(lib/이 `testing.dart`를 씀 — 지금 주석 처리된 줄) ④ `web-experiment.yml` 입력 `target: app|ink_lab` ⑤ 계약 7.5 표 '쓰는 멤버'에 `ink_lab` 추가(`riverpod` 3.4.3, `material_ui` 1.10.0, dev `flutter_lints` 6.0.0 — 새 패키지·버전 변경 없음, lock 재생성은 INFRA). 같은 커밋에서 INK 소유 `example/pubspec.yaml`의 path 의존·`dependency_overrides`를 `resolution: workspace` + `any`로, `example/.gitignore`의 `pubspec.lock` 줄 삭제(INFRA가 같이 해도 됨). 그때까지 example은 혼자 resolve(루트 `pubspec.lock` 무관) — 이번 확인에서 병합된 CORE로 analyze·스모크 통과. 참고: 등록 전에도 `flutter test`·`flutter analyze`가 실행될 때마다 example을 따로 resolve('Resolving dependencies in packages/ink_engine/example')하지만 결과에는 영향 없음. 등록 시점은 INFRA 병합(7.7 4단계) 때가 자연스럽다.
+
+### 남은 것
+
+- PDF 병합 뒤 PDF `integration`이 INK 벡터·썸네일 출력을 판정(실패하면 INK가 고침).
+- INFRA G3 R14 정식 판정(위 미리 보기는 참고값), INFRA 병합 뒤 V5·V6 스모크(EDITOR 화면을 거쳐 INK 획 1개).
+- 10절 #7·9.3: EDITOR와 함께 웹 빌드에서 사용자 iPad 확인.
+- 의존성 요청: 위 2번(ink lab 등록 때만). 공개 API 변경 없음, `pubspec.lock` 변경 없음.

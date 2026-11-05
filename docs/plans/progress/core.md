@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 5 (동시 개발 단계)
-- 다음 할 일: 동시 개발 단계 몫(T6~T19) 전부 완료. 남은 것은 통합 단계 판정(다른 영역의 `integration` 태그 테스트, 계약 7.7 5단계)과 iPad 확인(계획서 9.2)
+- 마지막 세션: **통합 단계(1차 통합)** — CORE → INK → EDITOR·LIBRARY 병합 뒤 CORE 확인(VM·Chrome·perf·R14 미리 보기) 통과, CORE 코드 변경 없음(아래 '## 통합 단계'). 동시 개발 마지막은 세션 5
+- 다음 할 일: 동시 개발 단계 몫(T6~T19) 전부 완료, 1차 통합 확인 완료. 남은 것은 PDF·SYNC·INFRA 병합 뒤의 통합 판정(PDF `integration`(CORE 게이트웨이), SYNC T16(계약 스위트 C-01~C-25 등 — 계획서 10절 #7), INFRA V5·V6·G2·G3 R14)과 iPad 확인(계획서 9.2·10절 #9)
 
 ## 작업 표
 
@@ -132,3 +132,42 @@
 - 세션 1 끝 상태: T6·T7 완료. 실제 저장소는 열기·쓰기 경로까지 동작하고, 저장소 멤버(라이브러리 등)는 아직 `UnimplementedError`. T8은 계획서 6.8(라이브러리·휴지통 규칙)·4.5(LibraryRepository 계약)·6.19(가짜와 같은 의미)를 읽고, 가짜 `lib/src/fake/fake_note_store.dart`의 `_FakeLibrary`를 동작 기준으로 삼아 `test/shared/library_contract.dart`를 두 저장소에 돌린다. watch 스트림은 커밋 뒤 재질의(가짜의 `watch()`처럼 구독 즉시 1회 + 바뀔 때) — `queue`의 커밋 알림에 붙이면 된다(`WriteTxn.afterCommit` 또는 `bus.stream`).
 - 세션 1: 문서 절차(C13-05, CORE-4-1~4-3) 끝 — 02-core.md 상태 줄 '승인'·계약 v1.4, 4.6·4.7 v1.3 주석, 6.13 bullet, 12.2 CP-8 결정, 13.4. 코드 계약 파일은 B2에서 이미 v1.3 주석.
 - Riverpod 3.4.3은 리스너 없는 provider를 멈춘다. 테스트에서 `container.listen(p.future, (_, _) {})` 뒤 `sub.read()`.
+
+## 통합 단계
+
+1차 통합(계약 7.7 순서 CORE → INK → EDITOR·LIBRARY 병합 뒤, 통합 브랜치 `claude/note-app-planning-bk29xb`, 기준 7632d20). PDF·SYNC·INFRA는 아직 동시 개발 중이라 이 브랜치의 `pdf_io`·`sync_engine`·`app`은 기반 단계 자리표시다. 이 브랜치의 `packages/note_core`는 영역 브랜치 끝(4336967)과 같다 — CORE `lib/`·`test/`는 바꾸지 않았다(이 기록만).
+
+### 확인 (2026-11-05, CPU 4를 다른 영역 통합 담당과 공유 — load 5~6)
+
+| 검사 | 결과 |
+|---|---|
+| `ws test --run-skipped -t integration --package note_core` | 해당 테스트 없음(`no matching tests` — ws는 통과로 셈). CORE는 `integration` 태그를 쓰지 않는다(계획서 8.2 병렬화 메모·9.1). 실제 CORE를 쓰는 통합 테스트는 다른 영역 몫(아래) |
+| `ws test --package note_core` (VM, 골든 포함) | 617개 통과, 5개 건너뜀(perf 파일) |
+| `ws test --platform chrome --package note_core` | 준비 스크립트 ok, 47개 통과, 1개 건너뜀(perf `open_time_browser_test`) |
+| `flutter test --run-skipped -t perf` (패키지, 10절 #2 '성능 예산') | 6개 통과 — 1획 커밋 중앙값 27.6 ms(< 30), `watchListing` 첫 값 29 ms(< 100), 2,000획 `openPage` 131 ms(< 300), 5,000획 `execute` 평균 1.54 ms(< 2), 점 100만 개 디코드 72 ms(< 300), 10만 획 `openSession` 4.4 ms(< 200), 10만 획 시드 63.6 s(기록만) |
+| `ws check` | 위반 0 |
+| 루트 `flutter analyze --fatal-infos` | 0건 |
+| `dart format` (`packages/note_core`·`packages/ink_engine`) | 변경 없음 |
+| R14 미리 보기(INFRA G3 전 — scratch 스크립트, 루트 lock의 `analyzer` 13.3.0으로 6개 패키지 `lib/` 최상위 진입점 15개의 `exportNamespace` 비교) | 패키지 사이 겹치는 이름 **0**. note_core 진입점 4개 = 198·4·1·1 이름. PDF·SYNC는 기반 단계 표면 기준이라 그 병합 뒤 INFRA G3가 정식 판정 |
+
+- perf 메모: 1획 커밋 중앙값이 T18 측정(6.8~7.8 ms)보다 크게 나온 것은 부하(load 5.8, 다른 에이전트 테스트 동시 실행) 때문이다 — CORE 코드는 T18 이후 그대로. 부하가 더 크면 30 ms 예산을 넘길 수 있으니 판정은 load < 4에서 다시 잰다(계획서 9.1).
+
+### 다른 영역 통합 테스트에서 본 CORE (이 브랜치 기준)
+
+- EDITOR E-21(`feature_editor/test/integration/real_core_ink_smoke_test.dart` — `openTestNoteStore()` 기본값 + 실제 INK)·브라우저 스모크: EDITOR 통합 담당이 통과 확인(editor.md '통합 단계', 299001b). CORE 쪽 변경 요청 없음. 실제 INK 합류로 깨졌던 EDITOR 테스트 2개도 CORE와 무관(INK B3 세부 동작 전제).
+- LIBRARY L21(`feature_library/test/integration/core_contract_test.dart`): LIBRARY 통합 담당이 실제 CORE로 조정 중. 이 기록 시점까지 CORE 쪽 변경 요청을 받은 것 없음.
+- PDF `integration`(CORE 게이트웨이)·SYNC T16(실제 CORE 2개로 S01·S02·S05·S15 + JSON 키 대조 + `CoreSyncLocalStore(openTestNoteStore)` 계약 스위트 C-01~C-25 + `FolderTree.findCycles()` 대조): 그 영역 병합 뒤(계획서 10절 #7).
+- INFRA V5·V6 스모크, G2(저장 경고 배너 문구가 두 화면에서 같음 — 메모리 CORE·`openTestNoteStore()` 기본은 `nativeMemory` → `notDurable`, 5.1 I-12): INFRA 병합 뒤.
+
+### 다른 영역 통합 담당이 알아 둘 CORE 동작 (앞 세션 메모에서 옮김)
+
+- `openTestNoteStore`(VM, `NativeDatabase` 테스트 isolate)의 라이브러리·세션 쓰기는 마이크로태스크만으로 끝난다(fake_async 안에서도). **에셋 `put`·썸네일 쓰기는 idb_shim 메모리 IndexedDB(0.1 ms 타이머)를 거치므로 fake_async 안에서는 시간을 진행해야 끝난다**(`asset_store_test`의 `pumpUntil` — 1 ms씩 elapse). PDF `integration`(에셋)에 해당.
+- `openTestNoteStore`는 휴지통 자동 비우기 타이머를 만들지 않는다(`openNoteStore`만). 같은 프로세스에서 두 저장소를 동시에 열면 `driftRuntimeOptions.dontWarnAboutMultipleDatabases = true`(SYNC T16).
+- 원격 쓰기 흉내는 `store.sync.applyRemote([...], policy: newerVersionWinsPolicy)`.
+
+### 남은 것
+
+- 계획서 10절 #7: SYNC T16을 막는 CORE 결함이 없음 — SYNC 병합 뒤 판정. 결함이 보고되면 CORE가 고친다.
+- 10절 #9·9.2: 앱 웹 빌드(INFRA 병합 뒤)에서 사용자 iPad 확인.
+- INFRA G3 R14 정식 판정(위 미리 보기는 참고값).
+- 변경 요청: 없음. 의존성 요청: 없음(`pubspec.lock` 변경 없음). 공개 API 변경 없음.
