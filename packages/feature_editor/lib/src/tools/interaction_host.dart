@@ -1,9 +1,10 @@
 // lib/src/tools/interaction_host.dart — 04-editor 6.6.2, 6.6.9.
 //
 // E-08: the skeleton (policy, decision order, navigation, wheel / trackpad,
-// taps → undo / redo, hover cursor) and the pen. The eraser (E-09), lasso and
-// selection transform, long-press / secondary-click menus (E-10), eyedropper
-// (E-14) and developer metrics (E-19) plug into the marked places.
+// taps → undo / redo, hover cursor) and the pen. E-09: the eraser (its ring
+// follows the pen while erasing). The lasso and selection transform,
+// long-press / secondary-click menus (E-10), eyedropper (E-14) and developer
+// metrics (E-19) plug into the marked places.
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -23,6 +24,7 @@ import '../state/color_palette.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../viewport/viewport_constants.dart';
 import '../viewport/viewport_controller.dart';
+import 'erase_interaction.dart';
 import 'pen_interaction.dart';
 import 'tool_controller.dart';
 import 'tool_interaction.dart';
@@ -130,7 +132,24 @@ class InteractionHost implements InputTargets {
           commands: _commands,
           onCommitted: _onStrokeCommitted,
         );
-      case EditorTool.eraser: // E-09
+      case EditorTool.eraser:
+        _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
+        final eraser = tools.eraser;
+        final scale = _viewport.camera.scale;
+        interaction = EraseInteraction.start(
+          down: sample,
+          source: source,
+          controller: mount.controller,
+          pageIndex: hit.index,
+          viewport: _viewport,
+          eraser: eraser,
+          commands: _commands,
+          // While erasing the ring follows the pen (6.6.9); no hover timeout.
+          onPosition: (position) =>
+              _showEraserRing(position, eraser.diameter * scale),
+          onFinished: _hideCursor,
+          onCommitted: eraser.returnToPreviousTool ? _returnFromEraser : null,
+        );
       case EditorTool.lasso: // E-10
         interaction = null;
     }
@@ -141,6 +160,19 @@ class InteractionHost implements InputTargets {
   void _onStrokeCommitted(core.StrokeStyle style) {
     if (_disposed) return;
     _ref.read(editorColorPaletteProvider.notifier).pushRecent(style.colorArgb);
+  }
+
+  /// A committed erase with "return to the previous tool" on (6.6.4 #3).
+  void _returnFromEraser() {
+    if (_disposed) return;
+    _ref.read(editorToolProvider.notifier).returnFromEraser();
+  }
+
+  void _showEraserRing(Offset position, double diameter) {
+    if (_disposed) return;
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    _cursor.value = EraserRingCursor(position: position, diameter: diameter);
   }
 
   /// True only if the lasso tool is active, a selection exists and [screen]

@@ -70,4 +70,29 @@ abstract final class EditorStrings {
 
   /// Snack bar for any other rejected command (5.1.3, ArgumentError etc.).
   static const commandFailed = '실행하지 못했어요';
+
+  // ---------------------------------------------------------------------------
+  // Eraser (04-editor 6.6.4 #5): clearing the current page.
+  // ---------------------------------------------------------------------------
+
+  /// Eraser popup button and more menu item.
+  static const clearPage = '현재 페이지 지우기';
+
+  /// Confirmation title, eraser filter `all`.
+  static const clearPageTitle = '이 페이지의 필기를 모두 지울까요?';
+
+  /// Confirmation title, eraser filter `highlighterOnly`.
+  static const clearPageTitleHighlighterOnly = '이 페이지의 형광펜만 모두 지울까요?';
+
+  /// Confirmation title, eraser filter `exceptHighlighter`.
+  static const clearPageTitleExceptHighlighter = '이 페이지의 필기를 형광펜을 빼고 모두 지울까요?';
+
+  /// Confirmation body.
+  static const clearPageBody = '되돌리기로 복구할 수 있어요';
+
+  /// Confirmation button.
+  static const clearPageConfirm = '지우기';
+
+  /// Cancel button of the editor's dialogs.
+  static const cancel = '취소';
 }

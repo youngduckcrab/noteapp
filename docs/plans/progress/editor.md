@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **3** (동시 개발 단계 개발 세션 3/10) — 이번 세션 완료: E-04·E-08 (세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-09(지우개·커서·페이지 전체 지우기, E-08 뒤) → E-10(올가미·선택·클립보드) → E-11(되돌리기 연결) → E-12 → E-13 …
+- 마지막 세션: **4** (동시 개발 단계 개발 세션 4/10) — 이번 세션 완료: E-09 (세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-10(올가미·선택·클립보드) → E-11(되돌리기 연결) → E-12 → E-13 …
 
 ## 작업 표
 
@@ -21,7 +21,7 @@
 | E-06 | 완료 | 95d3366 | `unit/editor_settings_test.dart`(B5에서 완성 — scope별 JSON 왕복·잘못된 값·옛 always/never·`isPenOnlyEffective` 표), `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `unit/pressure_mode_bridge_test.dart` |
 | E-07 | 완료 | 6433a32 | `unit/tool_controller_test.dart` |
 | E-08 | 완료 | 219f4a2 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart` |
-| E-09 | 남음 | | `widget/erase_test.dart` |
+| E-09 | 완료 | (이 커밋) | `widget/erase_test.dart` (획·부분 모드 각각: 명령 1회·되돌리기 1번 복구 / 실패 → `discardEdit`·다시 보임·복귀 없음) |
 | E-10 | 남음 | | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
 | E-11 | 남음 | | `widget/undo_redo_test.dart` |
 | E-12 | 남음 | | `widget/shortcuts_test.dart` |
@@ -71,6 +71,9 @@
 - (세션 3) E-08 `PenInteraction`(`tools/pen_interaction.dart`): `PenInteraction.start(...)`가 `beginStroke`(viewScale = `settleNow()` 뒤 `camera.scale`), `viewScale`·`style` 노출, 커밋 성공 때만 `onCommitted`(최근 색). 화면 → INK 샘플 변환은 최상위 `toInkSample(viewport, pageIndex, event)`(E-09·E-10이 같이 씀).
 - (세션 3) E-08 `PageViewport`: 6.4.3대로 `RawGestureDetector(EagerGestureRecognizer)` → `Listener`(down·move·up·cancel·hover·signal·panZoom → `router.handlePointerEvent`) → `ClipRect` → `Stack[페이지들, IgnorePointer(CursorPainter)]`. 커서 그리기 `ui/overlays/cursor_painter.dart`(`repaint: host.cursor`, 지우개 원 1.5px `onSurface` 60%).
 - (세션 3) E-08 테스트 도구: `EditorTestHandles.viewportOrigin`·`toGlobal(i, pt)`·`toPage(i, global)`·`viewportToGlobal(screen)`, `test_data`의 `pageCenterOf`·`pathThrough`·`lassoAround`(전역 좌표 — `PointerDriver`에 그대로).
+- (세션 4) E-09 `EraseInteraction`(`tools/erase_interaction.dart`): `EraseInteraction.start(..., onPosition, onFinished, onCommitted)` — 호스트가 `onPosition`으로 `EraserRingCursor`(지름 = 시작 때 `eraser.diameter × camera.scale`)를 펜 위치에 두고(hover 타이머 끔 — 지우는 동안 300ms 숨김 없음), `onFinished`(끝·취소)로 숨긴다. 마우스로 지울 때도 원이 따라감. `onCommitted`는 `returnToPreviousTool`일 때만 넘기고 커밋 성공일 때만 불림(변화 없음·거부 → 복귀 없음). 지우개 설정은 펜 down 때 값으로 고정.
+- (세션 4) E-09 전체 지우기 확인: 지우개 팝업(E-15)·더보기(E-13)가 같이 쓸 최상위 함수 `confirmClearCurrentPage(context, commands:, filter:)`와 `ClearPageDialog`(키 `confirmKey`·`cancelKey`, 확인 버튼 `colorScheme.error`)를 `ui/eraser/eraser_popup.dart`에 먼저 만들었다(팝업 위젯은 E-15). 제목 문구는 필터별 3가지(`clearPageTitleFor`): '이 페이지의 필기를 모두 지울까요?' / '이 페이지의 형광펜만 모두 지울까요?' / '이 페이지의 필기를 형광펜을 빼고 모두 지울까요?', 본문 '되돌리기로 복구할 수 있어요'(계획 6.6.4 #5 문장을 제목·본문으로 나눔). `EditorStrings`에 `clearPage`·`clearPage*`·`cancel` 추가.
+- (세션 4) E-09 테스트: B3 INK는 부분 모드도 bounds 겹침 → `RemoveStrokes`라, 부분 모드 단언은 `remove-strokes`·`split-strokes` 둘 다 허용(실제 INK에서도 통과하게). '화면에 그대로'는 INK 공개 API(`hitTest`·`strokeIdsInRect` — 대기 삭제 획 제외)로 확인. 반지름 테스트는 0.1pt 획(bounds 팽창 0.075pt)으로 d = 10, 지름 19/21, 배율 fit·×2.5·×0.5. `test_data.lineStroke`에 `width:` 추가.
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
 
 ## 다음 세션 메모
@@ -85,6 +88,5 @@
 - 뷰포트 테스트(세션 2): `test/unit/viewport_controller_test.dart`의 `_viewportTest`·`_controller()` 패턴 — `testWidgets` 안에서 `tester.pump`가 컨트롤러 `Ticker`·150ms 안정화 `Timer`를 움직인다. 컨트롤러는 **본문 끝에서** dispose(testWidgets의 남은 타이머 검사가 tear-down보다 먼저라 `addTearDown`으로는 안 됨). 1032×1376에서 A4 fit = 1000/595.2756 ≈ 1.68, 페이지 i 위 = 24 + i·865.89 pt.
 - 라우터 테스트(세션 2): `test/unit/input_router_test.dart`의 `_Input`(합성 시각 + `tester.pump`) — `VelocityTracker`가 `GestureBinding.samplingClock`을 쓰므로 fake_async가 아니라 `testWidgets` 안에서 돌린다. 본문 끝 `router.cancelAll()`로 길게 누르기 타이머를 지운다.
 - 화면 위젯 테스트(세션 3): `pumpEditor`가 기본으로 페이지 로드까지 끝낸 뒤 돌려준다. 뷰포트 원점은 `PageViewport`의 왼쪽 위(앱 바 아래) — 전역 좌표는 `h.toGlobal(i, pt)`·`pathThrough(h, i, pts)`·`pageCenterOf(h, i)`로만 구한다(E-13에서 툴바·프리셋 바가 생기면 원점이 바뀜). 로딩 중 페이지 테스트는 `pumpEditor(settle: false)` 뒤 `h.recorder!.holdPageLoads()`, 프레임 몇 번 → 덮개, `releasePageLoads()`. 커밋 거부는 `h.recorder!.rejectNext(const core.ReadOnlyNoteException('race'))`, 안내 스낵바가 뜨므로 테스트 끝에 `tester.pump(const Duration(seconds: 5))`. 보고되는 오류를 단언하는 테스트는 `FlutterError.onError`를 바꿨다가 **본문 안에서** 되돌린다(`unit/editor_commands_test.dart`의 `_Probe`). 명령·호스트·라우터는 `h.container.read(editorCommandsProvider / editorInteractionHostProvider / editorInputRouterProvider)`.
-- E-09 준비(세션 3): `InteractionHost.beginInteraction`의 `case EditorTool.eraser:`에 `EraseInteraction`을 넣고(펜처럼 `settleNow` 뒤 `controller.beginErase(toInkSample(...), spec: tools.eraser.toSpec(), viewScale: camera.scale)`), 지우는 동안 `EraserRingCursor`가 펜 위치를 따라가게 호스트의 `_cursor`를 갱신(지금 `beginInteraction`이 커서를 숨김 — 지우개는 예외로). 성공 + `returnToPreviousTool`이면 `editorToolProvider.notifier.returnFromEraser()`. `commands.clearCurrentPage()`는 이미 있음 — 지우개 팝업의 확인 대화상자만 E-09에서(팝업 자체는 E-15 `eraser_popup.dart`와 겹치므로 E-09는 확인 대화상자 함수 + 테스트에서 직접 호출로 충분한지 계획 6.6.4 #5 확인).
 - 세션 3 끝 확인: 패키지 VM 테스트 293개 통과(`~1`은 integration 건너뜀), 새 테스트 3개 파일(`pen_stroke`·`page_viewport`·`editor_commands`)은 `flutter test --platform chrome`에서도 46개 통과(웹 컴파일 확인용, test/web 아님), app 패키지 테스트 13개 통과(EditorScreen 구조 변경 영향 없음), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
 - 기반 단계 메모: `/home/user/wt/notes/foundation-editor.md`. 스모크 테스트에서 커밋 지연을 쓰는 저장소는 tear-down이 아니라 본문 끝에서 `close()`(실패 시 멈춤 방지).
