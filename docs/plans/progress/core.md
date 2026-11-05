@@ -3,7 +3,7 @@
 ## 요약
 
 - 마지막 세션: 1 (동시 개발 단계)
-- 다음 할 일: T7 (쓰기 경로 — `WriteQueue`·outbox·필드 버전·`ChangeBus`·HLC 영속)
+- 다음 할 일: T8 (라이브러리 `DriftLibraryRepository` + `test/shared/library_contract.dart`) — 그다음 T9·T12·T13(순서 무관), T10
 
 ## 작업 표
 
@@ -15,8 +15,8 @@
 | T3 | 기반 단계에서 완료 | 7bb1c59 | `test/model/entity_json_test.dart`, `test/goldens/json_golden_test.dart`, `test/sync/field_versions_test.dart` 등 |
 | T4 | 기반 단계에서 완료 | 7bb1c59 | `test/api_surface_test.dart`, `test/repo/folder_tree_test.dart` 등 |
 | T5 | 기반 단계에서 완료 | 7bb1c59 | `test/edit/*`, `test/session/note_session_contract_fake_test.dart`, `test/testing/fake_store_test.dart`, `test/dev/seed_synthetic_note_test.dart`, `test/providers/providers_fake_test.dart` |
-| T6 | 완료 | (이 커밋) | `test/storage/schema_test.dart`, `test/storage/open_errors_test.dart`, `test/testing/open_test_store_test.dart` |
-| T7 | 남음 | | `test/storage/write_queue_test.dart`, `outbox_test.dart`, `change_bus_test.dart`, `field_version_writer_test.dart` |
+| T6 | 완료 | d2a5cf9 | `test/storage/schema_test.dart`, `test/storage/open_errors_test.dart`, `test/testing/open_test_store_test.dart` |
+| T7 | 완료 | (이 커밋) | `test/storage/write_queue_test.dart`, `outbox_test.dart`, `change_bus_test.dart`, `field_version_writer_test.dart` |
 | T8 | 남음 | | `test/shared/library_contract.dart` → fake·real, `test/repo/library_repository_test.dart` |
 | T9 | 남음 | | `test/repo/trash_repository_test.dart` |
 | T10 | 남음 | | `test/session/note_session_contract_real_test.dart`, `note_session_test.dart`, `content_reader_test.dart` |
@@ -47,12 +47,16 @@
 - T6: 백그라운드 isolate(`NativeDatabase.createInBackground`)·웹 워커를 거친 마이그레이션 오류는 타입이 사라지고 문자열로 오므로, 열기 오류 분류는 `NewerSchemaError.prefix`·`SchemaStepError.prefix`·SQLite 손상 문구도 문자열로 맞춘다.
 - T6: 같은 DB를 한 프로세스에서 두 번 여는 것은 막지 않는다(열린 수를 센다). `deleteLocalNoteData`는 그 DB가 하나라도 열려 있으면 `StateError`.
 - T6: `openTestNoteStore`는 테스트 isolate의 `NativeDatabase`(백그라운드 아님)를 쓴다. `openNoteStore`(VM)는 `inMemory`면 `NativeDatabase.memory()`, 아니면 `nativeDatabasePath`의 `createInBackground`(WAL·`synchronous = NORMAL`), 경로도 `inMemory`도 없으면 `storageUnavailable`.
+- T7: 한 커밋에 origin이 다른 작업이 섞이면 이어진 같은 origin 작업끼리 `ChangeBatch` 하나(같은 엔티티는 첫 위치·마지막 값). outbox 병합 때 `enqueuedAt`은 처음 값을 유지한다(계약에 규칙 없음). purge 항목에 upsert가 병합돼도 purge로 남는다(`WriteMerged`의 purge→upsert 전환은 T14에서 따로).
+- T7: 저장소 `close()`는 쌓인 쓰기를 먼저 flush한 뒤 닫는다(재시도 중이면 끝날 때까지 기다림). 닫은 뒤 쓰기는 `StateError`.
 - T6: 실제 저장소의 아직 구현하지 않은 멤버(라이브러리·휴지통·프리셋·설정·내용·에셋·썸네일·`SyncStore`의 ID 두 개 밖·`openSession`·`exportBackupJson`)는 해당 작업 번호를 적은 `UnimplementedError`를 던진다(T7~T19에서 채움). `connect_browser.dart`(WasmDatabase)는 T6에서 썼고 브라우저 검증은 T16, BlobStore·해셔 연결은 T13.
 
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
 
 ## 다음 세션 메모
 
+- T7 쓰기 경로 사용법(T8 이후 모든 쓰기는 이것으로): `store.queue.run((tx) async { ... }, origin: ChangeOrigin.local, bytes: 점 바이트)`. 작업 안에서 `tx.putLocal(entity, 바뀐 JSON 키)`(HLC 찍기·필드 버전·행·outbox·`EntityChange`, `{*}` = 새로/전체, 로컬 전용·메타 키만이면 버전 유지·outbox 없음), `tx.putRemote(entity, versions)`(원격·복구 경로: 그대로 저장·outbox 없음·로컬 열 유지·고아 획 처리·HLC receive), `tx.purge(ref)`(행 삭제 + outbox purge), `tx.addChange`, `tx.afterCommit(f)`(커밋 뒤·ChangeBatch 전 메모리 갱신), `tx.noteIdOfPage`. 작업이 `Error`·`NoteCoreException`을 던지면 그 작업만 savepoint로 되돌리고 재시도 없이 그 오류로 완료, 그 밖의 예외는 트랜잭션 전체 롤백·재시도. 테스트 주입은 `store.queue.failNextCommits(n)`, 트랜잭션 수는 `debugTransactionCount`. 행 변환은 `row_mappers.dart`(`writeEntityRow`·`readVersionedRow`·`*Of(row)`), outbox 읽기는 `readOutbox`.
+- fake_async 안에서 drift `NativeDatabase.memory()`가 타이머 없이 마이크로태스크만으로 돈다(write_queue_test에서 확인) → 재시도 간격 테스트를 실제 저장소로 쓸 수 있다.
 - T6 산출물: `lib/src/storage/`(db/tables·note_database(+.g)·migrations, kv_keys, open_errors, connect/*, drift_note_store), `drift_schemas/note_db/drift_schema_v1.json`. 스키마를 바꾸면 패키지 디렉터리에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`--delete-conflicting-outputs`는 쓰지 않음). `schema_test`가 drift_schemas JSON과 실제 테이블·인덱스를 대조한다.
 - 세션 1: 문서 절차(C13-05, CORE-4-1~4-3) 끝 — 02-core.md 상태 줄 '승인'·계약 v1.4, 4.6·4.7 v1.3 주석, 6.13 bullet, 12.2 CP-8 결정, 13.4. 코드 계약 파일은 B2에서 이미 v1.3 주석.
 - Riverpod 3.4.3은 리스너 없는 provider를 멈춘다. 테스트에서 `container.listen(p.future, (_, _) {})` 뒤 `sub.read()`.

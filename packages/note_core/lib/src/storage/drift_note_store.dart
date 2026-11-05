@@ -23,9 +23,11 @@ import '../repo/status.dart';
 import '../repo/trash_repository.dart';
 import '../session/note_session.dart';
 import '../sync/sync_store.dart';
+import 'change_bus.dart';
 import 'db/note_database.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
+import 'write_queue.dart';
 
 /// Open stores per durable database in this process (deleteLocalNoteData refuses
 /// to delete an open one, 6.18). In-memory stores are not counted.
@@ -55,7 +57,15 @@ final class DriftNoteStore implements NoteStore {
     required this.clock,
     required this.ids,
     required this._storeKey,
+    required String? persistedHlc,
   }) {
+    queue = WriteQueue(
+      db: db,
+      hlc: hlc,
+      clock: clock,
+      bus: bus,
+      persistedHlc: persistedHlc,
+    );
     sync = _DriftSyncStore(this);
   }
 
@@ -94,6 +104,7 @@ final class DriftNoteStore implements NoteStore {
         clock: clock,
         ids: config.idGenerator ?? UuidV7IdGenerator(clock: clock),
         storeKey: key,
+        persistedHlc: values.persistedHlc,
       );
       if (key != null) {
         _openStoreCounts.update(key, (n) => n + 1, ifAbsent: () => 1);
@@ -122,13 +133,10 @@ final class DriftNoteStore implements NoteStore {
   final OwnerId _ownerId;
   bool _closed = false;
 
-  final StreamController<ChangeBatch> _changes = StreamController.broadcast();
-  final StreamController<PersistenceStatus> _status =
-      StreamController.broadcast();
-  final PersistenceStatus _persistence = const PersistenceStatus(
-    pendingOps: 0,
-    isWriting: false,
-  );
+  final ChangeBus bus = ChangeBus();
+
+  /// The single serial write queue (6.9); every write of this store goes through it.
+  late final WriteQueue queue;
 
   @override
   OwnerId get ownerId => _ownerId;
@@ -151,15 +159,15 @@ final class DriftNoteStore implements NoteStore {
   late final SyncStore sync;
 
   @override
-  Stream<ChangeBatch> get changes => _changes.stream;
+  Stream<ChangeBatch> get changes => bus.stream;
 
   @override
-  PersistenceStatus get persistenceStatus => _persistence;
+  PersistenceStatus get persistenceStatus => queue.status;
 
   @override
   Stream<PersistenceStatus> get persistenceStatusStream => Stream.multi((c) {
-    c.add(_persistence);
-    final sub = _status.stream.listen(c.add);
+    c.add(queue.status);
+    final sub = queue.statusChanges.listen(c.add);
     c.onCancel = sub.cancel;
   }, isBroadcast: true);
 
@@ -176,7 +184,7 @@ final class DriftNoteStore implements NoteStore {
   }) => throw UnimplementedError('openSession: arrives with CORE T10');
 
   @override
-  Future<void> flush() async {}
+  Future<void> flush() => queue.flush();
 
   @override
   Future<void> close() async {
@@ -191,8 +199,8 @@ final class DriftNoteStore implements NoteStore {
         _openStoreCounts[key] = n;
       }
     }
-    await _changes.close();
-    await _status.close();
+    await queue.close();
+    await bus.close();
     await db.close();
   }
 
@@ -201,7 +209,12 @@ final class DriftNoteStore implements NoteStore {
       throw UnimplementedError('exportBackupJson: arrives with CORE T19');
 }
 
-typedef _KvValues = ({String nodeId, Hlc hlc, OwnerId ownerId});
+typedef _KvValues = ({
+  String nodeId,
+  Hlc hlc,
+  String? persistedHlc,
+  OwnerId ownerId,
+});
 
 /// Reads device.nodeId / hlc.last / store.ownerId, creating missing values in one
 /// transaction. The first statement also opens the database (schema steps).
@@ -243,7 +256,7 @@ Future<_KvValues> _readOrCreateKv(
     ownerId = config.ownerId;
     await _putKv(db, KvKeys.ownerId, ownerId);
   }
-  return (nodeId: nodeId, hlc: hlc, ownerId: ownerId);
+  return (nodeId: nodeId, hlc: hlc, persistedHlc: storedHlc, ownerId: ownerId);
 });
 
 Future<void> _putKv(NoteDatabase db, String key, String value) => db
