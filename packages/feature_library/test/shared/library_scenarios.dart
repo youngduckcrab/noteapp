@@ -9,7 +9,9 @@
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:feature_library/src/model/names.dart';
+import 'package:feature_library/src/model/new_note_spec.dart';
 import 'package:feature_library/src/settings/library_settings_keys.dart';
+import 'package:feature_library/src/ui/content/folder_missing_view.dart';
 import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:feature_library/src/ui/dialogs/folder_picker_dialog.dart';
 import 'package:feature_library/src/ui/sidebar/sidebar_rows.dart';
@@ -18,7 +20,16 @@ import 'package:feature_library/src/ui/trash/trash_row.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
-    show FolderCycleException, FolderRef, LibraryQuery, LibrarySortField;
+    show
+        FolderCycleException,
+        FolderRef,
+        NoteStore,
+        LibraryQuery,
+        LibrarySortField,
+        PageTemplate,
+        PageTemplateKind,
+        PaperColors,
+        TemplateBackground;
 
 import '../support/fixtures.dart';
 import '../support/library_test_harness.dart';
@@ -70,6 +81,14 @@ final List<LibraryScenario> libraryScenarios = [
   LibraryScenario(
     'recent: a note shows only after openSession (no markOpened here)',
     _recentAfterOpenSession,
+  ),
+  LibraryScenario(
+    'new note defaults: the stored JSON comes back in the dialog and the page',
+    _newNoteDefaultsRoundTrip,
+  ),
+  LibraryScenario(
+    'remote delete: the shown folder trashed / purged elsewhere → missing view',
+    _remoteDeleteShowsMissing,
   ),
 ];
 
@@ -380,4 +399,91 @@ Future<void> _recentAfterOpenSession(
   await tester.pumpAndSettle();
   expect(find.text(LibraryStrings.emptyRecent), findsNothing);
   expect(_noteTileIds(tester), {note.id});
+}
+
+/// 6.12 / 6.3.4 (contract 7.4.6): new note defaults stored as JSON (a custom
+/// size in mm, a template, a paper color) are read back by the screen — the
+/// dialog starts from them — and reach CORE as the first page's size and
+/// background; reading the setting again gives the same options.
+Future<void> _newNoteDefaultsRoundTrip(
+  WidgetTester tester,
+  LibraryTestHarness h,
+) async {
+  const defaults = NewNoteOptions(
+    preset: null, // 사용자 지정
+    customWidthMm: 148,
+    customHeightMm: 210,
+    template: PageTemplateKind.dotted,
+    paperColorArgb: PaperColors.ivory,
+  );
+  await _real(
+    tester,
+    () => h.backend.store.settings.set(
+      LibrarySettingsKeys.newNoteDefaults,
+      defaults.toJson(),
+    ),
+  );
+  await h.pump(tester);
+  await tester.pumpAndSettle();
+  await _tap(tester, find.widgetWithText(FilledButton, LibraryStrings.newNote));
+  TextField field(String label) =>
+      tester.widget<TextField>(find.widgetWithText(TextField, label));
+  expect(field(LibraryStrings.customWidth).controller!.text, '148.0');
+  expect(field(LibraryStrings.customHeight).controller!.text, '210.0');
+  await _tap(tester, find.widgetWithText(FilledButton, LibraryStrings.create));
+
+  final id = h.log.entries.single.substring('note:'.length);
+  final pages = await _real(tester, () => h.backend.store.content.pagesOf(id));
+  expect(pages.single.size, defaults.pageSize);
+  expect(
+    pages.single.background,
+    TemplateBackground(
+      template: PageTemplate.defaults(PageTemplateKind.dotted),
+      paperColorArgb: PaperColors.ivory,
+    ),
+  );
+  final json = await _real(
+    tester,
+    () => h.backend.store.settings.get(LibrarySettingsKeys.newNoteDefaults),
+  );
+  expect(NewNoteOptions.fromJson(json), defaults);
+}
+
+/// 6.4: another device trashes the folder the route shows → '이 폴더는 휴지통에
+/// 있어요'; it is purged there too → '폴더를 찾을 수 없어요…'. The change
+/// reaches the screen only through CORE streams (remoteChange bypasses the
+/// wrappers).
+Future<void> _remoteDeleteShowsMissing(
+  WidgetTester tester,
+  LibraryTestHarness h,
+) async {
+  final folder = await _real(tester, () async {
+    final folder = await h.backend.seedFolder('영어');
+    await h.backend.seedNote('단어장', folderId: folder.id);
+    return folder;
+  });
+  await h.pump(tester, folderId: folder.id);
+  await tester.pumpAndSettle();
+  expect(find.widgetWithText(NoteTile, '단어장'), findsOneWidget);
+
+  await _real(
+    tester,
+    () => h.backend.remoteChange(
+      (NoteStore store) => store.library.trashItems([FolderRef(folder.id)]),
+    ),
+  );
+  await tester.pumpAndSettle();
+  expect(find.byType(FolderMissingView), findsOneWidget);
+  expect(find.text(LibraryStrings.folderInTrash), findsOneWidget);
+
+  await _real(
+    tester,
+    () => h.backend.remoteChange(
+      (NoteStore store) => store.trash.purge([FolderRef(folder.id)]),
+    ),
+  );
+  await tester.pumpAndSettle();
+  expect(find.text(LibraryStrings.folderNotFound), findsOneWidget);
+  expect(h.backend.calls, isEmpty);
+  expect(h.log.entries, isEmpty);
 }

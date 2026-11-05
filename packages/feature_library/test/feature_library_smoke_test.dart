@@ -156,11 +156,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [noteStoreProvider.overrideWithValue(store)],
+        // The app shell's settings frame scrolls (01-infra 4.5.8).
         child: const MaterialApp(
-          home: Scaffold(body: LibrarySettingsSection()),
+          home: Scaffold(
+            body: SingleChildScrollView(child: LibrarySettingsSection()),
+          ),
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
     final section = find.byType(LibrarySettingsSection);
     expect(section, findsOneWidget);
@@ -168,9 +172,11 @@ void main() {
       find.descendant(of: section, matching: find.byType(Scaffold)),
       findsNothing,
     );
+    // L18: the body is a Column of the new note dialog's pickers.
     expect(
       find.descendant(of: section, matching: find.byType(Column)),
-      findsOneWidget,
+      findsWidgets,
     );
+    expect(tester.takeException(), isNull);
   });
 }

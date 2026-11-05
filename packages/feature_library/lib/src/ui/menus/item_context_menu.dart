@@ -2,7 +2,8 @@
 // menus.
 //
 //   note (⋯)            이름 변경 · 표지 변경 · ☆ 즐겨찾기 / ★ 해제 · 복사 ·
-//                       이동… · (PDF로 내보내기 — L18) · 휴지통으로 이동
+//                       이동… · PDF로 내보내기 (only with the export slot,
+//                       4.3) · 휴지통으로 이동
 //   folder (⋯)          이름 변경 · 꾸미기 · 복사 · 이동… · 휴지통으로 이동
 //   sidebar tree row    이름 변경 · 꾸미기 · 새 하위 폴더 · 이동… · 휴지통으로 이동
 //
@@ -11,9 +12,12 @@
 // moving (the row's LibraryDraggable.onLongPressReleased — a long press
 // starts a drag, 6.5) or a secondary (right) click, at the press point.
 import 'package:flutter/gestures.dart' show TapGestureRecognizer;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note;
 
+import '../../integration/pdf_flows.dart';
+import '../../integration/pdf_slots.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/item_key.dart';
 import '../dialogs/create_flows.dart';
@@ -22,12 +26,14 @@ import 'item_action_flows.dart';
 
 /// The menu entries of [note] or [folder] (exactly one). Every action runs
 /// with [context] — the widget that owns the menu, still mounted after the
-/// menu closes.
+/// menu closes. [exportPdf] = libraryPdfExportActionProvider; null hides
+/// 'PDF로 내보내기' (4.3).
 List<Widget> itemMenuEntries(
   BuildContext context, {
   Note? note,
   Folder? folder,
   bool sidebar = false,
+  LibraryPdfExportAction? exportPdf,
 }) {
   assert((note == null) != (folder == null), 'exactly one item');
   if (note != null) {
@@ -69,8 +75,21 @@ List<Widget> itemMenuEntries(
             runMoveFlow(context, items: [key], parents: {key: note.folderId}),
         child: const Text(LibraryStrings.moveTo),
       ),
-      // L18: 'PDF로 내보내기' (hidden while libraryPdfExportActionProvider is
-      // null).
+      if (exportPdf != null)
+        ValueListenableBuilder<bool>(
+          valueListenable: libraryPdfExportRunning(context),
+          builder: (_, running, _) => MenuItemButton(
+            leadingIcon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: running
+                ? null
+                : () => runLibraryPdfExport(
+                    context,
+                    action: exportPdf,
+                    noteIds: [note.id],
+                  ),
+            child: const Text(LibraryStrings.exportPdfOne),
+          ),
+        ),
       MenuItemButton(
         leadingIcon: const Icon(Icons.delete_outline),
         onPressed: () =>
@@ -120,7 +139,7 @@ List<Widget> itemMenuEntries(
 }
 
 /// The ⋯ (44 × 44, tooltip `'<name> 메뉴'`) of a grid tile or a list row.
-class ItemMenuButton extends StatelessWidget {
+class ItemMenuButton extends ConsumerWidget {
   const ItemMenuButton({super.key, this.note, this.folder})
     : assert((note == null) != (folder == null), 'exactly one item');
 
@@ -128,9 +147,17 @@ class ItemMenuButton extends StatelessWidget {
   final Folder? folder;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final exportPdf = note == null
+        ? null
+        : ref.watch(libraryPdfExportActionProvider);
     return MenuAnchor(
-      menuChildren: itemMenuEntries(context, note: note, folder: folder),
+      menuChildren: itemMenuEntries(
+        context,
+        note: note,
+        folder: folder,
+        exportPdf: exportPdf,
+      ),
       builder: (context, controller, _) => IconButton(
         icon: const Icon(Icons.more_horiz),
         tooltip: LibraryStrings.itemMenu(note?.title ?? folder!.name),
