@@ -4,8 +4,8 @@
 
 ## 요약
 
-- 마지막 세션: **8** (동시 개발 단계 개발 세션 8/10) — 이번 세션 완료: E-17·E-19 (세션 7: E-16·E-20, 세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
-- 다음 할 일: E-22 → E-18 (E-21은 통합 단계)
+- 마지막 세션: **9** (동시 개발 단계 개발 세션 9/10) — 이번 세션 완료: E-22 (세션 8: E-17·E-19, 세션 7: E-16·E-20, 세션 6: E-14·E-15, 세션 5: E-12·E-13, 세션 4: E-09·E-10·E-11, 세션 3: E-04·E-08, 세션 2: E-03·E-07·E-05, 세션 1: E-00·E-01·E-02·E-06)
+- 다음 할 일: E-18 (마지막 순위 — 동시 개발 몫은 이것만 남음, E-21은 통합 단계)
 
 ## 작업 표
 
@@ -33,7 +33,7 @@
 | E-19 | 완료 | 57635cd | `unit/dev_metrics_test.dart`(≤ 4Hz 발행·멈춤·초기화·라벨), `widget/dev_overlay_test.dart`(설정·더보기·Ctrl+Shift+D·URL 플래그 → `inkDiagnosticsProvider.enabled`·`DevMetrics.isRunning`, 숨김·화면 이탈 → 멈춤, `FakeInkClock` INK 줄·EDITOR 줄·저장 줄, 팜 거부 계수, 섹션 줄 변경·숨기면 구독 해제), `widget/dev_menu_test.dart`(보일 때만, 합성 노트, 합성 획 1,000 → +1,000·1단계·되돌리기, 읽기 전용 비활성, 진단 초기화) |
 | E-20 | 완료 | 35be2bf | `widget/settings_sections_test.dart`, `widget/smoke_test.dart`의 섹션 검사(가짜 저장소·큰 화면으로 바꿈) |
 | E-21 | 통합 단계 | | `integration/real_core_ink_smoke_test.dart`(뼈대만 E-00에서 작성 — 열기·`storageNotDurable` 배너·닫기. 전체 시나리오는 E-13 뒤 채움), `web/editor_browser_smoke_test.dart`(동시 개발 중 작성 가능) |
-| E-22 | 진행 중 | (골든 커밋 — 아래 메모) | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`) — 완료. `unit/performance_smoke_test.dart`, 결과 보고 — 남음 |
+| E-22 | 완료 | 7d81713(골든), (이 커밋) | `goldens/selection_frame_golden_test.dart`(+ `selection_frame.png`·`selection_frame_zoom_200.png`), `goldens/page_viewport_layout_golden_test.dart`(+ `page_viewport_portrait.png`·`_portrait_end`·`_zoom_200`·`_landscape`·`_mixed_sizes`), `unit/performance_smoke_test.dart`(6.15 #9 수치 4개), 전체 통과, 결과 보고 = 아래 '## 결과 보고 (E-22)' |
 | E-18 | 남음 (마지막 순위) | | `widget/paged_mode_test.dart` |
 
 ## 변경 요청
@@ -122,6 +122,9 @@
 - (세션 8) E-19 `DevOverlay`(`ui/dev/dev_overlay.dart`): `PageViewport` 바깥 Stack 맨 끝. `editorDevOverlayVisibleProvider`를 `listenManual(fireImmediately)`로 따라 켜고 끄며, `dispose`에서도 끈다(화면 이탈 — 참조는 켤 때 필드에 보관, dispose에서 `ref` 안 씀). 다시 그리기 = `Listenable.merge([InkDiagnostics, DevMetrics, ...섹션 lines])` 변경 후 250ms 한 번짜리 타이머. 줄 문구는 6.12.2 모양 그대로 `devInkLines`·`devEditorLines`·`devStorageLine`(개발자용 표시라 `EditorStrings`가 아니라 이 파일에 둠 — 테스트가 같은 함수로 기대 문자열을 만든다). 배경색은 색 규칙(7.4.11 `colorScheme`만)에 따라 '70% 검정' 대신 `inverseSurface` 70% + `onInverseSurface` 글자, 글꼴 `fontFamily: 'monospace'` 11px. 더보기 '개발자 표시' 체크는 설정 값(URL 플래그로 보이는 중이어도 설정이 꺼져 있으면 해제 표시).
 - (세션 8) E-19 개발자 메뉴(`ui/toolbar/dev_menu.dart`, `EditorDevMenu` = `SubmenuButton` '개발자 메뉴'): 더보기의 '설정' 뒤·구분선 앞, `editorDevOverlayVisibleProvider`가 true일 때만. **메뉴가 닫힌 뒤 `MenuItemButton.onPressed`가 불릴 때는 하위 메뉴 위젯이 이미 unmount**라 `ref`·`context`를 쓸 수 없다 → 필요한 객체(명령·저장소·진단·지표·`ScaffoldMessenger`)를 build에서 잡아 둔다. 합성 노트는 `seedPerfNote(store, messenger)`(설정 섹션의 E-20 구현은 그대로 둠 — 같은 동작). `EditorCommands.addSyntheticStrokes(count)` = `ink_engine/dev_tools.dart`의 `InkDevTools.syntheticStrokes` + `_runAsync(AddStrokes)`(읽기 전용·0 이하 무시). `EditorStrings`에 `devMenu`·`syntheticStrokes(n)`(천 단위 쉼표)·`resetDiagnostics`.
 - (세션 1) `EditorStrings`는 E-00에서 화면 상태·읽기 전용·저장 경고·명령 거부 문구까지 넣었다. 툴바·펜·페이지 패널 등 나머지 문구는 해당 작업에서 같은 파일에 더한다.
+- (세션 9) E-22 골든: 선택 프레임은 `SelectionFrame` 안의 `RepaintBoundary` 층만 찍는다(투명 바탕에 점선·핸들만 — INK 획·페이지는 안 들어감). 페이지 영역 골든은 `PageViewport`에 자기 `RepaintBoundary`가 없어서(lib는 바꾸지 않음) 가장 가까운 상위 경계 층에서 `PageViewport` 사각형만 `OffsetLayer.toImage(rect)`로 잘라 비교한다(툴바·프리셋 바 제외). 글자(쪽 표시 '1 / 3', '+ 페이지')는 테스트 글꼴의 네모로 찍힌다(계약 7.4.8 'Ahem 글꼴만'). INK 출력은 `ink_testing.SolidBackgroundBuilder(kind: blank, colorArgb: 흰색)` 하나로 override. 그림은 논리 픽셀 1:1(골든 기본 `pixelRatio` 1).
+- (세션 9) E-22 성능 스모크: 컨테이너를 다른 영역 에이전트와 같이 쓰므로 각 수치는 **준비 1회 뒤 5회 중 가장 짧은 값**으로 6.15 #9 한도와 비교한다(한도는 계획 그대로). 타이머·대기 없음 — 커밋 측정은 fakeAsync 안 가짜 저장소(마이크로태스크), 라우터는 울리지 않는 타이머 팩토리. 커밋 측정 = `session.execute(edit.toCommand())` 한 번(그 안에서 `PageMount`가 `updateContent`) — 획 그리기(`beginStroke`·`addSample`·`end`)는 측정 밖. 태그 없이 기본 실행(계획 3절).
+- (세션 9) E-22 결과 보고는 이 파일 끝 '## 결과 보고 (E-22)' 절에 둔다(진행 기록 형식의 절 순서는 그대로 두고 맨 끝에 덧붙임).
 
 ## 다음 세션 메모
 
@@ -155,3 +158,89 @@
 - 세션 8 E-19 확인: 패키지 VM 테스트 571개 통과(`~1`은 integration 건너뜀), `dev_metrics`·`dev_overlay`는 `flutter test --platform chrome`에서도 통과(웹 컴파일 확인용), app 패키지 테스트 13개 통과, 루트 `flutter analyze --fatal-infos`·`ws check` 0.
 - 개발자 표시 테스트 메모(세션 8): `pumpEditor(settings: const EditorSettings(showDevOverlay: true))`로 켠 채 시작, URL 플래그는 `editorDevUrlFlagProvider.overrideWithValue(true)`. 오버레이 글자는 `DevOverlay.overlayKey` 아래 `Text.data`, 기대값은 `devInkLines(diagnostics.snapshot)` 등 같은 함수로 만든다. `DevMetrics`·오버레이는 250ms 묶음이므로 값 확인 전 `pump(300ms)`. `ink.inkClockProvider.overrideWithValue(FakeInkClock())`로 INK 진단 시각을 고정할 수 있다.
 - E-22 준비(세션 8): 남은 동시 개발 작업은 E-22(골든 2개 — `selection_frame_golden_test`·`page_viewport_layout_golden_test`, INK 출력은 `SolidBackgroundBuilder`·빈 페이지로 고정 / `unit/performance_smoke_test.dart` 6.15 #9 수치 / 결과 보고)와 E-18(좌우 넘기기 — 컨트롤러 쪽 스냅·`fitScale`은 E-03에서 이미 구현, `paged_mode_test`만 남음에 가까움). 골든은 VM 전용 `golden` 태그(`--update-goldens --tags golden`)로 만들고 별도 커밋. 페이지 패널·개발자 표시가 화면 트리에 생겼으므로 레이아웃 골든은 패널 닫힘·개발자 표시 꺼짐 상태로 찍는다.
+- 세션 9 끝 확인: 패키지 VM 테스트 582개 통과(`~1`은 integration 건너뜀, 골든 9개 포함), 전체 VM 실행 148초(다른 에이전트와 CPU 공유 중 — 10절 #2 '3분 이내' 안), 루트 `flutter analyze --fatal-infos`·`ws check` 0.
+- E-18 준비(세션 9): 컨트롤러 쪽 가로 넘기기 스냅(속도 > 300 → 제스처 시작 페이지 ±1, 아니면 가운데 페이지, `cancelGesture`도 스냅)·가로 `fitScale`(현재 페이지 기준)·`setAxis`는 E-03에서 이미 구현. 화면 쪽은 `EditorSettings.pageFlipMode`·`EditorCommands`의 넘기기 모드 전환(E-13)을 확인하고 `widget/paged_mode_test.dart`(가로 배치, 빠른 스와이프 → 다음 장, 느리면 가까운 장, 확대 상태는 스냅 없음, 모드 전환 시 현재 페이지 유지, `navigateToPage`도 동작)를 쓰면 된다. `navigate_to_page_test`에 가로 넘기기 경우가 이미 있다(E-17). 가로 모드 레이아웃 골든이 필요하면 `page_viewport_layout_golden_test`에 경우를 더하고 별도 커밋.
+
+## 결과 보고 (E-22)
+
+세션 9 기준(E-18 제외 — 마지막 순위, E-21은 통합 단계).
+
+- **변경 요청**: 없음. 계약 7.2·7.3의 이름·시그니처는 그대로 썼다(`unit/api_surface_test.dart`). 계획과 다르게 한 세부는 위 '계획과 다르게 한 점'에 모두 적었다.
+- **의존성 요청**: 없음(`pubspec.lock` 변경 없음).
+- **테스트(10절 #2)**: `packages/feature_editor`에서 `flutter test` 582개 통과(골든 9개 포함 — `hsv_wheel` 2·`selection_frame` 2·`page_viewport_*` 5), `integration` 1개는 `dart_test.yaml`로 건너뜀. 전체 VM 실행 148초(CPU 4, 다른 영역 에이전트와 공유 중). `test/web/`는 아직 없음(E-21 `web/editor_browser_smoke_test.dart`는 통합 단계 몫) — 대신 세션 3~8에서 그 세션에 새로 쓴 테스트 파일을 `flutter test --platform chrome`으로도 돌려 웹 컴파일·실행을 확인했다(위 '다음 세션 메모' — 펜 미리보기를 여는 3개 파일은 Chrome에서 'Pending timers' — INK `PencilGrain`의 웹 `decodeImageFromPixels`, VM 전용 파일이라 문제없음).
+- **성능 스모크(6.15 #9, `unit/performance_smoke_test.dart`, 5회 중 최소)**: 500페이지 레이아웃 0.42ms(< 5), 범위 조회 1만 회 1.9ms(< 20), 라우터 이벤트 1만 개 0.8ms(< 50), 획 5천 개 페이지 펜 획 1개 커밋(`execute` + `updateContent`) 1.9ms(< 5). 세션 9 측정값(부하 있는 컨테이너).
+- **줄 커버리지(10절 #4, `flutter test --coverage`의 lcov.info를 직접 집계 — INFRA 측정 스크립트 없음)**: `src/input` 92.1% · `src/viewport` 92.8% · `src/tools` 91.2% · `src/document` 94.1% · `src/commands` 98.9%(각 85% 이상), `src/state` 89.2% · `src/ui` 97.6% · `src/scope` 93.9% · `src/di` 75.0%, 패키지 전체 94.7%(70% 이상).
+- **import 규칙(10절 #3)**: `unit/no_platform_imports_test.dart`(6.16 ①~⑤) 통과. 앱 `flutter build web --release`는 통합 단계.
+- **남은 것**: E-18(`widget/paged_mode_test.dart` — M1 합격 전 완료), E-21(통합 단계: `integration/real_core_ink_smoke_test.dart` 전체 시나리오 + `web/editor_browser_smoke_test.dart`), 10절 #7(INFRA V5)·#8(iPad 확인).
+- **iPad 체크리스트**: 계획서 9.2 표 A1~A24 그대로(★ = M1 합격). 동시 개발 끝 상태에서 확인 가능한 것: A18(좌우 넘기기)만 E-18 뒤. A4·A19의 INK 값(필압·지연·캐시)과 A22b 캐시 합계는 실제 INK 합류(통합 단계) 뒤라야 의미가 있다(지금 INK는 기반 단계 B3 단순 구현). A17b의 PDF 항목은 M3. 기록 양식은 9.2 머리말(기기 / 펜슬 / iPadOS·Safari 버전 / 항목 / O·X / 메모 / 개발자 표시 스크린샷).
+- **2절 '이번' 항목 ↔ 통과 테스트(10절 #5)** — 2절 표의 작업 ID에서 위 작업 표의 완료 조건 테스트로(작업당 앞의 몇 개만 적음, E-18 몫은 E-18 완료 뒤 `paged_mode_test`가 더해짐, E-21 몫은 통합 단계):
+
+| PLAN 항목 | 작업 | 통과 테스트 |
+|---|---|---|
+| F-03 펜 종류 (P0) | E-07·E-15 | `unit/tool_controller_test.dart`, `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart` |
+| F-03 필압·기울기·방위각 | E-06·E-08 | `unit/editor_settings_test.dart`, `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart`, `widget/pen_stroke_test.dart` |
+| F-03 입력 지연 20ms | E-19 | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
+| F-03 손떨림 보정·필압 곡선 | E-15·E-20 | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart`, `widget/settings_sections_test.dart` |
+| F-03 호버 미리보기 | E-08·E-09 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`, `widget/erase_test.dart` |
+| F-03 형광펜 직선 보정 옵션 | E-15 | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart` |
+| F-04 HSV 휠/사각 | E-14 | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart` |
+| F-04 투명도 | E-14 | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart` |
+| F-04 HEX·RGB | E-14 | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart` |
+| F-04 스포이드 | E-14 | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart` |
+| F-04 최근 색·사용자 팔레트 | E-14 | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart` |
+| F-04 굵기 슬라이더 | E-15 | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart` |
+| F-04 미리보기 획 | E-15 | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart` |
+| F-04 빠른 팝업 | E-15 | `unit/width_mapping_test.dart`, `widget/pen_settings_panel_test.dart`, `widget/quick_pen_panel_test.dart` |
+| F-05 프리셋 구성 | E-16 | `unit/preset_ordering_test.dart`, `widget/preset_bar_test.dart`, `unit/preset_bar_notifier_test.dart` |
+| F-05 툴바 고정·순서·이름 | E-16 | `unit/preset_ordering_test.dart`, `widget/preset_bar_test.dart`, `unit/preset_bar_notifier_test.dart` |
+| F-05 프리셋 그룹 | E-16 | `unit/preset_ordering_test.dart`, `widget/preset_bar_test.dart`, `unit/preset_bar_notifier_test.dart` |
+| F-07 동기화 상태 표시 | E-13 | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart` |
+| F-08 입력 수단 | E-05·E-11·E-12 | `unit/input_router_test.dart`, `widget/undo_redo_test.dart`, `widget/shortcuts_test.dart` |
+| F-08 1회 = 1단계 | E-08·E-10 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`, `unit/selection_hit_test_test.dart` |
+| F-09 획/부분 지우개 | E-09 | `widget/erase_test.dart` |
+| F-09 크기·원형 커서 | E-09 | `widget/erase_test.dart` |
+| F-09 형광펜만/제외 | E-09 | `widget/erase_test.dart` |
+| F-09 지운 뒤 이전 펜 복귀 | E-07·E-09 | `unit/tool_controller_test.dart`, `widget/erase_test.dart` |
+| F-09 현재 페이지 전체 지우기 | E-09 | `widget/erase_test.dart` |
+| F-12 펜 전용 / 손가락 필기 | E-05·E-06 | `unit/input_router_test.dart`, `unit/editor_settings_test.dart`, `unit/editor_setting_keys_test.dart`, `unit/editor_settings_notifier_test.dart` |
+| F-12 팜 리젝션 | E-05 | `unit/input_router_test.dart` |
+| F-12 두 손가락 탭 | E-05·E-11 | `unit/input_router_test.dart`, `widget/undo_redo_test.dart` |
+| F-12 세 손가락 탭 | E-05·E-11 | `unit/input_router_test.dart`, `widget/undo_redo_test.dart` |
+| F-12 두 손가락 드래그 | E-03·E-05 | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart`, `unit/input_router_test.dart` |
+| F-12 핀치 | E-03·E-05 | `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart`, `unit/input_router_test.dart` |
+| F-12 손가락 길게 누르기 | E-05·E-10 | `unit/input_router_test.dart`, `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
+| F-12 한 손가락 드래그 (펜 전용) | E-05 | `unit/input_router_test.dart` |
+| F-13 삽입 위치 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| F-13 빈 페이지·속지 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| F-13 페이지 크기·방향 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| F-13 속지 색상 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| F-13 페이지 넘김 | E-02·E-03·E-18 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart`, `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
+| F-13 삭제·복제·순서 변경·썸네일 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| 5.1 올가미 (기본, M1) | E-10 | `unit/selection_hit_test_test.dart`, `unit/stroke_clipboard_test.dart`, `widget/lasso_test.dart` |
+| 5.1 팜 리젝션 | E-05 | `unit/input_router_test.dart` |
+| 5.1 확대/축소·스크롤 | E-02·E-03·E-08 | `unit/page_layout_test.dart`, `unit/camera_math_test.dart`, `unit/viewport_controller_test.dart`, `unit/viewport_memory_test.dart` |
+| 5.1 페이지 삭제·복제·순서·썸네일 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| 5.1 속지 템플릿 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| 5.1 자동 저장 | E-08·E-13 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`, `widget/editor_screen_test.dart` |
+| 5.2 키보드 단축키 (P1) | E-12 | `widget/shortcuts_test.dart` |
+| 5.4 필기 지연 | E-05·E-19 | `unit/input_router_test.dart`, `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
+| 5.4 성능 | E-04·E-19·E-22 | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart`, `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart` |
+| 5.4 데이터 안전 | E-08·E-13 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`, `widget/editor_screen_test.dart` |
+| 5.4 측정 | E-19 | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
+| 7.1 에디터 코어 흐름 | E-04·E-08 | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart`, `widget/pen_stroke_test.dart` |
+| 7.3 레이어 순서 | E-04 | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
+| 7.3 화면 밖 페이지 해제 | E-04 | `widget/page_viewport_test.dart`, `unit/page_mount_test.dart` |
+| 7.5 되돌리기 | E-08·E-11 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`, `widget/undo_redo_test.dart` |
+| 8 상단 툴바 | E-13 | `widget/editor_screen_test.dart`, `widget/read_only_test.dart`, `widget/storage_banner_test.dart` |
+| 8 펜 프리셋 바 | E-16 | `unit/preset_ordering_test.dart`, `widget/preset_bar_test.dart`, `unit/preset_bar_notifier_test.dart` |
+| 8 펜 설정 팝업 | E-14·E-15 | `unit/color_math_test.dart`, `widget/color_picker_test.dart`, `goldens/hsv_wheel_golden_test.dart`, `unit/width_mapping_test.dart` |
+| 8 페이지 썸네일 패널 | E-17 | `widget/page_panel_test.dart`, `widget/page_panel_thumbnail_test.dart`, `widget/page_panel_selection_test.dart` |
+| 8 설정 > 입력 | E-20 | `widget/settings_sections_test.dart`, `widget/smoke_test.dart` |
+| 8 설정 > 펜 | E-20 | `widget/settings_sections_test.dart`, `widget/smoke_test.dart` |
+| 8 설정 > 개발자 표시 | E-20 | `widget/settings_sections_test.dart`, `widget/smoke_test.dart` |
+| 9.4 개발자 표시 | E-19 | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
+| 9.5 단계 A 웹 테스트 | 9.2 · E-21 | 9.2 iPad 체크리스트(사용자), `web/editor_browser_smoke_test.dart`(통합 단계) |
+| 10 M0 필압 펜 프로토타입 | E-08·E-21 | `widget/pen_stroke_test.dart`, `widget/hover_cursor_test.dart`, `unit/editor_commands_test.dart`, `integration/real_core_ink_smoke_test.dart` |
+| 10 M0 개발자 표시 | E-19 | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
+| 10 M1 색·굵기·프리셋·지우개·되돌리기·확대·입력 모드·올가미·페이지 | E-03·E-05·E-09~E-11·E-14~E-17 | 위 행들 — `widget/color_picker_test.dart`, `widget/preset_bar_test.dart`, `widget/erase_test.dart`, `widget/undo_redo_test.dart`, `widget/lasso_test.dart`, `widget/page_panel_test.dart` |
+| 10 M1 펜 5종 | E-07·E-15 | `unit/tool_controller_test.dart`, `widget/pen_settings_panel_test.dart` |
