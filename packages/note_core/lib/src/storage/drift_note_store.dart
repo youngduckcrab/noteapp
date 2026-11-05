@@ -1,9 +1,10 @@
 // lib/src/storage/drift_note_store.dart (internal) — the SQLite NoteStore (CORE 6.1, 6.18).
 //
 // T6 opens the database, classifies open errors and keeps the per-device kv
-// values (device node, HLC, owner). The repositories, sessions and the sync
-// window are filled in by CORE T7–T14; until then their members throw
-// UnimplementedError naming the task.
+// values (device node, HLC, owner); T7 the write queue; T8 the library and the
+// content reader. The other repositories, sessions and the sync window are
+// filled in by CORE T9–T19; until then their members throw UnimplementedError
+// naming the task.
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -15,7 +16,6 @@ import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../repo/content_reader.dart';
 import '../repo/events.dart';
-import '../repo/library_repository.dart';
 import '../repo/note_store.dart';
 import '../repo/pen_preset_repository.dart';
 import '../repo/settings_repository.dart';
@@ -25,8 +25,11 @@ import '../session/note_session.dart';
 import '../sync/sync_store.dart';
 import 'change_bus.dart';
 import 'db/note_database.dart';
+import 'drift_content_reader.dart';
+import 'drift_library_repository.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
+import 'watch_hub.dart';
 import 'write_queue.dart';
 
 /// Open stores per durable database in this process (deleteLocalNoteData refuses
@@ -64,8 +67,11 @@ final class DriftNoteStore implements NoteStore {
       hlc: hlc,
       clock: clock,
       bus: bus,
+      watches: watches,
       persistedHlc: persistedHlc,
     );
+    library = DriftLibraryRepository(this);
+    content = DriftContentReader(db);
     sync = _DriftSyncStore(this);
   }
 
@@ -135,6 +141,9 @@ final class DriftNoteStore implements NoteStore {
 
   final ChangeBus bus = ChangeBus();
 
+  /// Re-queried watch streams (C-1); refreshed by the write queue after each commit.
+  final WatchHub watches = WatchHub();
+
   /// The single serial write queue (6.9); every write of this store goes through it.
   late final WriteQueue queue;
 
@@ -142,7 +151,7 @@ final class DriftNoteStore implements NoteStore {
   OwnerId get ownerId => _ownerId;
 
   @override
-  final LibraryRepository library = const _PendingLibrary();
+  late final DriftLibraryRepository library;
   @override
   final TrashRepository trash = const _PendingTrash();
   @override
@@ -150,7 +159,7 @@ final class DriftNoteStore implements NoteStore {
   @override
   final SettingsRepository settings = const _PendingSettings();
   @override
-  final NoteContentReader content = const _PendingContent();
+  late final NoteContentReader content;
   @override
   final AssetStore assets = const _PendingAssets();
   @override
@@ -200,6 +209,7 @@ final class DriftNoteStore implements NoteStore {
       }
     }
     await queue.close();
+    watches.close();
     await bus.close();
     await db.close();
   }
@@ -274,12 +284,6 @@ String _name(Invocation i) {
   return start >= 0 && end > start ? s.substring(start + 1, end) : s;
 }
 
-final class _PendingLibrary implements LibraryRepository {
-  const _PendingLibrary();
-  @override
-  Never noSuchMethod(Invocation i) => _pending('LibraryRepository', i, 'T8');
-}
-
 final class _PendingTrash implements TrashRepository {
   const _PendingTrash();
   @override
@@ -296,12 +300,6 @@ final class _PendingSettings implements SettingsRepository {
   const _PendingSettings();
   @override
   Never noSuchMethod(Invocation i) => _pending('SettingsRepository', i, 'T12');
-}
-
-final class _PendingContent implements NoteContentReader {
-  const _PendingContent();
-  @override
-  Never noSuchMethod(Invocation i) => _pending('NoteContentReader', i, 'T10');
 }
 
 final class _PendingAssets implements AssetStore {

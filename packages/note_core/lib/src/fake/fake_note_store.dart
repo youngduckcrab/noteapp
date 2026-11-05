@@ -29,6 +29,7 @@ import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
 import '../repo/events.dart';
 import '../repo/folder_tree.dart';
+import '../repo/folder_tree_equality.dart';
 import '../repo/library_repository.dart';
 import '../repo/library_types.dart';
 import '../repo/note_store.dart';
@@ -191,16 +192,33 @@ final class FakeNoteStore implements NoteStore {
 
   void _committed() {
     final at = now;
-    for (final (origin, changes) in _pendingBatches) {
-      // dedupe: no commit, no bytesArrived (6.13 ②)
-      _changes.add(
-        ChangeBatch(
-          origin: origin,
-          changes: List.unmodifiable(changes),
-          committedAt: at,
-        ),
-      );
+    // One ChangeBatch per origin run of this commit; an entity changed twice keeps its
+    // first position and its last value (same as the SQLite store's batchesOf).
+    ChangeOrigin? origin;
+    var current = <(EntityKind, String), EntityChange>{};
+    void close() {
+      if (origin != null && current.isNotEmpty) {
+        _changes.add(
+          ChangeBatch(
+            origin: origin,
+            changes: List.unmodifiable(current.values),
+            committedAt: at,
+          ),
+        );
+      }
     }
+
+    for (final (o, changes) in _pendingBatches) {
+      if (o != origin) {
+        close();
+        origin = o;
+        current = {};
+      }
+      for (final c in changes) {
+        current[(c.kind, c.id)] = c;
+      }
+    }
+    close();
     _pendingBatches.clear();
     for (final s in _sessions.values.toList()) {
       final n = notes[s.noteId];
@@ -513,7 +531,8 @@ final class _FakeLibrary implements LibraryRepository {
   FolderTree _tree() => FolderTree(s.ownFolders.where((f) => !f.isDeleted));
 
   @override
-  Stream<FolderTree> watchFolderTree() => s.watch(_tree);
+  Stream<FolderTree> watchFolderTree() =>
+      s.watch(_tree, equals: sameFolderTree);
 
   @override
   Stream<LibraryListing> watchListing(LibraryQuery query) =>

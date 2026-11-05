@@ -33,6 +33,7 @@ import 'field_version_writer.dart';
 import 'kv_keys.dart';
 import 'outbox_writer.dart';
 import 'row_mappers.dart';
+import 'watch_hub.dart';
 
 /// Retry schedule of a failed commit (6.9); the last value repeats.
 const List<Duration> kWriteRetryBackoff = [
@@ -94,6 +95,7 @@ final class WriteQueue {
     required this.hlc,
     required this.clock,
     required this.bus,
+    required this.watches,
     this._persistedHlc,
   });
 
@@ -101,6 +103,9 @@ final class WriteQueue {
   final HlcClock hlc;
   final Clock clock;
   final ChangeBus bus;
+
+  /// Watch streams re-queried after each commit, before its jobs complete.
+  final WatchHub watches;
   String? _persistedHlc;
 
   final Queue<_Job<Object?>> _queue = Queue();
@@ -235,11 +240,9 @@ final class WriteQueue {
       _schedule(kWriteRetryBackoff[i]);
       return;
     }
-    _inFlight = const [];
-    _running = false;
     final committed = clock.now();
     _setStatus(
-      pendingOps: _pending,
+      pendingOps: _queue.length,
       isWriting: false,
       lastCommittedAt: committed.millisecondsSinceEpoch,
       lastCommitLatency: committed.difference(batch.first.enqueuedAt),
@@ -259,9 +262,19 @@ final class WriteQueue {
         for (final tx in ok) (tx.origin, tx._changes),
       ], committed.millisecondsSinceEpoch),
     );
+    // Watch streams re-emit before the Futures of this commit complete (C-1, 4.5 head).
+    await watches.committed(
+      CommitTouch(
+        {for (final tx in ok) ...tx._touched},
+        {for (final tx in ok) ...tx._kvTouched},
+      ),
+    );
+    _inFlight = const [];
+    _running = false;
     for (final j in batch) {
       j.complete();
     }
+    _setStatus(pendingOps: _pending);
     _schedule(Duration.zero);
   }
 
@@ -309,6 +322,8 @@ final class WriteTxn {
   final EpochMillis now;
   final List<EntityChange> _changes = [];
   final List<void Function()> _after = [];
+  final Set<EntityKind> _touched = {};
+  final Set<String> _kvTouched = {};
   final Map<PageId, NoteId?> _pageNotes = {};
 
   NoteDatabase get db => _queue.db;
@@ -319,7 +334,16 @@ final class WriteTxn {
   /// Merges a remote HLC value into the clock (6.4 receive).
   void receive(Hlc remote) => _queue.hlc.receive(remote);
 
-  void addChange(EntityChange change) => _changes.add(change);
+  void addChange(EntityChange change) {
+    _touched.add(change.kind);
+    _changes.add(change);
+  }
+
+  /// Marks a raw write of [kind] rows (watch streams re-query; no ChangeBatch entry).
+  void touch(EntityKind kind) => _touched.add(kind);
+
+  /// Marks a write of the kv row [key] (device settings, meta).
+  void touchKv(String key) => _kvTouched.add(key);
 
   /// Runs [f] after the commit, before ChangeBatches are published (in-memory caches).
   void afterCommit(void Function() f) => _after.add(f);
@@ -339,16 +363,19 @@ final class WriteTxn {
   /// Stamps a new HLC, writes the row with field versions, records the outbox entry
   /// and the EntityChange. Only local-only / meta fields → no stamp, no outbox.
   /// Returns the stored field versions (max = the entity's new version).
+  /// [isNew]: the caller knows there is no row (fresh id) — skips reading it.
   Future<EntityFieldVersions> putLocal(
     SyncEntity entity,
     Iterable<String> fields, {
     NoteId? strokeNoteId,
+    bool isNew = false,
   }) async {
     final ref = EntityRef(entity.kind, entity.id);
-    final current = await readVersionedRow(db, ref);
+    final current = isNew ? null : await readVersionedRow(db, ref);
     var synced = syncedFieldsOf(entity.kind, fields);
     if (current == null && synced.isEmpty) synced = const {kAllFields};
     final hints = await _hints(entity, strokeNoteId);
+    _touched.add(entity.kind);
     if (synced.isEmpty) {
       // Local-only change: the row's versions stay.
       await writeEntityRow(
@@ -394,6 +421,7 @@ final class WriteTxn {
     SyncEntity entity,
     EntityFieldVersions versions,
   ) async {
+    _touched.add(entity.kind);
     final hints = await _hints(entity, null);
     final orphan = entity is Stroke && hints.noteId == null;
     await writeEntityRow(
