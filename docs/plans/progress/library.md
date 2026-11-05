@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 8 (동시 개발 단계) — L19·L20 완료, 동시 개발 단계 몫(L0~L20) 전부 끝(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, 세션 7: L17·L18, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: 동시 개발 단계 작업 없음. 통합 단계에서 L21(실제 CORE 계약 테스트, `integration/core_contract_test.dart` — 미리 써 둠, 실제 CORE로 실행·조정)
+- 마지막 세션: 통합 단계 1차(CORE → INK → EDITOR·LIBRARY 병합 뒤) — L21 실제 CORE로 통과('통합 단계' 절). 동시 개발 단계 몫(L0~L20)은 세션 8까지 끝(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, 세션 7: L17·L18, 세션 8: L19·L20, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: INFRA·PDF 병합 뒤 남은 통합 확인('통합 단계' › 남은 것 — V5 배너 문구, 앱 웹 빌드에서 9.2 준비, 사용자 iPad 확인)
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -33,7 +33,7 @@
 | L18 | 완료 | ccdc941 | `widget/integration_slots_test.dart`, `widget/storage_banner_test.dart`, `widget/settings_section_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart`, B6 `feature_library_smoke_test.dart` 갱신) |
 | L19 | 완료 | dd82973 | `goldens/library_golden_test.dart`(+ PNG 4장, `goldens/flutter_test_config.dart`), `widget/performance_test.dart`, `widget/a11y_test.dart` |
 | L20 | 완료 | 6b2567c | `web/library_browser_test.dart`, `web/scenarios_browser_test.dart` (+ L3 `web/new_note_options_browser_test.dart`) — `flutter test --platform chrome test/web` 17개, `ws test --platform chrome --package feature_library` 통과 |
-| L21 | 통합 단계 | 4450eaa (미리 작성) | `integration/core_contract_test.dart` (`@Tags(['integration'])` + `@TestOn('vm')`) — 세션 8에 미리 썼다. 기본 실행은 skip(`~1`), `--run-skipped -t integration`은 지금 10건 모두 CORE B2 `UnimplementedError`로 실패(예상). 통합 단계에서 통과 판정 |
+| L21 | 완료(통합 단계) | 4450eaa (미리 작성), 통합 커밋은 '통합 단계' 절 | `integration/core_contract_test.dart` (`@Tags(['integration'])` + `@TestOn('vm')`) — 세션 8에 미리 썼고, 1차 통합에서 실제 CORE로 10건 통과(닫기 방식만 고침 — '통합 단계' 절). 기본 실행은 skip(`~1`) 그대로 |
 
 ## 변경 요청
 
@@ -180,3 +180,60 @@
 - (L19 완료) 골든 갱신은 패키지에서 `flutter test --update-goldens --tags golden test/goldens` 뒤 **별도 커밋**(계약 7.4.8). 화면 배치를 바꾸는 작업(L20 이후·통합 단계)에서 골든이 깨지면 갱신 커밋을 따로 만든다. 접근성 검사는 `widget/a11y_test.dart`의 `check(설명, 상태를 만드는 본문)`에 상태를 더하면 세 지침이 자동으로 붙는다.
 - (L20 완료) 브라우저 테스트는 패키지에서 `flutter test --platform chrome test/web`(3파일 17건, 컨테이너에서 약 25~75초). 화면 흐름을 더 웹에서 보려면 `test/shared/library_scenarios.dart`에 시나리오를 더하면 VM·Chrome(`web/scenarios_browser_test.dart`)·통합(L21) 세 곳에서 같이 돈다(웹 안전 import만).
 - L21(통합 단계) 시작점: `test/integration/core_contract_test.dart`를 세션 8에 미리 썼다(계획 8 L21 그대로). ① `libraryScenarios.where((s) => !s.needsFaults)`(지금 9건 모두)를 `open(tester, storageInfo: nativeFile)` = `tester.runAsync(() => FakeLibraryBackend.overStore((c) => openTestNoteStore(clock: c, storageInfo: …)))` 위에서 돌리고, 끝에 `close` = `pumpWidget(SizedBox)` → `runAsync(backend.dispose)` ② 기본 `openTestNoteStore()`(메모리 = nativeMemory) → `pump` 두 번 뒤 쓰기 없이 `LibraryStrings.storageNotDurable` 배너. **실제 drift로는 한 번도 돌려 보지 않았다** — 통합 단계에서 CORE T6 병합 뒤 `ws test --run-skipped -t integration`으로 돌리고, 'A Timer is still pending'·스트림 첫 값이 안 오는 경우는 그 시나리오의 CORE 호출이나 대기를 `runAsync`로 감싼다(11절, LIBRARY-2-6). 시나리오 본문(`shared/library_scenarios.dart`)의 씨앗은 이미 `tester.runAsync` 안에서 CORE를 부른다.
+
+## 통합 단계
+
+1차 통합(계약 7.7 순서 CORE → INK → EDITOR·LIBRARY 병합 뒤, 통합 브랜치 `claude/note-app-planning-bk29xb`, 기준 1582ec2). PDF·SYNC·INFRA는 아직 동시 개발 중이라 이 브랜치의 `pdf_io`·`sync_engine`·`app`은 기반 단계 자리표시다(단 `app`의 기반 라우터는 이미 실제 `LibraryScreen`을 띄운다). LIBRARY `lib/`는 바꾸지 않았다 — L21 테스트 파일, 계획서 8 L21 행·11절 리스크 행, 이 기록만.
+
+### L21 — `integration/core_contract_test.dart`를 실제 CORE로 (계약 7.7 5단계)
+
+- 첫 실행: 시나리오 1·2 통과, 3번째("copy: ' 사본' of a 200-character title …")에서 **멈춤** — CPU 거의 0, 10분 넘게 출력 없음(testWidgets 시간 초과도 걸리지 않음).
+- 원인(추적 안 한 임시 진단 테스트 `test/integration/zz_debug_test.dart`로 확인하고 지움 — EDITOR 기록의 '루트 analyze 10건'은 이 임시 파일의 `avoid_print`였고 지금 루트 analyze는 0건): 시나리오 단언은 모두 통과했고 멈춘 곳은 끝의 닫기 `tester.runAsync(backend.dispose)`. `store.close()`는 `ThumbnailCacheImpl.close()`에서 진행 중인 캐시 작업(`_tail`)을 기다리는데, 그 작업은 화면의 표지(`NoteCoverView` → CORE `pageThumbnailProvider` → `ThumbnailCache.read`)가 **가짜 시간 영역에서** 시작한 블롭 IndexedDB 읽기다. `openTestNoteStore`의 블롭 저장소는 idb_shim(sembast 메모리)라 트랜잭션 시작(`TransactionSembast` `_delayedInit` — 0ms 타이머)과 sembast `Cooperator` 쉼(0.1ms 타이머 — 실제 시간 4ms마다)이 그 영역의 타이머가 된다. `pumpAndSettle`은 마지막 프레임에서 생긴 이 타이머를 진행하지 않고 끝나고(프레임 예약이 없으면 멈춤), `runAsync` 안에서는 가짜 시간이 흐르지 않으므로 닫기가 영원히 기다린다. `pumpAndSettle` 뒤 `pump(1ms)` 한 번이면 풀리는 것도 확인. 폴더만 다루는 2번은 표지가 없어서, 1번은 마지막이 `pump()`라 우연히 통과했다.
+- CORE 결함 아님(변경 요청 없음): 닫기가 남은 캐시 작업을 기다리는 것은 맞는 동작이고, idb_shim 타이머 때문에 fake_async 안에서는 시간을 진행해야 한다는 점은 CORE 기록(core.md '통합 단계' — 에셋 `put`·썸네일 쓰기)에 이미 있다. 읽기도 같고 `close()`가 그것을 기다린다는 점을 아래 '메모'에 더해 둔다.
+- 고침(테스트 파일 `close()`만): 화면을 내린 뒤 `backend.dispose()`(= `store.close()`)를 **테스트 영역에서 시작**하고 `pump(1ms)`와 `runAsync(Future.delayed(1ms))`를 번갈아 끝날 때까지 진행한다(상한 500번 — 넘으면 `store.close() did not finish`로 실패, 닫기 오류는 그대로 다시 던짐). EDITOR E-21과 같은 방식. 끝까지 진행하므로 가짜 타이머도 남지 않는다(flutter_test의 'A Timer is still pending' 검사 통과). 시나리오 본문(`shared/library_scenarios.dart`)·`FakeLibraryBackend`·`lib/`는 그대로 — 본문의 `runAsync` CORE 호출(drift: 씨앗·`watchFolderTree().first`·`watchListing().first`·`getNote`·`pagesOf`·설정·`openSession`)과 화면 조작이 일으킨 가짜 영역의 drift 쓰기는 실제 CORE에서 그대로 통과했다(drift `NativeDatabase`는 테스트 isolate에서 마이크로태스크만 씀).
+- 결과: **10건 모두 통과**. ① 공유 시나리오 9건(`needsFaults == false` — 지금 전부, `storageInfo: nativeFile`): 경로 변경에도 State 유지, 폴더 만들기·피커 이동·순환 거부(실제 CORE `FolderCycleException`, 아무것도 안 바뀜)·실행 취소, 200자 제목 사본 = 200자, 사용자 지정 순서에서 두 노트를 셋째 뒤로(`reorderItems` 1회, 3·4·1·2), 폴더 안 노트 휴지통 → 제자리 복원·[보기], NFD 제목·질의 검색, '최근'은 `openSession` 뒤에만(`markOpened` 호출 없음), 새 노트 기본값 JSON 왕복(148×210mm·점·아이보리 → 대화상자 칸·첫 페이지 크기·배경), 원격 휴지통·영구 삭제 → 폴더 없음 보기. ② 기본 `openTestNoteStore()`(메모리 = `nativeMemory`) → 쓰기 없이 `LibraryStrings.storageNotDurable` 배너(계약 7.2.12·7.6 C11-12). 가짜와 실제 CORE의 결과 차이 없음.
+- 실행: 패키지에서 `flutter test --run-skipped -t integration` → 10개 통과(약 25초, 대부분 컴파일). 루트 `dart run tool/ws.dart test --run-skipped -t integration --package feature_library` → `feature_library vm 10 passed 0 failed 30.6s ok`.
+
+### 실제 CORE·INK 합류 뒤 패키지 테스트
+
+| 검사 | 결과 |
+|---|---|
+| 패키지 `flutter test` (VM, 골든 4장 포함) | 626개 통과 + 1 skip(L21 `integration`), 태그 경고 없음 — 세션 8과 같은 수 |
+| 패키지 `flutter test --platform chrome test/web` | 17개 통과(3파일) |
+| 루트 `flutter analyze --fatal-infos` | 0건 |
+| `ws check` | 위반 0(R1·R2·R3·R7·R8·R9·R15) |
+| `dart format` (`packages/feature_library`) | 변경 없음 |
+
+LIBRARY의 VM·Chrome 테스트는 CORE 공용 가짜(`createFakeNoteStore`) 위에서 돌고 INK를 import하지 않으므로(R8) 실제 CORE·INK 합류로 바뀐 것이 없다 — 예상대로 같은 수로 통과.
+
+### 실제 INK 썸네일 렌더러와의 접점 (계획 5.3 K-1·K-4, 6.15)
+
+LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로는 볼 수 없다. 그래서 모든 패키지에 의존하는 `app` 디렉터리에서 **저장소 밖 임시 테스트**(scratchpad 파일을 `flutter test <절대 경로>`로 — 커밋하지 않음, `app/`에는 아무것도 쓰지 않음)로 확인했다: 실제 CORE(`openTestNoteStore(storageInfo: nativeFile)`) + `pageThumbnailRendererProvider.overrideWith((ref) => ref.watch(inkPageThumbnailRendererProvider))`(INFRA 7.3.3 연결과 같은 모양) + `featureLibraryOverrides()` + `LibraryScreen`, 줄 속지 A4 세로 노트 1개.
+
+- 표지 예약기(800ms 시작 지연) → INK 렌더 → `ThumbnailCache.write` → 표지가 `Image`로 바뀜. 결과 PNG 362×512(긴 변 = `maxSidePx` 512, 짧은 변 = 512 × 595.28/841.89 반올림), `pageId`·`contentRevision`(0)이 페이지 값과 같음(K-1).
+- 세션으로 획 1개(`AddStrokes`, 페이지 `contentRevision` 1) → 노트 `updatedAt`이 바뀌어 타일이 다시 요청 → 캐시가 오래됨(`isStaleFor`) → 다시 렌더, 캐시 `contentRevision` 1·PNG 바이트가 달라짐, 표지는 `Image` 그대로.
+- 어긋남 없음 → LIBRARY 변경 없음. K-3(획 2,000개 512px ≤ 150ms, iPad Safari)은 기기 측정이라 9.2 확인 때. 이 확인을 저장소에 남기려면 INFRA 앱 테스트(V5 스모크 등)가 맡을 수 있다(LIBRARY 소유 경로에는 둘 수 없음).
+
+### 계획 8 L21 · 10절 통합 단계 완료 조건 — 지금(PDF·INFRA 연결 전) 확인한 것
+
+| 조건 | 상태 |
+|---|---|
+| L21 `ws test --run-skipped -t integration` 통과 (V3의 LIBRARY 몫) | 통과 |
+| 실행 뒤 남은 타이머·열린 저장소 없음 | 통과 — 테스트마다 `store.close()` 완료를 단언, flutter_test 가짜 타이머 검사 통과 |
+| 루트 `flutter analyze`·전체 테스트(LIBRARY VM·골든·Chrome) | 통과(위 표) |
+| 10절 1~4(작업 완료 조건, analyze·format·`ws check`, 공개 API 11개·`markOpened` 없음, 다른 영역 없이 통과) | 유지 — `unit/api_surface_test`·`unit/actions_test`·전체 테스트 통과 |
+| 앱 `flutter build web` | `cd app && flutter build web --release` 통과(91.6초, `✓ Built build/web`) — 지금 앱은 INFRA 기반 라우터(B8)지만 실제 LIBRARY 코드(`LibraryScreen`)를 dart2js로 함께 빌드한다. INFRA 실제 연결 뒤 V4(`web-assets verify` 포함)에서 다시 |
+| INFRA V5 스모크의 라이브러리 배너 문구 = 계약 7.4.5 (10절 5) | INFRA 병합 뒤 |
+| 9.2 사용자 iPad 확인 → M2 '폴더로 노트를 정리할 수 있음' | 미리보기 배포 뒤 |
+
+### 메모 — 다른 영역 통합 담당에게 (INFRA V5·V6 스모크, PDF `integration`)
+
+- 실제 CORE(`openTestNoteStore`)로 `LibraryScreen`을 `testWidgets`에서 띄우면, 첫 페이지 표지 노트 타일마다 CORE `pageThumbnailProvider`가 썸네일 캐시를 **가짜 시간 영역에서** 읽는다(블롭 IndexedDB의 0·0.1ms 타이머). `pumpAndSettle` 뒤에도 그 타이머가 남을 수 있어 `tester.runAsync(store.close)`는 멈춘다(시간 초과 없음). 화면을 내린 뒤 `store.close()`를 테스트 영역에서 시작하고 `pump(1ms)`·`runAsync(() => Future.delayed(1ms))`를 번갈아 끝날 때까지 진행하면 된다(L21 `close()`). 같은 이유로 썸네일 캐시를 `runAsync` 안에서 읽거나 기다리지 않는다(가짜 영역 읽기가 앞에 있으면 함께 멈춤).
+- 실제 렌더러를 붙이면 `Picture.toImage`·`toByteData`도 실제 이벤트 루프가 필요하다 — 같은 번갈아 진행(위 INK 확인은 `pump(50ms)`·`runAsync(5ms)` 번갈아 최대 400번).
+
+### 남은 것
+
+- INFRA 병합 뒤: V5 스모크의 라이브러리 화면 배너 문구 = 계약 7.4.5 고정 문장(10절 5), 앱 웹 빌드(V4)에서 9.2 준비(폴더 5개·노트 30개 — 개발자 메뉴 등, 9.2 머리말), 미리보기 배포 → 9.2 사용자 iPad 확인(6·17·24 제외 전 항목 합격 → PLAN M2).
+- PDF 병합·INFRA 연결 뒤: 9.2 #28(선택 막대 'PDF 내보내기'·노트 ⋯ 'PDF로 내보내기')과 'PDF 가져오기'가 실제 함수로 — 자리 provider(`libraryPdfImportActionProvider`·`libraryPdfExportActionProvider`)는 L14·L18에서 준비됨, INFRA가 7.3.3 표대로 override.
+- 9.2 #6(썸네일)·#24(스크롤 느낌)·K-3(렌더 시간): 기기에서.
+- 변경 요청: 없음. 의존성 요청: 없음(`pubspec.lock` 변경 없음). 공개 API 변경 없음.
