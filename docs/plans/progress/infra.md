@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: 1 / 8 (동시 개발 단계)
+- 마지막 세션: 1 / 8 (동시 개발 단계) — I1·I4·I2·I3 완료
 - 다음 할 일: I6 (라우팅) → I5 (부트스트랩) → I7 순서. I5 전에 계획서 4.5.4·6.4를 읽는다. 계획서 8.2 표의 선행 관계를 따른다.
 - 기반 단계: B1(0bbebf8)·B8(2cec46a, eda674f) 완료. 계약 v1.4(C14-01·C14-02) 반영 확인.
 
@@ -14,7 +14,7 @@
 | B8 | 기반 단계에서 완료 | 2cec46a, eda674f | 최소 라우터·자리표시 화면 연결, R15 `tags:` 인식 수정(계약 v1.4 C14-02) |
 | I1 | 완료 | ac34ca7 | `tool/test/rules_test.dart`(R1–R13), `test_tags_test.dart`(회귀), `test_command_test.dart`(`--affected-since` 포함), `affected_test.dart`, `channel_id_test.dart`, `build_info_file_test.dart`, `web_finalize_test.dart`, `web_assets_test.dart`, `dart_imports_test.dart`, `flutter_runner_test.dart`(회귀), `hosting_config_test.dart`(`--isolate` 변환만 — I12에서 `firebase.json` 검사 추가). 새 명령: `affected`, `channel-id`, `build-info`, `finalize-web`, `web-assets verify\|fetch`, `hosting-config`; `check --no-format`·`--no-exports`(R14는 G3) |
 | I2 | 완료 | baabeeb | `app/test/runtime/build_info_test.dart`, `runtime_info_test.dart` (계획서의 `test/build/` → `test/runtime/`, 아래 '계획과 다르게 한 점') |
-| I3 | 완료 | (이 커밋) | `app/test/errors/app_error_log_test.dart`, `error_handlers_test.dart`(+`appErrorWidgetBuilder`), `diagnostic_report_test.dart`(6.7 형식 스냅숏·알 수 없음·8,000자·오류 5건·스택 15줄), `app_provider_observer_test.dart`. `StartupReport`·`StartupStep`·`StartupStepOutcome`(4.5.4)을 `src/bootstrap/startup_report.dart`에 먼저 만들었다(I5가 사용) |
+| I3 | 완료 | 99d47c9 | `app/test/errors/app_error_log_test.dart`, `error_handlers_test.dart`(+`appErrorWidgetBuilder`), `diagnostic_report_test.dart`(6.7 형식 스냅숏·알 수 없음·8,000자·오류 5건·스택 15줄), `app_provider_observer_test.dart`. `StartupReport`·`StartupStep`·`StartupStepOutcome`(4.5.4)을 `src/bootstrap/startup_report.dart`에 먼저 만들었다(I5가 사용) |
 | I4 | 완료 | d25743b | `app/test/web/web_platform_browser_test.dart`(Chrome 8건: 절대 URL, 404·시간 초과 → null, `pagehide`·`visibilitychange` 대응·구독 해제, standalone false, 내려받기 true, 공유 불가면 `unsupported`). `app/test/fakes/fake_web_platform.dart`(5.7). VM 스텁 사용은 I2 `test/runtime/runtime_info_test.dart`에서 |
 | I5 | 남음 | | `app/test/bootstrap/app_bootstrapper_test.dart`, `overrides_unique_test.dart`, `bootstrap_app_test.dart`, `startup_error_screen_test.dart` |
 | I6 | 남음 | | `app/test/routing/app_routes_test.dart`, `app_router_test.dart` (B8의 `AppRoutes`·임시 라우터를 교체) |
@@ -53,6 +53,12 @@
 - (세션 1) 계약 v1.3 C13-05 절차: 계획서 머리 상태 줄 '승인'·계약 인용 v1.4, 12.3 P6 결정 칸·8.1 B1 완료/B8-2 인용(INFRA-4-1), 13.4 '최종 승인' 한 줄(INFRA-4-2). 본문 개별 조항의 v1.1/v1.2 인용은 그 조항이 들어간 판이라 그대로 뒀다.
 
 ## 다음 세션 메모
+
+- 세션 1 끝 상태: `ws check`(R1–R13·R15) 0, 루트 `flutter analyze --fatal-infos` 0, `dart test tool/test` 182건, `ws test` 7개 멤버 통과(noteapp VM 38건), `ws test --package noteapp --platform chrome` 8건 통과.
+- 이미 있는 앱 셸 조각: `src/web/`(WebPlatform), `src/runtime/`(BuildInfo·RuntimeInfo), `src/errors/`(AppErrorLog 등·DiagnosticReport), `src/bootstrap/startup_report.dart`(StartupReport). B8 임시 이름(`createFoundationRouter`·`FoundationApp`·`buildFoundationRoot`·`foundationOverrides`·`SettingsPlaceholderScreen`)은 아직 그대로 — I5·I6·I7·I9에서 교체.
+- 가짜: `app/test/fakes/fake_web_platform.dart`. 5.7의 나머지(`FakeAppModule`·`CountingNoteStore`·`fakeOpenNoteStore`·`RecordingLocalDataEraser`·가짜 PDF 동작)는 I5·I9·I10에서 만든다.
+- 앱에는 아직 `app/dart_test.yaml`이 없다(I12). 그 전에는 앱 테스트에 태그를 쓰지 않는다(R15).
+- 앱 폴더 이름에 `build`를 쓰지 않는다(`.gitignore`·분석 제외·`ws`가 빌드 산출물로 본다).
 
 - 환경: `export PATH=/opt/flutter/bin:$PATH CHROME_EXECUTABLE=/usr/local/bin/chrome-nosandbox`, `ws` = `dart run tool/ws.dart`.
 - 다른 영역 구현은 이 작업 트리에서 기반 단계 자리표시다. CORE `createFakeNoteStore()`와 계획서 5.7의 가짜로 개발한다.
