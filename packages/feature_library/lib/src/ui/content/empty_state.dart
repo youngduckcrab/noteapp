@@ -1,0 +1,149 @@
+// lib/src/ui/content/empty_state.dart — 05-library 6.7: what the content
+// area shows without items — the empty state of each section, the delayed
+// loading spinner and the load error.
+import 'dart:async' show Timer;
+
+import 'package:material_ui/material_ui.dart';
+
+import '../../l10n/library_strings.dart';
+import '../../model/section.dart';
+import 'new_note_trigger.dart';
+
+/// Icon 64 + text (+ buttons) in the middle.
+class EmptyState extends StatelessWidget {
+  const EmptyState({super.key, required this.section});
+
+  final LibrarySection section;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final section = this.section;
+    final (icon, text) = switch (section) {
+      FolderSection(folderId: null) => (
+        Icons.note_outlined,
+        LibraryStrings.emptyHome,
+      ),
+      FolderSection() => (
+        Icons.folder_open_outlined,
+        LibraryStrings.emptyFolder,
+      ),
+      RecentSection() => (Icons.schedule, LibraryStrings.emptyRecent),
+      FavoritesSection() => (Icons.star_outline, LibraryStrings.emptyFavorites),
+      SearchSection(:final query) => (
+        Icons.search_off,
+        LibraryStrings.emptySearch(query),
+      ),
+      TrashSection() => (Icons.delete_outline, ''),
+    };
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 64, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(height: 16),
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (section is FolderSection) ...[
+                const SizedBox(height: 24),
+                // L12 adds [새 폴더] next to it.
+                NewNoteTrigger(
+                  folderId: section.folderId,
+                  builder: (context, onPressed) => FilledButton.icon(
+                    icon: const Icon(Icons.note_add_outlined),
+                    label: const Text(LibraryStrings.newNote),
+                    onPressed: onPressed,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A CircularProgressIndicator in the middle, only after 300 ms (no flicker
+/// for short loads).
+class DelayedSpinner extends StatefulWidget {
+  const DelayedSpinner({super.key});
+
+  static const Duration delay = Duration(milliseconds: 300);
+
+  @override
+  State<DelayedSpinner> createState() => _DelayedSpinnerState();
+}
+
+class _DelayedSpinnerState extends State<DelayedSpinner> {
+  Timer? _timer;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(DelayedSpinner.delay, () {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _visible
+      ? const Center(child: CircularProgressIndicator())
+      : const SizedBox.expand();
+}
+
+/// '목록을 불러오지 못했어요' + [다시 시도] (6.7 / 6.19).
+class ListLoadError extends StatelessWidget {
+  const ListLoadError({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              LibraryStrings.listLoadFailed,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton(
+              onPressed: onRetry,
+              child: const Text(LibraryStrings.retry),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

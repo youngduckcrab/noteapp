@@ -47,6 +47,55 @@ abstract final class LibraryStrings {
   static const String sortUpdated = '수정한 날짜';
   static const String sortCustom = '사용자 지정';
 
+  // Listing (6.7 / 6.8)
+  /// Sort menu button tooltip.
+  static const String sort = '정렬';
+
+  /// Tooltip of the disabled sort button outside folder sections.
+  static const String sortFixed = '이 보기는 정렬 순서가 정해져 있어요';
+
+  /// View toggle tooltips: the icon shows the mode it switches TO.
+  static const String viewAsList = '목록으로 보기';
+  static const String viewAsGrid = '격자로 보기';
+
+  /// Compact top bar overflow menu (정렬 · 보기 · 선택).
+  static const String moreActions = '더 보기';
+
+  /// Breadcrumb '…' (hidden path menu).
+  static const String hiddenPath = '숨은 경로';
+
+  /// Note meta line: '3페이지'.
+  static String pageCount(int n) => '$n페이지';
+
+  /// List row meta: `'<date> · <n>페이지'`.
+  static String noteListMeta(String date, int pages) =>
+      '$date · ${pageCount(pages)}';
+
+  /// Tile semantics (6.8).
+  static String noteSemantics(String title, String date) =>
+      '노트, $title, 수정 $date';
+  static String folderSemantics(String name) => '폴더, $name';
+
+  /// Badge / meta / snack bar for a note made by a newer app version.
+  static const String requiresNewerApp = '새 버전 앱에서 열 수 있어요';
+
+  // Empty states (6.7)
+  static const String emptyHome = '노트가 없어요';
+  static const String emptyFolder = '이 폴더는 비어 있어요';
+  static const String emptyRecent = '최근에 연 노트가 없어요';
+  static const String emptyFavorites =
+      '즐겨찾기한 노트가 없어요. 노트 메뉴에서 ☆ 즐겨찾기를 눌러 추가하세요.';
+  static String emptySearch(String query) => '"$query"에 대한 결과가 없어요';
+
+  /// Listing stream error (6.7 / 6.19).
+  static const String listLoadFailed = '목록을 불러오지 못했어요';
+
+  // Folder missing view (6.4)
+  static const String folderInTrash = '이 폴더는 휴지통에 있어요';
+  static const String folderNotFound = '폴더를 찾을 수 없어요. 다른 기기에서 영구 삭제됐을 수 있어요.';
+  static const String showTrash = '휴지통 보기';
+  static const String goHome = '홈으로';
+
   // Selection
   static const String select = '선택';
   static const String done = '완료';

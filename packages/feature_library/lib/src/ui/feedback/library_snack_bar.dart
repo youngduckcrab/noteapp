@@ -26,6 +26,25 @@ void showLibrarySnackBar(
 }) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   if (messenger == null) return;
+  showLibrarySnackBarOn(
+    messenger,
+    message: message,
+    sizeClass: sizeClass,
+    action: action,
+  );
+}
+
+/// [showLibrarySnackBar] on a messenger looked up before an await — for
+/// results that arrive after the widget that started the action is gone
+/// (the empty state's '새 노트' button is replaced by the grid as soon as the
+/// new note appears; an unfavorited row leaves the favorites list).
+void showLibrarySnackBarOn(
+  ScaffoldMessengerState messenger, {
+  required String message,
+  required LibrarySizeClass sizeClass,
+  SnackBarAction? action,
+}) {
+  if (!messenger.mounted) return;
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(

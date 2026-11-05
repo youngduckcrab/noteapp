@@ -22,7 +22,7 @@
 | L7 | 완료 | 6e936b5 | `unit/actions_test.dart` |
 | L8 | 완료 | 58eb35c | `unit/grid_metrics_test.dart`, `widget/layout_test.dart` |
 | L9 | 완료 | (이 커밋) | `unit/sync_badge_look_test.dart`, `widget/sidebar_test.dart` |
-| L10 | 남음 | | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` |
+| L10 | 완료 | (이 커밋) | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` (+ B6 `feature_library_smoke_test.dart` 갱신) |
 | L11 | 남음 | | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` |
 | L12 | 남음 | | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` |
 | L13 | 남음 | | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` |
@@ -79,6 +79,15 @@
 - L9 `LibraryScope`에 `closeDrawer`를 더했다(사이드바 최근·즐겨찾기·휴지통이 섹션을 바꾸기 전에 서랍을 닫음). 현재 폴더 드러내기는 `LibraryScreen` State의 `_scheduleReveal`(initState·folderId가 바뀐 didUpdateWidget → post-frame → `tree.pathTo(id)`의 마지막을 뺀 조상 `expandAll`, 트리가 없으면 `listenManual` 첫 값에서 한 번).
 - L9 `SyncBadgeLook`에 값 동등을 더했고, 음수 `pendingChanges`는 0으로 본다. `SyncBadgeIndicator`는 오류·로딩이면 `SyncBadge.off`, 시각은 `clockProvider.now()`.
 - L9 B6 스모크 테스트의 '홈' 글자 확인을 `findsNWidgets(2)`(상단 막대 + 사이드바 홈 줄)로 바꿨다.
+- L9 사이드바 파일 이름은 3장 구조(`sidebar_nav_row.dart`·`folder_tree_view.dart`·`folder_tree_row_tile.dart`)와 다르다: `sidebar_rows.dart`(`SidebarNavRow`·`SidebarTreeRow`)·`sidebar_folder_tree.dart`(`SidebarFolderTree`). L13(줄 메뉴)·L15(놓기 대상)은 이 파일들을 고친다.
+- L10 '새 노트'(그리드 첫 칸 `NewNoteTile`, 빈 상태 버튼)는 `ui/content/new_note_trigger.dart`의 `NewNoteTrigger(folderId:, builder: (context, onPressed) => …)`를 거친다. 지금은 B6처럼 '제목 없는 노트'를 바로 만들고 연다(진행 중 `onPressed == null`). **L12는 이 위젯 안만 바꿔 새 노트 대화상자를 열면 된다**(컨트롤은 그대로). 빈 상태에는 지금 [새 노트]만 있고 [새 폴더]는 L12가 더한다(`empty_state.dart` 주석).
+- L10 비동기 결과 규칙: 새 노트가 나타나면 빈 상태가 그리드로 바뀌어 버튼 위젯이 사라지므로, 동작 시작 위젯이 살아 있는지에 기대지 않는다 — `LibraryScope` 콜백(`openNote` 등)은 `LibraryScreen` State가 `mounted`일 때만 동작하고, 스낵바는 await 전에 잡은 messenger로 `showLibrarySnackBarOn(messenger, …)`(`library_snack_bar.dart`). L12~L18의 대화상자·동작도 이 방식을 쓰면 된다.
+- L10 `NoteCoverView`(`ui/content/note_cover_view.dart`)는 지금 모든 표지를 자리표시(`CoverPlaceholder`: `surfaceContainerHigh` + `Icons.description_outlined`)로 그리는 `StatelessWidget`이다. L11이 4가지 표지·예약기와 함께 `ConsumerStatefulWidget`으로 바꾼다(생성자 그대로).
+- L10 타일(`note_tile.dart`·`folder_tile.dart`): `RepaintBoundary` → `Stack[Positioned.fill(Semantics(container, button, label: noteSemantics/folderSemantics, excludeSemantics, onTap) → InkWell → Column[표지 TileCoverBox, 8, TileFooterText])]`. ⋯(44×44) 자리는 제목 줄 오른쪽에 비워 두었고(`EdgeInsetsDirectional.only(end: 44)`) L13이 `Stack`에 `Positioned`로 넣는다. 리스트 행(`item_list.dart`의 `NoteListRow`·`FolderListRow`)도 ⋯ 자리 `SizedBox(52)`. 리스트 행의 ☆/★는 L10에서 `setFavorite` 토글까지 했다. 공통 조각은 `tile_parts.dart`(`openLibraryNote` — `requiresNewerApp`이면 열지 않고 스낵바, `FolderPicture`, `TileCoverBox`, `TileFooterText`(글자 배율 1.3 제한), `CoverCornerBadge`). `requiresNewerApp` 배지는 표지 왼쪽 아래 `Icons.upgrade`(primary), 메타는 '새 버전 앱에서 열 수 있어요'.
+- L10 `ContentBody`: 폴더 섹션은 `_FolderBody`(트리가 로드됐는데 id가 없으면 `folderLookupProvider` → trashed/missing이면 `FolderMissingView`, 판정 중이면 `DelayedSpinner`, 오류·active면 목록). 최근·즐겨찾기·검색도 지금은 같은 `ContentListing`(폴더 먼저 → 노트)으로 보인다 — L17이 검색 결과 보기(묶음·위치·강조)로 바꾸고 최근·즐겨찾기를 테스트한다. 휴지통은 빈 본문(L16). `ContentListing`은 같은 섹션의 다른 질의(정렬 변경 = 새 family 인스턴스)가 로딩되는 동안 마지막 내용을 그대로 보여 준다(`_last`). 목록이 바뀌면 `selection.retainVisible`(6.7)도 L10에서 연결했다. 오류 [다시 시도]는 섹션별 CORE provider를 `invalidate`(폴더는 `libraryListingProvider` family 전체).
+- L10 상단 막대: 폴더 섹션은 `BreadcrumbBar`(트리 로딩 중엔 빈 칸, 현재 칸 굵게 w700·버튼 아님, 조상 칸 `TextButton` 44, '…'은 `IconButton(Icons.more_horiz, 툴팁 LibraryStrings.hiddenPath '숨은 경로')` + `MenuAnchor`의 `MenuItemButton`들). 오른쪽은 expanded·medium이면 `SortMenuButton`(폴더 섹션만 활성, 아니면 비활성 + 툴팁 `sortFixed`) · `ViewModeButton`(휴지통 제외), compact면 `CompactListingMenu`(⋯ '더 보기' — '정렬' 하위 메뉴 + 보기 전환; **L14가 '선택'을 여기에 더한다**). 파일 `ui/top_bar/breadcrumb_bar.dart`, `ui/top_bar/sort_menu_button.dart`.
+- L10 문구 추가: `sort`, `sortFixed`, `viewAsList`/`viewAsGrid`, `moreActions`, `hiddenPath`, `pageCount(n)`, `noteListMeta(date, n)`, `noteSemantics`/`folderSemantics`, `requiresNewerApp`, 빈 상태 5종(`emptyHome`…`emptySearch(q)`), `listLoadFailed`, `folderInTrash`·`folderNotFound`·`showTrash`·`goHome`.
+- L10 B6 스모크 테스트: 이제 빈 홈의 [새 노트]를 누른다(`pumpAndSettle`로 목록 로드 후). '실패' 테스트는 목록이 뜬 뒤 저장소를 닫고 누른다.
 - L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
 
 ## 다음 세션 메모

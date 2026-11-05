@@ -1,11 +1,10 @@
 // lib/src/ui/top_bar/library_top_bar.dart — 05-library 6.2 (top bar table).
-// Frame of the bar (task L8): the leading button and the title. The slots on
-// the right are filled by later tasks: search (L17), sort and view (L10),
-// '선택' (L14), '새로 만들기' (L12 / L18). The breadcrumb replaces the folder
-// title in L10.
+// Leading button, the breadcrumb (folder sections) or the section title, and
+// on the right the sort menu and the view toggle (L10; in the compact class
+// both live in ⋯). Still to come on the right: search (L17), '선택' (L14),
+// '새로 만들기' (L12 / L18).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show folderTreeProvider;
 
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
@@ -13,6 +12,8 @@ import '../../state/providers.dart';
 import '../layout/library_metrics.dart';
 import '../layout/size_class.dart';
 import '../library_scope.dart';
+import 'breadcrumb_bar.dart';
+import 'sort_menu_button.dart';
 
 class LibraryTopBar extends ConsumerWidget {
   const LibraryTopBar({super.key, required this.section});
@@ -23,6 +24,8 @@ class LibraryTopBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scope = LibraryScope.of(context);
     final theme = Theme.of(context);
+    final sortEnabled = section is FolderSection;
+    final showViewToggle = section is! TrashSection;
     return Material(
       color: theme.colorScheme.surface,
       child: SizedBox(
@@ -39,9 +42,25 @@ class LibraryTopBar extends ConsumerWidget {
                 onPressed: scope.openDrawer,
               ),
             const SizedBox(width: 8),
-            Expanded(child: _SectionTitle(section: section)),
-            // Slots (L10, L12, L14, L17, L18) go here.
-            const SizedBox(width: 16),
+            Expanded(
+              child: switch (section) {
+                FolderSection(:final folderId) => BreadcrumbBar(
+                  folderId: folderId,
+                ),
+                _ => _SectionTitle(section: section),
+              },
+            ),
+            const SizedBox(width: 8),
+            if (scope.sizeClass == LibrarySizeClass.compact)
+              CompactListingMenu(
+                sortEnabled: sortEnabled,
+                showViewToggle: showViewToggle,
+              )
+            else ...[
+              SortMenuButton(enabled: sortEnabled),
+              if (showViewToggle) const ViewModeButton(),
+            ],
+            const SizedBox(width: 8),
           ],
         ),
       ),
@@ -71,29 +90,29 @@ class _SidebarToggle extends ConsumerWidget {
   }
 }
 
-/// Section title (6.6: non-folder sections). A folder shows its own name
-/// until the breadcrumb bar (L10).
-class _SectionTitle extends ConsumerWidget {
+/// Title of a non-folder section (6.6).
+class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.section});
 
   final LibrarySection section;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final title = switch (section) {
-      FolderSection(folderId: null) => LibraryStrings.home,
-      FolderSection(:final folderId?) =>
-        ref.watch(folderTreeProvider).value?.byId(folderId)?.name ?? '',
+      FolderSection() => '',
       RecentSection() => LibraryStrings.recent,
       FavoritesSection() => LibraryStrings.favorites,
       TrashSection() => LibraryStrings.trash,
       SearchSection(:final query) => LibraryStrings.searchResultsTitle(query),
     };
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleLarge,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleLarge,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }

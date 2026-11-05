@@ -102,9 +102,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (scaffold != null && scaffold.isDrawerOpen) scaffold.closeDrawer();
   }
 
+  // The three below may run after an await in a part that is gone by then;
+  // they do nothing once the screen itself is gone (6.19).
+
   /// 6.4: the route folder → back to its own section (from 최근 etc.);
   /// another folder → the router.
   void _openFolder(FolderId? id) {
+    if (!mounted) return;
     _closeDrawer();
     if (id == widget.folderId) {
       ref
@@ -116,11 +120,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   void _openNote(NoteId id) {
+    if (!mounted) return;
     _closeDrawer();
     widget.onOpenNote(id);
   }
 
   void _openSettings() {
+    if (!mounted) return;
     _closeDrawer();
     widget.onOpenSettings();
   }
