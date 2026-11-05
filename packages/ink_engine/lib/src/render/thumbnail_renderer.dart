@@ -1,9 +1,10 @@
 // lib/src/render/thumbnail_renderer.dart — contract 7.2.16 (03-ink 4.9, 6.17).
 //
 // Foundation step B3 (03-ink 4.15): paper (or the still renderer's background)
-// + polylines → PNG with the exact size, pageId and contentRevision; pdf / image
-// backgrounds follow the still-renderer null rule already. Outlines, highlighter
-// composite, grain and time slicing come with INK T20.
+// + strokes (layer painters: highlighter groups + fill outlines, INK T08) → PNG
+// with the exact size, pageId and contentRevision; pdf / image backgrounds
+// follow the still-renderer null rule already. Grain and time slicing come with
+// INK T20.
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -12,11 +13,11 @@ import 'package:note_core/note_core.dart' as core;
 import '../background/background_builder.dart';
 import '../background/background_spec.dart';
 import '../background/builder_choice.dart';
+import '../geometry/outline_generator.dart';
 import '../interop/core_interop.dart' as interop;
-import '../model/ink_layer.dart';
-import '../pen/style_ink.dart';
+import '../model/ink_stroke.dart';
+import 'layer_painters.dart';
 import 'pencil_grain.dart';
-import 'stroke_painter.dart';
 
 final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
   InkPageThumbnailRenderer({
@@ -24,7 +25,7 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
     PencilGrain? pencilGrain,
   }) : _backgroundBuilders = List.unmodifiable(backgroundBuilders);
 
-  // [pencilGrain] is used for the pencil texture from INK T20 (B3 draws polylines).
+  // [pencilGrain] is used for the pencil texture from INK T20 (no grain yet).
   final List<PageBackgroundLayerBuilder> _backgroundBuilders;
 
   /// Paper + background (first builder that handles it AND is a PageBackgroundStillRenderer)
@@ -90,12 +91,17 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
       );
     }
     canvas.scale(w / pw, h / ph);
-    for (final layer in InkLayer.values) {
-      for (final s in content.strokes) {
-        if (s.deletedAt != null || s.style.profile.layer != layer) continue;
-        paintStrokePolyline(canvas, s);
-      }
-    }
+    final strokes = [
+      for (final s in content.strokes)
+        if (s.deletedAt == null) s,
+    ]..sort(core.Stroke.compareOrder);
+    paintStrokeLayers(
+      canvas,
+      strokes.map(InkStroke.of),
+      paperColorArgb: spec.paperColorArgb,
+      outlineOf: OutlineGenerator.outline,
+      marginPt: pw / w,
+    );
     final picture = recorder.endRecording();
     ui.Image? image;
     try {

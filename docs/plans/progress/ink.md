@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 3 (동시 개발 단계) — T07 완료(세션 1: T01~T04, 세션 2: T05·T06)
-- 다음 할 일: T08 펜 렌더러 → T09 CORE 인터롭·`InkEdit` (계획서 8장 순서)
+- 마지막 세션: 3 (동시 개발 단계) — T07·T08 완료(세션 1: T01~T04, 세션 2: T05·T06)
+- 다음 할 일: T09 CORE 인터롭·`InkEdit` → T10 렌더 캐시 1단계·`InkPageView`·펜 세션 (계획서 8장 순서)
 
 ## 작업 표
 
@@ -16,8 +16,8 @@
 | T04 | 완료 | bd6875e | `unit/input/simulated_pressure_test.dart`, `unit/input/one_euro_filter_test.dart`. 내부 `src/input/simulated_pressure.dart`(`SimulatedPressure`, `RealPressureSmoother`, `smoothstep`, `sampleDtMs`)·`src/input/one_euro_filter.dart`(`OneEuroFilter`). 아직 `StrokeBuilder`에 연결하지 않음 — T05·T06에서 파이프라인에 넣는다. 실측: 500 px/s 지연 4.8 ms(60/120/240 Hz), 같은 궤적 Hz별 차 ≤ 0.008 |
 | T05 | 완료 | fc236cf | `unit/stroke/{subdivide,hook,dot,width_factor,taper,straighten,simplify}_test.dart`. 내부 `src/stroke/centerline.dart`(`CenterPoint`, 중복 판정 `isDuplicateSample`, F2 `subdivide`·`subdivideSegment`, F3 `removeHooks`, F4 `isDotStroke`·`dotOf`), `width_factor.dart`(K1 `bakedPressure`, K2–K4 `widthFactor`, K6 `widthQForFactor`, `radiusForFactor`), `taper.dart`(F5), `straighten.dart`(F6, 라이브용 `straightLine`), `simplify.dart`(F7, `simplifyStrokeData`), `geometry/rdp.dart`(공용 RDP). 아직 `StrokeBuilder`에 연결하지 않음(T06) |
 | T06 | 완료 | 6f67596 | `unit/stroke/stroke_builder_test.dart`, `unit/stroke/finish_data_test.dart`, (웹) `web/determinism_test.dart`. `StrokeBuilder` 본문 교체(6.3 중복 병합·시간 역전 → 6.4 관찰 → 6.5 가상 필압 → 6.6 1€·실제 필압 평활 → K1–K4 → 라이브 청크, `finish` = F1→F3→F4→F6→F2→F5→F8→F7, 롤오버 `rolledOver`), `LiveStrokeGeometry` 내부(안정 점 append-only, 64점 청크 `frozenPath`, 열린 청크 + 원시 꼬리 `tailPath`, 형광펜 polyline·alwaysStraight 직선), `StrokeSession.end`가 롤오버 조각을 한 `InkEdit`에 담음, `newCoreStroke`의 `createdAt += FinishedStroke.createdAtOffsetMs`. 공용 스크립트·체크섬 `test/support/stroke_scripts.dart`(VM 기록값 283364609 = Chrome) |
-| T07 | 완료 | (이 커밋) | `unit/geometry/{outline,outline_parity,vector_path}_test.dart`, `unit/model/bounds_invariant_test.dart`, (웹) `web/geometry_on_web_test.dart`(outline_test·bounds_invariant_test의 `main`을 group으로 감쌈). `OutlineGenerator.outlineOf` 본문 교체(O1–O8, 형광펜은 반지름 w/2 + 획 양 끝 사각 캡), `StrokeOutline.toPath`/`toVectorPath`의 `smooth: true` = 변 중점 2차 베지어(벡터는 3차로 변환), `InkVectorPath.toUiPath` nonZero. 패리티 실측(perfect_freehand 대비 채움 면적 차): 직선·곡선·고리 ≤ 0.25%, 지그재그 −0.6%, 직각 −0.8%. 도우미 `test/support/outline_helpers.dart` |
-| T08 | 남음 | | `widget/pixel/{highlighter_overlap,self_overlap}_test.dart`, `unit/render/pencil_grain_test.dart`, (웹) `web/grain_checksum_test.dart`, `goldens/pens_golden_test.dart` |
+| T07 | 완료 | 089ad04 | `unit/geometry/{outline,outline_parity,vector_path}_test.dart`, `unit/model/bounds_invariant_test.dart`, (웹) `web/geometry_on_web_test.dart`(outline_test·bounds_invariant_test의 `main`을 group으로 감쌈). `OutlineGenerator.outlineOf` 본문 교체(O1–O8, 형광펜은 반지름 w/2 + 획 양 끝 사각 캡), `StrokeOutline.toPath`/`toVectorPath`의 `smooth: true` = 변 중점 2차 베지어(벡터는 3차로 변환), `InkVectorPath.toUiPath` nonZero. 패리티 실측(perfect_freehand 대비 채움 면적 차): 직선·곡선·고리 ≤ 0.25%, 지그재그 −0.6%, 직각 −0.8%. 도우미 `test/support/outline_helpers.dart` |
+| T08 | 완료 | (이 커밋) | `widget/pixel/{highlighter_overlap,self_overlap}_test.dart`, `unit/render/pencil_grain_test.dart`, (웹) `web/grain_checksum_test.dart`(체크섬 120540651 = VM), `goldens/pens_golden_test.dart`(+ `pens_real_pressure.png`·`pens_simulated_pressure.png`). 내부 `render/stroke_painter.dart`(채움 = T07 외곽선 nonZero 1경로, 연필 질감 셰이더 + 기울기 투명도, `paintFillPaths` = R5 saveLayer, 형광펜 선 paint·`highlighterBlendFor`), `render/highlighter_compositor.dart`(6.10 그룹 키·그룹·`paintHighlighterGroup`), `render/layer_painters.dart`(`paintStrokeLayer(s)`). 컨트롤러 레이어·썸네일 2종이 B3 폴리라인 대신 이것을 쓴다. 도우미 `test/support/{pixels,grain_checksum}.dart` |
 | T09 | 남음 | | `unit/interop/core_interop_test.dart`, `unit/edit/ink_edit_test.dart`, `unit/interop/fake_store_handoff_test.dart` |
 | T10 | 남음 | | `widget/{ink_page_view,viewport_report,handoff,highlighter_active}_test.dart`, `unit/render/{content_diff,session_rules}_test.dart` |
 | T11 | 남음 | | `unit/diagnostics/latency_test.dart`, (웹) `web/ink_clock_test.dart` |
@@ -49,6 +49,11 @@
 
 동시 개발 단계:
 
+- T08: 레이어는 아직 매 프레임 직접 그린다(청크 Picture·형광펜 `groupOpaque` Picture 재사용·활성 형광펜 그룹을 base에서 빼는 6.10-6은 T10). 지금 highlighterActive는 미리보기·대기·쓰는 중 형광펜을 자기들끼리만 그룹 합성한다 → 쓰는 중 획과 **이미 있는 같은 색** 형광펜의 겹침은 커밋 전까지 진해 보인다(T10 `highlighter_active_test`에서 해결).
+- T08: 연필 기울기 투명도 k̄ — 커밋 획은 저장된 점들의 평균, 라이브는 안정 점들의 평균(`liveMeanTiltK`, `liveAddStable(tiltK:)`). 점 분포가 달라(F7 단순화) 펜을 뗄 때 연필 투명도가 아주 조금 바뀔 수 있다. K4의 k는 `width_factor.dart`의 `tiltK`로 뽑아 둘이 같은 식을 쓴다.
+- T08: 컨트롤러는 질감 펜 획을 그릴 때만 `pencilGrain.value`를 읽고(그때 생성 시작), 준비 전이면 질감 없이 그린 뒤 `ready`에서 한 번 다시 그린다(B3 메모의 '웹 Timer pending'을 연필 없는 테스트로 번지지 않게).
+- T08: 썸네일 렌더러·`InkPageThumbnail`도 B3 폴리라인 대신 레이어 painter(형광펜 그룹 + 채움 외곽선, 질감 없음)로 바꿨다(썸네일 골든·질감 대기는 T20). 길이 0 형광펜은 한 변 = 굵기인 축 정렬 사각형(사각 캡과 같은 모양).
+- T08: 기반 단계 `foundation/b3_smoke_test`의 픽셀 읽기 행 폭을 `floor(595.28)` → `ceil`(캡처 이미지 폭 596)로 고쳤다(전에는 한 줄씩 밀려 읽었지만 우연히 통과).
 - T07: O4에 **바깥쪽 둥근 이음**을 더했다 — 꺾이는 점의 바깥쪽은 이등분 법선 점 1개 대신 `d_{i−1}`의 법선 → `d_i`의 법선 원호 위 점들(현 길이 ≤ `capChordPt`, 분할 수 ≤ `maxCapSegments`)을 넣는다. 이등분 점 1개면 90°~100° 꺾임에서 바깥 모서리가 깎여 패리티가 2.6%(지그재그)까지 벌어졌다(개선 후 0.6%). 모든 정점이 여전히 `p_i`에서 정확히 `r_i`라 K-1 증명은 그대로. 안쪽은 이등분 점 + O5.
 - T07: O8 외곽선 RDP 허용은 `min(0.03pt, 0.25 × 그 다각형의 최소 반지름)`(가장 가는 획 r = 0.05가 0.03 허용에 뭉개지지 않게), 결과 정점 < 3이면 단순화 안 함. 정점의 부분집합이라 bounds는 줄기만 한다.
 - T07: O1 점 획의 `dotRadius`는 r_0이 아니라 병합된 점들 중 최대 반지름(점 1개면 r_0과 같음). 연속 점 간격 ≤ 1e-6pt는 한 점으로 병합(큰 반지름 유지). 비유한 값(NaN 등)은 0으로 읽는다.
@@ -56,7 +61,7 @@
 - T03: 내부 `PressureDetector` 생성자에 선택 인자 `store`(`PressureCapabilityStore?`)를 더했다(4.3 내부 시그니처는 kind·mode·prior). 6.4의 '결정이 나면 report'를 획 도중(`observe`)에 하려면 detector가 store를 알아야 해서다. `buildStroke`(오프라인)는 store 없이 쓴다.
 - T06: 청크 고정은 필압 판정이 난 뒤에만 한다(pending 동안은 열린 청크에 둠). 6.4 규칙 6의 '최대 11점'은 미지원 판정 기준이고, 지원 판정('첫 값과 0.02 넘게 다른 값')은 12번째보다 늦게 올 수 있다(기본값이 아닌 고정값을 한동안 내다가 변하는 펜). 이렇게 하면 pending → real 재계산이 고정된 청크를 건드리지 않아 `frozenPath` append-only가 늘 성립하고, 재계산은 그 시점까지의 현재 조각 점 전부(보통 ≤ 11점)를 원시 필압 기록으로 다시 돌린다 — 결과는 처음부터 `alwaysReal`이었던 것과 같다(`stroke_builder_test`).
 - T06: 내부 `FinishedStroke`에 `createdAtOffsetMs`(롤오버 조각의 Σ⌊t_b⌋), `StrokeBuilder`에 `rolledOver`(롤오버로 끝난 조각 목록)를 더했다(4.4 내부 시그니처에 없는 멤버 — 공개 표면 변화 없음). `buildStroke`는 4.4대로 마지막 조각(`finish()` 결과)만 돌려준다. 롤오버 때 라이브 형상은 그대로 이어지고(이음점은 필터된 b), 저장되는 두 획은 원시 b에서 만난다.
-- T06: 라이브 시작 taper의 Ls는 `taperStart · width`(0.4·S 상한 없음 — S를 아직 모름). 아주 짧은 획(S < 2.5·Ls)은 펜을 뗄 때 시작 쪽 굵기도 조금 바뀐다. 라이브 형상은 아직 B3 렌더러(`paintLivePolyline` — 폴리라인)가 그린다. `frozenPath`·`tailPath`는 B3 외곽선 생성기(`OutlineGenerator.outlineOf`)로 만들며 T07이 생성기를 교체하면 그대로 따라간다. 채움 렌더·활성 레이어 연결은 T08·T10.
+- T06: 라이브 시작 taper의 Ls는 `taperStart · width`(0.4·S 상한 없음 — S를 아직 모름). 아주 짧은 획(S < 2.5·Ls)은 펜을 뗄 때 시작 쪽 굵기도 조금 바뀐다. `frozenPath`·`tailPath`는 `OutlineGenerator.outlineOf`로 만든다(T07 외곽선). T08부터 활성 레이어가 이 둘을 채움으로 그린다(`paintFillPaths`, 투명도 < 1이면 saveLayer).
 - T05: F3 갈고리 제거를 F2 보간 **앞**(안정 점 + 끝점 단계)에서 한다. 6.7 표 순서는 F2 → F3이지만 '창 안의 점 ≤ 4개'는 샘플 수여야 의미가 있다(보간 뒤에는 굵은 펜의 창에 점이 늘 4개를 넘어 규칙이 꺼진다). '창 앞 길이 3W 미만이면 적용 안 함'은 S − W ≥ 3W로 읽었다.
 - T05: F7 RDP는 1024점 창마다 따로 돌린다(창 끝점은 항상 유지). RDP는 운 나쁜 입력(같은 높이 톱니)에서 O(n²)이고 `finish`는 펜을 뗄 때 UI 스레드에서 돌기 때문 — 1024점 이하 획(거의 전부)은 한 번에 처리돼 결과가 같다. widthQ 규칙은 '현의 widthQ 선형 보간(호 길이 기준)과의 차 > 0.004이면 유지'로 구현했고, 재단순화 때는 x·y 허용과 widthQ 허용을 함께 2배로 늘린다.
 - T05: 연필 K2 최대값은 `pressureGain` 0.45라 1.45이고(`maxFactor` 1.6에는 닿지 않음) 최대 기울기와 곱하면 f = 4.06이다. 6.7 K4의 4.48은 `maxFactor` 기준 상한이다. 둘 다 `kMaxWidthFactor` 4를 넘어 widthQ 1로 포화하므로 결론(K6·K-1)은 같다 — `width_factor_test`가 두 값을 모두 확인.
@@ -67,7 +72,7 @@
 
 - `PencilGrain`은 생성자에서 바로 만들지 않고 첫 사용(첫 리스너·`ready`·`value`) 때 비동기로 한 번 만든다. 웹에서 `ui.decodeImageFromPixels`가 엔진 `Timer.run`을 걸어 0초 `pump()`로는 끝나지 않아 'A Timer is still pending'이 나기 때문(4.9 주석은 '즉시 시작').
 - `InkDiagnostics`는 아직 `SchedulerBinding.addTimingsCallback`을 붙이지 않는다(T11에서).
-- 지우개는 샘플 사이를 쓴 원(swept circle)으로 검사한다. 썸네일 렌더러·`InkPageThumbnail`은 종이 위에 폴리라인을 그린다.
+- 지우개는 샘플 사이를 쓴 원(swept circle)으로 검사한다. 썸네일 렌더러·`InkPageThumbnail`은 종이 위에 폴리라인을 그렸다(T08에서 레이어 painter로 교체).
 - B3의 `test/web/smoke_web_test.dart`는 T01보다 먼저 만들었다.
 - 내보내지 않는 내부 배관: `InkPageHost`, `InkPageRender`·`inkPageRenderOf`, 세션·선택·`LiveStrokeGeometry`의 `@internal` 팩토리, `src/background/builder_choice.dart`.
 
@@ -79,8 +84,12 @@
 - 세션 1 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 113개·Chrome 3개 통과.
 - 세션 2 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, 패키지 VM 177개·Chrome 5개 통과(`web/determinism_test` 체크섬 = VM).
 - 세션 3(T07 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 260개 통과, Chrome `web/geometry_on_web_test` 67개 통과.
+- 세션 3(T08 커밋 시점): `ws check` 0, 패키지 analyze 0, 패키지 VM 279개(골든 2 포함)·Chrome `test/web` 73개 통과.
 - 세션 3 끝 확인: 아래 '세션 3' 줄.
-- T08 시작점: 계획서 6.10(형광펜 합성)·6.11(연필 질감 MINSTD)·6.12(렌더링 파이프라인)·4.9. 지금 `src/render/stroke_painter.dart`는 B3(모든 획을 폴리라인으로) — 채움 펜은 `InkCachePool.outlineFor(stroke).outline.toPath()`(T07 외곽선, nonZero)로, 형광펜은 `OutlineGenerator.polyline` + `StrokeCap.square`·`StrokeJoin.round` stroke로. 라이브 형상(`LiveStrokeGeometry.frozenPath`·`tailPath`)은 이미 T07 외곽선이다. `pencil_grain.dart`는 B3(지연 생성 — 아래 B3 메모). 테스트 도우미 `test/support/outline_helpers.dart`(`pointsOf`, `outlineFor`, `windingNumber`, `distanceToPolyline`).
+- T09 시작점: 계획서 6.23(함수표)·4.6(`InkEdit` 표 6행)·5.1·계약 7.2.15. 지금 `src/interop/core_interop.dart`·`src/edit/ink_edit.dart`는 B3 본문 — 대부분 이미 동작하므로 완료 조건 테스트(`unit/interop/core_interop_test`, `unit/edit/ink_edit_test`, `unit/interop/fake_store_handoff_test`)를 먼저 쓰고 어긋나는 곳만 고친다. 가짜 저장소 휴지통 노트 세션(`isReadOnly`) 만드는 법은 note_core `testing.dart`·CORE 계획 참고.
+- T10에 넘길 것: 레이어 그리기는 `_paintLayer` → `paintStrokeLayer`(base)·`_paintActiveInk`·`_paintActiveHighlighters`(active). 청크 Picture·형광펜 그룹 Picture 캐시와 6.10-6(쓰는 중 형광펜 그룹을 base에서 빼고 active에서 `paintHighlighterGroup(extra:)`로 같이 합성 — `extra` 인자는 이미 있음)를 여기에 넣는다.
+- 테스트 요령: `testWidgets` 안에서 `PencilGrain`은 `tester.runAsync` **안에서 만들고** `ready`를 기다린다(가짜 async 영역에서 만든 Completer는 pump 전까지 완료 콜백이 안 돈다 — 밖에서 만들면 runAsync가 끝나지 않음). 캡처 이미지의 행 폭은 `image.width`(A4 폭 595.28 → 596)로 읽는다(`test/support/pixels.dart`의 `Pixels`). 골든 갱신: `flutter test --update-goldens test/goldens/pens_golden_test.dart`.
+- 테스트 도우미: `test/support/outline_helpers.dart`(`pointsOf`, `outlineFor`, `windingNumber`, `distanceToPolyline`), `test/support/pixels.dart`(`renderPixels`, `strokeThrough`, `segment`, `samePixel`).
 - 파이프라인 내부 이름: `src/stroke/centerline.dart`(`CenterPoint` — 가변 점, `factor` = taper 전 f), `width_factor.dart`, `taper.dart`, `straighten.dart`, `simplify.dart`. 라이브 형상 조작 함수는 `src/render/sessions.dart`의 `@internal` `liveAddStable`·`liveFreezeChunk`·`liveSetOpen`·`liveClear`·`livePoints`·`liveFrozenChunks`.
 - 결정성 테스트: `test/support/stroke_scripts.dart`의 `recordedScriptChecksum`(283364609)은 파이프라인 수치를 바꾸면(T07은 외곽선만이라 영향 없음) VM에서 다시 기록하고 Chrome(`web/determinism_test.dart`)에서 같은지 확인한다. 체크섬은 CORE 양자화 격자에서 산술로만 계산(비트 연산 없음).
 - 테스트 도우미 파일은 `test/support/`(골든 허용 오차 비교기 3개 + `stroke_scripts.dart`).

@@ -1,16 +1,17 @@
 // lib/src/render/thumbnail.dart — contract 7.2.16 (v1.1): the CALLER passes the provider values.
 //
 // Foundation step B3 (03-ink 4.15): background builder (isThumbnail: true,
-// ancestorScale 1) + polylines painted directly. The one-time raster of 6.17
-// comes with INK T20 (same signature; still no pageId-wide cache).
+// ancestorScale 1) + the strokes painted directly with the layer painters
+// (highlighter groups + fill outlines, INK T08; no grain). The one-time raster
+// of 6.17 comes with INK T20 (same signature; still no pageId-wide cache).
 import 'package:flutter/widgets.dart';
 
 import '../background/background_builder.dart';
 import '../background/builder_choice.dart';
-import '../model/ink_layer.dart';
+import '../geometry/outline_generator.dart';
 import 'ink_page_content.dart';
+import 'layer_painters.dart';
 import 'pencil_grain.dart';
-import 'stroke_painter.dart';
 
 /// (v1.1) INK 4.9. ink_engine does not depend on flutter_riverpod, so the widget reads no
 /// provider: the CALLER passes ref.watch(pageBackgroundBuildersProvider) and
@@ -93,11 +94,13 @@ class _ThumbnailStrokesPainter extends CustomPainter {
     canvas
       ..save()
       ..scale(viewScale);
-    for (final layer in InkLayer.values) {
-      for (final s in content.strokes) {
-        if (s.layer == layer) paintStrokePolyline(canvas, s.source);
-      }
-    }
+    paintStrokeLayers(
+      canvas,
+      content.strokes,
+      paperColorArgb: content.background.paperColorArgb,
+      outlineOf: OutlineGenerator.outline,
+      marginPt: 1 / viewScale,
+    );
     canvas.restore();
   }
 

@@ -59,6 +59,9 @@ final class LiveStrokeGeometry {
   /// highlighter alwaysStraight: start → current position (replaces the centerline)
   (ui.Offset, ui.Offset)? _straight;
 
+  /// Σ K4 tilt weight of the stable points (pencil opacity, 6.11)
+  double _tiltKSum = 0;
+
   final ui.Path _frozen = ui.Path();
   final List<ui.Path> _frozenChunks = [];
   InkPoints? _open;
@@ -110,6 +113,7 @@ final class LiveStrokeGeometry {
   void _clear() {
     if (_stable.isEmpty && _frozenChunks.isEmpty) return;
     _stable.clear();
+    _tiltKSum = 0;
     _tail = const [];
     _straight = null;
     _frozen.reset();
@@ -124,12 +128,20 @@ final class LiveStrokeGeometry {
 LiveStrokeGeometry newLiveStrokeGeometry(core.StrokeStyle style) =>
     LiveStrokeGeometry._(style);
 
-/// Appends one stable centerline position (StrokeBuilder).
+/// Appends one stable centerline position (StrokeBuilder) with its K4 tilt
+/// weight [tiltK] (6.11).
 @internal
-void liveAddStable(LiveStrokeGeometry live, ui.Offset p) {
+void liveAddStable(LiveStrokeGeometry live, ui.Offset p, {double tiltK = 0}) {
   live._stable.add(p);
+  live._tiltKSum += tiltK;
   live._changed();
 }
+
+/// Mean K4 tilt weight of the stable points so far: the live pencil opacity
+/// loss (6.11), like the committed stroke's mean over its points.
+@internal
+double liveMeanTiltK(LiveStrokeGeometry live) =>
+    live._stable.isEmpty ? 0 : live._tiltKSum / live._stable.length;
 
 /// Freezes one chunk (fill pens): its outline joins frozenPath for good.
 @internal

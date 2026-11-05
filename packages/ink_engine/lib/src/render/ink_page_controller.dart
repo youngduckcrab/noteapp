@@ -17,6 +17,7 @@ import '../diagnostics/ink_clock.dart';
 import '../edit/eraser_spec.dart';
 import '../edit/ink_edit.dart';
 import '../edit/lasso_options.dart';
+import '../geometry/outline_generator.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../input/pressure_detector.dart';
@@ -29,7 +30,9 @@ import '../stroke/stroke_builder.dart';
 import '../stroke/stroke_meta.dart';
 import '../tuning.dart';
 import 'cache_pool.dart';
+import 'highlighter_compositor.dart';
 import 'ink_page_content.dart';
+import 'layer_painters.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
 import 'render_config.dart';
@@ -600,49 +603,36 @@ final class InkPageController extends ChangeNotifier {
     if (_disposed) return;
     final content = _content;
     final display = _currentDisplay();
+    final margin = 1 / _currentViewScale; // 1 logical px (6.7 K-1 6)
+    final paper = content?.background.paperColorArgb ?? core.PaperColors.white;
     switch (layer) {
       case InkRenderLayer.background:
         return;
       case InkRenderLayer.highlighterBase:
       case InkRenderLayer.inkBase:
+        if (content == null) return;
         final want = layer == InkRenderLayer.highlighterBase
             ? InkLayer.highlighter
             : InkLayer.ink;
-        if (content == null) return;
-        for (final s in content.strokes) {
-          if (s.layer != want || display.hidden.contains(s.id)) continue;
-          paintStrokePolyline(canvas, s.source);
-        }
+        final visible = [
+          for (final s in content.strokes)
+            if (s.layer == want && !display.hidden.contains(s.id)) s,
+        ];
+        paintStrokeLayer(
+          canvas,
+          visible,
+          layer: want,
+          paperColorArgb: paper,
+          outlineOf: cachePool.outlineFor,
+          grain: want == InkLayer.ink && visible.any((s) => s.profile.textured)
+              ? _grain()
+              : null,
+          marginPt: margin,
+        );
       case InkRenderLayer.highlighterActive:
+        _paintActiveHighlighters(canvas, display, paper, margin);
       case InkRenderLayer.inkActive:
-        final want = layer == InkRenderLayer.highlighterActive
-            ? InkLayer.highlighter
-            : InkLayer.ink;
-        for (final o in display.overrides) {
-          if (o.stroke.layer != want) continue;
-          paintStrokePolyline(
-            canvas,
-            o.stroke.source,
-            transform: o.transform,
-            colorArgb: o.colorArgb,
-          );
-        }
-        for (final s in display.added) {
-          if (s.style.profile.layer != want) continue;
-          paintStrokePolyline(canvas, s);
-        }
-        final active = _active;
-        if (active is StrokeSession &&
-            active.isActive &&
-            active.style.profile.layer == want) {
-          final start = clock.nowUs();
-          paintLivePolyline(canvas, livePoints(active.live), active.style);
-          final end = clock.nowUs();
-          diagnostics.onActivePaint(
-            paintUs: end,
-            updateMs: (end - start) / 1000,
-          );
-        }
+        _paintActiveInk(canvas, display, margin);
       case InkRenderLayer.overlay:
         final active = _active;
         if (active is! LassoSession || !active.isActive) return;
@@ -664,6 +654,150 @@ final class InkPageController extends ChangeNotifier {
               ..color = const ui.Color(InkTuning.lassoPathArgb),
           );
     }
+  }
+
+  /// The previewed copy of an override (transform → core.Stroke.transformed).
+  InkStroke _overrideStroke(_Override o) {
+    final m = o.transform;
+    return m == null
+        ? o.stroke
+        : InkStroke.of(interop.previewTransformedOf(o.stroke.source, m));
+  }
+
+  /// Ink-layer previews, pending strokes and the stroke being written (R5–R7).
+  void _paintActiveInk(ui.Canvas canvas, _Display display, double margin) {
+    for (final o in display.overrides) {
+      if (o.stroke.layer != InkLayer.ink) continue;
+      final s = _overrideStroke(o);
+      paintFillStroke(
+        canvas,
+        s,
+        o.transform == null
+            ? cachePool.outlineFor(s)
+            : OutlineGenerator.outline(s),
+        colorArgb: o.colorArgb,
+        grain: s.profile.textured ? _grain() : null,
+      );
+    }
+    for (final added in display.added) {
+      final s = InkStroke.of(added);
+      if (s.layer != InkLayer.ink) continue;
+      paintFillStroke(
+        canvas,
+        s,
+        cachePool.outlineFor(s),
+        grain: s.profile.textured ? _grain() : null,
+      );
+    }
+    final active = _active;
+    if (active is StrokeSession &&
+        active.isActive &&
+        active.style.profile.layer == InkLayer.ink) {
+      final start = clock.nowUs();
+      final live = active.live;
+      final style = active.style;
+      if (!live.isEmpty) {
+        paintFillPaths(
+          canvas,
+          [live.frozenPath, live.tailPath],
+          profile: style.profile,
+          colorArgb: style.colorArgb,
+          opacity:
+              style.opacity *
+              tiltOpacityFactor(style.profile, liveMeanTiltK(live)),
+          bounds: live.bounds.inflate(margin),
+          grain: style.profile.textured ? _grain() : null,
+        );
+      }
+      final end = clock.nowUs();
+      diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);
+    }
+  }
+
+  /// Highlighter previews, pending highlighters and the highlighter being
+  /// written, each inside its group composite (6.10-3, -6).
+  void _paintActiveHighlighters(
+    ui.Canvas canvas,
+    _Display display,
+    int paper,
+    double margin,
+  ) {
+    final pairs = <(HighlighterGroupKey, HighlighterLine)>[
+      for (final o in display.overrides)
+        if (o.stroke.layer == InkLayer.highlighter)
+          (
+            HighlighterGroupKey.of(o.stroke.style, colorArgb: o.colorArgb),
+            HighlighterLine.of(_overrideStroke(o)),
+          ),
+      for (final added in display.added)
+        if (added.style.profile.layer == InkLayer.highlighter)
+          (
+            HighlighterGroupKey.of(added.style),
+            HighlighterLine.of(InkStroke.of(added)),
+          ),
+    ];
+    final groups = groupHighlighterLines(pairs);
+    final blend = highlighterBlendFor(paper);
+    final active = _active;
+    final writing =
+        active is StrokeSession &&
+        active.isActive &&
+        active.style.profile.layer == InkLayer.highlighter;
+    final start = writing ? clock.nowUs() : 0;
+    HighlighterGroup? liveGroup;
+    HighlighterLine? liveLine;
+    if (writing) {
+      final xy = active.live.polyline;
+      if (xy != null && xy.isNotEmpty) {
+        final key = HighlighterGroupKey.of(active.style);
+        liveLine = HighlighterLine(xy, active.style.width);
+        liveGroup = groups.firstWhere(
+          (g) => g.key == key,
+          orElse: () {
+            final g = HighlighterGroup(key);
+            groups.add(g);
+            return g;
+          },
+        );
+      }
+    }
+    for (final g in groups) {
+      final line = identical(g, liveGroup) ? liveLine : null;
+      paintHighlighterGroup(
+        canvas,
+        g,
+        blend: blend,
+        marginPt: margin,
+        extraBounds: line?.bounds,
+        extra: line == null
+            ? null
+            : (c, color) => drawHighlighterLine(
+                c,
+                line.xy,
+                highlighterLinePaint(line.width, color),
+              ),
+      );
+    }
+    if (writing) {
+      final end = clock.nowUs();
+      diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);
+    }
+  }
+
+  bool _grainWaiting = false;
+
+  /// The pencil grain when ready; otherwise null (paint without grain, 6.11)
+  /// and one repaint once it is ready. Only asked for when a textured stroke
+  /// is painted, so pages without pencil never start the generation.
+  ui.Image? _grain() {
+    final image = pencilGrain.value;
+    if (image == null && !_grainWaiting) {
+      _grainWaiting = true;
+      pencilGrain.ready.then((_) {
+        if (!_disposed) _invalidate();
+      }, onError: (Object _) {});
+    }
+    return image;
   }
 
   /// Logical px per pt of the view being painted (set by InkPageRender.paint).

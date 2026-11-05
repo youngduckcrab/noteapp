@@ -115,7 +115,8 @@ void main() {
   ) async {
     await pumpView(tester);
     final before = await capture(tester);
-    final width = core.PageSize.a4Portrait.width.floor();
+    // the captured image is ceil(595.28) = 596 px wide (row stride)
+    final width = core.PageSize.a4Portrait.width.ceil();
     expect(pixel(before, width, 200, 100), [255, 255, 255, 255]);
 
     final samples = SyntheticInk.line(

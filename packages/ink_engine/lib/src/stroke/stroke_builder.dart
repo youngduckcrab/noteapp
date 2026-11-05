@@ -462,7 +462,7 @@ final class StrokeBuilder {
     _liveY.add(p.y);
     _liveF.add(p.factor);
     _liveS.add(s);
-    liveAddStable(_live, Offset(p.x, p.y));
+    liveAddStable(_live, Offset(p.x, p.y), tiltK: tiltK(p.tilt));
     _include(p.x, p.y, _liveWidthQ(n));
   }
 

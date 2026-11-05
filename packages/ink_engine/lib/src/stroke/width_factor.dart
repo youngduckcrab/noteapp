@@ -63,11 +63,15 @@ double widthFactor({
             smoothstep(_thinningV0, _thinningV1, speed.isNaN ? 0 : speed);
   }
   if (profile.tiltWidthGain > 0) {
-    final k = smoothstep(_tiltK0, _tiltK1, tilt.isNaN ? 0 : tilt);
-    f *= 1 + profile.tiltWidthGain * k;
+    f *= 1 + profile.tiltWidthGain * tiltK(tilt);
   }
   return f;
 }
+
+/// K4 tilt weight k = smoothstep(0.35, 1.15, tilt) (0 for NaN). Also the
+/// pencil's per-stroke opacity loss (6.11) averages it over the points.
+double tiltK(double tilt) =>
+    smoothstep(_tiltK0, _tiltK1, tilt.isNaN ? 0 : tilt);
 
 /// K6: widthQ = clamp(f / kMaxWidthFactor, 0, 1); highlighter → kNominalWidthQ.
 double widthQForFactor(double f, {required bool highlighter}) {
