@@ -29,7 +29,7 @@
 | T16 | 완료 | 300774e | widget/export_flow_test, web/output_sink_browser_test (+ web/foundation_browser_test 웹 출력 팩토리) |
 | T17 | 완료 | 7ed8aca | unit/providers_test, unit/init_test(실제 판), widget/menu_actions_test (+ web/foundation_browser_test 메뉴 id, contract/api_surface_test B4 몫 정리) |
 | T18 | 완료 | cc59da5 | perf/import_500_test, perf/compose_500_native_test, web/perf_compose_500_test, perf/render_scroll_sim_test (perf 태그, 기본 skip — `flutter test --run-skipped -t perf test/perf`, 웹은 `flutter test --platform chrome --run-skipped -t perf test/web/perf_compose_500_test.dart`) (+ support/perf_compose.dart) |
-| T19 | 완료 | (이 커밋) | unit/licenses_test(파일 목록 = 7.1 표 20개, 파일마다 배포본 sha256, pubspec 에셋 선언, lib/src/licenses.dart 표와 같음, 실제 flutter test 에셋 번들로 20개 읽기, FreeType Latin-1) + README.md·THIRD_PARTY_NOTICES.md(리뷰) |
+| T19 | 완료 | 4d6dd02 | unit/licenses_test(파일 목록 = 7.1 표 20개, 파일마다 배포본 sha256, pubspec 에셋 선언, lib/src/licenses.dart 표와 같음, 실제 flutter test 에셋 번들로 20개 읽기, FreeType Latin-1) + README.md·THIRD_PARTY_NOTICES.md(리뷰) |
 
 ## 변경 요청
 
@@ -136,10 +136,10 @@
 
 ## 다음 세션 메모
 
-- 세션 8 결과(2): T19 완료 — 동시 개발 단계 몫 전부 끝. 통합 단계 몫: ① integration 태그 3개(`dart run tool/ws.dart test --run-skipped -t integration`) — core_gateway_test는 실제 CORE(`openTestNoteStore`), ink_thumbnail_test·ink_vectorizer_test는 INK 실제 썸네일·벡터 내보내기·속지로(지금 INK B3 자리에서는 ink_vectorizer_test 실패가 정상) ② perf는 선택(`flutter test --run-skipped -t perf test/perf`, 웹은 README 표) ③ 열린 항목: FreeType·IJG 문서 고지 문구(THIRD_PARTY_NOTICES.md 3절, 2단계 출시 전 — INFRA 앱 정보 화면·스토어 설명), 계획 10장 iPad 확인(9.2 U1~U19)은 사용자 몫.
+- 세션 8 결과(2): T19(4d6dd02) 완료 — 동시 개발 단계 몫 전부 끝. 통합 단계 몫: ① integration 태그 3개(`dart run tool/ws.dart test --run-skipped -t integration`) — core_gateway_test는 실제 CORE(`openTestNoteStore`), ink_thumbnail_test·ink_vectorizer_test는 INK 실제 썸네일·벡터 내보내기·속지로(지금 INK B3 자리에서는 ink_vectorizer_test 실패가 정상) ② perf는 선택(`flutter test --run-skipped -t perf test/perf`, 웹은 README 표) ③ 열린 항목: FreeType·IJG 문서 고지 문구(THIRD_PARTY_NOTICES.md 3절, 2단계 출시 전 — INFRA 앱 정보 화면·스토어 설명), 계획 10장 iPad 확인(9.2 U1~U19)은 사용자 몫.
 - 세션 8 검사(T19 뒤): 패키지 VM 테스트 575개 통과(+6 skip), Chrome 54개 통과(+1 skip — 웹 perf, `ws test --platform chrome --package pdf_io`, 120초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 
-- 세션 8 결과: T18 완료(perf 테스트 4파일 + support/perf_compose.dart, lib 변경 없음). 다음 T19(동시 개발 단계 마지막): licenses/ 원문 20개는 pdfium-binaries 배포본(웹 chromium/7811 `pdfium-wasm.tgz`, VM chromium/8125 `pdfium-linux-x64.tgz`)의 `licenses/`와 최상위 `LICENSE` — 네트워크로 받아야 함(프록시 있음). pubspec `flutter: assets:`에 `licenses/`를 더하고(pubspec.lock 변화 없음), T17 lib/src/licenses.dart의 파일 표와 unit/licenses_test로 맞춘다. unit/init_test는 자산 채널을 가짜로 바꿔 시험하므로 T19 뒤에도 그대로 통과해야 한다. README에는 perf 실행 명령(위 작업 표 T18 비고)도 적는다.
+- 세션 8 결과: T18(cc59da5) 완료(perf 테스트 4파일 + support/perf_compose.dart, lib 변경 없음). 다음 T19(동시 개발 단계 마지막): licenses/ 원문 20개는 pdfium-binaries 배포본(웹 chromium/7811 `pdfium-wasm.tgz`, VM chromium/8125 `pdfium-linux-x64.tgz`)의 `licenses/`와 최상위 `LICENSE` — 네트워크로 받아야 함(프록시 있음). pubspec `flutter: assets:`에 `licenses/`를 더하고(pubspec.lock 변화 없음), T17 lib/src/licenses.dart의 파일 표와 unit/licenses_test로 맞춘다. unit/init_test는 자산 채널을 가짜로 바꿔 시험하므로 T19 뒤에도 그대로 통과해야 한다. README에는 perf 실행 명령(위 작업 표 T18 비고)도 적는다.
 - 세션 8 검사: 패키지 VM 테스트 567개 통과(+6 skip — integration 3파일·perf 3파일), perf 4개(`--run-skipped -t perf test/perf`) 통과, 웹 perf 1개(Chrome, `--run-skipped -t perf`) 통과, Chrome 기본 실행 54개 통과(+1 skip — 웹 perf, `ws test --platform chrome --package pdf_io`, 103초), `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
 
 - 세션 7 결과: T16(300774e)·T17(7ed8aca) 완료. T17 세부는 '계획과 다르게 한 점'의 T17 항목. 메뉴 이름은 `PdfStringsKo.exportTitle`·`shareTitle`·`printTitle`·`searchTitle`·`importIntoNoteTitle`(시트 제목과 같은 상수).
