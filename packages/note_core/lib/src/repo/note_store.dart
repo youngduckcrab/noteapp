@@ -139,6 +139,7 @@ Future<NoteStore> openNoteStore(NoteStoreConfig config) async {
     storageInfo: info,
     config: config,
     autoPurge: true,
+    blobFactory: blobIdbFactory(config),
   );
 }
 

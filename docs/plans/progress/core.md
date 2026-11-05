@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 2 (동시 개발 단계)
-- 다음 할 일: T13 (에셋·썸네일 — BlobStore·해셔·`AssetStoreImpl`·`ThumbnailCacheImpl`, 브라우저 테스트 포함) — 그다음 T10(세션 DB 백엔드), T11, T14
+- 마지막 세션: 3 (동시 개발 단계)
+- 다음 할 일: T10 (세션 DB 백엔드·페이지 캐시·원격 변경 반영) — 그다음 T11, T14, (T15·T16 언제든), T19, T17·T18
 
 ## 작업 표
 
@@ -22,7 +22,7 @@
 | T10 | 남음 | | `test/session/note_session_contract_real_test.dart`, `note_session_test.dart`, `content_reader_test.dart` |
 | T11 | 남음 | | `test/edit/undo_remote_conflict_test.dart`, `undo_field_versions_test.dart` |
 | T12 | 완료 | 3503f6c | `test/repo/pen_preset_repository_test.dart`, `settings_repository_test.dart`, 공유 본문 `test/shared/preset_contract.dart`(프리셋·설정) → 가짜 `test/repo/preset_contract_fake_test.dart` |
-| T13 | 남음 | | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
+| T13 | 완료 | (이 커밋) | `test/assets/blob_store_test.dart`, `asset_store_test.dart`, `thumbnail_cache_test.dart`, `test/web/blob_store_browser_test.dart`, `hasher_browser_test.dart` |
 | T14 | 남음 | | 9.1 '동기화 창구 테스트' 전부 (`test/sync/*`) |
 | T15 | 남음 | | `test/migration/note_migrator_test.dart` |
 | T16 | 남음 | | `test/web/drift_web_persistence_test.dart`, `storage_info_browser_test.dart`, `delete_local_data_browser_test.dart`, `open_time_browser_test.dart`(perf) |
@@ -63,18 +63,30 @@
 - T12: 설정 읽기는 키의 scope대로(synced → `settings` 행, device → `kv['setting.<name>']`). 가짜는 이름으로 device 값을 먼저 보지만 같은 이름을 두 scope로 쓰지 않는 한 결과가 같다. 저장된 JSON이 깨졌으면 기본값. 다시 `set`하면 소프트 삭제가 풀린다(바뀐 필드 `deletedAt`·`valueJson` 중 실제로 다른 것).
 - T6: 실제 저장소의 아직 구현하지 않은 멤버(라이브러리·휴지통·프리셋·설정·내용·에셋·썸네일·`SyncStore`의 ID 두 개 밖·`openSession`·`exportBackupJson`)는 해당 작업 번호를 적은 `UnimplementedError`를 던진다(T7~T19에서 채움). `connect_browser.dart`(WasmDatabase)는 T6에서 썼고 브라우저 검증은 T16, BlobStore·해셔 연결은 T13.
 
+- T13: 내부 인터페이스를 둘로 나눴다 — `BlobStore`(바이트 값, `asset_chunks`)와 `ThumbnailStore`(`thumbnails`, 값 `{rev, w, h, mime, bytes}`). 둘 다 `IdbBlobDatabase`(`assets/idb_blob_store.dart`)가 idb_shim으로 구현. IndexedDB는 **처음 쓸 때** 연다(저장소 열기를 막지 않음, 실패하면 다음 작업이 다시 시도). 다른 연결의 versionchange(다른 탭의 삭제)면 닫고 다음 사용 때 다시 연다.
+- T13: IDB 팩토리는 `connect_*.dart`의 `blobIdbFactory(config)` — 웹 `idbFactoryBrowser`(`inMemory`면 메모리), VM은 메모리 DB 저장소마다 새 `newIdbFactoryMemory()`, 파일 DB는 경로별 프로세스 전역 메모리 팩토리(같은 파일을 다시 열면 바이트·썸네일이 남음, `deleteLocalNoteData`가 지움 — 네이티브 파일 바이트 저장은 이후 범위 1.3). `openTestNoteStore`·`openNoteStore` 둘 다 이것을 넘긴다. `DriftNoteStore.open(blobFactory:, assetChunks:)` — `assetChunks`는 테스트용 청크 저장소 주입(@visibleForTesting). 웹 `deleteLocalData`는 블롭 DB도 지운다(브라우저 확인은 T16).
+- T13: '바이트가 있음' = 행의 `hasLocalBytes` **그리고** `chunk_count`개 청크 키가 모두 있음(`put` 중복 제거 판정과 `hasBytes`). `readBytes`는 청크가 하나라도 없거나 길이가 `size`와 다르면 `null`. 빈 바이트는 청크 0개.
+- T13: 메타만 있던 행(원격)에 `put`하면 그 행의 메타(fileName 등)는 그대로, 로컬 열(`hasLocalBytes`·`chunk_count`)만 쓴다(outbox 없음). `putDownloadedBytes`는 행이 없어도 쓰기 큐를 거친다(앞에 쌓인 원격 메타 쓰기가 먼저 커밋되게) — 행이 없으면 청크만 남고 `bytesArrived`는 낸다. 나중에 원격 메타가 새 행으로 오면 T14가 `AssetStoreImpl.localStateOf(id, size)`(모든 청크 키 확인 → `hasLocalBytes`·`chunkCount`)로 로컬 열을 정한다.
+- T13: `markUploaded`는 값이 같아도 항상 outbox `{storagePath}`·`ChangeBatch(local)`(가짜와 같음). `usage()`의 `assetCount`는 삭제 안 된 행 전부(소유자 무관, 가짜와 같음), `totalBytes`는 그중 `hasLocalBytes`인 것의 `size` 합. `listAssets`는 소유자·삭제 안 됨 필터, 정렬 `createdAt`·`id`.
+- T13: `put`은 입력 바이트 전체를 복사하지 않는다(300 MB PDF 메모리). 청크는 복사해서 저장(브라우저 IndexedDB는 typed array 뷰를 저장할 때 버퍼 전체를 복제하므로 뷰 금지). 웹 해셔는 `crypto.subtle`이 없으면(비보안 컨텍스트) `package:crypto`로 대체.
+- T13: 썸네일 작업은 한 줄로 순서대로 실행(쓰기 뒤 읽기가 그 쓰기를 봄). 휴지통 영구 삭제는 커밋 뒤 그 페이지들의 썸네일을 지운다(`dropPurged`, `updates` 이벤트 없음 — 가짜와 같음).
+- T13: `close()` 순서 — 에셋(진행 중 바이트 쓰기와 그 메타 커밋 기다림) → 썸네일 → 쓰기 큐 → watch → bus → 블롭 DB → SQLite.
+
 - 기반 단계(B2) 차이는 `/home/user/wt/notes/foundation-core.md` '계획과 다르게 한 점'에 있다(값 타입 `==`·`copyWith` 추가, `pageChanges` 첫 load 전달 시점, 히스토리 별칭 보존, 가짜 저장소 세부 동작 등).
 
 ## 다음 세션 메모
+
+- 세션 3 끝 상태: T13 완료. 실제 저장소의 `assets`·`thumbnails`가 동작한다. 남은 `UnimplementedError`: `openSession`(T10), `SyncStore` 나머지(T14), `exportBackupJson`(T19). 검사: 패키지 VM 463개·Chrome 24개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
+- **fake_async 주의(다른 영역에도 알릴 것)**: idb_shim 메모리 IndexedDB(sembast)는 0.1 ms 타이머로 끝난다. `openTestNoteStore` 저장소에서 에셋 `put`·썸네일 쓰기를 fake_async 안에서 쓰면 `flushMicrotasks`만으로는 안 끝나고 시간을 진행해야 한다(`asset_store_test`의 `pumpUntil` — 1 ms씩 elapse). 라이브러리·세션 쓰기(SQLite)는 전처럼 마이크로태스크만으로 끝난다.
+- T14 메모(에셋): `applyRemote`의 새 에셋 행은 `store.assets.localStateOf(id, size)`로 `hasLocalBytes`·`chunk_count`를 정해 `writeEntityRow(..., assetChunkCount:)`에 넘긴다(지금 `putRemote`는 새 행이면 엔티티 값 `false`·`chunk_count 0`). 기존 행은 `keepLocal`로 유지(이미 그렇게 동작).
+- T13 사용법: 에셋 바이트 경로 도우미는 `assets/blob_store.dart`(`writeChunks`·`readChunks`·`hasAllChunks`·`chunkCountFor`·`chunkKey`·`chunkPrefix`, 청크 4 MiB). 저장소의 블롭 DB는 `store.blobs`(`chunks`·`thumbnails`). `putLocal(..., assetChunkCount:)` 추가(null = 행 값 유지).
 
 - T7 쓰기 경로 사용법(T8 이후 모든 쓰기는 이것으로): `store.queue.run((tx) async { ... }, origin: ChangeOrigin.local, bytes: 점 바이트)`. 작업 안에서 `tx.putLocal(entity, 바뀐 JSON 키)`(HLC 찍기·필드 버전·행·outbox·`EntityChange`, `{*}` = 새로/전체, 로컬 전용·메타 키만이면 버전 유지·outbox 없음), `tx.putRemote(entity, versions)`(원격·복구 경로: 그대로 저장·outbox 없음·로컬 열 유지·고아 획 처리·HLC receive), `tx.purge(ref)`(행 삭제 + outbox purge), `tx.addChange`, `tx.afterCommit(f)`(커밋 뒤·ChangeBatch 전 메모리 갱신), `tx.noteIdOfPage`. 작업이 `Error`·`NoteCoreException`을 던지면 그 작업만 savepoint로 되돌리고 재시도 없이 그 오류로 완료, 그 밖의 예외는 트랜잭션 전체 롤백·재시도. 테스트 주입은 `store.queue.failNextCommits(n)`, 트랜잭션 수는 `debugTransactionCount`. 행 변환은 `row_mappers.dart`(`writeEntityRow`·`readVersionedRow`·`*Of(row)`), outbox 읽기는 `readOutbox`.
 - fake_async 안에서 drift `NativeDatabase.memory()`가 타이머 없이 마이크로태스크만으로 돈다(write_queue_test에서 확인) → 재시도 간격 테스트를 실제 저장소로 쓸 수 있다.
 - T6 산출물: `lib/src/storage/`(db/tables·note_database(+.g)·migrations, kv_keys, open_errors, connect/*, drift_note_store), `drift_schemas/note_db/drift_schema_v1.json`. 스키마를 바꾸면 패키지 디렉터리에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`--delete-conflicting-outputs`는 쓰지 않음). `schema_test`가 drift_schemas JSON과 실제 테이블·인덱스를 대조한다.
 - T8 사용법(T9 이후): 라이브러리 쓰기는 `DriftLibraryRepository`(`storage/drift_library_repository.dart`). 활성 행·트리 도우미 `activeFolders()`, 복사 경로 `copyNote(tx, note, folderId:, sortKey:, title:)`(T14 `duplicateNoteForRecovery`가 재사용), 이름 검사 `checkLibraryName`, 접미사 자르기 `nameWithSuffix`. watch는 `store.watches.watch(affects:, query:, equals:)`.
-- T13 메모: 영구 삭제된 페이지의 썸네일 삭제(가짜는 `thumbnailRows`에서 지움)는 썸네일 캐시 구현(T13)에서 `DriftTrashRepository._purgeGroup`에 붙인다.
 - T10 메모: 휴지통으로 가거나 복원된 노트의 열린 세션 `isReadOnly` 전환(N-4)은 세션이 커밋을 보고 판단해야 한다(가짜는 `_committed`에서 `noteCommitted`). `trash_repository_test`에 넣을 '열린 세션 읽기 전용 전환·복원 시 해제'는 T10에서.
 - 세션 2 끝 상태: T8·T9·T12 완료(커밋 6d0c569·6bb6c01·3503f6c). 실제 저장소에서 라이브러리·휴지통·프리셋·설정·`NoteContentReader`가 동작하고, 세션(`openSession`, T10)·에셋·썸네일(T13)·`SyncStore` 나머지(T14)·`exportBackupJson`(T19)은 아직 `UnimplementedError`. 검사: 패키지 VM 419개·Chrome 12개 통과, `ws check` 0, 루트 `flutter analyze --fatal-infos` 0.
-- T13 시작 전 읽을 것: 계획서 6.13(에셋·썸네일 저장), 4.7(계약), 6.19 에셋 부분, 가짜 `FakeAssets`·`FakeThumbnails`(`fake_note_store.dart`), `idb_shim` 2.11.2(메모리 IDB = `idbFactoryMemory`). 에셋 메타 커밋은 `store.queue.run`, `putLocal(asset, ..., assetChunkCount:)`가 아직 없으니 `writeEntityRow`의 `assetChunkCount` 인자를 `putLocal`로 넘기는 길을 만들어야 한다. `markUploaded` → outbox `{storagePath}`·`ChangeBatch(origin: local)`. 라이브러리 C-8(복원 위치)·휴지통 규칙은 공유 계약 'C-8 / trash' 그룹. C-9의 세션 부분(획 편집 → `contentRevision`·`updatedAt`)은 T10 세션 계약(실제)에서.
 - 세션 1 끝 상태: T6·T7 완료. 실제 저장소는 열기·쓰기 경로까지 동작하고, 저장소 멤버(라이브러리 등)는 아직 `UnimplementedError`. T8은 계획서 6.8(라이브러리·휴지통 규칙)·4.5(LibraryRepository 계약)·6.19(가짜와 같은 의미)를 읽고, 가짜 `lib/src/fake/fake_note_store.dart`의 `_FakeLibrary`를 동작 기준으로 삼아 `test/shared/library_contract.dart`를 두 저장소에 돌린다. watch 스트림은 커밋 뒤 재질의(가짜의 `watch()`처럼 구독 즉시 1회 + 바뀔 때) — `queue`의 커밋 알림에 붙이면 된다(`WriteTxn.afterCommit` 또는 `bus.stream`).
 - 세션 1: 문서 절차(C13-05, CORE-4-1~4-3) 끝 — 02-core.md 상태 줄 '승인'·계약 v1.4, 4.6·4.7 v1.3 주석, 6.13 bullet, 12.2 CP-8 결정, 13.4. 코드 계약 파일은 B2에서 이미 v1.3 주석.
 - Riverpod 3.4.3은 리스너 없는 provider를 멈춘다. 테스트에서 `container.listen(p.future, (_, _) {})` 뒤 `sub.read()`.

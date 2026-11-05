@@ -365,13 +365,15 @@ final class WriteTxn {
   /// Returns the stored field versions (max = the entity's new version).
   /// [isNew]: the caller knows there is no row (fresh id) — skips reading it.
   /// [fixedVersion]: the version to write instead of a new stamp (seed data such as
-  /// the default presets, 6.2.2).
+  /// the default presets, 6.2.2). [assetChunkCount]: the local assets.chunk_count
+  /// (null keeps the row's value; 0 for a new row).
   Future<EntityFieldVersions> putLocal(
     SyncEntity entity,
     Iterable<String> fields, {
     NoteId? strokeNoteId,
     bool isNew = false,
     Hlc? fixedVersion,
+    int? assetChunkCount,
   }) async {
     final ref = EntityRef(entity.kind, entity.id);
     final current = isNew ? null : await readVersionedRow(db, ref);
@@ -386,12 +388,19 @@ final class WriteTxn {
         entity,
         current!.versions,
         strokeNoteId: hints.noteId,
+        assetChunkCount: assetChunkCount,
       );
       return current.versions;
     }
     final h = fixedVersion ?? stamp();
     final versions = localVersionsAfter(current?.versions, synced, h);
-    await writeEntityRow(db, entity, versions, strokeNoteId: hints.noteId);
+    await writeEntityRow(
+      db,
+      entity,
+      versions,
+      strokeNoteId: hints.noteId,
+      assetChunkCount: assetChunkCount,
+    );
     await recordOutbox(
       db,
       kind: entity.kind,

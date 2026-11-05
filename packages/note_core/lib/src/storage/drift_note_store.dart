@@ -2,16 +2,20 @@
 //
 // T6 opens the database, classifies open errors and keeps the per-device kv
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
-// content reader; T9 the trash; T12 pen presets and settings. Sessions, assets,
-// thumbnails and the sync window are filled in by CORE T10–T19; until then their
-// members throw UnimplementedError naming the task.
+// content reader; T9 the trash; T12 pen presets and settings; T13 assets and
+// thumbnails (blob IndexedDB). Sessions and the sync window are filled in by CORE
+// T10–T19; until then their members throw UnimplementedError naming the task.
 import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:drift/drift.dart';
+import 'package:idb_shim/idb_client_memory.dart';
 import 'package:meta/meta.dart';
 
-import '../assets/asset_store.dart';
+import '../assets/asset_store_impl.dart';
+import '../assets/blob_store.dart';
+import '../assets/idb_blob_store.dart';
+import '../assets/thumbnail_cache_impl.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../repo/content_reader.dart';
@@ -61,6 +65,8 @@ final class DriftNoteStore implements NoteStore {
     required this.ids,
     required this._storeKey,
     required String? persistedHlc,
+    required this.blobs,
+    BlobStore? assetChunks,
   }) {
     queue = WriteQueue(
       db: db,
@@ -75,6 +81,12 @@ final class DriftNoteStore implements NoteStore {
     penPresets = DriftPenPresetRepository(this);
     settings = DriftSettingsRepository(this);
     content = DriftContentReader(db);
+    thumbnails = ThumbnailCacheImpl(blobs.thumbnails);
+    assets = AssetStoreImpl(
+      this,
+      chunks: assetChunks ?? blobs.chunks,
+      thumbnailBytes: thumbnails.totalBytes,
+    );
     sync = _DriftSyncStore(this);
   }
 
@@ -84,13 +96,17 @@ final class DriftNoteStore implements NoteStore {
   ///
   /// [deviceNodeId] fixes the HLC node (openTestNoteStore); null = the stored
   /// node, or a new random one for a new database. [autoPurge] starts the trash
-  /// clean-up timers (openNoteStore, 6.8).
+  /// clean-up timers (openNoteStore, 6.8). [blobFactory]: the IndexedDB factory of
+  /// asset chunks and thumbnails (null = a fresh in-memory one, 6.13); the blob
+  /// database opens on first use. [assetChunks] replaces the chunk store (tests).
   static Future<DriftNoteStore> open({
     required QueryExecutor executor,
     required StorageInfo storageInfo,
     required NoteStoreConfig config,
     String? deviceNodeId,
     bool autoPurge = false,
+    IdbFactory? blobFactory,
+    @visibleForTesting BlobStore? assetChunks,
     @visibleForTesting NoteDatabase Function(QueryExecutor)? databaseFactory,
   }) async {
     if (deviceNodeId != null && !isValidNodeId(deviceNodeId)) {
@@ -116,6 +132,11 @@ final class DriftNoteStore implements NoteStore {
         ids: config.idGenerator ?? UuidV7IdGenerator(clock: clock),
         storeKey: key,
         persistedHlc: values.persistedHlc,
+        blobs: IdbBlobDatabase(
+          blobFactory ?? newIdbFactoryMemory(),
+          config.web.blobDatabaseName,
+        ),
+        assetChunks: assetChunks,
       );
       if (key != null) {
         _openStoreCounts.update(key, (n) => n + 1, ifAbsent: () => 1);
@@ -149,6 +170,9 @@ final class DriftNoteStore implements NoteStore {
 
   final ChangeBus bus = ChangeBus();
 
+  /// Asset chunks and thumbnails (6.13), outside SQLite.
+  final IdbBlobDatabase blobs;
+
   /// Re-queried watch streams (C-1); refreshed by the write queue after each commit.
   final WatchHub watches = WatchHub();
 
@@ -169,9 +193,9 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final NoteContentReader content;
   @override
-  final AssetStore assets = const _PendingAssets();
+  late final AssetStoreImpl assets;
   @override
-  final ThumbnailCache thumbnails = const _PendingThumbnails();
+  late final ThumbnailCacheImpl thumbnails;
   @override
   late final SyncStore sync;
 
@@ -217,9 +241,13 @@ final class DriftNoteStore implements NoteStore {
         _openStoreCounts[key] = n;
       }
     }
+    // Running byte writes first: their metadata commits still go through the queue.
+    await assets.close();
+    await thumbnails.close();
     await queue.close();
     watches.close();
     await bus.close();
+    await blobs.close();
     await db.close();
   }
 
@@ -291,18 +319,6 @@ String _name(Invocation i) {
   final start = s.indexOf('"');
   final end = s.lastIndexOf('"');
   return start >= 0 && end > start ? s.substring(start + 1, end) : s;
-}
-
-final class _PendingAssets implements AssetStore {
-  const _PendingAssets();
-  @override
-  Never noSuchMethod(Invocation i) => _pending('AssetStore', i, 'T13');
-}
-
-final class _PendingThumbnails implements ThumbnailCache {
-  const _PendingThumbnails();
-  @override
-  Never noSuchMethod(Invocation i) => _pending('ThumbnailCache', i, 'T13');
 }
 
 /// SyncStore of the SQLite store. T6: identity values only; CORE T14 fills the rest.

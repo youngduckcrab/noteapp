@@ -7,7 +7,7 @@
 // Purge deletes the group's folder and note rows with their pages, strokes and
 // recordings; the outbox gets one purge per folder / note (pending page, stroke and
 // recording entries of those notes are dropped — the server cleans children), assets
-// stay (GC later, PDF C-8).
+// stay (GC later, PDF C-8). The pages' thumbnails are dropped after the commit (6.13).
 import 'dart:async';
 
 import 'package:collection/collection.dart';
@@ -277,6 +277,7 @@ final class DriftTrashRepository implements TrashRepository {
       await tx.purge(EntityRef(EntityKind.folder, f.id));
     }
     final noteIds = [for (final n in notes) n.id];
+    final purgedPages = <PageId>[];
     for (final chunk in _chunks(noteIds)) {
       final pageIds = [
         for (final r
@@ -286,6 +287,7 @@ final class DriftTrashRepository implements TrashRepository {
                 .get())
           r.read(_db.pages.id)!,
       ];
+      purgedPages.addAll(pageIds);
       await (_db.delete(_db.strokes)..where((t) => t.noteId.isIn(chunk))).go();
       for (final pages in _chunks(pageIds)) {
         await (_db.delete(
@@ -315,6 +317,9 @@ final class DriftTrashRepository implements TrashRepository {
     }
     for (final id in noteIds) {
       await tx.purge(EntityRef(EntityKind.note, id));
+    }
+    if (purgedPages.isNotEmpty) {
+      tx.afterCommit(() => s.thumbnails.dropPurged(purgedPages));
     }
   }
 

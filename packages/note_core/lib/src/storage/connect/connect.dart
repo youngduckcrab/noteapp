@@ -2,8 +2,8 @@
 //
 // Each file provides:
 //   Future<(QueryExecutor, StorageInfo)> openNoteDatabaseExecutor(NoteStoreConfig config);
-//   Future<void> deleteLocalData(NoteStoreConfig config);
-// (openBlobStore / createContentHasher arrive with CORE T13.)
+//   Future<void> deleteLocalData(NoteStoreConfig config);   // SQLite DB + blob IndexedDB
+//   IdbFactory blobIdbFactory(NoteStoreConfig config);       // asset chunks / thumbnails (6.13)
 export 'connect_stub.dart'
     if (dart.library.js_interop) 'connect_browser.dart'
     if (dart.library.ffi) 'connect_native.dart';

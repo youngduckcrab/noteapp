@@ -1,6 +1,7 @@
 // lib/src/storage/connect/connect_browser.dart (internal) — web (drift WasmDatabase).
 import 'package:drift/drift.dart';
 import 'package:drift/wasm.dart';
+import 'package:idb_shim/idb_browser.dart';
 
 import '../../common/errors.dart';
 import '../../repo/note_store.dart';
@@ -33,9 +34,15 @@ Future<(QueryExecutor, StorageInfo)> openNoteDatabaseExecutor(
   );
 }
 
-/// Deletes every stored database with this name (IndexedDB or OPFS, 6.18).
-/// The blob IndexedDB is added with CORE T13 / T16.
+/// The blob IndexedDB factory (6.13): the browser's IndexedDB (memory when the
+/// browser has none); in memory for NoteStoreConfig.inMemory.
+IdbFactory blobIdbFactory(NoteStoreConfig config) =>
+    config.inMemory ? newIdbFactoryMemory() : idbFactoryBrowser;
+
+/// Deletes every stored database with this name (IndexedDB or OPFS) and the blob
+/// IndexedDB (6.18).
 Future<void> deleteLocalData(NoteStoreConfig config) async {
+  await idbFactoryBrowser.deleteDatabase(config.web.blobDatabaseName);
   final probe = await WasmDatabase.probe(
     sqlite3Uri: Uri.base.resolve(config.web.sqlite3WasmPath),
     driftWorkerUri: Uri.base.resolve(config.web.driftWorkerPath),
