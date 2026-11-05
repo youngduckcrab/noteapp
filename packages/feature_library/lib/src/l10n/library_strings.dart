@@ -115,6 +115,43 @@ abstract final class LibraryStrings {
   static const String moveTo = '이동…';
   static const String moveToTrash = '휴지통으로 이동';
 
+  /// Tooltip / semantics of an item's ⋯ button: '수학 메뉴'.
+  static String itemMenu(String name) => '$name 메뉴';
+
+  /// Sidebar tree row menu (6.5): a new folder inside that folder.
+  static const String newSubfolder = '새 하위 폴더';
+
+  // Item action dialogs and results (6.11)
+  static const String moveDestination = '이동할 위치';
+  static const String copyDestination = '복사할 위치';
+  static const String moveHere = '여기로 이동';
+  static const String copyHere = '여기에 복사';
+  static const String preview = '미리보기';
+
+  /// Rename field counter (shown from 180 characters): '185/200'.
+  static String characterCount(int n, int max) => '$n/$max';
+
+  /// Copy of one item from its menu (same folder, ' 사본').
+  static const String copied = '복사했어요';
+
+  /// Copy of n items (selection bar).
+  static String copiedCount(int n) => '항목 $n개를 복사했어요';
+
+  /// Move of one item: "'수학'으로 옮겼어요" (target name, 홈 for the top
+  /// level).
+  static String movedTo(String target) => '${quotedWithDirection(target)} 옮겼어요';
+
+  /// Move of n items: "항목 3개를 '수학'으로 옮겼어요".
+  static String movedCountTo(int n, String target) =>
+      '항목 $n개를 ${quotedWithDirection(target)} 옮겼어요';
+
+  /// Trash of one item: "'수학'을 휴지통으로 옮겼어요".
+  static String trashedOne(String name) =>
+      '${quotedWithObject(name)} 휴지통으로 옮겼어요';
+
+  /// Trash of n items: '항목 3개를 휴지통으로 옮겼어요'.
+  static String trashedCount(int n) => '항목 $n개를 휴지통으로 옮겼어요';
+
   // PDF slots
   static const String exportPdfBulk = 'PDF 내보내기';
   static const String exportPdfOne = 'PDF로 내보내기';

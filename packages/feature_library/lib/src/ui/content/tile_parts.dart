@@ -27,10 +27,8 @@ void openLibraryNote(BuildContext context, Note note) {
 
 /// Folder color or the theme default (onSurfaceVariant). An unknown color
 /// synced from elsewhere is drawn as it is (ARGB).
-Color folderIconColor(Folder folder, ColorScheme scheme) {
-  final argb = folder.colorArgb;
-  return argb != null ? Color(argb) : scheme.onSurfaceVariant;
-}
+Color folderColorOr(int? colorArgb, ColorScheme scheme) =>
+    colorArgb != null ? Color(colorArgb) : scheme.onSurfaceVariant;
 
 /// The folder picture of a tile or row: background = folder color 15 % or
 /// surfaceContainerHigh, the folder icon in the middle.
@@ -49,22 +47,49 @@ class FolderPicture extends StatelessWidget {
   final bool background;
 
   @override
+  Widget build(BuildContext context) => FolderGlyph(
+    colorArgb: folder.colorArgb,
+    icon: folder.icon,
+    iconSize: iconSize,
+    background: background,
+  );
+}
+
+/// [FolderPicture] from a color and an icon key (the appearance dialog's
+/// preview draws values that are not stored yet).
+class FolderGlyph extends StatelessWidget {
+  const FolderGlyph({
+    super.key,
+    required this.colorArgb,
+    required this.icon,
+    required this.iconSize,
+    this.background = true,
+  });
+
+  final int? colorArgb;
+
+  /// FolderIcons key (null / unknown = the folder icon).
+  final String? icon;
+  final double iconSize;
+  final bool background;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final argb = folder.colorArgb;
-    final icon = Center(
+    final argb = colorArgb;
+    final glyph = Center(
       child: Icon(
-        FolderIcons.iconFor(folder.icon),
+        FolderIcons.iconFor(icon),
         size: iconSize,
-        color: folderIconColor(folder, scheme),
+        color: folderColorOr(argb, scheme),
       ),
     );
-    if (!background) return icon;
+    if (!background) return glyph;
     return ColoredBox(
       color: argb != null
           ? Color(argb).withValues(alpha: 0.15)
           : scheme.surfaceContainerHigh,
-      child: icon,
+      child: glyph,
     );
   }
 }

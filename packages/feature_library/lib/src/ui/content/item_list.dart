@@ -1,6 +1,6 @@
 // lib/src/ui/content/item_list.dart — 05-library 6.8: the list view of one
-// LibraryContent (rows of 64, folders first). The ⋯ menu comes with L13,
-// selection checkboxes with L14, drag / drop with L15.
+// LibraryContent (rows of 64, folders first). Selection checkboxes come with
+// L14, drag / drop with L15.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note, clockProvider;
@@ -9,11 +9,10 @@ import '../../l10n/library_date_format.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/content.dart';
 import '../../model/item_key.dart';
-import '../../state/library_actions.dart';
-import '../../state/providers.dart';
-import '../feedback/library_snack_bar.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
+import '../menus/item_action_flows.dart';
+import '../menus/item_context_menu.dart';
 import 'note_cover_view.dart';
 import 'tile_parts.dart';
 
@@ -125,21 +124,6 @@ class NoteListRow extends ConsumerWidget {
 
   final Note note;
 
-  Future<void> _toggleFavorite(BuildContext context, WidgetRef ref) async {
-    final scope = LibraryScope.read(context);
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final outcome = await ref.read(libraryActionsProvider).setFavorite([
-      note.id,
-    ], !note.isFavorite);
-    if (outcome case ActionFailure(:final kind) when messenger != null) {
-      showLibrarySnackBarOn(
-        messenger,
-        message: libraryFailureMessage(kind),
-        sizeClass: scope.sizeClass,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
@@ -175,10 +159,14 @@ class NoteListRow extends ConsumerWidget {
           tooltip: note.isFavorite
               ? LibraryStrings.favoriteRemove
               : LibraryStrings.favoriteAdd,
-          onPressed: () => _toggleFavorite(context, ref),
+          onPressed: () => runFavoriteFlow(
+            context,
+            ids: [note.id],
+            favorite: !note.isFavorite,
+          ),
         ),
-        // L13: the ⋯ menu (44 × 44).
-        const SizedBox(width: LibraryMetrics.minTapTarget + 8),
+        ItemMenuButton(note: note),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -207,8 +195,8 @@ class FolderListRow extends StatelessWidget {
             meta: LibraryStrings.folders,
           ),
         ),
-        // L13: the ⋯ menu (44 × 44).
-        const SizedBox(width: LibraryMetrics.minTapTarget + 8),
+        ItemMenuButton(folder: folder),
+        const SizedBox(width: 8),
       ],
     );
   }

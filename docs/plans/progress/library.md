@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: 4 (동시 개발 단계) — L11·L12 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, L2는 기반 단계 B6에서 완료)
-- 다음 할 일: L13 (항목 동작) → L14~L18 → L19 → L20
+- 마지막 세션: 5 (동시 개발 단계) — L13 완료(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, L2는 기반 단계 B6에서 완료)
+- 다음 할 일: L14 (다중 선택) → L15~L18 → L19 → L20
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
 
 ## 작업 표
@@ -25,7 +25,7 @@
 | L10 | 완료 | 581329e | `widget/listing_test.dart`, `widget/breadcrumb_bar_test.dart`, `widget/folder_missing_test.dart` (+ B6 `feature_library_smoke_test.dart` 갱신) |
 | L11 | 완료 | bd43eaf | `unit/cover_scheduler_test.dart`, `widget/cover_view_test.dart` (+ `support/recording_thumbnail_io.dart`) |
 | L12 | 완료 | ade94c3 | `widget/new_note_dialog_test.dart`, `widget/new_folder_dialog_test.dart` (+ B6 `feature_library_smoke_test.dart`·L10 `widget/listing_test.dart` 갱신) |
-| L13 | 남음 | | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` |
+| L13 | 완료 | (이 커밋) | `widget/item_actions_test.dart`, `widget/folder_picker_test.dart` (+ 공유 시나리오 2건 `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`) |
 | L14 | 남음 | | `widget/multi_select_test.dart` |
 | L15 | 남음 | | `unit/drop_decision_test.dart`, `unit/drag_handle_test.dart`, `unit/auto_scroll_test.dart`, `widget/drag_drop_test.dart`, `widget/auto_scroll_widget_test.dart` |
 | L16 | 남음 | | `widget/trash_view_test.dart` |
@@ -100,7 +100,14 @@
 - L12 진입점: 상단 막대 `NewMenuButton`(`ui/top_bar/new_menu_button.dart` — expanded·medium은 `FilledButton.tonalIcon(+, '새로 만들기')`, compact는 `IconButton(+, 툴팁 '새로 만들기')`, 메뉴 = 새 노트·새 폴더; 대상 = 폴더 섹션의 폴더, 그 외 홈). **휴지통 섹션에서는 숨김**(계획에 없음 — 보기 전환과 같은 규칙). **L18은 `NewMenuButton`의 `menuChildren`에 'PDF 가져오기'를 더한다.** 사이드바 '폴더' 머리줄 '+'(툴팁 '새 폴더', 폴더 섹션이면 그 폴더, 아니면 홈 — 서랍 안에서도 서랍을 닫지 않고 대화상자를 띄움), 빈 상태 [새 노트](FilledButton)·[새 폴더](OutlinedButton).
 - L12 문구 추가: `fieldTitle`·`fieldName`·`fieldLocation`·`fieldPageSize`·`fieldOrientation`·`fieldTemplate`·`fieldPaperColor`·`fieldCover`·`fieldColor`·`fieldIcon`, `pageSizeA4`·`pageSizeLetter`·`pageSize16x9`·`pageSizeCustom`, `portrait`·`landscape`, `customWidth`·`customHeight`·`millimeters`, `coverFirstPage`, `colorNone`, `templateName(kind?)`, `paperColorName(argb)`.
 - L12 B6 스모크·L10 목록 테스트: '새 노트'를 누른 뒤 대화상자의 [만들기]를 누르도록 바꿨다. 스모크의 '두 번째 탭' 테스트는 [만들기] 뒤 `createNote`가 대기 중일 때 빈 상태 [새 노트]가 비활성이고 눌러도 대화상자가 다시 뜨지 않음을 본다. '실패' 테스트는 대화상자를 연 뒤 저장소를 닫고 [만들기].
-- L0 공유 시나리오 목록에는 지금 하네스 시나리오 1건('a route change keeps the LibraryScreen State')만 있다. L21의 8건은 해당 화면 작업(L10~L18) 때 추가한다.
+- L13 메뉴(`lib/src/ui/menus/item_context_menu.dart`): `itemMenuEntries(context, note:/folder:, sidebar:)`가 6.8·6.5 표의 항목을 만든다(노트: 이름 변경·표지 변경·즐겨찾기/해제·복사·이동…·휴지통으로 이동, 폴더: 이름 변경·꾸미기·복사·이동…·휴지통으로 이동, 사이드바 줄: 복사 대신 '새 하위 폴더'). 'PDF로 내보내기'는 L18이 노트 목록의 '이동…' 뒤에 넣는다(주석 자리). 타일·리스트 행의 ⋯는 `ItemMenuButton`(44×44, `MenuAnchor`) — **툴팁은 '더 보기'가 아니라 `LibraryStrings.itemMenu(이름)` = '<이름> 메뉴'**(compact 상단 막대 ⋯ '더 보기'와 구분, 스크린 리더가 어느 항목인지 읽음). 타일에서는 `PositionedDirectional(end: 0, top: 표지 높이 + LibraryMetrics.tileMenuTopGap(4))`.
+- L13 사이드바 줄 메뉴 `SidebarRowMenu`(같은 파일, `SidebarFolderTree`가 각 `SidebarTreeRow`를 감쌈): `RawGestureDetector` — `LongPressGestureRecognizer(duration: LibraryMetrics.longPressDelay 400ms)`의 `onLongPressEnd`에서 누른 점과의 거리가 `kTouchSlop` 미만이면 누른 자리에 메뉴(`MenuController.open(position:)`), `TapGestureRecognizer.onSecondaryTapUp`(오른쪽 클릭)도 같은 메뉴. `excludeFromSemantics: true`(없으면 줄의 라벨·탭 노드와 갈라져 `labeledTapTargetGuideline` 실패) — 스크린 리더는 목록의 폴더 ⋯로 같은 동작을 쓴다. **L15는 길게 누르기 부분을 `LibraryDraggable.onLongPressReleased`로 바꾼다**(오른쪽 클릭은 그대로).
+- L13 흐름(`lib/src/ui/menus/item_action_flows.dart`): `runRenameFlow`·`runFolderAppearanceFlow`·`runCoverFlow`·`runFavoriteFlow(ids:, favorite:, onDone:)`·`runCopyHereFlow(item:, parentId:)`·`runMoveFlow(items:, parents:, onDone:)`·`runTrashFlow(items:, singleName:, onDone:)`. create_flows와 같은 규칙(컨테이너·scope·messenger를 첫 await 전에 잡음). '같은 항목의 같은 동작 진행 중에는 그 진입점만 비활성'(6.11)은 **메뉴 항목을 비활성으로 그리지 않고, 진행 중인 같은 동작·같은 항목 반복을 무시**하는 것으로 했다(컨테이너별 `Expando<Set<String>>` — 메뉴는 열 때마다 닫히므로 눈에 보이는 차이 없음). 이동: 피커 초기 선택 = 항목들의 공통 부모(다르면 홈), `noOpTargets` = 그 공통 부모, `disabled` = 옮기는 폴더 + `tree.descendantsOf`. 결과 문구는 6.10.3 표(`movedTo`/`movedCountTo` — "'<대상>'(으)로 옮겼어요", 홈이면 "'홈'으로"), 대상 이름은 이동 뒤 최신 트리에서 읽음(피커 안에서 만든 폴더). 영수증이 비면 [실행 취소] 없음. 이름 변경은 바뀌지 않았으면 CORE를 부르지 않고, 꾸미기·표지 변경도 같은 값이면 부르지 않는다.
+- L13 대화상자: `rename_dialog.dart`(필드 라벨은 노트·폴더 모두 '이름', `DialogNameField(counterFrom: 180)` — `DialogNameField`에 `counterFrom`을 더함, [저장]은 빈 값·같은 값·`String.length` 200 초과(이모지 등 C-6)면 비활성, 다듬은 이름을 돌려줌), `folder_appearance_dialog.dart`(미리보기 96×72 — `tile_parts.dart`에 `FolderGlyph(colorArgb, icon, …)`를 새로 두고 `FolderPicture`가 그것을 씀, `folderIconColor` 대신 `folderColorOr(argb, scheme)`; 저장된 모르는 아이콘 키는 사용자가 아이콘을 고르기 전까지 유지; 바뀌기 전엔 [저장] 비활성), `cover_dialog.dart`(미리보기 없음 — `CoverPicker`만, 같은 표지면 [저장] 비활성). `showConfirmDialog`는 아직 없다 — 쓰는 곳(영구 삭제·비우기)이 L16이라 그때 만든다.
+- L13 폴더 선택 대화상자(`folder_picker_dialog.dart`, `FolderPickerDialog`·`FolderPickerRow`·`FolderPickerResult`(값 동등)): 트리 줄은 홈 아래 한 단계 들여쓴다(`depth + 1`), 처음 펼침 = `initialFolderId`까지의 경로 **그 폴더 포함**(하위 폴더로 옮기기 쉽게), 순서는 사이드바와 같은 `folderTreeOrderFor(prefs.sort)`. 비활성 줄은 ▸도 없다(하위도 모두 비활성이라). 확인 버튼은 고른 줄이 비활성·트리에 없음·`noOpTargets`면 비활성. [새 폴더]는 새 폴더 대화상자(이름·색·아이콘)를 띄워 고른 폴더 안에 만들고 그 폴더를 고른다(피커 안의 펼침만 바꾸고 사이드바 펼침은 건드리지 않음), 고른 줄이 비활성이면 비활성. compact는 `Dialog.fullscreen` + `SafeArea`.
+- L13 문구 추가: `itemMenu(name)`, `newSubfolder`, `moveDestination`·`copyDestination`, `moveHere`·`copyHere`, `preview`, `characterCount(n, max)`, `copied`·`copiedCount(n)`, `movedTo(target)`·`movedCountTo(n, target)`, `trashedOne(name)`·`trashedCount(n)`.
+- L13 `NoteListRow`의 ☆/★도 `runFavoriteFlow`를 거친다(L10의 자체 토글 코드 삭제).
+- 공유 시나리오(L0 틀): 하네스 1건 + **L13에서 2건** — 'folders: create, move through the picker, no move into the own subtree'(빈 상태 [새 폴더] A → 사이드바 줄 메뉴 '새 하위 폴더' B → 새로 만들기 C, A 이동 피커에서 A 비활성·홈 확인 비활성, 래퍼 `moveItems(A → B)`가 `FolderCycleException`·변화 없음(C-4), A → C 이동 후 [실행 취소]), "copy: ' 사본' of a 200-character title stays 200 characters"(C-5). 나머지(사용자 지정 재정렬 다중, 휴지통 → 복원 위치, 제목 검색 NFD, '최근'은 openSession 뒤에만, 새 노트 기본값 왕복, 원격 삭제 → 폴더 없음 보기)는 L15~L18 때 추가한다. 시나리오 본문의 CORE 직접 호출·읽기는 `tester.runAsync`로 감싼다(`runAsync`는 콜백 오류를 다시 던지지 않으므로 오류를 기대하면 콜백 안에서 잡아 값으로 돌려줌).
 
 ## 다음 세션 메모
 
@@ -118,3 +125,4 @@
 - L13 시작점: ⋯ 자리는 타일 `Stack`(`note_tile.dart`·`folder_tile.dart`의 'L13' 주석)과 리스트 행(`item_list.dart`의 `SizedBox(52)`). 대화상자 틀은 `LibraryDialogFrame`·`DialogNameField`(L12), 꾸미기는 `FolderColorPicker`·`FolderIconPicker`, 표지 변경은 `CoverPicker`(+ `ColorCoverCard` 미리보기), 실행 취소 스낵바는 `showLibrarySnackBarOn`(L8), 변경은 `libraryActionsProvider`(`move`→`MoveReceipt`/`undoMove`, `trash`→`restore`). 사이드바 줄 메뉴의 '새 하위 폴더'는 `runNewFolderFlow(context, parentId: 그 폴더)`.
 - 화면 테스트 도우미 관례: provider 오류 보고 횟수는 `FlutterError.onError`를 try/finally로 잠시 바꿔 센다(`widget/sidebar_test.dart`·`widget/listing_test.dart`의 `collectReports`). 정렬 메뉴는 `find.byTooltip(LibraryStrings.sort)` → `find.widgetWithText(MenuItemButton, …)`.
 - 위젯 테스트에서 provider 컨테이너는 `ProviderScope.containerOf(tester.element(find.byType(LibraryTopBar)))`로 얻을 수 있다(`widget/layout_test.dart`).
+- L14 시작점: 선택 막대는 6.9. 일괄 동작은 L13 흐름을 그대로 부르면 된다 — `runMoveFlow(context, items: selection.inDisplayOrder(content.orderedKeys), parents: 각 항목의 현재 부모, onDone: selection.end)`, `runTrashFlow(..., onDone:)`(n개 문구 자동), `runFavoriteFlow(ids:, favorite:, onDone:)`. '복사(선택 막대)'는 새 흐름이 필요하다: `showFolderPickerDialog(title: LibraryStrings.copyDestination, confirmLabel: LibraryStrings.copyHere, initialFolderId: 현재 폴더 또는 홈)` → `copy(items, target: t, nameSuffix: t == 현재 부모 ? copySuffix : '')` → `copiedCount(n)`(문구 준비됨). 선택 모드에서는 ⋯(`ItemMenuButton`)를 숨기고(타일 `Stack`의 `PositionedDirectional`, 리스트 행의 `ItemMenuButton` + `SizedBox(8)`), 탭은 선택 토글. compact의 '선택'은 `CompactListingMenu`(L10)에 더한다. 테스트에서 ⋯는 `find.byTooltip(LibraryStrings.itemMenu('<이름>'))`.

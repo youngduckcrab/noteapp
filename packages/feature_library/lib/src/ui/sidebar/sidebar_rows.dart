@@ -1,8 +1,8 @@
 // lib/src/ui/sidebar/sidebar_rows.dart — 05-library 6.5: the rows of the
 // sidebar. Navigation rows (홈 · 최근 · 즐겨찾기 · 휴지통) and folder tree
 // rows share the selected look (secondaryContainer, corner 12). The tree
-// row menu (L13) and the drag / drop handling (L15) are added to these rows
-// by their tasks.
+// row menu is SidebarRowMenu around each tree row (sidebar_folder_tree.dart);
+// the drag / drop handling (L15) is added to these rows by its task.
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';

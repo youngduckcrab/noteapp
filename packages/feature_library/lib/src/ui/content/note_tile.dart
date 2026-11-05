@@ -1,7 +1,7 @@
 // lib/src/ui/content/note_tile.dart — 05-library 6.8: a note in the grid.
 // Cover (width × width / 0.75) with the favorite ★ and the newer-app badge,
-// then `[title 2 lines][⋯ 44]` and the modified date. The ⋯ menu comes with
-// L13, selection with L14, dragging with L15.
+// then `[title 2 lines][⋯ 44]` and the modified date. Selection comes with
+// L14, dragging with L15.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Note, clockProvider;
@@ -10,6 +10,7 @@ import '../../l10n/library_date_format.dart';
 import '../../l10n/library_strings.dart';
 import '../layout/grid_metrics.dart';
 import '../layout/library_metrics.dart';
+import '../menus/item_context_menu.dart';
 import 'note_cover_view.dart';
 import 'tile_parts.dart';
 
@@ -96,7 +97,11 @@ class NoteTile extends ConsumerWidget {
                 ),
               ),
             ),
-            // L13: the ⋯ menu (44 × 44) at the end of the title row.
+            PositionedDirectional(
+              end: 0,
+              top: coverHeight + LibraryMetrics.tileMenuTopGap,
+              child: ItemMenuButton(note: note),
+            ),
           ],
         ),
       ),

@@ -1,6 +1,7 @@
 // lib/src/ui/sidebar/sidebar_folder_tree.dart — 05-library 6.5: the folder
 // tree of the sidebar (scrolls in the height left between the '폴더' header
-// and 휴지통).
+// and 휴지통). Every row has the tree row menu (6.5: long press released
+// without moving, or a secondary click).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId, folderTreeProvider;
@@ -11,6 +12,7 @@ import '../../model/section.dart';
 import '../../state/providers.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
+import '../menus/item_context_menu.dart';
 import 'sidebar_rows.dart';
 
 class SidebarFolderTree extends ConsumerWidget {
@@ -42,12 +44,16 @@ class SidebarFolderTree extends ConsumerWidget {
       itemBuilder: (context, index) {
         final row = visible[index];
         final id = row.folder.id;
-        return SidebarTreeRow(
+        return SidebarRowMenu(
           key: ValueKey<FolderId>(id),
-          row: row,
-          selected: id == selectedId,
-          onOpen: () => LibraryScope.read(context).openFolder(id),
-          onToggle: () => ref.read(folderExpansionProvider.notifier).toggle(id),
+          folder: row.folder,
+          child: SidebarTreeRow(
+            row: row,
+            selected: id == selectedId,
+            onOpen: () => LibraryScope.read(context).openFolder(id),
+            onToggle: () =>
+                ref.read(folderExpansionProvider.notifier).toggle(id),
+          ),
         );
       },
     );

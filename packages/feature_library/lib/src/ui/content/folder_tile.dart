@@ -1,6 +1,6 @@
 // lib/src/ui/content/folder_tile.dart — 05-library 6.8: a folder in the
 // grid. The folder picture in the cover place, then `[name 2 lines][⋯]` and
-// '폴더'. The ⋯ menu comes with L13, selection with L14, drag / drop with L15.
+// '폴더'. Selection comes with L14, drag / drop with L15.
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder;
 
@@ -8,6 +8,7 @@ import '../../l10n/library_strings.dart';
 import '../layout/grid_metrics.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
+import '../menus/item_context_menu.dart';
 import 'tile_parts.dart';
 
 class FolderTile extends StatelessWidget {
@@ -58,7 +59,11 @@ class FolderTile extends StatelessWidget {
                 ),
               ),
             ),
-            // L13: the ⋯ menu (44 × 44) at the end of the name row.
+            PositionedDirectional(
+              end: 0,
+              top: metrics.coverHeight + LibraryMetrics.tileMenuTopGap,
+              child: ItemMenuButton(folder: folder),
+            ),
           ],
         ),
       ),

@@ -4,6 +4,7 @@
 // above the on-screen keyboard (viewInsets), the body scrolls.
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/library_strings.dart';
 import '../layout/library_metrics.dart';
 
 class LibraryDialogFrame extends StatelessWidget {
@@ -125,7 +126,8 @@ class DialogLocationRow extends StatelessWidget {
 }
 
 /// The name / title field of a form dialog: starts with [controller]'s text
-/// fully selected, at most kMaxItemNameLength characters (no counter).
+/// fully selected, at most kMaxItemNameLength characters. No counter, or
+/// `'<n>/<max>'` once the text has [counterFrom] characters (rename, 6.11).
 class DialogNameField extends StatelessWidget {
   const DialogNameField({
     super.key,
@@ -133,6 +135,7 @@ class DialogNameField extends StatelessWidget {
     required this.label,
     required this.maxLength,
     this.onSubmitted,
+    this.counterFrom,
   });
 
   final TextEditingController controller;
@@ -140,15 +143,37 @@ class DialogNameField extends StatelessWidget {
   final int maxLength;
   final ValueChanged<String>? onSubmitted;
 
+  /// null = never show the counter.
+  final int? counterFrom;
+
   @override
   Widget build(BuildContext context) {
+    final counterFrom = this.counterFrom;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: controller,
         autofocus: true,
         maxLength: maxLength,
-        decoration: InputDecoration(labelText: label, counterText: ''),
+        decoration: InputDecoration(
+          labelText: label,
+          counterText: counterFrom == null ? '' : null,
+        ),
+        buildCounter: counterFrom == null
+            ? null
+            : (
+                context, {
+                required currentLength,
+                required isFocused,
+                maxLength,
+              }) => currentLength < counterFrom
+                  ? null
+                  : Text(
+                      LibraryStrings.characterCount(
+                        currentLength,
+                        maxLength ?? this.maxLength,
+                      ),
+                    ),
         textInputAction: TextInputAction.done,
         onSubmitted: onSubmitted,
       ),

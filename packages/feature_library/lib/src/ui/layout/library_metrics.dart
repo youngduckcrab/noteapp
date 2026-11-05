@@ -32,6 +32,9 @@ abstract final class LibraryMetrics {
   static const double tileFooterBase = 64;
   static const double maxTileTextScale = 1.3;
 
+  /// Gap between a grid tile's cover and its ⋯ button (next to the title).
+  static const double tileMenuTopGap = 4;
+
   /// A ColorCover card narrower than this (list row thumbnail) shows no
   /// title (6.15.1).
   static const double coverTitleMinWidth = 96;
