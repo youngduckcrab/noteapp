@@ -11,16 +11,21 @@ developer numbers (`InkDiagnostics.snapshot`) used by the iPad checks of
 mouse draw.
 
 ```sh
-cd packages/ink_engine/example
+# at the repository root: one workspace resolution, one pubspec.lock
 flutter pub get
-flutter test                 # test/smoke_test.dart
+dart run tool/ws.dart test --package ink_lab   # test/smoke_test.dart (VM)
+
+cd packages/ink_engine/example
 flutter build web            # build/web
 flutter run -d web-server --web-hostname 0.0.0.0   # open on the iPad
 ```
 
-Not a workspace member yet: it resolves on its own (path dependencies, its
-`pubspec.lock` is not in git). INFRA registers it (root `workspace:` list,
-`lib_exceptions: packages/ink_engine/example/lib/` — lib/ imports
-`package:note_core/testing.dart` — and the `web-experiment` channel); then the
-path / override entries in `pubspec.yaml` become `resolution: workspace` with
-`any` constraints and the `pubspec.lock` line of `.gitignore` goes.
+A workspace member since the integration step (INFRA-O1, 01-infra 1.3):
+`ink_lab`, `resolution: workspace`, listed in the root `workspace:` and
+resolved with the other members into the root `pubspec.lock`, so
+`flutter pub get` runs at the repository root. `tool/workspace_rules.yaml`
+allows it `note_core` and `ink_engine` (`allowed_dependencies`), lets its
+`lib/` import `package:note_core/testing.dart` (`lib_exceptions`) and keeps it
+out of R14 as an app (`app_members`). The manual `web-experiment` workflow
+with input `target: ink_lab` builds it and deploys it to the 7-day Hosting
+channel `exp-ink-lab`.
