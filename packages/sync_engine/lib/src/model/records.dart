@@ -15,16 +15,26 @@ final class UpsertRecord extends SyncRecord {
 
   /// SyncDoc.fromEntity(local.entity) + local.versions.
   factory UpsertRecord.fromVersioned(VersionedEntity local) =>
-      throw UnimplementedError('SYNC T2');
+      UpsertRecord(SyncDoc.fromEntity(local.entity), local.versions);
 
   final SyncDoc doc;
   final EntityFieldVersions versions;
 
   @override
-  EntityRef get ref => throw UnimplementedError('SYNC T2');
+  EntityRef get ref => doc.ref;
 
   /// RemoteUpsert(doc.toEntity(), versions). Throws FormatException.
-  RemoteUpsert toRemoteChange() => throw UnimplementedError('SYNC T2');
+  RemoteUpsert toRemoteChange() => RemoteUpsert(doc.toEntity(), versions);
+
+  @override
+  bool operator ==(Object other) =>
+      other is UpsertRecord && other.doc == doc && other.versions == versions;
+
+  @override
+  int get hashCode => Object.hash(doc, versions);
+
+  @override
+  String toString() => 'UpsertRecord(${doc.kind.name} ${doc.id})';
 }
 
 /// Permanent deletion (trash purge) of a folder or note and its trash group.
@@ -35,5 +45,15 @@ final class PurgeRecord extends SyncRecord {
   final Hlc hlc;
 
   /// RemotePurge(ref.kind, ref.id)
-  RemotePurge toRemoteChange() => throw UnimplementedError('SYNC T2');
+  RemotePurge toRemoteChange() => RemotePurge(ref.kind, ref.id);
+
+  @override
+  bool operator ==(Object other) =>
+      other is PurgeRecord && other.ref == ref && other.hlc == hlc;
+
+  @override
+  int get hashCode => Object.hash(ref, hlc);
+
+  @override
+  String toString() => 'PurgeRecord(${ref.kind.name} ${ref.id})';
 }

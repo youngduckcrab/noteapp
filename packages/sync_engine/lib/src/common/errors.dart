@@ -16,10 +16,15 @@ enum SyncErrorCode {
   unknown;
 
   /// network, unavailable, deadlineExceeded, aborted, internal, unknown.
-  bool get isTransient => throw UnimplementedError('SYNC T2');
+  bool get isTransient => switch (this) {
+    network || unavailable || deadlineExceeded || aborted => true,
+    internal || unknown => true,
+    _ => false,
+  };
 
   /// network, unavailable, deadlineExceeded.
-  bool get isConnectivity => throw UnimplementedError('SYNC T2');
+  bool get isConnectivity =>
+      this == network || this == unavailable || this == deadlineExceeded;
 }
 
 final class SyncBackendException implements Exception {
@@ -29,7 +34,9 @@ final class SyncBackendException implements Exception {
   final Object? cause;
 
   @override
-  String toString() => throw UnimplementedError('SYNC T2');
+  String toString() => cause == null
+      ? 'SyncBackendException(${code.name}): $message'
+      : 'SyncBackendException(${code.name}): $message ($cause)';
 }
 
 enum SignInErrorCode {
@@ -47,4 +54,7 @@ final class SignInException implements Exception {
   final SignInErrorCode code;
   final String message;
   final Object? cause;
+
+  @override
+  String toString() => 'SignInException(${code.name}): $message';
 }

@@ -3,15 +3,15 @@
 ## 요약
 
 - 마지막 세션: 1 (동시 개발 단계 개발 세션 1/8)
-- 다음 할 일: T1 나머지(`dart_test.yaml`, `display_mode.dart`, 4장 공개 시그니처 빈 구현, `test/web/firebase_compile_test.dart`) → T2 기초 타입 → T3 코덱
+- 다음 할 일: T3 코덱(`ChunkCodec` v1·`chunkIdOf`·`ChunkPacker`·골든) → T5 가짜 서버 → T7 → T4 → T6 …
 - 순서(계획서 8장): T1→T2→T3→T5→T7→T4→T6→T8→T9→T10→T11→T12→T13→T14→T15→T17→T16
 
 ## 작업 표
 
 | ID | 상태 | 커밋 | 비고 — 완료 조건 테스트 파일 |
 |---|---|---|---|
-| T1 | 완료 (앞부분 B7은 기반 단계에서 완료) | 4d7a82f (B7), 1a894b2 | `test/no_dart_io_test.dart`(B7), `test/dart_test_yaml_test.dart`(태그 선언·`integration` skip 소스 검사), `test/web/firebase_compile_test.dart`(Chrome), `ws check` 0. 4장 시그니처 파일 전부(본문은 `UnimplementedError('SYNC Tn')` — n = 채울 작업). 값 클래스 7종 `==`·`SyncConfig.copyWith`·`syncBadgeOf`·`ManualConnectivitySignal`은 이미 구현(테스트는 T10) |
-| T2 | 남음 | | `common/server_cursor_test.dart`, `common/varuint_test.dart`, `common/lru_set_test.dart`, `model/field_versions_ext_test.dart`, `model/field_units_test.dart`, `model/sync_doc_test.dart`, `model/records_test.dart`, `codec/canonical_json_test.dart` |
+| T1 | 완료 (앞부분 B7은 기반 단계에서 완료) | 4d7a82f (B7), 8dd1fe5 | `test/no_dart_io_test.dart`(B7), `test/dart_test_yaml_test.dart`(태그 선언·`integration` skip 소스 검사), `test/web/firebase_compile_test.dart`(Chrome), `ws check` 0. 4장 시그니처 파일 전부(본문은 `UnimplementedError('SYNC Tn')` — n = 채울 작업). 값 클래스 7종 `==`·`SyncConfig.copyWith`·`syncBadgeOf`·`ManualConnectivitySignal`은 이미 구현(테스트는 T10) |
+| T2 | 완료 | (이 커밋 — 다음 세션이 해시로 바꿈) | `common/server_cursor_test.dart`, `common/varuint_test.dart`, `common/lru_set_test.dart`, `common/errors_test.dart`(추가), `model/field_versions_ext_test.dart`, `model/field_units_test.dart`, `model/scopes_test.dart`(추가), `model/sync_doc_test.dart`, `model/records_test.dart`, `codec/canonical_json_test.dart`. 커서·varuint 본문은 `test/shared/*_cases.dart`(T3 Chrome 테스트가 다시 씀). 엔티티 8종 고정 JSON은 `test/support/entity_fixtures.dart` |
 | T3 | 남음 | | `goldens/chunk_v1_golden_test.dart`, `codec/chunk_codec_test.dart`, `codec/chunk_packer_test.dart`, `test/web/pure_logic_browser_test.dart`(코덱 부분) |
 | T4 | 남음 | | `merge/field_merge_test.dart`, `merge/field_merge_properties_test.dart`, `merge/sync_merge_policy_test.dart`, `merge/merge_recorder_test.dart`, `merge/record_gate_test.dart` |
 | T5 | 남음 | | `testing/fake_sync_server_test.dart`, `testing/fake_blob_store_test.dart` |
@@ -43,6 +43,7 @@
 - (T1) pubspec은 B1(INFRA) 그대로 둠: 의존 목록·버전은 3.1과 같고 `description` 문구만 다름(INFRA B1 값 유지 — LIBRARY-3-3과 같은 처리).
 - (T1) `dart_test.yaml` 소스 검사는 `test/dart_test_yaml_test.dart`(3장 트리에 없는 파일)로 둠. `ws check` R15가 기준이고 이 테스트는 같은 규칙 + '선언 태그 = 3.2의 3개'를 본다.
 - (T1) 4장에 생성자가 없는 테스트 도우미(`FakeSyncBackend`·`FakeBlobStore`·`TestDevice`)는 `@internal` 이름 붙은 생성자(`.internal`)로 둠(패키지 밖에서 만들지 않음 — 각각 `FakeSyncServer.connect`·`blobsOf`·`SyncTestHarness.device`가 만든다).
+- (T2) 내부 파일 `common/varuint.dart`는 `abstract final class VarUint`(`write`·`read`·`encode`·`lengthOf`), `common/lru_set.dart`는 `LruSet<T>`, `codec/canonical_json.dart`는 `canonicalJson`·`canonicalJsonBytes`(모두 export 안 함). `ServerCursor`·`SyncDoc`·`UpsertRecord`·`PurgeRecord`에 `==`/`hashCode` 추가(4장 시그니처에 없는 멤버 — 값 비교·테스트용). `ServerCursor.parse`는 2^53 이상을 `FormatException`으로 거부. `SyncDoc.toEntity`는 CORE가 `FormatException` 밖의 오류(TypeError 등)를 던지면 `FormatException`으로 감싸고, 디코드한 `entity.id`가 다르면 `FormatException`. `SyncScopes.scopeOf`: recording은 힌트가 없으면 `json['noteId']`, page는 `json['noteId']`가 없으면 힌트.
 - (T1) `FirebaseSyncBackend`의 `uid`·`blobs`는 생성자 인자를 받는 `final` 필드(이름 있는 인자 이름은 4.10 그대로).
 
 ## 다음 세션 메모
