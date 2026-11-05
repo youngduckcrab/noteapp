@@ -1,0 +1,19 @@
+{
+  "id": "0193f1d2-7c40-7aaa-8bbb-111122225555",
+  "noteId": "0193f1d2-7c40-7000-8000-00000000a001",
+  "sortKey": "a2",
+  "size": [
+    612.0,
+    792.0
+  ],
+  "background": {
+    "type": "pdf",
+    "paperColor": 4294967295,
+    "assetId": "efd308be92a34f3aa15f289a37f213b0230fd80888a1364326ee29579d892d37",
+    "pdfPageIndex": 4
+  },
+  "createdAt": 1793750400000,
+  "updatedAt": 1793750400000,
+  "deletedAt": null,
+  "version": "001793750400000-0000-3f2a9c0d11e0b7a4"
+}

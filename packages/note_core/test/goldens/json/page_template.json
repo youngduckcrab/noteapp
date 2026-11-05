@@ -1,0 +1,27 @@
+{
+  "id": "0193f1d2-7c40-7aaa-8bbb-111122224444",
+  "noteId": "0193f1d2-7c40-7000-8000-00000000a001",
+  "sortKey": "a1",
+  "size": [
+    540.0,
+    960.0
+  ],
+  "background": {
+    "type": "template",
+    "paperColor": 4280295716,
+    "template": {
+      "kind": "cornell",
+      "spacing": 24.0,
+      "lineColor": null,
+      "lineWidth": null,
+      "extras": {
+        "cueColumnWidth": 150,
+        "showMarginLine": true
+      }
+    }
+  },
+  "createdAt": 1793750400000,
+  "updatedAt": 1793750400000,
+  "deletedAt": null,
+  "version": "001793750400000-0000-3f2a9c0d11e0b7a4"
+}

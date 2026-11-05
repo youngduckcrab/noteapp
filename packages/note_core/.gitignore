@@ -1,0 +1,4 @@
+# Web test assets copied by tool/prepare_web_test.dart (CORE T16, contract
+# 00-overview 7.4.8). Never committed.
+test/web/sqlite3.wasm
+test/web/drift_worker.js

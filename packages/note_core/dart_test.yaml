@@ -1,0 +1,7 @@
+# Test tags of note_core (CORE, docs/plans/02-core.md 9.1; contract 00-overview
+# 7.4.8). Every tag used by a test in this package is declared here (ws check
+# R15). Tags are written as string literals in the tests.
+tags:
+  perf:
+    skip: "perf budget tests: flutter test --run-skipped -t perf"
+  golden: {}

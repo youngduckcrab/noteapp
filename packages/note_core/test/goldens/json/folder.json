@@ -1,0 +1,14 @@
+{
+  "id": "0193f1d2-7c40-7000-8000-00000000f001",
+  "ownerId": "local",
+  "parentId": null,
+  "name": "수업",
+  "color": 4281944491,
+  "icon": "school",
+  "sortKey": "a0",
+  "createdAt": 1793750400000,
+  "updatedAt": 1793750401000,
+  "deletedAt": null,
+  "trashRootId": null,
+  "version": "001793750400000-0000-3f2a9c0d11e0b7a4"
+}

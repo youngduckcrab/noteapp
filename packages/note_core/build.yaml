@@ -1,0 +1,13 @@
+# drift_dev options (CORE, docs/plans/02-core.md 6.11 / 6.15). The drift
+# schema (lib/src/storage/db/) arrives with CORE T6; generated files
+# (*.g.dart, drift_schemas/) are committed and other areas never run
+# build_runner (contract 00-overview 7.4.7).
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          databases:
+            note_db: lib/src/storage/db/note_database.dart
+          schema_dir: drift_schemas/
+          test_dir: test/storage/generated_migrations/
