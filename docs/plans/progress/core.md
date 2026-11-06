@@ -406,7 +406,7 @@
 | T33b | 완료 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
-| T36 | 완료 | (아래 'T36') | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
+| T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
 | T37 | 남음 | | `-t perf` PF-1~PF-11, Chrome `perf`, `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
@@ -676,6 +676,17 @@
 | `ws check` | R1~R16 위반 0·경고 0 | 1분 50초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 34초 |
 
+확인 (2026-11-06 세션 7 끝 — T29 ②③·T36 뒤, load 8~9)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 5초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 4초 |
+| `ws test --package note_core --platform vm` | **1,130개 통과**(1,113 + `note_copy_v2_test` 8 + 백업 2(가짜·실제 공유 1건씩) + 백업 v1 사본 1 + provider v2 6(가짜·실제 3건씩)), 9개 건너뜀(perf) | 176초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **112개 통과**(+ 백업 공유 사례 2 — 가짜·웹 저장소), 2개 건너뜀(perf) | 203초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 18초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 13초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T33a: 6.10.3 '쓰기 훅' 위치는 `WriteTxn.putLocal`·`putRemote` 한 곳(내부 `TxnIndexHooks`)으로 — 세션·undo·`createNote`·손글씨 저장소·원격 적용이 모두 지난다. 같은 `sourceRev`·보류 아님이면 다시 쓰지 않는다(계획에 없음 — 같은 버전 재적용). 원격 고아 텍스트·수식은 단위 없이 소유자만 두었다가 페이지가 오면(`_adoptOrphans`) 다시 색인한다. 보류 표시는 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`(소유자 행이 없으면 `source_rev ''`).
@@ -712,6 +723,7 @@
 #### 다음 세션 메모
 
 - 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34, T29(세션 6·7 — 영구 삭제·복사·백업 v2), T36(세션 7). 다음은 T37(성능·문서 — 6.19 PF-1~PF-11 전부, README 2차 사용 예, `readme_examples_test` v2) — T35·T25b도 남음(T35 → T25b). T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
+- T35 준비(세션 7 조사): 블롭은 지금 `IdbBlobDatabase`(구체 타입)를 `DriftNoteStore.blobs`로 들고 `drift_search_index.dart`·`drift_recording_draft_store.dart`·`v1_copy/v1_copy.dart`·`fake_note_store.dart`가 `.blobs`(`chunks`·`thumbnails`·`close`)를 쓴다(lib 12곳, test 13파일). 파일 블롭은 같은 모양의 내부 묶음(예: `chunks`·`thumbnails`·`close`를 가진 추상 묶음)을 두고 `assets/file_blob_store_native.dart`가 구현, `connect_native.dart`가 `nativeAssetDirectoryPath` 유무로 고르게 하는 것이 가장 작다. `openTestNoteStore(filePath:)`는 계획대로 메모리 블롭(시그니처·동작 그대로 — `blobFactory: blobIdbFactory(config)` 경로) — 실제 열기 경로(`openNoteStore`)만 두 경로를 요구한다. `connect_native.deleteLocalData`는 이미 DB·`-wal`·`-shm`·v1 사본·임시 파일을 지운다(T24) — `blobs/`·`thumbs/`를 더한다. 1차 시험 중 `nativeDatabasePath`만 넘기는 곳은 test 9곳(`grep -rn nativeDatabasePath test`).
 - 검색 질의 예산: 변경 요청 [총괄] V10의 답이 오면 `test/perf/search_perf_test.dart`의 `kHeldBelow`·예산을 맞춘다(상한 질의 ≤ 40 ms 제안). 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
 - T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
