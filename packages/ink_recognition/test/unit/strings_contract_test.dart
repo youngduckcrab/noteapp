@@ -54,10 +54,12 @@ void main() {
     );
   });
 
-  test('sheet buttons (6.12, 6.15 — L2-13)', () {
+  test('sheet titles and buttons (6.12, 6.14, 6.15 — L2-13, L2-14)', () {
     expect(RecognitionStrings.cancel, '취소');
     expect(RecognitionStrings.apply, '적용');
     expect(RecognitionStrings.copyLatex, 'LaTeX 복사');
+    expect(RecognitionStrings.mathPadTitle, '수식 입력');
+    expect(RecognitionStrings.insert, '넣기');
     expect(RecognitionStrings.copied, '복사했어요.');
     expect(RecognitionStrings.readOnly, '읽기 전용 노트라 바꿀 수 없어요.');
     expect(RecognitionStrings.runFailed, '실행하지 못했어요.');

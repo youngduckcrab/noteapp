@@ -1,12 +1,14 @@
 // m5-7/05-library 6.12, contract 7.4.10 — every recognition sheet on iPad 13"
 // landscape / portrait and a compact width: height ≤ 50% of the screen, tap
 // targets ≥ 44×44 (iOS guideline), no overflow, still usable with the
-// keyboard up. L2-13: the LaTeX editor; L2-14 adds the math pad, L2-15 the
-// conversion sheet (the package-side twin of INFRA V5 opening each slot).
+// keyboard up. L2-13: the LaTeX editor; L2-14: the math pad (direct input);
+// L2-15 adds the conversion sheet (the package-side twin of INFRA V5 opening
+// each slot).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/testing.dart' as ink_testing;
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/src/ui/latex_editor_sheet.dart';
+import 'package:ink_recognition/src/ui/math_pad_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/testing.dart' as core_testing;
 
@@ -45,6 +47,14 @@ final List<SheetCase> _sheets = [
             ],
           ),
         ),
+  ),
+  (
+    name: 'math pad (recog.mathPad, direct input)',
+    key: kMathPadSheetKey,
+    open: (body, log) => recognitionInsertActions().single.run(
+      body,
+      log.target(areaPt: const Rect.fromLTWH(0, 0, 800, 600)),
+    ),
   ),
 ];
 

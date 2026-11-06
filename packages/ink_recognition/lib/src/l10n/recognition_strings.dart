@@ -60,6 +60,8 @@ abstract final class RecognitionStrings {
   static const String apply = '적용';
   static const String copyLatex = 'LaTeX 복사';
   static const String latexField = 'LaTeX';
+  static const String mathPadTitle = '수식 입력';
+  static const String insert = '넣기';
 
   // Action labels (4.4.4).
   static const String toText = '텍스트로 변환';
