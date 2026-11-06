@@ -180,12 +180,17 @@ final class AppModuleContext {
   /// compileTimeFeatures AND the developer-menu settings of the NoteStore
   /// published by CoreModule (all three keys read once, ≤ 500 ms, cached).
   /// No store / read failure → compileTimeFeatures (failure logged, source
-  /// module).
-  Future<AppFeatures> resolveFeatures() => _features ??= _readFeatures();
-
-  Future<AppFeatures> _readFeatures() async {
+  /// module). A call before CoreModule published the store is not cached:
+  /// the first call after it reads the settings.
+  Future<AppFeatures> resolveFeatures() {
     final store = maybe<NoteStore>();
-    if (store == null) return compileTimeFeatures;
+    if (store == null && _features == null) {
+      return Future.value(compileTimeFeatures);
+    }
+    return _features ??= _readFeatures(store!);
+  }
+
+  Future<AppFeatures> _readFeatures(NoteStore store) async {
     try {
       final values = await Future.wait([
         for (final feature in AppFeature.values)

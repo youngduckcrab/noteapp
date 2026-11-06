@@ -396,8 +396,8 @@
 | J1 | 완료 | `3ff3b76` | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
 | J2 | 완료 | `0da5b71` | `native_config_test`(서명 분기 — 커밋된 파일 1·파서 2·규칙마다 깨뜨리기 4), `workflows_test` `android.yml` 묶음 15(단계 순서·NDK·시크릿은 잡 `env`만·`key.properties` 경로·**서명 세 갈래**를 셸 조각으로 실행·아티팩트 이름 두 갈래·가짜 `apksigner` 4경우) — 실제 서명은 GitHub(H6, V14) |
 | J3 | 완료 | `44609e8` | `workflows_test` `ios-compile.yml` 묶음 7(입력·게이트·`macos-26`·45분·`concurrency`·시크릿·변수 없음·`--no-codesign`·`pipefail`+`tee`·아티팩트·요약 셸 조각을 표본 로그·`Podfile.lock`으로 실행) + `ios-testflight.yml` 묶음 7(`macos-26`·`IOS_SIGNING_MODE`·수동 서명 단계·**두 서명 갈래**를 가짜 `xcodebuild`로 실행·Admin 주석), `guides_test` 06 — 실행은 U19(H6) |
-| J4 | 완료 | (이 커밋) | `app/test/storage/native_storage_paths_test.dart`(경로 문자열·폴더 생성(재귀·두 번째 호출)·끝 `/`·실패 4종 전파·기본 `CoreModule` 2경우), `core_module_test`(경로 묶음 8 — 두 필드 모두·순서·실패 → 기록 + 둘 다 없음·웹 stub·`configFor`·`defaultNoteStoreConfig`·`resetLocalData`·경로 중 포기), `tool/test/native_config_test.dart` '앱 셸 경로' 묶음(토큰 2·커밋된 파일 1·주석 무관 1·규칙마다 깨뜨리기 12·파일 없음 1) |
-| J5 | 남음 | | `feature_switch_section_test`·`settings_sections_test` v2·`app_module_context_test` |
+| J4 | 완료 | `3779a8f` | `app/test/storage/native_storage_paths_test.dart`(경로 문자열·폴더 생성(재귀·두 번째 호출)·끝 `/`·실패 4종 전파·기본 `CoreModule` 2경우), `core_module_test`(경로 묶음 8 — 두 필드 모두·순서·실패 → 기록 + 둘 다 없음·웹 stub·`configFor`·`defaultNoteStoreConfig`·`resetLocalData`·경로 중 포기), `tool/test/native_config_test.dart` '앱 셸 경로' 묶음(토큰 2·커밋된 파일 1·주석 무관 1·규칙마다 깨뜨리기 12·파일 없음 1) |
+| J5 | 완료 | (이 커밋) | `app/test/features/feature_switch_section_test.dart`(12 — 문구·빌드에서 끔·저장·시작 때와 다름·인식 꺼짐에서 수식 엔진·[다시 시작] flush → reload·녹음 중(녹음·일시정지) 막기·flush 실패·flush 2초 초과·네이티브 문구·저장 실패·가로), `settings/settings_sections_test.dart` v2(`app.features` 위치·제목·빌더), `settings_screen_test`(8개), `bootstrap/app_module_context_test.dart`(7 — 빌드 ∧ 메뉴·한 번 읽기·동시 호출·저장소 전 캐시 안 함·500 ms 초과·안쪽·읽기 실패) |
 | J6 | 남음 | | `idle_tasks_test` 보강·`bootstrap_app_test` |
 | J7 | 남음 | | `media_module_test`·`update_banner_test` v2·`web_platform_browser_test` |
 | J8 | 남음 | | `recognition_module_test` |
@@ -549,6 +549,22 @@
 | `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 77초 |
 | `dart test tool/test/native_config_test.dart` | 65 통과 |
 
+#### J5 — 개발자 메뉴 기능 스위치 · 설정 배치 (계획 8.2, 4.6.1·6.6·6.17·S2-9)
+
+- **`app/lib/src/features/feature_switch_section.dart`**(새): `FeatureSwitchSection`(섹션 `app.features` '기능 켜고 끄기') — 스위치 3개('녹음' · '녹음·녹음 패널. 이미지 넣기는 꺼지지 않아요', '인식' · '손글씨·수식 인식, 자동 도형 보정', '수식 엔진'), 값은 `settingsSnapshotProvider`, 쓰기는 `settingsRepositoryProvider.set(AppFeatureKeys.of(f), v)`. 빌드에서 꺼진 스위치는 비활성·꺼짐·'이 빌드에서 꺼져 있어요'. **빌드 ∧ 메뉴**가 이번 시작(`appFeaturesProvider`)과 `isOn`으로 다르면 '다시 시작하면 적용돼요' + 웹 [다시 시작](녹음 중 → 6.17 문구·reload 0회 / 아니면 `store.flush()`(2초) → `web.reload()`), 네이티브는 '… 앱을 완전히 닫았다가 다시 열어 주세요'(단추 없음). `FeatureSwitchSectionKeys`(시험·V15).
+- **설정 배치**(S2-9): `defaultSettingsSections`에 `app.features`를 `editor.developer` 뒤에(`app.v1Copy`는 J14b). 기여 섹션은 R2-B8a 그대로 `library.newNote` 뒤.
+- **`AppModuleContext.resolveFeatures`**: 저장소가 publish되기 전 호출은 빌드 값을 돌려주되 **캐시하지 않는다**(전에는 캐시해서 그 뒤 모듈도 메뉴 값을 못 봄). 문자열 `AppStrings.reloadBlockedByRecording`은 J7 업데이트 배너도 쓴다.
+- 시험 가짜: `test/fakes/fake_settings_repository.dart`(읽기 기록·지연·실패), `CountingNoteStore.settingsOverride`.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` | 0건 |
+| `dart format` (app) | 변경 0 |
+| `ws test --package noteapp` (VM) | 465 통과 · 1 건너뜀(V5) · 48초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 31초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 99초 |
+| `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 135초 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -599,6 +615,10 @@
 
 - (J4) 계획 6.9의 `native_storage_paths_test`는 `PathProviderPlatform.instance`를 바꾸지 않고 `plugins.flutter.io/path_provider` 채널을 시험 메신저로 흉내 낸다(앱은 `path_provider_platform_interface`에 의존하지 않음 — 계약 7.5). 플랫폼 인터페이스의 기본 구현이 이 채널이라 실제 함수 경로 그대로다.
 - (J4) 앱 셸 정적 묶음은 `native_config.dart`가 아니라 새 `tool/src/app_shell_storage.dart`에 두고 `native_config_test`가 부른다(네이티브 설정 파일이 아닌 Dart 소스라서). 토큰 비교는 `package:analyzer` 없이 작은 토크나이저로 한다(시험 컴파일 시간).
+- (J5) `FeatureSwitchSection`에 앱 내부 인자 `compileTime`(기본 `AppFeatures.compileTime` — 시험이 빌드에서 끈 경우를 만든다)과 상수 `flushTimeout`(2초)을 더했다(계획 시그니처는 `const FeatureSwitchSection({super.key})`).
+- (J5) '다시 시작하면 적용돼요'는 '바꾼 뒤'가 아니라 **빌드 ∧ 메뉴 ≠ 이번 시작**일 때 보인다 — 화면을 나갔다 와도 남고, 시작 때 설정 읽기가 시간 초과였던 경우도 알려 준다. 되돌리면 사라진다.
+- (J5) [다시 시작]은 `store.flush()`가 2초 안에 끝나지 않거나 실패하면 새로 고치지 않고 '저장이 아직 끝나지 않아 다시 시작하지 않았어요. 잠시 뒤 다시 눌러 주세요.' + 기록 1건(계획에 없음 — 쓰기 대기 중 새로 고침으로 잃는 것을 막으려고). 설정 쓰기 실패는 '설정을 저장하지 못했어요.' + 기록 1건(source manual). 수식 엔진 설명 '수식 인식 서버(인식이 켜져 있을 때). 수식 직접 입력은 꺼지지 않아요'는 계획에 문구가 없어 6.6 표('남는 것')에서 만들었다.
+- (J5) 계획 6.6 시험 목록의 `app_module_context_test`는 새 파일 `app/test/bootstrap/app_module_context_test.dart`(1차에는 없었다).
 - (J4) `CoreModule`이 경로 함수 실패를 기록할 때 `AppErrorRecord.fromError(error, stackTrace, source: module)` 한 건 — 계획은 '오류 기록(source module)'까지만 정했다. 경로를 읽는 중 포기되면 `open`을 부르지 않는다(계획에 없음 — 늦은 저장소 닫기 규칙(INFRA-2-9)이 경로 단계에도 맞게).
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
@@ -624,7 +644,7 @@
 #### 다음 세션 메모
 
 - (2차 동시 개발 세션 3 끝) J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
-- (2차 동시 개발 세션 4) J4 끝. 새 VM 시험에서 기본 `CoreModule`을 `start`하면 경로 함수가 던져 기록 1건이 생긴다 — 오류 기록을 세면 `nativePaths: noNativePaths`(`test/fakes/fake_native_paths.dart`).
+- (2차 동시 개발 세션 4) J4·J5 끝. 새 VM 시험에서 기본 `CoreModule`을 `start`하면 경로 함수가 던져 기록 1건이 생긴다 — 오류 기록을 세면 `nativePaths: noNativePaths`(`test/fakes/fake_native_paths.dart`).
 - J4 주의(2차 동시 개발 세션 3에서 본 것): ① 앱은 `path_provider_platform_interface`에 의존하지 않는다(계약 7.5에 없음) — `native_storage_paths_test`는 `PathProviderPlatform.instance`를 바꾸지 말고 `MethodChannel('plugins.flutter.io/path_provider')`의 `getApplicationSupportDirectory`를 `TestDefaultBinaryMessengerBinding`으로 흉내 내면 된다(플랫폼 인터페이스 2.1.3의 기본 구현이 그 채널이고 `flutter test`는 Dart 플러그인 등록을 돌리지 않는다 — 처음 실행 때 확인). ② 기본 `nativePaths`로 `CoreModule(...)`을 만드는 VM 시험이 많다(`core_module_test`·`production_modules_test`·`bootstrap_app_test`·`overrides_unique_test`·`feature_wiring_module_test` 등) — VM에서는 기본 경로 함수가 `MissingPluginException`으로 실패해 오류 기록 1건이 생긴다. 오류 기록을 세는 시험은 `nativePaths: () async => null`을 넘기거나 채널을 흉내 낸다. ③ `app_smoke_test`(V5)는 `configFor`로 `inMemory`를 쓰므로 경로와 무관.
 - (총괄·사용자) 고정 키(6.10.4, U20 ①)는 아직 없다 — 키를 만들어 파일 두 개로 건네는 일은 사용자와 함께(안내서 07은 J18). 그 전까지 `android.yml`은 `mode=debug`(`noteapp-debug-signed-<run>`)로 돈다. 시크릿 없이 변수만 넣으면 실패하는지(V14)는 H6.
 - J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.

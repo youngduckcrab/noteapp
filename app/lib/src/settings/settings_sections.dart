@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../app/strings.dart';
 import '../bootstrap/app_module.dart' show ShellContribution;
+import '../features/feature_switch_section.dart';
 import 'about_section.dart';
 import 'storage_section.dart';
 
@@ -43,7 +44,8 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 
 /// Production order (table below; 2nd round S2-9). [contributed] entries go
 /// after 'library.newNote' in contribution order (e.g. 'recog.settings' —
-/// '인식', only when the recognition module started). Ids stay unique
+/// '인식', only when the recognition module started); 'app.features' after
+/// 'editor.developer' (J14b puts 'app.v1Copy' after it). Ids stay unique
 /// (assert). M4 prepends the 'app.account' entry.
 ///
 /// | id | group | title |
@@ -55,6 +57,7 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 /// | library.newNote | 일반 | 새 노트 기본값 |
 /// | (contributed) | — | (e.g. 인식) |
 /// | editor.developer | — | 개발자 표시 |
+/// | app.features | — | 기능 켜고 끄기 |
 /// | app.about | — | 앱 정보 |
 List<SettingsSectionEntry> defaultSettingsSections({
   List<SettingsSectionEntry> contributed = const [],
@@ -101,6 +104,11 @@ List<SettingsSectionEntry> _sections(List<SettingsSectionEntry> contributed) =>
         id: 'editor.developer',
         title: AppStrings.sectionDeveloper,
         builder: (context) => const EditorDeveloperSettingsSection(),
+      ),
+      SettingsSectionEntry(
+        id: 'app.features',
+        title: AppStrings.sectionFeatures,
+        builder: (context) => const FeatureSwitchSection(),
       ),
       SettingsSectionEntry(
         id: 'app.about',

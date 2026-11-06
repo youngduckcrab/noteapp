@@ -21,6 +21,8 @@ import 'package:note_core/testing.dart';
 ///   [exportGate] (when set) holds exportBackupJson() only (after
 ///   [flushGate]) — a cancel while the export itself is pending.
 ///   exportBackupJson() never reaches the B2 fake (UnimplementedError there).
+/// - [settingsOverride]: a SettingsRepository used instead of the inner
+///   store's (slow / failing / counting reads).
 final class CountingNoteStore implements NoteStore {
   CountingNoteStore({
     NoteStore? inner,
@@ -34,6 +36,7 @@ final class CountingNoteStore implements NoteStore {
     this.refreshError,
     this.exportBackupResult,
     this.exportGate,
+    this.settingsOverride,
   }) : inner = inner ?? createFakeNoteStore();
 
   final NoteStore inner;
@@ -48,6 +51,9 @@ final class CountingNoteStore implements NoteStore {
   Object? refreshError;
   Object? exportBackupResult;
   Completer<void>? exportGate;
+
+  /// Returned by [settings] instead of the inner store's repository.
+  SettingsRepository? settingsOverride;
 
   int flushCount = 0;
   int closeCount = 0;
@@ -154,7 +160,7 @@ final class CountingNoteStore implements NoteStore {
   @override
   PenPresetRepository get penPresets => inner.penPresets;
   @override
-  SettingsRepository get settings => inner.settings;
+  SettingsRepository get settings => settingsOverride ?? inner.settings;
   @override
   NoteContentReader get content => inner.content;
   @override

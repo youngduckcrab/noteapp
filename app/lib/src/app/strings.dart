@@ -66,6 +66,7 @@ abstract final class AppStrings {
   static const String sectionPageFlip = '페이지 넘김';
   static const String sectionNewNote = '새 노트 기본값';
   static const String sectionDeveloper = '개발자 표시';
+  static const String sectionFeatures = '기능 켜고 끄기';
   static const String sectionAbout = '앱 정보';
   static const String groupGeneral = '일반';
 
@@ -121,6 +122,27 @@ abstract final class AppStrings {
   static String updateFound(int buildNumber, String shortSha) =>
       '새 버전이 있어요 (#$buildNumber · $shortSha). 새로고침하면 적용돼요.';
   static const String licenses = '오픈소스 라이선스';
+
+  /// FeatureSwitchSection ('기능 켜고 끄기' — docs/plans/m5-7/01-infra.md 6.6).
+  static const String featureMedia = '녹음';
+  static const String featureMediaHint = '녹음·녹음 패널. 이미지 넣기는 꺼지지 않아요';
+  static const String featureRecognition = '인식';
+  static const String featureRecognitionHint = '손글씨·수식 인식, 자동 도형 보정';
+  static const String featureMathEngine = '수식 엔진';
+  static const String featureMathEngineHint =
+      '수식 인식 서버(인식이 켜져 있을 때). 수식 직접 입력은 꺼지지 않아요';
+  static const String featureOffInBuild = '이 빌드에서 꺼져 있어요';
+  static const String featureRestartToApply = '다시 시작하면 적용돼요';
+  static const String featureRestart = '다시 시작';
+  static const String featureRestartNative = '앱을 완전히 닫았다가 다시 열어 주세요';
+  static const String featureSaveFailed = '설정을 저장하지 못했어요.';
+  static const String featureFlushFailed =
+      '저장이 아직 끝나지 않아 다시 시작하지 않았어요. 잠시 뒤 다시 눌러 주세요.';
+
+  /// Reload while recording (6.17 — the update banner and the feature
+  /// switches).
+  static const String reloadBlockedByRecording =
+      '녹음 중에는 새로 고칠 수 없어요. 녹음을 멈춘 뒤 눌러 주세요.';
 
   /// Backup export (AboutSection, BackupReadySheet — 4.5.8).
   static const String backupExport = '백업 내보내기';
