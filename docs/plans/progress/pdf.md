@@ -289,7 +289,7 @@
 | T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
 | T33 | 남음 | | `unit/native_engine_test`, `unit/foreground_service_test`, `unit/audio_session_test` |
 | T34 | 남음 | | `unit/playback_service_test`, `unit/audio_source_native_test`, `web/playback_browser_test` |
-| T35a | 남음 | | `unit/image_header_test`, `unit/image_normalizer_test` |
+| T35a | 완료 | (세션 3 기록 커밋) | `unit/image_header_test`(17), `unit/image_normalizer_test`(18) — 표본 `test/support/fixtures/img_*.{jpg,png,webp}` 8개(Pillow) + `package:image`로 시험 안에서 만든 표본 |
 | T35b | 남음 | | `unit/image_import_test`, `web/image_codec_browser_test`, `unit/supported_sources_test` |
 | T36a | 남음 | | `widget/recording_panel_test` |
 | T36b | 남음 | | `widget/recording_list_test`, `widget/recording_sheets_test`, `widget/recording_stuck_drafts_test` |
@@ -346,6 +346,10 @@
 - T31b: 6.10.1 '바이트가 비면 discard'와 네이티브 '파일이 없거나 열리지 않음'(탐침 길이 없음)은 둘 다 영구 실패로 세어 `diagnostics.dropped`를 올린다. 같은 id 녹음 행이 이미 있으면 `put`(같은 바이트 → 같은 에셋)·`createRecording`(멱등)이 그 행을 돌려준다(따로 `getRecording`으로 건너뛰지 않음).
 - T31b: `fake_async` 안에서 `StreamSubscription.cancel()`의 완료 Future가 루트 존 것이라 기다리면 멈춘다 — 엔진 사건 구독 취소와 상태 컨트롤러 `close()`는 기다리지 않는다(`unawaited`). 시험은 실제 시간에 기대지 않는다(저장소 시계 = `async.getClock`, 녹음 시계 = `FakeStopwatch`).
 - T31b: '같은 저장소를 쓰는 서비스 둘'의 'A를 버림(정리 없이)'은 A의 초안 쓰기를 붙잡아(`LoggedDrafts.appendGate` — 얼어붙은 탭) `updatedAt`이 멈추게 해 만든다. 문을 열면 붙잡힌 빈 조각이 이미 정리된 초안에 닿아 `StateError` → A `idle` + `draftLost`. 이 시험은 Web Locks 없이(시각 규칙만), 잠금 규칙은 따로('다른 문맥이 쥔 잠금은 나이와 무관하게 뺌').
+- T35a: 코덱 포트(`image/image_codec.dart`)는 `decode(bytes, maxLongSide)` → `DecodedImage`(`width`·`height`·`hasAlpha`·`encodeJpeg(q)`·`encodePng()`·`scaled(factor)`·`dispose()`)로 했다 — 품질 단계·축소 반복이 다시 디코드하지 않게. VM·네이티브 본문 `IoImageCodec`(`image_codec_io.dart`)은 `compute`로 `decodeImage(frame: 0)` → `bakeOrientation` → `copyResize(average)` → EXIF 비움(`img.ExifData()` — GPS가 느린 길 출력에 남지 않게) → `encodeJpg(chroma: yuv420)`/`encodePng`, `package:image`가 못 읽으면 엔진 `ImageDescriptor`(목표 크기) → RGBA. 시험용 `useIsolate: false`를 두었다. 공장(`image_codec_factory.dart`)·웹 본문은 T35b.
+- T35a: 빠른 길에 '파일이 온전함'(JPEG 끝 EOI, PNG 끝 IEND)을 더했다 — 잘린 PNG가 머리만 보고 그대로 저장되는 틈(시험에서 드러남). EOI 뒤에 덧붙인 자료가 있는 JPEG(일부 카메라)는 느린 길로 다시 인코딩된다. Adobe APP14는 성분 수와 무관하게 느린 길(6.12.2 '(Adobe APP14·성분 4 CMYK는 느린 길)'을 APP14 있음 = 느린 길로 읽음).
+- T35a: 느린 길의 반복: JPEG는 원래 크기에서 0.85 → 0.75 → 0.6, 그다음 축소(× 0.85) 한 번마다 0.6 한 번(최대 6번), PNG는 축소마다 한 번. 디코드 실패는 머리 형식을 알면 `decodeFailed`, 모르면 `unsupportedFormat`. 결과 `NormalizedImage`에 경로(`fastJpeg`·`fastPng`·`slow`)를 실었다(T35b 개발자 표시·시험용).
+- T35a: '12 MB 잡음 JPEG → 품질 단계로 ≤ 8 MiB'는 yuv420 0.85에서 바로 들어간다(2048 × 1536 q100 잡음 ≈ 12.9 MB → 약 2.4 MB). 품질이 실제로 내려가는 경우는 실제 코덱 + 빡빡한 한도(0.85 결과 − 1바이트 → 0.75)와 크기만 내는 가짜 코덱(순서 15단계 → `tooLarge`)으로 따로 단언한다. CMYK 표본은 Pillow가 쓴 진짜 4성분 Adobe JPEG다(48 × 32). 표본 만드는 스크립트는 저장소에 넣지 않고 `image_header_test.dart` 머리 주석에 만든 방법을 적었다.
 - T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
 #### 이정표 커밋
@@ -379,6 +383,10 @@
 | 3 (T31b) | `ws test --package media_io --platform chrome` | 33 통과, prepare ok, 106 s |
 | 3 (T31b) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 05:56:48–05:59:54 UTC, 잠금 대기 122초) | `media` 시험 아직 없음 — 'no matching tests' |
 | 3 (T31b) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
+| 3 (T35a) | `ws test --package media_io` (VM) | 185 통과 (150 + T35a 35), 36 s |
+| 3 (T35a) | `ws test --package media_io --platform chrome` | 33 통과, prepare ok, 121 s |
+| 3 (T35a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 06:11:34–06:13:30 UTC, 잠금 대기 28초) | `media` 시험 아직 없음 — 'no matching tests' |
+| 3 (T35a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
