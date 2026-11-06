@@ -291,7 +291,7 @@
 | T34 | 완료 | d69f957 | `unit/playback_service_test`(22 — just_audio + `FakeJustAudioPlatform` 11, 가짜 시간 대본 플레이어 7, 길이 탐침 3, 형식 오류 1), `unit/audio_source_native_test`(6), `web/playback_browser_test`(4), (더함) `unit/recorder_service_test` '넘김' 2 |
 | T35a | 완료 | 486c4e7 | `unit/image_header_test`(17), `unit/image_normalizer_test`(18) — 표본 `test/support/fixtures/img_*.{jpg,png,webp}` 8개(Pillow) + `package:image`로 시험 안에서 만든 표본 |
 | T35b | 남음 | | `unit/image_import_test`, `web/image_codec_browser_test`, `unit/supported_sources_test` |
-| T36a | 완료 | (이 커밋) | `widget/recording_panel_test`(26 — 6.13.2 행·6.13.3 동작·iPad 세로/가로·좁은 폭·순수 `statusLineFor` 웹 문구), `widget/recording_panel_placeholder_test`(T30 — 이제 전체 패널: override 없으면 CORE 기본 녹음기 = 지원 안 함) — 시험 세계 `test/support/panel_world.dart`(`PanelWorld`·`ScriptedRecorder`) |
+| T36a | 완료 | 27d5165 | `widget/recording_panel_test`(26 — 6.13.2 행·6.13.3 동작·iPad 세로/가로·좁은 폭·순수 `statusLineFor` 웹 문구), `widget/recording_panel_placeholder_test`(T30 — 이제 전체 패널: override 없으면 CORE 기본 녹음기 = 지원 안 함) — 시험 세계 `test/support/panel_world.dart`(`PanelWorld`·`ScriptedRecorder`) |
 | T36b | 남음 | | `widget/recording_list_test`, `widget/recording_sheets_test`, `widget/recording_stuck_drafts_test` |
 | T37 | 남음 | | `unit/dev_overlay_lines_test`, `unit/init_test` v2 |
 | T38 | 남음 | | `unit/testing_fakes_test` |
@@ -434,9 +434,15 @@
 | 5 (T36a) | `ws test --package media_io --platform chrome` | 37 통과, prepare ok, 73 s |
 | 5 (T36a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 08:04:40–08:06:14 UTC, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
 | 5 (T36a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
+| 5 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
+| 5 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
+| 5 (끝) | 패키지 시험 (T25a 뒤 `pdf_io` VM·Chrome, T36a 뒤 `media_io` VM·Chrome — 그 뒤 lib 변화 없음) | 위 행 그대로 |
 
 #### 다음 세션 메모
 
+- (세션 5 끝) 완료: T25a(`402f84a`), T36a(`27d5165`). `git status` 깨끗. 남은 동시 개발 몫: `pdf_io` T22·T23·T25b·T26·T27·T29, `media_io` T32b·T33·T35b·T36b·T37·T38·T39·T40·T41. 다음 후보: `pdf_io` T25b(수식·텍스트 래스터 포트 — T25a 위, T26의 선행), `media_io` T36b(목록·시트·복구 못 한 초안 줄 — T36a 위) 또는 T33·T32b·T35b(T37 전에 셋 다 필요). 순서상 `media_io` 사슬이 길다(T36b → T37 → T38 → T39 → T40 → T41, T37은 T32b·T33·T35b도 기다림).
+- T25a가 남긴 것: T25b는 `ObjectResolver`에 `math:`·`text:` 포트 인자와 `ResolveContext`에 `rasterizedTextPages`·`skippedFormulaPages`·`fontBytes`(글꼴 첫 사용)를 더하고, `resolve`의 `UnimplementedError` 갈래를 채운다. 래스터 RGBA도 `ledger.hold(rgba, …)` → `_held`에 넣어 `sent`가 놓게 한다(이미지 갈래 `_decode`와 같은 모양). 쪽 크기 텍스트 상자·큰 수식 표본은 `test/support/object_fixtures.dart`에 더한다. 수식 contain 식은 `object_geometry.dart`에(T21 메모). T26은 서비스에서 해석기를 내보내기마다 만들고, 조각을 보낸 뒤 `resolver.sent(parts.expand((p) => p.images))`, 끝에서 `dispose()`, 네이티브는 `addPages` 앞뒤로 `ledger.holdCopy`/`release`(6.2.10 — `ledger`는 `resolver.ledger`).
+- T36a가 남긴 것: 목록(T36b)은 `recording_panel.dart`의 구분선 아래 빈 `Expanded` 자리에 넣는다(목록은 `noteRecordingsProvider(noteId)` 값 — 이미 `build`에서 읽음). 이름 바꾸기·삭제 시트는 `ui/sheets.dart`에, 삭제가 열린 녹음이면 `playback.close()`. 복구 못 한 초안 줄·웹 내려받기·`draftLost` 줄은 상황 줄 아래 '맨 아래 한 줄'(6.13.2). 위젯 시험은 `test/support/panel_world.dart`의 `PanelWorld`(가짜 존 안에서 `await PanelWorld.create()` — `runAsync` 금지, 위 '계획과 다르게 한 점')와 `ScriptedRecorder`를 쓴다. 재생 중이면 `pumpAndSettle` 대신 `settle`/`pump(…)`.
 - (세션 4 끝) 완료: T28(`76b31ce`), T34(`d69f957`). `git status` 깨끗. 다음 후보: `media_io` T36a(녹음 패널 ① — 선행 T31b·T34가 끝나 이제 가능), T33(네이티브 녹음기 — `FakeRecordPlatform`, 길이는 `playback/duration_probe.dart` `probeDurationMs`, 오디오 세션 본문 `record/audio_session_native.dart`는 재생 쪽 `JustAudioPlayerPort(beforeFirstLoad:)`에도 쓰임), T32b(웹 녹음기), T35b(가져오기 흐름), `pdf_io` T25a·T22·T23·T27. T37 연결 전에 T32b·T33·T35b가 모두 끝나야 한다.
 - T34가 남긴 것: 서비스 연결(T37)은 `JustAudioPlaybackService(assets: () => ref.read(core.noteStoreProvider).assets, settings: () => …settings, fetcher: () => ref.read(core.remoteAssetFetcherProvider), recorderActive: () => ref.read(core.audioRecorderServiceProvider).status.phase != core.RecorderPhase.idle, player: () => JustAudioPlayerPort(beforeFirstLoad: 네이티브 speech 세션), handoff: 공유 PlaybackHandoff)` + `ref.onDispose(s.dispose)`, 같은 `PlaybackHandoff`를 녹음 서비스 생성자 `handoff:`에도 넘긴다. 패널(T36a)의 '열기만'은 `open`만 부르면 된다(서비스는 `open` 뒤 `seek`·`play`를 스스로 하지 않음). VM에서 just_audio를 쓰는 시험(T36a·T38 등)은 `TestWidgetsFlutterBinding.ensureInitialized()`를 먼저(Chrome도 같음), `statusStream`은 비동기로 전달되므로 목록 단언 전에 `pumpEventQueue()`.
 - (세션 3 끝) 완료: T31b(`1b8261c`), T35a(`486c4e7`). `git status` 깨끗. 다음 후보: `media_io` T32b(웹 녹음기 — T31b 포트대로 `recorder_engine_browser.dart`·`web_locks_browser.dart`·`page_events_*`·`file_download_*` + 공장 파일), T33(네이티브 — `FakeRecordPlatform`), T34(재생 — T31b와 무관, 바로 가능), T35b(가져오기 흐름 — T35a 위, `image_codec_browser.dart`·`image_codec_factory.dart`·`image_picker_port.dart`), `pdf_io` T25a(T21·T24 뒤 — 이제 가능), T22·T23(실제 해석기), T27·T28(아무 때나 — T28 사전 조사는 아래 세션 1 메모).
