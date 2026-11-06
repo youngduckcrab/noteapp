@@ -426,14 +426,16 @@ Performance budgets (plan 9.1, VM, `test/perf/`). Measured on 2026-11-05 in a
 2nd-round budgets (plan m5-7/02-core 6.19, `flutter test --run-skipped -t perf`).
 Measured on 2026-11-06 (CORE T37) in the same shared container, load 4 ~ 13 —
 the time budgets are judged at load < 4 (plan 9.1); a run at high load can
-go over the small ones (PF-2, PF-3) and is measured again:
+go over the small ones (PF-2, PF-3) and is measured again. PF-3 and PF-4 are
+not met as written (contract V10): frequent words read up to 2,000 candidates
+and take 20 ~ 46 ms — change request CP-18 (plan 12.1) waits for a ruling:
 
 | # | Test | Budget | Measured |
 |---|---|---|---|
 | PF-1 | `openPage`, 2,000 objects + 2,000 strokes (`object_page_perf_test`) | ≤ 400 ms | 196 ~ 227 ms |
 | PF-2 | `execute(UpdateObjects 1)` on 2,000 objects | mean ≤ 2 ms | 0.64 ~ 0.88 ms (2.04 at load 13) |
-| PF-3 | 5,000-page index, queries under 300 candidates (`search_perf_test`) | median ≤ 5 ms | 1.7 ~ 4.7 ms (load 5); capped frequent words 24 ~ 37 ms, recorded |
-| PF-4 | same index, 1-syllable LIKE under 600 candidates | median ≤ 15 ms | 14.3 ms (576 candidates); 1,072 / capped 20 / 22 ms, recorded |
+| PF-3 | 5,000-page index: 2-, 3-syllable, word-middle, Latin prefix, AND queries (`search_perf_test`) | median ≤ 5 ms (V10) | **not met**: under 300 candidates 1.7 ~ 4.7 ms (load 5; 136 candidates / 100 pages up to 8.8 ms at load 9); frequent words, 2,500 ~ 5,000 candidates: 24 ~ 46 ms |
+| PF-4 | same index, 1-syllable LIKE | median ≤ 15 ms (V10) | **not met**: 576 candidates 14.3 ~ 16.7 ms; 1,072 / 4,995 candidates 20 ~ 27 / 20 ~ 23 ms |
 | PF-5 | 5,000 × `replaceUnits` (pdf) | record only | 6.9 ~ 7.3 s |
 | PF-6 | `stalePages` 20 × 1,000 strokes: first / one page changed | ≤ 150 / ≤ 10 ms | 54 / 5.6 ms |
 | PF-7 | draft `append` 8 KiB: test store / native file blobs | median ≤ 10 ms | 4.4 / 5.9 ms |
