@@ -276,3 +276,65 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 - INFRA V5b·LIBRARY L2-I3: `SyntheticShapes.rectanglePath`는 이 커밋부터 최종 모양이다. '기본 판정기가 늘 사각형으로 판정'은 L2-06(P-B)이 `GeometricShapeFitter`를 넣을 때 켠다.
 - EDITOR·INFRA: `recognitionSelectionActions()`·`recognitionInsertActions()`는 L2-12까지 빈 목록이다.
 
+
+### 동시 개발
+
+바탕: `area2/library` = `main` `5843ec3`(기반 단계 R2-B1~R2-B6 + R2-final + 계약 v2.3). 다른 영역 2차 구현은 이 작업 트리에서 기반 단계 표면 — CORE 가짜 저장소 v2(B2-β T23b: 손글씨 `update`·`stalePages`·`notesWithStalePages` 동작), INK R2-B3(T24~T26b: `MathPreview` 실제, `useInkTestFonts`, `createTestPageController(shapeFitter:)`).
+
+착수 정리(세션 1): 계획서 상태 줄 '승인 · 계약 v2.3', 5.8 '가정' → 실제 타입, v2.2(C22-07 V5 → V5b)·v2.3(C23-07 `FakeInkShapeFitter.result`·`useInkTestFonts`·WidgetsBinding) 인용 맞춤. 00-review '최종 승인' LIBRARY-F1(P-B 미루면 `미룸`) · F2(`ShapeFitTuning` 기본값을 바꾸는 커밋은 `synthetic_shapes_test` 같이) · F3(에뮬레이터 uid·`npx --prefix functions firebase …`)은 계획서 8.2·8.3·9.3에 이미 있어 그대로 따른다. 다른 영역이 보낸 [LIBRARY] 표시: INK(`FakeInkShapeFitter`는 `result` 필드, Chrome 시험의 `useInkTestFonts`, `InkMathRenderer.layout`의 WidgetsBinding) — L2-13·14·17a·20·I3 시험을 쓸 때 지킨다. INFRA(`ink_recognition` 골격 준비) — 할 일 없음.
+
+#### 작업 표
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| B6-a | 기반 단계에서 완료 | 99cdeef | `feature_library_smoke_test.dart`, `unit/api_surface_test.dart` |
+| B6-b | 기반 단계에서 완료 | 99cdeef | `ink_recognition_smoke_test.dart`, `unit/api_surface_test.dart`·`handwriting_trace_test.dart`·`fakes_test.dart`·`synthetic_shapes_test.dart`·`group_into_lines_test.dart`, `web/recognition_browser_test.dart` |
+| L2-01 | 남음 | | feature_library `unit/content_hits_test.dart`, `unit/content_provider_test.dart` |
+| L2-02 | 남음 | | `widget/content_search_test.dart`, `unit/strings_contract_test.dart` |
+| L2-03 | 남음 | | `widget/content_search_test.dart` |
+| L2-04 | 남음 | | `goldens/library_golden_test.dart`, `widget/a11y_test.dart`, `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart` |
+| L2-05 | 남음 | | ink_recognition `unit/group_into_lines_test.dart`, `unit/synthetic_handwriting_test.dart`, `shared/line_cases.dart` |
+| L2-06 (P-B) | 남음 | | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`, `unit/shape_real_samples_test.dart`, `shared/shape_cases.dart` |
+| L2-07 | 남음 | | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` |
+| L2-08 (P-B, ML Kit) | 남음 | | `native/mlkit_adapter_test.dart`, `unit/mlkit_errors_test.dart` |
+| L2-09 (P-B) | 남음 | | `unit/mixed_language_test.dart` |
+| L2-10a | 남음 | | `unit/indexer_test.dart` |
+| L2-10b | 남음 | | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`, `unit/catch_up_test.dart` |
+| L2-11 | 남음 | | `unit/indexer_provider_test.dart` |
+| L2-12 | 남음 | | `unit/recognition_actions_test.dart`, `unit/object_builders_test.dart` |
+| L2-13 | 남음 | | `widget/latex_editor_sheet_test.dart`, `unit/recognition_actions_test.dart` |
+| L2-14 | 남음 | | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart` |
+| L2-15 (P-B) | 남음 | | `widget/conversion_sheet_test.dart`, `widget/sheet_rules_test.dart` |
+| L2-16 (P-B) | 남음 | | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6) |
+| L2-17a (P-B) | 남음 | | `widget/math_pad_engine_test.dart` |
+| L2-17b (P-B) | 남음 | | `widget/to_math_test.dart` |
+| L2-18 (P-A / P-B) | 남음 | | `widget/settings_section_test.dart` |
+| L2-19 (P-B, A-4 실험 창) | 남음 | | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` |
+| L2-20 | 남음 | | `ink_recognition/test/web/recognition_browser_test.dart`, `feature_library/test/web/scenarios_browser_test.dart` |
+| L2-22 (P-C) | 남음 | | `unit/math_fixture_export_test.dart`, `widget/math_pad_engine_test.dart` |
+| L2-I1 | 통합 단계 | | `ink_recognition/test/integration/real_core_indexer_test.dart`(`integration` — 미리 써 둠) |
+| L2-I2 | 통합 단계 | | `feature_library/test/integration/core_contract_test.dart` |
+| L2-I3 | 통합 단계 | | `ink_recognition/test/integration/shape_assist_flow_test.dart`(`integration` — 미리 써 둠) |
+| L2-I4 | 통합 단계 | | INFRA `app_smoke_v2_test.dart`·`feature_switch_test.dart` |
+| L2-I5 | 통합 단계 | | 실기기 결과 → 진행 기록 |
+| L2-I6 | 통합 단계 | | `emulator/callable_emulator_test.dart`(`emulator` — L2-16과 함께 써 둠) |
+
+#### 변경 요청
+
+- 없음
+
+#### 의존성 요청
+
+- 없음
+
+#### 계획과 다르게 한 점
+
+- 없음
+
+#### 이정표 커밋
+
+- 없음
+
+#### 다음 세션 메모
+
+- 순서(8.2 권장 — P-A 먼저): L2-01 → 02 → 03 → 04 / L2-05 → 07 → 10a → 10b → 11 → 12 → 13 → 14 → 18(P-A) → 20, 그다음 P-B(06·08·09·15·16·17a·17b·18 나머지·19), 마지막 P-C(22).
