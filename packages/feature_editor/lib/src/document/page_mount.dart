@@ -59,6 +59,7 @@ final class PageMount {
   final ink.InkPlaybackFocus? Function()? _playbackFocus;
   late final StreamSubscription<core.PageContentChange> _subscription;
   final ValueNotifier<bool> _isLoaded = ValueNotifier(false);
+  final ValueNotifier<int> _contentChanges = ValueNotifier(0);
 
   /// openPage completed and its pin is held (released by [dispose]).
   bool _pinned = false;
@@ -67,6 +68,11 @@ final class PageMount {
   String get pageId => _pageId;
   ink.InkPageController get controller => _controller;
   ValueListenable<bool> get isLoaded => _isLoaded;
+
+  /// (v2, m5-7/04-editor 6.7.2) How many CORE content changes reached this
+  /// mount (after the controller got each one): the selection menu follows
+  /// it (the '색' dot after a recolor).
+  ValueListenable<int> get contentChanges => _contentChanges;
   core.PageContent? get content => _session.pageIfLoaded(_pageId);
 
   /// True after [dispose].
@@ -118,6 +124,7 @@ final class PageMount {
       if (focus != null) _controller.setPlaybackFocus(focus);
     }
     _isLoaded.value = true;
+    _contentChanges.value++;
     _onContentChanged?.call(change);
   }
 
@@ -146,5 +153,6 @@ final class PageMount {
       _session.closePage(_pageId);
     }
     _isLoaded.dispose();
+    _contentChanges.dispose();
   }
 }

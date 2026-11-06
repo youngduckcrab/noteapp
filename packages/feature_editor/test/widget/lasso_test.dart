@@ -104,10 +104,13 @@ void main() {
         ),
     );
 
-    // The menu: 복사 · 삭제 · 선택 해제, 8 px above the frame.
+    // The menu (v2, m5-7/04-editor 6.7.1): 잘라내기 · 복사 · 삭제 · 색 · ⋯,
+    // 8 px above the frame; 선택 해제 is in '⋯'.
+    expect(find.text(EditorStrings.selectionCut), findsOneWidget);
     expect(find.text(EditorStrings.selectionCopy), findsOneWidget);
     expect(find.text(EditorStrings.selectionDelete), findsOneWidget);
-    expect(find.text(EditorStrings.selectionClear), findsOneWidget);
+    expect(find.byKey(SelectionMenu.colorKey), findsOneWidget);
+    expect(find.text(EditorStrings.selectionClear), findsNothing);
     final menuBottom = tester
         .getBottomLeft(find.byKey(SelectionMenu.copyKey))
         .dy;
@@ -116,7 +119,9 @@ void main() {
       lessThanOrEqualTo(h.viewportOrigin.dy + frame.top - SelectionMenu.gap),
     );
 
-    // 선택 해제.
+    // ⋯ → 선택 해제.
+    await tester.tap(find.byKey(SelectionMenu.moreKey));
+    await tester.pump();
     await tester.tap(find.byKey(SelectionMenu.clearKey));
     await tester.pump();
     expect(_selection(h), isNull);

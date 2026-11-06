@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../di/editor_extensions.dart';
 import '../state/popup.dart';
 import 'color/color_palette_popup.dart';
+import 'color/recolor_panel.dart';
 import 'editor_strings.dart';
 import 'eraser/eraser_popup.dart';
 import 'pages/add_page_sheet.dart';
@@ -141,6 +142,12 @@ class _PopupHostState extends ConsumerState<PopupHost> {
         link: LinkPick.pen,
         at: globalPosition,
         panel: const ColorPalettePanel(),
+      ),
+      // (v2, m5-7/04-editor 6.7.2) under the selection menu's '색'.
+      RecolorPopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const RecolorPanel(),
       ),
       EraserSettingsPopup() => (
         link: LinkPick.eraser,

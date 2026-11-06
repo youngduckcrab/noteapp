@@ -52,6 +52,22 @@ final class ColorPalettePopup extends EditorPopup {
   int get hashCode => Object.hash(ColorPalettePopup, globalPosition);
 }
 
+/// (v2, m5-7/04-editor 6.7.2) The recolor popup of the selection menu's
+/// '색 ●': the recent colours, the user palette and '더 보기' (the colour
+/// panel), its top-left at [globalPosition] (under the '색' button — global
+/// logical px).
+final class RecolorPopup extends EditorPopup {
+  const RecolorPopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecolorPopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(RecolorPopup, globalPosition);
+}
+
 final class EraserSettingsPopup extends EditorPopup {
   const EraserSettingsPopup();
 

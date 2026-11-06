@@ -313,6 +313,27 @@ class EditorCommands {
     }
   }
 
+  /// (v2, m5-7/04-editor 6.7.2 — the recolor popup) commitInkEdit(controller,
+  /// sel.recolor(argb)): one step — RestyleStrokes for strokes, UpdateObjects
+  /// for shapes / text / math, their CompositeCommand when both are there.
+  /// Accepted → [argb] goes to the front of the recent colours and the
+  /// selection stays; rejected → INK's pending display dropped (discardEdit
+  /// inside commitInkEdit), the selection stays. Nothing recolorable (images
+  /// / unknown objects only — INK's edit isEmpty, S-14) → no command.
+  /// Ignored on a read-only note and during a drag. Returns whether it
+  /// committed.
+  bool recolorSelection(int argb) {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return false;
+    final selection = _ref.read(editorSelectionProvider);
+    final sel = inkSelectionOf(_pages, selection);
+    if (selection == null || sel == null || selection.isDragging) return false;
+    final controller = _pages[selection.pageId]!.controller;
+    final edit = sel.recolor(argb);
+    if (!commitInkEdit(controller, edit)) return false;
+    _ref.read(editorColorPaletteProvider.notifier).pushRecent(argb);
+    return true;
+  }
+
   // ---- pages (6.11, 5.1.3 — each one undo step) ----
 
   /// Add-page sheet [추가] (6.11.4): core.InsertPages(one draft, at

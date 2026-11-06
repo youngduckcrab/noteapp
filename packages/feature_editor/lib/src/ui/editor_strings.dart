@@ -539,6 +539,10 @@ abstract final class EditorStrings {
   static const selectionUnlockAspect = '비율 고정 풀기';
   static const selectionLockAspect = '비율 고정 잠그기';
 
+  /// The recolor popup's '더 보기' panel: applies the colour picked there
+  /// (6.7.2 — the swatches apply on tap).
+  static const recolorApply = '적용';
+
   /// Rotation tag while dragging the rotation handle (6.6.6): "45°".
   static String rotationLabel(int degrees) => '$degrees°';
 
