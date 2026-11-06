@@ -2,8 +2,9 @@
 
 ## 요약
 
-- 2차 마지막 세션: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
-- 2차 다음 할 일: 총괄이 R2-B2(α + β) + SYNC R2-B7a + INFRA R2-B2i 묶음을 `main`에 병합하고 묶음 검사(7.6.2 예외) → R2-B3(INK) … → 동시 개발(T24 DB v2·마이그레이션 먼저 — 8.2).
+- 2차 동시 개발 끝(세션 9, 2026-11-06): **8.2의 T24~T37 전부 완료** — 마지막은 T37(성능 PF-1~PF-11·README 2차 사용 예, `b6c7bae`·`b1ce7ab`·이 기록 커밋). 남은 것은 통합 단계 I-1~I-7(계획 8.3)과 변경 요청 [총괄] V10의 답(아래 '## 2차' > '동시 개발').
+- 2차 기반 단계 마지막: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
+- 2차 다음 할 일: 통합 단계(7.7 — I-1~I-7). 동시 개발 몫은 없다.
 - 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
 - 다음 할 일: 총괄이 7.6 커밋 실패 훅(SYNC 요청 1)을 채택하면 CORE가 구현(아래 제안). iPad 확인(계획서 9.2·10절 #9). 10절 #7(SYNC T16을 막는 CORE 결함 없음)은 통합 태그 전체 통과로 확인(SYNC 42개)
 
@@ -407,7 +408,7 @@
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
-| T37 | 진행 중 (세션 9) | b6c7bae(① 성능) · (이 커밋)(② README) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
+| T37 | 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · (이 기록 커밋 — README 성능표) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
 #### 00-review '최종 승인' CORE 항목 처리
@@ -751,6 +752,22 @@
 | PF-1·PF-2 단독(첫 측정) | PF-1 **197 ms**(250·131·197 — 예산 ≤ 400), PF-2 평균 **0.64 ms**(중앙값 0.56 — 예산 ≤ 2) | 6.7 |
 | PF-10 혼용 네이티브 저장소(블롭 묶음 읽기 뒤) | 질의 35~67 ms(전체 실행 35.09 ms — 같은 프로세스 저장소는 같은 실행에서 29.46 ms), DB 증가 6.15 MiB(예산 12) | 6~13 |
 | `ws test --package note_core --platform vm` | **1,189개 통과**(1,178 + 블롭 2 + README 9), 13개 건너뜀(perf 파일 + 읽기 전용 2) | 13 → 19 |
+| 다시 잰 VM perf(부하가 내려간 뒤) | `object_page_perf_test` PF-1 196 ms·PF-2 평균 **0.88 ms**(load 8.6), PF-10 한국어 질의 **37.1 ms**(load 4.3), `search_perf_test` PF-3 후보 300개 미만 1.7~**4.7 ms**(136개 질의)·PF-4 576개 **14.3 ms**(load 5.1) — 모두 예산 안. 결국 **PF-1~PF-11 모두 예산 안인 실행이 있다** | 4 ~ 9 |
+| Chrome perf(`ws test --package note_core --platform chrome --run-skipped -t perf --heavy-lock`) | 2개 통과: PF-10w 다시 열기 색인 없음 218 ms → 있음 401 ms(**+183 ms**, 예산 +300), 첫 질의 154 ms(기록), 500쪽 색인 20.6 s; 1차 `open_time_browser_test` 빈 DB 865 ms·1만 획 433~510 ms·`openPage` 200획 77 ms | 9 ~ 10 |
+| PF-3 136개 질의의 단계(임시 계측 — 남기지 않음, load 6) | 부하 튐이 없는 실행: 후보 SQL 1.6 ms + 행 0.2 + 순위 0.55 + 3단계 읽기 1.4 + 결과 100개(발췌) 1.7 = 약 5.5 ms. 실행의 절반 넘게 어느 한 단계에 4~6 ms 튐(다른 영역과 CPU 공유 — 스케줄링). 그래서 이 질의(후보는 적지만 결과가 100쪽)는 load 5 이상에서 5 ms 예산 경계다(세션 6에도 5.0~7.1 ms '경계') | 6 |
+
+
+세션 9 끝 확인 (2026-11-06, 기록 커밋 직전 트리)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음 | 4초 · 4초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 174초 |
+| `ws test --package note_core --platform chrome --heavy-lock` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 213초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 41초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 16초 |
+
+- README 끝에 2차 성능표(PF-1~PF-11·PF-10 크기 세 언어·네이티브 PF-10·PF-10w·1차 Chrome 열기)를 더했다. 계획 8.2 T37의 'INFRA 웹 예산표'는 INFRA 소유(`tool/web_budget.yaml`·안내서)라 이 작업 트리에서 고치지 않았다 — 값은 README 표와 이 절(PF-10 DB 증가 한국어 8.31 / 혼용 6.15 / 영어 3.62 MiB + 글자 상자 블롭 5.35 MiB, PF-10w +183 ms)에 있다. 통합 단계 I-7에서 INFRA가 옮긴다.
 
 #### 계획과 다르게 한 점 (동시 개발)
 
@@ -794,13 +811,13 @@
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34, T29(세션 6·7), T36(세션 7), **T35·T25b(세션 8)**. **남은 것은 T37 하나**(성능·문서 — 6.19 PF-1~PF-11 전부를 `--run-skipped -t perf`로, Chrome `perf`(PF-10w·1차 `open_time_browser_test`), PF-10 색인 크기 기록(README·INFRA 웹 예산표), README 2차 사용 예(객체 넣기·녹음 만들기·초안·PDF 색인 작성기·검색·**네이티브 설정(두 경로)**·`update`)와 `test/readme_examples_test.dart` v2(가짜·실제)). PF-1·PF-2(`object_page_perf_test`)는 아직 파일이 없다 — T37에서 만든다. PF-10의 블롭 읽기는 지금 메모리 IndexedDB(`openFileStore`) — T37에서 네이티브 파일 블롭(`perf_support.openNativeFileStore`)으로도 한 번 잰다. PF-7은 세션 8에 두 블롭으로 쟀다(4.57 / 6.81 ms).
+- 끝난 것(동시 개발): **8.2 전부** — T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34, T29(세션 6·7), T36(세션 7), T35·T25b(세션 8), **T37(세션 9)**. 동시 개발 몫으로 남은 것은 없다. 통합 단계(8.3 I-1~I-7)에서 할 것: ① 성능 예산을 load < 4에서 다시 판정(9.1 — 이 컨테이너에서는 부하가 4~19라 PF-2·PF-3(136개 질의)·PF-10 질의가 부하 높은 실행에서 넘었다가 낮을 때 다시 재서 통과; 'T37' 절), ② INFRA 웹 예산표에 PF-10 크기·PF-10w 값 옮기기(INFRA 몫 — 값은 README 성능표), ③ 실기기(9.5 A-c1·B-13)에서 네이티브·웹 검색 시간 — 네이티브 저장소의 PF-10 질의는 후보 행이 drift 배경 isolate를 건너는 값이 더해진다(VM 기록 35~67 ms, 같은 프로세스 20~37 ms), ④ 변경 요청 [총괄] V10의 답이 오면 `search_perf_test`의 `kHeldBelow`·예산 맞춤.
 - T35(세션 8): 블롭 묶음은 내부 `BlobDatabase`(`assets/blob_store.dart` — `chunks`·`thumbnails`·`close`), 구현 `IdbBlobDatabase`·`FileBlobDatabase`(`assets/file_blob_store_native.dart`). `DriftNoteStore.open(blobDatabase:)`가 있으면 그것, 없으면 `blobFactory`의 IndexedDB. 실제 네이티브 열기는 `openNoteStore` → `connect_native.openFileBlobDatabase`. 시험 도구: `perf_support.openNativeFileStore(tag)`, `native_file_store_test`의 `config()`. 읽기 전용 사례는 root에서 건너뜀(CI 비 root에서 돈다).
 - 검색 질의 예산: 변경 요청 [총괄] V10의 답이 오면 `test/perf/search_perf_test.dart`의 `kHeldBelow`·예산을 맞춘다(상한 질의 ≤ 40 ms 제안). 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
 - T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
 - 영구 삭제(T29 ①, 세션 6에 끝남): `deleteNoteContents`가 객체·손글씨·그 노트의 색인 행·초안까지 지운다(아래 'T29 ①' 절).
-- `content_rev` 경합(위 '계획과 다르게 한 점' T32): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`·`putLocal(Page)`)를 `MAX(content_rev + 1, 값)`으로 바꿀지 T37(또는 통합) 전에 판단 — 썸네일 캐시도 같은 이득.
+- `content_rev` 경합(위 '계획과 다르게 한 점' T32): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`·`putLocal(Page)`)를 `MAX(content_rev + 1, 값)`으로 바꿀지 통합 단계에서 판단(T37은 성능·문서만 — 1차 동작 그대로 둠) — 썸네일 캐시도 같은 이득.
 - 초안 저장소 시험 도구: `test/media/draft_store_support.dart` `openDraftStore(path, idbFactory)`(파일 DB + 같은 메모리 IndexedDB로 다시 열기), `DriftRecordingDraftStore.debugWriteOrder`·`.blobs`.
 - 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
 - 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.
