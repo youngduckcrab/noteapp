@@ -211,6 +211,143 @@ void defineProviderContractTests(Future<NoteStore> Function() open) {
     expect(await readAsync(noteRecordingsProvider(note.id).future), isEmpty);
   });
 
+  // ---- v2 behaviour on the store (CORE T36 — m5-7/02-core 6.16) -------------------------
+
+  test('v2: noteRecordingsProvider follows the note\'s recording commits '
+      '(startedAt order, no value for other notes) and is disposed with its '
+      'last listener', () async {
+    final note = await store.library.createNote(title: '녹음');
+    final other = await store.library.createNote(title: '다른');
+    final audio = await store.assets.put(
+      Uint8List.fromList(List.filled(32, 3)),
+      type: AssetType.audio,
+      mimeType: 'audio/mp4',
+    );
+    Future<RecordingId> record(
+      NoteId noteId,
+      int startedAt, [
+      String? title,
+    ]) async => (await store.recordings.createRecording(
+      id: store.ids.newId(),
+      noteId: noteId,
+      assetId: audio.id,
+      durationMs: 1000,
+      startedAt: startedAt,
+      title: title,
+    )).id;
+
+    final provider = noteRecordingsProvider(note.id);
+    final values = <List<String?>>[];
+    final sub = container.listen(provider, (_, next) {
+      if (next case AsyncData(:final value)) {
+        values.add([for (final r in value) r.title]);
+      }
+    }, fireImmediately: true);
+    await pumpEventQueue();
+    expect(values, [<String?>[]]);
+
+    final first = await record(note.id, 20, '첫 녹음');
+    await pumpEventQueue();
+    final second = await record(note.id, 10);
+    await pumpEventQueue();
+    await store.recordings.renameRecording(first, '바꾼 이름');
+    await pumpEventQueue();
+    await record(other.id, 5, '다른 노트');
+    await pumpEventQueue();
+    await store.recordings.deleteRecording(second);
+    await pumpEventQueue();
+    expect(values, [
+      <String?>[],
+      ['첫 녹음'],
+      [null, '첫 녹음'],
+      [null, '바꾼 이름'],
+      ['바꾼 이름'],
+    ]);
+
+    expect(container.exists(provider), isTrue);
+    sub.close();
+    await container.pump();
+    await pumpEventQueue();
+    expect(container.exists(provider), isFalse, reason: 'autoDispose');
+    // A new listener starts again from the current value.
+    final again = await readAsync(provider.future);
+    expect([for (final r in again) r.id], [first]);
+    expect(
+      [
+        for (final r in await readAsync(
+          noteRecordingsProvider(other.id).future,
+        ))
+          r.title,
+      ],
+      ['다른 노트'],
+    );
+  });
+
+  test('v2: handwritingRepositoryProvider and searchIndexProvider read and '
+      'write the store', () async {
+    final note = await store.library.createNote(
+      title: '공급자',
+      pages: [
+        PageDraft(
+          size: PageSize.a4Portrait,
+          background: const BlankBackground(),
+          objects: [PageObjectFixtures.textBox(pageId: 'x', text: '공급자 상자')],
+        ),
+      ],
+    );
+    final page = (await store.content.pagesOf(note.id)).single.id;
+    final handwriting = container.read(handwritingRepositoryProvider);
+    await handwriting.put(
+      HandwritingText(
+        noteId: note.id,
+        pageId: page,
+        engineId: 'fake/1:ko',
+        sourceRev: HandwritingText.sourceRevOf(const []),
+        lines: const [
+          HandwritingLine(
+            text: '공급자 손글씨',
+            rect: PageRect(10, 10, 200, 40),
+            strokeIds: [],
+            languageTag: 'ko',
+          ),
+        ],
+        createdAt: 1,
+      ),
+    );
+    expect(
+      (await store.handwriting.forPage(page))!.lines.single.text,
+      '공급자 손글씨',
+    );
+    expect(await handwriting.stalePages(note.id), isEmpty);
+    // One result per page (its best unit): one query per source.
+    final index = container.read(searchIndexProvider);
+    for (final (q, source) in [
+      ('공급자 상자', SearchSource.text),
+      ('공급자 손글씨', SearchSource.ink),
+    ]) {
+      final hit = (await index.searchPages(q)).single;
+      expect((hit.pageId, hit.source), (page, source), reason: q);
+    }
+  });
+
+  test('v2: the store-derived providers follow a new noteStoreProvider value '
+      '(6.16)', () async {
+    final second = await open();
+    addTearDown(second.close);
+    container.updateOverrides([noteStoreProvider.overrideWithValue(second)]);
+    expect(
+      container.read(recordingRepositoryProvider),
+      same(second.recordings),
+    );
+    expect(
+      container.read(handwritingRepositoryProvider),
+      same(second.handwriting),
+    );
+    expect(container.read(searchIndexProvider), same(second.search));
+    final note = await second.library.createNote(title: '둘째 저장소');
+    expect(await readAsync(noteRecordingsProvider(note.id).future), isEmpty);
+  });
+
   test('v2: audio ports default to Unsupported* (6.8.2)', () async {
     final recorder = container.read(audioRecorderServiceProvider);
     final playback = container.read(audioPlaybackServiceProvider);

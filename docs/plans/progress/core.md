@@ -406,7 +406,7 @@
 | T33b | 완료 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
-| T36 | 남음 | | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2) |
+| T36 | 완료 | (아래 'T36') | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
 | T37 | 남음 | | `-t perf` PF-1~PF-11, Chrome `perf`, `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
@@ -660,6 +660,11 @@
 - `784b675`(제외 시험): 공유 본문 `test/shared/backup_cases.dart`에 '색인·초안·페이지 캐시·파생 열 없음'(텍스트 상자 + pdf 배경 노트·pdf 색인 단위·녹음 초안 조각·`stalePages`로 캐시 채움 → 내보낸 것에 단위 본문·`sourceRev`·초안 id·조각·mime·`inkRev`·`bgAssetId`·`bgPdfPageIndex`·`nameNorm`·`titleNorm` 없음, 늘어난 것은 노트·페이지·객체 하나씩) — 가짜·실제 VM·웹 저장소 모두. 실제만(`backup_export_test`): 빈 v1 파일 DB를 열어 v1 사본이 생긴 저장소의 내보내기 — `schema.database` 2, 사본 기록·파일 이름·SQLite 머리 없음, 사본보다 작음.
 - `6ae70e9`(골든 — 이정표): 골든 상태에 에셋 2(오디오·이미지), 제목 있는 녹음 1(`stk-00`이 그 녹음에 연결 — `recordingOffsetMs` 1500), 객체 5종(별 도형·텍스트 상자·이미지·수식·모르는 `type` `sticker`), 손글씨 결과 1(`page-a1`, `alternatives`·`strokeIds`)을 더하고 `backup_v1.json` → `backup_v2.json`(실제 VM 저장소로 만들고 가짜·웹이 같은 바이트). 가짜 시드(`seedFakeBackupState`)에 녹음·객체·손글씨를, 종류 수 사례에 새 종류를 더했다.
 
+#### T36 — provider v2 (계획 4.10·6.16·8.2) — 세션 7
+
+- 코드 변화 없음: 여섯 provider(`audioRecorderServiceProvider`·`audioPlaybackServiceProvider`·`recordingRepositoryProvider`·`noteRecordingsProvider`·`handwritingRepositoryProvider`·`searchIndexProvider`)는 B2-α(`2b2e4b0`)에 4.10 표대로 있고, 실제 저장소 멤버가 T30·T32·T33a·T33b로 동작한다. T36은 공유 본문 시험만.
+- `test/shared/providers_contract.dart`에 v2 사례 3을 더했다(가짜·실제 모두): ① `noteRecordingsProvider` — 만들기·두 번째(앞선 `startedAt` → 앞에)·이름 바꾸기·다른 노트 녹음(값 안 냄)·삭제의 값 순서가 정확히 5개, 마지막 리스너를 닫으면 `container.exists` 거짓(autoDispose), 다시 읽으면 현재 값 ② `handwritingRepositoryProvider`로 `put`·`stalePages` 빈 목록, `searchIndexProvider`로 텍스트 상자·손글씨 각 질의가 그 페이지 하나(쪽마다 대표 결과 하나라 질의를 나눔) ③ `updateOverrides`로 `noteStoreProvider`를 바꾸면 파생 셋이 새 저장소의 멤버(6.16 '저장소가 바뀌면 함께 다시 만듦').
+
 확인 (2026-11-06 세션 6 끝 — T34·T29 ① 뒤, load 4~7)
 
 | 검사 | 결과 | 시간 |
@@ -706,7 +711,7 @@
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34, T29(세션 6·7 — 영구 삭제·복사·백업 v2). 다음은 T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34, T29(세션 6·7 — 영구 삭제·복사·백업 v2), T36(세션 7). 다음은 T37(성능·문서 — 6.19 PF-1~PF-11 전부, README 2차 사용 예, `readme_examples_test` v2) — T35·T25b도 남음(T35 → T25b). T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
 - 검색 질의 예산: 변경 요청 [총괄] V10의 답이 오면 `test/perf/search_perf_test.dart`의 `kHeldBelow`·예산을 맞춘다(상한 질의 ≤ 40 ms 제안). 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
 - T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
