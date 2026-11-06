@@ -1,6 +1,6 @@
 # 05 · LIBRARY (2차) — 라이브러리 화면 · 인식
 
-> 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 2회차. 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 2회차** (통합 계약 **v2.1** 기준 — 2026-11-05 현재 최신판, 변경 이력 C21-01~35. 수정 1회차: 총괄 검토 [00-review.md](00-review.md) 3.5 LIBRARY-M1~M11·공통 결정 CD2-01~25와 대리 검토 [reviews/library.md](reviews/library.md) 반영. 수정 2회차: 총괄 재검토 3건 — 에뮬레이터 완료 명령을 `npx --prefix functions firebase …`(INFRA 6.13 정식 경로)로, 취소 시험을 `MockClient.streaming` + 'cancel 전 `RequestAbortedException`' 경우로, `SyntheticShapes.rectanglePath` 크기 조건을 pt 기준으로. 항목별 반영 위치는 [13절](#13-검토-반영-내역) — 수정 2회차는 [13.4](#134-수정-2회차-총괄-재검토-3건)). 초안은 v2.0 기준이었다
+> 상태: **승인 · 계약 v2.3** (2026-11-06 동시 개발 착수 — 계약 7.6.2 마지막 bullet·C22-09: 5.8 '가정'을 실제 타입으로 바꿈, v2.2·v2.3이 바꾼 문장의 인용 맞춤(4.3·5.3·5.9·9.3·부록 A의 V5 → **V5b**(C22-07), C23-07 `FakeInkShapeFitter.result`·`useInkTestFonts`·WidgetsBinding), 00-review '최종 승인' LIBRARY-F1~F3은 8.2·9.3·10 그대로 — 진행 기록 '## 2차' 절). 이전: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 2회차. 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 2회차** (통합 계약 **v2.1** 기준 — 2026-11-05 현재 최신판, 변경 이력 C21-01~35. 수정 1회차: 총괄 검토 [00-review.md](00-review.md) 3.5 LIBRARY-M1~M11·공통 결정 CD2-01~25와 대리 검토 [reviews/library.md](reviews/library.md) 반영. 수정 2회차: 총괄 재검토 3건 — 에뮬레이터 완료 명령을 `npx --prefix functions firebase …`(INFRA 6.13 정식 경로)로, 취소 시험을 `MockClient.streaming` + 'cancel 전 `RequestAbortedException`' 경우로, `SyntheticShapes.rectanglePath` 크기 조건을 pt 기준으로. 항목별 반영 위치는 [13절](#13-검토-반영-내역) — 수정 2회차는 [13.4](#134-수정-2회차-총괄-재검토-3건)). 초안은 v2.0 기준이었다
 >
 > 작성 2026-11-05 · 수정 2026-11-05 · 영역 ID **LIBRARY** · 소유 경로 `packages/feature_library/`, `packages/ink_recognition/`(새) · 기준: [00-overview.md 7장 '통합 계약 v2.1'](00-overview.md)(변경 이력 7.9 C21-01~35 중 LIBRARY 몫: C21-01·02·07·09·13·14·15·17·18·19·20·24·26·29·30·31·32·33) — **이 문서와 7장이 다르면 7장이 우선**한다. 7장이 덮어쓰지 않은 곳은 1차 계약 v1.5(1차 통합 반영 — 시그니처는 v1.4와 같음, 1차 [00-overview.md](../00-overview.md) 7장)가 그대로 유효하다.
 > 이어받는 문서: 1차 LIBRARY 계획서(승인, 계약 v1.4 — `/home/user/wt/library/docs/plans/05-library.md`, 이하 **'1차 계획서'**) · 바탕 코드(v2.1, CD2-01): **1차 통합 HEAD** `/home/user/noteapp` `18c5ae5`(브랜치 `claude/note-app-planning-bk29xb`). `packages/feature_library`의 `lib/`는 1차 영역 끝 `ec403be`(`/home/user/wt/library`, L0~L20)와 같고, 통합 커밋 `aabcabe`가 `test/integration/core_contract_test.dart`의 닫기 방식만 고쳐 L21이 실제 CORE에서 10건 통과했다(`git diff --stat ec403be 18c5ae5 -- packages/feature_library` — 그 파일 하나 [확인]). 통합 뒤 시험 수: VM 626 + 1 skip(골든 4장 포함), `integration` 10, Chrome(`test/web`) 17(1차 진행 기록 '통합 단계'). `lib/` 12,021줄, 읽기 전용으로 확인. 줄 번호 인용은 CD2-01대로 기반 단계 시작 때 고친다 · 조사: [01-hooks](research/01-hooks.md) 3.10·R6·R7 · [03-recognition](research/03-recognition.md) 전부 · [04-native](research/04-native.md) 요약 7·12, 4.3·7절 · [02-audio-stylus](research/02-audio-stylus.md)(해당 없음 — 확인만) · 판정 [judgement.md](drafts/judgement.md)
@@ -203,12 +203,14 @@ packages/feature_library/
 │     │  ├─ content.dart                   [변경] LibraryContent.contentGroups·contentTruncated
 │     │  └─ content_hits.dart              [새] ContentHitGroup, groupContentHits, focusRectOf, sourceLabelOf
 │     ├─ state/providers.dart              [변경] 검색 무효화 종류 확장(1 s 디바운스), notePageIndexProvider
+│     ├─ state/search_requery.dart         [새] searchRequeryOf — 변경 묶음 → 즉시·디바운스·없음 (6.1.6)
 │     └─ ui/
 │        ├─ library_scope.dart             [변경] openNoteAt
 │        ├─ top_bar/library_search_field.dart   [변경] 힌트 '노트 검색'
 │        └─ content/
 │           ├─ search_results_view.dart    [변경] '노트 내용 (n)' 묶음 슬리버
-│           └─ content_hit_tiles.dart      [새] ContentNoteHeader, ContentHitRow, SourceBadge, SnippetText, ContentMoreRow
+│           └─ content_hits_view.dart      [새] ContentNoteHeader, ContentHitRow, SourceBadge, SnippetText, ContentMoreRow
+│                                          #   (동시 개발 보완 1.1 — 초안 이름 content_hit_tiles.dart를 실제 파일 이름으로)
 └─ test/
    ├─ unit/content_hits_test.dart           [새] L2-01
    ├─ unit/content_provider_test.dart       [변경] L2-01 (내용 묶음·무효화)
@@ -245,7 +247,8 @@ packages/ink_recognition/
 │     ├─ ports/
 │     │  ├─ handwriting_recognizer.dart    # HandwritingRecognizer, UnsupportedHandwritingRecognizer
 │     │  ├─ math_recognizer.dart           # MathRecognizer, ManualOnlyMathRecognizer
-│     │  └─ model_admin.dart               # (internal) RecognizerModelAdmin — 모델 지우기·변경 알림 (6.7.4)
+│     │  ├─ model_admin.dart               # (internal) RecognizerModelAdmin — 모델 지우기·변경 알림 (6.7.4)
+│     │  └─ line_origin.dart               # (internal) PageOriginLineRecognizer — A-4 좌표 기준 비교(페이지 pt 그대로, 6.20)
 │     ├─ lines/
 │     │  ├─ group_into_lines.dart          # groupIntoLines (6.5)
 │     │  ├─ glyph_boxes.dart               # (internal) 글자 상자, estimateGlyphHeight
@@ -260,7 +263,8 @@ packages/ink_recognition/
 │     │  ├─ callable_math_recognizer.dart  # (internal) CallableMathRecognizer (6.11)
 │     │  ├─ callable_protocol.dart         # (internal) 요청·응답·오류 변환 (RequestAbortedException 먼저 — 6.11.4)
 │     │  ├─ math_payload.dart              # (internal) 획 → JSON, 점 줄이기, 512 KB 한도
-│     │  └─ math_fixture_export.dart       # (internal, v2.1 P-C) 패드 획 → 07-sync 6.9.1 고정 자료 JSON (6.14.7)
+│     │  ├─ math_fixture_export.dart       # (internal, v2.1 P-C) 패드 획 → 07-sync 6.9.1 고정 자료 JSON (6.14.7)
+│     │  └─ math_png.dart                  # (internal) 고른 획 → pngBase64(pageThumbnailRendererProvider가 있을 때만 — 6.11.3)
 │     ├─ shapes/
 │     │  ├─ geometric_shape_fitter.dart    # GeometricShapeFitter (6.17)
 │     │  ├─ shape_fit_tuning.dart          # ShapeFitTuning
@@ -271,7 +275,8 @@ packages/ink_recognition/
 │     │  ├─ indexer_status.dart            # HandwritingIndexerStatus, HandwritingIndexerPhase (4.4.1 — v2.1 계약)
 │     │  ├─ line_reuse.dart                # (internal, 순수) 줄 재사용·확정 줄 유지 규칙·update 병합 함수 (6.9.4)
 │     │  ├─ indexer_metrics.dart           # (internal, v2.1) 작업 시간·줄 수 — 개발자 표시 줄용 (6.9.7)
-│     │  └─ catch_up.dart                  # (internal, v2.1) notesWithStalePages 따라잡기 (6.9.5 — note_walk 대체)
+│     │  ├─ catch_up.dart                  # (internal, v2.1) notesWithStalePages 따라잡기 (6.9.5 — note_walk 대체)
+│     │  └─ page_queue.dart                # (internal) 페이지 대기열 — 다시 넣은 페이지 → 조용해진 페이지 → 따라잡기 (6.9.2)
 │     ├─ providers.dart                    # handwritingRecognizerProvider, mathRecognizerProvider, RecognitionConfig,
 │     │                                    #   recognitionOverrides, handwritingIndexerProvider,
 │     │                                    #   (v2.1) recognitionDevOverlayLinesProvider (6.10)
@@ -280,13 +285,15 @@ packages/ink_recognition/
 │     │  ├─ action_scope.dart              # (internal) BuildContext → ProviderContainer 읽기, 시트 띄우기
 │     │  └─ object_builders.dart           # (internal) 획 → TextBoxObject / MathObject (6.13.4·6.15.3)
 │     ├─ ui/
-│     │  ├─ recognition_sheet.dart         # (internal) showRecognitionSheet — 7.4.10 높이 규칙
+│     │  ├─ recognition_sheet.dart         # (internal) showRecognitionSheet — 7.4.10 높이 규칙 + 시트 공용 부품
+│     │  │                                 #   (RecognitionSheetHeader·SheetNotice·ConsentCard — G-3 동의 안내)
+│     │  ├─ recognition_sheets.dart        # (internal) 동작 → 시트 이음매 RecognitionSheets·DefaultRecognitionSheets (6.16)
 │     │  ├─ conversion_sheet.dart          # 텍스트 변환 창 (6.13)
 │     │  ├─ math_pad_sheet.dart            # 수식 입력 패드 (6.14)
 │     │  ├─ math_pad_canvas.dart           # (internal) InkPageView + 임시 Page + 입력
 │     │  ├─ latex_editor_sheet.dart        # LaTeX 편집 창 (6.15)
-│     │  ├─ consent_card.dart              # (internal) G-3 동의 안내
-│     │  └─ model_card.dart                # (internal) 모델 받기 안내
+│     │  ├─ model_row.dart                 # (internal) RecognitionModelRow — 모델 한 줄(설정·실험 창·변환 창 모델 카드 공용)
+│     │  └─ model_downloads.dart           # (internal) ModelDownloads — 사용자가 시작한 모델 받기(Wi-Fi 대기·셀룰러 — 6.7.4)
 │     ├─ settings/
 │     │  ├─ recognition_settings_keys.dart # RecognitionSettingsKeys (4.4.3)
 │     │  └─ recognition_settings_section.dart  # RecognitionSettingsSection (6.18)
@@ -311,7 +318,7 @@ packages/ink_recognition/
    ├─ widget/ conversion_sheet_test · latex_editor_sheet_test · math_pad_manual_test ·
    │          math_pad_engine_test · to_math_test · settings_section_test · recognition_lab_test ·
    │          sheet_rules_test
-   ├─ shared/ line_cases.dart · shape_cases.dart        # VM·Chrome 공유 본문
+   ├─ shared/ line_cases.dart · shape_cases.dart · trace_cases.dart   # VM·Chrome 공유 본문
    ├─ web/recognition_browser_test.dart    # @TestOn('browser') — G-1·공유 본문·웹 시트 문구
    ├─ emulator/callable_emulator_test.dart # @Tags(['emulator']) — V13, 통합 몫 L2-I6 (컨테이너 전역 잠금 + CI)
    ├─ integration/real_core_indexer_test.dart   # @Tags(['integration']) — 실제 CORE 색인 (L2-I1)
@@ -319,11 +326,12 @@ packages/ink_recognition/
    │                                            #   (shapeFitter: GeometricShapeFitter()) 멈춤 → addShape (L2-I3)
    ├─ fixtures/real/                       # (U18 승인 뒤) 실기기 도형 표본 JSON {kind, points, viewScale} — EDITOR 링 버퍼가 모음
    ├─ fixtures/lines/                      # (v2.1) 줄 나누기 경계 사례 손 고정 자료(촘촘한 줄·서로 다른 기울기·떨어진 자모 — 6.5)
-   └─ support/ recognition_test_scope.dart · fake_settings.dart · pump_sheet.dart
+   └─ support/ recognition_test_scope.dart · indexer_harness.dart · recording_store.dart · model_engine.dart   # 9.2
 ```
 
 - `lib/`에 `dart:io`가 없다. ML Kit(`google_mlkit_*`)은 `mlkit_recognizer_native.dart`에서만 import한다(`native_only_imports`, R4②). 플랫폼 판정은 `kIsWeb` + `defaultTargetPlatform`만 쓴다(7.4.1 — `Platform` 금지).
 - 내보내지 않는 `src/` 파일은 이름을 구현자가 바꿔도 된다. 계약 이름(4.2)과 4.4의 LIBRARY 세부 이름만 고정이다.
+- (동시 개발 보완 1.1 — 위 트리를 실제 파일에 맞춤) 초안의 `ui/consent_card.dart`·`ui/model_card.dart`는 따로 두지 않았다: 동의 카드 `ConsentCard`는 시트 공용 부품과 함께 `ui/recognition_sheet.dart`에, 변환 창의 모델 카드는 `ui/conversion_sheet.dart`가 `ui/model_row.dart`의 `RecognitionModelRow`(+ `ui/model_downloads.dart`)로 그린다. 구현 중 더한 내부 파일 `ports/line_origin.dart`·`math/math_png.dart`·`indexer/page_queue.dart`·`ui/recognition_sheets.dart`·`test/shared/trace_cases.dart`와 시험 도우미(9.2)도 트리에 넣었다. 진행 기록 `docs/plans/progress/library.md` '계획과 다르게 한 점'에 같은 내용.
 
 ### 3.3 pubspec.yaml · dart_test.yaml
 
@@ -665,8 +673,8 @@ abstract final class SyntheticShapes {
 
 - `FakeHandwritingRecognizer`는 내부 인터페이스 `RecognizerModelAdmin`(6.7.4)도 구현한다(새 공개 이름 없음 — 설정 섹션 시험의 '모델 지우기'용).
 - (v2.1, C-7) 계약 주석의 'lines / words'는 v2.1에서 'lines'로 고쳐졌다 — `words(...)`는 만들지 않는다.
-- (v2.1) `SyntheticShapes.rectanglePath`의 소비자는 INFRA V5 '합성 멈춤으로 자동 도형'(포인터를 이 경로로 움직인 뒤 INK `InkTuning.shapeHoldMs` 넘게 멈춤)과 LIBRARY `shape_assist_flow_test`다. 경로가 판정되는 조건을 이 함수가 보장하므로 `ShapeFitTuning`을 다시 맞춰도(U18) 스모크가 흔들리지 않는다 — 기본값을 바꾸는 커밋은 `synthetic_shapes_test`를 같이 돌린다.
-- (수정 2회차) **크기 조건은 pt 기준(viewScale 1)이다.** 계약 시그니처 `rectanglePath(Rect boundsPt, {int pointsPerSide = 24})`에 `viewScale`이 없어 함수가 화면 배율을 알 수 없으므로, 함수는 `boundsPt.shortestSide ≥ 48 pt`(= 2 × 기본 `minDiagonalLogicalPx`)만 검사하고 다른 배율의 보장은 **호출 쪽이 rect를 키워서** 얻는다: 배율 v에서 `boundsPt.shortestSide × v ≥ 48`(v < 1이면 짧은 변 ≥ 48 / v pt — 0.5에서 96 pt, 0.25에서 192 pt). INFRA V5처럼 실제 화면 배율에서 포인터를 움직이는 호출자는 그 배율로 rect 크기를 고른다(01-infra 9.1 V5 2단계 — 화면 배율이 1 이상이면 48 pt 이상인 아무 rect). 판정기는 크기 문턱(`minDiagonalLogicalPx`) 말고는 배율과 무관하므로(6.17.1 — 나머지 문턱은 모두 대각선·둘레 비율) 이 규칙만 지키면 배율 0.25~4에서 같은 판정이 나온다(확인함 — 7.3 E-L8).
+- (v2.1) `SyntheticShapes.rectanglePath`의 소비자는 INFRA **V5b**(C22-07 — V5 본 흐름에서 뗀 '합성 멈춤으로 자동 도형', P-B)(포인터를 이 경로로 움직인 뒤 INK `InkTuning.shapeHoldMs` 넘게 멈춤)과 LIBRARY `shape_assist_flow_test`다. 경로가 판정되는 조건을 이 함수가 보장하므로 `ShapeFitTuning`을 다시 맞춰도(U18) 스모크가 흔들리지 않는다 — 기본값을 바꾸는 커밋은 `synthetic_shapes_test`를 같이 돌린다.
+- (수정 2회차) **크기 조건은 pt 기준(viewScale 1)이다.** 계약 시그니처 `rectanglePath(Rect boundsPt, {int pointsPerSide = 24})`에 `viewScale`이 없어 함수가 화면 배율을 알 수 없으므로, 함수는 `boundsPt.shortestSide ≥ 48 pt`(= 2 × 기본 `minDiagonalLogicalPx`)만 검사하고 다른 배율의 보장은 **호출 쪽이 rect를 키워서** 얻는다: 배율 v에서 `boundsPt.shortestSide × v ≥ 48`(v < 1이면 짧은 변 ≥ 48 / v pt — 0.5에서 96 pt, 0.25에서 192 pt). INFRA V5b처럼 실제 화면 배율에서 포인터를 움직이는 호출자는 그 배율로 rect 크기를 고른다(01-infra 9.1 V5b — 화면 배율이 1 이상이면 48 pt 이상인 아무 rect). 판정기는 크기 문턱(`minDiagonalLogicalPx`) 말고는 배율과 무관하므로(6.17.1 — 나머지 문턱은 모두 대각선·둘레 비율) 이 규칙만 지키면 배율 0.25~4에서 같은 판정이 나온다(확인함 — 7.3 E-L8).
 
 ### 4.4 LIBRARY가 정하는 세부 (계약이 이름만 두었거나 맡긴 부분)
 
@@ -1245,7 +1253,7 @@ abstract final class InkTextLayout {
 |---|---|---|
 | `MathPreview`는 **R2-B3부터 실제 `Math.tex` 동작**(연한 상자는 페이지 위 `MathObject`의 R2-B3 렌더일 뿐), `onError`의 형은 `ValueChanged<String>?` | 03-ink 4.13 표·4.10(CP-INK-11), 검토 X-9 | 수식 패드·LaTeX 편집 창의 미리보기 시험을 기반 단계부터 실제로 단언(5.8, L2-13·14) |
 | `InkMathRenderer.validate`·`layout`은 R2-B3부터 실제(`layout`은 프레임 단계 밖에서만 — `StateError`), `rasterize`는 T36까지 `null` | 03-ink 4.13·6.12.2 | `layout`은 [넣기]·[적용] 누름 처리 안에서 부른다(build 안에서 부르지 않음) |
-| 시험 도우미(`ink_engine/testing.dart` — 4.12): `createTestPageController({…, InkShapeFitter? shapeFitter})`, `FakeInkShapeFitter`, `SyntheticInk.loopThenHold`, `loadKatexFontsForTest()`(VM 전용), `useInkTestFonts()`(Chrome — 계약 7.6) | 03-ink 4.12 | `integration/shape_assist_flow_test.dart`(L2-I3 — `shapeFitter: const GeometricShapeFitter()`), VM 위젯 시험의 수식 픽셀 단언 전 `loadKatexFontsForTest`, Chrome 시험 `setUpAll(useInkTestFonts)` |
+| 시험 도우미(`ink_engine/testing.dart` — 4.12): `createTestPageController({…, InkShapeFitter? shapeFitter})`, `FakeInkShapeFitter`((v2.3, C23-07) 설정 필드는 `result` — 생성자 인자는 `fit:`), `SyntheticInk.loopThenHold`, `loadKatexFontsForTest()`(VM 전용), `useInkTestFonts()`(Chrome — 계약 7.6, (v2.3, C23-07) `InkFonts`·`InkTextLayout`에 닿는 Chrome 시험은 setUpAll에서), `InkMathRenderer.layout`은 WidgetsBinding 필요(일반 `test()`면 `TestWidgetsFlutterBinding.ensureInitialized()` — C23-07) | 03-ink 4.12, 계약 7.9 C23-07 | `integration/shape_assist_flow_test.dart`(L2-I3 — `shapeFitter: const GeometricShapeFitter()`), VM 위젯 시험의 수식 픽셀 단언 전 `loadKatexFontsForTest`, Chrome 시험 `setUpAll(useInkTestFonts)` |
 | `inkPageControllerProvider`는 판정기를 읽는 함수로 넘긴다(`() => ref.read(inkShapeFitterProvider)`) | 03-ink 4.11(S-12) | 수식 패드의 임시 페이지 컨트롤러는 `shapeAssist: off`로 획을 시작하므로 판정기를 부르지 않는다(6.14.2) |
 | 도형 보정 미리보기는 층 4′(`inkActive` 끝) | 계약 7.2.9 L-1 (v2.1) | 판정기와 무관(LIBRARY는 판정만) — 흐름 시험은 `shapePreview` 값만 본다 |
 
@@ -1402,7 +1410,7 @@ SYNC 계획서(수정 1회차)가 정한 세부 중 LIBRARY가 기대는 것:
 | INFRA 모듈·라우팅 | 없음 — `LibraryTestHarness`가 `onOpenNoteAt`을 `NavigationLog`에 기록 | `feature_library/test/support/` | INFRA V5 |
 | 앱 수명주기 | (v2.1, CP-L10 승인) `HandwritingIndexer(foreground: ValueNotifier<bool>)`로 순수 단위 시험. 기본값(`AppLifecycleListener`) 경로는 `tester.binding.handleAppLifecycleStateChanged(…)` 시험 1개 | 색인기 시험 | 실기기 |
 
-가정: 기반 단계 뒤 각 '계약 원문' 블록을 실제 타입으로 확인한다(계약 7.6 끝 문장). (v2.1) CORE CP-1(명령 모양)·CP-13(`copyWith`)·CP-14(가짜 검색 순서)는 모두 승인돼 계약 원문이 됐다 — 가정이 아니다.
+실제 타입(2026-11-06 동시 개발 착수 — 기반 단계 `main` `5843ec3`, 계약 v2.3): 이 계획서의 '계약 원문' 블록은 기반 단계 코드와 같다 — `ink_recognition` 7.2.11 표면·`testing.dart`는 R2-B6 `99cdeef`의 `unit/api_surface_test.dart`가 4.2·4.3 목록과 호출 모양으로 확인, CORE 가짜 저장소 v2의 손글씨 `update`·`stalePages`·`notesWithStalePages`(`note_core/lib/src/fake/fake_v2_repositories.dart`)·`PageObjectFixtures`는 B2-β T23b로 동작(이정표 T23b 도착 — L2-10a·10b·15는 기다리지 않음), INK `testing.dart`(`createTestPageController(shapeFitter:)`·`FakeInkShapeFitter`·`useInkTestFonts`·`loadKatexFontsForTest`)는 R2-B3 T24~T26b. v2.3이 LIBRARY에 닿는 것은 C23-07(5.3 표)뿐이다. CORE CP-1(명령 모양)·CP-13(`copyWith`)·CP-14(가짜 검색 순서)는 v2.1에서 계약 원문이 됐다.
 
 ### 5.9 다른 영역 요청에 대한 답
 
@@ -1413,7 +1421,7 @@ SYNC 계획서(수정 1회차)가 정한 세부 중 LIBRARY가 기대는 것:
 | R-4: `recognitionDevOverlayLinesProvider` | 01-infra 5.9, CP4 | (v2.1) 계약에 들어감(CP-L2 = CP4 승인) — 줄 형식 4.4.9 |
 | R-7: `emulator` 시험은 `NOTEAPP_FUNCTIONS_URL`(기본 `http://127.0.0.1:5001/demo-noteapp/asia-northeast3/recognizeMath`)·`FIREBASE_AUTH_EMULATOR_HOST`로 | 01-infra 5.9 | 받아들임(6.11.7). 사용자 만들기·ID 토큰은 SYNC 6.8.11 규약(5.6 표 — [확인]) |
 | (v2.1) 색인기 `final class` → 앱 셸 시험은 모듈 주입 이음새 | infra 검토 M-2, LIBRARY 검토 X-5, CD2-17 | 받아들임. 계약 그대로(공개 생성자·멤버를 늘리지 않음), INFRA `RecognitionModule(overridesFor:, indexer:)` 이음새(5.5). LIBRARY는 실제 색인기의 '두 번 `dispose` 안전'만 시험 |
-| (v2.1) V5 '합성 멈춤'용 반드시 사각형으로 판정되는 경로 | LIBRARY 검토 X-5 | `SyntheticShapes.rectanglePath`(4.3 — 계약 7.6 v2.1) |
+| (v2.1) V5 '합성 멈춤'(v2.2부터 **V5b** — C22-07)용 반드시 사각형으로 판정되는 경로 | LIBRARY 검토 X-5 | `SyntheticShapes.rectanglePath`(4.3 — 계약 7.6 v2.1) |
 | CP13: 삽입 문맥 `done` = 마지막 추가 객체 선택 | 01-infra 12.2 | (v2.1) 계약 X30에 들어감(CP-L3와 함께). recog 수식 패드는 `execute(AddObjects(…))` 한 번 뒤 `done()`을 부른다 |
 | CP14: V15 차이에 '자동 도형 보정' | 01-infra 12.2 | (v2.1) 계약 V15·7.3.3에 들어감 — `inkShapeFitterProvider`의 유일한 override가 `recognitionOverrides()`다 |
 | CORE CP-13·CP-14 | 02-core 12.1 | (v2.1) 승인 — 5.2 표 |
@@ -2512,13 +2520,13 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 | 상태·provider | recog `recognition_overrides`·`indexer_provider`·`indexer`·`indexer_merge`·`catch_up`, lib `content_provider` | `ProviderContainer.test`, `fakeAsync`, 가짜 저장소(v2 — `update`·`notesWithStalePages`), `foreground: ValueNotifier` |
 | 플러그인 경계 | recog `native/mlkit_adapter_test.dart`(`@TestOn('vm')`) | 메서드 채널 가짜로 ML Kit 흐름 전체(6.7.5) |
 | 네트워크 경계 | recog `unit/callable_math_recognizer_test.dart` | `MockClient` 규약·오류·동의·취소 |
-| 위젯 | recog `conversion_sheet`·`latex_editor_sheet`·`math_pad_manual`·`math_pad_engine`·`to_math`·`settings_section`·`recognition_lab`·`sheet_rules`, lib `content_search`·`a11y`·`scenarios_on_fake` | `pump_sheet.dart`(material_ui `MaterialApp` + `ProviderScope(overrides: 가짜 저장소 + 가짜 엔진)` + 시트를 여는 단추), iPad 13" 크기·DPR 2(1차 `test_sizes.dart`와 같은 값) |
+| 위젯 | recog `conversion_sheet`·`latex_editor_sheet`·`math_pad_manual`·`math_pad_engine`·`to_math`·`settings_section`·`recognition_lab`·`sheet_rules`, lib `content_search`·`a11y`·`scenarios_on_fake` | `RecognitionHost.pump`(`test/support/recognition_test_scope.dart` — `ProviderScope(overrides: 가짜 저장소 + 가짜 엔진)` → material_ui `MaterialApp` → `Scaffold` → 에디터 본문 context, 시트는 동작의 `run`으로 연다), iPad 13" 논리 크기 1376×1032 / 1032×1376 · DPR 1(물리 = 논리 — 배치 단언은 논리 px라 1차 `test_sizes.dart`의 DPR 2와 결과가 같다) |
 | 골든 | lib `goldens/library_golden_test.dart` + `library_search_content.png` | Ahem — 배치만(계약 7.4.6). 변환 시트·패드의 수식 렌더는 골든 대신 '경계 안·비어 있지 않음' 단언 |
 | 브라우저 | recog `web/recognition_browser_test.dart`, lib `web/*` | G-1·공유 본문·웹 문구 |
 | 통합 | recog `integration/real_core_indexer_test.dart`·(v2.1) `integration/shape_assist_flow_test.dart`, lib `integration/core_contract_test.dart` | 실제 CORE(DB v2·FTS5)·실제 INK 멈춤 감지 — 8.3 |
 | 에뮬레이터 | recog `emulator/callable_emulator_test.dart` | V13 Dart 쪽 — E1~E3·E5~E9·동의 거짓(6.11.7), 통합 몫 L2-I6 |
 
-시험용 도우미(`test/support/`): `recognition_test_scope.dart`(가짜 저장소 + 노트·페이지·획 시드 + `RecognitionTarget` 만들기 — `execute`는 그 노트 세션의 `execute`, `done`은 호출 수 기록), `fake_settings.dart`(설정 값 바로 넣기), `pump_sheet.dart`(시트 띄우기·클립보드 채널 가짜 `SystemChannels.platform`·수명주기 바꾸기).
+시험용 도우미(`test/support/` — (동시 개발 보완 1.1) 실제 파일 이름): `recognition_test_scope.dart` — `RecognitionHost`(가짜 저장소 + 엔진 override로 시트 띄울 바탕 펌프, 에디터 본문만 떼기 `unmountBody`, 스낵바 읽기), `PlatformLog`(클립보드 채널 가짜 `SystemChannels.platform` — 보낸 순간 기록·응답 바꾸기), `TargetLog`(`RecognitionTarget` 만들기 — `execute` 기록·`executeError`, `done` 호출 수), `SessionDoc`(노트·페이지 + 열린 `NoteSession` — `execute`가 세션으로 가 `undoDepth`를 본다), `glyphStroke`·`strokeOf`·`settle`·`waitFor`; `indexer_harness.dart`(`fakeAsync` 안 색인기 하네스 — 노트·세션 명령·상태 기록), `recording_store.dart`(`RecordingNoteStore` — 색인기가 부른 저장소 호출 기록·원격 흉내·쓰기 실패), `model_engine.dart`(`ControlledModelEngine` — 시험이 모델 받기를 끝냄). 설정 값은 가짜 저장소 `settings.set`으로 바로 넣고(초안의 `fake_settings.dart` 없음), 수명주기는 색인기의 `foreground:` `ValueNotifier`로 바꾼다(초안의 `pump_sheet.dart` 없음).
 
 ### 9.3 계약 보장 ↔ 시험
 
@@ -2543,7 +2551,7 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 | 명령 한 번 = 되돌리기 1단계 | `widget/conversion_sheet_test.dart`·`to_math_test.dart`·`math_pad_*`·`latex_editor_sheet_test.dart`(가짜 세션 `undoDepth` +1) |
 | V9 줄 나누기(6.6 v2.1 생성기·일대일 짝 계산법)·도형 판정·낡음 판정·웹 경로 | `unit/group_into_lines_test.dart`, `unit/shape_fitter_test.dart`, `unit/indexer_test.dart`, `web/…` |
 | V13 Dart 몫(컨테이너 잠금 + CI) | `emulator/callable_emulator_test.dart`(L2-I6) |
-| V5 '합성 멈춤'(INFRA) | `unit/synthetic_shapes_test.dart`(경로가 늘 사각형으로 판정됨 — (수정 2회차) 크기 조건은 pt 기준, 배율 v에서는 호출 쪽이 `shortestSide × v ≥ 48`이 되게 rect를 키움, 4.3) |
+| V5b '합성 멈춤'(INFRA — C22-07, P-B) | `unit/synthetic_shapes_test.dart`(경로가 늘 사각형으로 판정됨 — (수정 2회차) 크기 조건은 pt 기준, 배율 v에서는 호출 쪽이 `shortestSide × v ≥ 48`이 되게 rect를 키움, 4.3) |
 | V10 PDF 출처 사각형이 페이지 pt | CORE 몫 — LIBRARY는 합집합만(`unit/content_hits_test.dart`) |
 
 ### 9.4 실기기 체크리스트 (계약 7.8 중 LIBRARY 몫 + LIBRARY 추가)
@@ -2738,7 +2746,7 @@ C. **TestFlight 뒤** — 2차 완료 조건 아님: C-3(ML Kit iOS — A-4와 �
 | `handwritingIndexerProvider` | 파생 provider | (override 없음) INFRA 유휴 작업이 `start()`/`dispose()` | 웹·엔진 없음 → null |
 | `RecognitionSettingsSection` | 설정 섹션 위젯 | INFRA 설정 화면 `recog.settings` | 섹션 없음(모듈이 안 뜨면) |
 | `recognitionDevOverlayLinesProvider` | provider((v2.1) 계약 — CP-L2) | INFRA 개발자 표시 `recog.indexer` | 색인기 없음 → 고정 한 줄(4.4.9) |
-| `SyntheticShapes.rectanglePath` | (v2.1) 시험 도우미(`testing.dart`) | INFRA V5 '합성 멈춤', LIBRARY 흐름 시험 | — |
+| `SyntheticShapes.rectanglePath` | (v2.1) 시험 도우미(`testing.dart`) | INFRA V5b '합성 멈춤'(C22-07), LIBRARY 흐름 시험 | — |
 | `ShapeFitTuning` | 판정기 생성자 인자 | (이번에는 기본값만) | — |
 
 ### A.2 LIBRARY가 채우는 자리

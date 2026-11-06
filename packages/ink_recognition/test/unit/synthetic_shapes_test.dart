@@ -1,14 +1,17 @@
 // SyntheticShapes.rectanglePath (contract m5-7/00-overview 7.6; m5-7/05-library
 // 4.3, 8.1 B6-b). R2-B6 part: the path shape — clockwise centreline from the
 // middle of the top edge, pointsPerSide samples per side, exactly closed —
-// and the ArgumentError rules. The 'GeometricShapeFitter judges it a
-// rectangle' assertions (aspect 1:1–4:1, 48–2400 pt, pointsPerSide 4–48,
-// viewScale 0.25–4) are switched on with L2-06 (LIBRARY-F2: a commit that
-// changes the ShapeFitTuning defaults runs this file).
+// and the ArgumentError rules. (L2-06) The guarantee: GeometricShapeFitter
+// with the default ShapeFitTuning judges every path in the 4.3 range a
+// rectangle within 1 pt — short side 48–2400 pt × aspect 1:1–4:1 (both
+// ways) × pointsPerSide 4–48, at viewScale 1 and 0.25–4 (the caller's rule
+// shortestSide × v ≥ 48). LIBRARY-F2: a commit that changes the
+// ShapeFitTuning defaults runs this file.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/testing.dart';
 import 'package:material_ui/material_ui.dart' show Offset, Rect;
+import 'package:note_core/note_core.dart' as core;
 
 /// Whether [p] lies on the outline of [r].
 bool _onBoundary(Offset p, Rect r) {
@@ -100,6 +103,39 @@ void main() {
       SyntheticShapes.rectanglePath(const Rect.fromLTWH(0, 0, 2400, 600)),
       hasLength(97),
     );
+  });
+
+  test('GeometricShapeFitter judges every path in range a rectangle within '
+      '1 pt (4.3 guarantee — L2-06)', () {
+    const fitter = GeometricShapeFitter();
+    var cases = 0;
+    for (final short in <double>[48, 64, 96, 160, 240, 600, 2400]) {
+      for (final aspect in <double>[1, 1.5, 2, 3, 4]) {
+        for (final tall in [false, true]) {
+          if (tall && aspect == 1) continue;
+          final w = tall ? short : short * aspect;
+          final h = tall ? short * aspect : short;
+          final r = Rect.fromLTWH(100, 120, w, h);
+          for (final n in [4, 5, 8, 24, 48]) {
+            final path = SyntheticShapes.rectanglePath(r, pointsPerSide: n);
+            for (final v in <double>[1, 0.25, 0.5, 2, 4]) {
+              if (short * v < 48) continue; // the caller enlarges the rect
+              final fit = fitter.fit(path, viewScale: v);
+              final where = '$r, n=$n, viewScale $v';
+              expect(fit?.kind, core.ShapeKind.rectangle, reason: where);
+              final got = fit!.geometry.frame;
+              expect(got.rotation, 0, reason: where);
+              expect(got.rect.left, closeTo(r.left, 1), reason: where);
+              expect(got.rect.top, closeTo(r.top, 1), reason: where);
+              expect(got.rect.right, closeTo(r.right, 1), reason: where);
+              expect(got.rect.bottom, closeTo(r.bottom, 1), reason: where);
+              cases++;
+            }
+          }
+        }
+      }
+    }
+    expect(cases, greaterThan(800));
   });
 
   test('out of range → ArgumentError', () {

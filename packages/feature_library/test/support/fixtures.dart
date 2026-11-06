@@ -2,6 +2,7 @@
 // the CORE API (FakeLibraryBackend.seed*), so the same fixture works on the
 // fake store and on real CORE (L21).
 import 'package:note_core/note_core.dart';
+import 'package:note_core/testing.dart' show PageObjectFixtures;
 
 import 'fake_library_backend.dart';
 
@@ -73,4 +74,202 @@ Future<SampleLibrary> seedSampleLibrary(
     nested: nested,
     deepNote: deepNote,
   );
+}
+
+/// A PDF asset id ('<64 hex>') for [seedContentHits].
+const String kContentPdfAsset =
+    'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00';
+
+/// What [seedContentHits] created (ids and the rects it wrote, note page pt).
+final class ContentHitsSample {
+  ContentHitsSample({
+    required this.work,
+    required this.math,
+    required this.meeting,
+    required this.calculus,
+    required this.report,
+    required this.meetingPages,
+    required this.calculusPages,
+    required this.reportPage,
+  });
+
+  /// '업무' and '수학' at home.
+  final Folder work;
+  final Folder math;
+
+  /// '회의록 2026-11' in '업무': page 1 text box '회의 안건: 예산' ([agendaRect]),
+  /// page 2 handwriting — '지난주 회의록을 정리' ([inkLine1]) and '다음 할 일'
+  /// ([inkLine2]).
+  final Note meeting;
+
+  /// '미분 방정식' in '수학': page 1 text box '미분 회의 메모' ([memoRect]),
+  /// page 2 math `\frac{dy}{dx} = ky` ([mathRect]).
+  final Note calculus;
+
+  /// '분기 보고' at home: one page showing PDF page 0 of [kContentPdfAsset],
+  /// whose unit is '분기 회의 자료 정리' (no boxes).
+  final Note report;
+
+  final List<PageId> meetingPages;
+  final List<PageId> calculusPages;
+  final PageId reportPage;
+
+  static const PageRect agendaRect = PageRect(100, 300, 400, 340);
+  static const PageRect memoRect = PageRect(80, 120, 360, 160);
+  static const PageRect mathRect = PageRect(100, 600, 260, 650);
+  static const PageRect inkLine1 = PageRect(40, 100, 420, 140);
+  static const PageRect inkLine2 = PageRect(40, 160, 300, 200);
+}
+
+/// 05-library 6.1.7: three notes in two folders with every content source —
+/// two text boxes (session AddObjects), one math object, one handwriting page
+/// (store.handwriting.put, 2 lines — seeding only; product code uses update)
+/// and one pdf unit (store.search.replaceUnits on the asset a page shows).
+/// Everything goes through the public CORE API, so it works on real CORE
+/// (L2-I2). '회의' finds all four notes' sources except the math.
+Future<ContentHitsSample> seedContentHits(FakeLibraryBackend backend) async {
+  final store = backend.store;
+  final work = await backend.seedFolder('업무');
+  final math = await backend.seedFolder('수학');
+  final meeting = await backend.seedNote(
+    '회의록 2026-11',
+    folderId: work.id,
+    pages: const [PageDraft.blankA4, PageDraft.blankA4],
+  );
+  final calculus = await backend.seedNote(
+    '미분 방정식',
+    folderId: math.id,
+    pages: const [PageDraft.blankA4, PageDraft.blankA4],
+  );
+  final report = await backend.seedNote(
+    '분기 보고',
+    pages: const [
+      PageDraft(
+        size: PageSize(595, 842),
+        background: PdfBackground(assetId: kContentPdfAsset, pdfPageIndex: 0),
+      ),
+    ],
+  );
+  Future<List<PageId>> pagesOf(Note note) async => [
+    for (final p in await store.content.pagesOf(note.id)) p.id,
+  ];
+  final meetingPages = await pagesOf(meeting);
+  final calculusPages = await pagesOf(calculus);
+  final reportPage = (await pagesOf(report)).single;
+
+  Future<void> addObjects(NoteId noteId, PageId pageId, PageObject o) async {
+    final session = await store.openSession(noteId);
+    await session.openPage(pageId);
+    await session.execute(AddObjects(pageId: pageId, objects: [o])).persisted;
+    await session.close();
+  }
+
+  await addObjects(
+    meeting.id,
+    meetingPages[0],
+    PageObjectFixtures.textBox(
+      pageId: meetingPages[0],
+      text: '회의 안건: 예산',
+      rect: ContentHitsSample.agendaRect,
+    ),
+  );
+  await addObjects(
+    calculus.id,
+    calculusPages[0],
+    PageObjectFixtures.textBox(
+      pageId: calculusPages[0],
+      text: '미분 회의 메모',
+      rect: ContentHitsSample.memoRect,
+    ),
+  );
+  await addObjects(
+    calculus.id,
+    calculusPages[1],
+    PageObjectFixtures.math(
+      pageId: calculusPages[1],
+      latex: r'\frac{dy}{dx} = ky',
+      rect: ContentHitsSample.mathRect,
+    ),
+  );
+  await store.handwriting.put(
+    HandwritingText(
+      noteId: meeting.id,
+      pageId: meetingPages[1],
+      engineId: 'fake/1:ko',
+      sourceRev: '0000000000000000',
+      lines: const [
+        HandwritingLine(
+          text: '지난주 회의록을 정리',
+          rect: ContentHitsSample.inkLine1,
+          strokeIds: ['seed-ink-1'],
+        ),
+        HandwritingLine(
+          text: '다음 할 일',
+          rect: ContentHitsSample.inkLine2,
+          strokeIds: ['seed-ink-2'],
+        ),
+      ],
+      createdAt: backend.clock.clock.now().millisecondsSinceEpoch,
+    ),
+  );
+  await store.search.replaceUnits(
+    SearchSource.pdf,
+    '$kContentPdfAsset#0',
+    const [SearchUnitDraft(body: '분기 회의 자료 정리')],
+    sourceRev: '$kContentPdfAsset:1',
+  );
+  await store.flush();
+  return ContentHitsSample(
+    work: work,
+    math: math,
+    meeting: meeting,
+    calculus: calculus,
+    report: report,
+    meetingPages: meetingPages,
+    calculusPages: calculusPages,
+    reportPage: reportPage,
+  );
+}
+
+/// Where [seedTextBoxNote] puts each page's text box (note page pt).
+const PageRect kSeedTextBoxRect = PageRect(120, 480, 420, 520);
+
+/// (v2) A note titled [title] with one A4 page per entry of [texts]; page k
+/// holds one text box (session AddObjects — public CORE API) with texts[k] on
+/// [rect]. Returns the note and its page ids in page order.
+Future<(Note, List<PageId>)> seedTextBoxNote(
+  FakeLibraryBackend backend,
+  String title,
+  List<String> texts, {
+  FolderId? folderId,
+  PageRect rect = kSeedTextBoxRect,
+}) async {
+  final store = backend.store;
+  final note = await backend.seedNote(
+    title,
+    folderId: folderId,
+    pages: [for (final _ in texts) PageDraft.blankA4],
+  );
+  final pages = [for (final p in await store.content.pagesOf(note.id)) p.id];
+  final session = await store.openSession(note.id);
+  for (final (i, page) in pages.indexed) {
+    await session.openPage(page);
+    await session
+        .execute(
+          AddObjects(
+            pageId: page,
+            objects: [
+              PageObjectFixtures.textBox(
+                pageId: page,
+                text: texts[i],
+                rect: rect,
+              ),
+            ],
+          ),
+        )
+        .persisted;
+  }
+  await session.close();
+  await store.flush();
+  return (note, pages);
 }

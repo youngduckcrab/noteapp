@@ -5,12 +5,16 @@
 // needsFaults == false only — L21). A scenario only uses the harness, the
 // backend's wrappers / seed helpers and the screen, so the same body gives the
 // same result on both stores. Entries for the L21 list are added with the
-// tasks that build the screens they need (L10 … L18).
+// tasks that build the screens they need (L10 … L18). (v2, L2-04) The content
+// search scenario — a text box word → '노트 내용' → open at the page and box —
+// also runs on real CORE in the integration stage (L2-I2).
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_library/src/l10n/library_strings.dart';
+import 'package:feature_library/src/model/content_hits.dart';
 import 'package:feature_library/src/model/names.dart';
 import 'package:feature_library/src/model/new_note_spec.dart';
 import 'package:feature_library/src/settings/library_settings_keys.dart';
+import 'package:feature_library/src/ui/content/content_hits_view.dart';
 import 'package:feature_library/src/ui/content/folder_missing_view.dart';
 import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:feature_library/src/ui/dialogs/folder_picker_dialog.dart';
@@ -29,6 +33,7 @@ import 'package:note_core/note_core.dart'
         PageTemplate,
         PageTemplateKind,
         PaperColors,
+        SearchSource,
         TemplateBackground;
 
 import '../support/fixtures.dart';
@@ -89,6 +94,10 @@ final List<LibraryScenario> libraryScenarios = [
   LibraryScenario(
     'remote delete: the shown folder trashed / purged elsewhere → missing view',
     _remoteDeleteShowsMissing,
+  ),
+  LibraryScenario(
+    'content search: a text box word → 노트 내용 → opens at its page and box',
+    _textBoxSearchOpensAt,
   ),
 ];
 
@@ -486,4 +495,63 @@ Future<void> _remoteDeleteShowsMissing(
   expect(find.text(LibraryStrings.folderNotFound), findsOneWidget);
   expect(h.backend.calls, isEmpty);
   expect(h.log.entries, isEmpty);
+}
+
+/// (v2) 6.1.3–6.1.4 (B-10, L2-04): a word in a text box on page 2 of a note in
+/// a folder (title without the word) is one '노트 내용' hit — 텍스트 badge,
+/// '2쪽', the snippet with the word. The row opens the note AT that page and
+/// the box: onOpenNoteAt(note, page 2, the union of CORE's rects) once, no
+/// markOpened (S-5) and no other callback. The note header opens the note
+/// (onOpenNote). Only the screen and CORE answers — the same on real CORE.
+Future<void> _textBoxSearchOpensAt(
+  WidgetTester tester,
+  LibraryTestHarness h,
+) async {
+  final (note, pages) = await _real(tester, () async {
+    final folder = await h.backend.seedFolder('업무');
+    return seedTextBoxNote(h.backend, '주간 정리', const [
+      '첫 쪽 메모',
+      '예산 검토 안건 정리',
+    ], folderId: folder.id);
+  });
+  await h.pump(tester);
+  await tester.pumpAndSettle();
+
+  await _search(tester, '안건');
+  expect(find.text(LibraryStrings.searchContentGroup(1)), findsOneWidget);
+  expect(find.text(LibraryStrings.searchNoteGroup(1)), findsNothing);
+  final row = find.byType(ContentHitRow);
+  expect(row, findsOneWidget);
+  final hit = tester.widget<ContentHitRow>(row).hit;
+  expect(
+    (hit.noteId, hit.pageId, hit.source),
+    (note.id, pages[1], SearchSource.text),
+  );
+  expect(hit.snippet, contains('안건'));
+  expect(
+    find.descendant(of: row, matching: find.text(LibraryStrings.sourceText)),
+    findsOneWidget,
+  );
+  expect(
+    find.descendant(of: row, matching: find.text(LibraryStrings.pageLabel(2))),
+    findsOneWidget,
+  );
+
+  await _tap(tester, row);
+  final rect = focusRectOf(hit);
+  expect(rect, isNotNull);
+  expect(h.log.openNoteAt, [(note.id, pages[1], rect)]);
+  // The rect is the box (page pt) — CORE may make it larger, never smaller.
+  expect(rect!.left, lessThanOrEqualTo(kSeedTextBoxRect.left));
+  expect(rect.top, lessThanOrEqualTo(kSeedTextBoxRect.top));
+  expect(rect.right, greaterThanOrEqualTo(kSeedTextBoxRect.right));
+  expect(rect.bottom, greaterThanOrEqualTo(kSeedTextBoxRect.bottom));
+  expect(h.log.entries, hasLength(1));
+  expect(h.log.entries.single, startsWith('noteAt:${note.id}/${pages[1]} '));
+  expect(h.backend.calls, isEmpty); // no markOpened (S-5), no write
+
+  await _tap(tester, find.byType(ContentNoteHeader));
+  expect(h.log.entries.last, 'note:${note.id}');
+  expect(h.log.openNoteAt, hasLength(1));
+  expect(h.backend.calls, isEmpty);
 }

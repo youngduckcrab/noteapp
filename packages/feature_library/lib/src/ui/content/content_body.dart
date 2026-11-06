@@ -131,7 +131,9 @@ class _ContentListingState extends ConsumerState<ContentListing> {
     }
     _last = content;
     if (content.isEmpty) return EmptyState(section: section);
-    if (section is SearchSection) return SearchResultsView(content: content);
+    if (section is SearchSection) {
+      return SearchResultsView(content: content, refreshing: async.isLoading);
+    }
     final mode = ref.watch(libraryPrefsProvider.select((p) => p.viewMode));
     if (mode == LibraryViewMode.list) return ItemList(content: content);
     final selecting = ref.watch(

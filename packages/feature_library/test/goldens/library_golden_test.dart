@@ -1,6 +1,8 @@
 // Goldens of the library screen (05-library 8 L19, 9.1; contract 7.4.8):
 // 13" landscape grid, 13" portrait grid (drawer closed), 13" landscape list,
-// the trash. Test font (Ahem boxes) — layout only. Dates come from the fixed
+// the trash, (v2, L2-04) 13" landscape search results with the '노트 내용'
+// group (source badges, page labels, snippets, '더 보기'). Test font (Ahem
+// boxes) — layout only. Dates come from the fixed
 // TestClock (seedSampleLibrary leaves it at 2026-11-04 14:05); covers are the
 // placeholder (no renderer). Generated in the Linux container, compared in CI
 // (ubuntu); flutter_test_config.dart in this directory allows ≤ 0.5 %.
@@ -12,7 +14,9 @@ library;
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:feature_library/src/state/providers.dart';
+import 'package:feature_library/src/ui/content/content_hits_view.dart';
 import 'package:feature_library/src/ui/content/item_list.dart';
+import 'package:feature_library/src/ui/top_bar/library_search_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -103,5 +107,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(LibraryStrings.trashNotice), findsOneWidget);
     await expectLater(screen(), matchesGoldenFile('library_trash.png'));
+  });
+
+  testWidgets('13" landscape search with the 노트 내용 group', (tester) async {
+    await real(tester, () async {
+      await seedContentHits(backend);
+      await seedTextBoxNote(backend, '주간 회의', const [
+        '회의 1',
+        '회의 2',
+        '회의 3',
+        '회의 4',
+      ]);
+    });
+    await pumpAt(tester, TestSizes.ipad13Landscape);
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(LibrarySearchField),
+        matching: find.byType(TextField),
+      ),
+      '회의',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.byType(SourceBadge), findsWidgets);
+    expect(find.byType(ContentMoreRow), findsOneWidget);
+    await expectLater(
+      screen(),
+      matchesGoldenFile('library_search_content.png'),
+    );
   });
 }

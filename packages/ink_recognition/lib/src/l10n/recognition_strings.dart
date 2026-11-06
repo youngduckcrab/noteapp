@@ -1,0 +1,194 @@
+// lib/src/l10n/recognition_strings.dart — (internal) every Korean string of
+// ink_recognition (m5-7/05-library 6.21, 6.11.4, 4.4.4, 4.4.9). One place so
+// unit/strings_contract_test.dart can pin the contract sentence (7.4.2) and
+// the action labels.
+import '../model/failures.dart';
+
+abstract final class RecognitionStrings {
+  /// Contract m5-7/00-overview 7.4.2 — the web conversion sheet (fixed).
+  static const String webUnsupported =
+      '이 기기(웹)에서는 손글씨 인식을 쓸 수 없어요. 안드로이드 앱에서 쓸 수 있어요.';
+
+  /// Native without an engine (desktops, before a model platform exists).
+  static const String unsupported = '이 기기에서는 손글씨 인식을 쓸 수 없어요.';
+  static const String noInk = '변환할 손글씨가 없어요.';
+  static const String recognizing = '인식 중…';
+  static String lineProgress(int i, int n) => '$i/$n줄';
+
+  /// [language] = [languageName] of a tag.
+  static String modelNeeded(String language) =>
+      '$language 인식 모델을 받아야 해요(약 20MB).';
+  static const String korean = '한국어';
+  static const String english = '영어';
+  static String languageName(String tag) => tag == 'en' ? english : korean;
+
+  static const String cellularWarning =
+      '셀룰러 데이터로 받을 수 있어요(약 20MB). 한 번 더 누르면 받아요.';
+  static const String waitingForWifi = '와이파이에 연결되면 받아요.';
+  static const String downloadOnCellular = '지금 셀룰러로 받기';
+  static const String cellularConfirm = '셀룰러 데이터로 받아요(약 20MB). 한 번 더 누르면 받아요.';
+  static const String copyFailed = '복사하지 못했어요.';
+  static const String mathFixtureEntry = '수식 고정 자료 만들기';
+  static const String mathFixtureCopy = '고정 자료 복사';
+  static const String mathFixtureCopied =
+      '고정 자료를 복사했어요. functions/tool/fixtures/math/에 붙여 넣으세요.';
+  static const String recognizeFailed = '인식하지 못했어요. 다시 시도해 주세요.';
+  static const String readOnly = '읽기 전용 노트라 바꿀 수 없어요.';
+  static const String copied = '복사했어요.';
+  static String tooManyLines(int n) => '나머지 $n줄은 선택을 나눠 변환해 주세요.';
+  static const String manualOnly = '수식 인식 엔진이 연결되지 않아 LaTeX로 직접 입력해요.';
+
+  /// Unexpected exception inside an action (6.22).
+  static const String runFailed = '실행하지 못했어요.';
+
+  // G-3 consent card.
+  static const String consentTitle = '수식 인식에 외부 서비스를 써요';
+  static const String consentBody =
+      '고른 영역의 손글씨 획과 그 영역 이미지를 외부 수식 인식 서비스로 보내요. '
+      '노트의 다른 내용은 보내지 않아요. 설정 › 인식에서 언제든 끌 수 있어요.';
+  static const String consentAgree = '동의하고 쓰기';
+  static const String typeInstead = '직접 입력';
+
+  // Math engine answers (6.11.4).
+  static const String mathUnauthenticated = '로그인한 뒤에 수식 인식을 쓸 수 있어요.';
+  static const String mathPermissionDenied = '이 계정에서는 수식 인식을 쓸 수 없어요.';
+  static const String mathInvalidArgument = '이 필기는 수식으로 보낼 수 없어요.';
+  static const String mathQuotaExceeded = '오늘 쓸 수 있는 수식 인식 횟수를 다 썼어요.';
+  static const String mathOffline = '수식 인식 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.';
+  static const String mathFailed = '수식을 인식하지 못했어요. 다시 시도해 주세요.';
+
+  /// The sheet text of a math engine failure (6.11.4 table); null =
+  /// nothing to show (cancelled — a newer request follows; consent required
+  /// — the consent card shows instead).
+  static String? mathFailure(RecognitionFailure failure) => switch (failure) {
+    RecognizerCancelled() || RecognizerConsentRequired() => null,
+    RecognizerUnsupported() => manualOnly,
+    RecognizerOffline() => mathOffline,
+    RecognizerQuotaExceeded() => mathQuotaExceeded,
+    RecognizerEngineError(code: 'unauthenticated') => mathUnauthenticated,
+    RecognizerEngineError(code: 'permission-denied') => mathPermissionDenied,
+    RecognizerEngineError(code: 'invalid-argument') => mathInvalidArgument,
+    RecognizerEngineError() || ModelNotReady() => mathFailed,
+  };
+
+  // Sheet buttons and fields (6.12, 6.15).
+  static const String cancel = '취소';
+  static const String apply = '적용';
+  static const String copyLatex = 'LaTeX 복사';
+  static const String latexField = 'LaTeX';
+  static const String mathPadTitle = '수식 입력';
+  static const String insert = '넣기';
+
+  /// recog.toMath's primary (6.15.3 — L2-17b).
+  static const String toMathPrimary = '수식으로 바꾸기';
+
+  // The conversion sheet (6.13 — L2-15).
+  static const String close = '닫기';
+
+  /// recog.toText's primary.
+  static const String toTextBox = '텍스트 상자로';
+
+  /// recog.copyText's primary / recog.toText's secondary.
+  static const String copy = '복사';
+  static const String conversionLanguage = '언어';
+  static String lineLabel(int n) => '$n줄';
+
+  /// More than PageObjectLimits.maxTextLength characters (6.13.4).
+  static const String textTooLong = '글이 너무 길어요. 10,000자까지 텍스트 상자로 바꿀 수 있어요.';
+
+  // Math pad handwriting area (6.14.1–6.14.4 — L2-17a).
+  static const String padUndo = '되돌리기';
+  static const String padEraser = '지우개';
+  static const String padClear = '모두 지우기';
+  static const String padPausePrompt = '멈추면 인식해요';
+  static const String engineSuggestion = '엔진 제안';
+
+  // Action labels (4.4.4).
+  static const String toText = '텍스트로 변환';
+  static const String copyText = '텍스트 복사';
+  static const String toMath = '수식으로 변환';
+  static const String editMath = '수식 편집';
+  static const String mathPad = '수식';
+
+  /// The developer overlay without an indexer (4.4.9).
+  static const String noIndexerLine = '손글씨 색인 없음 (이 기기에서 인식 불가)';
+
+  // Settings section '인식' (6.18).
+  static const String handwritingGroup = '손글씨 인식';
+  static const String mathGroup = '수식 인식';
+  static const String labGroup = '품질 실험';
+  static const String languageTitle = '인식 언어';
+
+  /// The language choices and the model rows: 한국어 · English (6.18 layout).
+  static String languageLabel(String tag) => tag == 'en' ? 'English' : korean;
+  static const String modelTitle = '인식 모델';
+  static const String wifiOnlyTitle = 'Wi-Fi에서만 모델 받기';
+
+  /// Under the Wi-Fi switch on iPad (the engine does not enforce it — 6.7.4).
+  static const String wifiOnlyAskFirst = '받기 전에 셀룰러 데이터 사용을 한 번 더 물어봐요.';
+  static const String autoIndexTitle = '검색용 자동 인식';
+  static const String mathEngineTitle = '엔진';
+  static const String mathEngineManual = '연결 안 됨 — LaTeX로 직접 입력해요';
+  static const String mathEngineServer = '서버 엔진';
+  static const String consentSwitch = '외부 서비스로 보내기 동의';
+
+  // Model rows (6.18 — also the lab, 6.20, and the conversion sheet card).
+  static const String modelReady = '준비됨';
+  static const String modelNotDownloaded = '받지 않음';
+  static const String modelDownloading = '받는 중…';
+  static const String modelUnsupported = '쓸 수 없음';
+
+  /// 6.22: a model download failed → '받지 못했어요 [다시]'.
+  static const String modelFailed = '받지 못했어요';
+  static const String download = '받기';
+  static const String deleteModel = '지우기';
+  static const String retry = '다시';
+
+  // Indexer status line (6.19) — '상태: ' + the phase text (not for off).
+  static const String statusPrefix = '상태: ';
+  static const String indexerOff = '이 기기에서는 자동 인식을 쓸 수 없어요';
+  static const String indexerDisabled = '꺼져 있어요';
+  static const String indexerWaitingModel = '인식 모델을 기다리는 중이에요';
+  static const String indexerWaitingWifi = ' · 와이파이 대기';
+  static String indexerIdle(int indexed) => '대기 중 · 인식한 페이지 $indexed';
+  static String indexerWaitingInput(int queued) =>
+      '필기가 멈추길 기다리는 중 · 남은 페이지 $queued';
+  static String indexerRecognizing(int queued) => '인식 중 · 남은 페이지 $queued';
+  static const String indexerPaused = '앱이 뒤에 있어 멈췄어요';
+
+  // The A-4 lab (6.20 — L2-19). Settings entry and the lab sheet.
+  static const String labEntry = '인식 실험 열기';
+  static const String labTitle = '인식 실험';
+  static const String labModelsNeeded = '한국어·English 모델이 모두 준비되면 인식할 수 있어요.';
+  static const String labWritePrompt = '위 문장을 아래 칸에 손으로 써 주세요.';
+  static const String labRecognize = '인식';
+  static const String labPrevious = '이전';
+  static const String labNext = '다음';
+  static const String labCopyJson = '결과 JSON 복사';
+  static const String labCopied = '결과를 복사했어요. 대화에 붙여 넣어 주세요.';
+  static const String labSummary = '요약';
+  static const String labNotYet = '아직 인식하지 않았어요';
+  static const String labLatency = '지연';
+  static String labProgress(int i, int n, String group) => '$i/$n · $group';
+  static String labGroupName(String group) => switch (group) {
+    'korean' => korean,
+    'mixed' => '혼용',
+    _ => english,
+  };
+
+  /// The four result columns: A = ko, en, B = strategy B (ko + en), and A
+  /// again with the points in page coordinates (6.4 S-14).
+  static String labModeName(String mode) => switch (mode) {
+    'ko' => 'A (ko)',
+    'en' => 'en',
+    'mixed' => 'B (ko+en)',
+    _ => 'A · 페이지 좌표',
+  };
+  static String labGroupLine(String group, int done, int total) =>
+      '${labGroupName(group)} · $done/$total문장';
+  static String labCer(String mode, double? rate) =>
+      '${labModeName(mode)} ${rate == null ? '—' : '${(rate * 100).toStringAsFixed(1)}%'}';
+  static String labMs(int ms) => '$ms ms';
+  static String labLatencyLine(String mode, int median, int max) =>
+      '${labModeName(mode)} 중앙값 $median ms · 최댓값 $max ms';
+}

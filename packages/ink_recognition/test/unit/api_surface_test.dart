@@ -5,8 +5,10 @@
 // Imports only the two entry points (plus the CORE / INK types they use) and
 // uses every exported name in the call shapes of the contract block — a
 // renamed, re-typed or missing name breaks the build. The test also checks the
-// R2-B6 behaviour the contract row 7.6.2 fixes (defaults, NoShapeFitter
-// override, empty action lists, idle indexer, placeholder section). Names
+// R2-B6 behaviour the contract row 7.6.2 fixes (defaults, placeholder
+// section) — (L2-07) recognitionOverrides() now gives its 3 overrides with
+// GeometricShapeFitter; (L2-10a) the indexer runs; (L2-12) the action lists
+// hold the 4.4.4 actions. Names
 // beyond the list are INFRA's R14. VM only: it reads the entry point files.
 @TestOn('vm')
 library;
@@ -374,7 +376,7 @@ void main() {
         tuning: ShapeFitTuning(minDiagonalLogicalPx: 30),
       );
       expect(tuned.tuning.minDiagonalLogicalPx, 30);
-      // R2-B6: never fits (L2-06 adds the classifier).
+      // (L2-06) The classifier is in: a closed square → a rectangle.
       final ink.InkShapeFit? fit = port.fit(const [
         Offset.zero,
         Offset(100, 0),
@@ -382,7 +384,8 @@ void main() {
         Offset(0, 100),
         Offset.zero,
       ], viewScale: 1);
-      expect(fit, isNull);
+      expect(fit?.kind, core.ShapeKind.rectangle);
+      expect(fit!.score, inInclusiveRange(0, 1));
     });
 
     test('ShapeFitTuning defaults (05-library 4.4.5), ==, copyWith', () {
@@ -485,28 +488,28 @@ void main() {
       expect(full.idTokenProvider, same(token));
     });
 
-    test('recognitionOverrides() — R2-B6: only the shape fitter, '
-        'as NoShapeFitter (contract 7.6.2)', () {
+    test('recognitionOverrides() — (L2-07) exactly 3 overrides with or '
+        'without config; the defaults stay the provider values (4.4.8)', () {
       final List<Override> overrides = recognitionOverrides();
       final List<Override> withConfig = recognitionOverrides(
         config: RecognitionConfig(mathEndpoint: Uri.parse('http://x/y')),
       );
-      expect(overrides, hasLength(1));
-      expect(withConfig, hasLength(1));
+      expect(overrides, hasLength(3));
+      expect(withConfig, hasLength(3));
       final container = ProviderContainer.test(overrides: overrides);
       expect(
         container.read(ink.inkShapeFitterProvider),
-        isA<ink.NoShapeFitter>(),
+        isA<GeometricShapeFitter>(),
       );
-      expect(
-        container.read(handwritingRecognizerProvider),
-        isA<UnsupportedHandwritingRecognizer>(),
-      );
+      // (L2-08) the VM is Android in tests → the ML Kit adapter (6.7.1);
+      // nothing reaches the plugin before a call (3.4).
+      final engine = container.read(handwritingRecognizerProvider);
+      expect(engine.engineId, 'mlkit-digital-ink/19.0.0');
+      expect(engine.isAvailable, isTrue);
       expect(
         container.read(mathRecognizerProvider),
         isA<ManualOnlyMathRecognizer>(),
       );
-      expect(container.read(handwritingIndexerProvider), isNull);
     });
   });
 
@@ -587,17 +590,21 @@ void main() {
       expect(bare.isVisible, isNull);
     });
 
-    test('R2-B6: both action lists are empty', () {
+    test('(L2-12) the action lists — 4.4.4 ids in order '
+        '(unit/recognition_actions_test has the rest)', () {
       final List<RecognitionAction> selection = recognitionSelectionActions();
       final List<RecognitionAction> insert = recognitionInsertActions();
-      expect(selection, isEmpty);
-      expect(insert, isEmpty);
+      expect(
+        [for (final a in selection) a.id],
+        ['recog.toText', 'recog.copyText', 'recog.toMath', 'recog.editMath'],
+      );
+      expect([for (final a in insert) a.id], ['recog.mathPad']);
     });
   });
 
   group('background indexing', () {
     test('HandwritingIndexer(store:, recognizer:, enabled:, foreground:) — '
-        'R2-B6: start() does nothing, dispose() is idempotent', () async {
+        '(L2-10a) start() runs it, dispose() is idempotent', () async {
       final store = core_testing.createFakeNoteStore();
       addTearDown(store.close);
       final enabled = ValueNotifier<bool>(true);
@@ -625,7 +632,9 @@ void main() {
         ..start()
         ..start();
       await pumpEventQueue();
-      expect(indexer.status.value.phase, HandwritingIndexerPhase.off);
+      // recog.language 'ko' read, the fake model ready, nothing queued.
+      expect(indexer.status.value.phase, HandwritingIndexerPhase.idle);
+      expect(indexer.status.value.languageTag, 'ko');
       expect(recognizer.calls, isEmpty);
 
       final Future<void> first = indexer.dispose();
@@ -633,7 +642,7 @@ void main() {
       await indexer.dispose();
       indexer.start(); // after dispose: still nothing
       expect(indexer.status.value.phase, HandwritingIndexerPhase.off);
-      await withoutForeground.dispose();
+      await withoutForeground.dispose(); // never started: nothing to close
       expect(recognizer.disposed, isFalse); // the indexer never closes it
     });
 
@@ -758,7 +767,9 @@ void main() {
   });
 
   testWidgets('RecognitionSettingsSection is a const ConsumerWidget '
-      '(R2-B6: an empty Column)', (tester) async {
+      '(a Column body — rows: widget/settings_section_test.dart)', (
+    tester,
+  ) async {
     const section = RecognitionSettingsSection(key: ValueKey('recog'));
     expect(section, isA<ConsumerWidget>());
     expect(const RecognitionSettingsSection().key, isNull);
@@ -772,9 +783,9 @@ void main() {
     final found = find.byKey(const ValueKey('recog'));
     expect(found, findsOneWidget);
     final column = tester.widget<Column>(
-      find.descendant(of: found, matching: find.byType(Column)),
+      find.descendant(of: found, matching: find.byType(Column)).first,
     );
-    expect(column.children, isEmpty);
+    expect(column.mainAxisSize, MainAxisSize.min);
     expect(
       find.descendant(of: found, matching: find.byType(Scaffold)),
       findsNothing,

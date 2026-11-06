@@ -1,0 +1,9 @@
+{
+ "name": "empty",
+ "description": "no strokes → no lines",
+ "gapFactor": 1.2,
+ "maxLineDiff": 0,
+ "minAccuracy": 1.0,
+ "lines": [],
+ "strokes": []
+}
