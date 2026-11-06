@@ -36,6 +36,9 @@ final class FakeRecorderEngine implements RecorderEngine {
   @override
   String? developerNote;
 
+  @override
+  String? encoderNote;
+
   /// null → true unless the MIME is WebM.
   bool? crossPlatformPlayable;
   bool backgroundCapable;

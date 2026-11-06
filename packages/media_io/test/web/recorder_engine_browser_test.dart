@@ -16,9 +16,12 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:media_io/media_io.dart' show mediaDevOverlayLinesProvider;
 import 'package:media_io/src/config.dart';
 import 'package:media_io/src/errors.dart';
+import 'package:media_io/src/init.dart';
 import 'package:media_io/src/platform/page_events_browser.dart';
 import 'package:media_io/src/platform/web_locks.dart';
 import 'package:media_io/src/platform/web_locks_browser.dart';
@@ -27,6 +30,7 @@ import 'package:media_io/src/record/recorder_engine.dart';
 import 'package:media_io/src/record/recorder_engine_browser.dart';
 import 'package:media_io/src/record/recorder_engine_factory.dart'
     as engine_factory;
+import 'package:media_io/src/record/recorder_service.dart';
 import 'package:media_io/src/record/web_mime.dart';
 import 'package:media_io/src/tuning.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -538,5 +542,27 @@ void main() {
         again!.release();
       },
     );
+  });
+
+  group('mediaIoOverrides() on the web (T37)', () {
+    test('the browser engine, real Web Locks, the 6.14 web lines', () async {
+      final container = ProviderContainer(
+        overrides: mediaIoOverrides(config: _config),
+      );
+      addTearDown(container.dispose);
+      final recorder = container.read(
+        core.audioRecorderServiceProvider,
+      ) as MediaRecorderService;
+      expect(recorder.engine, isA<BrowserRecorderEngine>());
+      expect(recorder.devWriterState.locks, 'free');
+      expect(recorder.engine.draftMimeType, 'audio/webm;codecs=opus');
+      final lines = container.read(mediaDevOverlayLinesProvider).value;
+      expect(lines, contains('enc: mp4a=no mp4=yes webm/opus=yes'));
+      expect(
+        lines.where((l) => l.startsWith('web: ')).single,
+        startsWith('web: wakeLock=none watchdog=0 hidden-pauses=0'),
+      );
+      expect(lines.last, 'play: idle');
+    });
   });
 }

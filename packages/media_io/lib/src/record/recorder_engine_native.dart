@@ -111,6 +111,15 @@ final class NativeRecorderEngine implements RecorderEngine {
   @override
   String get draftMimeType => nativeRecordingMimeType;
 
+  /// (T37) AAC encoder support from the last checkSupport; null before.
+  bool? _aacLc;
+
+  @override
+  String? get encoderNote => switch (_aacLc) {
+    null => null,
+    final yes => 'aacLc=${yes ? 'yes' : 'no'}',
+  };
+
   @override
   String? get developerNote {
     final notes = [
@@ -140,9 +149,8 @@ final class NativeRecorderEngine implements RecorderEngine {
     if (_disposed) return core.AudioSupport.unsupported;
     try {
       final r = _rec;
-      if (!await r.isEncoderSupported(rec.AudioEncoder.aacLc)) {
-        return core.AudioSupport.unsupported;
-      }
+      final aac = _aacLc = await r.isEncoderSupported(rec.AudioEncoder.aacLc);
+      if (!aac) return core.AudioSupport.unsupported;
       return await r.hasPermission(request: requestPermission)
           ? core.AudioSupport.supported
           : core.AudioSupport.permissionDenied;

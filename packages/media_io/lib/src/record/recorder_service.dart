@@ -36,6 +36,7 @@ import 'draft_writer.dart';
 import 'recorder_engine.dart';
 import 'recording_clock.dart';
 import 'recording_output.dart';
+import 'recover_attempts.dart';
 import 'recovery.dart';
 
 final class MediaRecorderService implements core.AudioRecorderService {
@@ -137,6 +138,41 @@ final class MediaRecorderService implements core.AudioRecorderService {
     _session = null;
     _stopping = null;
     _emit(core.RecorderStatus(error: error, interrupted: interrupted));
+  }
+
+  // ---- developer overlay (6.14 — T37) --------------------------------------------------------
+
+  /// The open recording's writer backlog and unsaved bytes, and its Web Lock: 'held', 'free'
+  /// (none taken yet / let go) or 'none' (no Web Locks here — the time rule only).
+  ({int backlogBytes, int unsavedBytes, String locks}) get devWriterState {
+    final s = _session;
+    final writer = s?.writer;
+    return (
+      backlogBytes: writer?.queuedBytes ?? 0,
+      unsavedBytes: writer?.unsavedBytes ?? 0,
+      locks: !_locks.available ? 'none' : (s?.lock != null ? 'held' : 'free'),
+    );
+  }
+
+  /// Every draft in the store (count, chunks, bytes) and how many are out of automatic recovery
+  /// (media.recoverAttempts ≥ recoverMaxAttempts — 6.10.3). Reads the store (throws without one).
+  Future<({int count, int chunks, int bytes, int stuck})>
+  draftsSummary() async {
+    final stores = _stores();
+    final drafts = await stores.drafts.listDrafts();
+    var attempts = const <String, int>{};
+    try {
+      attempts = await RecoverAttempts(stores.settings).read();
+    } on Object {
+      // a setting never blocks the overlay
+    }
+    var chunks = 0, bytes = 0, stuck = 0;
+    for (final d in drafts) {
+      chunks += d.chunkCount;
+      bytes += d.bytes;
+      if (RecoverAttempts.isStuck(attempts[d.draftId] ?? 0)) stuck++;
+    }
+    return (count: drafts.length, chunks: chunks, bytes: bytes, stuck: stuck);
   }
 
   // ---- support ----------------------------------------------------------------------------

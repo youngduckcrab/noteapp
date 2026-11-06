@@ -41,9 +41,9 @@ void main() {
     expect(FakeImagePickerPlatform.new, vmOnly());
   });
 
-  test('the barrel runs in the browser: R2-B4 bodies', () async {
-    await initializeMediaIo();
-    expect(mediaIoOverrides(), isEmpty);
+  test('the barrel runs in the browser: initializeMediaIo, the two overrides (T37)', () async {
+    await initializeMediaIo(); // the web MIME table is probed here (6.8.1)
+    expect(mediaIoOverrides(), hasLength(2));
     // (T35b) the web image sources are real (web/image_codec_browser_test.dart)
     expect(
       supportedImageSources(),

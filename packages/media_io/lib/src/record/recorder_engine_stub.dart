@@ -28,6 +28,9 @@ final class UnsupportedRecorderEngine implements RecorderEngine {
   String? get developerNote => null;
 
   @override
+  String? get encoderNote => null;
+
+  @override
   Future<core.AudioSupport> checkSupport({
     required bool requestPermission,
   }) async => core.AudioSupport.unsupported;

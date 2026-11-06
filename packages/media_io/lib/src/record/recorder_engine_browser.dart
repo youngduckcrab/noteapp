@@ -105,6 +105,9 @@ final class BrowserRecorderEngine implements RecorderEngine {
   /// The developer overlay's `enc:` part (6.14).
   String get encoderLine => mimeTable.encoderLine;
 
+  @override
+  String? get encoderNote => encoderLine;
+
   /// The open session (tests).
   @visibleForTesting
   WebRecorderSession? get session => _session;

@@ -36,8 +36,12 @@ abstract interface class RecorderEngine {
   Future<void> deleteOrphanFiles(Set<core.RecordingId> keep);
 
   /// (T33) What the engine adds to the developer overlay (6.14 — native: the config the device
-  /// applied, 'FGS failed: …'); null = nothing.
+  /// applied, 'FGS failed: …'; web: 'wakeLock=held watchdog=0 hidden-pauses=1'); null = nothing.
   String? get developerNote;
+
+  /// (T37) The developer overlay's `enc:` line body (6.14 — web: 'mp4a=no mp4=yes
+  /// webm/opus=yes', native: 'aacLc=yes' once checkSupport asked); null = unknown.
+  String? get encoderNote;
 
   Future<void> dispose();
 }
