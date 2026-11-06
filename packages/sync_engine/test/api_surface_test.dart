@@ -498,6 +498,21 @@ class _Private {}
       },
     );
 
+    test('(2nd round, 07-sync 4.2, CP-S7) AuthBackend.idToken and '
+        'AuthService.idToken({bool forceRefresh = false})', () async {
+      final AuthBackend port = FakeAuthBackend(
+        user: const AuthUser(uid: 'user-1'),
+      );
+      final Future<String?> Function({bool forceRefresh}) backend =
+          port.idToken;
+      final service = AuthService(null);
+      final Future<String?> Function({bool forceRefresh}) tokens =
+          service.idToken;
+      expect(await backend(), 'fake-id-token:user-1:1');
+      expect(await tokens(forceRefresh: true), isNull);
+      await service.dispose();
+    });
+
     test('contract types: syncBadgeOf, SyncRemoteAssetFetcher, '
         'SyncMergePolicy.decide, CoreSyncLocalStore (7.2.20, 7.3.3)', () {
       const core.SyncBadge Function(SyncStatus) badge = syncBadgeOf;

@@ -20,4 +20,9 @@ abstract interface class AuthBackend {
   Future<void> refreshSession();
 
   Future<void> signOut();
+
+  /// (2nd round, P-C — CP-S7) Firebase ID token of the signed-in user (null when signed
+  /// out). [forceRefresh] → new token.
+  /// Errors: SyncBackendException (network → network, revoked → unauthenticated).
+  Future<String?> idToken({bool forceRefresh = false});
 }
