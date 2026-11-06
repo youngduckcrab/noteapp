@@ -410,7 +410,7 @@
 | J14b | 완료 | `b0cefb5` | `app/test/settings/v1_copy_section_test.dart`(새, 19 — `v1CopyMimeType` 표, 다섯 상태: 사본 있음(웹·네이티브 이름)·사본 실패(quota·io·other·모르는 값)·사본 없음·아직 볼 수 없음(기록 0)·읽기 오류(기록 1), 확인 중 줄, 보일 때마다 `info`, 기본 api(CORE B2-α 선언) → '사본 없음', 내보내기 두 이름(4 MiB·4 MiB·1 B → 시트의 `BackupFile` 바이트·`info.fileName`·MIME → 내려받기)·[취소]·스트림 오류·떠나면 구독 끊김, 지우기 확인 → `delete` 1 → 다시 조회 · 취소 · 오류, 가로), `backup_export_test`(+1 — 기본 MIME `application/json`·준 MIME이 내려받기·공유까지), `settings_sections_test`(`app.v1Copy` 위치·제목·빌더), `settings_screen_test`(섹션 9개) |
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
 | J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
-| J17 | 완료 | (이 커밋) | `tool/test/web_budget_test.dart`(16 — 형식 3(4.3.3 모양·잘못된 파일 7가지·커밋된 `tool/web_budget.yaml` 값), 측정 2(gzip = 파일별 `dart:io` gzip 합·없는 보고 자산 → null·빌드/`main.dart.js`/`FontManifest.json` 없음·깨진 JSON), 보고 7(한도 안 · 넘음(크기·증가분·묶음) · 원본 글꼴 한도 · 금지 글꼴 · 빌드에 없는 글꼴 파일 · `measure`는 표시만 · 표 형식), 명령 4(`check` 0 + 요약 파일 · 넘으면 1 / `measure` 0 · `--budget` · 빌드·예산 없음 → 3 · 예산 없이 `measure`)), `workflows_test`(`ci.yml` 'Web budget' 단계 — 순서·명령·조건 없음, `ws` 호출 21개) |
+| J17 | 완료 | `95d88a8` | `tool/test/web_budget_test.dart`(16 — 형식 3(4.3.3 모양·잘못된 파일 7가지·커밋된 `tool/web_budget.yaml` 값), 측정 2(gzip = 파일별 `dart:io` gzip 합·없는 보고 자산 → null·빌드/`main.dart.js`/`FontManifest.json` 없음·깨진 JSON), 보고 7(한도 안 · 넘음(크기·증가분·묶음) · 원본 글꼴 한도 · 금지 글꼴 · 빌드에 없는 글꼴 파일 · `measure`는 표시만 · 표 형식), 명령 4(`check` 0 + 요약 파일 · 넘으면 1 / `measure` 0 · `--budget` · 빌드·예산 없음 → 3 · 예산 없이 `measure`)), `workflows_test`(`ci.yml` 'Web budget' 단계 — 순서·명령·조건 없음, `ws` 호출 21개) |
 | J18 | 남음 | | `tool/test/guides_test.dart` v2 |
 | J19 | 남음 | | `app_smoke_v2_test`·`feature_switch_test`(integration)·`app_smoke_v2_browser_test` |
 | J20 | 남음 | | `tool/test/lock_age_test.dart` |
@@ -696,7 +696,7 @@
 
 #### J17 — `ws web-budget` · `tool/web_budget.yaml` · CI 단계 (계획 8.2, 4.2·4.3.3·6.15)
 
-- 커밋: 이 커밋(작업 표의 해시는 다음 기록 커밋에서 채움).
+- 커밋: `95d88a8`.
 - `tool/src/web_budget.dart`: `WebBudget.parse/load`(4.3.3 형식 — 모든 한도는 `null` 가능 = 표시만), `measureWebBuild`(`main.dart.js` 원본·gzip, `assets/FontManifest.json`의 패밀리마다 파일 합, `report_assets`), `webBudgetReport`(`check`면 한도 대조, `measure`면 모두 'report'), Markdown 표 + 끝줄 `ws web-budget check: N violation(s)`. `ws web-budget measure|check [--build-dir] [--budget]`, `GITHUB_STEP_SUMMARY`가 있으면 '### Web budget (check)' + 표를 덧붙임.
 - `tool/web_budget.yaml`: 4.3.3 그대로(묶음별 `gzip_max: null` — 위 '변경 요청'의 총괄 결정 전까지 표시만).
 - `ci.yml`: 'Finalize web build' 다음, 배포 앞에 'Web budget' 단계(`ws web-budget check --build-dir app/build/web`, 조건 없음 — 넘으면 배포 전에 멈춤). J15의 잡 분리 때 웹 빌드 잡으로 함께 옮긴다.
@@ -818,6 +818,8 @@
 
 - (2차 동시 개발 세션 6) J11 `fe6100d`·J12 `5b71ea3`·J13 `f771299`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·pencil_bridge) 변경 0, `ws test --package noteapp` VM 526 통과(111초)·Chrome 14 통과·1 건너뜀(111초), V5(`--run-skipped -t integration`, VM) 1 통과(53초), `ws test --package pencil_bridge` 57 통과, `ws native-reqs` 위반 0, `dart test tool/test/native_reqs_test.dart tool/test/native_config_test.dart` 89 통과(`tool`은 바뀌지 않음).
 
+- (2차 동시 개발 세션 7) J14 `9e10ac3`·J14b `b0cefb5`·J17 `95d88a8`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool) 변경 0, `ws test --package noteapp` VM 579 통과·1 건너뜀(75초)·Chrome 14 통과·1 건너뜀(104초), V5(`--run-skipped -t integration`, VM) 1 통과(45초), `dart test tool/test` 497 통과(155초). `pencil_bridge`는 바뀌지 않아 돌리지 않았다.
+
 #### 다음 세션 메모
 
 - (2차 동시 개발 세션 3 끝) J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
@@ -833,3 +835,7 @@
 - (2차 동시 개발 세션 6) J11·J12·J13 끝. 다음: J14(설정·앱 정보 v2 6.18 — `storage_section` 종류별 용량(`AssetStore.usage().bytesByType`)·검색 색인 줄 + [다시 만들기](확인 창·진행 중 비활성), `about_section` 기능 상태 줄 4가지(모두 켬·빌드에서 끔·개발자 메뉴로 끔·시작 실패 — `appFeaturesProvider` + `startupReportProvider`), `registerAppLicenses`(NoteSans OFL — 가짜 에셋 번들 있음/없음, `licenses_test`), `DiagnosticReport` v2(기능 상태·`skipped` 단계 — 원하면 Pencil 줄도))·J14b(`V1CopySection` 다섯 상태 + `BackupFile.mimeType`)·J15. J14의 앱 정보 섹션에는 J13의 'Apple Pencil' 줄이 이미 있다(빌드·렌더러·홈 화면 앱 아래) — 기능 줄은 그 근처에.
 - J12 Swift는 컴파일된 적이 없다(컨테이너에 Xcode 없음). 첫 `ios-compile.yml` 실행(U19·H6)에서 API 이름(`UIPencilInteraction.Tap`/`.Squeeze`·`hoverPose`·`UIHoverGestureRecognizer.zOffset`/`altitudeAngle`/`azimuthAngle(in:)`/`rollAngle`·`UIPencilPreferredAction` 7개·`showInkAttributes` 16.0)을 확인할 것 — 위 '계획과 다르게 한 점'(J12) 마지막 줄. 고칠 때는 `pencil_wire_contract_test`를 함께 맞춘다.
 - 위젯 시험에서 스트림 이벤트로 바뀐 `ValueListenable`을 보려면 `pump()`를 두 번(첫 번째는 예약된 프레임이 없어 마이크로태스크만 비운다 — J13 `about_section_test`의 `deliver`).
+- (2차 동시 개발 세션 7) J14·J14b·J17 끝. 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄), J15(`ws test --dart-define`·`ci.yml` 잡 분리 — **J0 ④ 실측이 선행**이라 잡별 시간 제한 값은 실측 뒤. `--dart-define`·`test_command_test` v2 부분과 잡 구조·시나리오 5개 시험은 실측 없이도 먼저 쓸 수 있음 — 제한 값만 비워 두고 진행 기록에 적을 것), J16(`functions.yml` 완성 — SYNC R2-B7b 골격·LIBRARY emulator 시험이 선행. 이 작업 트리의 `functions/` 상태를 먼저 볼 것), J18(안내서 v2 — J2·J3·J14b 끝나서 시작 가능: 01 Hosting만, 04 B-1·B-15·B-16, 05 '지우지 말고 알려 주세요'·'고정 키 등록은 07', 07 새 파일(`android.yml`의 `::error::`가 가리킴), 08 ↔ 계약 7.8 문장 대조), J19(앱 스모크 v2·`feature_switch_test` — J7~J9 끝, `useInkTestFonts` C23-07), J20(`ws lock-age`, P-C), J21(`android-emulator.yml`, P-C), J22(마감). 다음 순서 추천: J18 → J19 → J20 → J21 → J15(실측 없이 되는 부분) → J16 → J22.
+- J17의 묶음별 글꼴 한도(`tool/web_budget.yaml`의 `gzip_max: null` 두 개)는 위 '변경 요청'의 총괄 결정이 오면 넣고 `web_budget_test`의 '커밋된 파일' 사례를 같이 고친다. J15 잡 분리 때 'Web budget' 단계는 웹 빌드 잡의 'Finalize web build' 바로 다음에 둔다(`workflows_test`의 순서·명령·조건 사례가 본다).
+- J14의 `StorageSection`은 이제 `ConsumerStatefulWidget`이고 `assetStoreProvider`·`searchIndexProvider`를 읽는다(시험은 두 provider를 가짜로 override). 실제 CORE `usage().bytesByType`·`rebuild()`는 H2에서.
+- `LicensePage`를 `pumpAndSettle`로 기다리는 시험은 쓰지 말 것(J14 — 첫 실행이 5분 넘게 끝나지 않음). 100 ms씩 몇 번 `pump`.
