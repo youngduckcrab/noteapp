@@ -248,119 +248,115 @@ void main() {
     });
   });
 
-  group(
-    'InkEngineVectorizer.planPage (R2-B4: 1차 vectorize + image background)',
-    () {
-      const v = InkEngineVectorizer();
+  group('InkEngineVectorizer.planPage background part (R2-B4; T24 — page layers)', () {
+    const v = InkEngineVectorizer();
 
-      test('white blank page: empty plan; tinted paper: one paper fill', () {
-        expect(
-          v
-              .planPage(
-                _content(const core.BlankBackground()),
-                includeInk: true,
-                includeTemplate: true,
-              )
-              .isEmpty,
-          isTrue,
+    test('white blank page: empty plan; tinted paper: one paper fill', () {
+      expect(
+        v
+            .planPage(
+              _content(const core.BlankBackground()),
+              includeInk: true,
+              includeTemplate: true,
+            )
+            .isEmpty,
+        isTrue,
+      );
+      final tinted = v.planPage(
+        _content(
+          const core.BlankBackground(paperColorArgb: core.PaperColors.ivory),
+        ),
+        includeInk: true,
+        includeTemplate: true,
+      );
+      expect(tinted.items, [isA<PdfFillItem>()]);
+      expect(
+        (tinted.items.single as PdfFillItem).colorArgb,
+        core.PaperColors.ivory,
+      );
+    });
+
+    test(
+      'image background: paper, then its reference (kept without templates)',
+      () {
+        const background = core.ImageBackground(
+          assetId: _assetId,
+          fit: core.ImageFit.cover,
+          paperColorArgb: core.PaperColors.ivory,
         );
-        final tinted = v.planPage(
-          _content(
-            const core.BlankBackground(paperColorArgb: core.PaperColors.ivory),
-          ),
+        final plan = v.planPage(
+          _content(background),
           includeInk: true,
           includeTemplate: true,
         );
-        expect(tinted.items, [isA<PdfFillItem>()]);
+        expect(plan.items, hasLength(2));
+        expect(plan.items[0], isA<PdfFillItem>());
         expect(
-          (tinted.items.single as PdfFillItem).colorArgb,
-          core.PaperColors.ivory,
-        );
-      });
-
-      test(
-        'image background: paper, then its reference (kept without templates)',
-        () {
-          const background = core.ImageBackground(
+          plan.items[1],
+          const PdfAssetImageRef.background(
             assetId: _assetId,
             fit: core.ImageFit.cover,
-            paperColorArgb: core.PaperColors.ivory,
-          );
-          final plan = v.planPage(
-            _content(background),
-            includeInk: true,
-            includeTemplate: true,
-          );
-          expect(plan.items, hasLength(2));
-          expect(plan.items[0], isA<PdfFillItem>());
-          expect(
-            plan.items[1],
-            const PdfAssetImageRef.background(
-              assetId: _assetId,
-              fit: core.ImageFit.cover,
-              pageSize: ui.Size(300, 200),
-            ),
-          );
-          expect(plan.hasReferences, isTrue);
-          final noTemplate = v.planPage(
-            _content(background),
-            includeInk: false,
-            includeTemplate: false,
-          );
-          expect(noTemplate.items, [
-            const PdfAssetImageRef.background(
-              assetId: _assetId,
-              fit: core.ImageFit.cover,
-              pageSize: ui.Size(300, 200),
-            ),
-          ]);
-        },
+            pageSize: ui.Size(300, 200),
+          ),
+        );
+        expect(plan.hasReferences, isTrue);
+        final noTemplate = v.planPage(
+          _content(background),
+          includeInk: false,
+          includeTemplate: false,
+        );
+        expect(noTemplate.items, [
+          const PdfAssetImageRef.background(
+            assetId: _assetId,
+            fit: core.ImageFit.cover,
+            pageSize: ui.Size(300, 200),
+          ),
+        ]);
+      },
+    );
+
+    // (T24) The page objects' items come from INK's real export — integration/
+    // ink_vectorizer_v2_test (after INK T42) and unit/layers_from_ink_test.
+    test('PDF page: no background items', () {
+      final plan = v.planPage(
+        _content(const core.PdfBackground(assetId: _assetId, pdfPageIndex: 0)),
+        includeInk: true,
+        includeTemplate: true,
       );
+      expect(plan.isEmpty, isTrue);
+    });
 
-      test('PDF page: no background items; objects are left out until T24', () {
-        final plan = v.planPage(
-          _content(
-            const core.PdfBackground(assetId: _assetId, pdfPageIndex: 0),
-            objects: [core_testing.PageObjectFixtures.math(pageId: 'page-1')],
-          ),
-          includeInk: true,
-          includeTemplate: true,
-        );
-        expect(plan.isEmpty, isTrue);
-      });
-
-      test('template page: the 1차 underlay items, in order', () {
-        final page = _page(
-          const core.TemplateBackground(
-            template: core.PageTemplate(kind: core.PageTemplateKind.lined),
-          ),
-        );
-        final plan = v.planPage(
-          core.PageContent(page: page, strokes: const [], revision: 0),
-          includeInk: true,
-          includeTemplate: true,
-        );
-        final vectors = v.vectorize(
-          page,
-          const [],
-          includeInk: true,
-          includeTemplate: true,
-        );
-        expect(plan.items, hasLength(vectors.underlay.length));
-        expect(plan.items, everyElement(isA<PdfVectorItem>()));
-        expect(
-          v
-              .planPage(
-                core.PageContent(page: page, strokes: const [], revision: 0),
-                includeInk: true,
-                includeTemplate: false,
-              )
-              .isEmpty,
-          isTrue,
-        );
-      });
-    },
-  );
+    test('template page: the 1차 underlay items, in order', () {
+      final page = _page(
+        const core.TemplateBackground(
+          template: core.PageTemplate(kind: core.PageTemplateKind.lined),
+        ),
+      );
+      final plan = v.planPage(
+        core.PageContent(page: page, strokes: const [], revision: 0),
+        includeInk: true,
+        includeTemplate: true,
+      );
+      final vectors = v.vectorize(
+        page,
+        const [],
+        includeInk: true,
+        includeTemplate: true,
+      );
+      expect(plan.items, hasLength(vectors.underlay.length));
+      expect(plan.items, everyElement(isA<PdfVectorItem>()));
+      expect(
+        v
+            .planPage(
+              core.PageContent(page: page, strokes: const [], revision: 0),
+              includeInk: true,
+              includeTemplate: false,
+            )
+            .isEmpty,
+        isTrue,
+      );
+    });
+  });
 
   group('BoxInkVectorizer.planPage (4.3.1)', () {
     const box = BoxInkVectorizer();

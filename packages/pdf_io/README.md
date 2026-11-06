@@ -74,7 +74,7 @@ failures. Other callers reach the services through providers
 `overBudgetBytes`).
 
 `PdfIoConfig` (06-pdf 4.1): import limits (300 MB hard limit, 100 MB warning, 2,000
-pages), render budget (by default web 32 / 64 / 16 MiB = 112 MiB, native
+pages), render budget (by default web 24 / 64 / 16 MiB = 104 MiB — 2nd round, native
 64 / 160 / 32 MiB), cover thumbnail on / off, the user-password policy (store a
 decrypted copy, or refuse), the warm-up switch and the two web asset URLs below.
 
@@ -104,15 +104,21 @@ workspace root. Tags are declared in `dart_test.yaml`.
 |---|---|
 | `flutter test` | VM: `contract/`, `unit/`, `widget/`, `goldens/` (`golden`), `pdfium/` (`pdfium`, real PDFium). `test/web/` is excluded by `@TestOn('browser')`; `integration` and `perf` are skipped |
 | `dart run tool/prepare_web_test.dart && flutter test --platform chrome test/web` | Chrome: pdfrx wasm rendering and text, the compose Worker, output sink, file source and the pure logic shared with the VM. The preparation copies the pdfrx wasm files and the compose extension into `test/web/pdfium/` (git-ignored; from the pub cache, no network) and fails when `pdfium.wasm` is not the build the extension was checked against. `dart run tool/ws.dart test --platform chrome --package pdf_io` runs the preparation first |
-| `flutter test --run-skipped -t perf test/perf` | Performance (wall clock, run by hand): 500-page open + info ≤ 2 s, 500 pages × 200 strokes composed on the native backend ≤ 30 s, a 500-page scroll simulation within the 112 MiB web budget |
-| `flutter test --platform chrome --run-skipped -t perf test/web/perf_compose_500_test.dart` | Performance in Chrome: the same compose on the web backend ≤ 40 s (after the preparation above) |
+| `flutter test --run-skipped -t perf test/perf` | Performance (wall clock, run by hand): 500-page open + info ≤ 2 s, 500 pages × 200 strokes composed on the native backend ≤ 30 s, a 500-page scroll simulation within the 104 MiB web budget, (2nd round) a 50-page object note — four text boxes, a photo, a formula and 200 strokes per page — exported through the export service v2 ≤ 6 s with the export ledger within 16 MiB (`compose_objects_perf_test`) |
+| `dart run tool/ws.dart test --package pdf_io --platform chrome --run-skipped -t perf` | Performance in Chrome: the 500-page compose on the web backend ≤ 40 s and the 50-page object note ≤ 15 s (`perf_compose_objects_test`, with the INK test font) |
 | `dart run tool/ws.dart test --run-skipped -t integration` (or `flutter test --run-skipped -t integration` here) | Integration stage only, with the real CORE and INK: the CORE gateway on the real note store, INK thumbnails and the INK vectorizer, and the provider graph wired as the app wires it (import → INK cover → search → strokes in a CORE session → export with the real INK vectors on the native backend, template pages, import into an open note) |
+| `dart run tool/ws.dart test --package pdf_io --run-skipped -t integration` | (2nd round, integration step 4-a) the same on the VM plus V11 (`export_objects_v11_test` — a note with an image object, a shape, a text box, a formula, an image page, a dashed stroke and tape exported through the real wiring: the text box as text, image objects = image objects + image backgrounds + one formula raster, one path per INK dash piece, one tape cover), V10's PDF part (`search_indexer_core_test` — `pdfSearchIndexerProvider` indexes an imported PDF and `searchPages` rects equal the 1차 `searchNote` rects ±0.5 pt, also on a resized page), the INK vectorizer v2 and the real formula raster. The wiring is `test/support/real_wiring.dart` (shared with the 1차 `real_wiring_test`). Until the other areas' milestones (CORE T26/T27 page objects, T33a/T33b search index; INK T36 formula raster, T42 vector export v2) these tests skip themselves at run time or carry a `skip:` naming the milestone |
+| `dart run tool/ws.dart test --package pdf_io --platform chrome --run-skipped -t integration` | (2nd round, step 4-b) V11 in Chrome (`export_objects_v11_browser_test`) on CORE's real web store (`openWebTestNoteStore`) with the INK test font; content streams are read through the browser's `DecompressionStream` |
 
 Real PDFium on the VM: the `pdfium_dart` build hook downloads PDFium chromium/8125
 from GitHub (about 3.8 MB) and builds a small C library with gcc on the first run;
 later runs use `build/native_assets/linux/libpdfium.so` or the hooks cache. Set
 `PDFIUM_PATH` to use another `libpdfium.so`. Every `test/pdfium/` test calls
 `initPdfiumForTests()` (`test/support/pdfium_env.dart`) in `setUpAll`.
+
+V10's flow also runs in every VM run on CORE's fake store (`pdfium/search_indexer_fake_core_test`),
+and the content-stream probe V11 counts paths with is checked on the native backend
+(`pdfium/page_content_probe_test`).
 
 Conventions: test PDFs are built in the test with `PdfFixtureBuilder`; test code uses
 no network; widget tests use the iPad Pro 13" logical size (1032 × 1376); timing

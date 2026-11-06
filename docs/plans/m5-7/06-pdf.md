@@ -1,10 +1,10 @@
 # 06 · PDF — PDF · 미디어 입출력 (2차 라운드 M5·M6·M7)
 
-> 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 3회차. 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 3회차** (통합 계약 **v2.1** 기준 — 00-overview 7장 최신판, 7.9 변경 이력은 v2.1 C21-01~35가 마지막이고 v2.2가 없음을 수정 3회차(2026-11-05)에 다시 확인) — 수정 1회차에 총괄 검토 [00-review.md](00-review.md) 3.6 PDF-M1~M14와 권장 S-2~S-9·S-12·S-14, 대리 검토 [reviews/pdf.md](reviews/pdf.md)를 반영했고, 수정 2회차에 총괄 재검토 지적 5건(정지 머리 패치의 복사 근거와 CP-PDF-13, `media.bitRate` 키, R16 예외 문장, `stop()`의 바쁨 판정, 내보내기 장부 범위)을, 수정 3회차에 총괄 재검토 지적 1건(네이티브 내보내기가 워커 isolate로 넘기는 사본이 계약 7.4.5 '네이티브 16 MB'와 어긋남 → CP-PDF-14, 같은 CP에 M-3 밖 입력의 넘침)을 반영했다(13절에 항목별 반영 내역 — 2회차는 13.4, 3회차는 13.5). 초안은 v2.0 기준이었다
+> 상태: **승인 · 계약 v2.3** (동시 개발 착수 2026-11-06 — C22-09 정리: 4·5장 계약 블록 18개를 v2.3 원문과 다시 대조해 표시 줄을 'v2.3'·현재 행 번호로 고침, v2.2가 바꾼 V8 판정 문장(C22-04)을 6.1 E10·6.8.7·6.17·10 #4에 맞춤, 00-review '최종 승인'의 PDF-F1~F3은 진행 기록 '## 2차 › 동시 개발'에서 추적. v2.3(C23-01~07)은 시그니처 변경 없음 — PDF 몫은 C23-07 `useInkTestFonts`·`WidgetsBinding` 주의로 이미 9.2·T23·T25b·T29에 있음) · 이전 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 3회차. 그 전 상태: **수정 3회차** (통합 계약 **v2.1** 기준 — 00-overview 7장 최신판, 7.9 변경 이력은 v2.1 C21-01~35가 마지막이고 v2.2가 없음을 수정 3회차(2026-11-05)에 다시 확인) — 수정 1회차에 총괄 검토 [00-review.md](00-review.md) 3.6 PDF-M1~M14와 권장 S-2~S-9·S-12·S-14, 대리 검토 [reviews/pdf.md](reviews/pdf.md)를 반영했고, 수정 2회차에 총괄 재검토 지적 5건(정지 머리 패치의 복사 근거와 CP-PDF-13, `media.bitRate` 키, R16 예외 문장, `stop()`의 바쁨 판정, 내보내기 장부 범위)을, 수정 3회차에 총괄 재검토 지적 1건(네이티브 내보내기가 워커 isolate로 넘기는 사본이 계약 7.4.5 '네이티브 16 MB'와 어긋남 → CP-PDF-14, 같은 CP에 M-3 밖 입력의 넘침)을 반영했다(13절에 항목별 반영 내역 — 2회차는 13.4, 3회차는 13.5). 초안은 v2.0 기준이었다
 >
 > 작성 2026-11-05 · 수정 2026-11-05 · 영역 ID: **PDF** · 소유 경로: `packages/pdf_io/`, **`packages/media_io/`(새)** · 2차 작업 트리 `/home/user/wt2/pdf`(`area2/pdf`)
 > 기준 문서: [00-overview.md](00-overview.md) 7장 '통합 계약 v2.1'(변경 이력 7.9 C21-01~35 중 PDF 몫: C21-01·02·04·05·08·09·13·14·16·19·20·22·23·24·25·26·28·29·30·32·33 — 이 문서와 다르면 **계약이 우선**) · 1차 계약 v1.5(1차 [00-overview.md](../00-overview.md) 7장 — 1차 통합 반영, 시그니처는 v1.4와 같음) · 마스터 기획서 [PLAN.md](../../PLAN.md) F-13·F-14·F-15·F-16, 5.1·5.2, 7.6, 10장 M5~M7 · 조사 [01-hooks](research/01-hooks.md)·[02-audio-stylus](research/02-audio-stylus.md)·[03-recognition](research/03-recognition.md)·[04-native](research/04-native.md) · 판정 [judgement.md](drafts/judgement.md) · 함께 읽은 2차 계획서 [01-infra](01-infra.md)·[02-core](02-core.md)·[03-ink](03-ink.md)·[04-editor](04-editor.md)(그쪽 계약 변경 제안에 대한 PDF 의견은 12.2)
-> 바탕 코드(v2.1, CD2-01 — 읽기 전용): **1차 통합 HEAD** `/home/user/noteapp` 브랜치 `claude/note-app-planning-bk29xb` `18c5ae5`(PDF 통합 커밋 `9305235` 포함). `packages/pdf_io`는 1차 영역 끝 `98c193c`(`/home/user/wt/pdf`, T0~T19·T15b 완료, `progress/pdf.md` 보완 세션 1.1)와 `lib/`의 **주석 두 곳만** 다르고(`providers.dart`·`import/cover_thumbnail.dart` — 동작 변화 없음), 시험은 `test/integration/real_wiring_test.dart`(새, 409줄)·`test/unit/template_underlay_test.dart`(강화)가 더해졌다 [확인 — `git diff --stat 98c193c 18c5ae5 -- packages/pdf_io`, 그 뒤 HEAD `b6c9d0a`까지 `pdf_io` 변화 없음]. 통합 확인 수치(9305235 시점, `progress/pdf.md` '통합 단계'): VM 580개 통과 + 7 skip(`integration` 4파일·perf 3파일), Chrome 54개 통과 + 1 skip(웹 perf), `integration` 19개(core_gateway 6·ink_vectorizer 8·ink_thumbnail 2·real_wiring 3), perf 4개 · 이어받는 1차 계획서: `/home/user/wt/pdf/docs/plans/06-pdf.md`(v0.4 + 개발 중 반영 13.4, 이하 '1차 06-pdf'). 파일 경로·줄 번호 인용은 `lib/`가 같으므로 1차 작업 트리 기준 그대로 맞고, 기반 단계 시작 때 통합 HEAD에서 한 번 더 확인한다(개요 2.5). `media_io`는 새 패키지라 바탕 코드가 없다 — 조사 02의 시험 앱(`/tmp/claude-0/plan57-scratch/audio_probe/`)과 플러그인 소스(`~/.pub-cache/hosted/pub.dev/record_web-2.1.3/` 등)를 읽었다.
+> 바탕 코드(v2.1, CD2-01 — 읽기 전용): **1차 통합 HEAD** `/home/user/noteapp` 브랜치 `claude/note-app-planning-bk29xb` `18c5ae5`(PDF 통합 커밋 `9305235` 포함). (계약 v2.2 C22-08) 이 문서의 `18c5ae5`는 **`b6c9d0a`**로 읽는다 — 그 사이 8커밋은 `pdf_io`를 바꾸지 않았다. 2차 동시 개발 바탕은 계약 v2.3 커밋 `5843ec3`(R2-B1~R2-B6 포함, PDF R2-B4 `5636d4e`). `packages/pdf_io`는 1차 영역 끝 `98c193c`(`/home/user/wt/pdf`, T0~T19·T15b 완료, `progress/pdf.md` 보완 세션 1.1)와 `lib/`의 **주석 두 곳만** 다르고(`providers.dart`·`import/cover_thumbnail.dart` — 동작 변화 없음), 시험은 `test/integration/real_wiring_test.dart`(새, 409줄)·`test/unit/template_underlay_test.dart`(강화)가 더해졌다 [확인 — `git diff --stat 98c193c 18c5ae5 -- packages/pdf_io`, 그 뒤 HEAD `b6c9d0a`까지 `pdf_io` 변화 없음]. 통합 확인 수치(9305235 시점, `progress/pdf.md` '통합 단계'): VM 580개 통과 + 7 skip(`integration` 4파일·perf 3파일), Chrome 54개 통과 + 1 skip(웹 perf), `integration` 19개(core_gateway 6·ink_vectorizer 8·ink_thumbnail 2·real_wiring 3), perf 4개 · 이어받는 1차 계획서: `/home/user/wt/pdf/docs/plans/06-pdf.md`(v0.4 + 개발 중 반영 13.4, 이하 '1차 06-pdf'). 파일 경로·줄 번호 인용은 `lib/`가 같으므로 1차 작업 트리 기준 그대로 맞고, 기반 단계 시작 때 통합 HEAD에서 한 번 더 확인한다(개요 2.5). `media_io`는 새 패키지라 바탕 코드가 없다 — 조사 02의 시험 앱(`/tmp/claude-0/plan57-scratch/audio_probe/`)과 플러그인 소스(`~/.pub-cache/hosted/pub.dev/record_web-2.1.3/` 등)를 읽었다.
 > 확인 환경: Flutter 3.47.9 / Dart 3.13.7(`/opt/flutter`), 헤드리스 Chrome. 이 문서의 [확인] 실험은 `/tmp/claude-0/plan57-scratch/pdf57/`에서 돌렸다: `compose_probe.py`·`render_check.py`·`append_probe.py`(pypdfium2 5.13.0 = PDFium 153.0.7999.0 — CID 한글 글꼴 넣기·텍스트 추출·JPEG inline·BGRA 알파·같은 페이지 두 번 덧붙이기), `ws/`(계약 확인 워크스페이스 `designA/ws` 복사본에 `media_io` 직접 의존 7개를 더한 `flutter pub get --offline`). 수정 1회차의 실험은 `/tmp/claude-0/plan57-scratch/pdf57-rev/webm/`에서 돌렸다: `rec.mjs`·`rec2.mjs`(Playwright + 헤드리스 Chrome 가짜 마이크로 MediaRecorder WebM 6개 녹음 — 일시정지 포함), `ebml.py`(EBML 구조·블록 타임코드·Opus TOC 해석), `dur.mjs`(머리만 고친 WebM의 `<audio>` 길이·`decodeAudioData` 길이) — 6.1 E9~E11.
 
 **표기 규칙** (1차 06-pdf 표기 그대로 + 아래)
@@ -237,6 +237,7 @@ packages/media_io/
 │     │  ├─ foreground_service_native.dart  flutter_foreground_task (6.9.4, P-B)
 │     │  ├─ draft_writer.dart           조각 순서 쓰기·메모리 상한·실패 재시도·일시정지 중 빈 조각·거절 감지 (6.8.5)
 │     │  ├─ web_mime.dart               MIME 후보 표·고르기(순수) (6.8.1)
+│     │  ├─ web_recorder_session.dart   (T32b) 웹 녹음 한 번의 규칙(순수 — 조각·감시·가시성·마이크·Wake Lock·정지, 포트 `WebCapture` + `PageEvents`) (6.8.2~6.8.6)
 │     │  ├─ webm_timeline.dart          (v2.1) EBML 블록 타임라인 길이 계산 + 머리만 다시 쓰는 Duration 패치(순수) (6.8.7)
 │     │  ├─ mp4_duration.dart           (v2.1, S-7) MP4/조각 MP4 상자에서 타임라인 길이(순수) (6.6.4)
 │     │  ├─ buffer_ledger.dart          (v2.1) 정지·복구 경로의 전체 크기 버퍼 계측 훅 (6.6.5)
@@ -343,7 +344,7 @@ PDF가 **제공**하는 표면이다. 4.0은 개요 7.2.12 원문 그대로다. 
 
 ### 4.0 계약 7.2.12 (글자 그대로)
 
-`// 계약 v2.1 7.2.12 원문 (00-overview.md 1788–1812행)`
+`// 계약 v2.3 7.2.12 원문 (00-overview.md 1812–1834행)`
 
 ```dart
 // pdf_io — 규칙 / 추가
@@ -371,7 +372,7 @@ final pdfSearchIndexerProvider = Provider<PdfSearchIndexer>(/* started by INFRA 
 // (v2.1) Every raster and image decode ≤ 4 Mpx (16 MiB RGBA, 7.4.5) — dpi / target size lowered.
 ```
 
-`// 계약 v2.1 7.2.12 원문 (00-overview.md 1814–1852행)`
+`// 계약 v2.3 7.2.12 원문 (00-overview.md 1838–1874행)`
 
 ```dart
 // package:media_io/media_io.dart — web-safe entry
@@ -413,7 +414,7 @@ final mediaDevOverlayLinesProvider = Provider<ValueListenable<List<String>>>(/* 
 // testing.dart — 7.6 (v2.1: no MockPlatformInterfaceMixin; platform fakes are VM-only)
 ```
 
-`// 계약 v2.1 7.2.12 원문 (00-overview.md 1854행)`
+`// 계약 v2.3 7.2.12 원문 (00-overview.md 1877행)`
 
 media_io 내부 결정(계약 아님, PDF 계획서에서 상세): 네이티브는 `record`(AAC-LC/m4a, 모노, `manageAudioSession(false)`) + `audio_session`으로 세션을 혼자 관리, 안드로이드는 `flutter_foreground_task`의 microphone 서비스(`*_native.dart`), 재생은 `just_audio`(네이티브 `setFilePath` — 에셋을 캐시 파일로, 웹 `setUrl(blob:)`). 웹 녹음은 처음부터(P-A, D13) MediaRecorder 조각을 `RecordingDraftStore`에 1초마다 쓰는 자체 녹음기(`*_browser.dart`, 약 300줄 — `record_web`의 MediaRecorder 위임 코드를 참고, `isTypeSupported`로 MIME 선택 — Safari AAC/mp4 우선, Chrome opus/webm + WebM 길이 보정)다. `record`는 네이티브에서만 부른다(`record_web`은 빌드에 들어가지만 웹 녹음에 쓰지 않는다). 탭이 닫혀(또는 앱이 죽어) 남은 초안은 다음 실행 때 앱 시작 뒤 유휴 시간에 INFRA `MediaModule`이 `audioRecorderServiceProvider`의 `pendingDrafts()` → 각각 `recoverDraft()`로 **묻지 않고** 녹음으로 만든다(media_io가 제목을 '복구된 녹음'으로 넣음). 필요 없으면 사용자가 녹음 목록에서 지운다. (v2.1) 복구 대상 판단은 `pendingDrafts()`만 따른다(진행 중 세션·최근 갱신 초안 제외 — 7.2.4). media는 초안마다 복구 시도 횟수를 기기 설정 `media.recoverAttempts`에 **시도 전에** 기록하고, 끝나지 않은 시도가 2번 쌓인 초안은 자동 복구에서 빼 패널·개발자 표시에 '복구하지 못한 녹음이 있어요'로 알린다(큰 복구가 매 실행 탭을 죽이는 반복 방지). 영구 실패(노트가 영구 삭제됨 등)는 분류해 정리한다. 정지·복구는 같은 바이트를 전체 크기로 여러 벌 들지 않는다(M-4). 웹 정지 저장이 끝내 실패하면 마지막 수단으로 '파일로 내려받기'를 보인다(D19). 같은 출처의 다른 탭이 진행 중 녹음을 건드리지 못하게 녹음하는 탭은 가능하면 Web Locks(`noteapp-rec-<draftId>`)를 쥔다(없으면 시각 규칙만). 웹에서 `visibilitychange`로 가려지면 먼저 `pause()`하고 `interrupted = true`, 녹음 중에는 Screen Wake Lock을 건다.
 
@@ -824,7 +825,7 @@ abstract final class PdfObjectFixtures {
 
 #### 4.3.2 `package:media_io/testing.dart` (test/에서만)
 
-`// 계약 v2.1 7.6 원문 발췌 (00-overview.md 2240–2249행 — 7.6 시험 도우미 블록의 media_io 부분)`
+`// 계약 v2.3 7.6 원문 발췌 (00-overview.md 2264–2273행 — 7.6 시험 도우미 블록의 media_io 부분)`
 
 ```dart
 // package:media_io/testing.dart (test/ only) — (v2.1, CP-PDF-6 + PDF review M-1)
@@ -931,6 +932,8 @@ final class MediaFakePlatforms {
 | `webRequestDataWatchdog` | 2.5 × `webDraftChunkMs` | 조각이 안 오면 `requestData()`(Safari 대비 — 6.8.2) |
 | `webMemoryBacklogMaxBytes` | 8 × 1024 × 1024 | 7.4.5 '웹 녹음 메모리 조각 ≤ 8 MB' |
 | `webStopFlushTimeout` | 3 s | 정지 때 마지막 `dataavailable` 대기 |
+| `webWatchdogIgnoredStreak` | 3 | (T32b) 감시 타이머가 이만큼 연속 필요했으면 개발자 표시 'timeslice ignored'(6.8.2) |
+| `webChannelCount` / `webMicProcessing` | 1 / false | (T32b) `getUserMedia` 오디오 제약 — 모노, 에코 제거·잡음 억제·자동 이득 끔(6.8.1 — B-8에서 들어 보고 이 한 곳에서 바꿈) |
 | `micStreamKeepAlive` | 30 s | `checkSupport(requestPermission)`으로 얻은 스트림 유지 |
 | `micMuteLostMs` | 1,000 | (v2.1, 검토 S-6) 보이는 동안 트랙 `mute`가 이만큼 이어지면 마이크 끊김(6.8.3) |
 | `micUnmuteGraceMs` | 3,000 | (v2.1, 검토 S-6) 다시 보이게 된 뒤 `unmute`를 기다리는 시간 |
@@ -975,7 +978,7 @@ final class MediaFakePlatforms {
 
 #### 5.1.1 페이지 객체 (7.2.2 · 7.2.3) — 내보내기·색인이 읽는 것
 
-`// 계약 v2.1 7.2.2 원문 (00-overview.md 464–494행)`
+`// 계약 v2.3 7.2.2 원문 (00-overview.md 466–494행)`
 
 ```dart
 // lib/src/common/geometry.dart — (v2.0) added
@@ -1009,7 +1012,7 @@ final class ElementFrame {
 }
 ```
 
-`// 계약 v2.1 7.2.2 원문 (00-overview.md 617–711행)`
+`// 계약 v2.3 7.2.2 원문 (00-overview.md 619–711행)`
 
 ```dart
 // --- text boxes, images, math ---
@@ -1107,7 +1110,7 @@ final class UnknownObject extends PageObject {
 }
 ```
 
-`// 계약 v2.1 7.2.3 원문 (00-overview.md 721–739행)`
+`// 계약 v2.3 7.2.3 원문 (00-overview.md 723–739행)`
 
 ```dart
 final class PageContent {                                         // 추가
@@ -1134,7 +1137,7 @@ final class PageDraft {                                           // 추가
 
 #### 5.1.2 녹음 · 초안 · 오디오 포트 (7.2.4)
 
-`// 계약 v2.1 7.2.4 원문 (00-overview.md 798–851행)`
+`// 계약 v2.3 7.2.4 원문 (00-overview.md 800–851행)`
 
 ```dart
 // Recording (v1.4 CORE 4.2) — 추가: title
@@ -1191,7 +1194,7 @@ final class RecordingDraft {
 }
 ```
 
-`// 계약 v2.1 7.2.4 원문 (00-overview.md 853–939행)`
+`// 계약 v2.3 7.2.4 원문 (00-overview.md 855–939행)`
 
 ```dart
 // lib/src/media/audio_ports.dart — (v2.0) pure Dart ports. Implemented by media_io, consumed
@@ -1281,7 +1284,7 @@ final noteRecordingsProvider =
 //               FakeAudioPlayback (manual position, speed) — 1차 7.4.8 공용 가짜
 ```
 
-`// 계약 v2.1 7.2.4 원문 (00-overview.md 941–952행)`
+`// 계약 v2.3 7.2.4 원문 (00-overview.md 942–953행)`
 
 획 ↔ 녹음 연결 규칙(계약 문장, 조사 02 6·12.4 채택):
 
@@ -1307,7 +1310,7 @@ final noteRecordingsProvider =
 
 #### 5.1.3 검색 색인 작성기 (7.2.5)
 
-`// 계약 v2.1 7.2.5 원문 (00-overview.md 1028–1108행)`
+`// 계약 v2.3 7.2.5 원문 (00-overview.md 1030–1108행)`
 
 ```dart
 enum SearchSource { ink, pdf, text, math }
@@ -1401,7 +1404,7 @@ final class LibrarySearchResult {
 
 #### 5.1.4 이미지 가져오기 · 에셋 (7.2.6)
 
-`// 계약 v2.1 7.2.6 원문 (00-overview.md 1112–1146행)`
+`// 계약 v2.3 7.2.6 원문 (00-overview.md 1114–1142행)`
 
 ```dart
 enum ImageImportSource { photos, camera, files, clipboard }
@@ -1445,7 +1448,7 @@ abstract interface class NoteStore {
 
 | 시험 대상 | 개발 중 | 실제와 맞추는 시점 |
 |---|---|---|
-`// 계약 v2.1 7.6 원문 발췌 (00-overview.md 2171–2196행 — CORE 시험 도우미 중 PDF가 쓰는 것)`
+`// 계약 v2.3 7.6 원문 발췌 (00-overview.md 2195–2220행 — CORE 시험 도우미 중 PDF가 쓰는 것)`
 
 ```dart
 /// Controllable recorder: no real time, no plugin. stop() writes Asset(audio, 'audio/mp4',
@@ -1486,7 +1489,7 @@ Future<void> deleteWebTestNoteStore(String name);
 
 ### 5.2 INK (`package:ink_engine`) — X26
 
-`// 계약 v2.1 7.2.9 원문 (00-overview.md 1375–1460행)`
+`// 계약 v2.3 7.2.9 원문 (00-overview.md 1399–1482행)`
 
 ```dart
 // --- backgrounds: 추가 / 규칙 ---
@@ -1598,7 +1601,7 @@ PDF가 이 표면에 기대는 방식(03-ink 5.7·4.10과 맞춤):
 | INK T42 이정표 뒤 | 실제 벡터 v2 | `integration/ink_vectorizer_v2_test.dart`(실제 `exportPage` → `layersFromInk` → `planFromLayers`)를 켬(03-ink 8.5 'T42 = PDF 객체 벡터화 시험 전환') |
 | 통합 2단계 뒤 | 실제 INK + 실제 CORE | V11 |
 
-`// 계약 v2.1 7.6 원문 발췌 (00-overview.md 2198–2216행 — INK 시험 도우미)`
+`// 계약 v2.3 7.6 원문 발췌 (00-overview.md 2222–2240행 — INK 시험 도우미)`
 
 ```dart
 // package:ink_engine/testing.dart — (v2.1) contract additions (INK 4.12 is the full list:
@@ -1627,7 +1630,7 @@ abstract final class InkVectorFixtures {
 
 ### 5.3 EDITOR (직접 의존 없음 — INFRA가 연결) — X29
 
-`// 계약 v2.1 7.2.10 원문 발췌 (00-overview.md 1522–1541행 · 1550행)`
+`// 계약 v2.3 7.2.10 원문 발췌 (00-overview.md 1545–1564행)`
 
 ```dart
 typedef EditorPanelBuilder = Widget Function(BuildContext context, EditorPanelContext panel);
@@ -1666,7 +1669,7 @@ final editorImageImporterProvider = Provider<EditorImageImporter?>((ref) => null
 
 ### 5.4 INFRA — X28 · X29 · X33, 7.3.3
 
-`// 계약 v2.1 7.3.3 원문 발췌 (00-overview.md 1966–1969행 · 1971–1973행 · 1977행 · 1979행 · 1981행 · 1985행)`
+`// 계약 v2.3 7.3.3 원문 발췌 (00-overview.md 1989–1996행)`
 
 | provider (정의) | override 주체 (INFRA 모듈) | 값 | 시점 |
 |---|---|---|---|
@@ -1704,7 +1707,7 @@ override가 아닌 연결: `MediaModule`이 앱 시작 뒤 유휴 시간에 남�
 
 ### 5.6 동작 보장 — PDF가 지키는 것 (7.3.2)
 
-`// 계약 v2.1 7.3.2 원문 발췌 (00-overview.md 1939–1940행 · 1953–1956행)`
+`// 계약 v2.3 7.3.2 원문 발췌 (00-overview.md 1962행 · 1976–1979행)`
 
 | # | 주체 | 보장 |
 |---|---|---|
@@ -1742,7 +1745,7 @@ override가 아닌 연결: `MediaModule`이 앱 시작 뒤 유휴 시간에 남�
 | E7 | `media_io`에 직접 의존 7개(CP-PDF-9 초안) 추가 | `flutter pub get --offline` 성공, **`pubspec.lock` 변화 없음**. (v2.1) 확정은 6개(`plugin_platform_interface` 제외 — 3.4) — 한 줄을 빼는 것은 lock에 영향이 없다(그 패키지는 다른 플러그인이 간접으로 끌어옴) | [확인] `pdf57/ws` |
 | E8 | (조사 02) Chrome MediaRecorder: `audio/webm;codecs=opus` 지원·AAC 미지원, `record_web`의 200 ms 조각·WebM 길이 보정, `flutter test --platform chrome`은 웹 플러그인 등록기를 돌리지 않음, 상태 이벤트 기준 활성 시간 vs 파일 길이 −3~+7 ms | 웹 녹음기 MIME 표·시험 등록 함수의 근거. (v2.1, 검토 M-6) '−3~+7 ms'는 `record_web`이 **자기 Stopwatch 값으로 패치한** 파일을 잰 것이라 시계가 시계를 잰 값이다 — V8 근거로 쓰지 않고 E10으로 바꾼다 | [확인 — 조사 02 3.2·5.2, `record_web` `media_recorder_delegate.dart` 203행] |
 | E9 | (v2.1) 헤드리스 Chrome(가짜 마이크) MediaRecorder `audio/webm;codecs=opus`, 64 kbps, `start(1000)` — 6개 녹음(2 s, 3.3 s, 5 s, 1 s + 정지 1 s + 1 s, 0.7 s + 정지 0.5 s + 1.3 s, 1.5 s + 정지 1 s + 1.5 s)의 EBML 구조 | `EBML` → `Segment`(**크기 모름**) → `Info`(25 B: `TimecodeScale` 1,000,000·`MuxingApp`·`WritingApp` — **`Duration` 없음**) → `Tracks` → `Cluster`(**크기 모름**, 약 1초마다 — 타임코드 0·1019·2039…). `SeekHead`·`Cues`·`Void` 없음. 블록은 모두 `SimpleBlock`, Opus TOC config 27(20 ms 프레임)·code 3·프레임 수 3 → **패킷 하나 60 ms**, 블록 타임코드 간격 60 ms(한 번 59). **일시정지 구간은 타임코드에 없다**(1 s + 정지 1 s + 1 s = 34블록 = 2 s 녹음과 같음) | [확인] `pdf57-rev/webm/rec.mjs`·`rec2.mjs`·`ebml.py` |
-| E10 | (v2.1) 같은 6개: 녹음 시계(`onstart`부터 `onstop`까지, 일시정지 제외 — 우리 시계와 같은 규칙) vs 파일 타임라인 | 시계 − 마지막 블록 시작 = **+1~+23 ms**, 마지막 블록 끝(시작 + 60 ms) − 시계 = **+37~+59 ms**. 마지막 패킷이 정지 시점 뒤를 무음으로 채운다 — 파일 끝은 시계보다 늘 0~60 ms 길다. 계약 V8 원문('파일 안 타임라인 길이 vs 누적 차 ≤ 50 ms')을 파일 끝으로 재면 6개 중 2개(+56·+59)가 넘는다 → CP-PDF-12(6.8.7·12.1) | [확인] 같은 실험 |
+| E10 | (v2.1) 같은 6개: 녹음 시계(`onstart`부터 `onstop`까지, 일시정지 제외 — 우리 시계와 같은 규칙) vs 파일 타임라인 | 시계 − 마지막 블록 시작 = **+1~+23 ms**, 마지막 블록 끝(시작 + 60 ms) − 시계 = **+37~+59 ms**. 마지막 패킷이 정지 시점 뒤를 무음으로 채운다 — 파일 끝은 시계보다 늘 0~60 ms 길다. v2.1 계약 V8 문장('파일 안 타임라인 길이 vs 누적 차 ≤ 50 ms')을 파일 끝으로 재면 6개 중 2개(+56·+59)가 넘는다 → CP-PDF-12 승인(계약 v2.2 C22-04 — V8 = 마지막 블록 시작 − 50 ms ≤ 시계 ≤ 파일 끝 + 50 ms, 6.8.7) | [확인] 같은 실험 |
 | E11 | (v2.1) 머리만 고친 WebM: `Info`에 `Duration`(0x4489, float64 2040.0) 11바이트를 넣고 `Info` 크기 vint(1바이트)만 다시 씀 — 나머지 바이트 그대로 | 고치기 전 `<audio>.duration` = `Infinity`, 고친 뒤 **2.04 s**. `decodeAudioData` 길이는 둘 다 **2.0400 s**(= 34 × 60 ms = 마지막 블록 끝) → '디코더가 읽는 길이'(R-3) = 마지막 블록 타임코드 + 그 패킷 길이. 머리만 새로 만드는 패치로 충분하다(`Segment`·`Cluster` 크기 모름이라 다른 위치값이 없음) | [확인] `pdf57-rev/webm/dur.mjs` |
 
 - E1~E4는 pypdfium2의 PDFium(153.0.7999.0)으로 확인했다. 앱이 쓰는 바이너리는 네이티브 chromium/8125·웹 chromium/7811(1차 progress T19)이라 같은 동작으로 본다 [추측 — 판이 가까움]. T22·T23의 탐침 시험이 실제 바이너리에서 같은 단언(텍스트 추출·SMask·이미지 수·두 번 덧붙이기)을 다시 한다.
@@ -2292,7 +2295,7 @@ WebmTimeline.patchedHead(bytes, durationMs) → ({Uint8List bytes, int restOffse
 - **`durationMs` = `endMs`**(마지막 블록 끝 = 디코더가 읽는 길이 — 6.1 E11). 패치는 그 값을 `Duration`에 넣는다. 파싱이 실패할 때만 시계 값을 쓰고 개발자 표시에 'duration from clock'을 남긴다(R-3 원문).
 - 정지(6.6.3)와 복구(6.10) 둘 다 같은 함수다. 복구는 잘린 마지막 조각 때문에 초안 `activeMs`(마지막 `append` 때 값)보다 이 계산이 정확하다.
 - 웹 MP4(Safari)는 패치하지 않는다(조각 MP4 머리에 길이가 없어도 Safari가 조각에서 길이를 계산한다고 본다 [추측 — 조사 02 D2]). 길이는 `Mp4Duration.measure`(6.6.4).
-- **V8 판정(CP-PDF-12)**: 6.1 E10에서 Chrome은 마지막 패킷(60 ms)을 정지 시점 뒤까지 무음으로 채워 `endMs − 시계 = +37~+59 ms`였다. 계약 V8 원문('파일 안 타임라인 길이 vs `offsetNowMs` 누적 차 ≤ 50 ms')을 `endMs`로 재면 6개 중 2개가 넘는다. 시계가 파일 타임라인과 맞는지를 보는 뜻은 그대로 두고, 패킷 단위를 반영해 **`lastBlockStartMs − 50 ≤ 시계 ≤ endMs + 50`**(시계가 마지막 패킷 구간 ±50 ms 안 — 실측 여유: 아래쪽 51~73 ms, 위쪽 87~109 ms)으로 정하자고 제안한다(12.1 CP-PDF-12). 승인 전에는 두 값(`endMs − 시계`, `시계 − lastBlockStartMs`)을 모두 단언·기록하고, 원문 단언이 실패하면 진행 기록에 남겨 총괄 판단을 받는다(7.4.9 — 원문대로 구현하되 실패를 숨기지 않음).
+- **V8 판정(CP-PDF-12)**: 6.1 E10에서 Chrome은 마지막 패킷(60 ms)을 정지 시점 뒤까지 무음으로 채워 `endMs − 시계 = +37~+59 ms`였다. 계약 V8 원문('파일 안 타임라인 길이 vs `offsetNowMs` 누적 차 ≤ 50 ms')을 `endMs`로 재면 6개 중 2개가 넘는다. 시계가 파일 타임라인과 맞는지를 보는 뜻은 그대로 두고, 패킷 단위를 반영한 판정식 **`lastBlockStartMs − 50 ≤ 시계 ≤ endMs + 50`**(시계가 마지막 패킷 구간 ±50 ms 안 — 실측 여유: 아래쪽 51~73 ms, 위쪽 87~109 ms)이 계약 v2.2 C22-04로 승인됐다(7.7.2 V8). T39 `record_playback_media_test`는 이 식으로 **단언**하고, 두 값(`endMs − 시계`, `시계 − lastBlockStartMs`)과 옛 식 '`|endMs − 시계| ≤ 50 ms`'의 참·거짓은 단언하지 않고 진행 기록에 남긴다(PDF-F1).
 - 시험(T32a): `unit/webm_timeline_test.dart` — 손 표본(`test/support/webm_builder.dart`: 크기 모름 Segment·Cluster, 크기 아는 Cluster, TimecodeScale 1 ms·1 µs, SimpleBlock·BlockGroup + BlockDuration, Opus TOC code 0·1·3, 잘린 마지막 블록, Cluster가 256 KiB보다 긴 경우(처음부터 걷기), Duration 있음·없음, SeekHead + Void, SeekHead만) 각각의 `endMs`·`lastBlockStartMs`·`patchedHead` 바이트·`restOffset`, 패치 뒤 다시 `measure`해도 같은 값. 6.1 E9의 Chrome 녹음 6개를 `test/support/fixtures/chrome_opus_*.webm`(각 13~37 KB, 가짜 마이크 음 — 사람 목소리 아님)으로 넣어 `endMs`가 실험 값(예: 2 s 녹음 = 2040 ms)과 같은지. Chrome `media` 시험이 실제 녹음으로 같은 계산을 다시 한다(V8).
 
 ### 6.9 네이티브 녹음기 (`record/recorder_engine_native.dart`)
@@ -2617,7 +2620,7 @@ importImageForNote(context, source):                      // EDITOR가 onPressed
 | 웹 녹음 메모리 | 큐 + `unsaved` ≤ 8 MiB(7.4.5), 정지 때 `readAll` 한 번(녹음 크기만큼 — 30분 약 14 MB) | `draft_writer_test` |
 | (v2.1) 웹 정지·복구 버퍼 — 30분 | 전체 크기 버퍼 동시 ≤ 2벌(14 MB × 2 = 28 MB 잠깐), 정지 → 녹음 행 ≤ 1.5 s(Chrome) | `stop_recover_buffers_test`(P-A), `media/record_playback_media_test` 기록 |
 | (v2.1, D19) 웹 정지·복구 버퍼 — **3시간 86 MB** | 동시 ≤ 2벌(172 MB 잠깐 — 앱 캐시 합계와 별개의 일시 몫), 정지 직후 재생기는 같은 `Blob`(다시 읽지 않음 — P-B), 복구가 탭을 죽여도 2회 뒤 자동 복구에서 빠짐 | perf `media/big_recording_perf_media_test`(86 MB 합성 초안 — P-B), B-13 |
-| 시계 오차 | (v2.1) Chrome 녹음: 시계가 파일의 마지막 패킷 구간 ±50 ms 안(`lastBlockStart − 50 ≤ 시계 ≤ 파일 끝 + 50` — CP-PDF-12, 6.8.7)·원문 '`\|파일 길이 − 시계\| ≤ 50 ms`'도 기록, 실기기 A-5 기록 | V8 |
+| 시계 오차 | (v2.1) Chrome 녹음: 시계가 파일의 마지막 패킷 구간 ±50 ms 안(`lastBlockStart − 50 ≤ 시계 ≤ 파일 끝 + 50` — 계약 v2.2 C22-04, 6.8.7)·옛 식 '`\|파일 길이 − 시계\| ≤ 50 ms`'의 결과도 기록, 실기기 A-5 기록 | V8 |
 | 이미지 정규화 | VM 4000×3000 JPEG → 2048 긴 변 ≤ 2 s(isolate), Chrome 같은 입력 ≤ 1 s | `image_normalizer_test`·`image_codec_browser_test`(perf 기록) |
 | 재생 열기 | 30분 녹음(14 MB) 웹 `open` → `ready` ≤ 1 s(Chrome) | `media/record_playback_media_test` |
 | 객체 내보내기 | 6.2.10 | perf |
@@ -2726,7 +2729,7 @@ importImageForNote(context, source):                      // EDITOR가 onPressed
 | T36b | 녹음 패널 ②: 목록·시트(동의·이름·삭제)·용량·배지, (v2.1) `draftLost` 줄, **복구하지 못한 초안 줄**·[다시 시도]·[지우기], 웹 **[파일로 내려받기] 두 단계** | T36a, T31a | P-A | `widget/recording_list_test.dart`(이름 규칙 '녹음 N'·`title`·배지·webm 경고·크기·합계), `widget/recording_sheets_test.dart`(동의 시트 고정 문구 글자 그대로·`media.consentShown` 기록, 이름 1~100자·빈 값 = 기본, 삭제 확인 → `deleteRecording`·열린 녹음이면 `close`), `widget/recording_stuck_drafts_test.dart`(6.13.4 끝 문단) |
 | T37 | 개발자 표시 줄(6.14 — v2.1 `src=`·`stuck`·`locks`·`buf` 줄), `initializeMediaIo` 완성(웹 MIME 표·FGS init·남은 파일 정리 예약), `mediaIoOverrides()` 실제 두 override(4.2.2) | T31b~T35b | P-A | `unit/dev_overlay_lines_test.dart`(상태 바뀜 → 줄 바뀜, 시계 차 > 150 ms 경고, 복구 수·`stuck`·길이 출처), `unit/init_test.dart` v2(실제 override 두 개·저장소 없는 컨테이너에서 읽기 예외 없음·`initializeMediaIo` 10 ms 안) |
 | T38 | `testing.dart` 완성(VM 전용): `FakeRecordPlatform`·`FakeJustAudioPlatform`·`FakeImagePickerPlatform`(`extends`만)·`installFakeMediaPlatforms`(CP-PDF-6, 임시 디렉터리 훅 조건부) | T33~T35b | P-A | `unit/testing_fakes_test.dart`(가짜 플랫폼만으로 실제 `mediaIoOverrides()` 서비스가 녹음 → 정지 → 녹음 행 → 열기 → 재생, 이미지 가져오기 → 에셋; `dispose` 뒤 이전 인스턴스 복원·임시 디렉터리 지움) |
-| T39 | `media` 태그 시험(Chrome 가짜 마이크) — (v2.1, PDF-M12) **CORE `testing_web.dart` `openWebTestNoteStore`의 실제 웹 저장소**: V8, V16 | T32b, T34, CORE T31 이정표 | P-A | `media/record_playback_media_test.dart`(V8: 2초 녹음·가운데 1초 일시정지 → 정지 → 에셋 + `Recording` 행 → 재생·2배속 기울기 1.9~2.1·`seekMs(700)` 뒤 위치 ±50 ms, **파일 타임라인 vs 시계** — `lastBlockStart − 50 ≤ 시계 ≤ 파일 끝 + 50`(CP-PDF-12) + 원문 '`\|파일 끝 − 시계\| ≤ 50 ms`' 기록(6.8.7), `durationMs` = 타임라인 계산 값, 저장된 WebM에 `Duration` 있음, Chrome 표본 webm 저장(fixture 갱신용 — 환경 변수가 있을 때만)), `media/draft_recovery_media_test.dart`(V16: 3초 녹음 중 서비스를 `dispose` 없이 버림(탭 닫힘 흉내 — 잠금도 놓음) → 최근 갱신 창(10초)이 지나도록 `clockProvider`를 진행 → 같은 이름의 저장소로 새 컨테이너 → `pendingDrafts()` 1개 → `recoverDraft()` → 에셋 + 행, 길이 ≥ 2초(타임라인), 원래 `recordingId`, 제목 '복구된 녹음'; **두 번째 녹음기는 녹음 중(최근 갱신) 초안을 내지 않음**), 시작·끝에 `deleteWebTestNoteStore` |
+| T39 | `media` 태그 시험(Chrome 가짜 마이크) — (v2.1, PDF-M12) **CORE `testing_web.dart` `openWebTestNoteStore`의 실제 웹 저장소**: V8, V16 | T32b, T34, CORE T31 이정표 | P-A | `media/record_playback_media_test.dart`(V8: 2초 녹음·가운데 1초 일시정지 → 정지 → 에셋 + `Recording` 행 → 재생·2배속 기울기 1.9~2.1·`seekMs(700)` 뒤 위치 ±50 ms, **파일 타임라인 vs 시계** — `lastBlockStart − 50 ≤ 시계 ≤ 파일 끝 + 50`(계약 v2.2 C22-04 — CP-PDF-12 승인) 단언 + 옛 식 '`\|파일 끝 − 시계\| ≤ 50 ms`' 결과 기록(6.8.7, PDF-F1), `durationMs` = 타임라인 계산 값, 저장된 WebM에 `Duration` 있음, Chrome 표본 webm 저장(fixture 갱신용 — 환경 변수가 있을 때만)), `media/draft_recovery_media_test.dart`(V16: 3초 녹음 중 서비스를 `dispose` 없이 버림(탭 닫힘 흉내 — 잠금도 놓음) → 최근 갱신 창(10초)이 지나도록 `clockProvider`를 진행 → 같은 이름의 저장소로 새 컨테이너 → `pendingDrafts()` 1개 → `recoverDraft()` → 에셋 + 행, 길이 ≥ 2초(타임라인), 원래 `recordingId`, 제목 '복구된 녹음'; **두 번째 녹음기는 녹음 중(최근 갱신) 초안을 내지 않음**), 시작·끝에 `deleteWebTestNoteStore` |
 | T40 | 실제 CORE 시험(VM) | T31b, T37 | P-A | `integration/media_real_core_test.dart`(`openTestNoteStore`: 가짜 엔진으로 녹음 → 정지 → 에셋·행, 순서를 바꾼 시험용 서비스는 CORE `ArgumentError`(M-1을 CORE가 막음), 초안이 저장소를 닫았다 열어도 남음 → 복구, 빈 조각 `append`가 실제 CORE `updatedAt`을 갱신, 노트 영구 삭제 뒤 복구 → 영구 실패 정리, `audioBytesOf`) |
 | T41 | README·THIRD_PARTY_NOTICES·perf(웹 조각 쓰기 지연·이미지 정규화 시간), (v2.1, P-B) 큰 녹음 계측 | T39 | P-C (큰 녹음 P-B) | `perf/media_perf_test.dart`·`web/media_perf_browser_test.dart`(perf — 6.17 목표 기록), `media/big_recording_perf_media_test.dart`(86 MB 합성 초안 정지·복구 — 장부 `peakCount ≤ 2`·시간, 6.6.5), README 명령 |
 
@@ -2845,7 +2848,7 @@ C. **TestFlight 뒤** — 2차 완료 조건 아님
 1. 8.1·8.2의 P-A 작업 전부의 완료 조건 시험이 VM·Chrome에서 통과한다. P-B(T33의 세션·포그라운드 서비스)는 통과하거나, 일정상 잘랐으면 진행 기록에 '잘림'과 대체 동작(6.9.3 끝 문단)을 적는다.
 2. `ws check` 위반 0(R1~R16 — 3.5 I-1·I-2 포함), 루트 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음.
 3. 1차 `pdf_io` 시험(통합 HEAD `18c5ae5` 기준 VM 580·Chrome 54·`integration` 19 — 머리말) 전부가 그대로 통과한다(회귀 없음 — 웹 미리보기 예산 단언 세 곳만 104 MiB로 고침, 6.2.10). 1차 perf 목표가 객체 없는 노트에서 그대로다(스크롤 모의는 ≤ 104 MiB).
-4. 통합 4단계에서 V8·V10(PDF 부분)·V11(VM·Chrome)·V16과 `media_io` `integration`이 통과한다(8.3). V8의 판정식은 CP-PDF-12 결정을 따른다(결정 전에는 두 값을 기록하고 원문 단언 결과를 진행 기록에 남긴다 — 6.8.7). V8·V16·V11 Chrome은 실제 웹 저장소(`openWebTestNoteStore`)로 돈다.
+4. 통합 4단계에서 V8·V10(PDF 부분)·V11(VM·Chrome)·V16과 `media_io` `integration`이 통과한다(8.3). V8의 판정식은 계약 v2.2 C22-04(CP-PDF-12 승인 — 마지막 블록 시작 − 50 ms ≤ 시계 ≤ 파일 끝 + 50 ms)이고 두 값은 진행 기록에 남긴다(6.8.7, PDF-F1). V8·V16·V11 Chrome은 실제 웹 저장소(`openWebTestNoteStore`)로 돈다.
 4a. (v2.1) 계측 단언: 내보내기 장부 `peakBytes ≤ 16 MiB`((수정 2회차) RGBA·읽은 이미지 바이트·JPEG 캐시의 합 — 큰 표본 3종·같은 JPEG 여러 쪽, T25a·T26. M-3 밖 큰 입력은 `overBudget`으로 세고 기록 — (수정 3회차, CP-PDF-14) 그때 `peakBytes ≤ 입력 + 4 MiB`, 네이티브 워커 사본은 예산 밖에서 따로 `peakCopyBytes ≤ 16 MiB`·`peakTotalBytes ≤ 32 MiB`(넘침 없는 표본)), 정지·복구 장부 `peakCount ≤ 2`(VM — T31b, P-A). 86 MB 계측(P-B)은 돌렸으면 결과를, 잘랐으면 '잘림'을 진행 기록에 적는다.
 5. 기반 단계 T20·T30의 완료 조건과 개요 R2-B4 완료 조건('`api_surface_test`, `pdfIoOverrides()`만 넣은 컨테이너에서 provider read 예외 없음')이 통과한다.
 6. 부록 A·B가 INFRA `native_requirements.yaml`·연결 코드와 일치한다(V12 — INFRA 시험).

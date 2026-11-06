@@ -8,6 +8,11 @@
 // (with and without the large-original warning), the progress dialog and the result sheet
 // (each set of actions, the retry notice, the missing-original warning) meet the 44×44 /
 // labeled tap-target guidelines, also in landscape.
+//
+// (2차, m5-7/06-pdf T26) v2: the result sheet lines of the three object warnings (images left
+// out, text boxes as pictures, formulas left out) in portrait and landscape with the
+// guidelines, and the web stop without fonts (S-12) → the fonts message, no result sheet — on
+// the src-only createPdfExportService with fake raster ports and a fake font wait.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -17,19 +22,27 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
+import 'package:pdf_io/src/export/export_service.dart';
 import 'package:pdf_io/src/ui/export_sheets.dart';
 import 'package:pdf_io/testing.dart';
 
 import '../support/export_world.dart';
+import '../support/fake_rasterizers.dart';
 import '../support/ipad.dart';
 
 const String _delayText = '저장이 늦어지고 있어요. 저장 공간을 확인해 주세요.';
 
 final class _World {
+  /// (2차) [objects]: the export service is createPdfExportService over [objectsGateway] (page
+  /// objects) with fake raster ports ([math] — formula 'm-bad' has no layout) and a fake font
+  /// wait that ends with [fontsReady]; [web] runs the web rules.
   _World({
     FakePdfOutputSink? sink,
     core.NoteStore? store,
     PdfNoteGateway? gateway,
+    bool objects = false,
+    bool web = false,
+    bool fontsReady = true,
   }) : sink = sink ?? FakePdfOutputSink(),
        store = store ?? core_testing.createFakeNoteStore() {
     this.gateway = gateway ?? FakePdfNoteGateway();
@@ -40,9 +53,26 @@ final class _World {
         pdfComposeBackendProvider.overrideWithValue(backend),
         pdfInkVectorizerProvider.overrideWithValue(const BoxInkVectorizer()),
         pdfOutputSinkProvider.overrideWithValue(this.sink),
+        if (objects)
+          pdfExportServiceProvider.overrideWithValue(
+            createPdfExportService(
+              gateway: objectsGateway,
+              vectorizer: const BoxInkVectorizer(),
+              backend: backend,
+              math: FakeMathRasterizer(layoutSizes: {'m-bad': null}),
+              text: FakeTextRasterizer(),
+              loadFonts: () async {
+                if (!fontsReady) throw TimeoutException('fake font load');
+              },
+              fontBytes: FakeFontSource().call,
+              web: web,
+            ),
+          ),
       ],
     );
   }
+
+  late final ObjectsGateway objectsGateway = ObjectsGateway(fake);
 
   final FakePdfOutputSink sink;
   final core.NoteStore store;
@@ -672,6 +702,128 @@ void main() {
     await expectTapTargetGuidelines(tester);
     await _closeSheet(tester);
     expect(await flow, isNotNull);
+  });
+
+  group('(2차) object warnings and the fonts stop (T26)', () {
+    /// Page 1: a box NoteSans does not cover (raster), page 2: an image without bytes, page 3:
+    /// an invalid formula, page 4: an ordinary box.
+    Future<core.NoteId> objectNote(_World w) async {
+      w.fake.addRemoteAsset('remote');
+      final note = await w.gateway.createNote(
+        title: '객체 노트',
+        pages: [for (var i = 0; i < 4; i++) blankDraft],
+      );
+      final pages = await w.gateway.pagesOf(note.id);
+      core.ElementFrame frame(double top) =>
+          core.ElementFrame(core.PageRect(60, top, 360, top + 60));
+      w.objectsGateway
+        ..addObjects(pages[0].id, [
+          core.TextBoxObject(
+            id: 't-emoji',
+            pageId: pages[0].id,
+            frame: frame(100),
+            text: '웃음 \u{1F600}',
+            style: const core.TextBoxStyle(),
+            createdAt: 1,
+          ),
+        ])
+        ..addObjects(pages[1].id, [
+          core.ImageObject(
+            id: 'i',
+            pageId: pages[1].id,
+            frame: frame(100),
+            assetId: 'remote',
+            pixelWidth: 64,
+            pixelHeight: 48,
+            createdAt: 2,
+          ),
+        ])
+        ..addObjects(pages[2].id, [
+          core.MathObject(
+            id: 'm-bad',
+            pageId: pages[2].id,
+            frame: frame(100),
+            latex: r'\frac{',
+            style: const core.MathStyle(),
+            createdAt: 3,
+          ),
+        ])
+        ..addObjects(pages[3].id, [
+          core.TextBoxObject(
+            id: 't-ok',
+            pageId: pages[3].id,
+            frame: frame(100),
+            text: '보통 글자',
+            style: const core.TextBoxStyle(),
+            createdAt: 4,
+          ),
+        ]);
+      return note.id;
+    }
+
+    const lines = [
+      '2쪽의 이미지는 이 기기에 원본이 없거나 읽지 못해 빠졌어요',
+      '1쪽의 텍스트 상자 일부는 그림으로 넣었어요 — PDF에서 검색되지 않아요',
+      '3쪽의 수식 일부를 그리지 못해 빠졌어요',
+    ];
+
+    for (final landscape in [false, true]) {
+      testWidgets('the three warning lines under the file '
+          '(${landscape ? 'landscape' : 'portrait'}), guidelines met', (
+        tester,
+      ) async {
+        final w = _World(objects: true);
+        addTearDown(w.dispose);
+        await pumpOnIpad(tester, w.app(), landscape: landscape);
+        final id = await objectNote(w);
+        final flow = await _export(tester, w, id);
+        expect(_inSheet(find.text('PDF를 만들었어요')), findsOneWidget);
+        // the file's subtitle: one line per warning (6.16 · 1차 warningLines)
+        expect(_inSheet(find.text(lines.join('\n'))), findsOneWidget);
+        await expectTapTargetGuidelines(tester);
+        await _closeSheet(tester);
+        final result = await flow;
+        expect(warningLines(result!), lines);
+        expect(
+          [for (final p in w.backend.parts) p.texts],
+          [
+            <String>[],
+            ['보통 글자'],
+          ],
+          reason: 'the raster, then the text object of page 4',
+        );
+      });
+    }
+
+    testWidgets('web without fonts, a Hangul box → the fonts message, no '
+        'result sheet, nothing composed (S-12)', (tester) async {
+      final w = _World(objects: true, web: true, fontsReady: false);
+      addTearDown(w.dispose);
+      await pumpOnIpad(tester, w.app());
+      final id = await objectNote(w);
+      final flow = runPdfExportFlow(w.context, noteId: id);
+      await _settle(tester);
+      await tester.tap(_inSheet(find.text('내보내기')));
+      await _settle(tester);
+      expect(await flow, isNull);
+      expect(
+        find.text('글꼴을 받지 못해 내보낼 수 없어요. 인터넷에 연결한 뒤 다시 해 주세요.'),
+        findsOneWidget,
+      );
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(w.backend.events, isEmpty);
+      expect(
+        w.job,
+        const PdfJobFailed<PdfExportResult>(
+          PdfIoException(
+            PdfErrorCode.exportFailed,
+            detail: 'fonts-unavailable',
+          ),
+        ),
+      );
+      await expectTapTargetGuidelines(tester);
+      await _settle(tester);
+    });
   });
 
   test('VM platform sink: nothing to deliver → unsupported', () async {

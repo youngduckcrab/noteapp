@@ -3,7 +3,9 @@
 // pageThumbnailRendererProvider → ink.inkPageThumbnailRendererProvider) over the REAL CORE
 // store (openTestNoteStore), the REAL INK thumbnail renderer and vector export, real PDFium
 // and the native compose backend — integration stage only (`ws test --run-skipped -t
-// integration`, contract 7.7 step 5; 06-pdf 10 item 5). Nothing PDF-side is overridden:
+// integration`, contract 7.7 step 5; 06-pdf 10 item 5). Nothing PDF-side is overridden. (2차,
+// m5-7/06-pdf 8.2 T29 — PDF-M14) The wiring itself is test/support/real_wiring.dart, shared
+// with V11 (export_objects_v11_test) and V10's PDF part (search_indexer_core_test):
 //   - import → note in CORE, cover written by INK's renderer through the PDF builder,
 //   - search over the stored original (note pt),
 //   - strokes through a CORE session → export with InkEngineVectorizer: pen fill and
@@ -17,10 +19,7 @@ library;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing_vm.dart' as core_vm;
 import 'package:pdf_io/pdf_io.dart';
@@ -31,6 +30,7 @@ import 'package:pdf_io/testing.dart';
 import '../support/compose_probes.dart';
 import '../support/export_world.dart' show captureFlutterErrors;
 import '../support/pdfium_env.dart';
+import '../support/real_wiring.dart';
 
 /// Page 1: 400 × 300 pt, 'HHHH' at x 100, baseline y 80, size 40 (glyphs ≈ 100–200 ×
 /// 51–80 pt). Page 2: A4 with 'Second lecture'.
@@ -103,53 +103,9 @@ Future<int> _countImage(
   ).count(test, pixelBox: box);
 }
 
-/// The app's root overrides for these providers (contract 7.3.3), in module order.
-final class _App {
-  _App(this.store)
-    : container = ProviderContainer(
-        overrides: [
-          // CoreModule
-          core.noteStoreProvider.overrideWithValue(store),
-          // PdfModule
-          ...pdfIoOverrides(config: const PdfIoConfig(warmUpOnStart: false)),
-          // FeatureWiringModule
-          core.pageThumbnailRendererProvider.overrideWith(
-            (ref) => ref.watch(ink.inkPageThumbnailRendererProvider),
-          ),
-        ],
-      );
-
-  final core.NoteStore store;
-  final ProviderContainer container;
-
-  T read<T>(ProviderListenable<T> provider) => container.read(provider);
-
-  Future<PdfImportResult> import(
-    Uint8List bytes,
-    PdfImportTarget target, {
-    PdfPageRange range = const PdfPageRange.all(),
-  }) async {
-    final session = await read(pdfImportServiceProvider)
-        .open(PickedPdfFile.fromBytes('lecture.pdf', bytes));
-    try {
-      return await session.commit(target, range: range);
-    } finally {
-      await session.dispose();
-    }
-  }
-
-  Future<List<PdfSearchHit>> search(core.NoteId noteId, String query) async {
-    final events = await read(pdfTextServiceProvider)
-        .searchNote(noteId, query)
-        .toList();
-    expect(events.last.isDone, isTrue, reason: 'search for $query');
-    return [for (final e in events) ...e.newHits];
-  }
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late _App app;
+  late RealWiring app;
   late ComposeProbeContext out;
   late List<FlutterErrorDetails> reports;
 
@@ -160,7 +116,7 @@ void main() {
 
   setUp(() async {
     reports = captureFlutterErrors();
-    app = _App(await core_vm.openTestNoteStore());
+    app = RealWiring(await core_vm.openTestNoteStore());
     out = ComposeProbeContext(
       backend: app.read(pdfComposeBackendProvider),
       engine: PdfrxEngine.shared(),
@@ -169,9 +125,8 @@ void main() {
 
   tearDown(() async {
     await out.dispose();
-    app.container
-        .dispose(); // closes the pool's documents and the compose backend
-    await app.store.close();
+    await app
+        .close(); // the pool's documents, the compose backend, then the store
     expect(await debugNativeComposeJobCount(), 0);
     expect(reports, isEmpty, reason: 'no reported PDF errors');
   });

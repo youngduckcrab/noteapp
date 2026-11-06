@@ -6,8 +6,18 @@
 // backend.begin → per page loadPage → vectorize → encode, sent in chunks → finish.
 // One export (single or batch) at a time per service (busy).
 //
-// The constructor keeps the 4.9 parameter list word for word (plain named parameters
-// assigned to private fields), hence:
+// (2차, m5-7/06-pdf T26 — 6.2.2) The page plan of the vectorizer (planPage, L-1 order) is
+// resolved item by item (ObjectResolver — images, text boxes, formulas) and encoded into parts
+// (PdfComposeEncoder.encodeItems — fonts ride on the first part that uses them, per job). A part
+// with an image or a raster goes out right after the item that made it, before the next item is
+// resolved (S-2), so one image at a time is held (ExportMemoryLedger ≤ 16 MiB — 6.2.10); on the
+// native worker the part's copy is counted as `copy` while addPages runs (CP-PDF-14 ①). Fonts:
+// InkFonts.ensureLoaded() ≤ exportFontLoadTimeout once per export / batch; on the web without
+// fonts a text box with a non-ASCII character stops the export before begin (S-12).
+//
+// The public constructor keeps the 4.9 parameter list word for word; it redirects to the
+// private one that also takes the internal ports (src-only createPdfExportService). Named
+// parameters cannot be private, hence:
 // ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 import 'dart:ui' as ui;
@@ -27,7 +37,10 @@ import '../ui/strings_ko.dart';
 import 'batch_export.dart';
 import 'compose_encoder.dart';
 import 'compose_plan.dart';
+import 'export_memory.dart';
 import 'export_types.dart';
+import 'object_resolver.dart';
+import 'raster_ports.dart';
 import 'vectors.dart';
 
 abstract interface class PdfExportService {
@@ -54,6 +67,36 @@ abstract interface class PdfExportService {
   });
 }
 
+/// (2차, m5-7/06-pdf T26) src only (not in the barrel): DefaultPdfExportService with its
+/// internal ports replaced — the raster ports (6.2.4), the font wait and bytes (6.2.2 step 1),
+/// the web rules on the VM ([web]: S-12 stop, 16-part chunks, no `copy`) and a look at each
+/// export's memory ledger ([onLedger], called once per note before begin's compose loop).
+DefaultPdfExportService createPdfExportService({
+  required PdfNoteGateway gateway,
+  required PdfInkVectorizer vectorizer,
+  required PdfComposeBackend backend,
+  PdfMathRasterizer math = const InkMathRasterizer(),
+  PdfTextRasterizer text = const InkTextRasterizer(),
+  Future<void> Function() loadFonts = loadNoteSansFonts,
+  PdfFontBytesSource? fontBytes,
+  Duration fontLoadTimeout = PdfTuning.exportFontLoadTimeout,
+  Duration mathTimeout = PdfTuning.exportMathRasterTimeout,
+  bool web = kIsWeb,
+  void Function(ExportMemoryLedger ledger)? onLedger,
+}) => DefaultPdfExportService._ports(
+  gateway: gateway,
+  vectorizer: vectorizer,
+  backend: backend,
+  math: math,
+  text: text,
+  loadFonts: loadFonts,
+  fontBytes: fontBytes,
+  fontLoadTimeout: fontLoadTimeout,
+  mathTimeout: mathTimeout,
+  web: web,
+  onLedger: onLedger,
+);
+
 /// T15 details:
 /// - busy: one exportNote / exportNotes at a time per service (the job notifiers also keep
 ///   imports and exports apart, 6.13). A backend that is not supported → unsupportedPlatform.
@@ -73,23 +116,56 @@ abstract interface class PdfExportService {
 ///   are recorded; engineUnavailable / unsupportedPlatform end the batch with that error.
 ///   The size limit (PdfTuning.batchMaxTotalBytesWeb) applies on every platform: all
 ///   results are held in memory until the result sheet is closed.
+///
+/// (2차, T26 — 6.2.2) Objects: see the file comment. Warnings = 1차 missing originals, then
+/// missing images · rasterized text · skipped formulas (pages ascending). The web stop without
+/// fonts is PdfIoException(exportFailed, detail: 'fonts-unavailable') before begin, not
+/// reported (an offline device, not a fault).
 final class DefaultPdfExportService implements PdfExportService {
   DefaultPdfExportService({
     required PdfNoteGateway gateway,
     required PdfInkVectorizer vectorizer,
     required PdfComposeBackend backend,
+  }) : this._ports(gateway: gateway, vectorizer: vectorizer, backend: backend);
+
+  DefaultPdfExportService._ports({
+    required PdfNoteGateway gateway,
+    required PdfInkVectorizer vectorizer,
+    required PdfComposeBackend backend,
+    PdfMathRasterizer math = const InkMathRasterizer(),
+    PdfTextRasterizer text = const InkTextRasterizer(),
+    Future<void> Function() loadFonts = loadNoteSansFonts,
+    PdfFontBytesSource? fontBytes,
+    Duration fontLoadTimeout = PdfTuning.exportFontLoadTimeout,
+    Duration mathTimeout = PdfTuning.exportMathRasterTimeout,
+    bool web = kIsWeb,
+    void Function(ExportMemoryLedger ledger)? onLedger,
   }) : _gateway = gateway,
        _vectorizer = vectorizer,
-       _backend = backend;
+       _backend = backend,
+       _math = math,
+       _text = text,
+       _loadFonts = loadFonts,
+       _fontBytes = fontBytes,
+       _fontLoadTimeout = fontLoadTimeout,
+       _mathTimeout = mathTimeout,
+       _web = web,
+       _onLedger = onLedger;
 
   final PdfNoteGateway _gateway;
   final PdfInkVectorizer _vectorizer;
   final PdfComposeBackend _backend;
+  final PdfMathRasterizer _math;
+  final PdfTextRasterizer _text;
+  final Future<void> Function() _loadFonts;
+  final PdfFontBytesSource? _fontBytes;
+  final Duration _fontLoadTimeout, _mathTimeout;
+  final bool _web;
+  final void Function(ExportMemoryLedger ledger)? _onLedger;
   bool _running = false;
 
-  static const int _chunkPages = kIsWeb
-      ? PdfTuning.exportChunkPages
-      : PdfTuning.nativeExportChunkPages;
+  int get _chunkPages =>
+      _web ? PdfTuning.exportChunkPages : PdfTuning.nativeExportChunkPages;
 
   @override
   Future<PdfExportResult> exportNote(
@@ -100,11 +176,13 @@ final class DefaultPdfExportService implements PdfExportService {
   }) async {
     _enter();
     try {
+      final signal = cancel ?? PdfCancelSignal();
       return await _export(
         noteId,
         options,
         onProgress ?? _ignoreProgress,
-        cancel ?? PdfCancelSignal(),
+        signal,
+        fonts: _fontsOnce(signal),
       );
     } finally {
       _running = false;
@@ -133,6 +211,26 @@ final class DefaultPdfExportService implements PdfExportService {
 
   static void _ignoreProgress(PdfProgress _) {}
 
+  /// 6.2.2 step 1: InkFonts.ensureLoaded() within exportFontLoadTimeout, asked for once (an
+  /// export or a whole batch). A failure or a time-out → false (text boxes are rasterized); a
+  /// cancel is rethrown.
+  Future<bool> Function() _fontsOnce(PdfCancelSignal cancel) {
+    Future<bool>? ready;
+    Future<bool> wait() async {
+      try {
+        await cancel.raceCancel(_loadFonts().timeout(_fontLoadTimeout));
+        return true;
+      } on PdfIoException catch (e) {
+        if (e.code == PdfErrorCode.cancelled) rethrow;
+        return false;
+      } on Object {
+        return false;
+      }
+    }
+
+    return () => ready ??= wait();
+  }
+
   void _enter() {
     if (_running) throw const PdfIoException(PdfErrorCode.busy);
     if (!_backend.isSupported) {
@@ -153,6 +251,7 @@ final class DefaultPdfExportService implements PdfExportService {
     PdfCancelSignal cancel,
   ) async {
     final items = <PdfBatchExportItem>[];
+    final fonts = _fontsOnce(cancel); // waited for once per batch (6.2.2)
     var totalBytes = 0;
     var cancelled = false, stopped = false;
     for (var i = 0; i < noteIds.length; i++) {
@@ -178,6 +277,7 @@ final class DefaultPdfExportService implements PdfExportService {
             ),
           ),
           cancel,
+          fonts: fonts,
           onNote: (note) => title = note.title,
         );
         items.add(
@@ -259,6 +359,7 @@ final class DefaultPdfExportService implements PdfExportService {
     PdfExportOptions options,
     PdfProgressCallback onProgress,
     PdfCancelSignal cancel, {
+    required Future<bool> Function() fonts,
     void Function(core.Note note)? onNote,
   }) async {
     final watch = Stopwatch()..start();
@@ -279,6 +380,8 @@ final class DefaultPdfExportService implements PdfExportService {
       );
     }
     final fileName = _fileName(note, options, selection);
+    // (2차) the fonts of the text boxes (6.2.2 step 1 — once per export / batch)
+    final fontsReady = await fonts();
 
     // 2. Output pages; each source once, in first-seen order.
     final sources = <PdfComposeSource>[];
@@ -325,6 +428,19 @@ final class DefaultPdfExportService implements PdfExportService {
       );
     }
     cancel.throwIfCancelled();
+    // (2차, S-12) the web without NoteSans: Hangul would come out as tofu even in the raster
+    // fallback when offline — stop before begin if a text box needs more than ASCII.
+    if (_web && !fontsReady && options.includeInk) {
+      for (final i in selection) {
+        final content = await cancel.raceCancel(_gateway.loadPage(pages[i].id));
+        if (content.objects.any(_needsFonts)) {
+          throw const PdfIoException(
+            PdfErrorCode.exportFailed,
+            detail: PdfStringsKo.fontsUnavailableDetail,
+          );
+        }
+      }
+    }
 
     // 4. begin. A cancel while the backend loads the sources aborts the job it gives later.
     final total = planned.length;
@@ -346,33 +462,55 @@ final class DefaultPdfExportService implements PdfExportService {
     }
 
     // 5. composing, 6. finishingExport.
+    final ledger = ExportMemoryLedger();
+    _onLedger?.call(ledger);
+    final resolver = ObjectResolver(
+      gateway: _gateway,
+      math: _math,
+      text: _text,
+      fontBytes: _fontBytes,
+      mathTimeout: _mathTimeout,
+      ledger: ledger,
+    );
+    final ctx = ResolveContext(
+      missingAssetPolicy: options.missingAssetPolicy,
+      cancel: cancel,
+      fontsReady: fontsReady,
+    );
+    final composer = _PartSender(
+      job: job,
+      cancel: cancel,
+      resolver: resolver,
+      ledger: ledger,
+      chunkPages: _chunkPages,
+      countCopy: !_web,
+    );
+    final sentFonts =
+        <int>{}; // per job: every note is its own document (6.2.6)
     var finishing = false;
     try {
       onProgress(PdfProgress(PdfJobPhase.composing, total: total));
-      final chunk = <PdfComposePageOps>[];
-      var chunkBytes = 0;
-      Future<void> send() async {
-        final ready = [...chunk];
-        chunk.clear();
-        chunkBytes = 0;
-        await cancel.raceCancel(job.addPages(ready));
-      }
-
       final slice = Stopwatch()..start();
       for (var out = 0; out < total; out++) {
         cancel.throwIfCancelled();
-        final ops = await _opsFor(pages[selection[out]], out, options, cancel);
-        if (ops != null) {
-          if (chunk.isNotEmpty &&
-              chunkBytes + ops.byteLength > PdfTuning.exportChunkMaxBytes) {
-            await send();
+        ctx.notePageNumber = selection[out] + 1;
+        final plan = await _planFor(pages[selection[out]], options, cancel);
+        final pending = <PdfDrawItem>[];
+        for (final item in plan.items) {
+          cancel.throwIfCancelled();
+          final draws = item is PdfDrawItem
+              ? <PdfDrawItem>[item]
+              : await resolver.resolve(item, ctx);
+          pending.addAll(draws);
+          if (draws.any((d) => d is PdfImageItem)) {
+            // S-2: the image goes out before the next item is resolved (6.2.10 ①).
+            await composer.queue(_encode(out, pending, ctx, sentFonts));
+            pending.clear();
+            await composer.flush();
           }
-          chunk.add(ops);
-          chunkBytes += ops.byteLength;
-          if (chunk.length >= _chunkPages ||
-              chunkBytes >= PdfTuning.exportChunkMaxBytes) {
-            await send();
-          }
+        }
+        if (pending.isNotEmpty) {
+          await composer.queue(_encode(out, pending, ctx, sentFonts));
         }
         onProgress(
           PdfProgress(PdfJobPhase.composing, done: out + 1, total: total),
@@ -383,13 +521,17 @@ final class DefaultPdfExportService implements PdfExportService {
           slice.reset();
         }
       }
-      if (chunk.isNotEmpty) await send();
+      await composer.flush();
       cancel.throwIfCancelled();
       onProgress(
         PdfProgress(PdfJobPhase.finishingExport, done: total, total: total),
       );
       finishing = true; // finish cleans the job up, whatever its outcome
       final bytes = await cancel.raceCancel(job.finish());
+      if (ledger.overBudget > 0) {
+        // M-3 outside input (CP-PDF-14 ②) — the developer's count (6.2.10 ⑤).
+        debugPrint('pdf export: over budget ${ledger.overBudget}');
+      }
       return PdfExportResult(
         bytes: bytes,
         fileName: fileName,
@@ -397,6 +539,7 @@ final class DefaultPdfExportService implements PdfExportService {
         elapsed: watch.elapsed,
         warnings: [
           if (missing.isNotEmpty) PdfExportBlankedMissingAsset(missing),
+          ...ctx.warnings,
         ],
       );
     } on PdfIoException catch (e, s) {
@@ -408,8 +551,29 @@ final class DefaultPdfExportService implements PdfExportService {
     } on Object catch (e, s) {
       if (!finishing) unawaited(_abortQuietly(job));
       throw _unexpected(e, s, 'pdf export: compose');
+    } finally {
+      resolver.dispose();
     }
   }
+
+  /// A live text box with a character outside ASCII (6.2.2 S-12).
+  static bool _needsFonts(core.PageObject o) =>
+      o is core.TextBoxObject &&
+      o.deletedAt == null &&
+      o.text.codeUnits.any((c) => c > 0x7F);
+
+  /// [items] of output page [outputIndex] → its next parts (fonts first used here ride along).
+  static List<PdfComposePageOps> _encode(
+    int outputIndex,
+    List<PdfDrawItem> items,
+    ResolveContext ctx,
+    Set<int> sentFonts,
+  ) => PdfComposeEncoder.encodeItems(
+    outputIndex: outputIndex,
+    items: items,
+    fontBytes: ctx.fontBytes,
+    sentFonts: sentFonts,
+  );
 
   /// Output page indexes into [pages] (6.11.2 step 1).
   static List<int> _select(List<core.Page> pages, PdfExportRange range) {
@@ -462,33 +626,22 @@ final class DefaultPdfExportService implements PdfExportService {
     );
   }
 
-  /// The ops of one output page, or null when there is nothing to draw on it.
-  Future<PdfComposePageOps?> _opsFor(
+  /// The page plan of one output page (6.2.2 step 4): with ink the page as committed now
+  /// (6.11.2 step 8 — not a whole-note snapshot); original only → the page without strokes and
+  /// objects (its background — an image background too — is on the Page).
+  Future<PdfPagePlan> _planFor(
     core.Page page,
-    int outputIndex,
     PdfExportOptions options,
     PdfCancelSignal cancel,
   ) async {
-    var current = page;
-    var strokes = const <core.Stroke>[];
-    if (options.includeInk) {
-      // The page as committed now (6.11.2 step 8 — not a whole-note snapshot).
-      final content = await cancel.raceCancel(_gateway.loadPage(page.id));
-      current = content.page;
-      strokes = content.strokes;
-    }
-    final vectors = _vectorizer.vectorize(
-      current,
-      strokes,
+    final content = options.includeInk
+        ? await cancel.raceCancel(_gateway.loadPage(page.id))
+        : core.PageContent(page: page, strokes: const [], revision: 0);
+    return _vectorizer.planPage(
+      content,
       includeInk: options.includeInk,
       includeTemplate: options.includeTemplates,
     );
-    if (vectors.isEmpty) return null;
-    final ops = PdfComposeEncoder.encode(
-      outputIndex: outputIndex,
-      vectors: vectors,
-    );
-    return ops.isEmpty ? null : ops;
   }
 
   static Future<void> _abortQuietly(PdfComposeJob job) async {
@@ -506,5 +659,74 @@ final class DefaultPdfExportService implements PdfExportService {
       detail: 'unexpected error: ${e.runtimeType}',
       cause: e,
     );
+  }
+}
+
+/// The parts of one export on their way to the compose job (6.2.2 step 4): queued by the 1차
+/// chunk rules (chunkPages parts, ≤ exportChunkMaxBytes unless one part is larger) and sent with
+/// [flush]. After a send the resolver releases what the sent images held. While addPages runs:
+/// on the native worker the images' copy is held as `copy` (CP-PDF-14 ①); on the web RGBA is
+/// transferred (no copy) and JPEG bytes are cloned (they may go back to the cache — T23), so
+/// that clone is held as `encoded` (6.2.10 '보내는 사본'). Both are released in finally, also
+/// after an error or a cancel.
+final class _PartSender {
+  _PartSender({
+    required this.job,
+    required this.cancel,
+    required this.resolver,
+    required this.ledger,
+    required this.chunkPages,
+    required this.countCopy,
+  });
+
+  final PdfComposeJob job;
+  final PdfCancelSignal cancel;
+  final ObjectResolver resolver;
+  final ExportMemoryLedger ledger;
+  final int chunkPages;
+  final bool countCopy;
+  final List<PdfComposePageOps> _queued = [];
+  int _queuedBytes = 0;
+
+  Future<void> queue(List<PdfComposePageOps> parts) async {
+    for (final part in parts) {
+      if (_queued.isNotEmpty &&
+          _queuedBytes + part.byteLength > PdfTuning.exportChunkMaxBytes) {
+        await flush();
+      }
+      _queued.add(part);
+      _queuedBytes += part.byteLength;
+      if (_queued.length >= chunkPages ||
+          _queuedBytes >= PdfTuning.exportChunkMaxBytes) {
+        await flush();
+      }
+    }
+  }
+
+  Future<void> flush() async {
+    if (_queued.isEmpty) return;
+    final ready = List<PdfComposePageOps>.of(_queued);
+    _queued.clear();
+    _queuedBytes = 0;
+    final images = [for (final part in ready) ...part.images];
+    var copyBytes = 0, jpegBytes = 0;
+    for (final image in images) {
+      copyBytes += image.byteLength;
+      if (image is PdfJpegData) jpegBytes += image.byteLength;
+    }
+    final ExportMemoryHandle? copy;
+    if (countCopy) {
+      copy = copyBytes > 0 ? ledger.holdCopy(copyBytes) : null;
+    } else {
+      copy = jpegBytes > 0
+          ? ledger.hold(ExportMemoryKind.encoded, jpegBytes)
+          : null;
+    }
+    try {
+      await cancel.raceCancel(job.addPages(ready));
+    } finally {
+      if (copy != null) ledger.release(copy);
+    }
+    resolver.sent(images);
   }
 }

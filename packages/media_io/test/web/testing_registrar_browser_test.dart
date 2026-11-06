@@ -11,6 +11,7 @@ import 'package:just_audio_platform_interface/just_audio_platform_interface.dart
 import 'package:just_audio_web/just_audio_web.dart';
 import 'package:media_io/media_io.dart';
 import 'package:media_io/testing.dart';
+import 'package:note_core/note_core.dart' as core;
 import 'package:record_platform_interface/record_platform_interface.dart';
 import 'package:record_web/record_web.dart';
 
@@ -40,9 +41,17 @@ void main() {
     expect(FakeImagePickerPlatform.new, vmOnly());
   });
 
-  test('the barrel runs in the browser: R2-B4 bodies', () async {
-    await initializeMediaIo();
-    expect(mediaIoOverrides(), isEmpty);
-    expect(supportedImageSources(), isEmpty);
+  test('the barrel runs in the browser: initializeMediaIo, the two overrides (T37)', () async {
+    await initializeMediaIo(); // the web MIME table is probed here (6.8.1)
+    expect(mediaIoOverrides(), hasLength(2));
+    // (T35b) the web image sources are real (web/image_codec_browser_test.dart)
+    expect(
+      supportedImageSources(),
+      containsAll(const [
+        core.ImageImportSource.photos,
+        core.ImageImportSource.camera,
+        core.ImageImportSource.files,
+      ]),
+    );
   });
 }

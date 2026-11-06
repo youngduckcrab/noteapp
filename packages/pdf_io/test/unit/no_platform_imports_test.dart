@@ -126,25 +126,25 @@ void main() {
     );
   });
 
-  test(
-    "package:ink_engine only in ink_adapter/ and init.dart, always 'as ink'",
-    () {
-      const allowed = {
-        'src/init.dart',
-        'src/ink_adapter/ink_background_builder.dart',
-        'src/ink_adapter/ink_vectorizer.dart',
-        'src/ink_adapter/template_underlay.dart',
-      };
-      expect(
-        _offending(
-          (d, uri) =>
-              uri.startsWith('package:ink_engine/') &&
-              (!allowed.contains(d.file) || d.prefix != 'ink'),
-        ),
-        isEmpty,
-      );
-    },
-  );
+  test("package:ink_engine only in ink_adapter/, init.dart and the resolver's raster ports / "
+      "fonts (m5-7/06-pdf 3.1), always 'as ink'", () {
+    const allowed = {
+      'src/init.dart',
+      'src/export/object_resolver.dart',
+      'src/export/raster_ports.dart',
+      'src/ink_adapter/ink_background_builder.dart',
+      'src/ink_adapter/ink_vectorizer.dart',
+      'src/ink_adapter/template_underlay.dart',
+    };
+    expect(
+      _offending(
+        (d, uri) =>
+            uri.startsWith('package:ink_engine/') &&
+            (!allowed.contains(d.file) || d.prefix != 'ink'),
+      ),
+      isEmpty,
+    );
+  });
 
   test("package:note_core is always imported 'as core'", () {
     expect(

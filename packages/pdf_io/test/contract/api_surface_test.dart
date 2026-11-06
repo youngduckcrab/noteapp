@@ -213,6 +213,8 @@ const Set<String> testingNames = {
   'RecordingComposeBackend',
   'BoxInkVectorizer',
   'FakeRemoteAssetFetcher',
+  // (2차) m5-7/06-pdf 4.3.1
+  'PdfObjectFixtures',
 };
 
 /// Internal per 4.15 ('내부 전용'): never exported.

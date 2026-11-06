@@ -1,24 +1,67 @@
 // Shared set-up of the export service tests (T15 export_service_test, T15b batch_export_test,
-// web/pure_logic_browser_test): FakePdfNoteGateway + BoxInkVectorizer +
-// RecordingComposeBackend, and small helpers. Web-safe.
+// web/pure_logic_browser_test; (2차, T26) unit/export_service_objects_test,
+// widget/export_flow_test v2): FakePdfNoteGateway (+ page objects — [ObjectsGateway]) +
+// BoxInkVectorizer + RecordingComposeBackend on the src-only createPdfExportService with fake
+// raster ports, a fake font wait and font bytes, and small helpers. Web-safe.
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:pdf_io/pdf_io.dart';
+import 'package:pdf_io/src/export/export_memory.dart';
+import 'package:pdf_io/src/export/export_service.dart';
 import 'package:pdf_io/testing.dart';
+
+import 'fake_rasterizers.dart';
 
 const core.PageDraft blankDraft = core.PageDraft.blankA4;
 
+/// ExportWorld v2 (T26): [web] runs the web rules on the VM (S-12 stop, 16-part chunks, no
+/// worker copy); [fontsReady] false → the font wait fails at once; every export's ledger is in
+/// [ledgers].
 final class ExportWorld {
-  ExportWorld({RecordingComposeBackend? backend})
-    : backend = backend ?? RecordingComposeBackend();
+  ExportWorld({
+    RecordingComposeBackend? backend,
+    FakeMathRasterizer? math,
+    FakeTextRasterizer? text,
+    FakeFontSource? fonts,
+    this.web = kIsWeb,
+    this.fontsReady = true,
+    this.vectorizer = const BoxInkVectorizer(),
+  }) : backend = backend ?? RecordingComposeBackend(),
+       math = math ?? FakeMathRasterizer(),
+       text = text ?? FakeTextRasterizer(),
+       fonts = fonts ?? FakeFontSource();
 
   final FakePdfNoteGateway gateway = FakePdfNoteGateway();
+  late final ObjectsGateway objects = ObjectsGateway(gateway);
   final RecordingComposeBackend backend;
-  late final DefaultPdfExportService service = DefaultPdfExportService(
-    gateway: gateway,
-    vectorizer: const BoxInkVectorizer(),
+  final FakeMathRasterizer math;
+  final FakeTextRasterizer text;
+  final FakeFontSource fonts;
+  final bool web;
+
+  /// What the next font waits end with (true = loaded, false = TimeoutException).
+  bool fontsReady;
+
+  /// How many times the service waited for the fonts.
+  int fontWaits = 0;
+  final List<ExportMemoryLedger> ledgers = [];
+  final PdfInkVectorizer vectorizer;
+  late final DefaultPdfExportService service = createPdfExportService(
+    gateway: objects,
+    vectorizer: vectorizer,
     backend: backend,
+    math: math,
+    text: text,
+    loadFonts: () async {
+      fontWaits++;
+      if (!fontsReady) throw TimeoutException('fake font load');
+    },
+    fontBytes: fonts.call,
+    web: web,
+    onLedger: ledgers.add,
   );
   final Map<String, Uint8List> _bytes = {};
   int _strokes = 0;
@@ -52,6 +95,72 @@ final class ExportWorld {
       testStroke('stroke-$_strokes', pageId, x: x, createdAt: _strokes),
     ]);
   }
+}
+
+/// FakePdfNoteGateway with page objects: [loadPage] adds the objects given with [addObjects]
+/// (live ones, Stroke.compareOrder — as CORE's PageContent.objects). Every port call goes to
+/// the inner gateway (its `calls` log them).
+final class ObjectsGateway implements PdfNoteGateway {
+  ObjectsGateway(this.inner);
+
+  final FakePdfNoteGateway inner;
+  final Map<core.PageId, List<core.PageObject>> _objects = {};
+
+  void addObjects(core.PageId pageId, List<core.PageObject> objects) =>
+      (_objects[pageId] ??= []).addAll(objects);
+
+  @override
+  Future<core.PageContent> loadPage(core.PageId pageId) async {
+    final content = await inner.loadPage(pageId);
+    final objects = [
+      for (final o in _objects[pageId] ?? const <core.PageObject>[])
+        if (o.deletedAt == null) o,
+    ]..sort(core.Stroke.compareOrder);
+    return core.PageContent(
+      page: content.page,
+      strokes: content.strokes,
+      objects: objects,
+      revision: content.revision,
+    );
+  }
+
+  @override
+  Future<core.Asset> putPdf(Uint8List bytes, {required String fileName}) =>
+      inner.putPdf(bytes, fileName: fileName);
+
+  @override
+  Future<Uint8List?> readAssetBytes(core.AssetId assetId) =>
+      inner.readAssetBytes(assetId);
+
+  @override
+  Stream<core.AssetId> get bytesArrived => inner.bytesArrived;
+
+  @override
+  Future<core.Note> createNote({
+    core.FolderId? folderId,
+    required String title,
+    required List<core.PageDraft> pages,
+  }) => inner.createNote(folderId: folderId, title: title, pages: pages);
+
+  @override
+  Future<List<core.PageId>> insertPages(
+    core.NoteId noteId,
+    List<core.PageDraft> pages,
+    core.PagePosition position,
+  ) => inner.insertPages(noteId, pages, position);
+
+  @override
+  Future<void> flush() => inner.flush();
+
+  @override
+  Future<core.Note?> getNote(core.NoteId noteId) => inner.getNote(noteId);
+
+  @override
+  Future<List<core.Page>> pagesOf(core.NoteId noteId) => inner.pagesOf(noteId);
+
+  @override
+  Future<void> writeThumbnail(core.PageThumbnail thumbnail) =>
+      inner.writeThumbnail(thumbnail);
 }
 
 core.Stroke testStroke(

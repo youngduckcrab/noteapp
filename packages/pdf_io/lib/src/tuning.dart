@@ -67,6 +67,53 @@ abstract final class PdfTuning {
   static const int missingPagesListMax = 10;
   static const int maxFileNameRunes = 100;
 
+  // export objects (2차, m5-7/06-pdf 4.5.1 · 6.2.4 · 6.2.10)
+  /// U17 — only inside the [maxRasterPixels] cap; larger frames get a lower dpi.
+  static const double mathRasterDpi = 300;
+
+  /// Text box raster fallback (6.2.5) — the same rule.
+  static const double textRasterDpi = 300;
+
+  /// One raster / decode ≤ 4 Mpx (16 MiB RGBA) — contract 7.4.5; the INK value (03-ink 4.10).
+  static const int maxRasterPixels = 4194304;
+
+  /// Texture-safe side (the INK value).
+  static const int maxRasterSidePx = 8192;
+
+  /// Engine decode target (long side) — the same as ImageImportLimits.maxLongSidePx.
+  static const int exportDecodeLongSidePx = 2048;
+
+  /// JPEG fast path (bytes as stored) limit — larger JPEGs are decoded (slow path).
+  static const int exportJpegInlineMaxBytes = 8 * 1024 * 1024;
+
+  /// Contract 7.4.5 '내보내기 중 이미지·래스터 임시 16 MB': RGBA + read image bytes + JPEG cache
+  /// that Dart holds at once (ExportMemoryLedger). The native worker copy is outside (CP-PDF-14 ①).
+  static const int exportImageTempBytes = 16 * 1024 * 1024;
+
+  /// Slow path decode target floor (1 Mpx = 4 MiB RGBA). Only inputs > 12 MiB (outside M-3) go
+  /// over the ledger budget with it (overBudget — CP-PDF-14 ②).
+  static const int exportMinDecodePixels = 1048576;
+
+  /// InkFonts.ensureLoaded() wait — longer → every text box is rasterized.
+  static const Duration exportFontLoadTimeout = Duration(seconds: 5);
+
+  /// One formula raster — longer → left out with a warning.
+  static const Duration exportMathRasterTimeout = Duration(seconds: 3);
+
+  // (2차, m5-7/06-pdf 4.5.1 — T27) the library-wide PDF text indexer (6.4).
+
+  /// Least time between two indexed PDF pages (6.4.3).
+  static const Duration indexSliceGap = Duration(milliseconds: 150);
+
+  /// One search unit's body at most (UTF-16 code units); a longer page is cut at line breaks.
+  static const int indexMaxUnitCodeUnits = 30000;
+
+  /// The `:x<n>` tail of the pdf sourceRev (CP-PDF-2) — raise it when the unit rules change.
+  static const int indexExtractorVersion = 1;
+
+  /// Assets queued at a time by the catch-up.
+  static const int indexCatchUpBatch = 50;
+
   // colors — contract 7.4.11 v1.2 (C12-07): the PDF search highlight is an exception to the
   // no-hard-coded-color rule. It is drawn OVER THE PAPER, so contrast with the paper (not the
   // UI theme) decides it; it does not follow the theme (dark mode included). PdfTuning is the

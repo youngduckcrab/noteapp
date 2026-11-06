@@ -5,12 +5,25 @@
 // checks the output by opening it again with a PdfEngine (PdfrxEngine on both platforms):
 // marker pixels where the note coordinates say, text kept, page order and sizes, no
 // security handler. Web safe: no dart:io.
+//
+// (2차, m5-7/06-pdf T22/T23 — 6.1 E1–E4, 6.2.5, 6.2.6) composeObjectProbes: image and text
+// ops on the real PDFium of each platform — text objects extract as the strings put in (one
+// embedded TrueType per font id), glyph boxes of rotated text, JPEG as /DCTDecode at its own
+// size, RGBA with alpha → /SMask and transparent pixels show what is under them, several
+// parts of one page all kept, an image on a rotated original page, broken parts →
+// exportFailed. The font bytes come from ComposeProbeContext.fontBytes (default
+// ink.InkFonts.noteSansBytes: the real NoteSans on the VM, the INK test font after
+// useInkTestFonts() in Chrome — every probe sentence is inside the test font's characters).
+import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 import 'package:pdf_io/pdf_io.dart';
+import 'package:pdf_io/src/export/object_geometry.dart';
 import 'package:pdf_io/testing.dart';
 
 typedef ComposeProbeBody = Future<void> Function(ComposeProbeContext ctx);
@@ -23,10 +36,17 @@ final class ComposeProbe {
 
 /// What a probe runs against. Opened output documents are disposed by [dispose].
 final class ComposeProbeContext {
-  ComposeProbeContext({required this.backend, required this.engine});
+  ComposeProbeContext({
+    required this.backend,
+    required this.engine,
+    Future<Uint8List> Function({bool bold})? fontBytes,
+  }) : fontBytes = fontBytes ?? ink.InkFonts.noteSansBytes;
 
   final PdfComposeBackend backend;
   final PdfEngine engine;
+
+  /// TrueType bytes for the object probes' text (regular / bold).
+  final Future<Uint8List> Function({bool bold}) fontBytes;
   final List<PdfEngineDocument> _opened = [];
   static var _sources = 0;
 
@@ -793,3 +813,503 @@ bool _contains(Uint8List bytes, String ascii) {
   }
   return false;
 }
+
+// ---------------------------------------------------------------------------------------
+// (2차, m5-7/06-pdf T22/T23) Object probes — image and text ops.
+
+/// One image XObject of a saved PDF (read from its dictionary — PDFium writes them as plain
+/// dictionaries, so the same scan works on both platforms).
+final class ProbePdfImage {
+  const ProbePdfImage({
+    required this.objectNumber,
+    required this.width,
+    required this.height,
+    required this.filter,
+    required this.smask,
+  });
+  final int objectNumber;
+  final int width, height;
+  final String? filter; // first filter name, e.g. 'DCTDecode'
+  final int? smask; // object number of its /SMask
+
+  @override
+  String toString() =>
+      'image #$objectNumber ${width}x$height /$filter smask: $smask';
+}
+
+/// The object dictionaries of a saved PDF (stream data skipped).
+final class ProbePdfObjects {
+  factory ProbePdfObjects(Uint8List bytes) {
+    final text = latin1.decode(bytes);
+    final header = RegExp(r'(\d+)\s+\d+\s+obj\b');
+    final dicts = <int, String>{};
+    var from = 0;
+    while (true) {
+      final m = header.firstMatch(text.substring(from));
+      if (m == null) break;
+      final start = from + m.end;
+      final endobj = text.indexOf('endobj', start);
+      final stream = text.indexOf('stream', start);
+      final end = endobj < 0 ? text.length : endobj;
+      final dictEnd = stream >= 0 && stream < end ? stream : end;
+      dicts[int.parse(m.group(1)!)] = text.substring(start, dictEnd);
+      if (stream >= 0 && stream < end) {
+        final endstream = text.indexOf('endstream', stream);
+        from = endstream < 0 ? text.length : endstream + 9;
+      } else {
+        from = end < text.length ? end + 6 : text.length;
+      }
+    }
+    return ProbePdfObjects._(dicts);
+  }
+
+  ProbePdfObjects._(this.dicts);
+
+  /// object number → dictionary text
+  final Map<int, String> dicts;
+
+  /// Every image XObject (soft masks included).
+  List<ProbePdfImage> get allImages => [
+    for (final MapEntry(key: n, value: d) in dicts.entries)
+      if (RegExp(r'/Subtype\s*/Image\b').hasMatch(d))
+        ProbePdfImage(
+          objectNumber: n,
+          width: _int(d, 'Width') ?? -1,
+          height: _int(d, 'Height') ?? -1,
+          filter: RegExp(r'/Filter\s*\[?\s*/(\w+)').firstMatch(d)?.group(1),
+          smask: int.tryParse(
+            RegExp(r'/SMask\s+(\d+)\s+\d+\s+R').firstMatch(d)?.group(1) ?? '',
+          ),
+        ),
+  ];
+
+  /// The image objects a page draws (not the soft masks other images point at).
+  List<ProbePdfImage> get images {
+    final all = allImages;
+    final masks = {for (final i in all) ?i.smask};
+    return [
+      for (final i in all)
+        if (!masks.contains(i.objectNumber)) i,
+    ];
+  }
+
+  /// Embedded TrueType files (one per loaded font).
+  int get fontFiles =>
+      dicts.values.where((d) => RegExp(r'/FontFile2\b').hasMatch(d)).length;
+
+  static int? _int(String dict, String key) =>
+      int.tryParse(RegExp('/$key\\s+(\\d+)').firstMatch(dict)?.group(1) ?? '');
+}
+
+/// The image's unit square onto [rect] (note pt).
+PdfImageItem imageAt(PdfImageData image, ui.Rect rect) =>
+    PdfImageItem(image: image, matrix: unitSquareToRect(rect));
+
+/// One text line with its baseline start at ([x], [baselineY]) in [frame] (frame-local pt),
+/// placed by the frame (rotation about its centre) — the resolver's F ∘ T (6.2.3).
+PdfTextItem textLine(
+  String text, {
+  required core.ElementFrame frame,
+  double x = 0,
+  required double baselineY,
+  double fontSize = 18,
+  bool bold = false,
+  int colorArgb = 0xFF202020,
+}) => PdfTextItem(
+  text: text,
+  fontId: bold ? PdfComposeOpcodes.fontBold : PdfComposeOpcodes.fontRegular,
+  fontSize: fontSize,
+  colorArgb: colorArgb,
+  matrix: textSpaceAt(x, baselineY).then(PdfAffine.frame(frame)),
+);
+
+/// The parts of one page for [items] (fonts from [ProbeFonts]; a fresh job each call).
+Future<List<PdfComposePageOps>> partsOf(
+  ComposeProbeContext ctx,
+  int outputIndex,
+  List<PdfDrawItem> items, {
+  Set<int>? sentFonts,
+}) async => PdfComposeEncoder.encodeItems(
+  outputIndex: outputIndex,
+  items: items,
+  fontBytes: {
+    PdfComposeOpcodes.fontRegular: await ctx.fontBytes(),
+    PdfComposeOpcodes.fontBold: await ctx.fontBytes(bold: true),
+  },
+  sentFonts: sentFonts ?? {},
+);
+
+/// Straight RGBA: the left half opaque [left], the right half [right] at [rightAlpha].
+PdfRgbaData halfAndHalf(
+  int width,
+  int height, {
+  required (int, int, int) left,
+  required (int, int, int) right,
+  int rightAlpha = 0,
+}) {
+  final rgba = Uint8List(width * height * 4);
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      final i = (y * width + x) * 4;
+      final (r, g, b) = x < width ~/ 2 ? left : right;
+      rgba[i] = r;
+      rgba[i + 1] = g;
+      rgba[i + 2] = b;
+      rgba[i + 3] = x < width ~/ 2 ? 255 : rightAlpha;
+    }
+  }
+  return PdfRgbaData(
+    rgba,
+    width: width,
+    height: height,
+    hasAlpha: rightAlpha < 255,
+  );
+}
+
+bool _near((int, int, int) px, (int, int, int) want, {int tolerance = 14}) =>
+    (px.$1 - want.$1).abs() <= tolerance &&
+    (px.$2 - want.$2).abs() <= tolerance &&
+    (px.$3 - want.$3).abs() <= tolerance;
+
+/// PdfObjectFixtures.jpegBaseline64x48 drawn into [rect] (displayed pt, upright): its four
+/// quadrant colours where they belong (top-left blue, top-right red, bottom-left green,
+/// bottom-right yellow — Pillow values (66, 61, 128), (193, 59, 30), (66, 180, 128),
+/// (195, 181, 32)).
+void expectBaselineJpegAt(ProbeImage image, ui.Rect rect, {String? reason}) {
+  ui.Offset at(double fx, double fy) =>
+      ui.Offset(rect.left + rect.width * fx, rect.top + rect.height * fy);
+  final cases = <String, ((double, double), (int, int, int))>{
+    'top-left': ((0.25, 0.25), (66, 61, 128)),
+    'top-right': ((0.75, 0.25), (193, 59, 30)),
+    'bottom-left': ((0.25, 0.75), (66, 180, 128)),
+    'bottom-right': ((0.75, 0.75), (195, 181, 32)),
+  };
+  for (final MapEntry(key: name, value: ((fx, fy), want)) in cases.entries) {
+    final px = image.pixel(at(fx, fy));
+    expect(
+      _near(px, want, tolerance: 30),
+      isTrue,
+      reason: '${reason ?? ''} $name of the JPEG at $rect: $px, want ~$want',
+    );
+  }
+  for (final outside in [
+    rect.topLeft - const ui.Offset(4, 4),
+    rect.bottomRight + const ui.Offset(4, 4),
+  ]) {
+    expect(
+      _near(image.pixel(outside), (255, 255, 255), tolerance: 6),
+      isTrue,
+      reason: '${reason ?? ''} paper outside the JPEG at $outside',
+    );
+  }
+}
+
+/// Dark (text) pixels inside [rect] (displayed pt).
+int _inkIn(ProbeImage image, ui.Rect rect) => image.count(
+  (r, g, b) => r < 128 && g < 128 && b < 128,
+  pixelBox: image.toPixels(rect),
+);
+
+/// Lines of PDFium's page text (\r\n separated), trimmed, empty ones dropped. U+00A0 reads
+/// as a space: PDFium's ToUnicode for a loaded TrueType maps the space glyph to the last code
+/// point of the font's cmap that uses it — NoteSans maps U+0020 and U+00A0 to one glyph, so
+/// the VM extracts NBSP (the Chrome test font has no U+00A0 and gives U+0020). CORE
+/// SearchText folds both as whitespace (7.2.5), so search does not see the difference.
+List<String> _lines(String text) => [
+  for (final line in text.replaceAll('\u00A0', ' ').split(RegExp(r'\r?\n')))
+    if (line.trim().isNotEmpty) line.trim(),
+];
+
+const ui.Size _objectsPage = ui.Size(300, 200);
+
+const PdfComposePlan _blankObjectsPage = PdfComposePlan(
+  sources: [],
+  pages: [PdfComposeBlankPage(noteSize: _objectsPage)],
+);
+
+core.ElementFrame _frame(ui.Rect rect, {double rotation = 0}) =>
+    core.ElementFrame(
+      core.PageRect(rect.left, rect.top, rect.right, rect.bottom),
+      rotation: rotation,
+    );
+
+/// All object probes, in a fixed order (pdfium/compose_objects_native_test on the VM,
+/// web/compose_objects_browser_test in Chrome — the same assertions).
+List<ComposeProbe> composeObjectProbes() => [
+  ComposeProbe(
+    'text objects: Korean and Latin lines extract as the strings put in',
+    (ctx) async {
+      final frame = _frame(const ui.Rect.fromLTWH(20, 30, 260, 120));
+      final bytes = await ctx.compose(_blankObjectsPage, [
+        ...await partsOf(ctx, 0, [
+          textLine('안녕 hello', frame: frame, baselineY: 30),
+          textLine('한글 텍스트 상자', frame: frame, baselineY: 80, fontSize: 16),
+        ]),
+      ]);
+      final objects = ProbePdfObjects(bytes);
+      expect(objects.fontFiles, 1, reason: 'one font id → one embedded file');
+      expect(objects.images, isEmpty);
+      final out = await ctx.open(bytes);
+      final text = await out.doc.loadText(0);
+      expect(_lines(text.text), ['안녕 hello', '한글 텍스트 상자']);
+      // The first glyph's box sits on the first baseline (note y 60), starting at x 20.
+      final first = text.charRects[text.text.indexOf('안')];
+      expect(first.left, closeTo(20, 3), reason: 'box of 안: $first');
+      expect(first.bottom, closeTo(60, 4), reason: 'box of 안: $first');
+      expect(first.top, lessThan(60 - 8), reason: 'box of 안: $first');
+      final second = text.charRects[text.text.indexOf('한')];
+      expect(second.bottom, closeTo(110, 4), reason: 'box of 한: $second');
+      final image = await out.render(0, scale: 2);
+      expect(
+        _inkIn(image, const ui.Rect.fromLTWH(18, 40, 140, 24)),
+        greaterThan(100),
+        reason: 'glyph pixels of the first line',
+      );
+    },
+  ),
+  ComposeProbe('text objects: bold is a second embedded font', (ctx) async {
+    final frame = _frame(const ui.Rect.fromLTWH(20, 30, 260, 120));
+    final bytes = await ctx.compose(_blankObjectsPage, [
+      ...await partsOf(ctx, 0, [
+        textLine('hello', frame: frame, baselineY: 30),
+        textLine('안녕', frame: frame, baselineY: 70, bold: true),
+        textLine('줄 1', frame: frame, baselineY: 110),
+      ]),
+    ]);
+    expect(ProbePdfObjects(bytes).fontFiles, 2);
+    final out = await ctx.open(bytes);
+    expect(_lines(await out.text(0)), ['hello', '안녕', '줄 1']);
+  }),
+  ComposeProbe(
+    'text objects: a line rotated 30° — glyph boxes along the turned baseline',
+    (ctx) async {
+      const rect = ui.Rect.fromLTWH(60, 60, 180, 40);
+      final frame = _frame(rect, rotation: math.pi / 6);
+      final bytes = await ctx.compose(_blankObjectsPage, [
+        ...await partsOf(ctx, 0, [
+          textLine('hello hello', frame: frame, x: 4, baselineY: 28),
+        ]),
+      ]);
+      final out = await ctx.open(bytes);
+      final text = await out.doc.loadText(0);
+      expect(_lines(text.text), ['hello hello']);
+      final boxes = [
+        for (var i = 0; i < text.text.length; i++)
+          if (text.text[i].trim().isNotEmpty) text.charRects[i],
+      ];
+      expect(boxes, hasLength(10));
+      final a = boxes.first.center, b = boxes.last.center;
+      final angle = math.atan2(b.dy - a.dy, b.dx - a.dx) * 180 / math.pi;
+      expect(angle, closeTo(30, 3), reason: 'centres $a → $b');
+      // The baseline start (frame-local (4, 28)) is at the first glyph.
+      final start = PdfAffine.frame(frame).apply(const ui.Offset(4, 28));
+      expect(
+        boxes.first.inflate(4).contains(start),
+        isTrue,
+        reason: 'first glyph box ${boxes.first}, baseline start $start',
+      );
+    },
+  ),
+  ComposeProbe('image objects: a JPEG goes in as /DCTDecode at its own size', (
+    ctx,
+  ) async {
+    const rect = ui.Rect.fromLTWH(40, 30, 128, 96);
+    final jpeg = PdfJpegData(
+      PdfObjectFixtures.jpegBaseline64x48,
+      width: 64,
+      height: 48,
+    );
+    final bytes = await ctx.compose(_blankObjectsPage, [
+      ...await partsOf(ctx, 0, [imageAt(jpeg, rect)]),
+    ]);
+    final objects = ProbePdfObjects(bytes);
+    expect(objects.images, hasLength(1), reason: '${objects.allImages}');
+    final image = objects.images.single;
+    expect(image.filter, 'DCTDecode', reason: '$image');
+    expect((image.width, image.height), (64, 48));
+    expect(image.smask, isNull);
+    expect(objects.fontFiles, 0);
+    final out = await ctx.open(bytes);
+    expectBaselineJpegAt(await out.render(0, scale: 2), rect);
+  }),
+  ComposeProbe(
+    'image objects: RGBA with alpha gets an /SMask, its transparent half shows the paper',
+    (ctx) async {
+      const paper = (251, 247, 236);
+      const withAlpha = ui.Rect.fromLTWH(20, 20, 160, 60);
+      const opaque = ui.Rect.fromLTWH(20, 110, 160, 60);
+      final bytes = await ctx.compose(_blankObjectsPage, [
+        ...await partsOf(ctx, 0, [
+          PdfFillItem(
+            path: PdfVectorPath.rect(ui.Offset.zero & _objectsPage),
+            colorArgb: 0xFFFBF7EC,
+          ),
+          imageAt(
+            halfAndHalf(40, 16, left: (20, 40, 220), right: (230, 20, 20)),
+            withAlpha,
+          ),
+          imageAt(
+            halfAndHalf(
+              40,
+              16,
+              left: (20, 160, 60),
+              right: (240, 200, 0),
+              rightAlpha: 255,
+            ),
+            opaque,
+          ),
+        ]),
+      ]);
+      final objects = ProbePdfObjects(bytes);
+      expect(objects.images, hasLength(2), reason: '${objects.allImages}');
+      expect(
+        [for (final i in objects.images) i.smask != null],
+        unorderedEquals([true, false]),
+        reason:
+            'only the image with alpha has a soft mask: ${objects.allImages}',
+      );
+      final masked = objects.images.firstWhere((i) => i.smask != null);
+      expect((masked.width, masked.height), (40, 16));
+      final out = await ctx.open(bytes);
+      final image = await out.render(0, scale: 2);
+      ui.Offset at(ui.Rect r, double fx) =>
+          ui.Offset(r.left + r.width * fx, r.center.dy);
+      expect(_near(image.pixel(at(withAlpha, 0.25)), (20, 40, 220)), isTrue);
+      expect(
+        _near(image.pixel(at(withAlpha, 0.75)), paper),
+        isTrue,
+        reason: 'transparent half: ${image.pixel(at(withAlpha, 0.75))}',
+      );
+      expect(_near(image.pixel(at(opaque, 0.25)), (20, 160, 60)), isTrue);
+      expect(_near(image.pixel(at(opaque, 0.75)), (240, 200, 0)), isTrue);
+      expect(_near(image.pixel(const ui.Offset(250, 100)), paper), isTrue);
+    },
+  ),
+  ComposeProbe(
+    'parts: two parts of one page in two addPages calls — every object kept, in order',
+    (ctx) async {
+      const jpegRect = ui.Rect.fromLTWH(20, 20, 96, 72);
+      const markerA = ui.Rect.fromLTWH(150, 20, 40, 30);
+      const markerB = ui.Rect.fromLTWH(220, 20, 40, 30);
+      final gray = PdfJpegData(
+        PdfObjectFixtures.jpegGray64x48,
+        width: 64,
+        height: 48,
+      );
+      final sent = <int>{};
+      final frame = _frame(const ui.Rect.fromLTWH(20, 120, 260, 60));
+      final first = await partsOf(ctx, 0, [
+        imageAt(gray, jpegRect),
+        markerItem(markerA),
+      ], sentFonts: sent);
+      final second = await partsOf(ctx, 0, [
+        textLine('안녕 hello', frame: frame, baselineY: 30),
+        markerItem(markerB),
+        // On top of the JPEG's right half: drawn after it, so it covers it.
+        markerItem(const ui.Rect.fromLTWH(80, 30, 30, 20)),
+      ], sentFonts: sent);
+      expect((first.length, second.length), (1, 1));
+      final bytes = await ctx.compose(_blankObjectsPage, [
+        ...first,
+        ...second,
+      ], chunks: 2);
+      final objects = ProbePdfObjects(bytes);
+      expect(objects.images, hasLength(1));
+      expect(objects.fontFiles, 1);
+      final out = await ctx.open(bytes);
+      expect(_lines(await out.text(0)), ['안녕 hello']);
+      final image = await out.render(0, scale: 2);
+      for (final rect in [
+        markerA,
+        markerB,
+        const ui.Rect.fromLTWH(80, 30, 30, 20),
+      ]) {
+        final px = image.toPixels(rect).deflate(1.5);
+        expect(
+          image.count(isMarker, pixelBox: px),
+          greaterThanOrEqualTo(
+            (px.width.floor() * px.height.floor() * 0.95).floor(),
+          ),
+          reason: 'marker at $rect',
+        );
+      }
+      // The gray JPEG where the second part did not cover it: grays grow right and down.
+      final tl = image.pixel(const ui.Offset(32, 30));
+      final bl = image.pixel(const ui.Offset(32, 80));
+      expect(
+        tl.$1 == tl.$2 && tl.$2 == tl.$3 || (tl.$1 - tl.$3).abs() < 8,
+        isTrue,
+        reason: 'gray $tl',
+      );
+      expect(bl.$1, greaterThan(tl.$1 + 30), reason: 'gray $tl above $bl');
+    },
+  ),
+  ComposeProbe(
+    'image objects: a JPEG on a 90°-rotated original page sits at its note position',
+    (ctx) async {
+      const rect = ui.Rect.fromLTWH(40, 30, 128, 96);
+      const display = ui.Size(300, 400);
+      final jpeg = PdfJpegData(
+        PdfObjectFixtures.jpegBaseline64x48,
+        width: 64,
+        height: 48,
+      );
+      final bytes = await ctx.compose(
+        PdfComposePlan(
+          sources: [
+            sourceOf(
+              onePage(
+                const PdfFixturePage(width: 400, height: 300, rotate: 90),
+              ),
+            ),
+          ],
+          pages: [sourcePage(0, 0, display)],
+        ),
+        [
+          ...await partsOf(ctx, 0, [imageAt(jpeg, rect)]),
+        ],
+      );
+      final out = await ctx.open(bytes);
+      expect(out.sizeOf(0).width, closeTo(display.width, 0.01));
+      expect(out.sizeOf(0).height, closeTo(display.height, 0.01));
+      expectBaselineJpegAt(await out.render(0, scale: 2), rect);
+    },
+  ),
+  ComposeProbe('parts: a text op whose font no part carried → exportFailed', (
+    ctx,
+  ) async {
+    final frame = _frame(const ui.Rect.fromLTWH(20, 30, 200, 40));
+    final parts = PdfComposeEncoder.encodeItems(
+      outputIndex: 0,
+      items: [textLine('hello', frame: frame, baselineY: 20)],
+      fontBytes: const {},
+      sentFonts: {PdfComposeOpcodes.fontRegular}, // pretend it was sent
+    );
+    final job = await ctx.backend.begin(_blankObjectsPage);
+    try {
+      await expectLater(
+        job.addPages(parts),
+        throwsA(_code(PdfErrorCode.exportFailed)),
+      );
+    } finally {
+      await job.abort();
+    }
+  }),
+  ComposeProbe('parts: the same font id carried twice → exportFailed', (
+    ctx,
+  ) async {
+    final frame = _frame(const ui.Rect.fromLTWH(20, 30, 200, 40));
+    Future<List<PdfComposePageOps>> fresh() =>
+        partsOf(ctx, 0, [textLine('hello', frame: frame, baselineY: 20)]);
+    final job = await ctx.backend.begin(_blankObjectsPage);
+    try {
+      await job.addPages(await fresh());
+      await expectLater(
+        job.addPages(await fresh()),
+        throwsA(_code(PdfErrorCode.exportFailed)),
+      );
+    } finally {
+      await job.abort();
+    }
+  }),
+];

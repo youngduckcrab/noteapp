@@ -343,7 +343,9 @@ List<ui.Rect> _mergeLines(List<ui.Rect> charRects, int start, int end) {
 
 /// 6.10.2 step 5: PdfTuning.snippetContextChars raw characters before and after the match,
 /// normalized without lower-casing (hyphen join, zero-width removal, whitespace collapsed,
-/// jamo composed) and trimmed at the outer ends.
+/// jamo composed) and trimmed at the outer ends. (2차, T28) The window is normalized once
+/// (normalizeKeepingCase — CORE's SearchText.normalizeMapped with the case put back) and cut
+/// at the match's source offsets, so a run or a join at the edges is folded only once.
 ({String text, int matchStart, int matchLength}) _snippet(
   String raw,
   int start,
@@ -354,21 +356,21 @@ List<ui.Rect> _mergeLines(List<ui.Rect> charRects, int start, int end) {
   // Do not split a surrogate pair at the edges.
   if (from > 0 && _isLowSurrogate(raw.codeUnitAt(from))) from--;
   if (to < raw.length && _isLowSurrogate(raw.codeUnitAt(to))) to++;
-  String part(int a, int b) =>
-      normalizePdfText(raw.substring(a, b), lowerCase: false).text;
-  final before = part(from, start).trimLeft();
-  var match = part(start, end);
-  var after = part(end, to).trimRight();
-  if (before.endsWith(' ') && match.startsWith(' ')) {
-    match = match.substring(1);
+  final window = normalizeKeepingCase(raw.substring(from, to));
+  final text = window.text;
+  var matchStart = 0;
+  while (matchStart < text.length &&
+      window.sourceStart[matchStart] + from < start) {
+    matchStart++;
   }
-  if (match.endsWith(' ') && after.startsWith(' ')) {
-    after = after.substring(1);
+  var matchEnd = matchStart;
+  while (matchEnd < text.length && window.sourceStart[matchEnd] + from < end) {
+    matchEnd++;
   }
   return (
-    text: '$before$match$after',
-    matchStart: before.length,
-    matchLength: match.length,
+    text: text,
+    matchStart: matchStart,
+    matchLength: matchEnd - matchStart,
   );
 }
 

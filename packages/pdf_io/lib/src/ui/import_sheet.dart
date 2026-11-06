@@ -15,7 +15,7 @@ import '../files/pdf_file_source.dart';
 import '../import/import_service.dart';
 import '../import/import_types.dart';
 import '../model/page_range.dart';
-import '../text/hangul_jamo.dart';
+import '../text/text_normalizer.dart';
 import 'strings_ko.dart';
 
 /// What the sheet hands to the flow: an opened session (the flow owns it from now on) and

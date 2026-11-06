@@ -17,8 +17,15 @@
 /// //   with FakeAudioRecorder / FakeAudioPlayback (INFRA: through module injection arguments).
 /// ```
 ///
-/// 2차 foundation step R2-B4 (PDF T30): registerMediaWebPlugins works; the three platform
-/// fakes have their basic behaviour (src/testing/fake_platforms.dart).
+/// 2차 foundation step R2-B4 (PDF T30): registerMediaWebPlugins and the three platform fakes
+/// (src/testing/fake_platforms.dart). (PDF T38) Complete: on the fakes alone the REAL
+/// mediaIoOverrides() services record (native engine → FakeRecordPlatform, the file in
+/// [MediaFakePlatforms.directory]) → stop (the length from FakeJustAudioPlatform) → a recording
+/// row → open (the play cache in the same directory) → play, and importImageForNote stores an
+/// image asset from FakeImagePickerPlatform (test/unit/testing_fakes_test.dart). The recorder
+/// service's clock is a real Stopwatch: let a few milliseconds pass before stop (a stop at
+/// 0 ms keeps nothing — 06-pdf 6.6.3), and give record's fake its file bytes
+/// ([FakeRecordPlatform.fileBytes] — empty bytes keep nothing either).
 library;
 
 import 'package:flutter/foundation.dart';

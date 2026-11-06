@@ -10,8 +10,10 @@
 // invalid_use_of_visible_for_testing_member: error). Only the platform interface packages are
 // imported here (and testing_vm_factory.dart for the one file write of FakeRecordPlatform).
 //
-// 2차 foundation step R2-B4 (T30): the basic behaviour below. PDF T31b / T32 / T37 extend the
-// scripting when their service tests need more.
+// 2차 foundation step R2-B4 (T30): the basic behaviour; T33 / T34 / T35b added the scripting
+// their engine tests needed (start config and errors, iOS session calls, durations per source,
+// pick sources). T38: complete — testing_fakes_test runs the real mediaIoOverrides() services on
+// these alone.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -34,7 +36,9 @@ const String mediaFakesVmOnlyMessage =
 /// [calls] entries: `create`, `hasPermission(request: <bool>)`, `isEncoderSupported(<encoder>)`,
 /// `start(<encoder>, <bitRate>, <sampleRate>, <numChannels>, <path>)`, `startStream`,
 /// `pause`, `resume`, `stop`, `cancel`, `dispose`, `getAmplitude`, `listInputDevices`,
-/// `isRecording`, `isPaused`.
+/// `isRecording`, `isPaused`; (T33) while defaultTargetPlatform is iOS, AudioRecorder.ios is a
+/// recording fake: `ios.manageAudioSession(<bool>)`, `ios.setAudioSessionActive(<bool>)`,
+/// `ios.setAudioSessionCategory(<category>)`.
 final class FakeRecordPlatform extends RecordPlatform {
   FakeRecordPlatform({
     this.permission = true,
@@ -58,6 +62,16 @@ final class FakeRecordPlatform extends RecordPlatform {
 
   /// written to the start(path) file at stop()
   Uint8List fileBytes = Uint8List(0);
+
+  /// (T33) The config of the last start / startStream.
+  RecordConfig? lastConfig;
+
+  /// (T33) When set, start() reports it through setOnConfigChanged (the device changed the
+  /// request — e.g. a lower bit rate).
+  RecordConfig? appliedConfig;
+
+  /// (T33) The next start() throws this (once).
+  Object? startError;
 
   final List<String> _calls = [];
   final Map<String, _FakeRecorder> _recorders = {};
@@ -112,8 +126,16 @@ final class FakeRecordPlatform extends RecordPlatform {
       'start(${config.encoder.name}, ${config.bitRate}, ${config.sampleRate}, '
       '${config.numChannels}, $path)',
     );
-    _recorder(recorderId).path = path;
+    lastConfig = config;
+    if (startError case final error?) {
+      startError = null;
+      Error.throwWithStackTrace(error, StackTrace.current);
+    }
+    final recorder = _recorder(recorderId)..path = path;
     _set(recorderId, RecordState.record);
+    if (appliedConfig case final applied?) {
+      recorder.onConfigChanged?.call(applied);
+    }
   }
 
   @override
@@ -122,6 +144,7 @@ final class FakeRecordPlatform extends RecordPlatform {
     RecordConfig config,
   ) async {
     _calls.add('startStream');
+    lastConfig = config;
     _set(recorderId, RecordState.record);
     return const Stream<Uint8List>.empty();
   }
@@ -196,7 +219,39 @@ final class FakeRecordPlatform extends RecordPlatform {
   void setOnConfigChanged(
     String recorderId,
     void Function(RecordConfig config)? handler,
-  ) {}
+  ) => _recorder(recorderId).onConfigChanged = handler;
+
+  @override
+  RecordIos? getIos(String recorderId) =>
+      defaultTargetPlatform == TargetPlatform.iOS
+      ? _FakeRecordIos(_calls)
+      : null;
+}
+
+/// AudioRecorder.ios while the target platform is iOS: records its calls.
+final class _FakeRecordIos implements RecordIos {
+  _FakeRecordIos(this._calls);
+
+  final List<String> _calls;
+
+  @override
+  Future<void> manageAudioSession(bool manage) async =>
+      _calls.add('ios.manageAudioSession($manage)');
+
+  @override
+  Future<void> setAudioSessionActive(bool active) async =>
+      _calls.add('ios.setAudioSessionActive($active)');
+
+  @override
+  Future<void> setAudioSessionCategory({
+    IosAudioCategory category = IosAudioCategory.playAndRecord,
+    List<IosAudioCategoryOptions> options = const [
+      IosAudioCategoryOptions.duckOthers,
+      IosAudioCategoryOptions.defaultToSpeaker,
+      IosAudioCategoryOptions.allowBluetooth,
+      IosAudioCategoryOptions.allowBluetoothA2DP,
+    ],
+  }) async => _calls.add('ios.setAudioSessionCategory(${category.name})');
 }
 
 final class _FakeRecorder {
@@ -206,13 +261,14 @@ final class _FakeRecorder {
       StreamController<RecordState>.broadcast();
   RecordState state = RecordState.stop;
   String? path;
+  void Function(RecordConfig config)? onConfigChanged;
 }
 
 /// just_audio's platform: duration per source (URL / path), a position you set, speed and seek
 /// recorded; processing states ready / completed on demand; can fail a load (unsupported format).
 ///
-/// [calls] entries: `init`, `load:<uri>`, `play`, `pause`, `seek:<ms>`, `speed:<x>`,
-/// `volume:<x>`, `dispose`, `disposePlayer`, `disposeAllPlayers`.
+/// [calls] entries: `init`, `load:<uri>` (a file path arrives as a file: URI), `play`, `pause`,
+/// `seek:<ms>`, `speed:<x>`, `volume:<x>`, `dispose`, `disposePlayer`, `disposeAllPlayers`.
 final class FakeJustAudioPlatform extends JustAudioPlatform {
   FakeJustAudioPlatform({this.defaultDuration = const Duration(seconds: 2)}) {
     assert(!kIsWeb, mediaFakesVmOnlyMessage);
@@ -285,6 +341,15 @@ final class FakeJustAudioPlatform extends JustAudioPlatform {
   }
 }
 
+/// The URI of a load request: just_audio 0.10 sends every source inside a playlist
+/// (ConcatenatingAudioSourceMessage), so the first URI child is the one.
+String _uriOf(AudioSourceMessage source) => switch (source) {
+  UriAudioSourceMessage(:final uri) => uri,
+  ConcatenatingAudioSourceMessage(:final children) when children.isNotEmpty =>
+    _uriOf(children.first),
+  _ => source.id,
+};
+
 final class _FakeAudioPlayer extends AudioPlayerPlatform {
   _FakeAudioPlayer(super.id, this._platform);
 
@@ -318,8 +383,7 @@ final class _FakeAudioPlayer extends AudioPlayerPlatform {
 
   @override
   Future<LoadResponse> load(LoadRequest request) async {
-    final source = request.audioSourceMessage;
-    final uri = source is UriAudioSourceMessage ? source.uri : source.id;
+    final uri = _uriOf(request.audioSourceMessage);
     _platform._calls.add('load:$uri');
     if (_platform._failNextLoad) {
       _platform._failNextLoad = false;
@@ -350,6 +414,10 @@ final class _FakeAudioPlayer extends AudioPlayerPlatform {
     final to = request.position ?? Duration.zero;
     _platform._calls.add('seek:${to.inMilliseconds}');
     position = to;
+    // Like the real players: a seek away from the end is ready again.
+    if (processing == ProcessingStateMessage.completed) {
+      processing = ProcessingStateMessage.ready;
+    }
     emit();
     return SeekResponse();
   }
