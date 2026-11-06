@@ -197,3 +197,38 @@
 - 계획 6.4 끝 문단 목록에 더한 파일: `src/protocol.ts`·`src/params.ts`·`src/errors.ts`·`src/engines/engine.ts`·`src/engines/registry.ts`·`README.md`·`test/handler.test.ts`. 가짜 엔진이 포트 타입을, 처리 본문이 요청 타입·오류 변환을, 데모 설정(`ALLOW_FAKE_ENGINE`·`MATH_ENGINE`)이 등록부를 필요로 해서다. 각 파일은 기반 단계 몫만 담았다(머리 주석에 이어 할 작업 번호).
 - `HandlerDeps`는 이번에 `ownerUids`·`engines`·`now`·`engineSignal`만 있다. `quota`·`dailyCap`·`log`는 S2-10b, `EngineSettings`의 `apiKey`·`mathpixAppId` 등은 S2-10a·S2-12에서 더한다(4.5 최종 모양).
 - `'fake'`를 허용하지 않는 곳에서 이름으로 고르면 등록부가 `EngineError('unsupportedInput')`을 돌려 `invalid-argument`가 된다(6.8.2 "'fake' not allowed → invalid-argument"를 `EngineErrorKind` 7개 안에서 나타냄). `'auto'`인데 `MATH_ENGINE=fake`·`ALLOW_FAKE_ENGINE=false`면 `notConfigured` → `unavailable`.
+
+### R2-B7a — 새 종류 컴파일 패치 · `kPageObjectTypeKeys` · JSON 키 대조 v2 (계약 7.6.2, 계획 6.4·8.1 B7a)
+
+- 커밋: `99b8ead`(R2-B7a `packages/sync_engine/` lib·test), 이 기록 줄은 그 뒤 커밋. 바탕 = CORE B2-α 계약 타입 커밋 `2b2e4b0`(+ 진행 기록 `1445b2e`). R2-B2(CORE)·R2-B2i(INFRA)와 한 묶음 병합 대상.
+- **lib (switch 4곳 + 정렬, 계획 6.4 표)**: `FieldUnits.keysOf` — `pageObject` 합집합 16키·`handwriting` 10키·`recording`에 `title`. `groupsOf` — 새 두 종류 `[]`(모든 키가 각자 단위, S2-1에서 '한 단위'). `SyncScopes.scopeOf` — `pageObject` = `noteIdHint ?? 'lib'`(획과 같음), `handwriting` = `json['noteId'] ?? noteIdHint ?? 'lib'`(페이지와 같음). `RecordGate._purged` — 새 두 종류 `null`(S2-3에서 최종 규칙). `ChunkPacker.kindOrder` — `…, stroke, pageObject, handwriting`. 기본 갈래가 있는 switch(`SyncDoc.ownerId`·`hasOwner`·`PurgeGuard._editedInOutbox`·`FakeSyncServer.mergedState`)는 건드리지 않음.
+- **test**: `test/support/entity_fixtures.dart` — `kCoreJsonKeys`(새 두 종류·녹음 `title`), `kPageObjectTypeKeys`(`shape`·`text`·`image`·`math` — `math`에 `engine`), `objectFixture(type)`(계약 생성자 4종 + `'sticker'` → `UnknownObject(rawJson)`, 모르는 키 `stickerId`·중첩 맵), `handwritingFixture()`(줄 2개 — 후보 있는 줄, `userConfirmed` 줄), `fixtureJson(pageObject)` = `objectFixture('shape').toJson()`, `fixtureJson(handwriting)` = `handwritingFixture().toJson()`, 녹음 JSON에 `title`. CORE `testing.dart`의 객체 도우미는 쓰지 않음(`grep -rn PageObjectFixtures packages/sync_engine/test` 0줄). `field_units_test` — 묶음 표에 새 두 종류, 합집합 시험, 종류별 키 비교(4종 `toJson` → `decode` → 같은 값·같은 키), `unknown` 왕복. `integration/core_json_keys_test` v2 — 새 골든 이름, `handwriting`·`recording` 키 = `keysOf`, 알려진 4종 골든 키 = `kPageObjectTypeKeys[type]`·합집합 = `keysOf(pageObject)`, 모르는 종류는 `unknown.json` 하나이고 `SyncDoc` 왕복만, `math_no_engine`의 `engine: null`.
+
+| 검사 (α — `2b2e4b0` 위, HEAD를 `git archive`로 꺼낸 트리 + B7a 파일) | 결과 | 시간 |
+|---|---|---|
+| `packages/sync_engine` `flutter analyze --fatal-infos` | 0건 (α에서 B7a 전에는 5건 — 계획 6.4 표의 4곳 + `fixtureJson`) | 4초 |
+| `packages/sync_engine` `flutter test` (VM) | 771 통과 · 4 건너뜀(`integration`) · **11 실패 — 모두 CORE T20a 자리표시**(`UnimplementedError('CORE T20a: …')` 9개, 녹음 `title` 키 없음 2개). 실패 목록은 아래 | 57초 |
+| `flutter test --platform chrome test/web` | 26 통과 | 37초 |
+| `dart run tool/ws.dart check` (같은 트리, 작업 트리) | 0 · 0 | — |
+| `dart format --set-exit-if-changed lib test` | 변경 없음 | — |
+
+- α에서 실패하는 11개(새 종류 디코드·녹음 `title` JSON — 계획 6.4 표 마지막 행 '전제: T20a', 완료 조건 'B2-β JSON 조각이 들어온 뒤'): `codec/chunk_codec_test` 'round trip every CORE kind, with field versions', `model/field_units_test` 'the CORE key table matches what CORE entities serialize'(녹음 `title`)·'each known page object type serializes the keys of kPageObjectTypeKeys'·'an unknown object type … round-trips key for key', `model/sync_doc_test` 'CORE entities recording/pageObject/handwriting: fromEntity → toEntity round trip'·'accessors ownerId only for folder / note / penPreset / asset', `model/records_test` 'toRemoteChange decodes the entity with the same versions', `merge/field_merge_test` 'the merged record decodes with CORE for every kind', `merge/record_gate_test` 'accepts a valid record of every kind'.
+- 미리 보기(판정 아님): 같은 작업 트리에서 CORE가 커밋 전에 쓰고 있던 T20a 파일 위로 돌리면 VM 782 통과 · 4 건너뜀, `flutter test --run-skipped test/integration/core_json_keys_test.dart` 6 통과(새 골든 9개 포함).
+
+| 검사 (**T20a 위 — 병합 전 최종**, CORE B2-β JSON 골든 `9777fde`를 `git archive`로 꺼낸 트리 — B7a `99b8ead` 포함, CP-S9) | 결과 | 시간 |
+|---|---|---|
+| `packages/sync_engine` `flutter analyze --fatal-infos` | 0건 | 4초 |
+| `packages/sync_engine` `flutter test` (VM, `scenario` 포함) | **782 통과** · 4 건너뜀(`integration`) · 실패 0 — α에서 실패하던 11개 모두 통과 | 44초 |
+| `flutter test --platform chrome test/web` | 26 통과 | 35초 |
+| `flutter test --run-skipped test/integration/core_json_keys_test.dart` (v2 단언 — CORE 새 골든 9개 + `recording.json` `title`) | 6 통과 | 1초 |
+| `flutter test test/model/field_units_test.dart` (종류별 비교) | 13 통과 | 1초 |
+| `dart run tool/ws.dart check` | 0 · 0 | 35초 |
+
+- 두 해시(계획 6.4 'SYNC-M9'): 작성 바탕 B2-α `2b2e4b0`, 키 대조·새 종류 디코드 판정 T20a `9777fde`. B7a 파일은 T20a 위에서 바꿀 것이 없었다(다시 얹기 불필요 — `main`에서 B7a 커밋 뒤에 T20a가 들어왔다).
+- 1차 T16 실제 CORE 시험(`integration` 나머지 4파일)은 이번에 돌리지 않았다 — 계획 8.3 I-2(통합 3단계) 몫.
+
+#### 계획과 다르게 한 점 (R2-B7a)
+
+- `core_json_keys_test`의 `_kindOf`에 `math_no_engine` → `pageObject`를 더했다. 계획 6.4·6.7.2 표의 이름 목록에는 없지만 CORE 6.3 골든 표(02-core — `math_no_engine.json`, C21-11)에 있고, 없으면 '`field_versions`만 엔티티가 아님' 단언이 깨진다. 계획 8.1의 'CORE 새 골든 9개'와 수가 맞다.
+- 손글씨 고정 자료는 `handwritingFixture({String? id})` 도우미로 따로 두었다. 결과 id는 언제나 `hw_<pageId>`(`HandwritingText.idFor`)라서 `id`를 주면 그 모양이어야 하고 페이지 id를 거기서 읽는다(다른 모양은 `ArgumentError`).
+- 고정 자료의 `createdAt`은 계약 7.6 시험 도우미 기본값 1이 아니라 다른 고정 자료와 같은 `kT0`이다(사각형·글자·크기 값은 그 기본값과 같음). 수식 고정 자료는 `engineId` 없음(`engine: null` — C21-11 '키 항상'을 기본 실행 시험이 늘 확인하게).
