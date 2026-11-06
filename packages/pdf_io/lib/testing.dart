@@ -9,10 +9,12 @@
 /// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7), BoxInkVectorizer (PDF T12),
 /// RecordingComposeBackend (PDF T15) and FakePdfOutputSink (PDF T15b) are real; (2차, R2-B4)
 /// BoxInkVectorizer.planPage too (m5-7/06-pdf 4.3.1); (2차, T21) RecordingComposeBackend
-/// checks and records the parts of the v2 ops.
+/// checks and records the parts of the v2 ops; (2차, T25a) PdfObjectFixtures' image bytes.
 library;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -1493,3 +1495,193 @@ final class FakeRemoteAssetFetcher implements core.RemoteAssetFetcher {
         };
       });
 }
+
+/// (2차, m5-7/06-pdf 4.3.1) Object pages and image bytes for export tests. Web-safe: JPEGs are
+/// fixed constants and PNGs are generated with stored (uncompressed) deflate — no package:image.
+abstract final class PdfObjectFixtures {
+  /// (v2.1, review S-3) Fixed JPEG samples, 64 × 48 (made once with Pillow — pdf_io has no
+  /// package:image and dart:ui cannot encode JPEG; editing SOF sizes by hand breaks the entropy
+  /// data). SOF0, 3 components (YCbCr 4:2:0).
+  static Uint8List get jpegBaseline64x48 => base64Decode(_jpegBaseline64x48B64);
+
+  /// SOF2, 3 components.
+  static Uint8List get jpegProgressive64x48 =>
+      base64Decode(_jpegProgressive64x48B64);
+
+  /// SOF0, 1 component.
+  static Uint8List get jpegGray64x48 => base64Decode(_jpegGray64x48B64);
+
+  /// Baseline + APP1 Exif orientation 6 (stored 64 × 48, shown 48 × 64).
+  static Uint8List get jpegExif6_64x48 => base64Decode(_jpegExif6_64x48B64);
+
+  /// APP14 Adobe, 4 components (CMYK — S-9 → slow path).
+  static Uint8List get jpegAdobeCmyk64x48 =>
+      base64Decode(_jpegAdobeCmyk64x48B64);
+
+  /// A [width] × [height] PNG: RGB (colour type 2), or RGBA (6) when [alpha] — then the left
+  /// half has alpha 128. Pixels: red = x, green = y (mod 256), blue = 160.
+  static Uint8List png({int width = 64, int height = 48, bool alpha = false}) {
+    if (width <= 0 || height <= 0) throw ArgumentError('empty PNG');
+    final channels = alpha ? 4 : 3;
+    final row = 1 + width * channels;
+    final raw = Uint8List(row * height);
+    for (var y = 0; y < height; y++) {
+      var p = y * row + 1; // filter byte 0 (none)
+      for (var x = 0; x < width; x++) {
+        raw[p++] = x % 256;
+        raw[p++] = y % 256;
+        raw[p++] = 160;
+        if (alpha) raw[p++] = x < width ~/ 2 ? 128 : 255;
+      }
+    }
+    final ihdr = Uint8List(13);
+    _putU32(ihdr, 0, width);
+    _putU32(ihdr, 4, height);
+    ihdr[8] = 8;
+    ihdr[9] = alpha ? 6 : 2;
+    return Uint8List.fromList([
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
+      ..._pngChunk('IHDR', ihdr),
+      ..._pngChunk('IDAT', _storedZlib(raw)),
+      ..._pngChunk('IEND', Uint8List(0)),
+    ]);
+  }
+
+  static List<int> _pngChunk(String type, Uint8List data) {
+    final out = Uint8List(12 + data.length);
+    _putU32(out, 0, data.length);
+    out.setRange(4, 8, type.codeUnits);
+    out.setRange(8, 8 + data.length, data);
+    _putU32(out, 8 + data.length, _crc32(out, 4, 8 + data.length));
+    return out;
+  }
+
+  /// zlib stream of stored deflate blocks (≤ 65535 bytes each) + Adler-32.
+  static Uint8List _storedZlib(Uint8List data) {
+    const block = 65535;
+    final blocks = data.isEmpty ? 1 : (data.length + block - 1) ~/ block;
+    final out = Uint8List(2 + blocks * 5 + data.length + 4);
+    out[0] = 0x78;
+    out[1] = 0x01;
+    var p = 2;
+    for (var i = 0; i < blocks; i++) {
+      final start = i * block;
+      final n = math.min(block, data.length - start);
+      out[p++] = i == blocks - 1 ? 1 : 0;
+      out[p++] = n % 256;
+      out[p++] = n ~/ 256;
+      out[p++] = (65535 - n) % 256;
+      out[p++] = (65535 - n) ~/ 256;
+      out.setRange(p, p + n, data, start);
+      p += n;
+    }
+    var a = 1, b = 0;
+    for (final byte in data) {
+      a = (a + byte) % 65521;
+      b = (b + a) % 65521;
+    }
+    _putU32(out, p, b * 65536 + a);
+    return out;
+  }
+
+  static final List<int> _crcTable = List<int>.generate(256, (n) {
+    var c = n;
+    for (var k = 0; k < 8; k++) {
+      c = c.isOdd ? 0xEDB88320 ^ (c >> 1) : c >> 1;
+    }
+    return c;
+  });
+
+  static int _crc32(Uint8List bytes, int start, int end) {
+    var c = 0xFFFFFFFF;
+    for (var i = start; i < end; i++) {
+      c = _crcTable[(c ^ bytes[i]) & 0xFF] ^ (c >> 8);
+    }
+    return c ^ 0xFFFFFFFF;
+  }
+
+  static void _putU32(Uint8List out, int at, int v) {
+    out[at] = v ~/ 16777216 % 256;
+    out[at + 1] = v ~/ 65536 % 256;
+    out[at + 2] = v ~/ 256 % 256;
+    out[at + 3] = v % 256;
+  }
+}
+
+const String _jpegBaseline64x48B64 =
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9'
+    'PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhC'
+    'Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAAR'
+    'CAAwAEADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAA'
+    'AgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkK'
+    'FhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWG'
+    'h4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl'
+    '5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREA'
+    'AgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYk'
+    'NOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOE'
+    'hYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk'
+    '5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDjljqRY6nWOpVjr1nMyp1CBY6lWOp1jqVY'
+    '6yczvp1CksdSrHU6x1KsdeG5np06hAsdSrHUyx1KsdZOZ306hnrHUqx1OsdSrHXsuZ+fU6hA'
+    'sdSLHU6x1KsdZOZ306hTWOpFjqdY6lWOvEcz06dQgWOpVjqdY6lWOsnM76dQzljqVY6nWOpV'
+    'jr2XM/PqdQgWOpVjqdY6lWOsnM76dQpLHUqx1OsdSrHXhuZ6dOoQLFUqx1MsdSrHWTmd9Oof'
+    '/9k=';
+
+const String _jpegProgressive64x48B64 =
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9'
+    'PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhC'
+    'Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wgAR'
+    'CAAwAEADASIAAhEBAxEB/8QAFwABAQEBAAAAAAAAAAAAAAAAAgMEBf/EABYBAQEBAAAAAAAA'
+    'AAAAAAAAAAQCBv/aAAwDAQACEAMQAAAB4yolwFRQiKogpCblGdUTM8E3KIpsKZtuUZm2zPTb'
+    'cog2wpm2oR//xAAVEAEBAAAAAAAAAAAAAAAAAAAAEf/aAAgBAQABBQKIiIiIiIiIiIiIiIiI'
+    'iIiIiIiIiIiIiIj/xAAVEQEBAAAAAAAAAAAAAAAAAAACAP/aAAgBAwEBPwEqKioqKioqKioq'
+    'Kir/xAAVEQEBAAAAAAAAAAAAAAAAAAAAEf/aAAgBAgEBPwGqqqqqqqr/xAAUEAEAAAAAAAAA'
+    'AAAAAAAAAABQ/9oACAEBAAY/AkP/xAAVEAEBAAAAAAAAAAAAAAAAAAAAAf/aAAgBAQABPyGE'
+    'IQhCEIQhCEIQhCEIQhCEIQhCEIQhCEIQhCEIQhD/2gAMAwEAAgADAAAAENVl2FyC6K6KZv/E'
+    'ABQRAQAAAAAAAAAAAAAAAAAAADD/2gAIAQMBAT8QQAAAD//EABURAQEAAAAAAAAAAAAAAAAA'
+    'AAAB/9oACAECAQE/EK1rWta1rWtf/8QAFBABAAAAAAAAAAAAAAAAAAAAUP/aAAgBAQABPxBA'
+    'AAAAAAAAAAAAEAAD/9k=';
+
+const String _jpegGray64x48B64 =
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9'
+    'PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/wAALCAAwAEABAREA/8QAHwAA'
+    'AQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQR'
+    'BRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RF'
+    'RkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ip'
+    'qrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEB'
+    'AAA/AOOWOpFjqVY6lWOkWOpVjqVY6lWOs5Y6lWOpVjqVY6RY6lWOpFjqVY6z1jqVY6lWOpFj'
+    'oWOpFjqVY6lWOs9Y6lWOpFjqVY6RY6lWOpVjqVY6zljqVY6lWOpVjpFjqVY6lWKpVjrOWOpV'
+    'jqVY6lWOkWOpVjqRY6lWOv/Z';
+
+const String _jpegExif6_64x48B64 =
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAA'
+    'AAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1R'
+    'V19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2NjY2NjY2NjY2NjY2Nj'
+    'Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAAwAEADASIAAhEBAxEB/8QA'
+    'HwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQID'
+    'AAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6'
+    'Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWm'
+    'p6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QA'
+    'HwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAEC'
+    'AxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5'
+    'OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOk'
+    'paanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oA'
+    'DAMBAAIRAxEAPwDjljqRY6nWOpVjr1nMyp1CBY6lWOp1jqVY6yczvp1CksdSrHU6x1KsdeG5'
+    'np06hAsdSrHUyx1KsdZOZ306hnrHUqx1OsdSrHXsuZ+fU6hAsdSLHU6x1KsdZOZ306hTWOpF'
+    'jqdY6lWOvEcz06dQgWOpVjqdY6lWOsnM76dQzljqVY6nWOpVjr2XM/PqdQgWOpVjqdY6lWOs'
+    'nM76dQpLHUqx1OsdSrHXhuZ6dOoQLFUqx1MsdSrHWTmd9Oof/9k=';
+
+const String _jpegAdobeCmyk64x48B64 =
+    '/9j/7gAOQWRvYmUAZAAAAAAA/9sAQwAQCwwODAoQDg0OEhEQExgoGhgWFhgxIyUdKDozPTw5'
+    'Mzg3QEhcTkBEV0U3OFBtUVdfYmdoZz5NcXlwZHhcZWdj/8AAFAgAMABABEMRAE0RAFkRAEsR'
+    'AP/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAAB'
+    'fQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2'
+    'Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqi'
+    'o6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5'
+    '+v/aAA4EQwBNAFkASwAAPwDhoK4j7P7UV6BWhBR9n9qKK0IKPs/tRRWhBR9n9qKK0IKPs/tX'
+    'H0VoQUfZ/aiitCCj7P7UUVoQUfZ/aiivD4K1Ps/tXYUVoQUfZ/aiitCCj7P7UUVoQUfZ/aii'
+    'tCCj7P7Vx9FaEFH2f2oorQgo+z+1FFaEFH2f2oorw+CtT7P7V2FFaEFH2f2oorQgo+z+1FFa'
+    'EFH2f2oorQgo+z+1cfRWhBR9n9qKK0IKPs/tRRWhBR9n9qKK8PgrU+z+1dhRWhBR9n9qKK0I'
+    'KPs/tRRWhBR9n9qKK0IKPs/tXH0VoQUfZ/aiitCCj7P7UUVoQUfZ/aiivD4K1Ps/tXYUVoQU'
+    'fZ/aiitCCj7P7UUVoQUfZ/aiitCCj7P7Vx9FaEFH2f2oorQgo+z+1FFaEFH2f2oorw+CtT7P'
+    '7V2FFaEFH2f2oorQgo+z+1FFaEFH2f2oorQgo+z+1cfRWhBR9n9qKK0IKPs/tRRWhBR9n9qK'
+    'K//Z';

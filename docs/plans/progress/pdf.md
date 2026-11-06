@@ -277,7 +277,7 @@
 | T22 | 남음 | | `pdfium/compose_objects_native_test` |
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
 | T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
-| T25a | 남음 | | `unit/image_probe_test`, `unit/object_resolver_image_test`, `unit/export_memory_test`, `web/object_resolver_browser_test` |
+| T25a | 완료 | (이 커밋) | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
 | T25b | 남음 | | `unit/raster_ports_test`, `unit/object_resolver_text_math_test`, `web/object_resolver_text_browser_test`, `integration/math_raster_real_test`(INK T36 뒤 — 통합 단계) |
 | T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
 | T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
@@ -365,6 +365,15 @@
 - T34: 시험은 두 세계다 — ① 실제 `JustAudioPlayerPort` + `FakeJustAudioPlatform` + 임시 디렉터리 캐시 + CORE 가짜 저장소(실제 시간 단언 없음 — 상태는 사건을 기다림, 재생 중 위치는 범위로만), ② `test/support/fake_engines.dart`의 `FakePlayerPort`(가짜 시간 외삽)·`FakeAudioSources`로 위치 외삽·`preload: false`·넘김·오류·겹친 `open`을 정확히. just_audio의 `AudioPlayer`가 `audio_session` 채널을 만들므로 VM 시험은 `TestWidgetsFlutterBinding.ensureInitialized()`가 먼저다. Chrome 시험은 소리를 내지 않는다(일반 Chrome 시험에는 자동 재생 깃발이 없음 — 실제 재생은 T39 `media`).
 - T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
+- T25a: 해석기는 내보내기 하나마다 하나다 — `ObjectResolver(gateway:, ledger:)`가 장부와 JPEG 캐시(`ExportJpegCache`)를 갖고, 내준 이미지(`PdfImageData`, 동일성)마다 잡은 장부 몫을 기억한다. 서비스(T26)는 `addPages`가 끝나면 `resolver.sent(그 조각들의 images)`(장부에서 놓고, 빠른 길 JPEG는 자리가 있으면 캐시로 돌림), 끝·실패·취소 때 `dispose()`를 부른다. 쪽 번호·옵션·취소·경고는 `ResolveContext`(`notePageNumber`·`missingImagePages`·`warnings`·`race`)에 둔다(계획 6.2.4 주석의 `ObjectResolver({…, ledger})` 모양 그대로, 수식·텍스트 포트 인자는 T25b에서 더함). 텍스트 상자·수식 참조는 T25b까지 `UnimplementedError`(서비스가 아직 해석기를 쓰지 않음 — T26).
+- T25a: '다시 쓸 JPEG만 캐시'는 앞으로 쓰일지를 미리 알 방법이 없어(쪽 내용을 미리 다 읽어야 함) **빠른 길 JPEG 전부**를 장부의 남는 자리 안에서 LRU로 둔다. `offer`는 캐시 전체를 비우면 들어가는 크기일 때만 더 오래된 항목을 쫓아내고 새 것을 남긴다(아니면 버리고 다른 항목은 그대로). 웹에서 모든 빠른 길 JPEG가 구조적 복제로 가는 것(6.2.7 '캐시에 남길 버퍼')은 T23·T26에서 다시 본다.
+- T25a: `overBudget`은 '합이 예산 안 → 밖으로 넘어간 횟수'다(넘은 채로 더 잡아도 한 번) — 20 MiB 입력(`encoded` 20 MiB → `rgba` 4 MiB)이 1. `hold(cache)`는 쫓아내지 않는다(캐시는 `offer`가 자리를 만듦). 장부 handle은 두 번 놓아도 된다.
+- T25a: 느린 길 목표 크기 `decodeTargetSize`는 반올림 → 픽셀 상한을 넘으면 두 변 모두 내림 → 그래도 넘으면 긴 변부터 1씩 줄인다(정사각형이 정사각형으로 남게). 6000 × 4000 → 2048 × 1365, 2048² + 입력 4 MiB → 1773², 6 MiB → ≤ 2.5 Mpx, 20 MiB → ≤ 1 Mpx.
+- T25a: [추측]이던 두 가지를 확인했다 — ① 웹 `ui.ImageDescriptor.encoded`는 크기를 주지 않는다(`width` → `UnsupportedError`). 그래서 머리에 크기가 없는 형식은 웹에서만 첫 프레임을 한 번 디코드해 크기를 읽는다(`engineImageSize`, VM·네이티브는 descriptor). ② VM 엔진과 Chrome(CanvasKit) 모두 디코드에서 EXIF 방향을 적용한다(EXIF 6 64 × 48 → 48 × 64) — 배경 fit은 머리의 '보이는 크기'(방향 적용)를 쓴다. 엔진 `rawStraightRgba`는 반투명 픽셀의 색을 ±1 반올림한다(곱한 알파로 저장했다가 되돌림 — 시험은 ±1).
+- T25a: 이미지 바이트가 없을 때 `fail` 정책의 `assetMissing` `detail`은 그 항목의 쪽 하나다(항목 하나씩 해석하므로 처음 없는 이미지에서 멈춤 — 1차 PDF 원본은 모든 쪽을 미리 봄). 디코드 실패는 정책과 무관하게 빼고 `PdfExportMissingImages`.
+- T25a: `PdfObjectFixtures`(`testing.dart` — 4.3.1의 새 이름, `contract/api_surface_test` `testingNames`에 더함)는 고정 JPEG 표본 5개(Pillow로 한 번 만든 base64 — 64 × 48 그라데이션, q50: 기준선 4:2:0·점진·회색·EXIF 6·Adobe CMYK)와 `png({width, height, alpha})`(저장 deflate, CRC·Adler 손으로)다. `pageWithObjects`는 그것을 쓰는 T26에서 더한다. 큰 표본(`bigPng6000x4000`·`noisePng2048`(위쪽 행만 잡음, ≥ 6 MiB)·`noisePngOver`(회색 잡음 ≥ 20 MiB)·`paddedJpeg`(COM 조각으로 키운 JPEG))은 `test/support/object_fixtures.dart`(VM — `dart:io` `ZLibEncoder`). 쪽 크기 텍스트 상자·큰 수식 표본은 T25b.
+- T25a: `PdfTuning`에 4.5.1 표의 내보내기 객체 상수 10개(`mathRasterDpi`~`exportMathRasterTimeout`)를 더했다. 색인 상수 4개는 T27.
+
 #### 이정표 커밋
 
 - 없음(PDF는 이정표 커밋 알림 대상이 아니다 — 7.6.2. 다른 영역 이정표 중 PDF가 기다리는 것: INK T36·T42, CORE T31·T33a·T33b — 통합 단계)
@@ -412,6 +421,9 @@
 | 4 (T34) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 | 4 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 4 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
+| 5 (T25a) | `ws test --package pdf_io` (VM) | 703 통과 + 8 skip (659 + T25a 44 — 표본 머리 14·장부 8·해석기 22), 67 s |
+| 5 (T25a) | `ws test --package pdf_io --platform chrome` | 95 통과 + 1 skip (90 + `object_resolver_browser_test` 5), prepare ok, 151 s |
+| 5 (T25a) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
