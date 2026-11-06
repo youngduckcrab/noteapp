@@ -347,8 +347,8 @@
 | ID | 상태 | 커밋 | 완료 조건 시험 파일 |
 |---|---|---|---|
 | R2-B5 | 기반 단계에서 완료 | 78d7f25 | 위 '작업 표 (2차)' |
-| E2-00 | 완료 | (이 커밋 — 해시는 다음 기록에) | `unit/no_platform_imports_test.dart` v2(⑥ 서비스 패키지 금지 lib·test, ② `lib/src/text/textarea_overlay_browser.dart` 한 파일만 `dart:js_interop(_unsafe)` 예외, ④ `testing_web.dart`, 임시 폴더 가짜 트리 — 위반 1개), `unit/helpers_smoke_test.dart`('v2 helpers (E2-00)' 묶음 10개), `unit/editor_strings_test.dart`(새 문구 표본) |
-| E2-01 | 남음 | | `unit/editor_device_state_test.dart`, `unit/text_edit_session_test.dart`, `widget/text_box_inline_test.dart`, `widget/text_input_sheet_test.dart`, `web/text_input_browser_test.dart` |
+| E2-00 | 완료 | 31144aa | `unit/no_platform_imports_test.dart` v2(⑥ 서비스 패키지 금지 lib·test, ② `lib/src/text/textarea_overlay_browser.dart` 한 파일만 `dart:js_interop(_unsafe)` 예외, ④ `testing_web.dart`, 임시 폴더 가짜 트리 — 위반 1개), `unit/helpers_smoke_test.dart`('v2 helpers (E2-00)' 묶음 10개), `unit/editor_strings_test.dart`(새 문구 표본) |
+| E2-01 | 진행 중 — 1부 완료(이 커밋): `EditorDeviceState`·키·notifier, `TextEditNotifier` 세션 논리·명령. 남은 것: `inline` 오버레이·`sheet` 패널·개발자 메뉴(입력 방식·'텍스트 상자 시험')·위젯·웹 시험 | (이 커밋 — 해시는 다음 기록에) | 됨: `unit/editor_device_state_test.dart`, `unit/text_edit_session_test.dart`(+ `unit/editor_setting_keys_test.dart` 9키). 남음: `widget/text_box_inline_test.dart`, `widget/text_input_sheet_test.dart`, `web/text_input_browser_test.dart` |
 | E2-02 | 남음 | | `unit/page_mount_test.dart` v2, `unit/selection_revalidate_test.dart` |
 | E2-03 | 남음 | | `unit/tool_controller_test.dart` v2, `unit/tool_options_test.dart`, `unit/editor_setting_keys_test.dart` v2, `unit/pre_roll_test.dart` |
 | E2-04a | 남음 | | `unit/stylus_contact_test.dart`, `unit/input_router_test.dart` v2(R34~R42) |
@@ -404,6 +404,13 @@
 - E2-00 `test/helpers/mapping_table.dart`는 1차 5.1.3 행 10개 + 2차 5.1.2 행 16개(행마다 덮는 시험 파일·P-A 작업). 9.3의 `unit/mapping_coverage_test.dart`(덮는 파일이 있고 `undoDepth`를 단언하는지)는 덮는 시험이 아직 없어 **E2-22**에서 만든다 — E2-00은 표가 P-B·P-C 작업을 가리키지 않는지만 본다(`helpers_smoke_test`).
 - E2-00 `fake_extensions.dart`: `RecordingSelectionItem`·`RecordingInsertItem`(받은 문맥·`context.mounted` 기록, `onRun` 동기 훅, `throwSync`·`throwAsync`·`holdNext`, 명령 하나를 문맥 `execute`로, 삽입은 `selectAfter`로 `selectObject`), `TestRecordingPanelBuilder`(`throwNext` — E-7 시험), `TestRecordingPanel`(탭 재생 스위치·닫기 — 키 `test.panel.*`). `FakeStylusExtras`는 `emit`·`emitError`·`listenCount`·`cancelCount`.
 
+- E2-01 `TextEditEndReason`에 `done`(시트 [완료] — 6.11.6 A)을 더했다(6.11.2 목록에 없음 — 내부 enum).
+- E2-01 `TextEditNotifier.end`는 상태를 **즉시** `null`로 두고(멱등 — 첫 사유가 이김) 높이를 잰 뒤 명령 하나를 보내고 같은 동기 블록에서 숨김·미리보기를 지운다. `measureSync`가 값을 주면(글꼴 적재 뒤) 명령까지 동기로 끝난다. 아니면 `measure`(2 s 상한 — 6.21, 실패하면 마지막 높이)를 기다린다. 높이는 펴지 않은 frame의 왼쪽 위·폭을 두고 `max(잰 높이, fontSizePt × lineHeight)`.
+- E2-01 '내용을 모두 지움'·'공백뿐'은 `text.trim().isEmpty`로 본다(새 상자 '공백뿐' 행과 같은 판정을 기존 상자에도). '바뀜'은 글·서식·폭 비교(높이만 바뀐 것은 바뀜이 아님).
+- E2-01 세션 명령은 새 `EditorCommands.runTextSession(command, text:)`로 보낸다 — 1차 `_run`과 같되 읽기 전용 거절이면 글을 시스템 클립보드에 복사하고 안내를 한 메시지('읽기 전용 노트라 바꿀 수 없어요\n편집한 글을 클립보드에 복사해 두었어요')로 보인다(6.11.5 S-11 — 두 스낵바가 서로 덮지 않게). 거절 시험은 E2-10 `text_box_test`(읽기 전용 거절 → 클립보드)에서.
+- E2-01 모드: 네이티브 = `inline`, 웹 = `EditorDeviceState.webTextInput`(`textarea`는 E2-11 전까지 `inline`). 시험 이음새 `TextEditNotifier.debugIsWebOverride`(VM에서 시트 방식을 시험).
+- E2-01 `editorDeviceStateProvider`는 루트(모든 노트) — 저장값 적재 전 setter가 이기고(1차 설정 notifier와 같음), 쓰기는 500 ms 디바운스. 웹 입력 방식·`collectShapeSamples`·`seenSqueeze`·`seenBarrelRoll`의 setter 넷(4.3.3)과 `flush`.
+
 #### 이정표 커밋 (동시 개발)
 
 | 이정표 | 커밋 | 날짜 | 되는 것 |
@@ -411,5 +418,7 @@
 
 #### 다음 세션 메모
 
-- 세션 1(2026-11-06): 작업 표·계획서 C22-09 정리(abaf1a2), E2-00.
+- 세션 1(2026-11-06): 작업 표·계획서 C22-09 정리(abaf1a2), E2-00(31144aa), E2-01 1부.
+- **다음 세션 — E2-01 2부부터**: ① `lib/src/text/text_box_editor.dart` `TextBoxEditorLayer` — `PageViewport` 바깥 `Stack`에서 `_InputListener`의 위쪽 형제(`SelectionMenu` 자리, 라우터에 안 닿음), `editorTextEditProvider`가 `inline`일 때 `Positioned`(페이지 → 화면) + `Transform.scale(camera.scale)` + `Transform.rotate(frame.rotation)` 안에 `TextField`(키 `editor.textEditor`, `InputDecoration.collapsed`, `style: textStyleOf`, `strutStyle: strutStyleOf`, `maxLines: null`, `LengthLimitingTextInputFormatter(maxTextLength)`, `onTapOutside → end(tapOutside)`, 포커스를 가졌다가 잃으면 `end(focusLost)`, `onChanged → updateText`, 끝 전 `clearComposing`), 카메라는 `ViewportController`(ChangeNotifier) `ListenableBuilder`. ② `text_input_sheet.dart` — 같은 `Stack`의 위쪽 패널, 높이 = `min(0.4 × 화면 높이, 페이지 영역 높이 − 본문 viewInsets.bottom − 120)`(Scaffold가 키보드만큼 본문을 줄이므로 페이지 영역 높이에 이미 반영 — 1032×1376 세로·400이면 줄지 않고 가로 600에서 줆: 시험은 '패널 아래 ≤ 키보드 위'와 큰 inset에서 '줆'), [완료] → `end(done)`. ③ 개발자 메뉴: '텍스트 상자 시험'(키 `editor.dev.textBoxProbe` — 지금 페이지 보이는 영역 가운데, 폭 `min(240, 오른쪽 − x − 16)`, 새 id `core.idGeneratorProvider`, `createdAt` = `core.clockProvider`, `TextBoxStyle()` — E2-03 `ToolOptions` 전), 입력 방식 줄(웹에서만 — `debugIsWebOverride` 존중). ④ 시험 3개(계획 8.2 E2-01 줄 그대로) — VM 위젯 시험은 `setUpAll`에서 `TestWidgetsFlutterBinding.ensureInitialized()` + `useInkTestFonts()`(이 세션의 `text_edit_session_test`처럼), 웹 시험은 `setUpAll(useInkTestFonts)`(C23-07).
+- 1차 `EditorCanvasFocus`는 캔버스 down마다 캔버스 포커스를 요청한다 — E2-01 오버레이에서는 캔버스 down이 `onTapOutside`(캔버스는 아직 탭 묶음 밖) 또는 `focusLost`로 세션을 끝낸다. 탭 묶음·포커스 양보·라우터 끝은 E2-10.
 - EDITOR-F3: E2-15(P-B)를 미루게 되면 이 표의 E2-15 줄을 `미룸`으로 두고 여기에 `E2-15 미룸`을 적는다(E2-21b·V5b·V15 자동 도형 판정 근거).

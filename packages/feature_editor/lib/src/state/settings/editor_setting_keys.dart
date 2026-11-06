@@ -1,4 +1,5 @@
-// lib/src/state/settings/editor_setting_keys.dart — 04-editor 6.14.
+// lib/src/state/settings/editor_setting_keys.dart — 04-editor 6.14;
+// (v2) m5-7/04-editor 6.18: editor.deviceState (E2-01).
 //
 // Every CORE setting key of the editor: JSON objects whose first field is
 // "v": 1, names with the 'editor.' prefix, scopes by contract 7.4.6 (values
@@ -21,6 +22,14 @@ abstract final class EditorSettingKeys {
   );
   static final presetBar = core.SettingKey.jsonMap(
     'editor.presetBar',
+    scope: core.SettingScope.device,
+  );
+
+  /// (v2, E2-01) EDITOR-internal device state: web text input mode, the
+  /// shape-sample toggle, the first Pencil squeeze / barrel-roll events
+  /// (m5-7/04-editor 4.3.3 EditorDeviceState).
+  static final deviceState = core.SettingKey.jsonMap(
+    'editor.deviceState',
     scope: core.SettingScope.device,
   );
   // synced — user taste (contract 7.4.6)
@@ -46,6 +55,7 @@ abstract final class EditorSettingKeys {
     toolSelection,
     viewport,
     presetBar,
+    deviceState,
     syncedSettings,
     penStyles,
     eraser,

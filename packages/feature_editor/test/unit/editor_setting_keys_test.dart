@@ -1,6 +1,8 @@
 // E-06: EditorSettingKeys (04-editor 6.14) — every key has the 'editor.'
 // prefix and a valid CORE name, the scopes match the 6.14 table (device 4,
 // synced 4, contract 7.4.6), and every key is a JSON map defaulting to {}.
+// (v2) E2-01 adds editor.deviceState (device): device 5, synced 4. E2-03
+// adds toolOptions and playback.preRollMs.
 import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -8,9 +10,9 @@ import 'package:note_core/note_core.dart' as core;
 void main() {
   final all = EditorSettingKeys.all;
 
-  test('all lists the eight keys of 6.14, each once', () {
-    expect(all, hasLength(8));
-    expect({for (final k in all) k.name}, hasLength(8));
+  test('all lists the nine keys (6.14 + editor.deviceState), each once', () {
+    expect(all, hasLength(9));
+    expect({for (final k in all) k.name}, hasLength(9));
   });
 
   test("names: 'editor.' prefix and the CORE name rule", () {
@@ -29,12 +31,13 @@ void main() {
       'editor.toolSelection': core.SettingScope.device,
       'editor.viewport': core.SettingScope.device,
       'editor.presetBar': core.SettingScope.device,
+      'editor.deviceState': core.SettingScope.device,
       'editor.settings.synced': core.SettingScope.synced,
       'editor.penStyles': core.SettingScope.synced,
       'editor.eraser': core.SettingScope.synced,
       'editor.colors': core.SettingScope.synced,
     });
-    expect(all.where((k) => k.scope == core.SettingScope.device), hasLength(4));
+    expect(all.where((k) => k.scope == core.SettingScope.device), hasLength(5));
     expect(all.where((k) => k.scope == core.SettingScope.synced), hasLength(4));
   });
 
@@ -52,6 +55,7 @@ void main() {
       EditorSettingKeys.toolSelection,
       EditorSettingKeys.viewport,
       EditorSettingKeys.presetBar,
+      EditorSettingKeys.deviceState,
       EditorSettingKeys.syncedSettings,
       EditorSettingKeys.penStyles,
       EditorSettingKeys.eraser,

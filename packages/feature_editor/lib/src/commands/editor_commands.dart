@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/dev_tools.dart' as ink_dev;
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -573,6 +574,36 @@ class EditorCommands {
       return await step();
     } on Object catch (error, stack) {
       _rejected(error, stack, null, 'while undoing or redoing');
+      return null;
+    }
+  }
+
+  /// (v2, E2-01 — m5-7/04-editor 6.11.5) The one command of a text edit
+  /// session, through [_run]. A read-only rejection (a race: the note turned
+  /// read-only while editing) also copies [text] to the system clipboard —
+  /// text only, the app clipboard is untouched — and the notice says so
+  /// (review S-11). Returns null when rejected.
+  core.CommandReceipt? runTextSession(
+    core.EditCommand command, {
+    required String text,
+  }) {
+    try {
+      return _session.execute(command);
+    } on core.ReadOnlyNoteException {
+      if (!_disposed) _ref.read(editorReadOnlyProvider.notifier).refresh();
+      unawaited(
+        Clipboard.setData(ClipboardData(text: text)).catchError(
+          (Object error, StackTrace stack) =>
+              _report(error, stack, 'while copying the edited text'),
+        ),
+      );
+      _message(
+        '${EditorStrings.readOnlyToast}\n'
+        '${EditorStrings.textCopiedToClipboard}',
+      );
+      return null;
+    } on Object catch (error, stack) {
+      _rejected(error, stack, null, 'while running ${command.label}');
       return null;
     }
   }
