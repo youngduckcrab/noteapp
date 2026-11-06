@@ -1,10 +1,14 @@
 // DiagnosticReport.format (docs/plans/01-infra.md 4.5.3, 6.7 and 9.1).
+// 2차 v2 (docs/plans/m5-7/01-infra.md 6.18): the '기능' line after '시작'
+// and skipped steps in the startup line.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/errors/diagnostic_report.dart';
+import 'package:noteapp/src/features/app_features.dart';
+import 'package:noteapp/src/features/feature_status.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
 
@@ -85,6 +89,11 @@ void main() {
       build: _build,
       runtime: _web,
       startup: _startup,
+      features: appFeatureStatesOf(
+        compileTime: AppFeatures.all,
+        started: AppFeatures.all,
+        steps: _startup.steps,
+      ),
       storage: _storage,
       persistence: _persistence,
       errors: [
@@ -118,6 +127,7 @@ void main() {
         '실행: 웹 · CanvasKit (dart2js) · 홈 화면 앱: 예',
         '브라우저: Mozilla/5.0 (iPad)',
         startupLine,
+        '기능: 녹음 켬 · 인식 켬 · 수식 엔진 켬',
         storageLine,
         '저장 상태: 대기 0건 · 마지막 저장 09:19:58 (23ms) · 연속 실패 0',
         '오류 3건 (최근 순, 최대 5건)',
@@ -150,8 +160,9 @@ void main() {
     expect(lines[2], '실행: 네이티브');
     expect(lines[3], '브라우저: 알 수 없음');
     expect(lines[4], '시작: 알 수 없음');
-    expect(lines[5], '저장소: 알 수 없음');
-    expect(lines[6], '저장 상태: 알 수 없음');
+    expect(lines[5], '기능: 알 수 없음');
+    expect(lines[6], '저장소: 알 수 없음');
+    expect(lines[7], '저장 상태: 알 수 없음');
     expect(lines.last, '오류 없음');
   });
 
@@ -182,12 +193,12 @@ void main() {
     final lines = text.split('\n');
     expect(lines[4], '시작: 부트스트랩 2,500ms');
     expect(
-      lines[5],
+      lines[6],
       '저장소: webInMemory · 임시 저장(새로고침하면 사라짐) · 영구 보관 안 됨 · '
       '다중 탭 안전 · 900B / ? · 부족한 기능: opfs, sharedWorker',
     );
     expect(
-      lines[6],
+      lines[7],
       '저장 상태: 대기 4건 (저장 중) · 마지막 저장 없음 · 연속 실패 3 · '
       '마지막 오류 09:19:00 Bad state: disk full',
     );
@@ -198,12 +209,54 @@ void main() {
       storage: const StorageInfo(backend: StorageBackend.webUnsafeIndexedDb),
       errors: const [],
       now: _now,
-    ).split('\n')[5];
+    ).split('\n')[6];
     expect(
       unsafe,
       '저장소: webUnsafeIndexedDb · 영구 보관 알 수 없음 · 다중 탭 위험 · '
       '사용량 알 수 없음 · 부족한 기능 없음',
     );
+  });
+
+  test('v2: skipped feature modules in the startup line, the reasons in '
+      'the feature line', () {
+    const startup = StartupReport(
+      steps: [
+        StartupStep(
+          id: 'core',
+          elapsed: Duration(milliseconds: 380),
+          outcome: StartupStepOutcome.ok,
+        ),
+        StartupStep(
+          id: 'media',
+          elapsed: Duration.zero,
+          outcome: StartupStepOutcome.skipped,
+        ),
+        StartupStep(
+          id: 'recognition',
+          elapsed: Duration(milliseconds: 3000),
+          outcome: StartupStepOutcome.timedOut,
+        ),
+      ],
+      bootstrapElapsed: Duration(milliseconds: 3412),
+    );
+    final lines = DiagnosticReport.format(
+      build: _build,
+      runtime: _web,
+      startup: startup,
+      features: appFeatureStatesOf(
+        compileTime: const AppFeatures(mathEngine: false),
+        started: const AppFeatures(media: false, mathEngine: false),
+        steps: startup.steps,
+      ),
+      errors: const [],
+      now: _now,
+    ).split('\n');
+    expect(
+      lines[4],
+      '시작: 부트스트랩 3,412ms '
+      '(core 380ms ok, media 0ms skipped, recognition 3,000ms timedOut)',
+    );
+    expect(lines[5], '기능: 녹음 꺼짐(개발자 메뉴) · 인식 시작 실패 · 수식 엔진 꺼짐(빌드)');
   });
 
   test('local time zone offset in the header', () {

@@ -103,6 +103,38 @@ abstract final class AppStrings {
   static const String storageRefresh = '다시 확인';
   static const String storageRefreshFailed = '저장 공간 정보를 다시 읽지 못했어요.';
 
+  /// 2차 6.18: per-type attachment bytes (AssetStorageUsage.bytesByType) and
+  /// the search index row.
+  static const String storageAssets = '첨부 파일';
+  static String storageAssetUsage({
+    required int count,
+    required int total,
+    required int audio,
+    required int image,
+    required int pdf,
+  }) =>
+      '$count개 · ${megabytes(total)} (녹음 ${megabytes(audio)} · '
+      '이미지 ${megabytes(image)} · PDF ${megabytes(pdf)})';
+  static const String storageAssetsUnread = '첨부 파일 정보를 읽지 못했어요';
+  static const String storageSearchIndex = '검색 색인';
+  static String storageSearchIndexStatus(
+    int pendingOwners, {
+    required bool rebuilding,
+  }) => '대기 $pendingOwners개${rebuilding ? ' · 재구축 중' : ''}';
+  static const String storageRebuildIndex = '다시 만들기';
+  static const String storageRebuildConfirm =
+      '검색 색인을 처음부터 다시 만들어요. 시간이 걸릴 수 있어요.';
+  static const String storageRebuildFailed =
+      '검색 색인을 다시 만들지 못했어요. 진단 정보를 복사해 보내 주세요.';
+
+  /// '0 MB', '<0.1 MB', '12.3 MB' (1024-based, one decimal).
+  static String megabytes(int bytes) {
+    if (bytes <= 0) return '0 MB';
+    final mb = bytes / (1024 * 1024);
+    if (mb < 0.05) return '<0.1 MB';
+    return '${mb.toStringAsFixed(1)} MB';
+  }
+
   /// AboutSection ('앱 정보').
   static const String aboutBuild = '빌드';
   static const String aboutRenderer = '렌더러';
@@ -115,6 +147,10 @@ abstract final class AppStrings {
   static const String aboutErrors = '오류';
   static String aboutErrorCount(int count) => '$count건';
   static const String aboutUpdate = '새 버전';
+
+  /// The feature line (2차 6.18): '녹음 켬 · 인식 꺼짐(개발자 메뉴) · 수식 엔진
+  /// 꺼짐(빌드)' — appFeatureStatusLine.
+  static const String aboutFeatures = '기능';
 
   /// The Apple Pencil line (iOS, 2차 6.12.3 / 6.18): 'iOS 17.5 · 더블탭 · 호버';
   /// squeeze and roll only once this run has received one ('· 스퀴즈(받음)').

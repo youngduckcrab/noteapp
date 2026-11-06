@@ -12,6 +12,8 @@ import '../app/strings.dart';
 import '../bootstrap/startup_report.dart';
 import '../errors/app_error_log.dart';
 import '../errors/diagnostic_report.dart';
+import '../features/app_features.dart';
+import '../features/feature_status.dart';
 import '../pencil/pencil_stylus_extras.dart';
 import '../providers.dart';
 import '../update/update_checker.dart';
@@ -37,8 +39,16 @@ import 'backup_sheet.dart';
 /// '· 스퀴즈(받음)' / '· 롤(받음)' only after this run has received one. While
 /// shown, the section listens to the stylus events itself, so a squeeze on
 /// the settings screen counts too.
+/// 2차 (6.18): a '기능' row (key app.about.features) — '녹음 켬 · 인식
+/// 꺼짐(개발자 메뉴) · 수식 엔진 꺼짐(빌드)' from [compileTime],
+/// appFeaturesProvider (what the modules saw at this start) and the feature
+/// modules' startup steps ('시작 실패'); the same line goes into "진단 정보
+/// 복사".
 class AboutSection extends ConsumerStatefulWidget {
-  const AboutSection({super.key});
+  const AboutSection({super.key, this.compileTime = AppFeatures.compileTime});
+
+  /// The FEATURE_* build values (tests pass other builds).
+  final AppFeatures compileTime;
 
   @override
   ConsumerState<AboutSection> createState() => _AboutSectionState();
@@ -125,6 +135,8 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
         ? records
         : records.sublist(records.length - _shownErrors);
     final steps = [for (final step in report.steps) _stepText(step)];
+    final features = _featureStates(report, ref.watch(appFeaturesProvider));
+    final featuresOff = features.values.any((s) => s != AppFeatureState.on);
     final remote = switch (update) {
       UpdateAvailable(:final remote) ||
       UpdateDismissed(:final remote) => remote,
@@ -146,15 +158,23 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
             final PencilStylusExtrasSource adapter => ValueListenableBuilder(
               valueListenable: adapter.seen,
               builder: (context, seen, _) => _InfoRow(
+                key: const ValueKey<String>('app.about.pencil'),
                 label: AppStrings.aboutPencil,
                 value: _pencilLine(pencil, os: adapter.os, seen: seen),
               ),
             ),
             _ => _InfoRow(
+              key: const ValueKey<String>('app.about.pencil'),
               label: AppStrings.aboutPencil,
               value: _pencilLine(pencil),
             ),
           },
+        _InfoRow(
+          key: const ValueKey<String>('app.about.features'),
+          label: AppStrings.aboutFeatures,
+          value: appFeatureStatusLine(features),
+          warn: featuresOff,
+        ),
         _InfoRow(
           label: AppStrings.aboutStartup,
           value: [
@@ -251,12 +271,23 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
     );
   }
 
+  Map<AppFeature, AppFeatureState> _featureStates(
+    StartupReport report,
+    AppFeatures started,
+  ) => appFeatureStatesOf(
+    compileTime: widget.compileTime,
+    started: started,
+    steps: report.steps,
+  );
+
   Future<void> _copyDiagnostics() async {
     final messenger = ScaffoldMessenger.of(context);
+    final startup = ref.read(startupReportProvider);
     final text = DiagnosticReport.format(
       build: ref.read(buildInfoProvider),
       runtime: ref.read(runtimeInfoProvider),
-      startup: ref.read(startupReportProvider),
+      startup: startup,
+      features: _featureStates(startup, ref.read(appFeaturesProvider)),
       storage:
           ref.read(latestStorageInfoProvider).value ??
           ref.read(storageInfoProvider),
@@ -376,7 +407,12 @@ class _BackupProgress extends StatelessWidget {
 
 /// One `label · value` line. The value wraps; the label column is fixed.
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value, this.warn = false});
+  const _InfoRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.warn = false,
+  });
 
   final String label;
   final String value;

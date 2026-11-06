@@ -9,6 +9,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show kLocalOwnerId;
 
+import '../app/licenses.dart';
 import '../app/lifecycle_bridge.dart';
 import '../app/note_app.dart';
 import '../app/strings.dart';
@@ -249,6 +250,7 @@ Future<void> runNoteApp({
   usePathUrlStrategy();
   final errorLog = AppErrorLog(capacity: 100);
   installGlobalErrorHandlers(errorLog);
+  registerAppLicenses(errorLog: errorLog);
   final buildInfo = BuildInfo.fromEnvironment();
   final web = createWebPlatform();
   final runtime = RuntimeInfo.detect(web);

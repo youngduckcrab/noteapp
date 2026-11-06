@@ -406,7 +406,7 @@
 | J11 | 완료 | `fe6100d` — 본문은 R2-B8b `6e7b753` | `app/test/routing/production_screens_test.dart`(J11 +4 — `%2C`·잘못된 focus 9가지(페이지는 열림)·page 없는 focus·폴더 검색 결과 → 보고된 주소 → 새로고침 → 같은 페이지·사각형 → 닫으면 홈), `app_router_test`(R2-B8b — 자리표시 화면 7경우) |
 | J12 | 완료 | `5b71ea3` | `packages/pencil_bridge/test/pencil_wire_contract_test.dart`(28 — ⓪~⑨ + 가용성 판독기 자체 11경우), `pencil_bridge_test`(+1 — Swift 빌더 모양의 squeeze 순서·자세 없는 tap) — **컴파일은 `ios-compile.yml`(U19)**, 동작은 TestFlight 뒤(C-1) |
 | J13 | 완료 | `f771299` — 능력 조회 시간 제한·실패 처리·`timestamp`는 R2-B8b `6e7b753` | `app/test/pencil/pencil_stylus_extras_test.dart`(J13 +3 — `os`·대체 `?`·`seen` 전이(구독자 없으면 안 셈·tap·hover·모르는 단계는 안 셈·종류마다 알림 1번·되돌아가지 않음·능력 불변)·두 구독자에 알림 1번), `modules/feature_wiring_module_test.dart`(Pencil 5경우 — 지원·미지원·기본 포트·실패·500 ms 초과, J13: `os` '17.5'·'?'), `settings/about_section_test.dart`(J13 +5 — 지원 안 함 2·'iOS 17.5 · 더블탭 · 호버' → 스퀴즈 받음 → 롤 받음·섹션 자신의 구독·떠나면 구독 끊김·열기 전에 받은 것·읽기 실패 문구·가로) |
-| J14 | 남음 | | `storage_section_test` v2·`about_section_test` v2·`licenses_test`·`diagnostic_report_test` v2 |
+| J14 | 완료 | (이 커밋) | `app/test/settings/storage_section_test.dart` v2(첨부 파일 6 — 세 종류·없는 종류 0 MB·작은 크기 `<0.1 MB`·첨부 없음 '0개 · 0 MB'·CORE 가짜 저장소의 `bytesByType`·보일 때 1회·[다시 확인]·다시 보일 때·`usage()` 실패; 검색 색인 6 — 상태 따라감·확인 창 취소·확인 → `rebuild()` 1회·진행 중 비활성·실패 문구 + 기록 1건·닫기·가로), `settings/about_section_test.dart` v2(기능 줄 4가지 — 모두 켬·빌드에서 끔·개발자 메뉴로 끔(`skipped`)·시작 실패 + 진단 복사·가로, Pencil 줄 키), `app/test/app/licenses_test.dart`(가짜 에셋 번들 있음/없음·기록 1번·지연 읽기·앱 번들에 실제 에셋·라이선스 화면), `errors/diagnostic_report_test.dart` v2(기능 줄·`skipped` 단계), `features/feature_status_test.dart`(새 — 상태 표) |
 | J14b | 남음 | | `v1_copy_section_test`·`backup_export_test`·`settings_sections_test` |
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
 | J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
@@ -667,6 +667,20 @@
 | `flutter test test/pencil test/settings/about_section_test.dart test/modules/feature_wiring_module_test.dart` | 19 · 17 · 25 통과 |
 | `ws test --package noteapp` (VM) | 526 통과 · 1 건너뜀(V5) · 111초 |
 
+#### J14 — 설정·앱 정보 v2 (계획 8.2, 6.18·4.6.7)
+
+- 커밋: 이 커밋(작업 표의 해시는 다음 기록 커밋에서 채움).
+- **저장 공간**(`StorageSection` → `ConsumerStatefulWidget`, 공개 이름 그대로): '첨부 파일 n개 · x MB (녹음 a MB · 이미지 b MB · PDF c MB)' — `assetStoreProvider.usage()`의 `bytesByType`(없는 종류 0). 섹션이 보일 때 한 번, [다시 확인]으로 다시(1차 규칙). '검색 색인: 대기 n개 · 재구축 중'(`searchIndexProvider.status` 구독) + [다시 만들기](키 `app.storage.rebuildIndex`, 확인 창 '검색 색인을 처음부터 다시 만들어요. 시간이 걸릴 수 있어요.' → `rebuild()`(모든 원천), 이 섹션의 재구축 중이거나 상태가 `rebuilding`이면 비활성, 실패 → 문구 + 기록 1건(manual)).
+- **앱 정보**: '기능' 줄(키 `app.about.features`) — `appFeatureStatesOf(compileTime, appFeaturesProvider, startupReport.steps)` → '녹음 켬 · 인식 꺼짐(개발자 메뉴) · 수식 엔진 꺼짐(빌드)'. 하나라도 꺼져 있으면 오류 색(11절 위험 9). Pencil 줄에 키 `app.about.pencil`(부록 C). 진단 정보 복사에 같은 줄.
+- **`registerAppLicenses`**(`app/lib/src/app/licenses.dart`): `LicenseRegistry`에 지연 수집기 하나 — 'NoteSans (Noto Sans KR subset)' + `packages/ink_engine/assets/fonts/OFL.txt`. 에셋이 없으면 항목 없음 + 기록 1번(수집할 때마다 다시 시도). `runNoteApp`이 오류 처리기 설치 직후 부른다(6.4).
+- **`DiagnosticReport` v2**: '시작' 다음 줄에 '기능: …'(모르면 '알 수 없음' — 시작 실패 화면). `skipped` 단계는 1차부터 시작 줄에 결과 이름으로 나왔다('media 0ms skipped') — 시험으로 못 박음.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format --set-exit-if-changed lib test` | 0건 / 변경 0 |
+| `flutter test` storage·about·diagnostic·licenses·feature_status | 21 · 23 · 6 · 6 · 8 통과 |
+| `ws test --package noteapp` (VM) | 559 통과 · 1 건너뜀(V5) · 129초 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -740,6 +754,12 @@
 
 - (J13) `PencilStylusExtrasSource`에 앱 내부 `os`·`seen`을 더했다(계획 4.6.5 시그니처에 없음 — 앱 정보 줄이 OS 판과 '받음'을 알아야 해서). 새 최상위 이름은 없다(`seen`은 레코드 타입). 앱 정보 섹션이 보이는 동안 스스로 이벤트를 구독하는 것도 계획에 없다 — 에디터가 없는 설정 화면에서도 '받음'이 생기게.
 - (J13) 계획 4.6.7의 줄 예시('iOS 17.5 · 스퀴즈 · 호버 · 롤')가 아니라 6.12.3(v2.1)의 규칙('스퀴즈·롤은 받은 뒤 · 스퀴즈(받음)')을 따랐고, 더블탭은 iOS면 언제나 붙는다(능력 표 그대로). 능력 읽기 실패(`os` '?')는 'iOS ?' 대신 '능력을 읽지 못했어요'.
+
+- (J14) 계획에 없는 앱 내부 이름: `features/feature_status.dart`의 `AppFeatureState`(on·offInBuild·offInMenu·startFailed·offWithRecognition)·`appFeatureStatesOf`·`appFeatureStatusLine`·`mediaStepId`·`recognitionStepId`(시작 단계 id — 시험이 모듈 id와 같은지 본다), `licenses.dart`의 `noteSansLicenseAsset`·`noteSansLicenseName`, `AboutSection(compileTime:)`(J5 `FeatureSwitchSection`과 같은 시험 이음새), `DiagnosticReport.format(features:)`, `AppStrings.megabytes` 등 문구. 계약 표면이 아니다.
+- (J14) 기능 줄의 상태는 계획 예시의 세 가지(켬·꺼짐(개발자 메뉴)·꺼짐(빌드))에 '시작 실패'(모듈 단계 `failedNonCritical`·`timedOut`·`failedCritical`)와 수식 엔진 전용 '꺼짐(인식 꺼짐)'(빌드·메뉴로는 켜져 있지만 인식이 꺼졌거나 실패 — `AppFeatures.isOn(mathEngine)`과 같은 규칙)을 더했다. `MATH_ENDPOINT`가 비어 수식 엔진 주소가 없는 경우는 따로 표시하지 않는다(스위치 상태만).
+- (J14) 'x MB'는 1024 기준 소수 한 자리, 0은 '0 MB', 0이 아니지만 0.05 MB 미만은 '<0.1 MB'(0.0 MB로 보이지 않게). 1차 '사용량' 줄의 `AppStrings.bytes`('12.3MB')와 따로 둔 이유는 계획 문구가 'x MB'라서.
+- (J14) `usage()` 실패는 '첨부 파일 정보를 읽지 못했어요'(오류 색)만 — 기록은 남기지 않는다(1차 '다시 확인' 실패 문구와 같은 취급). 다시 만들기 실패는 기록 1건(사용자가 누른 동작 — source manual).
+- (J14) 라이선스 화면 시험: `LicensePage`를 `pumpAndSettle`로 기다린 첫 실행이 5분 넘게 끝나지 않아(CPU 0 % — 멈춤으로 보고 끊음) 100 ms씩 다섯 번 `pump`한다. `CachingAssetBundle`은 실패한 `loadString`도 캐시해서 '수집할 때마다 다시 시도'가 보이지 않으므로 시험의 가짜 번들은 `AssetBundle`을 바로 상속한다.
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 

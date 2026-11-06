@@ -8,6 +8,8 @@
 //
 // 2차 J13 (docs/plans/m5-7/01-infra.md 6.12.3, 6.18): the Apple Pencil row
 // over a PencilStylusExtrasSource on a fake pencil event stream.
+// 2차 J14 (6.18): the feature row in four cases (all on · off in the build ·
+// off in the developer menu · failed start) and in the diagnostics copy.
 import 'dart:async';
 import 'dart:convert';
 
@@ -20,7 +22,9 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
+import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/features/app_features.dart';
 import 'package:noteapp/src/pencil/pencil_stylus_extras.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
@@ -521,6 +525,13 @@ void main() {
       );
       expect(pencilRow(), findsOneWidget);
       expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('app.about.pencil')),
+          matching: find.text('iOS 17.5 · 더블탭 · 호버'),
+        ),
+        findsOneWidget,
+      );
       // Nothing else listens in this test: the section's own subscription.
       expect(native.hasListener, isTrue);
 
@@ -601,6 +612,161 @@ void main() {
       );
       await tester.pump();
       expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('feature row (J14 — 6.18)', () {
+    const featureKey = ValueKey<String>('app.about.features');
+
+    StartupReport report(List<(String, StartupStepOutcome)> steps) =>
+        StartupReport(
+          steps: [
+            const StartupStep(
+              id: 'core',
+              elapsed: Duration(milliseconds: 120),
+              outcome: StartupStepOutcome.ok,
+            ),
+            for (final (id, outcome) in steps)
+              StartupStep(id: id, elapsed: Duration.zero, outcome: outcome),
+          ],
+          bootstrapElapsed: const Duration(milliseconds: 300),
+        );
+
+    Future<SettingsHarness> pumpFeatures(
+      WidgetTester tester, {
+      required AppFeatures compileTime,
+      required AppFeatures started,
+      required StartupReport report,
+      Size logical = ipadPortrait,
+    }) async {
+      final h = SettingsHarness(
+        store: CountingNoteStore(exportBackupResult: _bytes),
+        report: report,
+      );
+      await h.pump(
+        tester,
+        sectionPage(AboutSection(compileTime: compileTime)),
+        logical: logical,
+        extra: [appFeaturesProvider.overrideWithValue(started)],
+      );
+      await tester.pump();
+      return h;
+    }
+
+    String rowText(WidgetTester tester) {
+      final texts = tester.widgetList<Text>(
+        find.descendant(
+          of: find.byKey(featureKey),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(texts.first.data, AppStrings.aboutFeatures);
+      return texts.last.data!;
+    }
+
+    Color? rowColor(WidgetTester tester) => tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byKey(featureKey),
+            matching: find.byType(Text),
+          ),
+        )
+        .last
+        .style
+        ?.color;
+
+    testWidgets('all on', (tester) async {
+      await pumpFeatures(
+        tester,
+        compileTime: AppFeatures.all,
+        started: AppFeatures.all,
+        report: report([
+          ('media', StartupStepOutcome.ok),
+          ('recognition', StartupStepOutcome.ok),
+        ]),
+      );
+      expect(rowText(tester), '녹음 켬 · 인식 켬 · 수식 엔진 켬');
+      final scheme = Theme.of(tester.element(find.byKey(featureKey)))
+          .colorScheme;
+      expect(rowColor(tester), isNot(scheme.error));
+    });
+
+    testWidgets('off in the build (the module was not even made)', (
+      tester,
+    ) async {
+      const build = AppFeatures(media: false, recognition: false);
+      await pumpFeatures(
+        tester,
+        compileTime: build,
+        started: build,
+        report: report(const []),
+      );
+      expect(rowText(tester), '녹음 꺼짐(빌드) · 인식 꺼짐(빌드) · 수식 엔진 꺼짐(인식 꺼짐)');
+      final scheme = Theme.of(tester.element(find.byKey(featureKey)))
+          .colorScheme;
+      expect(rowColor(tester), scheme.error);
+    });
+
+    testWidgets('off in the developer menu (skipped steps)', (tester) async {
+      await pumpFeatures(
+        tester,
+        compileTime: const AppFeatures(mathEngine: false),
+        started: const AppFeatures(recognition: false, mathEngine: false),
+        report: report([
+          ('media', StartupStepOutcome.ok),
+          ('recognition', StartupStepOutcome.skipped),
+        ]),
+      );
+      expect(rowText(tester), '녹음 켬 · 인식 꺼짐(개발자 메뉴) · 수식 엔진 꺼짐(빌드)');
+      // The skipped step is in the startup row too.
+      expect(find.textContaining('recognition 0ms (skipped)'), findsOneWidget);
+    });
+
+    testWidgets('failed start (media timed out, recognition failed)', (
+      tester,
+    ) async {
+      await pumpFeatures(
+        tester,
+        compileTime: AppFeatures.all,
+        started: AppFeatures.all,
+        report: report([
+          ('media', StartupStepOutcome.timedOut),
+          ('recognition', StartupStepOutcome.failedNonCritical),
+        ]),
+      );
+      expect(rowText(tester), '녹음 시작 실패 · 인식 시작 실패 · 수식 엔진 꺼짐(인식 꺼짐)');
+    });
+
+    testWidgets('진단 정보 복사 carries the same line and the skipped step', (
+      tester,
+    ) async {
+      final copied = _mockClipboard(tester);
+      await pumpFeatures(
+        tester,
+        compileTime: AppFeatures.all,
+        started: const AppFeatures(media: false),
+        report: report([
+          ('media', StartupStepOutcome.skipped),
+          ('recognition', StartupStepOutcome.ok),
+        ]),
+      );
+      await tester.tap(find.byKey(const Key('about-copy-diagnostics')));
+      await tester.pump();
+      expect(copied, hasLength(1));
+      expect(copied.single, contains('\n기능: 녹음 꺼짐(개발자 메뉴) · 인식 켬 · 수식 엔진 켬\n'));
+      expect(copied.single, contains('media 0ms skipped'));
+    });
+
+    testWidgets('landscape: the row fits', (tester) async {
+      await pumpFeatures(
+        tester,
+        compileTime: const AppFeatures(mathEngine: false),
+        started: const AppFeatures(media: false, mathEngine: false),
+        report: report([('media', StartupStepOutcome.skipped)]),
+        logical: ipadLandscape,
+      );
+      expect(find.byKey(featureKey), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
