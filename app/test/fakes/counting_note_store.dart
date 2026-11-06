@@ -164,6 +164,14 @@ final class CountingNoteStore implements NoteStore {
   @override
   SyncStore get sync => inner.sync;
   @override
+  RecordingRepository get recordings => inner.recordings;
+  @override
+  RecordingDraftStore get recordingDrafts => inner.recordingDrafts;
+  @override
+  HandwritingRepository get handwriting => inner.handwriting;
+  @override
+  SearchIndex get search => inner.search;
+  @override
   Stream<ChangeBatch> get changes => inner.changes;
   @override
   IdGenerator get ids => inner.ids;
