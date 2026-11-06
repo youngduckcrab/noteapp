@@ -1,6 +1,6 @@
 # 2차 라운드(M5·M6·M7) 동시 개발 영역 개요
 
-> 상태: **확정 — 개발 시작 가능 (통합 계약 v2.2, 최종 승인 날짜 2026-11-05)** — 7개 영역 계획서 01~07 모두 승인([00-review.md](00-review.md) '최종 승인' 절에 승인 요약·개발 중 주의할 점·기반 단계와 통합 순서·사용자 질문). v2.1(C21-01~35) 뒤 최종 승인에서 바뀐 곳은 본문에 `(v2.2)`로 표시했고 [7.9 변경 이력](#79-계약-변경-이력)의 C22-01~C22-09에 모두 있다. v2.0 초안에서 v2.1로 바뀐 곳은 `(v2.1)`로 표시했고 C21-01~C21-35에 있다
+> 상태: **확정 — 2차 기반 단계 완료, 동시 개발 중 (통합 계약 v2.3 — 7.9 C23-01~07, 최종 승인 2026-11-05)** — 7개 영역 계획서 01~07 모두 승인([00-review.md](00-review.md) '최종 승인' 절에 승인 요약·개발 중 주의할 점·기반 단계와 통합 순서·사용자 질문). v2.1(C21-01~35) 뒤 최종 승인에서 바뀐 곳은 본문에 `(v2.2)`로 표시했고 [7.9 변경 이력](#79-계약-변경-이력)의 C22-01~C22-09에 모두 있다. v2.0 초안에서 v2.1로 바뀐 곳은 `(v2.1)`로 표시했고 C21-01~C21-35에 있다
 >
 > 기준: 1차 [00-overview.md](../00-overview.md) 7장 통합 계약 v1.5(1차 통합 반영 — v1.4 대비 시그니처 변경 없음) · [00-review.md](../00-review.md) · 마스터 기획서 [PLAN.md](../../PLAN.md) F-03·F-10~F-16, 5장, 7.6, 10장 M5~M7 · 조사 [01-hooks](research/01-hooks.md) · [02-audio-stylus](research/02-audio-stylus.md) · [03-recognition](research/03-recognition.md) · [04-native](research/04-native.md) · 설계 초안 [A(기존 패키지 중심 — 바탕)](drafts/overview-A.md) · [B(기능 모듈 중심)](drafts/overview-B.md) · 채점·판정 [judgement.md](drafts/judgement.md) (A 29점 / B 21점)
 
@@ -2128,7 +2128,7 @@ override가 아닌 연결: `MediaModule`이 앱 시작 뒤 유휴 시간에 남�
 | `flutter_riverpod` / `material_ui` / `meta` / `collection` / `web` | v1.4 값 | + media_io, ink_recognition (`web`은 media_io `*_browser.dart`) | |
 | (npm) `firebase-functions` / `firebase-admin` / `typescript` / `@types/node` | 7.4.0 / 14.5.0 / 6.0.3 / 22.20.5 | functions/ | 조사 04 6.4에서 설치·에뮬레이터 실행 확인 |
 | (npm) `@anthropic-ai/sdk` | 1.1.0 | functions/ (v2.1, CP-S5 — P-C Claude 어댑터만) | 2026-10-21 게시, Apache-2.0. 쓰는 매개변수(`fallbacks`·`output_config`)가 타입에 있음 [확인 — SYNC 검토]. 간접 의존 판은 lock 만들 때 확인 |
-| (도구) `firebase-tools` | 15.34.2 | CI, (v2.1) `functions/` devDependency | v1.4 INFRA 고정값. 2026-10-28 게시라 (v2.1) R2-B1·R2-B7b 커밋 때 14일이 지났는지 다시 확인한다(2026-11-11부터 통과) |
+| (도구) `firebase-tools` | 15.34.1 (v2.3, C23-01) | CI, (v2.1) `functions/` devDependency | v1.4 INFRA 고정값. 2026-10-28 게시라 (v2.1) R2-B1·R2-B7b 커밋 때 14일이 지났는지 다시 확인한다(2026-11-11부터 통과) |
 | `xml` | 7.0.1 | 루트 dev (v2.1, CP2 — `native_config_test`) | 이미 간접으로 7.0.1, lock 변화 없음 |
 | `integration_test`(SDK) | SDK | `app` dev (v2.1 — INFRA J21) | `webdriver`·`sync_http` 등 hosted 항목이 lock에 새로 들어오므로 R2-B1에서 함께 해석한다. 플러그인이라 `plugin_packages`에도 |
 
@@ -2374,6 +2374,20 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C-4 | 네이티브 필기 지연(PLAN 5.4 20 ms) — 1차부터 미뤄진 판정 |
 
 ### 7.9 계약 변경 이력
+
+#### v2.3 (2026-11-06, 2차 기반 단계 R2-B1~R2-B6 완료 후 — 총괄)
+
+시그니처 변경 없음. 기반 단계 결과 보고의 총괄 결정 요청을 처리했다.
+
+| # | 절 | 변경 | 출처 | 반영할 영역 (개발 중) |
+|---|---|---|---|---|
+| C23-01 | 7.4.7, 7.5 | `firebase-tools` 고정 판을 **15.34.1**(2026-10-21 게시)로 한다. 15.34.2는 14일 규칙상 2026-11-11 23:18 UTC 뒤에야 넣을 수 있어 기반 단계를 막는다. 올리는 것은 실연결 미니 라운드 때 다시 판단 | SYNC R2-B7b | SYNC(07-sync 3.4·7.2 표기), INFRA(CI·functions.yml 고정값 확인) |
+| C23-02 | 7.4 (코드에 모델 이름 금지), 07-sync 6.8 | 서버 함수 매개변수 `CLAUDE_MODEL`의 기본값은 **빈 문자열**이다. 비어 있으면 Claude 엔진은 `notConfigured`(unavailable)로 답한다. 모델 이름은 코드·커밋에 쓰지 않고, 프로젝트별 `.env.<projectId>`(실연결 미니 라운드, 사용자 결정 U6)에만 둔다 | SYNC R2-B7b | SYNC(S2-12 전에 07-sync 6.8.4·6.8.9·1770행 표 고침) |
+| C23-03 | 7.6.2 R2-B3 | INK 글꼴 `flutter: assets:` 블록(파일 3줄)은 03-ink 3.1대로 INK 몫이지만 기반 단계 지시에서 빠져, 총괄이 `packages/ink_engine/pubspec.yaml`에 직접 넣었다(lock 변화 없음, `ws test --package ink_engine`·웹 빌드·`web-assets verify` 통과). 이후 이 블록의 소유는 INK | INK R2-B3, INFRA R2-final | INK(`pubspec_assets_test` T26a 확인) |
+| C23-04 | 7.4 CI 정책 | INFRA R2-B1의 CI 세부를 승인한다: ① 기본 브랜치(main 아님) 푸시마다 동시성 그룹을 따로(`run_id`) — 바뀐 멤버만 시험하므로 취소되면 그 변경이 시험되지 않기 때문 ② 바뀐 멤버만 시험할 때도 `check --strict`는 돈다 ③ 기본 브랜치 수동 실행은 전체 ④ `android.yml`은 수동 실행만. 월 추정 약 1,346분 | INFRA R2-B1 | INFRA(그대로) |
+| C23-05 | 04-editor 4.3.1·4.3.2 | `recordingPanel` 등 함수 값 비교는 `identical` 대신 Dart 함수 `==`(1차 `EditorMenuItem`·`appBarTrailing`과 같음 — 같은 인스턴스 메서드의 tear-off가 다른 값으로 보이지 않게). 4.3.2의 `withAction` 예외 문구는 EDITOR가 코드에 맞춰 고친다 | EDITOR R2-B5 | EDITOR(계획서 문구) |
+| C23-06 | 03-ink 6.10.1·8.1 | 글꼴 크기·해시(Regular 466,936 B `b8acd7a9…`, Bold 466,440 B `f53c5385…`, google/fonts `24ddc1f`)와 '강제 strut 줄 높이는 정수 pt로 반올림' 사실을 INK 계획서에 반영(진행 기록 '## 2차' 근거) | INK R2-B3 | INK(계획서) |
+| C23-07 | 7.2.9 시험 도우미 | `FakeInkShapeFitter`의 설정 필드 이름은 `result`(`fit`은 `InkShapeFitter.fit` 메서드와 겹침). 생성자 인자는 `fit:` 그대로. InkFonts·InkTextLayout을 쓰는 Chrome 시험은 `useInkTestFonts()`를 setUpAll에서, `InkMathRenderer.layout`은 WidgetsBinding 초기화 필요(일반 `test()`면 `TestWidgetsFlutterBinding.ensureInitialized()`) | INK R2-B3 | EDITOR·LIBRARY·PDF·INFRA(시험 작성 시) |
 
 #### v2.2 확정 (2026-11-05, 총괄 최종 승인 — 근거: [00-review.md '최종 승인'](00-review.md#최종-승인))
 
