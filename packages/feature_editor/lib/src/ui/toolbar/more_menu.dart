@@ -1,5 +1,6 @@
 // lib/src/ui/toolbar/more_menu.dart — 04-editor 6.9.1 ([⋯]), 4.5 (extension
-// items), 6.11.5 (menu context).
+// items), 6.11.5 (menu context); (v2, m5-7/04-editor 6.14.4 — E2-14) 테이프 모두
+// 보이기 / 가리기.
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import '../../di/editor_extensions.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
+import '../../state/tape_state.dart';
 import '../../tools/tool_controller.dart';
 import '../dev/dev_metrics.dart';
 import '../editor_strings.dart';
@@ -16,7 +18,9 @@ import '../eraser/eraser_popup.dart';
 import 'dev_menu.dart';
 import 'note_info_dialog.dart';
 
-/// 페이지 넘김 (세로 스크롤 / 좌우 넘기기) · 현재 페이지 지우기 · 개발자 표시 (check) ·
+/// 페이지 넘김 (세로 스크롤 / 좌우 넘기기) · 현재 페이지 지우기 · (v2) 테이프 모두
+/// 보이기 · 테이프 모두 가리기 (always shown — whether the note has a tape is not
+/// known; allowed on a read-only note, nothing is stored) · 개발자 표시 (check) ·
 /// 노트 정보 · 설정 (only with onOpenSettings) · 개발자 메뉴 (only while the
 /// developer overlay is visible — EditorDevMenu) · divider · extension items.
 ///
@@ -34,6 +38,8 @@ class EditorMoreMenu extends ConsumerStatefulWidget {
   static const horizontalKey = ValueKey('editor.more.pageFlip.horizontal');
   static const pageFlipKey = ValueKey('editor.more.pageFlip');
   static const clearPageKey = ValueKey('editor.more.clearPage');
+  static const tapesRevealAllKey = ValueKey('editor.more.tapesRevealAll');
+  static const tapesHideAllKey = ValueKey('editor.more.tapesHideAll');
   static const devOverlayKey = ValueKey('editor.more.devOverlay');
   static const noteInfoKey = ValueKey('editor.more.noteInfo');
   static const settingsKey = ValueKey('editor.more.settings');
@@ -141,6 +147,20 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
                   ),
                 ),
           child: const Text(EditorStrings.clearPage),
+        ),
+        MenuItemButton(
+          key: EditorMoreMenu.tapesRevealAllKey,
+          leadingIcon: const Icon(Icons.visibility),
+          onPressed: () =>
+              ref.read(editorTapesRevealedAllProvider.notifier).setAll(true),
+          child: const Text(EditorStrings.tapesRevealAll),
+        ),
+        MenuItemButton(
+          key: EditorMoreMenu.tapesHideAllKey,
+          leadingIcon: const Icon(Icons.visibility_off),
+          onPressed: () =>
+              ref.read(editorTapesRevealedAllProvider.notifier).setAll(false),
+          child: const Text(EditorStrings.tapesHideAll),
         ),
         MenuItemButton(
           key: EditorMoreMenu.devOverlayKey,

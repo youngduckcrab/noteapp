@@ -216,8 +216,16 @@ class InteractionHost implements InputTargets {
       _lastStarted = eyedropper;
       return eyedropper;
     }
-    // ② read-only note → no tool input (6.17.2) — temporary tools included.
-    if (_ref.read(editorReadOnlyProvider)) return null;
+    // ② read-only note → no tool input (6.17.2) — temporary tools included;
+    // (v2, m5-7/04-editor 6.14.3) except an already active laser, which
+    // stores nothing (it starts straight at the page — no selection).
+    final readOnly = _ref.read(editorReadOnlyProvider);
+    if (readOnly &&
+        !(tools.activeTool == EditorTool.pen &&
+            tools.penType == core.PenTool.laser &&
+            _temporaryToolFor(gesture) == null)) {
+      return null;
+    }
     // (v2, 6.3.6 3) a pen / mouse contact while a text session is open (a
     // finger never gets here during one — 6.3.4): the session ends
     // (penContact — its one command runs inside end()) and the contact goes
@@ -242,7 +250,7 @@ class InteractionHost implements InputTargets {
     // (E2-10) a down that drops a selection on its body: the text tool's tap
     // there is a new box, not that object selected again (6.11.1).
     var droppedBody = false;
-    if (tool != EditorTool.lasso || temporary == null) {
+    if (!readOnly && (tool != EditorTool.lasso || temporary == null)) {
       final at = _selectionHitAt(sample.position);
       if (at != null) {
         final selection = _ref.read(editorSelectionProvider)!;
@@ -696,20 +704,41 @@ class InteractionHost implements InputTargets {
     _cursor.value = EraserRingCursor(position: position, diameter: diameter);
   }
 
-  /// (v2, 6.3.5) A pen dot before its stroke ends: ③ tap-to-seek on a stroke
-  /// of the open recording (the tape toggle ② comes with E2-14). A finger in
-  /// finger drawing takes the finger condition (TapKind.finger), a pen or a
-  /// mouse the pen-dot one. Not taken → the dot stays a dot stroke.
+  /// (v2, 6.3.5) A pen dot before its stroke ends: ② a memorization tape
+  /// under it is toggled (E2-14), else ③ tap-to-seek on a stroke of the open
+  /// recording. A finger in finger drawing takes the finger condition
+  /// (TapKind.finger), a pen or a mouse the pen-dot one. Not taken → the dot
+  /// stays a dot stroke.
   @override
   bool interceptPenDot(
     InputSample sample, {
     required InteractionSource source,
   }) {
     if (_disposed) return false;
+    if (_toggleTapeAt(sample.position)) return true;
     return _tapToSeek(
       sample.position,
       source == InteractionSource.finger ? TapKind.finger : TapKind.penDot,
     );
+  }
+
+  /// ② (6.3.5, 6.14.4): the memorization tape under [screen] (INK
+  /// hitTestTape on its mounted, loaded page) is revealed / covered again —
+  /// per controller, never stored (U10), no command. Allowed on a read-only
+  /// note (nothing is stored).
+  bool _toggleTapeAt(Offset screen) {
+    final hit = _viewport.hitPage(screen);
+    if (hit == null) return false;
+    final mount = _pages[hit.pageId];
+    if (mount == null || mount.isDisposed || !mount.isLoaded.value) {
+      return false;
+    }
+    final tape = mount.controller.hitTestTape(
+      _viewport.screenToPage(hit.index, screen),
+    );
+    if (tape == null) return false;
+    mount.controller.toggleTape(tape.id);
+    return true;
   }
 
   /// Tap-to-seek tolerance in logical px (12 / scale pt on the page — 6.15.3).
@@ -844,6 +873,8 @@ class InteractionHost implements InputTargets {
           closeContextMenu();
         } else if (_ref.read(editorPopupProvider) != null) {
           _ref.read(editorPopupProvider.notifier).close();
+        } else if (_toggleTapeAt(centroid)) {
+          // ② (v2, E2-14) a memorization tape revealed / covered.
         } else if (_tapToSeek(centroid, TapKind.finger)) {
           // ③ taken: the selection stays.
         } else if (_tapSelectObject(centroid)) {

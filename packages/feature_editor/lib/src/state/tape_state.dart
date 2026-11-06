@@ -8,7 +8,7 @@
 // that arrive later — drawn, undone, remote — would start covered). A page
 // mounted later gets it with its first content; its new controller starts
 // with every tape covered, which is what `false` means. The more menu items
-// come in E2-14.
+// (E2-14 — the more menu) call setAll.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../document/mounted_pages.dart';

@@ -21,6 +21,7 @@ import '../../state/settings/pre_roll.dart';
 import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
 import '../pen/pen_advanced_controls.dart';
+import '../pen/pen_extras_controls.dart';
 import '../pen/pen_type_selector.dart';
 import 'gesture_action_tile.dart';
 
@@ -302,6 +303,8 @@ class _PenSectionBodyState extends ConsumerState<_PenSectionBody> {
           ),
         ),
         _Padded(PenAdvancedControls(tool: tool)),
+        // (v2, m5-7/04-editor 6.14.2) the new pens' rows.
+        _Padded(PenExtrasControls(tool: tool)),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton(

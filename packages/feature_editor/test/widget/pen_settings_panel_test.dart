@@ -68,13 +68,15 @@ Override _capability(ink.PressureCapability stylus) =>
     ink.pressureCapabilityProvider.overrideWith(() => _FixedCapability(stylus));
 
 void main() {
-  testWidgets('pen types: the five P0 types; switching keeps each type\'s '
-      'last style and makes the pen active', (tester) async {
+  testWidgets('pen types: (v2, m5-7/04-editor 6.14.1) all ten types; '
+      'switching keeps each type\'s last style and makes the pen active', (
+    tester,
+  ) async {
     final h = await _open(tester);
     for (final t in core.PenTool.values) {
       expect(
         find.byKey(PenTypeSelector.keyOf(t)),
-        t.isP0 ? findsOneWidget : findsNothing,
+        findsOneWidget,
         reason: t.name,
       );
     }

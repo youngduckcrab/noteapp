@@ -23,14 +23,18 @@ import 'tool_button.dart';
 import 'undo_redo_buttons.dart';
 import 'zoom_chip.dart';
 
-/// Icon of a pen type (6.9.1; P1 types fall back to the ballpoint icon).
+/// Icon of a pen type (6.9.1; (v2, m5-7/04-editor 6.14.1) the P1 types).
 IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   core.PenTool.ballpoint => Icons.edit,
   core.PenTool.fountain => Icons.history_edu,
   core.PenTool.highlighter => Icons.border_color,
   core.PenTool.pencil => Icons.create,
   core.PenTool.marker => Icons.brush,
-  _ => Icons.edit,
+  core.PenTool.brush => Icons.draw,
+  core.PenTool.calligraphy => Icons.gesture,
+  core.PenTool.dashed => Icons.line_style,
+  core.PenTool.laser => Icons.flare,
+  core.PenTool.tape => Icons.visibility_off,
 };
 
 /// [←] title [▤] │ [펜●] [지우개] [올가미] │ [+] [🎤] │ [↶] [↷] │ [✋] [100%] [☁] [⋯] — 52 px.
