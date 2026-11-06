@@ -8,9 +8,17 @@
 // ([동의하고 쓰기] → recog.mathConsent true + recognized again, [직접 입력] →
 // the area hidden); the strokes are ShapeAssist.off; the store sees no
 // change; the PNG goes along only with a page renderer.
+// L2-22 (P-C, 6.14.7): the fixture mode (settings › 인식 › 품질 실험 [수식
+// 고정 자료 만들기]) — the area shows whatever the engine, nothing is
+// recognized, [고정 자료 복사] puts the 07-sync 6.9.1 line on the clipboard in
+// the press (store changes 0, engine calls 0), then the area and the field
+// are emptied for the next sample.
+
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +26,7 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:ink_engine/testing.dart' as ink_testing;
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/src/l10n/recognition_strings.dart';
+import 'package:ink_recognition/src/math/math_payload.dart';
 import 'package:ink_recognition/src/settings/recognition_settings_keys.dart';
 import 'package:ink_recognition/src/ui/math_pad_canvas.dart';
 import 'package:ink_recognition/src/ui/math_pad_sheet.dart';
@@ -674,5 +683,221 @@ void main() {
     await _close(tester, opened.run);
     expect(log.commands, isEmpty);
     expect(log.doneCalls, 0);
+  });
+
+  group('fixture mode (6.14.7, P-C)', () {
+    Finder fixtureSheet() => find.byKey(kMathFixtureSheetKey);
+    Finder copy() => find.byKey(kMathPadExportFixtureKey);
+    bool copyEnabled(WidgetTester tester) =>
+        tester.widget<FilledButton>(copy()).onPressed != null;
+
+    Future<({RecognitionHost host, Future<void> open})> openFixture(
+      WidgetTester tester, {
+      List<Override> overrides = const [],
+      core.NoteStore? store,
+    }) async {
+      final host = await RecognitionHost.pump(
+        tester,
+        store: store,
+        overrides: overrides,
+      );
+      final open = openMathFixturePad(host.body);
+      await tester.pumpAndSettle();
+      expect(fixtureSheet(), findsOneWidget);
+      return (host: host, open: open);
+    }
+
+    Future<void> closeFixture(WidgetTester tester, Future<void> open) async {
+      await tester.tap(find.byKey(kSheetCancelKey));
+      await tester.pumpAndSettle();
+      await open;
+      expect(fixtureSheet(), findsNothing);
+    }
+
+    testWidgets('no engine needed: the area, the tools, no status line, no '
+        'direct-input notice; ≤ 90% of the screen; [닫기] closes', (
+      tester,
+    ) async {
+      final opened = await openFixture(tester); // ManualOnly by default
+      expect(_canvas, findsOneWidget);
+      expect(find.byType(ink.InkPageView), findsOneWidget);
+      expect(find.text('되돌리기'), findsOneWidget);
+      expect(find.text('지우개'), findsOneWidget);
+      expect(find.text('모두 지우기'), findsOneWidget);
+      expect(_status, findsNothing);
+      expect(_agree, findsNothing);
+      expect(find.text(RecognitionStrings.manualOnly), findsNothing);
+      expect(find.text(RecognitionStrings.mathFixtureEntry), findsOneWidget);
+      expect(find.text(RecognitionStrings.close), findsOneWidget);
+      expect(find.text(RecognitionStrings.mathFixtureCopy), findsOneWidget);
+      expect(_primary, findsNothing); // the primary is recog.pad.exportFixture
+      expect(_padPageId(tester), startsWith('mathfixture_'));
+      expect(
+        tester.widget<MathPadCanvas>(find.byType(MathPadCanvas)).noteId,
+        'mathfixture',
+      );
+      expect(
+        tester.getSize(fixtureSheet()).height,
+        lessThanOrEqualTo(1032 * 0.9 + 0.01),
+      );
+      // the area is 40% of the sheet (90% of 1032)
+      expect(tester.getSize(_canvas).height, closeTo(1032 * 0.9 * 0.4, 0.01));
+      expect(copyEnabled(tester), isFalse);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      await closeFixture(tester, opened.open);
+    });
+
+    testWidgets('[고정 자료 복사]: the 6.9.1 line on the clipboard in the '
+        'press; no recognition, no store change; then emptied for the next '
+        'sample', (tester) async {
+      final store = createFixedClockStore();
+      addTearDown(store.close);
+      final batches = <core.ChangeBatch>[];
+      final sub = store.changes.listen(batches.add);
+      addTearDown(sub.cancel);
+      final engine = FakeMathRecognizer(latex: 'wrong');
+      final platform = PlatformLog(tester);
+      final opened = await openFixture(
+        tester,
+        store: store,
+        overrides: [mathRecognizerProvider.overrideWithValue(engine)],
+      );
+      await _stroke(tester);
+      await _stroke(tester, from: const Offset(150, 40));
+      await tester.pump(const Duration(seconds: 3));
+      expect(engine.calls, isEmpty); // never recognized (6.14.7)
+      expect(_fieldText(tester), isEmpty);
+      expect(copyEnabled(tester), isFalse); // the answer is still missing
+
+      await tester.enterText(_field, r' \frac{a+b}{c} ');
+      await tester.pump();
+      expect(copyEnabled(tester), isTrue);
+      final strokes = tester
+          .widget<MathPadCanvas>(find.byType(MathPadCanvas))
+          .ink
+          .strokes;
+      expect(strokes, hasLength(2));
+
+      await tester.tap(copy());
+      expect(platform.clipboardTexts, hasLength(1)); // inside the press
+      final line = platform.clipboardTexts.single!;
+      expect(line, isNot(contains('\n')));
+      final json = jsonDecode(line) as Map<String, Object?>;
+      expect(json.keys.toList(), [
+        'id',
+        'tags',
+        'expected',
+        'strokes',
+        'source',
+      ]);
+      // the fake store's clock: kHostNow = 2026-11-06 10:00:00
+      expect(json['id'], 'user-20261106-100000');
+      expect(json['tags'], isEmpty);
+      expect(json['expected'], r'\frac{a+b}{c}');
+      expect(json['source'], 'user-android-2026-11-06');
+      final traces = [for (final s in strokes) HandwritingTrace.fromStroke(s)];
+      expect(json['strokes'], jsonDecode(jsonEncode(mathStrokesOf(traces))));
+      final ts = (json['strokes']! as Map)['t']! as List;
+      expect((ts.first as List).first, 0);
+      final xs = (json['strokes']! as Map)['x']! as List;
+      expect(((xs.first as List).first as num).toDouble(), closeTo(40, 1));
+      expect(((xs.last as List).first as num).toDouble(), closeTo(150, 1));
+
+      await tester.pump();
+      await tester.pump();
+      expect(find.text(RecognitionStrings.mathFixtureCopied), findsOneWidget);
+      expect(_strokeCount(tester), 0);
+      expect(_fieldText(tester), isEmpty);
+      expect(copyEnabled(tester), isFalse);
+      expect(fixtureSheet(), findsOneWidget); // ready for the next sample
+
+      // the next sample: the notice goes when the user writes the answer
+      await _stroke(tester);
+      await tester.enterText(_field, 'x^2');
+      await tester.pump();
+      expect(find.text(RecognitionStrings.mathFixtureCopied), findsNothing);
+      await tester.tap(copy());
+      expect(platform.clipboardTexts, hasLength(2));
+      expect(
+        (jsonDecode(platform.clipboardTexts.last!) as Map)['expected'],
+        'x^2',
+      );
+      await tester.pump();
+      await closeFixture(tester, opened.open);
+      await tester.pump(const Duration(seconds: 3));
+      expect(engine.calls, isEmpty);
+      expect(batches, isEmpty);
+    });
+
+    testWidgets('disabled without strokes, with an empty field or LaTeX that '
+        'does not parse', (tester) async {
+      final platform = PlatformLog(tester);
+      final opened = await openFixture(tester);
+      await tester.enterText(_field, 'x^2');
+      await tester.pump();
+      expect(copyEnabled(tester), isFalse); // no stroke
+      await _stroke(tester);
+      expect(copyEnabled(tester), isTrue);
+      await tester.enterText(_field, r'\frac{a');
+      await tester.pump();
+      expect(copyEnabled(tester), isFalse); // validate error
+      await tester.enterText(_field, '   ');
+      await tester.pump();
+      expect(copyEnabled(tester), isFalse); // empty
+      await tester.tap(copy());
+      await tester.pump();
+      expect(platform.clipboardTexts, isEmpty);
+      await tester.enterText(_field, 'x');
+      await tester.pump();
+      await tester.tap(find.byKey(kMathPadUndoKey));
+      await tester.pump();
+      expect(copyEnabled(tester), isFalse); // undone: no stroke again
+      await closeFixture(tester, opened.open);
+    });
+
+    testWidgets('the clipboard fails → 복사하지 못했어요. and the sample stays', (
+      tester,
+    ) async {
+      final platform = PlatformLog(tester)
+        ..reply = (call) async => call.method == 'Clipboard.setData'
+            ? throw PlatformException(code: 'denied', message: 'no activation')
+            : null;
+      final opened = await openFixture(tester);
+      await _stroke(tester);
+      await tester.enterText(_field, 'y');
+      await tester.pump();
+      await tester.tap(copy());
+      await tester.pump();
+      await tester.pump();
+      expect(platform.clipboardTexts, hasLength(1));
+      expect(find.text(RecognitionStrings.copyFailed), findsOneWidget);
+      expect(find.text(RecognitionStrings.mathFixtureCopied), findsNothing);
+      expect(_strokeCount(tester), 1);
+      expect(_fieldText(tester), 'y');
+      expect(copyEnabled(tester), isTrue);
+      await closeFixture(tester, opened.open);
+    });
+
+    testWidgets('the preview shows the answer; eraser and clear work as in '
+        'the pad', (tester) async {
+      final opened = await openFixture(tester);
+      await tester.enterText(_field, r'\sqrt{2}');
+      await tester.pumpAndSettle();
+      final preview = find.byKey(kMathPadPreviewKey);
+      expect(preview, findsOneWidget);
+      expect(tester.getSize(preview).width, greaterThan(0));
+      await _stroke(tester);
+      await _stroke(tester, from: const Offset(150, 40));
+      await tester.tap(find.byKey(kMathPadEraserKey));
+      await tester.pump();
+      await _stroke(tester, from: const Offset(150, 40)); // erases the second
+      expect(_strokeCount(tester), 1);
+      await tester.tap(find.byKey(kMathPadClearKey));
+      await tester.pump();
+      expect(_strokeCount(tester), 0);
+      expect(copyEnabled(tester), isFalse);
+      await closeFixture(tester, opened.open);
+    });
   });
 }

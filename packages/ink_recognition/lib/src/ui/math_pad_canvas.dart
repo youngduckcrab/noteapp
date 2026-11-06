@@ -39,6 +39,11 @@ const double kMathPadEraserRadius = 8;
 /// The temporary page's id prefix (6.14.2).
 const String kMathPadPagePrefix = 'mathpad_';
 
+/// The fixture mode's temporary page: its id prefix and the note id it
+/// pretends to belong to (6.14.7 — no note, no RecognitionTarget).
+const String kMathFixturePagePrefix = 'mathfixture_';
+const String kMathFixtureNoteId = 'mathfixture';
+
 /// The strokes of the pad's temporary page (never stored) and the eraser
 /// switch. Listeners hear every change.
 final class MathPadInk extends ChangeNotifier {

@@ -16,12 +16,16 @@
 // a MockClient on dart2js; the direct copy's Clipboard.setData in the same
 // synchronous stretch as run (the browser's user activation, 7.2.10); the
 // math pad's preview lays out without loading the KaTeX fonts.
+// (L2-22, P-C) [수식 고정 자료 만들기] shows on the web too (6.14.7 — iPad
+// Safari with the Pencil): the fixture pad draws without an engine and
+// copies a 'user-web-…' line inside the press.
 @TestOn('browser')
 library;
 
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,6 +35,8 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:ink_engine/testing.dart' as ink_testing;
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/src/math/callable_math_recognizer.dart';
+import 'package:ink_recognition/src/ui/math_pad_sheet.dart'
+    show openMathFixturePad;
 import 'package:ink_recognition/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -153,6 +159,60 @@ void main() {
     expect(consent.onChanged, isNotNull);
     // (L2-19) no A-4 lab on the web (6.20, Q9), even with an engine.
     expect(find.byKey(const ValueKey('recog.settings.lab')), findsNothing);
+    // (L2-22) the math fixture pad is there (6.14.7 — every platform).
+    expect(find.text('품질 실험'), findsOneWidget);
+    final fixture = find.byKey(const ValueKey('recog.settings.mathFixture'));
+    expect(fixture, findsOneWidget);
+    expect(tester.widget<ButtonStyleButton>(fixture).onPressed, isNotNull);
+  });
+
+  testWidgets('the math fixture pad on the web: the area without an engine, '
+      '[고정 자료 복사] → Clipboard.setData inside the press, source '
+      'user-web-<date> (6.14.7, 9.4 B-L5)', (tester) async {
+    final host = await RecognitionHost.pump(
+      tester,
+      overrides: recognitionOverrides(),
+    );
+    final platform = PlatformLog(tester);
+    final open = openMathFixturePad(host.body);
+    await tester.pumpAndSettle();
+    final canvas = find.byKey(const ValueKey('recog.pad.canvas'));
+    expect(canvas, findsOneWidget);
+    final origin = tester.getTopLeft(canvas) + const Offset(41, 41);
+    final g = await tester.createGesture(kind: PointerDeviceKind.stylus);
+    await g.down(origin, timeStamp: Duration.zero);
+    for (var i = 1; i <= 8; i++) {
+      await g.moveTo(
+        origin + Offset(4.0 * i, i.isEven ? 6 : 0),
+        timeStamp: Duration(milliseconds: 8 * i),
+      );
+    }
+    await g.up(timeStamp: const Duration(milliseconds: 72));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('recog.pad.latex')),
+      r'\frac{1}{2}',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('recog.pad.exportFixture')));
+    expect(platform.clipboardTexts, hasLength(1));
+    final json =
+        jsonDecode(platform.clipboardTexts.single!) as Map<String, Object?>;
+    expect(json.keys.toList(), ['id', 'tags', 'expected', 'strokes', 'source']);
+    expect(json['expected'], r'\frac{1}{2}');
+    expect(json['source'], 'user-web-2026-11-06'); // the fixed host clock
+    final ts = (json['strokes']! as Map)['t']! as List;
+    expect((ts.single as List).first, 0);
+    await tester.pump();
+    await tester.pump();
+    expect(
+      find.text('고정 자료를 복사했어요. functions/tool/fixtures/math/에 붙여 넣으세요.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const ValueKey('recog.sheet.cancel')));
+    await tester.pumpAndSettle();
+    await open;
   });
 
   testWidgets('the conversion sheet on the web (recognitionOverrides): the '

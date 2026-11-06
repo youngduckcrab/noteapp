@@ -65,6 +65,7 @@ class RecognitionSheetHeader extends StatelessWidget {
     required this.onCancel,
     this.primaryLabel,
     this.onPrimary,
+    this.primaryKey = kSheetPrimaryKey,
   });
 
   final String title;
@@ -74,6 +75,10 @@ class RecognitionSheetHeader extends StatelessWidget {
   /// null → no primary button (a sheet that only informs).
   final String? primaryLabel;
   final VoidCallback? onPrimary;
+
+  /// The primary button's key (appendix C `recog.sheet.primary`; the math
+  /// fixture pad's [고정 자료 복사] is `recog.pad.exportFixture` — 6.14.7).
+  final Key primaryKey;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +105,7 @@ class RecognitionSheetHeader extends StatelessWidget {
           ),
           if (primary != null)
             FilledButton(
-              key: kSheetPrimaryKey,
+              key: primaryKey,
               style: kSheetMinTapStyle,
               onPressed: onPrimary,
               child: Text(primary),

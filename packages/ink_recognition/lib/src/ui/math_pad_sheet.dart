@@ -34,9 +34,23 @@
 //   or no engine answered, else the answer's engineId) → the sheet closes →
 //   target.done() (the insert context selects what was added — contract X30).
 // - The temporary page's strokes are never written anywhere (6.14.2).
+// - (P-C, 6.14.7 — L2-22) The fixture mode (MathPadSheet.fixture, opened
+//   from settings › 인식 › 품질 실험 [수식 고정 자료 만들기] on every platform,
+//   the web included): the same area, tools, field and preview; the area
+//   always shows (whatever the engine) and nothing is recognized (no pause,
+//   no request, no consent card — nothing leaves the device). The field is
+//   the answer. [고정 자료 복사] (recog.pad.exportFixture — disabled with no
+//   stroke or an unusable field) puts the 07-sync 6.9.1 line
+//   (math_fixture_export.dart) on the clipboard, started synchronously in
+//   the press; once copied the area and the field are emptied for the next
+//   sample and the sheet says '고정 자료를 복사했어요. …'. No note, no store,
+//   no RecognitionTarget (temporary page 'mathfixture_<id>'); outside the
+//   editor, so the sheet may take 90% of the screen height (like the lab).
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show ProviderScope;
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -45,6 +59,7 @@ import '../actions/action_scope.dart';
 import '../actions/object_builders.dart';
 import '../common/report_error.dart';
 import '../l10n/recognition_strings.dart';
+import '../math/math_fixture_export.dart';
 import '../math/math_png.dart';
 import '../model/failures.dart';
 import '../model/handwriting_trace.dart';
@@ -64,6 +79,22 @@ const ValueKey<String> kMathPadUndoKey = ValueKey('recog.pad.undo');
 const ValueKey<String> kMathPadEraserKey = ValueKey('recog.pad.eraser');
 const ValueKey<String> kMathPadClearKey = ValueKey('recog.pad.clear');
 const ValueKey<String> kMathPadStatusKey = ValueKey('recog.pad.status');
+
+/// The fixture mode (6.14.7): [고정 자료 복사] (appendix C) and the sheet's
+/// own key (not appendix C).
+const ValueKey<String> kMathPadExportFixtureKey = ValueKey(
+  'recog.pad.exportFixture',
+);
+const ValueKey<String> kMathFixtureSheetKey = ValueKey(
+  'recog.sheet.mathFixture',
+);
+
+/// The fixture mode's line of the pad's strokes (as HandwritingTrace) and
+/// the trimmed field (math_fixture_export.dart buildMathFixtureJson).
+typedef MathFixtureJson = String Function(
+  List<HandwritingTrace> traces,
+  String expected,
+);
 
 /// The suggestion chip [i] (0 = the first shown).
 ValueKey<String> mathPadChipKey(int i) => ValueKey('recog.pad.chip.$i');
@@ -104,6 +135,36 @@ Future<void> openMathPad(ActionRun run) async {
   if (inserted == true && run.mounted) run.target.done();
 }
 
+/// Settings › 인식 › 품질 실험 [수식 고정 자료 만들기] (6.14.7): the pad in
+/// its fixture mode, at most 90% of the screen height. Reads the clock and
+/// the id generator of [context]'s ProviderScope.
+Future<void> openMathFixturePad(BuildContext context) {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final clock = container.read(core.clockProvider);
+  final padPageId =
+      '$kMathFixturePagePrefix${container.read(core.idGeneratorProvider).newId()}';
+  final createdAt = clock.now().millisecondsSinceEpoch;
+  final platform = mathFixturePlatform();
+  return showRecognitionSheet<void>(
+    context,
+    sheetKey: kMathFixtureSheetKey,
+    maxHeightFactor: kOutsideEditorSheetMaxHeightFactor,
+    builder: (_) => MathPadSheet.fixture(
+      padPageId: padPageId,
+      createdAt: createdAt,
+      fixtureJson: (traces, expected) => buildMathFixtureJson(
+        traces,
+        expected,
+        now: clock.now(),
+        platform: platform,
+      ),
+    ),
+  );
+}
+
+String? _neverInserts(String latex, String engineId) =>
+    RecognitionStrings.runFailed;
+
 String? _insert(ActionRun run, String latex, String engineId) {
   final target = run.target;
   final math = buildInsertedMath(
@@ -130,7 +191,20 @@ class MathPadSheet extends StatefulWidget {
     required this.createdAt,
     this.renderer,
     this.onAgreeToConsent,
-  });
+  }) : fixtureJson = null;
+
+  /// The fixture mode (6.14.7): no engine, no insert — [고정 자료 복사]
+  /// copies [fixtureJson] of the strokes and the field.
+  const MathPadSheet.fixture({
+    super.key,
+    required this.padPageId,
+    required this.createdAt,
+    required MathFixtureJson this.fixtureJson,
+  }) : engine = const ManualOnlyMathRecognizer(),
+       onInsert = _neverInserts,
+       noteId = kMathFixtureNoteId,
+       renderer = null,
+       onAgreeToConsent = null;
 
   final MathRecognizer engine;
 
@@ -151,6 +225,9 @@ class MathPadSheet extends StatefulWidget {
   /// [동의하고 쓰기] (sets recog.mathConsent = true).
   final Future<void> Function()? onAgreeToConsent;
 
+  /// Non-null → the fixture mode (6.14.7).
+  final MathFixtureJson? fixtureJson;
+
   @override
   State<MathPadSheet> createState() => _MathPadSheetState();
 }
@@ -161,6 +238,7 @@ class _MathPadSheetState extends State<MathPadSheet> {
   final MathPadInk _ink = MathPadInk();
   String? _previewError;
   String? _notice;
+  SheetNoticeKind _noticeKind = SheetNoticeKind.error;
   String _lastText = '';
 
   // engine path (6.14.3–6.14.5)
@@ -177,7 +255,10 @@ class _MathPadSheetState extends State<MathPadSheet> {
   bool _manualEdited = false;
   bool _programmatic = false;
 
-  bool get _handwriting => widget.engine.isAvailable && !_typeOnly;
+  bool get _fixture => widget.fixtureJson != null;
+
+  bool get _handwriting =>
+      _fixture || (widget.engine.isAvailable && !_typeOnly);
 
   @override
   void initState() {
@@ -248,16 +329,18 @@ class _MathPadSheetState extends State<MathPadSheet> {
     _cancelRequest();
   }
 
-  /// The strokes changed (pen-up, erase, undo, clear): wait 1 s again.
+  /// The strokes changed (pen-up, erase, undo, clear): wait 1 s again (not
+  /// in the fixture mode — it never recognizes).
   void _onEdited() {
     _stopPause();
     _cancelRequest();
+    if (_fixture) return;
     _pause = Timer(kMathPadPause, _recognize);
   }
 
   Future<void> _recognize() async {
     _pause = null;
-    if (!mounted || !_handwriting) return;
+    if (!mounted || !_handwriting || _fixture) return;
     final strokes = _ink.strokes;
     if (strokes.isEmpty) {
       setState(() {
@@ -415,14 +498,66 @@ class _MathPadSheetState extends State<MathPadSheet> {
     if (notice == null) {
       Navigator.of(context).pop(true);
     } else {
-      setState(() => _notice = notice);
+      _setNotice(notice, SheetNoticeKind.error);
     }
+  }
+
+  void _setNotice(String text, SheetNoticeKind kind) {
+    if (!mounted) return;
+    setState(() {
+      _notice = text;
+      _noticeKind = kind;
+    });
+  }
+
+  // --- the fixture mode (6.14.7) ----------------------------------------------
+
+  bool get _canCopyFixture => !_ink.isEmpty && _canInsert;
+
+  void _copyFixture() {
+    final build = widget.fixtureJson;
+    final expected = usableLatex(_latex.text);
+    if (build == null || expected == null || _ink.isEmpty) return;
+    final String json;
+    try {
+      json = build([
+        for (final s in _ink.strokes) HandwritingTrace.fromStroke(s),
+      ], expected);
+    } on RecognitionFailure {
+      // too large even thinned (math_payload.dart) — expected, not reported
+      _setNotice(RecognitionStrings.copyFailed, SheetNoticeKind.error);
+      return;
+    } catch (e, s) {
+      reportRecognitionError(e, s, 'building the math fixture');
+      _setNotice(RecognitionStrings.copyFailed, SheetNoticeKind.error);
+      return;
+    }
+    // Started synchronously inside onPressed (7.2.10 — the browser's user
+    // activation).
+    final pending = Clipboard.setData(ClipboardData(text: json));
+    unawaited(
+      pending.then<void>(
+        (_) {
+          if (!mounted) return;
+          // empty for the next sample, then say so (an edit clears notices)
+          _ink.clear();
+          _latex.clear();
+          _setNotice(
+            RecognitionStrings.mathFixtureCopied,
+            SheetNoticeKind.info,
+          );
+        },
+        onError: (Object _) =>
+            _setNotice(RecognitionStrings.copyFailed, SheetNoticeKind.error),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final manualOnly = !widget.engine.isAvailable;
+    final fixture = _fixture;
+    final manualOnly = !fixture && !widget.engine.isAvailable;
     final handwriting = _handwriting;
     final text = _latex.text.trim();
     final notice = _notice;
@@ -430,20 +565,32 @@ class _MathPadSheetState extends State<MathPadSheet> {
     final canvasHeight = math.max(
       kMathPadCanvasMinHeight,
       MediaQuery.sizeOf(context).height *
-          kSheetMaxHeightFactor *
+          (fixture
+              ? kOutsideEditorSheetMaxHeightFactor
+              : kSheetMaxHeightFactor) *
           kMathPadCanvasHeightFactor,
     );
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        RecognitionSheetHeader(
-          title: RecognitionStrings.mathPadTitle,
-          cancelLabel: RecognitionStrings.cancel,
-          onCancel: () => Navigator.of(context).pop(false),
-          primaryLabel: RecognitionStrings.insert,
-          onPrimary: _canInsert ? _insert : null,
-        ),
+        if (fixture)
+          RecognitionSheetHeader(
+            title: RecognitionStrings.mathFixtureEntry,
+            cancelLabel: RecognitionStrings.close,
+            onCancel: () => Navigator.of(context).pop(),
+            primaryLabel: RecognitionStrings.mathFixtureCopy,
+            primaryKey: kMathPadExportFixtureKey,
+            onPrimary: _canCopyFixture ? _copyFixture : null,
+          )
+        else
+          RecognitionSheetHeader(
+            title: RecognitionStrings.mathPadTitle,
+            cancelLabel: RecognitionStrings.cancel,
+            onCancel: () => Navigator.of(context).pop(false),
+            primaryLabel: RecognitionStrings.insert,
+            onPrimary: _canInsert ? _insert : null,
+          ),
         if (handwriting) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -519,7 +666,7 @@ class _MathPadSheetState extends State<MathPadSheet> {
                 if (previewError != null && text.isNotEmpty)
                   Text(previewError, style: TextStyle(color: scheme.error)),
                 if (notice != null)
-                  SheetNotice(text: notice, kind: SheetNoticeKind.error),
+                  SheetNotice(text: notice, kind: _noticeKind),
               ],
             ),
           ),
@@ -529,6 +676,7 @@ class _MathPadSheetState extends State<MathPadSheet> {
   }
 
   Widget _toolRow(ColorScheme scheme) {
+    final fixture = _fixture;
     final error = _engineError;
     final status =
         error ??
@@ -573,21 +721,26 @@ class _MathPadSheetState extends State<MathPadSheet> {
             child: const Text(RecognitionStrings.padClear),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: Semantics(
-              liveRegion: true,
-              child: Text(
-                status,
-                key: kMathPadStatusKey,
-                textAlign: TextAlign.end,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: error != null ? scheme.error : scheme.onSurfaceVariant,
+          if (fixture)
+            const Spacer() // nothing is recognized: no status line
+          else
+            Expanded(
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  status,
+                  key: kMathPadStatusKey,
+                  textAlign: TextAlign.end,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: error != null
+                        ? scheme.error
+                        : scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

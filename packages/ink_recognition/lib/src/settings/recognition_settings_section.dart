@@ -17,6 +17,9 @@
 // automatic indexing on with the model missing starts the download on Android
 // (ensureModel once — the indexer joins it in the adapter) and emphasises the
 // row's [받기] on iPad (6.18).
+// '품질 실험': [인식 실험 열기] (L2-19 — only with a handwriting engine, never
+// on the web) and (P-C, L2-22) [수식 고정 자료 만들기] on every platform, the
+// web included (6.14.7 — the math pad's fixture mode, no engine needed).
 import 'dart:async' show unawaited;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -33,6 +36,7 @@ import '../ports/handwriting_recognizer.dart';
 import '../ports/math_recognizer.dart';
 import '../ports/model_admin.dart';
 import '../providers.dart';
+import '../ui/math_pad_sheet.dart' show openMathFixturePad;
 import '../ui/model_downloads.dart';
 import '../ui/model_row.dart';
 import '../ui/recognition_sheet.dart' show kSheetMinTapStyle;
@@ -56,6 +60,11 @@ abstract final class RecognitionSettingsUiKeys {
 
   /// '품질 실험' [인식 실험 열기] (appendix C).
   static const ValueKey<String> lab = ValueKey('recog.settings.lab');
+
+  /// '품질 실험' [수식 고정 자료 만들기] (appendix C — 6.14.7).
+  static const ValueKey<String> mathFixture = ValueKey(
+    'recog.settings.mathFixture',
+  );
 
   /// One language choice ('ko' | 'en').
   static ValueKey<String> languageOf(String tag) =>
@@ -237,25 +246,20 @@ class RecognitionSettingsSection extends ConsumerWidget {
               onChanged: (v) => save(RecognitionSettingsKeys.mathConsent, v),
             ),
             // 6.18 '품질 실험': the A-4 lab only with a handwriting engine
-            // (the apps — never the web, Q9).
-            if (available) ...[
-              const _GroupHeader(RecognitionStrings.labGroup),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton(
-                    key: RecognitionSettingsUiKeys.lab,
-                    style: kSheetMinTapStyle,
-                    onPressed: () => unawaited(openRecognitionLab(context)),
-                    child: const Text(RecognitionStrings.labEntry),
-                  ),
-                ),
+            // (the apps — never the web, Q9); the math fixture pad everywhere
+            // (6.14.7 — iPad Safari with the Pencil included).
+            const _GroupHeader(RecognitionStrings.labGroup),
+            if (available)
+              _labButton(
+                RecognitionSettingsUiKeys.lab,
+                RecognitionStrings.labEntry,
+                () => unawaited(openRecognitionLab(context)),
               ),
-            ],
+            _labButton(
+              RecognitionSettingsUiKeys.mathFixture,
+              RecognitionStrings.mathFixtureEntry,
+              () => unawaited(openMathFixturePad(context)),
+            ),
           ],
         ),
       ),
@@ -285,6 +289,21 @@ class _GroupHeader extends StatelessWidget {
     );
   }
 }
+
+/// A '품질 실험' entry: an outlined button at the start, ≥ 44×44, keyed
+/// [key] (the button itself — INFRA V5 taps it).
+Widget _labButton(Key key, String label, VoidCallback onPressed) => Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+  child: Align(
+    alignment: Alignment.centerLeft,
+    child: OutlinedButton(
+      key: key,
+      style: kSheetMinTapStyle,
+      onPressed: onPressed,
+      child: Text(label),
+    ),
+  ),
+);
 
 /// The fixed sentence above a disabled handwriting group.
 class _Notice extends StatelessWidget {

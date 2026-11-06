@@ -187,11 +187,16 @@ Set<String> _keysOf(Object? json) => switch (json) {
 };
 
 void main() {
-  testWidgets('no handwriting engine → no lab entry', (tester) async {
+  testWidgets('no handwriting engine → no lab entry (the group stays for '
+      'the math fixture entry — L2-22)', (tester) async {
     await _pumpSettings(tester); // default engine: unsupported
     expect(_entry, findsNothing);
     expect(find.text(RecognitionStrings.labEntry), findsNothing);
-    expect(find.text(RecognitionStrings.labGroup), findsNothing);
+    expect(find.text(RecognitionStrings.labGroup), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('recog.settings.mathFixture')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the settings entry with a handwriting engine opens the lab at '

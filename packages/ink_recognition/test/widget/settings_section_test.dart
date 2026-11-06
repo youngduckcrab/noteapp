@@ -12,6 +12,8 @@
 // two-press [지금 셀룰러로 받기] → wifiOnly: false, iPad's two-press [받기],
 // a failed download reported once, and '자동 인식' turned on with the model
 // missing → Android ensureModel once / iPad [받기] emphasised.
+// (L2-22, P-C) '품질 실험' [수식 고정 자료 만들기] with or without an engine
+// (the web: browser test) → the math pad's fixture mode.
 @TestOn('vm')
 library;
 
@@ -348,6 +350,57 @@ void main() {
       isTrue,
     );
   });
+
+  for (final (name, overrides) in [
+    ('no engine', const <Override>[]),
+    (
+      'with engines',
+      [
+        _engine(FakeHandwritingRecognizer()),
+        mathRecognizerProvider.overrideWithValue(FakeMathRecognizer()),
+      ],
+    ),
+  ]) {
+    testWidgets('품질 실험 [수식 고정 자료 만들기] ($name) → the math pad in '
+        'its fixture mode (6.14.7)', (tester) async {
+      await _pump(tester, overrides: overrides);
+      expect(find.text(RecognitionStrings.labGroup), findsOneWidget);
+      final entry = find.byKey(RecognitionSettingsUiKeys.mathFixture);
+      expect(entry, findsOneWidget);
+      expect(
+        find.descendant(
+          of: entry,
+          matching: find.text(RecognitionStrings.mathFixtureEntry),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<ButtonStyleButton>(entry).onPressed, isNotNull);
+      // the A-4 lab only with a handwriting engine (L2-19)
+      expect(
+        find.byKey(RecognitionSettingsUiKeys.lab),
+        overrides.isEmpty ? findsNothing : findsOneWidget,
+      );
+      await tester.ensureVisible(entry);
+      await tester.pump();
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('recog.sheet.mathFixture')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('recog.pad.canvas')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('recog.pad.exportFixture')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('recog.sheet.cancel')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('recog.sheet.mathFixture')),
+        findsNothing,
+      );
+    });
+  }
 
   testWidgets('the status line follows the indexer (6.19)', (tester) async {
     await _pump(tester, overrides: [_engine(FakeHandwritingRecognizer())]);
