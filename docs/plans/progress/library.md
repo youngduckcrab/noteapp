@@ -298,8 +298,8 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-07 | 완료 | bb5bf30 | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` (+ `ink_recognition_smoke_test`·`unit/api_surface_test`·`web/recognition_browser_test` 갱신) |
 | L2-08 (P-B, ML Kit) | 남음 | | `native/mlkit_adapter_test.dart`, `unit/mlkit_errors_test.dart` |
 | L2-09 (P-B) | 남음 | | `unit/mixed_language_test.dart` |
-| L2-10a | 완료 | (다음 기록 커밋에 해시) | `unit/indexer_test.dart`(+ `unit/fakes_test.dart`'RecognizerModelAdmin'·`unit/api_surface_test.dart`·`ink_recognition_smoke_test.dart` 갱신), 시험 도우미 `test/support/recording_store.dart`·`indexer_harness.dart` |
-| L2-10b | 남음 | | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`, `unit/catch_up_test.dart` |
+| L2-10a | 완료 | 598eb97 | `unit/indexer_test.dart`(+ `unit/fakes_test.dart`'RecognizerModelAdmin'·`unit/api_surface_test.dart`·`ink_recognition_smoke_test.dart` 갱신), 시험 도우미 `test/support/recording_store.dart`·`indexer_harness.dart` |
+| L2-10b | 완료 | (다음 기록 커밋에 해시) | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`('line reuse and confirmed lines' 묶음), `unit/catch_up_test.dart` |
 | L2-11 | 남음 | | `unit/indexer_provider_test.dart` |
 | L2-12 | 남음 | | `unit/recognition_actions_test.dart`, `unit/object_builders_test.dart` |
 | L2-13 | 남음 | | `widget/latex_editor_sheet_test.dart`, `unit/recognition_actions_test.dart` |
@@ -350,6 +350,13 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - 내부 상수 `IndexerTuning`(3 s / 30 s, 5번 → 30 s, 200획, 1,500획 → `compute`, 앞 줄 20자, 후보 5개, 쓰기 영역 1.5·24), `metricsOf(indexer)`·`groupTraceIndicesInBackground`(같은 파일 최상위 — 진입점이 내보내지 않음). `IndexerMetrics.lastJob`은 페이지를 읽은 작업(6.9.3 ② 이후)만 기록(`ourMs`·`lines`·`recognizedLines`·`longestSliceMs`·`slices` — `Stopwatch`, 판단에 안 씀). 시간 재기는 저장소·엔진·양보를 '밖'으로 빼고(`JobClock.run(() => …)` — 저장소 본문의 동기 부분도 밖) 우리 몫만 잰다.
   - 기록(6.9.7, VM JIT, 다른 에이전트 부하 중): 1,000획(34줄) 페이지 우리 몫 합계 6.6~18.7 ms, 가장 긴 덩어리 2.67~8.00 ms(77조각), 목표 ≤ 8 ms·실패 문턱 3배 24 ms. 1,500획 넘는 쪽의 `compute` 경로는 실제 아이솔레이트로 같은 결과인지만 본다(fake_async로는 기다릴 수 없음).
   - 시험 도우미(`test/support/`): `RecordingNoteStore`(가짜 저장소를 감싸 `flush`·`stalePages`·`forPage`·`loadPage`·`update`·`removeForPage`·`put` 호출 기록, `originOverride`로 원격 변경 흉내 — 가짜 저장소에 원격 경로가 없음, `failNextUpdate`로 CORE 쓰기 실패), `IndexerHarness`(fake_async 안 노트 1개·세션 명령·상태 기록).
+- L2-10b 색인기 ②(`line_reuse.dart`·`catch_up.dart`):
+  - ① 재사용 `LineReuse(existing).reuse(strokeIds, lang, rect)` — 작업이 `loadPage` 뒤 `forPage`로 읽은 값(재사용 후보일 뿐)에서 획 집합이 같은 줄을 찾는다(정렬한 id를 이은 키). 재사용 줄은 엔진·`_gate`·양보 없이 넘어가고(빠른 경로), `strokeIds`는 새 묶음의 순서로 바꾼다. 줄마다 `LineGeometry`에 h_s(그 줄 획 상자 높이 중앙값, 바닥 1 pt)를 더했다 — `buildGlyphBoxes(boxes, strokeHeight:)`(내부 인자 추가)·`strokeHeightOf`로 6.5 2단계 넓힘을 '그 줄의 h_s'로 한다.
+  - ② `mergeIndexerResult` 2~4단계: `r ≥ 0.8`은 정수로 `5·|L∩G| ≥ 4·|L|`(0.8 경계의 부동소수 오차 없음). 후보 목록은 중복 없이·엔진 글 자체는 빼고·5개까지. **짝이 바뀐 줄(옛 확정 글)과 그 줄로 합쳐진 짝 없는 확정 줄이 함께 있으면 순서는 [짝의 옛 글, 합쳐진 줄들의 글(읽기 순서), 엔진 후보…]** — 6.9.4 3단계 '옛 확정 글이 맨 앞'을 지키고 4단계 '앞에 넣는다'는 그 뒤로 했다. 짝 없는 확정 줄은 겹치는 획이 가장 많은 계산 줄(같으면 읽기 순서)로 간다. 확정 줄이 아닌 저장 줄은 옮기지 않는다(계산한 줄이 대신함). 결과 줄 순서 = 계산한 줄의 읽기 순서.
+  - `mergeConfirmed`(6.13.5, L2-15 변환 창이 쓸 함수)도 지금 `line_reuse.dart`에 만들었다 — 겹치는 저장 줄을 빼고 변환한 줄을 `userConfirmed: true`(후보에서 고른 글 빼고 5개)로 넣고 사각형 위 → 왼쪽(같으면 저장 → 변환 순서, 안정 정렬), `all`이면 `rev`·시트 엔진 id, 아니면 저장값(없으면 `''`·시트 엔진 id). `indexer_test`의 '작업 도중 확정 줄' 시험이 이 함수로 변환 창을 흉내 낸다.
+  - 따라잡기: `start()`(켜져 있으면)와 `enabled`가 참이 될 때마다 `notesWithStalePages()` → 노트마다 `stalePages` → 대기열 뒤(`QueueLane.catchUp`), 노트 하나 뒤 `Future.delayed(Duration.zero)` 양보. 조용해질 때를 기다리는 페이지·30 s 미룬 페이지·작업 중인 페이지는 넣지 않는다. 끄기·dispose·off·새 따라잡기는 진행 중인 것을 멈춘다(세대 번호). 실패는 (오류 종류)마다 보고 1회. **그래서 꺼져 있는 동안 바뀐 페이지는 다시 켤 때 조용해질 때 없이 바로 돈다**(L2-10a의 '다시 켜면 idle' 시험을 '따라잡기가 찾아 색인'으로 고침).
+  - 원격 결과(다른 기기, 같은 `sourceRev`·언어)는 가짜 저장소에 원격 경로가 없어 다른 쓰기 주체의 `put`으로 흉내 냈다(계획 8.2 그대로) — 실제 `applyRemote`는 L2-I1.
+  - 기록(6.9.7 — 재사용 뒤에도 같은 문턱): 1,000획 34줄을 처음 색인(다른 페이지로 JIT 데움) 우리 몫 15.6 ms, 가장 긴 덩어리 7.27 ms(78조각).
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
@@ -357,6 +364,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 - `bb5bf30`(L2-07): `recognitionOverrides()`가 **정확히 3개**(손글씨 엔진·수식 엔진·`inkShapeFitterProvider` → `GeometricShapeFitter`)를 낸다 — INFRA V5의 'provider 출처·횟수' 단언 기준. 한 컨테이너에서 같은 provider를 두 번 override할 수 없으므로, `recognitionOverrides()`와 함께 가짜 엔진을 넣는 시험은 그 한 개를 `.origin`으로 빼고 넣는다(`ink_recognition_smoke_test` 참고). `GeometricShapeFitter.fit`은 L2-06까지 늘 null이라 자동 도형 보정은 아직 바꾸지 않는다(EDITOR 토글은 `NoShapeFitter`가 아니므로 보인다).
 - `af9d262`(L2-03): `LibraryScreen`이 내용 검색 결과 행에서 `onOpenNoteAt(noteId, pageId, 합집합 Rect?)`를 실제로 부른다(`onOpenNoteAt == null`이면 `onOpenNote`). INFRA V5의 '위치로 열기'·라우팅 `?page=&focus=`가 이 커밋부터 LIBRARY 쪽 호출을 받는다.
 
+- L2-10b: 색인기 따라잡기(`notesWithStalePages`)가 `start()`·다시 켤 때 돈다 — INFRA 유휴 작업이 `start()`를 부르면(켜져 있을 때) 한 질의로 낡은 페이지를 대기열 뒤에 넣는다. L2-15 변환 창은 `line_reuse.dart` `mergeConfirmed`를 `update` 안에서 쓴다.
 - L2-10a: `HandwritingIndexer.start()`가 실제로 돈다(변경 구독·조용해질 때·작업·쓰기 `update`). INFRA 유휴 작업 `recognition.indexer`가 부르면 구독을 시작하지만, provider의 `enabled`는 L2-11 전까지 거짓이라 `disabled`에 머문다. `foreground:` 없이 만든 색인기의 `start()`는 위젯 바인딩이 필요하다(앱은 있음).
 
 #### 세션 끝 확인 (세션 1, 2026-11-06, `af9d262` 위)

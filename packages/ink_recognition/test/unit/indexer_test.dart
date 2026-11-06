@@ -1,5 +1,6 @@
 // HandwritingIndexer ① — schedule, page jobs, errors, status
 // (m5-7/05-library 8.2 L2-10a, 4.4.1, 4.4.7, 6.9.1–6.9.3, 6.9.6, 6.9.7;
+// ② L2-10b — line reuse, confirmed lines, other writers during a job, 6.9.4;
 // contract 7.2.11). fakeAsync + createFakeNoteStore() (through
 // RecordingNoteStore — call counts, remote origin) + FakeHandwritingRecognizer
 // + foreground: ValueNotifier. Only Timer time is asserted (fake_async); the
@@ -13,6 +14,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/src/indexer/handwriting_indexer.dart'
     show IndexerTuning, groupTraceIndicesInBackground, metricsOf;
+import 'package:ink_recognition/src/indexer/line_reuse.dart'
+    show mergeConfirmed;
+import 'package:ink_recognition/src/lines/glyph_boxes.dart'
+    show estimateGlyphHeight;
 import 'package:ink_recognition/src/lines/group_into_lines.dart'
     show groupTraceIndices;
 import 'package:ink_recognition/src/settings/recognition_settings_keys.dart';
@@ -40,6 +45,74 @@ List<FlutterErrorDetails> captureReports() {
   addTearDown(() => FlutterError.onError = previous);
   return reports;
 }
+
+/// Every handwriting EntityChange the store emits, counted.
+int Function() countHandwritingChanges(IndexerHarness h) {
+  var n = 0;
+  final sub = h.store.changes.listen((b) {
+    n += b.changes.where((c) => c.kind == core.EntityKind.handwriting).length;
+  });
+  addTearDown(sub.cancel);
+  return () => n;
+}
+
+/// The conversion sheet's copy (6.13.5): line [index] of the stored value
+/// (or of the synthetic truth when nothing is stored) confirmed as [text].
+void confirmLine(
+  IndexerHarness h,
+  List<core.Stroke> strokes,
+  int index,
+  String text, {
+  bool all = false,
+}) {
+  final ids = [
+    for (final s in strokes)
+      if (trueLineOf(s.id) == index) s.id,
+  ];
+  final rect = strokes
+      .where((s) => trueLineOf(s.id) == index)
+      .map((s) => s.points.pointBounds)
+      .reduce((a, b) => a.expandToInclude(b));
+  h.wait(
+    h.store.inner.handwriting.update(
+      h.pageId,
+      (current) => mergeConfirmed(
+        current,
+        [
+          core.HandwritingLine(
+            text: text,
+            rect: rect,
+            strokeIds: ids,
+            userConfirmed: true,
+          ),
+        ],
+        noteId: h.note.id,
+        pageId: h.pageId,
+        rev: h.revOf(),
+        all: all,
+        engineId: 'fake:ko',
+        nowMs: 1,
+      ),
+    ),
+  );
+  h.settle();
+}
+
+/// A stroke from [points] (page pt), drawn after the synthetic lines.
+core.Stroke strokeAt(
+  core.Stroke like,
+  String id,
+  List<(double, double)> points,
+) => core.Stroke(
+  id: id,
+  pageId: like.pageId,
+  style: like.style,
+  points: core.StrokePoints.fromList([
+    for (final (i, (x, y)) in points.indexed)
+      core.StrokePoint(x, y, t: 8.0 * i),
+  ]),
+  createdAt: 1730800000000,
+);
 
 void main() {
   group('schedule (6.9.2)', () {
@@ -398,6 +471,209 @@ void main() {
     });
   });
 
+  group('line reuse and confirmed lines (6.9.4 — L2-10b)', () {
+    indexerTest('a confirmed line arriving during the job (conversion sheet) '
+        '→ job dropped, run again, the confirmed line kept; one indexer '
+        'write', (async) {
+      final h = IndexerHarness(
+        async,
+        recognizer: FakeHandwritingRecognizer(
+          latency: const Duration(milliseconds: 100),
+        ),
+      );
+      final changes = countHandwritingChanges(h);
+      final strokes = h.lines();
+      h.addStrokes(strokes);
+      h.elapse(IndexerTuning.localQuiet);
+      h.elapseMs(150); // line 2 in flight
+      confirmLine(h, strokes, 0, '고친 첫 줄'); // stored: that line only
+      h.elapseMs(50); // line 2 answers: dropped, the page runs again
+      h.elapseMs(500);
+      final stored = h.stored()!;
+      expect(stored.lines, hasLength(3));
+      expect(stored.lines[0].text, '고친 첫 줄');
+      expect(stored.lines[0].userConfirmed, isTrue);
+      expect(stored.lines.skip(1).every((l) => !l.userConfirmed), isTrue);
+      expect(stored.sourceRev, h.revOf());
+      // 2 calls of the dropped job + lines 2 and 3 (line 1 reused).
+      expect(h.recognizer.calls, hasLength(4));
+      expect(h.store.count('update:'), 1);
+      expect(changes(), 2); // the copy + the indexer
+      h.dispose();
+    });
+
+    indexerTest('another device\'s result during the job (same sourceRev and '
+        'language, another engine id) → dropped, run again, fresh: no engine '
+        'call, no write, its value stays', (async) {
+      final h = IndexerHarness(
+        async,
+        recognizer: FakeHandwritingRecognizer(
+          latency: const Duration(milliseconds: 100),
+        ),
+      );
+      h.addStrokes(h.lines());
+      h.elapse(IndexerTuning.localQuiet);
+      h.elapseMs(150);
+      final remote = core.HandwritingText(
+        noteId: h.note.id,
+        pageId: h.pageId,
+        engineId: 'mlkit-digital-ink/19.0.0:ko',
+        sourceRev: h.revOf(),
+        lines: const [
+          core.HandwritingLine(
+            text: '안드로이드',
+            rect: core.PageRect(0, 0, 10, 10),
+            strokeIds: ['x'],
+          ),
+        ],
+        createdAt: 1,
+      );
+      h.put(remote); // stands in for applyRemote (L2-I1 with the real CORE)
+      h.elapse(const Duration(seconds: 5));
+      expect(h.recognizer.calls, hasLength(2));
+      expect(h.store.count('update:'), 0);
+      expect(h.stored()!.engineId, 'mlkit-digital-ink/19.0.0:ko');
+      expect(h.stored()!.lines.single.text, '안드로이드');
+      expect(h.phase, HandwritingIndexerPhase.idle);
+      h.dispose();
+    });
+
+    indexerTest('its own write is ignored — no second job', (async) {
+      final h = IndexerHarness(async);
+      final changes = countHandwritingChanges(h);
+      h.addStrokes(h.lines());
+      h.elapse(IndexerTuning.localQuiet);
+      h.elapse(const Duration(minutes: 5));
+      expect(h.store.count('stalePages:'), 1);
+      expect(h.store.count('update:'), 1);
+      expect(changes(), 1);
+      h.dispose();
+    });
+
+    indexerTest('moving strokes → no engine call, only the rects change', (
+      async,
+    ) {
+      final h = IndexerHarness(async);
+      final strokes = h.lines();
+      h.addStrokes(strokes);
+      h.elapse(IndexerTuning.localQuiet);
+      final before = h.stored()!;
+      h.execute(
+        core.TransformElements(
+          pageId: h.pageId,
+          elementIds: [
+            for (final s in strokes)
+              if (trueLineOf(s.id) == 0) s.id,
+          ],
+          transform: core.Affine2.translation(12, -4),
+        ),
+      );
+      h.elapse(IndexerTuning.localQuiet);
+      final after = h.stored()!;
+      expect(h.recognizer.calls, hasLength(3));
+      expect(h.store.count('update:'), 2);
+      expect(after.sourceRev, h.revOf());
+      expect(after.sourceRev, isNot(before.sourceRev));
+      expect(after.lines.map((l) => l.text), before.lines.map((l) => l.text));
+      final r0 = before.lines[0].rect, m0 = after.lines[0].rect;
+      expect(m0.left, moreOrLessEquals(r0.left + 12, epsilon: 1e-3));
+      expect(m0.top, moreOrLessEquals(r0.top - 4, epsilon: 1e-3));
+      expect(after.lines[1].rect, before.lines[1].rect);
+      h.dispose();
+    });
+
+    indexerTest('a partial eraser → only that line is recognized again', (
+      async,
+    ) {
+      final h = IndexerHarness(async);
+      final strokes = h.lines();
+      h.addStrokes(strokes);
+      h.elapse(IndexerTuning.localQuiet);
+      final victim = strokes.firstWhere((s) => trueLineOf(s.id) == 1);
+      final n = victim.points.length;
+      core.StrokePoints part(int from, int to) => core.StrokePoints.fromList([
+        for (var i = from; i < to; i++)
+          core.StrokePoint(
+            victim.points.x(i),
+            victim.points.y(i),
+            t: victim.points.t(i).toDouble(),
+          ),
+      ]);
+      h.execute(
+        core.SplitStrokes(
+          pageId: h.pageId,
+          removedIds: [victim.id],
+          added: [
+            victim.fragment(id: 'frag-a', points: part(0, n ~/ 2)),
+            victim.fragment(id: 'frag-b', points: part(n ~/ 2 + 1, n)),
+          ],
+        ),
+      );
+      h.elapse(IndexerTuning.localQuiet);
+      expect(h.recognizer.calls, hasLength(4));
+      final stored = h.stored()!;
+      expect(stored.lines.map((l) => l.text), ['줄 1', '줄 4', '줄 3']);
+      expect(stored.lines[1].strokeIds, containsAll(['frag-a', 'frag-b']));
+      expect(stored.lines[1].strokeIds, isNot(contains(victim.id)));
+      h.dispose();
+    });
+
+    indexerTest('a dot added to a confirmed line → the confirmed text stays', (
+      async,
+    ) {
+      final h = IndexerHarness(async);
+      final strokes = h.lines();
+      h.addStrokes(strokes);
+      h.elapse(IndexerTuning.localQuiet);
+      confirmLine(h, strokes, 0, '고친 첫 줄', all: true);
+      final line0 = h.stored()!.lines[0].rect;
+      h.addStrokes([
+        strokeAt(strokes.first, 'dot', [
+          (line0.right - 3, line0.bottom - 3),
+          (line0.right - 2, line0.bottom - 2),
+        ]),
+      ]);
+      h.elapse(IndexerTuning.localQuiet);
+      final stored = h.stored()!;
+      expect(stored.lines[0].strokeIds, contains('dot'));
+      expect(stored.lines[0].text, '고친 첫 줄');
+      expect(stored.lines[0].userConfirmed, isTrue);
+      // Line 1 changed its stroke set → asked; lines 2 and 3 reused.
+      expect(h.recognizer.calls, hasLength(4));
+      h.dispose();
+    });
+
+    indexerTest('a new syllable added to a confirmed line → the engine text, '
+        'the old confirmed text first among the alternatives', (async) {
+      final h = IndexerHarness(async);
+      final strokes = h.lines();
+      h.addStrokes(strokes);
+      h.elapse(IndexerTuning.localQuiet);
+      confirmLine(h, strokes, 0, '고친 첫 줄', all: true);
+      final first = h.stored()!.lines[0];
+      final glyph = estimateGlyphHeight([
+        for (final s in strokes)
+          if (trueLineOf(s.id) == 0) HandwritingTrace.fromStroke(s),
+      ]);
+      final x0 = first.rect.right + 0.3 * glyph;
+      final cy = (first.rect.top + first.rect.bottom) / 2;
+      // One zigzag 1.4·H wide and 0.9·H high, centred on the line.
+      h.addStrokes([
+        strokeAt(strokes.first, 'syllable', [
+          for (var i = 0; i <= 14; i++)
+            (x0 + 0.1 * glyph * i, cy + (i.isEven ? -0.45 : 0.45) * glyph),
+        ]),
+      ]);
+      h.elapse(IndexerTuning.localQuiet);
+      final line = h.stored()!.lines[0];
+      expect(line.strokeIds, contains('syllable'));
+      expect(line.userConfirmed, isFalse);
+      expect(line.text, '줄 4');
+      expect(line.alternatives.first, '고친 첫 줄');
+      h.dispose();
+    });
+  });
+
   group('model (6.7.4, 6.9.6)', () {
     indexerTest('Android: not downloaded → waitingModel (waiting for Wi-Fi) '
         '→ ensureModel once → idle', (async) {
@@ -688,8 +964,12 @@ void main() {
       h.elapse(const Duration(seconds: 10));
       expect(h.recognizer.calls, hasLength(1));
       expect(h.store.handwritingWrites, 0);
+      // Enabled again: the catch-up finds the stale page (L2-10b).
       h.enabled.value = true;
       h.settle();
+      expect(h.phase, HandwritingIndexerPhase.recognizing);
+      h.elapseMs(300);
+      expect(h.store.count('update:'), 1);
       expect(h.phase, HandwritingIndexerPhase.idle);
       h.dispose();
     });
@@ -783,12 +1063,17 @@ void main() {
   group('performance (6.9.7)', () {
     indexerTest('a 1,000-stroke page: yields every 200 strokes and after '
         'every line; the longest piece of our part is recorded', (async) {
-      final h = IndexerHarness(async);
-      final strokes = h.lines(lineCount: 40, seed: 5).take(1000).toList();
+      final h = IndexerHarness(async, pages: 2);
+      final [page, warmUpPage] = h.pageIds;
+      List<core.Stroke> thousand(core.PageId pageId, int seed) => h
+          .lines(pageId: pageId, lineCount: 40, seed: seed)
+          .take(1000)
+          .toList();
+      h.addStrokes(thousand(warmUpPage, 6), pageId: warmUpPage);
+      h.elapse(IndexerTuning.localQuiet); // warm-up job (JIT)
+      final strokes = thousand(page, 5);
       expect(strokes, hasLength(1000));
-      h.addStrokes(strokes.sublist(0, 999));
-      h.elapse(IndexerTuning.localQuiet); // warm-up job
-      h.addStrokes([strokes.last]);
+      h.addStrokes(strokes, pageId: page);
       h.elapse(IndexerTuning.localQuiet);
       final job = metricsOf(h.indexer).lastJob.value!;
       final lines = linesOf(strokes);

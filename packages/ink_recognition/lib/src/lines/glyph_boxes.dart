@@ -78,22 +78,32 @@ final class GlyphBox {
   int get key => strokes.first;
 }
 
-/// 6.5 step 2: boxes widened by glyphInflateX / glyphInflateY × the median
-/// box height (at least minStrokeHeight) that overlap are joined
-/// (union-find, a sweep by left edge that compares live boxes only). Glyphs
-/// come in the order of their smallest stroke index.
+/// h_s of 6.5 step 2: the median height of [boxes], at least
+/// minStrokeHeight.
+double strokeHeightOf(
+  Iterable<InkBox> boxes, {
+  LineTuning tuning = kLineTuning,
+}) => math.max(
+  tuning.minStrokeHeight,
+  medianOf([for (final b in boxes) b.height]),
+);
+
+/// 6.5 step 2: boxes widened by glyphInflateX / glyphInflateY × h_s (the
+/// median box height, at least minStrokeHeight — or [strokeHeight] when
+/// given: the indexer widens a line's added strokes by that line's h_s,
+/// 6.9.4 ②) that overlap are joined (union-find, a sweep by left edge that
+/// compares live boxes only). Glyphs come in the order of their smallest
+/// stroke index.
 List<GlyphBox> buildGlyphBoxes(
   List<InkBox> boxes, {
   LineTuning tuning = kLineTuning,
+  double? strokeHeight,
 }) {
   final n = boxes.length;
   if (n == 0) return const [];
-  final strokeHeight = math.max(
-    tuning.minStrokeHeight,
-    medianOf([for (final b in boxes) b.height]),
-  );
-  final ex = tuning.glyphInflateX * strokeHeight;
-  final ey = tuning.glyphInflateY * strokeHeight;
+  final hs = strokeHeight ?? strokeHeightOf(boxes, tuning: tuning);
+  final ex = tuning.glyphInflateX * hs;
+  final ey = tuning.glyphInflateY * hs;
   final parent = List<int>.generate(n, (i) => i);
   int find(int a) {
     var x = a;

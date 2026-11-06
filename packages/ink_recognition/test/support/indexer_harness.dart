@@ -106,20 +106,40 @@ final class IndexerHarness {
   void elapseMs(int ms) => async.elapse(Duration(milliseconds: ms));
 
   /// [command] in a session of the note (opened, committed, closed).
-  void execute(core.EditCommand command, {core.PageId? pageId}) {
-    final session = wait(store.openSession(note.id));
+  void execute(
+    core.EditCommand command, {
+    core.PageId? pageId,
+    core.NoteId? noteId,
+  }) {
+    final session = wait(store.openSession(noteId ?? note.id));
     wait(session.openPage(pageId ?? this.pageId));
     wait(session.execute(command).persisted);
     wait(session.close());
     settle();
   }
 
-  void addStrokes(List<core.Stroke> strokes, {core.PageId? pageId}) {
+  void addStrokes(
+    List<core.Stroke> strokes, {
+    core.PageId? pageId,
+    core.NoteId? noteId,
+  }) {
     final page = pageId ?? this.pageId;
     execute(
       core.AddStrokes(pageId: page, strokes: strokes),
       pageId: page,
+      noteId: noteId,
     );
+  }
+
+  /// Another note with [pages] blank pages: (note, its page ids).
+  (core.Note, List<core.PageId>) newNote(String title, {int pages = 1}) {
+    final n = wait(
+      store.library.createNote(
+        title: title,
+        pages: List.filled(pages, core.PageDraft.blankA4),
+      ),
+    );
+    return (n, [for (final p in wait(store.content.pagesOf(n.id))) p.id]);
   }
 
   void removeStrokes(List<core.ElementId> ids, {core.PageId? pageId}) {

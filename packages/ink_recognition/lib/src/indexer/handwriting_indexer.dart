@@ -25,7 +25,10 @@
 //    (pageId, rev); CORE write errors → one report, failed;
 //    EntityNotFoundException → skipped silently;
 //  - IndexerMetrics: our part of each job (Stopwatch — never a decision).
-// L2-10b adds line reuse, the confirmed-line merge and the catch-up.
+// L2-10b — ②: line reuse (a stored line with the same stroke set → no engine
+// call), the confirmed-line merge inside update (line_reuse.dart) and the
+// catch-up (catch_up.dart: notesWithStalePages at start() and whenever
+// `enabled` turns true, after the dirty pages).
 //
 // Lifecycle: start() is idempotent (web / unavailable engine → stays off and
 // subscribes to nothing); dispose() is idempotent, cancels every timer and
@@ -51,6 +54,7 @@ import '../model/handwriting_trace.dart';
 import '../ports/handwriting_recognizer.dart';
 import '../ports/model_admin.dart';
 import '../settings/recognition_settings_keys.dart';
+import 'catch_up.dart';
 import 'indexer_metrics.dart';
 import 'indexer_status.dart';
 import 'line_reuse.dart';
@@ -74,9 +78,6 @@ abstract final class IndexerTuning {
 
   /// Characters of the previous line given as preContext.
   static const int preContextChars = 20;
-
-  /// Alternatives kept per line (contract: ≤ 5).
-  static const int maxAlternatives = 5;
 
   /// writingAreaPt height: max(line height × 1.5, 24) (6.4).
   static const double writingAreaLineFactor = 1.5;
@@ -184,6 +185,9 @@ final class HandwritingIndexer {
 
   _Job? _job;
 
+  /// Bumped to stop a running catch-up (disable, dispose, off, a new one).
+  int _catchUpEpoch = 0;
+
   /// Completed when a paused job may look again (foreground / drop /
   /// dispose).
   Completer<void>? _wake;
@@ -224,6 +228,7 @@ final class HandwritingIndexer {
         admin.modelChanges.listen(_onModelChanged, onError: _onStreamError),
       );
     }
+    if (_enabled.value) _startCatchUp();
     _publish();
   }
 
@@ -234,6 +239,7 @@ final class HandwritingIndexer {
     if (_disposed) return;
     _disposed = true;
     _modelEpoch++;
+    _catchUpEpoch++;
     _dropJob();
     _clearWork();
     _foreground?.removeListener(_onForegroundChanged);
@@ -322,8 +328,10 @@ final class HandwritingIndexer {
     if (_disposed || !_started || _unsupported) return;
     if (_enabled.value) {
       unawaited(_checkModel());
+      _startCatchUp();
     } else {
       _modelEpoch++;
+      _catchUpEpoch++;
       _modelReady = false;
       _modelWait = null;
       _dropJob();
@@ -498,6 +506,7 @@ final class HandwritingIndexer {
     if (_unsupported) return;
     _unsupported = true;
     _modelEpoch++;
+    _catchUpEpoch++;
     _dropJob();
     _clearWork();
     for (final s in _subscriptions) {
@@ -505,6 +514,34 @@ final class HandwritingIndexer {
     }
     _subscriptions.clear();
     _publish();
+  }
+
+  /// 6.9.5: the stale pages of every note go to the back of the queue
+  /// (pages waiting for their quiet time, deferred or in a job are left to
+  /// that path).
+  void _startCatchUp() {
+    final epoch = ++_catchUpEpoch;
+    bool alive() => epoch == _catchUpEpoch && _active;
+    unawaited(
+      runCatchUp(
+        repo: _store.handwriting,
+        alive: alive,
+        enqueue: (noteId, pages) {
+          for (final pageId in pages) {
+            if (_quiet.containsKey(pageId) ||
+                _deferred.containsKey(pageId) ||
+                _job?.pageId == pageId) {
+              continue;
+            }
+            _queue.add(noteId, pageId, QueueLane.catchUp);
+          }
+          _publish();
+          _pump();
+        },
+      ).catchError((Object e, StackTrace s) {
+        if (alive()) _reportOnce('catch-up:${e.runtimeType}', e, s, 'catch-up');
+      }),
+    );
   }
 
   // ---- model -------------------------------------------------------------
@@ -658,9 +695,11 @@ final class HandwritingIndexer {
         if (core.HandwritingText.isRecognitionInput(s)) s,
     ];
     final rev = core.HandwritingText.sourceRevOf(inputs);
+    // Reuse candidates only — the merge runs on update's stored value.
+    final existing = await clock.run(() => repo.forPage(job.pageId));
+    if (!_alive(job)) return;
     if (inputs.isEmpty) {
-      final existing = await clock.run(() => repo.forPage(job.pageId));
-      if (!_alive(job) || existing == null) return;
+      if (existing == null) return;
       job.writing = true;
       await _write(job, rev, clock, () => repo.removeForPage(job.pageId));
       _record(job, clock, lines: 0, recognized: 0);
@@ -679,17 +718,35 @@ final class HandwritingIndexer {
         ? await clock.run(() => groupTraceIndicesInBackground(traces))
         : groupTraceIndices(traces);
     final pageWidth = content.page.size.width;
+    final reuse = LineReuse(existing);
     final lines = <core.HandwritingLine>[];
     final geometry = <LineGeometry>[];
     var previous = '';
     var recognized = 0;
     for (final group in groups) {
-      if (!await _gate(job, clock)) return;
       final lineTraces = [for (final i in group) traces[i]];
       final boxes = <core.ElementId, core.PageRect>{
         for (final i in group) inputs[i].id: inputs[i].points.pointBounds,
       };
       final rect = boxes.values.reduce((a, b) => a.expandToInclude(b));
+      final strokeIds = List<core.ElementId>.unmodifiable(boxes.keys);
+      final lineGeometry = LineGeometry(
+        strokeBoxes: Map.unmodifiable(boxes),
+        strokeHeight: strokeHeightOf([
+          for (final r in boxes.values)
+            InkBox(r.left, r.top, r.right, r.bottom),
+        ]),
+        glyphHeight: estimateGlyphHeight(lineTraces),
+      );
+      // ① The same strokes as a stored line: its text, the new rect.
+      final reused = reuse.reuse(strokeIds, job.lang, rect);
+      if (reused != null) {
+        lines.add(reused);
+        geometry.add(lineGeometry);
+        previous = reused.text;
+        continue;
+      }
+      if (!await _gate(job, clock)) return;
       final candidates = await _recognize(
         job,
         clock,
@@ -711,7 +768,7 @@ final class HandwritingIndexer {
       final text = candidates.isEmpty ? '' : candidates.first.text;
       final alternatives = <String>[];
       for (final c in candidates.skip(1)) {
-        if (alternatives.length == IndexerTuning.maxAlternatives) break;
+        if (alternatives.length == kMaxLineAlternatives) break;
         if (c.text != text && !alternatives.contains(c.text)) {
           alternatives.add(c.text);
         }
@@ -721,16 +778,11 @@ final class HandwritingIndexer {
           text: text,
           alternatives: List.unmodifiable(alternatives),
           rect: rect,
-          strokeIds: List.unmodifiable(boxes.keys),
+          strokeIds: strokeIds,
           languageTag: job.lang,
         ),
       );
-      geometry.add(
-        LineGeometry(
-          strokeBoxes: Map.unmodifiable(boxes),
-          glyphHeight: estimateGlyphHeight(lineTraces),
-        ),
-      );
+      geometry.add(lineGeometry);
       previous = text;
       await _yield(clock);
       if (!_alive(job)) return;
