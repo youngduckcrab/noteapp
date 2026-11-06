@@ -69,18 +69,21 @@ final class RecolorPopup extends EditorPopup {
 }
 
 /// (v2, E2-09 — m5-7/04-editor 6.9.1) The shape tool popup (kind, style);
-/// at [globalPosition] or centred (the toolbar's shape button — E2-13 —
-/// will anchor it).
+/// at [globalPosition], else under the toolbar's shape button when
+/// [anchored] (E2-13 — 6.13.1), else centred.
 final class ShapeToolPopup extends EditorPopup {
-  const ShapeToolPopup({this.globalPosition});
+  const ShapeToolPopup({this.globalPosition, this.anchored = false});
   final Offset? globalPosition;
+  final bool anchored;
 
   @override
   bool operator ==(Object other) =>
-      other is ShapeToolPopup && other.globalPosition == globalPosition;
+      other is ShapeToolPopup &&
+      other.globalPosition == globalPosition &&
+      other.anchored == anchored;
 
   @override
-  int get hashCode => Object.hash(ShapeToolPopup, globalPosition);
+  int get hashCode => Object.hash(ShapeToolPopup, globalPosition, anchored);
 }
 
 /// (v2, E2-09 — 6.7.5) The selection menu's '스타일' (selected shapes).
@@ -97,18 +100,21 @@ final class ShapeStylePopup extends EditorPopup {
 }
 
 /// (v2, E2-10 — m5-7/04-editor 6.11.4) The text tool popup (the style of
-/// the next box — ToolOptions.textStyle); at [globalPosition] or centred (the
-/// toolbar's text button — E2-13 — will anchor it).
+/// the next box — ToolOptions.textStyle); at [globalPosition], else under
+/// the toolbar's text button when [anchored] (E2-13 — 6.13.1), else centred.
 final class TextToolPopup extends EditorPopup {
-  const TextToolPopup({this.globalPosition});
+  const TextToolPopup({this.globalPosition, this.anchored = false});
   final Offset? globalPosition;
+  final bool anchored;
 
   @override
   bool operator ==(Object other) =>
-      other is TextToolPopup && other.globalPosition == globalPosition;
+      other is TextToolPopup &&
+      other.globalPosition == globalPosition &&
+      other.anchored == anchored;
 
   @override
-  int get hashCode => Object.hash(TextToolPopup, globalPosition);
+  int get hashCode => Object.hash(TextToolPopup, globalPosition, anchored);
 }
 
 /// (v2, E2-10 — 6.7.5) The selection menu's '서식' (a selected text box,

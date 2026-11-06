@@ -11,6 +11,8 @@
 // the press, then the menu closes (ExtensionRunner.run — the rows are
 // TextButtons, whose onPressed runs in the tap; MenuItemButton would run it
 // a frame later, after the menu closed). A running item is disabled.
+// (E2-13) The rows are [insertMenuRows], also used by the folded toolbar's
+// [⋯도구] (overflow_tools_menu.dart).
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,26 +67,6 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
     if (_menu.isOpen) _menu.close();
   }
 
-  void _pickImage(core.ImageImportSource source) => unawaited(
-    ref.read(editorImageFlowsProvider).insert(source, close: _close),
-  );
-
-  /// 4.3.1: the context is made now (6.13.2), onSelected starts
-  /// synchronously inside this onPressed, then the menu closes.
-  void _runExtension(EditorInsertMenuItem item) {
-    final insert = ref.read(editorCommandsProvider).insertContext();
-    if (insert == null) return;
-    unawaited(
-      ref
-          .read(editorExtensionRunnerProvider)
-          .run<void>(
-            item.id,
-            (body) => item.onSelected(body, insert),
-            close: _close,
-          ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final readOnly = ref.watch(editorReadOnlyProvider);
@@ -101,34 +83,13 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
       valueListenable: runner.runningIds,
       builder: (context, running, _) => MenuAnchor(
         controller: _menu,
-        menuChildren: [
-          if (sources.isNotEmpty)
-            SubmenuButton(
-              key: InsertMenu.imageKey,
-              leadingIcon: const Icon(Icons.image),
-              menuChildren: [
-                for (final source in sources)
-                  _InsertItem(
-                    key: InsertMenu.imageSourceKey(source),
-                    icon: imageSourceIcon(source),
-                    label: EditorStrings.imageSourceName(source),
-                    onPressed: running.contains(ImageFlows.runId)
-                        ? null
-                        : () => _pickImage(source),
-                  ),
-              ],
-              child: const Text(EditorStrings.image),
-            ),
-          for (final item in items)
-            _InsertItem(
-              key: InsertMenu.extensionKey(item.id),
-              icon: item.icon,
-              label: item.label,
-              onPressed: running.contains(item.id)
-                  ? null
-                  : () => _runExtension(item),
-            ),
-        ],
+        menuChildren: insertMenuRows(
+          ref,
+          sources: sources,
+          items: items,
+          running: running,
+          close: _close,
+        ),
         child: IconButton(
           key: InsertMenu.buttonKey,
           onPressed: readOnly ? null : _toggle,
@@ -139,30 +100,104 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
   }
 }
 
-/// One row of the insert menu: at least 44 px high (contract 7.4.8), its
-/// [onPressed] run synchronously in the tap (4.3.1).
-class _InsertItem extends StatelessWidget {
-  const _InsertItem({
+/// The rows of [+] (6.13.1): the '이미지' submenu with [sources] (when any),
+/// then [items] (duplicates already dropped) — shared by [InsertMenu] and the
+/// folded toolbar's [⋯도구] (E2-13). A press starts the source's picker /
+/// the item's onSelected synchronously inside the press (4.3.1), then
+/// [close] closes the menu the rows are in. Rows whose id is [running] — or
+/// all of them when not [enabled] — are disabled.
+List<Widget> insertMenuRows(
+  WidgetRef ref, {
+  required List<core.ImageImportSource> sources,
+  required List<EditorInsertMenuItem> items,
+  required Set<String> running,
+  required VoidCallback close,
+  bool enabled = true,
+}) {
+  void pickImage(core.ImageImportSource source) => unawaited(
+    ref.read(editorImageFlowsProvider).insert(source, close: close),
+  );
+
+  // 4.3.1: the context is made now (6.13.2), onSelected starts
+  // synchronously inside this onPressed, then the menu closes.
+  void runExtension(EditorInsertMenuItem item) {
+    final insert = ref.read(editorCommandsProvider).insertContext();
+    if (insert == null) return;
+    unawaited(
+      ref
+          .read(editorExtensionRunnerProvider)
+          .run<void>(
+            item.id,
+            (body) => item.onSelected(body, insert),
+            close: close,
+          ),
+    );
+  }
+
+  return [
+    if (sources.isNotEmpty)
+      SubmenuButton(
+        key: InsertMenu.imageKey,
+        leadingIcon: const Icon(Icons.image),
+        menuChildren: [
+          for (final source in sources)
+            InsertMenuRow(
+              key: InsertMenu.imageSourceKey(source),
+              icon: imageSourceIcon(source),
+              label: EditorStrings.imageSourceName(source),
+              onPressed: !enabled || running.contains(ImageFlows.runId)
+                  ? null
+                  : () => pickImage(source),
+            ),
+        ],
+        child: const Text(EditorStrings.image),
+      ),
+    for (final item in items)
+      InsertMenuRow(
+        key: InsertMenu.extensionKey(item.id),
+        icon: item.icon,
+        label: item.label,
+        onPressed: !enabled || running.contains(item.id)
+            ? null
+            : () => runExtension(item),
+      ),
+  ];
+}
+
+/// One row of the insert menu (and of the folded toolbar's [⋯도구]): at
+/// least 44 px high (contract 7.4.8), its [onPressed] run synchronously in
+/// the tap (4.3.1 — not a MenuItemButton, which runs it a frame later).
+/// [selected] (the active tool of [⋯도구]) gets the primaryContainer
+/// background.
+class InsertMenuRow extends StatelessWidget {
+  const InsertMenuRow({
     super.key,
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.selected = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final bool selected;
 
   @override
-  Widget build(BuildContext context) => TextButton.icon(
-    onPressed: onPressed,
-    style: TextButton.styleFrom(
-      alignment: AlignmentDirectional.centerStart,
-      minimumSize: const Size(180, 44),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      shape: const RoundedRectangleBorder(),
-    ),
-    icon: Icon(icon),
-    label: Text(label),
-  );
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        alignment: AlignmentDirectional.centerStart,
+        minimumSize: const Size(180, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: const RoundedRectangleBorder(),
+        backgroundColor: selected ? scheme.primaryContainer : null,
+        foregroundColor: selected ? scheme.onPrimaryContainer : null,
+      ),
+      icon: Icon(icon),
+      label: Text(label),
+    );
+  }
 }

@@ -20,6 +20,10 @@ import 'text/text_style_controls.dart';
 class PopupAnchors {
   final LayerLink pen = LayerLink();
   final LayerLink eraser = LayerLink();
+
+  /// (v2, E2-13) the toolbar's shape and text buttons (6.13.1).
+  final LayerLink shape = LayerLink();
+  final LayerLink text = LayerLink();
 }
 
 /// Shows editorPopupProvider's popup with an OverlayPortal (its overlay child
@@ -152,8 +156,8 @@ class _PopupHostState extends ConsumerState<PopupHost> {
         panel: const RecolorPanel(),
       ),
       // (v2, E2-09) the shape tool popup and a selected shape's '스타일'.
-      ShapeToolPopup(:final globalPosition) => (
-        link: null,
+      ShapeToolPopup(:final globalPosition, :final anchored) => (
+        link: anchored ? LinkPick.shape : null,
         at: globalPosition,
         panel: const ShapeToolPanel(),
       ),
@@ -163,8 +167,8 @@ class _PopupHostState extends ConsumerState<PopupHost> {
         panel: const ShapeStylePanel(),
       ),
       // (v2, E2-10) the text tool popup and a selected text box's '서식'.
-      TextToolPopup(:final globalPosition) => (
-        link: null,
+      TextToolPopup(:final globalPosition, :final anchored) => (
+        link: anchored ? LinkPick.text : null,
         at: globalPosition,
         panel: const TextToolPanel(),
       ),
@@ -196,8 +200,8 @@ class _PopupHostState extends ConsumerState<PopupHost> {
       _ => null,
     };
 
-/// Which toolbar button a popup hangs from.
-enum LinkPick { pen, eraser }
+/// Which toolbar button a popup hangs from. (v2, E2-13) shape and text.
+enum LinkPick { pen, eraser, shape, text }
 
 class _PopupLayer extends ConsumerWidget {
   const _PopupLayer({required this.anchors});
@@ -214,6 +218,8 @@ class _PopupLayer extends ConsumerWidget {
         : switch (layout.link) {
             LinkPick.pen => anchors.pen,
             LinkPick.eraser => anchors.eraser,
+            LinkPick.shape => anchors.shape,
+            LinkPick.text => anchors.text,
             null => null,
           };
     return Stack(
