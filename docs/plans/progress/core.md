@@ -218,7 +218,7 @@
 | B2-β JSON 골든 | T20a | 9777fde | 2026-11-06 | 객체·손글씨·녹음 JSON 키 고정 — 키 대조 시험(CP-S9) | SYNC(R2-B7a가 이 해시로 판정 — sync.md) |
 | B2-β 끝 | T23b | 0798096 | 2026-11-06 | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
 | DB v2·마이그레이션 | T24 | a2b0489 | 2026-11-06 | openTestNoteStore가 v2 DB, v1 사본(네이티브 파일·웹 블롭 덤프), dev_tools v1 사본 API 동작 — 새 종류의 행 쓰기는 T26부터 | SYNC·PDF·LIBRARY·INFRA |
-| 쓰기 경로 | T26 | | | 새 종류 행·힌트·고아 — SYNC 시나리오 시험 | SYNC |
+| 쓰기 경로 | T26 | 3bfff8a | 2026-11-06 | 새 종류(객체·손글씨) 행·`recordings.title`·`pages.bg_*`, 힌트(`noteId`·`pageId` 항상), 원격 고아 객체 입양, `readVersioned`·백업 읽기 — SYNC 시나리오 시험 가능(원격 객체의 `content_rev`는 T28) | SYNC |
 | 객체 읽기·쓰기 DB | T27 | | | 실제 저장소 객체 명령·N-7 | EDITOR·PDF |
 | 동기화 창구 v2 | T28 | | | applyRemote·readVersioned 새 종류 — T16-v2 | SYNC |
 | 복사·휴지통·백업 | T29 | | | copyNote·영구 삭제·백업 v2 | LIBRARY·SYNC |
@@ -396,7 +396,7 @@
 | T24 | 완료 | a2b0489 | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
 | T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
-| T26 | 완료 | (이정표 표) | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
+| T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 남음 | | `test/session/object_session_contract_real_test.dart`, `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart` |
 | T28 | 남음 | | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 남음 | | `test/repo/recording_contract_real_test.dart`, `test/repo/recording_repository_test.dart` |
