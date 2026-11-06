@@ -136,10 +136,33 @@ final class MediaModule extends AppModule {
   ];
 }
 
-/// The web leave guard while recording (6.17, D2-14). R2-B8a registers the
-/// task; J7 subscribes to the recorder status and calls
-/// WebPlatform.setLeaveGuard.
-Future<void> _leaveGuard(AppIdleContext context) async {}
+/// The web leave guard while recording (6.17, D2-14): subscribes to
+/// audioRecorderServiceProvider.statusStream (it emits the current status on
+/// listen) and calls web.setLeaveGuard(status.isActive) on every status. The
+/// clean-up cancels the subscription and turns the guard off. status.isActive
+/// is a UI decision here only — draft recovery follows pendingDrafts().
+Future<void> _leaveGuard(AppIdleContext context) async {
+  final web = context.web;
+  final errorLog = context.errorLog;
+  final subscription = context
+      .read(audioRecorderServiceProvider)
+      .statusStream
+      .listen(
+        (status) => web.setLeaveGuard(status.isActive),
+        onError: (Object error, StackTrace stackTrace) => errorLog.add(
+          AppErrorRecord.fromError(
+            error,
+            stackTrace,
+            source: AppErrorSource.module,
+          ),
+        ),
+      );
+  // Cancelling stops the events at once; nothing to wait for.
+  context.onDispose(() {
+    unawaited(subscription.cancel());
+    web.setLeaveGuard(false);
+  });
+}
 
 /// 6.5.2: every draft pendingDrafts() returns, oldest first, without asking.
 Future<void> _recoverDrafts(AppIdleContext context) async {

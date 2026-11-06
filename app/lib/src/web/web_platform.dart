@@ -78,4 +78,10 @@ abstract interface class WebPlatform {
 
   /// window.location.reload().
   void reload();
+
+  /// (2차, 01-infra 4.6.7 · 6.17 — D2-14) Web: adds / removes a
+  /// 'beforeunload' listener that asks the browser to confirm leaving.
+  /// Non-web: no-op. Idempotent: one listener at most, however often it is
+  /// turned on. Never throws.
+  void setLeaveGuard(bool enabled);
 }

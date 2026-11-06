@@ -4,6 +4,8 @@ library;
 // WebPlatform in a real browser (docs/plans/01-infra.md 4.5.2 and 9.1):
 // `ws test --platform chrome` runs this file with dart2js.
 
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -67,6 +69,61 @@ void main() {
     await pumpEventQueue();
     expect(again, [WebVisibility.hidden]);
     await third.cancel();
+  });
+
+  group('setLeaveGuard (m5-7/01-infra 4.6.7, 6.17)', () {
+    /// Dispatches a cancelable 'beforeunload' whose preventDefault is
+    /// replaced by a counter: the count is the number of guard listeners
+    /// that ran (the test page is not left).
+    int guardListeners() {
+      var calls = 0;
+      final event = html.Event(
+        'beforeunload',
+        html.EventInit(cancelable: true),
+      );
+      (event as JSObject).setProperty(
+        'preventDefault'.toJS,
+        (() {
+          calls++;
+        }).toJS,
+      );
+      html.window.dispatchEvent(event);
+      return calls;
+    }
+
+    tearDown(() => web.setLeaveGuard(false));
+
+    test('off by default; on → one listener, however often it is turned '
+        'on; off → none, however often it is turned off', () {
+      expect(guardListeners(), 0);
+      web.setLeaveGuard(true);
+      expect(guardListeners(), 1);
+      web.setLeaveGuard(true);
+      expect(guardListeners(), 1, reason: 'idempotent: still one listener');
+      web.setLeaveGuard(false);
+      expect(guardListeners(), 0);
+      web.setLeaveGuard(false);
+      expect(guardListeners(), 0);
+    });
+
+    test('on and off twice: the same single listener comes back', () {
+      for (var i = 0; i < 2; i++) {
+        web.setLeaveGuard(true);
+        expect(guardListeners(), 1);
+        web.setLeaveGuard(false);
+        expect(guardListeners(), 0);
+      }
+    });
+
+    test('a dispatched beforeunload is cancelled (preventDefault)', () {
+      web.setLeaveGuard(true);
+      final event = html.Event(
+        'beforeunload',
+        html.EventInit(cancelable: true),
+      );
+      html.window.dispatchEvent(event);
+      expect(event.defaultPrevented, isTrue);
+    });
   });
 
   test('not started from the home screen in a test browser', () {

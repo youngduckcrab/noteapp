@@ -399,7 +399,7 @@
 | J4 | 완료 | `3779a8f` | `app/test/storage/native_storage_paths_test.dart`(경로 문자열·폴더 생성(재귀·두 번째 호출)·끝 `/`·실패 4종 전파·기본 `CoreModule` 2경우), `core_module_test`(경로 묶음 8 — 두 필드 모두·순서·실패 → 기록 + 둘 다 없음·웹 stub·`configFor`·`defaultNoteStoreConfig`·`resetLocalData`·경로 중 포기), `tool/test/native_config_test.dart` '앱 셸 경로' 묶음(토큰 2·커밋된 파일 1·주석 무관 1·규칙마다 깨뜨리기 12·파일 없음 1) |
 | J5 | 완료 | `16b9c4b` | `app/test/features/feature_switch_section_test.dart`(12 — 문구·빌드에서 끔·저장·시작 때와 다름·인식 꺼짐에서 수식 엔진·[다시 시작] flush → reload·녹음 중(녹음·일시정지) 막기·flush 실패·flush 2초 초과·네이티브 문구·저장 실패·가로), `settings/settings_sections_test.dart` v2(`app.features` 위치·제목·빌더), `settings_screen_test`(8개), `bootstrap/app_module_context_test.dart`(7 — 빌드 ∧ 메뉴·한 번 읽기·동시 호출·저장소 전 캐시 안 함·500 ms 초과·안쪽·읽기 실패) |
 | J6 | 완료 | `864317a` | `app/test/bootstrap/idle_tasks_test.dart` 보강(`AppIdleCleanup` 4 — 마지막 콜백까지 기다림·2초 제한·기다리는 중 더한 정리·첫 작업 전 dispose), `bootstrap/bootstrap_app_test.dart`(유휴 4 — 성공 화면 ProviderScope → AppLifecycleBridge → 실행기(`success.idleTasks`)·오류 화면에는 없음 → 다시 시도 → 새 시도의 작업만·dispose 때 색인기 정리(1초) 끝난 뒤 모듈 stop·정리가 안 끝나면 2초 뒤 stop + 기록) |
-| J7 | 남음 | | `media_module_test`·`update_banner_test` v2·`web_platform_browser_test` |
+| J7 | 완료 | (이 커밋) | `app/test/modules/media_module_test.dart`(J7 묶음 7 — `abandon()` 초안 복구 0·1·2·실패·최근 갱신 창, 이탈 경고 상태 전이·실행기 안 첫 프레임 직후), `update/update_banner_test.dart` v2(녹음 중 안내·reload 0회·녹음 꺼짐), `web/web_platform_browser_test.dart`(Chrome — `setLeaveGuard` 리스너 1개) |
 | J8 | 남음 | | `recognition_module_test` |
 | J9 | 남음 | | `recognition_wiring_test`·`media_wiring_test`·`search_wiring_test`·`feature_wiring_module_test` v2 |
 | J10 | 남음 | | `pdf_module_test` v2 |
@@ -579,6 +579,20 @@
 | `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 43초 |
 | `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 97초 |
 
+#### J7 — `MediaModule` 완성 (계획 8.2, 6.5.2·6.17, 4.6.4·4.6.7)
+
+- **`WebPlatform.setLeaveGuard(bool)`**(4.6.7 그대로): 브라우저 구현은 JS 함수 하나(`late final`)를 `beforeunload`에 붙이고 뗀다(`preventDefault()` + `returnValue = ''`). 같은 값이면 아무것도 하지 않아 리스너는 언제나 0개 또는 1개, 던지지 않는다. VM·네이티브 stub은 아무것도 하지 않는다. `FakeWebPlatform`은 호출 목록 `leaveGuardCalls`와 현재 값 `leaveGuard`를 남긴다.
+- **`media.leaveGuard`**(immediate, 6.17): `audioRecorderServiceProvider.statusStream`(구독 때 현재 값부터 — 계약 7.2.4) → `web.setLeaveGuard(status.isActive)`. 스트림 오류는 기록 1건(source module). 정리(`onDispose`)는 구독 취소(기다리지 않음) + `setLeaveGuard(false)`.
+- **`media.recoverDrafts`**: 본문은 R2-B8a의 `recoverPendingRecordings` 그대로(`pendingDrafts()`만 따름 — `status.isActive`를 보지 않음, `startedAt` 오름차순, 실패는 'recoverDraft <draftId> failed: …' 기록 후 다음).
+- **`UpdateBanner`**(6.17): [새로고침] 때 `ref.read(audioRecorderServiceProvider).status.isActive`(녹음·일시정지)면 새로 고치지 않고(flush도 없음) 배너에 둘째 줄 '녹음 중에는 새로 고칠 수 없어요. 녹음을 멈춘 뒤 눌러 주세요.'(문구는 J5의 `AppStrings.reloadBlockedByRecording`). 다음 누름에서 다시 확인 — 녹음이 끝났으면 둘째 줄을 지우고 1차 흐름(flush → reload). `ConsumerWidget` → `ConsumerStatefulWidget`(생성자 그대로).
+- 시험: `media_module_test` J7 묶음 7 — 복구 5(초안 0·1(원래 `recordingId`·'복구된 녹음'·초안 지워짐)·2(`pendingDrafts()`가 최신부터 줘도 오래된 것부터)·하나 실패(기록 1건·다음 계속·실패한 초안 남음)·최근 갱신 창 안 초안 제외 → 창이 지난 뒤 다음 시작에서 복구), 이탈 경고 2(상태 전이 → 켬·일시정지도 켬·정지 → 끔·정리 → 끔 + 구독 끊김 / 실행기 안: 첫 프레임 직후 3초 지연 전·앞의 긴 복구 작업(25초)이 도는 동안 녹음 시작 → 켬 → 정리 → 끔). 초안은 모두 CORE `FakeAudioRecorder.abandon()`(녹음기 A)으로 만들고, 같은 저장소의 녹음기 B를 `MediaModule(mediaOverrides:)` 주입 인자로 넣어 부트스트래퍼 → `success.overrides`·`success.idleTasks`로 돌린다. `update_banner_test` v2 2(녹음 중·일시정지 → 안내·`notifyAppHidden` 0회·`reload` 0회 → 정지 뒤 누름 → reload 1회 / 녹음 꺼짐(기본 `UnsupportedAudioRecorder`) → reload). `web_platform_browser_test`(Chrome) `setLeaveGuard` 3(두 번 켜도 리스너 1개·두 번 꺼도 0개·켜고 끄기 두 번·실제 `beforeunload`가 취소됨 — `preventDefault`를 센 수로 리스너 수를 잰다).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `ws test --package noteapp` (VM) | 482 통과 · 1 건너뜀(V5) · 78초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 14 통과 · 1 건너뜀(V6) · 92초 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -636,6 +650,11 @@
 - (J6) 계획의 '재시도 때 이전 실행기의 정리가 새 scope 전에 끝남': 지금 '다시 시도'·'데이터 지우기'는 시작 오류 화면에서만 열리고 그 화면에는 실행기가 없다(성공 화면에서 다시 시작하는 길이 없음). 그래서 순서 보장은 모든 `shutdown()` 앞의 `AppIdleCleanup.done`으로 넣고, 시험은 실제로 일어나는 두 경우 — 앱 끝(`BootstrapApp` dispose: 색인기 정리 → 모듈 stop)과 오류 화면 → 다시 시도 → 새 실행기 — 로 했다. M4 등에서 성공 화면에서 다시 시작하는 길이 생기면 그 경로도 `_shutdown`을 쓰면 된다(옛 scope가 한 프레임 뒤 unmount되므로 그 프레임을 먼저 기다릴 것).
 - (J6) `AppIdleTaskRunner`에 선택 인자 `cleanup`(계획 4.6.2 시그니처에 없음 — 앱 내부)과 `AppIdleCleanup` 클래스를 더했다.
 - (J4) `CoreModule`이 경로 함수 실패를 기록할 때 `AppErrorRecord.fromError(error, stackTrace, source: module)` 한 건 — 계획은 '오류 기록(source module)'까지만 정했다. 경로를 읽는 중 포기되면 `open`을 부르지 않는다(계획에 없음 — 늦은 저장소 닫기 규칙(INFRA-2-9)이 경로 단계에도 맞게).
+
+- (J7) `media_module_test`의 녹음기 B는 CORE `FakeAudioRecorder`를 감싼 시험용 `_RecorderB`(인터페이스 위임)다 — 복구 호출 순서를 보고, `pendingDrafts()` 목록을 최신부터 주어 정렬을 확인하고(가짜 초안 저장소는 시작 순서대로 돌려줘 정렬이 안 보인다), 한 초안의 복구를 던지게 하려고. 초안 만들기·복구 자체는 `FakeAudioRecorder` 그대로. 저장소 시계는 `FakeAsync().getClock(…)` + `elapseBlocking`(앱은 `package:clock`에 의존하지 않는다 — 계약 7.5).
+- (J7) 6.17 시험의 '앞에 30초짜리 복구 작업'은 25초로 했다 — 실행기가 30초를 넘긴 작업을 기록하므로(6.5.1 ④) '기록 0건'을 함께 보려고.
+- (J7) `media.leaveGuard` 정리는 구독 취소를 기다리지 않는다(취소 즉시 이벤트가 멈춤). 시험 바인딩의 가짜 시간 안에서는 루트 zone의 취소 Future가 2초 제한 안에 끝나지 않아 정리 실패 기록이 생겼다(관찰함).
+- (J7) 업데이트 배너의 녹음 중 안내는 배너 안 둘째 줄(오류 색)이다 — 계획은 문구만 정했다. 배너는 Navigator 위라 SnackBar·Overlay를 쓰지 않는다(1차 규칙).
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 

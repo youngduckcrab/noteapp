@@ -1,12 +1,17 @@
 // UpdateBanner (docs/plans/01-infra.md 4.5.7, 6.11 step 5, 9.1): shown only
 // for UpdateAvailable, [나중에] → dismiss, [새로고침] → flush then reload,
 // 해요체 text. It lives in MaterialApp.builder, above the Navigator.
+// v2 (m5-7/01-infra 6.17, D2-14): [새로고침] while recording (or paused)
+// → '녹음 중에는 새로 고칠 수 없어요. …', no flush and no reload; after the
+// recording stops the next press reloads.
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
+import 'package:note_core/testing.dart';
 import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
@@ -76,6 +81,7 @@ Future<_Harness> _pump(
   String? remoteSha,
   BuildInfo? local,
   bool isWeb = true,
+  List<Override> extra = const [],
 }) async {
   tester.view
     ..physicalSize = const Size(2064, 2752)
@@ -117,6 +123,7 @@ Future<_Harness> _pump(
         updateCheckConfigProvider.overrideWithValue(
           const UpdateCheckConfig(initialDelay: Duration(seconds: 1)),
         ),
+        ...extra,
       ],
       child: MaterialApp(
         locale: const Locale('ko'),
@@ -243,6 +250,67 @@ void main() {
     expect(h.web.reloadCount, 1);
   });
 
+  testWidgets('[새로고침] while recording or paused → the recording notice, '
+      'no flush, no reload; after stop the next press reloads', (tester) async {
+    late NoteStore store;
+    late FakeAudioRecorder recorder;
+    await tester.runAsync(() async {
+      store = createFakeNoteStore();
+      final note = await store.library.createNote(title: '녹음');
+      recorder = FakeAudioRecorder(store: store);
+      await recorder.start(recordingId: 'rec-1', noteId: note.id);
+    });
+    addTearDown(() => tester.runAsync(store.close));
+    final h = await _pump(
+      tester,
+      remoteSha: _remoteSha,
+      extra: [audioRecorderServiceProvider.overrideWithValue(recorder)],
+    );
+    await _firstCheck(tester);
+    const notice = '녹음 중에는 새로 고칠 수 없어요. 녹음을 멈춘 뒤 눌러 주세요.';
+    expect(find.text(notice), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, '새로고침'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text(notice), findsOneWidget);
+    expect(find.text(_bannerText), findsOneWidget);
+    expect(h.module.hiddenCalls, 0);
+    expect(h.web.reloadCount, 0);
+    expect(h.status, isA<UpdateAvailable>());
+
+    await tester.runAsync(recorder.pause);
+    await tester.tap(find.widgetWithText(TextButton, '새로고침'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text(notice), findsOneWidget);
+    expect(h.web.reloadCount, 0, reason: 'paused is still a recording');
+
+    await tester.runAsync(() async {
+      await recorder.resume();
+      recorder.advance(const Duration(seconds: 2));
+      await recorder.stop();
+    });
+    await tester.tap(find.widgetWithText(TextButton, '새로고침'));
+    await tester.pump();
+    expect(find.text(notice), findsNothing);
+    expect(h.module.hiddenCalls, 1);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(h.web.reloadCount, 1);
+  });
+
+  testWidgets('recording switched off: the default UnsupportedAudioRecorder is '
+      'never active, so [새로고침] reloads', (tester) async {
+    final h = await _pump(tester, remoteSha: _remoteSha);
+    await _firstCheck(tester);
+    final container = h.container;
+    expect(
+      container.read(audioRecorderServiceProvider),
+      isA<UnsupportedAudioRecorder>(),
+    );
+    await tester.tap(find.widgetWithText(TextButton, '새로고침'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(h.web.reloadCount, 1);
+  });
+
   test('banner text is 해요체 (계약 7.4.5)', () {
     final text = AppStrings.updateAvailable(43, 'b2c3d4e');
     expect(text, _bannerText);
@@ -253,5 +321,9 @@ void main() {
     }
     expect(AppStrings.later, '나중에');
     expect(AppStrings.reload, '새로고침');
+    expect(
+      AppStrings.reloadBlockedByRecording,
+      '녹음 중에는 새로 고칠 수 없어요. 녹음을 멈춘 뒤 눌러 주세요.',
+    );
   });
 }

@@ -56,4 +56,7 @@ final class _StubWebPlatform implements WebPlatform {
 
   @override
   void reload() {}
+
+  @override
+  void setLeaveGuard(bool enabled) {}
 }
