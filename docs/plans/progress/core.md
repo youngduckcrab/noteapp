@@ -402,7 +402,7 @@
 | T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
 | T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
 | T32 | 완료 | 8cf5524 | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
-| T33a | 남음 | | `test/search/search_index_writer_test.dart`, `test/web/search_fts_browser_test.dart`(쓰기) |
+| T33a | 완료 | (이 커밋) | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
 | T33b | 남음 | | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 남음 | | `test/repo/library_search_v2_test.dart`, 1차 `library_contract` |
 | T29 | 남음 | | `test/repo/note_copy_v2_test.dart`, `test/repo/trash_purge_v2_test.dart`, `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart` |
@@ -573,6 +573,30 @@
 | `ws check` | R1~R16 위반 0·경고 0 | 92초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 21초 |
 
+#### T33a — 검색 색인 ① 쓰기 쪽 (계획 6.10.3·6.10.5·8.2, 계약 7.2.5)
+
+- `storage/search_indexer.dart` `SearchIndexer`(쓰기 트랜잭션 안의 색인 행) + `storage/drift_search_index.dart` `DriftSearchIndex`(`DriftNoteStore.search` — 작성기·상태·재구축, 질의 `searchPages`는 T33b까지 빈 목록). B2의 `repo/empty_v2_repositories.dart`(`EmptySearchIndex`)와 `common/pending.dart`(`notYet`)는 쓰는 곳이 없어져 지웠다 — 2차 표면의 `UnimplementedError`는 이제 없다.
+- 쓰기 훅: `write_queue.dart`에 내부 인터페이스 `TxnIndexHooks`(`entityWritten`·`objectsAdopted`·`beforeCommit`·`committed`·`rolledBack`)와 `WriteQueue.indexHooks`. `WriteTxn.putLocal`(로컬만 바뀐 경로 포함)·`putRemote`가 행을 쓴 뒤 `entityWritten(entity, versions.max, noteId 힌트)`를 부른다 — 세션 커밋·undo/redo·`createNote(PageDraft.objects)`·손글씨 `put`/`update`/`removeForPage`·`applyRemote`·`commitRepairs`가 모두 이 두 함수를 지나므로 훅은 이 한 곳이다. `TextBoxObject`(text)·`MathObject`(math)·`HandwritingText`(ink)만 색인하고 도형·이미지·`UnknownObject`·획은 바로 돌아온다.
+- 소유자 행 쓰기(한 savepoint — 6.10.5): 옛 단위의 FTS 행 `DELETE … WHERE rowid IN (…)`(contentless_delete) → 단위 행 삭제 → 새 단위 행(id = SQLite rowid 규칙 '지금 최대 + 1', 다시 색인된 내용이 '최근') + FTS 행(`g` = `indexTerms(norm)`) → 소유자 upsert(`sourceRev`, `pending = 0`). 삭제된 원천 → 소유자·단위 삭제. `sourceRev`: text·math `<객체 version>:1`, ink `<HandwritingText.sourceRev>:<version>:1`. 소유자 행의 `sourceRev`가 같고 보류가 아니면 다시 쓰지 않는다(같은 버전 재적용).
+- 단위 규칙: 본문이 `SearchText.normalize`로 빈 문자열이면 단위 없음(소유자만), ink는 줄마다(빈 줄 제외, `seq` = 남은 줄 순서, 사각형 = `line.rect`), text·math는 단위 하나(사각형 = `bounds`). 가짜(`memory_search_index.dart`)의 `body.trim().isNotEmpty`를 같은 규칙(`normalize(...).isNotEmpty`)으로 맞췄다.
+- 원격 고아 객체(페이지 행이 아직 없음 — `note_id ''`): 소유자만(단위 없음 — 가짜와 같음). 페이지가 오는 커밋의 `_adoptOrphans`가 입양한 객체 id로 `objectsAdopted`를 불러 text·math 행을 노트와 함께 다시 색인한다.
+- 실패 격리(C-13): 색인 쓰기는 원천 쓰기 작업 안의 중첩 `db.transaction`(savepoint). 실패 → savepoint만 되돌리고 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`로 보류 표시(못 쓰면 `dart:developer` `log`만) → 원천 쓰기는 정상 커밋·Future 정상 완료. 재시도: `WriteQueue._attempt`가 모든 작업 뒤 커밋 전에 `beforeCommit` — 커밋된 보류 수 > 0이면 보류 소유자 최대 20개(`kSearchRetryPerTransaction`, source·owner_key 순)를 원천 행(page_objects·handwriting — 없으면 소유자 삭제)에서 다시 색인하고 그 트랜잭션 안에서 보류 수를 다시 센다(보류가 없고 표시도 없던 트랜잭션은 질의 0개). 커밋되면 `committed()`가 보류 수를 바꾸고 `status`를 낸다, 되돌려지면 `rolledBack()`. 저장소 열기(`DriftSearchIndex.opened` — `ensureDefaults` 전): 보류 수 읽기, 보류가 있으면 빈 큐 작업 하나(그 트랜잭션 끝이 재시도). 타이머 없음.
+- `SearchIndexWriter`(pdf): 검증은 가짜와 공용 `search/search_writer_checks.dart`(`checkSearchWriterOwner`·`checkSearchUnits`·`splitPdfOwnerKey` — 가짜도 이것을 쓰게 고침). `replaceUnits` ① 사각형이 있는 단위마다 블롭 `si/pdf/<assetId>/<pdfIndex>/<16 hex>-<seq 4자리>`에 `SearchRectsCodec.encode` `put`(호출마다 새 토큰 — 키를 덮어쓰지 않음) ② 큐 작업 하나(`writeOwnerRows` — 옛 `rects_ref` 모음) ③ 작업 Future가 끝난 뒤(= 커밋 뒤) 옛 블롭 삭제. ②가 실패하면(작업 오류) ①의 새 블롭을 지우고 다시 던진다. `removeOwner`도 커밋 뒤 블롭 삭제. 고아 블롭 정리: 작성기·`rebuild`의 첫 사용 때 한 번(`si/` 키 중 `rects_ref`에 없는 것) — 모든 작성기 호출이 이것을 기다린 뒤 자기 블롭을 쓰므로 진행 중인 호출의 블롭을 지우지 않는다. 블롭은 자산 조각과 같은 저장소(`assetChunks ?? blobs.chunks` — 초안 `rd/`와 같은 방식, T35 뒤 네이티브 파일 블롭).
+- `rebuild({sources})`: `rebuilding: true` → 큐 작업 ① 고른 원천의 FTS·단위·소유자 삭제(pdf `rects_ref` 모음 → 커밋 뒤 블롭 삭제) ② text·math는 `page_objects`(type·`deleted_at IS NULL`·id 순)에서, ink는 `handwriting`에서 **200행씩 큐 작업 하나**(`kSearchRebuildChunk`) ③ kv `search.lastRebuildAt`(전체 재구축이면 `search.normalizerVersion`도) → `rebuilding: false`·`lastRebuildAt`. 열 때 kv `search.normalizerVersion` ≠ 1이면 `rebuild()`를 기다리지 않고 시작한다.
+- `status`: 구독 즉시 현재 값 + 바뀔 때(`Stream.multi` — 가짜와 같은 비동기 전달).
+- 시험 이음새: `SearchIndexer.failNextIndexWrites(n)`(훅·재시도 savepoint 안 실패, pdf는 작업 실패), `DriftSearchIndex.debugLog`(`put`·`commit`·`delete`·`orphan` 순서).
+- B2-α 공유 본문(`test/shared/b2_alpha_store_cases.dart`)의 `tasks.search`를 null 허용으로 — 실제 저장소는 쓰기 시험을 건너뛴다(읽기 빈 결과 시험은 그대로 통과).
+- 남은 것(T33b): `searchPages` 후보 SQL·pdf 펼침·대표 단위 원문·사각형 블롭 읽기(`BlobStore.getMany`), 블롭이 없는 `rects_ref`를 '사각형 없음'으로 읽기. 영구 삭제 때 그 노트의 소유자 삭제는 T29(`deleteNoteContents` 확장 — 지금은 남는다, 질의는 살아 있는 페이지만 보므로 결과에는 나오지 않음).
+
+확인 (2026-11-06, load 7~8)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,072개 통과**(1,047 + 새 26 − B2 색인 쓰기 1), 7개 건너뜀(perf) | 115초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **95개 통과**(91 + `search_fts_browser_test` 4), 1개 건너뜀(perf) | 184초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
@@ -597,14 +621,16 @@
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32. 다음은 **T33a**(T26·T32 뒤 — 색인 쓰기 훅을 한 곳에: 로컬 세션 쓰기·원격 `_RemoteWriter`·손글씨 `put`/`update`/`removeForPage`·원격 손글씨) → T33b → T34 → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 잰다.
-- T33a가 손글씨에 붙일 곳: `DriftHandwritingRepository._store`(새 행·바뀐 행 — 같은 트랜잭션의 savepoint에서 ink 단위 다시 색인, 실패는 원천 쓰기를 막지 않음 C-13)와 `removeForPage`(ink 단위 제거), 원격은 `_RemoteWriter`의 `HandwritingText` 경우.
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a. 다음은 **T33b**(질의 — 아래) → T34 → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 잰다.
+- T33b가 할 것: `DriftSearchIndex.searchPages`(지금 빈 목록)와 `search(query, limit:, withinNote:)`(가짜 `MemorySearchIndex.search`와 같은 모양 — `pagesTruncated`용, T34의 `searchLibrary`가 쓴다). 후보: FTS `search_fts MATCH ? … ORDER BY rowid DESC LIMIT 2001`(별칭 없이 — `search_fts MATCH`는 표 이름으로) 또는 LIKE(`likeContains` — 낱말마다), 살아 있음 = 비pdf `pages.id = page_id`, pdf `pages(bg_asset_id, bg_pdf_index)`(색인 `idx_pages_bg`) ⋈ notes(`deleted_at IS NULL`, 소유자, `withinNote`). 2단계는 `search_pipeline.dart`의 `rankSearchCandidates`(동기 콜백 — pdf 펼침·노트 `updatedAt`을 한 질의씩 미리 읽어 둔다), 3단계 `searchHitOf`(돌려줄 페이지 단위만 `body`·사각형·`rects_ref`·`pdf_aspect`, 대표 pdf 단위의 블롭은 `BlobStore.getMany` 하나 — 인터페이스에 더하고 시험 구현 3개(`asset_store_test`·`v1_copy_test` 둘)도 고친다, 블롭 없음 = 사각형 없음), 페이지 크기는 `pages.width/height`.
+- 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
+- 영구 삭제(T29): `deleteNoteContents`가 그 노트의 `search_owners`(note_id)·`search_units`·FTS 행도 지워야 한다(pdf 소유자는 에셋 단위라 남김). 객체·손글씨 행도 지금은 남는다(T29 몫).
 - `content_rev` 경합(위 '계획과 다르게 한 점' T32): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`·`putLocal(Page)`)를 `MAX(content_rev + 1, 값)`으로 바꿀지 T37(또는 통합) 전에 판단 — 썸네일 캐시도 같은 이득.
 - T29가 할 것(초안 몫): 영구 삭제 때 그 노트의 `recording_drafts` 행 삭제 + 커밋 뒤 `rd/<draftId>/` 블롭 삭제(6.14.2 — `afterCommit`). 지금은 남는다.
 - 초안 저장소 시험 도구: `test/media/draft_store_support.dart` `openDraftStore(path, idbFactory)`(파일 DB + 같은 메모리 IndexedDB로 다시 열기), `DriftRecordingDraftStore.debugWriteOrder`·`.blobs`.
 - 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
 - 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.
-- 남은 2차 표면 `UnimplementedError`: 색인 T33a(`empty_v2_repositories.dart` `EmptySearchIndex`).
+- 남은 2차 표면 `UnimplementedError`: 없음(T33a에서 `empty_v2_repositories.dart`·`common/pending.dart`를 지웠다). 질의 `searchPages`는 T33b까지 빈 목록.
 - 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
 - v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
 - Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.

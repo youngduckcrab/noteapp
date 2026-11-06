@@ -2,9 +2,9 @@
 // the 2nd-round store members read empty and their writes throw
 // UnimplementedError('CORE <task>: …'); the stroke part of RemoveElements /
 // ClearPage(includeObjects:) works as in v1.4. Runs on the real store
-// (test/testing/open_test_store_test.dart, task T33a — 8.1 'B2 상태', column
-// 'B2 전체(β) 끝'; recordings since T30, drafts since T31, handwriting since T32, the v1 copy
-// since T24, objects since T27). The fake store
+// (test/testing/open_test_store_test.dart — 8.1 'B2 상태', column 'B2 전체(β) 끝';
+// recordings since T30, drafts since T31, handwriting since T32, the search index writes since
+// T33a, the v1 copy since T24, objects since T27). The fake store
 // left this state with CORE T23b; its v2 behaviour is in test/testing/fake_store_v2_test.dart
 // and the shared contracts (test/shared/*_contract.dart). Web-safe (no dart:io).
 import 'dart:async';
@@ -29,12 +29,13 @@ Matcher throwsPending(String task) => throwsA(
 /// CORE T30 — test/shared/recording_contract.dart). [drafts]: null when the draft store works
 /// (the real store since CORE T31 — test/shared/recording_draft_contract.dart). [handwriting]:
 /// null when the repository works (the real store since CORE T32 —
-/// test/shared/handwriting_contract.dart).
+/// test/shared/handwriting_contract.dart). [search]: null when the index writes work (the real
+/// store since CORE T33a — test/search/search_index_writer_test.dart).
 typedef B2AlphaTasks = ({
   String? recordings,
   String? drafts,
   String? handwriting,
-  String search,
+  String? search,
   String? v1Copy,
 });
 
@@ -185,20 +186,22 @@ void defineB2AlphaStoreTests(
       expect(result.pagesTruncated, isFalse);
     });
 
-    test('writes throw UnimplementedError(CORE ${tasks.search})', () {
-      final search = store.search;
-      expect(
-        search.replaceUnits(SearchSource.pdf, 'a#0', const [
-          SearchUnitDraft(body: 'x'),
-        ], sourceRev: 'a:1'),
-        throwsPending(tasks.search),
-      );
-      expect(
-        search.removeOwner(SearchSource.pdf, 'a#0'),
-        throwsPending(tasks.search),
-      );
-      expect(search.rebuild(), throwsPending(tasks.search));
-    });
+    if (tasks.search case final searchTask?) {
+      test('writes throw UnimplementedError(CORE $searchTask)', () {
+        final search = store.search;
+        expect(
+          search.replaceUnits(SearchSource.pdf, 'a#0', const [
+            SearchUnitDraft(body: 'x'),
+          ], sourceRev: 'a:1'),
+          throwsPending(searchTask),
+        );
+        expect(
+          search.removeOwner(SearchSource.pdf, 'a#0'),
+          throwsPending(searchTask),
+        );
+        expect(search.rebuild(), throwsPending(searchTask));
+      });
+    }
   });
 
   // Object commands work on both stores since CORE T27 (test/shared/

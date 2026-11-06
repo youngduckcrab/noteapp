@@ -22,11 +22,9 @@ import '../common/ids.dart';
 import '../migration/note_migrator.dart';
 import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
-import '../repo/empty_v2_repositories.dart';
 import '../repo/events.dart';
 import '../repo/note_store.dart';
 import '../repo/status.dart';
-import '../search/search_types.dart';
 import '../session/note_session.dart';
 import 'change_bus.dart';
 import 'db/note_database.dart';
@@ -36,6 +34,7 @@ import 'drift_library_repository.dart';
 import 'drift_pen_preset_repository.dart';
 import 'drift_recording_draft_store.dart';
 import 'drift_recording_repository.dart';
+import 'drift_search_index.dart';
 import 'drift_sessions.dart';
 import 'drift_settings_repository.dart';
 import 'drift_sync_store.dart';
@@ -109,6 +108,8 @@ final class DriftNoteStore implements NoteStore {
       thumbnailBytes: thumbnails.totalBytes,
     );
     sync = DriftSyncStore(this);
+    search = DriftSearchIndex(this, assetChunks ?? blobs.chunks);
+    queue.indexHooks = search.indexer;
     sessions = DriftSessions(this);
     queue.onCommitted = sessions.committed;
     _noteMigrator = NoteMigrator(kNoteMigrationSteps, store: this);
@@ -191,6 +192,8 @@ final class DriftNoteStore implements NoteStore {
       if (key != null) {
         _openStoreCounts.update(key, (n) => n + 1, ifAbsent: () => 1);
       }
+      // (v2) 6.10.5: the pending count; a rebuild or a retry job when needed (not awaited).
+      await store.search.opened();
       // 6.2.2: the default presets exist right after open (one commit, once per DB).
       if (config.seedDefaultPenPresets) await store.penPresets.ensureDefaults();
       if (autoPurge) store.trash.startAutoPurge();
@@ -264,8 +267,8 @@ final class DriftNoteStore implements NoteStore {
   late final DriftSyncStore sync;
 
   // (v2) 2nd-round getters. Recordings since CORE T30, recording drafts since T31,
-  // handwriting results since T32; the search index reads empty and its writes throw
-  // UnimplementedError until CORE T33a (02-core 8.1 'B2 상태').
+  // handwriting results since T32, the search index (writes) since T33a — its queries
+  // answer empty until CORE T33b.
   @override
   late final DriftRecordingRepository recordings;
   @override
@@ -273,7 +276,7 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final DriftHandwritingRepository handwriting;
   @override
-  final SearchIndex search = EmptySearchIndex('T33a');
+  late final DriftSearchIndex search;
 
   /// Open note sessions (6.14).
   late final DriftSessions sessions;
@@ -342,6 +345,7 @@ final class DriftNoteStore implements NoteStore {
     await assets.close();
     await thumbnails.close();
     await queue.close();
+    await search.close();
     watches.close();
     await bus.close();
     await blobs.close();

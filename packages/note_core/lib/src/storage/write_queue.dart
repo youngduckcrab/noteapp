@@ -53,6 +53,24 @@ const int kMaxBytesPerTransaction = 4 * 1024 * 1024;
 /// retry) rather than a storage failure (retries the transaction).
 bool isDomainError(Object e) => e is Error || e is NoteCoreException;
 
+/// (v2) The search index work of the write transactions (m5-7/02-core 6.10.3, 6.10.5 —
+/// storage/search_indexer.dart). Every call runs inside the running transaction.
+abstract interface class TxnIndexHooks {
+  /// [entity] was just stored by a job with [version] (its stored versions.max); [noteId] is
+  /// the note hint of the write (null: an orphan object whose page is not here yet).
+  Future<void> entityWritten(SyncEntity entity, Hlc version, NoteId? noteId);
+
+  /// The orphan page objects [ids] got the note [noteId] (their page row arrived).
+  Future<void> objectsAdopted(List<ElementId> ids, NoteId noteId);
+
+  /// At the end of every transaction, after its jobs (the pending retry).
+  Future<void> beforeCommit();
+
+  /// The transaction committed / was rolled back (to be retried).
+  void committed();
+  void rolledBack();
+}
+
 final class _Job<T> {
   _Job(this.body, this.origin, this.bytes, this.enqueuedAt);
   final Future<T> Function(WriteTxn tx) body;
@@ -123,6 +141,9 @@ final class WriteQueue {
   /// watch streams re-query and the commit's Futures complete (open sessions, 6.14
   /// N-4 / N-7). A failure is not the commit's failure.
   Future<void> Function(List<ChangeBatch> batches)? onCommitted;
+
+  /// (v2) The search index rows written with the jobs (m5-7/02-core 6.10.3).
+  TxnIndexHooks? indexHooks;
 
   /// Transactions attempted so far (tests: group commit).
   @visibleForTesting
@@ -219,6 +240,7 @@ final class WriteQueue {
         for (final job in batch) {
           await job.attempt(WriteTxn._(this, job.origin, now), db);
         }
+        await indexHooks?.beforeCommit();
         if (_failing > 0) {
           _failing--;
           Error.throwWithStackTrace(_failError, StackTrace.current);
@@ -234,7 +256,9 @@ final class WriteQueue {
         }
       });
       if (hlcText != null) _persistedHlc = hlcText;
+      indexHooks?.committed();
     } on Object catch (e) {
+      indexHooks?.rolledBack();
       _running = false;
       final failures = _status.consecutiveFailures + 1;
       _setStatus(
@@ -406,6 +430,11 @@ final class WriteTxn {
         strokeNoteId: hints.noteId,
         assetChunkCount: assetChunkCount,
       );
+      await _queue.indexHooks?.entityWritten(
+        entity,
+        current.versions.max,
+        hints.noteId,
+      );
       return current.versions;
     }
     final h = fixedVersion ?? stamp();
@@ -417,6 +446,7 @@ final class WriteTxn {
       strokeNoteId: hints.noteId,
       assetChunkCount: assetChunkCount,
     );
+    await _queue.indexHooks?.entityWritten(entity, versions.max, hints.noteId);
     await recordOutbox(
       db,
       kind: entity.kind,
@@ -466,6 +496,7 @@ final class WriteTxn {
       strokeNoteId: hints.noteId ?? '',
       assetChunkCount: assetChunkCount,
     );
+    await _queue.indexHooks?.entityWritten(entity, versions.max, hints.noteId);
     if (!orphan) {
       addChange(
         EntityChange(
@@ -570,6 +601,10 @@ final class WriteTxn {
       await (db.update(o)
             ..where((t) => t.pageId.equals(page.id) & t.noteId.equals('')))
           .write(PageObjectsCompanion(noteId: Value(page.noteId)));
+      // (v2) Their text / math search units now have a note (6.10.3).
+      await _queue.indexHooks?.objectsAdopted([
+        for (final r in objects) r.read(o.id)!,
+      ], page.noteId);
     }
     final out = db.outbox;
     await (db.update(out)..where(

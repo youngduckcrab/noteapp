@@ -17,6 +17,7 @@ import '../search/search_pipeline.dart';
 import '../search/search_rects.dart';
 import '../search/search_text.dart';
 import '../search/search_types.dart';
+import '../search/search_writer_checks.dart';
 import 'fake_note_store.dart';
 
 final class _Unit {
@@ -63,8 +64,6 @@ final class _Unit {
     pdfIndex: pdfIndex,
   );
 }
-
-final RegExp _pdfOwnerKey = RegExp(r'^[0-9a-f]{64}#[0-9]+$');
 
 final class MemorySearchIndex implements SearchIndex {
   MemorySearchIndex(this.s);
@@ -137,7 +136,8 @@ final class MemorySearchIndex implements SearchIndex {
     };
     final noteId = s.pages[o.pageId]?.noteId;
     _replace(source, o.id, '${o.version}:${SearchText.normalizerVersion}', [
-      if (noteId != null && body.trim().isNotEmpty)
+      // The real index's rule: no unit for a body that normalizes to nothing.
+      if (noteId != null && SearchText.normalize(body).isNotEmpty)
         (id, seq) => _Unit(
           id: id,
           source: source,
@@ -197,23 +197,6 @@ final class MemorySearchIndex implements SearchIndex {
 
   // ---- SearchIndexWriter (pdf only) ------------------------------------------------------
 
-  static void _checkPdf(SearchSource source, String ownerKey) {
-    if (source != SearchSource.pdf) {
-      throw ArgumentError.value(
-        source,
-        'source',
-        'only pdf is written through SearchIndexWriter (CORE indexes ink / text / math)',
-      );
-    }
-    if (!_pdfOwnerKey.hasMatch(ownerKey)) {
-      throw ArgumentError.value(
-        ownerKey,
-        'ownerKey',
-        "must be '<assetId>#<pdfPageIndex>'",
-      );
-    }
-  }
-
   @override
   Future<String?> sourceRevOf(SearchSource source, String ownerKey) async =>
       _owners[(source, ownerKey)];
@@ -232,42 +215,12 @@ final class MemorySearchIndex implements SearchIndex {
     required String sourceRev,
   }) {
     try {
-      _checkPdf(source, ownerKey);
-      if (sourceRev.isEmpty || sourceRev.length > 200) {
-        throw ArgumentError.value(sourceRev, 'sourceRev', '1..200 chars');
-      }
-      if (units.length > 10000) {
-        throw ArgumentError.value(units.length, 'units', 'at most 10,000');
-      }
-      for (final u in units) {
-        if (u.body.length > 200000) {
-          throw ArgumentError.value(u.body.length, 'body', 'at most 200,000');
-        }
-        if (u.rects.isNotEmpty && u.rects.length != u.body.length) {
-          throw ArgumentError.value(
-            u.rects.length,
-            'rects',
-            'empty or one per UTF-16 code unit of body (${u.body.length})',
-          );
-        }
-        for (final r in u.rects) {
-          for (final f in [r.left, r.top, r.right, r.bottom]) {
-            if (!f.isFinite || f < -1e-6 || f > 1 + 1e-6) {
-              throw ArgumentError.value(r, 'rects', 'fractions in [0, 1]');
-            }
-          }
-        }
-        final a = u.pdfPageAspect;
-        if (a != null && !(a.isFinite && a > 0)) {
-          throw ArgumentError.value(a, 'pdfPageAspect', 'finite and > 0');
-        }
-      }
+      checkSearchWriterOwner(source, ownerKey);
+      checkSearchUnits(units, sourceRev);
     } on ArgumentError catch (e, st) {
       return Future.error(e, st);
     }
-    final hash = ownerKey.indexOf('#');
-    final assetId = ownerKey.substring(0, hash);
-    final pdfIndex = int.parse(ownerKey.substring(hash + 1));
+    final (assetId, pdfIndex) = splitPdfOwnerKey(ownerKey);
     return s.write(() {
       _replace(source, ownerKey, sourceRev, [
         for (final u in units)
@@ -292,7 +245,7 @@ final class MemorySearchIndex implements SearchIndex {
   @override
   Future<void> removeOwner(SearchSource source, String ownerKey) {
     try {
-      _checkPdf(source, ownerKey);
+      checkSearchWriterOwner(source, ownerKey);
     } on ArgumentError catch (e, st) {
       return Future.error(e, st);
     }
