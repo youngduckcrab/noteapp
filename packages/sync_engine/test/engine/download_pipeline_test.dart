@@ -8,6 +8,7 @@ import 'package:note_core/note_core.dart';
 import 'package:sync_engine/src/codec/chunk_codec.dart';
 import 'package:sync_engine/src/codec/chunk_id.dart';
 import 'package:sync_engine/src/engine/download_pipeline.dart';
+import 'package:sync_engine/src/engine/meta_keys.dart';
 import 'package:sync_engine/src/engine/serial_executor.dart';
 import 'package:sync_engine/src/engine/upload_pipeline.dart';
 import 'package:sync_engine/src/merge/merge_recorder.dart';
@@ -16,6 +17,7 @@ import 'package:sync_engine/testing.dart';
 
 import '../support/download_rig.dart';
 import '../support/local_writes.dart';
+import '../support/raw_records.dart';
 
 EntityRef note(String id) => EntityRef(EntityKind.note, id);
 EntityRef page(String id) => EntityRef(EntityKind.page, id);
@@ -243,6 +245,74 @@ void main() {
         ]);
         r.expectSameRow(EntityKind.note, 'n1');
         expect(r.pipeline.cursor, r.serverChunks().last.serverTime);
+      });
+    });
+
+    test('(S2-4b) a record of a kind this app does not know is left out: the '
+        'known records of its chunk apply, needsAppUpdate names the kind, the '
+        'cursor moves on', () {
+      withDownloadRig((r) {
+        final c = FakeLocalStore(nodeId: nodeC, clock: r.base, ownerId: uid)
+          ..localWrite([noteWrite('n2')]);
+        final known = DownloadRig.recordOf(c, EntityKind.note, 'n2');
+        final hlc = Hlc(start.millisecondsSinceEpoch, 0, nodeC);
+        final chunk = r.commitRecordBytes([
+          rawUpsertRecord(
+            'bookmark',
+            {'id': 'b1', 'noteId': 'n2', 'version': hlc.toString()},
+            {'b': hlc.toString()},
+          ),
+          ChunkCodec.encodeRecord(known),
+          rawPurgeRecord('bookmark', 'b0', hlc.toString()),
+        ], maxHlc: known.versions.max);
+        r.connect();
+        final result = r.catchUp();
+        expect(result.issues.map((i) => (i.code, i.message)), [
+          (
+            SyncIssueCode.needsAppUpdate,
+            '2 record(s) of kind bookmark held until the app is updated',
+          ),
+        ]);
+        expect(r.hasRow(EntityKind.note, 'n2'), isTrue);
+        expect(r.pipeline.cursor, chunk.serverTime);
+        expect(r.pipeline.knownKinds, EntityKind.values.toSet());
+      });
+    });
+
+    test('(S2-4b) knownKinds: an older app leaves the records of the other '
+        'kinds out; the default pipeline applies them', () {
+      withDownloadRig((r) {
+        r.b.localWrite([
+          noteWrite('n1'),
+          pageWrite('p1', 'n1'),
+          handwritingWrite('p1', 'n1'),
+          objectWrite('o1', 'p1'),
+        ]);
+        r.pushB();
+        final old = EntityKind.values.toSet()
+          ..removeAll({EntityKind.handwriting, EntityKind.pageObject});
+        r.pipeline = r.newPipeline(knownKinds: old);
+        r.connect();
+        final result = r.catchUp();
+        expect(result.issues.map((i) => (i.code, i.message)), [
+          (
+            SyncIssueCode.needsAppUpdate,
+            '2 record(s) of kind handwriting, pageObject held until the app '
+                'is updated',
+          ),
+        ]);
+        expect(r.hasRow(EntityKind.page, 'p1'), isTrue);
+        expect(r.hasRow(EntityKind.handwriting, 'hw_p1'), isFalse);
+        expect(r.hasRow(EntityKind.pageObject, 'o1'), isFalse);
+        expect(r.pipeline.knownKinds, old);
+
+        r.pipeline = r.newPipeline();
+        r.run(r.sync.writeMeta({MetaKeys.cursor: MetaKeys.cleared}));
+        r.connect();
+        final again = r.catchUp();
+        expect(again.issues, isEmpty);
+        expect(r.hasRow(EntityKind.handwriting, 'hw_p1'), isTrue);
+        expect(r.hasRow(EntityKind.pageObject, 'o1'), isTrue);
       });
     });
 

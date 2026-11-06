@@ -1,12 +1,15 @@
 // Receiving rig (test/ only): device A runs a DownloadPipeline on the fake server; device B
 // writes through its own FakeLocalStore + UploadPipeline (real HLCs and field versions) or
 // chunks are committed raw. Everything in virtual time.
+import 'dart:typed_data';
+
 import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:sync_engine/src/codec/chunk_codec.dart';
 import 'package:sync_engine/src/codec/chunk_id.dart';
+import 'package:sync_engine/src/common/varuint.dart';
 import 'package:sync_engine/src/engine/download_pipeline.dart';
 import 'package:sync_engine/src/engine/upload_pipeline.dart';
 import 'package:sync_engine/src/merge/merge_recorder.dart';
@@ -94,7 +97,10 @@ final class DownloadRig {
 
   int get wallMillis => base.now().add(aOffset).millisecondsSinceEpoch;
 
-  DownloadPipeline newPipeline({int? codecFormat}) => DownloadPipeline(
+  DownloadPipeline newPipeline({
+    int? codecFormat,
+    Set<EntityKind>? knownKinds,
+  }) => DownloadPipeline(
     sync: sync,
     backend: backend,
     config: config,
@@ -113,6 +119,7 @@ final class DownloadRig {
       restored.addAll(repairs);
     },
     codecFormat: codecFormat ?? this.codecFormat,
+    knownKinds: knownKinds,
   );
 
   T run<T>(Future<T> future) => runFake(async, future);
@@ -149,6 +156,35 @@ final class DownloadRig {
   List<RemoteChunk> serverChunks() => [
     for (final c in server.chunksOf(uid)) c.chunk,
   ];
+
+  /// (2nd round) Commits one raw chunk of [records] — encoded record bytes (ChunkCodec
+  /// .encodeRecord or test/support/raw_records.dart) — with [maxHlc]; returns it as stored.
+  RemoteChunk commitRecordBytes(
+    List<Uint8List> records, {
+    required Hlc maxHlc,
+    String author = nodeB,
+    String scope = 'lib',
+  }) {
+    final out = BytesBuilder(copy: false)
+      ..add(const [0x4E, 0x43, ChunkCodec.formatVersion]);
+    VarUint.write(out, records.length);
+    records.forEach(out.add);
+    final payload = out.takeBytes();
+    final id = chunkIdOf(author, payload);
+    server.commitRaw(uid, [
+      ChunkWrite(
+        id: id,
+        scope: scope,
+        authorNodeId: author,
+        recordCount: records.length,
+        format: ChunkCodec.formatVersion,
+        kind: ChunkKind.delta,
+        maxHlc: maxHlc.toString(),
+        payload: payload,
+      ),
+    ]);
+    return serverChunks().lastWhere((c) => c.id == id);
+  }
 
   /// Commits [records] as one raw chunk; returns it as stored.
   RemoteChunk commit(

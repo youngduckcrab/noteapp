@@ -129,8 +129,11 @@ final class DownloadPipeline {
     this.purgeGuard = _noGuard,
     this.afterGroup = _noChecks,
     this.codecFormat = ChunkCodec.formatVersion,
+    Set<EntityKind>? knownKinds,
   }) : _applied = LruSet(config.appliedChunkMemory),
-       _held = HeldChunks(maxEntries: config.maxHeldChunks);
+       _held = HeldChunks(maxEntries: config.maxHeldChunks),
+       knownKinds = Set.unmodifiable(knownKinds ?? EntityKind.values),
+       _knownNames = {for (final k in knownKinds ?? EntityKind.values) k.name};
 
   final SyncStore sync;
   final SyncBackend backend;
@@ -159,6 +162,14 @@ final class DownloadPipeline {
 
   /// Newest chunk format this app reads (6.6.5) — ChunkCodec.formatVersion.
   final int codecFormat;
+
+  /// (2nd round, S-13 — 07-sync 6.3.3, 6.3.8) Kinds this app's codec knows (default: every
+  /// EntityKind; fewer = an older app in tests). Chunks are read with
+  /// ChunkCodec.decodeTolerant: the known records of a chunk apply, a record of another kind
+  /// is left out and reported as needsAppUpdate. (S2-4b: such a record is not stored yet —
+  /// holding it in sync.heldRecords is S2-7a.)
+  final Set<EntityKind> knownKinds;
+  final Set<String> _knownNames;
 
   final LruSet<String> _applied;
   final MergeRecorder _recorder = MergeRecorder();
@@ -393,8 +404,9 @@ final class DownloadPipeline {
       heldChanged = held.release(id) || heldChanged;
     }
 
-    // 2–3. Own chunks, format, decoding.
+    // 2–3. Own chunks, format, decoding (S-13: records of unknown kinds left out).
     final decoded = <(RemoteChunk, List<SyncRecord>)>[];
+    final unknownKinds = <String, int>{};
     for (final c in fresh) {
       latest = latest == null
           ? c.serverTime
@@ -423,10 +435,25 @@ final class DownloadPipeline {
         continue;
       }
       try {
-        decoded.add((c, ChunkCodec.decode(c.payload)));
+        final payload = ChunkCodec.decodeTolerant(
+          c.payload,
+          isKnownKind: _knownNames.contains,
+        );
+        decoded.add((c, payload.records));
+        for (final u in payload.unknown) {
+          unknownKinds[u.kindName] = (unknownKinds[u.kindName] ?? 0) + 1;
+        }
       } on FormatException catch (e) {
         issue(SyncIssueCode.malformedRemoteData, 'chunk ${c.id}: ${e.message}');
       }
+    }
+    if (unknownKinds.isNotEmpty) {
+      final names = unknownKinds.keys.toList()..sort();
+      final n = unknownKinds.values.fold(0, (a, b) => a + b);
+      issue(
+        SyncIssueCode.needsAppUpdate,
+        '$n record(s) of kind ${names.join(', ')} held until the app is updated',
+      );
     }
 
     // 4. Permanent-deletion view up to date.

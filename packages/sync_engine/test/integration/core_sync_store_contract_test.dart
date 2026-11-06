@@ -1,7 +1,9 @@
 // T16 (integration stage, contract 7.7 step 5 v1.2 — C12-05 "SyncStore 계약 스위트 C-01~C-25
 // (CoreSyncLocalStore(openTestNoteStore))"): the shared suite of
 // test/contract/sync_store_contract.dart against real CORE through CoreSyncLocalStore, with
-// the real-CORE-only checks (5.1.4): C-21 reopening the same file (realCore: true) and C-15's
+// the real-CORE-only checks (5.1.4): C-21 reopening the same file (realCore: true), (2nd
+// round, 07-sync 6.6) C-26..C-31 of the shared suite and C-30's device-local recording drafts
+// and search units here, and C-15's
 // open session history (remote and repair writes stay out of undo; the session sees them as
 // remote changes), and S-20 (5.1.2, contract 7.2.9 / 7.2.10 / 7.2.11 v1.3 — C13-04): while a
 // commit fails and CORE's write queue retries it, the SyncStore / AssetStore writes SYNC
@@ -40,6 +42,33 @@ void main() {
         clock: clock.clock,
       );
       addTearDown(d.close);
+    });
+
+    test('C-30 (real CORE) recording drafts and search units are device-local: '
+        'pendingChanges and watchPendingCount do not change', () async {
+      final store = d.core.store;
+      final n = await d.createNote('a');
+      final asset = await d.putAsset(contractBytes(9, 300));
+      await d.sync.acknowledge([
+        for (final e in await d.sync.pendingChanges(limit: 100000)) e.ack,
+      ]);
+      final counts = <int>[];
+      final sub = d.sync.watchPendingCount().listen(counts.add);
+      await pumpEventQueue();
+      expect(counts.last, 0);
+      await store.recordingDrafts.begin(
+        recordingId: store.ids.newId(),
+        noteId: n,
+        mimeType: 'audio/webm',
+        startedAt: clock.millis,
+      );
+      await store.search.replaceUnits(SearchSource.pdf, '${asset.id}#0', const [
+        SearchUnitDraft(body: '시험 범위'),
+      ], sourceRev: '${asset.id}:1');
+      await pumpEventQueue();
+      expect(await d.sync.pendingChanges(limit: 100000), isEmpty);
+      expect(counts, everyElement(0));
+      await sub.cancel();
     });
 
     test('C-15 an open session: remote and repair writes are not undo steps; '

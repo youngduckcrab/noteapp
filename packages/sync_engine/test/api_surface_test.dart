@@ -12,7 +12,9 @@
 //   compile.
 // - Members: SyncTestHarness.checkConverged exists; SyncTestHarness.async and
 //   .expectConverged do not (an extension member returning [Absent] would lose to a class
-//   member, and the assignment to Absent would not compile).
+//   member, and the assignment to Absent would not compile). (2nd round, 07-sync 4.3) the
+//   harness's device(knownKinds:) / restart / checkConverged(kinds:) and the TestDevice
+//   helpers have their 4.3 signatures (tear-offs assigned to the exact function types).
 // - The contract types the other areas plug in (syncBadgeOf, SyncRemoteAssetFetcher,
 //   SyncMergePolicy.decide) have the CORE types (contract 7.2.20, 7.3.3).
 @TestOn('vm')
@@ -365,6 +367,85 @@ class _Private {}
       Absent asyncField(SyncTestHarness h) => h.async;
       Absent expectMember(SyncTestHarness h) => h.expectConverged(null);
       expect([check, asyncField, expectMember], hasLength(3));
+    });
+
+    test('(2nd round, 07-sync 4.3) SyncTestHarness device(knownKinds:), '
+        'restart, checkConverged(kinds:) and the TestDevice helpers', () {
+      TestDevice Function(
+        String name, {
+        String uid,
+        Duration clockOffset,
+        bool signedIn,
+        SyncConfig? config,
+        Duration latency,
+        Set<core.EntityKind>? knownKinds,
+      })
+      device(SyncTestHarness h) => h.device;
+      TestDevice Function(String name, {Set<core.EntityKind>? knownKinds})
+      restart(SyncTestHarness h) => h.restart;
+      void Function(
+        Iterable<TestDevice> devices, {
+        bool includeServer,
+        Set<core.EntityKind>? kinds,
+      })
+      check(SyncTestHarness h) => h.checkConverged;
+      String Function(
+        String pageId, {
+        String type,
+        core.AssetId? assetId,
+        int seed,
+      })
+      addObject(TestDevice d) => d.addObject;
+      void Function(String objectId, {double dx, double dy}) moveObject(
+        TestDevice d,
+      ) => d.moveObject;
+      void Function(String objectId, int colorArgb) restyleObject(
+        TestDevice d,
+      ) => d.restyleObject;
+      void Function(String objectId, String text) editText(TestDevice d) =>
+          d.editText;
+      void Function(String objectId) deleteObject(TestDevice d) =>
+          d.deleteObject;
+      void Function(String pageId, Map<String, Object?> json) putRawObject(
+        TestDevice d,
+      ) => d.putRawObject;
+      void Function(String pageId, List<String> lines, {String engineId})
+      putHandwriting(TestDevice d) => d.putHandwriting;
+      void Function(String pageId) removeHandwriting(TestDevice d) =>
+          d.removeHandwriting;
+      Future<String> Function(
+        String noteId, {
+        core.AssetId? assetId,
+        int durationMs,
+      })
+      addRecording(TestDevice d) => d.addRecording;
+      void Function(String recordingId, String? title) renameRecording(
+        TestDevice d,
+      ) => d.renameRecording;
+      void Function(String recordingId) deleteRecording(TestDevice d) =>
+          d.deleteRecording;
+      List<SyncDoc> Function(String pageId) activeObjectsOf(TestDevice d) =>
+          d.activeObjectsOf;
+      SyncDoc? Function(String pageId) handwritingOf(TestDevice d) =>
+          d.handwritingOf;
+      expect([
+        device,
+        restart,
+        check,
+        addObject,
+        moveObject,
+        restyleObject,
+        editText,
+        deleteObject,
+        putRawObject,
+        putHandwriting,
+        removeHandwriting,
+        addRecording,
+        renameRecording,
+        deleteRecording,
+        activeObjectsOf,
+        handwritingOf,
+      ], hasLength(16));
     });
 
     test('contract types: syncBadgeOf, SyncRemoteAssetFetcher, '

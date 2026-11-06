@@ -1,8 +1,10 @@
-// Shared SyncStore contract suite (07-sync 5.1.4, C-01..C-25): one body, two
+// Shared SyncStore contract suite (07-sync 5.1.4, C-01..C-25; 2nd round 07-sync 6.6,
+// C-26..C-31 — page objects, handwriting results, recording titles): one body, two
 // implementations — FakeLocalStore (test/contract/fake_local_store_contract_test.dart, T6)
-// and real CORE through CoreSyncLocalStore(openTestNoteStore) (test/integration/, T16).
-// Every check follows a sentence of contract 7.2.10 / 7.2.11 (v1.3); when the two
-// implementations disagree, the fake is fixed to the contract sentence.
+// and real CORE through CoreSyncLocalStore(openTestNoteStore) (test/integration/, T16 /
+// T16-v2). Every check follows a sentence of contract 7.2.10 / 7.2.11 (v1.3) or of CORE
+// 5.6 / 6.13 / 6.14 and contract 7.2.8 (v2.3); when the two implementations disagree, the
+// fake is fixed to the contract sentence.
 //
 // Time comes from a manual clock the driver's store reads (no fakeAsync — real CORE runs on
 // the real event loop). Checks never assume an empty start (real CORE may seed default
@@ -14,6 +16,7 @@ import 'package:clock/clock.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
+import 'package:note_core/testing.dart';
 
 /// HLC node of the store under test and of the simulated remote writer.
 const String kContractNode = 'c0c0c0c0c0c0c0c0';
@@ -75,6 +78,35 @@ abstract interface class SyncStoreContractDriver {
   /// Reopens the same storage (real CORE); null for an in-memory implementation.
   Future<SyncStoreContractDriver?> reopen();
   Future<void> close();
+
+  // ---- (2nd round, 07-sync 6.6) ----------------------------------------------------------
+
+  /// A rectangle (PageObjectFixtures.shape) on [pageId] — AddObjects; returns its id.
+  Future<ElementId> addObject(PageId pageId);
+
+  /// UpdateObjects: the object's stroke colour changes (only `style` differs).
+  Future<void> restyleObject(ElementId objectId);
+
+  /// RemoveElements of the object.
+  Future<void> removeObject(ElementId objectId);
+
+  /// HandwritingRepository.put of `hw_<pageId>` with one line per entry of [lines] (the
+  /// other values fixed, createdAt kept from the first put).
+  Future<void> putHandwriting(
+    PageId pageId, {
+    List<String> lines = const ['가나'],
+  });
+
+  /// RecordingRepository.createRecording after storing its audio asset; returns its id.
+  Future<RecordingId> createRecording(NoteId noteId);
+  Future<void> renameRecording(RecordingId recordingId, String? title);
+
+  /// Active objects of [pageId] in drawing order (what the page shows).
+  Future<List<ElementId>> activeObjectIds(PageId pageId);
+
+  /// CORE NoteStore.changes (real CORE); null when the implementation has no change
+  /// batches for remote writes (the fake).
+  Stream<ChangeBatch>? get changeBatches;
 }
 
 typedef SyncStoreContractOpen = Future<SyncStoreContractDriver> Function({
@@ -198,6 +230,43 @@ Map<String, Object?> remoteAssetJson(
   'createdAt': at,
   'deletedAt': null,
 };
+
+/// (2nd round) A remote rectangle object (PageObjectFixtures.shape) on [pageId].
+Map<String, Object?> remoteObjectJson(
+  ElementId id,
+  PageId pageId, {
+  required int at,
+}) => PageObjectFixtures.shape(pageId: pageId, id: id, createdAt: at).toJson();
+
+/// (2nd round) A remote handwriting result `hw_<pageId>` with one line per [lines] entry.
+Map<String, Object?> remoteHandwritingJson(
+  NoteId noteId,
+  PageId pageId, {
+  required int at,
+  List<String> lines = const ['원격'],
+}) => contractHandwriting(noteId, pageId, at: at, lines: lines).toJson();
+
+/// The handwriting value both drivers and the remote helper write (engine 'contract').
+HandwritingText contractHandwriting(
+  NoteId noteId,
+  PageId pageId, {
+  required int at,
+  required List<String> lines,
+}) => HandwritingText(
+  noteId: noteId,
+  pageId: pageId,
+  engineId: 'contract',
+  sourceRev: '0123456789abcdef',
+  lines: [
+    for (final (i, text) in lines.indexed)
+      HandwritingLine(
+        text: text,
+        rect: PageRect(40, 80 + 60.0 * i, 320, 120 + 60.0 * i),
+        strokeIds: const [],
+      ),
+  ],
+  createdAt: at,
+);
 
 Uint8List contractBytes(int seed, [int length = 1000]) => Uint8List.fromList(
   List<int>.generate(length, (i) => (i * 31 + seed) % 251),
@@ -1288,6 +1357,223 @@ void syncStoreContract(
       expect(
         (await d.assets.getAsset(mine.id))!.storagePath,
         'users/u/assets/${mine.id}',
+      );
+    });
+
+    // ---- 2nd round (07-sync 6.6) ------------------------------------------------------
+
+    test(
+      'C-26 page object entries: kind pageObject, noteId of the page, pageId; '
+      'add {*}, style {style}, delete {deletedAt}',
+      () async {
+        final n = await d.createNote('a');
+        final p = (await d.activePageIds(n)).single;
+        final o = await d.addObject(p);
+        final added = (await entryOf(EntityKind.pageObject, o))!;
+        expect(added.kind, EntityKind.pageObject);
+        expect(added.op, OutboxOp.upsert);
+        expect(added.noteId, n);
+        expect(added.pageId, p);
+        expect(added.changedFields, {kAllFields});
+        final row = await read(EntityKind.pageObject, o);
+        expectInvariant(row);
+        expect(row!.entity, isA<ShapeObject>());
+        expect(await d.activeObjectIds(p), [o]);
+
+        await ackAll();
+        clock.advance(const Duration(seconds: 1));
+        await d.restyleObject(o);
+        final styled = (await entryOf(EntityKind.pageObject, o))!;
+        expect(styled.changedFields, {'style'});
+        expect((styled.noteId, styled.pageId), (n, p));
+        final restyled = (await read(EntityKind.pageObject, o))!;
+        expectInvariant(restyled);
+        expect(restyled.versions.of('style'), restyled.entity.version);
+        expect(restyled.versions.of('frame'), row.versions.of('frame'));
+
+        await ackAll();
+        clock.advance(const Duration(seconds: 1));
+        await d.removeObject(o);
+        final removed = (await entryOf(EntityKind.pageObject, o))!;
+        expect(removed.op, OutboxOp.upsert);
+        expect(removed.changedFields, {'deletedAt'});
+        expect(
+          (await read(EntityKind.pageObject, o))!.entity.isDeleted,
+          isTrue,
+        );
+        expect(await d.activeObjectIds(p), isEmpty);
+      },
+    );
+
+    test(
+      'C-27 handwriting entries: id hw_<pageId>, noteId and pageId; the same '
+      'value again makes no entry; lines only → {lines}',
+      () async {
+        final n = await d.createNote('a');
+        final p = (await d.activePageIds(n)).single;
+        final id = HandwritingText.idFor(p);
+        expect(id, 'hw_$p');
+        await d.putHandwriting(p, lines: ['가나']);
+        final first = (await entryOf(EntityKind.handwriting, id))!;
+        expect(first.noteId, n);
+        expect(first.pageId, p);
+        expect(first.changedFields, {kAllFields});
+        final row = await read(EntityKind.handwriting, id);
+        expectInvariant(row);
+        expect(row!.entity, isA<HandwritingText>());
+
+        await ackAll();
+        clock.advance(const Duration(seconds: 1));
+        await d.putHandwriting(p, lines: ['가나']);
+        expect(await entryOf(EntityKind.handwriting, id), isNull);
+        expect(
+          (await read(EntityKind.handwriting, id))!.versions,
+          row.versions,
+        );
+
+        await d.putHandwriting(p, lines: ['가나다']);
+        final lines = (await entryOf(EntityKind.handwriting, id))!;
+        expect(lines.changedFields, {'lines'});
+        expect((lines.noteId, lines.pageId), (n, p));
+      },
+    );
+
+    test('C-28 a remote object before its page is stored as an orphan and '
+        'adopted by the call that brings the page', () async {
+      final n = await d.createNote('a');
+      final batches = <ChangeBatch>[];
+      final sub = d.changeBatches?.listen(batches.add);
+      await d.sync.applyRemote([
+        remoteJson(
+          EntityKind.pageObject,
+          remoteObjectJson('o-orphan-1', 'p-orphan-2', at: clock.millis),
+          EntityFieldVersions(remoteHlc(const Duration(seconds: 1))),
+        ),
+      ], policy: take);
+      final orphan = await read(EntityKind.pageObject, 'o-orphan-1');
+      expectInvariant(orphan);
+      expect((orphan!.entity as PageObject).pageId, 'p-orphan-2');
+      await pumpEventQueue();
+      batches.clear();
+      await d.sync.applyRemote([
+        remoteJson(
+          EntityKind.page,
+          remotePageJson('p-orphan-2', n, sortKey: 'a5', at: clock.millis),
+          EntityFieldVersions(remoteHlc(const Duration(seconds: 2))),
+        ),
+      ], policy: take);
+      expect(await d.activePageIds(n), contains('p-orphan-2'));
+      expect(await d.activeObjectIds('p-orphan-2'), ['o-orphan-1']);
+      if (sub != null) {
+        await pumpEventQueue();
+        await sub.cancel();
+        final adopted = [
+          for (final b in batches)
+            for (final c in b.changes)
+              if (c.kind == EntityKind.pageObject && c.id == 'o-orphan-1') c,
+        ];
+        expect(adopted, hasLength(1), reason: 'in the batch of the page call');
+        expect(adopted.single.noteId, n);
+        expect(adopted.single.pageId, 'p-orphan-2');
+      }
+    });
+
+    test('C-29 a remote object or handwriting result on an existing page '
+        'raises its contentRevision once per call', () async {
+      final n = await d.createNote('a');
+      final p = (await d.activePageIds(n)).single;
+      final rev0 = await d.contentRevision(p);
+      await d.sync.applyRemote([
+        remoteJson(
+          EntityKind.pageObject,
+          remoteObjectJson('o-remote-1', p, at: clock.millis),
+          EntityFieldVersions(remoteHlc(const Duration(seconds: 1))),
+        ),
+      ], policy: take);
+      expect(await d.contentRevision(p), rev0 + 1);
+      await d.sync.applyRemote([
+        remoteJson(
+          EntityKind.handwriting,
+          remoteHandwritingJson(n, p, at: clock.millis),
+          EntityFieldVersions(remoteHlc(const Duration(seconds: 2))),
+        ),
+      ], policy: take);
+      expect(await d.contentRevision(p), rev0 + 2);
+      await d.sync.applyRemote([
+        remoteJson(
+          EntityKind.pageObject,
+          remoteObjectJson('o-remote-2', p, at: clock.millis),
+          EntityFieldVersions(remoteHlc(const Duration(seconds: 3))),
+        ),
+        remoteJson(
+          EntityKind.handwriting,
+          remoteHandwritingJson(n, p, at: clock.millis, lines: ['둘']),
+          EntityFieldVersions(remoteHlc(const Duration(seconds: 4))),
+        ),
+      ], policy: take);
+      expect(await d.contentRevision(p), rev0 + 3);
+      expect(await d.activeObjectIds(p), ['o-remote-1', 'o-remote-2']);
+    });
+
+    test('C-30 after a note purge its objects and handwriting result are gone, '
+        'with their outbox entries', () async {
+      final n = await d.createNote('a');
+      final p = (await d.activePageIds(n)).single;
+      final o = await d.addObject(p);
+      await d.putHandwriting(p);
+      final hw = HandwritingText.idFor(p);
+      await d.sync.applyRemote([
+        remoteJson(
+          EntityKind.pageObject,
+          remoteObjectJson('o-remote-3', p, at: clock.millis),
+          EntityFieldVersions(remoteHlc(const Duration(seconds: 1))),
+        ),
+      ], policy: take);
+      expect(await entryOf(EntityKind.pageObject, o), isNotNull);
+      await d.trashNote(n);
+      await d.purgeNote(n);
+      expect(
+        await d.sync.readVersioned([
+          EntityRef(EntityKind.pageObject, o),
+          const EntityRef(EntityKind.pageObject, 'o-remote-3'),
+          EntityRef(EntityKind.handwriting, hw),
+        ]),
+        [null, null, null],
+      );
+      expect(await entryOf(EntityKind.pageObject, o), isNull);
+      expect(await entryOf(EntityKind.handwriting, hw), isNull);
+      expect(
+        (await pending()).where(
+          (e) =>
+              e.kind == EntityKind.pageObject ||
+              e.kind == EntityKind.handwriting,
+        ),
+        isEmpty,
+      );
+    });
+
+    test("C-31 recording JSON has a 'title' key; renameRecording records "
+        '{title}', () async {
+      final n = await d.createNote('a');
+      final r = await d.createRecording(n);
+      final created = (await read(EntityKind.recording, r))!;
+      expectInvariant(created);
+      final json = created.entity.toJson();
+      expect(json.containsKey('title'), isTrue);
+      expect(json['title'], isNull);
+      expect((await entryOf(EntityKind.recording, r))!.noteId, n);
+      await ackAll();
+      clock.advance(const Duration(seconds: 1));
+      await d.renameRecording(r, '1교시');
+      final entry = (await entryOf(EntityKind.recording, r))!;
+      expect(entry.changedFields, {'title'});
+      final renamed = (await read(EntityKind.recording, r))!;
+      expectInvariant(renamed);
+      expect((renamed.entity as Recording).title, '1교시');
+      expect(renamed.versions.of('title'), renamed.entity.version);
+      expect(
+        renamed.versions.of('durationMs'),
+        created.versions.of('durationMs'),
       );
     });
   });

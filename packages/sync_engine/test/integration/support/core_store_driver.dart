@@ -2,7 +2,10 @@
 // temporary SQLite file (so it can be reopened), wrapped by CoreSyncLocalStore, and the
 // SyncStore contract driver doing local edits the way the app does them (5.1.4): library
 // and trash repositories, a session's AddStrokes, assets.put, markOpened through
-// openSession (N-6) and reopening the same file. Commit failures for S-20 (5.1.2) come from
+// openSession (N-6) and reopening the same file. (2nd round, 07-sync 6.6) A session's
+// AddObjects / UpdateObjects / RemoveElements, store.handwriting.put and
+// store.recordings.createRecording / renameRecording (compile-only until the CORE milestones
+// of 07-sync 6.7.2 — the integration tag is skipped by default). Commit failures for S-20 (5.1.2) come from
 // moving the database file away (CoreTestStore.failCommits): openTestNoteStore takes no
 // fault hook, and the write queue's own hook (WriteQueue.failNextCommits) is CORE src/.
 import 'dart:io';
@@ -213,4 +216,103 @@ final class CoreStoreDriver implements SyncStoreContractDriver {
 
   @override
   Future<void> close() => core.close();
+
+  // ---- 2nd round (07-sync 6.6) -------------------------------------------------------
+
+  /// Object id → its page (UpdateObjects / RemoveElements name the page).
+  final Map<ElementId, PageId> _objectPages = {};
+
+  /// Page → createdAt of its first handwriting put (later puts keep it).
+  final Map<PageId, int> _handwritingCreated = {};
+
+  int get _now => _store.clock.now().millisecondsSinceEpoch;
+
+  Future<NoteId> _noteOf(PageId pageId) async {
+    final page = await _store.content.getPage(pageId);
+    if (page == null) throw StateError('no page $pageId');
+    return page.noteId;
+  }
+
+  @override
+  Future<ElementId> addObject(PageId pageId) async {
+    final shape = PageObjectFixtures.shape(
+      pageId: pageId,
+      id: _store.ids.newId(),
+      createdAt: _now,
+    );
+    await core.edit(
+      await _noteOf(pageId),
+      AddObjects(pageId: pageId, objects: [shape]),
+    );
+    _objectPages[shape.id] = pageId;
+    return shape.id;
+  }
+
+  @override
+  Future<void> restyleObject(ElementId objectId) async {
+    final pageId = _objectPages[objectId]!;
+    final content = await _store.content.loadPage(pageId);
+    final shape =
+        content.objects.firstWhere((o) => o.id == objectId) as ShapeObject;
+    await core.edit(
+      await _noteOf(pageId),
+      UpdateObjects(
+        pageId: pageId,
+        objects: [
+          shape.copyWith(
+            style: shape.style.copyWith(strokeColorArgb: 0xFFD03030),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> removeObject(ElementId objectId) async {
+    final pageId = _objectPages[objectId]!;
+    await core.edit(
+      await _noteOf(pageId),
+      RemoveElements(pageId: pageId, elementIds: [objectId]),
+    );
+  }
+
+  @override
+  Future<void> putHandwriting(
+    PageId pageId, {
+    List<String> lines = const ['가나'],
+  }) async {
+    final at = _handwritingCreated.putIfAbsent(pageId, () => _now);
+    await _store.handwriting.put(
+      contractHandwriting(await _noteOf(pageId), pageId, at: at, lines: lines),
+    );
+  }
+
+  @override
+  Future<RecordingId> createRecording(NoteId noteId) async {
+    final audio = await _store.assets.put(
+      contractBytes(++_seed + 100, 200),
+      type: AssetType.audio,
+      mimeType: 'audio/webm',
+    );
+    final recording = await _store.recordings.createRecording(
+      id: _store.ids.newId(),
+      noteId: noteId,
+      assetId: audio.id,
+      durationMs: 1000,
+      startedAt: _now,
+    );
+    return recording.id;
+  }
+
+  @override
+  Future<void> renameRecording(RecordingId recordingId, String? title) =>
+      _store.recordings.renameRecording(recordingId, title);
+
+  @override
+  Future<List<ElementId>> activeObjectIds(PageId pageId) async => [
+    for (final o in (await _store.content.loadPage(pageId)).objects) o.id,
+  ];
+
+  @override
+  Stream<ChangeBatch> get changeBatches => _store.changes;
 }

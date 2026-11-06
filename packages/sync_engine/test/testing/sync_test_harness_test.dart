@@ -1,6 +1,8 @@
 // SyncTestHarness built with fakeAsync (T6): run / elapse / settle on injected virtual time,
 // device clocks, checkConverged without matcher. Devices start their engines (T10); tests that
-// build server state by hand use signed-out devices so no engine touches it.
+// build server state by hand use signed-out devices so no engine touches it. (2nd round,
+// S2-4b — 07-sync 4.3, 6.3.8) device(knownKinds:) = an older app, restart(name) = app restart
+// / update on the same store, checkConverged(kinds:) filters every participant's dump.
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
@@ -8,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:sync_engine/src/codec/chunk_codec.dart';
 import 'package:sync_engine/src/codec/chunk_id.dart';
+import 'package:sync_engine/src/engine/engine_controller.dart';
+import 'package:sync_engine/src/engine/meta_keys.dart';
 import 'package:sync_engine/sync_engine.dart';
 import 'package:sync_engine/testing.dart';
 
@@ -341,5 +345,195 @@ void main() {
     expect(h.serverClock.now(), kScenarioStart.add(const Duration(days: 30)));
     final a = h.device('A');
     expect(a.store.clock.now(), h.serverClock.now());
+  });
+
+  group('2nd round: knownKinds, restart, checkConverged(kinds:)', () {
+    final noHandwriting = EntityKind.values.toSet()
+      ..remove(EntityKind.handwriting);
+
+    test('knownKinds: an old-app device applies the known records of a mixed '
+        'chunk, leaves the handwriting out and reports needsAppUpdate', () {
+      withHarness((h, async) {
+        final a = h.device('A');
+        final old = h.device('B', knownKinds: noHandwriting);
+        expect(EngineController.of(a.engine).debugKnownKinds, isNull);
+        expect(EngineController.of(old.engine).debugKnownKinds, noHandwriting);
+        final n = a.createNote('N');
+        final p = a.pageIdsOf(n).single;
+        final s = a.addStroke(p);
+        a.putHandwriting(p, ['hello']);
+        h.settle();
+        // One push: the stroke and the handwriting result travel in one chunk.
+        final chunks = [
+          for (final c in h.server.chunksOf('user-1'))
+            if (c.chunk.scope == n) c,
+        ];
+        expect(chunks, hasLength(1));
+        expect(old.doc(EntityKind.stroke, s), isNotNull);
+        expect(old.handwritingOf(p), isNull);
+        expect(
+          old.doc(EntityKind.handwriting, HandwritingText.idFor(p)),
+          isNull,
+        );
+        final issue = old.engine.status.issues.singleWhere(
+          (i) => i.code == SyncIssueCode.needsAppUpdate,
+        );
+        expect(
+          issue.message,
+          '1 record(s) of kind handwriting held until the '
+          'app is updated',
+        );
+        expect(
+          a.engine.status.issues.where(
+            (i) => i.code == SyncIssueCode.needsAppUpdate,
+          ),
+          isEmpty,
+        );
+        h.checkConverged([a, old], kinds: noHandwriting);
+        expect(
+          () => h.checkConverged([a, old]),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('handwriting/${HandwritingText.idFor(p)}'),
+                contains('B: <missing>'),
+              ),
+            ),
+          ),
+        );
+        h.checkConverged([a]);
+      });
+    });
+
+    test('restart: the same TestDevice and store with a new engine; rows, '
+        'outbox and meta stay; the new engine attaches and pushes', () {
+      withHarness((h, async) {
+        final a = h.device('A');
+        final b = h.device('B');
+        a.createNote('N');
+        h.settle();
+        expect(a.store.meta[MetaKeys.cursor], isNotNull);
+        a.goOffline();
+        final m = a.createNote('M');
+        final first = a.engine;
+        final store = a.store;
+        final outbox = a.store.outbox;
+        final meta = Map.of(a.store.meta);
+        final dump = a.store.canonicalDump();
+        expect(outbox, isNotEmpty);
+        final again = h.restart('A');
+        expect(again, same(a));
+        expect(a.engine, isNot(same(first)));
+        expect(a.store, same(store));
+        expect(a.store.outbox, outbox);
+        expect(a.store.meta, meta);
+        expect(a.store.canonicalDump(), dump);
+        expect(EngineController.of(a.engine).isStarted, isTrue);
+        expect(EngineController.of(a.engine).debugKnownKinds, isNull);
+        a.goOnline();
+        h.settle();
+        expect(a.engine.status.phase, SyncPhase.live);
+        expect(a.store.outbox, isEmpty);
+        expect(b.doc(EntityKind.note, m), isNotNull);
+        h.checkConverged([a, b]);
+        // An edit after the restart goes through the new engine only.
+        final before = h.server.chunksOf('user-1').length;
+        a.renameNote(m, 'M2');
+        h.settle();
+        expect(h.server.chunksOf('user-1').length, before + 1);
+        expect(b.doc(EntityKind.note, m)!.json['title'], 'M2');
+      });
+    });
+
+    test('restart(knownKinds:) sets the codec kinds of the new engine; '
+        'unknown names are refused', () {
+      withHarness((h, async) {
+        final b = h.device('B');
+        h.settle();
+        h.restart('B', knownKinds: noHandwriting);
+        expect(EngineController.of(b.engine).debugKnownKinds, noHandwriting);
+        h.settle();
+        expect(b.engine.status.phase, SyncPhase.live);
+        h.restart('B');
+        expect(EngineController.of(b.engine).debugKnownKinds, isNull);
+        expect(() => h.restart('Z'), throwsArgumentError);
+        expect(
+          () => EngineController.of(b.engine).debugKnownKinds = noHandwriting,
+          throwsStateError,
+          reason: 'only before start()',
+        );
+      });
+    });
+
+    test('checkConverged(kinds:) ignores differences in the other kinds and '
+        'reports those in the given kinds, on every participant', () {
+      withHarness((h, async) {
+        final a = h.device('A', signedIn: false);
+        final b = h.device('B', signedIn: false);
+        a.seedDefaultPresets();
+        b.seedDefaultPresets();
+        final n = a.createNote('N');
+        expect(
+          () => h.checkConverged([a, b], includeServer: false),
+          throwsStateError,
+        );
+        h.checkConverged(
+          [a, b],
+          includeServer: false,
+          kinds: {EntityKind.penPreset},
+        );
+        expect(
+          () => h.checkConverged(
+            [a, b],
+            includeServer: false,
+            kinds: {EntityKind.penPreset, EntityKind.note},
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('1 of 6 keys differ across A, B'),
+                contains('note/$n'),
+                isNot(contains('page/')),
+              ),
+            ),
+          ),
+        );
+        a.renamePreset('preset-default-pencil', '샤프');
+        expect(
+          () => h.checkConverged(
+            [a, b],
+            includeServer: false,
+            kinds: {EntityKind.penPreset},
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('penPreset/preset-default-pencil'),
+            ),
+          ),
+        );
+        // The server's merged state is filtered too (it is empty here).
+        h.checkConverged([a], kinds: {EntityKind.setting});
+        expect(
+          () => h.checkConverged([a], kinds: {EntityKind.note}),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('server(user-1): <missing>'), contains('1 of 1')),
+            ),
+          ),
+        );
+        expect(
+          () => h.checkConverged([a, b], kinds: const {}),
+          throwsArgumentError,
+        );
+      });
+    });
   });
 }

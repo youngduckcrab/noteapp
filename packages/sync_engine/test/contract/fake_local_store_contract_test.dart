@@ -1,11 +1,14 @@
-// SyncStore contract suite C-01..C-25 against FakeLocalStore (07-sync 5.1.4, T6). The
-// real-CORE-only checks (open session history, reopen, write retries) run in
-// test/integration/core_sync_store_contract_test.dart (T16).
+// SyncStore contract suite C-01..C-31 against FakeLocalStore (07-sync 5.1.4, T6; 2nd round
+// 6.6, S2-4b). The real-CORE-only checks (open session history, reopen, write retries, C-30's
+// device-local recording drafts and search units) run in
+// test/integration/core_sync_store_contract_test.dart (T16, T16-v2).
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
+import 'package:note_core/testing.dart';
 import 'package:sync_engine/testing.dart';
 
 import 'sync_store_contract.dart';
@@ -252,4 +255,152 @@ final class FakeContractDriver implements SyncStoreContractDriver {
 
   @override
   Future<void> close() async {}
+
+  // ---- 2nd round (07-sync 6.6) -------------------------------------------------------
+
+  /// CORE C-11: the JSON keys whose value changed ('updatedAt' / 'version' left out).
+  static Set<String> _changed(
+    Map<String, Object?> before,
+    Map<String, Object?> after,
+  ) => {
+    for (final k in {...before.keys, ...after.keys})
+      if (k != 'updatedAt' &&
+          k != 'version' &&
+          (before.containsKey(k) != after.containsKey(k) ||
+              jsonEncode(before[k]) != jsonEncode(after[k])))
+        k,
+  };
+
+  void _update(
+    EntityKind kind,
+    Map<String, Object?> before,
+    Map<String, Object?> next,
+  ) {
+    final fields = _changed(before, next);
+    if (fields.isEmpty) return;
+    store.localWrite([FakeLocalWrite(kind, next, changedFields: fields)]);
+  }
+
+  @override
+  Future<ElementId> addObject(PageId pageId) async {
+    final id = _id('object');
+    store.localWrite([
+      FakeLocalWrite(
+        EntityKind.pageObject,
+        PageObjectFixtures.shape(
+          pageId: pageId,
+          id: id,
+          createdAt: _now,
+        ).toJson(),
+        changedFields: const {kAllFields},
+      ),
+    ]);
+    return id;
+  }
+
+  @override
+  Future<void> restyleObject(ElementId objectId) async {
+    final shape =
+        store.rows[EntityRef(EntityKind.pageObject, objectId)]!.entity
+            as ShapeObject;
+    _update(
+      EntityKind.pageObject,
+      shape.toJson(),
+      shape
+          .copyWith(
+            style: shape.style
+                .copyWith(strokeColorArgb: 0xFFD03030)
+                .normalized(),
+          )
+          .toJson(),
+    );
+  }
+
+  @override
+  Future<void> removeObject(ElementId objectId) async {
+    store.localWrite([
+      FakeLocalWrite(
+        EntityKind.pageObject,
+        {..._json(EntityKind.pageObject, objectId), 'deletedAt': _now},
+        changedFields: const {'deletedAt'},
+      ),
+    ]);
+  }
+
+  @override
+  Future<void> putHandwriting(
+    PageId pageId, {
+    List<String> lines = const ['가나'],
+  }) async {
+    final page = store.rows[EntityRef(EntityKind.page, pageId)]!.entity as Page;
+    final ref = EntityRef(
+      EntityKind.handwriting,
+      HandwritingText.idFor(pageId),
+    );
+    final stored = store.rows[ref]?.entity as HandwritingText?;
+    final next = contractHandwriting(
+      page.noteId,
+      pageId,
+      at: stored?.createdAt ?? _now,
+      lines: lines,
+    ).toJson();
+    if (stored == null) {
+      store.localWrite([
+        FakeLocalWrite(
+          EntityKind.handwriting,
+          next,
+          changedFields: const {kAllFields},
+        ),
+      ]);
+    } else {
+      _update(EntityKind.handwriting, stored.toJson(), next);
+    }
+  }
+
+  @override
+  Future<RecordingId> createRecording(NoteId noteId) async {
+    final audio = await store.assets.put(
+      contractBytes(_ids + 7, 200),
+      type: AssetType.audio,
+      mimeType: 'audio/webm',
+    );
+    final id = _id('recording');
+    store.localWrite([
+      FakeLocalWrite(
+        EntityKind.recording,
+        {
+          'id': id,
+          'noteId': noteId,
+          'assetId': audio.id,
+          'durationMs': 1000,
+          'startedAt': _now,
+          'title': null,
+          'createdAt': _now,
+          'deletedAt': null,
+        },
+        changedFields: const {kAllFields},
+      ),
+    ]);
+    return id;
+  }
+
+  @override
+  Future<void> renameRecording(RecordingId recordingId, String? title) async {
+    final json = _json(EntityKind.recording, recordingId);
+    _update(EntityKind.recording, json, {...json, 'title': title});
+  }
+
+  @override
+  Future<List<ElementId>> activeObjectIds(PageId pageId) async {
+    final objects = [
+      for (final row in store.rows.values)
+        if (row.entity case final PageObject o
+            when o.pageId == pageId && !o.isDeleted)
+          o,
+    ]..sort(Stroke.compareOrder);
+    return [for (final o in objects) o.id];
+  }
+
+  @override
+  Stream<ChangeBatch>? get changeBatches => null;
 }

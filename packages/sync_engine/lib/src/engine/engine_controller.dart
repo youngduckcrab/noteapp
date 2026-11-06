@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
+import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart';
 
 import '../assets/engine_asset_service.dart';
@@ -211,6 +212,23 @@ final class EngineController {
 
   bool get isStarted => _started;
 
+  /// (2nd round, S-13 — 07-sync 6.3.8) Kinds this engine's codec knows; null = every
+  /// EntityKind. Fewer kinds make the engine behave like an older app (records of the other
+  /// kinds are not applied). Set before [start] (StateError afterwards); SyncTestHarness
+  /// .device / .restart(knownKinds:) set it. Test hook: @internal (not @visibleForTesting)
+  /// because the harness in lib/src/testing sets it.
+  @internal
+  Set<EntityKind>? get debugKnownKinds => _knownKinds;
+  @internal
+  set debugKnownKinds(Set<EntityKind>? kinds) {
+    if (_started) {
+      throw StateError('debugKnownKinds must be set before start()');
+    }
+    _knownKinds = kinds == null ? null : Set.unmodifiable(kinds);
+  }
+
+  Set<EntityKind>? _knownKinds;
+
   Future<void> start() async {
     if (_started || _disposed) return;
     _started = true;
@@ -315,8 +333,11 @@ final class EngineController {
     _interrupt();
     _disposed = true;
     _session = null;
+    // Cancelled at once and not awaited: a cancel Future of a subscription without onCancel
+    // work is completed in the root zone (Future._nullFuture), so awaiting it would hold
+    // dispose in any other zone — fake_async's included (SyncTestHarness.restart, S2-4b).
     for (final sub in _subscriptions) {
-      await sub.cancel();
+      unawaited(sub.cancel());
     }
     _subscriptions.clear();
     _scheduler.dispose();
@@ -691,6 +712,7 @@ final class EngineController {
         }
       },
       afterGroup: (outcomes) => _afterGroup(s, outcomes),
+      knownKinds: _knownKinds,
     );
     s.compactor = Compactor(
       sync: sync,
