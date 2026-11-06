@@ -207,7 +207,7 @@ final class _CountingTargets implements InputTargets {
   InputPolicy get policy => const InputPolicy(
     penOnly: false,
     palm: PalmRejectionSettings(),
-    gestures: GestureSettings(),
+    gestures: GestureSettings.defaults,
     stylusSeen: true,
     eyedropperActive: false,
   );

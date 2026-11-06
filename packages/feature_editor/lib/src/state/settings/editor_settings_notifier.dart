@@ -252,6 +252,10 @@ class EditorSettingsNotifier extends Notifier<EditorSettings> {
         );
       } else if (value is num && expected is num) {
         if ((value - expected).abs() > 0.5) out.add(path);
+      } else if (value is bool && expected is bool) {
+        // Every bool field takes both values. A v1.4 gesture bool can decode
+        // differently when "actions" has that gesture (m5-7/04-editor 4.3.2
+        // '옛 앱과 섞일 때') — that is not an invalid value.
       } else if (value != expected) {
         out.add(path);
       }

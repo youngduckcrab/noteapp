@@ -1,6 +1,9 @@
 // EditorSettings model and its stored JSON form (04-editor 4.8, 6.14;
 // contract 7.2.17 / 7.4.6). Foundation step B5 ships the model with JSON;
 // task E-06 adds the notifier's load / save tests next to this file.
+// 2nd round R2-B5 (m5-7/04-editor 4.3.3, 6.18): shapeAssist and
+// playbackHighlight (synced), tapToSeek (device), and the gestures object
+// v2 ("actions" — the details are in gesture_settings_test.dart).
 import 'dart:convert';
 
 import 'package:feature_editor/feature_editor.dart';
@@ -19,11 +22,15 @@ const _custom = EditorSettings(
     twoFingerTapUndo: false,
     threeFingerTapRedo: true,
     longPressMenu: false,
+    actions: {EditorGesture.penButton: EditorAction.lassoWhileHeld},
   ),
   pageFlipMode: PageFlipMode.horizontalPaged,
   pressureMode: ink.PressureMode.alwaysSimulated,
   showDevOverlay: true,
   stylusSeen: true,
+  shapeAssist: false,
+  playbackHighlight: ink.InkPlaybackStyle.highlightRecent,
+  tapToSeek: false,
 );
 
 /// Round trip through a JSON string, as CORE stores it.
@@ -32,7 +39,8 @@ Map<String, Object?> _viaJsonString(Map<String, Object?> json) =>
 
 void main() {
   group('toJson', () {
-    test('device key has exactly the 6.14 fields, "v" first', () {
+    test('device key has exactly the 6.14 + 2nd-round 6.18 fields, "v" '
+        'first', () {
       expect(
         const EditorSettings().toJson(core.SettingScope.device),
         <String, Object?>{
@@ -42,6 +50,7 @@ void main() {
           'pressure': 'auto',
           'dev': false,
           'stylusSeen': false,
+          'tapToSeek': true,
         },
       );
       expect(
@@ -50,7 +59,8 @@ void main() {
       );
     });
 
-    test('synced key has exactly the 6.14 fields, "v" first', () {
+    test('synced key has exactly the 6.14 + 2nd-round 6.18 fields, "v" '
+        'first', () {
       final json = const EditorSettings().toJson(core.SettingScope.synced);
       expect(json, <String, Object?>{
         'v': 1,
@@ -58,10 +68,42 @@ void main() {
           'twoFingerUndo': true,
           'threeFingerRedo': true,
           'longPressMenu': true,
+          'actions': <String, Object?>{},
         },
         'pageFlip': 'verticalScroll',
+        'shapeAssist': true,
+        'playbackHighlight': 'dimUnwritten',
       });
       expect(json.keys.first, 'v');
+    });
+
+    test('(2nd round) the three new fields: defaults and stored form', () {
+      const settings = EditorSettings();
+      expect(settings.shapeAssist, isTrue);
+      expect(settings.playbackHighlight, ink.InkPlaybackStyle.dimUnwritten);
+      expect(settings.tapToSeek, isTrue);
+      final device = _custom.toJson(core.SettingScope.device);
+      final synced = _custom.toJson(core.SettingScope.synced);
+      expect(device['tapToSeek'], isFalse);
+      expect(synced['shapeAssist'], isFalse);
+      expect(synced['playbackHighlight'], 'highlightRecent');
+      expect(synced.containsKey('tapToSeek'), isFalse, reason: 'device only');
+      expect(device.containsKey('shapeAssist'), isFalse, reason: 'synced');
+      expect(device.containsKey('playbackHighlight'), isFalse);
+      expect(device.containsKey('webTextInput'), isFalse, reason: '6.18');
+      expect((synced['gestures']! as Map<String, Object?>)['actions'], {
+        'penButton': 'lassoWhileHeld',
+      });
+    });
+
+    test('playbackHighlight is stored by its ink.InkPlaybackStyle name', () {
+      for (final style in ink.InkPlaybackStyle.values) {
+        final json = const EditorSettings()
+            .copyWith(playbackHighlight: style)
+            .toJson(core.SettingScope.synced);
+        expect(json['playbackHighlight'], style.name);
+        expect(EditorSettings.fromJson(synced: json).playbackHighlight, style);
+      }
     });
 
     test('device and synced fields do not overlap (contract 7.4.6 scopes)', () {
@@ -98,8 +140,11 @@ void main() {
       expect(deviceOnly.pressureMode, _custom.pressureMode);
       expect(deviceOnly.showDevOverlay, isTrue);
       expect(deviceOnly.stylusSeen, isTrue);
-      expect(deviceOnly.gestures, const GestureSettings());
+      expect(deviceOnly.tapToSeek, isFalse);
+      expect(deviceOnly.gestures, GestureSettings.defaults);
       expect(deviceOnly.pageFlipMode, PageFlipMode.verticalScroll);
+      expect(deviceOnly.shapeAssist, isTrue);
+      expect(deviceOnly.playbackHighlight, ink.InkPlaybackStyle.dimUnwritten);
 
       final syncedOnly = EditorSettings.fromJson(
         synced: _custom.toJson(core.SettingScope.synced),
@@ -108,6 +153,70 @@ void main() {
       expect(syncedOnly.pageFlipMode, _custom.pageFlipMode);
       expect(syncedOnly.inputMode, InputMode.auto);
       expect(syncedOnly.palmRejection, const PalmRejectionSettings());
+      expect(syncedOnly.shapeAssist, isFalse);
+      expect(
+        syncedOnly.playbackHighlight,
+        ink.InkPlaybackStyle.highlightRecent,
+      );
+      expect(syncedOnly.tapToSeek, isTrue);
+    });
+
+    test('(2nd round) 1st-round stored values read with the new defaults', () {
+      // What a 1st-round app wrote: no tapToSeek, shapeAssist,
+      // playbackHighlight or gestures.actions.
+      final back = EditorSettings.fromJson(
+        device: {
+          'v': 1,
+          'inputMode': 'penOnly',
+          'palm': {'cooldownMs': 400, 'hover': true, 'maxRadius': 45.0},
+          'pressure': 'auto',
+          'dev': false,
+          'stylusSeen': true,
+        },
+        synced: {
+          'v': 1,
+          'gestures': {
+            'twoFingerUndo': false,
+            'threeFingerRedo': true,
+            'longPressMenu': true,
+          },
+          'pageFlip': 'verticalScroll',
+        },
+      );
+      expect(back.inputMode, InputMode.penOnly);
+      expect(back.tapToSeek, isTrue);
+      expect(back.shapeAssist, isTrue);
+      expect(back.playbackHighlight, ink.InkPlaybackStyle.dimUnwritten);
+      expect(
+        back.gestures.actionFor(EditorGesture.twoFingerTap),
+        EditorAction.none,
+      );
+      expect(back.gestures.actions, isEmpty);
+    });
+
+    test('(2nd round) unknown / mistyped new values → defaults', () {
+      final back = EditorSettings.fromJson(
+        device: {'tapToSeek': 'yes'},
+        synced: {
+          'shapeAssist': 0,
+          'playbackHighlight': 'sparkle', // a newer style
+        },
+      );
+      expect(back.tapToSeek, isTrue);
+      expect(back.shapeAssist, isTrue);
+      expect(back.playbackHighlight, ink.InkPlaybackStyle.dimUnwritten);
+      expect(
+        EditorSettings.fromJson(synced: {'playbackHighlight': 1})
+            .playbackHighlight,
+        ink.InkPlaybackStyle.dimUnwritten,
+      );
+      expect(
+        EditorSettings.fromJson(
+          synced: {'playbackHighlight': 'HighlightRecent'},
+        ).playbackHighlight,
+        ink.InkPlaybackStyle.dimUnwritten,
+        reason: 'names are case-sensitive',
+      );
     });
 
     test('empty maps give the defaults', () {
@@ -259,6 +368,12 @@ void main() {
         _custom.copyWith(pressureMode: ink.PressureMode.auto),
         _custom.copyWith(showDevOverlay: false),
         _custom.copyWith(stylusSeen: false),
+        _custom.copyWith(
+          gestures: _custom.gestures.copyWith(actions: const {}),
+        ),
+        _custom.copyWith(shapeAssist: true),
+        _custom.copyWith(playbackHighlight: ink.InkPlaybackStyle.dimUnwritten),
+        _custom.copyWith(tapToSeek: true),
       ];
       for (final variant in variants) {
         expect(variant, isNot(_custom), reason: '$variant');

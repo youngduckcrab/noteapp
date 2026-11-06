@@ -13,6 +13,8 @@
 // dependency). E-13: start position and last position (ViewportMemory); the
 // popup lives in state/popup.dart. E-17: the page panel state
 // (state/page_panel.dart — listed here as a dependency).
+import 'dart:ui' show Rect;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -42,6 +44,15 @@ final editorInitialPageIdProvider = Provider<String?>(
   (ref) => throw UnimplementedError('Overridden by EditorScreen'),
   dependencies: const [],
   name: 'editorInitialPageIdProvider',
+);
+
+/// Overridden by EditorScreen with EditorScreen.initialFocusRectPt (throws
+/// elsewhere). 2nd-round contract 7.2.10, m5-7/04-editor 6.19. Nothing reads
+/// it before E2-19 (6.16), which ignores it without a known initialPageId.
+final editorInitialFocusRectProvider = Provider<Rect?>(
+  (ref) => throw UnimplementedError('Overridden by EditorScreen'),
+  dependencies: const [],
+  name: 'editorInitialFocusRectProvider',
 );
 
 /// The note's session, opened and closed by core.noteSessionProvider.

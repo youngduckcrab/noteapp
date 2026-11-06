@@ -114,6 +114,8 @@ void main() {
       env.notifier.setPageFlipMode(PageFlipMode.horizontalPaged);
       env.async.elapse(_ms * 500);
       expect(env.settings.writesOf(_device.name), isEmpty);
+      // 2nd round (m5-7/04-editor 6.18): gestures.actions, shapeAssist and
+      // playbackHighlight are part of the synced key.
       expect(env.settings.writesOf(_synced.name), [
         {
           'v': 1,
@@ -121,8 +123,11 @@ void main() {
             'twoFingerUndo': true,
             'threeFingerRedo': true,
             'longPressMenu': false,
+            'actions': <String, Object?>{},
           },
           'pageFlip': 'horizontalPaged',
+          'shapeAssist': true,
+          'playbackHighlight': 'dimUnwritten',
         },
       ]);
     });
@@ -156,7 +161,7 @@ void main() {
       env.notifier
         ..setInputMode(InputMode.auto)
         ..setPalmRejection(const PalmRejectionSettings())
-        ..setGestures(const GestureSettings());
+        ..setGestures(GestureSettings.defaults);
       env.async.elapse(const Duration(seconds: 1));
       expect(changes, isEmpty);
       expect(env.settings.writes, isEmpty);
@@ -317,6 +322,56 @@ void main() {
       expect(message, contains('palm.cooldownMs'));
       expect(message, isNot(contains('pressure')));
       expect(message, isNot(contains('unknown')));
+    });
+  });
+
+  test('(2nd round) gestures.actions: unknown names and a bool that the '
+      'actions entry overrides are not reported', () {
+    final reported = <FlutterErrorDetails>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = reported.add;
+    addTearDown(() => FlutterError.onError = previous);
+    runSettingsEnv((env) {
+      env.storeValue(_synced, {
+        'v': 1,
+        'gestures': {
+          'twoFingerUndo': false, // an old app turned it off …
+          'threeFingerRedo': true,
+          'longPressMenu': true,
+          'actions': {
+            'twoFingerTap': 'redo', // … after this app chose redo
+            'fourFingerTap': 'undo', // unknown gesture
+            'penButton': 'teleport', // unknown action
+            'invertedStylus': 'lassoWhileHeld', // not allowed
+          },
+        },
+        'shapeAssist': false,
+        'playbackHighlight': 'highlightRecent',
+      });
+      env.load();
+      final gestures = env.state.gestures;
+      expect(gestures.actionFor(EditorGesture.twoFingerTap), EditorAction.redo);
+      expect(gestures.actions, {EditorGesture.twoFingerTap: EditorAction.redo});
+      expect(env.state.shapeAssist, isFalse);
+      expect(env.state.playbackHighlight, ink.InkPlaybackStyle.highlightRecent);
+      expect(reported, isEmpty);
+    });
+  });
+
+  test('(2nd round) an unknown playbackHighlight is reported like the other '
+      'enums', () {
+    final reported = <FlutterErrorDetails>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = reported.add;
+    addTearDown(() => FlutterError.onError = previous);
+    runSettingsEnv((env) {
+      env.storeValue(_synced, {'v': 1, 'playbackHighlight': 'sparkle'});
+      env.storeValue(_device, {'v': 1, 'tapToSeek': false});
+      env.load();
+      expect(env.state.playbackHighlight, ink.InkPlaybackStyle.dimUnwritten);
+      expect(env.state.tapToSeek, isFalse);
+      expect(reported, hasLength(1));
+      expect('${reported.single.exception}', contains('playbackHighlight'));
     });
   });
 }

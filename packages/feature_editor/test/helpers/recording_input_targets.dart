@@ -13,7 +13,7 @@ import 'package:flutter/gestures.dart';
 InputPolicy testInputPolicy({
   bool penOnly = false,
   PalmRejectionSettings palm = const PalmRejectionSettings(),
-  GestureSettings gestures = const GestureSettings(),
+  GestureSettings gestures = GestureSettings.defaults,
   bool stylusSeen = false,
   bool eyedropperActive = false,
 }) => InputPolicy(

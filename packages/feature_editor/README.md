@@ -2,20 +2,27 @@
 
 Owned by **EDITOR**: the note editor screen (writing surface, input routing,
 toolbar, pen settings, preset bar, page panel and developer overlay).
-Plan: [docs/plans/04-editor.md](../../docs/plans/04-editor.md) ·
+Plan: [docs/plans/04-editor.md](../../docs/plans/04-editor.md), 2nd round
+[docs/plans/m5-7/04-editor.md](../../docs/plans/m5-7/04-editor.md) ·
 progress: [docs/plans/progress/editor.md](../../docs/plans/progress/editor.md) ·
-contract: [00-overview.md](../../docs/plans/00-overview.md) 7.2.17.
+contract: [00-overview.md](../../docs/plans/00-overview.md) 7.2.17, 2nd round
+[m5-7/00-overview.md](../../docs/plans/m5-7/00-overview.md) 7.2.10.
 
 ## Public API
 
 `package:feature_editor/feature_editor.dart` is the only entry point
-(contract 7.1). Its `show` lists are exactly the names of 04-editor 4.1:
-`EditorScreen`, `featureEditorOverrides`, the extension points
-(`EditorExtensions`, `EditorMenuItem`, `EditorMenuContext`,
-`editorExtensionsProvider`, `DevOverlaySection`, `devOverlaySectionsProvider`),
-the stylus extras interface (`StylusExtrasSource` family,
-`stylusExtrasProvider`), the settings model and notifier (`EditorSettings`,
-`InputMode`, `PageFlipMode`, `PalmRejectionSettings`, `GestureSettings`,
+(contract 7.1). Its `show` lists are exactly the names of m5-7/04-editor 4.1
+(the 1st-round names of 04-editor 4.1 plus 14 from the 2nd round):
+`EditorScreen` (with `initialFocusRectPt`), `featureEditorOverrides`, the
+extension points (`EditorExtensions`, `EditorMenuItem`, `EditorMenuContext`,
+`editorExtensionsProvider`, `DevOverlaySection`, `devOverlaySectionsProvider`,
+the selection / insert menu items and their contexts, `EditorPanelBuilder`,
+`EditorPanelContext`, `EditorImageImporter`, `editorImageImporterProvider`),
+the stylus extras interface (`StylusExtrasSource` family with
+`StylusCapabilities`, `StylusHoverPose`, `StylusPreferredAction`,
+`StylusSqueezePhase`, and `stylusExtrasProvider`), the settings model and
+notifier (`EditorSettings`, `InputMode`, `PageFlipMode`,
+`PalmRejectionSettings`, `GestureSettings`, `EditorGesture`, `EditorAction`,
 `EditorSettingsNotifier`, `editorSettingsProvider`) and the four settings
 sections for the app's settings screen. Everything under `lib/src/` is private
 (`unit/api_surface_test.dart`).

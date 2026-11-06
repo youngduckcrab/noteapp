@@ -1,5 +1,6 @@
 // Public surface of package:feature_editor (contract 00-overview 7.2.17,
-// 04-editor 4.1, 8.1 B5, 9.1 'api_surface_test').
+// 04-editor 4.1, 8.1 B5, 9.1 'api_surface_test'; 2nd round: contract
+// m5-7/00-overview 7.2.10, m5-7/04-editor 4.1 and 8.1 R2-B5 — 14 new names).
 //
 // 1. Every exported name is used in the call shapes of the contract block, so
 //    a renamed / re-typed / missing name breaks the build.
@@ -50,7 +51,25 @@ const _expectedExports = <String>{
   'EditorPenSettingsSection',
   'EditorPageSettingsSection',
   'EditorDeveloperSettingsSection',
+  // (v2.0) m5-7/04-editor 4.1 — 14 new names.
+  'EditorSelectionContext',
+  'EditorSelectionMenuItem',
+  'EditorInsertContext',
+  'EditorInsertMenuItem',
+  'EditorPanelBuilder',
+  'EditorPanelContext',
+  'EditorImageImporter',
+  'editorImageImporterProvider',
+  'StylusHoverPose',
+  'StylusPreferredAction',
+  'StylusSqueezePhase',
+  'StylusCapabilities',
+  'EditorGesture',
+  'EditorAction',
 };
+
+/// The 1st-round names (04-editor 4.1, v1.4): the v2 list keeps all of them.
+const _v14ExportCount = 26;
 
 /// The export directives of [source]: the URI and its `show` names (null
 /// when the directive has no `show` combinator).
@@ -90,7 +109,42 @@ String _describe(StylusExtraEvent event) => switch (event) {
   StylusDoubleTap() => 'double tap',
   StylusSqueeze(:final hoverPosition) => 'squeeze at $hoverPosition',
   StylusBarrelRoll(:final angle) => 'barrel roll $angle',
+  StylusHoverPose(:final position) => 'hover at $position',
 };
+
+/// recog's selection item shape (05-library 6.x — toText and friends).
+Future<void> _toText(
+  BuildContext context,
+  EditorSelectionContext selection,
+) async {}
+
+bool _hasStrokes(EditorSelectionContext selection) =>
+    selection.strokes.isNotEmpty;
+
+/// recog's insert item shape (mathPad).
+Future<void> _mathPad(BuildContext context, EditorInsertContext insert) async {}
+
+/// media_io's RecordingPanel builder shape.
+Widget _recordingPanel(BuildContext context, EditorPanelContext panel) =>
+    const SizedBox();
+
+/// media_io's picker shape.
+Future<core.ImportedImage?> _pick(
+  BuildContext context,
+  core.ImageImportSource source,
+) async => null;
+
+/// INFRA's PencilStylusExtrasSource shape (pencil_bridge, B8b): implements
+/// the three members.
+final class _PencilLike implements StylusExtrasSource {
+  @override
+  bool get isSupported => true;
+  @override
+  StylusCapabilities get capabilities =>
+      const StylusCapabilities(doubleTap: true, hoverPose: true);
+  @override
+  Stream<StylusExtraEvent> get events => const Stream.empty();
+}
 
 void main() {
   group('barrel', () {
@@ -107,6 +161,10 @@ void main() {
       }
       expect(names.toSet(), hasLength(names.length), reason: 'duplicates');
       expect(names.toSet(), _expectedExports);
+      expect(_expectedExports, hasLength(_v14ExportCount + 14));
+      // m5-7/04-editor 4.1 (수정 1회차): both stay internal / out.
+      expect(names, isNot(contains('PlaybackHighlightStyle')));
+      expect(names, isNot(contains('WebTextInputMode')));
     });
 
     test('lib/ has a single entry point, feature_editor.dart (7.1)', () {
@@ -171,6 +229,21 @@ export 'src/d.dart' hide E;
       onClose();
       onOpenSettings!();
       expect(closes, ['close-2', 'settings']);
+    });
+
+    test('(v2.0) initialFocusRectPt: Rect?, default null', () {
+      final screen = EditorScreen(
+        noteId: 'note-3',
+        initialPageId: 'page-7',
+        initialFocusRectPt: const Rect.fromLTWH(10, 20, 30, 40),
+        onClose: () {},
+      );
+      final Rect? focus = screen.initialFocusRectPt;
+      expect(focus, const Rect.fromLTWH(10, 20, 30, 40));
+      expect(
+        EditorScreen(noteId: 'n', onClose: () {}).initialFocusRectPt,
+        isNull,
+      );
     });
 
     test('featureEditorOverrides() is an empty list', () {
@@ -293,6 +366,178 @@ export 'src/d.dart' hide E;
       expect(devOverlaySectionsProvider.name, 'devOverlaySectionsProvider');
     });
 
+    test('(v2.0) EditorExtensions: selection / insert items and the '
+        'recording panel', () {
+      const selectionItem = EditorSelectionMenuItem(
+        id: 'recog.toText',
+        label: '텍스트로 바꾸기',
+        icon: Icons.text_fields,
+        onSelected: _toText,
+        isVisible: _hasStrokes,
+      );
+      final String sId = selectionItem.id;
+      final String sLabel = selectionItem.label;
+      final IconData sIcon = selectionItem.icon;
+      final Future<void> Function(BuildContext, EditorSelectionContext)
+      sOnSelected = selectionItem.onSelected;
+      final bool Function(EditorSelectionContext)? isVisible =
+          selectionItem.isVisible;
+      expect([sId, sLabel], ['recog.toText', '텍스트로 바꾸기']);
+      expect(sIcon, Icons.text_fields);
+      expect(sOnSelected, _toText);
+      expect(isVisible, same(_hasStrokes));
+      expect(
+        const EditorSelectionMenuItem(
+          id: 'x',
+          label: 'x',
+          icon: Icons.abc,
+          onSelected: _toText,
+        ).isVisible,
+        isNull,
+      );
+
+      const insertItem = EditorInsertMenuItem(
+        id: 'recog.mathPad',
+        label: '수식',
+        icon: Icons.functions,
+        onSelected: _mathPad,
+      );
+      final String iId = insertItem.id;
+      final String iLabel = insertItem.label;
+      final IconData iIcon = insertItem.icon;
+      final Future<void> Function(BuildContext, EditorInsertContext)
+      iOnSelected = insertItem.onSelected;
+      expect([iId, iLabel], ['recog.mathPad', '수식']);
+      expect(iIcon, Icons.functions);
+      expect(iOnSelected, _mathPad);
+
+      const EditorPanelBuilder builder = _recordingPanel;
+      const extensions = EditorExtensions(
+        selectionMenuItems: [selectionItem],
+        insertMenuItems: [insertItem],
+        recordingPanel: builder,
+      );
+      final List<EditorSelectionMenuItem> selection =
+          extensions.selectionMenuItems;
+      final List<EditorInsertMenuItem> insert = extensions.insertMenuItems;
+      final EditorPanelBuilder? panel = extensions.recordingPanel;
+      expect(selection, [selectionItem]);
+      expect(insert, [insertItem]);
+      expect(panel, same(builder));
+      const empty = EditorExtensions();
+      expect(empty.selectionMenuItems, isEmpty);
+      expect(empty.insertMenuItems, isEmpty);
+      expect(empty.recordingPanel, isNull);
+    });
+
+    test('(v2.0) the three context types', () {
+      final commands = <core.EditCommand>[];
+      final cleared = <String>[];
+      final stroke = StrokeFixtures.synthetic(
+        pageId: 'p1',
+        ids: core.SequentialIdGenerator(),
+      );
+      final shape = PageObjectFixtures.shape(pageId: 'p1', id: 'o1');
+      final selection = EditorSelectionContext(
+        noteId: 'n',
+        pageId: 'p1',
+        pageSize: core.PageSize.a4Portrait,
+        strokes: [stroke],
+        objects: [shape],
+        boundsPt: const Rect.fromLTWH(0, 0, 300, 220),
+        execute: commands.add,
+        clearSelection: () => cleared.add('clear'),
+      );
+      final String noteId = selection.noteId;
+      final String pageId = selection.pageId;
+      final core.PageSize pageSize = selection.pageSize;
+      final List<core.Stroke> strokes = selection.strokes;
+      final List<core.PageObject> objects = selection.objects;
+      final Rect bounds = selection.boundsPt;
+      final void Function(core.EditCommand) execute = selection.execute;
+      final VoidCallback clearSelection = selection.clearSelection;
+      expect([noteId, pageId], ['n', 'p1']);
+      expect(pageSize, core.PageSize.a4Portrait);
+      expect(strokes, [stroke]);
+      expect(objects, [shape]);
+      expect(bounds.width, 300);
+      const command = core.RemoveElements(pageId: 'p1', elementIds: ['o1']);
+      execute(command);
+      clearSelection();
+      expect(commands, [command]);
+      expect(cleared, ['clear']);
+
+      final selected = <String>[];
+      final insert = EditorInsertContext(
+        noteId: 'n',
+        pageId: 'p1',
+        pageSize: core.PageSize.a4Portrait,
+        visibleRectPt: const Rect.fromLTWH(0, 0, 595, 400),
+        execute: commands.add,
+        selectObject: selected.add,
+      );
+      final String insertNoteId = insert.noteId;
+      final String insertPageId = insert.pageId;
+      final core.PageSize insertPageSize = insert.pageSize;
+      final Rect visible = insert.visibleRectPt;
+      final void Function(core.EditCommand) insertExecute = insert.execute;
+      final void Function(String) selectObject = insert.selectObject;
+      expect([insertNoteId, insertPageId], ['n', 'p1']);
+      expect(insertPageSize, core.PageSize.a4Portrait);
+      expect(visible.center, const Offset(297.5, 200));
+      insertExecute(command);
+      selectObject('o1');
+      expect(commands, [command, command]);
+      expect(selected, ['o1']);
+
+      final tapToSeek = ValueNotifier<bool>(true);
+      addTearDown(tapToSeek.dispose);
+      final closes = <String>[];
+      final panel = EditorPanelContext(
+        noteId: 'n',
+        tapToSeek: tapToSeek,
+        setTapToSeek: (value) => tapToSeek.value = value,
+        close: () => closes.add('close'),
+      );
+      final String panelNoteId = panel.noteId;
+      final ValueListenable<bool> flag = panel.tapToSeek;
+      final ValueChanged<bool> setFlag = panel.setTapToSeek;
+      final VoidCallback close = panel.close;
+      expect(panelNoteId, 'n');
+      setFlag(false);
+      expect(flag.value, isFalse);
+      close();
+      expect(closes, ['close']);
+    });
+
+    test('(v2.0) EditorImageImporter / editorImageImporterProvider', () {
+      const importer = EditorImageImporter(
+        sources: {core.ImageImportSource.photos, core.ImageImportSource.files},
+        pick: _pick,
+      );
+      final Set<core.ImageImportSource> sources = importer.sources;
+      final Future<core.ImportedImage?> Function(
+        BuildContext,
+        core.ImageImportSource,
+      )
+      pick = importer.pick;
+      expect(sources, {
+        core.ImageImportSource.photos,
+        core.ImageImportSource.files,
+      });
+      expect(pick, _pick);
+
+      final Provider<EditorImageImporter?> provider =
+          editorImageImporterProvider;
+      expect(provider.name, 'editorImageImporterProvider');
+      final container = ProviderContainer.test();
+      expect(container.read(provider), isNull, reason: 'null → hidden');
+      final overridden = ProviderContainer.test(
+        overrides: [editorImageImporterProvider.overrideWithValue(importer)],
+      );
+      expect(overridden.read(editorImageImporterProvider), importer);
+    });
+
     test('stylus extras: sealed events and the unsupported default', () async {
       expect(_describe(const StylusDoubleTap()), 'double tap');
       expect(
@@ -309,6 +554,119 @@ export 'src/d.dart' hide E;
       final Stream<StylusExtraEvent> events = source.events;
       expect(await events.isEmpty, isTrue);
       expect(stylusExtrasProvider.name, 'stylusExtrasProvider');
+      final StylusCapabilities capabilities = source.capabilities;
+      expect(capabilities, StylusCapabilities.none);
+    });
+
+    test('(v2.0) stylus extras v2: the contract fields and defaults', () {
+      const doubleTap = StylusDoubleTap(
+        preferredAction: StylusPreferredAction.switchEraser,
+        hoverPosition: Offset(3, 4),
+        timestamp: Duration(milliseconds: 5),
+      );
+      final StylusPreferredAction tapAction = doubleTap.preferredAction;
+      final Offset? tapHover = doubleTap.hoverPosition;
+      final Duration? tapTime = doubleTap.timestamp;
+      expect(tapAction, StylusPreferredAction.switchEraser);
+      expect(tapHover, const Offset(3, 4));
+      expect(tapTime, const Duration(milliseconds: 5));
+      const plainTap = StylusDoubleTap();
+      expect(plainTap.preferredAction, StylusPreferredAction.unknown);
+      expect(plainTap.hoverPosition, isNull);
+      expect(plainTap.timestamp, isNull);
+
+      const squeeze = StylusSqueeze();
+      final StylusSqueezePhase phase = squeeze.phase;
+      final StylusPreferredAction squeezeAction = squeeze.preferredAction;
+      expect(phase, StylusSqueezePhase.ended);
+      expect(squeezeAction, StylusPreferredAction.unknown);
+      expect(squeeze.timestamp, isNull);
+      expect(
+        const StylusSqueeze(
+          phase: StylusSqueezePhase.began,
+          timestamp: Duration(seconds: 1),
+        ).timestamp,
+        const Duration(seconds: 1),
+      );
+
+      const roll = StylusBarrelRoll(0.25, timestamp: Duration(seconds: 2));
+      final double angle = roll.angle;
+      expect(angle, 0.25);
+      expect(roll.timestamp, const Duration(seconds: 2));
+      expect(const StylusBarrelRoll(1).timestamp, isNull);
+
+      const pose = StylusHoverPose(
+        position: Offset(10, 20),
+        height: 0.5,
+        altitude: 1,
+        azimuth: 2,
+        roll: 3,
+        timestamp: Duration(milliseconds: 9),
+      );
+      final Offset position = pose.position;
+      final double? height = pose.height;
+      final double? altitude = pose.altitude;
+      final double? azimuth = pose.azimuth;
+      final double? rollAngle = pose.roll;
+      expect(position, const Offset(10, 20));
+      expect([height, altitude, azimuth, rollAngle], [0.5, 1, 2, 3]);
+      const bare = StylusHoverPose(position: Offset.zero);
+      expect(
+        [bare.height, bare.altitude, bare.azimuth, bare.roll],
+        [null, null, null, null],
+      );
+      expect(_describe(pose), 'hover at Offset(10.0, 20.0)');
+
+      expect(StylusPreferredAction.values, [
+        StylusPreferredAction.ignore,
+        StylusPreferredAction.switchEraser,
+        StylusPreferredAction.switchPrevious,
+        StylusPreferredAction.showColorPalette,
+        StylusPreferredAction.showInkAttributes,
+        StylusPreferredAction.showContextualPalette,
+        StylusPreferredAction.runSystemShortcut,
+        StylusPreferredAction.unknown,
+      ]);
+      expect(StylusSqueezePhase.values, [
+        StylusSqueezePhase.began,
+        StylusSqueezePhase.changed,
+        StylusSqueezePhase.ended,
+        StylusSqueezePhase.cancelled,
+      ]);
+
+      const capabilities = StylusCapabilities(
+        doubleTap: true,
+        squeeze: true,
+        barrelRoll: true,
+        hoverPose: true,
+        prefersPencilOnlyDrawing: true,
+      );
+      final List<bool> flags = [
+        capabilities.doubleTap,
+        capabilities.squeeze,
+        capabilities.barrelRoll,
+        capabilities.hoverPose,
+        capabilities.prefersPencilOnlyDrawing,
+      ];
+      expect(flags, everyElement(isTrue));
+      const StylusCapabilities none = StylusCapabilities.none;
+      expect([
+        none.doubleTap,
+        none.squeeze,
+        none.barrelRoll,
+        none.hoverPose,
+        none.prefersPencilOnlyDrawing,
+      ], everyElement(isFalse));
+
+      final container = ProviderContainer.test(
+        overrides: [stylusExtrasProvider.overrideWithValue(_PencilLike())],
+      );
+      final source = container.read(stylusExtrasProvider);
+      expect(source.isSupported, isTrue);
+      expect(
+        source.capabilities,
+        const StylusCapabilities(doubleTap: true, hoverPose: true),
+      );
     });
   });
 
@@ -368,6 +726,14 @@ export 'src/d.dart' hide E;
       );
       expect(palmBack, palm);
       expect(gesturesBack, gestures);
+
+      // (v2.0) m5-7/04-editor 4.3.3: three optional fields.
+      final bool shapeAssist = settings.shapeAssist;
+      final ink.InkPlaybackStyle highlight = settings.playbackHighlight;
+      final bool tapToSeek = settings.tapToSeek;
+      expect(shapeAssist, isTrue);
+      expect(highlight, ink.InkPlaybackStyle.dimUnwritten);
+      expect(tapToSeek, isTrue);
       expect(
         settings.copyWith(
           inputMode: InputMode.penOnly,
@@ -377,9 +743,60 @@ export 'src/d.dart' hide E;
           pressureMode: ink.PressureMode.alwaysReal,
           showDevOverlay: true,
           stylusSeen: true,
+          shapeAssist: false,
+          playbackHighlight: ink.InkPlaybackStyle.highlightRecent,
+          tapToSeek: false,
         ),
         isA<EditorSettings>(),
       );
+    });
+
+    test('(v2.0) EditorGesture / EditorAction / GestureSettings v2', () {
+      expect(EditorGesture.values, [
+        EditorGesture.twoFingerTap,
+        EditorGesture.threeFingerTap,
+        EditorGesture.fingerLongPress,
+        EditorGesture.penButton,
+        EditorGesture.invertedStylus,
+        EditorGesture.pencilDoubleTap,
+        EditorGesture.pencilSqueeze,
+      ]);
+      expect(EditorAction.values, [
+        EditorAction.none,
+        EditorAction.undo,
+        EditorAction.redo,
+        EditorAction.contextMenu,
+        EditorAction.eraserWhileHeld,
+        EditorAction.lassoWhileHeld,
+        EditorAction.toggleEraser,
+        EditorAction.previousTool,
+        EditorAction.toolPalette,
+        EditorAction.colorPalette,
+        EditorAction.followSystem,
+      ]);
+
+      const gestures = GestureSettings(
+        twoFingerTapUndo: true,
+        threeFingerTapRedo: true,
+        longPressMenu: true,
+        actions: {EditorGesture.penButton: EditorAction.lassoWhileHeld},
+      );
+      final Map<EditorGesture, EditorAction> actions = gestures.actions;
+      final EditorAction action = gestures.actionFor(EditorGesture.penButton);
+      final EditorAction byDefault = GestureSettings.defaultFor(
+        EditorGesture.twoFingerTap,
+      );
+      final Set<EditorAction> allowed = GestureSettings.allowedFor(
+        EditorGesture.fingerLongPress,
+      );
+      final Map<String, Object?> json = gestures.toJson();
+      final GestureSettings back = GestureSettings.fromJson(json);
+      expect(actions, {EditorGesture.penButton: EditorAction.lassoWhileHeld});
+      expect(action, EditorAction.lassoWhileHeld);
+      expect(byDefault, EditorAction.undo);
+      expect(allowed, {EditorAction.none, EditorAction.contextMenu});
+      expect(back, gestures);
+      expect(GestureSettings.defaults.actions, isEmpty);
     });
 
     test('editorSettingsProvider / EditorSettingsNotifier members', () {

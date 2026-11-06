@@ -216,6 +216,7 @@ void main() {
         'twoFingerUndo': false,
         'threeFingerRedo': false,
         'longPressMenu': false,
+        'actions': <String, Object?>{}, // 2nd round: v1.4 bools + actions
       },
     );
 
@@ -243,7 +244,7 @@ void main() {
     await _tap(tester, find.byKey(SettingsSectionKeys.resetInput));
     expect(_settings(env).inputMode, InputMode.auto);
     expect(_settings(env).palmRejection, const PalmRejectionSettings());
-    expect(_settings(env).gestures, const GestureSettings());
+    expect(_settings(env).gestures, GestureSettings.defaults);
     await tester.pump(const Duration(seconds: 1));
   });
 

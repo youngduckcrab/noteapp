@@ -193,7 +193,7 @@ class EditorInputSettingsSection extends ConsumerWidget {
             onPressed: () => notifier
               ..setInputMode(InputMode.auto)
               ..setPalmRejection(const PalmRejectionSettings())
-              ..setGestures(const GestureSettings()),
+              ..setGestures(GestureSettings.defaults),
             child: const Text(EditorStrings.resetInput),
           ),
         ),

@@ -3,7 +3,12 @@
 // title, and closing it calls onClose exactly once, after session.flush().
 // Also: the 6.17.1 states (opening / not found / open failed), the '설정'
 // more-menu item, and the four settings sections as plain Columns.
+// 2nd round R2-B5 (m5-7/04-editor 8.1): EditorScreen(initialFocusRectPt: …)
+// on the fake store opens, hands the rect to the per-note scope
+// (editorInitialFocusRectProvider — received only, no behaviour yet) and
+// closes.
 import 'package:feature_editor/feature_editor.dart';
+import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -53,6 +58,24 @@ Future<_Calls> _pumpEditor(
 
 final _backButton = find.bySemanticsLabel(EditorStrings.back);
 
+/// The innermost ProviderScope container under the screen of [noteId] (the
+/// per-note scope EditorScreen creates).
+ProviderContainer _noteScopeOf(WidgetTester tester, String noteId) {
+  final scopes = find.descendant(
+    of: find.byKey(ValueKey(noteId)),
+    matching: find.byType(UncontrolledProviderScope),
+  );
+  return tester.widget<UncontrolledProviderScope>(scopes.last).container;
+}
+
+/// The first page of [noteId] (read through a short session).
+Future<String> _firstPageId(core.NoteStore store, String noteId) async {
+  final session = await store.openSession(noteId);
+  final pageId = session.pages.first.id;
+  await session.close();
+  return pageId;
+}
+
 void main() {
   testWidgets('shows the note title; back calls onClose once after flush', (
     tester,
@@ -91,6 +114,76 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 2));
     await store.close();
+  });
+
+  testWidgets('(R2-B5) EditorScreen(initialFocusRectPt: …) shows the note, '
+      'keeps the rect in the note scope and closes', (tester) async {
+    _useIpad13Portrait(tester);
+    final store = createFakeNoteStore();
+    addTearDown(store.close);
+    final note = await store.library.createNote(title: '검색 결과');
+    final pageId = await _firstPageId(store, note.id);
+    const focus = Rect.fromLTWH(120, 340, 200, 48);
+    var closed = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [core.noteStoreProvider.overrideWithValue(store)],
+        child: MaterialApp(
+          home: EditorScreen(
+            key: ValueKey(note.id),
+            noteId: note.id,
+            initialPageId: pageId,
+            initialFocusRectPt: focus,
+            onClose: () => closed++,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('검색 결과'), findsOneWidget);
+    final scope = _noteScopeOf(tester, note.id);
+    expect(scope.read(editorInitialFocusRectProvider), focus);
+    expect(scope.read(editorInitialPageIdProvider), pageId);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(_backButton);
+    await tester.pump();
+    await tester.pump();
+    expect(closed, 1);
+
+    // Without the argument the scope holds null; an unknown page with a
+    // rect still opens normally (the rect is only received in R2-B5).
+    for (final (initialPageId, rect) in <(String?, Rect?)>[
+      (pageId, null),
+      ('no-such-page', focus),
+      (null, focus),
+    ]) {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [core.noteStoreProvider.overrideWithValue(store)],
+          child: MaterialApp(
+            home: EditorScreen(
+              key: ValueKey(note.id),
+              noteId: note.id,
+              initialPageId: initialPageId,
+              initialFocusRectPt: rect,
+              onClose: () => closed++,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('검색 결과'), findsOneWidget);
+      expect(
+        _noteScopeOf(tester, note.id).read(editorInitialFocusRectProvider),
+        rect,
+      );
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('system back goes through the same path (PopScope)', (

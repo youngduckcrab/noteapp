@@ -1,10 +1,15 @@
-// lib/src/editor_screen.dart — contract 00-overview 7.2.17, 04-editor 4.2.
+// lib/src/editor_screen.dart — contract 00-overview 7.2.17, 04-editor 4.2;
+// 2nd-round contract m5-7/00-overview 7.2.10 (initialFocusRectPt),
+// m5-7/04-editor 4.3.4, 6.16.
 //
 // Foundation step B5 (contract 7.6) gave the final constructor, the screen
 // states of 04-editor 6.17.1 (opening / note not found / open failed / ready)
 // and the back button that flushes the note session before onClose.
 // E-04 adds the per-note ProviderScope (6.13.1 #4). E-13: EditorRoot (states,
 // leaving with flushAll and '저장하는 중…') and EditorBody (ui/editor_body.dart).
+// 2nd round R2-B5: initialFocusRectPt is passed into the per-note scope
+// (editorInitialFocusRectProvider) and not used yet; bringing the rect into
+// view and the focus flash come in E2-19 (m5-7/04-editor 6.16).
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -29,6 +34,7 @@ class EditorScreen extends ConsumerStatefulWidget {
     this.initialPageId,
     required this.onClose,
     this.onOpenSettings,
+    this.initialFocusRectPt,
   });
   final String noteId;
 
@@ -41,6 +47,9 @@ class EditorScreen extends ConsumerStatefulWidget {
 
   /// "설정" in the more menu (hidden when null).
   final VoidCallback? onOpenSettings;
+
+  /// With initialPageId: bring this page rect (pt) into view and flash it (search hits).
+  final Rect? initialFocusRectPt;
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
@@ -84,6 +93,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       overrides: [
         editorNoteIdProvider.overrideWithValue(widget.noteId),
         editorInitialPageIdProvider.overrideWithValue(widget.initialPageId),
+        editorInitialFocusRectProvider.overrideWithValue(
+          widget.initialFocusRectPt,
+        ),
       ],
       child: EditorRoot(
         onClose: widget.onClose,
