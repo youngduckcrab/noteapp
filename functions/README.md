@@ -2,7 +2,7 @@
 
 Node 22 + TypeScript, not a Dart workspace member. Plan: [docs/plans/m5-7/07-sync.md](../docs/plans/m5-7/07-sync.md) 3.2, 3.4, 4.5, 6.8; contract: [00-overview](../docs/plans/m5-7/00-overview.md) 7.2.13 (callable format), 7.4.7 (rules), 7.6 (fake engine).
 
-Status: R2-B7b skeleton. The callable checks sign-in, the owner list and the request shape, then calls the deterministic fake engine. The daily cap, full input limits, real engines and emulator tests come in S2-10a to S2-13.
+Status: S2-10a. The callable checks sign-in, the owner list (`src/access.ts`) and every input limit of 07-sync 6.8.3 (`src/protocol.ts`), resolves the engine through the registry (`src/engines/registry.ts` — the only reader of `src/params.ts`), then calls it. Only the deterministic fake engine has an adapter so far. The daily cap, output check and log (S2-10b), the emulator tests (S2-11) and the Mathpix / Claude adapters (S2-12) come next.
 
 ## Commands (cwd `functions/`)
 
@@ -25,6 +25,8 @@ The emulator reads the committed demo values of `.env.demo-noteapp` (never secre
 | `OWNER_UIDS` | string, comma separated | `''` (nobody) | `owner-uid` |
 | `MATH_ENGINE` | string | `none` | `fake` |
 | `ALLOW_FAKE_ENGINE` | boolean | `false` | `true` |
+| `MATHPIX_APP_ID` | string | `''` (Mathpix not configured) | — |
+| `CLAUDE_MODEL` | string | `''` (Claude not configured — contract v2.3 C23-02; no model name as a default) | — |
 | `QUOTA_STORE` / `DAILY_CAP` | string / int (S2-10b) | `firestore` / `200` | `memory` / `1000` |
 
 ## Fake engine (contract 7.6)

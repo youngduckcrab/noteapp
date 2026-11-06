@@ -5,8 +5,8 @@
 // in the repository or the app (F-1): MATH_API_KEY lives in Secret Manager (`.secret.local` for a
 // developer's emulator run, not committed).
 //
-// R2-B7b skeleton: the parameters the login, owner and fake-engine path reads. DAILY_CAP and
-// QUOTA_STORE (S2-10b / S2-11) and the engine settings (S2-10a / S2-12) are added later.
+// DAILY_CAP and QUOTA_STORE come with S2-10b / S2-11. No parameter has a model name or a key as
+// its default (contract v2.3, C23-02): CLAUDE_MODEL is set per project in .env.<projectId>.
 
 import { defineBoolean, defineSecret, defineString } from "firebase-functions/params";
 
@@ -21,3 +21,9 @@ export const MATH_ENGINE = defineString("MATH_ENGINE", { default: "none" });
 
 /** The fake engine may answer only where this is true (the demo project). */
 export const ALLOW_FAKE_ENGINE = defineBoolean("ALLOW_FAKE_ENGINE", { default: false });
+
+/** Mathpix app id (not secret); its app key is MATH_API_KEY. Empty → Mathpix is notConfigured. */
+export const MATHPIX_APP_ID = defineString("MATHPIX_APP_ID", { default: "" });
+
+/** The model the Claude engine asks for. Empty (the default) → Claude is notConfigured (C23-02). */
+export const CLAUDE_MODEL = defineString("CLAUDE_MODEL", { default: "" });

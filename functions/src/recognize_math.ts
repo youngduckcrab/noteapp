@@ -7,6 +7,7 @@
 // log (step 8) come with S2-10b, together with HandlerDeps.quota / dailyCap / log.
 
 import { HttpsError, onCall, type CallableFunction } from "firebase-functions/https";
+import { isOwner, parseOwnerUids } from "./access.js";
 import { EngineError, type EngineInput, type EngineOutput, type EngineRegistry } from "./engines/engine.js";
 import { registryFromParams } from "./engines/registry.js";
 import { httpsErrorOf } from "./errors.js";
@@ -35,7 +36,7 @@ export function createRecognizeMathHandler(
   return async (req) => {
     const t0 = deps.now();
     if (req.auth == null) throw new HttpsError("unauthenticated", "sign-in required");
-    if (!deps.ownerUids().includes(req.auth.uid)) {
+    if (!isOwner(req.auth.uid, deps.ownerUids())) {
       throw new HttpsError("permission-denied", "this account may not use recognizeMath");
     }
     const request = parseRequest(req.data);
@@ -74,15 +75,8 @@ export function createRecognizeMathHandler(
   };
 }
 
-function ownerUidsOf(raw: string): string[] {
-  return raw
-    .split(",")
-    .map((uid) => uid.trim())
-    .filter((uid) => uid !== "");
-}
-
 const handler = createRecognizeMathHandler({
-  ownerUids: () => ownerUidsOf(OWNER_UIDS.value()),
+  ownerUids: () => parseOwnerUids(OWNER_UIDS.value()),
   engines: registryFromParams(),
   now: () => Date.now(),
   engineSignal: (ms) => AbortSignal.timeout(ms),

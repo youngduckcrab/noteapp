@@ -13,7 +13,13 @@ import {
   type HandlerDeps,
 } from "../src/recognize_math.js";
 
-const demo: EngineSettings = { mathEngine: "fake", allowFake: true };
+const demo: EngineSettings = {
+  mathEngine: "fake",
+  allowFake: true,
+  apiKey: "",
+  mathpixAppId: "",
+  claudeModel: "",
+};
 const owner = { uid: "owner-uid" };
 
 function handlerWith(overrides: Partial<HandlerDeps> = {}, settings: EngineSettings = demo) {
@@ -116,13 +122,13 @@ describe("createRecognizeMathHandler (skeleton)", () => {
 
   it("'auto' with MATH_ENGINE 'none' → unavailable", async () => {
     await assert.rejects(
-      handlerWith({}, { mathEngine: "none", allowFake: true })({ auth: owner, data: { v: 1, strokes: twoStrokes } }),
+      handlerWith({}, { ...demo, mathEngine: "none" })({ auth: owner, data: { v: 1, strokes: twoStrokes } }),
       code("unavailable"),
     );
   });
 
   it("'fake' without ALLOW_FAKE_ENGINE → invalid-argument; 'auto' → unavailable", async () => {
-    const prod = { mathEngine: "fake", allowFake: false };
+    const prod = { ...demo, allowFake: false };
     await assert.rejects(
       handlerWith({}, prod)({ auth: owner, data: { v: 1, engine: "fake", strokes: twoStrokes } }),
       code("invalid-argument"),

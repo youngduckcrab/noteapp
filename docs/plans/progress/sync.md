@@ -243,7 +243,7 @@
 | B7a | 기반 단계에서 완료 | `99b8ead`·`5056fcb` | `test/model/field_units_test.dart`(종류별 키), `test/integration/core_json_keys_test.dart` v2 |
 | 문서 정리 | 완료 | `163f8d2` | 계획 13.5 — 5.5 실제 타입, 인용 v2.3, C23-01·C23-02, SYNC-F1~F3 |
 | S2-1 | 완료 | `66f726f` | `test/model/field_units_test.dart`(19 — 단위 표·종류별 단위·모르는 키·판 섞임 수렴), `test/merge/field_merge_test.dart`(49 — 6.2.2 표 10행), `test/merge/field_merge_properties_test.dart`(시드 1..20 × 100, 새 종류 3 + 모르는 키), `test/web/pure_logic_browser_test.dart`(Chrome 26) |
-| S2-2 | 완료 | (이 줄의 커밋) | `test/model/scopes_test.dart`(6 — 객체 = 힌트, 손글씨 = 페이지와 같은 순서), `test/codec/chunk_packer_test.dart`(16 — 계약 7.2.8 정렬, 노트 범위 새 종류 결정성, 새 종류 blob 없음), `test/goldens/chunk_v1_kinds_golden_test.dart`(8 — 2,621 B `877eebff…`, Python = Dart 인코더 + 모르는 kind 원본 기록), Chrome `chunk_kinds_cases`(4) |
+| S2-2 | 완료 | `2bacbb6` | `test/model/scopes_test.dart`(6 — 객체 = 힌트, 손글씨 = 페이지와 같은 순서), `test/codec/chunk_packer_test.dart`(16 — 계약 7.2.8 정렬, 노트 범위 새 종류 결정성, 새 종류 blob 없음), `test/goldens/chunk_v1_kinds_golden_test.dart`(8 — 2,621 B `877eebff…`, Python = Dart 인코더 + 모르는 kind 원본 기록), Chrome `chunk_kinds_cases`(4) |
 | S2-6 | 남음 | | `test/codec/chunk_codec_test.dart`, `test/engine/held_records_test.dart`, `test/web/pure_logic_browser_test.dart` |
 | S2-4a | 남음 | | `test/testing/fake_local_store_test.dart`, `test/testing/fake_sync_server_test.dart`, `test/contract/fake_local_store_contract_test.dart` |
 | S2-4b | 남음 | | `test/testing/test_device_test.dart`, `test/testing/sync_test_harness_test.dart`, `test/contract/fake_local_store_contract_test.dart`(C-01~C-31), `test/api_surface_test.dart` |
@@ -253,7 +253,7 @@
 | S2-7b | 남음 | | `test/engine/download_pipeline_test.dart`('S-13 다시 적용'), `test/engine/engine_state_test.dart` |
 | S2-8 | 남음 | | `test/scenarios/s23_…`~`s30_…`, `test/scenarios/fuzz_convergence_test.dart` |
 | S2-9 | 남음 | | `test/integration/`(T16-v2 5파일 — 작성·컴파일, 실행은 I-2) |
-| S2-10a | 남음 (P-B) | | `functions/test/{protocol,access,registry,fake_engine,latex}.test.ts` |
+| S2-10a | 완료 (P-B) | (이 줄의 커밋) | `functions/test/protocol.test.ts`(6.8.3 표 각 행·경계 — 획 2,000/2,001, 점 10,000/10,001, JSON 524,288/+1 B, base64 2,097,152/+1자), `access.test.ts`, `registry.test.ts`('auto'·이름·`fake` 금지·`gemini`·Mathpix/Claude 설정 조건·`createRegistry` 주입·설정을 resolve마다 읽음·키는 엔진을 만들 때만·소스 검사), `fake_engine.test.ts`(B7b 그대로), `latex.test.ts` — `npm ci && npm test` `# tests 105` |
 | S2-10b | 남음 (P-B) | | `functions/test/{quota,handler,secrets_hygiene}.test.ts` |
 | S2-11 | 남음 (P-B) | | `functions/test-emulator/recognize_math.emulator.test.ts`(E1~E10) |
 | S2-12 | 남음 (P-C) | | `functions/test/{mathpix,claude}.test.ts` |
@@ -272,6 +272,9 @@
 
 #### 계획과 다르게 한 점 (동시 개발)
 
+- S2-10a: 계획 6.8.3 표의 `pngBase64` 위반 메시지 '`pngBase64 is not a PNG` 등'을 넷으로 나눴다 — 문자열 아님·빈 값 `pngBase64 must be a non-empty string`, 길이 초과 `pngBase64 is larger than 2 MB`, base64 아님(문자 집합 밖·길이 % 4 ≠ 0·`=`가 끝 말고 있음) `pngBase64 is not base64`, 서명 다름 `pngBase64 is not a PNG`. 모두 `invalid-argument`라 앱 동작은 같다. `engine`·`locale`이 `null`이면 없는 것으로 본다(기본값). PNG 서명은 앞 12자만 풀어 본다(본문 전체는 처리 본문이 엔진에 넘길 때 푼다).
+- S2-10a: `latex.ts`(계획 3.2 '출력 정리·정규화')는 `stripMathDelimiters`·`normalizeLatex`(6.9.3 규칙) 두 함수다. 4.5는 `normalizeLatex`를 `tool/eval_score.ts`에 두는데, S2-13에서 그 파일이 이 함수를 다시 내보내게 한다(서버와 도구가 같은 규칙). 6.9.3 '경우 표 20개'는 S2-13 `math_eval.test.ts` 몫이고, 여기 `latex.test.ts`는 같은 규칙을 함수 단위로 시험한다(28).
+- S2-10a: 등록부는 Mathpix·Claude 설정이 다 있어도 어댑터 공장(S2-12)이 없으면 `notConfigured`다. `registryFromParams`는 `MATH_API_KEY`를 getter로 넘겨 가짜 엔진 경로에서는 비밀값을 읽지 않는다.
 - S2-2: 골든의 Chrome용 상수는 1차처럼 따로 파일 `test/shared/chunk_v1_kinds_golden_bytes.dart`(Python 스크립트가 `.bin`과 함께 씀)에 두었다(계획 3.1 트리에는 `chunk_kinds_cases.dart`만 있음). 모르는 kind 기록 바이트 도우미 `test/support/raw_records.dart`(3.1 트리의 [새])를 S2-6보다 먼저 S2-2에서 만들었다.
 
 - S2-1: 계획 6.2.2는 '`FieldMerge.mergeRecords`는 손대지 않는다'였지만 한 곳을 고쳤다. 한 단위 종류(`wholeUnitExcept` — `pageObject`·`handwriting`)에서 `keysOf` 밖의 키(모르는 키)는 그 키가 **없는** 스냅숏 쪽에서 버전을 갖지 않는다('loose' — 동점 비교에 들지 않고, 결과의 필드 버전에도 남기지 않음). 이유: 모르는 키는 어느 스냅숏에 있을 때만 단위에 들어가므로, 없는 쪽의 기본 버전(base)이 승자 쪽에서 덮어쓰기 항목으로 남으면 병합 순서에 따라 결과의 `versions`가 달라진다(모르는 키를 섞은 성질 시험의 결합 법칙이 시드 1에서 깨짐 — JSON은 같고 그 키의 덮어쓰기 항목만 다름). 1차 종류는 바뀌지 않는다(loose 집합이 비어 있음 — 1차 시험 그대로 통과). 시드 1..400 결합·교환·멱등 통과를 한 번 확인했다(커밋 안 한 임시 시험).
@@ -282,6 +285,7 @@
 
 #### 다음 세션 메모
 
+- S2-10a 뒤 에뮬레이터 한 번(`npm run test:emulator`, 잠금 아래 2026-11-06 05:00:17 → 05:00:48 UTC, 31 s): 함수가 새 매개변수(`MATHPIX_APP_ID`·`CLAUDE_MODEL`, 기본 '')와 함께 뜨고 `# tests 0`(에뮬레이터 시험 파일은 S2-11).
 - 다음: S2-6(관용 디코드 + `HeldRecords`). `test/shared/chunk_kinds_cases.dart`의 '엄격한 디코더는 골든을 거절' 시험 옆에 `decodeTolerant`가 모르는 기록 1개 + 알려진 기록 5개를 돌려주는 시험을 더한다(계획 6.2.3 끝 — S2-2에서는 `decodeTolerant`가 없어 엄격한 거절만 확인). 모르는 kind 기록 바이트는 `test/support/raw_records.dart`의 `rawUpsertRecord`. `functions/` 줄 S2-10a는 Dart 작업 사이에 끼운다.
 - 새 종류 골든은 정수값 double을 쓰지 않는다(웹 `jsonEncode`가 `100.0`을 `100`으로 씀 — 1차 골든과 같은 규칙). 그래서 고정 자료는 CORE `toJson`이 아니라 `chunk_kinds_cases.dart`의 문자 그대로 JSON이고, VM 시험이 CORE로 디코드되는지 따로 본다. 골든을 바꿀 때는 `cd packages/sync_engine && python3 -I test/goldens/make_chunk_kinds_golden.py`(`.bin`과 `test/shared/chunk_v1_kinds_golden_bytes.dart`를 함께 씀) 뒤 시험의 길이·sha-256을 고친다.
 
