@@ -5,9 +5,11 @@
 // text; the real builds are android.yml / ios-compile.yml (CI).
 //
 // J0 part: the parsers, the committed files and every rule of
-// appNativeConfigProblems (each one broken on purpose once). Later parts of
-// this file: build.gradle.kts signing branch (J2), native_requirements.yaml
-// fully met (J1), the app shell's two native storage paths (J4 — 6.9).
+// appNativeConfigProblems (each one broken on purpose once). J1 part:
+// tool/native_requirements.yaml fully met (the NR7 check of `ws
+// native-reqs`, tool/test/native_reqs_test.dart) and agreeing with
+// AppNativeExpectations. Later parts of this file: build.gradle.kts signing
+// branch (J2), the app shell's two native storage paths (J4 — 6.9).
 
 import 'dart:io';
 
@@ -15,6 +17,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../src/native_config.dart';
+import '../src/native_reqs.dart';
 import 'support/fixture_workspace.dart';
 
 String _read(String path) => File(p.join(repoRoot, path)).readAsStringSync();
@@ -25,6 +28,9 @@ NativeConfig _withEdit(String path, String Function(String text) edit) {
   return NativeConfig(
     manifest: AndroidManifestInfo.parse(
       text(NativeConfigPaths.androidManifest),
+    ),
+    androidGradle: AndroidGradleInfo.parse(
+      text(NativeConfigPaths.androidGradle),
     ),
     infoPlist: parsePlist(text(NativeConfigPaths.infoPlist)),
     deploymentTargets: pbxDeploymentTargets(text(NativeConfigPaths.pbxproj)),
@@ -504,6 +510,84 @@ FOO = bar
         }
       });
     }
+  });
+
+  group('tool/native_requirements.yaml fully met (J1 — NR7)', () {
+    late NativeConfig config;
+    late NativeRequirements requirements;
+    setUpAll(() {
+      config = NativeConfig.load(repoRoot);
+      requirements = NativeRequirements.load(
+        p.join(repoRoot, NativeReqsPaths.requirements),
+      );
+    });
+
+    test('no problem on the committed files', () {
+      expect(nativeRequirementProblems(requirements, config), isEmpty);
+    });
+
+    test('build.gradle.kts keeps Flutter\'s default SDK levels', () {
+      expect(config.androidGradle.minSdk, gradleFlutterDefault);
+      expect(config.androidGradle.compileSdk, gradleFlutterDefault);
+    });
+
+    test('the requirements file and AppNativeExpectations agree', () {
+      final app = requirements.app;
+      expect(
+        app.iosDeploymentTarget,
+        AppNativeExpectations.iosDeploymentTarget,
+      );
+      expect(app.androidLabel, AppNativeExpectations.displayName);
+      expect(app.iosDisplayName, AppNativeExpectations.displayName);
+      expect(app.androidAllowBackup, isFalse);
+      final plugins = requirements.plugins.values;
+      expect({
+        ...requirements.appExtraAndroidPermissions,
+        for (final r in plugins) ...r.androidPermissions,
+      }, AppNativeExpectations.androidPermissions);
+      expect({
+        for (final r in plugins)
+          for (final c in r.androidRemoved)
+            if (c.tag == 'uses-permission') c.name,
+      }, AppNativeExpectations.androidRemovedPermissions);
+      expect(
+        {
+          for (final r in plugins)
+            for (final c in r.androidRemoved)
+              if (c.tag == 'receiver') c.name,
+        },
+        {AppNativeExpectations.rebootReceiver},
+      );
+      final service = plugins.expand((r) => r.androidServices).single;
+      expect(service.name, AppNativeExpectations.foregroundService);
+      expect({
+        for (final MapEntry(:key, :value) in service.attributes.entries)
+          'android:$key': value,
+      }, AppNativeExpectations.foregroundServiceAttributes);
+      expect(
+        {for (final r in plugins) ...r.iosPlistKeys},
+        AppNativeExpectations.iosStrings.keys.toSet()
+          ..remove('CFBundleDisplayName'),
+      );
+      expect({
+        for (final r in plugins) ...r.iosBackgroundModes,
+      }, AppNativeExpectations.iosBackgroundModes);
+      expect(requirements.appExtraIosPlist, AppNativeExpectations.iosBooleans);
+    });
+
+    test('a plugin requirement removed from the committed manifest is one '
+        'line', () {
+      final broken = _withEdit(
+        NativeConfigPaths.androidManifest,
+        _replace(
+          '<uses-permission android:name="android.permission.RECORD_AUDIO"/>',
+          '',
+        ),
+      );
+      expect(nativeRequirementProblems(requirements, broken), [
+        'AndroidManifest: missing <uses-permission android.permission.RECORD_AUDIO>',
+      ]);
+    });
   });
 }
 

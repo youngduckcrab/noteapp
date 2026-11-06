@@ -1,5 +1,6 @@
-/// Reads the committed native configuration of the app — Android manifest,
-/// iOS Info.plist, Xcode project, Podfile and xcconfig files — and checks the
+/// Reads the committed native configuration of the app — Android manifest and
+/// `build.gradle.kts`, iOS Info.plist, Xcode project, Podfile and xcconfig
+/// files — and checks the
 /// values INFRA sets (docs/plans/m5-7/01-infra.md 6.10.1, 6.11.1–6.11.4 and
 /// appendix B; contract 00-overview 7.4.3 v2.1). The container cannot build
 /// Android or iOS, so these files are checked as text (V12):
@@ -16,6 +17,7 @@ import 'package:xml/xml.dart';
 abstract final class NativeConfigPaths {
   static const String androidManifest =
       'app/android/app/src/main/AndroidManifest.xml';
+  static const String androidGradle = 'app/android/app/build.gradle.kts';
   static const String infoPlist = 'app/ios/Runner/Info.plist';
   static const String pbxproj = 'app/ios/Runner.xcodeproj/project.pbxproj';
   static const String podfile = 'app/ios/Podfile';
@@ -115,6 +117,46 @@ final class AndroidManifestInfo {
     for (final attribute in element.attributes)
       attribute.name.qualified: attribute.value,
   };
+}
+
+/// The value of the Gradle setting [key] (`minSdk` or `compileSdk`, also
+/// spelled `minSdkVersion` / `compileSdkVersion`) in a `build.gradle` or
+/// `build.gradle.kts` text: `minSdk = 24`, `minSdkVersion 21`,
+/// `compileSdk(35)`, `compileSdk = flutter.compileSdkVersion`. Comments are
+/// ignored; the first setting wins.
+///
+/// Returns the number as digits, `flutter` when the value is an expression
+/// that names Flutter's default (`flutter.minSdkVersion`,
+/// `flutterCompileSdkVersion`), any other expression as written, and null
+/// when the setting is missing (docs/plans/m5-7/01-infra.md 6.3).
+String? gradleSdkValue(String text, String key) {
+  final code = text
+      .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+      .replaceAll(RegExp(r'//[^\n]*'), '');
+  final match = RegExp(
+    '\\b$key(?:Version)?\\b\\s*(?:=\\s*|\\(\\s*|[ \\t]+)(\\d+|[A-Za-z_][\\w.]*)',
+  ).firstMatch(code);
+  if (match == null) return null;
+  final value = match.group(1)!;
+  if (RegExp(r'^\d+$').hasMatch(value)) return value;
+  return value.toLowerCase().contains('flutter') ? gradleFlutterDefault : value;
+}
+
+/// What [gradleSdkValue] returns for Flutter's default SDK level.
+const String gradleFlutterDefault = 'flutter';
+
+/// The SDK settings of the app's `build.gradle.kts` (J1 — NR3, NR4 and the
+/// `app:` block of `tool/native_requirements.yaml`). Values as
+/// [gradleSdkValue] returns them.
+final class AndroidGradleInfo {
+  const AndroidGradleInfo({required this.minSdk, required this.compileSdk});
+
+  factory AndroidGradleInfo.parse(String text) => AndroidGradleInfo(
+    minSdk: gradleSdkValue(text, 'minSdk'),
+    compileSdk: gradleSdkValue(text, 'compileSdk'),
+  );
+
+  final String? minSdk, compileSdk;
 }
 
 /// Parses an XML property list into Dart values:
@@ -256,6 +298,7 @@ List<({String path, bool optional})> xcconfigIncludes(String text) => [
 final class NativeConfig {
   const NativeConfig({
     required this.manifest,
+    required this.androidGradle,
     required this.infoPlist,
     required this.deploymentTargets,
     required this.podfile,
@@ -276,6 +319,9 @@ final class NativeConfig {
       manifest: AndroidManifestInfo.parse(
         read(NativeConfigPaths.androidManifest),
       ),
+      androidGradle: AndroidGradleInfo.parse(
+        read(NativeConfigPaths.androidGradle),
+      ),
       infoPlist: parsePlist(read(NativeConfigPaths.infoPlist)),
       deploymentTargets: pbxDeploymentTargets(read(NativeConfigPaths.pbxproj)),
       podfile: PodfileInfo.parse(read(NativeConfigPaths.podfile)),
@@ -287,6 +333,7 @@ final class NativeConfig {
   }
 
   final AndroidManifestInfo manifest;
+  final AndroidGradleInfo androidGradle;
   final Map<String, Object> infoPlist;
   final List<String> deploymentTargets;
   final PodfileInfo podfile;

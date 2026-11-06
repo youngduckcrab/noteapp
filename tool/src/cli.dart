@@ -4,9 +4,9 @@
 /// Commands: `list`, `check` (R1–R16; R14 since the integration step G3,
 /// R16 since the 2차 step R2-B1), `analyze`, `test` (vm / chrome,
 /// `--affected-since`, `--all-if-no-base`, the heavy test lock and the fake
-/// media Chrome for `media`), `with-heavy-lock`, `affected`, `channel-id`,
-/// `build-info`, `finalize-web`, `web-assets verify|fetch` and
-/// `hosting-config`.
+/// media Chrome for `media`), `with-heavy-lock`, `native-reqs` (NR1–NR7,
+/// 2차 J1), `affected`, `channel-id`, `build-info`, `finalize-web`,
+/// `web-assets verify|fetch` and `hosting-config`.
 ///
 /// Exit codes: 0 success, 1 check / test failure, 2 usage error, 3
 /// environment error (no workspace, flutter, git or Chrome not found, no
@@ -26,6 +26,8 @@ import 'export_names.dart';
 import 'flutter_runner.dart';
 import 'heavy_lock.dart';
 import 'hosting_config.dart';
+import 'native_config.dart';
+import 'native_reqs.dart';
 import 'rules.dart';
 import 'test_command.dart';
 import 'web_assets.dart';
@@ -116,6 +118,7 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
         ..addCommand(_TestCommand(ctx))
         ..addCommand(_WithHeavyLockCommand(ctx))
         ..addCommand(_AnalyzeCommand(ctx))
+        ..addCommand(_NativeReqsCommand(ctx))
         ..addCommand(_AffectedCommand(ctx))
         ..addCommand(_ChannelIdCommand(ctx))
         ..addCommand(_BuildInfoCommand(ctx))
@@ -150,6 +153,12 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   } on ExportNamesException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on NativeReqsException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on NativeConfigException catch (e) {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   } on _HeavyLockTimeout catch (e) {
@@ -969,6 +978,66 @@ final class _WebAssetsFetchCommand extends _WebAssetsSubcommand {
       'ws web-assets fetch: ${results.length} asset(s), $failures failure(s)',
     );
     return failures == 0 ? 0 : 1;
+  }
+}
+
+final class _NativeReqsCommand extends _WsCommand {
+  _NativeReqsCommand(super.ctx);
+
+  @override
+  String get name => 'native-reqs';
+
+  @override
+  String get description =>
+      'Check the native requirements of the app\'s plugins against the '
+      'app\'s native files (NR1–NR7, ${NativeReqsPaths.requirements}). '
+      'Needs ${NativeReqsPaths.pluginsDependencies} (flutter pub get). '
+      'Exit 1 on a violation; NR4 is a warning.';
+
+  @override
+  Future<int> run() async {
+    rejectRest();
+    final workspaceRoot = root;
+    final config = NativeConfig.load(workspaceRoot);
+    final report = checkNativeRequirements(
+      requirements: NativeRequirements.load(
+        p.join(workspaceRoot, NativeReqsPaths.requirements),
+      ),
+      dependencies: FlutterPluginsDependencies.load(
+        p.join(workspaceRoot, NativeReqsPaths.pluginsDependencies),
+      ),
+      pluginPackages: WorkspaceRules.load(
+        p.join(workspaceRoot, 'tool', 'workspace_rules.yaml'),
+      ).pluginPackages,
+      config: config,
+      flutterDefaults: _flutterDefaults(),
+      appProblems: appNativeConfigProblems(config),
+    );
+    ctx.out.write(report.format());
+    return report.violations.isEmpty ? 0 : 1;
+  }
+
+  /// Flutter's default SDK levels from the Flutter in use (null when it or
+  /// its `FlutterExtension.kt` is not found — the requirements file's
+  /// `flutter_defaults` then apply).
+  ({int minSdk, int compileSdk})? _flutterDefaults() {
+    final flutter = locateFlutter(
+      environment: ctx.environment,
+      resolvedExecutable: ctx.resolvedExecutable,
+      isFile: ctx.isFile,
+      windows: Platform.isWindows,
+    );
+    if (flutter == null) return null;
+    try {
+      final sdkRoot = p.dirname(
+        p.dirname(File(flutter).resolveSymbolicLinksSync()),
+      );
+      final kotlin = File(p.join(sdkRoot, NativeReqsPaths.flutterExtension));
+      if (!kotlin.existsSync()) return null;
+      return flutterGradleDefaults(kotlin.readAsStringSync());
+    } on FileSystemException {
+      return null;
+    }
   }
 }
 

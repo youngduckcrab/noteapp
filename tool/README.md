@@ -9,6 +9,7 @@
 | `analyze` | `flutter analyze --fatal-infos` at the root. |
 | `test` | `flutter test` per member (`--package`, `--platform vm\|chrome`, `-t`, `--run-skipped`, `--affected-since <ref> [--all-if-no-base]`, `--member-timeout`). |
 | `with-heavy-lock [--timeout <min>] -- <command>` | Runs a command under the heavy test lock with `NOTEAPP_HEAVY_LOCK_HELD=1`. |
+| `native-reqs` | Native requirements of the app's plugins (`tool/native_requirements.yaml`) against the app's native files: NR1–NR7, table of each plugin's iOS minimum (podspec / `Package.swift`), minSdk / compileSdk and requirements. Needs `app/.flutter-plugins-dependencies` (`flutter pub get`). Exit 1 on a violation (NR4 compileSdk is a warning). |
 | `affected`, `channel-id`, `build-info`, `finalize-web`, `web-assets`, `hosting-config` | CI helpers (1차). |
 
 ## Heavy test lock (contract 7.4.6 v2.1)

@@ -393,7 +393,7 @@
 | R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
 | R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
 | J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요) | `1fd1aea`(①②③) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
-| J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
+| J1 | 완료 | (J1 커밋 — 아래 'J1' 절) | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
 | J2 | 남음 | | `native_config_test`(서명 분기)·`workflows_test`(서명 세 갈래) — 실제 서명은 GitHub(H6) |
 | J3 | 남음 | | `workflows_test`(ios-compile·testflight) — 실행은 U19 |
 | J4 | 남음 | | `app/test/storage/native_storage_paths_test.dart`·`core_module_test` |
@@ -481,6 +481,22 @@
 | `cd app && flutter build web --release` (잠금 안) | 성공 · 컴파일 260초(부하 평균 8 — 다른 에이전트와 CPU 공유) |
 | 같은 빌드 + `--dart-define` 기능 셋 false | 성공 · 136초 |
 
+#### J1 — `ws native-reqs` (계획 8.2, 4.3.2, 6.3)
+
+- **`tool/native_requirements.yaml`**(4.3.2 그대로 + `flutter_defaults: {min_sdk: 24, compile_sdk: 36}` — 6.3 문장의 대체값): `app:`(15.5·`flutter`·`flutter`·필기노트·`false`·필기노트), `cocoapods_only_allowed` ML Kit 둘, `plugins` 10개(영역 열 = 요구를 낸 계획서), `plugins_without_requirements` 13개, `app_extra`(`INTERNET`, `ITSAppUsesNonExemptEncryption: false`).
+- **`tool/src/native_reqs.dart`**: `NativeRequirements.parse/load`(키·태그·SDK 값 검사, 두 목록 겹침 거절), `FlutterPluginsDependencies.parse/load`(`plugins.ios/android` — `native_build`·`dev_dependency`, `dependencyGraph` 이름 집합, 상대 경로는 파일 위치 기준), `podspecIosMinimum`(`s.platform`·`ios.deployment_target` 큰 값), `swiftPackageIosMinimum`(`"x"`·`.vNN`·`.vNN_M`), `flutterGradleDefaults`(`FlutterExtension.kt`), `PluginNativeInfo.read`(`ios/`·`darwin/`·`android/build.gradle(.kts)`), `nativeRequirementProblems`(NR7 — `native_config_test`와 같은 함수), `checkNativeRequirements`(NR1~NR7) → `NativeReqsReport.format()`(표·앱 줄·발견·요약).
+- **`tool/src/native_config.dart`**: `gradleSdkValue`(kts·groovy·괄호·주석 무시, Flutter 기본값 식 → `flutter`), `AndroidGradleInfo`, `NativeConfigPaths.androidGradle`, `NativeConfig.androidGradle`(J2가 서명 분기를 여기에 더한다).
+- **`ws native-reqs`**(`cli.dart`): 입력이 없거나 틀리면 종료 3(`flutter pub get` 안내), 위반 1, NR4만 있으면 0. NR7에는 `appNativeConfigProblems`(J0) 줄도 더한다(같은 문구는 한 줄).
+- 실제 워크스페이스 실행 결과(컨테이너): 플러그인 23개, `app: ios 15.5 · minSdk 24 (flutter — FlutterExtension.kt) · compileSdk 36 (flutter — FlutterExtension.kt) · CocoaPods-only: google_mlkit_commons, google_mlkit_digital_ink_recognition`, 위반 0·경고 0. `plugin_packages`(53) = `dependencyGraph`. Dart 전용(`native_build: false`)은 `path_provider_android` 2.3.1·`path_provider_foundation` 2.6.0.
+
+| 검사 | 결과 |
+|---|---|
+| `dart run tool/ws.dart native-reqs` | 종료 0 · 23개 · 위반 0 · 경고 0 |
+| `dart test tool/test/native_reqs_test.dart tool/test/native_config_test.dart` | 65 통과 |
+| `dart test tool/test` | 437 통과 · 130초 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `ws check` (R1–R16) | 0 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -514,6 +530,12 @@
 - (J0) 기능 끈 빌드는 6.15 표의 두 스위치가 아니라 V15·H5와 같은 세 스위치(`FEATURE_MATH_ENGINE` 포함)로 쟀다.
 - (문서) C23-01의 'INFRA(CI·functions.yml 고정값 확인)': `functions.yml`에는 판 문자열이 없다(`functions/package.json` devDependency를 `npm ci`로). 1차 고정값이 남아 있던 `ci.yml`·`web-experiment.yml` 배포 단계 `firebaseToolsVersion`을 15.34.1로 내렸다(계약 7.5 표 '(도구) firebase-tools 15.34.1 — CI').
 
+- (J1) 픽스처(가짜 플러그인 7개 — pod만·SwiftPM만·둘 다(`darwin/`)·`.iOS(.v15)`(NR2 사례에서 `.v16`)·Gradle kts·groovy·Dart 전용 — 와 가짜 `.flutter-plugins-dependencies`)는 `tool/test/fixtures/native/`에 커밋하지 않고 시험마다 임시 폴더에 쓴다(`tool/test/support/fixture_workspace.dart`의 기존 방식 — 사례마다 파일 하나만 바꾸기 쉽다).
+- (J1) NR7 = `nativeRequirementProblems`(요구 파일이 정한 것: 플러그인 요구·`app:`·`app_extra:`). 확정 문구·Podfile 줄 같은 J0 값은 `appNativeConfigProblems`가 맡고, `ws native-reqs`는 두 함수의 줄을 합쳐(같은 설정은 같은 문구라 한 줄) NR7로 보인다. CI 게이트는 `native_config_test`(두 함수 모두 + 요구 파일 ↔ `AppNativeExpectations` 값 대조).
+- (J1) NR1에 반대 방향을 경고로 더했다: 요구 파일에 있지만 앱이 iOS·안드로이드로 해석하지 않는 이름(종료 0).
+- (J1) 플러그인 iOS 최소 = podspec 값과 `Package.swift` 값 중 큰 것, 앱 값 = Xcode 프로젝트의 가장 낮은 `IPHONEOS_DEPLOYMENT_TARGET`(없으면 요구 파일 값). Gradle 값이 'flutter'를 담은 식이면(`flutter.compileSdkVersion`, `android_file_picker`의 `flutterCompileSdkVersion`) Flutter 기본값으로 보고 비교하지 않는다. `native_build: false`인 플러그인은 파일을 읽지 않고 표에 '(Dart only)'.
+- (J1) 표의 열은 6.3 예시의 `spm`(yes/no) 대신 `ios(spm)`(그 `Package.swift`의 iOS 값, 없으면 `no`), 마지막 줄은 `ws native-reqs: N plugin(s), V violation(s), W warning(s)`(다른 `ws` 명령과 같은 꼴).
+
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 
 | 보낸 곳 | 내용 | 처리 |
@@ -535,7 +557,7 @@
 
 #### 다음 세션 메모
 
-- 다음: J1(`ws native-reqs` + `tool/native_requirements.yaml` + `tool/src/native_reqs.dart` — `NativeConfig`(J0)를 그대로 읽는다, NR7은 `appNativeConfigProblems`와 같은 판정). 그 뒤 J2·J3·J4(J4에 `native_config_test`의 앱 셸 두 경로 묶음).
+- J1 끝. 다음: J2(`build.gradle.kts` 고정 서명 — `AndroidGradleInfo`(J1)에 서명 분기를 더하고 `native_config_test` 서명 묶음, `android.yml` v2·`workflows_test` 서명 세 갈래)·J3·J4(J4에 `native_config_test`의 앱 셸 두 경로 묶음).
 - J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
 - J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
 - 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에, J13 몫은 (R2-B8b)에 적었다.
