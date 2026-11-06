@@ -1,8 +1,8 @@
 // lib/src/math/math_renderer.dart — contract 7.2.9 (m5-7/03-ink 4.9, rules 4.10, 6.12).
 //
-// validate and layout are final (T26b); rasterize returns null in the
-// foundation step (R2-B3 — the raster host with its queue and the wait for
-// SVG glyph pictures is T36).
+// validate and layout are final (T26b); rasterize (T36) runs on the raster
+// host of offscreen_host.dart: queued one at a time, waiting for the SVG glyph
+// pictures, ≤ 4 Mpx (6.12.2).
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -50,13 +50,22 @@ abstract final class InkMathRenderer {
   /// flutter_svg) before capturing, bounded in count and time; returns null rather than an
   /// incomplete image. Requests are served one at a time. Output ≤ 4 Mpx (7.4.5): pixelsPerPt is
   /// lowered to fit.
-  /// (R2-B3: always null — T36.)
+  /// The caller owns the image (dispose it). null also for an invalid formula and a
+  /// fontSizePt / pixelsPerPt that is not a positive finite number. Never throws.
   static Future<ui.Image?> rasterize(
     String latex, {
     required int colorArgb,
     required double fontSizePt,
     required double pixelsPerPt,
-  }) => Future<ui.Image?>.value();
+  }) async {
+    final r = await rasterizeFormula(
+      latex,
+      colorArgb: colorArgb,
+      fontSizePt: fontSizePt,
+      pixelsPerPt: pixelsPerPt,
+    );
+    return r?.image;
+  }
 
   static const String _unsupported = 'Unsupported formula';
 
@@ -111,6 +120,37 @@ final class InkMathLayout {
 
   @override
   String toString() => 'InkMathLayout($sizePt, baseline $baselinePt)';
+}
+
+/// INTERNAL (T36): [InkMathRenderer.rasterize] with the laid-out size the raster was
+/// captured from (pt) — the screen cache keeps it for the contain fit (6.12.3).
+@internal
+Future<OffscreenRaster?> rasterizeFormula(
+  String latex, {
+  required int colorArgb,
+  required double fontSizePt,
+  required double pixelsPerPt,
+}) {
+  if (!(fontSizePt > 0) ||
+      !fontSizePt.isFinite ||
+      !(pixelsPerPt > 0) ||
+      !pixelsPerPt.isFinite ||
+      latex.trim().isEmpty ||
+      latex.length > core.PageObjectLimits.maxLatexLength) {
+    return Future<OffscreenRaster?>.value();
+  }
+  return OffscreenMathHost.rasterHost.raster(
+    (
+      latex: latex,
+      colorArgb: colorArgb,
+      fontSizePt: fontSizePt,
+      pixelsPerPt: pixelsPerPt,
+    ),
+    // built on the job's timer turn: an invalid formula builds nothing (→ null)
+    () => InkMathRenderer.validate(latex) == null
+        ? mathWidget(latex, fontSize: fontSizePt, colorArgb: colorArgb)
+        : const SizedBox.shrink(),
+  );
 }
 
 /// INTERNAL: the formula widget INK lays out and previews — flutter_math_fork Math.tex with

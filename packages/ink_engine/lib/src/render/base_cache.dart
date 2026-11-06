@@ -12,7 +12,9 @@
 //   shapes (z mixed), the underlay's images, the annotation's text boxes /
 //   formulas / unknown objects — and every chunk remembers the draw keys of
 //   what it drew (assets, fonts, hairlines — 6.11.3), so a key change records
-//   only the chunks that drew it.
+//   only the chunks that drew it. (T36) A draw key that is an InkDrawHold
+//   (a formula raster the chunk drew) is pinned while the chunk's picture
+//   lives and released when it is dropped (6.11.3 reference counts).
 // - CoverPictureCache: (T32b) one page Picture of the committed tapes.
 // - HighlighterBaseCache: one page Picture of the highlighter groups that are
 //   not being written, and the opaque Picture of each group that is (6.10-6).
@@ -26,6 +28,7 @@ import '../model/ink_stroke.dart';
 import '../object/object_view.dart';
 import 'highlighter_compositor.dart';
 import 'ink_page_content.dart';
+import 'pinned_raster_cache.dart';
 import 'stroke_painter.dart';
 
 /// (m5-7/03-ink 6.8.2) The object changes of one L-1 layer, by id + instance.
@@ -327,6 +330,19 @@ abstract final class InkDrawKeys {
 
   /// The image asset [assetId] was drawn (or its placeholder).
   static Object asset(String assetId) => (#inkDrawKeyAsset, assetId);
+
+  /// (T36, 6.12.3) The formula ([latex], [colorArgb], [fontSizePt]) was drawn — its raster
+  /// at some bucket or its placeholder.
+  static Object math(String latex, int colorArgb, double fontSizePt) =>
+      (#inkDrawKeyMath, latex, colorArgb, fontSizePt);
+}
+
+/// (m5-7 T36, 6.11.3) A draw key that holds a cached raster while a chunk picture drew it:
+/// the chunk [acquire]s it when the key is first noted for that picture and releases the
+/// pin when the picture is dropped (dirty, consolidated, reset, disposed). Equal holds
+/// (==) are pinned once per chunk.
+abstract interface class InkDrawHold {
+  InkRasterPin acquire();
 }
 
 /// Draws chunk [index] some other way (a raster tile, 6.13-5); false → the
@@ -448,6 +464,21 @@ final class InkChunkCache {
     return n;
   }
 
+  /// (T36) True when some chunk (or a loading recording) drew [key].
+  bool hasKey(Object key) => _chunks.any(
+    (c) => c.keys.contains(key) || (c.partial?.keys.contains(key) ?? false),
+  );
+
+  /// (T36) The pins held by the chunk pictures (InkDrawHold keys), for tests.
+  @visibleForTesting
+  int get heldPinCount {
+    var n = 0;
+    for (final c in _chunks) {
+      n += c.pins.length + (c.partial?.pins.length ?? 0);
+    }
+    return n;
+  }
+
   /// The draw keys of chunk ([col], [row]): those of its picture and appended pictures.
   @visibleForTesting
   Set<Object> drawKeysAt(int col, int row) =>
@@ -467,7 +498,7 @@ final class InkChunkCache {
         _clearAt(i); // consolidate (R4)
         continue;
       }
-      chunk.appended.add(_record(i, [item], draw, chunk.keys));
+      chunk.appended.add(_record(i, [item], draw, chunk.keys, chunk.pins));
     }
   }
 
@@ -501,7 +532,7 @@ final class InkChunkCache {
     for (final MapEntry(key: i, value: items) in need.entries) {
       final c = _chunks[i];
       if (!c.loaded) continue;
-      c.picture = _record(i, items, draw, c.keys);
+      c.picture = _record(i, items, draw, c.keys, c.pins);
       c.recordedStrokes = items.length;
       _recordCount++;
     }
@@ -514,7 +545,7 @@ final class InkChunkCache {
       final p = c.partial ??= _Partial(_clipRectOf(i), need[i] ?? []);
       while (p.next < p.items.length) {
         final item = p.items[p.next++];
-        _noteKeys(p.keys, item);
+        _noteKeys(p.keys, p.pins, item);
         draw(p.canvas, item);
         if (outOfTime != null && outOfTime()) {
           spent = true;
@@ -528,6 +559,8 @@ final class InkChunkCache {
         ..loaded = true
         ..partial = null;
       c.keys.addAll(p.keys);
+      c.pins.addAll(p.pins);
+      p.pins.clear();
       _recordCount++;
     }
     return _chunks.every((c) => c.picture != null);
@@ -655,20 +688,26 @@ final class InkChunkCache {
     List<InkLayerItem> items,
     InkItemDraw draw,
     Set<Object> keys,
+    List<InkRasterPin> pins,
   ) {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder)
       ..clipRect(_clipRectOf(index), doAntiAlias: false);
     for (final item in items) {
-      _noteKeys(keys, item);
+      _noteKeys(keys, pins, item);
       draw(canvas, item);
     }
     return recorder.endRecording();
   }
 
-  void _noteKeys(Set<Object> keys, InkLayerItem item) {
+  /// Notes the draw keys of [item] (asked right before it is drawn); a new InkDrawHold
+  /// is pinned for the picture being recorded.
+  void _noteKeys(Set<Object> keys, List<InkRasterPin> pins, InkLayerItem item) {
     final of = drawKeysOf;
-    if (of != null) keys.addAll(of(item));
+    if (of == null) return;
+    for (final key in of(item)) {
+      if (keys.add(key) && key is InkDrawHold) pins.add(key.acquire());
+    }
   }
 
   /// The chunk's page tile; the outer edges reach [_farPt] past the page.
@@ -712,6 +751,9 @@ final class _Chunk {
   /// (m5-7 T32b) The draw keys of [picture] and [appended].
   final Set<Object> keys = {};
 
+  /// (T36) The pins of the InkDrawHold keys in [keys].
+  final List<InkRasterPin> pins = [];
+
   /// Recorded at least once since the grid was made.
   bool loaded = false;
 
@@ -729,7 +771,17 @@ final class _Chunk {
     }
     appended.clear();
     keys.clear();
-    partial?.recorder.endRecording().dispose();
+    for (final pin in pins) {
+      pin.release();
+    }
+    pins.clear();
+    final p = partial;
+    if (p != null) {
+      p.recorder.endRecording().dispose();
+      for (final pin in p.pins) {
+        pin.release();
+      }
+    }
     partial = null;
     generation++;
   }
@@ -750,6 +802,9 @@ final class _Partial {
 
   /// The draw keys of the items drawn so far.
   final Set<Object> keys = {};
+
+  /// (T36) The pins of the InkDrawHold keys in [keys].
+  final List<InkRasterPin> pins = [];
 }
 
 /// (m5-7/03-ink 6.8.3, T32b) The cover layer's base drawing: one page Picture of the

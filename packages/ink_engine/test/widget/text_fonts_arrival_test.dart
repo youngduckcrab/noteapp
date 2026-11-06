@@ -12,6 +12,9 @@
 //   redraws the page too.
 // Its own file: the first test needs a process where NoteSans was never
 // registered with the engine (objects_render_test loads it in setUpAll).
+// (T36) The formula on the page gets its raster once (its chunk is recorded
+// again when it arrives — math_render_test): the tests let it arrive before
+// they count the records of the font arrival.
 @TestOn('vm')
 library;
 
@@ -22,6 +25,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/render/base_cache.dart';
+import 'package:ink_engine/src/render/cache_pool.dart' show mathRasterCacheOf;
 import 'package:ink_engine/src/render/ink_page_controller.dart'
     show
         inkAnnotationCacheOf,
@@ -129,6 +133,16 @@ int _ink(Pixels p) {
   return n;
 }
 
+/// (T36) The formula's raster arrives and its chunk is recorded again.
+Future<void> _formulaSettled(InkPageController c) async {
+  final cache = mathRasterCacheOf(c.cachePool);
+  for (var i = 0; i < 2000 && cache.stats.queued > 0; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+  }
+  await pumpEventQueue();
+  _paintAll(c);
+}
+
 /// The chunk generations of [cache], one per chunk.
 List<int> _generations(InkChunkCache cache) => [
   for (var i = 0; i < cache.chunkCount; i++) cache.generationOf(i),
@@ -157,7 +171,7 @@ void main() {
     final annotation = inkAnnotationCacheOf(c);
 
     final system = await _textPixels(c);
-    _paintAll(c);
+    await _formulaSettled(c);
     expect(_ink(system), greaterThan(300), reason: 'drawn at once');
     expect(InkFontsDebug.isLoading, isTrue, reason: 'implicit load (7.4.5)');
     expect(reads, 2, reason: 'regular and bold, once');
@@ -229,6 +243,7 @@ void main() {
 
     _paintAll(c);
     await pumpEventQueue();
+    await _formulaSettled(c);
     expect(InkFontsDebug.isLoaded, isFalse);
     expect(c.diagnostics.snapshot.warnings, 1, reason: 'fontLoadFailed');
     expect(reads, greaterThan(0));
@@ -271,6 +286,7 @@ void main() {
     final annotation = inkAnnotationCacheOf(c);
     _paintAll(c);
     await pumpEventQueue();
+    await _formulaSettled(c);
     expect(InkFontsDebug.isLoaded, isFalse);
     final records = annotation.recordCount;
 

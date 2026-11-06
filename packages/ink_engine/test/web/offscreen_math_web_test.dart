@@ -5,9 +5,16 @@ library;
 // CanvasKit) — layout works without loading the KaTeX fonts (rootBundle does not
 // answer under `flutter test --platform chrome`), validate is the same, and the
 // MathPreview widget lays out.
+// (T36, 6.12.2) The raster host on CanvasKit, without the KaTeX fonts: the SVG
+// glyph samples have their ink, and the delayed loader seam gives the same
+// results as on the VM (waits for a late picture, null past the settle cap,
+// FIFO queue, joined requests, timer turns, also from inside paint) — the
+// bodies of test/support/math_raster_cases.dart.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
+
+import '../support/math_raster_cases.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -44,5 +51,11 @@ void main() {
     );
     expect(tester.getSize(find.byType(MathPreview)).width, greaterThan(0));
     expect(tester.takeException(), isNull);
+  });
+
+  group('(T36) SVG glyph samples', svgGlyphCases);
+  group('(T36) raster queue', () {
+    offscreenQueueCases();
+    paintPhaseRequestCase();
   });
 }

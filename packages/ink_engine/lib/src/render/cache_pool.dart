@@ -4,13 +4,15 @@
 // is identical), outlineBudgetBytes. L3 (INK T19): the raster tile LRU of
 // raster_tiles.dart, rasterBudgetBytes, least recently used first. The chunk
 // picture count is the sum over the live page controllers (L2 lives in each
-// controller).
+// controller). (m5-7 T36) The formula raster cache (mathRasterCacheBytes,
+// 6.12.3 / 6.22) — app wide like the pool, made on first use.
 import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
 import '../geometry/outline_generator.dart';
 import '../geometry/stroke_outline.dart';
+import '../math/math_raster_cache.dart';
 import '../model/ink_stroke.dart';
 import 'raster_tiles.dart';
 import 'render_config.dart';
@@ -26,6 +28,7 @@ final class InkCachePool {
   int _outlineBytes = 0;
   final RasterTileLru _tiles;
   final Set<int Function()> _pictureCounts = {};
+  MathRasterCache? _math;
   bool _disposed = false;
 
   /// LRU keyed by stroke id, valid while the InkStroke instance is identical (K-4).
@@ -76,7 +79,20 @@ final class InkCachePool {
     _outlineBytes = 0;
     _tiles.dispose();
     _pictureCounts.clear();
+    _math?.dispose();
   }
+}
+
+/// INTERNAL (m5-7 T36): the formula raster cache of [pool] (6.12.3), made on first use
+/// with the pool's mathRasterCacheBytes and scale buckets.
+@internal
+MathRasterCache mathRasterCacheOf(InkCachePool pool) {
+  final cache = pool._math ??= MathRasterCache(
+    budgetBytes: pool._config.mathRasterCacheBytes,
+    scaleBuckets: pool._config.scaleBuckets,
+  );
+  if (pool._disposed) cache.dispose(); // peek → null, nothing is requested
+  return cache;
 }
 
 /// INTERNAL: the raster tile LRU of [pool] (6.13 L3).

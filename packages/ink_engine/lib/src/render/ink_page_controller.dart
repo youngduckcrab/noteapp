@@ -22,7 +22,11 @@
 // with a committed id replaces it; previews win over hidden ids); the
 // read-only getters; playback focus as state only (T40); hitTestRecorded;
 // the memorization tape state (tapes still draw as ballpoint — T31).
-import 'dart:async' show scheduleMicrotask, unawaited;
+// (m5-7 T36, 6.12.3) Formulas are drawn from the pool's raster cache: the chunk
+// that drew one pins its raster (InkDrawHold), a raster that arrives records
+// only the annotation chunks that drew that formula, another bucket after
+// setViewport asks the page's formulas again.
+import 'dart:async' show StreamSubscription, scheduleMicrotask, unawaited;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -45,6 +49,7 @@ import '../input/pressure_capability.dart';
 import '../input/pressure_detector.dart';
 import '../input/pressure_mode.dart';
 import '../interop/core_interop.dart' as interop;
+import '../math/math_raster_cache.dart';
 import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
 import '../object/object_painter.dart';
@@ -289,6 +294,15 @@ final class InkPageController extends ChangeNotifier {
 
   /// (T34) A text box was drawn with the system font: listening for the fonts.
   bool _fontsListening = false;
+
+  // (T36, 6.12.3) formula rasters: the pool's cache, its change notices (listened to
+  // once a formula was drawn), the formulas the live part drew in the last paint, the
+  // formulas warned about as invalid, the bucket the formulas were last asked at
+  late final MathRasterCache _math = mathRasterCacheOf(cachePool);
+  StreamSubscription<MathRasterChange>? _mathChanges;
+  final Set<MathFormula> _liveMath = {};
+  final Set<String> _mathInvalidWarned = {};
+  double? _mathBucket;
 
   // viewport (6.12 R9)
   ui.Rect? _visiblePageRect;
@@ -799,6 +813,7 @@ final class InkPageController extends ChangeNotifier {
     _isScaling = isScaling;
     _bucket = scaleBucketFor(config.scaleBuckets, deviceScale);
     if (_disposed) return;
+    _syncMathBucket();
     if (!config.rasterTiles) return;
     if (visibleChanged || scaleChanged) _tiles.clearEvicted();
     if (visibleChanged || scaleChanged || scalingChanged) {
@@ -836,6 +851,8 @@ final class InkPageController extends ChangeNotifier {
     _pending.clear();
     if (_fontsListening) InkFontsDebug.removeLoadedListener(_onFontsLoaded);
     _fontsListening = false;
+    unawaited(_mathChanges?.cancel());
+    _mathChanges = null;
     _rasterSchedule.dispose();
     _chunks.dispose();
     _underlay.dispose();
@@ -1185,14 +1202,17 @@ final class InkPageController extends ChangeNotifier {
       o,
       paperArgb: paper,
       onePx: 1 / _hairlineScale,
+      mathRasterOf: _mathRasterFor,
     )) {
       diagnostics.onWarning('objectPaintFailed');
     }
   }
 
   /// (6.8.3, 6.11.3) What an object's chunk picture depends on besides the object: its
-  /// image asset, NoteSans when it is not loaded yet, the hairline width.
-  static Iterable<Object> _objectDrawKeys(InkLayerItem item) sync* {
+  /// image asset, NoteSans when it is not loaded yet, the hairline width, (T36) the
+  /// formula (its raster at some bucket or its placeholder) and the hold that pins the
+  /// raster the chunk draws (an invalid formula: the hairline placeholder).
+  Iterable<Object> _objectDrawKeys(InkLayerItem item) sync* {
     if (item is! InkObjectView) return;
     switch (item.object) {
       case core.ImageObject(:final assetId):
@@ -1202,8 +1222,85 @@ final class InkPageController extends ChangeNotifier {
         if (!InkFontsDebug.isLoaded) yield InkDrawKeys.fonts;
       case core.UnknownObject():
         yield InkDrawKeys.hairline;
-      case core.ShapeObject() || core.MathObject():
+      case final core.MathObject o:
+        if (!isRenderableMath(o)) {
+          yield InkDrawKeys.hairline;
+          break;
+        }
+        final f = mathFormulaOf(o);
+        yield InkDrawKeys.math(f.latex, f.colorArgb, f.fontSizePt);
+        final raster = _mathRasterFor(o);
+        if (raster != null) yield _math.holdOf(raster);
+      case core.ShapeObject():
         break;
+    }
+  }
+
+  /// (T36, 6.12.3) The raster to draw [o] with now (null → the placeholder): asks the
+  /// pool's cache at this view's bucket (a missing one is queued; the chunks that drew
+  /// the formula are recorded again when it arrives — _onMathChange). A formula that does
+  /// not parse warns mathInvalid once per object (6.24).
+  MathRaster? _mathRasterFor(core.MathObject o) {
+    if (_disposed) return null;
+    if (!isRenderableMath(o)) {
+      if (_mathInvalidWarned.add(o.id)) diagnostics.onWarning('mathInvalid');
+      return null;
+    }
+    _mathChanges ??= _math.changes.listen(_onMathChange);
+    final r = o.frame.rect;
+    return _math.peek(
+      mathFormulaOf(o),
+      deviceScale: _deviceScale,
+      framePt: ui.Size(r.width, r.height),
+      nowUs: clock.nowUs(),
+    );
+  }
+
+  /// [_mathRasterFor] for the live part (pending, selection preview, previews): the
+  /// formula is remembered so its arrival repaints the layer.
+  MathRaster? _liveMathRasterFor(core.MathObject o) {
+    final raster = _mathRasterFor(o);
+    if (isRenderableMath(o)) _liveMath.add(mathFormulaOf(o));
+    return raster;
+  }
+
+  /// (T36) A formula raster arrived: only the annotation chunks that drew that formula
+  /// are recorded again (InkDrawKeys.math), the layer repaints when one did or the live
+  /// part draws it. A failed raster (glyph pictures not settled) warns mathRasterFailed
+  /// when this page draws the formula; its placeholder stays until the next content or
+  /// bucket change asks again (after InkTuning.mathRasterRetryMs).
+  void _onMathChange(MathRasterChange change) {
+    if (_disposed) return;
+    final f = change.formula;
+    final key = InkDrawKeys.math(f.latex, f.colorArgb, f.fontSizePt);
+    final live = _liveMath.contains(f);
+    if (change.failed) {
+      if (live || _annotation.hasKey(key)) {
+        diagnostics.onWarning('mathRasterFailed');
+      }
+      return;
+    }
+    final n = _annotation.markDirtyWithKey(key);
+    if (n > 0 || live) _repaints[InkRenderLayer.annotation]!.fire();
+  }
+
+  /// (T36) Another formula bucket (setViewport, not while scaling): the formulas of the
+  /// page are asked at it now — each arrival records only the chunks that drew it.
+  void _syncMathBucket() {
+    if (_isScaling || _mathChanges == null) return;
+    final bucket = _math.wantedBucket(_deviceScale);
+    if (bucket == _mathBucket) return;
+    final first = _mathBucket == null;
+    _mathBucket = bucket;
+    // the first report: the formulas drawn so far were asked at this bucket already
+    if (first && bucket == _math.wantedBucket(null)) return;
+    final content = _content;
+    if (content == null) return;
+    for (final v in objectViewsOf(content, InkObjectLayer.annotation)) {
+      final o = v.object;
+      if (o is core.MathObject && !_baseObjectsHidden.contains(o.id)) {
+        _mathRasterFor(o);
+      }
     }
   }
 
@@ -1630,6 +1727,7 @@ final class InkPageController extends ChangeNotifier {
     _syncHairlines();
     // (T34) cached text in the system font: ask for NoteSans again (after a failure's pause)
     if (_fontsListening && layer == InkObjectLayer.annotation) _wantFonts();
+    if (layer == InkObjectLayer.annotation) _liveMath.clear();
     if (content != null) {
       final views = objectViewsOf(content, layer);
       if (views.isNotEmpty) {
@@ -1663,7 +1761,13 @@ final class InkPageController extends ChangeNotifier {
     for (final o in objects) {
       if (hidden.contains(o.id)) continue;
       if (o is core.TextBoxObject) _wantFonts();
-      if (!paintObjectSimple(canvas, o, paperArgb: paper, onePx: onePx)) {
+      if (!paintObjectSimple(
+        canvas,
+        o,
+        paperArgb: paper,
+        onePx: onePx,
+        mathRasterOf: _liveMathRasterFor,
+      )) {
         diagnostics.onWarning('objectPaintFailed');
       }
     }

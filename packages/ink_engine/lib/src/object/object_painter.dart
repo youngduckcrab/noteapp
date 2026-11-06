@@ -7,8 +7,10 @@
 // ③ the paragraph of InkTextLayout (the system font until NoteSans is loaded: the
 // paragraph cache is keyed by the instance and the loaded flag); an empty text without a
 // background draws nothing;
-// images: a gray placeholder box (T35); formulas: a light box (no raster —
-// T36); unknown objects: a hatched box. Every object is drawn inside its CORE
+// images: a gray placeholder box (T35); formulas: (m5-7 T36, 6.12.3–6.12.4) the
+// cached raster contain-fitted (centred, uniform scale) into the frame, a light box
+// until it is there, the hatched box of 6.13 for a formula that does not parse
+// (mathInvalid — the caller warns); unknown objects: a hatched box. Every object is drawn inside its CORE
 // bounds (K-6). Colors come from the object or the paper (7.4.10 — no color
 // literals). The render path never throws (4.0): a failing object is skipped
 // and reported.
@@ -18,18 +20,21 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../math/math_raster_cache.dart';
 import '../text/fonts.dart';
 import '../text/text_layout.dart';
 import '../tuning.dart';
 import 'shape_path.dart';
 
 /// Paints [o] in page pt. [onePx] = one logical px in pt (hairlines). Returns false when
-/// painting failed (the caller warns).
+/// painting failed (the caller warns). (T36) [mathRasterOf] gives the raster of a formula
+/// to draw now (null → the placeholder; not given → always the placeholder).
 bool paintObjectSimple(
   ui.Canvas canvas,
   core.PageObject o, {
   required int paperArgb,
   required double onePx,
+  MathRaster? Function(core.MathObject o)? mathRasterOf,
 }) {
   try {
     switch (o) {
@@ -44,10 +49,21 @@ bool paintObjectSimple(
           (w, h) => _paintImagePlaceholder(canvas, w, h, paperArgb, onePx),
         );
       case core.MathObject():
+        final raster = mathRasterOf?.call(o); // (also warns mathInvalid)
+        if (!isRenderableMath(o)) {
+          _inFrame(
+            canvas,
+            o.frame,
+            (w, h) => _paintUnknown(canvas, w, h, paperArgb, onePx),
+          );
+          break;
+        }
         _inFrame(
           canvas,
           o.frame,
-          (w, h) => _paintMathBox(canvas, w, h, paperArgb),
+          (w, h) => raster == null
+              ? _paintMathBox(canvas, w, h, paperArgb)
+              : paintMathRaster(canvas, raster, w, h),
         );
       case core.UnknownObject():
         _inFrame(
@@ -159,6 +175,30 @@ void _paintImagePlaceholder(
   canvas
     ..drawLine(ui.Offset.zero, ui.Offset(w, h), line)
     ..drawLine(ui.Offset(w, 0), ui.Offset(0, h), line);
+}
+
+/// (T36, 6.12.4 K-6) [raster] contain-fitted into the w × h frame (frame coordinates):
+/// s = min(w / lw, h / lh) of its laid-out size (lw, lh), centred. The source is the
+/// laid-out part of the image (lw·k × lh·k px — the image is rounded up).
+@internal
+void paintMathRaster(ui.Canvas canvas, MathRaster raster, double w, double h) {
+  final lw = raster.sizePt.width, lh = raster.sizePt.height;
+  if (!(lw > 0) || !(lh > 0)) return;
+  final s = math.min(w / lw, h / lh);
+  final dw = lw * s, dh = lh * s;
+  final k = raster.pixelsPerPt;
+  final image = raster.image;
+  canvas.drawImageRect(
+    image,
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      math.min(lw * k, image.width.toDouble()),
+      math.min(lh * k, image.height.toDouble()),
+    ),
+    ui.Rect.fromLTWH((w - dw) / 2, (h - dh) / 2, dw, dh),
+    ui.Paint()..filterQuality = ui.FilterQuality.medium,
+  );
 }
 
 void _paintMathBox(ui.Canvas canvas, double w, double h, int paperArgb) {
