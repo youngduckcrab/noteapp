@@ -3,18 +3,24 @@
 Owned by CORE: document model, local storage, undo, sync outbox. Plan:
 [docs/plans/02-core.md](../../docs/plans/02-core.md), contract:
 [00-overview.md 7장](../../docs/plans/00-overview.md) (7.2.2 ~ 7.2.14, 7.6 B2).
+2nd round (M5 ~ M7: page objects, recordings, handwriting results, search
+index, DB v2): plan [docs/plans/m5-7/02-core.md](../../docs/plans/m5-7/02-core.md),
+contract [m5-7/00-overview.md 7장](../../docs/plans/m5-7/00-overview.md)
+(7.2.2 ~ 7.2.8, 7.6).
 
 Pure Dart, web safe. Entry points:
 
 | Import | Use |
 |---|---|
 | `package:note_core/note_core.dart` | Everything public: data types, commands, `NoteSession`, repositories, `SyncStore`, `AssetStore`, providers |
-| `package:note_core/dev_tools.dart` | `seedSyntheticNote` (developer menu) |
+| `package:note_core/dev_tools.dart` | `seedSyntheticNote` (developer menu); (2차) the v1 copy of the upgrade: `v1DatabaseCopyInfo`, `readV1DatabaseCopy`, `deleteV1DatabaseCopy` |
 | `package:note_core/testing.dart` | `test/` only: `createFakeNoteStore`, `FakeNoteStoreFaults`, `StrokeFixtures`, `newerVersionWinsPolicy`, (2차) `PageObjectFixtures`, `FakeAudioRecorder`, `FakeAudioPlayback` |
 | `package:note_core/testing_vm.dart` | VM `test/` only: `openTestNoteStore` (the SQLite store in memory or on a file) |
 | `package:note_core/testing_web.dart` | (2차) `test/web/` only: `openWebTestNoteStore`, `deleteWebTestNoteStore` (the real web store under a test name) |
 
-State: the whole of plan chapter 4 works on both stores. `openNoteStore` opens
+State: the whole of plan chapter 4 (1st and 2nd round) works on both stores;
+a 1st-round database is upgraded to v2 on open, after a v1 copy (2nd-round
+plan 6.12.4, `dev_tools.dart`). `openNoteStore` opens
 SQLite through drift (web: `WasmDatabase` in `drift_worker.js`; VM: a native
 file or memory database), asset bytes and thumbnails live in IndexedDB on the
 web. (2차 T35, plan m5-7/02-core 6.15.3) Off the web a durable store needs both
@@ -148,6 +154,163 @@ final report = await store.sync.applyRemote(
   `contentRevision`, `hasLocalBytes`) of entities passed in are never stored.
   CORE computes them.
 
+## Native storage (INFRA J4, 2차)
+
+```dart
+final config = NoteStoreConfig(
+  // Android / iOS: both paths (app support directory). One alone →
+  // storageUnavailable, like a directory that cannot be made or written.
+  nativeDatabasePath: '$supportDir/noteapp.db',
+  nativeAssetDirectoryPath: '$supportDir/assets', // made when missing
+);
+final store = await openNoteStore(config); // nativeFile, no banner
+// 'reset local data': await store.close(); await deleteLocalNoteData(config);
+// removes the database, its v1 copy and <assets>/blobs, <assets>/thumbs.
+```
+
+## Page objects (EDITOR, X18)
+
+```dart
+final box = TextBoxObject(
+  id: store.ids.newId(),
+  pageId: page.id,
+  frame: const ElementFrame(PageRect(72, 72, 372, 112)),
+  text: '회의 메모',
+  style: const TextBoxStyle(),
+  createdAt: store.clock.now().millisecondsSinceEpoch,
+);
+session.execute(AddObjects(pageId: page.id, objects: [box])); // one undo step
+session.execute(
+  UpdateObjects(pageId: page.id, objects: [box.copyWith(text: '회의 메모 2')]),
+); // only the changed JSON keys get a new field version (C-11)
+session.execute(RemoveElements(pageId: page.id, elementIds: [box.id]));
+final objects = session.pageIfLoaded(page.id)!.objects; // active, in order
+```
+
+- `UpdateObjects` replaces by id (same id, same type). An `UnknownObject` or a
+  missing id throws `ArgumentError` before anything changes.
+- `createNote(pages: [PageDraft(…, objects: […])])` writes objects with the
+  note (new ids, the original `createdAt`), and
+  `store.content.loadPage(pageId)` reads them without a session (PDF export).
+
+## Recordings (media_io, X19 · X20)
+
+```dart
+final recordingId = store.ids.newId(); // chosen at record start (strokes link to it)
+final draft = await store.recordingDrafts.begin(
+  recordingId: recordingId,
+  noteId: noteId,
+  mimeType: 'audio/webm',
+  startedAt: startedAt,
+);
+await store.recordingDrafts.append(draft.draftId, chunk, activeMs: 1000);
+// … stop: the whole draft → one audio asset → then the recording row (M-1)
+final audio = await store.assets.put(
+  await store.recordingDrafts.readAll(draft.draftId),
+  type: AssetType.audio,
+  mimeType: 'audio/webm',
+);
+final recording = await store.recordings.createRecording(
+  id: recordingId, // a retry with the same id returns the same row
+  noteId: noteId,
+  assetId: audio.id,
+  durationMs: 1000,
+  startedAt: startedAt,
+);
+await store.recordingDrafts.discard(draft.draftId);
+```
+
+- After a crash or a closed tab, `listDrafts()` returns the leftovers (a web
+  draft whose row was not yet durable comes back from its meta).
+- `append` completes when the chunk is durable; each chunk ≤ 4 MiB, an empty
+  chunk only moves `activeMs`. A second `begin` for the same `recordingId`
+  throws `StateError`.
+- `renameRecording(id, title)`, `deleteRecording(id)` (soft — strokes keep
+  their `recordingId`), `watchRecordings(noteId)` / `noteRecordingsProvider`,
+  `audioBytesOf(noteId)`.
+
+## PDF text index (PDF, X23)
+
+```dart
+final ownerKey = '${asset.id}#$pdfPageIndex'; // one owner per PDF page
+final sourceRev = '${asset.id}:${SearchText.normalizerVersion}';
+if (await store.search.sourceRevOf(SearchSource.pdf, ownerKey) != sourceRev) {
+  await store.search.replaceUnits(
+    SearchSource.pdf,
+    ownerKey,
+    [
+      SearchUnitDraft(
+        body: pageText,
+        rects: glyphBoxes, // fractions of the PDF page, one per UTF-16 unit, or []
+        pdfPageAspect: pdfWidth / pdfHeight,
+      ),
+    ],
+    sourceRev: sourceRev,
+  );
+}
+```
+
+- An empty unit list still records the owner with its `sourceRev` (a scanned
+  page). `sourceRevs(SearchSource.pdf)` answers every owner in one query for
+  the start-up catch-up. Text boxes, math and handwriting are indexed by CORE
+  itself.
+- An index write failure never fails the source write (C-13): the owner is
+  marked pending and retried on the next write transaction or store open.
+
+## Search (LIBRARY, X21)
+
+```dart
+final result = await store.library.searchLibrary(query);
+// result.folders / result.notes: titles (1st round); result.pages: content hits
+for (final hit in result.pages) {
+  // hit.noteId, hit.pageId, hit.source, hit.snippet, hit.matchRange,
+  // hit.rects (note page pt — pdf boxes already fitted), best first
+}
+final more = result.pagesTruncated; // the limit or the 2,000-candidate cap cut it
+final inNote = await store.search.searchPages(query, withinNote: noteId);
+```
+
+- Trashed notes and deleted pages are left out. A pdf hit appears on every
+  live page that shows that PDF page.
+- `store.search.status` reports `rebuilding` and `pendingOwners`;
+  `rebuild()` is idempotent. Providers: `searchIndexProvider`,
+  `librarySearchProvider(query)`.
+
+## Handwriting results (recognition, X22)
+
+```dart
+for (final noteId in await store.handwriting.notesWithStalePages()) {
+  for (final pageId in await store.handwriting.stalePages(noteId)) {
+    final input = [
+      for (final s in (await store.content.loadPage(pageId)).strokes)
+        if (HandwritingText.isRecognitionInput(s)) s,
+    ];
+    final fresh = HandwritingText(
+      noteId: noteId,
+      pageId: pageId,
+      engineId: engineId,
+      sourceRev: HandwritingText.sourceRevOf(input),
+      lines: await recognize(input), // engine work, outside CORE
+      createdAt: store.clock.now().millisecondsSinceEpoch,
+    );
+    await store.handwriting.update(
+      pageId,
+      // recog's merge rule (user-confirmed lines — 05-library 6.9.4); null = keep
+      (current) => mergeConfirmed(current, fresh),
+    );
+  }
+}
+```
+
+- `update` reads, merges and writes in ONE CORE write transaction, so a
+  result that arrived meanwhile (sync, the conversion UI) is merged, not
+  overwritten (G-4). `transform` is synchronous and pure; returning null
+  leaves the stored value as it is.
+- Input strokes are the page's active strokes with
+  `HandwritingText.isRecognitionInput` (not highlighter / tape / laser).
+  After `put` / `update` with the current `sourceRev`, `stalePages` no longer
+  lists the page.
+
 ## Tests in other areas
 
 ```dart
@@ -178,17 +341,13 @@ final container = ProviderContainer.test(
 - Fixtures: `StrokeFixtures.synthetic(pageId:, ids:, seed:, pointCount:)`,
   `newerVersionWinsPolicy`, and `seedSyntheticNote(store, pages:, strokesPerPage:)`
   from `dev_tools.dart`.
-- (2차, plan m5-7/02-core 6.17, 8.1 'B2 상태') The fake store already has the
-  2nd-round behaviour: page object commands, recordings, recording drafts,
-  handwriting results (`update`, `stalePages`, `notesWithStalePages`) and a
-  memory search index that decides and orders like the real one (text boxes,
-  math and handwriting are indexed by the store; pdf goes through
-  `store.search.replaceUnits`). On the real store (`openTestNoteStore`) these
-  come with the concurrent tasks: page object commands (sessions,
-  `createNote` drafts, `store.content.loadPage(…).objects`) since CORE T27,
-  recordings since T30, recording drafts (chunks and meta in the asset blob
-  store) since T31; the handwriting / index writes throw
-  `UnimplementedError('CORE T32: …')` / T33a until those tasks.
+- (2차, plan m5-7/02-core 6.17) Both stores have the 2nd-round behaviour:
+  page object commands, recordings, recording drafts, handwriting results
+  (`update`, `stalePages`, `notesWithStalePages`) and the search index. The
+  fake's memory index decides and orders like the real FTS index (CP-14 —
+  the shared search cases run on both); text boxes, math and handwriting are
+  indexed by the store, pdf goes through `store.search.replaceUnits`. The
+  examples above run on both (`test/readme_examples_test.dart`).
 - `PageObjectFixtures.shape / textBox / image / math / unknown(pageId: …)`
   build valid objects with the contract defaults (`id` omitted → a unique
   `fx-<type>-<n>`).

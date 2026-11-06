@@ -273,9 +273,8 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final DriftSyncStore sync;
 
-  // (v2) 2nd-round getters. Recordings since CORE T30, recording drafts since T31,
-  // handwriting results since T32, the search index (writes) since T33a — its queries
-  // answer empty until CORE T33b.
+  // (v2) 2nd-round getters: recordings (CORE T30), recording drafts (T31), handwriting
+  // results (T32), the search index (writes T33a, queries T33b).
   @override
   late final DriftRecordingRepository recordings;
   @override
