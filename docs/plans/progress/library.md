@@ -291,7 +291,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | B6-b | 기반 단계에서 완료 | 99cdeef | `ink_recognition_smoke_test.dart`, `unit/api_surface_test.dart`·`handwriting_trace_test.dart`·`fakes_test.dart`·`synthetic_shapes_test.dart`·`group_into_lines_test.dart`, `web/recognition_browser_test.dart` |
 | L2-01 | 완료 | 6450c3c | feature_library `unit/content_hits_test.dart`, `unit/content_provider_test.dart` |
 | L2-02 | 완료 | e962cdb | `widget/content_search_test.dart`, `unit/strings_contract_test.dart` |
-| L2-03 | 완료 | (이 커밋) | `widget/content_search_test.dart`('opening' 묶음) |
+| L2-03 | 완료 | af9d262 | `widget/content_search_test.dart`('opening' 묶음) |
 | L2-04 | 남음 | | `goldens/library_golden_test.dart`, `widget/a11y_test.dart`, `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart` |
 | L2-05 | 남음 | | ink_recognition `unit/group_into_lines_test.dart`, `unit/synthetic_handwriting_test.dart`, `shared/line_cases.dart` |
 | L2-06 (P-B) | 남음 | | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`, `unit/shape_real_samples_test.dart`, `shared/shape_cases.dart` |
@@ -337,7 +337,11 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 
 #### 이정표 커밋
 
-- 없음
+- `af9d262`(L2-03): `LibraryScreen`이 내용 검색 결과 행에서 `onOpenNoteAt(noteId, pageId, 합집합 Rect?)`를 실제로 부른다(`onOpenNoteAt == null`이면 `onOpenNote`). INFRA V5의 '위치로 열기'·라우팅 `?page=&focus=`가 이 커밋부터 LIBRARY 쪽 호출을 받는다.
+
+#### 세션 끝 확인 (세션 1, 2026-11-06, `af9d262` 위)
+
+`ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package feature_library --platform vm` **677 통과·1 skip(integration)**, `--platform chrome` **17 통과**, `ws test --package ink_recognition --platform vm` **57 통과**, `--platform chrome` **9 통과**.
 
 #### 다음 세션 메모
 
