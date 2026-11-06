@@ -276,3 +276,60 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 3. **[EDITOR]·[LIBRARY]·[PDF]·[INFRA]** Chrome 시험에서 `InkFonts`·`InkTextLayout`을 거치면 `setUpAll(useInkTestFonts)`(4.12). `InkMathRenderer.layout`을 바인딩 없는 `test()`에서 부르면 먼저 `TestWidgetsFlutterBinding.ensureInitialized()`(위 10).
 4. **[총괄]** 03-ink 계획 본문 정정(이번 기록이 근거): 6.10.1 크기·해시(위 6), 8.1 T26a 줄 높이 문장(위 7), 4.12 `FakeInkShapeFitter` 필드(위 2), 3장 트리 `flutter_math_fork` 라이선스(위 11).
 5. **[INFRA]** `app/test/modules/pdf_module_test.dart` 103행('INK's default: template backgrounds only')을 계약 7.2.9 v2.0 기본값 `[isA<ink.ImageBackgroundLayerBuilder>(), isA<ink.TemplateBackgroundLayerBuilder>()]`으로. 그 아래 `pdfIoOverrides()` 시험(빌더 2개)은 PDF R2-B4가 목록을 `[pdf, ...ink.defaultPageBackgroundBuilders(ref)]`(3개)로 바꿀 때 함께.
+
+### 동시 개발
+
+계획 docs/plans/m5-7/03-ink.md(승인 · 계약 v2.3 — 8.2 표). 바탕: 작업 트리 `area2/ink` `5843ec3`(기반 단계 R2-B1~R2-B6 + R2-final + 계약 v2.3, 총괄이 넣은 글꼴 `assets:` 블록 C23-03). 다른 영역 2차 구현은 이 트리에서 기반 단계 표면이라 INK 시험은 계약 표면 + 7.6 시험 도우미만 쓴다.
+
+#### 작업 표
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| T24 | 기반 단계에서 완료 | fd3370f | 위 '작업 표 (2차)' |
+| T25 | 기반 단계에서 완료 | fd3370f | 위 '작업 표 (2차)' |
+| T26a | 기반 단계에서 완료 (+ 보충 완료) | fd3370f · (보충) 이번 커밋 | 위 '작업 표 (2차)' + `unit/pubspec_assets_test.dart`(C23-03 — `flutter.assets` = 세 파일·폴더/README/`fonts:` 없음·파일 있음·`rootBundle`이 커밋된 바이트·`InkFonts`가 디버그 원본 없이 적재) |
+| T26b | 기반 단계에서 완료 | fd3370f | 위 '작업 표 (2차)' |
+| T27 | 남음 | | `unit/pen/pen_profile_test.dart` v2, `unit/geometry/square_cap_test.dart`, `unit/model/bounds_invariant_test.dart` v2, (웹) `web/geometry_on_web_test.dart` v2, `goldens/pens_p1_golden_test.dart`, `widget/pen_preview_test.dart` v2 |
+| T28 | 남음 | | `unit/geometry/nib_outline_test.dart`, `bounds_invariant_test` v2, `unit/edit/selection_test.dart` v2, `pen_preview_test` v2, `pens_p1_golden_test`, (웹) 체크섬 |
+| T29 | 남음 | | `unit/geometry/dash_test.dart`, `unit/render/live_dash_test.dart`, `bounds_invariant_test` v2, `pen_preview_test` v2, `pens_p1_golden_test` |
+| T30 | 남음 | | `unit/render/laser_lifetime_test.dart`, `widget/laser_test.dart`, `pen_preview_test` v2, `pens_p1_golden_test` |
+| T31 | 남음 | | `unit/render/tape_state_test.dart`, `widget/tape_test.dart`(cover 분기 점검 포함), `pen_preview_test` v2, `pens_p1_golden_test` |
+| T32a | 남음 | | `unit/object/object_view_test.dart`, `unit/render/content_diff_test.dart` v2, `unit/object/object_index_test.dart` |
+| T32b | 남음 | | `widget/objects_render_test.dart`, 1차 L1~L3·appended 시험 |
+| T33 | 남음 (이정표) | | `unit/geometry/shape_path_test.dart`, `unit/model/object_bounds_invariant_test.dart`, (웹) `web/object_bounds_web_test.dart`, `widget/objects_render_test.dart`, `goldens/shapes_golden_test.dart` |
+| T34 | 남음 (이정표) | | `widget/objects_render_test.dart`, `unit/text/text_layout_test.dart` |
+| T35 | 남음 | | `unit/image/image_cache_test.dart`, `unit/image/image_working_set_test.dart`, `unit/image/raster_ledger_test.dart`, `unit/image/image_header_test.dart`, `widget/image_background_test.dart`, `widget/objects_render_test.dart`, (웹) `web/image_decode_web_test.dart` |
+| T36 | 남음 (이정표) | | `widget/math_render_test.dart`, `unit/math/offscreen_queue_test.dart`, (웹) `web/offscreen_math_web_test.dart` |
+| T37a | 남음 | | `unit/object/object_hit_test.dart`, `unit/edit/lasso_test.dart` v2, `unit/edit/selection_test.dart` v2 |
+| T37b | 남음 | | `unit/edit/stroke_eraser_test.dart`·`partial_eraser_test.dart` v2, `unit/interop/fake_store_handoff_test.dart` v2 |
+| T38 | 남음 | | `widget/object_preview_hidden_test.dart` |
+| T39 | 남음 (P-B) | | `unit/shape/hold_detector_test.dart`, `widget/shape_assist_test.dart` |
+| T40 | 남음 | | `unit/render/playback_index_test.dart`, `widget/playback_focus_test.dart`, `unit/edit/hit_test_test.dart` |
+| T41 | 남음 | | `widget/thumbnail_v2_test.dart` |
+| T42 | 남음 (이정표) | | `unit/export/vector_export_v2_test.dart`, 1차 `vector_export_test` |
+| T43 | 남음 | | `benchmark/pen_p1_bench_test.dart`·`object_bench_test.dart`·`playback_bench_test.dart`, `benchmark/README.md` |
+| T44 | 남음 (P-C) | | `example/test/smoke_test.dart` v2, `flutter build web` |
+| I-1~I-7 | 통합 단계 | | 03-ink 8.3 |
+
+#### 변경 요청 (동시 개발)
+
+- 기반 단계 '변경 요청 (2차)' 처리 결과: 1(글꼴 `assets:` 블록)은 총괄이 `5843ec3`에서 넣음(C23-03) → `pubspec_assets_test` 더함. 2·3은 계약 C23-07로 공지됨. 4는 C23-06·C23-07에 따라 INK가 계획서에 반영(03-ink 13.4). 5는 INFRA R2-final `708a1c1`이 처리.
+- 다른 영역이 기반 단계에서 INK에 보낸 요청: INFRA 메모의 두 줄(의존 4줄 안내, 글꼴 블록 소유 결정 요청) — 둘 다 C23-03으로 끝남. 그 밖의 [INK] 요청 없음.
+- 새 요청: 없음.
+
+#### 의존성 요청
+
+없음.
+
+#### 계획과 다르게 한 점 (동시 개발)
+
+없음.
+
+#### 이정표 커밋
+
+위 '이정표 커밋 (INK 2차 — 03-ink 8.5)' 표에 채운다(T33·T34·T36·T42).
+
+#### 다음 세션 메모
+
+- 순서(8.2 병렬화): T27 → (T28, T29, T31) / T30은 언제든 / T32a → T32b → (T33, T34, T35, T36, T38) → T37a → T37b → (T41, T42) / T39는 T33 뒤 / T40은 T32b 뒤 / T43은 끝.
+- INK-F2: T39(P-B)를 미루면 이 절에 `T39 미룸`을 적는다. 들어오면 그 병합 때 LIBRARY L2-I3·EDITOR E2-21b·INFRA V5b를 다시 돌리도록 결과 보고에 알린다.
