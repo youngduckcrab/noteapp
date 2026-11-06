@@ -380,8 +380,56 @@ void main() {
         assetCount: 3,
         totalBytes: 150,
         thumbnailBytes: 12,
+        bytesByType: {AssetType.pdf: 150},
       ),
     );
+  });
+
+  // (v2.1, CP-11 — m5-7/02-core 6.15.2)
+  test(
+    'a local image put outside image/jpeg | image/png: ArgumentError, no row',
+    () async {
+      for (final mime in ['image/gif', 'image/heic', 'image/webp']) {
+        await expectLater(
+          assets.put(_bytes(20, 9), type: AssetType.image, mimeType: mime),
+          throwsArgumentError,
+          reason: mime,
+        );
+      }
+      expect(await assets.getAsset(_sha(_bytes(20, 9))), isNull);
+      expect(await outbox(), isEmpty);
+      expect(batches, isEmpty);
+      // The stored types, and a non-image type with any MIME, are accepted.
+      await assets.put(
+        _bytes(21),
+        type: AssetType.image,
+        mimeType: 'image/png',
+      );
+      await assets.put(
+        _bytes(22),
+        type: AssetType.image,
+        mimeType: 'image/jpeg',
+      );
+      await assets.put(
+        _bytes(23),
+        type: AssetType.audio,
+        mimeType: 'audio/webm',
+      );
+      expect(await assets.listAssets(), hasLength(3));
+    },
+  );
+
+  test('a remote image of another type is stored (putDownloadedBytes is not checked)', () async {
+    final bytes = _bytes(40, 4);
+    final gif = Asset.fromJson({
+      ..._remoteAsset(bytes).toJson(),
+      'type': 'image',
+      'mimeType': 'image/gif',
+    });
+    await _putRemoteMeta(store, gif);
+    await assets.putDownloadedBytes(gif.id, bytes);
+    expect(await assets.readBytes(gif.id), bytes);
+    expect((await assets.getAsset(gif.id))!.mimeType, 'image/gif');
   });
 
   test('a reopened file store reads the bytes of its assets', () async {

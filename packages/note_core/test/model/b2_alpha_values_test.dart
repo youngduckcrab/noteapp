@@ -1,21 +1,12 @@
-// B2-α value types (m5-7/02-core 8.1 T22 — 'B2 상태' column 'B2-α 끝'): constructors,
-// fields, defaults, ==, hashCode, enums and constants are real; the algorithm bodies throw
-// UnimplementedError('CORE <task>: …') with the task that fills them in (T20a JSON, T20b
-// geometry / transforms / copies, T21 value-type functions). Web-safe.
+// B2-α value types (m5-7/02-core 8.1 T22): constructors, fields, defaults, ==, hashCode, enums
+// and constants. The algorithm bodies (T20a JSON, T20b geometry, T21 value-type functions) have
+// their own tests since B2-β. Web-safe.
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
 import 'package:test/test.dart';
-
-Matcher _pending(String task) => throwsA(
-  isA<UnimplementedError>().having(
-    (e) => e.message,
-    'message',
-    startsWith('CORE $task: '),
-  ),
-);
 
 const _frame = ElementFrame(PageRect(10, 20, 110, 70));
 const _line = PolylineGeometry([
@@ -187,32 +178,6 @@ void main() {
       expect([mathStyle.colorArgb, mathStyle.fontSizePt], [0xFF1A1A1A, 18]);
       expect(mathStyle, const MathStyle());
       expect(mathStyle.hashCode, const MathStyle().hashCode);
-    });
-
-    test('the algorithm bodies name their CORE task', () {
-      final cases = <String, List<Object? Function()>>{
-        'T21': [
-          () => HandwritingText.sourceRevOf(const []),
-          () => HandwritingText.isRecognitionInput(
-            StrokeFixtures.synthetic(
-              pageId: 'p1',
-              ids: SequentialIdGenerator(),
-            ),
-          ),
-          () => SearchText.normalize('a'),
-          () => SearchText.indexTerms('a'),
-          () => SearchText.matchQuery('a'),
-          () => SearchText.normalizeMapped('a'),
-          () => const RecorderStatus().isActive,
-          () => const RecorderStatus().copyWith(activeMs: 1),
-          () => const PlaybackStatus().copyWith(speed: 2),
-        ],
-      };
-      for (final MapEntry(key: task, value: calls) in cases.entries) {
-        for (final (i, call) in calls.indexed) {
-          expect(call, _pending(task), reason: '$task #$i');
-        }
-      }
     });
   });
 

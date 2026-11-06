@@ -10,6 +10,7 @@ import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 
 import '../assets/asset_store.dart';
+import '../assets/image_import.dart';
 import '../backup/backup_export.dart';
 import '../common/errors.dart';
 import '../common/hlc.dart';
@@ -1821,6 +1822,11 @@ final class FakeAssets implements AssetStore {
     required String mimeType,
     String? fileName,
   }) {
+    try {
+      checkLocalImageType(type, mimeType);
+    } on ArgumentError catch (e, st) {
+      return Future.error(e, st);
+    }
     final id = hashOf(bytes);
     final existing = s.assetRows[id];
     if (existing != null && existing.hasLocalBytes && s.blobs.containsKey(id)) {
@@ -1931,6 +1937,15 @@ final class FakeAssets implements AssetStore {
       0,
       (sum, t) => sum + t.bytes.length,
     ),
+    // (v2.0, m5-7/02-core 6.15.1) the same rows as totalBytes, per type.
+    bytesByType: Map.unmodifiable(<AssetType, int>{
+      for (final type in AssetType.values)
+        if (s.assetRows.values
+                .where((a) => !a.isDeleted && a.hasLocalBytes && a.type == type)
+                .fold(0, (sum, a) => sum + a.size)
+            case final bytes when bytes > 0)
+          type: bytes,
+    }),
   );
 
   Future<void> dispose() => _arrived.close();

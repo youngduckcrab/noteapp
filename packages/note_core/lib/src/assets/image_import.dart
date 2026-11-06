@@ -39,3 +39,17 @@ abstract final class ImageImportLimits {
   // HEIC/WebP/GIF converted
   static const Set<String> storedMimeTypes = {'image/jpeg', 'image/png'};
 }
+
+/// (v2.1, CP-11 — m5-7/02-core 6.15.2) A LOCAL AssetStore.put(type: image) whose mimeType is
+/// outside ImageImportLimits.storedMimeTypes is an ArgumentError before any write. Remote
+/// putDownloadedBytes is not checked. Internal (the barrel hides it).
+void checkLocalImageType(AssetType type, String mimeType) {
+  if (type == AssetType.image &&
+      !ImageImportLimits.storedMimeTypes.contains(mimeType)) {
+    throw ArgumentError.value(
+      mimeType,
+      'mimeType',
+      'an image asset is stored as image/jpeg or image/png (convert it first)',
+    );
+  }
+}

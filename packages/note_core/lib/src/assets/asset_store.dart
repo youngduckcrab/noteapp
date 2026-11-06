@@ -23,7 +23,7 @@ final class AssetStorageUsage {
 
   /// (v2.0, 2nd-round contract 7.2.6 — C2-14) Σ Asset.size of rows with hasLocalBytes, per
   /// type (same rule as totalBytes, 1차 T13); a type with no bytes is absent (read as 0).
-  /// == / hashCode include it. CORE: filled by CORE T21 (empty until then — 02-core 8.1).
+  /// == / hashCode include it.
   final Map<AssetType, int> bytesByType;
 
   @override

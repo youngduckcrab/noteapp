@@ -3,6 +3,7 @@
 import 'dart:convert';
 
 import 'package:note_core/note_core.dart';
+import 'package:note_core/testing.dart';
 import 'package:test/test.dart';
 
 import '../shared/entity_samples.dart';
@@ -120,6 +121,74 @@ void main() {
           reason: '$json',
         );
       }
+    });
+  });
+
+  group('value functions (CORE T21)', () {
+    final ids = SequentialIdGenerator(prefix: 'hw');
+    Stroke stroke(PenTool tool) =>
+        StrokeFixtures.synthetic(pageId: 'p1', ids: ids, tool: tool);
+
+    test('isRecognitionInput: every tool but highlighter, tape, laser', () {
+      expect(
+        {
+          for (final t in PenTool.values)
+            t: HandwritingText.isRecognitionInput(stroke(t)),
+        },
+        {
+          PenTool.ballpoint: true,
+          PenTool.fountain: true,
+          PenTool.highlighter: false,
+          PenTool.pencil: true,
+          PenTool.marker: true,
+          PenTool.brush: true,
+          PenTool.calligraphy: true,
+          PenTool.dashed: true,
+          PenTool.laser: false,
+          PenTool.tape: false,
+        },
+      );
+    });
+
+    test(
+      'sourceRevOf: 16 lowercase hex, order-independent, updatedAt-dependent',
+      () {
+        final a = stroke(PenTool.ballpoint);
+        final b = stroke(PenTool.pencil);
+        final rev = HandwritingText.sourceRevOf([a, b]);
+        expect(rev, matches(RegExp(r'^[0-9a-f]{16}$')));
+        expect(HandwritingText.sourceRevOf([b, a]), rev);
+        expect(
+          HandwritingText.sourceRevOf([
+            a,
+            b.copyWith(updatedAt: b.updatedAt + 1),
+          ]),
+          isNot(rev),
+        );
+        expect(HandwritingText.sourceRevOf(const []), 'e3b0c44298fc1c14');
+      },
+    );
+
+    test('copyWith keeps id, note, page and createdAt', () {
+      final h = kSampleHandwriting;
+      final c = h.copyWith(sourceRev: 'ffffffffffffffff', updatedAt: 5);
+      expect(c.id, h.id);
+      expect(c.noteId, h.noteId);
+      expect(c.pageId, h.pageId);
+      expect(c.createdAt, h.createdAt);
+      expect(c.sourceRev, 'ffffffffffffffff');
+      expect(c.updatedAt, 5);
+      expect(c.lines, h.lines);
+      expect(c.version, h.version);
+      expect(h.copyWith(), h);
+      final deleted = h.copyWith(deletedAt: 9);
+      expect(deleted.isDeleted, isTrue);
+      expect(deleted.copyWith(clearDeletedAt: true).deletedAt, isNull);
+      final line = h.lines.first.copyWith(userConfirmed: true, text: '확정');
+      expect(line.userConfirmed, isTrue);
+      expect(line.text, '확정');
+      expect(line.strokeIds, h.lines.first.strokeIds);
+      expect(h.lines.first.copyWith(), h.lines.first);
     });
   });
 }

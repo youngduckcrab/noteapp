@@ -4,7 +4,6 @@
 import 'package:meta/meta.dart';
 
 import '../common/ids.dart';
-import '../common/pending.dart';
 import '../model/asset.dart';
 import '../repo/recording_repository.dart';
 
@@ -41,7 +40,8 @@ final class RecorderStatus {
   crossPlatformPlayable; // false for webm/opus (iOS native can't play it)
   final Object? error;
   // recording || paused (UI only — recovery uses pendingDrafts)
-  bool get isActive => notYet('T21', 'RecorderStatus.isActive');
+  bool get isActive =>
+      phase == RecorderPhase.recording || phase == RecorderPhase.paused;
 
   // CORE 4.5: argument list of the contract's '(v2.1, CP-7) copyWith'
   // clearRecording: recordingId, noteId, mimeType → null
@@ -57,7 +57,17 @@ final class RecorderStatus {
     Object? error,
     bool clearRecording = false,
     bool clearError = false,
-  }) => notYet('T21', 'RecorderStatus.copyWith');
+  }) => RecorderStatus(
+    phase: phase ?? this.phase,
+    recordingId: clearRecording ? null : recordingId ?? this.recordingId,
+    noteId: clearRecording ? null : noteId ?? this.noteId,
+    activeMs: activeMs ?? this.activeMs,
+    backgroundCapable: backgroundCapable ?? this.backgroundCapable,
+    interrupted: interrupted ?? this.interrupted,
+    mimeType: clearRecording ? null : mimeType ?? this.mimeType,
+    crossPlatformPlayable: crossPlatformPlayable ?? this.crossPlatformPlayable,
+    error: clearError ? null : error ?? this.error,
+  );
 
   // ==, hashCode (1차 7.4.4)
   @override
@@ -154,7 +164,14 @@ final class PlaybackStatus {
     Object? error,
     bool clearRecording = false,
     bool clearError = false,
-  }) => notYet('T21', 'PlaybackStatus.copyWith');
+  }) => PlaybackStatus(
+    phase: phase ?? this.phase,
+    recordingId: clearRecording ? null : recordingId ?? this.recordingId,
+    durationMs: durationMs ?? this.durationMs,
+    speed: speed ?? this.speed,
+    unsupportedFormat: unsupportedFormat ?? this.unsupportedFormat,
+    error: clearError ? null : error ?? this.error,
+  );
 
   @override
   bool operator ==(Object other) =>

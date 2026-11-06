@@ -10,7 +10,7 @@
 library;
 
 export 'src/assets/asset_store.dart';
-export 'src/assets/image_import.dart';
+export 'src/assets/image_import.dart' hide checkLocalImageType;
 export 'src/common/errors.dart';
 export 'src/common/geometry.dart';
 export 'src/common/hlc.dart';

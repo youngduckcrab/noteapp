@@ -307,11 +307,6 @@ void defineB2AlphaStoreTests(
     );
   });
 
-  test('asset usage has no bytesByType yet (CORE T21)', () async {
-    final usage = await store.assets.usage();
-    expect(usage.bytesByType, isEmpty);
-  });
-
   test('v1 database copy API (dev_tools.dart, C22-01)', () async {
     expect(await v1DatabaseCopyInfo(store), isNull);
     if (hasV1CopyApi) {

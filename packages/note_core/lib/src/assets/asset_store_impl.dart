@@ -21,6 +21,7 @@ import '../sync/outbox_types.dart';
 import 'asset_store.dart';
 import 'blob_store.dart';
 import 'content_hasher.dart';
+import 'image_import.dart';
 
 final class AssetStoreImpl implements AssetStore {
   AssetStoreImpl(this.s, {required this.chunks, required this.thumbnailBytes});
@@ -84,6 +85,7 @@ final class AssetStoreImpl implements AssetStore {
     required String mimeType,
     String? fileName,
   }) => _track(() async {
+    checkLocalImageType(type, mimeType);
     final id = await sha256Hex(bytes);
     final pending = _pendingPuts[id];
     if (pending != null) return pending;
@@ -236,10 +238,24 @@ final class AssetStoreImpl implements AssetStore {
               ..addColumns([total])
               ..where(a.deletedAt.isNull() & a.hasLocalBytes.equals(true)))
             .getSingle();
+    // (v2.0, m5-7/02-core 6.15.1) the same rows as totalBytes, per type.
+    final perType =
+        await (_db.selectOnly(a)
+              ..addColumns([a.type, total])
+              ..where(a.deletedAt.isNull() & a.hasLocalBytes.equals(true))
+              ..groupBy([a.type]))
+            .get();
+    final types = AssetType.values.asNameMap();
+    final bytesByType = <AssetType, int>{
+      for (final row in perType)
+        if (types[row.read(a.type)] case final type?)
+          if ((row.read(total) ?? 0) > 0) type: row.read(total)!,
+    };
     return AssetStorageUsage(
       assetCount: all.read(count) ?? 0,
       totalBytes: local.read(total) ?? 0,
       thumbnailBytes: await thumbnailBytes(),
+      bytesByType: Map.unmodifiable(bytesByType),
     );
   }
 

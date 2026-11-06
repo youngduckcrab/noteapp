@@ -1,13 +1,16 @@
 // lib/src/model/handwriting.dart — (v2.0) 2nd-round contract 7.2.5 / 02-core 4.6, 6.9:
 // HandwritingLine, HandwritingText (EntityKind.handwriting, one per page, deterministic id).
+import 'dart:convert';
+
 import 'package:collection/collection.dart';
+import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 
 import '../common/geometry.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../common/json_read.dart';
-import '../common/pending.dart';
+import 'pen_style.dart';
 import 'stroke.dart';
 import 'sync_entity.dart';
 
@@ -73,7 +76,14 @@ final class HandwritingLine {
     List<ElementId>? strokeIds,
     String? languageTag,
     bool? userConfirmed,
-  }) => notYet('T21', 'HandwritingLine.copyWith');
+  }) => HandwritingLine(
+    text: text ?? this.text,
+    alternatives: alternatives ?? this.alternatives,
+    rect: rect ?? this.rect,
+    strokeIds: strokeIds ?? this.strokeIds,
+    languageTag: languageTag ?? this.languageTag,
+    userConfirmed: userConfirmed ?? this.userConfirmed,
+  );
 
   // CORE 4.6: ==, hashCode
   @override
@@ -119,10 +129,30 @@ final class HandwritingText implements SyncEntity {
 
   /// Input strokes = active strokes of the page whose tool is not highlighter / tape / laser.
   /// sourceRev = first 16 hex chars of sha256 over "id:updatedAt;" of those strokes sorted by id.
-  static String sourceRevOf(Iterable<Stroke> inputStrokes) =>
-      notYet('T21', 'HandwritingText.sourceRevOf');
-  static bool isRecognitionInput(Stroke s) =>
-      notYet('T21', 'HandwritingText.isRecognitionInput');
+  /// (CORE 6.9.2) Sorted by id with String.compareTo (UTF-16 order — the same on the VM and
+  /// the web), `"<id>:<updatedAt>;"` joined, SHA-256 of the UTF-8 bytes (package:crypto),
+  /// lowercase hex, first 16 chars. No strokes → 'e3b0c44298fc1c14' (the empty string's hash).
+  static String sourceRevOf(Iterable<Stroke> inputStrokes) {
+    final sorted = inputStrokes.toList()..sort((a, b) => a.id.compareTo(b.id));
+    final text = StringBuffer();
+    for (final s in sorted) {
+      text
+        ..write(s.id)
+        ..write(':')
+        ..write(s.updatedAt)
+        ..write(';');
+    }
+    return sha256
+        .convert(utf8.encode(text.toString()))
+        .toString()
+        .substring(0, 16);
+  }
+
+  /// (CORE 6.9.2) tool not highlighter / tape / laser. Deleted strokes are the caller's to drop.
+  static bool isRecognitionInput(Stroke s) => switch (s.style.tool) {
+    PenTool.highlighter || PenTool.tape || PenTool.laser => false,
+    _ => true,
+  };
   @override
   final String id;
   final NoteId noteId;
@@ -193,7 +223,17 @@ final class HandwritingText implements SyncEntity {
     EpochMillis? deletedAt,
     bool clearDeletedAt = false,
     Hlc? version,
-  }) => notYet('T21', 'HandwritingText.copyWith');
+  }) => HandwritingText(
+    noteId: noteId,
+    pageId: pageId,
+    engineId: engineId ?? this.engineId,
+    sourceRev: sourceRev ?? this.sourceRev,
+    lines: lines ?? this.lines,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
+    version: version ?? this.version,
+  );
 
   // CORE 4.6: ==, hashCode, toString
   @override
