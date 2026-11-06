@@ -1,0 +1,10 @@
+{
+  "id": "sqrt-01",
+  "tags": [
+    "root",
+    "png"
+  ],
+  "expected": "\\sqrt{67}",
+  "png": "sqrt-01.png",
+  "source": "synthetic"
+}
