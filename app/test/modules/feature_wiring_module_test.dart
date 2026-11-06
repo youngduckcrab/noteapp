@@ -39,6 +39,7 @@ import 'package:pencil_bridge/pencil_bridge.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
+import '../fakes/fake_native_paths.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_pdf_actions.dart';
 import '../fakes/fake_pencil_port.dart';
@@ -57,7 +58,10 @@ Future<(ProviderContainer, BootstrapSuccess)> _boot(
   addTearDown(store.inner.close);
   final bootstrapper = AppBootstrapper(
     modules: [
-      CoreModule(open: fakeOpenNoteStore(store: store).call),
+      CoreModule(
+        nativePaths: noNativePaths,
+        open: fakeOpenNoteStore(store: store).call,
+      ),
       if (pdfFails)
         PdfModule(initialize: () async => throw StateError('no pdfium'))
       else
@@ -618,7 +622,10 @@ void main() {
         final pencil = FakePencilPort(capabilities: () => answer.future);
         final bootstrapper = AppBootstrapper(
           modules: [
-            CoreModule(open: fakeOpenNoteStore(store: store).call),
+            CoreModule(
+              nativePaths: noNativePaths,
+              open: fakeOpenNoteStore(store: store).call,
+            ),
             _wiring(FakePdfActions(), pencil: pencil),
           ],
           buildInfo: BuildInfo.local,

@@ -19,6 +19,7 @@ import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:pdf_io/pdf_io.dart';
 
 import '../fakes/counting_note_store.dart';
+import '../fakes/fake_native_paths.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_pdf_actions.dart';
 import '../fakes/fake_web_platform.dart';
@@ -288,7 +289,10 @@ void main() {
       addTearDown(store.inner.close);
       final bootstrapper = AppBootstrapper(
         modules: [
-          CoreModule(open: fakeOpenNoteStore(store: store).call),
+          CoreModule(
+            nativePaths: noNativePaths,
+            open: fakeOpenNoteStore(store: store).call,
+          ),
           PdfModule(),
           FeatureWiringModule(),
         ],

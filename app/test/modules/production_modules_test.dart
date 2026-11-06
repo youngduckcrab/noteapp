@@ -28,6 +28,7 @@ import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:pdf_io/pdf_io.dart';
 
 import '../fakes/counting_note_store.dart';
+import '../fakes/fake_native_paths.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_web_platform.dart';
 
@@ -36,7 +37,7 @@ import '../fakes/fake_web_platform.dart';
 List<AppModule> _modules(FakeNoteStoreOpener opener) {
   final production = productionModules();
   return [
-    CoreModule(open: opener.call),
+    CoreModule(nativePaths: noNativePaths, open: opener.call),
     PdfModule(initialize: () async {}),
     ...production.skip(2),
   ];
@@ -144,6 +145,7 @@ void main() {
     var pdfStarts = 0;
     final bootstrapper = _bootstrapper([
       CoreModule(
+        nativePaths: noNativePaths,
         open: fakeOpenNoteStore(
           error: const NoteStoreOpenException(
             NoteStoreOpenFailure.corrupted,
@@ -227,7 +229,10 @@ void main() {
       );
       final modules = modulesFor(
         features: const AppFeatures(media: false, recognition: false),
-        core: CoreModule(open: fakeOpenNoteStore(store: store).call),
+        core: CoreModule(
+          nativePaths: noNativePaths,
+          open: fakeOpenNoteStore(store: store).call,
+        ),
         pdf: PdfModule(initialize: () async {}),
         wiring: FeatureWiringModule(imageImporter: () => importer),
       );

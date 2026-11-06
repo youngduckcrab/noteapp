@@ -9,14 +9,16 @@
 // tool/native_requirements.yaml fully met (the NR7 check of `ws
 // native-reqs`, tool/test/native_reqs_test.dart) and agreeing with
 // AppNativeExpectations. J2 part: the build.gradle.kts release signing
-// branch (the committed file and each rule broken once). Later part of this
-// file: the app shell's two native storage paths (J4 — 6.9).
+// branch (the committed file and each rule broken once). J4 part: the app
+// shell's two native storage paths (6.9 — tool/src/app_shell_storage.dart on
+// the committed app/lib files, each rule broken once).
 
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../src/app_shell_storage.dart';
 import '../src/native_config.dart';
 import '../src/native_reqs.dart';
 import 'support/fixture_workspace.dart';
@@ -692,6 +694,179 @@ android {
       expect(nativeRequirementProblems(requirements, broken), [
         'AndroidManifest: missing <uses-permission android.permission.RECORD_AUDIO>',
       ]);
+    });
+  });
+
+  group('app shell storage paths (J4 — 6.9, contract 7.2.6)', () {
+    late AppShellStorageSources committed;
+    setUpAll(() => committed = AppShellStorageSources.load(repoRoot));
+
+    /// [committed] with one file's text changed.
+    AppShellStorageSources edit(String path, String Function(String) change) =>
+        committed.withFile(path, change(committed.files[path]!));
+
+    group('dartTokens', () {
+      test('comments (nested) dropped, strings one token, operators', () {
+        expect(
+          dartTokens(
+            "a?.b ?? c; /* x /* y */ z */ d => 'q' // e\n"
+            r"r'\n' "
+            '"""t\'s""" ...f ??= 1.5;',
+          ),
+          [
+            'a', '?.', 'b', '??', 'c', ';', 'd', '=>', "'q'", r"'\n'", //
+            "'t's'", '...', 'f', '??=', '1.5', ';',
+          ],
+        );
+      });
+
+      test('generics and a conditional export', () {
+        expect(
+          dartTokens(
+            "export 'a.dart'\n    if (dart.library.io) 'b.dart' show f;\n"
+            'Future<X?> g() async => null;',
+          ),
+          [
+            'export', "'a.dart'", 'if', '(', 'dart', '.', 'library', '.', //
+            'io', ')', "'b.dart'", 'show', 'f', ';', 'Future', '<', 'X', '?',
+            '>', 'g', '(', ')', 'async', '=>', 'null', ';',
+          ],
+        );
+      });
+    });
+
+    test('the committed app/lib passes every rule', () {
+      expect(committed.files, contains(AppShellStoragePaths.nativeFile));
+      expect(appShellStoragePathProblems(committed), isEmpty);
+    });
+
+    test('comments and formatting do not matter', () {
+      final sources = edit(
+        AppShellStoragePaths.productionModules,
+        _replace(
+          'List<AppModule> productionModules() => [',
+          'List<AppModule> productionModules() => [\n'
+              '  // CoreModule(nativePaths: x) is not used here.\n',
+        ),
+      );
+      expect(appShellStoragePathProblems(sources), isEmpty);
+    });
+
+    final cases = <String, (String, String Function(String), String)>{
+      'export without the dart.library.io condition': (
+        AppShellStoragePaths.barrel,
+        _replace('if (dart.library.io)', 'if (dart.library.js_interop)'),
+        'must export',
+      ),
+      'the stub does not define resolveNativeStoragePaths': (
+        AppShellStoragePaths.stubFile,
+        _replace('resolveNativeStoragePaths() async', 'resolvePaths() async'),
+        'native_storage_paths_stub.dart: must define',
+      ),
+      'another lib file imports path_provider': (
+        AppShellStoragePaths.coreModule,
+        _replace(
+          "import 'dart:async';",
+          "import 'dart:async';\n"
+              "import 'package:path_provider/path_provider.dart';",
+        ),
+        'core_module.dart: imports package:path_provider/',
+      ),
+      'another lib file imports the native file directly': (
+        AppShellStoragePaths.coreModule,
+        _replace(
+          "import '../storage/native_storage_paths.dart';",
+          "import '../storage/native_storage_paths_native.dart';",
+        ),
+        'core_module.dart: names native_storage_paths_native.dart',
+      ),
+      'the native file without path_provider': (
+        AppShellStoragePaths.nativeFile,
+        _replace(
+          "import 'package:path_provider/path_provider.dart'\n"
+              '    show getApplicationSupportDirectory;',
+          '',
+        ),
+        'native_storage_paths_native.dart: must import',
+      ),
+      'nativeAssetDirectoryPath dropped (the 1st-round bug)': (
+        AppShellStoragePaths.coreModule,
+        _replace(
+          '    nativeAssetDirectoryPath: paths?.assetDirectoryPath,\n',
+          '',
+        ),
+        'nativeAssetDirectoryPath: must be set exactly once (found 0)',
+      ),
+      'nativeDatabasePath from somewhere else': (
+        AppShellStoragePaths.coreModule,
+        _replace(
+          'nativeDatabasePath: paths?.databasePath,',
+          "nativeDatabasePath: '/tmp/noteapp.sqlite',",
+        ),
+        'nativeDatabasePath: must be <paths>?.databasePath',
+      ),
+      'the two fields from two different values': (
+        AppShellStoragePaths.coreModule,
+        (text) =>
+            _replace(
+              'final paths = context.maybe<NativeStoragePaths>();',
+              'final paths = context.maybe<NativeStoragePaths>();\n'
+                  '  final other = context.maybe<NativeStoragePaths>();',
+            )(
+              _replace(
+                'nativeAssetDirectoryPath: paths?.assetDirectoryPath,',
+                'nativeAssetDirectoryPath: other?.assetDirectoryPath,',
+              )(text),
+            ),
+        'must come from the same NativeStoragePaths value',
+      ),
+      'CoreModule defaults to another path function': (
+        AppShellStoragePaths.coreModule,
+        _replace(
+          'this._nativePaths = resolveNativeStoragePaths,',
+          'this._nativePaths = _noPaths,',
+        ),
+        'CoreModule(nativePaths:) must default to resolveNativeStoragePaths',
+      ),
+      'CoreModule defaults to another config': (
+        AppShellStoragePaths.coreModule,
+        _replace(
+          'this._configFor = defaultNoteStoreConfig,',
+          'this._configFor = _inMemory,',
+        ),
+        'CoreModule(configFor:) must default to defaultNoteStoreConfig',
+      ),
+      'productionModules() passes nativePaths': (
+        AppShellStoragePaths.productionModules,
+        _replace(
+          '=> [\n  CoreModule(),',
+          '=> [\n  CoreModule(nativePaths: _noPaths),',
+        ),
+        'productionModules() must construct CoreModule() with no argument',
+      ),
+      'modulesFor() passes configFor': (
+        AppShellStoragePaths.productionModules,
+        _replace(
+          'core ?? CoreModule(),',
+          'core ?? CoreModule(configFor: _inMemory),',
+        ),
+        'modulesFor() must construct CoreModule() with no argument',
+      ),
+    };
+    for (final MapEntry(key: name, value: (path, change, expected))
+        in cases.entries) {
+      test(name, () {
+        final problems = appShellStoragePathProblems(edit(path, change));
+        expect(problems, hasLength(1), reason: problems.join('\n'));
+        expect(problems.single, contains(expected));
+      });
+    }
+
+    test('a missing file is one line', () {
+      final problems = appShellStoragePathProblems(
+        committed.withFile(AppShellStoragePaths.stubFile, null),
+      );
+      expect(problems, ['${AppShellStoragePaths.stubFile}: missing']);
     });
   });
 }

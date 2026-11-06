@@ -42,6 +42,7 @@ import 'package:noteapp/src/settings/settings_sections.dart';
 import 'package:pdf_io/pdf_io.dart';
 
 import '../fakes/counting_note_store.dart';
+import '../fakes/fake_native_paths.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_pdf_actions.dart';
 import '../fakes/fake_pencil_port.dart';
@@ -67,7 +68,10 @@ List<AppModule> _modules(
   Never boom(String what) => throw StateError('$what down');
   return modulesFor(
     features: features,
-    core: CoreModule(open: fakeOpenNoteStore(store: store).call),
+    core: CoreModule(
+      nativePaths: noNativePaths,
+      open: fakeOpenNoteStore(store: store).call,
+    ),
     pdf: PdfModule(
       initialize: () async {
         if (fail == _Fail.pdf) boom('pdf');

@@ -24,6 +24,7 @@ import 'package:noteapp/src/runtime/runtime_info.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
+import '../fakes/fake_native_paths.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_web_platform.dart';
 
@@ -406,6 +407,7 @@ void main() {
     final attempts = _Attempts([
       () => [
         CoreModule(
+          nativePaths: noNativePaths,
           open: (config) {
             openCount++;
             return first(config);
@@ -414,6 +416,7 @@ void main() {
       ],
       () => [
         CoreModule(
+          nativePaths: noNativePaths,
           open: (config) async {
             openCount++;
             lateClosesAtSecondOpen = late.closeCount;
