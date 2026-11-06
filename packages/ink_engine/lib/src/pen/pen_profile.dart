@@ -8,8 +8,9 @@ enum InkCap { round, square }
 
 /// (v2.0) PenProfile.of: brush → filledOutline (high pressure gain, long taper);
 /// calligraphy → nibOutline; dashed → dashedPolyline (round caps); laser → transientTrail;
-/// tape → filledOutline, square cap, layer cover. Foundation step R2-B3: the five P1 tools
-/// still map to the ballpoint profile (m5-7/03-ink 4.13 — T27~T31 switch them one by one).
+/// tape → filledOutline, square cap, layer cover. The P1 profiles exist (m5-7/03-ink 6.2);
+/// PenProfile.of switches the tools to them one by one: brush since T27, the other four
+/// still map to the ballpoint profile until T28~T31.
 enum InkRenderMethod {
   filledOutline,
   strokedPolyline,
@@ -73,16 +74,16 @@ final class PenProfile {
   /// highlighter non-darkening composite (6.10)
   final bool groupComposite;
 
-  /// ballpoint / fountain / highlighter / pencil / marker → their profile;
-  /// brush, calligraphy, dashed, laser, tape (P1) → ballpoint (R2-B3; m5-7/03-ink T27~T31
-  /// give them their own profiles).
+  /// ballpoint / fountain / highlighter / pencil / marker / brush → their profile;
+  /// calligraphy, dashed, laser, tape (P1) → ballpoint until m5-7/03-ink T28~T31 switch
+  /// them to [calligraphy], [dashed], [laser] and [tape].
   static PenProfile of(core.PenTool tool) => switch (tool) {
     core.PenTool.ballpoint => ballpoint,
     core.PenTool.fountain => fountain,
     core.PenTool.highlighter => highlighter,
     core.PenTool.pencil => pencil,
     core.PenTool.marker => marker,
-    core.PenTool.brush ||
+    core.PenTool.brush => brush,
     core.PenTool.calligraphy ||
     core.PenTool.dashed ||
     core.PenTool.laser ||
@@ -170,6 +171,101 @@ final class PenProfile {
     tiltWidthGain: 0,
     tiltOpacityLoss: 0,
     cap: InkCap.round,
+    renderMethod: InkRenderMethod.filledOutline,
+    textured: false,
+    groupComposite: false,
+  );
+
+  // P1 profiles: m5-7/03-ink 6.2 table (4.10). Pressure, taper and width factor
+  // baking are the round-1 K1–K6 / F1–F8 rules with these values.
+
+  /// Brush (6.3): large pressure gain (0.2× light … 2.2× hard, below the K6
+  /// saturation 4), speed thinning with real pressure, long tapers.
+  static const PenProfile brush = PenProfile(
+    layer: InkLayer.ink,
+    pressureGain: 0.90,
+    minFactor: 0.20,
+    maxFactor: 2.20,
+    velocityThinning: 0.30,
+    taperStart: 2.5,
+    taperEnd: 5.0,
+    taperMinFactor: 0.08,
+    tiltWidthGain: 0,
+    tiltOpacityLoss: 0,
+    cap: InkCap.round,
+    renderMethod: InkRenderMethod.filledOutline,
+    textured: false,
+    groupComposite: false,
+  );
+
+  /// Calligraphy (6.4): elliptic nib outline; the factor stays near 1.
+  static const PenProfile calligraphy = PenProfile(
+    layer: InkLayer.ink,
+    pressureGain: 0.35,
+    minFactor: 0.60,
+    maxFactor: 1.40,
+    velocityThinning: 0,
+    taperStart: 0,
+    taperEnd: 0,
+    taperMinFactor: 1,
+    tiltWidthGain: 0,
+    tiltOpacityLoss: 0,
+    cap: InkCap.round,
+    renderMethod: InkRenderMethod.nibOutline,
+    textured: false,
+    groupComposite: false,
+  );
+
+  /// Dashed (6.5): constant width (widthQ = kNominalWidthQ), round caps.
+  static const PenProfile dashed = PenProfile(
+    layer: InkLayer.ink,
+    pressureGain: 0,
+    minFactor: 1,
+    maxFactor: 1,
+    velocityThinning: 0,
+    taperStart: 0,
+    taperEnd: 0,
+    taperMinFactor: 1,
+    tiltWidthGain: 0,
+    tiltOpacityLoss: 0,
+    cap: InkCap.round,
+    renderMethod: InkRenderMethod.dashedPolyline,
+    textured: false,
+    groupComposite: false,
+  );
+
+  /// Laser (6.6): a fading trail on the overlay, never stored.
+  static const PenProfile laser = PenProfile(
+    layer: InkLayer.ink,
+    pressureGain: 0,
+    minFactor: 1,
+    maxFactor: 1,
+    velocityThinning: 0,
+    taperStart: 0,
+    taperEnd: 0,
+    taperMinFactor: 1,
+    tiltWidthGain: 0,
+    tiltOpacityLoss: 0,
+    cap: InkCap.round,
+    renderMethod: InkRenderMethod.transientTrail,
+    textured: false,
+    groupComposite: false,
+  );
+
+  /// Memorization tape (6.7): constant width (radius w / 2), square caps, cover layer.
+  /// No pressure or taper: the K-1 proof needs widthQ = kNominalWidthQ exactly.
+  static const PenProfile tape = PenProfile(
+    layer: InkLayer.cover,
+    pressureGain: 0,
+    minFactor: 1,
+    maxFactor: 1,
+    velocityThinning: 0,
+    taperStart: 0,
+    taperEnd: 0,
+    taperMinFactor: 1,
+    tiltWidthGain: 0,
+    tiltOpacityLoss: 0,
+    cap: InkCap.square,
     renderMethod: InkRenderMethod.filledOutline,
     textured: false,
     groupComposite: false,

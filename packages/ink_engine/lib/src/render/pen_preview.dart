@@ -8,6 +8,12 @@
 // (6.10), fill pens by their outline (6.8), the pencil with the grain once the
 // PencilGrain is ready (6.11 — the painter listens to it: repaint).
 // Built strokes are kept in a small LRU by (style, shape, size).
+//
+// (m5-7/03-ink 6.2 'pen preview v2', T27) The painter branches on the
+// profile's render method and calls the same paint function as the page
+// layers (preview = real stroke shape). The nib, dash, laser and tape
+// branches get their own drawing in T28~T31; until then they draw the filled
+// outline (the tools still map to the ballpoint profile).
 import 'dart:collection';
 import 'dart:math' as math;
 
@@ -20,8 +26,8 @@ import '../geometry/stroke_outline.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../interop/core_interop.dart' as interop;
-import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
+import '../pen/pen_profile.dart';
 import '../stroke/stroke_builder.dart';
 import 'highlighter_compositor.dart';
 import 'pencil_grain.dart';
@@ -53,21 +59,25 @@ class PenPreviewPainter extends CustomPainter {
     final sample = penPreviewStrokeOf(style, shape, size);
     if (sample == null) return;
     final stroke = sample.stroke;
-    if (stroke.layer == InkLayer.highlighter) {
-      paintHighlighterGroups(
-        canvas,
-        groupHighlighters([stroke]),
-        paperColorArgb: paperColorArgb,
-        marginPt: 1,
-      );
-      return;
+    switch (stroke.profile.renderMethod) {
+      case InkRenderMethod.strokedPolyline:
+        paintHighlighterGroups(
+          canvas,
+          groupHighlighters([stroke]),
+          paperColorArgb: paperColorArgb,
+          marginPt: 1,
+        );
+      case InkRenderMethod.filledOutline:
+      case InkRenderMethod.nibOutline:
+      case InkRenderMethod.dashedPolyline:
+      case InkRenderMethod.transientTrail:
+        paintFillStroke(
+          canvas,
+          stroke,
+          sample.outline ?? OutlineGenerator.outline(stroke),
+          grain: stroke.profile.textured ? pencilGrain?.value : null,
+        );
     }
-    paintFillStroke(
-      canvas,
-      stroke,
-      sample.outline!,
-      grain: stroke.profile.textured ? pencilGrain?.value : null,
-    );
   }
 
   /// style / shape / paperColorArgb differ by value, or pencilGrain is another object.
@@ -172,7 +182,7 @@ PenPreviewStroke? _build(
   );
   return (
     stroke: stroke,
-    outline: stroke.layer == InkLayer.highlighter
+    outline: stroke.profile.renderMethod == InkRenderMethod.strokedPolyline
         ? null
         : OutlineGenerator.outline(stroke),
   );

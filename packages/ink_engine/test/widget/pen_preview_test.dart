@@ -3,14 +3,22 @@
 // highlighter as a group on the paper, the pencil without grain until the
 // PencilGrain is ready and then textured with no rebuild by the caller
 // (repaint: pencilGrain), and the shouldRepaint rules.
+// v2 (m5-7/03-ink 6.2 'pen preview v2', T27): the painter branches on the
+// render method — the round-1 pens keep their pixels (also the unchanged
+// goldens/pen_preview.png), the brush draws with its own profile, and all five
+// P1 pens draw without exceptions (those still on the ballpoint fallback too).
+// T28~T31 add their rows.
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
+import 'package:ink_engine/src/geometry/stroke_outline.dart';
+import 'package:ink_engine/src/render/highlighter_compositor.dart';
 import 'package:ink_engine/src/render/pen_preview.dart'
     show penPreviewScript, penPreviewStrokeOf;
+import 'package:ink_engine/src/render/stroke_painter.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../support/pixels.dart';
@@ -168,6 +176,95 @@ void main() {
     expect(after.length, greaterThan(before.length + 5), reason: 'grain');
   });
 
+  testWidgets('v2: the round-1 pens draw the same pixels as their filled '
+      'outline / highlighter group', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(400, 200);
+    addTearDown(tester.view.reset);
+    for (final tool in core.PenTool.values.where((t) => t.isP0)) {
+      final style = _style(tool);
+      await tester.pumpWidget(_app(PenPreviewPainter(style: style)));
+      final viaPainter = await _shot(tester);
+      final built = penPreviewStrokeOf(style, PenPreviewShape.sCurve, _size)!;
+      await tester.pumpWidget(
+        _app(_RoundOnePainter(built.stroke, built.outline)),
+      );
+      final roundOne = await _shot(tester);
+      expect(
+        _differingPixels(viaPainter, roundOne),
+        0,
+        reason: '${tool.name}: the render-method branch is the round-1 path',
+      );
+    }
+  });
+
+  testWidgets('v2: the brush preview — ink, thick middle, thin tapered ends', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(400, 200);
+    addTearDown(tester.view.reset);
+    final style = _style(core.PenTool.brush, width: 4);
+    final built = penPreviewStrokeOf(style, PenPreviewShape.line, _size)!;
+    expect(built.stroke.profile, same(PenProfile.brush));
+    expect(built.outline, isNotNull);
+    final n = built.stroke.points.length;
+    final mid = built.stroke.radiusAt(n ~/ 2);
+    // pressure 0.9 in the middle: f = 1 + 0.9 · 0.8 = 1.72; the tips taper to
+    // taperMinFactor 0.08
+    expect(mid, closeTo(2 * 4 * 1.72 / core.kMaxWidthFactor, 0.15));
+    expect(built.stroke.radiusAt(0), lessThan(mid * 0.3));
+    expect(built.stroke.radiusAt(n - 1), lessThan(mid * 0.3));
+    await tester.pumpWidget(
+      _app(
+        PenPreviewPainter(
+          style: style.copyWith(colorArgb: 0xFF000000),
+          shape: PenPreviewShape.line,
+        ),
+      ),
+    );
+    final px = await _shot(tester);
+    int column(int x) {
+      var c = 0;
+      for (var y = 0; y < px.height; y++) {
+        if (px.at(x, y)[0] < 128) c++;
+      }
+      return c;
+    }
+
+    final midX = (_size.width / 2).round();
+    expect(column(midX), greaterThanOrEqualTo(5), reason: 'thick middle');
+    final left = built.stroke.bounds.left.ceil() + 1;
+    expect(column(left), lessThan(column(midX)), reason: 'tapered start');
+  });
+
+  testWidgets('v2: every P1 pen draws ink without exceptions (ballpoint '
+      'fallback until T28~T31)', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(400, 200);
+    addTearDown(tester.view.reset);
+    for (final tool in core.PenTool.values.where((t) => !t.isP0)) {
+      for (final shape in PenPreviewShape.values) {
+        await tester.pumpWidget(
+          _app(PenPreviewPainter(style: _style(tool), shape: shape)),
+        );
+        expect(tester.takeException(), isNull, reason: '$tool $shape');
+        final px = await _shot(tester);
+        var inked = 0;
+        for (var y = 0; y < px.height; y++) {
+          for (var x = 0; x < px.width; x++) {
+            final c = px.at(x, y);
+            if (c[0] < 250 || c[1] < 250 || c[2] < 250) inked++;
+          }
+        }
+        expect(inked, greaterThan(50), reason: '$tool $shape');
+      }
+    }
+  });
+
   test('shouldRepaint: style, shape, paper by value; grain by identity', () {
     final g1 = PencilGrain();
     final g2 = PencilGrain();
@@ -244,6 +341,42 @@ void main() {
       ..paint(canvas, const Size(400, 2));
     recorder.endRecording().dispose();
   });
+}
+
+int _differingPixels(Pixels a, Pixels b) {
+  expect([a.width, a.height], [b.width, b.height]);
+  var n = 0;
+  for (var y = 0; y < a.height; y++) {
+    for (var x = 0; x < a.width; x++) {
+      final p = a.at(x, y), q = b.at(x, y);
+      if (p[0] != q[0] || p[1] != q[1] || p[2] != q[2] || p[3] != q[3]) n++;
+    }
+  }
+  return n;
+}
+
+/// The round-1 PenPreviewPainter body: the highlighter group, else the fill.
+class _RoundOnePainter extends CustomPainter {
+  _RoundOnePainter(this.stroke, this.outline);
+  final InkStroke stroke;
+  final StrokeOutline? outline;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (stroke.layer == InkLayer.highlighter) {
+      paintHighlighterGroups(
+        canvas,
+        groupHighlighters([stroke]),
+        paperColorArgb: core.PaperColors.white,
+        marginPt: 1,
+      );
+      return;
+    }
+    paintFillStroke(canvas, stroke, outline!);
+  }
+
+  @override
+  bool shouldRepaint(_RoundOnePainter oldDelegate) => true;
 }
 
 /// Pixels with alpha > 0 after [painter] paints [size] on a transparent canvas

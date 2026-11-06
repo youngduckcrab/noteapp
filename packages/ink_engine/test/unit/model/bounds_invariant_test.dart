@@ -4,8 +4,15 @@
 // the smooth and straight fill paths, the vector export path and, for the
 // highlighter, the stroked centerline with its square cap corners.
 //
+// v2 (m5-7/03-ink T27, 6.2 K-1): the brush (pressure gain 0.9, f ≤ 2.2,
+// long tapers) and the tape's square caps and square dot. PenProfile.of(tape)
+// switches to the tape profile in T31; until then the tape strokes are checked
+// with PenProfile.tape's outline over points of widthQ = kNominalWidthQ, the
+// only widthQ the tape profile makes (f = 1).
+//
 // Also run in Chrome by test/web/geometry_on_web_test.dart.
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -53,8 +60,35 @@ core.Stroke _build(
   );
 }
 
-/// Asserts every rendered extent of [s] is inside s.bounds.
-void expectInsideBounds(core.Stroke s, String label) {
+/// A tape stroke as the tape profile builds it: [samples] through the real
+/// pipeline, then every widthQ = kNominalWidthQ (f = 1: no pressure, no taper).
+core.Stroke _tapeStroke(List<InkSample> samples, core.StrokeStyle style) {
+  final f = buildStroke(samples, style: style, viewScale: 1);
+  expect(f, isNotNull);
+  final data = Float32List.fromList(f!.data);
+  for (var i = 2; i < data.length; i += core.StrokePoints.stride) {
+    data[i] = core.kNominalWidthQ;
+  }
+  _ids++;
+  return interop.newCoreStroke(
+    FinishedStroke(
+      style: f.style,
+      data: data,
+      hasTilt: f.hasTilt,
+      hasAzimuth: f.hasAzimuth,
+      startTimeUs: f.startTimeUs,
+      pressureSource: f.pressureSource,
+      meta: const InkStrokeMeta(),
+    ),
+    id: 't-$_ids',
+    pageId: 'page-1',
+    penDownMillis: 1700000000000,
+  );
+}
+
+/// Asserts every rendered extent of [s] is inside s.bounds. [profile] replaces
+/// the stroke's profile for the outline (the tape before T31).
+void expectInsideBounds(core.Stroke s, String label, {PenProfile? profile}) {
   final ink = InkStroke.of(s);
   final b = ink.bounds;
   void point(double x, double y, String what) {
@@ -71,7 +105,11 @@ void expectInsideBounds(core.Stroke s, String label) {
     point(r.right, r.bottom, what);
   }
 
-  final outline = OutlineGenerator.outline(ink);
+  final outline = OutlineGenerator.outlineOf(
+    ink.points,
+    width: s.style.width,
+    profile: profile ?? ink.profile,
+  );
   rect(outline.bounds, 'outline bounds');
   final dot = outline.dotCenter;
   if (dot != null) {
@@ -176,7 +214,7 @@ const List<core.PenTool> _tools = [
   core.PenTool.highlighter,
   core.PenTool.pencil,
   core.PenTool.marker,
-  core.PenTool.brush, // P1 → ballpoint profile
+  core.PenTool.brush, // m5-7 T27: the brush profile
 ];
 
 void main() {
@@ -277,6 +315,66 @@ void main() {
         });
       }
     }
+  });
+
+  group('tape square caps and square dot (PenProfile.tape)', () {
+    final base = core.StrokeStyle.defaultsFor(core.PenTool.tape);
+    for (final width in [0.1, 14.0, 60.0]) {
+      test('width $width', () {
+        final style = base.copyWith(width: width);
+        final scale = math.max(1.0, width / 4);
+        for (final (name, xy) in [
+          (
+            'diagonal',
+            [
+              for (var i = 0; i <= 60; i++)
+                ui.Offset(40 + 3.0 * scale * i, 80 + 3.0 * scale * i),
+            ],
+          ),
+          ('S curve', _sCurve(scale)),
+          ('180°', _backAndForth(scale)),
+          ('dot', [const ui.Offset(30, 30)]),
+          (
+            'tiny',
+            [
+              const ui.Offset(50, 50),
+              const ui.Offset(50.05, 50.02),
+              const ui.Offset(50.02, 50.04),
+            ],
+          ),
+        ]) {
+          final s = _tapeStroke(_samples(xy, pressure: 0.8), style);
+          expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
+          expectInsideBounds(s, 'tape $name', profile: PenProfile.tape);
+        }
+      });
+    }
+
+    test('100 seeded random tape strokes', () {
+      final rnd = _Rng(20261106);
+      for (var k = 0; k < 100; k++) {
+        final width = 0.1 * math.pow(600, rnd.next()).toDouble(); // 0.1 … 60
+        final count = 1 + rnd.nextInt(80);
+        var p = ui.Offset(50 + 500 * rnd.next(), 50 + 700 * rnd.next());
+        var heading = rnd.next() * 2 * math.pi;
+        final xy = <ui.Offset>[];
+        for (var i = 0; i < count; i++) {
+          xy.add(p);
+          heading += rnd.next() < 0.08 ? math.pi : (rnd.next() - 0.5) * 1.6;
+          final step = rnd.next() < 0.1 ? 0.0 : 8 * rnd.next() * rnd.next();
+          p += ui.Offset(math.cos(heading), math.sin(heading)) * step;
+        }
+        final s = _tapeStroke(
+          _samples(xy, pressure: rnd.next()),
+          base.copyWith(width: width, smoothing: rnd.next()),
+        );
+        expectInsideBounds(
+          s,
+          'tape $k (width $width)',
+          profile: PenProfile.tape,
+        );
+      }
+    });
   });
 
   test('300 seeded random strokes', () {

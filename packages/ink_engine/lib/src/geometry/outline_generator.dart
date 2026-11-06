@@ -4,7 +4,9 @@
 // taper already baked into the points (6.7): the outline only uses the radius
 // r_i = max(InkTuning.minRadiusPt, 2 · width · widthQ_i).
 //
-//   O1 dot        one point or length < 1e-3 → circle (dotCenter, dotRadius)
+//   O1 dot        one point or length < 1e-3 → circle (dotCenter, dotRadius);
+//                 (m5-7 T27) a filled pen with square caps (tape) → an
+//                 axis-aligned square of side 2r (corners r · √2 away)
 //   O2 direction  d_i = unit(p_{i+1} − p_i), τ_i = unit(d_{i−1} + d_i), n_i ⟂ τ_i
 //   O3 corners    dot(d_{i−1}, d_i) < sharpCornerCos → split into two polygons
 //   O4 sides      L_i = p_i + n_i · r_i, R_i = p_i − n_i · r_i
@@ -18,6 +20,12 @@
 // r_i · √2 for the square caps of the highlighter (r = width / 2), and the
 // smooth path stays inside the vertices' convex hull — the basis of K-1
 // (6.7, contract 7.3.2): the outline is inside core.Stroke.bounds.
+//
+// (m5-7/03-ink T27) OutlineSpec picks the generator by render method: the
+// filled outline above for filledOutline (and the highlighter's
+// strokedPolyline outline); nibOutline, dashedPolyline and transientTrail use
+// the filled outline too until T28 (nib), T29 (dashes) and T30 (laser trail)
+// give them their own.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -68,6 +76,46 @@ const double _duplicateEps = 1e-6;
 /// O1: a centerline shorter than this is a dot (pt).
 const double _dotLength = 1e-3;
 
+/// What the outline generator makes for one stroke (m5-7/03-ink T27): the
+/// render method and cap of its profile, and the radius rule.
+@immutable
+final class OutlineSpec {
+  const OutlineSpec({
+    required this.method,
+    required this.cap,
+    this.constantRadius = false,
+  });
+
+  /// The spec of [profile]: its render method and cap; the highlighter has a
+  /// constant radius width / 2 (widthQ ignored).
+  factory OutlineSpec.of(PenProfile profile) => OutlineSpec(
+    method: profile.renderMethod,
+    cap: profile.cap,
+    constantRadius: profile.layer == InkLayer.highlighter,
+  );
+
+  final InkRenderMethod method;
+  final InkCap cap;
+
+  /// r = width / 2 for every point (highlighter); otherwise from widthQ.
+  final bool constantRadius;
+
+  /// O1 of a filled pen with square caps (tape): a square, not a circle. The
+  /// highlighter (strokedPolyline) keeps the round-1 circle.
+  bool get squareDot =>
+      cap == InkCap.square && method == InkRenderMethod.filledOutline;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OutlineSpec &&
+      other.method == method &&
+      other.cap == cap &&
+      other.constantRadius == constantRadius;
+
+  @override
+  int get hashCode => Object.hash(method, cap, constantRadius);
+}
+
 abstract final class OutlineGenerator {
   static StrokeOutline outline(
     InkStroke stroke, {
@@ -85,12 +133,44 @@ abstract final class OutlineGenerator {
     required double width,
     required PenProfile profile,
     OutlineOptions options = const OutlineOptions(),
+  }) => outlineFor(
+    points,
+    width: width,
+    spec: OutlineSpec.of(profile),
+    options: options,
+  );
+
+  /// The outline of [spec]'s render method (see the file comment).
+  static StrokeOutline outlineFor(
+    InkPoints points, {
+    required double width,
+    required OutlineSpec spec,
+    OutlineOptions options = const OutlineOptions(),
+  }) => switch (spec.method) {
+    InkRenderMethod.filledOutline ||
+    InkRenderMethod.strokedPolyline ||
+    InkRenderMethod.nibOutline ||
+    InkRenderMethod.dashedPolyline ||
+    InkRenderMethod.transientTrail => _filled(
+      points,
+      width: width,
+      spec: spec,
+      options: options,
+    ),
+  };
+
+  /// The round-1 fill outline (O1–O8) with [spec]'s cap and radius rule.
+  static StrokeOutline _filled(
+    InkPoints points, {
+    required double width,
+    required OutlineSpec spec,
+    required OutlineOptions options,
   }) {
     final n = points.length;
     if (n == 0) {
       return StrokeOutline(polygons: const [], bounds: ui.Rect.zero);
     }
-    final constantRadius = profile.layer == InkLayer.highlighter;
+    final constantRadius = spec.constantRadius;
     double radius(int i) {
       final r = constantRadius
           ? width / 2
@@ -127,6 +207,7 @@ abstract final class OutlineGenerator {
         r = math.max(r, rs[i]);
       }
       final c = ui.Offset(xs[0], ys[0]);
+      if (spec.squareDot) return _squareDot(c, r);
       return StrokeOutline(
         polygons: const [],
         bounds: ui.Rect.fromCircle(center: c, radius: r),
@@ -146,7 +227,7 @@ abstract final class OutlineGenerator {
 
     // O3 split at sharp corners
     final polygons = <Float32List>[];
-    final squareEnds = profile.cap == InkCap.square;
+    final squareEnds = spec.cap == InkCap.square;
     var start = 0;
     for (var i = 1; i < m; i++) {
       final last = i == m - 1;
@@ -185,6 +266,24 @@ abstract final class OutlineGenerator {
     return StrokeOutline(
       polygons: polygons,
       bounds: ui.Rect.fromLTRB(minX, minY, maxX, maxY),
+    );
+  }
+
+  /// O1 square dot: corners (c ± r, c ± r), each listed twice so the smooth
+  /// path (quadratic through the edge midpoints) keeps the sharp corners —
+  /// the midpoint of a repeated vertex is the vertex itself.
+  static StrokeOutline _squareDot(ui.Offset c, double r) {
+    final l = c.dx - r, t = c.dy - r, rt = c.dx + r, b = c.dy + r;
+    final poly = Float32List.fromList([
+      l, t, l, t, //
+      rt, t, rt, t, //
+      rt, b, rt, b, //
+      l, b, l, b, //
+    ]);
+    _orientPositive(poly);
+    return StrokeOutline(
+      polygons: [poly],
+      bounds: ui.Rect.fromLTRB(l, t, rt, b),
     );
   }
 
