@@ -247,6 +247,33 @@ void main() {
       });
     });
 
+    test('an anchor move on every sample (a fast line): one pending timer at '
+        'any time, due 500 ms after the last move', () {
+      // B20's worst case — the new timer is made before the old one is
+      // cancelled (review 2.1): never two pending, never none while armed.
+      fakeAsync((async) {
+        final log = _Log();
+        final d = _detector(log, start: const ui.Offset(0, 100));
+        for (var i = 1; i <= 200; i++) {
+          async.elapse(const Duration(milliseconds: 4));
+          log.sample = i;
+          d.add(ui.Offset(9.0 * i, 100), i * 4 * _ms);
+          expect(async.pendingTimers, hasLength(1), reason: 'sample $i');
+          expect(d.timerArmed, isTrue);
+        }
+        log.sample = -1;
+        expect(log.holds, 0);
+        // the last move at 800 ms: no fire at 1299 ms, the timer's at 1300 ms
+        async.elapse(const Duration(milliseconds: 499));
+        expect(log.holds, 0);
+        async.elapse(const Duration(milliseconds: 1));
+        expect(log.holds, 1);
+        expect(log.heldAt.single, -1, reason: 'from the timer');
+        expect(async.pendingTimers, isEmpty);
+        d.stop();
+      });
+    });
+
     test('stop() cancels the timer and nothing fires any more', () {
       fakeAsync((async) {
         final log = _Log();

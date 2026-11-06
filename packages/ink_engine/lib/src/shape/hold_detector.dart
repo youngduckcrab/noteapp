@@ -9,7 +9,14 @@
 //  * a sample within the radius whose time is ≥ shapeHoldMs after the anchor
 //    time fires the hold (once per anchor);
 //  * a dart:async Timer of shapeHoldMs, started at every anchor change, fires it
-//    when no sample comes (a pen held still sends none on some platforms).
+//    when no sample comes (a pen held still sends none on some platforms). The
+//    new timer is created before the old one is cancelled (B20, review 2.1): on
+//    the VM, cancelling the earliest pending timer first makes the timer heap
+//    hand a new wake-up time (or, with no other timer, a port shutdown) to the
+//    event handler, and creating the new one hands another — two event-handler
+//    messages per anchor move. Created first, the new timer (due later) is not
+//    the earliest; cancelling the old one then changes the wake-up time only
+//    when the millisecond changed. Same timers, same fire times.
 // Clock rule (review S-8, 6.6-8): sample times are only compared with sample
 // times, the timer only measures its own elapsed time — an event time is never
 // subtracted from InkClock.nowUs() (native: alignedWithEventTimestamps false).
@@ -34,6 +41,7 @@ final class HoldDetector {
     int holdMs = InkTuning.shapeHoldMs,
     double radiusPx = InkTuning.shapeHoldRadiusPx,
   }) : _holdUs = holdMs * 1000,
+       _holdDuration = Duration(milliseconds: holdMs),
        _radius2 = _square(radiusPx / viewScale),
        _anchor = start.isFinite ? start : Offset.zero,
        _anchorUs = startUs,
@@ -48,6 +56,7 @@ final class HoldDetector {
   /// The pen left the radius after a fired hold (the preview, if any, is dropped).
   final void Function() _onMove;
   final int _holdUs;
+  final Duration _holdDuration;
 
   /// The radius in page pt, squared.
   final double _radius2;
@@ -93,9 +102,13 @@ final class HoldDetector {
     _timer = null;
   }
 
+  /// A new timer of the hold from now; the old one (if any) is cancelled after
+  /// the new one exists (see the header: the order is the B20 cost, not the
+  /// behaviour — a cancelled timer never fires).
   void _arm() {
-    _timer?.cancel();
-    _timer = Timer(Duration(microseconds: _holdUs), _timerFired);
+    final old = _timer;
+    _timer = Timer(_holdDuration, _timerFired);
+    old?.cancel();
   }
 
   void _timerFired() {
