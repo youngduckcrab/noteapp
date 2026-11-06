@@ -17,6 +17,10 @@ const int kAssetChunkBytes = 4 * 1024 * 1024;
 abstract interface class BlobStore {
   Future<void> put(String key, Uint8List bytes);
   Future<Uint8List?> get(String key);
+
+  /// (v2) The values of [keys] in their order, null for a missing key — one read (one
+  /// IndexedDB transaction on the web; m5-7/02-core 6.10.4 search rects).
+  Future<List<Uint8List?>> getMany(List<String> keys);
   Future<void> delete(String key);
 
   /// Deletes every key that starts with [prefix].

@@ -45,6 +45,8 @@ final class _FailingBlobStore implements BlobStore {
   @override
   Future<Uint8List?> get(String key) => inner.get(key);
   @override
+  Future<List<Uint8List?>> getMany(List<String> keys) => inner.getMany(keys);
+  @override
   Future<void> delete(String key) => inner.delete(key);
   @override
   Future<void> deletePrefix(String prefix) => inner.deletePrefix(prefix);

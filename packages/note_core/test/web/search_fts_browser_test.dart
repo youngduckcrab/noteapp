@@ -3,7 +3,9 @@
 // contentless_delete=1 is created, a text box write puts its terms in, an edit DELETEs the old
 // row by rowid and re-inserts, a delete removes it, the pdf writer stores its glyph boxes in
 // IndexedDB outside SQLite and deletes the old ones after the commit, and rebuild gives the same
-// rows (m5-7/02-core 6.10.3, 6.10.5). The query part (MATCH / V10 table = VM) is CORE T33b.
+// rows (m5-7/02-core 6.10.3, 6.10.5). CORE T33b — the query part: the shared search contract
+// (V10 / 6.10.2 query table, order, pagesTruncated, rects — the same as the VM and the fake) on
+// the web store, and the fake index's FTS5 model = FTS5 MATCH on the wasm build (6.10.6).
 @TestOn('browser')
 library;
 
@@ -13,8 +15,11 @@ import 'package:note_core/src/search/search_rects.dart';
 import 'package:note_core/src/storage/drift_note_store.dart';
 import 'package:note_core/src/storage/drift_search_index.dart';
 import 'package:note_core/testing.dart' show PageObjectFixtures;
+import 'package:note_core/testing_web.dart';
 import 'package:test/test.dart';
 
+import '../shared/fts_equivalence_cases.dart';
+import '../shared/search_contract.dart';
 import 'web_store_support.dart';
 
 const String _asset =
@@ -41,7 +46,56 @@ Future<List<String>> _rows(DriftNoteStore s) async => [
     [o.source, o.ownerKey, o.sourceRev, o.pending].join('|'),
 ]..sort();
 
+var _serial = 0;
+String _name(String tag) =>
+    'core_t33_${tag}_${DateTime.now().microsecondsSinceEpoch}_${_serial++}';
+
 void main() {
+  group('shared search contract', () {
+    String? name;
+    tearDown(() async {
+      if (name case final n?) await deleteWebTestNoteStore(n);
+      name = null;
+    });
+    defineSearchContract(() => openWebTestNoteStore(name = _name('contract')));
+  });
+
+  group('FTS5 model on wasm', () {
+    late DriftNoteStore store;
+    setUp(() async {
+      final config = freshWebConfig('t33b', seedDefaultPenPresets: false);
+      store = await openWebStoreWithNode(
+        config,
+        '00000000000000aa',
+      ) as DriftNoteStore;
+      closeAndDropAfterTest(store, config);
+    });
+    defineFtsEquivalenceCases(
+      insert: (rows) => store.db.transaction(() async {
+        for (final (id, g) in rows) {
+          await store.db.customStatement(
+            'INSERT INTO search_fts (rowid, g) VALUES (?, ?)',
+            [id, g],
+          );
+        }
+      }),
+      match: (m) async => {
+        for (final r
+            in await store.db
+                .customSelect(
+                  'SELECT rowid AS id FROM search_fts WHERE search_fts MATCH ?',
+                  variables: [Variable<String>(m)],
+                )
+                .get())
+          r.read<int>('id'),
+      },
+    );
+  });
+
+  group('writes', _writes);
+}
+
+void _writes() {
   late DriftNoteStore store;
 
   setUp(() async {

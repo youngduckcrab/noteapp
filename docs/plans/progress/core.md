@@ -403,7 +403,7 @@
 | T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
 | T32 | 완료 | 8cf5524 | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
 | T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
-| T33b | 남음 | | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
+| T33b | 진행 중 | (이 커밋) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 남음 | | `test/repo/library_search_v2_test.dart`, 1차 `library_contract` |
 | T29 | 남음 | | `test/repo/note_copy_v2_test.dart`, `test/repo/trash_purge_v2_test.dart`, `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart` |
 | T36 | 남음 | | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2) |
@@ -597,8 +597,34 @@
 | `ws test --package note_core --platform vm` | **1,072개 통과**(1,047 + 새 26 − B2 색인 쓰기 1), 7개 건너뜀(perf) | 115초 |
 | `ws test --package note_core --platform chrome` | 준비 ok, **95개 통과**(91 + `search_fts_browser_test` 4), 1개 건너뜀(perf) | 184초 |
 
+#### T33b — 검색 색인 ② 질의 쪽 (계획 6.10.4·6.10.6·8.2) — 진행 중
+
+- `DriftSearchIndex.searchPages` / `search(query, limit:, withinNote:)`(가짜 `MemorySearchIndex.search`와 같은 모양 — `pagesTruncated`). 1단계 후보: 두 글자 이상 낱말이 있으면 `search_fts JOIN search_units u ON u.id = search_fts.rowid WHERE search_fts MATCH ? AND 살아있음(u) ORDER BY search_fts.rowid DESC LIMIT 2001`, 없으면 `u.norm LIKE ? ESCAPE '\'`(낱말마다, `likeContains`) `… ORDER BY u.id DESC LIMIT 2001` — 열은 id·source·owner_key·seq·note_id·page_id·asset_id·pdf_index·norm뿐(`body`·`rects_ref` 없음 — `debugCandidateSql` 시험). 살아있음 = `CASE WHEN source = 'pdf' THEN EXISTS(pages bg_asset_id·bg_pdf_index ⋈ notes) ELSE EXISTS(pages.id = page_id ⋈ notes) END`(삭제 안 된 페이지·휴지통 아닌 노트·현재 소유자·`withinNote`). 2001번째 행이 있으면 상한에 걸림. `EXPLAIN QUERY PLAN`에 정렬 단계(TEMP B-TREE) 없음 — FTS는 `INDEX 192:M1`(rowid 내림차순을 FTS가 바로 냄).
+- 2단계: pdf 펼침(후보 에셋의 살아 있는 페이지 한 질의)·노트 `updatedAt`(한 질의)을 미리 읽고 공용 `rankSearchCandidates`. 3단계: 돌려줄 페이지의 대표 단위만 `body`·`rects_ref`·`pdf_aspect`, 같은 원천 단위는 사각형 열만, 대표 pdf 단위의 상자는 `BlobStore.getMany` 한 번(새 내부 메서드 — IndexedDB 트랜잭션 하나, 시험 구현 3개도 고침) → `SearchRectsCodec.decode`; 블롭 없음·깨짐 = 상자 없음(C-13). 페이지 크기 `pages.width/height` → 공용 `searchHitOf`.
+- `searchLibrary`(`drift_library_repository.dart`)의 `pages`·`pagesTruncated`를 `search.search(query, limit: 100)`로 채웠다 — 공유 검색 본문이 `searchLibrary`를 쓰므로 T34 앞당김(T34에는 `library_search_v2_test`·1차 `library_contract` 회귀만 남음).
+- `searchMatches`(`search/search_match.dart`, 실제·가짜 공용) 속도: 단위 전체를 낱말로 나누던 것을 **질의 낱말의 출현 위치**로 판정하게 바꿨다(같은 의미 — 질의 낱말은 낱말 문자만이라 출현마다 단위의 한 낱말 안에 있다: CJK 질의 → '포함', 비CJK → 그 출현의 낱말 시작·CJK 여부만 `runAround`로 본다). 문자 분류는 코드 포인트마다 캐시(`search_runs.dart` `_classOf` — ASCII·한글 음절 빠른 길). 옛 정의를 시험에 옮겨 무작위 4,000쌍(서로게이트·결합 문자·사용자 영역 포함)에서 같은 답(`search_query_test`). 후보 2,000개 판정 500 ms → 10 ms 안팎.
+- 시험: `test/search/search_contract_real_test.dart`(공유 본문 12 — 가짜와 같은 결과·순서·`pagesTruncated`), `test/search/search_index_test.dart`(6 — 휴지통·삭제 페이지와 복원·undo, `withinNote`·다른 소유자, 휴지통 단위가 후보 상한을 먹지 않음, 블롭 없음 → 상자 없음, 후보 SQL 열·`EXPLAIN QUERY PLAN`, 같은 쓰기에 가짜와 같은 결과), `test/search/fts_candidate_equivalence_test.dart`(공유 `test/shared/fts_equivalence_cases.dart` — 시드 33, 단위 2,000·질의 500: FTS5 MATCH 집합 = `ftsCandidateMatches` 집합), `test/web/search_fts_browser_test.dart`(+ 공유 검색 본문 12 + FTS 흉내 동치 1 — wasm), `test/search/search_query_test.dart`(+ 판정 동치 1).
+- **남은 것**: ① PF-3·PF-4 예산(6.19 — 5,000쪽 합성 색인 질의 ≤ 5 ms, 1글자 LIKE ≤ 15 ms): `test/perf/search_perf_test.dart`(+ `search_corpus.dart`)의 첫 측정(load 13, CPU 4)이 **크게 넘는다** — 잦은 2음절 149 ms·3음절 54 ms·드문 낱말(65쪽) 22 ms·영문 접두사 111 ms·AND 114 ms·1글자 LIKE 64~70 ms, PF-5(5,000쪽 `replaceUnits`) 10.8 s. 잦은 낱말은 후보 2,000개가 다 차서 비용이 후보 수에 비례한다(같은 부하에서 나눠 잰 값: 후보 SQL 15~90 ms, pdf 펼침(5,000쪽 행) 30~350 ms, 순위 40~270 ms, 결과 7~50 ms). 예산 단언은 `kAssertSearchBudgets = false`로 꺼 두고 값과 예산을 함께 출력한다. 다음: pdf 펼침을 후보의 (에셋, 쪽) 쌍으로 좁히기, 후보 행을 Dart로 덜 옮기기(판정 전 norm 전체 대신), 부하가 낮을 때 다시 재기 — 그래도 넘으면 V10 예산(조사 03 9.2 실험은 FTS MATCH만 잰 값)을 총괄에 묻는다. ② PF-10 `test/perf/search_real_shape_perf_test.dart`(실제 모양 500쪽·글자 상자, DB 증가 ≤ 12 MB, 질의 ≤ 20 ms) ③ PF-10w `test/web/search_reopen_time_browser_test.dart`(`perf`, 다시 열기 +300 ms) — 둘 다 아직 없음.
+
+확인 (2026-11-06, load 12~13 — 다른 영역 시험과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,092개 통과**(1,072 + 실제 검색 본문 12 + `search_index_test` 6 + FTS 동치 1 + 판정 동치 1), 8개 건너뜀(perf) | 189초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **108개 통과**(95 + 공유 검색 본문 12 + FTS 흉내 동치 1), 1개 건너뜀(perf) | 194초 |
+| PF-3·4·5(`flutter test --run-skipped -t perf test/perf/search_perf_test.dart`) | 위 '남은 것' ① 값 — 예산 단언 꺼 둠 | 30초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 65초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 15초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
+- T33a: 6.10.3 '쓰기 훅' 위치는 `WriteTxn.putLocal`·`putRemote` 한 곳(내부 `TxnIndexHooks`)으로 — 세션·undo·`createNote`·손글씨 저장소·원격 적용이 모두 지난다. 같은 `sourceRev`·보류 아님이면 다시 쓰지 않는다(계획에 없음 — 같은 버전 재적용). 원격 고아 텍스트·수식은 단위 없이 소유자만 두었다가 페이지가 오면(`_adoptOrphans`) 다시 색인한다. 보류 표시는 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`(소유자 행이 없으면 `source_rev ''`).
+- T33a: 재구축의 pdf 블롭은 `si/pdf/` 접두사 전체를 지우지 않고 **지운 행이 참조하던 키만** 커밋 뒤 지운다(진행 중인 `replaceUnits`의 새 블롭을 지우지 않게 — 남는 고아는 다음 열기의 첫 사용 정리). 고아 정리가 실패하면 그 세션에서는 다시 하지 않는다(진행 중 호출의 블롭과 경합하지 않게).
+- T33a: 가짜 메모리 색인의 '빈 본문' 규칙을 `body.trim()` → `SearchText.normalize(body)`로 실제와 같게, 작성기 검증을 공용 `search/search_writer_checks.dart`로.
+- T33b: `searchLibrary`의 `pages`·`pagesTruncated` 연결(계획상 T34)을 T33b에서 했다 — 공유 검색 본문(`search_contract`)이 `searchLibrary`를 쓴다.
+- T33b: `searchMatches`를 출현 위치 기반으로 다시 썼다(같은 의미 — 무작위 동치 시험). 계획 6.10.2의 정의 문장은 그대로다.
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
 - T24: '새 v2 = 이주한 v2의 `sqlite_master`' 비교는 v1 원본을 **V7 고정 자료**(1차 코드가 쓴 DB)로 하고, 식별자 따옴표·괄호 앞 공백을 정규화해 비교한다. 생성 `schema_v1`이 만든 v1 표와 업그레이드가 생성 `Schema2`로 만든 새 표는 `PRIMARY KEY(id)`처럼 1차 실제 표(`PRIMARY KEY ("id")`)와 글자가 조금 다르다(열·형·제약·순서는 같음). 이주 시험(`migration_v2_test`)의 합성 v1은 계획대로 생성 `schema_v1`로 만든다.
 - T24: 생성 시험 `migration_test.dart`는 `package:flutter_test` 대신 `package:test` + `@TestOn('vm')`(note_core는 순수 Dart 멤버)로 고쳤고, 자료 보존 사례를 실제 행(폴더 `name_norm` 재계산·pdf 배경 `bg_*`·녹음 `title` NULL·outbox)으로 채웠다.
@@ -621,8 +647,8 @@
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a. 다음은 **T33b**(질의 — 아래) → T34 → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 잰다.
-- T33b가 할 것: `DriftSearchIndex.searchPages`(지금 빈 목록)와 `search(query, limit:, withinNote:)`(가짜 `MemorySearchIndex.search`와 같은 모양 — `pagesTruncated`용, T34의 `searchLibrary`가 쓴다). 후보: FTS `search_fts MATCH ? … ORDER BY rowid DESC LIMIT 2001`(별칭 없이 — `search_fts MATCH`는 표 이름으로) 또는 LIKE(`likeContains` — 낱말마다), 살아 있음 = 비pdf `pages.id = page_id`, pdf `pages(bg_asset_id, bg_pdf_index)`(색인 `idx_pages_bg`) ⋈ notes(`deleted_at IS NULL`, 소유자, `withinNote`). 2단계는 `search_pipeline.dart`의 `rankSearchCandidates`(동기 콜백 — pdf 펼침·노트 `updatedAt`을 한 질의씩 미리 읽어 둔다), 3단계 `searchHitOf`(돌려줄 페이지 단위만 `body`·사각형·`rects_ref`·`pdf_aspect`, 대표 pdf 단위의 블롭은 `BlobStore.getMany` 하나 — 인터페이스에 더하고 시험 구현 3개(`asset_store_test`·`v1_copy_test` 둘)도 고친다, 블롭 없음 = 사각형 없음), 페이지 크기는 `pages.width/height`.
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a. **T33b 진행 중** — 질의는 동작(공유 본문 실제·Chrome 통과), 남은 것은 PF-3·PF-4 예산 맞추기와 PF-10·PF-10w 시험(위 'T33b' 절 '남은 것'). 그다음 T34(`library_search_v2_test` — `searchLibrary.pages`는 T33b에서 이미 채움) → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 잰다.
+- T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
 - 영구 삭제(T29): `deleteNoteContents`가 그 노트의 `search_owners`(note_id)·`search_units`·FTS 행도 지워야 한다(pdf 소유자는 에셋 단위라 남김). 객체·손글씨 행도 지금은 남는다(T29 몫).
 - `content_rev` 경합(위 '계획과 다르게 한 점' T32): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`·`putLocal(Page)`)를 `MAX(content_rev + 1, 값)`으로 바꿀지 T37(또는 통합) 전에 판단 — 썸네일 캐시도 같은 이득.
@@ -630,7 +656,7 @@
 - 초안 저장소 시험 도구: `test/media/draft_store_support.dart` `openDraftStore(path, idbFactory)`(파일 DB + 같은 메모리 IndexedDB로 다시 열기), `DriftRecordingDraftStore.debugWriteOrder`·`.blobs`.
 - 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
 - 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.
-- 남은 2차 표면 `UnimplementedError`: 없음(T33a에서 `empty_v2_repositories.dart`·`common/pending.dart`를 지웠다). 질의 `searchPages`는 T33b까지 빈 목록.
+- 남은 2차 표면 `UnimplementedError`: 없음(T33a에서 `empty_v2_repositories.dart`·`common/pending.dart`를 지웠다).
 - 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
 - v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
 - Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.

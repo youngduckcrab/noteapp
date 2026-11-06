@@ -66,6 +66,8 @@ final class _RecordingBlobs implements BlobStore {
   @override
   Future<Uint8List?> get(String key) => _inner.get(key);
   @override
+  Future<List<Uint8List?>> getMany(List<String> keys) => _inner.getMany(keys);
+  @override
   Future<void> delete(String key) => _inner.delete(key);
   @override
   Future<void> deletePrefix(String prefix) => _inner.deletePrefix(prefix);
@@ -375,6 +377,10 @@ final class _MemoryBlobs implements BlobStore {
   Future<void> put(String key, Uint8List bytes) async => _m[key] = bytes;
   @override
   Future<Uint8List?> get(String key) async => _m[key];
+  @override
+  Future<List<Uint8List?>> getMany(List<String> keys) async => [
+    for (final k in keys) _m[k],
+  ];
   @override
   Future<void> delete(String key) async => _m.remove(key);
   @override

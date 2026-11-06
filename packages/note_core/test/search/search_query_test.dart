@@ -1,6 +1,8 @@
 // Runs, index terms, FTS query text and the match judgement (m5-7/02-core 6.10.2): the 9.2
 // table, FTS grammar injection, the FTS candidate model as a superset of the judgement, the
 // ranking order. Web-safe.
+import 'dart:math';
+
 import 'package:note_core/note_core.dart';
 import 'package:note_core/src/search/search_match.dart';
 import 'package:note_core/src/search/search_ranking.dart';
@@ -30,6 +32,29 @@ Set<int> _search(String query) {
             ))
         if (searchMatches(SearchText.normalize(body), q)) id,
   };
+}
+
+/// searchMatches as 6.10.2 states it: every query run against the runs of the whole unit
+/// (the first implementation — the occurrence-based one must decide the same).
+bool _referenceMatches(String unitNorm, String queryNorm) {
+  final query = searchRunsOf(queryNorm);
+  if (query.isEmpty) return false;
+  final unitRuns = searchRunsOf(unitNorm);
+  for (final q in query) {
+    if (q.codePoints == 1) {
+      if (!unitNorm.contains(q.text)) return false;
+      continue;
+    }
+    final ok = q.isCjk
+        ? unitRuns.any((r) => r.isCjk && r.text.contains(q.text))
+        : unitRuns.any(
+            (r) =>
+                (!r.isCjk && r.text.startsWith(q.text)) ||
+                (q.codePoints == 2 && r.isCjk && r.text.contains(q.text)),
+          );
+    if (!ok) return false;
+  }
+  return true;
 }
 
 void main() {
@@ -146,6 +171,35 @@ void main() {
           isFalse,
         ); // the known limit (6.10.2)
         expect(searchMatches('aim 모델', 'aim'), isTrue);
+      },
+    );
+
+    test(
+      'the occurrence-based decision = the run-split definition (seed 7)',
+      () {
+        // Letters, digits, Hangul, Han (also outside the BMP), kana, private use, a combining
+        // mark, an emoji and separators.
+        const pieces = [
+          'a', 'b', 'ab', 'aa', 'é', '1', '2', '회', '의', '록', '회의', '漢', //
+          '𠀀', 'の', '\uE000', '\u0301', '😀', ' ', '-', '.', 'x',
+        ];
+        final r = Random(7);
+        String text(int n) =>
+            [for (var i = 0; i < n; i++) pieces[r.nextInt(pieces.length)]]
+                .join();
+        var matched = 0;
+        for (var i = 0; i < 4000; i++) {
+          final unit = SearchText.normalize(text(1 + r.nextInt(16)));
+          final query = SearchText.normalize(text(1 + r.nextInt(4)));
+          final expected = _referenceMatches(unit, query);
+          expect(
+            searchMatches(unit, query),
+            expected,
+            reason: '$unit / $query',
+          );
+          if (expected) matched++;
+        }
+        expect(matched, greaterThan(200));
       },
     );
 

@@ -391,10 +391,14 @@ final class DriftLibraryRepository implements LibraryRepository {
               ])
               ..limit(limit))
             .get();
+    // (v2.0, m5-7/02-core 6.10.4) content hits: searchPages(query, limit: 100).
+    final pages = await s.search.search(query, limit: 100);
     return LibrarySearchResult(
       query: query,
       folders: List.unmodifiable([for (final r in fRows) folderOf(r)]),
       notes: List.unmodifiable([for (final r in nRows) noteOf(r)]),
+      pages: pages.hits,
+      pagesTruncated: pages.truncated,
     );
   }
 

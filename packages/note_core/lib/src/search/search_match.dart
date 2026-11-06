@@ -11,23 +11,28 @@ import 'search_runs.dart';
 ///   two or more, not CJK → some non-CJK run starts with q, or (q is two code points) some CJK
 ///     run contains q (the FTS prefix also matches an equal bigram).
 /// A query without runs matches nothing.
+///
+/// (CORE T33b — PF-3) Decided from the occurrences of q in [unitNorm] instead of splitting the
+/// whole unit into runs: q consists of run characters only, so each occurrence lies inside one
+/// run of the unit — a CJK q makes that run CJK (the rule is then 'contains'), a non-CJK q looks
+/// only at the run around each occurrence (its start and whether it holds a CJK character).
 bool searchMatches(String unitNorm, String queryNorm) {
   final query = searchRunsOf(queryNorm);
   if (query.isEmpty) return false;
-  List<SearchRun>? unitRuns;
   for (final q in query) {
-    if (q.codePoints == 1) {
+    if (q.codePoints == 1 || q.isCjk) {
       if (!unitNorm.contains(q.text)) return false;
       continue;
     }
-    unitRuns ??= searchRunsOf(unitNorm);
-    final ok = q.isCjk
-        ? unitRuns.any((r) => r.isCjk && r.text.contains(q.text))
-        : unitRuns.any(
-            (r) =>
-                (!r.isCjk && r.text.startsWith(q.text)) ||
-                (q.codePoints == 2 && r.isCjk && r.text.contains(q.text)),
-          );
+    var ok = false;
+    for (
+      var i = unitNorm.indexOf(q.text);
+      i >= 0 && !ok;
+      i = unitNorm.indexOf(q.text, i + 1)
+    ) {
+      final run = runAround(unitNorm, i, i + q.text.length);
+      ok = run.cjk ? q.codePoints == 2 : run.start == i;
+    }
     if (!ok) return false;
   }
   return true;

@@ -118,6 +118,15 @@ final class _IdbBlobStore implements BlobStore {
       });
 
   @override
+  Future<List<Uint8List?>> getMany(List<String> keys) async {
+    if (keys.isEmpty) return const [];
+    return _db.run(_store, idbModeReadOnly, (s) async {
+      final values = await Future.wait([for (final k in keys) s.getObject(k)]);
+      return [for (final v in values) v == null ? null : _bytesOf(v)];
+    });
+  }
+
+  @override
   Future<void> delete(String key) =>
       _db.run(_store, idbModeReadWrite, (s) => s.delete(key));
 
