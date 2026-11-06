@@ -24,6 +24,7 @@ import '../repo/trash_repository.dart';
 import '../sync/outbox_types.dart';
 import 'db/note_database.dart';
 import 'drift_note_store.dart';
+import 'drift_recording_draft_store.dart';
 import 'entity_diff.dart';
 import 'row_mappers.dart';
 import 'watch_hub.dart';
@@ -277,7 +278,11 @@ final class DriftTrashRepository implements TrashRepository {
       await tx.purge(EntityRef(EntityKind.folder, f.id));
     }
     final noteIds = [for (final n in notes) n.id];
-    final purgedPages = await deleteNoteContents(tx, noteIds);
+    final purgedPages = await deleteNoteContents(
+      tx,
+      noteIds,
+      drafts: s.recordingDrafts,
+    );
     for (final id in noteIds) {
       await tx.purge(EntityRef(EntityKind.note, id));
     }
@@ -328,12 +333,18 @@ final class DriftTrashRepository implements TrashRepository {
 /// Deletes the pages, strokes and recordings of [noteIds] and their pending outbox
 /// entries (purge of a trash group, 6.8; RemotePurge, 6.10.3). The note rows stay.
 /// Returns the deleted page ids (their thumbnails go after the commit).
+/// (v2.0, m5-7/02-core 6.14.2 — CORE T29) also the page objects and handwriting results
+/// (and their outbox entries), the notes' own search owners / units / FTS rows (pdf owners
+/// are per asset and stay), and the recording draft rows — their chunks and meta
+/// (`rd/<draftId>/`) are deleted after the commit by [drafts].
 Future<List<PageId>> deleteNoteContents(
   WriteTxn tx,
-  List<NoteId> noteIds,
-) async {
+  List<NoteId> noteIds, {
+  DriftRecordingDraftStore? drafts,
+}) async {
   final db = tx.db;
   final purgedPages = <PageId>[];
+  final purgedDrafts = <String>[];
   for (final chunk in _chunks(noteIds)) {
     final pageIds = [
       for (final r
@@ -345,11 +356,24 @@ Future<List<PageId>> deleteNoteContents(
     ];
     purgedPages.addAll(pageIds);
     await (db.delete(db.strokes)..where((t) => t.noteId.isIn(chunk))).go();
+    await (db.delete(db.pageObjects)..where((t) => t.noteId.isIn(chunk))).go();
+    await (db.delete(db.handwriting)..where((t) => t.noteId.isIn(chunk))).go();
     for (final pages in _chunks(pageIds)) {
       await (db.delete(db.strokes)..where((t) => t.pageId.isIn(pages))).go();
+      // Rows of these pages whose note id is not (yet) the page's — remote orphans.
+      await (db.delete(
+        db.pageObjects,
+      )..where((t) => t.pageId.isIn(pages))).go();
+      await (db.delete(
+        db.handwriting,
+      )..where((t) => t.pageId.isIn(pages))).go();
       await (db.delete(db.outbox)..where(
             (t) =>
-                t.entityKind.equals(EntityKind.stroke.name) &
+                t.entityKind.isIn([
+                  EntityKind.stroke.name,
+                  EntityKind.pageObject.name,
+                  EntityKind.handwriting.name,
+                ]) &
                 t.pageId.isIn(pages),
           ))
           .go();
@@ -363,16 +387,53 @@ Future<List<PageId>> deleteNoteContents(
                 EntityKind.page.name,
                 EntityKind.stroke.name,
                 EntityKind.recording.name,
+                EntityKind.pageObject.name,
+                EntityKind.handwriting.name,
               ]),
         ))
         .go();
+    // The notes' own search rows (text / math / ink — pdf units have no note id).
+    final unitIds = [
+      for (final r
+          in await (db.selectOnly(db.searchUnits)
+                ..addColumns([db.searchUnits.id])
+                ..where(db.searchUnits.noteId.isIn(chunk)))
+              .get())
+        r.read(db.searchUnits.id)!,
+    ];
+    for (final ids in _chunks(unitIds)) {
+      await db.customStatement(
+        'DELETE FROM search_fts WHERE rowid IN '
+        '(${List.filled(ids.length, '?').join(', ')})',
+        ids,
+      );
+    }
+    await (db.delete(db.searchUnits)..where((t) => t.noteId.isIn(chunk))).go();
+    await (db.delete(db.searchOwners)..where((t) => t.noteId.isIn(chunk))).go();
+    // Recording drafts: the rows now, the blobs after the commit.
+    purgedDrafts.addAll([
+      for (final r
+          in await (db.selectOnly(db.recordingDrafts)
+                ..addColumns([db.recordingDrafts.draftId])
+                ..where(db.recordingDrafts.noteId.isIn(chunk)))
+              .get())
+        r.read(db.recordingDrafts.draftId)!,
+    ]);
+    await (db.delete(
+      db.recordingDrafts,
+    )..where((t) => t.noteId.isIn(chunk))).go();
   }
   if (noteIds.isNotEmpty) {
     tx
       ..touch(EntityKind.page)
       ..touch(EntityKind.stroke)
       ..touch(EntityKind.recording)
+      ..touch(EntityKind.pageObject)
+      ..touch(EntityKind.handwriting)
       ..forgetPageNotes();
+  }
+  if (drafts != null && purgedDrafts.isNotEmpty) {
+    tx.afterCommit(() => drafts.dropPurged(purgedDrafts));
   }
   return purgedPages;
 }

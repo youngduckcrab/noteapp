@@ -417,6 +417,20 @@ final class DriftRecordingDraftStore implements RecordingDraftStore {
     return o == out.length ? out : Uint8List.sublistView(out, 0, o);
   }
 
+  /// After the commit that deleted the rows of [draftIds] (a purged note — 6.14.2, CORE
+  /// T29): their chunks and meta. Best effort — a blob left over is an orphan for the first
+  /// use after the next open (no row, no meta → removed; 6.7.2).
+  Future<void> dropPurged(List<String> draftIds) async {
+    for (final id in draftIds) {
+      _next.remove(id);
+      try {
+        await blobs.deletePrefix(_prefix(id));
+      } on Object {
+        // Left for the orphan clean-up.
+      }
+    }
+  }
+
   @override
   Future<void> discard(String draftId) async {
     await _cleanOnce();

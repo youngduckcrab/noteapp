@@ -800,7 +800,9 @@ final class _RemoteApply {
       await tx.purge(EntityRef(EntityKind.folder, id), outbox: false);
     }
     final notes = noteIds.toList();
-    purgedPages.addAll(await deleteNoteContents(tx, notes));
+    purgedPages.addAll(
+      await deleteNoteContents(tx, notes, drafts: sync.s.recordingDrafts),
+    );
     for (final id in notes) {
       await deleteOutboxEntry(_db, EntityKind.note, id);
       await tx.purge(EntityRef(EntityKind.note, id), outbox: false);
