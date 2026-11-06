@@ -498,6 +498,49 @@ class _Private {}
       },
     );
 
+    test('(2nd round, 07-sync 4.2) FieldUnits: wholeUnitExcept, groupsOf and '
+        'unitsFor for the one-unit kinds (unknown keys in the unit)', () {
+      const Set<String>? Function(core.EntityKind) whole =
+          FieldUnits.wholeUnitExcept;
+      const List<Set<String>> Function(core.EntityKind) groups =
+          FieldUnits.groupsOf;
+      const List<Set<String>> Function(core.EntityKind, Iterable<String>)
+      units = FieldUnits.unitsFor;
+      expect(whole(core.EntityKind.pageObject), {
+        'pageId',
+        'deletedAt',
+        'engine',
+      });
+      expect(whole(core.EntityKind.handwriting), {
+        'noteId',
+        'pageId',
+        'deletedAt',
+      });
+      for (final kind in core.EntityKind.values) {
+        if (kind == core.EntityKind.pageObject ||
+            kind == core.EntityKind.handwriting) {
+          expect(groups(kind), isEmpty, reason: kind.name);
+        } else {
+          expect(whole(kind), isNull, reason: kind.name);
+        }
+      }
+      expect(
+        units(core.EntityKind.pageObject, [
+          'id',
+          'type',
+          'frame',
+          'pageId',
+          'deletedAt',
+          'sticker',
+        ]),
+        [
+          {'frame', 'sticker', 'type'},
+          {'deletedAt'},
+          {'pageId'},
+        ],
+      );
+    });
+
     test('(2nd round, 07-sync 4.2, CP-S7) AuthBackend.idToken and '
         'AuthService.idToken({bool forceRefresh = false})', () async {
       final AuthBackend port = FakeAuthBackend(
