@@ -2689,6 +2689,20 @@ dart run tool/ws.dart with-heavy-lock -- \
 
 - `ws web-budget check`는 CI 웹 빌드 뒤(`finalize-web` 다음)에 돌고, 실패하면 배포 전에 멈춘다. 한도를 넘기면 원인 영역에 알리고(예: KaTeX → INK가 포크해 지연 적재 — 계약 7.4.5·U15, 아이콘 → 아이콘 수 줄이기), 총괄 승인 없이 한도를 올리지 않는다.
 - **J0 실측**(R2-B8b 뒤, 동시 개발 첫 체크포인트): `cd app && flutter build web --release` → `ws web-budget measure` 표를 진행 기록·이 표에 남기고, `main.dart.js` 증가분이 +300 KB 안인지, KaTeX·아이콘 묶음 값으로 묶음별 한도를 제안한다(아이콘이 2차 UI로 늘 여유를 두고 KaTeX는 실측 + 5%). 기준값(`baseline`)은 H5에서 2차 통합 뒤 한 번 더 고친다(그 값은 3라운드 기준).
+- **J0 실측 결과**(2026-11-06, 작업 트리 `area2/infra` — R2-B8b `6e7b753` 뒤, 다른 영역은 기반 단계 표면 상태라 그 2차 구현 코드는 아직 없음. `dart:io` gzip, 파일별 gzip의 합 — `ws finalize-web`과 같은 방식):
+
+  | 측정 항목 | 값 | 비교 |
+  |---|---|---|
+  | `main.dart.js` (기본 빌드) | 4,694,993 B, gzip **1,382,988 B** | 1차 기준 대비 gzip +16,950 B(+1.2%), R2-final 대비 +7,505 B(R2-B8a·B8b 셸 연결). 한도 1,666,038 B까지 283,050 B |
+  | `main.dart.js` (`FEATURE_MEDIA`·`FEATURE_RECOGNITION`·`FEATURE_MATH_ENGINE` = false) | 4,682,895 B, gzip 1,379,757 B | 기본 빌드 대비 gzip −3,231 B(지금은 `media_io`·`ink_recognition`이 기반 단계 표면이라 작음 — H5에서 다시) |
+  | 시작 글꼴 합계 (`FontManifest.json` 14개 패밀리·22개 파일) | 원본 661,088 B, gzip **382,428 B** | 합계 한도 400,000 B까지 17,572 B |
+  | ㄴ KaTeX (`packages/flutter_math_fork/` 12개 패밀리·20개 파일) | 원본 640,372 B, gzip 371,014 B | |
+  | ㄴ 아이콘 (MaterialIcons 트리 셰이킹 19,244 B · CupertinoIcons 1,472 B) | 원본 20,716 B, gzip 11,414 B (10,391 + 1,023) | |
+  | `NoteSans` | `FontManifest.json`·`AssetManifest`에 없음(지연 적재 지켜짐) — 빌드 산출물 `assets/packages/ink_engine/fonts/`에 파일 3개(466,936 + 466,440 + OFL 4,388 B) | 금지 글꼴 규칙 통과 |
+  | `record_web` 워크릿 | 11,762 B(표시만) | |
+  | 빌드 시간 | 컴파일 260초(기본, 부하 평균 8)·136초(기능 끈 빌드) | 1차 117초 — 다른 에이전트와 CPU 공유 |
+
+  **묶음별 한도 제안**(총괄 결정 — 계약 7.4.5 v2.1): 위 규칙('KaTeX는 실측 + 5%, 아이콘은 여유')을 그대로 쓰면 KaTeX 389,565 B + 아이콘 실측 11,414 B가 이미 합계 한도 400,000 B를 넘는다. 그래서 합계 400,000 B를 지키는 쪽으로 **KaTeX `gzip_max: 380,000`**(실측 + 2.4% — 글꼴 파일은 `flutter_math_fork` 판이 바뀔 때만 바뀜)·**아이콘 `gzip_max: 20,000`**(실측의 약 1.75배 — 2차 UI 아이콘 추가 여유)을 제안한다. 합계 한도를 410,000 B로 올리고 KaTeX 389,565 B(+5%)를 쓰는 안은 총괄이 고를 수 있게 함께 적는다. `main.dart.js` 한도는 그대로(기준 + 300 KB) — 다른 영역 2차 구현이 들어오는 H5에서 다시 잰다.
 - 메모리 예산(계약 7.4.5 v2.1 — 웹 합계 296 MB, 래스터·디코드 4 Mpx 상한)은 각 영역 몫이고, INFRA는 실기기 B-13 결과(개발자 표시 '앱 캐시 합계' ≤ 300 MB)를 안내서 08 보고 양식으로 받는다.
 
 ### 6.16 GitHub Actions 사용 시간 예산 · CI 잡 분리 (1차 INFRA 6.13 이어받음 — v2.1 재계산, J0)

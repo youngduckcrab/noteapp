@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 동시 개발 2/11** — **R2-B8b**(라우팅 `?page=&focus=`·`pencil_bridge` Dart 표면·Pencil 어댑터) — 아래 '## 2차' > '### 동시 개발'. 그 앞 1/11은 작업 표·문서 정리(C22-09·C23-01)·R2-B8a, 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
-- 다음 할 일: '### 동시 개발' 작업 표 순서 — J0 → J1~J22(체크포인트 병합 — Q14; R2-B8a·R2-B8b 체크포인트 요청함).
+- 마지막 세션: **2차 동시 개발 2/11** — **R2-B8b**(라우팅 `?page=&focus=`·`pencil_bridge` Dart 표면·Pencil 어댑터), **J0 ①②③**(네이티브 설정·`native_config` 정적 시험·웹 빌드 실측; ④ CI 실측은 첫 체크포인트 푸시 뒤) — 아래 '## 2차' > '### 동시 개발'. 그 앞 1/11은 작업 표·문서 정리(C22-09·C23-01)·R2-B8a, 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
+- 다음 할 일: '### 동시 개발' 작업 표 순서 — J1 → J2~J22(J0 ④는 총괄의 첫 체크포인트 푸시 뒤 — 체크포인트 병합 Q14; R2-B8a·R2-B8b·J0 체크포인트 요청함).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -392,7 +392,7 @@
 | 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
 | R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
 | R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
-| J0 | 남음 | | `tool/test/native_config_test.dart`, 웹 빌드 측정 표(6.15), CI 실측 표(6.16 — 첫 체크포인트 푸시 뒤, 총괄) |
+| J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요) | (아래 'J0' 절) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
 | J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
 | J2 | 남음 | | `native_config_test`(서명 분기)·`workflows_test`(서명 세 갈래) — 실제 서명은 GitHub(H6) |
 | J3 | 남음 | | `workflows_test`(ios-compile·testflight) — 실행은 U19 |
@@ -455,9 +455,33 @@
 | `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 97초 |
 | `dart test tool/test` | 372 통과 · 75초 |
 
+#### J0 ①②③ — 네이티브 설정 · `native_config` 정적 시험 · 웹 빌드 실측 (계획 8.2, 6.10.1, 6.11.1~6.11.4, 6.15)
+
+- **① 네이티브 설정 파일**(부록 B): `app/android/app/src/main/AndroidManifest.xml`(`xmlns:tools`, 권한 5개 `INTERNET`·`RECORD_AUDIO`·`FOREGROUND_SERVICE`·`FOREGROUND_SERVICE_MICROPHONE`·`POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` `tools:node="remove"`, 라벨 `필기노트`, `allowBackup="false"`(D20), `flutter_foreground_task` `ForegroundService`(`microphone`·`exported=false`·`stopWithTask=true`), `RebootReceiver` 제거 — 서비스·수신기 이름은 pub 캐시 `flutter_foreground_task-11.0.3`의 매니페스트·README로 다시 확인함), `app/ios/Runner/Info.plist`(마이크·사진·카메라 문구 확정본 글자 그대로, `UIBackgroundModes` `[audio]`, `ITSAppUsesNonExemptEncryption` false), `project.pbxproj` `IPHONEOS_DEPLOYMENT_TARGET` 3곳 15.0 → **15.5**, 새 `app/ios/Podfile`(Flutter 3.47.9 `templates/cocoapods/Podfile-ios` + ML Kit README 줄 — `platform :ios, '15.5'`·`$iOSVersion`·armv7 제외·배포 대상 올림), `Debug.xcconfig`·`Release.xcconfig` 첫 줄 `#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.<debug|release>.xcconfig"`(Flutter `addPodsDependencyToFlutterXcconfig`가 쓰는 줄과 같음 — CI 빌드가 저장소 파일을 바꾸지 않게).
+- **② `tool/src/native_config.dart`**: `NativeConfigPaths`, `AndroidManifestInfo.parse`(`package:xml` — 주석·속성 순서 무관), `parsePlist`, `pbxDeploymentTargets`, `PodfileInfo.parse`(줄 전체 주석 무시), `xcconfigIncludes`, `NativeConfig.load`, `AppNativeExpectations`(값 표), `appNativeConfigProblems`(한 줄씩 — J1 `ws native-reqs`가 같은 `NativeConfig`를 읽는다). **`tool/test/native_config_test.dart`**: 파서 단위 시험, 커밋된 파일 검사(문구 글자 그대로·15.5 정확히 3번·Podfile 템플릿 줄 보존 — 이 Flutter의 템플릿 파일과 대조), 규칙마다 커밋된 파일을 하나씩 깨뜨려 그 문제 한 줄(부팅 권한은 두 줄)만 나오는지 23경우.
+- **③ 웹 빌드 실측**(잠금 안 — `ws with-heavy-lock`): 기본 `flutter build web --release`와 기능 셋을 끈 빌드. 결과 표와 묶음별 한도 제안은 계획 6.15 'J0 실측 결과'(여기 요약):
+
+| 측정 | 값 |
+|---|---|
+| `main.dart.js` 기본 | 4,694,993 B · gzip **1,382,988 B**(1차 기준 +16,950 B, 한도 1,666,038 B까지 283,050 B) |
+| `main.dart.js` 기능 셋 끔(`FEATURE_MEDIA`·`FEATURE_RECOGNITION`·`FEATURE_MATH_ENGINE` = false) | 4,682,895 B · gzip 1,379,757 B(−3,231 B) |
+| 시작 글꼴 합계 | 661,088 B · gzip **382,428 B**(한도 400,000 B까지 17,572 B) — KaTeX 12패밀리 20파일 gzip 371,014 B, 아이콘 gzip 11,414 B(MaterialIcons 10,391 · CupertinoIcons 1,023) |
+| `NoteSans` | `FontManifest`·`AssetManifest`에 없음(지연 적재), 빌드 산출물에는 파일로 있음 |
+| `record_web` 워크릿 | 11,762 B |
+| `ws web-assets verify` | 2개, 문제 0 |
+
+- 한도 제안(총괄 결정 — changeRequests): KaTeX `gzip_max` 380,000 · 아이콘 `gzip_max` 20,000(합계 400,000 유지). 계획 문장('KaTeX 실측 + 5%')대로면 KaTeX 389,565 + 아이콘 실측 11,414가 이미 합계 한도를 넘어, 합계를 410,000으로 올리는 안도 함께 적었다.
+- **④ CI 단계별 시간 실측**: 컨테이너에서 할 수 없다(푸시·GitHub 실행 기록). 총괄의 첫 체크포인트 푸시(R2-B8a·R2-B8b·J0) 뒤 `ci.yml` 실행의 단계 시간을 받아 6.16 표·월 분 재계산·잡 분리안(J15)을 정한다 — 그때까지 J0은 '진행 중'.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/native_config_test.dart` | 37 통과 |
+| `cd app && flutter build web --release` (잠금 안) | 성공 · 컴파일 260초(부하 평균 8 — 다른 에이전트와 CPU 공유) |
+| 같은 빌드 + `--dart-define` 기능 셋 false | 성공 · 136초 |
+
 #### 변경 요청
 
-- 없음
+- [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
 
 #### 의존성 요청
 
@@ -483,6 +507,9 @@
 - (R2-B8b) `debugDroppedEvents`는 구독자마다 따로 센다(브로드캐스트 스트림의 `map`은 구독자마다 돈다 — 구독자 둘이면 나쁜 이벤트 하나가 2). 채널 오류는 처음 한 번만 `debugPrint`(`debugReset`이 되돌림).
 - (R2-B8b, J13 몫을 당김) 능력 조회 500 ms 시간 제한·실패 처리(기록 1건 + `kPencilFallbackCapabilities`, override는 남음)를 `FeatureWiringModule.start`에 넣었다. 상수 `FeatureWiringModule.pencilCapabilitiesTimeout`(앱 내부). J13에는 앱 정보 Pencil 줄(스퀴즈·롤은 이벤트를 받은 뒤)과 Swift 쪽(J12) 뒤 마무리가 남는다.
 - (R2-B8b) `overrides_unique_test`에 7번째 경우 'iPad(펜슬 지원)'를 더했다 — `stylusExtrasProvider`가 한 번만(`FakePencilPort` 주입).
+- (J0) `native_config_test`의 9.1 묶음 중 `build.gradle.kts` 서명 분기는 J2, `native_requirements.yaml`이 모두 충족되는지는 J1(그 파일이 J1에서 생김), **앱 셸 두 경로 정적 묶음**(6.9)은 J4로 미뤘다 — 검사할 `app/lib/src/storage/native_storage_paths*.dart`·`defaultNoteStoreConfig` v2가 J4 코드라 지금 쓰면 실패하는 시험이 된다. J4 완료 조건에 'J0 정적 묶음'이 이미 있다.
+- (J0) `appNativeConfigProblems`가 6.11.4 표의 `CFBundleDisplayName`도 본다(1차 값). Podfile은 `use_frameworks!`와 각 타깃 배포 대상 올림 줄까지 확인하고, 이 Flutter의 템플릿 파일(`$FLUTTER_ROOT/packages/flutter_tools/templates/cocoapods/Podfile-ios`)의 주석 아닌 줄이 커밋된 Podfile에 모두 있는지 본다(11절 위험 2 — Flutter 판 올림 때 깨져서 알려 줌; `flutter`가 PATH에 없으면 건너뜀).
+- (J0) 기능 끈 빌드는 6.15 표의 두 스위치가 아니라 V15·H5와 같은 세 스위치(`FEATURE_MATH_ENGINE` 포함)로 쟀다.
 - (문서) C23-01의 'INFRA(CI·functions.yml 고정값 확인)': `functions.yml`에는 판 문자열이 없다(`functions/package.json` devDependency를 `npm ci`로). 1차 고정값이 남아 있던 `ci.yml`·`web-experiment.yml` 배포 단계 `firebaseToolsVersion`을 15.34.1로 내렸다(계약 7.5 표 '(도구) firebase-tools 15.34.1 — CI').
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
@@ -505,6 +532,7 @@
 
 #### 다음 세션 메모
 
-- 다음: J0(①② 네이티브 설정·`native_config` 정적 시험, ③ 웹 빌드 실측 — 잠금 안, R2-B8b 뒤라 이제 가능, ④ CI 실측은 첫 체크포인트 푸시 뒤 총괄).
+- 다음: J1(`ws native-reqs` + `tool/native_requirements.yaml` + `tool/src/native_reqs.dart` — `NativeConfig`(J0)를 그대로 읽는다, NR7은 `appNativeConfigProblems`와 같은 판정). 그 뒤 J2·J3·J4(J4에 `native_config_test`의 앱 셸 두 경로 묶음).
+- J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
 - J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
 - 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에, J13 몫은 (R2-B8b)에 적었다.
