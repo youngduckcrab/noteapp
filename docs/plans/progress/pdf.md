@@ -272,7 +272,7 @@
 |---|---|---|---|
 | T20 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test` v2, `unit/init_v2_test`, `unit/plan_items_test` |
 | T30 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test`, `unit/init_test`, `widget/recording_panel_placeholder_test`, `unit/testing_fakes_test`, `web/testing_registrar_browser_test` |
-| T21 | 완료 | (이 커밋) | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
+| T21 | 완료 | 4068fcd | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
 | T22 | 남음 | | `pdfium/compose_objects_native_test` |
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
 | T24 | 남음 | | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(INK T42 뒤 — 통합 단계) |
@@ -282,7 +282,7 @@
 | T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
 | T28 | 남음 | | `unit/normalizer_equivalence_test`, `web/normalizer_equivalence_browser_test` |
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
-| T31a | 남음 | | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
+| T31a | 완료 | (이 커밋) | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
 | T31b | 남음 | | `unit/recorder_service_test`, `unit/stop_recover_buffers_test` |
 | T32a | 남음 | | `unit/webm_timeline_test`, `unit/mp4_duration_test` |
 | T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
@@ -323,6 +323,10 @@
 - T21: `RecordingComposeBackend` v2의 조각 기록은 새 최상위 이름 없이 레코드 목록 `parts`(`job`·`outputIndex`·`part`(그 쪽의 몇 번째 조각 — z 순서)·`images`('jpeg 64x48'·'rgba 2x2 alpha')·`texts`·`fontIds`·`byteLength`)와 `partsOfPage(outputIndex, {job})`로 했다.
 - T21: `PdfComposePageOps.isEmpty`는 '`verbs`도 `fonts`도 없음'(6.2.7)이다. `encodeItems`는 그릴 항목이 없으면 조각을 내지 않는다(빈 목록). 텍스트 항목의 글꼴이 `sentFonts`에도 `fontBytes`에도 없으면 `ArgumentError`(이때 `sentFonts`는 바뀌지 않음).
 - T21: 6.2.3의 U(단위 정사각형 → 사각형)·T(텍스트 공간 → 기준선)는 `lib/src/export/object_geometry.dart`의 `unitSquareToRect`·`textSpaceAt`(src 전용). 배경 fit·수식 contain 식은 그것을 쓰는 T25a·T25b에서 같은 파일에 더한다.
+- T31a: `MediaTuning`(`lib/src/tuning.dart`)을 4.5.2 표 전부로 만들었다. 표에 없는 상수 하나를 더했다 — `draftChunkMaxBytes`(4 MiB, CORE `RecordingDraftStore.append` 상한 7.2.4): `DraftWriter`가 그보다 큰 조각을 나눠 보낸다. `webDraftChunkMs`에 따르는 값(`webRequestDataWatchdogMs`·`recentDraftWindowMs`·`pausedKeepAliveMs`)은 그 값을 받는 함수다(`MediaIoConfig.webDraftChunkMs`가 설정값이므로).
+- T31a: 4.6의 `MediaSettingKeys`(키 4개)를 계획대로 `lib/src/providers.dart`에 두었다(아직 provider는 없음 — T31b부터).
+- T31a: `DraftWriter`의 신호는 콜백 `onSignal(DraftWriterSignal, Object?)`(`storageFailed`·`storageRecovered`·`backlogFull`·`draftLost`)로 서비스에 알린다. '`unsaved`'는 한 번 이상 실패한 머리 쪽 조각들이다(순서를 지키려고 실패하면 펌프를 멈추고, 다음 조각·일시정지 중 keep-alive 틱·`drain()`이 머리부터 다시 쓴다). 같은 조각이 거듭 실패해도 `storageFailed`는 한 번만 알린다. keep-alive 빈 조각의 실패(`StateError` 밖)는 잃는 소리가 없어 오류로 올리지 않는다. `drain()`은 진행 중 쓰기를 기다린 뒤 한 번 더 쓰고 아직 남은 조각 목록을 돌려준다(정지 경로가 `readAll` 뒤에 이어 붙임 — 6.6.3).
+- T31a: `offsetNowMs` 규칙('`recording`이 아니면 `null`')은 `recording_clock.dart`의 src 함수 `offsetNowMsOf(phase, clock)`로 두고 서비스(T31b)가 쓴다.
 - T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
 #### 이정표 커밋
@@ -336,6 +340,10 @@
 | 1 (T21) | `ws test --package pdf_io` (VM) | 634 통과 + 7 skip (R2-B4 604 + T21 30) |
 | 1 (T21) | `ws test --package pdf_io --platform chrome` | 84 통과 + 1 skip (54 + T21 30), 285 s |
 | 1 (T21) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
+| 1 (T31a) | `ws test --package media_io` (VM) | 65 통과 (R2-B4 37 + T31a 28) |
+| 1 (T31a) | `ws test --package media_io --platform chrome` | 3 통과 |
+| 1 (T31a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 04:53:39–04:54:37 UTC, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
+| 1 (T31a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
