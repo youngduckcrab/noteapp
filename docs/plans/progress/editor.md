@@ -337,3 +337,73 @@
 ### 변경 요청 (2차)
 
 - 없음(INFRA `pdf_module_test` 103행은 INK 변경 요청 5와 같다).
+
+### 동시 개발
+
+작업 트리 `/home/user/wt2/editor`(브랜치 `area2/editor`, 바탕 `5843ec3` — 계약 v2.3). 계획서 상태 줄 '승인 · 계약 v2.3'(04-editor 13.5 — C22-09 정리). 이 작업 트리의 CORE·INK 2차 기능은 기반 단계 표면(R2-B2 가짜 저장소 v2·R2-B3 단순 구현)이고, 실제 CORE·INK v2가 필요한 판정은 통합 단계 태그(`integration`)로 둔다.
+
+#### 작업 표
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| R2-B5 | 기반 단계에서 완료 | 78d7f25 | 위 '작업 표 (2차)' |
+| E2-00 | 남음 | | `unit/no_platform_imports_test.dart`, `unit/helpers_smoke_test.dart` |
+| E2-01 | 남음 | | `unit/editor_device_state_test.dart`, `unit/text_edit_session_test.dart`, `widget/text_box_inline_test.dart`, `widget/text_input_sheet_test.dart`, `web/text_input_browser_test.dart` |
+| E2-02 | 남음 | | `unit/page_mount_test.dart` v2, `unit/selection_revalidate_test.dart` |
+| E2-03 | 남음 | | `unit/tool_controller_test.dart` v2, `unit/tool_options_test.dart`, `unit/editor_setting_keys_test.dart` v2, `unit/pre_roll_test.dart` |
+| E2-04a | 남음 | | `unit/stylus_contact_test.dart`, `unit/input_router_test.dart` v2(R34~R42) |
+| E2-04b | 남음 | | `unit/input_router_test.dart` v2(R43~R52) |
+| E2-05 | 남음 | | `unit/editor_action_runner_test.dart`, `widget/gesture_settings_section_test.dart`, `widget/undo_redo_test.dart` v2 |
+| E2-06 | 남음 | | `unit/selection_hit_test_test.dart` v2, `unit/selection_priority_test.dart`, `widget/lasso_mixed_test.dart`, `widget/rotate_test.dart`, `goldens/selection_frame_v2_golden_test.dart` |
+| E2-07a | 남음 | | `unit/element_clipboard_test.dart`, `widget/paste_test.dart`, `widget/shortcuts_test.dart` v2 |
+| E2-07b | 남음 | | `widget/selection_menu_test.dart`, `widget/recolor_test.dart` |
+| E2-07c | 남음 | | `widget/selection_extensions_test.dart`, `unit/extension_runner_test.dart` |
+| E2-08 | 남음 | | `unit/object_resize_test.dart`, `widget/object_handles_test.dart`, `widget/vertex_edit_test.dart` |
+| E2-09 | 남음 | | `unit/shape_drafts_test.dart`, `widget/shape_tool_test.dart`, `widget/shape_style_test.dart` |
+| E2-10 | 남음 | | `widget/text_box_test.dart`, `widget/text_format_bar_test.dart`, `widget/text_tool_misc_test.dart` |
+| E2-10b (P-B) | 남음 | | `unit/text_draft_store_test.dart`, `widget/text_draft_restore_test.dart` |
+| E2-11 (P-C) | 남음 — B-2 결과가 둘 다 불합격일 때만 | | `web/textarea_overlay_browser_test.dart` |
+| E2-12 | 남음 | | `unit/object_placement_test.dart`, `widget/image_insert_test.dart`, `widget/insert_menu_test.dart`, `widget/add_page_sheet_test.dart` v2 |
+| E2-13 | 남음 | | `widget/toolbar_test.dart` v2 |
+| E2-14 | 남음 | | `widget/pen_types_v2_test.dart`, `widget/pen_extras_controls_test.dart`, `widget/laser_test.dart`, `widget/tape_test.dart` |
+| E2-15 (P-B) | 남음 | | `unit/shape_assist_for_test.dart`, `widget/shape_assist_test.dart` |
+| E2-16 | 남음 | | `unit/recording_link_test.dart`, `widget/recording_link_test.dart`, `widget/recording_panel_slot_test.dart` |
+| E2-17 | 남음 | | `unit/tap_to_seek_state_test.dart`, `unit/playback_highlight_logic_test.dart`, `widget/playback_highlight_test.dart`, `widget/tap_to_seek_test.dart` |
+| E2-18 (P-B) | 남음 | | `unit/follow_system_test.dart`, `unit/barrel_roll_test.dart`, `widget/stylus_extras_test.dart` |
+| E2-19 | 남음 | | `widget/initial_focus_test.dart`, `widget/erase_v2_test.dart` |
+| E2-20 (P-B) | 남음 | | `widget/dev_overlay_v2_test.dart`, `unit/shape_samples_test.dart`, `widget/dev_menu_test.dart` v2 |
+| E2-22 | 남음 | | `goldens/object_handles_golden_test.dart`, `unit/performance_smoke_test.dart` v2, 패키지 VM·Chrome 전체 |
+| E2-21 | 통합 단계 | | `integration/objects_smoke_test.dart`(C15-04 순서 — EDITOR-F1), `integration/recording_link_smoke_test.dart`, `web/editor_browser_smoke_v2_test.dart` — 파일은 `integration` 태그로 미리 써 둘 수 있음 |
+| E2-21b (P-B) | 통합 단계 — INK T39·E2-15 둘 다 병합됐을 때만 | | `integration/shape_assist_smoke_test.dart` |
+| E2-23 | 통합 단계 | | INFRA V5·V6(·V5b) — 실패 단계·대응 시험·원인을 이 줄에(EDITOR-F2) |
+| E2-24 | 통합 단계(7.7 9단계 뒤) | | 진행 기록에 결과·결정 |
+
+순서(8.2 선행): E2-00 → E2-01(첫 작업 — EDITOR-F4: Hosting이 없어 Chrome 시험과 통합 Playwright 스모크로 판정) ∥ E2-02·E2-03·E2-04a → E2-04b → E2-16 → E2-17 → E2-05 → E2-06 → E2-07a → E2-07b → E2-07c → E2-08·E2-09 → E2-10 → E2-12 → E2-14 → E2-19 → E2-13 → E2-22, P-B(E2-10b·E2-15·E2-18·E2-20)는 P-A 뒤, P-C(E2-11)는 B-2 결과에 따라.
+
+#### 받은 변경 요청 (기반 단계 — 다른 영역 → EDITOR)
+
+- [INK] `FakeInkShapeFitter`의 설정 필드는 `result`(생성자 `fit:` 그대로) — 시험에서 `fitter.result = x`(C23-07). E2-15·E2-21b 시험 작성 때 반영.
+- [INK] InkFonts·InkTextLayout을 쓰는 Chrome 시험은 `setUpAll(useInkTestFonts)`, `InkMathRenderer.layout`은 일반 `test()`면 `TestWidgetsFlutterBinding.ensureInitialized()` 먼저(C23-07). E2-01 `web/text_input_browser_test.dart`부터 반영.
+- [총괄] C23-05: 함수 값 비교 `==`·`withAction` 문구 — 04-editor 4.3.1·4.3.2를 고쳤다(13.5).
+
+#### 변경 요청 (동시 개발 — 보낸 것)
+
+- 없음
+
+#### 의존성 요청
+
+- 없음
+
+#### 계획과 다르게 한 점 (동시 개발)
+
+- 없음
+
+#### 이정표 커밋 (동시 개발)
+
+| 이정표 | 커밋 | 날짜 | 되는 것 |
+|---|---|---|---|
+
+#### 다음 세션 메모
+
+- 세션 1(2026-11-06): 작업 표·계획서 C22-09 정리.
+- EDITOR-F3: E2-15(P-B)를 미루게 되면 이 표의 E2-15 줄을 `미룸`으로 두고 여기에 `E2-15 미룸`을 적는다(E2-21b·V5b·V15 자동 도형 판정 근거).
