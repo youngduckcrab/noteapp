@@ -404,7 +404,7 @@
 | T32 | 완료 | 8cf5524 | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
 | T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
 | T33b | 완료 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
-| T34 | 남음 | | `test/repo/library_search_v2_test.dart`, 1차 `library_contract` |
+| T34 | 완료 | (이 커밋) | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 남음 | | `test/repo/note_copy_v2_test.dart`, `test/repo/trash_purge_v2_test.dart`, `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart` |
 | T36 | 남음 | | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2) |
 | T37 | 남음 | | `-t perf` PF-1~PF-11, Chrome `perf`, `test/readme_examples_test.dart` v2 |
@@ -637,6 +637,12 @@
 | `ws check` | R1~R16 위반 0·경고 0 | 65초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 15초 |
 
+#### T34 — `searchLibrary` v2 (계획 6.10.4 'searchLibrary'·8.2, 계약 7.2.5 `LibrarySearchResult`)
+
+- 코드 변화 없음 — `searchLibrary`의 `pages`·`pagesTruncated` 연결은 T33b(`734b9b5`)에서 했다(공유 검색 본문이 쓰므로). T34는 완료 조건 시험만.
+- `test/repo/library_search_v2_test.dart`: 가짜·실제 각각 ① 폴더·노트는 1차 제목 결과 그대로이고 내용만 맞는 노트는 `notes`에 없이 `pages`에만(반대로 제목만 맞는 노트는 `pages`에 없음) ② `limit`은 폴더·노트에만, `pages`는 100까지 따로 ③ 101쪽 → 100쪽 + `pagesTruncated`, 1글자 낱말이 섞인 질의('교재 본문 7' → 19쪽, 잘림 없음) ④ 휴지통 노트는 `notes`·`pages` 둘 다에서 빠지고 복원하면 돌아옴 ⑤ 빈·공백 질의는 모두 빈 목록·`pagesTruncated` 거짓. 그리고 같은 쓰기(폴더·텍스트 상자 노트 둘·pdf 120쪽)에 질의 6개('강의'·'수학'·'meet'·'교재 1'·'정'·'없는말')의 결과가 가짜 = 실제(제목·폴더 이름·페이지 위치·출처·발췌·범위·사각형·점수·`pagesTruncated` — id는 저장소마다 달라 제목과 쪽 위치로 바꿔 비교, 실제 저장소도 `SequentialIdGenerator` — 점수·노트 시각이 같을 때의 `pageId` 순서가 같도록).
+- 1차 `test/shared/library_contract.dart`의 검색 사례(NFD 제목·휴지통 제외·`%`·`_`·`\` 글자 그대로·최근 먼저·`limit`)는 가짜·실제 모두 그대로 통과.
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T33a: 6.10.3 '쓰기 훅' 위치는 `WriteTxn.putLocal`·`putRemote` 한 곳(내부 `TxnIndexHooks`)으로 — 세션·undo·`createNote`·손글씨 저장소·원격 적용이 모두 지난다. 같은 `sourceRev`·보류 아님이면 다시 쓰지 않는다(계획에 없음 — 같은 버전 재적용). 원격 고아 텍스트·수식은 단위 없이 소유자만 두었다가 페이지가 오면(`_adoptOrphans`) 다시 색인한다. 보류 표시는 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`(소유자 행이 없으면 `source_rev ''`).
@@ -670,7 +676,7 @@
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b. 그다음 T34(`library_search_v2_test` — `searchLibrary.pages`는 T33b에서 이미 채움) → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34. 다음은 T29(복사·휴지통·백업 — 아래 'T29가 할 것' 메모 둘) → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
 - 검색 질의 예산: 변경 요청 [총괄] V10의 답이 오면 `test/perf/search_perf_test.dart`의 `kHeldBelow`·예산을 맞춘다(상한 질의 ≤ 40 ms 제안). 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
 - T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
