@@ -222,7 +222,7 @@
 | 객체 읽기·쓰기 DB | T27 | | | 실제 저장소 객체 명령·N-7 | EDITOR·PDF |
 | 동기화 창구 v2 | T28 | 3d49685 | 2026-11-06 | `applyRemote`·`commitRepairs`·`readVersioned`·`pendingChanges`가 새 종류(객체·손글씨)로 동작, 원격 객체·손글씨가 쓰인 페이지 `content_rev + 1`, 모르는 `type` 왕복(C-12) — T16-v2(로컬 객체 편집은 실제 저장소 세션 T27부터, 녹음·손글씨 저장소 T30·T32) | SYNC |
 | 복사·휴지통·백업 | T29 | | | copyNote·영구 삭제·백업 v2 | LIBRARY·SYNC |
-| 녹음 저장소 | T30 | | | createRecording(멱등)·watch | PDF(media)·EDITOR |
+| 녹음 저장소 | T30 | 3b5adfa | 2026-11-06 | 실제 저장소 `recordings`: `createRecording`(id 멱등 — 검증보다 먼저 저장된 행)·`renameRecording`·`deleteRecording`·`recordingsOf`·`watchRecordings`·`audioBytesOf`, 공유 본문 `recording_contract`가 가짜·실제 둘 다 | PDF(media)·EDITOR |
 | 실제 초안 저장소 | T31 | | | meta·되살림·조각 — V16 | PDF(media) |
 | 손글씨 저장소 | T32 | | | update·stalePages·notesWithStalePages | LIBRARY |
 | 색인 쓰기 | T33a | | | SearchIndexWriter 실제 — PDF 색인기 | PDF |
@@ -399,7 +399,7 @@
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 남음 | | `test/session/object_session_contract_real_test.dart`, `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart` |
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
-| T30 | 완료 | (이정표 표) | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
+| T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
 | T31 | 남음 | | `test/media/recording_draft_contract_real_test.dart`, `test/media/recording_draft_store_test.dart`, `test/web/recording_draft_browser_test.dart`, `test/perf/draft_append_perf_test.dart` |
 | T32 | 남음 | | `test/repo/handwriting_contract_real_test.dart`, `test/repo/handwriting_repository_test.dart`, `test/perf/stale_pages_perf_test.dart` |
 | T33a | 남음 | | `test/search/search_index_writer_test.dart`, `test/web/search_fts_browser_test.dart`(쓰기) |
