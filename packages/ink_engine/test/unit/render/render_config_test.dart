@@ -37,6 +37,23 @@ void main() {
     );
   });
 
+  test(
+    '(m5-7 T43, 6.22) the web INK app cache total: outline 32 + the shared '
+    'raster ledger 96 (tiles + decoded images) + formula rasters 8 = 136 MiB',
+    () {
+      const c = InkRenderConfig.webDefaults;
+      expect(
+        c.imageCacheBytes,
+        isNull,
+        reason: 'images share the ledger on the web',
+      );
+      expect(
+        c.outlineBudgetBytes + c.rasterBudgetBytes + c.mathRasterCacheBytes,
+        136 * _mb,
+      );
+    },
+  );
+
   test('the shared defaults (6.13, 6.28)', () {
     for (final c in const [
       InkRenderConfig.nativeDefaults,

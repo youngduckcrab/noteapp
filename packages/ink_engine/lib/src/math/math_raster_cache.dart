@@ -61,11 +61,28 @@ MathFormula mathFormulaOf(core.MathObject o) => (
 
 final Expando<bool> _renderable = Expando('renderableMath');
 
-/// INTERNAL: InkMathRenderer.validate(o.latex) == null, remembered per instance (a stored
-/// formula that does not parse is drawn as the 6.13 placeholder — mathInvalid, 6.24).
+/// (m5-7 T43, B14) The last validated LaTeX strings: a page loaded again brings new
+/// MathObject instances with the same formulas, and parsing one costs about 0.4 ms
+/// (debug VM). validate depends on the string only.
+final Map<String, bool> _renderableLatex = {};
+const int _renderableLatexMax = 256;
+
+/// INTERNAL: InkMathRenderer.validate(o.latex) == null, remembered per instance and per
+/// LaTeX string (a stored formula that does not parse is drawn as the 6.13 placeholder —
+/// mathInvalid, 6.24).
 @internal
 bool isRenderableMath(core.MathObject o) =>
-    _renderable[o] ??= InkMathRenderer.validate(o.latex) == null;
+    _renderable[o] ??= _renderableLatexOf(o.latex);
+
+bool _renderableLatexOf(String latex) {
+  final hit = _renderableLatex.remove(latex);
+  final ok = hit ?? InkMathRenderer.validate(latex) == null;
+  _renderableLatex[latex] = ok; // most recently used last
+  if (_renderableLatex.length > _renderableLatexMax) {
+    _renderableLatex.remove(_renderableLatex.keys.first);
+  }
+  return ok;
+}
 
 /// INTERNAL: one formula raster and the laid-out size (pt) it was captured from.
 @internal
