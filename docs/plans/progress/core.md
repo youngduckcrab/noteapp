@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 2차 동시 개발 끝(세션 9, 2026-11-06): **8.2의 T24~T37 전부 완료** — 마지막은 T37(성능 PF-1~PF-11·README 2차 사용 예, `b6c7bae`·`b1ce7ab`·이 기록 커밋). 남은 것은 통합 단계 I-1~I-7(계획 8.3)과 변경 요청 [총괄] V10의 답(아래 '## 2차' > '동시 개발').
+- 2차 동시 개발 끝(세션 9, 2026-11-06): **8.2의 T24~T37 전부 완료** — 마지막은 T37(성능 PF-1~PF-11·README 2차 사용 예, `b6c7bae`·`b1ce7ab`·`b05cd2a`). 남은 것은 통합 단계 I-1~I-7(계획 8.3)과 변경 요청 [총괄] V10의 답(아래 '## 2차' > '동시 개발').
 - 2차 기반 단계 마지막: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
 - 2차 다음 할 일: 통합 단계(7.7 — I-1~I-7). 동시 개발 몫은 없다.
 - 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
@@ -408,7 +408,7 @@
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
-| T37 | 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · (이 기록 커밋 — README 성능표) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
+| T37 | 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
 #### 00-review '최종 승인' CORE 항목 처리
