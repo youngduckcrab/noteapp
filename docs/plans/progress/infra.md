@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 마지막 세션: **2차 기반 단계 R2-B2i**(아래 '## 2차' — 계획 docs/plans/m5-7/01-infra.md 8.1, 계약 v2.2 7.6.2) — 그 앞은 R2-B1.
+- 마지막 세션: **2차 R2-B2 묶음 검사**(CORE B2-α·B2-β + SYNC R2-B7a + INFRA R2-B2i, HEAD `7dacf36` — 아래 '## 2차') — 그 앞은 R2-B2i·R2-B1.
 - 다음 할 일: 동시 개발 R2-B8a → R2-B8b → J0(동시 개발 시작 조건 = R2-B1~R2-B6이 `main`에 있음).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
@@ -36,6 +36,7 @@
 | G5 | 총괄·사용자 | | 푸시·CI·미리보기 배포·iPad 체크리스트(컨테이너 밖) |
 | R2-B1 (2차) | 완료 | 3c77de3 | `tool/test/rules_test.dart`(R4 `Platform`·R16·2차 목록)·`chrome_fakemedia_test`·`heavy_lock_test`·`test_command_test`(잠금·`media` 래퍼)·`hosting_config_test`(`functions`·`emulators`)·`workflows_test`(시험 범위·`functions.yml`·수동 APK)·`repo_hygiene_test`·`workspace_test`(`functions/`)·`guides_test`(05), `packages/pencil_bridge/test/pencil_wire_contract_test.dart` |
 | R2-B2i (2차) | 완료 | 59ed567 | `app/test/fakes/counting_note_store.dart`: `recordings`·`recordingDrafts`·`handwriting`·`search` → `inner` 위임 4줄(바탕 = CORE 계약 타입 커밋 `2b2e4b0`, R2-B2·R2-B7a와 한 묶음). INFRA 기존 시험 전부 |
+| R2-B2 묶음 검사 (2차) | 완료 | — (검사 전용) | HEAD `7dacf36`에서 `flutter pub get --enforce-lockfile`·`ws check`(·`--strict`)·루트 analyze·`ws test`(VM 11개·Chrome 7개 멤버)·`dart test tool/test` 모두 통과(아래 '## 2차' > 'R2-B2 묶음 검사') |
 
 ## 변경 요청
 
@@ -331,3 +332,21 @@
 | `ws check` (R1–R16, HEAD 사본) | 0 | — |
 
 - 전체 `ws test`(VM·Chrome, 모든 멤버) 묶음 검사는 총괄의 묶음 병합 뒤(계약 7.6.2). R2-B1 메모의 '묶음 뒤 전체 Chrome 실행'도 그때로 넘긴다 — 이 단계의 변경은 `noteapp` 시험 가짜 하나뿐이다.
+
+### R2-B2 묶음 검사 (계약 7.6.2 — CORE B2-α·B2-β + SYNC R2-B7a + INFRA R2-B2i)
+
+- 검사 대상: 작업 트리 HEAD `7dacf36`(깨끗함 — 커밋 안 된 파일 없음). 묶음 커밋: CORE `2b2e4b0`(B2-α 계약 타입 커밋)·`9777fde`(B2-β JSON 골든)·`c443015`·`38f3578`·`12ab8c4`·`0798096`(B2-β 끝), SYNC `99b8ead`, INFRA `59ed567`, 각 진행 기록 커밋. 검사 전용 단계라 코드 변경 없음(이 기록 줄만).
+- 2026-11-06 01:24–02:00 UTC, 다른 에이전트의 무거운 시험 없음(잠금 대기 0초, load 1–2.5).
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `flutter pub get --enforce-lockfile` | 통과(lock 변화 없음) | — |
+| `ws check` / `ws check --strict` (R1–R16) | 0 · 0 | 약 1분씩 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 14초 |
+| `ws test` (VM, 11개 멤버) | 모두 통과 — note_core 880(+5 건너뜀)·ink_engine 780·feature_editor 591(+1)·feature_library 626(+1)·pdf_io 580(+7)·sync_engine 782(+4)·ink_lab 1·media_io 1·ink_recognition 1·pencil_bridge 6·noteapp 261(+1 = V5) | 약 7분 30초 |
+| `ws test --platform chrome` (전체, 무거운 시험 잠금) | 7개 멤버 통과 — note_core 71(+1)·ink_engine 194·feature_editor 1·feature_library 17·pdf_io 54(+1) **try 2**·sync_engine 26·noteapp 11(+1 = V6). `ink_lab`·`media_io`·`ink_recognition`·`pencil_bridge`는 `test/web/` 없음 | 22분 31초(그중 pdf_io 첫 시도 멈춤 15분) |
+| `ws test --package pdf_io --platform chrome --member-timeout 5` (재현 확인) | 54 통과 · 1 건너뜀, 멈춤 없음 | 1분 19초 |
+| `dart test tool/test` | 372 통과 | 58초 |
+
+- **pdf_io Chrome 첫 시도 멈춤**: `compose_browser_test.dart`가 끝난 뒤(시험 시계 00:17) `loading .../pdf_io/test/web/pure_logic_browser_test.dart`에서 더 진행하지 않아 멤버 제한 15분에 끝내고 다시 실행 → `ok (try 2, after a time-out)`. 따로 다시 돌리면 재현되지 않음. 1차 'Chrome 실행 안정화'에 적은 헤드리스 Chrome 멈춤과 같은 모양(시험 파일 불러오기 중 멈춤, 원인 미확정)이고, 이번 묶음은 `packages/pdf_io`를 바꾸지 않았다(의존하는 `note_core`만 바뀜). 재시도 정책이 의도대로 동작했다. 다시 자주 보이면 CI 잡 제한(전체 Chrome 단계가 15분 더 걸림)과 함께 살핀다.
+- 이전 메모의 '묶음 뒤 전체 Chrome 실행'(R2-B1·R2-B2i)은 위로 끝냈다.
