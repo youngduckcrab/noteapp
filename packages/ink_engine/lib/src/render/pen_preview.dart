@@ -15,8 +15,9 @@
 // outline (T29 — OutlineGenerator.outline gives the dash pieces), the nib
 // branch the calligraphy outline of style.nibAngleDeg / nibAspect (T28 — the
 // same fill as the page layers), the tape the covered shape with its stripes
-// (T31 — the cover layer's covered look); the laser branch gets its own
-// drawing in T30 (until then the tool maps to the ballpoint profile).
+// (T31 — the cover layer's covered look), the laser a still picture (T30 —
+// the trail's glow + core in InkTuning.laserArgb at full opacity, no fade and
+// no repaint).
 import 'dart:collection';
 import 'dart:math' as math;
 
@@ -34,6 +35,7 @@ import '../model/ink_stroke.dart';
 import '../pen/pen_profile.dart';
 import '../stroke/stroke_builder.dart';
 import 'highlighter_compositor.dart';
+import 'laser_trail.dart';
 import 'pencil_grain.dart';
 import 'stroke_painter.dart';
 import 'tape_painter.dart';
@@ -79,10 +81,15 @@ class PenPreviewPainter extends CustomPainter {
           stroke,
           sample.outline ?? OutlineGenerator.outline(stroke),
         );
+      case InkRenderMethod.transientTrail:
+        // (T30) the still laser: glow + core along the centerline, laserArgb
+        final p = stroke.points;
+        paintLaserStill(canvas, [
+          for (var i = 0; i < p.length; i++) Offset(p.x(i), p.y(i)),
+        ], stroke.style.width);
       case InkRenderMethod.filledOutline:
       case InkRenderMethod.nibOutline:
       case InkRenderMethod.dashedPolyline:
-      case InkRenderMethod.transientTrail:
         paintFillStroke(
           canvas,
           stroke,

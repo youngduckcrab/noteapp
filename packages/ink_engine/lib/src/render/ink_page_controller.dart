@@ -64,6 +64,7 @@ import '../model/ink_stroke.dart';
 import '../object/object_hit.dart';
 import '../object/object_painter.dart';
 import '../object/object_view.dart';
+import '../pen/pen_profile.dart';
 import '../pen/style_ink.dart';
 import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
@@ -73,6 +74,7 @@ import 'base_cache.dart';
 import 'cache_pool.dart';
 import 'highlighter_compositor.dart';
 import 'ink_page_content.dart';
+import 'laser_trail.dart';
 import 'lasso_overlay.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
@@ -259,6 +261,13 @@ final class InkPageController extends ChangeNotifier {
     requestFrame: _requestActiveInkFrame,
   );
   bool _activeInkFrameRequested = false;
+
+  /// (m5-7 T30, 6.6) The laser trails, drawn by the overlay layer; the InkClock time of
+  /// the last overlay paint that drew one (the next frame is asked for only while the
+  /// clock moves — a still FakeInkClock does not spin frames).
+  final LaserTrails _laser = LaserTrails();
+  int? _laserPaintUs;
+  bool _overlayFrameRequested = false;
 
   /// The ids the base caches were last told to leave out (display.hidden).
   Set<String> _baseHidden = const {};
@@ -1747,6 +1756,7 @@ final class InkPageController extends ChangeNotifier {
       case InkRenderLayer.inkActive:
         _paintActiveInk(canvas, display, margin, paper);
       case InkRenderLayer.overlay:
+        _paintLaser(canvas);
         final active = _active;
         if (active is! LassoSession || !active.isActive) return;
         if (active.points.length < 2) return;
@@ -2108,7 +2118,8 @@ final class InkPageController extends ChangeNotifier {
     final active = _active;
     if (active is StrokeSession &&
         active.isActive &&
-        active.style.profile.layer == InkLayer.ink) {
+        active.style.profile.layer == InkLayer.ink &&
+        active.style.profile.renderMethod != InkRenderMethod.transientTrail) {
       final start = clock.nowUs();
       final live = active.live;
       final style = active.style;
@@ -2275,6 +2286,26 @@ final class InkPageController extends ChangeNotifier {
       if (!_disposed) _repaints[InkRenderLayer.inkActive]!.fire();
     });
   }
+
+  /// (m5-7 T30, 6.6-4) The laser trails at InkClock now; while one is visible and the
+  /// clock moved since the last overlay paint, the next frame repaints the overlay only.
+  void _paintLaser(ui.Canvas canvas) {
+    if (_laser.isEmpty) return;
+    final now = clock.nowUs();
+    final visible = _laser.paint(canvas, now);
+    final moved = now != _laserPaintUs;
+    _laserPaintUs = visible ? now : null;
+    if (visible && moved) _requestOverlayFrame();
+  }
+
+  void _requestOverlayFrame() {
+    if (_overlayFrameRequested) return;
+    _overlayFrameRequested = true;
+    scheduleMicrotask(() {
+      _overlayFrameRequested = false;
+      if (!_disposed) _repaints[InkRenderLayer.overlay]!.fire();
+    });
+  }
 }
 
 /// INTERNAL render access for InkPageView (not exported).
@@ -2324,6 +2355,15 @@ final class InkPageRender {
 }
 
 /// INTERNAL: the render access of [controller] (InkPageView only).
+/// (m5-7 T30, tests) The controller's laser trails.
+@meta.internal
+LaserTrails laserTrailsOf(InkPageController controller) => controller._laser;
+
+/// (T30, tests) Repaints [layer] as the next frame would (after a FakeInkClock step).
+@meta.internal
+void repaintInkLayer(InkPageController controller, InkRenderLayer layer) =>
+    controller._repaints[layer]!.fire();
+
 @meta.internal
 InkPageRender inkPageRenderOf(InkPageController controller) =>
     controller._render;
@@ -2512,6 +2552,9 @@ final class _Host implements InkPageHost {
     if (_c._disposed) return;
     _c._repaints[layer]!.fire();
   }
+
+  @override
+  LaserTrails get laserTrails => _c._laser;
 
   @override
   void displayChanged() => _c._invalidate();

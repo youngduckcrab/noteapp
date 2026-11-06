@@ -178,7 +178,9 @@ void main() {
     expect(core.StrokeStyle.defaultsFor(core.PenTool.highlighter).extras, {
       InkStyleExtras.highlighterStraightening: 'off',
     });
-    expect(PenProfile.of(core.PenTool.laser), PenProfile.ballpoint);
+    // (m5-7 T30) the laser has its own profile (a stored one still draws like a
+    // ballpoint: transientTrail outlines are the round-cap filled outline)
+    expect(PenProfile.of(core.PenTool.laser), PenProfile.laser);
     expect(PenProfile.fountain.pressureGain, 0.75);
     expect(PenProfile.pencil.textured, isTrue);
     expect(PenProfile.highlighter.groupComposite, isTrue);

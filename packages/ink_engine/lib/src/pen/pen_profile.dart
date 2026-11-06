@@ -10,8 +10,9 @@ enum InkCap { round, square }
 /// calligraphy → nibOutline; dashed → dashedPolyline (round caps); laser → transientTrail;
 /// tape → filledOutline, square cap, layer cover. The P1 profiles exist (m5-7/03-ink 6.2);
 /// PenProfile.of switches the tools to them one by one: brush since T27, calligraphy
-/// since T28, dashed since T29, tape since T31; laser still maps to the ballpoint
-/// profile until T30.
+/// since T28, dashed since T29, laser since T30, tape since T31. A stored laser stroke
+/// (abnormal data) draws like a ballpoint: transientTrail outlines are the round-cap
+/// filled outline (6.6-5).
 enum InkRenderMethod {
   filledOutline,
   strokedPolyline,
@@ -75,9 +76,7 @@ final class PenProfile {
   /// highlighter non-darkening composite (6.10)
   final bool groupComposite;
 
-  /// ballpoint / fountain / highlighter / pencil / marker / brush / calligraphy / dashed /
-  /// tape → their profile; laser (P1) → ballpoint until m5-7/03-ink T30 switches it to
-  /// [laser].
+  /// Every tool → its own profile (m5-7/03-ink T27–T31).
   static PenProfile of(core.PenTool tool) => switch (tool) {
     core.PenTool.ballpoint => ballpoint,
     core.PenTool.fountain => fountain,
@@ -87,8 +86,8 @@ final class PenProfile {
     core.PenTool.brush => brush,
     core.PenTool.calligraphy => calligraphy,
     core.PenTool.dashed => dashed,
+    core.PenTool.laser => laser,
     core.PenTool.tape => tape,
-    core.PenTool.laser => ballpoint,
   };
 
   // values: 6.9 table

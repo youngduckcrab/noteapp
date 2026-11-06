@@ -18,9 +18,11 @@
 // R2-B3):
 //  * StrokeSession: receives ShapeAssist (the shapeAssist getter is what
 //    beginStroke got) and reads the shape fitter then; shapePreview stays
-//    null (the hold detection is T39). A laser stroke draws like a ballpoint
-//    while written and end() returns null — no InkEdit, nothing pending
-//    (K-9; the fading trail is T30).
+//    null (the hold detection is T39). A laser stroke end() returns null — no
+//    InkEdit, nothing pending (K-9); (m5-7 T30, 6.6) it is a fading trail on
+//    the overlay layer (laser_trail.dart: the points carry the InkClock time
+//    of their arrival, the trail fades out over laserFadeMs after the lift and
+//    cancel() removes it at once).
 //  * EraserSession: EraserSpec.eraseShapes — a shape the swept capsule touches
 //    is removed whole (removedObjectIds; never with highlighterOnly; since
 //    m5-7 T37b the exact rule of 6.15 — object_hit.dart: the outline within
@@ -54,6 +56,7 @@ import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
 import 'ink_page_content.dart';
 import 'ink_page_controller.dart';
+import 'laser_trail.dart';
 import 'page_host.dart';
 import 'selection.dart';
 
@@ -253,7 +256,17 @@ final class StrokeSession implements InkGestureSession {
     this._penDownMillis,
     this._shapeAssist,
     this._fitter,
-  );
+  ) {
+    if (_builder.style.profile.renderMethod == InkRenderMethod.transientTrail) {
+      final style = _builder.style;
+      _trail = _host.laserTrails.start(
+        width: style.width,
+        fadeMs: style.laserFadeMs,
+        nowUs: _host.clock.nowUs(),
+      );
+      _syncTrail();
+    }
+  }
 
   final InkPageHost _host;
   final StrokeBuilder _builder;
@@ -264,6 +277,18 @@ final class StrokeSession implements InkGestureSession {
   final InkShapeFitter? _fitter;
   final ValueNotifier<InkShapeFit?> _shapePreview = ValueNotifier(null);
   bool _active = true;
+
+  /// (m5-7 T30) The laser's trail (null for every other pen).
+  LaserTrail? _trail;
+
+  /// The live points into the trail, the new stable ones stamped with InkClock now
+  /// (S-8: never the event time).
+  void _syncTrail() {
+    final t = _trail;
+    if (t == null) return;
+    final l = _builder.live;
+    _host.laserTrails.update(t, l._stable, l._tail, _host.clock.nowUs());
+  }
 
   /// (v2.0) The shape fitted after a hold, shown in layer 4′; null otherwise (moving
   /// again, end, cancel). R2-B3: always null.
@@ -278,16 +303,19 @@ final class StrokeSession implements InkGestureSession {
   LiveStrokeGeometry get live => _builder.live;
 
   /// The live layer of the stroke being written (m5-7 T31: a tape is drawn by the
-  /// cover layer — above the text boxes, L-1).
-  InkRenderLayer get _layer => switch (style.profile.layer) {
-    InkLayer.highlighter => InkRenderLayer.highlighterActive,
-    InkLayer.cover => InkRenderLayer.cover,
-    InkLayer.ink => InkRenderLayer.inkActive,
-  };
+  /// cover layer — above the text boxes, L-1; T30: the laser by the overlay).
+  InkRenderLayer get _layer => _trail != null
+      ? InkRenderLayer.overlay
+      : switch (style.profile.layer) {
+          InkLayer.highlighter => InkRenderLayer.highlighterActive,
+          InkLayer.cover => InkRenderLayer.cover,
+          InkLayer.ink => InkRenderLayer.inkActive,
+        };
 
   void addSample(InkSample sample) {
     _checkActive();
     _builder.add(sample);
+    _syncTrail();
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
     _host.repaint(_layer);
@@ -298,6 +326,7 @@ final class StrokeSession implements InkGestureSession {
     final list = samples.toList(growable: false);
     if (list.isEmpty) return;
     list.forEach(_builder.add);
+    _syncTrail();
     _host.diagnostics.onSamples(list, receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
     _host.repaint(_layer);
@@ -321,11 +350,21 @@ final class StrokeSession implements InkGestureSession {
   /// null if discarded / nothing drawn. The stroke stays visible as pending until
   /// updateContent contains it, discardEdit (failed commit) is called, or the timeout passes.
   /// (v2.0) laser: null — no InkEdit, nothing pending, the content is not changed (E-3).
+  /// (m5-7 T30) The trail stays and fades out over laserFadeMs from now (6.6-2).
   InkEdit? end([InkSample? last]) {
     _checkActive();
     _active = false;
     _shapePreview.value = null;
-    if (style.tool == core.PenTool.laser) {
+    final trail = _trail;
+    if (trail != null || style.tool == core.PenTool.laser) {
+      if (trail != null) {
+        if (last != null) {
+          _builder.add(last);
+          _syncTrail();
+        }
+        _host.laserTrails.finish(trail, _host.clock.nowUs());
+        _host.repaint(InkRenderLayer.overlay);
+      }
       liveClear(live);
       _host.sessionEnded(this);
       return null;
@@ -363,6 +402,12 @@ final class StrokeSession implements InkGestureSession {
     if (!_active) return;
     _active = false;
     _shapePreview.value = null;
+    final trail = _trail;
+    if (trail != null) {
+      // (T30) a cancelled laser disappears at once
+      _host.laserTrails.remove(trail);
+      _host.repaint(InkRenderLayer.overlay);
+    }
     liveClear(live);
     _host.sessionEnded(this);
   }

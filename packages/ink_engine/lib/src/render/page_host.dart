@@ -11,6 +11,7 @@ import '../input/pressure_capability.dart';
 import '../model/ink_stroke.dart';
 import 'ink_page_content.dart';
 import 'ink_page_controller.dart';
+import 'laser_trail.dart';
 import 'selection.dart';
 import 'sessions.dart';
 
@@ -52,4 +53,7 @@ abstract interface class InkPageHost {
 
   /// A lasso produced [selection]; it becomes controller.selection.
   void lassoSelected(InkSelection selection);
+
+  /// (m5-7 T30) The page's laser trails (drawn by the overlay layer, 6.6).
+  LaserTrails get laserTrails;
 }

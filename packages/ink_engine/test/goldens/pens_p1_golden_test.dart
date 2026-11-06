@@ -11,7 +11,8 @@ library;
 // over a written line — the cover layer's three looks — and two preview cells,
 // the line striped); T28 the calligraphy (pens_p1_calligraphy.png, the default
 // 45° nib) — and the preview sheet became one row per pen (S curve | line, two
-// columns) so the five pens fit in 400 px; T30 adds the laser row.
+// columns) so the five pens fit in 400 px; T30 the laser row (a still
+// picture — no pen image: a laser is never stored).
 // Update with: flutter test --update-goldens test/goldens/pens_p1_golden_test.dart
 import 'dart:math' as math;
 
@@ -37,6 +38,7 @@ const List<(core.PenTool, double)> _previewPens = [
   (core.PenTool.brush, 4),
   (core.PenTool.calligraphy, 6),
   (core.PenTool.dashed, 2),
+  (core.PenTool.laser, 3), // T30: glow + core, laserArgb
   (core.PenTool.tape, 14),
 ];
 

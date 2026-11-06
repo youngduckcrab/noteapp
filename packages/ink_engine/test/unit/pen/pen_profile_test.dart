@@ -3,8 +3,7 @@
 // defaults drift from the table, this fails → contract change procedure.
 // v2 (m5-7/03-ink T27, 6.2): the five P1 profiles, defaultsFor for all ten
 // tools, and the PenProfile.of mapping (brush since T27, calligraphy T28,
-// dashed T29, tape T31; laser still ballpoint until T30 — each task updates
-// its row).
+// dashed T29, laser T30, tape T31 — every tool its own profile).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -226,8 +225,7 @@ void main() {
     expect(_all.toSet(), hasLength(10));
   });
 
-  test('PenProfile.of: P0 tools, brush, calligraphy, dashed and tape → their '
-      'profile; laser → ballpoint until T30', () {
+  test('PenProfile.of: every tool → its own profile (T27–T31)', () {
     expect(PenProfile.of(core.PenTool.ballpoint), same(PenProfile.ballpoint));
     expect(PenProfile.of(core.PenTool.fountain), same(PenProfile.fountain));
     expect(
@@ -243,7 +241,7 @@ void main() {
       PenProfile.of(core.PenTool.calligraphy),
       same(PenProfile.calligraphy),
     );
-    expect(PenProfile.of(core.PenTool.laser), same(PenProfile.ballpoint));
+    expect(PenProfile.of(core.PenTool.laser), same(PenProfile.laser));
     expect(
       core.StrokeStyle.defaultsFor(core.PenTool.brush).profile,
       same(PenProfile.brush),

@@ -11,7 +11,9 @@
 // gaps of style.dashPattern × width along the line), T31 the tape preview
 // (the covered shape, opaque, with stripes when striped), T28 the calligraphy
 // preview (nibOutline — the nib angle of the style: 0° and 90° give different
-// thickness along the same line and S curve).
+// thickness along the same line and S curve), T30 the laser preview (a still
+// picture: glow + core in InkTuning.laserArgb whatever the style color, no
+// fade, no frame asked for).
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
@@ -396,8 +398,52 @@ void main() {
     expect(diff / ink, greaterThan(0.2), reason: 'thick and thin swap');
   });
 
-  testWidgets('v2: every P1 pen draws ink without exceptions (the laser: '
-      'ballpoint fallback until T30)', (tester) async {
+  testWidgets('v2: the laser preview — a still picture in laserArgb, no '
+      'repaint (T30)', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(400, 200);
+    addTearDown(tester.view.reset);
+    final style = _style(
+      core.PenTool.laser,
+      width: 4,
+    ).copyWith(colorArgb: 0xFF00AA00);
+    final built = penPreviewStrokeOf(style, PenPreviewShape.line, _size)!;
+    expect(built.stroke.profile, same(PenProfile.laser));
+    await tester.pumpWidget(
+      _app(PenPreviewPainter(style: style, shape: PenPreviewShape.line)),
+    );
+    expect(tester.takeException(), isNull);
+    expect(tester.binding.hasScheduledFrame, isFalse, reason: 'no repaint');
+    final px = await _shot(tester);
+    final y = (_size.height / 2).round();
+    const laser = [0xFF, 0x3B, 0x30, 0xFF];
+    var core0 = 0, green = 0;
+    for (var x = 40; x < 200; x++) {
+      if (samePixel(px.at(x, y), laser, tol: 2)) core0++;
+      final p = px.at(x, y);
+      if (p[1] > p[0] + 40) green++;
+    }
+    expect(core0, greaterThan(150), reason: 'the opaque core in laserArgb');
+    expect(green, 0, reason: 'never the style color');
+    // the glow next to the core: a pale red
+    final glow = px.at(120, y + 4);
+    expect(glow[0], greaterThan(250));
+    expect(glow[1], inInclusiveRange(150, 235));
+    // still: a second frame paints the same
+    await tester.pump(const Duration(seconds: 2));
+    expect(_differingPixels(await _shot(tester), px), 0);
+    for (final shape in PenPreviewShape.values) {
+      await tester.pumpWidget(
+        _app(
+          PenPreviewPainter(style: _style(core.PenTool.laser), shape: shape),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('v2: every P1 pen draws ink without exceptions', (tester) async {
     tester.view
       ..devicePixelRatio = 1
       ..physicalSize = const Size(400, 200);

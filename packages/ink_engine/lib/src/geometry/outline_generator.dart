@@ -23,8 +23,10 @@
 //
 // (m5-7/03-ink T27) OutlineSpec picks the generator by render method: the
 // filled outline above for filledOutline (and the highlighter's
-// strokedPolyline outline); transientTrail uses the filled outline too until
-// T30 (laser trail) gives it its own.
+// strokedPolyline outline). (T30, 6.6-5) transientTrail too: the laser draws
+// its trail on the overlay (render/laser_trail.dart) and never stores it — a
+// stored laser stroke (abnormal data) is the round-cap filled outline, the
+// ballpoint fallback, on screen, in thumbnails and in vectors.
 //
 // (T28, 6.4 N1–N7) nibOutline: the elliptic nib swept along the centerline
 // (nib_outline.dart — style.nibAngleDeg, style.nibAspect), the same O2, O3, O5,

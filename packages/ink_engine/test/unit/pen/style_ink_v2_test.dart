@@ -239,13 +239,13 @@ void main() {
     expect(turned.style.nibAngleDeg, closeTo(75, 1e-6));
   });
 
-  test('the laser still uses the ballpoint profile (m5-7 T27: brush, T28: '
-      'calligraphy, T29: dashed, T31: tape; T30 the laser)', () {
+  test('every P1 pen has its own profile (m5-7 T27: brush, T28: '
+      'calligraphy, T29: dashed, T30: laser, T31: tape)', () {
     expect(PenProfile.of(core.PenTool.brush), PenProfile.brush);
     expect(PenProfile.of(core.PenTool.calligraphy), PenProfile.calligraphy);
     expect(PenProfile.of(core.PenTool.dashed), PenProfile.dashed);
     expect(PenProfile.of(core.PenTool.tape), PenProfile.tape);
-    expect(PenProfile.of(core.PenTool.laser), PenProfile.ballpoint);
+    expect(PenProfile.of(core.PenTool.laser), PenProfile.laser);
     expect(InkRenderMethod.values.map((v) => v.name), [
       'filledOutline',
       'strokedPolyline',
