@@ -79,7 +79,7 @@ void main() {
 
     expect(
       _selection(h),
-      EditorSelection(pageId: h.pageId(0), strokeIds: {strokeA.id}),
+      EditorSelection(pageId: h.pageId(0), elementIds: {strokeA.id}),
     );
     expect(h.controllerOf(0).selection!.strokeIds, {strokeA.id});
     expect(_edits(h), isEmpty);
@@ -204,7 +204,7 @@ void main() {
     expect(h.controllerOf(0).selection!.strokeIds, {strokeA.id});
     expect(h.controllerOf(0).selection!.previewTransform.isIdentity, isTrue);
     expect(h.controllerOf(0).pendingIds, isEmpty);
-    expect(_selection(h)!.strokeIds, {strokeA.id});
+    expect(_selection(h)!.elementIds, {strokeA.id});
     expect(_selection(h)!.isDragging, isFalse);
     expect(find.byKey(SelectionMenu.copyKey), findsOneWidget);
     expect(h.recorder!.executeDuringDelivery, isFalse);
@@ -275,7 +275,7 @@ void main() {
     );
     await _useLasso(tester, h);
     await _lasso(tester, h, [strokeA, strokeB]);
-    expect(_selection(h)!.strokeIds, {strokeA.id, strokeB.id});
+    expect(_selection(h)!.elementIds, {strokeA.id, strokeB.id});
     final bounds = h.controllerOf(0).selection!.bounds;
     final frame = _frame(h);
 
@@ -307,7 +307,7 @@ void main() {
     // The top-left corner is the fixed anchor; the box grew.
     final grown = h.controllerOf(0).selection!.bounds;
     expect(grown.width, greaterThan(bounds.width));
-    expect(_selection(h)!.strokeIds, {strokeA.id, strokeB.id});
+    expect(_selection(h)!.elementIds, {strokeA.id, strokeB.id});
   });
 
   testWidgets('삭제 → one remove-strokes, the selection ends', (tester) async {
@@ -380,7 +380,10 @@ void main() {
     // The lasso tool with the pasted strokes selected (controller.select).
     expect(h.container.read(editorToolProvider).activeTool, EditorTool.lasso);
     expect(h.controllerOf(1).selection!.strokeIds, ids);
-    expect(_selection(h), EditorSelection(pageId: h.pageId(1), strokeIds: ids));
+    expect(
+      _selection(h),
+      EditorSelection(pageId: h.pageId(1), elementIds: ids),
+    );
     expect(h.controllerOf(0).selection, isNull);
     expect(find.byKey(EditorContextMenu.pasteKey), findsNothing);
     expect(h.recorder!.executeDuringDelivery, isFalse);
@@ -420,7 +423,7 @@ void main() {
     );
     await _useLasso(tester, h);
     await _lasso(tester, h, [strokeA, strokeB]);
-    expect(_selection(h)!.strokeIds, {
+    expect(_selection(h)!.elementIds, {
       strokeA.id,
       strokeB.id,
       highlighterStroke.id,
@@ -431,7 +434,7 @@ void main() {
       core.RemoveStrokes(pageId: h.pageId(0), strokeIds: [strokeB.id]),
     );
     await tester.pump();
-    expect(_selection(h)!.strokeIds, {strokeA.id, highlighterStroke.id});
+    expect(_selection(h)!.elementIds, {strokeA.id, highlighterStroke.id});
     expect(h.controllerOf(0).selection!.strokeIds, {
       strokeA.id,
       highlighterStroke.id,
@@ -540,7 +543,7 @@ void main() {
         _rectOf(pasted).center,
         offsetMoreOrLessEquals(h.toPage(0, at), epsilon: 0.05),
       );
-      expect(_selection(h)!.strokeIds, {pasted.id});
+      expect(_selection(h)!.elementIds, {pasted.id});
     });
 
     testWidgets('on the selection → no context menu (the selection menu)', (
@@ -617,7 +620,7 @@ void main() {
       expect(sel.previewBounds, bounds);
       expect(_coreStroke(h, strokeA.id)!.points.x(0), strokeA.points.x(0));
       expect(h.session.history.undoDepth, 0);
-      expect(_selection(h)!.strokeIds, {strokeA.id});
+      expect(_selection(h)!.elementIds, {strokeA.id});
       expect(_selection(h)!.isDragging, isFalse);
       expect(find.text(EditorStrings.readOnlyToast), findsOneWidget);
       await tester.pump(const Duration(seconds: 5)); // snackbar timer
@@ -646,7 +649,7 @@ void main() {
       }
       expect(controller.content!.strokes, hasLength(2));
       expect(h.session.history.undoDepth, 0);
-      expect(_selection(h)!.strokeIds, {strokeA.id, strokeB.id});
+      expect(_selection(h)!.elementIds, {strokeA.id, strokeB.id});
       await tester.pump(const Duration(seconds: 5)); // snackbar timer
     });
   });

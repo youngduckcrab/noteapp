@@ -239,9 +239,9 @@ class InteractionHost implements InputTargets {
     tools.setEyedropper(false);
   }
 
-  void _onLassoSelected(String pageId, Set<String> strokeIds) {
+  void _onLassoSelected(String pageId, Set<String> ids) {
     if (_disposed) return;
-    _ref.read(editorSelectionProvider.notifier).select(pageId, strokeIds);
+    _ref.read(editorSelectionProvider.notifier).select(pageId, ids);
   }
 
   /// ③: a handle → resize from that corner, the body → move (6.6.5).

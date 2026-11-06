@@ -50,7 +50,7 @@ Future<EditorTestHandles> _selected(
   await tester.pump();
   h.container.read(editorSelectionProvider.notifier).select(h.pageId(0), ids);
   await tester.pump();
-  expect(h.container.read(editorSelectionProvider)!.strokeIds, ids);
+  expect(h.container.read(editorSelectionProvider)!.elementIds, ids);
   return h;
 }
 

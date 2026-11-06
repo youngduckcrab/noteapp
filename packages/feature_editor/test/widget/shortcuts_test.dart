@@ -176,7 +176,7 @@ void main() {
         expect(strokes, hasLength(3));
         final pasted = strokes.last;
         expect(pasted.id, isNot(strokeA.id));
-        expect(_selection(h)?.strokeIds, {pasted.id});
+        expect(_selection(h)?.elementIds, {pasted.id});
         // Centred on the screen centre (current page coordinates).
         final centre = h.viewport.screenToPage(
           0,
@@ -290,7 +290,7 @@ void main() {
         expect(h.recorder!.countOf('redo'), 0);
         expect(h.session.history.undoDepth, 1);
         expect(h.container.read(editorClipboardProvider), isNull);
-        expect(_selection(h)?.strokeIds, {strokeA.id});
+        expect(_selection(h)?.elementIds, {strokeA.id});
         expect(h.session.pageIfLoaded(h.pageId(0))!.strokes, hasLength(3));
         expect(h.viewport.camera, camera);
         expect(_tools(h).activeTool, EditorTool.lasso);

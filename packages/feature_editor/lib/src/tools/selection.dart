@@ -1,4 +1,7 @@
-// lib/src/tools/selection.dart — 04-editor 6.6.5, 6.6.6.
+// lib/src/tools/selection.dart — 04-editor 6.6.5, 6.6.6; (v2) m5-7/04-editor
+// 6.6.1 (elementIds = strokes AND objects, origin, vertexMode) and 6.6.7
+// (revalidation by elementById) — E2-02. The selection rules that use them
+// (priority (a′), mixed lasso, vertex editing) come in E2-06 / E2-08.
 import 'dart:async';
 import 'dart:ui' show Rect;
 
@@ -14,25 +17,47 @@ import '../viewport/viewport_controller.dart';
 import 'tool_controller.dart';
 import 'tool_state.dart';
 
+/// (v2, review M-4) Where the selection came from — decides whether a body
+/// drag moves it (6.6.2).
+enum SelectionOrigin { lasso, paste, insert, drawn, tap }
+
 /// EDITOR-side selection state (per note). Geometry lives in ink.InkSelection
-/// (controller.selection); this only says which page/ids and whether a drag runs.
+/// (controller.selection); this only says which page/ids, where the selection
+/// came from and whether a drag runs. The kind of each id (stroke / object)
+/// is read from the INK selection when needed (sel.strokeIds, sel.objectIds).
 @immutable
 class EditorSelection {
   const EditorSelection({
     required this.pageId,
-    required this.strokeIds,
+    required this.elementIds,
+    this.origin = SelectionOrigin.lasso,
     this.isDragging = false,
+    this.vertexMode = false,
   });
   final String pageId;
-  final Set<String> strokeIds;
+
+  /// (v2) strokes AND objects (was strokeIds).
+  final Set<String> elementIds;
+
+  /// (v2) 6.6.3 table; kept by revalidation.
+  final SelectionOrigin origin;
   final bool isDragging; // menu hidden while true
 
-  EditorSelection copyWith({Set<String>? strokeIds, bool? isDragging}) =>
-      EditorSelection(
-        pageId: pageId,
-        strokeIds: strokeIds ?? this.strokeIds,
-        isDragging: isDragging ?? this.isDragging,
-      );
+  /// (v2) single polyline shape: vertex handles shown (6.6.5).
+  final bool vertexMode;
+
+  EditorSelection copyWith({
+    Set<String>? elementIds,
+    SelectionOrigin? origin,
+    bool? isDragging,
+    bool? vertexMode,
+  }) => EditorSelection(
+    pageId: pageId,
+    elementIds: elementIds ?? this.elementIds,
+    origin: origin ?? this.origin,
+    isDragging: isDragging ?? this.isDragging,
+    vertexMode: vertexMode ?? this.vertexMode,
+  );
 
   static const SetEquality<String> _ids = SetEquality<String>();
 
@@ -40,15 +65,24 @@ class EditorSelection {
   bool operator ==(Object other) =>
       other is EditorSelection &&
       other.pageId == pageId &&
+      other.origin == origin &&
       other.isDragging == isDragging &&
-      _ids.equals(other.strokeIds, strokeIds);
+      other.vertexMode == vertexMode &&
+      _ids.equals(other.elementIds, elementIds);
 
   @override
-  int get hashCode => Object.hash(pageId, isDragging, _ids.hash(strokeIds));
+  int get hashCode => Object.hash(
+    pageId,
+    origin,
+    isDragging,
+    vertexMode,
+    _ids.hash(elementIds),
+  );
 
   @override
   String toString() =>
-      'EditorSelection($pageId, $strokeIds${isDragging ? ', dragging' : ''})';
+      'EditorSelection($pageId, $elementIds, ${origin.name}'
+      '${isDragging ? ', dragging' : ''}${vertexMode ? ', vertices' : ''})';
 }
 
 /// Per note (scoped). Mirrors controller.selection of the selected page.
@@ -86,8 +120,13 @@ class EditorSelectionNotifier extends Notifier<EditorSelection?> {
   ink.InkPageController? _controllerOf(String pageId) =>
       _pages[pageId]?.controller;
 
-  /// controller.select(ids) and remember (pageId, ids). Empty ids → clear().
-  void select(String pageId, Set<String> ids) {
+  /// controller.select(ids) and remember (pageId, the INK selection's
+  /// allIds, [origin]). Empty ids → clear().
+  void select(
+    String pageId,
+    Set<String> ids, {
+    SelectionOrigin origin = SelectionOrigin.lasso,
+  }) {
     final old = state;
     if (old != null && old.pageId != pageId) {
       _controllerOf(old.pageId)?.clearSelection();
@@ -104,7 +143,8 @@ class EditorSelectionNotifier extends Notifier<EditorSelection?> {
     }
     state = EditorSelection(
       pageId: pageId,
-      strokeIds: Set.unmodifiable(selection.strokeIds),
+      elementIds: Set.unmodifiable(selection.allIds),
+      origin: origin,
     );
   }
 
@@ -122,21 +162,42 @@ class EditorSelectionNotifier extends Notifier<EditorSelection?> {
     state = s.copyWith(isDragging: value);
   }
 
-  /// 6.6.6: called from PageMount.onContentChanged (no CORE command inside).
-  /// ids ∩ content ids: empty → clear(); fewer → controller.select(remaining).
-  /// Ignored while a drag runs (its commit drops ids CORE no longer has).
+  /// (v2) Vertex handles on / off — only for a single ShapeObject with
+  /// PolylineGeometry (6.6.5); otherwise turning it on does nothing.
+  void setVertexMode(bool value) {
+    final s = state;
+    if (s == null || s.vertexMode == value) return;
+    if (value) {
+      final sel = inkSelectionOf(_pages, s);
+      final objects = sel?.objects ?? const <core.PageObject>[];
+      final single = sel != null && sel.strokeIds.isEmpty && objects.length == 1
+          ? objects.single
+          : null;
+      if (single is! core.ShapeObject ||
+          single.geometry is! core.PolylineGeometry) {
+        return;
+      }
+    }
+    state = s.copyWith(vertexMode: value);
+  }
+
+  /// 6.6.6 / (v2) 6.6.7: called from PageMount.onContentChanged (no CORE
+  /// command inside). ids ∩ {content.elementById(id) != null} (strokes and
+  /// objects): empty → clear(); fewer → controller.select(remaining), the
+  /// origin kept. Ignored while a drag runs (its commit drops ids CORE no
+  /// longer has).
   void revalidate(String pageId, core.PageContent content) {
     final s = state;
     if (s == null || s.pageId != pageId || s.isDragging) return;
     final remaining = {
-      for (final id in s.strokeIds)
-        if (content.strokeById(id) != null) id,
+      for (final id in s.elementIds)
+        if (content.elementById(id) != null) id,
     };
     if (remaining.isEmpty) {
       clear();
       return;
     }
-    if (remaining.length == s.strokeIds.length) return;
+    if (remaining.length == s.elementIds.length) return;
     final controller = _controllerOf(pageId);
     if (controller == null) {
       state = null;
@@ -145,10 +206,10 @@ class EditorSelectionNotifier extends Notifier<EditorSelection?> {
     final current = controller.selection;
     if (current == null ||
         current.isDisposed ||
-        !const SetEquality<String>().equals(current.strokeIds, remaining)) {
+        !const SetEquality<String>().equals(current.allIds, remaining)) {
       controller.select(remaining);
     }
-    state = s.copyWith(strokeIds: Set.unmodifiable(remaining));
+    state = s.copyWith(elementIds: Set.unmodifiable(remaining));
   }
 }
 

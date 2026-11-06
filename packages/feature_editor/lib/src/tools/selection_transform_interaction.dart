@@ -121,7 +121,7 @@ final class SelectionTransformInteraction extends ToolInteraction {
     _done = true;
     try {
       _update(sample.position);
-      final ids = _selection.strokeIds.toSet();
+      final ids = _selection.allIds.toSet();
       final edit = _selection.commitTransform();
       if (edit != null && _commands.commitInkEdit(controller, edit)) {
         _onCommitted(ids);

@@ -132,7 +132,7 @@ class EditorCommands {
     final page = _session.pageIfLoaded(selection.pageId);
     if (page == null) return;
     final strokes = [
-      for (final id in selection.strokeIds) ?page.strokeById(id),
+      for (final id in selection.elementIds) ?page.strokeById(id),
     ];
     if (strokes.isEmpty) return;
     _ref.read(editorClipboardProvider.notifier).copy(strokes);
