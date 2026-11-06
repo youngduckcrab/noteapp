@@ -5,10 +5,10 @@
 // in the repository or the app (F-1): MATH_API_KEY lives in Secret Manager (`.secret.local` for a
 // developer's emulator run, not committed).
 //
-// DAILY_CAP and QUOTA_STORE come with S2-10b / S2-11. No parameter has a model name or a key as
+// QUOTA_STORE comes with S2-11 (FirestoreQuotaStore). No parameter has a model name or a key as
 // its default (contract v2.3, C23-02): CLAUDE_MODEL is set per project in .env.<projectId>.
 
-import { defineBoolean, defineSecret, defineString } from "firebase-functions/params";
+import { defineBoolean, defineInt, defineSecret, defineString } from "firebase-functions/params";
 
 /** The key of the engine MATH_ENGINE names (contract 7.2.13 'MATH_API_KEY (+ engine-specific)'). */
 export const MATH_API_KEY = defineSecret("MATH_API_KEY");
@@ -27,3 +27,6 @@ export const MATHPIX_APP_ID = defineString("MATHPIX_APP_ID", { default: "" });
 
 /** The model the Claude engine asks for. Empty (the default) → Claude is notConfigured (C23-02). */
 export const CLAUDE_MODEL = defineString("CLAUDE_MODEL", { default: "" });
+
+/** Calls per user and Seoul day (6.8.7, D-S6 — Q2); ≤ 0 → no cap. */
+export const DAILY_CAP = defineInt("DAILY_CAP", { default: 200 });

@@ -2,7 +2,7 @@
 
 Node 22 + TypeScript, not a Dart workspace member. Plan: [docs/plans/m5-7/07-sync.md](../docs/plans/m5-7/07-sync.md) 3.2, 3.4, 4.5, 6.8; contract: [00-overview](../docs/plans/m5-7/00-overview.md) 7.2.13 (callable format), 7.4.7 (rules), 7.6 (fake engine).
 
-Status: S2-10a. The callable checks sign-in, the owner list (`src/access.ts`) and every input limit of 07-sync 6.8.3 (`src/protocol.ts`), resolves the engine through the registry (`src/engines/registry.ts` — the only reader of `src/params.ts`), then calls it. Only the deterministic fake engine has an adapter so far. The daily cap, output check and log (S2-10b), the emulator tests (S2-11) and the Mathpix / Claude adapters (S2-12) come next.
+Status: S2-10b. The callable checks sign-in, the owner list (`src/access.ts`) and every input limit of 07-sync 6.8.3 (`src/protocol.ts`), resolves the engine through the registry (`src/engines/registry.ts` — the only reader of `src/params.ts` besides the onCall wiring), takes one count of the daily cap right before the engine (`src/quota.ts` — per uid and Seoul day; `DAILY_CAP` ≤ 0 means no cap), calls the engine under a 25 s deadline signal, checks its output and writes one structured log line per call with sizes only (`src/log.ts` — never strokes, PNG or LaTeX). Only the deterministic fake engine has an adapter so far, and the deployed wiring still counts in memory. `FirestoreQuotaStore` with `QUOTA_STORE` and the emulator tests (S2-11) and the Mathpix / Claude adapters (S2-12) come next.
 
 ## Commands (cwd `functions/`)
 
@@ -27,7 +27,8 @@ The emulator reads the committed demo values of `.env.demo-noteapp` (never secre
 | `ALLOW_FAKE_ENGINE` | boolean | `false` | `true` |
 | `MATHPIX_APP_ID` | string | `''` (Mathpix not configured) | — |
 | `CLAUDE_MODEL` | string | `''` (Claude not configured — contract v2.3 C23-02; no model name as a default) | — |
-| `QUOTA_STORE` / `DAILY_CAP` | string / int (S2-10b) | `firestore` / `200` | `memory` / `1000` |
+| `DAILY_CAP` | int (calls per uid and Seoul day; ≤ 0 → no cap) | `200` | `1000` |
+| `QUOTA_STORE` | string (S2-11) | `firestore` | `memory` |
 
 ## Fake engine (contract 7.6)
 
