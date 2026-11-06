@@ -43,6 +43,7 @@ import '../ui/editor_strings.dart';
 import '../ui/pages/page_choices.dart';
 import '../viewport/viewport_controller.dart';
 import '../viewport/viewport_memory.dart';
+import 'extension_runner.dart';
 
 /// Single place for actions shared by toolbar, gestures, shortcuts, menus — and the
 /// only place that runs CORE commands (5.1.3). Per note (scoped).
@@ -332,6 +333,36 @@ class EditorCommands {
     if (!commitInkEdit(controller, edit)) return false;
     _ref.read(editorColorPaletteProvider.notifier).pushRecent(argb);
     return true;
+  }
+
+  // ---- extension slots (m5-7/04-editor 6.7.4) ----
+
+  /// (v2) `execute` of the extension contexts (EditorSelectionContext /
+  /// EditorInsertContext): ONE command on the session, thrown errors passed
+  /// on like NoteSession.execute (contract 7.2.10 — the item shows the
+  /// message). A ReadOnlyNoteException first refreshes
+  /// editorReadOnlyProvider (the side effect of [_rejected]).
+  void executeForExtension(core.EditCommand command) {
+    try {
+      _session.execute(command);
+    } on core.ReadOnlyNoteException {
+      if (!_disposed) _ref.read(editorReadOnlyProvider.notifier).refresh();
+      rethrow;
+    }
+  }
+
+  /// (v2, 6.7.4) The EditorSelectionContext of the current selection — made
+  /// at the press (a value copy) — or null (no selection, page not loaded).
+  EditorSelectionContext? selectionContext() {
+    if (_disposed) return null;
+    final selection = _ref.read(editorSelectionProvider);
+    return selectionContextFor(
+      session: _session,
+      selection: selection,
+      sel: inkSelectionOf(_pages, selection),
+      execute: executeForExtension,
+      clearSelection: clearSelection,
+    );
   }
 
   // ---- pages (6.11, 5.1.3 — each one undo step) ----

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../commands/extension_runner.dart';
 import '../input/editor_shortcuts.dart';
 import '../playback/playback_highlighter.dart';
 import '../scope/editor_scope.dart';
@@ -43,17 +44,31 @@ class EditorBody extends ConsumerStatefulWidget {
 
 class _EditorBodyState extends ConsumerState<EditorBody> {
   late final AppLifecycleListener _lifecycle;
+  ExtensionRunner? _runner;
 
   @override
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onHide: _flush, onPause: _flush);
+    // (v2, m5-7/04-editor 4.3.1) the slot callbacks get this body's context
+    // (it stays mounted when a menu closes).
+    ref.listenManual<ExtensionRunner>(editorExtensionRunnerProvider, (
+      previous,
+      next,
+    ) {
+      previous?.bindBody(null);
+      (_runner = next).bindBody(_bodyContext);
+    }, fireImmediately: true);
   }
+
+  BuildContext _bodyContext() => context;
 
   void _flush() => unawaited(ref.read(editorCommandsProvider).flushAll());
 
   @override
   void dispose() {
+    _runner?.bindBody(null);
+    _runner = null;
     _lifecycle.dispose();
     super.dispose();
   }
