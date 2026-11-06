@@ -2,7 +2,8 @@
 // 'B2 상태'). Reads answer as for an empty store (no drafts, no handwriting results, no
 // search index; recordings are not listed — not even a row that came by the 1차 remote
 // path) and every write throws UnimplementedError('CORE <task>: …').
-// The real store (DriftNoteStore) passes T30 / T31 / T32 / T33a, the fake store T23b.
+// The real store (DriftNoteStore) passes T30 / T31 / T32 / T33a. (The fake store used them
+// until CORE T23b — it now has fake/fake_v2_repositories.dart and fake/memory_search_index.dart.)
 import 'dart:typed_data';
 
 import '../common/ids.dart';

@@ -2,7 +2,7 @@
 /// Test helpers of note_core (contract 00-overview 7.6 'B2 테스트·개발 도우미', CORE 4.10):
 /// the shared in-memory fake store, stroke fixtures and a test merge policy.
 /// (v2.0) PageObjectFixtures, FakeAudioRecorder, FakeAudioPlayback — 2nd-round contract 7.6
-/// '기반 단계 시험 도우미' (m5-7/02-core 4.9); they work from CORE T23b on.
+/// '기반 단계 시험 도우미' (m5-7/02-core 4.9, 6.8.3, 6.8.4).
 /// Import from `test/` only (7.1 rule 2).
 library;
 
@@ -40,9 +40,10 @@ export 'src/fake/page_object_fixtures.dart' show PageObjectFixtures;
 /// that applies (v2.1, CP-14) the SAME judgement, candidate order and ranking code as the real
 /// FTS index — results AND order equal the real store for the 7.7 V10 query set.
 /// openTestNoteStore (testing_vm.dart) is the real CORE v2.
-/// CORE: until CORE T23b (m5-7/02-core 8.1 'B2 상태') the new getters read empty and their
-/// writes throw UnimplementedError('CORE T23b: …'); object commands throw
-/// UnimplementedError('CORE T23a: …') before anything is resolved.
+/// CORE (m5-7/02-core 6.17): the fake indexes text boxes, math and handwriting itself; pdf
+/// comes through store.search (SearchIndexWriter). Page objects, recordings, handwriting and
+/// the search index are in exportBackupJson / copyItems / purge like the real store. Recording
+/// drafts keep the real blob key layout in memory (`rd/<draftId>/<n>`, `rd/<draftId>/meta`).
 NoteStore createFakeNoteStore({
   Clock? clock,
   IdGenerator? ids,

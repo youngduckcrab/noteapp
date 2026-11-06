@@ -12,6 +12,11 @@
 //
 // Run from packages/note_core: dart run tool/prepare_web_test.dart
 // (`dart run tool/ws.dart test --platform chrome` runs it first).
+//
+// (v2.1, m5-7/02-core 6.18.1) --out <dir>: install the two files into <dir> instead (relative
+// to the working directory) — another package that opens the real web store with
+// package:note_core/testing_web.dart runs, from its own directory,
+//   dart run <note_core>/tool/prepare_web_test.dart --out test/web
 import 'dart:io';
 import 'dart:isolate';
 
@@ -25,9 +30,10 @@ const _sqliteSha256 =
 const _workerSha256 =
     'a54b81412d4c4ab56653bb9e4c02912b0820bb37e2bba00722ddef4d78083d4a';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   final package = _packageDir();
-  final webDir = Directory('${package.path}/test/web');
+  final webDir = Directory(_outDir(args) ?? '${package.path}/test/web');
+  await webDir.create(recursive: true);
   final cacheDir = Directory('${package.path}/.dart_tool/note_core_web_test');
   await cacheDir.create(recursive: true);
 
@@ -56,7 +62,18 @@ Future<void> main() async {
     }
   }
   await _install(cached, File('${webDir.path}/sqlite3.wasm'));
-  stdout.writeln('test/web: drift_worker.js and sqlite3.wasm are ready');
+  stdout.writeln('${webDir.path}: drift_worker.js and sqlite3.wasm are ready');
+}
+
+/// The value of `--out <dir>` / `--out=<dir>`; null when absent.
+String? _outDir(List<String> args) {
+  if (args.isEmpty) return null;
+  final a = args.first;
+  if (args.length == 1 && a.startsWith('--out=')) {
+    return a.substring('--out='.length);
+  }
+  if (args.length == 2 && a == '--out') return args[1];
+  _fail('usage: prepare_web_test.dart [--out <dir>] (got: ${args.join(' ')})');
 }
 
 /// packages/note_core: the parent of this script's tool/ directory, else the

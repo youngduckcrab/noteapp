@@ -22,6 +22,7 @@ import '../edit/command_resolver.dart';
 import '../edit/page_draft.dart';
 import '../model/asset.dart';
 import '../model/folder.dart';
+import '../model/handwriting.dart';
 import '../model/note.dart';
 import '../model/page.dart';
 import '../model/pen_preset.dart';
@@ -29,11 +30,9 @@ import '../model/pen_style.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
-import '../repo/empty_v2_repositories.dart';
 import '../repo/events.dart';
 import '../repo/folder_tree.dart';
 import '../repo/folder_tree_equality.dart';
-import '../repo/handwriting_repository.dart';
 import '../repo/library_repository.dart';
 import '../repo/library_types.dart';
 import '../repo/note_store.dart';
@@ -43,7 +42,6 @@ import '../repo/settings_internal.dart';
 import '../repo/settings_repository.dart';
 import '../repo/status.dart';
 import '../repo/trash_repository.dart';
-import '../search/search_types.dart';
 import '../session/note_session.dart';
 import '../session/page_content.dart';
 import '../session/session_backend.dart';
@@ -52,7 +50,9 @@ import '../sync/field_versions.dart';
 import '../sync/merge.dart';
 import '../sync/outbox_types.dart';
 import '../sync/sync_store.dart';
+import 'fake_v2_repositories.dart';
 import 'fake_write_queue.dart';
+import 'memory_search_index.dart';
 
 /// Device node id of the fake store's HLC (CORE 4.10 'B2 단계 값').
 const String kFakeDeviceNodeId = '0000000000000001';
@@ -137,6 +137,12 @@ final class FakeNoteStore implements NoteStore {
   // (v2.0) page objects (m5-7/02-core 6.17), all rows including deleted ones.
   final Map<ElementId, PageObject> objects = {};
   final Map<PageId, Set<ElementId>> objectsOfPage = {};
+  // (v2.0) recordings, handwriting results (by page id), recording drafts (device-local rows
+  // and the memory blob map with the real 'rd/<draftId>/…' keys — 6.7.1).
+  final Map<RecordingId, Recording> recordingRows = {};
+  final Map<PageId, HandwritingText> handwritingRows = {};
+  final Map<String, RecordingDraft> draftRows = {};
+  final Map<String, Uint8List> draftBlobs = {};
   final Map<PresetId, PenPreset> presets = {};
   final Map<AssetId, Asset> assetRows = {};
   final Map<AssetId, Uint8List> blobs = {};
@@ -170,16 +176,15 @@ final class FakeNoteStore implements NoteStore {
   @override
   late final SyncStore sync;
 
-  // (v2.0) 2nd-round getters — reads empty, writes UnimplementedError until CORE T23b
-  // (02-core 8.1 'B2 상태').
+  // (v2.0) 2nd-round repositories (m5-7/02-core 6.17).
   @override
-  final RecordingRepository recordings = EmptyRecordingRepository('T23b');
+  late final FakeRecordings recordings = FakeRecordings(this);
   @override
-  final RecordingDraftStore recordingDrafts = EmptyRecordingDraftStore('T23b');
+  late final FakeRecordingDrafts recordingDrafts = FakeRecordingDrafts(this);
   @override
-  final HandwritingRepository handwriting = EmptyHandwritingRepository('T23b');
+  late final FakeHandwriting handwriting = FakeHandwriting(this);
   @override
-  final SearchIndex search = EmptySearchIndex('T23b');
+  late final MemorySearchIndex search = MemorySearchIndex(this);
 
   @override
   OwnerId get ownerId => _ownerId;
@@ -203,7 +208,19 @@ final class FakeNoteStore implements NoteStore {
   // ---- commit plumbing ------------------------------------------------------------
 
   /// Runs [body] as one write; [body] mutates the tables and records its changes.
-  Future<T> write<T>(T Function() body) => queue.run(body);
+  /// (v2.0) A write from inside a HandwritingRepository.update transform is a StateError
+  /// (it would wait for its own queue — 6.9.4).
+  Future<T> write<T>(T Function() body) {
+    if (Zone.current[kInTransformZoneKey] == true) {
+      return Future.error(
+        StateError(
+          'A store write was called from inside a HandwritingRepository.update '
+          'transform (it must be synchronous and pure)',
+        ),
+      );
+    }
+    return queue.run(body);
+  }
 
   void record(ChangeOrigin origin, List<EntityChange> changes) {
     if (changes.isEmpty) return;
@@ -344,6 +361,14 @@ final class FakeNoteStore implements NoteStore {
       deleted: e.isDeleted,
       purged: purged,
     ),
+    HandwritingText(:final noteId, :final pageId) => EntityChange(
+      kind: e.kind,
+      id: e.id,
+      noteId: noteId,
+      pageId: pageId,
+      deleted: e.isDeleted,
+      purged: purged,
+    ),
     _ => EntityChange(
       kind: e.kind,
       id: e.id,
@@ -411,6 +436,7 @@ final class FakeNoteStore implements NoteStore {
           o.copyTo(id: ids.newId(), pageId: pageId, createdAt: o.createdAt),
         ).copyWithMeta(updatedAt: t, version: v);
         putObject(copy);
+        search.objectWritten(copy);
         changes.add(changeOf(copy));
       }
     }
@@ -494,6 +520,7 @@ final class FakeNoteStore implements NoteStore {
           putStroke(e);
         case PageObject():
           putObject(e);
+          search.objectWritten(e);
         case Page():
           pages[e.id] = e;
         default:
@@ -533,6 +560,7 @@ final class FakeNoteStore implements NoteStore {
     await _changes.close();
     await assets.dispose();
     await thumbnails.dispose();
+    await search.dispose();
   }
 
   void _checkOpen() {
@@ -556,7 +584,9 @@ final class FakeNoteStore implements NoteStore {
       EntityKind.note: notes.values,
       EntityKind.page: pages.values,
       EntityKind.stroke: strokes.values,
+      EntityKind.recording: recordingRows.values,
       EntityKind.pageObject: objects.values,
+      EntityKind.handwriting: handwritingRows.values,
       EntityKind.penPreset: presets.values,
       EntityKind.asset: assetRows.values,
       EntityKind.setting: syncedSettings.values,
@@ -766,10 +796,14 @@ final class _FakeLibrary implements LibraryRepository {
             )
             .toList()
           ..sort((a, b) => newest(a.updatedAt, b.updatedAt, a.id, b.id));
+    // (v2.0, m5-7/02-core 6.10.4) content hits: searchPages(query, limit: 100).
+    final pages = s.search.search(query, limit: 100);
     return LibrarySearchResult(
       query: query,
       folders: List.unmodifiable(fs.take(limit)),
       notes: List.unmodifiable(ns.take(limit)),
+      pages: pages.hits,
+      pagesTruncated: pages.truncated,
     );
   }
 
@@ -1308,8 +1342,27 @@ final class _FakeLibrary implements LibraryRepository {
       version: v,
     );
     changes.add(s.changeOf(s.notes[id]!));
+    // (v2.0, m5-7/02-core 6.14.1 ①) recordings: new ids, the same asset / title / timing.
+    final recordingIds = <RecordingId, RecordingId>{};
+    for (final r in s.recordings.activeOf(n.id)) {
+      final copy = Recording(
+        id: s.ids.newId(),
+        noteId: id,
+        assetId: r.assetId,
+        durationMs: r.durationMs,
+        startedAt: r.startedAt,
+        createdAt: t,
+        updatedAt: t,
+        version: v,
+        title: r.title,
+      );
+      recordingIds[r.id] = copy.id;
+      s.recordingRows[copy.id] = copy;
+      changes.add(s.changeOf(copy));
+    }
     for (final p in s.activePagesOf(n.id)) {
       final pageId = s.ids.newId();
+      final strokeIds = <ElementId, ElementId>{};
       final page = Page(
         id: pageId,
         noteId: id,
@@ -1328,12 +1381,14 @@ final class _FakeLibrary implements LibraryRepository {
           pageId: pageId,
           style: st.style,
           points: st.points,
-          recordingId: st.recordingId,
+          // ② R-6: a copied recording's new id; otherwise as it was (R-7 '연결 없음').
+          recordingId: recordingIds[st.recordingId] ?? st.recordingId,
           recordingOffsetMs: st.recordingOffsetMs,
           createdAt: st.createdAt,
           updatedAt: t,
           version: v,
         );
+        strokeIds[st.id] = copy.id;
         s.putStroke(copy);
         changes.add(s.changeOf(copy));
       }
@@ -1343,6 +1398,34 @@ final class _FakeLibrary implements LibraryRepository {
             .copyTo(id: s.ids.newId(), pageId: pageId, createdAt: o.createdAt)
             .copyWithMeta(updatedAt: t, version: v);
         s.putObject(copy);
+        s.search.objectWritten(copy);
+        changes.add(s.changeOf(copy));
+      }
+      // ④ the handwriting result: the new note / page, stroke ids mapped (ids not copied are
+      // dropped), sourceRev of the copied input strokes — searchable at once.
+      final hw = s.handwritingRows[p.id];
+      if (hw != null && !hw.isDeleted) {
+        final copy = HandwritingText(
+          noteId: id,
+          pageId: pageId,
+          engineId: hw.engineId,
+          sourceRev: HandwritingText.sourceRevOf(
+            s.activeStrokesOf(pageId).where(HandwritingText.isRecognitionInput),
+          ),
+          lines: List.unmodifiable([
+            for (final l in hw.lines)
+              l.copyWith(
+                strokeIds: List.unmodifiable([
+                  for (final sid in l.strokeIds) ?strokeIds[sid],
+                ]),
+              ),
+          ]),
+          createdAt: t,
+          updatedAt: t,
+          version: v,
+        );
+        s.handwritingRows[pageId] = copy;
+        s.search.handwritingWritten(copy);
         changes.add(s.changeOf(copy));
       }
     }
@@ -1520,6 +1603,10 @@ final class _FakeTrash implements TrashRepository {
     for (final n in s.ownNotes.where((n) => n.trashRootId == rootId).toList()) {
       s.notes.remove(n.id);
       changes.add(s.changeOf(n, purged: true));
+      // (v2.0, 6.14.2) recordings, drafts and the search owners of the note go with it.
+      s.recordingRows.removeWhere((_, r) => r.noteId == n.id);
+      s.recordingDrafts.notePurged(n.id);
+      s.search.notePurged(n.id);
       for (final p in s.pages.values.where((p) => p.noteId == n.id).toList()) {
         s.pages.remove(p.id);
         s.thumbnailRows.remove(p.id);
@@ -1529,6 +1616,7 @@ final class _FakeTrash implements TrashRepository {
         for (final oid in s.objectsOfPage.remove(p.id) ?? const <ElementId>{}) {
           s.objects.remove(oid);
         }
+        s.handwritingRows.remove(p.id);
       }
     }
   }

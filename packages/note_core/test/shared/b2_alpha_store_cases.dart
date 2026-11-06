@@ -3,8 +3,9 @@
 // UnimplementedError('CORE <task>: …'); object commands throw UnimplementedError('CORE T23a: …')
 // before anything changes; the stroke part of RemoveElements / ClearPage(includeObjects:)
 // works as in v1.4. Runs on the real store (test/testing/open_test_store_test.dart, tasks
-// T30 / T31 / T32 / T33a) and on the fake store (test/testing/fake_store_b2_alpha_test.dart,
-// T23b). Web-safe (no dart:io).
+// T30 / T31 / T32 / T33a / T27 / T24 — 8.1 'B2 상태', column 'B2 전체(β) 끝'). The fake store
+// left this state with CORE T23b; its v2 behaviour is in test/testing/fake_store_v2_test.dart
+// and the shared contracts (test/shared/*_contract.dart). Web-safe (no dart:io).
 import 'dart:async';
 import 'dart:typed_data';
 

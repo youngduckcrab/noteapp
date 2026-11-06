@@ -10,8 +10,9 @@ Pure Dart, web safe. Entry points:
 |---|---|
 | `package:note_core/note_core.dart` | Everything public: data types, commands, `NoteSession`, repositories, `SyncStore`, `AssetStore`, providers |
 | `package:note_core/dev_tools.dart` | `seedSyntheticNote` (developer menu) |
-| `package:note_core/testing.dart` | `test/` only: `createFakeNoteStore`, `FakeNoteStoreFaults`, `StrokeFixtures`, `newerVersionWinsPolicy` |
+| `package:note_core/testing.dart` | `test/` only: `createFakeNoteStore`, `FakeNoteStoreFaults`, `StrokeFixtures`, `newerVersionWinsPolicy`, (2차) `PageObjectFixtures`, `FakeAudioRecorder`, `FakeAudioPlayback` |
 | `package:note_core/testing_vm.dart` | VM `test/` only: `openTestNoteStore` (the SQLite store in memory or on a file) |
+| `package:note_core/testing_web.dart` | (2차) `test/web/` only: `openWebTestNoteStore`, `deleteWebTestNoteStore` (the real web store under a test name) |
 
 State: the whole of plan chapter 4 works on both stores. `openNoteStore` opens
 SQLite through drift (web: `WasmDatabase` in `drift_worker.js`; VM: a native
@@ -171,6 +172,26 @@ final container = ProviderContainer.test(
 - Fixtures: `StrokeFixtures.synthetic(pageId:, ids:, seed:, pointCount:)`,
   `newerVersionWinsPolicy`, and `seedSyntheticNote(store, pages:, strokesPerPage:)`
   from `dev_tools.dart`.
+- (2차, plan m5-7/02-core 6.17, 8.1 'B2 상태') The fake store already has the
+  2nd-round behaviour: page object commands, recordings, recording drafts,
+  handwriting results (`update`, `stalePages`, `notesWithStalePages`) and a
+  memory search index that decides and orders like the real one (text boxes,
+  math and handwriting are indexed by the store; pdf goes through
+  `store.search.replaceUnits`). On the real store (`openTestNoteStore`) these
+  come with the concurrent tasks: object commands throw
+  `UnimplementedError('CORE T27: …')` before anything changes, and the
+  recording / draft / handwriting / index writes name T30 / T31 / T32 / T33a.
+- `PageObjectFixtures.shape / textBox / image / math / unknown(pageId: …)`
+  build valid objects with the contract defaults (`id` omitted → a unique
+  `fx-<type>-<n>`).
+- `FakeAudioRecorder(store: store)`: no timers; `advance(d)` moves its clock
+  (one 16-byte draft chunk per recorded second, an empty keep-alive chunk per
+  paused second), `stop()` stores the asset, then the recording. The
+  'recently updated' window of `pendingDrafts()` (10 s) is measured on
+  `store.clock`, so pass a controllable clock to `createFakeNoteStore(clock:)`.
+  Status streams deliver asynchronously (await a microtask before checking).
+- `FakeAudioPlayback()`: `setPositionMs`, `calls` (`'open:<id>'`, `'play'`,
+  `'pause'`, `'seek:<ms>'`, `'speed:<x>'`, `'close'`).
 
 ## Testing note_core
 
@@ -199,6 +220,20 @@ drift package and checks the sha256 of `sqlite3.wasm` (sqlite3 3.8.0). The
 file comes from the cache (`.dart_tool/note_core_web_test/`), then from the
 drift package, then from the release URL. `dart run tool/ws.dart test
 --platform chrome` runs the script first.
+
+Browser tests of another package that open the real web store
+(`package:note_core/testing_web.dart` — `openWebTestNoteStore(name)` /
+`deleteWebTestNoteStore(name)`, plan m5-7/02-core 4.9, 6.18.1) need the same
+two files next to their test page. From that package's directory:
+
+```text
+dart run ../note_core/tool/prepare_web_test.dart --out test/web
+```
+
+(or resolve the note_core directory with
+`Isolate.resolvePackageUri(Uri.parse('package:note_core/note_core.dart'))` in
+the package's own `tool/prepare_web_test.dart`). The two files are build
+artifacts: keep them out of git in that package.
 
 Performance budgets (plan 9.1, VM, `test/perf/`). Measured on 2026-11-05 in a
 4-CPU container shared with other test runs:
