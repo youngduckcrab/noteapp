@@ -264,31 +264,8 @@ void main() {
   );
 
   group('media.leaveGuard (6.17)', _leaveGuardTests);
-
-  test('mediaRecordingPanel passes the panel context to RecordingPanel', () {
-    final tapToSeek = ValueNotifier<bool>(true);
-    addTearDown(tapToSeek.dispose);
-    void setTapToSeek(bool value) {}
-    void close() {}
-    final widget = mediaRecordingPanel(
-      _FakeBuildContext(),
-      EditorPanelContext(
-        noteId: 'n1',
-        tapToSeek: tapToSeek,
-        setTapToSeek: setTapToSeek,
-        close: close,
-      ),
-    );
-    expect(widget, isA<RecordingPanel>());
-    final panel = widget as RecordingPanel;
-    expect(panel.noteId, 'n1');
-    expect(panel.tapToSeek, same(tapToSeek));
-    expect(panel.onTapToSeekChanged, setTapToSeek);
-    expect(panel.onClose, close);
-  });
+  // mediaRecordingPanel's arguments: media_wiring_test.
 }
-
-final class _FakeBuildContext extends Fake implements BuildContext {}
 
 /// A fake store whose clock moves only by [advance] (no real time — the
 /// 'recently updated' window of pendingDrafts() is measured on store.clock).

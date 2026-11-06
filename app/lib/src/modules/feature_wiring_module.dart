@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' show pageThumbnailRendererProvider;
@@ -53,6 +54,13 @@ final class FeatureWiringModule extends AppModule {
   /// uses [kPencilFallbackCapabilities].
   static const Duration pencilCapabilitiesTimeout = Duration(milliseconds: 500);
 
+  /// (6.7 '기여 합치기 규칙') Two editor menu items with one id: start()
+  /// records each duplicate, drops the later one, then — in debug builds,
+  /// while this is true — fails an assert (the module start fails loudly).
+  /// Tests turn it off to see the release behaviour.
+  @visibleForTesting
+  static bool debugAssertUniqueMenuIds = true;
+
   final LibraryPdfImportAction _importPdf;
   final LibraryPdfExportAction _exportPdf;
   final List<PdfMenuAction> Function() _moreMenuActions;
@@ -62,6 +70,8 @@ final class FeatureWiringModule extends AppModule {
 
   bool _pdfAvailable = false;
   List<ShellContribution> _contributions = const [];
+  List<EditorSelectionMenuItem> _selectionItems = const [];
+  List<EditorInsertMenuItem> _insertItems = const [];
   EditorImageImporter? _importer;
 
   /// Non-null when the pencil is supported (read in start()).
@@ -80,8 +90,10 @@ final class FeatureWiringModule extends AppModule {
   Duration get startTimeout => const Duration(seconds: 1);
 
   /// pdfAvailable = context.isStarted('pdf'); contributions =
-  /// context.contributions; importer = imageImporter() (throw → errorLog,
-  /// null);
+  /// context.contributions — their selection / insert items joined in module
+  /// order, a repeated id recorded and the later item dropped (then a debug
+  /// assert, [debugAssertUniqueMenuIds]); importer = imageImporter() (throw →
+  /// errorLog, null);
   /// if (pencil.isSupported) capabilities = await pencil.capabilities() — read ONCE per app start
   /// (≤ 500 ms; throw / timeout → errorLog + kPencilFallbackCapabilities — the override stays,
   /// 계약 7.3.3 row; an iPadOS setting change applies on the next start, 계약 7.2.10 v2.1)
@@ -89,6 +101,25 @@ final class FeatureWiringModule extends AppModule {
   Future<void> start(AppModuleContext context) async {
     _pdfAvailable = context.isStarted(PdfModule.moduleId);
     _contributions = context.contributions;
+    final duplicates = <String>[];
+    _selectionItems = _uniqueById(
+      'selection',
+      [
+        for (final c in _contributions)
+          for (final item in c.selectionMenuItems) (c.moduleId, item.id, item),
+      ],
+      context.errorLog,
+      duplicates,
+    );
+    _insertItems = _uniqueById(
+      'insert',
+      [
+        for (final c in _contributions)
+          for (final item in c.insertMenuItems) (c.moduleId, item.id, item),
+      ],
+      context.errorLog,
+      duplicates,
+    );
     try {
       _importer = _imageImporter();
     } on Object catch (error, stackTrace) {
@@ -111,6 +142,43 @@ final class FeatureWiringModule extends AppModule {
     _pencilCapabilities = _pencil.isSupported
         ? await _readPencilCapabilities(context.errorLog)
         : null;
+    assert(
+      !debugAssertUniqueMenuIds || duplicates.isEmpty,
+      'Editor menu item ids must be unique across the contributions; '
+      'dropped: ${duplicates.join(', ')}',
+    );
+  }
+
+  /// [items] as (moduleId, id, item) in contribution order → the items whose
+  /// id was not seen before. Each repeat: one record (source module) and its
+  /// `'slot:id'` in [duplicates].
+  static List<T> _uniqueById<T>(
+    String slot,
+    List<(String, String, T)> items,
+    AppErrorLog errorLog,
+    List<String> duplicates,
+  ) {
+    final firstModule = <String, String>{};
+    final kept = <T>[];
+    for (final (moduleId, id, item) in items) {
+      if (firstModule[id] case final first?) {
+        duplicates.add('$slot:$id');
+        errorLog.add(
+          AppErrorRecord(
+            time: DateTime.now(),
+            source: AppErrorSource.module,
+            summary:
+                'duplicate $slot menu item id $id — the one of $moduleId '
+                'is dropped',
+            details: 'first contributed by $first',
+          ),
+        );
+        continue;
+      }
+      firstModule[id] = moduleId;
+      kept.add(item);
+    }
+    return List.unmodifiable(kept);
   }
 
   Future<PencilCapabilities> _readPencilCapabilities(
@@ -149,8 +217,8 @@ final class FeatureWiringModule extends AppModule {
   ///   if (pdfAvailable or a contribution has editor items)
   ///     editorExtensionsProvider.overrideWithValue(EditorExtensions(
   ///       moreMenuItems: pdf…, addPageSources: pdf…,
-  ///       selectionMenuItems: ⋃ c.selectionMenuItems,
-  ///       insertMenuItems: ⋃ c.insertMenuItems,
+  ///       selectionMenuItems: ⋃ c.selectionMenuItems (unique ids),
+  ///       insertMenuItems: ⋃ c.insertMenuItems (unique ids),
   ///       recordingPanel: the media contribution's panel)),
   ///   if (importer != null) editorImageImporterProvider,
   ///   devOverlaySectionsProvider.overrideWith((ref) => [
@@ -211,12 +279,8 @@ final class FeatureWiringModule extends AppModule {
     return EditorExtensions(
       moreMenuItems: pdf.moreMenuItems,
       addPageSources: pdf.addPageSources,
-      selectionMenuItems: List.unmodifiable([
-        for (final c in contributions) ...c.selectionMenuItems,
-      ]),
-      insertMenuItems: List.unmodifiable([
-        for (final c in contributions) ...c.insertMenuItems,
-      ]),
+      selectionMenuItems: _selectionItems,
+      insertMenuItems: _insertItems,
       recordingPanel: recordingPanel,
     );
   }

@@ -400,8 +400,8 @@
 | J5 | 완료 | `16b9c4b` | `app/test/features/feature_switch_section_test.dart`(12 — 문구·빌드에서 끔·저장·시작 때와 다름·인식 꺼짐에서 수식 엔진·[다시 시작] flush → reload·녹음 중(녹음·일시정지) 막기·flush 실패·flush 2초 초과·네이티브 문구·저장 실패·가로), `settings/settings_sections_test.dart` v2(`app.features` 위치·제목·빌더), `settings_screen_test`(8개), `bootstrap/app_module_context_test.dart`(7 — 빌드 ∧ 메뉴·한 번 읽기·동시 호출·저장소 전 캐시 안 함·500 ms 초과·안쪽·읽기 실패) |
 | J6 | 완료 | `864317a` | `app/test/bootstrap/idle_tasks_test.dart` 보강(`AppIdleCleanup` 4 — 마지막 콜백까지 기다림·2초 제한·기다리는 중 더한 정리·첫 작업 전 dispose), `bootstrap/bootstrap_app_test.dart`(유휴 4 — 성공 화면 ProviderScope → AppLifecycleBridge → 실행기(`success.idleTasks`)·오류 화면에는 없음 → 다시 시도 → 새 시도의 작업만·dispose 때 색인기 정리(1초) 끝난 뒤 모듈 stop·정리가 안 끝나면 2초 뒤 stop + 기록) |
 | J7 | 완료 | `852cce5` | `app/test/modules/media_module_test.dart`(J7 묶음 7 — `abandon()` 초안 복구 0·1·2·실패·최근 갱신 창, 이탈 경고 상태 전이·실행기 안 첫 프레임 직후), `update/update_banner_test.dart` v2(녹음 중 안내·reload 0회·녹음 꺼짐), `web/web_platform_browser_test.dart`(Chrome — `setLeaveGuard` 리스너 1개) |
-| J8 | 완료 | (이 커밋) — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
-| J9 | 남음 | | `recognition_wiring_test`·`media_wiring_test`·`search_wiring_test`·`feature_wiring_module_test` v2 |
+| J8 | 완료 | `b0ffee5` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
+| J9 | 완료 | (이 커밋) | `app/test/modules/recognition_wiring_test.dart`(새 — 필드 표·`done` 두 갈래·`execute` 감싸기·동기 시작), `media_wiring_test.dart`(새 — 패널·이미지 가져오기·`media` 섹션·복구 순서·상태 안 읽음), `search_wiring_test.dart`(새 — ≤ 4 Hz·형식·dispose), `feature_wiring_module_test.dart` v2(반복 id 3경우) |
 | J10 | 남음 | | `pdf_module_test` v2 |
 | J11 | 남음 | | `app_router_test`·`production_screens_test` |
 | J12 | 남음 | | `pencil_wire_contract_test`(①~⑨)·`pencil_bridge_test` — 컴파일은 `ios-compile.yml`(U19) |
@@ -604,6 +604,16 @@
 | `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
 | `flutter test test/modules/recognition_module_test.dart` | 22 통과 |
 
+#### J9 — 자리 변환 · 연결 함수 시험 · 합치기 규칙 (계획 8.2, 6.7, 4.6.5)
+
+- 연결 함수 세 파일(`recognition_wiring.dart`·`media_wiring.dart`·`search_wiring.dart`)의 본문은 R2-B8a. 이번에는 **합치기 규칙**(6.7 '같은 id의 메뉴 항목 → 디버그 assert + 오류 기록, 뒤의 것 버림')을 `FeatureWiringModule.start`에 넣었다: 기여의 선택·삽입 항목을 모듈 순서로 잇되 칸(선택·삽입)마다 id가 이미 나왔으면 기록 1건('duplicate <칸> menu item id <id> — the one of <모듈> is dropped', `details` 'first contributed by <모듈>', source module) + 버림. 모든 기록 뒤 디버그 빌드에서 assert(시작 실패 → 비필수라 그 모듈 override 없음). 시험용 정적 스위치 `FeatureWiringModule.debugAssertUniqueMenuIds`(`@visibleForTesting`, 기본 true).
+- 시험: `recognition_wiring_test`(새, 10) — 선택 대상 필드 표 전부(`strokes`·`objects` 같은 객체·`areaPt` = `boundsPt`·`execute` 그대로·`done` = `clearSelection`), 삽입 대상(빈 `strokes`·`objects`·`areaPt` = `visibleRectPt`·`execute` 전달), 삽입 `done`: `AddObjects` 마지막 객체·`CompositeCommand` 안(중첩도) 마지막·추가 없는 뒤 명령은 기억 유지·뒤의 추가가 바꿈·추가 없음 → 아무것도 안 함·던지는 명령 → 기억 안 함, 메뉴 항목 두 종류 — `onSelected`가 **첫 마이크로태스크 전에** `run`을 부르고 `run`의 Future를 돌려줌·`isVisible` 같은 대상·삽입은 `isVisible` 안 씀. `media_wiring_test`(새, 6) — 패널 인자(`media_module_test`에서 옮김), `mediaImageImporterOrNull`(소스 없음 → null / 있으면 그 소스·`importImageForNote`·수정 불가), `media` 섹션(같은 `ValueListenable`), `recoverPendingRecordings` 3(0개·`startedAt` 오름차순 + null 결과는 세지 않음·실패 기록 문구 'recoverDraft d-b failed: Bad state: …' 후 다음 — 녹음기의 `status`를 읽으면 실패하는 가짜로 '복구는 상태를 보지 않음'을 확인). `search_wiring_test`(새, 8 — fake_async) — 줄 형식(없음·재구축 중·지역 시각 `MM-dd HH:mm:ss`), **100 Hz 상태 → 1초에 4번·간격 ≥ 250 ms·조용해지면 마지막 상태**, 조용한 뒤 다음 상태는 바로, 스트림 오류 → 줄 유지, dispose → 구독 끊김·대기 타이머 없음, `searchIndexSection`(id·제목·provider dispose 때 줄도 dispose). `feature_wiring_module_test` v2 +3 — 반복 id(assert 끔: 기록 2·첫 것 남음·순서 / 기본(assert 켬): 기록 2 뒤 시작 실패(`failedNonCritical`)·에디터 자리 기본값 / 칸이 다르면 같은 id여도 기록 없음).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `ws test --package noteapp` (VM) | 512 통과 · 1 건너뜀(V5) · 69초 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -617,7 +627,7 @@
 - (R2-B8a) `AppModuleContext.recordOutcome`에 이름 있는 인자 `fallback:`을 더했다(계획 4.6.2는 '1차 그대로'). 실패·시간 초과 결과를 기록하는 순간 그 모듈의 기여를 지우고 대체 기여를 같은 자리에 넣어야 해서다 — 부트스트래퍼만 부른다.
 - (R2-B8a) `appFeaturesProvider`·`shellContributionsProvider`는 `BootstrapApp`이 아니라 `AppBootstrapper`의 셸 override 묶음(`BootstrapSuccess.overrides` 앞부분)에 넣었다 — `BootstrapApp`은 그 목록을 그대로 쓰므로 결과는 같고, `overrides_unique_test`가 한 곳에서 본다. 셸 override는 6개 → 8개.
 - (R2-B8a) J6 몫 일부를 당겨 했다: 30초 넘는 작업 기록 1줄, 정리 뒤 늦은 `onDispose` 등록은 바로 호출. J6에는 `BootstrapApp` 재시도 때 이전 실행기 정리가 새 scope 전에 끝나는 순서와 `bootstrap_app_test`가 남는다.
-- (R2-B8a) J9 몫의 연결 함수(`recognition_wiring.dart`·`media_wiring.dart`·`search_wiring.dart`)는 모듈이 쓰므로 본문까지 만들었다. J9에는 각 함수의 전용 시험(`recognition_wiring_test`·`media_wiring_test`·`search_wiring_test`)과 '같은 id 메뉴 항목 → assert + 기록, 뒤의 것 버림' 규칙이 남는다(지금은 그대로 이어 붙임).
+- (R2-B8a) J9 몫의 연결 함수(`recognition_wiring.dart`·`media_wiring.dart`·`search_wiring.dart`)는 모듈이 쓰므로 본문까지 만들었다. 전용 시험과 '같은 id 메뉴 항목' 규칙은 J9에서 끝냈다.
 - (R2-B8a) `media.recoverDrafts`의 본문(`recoverPendingRecordings` — `startedAt` 오름차순, 실패 기록 후 다음)은 만들었고, `media.leaveGuard`는 빈 본문이다(`WebPlatform.setLeaveGuard`가 J7). 복구 시험(`FakeAudioRecorder.abandon()`)은 J7.
 - (R2-B8a) 계획 시그니처에 없는 앱 내부 보조 이름: `ShellContribution.hasEditorItems`·`toString`, `AppModuleContext.featureReadTimeout`(500 ms), `MediaModule.lateStartWait`(10 s), `RecognitionModule.config`(시험용 읽기), `SearchIndexLines`·`formatSearchIndexStatus`(줄 형식 '대기 n · 재구축 중|대기 · 마지막 재구축 MM-dd HH:mm:ss|없음'). 앱 셸 내부라 계약 표면이 아니다.
 - (R2-B8a) `MATH_ENDPOINT` 검사: `Uri.tryParse`가 되고 `http`/`https`이고 host가 있어야 쓴다. 아니면 null + 기록 1건(`details` = 원래 값).
@@ -666,6 +676,9 @@
 - (J7) 6.17 시험의 '앞에 30초짜리 복구 작업'은 25초로 했다 — 실행기가 30초를 넘긴 작업을 기록하므로(6.5.1 ④) '기록 0건'을 함께 보려고.
 - (J7) `media.leaveGuard` 정리는 구독 취소를 기다리지 않는다(취소 즉시 이벤트가 멈춤). 시험 바인딩의 가짜 시간 안에서는 루트 zone의 취소 Future가 2초 제한 안에 끝나지 않아 정리 실패 기록이 생겼다(관찰함).
 - (J7) 업데이트 배너의 녹음 중 안내는 배너 안 둘째 줄(오류 색)이다 — 계획은 문구만 정했다. 배너는 Navigator 위라 SnackBar·Overlay를 쓰지 않는다(1차 규칙).
+
+- (J9) 반복 id의 디버그 assert는 기록과 버림을 마친 **뒤** `start()` 끝에서 실패한다 — 디버그 빌드에서는 `FeatureWiringModule` 시작이 실패해(비필수) 그 모듈의 override가 모두 빠진다(크게 보이게). 릴리스는 기록 + 뒤의 것 버림만. 시험은 `@visibleForTesting static bool debugAssertUniqueMenuIds`로 두 동작을 다 본다(계획에 없는 앱 내부 이름). 칸(선택·삽입)이 다르면 같은 id도 허용한다.
+- (J9) `mediaRecordingPanel` 인자 시험을 `media_module_test`에서 `media_wiring_test`로 옮겼다(함수가 있는 파일 기준).
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 

@@ -7,6 +7,8 @@
 // into the editor slots, image import outside FEATURE_MEDIA, dev overlay
 // [pdf.render?, media?, recog.indexer?, search.index]; (R2-B8b, 6.12.3) the
 // Pencil override of stylusExtrasProvider through an injected PencilPort.
+// J9: a repeated menu item id → one record each, the later item dropped,
+// then a debug assert.
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
@@ -401,6 +403,126 @@ void main() {
         'recog.indexer',
         'search.index',
       ]);
+    });
+
+    group('a repeated menu item id (6.7 — merge rule)', () {
+      List<AppModule> twoWithRepeats() => [
+        contributing(
+          'media',
+          ShellContribution(
+            moduleId: 'media',
+            selectionMenuItems: [selection('shared.copy')],
+            insertMenuItems: [insert('shared.pad')],
+          ),
+        ),
+        contributing(
+          'recognition',
+          ShellContribution(
+            moduleId: 'recognition',
+            selectionMenuItems: [
+              selection('recog.toText'),
+              selection('shared.copy'),
+            ],
+            insertMenuItems: [insert('shared.pad'), insert('recog.mathPad')],
+          ),
+        ),
+      ];
+
+      test('release behaviour (assert off): one record per repeat, the later '
+          'item dropped, the rest kept in module order', () async {
+        FeatureWiringModule.debugAssertUniqueMenuIds = false;
+        addTearDown(() => FeatureWiringModule.debugAssertUniqueMenuIds = true);
+        final log = AppErrorLog();
+        final (container, success) = await _boot(
+          _wiring(FakePdfActions()),
+          pdfFails: true,
+          between: twoWithRepeats(),
+          log: log,
+        );
+        expect(success.report.steps.last.outcome, StartupStepOutcome.ok);
+        final extensions = container.read(editorExtensionsProvider);
+        expect(extensions.selectionMenuItems.map((i) => i.id), [
+          'shared.copy',
+          'recog.toText',
+        ]);
+        expect(
+          extensions.selectionMenuItems.first,
+          same(success.contributions.first.selectionMenuItems.single),
+          reason: 'the first one (media) stays',
+        );
+        expect(extensions.insertMenuItems.map((i) => i.id), [
+          'shared.pad',
+          'recog.mathPad',
+        ]);
+        final repeats = log.records
+            .where((r) => r.summary.startsWith('duplicate'))
+            .toList();
+        expect(repeats.map((r) => (r.source, r.summary, r.details)), [
+          (
+            AppErrorSource.module,
+            'duplicate selection menu item id shared.copy — the one of '
+                'recognition is dropped',
+            'first contributed by media',
+          ),
+          (
+            AppErrorSource.module,
+            'duplicate insert menu item id shared.pad — the one of '
+                'recognition is dropped',
+            'first contributed by media',
+          ),
+        ]);
+      });
+
+      test('debug builds: the assert fails the wiring start (after the '
+          'records) — loud, and no editor slots from it', () async {
+        final log = AppErrorLog();
+        final (container, success) = await _boot(
+          _wiring(FakePdfActions()),
+          pdfFails: true,
+          between: twoWithRepeats(),
+          log: log,
+        );
+        expect(
+          success.report.steps.last.outcome,
+          StartupStepOutcome.failedNonCritical,
+        );
+        expect(
+          log.records.where((r) => r.summary.startsWith('duplicate')),
+          hasLength(2),
+        );
+        expect(
+          log.records.last.summary,
+          contains('Editor menu item ids must be unique'),
+        );
+        expect(
+          container.read(editorExtensionsProvider),
+          const EditorExtensions(),
+        );
+      });
+
+      test('unique ids: no record', () async {
+        final log = AppErrorLog();
+        await _boot(
+          _wiring(FakePdfActions()),
+          pdfFails: true,
+          between: [
+            contributing(
+              'recognition',
+              ShellContribution(
+                moduleId: 'recognition',
+                selectionMenuItems: [selection('recog.toText')],
+                insertMenuItems: [insert('recog.toText')],
+              ),
+            ),
+          ],
+          log: log,
+        );
+        expect(
+          log.records.where((r) => r.summary.startsWith('duplicate')),
+          isEmpty,
+          reason: 'selection and insert are separate slots',
+        );
+      });
     });
 
     test('a contribution of a module that failed is not merged (only its '
