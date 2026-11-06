@@ -1,4 +1,7 @@
 // lib/src/tools/tool_controller.dart — 04-editor 6.6.1; stored forms 6.14.
+// (v2, E2-03) m5-7/04-editor 6.2.1–6.2.2: lastTool / lastPenType on every
+// switch, swapWithLast, the forward-compatible fallback of
+// editor.toolSelection.
 import 'dart:async';
 
 import 'package:collection/collection.dart';
@@ -77,37 +80,53 @@ class ToolController extends Notifier<ToolState> {
   // ---- setters ----
 
   /// → eraser: previousTool = old tool. Leaving the eraser clears it.
-  /// Also ends the eyedropper.
+  /// Also ends the eyedropper. (v2) A real switch puts the old (activeTool,
+  /// penType) into (lastTool, lastPenType).
   void selectTool(EditorTool tool) {
     final s = state;
     if (tool == s.activeTool) {
       if (s.eyedropperActive) _update(s.copyWith(eyedropperActive: false));
       return;
     }
-    _update(
-      tool == EditorTool.eraser
-          ? s.copyWith(
-              activeTool: tool,
-              previousTool: s.activeTool,
-              eyedropperActive: false,
-            )
-          : s.copyWith(
-              activeTool: tool,
-              clearPreviousTool: true,
-              eyedropperActive: false,
-            ),
-    );
+    _update(_switchTo(s, tool, s.penType));
   }
 
-  /// Also activeTool = pen.
-  void selectPenType(core.PenTool type) => _update(
-    state.copyWith(
-      penType: type,
-      activeTool: EditorTool.pen,
-      clearPreviousTool: true,
+  /// Also activeTool = pen. (v2) lastTool / lastPenType as [selectTool].
+  void selectPenType(core.PenTool type) =>
+      _update(_switchTo(state, EditorTool.pen, type));
+
+  /// (v2, 6.2.1) (activeTool, penType) ↔ (lastTool, lastPenType ?? penType)
+  /// — EditorAction.previousTool (Apple 'switch previous'). No-op while
+  /// lastTool is null.
+  void swapWithLast() {
+    final s = state;
+    final last = s.lastTool;
+    if (last == null) return;
+    _update(_switchTo(s, last, s.lastPenType ?? s.penType));
+  }
+
+  /// The state after switching to ([tool], [penType]): the 1st-round
+  /// previousTool rule (eraser return), the eyedropper off and, when
+  /// anything changes, the old pair as (lastTool, lastPenType).
+  static ToolState _switchTo(
+    ToolState s,
+    EditorTool tool,
+    core.PenTool penType,
+  ) {
+    final changed = tool != s.activeTool || penType != s.penType;
+    return s.copyWith(
+      activeTool: tool,
+      penType: penType,
+      previousTool: tool == EditorTool.eraser && s.activeTool != tool
+          ? s.activeTool
+          : null,
+      clearPreviousTool: tool != EditorTool.eraser,
       eyedropperActive: false,
-    ),
-  );
+      lastTool: changed ? s.activeTool : s.lastTool,
+      lastPenType: changed ? s.penType : s.lastPenType,
+      clearLast: true,
+    );
+  }
 
   /// Alpha forced to 0xFF (normalized).
   void setColor(int argb) => _updateCurrent((s) => s.copyWith(colorArgb: argb));
@@ -154,13 +173,11 @@ class ToolController extends Notifier<ToolState> {
     final s = state;
     final normalized = style.normalized();
     _update(
-      s.copyWith(
-        penType: style.tool,
-        activeTool: EditorTool.pen,
-        clearPreviousTool: true,
-        eyedropperActive: false,
-        penStyles: {...s.penStyles, style.tool: normalized},
-      ),
+      _switchTo(
+        s,
+        EditorTool.pen,
+        style.tool,
+      ).copyWith(penStyles: {...s.penStyles, style.tool: normalized}),
     );
   }
 
@@ -173,12 +190,7 @@ class ToolController extends Notifier<ToolState> {
   void returnFromEraser() {
     final s = state;
     if (s.activeTool != EditorTool.eraser) return;
-    _update(
-      s.copyWith(
-        activeTool: s.previousTool ?? EditorTool.pen,
-        clearPreviousTool: true,
-      ),
-    );
+    _update(_switchTo(s, s.previousTool ?? EditorTool.pen, s.penType));
   }
 
   void setEyedropper(bool active) {
@@ -224,7 +236,9 @@ class ToolController extends Notifier<ToolState> {
     }
     if (previous.activeTool != next.activeTool ||
         previous.penType != next.penType ||
-        previous.previousTool != next.previousTool) {
+        previous.previousTool != next.previousTool ||
+        previous.lastTool != next.lastTool ||
+        previous.lastPenType != next.lastPenType) {
       final json = _ToolStateJson.selectionToJson(next);
       _selectionWriter.schedule(() => json);
     }
@@ -280,6 +294,11 @@ class ToolController extends Notifier<ToolState> {
           : loadedSelection.previousTool,
       clearPreviousTool:
           !_selectionWriter.isPending && loadedSelection.previousTool == null,
+      lastTool: _selectionWriter.isPending ? null : loadedSelection.lastTool,
+      lastPenType: _selectionWriter.isPending
+          ? null
+          : loadedSelection.lastPenType,
+      clearLast: !_selectionWriter.isPending,
     );
     _loaded = true;
     _remote
@@ -377,45 +396,63 @@ abstract final class _ToolStateJson {
     return Map.unmodifiable(result);
   }
 
-  /// {"v":1,"activeTool":"pen","penType":"ballpoint","previousTool":null}
+  /// {"v":1,"activeTool":"pen","penType":"ballpoint","previousTool":null,
+  ///  "lastTool":"lasso","lastPenType":"ballpoint"} — (v2) the last two.
   static Map<String, Object?> selectionToJson(ToolState state) => {
     'v': 1,
     'activeTool': state.activeTool.name,
     'penType': state.penType.wireName,
     'previousTool': state.previousTool?.name,
+    'lastTool': state.lastTool?.name,
+    'lastPenType': state.lastPenType?.wireName,
   };
 
+  /// (v2, 6.2.2 — 7.4.10 forward compatibility) An unknown name is a value a
+  /// newer app wrote: activeTool → pen, penType → ballpoint, previousTool /
+  /// lastTool / lastPenType → null, none of them reported. A value of the
+  /// wrong type (not a string) is still reported once (1st-round rule) and
+  /// takes the same fallback.
   static ({
     EditorTool activeTool,
     core.PenTool penType,
     EditorTool? previousTool,
+    EditorTool? lastTool,
+    core.PenTool? lastPenType,
   })
   selectionFromJson(Map<String, Object?> json, List<String>? invalid) {
     final name = EditorSettingKeys.toolSelection.name;
-    EditorTool? tool(String field) {
+    String? text(String field) {
       final v = json[field];
       if (v == null) return null;
-      final t = EditorTool.values.firstWhereOrNull((t) => t.name == v);
-      if (t == null) invalid?.add('$name.$field');
-      return t;
+      if (v is String) return v;
+      invalid?.add('$name.$field');
+      return null;
+    }
+
+    EditorTool? tool(String field) {
+      final v = text(field);
+      return v == null
+          ? null
+          : EditorTool.values.firstWhereOrNull((t) => t.name == v);
+    }
+
+    core.PenTool? pen(String field) {
+      final v = text(field);
+      return v == null
+          ? null
+          : core.PenTool.values.firstWhereOrNull((t) => t.wireName == v);
     }
 
     final active = tool('activeTool') ?? EditorTool.pen;
     var previous = tool('previousTool');
     if (active != EditorTool.eraser) previous = null;
-    var penType = core.PenTool.ballpoint;
-    final rawPen = json['penType'];
-    if (rawPen != null) {
-      final t = core.PenTool.values.firstWhereOrNull(
-        (t) => t.wireName == rawPen,
-      );
-      if (t == null) {
-        invalid?.add('$name.penType');
-      } else {
-        penType = t;
-      }
-    }
-    return (activeTool: active, penType: penType, previousTool: previous);
+    return (
+      activeTool: active,
+      penType: pen('penType') ?? core.PenTool.ballpoint,
+      previousTool: previous,
+      lastTool: tool('lastTool'),
+      lastPenType: pen('lastPenType'),
+    );
   }
 }
 

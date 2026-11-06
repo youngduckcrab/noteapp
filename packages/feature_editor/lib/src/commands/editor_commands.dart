@@ -29,10 +29,12 @@ import '../state/popup.dart';
 import '../state/preset_bar.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
+import '../state/settings/pre_roll.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
 import '../tools/stroke_clipboard.dart';
 import '../tools/tool_controller.dart';
+import '../tools/tool_options.dart';
 import '../tools/tool_state.dart';
 import '../ui/dev/dev_metrics.dart';
 import '../ui/editor_strings.dart';
@@ -510,6 +512,12 @@ class EditorCommands {
       guarded(_ref.read(editorToolProvider.notifier).flush, 'tool state'),
       guarded(_ref.read(editorColorPaletteProvider.notifier).flush, 'colours'),
       guarded(_ref.read(editorPresetBarProvider.notifier).flush, 'preset bar'),
+      // (v2, E2-03)
+      guarded(
+        _ref.read(editorToolOptionsProvider.notifier).flush,
+        'tool options',
+      ),
+      guarded(_ref.read(editorPreRollMsProvider.notifier).flush, 'pre-roll'),
       guarded(memory.flush, 'the last position'),
     ]);
   }

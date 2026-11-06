@@ -220,6 +220,10 @@ class InteractionHost implements InputTargets {
           viewport: _viewport,
           onSelected: _onLassoSelected,
         );
+      case EditorTool.shape:
+      case EditorTool.text:
+        // (v2) ShapeInteraction comes in E2-09, the text tool in E2-10.
+        interaction = null;
     }
     _lastStarted = interaction;
     return interaction;
@@ -415,6 +419,8 @@ class InteractionHost implements InputTargets {
           );
         case EditorTool.pen:
         case EditorTool.lasso:
+        case EditorTool.shape:
+        case EditorTool.text:
           next = null;
       }
     }
