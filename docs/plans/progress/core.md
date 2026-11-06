@@ -451,6 +451,8 @@
 | `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(71 + `canonical_dump_browser_test` 1 + `v1_copy_browser_test` 2), 1개 건너뜀(perf) | 156.1초 |
 | `ws check` | R1~R16 위반 0·경고 0 | 69초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+| 다른 멤버(고치지 않고 확인 — 가짜의 정규화 위임·v2 DB) | `ws test --package feature_library --platform vm` 628 통과, `sync_engine` VM 782 통과(통합 태그는 기본 skip) | 334초·154초 |
+| 세션 끝 다시 돌림(커밋 `409c4f2` 뒤) | `ws check` 0, `ws test --package note_core --platform chrome` 74 통과 | 214초 |
 
 #### 계획과 다르게 한 점 (동시 개발)
 
