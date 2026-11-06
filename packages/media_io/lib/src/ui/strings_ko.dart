@@ -1,12 +1,65 @@
 // lib/src/ui/strings_ko.dart — MediaStringsKo (m5-7/06-pdf 6.16; 해요체, 1차 7.4.5). Every
 // user-visible string of media_io lives here.
 //
-// 2차 foundation step R2-B4 (T30): the strings of the RecordingPanel placeholder. PDF T33–T35
-// add the rest of 6.16.
+// R2-B4 (T30): the placeholder strings. T36a: the recording / status / playback rows and the
+// consent sheet. T36b adds the list, the name / delete sheets and the stuck-draft row.
 abstract final class MediaStringsKo {
   /// Recording panel title.
   static const String panelTitle = '녹음';
 
   /// Close button of the panel (tooltip / semantics).
   static const String close = '닫기';
+
+  // --- recording row (6.13.1) ---
+  static const String record = '녹음';
+  static const String recordSemantics = '녹음 시작';
+  static const String pause = '일시정지';
+  static const String resume = '이어서';
+  static const String stop = '정지';
+  static const String stopOther = '그 녹음 정지';
+  static const String recordingNow = '녹음 중';
+
+  // --- status line (6.13.2, 6.16) ---
+  /// Fixed consent notice (contract 7.4.4) — the consent sheet and the idle line.
+  static const String consent = '다른 사람의 목소리를 녹음할 때는 미리 동의를 받아 주세요.';
+  static const String unsupportedDevice = '이 기기에서 녹음할 수 없어요';
+  static const String unsupportedWeb = '이 브라우저에서는 녹음할 수 없어요';
+  static const String permissionNative =
+      '마이크 권한이 없어요. 설정 → 필기노트 → 마이크에서 허용해 주세요.';
+  static const String permissionWeb = '브라우저에서 이 사이트의 마이크 사용을 허용해 주세요.';
+  static const String microphoneNotFound = '마이크를 찾지 못했어요';
+  static const String microphoneBusy = '다른 앱이 마이크를 쓰고 있어요';
+  static const String starting = '녹음을 준비하고 있어요…';
+  static const String finishing = '녹음을 저장하고 있어요…';
+  static const String hiddenTab = '화면을 벗어나 녹음이 멈췄어요. 이어서 녹음할까요?';
+  static const String resumeRecording = '이어서 녹음';
+  static const String microphoneLost = '마이크가 끊겨 이어서 녹음할 수 없어요. 정지해서 저장해 주세요.';
+  static const String storageBacklog = '저장이 밀려 녹음을 멈췄어요';
+  static const String saveFailed = '녹음을 저장하지 못했어요. 앱을 다시 열면 복구해요.';
+  static const String draftLost =
+      '다른 창에서 이 녹음을 정리했어요. 지금까지의 녹음은 그 창의 녹음 목록에 있어요.';
+  static const String otherNoteRecording = '다른 노트에서 녹음 중이에요';
+  static const String webFormatWarning = '이 브라우저 녹음은 아이패드 앱에서 재생되지 않을 수 있어요';
+
+  // --- playback row (6.13.1, 6.16) ---
+  static const String play = '재생';
+  static const String pausePlayback = '일시정지';
+  static const String back10 = '10초 뒤로';
+  static const String forward10 = '10초 앞으로';
+  static const String position = '재생 위치';
+  static const String speed = '재생 속도';
+  static const String tapToSeek = '필기 탭 재생';
+  static const String cannotPlay = '이 녹음은 이 기기에서 재생할 수 없어요';
+  static const String assetMissing = '이 녹음 파일이 아직 이 기기에 없어요';
+  static const String noPlayWhileRecording = '녹음 중에는 재생할 수 없어요';
+
+  // --- consent sheet (6.13.3 ①) ---
+  static const String cancel = '취소';
+  static const String startRecording = '녹음 시작';
+
+  /// '0.5×', '0.75×', '1.0×' … (the same text on the VM and the web — no double.toString).
+  static String speedLabel(double speed) {
+    final hundredths = (speed * 100).round();
+    return '${(hundredths / 100).toStringAsFixed(hundredths % 10 == 0 ? 1 : 2)}×';
+  }
 }

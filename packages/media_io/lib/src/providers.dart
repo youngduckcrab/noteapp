@@ -1,4 +1,5 @@
 // lib/src/providers.dart — media_io internals (m5-7/06-pdf 4.4, 4.6). Not exported.
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
 
 /// The media.* setting keys (contract 7.4.4 prefix, 06-pdf 4.6).
@@ -30,3 +31,15 @@ abstract final class MediaSettingKeys {
     0,
   );
 }
+
+/// (T36a) The recorder status as a stream (statusStream emits the current value on listen).
+final recorderStatusProvider = StreamProvider.autoDispose<core.RecorderStatus>(
+  (ref) => ref.watch(core.audioRecorderServiceProvider).statusStream,
+  name: 'recorderStatusProvider',
+);
+
+/// (T36a) The playback status as a stream.
+final playbackStatusProvider = StreamProvider.autoDispose<core.PlaybackStatus>(
+  (ref) => ref.watch(core.audioPlaybackServiceProvider).statusStream,
+  name: 'playbackStatusProvider',
+);

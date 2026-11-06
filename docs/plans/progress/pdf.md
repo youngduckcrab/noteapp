@@ -277,7 +277,7 @@
 | T22 | 남음 | | `pdfium/compose_objects_native_test` |
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
 | T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
-| T25a | 완료 | (이 커밋) | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
+| T25a | 완료 | 402f84a | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
 | T25b | 남음 | | `unit/raster_ports_test`, `unit/object_resolver_text_math_test`, `web/object_resolver_text_browser_test`, `integration/math_raster_real_test`(INK T36 뒤 — 통합 단계) |
 | T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
 | T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
@@ -291,7 +291,7 @@
 | T34 | 완료 | d69f957 | `unit/playback_service_test`(22 — just_audio + `FakeJustAudioPlatform` 11, 가짜 시간 대본 플레이어 7, 길이 탐침 3, 형식 오류 1), `unit/audio_source_native_test`(6), `web/playback_browser_test`(4), (더함) `unit/recorder_service_test` '넘김' 2 |
 | T35a | 완료 | 486c4e7 | `unit/image_header_test`(17), `unit/image_normalizer_test`(18) — 표본 `test/support/fixtures/img_*.{jpg,png,webp}` 8개(Pillow) + `package:image`로 시험 안에서 만든 표본 |
 | T35b | 남음 | | `unit/image_import_test`, `web/image_codec_browser_test`, `unit/supported_sources_test` |
-| T36a | 남음 | | `widget/recording_panel_test` |
+| T36a | 완료 | (이 커밋) | `widget/recording_panel_test`(26 — 6.13.2 행·6.13.3 동작·iPad 세로/가로·좁은 폭·순수 `statusLineFor` 웹 문구), `widget/recording_panel_placeholder_test`(T30 — 이제 전체 패널: override 없으면 CORE 기본 녹음기 = 지원 안 함) — 시험 세계 `test/support/panel_world.dart`(`PanelWorld`·`ScriptedRecorder`) |
 | T36b | 남음 | | `widget/recording_list_test`, `widget/recording_sheets_test`, `widget/recording_stuck_drafts_test` |
 | T37 | 남음 | | `unit/dev_overlay_lines_test`, `unit/init_test` v2 |
 | T38 | 남음 | | `unit/testing_fakes_test` |
@@ -374,6 +374,12 @@
 - T25a: `PdfObjectFixtures`(`testing.dart` — 4.3.1의 새 이름, `contract/api_surface_test` `testingNames`에 더함)는 고정 JPEG 표본 5개(Pillow로 한 번 만든 base64 — 64 × 48 그라데이션, q50: 기준선 4:2:0·점진·회색·EXIF 6·Adobe CMYK)와 `png({width, height, alpha})`(저장 deflate, CRC·Adler 손으로)다. `pageWithObjects`는 그것을 쓰는 T26에서 더한다. 큰 표본(`bigPng6000x4000`·`noisePng2048`(위쪽 행만 잡음, ≥ 6 MiB)·`noisePngOver`(회색 잡음 ≥ 20 MiB)·`paddedJpeg`(COM 조각으로 키운 JPEG))은 `test/support/object_fixtures.dart`(VM — `dart:io` `ZLibEncoder`). 쪽 크기 텍스트 상자·큰 수식 표본은 T25b.
 - T25a: `PdfTuning`에 4.5.1 표의 내보내기 객체 상수 10개(`mathRasterDpi`~`exportMathRasterTimeout`)를 더했다. 색인 상수 4개는 T27.
 
+- T36a: 재생 줄은 녹음기가 활성(어느 노트든 `idle`이 아님)이면 비활성이다 — 6.13.2 표의 '다른 노트에서 녹음 중 → 재생 줄 됨'과 다르다. 계약 CP-PDF-10('녹음기가 활성인 동안 `play()`는 아무것도 안 함')이라 누를 수 있어도 소리가 나지 않기 때문이다. 재생 단추 안내(tooltip)는 '녹음 중에는 재생할 수 없어요'.
+- T36a: [그 녹음 정지](다른 노트의 녹음)로 정지한 녹음은 이 패널에서 열지 않는다(정지 뒤 '열기만'은 이 노트 녹음일 때만). 동의 시트(6.13.3 ①)는 시작 흐름에 필요해 T36a에 넣었다(`ui/sheets.dart` `showConsentSheet`, 높이 ≤ 50%) — T36b `recording_sheets_test`가 이름·삭제 시트와 함께 다시 본다.
+- T36a: 상황 줄의 오류 대응(6.16 '가장 가까운 문구')은 `ui/record_controls.dart` 순수 함수 `statusLineFor`·`recordRowMode`다 — 일시정지 + `interrupted` + 오류 없음/`hiddenTab` → 이어서 가능('화면을 벗어나…' + [이어서 녹음]), `microphoneLost`·`engineFailed` → [■]만 + 마이크 끊김 문구, `storageBacklog` → [■]만 + 저장 밀림, `idle` + 패널이 부른 `start`의 오류: `permissionDenied`·`microphoneNotFound`·`microphoneBusy` 문구, `engineFailed` → '마이크를 찾지 못했어요', `UnsupportedError` → 지원 안 함; `idle` + 녹음기 `status.error`: `saveFailed`·`engineFailed`·그 밖 → 저장 실패 문구, `draftLost` → 다른 창 문구, `storageFailed` → 문구 없음(녹음 계속). `stop()`이 `MediaIoException`이 아닌 오류를 던지면 `reportError(library: 'media_io')` 뒤 저장 실패 문구. 웹 문구는 `kIsWeb`로 고른다(순수 함수 시험이 `web: true`를 본다).
+- T36a: 내부 provider `recorderStatusProvider`·`playbackStatusProvider`(`StreamProvider.autoDispose`, `name:`)를 `providers.dart`에 더했다. 재생 위치 글자는 `Ticker`가 재생 중일 때만 돌며 200 ms마다 `positionMs()`를 읽는다. 배속 글자는 `MediaStringsKo.speedLabel`(웹의 `1.0.toString() == '1'`을 피함). 목록 자리(구분선 아래)는 T36b까지 빈 `Expanded`다. 패널 제목 글자('녹음')는 더 보이지 않는다(녹음 단추가 '녹음').
+- T36a: 위젯 시험 주의 — CORE 가짜 저장소는 `testWidgets`의 가짜 시간 존 안에서 만든다(`tester.runAsync` 안에서 만든 저장소를 가짜 존에서 쓰면 `FakeAudioRecorder.stop()`이 `finishing`에서 멈춤 — 쓰기 큐 microtask가 다른 존). 재생 중에는 `Ticker` 때문에 `pumpAndSettle`이 끝나지 않으므로 시트 애니메이션은 `pump(400 ms)`로 넘긴다. 세계마다 `ProviderScope(key: ObjectKey(world))`(같은 시험에서 두 세계를 띄울 때 패널 상태가 이어지지 않게).
+
 #### 이정표 커밋
 
 - 없음(PDF는 이정표 커밋 알림 대상이 아니다 — 7.6.2. 다른 영역 이정표 중 PDF가 기다리는 것: INK T36·T42, CORE T31·T33a·T33b — 통합 단계)
@@ -424,6 +430,10 @@
 | 5 (T25a) | `ws test --package pdf_io` (VM) | 703 통과 + 8 skip (659 + T25a 44 — 표본 머리 14·장부 8·해석기 22), 67 s |
 | 5 (T25a) | `ws test --package pdf_io --platform chrome` | 95 통과 + 1 skip (90 + `object_resolver_browser_test` 5), prepare ok, 151 s |
 | 5 (T25a) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
+| 5 (T36a) | `ws test --package media_io` (VM) | 241 통과 (215 + T36a 26), 33 s |
+| 5 (T36a) | `ws test --package media_io --platform chrome` | 37 통과, prepare ok, 73 s |
+| 5 (T36a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 08:04:40–08:06:14 UTC, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
+| 5 (T36a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
