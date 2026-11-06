@@ -295,7 +295,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-04 | 완료 | 0343c27, 8695c4a(골든) | `goldens/library_golden_test.dart`(+ `library_search_content.png`), `widget/a11y_test.dart`('content search results' — 가로·세로), `shared/library_scenarios.dart`('content search: a text box word …') → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart` |
 | L2-05 | 완료 | 661abb0 | ink_recognition `unit/group_into_lines_test.dart`(V9·경계 사례 `test/fixtures/lines/*.json` 11개·4.4.6·1,000획 기록), `unit/synthetic_handwriting_test.dart`, `shared/line_cases.dart`(`lineAccuracy` — `web/recognition_browser_test.dart`에서도) |
 | L2-06 (P-B) | 남음 | | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`, `unit/shape_real_samples_test.dart`, `shared/shape_cases.dart` |
-| L2-07 | 완료 | (이 커밋) | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` (+ `ink_recognition_smoke_test`·`unit/api_surface_test`·`web/recognition_browser_test` 갱신) |
+| L2-07 | 완료 | bb5bf30 | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` (+ `ink_recognition_smoke_test`·`unit/api_surface_test`·`web/recognition_browser_test` 갱신) |
 | L2-08 (P-B, ML Kit) | 남음 | | `native/mlkit_adapter_test.dart`, `unit/mlkit_errors_test.dart` |
 | L2-09 (P-B) | 남음 | | `unit/mixed_language_test.dart` |
 | L2-10a | 남음 | | `unit/indexer_test.dart` |
@@ -343,12 +343,16 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 
 #### 이정표 커밋
 
-- L2-07(이 표의 커밋): `recognitionOverrides()`가 **정확히 3개**(손글씨 엔진·수식 엔진·`inkShapeFitterProvider` → `GeometricShapeFitter`)를 낸다 — INFRA V5의 'provider 출처·횟수' 단언 기준. 한 컨테이너에서 같은 provider를 두 번 override할 수 없으므로, `recognitionOverrides()`와 함께 가짜 엔진을 넣는 시험은 그 한 개를 `.origin`으로 빼고 넣는다(`ink_recognition_smoke_test` 참고). `GeometricShapeFitter.fit`은 L2-06까지 늘 null이라 자동 도형 보정은 아직 바꾸지 않는다(EDITOR 토글은 `NoShapeFitter`가 아니므로 보인다).
+- `bb5bf30`(L2-07): `recognitionOverrides()`가 **정확히 3개**(손글씨 엔진·수식 엔진·`inkShapeFitterProvider` → `GeometricShapeFitter`)를 낸다 — INFRA V5의 'provider 출처·횟수' 단언 기준. 한 컨테이너에서 같은 provider를 두 번 override할 수 없으므로, `recognitionOverrides()`와 함께 가짜 엔진을 넣는 시험은 그 한 개를 `.origin`으로 빼고 넣는다(`ink_recognition_smoke_test` 참고). `GeometricShapeFitter.fit`은 L2-06까지 늘 null이라 자동 도형 보정은 아직 바꾸지 않는다(EDITOR 토글은 `NoShapeFitter`가 아니므로 보인다).
 - `af9d262`(L2-03): `LibraryScreen`이 내용 검색 결과 행에서 `onOpenNoteAt(noteId, pageId, 합집합 Rect?)`를 실제로 부른다(`onOpenNoteAt == null`이면 `onOpenNote`). INFRA V5의 '위치로 열기'·라우팅 `?page=&focus=`가 이 커밋부터 LIBRARY 쪽 호출을 받는다.
 
 #### 세션 끝 확인 (세션 1, 2026-11-06, `af9d262` 위)
 
 `ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package feature_library --platform vm` **677 통과·1 skip(integration)**, `--platform chrome` **17 통과**, `ws test --package ink_recognition --platform vm` **57 통과**, `--platform chrome` **9 통과**.
+
+#### 세션 끝 확인 (세션 2, 2026-11-06, `bb5bf30` 위)
+
+`ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**(L2-04 뒤 — 그 뒤 `feature_library` 변경 없음), `--platform chrome` **18 통과**, `ws test --package ink_recognition --platform vm` **108 통과**, `--platform chrome` **21 통과**(L2-07 뒤).
 
 #### 다음 세션 메모
 
