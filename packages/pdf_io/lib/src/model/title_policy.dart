@@ -1,5 +1,5 @@
 // lib/src/model/title_policy.dart — internal (not exported), 06-pdf 4.6.
-import '../text/hangul_jamo.dart';
+import '../text/text_normalizer.dart';
 import '../tuning.dart';
 
 abstract final class PdfTitlePolicy {

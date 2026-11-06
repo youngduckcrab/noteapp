@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/src/model/title_policy.dart';
 import 'package:pdf_io/src/render/tile_math.dart';
-import 'package:pdf_io/src/text/hangul_jamo.dart';
+import 'package:pdf_io/src/text/text_normalizer.dart';
 import 'package:pdf_io/src/ui/strings_ko.dart';
 
 import '../support/compose_fixture.dart';

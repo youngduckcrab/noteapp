@@ -281,7 +281,7 @@
 | T25b | 남음 | | `unit/raster_ports_test`, `unit/object_resolver_text_math_test`, `web/object_resolver_text_browser_test`, `integration/math_raster_real_test`(INK T36 뒤 — 통합 단계) |
 | T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
 | T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
-| T28 | 남음 | | `unit/normalizer_equivalence_test`, `web/normalizer_equivalence_browser_test` |
+| T28 | 완료 | (세션 4 기록 커밋) | `unit/normalizer_equivalence_test`(6), `web/normalizer_equivalence_browser_test`(같은 6 — 사례 `test/support/normalizer_equivalence_cases.dart`), 1차 `text_normalizer_test`(기대값 둘 고침)·`hangul_jamo_test`·`search_service_test`·`pdfium/search_real_test` 그대로 통과 |
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
 | T31a | 완료 | 8dc3b6f | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
 | T31b | 완료 | 1b8261c | `unit/recorder_service_test`(42), `unit/stop_recover_buffers_test`(5) — 가짜 엔진·잠금 `test/support/fake_engines.dart`, 기록 감싼 저장소·가짜 시간 `test/support/recorder_world.dart` |
@@ -350,6 +350,10 @@
 - T35a: 빠른 길에 '파일이 온전함'(JPEG 끝 EOI, PNG 끝 IEND)을 더했다 — 잘린 PNG가 머리만 보고 그대로 저장되는 틈(시험에서 드러남). EOI 뒤에 덧붙인 자료가 있는 JPEG(일부 카메라)는 느린 길로 다시 인코딩된다. Adobe APP14는 성분 수와 무관하게 느린 길(6.12.2 '(Adobe APP14·성분 4 CMYK는 느린 길)'을 APP14 있음 = 느린 길로 읽음).
 - T35a: 느린 길의 반복: JPEG는 원래 크기에서 0.85 → 0.75 → 0.6, 그다음 축소(× 0.85) 한 번마다 0.6 한 번(최대 6번), PNG는 축소마다 한 번. 디코드 실패는 머리 형식을 알면 `decodeFailed`, 모르면 `unsupportedFormat`. 결과 `NormalizedImage`에 경로(`fastJpeg`·`fastPng`·`slow`)를 실었다(T35b 개발자 표시·시험용).
 - T35a: '12 MB 잡음 JPEG → 품질 단계로 ≤ 8 MiB'는 yuv420 0.85에서 바로 들어간다(2048 × 1536 q100 잡음 ≈ 12.9 MB → 약 2.4 MB). 품질이 실제로 내려가는 경우는 실제 코덱 + 빡빡한 한도(0.85 결과 − 1바이트 → 0.75)와 크기만 내는 가짜 코덱(순서 15단계 → `tooLarge`)으로 따로 단언한다. CMYK 표본은 Pillow가 쓴 진짜 4성분 Adobe JPEG다(48 × 32). 표본 만드는 스크립트는 저장소에 넣지 않고 `image_header_test.dart` 머리 주석에 만든 방법을 적었다.
+- T28: `PdfTextNormalizer.normalize`는 `core.SearchText.normalizeMapped`, `normalizeQuery`는 `core.SearchText.normalize` 그대로다(`PdfNormalizedText`는 결과를 감쌈 — 공개 시그니처·문서 주석 그대로). 1차 `normalizePdfText`와 `hangul_jamo.dart`를 지웠다. 다만 제목(6.3 `PdfTitlePolicy`)·가져오기 시트의 파일 이름은 '자모 합성만'(소문자·공백 그대로)이 필요한데 CORE에 그런 공개 함수가 없어, 내부 이름 `HangulJamo.compose`를 `text_normalizer.dart`로 옮기고 본문을 '한글 자모·음절 연속(U+1100–U+11FF, U+AC00–U+D7A3)마다 `core.SearchText.normalize`'로 바꿨다(그 글자들은 대소문자·공백·하이픈·버림 글자가 아니어서 CORE 정규화가 합성만 한다 — 1차 `hangul_jamo_test` 벡터 그대로 통과). 합성 규칙 사본은 남지 않는다.
+- T28: 검색 조각(6.10.2 ⑤ '소문자로 바꾸지 않은 정규화')은 src 함수 `normalizeKeepingCase`(`normalizeMapped` 결과에서 원문 한 글자에서 온 묶음을 원문 글자로 되돌림 — 공백 연속은 ' ', 합성 음절은 그대로)로 창 전체를 **한 번** 정규화하고 일치의 원문 위치로 앞·일치·뒤를 자른다(1차는 세 조각을 따로 정규화해 이어 붙임). 일치 경계의 줄 끝 하이픈이 이제 한 번만 접힌다(예: 'con-\ntinue'에서 'tinue'를 찾으면 1차 'con- tinue' → 'continue'). `search_service_test`의 조각 시험은 그대로 통과한다.
+- T28: 1차 `unit/text_normalizer_test`의 기대값 둘을 CORE 규칙(C2-27·7.2.5 '`normalizeMapped(x).text == normalize(x)`')으로 고쳤다 — '앞뒤 공백 하나 남김'('  ab \n' → ' ab ') → 자름('ab', 표 `[(2,3),(3,4)]`), U+0130 → 플랫폼 소문자 → 모든 플랫폼 'i'. '길이가 바뀌는 소문자' 시험은 U+0130 대신 U+10400(데저렛 대문자, 서로게이트 쌍 → U+10428)으로 '한 원문 글자의 모든 단위가 그 글자를 가리킴'을 본다(CORE가 U+0130을 따로 다루어 단위 수가 바뀌는 다른 글자가 없음).
+- T28: 일치 시험의 입력 표는 CORE `test/shared/search_text_cases.dart` `kSearchTextVectors`를 `\u` 이스케이프로 복사했다(복사본 기대값도 단언 — CORE 표가 바뀌면 이 시험이 알린다). 1차 입력은 `text_normalizer_test`·`pure_logic_browser_test`(T11)·`search_service_test` 조각 시험의 입력 전부다.
 - T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
 #### 이정표 커밋
@@ -390,6 +394,9 @@
 | 3 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 3 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 | 3 (끝) | `ws test --package pdf_io` (VM) / `--platform chrome` (이 세션에 바뀌지 않음) | 652 통과 + 8 skip, 90 s / 84 통과 + 1 skip, 234 s, prepare ok |
+| 4 (T28) | `ws test --package pdf_io` (VM) | 659 통과 + 8 skip (652 + T28 7 — 일치 6 + `text_normalizer_test` 1), 68 s |
+| 4 (T28) | `ws test --package pdf_io --platform chrome` | 90 통과 + 1 skip (84 + T28 6), prepare ok, 171 s |
+| 4 (T28) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 

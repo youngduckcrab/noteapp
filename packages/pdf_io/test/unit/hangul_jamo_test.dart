@@ -1,6 +1,8 @@
 // HangulJamo.compose (06-pdf 4.8, 6.10.1 step 4, 8 T1) — internal, imported by path.
+// (2차, T28) It lives in text_normalizer.dart now and composes through CORE's
+// SearchText.normalize; these 1차 vectors stay as they were.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pdf_io/src/text/hangul_jamo.dart';
+import 'package:pdf_io/src/text/text_normalizer.dart';
 
 void main() {
   test('ᄀ + ᅡ → 가', () {

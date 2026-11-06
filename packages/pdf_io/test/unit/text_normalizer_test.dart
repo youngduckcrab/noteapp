@@ -1,6 +1,7 @@
 // PdfTextNormalizer (06-pdf 4.8, 6.10.1; 8 T11): jamo composition, whitespace collapse,
 // soft hyphen / zero-width removal, end-of-line hyphenation join, lower-casing and the
-// source position table.
+// source position table. (2차, T28) It delegates to CORE's SearchText.normalizeMapped; two
+// 1차 expectations changed to CORE's rules (trim, U+0130) — m5-7/06-pdf 6.4.5.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdf_io/pdf_io.dart';
 
@@ -50,10 +51,12 @@ void main() {
       expect(PdfTextNormalizer.normalize('a\u00A0\u3000b').text, 'a b');
     });
 
-    test('leading and trailing whitespace are kept as one space', () {
+    // (2차, T28) CORE's SearchText.normalizeMapped trims (its step 6 — contract 7.2.5:
+    // normalizeMapped(x).text == normalize(x)); the 1차 rule kept one space at each end.
+    test('leading and trailing whitespace are trimmed', () {
       final n = PdfTextNormalizer.normalize('  ab \n');
-      expect(n.text, ' ab ');
-      expect(_table(n), [(0, 2), (2, 3), (3, 4), (4, 6)]);
+      expect(n.text, 'ab');
+      expect(_table(n), [(2, 3), (3, 4)]);
     });
   });
 
@@ -120,16 +123,19 @@ void main() {
       );
     });
 
-    test('every unit of a lower-cased character maps to that character', () {
-      // U+0130 lower-cases to 'i' + U+0307 in JavaScript, 'i' on the VM.
-      final lower = '\u0130'.toLowerCase();
+    // (2차, T28) CORE maps U+0130 to 'i' on every platform (the 1차 rule took the
+    // platform's toLowerCase: 'i' + U+0307 in JavaScript, 'i' on the VM).
+    test('U+0130 → i on every platform', () {
       final n = PdfTextNormalizer.normalize('x\u0130y');
-      expect(n.text, 'x${lower}y');
-      expect(_table(n), [
-        (0, 1),
-        for (final _ in lower.codeUnits) (1, 2),
-        (2, 3),
-      ]);
+      expect(n.text, 'xiy');
+      expect(_table(n), [(0, 1), (1, 2), (2, 3)]);
+    });
+
+    test('every unit of a lower-cased character maps to that character', () {
+      // U+10400 (Deseret capital long I, a surrogate pair) lower-cases to U+10428.
+      final n = PdfTextNormalizer.normalize('x\u{10400}y');
+      expect(n.text, 'x\u{10428}y');
+      expect(_table(n), [(0, 1), (1, 3), (1, 3), (3, 4)]);
     });
 
     test('supplementary characters keep both halves', () {
