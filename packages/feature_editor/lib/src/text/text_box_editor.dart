@@ -18,6 +18,13 @@
 // focus after having had it (focusLost — not while FocusManager suspends it
 // for an inactive app), Esc (escape), and the session's page leaving the
 // mounted pages (pageUnmounted).
+//
+// (E2-10 part 2) The format bar over (or under) the box (6.11.4 — a change
+// goes to the draft and ToolOptions.textStyle), and the keyboard: when the
+// iPad keyboard covers the box's bottom at the session start or when its
+// height changes, the page scrolls just that much (6.11.3).
+import 'dart:math' as math;
+
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +34,10 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../scope/editor_scope.dart';
 import '../state/settings/editor_device_state.dart';
+import '../tools/tool_options.dart';
+import '../ui/editor_strings.dart';
+import '../ui/text/text_style_controls.dart';
+import '../viewport/viewport_controller.dart';
 import 'text_edit_session.dart';
 
 /// The key of the session's TextField (both modes — appendix C).
@@ -79,6 +90,12 @@ class _TextSessionFieldState extends ConsumerState<TextSessionField> {
   );
   final FocusNode _focus = TextSessionFocusNode();
   bool _hadFocus = false;
+  late final _limit = _NotifyingLengthLimit(
+    core.PageObjectLimits.maxTextLength,
+    onTruncated: () => ref
+        .read(editorCommandsProvider)
+        .notify(EditorStrings.textTooLong(core.PageObjectLimits.maxTextLength)),
+  );
 
   @override
   void initState() {
@@ -161,9 +178,8 @@ class _TextSessionFieldState extends ConsumerState<TextSessionField> {
         cursorColor: scheme.primary,
         // No outer Scrollable; keeps a second scroll from happening (6.11.3).
         scrollPadding: EdgeInsets.zero,
-        inputFormatters: [
-          LengthLimitingTextInputFormatter(core.PageObjectLimits.maxTextLength),
-        ],
+        // 10,000 characters (6.11.5); cut text → '글자는 10,000자까지…'.
+        inputFormatters: [_limit],
         onChanged: notifier.updateText,
         // groupId: the default (EditableText) — Flutter's selection handles
         // and toolbar are wrapped in a TextFieldTapRegion of this group, so
@@ -174,8 +190,34 @@ class _TextSessionFieldState extends ConsumerState<TextSessionField> {
   }
 }
 
-/// The inline editor over the session's box (6.11.3). Nothing outside a
-/// session or in sheet mode (the sheet panel is TextInputSheet).
+/// LengthLimitingTextInputFormatter that also tells when it cut the text
+/// (a paste over the limit — the notice of 6.11.2).
+class _NotifyingLengthLimit extends LengthLimitingTextInputFormatter {
+  _NotifyingLengthLimit(int super.maxLength, {required this.onTruncated});
+
+  final VoidCallback onTruncated;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final out = super.formatEditUpdate(oldValue, newValue);
+    if (out.text.length < newValue.text.length) onTruncated();
+    return out;
+  }
+}
+
+/// The format bar's change during a session: the draft (no command) and
+/// ToolOptions.textStyle (the next box starts with it — 6.2.4).
+void applySessionStyle(WidgetRef ref, core.TextBoxStyle style) {
+  ref.read(editorTextEditProvider.notifier).updateStyle(style);
+  ref.read(editorToolOptionsProvider.notifier).setTextStyle(style);
+}
+
+/// The inline editor over the session's box (6.11.3) and its format bar
+/// (6.11.4). Nothing outside a session or in sheet mode (the sheet panel is
+/// TextInputSheet).
 class TextBoxEditorLayer extends ConsumerWidget {
   const TextBoxEditorLayer({super.key});
 
@@ -209,9 +251,23 @@ class TextBoxEditorLayer extends ConsumerWidget {
         final h = r.bottom - r.top;
         final topLeft = viewport.pageToScreen(index, Offset(r.left, r.top));
         final background = draft.style.backgroundArgb;
+        final bounds = _boundsOnScreen(viewport, index, draft);
+        final inset = MediaQuery.viewInsetsOf(context).bottom;
         return Stack(
           clipBehavior: Clip.none,
           children: [
+            // (6.11.3) the keyboard covering the box → scroll that much.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: _KeyboardReveal(
+                  boxId: session.boxId,
+                  inset: inset,
+                  viewportHeight: viewport.viewportSize.height,
+                  bottom: bounds.bottom,
+                  onReveal: viewport.panBy,
+                ),
+              ),
+            ),
             Positioned(
               left: topLeft.dx,
               top: topLeft.dy,
@@ -233,11 +289,38 @@ class TextBoxEditorLayer extends ConsumerWidget {
                 ),
               ),
             ),
+            // (6.11.4) above the box, below it when there is no room.
+            Positioned.fill(
+              child: CustomSingleChildLayout(
+                delegate: FormatBarLayout(bounds),
+                child: TextFormatBar(
+                  style: draft.style,
+                  onChanged: (style) => applySessionStyle(ref, style),
+                ),
+              ),
+            ),
           ],
         );
       },
       child: field,
     );
+  }
+
+  /// The screen bounds of [draft]'s (possibly rotated) frame.
+  static Rect _boundsOnScreen(
+    ViewportController viewport,
+    int index,
+    core.TextBoxObject draft,
+  ) {
+    final points = [
+      for (final c in draft.frame.corners)
+        viewport.pageToScreen(index, Offset(c.x, c.y)),
+    ];
+    var rect = Rect.fromPoints(points.first, points.first);
+    for (final p in points.skip(1)) {
+      rect = rect.expandToInclude(Rect.fromPoints(p, p));
+    }
+    return rect;
   }
 
   /// The session's page left the mounted pages: end it after this frame
@@ -276,4 +359,70 @@ Matrix4 editorTransformOf({
       .multiplied(Matrix4.translationValues(cx, cy, 0))
       .multiplied(Matrix4.rotationZ(rotation))
       .multiplied(Matrix4.translationValues(-cx, -cy, 0));
+}
+
+/// (6.11.3) When the keyboard covers the box's bottom ([bottom], viewport
+/// px) — checked after the session's first frame and whenever the keyboard
+/// changes: the [inset] this layer still sees (logical px), or the viewport
+/// height when the Scaffold shrank the body for the keyboard — [onReveal]
+/// scrolls by just that much (+ 16 px; the wheel direction of
+/// ViewportController.panBy). Fills the layer so its own global origin is
+/// the viewport's.
+class _KeyboardReveal extends StatefulWidget {
+  const _KeyboardReveal({
+    required this.boxId,
+    required this.inset,
+    required this.viewportHeight,
+    required this.bottom,
+    required this.onReveal,
+  });
+
+  final String boxId;
+  final double inset;
+  final double viewportHeight;
+  final double bottom;
+  final void Function(Offset screenDelta) onReveal;
+
+  /// Room kept between the box and the keyboard (px).
+  static const double margin = 16;
+
+  @override
+  State<_KeyboardReveal> createState() => _KeyboardRevealState();
+}
+
+class _KeyboardRevealState extends State<_KeyboardReveal> {
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(_KeyboardReveal oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.boxId != widget.boxId ||
+        oldWidget.inset != widget.inset ||
+        oldWidget.viewportHeight != widget.viewportHeight) {
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = context.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) return;
+      final top = box.localToGlobal(Offset.zero).dy;
+      final screen = MediaQuery.sizeOf(context).height;
+      final visibleBottom = math.min(
+        box.size.height,
+        screen - widget.inset - top,
+      );
+      final covered = widget.bottom + _KeyboardReveal.margin - visibleBottom;
+      if (covered > 0) widget.onReveal(Offset(0, covered));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
 }

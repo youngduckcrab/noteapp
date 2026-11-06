@@ -9,6 +9,8 @@
 // tool change, Esc, back, app hidden, toolbar undo) and the command rules
 // (remove when emptied, a remotely deleted original → a new box, a
 // read-only rejection → the system clipboard).
+import 'dart:math' as math;
+
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/input/stylus_contact.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
@@ -21,11 +23,13 @@ import 'package:feature_editor/src/tools/tool_options.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/new_text_box_outline.dart';
+import 'package:feature_editor/src/ui/text/text_style_controls.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/undo_redo_buttons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:ink_engine/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -645,6 +649,51 @@ void main() {
   });
 
   group('commands (6.11.5)', () {
+    testWidgets('the format bar: pressing it keeps the session; size 24 + '
+        'a text edit → ONE UpdateObjects at the end, height = measure', (
+      tester,
+    ) async {
+      final h = await _pump(tester, tool: EditorTool.pen);
+      await _editBox(tester, h);
+      final bar = find.byKey(TextFormatBar.barKey);
+      expect(bar, findsOneWidget);
+      Future<void> tapBar(Key key) async {
+        await tester.tap(find.descendant(of: bar, matching: find.byKey(key)));
+        await tester.pump();
+        await tester.pump();
+      }
+
+      await tapBar(TextStyleControls.sizeKey);
+      await tapBar(TextStyleControls.presetKey(24));
+      expect(_state(h), isNotNull, reason: 'the bar is in the tap group');
+      expect(_notifier(h).lastEndReason, isNull);
+      expect(_editorFocus(tester).hasFocus, isTrue);
+      expect(_state(h)!.draft.style.fontSizePt, 24);
+      await tester.enterText(_editor, '큰 글자로 바꾼 메모');
+      await tester.pump();
+      expect(_edits(h), isEmpty, reason: 'nothing before the end');
+
+      await _notifier(h).end(reason: TextEditEndReason.escape);
+      await _settle(tester, h);
+      expect(_edits(h), ['execute:update-objects']);
+      final stored = _stored(h, _box.id);
+      expect(stored.style.fontSizePt, 24);
+      expect(stored.text, '큰 글자로 바꾼 메모');
+      final measured = await tester.runAsync(
+        () => ink.InkTextLayout.measure(
+          stored.text,
+          stored.style,
+          widthPt: stored.frame.rect.width,
+        ),
+      );
+      final r = stored.frame.rect;
+      expect(r.top, closeTo(_box.frame.rect.top, 1e-9));
+      expect(
+        r.bottom - r.top,
+        closeTo(math.max(measured!.height, 24 * stored.style.lineHeight), 1e-6),
+      );
+    });
+
     testWidgets('the original deleted remotely while editing → AddObjects '
         'with a new id, no UpdateObjects, no snack bar', (tester) async {
       final h = await _pump(tester, tool: EditorTool.pen);

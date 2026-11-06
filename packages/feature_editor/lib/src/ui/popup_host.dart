@@ -14,6 +14,7 @@ import 'pen/quick_pen_popup.dart';
 import 'presets/preset_manager_sheet.dart';
 import 'presets/save_preset_dialog.dart';
 import 'shape/shape_style_controls.dart';
+import 'text/text_style_controls.dart';
 
 /// Toolbar anchors the popups follow (CompositedTransformTarget links).
 class PopupAnchors {
@@ -160,6 +161,17 @@ class _PopupHostState extends ConsumerState<PopupHost> {
         link: null,
         at: globalPosition,
         panel: const ShapeStylePanel(),
+      ),
+      // (v2, E2-10) the text tool popup and a selected text box's '서식'.
+      TextToolPopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const TextToolPanel(),
+      ),
+      TextFormatPopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const TextFormatPanel(),
       ),
       EraserSettingsPopup() => (
         link: LinkPick.eraser,

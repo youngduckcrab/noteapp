@@ -96,6 +96,35 @@ final class ShapeStylePopup extends EditorPopup {
   int get hashCode => Object.hash(ShapeStylePopup, globalPosition);
 }
 
+/// (v2, E2-10 — m5-7/04-editor 6.11.4) The text tool popup (the style of
+/// the next box — ToolOptions.textStyle); at [globalPosition] or centred (the
+/// toolbar's text button — E2-13 — will anchor it).
+final class TextToolPopup extends EditorPopup {
+  const TextToolPopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextToolPopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(TextToolPopup, globalPosition);
+}
+
+/// (v2, E2-10 — 6.7.5) The selection menu's '서식' (a selected text box,
+/// outside an edit session).
+final class TextFormatPopup extends EditorPopup {
+  const TextFormatPopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextFormatPopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(TextFormatPopup, globalPosition);
+}
+
 final class EraserSettingsPopup extends EditorPopup {
   const EraserSettingsPopup();
 

@@ -169,17 +169,24 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
   }
 
   /// (E2-09, 6.7.5) '스타일': the shape style popup under the '⋯' button.
-  void _openStyle() {
+  void _openStyle() => ref
+      .read(editorPopupProvider.notifier)
+      .open(ShapeStylePopup(globalPosition: _underMore()));
+
+  /// (E2-10, 6.7.5) '서식' of a single text box: the format controls in a
+  /// popup under ⋯ (each change = one UpdateObjects).
+  void _openFormat() => ref
+      .read(editorPopupProvider.notifier)
+      .open(TextFormatPopup(globalPosition: _underMore()));
+
+  /// Just under the ⋯ button (global), or null before it is laid out.
+  Offset? _underMore() {
     final box = _moreContext?.findRenderObject();
-    Offset? at;
     if (box is RenderBox && box.attached && box.hasSize) {
-      at =
-          box.localToGlobal(box.size.bottomLeft(Offset.zero)) +
+      return box.localToGlobal(box.size.bottomLeft(Offset.zero)) +
           const Offset(-12, -6);
     }
-    ref
-        .read(editorPopupProvider.notifier)
-        .open(ShapeStylePopup(globalPosition: at));
+    return null;
   }
 
   /// 4.3.1: the context is made now (a value copy), onSelected starts
@@ -381,6 +388,12 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
                                   .read(editorTextEditProvider.notifier)
                                   .start(single, isNew: false);
                             }),
+                    ),
+                  if (single is core.TextBoxObject)
+                    _MoreItem(
+                      key: SelectionMenu.formatKey,
+                      label: EditorStrings.selectionFormat,
+                      onPressed: readOnly ? null : () => _fromMore(_openFormat),
                     ),
                   if (single is core.ImageObject)
                     _MoreItem(

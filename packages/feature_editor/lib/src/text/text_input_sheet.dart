@@ -10,6 +10,7 @@
 // panel or on [완료] is "inside"); a pointer down elsewhere ends the session
 // (tapOutside), [완료] ends it with `done`. An EDITOR-own panel, so the 7.4.10
 // bottom-sheet rule (other areas' UI) does not apply (00-review 3.4 Q4).
+// (E2-10) The format bar sits under the title row (6.11.6 A '서식 바 포함').
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -18,6 +19,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../state/settings/editor_device_state.dart';
 import '../ui/editor_strings.dart';
+import '../ui/text/text_style_controls.dart';
 import 'text_box_editor.dart';
 import 'text_edit_session.dart';
 
@@ -102,6 +104,11 @@ class TextInputSheet extends ConsumerWidget {
                             child: const Text(EditorStrings.done),
                           ),
                         ],
+                      ),
+                      TextFormatBar(
+                        style: session.draft.style,
+                        elevation: 0,
+                        onChanged: (style) => applySessionStyle(ref, style),
                       ),
                       Expanded(
                         child: TextSessionField(
