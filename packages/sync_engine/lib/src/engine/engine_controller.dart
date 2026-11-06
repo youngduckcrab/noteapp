@@ -89,6 +89,11 @@ final class _Session {
 
   /// Step 6: purged set and pipeline meta read.
   bool loaded = false;
+
+  /// (S-13 — 07-sync 6.3.4) The held records of kinds this app knows were re-applied in
+  /// this session. Outside the [loaded] block: a failed re-apply is tried again at the next
+  /// connection of the same session.
+  bool heldReapplied = false;
 }
 
 final class EngineController {
@@ -191,6 +196,7 @@ final class EngineController {
   int _pushCycles = 0, _commits = 0, _chunksSent = 0, _recordsSent = 0;
   int _chunksReceived = 0, _recordsApplied = 0, _recordsKept = 0;
   int _ownChunksSkipped = 0, _repairsWritten = 0, _groupRecords = 0;
+  int _reappliedChunks = 0, _reappliedRecords = 0;
   Duration? _lastPushLatency, _lastRemoteApplyLatency;
 
   // ---- SyncEngine surface ---------------------------------------------------------------
@@ -371,6 +377,8 @@ final class EngineController {
       lastRemoteApplyLatency: _lastRemoteApplyLatency,
       heldRecords: pipelines ? s.download.heldRecordCount : 0,
       heldRecordsMarked: pipelines && s.download.heldRecordsMarked,
+      reappliedChunks: _reappliedChunks,
+      reappliedRecords: _reappliedRecords,
     );
   }
 
@@ -578,6 +586,17 @@ final class EngineController {
         await s.download.load();
         if (_stale(epoch)) return;
         s.loaded = true;
+      }
+      // S-13 (contract 7.2.8 ⑤): load → re-apply → catchUp → releaseHeld.
+      if (!s.heldReapplied) {
+        final reapplied = await s.download.reapplyHeldRecords();
+        if (_stale(epoch)) return;
+        _absorbApply(s, reapplied);
+        if (!reapplied.succeeded) {
+          _pullFailed(reapplied.error!);
+          return;
+        }
+        s.heldReapplied = true;
       }
       final first = s.download.cursor == null;
       final startedAt = _wallMillis();
@@ -911,7 +930,7 @@ final class EngineController {
   Future<void> _releaseHeld(int epoch) async {
     final s = _session;
     if (s == null || _stale(epoch) || _status.phase != SyncPhase.live) return;
-    if (s.download.held.isEmpty) return;
+    if (s.download.held.isEmpty && !s.download.heldRecordsAwaitRelease) return;
     try {
       final result = await s.download.releaseHeld();
       _absorbApply(s, result);
@@ -1020,6 +1039,8 @@ final class EngineController {
     _chunksReceived += r.chunks;
     _recordsApplied += r.applied;
     _ownChunksSkipped += r.ownSkipped;
+    _reappliedChunks += r.reappliedChunks;
+    _reappliedRecords += r.reappliedRecords;
     final latest = r.latestServerTime;
     if (latest != null && r.applied > 0) {
       final micros = clock.now().microsecondsSinceEpoch - latest.micros;

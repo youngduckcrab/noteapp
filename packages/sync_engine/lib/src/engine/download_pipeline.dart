@@ -43,6 +43,8 @@ final class ApplyResult {
     this.issues = const [],
     this.latestServerTime,
     this.rewound = false,
+    this.reappliedChunks = 0,
+    this.reappliedRecords = 0,
     this.error,
   });
 
@@ -81,6 +83,11 @@ final class ApplyResult {
   /// releaseHeld went back to the collapsed hold's serverTime and received again (K2).
   final bool rewound;
 
+  /// (S-13 — 07-sync 6.3.4) Synthetic chunks of held records re-applied, and the records of
+  /// them in committed applyRemote calls. Kept out of [chunks], [applied] and
+  /// [latestServerTime] (old serverTimes would distort chunksReceived and the latency).
+  final int reappliedChunks, reappliedRecords;
+
   /// What stopped the work: a SyncBackendException (fetch) or an error the local store
   /// threw without retry (localStoreFailure after 5 in a row — the controller, 6.6.3 step 7).
   /// Nothing after the failing call was applied and the meta of the batch was not stored.
@@ -108,6 +115,8 @@ final class ApplyResult {
       (final a, final b) => a ?? b,
     },
     rewound: rewound || o.rewound,
+    reappliedChunks: reappliedChunks + o.reappliedChunks,
+    reappliedRecords: reappliedRecords + o.reappliedRecords,
     error: error ?? o.error,
   );
 
@@ -115,7 +124,8 @@ final class ApplyResult {
   String toString() =>
       'ApplyResult(chunks: $chunks, dup: $duplicates, applied: $applied, held: $held, '
       'dropped: $dropped, rejected: $rejected, pages: $pages, '
-      'issues: ${issues.length}, error: $error)';
+      'reapplied: $reappliedChunks/$reappliedRecords, issues: ${issues.length}, '
+      'error: $error)';
 }
 
 /// The engine's receiver (6.6). Not reentrant: the engine runs it on its serial executor.
@@ -222,6 +232,10 @@ final class DownloadPipeline {
   int get heldRecordCount => _heldRecords.length;
   bool get heldRecordsMarked => _heldRecords.mark != null;
 
+  /// Re-applied records wait for their K1 release time (ra) — [releaseHeld] has work even
+  /// when `sync.held` is empty.
+  bool get heldRecordsAwaitRelease => _heldRecords.hasReleaseTimes;
+
   HeldRecords _emptyHeldRecords() => HeldRecords(
     knownKinds: _knownNames,
     maxPartBytes: heldRecordsMaxPartBytes,
@@ -252,7 +266,9 @@ final class DownloadPipeline {
 
   /// Reads the pipeline's meta. When this app reads a newer format than the one that
   /// deferred chunks, goes back to them: cursor = min(cursor, deferredFrom), keys cleared
-  /// (6.6.5).
+  /// (6.6.5). (S-13 — 07-sync 6.3.5) Likewise when the rewind mark of `sync.heldRecords` is
+  /// due (a marked kind is known now, or an all-kinds mark after an app update): cursor =
+  /// min(cursor, mark.from − cursorOverlap), mark cleared, LRU cleared.
   Future<void> load() async {
     _cursor = ServerCursor.tryParse(
       MetaKeys.present(await sync.readMeta(MetaKeys.cursor)),
@@ -283,6 +299,29 @@ final class DownloadPipeline {
       _deferredFrom = null;
       _applied.clear();
     }
+    await _rewindToHeldMark();
+  }
+
+  /// 6.3.5: the rewind mark fires once this app can read what it covers. The cursor goes back
+  /// (a first sync, cursor null, reads from the beginning anyway) and the cleared mark is
+  /// stored with it in one writeMeta.
+  Future<void> _rewindToHeldMark() async {
+    final next = _heldRecords.copy();
+    final from = next.takeMarkIfDue();
+    if (from == null) return;
+    final cursor = _cursor;
+    final back = from.minus(config.cursorOverlap);
+    final target = cursor == null || cursor < back ? cursor : back;
+    final text = next.encode();
+    await sync.writeMeta({
+      if (target != null && target != cursor) MetaKeys.cursor: '$target',
+      for (final MapEntry(:key, :value) in text.entries)
+        if (_heldRecordsText[key] != value) key: value,
+    });
+    _cursor = target;
+    _heldRecords = next;
+    _heldRecordsText = text;
+    _applied.clear();
   }
 
   /// `sync.heldRecords` (6.3.2). A corrupt value becomes an all-kinds mark and is written back
@@ -306,7 +345,14 @@ final class DownloadPipeline {
       );
     }
     _heldRecords = loaded;
-    _heldRecordsText = text;
+    // What is stored: a value another app version wrote (its 'a') is rewritten with the
+    // next change.
+    _heldRecordsText = loaded.wasCorrupt
+        ? text
+        : {
+            for (final MapEntry(:key, :value) in values.entries)
+              key: value ?? '',
+          };
   }
 
   /// First sync (cursor null: from the beginning) or catching up (cursor − cursorOverlap),
@@ -356,16 +402,53 @@ final class DownloadPipeline {
   /// 6.6.3 for one batch (a fetched page or a live batch).
   Future<ApplyResult> applyChunks(List<RemoteChunk> chunks) => _apply(chunks);
 
+  /// (S-13 — 07-sync 6.3.4, contract 7.2.8 ⑤) After an app update: the stored records of
+  /// kinds this app knows now (and without a release time) are applied as synthetic chunks
+  /// (original id, scope, serverTime and author), in (serverTime, chunk id, index) order.
+  /// A remote apply like any other — gate, merge, PurgeGuard, groups, afterGroup — except:
+  /// the chunk ids do not enter the session LRU (the original chunk received again later
+  /// decodes and applies normally — idempotent), `sync.held` is neither released nor
+  /// extended (a record K1 holds keeps its bytes here with a release time, ra), the cursor,
+  /// scope statistics and chunksReceived do not move, and own chunks are not skipped. The
+  /// settled records leave `sync.heldRecords` with the last apply call. On an error nothing
+  /// changes in memory and the caller tries again at its next connection. The engine runs it
+  /// at attach after [load] and before [catchUp].
+  Future<ApplyResult> reapplyHeldRecords() async {
+    final chunks = _heldRecords.knownChunks(_knownNames.contains);
+    if (chunks.isEmpty) return const ApplyResult();
+    return _reapply(chunks);
+  }
+
   /// K2 (6.2.5): with g' = min(serverNow, wall), receives the held chunks whose release
   /// time has come again (getChunks) and applies them with g' as the K1 reference; ids
   /// that did not come back (deleted by compaction) leave `sync.held`. The collapsed form
   /// moves the cursor back to its serverTime − cursorOverlap and receives everything after
-  /// it again. Nothing happens without a server-time sample.
+  /// it again. (S-13 — 07-sync 6.3.4) Then the re-applied records K1 held (ra ≤ g') are
+  /// applied again from `sync.heldRecords` with g' as the reference — they do not depend on
+  /// the original chunk still being on the server. Nothing happens without a server-time
+  /// sample.
   Future<ApplyResult> releaseHeld() async {
     final serverNow = serverNowMillis();
     if (serverNow == null) return const ApplyResult();
     final wall = wallMillis();
     final g = serverNow < wall ? serverNow : wall;
+    final released = await _releaseChunks(g);
+    if (!released.succeeded) return released;
+    final due = _heldRecords.dueChunks(g);
+    if (due.isEmpty) return released;
+    return released + await _reapply(due, reference: g);
+  }
+
+  Future<ApplyResult> _reapply(List<ReapplyChunk> chunks, {int? reference}) =>
+      _apply(
+        [for (final c in chunks) c.chunk],
+        reference: reference,
+        release: true,
+        reapply: {for (final c in chunks) c.chunk.id: c.indexes},
+      );
+
+  /// The K2 part of [releaseHeld] (1st round).
+  Future<ApplyResult> _releaseChunks(int g) async {
     final collapsed = _held.collapsed;
     if (collapsed != null && _held.isCollapsedDue(g)) {
       final next = _held.copy()..clearCollapsed();
@@ -411,12 +494,22 @@ final class DownloadPipeline {
 
   /// [reference] replaces g = min(chunk serverTime, wall) as the K1 reference; [release]
   /// re-reads held chunks (no LRU skip, cursor and scope statistics unchanged).
+  ///
+  /// [reapply] (S-13 — 07-sync 6.3.4; chunk id → the original index of each record of the
+  /// synthetic payload) makes [chunks] synthetic chunks of `sync.heldRecords` (with
+  /// [release]): remember: false — keep() does not put their ids in the LRU; releaseHolds:
+  /// false — `sync.held` is not touched (a hold of the original chunk's other records stays);
+  /// a K1 hold becomes the record's ra instead (HeldRecords.settle); own delta chunks are not
+  /// skipped and give no clock sample; the result counts reappliedChunks / reappliedRecords
+  /// and no latestServerTime.
   Future<ApplyResult> _apply(
     List<RemoteChunk> chunks, {
     int? reference,
     bool release = false,
     List<String> forgetHeld = const [],
+    Map<String, List<int>>? reapply,
   }) async {
+    assert(reapply == null || release, 'a re-apply is a release');
     final now = wallMillis();
     final issues = <SyncIssue>[];
     void issue(SyncIssueCode code, String message, {EntityRef? ref}) =>
@@ -465,18 +558,25 @@ final class DownloadPipeline {
 
     // 2–3. Own chunks, format, decoding (S-13: records of unknown kinds held, 6.3.3).
     final decoded = <(RemoteChunk, List<SyncRecord>)>[];
+    // Re-apply: per decoded chunk, the original index of each of its records.
+    final decodedIndexes = <List<int>>[];
+    // Re-apply: records settled (gone from sync.heldRecords) and those K1 holds (→ ra).
+    final settled = <(String, int)>[];
+    final heldUntil = <(String, int), int>{};
     final newlyHeldKinds = <String>{};
     var newlyHeld = 0;
     for (final c in fresh) {
-      latest = latest == null
-          ? c.serverTime
-          : ServerCursor.max(latest, c.serverTime);
+      if (reapply == null) {
+        latest = latest == null
+            ? c.serverTime
+            : ServerCursor.max(latest, c.serverTime);
+      }
       if (!release) {
         cursor = cursor == null
             ? c.serverTime
             : ServerCursor.max(cursor, c.serverTime);
       }
-      final own = c.authorNodeId == sync.deviceNodeId;
+      final own = reapply == null && c.authorNodeId == sync.deviceNodeId;
       if (own) onOwnChunk(c);
       if (!release && !(own && c.kind == ChunkKind.snapshot)) {
         stats.addChunk(c.scope);
@@ -500,6 +600,17 @@ final class DownloadPipeline {
           isKnownKind: _knownNames.contains,
         );
         decoded.add((c, payload.records));
+        if (reapply != null) {
+          // The known records are the payload positions the unknown ones leave (in a
+          // re-apply every kind is known — knownChunks — so normally all of them).
+          final unknownAt = {for (final u in payload.unknown) u.index};
+          final original = reapply[c.id]!;
+          decodedIndexes.add([
+            for (var i = 0; i < original.length; i++)
+              if (!unknownAt.contains(i)) original[i],
+          ]);
+          continue;
+        }
         if (payload.unknown.isNotEmpty) {
           // Dedup by (kind, id, fv): a chunk received again (overlap, K2 release) adds
           // nothing; one the mark covers is not stored.
@@ -514,6 +625,11 @@ final class DownloadPipeline {
         }
       } on FormatException catch (e) {
         issue(SyncIssueCode.malformedRemoteData, 'chunk ${c.id}: ${e.message}');
+        // Bytes this app cannot read although it knows their kinds: skipped like any
+        // malformed chunk, and no longer kept.
+        if (reapply != null) {
+          settled.addAll([for (final i in reapply[c.id]!) (c.id, i)]);
+        }
       }
     }
     if (newlyHeld > 0) {
@@ -543,10 +659,11 @@ final class DownloadPipeline {
     final uid = backend.uid;
     final merged = <EntityRef, SyncRecord>{};
     var heldCount = 0, dropped = 0, rejected = 0;
-    for (final (c, records) in decoded) {
+    for (final (n, (c, records)) in decoded.indexed) {
       final g = reference ?? RecordGate.referenceMillis(c.serverTime, now);
       int? releaseAt;
-      for (final record in records) {
+      for (final (j, record) in records.indexed) {
+        final at = reapply == null ? null : (c.id, decodedIndexes[n][j]);
         final verdict = RecordGate.check(
           record,
           scope: c.scope,
@@ -575,17 +692,28 @@ final class DownloadPipeline {
             dropped++;
           case GateHold(:final releaseAtMillis):
             heldCount++;
+            if (at != null) {
+              heldUntil[at] = releaseAtMillis;
+              continue;
+            }
             if (releaseAt == null || releaseAtMillis > releaseAt) {
               releaseAt = releaseAtMillis;
             }
         }
+        // Accepted (applied, or rejected by the store below), skipped or dropped: done.
+        if (at != null) settled.add(at);
       }
+      if (reapply != null) continue;
       if (releaseAt != null) {
         held.hold(c.id, c.serverTime, releaseAt);
         heldChanged = true;
       } else if (held.release(c.id)) {
         heldChanged = true;
       }
+    }
+    if (reapply != null && (settled.isNotEmpty || heldUntil.isNotEmpty)) {
+      heldRecords.settle(applied: settled, heldUntil: heldUntil);
+      heldRecordsChanged = true;
     }
     final records = merged.values.toList(growable: false);
     final purges = [
@@ -627,15 +755,18 @@ final class DownloadPipeline {
       _heldRecordsText = heldRecordsText;
       _deferredFrom = deferredFrom;
       purged.absorb(meta);
+      if (reapply != null) return; // remember: false
       for (final c in fresh) {
         _applied.add(c.id);
       }
     }
 
     ApplyResult result({int applied = 0, Object? error}) => ApplyResult(
-      chunks: fresh.length,
+      chunks: reapply == null ? fresh.length : 0,
+      reappliedChunks: reapply == null ? 0 : fresh.length,
+      reappliedRecords: reapply == null ? 0 : applied,
       duplicates: duplicates,
-      applied: applied,
+      applied: reapply == null ? applied : 0,
       held: heldCount,
       dropped: dropped,
       rejected: rejected,

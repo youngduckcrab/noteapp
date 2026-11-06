@@ -180,6 +180,9 @@ final class HeldRecords {
   /// Stored records (SyncEngineDebug.heldRecords).
   int get length => _entries.length;
 
+  /// Some stored record waits for its K1 release time (ra — [dueChunks]).
+  bool get hasReleaseTimes => _entries.any((e) => e.releaseAt != null);
+
   /// Stored + marked kinds ('*' when corrupt).
   Set<String> get kinds => {for (final e in _entries) e.kind, ...?_mark?.kinds};
 

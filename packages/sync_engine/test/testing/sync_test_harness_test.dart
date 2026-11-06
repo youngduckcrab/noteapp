@@ -353,7 +353,8 @@ void main() {
 
     test('knownKinds: an old-app device applies the known records of a mixed '
         'chunk, holds the handwriting (debug.heldRecords, sync.heldRecords) and '
-        'reports needsAppUpdate', () {
+        'reports needsAppUpdate; restart with every kind → re-applied → '
+        'converged', () {
       withHarness((h, async) {
         final a = h.device('A');
         final old = h.device('B', knownKinds: noHandwriting);
@@ -412,6 +413,14 @@ void main() {
           ),
         );
         h.checkConverged([a]);
+        // (S2-7b) The app update: restart with every kind → re-applied → converged.
+        h.restart('B');
+        h.settle();
+        expect(old.handwritingOf(p), isNotNull);
+        expect(old.engine.debug.reappliedRecords, 1);
+        expect(old.engine.debug.heldRecords, 0);
+        expect(old.store.meta['sync.heldRecords'], '');
+        h.checkConverged([a, old]);
       });
     });
 
