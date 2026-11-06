@@ -13,6 +13,7 @@ import 'pen/pen_settings_popup.dart';
 import 'pen/quick_pen_popup.dart';
 import 'presets/preset_manager_sheet.dart';
 import 'presets/save_preset_dialog.dart';
+import 'shape/shape_style_controls.dart';
 
 /// Toolbar anchors the popups follow (CompositedTransformTarget links).
 class PopupAnchors {
@@ -148,6 +149,17 @@ class _PopupHostState extends ConsumerState<PopupHost> {
         link: null,
         at: globalPosition,
         panel: const RecolorPanel(),
+      ),
+      // (v2, E2-09) the shape tool popup and a selected shape's '스타일'.
+      ShapeToolPopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const ShapeToolPanel(),
+      ),
+      ShapeStylePopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const ShapeStylePanel(),
       ),
       EraserSettingsPopup() => (
         link: LinkPick.eraser,

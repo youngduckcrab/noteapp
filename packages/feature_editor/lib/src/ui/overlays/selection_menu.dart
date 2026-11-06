@@ -1,7 +1,7 @@
 // lib/src/ui/overlays/selection_menu.dart — 04-editor 6.6.5 (selection menu);
 // (v2) m5-7/04-editor 6.7.1 (items), 6.7.2 ('색 ●' → the recolor popup),
 // 6.7.3 (cut · copy · delete · duplicate); (E2-08) 꼭짓점 편집 and 비율 고정
-// 풀기/잠그기 in '⋯' (6.6.4, 6.6.5).
+// 풀기/잠그기 in '⋯' (6.6.4, 6.6.5); (E2-09) 스타일 for shapes (6.7.5).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -18,11 +18,13 @@ import '../../text/text_edit_session.dart';
 import '../../tools/selection.dart';
 import '../../tools/selection_menu_model.dart';
 import '../editor_strings.dart';
+import '../shape/shape_style_controls.dart';
 import 'selection_frame_painter.dart' show selectionRepaint;
 
 /// A rounded bar 8 px above the selection frame (below it when there is no
 /// room). (v2, 6.7.1) [잘라내기] [복사] [삭제] [색 ●] [확장 항목 ≤ 2] [⋯]; '⋯'
-/// (더보기) opens 복제 · 90° 돌리기 · (E2-08) (단일 다각형) 꼭짓점 편집 ·
+/// (더보기) opens 복제 · 90° 돌리기 · (E2-09) (도형만) 스타일 · (E2-08) (단일
+/// 다각형) 꼭짓점 편집 ·
 /// (단일 텍스트) 편집 · (E2-08) (단일 이미지) 비율 고정 풀기/잠그기 · 넘친 확장
 /// 항목 · 선택 해제. Hidden while the selection is dragged. A sibling of the page area's Listener (6.4.3), so its taps
 /// never reach the input router; the '⋯' menu sits in the overlay.
@@ -117,6 +119,9 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
   /// item started).
   bool _hidden = false;
 
+  /// (E2-09) The '⋯' button's context (the '스타일' popup opens under it).
+  BuildContext? _moreContext;
+
   /// Items whose isVisible threw during this menu opening (reported once).
   final Set<String> _visibleErrors = {};
 
@@ -161,6 +166,20 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
     ref
         .read(editorPopupProvider.notifier)
         .open(RecolorPopup(globalPosition: at));
+  }
+
+  /// (E2-09, 6.7.5) '스타일': the shape style popup under the '⋯' button.
+  void _openStyle() {
+    final box = _moreContext?.findRenderObject();
+    Offset? at;
+    if (box is RenderBox && box.attached && box.hasSize) {
+      at =
+          box.localToGlobal(box.size.bottomLeft(Offset.zero)) +
+          const Offset(-12, -6);
+    }
+    ref
+        .read(editorPopupProvider.notifier)
+        .open(ShapeStylePopup(globalPosition: at));
   }
 
   /// 4.3.1: the context is made now (a value copy), onSelected starts
@@ -234,6 +253,10 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
             selection.elementIds,
           );
           final single = model.single;
+          final shapes = ShapeStylePanel.shapesOf(
+            session.pageIfLoaded(selection.pageId),
+            selection,
+          );
           final extensions = _visibleItems(
             slotItems,
             slotItems.isEmpty ? null : commands.selectionContext(),
@@ -326,6 +349,12 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
                           ? null
                           : () => _fromMore(commands.rotateSelection90),
                     ),
+                  if (shapes.isNotEmpty)
+                    _MoreItem(
+                      key: SelectionMenu.styleKey,
+                      label: EditorStrings.selectionStyle,
+                      onPressed: readOnly ? null : () => _fromMore(_openStyle),
+                    ),
                   if (single != null && hasVertexMode(single))
                     _MoreItem(
                       key: SelectionMenu.verticesKey,
@@ -380,13 +409,18 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
                     onPressed: () => _fromMore(commands.clearSelection),
                   ),
                 ],
-                child: IconButton(
-                  key: SelectionMenu.moreKey,
-                  onPressed: _toggleMore,
-                  icon: const Icon(
-                    Icons.more_horiz,
-                    semanticLabel: EditorStrings.selectionMore,
-                  ),
+                child: Builder(
+                  builder: (moreContext) {
+                    _moreContext = moreContext;
+                    return IconButton(
+                      key: SelectionMenu.moreKey,
+                      onPressed: _toggleMore,
+                      icon: const Icon(
+                        Icons.more_horiz,
+                        semanticLabel: EditorStrings.selectionMore,
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

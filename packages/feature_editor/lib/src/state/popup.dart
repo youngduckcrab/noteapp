@@ -68,6 +68,34 @@ final class RecolorPopup extends EditorPopup {
   int get hashCode => Object.hash(RecolorPopup, globalPosition);
 }
 
+/// (v2, E2-09 — m5-7/04-editor 6.9.1) The shape tool popup (kind, style);
+/// at [globalPosition] or centred (the toolbar's shape button — E2-13 —
+/// will anchor it).
+final class ShapeToolPopup extends EditorPopup {
+  const ShapeToolPopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ShapeToolPopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(ShapeToolPopup, globalPosition);
+}
+
+/// (v2, E2-09 — 6.7.5) The selection menu's '스타일' (selected shapes).
+final class ShapeStylePopup extends EditorPopup {
+  const ShapeStylePopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ShapeStylePopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(ShapeStylePopup, globalPosition);
+}
+
 final class EraserSettingsPopup extends EditorPopup {
   const EraserSettingsPopup();
 
