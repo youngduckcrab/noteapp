@@ -391,7 +391,7 @@
 | R2-final | 기반 단계에서 완료 | `708a1c1` | (위 '### R2-final') |
 | 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
 | R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
-| R2-B8b | 완료 | (아래 'R2-B8b' 절) | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
+| R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
 | J0 | 남음 | | `tool/test/native_config_test.dart`, 웹 빌드 측정 표(6.15), CI 실측 표(6.16 — 첫 체크포인트 푸시 뒤, 총괄) |
 | J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
 | J2 | 남음 | | `native_config_test`(서명 분기)·`workflows_test`(서명 세 갈래) — 실제 서명은 GitHub(H6) |
@@ -434,6 +434,8 @@
 | `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 110초 |
 
 #### R2-B8b — 라우팅 `?page=&focus=` · `pencil_bridge` Dart 표면 · Pencil 어댑터 (계획 8.1b)
+
+- 커밋: `6e7b753`, 이 기록 줄은 그 뒤 커밋.
 
 - **① 라우팅**(4.6.6·6.8, S2-6): `AppRoutes.focusQueryKey`·`note(noteId, pageId:, focus:)`, `FocusRectCodec`(`encode` 0.1 pt 반올림·끝 `.0` 없음·쉼표 그대로, `decode` 네 수·유한·`l ≤ r`·`t ≤ b`·`|v| ≤ 100000`·`%2C` 받음), `EditorRouteArgs.initialFocusRectPt`(page 없으면 assert), `AppNavigator.openNote(…, focusRectPt:)`, 라우터가 `page`가 있을 때만 `focus`를 해석, 운영 화면 빌더 `LibraryScreen(onOpenNoteAt:)` → `openNote` → `EditorScreen(initialFocusRectPt:)`. 자리표시 에디터는 'focus: …' 줄을 보인다.
 - **② `packages/pencil_bridge`**(4.4.2·4.4.3·6.12.1): `lib/pencil_bridge.dart`(계약 이름 7개만 `show`), `src/pencil_events.dart`(값 타입 — `==`·`hashCode`·`toString`, `PencilCapabilities.fromWire`·`unsupported`), `src/wire.dart`(`PencilWire` 상수·`decode`), `src/pencil_bridge_impl.dart`(`isSupported`, `capabilities()` — 지원 안 함 → 채널 호출 없음, 오류 다시 던짐; `events` — 캐시한 `receiveBroadcastStream().handleError(…).map(decode).where(…).cast()`, `asBroadcastStream` 없음; `debugDroppedEvents`·`debugReset`). R2-B1 스모크 시험은 지웠다(실제 시험으로 바뀜). README 갱신. Swift는 아직 R2-B1의 빈 등록(J12) — 그때까지 iOS에서 `capabilities()`는 `MissingPluginException`이고 어댑터가 대체 능력을 쓴다.
@@ -499,7 +501,7 @@
 
 - 체크포인트 병합 요청(INFRA-F3, Q14): R2-B8a·R2-B8b·J0 끝마다 결과 보고에 적는다.
 - **R2-B8a 체크포인트**: `a4c9cca`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
-- **R2-B8b 체크포인트**: 아래 'R2-B8b' 커밋(+ 기록 커밋) — 총괄에게 `main` 병합 요청(D24). J0 ③ 웹 빌드 실측이 이 체크포인트 뒤다.
+- **R2-B8b 체크포인트**: `6e7b753`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(D24). J0 ③ 웹 빌드 실측이 이 체크포인트 뒤다.
 
 #### 다음 세션 메모
 
