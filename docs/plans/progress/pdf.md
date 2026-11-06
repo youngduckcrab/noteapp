@@ -2,6 +2,7 @@
 
 ## 요약
 
+- (2차) 기반 단계 R2-B4 완료 — `5636d4e`(pdf_io T20 + media_io T30 한 커밋, 2026-11-06). 자세한 기록은 맨 아래 '## 2차'. 다음: 동시 개발(pdf_io T21~, media_io T31~). INFRA `pdf_module_test` 기대값이 3개 빌더로 바뀌어야 한다(변경 요청).
 - 마지막 세션: 통합 단계 1 (실제 CORE·INK 합류 뒤 — 아래 '통합 단계' 절). integration 태그 4파일 19개(기존 3파일 + 새 `real_wiring_test`) 실제 CORE·INK·PDFium으로 통과, VM 580·Chrome 54 통과, 변경 요청 없음
 - 다음 할 일: INFRA 연결 몫(INFRA 담당) — `cd app && flutter build web --release`(V4), INFRA 스모크(V5·V6)에서 `PdfModule`·`FeatureWiringModule`의 PDF override가 실제 구현이고 중복 없음(계획 10 5). 그 뒤 사용자 iPad 확인(9.2 U1~U19, 통합 V7 ①). 열린 항목: FreeType·IJG 문서 고지 문구(THIRD_PARTY_NOTICES.md 3절, 2단계 출시 전)
 
@@ -218,3 +219,45 @@
 ### 변경 요청·의존성
 
 - CORE·INK 결함 없음 — 변경 요청 없음. 새 외부 의존 없음(테스트가 쓰는 `flutter_riverpod/misc.dart`는 이미 의존).
+
+## 2차
+
+계획 docs/plans/m5-7/06-pdf.md(승인 · 계약 v2.2 — 7.6.2 R2-B4 행, 8.1 T20·T30). 바탕: `main` `f3e4fcc`(R2-B3 INK `fd3370f` 위), 커밋 직전 `fa194b5`(EDITOR R2-B5 `78d7f25`) 위에 올림.
+
+### 작업 표 (2차)
+
+| ID | 상태 | 커밋 | 비고 — 완료 조건 |
+|---|---|---|---|
+| T20 | 기반 단계에서 완료 | 5636d4e | `pdfIoOverrides()` v2(`[pdf, ...ink.defaultPageBackgroundBuilders(ref)]` = pdf·image·template), `PdfSearchIndexer`(원문 생성자 하나 — `start()` 아무것도 안 함·`dispose()` 멱등) + src 전용 `createPdfSearchIndexer`·`IndexerGate`·`AppIndexerGate`·`AlwaysOpenIndexerGate` + `pdfSearchIndexerProvider`, barrel 새 이름 18개(최종 모양 — `PdfAffine`·값 동등·`PdfPagePlan.isEmpty`/`hasReferences` 동작), `PdfInkVectorizer.planPage`(`InkEngineVectorizer` = 1차 `vectorize` L-1 순서 + 이미지 배경 참조, `BoxInkVectorizer` v2 = 객체 참조), `PdfRenderBudget.web()` 미리보기 24 MiB(합 104 MiB), `tool/prepare_web_test.dart`가 CORE 스크립트 `--out test/web` 호출(+ `.gitignore` 2줄). 시험: `contract/api_surface_test` v2(18개·src 전용 이름 barrel 밖·공개 생성자 `(NoteStore)` 하나·`start`/`dispose`만), `unit/init_v2_test`(6.3 ①~④ + provider 본문), `unit/plan_items_test`(`PdfAffine.frame` = `ElementFrame.corners` ±1e-6 — 0·90·−30·180·45°, 합성 순서, 값 동등, 두 벡터화기 `planPage`), 1차 시험 전부(예산 단언 104 MiB) |
+| T30 | 기반 단계에서 완료 | 5636d4e | 원문 7개 이름: `initializeMediaIo`(첫 config 유지·다른 config assert), `MediaIoConfig`(값 동등·범위 assert), `mediaIoOverrides()` = `[]`(CORE 기본 '지원 안 함'), `supportedImageSources()` = `{}`, `importImageForNote` = `null`, `RecordingPanel` 자리표시(제목 '녹음' + 닫기 → `onClose`), `mediaDevOverlayLinesProvider` = 빈 목록. `testing.dart`: `registerMediaWebPlugins`(Chrome 본문은 조건부 export), VM 전용 가짜 세 개(`extends`만·믹스인 없음·`assert(!kIsWeb)`·기본 동작), `installFakeMediaPlatforms`(임시 디렉터리 훅 — `testing_vm_native.dart`). `tool/prepare_web_test.dart`, `.gitignore`, README. 시험: `contract/api_surface_test`(barrel = 7개, testing.dart 6개), `unit/init_test`, `widget/recording_panel_placeholder_test`(iPad 13" 세로·가로 40 % 자리, 탭 대상 가이드라인), `unit/no_platform_imports_test`(+ `lib/`에 `MockPlatformInterfaceMixin`·`package:plugin_platform_interface/` 없음), `unit/testing_fakes_test`, `web/testing_registrar_browser_test`(두 번 불러도 됨·가짜 세 개와 `installFakeMediaPlatforms()`는 `AssertionError`) |
+
+### 확인 (2026-11-06)
+
+| 검사 | 결과 |
+|---|---|
+| `ws test --package pdf_io` (VM) | 604 통과 + 7 skip(1차 580 + 2차 24) |
+| `ws test --package pdf_io --platform chrome` | 54 통과 + 1 skip, prepare ok(CORE 파일 포함). 첫 시도는 1차부터 알려진 헤드리스 Chrome 멈춤(`pdfrx_smoke_browser_test` 적재 중)으로 15분 뒤 다시 — `ok (try 2, after a time-out)` |
+| `ws test --package media_io` (VM) | 37 통과 |
+| `ws test --package media_io --platform chrome` | 3 통과, prepare ok |
+| `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
+| pdf_io perf `render_scroll_sim_test`(웹 예산) | 최고 102.6 MiB ≤ 104 MiB |
+| 두 패키지 `flutter analyze --fatal-infos` | 0건 |
+| `ws check`, 루트 `flutter analyze --fatal-infos` | 깨끗한 내보내기(`git archive fa194b5` + 이 커밋의 두 패키지)에서 위반 0·0건. 작업 트리에서는 LIBRARY가 작업 중인 `ink_recognition/test/shared/trace_cases.dart`의 R11(서식) 1건만 — PDF 경로 아님 |
+| `pdfIoOverrides()`만 넣은 컨테이너 | `ink.pageBackgroundBuildersProvider` 읽기 예외 없음, 엔진·풀·게이트웨이·렌더러·색인기·`noteStoreProvider`·`assetStoreProvider`를 만들지 않음(`init_v2_test` ③) |
+
+### 계획과 다르게 한 점 (R2-B4)
+
+- 웹 미리보기 예산 112 MiB를 단언하던 1차 시험은 계획이 적은 세 곳(`api_surface_test`·`foundation_browser_test`·`perf/render_scroll_sim_test`) 말고 `unit/render_cache_test`에도 있어 함께 104 MiB로 고쳤다.
+- 1차 `unit/init_test`·`web/foundation_browser_test`의 '빌더 2개' 단언은 계약 v2(3개)에 맞게 고쳤다. 6.3 ①~④는 새 `unit/init_v2_test`에 따로 있다.
+- `PdfSearchIndexer`의 상태를 보는 시험 도우미 `debugPdfSearchIndexerState`(같은 라이브러리의 src 전용 함수, `@visibleForTesting`)를 두었다. 공개 클래스에 멤버를 더하지 않으려고 함수로 했다. 공개 생성자의 자기 문서 풀은 첫 조각(T27)에서 만들고, R2-B4 생성자는 아무것도 만들지 않는다.
+- `AppIndexerGate.nextSlot()`은 `UnimplementedError('PDF T27: …')`다 — R2-B4의 `start()`가 아무것도 안 하므로 불리지 않는다.
+- 내보내기 경고 v2 세 개의 결과 시트 문구(4.1.5)를 `PdfStringsKo`·`warningLines`에 지금 넣었다(sealed `switch`가 빠짐없어야 컴파일됨). 1차 경고처럼 `==`는 두지 않았다.
+- 시험 지원 벡터화기 두 개(`test/support/perf_compose.dart`·`export_world.dart`)에 `planPage`를 더했다(인터페이스에 멤버가 늘어 컴파일용) — `vectorize` 결과를 그대로 감쌌다.
+- media_io `testing.dart`: 가짜 세 개는 `lib/src/testing/fake_platforms.dart`에 있고 `testing.dart`가 `show`로 내보낸다. `FakeRecordPlatform`은 생성자 인자 `permission`을 바꿀 수 있는 필드로 두었고, `FakeJustAudioPlatform.durations`(출처별 길이), `FakeImagePickerPlatform.sources`(요청된 출처), `MediaFakePlatforms.directory`(임시 디렉터리)를 더했다. 녹음 파일 쓰기는 `fake_platforms.dart`가 조건부 export(`testing_vm_factory.dart`)로 한다(그 파일 자체는 `dart:io` 없음). 내부 훅은 `lib/src/testing/test_hooks.dart`의 `MediaTestHooks`(임시 디렉터리·포그라운드 서비스 끔) — 서비스가 생기면(T31b·T32) 읽는다.
+- R2-B1 스모크 시험 `test/media_io_smoke_test.dart`는 지웠다(골격의 '소유 영역이 바꿈' 주석대로 — 위 시험들이 대신함). `test/support/ipad.dart`는 1차 pdf_io 도우미 복사본(9.1).
+- 이 '2차' 절은 PDF 진행 기록이라 이 단계 경로 목록 밖이지만 영역 자기 파일이다(2.2).
+
+### 변경 요청
+
+- [INFRA] `app/test/modules/pdf_module_test.dart` 116–119행 'default arguments: … INK reads two background builders'는 이제 3개다 — 계약 7.2.12 v2 `[PdfBackgroundLayerBuilder, ImageBackgroundLayerBuilder, TemplateBackgroundLayerBuilder]`로 기대값을 바꿔 주세요. 103행(PDF 실패 시 INK 기본 목록)은 R2-B3 때부터 실패 중 — `[ImageBackgroundLayerBuilder, TemplateBackgroundLayerBuilder]`.
+
