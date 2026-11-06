@@ -7,8 +7,10 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, it } from "node:test";
+import { ClaudeEngine } from "../src/engines/claude.js";
 import { EngineError, type EngineInput, type MathEngine } from "../src/engines/engine.js";
 import { FakeEngine } from "../src/engines/fake.js";
+import { MathpixEngine } from "../src/engines/mathpix.js";
 import { createRegistry, type EngineFactories, type EngineSettings } from "../src/engines/registry.js";
 import type { EngineName } from "../src/protocol.js";
 
@@ -112,12 +114,16 @@ describe("createRegistry", () => {
     assert.deepEqual(calls, [{ apiKey: "k", model: "m" }]);
   });
 
-  it("complete settings but no adapter yet (S2-12) → notConfigured", () => {
-    assert.equal(
-      kindOf(resolveWith({ mathEngine: "mathpix", mathpixAppId: "app", apiKey: "k" }, "auto")),
-      "notConfigured",
-    );
-    assert.equal(kindOf(resolveWith({ mathEngine: "claude", claudeModel: "m", apiKey: "k" }, "auto")), "notConfigured");
+  it("complete settings → the real adapters by default (S2-12), built from the settings", () => {
+    const mathpix = resolveWith({ mathEngine: "mathpix", mathpixAppId: "app", apiKey: "k" }, "auto");
+    assert.ok(mathpix instanceof MathpixEngine);
+    assert.deepEqual(mathpix.accepts, { strokes: true, png: true });
+    const claude = resolveWith({ mathEngine: "claude", claudeModel: "m", apiKey: "k" }, "auto");
+    assert.ok(claude instanceof ClaudeEngine);
+    assert.deepEqual(claude.accepts, { strokes: false, png: true });
+    assert.equal(claude.requestFor(Buffer.from("png"), "en").model, "m");
+    // Incomplete settings still answer before any adapter is built.
+    assert.equal(kindOf(resolveWith({ mathEngine: "claude", apiKey: "k" }, "auto")), "notConfigured");
   });
 
   it("a factory replaces the fake", () => {
@@ -166,7 +172,7 @@ describe("source rule (SYNC-M7)", () => {
   it("no engine adapter imports params; the registry does", () => {
     const dir = join(src, "engines");
     const files = readdirSync(dir).filter((f) => f.endsWith(".ts"));
-    assert.ok(files.includes("registry.ts") && files.includes("fake.ts"), files.join(","));
+    for (const f of ["registry.ts", "fake.ts", "mathpix.ts", "claude.ts"]) assert.ok(files.includes(f), files.join(","));
     for (const f of files) {
       assert.equal(importsParams(join(dir, f)), f === "registry.ts", f);
     }

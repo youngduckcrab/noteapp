@@ -5,13 +5,16 @@
 //
 // 'auto' follows MATH_ENGINE ('none' → notConfigured). A request that names an engine gets it only
 // when it is the configured one, or 'fake' where ALLOW_FAKE_ENGINE allows it. 'gemini' is always
-// notConfigured this round. The Mathpix and Claude adapters arrive with S2-12; until a factory for
-// them exists they are notConfigured as well, even when their settings are complete.
+// notConfigured this round. Mathpix needs MATHPIX_APP_ID and MATH_API_KEY, Claude CLAUDE_MODEL
+// (default '' → notConfigured, C23-02) and MATH_API_KEY; the adapters (S2-12) get them through their
+// constructors.
 
 import type { EngineName } from "../protocol.js";
 import { ALLOW_FAKE_ENGINE, CLAUDE_MODEL, MATH_API_KEY, MATH_ENGINE, MATHPIX_APP_ID } from "../params.js";
 import { EngineError, type EngineRegistry, type MathEngine } from "./engine.js";
+import { ClaudeEngine } from "./claude.js";
 import { FakeEngine } from "./fake.js";
+import { MathpixEngine } from "./mathpix.js";
 
 export interface EngineSettings {
   /** MATH_ENGINE: the engine 'auto' means ('none' → nobody answers). */
@@ -32,15 +35,17 @@ export interface EngineFactories {
   claude(opts: { apiKey: string; model: string }): MathEngine;
 }
 
-const defaultFactories: Partial<EngineFactories> = {
+const defaultFactories: EngineFactories = {
   fake: () => new FakeEngine(),
+  mathpix: (opts) => new MathpixEngine(opts),
+  claude: (opts) => new ClaudeEngine(opts),
 };
 
 function notConfigured(name: string, why: string): EngineError {
   return new EngineError("notConfigured", `engine ${name} is not configured (${why})`);
 }
 
-/** [settings] is read on every resolve; [factories] is the test seam (and S2-12's adapters). */
+/** [settings] is read on every resolve; [factories] is the test seam (defaults: the adapters). */
 export function createRegistry(
   settings: () => EngineSettings,
   factories?: Partial<EngineFactories>,
