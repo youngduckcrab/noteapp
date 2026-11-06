@@ -49,6 +49,7 @@ import 'lasso_interaction.dart';
 import 'pen_interaction.dart';
 import 'selection.dart';
 import 'selection_hit_test.dart';
+import 'selection_priority.dart';
 import 'selection_transform_interaction.dart';
 import 'tool_controller.dart';
 import 'tool_interaction.dart';
@@ -176,19 +177,38 @@ class InteractionHost implements InputTargets {
     // for this contact only; ToolState does not change (6.2.3).
     final temporary = _temporaryToolFor(gesture);
     final tool = temporary ?? tools.activeTool;
-    // ③ lasso tool on the selection → selection transform (not for a
-    // temporary lasso: it starts a new lasso).
-    if (temporary == null && tool == EditorTool.lasso) {
-      final transform = _beginTransform(sample, source);
-      if (transform != null) {
-        _lastStarted = transform;
-        return transform;
+    // ③ (v2 6.3.6 5 — selection priority (a′), 6.6.2) a handle → the
+    // selection's handle drag whatever the tool; the body → a move with the
+    // lasso tool or a lasso / paste / insert selection, else the selection
+    // is dropped and the tool runs. A temporary lasso always starts a new
+    // lasso (E2-04a).
+    if (tool != EditorTool.lasso || temporary == null) {
+      final at = _selectionHitAt(sample.position);
+      if (at != null) {
+        final selection = _ref.read(editorSelectionProvider)!;
+        switch (selectionPriority(selection.origin, tool, at.kind)) {
+          case SelectionPriority.handle:
+          case SelectionPriority.move:
+            final transform = _beginTransform(
+              sample,
+              source,
+              handle: at.handle,
+              tool: tool,
+            );
+            if (transform != null) {
+              _lastStarted = transform;
+              return transform;
+            }
+          case SelectionPriority.drop:
+            selections.clear();
+        }
       }
     }
-    // ④ gap / outside the pages → nothing (the lasso clears the selection).
+    // ④ gap / outside the pages → nothing; (v2 6.3.6 6) the selection is
+    // cleared for every tool.
     final hit = _viewport.hitPage(sample.position);
     if (hit == null) {
-      if (tool == EditorTool.lasso) selections.clear();
+      selections.clear();
       return null;
     }
     // Touching another page clears the selection.
@@ -296,18 +316,37 @@ class InteractionHost implements InputTargets {
     _ref.read(editorSelectionProvider.notifier).select(pageId, ids);
   }
 
-  /// ③: a handle → resize from that corner, the body → move (6.6.5).
+  /// (v2) Where [screen] lands on the selection frame: a handle (with it),
+  /// the body or outside; null when there is no selection on screen.
+  ({SelectionHitKind kind, ink.SelectionHandle? handle})? _selectionHitAt(
+    Offset screen,
+  ) {
+    final rect = selectionRectOnScreen(
+      _viewport,
+      _pages,
+      _ref.read(editorSelectionProvider),
+    );
+    if (rect == null) return null;
+    final handle = SelectionHitTest.hitHandle(rect, screen);
+    if (handle != null) return (kind: SelectionHitKind.handle, handle: handle);
+    if (SelectionHitTest.hitBody(rect, screen)) {
+      return (kind: SelectionHitKind.body, handle: null);
+    }
+    return (kind: SelectionHitKind.outside, handle: null);
+  }
+
+  /// ③: a handle → resize from that corner, the body → move (6.6.5) after
+  /// the move-start threshold; (v2) a body tap before it is a selection tap
+  /// (6.6.2): the text tool on a single text box starts editing it, else
+  /// nothing.
   ToolInteraction? _beginTransform(
     InputSample sample,
-    InteractionSource source,
-  ) {
+    InteractionSource source, {
+    required ink.SelectionHandle? handle,
+    required EditorTool tool,
+  }) {
     final selection = _ref.read(editorSelectionProvider);
-    final rect = selectionRectOnScreen(_viewport, _pages, selection);
-    if (selection == null || rect == null) return null;
-    final handle = SelectionHitTest.hitHandle(rect, sample.position);
-    if (handle == null && !SelectionHitTest.hitBody(rect, sample.position)) {
-      return null;
-    }
+    if (selection == null) return null;
     final mount = _pages[selection.pageId];
     final sel = inkSelectionOf(_pages, selection);
     final index = _viewport.pages.indexWhere((p) => p.id == selection.pageId);
@@ -333,7 +372,56 @@ class InteractionHost implements InputTargets {
       onFinished: () {
         if (!_disposed) notifier.setDragging(false);
       },
+      onTap: () => _selectionTap(tool),
     );
+  }
+
+  /// (v2, 6.6.2) A tap on the selection body: with the text tool, a single
+  /// text box starts its edit session (the selection goes); otherwise
+  /// nothing.
+  void _selectionTap(EditorTool tool) {
+    if (_disposed || tool != EditorTool.text) return;
+    final sel = inkSelectionOf(_pages, _ref.read(editorSelectionProvider));
+    if (sel == null || sel.strokeIds.isNotEmpty || sel.objects.length != 1) {
+      return;
+    }
+    final box = sel.objects.single;
+    if (box is! core.TextBoxObject) return;
+    _ref.read(editorSelectionProvider.notifier).clear();
+    _ref.read(editorTextEditProvider.notifier).start(box, isNew: false);
+  }
+
+  /// (v2, 6.3.5 ④) A one-finger tap with the lasso or shape tool on an
+  /// object selects it (origin lasso / tap); the text tool selects an object
+  /// that is not a text box (origin tap — a text box is the text tool's own
+  /// tap, 6.3.5 ⑤, E2-10). Not on a read-only note.
+  bool _tapSelectObject(Offset screen) {
+    final tool = _ref.read(editorToolProvider).activeTool;
+    if (tool != EditorTool.lasso &&
+        tool != EditorTool.shape &&
+        tool != EditorTool.text) {
+      return false;
+    }
+    if (_ref.read(editorReadOnlyProvider)) return false;
+    final hit = _viewport.hitPage(screen);
+    if (hit == null) return false;
+    final mount = _pages[hit.pageId];
+    if (mount == null || mount.isDisposed || !mount.isLoaded.value) {
+      return false;
+    }
+    final object = mount.controller.hitTestObject(
+      _viewport.screenToPage(hit.index, screen),
+    );
+    if (object == null) return false;
+    if (tool == EditorTool.text && object is core.TextBoxObject) return false;
+    _ref.read(editorSelectionProvider.notifier).select(
+      hit.pageId,
+      {object.id},
+      origin: tool == EditorTool.lasso
+          ? SelectionOrigin.lasso
+          : SelectionOrigin.tap,
+    );
+    return true;
   }
 
   void _onStrokeCommitted(core.StrokeStyle style) {
@@ -439,15 +527,22 @@ class InteractionHost implements InputTargets {
     }
   }
 
-  /// True only if the lasso tool is active, a selection exists and [screen]
-  /// hits its frame (a corner handle or the inflated body — 6.6.5).
+  /// (v2) A selection exists and [screen] hits a handle, or its body when a
+  /// body drag moves it (selectionPriority — 6.6.2).
   @override
   bool hitsSelection(Offset screen) {
     if (_disposed) return false;
-    if (_ref.read(editorToolProvider).activeTool != EditorTool.lasso) {
-      return false;
-    }
-    return _onSelection(screen);
+    // (v2, 6.3.6) the rule of step ③: a handle always, the body when it
+    // moves (the lasso tool, or a lasso / paste / insert selection).
+    final at = _selectionHitAt(screen);
+    final selection = _ref.read(editorSelectionProvider);
+    if (at == null || selection == null) return false;
+    return selectionPriority(
+          selection.origin,
+          _ref.read(editorToolProvider).activeTool,
+          at.kind,
+        ) !=
+        SelectionPriority.drop;
   }
 
   bool _onSelection(Offset screen) {
@@ -495,6 +590,8 @@ class InteractionHost implements InputTargets {
           _ref.read(editorPopupProvider.notifier).close();
         } else if (_tapToSeek(centroid, TapKind.finger)) {
           // ③ taken: the selection stays.
+        } else if (_tapSelectObject(centroid)) {
+          // ④ (v2) the object under the tap is the selection now.
         } else {
           _commands.clearSelection();
         }

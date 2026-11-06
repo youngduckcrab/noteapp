@@ -153,8 +153,10 @@ class EditorCommands {
   /// Pastes the clipboard (6.6.7): at [screenPoint] when it is on a page,
   /// else centred on the screen centre in the current page's coordinates
   /// (repeated pastes move +16 pt each). One core.AddStrokes through _runAsync,
-  /// then the lasso tool with the pasted strokes selected (controller.select —
-  /// contract 7.2.15 paste rule). Ignored on a read-only note.
+  /// then the pasted strokes selected (controller.select — contract 7.2.15
+  /// paste rule). (v2, m5-7/04-editor 6.6.3 — Q8) the tool stays; the
+  /// selection's origin is paste, so a body drag moves it with any tool.
+  /// Ignored on a read-only note.
   Future<void> paste({Offset? screenPoint}) async {
     if (_disposed || _ref.read(editorReadOnlyProvider)) return;
     final clipboard = _ref.read(editorClipboardProvider.notifier);
@@ -188,10 +190,9 @@ class EditorCommands {
       core.AddStrokes(pageId: page.id, strokes: strokes),
     );
     if (_disposed || receipt == null) return;
-    _ref.read(editorToolProvider.notifier).selectTool(EditorTool.lasso);
     _ref.read(editorSelectionProvider.notifier).select(page.id, {
       for (final s in strokes) s.id,
-    });
+    }, origin: SelectionOrigin.paste);
   }
 
   /// Deletes the selected strokes: commitInkEdit(controller, sel.delete())

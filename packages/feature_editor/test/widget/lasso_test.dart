@@ -377,12 +377,17 @@ void main() {
     final union = pasted.map(_rectOf).reduce((a, b) => a.expandToInclude(b));
     expect(union.center.dx, closeTo(at.dx, 0.05));
     expect(union.center.dy, closeTo(at.dy, 0.05));
-    // The lasso tool with the pasted strokes selected (controller.select).
+    // The pasted strokes selected (controller.select); (v2, m5-7/04-editor
+    // 6.6.3) the tool stays (the lasso tool here) and the origin is paste.
     expect(h.container.read(editorToolProvider).activeTool, EditorTool.lasso);
     expect(h.controllerOf(1).selection!.strokeIds, ids);
     expect(
       _selection(h),
-      EditorSelection(pageId: h.pageId(1), elementIds: ids),
+      EditorSelection(
+        pageId: h.pageId(1),
+        elementIds: ids,
+        origin: SelectionOrigin.paste,
+      ),
     );
     expect(h.controllerOf(0).selection, isNull);
     expect(find.byKey(EditorContextMenu.pasteKey), findsNothing);
