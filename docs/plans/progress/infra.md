@@ -403,9 +403,9 @@
 | J8 | 완료 | `b0ffee5` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
 | J9 | 완료 | `ea21681` | `app/test/modules/recognition_wiring_test.dart`(새 — 필드 표·`done` 두 갈래·`execute` 감싸기·동기 시작), `media_wiring_test.dart`(새 — 패널·이미지 가져오기·`media` 섹션·복구 순서·상태 안 읽음), `search_wiring_test.dart`(새 — ≤ 4 Hz·형식·dispose), `feature_wiring_module_test.dart` v2(반복 id 3경우) |
 | J10 | 완료 | `fcf949d` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/pdf_module_test.dart` v2(기록용 리더 start 1·dispose 1·PDF 실패 → 작업 없음 + 기본 리더·실행기 안 0 → 10 → 20 순서) |
-| J11 | 완료 | (이 커밋) — 본문은 R2-B8b `6e7b753` | `app/test/routing/production_screens_test.dart`(J11 +4 — `%2C`·잘못된 focus 9가지(페이지는 열림)·page 없는 focus·폴더 검색 결과 → 보고된 주소 → 새로고침 → 같은 페이지·사각형 → 닫으면 홈), `app_router_test`(R2-B8b — 자리표시 화면 7경우) |
-| J12 | 완료 | (이 커밋) | `packages/pencil_bridge/test/pencil_wire_contract_test.dart`(28 — ⓪~⑨ + 가용성 판독기 자체 11경우), `pencil_bridge_test`(+1 — Swift 빌더 모양의 squeeze 순서·자세 없는 tap) — **컴파일은 `ios-compile.yml`(U19)**, 동작은 TestFlight 뒤(C-1) |
-| J13 | 완료 | (이 커밋) — 능력 조회 시간 제한·실패 처리·`timestamp`는 R2-B8b `6e7b753` | `app/test/pencil/pencil_stylus_extras_test.dart`(J13 +3 — `os`·대체 `?`·`seen` 전이(구독자 없으면 안 셈·tap·hover·모르는 단계는 안 셈·종류마다 알림 1번·되돌아가지 않음·능력 불변)·두 구독자에 알림 1번), `modules/feature_wiring_module_test.dart`(Pencil 5경우 — 지원·미지원·기본 포트·실패·500 ms 초과, J13: `os` '17.5'·'?'), `settings/about_section_test.dart`(J13 +5 — 지원 안 함 2·'iOS 17.5 · 더블탭 · 호버' → 스퀴즈 받음 → 롤 받음·섹션 자신의 구독·떠나면 구독 끊김·열기 전에 받은 것·읽기 실패 문구·가로) |
+| J11 | 완료 | `fe6100d` — 본문은 R2-B8b `6e7b753` | `app/test/routing/production_screens_test.dart`(J11 +4 — `%2C`·잘못된 focus 9가지(페이지는 열림)·page 없는 focus·폴더 검색 결과 → 보고된 주소 → 새로고침 → 같은 페이지·사각형 → 닫으면 홈), `app_router_test`(R2-B8b — 자리표시 화면 7경우) |
+| J12 | 완료 | `5b71ea3` | `packages/pencil_bridge/test/pencil_wire_contract_test.dart`(28 — ⓪~⑨ + 가용성 판독기 자체 11경우), `pencil_bridge_test`(+1 — Swift 빌더 모양의 squeeze 순서·자세 없는 tap) — **컴파일은 `ios-compile.yml`(U19)**, 동작은 TestFlight 뒤(C-1) |
+| J13 | 완료 | `f771299` — 능력 조회 시간 제한·실패 처리·`timestamp`는 R2-B8b `6e7b753` | `app/test/pencil/pencil_stylus_extras_test.dart`(J13 +3 — `os`·대체 `?`·`seen` 전이(구독자 없으면 안 셈·tap·hover·모르는 단계는 안 셈·종류마다 알림 1번·되돌아가지 않음·능력 불변)·두 구독자에 알림 1번), `modules/feature_wiring_module_test.dart`(Pencil 5경우 — 지원·미지원·기본 포트·실패·500 ms 초과, J13: `os` '17.5'·'?'), `settings/about_section_test.dart`(J13 +5 — 지원 안 함 2·'iOS 17.5 · 더블탭 · 호버' → 스퀴즈 받음 → 롤 받음·섹션 자신의 구독·떠나면 구독 끊김·열기 전에 받은 것·읽기 실패 문구·가로) |
 | J14 | 남음 | | `storage_section_test` v2·`about_section_test` v2·`licenses_test`·`diagnostic_report_test` v2 |
 | J14b | 남음 | | `v1_copy_section_test`·`backup_export_test`·`settings_sections_test` |
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
@@ -626,6 +626,7 @@
 
 #### J11 — 검색 결과 → 위치로 열기 마무리 (계획 8.2, 4.6.6·6.8)
 
+- 커밋: `fe6100d`, 이 기록 줄은 그 뒤 커밋.
 - 코드(라우터 `?page=&focus=`·`FocusRectCodec`·`LibraryScreen(onOpenNoteAt:)` → `openNote` → `EditorScreen(initialFocusRectPt:)`)는 R2-B8b ①에서 끝났다(`6e7b753`) — 이번에는 운영 화면 시험만 보탰다(코드 변경 없음).
 - `production_screens_test` +4: `%2C`로 받은 focus → 같은 사각형 · 읽을 수 없는 focus 9가지(`l > r`·`t > b`·셋·다섯·숫자 아님·빈 값·`1e9`·100001·`NaN`) → `EditorScreen`은 같은 noteId·pageId로 열리고 사각형 없음 · page 없는 focus → 버림 · 폴더 `/folders/f9`의 검색 결과(`onOpenNoteAt`) → 브라우저에 보고된 주소(`routeInformationUpdated`)가 `AppRoutes.note(…, focus: 0.1 pt 반올림)` → 닫으면 그 폴더 → 다시 열고 그 주소로 새 앱 시작(새로고침) → 같은 noteId·pageId·사각형, 아래에 라이브러리 없음 → 닫으면 홈.
 
@@ -637,6 +638,7 @@
 
 #### J12 — `pencil_bridge` Swift 구현 · 와이어 대조 시험 (계획 8.2, 4.4.3·4.4.4·6.12.2·6.12.4)
 
+- 커밋: `5b71ea3`, 이 기록 줄은 그 뒤 커밋.
 - Swift 파일 4개(`ios/pencil_bridge/Sources/pencil_bridge/`): `PencilBridgePlugin.swift`(플러그인 — `register(with:)`는 채널 두 개와 핸들러만, UI 작업 없음; `handle` → `capabilities`, 그 밖은 `FlutterMethodNotImplemented`; `detachFromEngine(for:)` → detach; `capabilities()` = `os`·`squeeze`/`roll`(17.5+)·`hover`(16.1+)·`prefersPencilOnlyDrawing`·선호 동작 둘), `PencilEventStream.swift`(`FlutterStreamHandler` + `UIPencilInteractionDelegate` + `UIGestureRecognizerDelegate` — `onListen` → attach, `onCancel` → detach + `eventSink = nil`; attach 대상 = `registrar?.viewController?.view` → 없으면 활성 `UIWindowScene.keyWindow`의 root view → 없으면 `UIWindow.didBecomeKeyNotification`을 기다림; 붙이는 것: `UIPencilInteraction`(delegate self), `UIHoverGestureRecognizer`(펜슬만·`cancelsTouchesInView = false`·delegate self), 17.5+ `PencilRollRecognizer`(delegate self); `shouldRecognizeSimultaneouslyWith` → `true`; 더블탭 17.5 미만(`pencilInteractionDidTap` — 위치 없음)·17.5+(`didReceiveTap` — `hoverPose`의 위치·`zOffset`), 스퀴즈 17.5+(단계 4개, 모르는 단계는 보내지 않음, `hoverPose`의 위치·`zOffset`·`rollAngle`), 호버 `.began`·`.changed`(16.1 `zOffset`·16.4 `altitudeAngle`·`azimuthAngle(in:)`·17.5 `rollAngle`, 16 ms보다 짧은 간격 버림)), `PencilRollRecognizer.swift`(17.5+ 수동 인식기 — `cancelsTouchesInView`·`delaysTouchesBegan`·`delaysTouchesEnded` 모두 false, 펜슬만, `touchesBegan/Moved`에서 `touch.rollAngle`을 16 ms 간격 이상으로, 끝·취소 때 `.failed` — 인식하지 않음), `PencilWire.swift`(Dart `PencilWire`의 Swift 사본 — 채널 이름 3개, `minInterval` 0.016 s, 종류마다 맵 빌더 하나(`tapEvent`·`squeezeEvent`·`hoverEvent`·`rollEvent` — 사전 리터럴 = `type`·`t`·필수 키, 선택 키는 값이 있을 때만 `event["k"] =`, 숫자는 모두 `Double`), `actionName`(17.5 블록 안 전체 `switch` + `@unknown default: "unknown"`, 그 아래는 16.0 `showInkAttributes` + 옛 4개)).
 - `pencil_wire_contract_test` 다시 씀(R2-B1의 '빈 등록' 사례는 지움): ⓪⑥ 클래스 = `pluginClass`·`FlutterPlugin`을 채택한 파일은 하나·`register`에 UI 작업 없음, ① Swift 상수 = Dart 상수·채널·메서드가 그 상수를 씀·문자열은 한 번만, ②③ `"type"` 값 = `PencilWire.types`·빌더마다 리터럴 키 = `type`·`t`·필수, `event["k"]` = 선택(4.4.3 표 = `PencilWire.eventKeys`)·그 키로 만든 맵(필수만·전부)이 Dart `decode`에서 맞는 타입·빌더 4개가 모두 쓰임·`capabilities` 키 7개 = `fromWire`가 읽는 것, ④ 동작 이름 = `PencilWire.actions`·`case .x: return "x"`·17.5 `switch`가 7개 전부, 스퀴즈 단계 = `PencilWire.phases`, ⑤ 16.0~17.5 API 12개(`didReceiveTap`·`didReceiveSqueeze`·`hoverPose`·`rollAngle`·`preferredSqueezeAction`·`showContextualPalette`·`runSystemShortcut`·`PencilRollRecognizer`·`altitudeAngle`·`azimuthAngle`·`zOffset`·`showInkAttributes`)의 모든 사용이 그 판 이상의 `@available`/`#available` 안(중괄호 머리 판독 — `else`·`guard … else` 블록은 보장 없음, `if #available(…), 조건` 조건부도 인정) + 판독기 자체 11경우, ⑦⑧ `Package.swift`(`sources:`·`exclude:` 없음)·podspec이 Swift 파일 4개 전부·iOS 15.0 ≤ 앱 15.5(Podfile·pbxproj 3곳), ⑨ `onListen` → attach·`onCancel` → detach·`viewController`가 `keyWindow`보다 먼저·delegate self 3개·펜슬만·`return true`·detach가 셋 다 뗌·롤 인식기 수동(상태는 `.failed`만)·60 Hz.
 - 시험이 잡는지 한 번씩 확인(되돌림): `rollAngle`을 가용성 블록 밖으로·동시 인식 `false`·선택 키 이름 바꿈·채널 이름 바꿈·`keyWindow` 먼저·동작 이름 틀림·롤 인식기 `.recognized` — 7가지 모두 실패.
@@ -653,6 +655,7 @@
 
 #### J13 — Pencil 어댑터 마무리 · 앱 정보 Apple Pencil 줄 (계획 8.2, 6.12.3·6.18)
 
+- 커밋: `f771299`, 이 기록 줄은 그 뒤 커밋.
 - 능력 조회 500 ms 제한·실패 → 기록 1건 + `kPencilFallbackCapabilities`, 네 종류 `timestamp` 전달은 R2-B8b ③에서 끝났다(`6e7b753`, 위 '계획과 다르게 한 점' R2-B8b).
 - `PencilStylusExtrasSource`(앱 내부)에 `os`(시작 때 능력의 `systemVersion`, 읽기 실패면 `'?'`)와 `seen`(`ValueListenable<({bool squeeze, bool roll})>` — 이번 실행에서 스퀴즈·롤을 받았는지, 어느 구독자의 `events`든 지나가면 켜지고 꺼지지 않음)을 더했다. `events`는 `late final` 한 번 만든 `map → where → cast`(브로드캐스트 그대로, `asBroadcastStream` 없음 — 기존 시험 그대로 통과).
 - `AboutSection`: `stylusExtrasProvider.isSupported`이면 '빌드·렌더러·홈 화면 앱' 아래 'Apple Pencil' 줄 — 'iOS 17.5 · 더블탭 · 호버' + 받은 뒤에만 '· 스퀴즈(받음)'·'· 롤(받음)'(6.12.3 — 능력은 OS 가용성일 뿐), 능력 읽기 실패면 '능력을 읽지 못했어요 · 더블탭'. 섹션이 보이는 동안 스스로 `events`를 구독한다(라이브러리 → 설정처럼 에디터가 없을 때도 설정 화면에서 스퀴즈하면 줄이 바뀜 — 네이티브 쪽은 구독 수로 attach/detach). 문구는 `AppStrings.aboutPencil*`.
@@ -735,7 +738,7 @@
 - (J12) 시각 `t`는 모든 종류에서 `ProcessInfo.processInfo.systemUptime`(롤만 `UITouch.timestamp` — 같은 기준), 17.5의 `Tap`·`Squeeze` 객체 시각은 쓰지 않았다(계획 표 그대로·컴파일 확인 전 API를 줄이려고). 모르는 스퀴즈 단계(`@unknown default`)는 보내지 않는다. `actionName`의 17.5 미만 길은 `showInkAttributes`를 `#available(iOS 16.0, *)`로 따로 본다(캐시의 `apple_pencil_double_tap` 2.0.0과 같은 판). 롤 인식기는 끝·취소 때 `state = .failed`를 직접 넣는다(계획 '상태를 바꾸지 않음 → 끝에 .failed'와 같은 결과를 명시). `detachFromEngine(for:)`에서 detach(계획에 없음 — 엔진이 먼저 사라질 때 인식기를 떼려고).
 - (J12) 컴파일 위험(11절 위험 1): `UIPencilInteraction.Tap`·`.Squeeze`·`hoverPose`(`location`·`zOffset`·`rollAngle`)·`UIHoverGestureRecognizer`의 16.1~17.5 속성·`UIPencilPreferredAction` 7개 이름은 캐시의 공개 플러그인 두 개가 쓰는 이름과 SDK 기억으로 맞췄다 — 첫 `ios-compile.yml` 실행(U19)에서 확인해야 한다. 실패하면 앱 전체 iOS 빌드가 깨지므로 TestFlight 전에 반드시 한 번.
 
-- (J13) `PencilStylusExtrasSource`에 앱 내부 `os`·`seen`을 더했다(계획 4.6.5 시그니처에 없음 — 앱 정보 줄이 OS 판과 '받음'을 알아야 해서). 새 최상위 이름은 없다(`seen`은 레코드 타입). 앱 정보 섹션이 보이는 동안 스스로 이벤트를 구독하는 것도 계획에 없다 — 에디터가 없는 설정 화면에서도 '받음'이 생기게. 웹 시험 도우미 `useInkTestFonts`와 무관(VM 위젯 시험).
+- (J13) `PencilStylusExtrasSource`에 앱 내부 `os`·`seen`을 더했다(계획 4.6.5 시그니처에 없음 — 앱 정보 줄이 OS 판과 '받음'을 알아야 해서). 새 최상위 이름은 없다(`seen`은 레코드 타입). 앱 정보 섹션이 보이는 동안 스스로 이벤트를 구독하는 것도 계획에 없다 — 에디터가 없는 설정 화면에서도 '받음'이 생기게.
 - (J13) 계획 4.6.7의 줄 예시('iOS 17.5 · 스퀴즈 · 호버 · 롤')가 아니라 6.12.3(v2.1)의 규칙('스퀴즈·롤은 받은 뒤 · 스퀴즈(받음)')을 따랐고, 더블탭은 iOS면 언제나 붙는다(능력 표 그대로). 능력 읽기 실패(`os` '?')는 'iOS ?' 대신 '능력을 읽지 못했어요'.
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
@@ -760,6 +763,8 @@
 - (2차 동시 개발 세션 4) J4 `3779a8f`·J5 `16b9c4b`·J6 `864317a`(+ 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool·pencil_bridge) 변경 0, `ws test --package noteapp` VM 473 통과·Chrome 11 통과, V5·V6 통과, `dart test tool/test` 481 통과(117초).
 - (2차 동시 개발 세션 5) J7 `852cce5`·J8 `b0ffee5`·J9 `ea21681`·J10 `fcf949d`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app) 변경 0, `ws test --package noteapp` VM 514 통과(65초)·Chrome 14 통과(110초), V5(`--run-skipped -t integration`) 1 통과. `tool`·`pencil_bridge`는 이번에 바뀌지 않아 돌리지 않았다.
 
+- (2차 동시 개발 세션 6) J11 `fe6100d`·J12 `5b71ea3`·J13 `f771299`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·pencil_bridge) 변경 0, `ws test --package noteapp` VM 526 통과(111초)·Chrome 14 통과·1 건너뜀(111초), V5(`--run-skipped -t integration`, VM) 1 통과(53초), `ws test --package pencil_bridge` 57 통과, `ws native-reqs` 위반 0, `dart test tool/test/native_reqs_test.dart tool/test/native_config_test.dart` 89 통과(`tool`은 바뀌지 않음).
+
 #### 다음 세션 메모
 
 - (2차 동시 개발 세션 3 끝) J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
@@ -772,3 +777,6 @@
 - J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
 - J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
 - 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에, J13 몫은 (R2-B8b)에 적었다.
+- (2차 동시 개발 세션 6) J11·J12·J13 끝. 다음: J14(설정·앱 정보 v2 6.18 — `storage_section` 종류별 용량(`AssetStore.usage().bytesByType`)·검색 색인 줄 + [다시 만들기](확인 창·진행 중 비활성), `about_section` 기능 상태 줄 4가지(모두 켬·빌드에서 끔·개발자 메뉴로 끔·시작 실패 — `appFeaturesProvider` + `startupReportProvider`), `registerAppLicenses`(NoteSans OFL — 가짜 에셋 번들 있음/없음, `licenses_test`), `DiagnosticReport` v2(기능 상태·`skipped` 단계 — 원하면 Pencil 줄도))·J14b(`V1CopySection` 다섯 상태 + `BackupFile.mimeType`)·J15. J14의 앱 정보 섹션에는 J13의 'Apple Pencil' 줄이 이미 있다(빌드·렌더러·홈 화면 앱 아래) — 기능 줄은 그 근처에.
+- J12 Swift는 컴파일된 적이 없다(컨테이너에 Xcode 없음). 첫 `ios-compile.yml` 실행(U19·H6)에서 API 이름(`UIPencilInteraction.Tap`/`.Squeeze`·`hoverPose`·`UIHoverGestureRecognizer.zOffset`/`altitudeAngle`/`azimuthAngle(in:)`/`rollAngle`·`UIPencilPreferredAction` 7개·`showInkAttributes` 16.0)을 확인할 것 — 위 '계획과 다르게 한 점'(J12) 마지막 줄. 고칠 때는 `pencil_wire_contract_test`를 함께 맞춘다.
+- 위젯 시험에서 스트림 이벤트로 바뀐 `ValueListenable`을 보려면 `pump()`를 두 번(첫 번째는 예약된 프레임이 없어 마이크로태스크만 비운다 — J13 `about_section_test`의 `deliver`).
