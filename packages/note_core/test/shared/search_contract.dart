@@ -1,7 +1,8 @@
 // Shared body (m5-7/02-core 6.10.2–6.10.6, CP-14): SearchIndex results AND order — the 6.10.2
 // query table on text boxes, ink and pdf sources, trashed notes and deleted pages excluded,
 // withinNote, a pdf asset shared by two notes, snippets and match ranges, rects (ink lines,
-// object bounds, pdf boxes merged per line with PageRect.zero skipped, the pdfPageAspect fit),
+// object bounds, pdf boxes merged per line with PageRect.zero skipped, the pdfPageAspect fit,
+// (v2.6, C26-03) the pdf boxes of every query word's first match in query order),
 // the empty unit list keeping its owner, the 2,000-candidate cap (most recent first,
 // pagesTruncated), writer validation, searchLibrary.pages, status / rebuild. Public API only.
 // The fake store runs it now (test/search/search_contract_fake_test.dart), the real store from
@@ -211,6 +212,60 @@ void defineSearchContract(FutureOr<NoteStore> Function() open) {
       expect((await store.search.searchPages('plain')).single.rects, isEmpty);
     },
   );
+
+  test('pdf (v2.6, C26-03): the first match of every query word, joined in query order', () async {
+    await pdfNote('pdf'); // 600 × 800, no aspect: fractions × the page size
+    // Line 1 'ab cd' (top 0.1), line 2 'ef ab' (top 0.3); '\n' and one space have no box.
+    PageRect box(int column, double top) =>
+        PageRect(0.1 * (column + 1), top, 0.1 * (column + 2), top + 0.1);
+    await store.search.replaceUnits(SearchSource.pdf, '$_asset#0', [
+      SearchUnitDraft(
+        body: 'ab cd\nef ab',
+        rects: [
+          box(0, 0.1), box(1, 0.1), box(2, 0.1), box(3, 0.1), box(4, 0.1), //
+          PageRect.zero,
+          box(0, 0.3), box(1, 0.3), PageRect.zero, box(3, 0.3), box(4, 0.3),
+        ],
+      ),
+    ], sourceRev: '$_asset:1');
+    // Note page pt of a box run [from, to) on a line.
+    PageRect pt(int from, int to, double top) => PageRect(
+      60.0 * (from + 1),
+      800 * top,
+      60.0 * (to + 1),
+      800 * (top + 0.1),
+    );
+    void expectRects(PageSearchHit hit, List<PageRect> expected, String q) {
+      expect(hit.rects, hasLength(expected.length), reason: '$q: ${hit.rects}');
+      for (final (i, e) in expected.indexed) {
+        final r = hit.rects[i];
+        for (final (got, want) in [
+          (r.left, e.left),
+          (r.top, e.top),
+          (r.right, e.right),
+          (r.bottom, e.bottom),
+        ]) {
+          expect(got, closeTo(want, 0.05), reason: '$q rect $i: $r, want $e');
+        }
+      }
+    }
+
+    Future<PageSearchHit> hitOf(String q) async =>
+        (await store.search.searchPages(q)).single;
+    // One word: as before — its first match only (line 1, not line 2).
+    expectRects(await hitOf('AB'), [pt(0, 2, 0.1)], 'AB');
+    // Several words: each word's first match, in query order (a phrase is highlighted).
+    final cdAb = await hitOf('cd ab');
+    expectRects(cdAb, [pt(3, 5, 0.1), pt(0, 2, 0.1)], 'cd ab');
+    // The snippet and match range still follow the first query word.
+    final (start, end) = cdAb.matchRange;
+    expect(cdAb.snippet.substring(start, end), 'cd');
+    expectRects(await hitOf('ef cd'), [pt(0, 2, 0.3), pt(3, 5, 0.1)], 'ef cd');
+    // A word given twice: its boxes once.
+    expectRects(await hitOf('ab ab'), [pt(0, 2, 0.1)], 'ab ab');
+    // One-character words (the LIKE path): 'f' first in 'ef', 'a' first in line 1.
+    expectRects(await hitOf('f a'), [pt(1, 2, 0.3), pt(0, 1, 0.1)], 'f a');
+  });
 
   test('a pdf asset shared by two notes: one hit per note page', () async {
     final (a, pa) = await pdfNote('A');

@@ -2003,7 +2003,7 @@ searchPages(query, limit = 100, withinNote):
 |---|---|
 | `ink` | 일치한 줄(단위)들의 `line.rect`(최대 8개) |
 | `text`·`math` | 객체 `bounds`(색인 때 저장 — 객체가 움직이면 다시 색인되므로 최신) |
-| `pdf` | 글자 상자가 있으면 일치 범위 글자 상자를 **줄 묶음마다 합친** 상자(`PageRect.zero` 글자는 건너뜀 — v2.1 원문), 상자가 없으면 빈 목록. 비율 좌표 → pt: 1차 PDF `PdfPageFit`(contain, 가운데)를 `pdf_aspect`(CP-3)로 계산하고, `null`이면 비율 좌표 × 노트 페이지 크기(가져온 페이지는 PDF 페이지 크기 그대로라 정확 — 1차 PDF C-2) |
+| `pdf` | 글자 상자가 있으면 일치 범위 글자 상자를 **줄 묶음마다 합친** 상자(`PageRect.zero` 글자는 건너뜀 — v2.1 원문), 상자가 없으면 빈 목록. (v2.6, C26-03 — 통합 단계) 일치 범위는 **질의 낱말마다 대표 단위에서의 첫 일치**(발췌가 첫 낱말에 쓰는 규칙 — `norm`에서 처음 나오는 곳)이고, 낱말마다 줄 묶음으로 합친 상자 목록을 질의 순서대로 잇는다(이미 든 상자는 다시 넣지 않음 — 같은 낱말 두 번). 그래서 여러 낱말 질의('second lecture')는 1차 `searchNote`처럼 구 전체가 강조된다. 발췌·`matchRange`는 그대로 첫 질의 낱말을 따른다. 실제·가짜가 같은 내부 함수(`search_pipeline.dart` `pdfHitBoxes`)를 부르고 공유 본문 `search_contract`가 묶는다. 비율 좌표 → pt: 1차 PDF `PdfPageFit`(contain, 가운데)를 `pdf_aspect`(CP-3)로 계산하고, `null`이면 비율 좌표 × 노트 페이지 크기(가져온 페이지는 PDF 페이지 크기 그대로라 정확 — 1차 PDF C-2) |
 
 - `searchLibrary(query, {limit = 50})`: 폴더·노트(1차 그대로 — 정규화만 `SearchText`) + `pages = searchPages(query, limit: 100)`. 내용 결과가 많아도 `folders`·`notes`의 1차 의미는 그대로다.
 

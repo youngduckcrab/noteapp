@@ -3,11 +3,14 @@
 // the hits of the returned pages only (snippet, match range, rects). The real index (CORE T33b,
 // candidates from FTS5 / LIKE) and the memory index of the fake store (candidates from the FTS
 // model) both call these, so equal candidates give equal results and order (CP-14).
+import 'dart:math' as math;
+
 import '../common/geometry.dart';
 import '../common/ids.dart';
 import 'search_ranking.dart';
 import 'search_rects.dart';
 import 'search_runs.dart';
+import 'search_text.dart';
 import 'search_types.dart';
 
 /// The candidate cap: at most this many live units, most recent (highest id) first (6.10.4).
@@ -134,8 +137,9 @@ typedef SearchUnitDetail = ({
 });
 
 /// Step 3: the hit of one returned page from the bodies / rects of its units ([detail]) and
-/// the note page size (pdf boxes → pt). Rects: pdf → the representative unit's boxes of the
-/// first match merged per line; ink / text / math → the rect of each matching unit of the
+/// the note page size (pdf boxes → pt). Rects: pdf → (v2.6, C26-03) for each query run its
+/// first match in the representative unit, the boxes merged per line, joined in query order
+/// ([pdfHitBoxes]); ink / text / math → the rect of each matching unit of the
 /// representative's source on the page, in (ownerKey, seq) order, at most 8.
 PageSearchHit searchHitOf(
   RankedSearchPage page,
@@ -149,9 +153,14 @@ PageSearchHit searchHitOf(
   final s = snippetOf(d.body, queryNorm, bodyNorm: best.norm);
   final List<PageRect> rects;
   if (best.source == SearchSource.pdf) {
-    final (start, end) = s.bodyRange;
     rects = [
-      for (final f in mergeLineRects(d.pdfRects, start, end))
+      for (final f in pdfHitBoxes(
+        d.body,
+        best.norm,
+        queryNorm,
+        d.pdfRects,
+        firstRange: s.bodyRange,
+      ))
         fractionToPagePt(f, pageWidth, pageHeight, pdfPageAspect: d.pdfAspect),
     ];
   } else {
@@ -171,4 +180,46 @@ PageSearchHit searchHitOf(
     rects: List.unmodifiable(rects),
     score: page.score,
   );
+}
+
+/// (v2.6, C26-03) The boxes of a pdf hit (fractions of the PDF page), so that a phrase is
+/// highlighted as a whole (as 1차 `searchNote` did): for each run of [queryNorm], its first
+/// match in the unit — the first occurrence in [unitNorm], the rule the snippet uses for the
+/// first run — with its boxes merged per line ([mergeLineRects]); the lists joined in query
+/// order, a box already in the list not added again. [firstRange] is the first run's range in
+/// [body] when the caller has it (snippetOf's bodyRange — the same range). Real and fake
+/// indexes both call this (CP-14).
+List<PageRect> pdfHitBoxes(
+  String body,
+  String unitNorm,
+  String queryNorm,
+  List<PageRect> boxes, {
+  (int, int)? firstRange,
+}) {
+  final runs = searchRunsOf(queryNorm);
+  if (runs.isEmpty || boxes.isEmpty) return const [];
+  // Each run's first occurrence in the norm (-1: none — a candidate always has one).
+  final at = [for (final r in runs) unitNorm.indexOf(r.text)];
+  var units = 0;
+  for (var i = firstRange == null ? 0 : 1; i < runs.length; i++) {
+    if (at[i] >= 0) units = math.max(units, at[i] + runs[i].text.length);
+  }
+  final mapping = units > 0 ? normalizeMappedPrefix(body, units) : null;
+  final out = <PageRect>[];
+  for (var i = 0; i < runs.length; i++) {
+    final (int, int) range;
+    if (i == 0 && firstRange != null) {
+      range = firstRange;
+    } else {
+      final a = at[i], n = runs[i].text.length;
+      if (a < 0 || n == 0 || mapping == null || a + n > mapping.text.length) {
+        continue;
+      }
+      range = (mapping.sourceStart[a], mapping.sourceEnd[a + n - 1]);
+    }
+    for (final r in mergeLineRects(boxes, range.$1, range.$2)) {
+      if (!out.contains(r)) out.add(r);
+    }
+  }
+  return out;
 }
