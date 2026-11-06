@@ -290,9 +290,21 @@ final class _DriftSessionBackend implements SessionBackend {
                 fixedVersion: e.version,
               );
             }
+            // (Integration stage — the T32 content_rev race.) At least one step over the
+            // stored value: a remote write queued before this one, not yet seen by the
+            // session that numbered p, stepped it too, and both changes must count (a
+            // thumbnail or ink_rev cache taken between them is not the final state).
+            // Without such a write this is the session's value, as before.
             for (final p in w.localPages) {
-              await (_db.update(_db.pages)..where((t) => t.id.equals(p.id)))
-                  .write(PagesCompanion(contentRev: Value(p.contentRevision)));
+              await _db.customUpdate(
+                'UPDATE pages SET content_rev = MAX(content_rev + 1, ?) '
+                'WHERE id = ?',
+                variables: [
+                  Variable<int>(p.contentRevision),
+                  Variable<String>(p.id),
+                ],
+                updates: {_db.pages},
+              );
             }
             if (w.localPages.isNotEmpty) tx.touch(EntityKind.page);
             await refreshNoteDerived(tx, _noteId, updatedAt: w.note.updatedAt);

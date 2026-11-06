@@ -1864,7 +1864,7 @@ notesWithStalePages():   -- (v2.1, C21-09) 색인기 시작 때 따라잡기
   4. notes.updated_at ↓, 같으면 id ↑ (가장 최근 노트 먼저 — 원문)
 ```
 
-- `content_rev`는 획·객체가 바뀐 모든 커밋(로컬·undo·원격)에서 오르는 1차 로컬 열이다(1차 T10·T14). 그래서 `ink_rev_at`과 같으면 입력 획이 바뀌지 않았다. 객체만 바뀐 페이지도 다시 계산하지만 결과는 같다(무해).
+- `content_rev`는 획·객체가 바뀐 모든 커밋(로컬·undo·원격)에서 오르는 1차 로컬 열이다(1차 T10·T14). 그래서 `ink_rev_at`과 같으면 입력 획이 바뀌지 않았다. 객체만 바뀐 페이지도 다시 계산하지만 결과는 같다(무해). (통합 단계 — T32에서 알려진 경합) 세션의 로컬 쓰기는 `content_rev`를 세션 메모리 값으로 덮어쓰지 않고 `MAX(content_rev + 1, 세션 값)`으로 쓴다(`drift_sessions.dart`): 세션이 아직 못 본 원격 쓰기가 쓰기 큐에서 먼저 커밋돼도 두 변경이 두 번 오른다(그 사이에 계산한 썸네일·`ink_rev` 캐시가 최신으로 보이지 않음). 경합이 없으면 세션 값 그대로다(`test/session/content_rev_race_test.dart`).
 - `notesWithStalePages`는 `refresh`를 먼저 해 **정확한 답**을 낸다(낡았을 수 있는 노트를 다 내는 상위 집합이 아니다) — 가짜(메모리 획으로 직접 계산)와 공유 계약 본문에서 같은 결과여야 하기 때문이다. 캐시가 최신인 뒤에는 3단계 질의 하나다.
 - (v2.1 보정, 검토 S-10) **'`points` 열은 읽지 않음'의 실제 뜻**: SQLite는 요청한 열만 *디코드*하지만, `strokes.updated_at`은 `points` BLOB **뒤** 열이라(1차 `tables.dart` 115·125행 — `points` 다음에 `point_count`·`min_x…`·`created_at`·`updated_at` [확인]) 레코드 머리를 따라 BLOB을 건너뛰어야 한다. BLOB이 페이지에 들어가면 같은 페이지 안의 건너뛰기라 추가 I/O가 없고, 긴 획(약 4 KB 넘는 BLOB)만 넘침 페이지 사슬을 따라 읽는다. 컨테이너 실험(VM 파일 DB, 획 10만 개·5 %가 6 KB, `/tmp/claude-0/plan57-scratch/core57-rev/bin/stale.dart`): 5,000쪽 전부 읽기 **121~163 ms**, 덮개 색인 `idx_strokes_ink (page_id, deleted_at, tool, updated_at, id)`를 두면 **75~104 ms**이고 DB가 **+10.3 MiB** 커졌다(135.0 → 145.3 MiB) [확인]. 색인기는 네이티브에서만 돌고(G-1) 첫 따라잡기는 한 번이지만, 덮개 색인은 웹 DB(열 때 통째로 메모리 — 6.10.7)까지 키우므로 **넣지 않는다**. PF-11이 예산을 넘으면 그때 다시 본다(스키마 v2는 2차 통합 전까지 바꿀 수 있다 — 배포 전).
 - 마이그레이션 직후에는 모든 페이지가 D에 들어 첫 `notesWithStalePages`가 라이브러리의 모든 획 행을 한 번 읽는다. 예산(6.19 PF-11): 획 10만 개 라이브러리에서 첫 `notesWithStalePages` + 각 노트 `stalePages` 합계 ≤ 1.5 s(VM), 그 뒤 호출 ≤ 30 ms. 실험값(읽기 0.12~0.16 s) + SHA-256(획당 약 45바이트 — 합 4.5 MB)으로 본 추정이다 [추측].
@@ -2466,7 +2466,7 @@ UPDATE_BACKUP_GOLDEN=1 flutter test test/backup/backup_export_test.dart   # 백�
 
 - 같은 컨테이너에서 영역 7개와 다른 에이전트가 시험을 돌린다(5장). 평소에는 패키지 단위·바꾼 파일만, `test/web` 전체와 `perf`는 체크포인트 때만 돌린다. (v2.1, CD2-19) 전체 Chrome 실행은 `dart run tool/ws.dart with-heavy-lock -- …`(또는 `ws test --platform chrome`이 잡는 전역 잠금 `/tmp/noteapp-heavy-tests.lock`) 안에서만 한다. CORE는 `media`·`emulator`·`integration` 태그를 쓰지 않는다(`dart_test.yaml` 그대로 — `perf`·`golden`).
 - 골든은 1차 규칙(`@Tags(['golden'])` + `@TestOn('vm')`, 바이트 비교). 의도한 골든 변경은 `recording.json`과 백업 골든 두 개뿐이다(새 골든 9개는 추가).
-- 성능 판정은 load < 4에서 다시 잰다(1차 통합 진행 기록 — 부하 5.8에서 1획 커밋 중앙값이 27.6 ms까지 올랐다).
+- 성능 판정은 load < 4에서 다시 잰다(1차 통합 진행 기록 — 부하 5.8에서 1획 커밋 중앙값이 27.6 ms까지 올랐다). (통합 단계) `flutter test --run-skipped -t perf`는 성능 시험 파일을 동시에 여러 개 돌려(기본 동시 실행 수 = CPU 수) PF-11 시드·10만 획 시드가 질의 측정과 겹친다 — 판정을 다시 잴 때는 그 파일만 `--concurrency=1`로 돌린다(진행 기록 '통합 단계').
 
 ### 9.2 시험 묶음
 
