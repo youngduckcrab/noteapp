@@ -221,7 +221,7 @@
 | 쓰기 경로 | T26 | 3bfff8a | 2026-11-06 | 새 종류(객체·손글씨) 행·`recordings.title`·`pages.bg_*`, 힌트(`noteId`·`pageId` 항상), 원격 고아 객체 입양, `readVersioned`·백업 읽기 — SYNC 시나리오 시험 가능(원격 객체의 `content_rev`는 T28) | SYNC |
 | 객체 읽기·쓰기 DB | T27 | 2db774e | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) 세션의 객체 명령 전부(Add/Update/Remove/Transform/Clear/Insert·DuplicatePages)·undo/redo, `createNote(PageDraft.objects)`, `NoteContentReader.loadPage(…).objects`(PDF 내보내기 `integration`), 원격 객체 → 로드된 페이지 `PageContentChange(remote)`(N-7) | EDITOR(E-2x)·PDF |
 | 동기화 창구 v2 | T28 | 3d49685 | 2026-11-06 | `applyRemote`·`commitRepairs`·`readVersioned`·`pendingChanges`가 새 종류(객체·손글씨)로 동작, 원격 객체·손글씨가 쓰인 페이지 `content_rev + 1`, 모르는 `type` 왕복(C-12) — T16-v2(로컬 객체 편집은 실제 저장소 세션 T27부터, 녹음·손글씨 저장소 T30·T32) | SYNC |
-| 복사·휴지통·백업 | T29 | | | copyNote·영구 삭제·백업 v2 | LIBRARY·SYNC |
+| 복사·휴지통·백업 | T29 | 6ae70e9 | 2026-11-06 | `copyItems`·폴더 복사·`duplicateNoteForRecovery`가 녹음(획 연결 바꿈)·객체·손글씨 결과까지 복사(복사본 바로 검색·stale 없음 — `8147320`), 영구 삭제가 객체·손글씨·색인·초안까지(`585022b`), 백업에 새 종류 — 골든 `backup_v2.json`(실제 = 가짜 = 웹), 색인·초안·캐시·v1 사본 없음 | LIBRARY·SYNC |
 | 녹음 저장소 | T30 | 3b5adfa | 2026-11-06 | 실제 저장소 `recordings`: `createRecording`(id 멱등 — 검증보다 먼저 저장된 행)·`renameRecording`·`deleteRecording`·`recordingsOf`·`watchRecordings`·`audioBytesOf`, 공유 본문 `recording_contract`가 가짜·실제 둘 다 | PDF(media)·EDITOR |
 | 실제 초안 저장소 | T31 | 2d8dd0a | 2026-11-06 | 실제 저장소(`openTestNoteStore`·`openWebTestNoteStore`)의 `recordingDrafts`: meta 먼저·부른 순서 `append`(커밋 뒤 완료)·빈 조각·행 유실 → meta로 되살림·첫 사용 고아 정리·`readAll` 한 벌·`discard` — PDF `media` Chrome 시험(X-1, V16) | PDF(media) |
 | 손글씨 저장소 | T32 | 8cf5524 | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) `handwriting`: `put`·`update`(한 쓰기 트랜잭션 — 경합 사례 1~7, transform 안 쓰기 `StateError`)·`removeForPage`·`forPage`·`watchPage`, `stalePages`·`notesWithStalePages`(`pages.ink_rev` 캐시 — 정확한 답·페이지 순서·최근 노트 먼저, PF-6·PF-11 예산 안). ink 검색 단위는 T33a | LIBRARY(L2x)·인식 |
@@ -405,7 +405,7 @@
 | T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
 | T33b | 완료 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
-| T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · (③ 골든 v2 — 이정표 표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
+| T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 남음 | | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2) |
 | T37 | 남음 | | `-t perf` PF-1~PF-11, Chrome `perf`, `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
@@ -658,7 +658,7 @@
 
 - 코드 변화 없음: 실제 저장소(`readVersionedPage` — T26·T28에서 새 두 종류)와 가짜(`byKind`에 `pageObject`·`handwriting` — B2-β)가 이미 `EntityKind.values` 순으로 새 종류를 내보내고, `formatVersion` 1·`schema.database` 2(T24 `kDatabaseSchemaVersion`)다. 색인·초안·`ink_rev`·`bg_*`·v1 사본은 엔티티 테이블이 아니라 읽히지 않는다 — 이것을 시험으로 고정했다.
 - `784b675`(제외 시험): 공유 본문 `test/shared/backup_cases.dart`에 '색인·초안·페이지 캐시·파생 열 없음'(텍스트 상자 + pdf 배경 노트·pdf 색인 단위·녹음 초안 조각·`stalePages`로 캐시 채움 → 내보낸 것에 단위 본문·`sourceRev`·초안 id·조각·mime·`inkRev`·`bgAssetId`·`bgPdfPageIndex`·`nameNorm`·`titleNorm` 없음, 늘어난 것은 노트·페이지·객체 하나씩) — 가짜·실제 VM·웹 저장소 모두. 실제만(`backup_export_test`): 빈 v1 파일 DB를 열어 v1 사본이 생긴 저장소의 내보내기 — `schema.database` 2, 사본 기록·파일 이름·SQLite 머리 없음, 사본보다 작음.
-- 골든 커밋(이정표 표의 T29 해시): 골든 상태에 에셋 2(오디오·이미지), 제목 있는 녹음 1(`stk-00`이 그 녹음에 연결 — `recordingOffsetMs` 1500), 객체 5종(별 도형·텍스트 상자·이미지·수식·모르는 `type` `sticker`), 손글씨 결과 1(`page-a1`, `alternatives`·`strokeIds`)을 더하고 `backup_v1.json` → `backup_v2.json`(실제 VM 저장소로 만들고 가짜·웹이 같은 바이트). 가짜 시드(`seedFakeBackupState`)에 녹음·객체·손글씨를, 종류 수 사례에 새 종류를 더했다.
+- `6ae70e9`(골든 — 이정표): 골든 상태에 에셋 2(오디오·이미지), 제목 있는 녹음 1(`stk-00`이 그 녹음에 연결 — `recordingOffsetMs` 1500), 객체 5종(별 도형·텍스트 상자·이미지·수식·모르는 `type` `sticker`), 손글씨 결과 1(`page-a1`, `alternatives`·`strokeIds`)을 더하고 `backup_v1.json` → `backup_v2.json`(실제 VM 저장소로 만들고 가짜·웹이 같은 바이트). 가짜 시드(`seedFakeBackupState`)에 녹음·객체·손글씨를, 종류 수 사례에 새 종류를 더했다.
 
 확인 (2026-11-06 세션 6 끝 — T34·T29 ① 뒤, load 4~7)
 
