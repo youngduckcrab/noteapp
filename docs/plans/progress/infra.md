@@ -390,7 +390,7 @@
 | R2-B2i | 기반 단계에서 완료 | `59ed567` | (위 '### R2-B2i') |
 | R2-final | 기반 단계에서 완료 | `708a1c1` | (위 '### R2-final') |
 | 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
-| R2-B8a | 완료 | (이 줄의 커밋) | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
+| R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
 | R2-B8b | 남음 | | `app_routes_test`·`app_router_test`·`production_screens_test`·`pencil_bridge_test`·`api_surface_test`(pencil)·`pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 3경우) |
 | J0 | 남음 | | `tool/test/native_config_test.dart`, 웹 빌드 측정 표(6.15), CI 실측 표(6.16 — 첫 체크포인트 푸시 뒤, 총괄) |
 | J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
@@ -470,7 +470,7 @@
 #### 이정표 커밋
 
 - 체크포인트 병합 요청(INFRA-F3, Q14): R2-B8a·R2-B8b·J0 끝마다 결과 보고에 적는다.
-- **R2-B8a 체크포인트**: 이 표의 R2-B8a 커밋 — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
+- **R2-B8a 체크포인트**: `a4c9cca`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
 
 #### 다음 세션 메모
 
