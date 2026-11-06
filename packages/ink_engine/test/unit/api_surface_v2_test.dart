@@ -179,6 +179,13 @@ void main() {
     },
   );
 
+  test('(v2.5, C25-02) InkDiagnostics.developerValues', () {
+    final d = InkDiagnostics(clock: FakeInkClock());
+    addTearDown(d.dispose);
+    final Map<String, num> values = d.developerValues;
+    expect(values, isEmpty, reason: 'no value → no key');
+  });
+
   test('7.2.9 shape port and provider', () {
     final InkShapeFitter fitter = _Fitter();
     final InkShapeFit? Function(List<Offset>, {required double viewScale}) fit =

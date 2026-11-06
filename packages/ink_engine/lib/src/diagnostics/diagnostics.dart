@@ -262,6 +262,9 @@ class InkDiagnostics extends ChangeNotifier {
   /// (m5-7 6.8.3, I-B12) annotation layer paint times (µs) — paints that drew objects.
   final List<double> _annotationPaintUs = [];
 
+  /// (m5-7 6.22, C25-02) the formula raster cache bytes at the last report.
+  int? _mathCacheBytes;
+
   /// (m5-7 T39, 6.18) shape assist previews shown / committed, the last one shown.
   int _shapeFits = 0;
   int _shapeFitsAccepted = 0;
@@ -308,6 +311,7 @@ class InkDiagnostics extends ChangeNotifier {
     _eventToRasterEnd.clear();
     _playbackPaintUs.clear();
     _annotationPaintUs.clear();
+    _mathCacheBytes = null;
     _shapeFits = 0;
     _shapeFitsAccepted = 0;
     _lastShapeKind = null;
@@ -449,6 +453,14 @@ class InkDiagnostics extends ChangeNotifier {
     _push(_annotationPaintUs, us.toDouble());
   }
 
+  /// (m5-7 6.22, C25-02) The bytes of the formula raster cache, reported by a page paint
+  /// while [enabled].
+  @meta.internal
+  void onMathCacheBytes(int bytes) {
+    if (!_enabled) return;
+    _mathCacheBytes = bytes;
+  }
+
   /// (m5-7 T39, 6.18) A shape assist preview ended: committed by end() ([accepted]) or
   /// dropped (moving again, cancel). A statistic, not a warning.
   @meta.internal
@@ -470,19 +482,21 @@ class InkDiagnostics extends ChangeNotifier {
     lastScore: _lastShapeScore,
   );
 
-  /// (m5-7 T40, 6.19-6, 6.8.3) Developer display values that are not in [snapshot] (the
-  /// contract's snapshot fields stay as they are), each the p95 (µs, nearest rank) of
-  /// the last InkTuning.latencyWindow paints, present once one was measured while
-  /// [enabled]: `playbackPaintUs` = layer 4′ playback paints, `annotationPaintUs` =
-  /// annotation layer paints that drew objects (text boxes, formulas, unknown objects —
-  /// the replay of the retained annotation picture inside other layers' frames is the
-  /// engine's raster step, not a paint: frameRasterP95Ms, I-B12).
-  @meta.internal
+  /// (contract v2.5, C25-02 — m5-7 T40, 6.19-6, 6.8.3, 6.22) Developer display values
+  /// that are not in [snapshot] (the contract's snapshot fields stay as they are). A key
+  /// is present only once its value was measured while [enabled]:
+  /// `playbackPaintUs` = the p95 (µs, nearest rank) of the last InkTuning.latencyWindow
+  /// layer 4′ playback paints; `annotationPaintUs` = the same of the annotation layer
+  /// paints that drew objects (text boxes, formulas, unknown objects — the replay of the
+  /// retained annotation picture inside other layers' frames is the engine's raster
+  /// step, not a paint: frameRasterP95Ms, I-B12); `mathCacheBytes` = the bytes the
+  /// formula raster cache holds (6.22), as of the last page paint. [reset] empties it.
   Map<String, num> get developerValues => {
     if (_playbackPaintUs.isNotEmpty)
       'playbackPaintUs': LatencySummary._of(_playbackPaintUs).p95Ms,
     if (_annotationPaintUs.isNotEmpty)
       'annotationPaintUs': LatencySummary._of(_annotationPaintUs).p95Ms,
+    'mathCacheBytes': ?_mathCacheBytes,
   };
 
   @meta.internal

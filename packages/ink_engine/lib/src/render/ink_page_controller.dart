@@ -1748,6 +1748,7 @@ final class InkPageController extends ChangeNotifier {
         );
         if (measure && drew) {
           diagnostics.onAnnotationPaint(clock.nowUs() - start);
+          _reportMathCacheBytes();
         }
       case InkRenderLayer.cover:
         if (content == null) return;
@@ -1769,6 +1770,7 @@ final class InkPageController extends ChangeNotifier {
             cachePool.stats,
             visibleStrokes: content.strokes.length - display.hidden.length,
           );
+          _reportMathCacheBytes();
         }
       case InkRenderLayer.highlighterActive:
         _paintActiveHighlighters(canvas, display, paper, margin);
@@ -2171,6 +2173,13 @@ final class InkPageController extends ChangeNotifier {
     _paintShapePreview(canvas, paper);
     final debug = _debugEndStage;
     if (debug != null) debug(canvas);
+  }
+
+  /// (m5-7 6.22, C25-02) The developer value mathCacheBytes — once the pool has a
+  /// formula raster cache.
+  void _reportMathCacheBytes() {
+    final bytes = mathRasterCacheBytesOf(cachePool);
+    if (bytes != null) diagnostics.onMathCacheBytes(bytes);
   }
 
   /// (m5-7 T39, 6.18) The shape preview of the stroke being written: the ShapeObject

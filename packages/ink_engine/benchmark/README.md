@@ -151,14 +151,14 @@ B3 216, B4 0.077, B5 1.85, B6 16.6, B7 2.7, B8 1.9, B9 157, B10 445, B11 4.5 —
 
 ### 개발자 표시로 재는 것 (실기기 — 9.6)
 
-- **`playbackPaintUs`** (I-B9, 6.19-6): 층 4′ 재생 paint 시간의 p95(µs). 진단을 켠 동안만 잰다
-  (`InkDiagnostics.enabled`). 지금 값은 INK 내부 `InkDiagnostics.developerValues['playbackPaintUs']`
-  에만 있다 — 앱 개발자 표시에 보이게 하는 공개 표면은 변경 요청(진행 기록 '변경 요청 (동시 개발)').
+- (계약 v2.5, C25-02) 아래 세 값은 공개 `InkDiagnostics.developerValues`(`Map<String, num>`)의 키다 —
+  진단을 켠 동안(`InkDiagnostics.enabled`) 잰 값만 있고, 값이 없으면 키가 없다(`reset`이 비움).
+  EDITOR 개발자 표시가 통합 단계에서 세 값을 한 줄씩 보인다.
+- **`playbackPaintUs`** (I-B9, 6.19-6): 층 4′ 재생 paint 시간의 p95(µs).
   측정: 녹음 중 쓴 3쪽 노트를 재생·2배속·탐색하며 값을 기록, > 4 ms면 6.19-6의 블록 베일 래스터
   대체 경로를 켠다. VM B15는 기록 비용만 본다(웹 CanvasKit은 매 프레임 장면 전체를 다시 래스터).
 - **`annotationPaintUs`** (I-B12, 6.8.3): annotation 층 paint 시간의 p95(µs) — 객체(텍스트 상자·수식·
-  모르는 객체, 미리보기 포함)를 그린 paint만, 진단을 켠 동안만 잰다. 값은 `playbackPaintUs`와 같은 INK
-  내부 `InkDiagnostics.developerValues['annotationPaintUs']`(공개 표면은 같은 변경 요청). 층마다
+  모르는 객체, 미리보기 포함)를 그린 paint만, 진단을 켠 동안만 잰다. 층마다
   RepaintBoundary라 필기 중에는 annotation 층이 paint되지 않는다 — 이 값은 페이지 표시(청크 첫 기록)·
   스크롤·상자 끌기·획 끝의 비용이다. 텍스트 상자 100개 페이지를 열고·스크롤하고·상자를 끌며 기록,
   > 4 ms면 새로 보이는 페이지의 annotation 청크 기록 시간 나누기(6.13 — B14 조정안 ②).
@@ -167,7 +167,11 @@ B3 216, B4 0.077, B5 1.85, B6 16.6, B7 2.7, B8 1.9, B9 157, B10 445, B11 4.5 —
   어떤 Dart paint에도 들지 않는다 — 텍스트 상자 100개 페이지와 같은 필기만 있는 페이지에서 각각
   필기하며 개발자 표시의 프레임 래스터 p95(`InkStatsSnapshot.frameRasterP95Ms`)를 기록하고, 그 차이
   > 4 ms면 annotation 타일을 켠다.
+- **`mathCacheBytes`** (6.22, C25-02): 수식 래스터 캐시가 지금 가진 바이트 — 진단이 켜진 동안 페이지
+  paint(inkBase 층, 객체를 그린 annotation 층)가 그 풀의 값을 알린다. 풀이 아직 수식 캐시를 만들지 않았으면
+  (수식을 그린 적 없음) 키가 없다. 예산은 `InkRenderConfig.mathRasterCacheBytes`(8 MiB).
 - **웹 INK 앱 캐시 합계 ≤ 136 MB** (6.22): 외곽선 32 + 공유 래스터 장부 96(타일 + 이미지 디코드)
   + 수식 래스터 8. 값은 `InkRenderConfig.webDefaults`가 정하고(`test/unit/render/render_config_test.dart`
   가 합 136 MiB를 단언), 실제 사용량은 개발자 표시의 `InkCacheStats`(외곽선·타일 바이트)와
-  `InkImageCache.stats`(이미지·고정 바이트)로 본다 — INFRA '앱 캐시 합계'(I-B11·B-13).
+  `InkImageCache.stats`(이미지·고정 바이트), `developerValues['mathCacheBytes']`(수식)로 본다 — INFRA
+  '앱 캐시 합계'(I-B11·B-13).

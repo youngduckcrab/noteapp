@@ -335,6 +335,60 @@ void main() {
     });
 
     test(
+      '(v2.5, C25-02) developer value mathCacheBytes = the bytes of the '
+      'formula raster cache, only while enabled and once the pool has one',
+      () async {
+        // a page without formulas: the pool makes no formula cache → no key
+        final plain = createTestPageController()
+          ..updateContent(
+            _content(
+              const [],
+              strokes: [
+                strokeThrough(
+                  segment(const ui.Offset(30, 30), const ui.Offset(200, 40)),
+                  core.StrokeStyle.defaultsFor(core.PenTool.ballpoint),
+                  id: 's1',
+                ),
+              ],
+            ),
+          );
+        addTearDown(plain.dispose);
+        plain.diagnostics.enabled = true;
+        addTearDown(() => plain.diagnostics.enabled = false);
+        _paintAll(plain);
+        expect(
+          plain.diagnostics.developerValues.containsKey('mathCacheBytes'),
+          isFalse,
+        );
+        // formulas, disabled: not collected
+        final c = createTestPageController()
+          ..updateContent(
+            _content([
+              _math('m1', const core.PagePoint(30, 30)),
+              _math('m2', const core.PagePoint(300, 400), latex: r'ec{v}'),
+            ]),
+          );
+        addTearDown(c.dispose);
+        await _settle(c);
+        final cache = mathRasterCacheOf(c.cachePool);
+        expect(cache.stats.bytes, greaterThan(0));
+        expect(c.diagnostics.developerValues, isEmpty);
+        // enabled: a page paint reports the bytes (public getter, C25-02)
+        c.diagnostics.enabled = true;
+        addTearDown(() => c.diagnostics.enabled = false);
+        _paintAll(c);
+        final Map<String, num> values = c.diagnostics.developerValues;
+        expect(values['mathCacheBytes'], cache.stats.bytes);
+        expect(values.keys.toSet(), {
+          'mathCacheBytes',
+          'annotationPaintUs',
+        }, reason: 'no playback focus');
+        c.diagnostics.reset();
+        expect(c.diagnostics.developerValues, isEmpty);
+      },
+    );
+
+    test(
       'contain fit (K-6): centred in a wider / taller / smaller frame, nothing '
       'outside it — also rotated 30°',
       () async {

@@ -114,6 +114,11 @@ MathRasterCache mathRasterCacheOf(InkCachePool pool) {
   return cache;
 }
 
+/// INTERNAL (m5-7 6.22, C25-02): the bytes the formula raster cache of [pool] holds; null
+/// while the pool has made none (no formula drawn yet — the developer value is left out).
+@internal
+int? mathRasterCacheBytesOf(InkCachePool pool) => pool._math?.stats.bytes;
+
 /// INTERNAL (m5-7 T35, 6.22): the raster ledger the tiles of [pool] share with the decoded
 /// images — the web rule; null on native (tiles and images keep their own budgets).
 @internal
