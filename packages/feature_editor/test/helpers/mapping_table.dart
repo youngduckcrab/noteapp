@@ -6,7 +6,7 @@
 // test of a P-A task (revision 3: the auto-shape row is covered by E2-09,
 // not by the P-B E2-15), so cutting P-B work never leaves a row uncovered.
 // unit/mapping_coverage_test.dart (E2-22) checks that each covering file
-// exists and asserts the undo depth.
+// exists, names the row's command label and asserts the undo step.
 
 /// One row of the table.
 final class MappingRow {
@@ -71,7 +71,7 @@ const kEditorCommandMapping = <MappingRow>[
     action: '현재 페이지 전체 지우기',
     command: 'ClearPage(pageId:, filter:)',
     labels: {'clear-page'},
-    coveredBy: 'widget/eraser_panel_test.dart',
+    coveredBy: 'widget/erase_test.dart',
     task: '1차',
   ),
   MappingRow(
