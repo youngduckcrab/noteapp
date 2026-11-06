@@ -274,7 +274,7 @@
 | T20 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test` v2, `unit/init_v2_test`, `unit/plan_items_test` |
 | T30 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test`, `unit/init_test`, `widget/recording_panel_placeholder_test`, `unit/testing_fakes_test`, `web/testing_registrar_browser_test` |
 | T21 | 완료 | 4068fcd | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
-| T22 | 남음 | | `pdfium/compose_objects_native_test` |
+| T22 | 완료 | (세션 10 첫 커밋 — 다음 커밋이 해시를 적음) | `pdfium/compose_objects_native_test`(13 — 객체 탐침 9 + 실제 NoteSans 1 + 객체 든 작업의 abort·finish·실패 3) — 탐침 v2 `test/support/compose_probes.dart` `composeObjectProbes()`(T23이 Chrome에서 같은 목록)·`ProbePdfObjects`(저장된 PDF의 이미지·글꼴 사전 읽기) |
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
 | T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
 | T25a | 완료 | 402f84a | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
@@ -433,6 +433,11 @@
 - T39: V16 '탭 닫힘'은 `dispose` 없이 흉내 낸다 — `BrowserRecorderEngine.lastCapture`의 `detach()`(아무도 듣지 않음)·`stop()`·`stopTracks()`, 잠금은 `navigator.locks.request(name, {steal: true})`로 빼앗아 곧 놓는다(브라우저가 닫힌 탭의 잠금을 놓는 것과 같음). 녹음기 시계는 `clockProvider`를 FakeAsync 시계로 덮어 손으로 최근 갱신 창(10초 + 20초)을 넘긴다. 세 '탭'은 `mediaIoOverrides()` 컨테이너 셋(A 녹음, B 같은 저장소의 두 번째 녹음기, 다음 시작). A 서비스는 시험이 끝난 뒤에만 `dispose`한다. 실제 저장소 변형은 '다음 시작' 전에 저장소를 닫고 같은 이름으로 다시 연다.
 - T39: V8의 '저장된 WebM에 Duration 있음'은 첫 Cluster 앞의 Info > Duration(0x4489, float64)을 읽어 `durationMs`와 같은지 본다(`webmInfoDurationMs`). 'Chrome 표본 webm 저장(환경 변수가 있을 때만)'은 브라우저 시험이 파일을 쓸 수 없어 `--dart-define=MEDIA_IO_DUMP_WEBM=true`일 때 base64 한 줄(`media-io-webm …`)을 찍는 것으로 했다.
 - T39 (lib 고침): V8이 찾은 결함 — just_audio 0.10.6 웹에서 `setUrl(…, preload: false)` 뒤 `play()`는 적재하지 않아 `idle`·`playing = true`에 머물고, 적재 전 `seek`는 적재가 0에서 시작하며 사라진다(Chrome 진단으로 확인). `JustAudioPlayerPort`가 preload: false 원본을 첫 `play()`·`seek()` 때 먼저 `load()`한다(`_loadIfPending` — 실패는 `snapshots` 오류). 웹 재생(6.11.3 S-7 'preload: false')은 이 고침 전에는 재생되지 않았다.
+- T22: 해석 전 구조 검사(`checkComposeOps` — T21 규칙: 모르는 명령·좌표 수·열린 경로 안 `image`/`text`·인덱스 범위·실리지 않은 글꼴·같은 글꼴 두 번)는 **워커가** 조각마다 먼저 하고, 어기면 1차처럼 `exportFailed`(`ArgumentError` 아님 — 1차 `compose_native_test` '`lineTo` before `moveTo` → `exportFailed`' 그대로)·작업은 `abort`까지 남는다. 글꼴은 조각의 명령보다 먼저 `FPDFText_LoadFont(TrueType, cid = 1)`, 작업 상태 `fonts`에 두고 `release`가 문서보다 **먼저** `FPDFFont_Close`(글꼴이 문서를 가리킴).
+- T22: 알파 없는 RGBA(`hasAlpha == false`)는 `FPDFBitmap_BGRx`로 넣어 `/SMask`가 생기지 않게 했다(계획 6.2.7은 BGRA만 적음). JPEG는 `FPDFImageObj_LoadJpegFileInline(그 페이지 하나, …)` + `FPDF_FILEACCESS`(정적 `Pointer.fromFunction` 콜백이 워커 isolate 전역 `_loadingJpeg`를 읽음). 이미지·텍스트 객체의 자기 행렬은 `FPDFPageObj_Transform`(새 객체라 `SetMatrix`와 같음) 뒤 note → user `M`.
+- T22: 이미지·글꼴 바이트는 `TransferableTypedData`(한 번 복사 — 6.2.8)로, 텍스트는 문자열 목록으로 워커에 간다. 워커는 메시지를 `PdfComposePageOps`로 되살려(같은 `checkComposeOps`를 쓰려고) 해석한다.
+- T22: **추출되는 공백이 U+00A0** — PDFium이 적재한 TrueType의 ToUnicode를 글꼴 cmap에서 거꾸로 만들 때 NoteSans는 U+0020·U+00A0가 같은 글리프라 NBSP로 적힌다(VM 실측: '안녕 hello' → `[50504, 45397, 160, 104, …]`). CORE `SearchText`는 U+00A0를 공백으로 접으므로(7.2.5) 검색(T27·V10)에는 차이가 없다. 탐침은 NBSP를 공백으로 읽고 비교한다(Chrome 시험 글꼴은 U+00A0가 없어 U+0020이 나올 것). 앱에서 내보낸 PDF의 글을 복사하면 NBSP가 붙는다 — 실기기 체크 거리로 적어 둠(필요하면 INK 글꼴에서 U+00A0를 다른 글리프로 — 지금은 요청하지 않음).
+- T22: 탐침의 이미지 수·`/DCTDecode`·크기·`/SMask`·글꼴 수는 저장된 PDF의 객체 사전을 읽어 센다(`ProbePdfObjects` — FFI 없이 Chrome에서도 같은 단언). VM 탐침은 실제 NoteSans(`ink.InkFonts.noteSansBytes` — VM `flutter test`에서 rootBundle로 읽힘, 정상 466 KB·굵게 466 KB)를 쓴다.
 
 #### 이정표 커밋
 
@@ -535,6 +540,10 @@
 | 9 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 9 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 | 9 (끝) | 패키지 시험 (T39 뒤 `media_io` VM 400·Chrome 75 + 3 skip·`media` 3 + 3 skip — 그 뒤 lib 변화 없음, `pdf_io`는 이번 세션 변화 없음) | 위 행 그대로 |
+| 10 (T22) | `flutter test test/pdfium/compose_objects_native_test.dart` | 13 통과 |
+| 10 (T22) | `ws test --package pdf_io` (VM) | 754 통과 + 9 skip (741 + T22 13), 118 s |
+| 10 (T22) | `ws test --package pdf_io --platform chrome` | 99 통과 + 1 skip (그대로 — 바뀐 공유 탐침 파일 `compose_probes.dart`가 `compose_browser_test`에서 컴파일·통과), prepare ok, 239 s |
+| 10 (T22) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 

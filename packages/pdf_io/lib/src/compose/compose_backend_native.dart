@@ -9,6 +9,16 @@
 // worker callback is synchronous (pdfrx holds its PDFium gate only around synchronous
 // work) and returns an error string instead of throwing, so the cause survives the
 // isolate boundary.
+//
+// (2차, m5-7/06-pdf T22 — 6.2.5, 6.2.6, 6.2.8) image and text ops: a part's fonts are loaded
+// into the output document first (FPDFText_LoadFont, closed with FPDFFont_Close before the
+// document), JPEG bytes go in as they are (FPDFImageObj_LoadJpegFileInline through an
+// FPDF_FILEACCESS whose static m_GetBlock reads the one JPEG being loaded — calls are
+// synchronous, so they never overlap), RGBA becomes a BGRA bitmap (BGRx when it has no
+// alpha: no SMask), text is UTF-16 in native memory. Several parts of one page each open
+// the page, add their objects on top and generate the content (E4). The structural rules of
+// checkComposeOps run in the worker before a part is interpreted (a broken part →
+// exportFailed, nothing drawn).
 import 'dart:async';
 import 'dart:ffi' as ffi;
 import 'dart:isolate';
@@ -22,7 +32,9 @@ import 'package:pdfrx/pdfrx.dart' as rx;
 import '../config.dart';
 import '../engine/pdfrx_engine.dart';
 import '../errors.dart';
+import '../export/compose_ops_check.dart';
 import '../export/compose_plan.dart';
+import '../export/vectors.dart';
 import 'compose_backend.dart';
 import 'compose_layout.dart';
 
@@ -145,6 +157,8 @@ final class _NativeComposeJob implements PdfComposeJob {
       }
     }
     if (work.isEmpty) return;
+    // 6.2.8: image and font bytes cross the isolate boundary as TransferableTypedData
+    // (one copy here — the export service counts it as `copy` around this call).
     final call = _run(_composeAddPages, (
       jobId: _jobId,
       pages: [
@@ -154,6 +168,12 @@ final class _NativeComposeJob implements PdfComposeJob {
             verbs: page.verbs,
             coords: page.coords,
             paints: page.paints,
+            images: [for (final image in page.images) _imageMessage(image)],
+            texts: page.texts,
+            fonts: [
+              for (final MapEntry(:key, :value) in page.fonts.entries)
+                (id: key, bytes: TransferableTypedData.fromList([value])),
+            ],
           ),
       ],
     ));
@@ -248,7 +268,38 @@ typedef _PageOpsMessage = ({
   Uint8List verbs,
   Float32List coords,
   Float32List paints,
+  List<_ImageMessage> images,
+  List<String> texts,
+  List<_FontMessage> fonts,
 });
+
+/// [jpeg]: JPEG file bytes; otherwise straight RGBA8888, top row first.
+typedef _ImageMessage = ({
+  bool jpeg,
+  int width,
+  int height,
+  bool hasAlpha,
+  TransferableTypedData bytes,
+});
+
+typedef _FontMessage = ({int id, TransferableTypedData bytes});
+
+_ImageMessage _imageMessage(PdfImageData image) => switch (image) {
+  PdfJpegData(:final bytes, :final width, :final height) => (
+    jpeg: true,
+    width: width,
+    height: height,
+    hasAlpha: false,
+    bytes: TransferableTypedData.fromList([bytes]),
+  ),
+  PdfRgbaData(:final rgba, :final width, :final height, :final hasAlpha) => (
+    jpeg: false,
+    width: width,
+    height: height,
+    hasAlpha: hasAlpha,
+    bytes: TransferableTypedData.fromList([rgba]),
+  ),
+};
 
 typedef _AddPagesMessage = ({int jobId, List<_PageOpsMessage> pages});
 
@@ -268,9 +319,16 @@ final class _ComposeJobState {
   final List<pdfium.FPDF_DOCUMENT> sources = [];
   final List<ffi.Pointer<ffi.Uint8>> buffers = [];
 
-  /// Closes every document, then frees the source buffers (PDFium reads them until the
-  /// source document is closed).
+  /// (2차) Fonts loaded into [document] by earlier parts (fontId → handle).
+  final Map<int, pdfium.FPDF_FONT> fonts = {};
+
+  /// Closes the fonts (before their document — a font points at it), every document, then
+  /// frees the source buffers (PDFium reads them until the source document is closed).
   void release() {
+    for (final font in fonts.values) {
+      lib.FPDFFont_Close(font);
+    }
+    fonts.clear();
     lib.FPDF_CloseDocument(document);
     for (final source in sources) {
       lib.FPDF_CloseDocument(source);
@@ -408,9 +466,19 @@ String? _composeAddPages(_AddPagesMessage message) {
   }
 }
 
-/// 6.11.5 interpreter for one output page.
-void _interpretPage(_ComposeJobState job, _PageOpsMessage ops) {
+/// 6.11.5 interpreter for one output page; (2차) one part of it (6.2.6): its fonts first,
+/// then its ops on top of what the page already has.
+void _interpretPage(_ComposeJobState job, _PageOpsMessage message) {
   final lib = job.lib;
+  final ops = _materialize(message);
+  try {
+    checkComposeOps(ops, loadedFonts: job.fonts.keys.toSet());
+  } on ArgumentError catch (e) {
+    throw _ComposeFailure('page ${ops.outputIndex}: ${e.message} (${e.name})');
+  }
+  for (final MapEntry(key: id, value: bytes) in ops.fonts.entries) {
+    job.fonts[id] = _loadFont(job, id, bytes);
+  }
   final row = job.rows[ops.outputIndex];
   final page = lib.FPDF_LoadPage(job.document, ops.outputIndex);
   if (page == ffi.nullptr) {
@@ -471,6 +539,16 @@ void _interpretPage(_ComposeJobState job, _PageOpsMessage ops) {
             lib.FPDFPageObj_Destroy(path);
             throw _ComposeFailure('FPDFPage_InsertObject failed');
           }
+        case PdfComposeOpcodes.image:
+          final image = ops.images[coords[c].toInt()];
+          final placed = _imageObject(job, page, image, v);
+          _place(lib, page, placed, coords, c + 1, m);
+          c += PdfComposeOpcodes.imageArgs;
+        case PdfComposeOpcodes.text:
+          final placed = _textObject(job, ops, coords, c, v);
+          _applyFill(lib, placed, coords, c + 3);
+          _place(lib, page, placed, coords, c + 7, m);
+          c += PdfComposeOpcodes.textArgs;
         default:
           throw _ComposeFailure('verb $v: unknown opcode ${verbs[v]}');
       }
@@ -487,6 +565,262 @@ void _interpretPage(_ComposeJobState job, _PageOpsMessage ops) {
     lib.FPDF_ClosePage(page);
   }
 }
+
+/// The worker-side PdfComposePageOps of [message] (bytes materialized once).
+PdfComposePageOps _materialize(_PageOpsMessage message) => PdfComposePageOps(
+  outputIndex: message.outputIndex,
+  verbs: message.verbs,
+  coords: message.coords,
+  paints: message.paints,
+  images: [
+    for (final image in message.images)
+      if (image.jpeg)
+        PdfJpegData(
+          image.bytes.materialize().asUint8List(),
+          width: image.width,
+          height: image.height,
+        )
+      else
+        PdfRgbaData(
+          image.bytes.materialize().asUint8List(),
+          width: image.width,
+          height: image.height,
+          hasAlpha: image.hasAlpha,
+        ),
+  ],
+  texts: message.texts,
+  fonts: {
+    for (final font in message.fonts)
+      font.id: font.bytes.materialize().asUint8List(),
+  },
+);
+
+/// 6.2.5: FPDFText_LoadFont(TrueType, cid) — PDFium copies the data, the buffer is freed here.
+pdfium.FPDF_FONT _loadFont(_ComposeJobState job, int id, Uint8List bytes) {
+  final buffer = ffi_pkg.malloc<ffi.Uint8>(bytes.isEmpty ? 1 : bytes.length);
+  try {
+    buffer.asTypedList(bytes.length).setAll(0, bytes);
+    const trueType = 2; // FPDF_FONT_TRUETYPE
+    final font = job.lib.FPDFText_LoadFont(
+      job.document,
+      buffer,
+      bytes.length,
+      trueType,
+      1, // cid: Hangul needs a CID font
+    );
+    if (font == ffi.nullptr) {
+      throw _ComposeFailure('font $id: FPDFText_LoadFont failed');
+    }
+    return font;
+  } finally {
+    ffi_pkg.malloc.free(buffer);
+  }
+}
+
+/// A new image object holding [image] (not inserted yet — the caller owns it).
+pdfium.FPDF_PAGEOBJECT _imageObject(
+  _ComposeJobState job,
+  pdfium.FPDF_PAGE page,
+  PdfImageData image,
+  int verb,
+) {
+  final lib = job.lib;
+  final object = lib.FPDFPageObj_NewImageObj(job.document);
+  if (object == ffi.nullptr) {
+    throw _ComposeFailure('verb $verb: FPDFPageObj_NewImageObj failed');
+  }
+  try {
+    final ok = ffi_pkg.using((arena) {
+      final pages = arena<pdfium.FPDF_PAGE>()..value = page;
+      switch (image) {
+        case PdfJpegData(:final bytes):
+          final access = arena<pdfium.FPDF_FILEACCESS>();
+          access.ref
+            ..m_FileLen = bytes.length
+            ..m_GetBlock = _jpegGetBlock
+            ..m_Param = ffi.nullptr;
+          _loadingJpeg = bytes;
+          try {
+            return lib.FPDFImageObj_LoadJpegFileInline(
+              pages,
+              1,
+              object,
+              access,
+            );
+          } finally {
+            _loadingJpeg = null;
+          }
+        case PdfRgbaData(:final rgba, :final width, :final height):
+          return _setBitmap(lib, pages, object, image, rgba, width, height);
+      }
+    });
+    if (ok == 0) {
+      throw _ComposeFailure('verb $verb: loading $image into PDFium failed');
+    }
+    return object;
+  } on Object {
+    lib.FPDFPageObj_Destroy(object);
+    rethrow;
+  }
+}
+
+/// RGBA → BGRA (BGRx without alpha) in native memory → FPDFImageObj_SetBitmap (PDFium copies).
+int _setBitmap(
+  pdfium.PDFium lib,
+  ffi.Pointer<pdfium.FPDF_PAGE> pages,
+  pdfium.FPDF_PAGEOBJECT object,
+  PdfRgbaData image,
+  Uint8List rgba,
+  int width,
+  int height,
+) {
+  final length = width * height * 4;
+  if (width <= 0 || height <= 0 || rgba.length != length) {
+    throw _ComposeFailure('$image: ${rgba.length} B for $width × $height');
+  }
+  final buffer = ffi_pkg.malloc<ffi.Uint8>(length);
+  try {
+    final bgra = buffer.asTypedList(length);
+    for (var i = 0; i < length; i += 4) {
+      bgra[i] = rgba[i + 2];
+      bgra[i + 1] = rgba[i + 1];
+      bgra[i + 2] = rgba[i];
+      bgra[i + 3] = rgba[i + 3];
+    }
+    final bitmap = lib.FPDFBitmap_CreateEx(
+      width,
+      height,
+      image.hasAlpha ? pdfium.FPDFBitmap_BGRA : pdfium.FPDFBitmap_BGRx,
+      buffer.cast(),
+      width * 4,
+    );
+    if (bitmap == ffi.nullptr) {
+      throw _ComposeFailure('FPDFBitmap_CreateEx $width × $height failed');
+    }
+    try {
+      return lib.FPDFImageObj_SetBitmap(pages, 1, object, bitmap);
+    } finally {
+      lib.FPDFBitmap_Destroy(bitmap);
+    }
+  } finally {
+    ffi_pkg.malloc.free(buffer);
+  }
+}
+
+/// A new text object for the `text` op at coords[c] (not inserted yet).
+pdfium.FPDF_PAGEOBJECT _textObject(
+  _ComposeJobState job,
+  PdfComposePageOps ops,
+  Float32List coords,
+  int c,
+  int verb,
+) {
+  final lib = job.lib;
+  final text = ops.texts[coords[c].toInt()];
+  final font = job.fonts[coords[c + 1].toInt()]!; // checkComposeOps: loaded
+  final object = lib.FPDFPageObj_CreateTextObj(
+    job.document,
+    font,
+    coords[c + 2],
+  );
+  if (object == ffi.nullptr) {
+    throw _ComposeFailure('verb $verb: FPDFPageObj_CreateTextObj failed');
+  }
+  final units = text.codeUnits;
+  final wide = ffi_pkg.malloc<ffi.UnsignedShort>(units.length + 1);
+  try {
+    final list = wide.cast<ffi.Uint16>().asTypedList(units.length + 1);
+    list.setAll(0, units);
+    list[units.length] = 0;
+    if (lib.FPDFText_SetText(object, wide) == 0) {
+      throw _ComposeFailure('verb $verb: FPDFText_SetText failed');
+    }
+    return object;
+  } on Object {
+    lib.FPDFPageObj_Destroy(object);
+    rethrow;
+  } finally {
+    ffi_pkg.malloc.free(wide);
+  }
+}
+
+/// Fill color [r, g, b, alpha255] at coords[c].
+void _applyFill(
+  pdfium.PDFium lib,
+  pdfium.FPDF_PAGEOBJECT object,
+  Float32List coords,
+  int c,
+) {
+  lib.FPDFPageObj_SetFillColor(
+    object,
+    coords[c].round(),
+    coords[c + 1].round(),
+    coords[c + 2].round(),
+    coords[c + 3].round(),
+  );
+}
+
+/// The object's own matrix (image: unit square → note pt; text: text space → note pt) at
+/// coords[c..c+5], then note → user [m], then onto [page] (owned by the page afterwards).
+void _place(
+  pdfium.PDFium lib,
+  pdfium.FPDF_PAGE page,
+  pdfium.FPDF_PAGEOBJECT object,
+  Float32List coords,
+  int c,
+  List<double> m,
+) {
+  try {
+    lib.FPDFPageObj_Transform(
+      object,
+      coords[c],
+      coords[c + 1],
+      coords[c + 2],
+      coords[c + 3],
+      coords[c + 4],
+      coords[c + 5],
+    );
+    lib.FPDFPageObj_Transform(object, m[0], m[1], m[2], m[3], m[4], m[5]);
+    if (lib.FPDFPage_InsertObject(page, object) == 0) {
+      throw _ComposeFailure('FPDFPage_InsertObject failed');
+    }
+  } on Object {
+    lib.FPDFPageObj_Destroy(object);
+    rethrow;
+  }
+}
+
+/// Worker isolate: the JPEG FPDFImageObj_LoadJpegFileInline is reading (6.2.8).
+Uint8List? _loadingJpeg;
+
+int _readJpegBlock(
+  ffi.Pointer<ffi.Void> param,
+  int position,
+  ffi.Pointer<ffi.UnsignedChar> buffer,
+  int size,
+) {
+  final source = _loadingJpeg;
+  if (source == null || position < 0 || position + size > source.length) {
+    return 0;
+  }
+  buffer
+      .cast<ffi.Uint8>()
+      .asTypedList(size)
+      .setRange(0, size, source, position);
+  return 1;
+}
+
+final ffi.Pointer<
+  ffi.NativeFunction<
+    ffi.Int Function(
+      ffi.Pointer<ffi.Void>,
+      ffi.UnsignedLong,
+      ffi.Pointer<ffi.UnsignedChar>,
+      ffi.UnsignedLong,
+    )
+  >
+>
+_jpegGetBlock = ffi.Pointer.fromFunction(_readJpegBlock, 0);
 
 pdfium.FPDF_PAGEOBJECT _open(pdfium.FPDF_PAGEOBJECT? object, int verb) {
   if (object == null) throw _ComposeFailure('verb $verb: no moveTo before it');
