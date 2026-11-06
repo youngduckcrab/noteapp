@@ -5,9 +5,14 @@
 // (no test override of pdfRenderStatsProvider, INFRA-3-2 / C12-06).
 // 2nd round (docs/plans/m5-7/01-infra.md 4.6.4, 6.7): contributions merged
 // into the editor slots, image import outside FEATURE_MEDIA, dev overlay
-// [pdf.render?, media?, recog.indexer?, search.index].
+// [pdf.render?, media?, recog.indexer?, search.index]; (R2-B8b, 6.12.3) the
+// Pencil override of stylusExtrasProvider through an injected PencilPort.
+import 'dart:async';
+
+import 'package:fake_async/fake_async.dart';
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -23,16 +28,20 @@ import 'package:noteapp/src/modules/feature_wiring_module.dart';
 import 'package:noteapp/src/modules/media_wiring.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
 import 'package:noteapp/src/modules/pdf_wiring.dart';
+import 'package:noteapp/src/modules/pencil_wiring.dart';
 import 'package:noteapp/src/modules/recognition_wiring.dart';
 import 'package:noteapp/src/modules/search_wiring.dart';
+import 'package:noteapp/src/pencil/pencil_stylus_extras.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:pdf_io/pdf_io.dart';
+import 'package:pencil_bridge/pencil_bridge.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_pdf_actions.dart';
+import '../fakes/fake_pencil_port.dart';
 import '../fakes/fake_web_platform.dart';
 
 /// Boots CoreModule (fake open), PdfModule (default arguments, or a failing
@@ -75,11 +84,13 @@ final _importer = EditorImageImporter(
 FeatureWiringModule _wiring(
   FakePdfActions pdf, {
   EditorImageImporter? importer,
+  PencilPort pencil = const PencilPort(),
 }) => FeatureWiringModule(
   importPdf: pdf.importPdf,
   exportPdf: pdf.exportPdf,
   moreMenuActions: pdf.moreMenuActions,
   addPageActions: pdf.addPageActions,
+  pencil: pencil,
   imageImporter: () => importer,
 );
 
@@ -487,6 +498,170 @@ void main() {
         expect(log.records.single.summary, contains('picker broken'));
       },
     );
+  });
+
+  group('R2-B8b: Pencil (6.12.3, contract 7.3.3 stylusExtrasProvider row)', () {
+    test('supported → PencilStylusExtrasSource with the capabilities read '
+        'once at start; events carry the native timestamp', () async {
+      final pencil = FakePencilPort(
+        capabilities: () async => const PencilCapabilities(
+          os: '17.5',
+          squeeze: true,
+          hover: true,
+          roll: true,
+          preferredTapAction: 'switchEraser',
+        ),
+      );
+      final log = AppErrorLog();
+      final (container, success) = await _boot(
+        _wiring(FakePdfActions(), pencil: pencil),
+        log: log,
+      );
+      expect(success.report.steps.last.outcome, StartupStepOutcome.ok);
+      expect(pencil.capabilityCalls, 1);
+      expect(log.records, isEmpty);
+      expect(
+        success.overrides.where((o) => o.origin == stylusExtrasProvider),
+        hasLength(1),
+      );
+
+      final extras = container.read(stylusExtrasProvider);
+      expect(extras, isA<PencilStylusExtrasSource>());
+      expect(extras.isSupported, isTrue);
+      expect(
+        extras.capabilities,
+        const StylusCapabilities(
+          doubleTap: true,
+          squeeze: true,
+          barrelRoll: true,
+          hoverPose: true,
+        ),
+      );
+      // Reading the slot again does not ask the pencil again.
+      container.read(stylusExtrasProvider);
+      expect(pencil.capabilityCalls, 1);
+
+      final received = <StylusExtraEvent>[];
+      final sub = extras.events.listen(received.add);
+      const t = Duration(seconds: 7, microseconds: 5);
+      pencil.controller.add(
+        const PencilTap(t, preferredAction: 'switchPrevious'),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(received, const [
+        StylusDoubleTap(
+          preferredAction: StylusPreferredAction.switchPrevious,
+          timestamp: t,
+        ),
+      ]);
+      await sub.cancel();
+    });
+
+    test('not supported (web, Android) → no override, the pencil is never '
+        'asked', () async {
+      final pencil = FakePencilPort(isSupported: false);
+      final (container, success) = await _boot(
+        _wiring(FakePdfActions(), pencil: pencil),
+      );
+      expect(
+        success.overrides.map((o) => o.origin),
+        isNot(contains(stylusExtrasProvider)),
+      );
+      expect(container.read(stylusExtrasProvider), isA<NoStylusExtras>());
+      expect(pencil.capabilityCalls, 0);
+      expect(pencil.eventReads, 0);
+    });
+
+    test('the default PencilPort on the test platform (not iOS) → no '
+        'override', () async {
+      expect(const PencilPort().isSupported, isFalse);
+      final (container, success) = await _boot(_wiring(FakePdfActions()));
+      expect(
+        success.overrides.map((o) => o.origin),
+        isNot(contains(stylusExtrasProvider)),
+      );
+      expect(container.read(stylusExtrasProvider).isSupported, isFalse);
+    });
+
+    test('capabilities throw (no plugin) → override with the fallback '
+        '(double tap only) + 1 record', () async {
+      final pencil = FakePencilPort(
+        capabilities: () async =>
+            throw MissingPluginException('No implementation found'),
+      );
+      final log = AppErrorLog();
+      final (container, success) = await _boot(
+        _wiring(FakePdfActions(), pencil: pencil),
+        log: log,
+      );
+      expect(success.report.steps.last.outcome, StartupStepOutcome.ok);
+      final extras = container.read(stylusExtrasProvider);
+      expect(extras, isA<PencilStylusExtrasSource>());
+      expect(
+        extras.capabilities,
+        stylusCapabilitiesOf(kPencilFallbackCapabilities),
+      );
+      expect(extras.capabilities, const StylusCapabilities(doubleTap: true));
+      expect(log.records, hasLength(1));
+      expect(log.records.single.source, AppErrorSource.module);
+      expect(log.records.single.summary, contains('MissingPluginException'));
+      expect(log.records.single.details, contains('double tap only'));
+    });
+
+    test('capabilities take longer than 500 ms → override with the fallback '
+        '+ 1 record; the module still starts in time', () {
+      fakeAsync((async) {
+        final store = CountingNoteStore();
+        final web = FakeWebPlatform();
+        final log = AppErrorLog();
+        final answer = Completer<PencilCapabilities>();
+        final pencil = FakePencilPort(capabilities: () => answer.future);
+        final bootstrapper = AppBootstrapper(
+          modules: [
+            CoreModule(open: fakeOpenNoteStore(store: store).call),
+            _wiring(FakePdfActions(), pencil: pencil),
+          ],
+          buildInfo: BuildInfo.local,
+          runtimeInfo: RuntimeInfo.detect(web),
+          web: web,
+          errorLog: log,
+          ownerId: kLocalOwnerId,
+        );
+        BootstrapSuccess? success;
+        unawaited(
+          bootstrapper.run().then((r) => success = r as BootstrapSuccess),
+        );
+        async.elapse(const Duration(milliseconds: 499));
+        expect(success, isNull, reason: 'still waiting for the pencil');
+        async.elapse(const Duration(milliseconds: 1));
+        expect(success, isNotNull);
+        expect(success!.report.steps.last.outcome, StartupStepOutcome.ok);
+        expect(log.records, hasLength(1));
+        expect(log.records.single.summary, startsWith('TimeoutException'));
+        expect(log.records.single.details, contains('500 ms'));
+
+        final container = ProviderContainer.test(overrides: success!.overrides);
+        expect(
+          container.read(stylusExtrasProvider).capabilities,
+          const StylusCapabilities(doubleTap: true),
+        );
+
+        // A late answer changes nothing (capabilities are read once).
+        answer.complete(const PencilCapabilities(os: '18.0', hover: true));
+        async.flushMicrotasks();
+        expect(
+          container.read(stylusExtrasProvider).capabilities,
+          const StylusCapabilities(doubleTap: true),
+        );
+        expect(pencil.capabilityCalls, 1);
+        expect(log.records, hasLength(1));
+
+        container.dispose();
+        unawaited(bootstrapper.shutdown());
+        unawaited(store.inner.close());
+        async.elapse(const Duration(seconds: 1));
+      });
+    });
   });
 
   test('search.index lines follow the store status (CORE fake: no rebuild '

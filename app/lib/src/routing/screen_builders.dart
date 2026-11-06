@@ -62,6 +62,9 @@ Widget _productionLibrary(
   folderId: args.folderId,
   onOpenFolder: (folderId) => navigator.openLibrary(folderId: folderId),
   onOpenNote: navigator.openNote,
+  // Content search hit → page + rect (2차 6.8, S2-6).
+  onOpenNoteAt: (noteId, pageId, rect) =>
+      navigator.openNote(noteId, pageId: pageId, focusRectPt: rect),
   onOpenSettings: navigator.openSettings,
 );
 
@@ -73,6 +76,7 @@ Widget _productionEditor(
   key: ValueKey<String>(args.noteId),
   noteId: args.noteId,
   initialPageId: args.initialPageId,
+  initialFocusRectPt: args.initialFocusRectPt,
   onClose: navigator.closeNote,
   onOpenSettings: navigator.openSettings,
 );
@@ -176,6 +180,12 @@ class _EditorPlaceholder extends StatelessWidget {
           children: [
             Text('noteId: ${args.noteId}'),
             Text('pageId: ${args.initialPageId ?? '(none)'}'),
+            Text(
+              'focus: ${switch (args.initialFocusRectPt) {
+                final rect? => FocusRectCodec.encode(rect),
+                null => '(none)',
+              }}',
+            ),
           ],
         ),
       ),

@@ -1,5 +1,6 @@
 // createAppRouter + AppScreenBuilders.placeholders() + GoRouterAppNavigator
-// + NotFoundScreen (docs/plans/01-infra.md 4.5.5, 6.6, 9.1).
+// + NotFoundScreen (docs/plans/01-infra.md 4.5.5, 6.6, 9.1; 2차
+// docs/plans/m5-7/01-infra.md 6.8 — ?page=&focus=).
 import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -155,6 +156,133 @@ void main() {
         (shell.navigator as GoRouterAppNavigator).router,
         same(shell.router),
       );
+    });
+  });
+
+  group('?page=&focus= (2차 6.8, S2-6)', () {
+    const focus = Rect.fromLTRB(120, 80, 320.5, 200);
+    const withFocus = EditorRouteArgs(
+      noteId: 'n1',
+      initialPageId: 'p3',
+      initialFocusRectPt: focus,
+    );
+
+    testWidgets('a deep link hands page and focus to the editor builder', (
+      tester,
+    ) async {
+      final shell = await _pump(
+        tester,
+        initialLocation: '/notes/n1?page=p3&focus=120,80,320.5,200',
+      );
+      expect(shell.editorArgs.last, withFocus);
+      expect(find.text('pageId: p3'), findsOneWidget);
+      expect(find.text('focus: 120,80,320.5,200'), findsOneWidget);
+    });
+
+    testWidgets('%2C between the values reads the same', (tester) async {
+      final shell = await _pump(
+        tester,
+        initialLocation: '/notes/n1?page=p3&focus=120%2C80%2C320.5%2C200',
+      );
+      expect(shell.editorArgs.last, withFocus);
+    });
+
+    testWidgets('an unreadable focus is dropped; the page still opens', (
+      tester,
+    ) async {
+      for (final bad in ['10,0,5,5', '1,2,3', 'x', '', '1,2,3,1e9']) {
+        final shell = await _pump(
+          tester,
+          initialLocation: '/notes/n1?page=p3&focus=$bad',
+        );
+        expect(
+          shell.editorArgs.last,
+          const EditorRouteArgs(noteId: 'n1', initialPageId: 'p3'),
+          reason: bad,
+        );
+        expect(find.text('pageId: p3'), findsOneWidget);
+        expect(find.text('focus: (none)'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('focus without page is dropped', (tester) async {
+      final shell = await _pump(
+        tester,
+        initialLocation: '/notes/n1?focus=1,2,3,4',
+      );
+      expect(shell.editorArgs.last, const EditorRouteArgs(noteId: 'n1'));
+    });
+
+    testWidgets('openNote(pageId:, focusRectPt:) pushes the address; closing '
+        'returns to the library', (tester) async {
+      final shell = await _pump(tester);
+      shell.navigator.openNote('n1', pageId: 'p3', focusRectPt: focus);
+      await _settle(tester);
+      expect(shell.location, '/notes/n1?page=p3&focus=120,80,320.5,200');
+      expect(shell.location, AppRoutes.note('n1', pageId: 'p3', focus: focus));
+      expect(shell.editorArgs.last, withFocus);
+      expect(_pages(tester), hasLength(2));
+
+      shell.navigator.closeNote();
+      await _settle(tester);
+      expect(shell.location, '/');
+      expect(_pages(tester), hasLength(1));
+    });
+
+    testWidgets('openNote(focusRectPt:) without a page opens the note only', (
+      tester,
+    ) async {
+      final shell = await _pump(tester);
+      shell.navigator.openNote('n1', focusRectPt: focus);
+      await _settle(tester);
+      expect(shell.location, '/notes/n1');
+      expect(shell.editorArgs.last, const EditorRouteArgs(noteId: 'n1'));
+    });
+
+    testWidgets('reload: the reported address opens the same place again', (
+      tester,
+    ) async {
+      final reported = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation,
+        (call) async {
+          if (call.method == 'routeInformationUpdated') {
+            reported.add((call.arguments as Map)['uri'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.navigation,
+          null,
+        ),
+      );
+      final shell = await _pump(tester);
+      shell.navigator.openNote(
+        'a/b c',
+        pageId: 'p 3',
+        focusRectPt: const Rect.fromLTRB(-1.25, 0, 36.04, 72.75),
+      );
+      await _settle(tester);
+      final address = reported.last;
+      expect(address, contains('focus=-1.3,0,36,72.8'));
+      final opened = shell.editorArgs.last;
+      expect(
+        opened,
+        const EditorRouteArgs(
+          noteId: 'a/b c',
+          initialPageId: 'p 3',
+          initialFocusRectPt: Rect.fromLTRB(-1.3, 0, 36, 72.8),
+        ),
+      );
+
+      // A reload starts a new app on the address the browser shows.
+      await tester.pumpWidget(const SizedBox());
+      final reloaded = await _pump(tester, initialLocation: address);
+      expect(reloaded.editorArgs.last, opened);
+      expect(reloaded.location, address);
     });
   });
 

@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 동시 개발 1/11** — 작업 표·문서 정리(C22-09·C23-01), **R2-B8a**(앱 셸 v2 연결) — 아래 '## 2차' > '### 동시 개발'. 그 앞은 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
-- 다음 할 일: '### 동시 개발' 작업 표 순서 — R2-B8b → J0 → J1~J22(체크포인트 병합 — Q14; R2-B8a 체크포인트 요청함).
+- 마지막 세션: **2차 동시 개발 2/11** — **R2-B8b**(라우팅 `?page=&focus=`·`pencil_bridge` Dart 표면·Pencil 어댑터) — 아래 '## 2차' > '### 동시 개발'. 그 앞 1/11은 작업 표·문서 정리(C22-09·C23-01)·R2-B8a, 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
+- 다음 할 일: '### 동시 개발' 작업 표 순서 — J0 → J1~J22(체크포인트 병합 — Q14; R2-B8a·R2-B8b 체크포인트 요청함).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -391,7 +391,7 @@
 | R2-final | 기반 단계에서 완료 | `708a1c1` | (위 '### R2-final') |
 | 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
 | R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
-| R2-B8b | 남음 | | `app_routes_test`·`app_router_test`·`production_screens_test`·`pencil_bridge_test`·`api_surface_test`(pencil)·`pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 3경우) |
+| R2-B8b | 완료 | (아래 'R2-B8b' 절) | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
 | J0 | 남음 | | `tool/test/native_config_test.dart`, 웹 빌드 측정 표(6.15), CI 실측 표(6.16 — 첫 체크포인트 푸시 뒤, 총괄) |
 | J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
 | J2 | 남음 | | `native_config_test`(서명 분기)·`workflows_test`(서명 세 갈래) — 실제 서명은 GitHub(H6) |
@@ -433,6 +433,26 @@
 | `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 33초 |
 | `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 110초 |
 
+#### R2-B8b — 라우팅 `?page=&focus=` · `pencil_bridge` Dart 표면 · Pencil 어댑터 (계획 8.1b)
+
+- **① 라우팅**(4.6.6·6.8, S2-6): `AppRoutes.focusQueryKey`·`note(noteId, pageId:, focus:)`, `FocusRectCodec`(`encode` 0.1 pt 반올림·끝 `.0` 없음·쉼표 그대로, `decode` 네 수·유한·`l ≤ r`·`t ≤ b`·`|v| ≤ 100000`·`%2C` 받음), `EditorRouteArgs.initialFocusRectPt`(page 없으면 assert), `AppNavigator.openNote(…, focusRectPt:)`, 라우터가 `page`가 있을 때만 `focus`를 해석, 운영 화면 빌더 `LibraryScreen(onOpenNoteAt:)` → `openNote` → `EditorScreen(initialFocusRectPt:)`. 자리표시 에디터는 'focus: …' 줄을 보인다.
+- **② `packages/pencil_bridge`**(4.4.2·4.4.3·6.12.1): `lib/pencil_bridge.dart`(계약 이름 7개만 `show`), `src/pencil_events.dart`(값 타입 — `==`·`hashCode`·`toString`, `PencilCapabilities.fromWire`·`unsupported`), `src/wire.dart`(`PencilWire` 상수·`decode`), `src/pencil_bridge_impl.dart`(`isSupported`, `capabilities()` — 지원 안 함 → 채널 호출 없음, 오류 다시 던짐; `events` — 캐시한 `receiveBroadcastStream().handleError(…).map(decode).where(…).cast()`, `asBroadcastStream` 없음; `debugDroppedEvents`·`debugReset`). R2-B1 스모크 시험은 지웠다(실제 시험으로 바뀜). README 갱신. Swift는 아직 R2-B1의 빈 등록(J12) — 그때까지 iOS에서 `capabilities()`는 `MissingPluginException`이고 어댑터가 대체 능력을 쓴다.
+- **③ 앱 어댑터**(4.6.5·6.12.3, X35): `src/modules/pencil_wiring.dart`(`PencilPort`), `src/pencil/pencil_stylus_extras.dart`(`PencilStylusExtrasSource`·`stylusCapabilitiesOf`·`kPencilFallbackCapabilities`·`stylusEventOf`·`stylusPreferredActionOf`·`stylusSqueezePhaseOf` — 네 종류 모두 `timestamp` 전달), `FeatureWiringModule(pencil:)` — `isSupported`이면 `start`에서 능력을 한 번 읽고(500 ms, 실패·시간 초과 → 기록 1건 + 대체 능력) `stylusExtrasProvider` override. 시험 가짜 `app/test/fakes/fake_pencil_port.dart`(모듈 생성자 주입 — S2-2).
+- EDITOR 요청(인수인계 메모) 처리: `StylusExtrasSource.capabilities`(실행 중 고정)·이벤트 `timestamp`·`EditorScreen(initialFocusRectPt:)` 연결 — 끝. 능력 조회 시간 제한·실패 처리도 여기서 했다(J13 몫을 당김 — 아래 '계획과 다르게 한 점').
+- `asBroadcastStream()`을 넣으면 `pencil_bridge_test`의 '두 구독 → cancel 1회' 시험이 실패하는 것을 한 번 확인했다(되돌림).
+
+| 검사 | 결과 |
+|---|---|
+| `app`·`pencil_bridge` `flutter analyze --fatal-infos` / 루트 `flutter analyze --fatal-infos` | 0건 / 0건 |
+| `dart format --output=none --set-exit-if-changed app packages/pencil_bridge` | 변경 0 |
+| `ws check` (R1–R16) | 0 |
+| `ws test --package pencil_bridge` (VM) | 33 통과 |
+| `ws test --package noteapp` (VM) | 428 통과 · 1 건너뜀(V5) · 63초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 87초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 28초 |
+| `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 97초 |
+| `dart test tool/test` | 372 통과 · 75초 |
+
 #### 변경 요청
 
 - 없음
@@ -453,6 +473,14 @@
 - (R2-B8a) `idle_tasks_test`에서 Flutter 시험 바인딩의 `pump()`는 0초 타이머(`Timer.run` — 스케줄러 작업 루프)를 돌리지 않아 `pump(Duration.zero)`를 쓴다. 한 시험이 `scheduleTask`를 남긴 채 끝나면 바인딩의 작업 루프가 다음 시험에서 멈추므로(관찰함) 시험마다 끝까지 흘려보낸다.
 - (R2-B8a) 1차 V5 스모크(`test/support/smoke_scenario.dart`)의 기대값을 셸 행 2개와 `search.index` 섹션만큼 고쳤다(V5 v2는 J19).
 - (R2-B8a) J5의 `app_module_context_test`(설정 읽기 500 ms 초과·캐시 1회)는 아직 없다 — 기능 해석의 기본 사례는 `app_bootstrapper_test`의 2차 묶음에 있다.
+- (R2-B8b) `FocusRectCodec`에 앱 내부 보조 `maxAbs`(100000)·`canEncode(rect)`를 더했다. `AppRoutes.note`는 `decode`가 다시 읽지 못할 focus(무한대·NaN·`l > r`·`t > b`·±100000 밖)를 주소에 넣지 않는다 — 만든 주소가 언제나 열리게. `encode`는 유한하지 않은 사각형에 `ArgumentError`.
+- (R2-B8b) `FocusRectCodec.decode`의 수 형식은 `-?숫자(.숫자)?`만 받는다(지수·`+`·공백·`NaN`·`Infinity`·`.5`·`1.` 거절 — `encode`가 쓰지 않는 형식). 계획의 '유한한 수 4개'보다 좁다.
+- (R2-B8b) `GoRouterAppNavigator.openNote`는 `pageId` 없는 `focusRectPt`를 assert 없이 버린다(`AppRoutes.note`의 assert는 직접 부를 때만 — 화면 콜백은 늘 page와 함께 부름).
+- (R2-B8b) `PencilBridge.capabilities()`: 결과가 맵이 아니면 `PlatformException(code: 'invalid-result')`(계획에 없음 — 앱 어댑터가 다른 오류처럼 대체 능력으로 처리). `PencilCapabilities.fromWire`는 타입이 틀린 값도 '없음'으로 보고 기본값을 쓴다(`os` 기본 '').
+- (R2-B8b) `PencilWire`에 `eventKeys`(종류별 필수·선택 키 표, 4.4.3)를 더했다 — `decode`가 쓰고 J12 와이어 대조 시험 ③이 Swift 키 집합과 비교한다(내부 상수, 진입점에 없음). `decode`는 선택 키도 타입이 틀리면 버린다(값이 null이면 없음으로 봄), `t`가 유한하지 않으면 버린다.
+- (R2-B8b) `debugDroppedEvents`는 구독자마다 따로 센다(브로드캐스트 스트림의 `map`은 구독자마다 돈다 — 구독자 둘이면 나쁜 이벤트 하나가 2). 채널 오류는 처음 한 번만 `debugPrint`(`debugReset`이 되돌림).
+- (R2-B8b, J13 몫을 당김) 능력 조회 500 ms 시간 제한·실패 처리(기록 1건 + `kPencilFallbackCapabilities`, override는 남음)를 `FeatureWiringModule.start`에 넣었다. 상수 `FeatureWiringModule.pencilCapabilitiesTimeout`(앱 내부). J13에는 앱 정보 Pencil 줄(스퀴즈·롤은 이벤트를 받은 뒤)과 Swift 쪽(J12) 뒤 마무리가 남는다.
+- (R2-B8b) `overrides_unique_test`에 7번째 경우 'iPad(펜슬 지원)'를 더했다 — `stylusExtrasProvider`가 한 번만(`FakePencilPort` 주입).
 - (문서) C23-01의 'INFRA(CI·functions.yml 고정값 확인)': `functions.yml`에는 판 문자열이 없다(`functions/package.json` devDependency를 `npm ci`로). 1차 고정값이 남아 있던 `ci.yml`·`web-experiment.yml` 배포 단계 `firebaseToolsVersion`을 15.34.1로 내렸다(계약 7.5 표 '(도구) firebase-tools 15.34.1 — CI').
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
@@ -471,9 +499,10 @@
 
 - 체크포인트 병합 요청(INFRA-F3, Q14): R2-B8a·R2-B8b·J0 끝마다 결과 보고에 적는다.
 - **R2-B8a 체크포인트**: `a4c9cca`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
+- **R2-B8b 체크포인트**: 아래 'R2-B8b' 커밋(+ 기록 커밋) — 총괄에게 `main` 병합 요청(D24). J0 ③ 웹 빌드 실측이 이 체크포인트 뒤다.
 
 #### 다음 세션 메모
 
-- 다음: R2-B8b(계획 8.1b ①~③ — 라우팅 `?page=&focus=`, `pencil_bridge` Dart 표면, `PencilStylusExtrasSource`·`PencilPort`·`FeatureWiringModule` Pencil override). EDITOR 요청: `StylusExtrasSource.capabilities`, 이벤트 `timestamp`, `EditorScreen(initialFocusRectPt:)`.
-- 그다음 J0(①② 네이티브 설정·`native_config` 정적 시험, ③ 웹 빌드 실측 — 잠금 안, ④ CI 실측은 첫 체크포인트 푸시 뒤 총괄).
-- 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에 적었다.
+- 다음: J0(①② 네이티브 설정·`native_config` 정적 시험, ③ 웹 빌드 실측 — 잠금 안, R2-B8b 뒤라 이제 가능, ④ CI 실측은 첫 체크포인트 푸시 뒤 총괄).
+- J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
+- 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에, J13 몫은 (R2-B8b)에 적었다.

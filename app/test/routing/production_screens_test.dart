@@ -6,6 +6,10 @@
 // The tests drive the screens only through their contract callbacks and
 // contract behaviour (7.2.17 / 7.2.18), never through placeholder body text,
 // so the areas can replace their placeholders without breaking this file.
+//
+// 2차 (docs/plans/m5-7/01-infra.md 4.6.6, 6.8 — R2-B8b ①): content search
+// hits open through LibraryScreen.onOpenNoteAt → `?page=&focus=` →
+// EditorScreen(initialPageId:, initialFocusRectPt:).
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -232,6 +236,56 @@ void main() {
       expect(_location(tester), '/');
       expect(find.byType(LibraryScreen), findsOneWidget);
       expect(_anyEditor, findsNothing);
+    });
+
+    testWidgets('onOpenNoteAt(noteId, pageId, rect) → the editor gets the '
+        'page and the focus rect; closing returns to the library', (
+      tester,
+    ) async {
+      await _pumpShell(tester);
+      expect(_library(tester).onOpenNoteAt, isNotNull);
+
+      const rect = Rect.fromLTRB(120, 80, 320.5, 200);
+      _library(tester).onOpenNoteAt!('n1', 'p3', rect);
+      await tester.pumpAndSettle();
+
+      expect(_location(tester), '/notes/n1?page=p3&focus=120,80,320.5,200');
+      expect(_editor(tester).noteId, 'n1');
+      expect(_editor(tester).initialPageId, 'p3');
+      expect(_editor(tester).initialFocusRectPt, rect);
+      // Pushed over the library (the search view stays below).
+      expect(_anyLibrary, findsOneWidget);
+
+      _editor(tester).onClose();
+      await tester.pumpAndSettle();
+      expect(_location(tester), '/');
+      expect(find.byType(LibraryScreen), findsOneWidget);
+    });
+
+    testWidgets('onOpenNoteAt without a rect opens the page only', (
+      tester,
+    ) async {
+      await _pumpShell(tester);
+      _library(tester).onOpenNoteAt!('n1', 'p 3', null);
+      await tester.pumpAndSettle();
+
+      expect(_location(tester), AppRoutes.note('n1', pageId: 'p 3'));
+      expect(_editor(tester).initialPageId, 'p 3');
+      expect(_editor(tester).initialFocusRectPt, isNull);
+    });
+
+    testWidgets('a deep link with ?page=&focus= reaches EditorScreen', (
+      tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        initialLocation: '/notes/n1?page=p3&focus=-1.5,0,36,72.8',
+      );
+      expect(_editor(tester).initialPageId, 'p3');
+      expect(
+        _editor(tester).initialFocusRectPt,
+        const Rect.fromLTRB(-1.5, 0, 36, 72.8),
+      );
     });
 
     testWidgets('deep links to a folder and to settings', (tester) async {

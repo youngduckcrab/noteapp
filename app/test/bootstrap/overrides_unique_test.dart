@@ -9,7 +9,8 @@
 // PdfModule with a no-op initialize (the real pdfIoOverrides()), MediaModule
 // whose mediaOverrides gives CORE's FakeAudioRecorder / FakeAudioPlayback,
 // RecognitionModule whose overridesFor gives the three recognition rows,
-// FeatureWiringModule with fake PDF actions and an image importer.
+// FeatureWiringModule with fake PDF actions and an image importer (and, in
+// the iPad case, a FakePencilPort — R2-B8b).
 // Table-driven: each scenario lists which contract 7.3.3 rows it expects.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
@@ -31,6 +32,7 @@ import 'package:noteapp/src/modules/core_module.dart';
 import 'package:noteapp/src/modules/feature_wiring_module.dart';
 import 'package:noteapp/src/modules/media_module.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
+import 'package:noteapp/src/modules/pencil_wiring.dart';
 import 'package:noteapp/src/modules/production_modules.dart';
 import 'package:noteapp/src/modules/recognition_module.dart';
 import 'package:noteapp/src/providers.dart';
@@ -42,6 +44,7 @@ import 'package:pdf_io/pdf_io.dart';
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_pdf_actions.dart';
+import '../fakes/fake_pencil_port.dart';
 import '../fakes/fake_web_platform.dart';
 
 /// Which non-critical module fails in a scenario.
@@ -58,6 +61,7 @@ List<AppModule> _modules(
   NoteStore store, {
   _Fail fail = _Fail.none,
   AppFeatures features = AppFeatures.all,
+  PencilPort pencil = const PencilPort(),
 }) {
   final pdf = FakePdfActions();
   Never boom(String what) => throw StateError('$what down');
@@ -111,6 +115,7 @@ List<AppModule> _modules(
       moreMenuActions: () =>
           fail == _Fail.featureWiring ? boom('wiring') : pdf.moreMenuActions(),
       addPageActions: pdf.addPageActions,
+      pencil: pencil,
       imageImporter: () => _importer,
     ),
   );
@@ -152,6 +157,7 @@ Set<Object> _expected({
   required bool recognition,
   required bool wiring,
   required bool editorExtensions,
+  bool pencil = false,
 }) => {
   buildInfoProvider,
   webPlatformProvider,
@@ -181,6 +187,8 @@ Set<Object> _expected({
     // Image import: outside FEATURE_MEDIA — in every scenario (D2-15).
     editorImageImporterProvider,
     devOverlaySectionsProvider,
+    // iOS only (R2-B8b): the pencil adapter.
+    if (pencil) stylusExtrasProvider,
   },
 };
 
@@ -274,6 +282,27 @@ void main() {
       }
     });
   }
+
+  test('iPad (pencil supported): stylusExtrasProvider appears exactly once, '
+      'next to every other row', () async {
+    final store = CountingNoteStore();
+    addTearDown(store.inner.close);
+    final success = await _boot(_modules(store, pencil: FakePencilPort()));
+    expect(_duplicateOrigins(success.overrides), isEmpty);
+    expect(
+      success.overrides.map((o) => o.origin).toSet(),
+      _expected(
+        pdf: true,
+        media: true,
+        recognition: true,
+        wiring: true,
+        editorExtensions: true,
+        pencil: true,
+      ),
+    );
+    final container = ProviderContainer.test(overrides: success.overrides);
+    expect(container.read(stylusExtrasProvider).isSupported, isTrue);
+  });
 
   test(
     'the outcomes of the failure scenarios are what the table assumes',
