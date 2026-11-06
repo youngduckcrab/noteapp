@@ -11,12 +11,13 @@
 //   platform_recognizer.dart; disposed with the container), the math engine
 //   (manual without an endpoint, CallableMathRecognizer with one — its
 //   http.Client closed with the container) and GeometricShapeFitter for INK.
-// - 2차 foundation step R2-B6 still (contract 7.6.2) — handwritingIndexerProvider: null on the web or without an available
-//   engine; otherwise an indexer whose `enabled` stays false (L2-11 ties it to
-//   recog.autoIndex). Never calls start() (INFRA's idle task
-//   'recognition.indexer' does — 7.3.3).
-// - recognitionDevOverlayLinesProvider: the fixed 'no indexer' line (L2-11
-//   adds the 4.4.9 lines).
+// - (L2-11) handwritingIndexerProvider: null on the web or without an
+//   available engine; otherwise an indexer whose `enabled` follows
+//   recog.autoIndex (store.settings.watch). Never calls start() (INFRA's
+//   idle task 'recognition.indexer' does — 7.3.3); disposed with the
+//   container (dispose() is idempotent — INFRA may call it too).
+// - (L2-11) recognitionDevOverlayLinesProvider: the 4.4.9 lines (status,
+//   last job, model state, math engine); no indexer → the fixed line.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -29,10 +30,13 @@ import 'package:note_core/note_core.dart' as core;
 import 'common/report_error.dart';
 import 'engines/platform_recognizer.dart';
 import 'indexer/handwriting_indexer.dart';
+import 'indexer/indexer_status.dart';
 import 'l10n/recognition_strings.dart';
 import 'math/callable_math_recognizer.dart';
+import 'model/candidates.dart';
 import 'ports/handwriting_recognizer.dart';
 import 'ports/math_recognizer.dart';
+import 'ports/model_admin.dart';
 import 'settings/recognition_settings_keys.dart';
 import 'shapes/geometric_shape_fitter.dart';
 
@@ -124,14 +128,30 @@ List<Override> buildRecognitionOverrides({
 final handwritingIndexerProvider = Provider<HandwritingIndexer?>((ref) {
   final recognizer = ref.watch(handwritingRecognizerProvider);
   if (kIsWeb || !recognizer.isAvailable) return null;
-  // R2-B6: stays false; L2-11 follows recog.autoIndex.
+  final store = ref.watch(core.noteStoreProvider);
+  // recog.autoIndex (device scope); false until the first value. A plain
+  // stream subscription, not ref.listen: INFRA only reads this provider
+  // (its idle task), and a provider nobody listens to is paused by
+  // Riverpod 3 — the setting must reach the indexer anyway.
   final enabled = ValueNotifier<bool>(false);
+  var disposed = false;
+  final autoIndex = store.settings
+      .watch(RecognitionSettingsKeys.autoIndex)
+      .listen(
+        (value) {
+          if (!disposed) enabled.value = value;
+        },
+        onError: (Object e, StackTrace s) =>
+            reportRecognitionError(e, s, 'recog.autoIndex'),
+      );
   final indexer = HandwritingIndexer(
-    store: ref.watch(core.noteStoreProvider),
+    store: store,
     recognizer: recognizer,
     enabled: enabled,
   ); // foreground: default AppLifecycleListener (CP-L10)
   ref.onDispose(() {
+    disposed = true;
+    unawaited(autoIndex.cancel());
     unawaited(indexer.dispose());
     enabled.dispose();
   });
@@ -139,11 +159,97 @@ final handwritingIndexerProvider = Provider<HandwritingIndexer?>((ref) {
 }, name: 'handwritingIndexerProvider');
 
 /// (v2.1, CP-L2 = INFRA CP4) Developer overlay lines; same shape as mediaDevOverlayLinesProvider.
+// 4.4.9: 'phase · lang · queue n · done n · failed n' (status.toString()),
+// 'job <ms> ms · lines n · page <id>' ('job —' before the first job),
+// 'model <lang>: ready|notDownloaded|downloading|unsupported' (+ ' · waiting
+// for Wi-Fi' while a wifiOnly download waits), 'math: manual|callable(consent
+// on|off)' (another engine: 'math: <engineId>'). No indexer → the fixed line.
 final recognitionDevOverlayLinesProvider =
     Provider<ValueListenable<List<String>>>((ref) {
-      final lines = ValueNotifier<List<String>>(const [
-        RecognitionStrings.noIndexerLine,
-      ]);
-      ref.onDispose(lines.dispose);
+      final indexer = ref.watch(handwritingIndexerProvider);
+      if (indexer == null) {
+        final fixed = ValueNotifier<List<String>>(const [
+          RecognitionStrings.noIndexerLine,
+        ]);
+        ref.onDispose(fixed.dispose);
+        return fixed;
+      }
+      final recognizer = ref.watch(handwritingRecognizerProvider);
+      final math = ref.watch(mathRecognizerProvider);
+      final settings = ref.watch(core.settingsRepositoryProvider);
+      final metrics = metricsOf(indexer);
+      var lang = 'ko';
+      RecognitionModelState? model;
+      bool? consent;
+      var disposed = false;
+      var modelAsk = 0;
+
+      List<String> build() {
+        final status = indexer.status.value;
+        final job = metrics.lastJob.value;
+        final waitingWifi =
+            status.phase == HandwritingIndexerPhase.waitingModel &&
+            (status.lastError?.contains('waiting for Wi-Fi') ?? false);
+        final jobLine = job == null
+            ? 'job —'
+            : 'job ${job.ourMs.toStringAsFixed(1)} ms · '
+                  'lines ${job.lines} · page ${job.pageId}';
+        final wifi = waitingWifi ? ' · waiting for Wi-Fi' : '';
+        final modelLine = 'model $lang: ${model?.name ?? '—'}$wifi';
+        final mathLine = switch (math) {
+          ManualOnlyMathRecognizer() => 'math: manual',
+          CallableMathRecognizer() =>
+            'math: callable(consent ${consent ?? false ? 'on' : 'off'})',
+          _ => math.isAvailable ? 'math: ${math.engineId}' : 'math: manual',
+        };
+        return [status.toString(), jobLine, modelLine, mathLine];
+      }
+
+      final lines = ValueNotifier<List<String>>(build());
+      void update() {
+        if (!disposed) lines.value = build();
+      }
+
+      Future<void> askModel() async {
+        final ask = ++modelAsk;
+        final tag = lang;
+        RecognitionModelState? state;
+        try {
+          state = await recognizer.modelState(tag);
+        } on Object {
+          state = null;
+        }
+        if (disposed || ask != modelAsk) return;
+        model = state;
+        update();
+      }
+
+      indexer.status.addListener(update);
+      metrics.lastJob.addListener(update);
+      final subscriptions = <StreamSubscription<Object?>>[
+        settings.watch(RecognitionSettingsKeys.language).listen((value) {
+          lang = recognitionLanguageOf(value);
+          unawaited(askModel());
+        }),
+        if (math is CallableMathRecognizer)
+          settings.watch(RecognitionSettingsKeys.mathConsent).listen((value) {
+            consent = value;
+            update();
+          }),
+        if (recognizer case final RecognizerModelAdmin admin)
+          admin.modelChanges.listen((tag) {
+            if (tag == lang) unawaited(askModel());
+          }),
+      ];
+      unawaited(askModel());
+      ref.onDispose(() {
+        disposed = true;
+        indexer.status.removeListener(update);
+        metrics.lastJob.removeListener(update);
+        for (final s in subscriptions) {
+          unawaited(s.cancel());
+        }
+        lines.dispose();
+      });
       return lines;
     }, name: 'recognitionDevOverlayLinesProvider');

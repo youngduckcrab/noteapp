@@ -299,8 +299,8 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-08 (P-B, ML Kit) | 남음 | | `native/mlkit_adapter_test.dart`, `unit/mlkit_errors_test.dart` |
 | L2-09 (P-B) | 남음 | | `unit/mixed_language_test.dart` |
 | L2-10a | 완료 | 598eb97 | `unit/indexer_test.dart`(+ `unit/fakes_test.dart`'RecognizerModelAdmin'·`unit/api_surface_test.dart`·`ink_recognition_smoke_test.dart` 갱신), 시험 도우미 `test/support/recording_store.dart`·`indexer_harness.dart` |
-| L2-10b | 완료 | (다음 기록 커밋에 해시) | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`('line reuse and confirmed lines' 묶음), `unit/catch_up_test.dart` |
-| L2-11 | 남음 | | `unit/indexer_provider_test.dart` |
+| L2-10b | 완료 | f5d826f | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`('line reuse and confirmed lines' 묶음), `unit/catch_up_test.dart` |
+| L2-11 | 완료 | (다음 기록 커밋에 해시) | `unit/indexer_provider_test.dart` |
 | L2-12 | 남음 | | `unit/recognition_actions_test.dart`, `unit/object_builders_test.dart` |
 | L2-13 | 남음 | | `widget/latex_editor_sheet_test.dart`, `unit/recognition_actions_test.dart` |
 | L2-14 | 남음 | | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart` |
@@ -357,6 +357,9 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - 따라잡기: `start()`(켜져 있으면)와 `enabled`가 참이 될 때마다 `notesWithStalePages()` → 노트마다 `stalePages` → 대기열 뒤(`QueueLane.catchUp`), 노트 하나 뒤 `Future.delayed(Duration.zero)` 양보. 조용해질 때를 기다리는 페이지·30 s 미룬 페이지·작업 중인 페이지는 넣지 않는다. 끄기·dispose·off·새 따라잡기는 진행 중인 것을 멈춘다(세대 번호). 실패는 (오류 종류)마다 보고 1회. **그래서 꺼져 있는 동안 바뀐 페이지는 다시 켤 때 조용해질 때 없이 바로 돈다**(L2-10a의 '다시 켜면 idle' 시험을 '따라잡기가 찾아 색인'으로 고침).
   - 원격 결과(다른 기기, 같은 `sourceRev`·언어)는 가짜 저장소에 원격 경로가 없어 다른 쓰기 주체의 `put`으로 흉내 냈다(계획 8.2 그대로) — 실제 `applyRemote`는 L2-I1.
   - 기록(6.9.7 — 재사용 뒤에도 같은 문턱): 1,000획 34줄을 처음 색인(다른 페이지로 JIT 데움) 우리 몫 15.6 ms, 가장 긴 덩어리 7.27 ms(78조각).
+- L2-11 provider(`providers.dart`):
+  - **`recog.autoIndex`는 `ref.listen(core.settingsSnapshotProvider)`(계획 6.10 발췌)이 아니라 `store.settings.watch(RecognitionSettingsKeys.autoIndex)` 스트림 구독으로 읽는다** — INFRA는 이 provider를 읽기만 하고(유휴 작업), 듣는 쪽이 없는 provider는 Riverpod 3이 멈춰(pause) 설정 변경이 색인기에 닿지 않았다(시험에서 확인). 구독은 provider `onDispose`에서 끊는다. `enabled`는 첫 값 전까지 거짓.
+  - `recognitionDevOverlayLinesProvider` 4줄(4.4.9): ① `status.toString()` ② `'job <ms> ms · lines n · page <id>'`(ms 소수 한 자리, 첫 작업 전 `'job —'`) ③ `'model <lang>: <RecognitionModelState.name>'`(묻는 중 `'—'`, `waitingModel`이고 `lastError`가 Wi-Fi 이유면 `' · waiting for Wi-Fi'`) — 언어는 `recog.language` 구독, 상태는 언어가 바뀔 때·`modelChanges`(어드민 엔진) 때 `modelState`로 다시 물음 ④ `'math: manual'`(`ManualOnlyMathRecognizer`·쓸 수 없는 엔진) / `'math: callable(consent on|off)'`(`CallableMathRecognizer`, `recog.mathConsent` 구독) / 그 밖 `'math: <engineId>'`(시험 가짜). 색인기가 없으면(웹·엔진 없음) 고정 한 줄. 줄 갱신은 상태·마지막 작업·모델 답·동의가 바뀔 때만.
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
@@ -364,6 +367,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 - `bb5bf30`(L2-07): `recognitionOverrides()`가 **정확히 3개**(손글씨 엔진·수식 엔진·`inkShapeFitterProvider` → `GeometricShapeFitter`)를 낸다 — INFRA V5의 'provider 출처·횟수' 단언 기준. 한 컨테이너에서 같은 provider를 두 번 override할 수 없으므로, `recognitionOverrides()`와 함께 가짜 엔진을 넣는 시험은 그 한 개를 `.origin`으로 빼고 넣는다(`ink_recognition_smoke_test` 참고). `GeometricShapeFitter.fit`은 L2-06까지 늘 null이라 자동 도형 보정은 아직 바꾸지 않는다(EDITOR 토글은 `NoShapeFitter`가 아니므로 보인다).
 - `af9d262`(L2-03): `LibraryScreen`이 내용 검색 결과 행에서 `onOpenNoteAt(noteId, pageId, 합집합 Rect?)`를 실제로 부른다(`onOpenNoteAt == null`이면 `onOpenNote`). INFRA V5의 '위치로 열기'·라우팅 `?page=&focus=`가 이 커밋부터 LIBRARY 쪽 호출을 받는다.
 
+- L2-11: `handwritingIndexerProvider`의 색인기가 `recog.autoIndex`를 따른다 — INFRA V5·설정 섹션에서 '자동 인식' 켬 → `start()`된 색인기가 `disabled` → `idle`(따라잡기 포함). 개발자 표시 `recog.indexer` 섹션은 `recognitionDevOverlayLinesProvider`의 4줄을 그대로 보이면 된다.
 - L2-10b: 색인기 따라잡기(`notesWithStalePages`)가 `start()`·다시 켤 때 돈다 — INFRA 유휴 작업이 `start()`를 부르면(켜져 있을 때) 한 질의로 낡은 페이지를 대기열 뒤에 넣는다. L2-15 변환 창은 `line_reuse.dart` `mergeConfirmed`를 `update` 안에서 쓴다.
 - L2-10a: `HandwritingIndexer.start()`가 실제로 돈다(변경 구독·조용해질 때·작업·쓰기 `update`). INFRA 유휴 작업 `recognition.indexer`가 부르면 구독을 시작하지만, provider의 `enabled`는 L2-11 전까지 거짓이라 `disabled`에 머문다. `foreground:` 없이 만든 색인기의 `start()`는 위젯 바인딩이 필요하다(앱은 있음).
 
@@ -375,8 +379,13 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 
 `ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**(L2-04 뒤 — 그 뒤 `feature_library` 변경 없음), `--platform chrome` **18 통과**, `ws test --package ink_recognition --platform vm` **108 통과**, `--platform chrome` **21 통과**(L2-07 뒤).
 
+#### 세션 끝 확인 (세션 3, 2026-11-06, L2-11 커밋 위)
+
+`ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package ink_recognition --platform vm` **181 통과**, `--platform chrome` **21 통과**, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**, `--platform chrome` **18 통과**(이번 세션 `feature_library` 변경 없음).
+
 #### 다음 세션 메모
 
+- 세션 3(2026-11-06): L2-10a(`598eb97`)·L2-10b(`f5d826f`)·L2-11 완료 — 색인기와 provider 끝. 다음은 **L2-12**(`RecognitionTarget` 처리·`RecognitionAction` 목록 4.4.4·`action_scope`(첫 `await` 전 `containerOf`·`ScaffoldMessenger.maybeOf`)·`object_builders`(텍스트 상자·수식, `CompositeCommand([RemoveElements, AddObjects])`)) → L2-13 → L2-14 → L2-18(P-A 몫) → L2-20, 그다음 P-B. 색인기 시험 도우미는 `test/support/indexer_harness.dart`(fake_async 안 노트·세션 명령)·`recording_store.dart`(호출 기록·원격 흉내·쓰기 실패). L2-15 변환 창의 복사는 `line_reuse.dart` `mergeConfirmed`를 쓰고, '색인기 진행 중 복사' 시험은 `indexer_test`의 'a confirmed line arriving during the job'과 같은 흐름이다. fake_async·testWidgets 안에서 `StreamSubscription.cancel()`·`StreamController.close()`의 Future를 기다리면 끝나지 않을 수 있다(루트 존 Future) — 기다리지 말 것.
 - 순서(8.2 권장 — P-A 먼저): L2-01 → 02 → 03 → 04 / L2-05 → 07 → 10a → 10b → 11 → 12 → 13 → 14 → 18(P-A) → 20, 그다음 P-B(06·08·09·15·16·17a·17b·18 나머지·19), 마지막 P-C(22).
 - 세션 2(2026-11-06): L2-04 완료(`0343c27`·`8695c4a`) — `feature_library` 동시 개발 몫(L2-01~04) 끝. L2-05(`661abb0`)·L2-07 완료 — 다음은 **L2-10a**(색인기 ① — `groupTraceIndices`·`estimateGlyphHeight`·`RecognitionSettingsKeys`·`reportRecognitionError`를 쓴다, 가짜 저장소 v2 `stalePages`·`update`), 그다음 L2-10b → L2-11 → L2-12. `web/recognition_browser_test.dart`는 이미 `defineLineCaseTests()`를 돈다(L2-20의 `line_cases` 몫). 남은 `feature_library` 몫은 L2-20의 `web/scenarios_browser_test.dart`(이미 L2-04 시나리오까지 통과)와 통합 단계 L2-I2.
 - 세션 1(2026-11-06) 끝: L2-01·02·03 완료. 다음은 **L2-04**(골든 `library_search_content.png` 13" 가로 — 골든 갱신은 별도 커밋, `widget/a11y_test.dart` 내용 행 44×44·라벨, `shared/library_scenarios.dart`에 '텍스트 상자 글자 검색 → 위치로 열기' 시나리오 → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart`). 시드는 `test/support/fixtures.dart` `seedContentHits`, 행 위젯은 `lib/src/ui/content/content_hits_view.dart`(`ContentNoteHeader`·`ContentHitRow`·`ContentMoreRow`·`SourceBadge`·`SnippetText`), 시험 도우미 패턴은 `test/widget/content_search_test.dart`.
