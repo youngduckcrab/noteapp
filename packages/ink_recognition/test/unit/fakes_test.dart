@@ -1,11 +1,13 @@
 // package:ink_recognition/testing.dart fake engines (contract
 // m5-7/00-overview 7.6; m5-7/05-library 4.3, 8.1 B6-b): the default answers
 // '줄 1', '줄 2', failNext / failWith, latency without real time
-// (fake_async), cancel, and the CP-L4 members. SyntheticHandwriting moved to
+// (fake_async), cancel, the CP-L4 members and (L2-10a) the internal
+// RecognizerModelAdmin of the handwriting fake. SyntheticHandwriting moved to
 // unit/synthetic_handwriting_test.dart with the 6.6 v2.1 generator (L2-05).
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
+import 'package:ink_recognition/src/ports/model_admin.dart';
 import 'package:ink_recognition/testing.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -96,6 +98,28 @@ void main() {
       expect(fake.disposed, isFalse);
       await fake.dispose();
       expect(fake.disposed, isTrue);
+    });
+
+    test('(L2-10a) the internal RecognizerModelAdmin: modelChanges after '
+        'ensureModel / deleteModel, enforcesWifiOnly settable', () async {
+      final fake = FakeHandwritingRecognizer();
+      expect(fake, isA<RecognizerModelAdmin>());
+      expect(fake.enforcesWifiOnly, isTrue);
+      final changes = <String>[];
+      final sub = fake.modelChanges.listen(changes.add);
+      await fake.ensureModel('en');
+      await fake.deleteModel('ko');
+      await pumpEventQueue();
+      expect(changes, ['en', 'ko']);
+      expect(await fake.modelState('ko'), RecognitionModelState.notDownloaded);
+      expect(await fake.modelState('en'), RecognitionModelState.ready);
+      fake.enforcesWifiOnly = false;
+      expect(fake.enforcesWifiOnly, isFalse);
+      await fake.dispose(); // closes modelChanges
+      await fake.ensureModel('ko'); // after dispose: no event, no error
+      await pumpEventQueue();
+      expect(changes, ['en', 'ko']);
+      await sub.cancel();
     });
 
     test('isAvailable false → unsupported like the real engines', () async {

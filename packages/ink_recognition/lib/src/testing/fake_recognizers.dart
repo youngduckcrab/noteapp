@@ -3,9 +3,10 @@
 // m5-7/05-library 4.3). Web safe, no flutter_test import, no real time
 // unless a latency is given.
 //
-// 2차 foundation step R2-B6. Not yet: FakeHandwritingRecognizer implementing
-// the internal RecognizerModelAdmin (6.7.4 — the interface arrives with the
-// ML Kit adapter, L2-08).
+// 2차 foundation step R2-B6. (L2-10a) FakeHandwritingRecognizer also
+// implements the internal RecognizerModelAdmin (6.7.4 — no new public name):
+// modelChanges after ensureModel / deleteModel, enforcesWifiOnly settable
+// (true = Android; false = iOS, where the indexer never downloads itself).
 import 'dart:async';
 
 import '../model/candidates.dart';
@@ -14,6 +15,7 @@ import '../model/handwriting_trace.dart';
 import '../model/math_types.dart';
 import '../ports/handwriting_recognizer.dart';
 import '../ports/math_recognizer.dart';
+import '../ports/model_admin.dart';
 
 /// Waits [latency] (no timer when zero). With [cancel], the wait ends early
 /// with [RecognizerCancelled] when [cancel] completes first.
@@ -48,7 +50,8 @@ Future<void> _wait(Duration latency, {Future<void>? cancel}) async {
   if (cancelled) throw RecognizerCancelled();
 }
 
-final class FakeHandwritingRecognizer implements HandwritingRecognizer {
+final class FakeHandwritingRecognizer
+    implements HandwritingRecognizer, RecognizerModelAdmin {
   /// [answer] default: `'줄 <n>'` for the n-th call; engineId 'fake'.
   FakeHandwritingRecognizer({
     this._answer, // answer:
@@ -73,6 +76,32 @@ final class FakeHandwritingRecognizer implements HandwritingRecognizer {
 
   bool get disposed => _disposed;
 
+  final StreamController<String> _modelChanges =
+      StreamController<String>.broadcast();
+
+  /// (internal RecognizerModelAdmin) true = Android (honours wifiOnly);
+  /// false = iOS (the indexer waits for a download the user starts).
+  @override
+  bool enforcesWifiOnly = true;
+
+  /// (internal RecognizerModelAdmin) the tag after every successful
+  /// ensureModel and deleteModel; closed by dispose.
+  @override
+  Stream<String> get modelChanges => _modelChanges.stream;
+
+  /// (internal RecognizerModelAdmin) the model of [languageTag] becomes
+  /// notDownloaded; then modelChanges.
+  @override
+  Future<void> deleteModel(String languageTag) async {
+    if (!_isAvailable) throw RecognizerUnsupported();
+    modelStates[languageTag] = RecognitionModelState.notDownloaded;
+    _modelChanged(languageTag);
+  }
+
+  void _modelChanged(String languageTag) {
+    if (!_modelChanges.isClosed) _modelChanges.add(languageTag);
+  }
+
   @override
   String get engineId => 'fake';
 
@@ -86,13 +115,15 @@ final class FakeHandwritingRecognizer implements HandwritingRecognizer {
     return modelStates[languageTag] ?? RecognitionModelState.ready;
   }
 
-  /// Counts the call; then the model of [languageTag] is ready. Not
-  /// available → RecognizerUnsupported (like the real engines).
+  /// Counts the call; then the model of [languageTag] is ready (and
+  /// modelChanges gets the tag). Not available → RecognizerUnsupported (like
+  /// the real engines).
   @override
   Future<void> ensureModel(String languageTag, {bool wifiOnly = true}) async {
     ensureModelCalls++;
     if (!_isAvailable) throw RecognizerUnsupported();
     modelStates[languageTag] = RecognitionModelState.ready;
+    _modelChanged(languageTag);
   }
 
   /// Records the call first (failed calls too), then: not available →
@@ -124,6 +155,7 @@ final class FakeHandwritingRecognizer implements HandwritingRecognizer {
   @override
   Future<void> dispose() async {
     _disposed = true;
+    unawaited(_modelChanges.close());
   }
 }
 

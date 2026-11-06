@@ -3,8 +3,9 @@
 // this package at the foundation stage works — recognitionOverrides() in a
 // root scope with CORE's fake store, every provider reads without an
 // exception, the settings section builds, and an available engine gives an
-// indexer that the container disposes (start() does nothing yet). (L2-07)
-// recognitionOverrides() gives GeometricShapeFitter to INK.
+// indexer that the container disposes. (L2-07) recognitionOverrides() gives
+// GeometricShapeFitter to INK. (L2-10a) start() runs the indexer; the
+// provider's `enabled` stays false until L2-11 (recog.autoIndex) → disabled.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -51,9 +52,9 @@ void main() {
     );
   });
 
-  test(
+  testWidgets(
     'an available engine → an indexer (VM), disposed with the container',
-    () async {
+    (tester) async {
       final store = core_testing.createFakeNoteStore();
       addTearDown(store.close);
       final recognizer = FakeHandwritingRecognizer();
@@ -71,14 +72,17 @@ void main() {
       );
       final indexer = container.read(handwritingIndexerProvider);
       expect(indexer, isA<HandwritingIndexer>());
-      indexer!.start(); // R2-B6: nothing happens
-      await pumpEventQueue();
-      expect(indexer.status.value.phase, HandwritingIndexerPhase.off);
+      // The default foreground (AppLifecycleListener) needs the widgets
+      // binding — testWidgets has it.
+      indexer!.start();
+      await tester.pump();
+      expect(indexer.status.value.phase, HandwritingIndexerPhase.disabled);
       expect(recognizer.calls, isEmpty);
 
       container.dispose(); // onDispose → indexer.dispose(); idempotent
-      await pumpEventQueue();
+      await tester.pump();
       await indexer.dispose();
+      expect(indexer.status.value.phase, HandwritingIndexerPhase.off);
       expect(
         recognizer.disposed,
         isFalse,

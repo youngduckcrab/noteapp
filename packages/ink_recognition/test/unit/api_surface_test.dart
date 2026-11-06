@@ -6,8 +6,8 @@
 // uses every exported name in the call shapes of the contract block — a
 // renamed, re-typed or missing name breaks the build. The test also checks the
 // R2-B6 behaviour the contract row 7.6.2 fixes (defaults, empty action lists,
-// idle indexer, placeholder section) — (L2-07) recognitionOverrides() now
-// gives its 3 overrides with GeometricShapeFitter. Names
+// placeholder section) — (L2-07) recognitionOverrides() now gives its 3
+// overrides with GeometricShapeFitter; (L2-10a) the indexer runs. Names
 // beyond the list are INFRA's R14. VM only: it reads the entry point files.
 @TestOn('vm')
 library;
@@ -598,7 +598,7 @@ void main() {
 
   group('background indexing', () {
     test('HandwritingIndexer(store:, recognizer:, enabled:, foreground:) — '
-        'R2-B6: start() does nothing, dispose() is idempotent', () async {
+        '(L2-10a) start() runs it, dispose() is idempotent', () async {
       final store = core_testing.createFakeNoteStore();
       addTearDown(store.close);
       final enabled = ValueNotifier<bool>(true);
@@ -626,7 +626,9 @@ void main() {
         ..start()
         ..start();
       await pumpEventQueue();
-      expect(indexer.status.value.phase, HandwritingIndexerPhase.off);
+      // recog.language 'ko' read, the fake model ready, nothing queued.
+      expect(indexer.status.value.phase, HandwritingIndexerPhase.idle);
+      expect(indexer.status.value.languageTag, 'ko');
       expect(recognizer.calls, isEmpty);
 
       final Future<void> first = indexer.dispose();
@@ -634,7 +636,7 @@ void main() {
       await indexer.dispose();
       indexer.start(); // after dispose: still nothing
       expect(indexer.status.value.phase, HandwritingIndexerPhase.off);
-      await withoutForeground.dispose();
+      await withoutForeground.dispose(); // never started: nothing to close
       expect(recognizer.disposed, isFalse); // the indexer never closes it
     });
 
