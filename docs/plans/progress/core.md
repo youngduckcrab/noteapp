@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 2차 마지막 세션: **T22(B2-α) 계약 표면 완료 — '계약 타입 커밋' `2b2e4b0`**(아래 '## 2차' > 'T22'). 7.2.2~7.2.7의 공개 선언 전부·`EntityKind` 2값·`NoteStore` getter 4개·provider 6개·진입점(`testing_web.dart` 포함)·`dev_tools.dart` v1 사본 API. 알고리즘 본문은 작업 번호를 단 `UnimplementedError`. 그 앞은 T25a(B2-0) V7 고정 자료 `b6beece`.
-- 2차 다음 할 일: SYNC R2-B7a·INFRA R2-B2i가 `2b2e4b0` 위에서 묶음 패치 → B2-β(T20a JSON·골든 먼저 — 해시 알림 → T20b → T21 → T23a → T23b) → 총괄 묶음 병합.
+- 2차 마지막 세션: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
+- 2차 다음 할 일: 총괄이 R2-B2(α + β) + SYNC R2-B7a + INFRA R2-B2i 묶음을 `main`에 병합하고 묶음 검사(7.6.2 예외) → R2-B3(INK) … → 동시 개발(T24 DB v2·마이그레이션 먼저 — 8.2).
 - 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
 - 다음 할 일: 총괄이 7.6 커밋 실패 훅(SYNC 요청 1)을 채택하면 CORE가 구현(아래 제안). iPad 확인(계획서 9.2·10절 #9). 10절 #7(SYNC T16을 막는 CORE 결함 없음)은 통합 태그 전체 통과로 확인(SYNC 42개)
 
@@ -215,8 +215,8 @@
 |---|---|---|---|---|---|
 | V7 고정 자료 | T25a | b6beece | 2026-11-05 | 1차 v1 DB 고정 자료(생성 커밋은 fixture_source.json) | 총괄 |
 | B2-α 계약 타입 커밋 | T22 | 2b2e4b0 | 2026-11-05 | 공개 선언 전부 컴파일 — R2-B7a 바탕, R2-B2i 위임, 전 영역 코드 작성 시작 | SYNC·INFRA·전 영역 |
-| B2-β JSON 골든 | T20a | | | 객체·손글씨·녹음 JSON 키 고정 — 키 대조 시험(CP-S9) | SYNC |
-| B2-β 끝 | T23b | | | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
+| B2-β JSON 골든 | T20a | 9777fde | 2026-11-06 | 객체·손글씨·녹음 JSON 키 고정 — 키 대조 시험(CP-S9) | SYNC(R2-B7a가 이 해시로 판정 — sync.md) |
+| B2-β 끝 | T23b | 0798096 | 2026-11-06 | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
 | DB v2·마이그레이션 | T24 | | | openTestNoteStore가 v2 DB, v1 사본 | SYNC·PDF·LIBRARY·INFRA |
 | 쓰기 경로 | T26 | | | 새 종류 행·힌트·고아 — SYNC 시나리오 시험 | SYNC |
 | 객체 읽기·쓰기 DB | T27 | | | 실제 저장소 객체 명령·N-7 | EDITOR·PDF |
@@ -234,7 +234,12 @@
 | ID | 상태 | 커밋 | 비고 — 완료 조건 |
 |---|---|---|---|
 | T25a | 완료 | b6beece | B2-0 V7 고정 자료. `tool/make_v1_fixture.dart`·`tool/v1_fixture_manifest.dart`·`tool/src/v1_dump.dart`, `test/fixtures/db_v1/`(5개 파일), `test/migration/v1_fixture_files_test.dart`(VM 3건) |
-| T22 | 완료 | 2b2e4b0 | B2-α 계약 표면. `test/api_surface_test.dart` v2, `test/model/b2_alpha_values_test.dart`, `test/shared/b2_alpha_store_cases.dart` → `test/testing/open_test_store_test.dart`(실제)·`test/testing/fake_store_b2_alpha_test.dart`(가짜), `test/shared/providers_contract.dart` v2(가짜·실제), `test/web/testing_web_browser_test.dart` |
+| T22 | 완료 | 2b2e4b0 | B2-α 계약 표면. `test/api_surface_test.dart` v2, `test/model/b2_alpha_values_test.dart`, `test/shared/b2_alpha_store_cases.dart` → `test/testing/open_test_store_test.dart`(실제)·`test/testing/fake_store_b2_alpha_test.dart`(가짜 — T23b에서 지움), `test/shared/providers_contract.dart` v2(가짜·실제), `test/web/testing_web_browser_test.dart` |
+| T20a | 완료 | 9777fde | B2-β ① JSON·골든. `test/model/object_json_test.dart`, `recording_title_test.dart`, `handwriting_text_test.dart`(JSON), `test/goldens/json_golden_test.dart`(새 골든 9개 + `recording.json`), `test/shared/object_json_web_cases.dart` → `test/model/object_json_web_format_test.dart`(VM)·`test/web/object_json_browser_test.dart`(Chrome) |
+| T20b | 완료 | c443015 | B2-β ② 기하·변형. `test/common/element_frame_test.dart`, `test/model/shape_geometry_test.dart`, `test/model/page_object_test.dart`, `test/edit/calligraphy_transform_test.dart`(순수 — Chrome도 `object_json_web_cases`) |
+| T21 | 완료 | 38f3578 | B2-β ③ 값 타입·순수 함수. `test/shared/search_text_cases.dart` → `test/search/search_text_test.dart`·`test/web/search_text_browser_test.dart`, `test/search/search_query_test.dart`, `search_rects_codec_test.dart`, `test/media/audio_ports_test.dart`, `test/assets/storage_usage_test.dart`, `test/model/image_import_test.dart`, `handwriting_text_test.dart`(값), `asset_store_test`(CP-11) |
+| T23a | 완료 | 12ab8c4 | B2-β ④ 해석기·세션. `test/edit/object_commands_test.dart`, `calligraphy_transform_test.dart`(undo — SQLite 저장소), `test/shared/object_session_contract.dart` → `test/session/object_session_contract_fake_test.dart`, `b2_alpha_store_cases`(실제 — 객체 명령 T27) |
+| T23b | 완료 | 0798096 | B2-β ⑤ 가짜 v2·가짜 오디오·픽스처·testing_web. `test/shared/{recording,recording_draft,handwriting,search}_contract.dart` → `test/repo/recording_contract_fake_test.dart`·`test/media/recording_draft_contract_fake_test.dart`·`test/repo/handwriting_contract_fake_test.dart`·`test/search/search_contract_fake_test.dart`, `test/testing/fake_store_v2_test.dart`, `fake_audio_recorder_test.dart`, `fake_audio_playback_test.dart`, `page_object_fixtures_test.dart`, `test/web/testing_web_browser_test.dart`(실제 웹 저장소) |
 
 ### T25a — V7 고정 자료 (계획 6.12.3·8.1, 00-review CORE-F2)
 
@@ -322,3 +327,57 @@
 - 실제 저장소의 행 단위 쓰기(`writeEntityRow`·`deleteEntityRow`)의 새 두 종류는 표에 없는 자리라 쓰기 경로 작업 번호 T26을 달았다.
 - 내부 새 파일: `lib/src/common/pending.dart`(`notYet` — 메시지 형식 'CORE <작업>: <멤버>'), `lib/src/repo/empty_v2_repositories.dart`(작업 전 저장소 4종 — 실제·가짜 공용). 둘 다 내보내지 않는다(`absent_names`).
 
+
+### B2-β — R2-B2b 동작 (계획 8.1 T20a·T20b·T21·T23a·T23b, 계약 7.6.2 R2-B2 행·7.6 시험 도우미 블록)
+
+- 바탕: B2-α `2b2e4b0` 위. 사이에 SYNC R2-B7a `99b8ead`·`5056fcb`, INFRA R2-B2i `59ed567`·`44cda79`가 들어왔다(경로 겹침 없음). 공개 시그니처는 B2-α 그대로 — `api_surface_test` v2를 바꾸지 않았다.
+- 커밋(조각마다 하나, 8.1 순서):
+
+| 조각 | 커밋 | 내용 |
+|---|---|---|
+| T20a JSON·골든 | `9777fde` | `ElementFrame`·`ShapeGeometry`·스타일 3종·객체 4종·`UnknownObject`(깊은 복사·meta 키·`frame` 자리·최상위 에셋 id)·`HandwritingLine/Text`(`idFor` 대조)의 `toJson`/`fromJson`, `Recording.toJson`이 `title`을 언제나 씀, `EntityJson` 새 두 갈래. 읽기는 6.2.6(모르는 `type`·아는 타입의 모르는 enum 이름 → `UnknownObject`, 필수 키 오류 → `FormatException`, 읽을 때 정규화 없음). 골든 9개 + `recording.json`. **이정표 'B2-β JSON 골든'** — SYNC가 이 해시로 키 대조(CP-S9)를 판정했다(sync.md R2-B7a '두 해시') |
+| T20b 기하·변형 | `c443015` | `ElementFrame` 기하·`normalized`, `PagePoint.transformed`(시계 방향 = `Affine2.rotation`), 템플릿 6종, 스타일 `normalized`(6.2.3)·`copyWith`, 도형 `bounds`(6.2.4), `transformed` 단일 규칙·`copyTo`·`copyWithMeta`·`estimatedBytes`(6.2.5), `Stroke.transformed` 캘리그래피 각(C2-38 — 반 바퀴는 1e-9도 허용으로 키를 쓰지 않음) |
+| T21 값 타입·순수 함수 | `38f3578` | `SearchText.normalize`·`normalizeMapped`·`indexTerms`·`matchQuery`(6.10.1·6.10.2, U+0130 → `i`), 내부 `search_runs`·`search_match`(판정·LIKE·FTS5 흉내)·`search_ranking`·`search_rects`(코덱·줄 묶음·비율 → pt), `sourceRevOf`·`isRecognitionInput`, `copyWith`(손글씨·녹음기·재생기 상태), `bytesByType`(실제·가짜), 로컬 이미지 형식 검사(CP-11) |
+| T23a 해석기·세션 | `12ab8c4` | `CommandResolver`의 `AddObjects`·`UpdateObjects`·`RemoveElements`·`TransformElements` 객체 쪽·`ClearPage(includeObjects:)`·초안 객체(6.4.1), 히스토리 바이트, `SessionEngine` 객체 상태·`PageContentChange` id. `SessionBackend.loadStrokes` → `loadContent`·`storesPageObjects` — SQLite 저장소는 해석 전에 `UnimplementedError('CORE T27: …')`(`createNote`의 초안 객체 포함) |
+| T23b 가짜 v2·가짜 오디오·픽스처·testing_web | `0798096` | 아래 'T23b' |
+
+#### T23b — 가짜 v2 · 가짜 오디오 · 픽스처 · testing_web (6.6·6.7·6.8.3·6.8.4·6.9·6.10.6·6.14·6.17·6.18.1·4.9)
+
+- **녹음**(`fake/fake_v2_repositories.dart` `FakeRecordings`): 6.6 검증, 같은 id는 검증보다 먼저 그 행(삭제된 행도 그대로·쓰기 없음), 휴지통 노트 허용, 제목 자르기·100룬, `startedAt` → id 순, 소유자 필터, watch(같은 값 안 냄), `audioBytesOf` 서로 다른 에셋.
+- **초안**(`FakeRecordingDrafts`): 메모리 블롭 맵에 실제 키 `rd/<draftId>/<6자리>`·`rd/<draftId>/meta`. `begin`은 meta → 행(쓰기 순서를 `blobWrites`에 남김 — 공유 본문 훅), `append`는 부른 순서, 빈 조각은 `activeMs`·`updatedAt`만, 4 MiB·음수·999,999 검사. `listDrafts`는 조각과 맞춤(끊김 없는 조각 수·남는 조각 바이트), 행 없는 meta → 되살림(`activeMs 0`·`updatedAt = startedAt`, 행 다시 씀), 조각 0 초안 유지, 처음 쓸 때 행도 meta도 없는 접두사만 정리. 노트 영구 삭제 때 그 노트의 초안(행·meta의 `noteId`)도 지움.
+- **손글씨**(`FakeHandwriting`): `put` 검증(6.9.4), `update` = 쓰기 큐 작업 하나 안의 읽기-`transform`-쓰기(경합 사례 1·2·4~7), `transform` 안에서 부른 저장소 쓰기는 `Zone` 표시로 `StateError`, `removeForPage` 소프트 삭제, `stalePages`(메모리 획으로 직접, 페이지 순서)·`notesWithStalePages`(정확한 답, `updatedAt` ↓ → id ↑, 휴지통·다른 소유자 제외).
+- **메모리 색인**(`fake/memory_search_index.dart`, 6.10.6): 단위 id = 지금 최대 + 1(빈 목록이면 1 — rowid 규칙), 후보 = FTS5 흉내(`ftsCandidateMatches`) 또는 1글자 LIKE 경로 + 살아 있음(휴지통·삭제 페이지·`withinNote`, pdf는 그 에셋 쪽을 배경으로 쓰는 살아 있는 페이지) → id 내림차순 2,000개. 그 뒤 단계(판정·pdf 펼침·페이지 묶음·점수 순서·발췌·사각형)는 **새 내부 파일 `search/search_pipeline.dart`**(`rankSearchCandidates`·`searchHitOf`)에 두어 T33b의 실제 색인이 같은 함수를 부르게 했다. 쓰기 훅: 텍스트 상자·수식(객체 쓰기 — 세션·undo·초안·복사·원격), 손글씨(`put`·`update`·`removeForPage`·복사). pdf는 `SearchIndexWriter`(6.10.3 검증 — `ArgumentError`, 아무것도 안 바꿈, 사각형은 1/65535 정밀도로 저장). 빈 단위 목록도 소유자 유지. `rebuild`는 `rebuilding: true` → 텍스트·수식·손글씨 다시 만듦·pdf는 지우기만 → `false`·`lastRebuildAt`. `searchLibrary.pages = search(limit: 100)`.
+- **노트 복사**(6.14.1): 녹음 새 id(같은 에셋·제목·시각) → 획의 `recordingId` 바꿈(없는 것은 그대로 — R-7) → 객체 `copyTo` → 손글씨(새 노트·페이지, 획 id 바꿈·복사 안 된 id 뺌, 복사된 입력 획의 `sourceRev`) → 바로 검색됨. **영구 삭제**(6.14.2): 녹음·초안·손글씨·그 노트의 색인 소유자(단위 없는 소유자 포함, pdf 소유자는 남음). 백업에 새 종류(`EntityKind.values` 순).
+- **`PageObjectFixtures`**: 7.6 원문 기본값, id 생략 → `fx-<type>-<6자리>`(격리 안에서 겹치지 않음), 화살표는 끝 머리, 다각형 오각형·별 5꼭짓점, `unknown`은 공통 키 + `frame` + 중첩 `payload`.
+- **`FakeAudioRecorder`**(6.8.3): 타이머·실제 시간 없음, `advance`가 1초 경계마다 16바이트 조각(녹음 중)·빈 조각(일시정지 중)을 내부 사슬로 `append`, `stop` = `finishing` → 사슬 기다림 → 0 ms면 버리고 `null` → 에셋 → `createRecording`(M-1) → 버림 → idle, 저장 실패면 초안 남김·idle + `error`·그 예외, `pendingDrafts`·`recoverDraft`(`'복구된 녹음'`)의 제외 규칙은 `store.clock` 기준 10 000 ms, `abandon`은 사슬을 기다린 뒤 메모리 상태만 버림. 상태 스트림은 구독 즉시 현재 값(비동기 전달 — 시험은 마이크로태스크 하나 기다림).
+- **`FakeAudioPlayback`**(6.8.4): `open` → `loading` → `ready`, `play`(ready·paused·completed에서)·`pause`(playing에서), 위치 `[0, durationMs]`·속도 `[0.5, 2.0]`로 자름, `calls`(자르기 전 인자, `setPositionMs`는 기록 안 함, 읽기 전용 목록).
+- **`testing_web.dart`**(4.9): `openWebTestNoteStore(name)` = `openNoteStore(databaseName 'webtest_<name>', 블롭 'webtest_<name>_blobs', 기본 자산 URL, requestPersistentStorage false)`, `deleteWebTestNoteStore(name)` = 그 설정의 `deleteLocalNoteData`(열려 있으면 `StateError`), 이름 `^[A-Za-z0-9_-]{1,40}$` 아니면 `ArgumentError`. `tool/prepare_web_test.dart --out <dir>`(또는 `--out=<dir>`)로 다른 패키지가 자기 `test/web`에 `sqlite3.wasm`·`drift_worker.js`를 받는다 — README에 사용법.
+
+확인 (2026-11-06, load 2~3.5 — 같은 컨테이너에서 다른 영역 시험이 함께 돎)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **880개 통과**(B2-α 682 + β 198), 5개 건너뜀(perf 파일) | 55.7초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **71개 통과**(B2-α 48 + β 23 — `testing_web_browser_test` 실제 웹 저장소 시나리오 포함), 1개 건너뜀(perf) | 106.1초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 57초 |
+| `dart run tool/prepare_web_test.dart --out <임시>/test/web` | 두 파일 설치, 잘못된 인자는 사용법 오류 | — |
+| 가짜를 쓰는 다른 멤버(고치지 않고 깨짐만 확인) | `feature_library` VM 626 통과, `sync_engine` VM 782 통과, `pdf_io` VM 580 통과, `app` 가짜 사용 시험 3개 파일 37 통과, `feature_editor` VM 591 통과, `ink_engine` VM 780 통과 | — |
+| 루트 `dart test tool/test` | 372개 통과 | 52초 |
+
+#### 다른 영역이 알아 둘 것 (B2-β 끝)
+
+- `createFakeNoteStore()`의 새 저장소 4개가 동작한다. 텍스트 상자·수식·손글씨는 가짜가 스스로 색인하고, pdf는 `store.search.replaceUnits`(PDF 색인기)로 넣는다. `searchLibrary`의 `pages`가 채워진다.
+- `FakeAudioRecorder`의 '최근 갱신' 판정은 `store.clock`이다 — 복구 시험은 `createFakeNoteStore(clock: Clock(() => now))`처럼 조절 가능한 시계를 넘기고 10초 넘게 옮긴다. 녹음 시계는 `advance`로만 간다.
+- **실제 저장소**(`openTestNoteStore`)는 8.1 'B2 상태' 'β 끝' 열 그대로다: 객체 명령 `UnimplementedError('CORE T27: …')`(메모리 상태 불변), 녹음·초안·손글씨·색인 쓰기 `CORE T30`·`T31`·`T32`·`T33a`, 읽기는 빈 결과. 그래서 실제 메모리 CORE 위의 `FakeAudioRecorder.start`는 `CORE T31`을 던지고 idle로 돌아간다(`fake_audio_recorder_test` 마지막 사례).
+- `pagesTruncated`: 살아 있는 후보가 2,000개를 **넘을 때**(2,001번째가 있을 때) 또는 페이지가 `limit`보다 많을 때 `true` — 정확히 2,000개면 `false`(공유 본문 '2,000 candidates' 사례). T33b의 실제 질의는 `LIMIT 2001`로 같은 판정을 한다.
+
+#### 계획과 다르게 한 점 (B2-β)
+
+- 파일 이름: 계획 3장 나무의 `fake/fake_recordings.dart`·`fake/fake_handwriting.dart` 대신 한 파일 `fake/fake_v2_repositories.dart`(녹음·초안·손글씨)에 두었다. 질의 2·3단계를 실제·가짜가 함께 쓰도록 계획 나무에 없던 내부 파일 `search/search_pipeline.dart`를 더했다(내보내지 않음 — 6.10.6 '같은 판정·같은 순서'를 코드 공유로).
+- `fake_audio_recorder_test`의 '실제 메모리 CORE + `testWidgets` + `runAsync` 사례'(8.1 T23b 완료 조건): note_core는 순수 Dart 멤버라(`sdk: flutter` 없음 — R2, pubspec은 INFRA 소유) `testWidgets`를 쓸 수 없다. 그리고 실제 저장소의 초안 쓰기가 T31이라 지금은 `start`가 `CORE T31`을 내는 B2 상태를 단언한다. 정지·복구 전체 흐름(에셋이 idb_shim 타이머를 거침)은 T31이 `fake_async` + `elapse`로 이 사례를 바꾸고, `testWidgets` 모양은 6.8.3 X-4대로 EDITOR·INFRA 시험 몫이다.
+- `ElementFrame` JSON 부분(오류 8종·웹 정수 입력·경계값 왕복 — 8.1 T20a)은 `element_frame_test`가 아니라 VM·Chrome 공유 본문 `test/shared/object_json_web_cases.dart`에 있다(Chrome에서도 같이 돌게).
+- B2-α 가짜 시험 `test/testing/fake_store_b2_alpha_test.dart`를 지웠다(가짜가 α 상태를 벗어남). 그 안의 v1 사본 API 사례(사본 없는 저장소: 읽기 `StateError`·지우기 아무것도 안 함)는 `fake_store_v2_test`로 옮겼다. `test/shared/b2_alpha_store_cases.dart`는 실제 저장소에만 돈다.
+- 초안 저장소의 고아 정리는 가짜를 다시 열 수 없어 공유 본문으로는 보이지 않는다 — 가짜 전용 사례(처음 쓰기 전에 남겨 둔 블롭)를 `recording_draft_contract_fake_test`에 더했다. 공유 본문은 `reopen()` 훅이 있는 실제 저장소(T31)에서 정리까지 본다.
+- 6.18.1 ②(V7 고정 자료를 `test/web/fixtures_v1/`로 복사·`.gitignore`)는 T23b 행에 없어 T25b(고정 자료 Chrome 시험)로 둔다 — 'T25b가 알아 둘 것'과 같다.
