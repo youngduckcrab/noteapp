@@ -13,6 +13,11 @@
 // included: no jump); discardEdit restores objects at once (moved, recolored,
 // erased); a partial-eraser gesture over a stroke and a shape is one undo
 // step that brings the original stroke and the shape back together.
+// (m5-7/03-ink 8.3 I-1) Every case runs twice: on the CORE fake store and on
+// the real CORE v2 store (openTestNoteStore — in-memory drift).
+@TestOn('vm')
+library;
+
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -25,6 +30,7 @@ import 'package:ink_engine/src/render/ink_page_controller.dart'
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
+import 'package:note_core/testing_vm.dart' as core_vm;
 
 import '../../support/pixels.dart';
 
@@ -69,6 +75,19 @@ typedef _Seen = ({bool insideExecute, Set<String> pendingAfterUpdate});
 void main() {
   // the text box glyphs need the binding (InkFonts reads rootBundle)
   TestWidgetsFlutterBinding.ensureInitialized();
+  group('CORE fake store (createFakeNoteStore)', () {
+    _handOff(() async => core_testing.createFakeNoteStore());
+  });
+  // (m5-7/03-ink 8.3 I-1) the same cases on the real CORE v2 store: N-1 (the
+  // listener runs inside execute), N-4 (trash → read-only session) and one undo
+  // step for a composite edit hold there too.
+  group('real CORE (openTestNoteStore, in-memory)', () {
+    _handOff(core_vm.openTestNoteStore);
+  });
+}
+
+/// Every hand-off case on the store [openStore] returns.
+void _handOff(Future<core.NoteStore> Function() openStore) {
   late core.NoteStore store;
   late core.Note note;
   late core.NoteSession session;
@@ -82,7 +101,7 @@ void main() {
   setUp(() async {
     seen.clear();
     listenerErrors.clear();
-    store = core_testing.createFakeNoteStore();
+    store = await openStore();
     note = await store.library.createNote(title: 'T09 hand-off');
     session = await store.openSession(note.id);
     pageId = session.pages.single.id;

@@ -3,6 +3,7 @@
 ## 요약
 
 - (2차) 기반 단계 R2-B3 완료 — `fd3370f`(T24 표면·T25·T26a 글꼴·측정·T26b 수식 검증·배치 한 커밋, 2026-11-06). 이정표 T24 표면 = T26a = `fd3370f`. 자세한 기록은 맨 아래 '## 2차'. (동시 개발 — 계약 v2.5) T27~T43 완료, T39(자동 도형 보정)는 C25-04로 이번 라운드에 완료(`edd7834`), T44(ink lab v2)는 미룸. 마지막 세션: 보완 2.1(독립 검토 — B20 빠른 직선이 기준을 넘나듦 → 타이머 다시 걸기 순서 고침 `e46e9e0`) — '## 2차 / ### 동시 개발 / #### 세션 확인'.
+- (2차 통합 단계 — 계약 v2.6, 병합 HEAD `8c2256e`) 8.3 I-1~I-7 확인 — INK `lib/` 변경 없음(I-1 실제 CORE판 시험·README v2·계획 상태 줄만). 실제 INK와 다르게 기대한 다른 영역 시험 2곳(PDF V11 점선 조각 세는 법, EDITOR VM 4개 — 빈 도형 안쪽 적중·지우개)과 T39 뒤 재실행(L2-I3 통과·E2-21b·V5b)은 변경 요청으로. 맨 아래 '## 2차 / ### 통합 단계'.
 - 마지막 세션: 10 = 동시 개발 단계 보완 1.1 — 독립 검토 미비점 5개 처리(① `InkPageThumbnailRenderer`의 계약 밖 공개 static `grainWait`·`sliceUs` → 비공개 ② 9.1 '속지 벡터' Chrome 감싸기 `web/template_vectors_web_test.dart` ③ ink lab 등록을 '변경 요청'·'의존성 요청'에 명시(대상 INFRA) ④ 골든 9.2 — `images/`, ≤ 400×400, 불투명 ⑤ `pen_preview_test` 빈 크기 단언). 세션 9까지: T21 벡터 내보내기, T22 벤치마크 스위트 완료 — **동시 개발 단계 몫 전부 완료**(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b, 세션 6: T14~T16, 세션 7: T17·T18, 세션 8: T19·T20(INK-β 완료))
 - 통합 단계(1차 통합 — CORE → INK → EDITOR·LIBRARY 병합 뒤): 실제 CORE와 합친 INK 확인(VM·골든·Chrome·벤치마크·ink lab·R14 미리 보기) 통과, INK 코드 변경 없음. EDITOR E-21 통과(EDITOR 확인). 전체 병합 뒤 변경 요청 1건(ink lab README의 '워크스페이스 밖' 문단) 처리. 아래 '## 통합 단계'
 - 다음 할 일: 동시 개발 단계 몫 없음. PDF 병합 뒤 `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`가 INK 출력을 판정한다. 총괄 결정 대기 없음(LassoOptions 문구는 계약 v1.5 C15-01로 반영 — '## 통합 단계'; ink lab 등록은 INFRA가 처리). 9.3 iPad 확인은 사용자 몫
@@ -489,3 +490,49 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 - (T31 → T40) K-9: 재생 강조(층 4′)는 cover 아래라 가린 테이프 픽셀을 바꿀 수 없다 — T40 시험 (a)는 cover 층이 테이프 외곽선 안을 불투명하게 칠한다는 것(T31)에 기댄다. 테이프 획 자체가 최근 창에 들면 바깥 고리만(4.3).
 - T32b 뒤 청크 항목: ink = `inkLayerItemsOf(content)`(획 + 도형), underlay·annotation = `objectViewsOf`. 그리는 함수 `_drawInkItem`·`_drawObject`, 청크 키 `_objectDrawKeys`(정적 — 그릴 때 물음).
 - INK-F2: T39(P-B)를 미루면 이 절에 `T39 미룸`을 적는다. 들어오면 그 병합 때 LIBRARY L2-I3·EDITOR E2-21b·INFRA V5b를 다시 돌리도록 결과 보고에 알린다. → (보완 1.1 후속) T39가 들어왔다 — 알림은 '변경 요청 (동시 개발)' 3과 결과 보고.
+
+### 통합 단계
+
+2차 통합(계약 v2.6 7.7.1 2단계 — INFRA 체크포인트 `b032244` 뒤 CORE → INK → SYNC → PDF → LIBRARY → EDITOR 병합, 병합 HEAD `8c2256e`, 2026-11-06). 이 HEAD의 INK 경로(`packages/ink_engine/`·03-ink·이 기록)는 영역 끝 `8e76989`과 같다(`git diff --stat 8e76989 8c2256e -- <INK 경로>` 빔). 다른 영역 통합 담당이 같은 작업 트리에서 동시에 일했다(CORE C26-03 편집 중에는 `note_core` 컴파일이 잠깐 깨져 PDF 시험 한 번을 다시 돌림 — CORE `1523f3a` 뒤 통과). **INK `lib/` 변경 없음** — 시험 1파일(I-1 실제판)·README v2·이 기록·계획 상태 줄만.
+
+#### 확인
+
+| 검사 | 결과 |
+|---|---|
+| 병합 직후 VM 기준선(`ws test` VM 전체 중 ink_engine — 총괄 로그 `r2-merge-vm.log`) | **1300 통과**(동시 개발 끝 보완 2.1과 같은 수 — 실제 CORE v2 위에서 1차 + 2차 시험 전부, 골든 24장 = 1차 17장 + 2차 7장(`pens_p1_*` 5·`shapes_*` 2) 바이트 불변) |
+| I-1 실제판을 더한 뒤 `ws test --package ink_engine`(VM) | **1318 통과**(1300 + 실제 CORE판 18, 94.9 s) |
+| `ws test --platform chrome --package ink_engine`(전역 잠금) | **374 통과**(186.8 s) — K-1 v2·K-6 감싸기, 펜촉·대시 체크섬(VM = Chrome), 화면 밖 수식, `useInkTestFonts`(멈춤 없음 — V3 INK 몫) |
+| `ws test --run-skipped -t integration --package ink_engine` | `no matching tests`(9.2 — INK에는 `integration` 시험이 없다) |
+| `ws test --package ink_lab`(example) | 1 통과 |
+| 패키지 `flutter analyze --fatal-infos` · `dart format`(lib·test·benchmark) | 0 · 변경 없음 |
+| 벤치 1회(B1~B20, `flutter test benchmark/ --concurrency=1`, 전역 잠금 안) | 16:21:54~16:22:32(load 3.53 → 2.99 — 다른 영역 시험이 끝난 직후), 27개 중 **26 충족**: B1 0.115·0.424, B2 평균 0.026·최대(위치별 5획 최솟값) 0.118, B3 210, B4 평균 0.066, B5 1.07, B6 19.9, B7 2.9, B8 2.54, B9 130, B10 445, B11 2.98, B12 200점 0.106, B13 0.752, **B14 18.2(≤ 25, C25-03)**, B14 미리보기 0.030, B15 평균 0.055·최대 0.44, B16 0.018, **B17 74.6(≤ 100)**, B18 153, B19 3.4(참고), B20 0.0013·0.0056 ms. **B12 1000점 0.632 > 0.6** → 그 파일만 한 번 다시(16:22:41, load 2.6): 0.686로 또 넘음 → 병합 탓인지 가리려고 **INK 영역 끝 `8e76989` 트리(`git archive`로 scratch에 풀고 `pub get --offline --enforce-lockfile`)와 병합 HEAD를 같은 잠금 안에서 번갈아** B12만(load 1.7~1.8): 끝 0.480·0.510, HEAD 0.502·0.541 — 모두 충족, 최솟값 0.463~0.475로 같음. 병합의 CORE `lib/` 차이(55파일)에 획·점·스타일 파일이 없어 B12 경로는 같은 코드다 → **회귀 아님, 부하 탓**(보완 2.1 때도 load 2.6에서 0.593). B12 1000점은 여유가 작다(조용할 때 0.48~0.54 / 0.6) — iPad 릴리스 판정(9.6)과 별개로 기록만. 1차 B1~B11(9.5 — 1차보다 10% 넘게 나빠지지 않음): 모두 1차 범위 안(B6 19.9는 1차 README의 조용할 때 값 '20 안팎'과 같음) |
+
+#### 8.3 통합 단계 몫
+
+| # | 결과 |
+|---|---|
+| I-1 | `unit/interop/fake_store_handoff_test.dart`의 경우 18개를 **가짜 저장소와 실제 CORE `openTestNoteStore()`(메모리 drift) 양쪽에서** 돌리게 고쳤다(`_handOff(openStore)` 두 묶음, `@TestOn('vm')` — `testing_vm.dart`는 VM 전용. ws의 Chrome 실행은 `test/web/`만이라 잃는 것 없음): 36 통과 — 실제 CORE에서도 N-1(듣는 쪽이 `execute` 안에서 돌아 대기 표시가 그 호출 안에 비워짐, 7종 + 객체 편집 전부), N-4(휴지통 → 읽기 전용 → `ReadOnlyNoteException` → `discardEdit` 한 번으로 화면 복구), 부분 지우개 획 + 도형 = 되돌리기 1단계가 성립. C2-38 키 대조(`unit/pen/style_ink_v2_test.dart` 'C2-38': CORE `Stroke.transformed` 30° 뒤 `nibAngleDeg` 75)는 병합된 실제 CORE 코드로 통과 |
+| I-2 | 골든(24장)·불변식 K-1(새 펜 5종 — `bounds_invariant_test` v2)·K-6(`object_bounds_invariant_test` + Chrome `object_bounds_web_test`)·K-7(`playback_focus_test` 카운터)·K-8(`layer_order_test` 화면 = 썸네일 = 벡터)·K-9(`laser_test`·`tape_test`·`playback_focus_test` (a)(b) 층 4′ 600프레임·`shape_assist_test`) 모두 위 VM·Chrome 실행에 들어 있고 통과. 벤치는 위 표. (9.6 I-B14) 기기에서 B14·B17을 재는 수단은 **ink lab v2 벤치 화면(T44)이 미뤄졌으므로 profile 모드 통합 시험**으로 정한다 — 사용자 iPad 릴리스 판정 때 `benchmark/object_bench_test.dart`의 같은 작업량(도형 200 + 텍스트 100 + 수식 20 + 이미지 20 + 테이프 50 첫 기록, 도형 200 + 텍스트 100 + 획 1,000 `exportPage`)을 쓴다. 그 전까지 판정은 디버그 VM 기준(C25-03) |
+| I-3 | PDF `integration`(실제 INK): `ink_vectorizer_v2_test`(1)·`math_raster_real_test`(4 — 300 dpi 크기·4 Mpx 상한·**`\sqrt` SVG 기호 그림 기다림**·잘못된 수식 경고)·`ink_vectorizer_test`(8 — 형광펜·연필·속지 6종)·`ink_thumbnail_test`(2)·`real_wiring_test`(3) **통과**. `export_objects_v11_test`(V11 VM)는 **1곳 실패 — INK 결함 아님**(아래 '다른 영역 통합 시험에서 본 INK' 1) |
+| I-4 | LIBRARY `ink_recognition/test/integration/shape_assist_flow_test.dart`(L2-I3 — 실제 `GeometricShapeFitter` + 실제 INK T39 멈춤 감지) 병합 트리에서 **6/6 통과**(사각형 501 ms → 미리보기 → `addShape` 1개·경로 상자 ±2 pt, 원 → 정사각 frame 타원, 499 ms → 획, 반경 밖 → 미리보기 취소·다시 판정, 낙서 → 획, 작은 사각형 가드). `MathPreview`는 INK VM `widget/math_preview_test` 통과 — 수식 패드 쪽 실패 보고 없음 |
+| I-5 | EDITOR VM(병합 기준선): `feature_editor` 1491 통과·**4 실패** — 넷 다 **INK 결함 아님**(아래 2). E2-21·E2-21b는 EDITOR 통합 단계 몫(아직 파일 없음 — E2-21b `integration/shape_assist_smoke_test.dart`는 INK T39·E2-15(`6fa0a30`) 모두 병합이라 판정 대상) |
+| I-6 | INFRA 7단계 몫(V3·V4·V5·V5b·V6)은 INFRA 통합에서. INK 쪽 전제는 그대로: Chrome 시험의 `useInkTestFonts`(위 374 — 멈춤 없음), `NoteSans`는 `fonts:`가 아닌 파일 단위 `assets:` 3줄(`unit/pubspec_assets_test.dart` — FontManifest에 없음), V5b는 T39·E2-15·L2-06(`54e263f`) 모두 병합 → 판정 대상(아래 변경 요청 3) |
+| I-7 | 이 절, README v2(공개 규칙 — 객체 적중·지우개의 빈 도형 안쪽, 점선 벡터 = 한 `InkFillShape`의 하위 경로, 멈춤 판정, `developerValues`; 2차 상태). 실기기 합격 판정(9.6)은 통합 뒤 사용자 몫 — 불합격 항목은 `PenProfile`·`InkTuning` 조정 작업으로 연다 |
+
+#### 다른 영역 통합 시험에서 본 INK
+
+1. **PDF V11**(`pdf_io/test/integration/export_objects_v11_test.dart` → `test/support/v11_scenario.dart:171`): `Expected: a value greater than <1>, Actual: <1>` — 'INK splits a dashed stroke into dash pieces'. 원인: 시나리오가 점선 획 조각 수를 **`inkShapes` 중 그 `strokeId`인 `InkFillShape` 개수**로 센다. INK는 계획 6.21·T42 완료 조건('점선 → 한 `InkFillShape`에 대시 윤곽 n개')·`unit/export/vector_export_v2_test.dart` 'a dashed stroke → ONE InkFillShape whose sub-paths are its dash outlines'대로 **한 획 = 한 `InkFillShape`, 대시마다 하위 경로 하나**를 낸다(화면도 한 경로로 칠함 — K-8. 계약 7.2.9 'dashed strokes pre-split into dash segments — PDF needs no dash operator'와 맞음). 시나리오 사본(저장소 밖 scratch, 그 단언만 출력으로 바꿈)으로 확인: INK 점선 조각 1개·하위 경로 **58개**, PDF 3쪽 내용 `f: 1`·`m: 58`·`h: 58` — PDF가 대시 58개를 빠짐없이 그린다. 나머지 V11 단언(한글 텍스트 추출·이미지 3개(JPEG 2 + 수식 래스터 1, soft mask)·테이프 cover 1)은 모두 통과. → 변경 요청 1(PDF가 세는 법을 고침, INK 변경 없음).
+2. **EDITOR VM 4 실패**(병합 기준선): `widget/erase_v2_test` 'partial eraser over a shape only → RemoveElements alone'(`Expected ['execute:remove-elements'] Actual []`), `widget/lasso_mixed_test` 'a stylus tap with the lasso tool selects the object under it'(선택 `null`), `widget/shape_tool_test` 'a tap-selected shape's body: a drag there starts a new shape'(240행 `!`), `widget/text_box_test` 'a tap on another object selects it'(292행 `!`). 원인 하나: 넷 다 **채우지 않은 도형의 안쪽**을 탭하거나 지운다(`PageObjectFixtures.shape`는 채우기 없음 — 탭 (360,160)·(395,220)·(400,570)은 테두리에서 40~50 pt, 지우개 경로 y 250은 사각형 (100,220)–(300,280) 안). 기반 단계 INK(4.13)는 frame/bounds로 맞혔고, 실제 INK는 계획 6.14(`hitTestObject` — 도형은 테두리 거리 ≤ `tol + w/2`, 채운 도형만 안쪽)·6.15(지우개 — 테두리 `R + w/2` 또는 채운 안쪽, U22)대로 맞히지 않는다 — INK 시험 `unit/object/object_hit_test.dart` 'an unfilled rectangle: the outline within tol + w / 2, not inside'·'an unfilled shape lets the tap through', `unit/edit/stroke_eraser_test.dart` 'an unfilled shape's inside is safe'가 지키는 규칙. 같은 파일의 통과 경우(`_acrossAll` — x 150 세로선이 사각형 위·아래 변을 지남)는 실제 INK에서도 맞는다. → 변경 요청 2(EDITOR 시험이 계약 의미를 보게 — INK 변경 없음).
+
+#### 변경 요청 (통합 단계)
+
+1. **[PDF]** V11 시나리오(`test/support/v11_scenario.dart` — VM `integration/export_objects_v11_test.dart`와 Chrome `web/export_objects_v11_browser_test.dart`가 같이 씀)의 점선 판정: 조각 수를 그 `strokeId`인 `InkFillShape`들의 **하위 경로 수**(`path.verbs` 중 `InkPathVerb.moveTo.index`)로 세고 `> 1`을 단언, PDF 3쪽은 `paintedPaths == 그 InkFillShape 수`(지금 1)와 `counts['m'] == 하위 경로 수`(지금 58)로. 재현: `dart run tool/ws.dart test --run-skipped -t integration --package pdf_io` → `v11_scenario.dart:171`. 근거는 위 1(INK 03-ink 6.21·T42, README 'Rules other areas meet').
+2. **[EDITOR]** 실제 INK에서 깨진 VM 시험 4개(위 2)는 시험 경로만 고치면 된다: 탭은 도형 **테두리 위**(예: lasso_mixed (300,160) 왼쪽 변·text_box (320,570)·shape_tool 삼각형 변 위 점)로 하거나 그 시험의 도형을 **채운 도형**(`ShapeStyle(fillColorArgb: …)`)으로, `erase_v2_test`의 '도형만' 경로는 테두리를 지나게(예: x 250 세로선 y 200→300 — `strokeA`를 피해서). 시험이 보는 뜻(탭 선택·몸통 끌기 = 새 도형·지우개가 도형만 지우면 `RemoveElements` 하나)은 그대로다. 빈 도형 안쪽 탭으로도 선택돼야 한다는 UX가 필요하면 그것은 계약 7.2.9 `hitTestObject` 규칙 변경(7.4.9 — 총괄)이다. 함께: (C25-02 — EDITOR 통합 단계 몫) 개발자 표시에 `InkDiagnostics.developerValues`의 `playbackPaintUs`·`annotationPaintUs`·`mathCacheBytes`(값 있는 키만) — 병합 트리 `feature_editor/lib`에 아직 쓰는 곳이 없다.
+3. **[LIBRARY]·[EDITOR]·[INFRA]** (동시 개발 변경 요청 3 다시 — T39 `edd7834`가 병합됨) 기대는 P-B 작업이 모두 병합됐으므로(INK T39·EDITOR E2-15 `6fa0a30`·LIBRARY L2-06 `54e263f`) 7.7.2 'P-B에 기대는 기준'의 셋이 **판정 대상**이다 — 각 영역이 돌린다: LIBRARY **L2-I3**(`ink_recognition/test/integration/shape_assist_flow_test.dart` — INK가 병합 트리에서 돌려 6/6 통과, LIBRARY 통합 기록에 남길 것), EDITOR **E2-21b**(`feature_editor/test/integration/shape_assist_smoke_test.dart` — 아직 없음), INFRA **V5b**(`app/test/integration/app_smoke_shape_assist_test.dart` — 아직 없음). INK 판정 규칙(03-ink 6.18): 멈춤 = `InkTuning.shapeHoldMs`(500) 동안 anchor에서 `shapeHoldRadiusPx`(8 논리 px, `viewScale`로 pt) 안 — anchor는 **마지막으로 반경 밖으로 나간 샘플**, 시간은 샘플 시각끼리; 샘플이 없으면 anchor가 바뀐 때 건 `dart:async` 타이머가 발동(위젯 시험은 포인터를 멈추고 `tester.pump`로 `shapeHoldMs` 넘게 진행 — `TestGesture` 이벤트 시각이 0이어도 타이머 경로로 발동), 펜을 뗀 샘플은 취소가 아니다. 실패 원인이 멈춤 감지·미리보기면 INK가 고친다(8.3 I-4·I-6).
+
+#### 남은 것
+
+- PDF가 변경 요청 1을, EDITOR가 2를 처리한 뒤 그 영역이 V11·EDITOR VM을 다시 돌림(INK 변경 없음). E2-21·E2-21b·V5·V5b·V6은 EDITOR·INFRA 통합 단계 — 실패 원인이 INK면 INK가 고친다.
+- 7.7.1 8단계 통합 태그 전체·9단계 웹 빌드는 총괄·INFRA.
+- 컨테이너 밖: 9.6 실기기 합격 판정(B 표 I-B1~I-B14 — Hosting 미리보기 뒤 iPad, A 표 — 안드로이드 기기가 있을 때, C 표 — TestFlight 뒤). I-B14(B14 ≤ 12 ms·B17 ≤ 60 ms 원래 기준)는 iPad 릴리스 profile 측정으로. 불합격 항목 → `PenProfile`·`InkTuning` 조정 작업.
+- T44(ink lab v2, P-C)는 C25-04로 미룸 그대로.
