@@ -36,7 +36,8 @@ abstract interface class InkPageHost {
   List<InkStroke> strokesNear(Rect pageRect);
 
   /// (v2.0) The committed page objects whose CORE bounds meet [pageRect] (closed), without
-  /// the pending-removed ones; z order (R2-B3: a scan — the object index is T32a).
+  /// the pending-removed ones; z order (m5-7 T37a: candidates from the object spatial
+  /// index, sorted by compareOrder).
   List<core.PageObject> objectsNear(Rect pageRect);
 
   /// Registers the pending display of [edit] (6.12 R6).

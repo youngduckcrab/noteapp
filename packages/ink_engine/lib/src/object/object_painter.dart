@@ -1,8 +1,8 @@
 // lib/src/object/object_painter.dart — INTERNAL (m5-7/03-ink 4.13, 6.8.4).
 //
-// Foundation step R2-B3: the simple drawing of every page object in its L-1
-// layer. Shapes: (m5-7 T33) the final drawing of shape_path.dart — fill, line
-// styles, arrow heads (6.9); text boxes: (m5-7 T34) the final drawing of 6.10.3 — in the
+// The drawing of every page object in its L-1 layer — the screen chunks and live
+// parts, and thumbnails (page_composite.dart). Shapes: (m5-7 T33) the final
+// drawing of shape_path.dart — fill, line styles, arrow heads (6.9); text boxes: (m5-7 T34) the final drawing of 6.10.3 — in the
 // frame coordinate system ① the background over the whole frame ② clipped to the frame
 // ③ the paragraph of InkTextLayout (the system font until NoteSans is loaded: the
 // paragraph cache is keyed by the instance and the loaded flag); an empty text without a

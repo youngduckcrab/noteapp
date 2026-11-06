@@ -12,15 +12,16 @@
 // when quiet, plus the time-sliced first recording of a page's chunks).
 //
 // 2nd round (contract 7.2.9, m5-7/03-ink 4.3, 4.13 — foundation step R2-B3):
-// nine render layers (L-1); page objects drawn simply in their layer
-// (images → underlay, shapes → ink, text boxes / formulas / unknown objects →
+// nine render layers (L-1); page objects drawn in their layer (images →
+// underlay, shapes → ink, text boxes / formulas / unknown objects →
 // annotation); (m5-7 T32b, 6.8.3) from the layer caches: the ink chunks hold
 // strokes and shapes z mixed, underlay and annotation have their own chunk
 // pictures (draw keys per chunk — assets, fonts, hairlines), cover one page
 // picture of the tapes, and inkActive ends with the layer 4′ stage (6.1);
 // select / hitTestObject / setHiddenObjectIds / setPreviewObjects (a preview
 // with a committed id replaces it; previews win over hidden ids); the
-// read-only getters; playback focus as state only (T40); hitTestRecorded;
+// read-only getters; the playback focus (m5-7 T40, 6.19: drawn on layer 4′ —
+// playback_index.dart, playback_painter.dart); hitTestRecorded;
 // the memorization tape state. (m5-7 T31, 6.7) Tapes are the cover layer:
 // the page picture of the committed tapes (covered, or the revealed border)
 // and the live tapes (pending, previews, the one being written) above the
@@ -1263,7 +1264,7 @@ final class InkPageController extends ChangeNotifier {
     }
   }
 
-  /// One object into a chunk picture (or the live part): the R2-B3 painter, the hairlines
+  /// One object into a chunk picture (or the live part): object_painter.dart, the hairlines
   /// at the recorded zoom octave (InkDrawKeys.hairline). Never throws (4.0).
   void _drawObject(ui.Canvas canvas, InkLayerItem item) {
     if (item is! InkObjectView) return;

@@ -155,8 +155,8 @@ packages/ink_engine/
 ├─ README.md                             [바뀜] 2차 사용 예(객체·재생·수식·글꼴)
 ├─ THIRD_PARTY_NOTICES.md                [바뀜] Noto Sans KR(OFL 1.1) 부분 집합, flutter_math_fork(Apache-2.0 — R2-B3에서 확인)·KaTeX 글꼴(MIT)
 ├─ assets/fonts/                         [새]
-│  ├─ NoteSans-Regular.ttf               466,924 B (gzip 213,618) — 6.10
-│  ├─ NoteSans-Bold.ttf                  466,484 B (gzip 216,774)
+│  ├─ NoteSans-Regular.ttf               466,936 B (gzip -9 213,615) — 6.10.1 (C23-06)
+│  ├─ NoteSans-Bold.ttf                  466,440 B (gzip -9 216,764)
 │  ├─ OFL.txt                            라이선스 원문 (INFRA R-5 — 앱 정보 화면이 읽음)
 │  └─ README.md                          원본 주소·sha256·부분 집합 규칙·재생성 명령 (저장소 문서 — 앱 자산이 아님, 3.1)
 ├─ tool/fonts/                           [새] 개발자 전용(빌드·시험에 안 쓰임)
@@ -2367,7 +2367,7 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
 | C22-07 (V5b) | 8.3 I-6 — 합성 멈춤 자동 도형은 V5b(INK-F3) |
 | C22-08 (바탕 `b6c9d0a`) | 머리말 바탕 줄(INK-F1 — R2-B3이 `446518e` 판에서 시작, 진행 기록 '## 2차') |
 | C23-03 (글꼴 `assets:` 블록) | 3.1 아래 글머리 — 총괄이 `5843ec3`에서 넣음, 이후 INK 소유. `pubspec_assets_test`는 동시 개발 첫 작업 |
-| C23-06 (글꼴 사실) | 6.10.1 원본·크기·이름 행, 8.1 T26a 줄 높이 문장 |
+| C23-06 (글꼴 사실) | 6.10.1 원본·크기·이름 행, 8.1 T26a 줄 높이 문장, (보완 1.1) 3장 트리의 두 파일 크기(계획 때 값이 남아 있었음 — 검토 지적) |
 | C23-07 (`FakeInkShapeFitter.result`) | 4.12 둘째 블록 |
 | R2-B3 라이선스 확인 | 3장 트리·7.1 표: `flutter_math_fork`는 Apache-2.0 |
 | INK-F1 | R2-B3에서 처리(바탕 판에서 시작, 올가미 규칙 불변) |
