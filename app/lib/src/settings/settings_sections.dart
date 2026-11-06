@@ -12,6 +12,7 @@ import '../bootstrap/app_module.dart' show ShellContribution;
 import '../features/feature_switch_section.dart';
 import 'about_section.dart';
 import 'storage_section.dart';
+import 'v1_copy_section.dart';
 
 @immutable
 final class SettingsSectionEntry {
@@ -45,7 +46,7 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 /// Production order (table below; 2nd round S2-9). [contributed] entries go
 /// after 'library.newNote' in contribution order (e.g. 'recog.settings' —
 /// '인식', only when the recognition module started); 'app.features' after
-/// 'editor.developer' (J14b puts 'app.v1Copy' after it). Ids stay unique
+/// 'editor.developer', 'app.v1Copy' after 'app.features'. Ids stay unique
 /// (assert). M4 prepends the 'app.account' entry.
 ///
 /// | id | group | title |
@@ -58,6 +59,7 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 /// | (contributed) | — | (e.g. 인식) |
 /// | editor.developer | — | 개발자 표시 |
 /// | app.features | — | 기능 켜고 끄기 |
+/// | app.v1Copy | — | 이전 판 DB 사본 |
 /// | app.about | — | 앱 정보 |
 List<SettingsSectionEntry> defaultSettingsSections({
   List<SettingsSectionEntry> contributed = const [],
@@ -109,6 +111,11 @@ List<SettingsSectionEntry> _sections(List<SettingsSectionEntry> contributed) =>
         id: 'app.features',
         title: AppStrings.sectionFeatures,
         builder: (context) => const FeatureSwitchSection(),
+      ),
+      SettingsSectionEntry(
+        id: 'app.v1Copy',
+        title: AppStrings.sectionV1Copy,
+        builder: (context) => const V1CopySection(),
       ),
       SettingsSectionEntry(
         id: 'app.about',

@@ -5,6 +5,10 @@
 //
 // The B2 fake store's exportBackupJson is UnimplementedError (계약 7.6), so
 // CountingNoteStore.exportBackupResult injects the result.
+//
+// 2차 J14b (docs/plans/m5-7/01-infra.md 4.6.7): BackupFile.mimeType is a
+// field — default 'application/json' (1차 callers unchanged), the v1 DB copy
+// passes its own.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -218,6 +222,42 @@ void main() {
       expect(recorded.fileName, file.fileName);
       expect(recorded.mimeType, 'application/json');
       expect(web.shares, isEmpty);
+      expect(log.totalCount, 0);
+    });
+
+    test('BackupFile.mimeType: default application/json; a given MIME '
+        'reaches download and share', () async {
+      expect(file.mimeType, 'application/json');
+      expect(
+        (await prepareBackup(
+          store: CountingNoteStore(exportBackupResult: _bytes),
+          errorLog: AppErrorLog(),
+        ))!.mimeType,
+        'application/json',
+      );
+
+      final sqlite = BackupFile(
+        bytes: _bytes,
+        fileName: 'noteapp-v1-backup.sqlite',
+        mimeType: 'application/vnd.sqlite3',
+      );
+      final web = FakeWebPlatform(canShareFilesResult: true);
+      final log = AppErrorLog();
+      await deliverBackup(
+        sqlite,
+        via: BackupDelivery.download,
+        web: web,
+        errorLog: log,
+      );
+      await deliverBackup(
+        sqlite,
+        via: BackupDelivery.share,
+        web: web,
+        errorLog: log,
+      );
+      expect(web.downloads.single.mimeType, 'application/vnd.sqlite3');
+      expect(web.shares.single.mimeType, 'application/vnd.sqlite3');
+      expect(web.shares.single.fileName, 'noteapp-v1-backup.sqlite');
       expect(log.totalCount, 0);
     });
 

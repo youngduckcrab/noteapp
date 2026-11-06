@@ -406,8 +406,8 @@
 | J11 | 완료 | `fe6100d` — 본문은 R2-B8b `6e7b753` | `app/test/routing/production_screens_test.dart`(J11 +4 — `%2C`·잘못된 focus 9가지(페이지는 열림)·page 없는 focus·폴더 검색 결과 → 보고된 주소 → 새로고침 → 같은 페이지·사각형 → 닫으면 홈), `app_router_test`(R2-B8b — 자리표시 화면 7경우) |
 | J12 | 완료 | `5b71ea3` | `packages/pencil_bridge/test/pencil_wire_contract_test.dart`(28 — ⓪~⑨ + 가용성 판독기 자체 11경우), `pencil_bridge_test`(+1 — Swift 빌더 모양의 squeeze 순서·자세 없는 tap) — **컴파일은 `ios-compile.yml`(U19)**, 동작은 TestFlight 뒤(C-1) |
 | J13 | 완료 | `f771299` — 능력 조회 시간 제한·실패 처리·`timestamp`는 R2-B8b `6e7b753` | `app/test/pencil/pencil_stylus_extras_test.dart`(J13 +3 — `os`·대체 `?`·`seen` 전이(구독자 없으면 안 셈·tap·hover·모르는 단계는 안 셈·종류마다 알림 1번·되돌아가지 않음·능력 불변)·두 구독자에 알림 1번), `modules/feature_wiring_module_test.dart`(Pencil 5경우 — 지원·미지원·기본 포트·실패·500 ms 초과, J13: `os` '17.5'·'?'), `settings/about_section_test.dart`(J13 +5 — 지원 안 함 2·'iOS 17.5 · 더블탭 · 호버' → 스퀴즈 받음 → 롤 받음·섹션 자신의 구독·떠나면 구독 끊김·열기 전에 받은 것·읽기 실패 문구·가로) |
-| J14 | 완료 | (이 커밋) | `app/test/settings/storage_section_test.dart` v2(첨부 파일 6 — 세 종류·없는 종류 0 MB·작은 크기 `<0.1 MB`·첨부 없음 '0개 · 0 MB'·CORE 가짜 저장소의 `bytesByType`·보일 때 1회·[다시 확인]·다시 보일 때·`usage()` 실패; 검색 색인 6 — 상태 따라감·확인 창 취소·확인 → `rebuild()` 1회·진행 중 비활성·실패 문구 + 기록 1건·닫기·가로), `settings/about_section_test.dart` v2(기능 줄 4가지 — 모두 켬·빌드에서 끔·개발자 메뉴로 끔(`skipped`)·시작 실패 + 진단 복사·가로, Pencil 줄 키), `app/test/app/licenses_test.dart`(가짜 에셋 번들 있음/없음·기록 1번·지연 읽기·앱 번들에 실제 에셋·라이선스 화면), `errors/diagnostic_report_test.dart` v2(기능 줄·`skipped` 단계), `features/feature_status_test.dart`(새 — 상태 표) |
-| J14b | 남음 | | `v1_copy_section_test`·`backup_export_test`·`settings_sections_test` |
+| J14 | 완료 | `9e10ac3` | `app/test/settings/storage_section_test.dart` v2(첨부 파일 6 — 세 종류·없는 종류 0 MB·작은 크기 `<0.1 MB`·첨부 없음 '0개 · 0 MB'·CORE 가짜 저장소의 `bytesByType`·보일 때 1회·[다시 확인]·다시 보일 때·`usage()` 실패; 검색 색인 6 — 상태 따라감·확인 창 취소·확인 → `rebuild()` 1회·진행 중 비활성·실패 문구 + 기록 1건·닫기·가로), `settings/about_section_test.dart` v2(기능 줄 4가지 — 모두 켬·빌드에서 끔·개발자 메뉴로 끔(`skipped`)·시작 실패 + 진단 복사·가로, Pencil 줄 키), `app/test/app/licenses_test.dart`(가짜 에셋 번들 있음/없음·기록 1번·지연 읽기·앱 번들에 실제 에셋·라이선스 화면), `errors/diagnostic_report_test.dart` v2(기능 줄·`skipped` 단계), `features/feature_status_test.dart`(새 — 상태 표) |
+| J14b | 완료 | (이 커밋) | `app/test/settings/v1_copy_section_test.dart`(새, 19 — `v1CopyMimeType` 표, 다섯 상태: 사본 있음(웹·네이티브 이름)·사본 실패(quota·io·other·모르는 값)·사본 없음·아직 볼 수 없음(기록 0)·읽기 오류(기록 1), 확인 중 줄, 보일 때마다 `info`, 기본 api(CORE B2-α 선언) → '사본 없음', 내보내기 두 이름(4 MiB·4 MiB·1 B → 시트의 `BackupFile` 바이트·`info.fileName`·MIME → 내려받기)·[취소]·스트림 오류·떠나면 구독 끊김, 지우기 확인 → `delete` 1 → 다시 조회 · 취소 · 오류, 가로), `backup_export_test`(+1 — 기본 MIME `application/json`·준 MIME이 내려받기·공유까지), `settings_sections_test`(`app.v1Copy` 위치·제목·빌더), `settings_screen_test`(섹션 9개) |
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
 | J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
 | J17 | 남음 | | `tool/test/web_budget_test.dart` |
@@ -669,7 +669,7 @@
 
 #### J14 — 설정·앱 정보 v2 (계획 8.2, 6.18·4.6.7)
 
-- 커밋: 이 커밋(작업 표의 해시는 다음 기록 커밋에서 채움).
+- 커밋: `9e10ac3`.
 - **저장 공간**(`StorageSection` → `ConsumerStatefulWidget`, 공개 이름 그대로): '첨부 파일 n개 · x MB (녹음 a MB · 이미지 b MB · PDF c MB)' — `assetStoreProvider.usage()`의 `bytesByType`(없는 종류 0). 섹션이 보일 때 한 번, [다시 확인]으로 다시(1차 규칙). '검색 색인: 대기 n개 · 재구축 중'(`searchIndexProvider.status` 구독) + [다시 만들기](키 `app.storage.rebuildIndex`, 확인 창 '검색 색인을 처음부터 다시 만들어요. 시간이 걸릴 수 있어요.' → `rebuild()`(모든 원천), 이 섹션의 재구축 중이거나 상태가 `rebuilding`이면 비활성, 실패 → 문구 + 기록 1건(manual)).
 - **앱 정보**: '기능' 줄(키 `app.about.features`) — `appFeatureStatesOf(compileTime, appFeaturesProvider, startupReport.steps)` → '녹음 켬 · 인식 꺼짐(개발자 메뉴) · 수식 엔진 꺼짐(빌드)'. 하나라도 꺼져 있으면 오류 색(11절 위험 9). Pencil 줄에 키 `app.about.pencil`(부록 C). 진단 정보 복사에 같은 줄.
 - **`registerAppLicenses`**(`app/lib/src/app/licenses.dart`): `LicenseRegistry`에 지연 수집기 하나 — 'NoteSans (Noto Sans KR subset)' + `packages/ink_engine/assets/fonts/OFL.txt`. 에셋이 없으면 항목 없음 + 기록 1번(수집할 때마다 다시 시도). `runNoteApp`이 오류 처리기 설치 직후 부른다(6.4).
@@ -680,6 +680,19 @@
 | `app` `flutter analyze --fatal-infos` / `dart format --set-exit-if-changed lib test` | 0건 / 변경 0 |
 | `flutter test` storage·about·diagnostic·licenses·feature_status | 21 · 23 · 6 · 6 · 8 통과 |
 | `ws test --package noteapp` (VM) | 559 통과 · 1 건너뜀(V5) · 129초 |
+
+#### J14b — 개발자 메뉴 `V1CopySection` · `BackupFile.mimeType` (계획 8.2, 6.18·4.6.7, 계약 7.2.7 · C22-01 CP-17)
+
+- 커밋: 이 커밋(작업 표의 해시는 다음 기록 커밋에서 채움).
+- `app/lib/src/settings/v1_copy_section.dart`: `V1CopyApi`(기본값 = `package:note_core/dev_tools.dart`의 CP-17 함수 셋)·`V1CopySection`·`v1CopyMimeType` — 계획 4.6.7 시그니처·주석 그대로. 다섯 상태, 내보내기 두 단계(`BytesBuilder(copy: false)`로 조각 모음 → `BackupReadySheet` → 1차 `deliverBackup`, 결과 문구는 1차 백업과 같은 스낵바), 지우기(확인 창 → `delete` → 다시 조회). 키 `app.v1Copy.export`·`app.v1Copy.delete`(부록 C) + `app.v1Copy.cancel`·`app.v1Copy.progress`·`app.v1Copy.delete.confirm`·`.cancel`.
+- `BackupFile.mimeType`을 필드로(기본 `application/json` — 1차 호출부 그대로). 시트의 `canShareFiles(mimeType:)`가 그 값을 쓴다.
+- 설정 섹션 `app.v1Copy`('이전 판 DB 사본')를 `app.features`와 `app.about` 사이에(S2-9). 이 작업 트리의 CORE는 B2-α 선언(`v1DatabaseCopyInfo` → `null`)이라 실제 앱에서는 '사본 없음'이 보인다 — 실제 CP-17 함수 + 실제 CORE VM 파일 DB로 '사본 없음' 1회는 H2(T24 뒤).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format --set-exit-if-changed lib test` | 0건 / 변경 0 |
+| `ws check` (R1–R16) | 0 |
+| `flutter test test/settings/` | 89 통과(v1 사본 19) |
 
 #### 변경 요청
 
@@ -760,6 +773,9 @@
 - (J14) 'x MB'는 1024 기준 소수 한 자리, 0은 '0 MB', 0이 아니지만 0.05 MB 미만은 '<0.1 MB'(0.0 MB로 보이지 않게). 1차 '사용량' 줄의 `AppStrings.bytes`('12.3MB')와 따로 둔 이유는 계획 문구가 'x MB'라서.
 - (J14) `usage()` 실패는 '첨부 파일 정보를 읽지 못했어요'(오류 색)만 — 기록은 남기지 않는다(1차 '다시 확인' 실패 문구와 같은 취급). 다시 만들기 실패는 기록 1건(사용자가 누른 동작 — source manual).
 - (J14) 라이선스 화면 시험: `LicensePage`를 `pumpAndSettle`로 기다린 첫 실행이 5분 넘게 끝나지 않아(CPU 0 % — 멈춤으로 보고 끊음) 100 ms씩 다섯 번 `pump`한다. `CachingAssetBundle`은 실패한 `loadString`도 캐시해서 '수집할 때마다 다시 시도'가 보이지 않으므로 시험의 가짜 번들은 `AssetBundle`을 바로 상속한다.
+
+- (J14b) 계획 4.6.7에 없는 것: 확인 중 줄('확인하는 중…' — `info()`가 답하기 전), 모르는 `failure` 값은 'other' 문구, 사본 크기·진행 표시는 J14의 `AppStrings.megabytes`('12.3 MB'), 만든 시각은 지역 시각 `yyyy-MM-dd HH:mm`. 내보내기·지우기 실패 기록의 `details`는 'readV1DatabaseCopy failed'·'deleteV1DatabaseCopy failed'·'v1DatabaseCopyInfo failed'(1차 'prepareBackup failed'와 같은 꼴). 시트를 닫은 뒤 스낵바 문구는 1차 백업 것을 그대로 쓴다('백업 파일을 내려받았어요…').
+- (J14b) 섹션 본문에 `ValueKey('app.v1Copy')`를 달았다가 설정 화면이 섹션 본문을 같은 키로 감싸서(1차 `SettingsScreen` — `ValueKey(entry.id)`) `settings_screen_test`가 '요소가 둘'로 실패했다 — 섹션 자신에는 키를 달지 않는다.
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 

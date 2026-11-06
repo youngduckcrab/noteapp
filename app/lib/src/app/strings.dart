@@ -67,6 +67,7 @@ abstract final class AppStrings {
   static const String sectionNewNote = '새 노트 기본값';
   static const String sectionDeveloper = '개발자 표시';
   static const String sectionFeatures = '기능 켜고 끄기';
+  static const String sectionV1Copy = '이전 판 DB 사본';
   static const String sectionAbout = '앱 정보';
   static const String groupGeneral = '일반';
 
@@ -184,6 +185,29 @@ abstract final class AppStrings {
   static const String featureSaveFailed = '설정을 저장하지 못했어요.';
   static const String featureFlushFailed =
       '저장이 아직 끝나지 않아 다시 시작하지 않았어요. 잠시 뒤 다시 눌러 주세요.';
+
+  /// V1CopySection ('이전 판 DB 사본' — 2차 6.18, 4.6.7; contract 7.2.7).
+  static const String v1CopyLoading = '확인하는 중…';
+  static String v1CopyPresent({
+    required String createdAt,
+    required String size,
+    required int normalOpens,
+  }) => '사본 있음: $createdAt · $size · 정상 열기 $normalOpens번';
+  static String v1CopyFailed(String reason) =>
+      '사본을 만들지 못했어요($reason) — 이전 판 데이터는 새 판으로 옮겨졌어요';
+  static const String v1CopyFailedQuota = '저장 공간 부족';
+  static const String v1CopyFailedIo = '읽기·쓰기 오류';
+  static const String v1CopyFailedOther = '알 수 없는 오류';
+  static const String v1CopyNone = '사본 없음';
+  static const String v1CopyPending = '이 판의 저장소에서는 아직 볼 수 없어요';
+  static const String v1CopyInfoError = '사본 정보를 읽지 못했어요';
+  static const String v1CopyExport = '내보내기';
+  static const String v1CopyDelete = '지우기';
+  static String v1CopyPreparing(String received, String total) =>
+      '준비 중… $received / $total';
+  static const String v1CopyReadFailed = '사본을 읽지 못했어요';
+  static const String v1CopyDeleteConfirm = '이전 판 DB 사본을 지워요. 되돌릴 수 없어요.';
+  static const String v1CopyDeleteFailed = '사본을 지우지 못했어요';
 
   /// Reload while recording (6.17 — the update banner and the feature
   /// switches).
