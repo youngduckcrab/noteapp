@@ -261,3 +261,75 @@
 
 - [INFRA] `app/test/modules/pdf_module_test.dart` 116–119행 'default arguments: … INK reads two background builders'는 이제 3개다 — 계약 7.2.12 v2 `[PdfBackgroundLayerBuilder, ImageBackgroundLayerBuilder, TemplateBackgroundLayerBuilder]`로 기대값을 바꿔 주세요. 103행(PDF 실패 시 INK 기본 목록)은 R2-B3 때부터 실패 중 — `[ImageBackgroundLayerBuilder, TemplateBackgroundLayerBuilder]`.
 
+
+### 동시 개발
+
+바탕: 계약 v2.3 커밋 `5843ec3`(R2-B1~R2-B6). 작업 트리 `/home/user/wt2/pdf`(`area2/pdf`). 다른 영역 2차 구현은 이 트리에서 기반 단계 표면(단순 구현·가짜) — 계약 7.6 시험 도우미로 개발하고, 실제 다른 영역 구현이 필요한 판정(`integration`·`media`)은 시험만 써 두고 통합 단계에서 본다. 순서(계획 8.2): `pdf_io` T21 → (T22 ∥ T23 ∥ T24) → T25a → T25b → T26, T27·T28은 아무 때나, T29 마지막. `media_io` (T31a ∥ T32a ∥ T35a) → T31b → (T32b ∥ T33 ∥ T34 ∥ T35b) → T36a → T36b → T37 → T38 → T39 → T40 → T41.
+
+#### 작업 표
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| T20 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test` v2, `unit/init_v2_test`, `unit/plan_items_test` |
+| T30 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test`, `unit/init_test`, `widget/recording_panel_placeholder_test`, `unit/testing_fakes_test`, `web/testing_registrar_browser_test` |
+| T21 | 남음 | | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 |
+| T22 | 남음 | | `pdfium/compose_objects_native_test` |
+| T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
+| T24 | 남음 | | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(INK T42 뒤 — 통합 단계) |
+| T25a | 남음 | | `unit/image_probe_test`, `unit/object_resolver_image_test`, `unit/export_memory_test`, `web/object_resolver_browser_test` |
+| T25b | 남음 | | `unit/raster_ports_test`, `unit/object_resolver_text_math_test`, `web/object_resolver_text_browser_test`, `integration/math_raster_real_test`(INK T36 뒤 — 통합 단계) |
+| T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
+| T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
+| T28 | 남음 | | `unit/normalizer_equivalence_test`, `web/normalizer_equivalence_browser_test` |
+| T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
+| T31a | 남음 | | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
+| T31b | 남음 | | `unit/recorder_service_test`, `unit/stop_recover_buffers_test` |
+| T32a | 남음 | | `unit/webm_timeline_test`, `unit/mp4_duration_test` |
+| T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
+| T33 | 남음 | | `unit/native_engine_test`, `unit/foreground_service_test`, `unit/audio_session_test` |
+| T34 | 남음 | | `unit/playback_service_test`, `unit/audio_source_native_test`, `web/playback_browser_test` |
+| T35a | 남음 | | `unit/image_header_test`, `unit/image_normalizer_test` |
+| T35b | 남음 | | `unit/image_import_test`, `web/image_codec_browser_test`, `unit/supported_sources_test` |
+| T36a | 남음 | | `widget/recording_panel_test` |
+| T36b | 남음 | | `widget/recording_list_test`, `widget/recording_sheets_test`, `widget/recording_stuck_drafts_test` |
+| T37 | 남음 | | `unit/dev_overlay_lines_test`, `unit/init_test` v2 |
+| T38 | 남음 | | `unit/testing_fakes_test` |
+| T39 | 남음 | | `media/record_playback_media_test`(V8), `media/draft_recovery_media_test`(V16) — CORE T31 이정표 전에는 `skip:`, 판정은 통합 4-c |
+| T40 | 남음 | | `integration/media_real_core_test` — 판정은 통합 4-d |
+| T41 | 남음 | | `perf/media_perf_test`, `web/media_perf_browser_test`, `media/big_recording_perf_media_test` |
+
+#### 00-review '최종 승인' PDF 항목
+
+| ID | 처리 |
+|---|---|
+| C22-09 | 계획서 상태 줄 '승인 · 계약 v2.3', 4·5장 계약 블록 18개를 v2.3 원문과 대조(모든 줄이 원문에 있음)해 표시 줄을 'v2.3'·현재 행 번호로, V8 판정 문장(C22-04)을 6.1 E10·6.8.7·6.17·8.2 T39·10 #4에 맞춤, 바탕 `18c5ae5` → `b6c9d0a`(C22-08 — 그 사이 `pdf_io` 변화 없음 확인). 계획서 5장에는 '가정' 블록이 없다(계약 원문 블록만) |
+| PDF-F1 | T39에서: V8은 C22-04 식으로 단언, 두 값과 옛 식 결과는 진행 기록에 |
+| PDF-F2 | T26 전: 길이 보정은 한 번 복사(`BufferLedger` `peakCount ≤ 2` — T31a·T31b), 장부 `copy`·`overBudget`은 C22-06 예외 둘만(T25a·T26). 기각 대안 코드(네이티브 2 Mpx·12 MiB 넘는 입력 빼기)는 만들지 않음 |
+| PDF-F3 | `media_io`를 바꾼 커밋마다 `ws test --package media_io --platform chrome --run-skipped -t media` 결과를 아래 '검사'에 |
+
+다른 영역이 기반 단계에서 PDF에 보낸 요청(`/home/user/wt2/notes/` 에서 `[PDF]`): INFRA — `media_io` 골격 안내(반영됨, R2-B4), INK — Chrome 시험에서 `InkFonts`·`InkTextLayout`을 쓰면 `setUpAll(useInkTestFonts)`, `InkMathRenderer.layout`은 일반 `test()`에서 `TestWidgetsFlutterBinding.ensureInitialized()` 먼저(C23-07 — T23·T25b·T29 시험에 적용). PDF가 보낸 INFRA 요청(`pdf_module_test` 기대값)은 INFRA R2-final `708a1c1`이 처리했다.
+
+#### 변경 요청
+
+- 없음
+
+#### 의존성 요청
+
+- 없음
+
+#### 계획과 다르게 한 점
+
+- 없음
+
+#### 이정표 커밋
+
+- 없음(PDF는 이정표 커밋 알림 대상이 아니다 — 7.6.2. 다른 영역 이정표 중 PDF가 기다리는 것: INK T36·T42, CORE T31·T33a·T33b — 통합 단계)
+
+#### 검사
+
+| 세션 | 검사 | 결과 |
+|---|---|---|
+
+#### 다음 세션 메모
+
+- (세션 1) 문서 정리 끝. 다음 작업은 작업 표의 첫 '남음'부터 순서대로.
