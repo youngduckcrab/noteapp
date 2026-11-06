@@ -92,7 +92,15 @@ final class SearchTextMapping {
 
 final Int32List _noOffsets = Int32List(0);
 
-SearchTextMapping _normalize(String raw, {required bool mapped}) {
+/// (Internal — CORE T33b) The first [units] code units of `normalizeMapped(text)` with their
+/// source ranges (fewer when the normalized text is shorter): the pass stops once they are out,
+/// so a snippet needs only the text up to its match.
+SearchTextMapping normalizeMappedPrefix(String text, int units) =>
+    _normalize(text, mapped: true, limit: units);
+
+SearchTextMapping _normalize(String raw, {required bool mapped, int? limit}) {
+  // One more unit than asked: a leading ' ' is trimmed (step 6).
+  final stopAt = limit == null ? null : limit + 1;
   final n = raw.length;
   final out = StringBuffer();
   final starts = mapped ? <int>[] : null;
@@ -104,7 +112,7 @@ SearchTextMapping _normalize(String raw, {required bool mapped}) {
   }
 
   var i = 0;
-  while (i < n) {
+  while (i < n && (stopAt == null || out.length < stopAt)) {
     final c = raw.codeUnitAt(i);
     // 1. end-of-line hyphenation
     if (c == 0x2D) {
@@ -146,21 +154,29 @@ SearchTextMapping _normalize(String raw, {required bool mapped}) {
     final width = pair ? 2 : 1;
     if (c < 0x80) {
       emit(c >= 0x41 && c <= 0x5A ? c + 0x20 : c, i, i + 1);
+    } else if (c >= _sBase && c < _sBase + _sCount) {
+      emit(c, i, i + 1); // a Hangul syllable has no case
     } else if (c == 0x130) {
       emit(0x69, i, i + 1);
     } else {
-      final lower = raw.substring(i, i + width).toLowerCase();
+      final cp = pair
+          ? 0x10000 + ((c - 0xD800) << 10) + (raw.codeUnitAt(i + 1) - 0xDC00)
+          : c;
+      final lower = _lowerOf(cp, raw, i, width);
       for (var k = 0; k < lower.length; k++) {
         emit(lower.codeUnitAt(k), i, i + width);
       }
     }
     i += width;
   }
-  // 6. trim: step 3 leaves at most one ' ' at each end.
+  // 6. trim: step 3 leaves at most one ' ' at each end. A pass stopped early ([limit]) is not
+  // at the end of the text (more units follow, so no trailing ' ' to drop); it is cut to
+  // [limit].
   var text = out.toString();
   var from = 0, to = text.length;
   if (to > 0 && text.codeUnitAt(0) == 0x20) from = 1;
-  if (to > from && text.codeUnitAt(to - 1) == 0x20) to--;
+  if (i >= n && to > from && text.codeUnitAt(to - 1) == 0x20) to--;
+  if (limit != null && to - from > limit) to = from + limit;
   if (from != 0 || to != text.length) text = text.substring(from, to);
   if (!mapped) {
     return SearchTextMapping(
@@ -175,6 +191,14 @@ SearchTextMapping _normalize(String raw, {required bool mapped}) {
     sourceEnd: Int32List.fromList(ends!.sublist(from, to)),
   );
 }
+
+/// The lower case of the code point [cp] (= [raw] at [i], [width] code units) — String
+/// toLowerCase of that one code point, cached per code point (no context, so the cache gives
+/// the same answer — CORE T33b, PF-3).
+final Map<int, String> _lower = {};
+
+String _lowerOf(int cp, String raw, int i, int width) =>
+    _lower[cp] ??= raw.substring(i, i + width).toLowerCase();
 
 /// [raw] has '-' at [i]: the index after '-' + (\r?\n) when it joins two word characters
 /// (step 1), else null.

@@ -174,9 +174,10 @@ void main() {
     expect(await store.search.searchPages('정'), hasLength(1));
     expect(store.search.debugCandidateSql, hasLength(2));
     for (final sql in store.search.debugCandidateSql) {
-      final columns = sql.substring(0, sql.indexOf(' FROM '));
-      expect(columns, isNot(contains('body')));
-      expect(columns, isNot(contains('rects_ref')));
+      // Nowhere in the query (its liveness reads are pages / notes columns only).
+      expect(sql, isNot(contains('body')));
+      expect(sql, isNot(contains('rects_ref')));
+      expect(sql, isNot(contains('rect_')));
       final n = '?'.allMatches(sql).length;
       final plan = [
         for (final r

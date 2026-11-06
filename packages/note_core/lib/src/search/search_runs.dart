@@ -122,11 +122,6 @@ int _classOf(int cp) {
 /// (false at the start of the text).
 bool runCharBefore(String text, int index) {
   if (index <= 0) return false;
-  var from = index - 1;
-  final c = text.codeUnitAt(from);
-  if (c >= 0xDC00 && c <= 0xDFFF && from > 0) {
-    final h = text.codeUnitAt(from - 1);
-    if (h >= 0xD800 && h <= 0xDBFF) from--;
-  }
-  return _run.matchAsPrefix(text.substring(from, index)) != null;
+  final (cp, _) = _cpBefore(text, index);
+  return _classOf(cp) & 1 != 0;
 }

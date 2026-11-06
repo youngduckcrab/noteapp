@@ -60,6 +60,36 @@ void main() {
     expect(() => SearchRectsCodec.decode(badVersion), throwsFormatException);
   });
 
+  test(
+    'view: the decoded boxes, made on read; checked up front; unmodifiable',
+    () {
+      final rects = [
+        for (var i = 0; i < 300; i++)
+          i % 50 == 49
+              ? PageRect.zero
+              : PageRect(
+                  (i % 50) / 60,
+                  (i ~/ 50) / 10,
+                  (i % 50 + 1) / 60,
+                  (i ~/ 50) / 10 + 0.05,
+                ),
+      ];
+      final bytes = SearchRectsCodec.encode(rects);
+      final view = SearchRectsCodec.view(bytes);
+      final decoded = SearchRectsCodec.decode(bytes);
+      expect(view, hasLength(300));
+      for (var i = 0; i < 300; i++) {
+        expect(view[i], decoded[i]);
+      }
+      expect(mergeLineRects(view, 40, 120), mergeLineRects(decoded, 40, 120));
+      expect(() => view[300], throwsRangeError);
+      expect(() => view[0] = PageRect.zero, throwsUnsupportedError);
+      final bad = Uint8List.fromList(bytes)
+        ..[7] = 0; // group count no longer covers n
+      expect(() => SearchRectsCodec.view(bad), throwsFormatException);
+    },
+  );
+
   test('mergeLineRects: per text line, zero boxes skipped', () {
     const rects = [
       PageRect(0.1, 0.1, 0.2, 0.2),

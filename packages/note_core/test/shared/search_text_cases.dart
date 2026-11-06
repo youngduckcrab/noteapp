@@ -5,6 +5,8 @@
 import 'package:note_core/note_core.dart';
 import 'package:note_core/src/search/search_ranking.dart';
 import 'package:note_core/src/search/search_rects.dart';
+import 'package:note_core/src/search/search_text.dart'
+    show normalizeMappedPrefix;
 import 'package:test/test.dart';
 
 /// (input, SearchText.normalize(input)) — PDF copies this table to compare PdfTextNormalizer
@@ -85,6 +87,44 @@ void defineSearchTextCases() {
       // 'i' after the joined hyphen maps to the 'i' of the source.
       final i = m.text.indexOf('i');
       expect(input[m.sourceStart[i]], 'i');
+    });
+
+    test(
+      'normalizeMappedPrefix(x, n) = the first n units of normalizeMapped(x)',
+      () {
+        final inputs = [
+          for (final (input, _) in kSearchTextVectors) input,
+          '  오늘 한meet-\ning  끝 ',
+          ' \u200B a-\nb  ',
+          '회의-\n록 정리\t\tMEETING  ',
+        ];
+        for (final input in inputs) {
+          final full = SearchText.normalizeMapped(input);
+          for (var n = 0; n <= full.text.length + 1; n++) {
+            final p = normalizeMappedPrefix(input, n);
+            final k = n < full.text.length ? n : full.text.length;
+            expect(p.text, full.text.substring(0, k), reason: '$input / $n');
+            expect(p.sourceStart, full.sourceStart.sublist(0, k));
+            expect(p.sourceEnd, full.sourceEnd.sublist(0, k));
+          }
+        }
+      },
+    );
+
+    test('snippetOf with the unit norm = without it', () {
+      for (final (body, query) in const [
+        ('  오늘 회의록을 정리했다 meeting notes', '회의'),
+        ('MEETING notes\nand more meeting', 'meet'),
+        ('abc', 'zz'),
+        ('a-\nb 회의-\n록', '회의록'),
+      ]) {
+        final q = SearchText.normalize(query);
+        final hinted = snippetOf(body, q, bodyNorm: SearchText.normalize(body));
+        final plain = snippetOf(body, q);
+        expect(hinted.snippet, plain.snippet, reason: body);
+        expect(hinted.range, plain.range, reason: body);
+        expect(hinted.bodyRange, plain.bodyRange, reason: body);
+      }
     });
 
     test('normalizerVersion', () {

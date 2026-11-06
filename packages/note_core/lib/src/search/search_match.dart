@@ -16,8 +16,12 @@ import 'search_runs.dart';
 /// whole unit into runs: q consists of run characters only, so each occurrence lies inside one
 /// run of the unit — a CJK q makes that run CJK (the rule is then 'contains'), a non-CJK q looks
 /// only at the run around each occurrence (its start and whether it holds a CJK character).
-bool searchMatches(String unitNorm, String queryNorm) {
-  final query = searchRunsOf(queryNorm);
+bool searchMatches(String unitNorm, String queryNorm) =>
+    searchMatchesRuns(unitNorm, searchRunsOf(queryNorm));
+
+/// [searchMatches] with the runs of the query already split (one split per query, not per
+/// candidate — CORE T33b, PF-3).
+bool searchMatchesRuns(String unitNorm, List<SearchRun> query) {
   if (query.isEmpty) return false;
   for (final q in query) {
     if (q.codePoints == 1 || q.isCjk) {

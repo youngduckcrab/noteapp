@@ -5,6 +5,7 @@
 // bit-identical values for the same input.
 import 'dart:math' as math;
 
+import 'search_match.dart';
 import 'search_runs.dart';
 import 'search_text.dart';
 import 'search_types.dart';
@@ -20,8 +21,15 @@ double sourceWeight(SearchSource source) => switch (source) {
 /// Unit score = weight + 0.3 (the first query run matches at a run start) + 0.05 × min(its
 /// match count, 6) − 0.0005 × min(its first match position, 400). Matches of the first query
 /// run are non-overlapping occurrences in [unitNorm]; positions are UTF-16 code units.
-double unitScore(SearchSource source, String unitNorm, String queryNorm) {
-  final runs = searchRunsOf(queryNorm);
+double unitScore(SearchSource source, String unitNorm, String queryNorm) =>
+    unitScoreRuns(source, unitNorm, searchRunsOf(queryNorm));
+
+/// [unitScore] with the runs of the query already split (CORE T33b, PF-3).
+double unitScoreRuns(
+  SearchSource source,
+  String unitNorm,
+  List<SearchRun> runs,
+) {
   final w = sourceWeight(source);
   if (runs.isEmpty) return w;
   final q = runs.first.text;
@@ -37,6 +45,41 @@ double unitScore(SearchSource source, String unitNorm, String queryNorm) {
   }
   if (first < 0) first = 0;
   return w +
+      (atStart ? 0.3 : 0.0) +
+      0.05 * math.min(count, 6) -
+      0.0005 * math.min(first, 400);
+}
+
+/// `searchMatches(unitNorm, q) ? unitScore(source, unitNorm, q) : null` in one pass over the
+/// first query run's non-overlapping occurrences (CORE T33b — PF-3): they give its judgement
+/// and its score features. Skipping the overlapping occurrences does not change the judgement:
+/// one that overlaps a counted occurrence lies in the same run, so its run is CJK exactly when
+/// that one's is, and it never starts the run.
+double? matchScore(SearchSource source, String unitNorm, List<SearchRun> runs) {
+  if (runs.isEmpty) return null;
+  final head = runs.first;
+  final q = head.text;
+  final contains = head.codePoints == 1 || head.isCjk;
+  var count = 0;
+  var first = -1;
+  var atStart = false;
+  var ok = contains;
+  var i = unitNorm.indexOf(q);
+  while (i >= 0) {
+    count++;
+    if (first < 0) first = i;
+    if (!atStart && !runCharBefore(unitNorm, i)) atStart = true;
+    if (!ok) {
+      final run = runAround(unitNorm, i, i + q.length);
+      ok = run.cjk ? head.codePoints == 2 : run.start == i;
+    }
+    i = unitNorm.indexOf(q, i + q.length);
+  }
+  if (count == 0 || !ok) return null;
+  if (runs.length > 1 && !searchMatchesRuns(unitNorm, runs.sublist(1))) {
+    return null;
+  }
+  return sourceWeight(source) +
       (atStart ? 0.3 : 0.0) +
       0.05 * math.min(count, 6) -
       0.0005 * math.min(first, 400);
@@ -62,16 +105,23 @@ int comparePageHits(
 /// from 30 code units before the match start, cut at code point boundaries; '\n', '\r' and
 /// '\t' become ' ' (same length, so the range holds). Also returns the match range
 /// [start, end) in the snippet and in [body].
+///
+/// [bodyNorm] (= SearchText.normalize(body), the unit's norm) lets the mapping stop at the
+/// match (CORE T33b, PF-3) — the same answer.
 ({String snippet, (int, int) range, (int, int) bodyRange}) snippetOf(
   String body,
-  String queryNorm,
-) {
-  final mapping = SearchText.normalizeMapped(body);
+  String queryNorm, {
+  String? bodyNorm,
+}) {
   final runs = searchRunsOf(queryNorm);
   var srcStart = 0, srcEnd = 0;
   if (runs.isNotEmpty) {
     final q = runs.first.text;
-    final at = mapping.text.indexOf(q);
+    final hint = bodyNorm?.indexOf(q);
+    final mapping = hint == null
+        ? SearchText.normalizeMapped(body)
+        : normalizeMappedPrefix(body, hint < 0 ? 0 : hint + q.length);
+    final at = hint ?? mapping.text.indexOf(q);
     if (at >= 0 && q.isNotEmpty) {
       srcStart = mapping.sourceStart[at];
       srcEnd = mapping.sourceEnd[at + q.length - 1];

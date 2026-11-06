@@ -13,9 +13,10 @@
 // of [kSearchRebuildChunk] rows; pdf is only dropped (pdf_io refills it — 6.10.5).
 //
 // Queries (searchPages — CORE T33b, 6.10.4): candidates from FTS5 MATCH (or LIKE for queries
-// without a run of two or more code points), live units only, most recent (highest id) first,
-// at most kSearchCandidateCap — reading neither bodies nor rects; then the shared
-// search_pipeline steps (judgement, pdf expansion, grouping, scores, order) and, for the
+// without a run of two or more code points), live units only, most recent
+// (highest id) first, at most kSearchCandidateCap — reading neither bodies nor rects, and
+// with each one's liveness read also giving its note's updatedAt / its pdf pages; then the
+// shared search_pipeline steps (judgement, pdf expansion, grouping, scores, order) and, for the
 // returned pages only, the representative bodies, the unit rects and one blob read of the pdf
 // boxes. The fake store's memory index runs the same pipeline on the same candidates (CP-14).
 import 'dart:async';
@@ -349,104 +350,85 @@ final class DriftSearchIndex implements SearchIndex {
       Variable<String>(owner),
       if (withinNote != null) Variable<String>(withinNote),
     ];
-    final alive =
-        "(CASE WHEN u.source = 'pdf' THEN EXISTS (SELECT 1 FROM pages p "
+    // Per candidate, one correlated read that is both the liveness test and what step 2 needs
+    // (CORE T33b — PF-3): a non-pdf unit → its note's updated_at; a pdf unit → every live
+    // note page showing its PDF page as 'pageId noteId updatedAt …' (U+001F between the
+    // fields; their order does not matter — step 2 orders pages fully). NULL = not live.
+    final live =
+        "CASE WHEN u.source = 'pdf' THEN (SELECT group_concat(p.id || char(31) || "
+        'p.note_id || char(31) || n.updated_at, char(31)) FROM pages p '
         'JOIN notes n ON n.id = p.note_id WHERE p.bg_asset_id = u.asset_id '
         'AND p.bg_pdf_index = u.pdf_index AND $livePage) '
-        'ELSE EXISTS (SELECT 1 FROM pages p JOIN notes n ON n.id = p.note_id '
-        'WHERE p.id = u.page_id AND $livePage) END)';
+        'ELSE (SELECT n.updated_at FROM pages p JOIN notes n ON n.id = p.note_id '
+        'WHERE p.id = u.page_id AND $livePage) END';
 
     // 1) candidates: live units, most recent first, at most the cap (+1 to see it is hit).
+    // The inner query runs as a co-routine in rowid order (LIMIT -1 keeps it from being
+    // flattened, so `live` is computed once per row); the outer one keeps the live rows.
     final match = SearchText.matchQuery(q);
-    final String sql;
+    final String from;
     final List<Variable<Object>> vars;
     if (match == null) {
       final runs = searchRunsOf(q);
       if (runs.isEmpty) return none;
-      sql =
-          'SELECT $_candidateColumns FROM search_units u WHERE '
+      from =
+          'FROM search_units u WHERE '
           '${[for (final _ in runs) r"u.norm LIKE ? ESCAPE '\'"].join(' AND ')} '
-          'AND $alive ORDER BY u.id DESC LIMIT ${kSearchCandidateCap + 1}';
+          'ORDER BY u.id DESC';
       vars = [
+        ...liveVars,
+        ...liveVars,
         for (final r in runs) Variable<String>(likeContains(r.text)),
-        ...liveVars,
-        ...liveVars,
       ];
     } else {
-      sql =
-          'SELECT $_candidateColumns FROM search_fts JOIN search_units u '
-          'ON u.id = search_fts.rowid WHERE search_fts MATCH ? AND $alive '
-          'ORDER BY search_fts.rowid DESC LIMIT ${kSearchCandidateCap + 1}';
-      vars = [Variable<String>(match), ...liveVars, ...liveVars];
+      from =
+          'FROM search_fts JOIN search_units u ON u.id = search_fts.rowid '
+          'WHERE search_fts MATCH ? ORDER BY search_fts.rowid DESC';
+      vars = [...liveVars, ...liveVars, Variable<String>(match)];
     }
+    final sql =
+        'SELECT * FROM (SELECT $_candidateColumns, $live AS live $from '
+        'LIMIT -1) WHERE live IS NOT NULL LIMIT ${kSearchCandidateCap + 1}';
     debugCandidateSql.add(sql);
     final rows = await _db.customSelect(sql, variables: vars).get();
     final capped = rows.length > kSearchCandidateCap;
-    final candidates = [
-      for (final r in capped ? rows.take(kSearchCandidateCap) : rows)
-        SearchCandidate(
-          id: r.read<int>('id'),
-          source: SearchSource.values.byName(r.read<String>('source')),
-          ownerKey: r.read<String>('owner_key'),
-          seq: r.read<int>('seq'),
-          norm: r.read<String>('norm'),
-          noteId: r.readNullable<String>('note_id'),
-          pageId: r.readNullable<String>('page_id'),
-          assetId: r.readNullable<String>('asset_id'),
-          pdfIndex: r.readNullable<int>('pdf_index'),
-        ),
-    ];
+    final candidates = <SearchCandidate>[];
+    final pdfPages = <(AssetId, int), List<SearchPageRef>>{};
+    final updatedAt = <NoteId, int>{};
+    for (final r in capped ? rows.take(kSearchCandidateCap) : rows) {
+      final data = r.data;
+      final source = SearchSource.values.byName(data['source']! as String);
+      final c = SearchCandidate(
+        id: data['id']! as int,
+        source: source,
+        ownerKey: data['owner_key']! as String,
+        seq: data['seq']! as int,
+        norm: data['norm']! as String,
+        noteId: data['note_id'] as String?,
+        pageId: data['page_id'] as String?,
+        assetId: data['asset_id'] as String?,
+        pdfIndex: data['pdf_index'] as int?,
+      );
+      candidates.add(c);
+      final liveValue = data['live']!;
+      if (source == SearchSource.pdf) {
+        final key = (c.assetId!, c.pdfIndex!);
+        if (pdfPages.containsKey(key)) continue;
+        final parts = (liveValue as String).split('\x1f');
+        pdfPages[key] = [
+          for (var i = 0; i + 2 < parts.length; i += 3)
+            (noteId: parts[i + 1], pageId: parts[i]),
+        ];
+        for (var i = 0; i + 2 < parts.length; i += 3) {
+          updatedAt[parts[i + 1]] = int.parse(parts[i + 2]);
+        }
+      } else {
+        updatedAt[c.noteId!] = liveValue as int;
+      }
+    }
     if (candidates.isEmpty) return none;
 
-    // 2) pdf expansion and note recency, each read once, then the shared ranking.
-    final pdfPages = <(AssetId, int), List<SearchPageRef>>{};
-    final assets = {
-      for (final c in candidates)
-        if (c.source == SearchSource.pdf) c.assetId!,
-    }.toList();
-    for (var i = 0; i < assets.length; i += _inChunk) {
-      final chunk = assets.sublist(i, math.min(i + _inChunk, assets.length));
-      for (final r
-          in await _db
-              .customSelect(
-                'SELECT p.id, p.note_id, p.bg_asset_id, p.bg_pdf_index '
-                'FROM pages p JOIN notes n ON n.id = p.note_id '
-                'WHERE p.bg_asset_id IN (${_marks(chunk.length)}) AND $livePage '
-                'ORDER BY p.id',
-                variables: [
-                  for (final a in chunk) Variable<String>(a),
-                  ...liveVars,
-                ],
-              )
-              .get()) {
-        (pdfPages[(
-                  r.read<String>('bg_asset_id'),
-                  r.read<int>('bg_pdf_index'),
-                )] ??=
-                [])
-            .add((
-              noteId: r.read<String>('note_id'),
-              pageId: r.read<String>('id'),
-            ));
-      }
-    }
-    final noteIds = {
-      for (final c in candidates) ?c.noteId,
-      for (final refs in pdfPages.values)
-        for (final ref in refs) ref.noteId,
-    }.toList();
-    final updatedAt = <NoteId, int>{};
-    for (var i = 0; i < noteIds.length; i += _inChunk) {
-      final chunk = noteIds.sublist(i, math.min(i + _inChunk, noteIds.length));
-      final n = _db.notes;
-      for (final r
-          in await (_db.selectOnly(n)
-                ..addColumns([n.id, n.updatedAt])
-                ..where(n.id.isIn(chunk)))
-              .get()) {
-        updatedAt[r.read(n.id)!] = r.read(n.updatedAt)!;
-      }
-    }
+    // 2) the shared ranking (judgement, pdf expansion, grouping, scores, order).
     final ranked = rankSearchCandidates(
       candidates,
       q,
@@ -470,45 +452,68 @@ final class DriftSearchIndex implements SearchIndex {
     };
     final details = <int, SearchUnitDetail>{};
     final refs = <int, String>{};
-    final u = _db.searchUnits;
-    for (final (ids, withBody) in [
-      (bestIds.toList(), true),
-      (otherIds.toList(), false),
-    ]) {
-      for (var i = 0; i < ids.length; i += _inChunk) {
-        final chunk = ids.sublist(i, math.min(i + _inChunk, ids.length));
-        final rowsOf =
-            await (_db.selectOnly(u)
-                  ..addColumns([
-                    u.id,
-                    if (withBody) ...[u.body, u.rectsRef, u.pdfAspect],
-                    u.rectL,
-                    u.rectT,
-                    u.rectR,
-                    u.rectB,
-                  ])
-                  ..where(u.id.isIn(chunk)))
-                .get();
-        for (final r in rowsOf) {
-          final id = r.read(u.id)!;
-          final l = r.read(u.rectL);
-          details[id] = (
-            body: withBody ? r.read(u.body)! : '',
-            rect: l == null
-                ? null
-                : PageRect(
-                    l,
-                    r.read(u.rectT)!,
-                    r.read(u.rectR)!,
-                    r.read(u.rectB)!,
-                  ),
-            pdfRects: const <PageRect>[],
-            pdfAspect: withBody ? r.read(u.pdfAspect) : null,
+    final sizes = <PageId, (double, double)>{};
+    // One statement per chunk: the representative units with body / rects_ref / pdf_aspect,
+    // the other units of their source with the rect only, and the page sizes (raw SQL — the
+    // query builder's typed rows cost more than the reads here).
+    final best = bestIds.toList();
+    final other = otherIds.toList();
+    final pageIds = [for (final p in ranked.pages) p.pageId];
+    final most = math.max(math.max(best.length, other.length), pageIds.length);
+    for (var i = 0; i < most; i += _inChunk) {
+      final b = best.sublist(
+        math.min(i, best.length),
+        math.min(i + _inChunk, best.length),
+      );
+      final o = other.sublist(
+        math.min(i, other.length),
+        math.min(i + _inChunk, other.length),
+      );
+      final pg = pageIds.sublist(
+        math.min(i, pageIds.length),
+        math.min(i + _inChunk, pageIds.length),
+      );
+      final rowsOf = await _db
+          .customSelect(
+            'SELECT 0 AS k, u.id AS id, NULL AS pid, u.body AS body, '
+            'u.rects_ref AS ref, u.pdf_aspect AS aspect, u.rect_l AS l, u.rect_t AS t, '
+            'u.rect_r AS r, u.rect_b AS b FROM search_units u WHERE u.id IN (${_marks(b.length)}) '
+            'UNION ALL SELECT 1, u.id, NULL, NULL, NULL, NULL, u.rect_l, u.rect_t, u.rect_r, '
+            'u.rect_b FROM search_units u WHERE u.id IN (${_marks(o.length)}) '
+            'UNION ALL SELECT 2, NULL, p.id, NULL, NULL, NULL, p.width, p.height, NULL, NULL '
+            'FROM pages p WHERE p.id IN (${_marks(pg.length)})',
+            variables: [
+              for (final id in b) Variable<int>(id),
+              for (final id in o) Variable<int>(id),
+              for (final id in pg) Variable<String>(id),
+            ],
+          )
+          .get();
+      for (final row in rowsOf) {
+        final r = row.data;
+        final l = r['l'] as num?;
+        if (r['k'] == 2) {
+          sizes[r['pid']! as String] = (
+            l!.toDouble(),
+            (r['t']! as num).toDouble(),
           );
-          if (withBody) {
-            if (r.read(u.rectsRef) case final ref?) refs[id] = ref;
-          }
+          continue;
         }
+        final id = r['id']! as int;
+        details[id] = (
+          body: (r['body'] as String?) ?? '',
+          rect: l == null
+              ? null
+              : PageRect(
+                  l.toDouble(),
+                  (r['t']! as num).toDouble(),
+                  (r['r']! as num).toDouble(),
+                  (r['b']! as num).toDouble(),
+                ),
+          pdfRects: const <PageRect>[],
+          pdfAspect: (r['aspect'] as num?)?.toDouble(),
+        );
+        if (r['ref'] case final String ref) refs[id] = ref;
       }
     }
     // The boxes of the representative pdf units: one blob read; a missing blob = no boxes.
@@ -525,7 +530,7 @@ final class DriftSearchIndex implements SearchIndex {
         if (bytes == null) continue;
         final List<PageRect> boxes;
         try {
-          boxes = SearchRectsCodec.decode(bytes);
+          boxes = SearchRectsCodec.view(bytes);
         } on Object {
           continue;
         }
@@ -536,19 +541,6 @@ final class DriftSearchIndex implements SearchIndex {
           pdfRects: boxes,
           pdfAspect: d.pdfAspect,
         );
-      }
-    }
-    final sizes = <PageId, (double, double)>{};
-    final pageIds = [for (final p in ranked.pages) p.pageId];
-    final pg = _db.pages;
-    for (var i = 0; i < pageIds.length; i += _inChunk) {
-      final chunk = pageIds.sublist(i, math.min(i + _inChunk, pageIds.length));
-      for (final r
-          in await (_db.selectOnly(pg)
-                ..addColumns([pg.id, pg.width, pg.height])
-                ..where(pg.id.isIn(chunk)))
-              .get()) {
-        sizes[r.read(pg.id)!] = (r.read(pg.width)!, r.read(pg.height)!);
       }
     }
     const noDetail = (

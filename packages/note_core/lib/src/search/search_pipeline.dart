@@ -5,9 +5,9 @@
 // model) both call these, so equal candidates give equal results and order (CP-14).
 import '../common/geometry.dart';
 import '../common/ids.dart';
-import 'search_match.dart';
 import 'search_ranking.dart';
 import 'search_rects.dart';
+import 'search_runs.dart';
 import 'search_types.dart';
 
 /// The candidate cap: at most this many live units, most recent (highest id) first (6.10.4).
@@ -53,6 +53,9 @@ final class RankedSearchPage {
   final Map<int, double> unitScores = {};
   late SearchCandidate best;
   late double score;
+
+  /// The note's updatedAt (the second sort key).
+  late int noteUpdatedAt;
 }
 
 /// Step 2: judge (searchMatches), expand pdf units ([pdfPages]), group per page, score and
@@ -65,52 +68,61 @@ final class RankedSearchPage {
   required int Function(NoteId noteId) noteUpdatedAt,
   required int limit,
 }) {
-  final byPage = <(NoteId, PageId), RankedSearchPage>{};
+  final runs = searchRunsOf(queryNorm);
+  // Keyed by page id (a page belongs to one note); the note id is kept on the page.
+  final byPage = <PageId, RankedSearchPage>{};
   for (final c in candidates) {
-    if (!searchMatches(c.norm, queryNorm)) continue;
-    final score = unitScore(c.source, c.norm, queryNorm);
-    final targets = c.source == SearchSource.pdf
-        ? pdfPages(c)
-        : [(noteId: c.noteId!, pageId: c.pageId!)];
-    for (final t in targets) {
-      final page = byPage[(t.noteId, t.pageId)] ??= RankedSearchPage(
-        t.noteId,
-        t.pageId,
-      );
-      page.units.add(c);
-      page.unitScores[c.id] = score;
+    final score = matchScore(c.source, c.norm, runs);
+    if (score == null) continue;
+    if (c.source == SearchSource.pdf) {
+      for (final t in pdfPages(c)) {
+        _addUnit(byPage, t.noteId, t.pageId, c, score);
+      }
+    } else {
+      _addUnit(byPage, c.noteId!, c.pageId!, c, score);
     }
   }
-  for (final p in byPage.values) {
+  final ordered = byPage.values.toList();
+  for (final p in ordered) {
     // The best unit: the highest score; a tie goes to the most recent unit (higher id).
     var best = p.units.first;
+    var b = p.unitScores[best.id]!;
     for (final u in p.units.skip(1)) {
-      final s = p.unitScores[u.id]!, b = p.unitScores[best.id]!;
-      if (s > b || (s == b && u.id > best.id)) best = u;
+      final s = p.unitScores[u.id]!;
+      if (s > b || (s == b && u.id > best.id)) {
+        best = u;
+        b = s;
+      }
     }
     p
       ..best = best
-      ..score = pageScore(p.unitScores[best.id]!, p.units.length);
+      ..score = pageScore(b, p.units.length)
+      ..noteUpdatedAt = noteUpdatedAt(p.noteId);
   }
-  final ordered = byPage.values.toList()
-    ..sort(
-      (a, b) => comparePageHits(
-        (
-          score: a.score,
-          noteUpdatedAt: noteUpdatedAt(a.noteId),
-          pageId: a.pageId,
-        ),
-        (
-          score: b.score,
-          noteUpdatedAt: noteUpdatedAt(b.noteId),
-          pageId: b.pageId,
-        ),
-      ),
-    );
+  // comparePageHits without a record per comparison.
+  ordered.sort((a, b) {
+    final s = b.score.compareTo(a.score);
+    if (s != 0) return s;
+    final u = b.noteUpdatedAt.compareTo(a.noteUpdatedAt);
+    if (u != 0) return u;
+    return a.pageId.compareTo(b.pageId);
+  });
   return (
     pages: ordered.length > limit ? ordered.sublist(0, limit) : ordered,
     more: ordered.length > limit,
   );
+}
+
+void _addUnit(
+  Map<PageId, RankedSearchPage> byPage,
+  NoteId noteId,
+  PageId pageId,
+  SearchCandidate c,
+  double score,
+) {
+  final page = byPage[pageId] ??= RankedSearchPage(noteId, pageId);
+  page.units.add(c);
+  page.unitScores[c.id] = score;
 }
 
 /// What step 3 reads for a unit of a returned page.
@@ -134,7 +146,7 @@ PageSearchHit searchHitOf(
 }) {
   final best = page.best;
   final d = detail(best);
-  final s = snippetOf(d.body, queryNorm);
+  final s = snippetOf(d.body, queryNorm, bodyNorm: best.norm);
   final List<PageRect> rects;
   if (best.source == SearchSource.pdf) {
     final (start, end) = s.bodyRange;
