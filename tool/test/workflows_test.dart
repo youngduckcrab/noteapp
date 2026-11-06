@@ -8,8 +8,11 @@
 // APK build, the functions skeleton with its `hashFiles` guard) and the issue
 // templates; 2차 J2 / J3 (m5-7/01-infra 6.10.3, 6.11.5, 6.11.6): the APK
 // signing ways, ios-compile.yml and the two TestFlight signing ways, their
-// shell steps run with fake tools. Every `ws` call in a workflow is parsed by
-// the real `ws` argument parser, and every `run` script passes `bash -n`.
+// shell steps run with fake tools; 2차 J21 (6.10.5): android-emulator.yml
+// (the emulator, the debug APK with granted permissions, the KVM step with a
+// fake sudo, the native smoke it runs). Every `ws` call in a workflow is
+// parsed by the real `ws` argument parser, and every `run` script passes
+// `bash -n`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -34,6 +37,8 @@ const _pinnedActions = {
   'FirebaseExtended/action-hosting-deploy': 'v0',
   // 2차 (m5-7/01-infra 7.3): functions.yml.
   'actions/setup-node': 'v6',
+  // 2차 J21 (m5-7/01-infra 7.3, P-C): android-emulator.yml.
+  'reactivecircus/android-emulator-runner': 'v2',
 };
 
 /// `paths-ignore` of every push trigger (6.13).
@@ -41,6 +46,7 @@ const _ignoredPaths = ['docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**'];
 
 /// Job time limits (6.13).
 const _timeouts = {
+  'android-emulator.yml': 30,
   'android.yml': 30,
   'ci.yml': 60,
   'functions.yml': 15,
@@ -89,6 +95,11 @@ const _webBuild =
 const _apkBuild =
     'flutter build apk --release --split-per-abi $_buildNumber $_defineFile';
 const _inkLabDir = 'packages/ink_engine/example';
+
+/// android-emulator.yml (2차 J21, m5-7/01-infra 6.10.5).
+const _emulatorApkBuild = 'flutter build apk --debug';
+const _emulatorApk = 'build/app/outputs/flutter-apk/app-debug.apk';
+const _nativeSmoke = 'integration_test/native_smoke_test.dart';
 
 /// The fixed Android key secrets (m5-7/01-infra 6.10.3, guide 07).
 const _androidSecrets = [
@@ -270,10 +281,10 @@ void main() {
   });
 
   group('all workflows', () {
-    test('the four workflows of 6.13, functions.yml and ios-compile.yml (2차) '
-        'exist and '
-        'parse', () {
+    test('the four workflows of 6.13, functions.yml, ios-compile.yml and '
+        'android-emulator.yml (2차) exist and parse', () {
       expect(_workflowNames(), [
+        'android-emulator.yml',
         'android.yml',
         'ci.yml',
         'functions.yml',
@@ -340,7 +351,7 @@ void main() {
           expect(withMap.containsKey('flutter-version'), isFalse);
         }
       }
-      expect(count, 5);
+      expect(count, 6);
       final rootPubspec = _load(p.join(repoRoot, 'pubspec.yaml'));
       expect((rootPubspec['environment'] as YamlMap)['flutter'], '3.47.9');
     });
@@ -357,7 +368,7 @@ void main() {
           }
         }
       }
-      expect(count, 5);
+      expect(count, 6);
     });
 
     test('no `if:` reads `secrets` (not allowed there — job env instead)', () {
@@ -397,6 +408,7 @@ void main() {
 
     test('every build-hooks cache has the same path and key (step 3)', () {
       for (final name in [
+        'android-emulator.yml',
         'android.yml',
         'ci.yml',
         'ios-compile.yml',
@@ -416,12 +428,23 @@ void main() {
       }
     });
 
-    test('every flutter build passes the build info and run number', () {
+    test('every flutter build passes the build info and run number (the '
+        'emulator debug APK aside)', () {
       var count = 0;
+      var debug = 0;
       for (final name in _workflowNames()) {
         for (final step in _allSteps(_workflow(name))) {
           for (final line in _commands(step)) {
             if (!line.startsWith('flutter build ')) continue;
+            if (line.contains(' --debug')) {
+              // android-emulator.yml (J21): the debug APK installed with
+              // `adb install -g` before flutter test (no build info).
+              debug++;
+              expect(name, 'android-emulator.yml');
+              expect(line, _emulatorApkBuild);
+              expect(step['working-directory'], 'app');
+              continue;
+            }
             count++;
             final dir = '${step['working-directory']}';
             // The app, and the ink lab of web-experiment (INFRA-O1).
@@ -436,6 +459,7 @@ void main() {
         }
       }
       expect(count, 7);
+      expect(debug, 1);
     });
 
     test('every `ws` call parses with the real ws arguments', () async {
@@ -1680,6 +1704,217 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
           .readAsStringSync();
       expect(text, isNot(contains('emulators:exec')));
       expect(text, contains('J16'));
+    });
+  });
+
+  group('android-emulator.yml (2차 J21, m5-7/01-infra 6.10.5)', () {
+    late YamlMap emulator;
+    late YamlMap job;
+    late List<YamlMap> steps;
+
+    setUp(() {
+      emulator = _workflow('android-emulator.yml');
+      job = _jobs(emulator).values.single;
+      steps = _steps(job);
+    });
+
+    test('manual runs only, one run per ref (a new one cancels)', () {
+      final on = emulator['on'] as YamlMap;
+      expect(on.keys, ['workflow_dispatch']);
+      expect(on['workflow_dispatch'], isNull, reason: 'no inputs');
+      final concurrency = emulator['concurrency'] as YamlMap;
+      expect(concurrency['group'], r'android-emulator-${{ github.ref }}');
+      expect(concurrency['cancel-in-progress'], isTrue);
+    });
+
+    test(
+      'ubuntu with a 30 minute limit, no job if, no secret, no variable',
+      () {
+        expect(job['runs-on'], 'ubuntu-latest');
+        expect(job['timeout-minutes'], 30);
+        expect(job.containsKey('if'), isFalse);
+        expect(job.containsKey('env'), isFalse);
+        final text = File(p.join(_workflowsDir, 'android-emulator.yml'))
+            .readAsStringSync();
+        expect(text, isNot(contains('secrets.')));
+        expect(text, isNot(contains('vars.')));
+      },
+    );
+
+    test('the 6.10.5 steps in order: KVM, the android.yml toolchain, the '
+        'debug APK before the emulator boots, the smoke last', () {
+      expect(
+        [for (final s in steps) s['name']],
+        [
+          'Checkout',
+          'Enable KVM',
+          'Set up Java',
+          'Cache Android NDK',
+          'Set up Flutter',
+          'Build hooks (downloads sqlite3 when not cached)',
+          'Dependencies',
+          'Build debug APK',
+          'Native smoke',
+        ],
+      );
+      expect(
+        [
+          for (final s in steps)
+            if (s['run'] != null && _commands(s).isNotEmpty)
+              _commands(s).single,
+        ],
+        ['flutter pub get --enforce-lockfile', _emulatorApkBuild],
+      );
+      expect(_named(steps, 'Build debug APK')['working-directory'], 'app');
+      for (final step in steps) {
+        expect(step['if'], isNull, reason: '${step['name']}');
+      }
+    });
+
+    test('Java and the NDK cache are the ones of android.yml', () {
+      final android = _steps(_jobs(_workflow('android.yml')).values.single);
+      for (final name in ['Set up Java', 'Cache Android NDK']) {
+        expect(
+          _named(steps, name).value,
+          _named(android, name).value,
+          reason: name,
+        );
+      }
+    });
+
+    test('the emulator: API 34 google_apis x86_64, the microphone on '
+        '(no -noaudio), the app directory', () {
+      final step = _named(steps, 'Native smoke');
+      expect(step['uses'], 'reactivecircus/android-emulator-runner@v2');
+      final withMap = _with(step);
+      expect(
+        {for (final key in withMap.keys) key},
+        {
+          'api-level',
+          'target',
+          'arch',
+          'emulator-options',
+          'disable-animations',
+          'working-directory',
+          'script',
+        },
+      );
+      expect(withMap['api-level'], 34);
+      expect(withMap['target'], 'google_apis');
+      expect(withMap['arch'], 'x86_64');
+      expect(withMap['disable-animations'], isTrue);
+      expect(withMap['working-directory'], 'app');
+      // The action's default options (-no-window -gpu swiftshader_indirect
+      // -no-snapshot -noaudio -no-boot-anim) without -noaudio.
+      final options = '${withMap['emulator-options']}'.split(' ');
+      expect(options, [
+        '-no-window',
+        '-gpu',
+        'swiftshader_indirect',
+        '-no-snapshot',
+        '-no-boot-anim',
+      ]);
+      expect(options, isNot(contains('-noaudio')));
+    });
+
+    test('the script: the debug APK with granted permissions, then flutter '
+        'test of the native smoke (each line on its own)', () {
+      final script = '${_with(_named(steps, 'Native smoke'))['script']}';
+      final lines = [
+        for (final line in script.split('\n'))
+          if (line.trim().isNotEmpty) line.trim(),
+      ];
+      expect(lines, [
+        'adb install -r -g $_emulatorApk',
+        'flutter test $_nativeSmoke',
+      ]);
+      // Each line runs alone: no `cd`, no continuation, no `&&`.
+      for (final line in lines) {
+        expect(line, isNot(startsWith('cd ')));
+        expect(line, isNot(endsWith(r'\')));
+        expect(line, isNot(contains('&&')));
+        expect(
+          Process.runSync('bash', ['-n', '-c', line]).exitCode,
+          0,
+          reason: line,
+        );
+      }
+      // The APK the build step makes in the same directory (app/).
+      expect(_emulatorApkBuild, 'flutter build apk --debug');
+      expect(_emulatorApk, endsWith('/app-debug.apk'));
+    });
+
+    test('Enable KVM, run with a fake sudo: the udev rule for /dev/kvm, '
+        'reload, trigger', () {
+      final dir = Directory.systemTemp.createTempSync('android_kvm_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final bin = Directory(p.join(dir.path, 'bin'))..createSync();
+      final log = File(p.join(dir.path, 'sudo.log'));
+      final sudo = File(p.join(bin.path, 'sudo'))
+        ..writeAsStringSync(
+          '#!/usr/bin/env bash\n'
+          'printf "%s\\n" "\$*" >> "${log.path}"\n'
+          'if [ "\$1" = tee ]; then sed "s/^/stdin: /" >> "${log.path}"; fi\n',
+        );
+      Process.runSync('chmod', ['+x', sudo.path]);
+      final result = Process.runSync(
+        'bash',
+        ['-e', '-c', '${_named(steps, 'Enable KVM')['run']}'],
+        workingDirectory: dir.path,
+        environment: {
+          'PATH': '${bin.path}:${Platform.environment['PATH'] ?? '/usr/bin'}',
+        },
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(log.readAsLinesSync(), [
+        'tee /etc/udev/rules.d/99-kvm4all.rules',
+        'stdin: KERNEL=="kvm", GROUP="kvm", MODE="0666", '
+            'OPTIONS+="static_node=kvm"',
+        'udevadm control --reload-rules',
+        'udevadm trigger --name-match=kvm',
+      ]);
+    });
+
+    test('the test it runs: the app integration_test file, on the '
+        'production start, four cases (6.10.5)', () {
+      final file = File(p.join(repoRoot, 'app', _nativeSmoke));
+      expect(file.existsSync(), isTrue);
+      final source = file.readAsStringSync();
+      expect(
+        source,
+        contains('IntegrationTestWidgetsFlutterBinding.ensureInitialized()'),
+      );
+      expect(source, contains('modules: productionModules()'));
+      expect(source, contains('features: AppFeatures.compileTime'));
+      expect(source, contains('resolveNativeStoragePaths()'));
+      expect(source, contains('supportedImageSources()'));
+      expect(source, contains(".ensureModel('en', wifiOnly: false)"));
+      expect(source, contains('markTestSkipped('));
+      expect(source, contains('const Duration(seconds: 2)'));
+      expect(source, contains('recordings.recordingsOf('));
+      expect(
+        RegExp(r'^  testWidgets\(', multiLine: true).allMatches(source),
+        hasLength(4),
+      );
+      // integration_test is the app's dev dependency (an SDK package —
+      // contract 7.5 v2.1, R2-B1), and what `adb install -g` grants is
+      // declared in the main manifest.
+      final pubspec = _load(p.join(repoRoot, 'app', 'pubspec.yaml'));
+      expect(
+        ((pubspec['dev_dependencies'] as YamlMap)['integration_test']
+                as YamlMap)
+            .value,
+        {'sdk': 'flutter'},
+      );
+      final manifest = File(
+        p.join(repoRoot, 'app/android/app/src/main/AndroidManifest.xml'),
+      ).readAsStringSync();
+      for (final permission in ['RECORD_AUDIO', 'POST_NOTIFICATIONS']) {
+        expect(
+          manifest,
+          contains('android:name="android.permission.$permission"'),
+        );
+      }
     });
   });
 

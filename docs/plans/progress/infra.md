@@ -414,7 +414,7 @@
 | J18 | 완료 | `1e29a75` | `tool/test/guides_test.dart` v2(30 — 파일 9개·README 순서 01 → 02 → 04 → 08·공통 형식 8개(08은 계약 문장 줄을 뺀 해요체)·01 첫 단락 'Hosting만'·'Spark'·'실연결'·'실연결 때 정할 것' 절·03 Functions 한 줄·04 B-1 네 단계(마지막 = `AppStrings.sectionV1Copy`·`v1CopyPresent` 머리)·B-15·B-16 하는 법·마이크·'복구된 녹음'·되돌리기 금지·`reloadBlockedByRecording`·05 아티팩트 두 이름(`android.yml` 식에서)·'고정 키 등록은 07'·'파일 두 개'·'앱을 지우지 말고'·06 `ios-compile.yml` 이름·입력·`ios-compile-<번호>`·`ITSAppUsesNonExemptEncryption`(Info.plist `false`)·07 시크릿 4개·변수(= `android.yml` 잡 `env`)·`::error::` 두 문장·요약 줄·08 **계약 7.8 A-1~A-6·B-1~B-16·C-1~C-4 순서와 문장 글자 그대로**·머리말 3줄·항목마다 '알려 줄 것'·보고 양식·B-13 순서·C-1 다시 열기) |
 | J19 | 완료 | `0b3c5d2` | `app/test/integration/app_smoke_v2_test.dart`(V5 v2 — 지금 되는 단계: 시작 5모듈 ok·7.3.3 행 한 번씩·오디오/인식 행의 출처 모듈·값, 자리 4개(이미지 = 주입 가져오기·녹음 패널 = `mediaRecordingPanel`·선택/삽입 = 실제 recog 동작 id), 개발자 섹션 순서·`recog.settings` 위치·유휴 작업 4개, 5모듈 위 1차 V5 흐름, 9 라우팅(`onOpenNoteAt` → `?page=&focus=` → 에디터 인자·주소)), `integration/feature_switch_test.dart`(V15 — 기대 행 표 1 + 주입 8조합 + 모두 끔 1차 흐름 + `AppFeatures.compileTime`(H5는 `--dart-define` 3개)), `web/app_smoke_v2_browser_test.dart`(V6 v2 — `setUpAll(useInkTestFonts)`, 웹 저장소, 같은 단계, 오류 기록 0·`MissingPluginException` 0), `support/smoke_v2_fakes.dart` |
 | J20 | 완료 | `8e1f05a` | `tool/test/lock_age_test.dart`(21 — 잠금 파서 3(hosted만·서버 주소·실제 워크스페이스 lock·깨진 파일 4가지), 바뀐 항목 3(새·판 바뀜·서버 바뀜 / 같음·지움 제외 / 기준에 lock 없음 → 전부), API 답 2(`published`·없는 판·깨진 답 5가지), 달력 일수(UTC 날짜 — 13·14 경계·시간대), `checkLockAge` 3(가짜 HTTP: **13일 → 위반·14일 → 통과·네트워크 오류(null·예외)·목록에 없는 판·깨진 답 → 경고**, 이름 순 요청 1번씩, 표·줄 형식, `--min-days`, 바뀐 것 없음 → 요청 0), 명령 9(실제 git 저장소 + 가짜 내려받기: 위반 → 1·통과 → 0 + 요약 파일·네트워크 오류 → 0·`--now` 없으면 컨텍스트 시계·기준 ref에 lock 없음·커밋 아닌 ref → 경고 0·사용 오류 7가지 → 2·lock 없음 → 3·**실제 `httpDownload` + 127.0.0.1 서버 → 답·닫힌 포트 → 경고**)), `workflows_test`(+1 'Lock age' 단계 — `continue-on-error`·위치·`bash -n`·가짜 `git`/`dart`로 6경우, 단계 순서·명령·`ws` 호출 22개) |
-| J21 | 남음 | | `workflows_test`(android-emulator) |
+| J21 | 완료 | (이 커밋) | `tool/test/workflows_test.dart` `android-emulator.yml` 묶음 7(수동만·`concurrency`·`ubuntu-latest` 30분·시크릿/변수 없음·6.10.5 단계 순서·Java/NDK = `android.yml`·에뮬레이터 `api-level` 34·`google_apis`·`x86_64`·`-noaudio` 없음·스크립트 두 줄(`adb install -r -g` → `flutter test integration_test/native_smoke_test.dart`)·KVM 단계를 가짜 `sudo`로 실행·실행할 시험 파일 구조) + 공통 사례(액션 판·잡 제한·flutter-action 6·`pub get` 6·build-hooks 캐시·`flutter build`의 debug APK 예외 1), `app/integration_test/native_smoke_test.dart`(4경우 — 실행은 GitHub 수동) |
 | J22 | 남음 | | 마감 확인 묶음(8.2 J22 행) |
 | H1~H8 | 통합 단계 | | (계획 8.3) |
 
@@ -758,6 +758,19 @@
 | `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
 | `dart test tool/test` | 527 통과 · 89초 |
 
+#### J21 — `android-emulator.yml` · `app/integration_test/native_smoke_test.dart` (계획 8.2, 6.10.5 — P-C)
+
+- 커밋: (이 커밋).
+- `.github/workflows/android-emulator.yml`(새, 수동만 — `workflow_dispatch` 입력 없음, `concurrency: android-emulator-<ref>` 취소): `ubuntu-latest`·30분, 시크릿·변수 없음. 단계: 체크아웃 → **Enable KVM**(udev 규칙 `99-kvm4all.rules` → `udevadm control --reload-rules` → `trigger --name-match=kvm`) → Java 17(temurin, gradle 캐시)·NDK 캐시(`android.yml`과 같은 값) → flutter-action(루트 pubspec 판) → build-hooks 캐시(`ci.yml` 3단계와 같은 키) → `flutter pub get --enforce-lockfile` → **`flutter build apk --debug`**(`app/`, 에뮬레이터 부팅 전) → `reactivecircus/android-emulator-runner@v2`(`api-level: 34`, `target: google_apis`, `arch: x86_64`, `disable-animations: true`, `working-directory: app`, `emulator-options`는 액션 기본값에서 `-noaudio`만 뺀 것) 스크립트 두 줄: `adb install -r -g build/app/outputs/flutter-apk/app-debug.apk` → `flutter test integration_test/native_smoke_test.dart`.
+- `app/integration_test/native_smoke_test.dart`(새): `runNoteApp`과 같은 시작(`AppBootstrapper` + `productionModules()` + `AppFeatures.compileTime`, 위젯 없이 `ProviderContainer(overrides: success.overrides)`) 위에서 — ① `resolveNativeStoragePaths()` → DB 파일이 그 경로에 있음 → 노트 1개 → `shutdown` → 다시 시작 → `getNote` 제목 같음(오류 기록 0) ② `supportedImageSources()` ⊇ {photos, camera}(PDF 6.12 안드로이드 표) · `editorImageImporterProvider.sources` = 그 집합 ③ `handwritingRecognizerProvider` = ML Kit(`isAvailable`·`engineId` `mlkit-digital-ink/…`) → `ensureModel('en', wifiOnly: false)`(4분 제한 — 실패면 `markTestSkipped`) → `ready` → 손으로 만든 합성 'hi'(h 한 획 + i 줄기·점) → 앞 3후보에 'hi' ④ `audioRecorderServiceProvider` `checkSupport()` = supported → `start`(id = `idGeneratorProvider`) → 2초 → `stop()` → 녹음(id·노트·`durationMs > 0`) → `recordingsOf` = [id](오류 기록 0). 시간에 기대는 단언은 없다(2초는 녹음 길이를 만드는 대기일 뿐 — `durationMs > 0`만 본다).
+- 컨테이너 시험(VM, `flutter test integration_test/native_smoke_test.dart -d flutter-tester` 한 번 — 확인용, 커밋된 시험 경로 아님): 컴파일·실행됨, ① 통과(데스크톱 `path_provider_linux` 경로 — 만든 `~/.local/share/flutter_tester/`는 지움), ②③④는 이 작업 트리의 기반 단계 표면(빈 `supportedImageSources()`·지원 안 함 인식기·녹음기)이라 실패 — 예상대로. 실제 판정은 통합 뒤 GitHub 수동 실행(H6 무렵 — 9.2 '안드로이드 에뮬레이터 네이티브 스모크' 실행 기록).
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/workflows_test.dart` | 82 통과 |
+| `cd app && flutter analyze --fatal-infos integration_test` | 0건 |
+| `ws check` | 0 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -768,6 +781,7 @@
 
 #### 계획과 다르게 한 점
 
+- (J21) 계획 6.10.5는 에뮬레이터 단계를 `cd app && flutter test integration_test/native_smoke_test.dart` 하나로 적었다. 녹음 사례(④)는 마이크 권한이 있어야 하는데 권한 창은 Flutter 밖이라 시험이 누를 수 없다 — 그래서 에뮬레이터 부팅 전에 `flutter build apk --debug`(`app/`)를 만들고, 에뮬레이터 스크립트 첫 줄에서 `adb install -r -g`로 깔아 둔다(`RECORD_AUDIO`·`POST_NOTIFICATIONS` 허용). `flutter test`는 같은 패키지·debug 키·버전 코드로 `adb install -r`하므로 허용이 남는다(Flutter 도구의 설치 방식 — 기억, 첫 실행에서 확인). 이 debug 빌드는 빌드 정보·실행 번호를 넘기지 않는다(넘기면 버전 코드가 커져 `flutter test` 설치가 '다운그레이드'로 지우고 다시 깔아 허용이 사라짐) — `workflows_test`의 'flutter build는 빌드 정보·실행 번호' 사례에 이 한 줄만 예외로 두었다. 액션 기본 `emulator-options`의 `-noaudio`를 뺐다(에뮬레이터 마이크). 시험 내용(①~④)은 계획 그대로이고, ①은 '다시 열기'를 `AppBootstrapper.shutdown` → 새 시작으로 했다(앱 셸 경로 전체 — `openNoteStore`만 따로 부르지 않음).
 - (J20) 계획 4.2는 `lock-age`의 종료 코드를 0 / 1로 적었다. 인자 오류(2)와 작업 폴더에 `pubspec.lock`이 없을 때(3)는 다른 `ws` 명령과 같은 코드를 쓴다. `--since`의 ref가 커밋이 아니면 실패가 아니라 경고(0)다 — '네트워크 오류는 경고'와 같은 취지(경고 단계에서 비교할 기준이 없으면 막지 않음). 14일은 게시 시각이 아니라 UTC 달력 날짜 차로 센다(`--now`가 날짜뿐이라).
 - (J19) 자리 3·4(선택·삽입 메뉴)는 지금 '비어 있지 않음'이 아니라 '실제 `recognitionSelectionActions()`·`recognitionInsertActions()`의 id와 같음'으로 본다 — 이 작업 트리의 recog는 R2-B6 표면이라 두 목록이 비어 있다(9.1 표의 '자리 4개가 비어 있지 않음'은 자리 1·2만 지금 성립). LIBRARY 병합 뒤 H3에서 두 목록 `isNotEmpty`를 더한다. 녹음 패널 열기(단계 6)·삽입 메뉴 열기(단계 8)도 화면이 아니라 provider 값으로 봤다 — 이 작업 트리의 EDITOR는 마이크 버튼·삽입 메뉴가 없는 기반 표면이다(H3에서 화면으로).
 - (J19) V15의 행 비교는 위젯이 아니라 provider 값(녹음 패널·녹음기 종류·개발자 섹션·유휴 작업 / recog 메뉴 id·`recog.settings`·색인기 / `RecognitionConfig.mathEndpoint`·수식 인식기 / `inkShapeFitterProvider` / `editorImageImporterProvider`·페이지 추가 출처)이다. '자동 도형 보정' 행은 provider 값(주입 `GeometricShapeFitter` ↔ 기본 `NoShapeFitter`)이라 지금도 차이에 든다 — 화면의 보정 토글 비교(C22-07: E2-15·L2-06이 모두 병합됐을 때만 기대 목록)는 H5.
