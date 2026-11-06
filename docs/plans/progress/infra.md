@@ -411,7 +411,7 @@
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
 | J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
 | J17 | 완료 | `95d88a8` | `tool/test/web_budget_test.dart`(16 — 형식 3(4.3.3 모양·잘못된 파일 7가지·커밋된 `tool/web_budget.yaml` 값), 측정 2(gzip = 파일별 `dart:io` gzip 합·없는 보고 자산 → null·빌드/`main.dart.js`/`FontManifest.json` 없음·깨진 JSON), 보고 7(한도 안 · 넘음(크기·증가분·묶음) · 원본 글꼴 한도 · 금지 글꼴 · 빌드에 없는 글꼴 파일 · `measure`는 표시만 · 표 형식), 명령 4(`check` 0 + 요약 파일 · 넘으면 1 / `measure` 0 · `--budget` · 빌드·예산 없음 → 3 · 예산 없이 `measure`)), `workflows_test`(`ci.yml` 'Web budget' 단계 — 순서·명령·조건 없음, `ws` 호출 21개) |
-| J18 | 남음 | | `tool/test/guides_test.dart` v2 |
+| J18 | 완료 | (이 커밋) | `tool/test/guides_test.dart` v2(30 — 파일 9개·README 순서 01 → 02 → 04 → 08·공통 형식 8개(08은 계약 문장 줄을 뺀 해요체)·01 첫 단락 'Hosting만'·'Spark'·'실연결'·'실연결 때 정할 것' 절·03 Functions 한 줄·04 B-1 네 단계(마지막 = `AppStrings.sectionV1Copy`·`v1CopyPresent` 머리)·B-15·B-16 하는 법·마이크·'복구된 녹음'·되돌리기 금지·`reloadBlockedByRecording`·05 아티팩트 두 이름(`android.yml` 식에서)·'고정 키 등록은 07'·'파일 두 개'·'앱을 지우지 말고'·06 `ios-compile.yml` 이름·입력·`ios-compile-<번호>`·`ITSAppUsesNonExemptEncryption`(Info.plist `false`)·07 시크릿 4개·변수(= `android.yml` 잡 `env`)·`::error::` 두 문장·요약 줄·08 **계약 7.8 A-1~A-6·B-1~B-16·C-1~C-4 순서와 문장 글자 그대로**·머리말 3줄·항목마다 '알려 줄 것'·보고 양식·B-13 순서·C-1 다시 열기) |
 | J19 | 남음 | | `app_smoke_v2_test`·`feature_switch_test`(integration)·`app_smoke_v2_browser_test` |
 | J20 | 남음 | | `tool/test/lock_age_test.dart` |
 | J21 | 남음 | | `workflows_test`(android-emulator) |
@@ -709,6 +709,21 @@
 | `dart test tool/test/workflows_test.dart` | 73 통과 |
 | `dart test tool/test` | 497 통과 · 155초 (처음 1회는 `workflows_test`의 `ws` 호출 수 20 → 21에서 실패 — 고침) |
 
+#### J18 — 안내서 v2 (계획 8.2, 3.7·6.21, 계약 3.7·7.8)
+
+- 커밋: (이 커밋).
+- `docs/guides/01`: 맨 위 굵은 단락 '2차 라운드에서는 Hosting만 써요 — Spark(무료) 요금제, 결제 계정 없음. 동기화·로그인·서버 함수(Blaze)는 나중의 실연결 단계에서 따로 켜요.' + 'Hosting(Spark)은 실연결이 아니에요', 순서 'Spark로 프로젝트 만들기 → Hosting 시작 → [02]'(약 15분), 1차 'M4 때 정할 것' 절 → '실연결 때 정할 것 (지금은 하지 않음)'(Firestore·Storage·Authentication·Functions). `03`: 'Functions 배포는 실연결 미니 라운드' 한 줄. `README`: 01 → 02 → 04 → 08, 07(05보다 먼저)·08 줄.
+- `04`: 머리에 08 링크, '먼저 알아 둘 것'에 **웹 배포 되돌리기 금지**(옛 판은 DB v2 노트를 열지 못함), 새 절 '10단계 — 2차 판으로 옮기기 (08 B-1)'(① 배포 전에 백업 내보내기 — 출처는 `main` 뒤 live·그 전 개발 브랜치 미리보기, ② 2차 배포 — 개발 브랜치가 기본 브랜치라 DB v2 병합 푸시가 곧 배포 → Claude가 병합 전에 ① 요청, ③ 첫 실행, ④ **설정 → 이전 판 DB 사본** '사본 있음: …'), '녹음할 때'(Safari 마이크 허용 — 탭은 'aA', 홈 화면 앱은 iPad 설정(미확인), 탭 닫지 않기·'복구된 녹음', 자동 일시정지, 녹음 중 새로고침 문구 = `AppStrings.reloadBlockedByRecording`), 'B-15 하는 법'·'B-16 하는 법'. 1차 단락('live 주소에는 `main`에 올린 코드만 …')과 9.3 표 1~20은 그대로.
+- `05`: 아티팩트 이름 표(`noteapp-apk-<번호>` 고정 키 판 / `noteapp-debug-signed-<번호>` '덮어 설치할 수 없는 시험판 — 실제 노트가 든 기기에는 설치하지 마세요'), '4단계 — 처음 쓸 때 허가하기'(마이크·알림, ML Kit 모델 Wi-Fi 약 20 MB — 미확인, 08 링크), '새 버전으로 바꿀 때' v2('고정 키 등록은 07을 보세요(키는 Claude가 파일 두 개로 건네요 — Claude는 GitHub 설정을 직접 바꿀 수 없어요)', 고정 키 판끼리 덮어 설치, 처음 한 번은 지우고 설치, **'앱이 설치되지 않음'이 뜨면 앱을 지우지 말고 알려 주세요**, 자동 백업에 노트 없음 → 백업 내보내기). 1차의 '설치 오류 → 지우고 설치' 문장과 문제 해결 줄은 '지우지 말고 알려 주세요'로 바꿈.
+- `06`: '먼저 알아 둘 것'(웹 노트를 앱으로 옮기기는 아직 안 됨 — Q12, `ITSAppUsesNonExemptEncryption` false), 새 절 'iOS 컴파일 확인 (계정 없이)'(언제 — U19 승인 시 통합 뒤 1회 / 아니면 첫 TestFlight 전 필수, 10배, **confirm** `yes`·**ipa**, `ios-compile-<번호>` 7일), 5단계에 '처음이면 컴파일 확인 먼저', 문제 해결 2줄.
+- `07`(새): 6.10.4 절차 — 파일 두 개(`noteapp-signing-secrets.txt`·`noteapp-sideload.p12`) → Secrets 4개(칸 이름 표)·Variables `ANDROID_CERT_SHA256` → 따로 보관 → Run workflow → 확인('서명: 고정 키 (…)'·`noteapp-apk-<번호>`), 'Claude는 이 저장소의 GitHub 설정을 직접 바꿀 수 없어요(권한이 없어요)', 문제 해결에 `android.yml`의 `::error::` 두 문장('고정 키 서명 재료가 없어요' — 시크릿 삭제·오타, '… ANDROID_CERT_SHA256와 달라요' — 시크릿이 바뀜)과 'debug 키' 요약 줄.
+- `08`(새): 계약 7.8 A·B·C의 머리말(`> ` 인용 줄)과 항목 26개를 **글자 그대로** `- [ ] **A-1** …` 체크박스로, 항목마다 바로 아래 '하는 법'/'알려 줄 것'(예: A-5 개발자 표시 `녹음`(`media`) 섹션 사진), 'B-13 순서'(9단계 — 1차 V7 500쪽·색인 뒤 다시 열기 포함), C-1에 'iPadOS Apple Pencil 설정을 바꾼 뒤에는 **앱을 완전히 닫았다 열어요**(시작할 때 한 번 읽음)', '확인 방법' = 결과 보고 양식(기기·판·항목·결과·메모), 문제 해결.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/guides_test.dart` | 30 통과 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -719,6 +734,9 @@
 
 #### 계획과 다르게 한 점
 
+- (J18) 08의 항목 문장은 계약 7.8 표의 '확인' 칸에서 개정 표시 `(v2.1) `과 굵게 표시 `**`만 뺀 글자 그대로다(`guides_test`도 같은 규칙으로 대조). 계약 문장은 한다체('설치한다.')라서 공통 형식의 해요체 검사는 08의 계약 문장 줄(`- [ ] **X-n** …`·`> …`)을 빼고 본다. 해요체 검사에 '했다.'를 더했다(기존 안내서에 없음).
+- (J18) 04 B-1 ④는 계획 6.21의 '설정 → 개발자 → 이전 판 DB 사본'이 아니라 앱 그대로 **설정 → 이전 판 DB 사본**이다 — 설정 화면에 '개발자' 묶음이 없고 `app.v1Copy` 섹션이 바로 있다(J14b). 08은 계약 문장('개발자 메뉴에 v1 사본 있음')을 그대로 두고 '먼저 알아 둘 것'에서 '개발자 메뉴' = 설정 아래쪽의 개발자 표시·기능 켜고 끄기·이전 판 DB 사본 섹션이라고 푼다.
+- (J18) 계획 6.21의 01 첫 문장 '… Hosting만 씁니다'는 공통 형식(해요체)에 맞춰 '써요'로 썼다.
 - (R2-B8a) `AppModuleContext.recordOutcome`에 이름 있는 인자 `fallback:`을 더했다(계획 4.6.2는 '1차 그대로'). 실패·시간 초과 결과를 기록하는 순간 그 모듈의 기여를 지우고 대체 기여를 같은 자리에 넣어야 해서다 — 부트스트래퍼만 부른다.
 - (R2-B8a) `appFeaturesProvider`·`shellContributionsProvider`는 `BootstrapApp`이 아니라 `AppBootstrapper`의 셸 override 묶음(`BootstrapSuccess.overrides` 앞부분)에 넣었다 — `BootstrapApp`은 그 목록을 그대로 쓰므로 결과는 같고, `overrides_unique_test`가 한 곳에서 본다. 셸 override는 6개 → 8개.
 - (R2-B8a) J6 몫 일부를 당겨 했다: 30초 넘는 작업 기록 1줄, 정리 뒤 늦은 `onDispose` 등록은 바로 호출. J6에는 `BootstrapApp` 재시도 때 이전 실행기 정리가 새 scope 전에 끝나는 순서와 `bootstrap_app_test`가 남는다.
@@ -836,6 +854,7 @@
 - J12 Swift는 컴파일된 적이 없다(컨테이너에 Xcode 없음). 첫 `ios-compile.yml` 실행(U19·H6)에서 API 이름(`UIPencilInteraction.Tap`/`.Squeeze`·`hoverPose`·`UIHoverGestureRecognizer.zOffset`/`altitudeAngle`/`azimuthAngle(in:)`/`rollAngle`·`UIPencilPreferredAction` 7개·`showInkAttributes` 16.0)을 확인할 것 — 위 '계획과 다르게 한 점'(J12) 마지막 줄. 고칠 때는 `pencil_wire_contract_test`를 함께 맞춘다.
 - 위젯 시험에서 스트림 이벤트로 바뀐 `ValueListenable`을 보려면 `pump()`를 두 번(첫 번째는 예약된 프레임이 없어 마이크로태스크만 비운다 — J13 `about_section_test`의 `deliver`).
 - (2차 동시 개발 세션 7) J14·J14b·J17 끝. 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄), J15(`ws test --dart-define`·`ci.yml` 잡 분리 — **J0 ④ 실측이 선행**이라 잡별 시간 제한 값은 실측 뒤. `--dart-define`·`test_command_test` v2 부분과 잡 구조·시나리오 5개 시험은 실측 없이도 먼저 쓸 수 있음 — 제한 값만 비워 두고 진행 기록에 적을 것), J16(`functions.yml` 완성 — SYNC R2-B7b 골격·LIBRARY emulator 시험이 선행. 이 작업 트리의 `functions/` 상태를 먼저 볼 것), J18(안내서 v2 — J2·J3·J14b 끝나서 시작 가능: 01 Hosting만, 04 B-1·B-15·B-16, 05 '지우지 말고 알려 주세요'·'고정 키 등록은 07', 07 새 파일(`android.yml`의 `::error::`가 가리킴), 08 ↔ 계약 7.8 문장 대조), J19(앱 스모크 v2·`feature_switch_test` — J7~J9 끝, `useInkTestFonts` C23-07), J20(`ws lock-age`, P-C), J21(`android-emulator.yml`, P-C), J22(마감). 다음 순서 추천: J18 → J19 → J20 → J21 → J15(실측 없이 되는 부분) → J16 → J22.
+- (2차 동시 개발 세션 8) J18 끝. `guides_test`의 1차 사례 '02, 04: live는 `main`만'과 02 사례는 아직 `ci.yml`의 `jobs.values.single`에서 Channel 단계·`env`를 찾는다 — **J15 잡 분리 때 `web` 잡(배포 잡)에서 찾도록 같이 고칠 것**(계획 6.21 끝).
 - J17의 묶음별 글꼴 한도(`tool/web_budget.yaml`의 `gzip_max: null` 두 개)는 위 '변경 요청'의 총괄 결정이 오면 넣고 `web_budget_test`의 '커밋된 파일' 사례를 같이 고친다. J15 잡 분리 때 'Web budget' 단계는 웹 빌드 잡의 'Finalize web build' 바로 다음에 둔다(`workflows_test`의 순서·명령·조건 사례가 본다).
 - J14의 `StorageSection`은 이제 `ConsumerStatefulWidget`이고 `assetStoreProvider`·`searchIndexProvider`를 읽는다(시험은 두 provider를 가짜로 override). 실제 CORE `usage().bytesByType`·`rebuild()`는 H2에서.
 - `LicensePage`를 `pumpAndSettle`로 기다리는 시험은 쓰지 말 것(J14 — 첫 실행이 5분 넘게 끝나지 않음). 100 ms씩 몇 번 `pump`.
