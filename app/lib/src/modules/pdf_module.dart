@@ -34,8 +34,8 @@ final class PdfModule extends AppModule {
   Future<void> start(AppModuleContext context) => _initialize();
 
   /// pdfOverrides(): the ONLY override of ink.pageBackgroundBuildersProvider
-  /// (+ pdfIoConfigProvider). Not used when start failed → default builders
-  /// (template only).
+  /// (+ pdfIoConfigProvider). Not used when start failed → INK's default
+  /// builders ([image, template] — contract v2.2 7.3.3).
   @override
   List<Override> overrides() => _pdfOverrides();
 }

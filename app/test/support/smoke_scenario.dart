@@ -177,11 +177,13 @@ void expectContractOverrides(SmokeApp app) {
   });
 
   final c = app.container;
-  // PDF: the PDF background builder first, INK's template builder second.
-  final builders = c.read(ink.pageBackgroundBuildersProvider);
-  expect(builders, hasLength(2));
-  expect(builders.first, isA<PdfBackgroundLayerBuilder>());
-  expect(builders.last, isA<ink.TemplateBackgroundLayerBuilder>());
+  // PDF: the PDF background builder first, then INK's default list
+  // (contract v2.2 7.3.3 — [pdf, image, template]).
+  expect(c.read(ink.pageBackgroundBuildersProvider), [
+    isA<PdfBackgroundLayerBuilder>(),
+    isA<ink.ImageBackgroundLayerBuilder>(),
+    isA<ink.TemplateBackgroundLayerBuilder>(),
+  ]);
   expect(c.read(pdfIoConfigProvider), const PdfIoConfig());
   // FeatureWiringModule rows.
   expect(

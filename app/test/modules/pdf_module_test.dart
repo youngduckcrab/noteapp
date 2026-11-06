@@ -1,7 +1,9 @@
 // PdfModule (docs/plans/01-infra.md 4.5.9, 5.4, 9.1; contract 7.2.19 /
 // 7.3.3): non-critical, initialize, overrides == pdfOverrides(), left out
 // on failure; the default pdfIoOverrides() builds INK's background builders
-// without throwing (PDF-2-2).
+// without throwing (PDF-2-2). Builder lists follow 2nd-round contract v2.2
+// 7.2.9 / 7.2.12 / 7.3.3 (C2-20): INK's default [image, template], with PDF
+// [pdf, image, template].
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -99,22 +101,26 @@ void main() {
     expect(log.records.single.summary, contains('pdfium missing'));
     final container = ProviderContainer.test(overrides: success.overrides);
     expect(container.read(_marker), 'default');
-    // INK's default: template backgrounds only.
+    // INK's default (contract v2.2 7.2.9): defaultPageBackgroundBuilders =
+    // [image, template].
     expect(container.read(ink.pageBackgroundBuildersProvider), [
+      isA<ink.ImageBackgroundLayerBuilder>(),
       isA<ink.TemplateBackgroundLayerBuilder>(),
     ]);
   });
 
   test('default arguments: initializePdfIo + pdfIoOverrides() → INK reads '
-      'two background builders without an exception (PDF-2-2)', () async {
+      '[pdf, image, template] without an exception (PDF-2-2, contract v2.2 '
+      '7.2.12 / 7.3.3)', () async {
     final log = AppErrorLog();
     final success = await _boot(PdfModule(), log);
     expect(success.report.steps.single.outcome, StartupStepOutcome.ok);
     expect(log.records, isEmpty);
     final container = ProviderContainer.test(overrides: success.overrides);
-    final builders = container.read(ink.pageBackgroundBuildersProvider);
-    expect(builders, hasLength(2));
-    expect(builders.first, isA<PdfBackgroundLayerBuilder>());
-    expect(builders.last, isA<ink.TemplateBackgroundLayerBuilder>());
+    expect(container.read(ink.pageBackgroundBuildersProvider), [
+      isA<PdfBackgroundLayerBuilder>(),
+      isA<ink.ImageBackgroundLayerBuilder>(),
+      isA<ink.TemplateBackgroundLayerBuilder>(),
+    ]);
   });
 }

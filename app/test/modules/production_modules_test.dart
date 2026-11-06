@@ -92,9 +92,13 @@ void main() {
 
     final container = ProviderContainer.test(overrides: success.overrides);
     expect(container.read(noteStoreProvider), same(store));
-    final builders = container.read(ink.pageBackgroundBuildersProvider);
-    expect(builders, hasLength(2));
-    expect(builders.first, isA<PdfBackgroundLayerBuilder>());
+    // Contract v2.2 7.3.3: PdfModule → pdfIoOverrides() = [pdf, image,
+    // template].
+    expect(container.read(ink.pageBackgroundBuildersProvider), [
+      isA<PdfBackgroundLayerBuilder>(),
+      isA<ink.ImageBackgroundLayerBuilder>(),
+      isA<ink.TemplateBackgroundLayerBuilder>(),
+    ]);
 
     await bootstrapper.notifyAppHidden();
     expect(store.flushCount, 1);
