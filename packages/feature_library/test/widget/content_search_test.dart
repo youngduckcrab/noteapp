@@ -2,6 +2,9 @@
 // source badges, the snippet highlight, 3 hits per note + '더 보기', page numbers,
 // notes in the trash / gone, the previous result while CORE is asked again, the order
 // between sources (one test — CP-14), the truncated hint, the empty state and 100 hits.
+// (L2-03) Opening: a hit row → onOpenNoteAt(note, page, union rect), no markOpened;
+// without onOpenNoteAt → onOpenNote; the header → onOpenNote; the drawer closes first;
+// nothing in selection mode.
 import 'dart:async';
 
 import 'package:feature_library/feature_library.dart' show LibraryScreen;
@@ -21,6 +24,7 @@ import 'package:note_core/testing.dart' show PageObjectFixtures;
 import '../support/fake_library_backend.dart';
 import '../support/fixtures.dart';
 import '../support/library_test_harness.dart';
+import '../support/test_sizes.dart';
 
 final Finder searchInput = find.descendant(
   of: find.byType(LibrarySearchField),
@@ -91,8 +95,15 @@ void main() {
   Future<LibraryTestHarness> pumpAt(
     WidgetTester tester, {
     List<Override> overrides = const [],
+    Size size = TestSizes.ipad13Landscape,
+    bool withOpenNoteAt = true,
   }) async {
-    final h = LibraryTestHarness(backend, extraOverrides: overrides);
+    final h = LibraryTestHarness(
+      backend,
+      extraOverrides: overrides,
+      size: size,
+      withOpenNoteAt: withOpenNoteAt,
+    );
     await h.pump(tester);
     await tester.pumpAndSettle();
     return h;
@@ -570,6 +581,152 @@ void main() {
       expect(tester.widgetList(find.byType(ContentMoreRow)).length, moreRows);
       expect(rowTexts(tester), before);
       expect(searches('회의'), greaterThanOrEqualTo(2));
+    });
+  });
+
+  group('opening (6.1.4, L2-03)', () {
+    Finder rowWith(String snippetPart) => find.ancestor(
+      of: find.textContaining(snippetPart, findRichText: true),
+      matching: find.byType(ContentHitRow),
+    );
+
+    testWidgets('a hit row → onOpenNoteAt(note, page, union of the rects)', (
+      tester,
+    ) async {
+      final sample = await real(tester, () => seedContentHits(backend));
+      final h = await pumpAt(tester);
+      await search(tester, '회의');
+      h.log.clear();
+      // Handwriting: the matched line's rect.
+      await tester.tap(rowWith('지난주'));
+      await tester.pumpAndSettle();
+      final core = await real(
+        tester,
+        () => backend.store.library.searchLibrary('회의'),
+      );
+      final inkHit = core.pages.singleWhere(
+        (p) => p.source == SearchSource.ink,
+      );
+      expect(h.log.openNoteAt, [
+        (sample.meeting.id, sample.meetingPages[1], focusRectOf(inkHit)),
+      ]);
+      expect(focusRectOf(inkHit), isNotNull);
+      // A text box: its bounds (agendaRect).
+      await tester.tap(rowWith('안건'));
+      await tester.pumpAndSettle();
+      final (_, page, rect) = h.log.openNoteAt.last;
+      expect(page, sample.meetingPages[0]);
+      const agenda = ContentHitsSample.agendaRect;
+      expect(rect, isNotNull);
+      expect(rect!.left, lessThanOrEqualTo(agenda.left));
+      expect(rect.right, greaterThanOrEqualTo(agenda.right));
+      // A pdf unit without boxes → null rect.
+      await tester.tap(rowWith('분기'));
+      await tester.pumpAndSettle();
+      expect(h.log.openNoteAt.last, (
+        sample.report.id,
+        sample.reportPage,
+        null,
+      ));
+      expect(h.log.entries.where((e) => e.startsWith('note:')), isEmpty);
+      // LIBRARY never records 'recent' (S-5).
+      expect(backend.calls.where((c) => c.startsWith('markOpened')), isEmpty);
+    });
+
+    testWidgets('without onOpenNoteAt → onOpenNote(noteId)', (tester) async {
+      final sample = await real(tester, () => seedContentHits(backend));
+      final h = await pumpAt(tester, withOpenNoteAt: false);
+      await search(tester, '회의');
+      h.log.clear();
+      await tester.tap(rowWith('지난주'));
+      await tester.pumpAndSettle();
+      expect(h.log.entries, ['note:${sample.meeting.id}']);
+      expect(h.log.openNoteAt, isEmpty);
+    });
+
+    testWidgets('the note header → onOpenNote only', (tester) async {
+      final sample = await real(tester, () => seedContentHits(backend));
+      final h = await pumpAt(tester);
+      await search(tester, '회의');
+      h.log.clear();
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is ContentNoteHeader && w.noteId == sample.calculus.id,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(h.log.entries, ['note:${sample.calculus.id}']);
+      expect(h.log.openNoteAt, isEmpty);
+    });
+
+    testWidgets('portrait: an open drawer closes before the note opens', (
+      tester,
+    ) async {
+      final sample = await real(tester, () => seedContentHits(backend));
+      final h = await pumpAt(tester, size: TestSizes.ipad13Portrait);
+      await search(tester, '회의');
+      await tester.tap(find.byTooltip(LibraryStrings.openMenu));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+      h.log.clear();
+      // The row is under the drawer: run its tap handler directly.
+      final ink = tester.widget<InkWell>(
+        find.descendant(of: rowWith('지난주'), matching: find.byType(InkWell)),
+      );
+      ink.onTap!();
+      final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold).first);
+      expect(scaffold.isDrawerOpen, isFalse);
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(h.log.openNoteAt.single.$1, sample.meeting.id);
+    });
+
+    testWidgets('selection mode: content rows and headers do nothing', (
+      tester,
+    ) async {
+      final sample = await real(tester, () => seedContentHits(backend));
+      final h = await pumpAt(tester);
+      await search(tester, '회의');
+      containerOf(tester).read(librarySelectionProvider(null).notifier).begin();
+      await tester.pumpAndSettle();
+      h.log.clear();
+      await tester.tap(rowWith('지난주'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is ContentNoteHeader && w.noteId == sample.calculus.id,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(h.log.entries, isEmpty);
+      expect(
+        containerOf(tester).read(librarySelectionProvider(null)).active,
+        isTrue,
+      );
+    });
+
+    testWidgets('a note that needs a newer app → the 1차 notice', (
+      tester,
+    ) async {
+      final note = await real(tester, () => backend.seedNote('새 판 노트'));
+      final newer = note.copyWith(schemaVersion: kNoteSchemaVersion + 1);
+      await pumpAt(
+        tester,
+        overrides: [
+          noteProvider(note.id).overrideWith((ref) => Stream.value(newer)),
+          librarySearchProvider.overrideWith(
+            (ref, q) async => LibrarySearchResult(
+              query: q,
+              folders: const [],
+              notes: const [],
+              pages: [fakeHit(note.id, 'p1')],
+            ),
+          ),
+        ],
+      );
+      await search(tester, '회의');
+      await tester.tap(hitRows());
+      await tester.pump();
+      expect(find.text(LibraryStrings.requiresNewerApp), findsOneWidget);
     });
   });
 }

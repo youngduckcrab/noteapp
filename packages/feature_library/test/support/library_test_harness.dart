@@ -18,6 +18,7 @@ final class LibraryTestHarness {
     this.backend, {
     this.size = TestSizes.ipad13Landscape,
     this.extraOverrides = const [],
+    this.withOpenNoteAt = true,
   });
 
   final FakeLibraryBackend backend;
@@ -27,6 +28,10 @@ final class LibraryTestHarness {
 
   /// Renderer, PDF slots, syncBadgeProvider, ...
   final List<Override> extraOverrides;
+
+  /// (v2) Passes onOpenNoteAt (→ [log]); false leaves it null so content
+  /// hits fall back to onOpenNote (6.1.4).
+  final bool withOpenNoteAt;
   final NavigationLog log = NavigationLog();
 
   final GlobalKey<_RouterStandInState> _routerKey = GlobalKey();
@@ -65,11 +70,28 @@ final class LibraryTestHarness {
 }
 
 final class NavigationLog {
-  /// `'folder:<id>'` | `'folder:home'` | `'note:<id>'` | `'settings'`, in call
-  /// order.
+  /// `'folder:<id>'` | `'folder:home'` | `'note:<id>'` | `'settings'` |
+  /// (v2) `'noteAt:<noteId>/<pageId>'` (+ `' <l>,<t>,<r>,<b>'` when a rect
+  /// came), in call order.
   final List<String> entries = [];
 
-  void clear() => entries.clear();
+  /// (v2) Every onOpenNoteAt call: (noteId, pageId, focusRectPt).
+  final List<(String, String, Rect?)> openNoteAt = [];
+
+  void clear() {
+    entries.clear();
+    openNoteAt.clear();
+  }
+
+  void _openNoteAt(String noteId, String pageId, Rect? rect) {
+    openNoteAt.add((noteId, pageId, rect));
+    entries.add(
+      rect == null
+          ? 'noteAt:$noteId/$pageId'
+          : 'noteAt:$noteId/$pageId '
+                '${rect.left},${rect.top},${rect.right},${rect.bottom}',
+    );
+  }
 }
 
 class _RouterStandIn extends StatefulWidget {
@@ -94,6 +116,7 @@ class _RouterStandInState extends State<_RouterStandIn> {
         h._route(id);
       },
       onOpenNote: (id) => h.log.entries.add('note:$id'),
+      onOpenNoteAt: h.withOpenNoteAt ? h.log._openNoteAt : null,
       onOpenSettings: () => h.log.entries.add('settings'),
     );
   }

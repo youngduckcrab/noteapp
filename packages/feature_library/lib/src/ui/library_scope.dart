@@ -2,7 +2,7 @@
 // the screen itself: the route folder, the size class and the navigation
 // callbacks (6.4). Internal (not exported).
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show FolderId, NoteId;
+import 'package:note_core/note_core.dart' show FolderId, NoteId, PageId;
 
 import 'layout/size_class.dart';
 
@@ -13,6 +13,7 @@ class LibraryScope extends InheritedWidget {
     required this.sizeClass,
     required this.openFolder,
     required this.openNote,
+    required this.openNoteAt,
     required this.openSettings,
     required this.openDrawer,
     required this.closeDrawer,
@@ -31,6 +32,11 @@ class LibraryScope extends InheritedWidget {
 
   /// Closes the drawer first, then LibraryScreen.onOpenNote.
   final ValueChanged<NoteId> openNote;
+
+  /// (v2, 6.1.4) Closes the drawer first, then LibraryScreen.onOpenNoteAt
+  /// (page + rect, note page pt), or onOpenNote(noteId) when it is null.
+  final void Function(NoteId noteId, PageId pageId, Rect? focusRectPt)
+  openNoteAt;
 
   /// Closes the drawer first, then LibraryScreen.onOpenSettings.
   final VoidCallback openSettings;
@@ -64,6 +70,7 @@ class LibraryScope extends InheritedWidget {
       sizeClass != oldWidget.sizeClass ||
       openFolder != oldWidget.openFolder ||
       openNote != oldWidget.openNote ||
+      openNoteAt != oldWidget.openNoteAt ||
       openSettings != oldWidget.openSettings ||
       openDrawer != oldWidget.openDrawer ||
       closeDrawer != oldWidget.closeDrawer ||

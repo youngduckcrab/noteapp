@@ -9,7 +9,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
-    show FolderId, FolderTree, NoteId, folderTreeProvider;
+    show FolderId, FolderTree, NoteId, PageId, folderTreeProvider;
 
 import 'dnd/library_drag_scope.dart';
 import 'state/providers.dart';
@@ -144,6 +144,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     widget.onOpenNote(id);
   }
 
+  /// (v2, 6.1.4) A content hit: page + rect; the note alone without
+  /// onOpenNoteAt (page ignored). LIBRARY never calls markOpened (S-5).
+  void _openNoteAt(NoteId noteId, PageId pageId, Rect? focusRectPt) {
+    if (!mounted) return;
+    _closeDrawer();
+    final openAt = widget.onOpenNoteAt;
+    if (openAt != null) {
+      openAt(noteId, pageId, focusRectPt);
+    } else {
+      widget.onOpenNote(noteId);
+    }
+  }
+
   void _openSettings() {
     if (!mounted) return;
     _closeDrawer();
@@ -170,6 +183,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       sizeClass: sizeClass,
       openFolder: _openFolder,
       openNote: _openNote,
+      openNoteAt: _openNoteAt,
       openSettings: _openSettings,
       openDrawer: _openDrawer,
       closeDrawer: _closeDrawer,

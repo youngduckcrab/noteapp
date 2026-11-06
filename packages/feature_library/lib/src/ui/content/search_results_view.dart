@@ -84,8 +84,17 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
 
   void _expand(NoteId noteId) => setState(() => _expanded.add(noteId));
 
-  /// 6.1.4: a content hit opens its note at the hit.
-  void _openHit(Note note, PageSearchHit hit) => openLibraryNote(context, note);
+  /// 6.1.4: a content hit opens its note at the hit — page + the union of
+  /// its rects (null without rects). A note this app cannot open yet gets the
+  /// 1차 notice instead.
+  void _openHit(Note note, PageSearchHit hit) {
+    if (note.requiresNewerApp) {
+      openLibraryNote(context, note);
+      return;
+    }
+    LibraryScope.read(context)
+        .openNoteAt(note.id, hit.pageId, focusRectOf(hit));
+  }
 
   @override
   void dispose() {
