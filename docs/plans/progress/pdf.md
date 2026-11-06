@@ -276,7 +276,7 @@
 | T21 | 완료 | 4068fcd | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
 | T22 | 남음 | | `pdfium/compose_objects_native_test` |
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
-| T24 | 완료 | (이 커밋) | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
+| T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
 | T25a | 남음 | | `unit/image_probe_test`, `unit/object_resolver_image_test`, `unit/export_memory_test`, `web/object_resolver_browser_test` |
 | T25b | 남음 | | `unit/raster_ports_test`, `unit/object_resolver_text_math_test`, `web/object_resolver_text_browser_test`, `integration/math_raster_real_test`(INK T36 뒤 — 통합 단계) |
 | T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
@@ -365,11 +365,16 @@
 | 2 (T24) | `ws test --package pdf_io --platform chrome` | 84 통과 + 1 skip, prepare ok, 159 s |
 | 2 (T24) | `flutter test --run-skipped test/integration/ink_vectorizer_v2_test.dart` | 예상한 실패 1(INK 기반 단계 — 첫 항목이 이미지 참조가 아니라 점선 획 채우기). 글꼴 적재(`setUpAll`)는 통과 |
 | 2 (T24) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
+| 2 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
+| 2 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 
 #### 다음 세션 메모
 
+- (세션 2 끝) 완료: T32a(`0c64fad`), T24(`80da665`). `git status` 깨끗. 다음 후보: `media_io` T31b(T31a·T32a가 끝나 이제 시작 가능 — 큰 작업, 한 세션 몫), T35a(순수 — T35b의 선행), `pdf_io` T25a(T21·T24가 끝나 이제 시작 가능), T22·T23(실제 해석기 — `checkComposeOps` 규칙 공유), T27·T28(아무 때나).
+- T32a가 남긴 것: 정지·복구 경로(T31b)는 `WebmTimeline.measure(bytes)?.endMs`(실패 → 시계 값 + 'duration from clock')와 `patchedHead(bytes, endMs)`(→ `head + bytes[restOffset..]`을 한 번 복사 — `BufferLedger.swap`, `null` → 'duration patch skipped'), 웹 MP4는 `Mp4Duration.measure`를 쓴다. `test/support/webm_builder.dart`(`webmFile`·`cluster`·`blocks`·`cutEnd`·`applyPatch`)로 T31b `stop_recover_buffers_test`의 1 MiB 합성 WebM 초안과 T41의 86 MB 표본을 만들 수 있다(`blocks(n, filler:)`로 크기 조절 — 블록 상대 타임코드가 int16이므로 Cluster당 블록 546개(60 ms 간격) 이하).
+- T24가 남긴 것: 내보내기 서비스는 아직 1차 `vectorize` + `encode`를 쓴다 — `planPage` + 해석기(T25a·T25b) + `encodeItems`로 바꾸는 것은 T26. `integration/ink_vectorizer_v2_test`는 INK T42 뒤 통합 4-a에서 판정.
 - (세션 1 끝) 완료: 문서 정리(C22-09), T21, T31a. `git status` 깨끗. 다음 후보(서로 기다리지 않음): `pdf_io` T22·T23·T24(T21 뒤 — T22·T23은 실제 해석기, `checkComposeOps` 규칙을 같이 씀), T27·T28(아무 때나), `media_io` T32a·T35a(T30 뒤 순수 작업), 그다음 T31b(T31a·T32a 뒤).
 - T21이 남긴 것: 실제 백엔드(1차 네이티브·웹)는 아직 `image`(8)·`text`(9) 명령과 같은 쪽 여러 조각을 모른다 — T22·T23 몫. 내보내기 서비스는 아직 1차 `encode`를 쓴다(`encodeItems`로 바꾸는 것은 T26).
 - T28 사전 조사(세션 1): CORE `SearchText.normalize`/`normalizeMapped`(B2-β 구현 있음)는 ① 앞뒤 공백을 지우고(6단계) ② `İ`(U+0130)를 모든 플랫폼에서 `i`로 바꾼다. 1차 `unit/text_normalizer_test`의 두 사례('  ab \n' → ' ab ', `x\u0130y` → 플랫폼 소문자)는 위임하면 그대로 통과할 수 없다 → 계약(C2-27·7.2.5 `normalizeMapped` = `normalize`와 같은 글자) 쪽으로 그 두 기대값을 고치고 '계획과 다르게 한 점'에 적을 것. 또 1차 `normalizePdfText(…, lowerCase: false)`를 검색 조각(`text_service.dart` `_snippet`)이, `HangulJamo.compose`를 제목(`title_policy.dart`)·가져오기 시트가 쓴다 — CORE에는 소문자로 바꾸지 않는 공개 함수가 없다. 조각은 창 전체를 `normalizeMapped` 한 번으로 정규화하고 원문 범위로 대소문자를 되살려 before/match/after로 자르면 되고, 제목의 자모 합성은 검색 정규화가 아니므로 `hangul_jamo.dart`의 `compose`만 남기는 쪽이 간단하다(계획 6.4.5는 파일 삭제라 그 차이를 적을 것).
-- T32a 표본: 계획 단계 실험 파일이 컨테이너에 남아 있다 — `/tmp/claude-0/plan57-scratch/pdf57-rev/webm/`(r0~r4·rec.webm = 6.1 E9의 6개, `r1_patched.webm`, 파이썬 파서 `ebml.py`, `dur.mjs`). `test/support/fixtures/chrome_opus_*.webm`으로 복사해 쓸 수 있다(가짜 마이크 음). `endMs` 기대값은 `ebml.py`(별도 구현)로 다시 계산해 대조한다.
+- (세션 2에서 반영함) T32a 표본: 계획 단계 실험 파일(`/tmp/claude-0/plan57-scratch/pdf57-rev/webm/`)의 6개 + `r1_patched.webm`을 `test/support/fixtures/chrome_opus_*.webm`으로 넣었다.
 - `media_io` 커밋마다 `ws test --package media_io --platform chrome --run-skipped -t media`(PDF-F3) 결과를 '검사' 표에 적는다 — 아직 `media` 시험이 없어 'no matching tests'.
