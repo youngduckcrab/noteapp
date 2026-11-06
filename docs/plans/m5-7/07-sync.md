@@ -1263,6 +1263,8 @@ CORE 6.3 키 표(02-core 6.3, 계약 7.2.7)와 대조했다. T16 'JSON 키 대�
 | 손글씨 결과 쓰기 (`HandwritingRepository.put`) | `lines`·`sourceRev`·`engineId` | 손글씨 | 나중 HLC가 결과째 이김 — 색인기는 `sourceRev`가 지금 획과 다르면 다시 인식한다(02-core 6.9) |
 | 녹음 이름 (`renameRecording`) | `title` | 따로 | 나중 이름이 이김. 이름 + 삭제 → 삭제되고 이름도 남음 |
 
+- (동시 개발 S2-8, 무작위 수렴 v2가 찾음) **한 단위 종류의 메타 키 `createdAt`은 이기는 단위를 따라간다** — 한 단위의 승자 스냅숏이 `createdAt`을 주고, 두 단위 상태가 같을 때만 1차 규칙(작은 값)이다. 손글씨 결과 id는 언제나 `hw_<pageId>`라 두 기기가 같은 id를 각자의 `createdAt`으로 만들 수 있다. 1차 규칙(작은 값)이면 승자 스냅숏을 통째로 받은 기기(`TakeRemote`)·자기 행을 지킨 기기(`KeepLocal`)가 병합 값과 다르고, 진 쪽의 작은 값은 아무도 올리지 않아 서버 병합 상태와 기기가 영구히 갈린다. 승자를 따르면 `KeepLocal`·`TakeRemote` 결정이 그대로 병합 값이다(교환·결합·멱등 — 단위 비교가 전순서). 객체는 id가 겹치지 않아 실제로는 차이가 없다. 시험: `field_merge_test` '(S2-8)' 두 행, `sync_merge_policy_test` '(2nd round, S2-8)', `fuzz_convergence_test`.
+
 #### 6.2.3 청크 범위 · 정렬 · 코덱 (1차 6.4.3·6.4.4)
 
 | 종류 | `SyncScopes.scopeOf` | 근거 |

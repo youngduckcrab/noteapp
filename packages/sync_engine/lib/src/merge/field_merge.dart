@@ -17,6 +17,14 @@
 // stays commutative), `id` / `key` must be equal. Merged versions: base = the smaller
 // base, overrides = unit fields whose version is above it.
 //
+// (2nd round, S2-8) For the one-unit kinds `createdAt` comes with the one unit: the
+// snapshot whose unit wins gives it (the smaller one only when both unit states are the
+// same). Two devices can create the same id — a handwriting result is always
+// hw_<pageId> — each with its own createdAt; with 'smaller' a device that received the
+// winning snapshot whole (SyncMergePolicy TakeRemote) or kept its own (KeepLocal) would
+// not hold the merged value, and a losing creator's smaller value might never be
+// uploaded (the random convergence test v2 found both).
+//
 // (2nd round, S2-1) For the one-unit kinds (FieldUnits.wholeUnitExcept — pageObject,
 // handwriting) a key outside FieldUnits.keysOf is 'loose': where a snapshot lacks it,
 // its version takes no part (no tie-break, no override in the result). Such a key is
@@ -81,7 +89,10 @@ abstract final class FieldMerge {
       ...b.versions.overrides.keys,
     };
     final known = FieldUnits.keysOf(kind);
-    final whole = FieldUnits.wholeUnitExcept(kind) != null;
+    final except = FieldUnits.wholeUnitExcept(kind);
+    final whole = except != null;
+    // > 0: a's one unit wins, < 0: b's, 0: the same state or no such unit.
+    var oneUnit = 0;
     for (final unit in FieldUnits.unitsFor(kind, keys)) {
       final fields = unit.toList()..sort();
       final loose = whole
@@ -93,6 +104,9 @@ abstract final class FieldMerge {
       final sa = _UnitState.of(a, fields, loose);
       final sb = _UnitState.of(b, fields, loose);
       final merged = _mergeUnit(kind, sa, sb);
+      if (whole && !(fields.length == 1 && except.contains(fields.single))) {
+        oneUnit = _compare(sa, sb, preferNonNull: false);
+      }
       merged.writeTo(out, outVersions);
       if (!merged.sameAs(sa)) changedForA.add(unit);
       if (!merged.sameAs(sb)) changedForB.add(unit);
@@ -104,7 +118,13 @@ abstract final class FieldMerge {
         out[k] = aj.containsKey(k) ? aj[k] : bj[k];
       }
     }
-    _metaValue(out, 'createdAt', aj, bj, takeLarger: false);
+    if (oneUnit != 0 && (aj['createdAt'] != null || bj['createdAt'] != null)) {
+      final winner = oneUnit > 0 ? aj : bj;
+      out['createdAt'] =
+          winner['createdAt'] ?? (oneUnit > 0 ? bj : aj)['createdAt'];
+    } else {
+      _metaValue(out, 'createdAt', aj, bj, takeLarger: false);
+    }
     _metaValue(out, 'updatedAt', aj, bj, takeLarger: true);
 
     final base = a.versions.base < b.versions.base

@@ -35,6 +35,7 @@ import '../status/sync_status.dart';
 import 'backoff.dart';
 import 'connectivity.dart';
 import 'download_pipeline.dart';
+import 'held_records.dart';
 import 'live_listener.dart';
 import 'meta_keys.dart';
 import 'push_scheduler.dart';
@@ -234,6 +235,13 @@ final class EngineController {
   }
 
   Set<EntityKind>? _knownKinds;
+
+  /// (2nd round, S-13 — 07-sync 6.3.8, 6.7.1 S27 (c)) Held-record limits of the download
+  /// pipeline built at the next attach; null = HeldRecords.defaultMaxPartBytes /
+  /// defaultMaxTotalBytes. Unlike [debugKnownKinds] it may be set after [start] — a device
+  /// made signed out sets it before it signs in. Test hook: @internal (scenario tests).
+  @internal
+  ({int maxPartBytes, int maxTotalBytes})? debugHeldRecordsLimits;
 
   Future<void> start() async {
     if (_started || _disposed) return;
@@ -734,6 +742,12 @@ final class EngineController {
       },
       afterGroup: (outcomes) => _afterGroup(s, outcomes),
       knownKinds: _knownKinds,
+      heldRecordsMaxPartBytes:
+          debugHeldRecordsLimits?.maxPartBytes ??
+          HeldRecords.defaultMaxPartBytes,
+      heldRecordsMaxTotalBytes:
+          debugHeldRecordsLimits?.maxTotalBytes ??
+          HeldRecords.defaultMaxTotalBytes,
       onWarning: (message) => _log(SyncLogLevel.warning, message),
     );
     s.compactor = Compactor(

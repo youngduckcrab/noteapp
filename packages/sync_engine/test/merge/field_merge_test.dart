@@ -573,6 +573,33 @@ void main() {
       versions: {'deletedAt': 1, 'lines': 2},
     ),
     Case(
+      '(S2-8) handwriting created on two devices: createdAt comes with the '
+      'winning result, even when it is the larger one',
+      rec(
+        handwriting,
+        set: {'createdAt': kT0 - 20, 'lines': <Object?>[]},
+        fv: {'lines': 1},
+      ),
+      rec(
+        handwriting,
+        set: {'createdAt': kT0 - 10, 'sourceRev': 'ffffffffffffffff'},
+        fv: {'sourceRev': 2},
+      ),
+      values: {
+        'createdAt': kT0 - 10,
+        'sourceRev': 'ffffffffffffffff',
+        'lines': fixtureJson(handwriting)['lines'],
+      },
+      versions: {'sourceRev': 2},
+    ),
+    Case(
+      '(S2-8) object: the same unit state on both sides → the smaller '
+      'createdAt',
+      rec(object, set: {'createdAt': kT0 - 10}),
+      rec(object, set: {'createdAt': kT0 - 20}),
+      values: {'createdAt': kT0 - 20},
+    ),
+    Case(
       'recording: title is its own unit (rename vs delete keeps both)',
       rec(recording, set: {'title': '2교시'}, fv: {'title': 2}),
       rec(recording, set: {'deletedAt': kT0 + 1}, fv: {'deletedAt': 1}),
