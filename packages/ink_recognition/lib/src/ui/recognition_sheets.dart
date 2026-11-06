@@ -11,7 +11,8 @@
 // (the sheet shows '인식 중…' while it works — 6.13.1).
 //
 // The sheets land with their tasks — the LaTeX editor (recog.editMath) L2-13
-// and the math pad's direct input L2-14 (done), the conversion sheet L2-15,
+// and the math pad (direct input L2-14, handwriting L2-17a — done), the
+// conversion sheet L2-15,
 // recog.toMath L2-17b. Until then the default throws UnimplementedError, which the run's
 // guard reports once and shows as '실행하지 못했어요' (6.16, 6.22).
 import 'package:note_core/note_core.dart' as core;

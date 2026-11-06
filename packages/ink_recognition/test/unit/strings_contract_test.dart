@@ -65,6 +65,43 @@ void main() {
     expect(RecognitionStrings.runFailed, '실행하지 못했어요.');
   });
 
+  test('math pad handwriting area (6.14.1, 6.14.4 — L2-17a)', () {
+    expect(RecognitionStrings.padUndo, '되돌리기');
+    expect(RecognitionStrings.padEraser, '지우개');
+    expect(RecognitionStrings.padClear, '모두 지우기');
+    expect(RecognitionStrings.padPausePrompt, '멈추면 인식해요');
+    expect(RecognitionStrings.engineSuggestion, '엔진 제안');
+  });
+
+  test('mathFailure: the 6.11.4 table, nothing for cancelled / consent', () {
+    expect(RecognitionStrings.mathFailure(RecognizerCancelled()), isNull);
+    expect(RecognitionStrings.mathFailure(RecognizerConsentRequired()), isNull);
+    expect(
+      RecognitionStrings.mathFailure(RecognizerUnsupported()),
+      '수식 인식 엔진이 연결되지 않아 LaTeX로 직접 입력해요.',
+    );
+    expect(
+      RecognitionStrings.mathFailure(RecognizerOffline()),
+      '수식 인식 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.',
+    );
+    expect(
+      RecognitionStrings.mathFailure(RecognizerQuotaExceeded()),
+      '오늘 쓸 수 있는 수식 인식 횟수를 다 썼어요.',
+    );
+    String? engine(String code) =>
+        RecognitionStrings.mathFailure(RecognizerEngineError(code, 'm'));
+    expect(engine('unauthenticated'), '로그인한 뒤에 수식 인식을 쓸 수 있어요.');
+    expect(engine('permission-denied'), '이 계정에서는 수식 인식을 쓸 수 없어요.');
+    expect(engine('invalid-argument'), '이 필기는 수식으로 보낼 수 없어요.');
+    for (final code in ['internal', 'bad-response', 'too-large', 'NOT_FOUND']) {
+      expect(engine(code), '수식을 인식하지 못했어요. 다시 시도해 주세요.', reason: code);
+    }
+    expect(
+      RecognitionStrings.mathFailure(ModelNotReady('ko')),
+      '수식을 인식하지 못했어요. 다시 시도해 주세요.',
+    );
+  });
+
   test('settings section (6.18) and status line (6.19) — L2-18', () {
     expect(RecognitionStrings.handwritingGroup, '손글씨 인식');
     expect(RecognitionStrings.mathGroup, '수식 인식');

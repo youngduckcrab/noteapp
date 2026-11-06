@@ -2,6 +2,8 @@
 // ink_recognition (m5-7/05-library 6.21, 6.11.4, 4.4.4, 4.4.9). One place so
 // unit/strings_contract_test.dart can pin the contract sentence (7.4.2) and
 // the action labels.
+import '../model/failures.dart';
+
 abstract final class RecognitionStrings {
   /// Contract m5-7/00-overview 7.4.2 — the web conversion sheet (fixed).
   static const String webUnsupported =
@@ -55,6 +57,20 @@ abstract final class RecognitionStrings {
   static const String mathOffline = '수식 인식 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.';
   static const String mathFailed = '수식을 인식하지 못했어요. 다시 시도해 주세요.';
 
+  /// The sheet text of a math engine failure (6.11.4 table); null =
+  /// nothing to show (cancelled — a newer request follows; consent required
+  /// — the consent card shows instead).
+  static String? mathFailure(RecognitionFailure failure) => switch (failure) {
+    RecognizerCancelled() || RecognizerConsentRequired() => null,
+    RecognizerUnsupported() => manualOnly,
+    RecognizerOffline() => mathOffline,
+    RecognizerQuotaExceeded() => mathQuotaExceeded,
+    RecognizerEngineError(code: 'unauthenticated') => mathUnauthenticated,
+    RecognizerEngineError(code: 'permission-denied') => mathPermissionDenied,
+    RecognizerEngineError(code: 'invalid-argument') => mathInvalidArgument,
+    RecognizerEngineError() || ModelNotReady() => mathFailed,
+  };
+
   // Sheet buttons and fields (6.12, 6.15).
   static const String cancel = '취소';
   static const String apply = '적용';
@@ -62,6 +78,13 @@ abstract final class RecognitionStrings {
   static const String latexField = 'LaTeX';
   static const String mathPadTitle = '수식 입력';
   static const String insert = '넣기';
+
+  // Math pad handwriting area (6.14.1–6.14.4 — L2-17a).
+  static const String padUndo = '되돌리기';
+  static const String padEraser = '지우개';
+  static const String padClear = '모두 지우기';
+  static const String padPausePrompt = '멈추면 인식해요';
+  static const String engineSuggestion = '엔진 제안';
 
   // Action labels (4.4.4).
   static const String toText = '텍스트로 변환';

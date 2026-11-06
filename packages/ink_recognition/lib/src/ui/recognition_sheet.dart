@@ -79,7 +79,7 @@ class RecognitionSheetHeader extends StatelessWidget {
         children: [
           TextButton(
             key: kSheetCancelKey,
-            style: _minTap,
+            style: kSheetMinTapStyle,
             onPressed: onCancel,
             child: Text(cancelLabel),
           ),
@@ -95,7 +95,7 @@ class RecognitionSheetHeader extends StatelessWidget {
           if (primary != null)
             FilledButton(
               key: kSheetPrimaryKey,
-              style: _minTap,
+              style: kSheetMinTapStyle,
               onPressed: onPrimary,
               child: Text(primary),
             )
@@ -108,7 +108,7 @@ class RecognitionSheetHeader extends StatelessWidget {
 }
 
 /// ≥ 44×44 tap targets on every platform (7.4.10).
-final ButtonStyle _minTap = ButtonStyle(
+final ButtonStyle kSheetMinTapStyle = ButtonStyle(
   minimumSize: const WidgetStatePropertyAll(Size(64, 44)),
   tapTargetSize: MaterialTapTargetSize.padded,
 );
@@ -157,10 +157,84 @@ class SheetNotice extends StatelessWidget {
             ),
             if (action != null)
               TextButton(
-                style: _minTap,
+                style: kSheetMinTapStyle,
                 onPressed: onAction,
                 child: Text(action),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Appendix C keys of the consent card.
+const ValueKey<String> kConsentAgreeKey = ValueKey('recog.consent.agree');
+const ValueKey<String> kConsentManualKey = ValueKey('recog.consent.manual');
+
+/// The G-3 consent card (6.11.5, 6.14.5): what is sent, to whom, how to turn
+/// it off — [동의하고 쓰기] [직접 입력]. Scrolls inside its box when the box is
+/// small (the math pad lays it over its handwriting area).
+class ConsentCard extends StatelessWidget {
+  const ConsentCard({
+    super.key,
+    required this.title,
+    required this.body,
+    required this.agreeLabel,
+    required this.manualLabel,
+    required this.onAgree,
+    required this.onManual,
+  });
+
+  final String title;
+  final String body;
+  final String agreeLabel;
+  final String manualLabel;
+
+  /// null while the agreement is being saved (the button is disabled).
+  final VoidCallback? onAgree;
+  final VoidCallback onManual;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(8),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title, style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              body,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              children: [
+                TextButton(
+                  key: kConsentManualKey,
+                  style: kSheetMinTapStyle,
+                  onPressed: onManual,
+                  child: Text(manualLabel),
+                ),
+                FilledButton(
+                  key: kConsentAgreeKey,
+                  style: kSheetMinTapStyle,
+                  onPressed: onAgree,
+                  child: Text(agreeLabel),
+                ),
+              ],
+            ),
           ],
         ),
       ),

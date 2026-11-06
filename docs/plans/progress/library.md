@@ -306,7 +306,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-14 | 완료 | 6f4a4f8 | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart`(+ 패드), `unit/strings_contract_test.dart` |
 | L2-15 (P-B) | 남음 | | `widget/conversion_sheet_test.dart`, `widget/sheet_rules_test.dart` |
 | L2-16 (P-B) | 완료 | e591105 | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6, 써 둠) |
-| L2-17a (P-B) | 남음 | | `widget/math_pad_engine_test.dart` |
+| L2-17a (P-B) | 완료 | (아래 '이정표 커밋') | `widget/math_pad_engine_test.dart`, `widget/sheet_rules_test.dart`(+ 엔진 있는 패드), `unit/strings_contract_test.dart`(+ 패드 문구·`mathFailure`) |
 | L2-17b (P-B) | 남음 | | `widget/to_math_test.dart` |
 | L2-18 (P-A / P-B) | 완료 — '품질 실험' 진입 두 단추는 L2-19·L2-22에서 | e2e83d2(P-A), eefe345(P-B) | `widget/settings_section_test.dart`(+ 'model rows (P-B)' 묶음), `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장·모델 행 '쓸 수 없음') (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/model_engine.dart` |
 | L2-19 (P-B, A-4 실험 창) | 남음 | | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` |
@@ -394,6 +394,15 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - 본문: 512 KB 판정에 쓴 획 JSON 문자열을 본문에 그대로 이어 붙인다(두 번 인코딩하지 않음 — `encodeMathRequest`는 `jsonEncode({'data': buildMathData(...)})`와 글자까지 같음을 시험). 점 줄이기는 ε마다 원래 점에서 다시(0.25 → 0.5 → 1 → 2 pt), 끝점·시간은 남은 점과 함께. 점 없는 획은 뺀다. PNG(`MathInput.png`)는 호출하는 쪽(L2-17a 패드·L2-17b `recog.toMath`)이 `pageThumbnailRendererProvider`로 만든다 — 이 파일은 base64 2 MB 한도만 본다.
   - 기록(6.24, VM JIT, 다른 에이전트 부하 중): 본문 200획 × 100점 중앙값 **9.2 ms**(최소 7.4·최대 27.9 — 목표 ≤ 20 ms). 처음 판(획 JSON 두 번 인코딩)은 중앙값 26 ms라 고쳤다.
   - `emulator/callable_emulator_test.dart`(L2-I6 — 기본 skip): 6.11.7 E1~E3·E5~E9·G-3. 67바이트 PNG는 SYNC `functions/test/handler.test.ts` `png67`과 같은 바이트. 컨테이너에서는 skip만 확인(`flutter test test/emulator` → 1 skip).
+- L2-17a 수식 패드 손글씨 경로(`ui/math_pad_canvas.dart` `MathPadCanvas`·`MathPadInk`, `ui/math_pad_sheet.dart`, `math/math_png.dart` `renderMathPng`·`strokesAreaPt`, `ui/recognition_sheet.dart` `ConsentCard` — 모두 내부):
+  - 손글씨 칸은 시트의 스크롤 영역 **밖**(머리 아래 고정)에 두고, LaTeX 칸·제안 칩·미리보기만 스크롤한다 — 칸 안의 펜 끌기가 스크롤·시트 끌어 닫기와 다투지 않게. 칸은 세로 끌기를 빈 `GestureDetector`로 가져간다(시트의 drag-to-close가 이기지 않음). 높이는 `max(140, 화면 높이 × 0.5 × 0.4)`(시트 최대 높이의 40%).
+  - **동의 카드는 손글씨 칸 '위에 겹쳐'(Stack) 그린다** — 6.14.5 '손글씨 칸 위에'를 겹침으로 읽었다(카드를 칸 위쪽 줄로 따로 두면 compact(667 px)에서 시트 50%를 넘는다). 카드는 첫 인식에서 `RecognizerConsentRequired`가 나야 보인다(엔진 포트로는 미리 알 수 없음 — `CallableMathRecognizer`는 호출마다 확인). [동의하고 쓰기] → `settings.set(recog.mathConsent, true)` → 곧바로 다시 인식, [직접 입력] → 칸·도구 줄 숨김 + LaTeX 칸 포커스(그 시트에서는 다시 인식하지 않음).
+  - 컨트롤러는 계획대로 `ref.watch(ink.inkPageControllerProvider('mathpad_<id>'))`(시트 쪽 `ConsumerStatefulWidget` — 시트 route의 ProviderScope). 임시 페이지 크기 = 칸 크기(LayoutBuilder — M3 시트 폭 상한 640 때문에 화면 폭이 아님), 바뀌면 post-frame에 `updateContent`. 펜 접촉은 down의 `buttons & kPrimaryButton`(웹 E-4), 펜(`stylus`·`invertedStylus`)이 한 번 오면 `touch`는 무시, 한 번에 포인터 하나.
+  - 지우개는 획 지우개 `EraserSpec(stroke, 8 pt)`, [지우개]는 켜고 끄는 단추(켜지면 `FilledButton.tonal`). 되돌리기·모두 지우기는 획이 없으면 비활성. 획 끝·지움·되돌리기·모두 지우기 → 1 s 다시 걸기 + 진행 중 요청 끊기(6.11.6 — 새 멈춤이 시작될 때가 아니라 잉크가 바뀌는 즉시 끊는다: 옛 잉크의 답이 1 s 사이에 칸을 채우지 않게). 접촉 → 타이머 끊기 + 요청 끊기. 답은 세대 번호로 가장 새 요청 것만 반영.
+  - 6.14.4 칩: 손으로 고치지 않았으면 답 → 칸, `alternatives`(답과 같은 것·빈 것 빼고, 중복 없이 최대 3개) → 칩. 고쳤으면 칸은 그대로, 칩 = 답 + 그 3개. 칩 → 칸(`manualEdited = false`). [넣기]의 `engineId` = 고쳤거나 답이 없으면 `'manual'`, 아니면 가장 새 답의 `engineId`(칩 값도 엔진 것). 시트 콜백이 `onInsert(latex, engineId)`로 바뀌었다(L2-14는 `'manual'` 고정이었음).
+  - 상태 줄(`recog.pad.status` — 부록 C 밖): '상태: 멈추면 인식해요' / '상태: 인식 중…' / 6.11.4 문구(오류 색). 실패 → 문구는 `RecognitionStrings.mathFailure(failure)`(취소·동의 필요 → 없음, `RecognizerUnsupported` → `manualOnly` 문구, `ModelNotReady`·그 밖의 엔진 오류 → `mathFailed`). `RecognitionFailure`가 아닌 예외만 `reportRecognitionError` 1회.
+  - PNG(6.11.3): `pageThumbnailRendererProvider`가 있을 때만(엔진이 있을 때 `openMathPad`가 run 시작에 읽음). 영역 = 칸 획 `bounds` 합집합, 임시 페이지 = 영역 + 8 pt 여백(빈 흰 배경, 패드 페이지 id), 획은 `transformed(이동, scaleWidth: false)`, `maxSidePx: 1024`, `pngPxPerPt` = 결과 폭 ÷ 페이지 폭 pt. 렌더러 예외는 보고 1회 + PNG 없이 획만 보냄. 2 MB 한도는 `math_payload.dart`가 그대로 본다. L2-17b `recog.toMath`도 이 함수를 쓴다(영역 = 선택 경계).
+  - 부록 C 밖 키(계약 아님): `recog.pad.undo`·`.eraser`·`.clear`·`.status`·`.chip.<i>`. 새 문구(내부 `RecognitionStrings`): `padUndo` '되돌리기'·`padEraser` '지우개'·`padClear` '모두 지우기'·`padPausePrompt` '멈추면 인식해요'·`engineSuggestion` '엔진 제안'. `recognition_sheet.dart`의 `_minTap`을 `kSheetMinTapStyle`로 열었다(카드·도구 줄이 같이 씀).
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
