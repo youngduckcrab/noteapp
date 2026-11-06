@@ -1,8 +1,14 @@
 # media_io — owned by PDF: recording, playback and image import services. Plan: [docs/plans/m5-7/06-pdf.md](../../docs/plans/m5-7/06-pdf.md)
 
-Skeleton created by INFRA in the 2차 foundation step R2-B1 (contract [00-overview 7.6.2](../../docs/plans/m5-7/00-overview.md)); PDF fills it from R2-B4 on.
+Skeleton created by INFRA in the 2차 foundation step R2-B1 (contract [00-overview 7.6.2](../../docs/plans/m5-7/00-overview.md)); PDF filled the contract surface in R2-B4 (06-pdf 8.1 T30).
 
-- **Entry points**: `package:media_io/media_io.dart` (web-safe barrel, contract 7.2.12) and `package:media_io/testing.dart` (tests only, contract 7.6).
+- **Entry points**:
+  - `package:media_io/media_io.dart` — web-safe barrel, exactly the seven names of contract 7.2.12: `initializeMediaIo`, `MediaIoConfig`, `mediaIoOverrides`, `supportedImageSources`, `importImageForNote`, `RecordingPanel`, `mediaDevOverlayLinesProvider`.
+  - `package:media_io/testing.dart` — tests only (contract 7.6): `registerMediaWebPlugins` (Chrome tests call it — the test binding runs no plugin registrant) and the VM-only platform fakes `FakeRecordPlatform`, `FakeJustAudioPlatform`, `FakeImagePickerPlatform`, `installFakeMediaPlatforms` → `MediaFakePlatforms`. They are plain `extends` of the platform classes (no `MockPlatformInterfaceMixin`) and assert `!kIsWeb`; in Chrome and in other areas' tests use CORE's `FakeAudioRecorder` / `FakeAudioPlayback`.
+- **R2-B4 state** (contract 7.6.2): `initializeMediaIo` keeps its config only, `mediaIoOverrides()` is empty (CORE's 'not supported' audio ports stay), `supportedImageSources()` is empty, `importImageForNote` returns `null`, `RecordingPanel` is a placeholder (title + close), `mediaDevOverlayLinesProvider` is an empty list. The services come in the concurrent stage (06-pdf 8.2).
 - **Service package** (contract 7.1 rules 4–5): depends on `note_core` only; feature packages never import it and it imports none of them. The app shell wires it (`mediaIoOverrides()`).
-- **Web / native boundary** (contract 7.4.1): `package:flutter_foreground_task/` and `package:path_provider/` only in `*_native.dart`, `dart:js_interop` / `package:web/` only in `*_browser.dart`, platform files only through conditional imports with a stub. No `dart:io` `Platform` anywhere — use `kIsWeb` + `defaultTargetPlatform`.
-- **Tests**: `ws test --package media_io`; Chrome fake microphone tests are tagged `media` and run with `ws test --package media_io --platform chrome --run-skipped -t media` (`ws` uses `tool/chrome-fakemedia` and the heavy test lock by itself — contract 7.4.6).
+- **Web / native boundary** (contract 7.4.1, 06-pdf 3.5): `dart:io`, `package:flutter_foreground_task/`, `package:path_provider/`, `package:record/` and `package:audio_session/` only in `*_native.dart`; `dart:js_interop`, `package:web/` and the web plugins only in `*_browser.dart`; platform files only through conditional exports (`*_factory.dart`) with a stub. No `dart:io` `Platform` anywhere — use `kIsWeb` + `defaultTargetPlatform`. `test/unit/no_platform_imports_test.dart` checks these rules.
+- **Tests**:
+  - VM: `dart run tool/ws.dart test --package media_io`.
+  - Chrome (`test/web/`): `dart run tool/ws.dart test --package media_io --platform chrome` — `ws` first runs `tool/prepare_web_test.dart`, which calls CORE's `tool/prepare_web_test.dart --out test/web` (drift worker + sqlite3.wasm for `openWebTestNoteStore`; both files are git-ignored).
+  - Fake microphone tests are tagged `media` and run with `dart run tool/ws.dart test --package media_io --platform chrome --run-skipped -t media` (`ws` uses `tool/chrome-fakemedia` and the heavy test lock by itself — contract 7.4.6; do not set `CHROME_EXECUTABLE` to the wrapper).

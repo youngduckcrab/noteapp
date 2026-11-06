@@ -43,18 +43,21 @@ const PdfRenderBudget _small = PdfRenderBudget(
 );
 
 void main() {
-  test('web budgets: 32 / 64 / 16 MiB, 112 MiB in all (contract 7.4.10)', () {
-    const web = PdfRenderBudget.web();
-    expect(web.previewBytes, 32 * _mib);
-    expect(web.tileBytes, 64 * _mib);
-    expect(web.thumbnailBytes, 16 * _mib);
-    expect(web.totalBytes, 112 * _mib);
-    const native = PdfRenderBudget.native();
-    expect(
-      (native.previewBytes, native.tileBytes, native.thumbnailBytes),
-      (64 * _mib, 160 * _mib, 32 * _mib),
-    );
-  });
+  test(
+    'web budgets: 24 / 64 / 16 MiB, 104 MiB in all (2차 contract 7.4.5, D22)',
+    () {
+      const web = PdfRenderBudget.web();
+      expect(web.previewBytes, 24 * _mib);
+      expect(web.tileBytes, 64 * _mib);
+      expect(web.thumbnailBytes, 16 * _mib);
+      expect(web.totalBytes, 104 * _mib);
+      const native = PdfRenderBudget.native();
+      expect(
+        (native.previewBytes, native.tileBytes, native.thumbnailBytes),
+        (64 * _mib, 160 * _mib, 32 * _mib),
+      );
+    },
+  );
 
   group('PdfRenderCache', () {
     test('bytes = width × height × 4, counted per kind', () {

@@ -1,8 +1,15 @@
-// lib/src/ink_adapter/ink_vectorizer.dart — 06-pdf 4.9, 6.11.8 (PDF T12).
+// lib/src/ink_adapter/ink_vectorizer.dart — 06-pdf 4.9, 6.11.8 (PDF T12); (2차) planPage,
+// m5-7/06-pdf 4.1.3.
 //
 // The INK vector export adapter (with template_underlay.dart the only INK export calls):
 // ink.InkVectorExport.exportPage for the strokes, ink.TemplateVectors.build (through
 // pdfPageUnderlay) for the paper and template.
+//
+// 2차 foundation step R2-B4 (m5-7/06-pdf T20): planPage is the 1차 vectorize result in L-1
+// order plus the image background reference. Page objects are not drawn yet — PDF T24 turns
+// planPage into planFromLayers(layersFromInk(exportPage(…), content, background:), …).
+import 'dart:ui' as ui;
+
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
@@ -66,6 +73,35 @@ final class InkEngineVectorizer implements PdfInkVectorizer {
           ),
       ],
     );
+  }
+
+  /// R2-B4 (T20): [vectorize] of the page's strokes, in L-1 order (6.2.1) — the underlay
+  /// (paper fill, template) when [includeTemplate], then for an image background page its
+  /// PdfAssetImageRef.background (kept when [includeTemplate] is false), then the ink items
+  /// when [includeInk]. The page objects of [content] are left out until PDF T24.
+  @override
+  PdfPagePlan planPage(
+    core.PageContent content, {
+    required bool includeInk,
+    required bool includeTemplate,
+  }) {
+    final page = content.page;
+    final vectors = vectorize(
+      page,
+      content.strokes,
+      includeInk: includeInk,
+      includeTemplate: includeTemplate,
+    );
+    return PdfPagePlan([
+      ...vectors.underlay,
+      if (page.background case core.ImageBackground(:final assetId, :final fit))
+        PdfAssetImageRef.background(
+          assetId: assetId,
+          fit: fit,
+          pageSize: ui.Size(page.size.width, page.size.height),
+        ),
+      ...vectors.ink,
+    ]);
   }
 
   static PdfVectorPath _path(ink.InkVectorPath path) =>

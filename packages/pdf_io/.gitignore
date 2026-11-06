@@ -2,3 +2,7 @@
 # Assets copied by `dart run tool/prepare_web_test.dart` for `flutter test --platform chrome`.
 test/web/pdfium/
 build/
+# (2차, C2-39) drift_worker.js and sqlite3.wasm from note_core tool/prepare_web_test.dart
+# --out test/web (tool/prepare_web_test.dart runs it) — the real web store in browser tests.
+test/web/sqlite3.wasm
+test/web/drift_worker.js

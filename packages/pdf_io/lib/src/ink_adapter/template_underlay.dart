@@ -24,7 +24,8 @@ typedef PdfTemplateVectorBuild = List<ink.TemplateVectorItem> Function(
 
 /// The underlay of [page] (6.11.8): empty for a PDF page; otherwise the paper fill (only
 /// when the paper is not core.PaperColors.white) and, for a template page, its lines and
-/// dots. Image backgrounds get the paper only (images are not exported in this scope).
+/// dots. Image backgrounds get the paper only here; (2차) the image itself is the plan's
+/// PdfAssetImageRef.background (InkEngineVectorizer.planPage).
 List<PdfVectorItem> pdfPageUnderlay(
   core.Page page, {
   PdfTemplateVectorBuild build = ink.TemplateVectors.build,

@@ -47,6 +47,23 @@ final class DenseStrokeVectorizer implements PdfInkVectorizer {
   final int strokesPerPage;
   final int cubicsPerStroke;
 
+  /// (2차) The [vectorize] items in order (the export service plans pages with
+  /// vectorize until PDF T26).
+  @override
+  PdfPagePlan planPage(
+    core.PageContent content, {
+    required bool includeInk,
+    required bool includeTemplate,
+  }) {
+    final v = vectorize(
+      content.page,
+      content.strokes,
+      includeInk: includeInk,
+      includeTemplate: includeTemplate,
+    );
+    return PdfPagePlan([...v.underlay, ...v.ink]);
+  }
+
   @override
   PdfPageVectors vectorize(
     core.Page page,

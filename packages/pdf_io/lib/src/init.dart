@@ -1,5 +1,6 @@
-// lib/src/init.dart — 06-pdf 4.1 (contract 7.2.19, 7.3.3 PdfModule row). One of the files
-// allowed to import package:ink_engine (always `as ink`, 3).
+// lib/src/init.dart — 06-pdf 4.1 (contract 7.2.19, 7.3.3 PdfModule row); (2차) pdfIoOverrides
+// v2, m5-7/06-pdf 4.1.2 / 6.3 (contract 7.2.12). One of the files allowed to import
+// package:ink_engine (always `as ink`, 3).
 //
 // Foundation step B4 (T0, contract 7.6 B4): initializePdfIo did nothing; pdfIoOverrides()
 // already returned its final two overrides. The PDF builder in the INK list was the
@@ -94,23 +95,27 @@ Future<void> initializePdfIo({PdfIoConfig config = const PdfIoConfig()}) async {
 /// Overrides INFRA PdfModule adds to the root ProviderScope (contract 7.3.3). Always both:
 ///  - pdfIoConfigProvider.overrideWithValue(config ?? the config given to initializePdfIo)
 ///  - ink.pageBackgroundBuildersProvider.overrideWith((ref) =>
-///      [ref.watch(pdfBackgroundLayerBuilderProvider), const ink.TemplateBackgroundLayerBuilder()])
-/// The ONLY override of ink.pageBackgroundBuildersProvider in the app (contract 7.2.19).
-/// When PdfModule failed to start, INFRA adds none of these (default = template builder only).
+///      [ref.watch(pdfBackgroundLayerBuilderProvider), ...ink.defaultPageBackgroundBuilders(ref)])
+/// (2차, m5-7/06-pdf 4.1.2 — C2-20) INK's default list [ImageBackgroundLayerBuilder,
+/// TemplateBackgroundLayerBuilder] stays after the PDF builder, so image background pages and
+/// INK's thumbnail image cache (CP-INK-6) work the same with and without PDF.
+/// When PdfModule failed to start, INFRA adds none of these (INK default = [image, template]).
 /// Reading ink.pageBackgroundBuildersProvider in a container that holds ONLY these overrides
 /// never throws and builds nothing else (no engine, document pool, CORE gateway, renderer):
-/// B4 (T0) uses PdfBackgroundLayerBuilder.paperOnly(); from T9 the builder reaches the
-/// renderer lazily on its first build / renderStill (4.7, 4.12, PDF-2-2). The first PDF page
-/// that is actually drawn needs core.noteStoreProvider (INFRA CoreModule starts first).
+/// the PDF builder reaches the renderer lazily on its first build / renderStill (4.7, 4.12,
+/// PDF-2-2) and INK's image builder reads core.assetStoreProvider lazily (03-ink 6.11.4).
+/// The first PDF page that is actually drawn needs core.noteStoreProvider (INFRA CoreModule
+/// starts first).
 ///
-/// Contract 7.2.19: The ONLY override of ink.pageBackgroundBuildersProvider:
-///   [pdfBackgroundLayerBuilder, const ink.TemplateBackgroundLayerBuilder()] (+ pdfIoConfigProvider).
+/// Contract 7.2.12 (2차):
+/// The ONLY override of ink.pageBackgroundBuildersProvider (v1.4 rule kept):
+///   [pdfBackgroundLayerBuilder, ...ink.defaultPageBackgroundBuilders(ref)] (+ pdfIoConfigProvider).
 List<Override> pdfIoOverrides({PdfIoConfig? config}) => [
   pdfIoConfigProvider.overrideWithValue(config ?? PdfIoRuntime.config),
   ink.pageBackgroundBuildersProvider.overrideWith(
     (ref) => <ink.PageBackgroundLayerBuilder>[
       ref.watch(pdfBackgroundLayerBuilderProvider),
-      const ink.TemplateBackgroundLayerBuilder(),
+      ...ink.defaultPageBackgroundBuilders(ref),
     ],
   ),
 ];

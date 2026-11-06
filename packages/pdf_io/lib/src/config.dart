@@ -32,7 +32,9 @@ final class PdfImportLimits {
       'maxPages: $maxPages, maxPasswordAttempts: $maxPasswordAttempts)';
 }
 
-/// Byte budgets of the render cache by kind (6.7.4). Web values = contract 7.4.10.
+/// Byte budgets of the render cache by kind (6.7.4). Web values = contract 7.4.10; (2차, D22)
+/// the web preview budget is 24 MiB (2nd-round contract 7.4.5 'PDF 미리보기 / 타일 / 썸네일
+/// 24 / 64 / 16', m5-7/06-pdf 6.2.10).
 @immutable
 final class PdfRenderBudget {
   const PdfRenderBudget({
@@ -41,7 +43,7 @@ final class PdfRenderBudget {
     required this.thumbnailBytes,
   });
   const PdfRenderBudget.web()
-    : previewBytes = 32 * 1024 * 1024,
+    : previewBytes = 24 * 1024 * 1024,
       tileBytes = 64 * 1024 * 1024,
       thumbnailBytes = 16 * 1024 * 1024;
   const PdfRenderBudget.native()
@@ -52,7 +54,7 @@ final class PdfRenderBudget {
   final int tileBytes;
   final int thumbnailBytes;
 
-  /// web: 112 MiB
+  /// web: 104 MiB (1차 112 MiB; 2차 preview 32 → 24 MiB)
   int get totalBytes => previewBytes + tileBytes + thumbnailBytes;
 
   @override

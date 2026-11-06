@@ -2,6 +2,8 @@
 // 7.6 B4 v1.2, PDF-2-2): a ProviderContainer that holds ONLY pdfIoOverrides() — no other
 // override, not even core.noteStoreProvider — reads ink.pageBackgroundBuildersProvider =
 // [PdfBackgroundLayerBuilder, TemplateBackgroundLayerBuilder()] without an exception and
+// (2차 v2, m5-7/06-pdf 4.1.2 — C2-20: now [PdfBackgroundLayerBuilder, ...INK's
+// defaultPageBackgroundBuilders] = [pdf, image, template]; unit/init_v2_test.dart has 6.3 ①~④)
 // without building the render chain (INK controllers / thumbnail renderer, INFRA
 // pdf_module_test). Since PDF T9 the first entry is the renderer-backed builder
 // (isPaperOnly == false); the paperOnly group uses the placeholder directly.
@@ -96,11 +98,13 @@ void main() {
 
   test('builders read without an exception', () {
     final builders = container.read(ink.pageBackgroundBuildersProvider);
-    expect(builders, hasLength(2));
+    // 2차 v2: PDF first, then INK's default list (image, template).
+    expect(builders, hasLength(3));
     final first = builders[0];
     expect(first, isA<PdfBackgroundLayerBuilder>());
     expect((first as PdfBackgroundLayerBuilder).isPaperOnly, isFalse);
-    expect(builders[1], isA<ink.TemplateBackgroundLayerBuilder>());
+    expect(builders[1], isA<ink.ImageBackgroundLayerBuilder>());
+    expect(builders[2], isA<ink.TemplateBackgroundLayerBuilder>());
     expect(
       identical(first, container.read(pdfBackgroundLayerBuilderProvider)),
       isTrue,
@@ -153,7 +157,7 @@ void main() {
       observers: [builds],
     );
     addTearDown(observed.dispose);
-    expect(observed.read(ink.pageBackgroundBuildersProvider), hasLength(2));
+    expect(observed.read(ink.pageBackgroundBuildersProvider), hasLength(3));
     expect(builds.counts.keys, contains('pdfBackgroundLayerBuilderProvider'));
     for (final name in [
       'pdfPageRendererProvider',

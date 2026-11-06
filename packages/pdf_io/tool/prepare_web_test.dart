@@ -7,6 +7,11 @@
 // Fails when the pdfrx pdfium.wasm is not the build the compose extension was checked
 // against (V17: pdfium-binaries chromium/7811) — a pdfrx upgrade must re-run T14's probes.
 // Files already up to date are skipped.
+//
+// (2차, m5-7/06-pdf 3.1 — C2-39, 02-core 6.18.1) Then runs CORE's
+// `tool/prepare_web_test.dart --out test/web`, which puts drift_worker.js and sqlite3.wasm next
+// to the browser tests, so test/web can open the real web store (package:note_core/
+// testing_web.dart openWebTestNoteStore — V11 Chrome). Both files are in .gitignore.
 import 'dart:io';
 import 'dart:isolate';
 
@@ -65,6 +70,32 @@ Future<void> main(List<String> args) async {
     'prepare_web_test: ${sources.length} files in ${out.path} '
     '($copied copied, ${sources.length - copied} up to date)',
   );
+
+  await runCoreWebTestPrepare(packageRoot);
+}
+
+/// Runs note_core's tool/prepare_web_test.dart with `--out test/web` from [packageRoot]
+/// (C2-39): drift_worker.js and sqlite3.wasm for openWebTestNoteStore. Fails when it fails.
+Future<void> runCoreWebTestPrepare(Directory packageRoot) async {
+  final coreLib = await Isolate.resolvePackageUri(
+    Uri.parse('package:note_core/'),
+  );
+  if (coreLib == null) {
+    _fail('package:note_core is not resolvable — run `flutter pub get` first.');
+  }
+  // package:note_core/ → <note_core>/lib/; the script is <note_core>/tool/.
+  final script = File(
+    '${Directory.fromUri(coreLib).parent.path}/tool/prepare_web_test.dart',
+  );
+  if (!script.existsSync()) _fail('missing ${script.path}');
+  final process = await Process.start(
+    Platform.resolvedExecutable,
+    ['run', script.path, '--out', 'test/web'],
+    workingDirectory: packageRoot.path,
+    mode: ProcessStartMode.inheritStdio,
+  );
+  final code = await process.exitCode;
+  if (code != 0) _fail('${script.path} --out test/web exited with $code');
 }
 
 /// packages/pdf_io, whether the script runs from there or from the workspace root.

@@ -10,6 +10,11 @@
 // 3. Value types construct (const where the contract says const) with the contract defaults,
 //    and PdfBackgroundLayerBuilder is an ink.PageBackgroundStillRenderer.
 // 4. The B4 bodies of the 7.2.19 functions (contract 7.6 B4).
+// 5. (2차 v2 — m5-7/06-pdf 4.1.6, 8.1 T20, 2nd-round contract 7.2.12 / 7.6.2 R2-B4) the 18 new
+//    barrel names with their final shapes, the src-only names kept out of the barrel
+//    (PdfIndexerGate, createPdfSearchIndexer, IndexerGate, PdfPageLayers, …), PdfSearchIndexer's
+//    only public constructor (NoteStore) and its R2-B4 body (start() does nothing,
+//    dispose() idempotent), PdfAffine / value equality / PdfPagePlan.isEmpty working.
 @TestOn('vm')
 library;
 
@@ -23,6 +28,7 @@ import 'package:flutter_riverpod/misc.dart' show Override, ProviderBase;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
 
@@ -104,6 +110,8 @@ const Set<String> barrelNames = {
   'PdfVectorPath',
   'PdfVectorItem',
   'PdfFillItem', 'PdfStrokeItem', 'PdfPageVectors', 'PdfInkVectorizer',
+  // (2차) m5-7/06-pdf 4.1.6 — the 18 new names are listed in barrelNamesV2 below.
+  ...barrelNamesV2,
   'PdfComposeSource',
   'PdfComposePagePlan',
   'PdfComposeSourcePage',
@@ -151,6 +159,46 @@ const Set<String> barrelNames = {
   'PdfBatchJobIdle',
   'PdfBatchJobRunning', 'PdfBatchJobFinished', 'PdfBatchJobFailed',
   'PdfBatchExportJobNotifier',
+};
+
+/// (2차) m5-7/06-pdf 4.1.6: the names the 2nd round adds to the barrel (18).
+const Set<String> barrelNamesV2 = {
+  'PdfSearchIndexer',
+  'pdfSearchIndexerProvider',
+  'PdfPlanItem',
+  'PdfDrawItem',
+  'PdfAffine',
+  'PdfImageData',
+  'PdfJpegData',
+  'PdfRgbaData',
+  'PdfImageItem',
+  'PdfTextItem',
+  'PdfTextLine',
+  'PdfAssetImageRef',
+  'PdfTextBoxRef',
+  'PdfMathRef',
+  'PdfPagePlan',
+  'PdfExportMissingImages',
+  'PdfExportRasterizedText',
+  'PdfExportSkippedFormulas',
+};
+
+/// (2차) m5-7/06-pdf 4.1.1, 4.1.3, 4.1.6: src only — never in the barrel (the draft's
+/// PdfIndexerGate is not exported either, v2.1 PDF-M9).
+const Set<String> srcOnlyNamesV2 = {
+  'PdfIndexerGate',
+  'createPdfSearchIndexer',
+  'IndexerGate',
+  'AppIndexerGate',
+  'AlwaysOpenIndexerGate',
+  'debugPdfSearchIndexerState',
+  'PdfPageLayers',
+  'PdfPageBackgroundPart',
+  'planFromLayers',
+  'layersFromInk',
+  'PdfMathRasterizer',
+  'PdfTextRasterizer',
+  'ExportMemoryLedger',
 };
 
 /// 06-pdf 4.14.
@@ -242,6 +290,9 @@ Set<String> _publicTopLevelNames(String source) {
 // ---- 2. ports implemented member by member ------------------------------------------------
 
 Never _no() => throw UnimplementedError();
+
+const String _assetId =
+    '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 final class _Engine implements PdfEngine {
   @override
@@ -442,6 +493,13 @@ final class _Vectorizer implements PdfInkVectorizer {
     required bool includeInk,
     required bool includeTemplate,
   }) => _no();
+  // (2차, m5-7/06-pdf 4.1.3)
+  @override
+  PdfPagePlan planPage(
+    core.PageContent content, {
+    required bool includeInk,
+    required bool includeTemplate,
+  }) => _no();
 }
 
 final class _ComposeJob implements PdfComposeJob {
@@ -516,10 +574,30 @@ String _range(PdfExportRange r) => switch (r) {
 };
 String _warning(PdfExportWarning w) => switch (w) {
   PdfExportBlankedMissingAsset() => 'blanked',
+  // (2차, m5-7/06-pdf 4.1.5)
+  PdfExportMissingImages() => 'missingImages',
+  PdfExportRasterizedText() => 'rasterizedText',
+  PdfExportSkippedFormulas() => 'skippedFormulas',
 };
 String _item(PdfVectorItem i) => switch (i) {
   PdfFillItem() => 'fill',
   PdfStrokeItem() => 'stroke',
+};
+// (2차, m5-7/06-pdf 4.1.3) the plan item families.
+String _planItem(PdfPlanItem i) => switch (i) {
+  PdfDrawItem() => 'draw',
+  PdfAssetImageRef() => 'imageRef',
+  PdfTextBoxRef() => 'textRef',
+  PdfMathRef() => 'mathRef',
+};
+String _drawItem(PdfDrawItem i) => switch (i) {
+  PdfVectorItem() => 'vector',
+  PdfImageItem() => 'image',
+  PdfTextItem() => 'text',
+};
+String _imageData(PdfImageData d) => switch (d) {
+  PdfJpegData() => 'jpeg',
+  PdfRgbaData() => 'rgba',
 };
 String _pagePlan(PdfComposePagePlan p) => switch (p) {
   PdfComposeSourcePage() => 'source',
@@ -1056,6 +1134,7 @@ void main() {
         'pdfIncomingFileSourceProvider': pdfIncomingFileSourceProvider,
         'pdfOutputSinkProvider': pdfOutputSinkProvider,
         'pdfInkVectorizerProvider': pdfInkVectorizerProvider,
+        'pdfSearchIndexerProvider': pdfSearchIndexerProvider, // 2차
         'pdfComposeBackendProvider': pdfComposeBackendProvider,
         'pdfImportServiceProvider': pdfImportServiceProvider,
         'pdfExportServiceProvider': pdfExportServiceProvider,
@@ -1132,12 +1211,13 @@ void main() {
       expect(limits.maxPages, 2000);
       expect(limits.maxPasswordAttempts, 5);
 
+      // (2차, D22 — m5-7/06-pdf 6.2.10, contract 7.4.5) web preview 32 → 24 MiB.
       const web = PdfRenderBudget.web();
       expect(
         [web.previewBytes, web.tileBytes, web.thumbnailBytes],
-        [32 * 1024 * 1024, 64 * 1024 * 1024, 16 * 1024 * 1024],
+        [24 * 1024 * 1024, 64 * 1024 * 1024, 16 * 1024 * 1024],
       );
-      expect(web.totalBytes, 112 * 1024 * 1024);
+      expect(web.totalBytes, 104 * 1024 * 1024);
       const native = PdfRenderBudget.native();
       expect(
         [native.previewBytes, native.tileBytes, native.thumbnailBytes],
@@ -1324,6 +1404,191 @@ void main() {
       const fixture = PdfFixturePage();
       expect([fixture.width, fixture.height], [595.2756, 841.8898]);
       expect(const PdfFixtureText('a').size, 18);
+    });
+  });
+
+  group('2차 surface (m5-7/06-pdf 4.1, T20)', () {
+    test('18 new barrel names; src-only names stay out', () {
+      expect(barrelNamesV2, hasLength(18));
+      final names = <String>{
+        for (final (_, shown) in _exports(_read('lib/pdf_io.dart'))) ...?shown,
+      };
+      expect(names.containsAll(barrelNamesV2), isTrue);
+      expect(names.intersection(srcOnlyNamesV2), isEmpty);
+      // The indexer file is exported for the class only; the gate file not at all.
+      final indexerExports = [
+        for (final (uri, shown) in _exports(_read('lib/pdf_io.dart')))
+          if (uri.startsWith('src/search_index/')) (uri, shown),
+      ];
+      expect(indexerExports, hasLength(1));
+      expect(
+        indexerExports.single.$1,
+        'src/search_index/pdf_search_indexer.dart',
+      );
+      expect(indexerExports.single.$2, {'PdfSearchIndexer'});
+    });
+
+    test(
+      'PdfSearchIndexer: one public constructor (NoteStore), start, dispose',
+      () {
+        final PdfSearchIndexer Function(core.NoteStore store) ctor =
+            PdfSearchIndexer.new;
+        final Provider<PdfSearchIndexer> provider = pdfSearchIndexerProvider;
+        expect([ctor, provider], everyElement(isNotNull));
+        final source = _read('lib/src/search_index/pdf_search_indexer.dart');
+        final body = source.substring(
+          source.indexOf('final class PdfSearchIndexer {'),
+          source.indexOf('\nPdfSearchIndexer createPdfSearchIndexer('),
+        );
+        // Constructors of the class: the contract one and the private one only.
+        final ctors = RegExp(
+          r'^  PdfSearchIndexer(\.\w+)?\(',
+          multiLine: true,
+        ).allMatches(body).map((m) => m.group(1) ?? '').toList();
+        expect(ctors, ['', '._']);
+        expect(body, contains('  PdfSearchIndexer(core.NoteStore store)\n'));
+        // Public members: start and dispose only.
+        final members = RegExp(
+          r'^  (?:[\w<>?]+ )+([a-z]\w*)(?:\(| =>|;| =)',
+          multiLine: true,
+        ).allMatches(body).map((m) => m.group(1)!).toSet();
+        expect(members, {'start', 'dispose'});
+      },
+    );
+
+    test('plan item shapes (4.1.3)', () {
+      const frame = core.ElementFrame(core.PageRect(10, 20, 110, 70));
+      const affine = PdfAffine(1, 0, 0, 1, 5, 6);
+      final double a = affine.a, b = affine.b, c = affine.c;
+      final double d = affine.d, e = affine.e, f = affine.f;
+      final PdfAffine Function(core.ElementFrame frame) fromFrame =
+          PdfAffine.frame;
+      final PdfAffine Function(PdfAffine outer) then = affine.then;
+      final ui.Offset Function(ui.Offset p) apply = affine.apply;
+      expect([a, b, c, d, e, f], [1, 0, 0, 1, 5, 6]);
+      expect([fromFrame, then, apply], everyElement(isNotNull));
+      const id = PdfAffine.identity;
+      expect([id.a, id.b, id.c, id.d, id.e, id.f], [1, 0, 0, 1, 0, 0]);
+
+      final jpeg = PdfJpegData(Uint8List(4), width: 2, height: 1);
+      final rgba = PdfRgbaData(
+        Uint8List(8),
+        width: 2,
+        height: 1,
+        hasAlpha: true,
+      );
+      final PdfImageData data = jpeg;
+      expect([data.width, data.height, data.byteLength], [2, 1, 4]);
+      expect([rgba.byteLength, rgba.hasAlpha], [8, true]);
+      final Uint8List bytes = jpeg.bytes, pixels = rgba.rgba;
+      expect([bytes, pixels], everyElement(isNotNull));
+
+      final image = PdfImageItem(image: jpeg, matrix: affine);
+      const text = PdfTextItem(
+        text: '안녕',
+        fontId: 0,
+        fontSize: 16,
+        colorArgb: 0xFF1A1A1A,
+        matrix: PdfAffine.identity,
+      );
+      final PdfDrawItem drawn = image;
+      final PdfPlanItem planned = text;
+      expect([drawn, planned], everyElement(isNotNull));
+      expect(_drawItem(image), 'image');
+      expect(_drawItem(text), 'text');
+      expect(
+        _drawItem(
+          PdfFillItem(path: PdfVectorPath.rect(ui.Rect.zero), colorArgb: 0),
+        ),
+        'vector',
+      );
+      expect(_imageData(jpeg), 'jpeg');
+      expect(_imageData(rgba), 'rgba');
+
+      const objectRef = PdfAssetImageRef.object(
+        assetId: _assetId,
+        frame: frame,
+      );
+      const backgroundRef = PdfAssetImageRef.background(
+        assetId: _assetId,
+        fit: core.ImageFit.cover,
+        pageSize: ui.Size(595, 842),
+      );
+      expect(
+        [objectRef.frame, objectRef.fit, objectRef.pageSize],
+        [frame, null, null],
+      );
+      expect(
+        [backgroundRef.frame, backgroundRef.fit, backgroundRef.pageSize],
+        [null, core.ImageFit.cover, const ui.Size(595, 842)],
+      );
+      final textBox = core_testing.PageObjectFixtures.textBox(pageId: 'p1');
+      const PdfTextLine line = (text: 'a', x: 0, baselineY: 16, width: 10);
+      final textRef = PdfTextBoxRef(textBox, const [line]);
+      final mathRef = PdfMathRef(
+        core_testing.PageObjectFixtures.math(pageId: 'p1'),
+      );
+      final core.TextBoxObject object = textRef.object;
+      final List<PdfTextLine> lines = textRef.lines;
+      final core.MathObject math = mathRef.object;
+      expect([object, lines, math], everyElement(isNotNull));
+      expect(
+        [_planItem(objectRef), _planItem(textRef), _planItem(mathRef)],
+        ['imageRef', 'textRef', 'mathRef'],
+      );
+      expect(_planItem(image), 'draw');
+
+      const empty = PdfPagePlan.empty;
+      final List<PdfPlanItem> items = empty.items;
+      expect(
+        [items.isEmpty, empty.isEmpty, empty.hasReferences],
+        [true, true, false],
+      );
+      final plan = PdfPagePlan([text, objectRef]);
+      expect([plan.isEmpty, plan.hasReferences], [false, true]);
+      expect(PdfPagePlan([text]).hasReferences, isFalse);
+    });
+
+    test('export warnings v2 (4.1.5)', () {
+      const missing = PdfExportMissingImages([2]);
+      const raster = PdfExportRasterizedText([3]);
+      const formulas = PdfExportSkippedFormulas([4, 5]);
+      final List<int> pages = missing.notePageNumbers;
+      expect(pages, [2]);
+      expect(raster.notePageNumbers, [3]);
+      expect(formulas.notePageNumbers, [4, 5]);
+      expect(
+        [_warning(missing), _warning(raster), _warning(formulas)],
+        ['missingImages', 'rasterizedText', 'skippedFormulas'],
+      );
+    });
+
+    test('PdfInkVectorizer.planPage shape (2차)', () {
+      final PdfPagePlan Function(
+        core.PageContent content, {
+        required bool includeInk,
+        required bool includeTemplate,
+      })
+      plan = const InkEngineVectorizer().planPage;
+      final PdfPagePlan Function(
+        core.PageContent content, {
+        required bool includeInk,
+        required bool includeTemplate,
+      })
+      box = const BoxInkVectorizer().planPage;
+      expect([plan, box], everyElement(isNotNull));
+    });
+
+    test('R2-B4 body: start() does nothing, dispose() idempotent', () async {
+      final store = core_testing.createFakeNoteStore();
+      addTearDown(store.close);
+      final indexer = PdfSearchIndexer(store);
+      indexer.start();
+      indexer.start();
+      await indexer.dispose();
+      await indexer.dispose();
+      indexer.start(); // after dispose: nothing
+      await expectLater(indexer.dispose(), completes);
     });
   });
 

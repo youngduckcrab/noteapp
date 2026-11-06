@@ -1,10 +1,11 @@
 /// PDF import, PDF page background rendering and PDF export.
 ///
-/// Owned by PDF (docs/plans/06-pdf.md). Public API = contract 00-overview
-/// 7.2.19 (06-pdf 4.0–4.13). This `show` list is the complete list of
-/// exported names (06-pdf 4.15, checked by test/contract/api_surface_test.dart;
-/// integration check R14 compares it with the other packages). Everything else
-/// under `src/` is internal. Web-safe.
+/// Owned by PDF (docs/plans/06-pdf.md, 2차 docs/plans/m5-7/06-pdf.md). Public
+/// API = contract 00-overview 7.2.19 (06-pdf 4.0–4.13) and 2차 contract 7.2.12
+/// (m5-7/06-pdf 4.0–4.1). This `show` list is the complete list of exported
+/// names (06-pdf 4.15 + m5-7/06-pdf 4.1.6, checked by
+/// test/contract/api_surface_test.dart; integration check R14 compares it with
+/// the other packages). Everything else under `src/` is internal. Web-safe.
 library;
 
 export 'src/common/cancel_signal.dart' show PdfCancelSignal;
@@ -60,6 +61,9 @@ export 'src/export/export_types.dart'
         PdfExportOptions,
         PdfExportWarning,
         PdfExportBlankedMissingAsset,
+        PdfExportMissingImages,
+        PdfExportRasterizedText,
+        PdfExportSkippedFormulas,
         PdfExportResult;
 export 'src/export/vectors.dart'
     show
@@ -68,10 +72,23 @@ export 'src/export/vectors.dart'
         PdfLineCap,
         PdfLineJoin,
         PdfVectorPath,
+        PdfPlanItem,
+        PdfDrawItem,
         PdfVectorItem,
         PdfFillItem,
         PdfStrokeItem,
         PdfPageVectors,
+        PdfAffine,
+        PdfImageData,
+        PdfJpegData,
+        PdfRgbaData,
+        PdfImageItem,
+        PdfTextItem,
+        PdfAssetImageRef,
+        PdfTextLine,
+        PdfTextBoxRef,
+        PdfMathRef,
+        PdfPagePlan,
         PdfInkVectorizer;
 export 'src/files/pdf_file_source.dart'
     show
@@ -116,6 +133,7 @@ export 'src/providers.dart'
         pdfIncomingFileSourceProvider,
         pdfOutputSinkProvider,
         pdfInkVectorizerProvider,
+        pdfSearchIndexerProvider,
         pdfComposeBackendProvider,
         pdfImportServiceProvider,
         pdfExportServiceProvider,
@@ -143,6 +161,7 @@ export 'src/render/render_service.dart'
         PdfPageRenderHandle,
         PdfPageRenderer,
         PdfRenderService;
+export 'src/search_index/pdf_search_indexer.dart' show PdfSearchIndexer;
 export 'src/text/search_notifier.dart' show PdfSearchNotifier;
 export 'src/text/search_types.dart'
     show PdfSearchHit, PdfSearchStatus, PdfSearchState, PdfSearchProgress;

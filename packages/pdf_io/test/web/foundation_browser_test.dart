@@ -23,9 +23,11 @@ void main() {
     final container = ProviderContainer(overrides: pdfIoOverrides());
     addTearDown(container.dispose);
     final builders = container.read(ink.pageBackgroundBuildersProvider);
-    expect(builders, hasLength(2));
+    // (2차 v2, m5-7/06-pdf 4.1.2) PDF first, then INK's default list (image, template).
+    expect(builders, hasLength(3));
     // PDF T9: the renderer-backed builder (render chain reached lazily).
     expect((builders.first as PdfBackgroundLayerBuilder).isPaperOnly, isFalse);
+    expect(builders[1], isA<ink.ImageBackgroundLayerBuilder>());
     expect(builders.last, isA<ink.TemplateBackgroundLayerBuilder>());
     // pdfRenderStatsProvider (T8 body) needs core.noteStoreProvider (PDF-4-2).
     final store = core_testing.createFakeNoteStore();
@@ -84,7 +86,8 @@ void main() {
       const PdfIoConfig().effectiveRenderBudget,
       const PdfRenderBudget.web(),
     );
-    expect(const PdfRenderBudget.web().totalBytes, 112 * 1024 * 1024);
+    // (2차, D22 — m5-7/06-pdf 6.2.10) preview 24 MiB: 24 + 64 + 16 = 104 MiB.
+    expect(const PdfRenderBudget.web().totalBytes, 104 * 1024 * 1024);
     // The Worker compose backend (PDF T14) starts nothing until the first begin.
     expect(
       createPlatformComposeBackend(const PdfIoConfig()).isSupported,

@@ -49,6 +49,8 @@ import 'output/output_sink_factory.dart';
 import 'output/pdf_output_sink.dart';
 import 'render/document_pool.dart';
 import 'render/render_service.dart';
+import 'search_index/indexer_gate.dart';
+import 'search_index/pdf_search_indexer.dart';
 import 'text/search_notifier.dart';
 import 'text/search_types.dart';
 import 'text/text_service.dart';
@@ -186,6 +188,23 @@ final pdfInkVectorizerProvider = Provider<PdfInkVectorizer>(
   (ref) => const InkEngineVectorizer(),
   name: 'pdfInkVectorizerProvider',
 );
+
+/// (2차, contract 7.2.12 — m5-7/06-pdf 4.4) The library-wide PDF text indexer, built through
+/// the src-only createPdfSearchIndexer (PDF-M9) over this container's document pool and the
+/// app gate. Built only — never started here: INFRA PdfModule's idle task calls start() and
+/// dispose() (X33); dispose() is idempotent, so the onDispose below may run after INFRA's.
+/// Reading it builds the CORE gateway and the document pool (core.noteStoreProvider is needed
+/// — INFRA CoreModule starts first); it opens no document. App shell tests use PdfModule's
+/// injection seam, not an override of this provider (final class — 01-infra D2-16).
+final pdfSearchIndexerProvider = Provider<PdfSearchIndexer>((ref) {
+  final indexer = createPdfSearchIndexer(
+    ref.watch(core.noteStoreProvider),
+    pool: ref.watch(pdfDocumentPoolProvider),
+    gate: AppIndexerGate(ref),
+  );
+  ref.onDispose(indexer.dispose);
+  return indexer;
+}, name: 'pdfSearchIndexerProvider');
 
 /// createPlatformComposeBackend(ref.watch(pdfIoConfigProvider)); ref.onDispose(backend.dispose).
 final pdfComposeBackendProvider = Provider<PdfComposeBackend>((ref) {

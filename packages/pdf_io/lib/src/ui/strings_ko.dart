@@ -121,6 +121,24 @@ abstract final class PdfStringsKo {
     return '$pages은 원본이 없어 빈 페이지로 넣었어요';
   }
 
+  /// (2차, m5-7/06-pdf 4.1.5) '{pages}쪽의 이미지는 이 기기에 원본이 없거나 읽지 못해 빠졌어요'.
+  static String missingImagesWarning(List<int> notePageNumbers) =>
+      '${_pagesOf(notePageNumbers)}의 이미지는 이 기기에 원본이 없거나 읽지 못해 빠졌어요';
+
+  /// (2차) '{pages}쪽의 텍스트 상자 일부는 그림으로 넣었어요 — PDF에서 검색되지 않아요'.
+  static String rasterizedTextWarning(List<int> notePageNumbers) =>
+      '${_pagesOf(notePageNumbers)}의 텍스트 상자 일부는 그림으로 넣었어요 — PDF에서 검색되지 않아요';
+
+  /// (2차) '{pages}쪽의 수식 일부를 그리지 못해 빠졌어요'.
+  static String skippedFormulasWarning(List<int> notePageNumbers) =>
+      '${_pagesOf(notePageNumbers)}의 수식 일부를 그리지 못해 빠졌어요';
+
+  /// pageList + '쪽' (a cut list already ends with '외 n쪽').
+  static String _pagesOf(List<int> notePageNumbers) {
+    final list = pageList(notePageNumbers);
+    return list.endsWith('쪽') ? list : '$list쪽';
+  }
+
   static String batchSummary({
     required int noteCount,
     required int doneCount,

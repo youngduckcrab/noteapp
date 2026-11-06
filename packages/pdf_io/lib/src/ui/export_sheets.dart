@@ -425,6 +425,12 @@ List<String> warningLines(PdfExportResult result) => [
     switch (warning) {
       PdfExportBlankedMissingAsset(:final notePageNumbers) =>
         PdfStringsKo.missingPagesWarning(notePageNumbers),
+      PdfExportMissingImages(:final notePageNumbers) =>
+        PdfStringsKo.missingImagesWarning(notePageNumbers),
+      PdfExportRasterizedText(:final notePageNumbers) =>
+        PdfStringsKo.rasterizedTextWarning(notePageNumbers),
+      PdfExportSkippedFormulas(:final notePageNumbers) =>
+        PdfStringsKo.skippedFormulasWarning(notePageNumbers),
     },
 ];
 

@@ -1,14 +1,14 @@
 // Performance simulation (06-pdf 8 T18, 6.7, iPad checks U5 · U16): scrolling a 500-page
 // PDF note on an iPad Pro 13" (1032 × 1376 logical px, DPR 2, page width fitted → device
 // scale ≈ 3.47, 35 tiles per A4 page) with the real PdfRenderService, document pool, render
-// queue and cache on the web budget (PdfRenderBudget.web(): 32 / 64 / 16 MiB = 112 MiB).
+// queue and cache on the web budget (PdfRenderBudget.web(): 24 / 64 / 16 MiB = 104 MiB — 2차 D22).
 // The EDITOR side is modelled like contract E-2: the visible pages ± 1 have a page handle
 // (off-screen neighbours with an empty visible rect), the page panel keeps thumbnail handles
 // for the current page ± 6. FakePdfEngine renders with a latency (fake time).
 //
 // Phases: reading scroll (60 pages), fling to the end, five jumps start ↔ end (U5), reading
 // back 30 pages. Checked at every frame: each kind within its budget, the cache total
-// ≤ 112 MiB and nothing in use over budget (overBudgetBytes == 0, U16); every render that
+// ≤ 104 MiB and nothing in use over budget (overBudgetBytes == 0, U16); every render that
 // reaches the engine is for a page that has a handle at that moment. Over the run: render
 // requests ≤ page visits × (1 preview + the 35 tiles of a page), thumbnail requests ≤
 // thumbnail visits.
@@ -249,7 +249,7 @@ final class _Sim {
 String _mib(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);
 
 void main() {
-  testWidgets('500-page scroll on the web budget: ≤ 112 MiB, bounded requests', (
+  testWidgets('500-page scroll on the web budget: ≤ 104 MiB, bounded requests', (
     tester,
   ) async {
     final sim = _Sim();

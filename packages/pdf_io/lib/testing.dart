@@ -7,7 +7,8 @@
 ///
 /// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5),
 /// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7), BoxInkVectorizer (PDF T12),
-/// RecordingComposeBackend (PDF T15) and FakePdfOutputSink (PDF T15b) are real.
+/// RecordingComposeBackend (PDF T15) and FakePdfOutputSink (PDF T15b) are real; (2차, R2-B4)
+/// BoxInkVectorizer.planPage too (m5-7/06-pdf 4.3.1).
 library;
 
 import 'dart:async';
@@ -1258,8 +1259,74 @@ final class _RecordingComposeJob implements PdfComposeJob {
 /// and opacity (normal blend, highlighters included). With [includeTemplate], a blank /
 /// template / image page whose paper is not white gets a full-page paper fill underlay —
 /// template lines are not drawn. PDF pages never get an underlay.
+///
+/// (2차, m5-7/06-pdf 4.3.1) planPage: the same paper underlay, then an image background's
+/// PdfAssetImageRef.background (also when includeTemplate is false); with [includeInk] the
+/// L-1 layers of the live objects in their order — image objects → PdfAssetImageRef.object,
+/// the stroke boxes above, shapes → a PdfFillItem of their bounds in the stroke color and
+/// opacity, text boxes → PdfTextBoxRef(lines = [(text, 0, fontSize, frame width)]), math →
+/// PdfMathRef. UnknownObject is skipped.
 final class BoxInkVectorizer implements PdfInkVectorizer {
   const BoxInkVectorizer();
+
+  @override
+  PdfPagePlan planPage(
+    core.PageContent content, {
+    required bool includeInk,
+    required bool includeTemplate,
+  }) {
+    final page = content.page;
+    final vectors = vectorize(
+      page,
+      content.strokes,
+      includeInk: includeInk,
+      includeTemplate: includeTemplate,
+    );
+    final objects = [
+      if (includeInk)
+        for (final o in content.objects)
+          if (o.deletedAt == null) o,
+    ];
+    return PdfPagePlan([
+      ...vectors.underlay,
+      if (page.background case core.ImageBackground(:final assetId, :final fit))
+        PdfAssetImageRef.background(
+          assetId: assetId,
+          fit: fit,
+          pageSize: ui.Size(page.size.width, page.size.height),
+        ),
+      for (final o in objects)
+        if (o case core.ImageObject(:final assetId, :final frame))
+          PdfAssetImageRef.object(assetId: assetId, frame: frame),
+      ...vectors.ink,
+      for (final o in objects)
+        if (o case core.ShapeObject(:final bounds, :final style))
+          PdfFillItem(
+            path: PdfVectorPath.rect(
+              ui.Rect.fromLTRB(
+                bounds.left,
+                bounds.top,
+                bounds.right,
+                bounds.bottom,
+              ),
+            ),
+            colorArgb: style.strokeColorArgb,
+            opacity: style.strokeOpacity,
+          ),
+      for (final o in objects)
+        if (o is core.TextBoxObject)
+          PdfTextBoxRef(o, [
+            (
+              text: o.text,
+              x: 0,
+              baselineY: o.style.fontSizePt,
+              width: o.frame.rect.right - o.frame.rect.left,
+            ),
+          ])
+        else if (o is core.MathObject)
+          PdfMathRef(o),
+    ]);
+  }
 
   @override
   PdfPageVectors vectorize(

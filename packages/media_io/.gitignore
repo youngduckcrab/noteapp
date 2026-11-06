@@ -1,0 +1,5 @@
+# media_io local files (m5-7/06-pdf 3.3). The root .gitignore already covers .dart_tool/ and build/.
+# (C2-39) drift_worker.js and sqlite3.wasm from note_core tool/prepare_web_test.dart --out test/web
+# (tool/prepare_web_test.dart runs it) — the real web store in browser and media tests.
+test/web/sqlite3.wasm
+test/web/drift_worker.js
