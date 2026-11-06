@@ -1,0 +1,13 @@
+{
+ "name": "single_stroke",
+ "description": "one stroke → one line of it",
+ "gapFactor": 1.2,
+ "maxLineDiff": 0,
+ "minAccuracy": 1.0,
+ "lines": [
+  ["s0"]
+ ],
+ "strokes": [
+  {"id": "s0", "x": [100.0, 106.0, 112.0, 118.0, 124.0, 130.0], "y": [100.0, 103.6, 107.2, 110.8, 114.4, 118.0], "t": [0.0, 8.0, 16.0, 24.0, 32.0, 40.0]}
+ ]
+}

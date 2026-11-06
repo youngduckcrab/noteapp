@@ -2,8 +2,10 @@
 // part: the web-safe entry point imports and runs in Chrome, the web gets the
 // unsupported handwriting engine (the stub) and never an indexer — even when
 // a test overrides an available engine — and the HandwritingTrace body shared
-// with the VM keeps 13-digit epoch ms exact. L2-20 adds the conversion sheet
-// and web wording cases (with useInkTestFonts in setUpAll).
+// with the VM keeps 13-digit epoch ms exact. (L2-05) The line grouping body
+// shared with the VM (shared/line_cases.dart — V9 on the same synthetic
+// pages, lineAccuracy) gives the same numbers on dart2js. L2-20 adds the
+// conversion sheet and web wording cases (with useInkTestFonts in setUpAll).
 @TestOn('browser')
 library;
 
@@ -17,6 +19,7 @@ import 'package:material_ui/material_ui.dart' show Rect;
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
 
+import '../shared/line_cases.dart';
 import '../shared/trace_cases.dart';
 
 void main() {
@@ -76,8 +79,9 @@ void main() {
     final lines = groupIntoLines([
       for (final s in strokes) HandwritingTrace.fromStroke(s),
     ]);
-    expect(lines, hasLength(strokes.length)); // R2-B6: one line per stroke
+    expect(lines, hasLength(3)); // 6.5: the three written lines
   });
 
   defineHandwritingTraceTests();
+  defineLineCaseTests();
 }

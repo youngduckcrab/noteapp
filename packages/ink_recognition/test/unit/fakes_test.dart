@@ -1,7 +1,8 @@
-// package:ink_recognition/testing.dart fake engines and SyntheticHandwriting
-// (contract m5-7/00-overview 7.6; m5-7/05-library 4.3, 8.1 B6-b): the
-// default answers '줄 1', '줄 2', failNext / failWith, latency without real
-// time (fake_async), cancel, and the CP-L4 members.
+// package:ink_recognition/testing.dart fake engines (contract
+// m5-7/00-overview 7.6; m5-7/05-library 4.3, 8.1 B6-b): the default answers
+// '줄 1', '줄 2', failNext / failWith, latency without real time
+// (fake_async), cancel, and the CP-L4 members. SyntheticHandwriting moved to
+// unit/synthetic_handwriting_test.dart with the 6.6 v2.1 generator (L2-05).
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
@@ -231,62 +232,6 @@ void main() {
         expect(result!.latex, r'x^2');
         async.elapse(const Duration(days: 1)); // the cancel later: nothing
       });
-    });
-  });
-
-  group('SyntheticHandwriting (R2-B6: simple, contract id format)', () {
-    test('ids syn_<seed>_l<line>_<n>, createdAt increases, deterministic', () {
-      final strokes = SyntheticHandwriting.lines(pageId: 'p1', seed: 7);
-      expect(strokes, isNotEmpty);
-      final idPattern = RegExp(r'^syn_7_l(\d\d)_(\d{4})$');
-      final lines = <int>{};
-      for (var i = 0; i < strokes.length; i++) {
-        final s = strokes[i];
-        final m = idPattern.firstMatch(s.id);
-        expect(m, isNotNull, reason: s.id);
-        expect(int.parse(m!.group(2)!), i); // n = stroke number on the page
-        lines.add(int.parse(m.group(1)!));
-        expect(s.pageId, 'p1');
-        expect(s.id.length, lessThanOrEqualTo(64));
-        if (i > 0) {
-          expect(s.createdAt, greaterThan(strokes[i - 1].createdAt));
-          // line numbers never go back
-          expect(
-            int.parse(idPattern.firstMatch(s.id)!.group(1)!),
-            greaterThanOrEqualTo(
-              int.parse(idPattern.firstMatch(strokes[i - 1].id)!.group(1)!),
-            ),
-          );
-        }
-      }
-      expect(lines, {0, 1, 2, 3, 4}); // lineCount default 5
-
-      final again = SyntheticHandwriting.lines(pageId: 'p1', seed: 7);
-      expect(again.map((s) => s.id), strokes.map((s) => s.id));
-      expect(
-        again.map((s) => s.points.rawData.toList()),
-        strokes.map((s) => s.points.rawData.toList()),
-      );
-      final other = SyntheticHandwriting.lines(pageId: 'p1', seed: 8);
-      expect(other.first.id, startsWith('syn_8_l00_'));
-    });
-
-    test('lineCount, ballpoint style, points in page pt with 8 ms spacing', () {
-      final strokes = SyntheticHandwriting.lines(pageId: 'p2', lineCount: 12);
-      final lineOf = strokes.map((s) => s.id.substring(7, 9)).toSet();
-      expect(lineOf, hasLength(12));
-      for (final s in strokes) {
-        expect(s.style, core.StrokeStyle.defaultsFor(core.PenTool.ballpoint));
-        for (var i = 0; i < s.points.length; i++) {
-          expect(s.points.x(i), inInclusiveRange(40, 555));
-          expect(s.points.t(i), i * 8);
-        }
-      }
-      expect(SyntheticHandwriting.lines(pageId: 'p', lineCount: 0), isEmpty);
-      expect(
-        () => SyntheticHandwriting.lines(pageId: 'p', lineCount: 100),
-        throwsArgumentError,
-      );
     });
   });
 }
