@@ -401,8 +401,8 @@
 | J6 | 완료 | `864317a` | `app/test/bootstrap/idle_tasks_test.dart` 보강(`AppIdleCleanup` 4 — 마지막 콜백까지 기다림·2초 제한·기다리는 중 더한 정리·첫 작업 전 dispose), `bootstrap/bootstrap_app_test.dart`(유휴 4 — 성공 화면 ProviderScope → AppLifecycleBridge → 실행기(`success.idleTasks`)·오류 화면에는 없음 → 다시 시도 → 새 시도의 작업만·dispose 때 색인기 정리(1초) 끝난 뒤 모듈 stop·정리가 안 끝나면 2초 뒤 stop + 기록) |
 | J7 | 완료 | `852cce5` | `app/test/modules/media_module_test.dart`(J7 묶음 7 — `abandon()` 초안 복구 0·1·2·실패·최근 갱신 창, 이탈 경고 상태 전이·실행기 안 첫 프레임 직후), `update/update_banner_test.dart` v2(녹음 중 안내·reload 0회·녹음 꺼짐), `web/web_platform_browser_test.dart`(Chrome — `setLeaveGuard` 리스너 1개) |
 | J8 | 완료 | `b0ffee5` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
-| J9 | 완료 | (이 커밋) | `app/test/modules/recognition_wiring_test.dart`(새 — 필드 표·`done` 두 갈래·`execute` 감싸기·동기 시작), `media_wiring_test.dart`(새 — 패널·이미지 가져오기·`media` 섹션·복구 순서·상태 안 읽음), `search_wiring_test.dart`(새 — ≤ 4 Hz·형식·dispose), `feature_wiring_module_test.dart` v2(반복 id 3경우) |
-| J10 | 남음 | | `pdf_module_test` v2 |
+| J9 | 완료 | `ea21681` | `app/test/modules/recognition_wiring_test.dart`(새 — 필드 표·`done` 두 갈래·`execute` 감싸기·동기 시작), `media_wiring_test.dart`(새 — 패널·이미지 가져오기·`media` 섹션·복구 순서·상태 안 읽음), `search_wiring_test.dart`(새 — ≤ 4 Hz·형식·dispose), `feature_wiring_module_test.dart` v2(반복 id 3경우) |
+| J10 | 완료 | (이 커밋) — 본문은 R2-B8a `a4c9cca` | `app/test/modules/pdf_module_test.dart` v2(기록용 리더 start 1·dispose 1·PDF 실패 → 작업 없음 + 기본 리더·실행기 안 0 → 10 → 20 순서) |
 | J11 | 남음 | | `app_router_test`·`production_screens_test` |
 | J12 | 남음 | | `pencil_wire_contract_test`(①~⑨)·`pencil_bridge_test` — 컴파일은 `ios-compile.yml`(U19) |
 | J13 | 남음 | | `pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 4경우)·`about_section_test` |
@@ -614,6 +614,16 @@
 | `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
 | `ws test --package noteapp` (VM) | 512 통과 · 1 건너뜀(V5) · 69초 |
 
+#### J10 — `PdfModule` v2 (계획 8.2, 4.6.4·6.5)
+
+- `pdf.searchIndexer` 유휴 작업(주입 이음새 `indexer: IndexerHandleReader`, 기본 `readPdfSearchIndexer`)은 R2-B8a ④에서 완성(`a4c9cca`) — 이번에는 시험만 보탰다(코드 변경 없음).
+- `pdf_module_test` v2 +2: 기본 리더가 가짜 저장소 위에서 `pdfSearchIndexerProvider`를 읽어(그 provider는 `noteStoreProvider`가 있어야 함 — PDF 인수인계 요청 2) start·dispose를 넘기고, 작업의 dispose 뒤 provider 자신의 `onDispose`(두 번째 dispose)도 던지지 않음(R2-B4 표면 — 실제 색인기의 '두 번 dispose 안전'은 H2) · **실제 실행기 안 순서**: 모듈 순서를 recognition → pdf → media로 넣어도 `media.recoverDrafts`(0) → `pdf.searchIndexer`(10) → `recognition.indexer`(20), 기록 0. 기존(R2-B8a): 작업 1개·우선순위·3초·기록용 리더로 start 1·dispose 1·start 실패 → dispose 등록 없음·PDF 실패 → 작업 없음(리더 읽기 0).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/modules/pdf_module_test.dart` | 10 통과 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -689,7 +699,7 @@
 | INK 2·PDF 1·EDITOR 5 | `pdf_module_test` 배경 빌더 목록 | R2-final에서 완료(`708a1c1`) |
 | INK 3 | Chrome 시험의 `useInkTestFonts()`, `InkMathRenderer.layout` WidgetsBinding | J19 `app_smoke_v2_browser_test` 등 앱 Chrome 시험 작성 때(C23-07) |
 | EDITOR 1~4 | `StylusExtrasSource.capabilities`, 이벤트 `timestamp`, `editorImageImporterProvider` 기본 null·`EditorExtensions` 새 필드, `EditorScreen(initialFocusRectPt:)` | R2-B8a(③)·R2-B8b(①③)·J13 |
-| PDF 2 | `pdfSearchIndexerProvider`를 읽으면 `core.noteStoreProvider` 필요, `PdfSearchIndexer` `start`·`dispose` 반복 안전 | J10·H2 |
+| PDF 2 | `pdfSearchIndexerProvider`를 읽으면 `core.noteStoreProvider` 필요, `PdfSearchIndexer` `start`·`dispose` 반복 안전 | J10(기본 리더 — 가짜 저장소 위에서 읽기·두 번 dispose 던지지 않음, R2-B4 표면)·H2(실제 색인기) |
 | SYNC | `functions/` 생김 → `functions.yml` 단계가 돈다(`# tests 37`) | J16(첫 푸시가 실행 — H6) |
 
 #### 이정표 커밋
@@ -700,6 +710,7 @@
 - **J0 체크포인트(①②③)**: `1fd1aea`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청. 이 체크포인트의 첫 푸시 CI 실행 기록이 J0 ④(6.16 실측)의 입력이다.
 - (2차 동시 개발 세션 3) J1 `3ff3b76`·J2 `0da5b71`·J3 `44609e8`(+ 기록 커밋) — 체크포인트 아님(INFRA-F3의 체크포인트는 R2-B8a·R2-B8b·J0). 다음 병합 때 함께 들어가면 된다.
 - (2차 동시 개발 세션 4) J4 `3779a8f`·J5 `16b9c4b`·J6 `864317a`(+ 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool·pencil_bridge) 변경 0, `ws test --package noteapp` VM 473 통과·Chrome 11 통과, V5·V6 통과, `dart test tool/test` 481 통과(117초).
+- (2차 동시 개발 세션 5) J7 `852cce5`·J8 `b0ffee5`·J9 `ea21681`·J10(이 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app) 변경 0, `ws test --package noteapp` VM 514 통과(65초)·Chrome 14 통과(110초), V5(`--run-skipped -t integration`) 1 통과. `tool`·`pencil_bridge`는 이번에 바뀌지 않아 돌리지 않았다.
 
 #### 다음 세션 메모
 
@@ -707,6 +718,9 @@
 - (2차 동시 개발 세션 4) J4·J5·J6 끝. 다음: J7(`MediaModule` 완성 — `media.leaveGuard`·`WebPlatform.setLeaveGuard`, 복구 시험(`FakeAudioRecorder.abandon()`), 업데이트 배너 보호 — 문구는 J5에서 만든 `AppStrings.reloadBlockedByRecording`)·J8·J9. 새 VM 시험에서 기본 `CoreModule`을 `start`하면 경로 함수가 던져 기록 1건이 생긴다 — 오류 기록을 세면 `nativePaths: noNativePaths`(`test/fakes/fake_native_paths.dart`).
 - J4 주의(2차 동시 개발 세션 3에서 본 것): ① 앱은 `path_provider_platform_interface`에 의존하지 않는다(계약 7.5에 없음) — `native_storage_paths_test`는 `PathProviderPlatform.instance`를 바꾸지 말고 `MethodChannel('plugins.flutter.io/path_provider')`의 `getApplicationSupportDirectory`를 `TestDefaultBinaryMessengerBinding`으로 흉내 내면 된다(플랫폼 인터페이스 2.1.3의 기본 구현이 그 채널이고 `flutter test`는 Dart 플러그인 등록을 돌리지 않는다 — 처음 실행 때 확인). ② 기본 `nativePaths`로 `CoreModule(...)`을 만드는 VM 시험이 많다(`core_module_test`·`production_modules_test`·`bootstrap_app_test`·`overrides_unique_test`·`feature_wiring_module_test` 등) — VM에서는 기본 경로 함수가 `MissingPluginException`으로 실패해 오류 기록 1건이 생긴다. 오류 기록을 세는 시험은 `nativePaths: () async => null`을 넘기거나 채널을 흉내 낸다. ③ `app_smoke_test`(V5)는 `configFor`로 `inMemory`를 쓰므로 경로와 무관.
 - (총괄·사용자) 고정 키(6.10.4, U20 ①)는 아직 없다 — 키를 만들어 파일 두 개로 건네는 일은 사용자와 함께(안내서 07은 J18). 그 전까지 `android.yml`은 `mode=debug`(`noteapp-debug-signed-<run>`)로 돈다. 시크릿 없이 변수만 넣으면 실패하는지(V14)는 H6.
+- (2차 동시 개발 세션 5) J7·J8·J9·J10 끝. 다음: J11(검색 결과 → 위치로 열기 마무리 — `production_screens_test`의 새로고침·`%2C`·잘못된 focus 세 경우, 라이브러리 콜백·에디터 인자 — 자리표시 화면 사례는 R2-B8b `app_router_test`에 이미 있음)·J12(`pencil_bridge` Swift + 와이어 대조 시험 ①~⑨, 컴파일은 CI)·J13·J14·J14b. J8·J10은 코드가 R2-B8a에서 이미 완성돼 시험만 보탰다 — J11도 R2-B8b에서 상당 부분 끝났으니 먼저 남은 사례만 확인할 것.
+- 위젯 시험에서 `setUp`(루트 zone)에서 만든 녹음기·스트림의 `cancel()` Future는 시험 바인딩의 가짜 시간 안에서 끝나지 않을 수 있다(J7에서 관찰) — 정리 콜백에서 그런 Future를 기다리지 말 것. 가짜 저장소·녹음기 조작은 `tester.runAsync` 안에서.
+- 저장소 시계를 움직이는 VM 시험은 `FakeAsync().getClock(…)` + `elapseBlocking`(앱은 `package:clock` 의존 없음 — `media_module_test`의 `_Clocked`).
 - J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
 - J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
 - 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에, J13 몫은 (R2-B8b)에 적었다.
