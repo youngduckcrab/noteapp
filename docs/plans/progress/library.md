@@ -297,7 +297,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-06 (P-B) | 남음 | | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`, `unit/shape_real_samples_test.dart`, `shared/shape_cases.dart` |
 | L2-07 | 완료 | bb5bf30 | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` (+ `ink_recognition_smoke_test`·`unit/api_surface_test`·`web/recognition_browser_test` 갱신) |
 | L2-08 (P-B, ML Kit) | 남음 | | `native/mlkit_adapter_test.dart`, `unit/mlkit_errors_test.dart` |
-| L2-09 (P-B) | 남음 | | `unit/mixed_language_test.dart` |
+| L2-09 (P-B) | 완료 | 이 커밋 | `unit/mixed_language_test.dart` |
 | L2-10a | 완료 | 598eb97 | `unit/indexer_test.dart`(+ `unit/fakes_test.dart`'RecognizerModelAdmin'·`unit/api_surface_test.dart`·`ink_recognition_smoke_test.dart` 갱신), 시험 도우미 `test/support/recording_store.dart`·`indexer_harness.dart` |
 | L2-10b | 완료 | f5d826f | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`('line reuse and confirmed lines' 묶음), `unit/catch_up_test.dart` |
 | L2-11 | 완료 | 3602043 | `unit/indexer_provider_test.dart` |
@@ -308,7 +308,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-16 (P-B) | 남음 | | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6) |
 | L2-17a (P-B) | 남음 | | `widget/math_pad_engine_test.dart` |
 | L2-17b (P-B) | 남음 | | `widget/to_math_test.dart` |
-| L2-18 (P-A / P-B) | 완료 — '품질 실험' 진입 두 단추는 L2-19·L2-22에서 | e2e83d2(P-A), 이 커밋(P-B) | `widget/settings_section_test.dart`(+ 'model rows (P-B)' 묶음), `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장·모델 행 '쓸 수 없음') (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/model_engine.dart` |
+| L2-18 (P-A / P-B) | 완료 — '품질 실험' 진입 두 단추는 L2-19·L2-22에서 | e2e83d2(P-A), eefe345(P-B) | `widget/settings_section_test.dart`(+ 'model rows (P-B)' 묶음), `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장·모델 행 '쓸 수 없음') (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/model_engine.dart` |
 | L2-19 (P-B, A-4 실험 창) | 남음 | | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` |
 | L2-20 | 남음 | | `ink_recognition/test/web/recognition_browser_test.dart`, `feature_library/test/web/scenarios_browser_test.dart` |
 | L2-22 (P-C) | 남음 | | `unit/math_fixture_export_test.dart`, `widget/math_pad_engine_test.dart` |
@@ -386,6 +386,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - iPad [받기]: `recog.modelWifiOnly`가 켜져 있으면 첫 누름은 `cellularWarning` 문구로 바뀌고 둘째 누름에 `ensureModel(tag, wifiOnly: false)`(사용자가 셀룰러를 받아들임 — 플러그인은 인자를 무시). 꺼져 있으면 한 번에. 안드로이드 [받기]는 `wifiOnly: recog.modelWifiOnly` 그대로.
   - '검색용 자동 인식' 켬: `modelState(recog.language)`가 `notDownloaded`·`downloading`이면 안드로이드는 `ModelDownloads.start(lang, wifiOnly: recog.modelWifiOnly)`(엔진 호출 1회 — 색인기의 같은 요청은 어댑터가 합류), iPad는 그 행의 [받기]를 `FilledButton`으로 강조(받기가 시작되면 끝). `ready`·`unsupported`면 아무것도 안 함.
   - **L2-08 어댑터에 넘길 점**: 셀룰러 요청이 먼저 끝나 모델이 받아졌는데 Wi-Fi 요청이 아직 돌면, `modelState`는 `downloading`이 아니라 `ready`여야 한다(6.7.2 표의 '받는 중이면 downloading'보다 '받아짐'이 먼저). 시험 엔진 `test/support/model_engine.dart` `ControlledModelEngine`이 그렇게 답한다.
+- L2-09 전략 B(`engines/mixed_language.dart` `pickMixedCandidates` + `hasHangulSyllable` — 내부·순수): 6.8 주석 세 규칙 그대로, 빈 목록은 '1순위 없음'으로 본다(ko 빈 목록 → en 규칙, en 빈 목록·라틴 ko 1순위 → `[ko 1순위]`, 세 번째 규칙에서 ko가 비면 en 목록). '새 후보'는 목록에 같은 글이 없을 때. 한글 판정은 완성형 음절(U+AC00–U+D7A3)만 — 낱자모는 아님. 결과는 수정 불가 목록이고 후보 객체를 그대로 담는다. 쓰는 곳은 L2-19 실험 창뿐(변환 창에는 내지 않음 — 12.2 Q3).
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
