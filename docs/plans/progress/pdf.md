@@ -2,6 +2,7 @@
 
 ## 요약
 
+- (2차) 동시 개발 세션 1(2026-11-06): 문서 정리(C22-09 — `011774a`), T21(`4068fcd`), T31a(`8dc3b6f`) 완료. 표·다음 할 일은 맨 아래 '## 2차 › 동시 개발'.
 - (2차) 기반 단계 R2-B4 완료 — `5636d4e`(pdf_io T20 + media_io T30 한 커밋, 2026-11-06). 자세한 기록은 맨 아래 '## 2차'. 다음: 동시 개발(pdf_io T21~, media_io T31~). INFRA `pdf_module_test` 기대값이 3개 빌더로 바뀌어야 한다(변경 요청).
 - 마지막 세션: 통합 단계 1 (실제 CORE·INK 합류 뒤 — 아래 '통합 단계' 절). integration 태그 4파일 19개(기존 3파일 + 새 `real_wiring_test`) 실제 CORE·INK·PDFium으로 통과, VM 580·Chrome 54 통과, 변경 요청 없음
 - 다음 할 일: INFRA 연결 몫(INFRA 담당) — `cd app && flutter build web --release`(V4), INFRA 스모크(V5·V6)에서 `PdfModule`·`FeatureWiringModule`의 PDF override가 실제 구현이고 중복 없음(계획 10 5). 그 뒤 사용자 iPad 확인(9.2 U1~U19, 통합 V7 ①). 열린 항목: FreeType·IJG 문서 고지 문구(THIRD_PARTY_NOTICES.md 3절, 2단계 출시 전)
@@ -282,7 +283,7 @@
 | T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
 | T28 | 남음 | | `unit/normalizer_equivalence_test`, `web/normalizer_equivalence_browser_test` |
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
-| T31a | 완료 | (이 커밋) | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
+| T31a | 완료 | 8dc3b6f | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
 | T31b | 남음 | | `unit/recorder_service_test`, `unit/stop_recover_buffers_test` |
 | T32a | 남음 | | `unit/webm_timeline_test`, `unit/mp4_duration_test` |
 | T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
@@ -344,7 +345,13 @@
 | 1 (T31a) | `ws test --package media_io --platform chrome` | 3 통과 |
 | 1 (T31a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 04:53:39–04:54:37 UTC, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
 | 1 (T31a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
+| 1 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
+| 1 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 
 #### 다음 세션 메모
 
-- (세션 1) 문서 정리 끝. 다음 작업은 작업 표의 첫 '남음'부터 순서대로.
+- (세션 1 끝) 완료: 문서 정리(C22-09), T21, T31a. `git status` 깨끗. 다음 후보(서로 기다리지 않음): `pdf_io` T22·T23·T24(T21 뒤 — T22·T23은 실제 해석기, `checkComposeOps` 규칙을 같이 씀), T27·T28(아무 때나), `media_io` T32a·T35a(T30 뒤 순수 작업), 그다음 T31b(T31a·T32a 뒤).
+- T21이 남긴 것: 실제 백엔드(1차 네이티브·웹)는 아직 `image`(8)·`text`(9) 명령과 같은 쪽 여러 조각을 모른다 — T22·T23 몫. 내보내기 서비스는 아직 1차 `encode`를 쓴다(`encodeItems`로 바꾸는 것은 T26).
+- T28 사전 조사(세션 1): CORE `SearchText.normalize`/`normalizeMapped`(B2-β 구현 있음)는 ① 앞뒤 공백을 지우고(6단계) ② `İ`(U+0130)를 모든 플랫폼에서 `i`로 바꾼다. 1차 `unit/text_normalizer_test`의 두 사례('  ab \n' → ' ab ', `x\u0130y` → 플랫폼 소문자)는 위임하면 그대로 통과할 수 없다 → 계약(C2-27·7.2.5 `normalizeMapped` = `normalize`와 같은 글자) 쪽으로 그 두 기대값을 고치고 '계획과 다르게 한 점'에 적을 것. 또 1차 `normalizePdfText(…, lowerCase: false)`를 검색 조각(`text_service.dart` `_snippet`)이, `HangulJamo.compose`를 제목(`title_policy.dart`)·가져오기 시트가 쓴다 — CORE에는 소문자로 바꾸지 않는 공개 함수가 없다. 조각은 창 전체를 `normalizeMapped` 한 번으로 정규화하고 원문 범위로 대소문자를 되살려 before/match/after로 자르면 되고, 제목의 자모 합성은 검색 정규화가 아니므로 `hangul_jamo.dart`의 `compose`만 남기는 쪽이 간단하다(계획 6.4.5는 파일 삭제라 그 차이를 적을 것).
+- T32a 표본: 계획 단계 실험 파일이 컨테이너에 남아 있다 — `/tmp/claude-0/plan57-scratch/pdf57-rev/webm/`(r0~r4·rec.webm = 6.1 E9의 6개, `r1_patched.webm`, 파이썬 파서 `ebml.py`, `dur.mjs`). `test/support/fixtures/chrome_opus_*.webm`으로 복사해 쓸 수 있다(가짜 마이크 음). `endMs` 기대값은 `ebml.py`(별도 구현)로 다시 계산해 대조한다.
+- `media_io` 커밋마다 `ws test --package media_io --platform chrome --run-skipped -t media`(PDF-F3) 결과를 '검사' 표에 적는다 — 아직 `media` 시험이 없어 'no matching tests'.
