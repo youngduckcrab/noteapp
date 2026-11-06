@@ -348,6 +348,44 @@ void main() {
     expect(log.doneCalls, 1);
   });
 
+  testWidgets('recognized and [넣기] in a note session → undo depth + 1 (the '
+      'pad strokes never reach the note); one undo takes the formula away '
+      '(9.3)', (tester) async {
+    final host = await RecognitionHost.pump(
+      tester,
+      overrides: [
+        mathRecognizerProvider.overrideWithValue(
+          FakeMathRecognizer(latex: r'\sqrt{2}'),
+        ),
+      ],
+    );
+    final doc = await SessionDoc.open(tester, host.store);
+    final depth = doc.undoDepth;
+    final run = _pad.run(host.body, doc.target(log, areaPt: _visible));
+    await tester.pumpAndSettle();
+    await _stroke(tester);
+    await _stroke(tester, from: const Offset(90, 40));
+    await tester.pump(kMathPadPause);
+    await tester.pump();
+    expect(_fieldText(tester), r'\sqrt{2}');
+    await tester.tap(_primary);
+    await tester.pumpAndSettle();
+    await run;
+    expect(log.commands, hasLength(1));
+    expect(doc.undoDepth, depth + 1);
+    var content = await doc.content(tester);
+    expect(content.strokes, isEmpty);
+    final m = content.objects.single as core.MathObject;
+    expect(m.latex, r'\sqrt{2}');
+    expect(m.engineId, 'fake/1');
+    await doc.undo(tester);
+    expect(doc.undoDepth, depth);
+    content = await doc.content(tester);
+    expect(content.objects, isEmpty);
+    expect(content.strokes, isEmpty);
+    await doc.close(tester);
+  });
+
   testWidgets('an edited field → [넣기] keeps engineId manual; an emptied '
       'field takes the next answer again', (tester) async {
     final engine = FakeMathRecognizer(latex: 'x^2');

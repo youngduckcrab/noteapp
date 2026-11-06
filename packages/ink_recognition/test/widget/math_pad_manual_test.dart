@@ -142,6 +142,28 @@ void main() {
     expect(log.doneCalls, 1);
   });
 
+  testWidgets('[넣기] in a note session → undo depth + 1; one undo takes the '
+      'formula away (9.3)', (tester) async {
+    final host = await RecognitionHost.pump(tester);
+    final doc = await SessionDoc.open(tester, host.store);
+    final depth = doc.undoDepth;
+    final run = _pad.run(host.body, doc.target(log, areaPt: _visible));
+    await tester.pumpAndSettle();
+    await tester.enterText(_field, r'E = mc^2');
+    await tester.pump();
+    await tester.tap(_primary);
+    await tester.pumpAndSettle();
+    await run;
+    expect(log.commands, hasLength(1));
+    expect(doc.undoDepth, depth + 1);
+    final added = (log.commands.single as core.AddObjects).objects.single;
+    expect((await doc.content(tester)).objects.map((o) => o.id), [added.id]);
+    await doc.undo(tester);
+    expect(doc.undoDepth, depth);
+    expect((await doc.content(tester)).objects, isEmpty);
+    await doc.close(tester);
+  });
+
   testWidgets('[취소] → no command, no done()', (tester) async {
     final host = await RecognitionHost.pump(tester);
     final run = (await _open(tester, host, log)).run;

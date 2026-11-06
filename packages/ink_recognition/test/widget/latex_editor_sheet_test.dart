@@ -160,6 +160,37 @@ void main() {
     expect(log.doneCalls, 0, reason: 'the selection stays (same id)');
   });
 
+  testWidgets('[적용] in a note session → undo depth + 1; one undo brings '
+      'the old formula back (9.3)', (tester) async {
+    final host = await RecognitionHost.pump(tester);
+    final doc = await SessionDoc.open(
+      tester,
+      host.store,
+      objects: (pageId) => [
+        _math.copyTo(id: 'math-1', pageId: pageId, createdAt: 1730800000000),
+      ],
+    );
+    final math = (await doc.content(tester)).objects.single as core.MathObject;
+    final depth = doc.undoDepth;
+    final pending = _editMath.run(host.body, doc.target(log, objects: [math]));
+    await tester.pumpAndSettle();
+    await _type(tester, r'\sqrt{x}');
+    await tester.tap(_primary);
+    await tester.pumpAndSettle();
+    await pending;
+    expect(log.commands, hasLength(1));
+    expect(doc.undoDepth, depth + 1);
+    var content = await doc.content(tester);
+    expect((content.objects.single as core.MathObject).latex, r'\sqrt{x}');
+    await doc.undo(tester);
+    expect(doc.undoDepth, depth);
+    content = await doc.content(tester);
+    final back = content.objects.single as core.MathObject;
+    expect(back.id, 'math-1');
+    expect(back.latex, r'\frac{a}{b}');
+    await doc.close(tester);
+  });
+
   testWidgets('[LaTeX 복사]: the field value sent inside onPressed; 복사했어요', (
     tester,
   ) async {

@@ -40,15 +40,26 @@ Finder get _manual => find.byKey(kConsentManualKey);
 
 /// The selection: three ink strokes (two black, one red) and a highlighter
 /// stroke (not a recognition input — it stays on the page).
-final List<core.Stroke> _selection = [
-  glyphStroke('s1', 110, 110, 60, createdAt: 1),
-  glyphStroke('s2', 180, 110, 60, createdAt: 2),
-  glyphStroke('s3', 250, 110, 60, colorArgb: 0xFFD32F2F, createdAt: 3),
+final List<core.Stroke> _selection = _selectionOn(kPageId);
+
+List<core.Stroke> _selectionOn(String pageId) => [
+  glyphStroke('s1', 110, 110, 60, createdAt: 1, pageId: pageId),
+  glyphStroke('s2', 180, 110, 60, createdAt: 2, pageId: pageId),
+  glyphStroke(
+    's3',
+    250,
+    110,
+    60,
+    colorArgb: 0xFFD32F2F,
+    createdAt: 3,
+    pageId: pageId,
+  ),
   strokeOf(
     'h1',
     const [(100, 150), (390, 150)],
     tool: core.PenTool.highlighter,
     createdAt: 4,
+    pageId: pageId,
   ),
 ];
 
@@ -271,6 +282,53 @@ void main() {
     expect(m.frame.rotation, 0);
     expect(core.isValidEntityId(m.id), isTrue);
     expect(log.doneCalls, 1);
+  });
+
+  testWidgets('[수식으로 바꾸기] in a note session → undo depth + 1; one undo '
+      'brings the strokes back and takes the formula away (9.3)', (
+    tester,
+  ) async {
+    final host = await RecognitionHost.pump(
+      tester,
+      overrides: [
+        mathRecognizerProvider.overrideWithValue(
+          FakeMathRecognizer(latex: r'\frac{a}{b}'),
+        ),
+      ],
+    );
+    final doc = await SessionDoc.open(
+      tester,
+      host.store,
+      strokes: _selectionOn,
+    );
+    final selection = (await doc.content(tester)).strokes;
+    final depth = doc.undoDepth;
+    final run = _toMath.run(
+      host.body,
+      doc.target(log, strokes: selection, areaPt: _area),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await _answered(tester);
+    await _validated(tester);
+    expect(_fieldText(tester), r'\frac{a}{b}');
+    await tester.tap(_primary);
+    await tester.pumpAndSettle();
+    await run;
+    expect(log.commands, hasLength(1));
+    expect(doc.undoDepth, depth + 1);
+    var content = await doc.content(tester);
+    expect(content.strokes.map((s) => s.id), ['h1']);
+    expect((content.objects.single as core.MathObject).latex, r'\frac{a}{b}');
+    await doc.undo(tester);
+    expect(doc.undoDepth, depth);
+    content = await doc.content(tester);
+    expect(
+      content.strokes.map((s) => s.id),
+      unorderedEquals(['s1', 's2', 's3', 'h1']),
+    );
+    expect(content.objects, isEmpty);
+    await doc.close(tester);
   });
 
   testWidgets('ManualOnly: the notice, the read-only strokes view, typing → '
