@@ -303,7 +303,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-11 | 완료 | 3602043 | `unit/indexer_provider_test.dart` |
 | L2-12 | 완료 | 78fce1b | `unit/recognition_actions_test.dart`, `unit/object_builders_test.dart` (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/recognition_test_scope.dart` |
 | L2-13 | 완료 | 1c7848e | `widget/latex_editor_sheet_test.dart`, `widget/sheet_rules_test.dart`(편집 창 — L2-14·15가 더함), `unit/recognition_actions_test.dart`('direct copy' 묶음 — L2-12 커밋), `unit/strings_contract_test.dart` |
-| L2-14 | 완료 | (이 커밋) | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart`(+ 패드), `unit/strings_contract_test.dart` |
+| L2-14 | 완료 | 6f4a4f8 | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart`(+ 패드), `unit/strings_contract_test.dart` |
 | L2-15 (P-B) | 남음 | | `widget/conversion_sheet_test.dart`, `widget/sheet_rules_test.dart` |
 | L2-16 (P-B) | 남음 | | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6) |
 | L2-17a (P-B) | 남음 | | `widget/math_pad_engine_test.dart` |
@@ -377,6 +377,8 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 
 #### 이정표 커밋
 
+- `78fce1b`(L2-12)·`1c7848e`(L2-13)·`6f4a4f8`(L2-14): `recognitionSelectionActions()`가 4개(`recog.toText`·`copyText`·`toMath`·`editMath`), `recognitionInsertActions()`가 1개(`recog.mathPad`)를 낸다 — INFRA S2-3 감싸기·V5 '자리마다 한 번 열기'의 기준. 지금 동작하는 것: `recog.editMath`(LaTeX 편집 창 → `UpdateObjects`), `recog.copyText`의 바로 복사(수식·텍스트 상자), `recog.mathPad`(직접 입력 → `AddObjects` → `done()`). **`recog.toText`·획 선택의 `recog.copyText`(L2-15)·`recog.toMath`(L2-17b)는 아직 '실행하지 못했어요.' 스낵바 + 오류 보고 1회**(run 밖으로 예외는 안 나감). 시트 키 `recog.sheet.latex`·`recog.sheet.mathPad`, 단추 `recog.sheet.primary`·`.secondary`·`.cancel`, 패드 칸 `recog.pad.latex`·미리보기 `recog.pad.preview`(부록 C).
+
 - `bb5bf30`(L2-07): `recognitionOverrides()`가 **정확히 3개**(손글씨 엔진·수식 엔진·`inkShapeFitterProvider` → `GeometricShapeFitter`)를 낸다 — INFRA V5의 'provider 출처·횟수' 단언 기준. 한 컨테이너에서 같은 provider를 두 번 override할 수 없으므로, `recognitionOverrides()`와 함께 가짜 엔진을 넣는 시험은 그 한 개를 `.origin`으로 빼고 넣는다(`ink_recognition_smoke_test` 참고). `GeometricShapeFitter.fit`은 L2-06까지 늘 null이라 자동 도형 보정은 아직 바꾸지 않는다(EDITOR 토글은 `NoShapeFitter`가 아니므로 보인다).
 - `af9d262`(L2-03): `LibraryScreen`이 내용 검색 결과 행에서 `onOpenNoteAt(noteId, pageId, 합집합 Rect?)`를 실제로 부른다(`onOpenNoteAt == null`이면 `onOpenNote`). INFRA V5의 '위치로 열기'·라우팅 `?page=&focus=`가 이 커밋부터 LIBRARY 쪽 호출을 받는다.
 
@@ -395,6 +397,10 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 #### 세션 끝 확인 (세션 3, 2026-11-06, `3602043` 위)
 
 `ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package ink_recognition --platform vm` **181 통과**, `--platform chrome` **21 통과**, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**, `--platform chrome` **18 통과**(이번 세션 `feature_library` 변경 없음).
+
+#### 세션 끝 확인 (세션 4, 2026-11-06, `6f4a4f8` 위)
+
+`ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package ink_recognition --platform vm` **246 통과**, `--platform chrome` **21 통과**, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**, `--platform chrome` **18 통과**(이번 세션 `feature_library` 변경 없음).
 
 #### 다음 세션 메모
 
