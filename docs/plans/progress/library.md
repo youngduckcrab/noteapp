@@ -292,7 +292,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-01 | 완료 | 6450c3c | feature_library `unit/content_hits_test.dart`, `unit/content_provider_test.dart` |
 | L2-02 | 완료 | e962cdb | `widget/content_search_test.dart`, `unit/strings_contract_test.dart` |
 | L2-03 | 완료 | af9d262 | `widget/content_search_test.dart`('opening' 묶음) |
-| L2-04 | 남음 | | `goldens/library_golden_test.dart`, `widget/a11y_test.dart`, `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart` |
+| L2-04 | 완료 | 0343c27, 8695c4a(골든) | `goldens/library_golden_test.dart`(+ `library_search_content.png`), `widget/a11y_test.dart`('content search results' — 가로·세로), `shared/library_scenarios.dart`('content search: a text box word …') → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart` |
 | L2-05 | 남음 | | ink_recognition `unit/group_into_lines_test.dart`, `unit/synthetic_handwriting_test.dart`, `shared/line_cases.dart` |
 | L2-06 (P-B) | 남음 | | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`, `unit/shape_real_samples_test.dart`, `shared/shape_cases.dart` |
 | L2-07 | 남음 | | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` |
@@ -333,6 +333,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 - 디바운스 타이머는 `libraryContentProvider` 안이 아니라 따로 둔 내부 provider `librarySearchRequeryProvider(query)`(상태를 바꾸지 않는 `Provider<void>`)에 있다 — 내용 provider는 검색 결과가 올 때마다 다시 만들어져 `onDispose`가 타이머를 끊기 때문. 즉시 다시 묻기는 대기 중인 디바운스 창도 끝낸다. 다시 묻기는 `librarySearchProvider(query)`와 `notePageIndexProvider`(가족 전체)를 함께 무효화한다(6.1.5 '검색과 함께').
 - L2-02: 노트가 휴지통·영구 삭제면 묶음을 숨기는 판정은 행 위젯마다 `noteProvider(noteId)`를 읽어 높이 0으로 그린다(머리·결과·더 보기가 같은 provider — 노트당 구독 하나). 그래서 '노트 내용 (n)'의 n은 숨긴 묶음도 센 CORE `pages.length` 그대로다(6.1.3 표 'n = pages.length'). `noteProvider`가 아직 값이 없으면 숨기지 않는다(제목 빈 머리). 머리 줄 배치는 '제목 · 위치' 한 줄(52 px), 결과 행 탭은 L2-03 전까지 `onOpenNote`(1차 `openLibraryNote` — `requiresNewerApp` 안내 포함). 다시 묻는 동안 '노트 내용' 머리 옆에 12 px `CircularProgressIndicator`(`SearchResultsView.refreshing` = `AsyncValue.isLoading`). 1차 '결과가 많아요' 안내는 노트 묶음 바로 아래(내용 묶음 위), 내용 안내는 내용 묶음 아래.
 - L2-03: `LibraryScope.openNoteAt(noteId, pageId, Rect?)`(내부) → `LibraryScreen._openNoteAt`(`mounted` → 서랍 닫기 → `onOpenNoteAt` 또는 `onOpenNote`). 결과 행은 노트가 `requiresNewerApp`이면 1차처럼 안내만 한다(열지 않음 — 6.1.4에 없는 경우, 1차 `openLibraryNote`와 같게). 하네스 `LibraryTestHarness(withOpenNoteAt: true)`가 기본이고 `NavigationLog.openNoteAt`(튜플 목록) + `entries`의 `'noteAt:<note>/<page>[ l,t,r,b]'`. 서랍 시험은 행이 서랍 아래에 가려져 행의 `InkWell.onTap`을 직접 부른다.
+- L2-04: 공유 시나리오 'content search: a text box word → 노트 내용 → opens at its page and box'는 `needsFaults == false`라 통합 단계 `integration/core_contract_test.dart`(L2-I2)에서도 돈다 — 실제 CORE에서 텍스트 상자 사각형이 `kSeedTextBoxRect`를 덮는지(같거나 큼)만 단언하고 정확한 값은 `focusRectOf(hit)`와 비교한다. 시드 도우미 `seedTextBoxNote(backend, title, texts, {folderId, rect})`(쪽마다 텍스트 상자 하나 — 세션 `AddObjects`)를 `fixtures.dart`에 더했다(골든·접근성·시나리오 공용; `content_search_test`의 지역 `seedWordNote`는 그대로). 골든 `library_search_content.png`는 '회의' 검색(`seedContentHits` + 4쪽 노트 '주간 회의' → '이 노트에서 1개 더 보기')의 첫 화면이다 — 내용 묶음 머리·배지·쪽·발췌·더 보기 행이 보이고 화면 아래로 이어진다. 새 골든은 시험 코드와 함께 별도 커밋(`8695c4a`).
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
@@ -346,6 +347,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 #### 다음 세션 메모
 
 - 순서(8.2 권장 — P-A 먼저): L2-01 → 02 → 03 → 04 / L2-05 → 07 → 10a → 10b → 11 → 12 → 13 → 14 → 18(P-A) → 20, 그다음 P-B(06·08·09·15·16·17a·17b·18 나머지·19), 마지막 P-C(22).
+- 세션 2(2026-11-06): L2-04 완료(`0343c27`·`8695c4a`) — `feature_library` 동시 개발 몫(L2-01~04) 끝. 남은 `feature_library` 몫은 L2-20의 `web/scenarios_browser_test.dart`(이미 L2-04 시나리오까지 통과)와 통합 단계 L2-I2.
 - 세션 1(2026-11-06) 끝: L2-01·02·03 완료. 다음은 **L2-04**(골든 `library_search_content.png` 13" 가로 — 골든 갱신은 별도 커밋, `widget/a11y_test.dart` 내용 행 44×44·라벨, `shared/library_scenarios.dart`에 '텍스트 상자 글자 검색 → 위치로 열기' 시나리오 → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart`). 시드는 `test/support/fixtures.dart` `seedContentHits`, 행 위젯은 `lib/src/ui/content/content_hits_view.dart`(`ContentNoteHeader`·`ContentHitRow`·`ContentMoreRow`·`SourceBadge`·`SnippetText`), 시험 도우미 패턴은 `test/widget/content_search_test.dart`.
 - 그다음 `ink_recognition` L2-05(E-L5 시제품 `/tmp/claude-0/plan57-scratch/library57/` — 없으면 6.5·6.6 명세대로)부터. `HandwritingIndexer`(L2-10a)는 가짜 저장소 v2 `update`·`stalePages`·`notesWithStalePages`가 이미 동작한다.
 - 1차 골든 4장은 검색 힌트를 '노트 검색'으로 바꿔도 그대로 통과했다(Ahem — 글자 수 같음).
