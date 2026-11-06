@@ -995,5 +995,111 @@ void main() {
       ));
       expect(parseTestCounts('no counters'), isNull);
     });
+
+    // `flutter test` picks the github reporter by itself on GitHub Actions
+    // (test_core `defaultReporter` — `inGithubContext`), so the CI summary
+    // table read 0 / 0 / 0 for every member (CI run 10 on 5843ec3, J0 ④).
+    test('reads the closing line of the github reporter', () {
+      expect(
+        parseTestCounts(
+          '✅ test/unit/a_test.dart: one\n'
+          '::group::⏭️ Skipped tests\n'
+          '⏭️ test/unit/a_test.dart: two (skipped)\n'
+          '::endgroup::\n'
+          '\n'
+          '🎉 880 tests passed, 5 skipped.\n',
+        ),
+        (passed: 880, skipped: 5, failed: 0),
+      );
+      expect(parseTestCounts('🎉 1 test passed.\n'), (
+        passed: 1,
+        skipped: 0,
+        failed: 0,
+      ));
+      expect(
+        parseTestCounts(
+          '::group::❌ test/unit/a_test.dart: one (failed)\n'
+          'Expected: 1\n'
+          '::endgroup::\n'
+          '\n'
+          '::error::4 tests passed, 2 failed, 1 skipped.\n',
+        ),
+        (passed: 4, skipped: 1, failed: 2),
+      );
+      expect(parseTestCounts('::error::0 tests passed, 1 failed.\n'), (
+        passed: 0,
+        skipped: 0,
+        failed: 1,
+      ));
+    });
+
+    test('whichever closing form comes last wins', () {
+      // A test that prints a counter-like line before the github summary.
+      expect(
+        parseTestCounts(
+          '✅ test/a_test.dart: prints 00:01 +9 -9: x\n'
+          '00:01 +9 -9: x\n'
+          '🎉 3 tests passed.\n',
+        ),
+        (passed: 3, skipped: 0, failed: 0),
+      );
+      // A counter after a printed summary-like line.
+      expect(
+        parseTestCounts(
+          '00:00 +0: a prints 🎉 3 tests passed.\n'
+          '00:02 +5 ~1: All tests passed!\n',
+        ),
+        (passed: 5, skipped: 1, failed: 0),
+      );
+      // Not the github summary: no icon or `::error::` before it.
+      expect(parseTestCounts('3 tests passed.\n'), isNull);
+    });
   });
+
+  test(
+    'the github reporter (GitHub Actions) fills the summary counts',
+    () async {
+      processes.results['note_core:flutter'] = const RunResult(
+        exitCode: 0,
+        output:
+            '✅ test/unit/b_test.dart: x\n'
+            '\n'
+            '🎉 880 tests passed, 5 skipped.\n',
+      );
+      processes.results['ink_engine:flutter'] = const RunResult(
+        exitCode: 1,
+        output:
+            '::group::❌ test/unit/a_test.dart: y (failed)\n'
+            '::endgroup::\n'
+            '\n'
+            '::error::3 tests passed, 2 failed, 1 skipped.\n',
+      );
+      final (code, out, _) = await ws([]);
+      expect(code, 1);
+      List<String> row(String member) => out
+          .split('\n')
+          .firstWhere((l) => l.startsWith(member))
+          .split(RegExp(r'\s+'));
+      expect(row('note_core'), [
+        'note_core',
+        'vm',
+        '-',
+        '880',
+        '0',
+        '5',
+        matches(r'^\d+\.\ds$'),
+        'ok',
+      ]);
+      expect(row('ink_engine'), [
+        'ink_engine',
+        'vm',
+        '-',
+        '3',
+        '2',
+        '1',
+        matches(r'^\d+\.\ds$'),
+        'FAILED',
+      ]);
+    },
+  );
 }

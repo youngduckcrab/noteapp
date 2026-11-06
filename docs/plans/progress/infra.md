@@ -392,7 +392,7 @@
 | 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
 | R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
 | R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
-| J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요 — 그때 `ci.yml` 잡별 제한을 실측 × 1.5로, J15 몫) | `1fd1aea`(①②③) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
+| J0 | 진행 중 — ①②③ 완료, ④ 예비 실측만(GitHub 실행 10 = `5843ec3`의 단일 잡 — 아래 '#### J0 ④ 예비 실측', 잡별 제한은 그대로). 완료 조건의 실행(첫 체크포인트 푸시의 잡 분리 `ci.yml` — 잡별 제한 = 실측 × 1.5)은 대기 | `1fd1aea`(①②③)·`J0④-예비`(예비 실측·`parseTestCounts` github 형식) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
 | J1 | 완료 | `3ff3b76` | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
 | J2 | 완료 | `0da5b71` | `native_config_test`(서명 분기 — 커밋된 파일 1·파서 2·규칙마다 깨뜨리기 4), `workflows_test` `android.yml` 묶음 15(단계 순서·NDK·시크릿은 잡 `env`만·`key.properties` 경로·**서명 세 갈래**를 셸 조각으로 실행·아티팩트 이름 두 갈래·가짜 `apksigner` 4경우) — 실제 서명은 GitHub(H6, V14) |
 | J3 | 완료 | `44609e8` | `workflows_test` `ios-compile.yml` 묶음 7(입력·게이트·`macos-26`·45분·`concurrency`·시크릿·변수 없음·`--no-codesign`·`pipefail`+`tee`·아티팩트·요약 셸 조각을 표본 로그·`Podfile.lock`으로 실행) + `ios-testflight.yml` 묶음 7(`macos-26`·`IOS_SIGNING_MODE`·수동 서명 단계·**두 서명 갈래**를 가짜 `xcodebuild`로 실행·Admin 주석), `guides_test` 06 — 실행은 U19(H6) |
@@ -842,6 +842,44 @@
 - 남은 것: J0 ④(CI 단계별 시간 실측 → 6.16 표·월 분 재계산·`ci.yml` 잡별 제한 = 실측 × 1.5·'첫 푸시에서 모든 잡이 제한 안') — 총괄의 첫 체크포인트 푸시 실행 기록이 있어야 해서 컨테이너에서는 할 수 없다. 그 밖의 INFRA 동시 개발 몫은 없다. 실제 다른 영역 2차 구현이 필요한 판정(`integration`·`media`·`emulator` 태그, H1~H8)은 통합 단계.
 - 정리: 웹 빌드 산출물 `app/build/web`은 git 무시 경로라 두었다(다음 빌드가 덮어씀). 에뮬레이터 프로세스 남은 것 없음.
 
+#### J0 ④ 예비 실측 — GitHub `ci.yml` 실행 10 (계획 6.16 'J0 ④ 예비 실측', 2차 동시 개발 세션 11)
+
+- 왜 '예비'인가: 완료 조건은 R2-B8b 뒤 **첫 체크포인트 푸시**의 실행(J15의 잡 5개)이다. 총괄은 아직 체크포인트를 `main`에 병합·푸시하지 않았다(`/home/user/noteapp` HEAD = `5843ec3`). GitHub에 있는 가장 새 실행은 그 바탕 `5843ec3`(2차 기반 단계 끝·계약 v2.3)의 개발 브랜치 푸시 — **J15 전의 단일 잡**이다. GitHub API(실행·잡·단계 시각, 잡 기록)만 읽었다(푸시·재실행 없음).
+- 실행: `ci.yml` 실행 10(id 42162715968, 2026-11-06 04:28:29Z~05:03:47Z, `ubuntu-latest` 2코어, 성공). 'Test scope' = '기본 브랜치 — `a23c14f` 이후 바뀐 멤버'(`FULL_RUN=false`·`STRICT_CHECK=true`)였지만 전역 경로(`tool/`·lock)가 바뀌어 `ws test`가 11 멤버 전부를 돌렸다 → 전체 실행과 같은 양. 통합 태그 단계·배포(시크릿 없음)는 건너뜀.
+
+| 단계 (단일 잡) | 시간 |
+|---|---:|
+| 준비 — Set up job 1초 · 체크아웃 3초 · Flutter 23초 · 캐시 2초 · Dependencies(`pub get`) 21초 | 50초 |
+| Workspace rules (strict) | 53초 |
+| Analyze | 44초 |
+| VM tests (11 멤버 — note_core 110.1 · ink_engine 114.1 · feature_editor 214.3 · feature_library 185.4 · pdf_io 104.5 · sync_engine 128.6 · ink_lab 22.4 · media_io 22.6 · ink_recognition 26.0 · pencil_bridge 11.0 · noteapp 71.8초) | 16분 53초 |
+| Tool tests (`dart test tool/test` 372) | 1분 18초 |
+| Browser tests (9 실행 — note_core 115.3 · ink_engine 122.6 · feature_editor 68.9 · feature_library 85.6 · pdf_io 120.7 · sync_engine 50.5 · media_io 60.9 · ink_recognition 66.4 · noteapp 90.4초, 잠금 대기 0초) | 13분 3초 |
+| Channel · Build info · Verify web assets | 6초 |
+| Web build (컴파일 66.1초) · Finalize | 1분 9초 |
+| 뒷정리(캐시 저장 — 빌드 훅 109 MB · pub 121 MB · prep 3 MB) | 17초 |
+| **합계** | **35분 14초** (청구 36분) |
+
+- 계획 6.16 표의 전체 실행 '약 35분'(1차 통합 뒤 30분 + 2차 멤버 약 5) 추정과 같다. 1차 통합 뒤 실측 대비 VM +1.9분 · Chrome +3.0분.
+- J15 잡 5개에 나눠 본 값(잡마다 준비 50초 + 뒷정리 17초 — 이 실행의 고정분):
+
+| 잡 | 단계 합 (이 실행) | × 1.5 | 지금 `timeout-minutes` |
+|---|---:|---:|---:|
+| `check` (+ Lock age · native-reqs, 각 수 초 — 미측정) | ≈ 4분 10초 | 6.3분 | 15 |
+| `vm` | ≈ 18분 | 27분 | 30 |
+| `chrome` | ≈ 14분 10초 | 21분 | 30 |
+| `heavy` | 이 실행에서 건너뜀 — 값 없음 | — | 30 |
+| `web` (+ Web budget, 수 초) | ≈ 2분 25초 | 3.6분 | 15 |
+
+- 결정: **`ci.yml` 잡별 제한은 바꾸지 않았다**(주석의 'Provisional' 그대로). 모두 `× 1.5` 안이고, 제한은 멈춘 잡이 먹는 분만 바꾸므로 더 줄여도 평소 사용 분은 같다. 잡 분리 뒤 첫 실행(완료 조건)에서 잰 값으로 정한다. 다만 `vm`(27 / 30분)은 다른 영역의 2차 구현 시험이 합쳐지면 넘을 수 있다 — 통합 단계 첫 푸시에서 `vm`·`chrome` 잡 시간을 먼저 볼 것(넘으면 6.16 시간 제한 대책 ④처럼 멤버 묶음 둘로).
+- 월 분 예비 재계산(청구는 잡마다 분 단위 올림): 전체 실행 = `check` 5 + `vm` 18~19 + `chrome` 15 + `web` 3 ≈ 42분 × 12회 = 504, `heavy`(`main` 푸시·수동 `integration`·이전 푸시 없음 — 값 없음, 6분 × 4회 가정) 24, 바뀐 멤버만 도는 기본 브랜치·영역 브랜치 푸시 = 잡 4개 고정분 때문에 약 15분(표의 12분보다 큼) × 25회 × 2 = 750, `android.yml` 실측 6분 26초(실행 4 — 첫 회 10분 40초) → 7 × 5 = 35, `functions.yml` 60(R2-B1 골격은 29초 — J16의 emulator 단계는 아직 GitHub에서 돈 적 없음), `ios-compile.yml` 200 · `android-emulator.yml` 15 · `web-experiment.yml` 6 → **약 1,594분 — 월 2,000분의 80% 경계**(표의 1,346보다 +248: 잡마다 고정분). 6.16 표는 완료 조건의 실측 뒤에 바꾼다. 1,600분을 넘는지는 그 실측으로 판정해 총괄에게 알린다(6.16 끝).
+- 같은 기록에서 찾은 결함(고침): GitHub Actions에서는 `flutter test`가 github 보고 형식(`✅ …` 줄, 끝줄 `🎉 880 tests passed, 5 skipped.` / 실패 때 `::error::4 tests passed, 2 failed, 1 skipped.` — 잠긴 `test_core` 0.6.18 `defaultReporter`의 `inGithubContext`)을 스스로 고른다. `ws test`의 `parseTestCounts`는 `+n ~n -n:` 계수기만 읽어서 **CI 요약표의 passed·failed·skipped가 모든 멤버에서 0**이었다(실패 때는 failed 1로 대신함). `tool/src/test_command.dart` `parseTestCounts`가 github 형식의 끝줄도 읽고, 두 형식 중 출력에서 나중에 나온 것을 쓴다. 시험: `tool/test/test_command_test.dart` +3(github 끝줄 4가지 — 건너뜀 있음·단수 `1 test`·실패·0 통과 / 나중에 나온 형식이 이김·아이콘 없는 문장은 무시 / `ws test` 요약표 행이 두 멤버(통과·실패)에서 github 형식의 수를 보임).
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/test_command_test.dart` | 51 통과 |
+| `dart analyze --fatal-infos tool` | 0건 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -973,6 +1011,8 @@
 
 - (2차 동시 개발 세션 10) J15 잡 분리 `5563d84`·J22 마감 확인 `c338edb`(+ 이 기록 커밋) — 체크포인트 아님. **INFRA 동시 개발 몫은 J0 ④(CI 실측 — 총괄의 첫 체크포인트 푸시 뒤)만 남았다.** 세션 끝 확인: `ws check` 0·`--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 바뀜 0, `dart test tool/test` 547 통과, `ws test` VM 11·Chrome 9 실행 전부 통과, `git status` 비어 있음.
 
+- (2차 동시 개발 세션 11) J0 ④ 예비 실측 + `parseTestCounts` github 형식 `J0④-예비`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인은 아래 '다음 세션 메모'(세션 11 끝).
+
 #### 다음 세션 메모
 
 - (2차 동시 개발 세션 3 끝) J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
@@ -1001,3 +1041,6 @@
 - 세션 9에서 본 것: 컨테이너 6.13 `emulator` 경로(전 멤버 `-t emulator`)는 부하 때 14분이 걸린다 — `timeout 590`으로 감싸지 말고 백그라운드로. `dart test tool/test`의 `export_names_test` 'the real script' 사례(1분 30초 제한)는 다른 무거운 실행과 겹치면 시간 초과 — 한 번 다시 돌리면 통과(J16 기록). `flutter test integration_test/native_smoke_test.dart -d flutter-tester`는 컨테이너 VM에서 돌지만 `~/.local/share/flutter_tester/noteapp/`에 DB를 만든다 — 돌렸으면 지울 것(J21 기록).
 - (2차 동시 개발 세션 10) J15 잡 분리 끝 — `ci.yml` 잡 5개(`check` → `vm`·`chrome`·`heavy` → `web`). 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄. 받으면 6.16 표를 실측으로, `ci.yml` 잡별 `timeout-minutes`와 `workflows_test`의 `_ciTimeouts`를 실측 × 1.5로, '첫 푸시에서 모든 잡이 제한 안'을 진행 기록에), J22(마감). 첫 푸시에서 볼 것: 잡 `outputs`(`steps.scope.outputs.*`)가 `vm`·`chrome`·`web` 잡 `env`에 닿는지(요약의 '시험 범위' 줄과 `vm`의 `--affected-since` 인자), `heavy`가 영역 브랜치 푸시에서 'skipped'인지, 빌드 훅 캐시가 `vm`·`chrome` 중 먼저 끝난 잡의 것으로 저장되는지.
 - (2차 동시 개발 세션 10 끝) J15·J22 끝. 남은 동시 개발 몫은 **J0 ④뿐**이고 컨테이너에서 할 수 없다(첫 체크포인트 푸시의 `ci.yml` 실행 기록 필요 — 푸시는 총괄). 다음 세션: 실행 기록(단계 시간 표 — 이제 잡마다 '### 단계 시간 — <잡>')을 받았으면 ① 계획 6.16 표의 '추정'을 실측으로 바꾸고 월 분 재계산(1,600분 넘으면 총괄에게) ② `ci.yml` 잡별 `timeout-minutes`와 `workflows_test`의 `_ciTimeouts`를 실측 × 1.5로(주석의 'Provisional' 고침) ③ 작업 표 J0·J15를 '완료'로, 이 J22 표 아래에 CI 실측 표를 덧붙인다. 받지 못했으면 할 일이 없다 — `ws check`·`dart test tool/test`·`git status`만 확인하고 끝낸다(다른 영역 코드는 이 작업 트리에서 바뀌지 않으므로 J22 묶음을 다시 돌릴 필요 없음).
+- (2차 동시 개발 세션 11) 첫 체크포인트 푸시는 아직 없다(`/home/user/noteapp` HEAD = `5843ec3`, GitHub의 가장 새 `ci.yml` 실행 = 실행 10 on `5843ec3`, 단일 잡). 그 실행을 GitHub API로 읽어 **J0 ④ 예비 실측**(위 '#### J0 ④ 예비 실측' — 35분 14초, 잡 5개로 나눈 예상은 모두 지금 제한 안, 월 분 예비 재계산 약 1,594분 = 80% 경계)을 적었고, 그 기록에서 본 결함(CI 요약표의 통과·실패·건너뜀이 0 — github 보고 형식)을 `parseTestCounts`에서 고쳤다. 잡별 제한은 바꾸지 않았다.
+- J0 ④ 완료 조건을 닫는 법(통합 단계 첫 푸시 뒤 — 이제 실질적으로 H 단계와 겹친다): GitHub API `GET /repos/youngduckcrab/noteapp/actions/runs?branch=<브랜치>` → 잡 5개 `GET …/runs/<id>/jobs`의 단계 `started_at`·`completed_at`(또는 잡마다 'Timing' 단계의 요약표)로 잡 시간 → ① `ci.yml` 잡별 `timeout-minutes`·`workflows_test`의 `_ciTimeouts` = 실측 × 1.5(올림, 주석 'Provisional' 고침) ② 계획 6.16 표를 실측으로(위 예비 재계산의 잡 고정분 1분 7초·청구 올림 방식 그대로) ③ 월 분이 1,600분을 넘으면 총괄에게 ④ 작업 표 J0·J15 '완료'. `vm` 잡(예상 18분 · 제한 30분)을 먼저 볼 것 — 다른 영역 2차 시험이 합쳐지면 VM이 가장 많이 는다.
+- 다음 GitHub 실행부터 `ws test` 요약표에 통과·실패·건너뜀 수가 보인다(이 세션의 `parseTestCounts` 고침) — 예비 실측의 표는 멤버별 시간만 믿을 것(수는 `🎉 …` 끝줄에서 읽음).

@@ -308,17 +308,33 @@ final class MemberTestResult {
   };
 }
 
-/// Reads the final `+passed ~skipped -failed:` counter of a `flutter test`
-/// run (compact and expanded reporters). Returns `null` if there is none.
+/// Reads the final counts of a `flutter test` run: the last
+/// `+passed ~skipped -failed:` counter (compact and expanded reporters) or the
+/// last closing line of the github reporter — `🎉 7 tests passed, 2 skipped.`
+/// or `::error::4 tests passed, 1 failed, 2 skipped.` (`flutter test` picks
+/// that reporter by itself on GitHub Actions, so the CI summary table needs
+/// it). Whichever comes last in [output] wins. Returns `null` if there is
+/// none.
 ({int passed, int skipped, int failed})? parseTestCounts(String output) {
-  final matches = RegExp(r'\+(\d+)(?: ~(\d+))?(?: -(\d+))?: ')
-      .allMatches(output);
-  if (matches.isEmpty) return null;
-  final last = matches.last;
+  final counter = RegExp(r'\+(\d+)(?: ~(\d+))?(?: -(\d+))?: ')
+      .allMatches(output)
+      .lastOrNull;
+  final github = RegExp(
+    r'(?:🎉 |::error::)(\d+) tests? passed'
+    r'(?:, (\d+) failed)?(?:, (\d+) skipped)?\.',
+  ).allMatches(output).lastOrNull;
+  if (counter == null && github == null) return null;
+  if (github != null && (counter == null || github.start > counter.start)) {
+    return (
+      passed: int.parse(github.group(1)!),
+      skipped: int.parse(github.group(3) ?? '0'),
+      failed: int.parse(github.group(2) ?? '0'),
+    );
+  }
   return (
-    passed: int.parse(last.group(1)!),
-    skipped: int.parse(last.group(2) ?? '0'),
-    failed: int.parse(last.group(3) ?? '0'),
+    passed: int.parse(counter!.group(1)!),
+    skipped: int.parse(counter.group(2) ?? '0'),
+    failed: int.parse(counter.group(3) ?? '0'),
   );
 }
 
