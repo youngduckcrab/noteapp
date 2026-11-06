@@ -1,6 +1,8 @@
 import 'package:note_core/note_core.dart';
 
 /// Merge units (6.3.1). Keys not listed in a group form their own unit.
+/// (2nd round, contract 7.2.8, 07-sync 6.2.2) pageObject and handwriting are merged
+/// as one unit instead: every non-meta key except [wholeUnitExcept].
 abstract final class FieldUnits {
   /// Never merged by LWW: identity and derived values (CORE never puts them in
   /// changedFields — CORE 6.3).
@@ -64,7 +66,8 @@ abstract final class FieldUnits {
     },
   };
 
-  /// Explicit multi-key groups per kind (table 6.3.1).
+  /// Explicit multi-key groups per kind (table 6.3.1). pageObject / handwriting →
+  /// const []: they are merged by [wholeUnitExcept] instead.
   static List<Set<String>> groupsOf(EntityKind kind) => switch (kind) {
     EntityKind.folder => const [
       {'parentId', 'sortKey'},
@@ -86,17 +89,53 @@ abstract final class FieldUnits {
     EntityKind.penPreset ||
     EntityKind.asset ||
     EntityKind.recording => const [],
-    // (2nd round, R2-B7a) general records for now: every key is a unit of its own.
-    // S2-1 replaces this with the one object / result unit (contract 7.2.8, 07-sync 6.2.2).
     EntityKind.pageObject || EntityKind.handwriting => const [],
   };
 
-  /// All units for the keys present in either snapshot (metaKeys excluded).
+  /// (2nd round) Kinds merged as ONE unit: every non-meta key present in either
+  /// snapshot (unknown keys included) except these, which are units of their own.
+  /// null for the v1.4 kinds.
+  ///   pageObject  → {'pageId', 'deletedAt', 'engine'}
+  ///   handwriting → {'noteId', 'pageId', 'deletedAt'}
+  ///
+  /// A key added to either kind in a later round joins the one unit, so apps of
+  /// different versions pick the same winner (07-sync 6.2.2 counter-example).
+  static Set<String>? wholeUnitExcept(EntityKind kind) => switch (kind) {
+    EntityKind.pageObject => const {'pageId', 'deletedAt', 'engine'},
+    EntityKind.handwriting => const {'noteId', 'pageId', 'deletedAt'},
+    EntityKind.folder ||
+    EntityKind.note ||
+    EntityKind.page ||
+    EntityKind.stroke ||
+    EntityKind.penPreset ||
+    EntityKind.asset ||
+    EntityKind.recording ||
+    EntityKind.setting => null,
+  };
+
+  /// All units for the keys present in either snapshot (metaKeys excluded). For a
+  /// [wholeUnitExcept] kind: the rest (if not empty) + each present excepted key as
+  /// its own unit. Keys inside a unit and the order of units are deterministic.
   static List<Set<String>> unitsFor(EntityKind kind, Iterable<String> keys) {
     final present = {
       for (final k in keys)
         if (!metaKeys.contains(k)) k,
     };
+    final except = wholeUnitExcept(kind);
+    if (except != null) {
+      final rest = [
+        for (final k in present)
+          if (!except.contains(k)) k,
+      ]..sort();
+      final own = [
+        for (final k in present)
+          if (except.contains(k)) k,
+      ]..sort();
+      return [
+        if (rest.isNotEmpty) rest.toSet(),
+        for (final k in own) {k},
+      ];
+    }
     final units = <Set<String>>[];
     final grouped = <String>{};
     for (final group in groupsOf(kind)) {

@@ -3,7 +3,10 @@
 // (web/pure_logic_browser_test.dart, seeds 1..3): commutative, associative and
 // idempotent, equality = doc.json and versions.toJson(). Snapshots are random
 // (small value and version pools so ties happen), not necessarily obeying the
-// invariant 6.3.3 — the tie-break keeps the merge total.
+// invariant 6.3.3 — the tie-break keeps the merge total. (2nd round, S2-1) The new
+// kinds pageObject (one unit + pageId / deletedAt / engine) and handwriting (one unit
+// + noteId / pageId / deletedAt) and recording.title join the pools, and snapshots
+// of those kinds sometimes carry keys this app does not know (07-sync 6.2.2).
 import 'dart:math';
 
 import 'package:collection/collection.dart';
@@ -82,6 +85,52 @@ const Map<EntityKind, Map<String, List<Object?>>> _pools = {
     'deletedAt': [null, _t0 + 1],
     'updatedAt': [_t0, _t0 + 2],
   },
+  EntityKind.pageObject: {
+    'pageId': ['p1', 'p2'],
+    'type': ['text'],
+    'frame': [
+      [100.0, 300.0, 400.0, 340.0, 0.0],
+      [120.0, 300.0, 420.0, 360.0, 0.5],
+    ],
+    'text': ['안녕 hello', 'x'],
+    'style': [
+      {'fontSizePt': 16.0, 'colorArgb': 1},
+      {'fontSizePt': 20.0, 'colorArgb': 1},
+    ],
+    'engine': [null, 'fake/1'],
+    'deletedAt': [null, _t0 + 1],
+    'createdAt': [_t0],
+    'updatedAt': [_t0, _t0 + 3],
+  },
+  EntityKind.handwriting: {
+    'noteId': ['n1', 'n2'],
+    'pageId': ['p1'],
+    'engineId': ['mlkit/1:ko', 'mlkit/2:ko'],
+    'sourceRev': ['0123456789abcdef', 'fedcba9876543210'],
+    'lines': [
+      <Object?>[],
+      [
+        {
+          'text': '미분',
+          'rect': [1.0, 2.0, 3.0, 4.0],
+          'strokeIds': ['s1'],
+        },
+      ],
+    ],
+    'deletedAt': [null, _t0 + 2],
+    'createdAt': [_t0],
+    'updatedAt': [_t0, _t0 + 5],
+  },
+  EntityKind.recording: {
+    'noteId': ['n1'],
+    'assetId': ['a1'],
+    'durationMs': [1000, 2000],
+    'startedAt': [_t0],
+    'title': ['녹음 1', 'lecture'],
+    'deletedAt': [null, _t0 + 1],
+    'createdAt': [_t0],
+    'updatedAt': [_t0, _t0 + 2],
+  },
   EntityKind.folder: {
     'ownerId': ['u1'],
     'parentId': [null, 'f2', 'f3'],
@@ -98,6 +147,21 @@ const Map<EntityKind, Map<String, List<Object?>>> _pools = {
 
 const Set<String> _meta = {'id', 'key', 'version', 'createdAt', 'updatedAt'};
 
+/// Keys a newer app writes and this one does not know (S2-1), each present in a
+/// snapshot with probability 1/3.
+const Map<EntityKind, Map<String, List<Object?>>> _unknownKeys = {
+  EntityKind.pageObject: {
+    'futureKey': [1, 2],
+    'anchor': [
+      {'x': 1},
+      {'x': 2},
+    ],
+  },
+  EntityKind.handwriting: {
+    'zLayout': ['a', 'b'],
+  },
+};
+
 Hlc _hlc(Random rng) =>
     Hlc(_t0 + rng.nextInt(4), rng.nextInt(2), _nodes[rng.nextInt(2)]);
 
@@ -110,6 +174,10 @@ UpsertRecord randomSnapshot(Random rng, EntityKind kind) {
     // Rarely leave a non-meta key out (older writer).
     if (!_meta.contains(key) && rng.nextInt(12) == 0) continue;
     json[key] = value[rng.nextInt(value.length)];
+  }
+  for (final MapEntry(:key, :value)
+      in (_unknownKeys[kind] ?? const {}).entries) {
+    if (rng.nextInt(3) == 0) json[key] = value[rng.nextInt(value.length)];
   }
   final base = _hlc(rng);
   final overrides = <String, Hlc>{

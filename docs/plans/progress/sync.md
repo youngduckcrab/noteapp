@@ -241,8 +241,8 @@
 |---|---|---|---|
 | B7b | 기반 단계에서 완료 | `9cdd3fb`·`e3aa110` | `functions/test/fake_engine.test.ts`·`handler.test.ts` (`npm test` 37) |
 | B7a | 기반 단계에서 완료 | `99b8ead`·`5056fcb` | `test/model/field_units_test.dart`(종류별 키), `test/integration/core_json_keys_test.dart` v2 |
-| 문서 정리 | 완료 | (이 줄의 커밋) | 계획 13.5 — 5.5 실제 타입, 인용 v2.3, C23-01·C23-02, SYNC-F1~F3 |
-| S2-1 | 남음 | | `test/model/field_units_test.dart`, `test/merge/field_merge_test.dart`, `test/merge/field_merge_properties_test.dart`, `test/web/pure_logic_browser_test.dart` |
+| 문서 정리 | 완료 | `163f8d2` | 계획 13.5 — 5.5 실제 타입, 인용 v2.3, C23-01·C23-02, SYNC-F1~F3 |
+| S2-1 | 완료 | (이 줄의 커밋) | `test/model/field_units_test.dart`(19 — 단위 표·종류별 단위·모르는 키·판 섞임 수렴), `test/merge/field_merge_test.dart`(49 — 6.2.2 표 10행), `test/merge/field_merge_properties_test.dart`(시드 1..20 × 100, 새 종류 3 + 모르는 키), `test/web/pure_logic_browser_test.dart`(Chrome 26) |
 | S2-2 | 남음 | | `test/model/scopes_test.dart`, `test/codec/chunk_packer_test.dart`, `test/goldens/chunk_v1_kinds_golden_test.dart` |
 | S2-6 | 남음 | | `test/codec/chunk_codec_test.dart`, `test/engine/held_records_test.dart`, `test/web/pure_logic_browser_test.dart` |
 | S2-4a | 남음 | | `test/testing/fake_local_store_test.dart`, `test/testing/fake_sync_server_test.dart`, `test/contract/fake_local_store_contract_test.dart` |
@@ -272,13 +272,15 @@
 
 #### 계획과 다르게 한 점 (동시 개발)
 
-- 없음
+- S2-1: 계획 6.2.2는 '`FieldMerge.mergeRecords`는 손대지 않는다'였지만 한 곳을 고쳤다. 한 단위 종류(`wholeUnitExcept` — `pageObject`·`handwriting`)에서 `keysOf` 밖의 키(모르는 키)는 그 키가 **없는** 스냅숏 쪽에서 버전을 갖지 않는다('loose' — 동점 비교에 들지 않고, 결과의 필드 버전에도 남기지 않음). 이유: 모르는 키는 어느 스냅숏에 있을 때만 단위에 들어가므로, 없는 쪽의 기본 버전(base)이 승자 쪽에서 덮어쓰기 항목으로 남으면 병합 순서에 따라 결과의 `versions`가 달라진다(모르는 키를 섞은 성질 시험의 결합 법칙이 시드 1에서 깨짐 — JSON은 같고 그 키의 덮어쓰기 항목만 다름). 1차 종류는 바뀌지 않는다(loose 집합이 비어 있음 — 1차 시험 그대로 통과). 시드 1..400 결합·교환·멱등 통과를 한 번 확인했다(커밋 안 한 임시 시험).
 
 #### 이정표 커밋 (동시 개발)
 
 - 없음
 
 #### 다음 세션 메모
+
+- 다음: S2-2(범위·정렬·코덱 골든 — `test/goldens/make_chunk_kinds_golden.py`는 `python3 -I`로 한 번 실행), 그다음 S2-6. `functions/` 줄 S2-10a는 Dart 작업 사이에 끼운다.
 
 - 기반 단계에서 다른 영역이 보낸 [SYNC] 변경 요청(CORE: B7a switch 자리, INFRA: `functions.yml` 시험 수 검사·`with-heavy-lock`)은 B7a·B7b에서 이미 처리됐다 — 새 할 일 없음.
 - SYNC-F1: S2-10a·S2-10b·S2-11(P-B)을 미루게 되면 이 절에 `미룸 — V13, 빠진 작업(<id>)`을 적는다.

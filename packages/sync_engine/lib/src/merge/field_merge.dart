@@ -16,6 +16,12 @@
 // `createdAt` = smaller (equal on both sides in practice — symmetric so the merge
 // stays commutative), `id` / `key` must be equal. Merged versions: base = the smaller
 // base, overrides = unit fields whose version is above it.
+//
+// (2nd round, S2-1) For the one-unit kinds (FieldUnits.wholeUnitExcept — pageObject,
+// handwriting) a key outside FieldUnits.keysOf is 'loose': where a snapshot lacks it,
+// its version takes no part (no tie-break, no override in the result). Such a key is
+// in the unit only while some snapshot has it, so its base version would otherwise
+// make the result depend on the merge order (07-sync 6.2.2, S2-1 note).
 import 'package:collection/collection.dart';
 import 'package:note_core/note_core.dart';
 
@@ -74,10 +80,18 @@ abstract final class FieldMerge {
       ...a.versions.overrides.keys,
       ...b.versions.overrides.keys,
     };
+    final known = FieldUnits.keysOf(kind);
+    final whole = FieldUnits.wholeUnitExcept(kind) != null;
     for (final unit in FieldUnits.unitsFor(kind, keys)) {
       final fields = unit.toList()..sort();
-      final sa = _UnitState.of(a, fields);
-      final sb = _UnitState.of(b, fields);
+      final loose = whole
+          ? {
+              for (final f in fields)
+                if (!known.contains(f)) f,
+            }
+          : const <String>{};
+      final sa = _UnitState.of(a, fields, loose);
+      final sb = _UnitState.of(b, fields, loose);
       final merged = _mergeUnit(kind, sa, sb);
       merged.writeTo(out, outVersions);
       if (!merged.sameAs(sa)) changedForA.add(unit);
@@ -140,6 +154,12 @@ abstract final class FieldMerge {
     final byMax = a.maxVersion.compareTo(b.maxVersion);
     if (byMax != 0) return byMax;
     for (final f in a.fields) {
+      if (a.loose.contains(f)) {
+        // Absent loose key: no version; a present one beats an absent one.
+        final ap = a.present[f]!, bp = b.present[f]!;
+        if (ap != bp) return ap ? 1 : -1;
+        if (!ap) continue;
+      }
       final c = a.versions[f]!.compareTo(b.versions[f]!);
       if (c != 0) return c;
     }
@@ -171,15 +191,26 @@ abstract final class FieldMerge {
 
 /// One snapshot's values and versions of one unit.
 final class _UnitState {
-  _UnitState(this.fields, this.present, this.values, this.versions);
+  _UnitState(
+    this.fields,
+    this.present,
+    this.values,
+    this.versions, [
+    this.loose = const {},
+  ]);
 
-  factory _UnitState.of(UpsertRecord r, List<String> fields) {
+  factory _UnitState.of(
+    UpsertRecord r,
+    List<String> fields,
+    Set<String> loose,
+  ) {
     final json = r.doc.json;
     return _UnitState(
       fields,
       {for (final f in fields) f: json.containsKey(f)},
       {for (final f in fields) f: json[f]},
       {for (final f in fields) f: r.versions.of(f)},
+      loose,
     );
   }
 
@@ -215,6 +246,11 @@ final class _UnitState {
   final Map<String, Object?> values;
   final Map<String, Hlc> versions;
 
+  /// Fields whose version counts only where present (see the file comment).
+  final Set<String> loose;
+
+  bool _versionless(String f) => !present[f]! && loose.contains(f);
+
   Hlc get maxVersion {
     var m = versions[fields.first]!;
     for (final f in fields) {
@@ -232,6 +268,7 @@ final class _UnitState {
   bool sameAs(_UnitState other) {
     for (final f in fields) {
       if (present[f] != other.present[f]) return false;
+      if (_versionless(f)) continue;
       if (versions[f] != other.versions[f]) return false;
       if (!_deepEq.equals(values[f], other.values[f])) return false;
     }
@@ -241,7 +278,7 @@ final class _UnitState {
   void writeTo(Map<String, Object?> json, Map<String, Hlc> fieldVersions) {
     for (final f in fields) {
       if (present[f]!) json[f] = values[f];
-      fieldVersions[f] = versions[f]!;
+      if (!_versionless(f)) fieldVersions[f] = versions[f]!;
     }
   }
 }

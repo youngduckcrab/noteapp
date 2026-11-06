@@ -2,7 +2,7 @@
 // jsonEncode writes integral doubles without '.0', so codec bytes, varuint and
 // cursors are checked on the browser too. Bodies live in test/shared/ and also
 // run on the VM. T3: codec, varuint, ServerCursor; T4: merge properties
-// (seeds 1..3).
+// (seeds 1..3; 2nd round S2-1: with pageObject, handwriting and recording).
 @TestOn('browser')
 library;
 
