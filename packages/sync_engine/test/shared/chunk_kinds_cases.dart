@@ -2,7 +2,9 @@
 // (goldens/chunk_v1_kinds_golden_test.dart) and Chrome (web/pure_logic_browser_test.dart):
 // the payload written by test/goldens/make_chunk_kinds_golden.py equals the Dart encoder's
 // bytes for the five known records + one raw record of the unknown kind 'bookmark'.
-// Non-integral doubles only, so the bytes are the same on both platforms.
+// Non-integral doubles only, so the bytes are the same on both platforms. S2-6 (6.3.1):
+// the tolerant decoder reads the same golden — five records + the unknown one, byte exact —
+// and an 'old app' (a kind set without handwriting) holds the handwriting record.
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -185,5 +187,41 @@ void chunkKindsCases() {
         ),
       ),
     );
+  });
+
+  test('decodeTolerant reads the golden: the five known records and the '
+      'bookmark record byte for byte (S-13)', () {
+    final d = ChunkCodec.decodeTolerant(golden);
+    expect(d.records, kindsGoldenRecords());
+    expect(d.hasUnknown, isTrue);
+    final u = d.unknown.single;
+    expect(u.kindName, 'bookmark');
+    expect(u.op, 0x01);
+    expect(u.id, 'b1');
+    expect(u.index, 5);
+    expect(u.header['e'], kBookmarkEntity);
+    expect(u.header['fv'], {'b': kKindsV0});
+    expect(u.bytes, bookmarkRecordBytes());
+    expect(golden.sublist(golden.length - u.bytes.length), u.bytes);
+  });
+
+  test('an old app (no handwriting) holds the handwriting record; the app '
+      'update decodes its bytes to the same record', () {
+    final old = {
+      for (final k in EntityKind.values)
+        if (k != EntityKind.handwriting) k.name,
+    };
+    final d = ChunkCodec.decodeTolerant(golden, isKnownKind: old.contains);
+    final records = kindsGoldenRecords();
+    expect(d.records, records.sublist(0, 4));
+    expect(
+      [for (final u in d.unknown) (u.kindName, u.index)],
+      [('handwriting', 4), ('bookmark', 5)],
+    );
+    final hw = d.unknown.first;
+    expect(hw.bytes, ChunkCodec.encodeRecord(records[4]));
+    final updated = ChunkCodec.decodeTolerant(ChunkCodec.assemble([hw.bytes]));
+    expect(updated.records, [records[4]]);
+    expect(updated.hasUnknown, isFalse);
   });
 }

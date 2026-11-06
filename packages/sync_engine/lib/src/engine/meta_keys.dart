@@ -30,6 +30,26 @@ abstract final class MetaKeys {
 
   static const String lastProfileAt = 'sync.lastProfileAt';
 
+  /// (2nd round, S-13 — 07-sync 6.3.2) HeldRecords: the head (version, parts in use, the
+  /// earliest stored serverTime, the writer's kinds, the rewind mark) …
+  static const String heldRecords = 'sync.heldRecords';
+
+  /// … and the parts holding the records ('' when unused).
+  static const List<String> heldRecordParts = [
+    'sync.heldRecords.1',
+    'sync.heldRecords.2',
+    'sync.heldRecords.3',
+    'sync.heldRecords.4',
+    'sync.heldRecords.5',
+    'sync.heldRecords.6',
+    'sync.heldRecords.7',
+    'sync.heldRecords.8',
+    'sync.heldRecords.9',
+  ];
+
+  /// Head first, then the parts in order.
+  static const List<String> heldRecordKeys = [heldRecords, ...heldRecordParts];
+
   /// SyncStore.writeMeta cannot delete a key: SYNC writes '' and reads '' as absent.
   static const String cleared = '';
 

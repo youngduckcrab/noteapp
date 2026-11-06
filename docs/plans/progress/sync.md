@@ -244,7 +244,7 @@
 | 문서 정리 | 완료 | `163f8d2` | 계획 13.5 — 5.5 실제 타입, 인용 v2.3, C23-01·C23-02, SYNC-F1~F3 |
 | S2-1 | 완료 | `66f726f` | `test/model/field_units_test.dart`(19 — 단위 표·종류별 단위·모르는 키·판 섞임 수렴), `test/merge/field_merge_test.dart`(49 — 6.2.2 표 10행), `test/merge/field_merge_properties_test.dart`(시드 1..20 × 100, 새 종류 3 + 모르는 키), `test/web/pure_logic_browser_test.dart`(Chrome 26) |
 | S2-2 | 완료 | `2bacbb6` | `test/model/scopes_test.dart`(6 — 객체 = 힌트, 손글씨 = 페이지와 같은 순서), `test/codec/chunk_packer_test.dart`(16 — 계약 7.2.8 정렬, 노트 범위 새 종류 결정성, 새 종류 blob 없음), `test/goldens/chunk_v1_kinds_golden_test.dart`(8 — 2,621 B `877eebff…`, Python = Dart 인코더 + 모르는 kind 원본 기록), Chrome `chunk_kinds_cases`(4) |
-| S2-6 | 남음 | | `test/codec/chunk_codec_test.dart`, `test/engine/held_records_test.dart`, `test/web/pure_logic_browser_test.dart` |
+| S2-6 | 완료 | (이 커밋) | `test/codec/chunk_codec_test.dart`(86 — 1차 오류 27종은 `decode` 그대로 `FormatException`, 6.3.1 표 각 행: 알려진 기록·모르는 upsert(이진 필드 포함 바이트 그대로)·모르는 purge·`decodeTolerant`에서도 청크 전체 오류 26 + 모르는 종류 전용 13, 엔티티 디코드 실패는 기록, `isKnownKind`), `test/shared/chunk_kinds_cases.dart`(골든 관용 디코드 — 알려진 5 + `bookmark` 바이트, 옛 앱 손글씨 보관 → 갱신 뒤 같은 기록), `test/engine/held_records_test.dart` → `test/shared/held_records_cases.dart`(38 — 왕복·정렬·중복 제거·조각 next-fit 경계·조각 9개·청크 단위 전부/전무(총 상한 청크 중간·저장된 같은 청크 빠짐)·표시가 덮는 청크·`knownChunks`/`dueChunks`·`settle`(`ra`, 상한 넘침 → 표시)·깨진 머리 5종/조각 8종 → `'*'` 표시(`f`·`a`)·`takeMarkIfDue`·기본 상한 보관 개수), `test/web/pure_logic_browser_test.dart`(Chrome 70) |
 | S2-4a | 남음 | | `test/testing/fake_local_store_test.dart`, `test/testing/fake_sync_server_test.dart`, `test/contract/fake_local_store_contract_test.dart` |
 | S2-4b | 남음 | | `test/testing/test_device_test.dart`, `test/testing/sync_test_harness_test.dart`, `test/contract/fake_local_store_contract_test.dart`(C-01~C-31), `test/api_surface_test.dart` |
 | S2-3 | 남음 | | `test/merge/record_gate_test.dart`, `test/engine/download_pipeline_test.dart`('lib-scope pageObject') |
@@ -272,12 +272,27 @@
 
 #### 계획과 다르게 한 점 (동시 개발)
 
+- S2-6: `HeldRecords.knownChunks`·`dueChunks`는 `List<RemoteChunk>`(계획 4.4) 대신 `List<ReapplyChunk>`(내부 — `chunk` + 기록마다 원래 청크 안 위치 `indexes`)를 돌려준다. 합성 청크 안의 기록 위치는 원래 `index`와 다르므로, S2-7b 파이프라인이 `settle`에 넘길 (청크 id, 원래 위치)를 알려면 이 대응이 필요하다. 합성 청크의 `kind`는 `ChunkKind.delta`(보관 형식에 청크 종류가 없음), `format` = 1, `maxHlc` = 기록들의 `fv`/purge `h` 중 가장 늦은 HLC 글자 — S2-7b는 다시 적용에서 자기 기기 delta 건너뛰기를 끄기만 하면 된다(보관 기록은 남의 청크에서만 온다 — 자기 delta는 디코드 전에 건너뜀).
+- S2-6: purge 기록의 중복 제거 키 `fv`(보관 항목 `fv`)는 `{"h":"<hlc>"}`의 정규 JSON이다(6.3.2는 upsert의 `fv`만 말함). upsert의 `fv`(`{"b":…}` 꼴)와 겹치지 않는다.
+- S2-6: 깨진 값의 표시 `f`는 머리의 `e`와 머리 표시 `o.f` 중 이른 것이다(6.3.2는 `e`만 — 머리에 이미 더 이른 표시가 있으면 그것을 잃지 않게). 디코드한 값이 지금 상한(`maxPartBytes`·`maxTotalBytes`)에 들지 않아도 깨진 값으로 본다(인코딩이 늘 상한 안이라는 불변식).
+- S2-6: `'*'` 표시의 되감기 조건은 '지금 앱이 아는 종류 중 표시를 쓴 앱(`o.a`)이 모르던 것이 있음'(`!o.a.containsAll(knownKinds)`)이다. 4.4의 `knownKinds ⊋ writtenBy`를 포함하고, 두 집합이 서로 포함하지 않는 경우(드문 판 바꿈)도 되감는다 — 되감기는 비싸지만 잃지 않는 쪽.
+- S2-6: `settle`이 `ra`를 붙여 항목이 길어져 상한을 넘으면 그 `heldUntil` 청크들을 표시로 옮긴다(종류를 이제 알므로 다음 `load()`가 되감음 — 원래 청크가 지워졌어도 그 뒤 스냅숏이 같은 상태를 줌). 계획에 없던 경우(값이 상한 바로 밑일 때만)다.
+- S2-6: 6.12의 시간 단언(×5 느슨한 상한)은 쓰지 않았다 — 세션 규칙 '실제 시간에 기대는 단언 금지'. 시험이 잰 값을 출력하고 진행 기록에 적는다(아래 S2-6 실측).
+
 - S2-10a: 계획 6.8.3 표의 `pngBase64` 위반 메시지 '`pngBase64 is not a PNG` 등'을 넷으로 나눴다 — 문자열 아님·빈 값 `pngBase64 must be a non-empty string`, 길이 초과 `pngBase64 is larger than 2 MB`, base64 아님(문자 집합 밖·길이 % 4 ≠ 0·`=`가 끝 말고 있음) `pngBase64 is not base64`, 서명 다름 `pngBase64 is not a PNG`. 모두 `invalid-argument`라 앱 동작은 같다. `engine`·`locale`이 `null`이면 없는 것으로 본다(기본값). PNG 서명은 앞 12자만 풀어 본다(본문 전체는 처리 본문이 엔진에 넘길 때 푼다).
 - S2-10a: `latex.ts`(계획 3.2 '출력 정리·정규화')는 `stripMathDelimiters`·`normalizeLatex`(6.9.3 규칙) 두 함수다. 4.5는 `normalizeLatex`를 `tool/eval_score.ts`에 두는데, S2-13에서 그 파일이 이 함수를 다시 내보내게 한다(서버와 도구가 같은 규칙). 6.9.3 '경우 표 20개'는 S2-13 `math_eval.test.ts` 몫이고, 여기 `latex.test.ts`는 같은 규칙을 함수 단위로 시험한다(30).
 - S2-10a: 등록부는 Mathpix·Claude 설정이 다 있어도 어댑터 공장(S2-12)이 없으면 `notConfigured`다. `registryFromParams`는 `MATH_API_KEY`를 getter로 넘겨 가짜 엔진 경로에서는 비밀값을 읽지 않는다.
 - S2-2: 골든의 Chrome용 상수는 1차처럼 따로 파일 `test/shared/chunk_v1_kinds_golden_bytes.dart`(Python 스크립트가 `.bin`과 함께 씀)에 두었다(계획 3.1 트리에는 `chunk_kinds_cases.dart`만 있음). 모르는 kind 기록 바이트 도우미 `test/support/raw_records.dart`(3.1 트리의 [새])를 S2-6보다 먼저 S2-2에서 만들었다.
 
 - S2-1: 계획 6.2.2는 '`FieldMerge.mergeRecords`는 손대지 않는다'였지만 한 곳을 고쳤다. 한 단위 종류(`wholeUnitExcept` — `pageObject`·`handwriting`)에서 `keysOf` 밖의 키(모르는 키)는 그 키가 **없는** 스냅숏 쪽에서 버전을 갖지 않는다('loose' — 동점 비교에 들지 않고, 결과의 필드 버전에도 남기지 않음). 이유: 모르는 키는 어느 스냅숏에 있을 때만 단위에 들어가므로, 없는 쪽의 기본 버전(base)이 승자 쪽에서 덮어쓰기 항목으로 남으면 병합 순서에 따라 결과의 `versions`가 달라진다(모르는 키를 섞은 성질 시험의 결합 법칙이 시드 1에서 깨짐 — JSON은 같고 그 키의 덮어쓰기 항목만 다름). 1차 종류는 바뀌지 않는다(loose 집합이 비어 있음 — 1차 시험 그대로 통과). 시드 1..400 결합·교환·멱등 통과를 한 번 확인했다(커밋 안 한 임시 시험).
+
+#### S2-6 실측 (VM = 이 컨테이너 `flutter test`, Chrome = `ws test --platform chrome`)
+
+| 항목 | 결과 |
+|---|---|
+| 기본 상한 보관 개수 (10,000 B 손글씨 기록, 청크마다 하나) | 항목 길이 `e` = 13,552 B → 조각당 ⌊(229,376 − 20 + 1) / 13,553⌋ = 16개, **N = 144**(계획 참고값과 같음), N + 1번째 청크는 표시. 그때 전체 1,952,070 B < 2,097,152 B |
+| `HeldRecords.encode`/`decode` (위 가득 찬 값 — 조각 9개, 키 10개) | VM encode 1–11 ms · decode 18–82 ms(디코드 쪽 base64 원문 재사용 전 51–82, 뒤 18), Chrome encode 2–3 ms · decode 169 ms(재사용 전 439) — 목표 VM ≤ 100 · Chrome ≤ 300 안 |
+| `decodeTolerant` vs `decode` (알려진 기록 2,000개, 20회 평균, 데운 뒤) | 3,276 µs vs 3,371 µs — 차이 없음(종류 조회 한 번을 `_kindOrNull` 하나로 합침. 합치기 전 첫 측정은 데우지 않아 3배로 보였음) |
 
 #### 이정표 커밋 (동시 개발)
 
@@ -292,7 +307,8 @@
 #### 다음 세션 메모
 
 - S2-10a 뒤 에뮬레이터 한 번(`npm run test:emulator`, 잠금 아래 2026-11-06 05:00:17 → 05:00:48 UTC, 31 s): 함수가 새 매개변수(`MATHPIX_APP_ID`·`CLAUDE_MODEL`, 기본 '')와 함께 뜨고 `# tests 0`(에뮬레이터 시험 파일은 S2-11).
-- 다음: S2-6(관용 디코드 + `HeldRecords`). `test/shared/chunk_kinds_cases.dart`의 '엄격한 디코더는 골든을 거절' 시험 옆에 `decodeTolerant`가 모르는 기록 1개 + 알려진 기록 5개를 돌려주는 시험을 더한다(계획 6.2.3 끝 — S2-2에서는 `decodeTolerant`가 없어 엄격한 거절만 확인). 모르는 kind 기록 바이트는 `test/support/raw_records.dart`의 `rawUpsertRecord`. `functions/` 줄 S2-10a는 Dart 작업 사이에 끼운다.
+- (세션 2) S2-6 끝. 다음은 S2-4a(가짜 저장소·서버 v2 — `FakeSyncServer.mergedState`가 `decodeTolerant`로 모르는 기록을 무시). S2-7a가 `HeldRecords`를 `DownloadPipeline`에 붙일 때: `MetaKeys.heldRecordKeys` 10개를 `load()`에서 읽어 `HeldRecords.decode`, `wasCorrupt`면 곧바로 `encode()`를 쓰고 경고 로그, 메타에는 `encode()` 중 글자가 바뀐 키만 싣는다. `add`의 반환값 > 0이면 `needsAppUpdate`. 합성 청크는 `ReapplyChunk.indexes`로 원래 위치를 `settle`에 넘긴다.
+- (세션 1에서 쓴 메모) 다음: S2-6(관용 디코드 + `HeldRecords`). `test/shared/chunk_kinds_cases.dart`의 '엄격한 디코더는 골든을 거절' 시험 옆에 `decodeTolerant`가 모르는 기록 1개 + 알려진 기록 5개를 돌려주는 시험을 더한다(계획 6.2.3 끝 — S2-2에서는 `decodeTolerant`가 없어 엄격한 거절만 확인). 모르는 kind 기록 바이트는 `test/support/raw_records.dart`의 `rawUpsertRecord`. `functions/` 줄 S2-10a는 Dart 작업 사이에 끼운다.
 - 새 종류 골든은 정수값 double을 쓰지 않는다(웹 `jsonEncode`가 `100.0`을 `100`으로 씀 — 1차 골든과 같은 규칙). 그래서 고정 자료는 CORE `toJson`이 아니라 `chunk_kinds_cases.dart`의 문자 그대로 JSON이고, VM 시험이 CORE로 디코드되는지 따로 본다. 골든을 바꿀 때는 `cd packages/sync_engine && python3 -I test/goldens/make_chunk_kinds_golden.py`(`.bin`과 `test/shared/chunk_v1_kinds_golden_bytes.dart`를 함께 씀) 뒤 시험의 길이·sha-256을 고친다.
 
 - 기반 단계에서 다른 영역이 보낸 [SYNC] 변경 요청(CORE: B7a switch 자리, INFRA: `functions.yml` 시험 수 검사·`with-heavy-lock`)은 B7a·B7b에서 이미 처리됐다 — 새 할 일 없음.

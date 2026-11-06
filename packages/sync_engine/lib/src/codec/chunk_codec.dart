@@ -7,15 +7,68 @@
 //   upsert header {"e": entity JSON without blob keys, "fv": field versions, "id", "k"}
 //   purge header  {"h": hlc, "id", "k": "folder" | "note"}
 //   blob keys: stroke "points" (CORE base64 decoded to raw bytes; decode re-encodes base64)
+//
+// (2nd round, S-13 — 07-sync 6.3.1) decodeTolerant: a well-formed record whose header kind
+// 'k' this app does not know becomes an UnknownKindRecord holding its exact bytes, so the
+// rest of the chunk applies and the record can be held until the app is updated.
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart';
 
 import '../common/varuint.dart';
 import '../model/records.dart';
 import '../model/sync_doc.dart';
 import 'canonical_json.dart';
+
+/// A well-formed record whose header kind 'k' this app does not know (S-13).
+@immutable
+final class UnknownKindRecord {
+  const UnknownKindRecord({
+    required this.kindName,
+    required this.op,
+    required this.id,
+    required this.header,
+    required this.bytes,
+    required this.index,
+  });
+
+  /// Header 'k'.
+  final String kindName;
+
+  /// 0x01 upsert | 0x02 purge.
+  final int op;
+
+  /// Header 'id' when it is a string (always, for a record decodeTolerant returns).
+  final String? id;
+
+  /// The record header JSON (the contract's rawJson).
+  final Map<String, Object?> header;
+
+  /// The exact encoded record: op, header, blobs.
+  final Uint8List bytes;
+
+  /// Position in the payload (0-based).
+  final int index;
+
+  @override
+  String toString() => 'UnknownKindRecord($kindName, $id, op $op, #$index)';
+}
+
+/// What [ChunkCodec.decodeTolerant] returns.
+@immutable
+final class DecodedPayload {
+  const DecodedPayload(this.records, this.unknown);
+
+  /// Known kinds, payload order.
+  final List<SyncRecord> records;
+
+  /// Payload order.
+  final List<UnknownKindRecord> unknown;
+
+  bool get hasUnknown => unknown.isNotEmpty;
+}
 
 abstract final class ChunkCodec {
   static const int formatVersion = 1;
@@ -116,8 +169,32 @@ abstract final class ChunkCodec {
   }
 
   /// Records of a v1 payload, in payload order. FormatException on any malformed input
-  /// (magic, version, count, lengths, trailing bytes, headers — 6.4.4).
-  static List<SyncRecord> decode(Uint8List bytes) {
+  /// (magic, version, count, lengths, trailing bytes, headers — 6.4.4), an unknown kind
+  /// included.
+  static List<SyncRecord> decode(Uint8List bytes) =>
+      _decode(bytes, isKnownKind: null).records;
+
+  /// (v2.0) decode() with S-13: a record whose 'k' fails [isKnownKind] (default: an
+  /// EntityKind name) becomes an UnknownKindRecord; its header must still be a JSON object
+  /// with string 'k' (and string 'id' for an upsert). Any other malformation still throws
+  /// FormatException for the whole chunk (v1.4).
+  ///
+  /// An unknown upsert also needs object 'e' and 'fv' and well-formed blobs; an unknown purge
+  /// needs string 'id' and 'h'. A name [isKnownKind] accepts that is not an EntityKind name
+  /// cannot be decoded and is unknown as well.
+  static DecodedPayload decodeTolerant(
+    Uint8List bytes, {
+    bool Function(String kindName)? isKnownKind,
+  }) => _decode(bytes, isKnownKind: isKnownKind ?? _everyKind);
+
+  /// With the EntityKind check of [_decode]: every EntityKind name.
+  static bool _everyKind(String name) => true;
+
+  /// [isKnownKind] null = strict (v1.4): an unknown kind is a FormatException.
+  static DecodedPayload _decode(
+    Uint8List bytes, {
+    required bool Function(String kindName)? isKnownKind,
+  }) {
     if (bytes.length < 4 || bytes[0] != 0x4E || bytes[1] != 0x43) {
       throw const FormatException('chunk: bad magic');
     }
@@ -129,8 +206,10 @@ abstract final class ChunkCodec {
       throw FormatException('chunk: record count $count');
     }
     final records = <SyncRecord>[];
+    final unknown = <UnknownKindRecord>[];
     for (var r = 0; r < count; r++) {
       if (i >= bytes.length) throw FormatException('chunk: record $r missing');
+      final start = i;
       final op = bytes[i++];
       if (op != _opUpsert && op != _opPurge) {
         throw FormatException('chunk: unknown op $op');
@@ -142,9 +221,24 @@ abstract final class ChunkCodec {
       }
       final header = _jsonObject(_take(bytes, i, headerLen));
       i += headerLen;
+      final kindName = _string(header, 'k');
+      final known =
+          isKnownKind == null ||
+          (_kindOrNull(kindName) != null && isKnownKind(kindName));
       if (op == _opPurge) {
-        records.add(_purge(header));
+        if (known) {
+          records.add(_purge(header));
+        } else {
+          final id = _string(header, 'id');
+          _string(header, 'h');
+          unknown.add(_unknown(kindName, op, id, header, bytes, start, i, r));
+        }
         continue;
+      }
+      if (!known) {
+        _string(header, 'id');
+        _object(header, 'e');
+        _object(header, 'fv');
       }
       final int blobCount;
       (blobCount, i) = VarUint.read(bytes, i);
@@ -159,16 +253,40 @@ abstract final class ChunkCodec {
         i += keyLen;
         final int dataLen;
         (dataLen, i) = VarUint.read(bytes, i);
-        blobs[key] = base64Encode(_take(bytes, i, dataLen));
+        final data = _take(bytes, i, dataLen);
+        if (known) blobs[key] = base64Encode(data);
         i += dataLen;
       }
-      records.add(_upsert(header, blobs));
+      if (known) {
+        records.add(_upsert(header, blobs));
+      } else {
+        final id = header['id']! as String;
+        unknown.add(_unknown(kindName, op, id, header, bytes, start, i, r));
+      }
     }
     if (i != bytes.length) {
       throw FormatException('chunk: ${bytes.length - i} trailing bytes');
     }
-    return records;
+    return DecodedPayload(records, unknown);
   }
+
+  static UnknownKindRecord _unknown(
+    String kindName,
+    int op,
+    String id,
+    Map<String, Object?> header,
+    Uint8List bytes,
+    int start,
+    int end,
+    int index,
+  ) => UnknownKindRecord(
+    kindName: kindName,
+    op: op,
+    id: id,
+    header: header,
+    bytes: Uint8List.fromList(Uint8List.sublistView(bytes, start, end)),
+    index: index,
+  );
 
   static Uint8List _take(Uint8List bytes, int offset, int length) {
     if (offset + length > bytes.length) {
@@ -198,11 +316,22 @@ abstract final class ChunkCodec {
     return value;
   }
 
-  static EntityKind _kind(Object? name) {
+  static EntityKind _kind(Object? name) =>
+      _kindOrNull(name) ?? (throw FormatException('chunk: unknown kind', name));
+
+  static EntityKind? _kindOrNull(Object? name) {
     for (final k in EntityKind.values) {
       if (k.name == name) return k;
     }
-    throw FormatException('chunk: unknown kind', name);
+    return null;
+  }
+
+  static Map<String, Object?> _object(Map<String, Object?> header, String key) {
+    final v = header[key];
+    if (v is! Map<String, Object?>) {
+      throw FormatException('chunk: header "$key" missing');
+    }
+    return v;
   }
 
   static String _string(Map<String, Object?> header, String key) {
@@ -228,14 +357,8 @@ abstract final class ChunkCodec {
   ) {
     final kind = _kind(_string(header, 'k'));
     final id = _string(header, 'id');
-    final e = header['e'];
-    final fv = header['fv'];
-    if (e is! Map<String, Object?>) {
-      throw const FormatException('chunk: header "e" missing');
-    }
-    if (fv is! Map<String, Object?>) {
-      throw const FormatException('chunk: header "fv" missing');
-    }
+    final e = _object(header, 'e');
+    final fv = _object(header, 'fv');
     final idKey = kind == EntityKind.setting ? 'key' : 'id';
     if (e[idKey] != id) {
       throw FormatException('chunk: e.$idKey != id', id);
