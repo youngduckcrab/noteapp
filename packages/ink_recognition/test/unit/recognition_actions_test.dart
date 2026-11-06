@@ -340,6 +340,73 @@ void main() {
       expect(host.snackBars, contains('실행하지 못했어요.'));
     });
 
+    testWidgets('every action × every failure in its sheet (throws at once, '
+        'a failed Future, execute throws): run completes, reported once '
+        'under its id, 실행하지 못했어요 (9.3 G-1)', (tester) async {
+      final host = await RecognitionHost.pump(tester);
+      final messenger = ScaffoldMessenger.of(host.body);
+      final command = core.AddObjects(pageId: kPageId, objects: [_math]);
+      final failures = <String, (Future<void> Function(ActionRun), Matcher)>{
+        'throws at once': (
+          (run) => throw StateError('boom'),
+          isA<StateError>(),
+        ),
+        'a failed Future': (
+          (run) async => throw const FormatException('late'),
+          isA<FormatException>(),
+        ),
+        'execute throws': (
+          (run) async => run.execute(command),
+          isA<core.SessionClosedException>(),
+        ),
+      };
+      final ids = <String>[];
+      for (final action in all()) {
+        ids.add(action.id);
+        for (final MapEntry(key: kind, value: (answer, exception))
+            in failures.entries) {
+          final reason = '${action.id} × $kind';
+          sheets
+            ..calls.clear()
+            ..answer = answer;
+          log.executeError = kind == 'execute throws'
+              ? const core.SessionClosedException('note-1')
+              : null;
+          final reported = await _reports(() async {
+            await expectLater(
+              action.run(host.body, targetFor(action.id)),
+              completes,
+              reason: reason,
+            );
+            await tester.pump();
+          });
+          expect(sheets.calls, hasLength(1), reason: reason);
+          expect(reported, hasLength(1), reason: reason);
+          expect(reported.single.exception, exception, reason: reason);
+          expect(reported.single.library, 'ink_recognition', reason: reason);
+          expect(
+            reported.single.context.toString(),
+            'while running ${action.id}',
+            reason: reason,
+          );
+          expect(host.snackBars, ['실행하지 못했어요.'], reason: reason);
+          messenger
+            ..clearSnackBars()
+            ..removeCurrentSnackBar();
+          await tester.pump();
+        }
+      }
+      expect(ids, [
+        'recog.toText',
+        'recog.copyText',
+        'recog.toMath',
+        'recog.editMath',
+        'recog.mathPad',
+      ]);
+      expect(log.commands, isEmpty);
+      expect(log.doneCalls, 0);
+    });
+
     testWidgets('read-only note: 읽기 전용 노트라 바꿀 수 없어요, not reported', (
       tester,
     ) async {
