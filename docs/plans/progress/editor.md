@@ -348,7 +348,7 @@
 |---|---|---|---|
 | R2-B5 | 기반 단계에서 완료 | 78d7f25 | 위 '작업 표 (2차)' |
 | E2-00 | 완료 | 31144aa | `unit/no_platform_imports_test.dart` v2(⑥ 서비스 패키지 금지 lib·test, ② `lib/src/text/textarea_overlay_browser.dart` 한 파일만 `dart:js_interop(_unsafe)` 예외, ④ `testing_web.dart`, 임시 폴더 가짜 트리 — 위반 1개), `unit/helpers_smoke_test.dart`('v2 helpers (E2-00)' 묶음 10개), `unit/editor_strings_test.dart`(새 문구 표본) |
-| E2-01 | 진행 중 — 1부 완료(이 커밋): `EditorDeviceState`·키·notifier, `TextEditNotifier` 세션 논리·명령. 남은 것: `inline` 오버레이·`sheet` 패널·개발자 메뉴(입력 방식·'텍스트 상자 시험')·위젯·웹 시험 | (이 커밋 — 해시는 다음 기록에) | 됨: `unit/editor_device_state_test.dart`, `unit/text_edit_session_test.dart`(+ `unit/editor_setting_keys_test.dart` 9키). 남음: `widget/text_box_inline_test.dart`, `widget/text_input_sheet_test.dart`, `web/text_input_browser_test.dart` |
+| E2-01 | 진행 중 — 1부 완료: `EditorDeviceState`·키·notifier, `TextEditNotifier` 세션 논리·명령. 남은 것: `inline` 오버레이·`sheet` 패널·개발자 메뉴(입력 방식·'텍스트 상자 시험')·위젯·웹 시험 | b6dca08 (1부) | 됨: `unit/editor_device_state_test.dart`, `unit/text_edit_session_test.dart`(+ `unit/editor_setting_keys_test.dart` 9키). 남음: `widget/text_box_inline_test.dart`, `widget/text_input_sheet_test.dart`, `web/text_input_browser_test.dart` |
 | E2-02 | 남음 | | `unit/page_mount_test.dart` v2, `unit/selection_revalidate_test.dart` |
 | E2-03 | 남음 | | `unit/tool_controller_test.dart` v2, `unit/tool_options_test.dart`, `unit/editor_setting_keys_test.dart` v2, `unit/pre_roll_test.dart` |
 | E2-04a | 남음 | | `unit/stylus_contact_test.dart`, `unit/input_router_test.dart` v2(R34~R42) |
