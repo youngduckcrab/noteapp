@@ -394,7 +394,7 @@
 | T22 | 기반 단계에서 완료 | 2b2e4b0 | `test/api_surface_test.dart` v2 외 — 위 '작업 표 (2차)' |
 | T20a·T20b·T21·T23a·T23b | 기반 단계에서 완료 | 9777fde·c443015·38f3578·12ab8c4·0798096 | 위 '작업 표 (2차)' |
 | T24 | 완료 | a2b0489 | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
-| T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
+| T35 | 완료 | (다음 커밋에 적음) | `test/assets/file_blob_store_test.dart`(33 — 공유 사례 8건을 파일·메모리 IndexedDB 둘 다에 + 파일만 17), `test/storage/native_file_store_test.dart`(12), 1차 `open_errors_test`(+ 한 경로만 1건)·`asset_store_test`(+ 네이티브 다시 열기 1건)·`v1_copy_test`·`commit_latency_perf_test`(네이티브 저장소로)·`draft_append_perf_test`(PF-7 두 블롭으로) |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 완료 | 2db774e | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
@@ -686,6 +686,26 @@
 | `ws test --package note_core --platform chrome` | 준비 ok, **112개 통과**(+ 백업 공유 사례 2 — 가짜·웹 저장소), 2개 건너뜀(perf) | 203초 |
 | `ws check` | R1~R16 위반 0·경고 0 | 1분 18초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 13초 |
+
+#### T35 — 네이티브 파일 블롭 · 파일 DB (계획 6.15.3·8.2, 계약 7.2.6 공통-1) — 세션 8
+
+- `assets/blob_store.dart`에 내부 묶음 `BlobDatabase`(`chunks`·`thumbnails`·`close`)를 두고 `IdbBlobDatabase`가 구현, `DriftNoteStore.blobs`의 형을 그것으로 바꿨다(시험의 `store.blobs.chunks…`는 그대로). `DriftNoteStore.open`에 `blobDatabase:`(있으면 그것 — 저장소가 맡아 닫음, 열기 실패 때도).
+- `assets/file_blob_store_native.dart` `FileBlobDatabase.open(root)`: `<root>`·`blobs/`·`thumbs/`를 `create(recursive: true)`로 만들고, 각 디렉터리에 쓰기 시험(임시 파일 쓰기·`flush`·지우기 — 읽기 전용이면 여기서 실패), 남은 `.…tmp-…` 파일을 재귀로 지운다. 키 = `blobs/<key>`(`/` = 하위 디렉터리), 쓰기 = 같은 디렉터리 `.<name>.tmp-<토큰>`에 `writeAsBytes(flush: true)` → `rename`(실패하면 임시 파일 지우고 그 오류 — 재시도 없음). `keys(prefix)`는 접두사의 디렉터리 부분을 나열하고 이름 접두사가 맞는 항목만 재귀로(점으로 시작하는 이름은 키가 아님) → 정렬. `deletePrefix`는 `…/`로 끝나면 그 디렉터리 재귀 삭제, 아니면 그 디렉터리에서 이름이 맞는 항목들; 비게 된 부모 디렉터리는 지운다(`delete` 뒤도). 키 조각이 비었거나 `.`로 시작하거나 `\`·NUL이 있으면 `put` `ArgumentError`, `get` null, `delete`·`deletePrefix`·`keys`는 아무것도 안 함(루트 밖을 건드리지 않음). 썸네일 `thumbs/<pageId 퍼센트 인코딩>.bin`(앞 점은 `%2E`) — 머리 rev·width·height uint32 LE + MIME 길이 uint16 LE + MIME + 바이트(범위 밖 `ArgumentError`, 머리가 맞지 않는 파일은 썸네일 없음). 한 저장소(`chunks`·`thumbnails` 각각)의 작업은 부른 순서로 하나씩(IndexedDB 한 object store의 트랜잭션 순서와 같은 의미 — `put` → `deletePrefix` → `put`을 기다리지 않고 불러도 그 순서). `put`은 부를 때 바이트를 복사한다(브라우저 IndexedDB의 clone과 같게 — idb_shim 메모리는 참조를 둔다). `close`는 이미 부른 작업을 기다리고 그 뒤 호출은 `StateError`.
+- `connect_native.dart`: `openNoteDatabaseExecutor`가 `inMemory`가 아니면 **두 경로 모두** 요구(하나라도 없으면 `storageUnavailable`, 아무것도 만들지 않음), DB 파일의 부모 디렉터리를 만든다(못 만들면 `storageUnavailable`). 새 `openFileBlobDatabase(config)`(웹·stub는 null) — `FileSystemException`이면 `storageUnavailable`(cause 그 예외). `openNoteStore`가 실행기 → 파일 블롭 순으로 열고 블롭 실패면 실행기를 닫고 던진다. `deleteLocalData`는 DB·`-wal`·`-shm`·v1 사본·그 임시 파일(T24) + `<root>/blobs`·`<root>/thumbs`(루트와 그 밖의 파일은 남김) + 시험용 메모리 블롭 팩토리. `openTestNoteStore`는 그대로(메모리 IndexedDB 블롭 — 경로 하나로 엶).
+- 시험: `file_blob_store_test` — 공유 사례 8건(넣기·읽기·지우기, 접두사 `keys`·`deletePrefix`(끝 `/` 있음·없음·중첩·`''`), `getMany`, 9 MiB 3청크 왕복, 다시 열기, 닫힌 뒤 `StateError`, 썸네일 필드 왕복·`totalBytes`, 두 저장소 분리)을 파일·메모리 IndexedDB 둘 다에, 파일만 17건(없는 중첩 루트 만들기, 배치·머리 바이트, 이상한 page id, 임시 파일 경유 원자적 쓰기, `put`이 부를 때 복사, 실패한 쓰기 → 옛 값·임시 파일 없음, 열 때 임시 파일 정리·점 이름 안 나열, 빈 부모 정리, 파일이 될 수 없는 키, uint32 밖, 머리가 깨진 파일, 호출 순서, `close`가 기다림, 루트를 쓸 수 없음 3가지). `native_file_store_test` — 두 경로 → `nativeFile`·durable·경고 없음·`FileBlobDatabase`·`journal_mode` wal, 없는 루트·하위·DB 디렉터리를 만들고 엶, 한 경로만(양쪽) → `storageUnavailable`·아무것도 안 만듦, `inMemory`는 경로 무시, 루트를 만들 수 없음·`thumbs`가 파일·DB 디렉터리를 만들 수 없음 → `storageUnavailable`, 읽기 전용, 남은 임시 파일 정리, 다시 열면 에셋(9 MiB 3파일)·썸네일·초안(2조각 `readAll`)·검색 글자 상자 블롭 그대로, v1 파일 DB를 연 저장소의 `deleteLocalNoteData`(열린 동안 `StateError`, 뒤 DB·v1 사본·`blobs`·`thumbs` 없음·루트와 남의 파일 남음, 다시 열면 빈 저장소), 빈 상태 삭제.
+- **읽기 전용 사례 2건은 이 컨테이너(root)에서 건너뛴다**(root는 0555 디렉터리에 쓸 수 있다 — 시험이 먼저 확인하고 `markTestSkipped`). 대신 '루트·`blobs`·DB 디렉터리를 만들 수 없음'(일반 파일 아래·파일이 자리를 차지) 사례가 같은 `storageUnavailable` 경로를 root에서도 지난다. CI(비 root)에서는 읽기 전용 사례가 돈다.
+- 1차 시험 갱신(6.15.3 끝 문단): `open_errors_test`의 파일 설정에 임시 블롭 루트(+ '`nativeDatabasePath`만 → `storageUnavailable`·파일 없음' 1건), `v1_copy_test`의 `openNoteStore` 1곳, `asset_store_test`에 네이티브 다시 열기 1건(메모리 블롭 사례는 그대로 — `openTestNoteStore`), `commit_latency_perf_test`는 `openNativeFileStore`(새 `perf_support` 도우미 — `openNoteStore` 두 경로, WAL·배경 isolate)로 — 주석의 'WAL, synchronous = NORMAL'이 이제 사실이다.
+
+확인 (2026-11-06 세션 8 — T35, load 7~9)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,175개 통과**(1,130 + `file_blob_store_test` 32 + `native_file_store_test` 11 + `open_errors_test` 1 + `asset_store_test` 1), 11개 건너뜀(perf + 읽기 전용 2 — root; PF-7은 이제 2건) | 228초 |
+| PF-7 VM(`--run-skipped -t perf test/perf/draft_append_perf_test.dart`) | 시험 파일 저장소(메모리 블롭) **4.57 ms**, 네이티브 파일 블롭 **6.81 ms**(예산 ≤ 10 ms) | 2초 |
+| 커밋 지연(`commit_latency_perf_test` — 이제 네이티브 저장소) | 중앙값 **11.17 ms**(`lastCommitLatency` 9.49 ms, 예산 < 30 ms) | 1초 |
+| `ws test --package note_core --platform chrome --heavy-lock` | 준비 ok, **112개 통과**(웹 코드 변화는 `openFileBlobDatabase` null·`IdbBlobDatabase implements BlobDatabase`뿐 — 개수 그대로), 2개 건너뜀(perf) | 440초(load 11~17) |
 
 #### 계획과 다르게 한 점 (동시 개발)
 

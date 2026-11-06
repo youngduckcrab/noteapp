@@ -240,7 +240,10 @@ void main() {
     });
 
     test('deleteLocalNoteData deletes the copy too', () async {
-      final config = NoteStoreConfig(nativeDatabasePath: path);
+      final config = NoteStoreConfig(
+        nativeDatabasePath: path,
+        nativeAssetDirectoryPath: '${dir.path}/assets',
+      );
       final store = await openNoteStore(config);
       expect(File(v1CopyPathOf(path)).existsSync(), isTrue);
       await store.close();

@@ -6,6 +6,7 @@ import 'package:drift/wasm.dart';
 import 'package:idb_shim/idb_browser.dart';
 import 'package:meta/meta.dart';
 
+import '../../assets/blob_store.dart';
 import '../../common/errors.dart';
 import '../../repo/note_store.dart';
 import '../../repo/status.dart';
@@ -41,6 +42,10 @@ Future<(QueryExecutor, StorageInfo)> openNoteDatabaseExecutor(
 /// browser has none); in memory for NoteStoreConfig.inMemory.
 IdbFactory blobIdbFactory(NoteStoreConfig config) =>
     config.inMemory ? newIdbFactoryMemory() : idbFactoryBrowser;
+
+/// (v2) The web keeps its blobs in IndexedDB (6.15.3 — file blobs are native only).
+Future<BlobDatabase?> openFileBlobDatabase(NoteStoreConfig config) async =>
+    null;
 
 /// How long the web reset waits while another tab keeps a database open (6.18).
 const Duration deleteBlockedTimeout = Duration(seconds: 10);

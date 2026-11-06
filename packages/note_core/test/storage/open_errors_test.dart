@@ -1,5 +1,7 @@
 // CORE T6 — open error classification (6.18) and the schema step runner (6.15). (v2, m5-7
-// T24) The store now writes v2 databases: the 'newer app' below is a v3 one.
+// T24) The store now writes v2 databases: the 'newer app' below is a v3 one. (v2, m5-7 T35)
+// openNoteStore off the web needs both native paths: the file configs carry a temporary
+// blob root (6.15.3); native_file_store_test.dart has the native storage cases.
 @TestOn('vm')
 library;
 
@@ -61,7 +63,10 @@ void main() {
     }
   }
 
-  NoteStoreConfig fileConfig() => NoteStoreConfig(nativeDatabasePath: path);
+  NoteStoreConfig fileConfig() => NoteStoreConfig(
+    nativeDatabasePath: path,
+    nativeAssetDirectoryPath: '${dir.path}/assets',
+  );
 
   group('newerSchema', () {
     test(
@@ -229,6 +234,17 @@ void main() {
         throwsA(_openFailure(NoteStoreOpenFailure.storageUnavailable)),
       );
     });
+
+    test(
+      '(v2) a database path without nativeAssetDirectoryPath (6.15.3)',
+      () async {
+        await expectLater(
+          openNoteStore(NoteStoreConfig(nativeDatabasePath: path)),
+          throwsA(_openFailure(NoteStoreOpenFailure.storageUnavailable)),
+        );
+        expect(File(path).existsSync(), isFalse);
+      },
+    );
   });
 
   group('openNoteStore and deleteLocalNoteData (native)', () {

@@ -458,6 +458,42 @@ void main() {
     expect(await fresh.blobs.chunks.keys(chunkPrefix(a.id)), isEmpty);
   });
 
+  test(
+    '(v2, m5-7 T35) a reopened native store (file database + file blobs, '
+    '6.15.3) reads the bytes of its assets; deleteLocalNoteData drops them',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('note_core_assets_');
+      addTearDown(() => dir.delete(recursive: true));
+      final config = NoteStoreConfig(
+        nativeDatabasePath: '${dir.path}/notes.db',
+        nativeAssetDirectoryPath: '${dir.path}/assets',
+        seedDefaultPenPresets: false,
+      );
+      final first = await openNoteStore(config);
+      final bytes = _bytes(9 * _mib + 5, 8);
+      final a = await first.assets.put(
+        bytes,
+        type: AssetType.pdf,
+        mimeType: 'application/pdf',
+      );
+      expect(
+        File('${dir.path}/assets/blobs/${chunkKey(a.id, 2)}').lengthSync(),
+        _mib + 5,
+      );
+      await first.close();
+      final again = await openNoteStore(config) as DriftNoteStore;
+      expect(await again.assets.hasBytes(a.id), isTrue);
+      expect(await again.assets.readBytes(a.id), bytes);
+      expect(await again.blobs.chunks.keys(chunkPrefix(a.id)), hasLength(3));
+      await again.close();
+      await deleteLocalNoteData(config);
+      final fresh = await openNoteStore(config) as DriftNoteStore;
+      addTearDown(fresh.close);
+      expect(await fresh.assets.getAsset(a.id), isNull);
+      expect(await fresh.blobs.chunks.keys(chunkPrefix(a.id)), isEmpty);
+    },
+  );
+
   group('failures (contract 7.2.11 v1.2 / v1.3)', () {
     Future<(DriftNoteStore, _FailingBlobStore)> openFailing(int failAt) async {
       final factory = newIdbFactoryMemory();

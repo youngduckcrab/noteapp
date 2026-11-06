@@ -126,6 +126,9 @@ final class DriftNoteStore implements NoteStore {
   /// database opens on first use. [assetChunks] replaces the chunk store (tests).
   /// [storageQuery]: navigator.storage for refreshStorageInfo (6.12; null off
   /// the web — storageInfo then stays as given).
+  /// (v2) [blobDatabase]: the blobs to use instead of the IndexedDB of [blobFactory] —
+  /// the native file blobs (m5-7/02-core 6.15.3); the store owns it from here on (closed
+  /// with the store, and when the open fails).
   ///
   /// (v2) Upgrading a v1 database first copies it (6.12.4): a native file database to
   /// `<path>-v1-backup`, a web database as the canonical dump in the blob store; no copy
@@ -139,6 +142,7 @@ final class DriftNoteStore implements NoteStore {
     String? deviceNodeId,
     bool autoPurge = false,
     IdbFactory? blobFactory,
+    BlobDatabase? blobDatabase,
     @visibleForTesting BlobStore? assetChunks,
     @visibleForTesting
     NoteDatabase Function(QueryExecutor executor, V1CopyMaker? v1Copy)?
@@ -154,10 +158,12 @@ final class DriftNoteStore implements NoteStore {
     }
     final key = storeKeyOf(config);
     final clock = config.clock ?? const Clock();
-    final blobs = IdbBlobDatabase(
-      blobFactory ?? newIdbFactoryMemory(),
-      config.web.blobDatabaseName,
-    );
+    final blobs =
+        blobDatabase ??
+        IdbBlobDatabase(
+          blobFactory ?? newIdbFactoryMemory(),
+          config.web.blobDatabaseName,
+        );
     final copyTarget = V1CopyTarget.of(
       backend: storageInfo.backend,
       inMemory: config.inMemory,
@@ -231,8 +237,9 @@ final class DriftNoteStore implements NoteStore {
 
   final ChangeBus bus = ChangeBus();
 
-  /// Asset chunks and thumbnails (6.13), outside SQLite.
-  final IdbBlobDatabase blobs;
+  /// Asset chunks and thumbnails (6.13), outside SQLite: IndexedDB, or (v2) the native
+  /// file blobs (m5-7/02-core 6.15.3).
+  final BlobDatabase blobs;
 
   /// (v2) The v1 database copy of this store (6.12.4 — dev_tools.dart).
   late final V1Copies v1Copies;

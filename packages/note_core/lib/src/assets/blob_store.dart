@@ -30,6 +30,18 @@ abstract interface class BlobStore {
   Future<List<String>> keys(String prefix);
 }
 
+/// (v2) The byte storage of one note store (m5-7/02-core 6.15.3, 6.18): the IndexedDB
+/// database on the web and in VM tests (IdbBlobDatabase), the file blobs under
+/// `NoteStoreConfig.nativeAssetDirectoryPath` on native (FileBlobDatabase). The store owns
+/// it and closes it last; every use after [close] fails with StateError.
+abstract interface class BlobDatabase {
+  /// Asset chunks and every other keyed value outside SQLite (recording draft chunks
+  /// 'rd/…', search glyph boxes 'si/…', the web v1 copy 'db/v1-backup/…').
+  BlobStore get chunks;
+  ThumbnailStore get thumbnails;
+  Future<void> close();
+}
+
 /// Page thumbnails by page id (one IndexedDB object store, 6.13).
 abstract interface class ThumbnailStore {
   Future<void> put(PageThumbnail thumbnail);

@@ -21,7 +21,7 @@ const int kBlobDatabaseVersion = 1;
 /// The blob IndexedDB of one note store. Opened on first use; a failed open is
 /// retried by the next operation. Another connection asking for a version change
 /// (deleteLocalNoteData in another tab) closes this one; the next use reopens.
-final class IdbBlobDatabase {
+final class IdbBlobDatabase implements BlobDatabase {
   IdbBlobDatabase(this._factory, this.name);
 
   final IdbFactory _factory;
@@ -29,7 +29,9 @@ final class IdbBlobDatabase {
   Future<Database>? _db;
   bool _closed = false;
 
+  @override
   late final BlobStore chunks = _IdbBlobStore(this, kAssetChunksStore);
+  @override
   late final ThumbnailStore thumbnails = _IdbThumbnailStore(this);
 
   Future<Database> _open() {
@@ -79,6 +81,7 @@ final class IdbBlobDatabase {
     return value;
   }
 
+  @override
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
