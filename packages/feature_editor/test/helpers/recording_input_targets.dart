@@ -1,8 +1,9 @@
 // test/helpers/recording_input_targets.dart — 04-editor 9.1 (E-01).
 //
-// An InputTargets double for unit/input_router_test.dart (6.5.6 R1..R33): it
-// records every router → editor call as a short string, in order, and hands
-// out RecordingToolInteractions that record their own move / end / cancel.
+// An InputTargets double for unit/input_router_test.dart (6.5.6 R1..R33;
+// (v2) m5-7/04-editor 8.2 R34..R52): it records every router → editor call
+// as a short string, in order, and hands out RecordingToolInteractions that
+// record their own move / end / cancel.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/input/input_sample.dart';
 import 'package:feature_editor/src/input/input_targets.dart';
@@ -33,7 +34,8 @@ class RecordingInputTargets implements InputTargets {
   InputPolicy policy;
 
   /// Every call except [observe], in order, e.g. 'begin(stylus)',
-  /// 'navigationStart', 'tap(2)', 'scroll(zoom: true)'.
+  /// 'begin(stylus, penButton)' (v2 — a gesture at contact), 'navigationStart',
+  /// 'tap(2)', 'scroll(zoom: true)'.
   final List<String> calls = [];
 
   /// Every observed event (observe is recorded separately: it fires per event).
@@ -71,13 +73,19 @@ class RecordingInputTargets implements InputTargets {
   ToolInteraction? beginInteraction(
     InputSample sample, {
     required InteractionSource source,
+    EditorGesture? gesture,
   }) {
-    calls.add('begin(${source.name})');
+    calls.add(
+      gesture == null
+          ? 'begin(${source.name})'
+          : 'begin(${source.name}, ${gesture.name})',
+    );
     if (refuseInteractions) return null;
     final interaction = RecordingToolInteraction(
       source: source,
       startedAt: sample.timeStamp,
       start: sample,
+      gesture: gesture,
     );
     interactions.add(interaction);
     return interaction;
@@ -150,9 +158,13 @@ class RecordingToolInteraction extends ToolInteraction {
     required super.source,
     required super.startedAt,
     required this.start,
+    this.gesture,
   }) : _last = start.position;
 
   final InputSample start;
+
+  /// (v2) The gesture the router passed at contact.
+  final EditorGesture? gesture;
   final List<InputSample> moves = [];
   InputSample? endSample;
   int endCount = 0;

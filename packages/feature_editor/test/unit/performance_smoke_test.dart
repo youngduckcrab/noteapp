@@ -216,6 +216,7 @@ final class _CountingTargets implements InputTargets {
   ToolInteraction? beginInteraction(
     InputSample sample, {
     required InteractionSource source,
+    EditorGesture? gesture,
   }) {
     begun++;
     return _CountingInteraction(this, source, sample.timeStamp);

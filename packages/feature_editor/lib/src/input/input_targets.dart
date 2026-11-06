@@ -75,9 +75,14 @@ abstract interface class InputTargets {
   /// Starts a tool interaction (pen, eraser, lasso, eyedropper or selection
   /// transform). Returns null when the input should be ignored (no page,
   /// page not loaded).
+  ///
+  /// (v2) [gesture] is the gesture that started at this contact (a stylus
+  /// only — penButton / invertedStylus, m5-7/04-editor 6.3.3): its action
+  /// (GestureSettings.actionFor) may pick a temporary tool for this contact.
   ToolInteraction? beginInteraction(
     InputSample sample, {
     required InteractionSource source,
+    EditorGesture? gesture,
   });
 
   /// True only if the lasso tool is active, a selection exists and [screen]

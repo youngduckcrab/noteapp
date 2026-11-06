@@ -5,7 +5,8 @@
 // follows the pen while erasing). E-10: the lasso, the selection transform,
 // one-finger tap → dismiss, and the long-press / secondary-click context
 // menu. E-14: the stroke eyedropper (①). Developer metrics (E-19) plug into
-// the marked places.
+// the marked places. (v2) E2-04a: the gesture at contact picks a temporary
+// eraser / lasso for that contact (m5-7/04-editor 6.2.3, 6.3.3, 6.3.6 4).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -23,6 +24,7 @@ import '../input/input_targets.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/popup.dart';
+import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../ui/dev/dev_metrics.dart';
 import '../ui/editor_strings.dart';
@@ -134,6 +136,7 @@ class InteractionHost implements InputTargets {
   ToolInteraction? beginInteraction(
     InputSample sample, {
     required InteractionSource source,
+    EditorGesture? gesture,
   }) {
     if (_disposed) return null;
     _hideCursor(); // a pen touching the screen hides the hover cursor
@@ -152,11 +155,16 @@ class InteractionHost implements InputTargets {
       _lastStarted = eyedropper;
       return eyedropper;
     }
-    // ② read-only note → no tool input (6.17.2).
+    // ② read-only note → no tool input (6.17.2) — temporary tools included.
     if (_ref.read(editorReadOnlyProvider)) return null;
     final selections = _ref.read(editorSelectionProvider.notifier);
-    // ③ lasso tool on the selection → selection transform.
-    if (tools.activeTool == EditorTool.lasso) {
+    // (v2, 6.3.6 4) a pen button / eraser tip at contact → a temporary tool
+    // for this contact only; ToolState does not change (6.2.3).
+    final temporary = _temporaryToolFor(gesture);
+    final tool = temporary ?? tools.activeTool;
+    // ③ lasso tool on the selection → selection transform (not for a
+    // temporary lasso: it starts a new lasso).
+    if (temporary == null && tool == EditorTool.lasso) {
       final transform = _beginTransform(sample, source);
       if (transform != null) {
         _lastStarted = transform;
@@ -166,7 +174,7 @@ class InteractionHost implements InputTargets {
     // ④ gap / outside the pages → nothing (the lasso clears the selection).
     final hit = _viewport.hitPage(sample.position);
     if (hit == null) {
-      if (tools.activeTool == EditorTool.lasso) selections.clear();
+      if (tool == EditorTool.lasso) selections.clear();
       return null;
     }
     // Touching another page clears the selection.
@@ -177,7 +185,7 @@ class InteractionHost implements InputTargets {
     if (mount == null || !mount.isLoaded.value) return null;
     // ⑥ the tool's interaction.
     final ToolInteraction? interaction;
-    switch (tools.activeTool) {
+    switch (tool) {
       case EditorTool.pen:
         _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
         interaction = PenInteraction.start(
@@ -206,7 +214,10 @@ class InteractionHost implements InputTargets {
           onPosition: (position) =>
               _showEraserRing(position, eraser.diameter * scale),
           onFinished: _hideCursor,
-          onCommitted: eraser.returnToPreviousTool ? _returnFromEraser : null,
+          // A temporary eraser never switches tools (6.2.3).
+          onCommitted: temporary == null && eraser.returnToPreviousTool
+              ? _returnFromEraser
+              : null,
         );
       case EditorTool.lasso:
         selections.clear();
@@ -227,6 +238,21 @@ class InteractionHost implements InputTargets {
     }
     _lastStarted = interaction;
     return interaction;
+  }
+
+  /// The temporary tool of a gesture at contact (6.3.3): eraserWhileHeld →
+  /// eraser, lassoWhileHeld → lasso, none (or no gesture) → null.
+  EditorTool? _temporaryToolFor(EditorGesture? gesture) {
+    if (gesture == null) return null;
+    final action = _ref
+        .read(editorSettingsProvider)
+        .gestures
+        .actionFor(gesture);
+    return switch (action) {
+      EditorAction.eraserWhileHeld => EditorTool.eraser,
+      EditorAction.lassoWhileHeld => EditorTool.lasso,
+      _ => null,
+    };
   }
 
   /// 6.6.8: the stroke's colour (opacity kept) + '색을 가져왔어요', or '여기엔

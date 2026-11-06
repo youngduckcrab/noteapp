@@ -1,11 +1,14 @@
 // E-05: InputRouter (04-editor 6.5) — the router scenarios R1..R33 of 6.5.6,
-// plus cancelAll / counters / trackpad. Events go straight to
+// plus cancelAll / counters / trackpad. (v2) m5-7/04-editor 8.2 E2-04a:
+// R34..R42 (stylus contact rule, gesture at contact — 6.3.2·6.3.3) and the
+// pose hover of palm rejection P3 (R46 — 6.5.3). Events go straight to
 // router.handlePointerEvent with synthetic timestamps; testWidgets' fake time
 // (tester.pump) drives the long-press Timer and VelocityTracker's clock.
 // RecordingInputTargets (E-01) records every router → editor call.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/input/input_router.dart';
 import 'package:feature_editor/src/input/input_targets.dart';
+import 'package:feature_editor/src/input/stylus_contact.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +19,12 @@ import '../helpers/recording_input_targets.dart';
 const _frame = Duration(milliseconds: 16);
 const _stylus = PointerDeviceKind.stylus;
 const _mouse = PointerDeviceKind.mouse;
+const _eraserTip = PointerDeviceKind.invertedStylus;
+
+// (v2) Stylus buttons (6.3.2): 0x01 contact, 0x02 barrel button.
+const _contact = kStylusContact; // 0x01
+const _barrel = kPrimaryStylusButton; // 0x02
+const _contactBarrel = kStylusContact | kPrimaryStylusButton; // 0x03
 
 /// Synthetic pointer input with its own clock (kept in step with fake time).
 final class _Input {
@@ -57,9 +66,11 @@ final class _Input {
     );
   }
 
-  void move(int id, Offset to) {
+  /// [buttons] (v2) changes the pointer's buttons from this move on.
+  void move(int id, Offset to, {int? buttons}) {
     final p = _down[id]!;
-    _down[id] = (pointer: p.pointer, kind: p.kind, at: to, buttons: p.buttons);
+    final b = buttons ?? p.buttons;
+    _down[id] = (pointer: p.pointer, kind: p.kind, at: to, buttons: b);
     router.handlePointerEvent(
       PointerMoveEvent(
         timeStamp: now,
@@ -68,7 +79,7 @@ final class _Input {
         kind: p.kind,
         position: to,
         delta: to - p.at,
-        buttons: p.buttons,
+        buttons: b,
       ),
     );
   }
@@ -108,9 +119,15 @@ final class _Input {
     );
   }
 
-  void hover(Offset at, {PointerDeviceKind kind = _stylus}) =>
+  void hover(Offset at, {PointerDeviceKind kind = _stylus, int buttons = 0}) =>
       router.handlePointerEvent(
-        PointerHoverEvent(timeStamp: now, kind: kind, position: at, device: 90),
+        PointerHoverEvent(
+          timeStamp: now,
+          kind: kind,
+          position: at,
+          device: 90,
+          buttons: buttons,
+        ),
       );
 
   void wheel(Offset delta, {Offset at = const Offset(300, 300)}) =>
@@ -150,12 +167,25 @@ final Map<String, InputPolicy> _allModes = {
   'fingerDrawing': _fingerDrawing,
 };
 
-void _routerTest(String description, InputPolicy policy, _Body body) {
+/// [rule] (v2) is the stylus contact rule (VM default: native). The router's
+/// monotonic clock (pose hover — 6.5.3) is the input's synthetic clock.
+void _routerTest(
+  String description,
+  InputPolicy policy,
+  _Body body, {
+  StylusContactRule rule = StylusContactRule.native,
+}) {
   testWidgets(description, (tester) async {
     final targets = RecordingInputTargets(policy: policy);
-    final router = InputRouter(targets: targets);
+    late final _Input input;
+    final router = InputRouter(
+      targets: targets,
+      contactRule: rule,
+      monotonicClock: () => input.now,
+    );
+    input = _Input(tester, router);
     try {
-      await body(_Input(tester, router), targets);
+      await body(input, targets);
     } finally {
       router.cancelAll(); // no timer left for the testWidgets check
     }
@@ -163,9 +193,20 @@ void _routerTest(String description, InputPolicy policy, _Body body) {
 }
 
 /// The same scenario in every input mode.
-void _allModesTest(String description, _Body body) {
+void _allModesTest(
+  String description,
+  _Body body, {
+  StylusContactRule rule = StylusContactRule.native,
+}) {
   for (final MapEntry(key: mode, value: policy) in _allModes.entries) {
-    _routerTest('$description [$mode]', policy, body);
+    _routerTest('$description [$mode]', policy, body, rule: rule);
+  }
+}
+
+/// (v2) The same scenario under both stylus contact rules, in every mode.
+void _bothRulesTest(String description, _Body body) {
+  for (final rule in StylusContactRule.values) {
+    _allModesTest('$description (${rule.name})', body, rule: rule);
   }
 }
 
@@ -730,6 +771,360 @@ void main() {
     expect(GestureBinding.instance.resamplingEnabled, isFalse);
     await pumpEditor(tester);
     expect(GestureBinding.instance.resamplingEnabled, isFalse);
+  });
+
+  group('v2 — stylus contact (E2-04a, R34–R42)', () {
+    const web = StylusContactRule.web;
+    const native = StylusContactRule.native;
+    final p1 = p0 + const Offset(4, 2);
+
+    _allModesTest('R34 web: down 0x02 (airborne) → no interaction, the hover '
+        'cursor follows', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      expect(t.calls, ['hover(stylus)']);
+      await input.wait(_frame);
+      input.move(100, p1);
+      expect(t.calls, ['hover(stylus)', 'hover(stylus)']);
+      input.up(100);
+      expect(t.calls, ['hover(stylus)', 'hover(stylus)']);
+      expect(t.interactions, isEmpty);
+    }, rule: web);
+
+    _allModesTest('R35 web: then move 0x03 → a penButton interaction starts '
+        'at that move', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      await input.wait(_frame);
+      input.move(100, p1, buttons: _contactBarrel);
+      expect(t.callsStartingWith('begin'), ['begin(stylus, penButton)']);
+      final i = t.interactions.single;
+      expect(i.gesture, EditorGesture.penButton);
+      expect(i.source, InteractionSource.stylus);
+      expect(i.start.event, isA<PointerMoveEvent>());
+      expect(i.start.position, p1);
+      await input.drag(100, const Offset(40, 0), steps: 4);
+      expect(i.moves, hasLength(4));
+      input.up(100);
+      expect(i.endCount, 1);
+      expect(i.cancelCount, 0);
+    }, rule: web);
+
+    _allModesTest('R36 web: move 0x02 while touching ends the contact (end '
+        'once); a later move 0x03 starts a new interaction', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      await input.wait(_frame);
+      input.move(100, p1, buttons: _contactBarrel);
+      await input.drag(100, const Offset(30, 0), steps: 3);
+      final first = t.interactions.single;
+      final liftAt = p1 + const Offset(30, 0);
+      await input.wait(_frame);
+      input.move(100, liftAt, buttons: _barrel); // the pen lifts, button held
+      expect(first.endCount, 1);
+      expect(first.endSample!.position, liftAt);
+      expect(t.calls.last, 'hover(stylus)');
+      await input.wait(_frame);
+      input.move(100, liftAt + const Offset(0, 20)); // airborne
+      expect(t.interactions, hasLength(1));
+      await input.wait(_frame);
+      final again = liftAt + const Offset(0, 40);
+      input.move(100, again, buttons: _contactBarrel);
+      expect(t.callsStartingWith('begin'), [
+        'begin(stylus, penButton)',
+        'begin(stylus, penButton)',
+      ]);
+      final second = t.interactions.last;
+      expect(second.start.position, again);
+      await input.drag(100, const Offset(20, 0), steps: 2);
+      input.up(100);
+      expect(second.endCount, 1);
+      expect(first.endCount, 1);
+      expect(first.moves, hasLength(3));
+    }, rule: web);
+
+    _allModesTest('R37 native: down 0x02 → a penButton interaction at once', (
+      input,
+      t,
+    ) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      expect(t.callsStartingWith('begin'), ['begin(stylus, penButton)']);
+      expect(t.callsStartingWith('hover'), isEmpty);
+      final i = t.interactions.single;
+      expect(i.start.event, isA<PointerDownEvent>());
+      await input.drag(100, const Offset(30, 0), steps: 3);
+      input.up(100);
+      expect(i.moves, hasLength(3));
+      expect(i.endCount, 1);
+    }, rule: native);
+
+    _bothRulesTest('R38 down 0x01 → no gesture', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _contact);
+      expect(t.callsStartingWith('begin'), ['begin(stylus)']);
+      expect(t.interactions.single.gesture, isNull);
+      input.up(100);
+      expect(t.interactions.single.endCount, 1);
+    });
+
+    _bothRulesTest('R39 invertedStylus → invertedStylus (also with the barrel '
+        'button)', (input, t) async {
+      input.down(100, p0, kind: _eraserTip, buttons: _contact);
+      input.up(100);
+      await input.wait(_frame);
+      input.down(101, p0, kind: _eraserTip, buttons: _contactBarrel);
+      input.up(101);
+      expect(t.callsStartingWith('begin'), [
+        'begin(stylus, invertedStylus)',
+        'begin(stylus, invertedStylus)',
+      ]);
+      expect(t.interactions.map((i) => i.source), [
+        InteractionSource.stylus,
+        InteractionSource.stylus,
+      ]);
+    });
+
+    _bothRulesTest('R40 the button pressed / released mid-stroke → the same '
+        'interaction', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _contact);
+      await input.wait(_frame);
+      input.move(100, p0 + const Offset(10, 0), buttons: _contactBarrel);
+      await input.wait(_frame);
+      input.move(100, p0 + const Offset(20, 0));
+      await input.wait(_frame);
+      input.move(100, p0 + const Offset(30, 0), buttons: _contact);
+      input.up(100);
+      final i = t.interactions.single;
+      expect(t.callsStartingWith('begin'), ['begin(stylus)']);
+      expect(i.gesture, isNull);
+      expect(i.moves, hasLength(3));
+      expect(i.endCount, 1);
+      expect(t.callsStartingWith('hover'), isEmpty);
+    });
+
+    _allModesTest('R40 native: down 0x02, the button released mid-stroke '
+        '(0x01 / 0x00) → the same penButton interaction', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      await input.wait(_frame);
+      input.move(100, p0 + const Offset(10, 0), buttons: _contact);
+      await input.wait(_frame);
+      input.move(100, p0 + const Offset(20, 0), buttons: 0);
+      input.up(100);
+      final i = t.interactions.single;
+      expect(i.gesture, EditorGesture.penButton);
+      expect(i.moves, hasLength(2));
+      expect(i.endCount, 1);
+    }, rule: native);
+
+    _bothRulesTest('R41 toggling the button while hovering (hover buttons '
+        '0x02) → nothing but the hover cursor', (input, t) async {
+      input.hover(p0);
+      await input.wait(_frame);
+      input.hover(p1, buttons: _barrel);
+      await input.wait(_frame);
+      input.hover(p1 + const Offset(5, 0));
+      await input.wait(_frame);
+      input.hover(p1 + const Offset(10, 0), buttons: _barrel);
+      expect(t.calls, List.filled(4, 'hover(stylus)'));
+      expect(t.interactions, isEmpty);
+    });
+
+    _allModesTest('R42 web: a finger down while the pen is airborne → '
+        'rejected by P2 (pen activity)', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      await input.wait(const Duration(milliseconds: 100));
+      input.down(a, p0 + const Offset(200, 300));
+      await input.drag(a, const Offset(0, 60));
+      input.up(a);
+      expect(t.callsStartingWith('palmRejected'), hasLength(1));
+      expect(t.callsStartingWith('begin'), isEmpty);
+      expect(_navigationCalls(t), isEmpty);
+      expect(t.callsStartingWith('tap'), isEmpty);
+    }, rule: web);
+
+    _allModesTest('R42 web: an airborne pen is not touching (not P1): a finger '
+        'after the cooldown with no pen event is normal', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      await input.wait(const Duration(milliseconds: 600));
+      input.down(a, p0 + const Offset(200, 300));
+      input.up(a);
+      expect(t.callsStartingWith('palmRejected'), isEmpty);
+      expect(
+        t.policy.penOnly
+            ? t.callsStartingWith('tap')
+            : t.callsStartingWith('begin'),
+        hasLength(1),
+      );
+      input.up(100);
+    }, rule: web);
+
+    _allModesTest('R42 web: the mouse right button is still secondaryClick, '
+        'the left button draws', (input, t) async {
+      input.down(200, p0, kind: _mouse, buttons: kSecondaryMouseButton);
+      input.up(200);
+      expect(t.calls, ['secondaryClick']);
+      await input.penStroke(p0, kind: _mouse, id: 201, moves: 2);
+      expect(t.callsStartingWith('begin'), ['begin(mouse)']);
+      expect(t.interactions.single.gesture, isNull);
+    }, rule: web);
+
+    _routerTest(
+      'web: P4 at the contact move, not at the airborne down',
+      _penOnly,
+      (input, t) async {
+        input.down(a, p0);
+        await input.drag(a, const Offset(0, 60));
+        expect(t.calls, contains('navigationStart'));
+        input.down(
+          100,
+          p0 + const Offset(200, 0),
+          kind: _stylus,
+          buttons: _barrel,
+        );
+        expect(t.calls, isNot(contains('navigationCancel')));
+        await input.drag(a, const Offset(0, 20), steps: 2);
+        input.move(100, p0 + const Offset(204, 0), buttons: _contactBarrel);
+        expect(t.calls.sublist(t.calls.length - 2), [
+          'navigationCancel',
+          'begin(stylus, penButton)',
+        ]);
+        input
+          ..up(100)
+          ..up(a);
+      },
+      rule: web,
+    );
+
+    _routerTest(
+      'web: stylusDetected at the contact, not at the airborne down',
+      _autoUnseen,
+      (input, t) async {
+        input.down(100, p0, kind: _stylus, buttons: _barrel);
+        expect(t.calls, ['hover(stylus)']);
+        await input.wait(_frame);
+        input.move(100, p1, buttons: _contactBarrel);
+        expect(t.calls, [
+          'hover(stylus)',
+          'stylusDetected',
+          'begin(stylus, penButton)',
+        ]);
+        input.up(100);
+      },
+      rule: web,
+    );
+
+    _allModesTest('web: up / cancel while airborne → no end, no cancel', (
+      input,
+      t,
+    ) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      await input.wait(_frame);
+      input.move(100, p1, buttons: _contactBarrel);
+      await input.wait(_frame);
+      input.move(100, p1, buttons: _barrel);
+      final i = t.interactions.single;
+      expect(i.endCount, 1);
+      input.up(100);
+      input.down(101, p0, kind: _stylus, buttons: _barrel);
+      input.cancel(101);
+      expect(t.interactions, hasLength(1));
+      expect(i.endCount, 1);
+      expect(i.cancelCount, 0);
+    }, rule: web);
+
+    _allModesTest('web: cancel while touching → the interaction is cancelled', (
+      input,
+      t,
+    ) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      input.move(100, p1, buttons: _contactBarrel);
+      input.cancel(100);
+      final i = t.interactions.single;
+      expect(i.cancelCount, 1);
+      expect(i.endCount, 0);
+    }, rule: web);
+
+    _allModesTest('web: a refused contact (no page) → the next contact asks '
+        'again', (input, t) async {
+      t.refuseInteractions = true;
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      input.move(100, p1, buttons: _contactBarrel);
+      await input.wait(_frame);
+      input.move(100, p1, buttons: _barrel);
+      t.refuseInteractions = false;
+      await input.wait(_frame);
+      input.move(100, p1 + const Offset(10, 0), buttons: _contactBarrel);
+      expect(t.callsStartingWith('begin'), [
+        'begin(stylus, penButton)',
+        'begin(stylus, penButton)',
+      ]);
+      expect(t.interactions, hasLength(1));
+      input.up(100);
+      expect(t.interactions.single.endCount, 1);
+    }, rule: web);
+
+    _allModesTest('web: after cancelAll an airborne pen stays ignored until '
+        'up', (input, t) async {
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      input.router.cancelAll();
+      input.move(100, p1, buttons: _contactBarrel);
+      await input.wait(_frame);
+      input.move(100, p1, buttons: _barrel);
+      input.move(100, p1, buttons: _contactBarrel);
+      input.up(100);
+      expect(t.callsStartingWith('begin'), isEmpty);
+      input.down(101, p0, kind: _stylus, buttons: _contactBarrel);
+      expect(t.callsStartingWith('begin'), ['begin(stylus, penButton)']);
+      input.up(101);
+    }, rule: web);
+
+    test('the router picks the platform rule (native on the VM) unless '
+        'given one', () {
+      final targets = RecordingInputTargets();
+      expect(InputRouter(targets: targets).contactRule, native);
+      expect(InputRouter(targets: targets, contactRule: web).contactRule, web);
+      addTearDown(() => StylusContact.debugRuleOverride = null);
+      StylusContact.debugRuleOverride = web;
+      expect(InputRouter(targets: targets).contactRule, web);
+    });
+  });
+
+  group('v2 — pose hover (R46, 6.5.3)', () {
+    _allModesTest('R46 a finger within penCooldown of a pose hover → '
+        'rejected (treatHoverAsPenActivity)', (input, t) async {
+      input.router.noteStylusPoseHover();
+      await input.wait(const Duration(milliseconds: 100));
+      input.down(a, p0);
+      input.up(a);
+      expect(t.callsStartingWith('palmRejected'), hasLength(1));
+      expect(t.callsStartingWith('tap'), isEmpty);
+      expect(t.callsStartingWith('begin'), isEmpty);
+    });
+
+    _allModesTest('R46 after the cooldown, or with the hover rule off → '
+        'normal', (input, t) async {
+      input.router.noteStylusPoseHover();
+      await input.wait(const Duration(milliseconds: 600));
+      input.down(a, p0);
+      input.up(a);
+      expect(t.callsStartingWith('palmRejected'), isEmpty);
+
+      t.policy = InputPolicy(
+        penOnly: t.policy.penOnly,
+        palm: const PalmRejectionSettings(treatHoverAsPenActivity: false),
+        gestures: t.policy.gestures,
+        stylusSeen: t.policy.stylusSeen,
+        eyedropperActive: false,
+      );
+      await input.wait(const Duration(milliseconds: 400));
+      input.router.noteStylusPoseHover();
+      await input.wait(const Duration(milliseconds: 100));
+      input.down(b, p0);
+      input.up(b);
+      expect(t.callsStartingWith('palmRejected'), isEmpty);
+      expect(
+        t.policy.penOnly
+            ? t.callsStartingWith('tap')
+            : t.callsStartingWith('begin'),
+        hasLength(2),
+      );
+    });
   });
 
   group('beyond R1–R33', () {
