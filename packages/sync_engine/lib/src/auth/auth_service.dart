@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 
 import '../common/errors.dart';
 import 'auth_backend.dart';
+import 'auth_log.dart';
 import 'auth_user.dart';
 
 enum AuthStatus { unavailable, initializing, signedOut, signingIn, signedIn }
@@ -176,6 +177,21 @@ final class AuthService {
       );
     }
     await backend.refreshSession();
+  }
+
+  /// (2nd round, P-C — CP-S7) For RecognitionConfig.idTokenProvider (INFRA wires it in the
+  /// 실연결 미니 라운드).
+  /// null when signed out or no backend (unavailable); never throws (logs and returns null).
+  Future<String?> idToken({bool forceRefresh = false}) async {
+    final backend = _backend;
+    if (backend == null || _disposed) return null;
+    try {
+      return await backend.idToken(forceRefresh: forceRefresh);
+    } on Object catch (e, stack) {
+      // The error only (never a token): Firebase errors carry a code and a message.
+      authLog('idToken failed', error: e, stackTrace: stack);
+      return null;
+    }
   }
 
   Future<void> dispose() async {

@@ -17,11 +17,12 @@ UpsertRecord rec(
   int base = 0,
   Map<String, int> fv = const {},
   String node = kNodeA,
+  Map<String, Object?>? from,
 }) {
   final versions = EntityFieldVersions(h(base, node), {
     for (final e in fv.entries) e.key: h(e.value, node),
   });
-  final json = {...fixtureJson(kind), ...set}
+  final json = {...from ?? fixtureJson(kind), ...set}
     ..removeWhere((k, _) => remove.contains(k));
   json['version'] = versions.max.toString();
   return UpsertRecord(
@@ -63,6 +64,20 @@ void main() {
   const stroke = EntityKind.stroke;
   const asset = EntityKind.asset;
   const setting = EntityKind.setting;
+  const object = EntityKind.pageObject;
+  const handwriting = EntityKind.handwriting;
+  const recording = EntityKind.recording;
+  // (2nd round) the object fixtures of 07-sync 6.4 (shape = fixtureJson(pageObject)).
+  final textJson = objectFixture('text').toJson();
+  final mathJson = objectFixture('math').toJson();
+  final stickerJson = objectFixture('sticker').toJson();
+  const moved = [150.0, 300.0, 450.0, 340.0, 0.0];
+  const movedShape = [
+    [150.0, 100.0],
+    [350.0, 100.0],
+    [350.0, 220.0],
+    [150.0, 220.0],
+  ];
 
   final cases = <Case>[
     // --- single-key units ---------------------------------------------------
@@ -413,6 +428,185 @@ void main() {
       rec(note, set: {'folderId': 'fB', 'sortKey': 'a1'}, fv: {'folderId': 5}),
       values: {'folderId': 'fA'},
       versions: {'folderId': 5, 'sortKey': 5},
+    ),
+    // --- (2nd round, S2-1) one object / result unit — 07-sync 6.2.2 table ---------
+    Case(
+      'object: move (frame + geometry) vs restyle — the later edit takes the '
+      'whole object',
+      rec(
+        object,
+        set: {
+          'frame': [150.0, 100.0, 350.0, 220.0, 0.0],
+          'geometry': {'type': 'polyline', 'points': movedShape},
+        },
+        fv: {'frame': 1, 'geometry': 1},
+      ),
+      rec(
+        object,
+        set: {
+          'style': {'strokeColorArgb': 1},
+        },
+        fv: {'style': 2},
+      ),
+      values: {
+        'frame': fixtureJson(object)['frame'],
+        'geometry': fixtureJson(object)['geometry'],
+        'style': {'strokeColorArgb': 1},
+      },
+      versions: {'style': 2},
+      aChanges: {
+        ...FieldUnits.unitsFor(object, FieldUnits.keysOf(object)).first,
+      },
+      bChanges: {},
+    ),
+    Case(
+      'text box: text edit (text + frame height) vs move — text and height '
+      'never split',
+      rec(
+        object,
+        from: textJson,
+        set: {
+          'text': '긴 글',
+          'frame': [100.0, 300.0, 400.0, 380.0, 0.0],
+        },
+        fv: {'text': 3, 'frame': 3},
+      ),
+      rec(object, from: textJson, set: {'frame': moved}, fv: {'frame': 2}),
+      values: {
+        'text': '긴 글',
+        'frame': [100.0, 300.0, 400.0, 380.0, 0.0],
+      },
+      versions: {'text': 3, 'frame': 3},
+    ),
+    Case(
+      'object: delete vs edit — deleted, and the edit stays (like S05)',
+      rec(object, set: {'deletedAt': kT0 + 1}, fv: {'deletedAt': 1}),
+      rec(
+        object,
+        set: {
+          'style': {'strokeColorArgb': 2},
+        },
+        fv: {'style': 2},
+      ),
+      values: {
+        'deletedAt': kT0 + 1,
+        'style': {'strokeColorArgb': 2},
+      },
+      versions: {'deletedAt': 1, 'style': 2},
+      aChanges: {
+        ...FieldUnits.unitsFor(object, FieldUnits.keysOf(object)).first,
+      },
+      bChanges: {'deletedAt'},
+    ),
+    Case(
+      'math: re-recognition (latex + engine) vs a later move — the object '
+      'unit goes to the move, engine is its own unit',
+      rec(
+        object,
+        from: mathJson,
+        set: {'latex': r'\sqrt{2}', 'engine': 'fake/1'},
+        fv: {'latex': 1, 'engine': 1},
+      ),
+      rec(object, from: mathJson, set: {'frame': moved}, fv: {'frame': 2}),
+      values: {'latex': r'\frac{a}{b}', 'frame': moved, 'engine': 'fake/1'},
+      versions: {'frame': 2, 'engine': 1},
+    ),
+    Case(
+      'math: a later re-recognition takes latex with the object, engine '
+      'separately',
+      rec(
+        object,
+        from: mathJson,
+        set: {'latex': r'\sqrt{2}', 'engine': 'fake/1'},
+        fv: {'latex': 3, 'engine': 3},
+      ),
+      rec(object, from: mathJson, set: {'frame': moved}, fv: {'frame': 2}),
+      values: {
+        'latex': r'\sqrt{2}',
+        'frame': mathJson['frame'],
+        'engine': 'fake/1',
+      },
+      versions: {'latex': 3, 'engine': 3},
+    ),
+    Case(
+      'unknown object type: a later change of an unknown key takes the whole '
+      'object',
+      rec(
+        object,
+        from: stickerJson,
+        set: {'stickerId': 'dog'},
+        fv: {'stickerId': 4},
+      ),
+      rec(object, from: stickerJson, set: {'frame': moved}, fv: {'frame': 3}),
+      values: {'stickerId': 'dog', 'frame': stickerJson['frame']},
+      versions: {'stickerId': 4},
+    ),
+    Case(
+      'object: a key the other snapshot lacks goes with the winner',
+      rec(object, from: textJson, set: {'anchor': 'top'}, fv: {'anchor': 1}),
+      rec(object, from: textJson, set: {'text': 'later'}, fv: {'text': 2}),
+      values: {'text': 'later'},
+      absent: {'anchor'},
+      versions: {'text': 2},
+    ),
+    Case(
+      'handwriting: a later result replaces lines, sourceRev and engineId '
+      'together',
+      rec(
+        handwriting,
+        set: {'lines': <Object?>[], 'sourceRev': 'aaaaaaaaaaaaaaaa'},
+        fv: {'lines': 2, 'sourceRev': 2},
+      ),
+      rec(handwriting, set: {'engineId': 'other/1:ko'}, fv: {'engineId': 1}),
+      values: {
+        'lines': <Object?>[],
+        'sourceRev': 'aaaaaaaaaaaaaaaa',
+        'engineId': fixtureJson(handwriting)['engineId'],
+      },
+      versions: {'lines': 2, 'sourceRev': 2},
+    ),
+    Case(
+      'handwriting: deletedAt is its own unit',
+      rec(handwriting, set: {'deletedAt': kT0 + 1}, fv: {'deletedAt': 1}),
+      rec(handwriting, set: {'lines': <Object?>[]}, fv: {'lines': 2}),
+      values: {'deletedAt': kT0 + 1, 'lines': <Object?>[]},
+      versions: {'deletedAt': 1, 'lines': 2},
+    ),
+    Case(
+      '(S2-8) handwriting created on two devices: createdAt comes with the '
+      'winning result, even when it is the larger one',
+      rec(
+        handwriting,
+        set: {'createdAt': kT0 - 20, 'lines': <Object?>[]},
+        fv: {'lines': 1},
+      ),
+      rec(
+        handwriting,
+        set: {'createdAt': kT0 - 10, 'sourceRev': 'ffffffffffffffff'},
+        fv: {'sourceRev': 2},
+      ),
+      values: {
+        'createdAt': kT0 - 10,
+        'sourceRev': 'ffffffffffffffff',
+        'lines': fixtureJson(handwriting)['lines'],
+      },
+      versions: {'sourceRev': 2},
+    ),
+    Case(
+      '(S2-8) object: the same unit state on both sides → the smaller '
+      'createdAt',
+      rec(object, set: {'createdAt': kT0 - 10}),
+      rec(object, set: {'createdAt': kT0 - 20}),
+      values: {'createdAt': kT0 - 20},
+    ),
+    Case(
+      'recording: title is its own unit (rename vs delete keeps both)',
+      rec(recording, set: {'title': '2교시'}, fv: {'title': 2}),
+      rec(recording, set: {'deletedAt': kT0 + 1}, fv: {'deletedAt': 1}),
+      values: {'title': '2교시', 'deletedAt': kT0 + 1},
+      versions: {'title': 2, 'deletedAt': 1},
+      aChanges: {'deletedAt'},
+      bChanges: {'title'},
     ),
   ];
 

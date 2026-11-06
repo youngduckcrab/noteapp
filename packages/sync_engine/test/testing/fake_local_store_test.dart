@@ -1,12 +1,16 @@
 // FakeLocalStore beyond the shared contract suite (T6): localWrite, localPurge, markOpened,
 // failNextWrites, canonicalDump. Plain async tests on a hand-moved clock (the fake completes
-// in microtasks).
+// in microtasks). 2nd round (07-sync 6.5, S2-4a): page objects and handwriting results —
+// outbox hints, orphan objects, contentRevision, removal with a purged note and the
+// recovery copy of CORE 6.14.1.
 import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:sync_engine/testing.dart';
+
+import '../support/local_writes.dart' show handwritingWrite, objectWrite;
 
 const String node = 'a1a1a1a1a1a1a1a1';
 final DateTime start = DateTime.utc(2026, 11, 1, 9);
@@ -487,6 +491,205 @@ void main() {
       expect(() => store.rows.clear(), throwsUnsupportedError);
       expect(() => store.outbox.clear(), throwsUnsupportedError);
       expect(() => store.meta['sync.x'] = '1', throwsUnsupportedError);
+    });
+  });
+
+  group('page objects and handwriting results (2nd round, S2-4a)', () {
+    test('outbox hints: an object entry carries its page note and page, a '
+        'handwriting entry its noteId and pageId', () {
+      store.localWrite([noteWrite('n1'), pageWrite('p1', 'n1')]);
+      store.localWrite([
+        objectWrite('o1', 'p1'),
+        handwritingWrite('p1', 'n1', strokeIds: const ['s1']),
+      ]);
+      final o = entry(EntityKind.pageObject, 'o1')!;
+      expect((o.noteId, o.pageId), ('n1', 'p1'));
+      final hw = entry(EntityKind.handwriting, 'hw_p1')!;
+      expect((hw.noteId, hw.pageId), ('n1', 'p1'));
+      expect(store.objectsOf('p1').single.id, 'o1');
+      expect(store.handwritingOf('p1')?.lines.single.strokeIds, ['s1']);
+      expect(store.handwritingOf('p2'), isNull);
+    });
+
+    test('an orphan object entry has the noteId hint "" and gets the note '
+        'when its page row arrives (same seq)', () {
+      store.localWrite([objectWrite('o9', 'p9', type: 'text')]);
+      final before = entry(EntityKind.pageObject, 'o9')!;
+      expect((before.noteId, before.pageId), ('', 'p9'));
+      store.localWrite([noteWrite('n1'), pageWrite('p9', 'n1')]);
+      final after = entry(EntityKind.pageObject, 'o9')!;
+      expect((after.noteId, after.pageId), ('n1', 'p9'));
+      expect(after.seq, before.seq);
+      expect(after.rev, before.rev);
+    });
+
+    test('contentRevision: object and handwriting writes on an existing page '
+        'bump it once per transaction, local and remote', () async {
+      store.localWrite([noteWrite('n1'), pageWrite('p1', 'n1')]);
+      expect(page('p1').contentRevision, 0);
+      store.localWrite([
+        objectWrite('o1', 'p1'),
+        objectWrite('o2', 'p1', type: 'math'),
+        handwritingWrite('p1', 'n1'),
+      ]);
+      expect(page('p1').contentRevision, 1);
+      store.localWrite([
+        objectWrite('o1', 'p1', set: const {'text': 'x'}, type: 'text'),
+      ]);
+      expect(page('p1').contentRevision, 2);
+
+      final other = FakeLocalStore(
+        nodeId: 'b2b2b2b2b2b2b2b2',
+        clock: clock.clock,
+      );
+      other.localWrite([noteWrite('n1'), pageWrite('p1', 'n1')]);
+      other.localWrite([
+        objectWrite('o3', 'p1', type: 'image'),
+        handwritingWrite('p1', 'n1', text: '적분'),
+      ]);
+      final o3 = other.rows[const EntityRef(EntityKind.pageObject, 'o3')]!;
+      final hw = other.rows[const EntityRef(EntityKind.handwriting, 'hw_p1')]!;
+      await store.sync.applyRemote([
+        RemoteUpsert(o3.entity, o3.versions),
+        RemoteUpsert(hw.entity, hw.versions),
+      ], policy: (l, r, x) => const TakeRemote());
+      expect(page('p1').contentRevision, 3);
+      expect(store.objectsOf('p1').map((o) => o.id), containsAll(['o1', 'o3']));
+      expect(store.handwritingOf('p1')?.lines.single.text, '적분');
+    });
+
+    test('a purged note takes its page objects and handwriting results with '
+        'it: rows and outbox entries, local and remote purge', () async {
+      store.localWrite([
+        noteWrite('n1'),
+        pageWrite('p1', 'n1'),
+        noteWrite('n2'),
+        pageWrite('p2', 'n2'),
+      ]);
+      store.localWrite([
+        objectWrite('o1', 'p1'),
+        handwritingWrite('p1', 'n1'),
+        objectWrite('o2', 'p2'),
+        handwritingWrite('p2', 'n2'),
+      ]);
+      store.localPurge(const EntityRef(EntityKind.note, 'n1'), group: const []);
+      for (final ref in const [
+        EntityRef(EntityKind.pageObject, 'o1'),
+        EntityRef(EntityKind.handwriting, 'hw_p1'),
+      ]) {
+        expect(store.rows.containsKey(ref), isFalse, reason: '$ref');
+        expect(entry(ref.kind, ref.id), isNull, reason: '$ref');
+      }
+      expect(store.objectsOf('p1'), isEmpty);
+      expect(store.objectsOf('p2').single.id, 'o2');
+      expect(store.handwritingOf('p2'), isNotNull);
+
+      await store.sync.applyRemote([
+        const RemotePurge(EntityKind.note, 'n2'),
+      ], policy: (l, r, x) => const TakeRemote());
+      expect(store.objectsOf('p2'), isEmpty);
+      expect(store.handwritingOf('p2'), isNull);
+      expect(
+        store.outbox.where(
+          (e) =>
+              e.kind == EntityKind.pageObject ||
+              e.kind == EntityKind.handwriting,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('recovery copy (CORE 6.14.1): recordings with new ids, strokes '
+        'relinked, objects with their createdAt, the handwriting result of the '
+        'new page; outbox in that order', () async {
+      store.localWrite([noteWrite('n1'), pageWrite('p1', 'n1')]);
+      FakeLocalWrite stroke(String id, {String? recordingId, int? deleted}) =>
+          FakeLocalWrite(
+            EntityKind.stroke,
+            {
+              ...strokeWrite(id, 'p1').json,
+              'recordingId': recordingId,
+              'recordingOffsetMs': recordingId == null ? null : 500,
+              'deletedAt': deleted,
+            },
+            changedFields: const {kAllFields},
+          );
+      store.localWrite([
+        FakeLocalWrite(
+          EntityKind.recording,
+          {...recordingWrite('r1', 'n1').json, 'title': '1교시'},
+          changedFields: const {kAllFields},
+        ),
+        FakeLocalWrite(
+          EntityKind.recording,
+          {...recordingWrite('r2', 'n1').json, 'deletedAt': 3},
+          changedFields: const {kAllFields},
+        ),
+        stroke('s1', recordingId: 'r1'),
+        stroke('s2', recordingId: 'r2'),
+        stroke('s3', deleted: 4),
+        objectWrite('o1', 'p1', set: const {'createdAt': 7}),
+        objectWrite('o2', 'p1', set: const {'deletedAt': 8}),
+        handwritingWrite('p1', 'n1', strokeIds: const ['s1', 's3', 's2']),
+      ]);
+      final lastSeq = store.outbox.last.seq;
+      clock.advance(const Duration(minutes: 1));
+      final copy = (await store.sync.duplicateNoteForRecovery(
+        'n1',
+        titleSuffix: ' (복구)',
+      ))!;
+      final fresh = [
+        for (final e in store.outbox)
+          if (e.seq > lastSeq) e,
+      ];
+      expect(
+        [for (final e in fresh) e.kind],
+        [
+          EntityKind.note,
+          EntityKind.recording,
+          EntityKind.page,
+          EntityKind.stroke,
+          EntityKind.stroke,
+          EntityKind.pageObject,
+          EntityKind.handwriting,
+        ],
+      );
+      expect(fresh.every((e) => e.changedFields.contains(kAllFields)), isTrue);
+      final rec =
+          row(EntityKind.recording, fresh[1].entityId).entity as Recording;
+      final source = row(EntityKind.recording, 'r1').entity as Recording;
+      expect(rec.id, isNot('r1'));
+      expect(rec.noteId, copy);
+      expect(rec.assetId, source.assetId);
+      expect(rec.title, '1교시');
+      expect(rec.durationMs, source.durationMs);
+      expect(rec.startedAt, source.startedAt);
+      expect(rec.createdAt, clock.millis);
+      final newPage = fresh[2].entityId;
+      final strokes = [
+        for (final e in fresh.where((e) => e.kind == EntityKind.stroke))
+          row(EntityKind.stroke, e.entityId).entity as Stroke,
+      ];
+      expect([for (final s in strokes) s.recordingId], [rec.id, 'r2']);
+      expect([for (final s in strokes) s.pageId], [newPage, newPage]);
+      final object =
+          row(EntityKind.pageObject, fresh[5].entityId).entity as PageObject;
+      expect(object.id, isNot('o1'));
+      expect(object.pageId, newPage);
+      expect(object.createdAt, 7);
+      expect(object.type, 'shape');
+      expect(fresh[5].noteId, copy);
+      final hw =
+          row(EntityKind.handwriting, fresh[6].entityId).entity
+              as HandwritingText;
+      expect(hw.id, HandwritingText.idFor(newPage));
+      expect((hw.noteId, hw.pageId), (copy, newPage));
+      expect(hw.engineId, 'mlkit-digital-ink/19.0.0:ko');
+      expect(hw.lines.single.strokeIds, [for (final s in strokes) s.id]);
+      expect(hw.sourceRev, HandwritingText.sourceRevOf(strokes));
+      expect(hw.sourceRev, isNot('0123456789abcdef'));
+      expect((fresh[6].noteId, fresh[6].pageId), (copy, newPage));
+      expect(store.objectsOf(newPage), hasLength(1));
     });
   });
 }

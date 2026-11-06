@@ -76,4 +76,16 @@ final class FakeAuthBackend implements AuthBackend {
 
   @override
   Future<void> signOut() async => setUser(null);
+
+  int _tokenSerial = 1;
+
+  /// (2nd round, P-C — CP-S7) `'fake-id-token:<uid>:<n>'` of the signed-in user (null when
+  /// signed out); [forceRefresh] gives the next n. Not a JWT — fake backends only.
+  @override
+  Future<String?> idToken({bool forceRefresh = false}) async {
+    final user = _user;
+    if (user == null) return null;
+    if (forceRefresh) _tokenSerial++;
+    return 'fake-id-token:${user.uid}:$_tokenSerial';
+  }
 }

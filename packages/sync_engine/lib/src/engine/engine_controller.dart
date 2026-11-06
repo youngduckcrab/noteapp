@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
+import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart';
 
 import '../assets/engine_asset_service.dart';
@@ -34,6 +35,7 @@ import '../status/sync_status.dart';
 import 'backoff.dart';
 import 'connectivity.dart';
 import 'download_pipeline.dart';
+import 'held_records.dart';
 import 'live_listener.dart';
 import 'meta_keys.dart';
 import 'push_scheduler.dart';
@@ -88,6 +90,11 @@ final class _Session {
 
   /// Step 6: purged set and pipeline meta read.
   bool loaded = false;
+
+  /// (S-13 — 07-sync 6.3.4) The held records of kinds this app knows were re-applied in
+  /// this session. Outside the [loaded] block: a failed re-apply is tried again at the next
+  /// connection of the same session.
+  bool heldReapplied = false;
 }
 
 final class EngineController {
@@ -190,6 +197,7 @@ final class EngineController {
   int _pushCycles = 0, _commits = 0, _chunksSent = 0, _recordsSent = 0;
   int _chunksReceived = 0, _recordsApplied = 0, _recordsKept = 0;
   int _ownChunksSkipped = 0, _repairsWritten = 0, _groupRecords = 0;
+  int _reappliedChunks = 0, _reappliedRecords = 0;
   Duration? _lastPushLatency, _lastRemoteApplyLatency;
 
   // ---- SyncEngine surface ---------------------------------------------------------------
@@ -210,6 +218,30 @@ final class EngineController {
   Stream<SyncNotice> get notices => _notices.stream;
 
   bool get isStarted => _started;
+
+  /// (2nd round, S-13 — 07-sync 6.3.8) Kinds this engine's codec knows; null = every
+  /// EntityKind. Fewer kinds make the engine behave like an older app (records of the other
+  /// kinds are not applied). Set before [start] (StateError afterwards); SyncTestHarness
+  /// .device / .restart(knownKinds:) set it. Test hook: @internal (not @visibleForTesting)
+  /// because the harness in lib/src/testing sets it.
+  @internal
+  Set<EntityKind>? get debugKnownKinds => _knownKinds;
+  @internal
+  set debugKnownKinds(Set<EntityKind>? kinds) {
+    if (_started) {
+      throw StateError('debugKnownKinds must be set before start()');
+    }
+    _knownKinds = kinds == null ? null : Set.unmodifiable(kinds);
+  }
+
+  Set<EntityKind>? _knownKinds;
+
+  /// (2nd round, S-13 — 07-sync 6.3.8, 6.7.1 S27 (c)) Held-record limits of the download
+  /// pipeline built at the next attach; null = HeldRecords.defaultMaxPartBytes /
+  /// defaultMaxTotalBytes. Unlike [debugKnownKinds] it may be set after [start] — a device
+  /// made signed out sets it before it signs in. Test hook: @internal (scenario tests).
+  @internal
+  ({int maxPartBytes, int maxTotalBytes})? debugHeldRecordsLimits;
 
   Future<void> start() async {
     if (_started || _disposed) return;
@@ -315,8 +347,11 @@ final class EngineController {
     _interrupt();
     _disposed = true;
     _session = null;
+    // Cancelled at once and not awaited: a cancel Future of a subscription without onCancel
+    // work is completed in the root zone (Future._nullFuture), so awaiting it would hold
+    // dispose in any other zone — fake_async's included (SyncTestHarness.restart, S2-4b).
     for (final sub in _subscriptions) {
-      await sub.cancel();
+      unawaited(sub.cancel());
     }
     _subscriptions.clear();
     _scheduler.dispose();
@@ -348,6 +383,10 @@ final class EngineController {
           : held.entries.length + (held.collapsed == null ? 0 : 1),
       lastPushLatency: _lastPushLatency,
       lastRemoteApplyLatency: _lastRemoteApplyLatency,
+      heldRecords: pipelines ? s.download.heldRecordCount : 0,
+      heldRecordsMarked: pipelines && s.download.heldRecordsMarked,
+      reappliedChunks: _reappliedChunks,
+      reappliedRecords: _reappliedRecords,
     );
   }
 
@@ -556,6 +595,17 @@ final class EngineController {
         if (_stale(epoch)) return;
         s.loaded = true;
       }
+      // S-13 (contract 7.2.8 ⑤): load → re-apply → catchUp → releaseHeld.
+      if (!s.heldReapplied) {
+        final reapplied = await s.download.reapplyHeldRecords();
+        if (_stale(epoch)) return;
+        _absorbApply(s, reapplied);
+        if (!reapplied.succeeded) {
+          _pullFailed(reapplied.error!);
+          return;
+        }
+        s.heldReapplied = true;
+      }
       final first = s.download.cursor == null;
       final startedAt = _wallMillis();
       final recordsBefore = _groupRecords;
@@ -691,12 +741,21 @@ final class EngineController {
         }
       },
       afterGroup: (outcomes) => _afterGroup(s, outcomes),
+      knownKinds: _knownKinds,
+      heldRecordsMaxPartBytes:
+          debugHeldRecordsLimits?.maxPartBytes ??
+          HeldRecords.defaultMaxPartBytes,
+      heldRecordsMaxTotalBytes:
+          debugHeldRecordsLimits?.maxTotalBytes ??
+          HeldRecords.defaultMaxTotalBytes,
+      onWarning: (message) => _log(SyncLogLevel.warning, message),
     );
     s.compactor = Compactor(
       sync: sync,
       backend: backend,
       config: config,
       purged: s.purged,
+      knownKinds: _knownKinds,
     );
     s.listener = LiveListener(
       backend: backend,
@@ -885,7 +944,7 @@ final class EngineController {
   Future<void> _releaseHeld(int epoch) async {
     final s = _session;
     if (s == null || _stale(epoch) || _status.phase != SyncPhase.live) return;
-    if (s.download.held.isEmpty) return;
+    if (s.download.held.isEmpty && !s.download.heldRecordsAwaitRelease) return;
     try {
       final result = await s.download.releaseHeld();
       _absorbApply(s, result);
@@ -994,6 +1053,8 @@ final class EngineController {
     _chunksReceived += r.chunks;
     _recordsApplied += r.applied;
     _ownChunksSkipped += r.ownSkipped;
+    _reappliedChunks += r.reappliedChunks;
+    _reappliedRecords += r.reappliedRecords;
     final latest = r.latestServerTime;
     if (latest != null && r.applied > 0) {
       final micros = clock.now().microsecondsSinceEpoch - latest.micros;

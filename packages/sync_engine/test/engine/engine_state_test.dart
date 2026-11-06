@@ -1,13 +1,18 @@
 // T10: the phase transitions of 6.8.2 on the fake server, network and local store — K3 is
 // covered in clock_skew_guard_test, the account attach in auth_attach_test, the lifecycle in
 // lifecycle_test. Every test runs on fakeAsync virtual time.
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
+import 'package:sync_engine/src/codec/chunk_codec.dart';
+import 'package:sync_engine/src/codec/chunk_id.dart';
+import 'package:sync_engine/src/engine/meta_keys.dart';
 import 'package:sync_engine/sync_engine.dart';
 import 'package:sync_engine/testing.dart';
 
 import '../support/engine_harness.dart';
+import '../support/local_writes.dart';
 
 const _user = AuthUser(uid: 'user-1');
 
@@ -451,4 +456,164 @@ void main() {
       expect(log.statuses.last, a.engine.status);
     },
   );
+
+  group('S-13 re-apply at attach (S2-7b — 07-sync 6.3.4, contract 7.2.8 ⑤)', () {
+    final noHandwriting = EntityKind.values.toSet()
+      ..remove(EntityKind.handwriting);
+
+    /// A writes a note with a stroke and a handwriting result; B, an older app, holds the
+    /// result. Returns the page.
+    String oldAppHolds(SyncTestHarness h, TestDevice a, TestDevice b) {
+      final n = a.createNote('N');
+      final p = a.pageIdsOf(n).single;
+      a.addStroke(p);
+      a.putHandwriting(p, ['hello']);
+      h.settle();
+      expect(b.engine.debug.heldRecords, 1);
+      expect(b.handwritingOf(p), isNull);
+      expect(issueOf(b, SyncIssueCode.needsAppUpdate), isNotNull);
+      return p;
+    }
+
+    harnessTest('after an app update the held record is re-applied at attach; '
+        'reappliedChunks / reappliedRecords count it, chunksReceived and '
+        'lastRemoteApplyLatency do not; no needsAppUpdate; converged', (
+      h,
+      async,
+    ) {
+      final a = h.device('A');
+      final b = h.device('B', knownKinds: noHandwriting);
+      final p = oldAppHolds(h, a, b);
+      // B's own chunk comes last, more than the catch-up overlap after A's: the attach
+      // after the update receives B's own chunk only (skipped — nothing applied).
+      h.elapse(const Duration(minutes: 10));
+      b.createNote('own');
+      h.settle();
+      h.restart('B');
+      h.settle();
+      expect(b.engine.status.phase, SyncPhase.live);
+      expect(b.handwritingOf(p), isNotNull);
+      final debug = b.engine.debug;
+      expect(debug.reappliedChunks, 1);
+      expect(debug.reappliedRecords, 1);
+      expect(debug.ownChunksSkipped, greaterThan(0));
+      expect(debug.chunksReceived, debug.ownChunksSkipped);
+      expect(debug.recordsApplied, 0);
+      expect(debug.lastRemoteApplyLatency, isNull);
+      expect(debug.heldRecords, 0);
+      expect(debug.heldRecordsMarked, isFalse);
+      expect(b.store.meta[MetaKeys.heldRecords], '');
+      expect(issueOf(b, SyncIssueCode.needsAppUpdate), isNull);
+      h.checkConverged([a, b]);
+      // Once per session: a later connection does not re-apply again.
+      b
+        ..goOffline()
+        ..goOnline();
+      h.settle();
+      expect(b.engine.debug.reappliedChunks, 1);
+    });
+
+    harnessTest('order load → re-apply → catchUp: a failed re-apply stops the '
+        'connection before the catch-up; the next connection of the same '
+        'session tries again', (h, async) {
+      final a = h.device('A');
+      final b = h.device('B', knownKinds: noHandwriting);
+      final p = oldAppHolds(h, a, b);
+      b.goOffline();
+      final m = a.createNote('M');
+      h.settle();
+      h.restart('B');
+      h.settle();
+      final log = EngineLog(b.engine);
+      // The handwriting's applyRemote (a rejection), then the writeMeta that would store
+      // the meta with the rejected record: a store failure — nothing kept.
+      b.store.failNextWrites(2);
+      b.goOnline();
+      h.settle();
+      log.cancel();
+      expect(log.phases, [
+        SyncPhase.offline,
+        SyncPhase.connecting,
+        SyncPhase.catchingUp,
+        SyncPhase.live,
+      ], reason: 'one catch-up, after the re-apply succeeded');
+      final retryWait = log.statuses.indexWhere(
+        (s) => s.phase == SyncPhase.connecting && s.nextRetryAt != null,
+      );
+      final caughtUp = log.statuses.indexWhere(
+        (s) => s.phase == SyncPhase.catchingUp,
+      );
+      expect(retryWait, greaterThanOrEqualTo(0));
+      expect(retryWait, lessThan(caughtUp));
+      expect(
+        issueOf(b, SyncIssueCode.malformedRemoteData)?.ref,
+        EntityRef(EntityKind.handwriting, HandwritingText.idFor(p)),
+        reason: 'the failed try',
+      );
+      expect(b.doc(EntityKind.note, m), isNotNull);
+      expect(b.handwritingOf(p), isNotNull);
+      final debug = b.engine.debug;
+      expect(debug.reappliedChunks, 2, reason: 'the failed try and the retry');
+      expect(debug.reappliedRecords, 1);
+      expect(debug.heldRecords, 0);
+      h.checkConverged([a, b]);
+    });
+
+    harnessTest('live: a re-applied record K1 holds (ra) is applied by the '
+        'periodic release once due, though sync.held is empty', (h, async) {
+      final a = h.device('A');
+      final b = h.device('B', knownKinds: noHandwriting);
+      final n = a.createNote('N');
+      final p = a.pageIdsOf(n).single;
+      h.settle();
+      // C, 48 h ahead, wrote the handwriting result of p — alone in its chunk.
+      const nodeC = 'c3c3c3c3c3c3c3c3';
+      final c = FakeLocalStore(
+        nodeId: nodeC,
+        clock: Clock(() => h.serverClock.now().add(const Duration(hours: 48))),
+        ownerId: 'user-1',
+      )..localWrite([handwritingWrite(p, n)]);
+      final record = UpsertRecord.fromVersioned(
+        c.rows[EntityRef(EntityKind.handwriting, HandwritingText.idFor(p))]!,
+      );
+      final payload = ChunkCodec.encode([record]);
+      h.server.commitRaw('user-1', [
+        ChunkWrite(
+          id: chunkIdOf(nodeC, payload),
+          scope: n,
+          authorNodeId: nodeC,
+          recordCount: 1,
+          format: ChunkCodec.formatVersion,
+          kind: ChunkKind.delta,
+          maxHlc: record.versions.max.toString(),
+          payload: payload,
+        ),
+      ]);
+      h.settle();
+      expect(b.engine.debug.heldRecords, 1);
+      expect(a.engine.debug.heldChunks, 1, reason: 'the new app: K1');
+      // A later chunk, past the catch-up overlap: the attach after the update does not
+      // receive C's chunk again (the re-applied record is the only way it comes in).
+      h.elapse(const Duration(minutes: 10));
+      a.createNote('later');
+      h.settle();
+
+      h.restart('B');
+      h.settle();
+      expect(b.engine.status.phase, SyncPhase.live);
+      expect(b.engine.debug.reappliedChunks, 1);
+      expect(b.engine.debug.reappliedRecords, 0);
+      expect(b.engine.debug.heldRecords, 1, reason: 'kept with ra');
+      expect(b.engine.debug.heldChunks, 0, reason: 'not in sync.held');
+      expect(b.handwritingOf(p), isNull);
+
+      h.elapse(const Duration(hours: 25));
+      h.settle();
+      expect(b.handwritingOf(p), isNotNull);
+      expect(b.engine.debug.reappliedRecords, 1);
+      expect(b.engine.debug.heldRecords, 0);
+      expect(a.handwritingOf(p), isNotNull);
+      h.checkConverged([a, b]);
+    });
+  });
 }

@@ -12,7 +12,9 @@
 //   compile.
 // - Members: SyncTestHarness.checkConverged exists; SyncTestHarness.async and
 //   .expectConverged do not (an extension member returning [Absent] would lose to a class
-//   member, and the assignment to Absent would not compile).
+//   member, and the assignment to Absent would not compile). (2nd round, 07-sync 4.3) the
+//   harness's device(knownKinds:) / restart / checkConverged(kinds:) and the TestDevice
+//   helpers have their 4.3 signatures (tear-offs assigned to the exact function types).
 // - The contract types the other areas plug in (syncBadgeOf, SyncRemoteAssetFetcher,
 //   SyncMergePolicy.decide) have the CORE types (contract 7.2.20, 7.3.3).
 @TestOn('vm')
@@ -365,6 +367,193 @@ class _Private {}
       Absent asyncField(SyncTestHarness h) => h.async;
       Absent expectMember(SyncTestHarness h) => h.expectConverged(null);
       expect([check, asyncField, expectMember], hasLength(3));
+    });
+
+    test('(2nd round, 07-sync 4.3) SyncTestHarness device(knownKinds:), '
+        'restart, checkConverged(kinds:) and the TestDevice helpers', () {
+      TestDevice Function(
+        String name, {
+        String uid,
+        Duration clockOffset,
+        bool signedIn,
+        SyncConfig? config,
+        Duration latency,
+        Set<core.EntityKind>? knownKinds,
+      })
+      device(SyncTestHarness h) => h.device;
+      TestDevice Function(String name, {Set<core.EntityKind>? knownKinds})
+      restart(SyncTestHarness h) => h.restart;
+      void Function(
+        Iterable<TestDevice> devices, {
+        bool includeServer,
+        Set<core.EntityKind>? kinds,
+      })
+      check(SyncTestHarness h) => h.checkConverged;
+      String Function(
+        String pageId, {
+        String type,
+        core.AssetId? assetId,
+        int seed,
+      })
+      addObject(TestDevice d) => d.addObject;
+      void Function(String objectId, {double dx, double dy}) moveObject(
+        TestDevice d,
+      ) => d.moveObject;
+      void Function(String objectId, int colorArgb) restyleObject(
+        TestDevice d,
+      ) => d.restyleObject;
+      void Function(String objectId, String text) editText(TestDevice d) =>
+          d.editText;
+      void Function(String objectId) deleteObject(TestDevice d) =>
+          d.deleteObject;
+      void Function(String pageId, Map<String, Object?> json) putRawObject(
+        TestDevice d,
+      ) => d.putRawObject;
+      void Function(String pageId, List<String> lines, {String engineId})
+      putHandwriting(TestDevice d) => d.putHandwriting;
+      void Function(String pageId) removeHandwriting(TestDevice d) =>
+          d.removeHandwriting;
+      Future<String> Function(
+        String noteId, {
+        core.AssetId? assetId,
+        int durationMs,
+      })
+      addRecording(TestDevice d) => d.addRecording;
+      void Function(String recordingId, String? title) renameRecording(
+        TestDevice d,
+      ) => d.renameRecording;
+      void Function(String recordingId) deleteRecording(TestDevice d) =>
+          d.deleteRecording;
+      List<SyncDoc> Function(String pageId) activeObjectsOf(TestDevice d) =>
+          d.activeObjectsOf;
+      SyncDoc? Function(String pageId) handwritingOf(TestDevice d) =>
+          d.handwritingOf;
+      expect([
+        device,
+        restart,
+        check,
+        addObject,
+        moveObject,
+        restyleObject,
+        editText,
+        deleteObject,
+        putRawObject,
+        putHandwriting,
+        removeHandwriting,
+        addRecording,
+        renameRecording,
+        deleteRecording,
+        activeObjectsOf,
+        handwritingOf,
+      ], hasLength(16));
+    });
+
+    test(
+      '(2nd round, 07-sync 4.2) SyncEngineDebug: heldRecords, '
+      'heldRecordsMarked, reappliedChunks, reappliedRecords with defaults',
+      () {
+        const v1 = SyncEngineDebug(
+          pushCycles: 0,
+          commits: 0,
+          chunksSent: 0,
+          recordsSent: 0,
+          chunksReceived: 0,
+          recordsApplied: 0,
+          recordsKept: 0,
+          ownChunksSkipped: 0,
+          repairsWritten: 0,
+          quarantined: {},
+          heldChunks: 0,
+        );
+        final int held = v1.heldRecords;
+        final bool marked = v1.heldRecordsMarked;
+        final (int, int) reapplied = (v1.reappliedChunks, v1.reappliedRecords);
+        expect((held, marked, reapplied), (0, false, (0, 0)));
+        const v2 = SyncEngineDebug(
+          pushCycles: 0,
+          commits: 0,
+          chunksSent: 0,
+          recordsSent: 0,
+          chunksReceived: 0,
+          recordsApplied: 0,
+          recordsKept: 0,
+          ownChunksSkipped: 0,
+          repairsWritten: 0,
+          quarantined: {},
+          heldChunks: 0,
+          heldRecords: 3,
+          heldRecordsMarked: true,
+          reappliedChunks: 2,
+          reappliedRecords: 5,
+        );
+        expect(
+          (
+            v2.heldRecords,
+            v2.heldRecordsMarked,
+            v2.reappliedChunks,
+            v2.reappliedRecords,
+          ),
+          (3, true, 2, 5),
+        );
+      },
+    );
+
+    test('(2nd round, 07-sync 4.2) FieldUnits: wholeUnitExcept, groupsOf and '
+        'unitsFor for the one-unit kinds (unknown keys in the unit)', () {
+      const Set<String>? Function(core.EntityKind) whole =
+          FieldUnits.wholeUnitExcept;
+      const List<Set<String>> Function(core.EntityKind) groups =
+          FieldUnits.groupsOf;
+      const List<Set<String>> Function(core.EntityKind, Iterable<String>)
+      units = FieldUnits.unitsFor;
+      expect(whole(core.EntityKind.pageObject), {
+        'pageId',
+        'deletedAt',
+        'engine',
+      });
+      expect(whole(core.EntityKind.handwriting), {
+        'noteId',
+        'pageId',
+        'deletedAt',
+      });
+      for (final kind in core.EntityKind.values) {
+        if (kind == core.EntityKind.pageObject ||
+            kind == core.EntityKind.handwriting) {
+          expect(groups(kind), isEmpty, reason: kind.name);
+        } else {
+          expect(whole(kind), isNull, reason: kind.name);
+        }
+      }
+      expect(
+        units(core.EntityKind.pageObject, [
+          'id',
+          'type',
+          'frame',
+          'pageId',
+          'deletedAt',
+          'sticker',
+        ]),
+        [
+          {'frame', 'sticker', 'type'},
+          {'deletedAt'},
+          {'pageId'},
+        ],
+      );
+    });
+
+    test('(2nd round, 07-sync 4.2, CP-S7) AuthBackend.idToken and '
+        'AuthService.idToken({bool forceRefresh = false})', () async {
+      final AuthBackend port = FakeAuthBackend(
+        user: const AuthUser(uid: 'user-1'),
+      );
+      final Future<String?> Function({bool forceRefresh}) backend =
+          port.idToken;
+      final service = AuthService(null);
+      final Future<String?> Function({bool forceRefresh}) tokens =
+          service.idToken;
+      expect(await backend(), 'fake-id-token:user-1:1');
+      expect(await tokens(forceRefresh: true), isNull);
+      await service.dispose();
     });
 
     test('contract types: syncBadgeOf, SyncRemoteAssetFetcher, '

@@ -2,7 +2,9 @@
 // add, erase, move, recolour; pages: insert, delete, move; notes: rename, move, trash,
 // restore, create; folders: move, create; settings) with random offline periods and
 // commit faults. At the end everyone is online → settle → converged, nothing lost, no
-// folder loop.
+// folder loop. (2nd round, 07-sync 6.7.1 'random convergence v2') Also page objects (add,
+// move, restyle, edit text, delete), handwriting results (put) and recordings (add,
+// rename); no object is lost either.
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +35,10 @@ final class Fuzz {
   final List<TestDevice> devices;
   final List<String> created = [];
   final Set<String> erased = {};
+
+  /// (2nd round) Page objects added and those deleted.
+  final List<String> createdObjects = [];
+  final Set<String> deletedObjects = {};
 
   void run() {
     final a = devices.first;
@@ -95,7 +101,15 @@ final class Fuzz {
         if (!s.isDeleted && pages.contains(s.pageId)) s.id,
     ];
     final folders = [for (final f in rowsOf<Folder>(d)) f.id];
-    switch (random.nextInt(16)) {
+    final objects = [
+      for (final o in rowsOf<PageObject>(d))
+        if (!o.isDeleted && pages.contains(o.pageId)) o,
+    ];
+    final recordings = [
+      for (final r in rowsOf<Recording>(d))
+        if (!r.isDeleted && r.noteId == note?.id) r.id,
+    ];
+    switch (random.nextInt(24)) {
       case 0 || 1 || 2 || 3 when pages.isNotEmpty:
         created.add(
           d.addStroke(
@@ -154,6 +168,50 @@ final class Fuzz {
         }
       case 14:
         d.setSetting('editor.fuzz', random.nextInt(5));
+      case 15 || 16 when pages.isNotEmpty:
+        createdObjects.add(
+          d.addObject(
+            pick(random, pages)!,
+            type: pick(random, const ['shape', 'text', 'math'])!,
+            seed: random.nextInt(20),
+          ),
+        );
+      case 17 when objects.isNotEmpty:
+        d.moveObject(
+          pick(random, objects)!.id,
+          dx: random.nextDouble() * 20,
+          dy: random.nextDouble() * 20,
+        );
+      case 18 when objects.isNotEmpty:
+        d.restyleObject(
+          pick(random, objects)!.id,
+          0xFF000000 + random.nextInt(0xFFFFFF),
+        );
+      case 19:
+        final texts = [
+          for (final o in objects)
+            if (o is TextBoxObject) o.id,
+        ];
+        if (texts.isEmpty) return;
+        d.editText(pick(random, texts)!, '${d.name} ${random.nextInt(1000)}');
+      case 20 when objects.isNotEmpty:
+        final id = pick(random, objects)!.id;
+        d.deleteObject(id);
+        deletedObjects.add(id);
+      case 21 when pages.isNotEmpty:
+        d.putHandwriting(pick(random, pages)!, [
+          for (var i = 0; i <= random.nextInt(3); i++)
+            '${d.name}${random.nextInt(100)}',
+        ]);
+      case 22 when note != null:
+        if (recordings.isEmpty || random.nextInt(4) == 0) {
+          h.run(d.addRecording(note.id, durationMs: 1 + random.nextInt(9999)));
+        } else {
+          d.renameRecording(
+            pick(random, recordings)!,
+            random.nextInt(5) == 0 ? null : '${d.name} ${random.nextInt(100)}강',
+          );
+        }
       default:
         if (random.nextBool()) {
           d.createNote('${d.name} note', pages: 1 + random.nextInt(2));
@@ -165,6 +223,20 @@ final class Fuzz {
 
   void check() {
     expectNoLoss(devices, created, erased: erased);
+    for (final d in devices) {
+      final lost = [
+        for (final id in createdObjects)
+          if (d.doc(EntityKind.pageObject, id) == null) id,
+      ];
+      expect(lost, isEmpty, reason: '${d.name}: page objects lost');
+      final inactive = [
+        for (final id in createdObjects)
+          if (!deletedObjects.contains(id) &&
+              d.doc(EntityKind.pageObject, id)!.json['deletedAt'] != null)
+            id,
+      ];
+      expect(inactive, isEmpty, reason: '${d.name}: page objects deleted');
+    }
     for (final d in devices) {
       for (final f in rowsOf<Folder>(d)) {
         final seen = <String>{};
@@ -184,6 +256,7 @@ void main() {
     syncScenario('random operations converge (seed $seed)', (h) {
       final fuzz = Fuzz(h, Random(seed))..run();
       expect(fuzz.created, isNotEmpty);
+      expect(fuzz.createdObjects, isNotEmpty);
       fuzz.check();
     }, seed: seed);
   }

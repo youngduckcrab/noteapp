@@ -196,6 +196,15 @@ final class FakeLocalStore implements SyncLocalStore {
   @internal
   List<Stroke> strokesOf(PageId pageId) => _s.strokesOf(pageId);
 
+  /// (2nd round) TestDevice helper: page object rows of [pageId], soft-deleted included.
+  @internal
+  List<PageObject> objectsOf(PageId pageId) => _s.objectsOf(pageId);
+
+  /// (2nd round) TestDevice helper: the handwriting result row of [pageId] (soft-deleted
+  /// included), or null.
+  @internal
+  HandwritingText? handwritingOf(PageId pageId) => _s.handwritingOf(pageId);
+
   static String _idOf(FakeLocalWrite w) {
     final id = w.json[w.kind == EntityKind.setting ? 'key' : 'id'];
     if (id is! String) throw ArgumentError.value(id, 'json', 'has no id');

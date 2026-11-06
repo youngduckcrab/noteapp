@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart';
 
+import '../codec/canonical_json.dart';
 import '../engine/connectivity.dart';
 import '../engine/engine_controller.dart';
 import '../engine/sync_engine.dart';
@@ -16,7 +17,10 @@ import 'synthetic_points.dart';
 
 /// A simulated device: FakeLocalStore + SyncEngine + FakeAuthBackend + link.
 /// Edit helpers build CORE JSON (CORE 6.3 key table) and call FakeLocalStore.localWrite
-/// with the changedFields CORE would record (CORE 6.5 table).
+/// with the changedFields CORE would record (CORE 6.5 table). (2nd round, 07-sync 4.3) The
+/// page object / handwriting / recording helpers build their values with the contract
+/// constructors + toJson() and record exactly the JSON keys whose value changed (CORE C-11);
+/// a helper that changes nothing writes nothing.
 final class TestDevice {
   /// Via SyncTestHarness.device. [engine] builds the device's engine from its store and
   /// clock.
@@ -34,7 +38,7 @@ final class TestDevice {
   }) {
     clock = Clock(() => baseClock.now().add(clockOffset));
     store = FakeLocalStore(nodeId: nodeId, clock: clock);
-    this.engine = engine(this);
+    _engine = engine(this);
   }
 
   final String name;
@@ -44,7 +48,11 @@ final class TestDevice {
   final String uid;
 
   late final FakeLocalStore store;
-  late final SyncEngine engine;
+
+  /// The device's current engine. (2nd round) SyncTestHarness.restart replaces it (same
+  /// [store]).
+  SyncEngine get engine => _engine;
+  late SyncEngine _engine;
   final FakeAuthBackend auth;
   final FakeNetworkLink link;
   final ManualConnectivitySignal connectivity;
@@ -65,6 +73,16 @@ final class TestDevice {
   Future<void> startEngine() {
     _engineStarted = true;
     return engine.start();
+  }
+
+  /// (2nd round) SyncTestHarness.restart: disposes the engine (the caller runs the Future)
+  /// and puts [next] in its place, not started. The store — rows, outbox, meta — stays.
+  @internal
+  Future<void> replaceEngine(SyncEngine next) {
+    final old = _engine;
+    _engine = next;
+    _engineStarted = false;
+    return old.dispose();
   }
 
   /// Why SyncTestHarness.settle must keep waiting for this device, or null when it is idle:
@@ -438,6 +456,317 @@ final class TestDevice {
         return c != 0 ? c : a.id.compareTo(b.id);
       });
     return [for (final s in strokes) SyncDoc.fromEntity(s)];
+  }
+
+  // ---- page objects, handwriting, recordings (2nd round, 07-sync 4.3) -----------------
+
+  /// JSON keys whose value differs between [before] and [after] (keys on either side;
+  /// 'updatedAt' and 'version' left out — the store sets them): the fields CORE stamps
+  /// for a local change (C-11).
+  static Set<String> _changedKeys(
+    Map<String, Object?> before,
+    Map<String, Object?> after,
+  ) => {
+    for (final key in {...before.keys, ...after.keys})
+      if (key != 'updatedAt' &&
+          key != 'version' &&
+          (before.containsKey(key) != after.containsKey(key) ||
+              canonicalJson(before[key]) != canonicalJson(after[key])))
+        key,
+  };
+
+  /// Writes [next] over [before] with the changed keys only; nothing when none changed.
+  void _update(
+    EntityKind kind,
+    Map<String, Object?> before,
+    Map<String, Object?> next,
+  ) {
+    final fields = _changedKeys(before, next);
+    if (fields.isNotEmpty) _write(kind, next, fields);
+  }
+
+  PageObject _object(String objectId) {
+    final e = _entity(EntityKind.pageObject, objectId);
+    return e as PageObject;
+  }
+
+  /// A known object for [pageId]: ShapeObject rectangle by default (the defaults of CORE
+  /// PageObjectFixtures.shape, built with the contract constructors + toJson — lib/ may not
+  /// import note_core/testing.dart, INFRA R4), or type 'text' | 'image' (needs [assetId]) |
+  /// 'math' with that fixture's defaults. [seed] moves the rectangle by 10 pt × seed right
+  /// and down. One local write {*}; returns the object id.
+  String addObject(
+    String pageId, {
+    String type = 'shape',
+    AssetId? assetId,
+    int seed = 0,
+  }) {
+    _entity(EntityKind.page, pageId);
+    if (type == 'image' && assetId == null) {
+      throw ArgumentError.value(assetId, 'assetId', "needed for type 'image'");
+    }
+    final id = store.newId('object');
+    final now = _now;
+    final d = seed * 10.0;
+    PageRect at(double l, double t, double r, double b) =>
+        PageRect(l + d, t + d, r + d, b + d);
+    final PageObject object = switch (type) {
+      'shape' => ShapeObject(
+        id: id,
+        pageId: pageId,
+        shapeKind: ShapeKind.rectangle,
+        geometry: ShapeGeometry.rectangle(at(100, 100, 300, 220)),
+        style: const ShapeStyle(strokeColorArgb: 0xFF1A1A1A),
+        createdAt: now,
+      ),
+      'text' => TextBoxObject(
+        id: id,
+        pageId: pageId,
+        frame: ElementFrame(at(100, 300, 400, 340)),
+        text: '안녕 hello',
+        style: const TextBoxStyle(),
+        createdAt: now,
+      ),
+      'image' => ImageObject(
+        id: id,
+        pageId: pageId,
+        frame: ElementFrame(at(100, 400, 300, 550)),
+        assetId: assetId!,
+        pixelWidth: 400,
+        pixelHeight: 300,
+        createdAt: now,
+      ),
+      'math' => MathObject(
+        id: id,
+        pageId: pageId,
+        frame: ElementFrame(at(100, 600, 200, 650)),
+        latex: r'\frac{a}{b}',
+        style: const MathStyle(),
+        createdAt: now,
+      ),
+      _ => throw ArgumentError.value(
+        type,
+        'type',
+        "one of 'shape', 'text', 'image', 'math' (putRawObject for others)",
+      ),
+    };
+    _write(EntityKind.pageObject, object.toJson(), const {kAllFields});
+    return id;
+  }
+
+  /// TransformElements-like: PageObject.transformed(translation dx, dy). Fields: the keys
+  /// that changed — {frame, geometry} for a shape, {frame} for the others. An UnknownObject
+  /// cannot be transformed (nothing is written).
+  void moveObject(String objectId, {double dx = 10, double dy = 0}) {
+    final object = _object(objectId);
+    _update(
+      EntityKind.pageObject,
+      object.toJson(),
+      object.transformed(Affine2.translation(dx, dy)).toJson(),
+    );
+  }
+
+  /// UpdateObjects-like style change (normalized like a local command): a shape's stroke
+  /// colour, a text box's or a formula's text colour. Fields {style}. StateError for an
+  /// image or an UnknownObject (no style this helper can change).
+  void restyleObject(String objectId, int colorArgb) {
+    final object = _object(objectId);
+    final PageObject next = switch (object) {
+      ShapeObject() => object.copyWith(
+        style: object.style.copyWith(strokeColorArgb: colorArgb).normalized(),
+      ),
+      TextBoxObject() => object.copyWith(
+        style: object.style.copyWith(colorArgb: colorArgb).normalized(),
+      ),
+      MathObject() => object.copyWith(
+        style: object.style.copyWith(colorArgb: colorArgb).normalized(),
+      ),
+      _ => throw StateError(
+        '$name: object $objectId (${object.type}) has no colour to change',
+      ),
+    };
+    _update(EntityKind.pageObject, object.toJson(), next.toJson());
+  }
+
+  /// A text box's text (the frame is kept). Fields {text}. StateError for another type.
+  void editText(String objectId, String text) {
+    final object = _object(objectId);
+    if (object is! TextBoxObject) {
+      throw StateError(
+        '$name: object $objectId (${object.type}) is no text box',
+      );
+    }
+    _update(
+      EntityKind.pageObject,
+      object.toJson(),
+      object.copyWith(text: text).toJson(),
+    );
+  }
+
+  /// RemoveElements-like soft delete. Fields {deletedAt}; an object already deleted is left.
+  void deleteObject(String objectId) {
+    final object = _object(objectId);
+    if (object.isDeleted) return;
+    _write(
+      EntityKind.pageObject,
+      {...object.toJson(), 'deletedAt': _now},
+      const {'deletedAt'},
+    );
+  }
+
+  /// Writes [json] as the pageObject row [json]['id'] on [pageId], as received from a newer
+  /// app (an unknown 'type' becomes an UnknownObject — CORE reads it key for key). Missing
+  /// createdAt / deletedAt get now / null. A new row is one local write {*}; an existing row
+  /// gets the keys that changed (keys only on one side included).
+  void putRawObject(String pageId, Map<String, Object?> json) {
+    _entity(EntityKind.page, pageId);
+    final id = json['id'];
+    if (id is! String || json['type'] is! String) {
+      throw ArgumentError.value(json, 'json', "needs string 'id' and 'type'");
+    }
+    final next = <String, Object?>{
+      'createdAt': _now,
+      'deletedAt': null,
+      ...json,
+      'pageId': pageId,
+    };
+    final row = store.rows[EntityRef(EntityKind.pageObject, id)];
+    if (row == null) {
+      _write(EntityKind.pageObject, next, const {kAllFields});
+    } else {
+      _update(EntityKind.pageObject, row.entity.toJson(), next);
+    }
+  }
+
+  /// HandwritingRepository.put-like upsert of `hw_<pageId>`: one line per entry of [lines]
+  /// (line i: rect (40, 80 + 60i, 320, 120 + 60i), the page's recognition-input strokes
+  /// (HandwritingText.isRecognitionInput, drawing order) dealt round-robin as strokeIds),
+  /// sourceRev = HandwritingText.sourceRevOf(those strokes), createdAt kept from the stored
+  /// row. A new row is {*}; otherwise the changed keys only (the same value again writes
+  /// nothing; a removed result comes back with deletedAt among them).
+  void putHandwriting(
+    String pageId,
+    List<String> lines, {
+    String engineId = 'fake',
+  }) {
+    final page = _entity(EntityKind.page, pageId) as Page;
+    final input =
+        store
+            .strokesOf(pageId)
+            .where((s) => !s.isDeleted && HandwritingText.isRecognitionInput(s))
+            .toList()
+          ..sort(Stroke.compareOrder);
+    final stored = store.handwritingOf(pageId);
+    final value = HandwritingText(
+      noteId: page.noteId,
+      pageId: pageId,
+      engineId: engineId,
+      sourceRev: HandwritingText.sourceRevOf(input),
+      lines: [
+        for (final (i, text) in lines.indexed)
+          HandwritingLine(
+            text: text,
+            rect: PageRect(40, 80 + 60.0 * i, 320, 120 + 60.0 * i),
+            strokeIds: [
+              for (final (j, s) in input.indexed)
+                if (j % lines.length == i) s.id,
+            ],
+          ),
+      ],
+      createdAt: stored?.createdAt ?? _now,
+    );
+    if (stored == null) {
+      _write(EntityKind.handwriting, value.toJson(), const {kAllFields});
+    } else {
+      _update(EntityKind.handwriting, stored.toJson(), value.toJson());
+    }
+  }
+
+  /// HandwritingRepository.removeForPage-like soft delete. Fields {deletedAt}; nothing when
+  /// the page has no active result.
+  void removeHandwriting(String pageId) {
+    final stored = store.handwritingOf(pageId);
+    if (stored == null || stored.isDeleted) return;
+    _write(
+      EntityKind.handwriting,
+      {...stored.toJson(), 'deletedAt': _now},
+      const {'deletedAt'},
+    );
+  }
+
+  /// RecordingRepository.createRecording-like: the recording row ({*}, startedAt = now,
+  /// title null) after its audio asset — a small audio/webm asset made from the recording id
+  /// when [assetId] is null (M-1: the asset is stored first). Returns the recording id.
+  Future<String> addRecording(
+    String noteId, {
+    AssetId? assetId,
+    int durationMs = 1000,
+  }) async {
+    _entity(EntityKind.note, noteId);
+    final id = store.newId('recording');
+    final audio =
+        assetId ??
+        await putAsset(
+          Uint8List.fromList(utf8.encode('audio of $name/$id')),
+          type: AssetType.audio,
+          mimeType: 'audio/webm',
+        );
+    final now = _now;
+    _write(
+      EntityKind.recording,
+      {
+        'id': id,
+        'noteId': noteId,
+        'assetId': audio,
+        'durationMs': durationMs,
+        'startedAt': now,
+        'title': null,
+        'createdAt': now,
+        'updatedAt': now,
+        'deletedAt': null,
+      },
+      const {kAllFields},
+    );
+    return id;
+  }
+
+  /// RecordingRepository.renameRecording-like: [title] trimmed, empty → null. Fields
+  /// {title}; the same title writes nothing.
+  void renameRecording(String recordingId, String? title) {
+    final json = _json(EntityKind.recording, recordingId);
+    final trimmed = title?.trim();
+    _update(EntityKind.recording, json, {
+      ...json,
+      'title': trimmed == null || trimmed.isEmpty ? null : trimmed,
+    });
+  }
+
+  /// RecordingRepository.deleteRecording-like soft delete. Fields {deletedAt}; a deleted
+  /// recording is left.
+  void deleteRecording(String recordingId) {
+    final recording = _entity(EntityKind.recording, recordingId);
+    if (recording.isDeleted) return;
+    _write(
+      EntityKind.recording,
+      {...recording.toJson(), 'deletedAt': _now},
+      const {'deletedAt'},
+    );
+  }
+
+  /// Active objects of [pageId] in drawing order (Stroke.compareOrder: createdAt, id).
+  List<SyncDoc> activeObjectsOf(String pageId) {
+    final objects = store.objectsOf(pageId).where((o) => !o.isDeleted).toList()
+      ..sort(Stroke.compareOrder);
+    return [for (final o in objects) SyncDoc.fromEntity(o)];
+  }
+
+  /// The active handwriting result of [pageId] (like HandwritingRepository.forPage); null
+  /// when there is none or it was removed.
+  SyncDoc? handwritingOf(String pageId) {
+    final stored = store.handwritingOf(pageId);
+    return stored == null || stored.isDeleted
+        ? null
+        : SyncDoc.fromEntity(stored);
   }
 
   // ---- presets, settings, assets ------------------------------------------------------

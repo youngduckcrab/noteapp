@@ -45,6 +45,7 @@ final class Rig {
       },
       isClockBlocked: () => clockBlocked,
       onPurgesCommitted: (purges) async => committedPurges.addAll(purges),
+      onScopesCommitted: scopesCommitted.add,
       onPushNeeded: () => pushNeeded++,
     );
   }
@@ -67,6 +68,9 @@ final class Rig {
   int refreshes = 0;
   int pushNeeded = 0;
   final List<PurgeRecord> committedPurges = [];
+
+  /// onScopesCommitted calls, one per successful commit group.
+  final List<Set<String>> scopesCommitted = [];
 
   PushResult push() => runFake(async, pipeline.runOnce());
 
@@ -540,6 +544,99 @@ void main() {
       expect(retry.succeeded, isTrue);
       expect(r.store.outbox, isEmpty);
       expect(r.server.chunksOf(uid), hasLength(1));
+    });
+  });
+  group('onScopesCommitted: handwriting-only chunks are no edit (2nd round, '
+      'SYNC-M3)', () {
+    /// Note n1 with page p1 and stroke s1, sent; the calls so far are dropped.
+    void seed(Rig r) {
+      r.store.localWrite([
+        noteWrite('n1'),
+        pageWrite('p1', 'n1'),
+        strokeWrite('s1', 'p1'),
+      ]);
+      r.push();
+      expect(r.scopesCommitted.expand((s) => s).toSet(), {'lib', 'n1'});
+      r.scopesCommitted.clear();
+    }
+
+    /// The record kinds of each n1 chunk on the server, in commit order.
+    List<Set<EntityKind>> n1Chunks(Rig r) => [
+      for (final c in r.server.chunksOf(uid))
+        if (c.chunk.scope == 'n1')
+          {for (final rec in ChunkCodec.decode(c.chunk.payload)) rec.ref.kind},
+    ];
+
+    test('a commit carrying only a handwriting result → its scope is not '
+        'reported', () {
+      withRig((r) {
+        seed(r);
+        r.store.localWrite([
+          handwritingWrite('p1', 'n1', strokeIds: const ['s1']),
+        ]);
+        final result = r.push();
+        expect(result.succeeded, isTrue, reason: '$result');
+        expect(r.store.outbox, isEmpty);
+        expect(n1Chunks(r).last, {EntityKind.handwriting});
+        expect(r.scopesCommitted.single, isNot(contains('n1')));
+      });
+    });
+
+    test('a stroke and a handwriting result in one chunk → the scope is '
+        'reported', () {
+      withRig((r) {
+        seed(r);
+        r.store.localWrite([
+          strokeWrite('s2', 'p1'),
+          handwritingWrite('p1', 'n1', strokeIds: const ['s1', 's2']),
+        ]);
+        r.push();
+        expect(n1Chunks(r).last, {EntityKind.stroke, EntityKind.handwriting});
+        expect(r.scopesCommitted.single, contains('n1'));
+      });
+    });
+
+    test('a handwriting tail chunk and a stroke chunk in one commit group → '
+        'the scope is reported (for the stroke chunk)', () {
+      withRig((r) {
+        seed(r);
+        r.store.localWrite([
+          strokeWrite('s2', 'p1'),
+          strokeWrite('s3', 'p1'),
+          handwritingWrite('p1', 'n1', strokeIds: const ['s2', 's3']),
+        ]);
+        final result = r.push();
+        expect(result.commits, 1);
+        final chunks = n1Chunks(r);
+        expect(chunks.sublist(chunks.length - 2), [
+          {EntityKind.stroke},
+          {EntityKind.handwriting},
+        ]);
+        expect(r.scopesCommitted.single, contains('n1'));
+      }, config: const SyncConfig(maxRecordsPerChunk: 2));
+    });
+
+    test('the same chunks in two commit groups → only the stroke group '
+        'reports the scope', () {
+      withRig(
+        (r) {
+          seed(r);
+          r.store.localWrite([
+            strokeWrite('s2', 'p1'),
+            strokeWrite('s3', 'p1'),
+            handwritingWrite('p1', 'n1', strokeIds: const ['s2', 's3']),
+          ]);
+          final result = r.push();
+          expect(result.commits, greaterThanOrEqualTo(2));
+          final withN1 = [
+            for (final scopes in r.scopesCommitted)
+              if (scopes.contains('n1')) scopes,
+          ];
+          expect(withN1, hasLength(1), reason: '${r.scopesCommitted}');
+          expect(n1Chunks(r).last, {EntityKind.handwriting});
+        },
+        config: const SyncConfig(maxRecordsPerChunk: 2, maxChunksPerCommit: 1),
+      );
     });
   });
 }

@@ -139,9 +139,13 @@ final class PurgedSet {
     absorb(updates);
   }
 
+  /// Stops following local purges. The cancel is not awaited: a broadcast subscription's
+  /// cancel Future is completed in the root zone, which would hold dispose (and the engine's
+  /// session close after it) in any other zone — fake_async's included (S2-4b).
   Future<void> dispose() async {
-    await _subscription?.cancel();
+    final cancel = _subscription?.cancel();
     _subscription = null;
+    if (cancel != null) unawaited(cancel);
   }
 
   /// Drops entries older than [retention], then keeps the newest [maxPerKey].

@@ -186,6 +186,20 @@ final class FirebaseAuthBackend implements AuthBackend {
     }
   }
 
+  /// (2nd round, P-C — CP-S7) User.getIdToken(forceRefresh); null when signed out. Errors
+  /// go through mapFirebaseError (network-request-failed → network, user-token-expired /
+  /// user-disabled → unauthenticated).
+  @override
+  Future<String?> idToken({bool forceRefresh = false}) async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+    try {
+      return await user.getIdToken(forceRefresh);
+    } on Object catch (e, s) {
+      throw mapFirebaseError(e, stackTrace: s);
+    }
+  }
+
   @override
   Future<void> signOut() async {
     final native = _native;

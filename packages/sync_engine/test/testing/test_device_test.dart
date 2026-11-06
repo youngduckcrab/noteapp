@@ -1,5 +1,8 @@
 // TestDevice edit helpers (T6): the JSON they build has exactly the CORE 6.3 keys, decodes
-// with EntityJson.decode, and records the CORE 6.5 changed fields.
+// with EntityJson.decode, and records the CORE 6.5 changed fields. (2nd round, S2-4b —
+// 07-sync 4.3, 6.5) The page object / handwriting / recording helpers: contract keys, and the
+// changed fields are exactly the JSON keys whose value changed (CORE C-11).
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -340,6 +343,339 @@ void main() {
       a.goOnline();
       expect(a.link.online, isTrue);
       expect(a.connectivity.isOnline, isTrue);
+    });
+  });
+
+  group('2nd-round helpers (07-sync 4.3)', () {
+    /// The one write of [body] (none: null).
+    FakeLocalWrite? writeOf(TestDevice d, void Function() body) {
+      final writes = logged(d, body);
+      expect(writes.length, lessThanOrEqualTo(1));
+      return writes.firstOrNull;
+    }
+
+    /// Row JSON of [kind] / [id] (version and updatedAt left out).
+    Map<String, Object?> rowJson(TestDevice d, EntityKind kind, String id) =>
+        Map.of(d.doc(kind, id)!.json)
+          ..remove('version')
+          ..remove('updatedAt');
+
+    /// C-11: the written fields are the JSON keys whose value changed in the row.
+    Set<String> changed(
+      TestDevice d,
+      EntityKind kind,
+      String id,
+      void Function() body,
+    ) {
+      final before = rowJson(d, kind, id);
+      final write = writeOf(d, body);
+      final after = rowJson(d, kind, id);
+      final diff = {
+        for (final k in {...before.keys, ...after.keys})
+          if (jsonEncode(before[k]) != jsonEncode(after[k]) ||
+              before.containsKey(k) != after.containsKey(k))
+            k,
+      };
+      expect(write?.changedFields ?? const <String>{}, diff, reason: 'C-11');
+      return diff;
+    }
+
+    test('objects: contract keys per type, decodable, defaults of '
+        'PageObjectFixtures, {*} on add', () {
+      withDevice((h, a) {
+        final n = a.createNote('N');
+        final p = a.pageIdsOf(n).single;
+        final image = h.run(
+          a.putAsset(
+            Uint8List.fromList(List.generate(64, (i) => i)),
+            type: AssetType.image,
+            mimeType: 'image/png',
+          ),
+        );
+        for (final type in ['shape', 'text', 'image', 'math']) {
+          late String id;
+          final write = writeOf(
+            a,
+            () => id = a.addObject(p, type: type, assetId: image),
+          )!;
+          expect(write.kind, EntityKind.pageObject);
+          expect(write.changedFields, {kAllFields});
+          expect(
+            write.json.keys.toSet()..remove('version'),
+            kPageObjectTypeKeys[type]!.difference({'version'}),
+            reason: type,
+          );
+          final object = EntityJson.decode(EntityKind.pageObject, {
+            ...write.json,
+            'version': hlcText(kT0),
+          });
+          expect(object, isA<PageObject>().having((o) => o.type, 'type', type));
+          expect(write.json['id'], id);
+          expect(write.json['pageId'], p);
+        }
+        final objects = [for (final d in a.activeObjectsOf(p)) d.toEntity()];
+        final shape = objects.whereType<ShapeObject>().single;
+        expect(shape.shapeKind, ShapeKind.rectangle);
+        expect(shape.frame.bounds, const PageRect(100, 100, 300, 220));
+        expect(shape.style.strokeColorArgb, 0xFF1A1A1A);
+        expect(
+          objects.whereType<TextBoxObject>().single,
+          isA<TextBoxObject>()
+              .having((o) => o.text, 'text', '안녕 hello')
+              .having(
+                (o) => o.frame.bounds,
+                'rect',
+                const PageRect(100, 300, 400, 340),
+              ),
+        );
+        expect(
+          objects.whereType<ImageObject>().single,
+          isA<ImageObject>()
+              .having((o) => o.assetId, 'assetId', image)
+              .having((o) => o.pixelWidth, 'w', 400)
+              .having((o) => o.pixelHeight, 'h', 300),
+        );
+        expect(objects.whereType<MathObject>().single.latex, r'\frac{a}{b}');
+        // seed moves the rectangle; an image needs an asset; unknown types are refused.
+        final moved = a.addObject(p, seed: 2);
+        expect(
+          a.doc(EntityKind.pageObject, moved)!.toEntity(),
+          isA<ShapeObject>().having(
+            (o) => o.frame.bounds,
+            'rect',
+            const PageRect(120, 120, 320, 240),
+          ),
+        );
+        expect(() => a.addObject(p, type: 'image'), throwsArgumentError);
+        expect(() => a.addObject(p, type: 'sticker'), throwsArgumentError);
+        expect(() => a.addObject('no-page'), throwsStateError);
+      });
+    });
+
+    test('objects: changed fields are the changed JSON keys (CORE C-11)', () {
+      withDevice((h, a) {
+        final n = a.createNote('N');
+        final p = a.pageIdsOf(n).single;
+        final image = h.run(
+          a.putAsset(
+            Uint8List.fromList(List.generate(64, (i) => i)),
+            type: AssetType.image,
+            mimeType: 'image/png',
+          ),
+        );
+        final shape = a.addObject(p);
+        final text = a.addObject(p, type: 'text');
+        final pic = a.addObject(p, type: 'image', assetId: image);
+        final math = a.addObject(p, type: 'math');
+        const o = EntityKind.pageObject;
+        expect(changed(a, o, shape, () => a.moveObject(shape)), {
+          'frame',
+          'geometry',
+        });
+        for (final id in [text, pic, math]) {
+          expect(changed(a, o, id, () => a.moveObject(id, dy: 5)), {'frame'});
+        }
+        for (final id in [shape, text, math]) {
+          expect(changed(a, o, id, () => a.restyleObject(id, 0x80FF0000)), {
+            'style',
+          });
+        }
+        // Normalized like a local command: the alpha is forced to 0xFF.
+        expect(
+          (a.doc(o, shape)!.toEntity() as ShapeObject).style.strokeColorArgb,
+          0xFFFF0000,
+        );
+        expect(
+          changed(a, o, shape, () => a.restyleObject(shape, 0xFFFF0000)),
+          isEmpty,
+        );
+        expect(() => a.restyleObject(pic, 0xFF000000), throwsStateError);
+        expect(changed(a, o, text, () => a.editText(text, '새 글')), {'text'});
+        expect(changed(a, o, text, () => a.editText(text, '새 글')), isEmpty);
+        expect(() => a.editText(math, 'x'), throwsStateError);
+        expect(changed(a, o, math, () => a.moveObject(math, dx: 0)), isEmpty);
+        expect(changed(a, o, shape, () => a.deleteObject(shape)), {
+          'deletedAt',
+        });
+        expect(changed(a, o, shape, () => a.deleteObject(shape)), isEmpty);
+        expect([for (final d in a.activeObjectsOf(p)) d.id], [text, pic, math]);
+      });
+    });
+
+    test('putRawObject: an unknown type is kept key for key; it cannot be '
+        'moved or restyled, only deleted', () {
+      withDevice((h, a) {
+        final n = a.createNote('N');
+        final p = a.pageIdsOf(n).single;
+        final raw = {
+          'id': 'o-sticker',
+          'type': 'sticker',
+          'frame': [400.0, 100.0, 450.0, 150.0, 0.0],
+          'stickerId': 'cat-01',
+          'tint': {
+            'argb': 4294940672,
+            'stops': [0.0, 0.5, 1.0],
+          },
+        };
+        final write = writeOf(a, () => a.putRawObject(p, raw))!;
+        expect(write.changedFields, {kAllFields});
+        final doc = a.doc(EntityKind.pageObject, 'o-sticker')!;
+        expect(doc.toEntity(), isA<UnknownObject>());
+        for (final key in ['stickerId', 'tint', 'frame', 'type']) {
+          expect(jsonEncode(doc.json[key]), jsonEncode(raw[key]), reason: key);
+        }
+        expect(doc.json['pageId'], p);
+        expect(doc.json['deletedAt'], isNull);
+        const o = EntityKind.pageObject;
+        expect(
+          changed(a, o, 'o-sticker', () => a.moveObject('o-sticker')),
+          isEmpty,
+        );
+        expect(
+          () => a.restyleObject('o-sticker', 0xFF000000),
+          throwsStateError,
+        );
+        // A newer app's rewrite: the keys that changed, a key gone included.
+        expect(
+          changed(
+            a,
+            o,
+            'o-sticker',
+            () => a.putRawObject(
+              p,
+              {...raw, 'stickerId': 'dog-02'}..remove('tint'),
+            ),
+          ),
+          {'stickerId', 'tint'},
+        );
+        expect(changed(a, o, 'o-sticker', () => a.deleteObject('o-sticker')), {
+          'deletedAt',
+        });
+        expect(
+          a.doc(o, 'o-sticker')!.json['stickerId'],
+          'dog-02',
+          reason: 'deleting keeps the unknown keys',
+        );
+        expect(() => a.putRawObject(p, {'type': 'x'}), throwsArgumentError);
+      });
+    });
+
+    test('handwriting: hw_<pageId>, contract keys, input strokes, the same '
+        'value writes nothing, lines only → {lines}', () {
+      withDevice((h, a) {
+        final n = a.createNote('N');
+        final p = a.pageIdsOf(n).single;
+        final s = [for (var i = 0; i < 3; i++) a.addStroke(p, seed: i)];
+        final write = writeOf(a, () => a.putHandwriting(p, ['가나', 'hello']))!;
+        expect(write.kind, EntityKind.handwriting);
+        expect(write.changedFields, {kAllFields});
+        expect(
+          write.json.keys.toSet()..remove('version'),
+          kCoreJsonKeys[EntityKind.handwriting]!.difference({'version'}),
+        );
+        final hw = a.handwritingOf(p)!.toEntity() as HandwritingText;
+        expect(hw.id, HandwritingText.idFor(p));
+        expect(hw.noteId, n);
+        expect(hw.engineId, 'fake');
+        expect([for (final l in hw.lines) l.text], ['가나', 'hello']);
+        expect(hw.lines[0].strokeIds, [s[0], s[2]]);
+        expect(hw.lines[1].strokeIds, [s[1]]);
+        final input = [
+          for (final id in s)
+            a.doc(EntityKind.stroke, id)!.toEntity() as Stroke,
+        ];
+        expect(hw.sourceRev, HandwritingText.sourceRevOf(input));
+        const k = EntityKind.handwriting;
+        final id = hw.id;
+        expect(
+          changed(a, k, id, () => a.putHandwriting(p, ['가나', 'hello'])),
+          isEmpty,
+        );
+        expect(changed(a, k, id, () => a.putHandwriting(p, ['가나', 'world'])), {
+          'lines',
+        });
+        expect(
+          changed(a, k, id, () {
+            a.putHandwriting(p, ['가나', 'world'], engineId: 'other');
+          }),
+          {'engineId'},
+        );
+        a.eraseStroke(s[2]);
+        expect(changed(a, k, id, () => a.putHandwriting(p, ['가나', 'world'])), {
+          'lines',
+          'sourceRev',
+          'engineId',
+        });
+        expect(changed(a, k, id, () => a.removeHandwriting(p)), {'deletedAt'});
+        expect(a.handwritingOf(p), isNull);
+        expect(changed(a, k, id, () => a.removeHandwriting(p)), isEmpty);
+        expect(changed(a, k, id, () => a.putHandwriting(p, ['가나', 'world'])), {
+          'deletedAt',
+        });
+        expect(a.handwritingOf(p), isNotNull);
+        expect(
+          (a.handwritingOf(p)!.toEntity() as HandwritingText).createdAt,
+          hw.createdAt,
+          reason: 'createdAt kept from the stored row',
+        );
+        expect(a.handwritingOf('no-page'), isNull);
+        expect(() => a.putHandwriting('no-page', ['x']), throwsStateError);
+      });
+    });
+
+    test('recordings: audio asset first, contract keys with title, rename '
+        '{title}, delete {deletedAt}', () {
+      withDevice((h, a) {
+        final n = a.createNote('N');
+        late String r;
+        final writes = logged(a, () => r = h.run(a.addRecording(n)));
+        final write = writes.single;
+        expect(write.kind, EntityKind.recording);
+        expect(write.changedFields, {kAllFields});
+        expect(
+          write.json.keys.toSet()..remove('version'),
+          kCoreJsonKeys[EntityKind.recording]!.difference({'version'}),
+        );
+        final rec = a.doc(EntityKind.recording, r)!.toEntity() as Recording;
+        expect(rec.noteId, n);
+        expect(rec.durationMs, 1000);
+        expect(rec.title, isNull);
+        final asset = a.doc(EntityKind.asset, rec.assetId)!.toEntity() as Asset;
+        expect(asset.type, AssetType.audio);
+        expect(h.run(a.store.assets.hasBytes(asset.id)), isTrue);
+        final other = h.run(
+          a.addRecording(n, assetId: asset.id, durationMs: 61000),
+        );
+        expect(
+          (a.doc(EntityKind.recording, other)!.toEntity() as Recording).assetId,
+          asset.id,
+        );
+        const k = EntityKind.recording;
+        expect(changed(a, k, r, () => a.renameRecording(r, '  1교시 ')), {
+          'title',
+        });
+        expect(a.doc(k, r)!.json['title'], '1교시');
+        expect(changed(a, k, r, () => a.renameRecording(r, '1교시')), isEmpty);
+        expect(changed(a, k, r, () => a.renameRecording(r, '  ')), {'title'});
+        expect(a.doc(k, r)!.json['title'], isNull);
+        expect(changed(a, k, r, () => a.deleteRecording(r)), {'deletedAt'});
+        expect(changed(a, k, r, () => a.deleteRecording(r)), isEmpty);
+      });
+    });
+
+    test('outbox hints: objects and handwriting carry noteId and pageId', () {
+      withDevice((h, a) {
+        final n = a.createNote('N');
+        final p = a.pageIdsOf(n).single;
+        final o = a.addObject(p);
+        a.putHandwriting(p, ['x']);
+        final r = h.run(a.addRecording(n));
+        final entries = {for (final e in a.store.outbox) e.entityId: e};
+        expect((entries[o]!.noteId, entries[o]!.pageId), (n, p));
+        final hw = HandwritingText.idFor(p);
+        expect((entries[hw]!.noteId, entries[hw]!.pageId), (n, p));
+        expect(entries[r]!.noteId, n);
+      });
     });
   });
 }

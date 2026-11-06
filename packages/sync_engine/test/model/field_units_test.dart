@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
+import 'package:sync_engine/src/merge/field_merge.dart';
 import 'package:sync_engine/sync_engine.dart';
 
 import '../support/entity_fixtures.dart';
@@ -33,7 +34,7 @@ void main() {
       EntityKind.penPreset,
       EntityKind.asset,
       EntityKind.recording,
-      // (2nd round, R2-B7a) general records until S2-1 (07-sync 6.2.2).
+      // (2nd round) merged by wholeUnitExcept instead (07-sync 6.2.2).
       EntityKind.pageObject,
       EntityKind.handwriting,
     ]) {
@@ -48,6 +49,169 @@ void main() {
     expect(union, FieldUnits.keysOf(EntityKind.pageObject));
     // C21-11: math always writes engine, also when it is null.
     expect(kPageObjectTypeKeys['math'], contains('engine'));
+  });
+
+  // --- (2nd round, S2-1) one object / result unit (contract 7.2.8, 07-sync 6.2.2) ---
+  test('wholeUnitExcept: the excepted keys of the one-unit kinds, null for the '
+      'v1.4 kinds', () {
+    expect(FieldUnits.wholeUnitExcept(EntityKind.pageObject), {
+      'pageId',
+      'deletedAt',
+      'engine',
+    });
+    expect(FieldUnits.wholeUnitExcept(EntityKind.handwriting), {
+      'noteId',
+      'pageId',
+      'deletedAt',
+    });
+    for (final kind in EntityKind.values) {
+      if (kind == EntityKind.pageObject || kind == EntityKind.handwriting) {
+        continue;
+      }
+      expect(FieldUnits.wholeUnitExcept(kind), isNull, reason: kind.name);
+    }
+    for (final kind in [EntityKind.pageObject, EntityKind.handwriting]) {
+      // The excepted keys are CORE keys and never meta keys.
+      final except = FieldUnits.wholeUnitExcept(kind)!;
+      expect(kCoreJsonKeys[kind]!.containsAll(except), isTrue);
+      expect(except.intersection(FieldUnits.metaKeys), isEmpty);
+    }
+  });
+
+  test('unit table of the new kinds (6.2.2)', () {
+    expect(
+      FieldUnits.unitsFor(
+        EntityKind.pageObject,
+        FieldUnits.keysOf(EntityKind.pageObject),
+      ),
+      [
+        {
+          'assetId',
+          'frame',
+          'geometry',
+          'latex',
+          'px',
+          'shape',
+          'style',
+          'text',
+          'type',
+        },
+        {'deletedAt'},
+        {'engine'},
+        {'pageId'},
+      ],
+    );
+    expect(
+      FieldUnits.unitsFor(
+        EntityKind.handwriting,
+        FieldUnits.keysOf(EntityKind.handwriting),
+      ),
+      [
+        {'engineId', 'lines', 'sourceRev'},
+        {'deletedAt'},
+        {'noteId'},
+        {'pageId'},
+      ],
+    );
+    // recording: no groups — title is a unit of its own like every other key.
+    final recording = FieldUnits.unitsFor(
+      EntityKind.recording,
+      FieldUnits.keysOf(EntityKind.recording),
+    );
+    expect(recording, anyElement(equals({'title'})));
+    expect(recording.every((u) => u.length == 1), isTrue);
+  });
+
+  test('per object type: the keys of the type are one unit, the excepted '
+      'keys their own', () {
+    for (final MapEntry(key: type, value: keys)
+        in kPageObjectTypeKeys.entries) {
+      final units = FieldUnits.unitsFor(EntityKind.pageObject, keys);
+      final except = FieldUnits.wholeUnitExcept(EntityKind.pageObject)!;
+      expect(
+        units.first,
+        keys.difference(FieldUnits.metaKeys).difference(except),
+        reason: type,
+      );
+      expect(units.skip(1).toList(), [
+        for (final k in keys.intersection(except).toList()..sort()) {k},
+      ], reason: type);
+    }
+  });
+
+  test('unknown keys join the object / result unit', () {
+    final object = objectFixture('sticker').toJson().keys;
+    final units = FieldUnits.unitsFor(EntityKind.pageObject, object);
+    expect(units.first, containsAll(['stickerId', 'tint', 'type', 'frame']));
+    expect(units.skip(1), everyElement(hasLength(1)));
+    final hw = FieldUnits.unitsFor(EntityKind.handwriting, [
+      ...FieldUnits.keysOf(EntityKind.handwriting),
+      'layout',
+    ]);
+    expect(hw.first, {'engineId', 'lines', 'sourceRev', 'layout'});
+  });
+
+  test('only excepted keys present: no empty unit', () {
+    expect(
+      FieldUnits.unitsFor(EntityKind.pageObject, [
+        'deletedAt',
+        'id',
+        'version',
+      ]),
+      [
+        {'deletedAt'},
+      ],
+    );
+    expect(FieldUnits.unitsFor(EntityKind.handwriting, ['id']), isEmpty);
+  });
+
+  // 07-sync 6.2.2 counter-example: a later app adds key K to a known object type.
+  // A moves the object (frame, t1), B changes K (t2 > t1), C is an old app whose
+  // CORE drops K when it reads A's snapshot. With K in the one unit every app picks
+  // B's whole object, so the known keys converge.
+  test('mixed app versions converge: an unknown key decides with the object '
+      'unit', () {
+    const k = 'anchor';
+    final base = objectFixture('text').toJson();
+    Hlc t(int ms) => Hlc(kT0 + ms, 0, kNodeA);
+    UpsertRecord snap(Map<String, Object?> json, Map<String, int> fv) {
+      final versions = EntityFieldVersions(t(0), {
+        for (final e in fv.entries) e.key: t(e.value),
+      });
+      return UpsertRecord(
+        SyncDoc(
+          kind: EntityKind.pageObject,
+          id: 'o-text',
+          json: {...json, 'version': versions.max.toString()},
+        ),
+        versions,
+      );
+    }
+
+    const moved = [150.0, 300.0, 450.0, 340.0, 0.0];
+    final a = snap({...base, 'frame': moved, k: 'left'}, {'frame': 1});
+    final b = snap({...base, k: 'right'}, {k: 2});
+    final cViewOfA = snap({...base, 'frame': moved}, {'frame': 1});
+
+    final newApp = FieldMerge.mergeRecords(a, b);
+    final oldApp = FieldMerge.mergeRecords(cViewOfA, b);
+    for (final m in [newApp, oldApp, FieldMerge.mergeRecords(b, cViewOfA)]) {
+      expect(m.doc.json['frame'], base['frame'], reason: 'B wins the object');
+      expect(m.doc.json[k], 'right');
+    }
+    for (final key in kPageObjectTypeKeys['text']!) {
+      if (FieldUnits.metaKeys.contains(key)) continue;
+      expect(oldApp.doc.json[key], newApp.doc.json[key], reason: key);
+    }
+    // With K as a unit of its own (the per-key reading), the old app would keep
+    // A's move while the new apps drop it — they would never converge.
+    expect(
+      FieldUnits.unitsFor(
+        EntityKind.pageObject,
+        a.doc.json.keys,
+      ).where((u) => u.contains(k)).single,
+      contains('frame'),
+    );
   });
 
   test('meta keys are identity and derived values', () {

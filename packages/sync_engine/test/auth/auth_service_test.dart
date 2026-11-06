@@ -1,11 +1,15 @@
 // T14: AuthService (4.3) — initialize() takes the web redirect result once
 // (completePendingSignIn) and then follows authStateChanges; a failed sign-in is kept in
 // lastError until the next attempt; states emit the current state on listen and then distinct
-// changes in order. Virtual time (fakeAsync): nothing waits on the real clock.
+// changes in order. (2nd round, S2-14 — 07-sync 4.2, CP-S7) idToken: the backend's token
+// (forceRefresh passed on), null when signed out, without a backend or after dispose, and
+// null plus one log line (the error, never a token) when the backend throws. Virtual time
+// (fakeAsync): nothing waits on the real clock.
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sync_engine/src/auth/auth_log.dart';
 import 'package:sync_engine/sync_engine.dart';
 import 'package:sync_engine/testing.dart';
 
@@ -72,6 +76,22 @@ final class _ScriptedBackend implements AuthBackend {
   Future<void> signOut() async {
     signOutCalls++;
     setUser(null);
+  }
+
+  /// idToken: throws [tokenError] when set, else a token of the current user (null when
+  /// signed out). [tokenCalls] records each forceRefresh.
+  Object? tokenError;
+  final List<bool> tokenCalls = [];
+
+  @override
+  Future<String?> idToken({bool forceRefresh = false}) async {
+    tokenCalls.add(forceRefresh);
+    final error = tokenError;
+    if (error != null) Error.throwWithStackTrace(error, StackTrace.current);
+    final user = _user;
+    return user == null
+        ? null
+        : 'token-${user.uid}${forceRefresh ? '-new' : ''}';
   }
 }
 
@@ -438,5 +458,120 @@ void main() {
         });
       },
     );
+  });
+
+  group('idToken (2nd round, CP-S7)', () {
+    late List<(String, Object?)> logs;
+    setUp(() {
+      logs = [];
+      authLogHook = (message, error) => logs.add((message, error));
+    });
+    tearDown(() => authLogHook = null);
+
+    test('signed in: the backend\'s token, forceRefresh passed on', () {
+      fakeAsync((async) {
+        final backend = _ScriptedBackend(user: _alice);
+        final service = AuthService(backend);
+        runFake(async, service.initialize());
+        expect(runFake(async, service.idToken()), 'token-alice');
+        expect(
+          runFake(async, service.idToken(forceRefresh: true)),
+          'token-alice-new',
+        );
+        expect(backend.tokenCalls, [false, true]);
+        expect(logs, isEmpty);
+        _dispose(async, service);
+      });
+    });
+
+    test('signed out: null', () {
+      fakeAsync((async) {
+        final backend = _ScriptedBackend();
+        final service = AuthService(backend);
+        runFake(async, service.initialize());
+        expect(service.state.status, AuthStatus.signedOut);
+        expect(runFake(async, service.idToken()), isNull);
+        backend.setUser(_alice);
+        async.flushMicrotasks();
+        expect(runFake(async, service.idToken()), 'token-alice');
+        runFake(async, service.signOut());
+        expect(runFake(async, service.idToken(forceRefresh: true)), isNull);
+        expect(logs, isEmpty);
+        _dispose(async, service);
+      });
+    });
+
+    test('no backend (unavailable): null, no log', () {
+      fakeAsync((async) {
+        final service = AuthService(null);
+        expect(runFake(async, service.idToken()), isNull);
+        expect(runFake(async, service.idToken(forceRefresh: true)), isNull);
+        expect(logs, isEmpty);
+        _dispose(async, service);
+      });
+    });
+
+    for (final error in <Object>[
+      const SyncBackendException(SyncErrorCode.network, 'offline'),
+      const SyncBackendException(SyncErrorCode.unauthenticated, 'revoked'),
+      StateError('plugin failure'),
+    ]) {
+      test('the backend throws $error: null and one log line with the error, '
+          'never a throw', () {
+        fakeAsync((async) {
+          final backend = _ScriptedBackend(user: _alice);
+          final service = AuthService(backend);
+          runFake(async, service.initialize());
+          expect(runFake(async, service.idToken()), 'token-alice');
+          backend.tokenError = error;
+          expect(runFake(async, service.idToken(forceRefresh: true)), isNull);
+          expect(logs, hasLength(1));
+          expect(logs.single.$1, 'idToken failed');
+          expect(logs.single.$2, same(error));
+          expect(logs.single.$1, isNot(contains('token-alice')));
+          expect(
+            service.state.status,
+            AuthStatus.signedIn,
+            reason:
+                'no '
+                'state change',
+          );
+          backend.tokenError = null;
+          expect(runFake(async, service.idToken()), 'token-alice');
+          _dispose(async, service);
+        });
+      });
+    }
+
+    test('after dispose: null without asking the backend', () {
+      fakeAsync((async) {
+        final backend = _ScriptedBackend(user: _alice);
+        final service = AuthService(backend);
+        runFake(async, service.initialize());
+        _dispose(async, service);
+        expect(runFake(async, service.idToken()), isNull);
+        expect(backend.tokenCalls, isEmpty);
+      });
+    });
+
+    test('FakeAuthBackend: a token per user, a new one on forceRefresh, null '
+        'when signed out', () {
+      fakeAsync((async) {
+        final backend = FakeAuthBackend(user: _alice);
+        final service = AuthService(backend);
+        runFake(async, service.initialize());
+        final first = runFake(async, service.idToken());
+        expect(first, 'fake-id-token:alice:1');
+        expect(runFake(async, service.idToken()), first);
+        expect(
+          runFake(async, service.idToken(forceRefresh: true)),
+          'fake-id-token:alice:2',
+        );
+        backend.setUser(null);
+        async.flushMicrotasks();
+        expect(runFake(async, service.idToken()), isNull);
+        _dispose(async, service);
+      });
+    });
   });
 }

@@ -1,9 +1,13 @@
-// Internal (not exported). Protection before received purges are applied (6.7.4): a note
-// another device purged while this device still edits it — unsent changes of its pages,
-// strokes or recordings, an unsent change of its own non-trash fields, or content of its
-// scope sent in the last purgeGuardWindow — is first copied (CORE
-// duplicateNoteForRecovery) so the edits survive the purge (S08, S08b). Folder purges come
-// with one purge per note of the group (CORE 6.8), so checking notes is enough.
+// Internal (not exported). Protection before received purges are applied (6.7.4; 2nd round
+// 07-sync 6.2.5): a note another device purged while this device still edits it — unsent
+// changes of its pages, strokes, recordings or page objects, an unsent change of its own
+// non-trash fields, or content of its scope sent in the last purgeGuardWindow — is first
+// copied (CORE duplicateNoteForRecovery, which also copies recordings, page objects and
+// handwriting results) so the edits survive the purge (S08, S08b). Handwriting results are
+// derived data and never an edit: their outbox entries do not count here, and
+// UploadPipeline does not report a chunk carrying only handwriting records as sent (D-S11,
+// SYNC-M3). Folder purges come with one purge per note of the group (CORE 6.8), so checking
+// notes is enough.
 import 'package:note_core/note_core.dart';
 
 import '../model/records.dart';
@@ -101,13 +105,16 @@ final class PurgeGuard {
       for (final e in page) {
         if (e.op != OutboxOp.upsert) continue;
         switch (e.kind) {
-          case EntityKind.page || EntityKind.stroke || EntityKind.recording:
+          case EntityKind.page ||
+              EntityKind.stroke ||
+              EntityKind.recording ||
+              EntityKind.pageObject:
             if (e.noteId case final n? when notes.contains(n)) found.add(n);
           case EntityKind.note when notes.contains(e.entityId):
             if (e.changedFields.any((f) => !kNoteTrashFields.contains(f))) {
               found.add(e.entityId);
             }
-          default:
+          default: // handwriting: derived data, re-recognized from the copied strokes
         }
       }
       if (page.length < outboxPageSize) break;

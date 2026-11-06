@@ -5,7 +5,9 @@
 // chunks written meanwhile survive; two devices compacting at once only duplicate the
 // snapshot; the compacting device gets the records of R it had not applied from its own
 // snapshot (SYNC-3-2 ①). The engine runs it when a scope is due (n ≥ minChunksPerScope,
-// 24 h), live, foreground and with nothing pending, after a random wait.
+// 24 h), live, foreground and with nothing pending, after a random wait. (2nd round, S2-7a —
+// 07-sync 6.3.6) A chunk with a record of a kind the compacting app does not know stays out of
+// the snapshot and on the server, like a malformed one (unknownKindChunks).
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,7 @@ import 'package:sync_engine/sync_engine.dart';
 import 'package:sync_engine/testing.dart';
 
 import '../support/engine_harness.dart';
+import '../support/raw_records.dart';
 
 const _uid = 'user-1';
 const _writer = 'c0c0c0c0c0c0c0c0';
@@ -57,7 +60,12 @@ List<String> _strokes(
 
 /// A device's Compactor on its own link, as the engine builds it (6.13 unit runs).
 final class _Run {
-  _Run(this.h, this.device, {SyncConfig config = const SyncConfig()}) {
+  _Run(
+    this.h,
+    this.device, {
+    SyncConfig config = const SyncConfig(),
+    Set<EntityKind>? knownKinds,
+  }) {
     purged = PurgedSet(
       sync: device.store.sync,
       localChanges: device.store.localChanges,
@@ -68,6 +76,7 @@ final class _Run {
       backend: h.server.connect(uid: _uid, link: link),
       config: config,
       purged: purged,
+      knownKinds: knownKinds,
     );
   }
 
@@ -510,6 +519,78 @@ void main() {
       expect(a.engine.debug.ownChunksSkipped, 0);
       h.checkConverged([a, b]);
     });
+  });
+
+  group('S-13: chunks with records of unknown kinds (2nd round, S2-7a)', () {
+    harnessTest('an older app compacting: the chunk with a handwriting result '
+        '(and the stroke in it) stays on the server, the rest is compacted, '
+        'the merged state is unchanged', (h, async) {
+      final s = _noteScope(h, strokes: 3);
+      // One push: a stroke and the handwriting result in one note-scope chunk.
+      final mixedStroke = s.a.addStroke(s.page, seed: 9, points: 10);
+      s.a.putHandwriting(s.page, const ['미분']);
+      h.settle();
+      final mixed = _deltas(h, s.note).last;
+      expect(
+        {for (final r in ChunkCodec.decode(mixed.payload)) r.ref.kind},
+        {EntityKind.stroke, EntityKind.handwriting},
+      );
+      final before = h.server.mergedState(_uid);
+      final old = EntityKind.values.toSet()..remove(EntityKind.handwriting);
+      final result = _Run(h, s.a, knownKinds: old).compact(s.note);
+      expect(result.completed, isTrue, reason: '$result');
+      expect(result.unknownKindChunks, 1);
+      expect(result.malformed, 0);
+      expect(_deltas(h, s.note).map((c) => c.id), [mixed.id]);
+      expect(h.server.mergedState(_uid), before);
+      expect(
+        before.keys,
+        containsAll([
+          EntityRef(EntityKind.stroke, mixedStroke),
+          EntityRef(EntityKind.handwriting, 'hw_${s.page}'),
+        ]),
+      );
+
+      // The current app merges it into its snapshot.
+      final now = _Run(h, s.a).compact(s.note);
+      expect(now.unknownKindChunks, 0);
+      expect(_deltas(h, s.note), isEmpty);
+      expect(h.server.mergedState(_uid), before);
+    });
+
+    harnessTest(
+      'a kind no app knows (bookmark) stays for every app; a scope of '
+      'only such chunks has nothing to merge',
+      (h, async) {
+        final s = _noteScope(h, strokes: 2);
+        final hlc = Hlc(kEngineStart.millisecondsSinceEpoch, 0, _writer);
+        final bytes = rawUpsertRecord(
+          'bookmark',
+          {'id': 'b1', 'noteId': s.note, 'version': '$hlc'},
+          {'b': '$hlc'},
+        );
+        final payload = Uint8List.fromList([
+          0x4E,
+          0x43,
+          ChunkCodec.formatVersion,
+          1,
+          ...bytes,
+        ]);
+        final unknown = _raw(const [], s.note, payload: payload);
+        h.server.commitRaw(_uid, [unknown]);
+        final result = _Run(h, s.a).compact(s.note);
+        expect(result.completed, isTrue, reason: '$result');
+        expect(result.unknownKindChunks, 1);
+        expect(_deltas(h, s.note).map((c) => c.id), [unknown.id]);
+        expect('$result', contains('unknownKind: 1'));
+
+        h.server.commitRaw(_uid, [_raw(const [], 'only', payload: payload)]);
+        final only = _Run(h, s.a).compact('only');
+        expect(only.skipped, CompactionSkip.nothingToMerge);
+        expect(only.unknownKindChunks, 1);
+        expect(_scopeChunks(h, 'only'), hasLength(1));
+      },
+    );
   });
 
   group('in the engine (trigger, 6.13)', () {

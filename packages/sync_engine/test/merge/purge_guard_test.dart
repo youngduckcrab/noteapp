@@ -2,6 +2,9 @@
 // edits (unsent page / stroke / recording entries, an unsent change of its own non-trash
 // fields, or content of its scope sent in the last 10 min) is copied with
 // duplicateNoteForRecovery first; otherwise the purge just applies.
+// 2nd round S2-5 (07-sync 6.2.5): an unsent page object is an edit, a handwriting result
+// is not (outbox or recently sent — UploadPipeline does not report a handwriting-only
+// chunk), and the copy carries recordings, objects and the handwriting result.
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
@@ -10,8 +13,15 @@ import 'package:sync_engine/sync_engine.dart';
 import 'package:sync_engine/testing.dart';
 
 import '../support/engine_harness.dart';
+import '../support/entity_fixtures.dart' show fixtureJson;
 import '../support/local_writes.dart';
 import '../support/merge_rig.dart';
+
+FakeLocalWrite recordingWrite(String id, String noteId) => FakeLocalWrite(
+  EntityKind.recording,
+  {...fixtureJson(EntityKind.recording, id: id), 'noteId': noteId},
+  changedFields: const {kAllFields},
+);
 
 PurgeRecord purgeOf(EntityRef ref) =>
     PurgeRecord(ref, Hlc(kMergeStart.millisecondsSinceEpoch + 1000, 0, kNodeB));
@@ -26,12 +36,13 @@ PurgeGuard guardOf(
   nowMillis: () => r.a.clock.now().millisecondsSinceEpoch,
 );
 
-/// Note n with page p and stroke s on A, all sent (outbox empty).
+/// Note n with page p, stroke s and text box o on A, all sent (outbox empty).
 void synced(MergeRig r) {
   r.write(r.a, [
     noteWrite('n', title: '회의'),
     pageWrite('p', 'n'),
     strokeWrite('s', 'p'),
+    objectWrite('o', 'p', type: 'text'),
   ]);
   r.ackAll(r.a);
 }
@@ -59,6 +70,18 @@ void main() {
       'an unsent title change of the note',
       noteWrite('n', title: '바뀐 제목', fields: const {'title'}),
     ),
+    ('an unsent recording', recordingWrite('rec2', 'n')),
+    ('an unsent page object (2nd round)', objectWrite('o2', 'p', type: 'text')),
+    (
+      'an unsent change of a sent page object (2nd round)',
+      objectWrite(
+        'o',
+        'p',
+        type: 'text',
+        set: const {'text': '바뀐 글'},
+        fields: const {'text'},
+      ),
+    ),
   ]) {
     test('$what → a copy (title + suffix) before the purge, '
         'NoteRecoveredFromPurge', () {
@@ -83,6 +106,66 @@ void main() {
       });
     });
   }
+
+  test('an unsent handwriting result only (created or changed) is no reason to '
+      'copy (derived data, 2nd round)', () {
+    withMergeRig((r) {
+      synced(r);
+      r.write(r.a, [
+        handwritingWrite('p', 'n', strokeIds: const ['s']),
+      ]);
+      expect(
+        r.a.outbox.map((e) => (e.kind, e.noteId)),
+        contains((EntityKind.handwriting, 'n')),
+      );
+      expect(r.run(guardOf(r).guard([purgeOf(noteRef('n'))])), isEmpty);
+      r.ackAll(r.a);
+      r.write(r.a, [
+        handwritingWrite('p', 'n', text: '적분', fields: const {'lines'}),
+      ]);
+      expect(r.run(guardOf(r).guard([purgeOf(noteRef('n'))])), isEmpty);
+      expect(notes(r), hasLength(1));
+    });
+  });
+
+  test('the copy carries the recordings, page objects and the handwriting '
+      'result of the note (CORE copyNote, 2nd round)', () {
+    withMergeRig((r) {
+      synced(r);
+      r.write(r.a, [
+        recordingWrite('rec', 'n'),
+        objectWrite('o3', 'p', type: 'math'),
+        handwritingWrite('p', 'n', strokeIds: const ['s']),
+      ]);
+      r.ackAll(r.a);
+      r.write(r.a, [strokeWrite('s2', 'p')]);
+      final notice = r.run(guardOf(r).guard([purgeOf(noteRef('n'))])).single;
+      final copyPages = [
+        for (final row in r.a.rows.values)
+          if (row.entity case final Page page
+              when page.noteId == notice.copyNoteId)
+            page,
+      ];
+      final copyPage = copyPages.single.id;
+      expect(copyPage, isNot('p'));
+      expect(r.a.objectsOf(copyPage).map((o) => o.runtimeType).toSet(), {
+        TextBoxObject,
+        MathObject,
+      });
+      expect(r.a.objectsOf(copyPage).map((o) => o.id), isNot(contains('o')));
+      final hw = r.a.handwritingOf(copyPage)!;
+      expect(hw.pageId, copyPage);
+      expect(hw.noteId, notice.copyNoteId);
+      expect(hw.lines.single.strokeIds.single, isNot('s'));
+      final recordings = [
+        for (final row in r.a.rows.values)
+          if (row.entity case final Recording rec
+              when rec.noteId == notice.copyNoteId)
+            rec,
+      ];
+      expect(recordings.single.id, isNot('rec'));
+    });
+  });
 
   test('a trash-only change of the note (deletedAt, trashRootId) is no reason '
       'to copy', () {
@@ -184,5 +267,63 @@ void main() {
       hasLength(1),
     );
     h.checkConverged([a, b]);
+  });
+  group('in the engine: what UploadPipeline reports as sent (2nd round, '
+      'SYNC-M3)', () {
+    /// B and A share note n; [edit] runs (B's part is sent — outbox empty) and A purges n
+    /// within the 10 min window. Returns the recovered-copy notices of B.
+    List<NoteRecoveredFromPurge> purgeAfter(
+      SyncTestHarness h,
+      void Function(TestDevice a, TestDevice b, String pageId) edit,
+    ) {
+      final a = liveDevice(h, 'A');
+      final b = liveDevice(h, 'B');
+      final n = a.createNote('회의록');
+      h.settle();
+      final page = b.pageIdsOf(n).single;
+      final log = EngineLog(b.engine);
+      final before = nowMillis(h);
+      edit(a, b, page);
+      h.settle();
+      expect(b.store.outbox, isEmpty, reason: 'the edit was sent');
+      a.purgeNote(n);
+      h.settle();
+      expect(
+        nowMillis(h) - before,
+        lessThan(const Duration(minutes: 10).inMilliseconds),
+        reason: 'still inside purgeGuardWindow',
+      );
+      expect(b.doc(EntityKind.note, n), isNull, reason: 'the purge applied');
+      h.checkConverged([a, b]);
+      return log.notices.whereType<NoteRecoveredFromPurge>().toList();
+    }
+
+    harnessTest('B recognizes the strokes A wrote and uploads only the '
+        'handwriting result just before → no copy, the purge applies', (
+      h,
+      async,
+    ) {
+      final notices = purgeAfter(h, (a, b, page) {
+        a.addStroke(page);
+        h.settle();
+        expect(b.activeStrokesOf(page), hasLength(1));
+        b.putHandwriting(page, const ['미분']);
+      });
+      expect(notices, isEmpty);
+    });
+
+    harnessTest('control: a stroke uploaded just before → a recovered copy', (
+      h,
+      async,
+    ) {
+      final notices = purgeAfter(h, (a, b, page) => b.addStroke(page));
+      expect(notices, hasLength(1));
+    });
+
+    harnessTest('control: a page object uploaded just before → a recovered '
+        'copy', (h, async) {
+      final notices = purgeAfter(h, (a, b, page) => b.addObject(page));
+      expect(notices, hasLength(1));
+    });
   });
 }

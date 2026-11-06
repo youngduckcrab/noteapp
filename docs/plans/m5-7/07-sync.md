@@ -1,8 +1,8 @@
 # 07 · SYNC — 동기화 · 서버 함수 (2차 라운드 M5·M6·M7)
 
-> 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 2회차. 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 2회차** (통합 계약 **v2.1** 기준 — 00-overview 7.9 변경 이력의 최신판이고 v2.1 뒤 새 판은 없다 [확인]. 1회차: 총괄 검토 [00-review.md](00-review.md) 3.7 SYNC-M1~M10과 공통 결정 CD2-01·05·12·19·21·22 반영. 2회차: 총괄 재검토 항목 1~4 — B7a 고정 자료를 T20a 해시에서 판정할 수 있게 함, 보관 개수 경계, `math.engine` 문구, Claude 이음새 이름. 반영 내역은 13장 — 2회차는 13.4)
+> 상태: **승인 · 계약 v2.3** (개발 착수 정리 2026-11-06 — 계약 7.6.2 마지막 bullet·C22-09: 5.5 '가정' 블록을 실제 타입으로, 계약 인용 표시를 v2.3으로(블록 11개 모두 v2.3 7장의 부분 문자열 [확인 — 줄 단위 대조]), C23-01·C23-02 반영, 00-review '최종 승인' SYNC-F1~F3 처리 — 13.5) · 이전: **승인** (최종 승인 2026-11-05 · 통합 계약 v2.2 — [00-review.md '최종 승인'](00-review.md#최종-승인)) · 승인한 판본: 수정 2회차 (1회차: 총괄 검토 [00-review.md](00-review.md) 3.7 SYNC-M1~M10과 공통 결정 CD2-01·05·12·19·21·22 반영. 2회차: 총괄 재검토 항목 1~4 — 13.4)
 
-> 작성 2026-11-05 · 수정 2026-11-05(1회차·2회차) · 영역 ID **SYNC** · 소유 경로 `packages/sync_engine/`, `functions/`(새, 저장소 루트, Node — 워크스페이스 멤버 아님) · 기준: [00-overview.md 7장 '통합 계약 v2.1'](00-overview.md) — **이 문서와 7장이 다르면 7장이 우선**한다. 7장이 덮어쓰지 않은 곳은 1차 계약 v1.5(1차 [00-overview.md](../00-overview.md) 7장 — 1차 통합 반영, 시그니처는 v1.4와 같다)가 그대로 유효하다. 이 문서의 `v1.4` 표기는 '1차 계약 그대로(v1.5에서도 같음)'라는 뜻이다.
+> 작성 2026-11-05 · 수정 2026-11-05(1회차·2회차) · 영역 ID **SYNC** · 소유 경로 `packages/sync_engine/`, `functions/`(새, 저장소 루트, Node — 워크스페이스 멤버 아님) · 기준: [00-overview.md 7장 '통합 계약 v2.3'](00-overview.md)(작성 때 v2.1 — v2.2·v2.3은 시그니처 변경이 SYNC에 없다) — **이 문서와 7장이 다르면 7장이 우선**한다. 7장이 덮어쓰지 않은 곳은 1차 계약 v1.5(1차 [00-overview.md](../00-overview.md) 7장 — 1차 통합 반영, 시그니처는 v1.4와 같다)가 그대로 유효하다. 이 문서의 `v1.4` 표기는 '1차 계약 그대로(v1.5에서도 같음)'라는 뜻이다.
 >
 > 이어받는 것: 1차 계획서 `/home/user/wt/sync/docs/plans/07-sync.md`(이하 **'1차 07-sync'**, 절 번호는 '1차 6.3.1'처럼 적는다), 진행 기록 `docs/plans/progress/sync.md`. **바탕 코드 = 1차 통합 HEAD**(`/home/user/noteapp` 브랜치 `claude/note-app-planning-bk29xb` `18c5ae5` — CD2-01). 그 HEAD의 `packages/sync_engine/`은 1차 작업 트리 `/home/user/wt/sync`(`1f4b639`)에 통합 커밋 `22abbea`(T16 실제 CORE 실행 — `test/integration/` 4파일만, `lib/` 변경 없음) 하나를 더한 것이다 [확인 — `git diff --stat 1f4b639 HEAD -- packages/sync_engine`]. 그래서 이 문서의 `lib/` 줄 인용은 통합 HEAD에서도 맞다. 통합 HEAD 기준 수치(1차 진행 기록 '통합 세션 1'): 패키지 VM 시험 777개 통과·건너뜀 4(`integration`, 약 76 s), Chrome `test/web` 26개, `--run-skipped -t integration` 42개(47.6 s — 계약 스위트 C-01~C-25 + 실제 CORE 전용 2 + 시나리오 7 + JSON 키 대조 5 + 폴더 순환 3). 조사: [01-hooks 3.4·3.11·R2](research/01-hooks.md), [03-recognition 6·7](research/03-recognition.md), [04-native 6](research/04-native.md). 판정: [judgement.md](drafts/judgement.md).
 >
@@ -88,7 +88,7 @@
 | D-S6 | 하루 상한 카운터는 Firestore 최상위 컬렉션 `fnQuota/{uid}_{yyyymmdd}`(서울 날짜)에 Admin SDK로만 쓴다 — 1차 규칙 파일은 바꾸지 않는다(클라이언트 접근은 기본 거부). 에뮬레이터 시험(`--only functions,auth`)에서는 `QUOTA_STORE=memory` | 계약 7.2.8 '규칙은 바뀌지 않는다', 계약 7.4.7의 에뮬레이터 목록. (v2.1) CP-S6 승인 — 계약 7.2.13 `rules` 주석 |
 | D-S7 | 가짜 엔진 출력은 입력에서 **결정적으로** 정해진다(6.8.5) — LIBRARY의 Dart 에뮬레이터 시험이 같은 값을 단언한다. 운영에서는 `ALLOW_FAKE_ENGINE=false`라 쓸 수 없다 | V13을 두 언어가 같은 함수로 확인. (v2.1) CP-S3 ⑥ 승인 — 출력 규칙이 계약 7.6 시험 도우미 블록이 되었다 |
 | D-S8 | 에뮬레이터 사용자는 Auth 에뮬레이터 관리 REST로 **uid를 지정해** 만든다(`owner-uid`·`stranger-uid`). 소유자 목록은 커밋하는 `functions/.env.demo-noteapp`(데모 프로젝트 전용 값만)에 둔다. (v2.1) 운영 `OWNER_UIDS`도 **커밋하는 `functions/.env.<projectId>`**에 둔다(uid는 비밀이 아니고, `.env.local`은 에뮬레이터만 읽는다) | [확인] 2026-11-05 에뮬레이터 실험(6.8.11). LIBRARY Q4 답. 계약 7.4.7 CP-S4·미니 라운드 순서 |
-| D-S9 | Claude 어댑터는 공식 SDK `@anthropic-ai/sdk 1.1.0`(CP-S5 승인 — 계약 7.5)으로만 쓰고(직접 `fetch` 구현을 하지 않음), 모델은 매개변수 `CLAUDE_MODEL`(기본 `claude-opus-5-5`)로 바꿀 수 있게 둔다(P-C) | 공식 SDK의 서버 쪽 대체·구조화 출력 타입을 그대로 쓴다 |
+| D-S9 | Claude 어댑터는 공식 SDK `@anthropic-ai/sdk 1.1.0`(CP-S5 승인 — 계약 7.5)으로만 쓰고(직접 `fetch` 구현을 하지 않음), 모델은 매개변수 `CLAUDE_MODEL`로만 정한다 — (v2.3, C23-02) 기본값은 빈 문자열이고 비어 있으면 Claude 엔진은 `notConfigured`(P-C) | 공식 SDK의 서버 쪽 대체·구조화 출력 타입을 그대로 쓴다 |
 | D-S10 | SYNC 공개 표면 변화는 '추가'만이다: `SyncEngineDebug.heldRecords`, `SyncTestHarness.device(knownKinds:)`·`restart`·(v2.1) `checkConverged(…, kinds:)`, `TestDevice` 편집 도우미, `FieldUnits.wholeUnitExcept`, (P-C) `AuthService.idToken`. 1차 공개 이름의 시그니처·의미는 바꾸지 않는다(새 인자는 모두 기본값이 있는 이름 인자) | 1차 계약 7.2.20 표면 — 다른 영역은 아직 `sync_engine`을 쓰지 않는다(앱 의존 없음 — 계약 7.1) |
 | D-S11 | (v2.1) **손글씨 결과는 편집이 아니다** — `PurgeGuard`의 outbox 판정과 '최근 10분 보냄' 모두에서. 업로드 파이프라인은 `handwriting` 기록만 실린 청크의 범위를 `onScopesCommitted`에 넘기지 않는다. 1차 T11 결정 ①('노트 범위 청크면 무엇이든 최근 보냄')을 바꾼다(총괄 승인 — CD2-12) | iPad(웹, 주 기기)에서 쓴 노트를 안드로이드 색인기가 몇 분 안에 인식해 올린 뒤 사용자가 iPad에서 노트를 영구 삭제하면, 안드로이드가 '(복구됨)' 사본을 만들어 되돌려 보낸다(검토 M-3). 계약 7.2.8 `handwriting` 행 |
 | D-S12 | (v2.1) 서버 함수의 시험 이음새는 **주입**이다: 엔진 제한 시간 신호 `HandlerDeps.engineSignal(ms)`(기본 `AbortSignal.timeout` — 시험은 `AbortController`), 엔진 어댑터는 생성자로 키·모델·클라이언트를 받고 `params.ts`는 등록부(`registry.ts`)만 읽는다. `engineVersion`은 **실제로 답한 엔진·모델 판**(Claude는 응답의 `model`)이고 대체 여부는 로그에만 | `AbortSignal.timeout`은 Node mock timers로 움직이지 않는다 [확인 — 검토 S-6]. 비교 도구가 같은 어댑터를 서버 밖에서 쓴다(검토 S-7). 계약 7.2.13 v2.1 `engineVersion` |
@@ -312,14 +312,14 @@ functions/
   },
   "devDependencies": {
     "@types/node": "22.20.5",
-    "firebase-tools": "15.34.2",
+    "firebase-tools": "15.34.1",
     "typescript": "6.0.3"
   }
 }
 ```
 
 - (v2.1, SYNC-M2) **`test` 스크립트는 따옴표 친 글롭을 Node에 넘긴다.** 디렉터리 인자(`node --test lib/test/ lib/tool/test/`)는 Node 22에서 디렉터리를 모듈로 불러 `Cannot find module '…/lib/test'`로 실패하고, 인자 없이 기본 패턴에 맡기면 `lib/test-emulator/*.emulator.test.js`까지 잡혀 에뮬레이터 없이 실패한다(검토 M-2). [확인 — 2026-11-05 Node 22.23.4, `/tmp/claude-0/plan57-scratch/sync57r`] 따옴표 글롭 두 개 → `# tests 2`·`# pass 2`, 단위 글롭은 `*.emulator.test.js`를 잡지 않음, 에뮬레이터 글롭 `'lib/test-emulator/**/*.emulator.test.js'`는 그 파일만 잡음. **맞는 파일이 없는 글롭도 `# tests 0`·종료 코드 0으로 끝난다** — 그래서 완료 조건(8.1 B7b·S2-10a·S2-10b)과 CI(INFRA `functions.yml` — 01-infra 6.14)는 출력의 `# tests N`이 N > 0인지 따로 본다. 출력을 파이프로 받으면(TTY 아님) Node 22 기본 보고 형식이 TAP이라 `# tests N` 줄이 나온다 [확인 — 같은 실험]. 완료 조건 명령(이하 **'`npm test`(시험 수 > 0)'**): `set -o pipefail; npm test 2>&1 | tee "${TMPDIR:-/tmp}/sync-npm-test.log" && grep -Eq '^# tests [1-9][0-9]*$' "${TMPDIR:-/tmp}/sync-npm-test.log"`.
-- 버전은 계약 7.5 표 그대로이고, `firebase-tools 15.34.2`는 INFRA 요청 R-6(01-infra 5.9 — CI가 lock된 같은 판을 `npx`/npm 스크립트로 부름)을 받아들인 것이다(계약 7.4.7 CP11). 1차 고정값이지만 게시일이 2026-10-28이라 작성일(11-05)에는 14일이 안 된다 [확인 — `npm view firebase-tools time`]. (v2.1, C21-28) R2-B1·**R2-B7b 커밋 때 14일이 지났는지 다시 확인**한다(2026-11-11부터 통과 — 그 전이면 B7b를 미룬다).
+- 버전은 계약 7.5 표 그대로이고, (v2.3, C23-01) `firebase-tools 15.34.1`(2026-10-21 게시 — 14일 규칙을 지난 판 중 최신. 15.34.2로 올리는 것은 실연결 미니 라운드 때 다시 판단)은 INFRA 요청 R-6(01-infra 5.9 — CI가 lock된 같은 판을 `npx`/npm 스크립트로 부름)을 받아들인 것이다(계약 7.4.7 CP11). 1차 고정값이지만 게시일이 2026-10-28이라 작성일(11-05)에는 14일이 안 된다 [확인 — `npm view firebase-tools time`]. (v2.1, C21-28) R2-B1·**R2-B7b 커밋 때 14일이 지났는지 다시 확인**한다(2026-11-11부터 통과 — 그 전이면 B7b를 미룬다).
 - (P-C, CP-S5 승인 — 계약 7.5) `dependencies`에 `"@anthropic-ai/sdk": "1.1.0"`(게시 2026-10-21, 의존 `standardwebhooks`·`json-schema-to-ts`·`@opentelemetry/api`, `zod`는 선택 peer [확인 — `npm view`]). S2-12(Claude 어댑터)에서 더하고 간접 의존 판은 lock을 만들 때 7.2 방식으로 확인한다.
 - `tsconfig.json`: 조사 04 6.4 골격(`module`·`moduleResolution` `NodeNext`, `strict`, `noImplicitReturns`, `noUnusedLocals`, `target es2022`, `skipLibCheck`, `types ["node"]`)에서 `rootDir: "."`, `include: ["src", "test", "test-emulator", "tool"]`로 바꾼다(배포 진입점은 `lib/src/index.js`). 린터(eslint)는 두지 않는다 — 의존을 늘리지 않고 `tsc --strict`를 검사로 삼는다.
 - 시험 실행기는 Node 내장 `node:test`·`node:assert/strict`, HTTP는 Node 22 내장 `fetch`다(추가 의존 없음 — 조사 04 6.4 골격과 같음).
@@ -335,7 +335,7 @@ functions/
 
 ### 4.1 계약 원문 (SYNC 소유)
 
-`// 계약 v2.1 7.2.8 원문`
+`// 계약 v2.3 7.2.8 원문`
 
 #### 7.2.8 동기화 문서 매핑 (1차 7.2.10 — sync_engine)
 
@@ -356,7 +356,7 @@ functions/
 - 에셋: 이미지·오디오는 1차 에셋 파이프라인 그대로(업로드 상한 300 MiB — 64 kbps 3시간 녹음 86 MB에 여유). `recording_drafts`·`search_units`·`search_fts`는 기기 로컬이라 동기화 대상이 아니다.
 - SYNC T16 'JSON 키 대조'(1차)를 새 두 종류에도 돌린다. (v2.1, CP-S1) `handwriting`: CORE `toJson` 키 집합 = `FieldUnits.keysOf(kind)`. `pageObject`: 알려진 4종 골든 키의 합집합 = `keysOf(pageObject)`, 각 골든 키 = `kPageObjectTypeKeys[type]`, `unknown`은 키 대조에서 빼고 `SyncDoc` 왕복만 본다(R2-B7a에서). 이후 라운드에 두 종류에 키를 더해도 따로 병합 단위를 만들지 않는다('나머지 전부' 단위에 들어간다 — 판이 다른 앱끼리 승자가 갈리지 않게).
 
-`// 계약 v2.1 7.2.13 원문 (functions/ 부분)`
+`// 계약 v2.3 7.2.13 원문 (functions/ 부분)`
 
 ```text
 functions/ (SYNC) — Node 22, TypeScript, firebase-functions 7.4.0, firebase-admin 14.5.0
@@ -411,13 +411,15 @@ tool   : functions/tool/math_eval.ts — reads fixtures (stroke JSON + expected 
 | S-13 | SYNC | 모르는 `kind` 기록은 그 기록만 보류하고 같은 청크의 나머지는 적용한다. 보류분은 앱 갱신 뒤 다시 적용된다. (v2.1) 보류는 청크 단위 전부/전무이고 넘치면 되감기 표시다 — 어느 경로로도 기록을 잃지 않는다(7.2.8) |
 | F-1 | SYNC(functions) | 외부 API 키는 Secret Manager(에뮬레이터는 `.secret.local`)에만 있고 앱·저장소에 없다. 로그인 + 소유자 UID 목록 밖 호출은 거절한다 |
 
-`// 계약 v2.1 7.4.7 원문`
+`// 계약 v2.3 7.4.7 원문`
 
 - 저장소 루트 `functions/`(SYNC). npm 의존은 **정확한 버전** + `package-lock.json` 커밋 + `npm ci`. `.env.local`·`.secret.local`·`node_modules/`·`lib/`·(v2.1) `eval-out/`·`firebase-debug*.log`는 `.gitignore`(INFRA가 기반 단계에서 넣음).
 - (v2.1, CP-S4) **`functions/.env.demo-noteapp`은 커밋한다**(데모 값만: `OWNER_UIDS=owner-uid`, `MATH_ENGINE=fake`, `ALLOW_FAKE_ENGINE=true`, `QUOTA_STORE=memory`, `DAILY_CAP=1000`) — 어떤 무시 규칙에도 걸리지 않음을 INFRA 시험이 확인한다. 시험 비밀값은 없다(`MATH_API_KEY` 없음 → 빈 값 + 경고, 가짜 엔진은 키를 쓰지 않음 [확인 — 07-sync 6.8.11]). 에뮬레이터 사용자는 `owner-uid`·`stranger-uid`(Auth 에뮬레이터 관리 REST — `Authorization: Bearer owner` + `localId`, 이미 있으면 로그인)로 SYNC·LIBRARY 시험이 같이 쓴다.
 - `app/firebase.json`에 `"functions": [{"source": "../functions"}]`(INFRA, 에뮬레이터에서 동작 확인됨 — 조사 04 6.4).
 - CI `functions` 잡(INFRA 소유 워크플로, SYNC 스크립트 호출): `ubuntu-latest`, Node 22, `npm ci && npm test && npm run test:emulator`(`firebase emulators:exec --only functions,auth --project demo-noteapp`, firebase-tools 15.34.2). 경로 필터 `functions/**`. (v2.1, CP11) `firebase-tools`는 `functions/package.json` devDependency(정확한 판)로 잠그고, 스크립트 이름은 `build`·`test`·`test:emulator`, 에뮬레이터 설정은 `--config ../app/firebase.json`이다. `npm test`는 따옴표 친 글롭(`node --test 'lib/test/**/*.test.js' 'lib/tool/test/**/*.test.js'` — 디렉터리 인자는 Node 22에서 실패한다 [확인 — SYNC 검토 M-2])이고 완료 조건에서 돌린 시험 수 > 0을 본다. `functions/`가 아직 없는 커밋에서는 잡을 건너뛴다(`hashFiles('functions/package.json')` 가드).
 - 배포(`firebase deploy --only functions`)는 Firebase 프로젝트 + Blaze 뒤(3.3, U3·U6). (v2.1) 미니 라운드의 순서: 비밀값(Secret Manager — 엔진이 정해지기 전에도 자리 값이 있어야 함 [추측 — 배포 때 확인]) → 커밋하는 `functions/.env.<projectId>`(운영 `OWNER_UIDS` — uid는 비밀이 아니고, `.env.local`은 에뮬레이터만 읽는다) → 배포 → `MATH_ENGINE=none`에서 소유자 호출 = `unavailable`·남 계정 = `permission-denied` 확인 → 엔진 설정 뒤 실제 호출 1회. 운영에서는 가짜 엔진을 쓸 수 없다(`ALLOW_FAKE_ENGINE=false`).
+
+- (v2.3, C23-01) 위 인용의 CI 줄 'firebase-tools 15.34.2'는 계약 7.4.7 본문 그대로다. 고정 판은 7.5 표와 C23-01대로 **15.34.1**이고 `functions/package.json`도 15.34.1이다(7.4.7 본문 문구는 총괄에게 알림 — 진행 기록 '변경 요청').
 
 계약 원문과 이 계획서 구현의 관계(v2.0 초안의 CP-S1~CP-S9는 v2.1에서 모두 받아들여졌다 — CP-S2는 보강해서, 00-review 2.2. 아래는 원문이 비워 둔 세부를 이 계획서가 어떻게 채우는지다. 원문을 바꾸지 않는다):
 
@@ -844,7 +846,7 @@ export function renderSummaryMarkdown(s: EvalSummary): string;   // the 03-recog
 
 #### 5.1.1 페이지 객체 — 쓰는 부분
 
-`// 계약 v2.1 7.2.2 원문` (발췌: SYNC가 쓰는 `PageObject`·`UnknownObject`·`EntityKind`)
+`// 계약 v2.3 7.2.2 원문` (발췌: SYNC가 쓰는 `PageObject`·`UnknownObject`·`EntityKind`)
 
 ```dart
 // lib/src/model/stroke.dart — PageElement stays sealed; the new subtypes are `part` files
@@ -925,7 +927,7 @@ SYNC가 이 타입을 쓰는 곳: `SyncDoc.toEntity()`(1차 — `EntityJson.deco
 
 #### 5.1.2 녹음 이름
 
-`// 계약 v2.1 7.2.4 원문` (발췌)
+`// 계약 v2.3 7.2.4 원문` (발췌)
 
 ```dart
 // Recording (v1.4 CORE 4.2) — 추가: title
@@ -942,7 +944,7 @@ final class Recording implements SyncEntity {
 
 #### 5.1.3 손글씨 인식 결과
 
-`// 계약 v2.1 7.2.5 원문` (발췌: 결정 문장과 엔티티)
+`// 계약 v2.3 7.2.5 원문` (발췌: 결정 문장과 엔티티)
 
 결정(조사 01 R7, 03 R3·R8 채택):
 
@@ -1020,7 +1022,7 @@ SYNC가 쓰는 것: `EntityKind.handwriting`, `HandwritingText.idFor`(결정적 
 
 #### 5.1.4 JSON 키 (저장 형식)
 
-`// 계약 v2.1 7.2.7 원문` (발췌: 페이지 객체 JSON 표·예시·손글씨·녹음 JSON)
+`// 계약 v2.3 7.2.7 원문` (발췌: 페이지 객체 JSON 표·예시·손글씨·녹음 JSON)
 
 페이지 객체 JSON(동기화·백업 공통, camelCase, 모르는 키 무시 — 1차 규칙 그대로):
 
@@ -1050,7 +1052,7 @@ SYNC가 쓰는 것: `EntityKind.handwriting`, `HandwritingText.idFor`(결정적 
 
 #### 5.1.5 기반 단계 시험 도우미
 
-`// 계약 v2.1 7.6 원문` (발췌: SYNC 시험이 JSON 고정 자료를 만들 때 쓰는 부분 — 같은 블록의 가짜 오디오 등은 SYNC가 쓰지 않아 생략)
+`// 계약 v2.3 7.6 원문` (발췌: SYNC 시험이 JSON 고정 자료를 만들 때 쓰는 부분 — 같은 블록의 가짜 오디오 등은 SYNC가 쓰지 않아 생략)
 
 ```dart
 // package:note_core/testing.dart — v2.0 additions (web-safe, test/ only)
@@ -1097,7 +1099,7 @@ abstract final class PageObjectFixtures {
 
 ### 5.2 INFRA (앱 셸 · 빌드 · CI)
 
-`// 계약 v2.1 7.4.6 원문` (발췌: 태그 `emulator`·무거운 시험 잠금)
+`// 계약 v2.3 7.4.6 원문` (발췌: 태그 `emulator`·무거운 시험 잠금)
 
 | 항목 | 규칙 |
 |---|---|
@@ -1111,7 +1113,7 @@ INFRA가 SYNC를 위해 하는 것과 SYNC의 변경 요청:
 | RQ-1 | `app/firebase.json`의 `functions`(`source: "../functions"`)·`emulators`(functions 5001, auth 9099, 127.0.0.1) — R2-B1 | 01-infra 6.14 | 받아들임. [확인] 같은 모양의 설정으로 `--project demo-noteapp` 에뮬레이터를 띄우면 `functions/.env.demo-noteapp`을 읽는다(6.8.11 실험) |
 | RQ-2 | `.gitignore`: `functions/node_modules/`·`functions/lib/`·`functions/.env.local`·`functions/.secret.local`·`functions/eval-out/`·`firebase-debug*.log` — **`functions/.env.demo-noteapp`은 무시하지 않는다**(커밋) | 01-infra 3.1 `.gitignore` 추가분(R2-B1 ⑩, INFRA-M11) + `tool/test/repo_hygiene_test.dart`(`git check-ignore`로 `.env.demo-noteapp`·`package.json`·`package-lock.json` 미무시, `.env.local`·`.secret.local`·`lib/x.js`·`node_modules/a`·`eval-out/r.json`·`firebase-debug*.log` 무시) | **반영 확인**(2026-11-05, 01-infra 3.1 블록 — 계약 7.4.7 목록과 같다). 미니 라운드의 `functions/.env.<projectId>`도 어떤 패턴에도 걸리지 않는다(`.env.local`만 무시 — 같은 블록) |
 | RQ-3 | `functions.yml`: `npm ci` → `npm test` → `npm run test:emulator` → Flutter → Dart `emulator` 시험. Dart 단계의 `firebase emulators:exec`는 SYNC의 `.env.demo-noteapp` 값(`OWNER_UIDS=owner-uid`, `MATH_ENGINE=fake`, `ALLOW_FAKE_ENGINE=true`, `QUOTA_STORE=memory`)으로 함수가 뜬다 | 01-infra 6.14 J16 | 받아들임 |
-| RQ-4 | INFRA 요청 R-6: `functions/package.json`에 `firebase-tools 15.34.2`(devDependencies)와 `build`·`test`·`test:emulator`, 에뮬레이터 설정은 `--config ../app/firebase.json` | 01-infra 5.9 R-6, CP11 | **받아들임**(3.4). (v2.1 정정, SYNC-M2) `test:emulator`는 `scripts/emulator_suite.sh`가 `npx firebase emulators:exec --config ../app/firebase.json --only functions,auth --project demo-noteapp "node --test 'lib/test-emulator/**/*.emulator.test.js'"`를 부른다(따옴표 글롭 — 디렉터리 인자는 Node 22에서 실패, 3.4) |
+| RQ-4 | INFRA 요청 R-6: `functions/package.json`에 `firebase-tools 15.34.1`(devDependencies — v2.3, C23-01. 요청 당시 15.34.2)와 `build`·`test`·`test:emulator`, 에뮬레이터 설정은 `--config ../app/firebase.json` | 01-infra 5.9 R-6, CP11 | **받아들임**(3.4). (v2.1 정정, SYNC-M2) `test:emulator`는 `scripts/emulator_suite.sh`가 `npx firebase emulators:exec --config ../app/firebase.json --only functions,auth --project demo-noteapp "node --test 'lib/test-emulator/**/*.emulator.test.js'"`를 부른다(따옴표 글롭 — 디렉터리 인자는 Node 22에서 실패, 3.4) |
 | RQ-5 | 컨테이너 전역 무거운 시험 잠금을 **npm 스크립트에서도** 잡을 수 있게 감싸기를 둔다 | (v2.1) 계약 7.4.6 '무거운 시험 잠금'·01-infra 4.2 `with-heavy-lock`(R2-B1 ⑦)·6.13·5.9 R-10 | **INFRA 답 받아들임**: `emulator_suite.sh`는 `dart run tool/ws.dart with-heavy-lock -- …`로 자기 자신을 다시 실행하고, 안쪽(Dart `ws test -t emulator` 포함)은 `NOTEAPP_HEAVY_LOCK_HELD=1`을 물려받아 다시 잡지 않는다. 셸 잠금 구현은 두지 않는다(R2-B7b가 R2-B1 바로 뒤라 필요 없다). 잠금 고정 경로 `/tmp/noteapp-heavy-tests.lock`(6.8.11) |
 | RQ-6 | (배포용) `app/firebase.json` `functions[0].ignore`에 `src`·`test`·`test-emulator`·`tool`·`lib/test`·`lib/test-emulator`·`lib/tool`·`scripts`를 더한다 — 배포 꾸러미에 시험·도구가 들어가지 않게 | 01-infra 6.14 — R2-B1 ⑧에서 함께 넣음(INFRA X-6 답) | 받아들임. 미니 라운드 배포 전에 꾸러미 목록을 한 번 본다(`firebase deploy --only functions --dry-run` [추측 — firebase-tools 옵션 이름, 미니 라운드에서 확인], 6.10 L5) |
 | RQ-7 | (미니 라운드) 앱의 `RecognitionConfig.idTokenProvider` = `() => ref.read(authServiceProvider).idToken()` | 01-infra 1장 미니 라운드 | 4.2 `AuthService.idToken`(P-C, CP-S7) |
@@ -1132,7 +1134,7 @@ LIBRARY는 callable 규약을 `package:http`로 구현한다(05-library 6.11). S
 | `RESOURCE_EXHAUSTED` → '오늘 쓸 수 있는 수식 인식 횟수를 다 썼어요' | 하루 상한에서만 낸다. 엔진 쪽 429는 `unavailable`(사용자 상한과 섞지 않음) | `handler.test.ts` |
 | 시간 제한 35 s(서버 30 s + 5 s) | 엔진 호출 25 s(`HandlerDeps.engineSignal(25_000)` — 운영 `AbortSignal.timeout`) + 처리, 함수 `timeoutSeconds: 30` | `handler.test.ts`(시험이 넘긴 `AbortController`를 `abort()` — 6.8.2) |
 
-`// 계약 v2.1 7.2.11 원문` (발췌: 서버 함수 주소를 앱에 넘기는 값 — SYNC는 읽기만. v2.0과 같음)
+`// 계약 v2.3 7.2.11 원문` (발췌: 서버 함수 주소를 앱에 넘기는 값 — SYNC는 읽기만. v2.0과 같음)
 
 ```dart
 @immutable final class RecognitionConfig {
@@ -1150,9 +1152,11 @@ LIBRARY는 callable 규약을 `package:http`로 구현한다(05-library 6.11). S
 
 ### 5.5 동시 개발 중 가짜와 가정 (계약 4.3 SYNC 행 구체화)
 
+(v2.3 — 개발 착수 정리, 계약 7.6.2 마지막 bullet) 기반 단계가 끝나 '가정'이던 CORE 값 타입·JSON은 실제 타입이다: B2-α `2b2e4b0`(계약 표면) → B2-β `9777fde`(T20a JSON 골든)·`c443015`(T20b 기하·`copyTo`)·`38f3578`(T21 값 타입)·`12ab8c4`(T23a 해석기·세션 객체)·`0798096`(T23b 가짜 저장소 v2·`PageObjectFixtures`·`testing_web`), 모두 `main` `5843ec3`(계약 v2.3)에 있다. SYNC R2-B7a(`99b8ead`)가 그 위에서 통과했다. 실제 CORE 저장소의 객체·녹음·손글씨 쓰기(T27·T29~T33)는 아직이라 T16-v2는 기본 skip(6.7.2)이다.
+
 | 의존 | 개발 중 쓰는 것 | 실제와 맞춰 보는 시점 |
 |---|---|---|
-| CORE 값 타입·JSON(`PageObject`·`HandwritingText`·`Recording.title`·`EntityJson.decode`) | R2-B2 실제 타입(기반 단계 '동작 구현') | 기반 단계 R2-B2 직후 |
+| CORE 값 타입·JSON(`PageObject`·`HandwritingText`·`Recording.title`·`EntityJson.decode`) | **실제 타입**(R2-B2 — B2-α `2b2e4b0` + B2-β `9777fde`~`0798096`, 위 문단) | 끝남 — R2-B7a가 T20a 위에서 확인(I-1) |
 | CORE 로컬 저장소(SyncStore·AssetStore) | 자기 `FakeLocalStore` v2(6.5) — 1차처럼 CORE 동작 계약(02-core 5.6·6.13·6.14)을 흉내 | 통합 3단계: 계약 스위트를 실제 CORE에(`core_sync_store_contract_test`) |
 | 실제 CORE v2 | `openTestNoteStore` — (v2.1 정정, SYNC-M6) 파일·경우마다 기다리는 CORE 이정표가 다르다: 객체 O1~O4는 T27, 손글씨 H1~H4는 T32·T33b, 녹음 R1·R2·C-31은 T30, 복사가 드는 O5·U2는 T29, C-30 뒷문장은 T31·T33a(6.7.2 선행 작업 표). 개발 중 CORE 커밋을 **읽기만** | 각 이정표 뒤 로컬 1회, 판정은 통합 3단계 T16-v2 |
 | 서버 | 1차 `FakeSyncServer`(+ `mergedState` v2), `commitRaw`로 모르는 `kind` 청크 | — |
@@ -1258,6 +1262,8 @@ CORE 6.3 키 표(02-core 6.3, 계약 7.2.7)와 대조했다. T16 'JSON 키 대�
 | 수식 다시 인식 (`UpdateObjects`) | `latex`, `engine`, (크기 바뀌면 `frame`) | 객체 + `engine` | `latex`는 객체 단위로, 출처 `engine`은 따로 — 출처가 LaTeX와 어긋날 수 있으나 표시용 정보라 받아들인다(계약 원문 '따로 `{engine}`') |
 | 손글씨 결과 쓰기 (`HandwritingRepository.put`) | `lines`·`sourceRev`·`engineId` | 손글씨 | 나중 HLC가 결과째 이김 — 색인기는 `sourceRev`가 지금 획과 다르면 다시 인식한다(02-core 6.9) |
 | 녹음 이름 (`renameRecording`) | `title` | 따로 | 나중 이름이 이김. 이름 + 삭제 → 삭제되고 이름도 남음 |
+
+- (동시 개발 S2-8, 무작위 수렴 v2가 찾음) **한 단위 종류의 메타 키 `createdAt`은 이기는 단위를 따라간다** — 한 단위의 승자 스냅숏이 `createdAt`을 주고, 두 단위 상태가 같을 때만 1차 규칙(작은 값)이다. 손글씨 결과 id는 언제나 `hw_<pageId>`라 두 기기가 같은 id를 각자의 `createdAt`으로 만들 수 있다. 1차 규칙(작은 값)이면 승자 스냅숏을 통째로 받은 기기(`TakeRemote`)·자기 행을 지킨 기기(`KeepLocal`)가 병합 값과 다르고, 진 쪽의 작은 값은 아무도 올리지 않아 서버 병합 상태와 기기가 영구히 갈린다. 승자를 따르면 `KeepLocal`·`TakeRemote` 결정이 그대로 병합 값이다(교환·결합·멱등 — 단위 비교가 전순서). 객체는 id가 겹치지 않아 실제로는 차이가 없다. 시험: `field_merge_test` '(S2-8)' 두 행, `sync_merge_policy_test` '(2nd round, S2-8)', `fuzz_convergence_test`.
 
 #### 6.2.3 청크 범위 · 정렬 · 코덱 (1차 6.4.3·6.4.4)
 
@@ -1664,7 +1670,7 @@ handler({auth, data}):
 |---|---|---|---|---|
 | 가짜 | `fake` / `1` | 획·이미지 | `ALLOW_FAKE_ENGINE=true` | P-B |
 | Mathpix | `mathpix` / `v3`(응답에 판이 없어 API 경로 판) | 획(`v3/strokes`)·이미지(`v3/text`) | `MATH_ENGINE=mathpix`, `MATHPIX_APP_ID` ≠ '', `MATH_API_KEY`(app_key) ≠ '' | P-C |
-| Claude | `claude` / **응답의 `model`**(요청은 `CLAUDE_MODEL`, 기본 `claude-opus-5-5` — 서버 쪽 대체가 돌면 다른 모델일 수 있다) | 이미지만 | `MATH_ENGINE=claude`, `MATH_API_KEY` ≠ '' (CP-S5 승인 — 계약 7.5) | P-C |
+| Claude | `claude` / **응답의 `model`**(요청은 `CLAUDE_MODEL` — (v2.3, C23-02) 기본 빈 문자열. 서버 쪽 대체가 돌면 다른 모델일 수 있다) | 이미지만 | `MATH_ENGINE=claude`, `MATH_API_KEY` ≠ '', `CLAUDE_MODEL` ≠ '' (CP-S5 승인 — 계약 7.5) | P-C |
 | Gemini | `gemini` | — | 이번에는 없음 → 언제나 `notConfigured` | 이후(1.3) |
 
 - (v2.1, SYNC-M7 — 검토 S-7) **매개변수를 읽는 곳은 등록부 하나**다: `registryFromParams()`가 요청마다 `params.ts`의 값(`.value()`)을 읽어 `EngineSettings`를 만들고, 어댑터는 생성자로 `{apiKey, appId?, model, client?/fetch?}`를 받는다. 어댑터 파일은 `firebase-functions/params`를 import하지 않는다 — 비교 도구(6.9)가 같은 어댑터를 개발자 환경 변수로 만들고, 시험 주입점(가짜 `fetch`·가짜 SDK 클라이언트·`createRegistry(settings, factories)`)도 같은 곳이 된다. `secrets_hygiene.test.ts` 옆에 '`src/engines/*.ts`가 `params`를 import하지 않음' 소스 검사를 하나 둔다.
@@ -1706,7 +1712,7 @@ handler({auth, data}):
 // (v2.1) constructor({ apiKey, model, client }) — client defaults to a thin wrapper over
 // new Anthropic({ apiKey, maxRetries: 0, timeout: 25_000 }).beta.messages; tests pass a fake.
 const res = await this.client.create({
-  model: this.model,                                 // CLAUDE_MODEL via the registry, default "claude-opus-5-5"
+  model: this.model,                                 // CLAUDE_MODEL via the registry (default '' → notConfigured)
   max_tokens: 16000,
   betas: ["server-side-fallback-2026-07-01"],
   fallbacks: "default",                              // server-side fallback on a refusal
@@ -1726,7 +1732,7 @@ if (res.stop_reason === "refusal") throw new EngineError("refused", "declined");
 //   logInfo: { requestedModel: this.model, fallback: res.model !== this.model, inTok, outTok }
 ```
 
-- 모델 기본값은 `claude-opus-5-5`이고 매개변수 `CLAUDE_MODEL`로 바꿀 수 있다. 어떤 엔진·모델을 쓸지는 비교 도구 결과로 사용자가 정한다(U6, Q1). 비용 추정은 6.8.12.
+- (v2.3, C23-02) 모델은 매개변수 `CLAUDE_MODEL`로만 정하고 기본값은 빈 문자열이다. 비어 있으면 등록부가 Claude 엔진을 `notConfigured`(`unavailable`)로 답한다. 모델 이름은 코드·커밋에 쓰지 않고 프로젝트별 `functions/.env.<projectId>`(실연결 미니 라운드, U6)에만 둔다. 어떤 엔진·모델을 쓸지는 비교 도구 결과로 사용자가 정한다(U6, Q1). 비용 추정은 6.8.12.
 - 거절(`stop_reason: "refusal"`)에 대비해 서버 쪽 대체(`fallbacks: "default"`)를 기본으로 켠다 — 수식 받아쓰기는 거절될 일이 드물지만 켜는 비용이 없다. (v2.1, SYNC-M7 — 검토 S-8, 계약 7.2.13) 대체가 돌면 답한 모델이 요청한 모델과 다르므로 **`engineVersion` = 응답의 `model`**이다(앱의 `MathObject.engineId` `'claude/<판>'`가 출처를 바르게 남긴다). 대체 여부는 로그에만 남긴다 — 요청 모델과 응답 `model`의 비교, 그리고 SDK 1.1.0 타입이 주는 사용량의 대체 정보(검토가 본 `usage.iterations`의 대체 표시 [추측 — 필드 뜻은 실제 호출로 확인, U6 뒤]).
 - 이미지만 받는다(`accepts.strokes = false`). 앱이 PNG를 못 만들면(렌더러 자리 없음 — 05-library 6.11.3) `invalid-argument`가 된다(CP-S3 — LIBRARY 문구 '이 필기는 수식으로 보낼 수 없어요').
 - 시험(`test/claude.test.ts` — (수정 2회차) 두 항목으로 나뉘어 있던 것을 하나로 합침): SDK 클라이언트를 4.5의 얇은 이음새 `ClaudeMessagesClient.create(params, opts)` 뒤에 두고(생성자 `client` 인자로 가짜를 넘김) 가짜로 요청 인자(모델·`betas`·`fallbacks`·`output_config`·이미지 블록·`opts.signal`)·응답 해석·거절(`stop_reason: "refusal"` → `refused`)·JSON 아님·스키마 위반·SDK 오류 종류별 변환을 본다. (v2.1, SYNC-M7) '가짜 클라이언트가 요청과 다른 `model`로 답함 → `engineVersion` = 그 값, 로그 `fallback: true`' 경우도 같은 파일에 둔다.
@@ -1767,7 +1773,7 @@ if (res.stop_reason === "refusal") throw new EngineError("refused", "declined");
 | `DAILY_CAP` | `defineInt` | `200` | `1000` | `200`(Q2) |
 | `QUOTA_STORE` | `defineString` | `firestore` | `memory` | `firestore` |
 | `MATHPIX_APP_ID` | `defineString` | `''` | `''` | Mathpix를 고르면 |
-| `CLAUDE_MODEL` | `defineString` | `claude-opus-5-5` | (기본) | 엔진 비교 결과 |
+| `CLAUDE_MODEL` | `defineString` | `''` (v2.3, C23-02 — 비면 Claude `notConfigured`) | (기본) | 엔진 비교 결과(`.env.<projectId>`) |
 
 - 키는 저장소·앱 어디에도 없다(F-1): `.secret.local`·`.env.local`은 INFRA `.gitignore`(RQ-2), 시험은 키 없이 돈다(가짜 엔진·가짜 `fetch`·가짜 SDK). `functions/test/secrets_hygiene.test.ts`가 저장소의 `functions/` 아래 커밋 대상 파일에 `sk-ant-`·`app_key=`·`MATH_API_KEY=` 값 꼴이 없는지 소스 검사한다(가벼운 안전망).
 - `.env.demo-noteapp`은 프로젝트 id가 `demo-noteapp`인 실행(에뮬레이터)에서만 읽힌다. 운영 프로젝트로 배포하면 `.env`(없음)와 `.env.<projectId>`만 쓰인다 — 그래서 운영 값은 `.env.<projectId>`에 둔다(계약 7.4.7 v2.1). 그 파일에는 비밀값을 넣지 않는다(`secrets_hygiene.test.ts`가 `functions/.env*` 커밋 대상 파일도 검사한다).
@@ -1859,7 +1865,7 @@ npx firebase emulators:exec --config ../app/firebase.json --only functions,auth 
 | 처리 본문(엔진 제외) | 에뮬레이터에서 가짜 엔진 왕복 중앙값 ≤ 50 ms(실험: 함수 실행 3~20 ms [확인]) |
 | 콜드 스타트 | 측정은 배포 뒤(미니 라운드). `minInstances` 0(비용) — 첫 호출이 느릴 수 있음을 앱 시간 제한 35 s가 덮는다 |
 | Mathpix | 요청당 약 $0.002, 설정비 $19.99 [추측 — 조사 03 6.1·6.5의 검색 요약, 가격표 원문 미확인] |
-| Claude `claude-opus-5-5`(effort low) | $4/$20 per MTok. 수식 PNG 하나 ≈ 입력 1,000~1,500 토큰(이미지 ≈ 530 [추측 공식] + 지시문), 출력(생각 포함) 300~1,000 토큰 → 요청당 약 $0.01~0.026, 하루 30개 × 30일 = 월 약 $9~23 [추정]. 더 싼 모델로 바꿀지는 비교 도구 결과로 사용자가 정한다(U6·Q1) |
+| Claude(`CLAUDE_MODEL`로 고른 모델, effort low — 작성 때 가정한 모델 기준) | $4/$20 per MTok. 수식 PNG 하나 ≈ 입력 1,000~1,500 토큰(이미지 ≈ 530 [추측 공식] + 지시문), 출력(생각 포함) 300~1,000 토큰 → 요청당 약 $0.01~0.026, 하루 30개 × 30일 = 월 약 $9~23 [추정]. 더 싼 모델로 바꿀지는 비교 도구 결과로 사용자가 정한다(U6·Q1) |
 | Firebase | 호출·계산은 무료 사용량 안으로 본다(개인 사용량), 컨테이너 이미지 저장 소액 — 예산 알림(INFRA 안내서) [추측 — 조사 04 6.2] |
 | 남용 상한 | `maxInstances 2` × 30 s, 하루 200회/uid, 소유자 목록 — 토큰이 새도 비용의 상한이 있다 |
 
@@ -1882,7 +1888,7 @@ PLAN F-14 'M7 착수 시 직접 손글씨로 비교해 결정'과 조사 03 6.6 
 
 ```text
 npm run eval:math -- --fixtures tool/fixtures/math --engines fake,mathpix,claude
-                     [--claude-model claude-opus-5-5] [--limit 60] [--confirm-cost] [--out eval-out/<날짜>]
+                     [--claude-model <모델 — 필수, 기본값 없음>] [--limit 60] [--confirm-cost] [--out eval-out/<날짜>]
 ```
 
 - 키는 환경 변수에서만 읽는다: `MATHPIX_APP_ID`·`MATHPIX_APP_KEY`·`ANTHROPIC_API_KEY`. 결과 파일·로그에 키를 쓰지 않는다.
@@ -1915,7 +1921,7 @@ npm run eval:math -- --fixtures tool/fixtures/math --engines fake,mathpix,claude
 | L1 | Firebase 프로젝트·웹 앱·Blaze·예산 알림·Firestore 위치 `asia-northeast3` | 사용자 + INFRA 안내서 | 패키지 README '실연결 체크리스트'에 SYNC가 필요한 설정값(Firestore 색인·규칙·Storage 버킷·TTL) 목록 |
 | L2 | 앱이 `sync_engine`에 의존, `SyncModule`(1차 7.3.3 M4 행), `connectivitySignalProvider` | INFRA | 1차 T14 provider·`FirebaseSyncBindings` 그대로 — 2차 변경이 공개 표면을 깨지 않음(`api_surface_test`) |
 | L3 | 로그인 화면·리디렉션, 설정 '계정 · 동기화' | INFRA | 1차 `AuthService`. (P-C) `AuthService.idToken`(4.2, CP-S7) — `firebase_auth_mocks`로 시험 |
-| L4 | 규칙·색인·Storage 규칙 배포 | INFRA(배포 설정) + SYNC(파일) | (P-C) `functions/test-emulator/rules.emulator.test.ts`: SYNC 소유 설정 `functions/test-emulator/firebase.rules-test.json`(규칙 경로 `../../packages/sync_engine/firebase/*`)로 Firestore·Storage·Auth 에뮬레이터를 띄워, Auth 에뮬레이터 토큰을 단 REST 요청으로 1차 규칙을 실제로 검사(자기 문서 쓰기·남의 uid 거부·청크 필드 검증·같은 id 재쓰기는 `su`만·Storage 크기·sha256 메타). (v2.1, 검토 S-12) firebase-tools가 설정 파일 밖 `../../` 규칙 경로를 읽는지는 확인하지 않았다 [추측 — 조사 04 6.4는 `functions.source`의 `../`만 확인]. 안 되면 시험 스크립트가 임시 디렉터리(`${TMPDIR:-/tmp}/noteapp-rules-test/`)에 규칙 파일을 복사하고 그 안에 설정을 만들어 띄운다. 1차가 '선택'으로 남긴 '규칙 전체 검증은 에뮬레이터'(1차 진행 기록 T17)를 배포 전에 한다. 자바와 jar 내려받기가 필요해 CI 기본 잡에 넣지 않는다(Q6). 돌릴 때는 `dart run tool/ws.dart with-heavy-lock -- …`로 감싼다 |
+| L4 | 규칙·색인·Storage 규칙 배포 | INFRA(배포 설정) + SYNC(파일) | (P-C) `functions/test-emulator/rules.emulator.test.ts`: SYNC 소유 설정 `functions/test-emulator/firebase.rules-test.json`(규칙 경로 `../../packages/sync_engine/firebase/*`)로 Firestore·Storage·Auth 에뮬레이터를 띄워, Auth 에뮬레이터 토큰을 단 REST 요청으로 1차 규칙을 실제로 검사(자기 문서 쓰기·남의 uid 거부·청크 필드 검증·같은 id 재쓰기는 `su`만·Storage 크기·sha256 메타). (v2.1, 검토 S-12) firebase-tools가 설정 파일 밖 `../../` 규칙 경로를 읽는지는 확인하지 않았다 [추측 — 조사 04 6.4는 `functions.source`의 `../`만 확인]. 안 되면 시험 스크립트가 임시 디렉터리(`${TMPDIR:-/tmp}/noteapp-rules-test/`)에 규칙 파일을 복사하고 그 안에 설정을 만들어 띄운다. (동시 개발 S2-14 [확인]) firebase-tools 15.34.1은 설정 밖 규칙 경로를 거절한다('is outside of project directory') → `scripts/rules_suite.sh`가 임시 디렉터리 방식으로 띄운다(`npm run test:rules`, R1~R11). Storage 에뮬레이터는 업로드를 모두 `create`로 판정해 '덮어쓰기 금지'와 300 MiB 상한은 배포 뒤 확인으로 남긴다(패키지 README 체크리스트). 1차가 '선택'으로 남긴 '규칙 전체 검증은 에뮬레이터'(1차 진행 기록 T17)를 배포 전에 한다. 자바와 jar 내려받기가 필요해 CI 기본 잡에 넣지 않는다(Q6). 돌릴 때는 `dart run tool/ws.dart with-heavy-lock -- …`로 감싼다 |
 | L5 | `recognizeMath` 배포 | SYNC(명령) + 사용자(키·uid) | `functions/README.md` 배포 체크리스트 — (v2.1, SYNC-M8 — 계약 7.4.7 순서, 검토 S-9) **① 비밀값**: `firebase functions:secrets:set MATH_API_KEY`(엔진이 정해지기 전이면 자리 값 — 첫 배포가 그 비밀을 묶는다 [추측 — 배포 검사, 이때 확인]) **② 운영 값 파일**: 사용자가 로그인한 뒤 uid를 확인해 `functions/.env.<projectId>`(`OWNER_UIDS=<uid>`, `MATH_ENGINE=none`, `DAILY_CAP=200`, `QUOTA_STORE=firestore`, `ALLOW_FAKE_ENGINE=false`)를 만들어 **커밋**(uid는 비밀이 아님, `.env.local`은 배포에 쓰이지 않음) **③ 배포**: `firebase deploy --only functions --config app/firebase.json`(RQ-6 `ignore` 확인) + `fnQuota.expireAt` TTL 정책 **④ 확인**: `MATH_ENGINE=none` 상태에서 소유자 계정 호출 → 503 `UNAVAILABLE`(로그인·소유자 검사를 지났다는 뜻), 다른 Google 계정 → 403 `PERMISSION_DENIED`, 로그인 없이 → 401 **⑤ 엔진 설정 뒤**(U6): `MATH_ENGINE`·(Mathpix면 `MATHPIX_APP_ID`)·실제 `MATH_API_KEY`를 넣고 다시 배포 → 실제 엔진 1회. 운영에서는 가짜 엔진을 쓸 수 없으므로(`ALLOW_FAKE_ENGINE=false` — D-S7) 배포 확인을 가짜 엔진으로 하지 않는다 |
 | L6 | 앱의 `RecognitionConfig.mathEndpoint`(= 배포 주소 `https://asia-northeast3-<projectId>.cloudfunctions.net/recognizeMath` [추측 — 2세대 callable의 주소 형식, 배포 결과로 확인])·`idTokenProvider` | INFRA | L3의 `idToken` |
 | L7 | `cloud_functions 7.0.1`로 바꿀지 | INFRA + SYNC | 판단 재료: 지금 `package:http` 규약 구현이 에뮬레이터에서 동작(V13). App Check를 켤 때만 SDK가 이득 |
@@ -1972,7 +1978,7 @@ npm run eval:math -- --fixtures tool/fixtures/math --engines fake,mathpix,claude
 | `firebase-admin` | 14.5.0 | 2026-09-23 | Apache-2.0 | `FirestoreQuotaStore`(Firestore) | 계약 7.5. `engines.node >=22` — Node 22와 맞음 |
 | `typescript` (dev) | 6.0.3 | 2026-04-16 | Apache-2.0 | 빌드·검사 | 계약 7.5. 최신 7.0.2는 계약 밖(바꾸지 않음) |
 | `@types/node` (dev) | 22.20.5 | 2026-10-01 | MIT | 타입 | 계약 7.5. Node 22 줄기 |
-| `firebase-tools` (dev) | 15.34.2 | 2026-10-28 | MIT | `emulators:exec`(npm 스크립트·CI `npx`) | 계약 7.4.7·1차 고정값, INFRA R-6. 작성일에는 **게시 14일 미만**(8일) — (v2.1, C21-28) R2-B1·**R2-B7b 커밋 때 다시 확인**(2026-11-11부터 통과, Q8 답) |
+| `firebase-tools` (dev) | 15.34.1 | 2026-10-21 | MIT | `emulators:exec`(npm 스크립트·CI `npx`) | 계약 7.5 (v2.3, C23-01), INFRA R-6. 15.34.2(2026-10-28)는 R2-B7b 때 14일 미만이라 15.34.1로 고정. 올리는 것은 실연결 미니 라운드 때 |
 | `@anthropic-ai/sdk` | 1.1.0 | 2026-10-21 | Apache-2.0 | Claude 어댑터(P-C) | (v2.1) **계약 7.5 행 — CP-S5 승인**(P-C Claude 어댑터만, S2-12에서 더함). 의존 `standardwebhooks`·`json-schema-to-ts`·`@opentelemetry/api`, `zod`는 선택 peer(쓰지 않음). 최신 1.5.0(2026-11-04)·1.2.0~1.4.0은 14일 미만. 쓰는 매개변수(`fallbacks`·`output_config`)가 1.1.0 타입에 있다 [확인 — 검토] |
 
 - 시험·HTTP는 Node 내장(`node:test`, `fetch`)이라 추가 dev 의존이 없다. 린터를 두지 않는다(3.4).
@@ -1993,7 +1999,7 @@ npm run eval:math -- --fixtures tool/fixtures/math --engines fake,mathpix,claude
 
 ### 8.1 기반 단계 몫 (계약 7.6.2 R2-B7a·R2-B7b)
 
-`// 계약 v2.1 7.6.2 원문` (SYNC 행 — 순서: R2-B1 → **R2-B7b** → (R2-B2 + **R2-B7a** + R2-B2i 묶음) → R2-B3 → …)
+`// 계약 v2.3 7.6.2 원문` (SYNC 행 — 순서: R2-B1 → **R2-B7b** → (R2-B2 + **R2-B7a** + R2-B2i 묶음) → R2-B3 → …)
 
 | 단계 | 담당 | 경로 | 내용 | 완료 조건 |
 |---|---|---|---|---|
@@ -2162,14 +2168,14 @@ v2.0 초안의 제안 9개는 총괄 검토에서 모두 받아들여졌다(00-r
 
 | # | 질문 | 기본 진행 | v2.1 답 (반영) |
 |---|---|---|---|
-| Q1 | Claude 어댑터의 기본 모델을 `claude-opus-5-5`(effort `low`, 요청당 약 $0.01~0.026 추정)로 두고 매개변수로 바꿀 수 있게 하는 것 — 엔진·모델 결정은 비교 도구 결과로 사용자가(U6) | 그렇게 한다 | 그렇게 한다 — 모델은 매개변수, 엔진·모델 결정은 U6 뒤(6.8.6) |
+| Q1 | Claude 어댑터의 기본 모델을 특정 모델로(effort `low`, 요청당 약 $0.01~0.026 추정)로 두고 매개변수로 바꿀 수 있게 하는 것 — 엔진·모델 결정은 비교 도구 결과로 사용자가(U6) | 그렇게 한다 | 그렇게 한다 — 모델은 매개변수, 엔진·모델 결정은 U6 뒤(6.8.6). (v2.3, C23-02) 기본값은 빈 문자열로 바뀜 |
 | Q2 | 하루 상한 `DAILY_CAP` 기본 200회/uid가 적당한가(하루 수식 30개 가정의 약 7배) | 200 | 200(6.8.7) |
 | Q3 | `engine: 'gemini'`를 이번에 구현하지 않고 `unavailable`로 두는 것(Gemini는 Firebase AI Logic — 앱 쪽 — 이 자연스러움) | 구현하지 않음 | 구현하지 않음(1.3) |
 | Q4 | 수식 고정 자료(6.9.1 형식)를 앱에서 내보내는 개발자 기능을 LIBRARY 수식 입력 패드(또는 EDITOR 개발자 메뉴 E2-24)에 요청해도 되는가 | LIBRARY에 P-C로 요청 | LIBRARY 수식 패드의 P-C 개발자 동작(LIBRARY-M11 — 05-library 6.14.7, 6.9.1) |
 | Q5 | 비교표의 '해석 성공' 열을 채울 작은 Dart 명령(`results.jsonl` → `InkMathRenderer.validate`)을 LIBRARY(`ink_recognition/tool/`)에 둘지 | 이번에는 빈 열 — 실제 비교 실험(계정 뒤) 때 결정 | 빈 열(6.9.3) |
 | Q6 | 규칙 에뮬레이터 시험(자바·jar 내려받기)을 CI에 넣을지 | 수동(미니 라운드 전 1회) | 수동(6.10 L4) |
 | Q7 | 손글씨 결과 한 단위 LWW로 사용자가 확정한 줄이 다른 기기의 자동 재인식에 덮일 수 있는 것을 이번에 받아들이는가 | 받아들임(R6) — 다음 라운드에 줄 단위 검토 | 받아들임 — 같은 기기 안 경합은 LIBRARY 확정 줄 규칙 + CORE `update`(G-4)가 막고, 기기 간 LWW는 다음 라운드(R6) |
-| Q8 | `firebase-tools 15.34.2`는 1차 고정값이지만 게시일이 2026-10-28이다(오늘 기준 8일). R2-B7 시점(1차 통합 뒤)에는 14일이 지난다 — 그대로 두는가 | 그대로(1차 고정값, R2-B7 때 다시 확인) | 그대로, R2-B1·R2-B7b 때 14일 재확인(3.4, 7.2) |
+| Q8 | `firebase-tools 15.34.2`는 1차 고정값이지만 게시일이 2026-10-28이다(오늘 기준 8일). R2-B7 시점(1차 통합 뒤)에는 14일이 지난다 — 그대로 두는가 | 그대로(1차 고정값, R2-B7 때 다시 확인) | 그대로, R2-B1·R2-B7b 때 14일 재확인(3.4, 7.2). (v2.3, C23-01) R2-B7b 때 14일 미만이라 15.34.1로 고정 |
 | Q9 | 운영 `OWNER_UIDS`를 커밋하는 `functions/.env.<projectId>`에 둘지(uid는 비밀이 아님), 배포 때 `.env.local`로 넣을지 | 미니 라운드에서 결정 — 기본은 커밋하지 않는 `.env.local` | **커밋하는 `functions/.env.<projectId>`**(SYNC-M8 — 기본값을 바꿈, 6.8.9·6.10 L5) |
 
 검토 질문(reviews/sync.md)의 답: Q-1 'LRU에 넣지 않음'과 '청크 단위 전부/전무' **둘 다**(6.3.2·6.3.4) · Q-2 손글씨만 올린 범위를 '최근 10분 보냄'에서 빼는 것에 **동의**(1차 T11 결정 ① 변경 승인 — 6.2.5) · Q-3 안드로이드 태블릿 여부는 U2(사용자 질문) — 9.3에 웹 ↔ 웹 대체 경로 · Q-4 **커밋**(Q9와 같음) · Q-5 B7b를 R2-B1 바로 뒤 따로 병합 — **된다**(R2-B7b, 6.4·8.1).
@@ -2248,6 +2254,22 @@ v2.0 초안의 제안 9개는 총괄 검토에서 모두 받아들여졌다(00-r
 | 2 (`held_records_test` '150개 저장·151번째 표시'를 만족시킬 수 없음) | 지적대로 기록 하나(`r`의 항목)는 조각 사이로 나뉘지 않으므로 보관 개수는 조각별 채움으로 정해지고, 기본값에서 실제 한도는 **조각 9개 × 224 KiB = 2,016 KiB**다. 같은 크기 항목(길이 `e`)이면 조각당 `⌊(maxPartBytes − w + 1) / (e + 1)⌋`개(`w` = 빈 조각 테두리 20 B, 쉼표 1 B), 전체 9배다 — 항목 ≤ 13,490 B면 17개(153), 13,491–14,333 B면 16개(144), 14,334–15,289 B면 15개(135). [확인] 1차 형식(`chunkIdOf` 41자, HLC 37자, `EntityFieldVersions.toJson`)으로 만든 모형 항목을 재면 엔티티 JSON 10,000 B 기록의 항목이 13,780–14,107 B라 조각당 16개, **약 144개**다(`/tmp/claude-0/plan57-scratch/sync57-r2`의 계산). 그래서 ① `held_records_test`·S2-6 완료 조건은 숫자를 박지 않고 상수와 잰 `e`로 계산한 경계 `N`을 단언한다(`N`개 저장·`N + 1`번째 청크는 기록 0개·표시·그때 전체 길이 < `maxTotalBytes`, 실측 `N`·`e`는 진행 기록에 — 참고 144). ② 6.3.2·6.3.5·6.12의 '2 MiB에 약 150쪽'을 '9 × 224 KiB에 약 144쪽'으로, 획 100개 페이지 예(약 450쪽)를 같은 식으로 약 380–400쪽으로, v2.0 초안 값 하나(200 KiB)의 예를 약 15쪽 → 14쪽으로 고쳤다. ③ **기본값에서 `maxTotalBytes`(2 MiB)는 걸리지 않는다**는 것(차이 32 KiB > 머리 수백 B)을 6.3.2·6.12와 4.4 상수 주석에 적었다 — 계약 ③의 '총 상한 2 MiB'를 지키는 안전장치이고, 시험이 줄일 때(S27 (c)) 걸린다. 상한 값 자체(키당 ≤ 224 KiB, 총 ≤ 2 MiB — 1.2·1.5 D-S2·4.1 해석 표 ③·6.11)는 맞으므로 그대로 두었다. `maxTotalBytes`를 2,016 KiB로 낮춰 '걸리게' 만드는 안은 계약 문장(총 2 MiB)을 바꾸지 않고도 할 수 있지만 얻는 것이 없어 하지 않았다. 13.1 SYNC-M5 ④에 정정 표시를 달았다 | 4.4 `HeldRecords` 상수 주석, 6.3.2('`r` 채움'·'상한'·'보관 개수 기준'), 6.3.5, 6.12 두 행, 8.2 S2-6, 13.1 SYNC-M5 |
 | 3 (6.2.1 `math` 행의 '`engine`(선택 …)') | 괄호를 '(v2.1, C21-11) 항상 씀 — 없으면 null'로 바꾸고 '`kPageObjectTypeKeys['math']`에 고정' + 계약 7.2.7 근거를 붙였다. 1.6 둘째 표·6.4 표·13.2 X-4 ③과 같아졌다 | 6.2.1 키 표 |
 | 4 (Claude 이음새 이름 어긋남) | 6.8.6의 `messagesCreate(params, opts)`를 4.5 정의대로 `ClaudeMessagesClient.create(params, opts)`로 고치고, 두 번 따로 있던 '시험(`test/claude.test.ts`)' 항목을 하나로 합쳤다(요청 인자에 `betas`·`fallbacks`·`opts.signal`을 더 적고, 대체 모델 응답 경우는 같은 항목 안에). 6.8.6 코드 스케치(`this.client.create(…, { signal })`)·3.2 트리·8.2 S2-12·9.2 표는 이미 같은 이름·내용이라 그대로다 | 6.8.6 |
+
+### 13.5 개발 착수 정리 — 계약 v2.3 (2026-11-06, 동시 개발 세션 1)
+
+계약 7.6.2 마지막 bullet(C22-09)과 v2.3(C23-01~07)을 반영했다. 시그니처 변경은 없다.
+
+| 항목 | 처리 | 위치 |
+|---|---|---|
+| '가정' 블록 → 실제 타입 | CORE B2-α·B2-β 커밋 해시로 5.5 머리 문단과 첫 행을 바꿈 | 5.5 |
+| 계약 인용 | 인용 블록 11개를 계약 v2.3 7장과 줄 단위로 대조 — 모두 부분 문자열이라 본문은 그대로 두고 표시만 `계약 v2.3 … 원문`으로. 7.4.7 인용의 CI 줄 '15.34.2'는 계약 본문 그대로라 아래에 C23-01 주석을 붙임 | 4.1, 5.x, 8.1 |
+| C23-01 `firebase-tools 15.34.1` | 3.4 `package.json` 블록·설명, 7.2 표, RQ-4, Q8 답 | 3.4, 5.2, 7.2, 12.2 |
+| C23-02 `CLAUDE_MODEL` 기본값 `''` → Claude `notConfigured` | D-S9, 6.8.4 표, 6.8.6 블록 주석·문장, 6.8.9 표, 6.8.12 비용 표, 6.9.2 `--claude-model`(기본값 없음), Q1 답. 계획서·코드에 모델 이름을 기본값으로 두지 않는다 | 1.5, 6.8, 6.9, 12.2 |
+| C22-01~08 | SYNC 인용 문장에 바뀐 곳 없음(C22-07 V13은 이미 P-B 표시) | — |
+| 00-review '최종 승인' SYNC-F1 | S2-10a·S2-10b·S2-11은 P-B — 미루면 V13을 `미룸`으로 적는다(진행 기록 '2차' 절). R2-B7b `npm ci && npm test`(시험 수 > 0)는 P-A처럼 지킴(동시 개발 세션마다 `npm test`) | 8.2, 진행 기록 |
+| SYNC-F2 | C23-01로 닫힘 — R2-B7b는 15.34.1로 기반 단계에 들어갔다(`9cdd3fb`) | 3.4 |
+| SYNC-F3 | 끝남 — R2-B7a `99b8ead`(바탕 B2-α `2b2e4b0`), 키 대조·새 종류 디코드는 T20a `9777fde` 위에서 통과(진행 기록 R2-B7a) | 8.1 |
+| 다른 영역 → SYNC 변경 요청(기반 단계 메모) | CORE: B7a switch 자리·T20a 전 `UnimplementedError` — B7a에서 처리함. INFRA: `functions.yml` 시험 수 검사·`with-heavy-lock` — B7b에서 처리함. 새로 할 일 없음 | — |
 
 ---
 

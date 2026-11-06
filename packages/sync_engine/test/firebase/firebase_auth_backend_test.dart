@@ -2,8 +2,10 @@
 // select_account), cancelled / blocked popups → SignInException, the auto mode (standalone
 // web app → redirect, else popup; a blocked popup falls back to redirect), the redirect
 // result after reload, authStateChanges (current user first, no repeats), sign-out,
-// refreshSession (forced id token, unauthenticated), native sign-in through
-// NativeGoogleSignIn, and AuthService on top of it. The mock has no redirect API, so a
+// refreshSession (forced id token, unauthenticated), (2nd round, S2-14 — CP-S7) idToken
+// (User.getIdToken(forceRefresh), null when signed out, errors through mapFirebaseError —
+// AuthService.idToken turns them into null), native sign-in through NativeGoogleSignIn, and
+// AuthService on top of it. The mock has no redirect API, so a
 // subclass records signInWithRedirect / getRedirectResult.
 import 'dart:async';
 
@@ -26,7 +28,7 @@ final class _User extends MockUser {
     tokenRequests.add(forceRefresh);
     final error = tokenError;
     if (error != null) throw error;
-    return 'token';
+    return forceRefresh ? 'token-new' : 'token';
   }
 }
 
@@ -414,6 +416,55 @@ void main() {
         ),
       );
     });
+
+    test('(2nd round) idToken: signed out → null without asking Firebase; '
+        'signed in → getIdToken(forceRefresh)', () async {
+      final user = _alice();
+      final auth = _Auth(mockUser: user);
+      final backend = _web(auth);
+      expect(await backend.idToken(), isNull);
+      expect(await backend.idToken(forceRefresh: true), isNull);
+      expect(user.tokenRequests, isEmpty);
+
+      await backend.signInWithGoogle();
+      expect(await backend.idToken(), 'token');
+      expect(await backend.idToken(forceRefresh: true), 'token-new');
+      expect(user.tokenRequests, [false, true]);
+
+      await backend.signOut();
+      expect(await backend.idToken(), isNull);
+      expect(user.tokenRequests, [false, true]);
+    });
+
+    for (final (code, mapped) in [
+      ('network-request-failed', SyncErrorCode.network),
+      ('user-token-expired', SyncErrorCode.unauthenticated),
+      ('user-disabled', SyncErrorCode.unauthenticated),
+      ('internal-error', SyncErrorCode.unknown),
+    ]) {
+      test('(2nd round) idToken: Firebase $code → SyncBackendException('
+          '${mapped.name}); AuthService.idToken → null', () async {
+        final user = _alice();
+        final auth = _Auth(mockUser: user);
+        final backend = _web(auth);
+        await backend.signInWithGoogle();
+        user.tokenError = FirebaseAuthException(code: code);
+        await expectLater(
+          backend.idToken(forceRefresh: true),
+          throwsA(
+            isA<SyncBackendException>()
+                .having((e) => e.code, 'code', mapped)
+                .having((e) => e.cause, 'cause', same(user.tokenError)),
+          ),
+        );
+        final service = AuthService(backend);
+        await service.initialize();
+        expect(await service.idToken(), isNull);
+        user.tokenError = null;
+        expect(await service.idToken(), 'token');
+        await service.dispose();
+      });
+    }
   });
 
   group('native', () {

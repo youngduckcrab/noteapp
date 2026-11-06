@@ -165,6 +165,51 @@ void main() {
       expect(upload, isNot(contains(kAllFields)));
     });
 
+    test('(2nd round, S2-8) one id created on two devices (hw_<pageId>, each '
+        'with its own createdAt): the winning snapshot brings its createdAt, so '
+        'KeepLocal / TakeRemote leave both sides with the merged row', () {
+      VersionedEntity hw({
+        required int createdAt,
+        required String text,
+        required Hlc at,
+      }) {
+        final versions = EntityFieldVersions(at, const {});
+        final fixture = handwritingFixture().toJson();
+        final json = {
+          ...fixture,
+          'createdAt': createdAt,
+          'updatedAt': createdAt,
+          'lines': [
+            {...(fixture['lines']! as List).first as Map, 'text': text},
+          ],
+          'version': versions.max.toString(),
+        };
+        return VersionedEntity(
+          EntityJson.decode(EntityKind.handwriting, json),
+          versions,
+        );
+      }
+
+      final early = hw(createdAt: kT0 + 1, text: 'early', at: h(1));
+      final late = hw(createdAt: kT0 + 9, text: 'late', at: h(9, kNodeB));
+      final merged = FieldMerge.mergeRecords(
+        UpsertRecord.fromVersioned(early),
+        UpsertRecord.fromVersioned(late),
+      );
+      expect(merged.doc.json['createdAt'], kT0 + 9);
+      // The later device receives the earlier create: it keeps its row.
+      final onLate = SyncMergePolicy.decide(late, early, {kAllFields});
+      expect(onLate, isA<KeepLocal>());
+      expect(eq.equals(jsonOf(late), merged.doc.json), isTrue);
+      // The earlier device receives the later write: it takes it whole.
+      final onEarly = SyncMergePolicy.decide(early, late, {kAllFields});
+      expect(onEarly, isA<TakeRemote>());
+      expect(
+        applied(onEarly, early, late)!.entity.toJson()['createdAt'],
+        kT0 + 9,
+      );
+    });
+
     test('same input twice gives the same decision (pure)', () {
       final local = note(set: {'title': 'mine'}, fv: {'title': h(5)});
       final remote = note(

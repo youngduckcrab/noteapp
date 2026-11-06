@@ -116,6 +116,69 @@ void main() {
       }
     });
 
+    // (2nd round, S2-2, contract 7.2.8) … stroke, pageObject, handwriting.
+    test('kind order is the contract 7.2.8 list', () {
+      // folder, note, page, penPreset, setting, asset, recording, stroke, pageObject,
+      // handwriting.
+      expect(ChunkPacker.kindOrder, const [
+        EntityKind.folder,
+        EntityKind.note,
+        EntityKind.page,
+        EntityKind.penPreset,
+        EntityKind.setting,
+        EntityKind.asset,
+        EntityKind.recording,
+        EntityKind.stroke,
+        EntityKind.pageObject,
+        EntityKind.handwriting,
+      ]);
+      expect(ChunkPacker.kindOrder.toSet(), EntityKind.values.toSet());
+    });
+
+    test('a note scope with the new kinds: page, recording, strokes, objects, '
+        'handwriting — deterministic payload', () {
+      final records = <SyncRecord>[
+        upsert(EntityKind.handwriting, 'hw_p1'),
+        upsert(EntityKind.pageObject, 'o2'),
+        upsert(EntityKind.stroke, 's1'),
+        upsert(EntityKind.pageObject, 'o1'),
+        upsert(EntityKind.recording, 'r1'),
+        upsert(EntityKind.page, 'p1'),
+        upsert(EntityKind.handwriting, 'hw_p0'),
+      ];
+      final expected = ['p1', 'r1', 's1', 'o1', 'o2', 'hw_p0', 'hw_p1'];
+      final first = chunksOf(
+        packer().pack([for (final r in records) item(r, 'n1')]),
+      );
+      expect(first, hasLength(1));
+      expect(first.single.write.scope, 'n1');
+      expect([for (final i in first.single.items) i.tag], expected);
+      final decoded = ChunkCodec.decode(first.single.write.payload);
+      expect([for (final r in decoded) r.ref.id], expected);
+      expect(decoded, [
+        for (final id in expected) records.firstWhere((r) => r.ref.id == id),
+      ]);
+      final random = Random(11);
+      for (var round = 0; round < 5; round++) {
+        final shuffled = [...records]..shuffle(random);
+        final again = chunksOf(
+          packer().pack([for (final r in shuffled) item(r, 'n1')]),
+        );
+        expect(again.single.write.id, first.single.write.id);
+        expect(again.single.write.payload, first.single.write.payload);
+      }
+    });
+
+    test('new kinds carry no blobs: header JSON only', () {
+      for (final kind in [EntityKind.pageObject, EntityKind.handwriting]) {
+        expect(ChunkCodec.blobKeys, isNot(contains(kind)));
+        final r = upsert(kind, kind == EntityKind.handwriting ? 'hw_p1' : 'o1');
+        final bytes = ChunkCodec.encodeRecord(r);
+        // op, varuint header length, header, blobCount 0.
+        expect(bytes.last, 0, reason: kind.name);
+      }
+    });
+
     test('ChunkWrite fields', () {
       final records = [purge('n1', 5), purge('n2', 9), purge('n3', 1)];
       final c = chunksOf(

@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:clock/clock.dart';
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
+import 'package:note_core/note_core.dart';
 
 import '../auth/auth_service.dart';
 import '../auth/auth_user.dart';
@@ -44,6 +45,11 @@ final class SyncTestHarness {
   final int _seed;
   final Map<String, TestDevice> _devices = {};
 
+  /// Builds generation g of a device's engine (0 at [device], + 1 per [restart]).
+  final Map<String, SyncEngine Function(TestDevice d, int generation)>
+  _engines = {};
+  final Map<String, int> _generations = {};
+
   /// Most differing keys listed by [checkConverged].
   static const int _maxListedKeys = 20;
 
@@ -61,6 +67,11 @@ final class SyncTestHarness {
     bool signedIn = true,
     SyncConfig? config,
     Duration latency = const Duration(milliseconds: 50),
+
+    /// (2nd round, S-13) Kinds this device's codec knows (default: EntityKind.values). A
+    /// device built without, say, handwriting behaves like an older app; [restart] with the
+    /// default set (same name → same store, new engine) is the "app update".
+    Set<EntityKind>? knownKinds,
   }) {
     if (_devices.containsKey(name)) {
       throw ArgumentError.value(name, 'name', 'device already exists');
@@ -71,6 +82,16 @@ final class SyncTestHarness {
     final user = AuthUser(uid: uid);
     final auth = FakeAuthBackend(user: signedIn ? user : null)
       ..nextSignInUser = user;
+    SyncEngine build(TestDevice d, int generation) => SyncEngine(
+      local: d.store,
+      auth: AuthService(auth),
+      backendFactory: (u) async => server.connect(uid: u.uid, link: link),
+      config: config ?? const SyncConfig(),
+      connectivity: connectivity,
+      clock: d.clock,
+      random: Random(_seed * 1000 + index + 1000000 * generation),
+      stopwatch: _clock.stopwatch,
+    );
     final device = TestDevice.internal(
       name: name,
       uid: uid,
@@ -80,20 +101,35 @@ final class SyncTestHarness {
       link: link,
       connectivity: connectivity,
       auth: auth,
-      engine: (d) => SyncEngine(
-        local: d.store,
-        auth: AuthService(auth),
-        backendFactory: (u) async => server.connect(uid: u.uid, link: link),
-        config: config ?? const SyncConfig(),
-        connectivity: connectivity,
-        clock: d.clock,
-        random: Random(_seed * 1000 + index),
-        stopwatch: _clock.stopwatch,
-      ),
+      engine: (d) => _withKinds(build(d, 0), knownKinds),
     );
     _devices[name] = device;
+    _engines[name] = build;
+    _generations[name] = 0;
     // The engine follows the device's auth state from now on: signed in → attach, push and
     // receive as virtual time moves (settle / elapse / run).
+    unawaited(device.startEngine());
+    return device;
+  }
+
+  static SyncEngine _withKinds(SyncEngine engine, Set<EntityKind>? kinds) {
+    if (kinds != null) EngineController.of(engine).debugKnownKinds = kinds;
+    return engine;
+  }
+
+  /// (2nd round) Rebuilds [name]'s engine on the same FakeLocalStore (app restart / update):
+  /// the old engine is disposed (run on virtual time), rows, outbox and meta stay, and the
+  /// new engine (codec kinds [knownKinds], default every kind) starts at once — signed in,
+  /// it attaches again. Returns the same TestDevice. ArgumentError for an unknown name.
+  TestDevice restart(String name, {Set<EntityKind>? knownKinds}) {
+    final device = _devices[name];
+    if (device == null) {
+      throw ArgumentError.value(name, 'name', 'no such device');
+    }
+    final generation = _generations[name]! + 1;
+    _generations[name] = generation;
+    final next = _withKinds(_engines[name]!(device, generation), knownKinds);
+    run(device.replaceEngine(next));
     unawaited(device.startEngine());
     return device;
   }
@@ -198,19 +234,38 @@ final class SyncTestHarness {
   /// server.mergedState when [includeServer]); Note.updatedAt is left out on both sides
   /// (5.1.2 S-11). Throws StateError whose message lists every differing key (first 20)
   /// with each device's value; returns normally when converged.
+  ///
+  /// (2nd round, SYNC-M6) [kinds]: compare only entities of these kinds (null = all, v1.4).
+  /// For an old-app device (no handwriting) against the server merged state:
+  /// `checkConverged([a, b], kinds: EntityKind.values.toSet()..remove(EntityKind.handwriting))`.
+  /// The dump of every participant is filtered the same way (by its `<kind>/<id>` keys)
+  /// before the comparison. An empty set is an ArgumentError.
   void checkConverged(
     Iterable<TestDevice> devices, {
     bool includeServer = true,
+    Set<EntityKind>? kinds,
   }) {
     final list = devices.toList();
     if (list.isEmpty) {
       throw ArgumentError.value(devices, 'devices', 'is empty');
     }
+    if (kinds != null && kinds.isEmpty) {
+      throw ArgumentError.value(kinds, 'kinds', 'is empty');
+    }
+    final prefixes = kinds == null
+        ? null
+        : [for (final k in kinds) '${k.name}/'];
+    Map<String, Object?> only(Map<String, Object?> dump) => prefixes == null
+        ? dump
+        : {
+            for (final e in dump.entries)
+              if (prefixes.any(e.key.startsWith)) e.key: e.value,
+          };
     final participants = <(String, Map<String, Object?>)>[
-      for (final d in list) (d.name, d.store.canonicalDump()),
+      for (final d in list) (d.name, only(d.store.canonicalDump())),
       if (includeServer)
         for (final uid in {for (final d in list) d.uid})
-          ('server($uid)', _serverDump(uid)),
+          ('server($uid)', only(_serverDump(uid))),
     ];
     final keys = <String>{
       for (final (_, dump) in participants) ...dump.keys,

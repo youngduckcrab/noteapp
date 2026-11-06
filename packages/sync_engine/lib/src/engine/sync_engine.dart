@@ -129,6 +129,10 @@ final class SyncEngineDebug {
     required this.heldChunks,
     this.lastPushLatency,
     this.lastRemoteApplyLatency,
+    this.heldRecords = 0,
+    this.heldRecordsMarked = false,
+    this.reappliedChunks = 0,
+    this.reappliedRecords = 0,
   });
   final int pushCycles, commits, chunksSent, recordsSent;
 
@@ -150,4 +154,15 @@ final class SyncEngineDebug {
 
   /// Chunk serverTime → local apply done.
   final Duration? lastRemoteApplyLatency;
+
+  /// Records stored in sync.heldRecords (S-13): kinds this app does not know yet, plus re-applied
+  /// records waiting for their K1 release time.
+  final int heldRecords;
+
+  /// (v2.1) A rewind mark (overflow or corrupt value) is waiting for an app update.
+  final bool heldRecordsMarked;
+
+  /// (v2.1) Synthetic chunks / records applied by reapplyHeldRecords in this engine's life — kept
+  /// out of chunksReceived and the remote-apply latency (old serverTimes would distort them).
+  final int reappliedChunks, reappliedRecords;
 }
