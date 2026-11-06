@@ -92,6 +92,18 @@ abstract final class RecognitionStrings {
   static const String mathEngineServer = '서버 엔진';
   static const String consentSwitch = '외부 서비스로 보내기 동의';
 
+  // Model rows (6.18 — also the lab, 6.20, and the conversion sheet card).
+  static const String modelReady = '준비됨';
+  static const String modelNotDownloaded = '받지 않음';
+  static const String modelDownloading = '받는 중…';
+  static const String modelUnsupported = '쓸 수 없음';
+
+  /// 6.22: a model download failed → '받지 못했어요 [다시]'.
+  static const String modelFailed = '받지 못했어요';
+  static const String download = '받기';
+  static const String deleteModel = '지우기';
+  static const String retry = '다시';
+
   // Indexer status line (6.19) — '상태: ' + the phase text (not for off).
   static const String statusPrefix = '상태: ';
   static const String indexerOff = '이 기기에서는 자동 인식을 쓸 수 없어요';

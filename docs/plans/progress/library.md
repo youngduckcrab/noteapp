@@ -308,7 +308,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-16 (P-B) | 남음 | | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6) |
 | L2-17a (P-B) | 남음 | | `widget/math_pad_engine_test.dart` |
 | L2-17b (P-B) | 남음 | | `widget/to_math_test.dart` |
-| L2-18 (P-A / P-B) | 진행 중 — P-A 몫 완료 | (P-A) 이 커밋 | `widget/settings_section_test.dart`, `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장) (+ `unit/api_surface_test.dart` 갱신) |
+| L2-18 (P-A / P-B) | 완료 — '품질 실험' 진입 두 단추는 L2-19·L2-22에서 | e2e83d2(P-A), 이 커밋(P-B) | `widget/settings_section_test.dart`(+ 'model rows (P-B)' 묶음), `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장·모델 행 '쓸 수 없음') (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/model_engine.dart` |
 | L2-19 (P-B, A-4 실험 창) | 남음 | | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` |
 | L2-20 | 남음 | | `ink_recognition/test/web/recognition_browser_test.dart`, `feature_library/test/web/scenarios_browser_test.dart` |
 | L2-22 (P-C) | 남음 | | `unit/math_fixture_export_test.dart`, `widget/math_pad_engine_test.dart` |
@@ -379,7 +379,13 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - 상태 줄(6.19)은 `indexerStatusText(status)` — `off`·색인기 없음은 그 문장 그대로, 나머지는 `'상태: '` + 표의 문구(`waitingModel`이고 `lastError`에 'waiting for Wi-Fi'가 있으면 ' · 와이파이 대기'). 색인기가 있지만 아직 `start()` 전이면 `off` 문장이다(INFRA 유휴 작업이 시작).
   - 부록 C에 없는 키 3개를 더했다(계약 아님 — INFRA에 알림): `recog.settings.mathEngine`(엔진 줄)·`recog.settings.status`(상태 줄 `Text`)·`recog.settings.unsupported`(고정 문장).
   - iPad(`RecognizerModelAdmin.enforcesWifiOnly == false`)는 Wi-Fi 스위치 아래 '받기 전에 셀룰러 데이터 사용을 한 번 더 물어봐요.'. 값은 스냅숏(`settingsSnapshotProvider`)을 그대로 보이고 바꾸면 곧바로 `settings.set`(실패는 `reportRecognitionError`) — 섹션은 상태 없는 `const ConsumerWidget`.
-  - 남은 L2-18 몫(P-B): 모델 행(상태 5가지·[받기]·[지우기]·iOS 두 번 누르기·안드로이드 Wi-Fi 대기 5 s → [지금 셀룰러로 받기])·'자동 인식' 켬 → 안드로이드 `ensureModel` 1회 / iOS [받기] 강조. '품질 실험' 묶음의 [인식 실험 열기]는 L2-19, [수식 고정 자료 만들기]는 L2-22와 같이 넣는다(진입할 창이 그때 생김).
+  - '품질 실험' 묶음의 [인식 실험 열기]는 L2-19, [수식 고정 자료 만들기]는 L2-22와 같이 넣는다(진입할 창이 그때 생김 — 계획 8.2 L2-18 완료 조건의 '[수식 고정 자료 만들기] 웹에서도 보임'은 L2-22 시험으로 옮김).
+- L2-18 P-B 모델 행(`ui/model_row.dart` `RecognitionModelRow` · `ui/model_downloads.dart` `ModelDownloads`/`modelDownloadsProvider` — 내부):
+  - **사용자가 시작한 받기는 컨테이너 하나에 한 곳**(`modelDownloadsProvider` — 엔진을 따라감, 컨테이너와 함께 dispose)에서 태그마다 하나로 관리한다 — 설정 행·L2-19 실험 창 행·L2-15 변환 창 모델 카드가 같은 받기를 본다(나중에 연 행도 진행 중인 받기를 보임). 같은 태그 `start`는 합류, `startCellular`는 Wi-Fi 요청 옆에 `wifiOnly: false` 요청을 하나 더 내고 먼저 끝난 쪽으로 끝낸다(6.7.4). 5 s 타이머는 엔진이 Wi-Fi를 지키고(`enforcesWifiOnly` 참 또는 `RecognizerModelAdmin`이 아닌 엔진) `wifiOnly`로 시작했을 때만.
+  - 행 상태: 사용자 받기 상태(받는 중·와이파이 대기·실패)가 먼저, 없으면 엔진 `modelState`(행을 열 때·그 태그의 `modelChanges`·받기 상태가 바뀔 때 다시 묻는다). 문구: 준비됨 [지우기](`RecognizerModelAdmin`일 때만) · 받지 않음 [받기] · 받는 중… · '와이파이에 연결되면 받아요.' [지금 셀룰러로 받기](키 `recog.settings.model.<tag>.cellular`) · 받지 못했어요 [다시](6.22 — 보고 1회, `RecognizerUnsupported`는 보고 안 함) · 쓸 수 없음(엔진 `unsupported`·웹·엔진 없음). 단추는 목록 줄 아래 왼쪽(두 번 누르기의 긴 문장이 줄바꿈되게 — 6.12 '같은 자리').
+  - iPad [받기]: `recog.modelWifiOnly`가 켜져 있으면 첫 누름은 `cellularWarning` 문구로 바뀌고 둘째 누름에 `ensureModel(tag, wifiOnly: false)`(사용자가 셀룰러를 받아들임 — 플러그인은 인자를 무시). 꺼져 있으면 한 번에. 안드로이드 [받기]는 `wifiOnly: recog.modelWifiOnly` 그대로.
+  - '검색용 자동 인식' 켬: `modelState(recog.language)`가 `notDownloaded`·`downloading`이면 안드로이드는 `ModelDownloads.start(lang, wifiOnly: recog.modelWifiOnly)`(엔진 호출 1회 — 색인기의 같은 요청은 어댑터가 합류), iPad는 그 행의 [받기]를 `FilledButton`으로 강조(받기가 시작되면 끝). `ready`·`unsupported`면 아무것도 안 함.
+  - **L2-08 어댑터에 넘길 점**: 셀룰러 요청이 먼저 끝나 모델이 받아졌는데 Wi-Fi 요청이 아직 돌면, `modelState`는 `downloading`이 아니라 `ready`여야 한다(6.7.2 표의 '받는 중이면 downloading'보다 '받아짐'이 먼저). 시험 엔진 `test/support/model_engine.dart` `ControlledModelEngine`이 그렇게 답한다.
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋

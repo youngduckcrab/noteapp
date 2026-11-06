@@ -118,6 +118,9 @@ void main() {
     );
     expect(autoIndex.onChanged, isNull);
     expect(find.text('이 기기에서는 자동 인식을 쓸 수 없어요'), findsOneWidget);
+    // (P-B) the two model rows: 쓸 수 없음, no button.
+    expect(find.text('쓸 수 없음'), findsNWidgets(2));
+    expect(find.text('받기'), findsNothing);
     final consent = tester.widget<SwitchListTile>(
       find.byKey(const ValueKey('recog.settings.consent')),
     );

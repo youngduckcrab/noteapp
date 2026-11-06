@@ -6,6 +6,12 @@
 // handwriting group (the web sentence: web/recognition_browser_test.dart);
 // the 6.19 status line follows the indexer; the math engine row; iPad's
 // 'asks first' note; inputs disabled while the settings load; tap targets.
+// (P-B) The '인식 모델' rows: the states (준비됨 · 받지 않음 · 받는 중 ·
+// 와이파이 대기 · 쓸 수 없음 · 받지 못했어요), [지우기] → deleteModel, Android
+// [받기] → ensureModel(wifiOnly: recog.modelWifiOnly) and after 5 s the
+// two-press [지금 셀룰러로 받기] → wifiOnly: false, iPad's two-press [받기],
+// a failed download reported once, and '자동 인식' turned on with the model
+// missing → Android ensureModel once / iPad [받기] emphasised.
 @TestOn('vm')
 library;
 
@@ -23,6 +29,7 @@ import 'package:ink_recognition/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../support/model_engine.dart';
 import '../support/recognition_test_scope.dart';
 
 /// The section as INFRA mounts it: Scaffold → scroll → at most 720 wide.
@@ -94,6 +101,41 @@ String? _language(WidgetTester tester) => tester
 
 String _status(WidgetTester tester) =>
     tester.widget<Text>(find.byKey(RecognitionSettingsUiKeys.status)).data!;
+
+Finder _row(String tag) => find.byKey(RecognitionSettingsUiKeys.model(tag));
+
+Finder _inRow(String tag, String text) =>
+    find.descendant(of: _row(tag), matching: find.text(text));
+
+/// The row shows [status] and exactly the buttons [buttons].
+void _expectRow(String tag, String status, List<String> buttons) {
+  expect(_inRow(tag, status), findsOneWidget, reason: '$tag: $status');
+  final shown = [
+    for (final e
+        in find
+            .descendant(
+              of: _row(tag),
+              matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+            )
+            .evaluate())
+      ((e.widget as ButtonStyleButton).child! as Text).data,
+  ];
+  expect(shown, buttons, reason: '$tag buttons');
+}
+
+/// Captures FlutterError reports inside [body] (restored before the test
+/// ends — testWidgets checks FlutterError.onError).
+Future<List<FlutterErrorDetails>> _reports(Future<void> Function() body) async {
+  final reported = <FlutterErrorDetails>[];
+  final previous = FlutterError.onError;
+  FlutterError.onError = reported.add;
+  try {
+    await body();
+  } finally {
+    FlutterError.onError = previous;
+  }
+  return reported;
+}
 
 void main() {
   group('indexerStatusText (6.19)', () {
@@ -186,8 +228,7 @@ void main() {
     for (final text in [
       RecognitionStrings.handwritingGroup,
       RecognitionStrings.languageTitle,
-      '한국어',
-      'English',
+      RecognitionStrings.modelTitle,
       RecognitionStrings.wifiOnlyTitle,
       RecognitionStrings.autoIndexTitle,
       RecognitionStrings.mathGroup,
@@ -197,6 +238,9 @@ void main() {
     ]) {
       expect(find.text(text), findsOneWidget, reason: text);
     }
+    // 한국어 · English: the language choice and the model row.
+    expect(find.text('한국어'), findsNWidgets(2));
+    expect(find.text('English'), findsNWidgets(2));
     // An available engine: no fixed sentence, everything enabled.
     expect(find.byKey(RecognitionSettingsUiKeys.unsupported), findsNothing);
     expect(_switchEnabled(tester, RecognitionSettingsUiKeys.autoIndex), isTrue);
@@ -429,6 +473,254 @@ void main() {
       handle.dispose();
     });
   }
+
+  group('model rows (P-B)', () {
+    testWidgets('준비됨 [지우기] → deleteModel → 받지 않음 [받기]', (tester) async {
+      final engine = ControlledModelEngine()
+        ..states['ko'] = RecognitionModelState.ready;
+      await _pump(tester, overrides: [_engine(engine)]);
+      _expectRow('ko', '준비됨', ['지우기']);
+      _expectRow('en', '받지 않음', ['받기']);
+
+      await _tap(tester, _inRow('ko', '지우기'));
+      expect(engine.deleteCalls, ['ko']);
+      _expectRow('ko', '받지 않음', ['받기']);
+      expect(engine.ensureCalls, isEmpty);
+    });
+
+    testWidgets('no model admin → 준비됨 without [지우기]', (tester) async {
+      await _pump(tester, overrides: [_engine(_WaitingForWifi())]);
+      _expectRow('ko', '받지 않음', ['받기']);
+    });
+
+    testWidgets('Android [받기] → ensureModel(wifiOnly: true) → 받는 중… → '
+        'done → 준비됨', (tester) async {
+      final engine = ControlledModelEngine();
+      await _pump(tester, overrides: [_engine(engine)]);
+      await _tap(tester, _inRow('en', '받기'));
+      expect(engine.ensureCalls, [('en', true)]);
+      _expectRow('en', '받는 중…', []);
+      _expectRow('ko', '받지 않음', ['받기']);
+
+      engine.finish();
+      await _settle(tester);
+      _expectRow('en', '준비됨', ['지우기']);
+      // The Wi-Fi wait timer ended with the download.
+      await tester.pump(const Duration(seconds: 6));
+      _expectRow('en', '준비됨', ['지우기']);
+    });
+
+    testWidgets('Android: still running after 5 s → 와이파이에 연결되면 받아요. '
+        '[지금 셀룰러로 받기] → two presses → ensureModel(wifiOnly: false); '
+        'the first to finish ends it', (tester) async {
+      final engine = ControlledModelEngine();
+      await _pump(tester, overrides: [_engine(engine)]);
+      await _tap(tester, _inRow('ko', '받기'));
+      await tester.pump(const Duration(milliseconds: 4999));
+      _expectRow('ko', '받는 중…', []);
+      await tester.pump(const Duration(milliseconds: 1));
+      _expectRow('ko', '와이파이에 연결되면 받아요.', ['지금 셀룰러로 받기']);
+      expect(
+        find.byKey(RecognitionSettingsUiKeys.modelCellular('ko')),
+        findsOneWidget,
+      );
+
+      await _tap(
+        tester,
+        find.byKey(RecognitionSettingsUiKeys.modelCellular('ko')),
+      );
+      _expectRow('ko', '와이파이에 연결되면 받아요.', [
+        '셀룰러 데이터로 받아요(약 20MB). 한 번 더 누르면 받아요.',
+      ]);
+      expect(engine.ensureCalls, [('ko', true)]);
+
+      await _tap(
+        tester,
+        find.byKey(RecognitionSettingsUiKeys.modelCellular('ko')),
+      );
+      expect(engine.ensureCalls, [('ko', true), ('ko', false)]);
+      _expectRow('ko', '받는 중…', []);
+
+      engine.finish(1); // the cellular one
+      await _settle(tester);
+      _expectRow('ko', '준비됨', ['지우기']);
+      engine.finish(0); // the Wi-Fi one, later: nothing changes
+      await _settle(tester);
+      _expectRow('ko', '준비됨', ['지우기']);
+    });
+
+    testWidgets('Wi-Fi only off → ensureModel(wifiOnly: false), no Wi-Fi '
+        'wait', (tester) async {
+      final engine = ControlledModelEngine();
+      final store = await _pump(tester, overrides: [_engine(engine)]);
+      await store.settings.set(RecognitionSettingsKeys.modelWifiOnly, false);
+      await _settle(tester);
+      await _tap(tester, _inRow('ko', '받기'));
+      expect(engine.ensureCalls, [('ko', false)]);
+      await tester.pump(const Duration(seconds: 6));
+      _expectRow('ko', '받는 중…', []);
+      engine.finish();
+      await _settle(tester);
+      _expectRow('ko', '준비됨', ['지우기']);
+    });
+
+    testWidgets('iPad: [받기] first press → the cellular warning (no '
+        'download), the second → ensureModel; no Wi-Fi wait', (tester) async {
+      final engine = ControlledModelEngine(enforcesWifiOnly: false);
+      await _pump(tester, overrides: [_engine(engine)]);
+      await _tap(tester, _inRow('ko', '받기'));
+      _expectRow('ko', '받지 않음', ['셀룰러 데이터로 받을 수 있어요(약 20MB). 한 번 더 누르면 받아요.']);
+      expect(engine.ensureCalls, isEmpty);
+      await _tap(
+        tester,
+        _inRow('ko', '셀룰러 데이터로 받을 수 있어요(약 20MB). 한 번 더 누르면 받아요.'),
+      );
+      expect(engine.ensureCalls, [('ko', false)]);
+      await tester.pump(const Duration(seconds: 6));
+      _expectRow('ko', '받는 중…', []);
+      engine.finish();
+      await _settle(tester);
+      _expectRow('ko', '준비됨', ['지우기']);
+    });
+
+    testWidgets('iPad with Wi-Fi only off → one press', (tester) async {
+      final engine = ControlledModelEngine(enforcesWifiOnly: false);
+      final store = await _pump(tester, overrides: [_engine(engine)]);
+      await store.settings.set(RecognitionSettingsKeys.modelWifiOnly, false);
+      await _settle(tester);
+      await _tap(tester, _inRow('en', '받기'));
+      expect(engine.ensureCalls, [('en', false)]);
+    });
+
+    testWidgets('a failed download → reported once, 받지 못했어요 [다시] → '
+        '[다시] downloads again', (tester) async {
+      final engine = ControlledModelEngine();
+      await _pump(tester, overrides: [_engine(engine)]);
+      await _tap(tester, _inRow('ko', '받기'));
+      final reports = await _reports(() async {
+        engine.fail(RecognizerEngineError('download-failed', 'no'));
+        await _settle(tester);
+      });
+      _expectRow('ko', '받지 못했어요', ['다시']);
+      expect(reports, hasLength(1));
+      expect(reports.single.library, 'ink_recognition');
+
+      final later = await _reports(() async {
+        await _tap(tester, _inRow('ko', '다시'));
+        expect(engine.ensureCalls, [('ko', true), ('ko', true)]);
+        _expectRow('ko', '받는 중…', []);
+        engine.finish();
+        await _settle(tester);
+      });
+      _expectRow('ko', '준비됨', ['지우기']);
+      expect(later, isEmpty);
+    });
+
+    testWidgets('unsupported model, no engine → 쓸 수 없음 without a button', (
+      tester,
+    ) async {
+      final engine = ControlledModelEngine()
+        ..states['en'] = RecognitionModelState.unsupported;
+      await _pump(tester, overrides: [_engine(engine)]);
+      _expectRow('en', '쓸 수 없음', []);
+      _expectRow('ko', '받지 않음', ['받기']);
+    });
+
+    testWidgets('no engine (Unsupported) → both rows 쓸 수 없음', (tester) async {
+      await _pump(tester);
+      _expectRow('ko', '쓸 수 없음', []);
+      _expectRow('en', '쓸 수 없음', []);
+    });
+
+    testWidgets('another device / the indexer downloads → modelChanges → the '
+        'row follows', (tester) async {
+      final engine = ControlledModelEngine();
+      await _pump(tester, overrides: [_engine(engine)]);
+      unawaited(engine.ensureModel('ko')); // e.g. the indexer
+      await _settle(tester);
+      engine.finish();
+      await _settle(tester);
+      _expectRow('ko', '준비됨', ['지우기']);
+    });
+
+    testWidgets('자동 인식 on (Android, model missing) → ensureModel once', (
+      tester,
+    ) async {
+      final engine = FakeHandwritingRecognizer()
+        ..modelStates['ko'] = RecognitionModelState.notDownloaded;
+      final store = await _pump(tester, overrides: [_engine(engine)]);
+      await _tap(tester, find.byKey(RecognitionSettingsUiKeys.autoIndex));
+      expect(engine.ensureModelCalls, 1);
+      expect(
+        await store.settings.get(RecognitionSettingsKeys.autoIndex),
+        isTrue,
+      );
+      _expectRow('ko', '준비됨', ['지우기']);
+
+      // Off and on again with the model ready → no download.
+      await _tap(tester, find.byKey(RecognitionSettingsUiKeys.autoIndex));
+      await _tap(tester, find.byKey(RecognitionSettingsUiKeys.autoIndex));
+      expect(engine.ensureModelCalls, 1);
+    });
+
+    testWidgets('자동 인식 on (Android) follows recog.language and Wi-Fi only', (
+      tester,
+    ) async {
+      final engine = ControlledModelEngine();
+      final store = await _pump(tester, overrides: [_engine(engine)]);
+      await store.settings.set(RecognitionSettingsKeys.language, 'en');
+      await _settle(tester);
+      await _tap(tester, find.byKey(RecognitionSettingsUiKeys.autoIndex));
+      expect(engine.ensureCalls, [('en', true)]);
+      _expectRow('en', '받는 중…', []);
+      _expectRow('ko', '받지 않음', ['받기']);
+      engine.finish();
+      await _settle(tester);
+    });
+
+    testWidgets('자동 인식 on (iPad, model missing) → no download; the row\'s '
+        '[받기] is emphasised until a download starts', (tester) async {
+      final engine = ControlledModelEngine(enforcesWifiOnly: false);
+      await _pump(tester, overrides: [_engine(engine)]);
+      Finder filled(String tag) =>
+          find.descendant(of: _row(tag), matching: find.byType(FilledButton));
+      expect(filled('ko'), findsNothing);
+      await _tap(tester, find.byKey(RecognitionSettingsUiKeys.autoIndex));
+      expect(engine.ensureCalls, isEmpty);
+      expect(filled('ko'), findsOneWidget);
+      expect(filled('en'), findsNothing);
+
+      await _tap(tester, _inRow('ko', '받기'));
+      await _tap(
+        tester,
+        _inRow('ko', '셀룰러 데이터로 받을 수 있어요(약 20MB). 한 번 더 누르면 받아요.'),
+      );
+      expect(engine.ensureCalls, [('ko', false)]);
+      expect(filled('ko'), findsNothing);
+      engine.finish();
+      await _settle(tester);
+    });
+
+    testWidgets('model rows: tap targets ≥ 44×44 with every button', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final engine = ControlledModelEngine()
+        ..states['ko'] = RecognitionModelState.ready;
+      await _pump(tester, overrides: [_engine(engine)]);
+      await _tap(tester, _inRow('en', '받기'));
+      await tester.pump(const Duration(seconds: 5));
+      await _tap(
+        tester,
+        find.byKey(RecognitionSettingsUiKeys.modelCellular('en')),
+      );
+      expect(tester.takeException(), isNull);
+      await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+      handle.dispose();
+      engine.finish();
+      await _settle(tester);
+    });
+  });
 }
 
 /// Available; the model is not downloaded; a download waits for Wi-Fi.

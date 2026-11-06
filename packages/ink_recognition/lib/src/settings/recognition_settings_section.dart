@@ -12,6 +12,11 @@
 // desktops — the fixed sentence and the group disabled) and the math group
 // (engine, consent). Every change is stored at once (CORE settings); a value
 // set on another device shows (settingsSnapshotProvider).
+// L2-18 (P-B): the '인식 모델' rows (ui/model_row.dart — download, delete,
+// iPad's two presses, Android's Wi-Fi wait → [지금 셀룰러로 받기]); turning
+// automatic indexing on with the model missing starts the download on Android
+// (ensureModel once — the indexer joins it in the adapter) and emphasises the
+// row's [받기] on iPad (6.18).
 import 'dart:async' show unawaited;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -22,9 +27,13 @@ import 'package:note_core/note_core.dart' as core;
 import '../common/report_error.dart';
 import '../indexer/indexer_status.dart';
 import '../l10n/recognition_strings.dart';
+import '../model/candidates.dart';
+import '../ports/handwriting_recognizer.dart';
 import '../ports/math_recognizer.dart';
 import '../ports/model_admin.dart';
 import '../providers.dart';
+import '../ui/model_downloads.dart';
+import '../ui/model_row.dart';
 import 'recognition_settings_keys.dart';
 
 /// Appendix C keys of the section (INFRA V5 · V6 — not contract).
@@ -46,6 +55,43 @@ abstract final class RecognitionSettingsUiKeys {
   /// One language choice ('ko' | 'en').
   static ValueKey<String> languageOf(String tag) =>
       ValueKey('recog.settings.language.$tag');
+
+  /// A model row (ui/model_row.dart) and its cellular button.
+  static ValueKey<String> model(String tag) =>
+      ValueKey('recog.settings.model.$tag');
+  static ValueKey<String> modelCellular(String tag) =>
+      ValueKey('recog.settings.model.$tag.cellular');
+}
+
+/// '검색용 자동 인식' turned on (6.18): when the model of [language] is
+/// missing, Android starts its download (wifiOnly: recog.modelWifiOnly —
+/// the indexer joins the same request in the adapter) and iPad emphasises
+/// the row's [받기] (the user starts downloads there — 6.7.4).
+Future<void> onAutoIndexTurnedOn({
+  required HandwritingRecognizer recognizer,
+  required ModelDownloads downloads,
+  required String language,
+  required bool wifiOnly,
+}) async {
+  RecognitionModelState state;
+  try {
+    state = await recognizer.modelState(language);
+  } on Object catch (e, s) {
+    reportRecognitionError(e, s, 'handwriting model $language state');
+    return;
+  }
+  switch (state) {
+    case RecognitionModelState.ready:
+    case RecognitionModelState.unsupported:
+      return;
+    case RecognitionModelState.notDownloaded:
+    case RecognitionModelState.downloading:
+      if (recognizer case RecognizerModelAdmin(enforcesWifiOnly: false)) {
+        downloads.highlight(language);
+      } else {
+        unawaited(downloads.start(language, wifiOnly: wifiOnly));
+      }
+  }
 }
 
 /// The 6.19 settings text of [status] (null = no indexer): '상태: ' + the
@@ -105,6 +151,21 @@ class RecognitionSettingsSection extends ConsumerWidget {
     final language = recognitionLanguageOf(
       values.get(RecognitionSettingsKeys.language),
     );
+    final wifiOnly = values.get(RecognitionSettingsKeys.modelWifiOnly);
+
+    void autoIndexChanged(bool on) {
+      save(RecognitionSettingsKeys.autoIndex, on);
+      if (!on) return;
+      unawaited(
+        onAutoIndexTurnedOn(
+          recognizer: recognizer,
+          downloads: ref.read(modelDownloadsProvider),
+          language: language,
+          wifiOnly: wifiOnly,
+        ),
+      );
+    }
+
     final manualMath = math is ManualOnlyMathRecognizer || !math.isAvailable;
 
     return IgnorePointer(
@@ -128,13 +189,19 @@ class RecognitionSettingsSection extends ConsumerWidget {
               enabled: available,
               onChanged: (tag) => save(RecognitionSettingsKeys.language, tag),
             ),
+            ListTile(
+              enabled: available,
+              title: const Text(RecognitionStrings.modelTitle),
+            ),
+            for (final tag in kRecognitionLanguages)
+              RecognitionModelRow(languageTag: tag, enabled: available),
             SwitchListTile(
               key: RecognitionSettingsUiKeys.wifiOnly,
               title: const Text(RecognitionStrings.wifiOnlyTitle),
               subtitle: asksBeforeCellular
                   ? const Text(RecognitionStrings.wifiOnlyAskFirst)
                   : null,
-              value: values.get(RecognitionSettingsKeys.modelWifiOnly),
+              value: wifiOnly,
               onChanged: available
                   ? (v) => save(RecognitionSettingsKeys.modelWifiOnly, v)
                   : null,
@@ -144,9 +211,7 @@ class RecognitionSettingsSection extends ConsumerWidget {
               title: const Text(RecognitionStrings.autoIndexTitle),
               subtitle: const _IndexerStatusLine(),
               value: values.get(RecognitionSettingsKeys.autoIndex),
-              onChanged: available
-                  ? (v) => save(RecognitionSettingsKeys.autoIndex, v)
-                  : null,
+              onChanged: available ? autoIndexChanged : null,
             ),
             const _GroupHeader(RecognitionStrings.mathGroup),
             ListTile(

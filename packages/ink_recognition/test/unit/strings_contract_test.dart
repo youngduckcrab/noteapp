@@ -92,4 +92,24 @@ void main() {
     expect(RecognitionStrings.indexerRecognizing(3), '인식 중 · 남은 페이지 3');
     expect(RecognitionStrings.indexerPaused, '앱이 뒤에 있어 멈췄어요');
   });
+
+  test('model rows (6.18, 6.22) — L2-18', () {
+    expect(RecognitionStrings.modelTitle, '인식 모델');
+    expect(RecognitionStrings.modelReady, '준비됨');
+    expect(RecognitionStrings.modelNotDownloaded, '받지 않음');
+    expect(RecognitionStrings.modelDownloading, '받는 중…');
+    expect(RecognitionStrings.modelUnsupported, '쓸 수 없음');
+    expect(RecognitionStrings.modelFailed, '받지 못했어요');
+    expect(RecognitionStrings.download, '받기');
+    expect(RecognitionStrings.deleteModel, '지우기');
+    expect(RecognitionStrings.retry, '다시');
+    expect(
+      RecognitionStrings.cellularWarning,
+      '셀룰러 데이터로 받을 수 있어요(약 20MB). 한 번 더 누르면 받아요.',
+    );
+    expect(
+      RecognitionStrings.cellularConfirm,
+      '셀룰러 데이터로 받아요(약 20MB). 한 번 더 누르면 받아요.',
+    );
+  });
 }
