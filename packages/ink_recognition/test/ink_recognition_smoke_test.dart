@@ -6,6 +6,10 @@
 // indexer that the container disposes. (L2-07) recognitionOverrides() gives
 // GeometricShapeFitter to INK. (L2-10a) start() runs the indexer; the
 // provider's `enabled` stays false until L2-11 (recog.autoIndex) → disabled.
+// (L2-08) The VM is Android in tests, so recognitionOverrides() gives the ML
+// Kit adapter (6.7.1, 3.4): an indexer is built (not started); no plugin
+// channel is faked here (contract 7.4.6 — only native/mlkit_adapter_test).
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -25,31 +29,43 @@ void main() {
         ...recognitionOverrides(),
       ],
     );
-    expect(
-      container.read(handwritingRecognizerProvider),
-      isA<UnsupportedHandwritingRecognizer>(),
-    );
+    final engine = container.read(handwritingRecognizerProvider);
+    expect(engine.engineId, 'mlkit-digital-ink/19.0.0'); // (L2-08)
+    expect(engine.isAvailable, isTrue);
     expect(
       container.read(mathRecognizerProvider),
       isA<ManualOnlyMathRecognizer>(),
     );
-    expect(container.read(handwritingIndexerProvider), isNull);
-    expect(container.read(recognitionDevOverlayLinesProvider).value, [
-      '손글씨 색인 없음 (이 기기에서 인식 불가)',
-    ]);
+    final indexer = container.read(handwritingIndexerProvider);
+    expect(indexer, isA<HandwritingIndexer>());
+    expect(indexer!.status.value.phase, HandwritingIndexerPhase.off);
+    final lines = container.read(recognitionDevOverlayLinesProvider).value;
+    expect(lines, hasLength(4));
+    expect(lines.last, 'math: manual');
     expect(
       container.read(ink.inkShapeFitterProvider),
       isA<GeometricShapeFitter>(), // L2-07 (4.4.8)
     );
   });
 
-  test('the providers read without a NoteStore override (no engine)', () {
-    final container = ProviderContainer.test(overrides: recognitionOverrides());
-    expect(container.read(handwritingIndexerProvider), isNull);
-    expect(
-      container.read(recognitionDevOverlayLinesProvider).value,
-      hasLength(1),
-    );
+  test('the providers read without a NoteStore override (desktop — no '
+      'engine)', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      final container = ProviderContainer.test(
+        overrides: recognitionOverrides(),
+      );
+      expect(
+        container.read(handwritingRecognizerProvider),
+        isA<UnsupportedHandwritingRecognizer>(),
+      );
+      expect(container.read(handwritingIndexerProvider), isNull);
+      expect(container.read(recognitionDevOverlayLinesProvider).value, [
+        '손글씨 색인 없음 (이 기기에서 인식 불가)',
+      ]);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets(

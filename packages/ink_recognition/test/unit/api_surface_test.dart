@@ -501,15 +501,15 @@ void main() {
         container.read(ink.inkShapeFitterProvider),
         isA<GeometricShapeFitter>(),
       );
-      expect(
-        container.read(handwritingRecognizerProvider),
-        isA<UnsupportedHandwritingRecognizer>(), // ML Kit: L2-08
-      );
+      // (L2-08) the VM is Android in tests → the ML Kit adapter (6.7.1);
+      // nothing reaches the plugin before a call (3.4).
+      final engine = container.read(handwritingRecognizerProvider);
+      expect(engine.engineId, 'mlkit-digital-ink/19.0.0');
+      expect(engine.isAvailable, isTrue);
       expect(
         container.read(mathRecognizerProvider),
         isA<ManualOnlyMathRecognizer>(),
       );
-      expect(container.read(handwritingIndexerProvider), isNull);
     });
   });
 
