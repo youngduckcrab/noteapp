@@ -404,11 +404,11 @@
 | T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
 | T32 | 완료 | 8cf5524 | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
 | T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
-| T33b | 진행 중 — **PF-3·PF-4만 남음**: 원문(V10) 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(아래 '보완 1.1'). 나머지 완료 조건 시험은 통과 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) · 보완 1.1(아래 절) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
+| T33b | 진행 중 — **PF-3·PF-4만 남음**: 원문(V10) 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(아래 '보완 1.1'). 나머지 완료 조건 시험은 통과 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
-| T37 | 진행 중 — **PF-3·PF-4만 남음**(T33b와 같은 이유). PF-1·PF-2·PF-5~PF-11·README·Chrome `perf`는 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1(아래 절) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
+| T37 | 진행 중 — **PF-3·PF-4만 남음**(T33b와 같은 이유). PF-1·PF-2·PF-5~PF-11·README·Chrome `perf`는 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
 #### 00-review '최종 승인' CORE 항목 처리
@@ -771,7 +771,7 @@
 
 #### 보완 1.1 — 독립 검토 미비점 (2026-11-06)
 
-검토자가 찾은 4건. 모두 맞다(숫자 하나만 정정 — 아래 ①). 1번은 이 영역 혼자 닫을 수 없어 총괄 판정을 기다린다.
+검토자가 찾은 4건. 모두 맞다(숫자 하나만 정정 — 아래 1번). 1번은 이 영역 혼자 닫을 수 없어 총괄 판정을 기다린다.
 
 1. **T33b/T37 PF-3·PF-4 — 원문(V10) 기준 미달을 약한 기준으로 가렸다**: 맞다. 세션 6~9의 `search_perf_test`는 후보 `kHeldBelow`(300·600개) 미만 질의만 단언해, 변경 요청이 판정 전인데(7.4.9 — 승인 전까지 원문) 계획 10장 #1의 완료 시험을 약하게 만들었고, T37의 'PF-1~PF-11 모두 예산 안인 실행이 있다'도 그 약한 기준에서만 참이었다. 정정: 'recorded only'였던 질의는 14개 중 **7개**(PF-3 11개 중 5 + PF-4 3개 중 2 — 검토 글의 '8'은 5 + 2의 합과 다름).
    - `test/perf/search_perf_test.dart`: 측정은 `setUpAll`에서 한 번(질의마다 후보 수·결과 쪽 수·중앙값), 시험 둘 — ① **'PF-3/4 (V10 as written)'** 14개 질의 모두 원문 예산(PF-3 ≤ 5 ms, PF-4 ≤ 15 ms) — PF-3·PF-4의 완료 판정(10장 #1, load < 4 — 9.1). **지금 실패한다**(흔한 낱말 7개 — 설계에 묶인 값, 부하가 낮아도 닫히지 않음). ② **'PF-3/4 (CP-18 as proposed, pending)'** 제안 예산(후보 300·600개 미만 ≤ 5·15 ms, 그 밖 ≤ 50 ms) — 판정 전까지 회귀 방지, V10 판정이 아니다. 줄마다 'V10 … ok/OVER · CP-18 … ok/OVER'를 찍는다.
@@ -800,6 +800,19 @@
 2. **PF-4 576개 질의가 부하에서 15 ms를 넘음**: 맞다 — 이번에도 16.42(load 4→7)·14.53(8.8)·15.91 ms(5.5). 계획 9.1대로 정식 판정은 통합 단계 load < 4(I-6)라 코드는 그대로 두고, I-6 메모로 '다음 세션 메모' ①에 적었다(136개·결과 100쪽 질의도 같은 경계).
 3. **계획 6.19 PF-10 행이 '≤ 20 ms [추측]' 그대로**: 맞다. 6.19 PF-10 행과 6.10.7 끝 문단을 '≤ 50 ms(T33b 첫 측정으로 확정 — 같은 프로세스 저장소 `openTestNoteStore`에서 단언, 네이티브 저장소 `openNoteStore`는 기록만)'로 고쳤다.
 4. **V10 변경 요청이 계획 12.1에 없음**: 맞다. 12.1에 **CP-18**(7.7.2 V10 + 6.19 PF-3·PF-4 — 판정 '대기', 근거·대안·상한 300 실험)을 더하고, 6.19 PF-3·PF-4 행·6.10.7 질의 예산 문단에 'CP-18 대기 — 승인 전까지 원문'을 적었다. 10장 #9가 이 표를 읽는다.
+
+커밋: `8f29456`(계획 6.19·6.10.7·12.1 CP-18 — 미비점 3·4), `6995ec1`(`search_perf_test`·README·진행 기록 — 미비점 1·2), 이 기록 커밋.
+
+확인 (2026-11-06 보완 1.1, load 4~10 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(326개 파일) | 9초 · 3초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) — 바뀐 것은 perf 파일뿐 | 140초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 40` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 252초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (세 번) | 'V10 as written' **실패**(흔한 낱말 7개 + 부하 때 136개 질의 — 위 표, 판정 대기라 예상한 결과), 'CP-18 as proposed' 부하에 따라 통과·실패(136개 질의 8.6~9.8 ms, 영문 접두사 43.7 ms, 1글자 576개 15.9 ms — load 5~9; 정식 판정은 load < 4) | 각 16~20초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 34초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
 
 #### 계획과 다르게 한 점 (동시 개발)
 
