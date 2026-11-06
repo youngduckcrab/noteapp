@@ -331,6 +331,54 @@ void main() {
       await sub.cancel();
     });
 
+    // J12: the maps exactly as PencilWire.swift builds them (every number a
+    // double, t = systemUptime seconds, optional keys only when known).
+    test('a squeeze from the Swift builders arrives in order with its '
+        'hover pose; a tap without pose has no position', () async {
+      final native = _FakeNative();
+      final received = <PencilEvent>[];
+      final sub = PencilBridge.events.listen(received.add);
+      await _flush();
+
+      Map<String, Object?> squeeze(double t, String phase) => {
+        'type': 'squeeze',
+        't': t,
+        'phase': phase,
+        'action': 'showContextualPalette',
+        'x': 412.5,
+        'y': 300.0,
+        'z': 0.4,
+        'roll': 1.25,
+      };
+      native
+        ..send(squeeze(5021.25, 'began'))
+        ..send(squeeze(5021.375, 'changed'))
+        ..send(squeeze(5021.5, 'ended'))
+        ..send({'type': 'tap', 't': 5030.0, 'action': 'switchPrevious'});
+      await _flush();
+
+      PencilSqueeze expected(int ms, String phase) => PencilSqueeze(
+        Duration(milliseconds: ms),
+        phase: phase,
+        preferredAction: 'showContextualPalette',
+        position: const Offset(412.5, 300),
+        z: 0.4,
+        roll: 1.25,
+      );
+      expect(received, [
+        expected(5021250, 'began'),
+        expected(5021375, 'changed'),
+        expected(5021500, 'ended'),
+        const PencilTap(
+          Duration(seconds: 5030),
+          preferredAction: 'switchPrevious',
+        ),
+      ]);
+      expect((received.last as PencilTap).position, isNull);
+      expect(PencilBridge.debugDroppedEvents, 0);
+      await sub.cancel();
+    });
+
     test('two listeners → one cancel keeps the native side → last cancel '
         'detaches once → a new listener attaches again (review M-8)', () async {
       final native = _FakeNative();

@@ -1,6 +1,7 @@
 // The channel names, wire strings and event decoding of pencil_bridge
 // (docs/plans/m5-7/01-infra.md 4.4.2 and 4.4.3). The Swift source must repeat
-// these constants — test/pencil_wire_contract_test.dart compares them (J12).
+// these constants (ios/pencil_bridge/Sources/pencil_bridge/PencilWire.swift) —
+// test/pencil_wire_contract_test.dart compares them (J12).
 import 'dart:ui' show Offset;
 
 import 'pencil_events.dart';
