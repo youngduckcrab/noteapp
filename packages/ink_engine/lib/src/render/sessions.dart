@@ -17,20 +17,34 @@
 // 2nd round (contract 7.2.9, m5-7/03-ink 4.4, 4.6, 4.13 — foundation step
 // R2-B3):
 //  * StrokeSession: receives ShapeAssist (the shapeAssist getter is what
-//    beginStroke got) and reads the shape fitter then; shapePreview stays
-//    null (the hold detection is T39). A laser stroke draws like a ballpoint
-//    while written and end() returns null — no InkEdit, nothing pending
-//    (K-9; the fading trail is T30).
-//  * EraserSession: EraserSpec.eraseShapes — a shape whose CORE bounds meet
-//    the swept capsule is removed whole (removedObjectIds; never with
-//    highlighterOnly; T37b brings the outline distance).
+//    beginStroke got) and reads the shape fitter then; (m5-7 T39, 6.18) with a
+//    fitter a HoldDetector watches the samples: a hold asks the fitter for the
+//    centerline so far, a fit becomes shapePreview (drawn at layer 4′ instead
+//    of the live stroke), moving again drops it, end() with a preview yields
+//    InkEdit(addShape) with one ShapeObject in the pen's style and no stroke;
+//    a throwing fitter keeps the stroke (warning shapeFitterThrew). A laser
+//    stroke end() returns null — no
+//    InkEdit, nothing pending (K-9); (m5-7 T30, 6.6) it is a fading trail on
+//    the overlay layer (laser_trail.dart: the points carry the InkClock time
+//    of their arrival, the trail fades out over laserFadeMs after the lift and
+//    cancel() removes it at once).
+//  * EraserSession: EraserSpec.eraseShapes — a shape the swept capsule touches
+//    is removed whole (removedObjectIds; never with highlighterOnly; since
+//    m5-7 T37b the exact rule of 6.15 — object_hit.dart: the outline within
+//    R + w / 2, a head within R, the inside of a filled shape).
 //  * LassoSession: LassoOptions.includeObjects — an object whose frame
 //    center is inside (nonzero) is selected.
 import 'dart:collection';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:flutter/foundation.dart'
+    show
+        ErrorDescription,
+        FlutterError,
+        FlutterErrorDetails,
+        ValueListenable,
+        ValueNotifier;
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -46,11 +60,15 @@ import '../input/pressure_capability.dart';
 import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
 import '../model/ink_points.dart';
+import '../object/object_hit.dart';
+import '../pen/pen_profile.dart';
 import '../pen/style_ink.dart';
+import '../shape/hold_detector.dart';
 import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
 import 'ink_page_content.dart';
 import 'ink_page_controller.dart';
+import 'laser_trail.dart';
 import 'page_host.dart';
 import 'selection.dart';
 
@@ -65,10 +83,20 @@ abstract interface class InkGestureSession {
 /// (quantized) stroke when the session ends.
 final class LiveStrokeGeometry {
   LiveStrokeGeometry._(this._style)
-    : _polylineMode = _style.profile.layer == InkLayer.highlighter;
+    : _polylineMode = _style.profile.layer == InkLayer.highlighter,
+      _dashMode = _style.profile.renderMethod == InkRenderMethod.dashedPolyline;
 
   final core.StrokeStyle _style;
   final bool _polylineMode;
+
+  /// (m5-7/03-ink T29, 6.5 'live') the dashed pen: frozenPath holds every finished
+  /// dash (append-only), tailPath the open dash + the dashes on the raw tail.
+  final bool _dashMode;
+
+  /// dashed: the pattern (multiples of the width) from the open dash on, and where
+  /// that dash starts along the open points (pt — > 0 when it starts on the tail)
+  List<double> _openDashPattern = OutlineSpec.defaultDashPattern;
+  double _openDashLead = 0;
 
   /// stable (filtered) centerline positions, append-only during one stroke
   final List<ui.Offset> _stable = [];
@@ -94,14 +122,21 @@ final class LiveStrokeGeometry {
   ui.Path get frozenPath => _frozen;
 
   /// open chunk + raw tail, rebuilt on every update, fill pens only
+  /// (dashed: the open dash and the dashes after it, 6.5 'live')
   ui.Path get tailPath {
     final open = _open;
     if (_polylineMode || open == null) return ui.Path();
-    return _tailPath ??= OutlineGenerator.outlineOf(
-      open,
-      width: _style.width,
-      profile: _style.profile,
-    ).toPath();
+    if (_dashMode) {
+      return _tailPath ??= OutlineGenerator.dashed(
+        open,
+        width: _style.width,
+        pattern: _openDashPattern,
+        lead: _openDashLead,
+        // the open part is about one dash: no D5 stretch
+        maxSegments: 1 << 30,
+      ).toPath();
+    }
+    return _tailPath ??= OutlineGenerator.outlineOfStyle(open, _style).toPath();
   }
 
   /// highlighter centerline x,y pairs (stroked); null for fill pens
@@ -163,13 +198,24 @@ void liveAddStable(LiveStrokeGeometry live, ui.Offset p, {double tiltK = 0}) {
 double liveMeanTiltK(LiveStrokeGeometry live) =>
     live._stable.isEmpty ? 0 : live._tiltKSum / live._stable.length;
 
-/// Freezes one chunk (fill pens): its outline joins frozenPath for good.
+/// Freezes one chunk (fill pens): its outline joins frozenPath for good. (m5-7 T28)
+/// The calligraphy chunks are nib outlines of the stroke's nib (6.4 'live').
 @internal
 void liveFreezeChunk(LiveStrokeGeometry live, InkPoints chunk) {
-  final path = OutlineGenerator.outlineOf(
-    chunk,
+  final path = OutlineGenerator.outlineOfStyle(chunk, live._style).toPath();
+  live._frozenChunks.add(path);
+  live._frozen.addPath(path, ui.Offset.zero);
+  live._changed();
+}
+
+/// (m5-7/03-ink T29) Freezes one finished dash of the dashed pen ([piece]: its
+/// centerline [a + r, b − r], or one point for a dot): its outline joins
+/// frozenPath for good.
+@internal
+void liveFreezeDash(LiveStrokeGeometry live, InkPoints piece) {
+  final path = OutlineGenerator.dashPiece(
+    piece,
     width: live._style.width,
-    profile: live._style.profile,
   ).toPath();
   live._frozenChunks.add(path);
   live._frozen.addPath(path, ui.Offset.zero);
@@ -178,6 +224,9 @@ void liveFreezeChunk(LiveStrokeGeometry live, InkPoints chunk) {
 
 /// Replaces the open part: [tail] after the stable points, [open] = open chunk
 /// + tail with live widthQ (fill pens), [straight] (highlighter alwaysStraight).
+/// Dashed pen: [open] starts at the open dash (or at the last stable point, the
+/// open dash then starting [dashLead] pt further on the tail) and [dashPattern] is
+/// the pattern from that dash on.
 @internal
 void liveSetOpen(
   LiveStrokeGeometry live, {
@@ -185,12 +234,16 @@ void liveSetOpen(
   required InkPoints? open,
   required (ui.Offset, ui.Offset)? straight,
   required ui.Rect bounds,
+  List<double>? dashPattern,
+  double dashLead = 0,
 }) {
   live
     .._tail = tail
     .._open = open
     .._straight = straight
     .._bounds = bounds
+    .._openDashPattern = dashPattern ?? OutlineSpec.defaultDashPattern
+    .._openDashLead = dashLead
     .._changed();
 }
 
@@ -215,7 +268,28 @@ final class StrokeSession implements InkGestureSession {
     this._penDownMillis,
     this._shapeAssist,
     this._fitter,
-  );
+    InkSample first,
+  ) {
+    if (_builder.style.profile.renderMethod == InkRenderMethod.transientTrail) {
+      final style = _builder.style;
+      _trail = _host.laserTrails.start(
+        width: style.width,
+        fadeMs: style.laserFadeMs,
+        nowUs: _host.clock.nowUs(),
+      );
+      _syncTrail();
+    }
+    if (_fitter != null) {
+      // (m5-7 T39, 6.18) the hold starts at the pen-down sample
+      _hold = HoldDetector(
+        start: first.position,
+        startUs: first.timeUs,
+        viewScale: _builder.viewScale,
+        onHold: _onHold,
+        onMove: _dropPreview,
+      );
+    }
+  }
 
   final InkPageHost _host;
   final StrokeBuilder _builder;
@@ -227,8 +301,32 @@ final class StrokeSession implements InkGestureSession {
   final ValueNotifier<InkShapeFit?> _shapePreview = ValueNotifier(null);
   bool _active = true;
 
+  /// (m5-7 T39) The hold detector (only with a fitter).
+  HoldDetector? _hold;
+
+  /// (m5-7 T39) The shape drawn at layer 4′ while [shapePreview] has a value: the
+  /// ShapeObject end() would commit, with a placeholder id.
+  core.ShapeObject? _previewShape;
+
+  /// (m5-7 T39) A throwing fitter is reported once per session.
+  bool _fitterThrewReported = false;
+
+  /// (m5-7 T30) The laser's trail (null for every other pen).
+  LaserTrail? _trail;
+
+  /// The live points into the trail, the new stable ones stamped with InkClock now
+  /// (S-8: never the event time).
+  void _syncTrail() {
+    final t = _trail;
+    if (t == null) return;
+    final l = _builder.live;
+    _host.laserTrails.update(t, l._stable, l._tail, _host.clock.nowUs());
+  }
+
   /// (v2.0) The shape fitted after a hold, shown in layer 4′; null otherwise (moving
-  /// again, end, cancel). R2-B3: always null.
+  /// again, end, cancel). (m5-7 T39, 6.18) Set when the pen held still ≥
+  /// InkTuning.shapeHoldMs within InkTuning.shapeHoldRadiusPx and the fitter found a
+  /// shape in the centerline so far; the live stroke is not drawn meanwhile.
   ValueListenable<InkShapeFit?> get shapePreview => _shapePreview;
 
   /// (v2.1) what beginStroke received
@@ -239,13 +337,21 @@ final class StrokeSession implements InkGestureSession {
   PressureSource get pressureSource => _builder.pressureSource;
   LiveStrokeGeometry get live => _builder.live;
 
-  InkRenderLayer get _layer => style.profile.layer == InkLayer.highlighter
-      ? InkRenderLayer.highlighterActive
-      : InkRenderLayer.inkActive;
+  /// The live layer of the stroke being written (m5-7 T31: a tape is drawn by the
+  /// cover layer — above the text boxes, L-1; T30: the laser by the overlay).
+  InkRenderLayer get _layer => _trail != null
+      ? InkRenderLayer.overlay
+      : switch (style.profile.layer) {
+          InkLayer.highlighter => InkRenderLayer.highlighterActive,
+          InkLayer.cover => InkRenderLayer.cover,
+          InkLayer.ink => InkRenderLayer.inkActive,
+        };
 
   void addSample(InkSample sample) {
     _checkActive();
     _builder.add(sample);
+    _hold?.add(sample.position, sample.timeUs);
+    _syncTrail();
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
     _host.repaint(_layer);
@@ -255,11 +361,81 @@ final class StrokeSession implements InkGestureSession {
     _checkActive();
     final list = samples.toList(growable: false);
     if (list.isEmpty) return;
-    list.forEach(_builder.add);
+    final hold = _hold;
+    for (final s in list) {
+      _builder.add(s);
+      // (T39) sample by sample: a hold inside the batch sees the points up to it
+      hold?.add(s.position, s.timeUs);
+    }
+    _syncTrail();
     _host.diagnostics.onSamples(list, receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
     _host.repaint(_layer);
   }
+
+  /// (m5-7 T39, 6.18 fire()) The pen held still: the fitter gets the centerline so
+  /// far (stable points + raw tail, page pt); a fit becomes the preview. A throwing
+  /// fitter counts as 'not a shape' (warning shapeFitterThrew, 6.24).
+  void _onHold() {
+    final fitter = _fitter;
+    if (!_active || fitter == null) return;
+    final points = List<ui.Offset>.unmodifiable(livePoints(live));
+    InkShapeFit? fit;
+    try {
+      fit = fitter.fit(points, viewScale: _builder.viewScale);
+    } on Object catch (error, stack) {
+      fit = null;
+      _host.diagnostics.onWarning('shapeFitterThrew');
+      if (!_fitterThrewReported) {
+        _fitterThrewReported = true;
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'ink_engine',
+            context: ErrorDescription('while fitting a shape to a held stroke'),
+          ),
+        );
+      }
+    }
+    if (fit == null) return;
+    _previewShape = _shapeOf(fit, id: _previewShapeId);
+    _shapePreview.value = fit;
+    _host.repaint(InkRenderLayer.inkActive);
+  }
+
+  /// (m5-7 T39) Moving again (or cancel): the preview goes, the live stroke is back.
+  void _dropPreview() {
+    final fit = _shapePreview.value;
+    if (fit == null) return;
+    _host.diagnostics.onShapeFit(fit.kind.name, fit.score, accepted: false);
+    _previewShape = null;
+    _shapePreview.value = null;
+    _host.repaint(InkRenderLayer.inkActive);
+  }
+
+  /// The id of the layer 4′ preview shape (never committed).
+  static const String _previewShapeId = 'shape-preview';
+
+  /// (6.18) The ShapeObject of [fit] in this pen's style: stroke color, width and
+  /// opacity of the pen, dashed for the dashed pen (else solid), no fill, no heads;
+  /// createdAt = pen-down nowMillis.
+  core.ShapeObject _shapeOf(InkShapeFit fit, {required String id}) =>
+      core.ShapeObject(
+        id: id,
+        pageId: _host.pageId,
+        shapeKind: fit.kind,
+        geometry: fit.geometry,
+        style: core.ShapeStyle(
+          strokeColorArgb: style.colorArgb,
+          strokeWidth: style.width,
+          strokeOpacity: style.opacity,
+          dash: style.tool == core.PenTool.dashed
+              ? core.LineDash.dashed
+              : core.LineDash.solid,
+        ).normalized(),
+        createdAt: _penDownMillis,
+      );
 
   /// 4.12 lastWidthFactor / pressureSource / stylusCapability.
   void _reportWidthFactor() {
@@ -279,11 +455,40 @@ final class StrokeSession implements InkGestureSession {
   /// null if discarded / nothing drawn. The stroke stays visible as pending until
   /// updateContent contains it, discardEdit (failed commit) is called, or the timeout passes.
   /// (v2.0) laser: null — no InkEdit, nothing pending, the content is not changed (E-3).
+  /// (m5-7 T30) The trail stays and fades out over laserFadeMs from now (6.6-2).
+  /// (m5-7 T39) With a shape preview: InkEdit(addShape) with ONE ShapeObject (id =
+  /// services.newStrokeId(), the pen's style, createdAt = pen-down nowMillis) and no
+  /// stroke; [last] (the lift) does not drop the preview.
   InkEdit? end([InkSample? last]) {
     _checkActive();
     _active = false;
+    _hold?.stop();
+    final fit = _shapePreview.value;
+    _previewShape = null;
     _shapePreview.value = null;
-    if (style.tool == core.PenTool.laser) {
+    if (fit != null) {
+      final shape = _shapeOf(fit, id: _host.services.newStrokeId());
+      _host.diagnostics.onShapeFit(fit.kind.name, fit.score, accepted: true);
+      final edit = InkEdit(
+        pageId: _host.pageId,
+        kind: InkEditKind.addShape,
+        addedObjects: List.unmodifiable([shape]),
+      );
+      _host.addPending(edit);
+      liveClear(live);
+      _host.sessionEnded(this);
+      return edit;
+    }
+    final trail = _trail;
+    if (trail != null || style.tool == core.PenTool.laser) {
+      if (trail != null) {
+        if (last != null) {
+          _builder.add(last);
+          _syncTrail();
+        }
+        _host.laserTrails.finish(trail, _host.clock.nowUs());
+        _host.repaint(InkRenderLayer.overlay);
+      }
       liveClear(live);
       _host.sessionEnded(this);
       return null;
@@ -320,7 +525,14 @@ final class StrokeSession implements InkGestureSession {
   void cancel() {
     if (!_active) return;
     _active = false;
-    _shapePreview.value = null;
+    _hold?.stop();
+    _dropPreview();
+    final trail = _trail;
+    if (trail != null) {
+      // (T30) a cancelled laser disappears at once
+      _host.laserTrails.remove(trail);
+      _host.repaint(InkRenderLayer.overlay);
+    }
     liveClear(live);
     _host.sessionEnded(this);
   }
@@ -330,19 +542,31 @@ final class StrokeSession implements InkGestureSession {
   }
 }
 
+/// [first] = the pen-down sample [builder] already has (the hold's first anchor).
 @internal
 StrokeSession newStrokeSession(
   InkPageHost host,
   StrokeBuilder builder,
   core.EpochMillis penDownMillis, {
+  required InkSample first,
   ShapeAssist shapeAssist = ShapeAssist.off,
   InkShapeFitter? fitter,
-}) => StrokeSession._(host, builder, penDownMillis, shapeAssist, fitter);
+}) => StrokeSession._(host, builder, penDownMillis, shapeAssist, fitter, first);
 
 /// The shape fitter [s] read at beginStroke (null: off, or a tool without shape assist —
 /// highlighter, laser, tape). Tests (S-12: a changed override applies from the next stroke).
 @internal
 InkShapeFitter? strokeSessionFitterOf(StrokeSession s) => s._fitter;
+
+/// (m5-7 T39) The hold detector of [s] (null without a fitter). Tests.
+@internal
+HoldDetector? strokeSessionHoldOf(StrokeSession s) => s._hold;
+
+/// (m5-7 T39) The shape layer 4′ draws for [s] while it is active and has a shape
+/// preview (the committed shape with a placeholder id), else null.
+@internal
+core.ShapeObject? strokeSessionPreviewShape(StrokeSession s) =>
+    s._active ? s._previewShape : null;
 
 /// Shape assist applies to this tool (not highlighter, laser or tape — 03-ink 4.10).
 @internal
@@ -512,13 +736,14 @@ final class EraserSession implements InkGestureSession {
         }
       }
     }
-    // (v2.0) shapes: the CORE bounds meet the capsule → removed whole (R2-B3; the
-    // outline distance is T37b). Never with highlighterOnly.
+    // (v2.0, m5-7 T37b — 6.15) shapes: the capsule within R + w / 2 of the outline, R of
+    // an arrow head, or reaching into a filled shape → removed whole (object index
+    // candidates). Never with highlighterOnly; other objects are never erased.
     if (spec.eraseShapes && spec.filter != core.StrokeFilter.highlighterOnly) {
       final area = ui.Rect.fromPoints(a, b).inflate(radius);
       for (final o in _host.objectsNear(area)) {
         if (o is! core.ShapeObject || _touchedObjects.contains(o.id)) continue;
-        if (capsuleMeetsRect(a, b, radius, interop.rectOf(o.bounds))) {
+        if (ObjectHitTest.shapeTouchesCapsule(o, a, b, radius)) {
           _touchedObjects.add(o.id);
           changed = true;
         }
@@ -526,63 +751,6 @@ final class EraserSession implements InkGestureSession {
     }
     if (changed) _host.displayChanged();
   }
-}
-
-/// The capsule a → b of [radius] meets the closed rectangle [r] (distance from the
-/// segment to the rectangle ≤ radius).
-@internal
-bool capsuleMeetsRect(ui.Offset a, ui.Offset b, double radius, ui.Rect r) {
-  double dist2(ui.Offset p) {
-    final dx = p.dx < r.left
-        ? r.left - p.dx
-        : (p.dx > r.right ? p.dx - r.right : 0.0);
-    final dy = p.dy < r.top
-        ? r.top - p.dy
-        : (p.dy > r.bottom ? p.dy - r.bottom : 0.0);
-    return dx * dx + dy * dy;
-  }
-
-  final r2 = radius * radius;
-  if (dist2(a) <= r2 || dist2(b) <= r2) return true;
-  if (_segmentsCross(a, b, r)) return true;
-  // the nearest point of the rectangle is then a corner (or the segment's end, checked above)
-  for (final c in [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft]) {
-    if (_pointSegmentDist2(c, a, b) <= r2) return true;
-  }
-  return false;
-}
-
-bool _segmentsCross(ui.Offset a, ui.Offset b, ui.Rect r) {
-  if (r.contains(a) || r.contains(b)) return true;
-  final edges = [
-    (r.topLeft, r.topRight),
-    (r.topRight, r.bottomRight),
-    (r.bottomRight, r.bottomLeft),
-    (r.bottomLeft, r.topLeft),
-  ];
-  for (final (p, q) in edges) {
-    if (_intersects(a, b, p, q)) return true;
-  }
-  return false;
-}
-
-double _cross(ui.Offset o, ui.Offset a, ui.Offset b) =>
-    (a.dx - o.dx) * (b.dy - o.dy) - (a.dy - o.dy) * (b.dx - o.dx);
-
-bool _intersects(ui.Offset a, ui.Offset b, ui.Offset c, ui.Offset d) {
-  final d1 = _cross(c, d, a), d2 = _cross(c, d, b);
-  final d3 = _cross(a, b, c), d4 = _cross(a, b, d);
-  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
-}
-
-double _pointSegmentDist2(ui.Offset p, ui.Offset a, ui.Offset b) {
-  final abx = b.dx - a.dx, aby = b.dy - a.dy;
-  final len2 = abx * abx + aby * aby;
-  var t = len2 == 0 ? 0.0 : ((p.dx - a.dx) * abx + (p.dy - a.dy) * aby) / len2;
-  t = t.clamp(0.0, 1.0);
-  final dx = a.dx + t * abx - p.dx, dy = a.dy + t * aby - p.dy;
-  return dx * dx + dy * dy;
 }
 
 @internal

@@ -1,5 +1,6 @@
-// lib/src/render/playback.dart — contract 7.2.9 (m5-7/03-ink 4.3). Value types final (T24);
-// foundation step R2-B3 keeps the focus as state only (no drawing — T40).
+// lib/src/render/playback.dart — contract 7.2.9 (m5-7/03-ink 4.3). Value types final (T24).
+// The controller draws the focus on layer 4′ (m5-7 T40, 6.19): the index is
+// playback_index.dart, the drawing playback_painter.dart.
 import 'package:meta/meta.dart';
 
 @immutable

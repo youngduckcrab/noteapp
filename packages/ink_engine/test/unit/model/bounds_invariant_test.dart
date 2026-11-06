@@ -4,6 +4,18 @@
 // the smooth and straight fill paths, the vector export path and, for the
 // highlighter, the stroked centerline with its square cap corners.
 //
+// v2 (m5-7/03-ink T27, 6.2 K-1): the brush (pressure gain 0.9, f ≤ 2.2,
+// long tapers) and the tape's square caps and square dot — since T31 through
+// the real pipeline (PenProfile.of(tape) = the tape profile: widthQ is always
+// kNominalWidthQ, f = 1).
+// T29 (6.5 K-1): the dashed pen through the real pipeline — every dash piece
+// and dot (default and other patterns, the 4096 cap) — in _tools, its own
+// group and the random strokes.
+// T28 (6.4 K-1): the calligraphy nib outline through the real pipeline — nib
+// angles 0°, 45°, 90°, 135° × aspects 0.1, 0.25, 1 × widths 0.1, 2.5, 30 (max
+// pressure, dot, 180° back and forth), in _tools, and 100 random calligraphy
+// strokes with random nibs (+ the 300 random strokes of every tool).
+//
 // Also run in Chrome by test/web/geometry_on_web_test.dart.
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -53,8 +65,9 @@ core.Stroke _build(
   );
 }
 
-/// Asserts every rendered extent of [s] is inside s.bounds.
-void expectInsideBounds(core.Stroke s, String label) {
+/// Asserts every rendered extent of [s] is inside s.bounds. [profile] replaces
+/// the stroke's profile for the outline (the tape before T31).
+void expectInsideBounds(core.Stroke s, String label, {PenProfile? profile}) {
   final ink = InkStroke.of(s);
   final b = ink.bounds;
   void point(double x, double y, String what) {
@@ -71,13 +84,28 @@ void expectInsideBounds(core.Stroke s, String label) {
     point(r.right, r.bottom, what);
   }
 
-  final outline = OutlineGenerator.outline(ink);
+  final outline = profile == null
+      ? OutlineGenerator.outline(ink)
+      : OutlineGenerator.outlineOf(
+          ink.points,
+          width: s.style.width,
+          profile: profile,
+          dashPattern: s.style.dashPattern,
+          nibAngleDeg: s.style.nibAngleDeg,
+          nibAspect: s.style.nibAspect,
+        );
   rect(outline.bounds, 'outline bounds');
   final dot = outline.dotCenter;
   if (dot != null) {
     rect(
       ui.Rect.fromCircle(center: dot, radius: outline.dotRadius),
       'dot circle',
+    );
+  }
+  for (final d in outline.dots) {
+    rect(
+      ui.Rect.fromCircle(center: d, radius: outline.dotRadius),
+      'dash dot circle',
     );
   }
   for (final poly in outline.polygons) {
@@ -176,7 +204,10 @@ const List<core.PenTool> _tools = [
   core.PenTool.highlighter,
   core.PenTool.pencil,
   core.PenTool.marker,
-  core.PenTool.brush, // P1 → ballpoint profile
+  core.PenTool.brush, // m5-7 T27: the brush profile
+  core.PenTool.calligraphy, // m5-7 T28: the nib outline (45°, 0.25)
+  core.PenTool.dashed, // m5-7 T29: the dashed profile ([4, 3])
+  core.PenTool.tape, // m5-7 T31: the tape profile (square caps, cover)
 ];
 
 void main() {
@@ -277,6 +308,174 @@ void main() {
         });
       }
     }
+  });
+
+  group('dashed pieces and dots (PenProfile.dashed, 6.5)', () {
+    final base = core.StrokeStyle.defaultsFor(core.PenTool.dashed);
+    for (final pattern in [
+      [4.0, 3.0],
+      [0.0, 2.0],
+      [1.0, 1.0, 0.0, 3.0],
+      [50.0, 0.5],
+      [0.25, 0.25], // the 4096 cap on the long strokes below at 0.1 pt
+    ]) {
+      for (final width in [0.1, 1.0, 30.0]) {
+        test('$pattern width $width', () {
+          final style = base
+              .copyWith(width: width)
+              .withInkExtras(dashPattern: pattern);
+          final scale = math.max(1.0, width / 4);
+          for (final (name, xy) in [
+            ('S curve', _sCurve(scale)),
+            ('180°', _backAndForth(scale)),
+            (
+              'long',
+              [
+                for (var i = 0; i <= 400; i++)
+                  ui.Offset(20 + 2.0 * scale * i, 400 + 60 * math.sin(i / 40)),
+              ],
+            ),
+            ('dot', [const ui.Offset(30, 30)]),
+          ]) {
+            final s = _build(_samples(xy, pressure: 0.8), style);
+            expect(s.style.profile, same(PenProfile.dashed));
+            expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
+            expectInsideBounds(s, 'dashed $pattern $name');
+          }
+        });
+      }
+    }
+  });
+
+  group('calligraphy nibs (PenProfile.calligraphy, 6.4)', () {
+    final base = core.StrokeStyle.defaultsFor(core.PenTool.calligraphy)
+        .copyWith(pressureSensitivity: 1);
+    for (final angle in [0.0, 45.0, 90.0, 135.0]) {
+      for (final aspect in [0.1, 0.25, 1.0]) {
+        test('nib $angle° aspect $aspect', () {
+          for (final width in [0.1, 2.5, 30.0]) {
+            final style = base
+                .copyWith(width: width)
+                .withInkExtras(nibAngleDeg: angle, nibAspect: aspect);
+            final scale = math.max(1.0, width / 4);
+            for (final (name, xy) in [
+              ('S curve', _sCurve(scale)),
+              ('180°', _backAndForth(scale)),
+              (
+                'diagonal',
+                [
+                  for (var i = 0; i <= 60; i++)
+                    ui.Offset(40 + 3.0 * scale * i, 80 + 3.0 * scale * i),
+                ],
+              ),
+              ('dot', [const ui.Offset(30, 30)]),
+              (
+                'tiny',
+                [
+                  const ui.Offset(50, 50),
+                  const ui.Offset(50.05, 50.02),
+                  const ui.Offset(50.02, 50.04),
+                ],
+              ),
+            ]) {
+              final s = _build(
+                _samples(xy, pressure: 1),
+                style,
+                mode: PressureMode.alwaysReal,
+              );
+              expect(s.style.profile, same(PenProfile.calligraphy));
+              expectInsideBounds(s, 'nib $angle° $aspect w $width $name');
+            }
+          }
+        });
+      }
+    }
+
+    test('100 seeded random calligraphy strokes (random nibs)', () {
+      final rnd = _Rng(20261107);
+      for (var k = 0; k < 100; k++) {
+        final width = 0.1 * math.pow(300, rnd.next()).toDouble(); // 0.1 … 30
+        final count = 1 + rnd.nextInt(120);
+        var p = ui.Offset(50 + 500 * rnd.next(), 50 + 700 * rnd.next());
+        var heading = rnd.next() * 2 * math.pi;
+        final xy = <ui.Offset>[];
+        for (var i = 0; i < count; i++) {
+          xy.add(p);
+          heading += rnd.next() < 0.08 ? math.pi : (rnd.next() - 0.5) * 1.6;
+          final step = rnd.next() < 0.1 ? 0.0 : 8 * rnd.next() * rnd.next();
+          p += ui.Offset(math.cos(heading), math.sin(heading)) * step;
+        }
+        final s = _build(
+          _samples(xy, pressureAt: (u) => rnd.next()),
+          base
+              .copyWith(width: width, smoothing: rnd.next())
+              .withInkExtras(
+                nibAngleDeg: 360 * rnd.next() - 90,
+                nibAspect: 1.2 * rnd.next(),
+              ),
+          mode: PressureMode.alwaysReal,
+        );
+        expectInsideBounds(s, 'calligraphy $k (width $width)');
+      }
+    });
+  });
+
+  group('tape square caps and square dot (PenProfile.tape, real pipeline)', () {
+    final base = core.StrokeStyle.defaultsFor(core.PenTool.tape);
+    for (final width in [0.1, 14.0, 60.0]) {
+      test('width $width', () {
+        final style = base.copyWith(width: width);
+        final scale = math.max(1.0, width / 4);
+        for (final (name, xy) in [
+          (
+            'diagonal',
+            [
+              for (var i = 0; i <= 60; i++)
+                ui.Offset(40 + 3.0 * scale * i, 80 + 3.0 * scale * i),
+            ],
+          ),
+          ('S curve', _sCurve(scale)),
+          ('180°', _backAndForth(scale)),
+          ('dot', [const ui.Offset(30, 30)]),
+          (
+            'tiny',
+            [
+              const ui.Offset(50, 50),
+              const ui.Offset(50.05, 50.02),
+              const ui.Offset(50.02, 50.04),
+            ],
+          ),
+        ]) {
+          final s = _build(_samples(xy, pressure: 0.8), style);
+          expect(s.style.profile, same(PenProfile.tape));
+          expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
+          expectInsideBounds(s, 'tape $name');
+        }
+      });
+    }
+
+    test('100 seeded random tape strokes', () {
+      final rnd = _Rng(20261106);
+      for (var k = 0; k < 100; k++) {
+        final width = 0.1 * math.pow(600, rnd.next()).toDouble(); // 0.1 … 60
+        final count = 1 + rnd.nextInt(80);
+        var p = ui.Offset(50 + 500 * rnd.next(), 50 + 700 * rnd.next());
+        var heading = rnd.next() * 2 * math.pi;
+        final xy = <ui.Offset>[];
+        for (var i = 0; i < count; i++) {
+          xy.add(p);
+          heading += rnd.next() < 0.08 ? math.pi : (rnd.next() - 0.5) * 1.6;
+          final step = rnd.next() < 0.1 ? 0.0 : 8 * rnd.next() * rnd.next();
+          p += ui.Offset(math.cos(heading), math.sin(heading)) * step;
+        }
+        final s = _build(
+          _samples(xy, pressure: rnd.next()),
+          base.copyWith(width: width, smoothing: rnd.next()),
+        );
+        expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
+        expectInsideBounds(s, 'tape $k (width $width)');
+      }
+    });
   });
 
   test('300 seeded random strokes', () {

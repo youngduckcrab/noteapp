@@ -4,6 +4,14 @@
 // on 10 000 random points), and a stroke is selected iff the centerline
 // length of its segments whose midpoint is inside reaches `coverage` of its
 // length (a dot: its point). Every tool is selectable.
+// (m5-7/03-ink 8.2 T37a, 6.14) v2: with LassoOptions.includeObjects (default)
+// a page object of any kind is selected iff its frame center is inside
+// (nonzero — the figure 8's loops, not a concave notch; a rotated frame's center
+// is its rect's center; a shape's frame is its geometry's), however much of the
+// frame lies outside; strokes and objects come back in one z order
+// (compareOrder); hidden objects are selectable, previews and pending-removed
+// objects are not; includeObjects: false → strokes only (null when only
+// objects were inside).
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -14,6 +22,7 @@ import 'package:ink_engine/src/edit/lasso_polygon.dart';
 import 'package:ink_engine/src/render/sessions.dart' show lassoPolygonOf;
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart' show PageObjectFixtures;
 
 import '../../support/pixels.dart';
 
@@ -308,6 +317,195 @@ void main() {
       expect(s.points, hasLength(4));
       expect(s.end()!.strokeIds, {'a'});
     });
+  });
+
+  group('objects (v2 — includeObjects, 6.14)', () {
+    const pageId = 'p1';
+    core.TextBoxObject text(
+      String id,
+      core.PageRect r, {
+      double rotation = 0,
+      int createdAt = 1,
+    }) => core.TextBoxObject(
+      id: id,
+      pageId: pageId,
+      frame: core.ElementFrame(r, rotation: rotation),
+      text: 'x',
+      style: const core.TextBoxStyle(),
+      createdAt: createdAt,
+    );
+
+    void showAll(
+      List<core.PageObject> objects, {
+      List<core.Stroke> strokes = const [],
+    }) => c.updateContent(
+      SyntheticInk.pageContentWith(
+        strokes: strokes,
+        objects: objects,
+        revision: 3,
+      ),
+    );
+
+    test('the frame center decides, not how much of the frame is inside', () {
+      showAll([
+        // center (150, 150) inside, most of the frame outside
+        text('wide', const core.PageRect(20, 140, 280, 160)),
+        // 80 % of the frame inside, center (215, 150) outside
+        text('mostly', const core.PageRect(130, 130, 300, 170)),
+      ]);
+      final sel = lasso(_rect(100, 100, 200, 200))!;
+      expect(sel.objectIds, {'wide'});
+      expect(sel.strokeIds, isEmpty);
+    });
+
+    test('every kind, rotated frames and shapes by their frame center', () {
+      final objects = <core.PageObject>[
+        text('t', const core.PageRect(110, 110, 150, 130)),
+        PageObjectFixtures.math(
+          pageId: pageId,
+          id: 'm',
+          rect: const core.PageRect(120, 140, 160, 160),
+        ),
+        PageObjectFixtures.image(
+          pageId: pageId,
+          assetId: 'a',
+          id: 'i',
+          rect: const core.PageRect(100, 160, 190, 190),
+        ),
+        PageObjectFixtures.unknown(
+          pageId: pageId,
+          id: 'u',
+          rect: const core.PageRect(160, 110, 190, 130),
+        ),
+        // a line (0,0)→(300,300): frame = its AABB, center (150, 150) — inside
+        PageObjectFixtures.shape(
+          pageId: pageId,
+          kind: core.ShapeKind.line,
+          id: 'line',
+          rect: const core.PageRect(0, 0, 300, 300),
+        ),
+        // turned 90°: the long frame stands up, its center (150, 250) stays outside
+        text(
+          'turned',
+          const core.PageRect(100, 245, 200, 255),
+          rotation: 1.5708,
+        ),
+        PageObjectFixtures.shape(
+          pageId: pageId,
+          kind: core.ShapeKind.ellipse,
+          id: 'far',
+          rect: const core.PageRect(300, 300, 400, 400),
+        ),
+      ];
+      showAll(objects);
+      expect(lasso(_rect(100, 100, 200, 200))!.objectIds, {
+        't',
+        'm',
+        'i',
+        'u',
+        'line',
+      });
+    });
+
+    test('nonzero: both loops of a figure 8, not a concave notch', () {
+      showAll([
+        text('left', const core.PageRect(190, 290, 210, 310)),
+        text('right', const core.PageRect(390, 290, 410, 310)),
+        text('notch', const core.PageRect(640, 640, 660, 660)),
+      ]);
+      expect(lasso(_figureEight(300, 300, 150, 100))!.objectIds, {
+        'left',
+        'right',
+      });
+      // a U shape whose notch holds the third center
+      final u = [
+        const ui.Offset(600, 600),
+        const ui.Offset(630, 600),
+        const ui.Offset(630, 700),
+        const ui.Offset(670, 700),
+        const ui.Offset(670, 600),
+        const ui.Offset(700, 600),
+        const ui.Offset(700, 720),
+        const ui.Offset(600, 720),
+      ];
+      expect(lasso(u), isNull);
+    });
+
+    test('strokes and objects in one z order; includeObjects: false', () {
+      final strokes = [
+        _line(
+          const ui.Offset(110, 120),
+          const ui.Offset(190, 120),
+          id: 's-old',
+          createdAt: 5,
+        ),
+        _line(
+          const ui.Offset(110, 180),
+          const ui.Offset(190, 180),
+          id: 's-new',
+          createdAt: 50,
+        ),
+      ];
+      final s0 = strokes[0].createdAt, s1 = strokes[1].createdAt;
+      showAll([
+        text('first', const core.PageRect(120, 140, 140, 160), createdAt: 1),
+        text(
+          'between',
+          const core.PageRect(150, 140, 170, 160),
+          createdAt: s0 + 1,
+        ),
+        text(
+          'last',
+          const core.PageRect(160, 150, 180, 170),
+          createdAt: s1 + 1,
+        ),
+      ], strokes: strokes);
+      final sel = lasso(_rect(100, 100, 200, 200))!;
+      expect(sel.allIds.toList(), [
+        'first',
+        's-old',
+        'between',
+        's-new',
+        'last',
+      ]);
+      expect(sel.strokeIds, {'s-old', 's-new'});
+      expect(sel.objects.map((o) => o.id), ['first', 'between', 'last']);
+      final strokesOnly = lasso(
+        _rect(100, 100, 200, 200),
+        options: const LassoOptions(includeObjects: false),
+      )!;
+      expect(strokesOnly.allIds.toList(), ['s-old', 's-new']);
+      expect(strokesOnly.objectIds, isEmpty);
+      // only objects inside and includeObjects: false → nothing
+      expect(
+        lasso(
+          _rect(115, 135, 185, 175),
+          options: const LassoOptions(includeObjects: false),
+        ),
+        isNull,
+      );
+      expect(lasso(_rect(115, 135, 185, 175))!.objectIds, {
+        'first',
+        'between',
+        'last',
+      });
+    });
+
+    test(
+      'hidden objects are selectable; previews and pending-removed are not',
+      () {
+        showAll([
+          text('hidden', const core.PageRect(110, 110, 130, 130)),
+          text('gone', const core.PageRect(150, 150, 170, 170)),
+        ]);
+        c.setHiddenObjectIds({'hidden'});
+        c.setPreviewObjects([
+          text('preview', const core.PageRect(160, 110, 180, 130)),
+        ]);
+        c.select({'gone'}).delete();
+        expect(lasso(_rect(100, 100, 200, 200))!.objectIds, {'hidden'});
+      },
+    );
   });
 
   group('degenerate polygons (L2) → null', () {

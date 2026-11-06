@@ -8,6 +8,16 @@
 // (6.10), fill pens by their outline (6.8), the pencil with the grain once the
 // PencilGrain is ready (6.11 — the painter listens to it: repaint).
 // Built strokes are kept in a small LRU by (style, shape, size).
+//
+// (m5-7/03-ink 6.2 'pen preview v2', T27) The painter branches on the
+// profile's render method and calls the same paint function as the page
+// layers (preview = real stroke shape). The dashed branch draws the dashed
+// outline (T29 — OutlineGenerator.outline gives the dash pieces), the nib
+// branch the calligraphy outline of style.nibAngleDeg / nibAspect (T28 — the
+// same fill as the page layers), the tape the covered shape with its stripes
+// (T31 — the cover layer's covered look), the laser a still picture (T30 —
+// the trail's glow + core in InkTuning.laserArgb at full opacity, no fade and
+// no repaint).
 import 'dart:collection';
 import 'dart:math' as math;
 
@@ -22,10 +32,13 @@ import '../input/pressure_capability.dart';
 import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
+import '../pen/pen_profile.dart';
 import '../stroke/stroke_builder.dart';
 import 'highlighter_compositor.dart';
+import 'laser_trail.dart';
 import 'pencil_grain.dart';
 import 'stroke_painter.dart';
+import 'tape_painter.dart';
 
 enum PenPreviewShape { sCurve, line }
 
@@ -53,21 +66,37 @@ class PenPreviewPainter extends CustomPainter {
     final sample = penPreviewStrokeOf(style, shape, size);
     if (sample == null) return;
     final stroke = sample.stroke;
-    if (stroke.layer == InkLayer.highlighter) {
-      paintHighlighterGroups(
-        canvas,
-        groupHighlighters([stroke]),
-        paperColorArgb: paperColorArgb,
-        marginPt: 1,
-      );
-      return;
+    switch (stroke.profile.renderMethod) {
+      case InkRenderMethod.strokedPolyline:
+        paintHighlighterGroups(
+          canvas,
+          groupHighlighters([stroke]),
+          paperColorArgb: paperColorArgb,
+          marginPt: 1,
+        );
+      case InkRenderMethod.filledOutline when stroke.layer == InkLayer.cover:
+        // (T31) the tape: the covered shape (+ stripes), never the revealed border
+        paintTapeCovered(
+          canvas,
+          stroke,
+          sample.outline ?? OutlineGenerator.outline(stroke),
+        );
+      case InkRenderMethod.transientTrail:
+        // (T30) the still laser: glow + core along the centerline, laserArgb
+        final p = stroke.points;
+        paintLaserStill(canvas, [
+          for (var i = 0; i < p.length; i++) Offset(p.x(i), p.y(i)),
+        ], stroke.style.width);
+      case InkRenderMethod.filledOutline:
+      case InkRenderMethod.nibOutline:
+      case InkRenderMethod.dashedPolyline:
+        paintFillStroke(
+          canvas,
+          stroke,
+          sample.outline ?? OutlineGenerator.outline(stroke),
+          grain: stroke.profile.textured ? pencilGrain?.value : null,
+        );
     }
-    paintFillStroke(
-      canvas,
-      stroke,
-      sample.outline!,
-      grain: stroke.profile.textured ? pencilGrain?.value : null,
-    );
   }
 
   /// style / shape / paperColorArgb differ by value, or pencilGrain is another object.
@@ -172,7 +201,7 @@ PenPreviewStroke? _build(
   );
   return (
     stroke: stroke,
-    outline: stroke.layer == InkLayer.highlighter
+    outline: stroke.profile.renderMethod == InkRenderMethod.strokedPolyline
         ? null
         : OutlineGenerator.outline(stroke),
   );

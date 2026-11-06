@@ -1,10 +1,10 @@
 # 03 · INK — 필기 엔진 · 페이지 렌더 (2차 라운드 M5·M6·M7)
 
-> 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 1회차. 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 1회차** (통합 계약 **v2.1** 기준 — 총괄 검토 [00-review.md](00-review.md) 3.3 INK-M1~M12와 대리 검토 [reviews/ink.md](reviews/ink.md) 반영, 13절에 항목별 반영 내역)
+> 상태: **승인 · 계약 v2.5** (동시 개발 중 v2.4(INK 몫 없음 — 시그니처 변경 없음)·v2.5(C25-02 `developerValues` 공개·C25-03 B14·B17 기준·C25-04 T39 이번 라운드) 반영 2026-11-06 — 13.5; 독립 검토 보완 2.1(B20 타이머 다시 걸기 순서) — 13.6) · 이전 상태: **승인 · 계약 v2.3** (최종 승인 2026-11-05 · 동시 개발 착수 2026-11-06 — 7.6.2 마지막 bullet·C22-09대로 5.10 '가정' 블록을 실제 타입으로 바꾸고 v2.2(C22-07·08)·v2.3(C23-03·06·07)이 바꾼 문장을 맞췄다. [00-review.md '최종 승인'](00-review.md#최종-승인) '영역별 개발 중 반영'의 INK-F1~F3 처리는 13.4) · 승인한 판본: 수정 1회차. 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 1회차** (통합 계약 **v2.1** 기준 — 총괄 검토 [00-review.md](00-review.md) 3.3 INK-M1~M12와 대리 검토 [reviews/ink.md](reviews/ink.md) 반영, 13절에 항목별 반영 내역)
 >
 > 작성 2026-11-05 · 수정 2026-11-05 · 영역 ID: **INK** · 소유 경로: `packages/ink_engine/`(새 `assets/fonts/`·`tool/fonts/` 포함) · 2차 작업 트리 `/home/user/wt2/ink`(`area2/ink`)
 > 기준 문서: [00-overview.md](00-overview.md) 7장 '통합 계약 v2.1'(변경 이력 7.9 C21-01~35 중 INK 몫: C21-01·02·06·07·13·19·25·26·29·30·31·32·33 — 이 문서와 다르면 **계약이 우선**) · 1차 계약 v1.5(1차 [00-overview.md](../00-overview.md) 7장 — 1차 통합 반영, 시그니처는 v1.4와 같음) · 마스터 기획서 [PLAN.md](../../PLAN.md) F-03·F-11·F-12·F-13·F-14·F-15·F-16, 5.1·5.2, 7.2·7.3, 10장 M5~M7 · 조사 [01-hooks](research/01-hooks.md)·[02-audio-stylus](research/02-audio-stylus.md)·[03-recognition](research/03-recognition.md)·[04-native](research/04-native.md) · 판정 [judgement.md](drafts/judgement.md)
-> 바탕 코드(v2.1, CD2-01 — 읽기 전용): **1차 통합 HEAD** `/home/user/noteapp` 브랜치 `claude/note-app-planning-bk29xb` `18c5ae5`. `packages/ink_engine`은 영역 끝 `17d19bb`(`/home/user/wt/ink`, T00~T23 완료, `progress/ink.md` 세션 10)과 `lib/`·`test/`가 같고 `example/`만 다르다(ink lab 워크스페이스 멤버 등록 `52de08c`·`1689f7e`) [확인 — `git diff --stat 17d19bb 18c5ae5 -- packages/ink_engine`]. 통합 뒤 `446518e`(v1.5 C15-01 — 올가미 퇴화 기준 주석 문구 + 경계 시험 1개, 동작·API 변화 없음)가 더 있다. 통합 확인 수치: `ws test --package ink_engine` VM 780개(골든 17장)·Chrome 193개 통과. 파일 경로·줄 번호 인용은 1차 작업 트리 기준이고 기반 단계 시작 때 통합 HEAD 기준으로 고친다(CD2-01) · 이어받는 1차 계획서: `/home/user/wt/ink/docs/plans/03-ink.md`(승인 v0.4, 이하 '1차 03-ink' — 통합 HEAD에서는 v1.5 문구 반영본).
+> 바탕 코드(v2.1, CD2-01 — 읽기 전용): **1차 통합 HEAD** `/home/user/noteapp` 브랜치 `claude/note-app-planning-bk29xb` `18c5ae5` — (v2.2, C22-08) 계약의 바탕은 그 뒤 8커밋을 더한 **`b6c9d0a`**이고 INK 경로 차이는 아래 `446518e`뿐이다(INK-F1: 2차 작업 트리는 그 판의 `lasso_polygon.dart`·`lasso_options.dart`에서 시작). `packages/ink_engine`은 영역 끝 `17d19bb`(`/home/user/wt/ink`, T00~T23 완료, `progress/ink.md` 세션 10)과 `lib/`·`test/`가 같고 `example/`만 다르다(ink lab 워크스페이스 멤버 등록 `52de08c`·`1689f7e`) [확인 — `git diff --stat 17d19bb 18c5ae5 -- packages/ink_engine`]. 통합 뒤 `446518e`(v1.5 C15-01 — 올가미 퇴화 기준 주석 문구 + 경계 시험 1개, 동작·API 변화 없음)가 더 있다. 통합 확인 수치: `ws test --package ink_engine` VM 780개(골든 17장)·Chrome 193개 통과. 파일 경로·줄 번호 인용은 1차 작업 트리 기준이고 기반 단계 시작 때 통합 HEAD 기준으로 고친다(CD2-01) · 이어받는 1차 계획서: `/home/user/wt/ink/docs/plans/03-ink.md`(승인 v0.4, 이하 '1차 03-ink' — 통합 HEAD에서는 v1.5 문구 반영본).
 > 확인 환경: Flutter 3.47.9 / Dart 3.13.7(`/opt/flutter`), 헤드리스 Chrome. 이 문서의 [확인] 실험은 `/tmp/claude-0/plan57-scratch/ink57/`(`math_probe/` — 화면 밖 수식 배치·래스터, 이미지 목표 크기 디코드, 한글 문단 배치 / `font/` — Noto Sans KR 부분 집합 크기)와 수정 1회차의 `/tmp/claude-0/plan57-scratch/ink57rev/`(fonttools 4.67.0 부분 집합 재생성·결정성)에서 돌렸다. 외부 패키지 소스 인용은 pub 캐시(`flutter_math_fork 0.7.4`·`flutter_svg 2.3.0`·`vector_graphics 1.2.3`)다.
 
 **표기 규칙** (1차 03-ink 표기 그대로 + 아래)
@@ -89,6 +89,7 @@
 | C2-21 | `InkBackgroundSpec.imageFit`, `ImageBackgroundLayerBuilder`·`InkImageCache`, `InkPageVectors.underlay/annotations/cover`, 썸네일 객체 합성, `InkMathRenderer`·`MathPreview`·`InkFonts`·`InkTextLayout`. (v2.1) + `InkTextLayout.measureSync`·`textStyleOf`·`strutStyleOf`·`rasterize`, `InkFillShape.objectId`, `InkRenderConfig` 예산 필드(`imageCacheBytes`·`mathRasterCacheBytes`) | 추가 | 4.7~4.10 |
 | C2-33 | 색 하드코딩 예외: `InkTuning.playbackEmphasisArgb`·`playbackDimOpacity`·`laserArgb` | 규칙 | 4.10, 6.26 |
 | C2-37 | 레이저 `StrokeSession.end()`가 `InkEdit`을 만들지 않음(K-9) | 규칙 | 6.6 |
+| (v2.5) C25-02 | `InkDiagnostics.developerValues`(`Map<String, num>` — 키 `playbackPaintUs`·`annotationPaintUs`·`mathCacheBytes`, 값이 없으면 키 없음) | 추가 | 6.8.3, 6.19-6, 6.22 |
 
 ### 1.6 INK 내부 단계
 
@@ -153,10 +154,10 @@ packages/ink_engine/
 ├─ pubspec.yaml                          [바뀜] flutter_math_fork + 간접 고정 3, flutter: assets(파일 단위 3개 — 3.1)
 ├─ dart_test.yaml                        (그대로: golden, bench)
 ├─ README.md                             [바뀜] 2차 사용 예(객체·재생·수식·글꼴)
-├─ THIRD_PARTY_NOTICES.md                [바뀜] Noto Sans KR(OFL 1.1) 부분 집합, flutter_math_fork(MIT)·KaTeX 글꼴(MIT)
+├─ THIRD_PARTY_NOTICES.md                [바뀜] Noto Sans KR(OFL 1.1) 부분 집합, flutter_math_fork(Apache-2.0 — R2-B3에서 확인)·KaTeX 글꼴(MIT)
 ├─ assets/fonts/                         [새]
-│  ├─ NoteSans-Regular.ttf               466,924 B (gzip 213,618) — 6.10
-│  ├─ NoteSans-Bold.ttf                  466,484 B (gzip 216,774)
+│  ├─ NoteSans-Regular.ttf               466,936 B (gzip -9 213,615) — 6.10.1 (C23-06)
+│  ├─ NoteSans-Bold.ttf                  466,440 B (gzip -9 216,764)
 │  ├─ OFL.txt                            라이선스 원문 (INFRA R-5 — 앱 정보 화면이 읽음)
 │  └─ README.md                          원본 주소·sha256·부분 집합 규칙·재생성 명령 (저장소 문서 — 앱 자산이 아님, 3.1)
 ├─ tool/fonts/                           [새] 개발자 전용(빌드·시험에 안 쓰임)
@@ -297,7 +298,7 @@ flutter:
     - assets/fonts/OFL.txt         # (v2.1) 파일 단위 — 폴더의 README.md는 앱 자산에 넣지 않음
 ```
 
-- 의존 4줄은 INFRA R2-B1이 lock을 한 번에 만들 때 넣는다(INFRA 5.9 R-8·12.2 CP3 — 총괄 승인, R2-B1 한 번 예외, 12.3). `flutter: assets:` 블록은 INK가 R2-B3(T26a)에서 넣는다(lock과 무관).
+- 의존 4줄은 INFRA R2-B1이 lock을 한 번에 만들 때 넣는다(INFRA 5.9 R-8·12.2 CP3 — 총괄 승인, R2-B1 한 번 예외, 12.3). `flutter: assets:` 블록은 INK가 R2-B3(T26a)에서 넣는다(lock과 무관). (v2.3, C23-03) 기반 단계 지시에서 빠져 총괄이 `5843ec3`에서 넣었고, 이후 이 블록의 소유는 INK다 — `pubspec_assets_test`는 동시 개발 첫 작업으로 더한다.
 - (v2.1, C21-25) **자산은 파일 단위**로 적는다: `NoteSans` 두 파일 + `OFL.txt`. 폴더(`assets/fonts/`)를 통째로 적으면 `README.md`까지 앱 번들·웹 빌드 `assets/`에 실린다(INFRA `web-assets verify`가 모르는 파일로 볼 수 있음 — 검토 X-10). `.gitattributes`의 `*.ttf binary`는 INFRA R2-B1이 넣는다(7.4.5 `binary` 목록). `pubspec_assets_test`(T26a, VM)가 `pubspec.yaml`의 `flutter.assets` = 이 세 줄이고 각 파일이 있음을 확인한다.
 - `fonts:`로 선언하지 않는 이유: Flutter 웹은 `FontManifest.json`의 글꼴을 시작 때 모두 내려받는다(조사 03 8.2-3 [확인]). `assets:`는 `rootBundle.load` 때만 받는다. INFRA `web_budget.yaml`의 `forbidden_font_families: [NoteSans, packages/ink_engine/NoteSans]`가 이를 검사한다(INFRA 4.3.3).
 - `flutter_math_fork`는 플러그인이 아니고 순수 Dart다. `provider 6.1.5+1`·`tuple 2.0.2`를 끌어온다(7.5 해석 결과에 포함). INK 코드는 `provider`·`flutter_svg`를 import하지 않는다. (v2.1) `package:vector_graphics/vector_graphics.dart`의 `VectorGraphic`·`BytesLoader`는 `math/offscreen_host.dart`의 적재 판정과 시험 이음새에서만 import한다(6.12.2 — `dependencies:`에 고정돼 있으므로 `depend_on_referenced_packages` 분석 규칙을 통과한다. INFRA R9 간접 고정 목록과는 무관 — 판은 그대로 1.2.3).
@@ -825,10 +826,11 @@ abstract final class InkVectorFixtures {
 /// images: InkImageCache(assets: store.assets)), const TemplateBackgroundLayerBuilder()]
 /// (the controller finds its image cache in that list — 6.20); without it → placeholders.
 InkPageController createTestPageController({/* v1.4 args */, InkShapeFitter? shapeFitter});
-/// Scripted fitter: returns [fit] when the stroke's point count ≥ [minPoints], counts calls.
+/// Scripted fitter: returns [result] when the stroke's point count ≥ [minPoints], counts calls.
 final class FakeInkShapeFitter implements InkShapeFitter {
-  FakeInkShapeFitter({this.fit, this.minPoints = 8});
-  InkShapeFit? fit;
+  FakeInkShapeFitter({InkShapeFit? fit, this.minPoints = 8});
+  /// (v2.3, C23-07) Settable result. Not `fit`: that name is InkShapeFitter.fit.
+  InkShapeFit? result;
   final int minPoints;
   int get calls;
   List<List<Offset>> get received;
@@ -1360,7 +1362,7 @@ abstract final class PageObjectFixtures {
 | 이미지 바이트 | `testPngBytes` → 가짜 저장소 `put` | 통합 4단계(media 실제 JPEG/PNG — PDF `integration`) |
 | KaTeX 글꼴 | VM: `loadKatexFontsForTest()`(실제 글꼴), Chrome: 적재 없이(대체 글꼴 — 크기 단언 대신 '비어 있지 않음'·contain 단언) | 실기기 B-11 |
 | `NoteSans` | VM: 실제 에셋, Chrome: (v2.1) `useInkTestFonts()`(4.12 — 시험 글꼴 base64, `testing.dart` 공개라 다른 영역도 씀) | 실기기 B-2·B-10 |
-| 가정 블록 | 기반 단계 전에는 CORE 계획서 4장(4.1~4.3 — 7.2.2 원문 + CORE 확정 세부)을 가정으로 쓰고, R2-B2 커밋 뒤 실제 타입으로 바꾼다 | R2-B2 |
+| 가정 블록 (교체됨) | (v2.3, 동시 개발 착수) 가정 대신 **실제 타입**: CORE `note_core` v2 표면(B2-α `main` 커밋 + B2-β 동작 — 객체 6종·`ElementFrame`·`transformed`·JSON·`createFakeNoteStore` v2·`PageObjectFixtures`·`FakeAudioRecorder`/`FakeAudioPlayback`), INK 자기 표면 `fd3370f`(T24~T26b). 다른 영역 2차 구현은 이 작업 트리에서 기반 단계 표면이므로 INK 시험은 계약 표면 + 7.6 시험 도우미만 쓴다 | 기반 단계부터 실제(5.2~5.4 인용은 v2.3 계약과 같음 — C23-01~07에 INK가 인용한 계약 블록을 바꾼 것은 없고 C23-07의 `FakeInkShapeFitter.result`는 4.12에 반영) |
 
 ---
 ## 6. 설계 상세
@@ -1533,7 +1535,7 @@ flowchart TB
 | annotation | 텍스트·수식·모르는 객체 청크 그림(래스터 타일 없음) | diff, 숨김·대체 변화, 글꼴 적재 완료, 수식 래스터 준비·버킷 변화(그 수식 키를 그리는 청크만) |
 | cover | 테이프 페이지 그림 | 테이프 diff, 드러냄 변화 |
 
-- underlay·annotation을 래스터 타일로 만들지 **않는** 이유: 이미지(텍스처 한 번 그리기)와 글리프 문단은 그림 재생 비용이 작고, 타일을 더하면 메모리 예산(96 MB)을 나눠 써야 한다. 웹에서 재생 비용이 크면(개발자 표시 `annotationPaintUs` p95 > 4 ms) T43에서 ink와 같은 타일 경로를 켠다(같은 `InkChunkCache` 일반화라 스위치 하나 — 11장).
+- underlay·annotation을 래스터 타일로 만들지 **않는** 이유: 이미지(텍스처 한 번 그리기)와 글리프 문단은 그림 재생 비용이 작고, 타일을 더하면 메모리 예산(96 MB)을 나눠 써야 한다. 웹에서 재생 비용이 크면 ink와 같은 타일 경로를 켠다(같은 `InkChunkCache` 일반화라 스위치 하나 — 11장). (보완 1.1) 재는 값 둘(I-B12): ① 개발자 값 `annotationPaintUs` = annotation 층 **paint**(객체를 그린 paint만 — 청크 기록 + 청크 그림 + 살아 있는 객체)의 p95(µs, 진단이 켜진 동안, 내부 `InkDiagnostics.developerValues` — `playbackPaintUs`와 같은 길). 층마다 RepaintBoundary라 필기 중에는 annotation 층이 paint되지 않으므로 이 값은 페이지 표시·스크롤·상자 끌기·획 끝의 비용이다(> 4 ms면 새로 보이는 페이지의 annotation 청크 기록 시간 나누기 — 6.13, T43 B14 변경 요청). ② 필기 중 웹이 매 프레임 남겨 둔 annotation 그림을 다시 그리는 비용은 엔진 래스터 단계라 Dart paint로 잴 수 없다 — 텍스트 상자 100개 페이지와 같은 필기만 있는 페이지에서 각각 필기하며 `InkStatsSnapshot.frameRasterP95Ms`를 기록하고 **그 차이 > 4 ms면 annotation 타일을 켠다**.
 
 #### 6.8.4 그리기 공통
 
@@ -1588,6 +1590,7 @@ CORE `bounds = geometry.frame.bounds.inflate(0.75·w + (화살표 ? L : 0))`.
 #### 6.9.5 내보내기 · 적중용 다각형
 
 - 벡터 내보내기는 채우기 경로(폴리라인 그대로, 타원은 4개 3차 베지어 k = 0.5523 + 회전)와 **테두리 외곽선 다각형**(1차 채움 외곽선 생성기를 반지름 `w/2` 고정으로 — 닫힌 폴리라인은 첫 점을 끝에 다시 붙여 둥근 이음, 타원은 표본 폴리라인, 화살표 머리는 같은 경로에 — 6.9.3)을 만든다(6.21). 도형 조각의 `InkFillShape.objectId` = 객체 id(CP-INK-1). 화면은 GPU 선 긋기, PDF는 외곽선 채움이라 픽셀 차가 있을 수 있다(1 px 안 — `vector_export_v2_test`가 화면 래스터와 내보낸 경로 래스터의 차 < 1%).
+- (T42 구현) 테두리 외곽선 생성기는 1차 O3 꺾임 분할 문턱(`sharpCornerCos` −0.17 ≈ 100°) 대신 **10°**(cos 0.9848)를 쓴다 — 90° 모서리를 한 덩어리로 두면 안쪽 변 점이 모서리 이등분선 위 `r`(변에서 `r·cos 45°`)에 놓여 사각형 테두리가 PDF에서 15 % 얇아진다. 10° 넘는 꼭짓점마다 나눈 덩어리의 둥근 캡이 화면의 둥근 이음과 같은 합집합이 된다. 점선 점은 벡터 내보내기에서 내접 다각형 대신 **4개 3차 베지어 원**(k = 0.5523, 같은 방향)이다(`shapeOutlineOf`의 내접 다각형은 K-6 기하 시험용으로 그대로). 화면(GPU 선 긋기)과의 차는 가장자리 픽셀뿐이다(`vector_export_v2_test` 실측: 잉크 −0.04 %, 24 단계 넘게 다른 픽셀 0.34 %·최대 73).
 - 적중·지우개는 테두리 거리(≤ 허용 + `w/2`)와 채운 도형 내부(nonzero)로 판정한다(6.14·6.15).
 
 ### 6.10 텍스트 상자 · 글꼴 (`TextBoxObject`, `InkFonts`, `InkTextLayout`)
@@ -1596,12 +1599,12 @@ CORE `bounds = geometry.frame.bounds.inflate(0.75·w + (화살표 ? L : 0))`.
 
 | 항목 | 내용 |
 |---|---|
-| 원본 | Noto Sans KR 가변 글꼴 `ofl/notosanskr/NotoSansKR[wght].ttf`(google/fonts, 10,414,588 B, sha256 `194018e6…61e252`) — OFL 1.1 [확인 — `raw.githubusercontent.com`의 `main`에서 받음]. (검토 S-7) README·생성 도구에는 `main` 대신 **커밋 해시가 든 주소**를 적는다 — 이번 세션은 GitHub API를 쓸 수 없어 해시를 확인하지 못했으므로 T26a에서 그 파일을 마지막으로 바꾼 커밋을 찾아 고정한다(sha256 대조가 같은 바이트를 보장) |
+| 원본 | Noto Sans KR 가변 글꼴 `ofl/notosanskr/NotoSansKR[wght].ttf`(google/fonts, 10,414,588 B, sha256 `194018e6…61e252`) — OFL 1.1 [확인 — `raw.githubusercontent.com`의 `main`에서 받음]. (검토 S-7) README·생성 도구에는 `main` 대신 **커밋 해시가 든 주소**를 적는다. (v2.3, C23-06) 고정 커밋은 google/fonts **`24ddc1f`**(2026-11-06에 `main`이 가리키던 커밋 — 그 파일을 마지막으로 바꾼 커밋을 찾을 GitHub API가 없었다). sha256 대조가 같은 바이트를 보장한다 |
 | 부분 집합 | 한글 음절 KS X 1001 2,350자(EUC-KR 2바이트로 인코딩되는 것) + 한글 호환 자모 U+3131–318E + ASCII U+0020–007E + Latin-1 U+00A0–00FF + 문장 부호·기호 40자(‘’“”…·–—•※→←↑↓、。「」『』〈〉《》【】₩℃№™①~⑩) = 2,674 코드 포인트, 글리프 2,718 |
 | 굵기 | `wght` 400(보통)·700(굵게)으로 고정(fontTools `instancer`) |
-| 크기 | 보통 466,924 B(gzip 약 213.6 KB), 굵게 466,484 B(gzip 약 216.8 KB) [확인 — fonttools 4.68.0(`ink57/subset.py`)과 **4.67.0**(`ink57rev/` — 판을 고정한 뒤 다시 만듦)이 같은 크기·같은 글리프 수 2,718] |
-| 이름 | 내부 이름표를 `NoteSans`로 바꾼다(원본 이름 'Noto Sans KR'을 수정본에 쓰지 않음, Reserved Font Name 'Source'도 쓰지 않음). `make_note_sans.py`가 name ID 1·2·4·6을 고친다 |
-| 생성 | `packages/ink_engine/tool/fonts/make_note_sans.py`(원본 주소·sha256 확인 → 고정 → 부분 집합 → 이름 → `lib/src/text/note_sans_coverage.dart` 범위표 생성, `--test-font`면 시험 글꼴(ASCII + 자모 + `tool/fonts/test_font_chars.txt`, 보통 한 벌)을 base64 Dart 상수 `lib/src/testing/ink_test_font.dart`로 — 4.12). 개발자 전용, 빌드·CI는 부르지 않는다. **도구 판**(검토 S-7): fonttools **4.67.0**(PyPI 게시 2026-10-14 — 게시 14일 규칙(7.5)과 같은 취지로 4.68.0(2026-10-27) 대신), brotli는 넣지 않는다(TTF만 만듦 — woff2 압축에만 필요). **결정성**: `TTFont(..., recalcTimestamp=False)`로 저장해 `head.modified`가 실행 시각으로 바뀌지 않게 한다 [확인 — 그대로 두면 실행마다 sha256이 달라지고(4.67.0 두 번), `recalcTimestamp=False`면 두 번 실행이 같은 바이트: 보통 `badec544…48deff`·굵게 `f140b6a8…1b1199`]. 초안에 적은 결과 해시(`37605b5c…`·`2147f4d0…`)는 이 이유로 다시 만들 수 없는 값이라 버리고, `assets/fonts/README.md`에 명령·원본 해시·결정적 결과 해시를 적는다(T26a가 개발자 기계에서 같은 해시를 확인) |
+| 크기 | (v2.3, C23-06) 보통 **466,936 B**(sha256 `b8acd7a9…c1041`, gzip -9 213,615 B), 굵게 **466,440 B**(`f53c5385…fc624`, gzip -9 216,764 B), 글리프 2,718 [확인 — R2-B3 `make_note_sans.py`, fonttools 4.67.0, 두 번 실행 같은 바이트]. 계획 때 값(보통 466,924 B·굵게 466,484 B)은 이름을 바꾸지 않은 시험 출력이라 다르다 — 아래 '이름' 행 |
+| 이름 | 내부 이름표를 `NoteSans`로 바꾼다(원본 이름 'Noto Sans KR'을 수정본에 쓰지 않음, Reserved Font Name 'Source'도 쓰지 않음). `make_note_sans.py`가 name ID 1·2·3·4·6을 고치고 16·17·21·22·25·256 이상(가변 글꼴 이름)을 지운다(v2.3, C23-06 — 원본 이름이 수정본에 남지 않게) |
+| 생성 | `packages/ink_engine/tool/fonts/make_note_sans.py`(원본 주소·sha256 확인 → 고정 → 부분 집합 → 이름 → `lib/src/text/note_sans_coverage.dart` 범위표 생성, `--test-font`면 시험 글꼴(ASCII + 자모 + `tool/fonts/test_font_chars.txt`, 보통 한 벌)을 base64 Dart 상수 `lib/src/testing/ink_test_font.dart`로 — 4.12). 개발자 전용, 빌드·CI는 부르지 않는다. **도구 판**(검토 S-7): fonttools **4.67.0**(PyPI 게시 2026-10-14 — 게시 14일 규칙(7.5)과 같은 취지로 4.68.0(2026-10-27) 대신), brotli는 넣지 않는다(TTF만 만듦 — woff2 압축에만 필요). **결정성**: `TTFont(..., recalcTimestamp=False)`로 저장해 `head.modified`가 실행 시각으로 바뀌지 않게 한다 [확인 — 그대로 두면 실행마다 sha256이 달라지고(4.67.0 두 번), `recalcTimestamp=False`면 두 번 실행이 같은 바이트: (계획 때 이름 바꾸기 전 출력) 보통 `badec544…48deff`·굵게 `f140b6a8…1b1199` — 최종 이름 바꾼 판의 해시는 '크기' 행]. 초안에 적은 결과 해시(`37605b5c…`·`2147f4d0…`)는 이 이유로 다시 만들 수 없는 값이라 버리고, `assets/fonts/README.md`에 명령·원본 해시·결정적 결과 해시를 적는다(T26a가 개발자 기계에서 같은 해시를 확인) |
 | 적재 | `InkFonts.ensureLoaded()`: `rootBundle.load('packages/ink_engine/assets/fonts/NoteSans-{Regular,Bold}.ttf')` → `FontLoader('NoteSans')`에 둘 다 → `load()`. 처음 텍스트 상자를 그릴 때(**썸네일 포함** — 7.4.5 v2.1, 또는 `measure`·PDF 내보내기 때) 한 번. 웹 첫 로드에 받지 않는다(7.4.5). (v2.1) 전체에 `fontLoadTimeoutMs`(5초) 상한, 실패 뒤 암묵 호출은 30초 쉼(4.10) |
 | 적재 시간 | VM `FontLoader` 4 ms(보통 파일) [확인 `math_probe/test/text_layout_test.dart`]. 웹은 내려받기(약 430 KB gzip) + 등록 — 실기기 B-2에서 첫 상자 지연을 기록 |
 | 덮지 않는 글자 | `covers(text) == false`면 화면은 Flutter 대체 글꼴(웹은 `fonts.gstatic.com` — 온라인일 때만), PDF는 래스터(7.2.12 — `InkTextLayout.rasterize`). 기본 2,350자 유지(U7 기본값 — 총괄 답) |
@@ -1790,6 +1793,7 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 - 만드는 객체: `ShapeObject(id: services.newStrokeId(), pageId, shapeKind: fit.kind, geometry: fit.geometry, style: ShapeStyle(strokeColorArgb: style.colorArgb, strokeWidth: style.width, strokeOpacity: style.opacity, dash: tool == dashed ? LineDash.dashed : LineDash.solid).normalized(), createdAt: 펜 다운 nowMillis)`. 녹음 중에 만든 도형은 녹음 연결이 없다(`ShapeObject`에 녹음 필드가 없음 — 알려진 차이).
 - 판정 비용은 포트 쪽(시제품 66 µs). INK 쪽 멈춤 확인 비용은 샘플당 거리 계산 하나(B20 ≤ 0.02 ms).
 - 진단: `onShapeFit(kind, score, accepted)`를 개발자 표시 카운터로(경고 키가 아닌 통계 — 내부).
+- (T39 구현 확정 — INK 결정, 계약 표면 불변) ① 멈춤 감지는 내부 `shape/hold_detector.dart` `HoldDetector`(세션이 `holdToSnap` + 허용 도구 + fitter일 때만 만듦 — 그 밖에는 타이머도 없음). 반경 경계는 포함(정확히 반경이면 그대로), 거꾸로 가는 샘플 시각은 직전 값(1차 6.3 (1)과 같음), 유한하지 않은 위치는 무시. 타이머는 anchor가 바뀔 때마다 새로 걸고 발동·`end`·`cancel`에서 끈다(테스트 위젯이 '남은 타이머'에 걸리지 않음). (보완 2.1, B20) 다시 걸 때는 **새 타이머를 먼저 만들고 옛 타이머를 끈다** — 거꾸로 하면 VM 타이머 힙이 anchor 이동마다 이벤트 핸들러에 메시지를 두 번 보내 빠른 직선 최악 경우가 0.02 ms 기준을 넘나들었다(`benchmark/README.md` '보완 2.1'). 걸리는 타이머·발동 시각·S-8은 같다. ② `addSamples`는 샘플마다 빌더 → 감지 순서로 넣는다(묶음 중간의 멈춤은 그 샘플까지의 중심선으로 판정). ③ 펜을 뗀 샘플(`end(last)`)은 '다시 움직임'으로 보지 않는다 — 미리보기가 있으면 그대로 확정. ④ fitter 예외는 멈출 때마다 경고 `shapeFitterThrew`, `FlutterError.reportError`는 세션마다 한 번(6.24 '한 번' 규칙). ⑤ 층 4′ 안 순서는 재생 강조 → 도형 미리보기(가장 새 요소라 위) → 시험 훅. 미리보기 도형은 `end()`가 만들 `ShapeObject`와 같은 값(자리 id만 다름)이라 **미리보기 = 대기 표시 = 커밋 픽셀**(시험 `widget/shape_assist_test.dart`). ⑥ `onShapeFit`은 미리보기가 끝날 때 한 번(`end` 확정 = accepted, 다시 움직임·`cancel` = 아님) 세는 내부 통계(`InkDiagnostics.shapeFitStats`, `@internal`)이고 `developerValues` 키가 아니다(키 셋은 C25-02로 고정). ⑦ 롤오버(펜을 500초 넘게 댐, 6.7 F8)로 끝난 앞부분도 도형이 대신한다(그런 획에 멈춤 미리보기가 뜰 일은 없다고 보고 단순화).
 
 ### 6.19 재생 강조 (새, K-7)
 
@@ -1837,6 +1841,8 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 - 이미지 캐시는 **배경 빌더 목록에서 찾는다**: 목록의 첫 `ImageBackgroundLayerBuilder`의 `images`(공개 필드 — 7.2.9). 렌더러·위젯·컨트롤러 모두 같은 규칙이라 생성자를 바꾸지 않는다. 목록에 없으면(1차식 목록을 넘긴 시험) 이미지 객체는 자리표시로 그린다. (v2.1) 이 규칙은 CP-INK-6 승인으로 계약 문장이 됐다(4.9 아래 글머리).
 - 위젯(`InkPageThumbnail`)은 `null`을 돌려줄 수 없으므로 준비되지 않은 것은 자리표시로 래스터하고, `InkImageCache.changes`(그 페이지 자산 id만)·글꼴 적재·수식 래스터 완료 때 한 번 다시 래스터한다(1차 '연필 질감 준비 뒤 다시' 규칙과 같은 방식).
 - 성능 목표 B18: 객체 50개(이미지 10, 캐시 적중) + 획 1,000개, 512 px ≤ 800 ms.
+- (T41 구현) 렌더러는 **준비(3단계)를 배경(2단계)보다 먼저** 한다 — 준비가 안 되면 아무것도 그리지 않고 `null`(fake 시간 시험이 엔진 작업 없이 끝난다). 파싱되지 않는 수식은 준비 대상이 아니라 6.13 자리표시로 그린다(영원히 준비되지 않으므로 `null`로 두지 않음). 글꼴은 암묵 적재(`InkFontsDebug.loadImplicitly` — 30초 쉼 존중) 뒤 `NoteSans`가 적재되지 않았으면 `null`. 그리기는 `render/page_composite.dart`의 `paintPageComposite`(렌더러·위젯 공용). 1차처럼 다른 페이지 id의 획도 그린다(1차 시험이 기대 — 객체도 같은 규칙).
+- (T41 발견·고침, T36 보강) 수식 래스터 호스트는 **시스템 글꼴 변경(`NoteSans` 적재) 뒤 다음 작업에서 트리를 새로 만든다** — 글꼴 변경은 트리의 문단마다 다음 프레임에만 풀리는 대기 표시를 남기고, 그 전에 문단을 떼면 `RenderObject.detach` assert(디버그·시험)에 걸려 옛 수식이 그대로 남았다(그 뒤 모든 래스터가 글꼴 변경 전 수식). 옛 트리는 자기 파이프라인에 붙은 채 버린다(글꼴 변경마다 작은 트리 하나).
 
 ### 6.21 벡터 내보내기 v2 (1차 6.24 확장)
 
@@ -1855,8 +1861,9 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 - `isEmpty`(1차 getter) = 모든 목록이 빔.
 - (v2.1, CP-INK-1 승인) 도형 조각은 `InkFillShape.objectId` = 객체 id이고 `strokeId`도 객체 id, `tool`은 `core.PenTool.ballpoint`(자리 값 — 의미 없음). 획 조각은 `objectId == null`. 화살표 선과 머리는 한 조각(6.9.3).
 - 줄 텍스트는 `NoteSans`가 적재돼 있을 때만 채운다(CP-INK-9 승인 — PDF가 내보내기 전에 `ensureLoaded`를 기다림).
+- (T42 구현) 줄은 annotation 층이 그리는 **같은 문단**(`textBoxParagraphOf` — 인스턴스·적재 여부마다 캐시)에서 읽는다: `computeLineMetrics`의 `left`·`baseline`·`width`, 줄 글자 범위는 `getLineNumberAt`(코드 단위마다 — 빈 줄은 `''`), 줄 끝 줄바꿈(`\n`·`\r\n`·`\r`·U+2028·U+2029)은 뺀다. 줄 윗변(앞 줄 높이 합) ≥ frame 높이면 그 줄부터 뺀다. 그리기 frame이 없는 객체(변 ≤ 0·무한)는 화면처럼 내보내지 않는다.
 - 모르는 객체는 넣지 않는다(CP-INK-10 승인).
-- 성능 목표 B17: 도형 200개 + 텍스트 상자 100개 + 획 1,000개 ≤ 60 ms(글꼴 적재 뒤).
+- 성능 목표 B17: 도형 200개 + 텍스트 상자 100개 + 획 1,000개 — (v2.5, C25-03) 디버그 VM ≤ 100 ms, iPad 릴리스 ≤ 60 ms(9.6)(글꼴 적재 뒤).
 
 ### 6.22 캐시와 메모리 v2 (1차 6.13 확장, 7.4.5 v2.1)
 
@@ -1874,7 +1881,7 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 - 예산 값은 `InkRenderConfig`(1차 `rasterBudgetBytes`·`outlineBudgetBytes` + v2.1 `imageCacheBytes`·`mathRasterCacheBytes` — CP-INK-5 승인, 4.10)에 있다. 시험은 작은 값을 넘겨 장부 규칙을 본다(T35·T36).
 - INK 앱 관리 캐시 최대 합계(v2.1): **웹 32 + 96 + 8 = 136 MB**, 네이티브 64 + 128 + 128 + 8 = 328 MB(네이티브에는 300 MB 탭 상한이 없다 — 1차 7.4.10).
 - (v2.1, CD2-10 — 검토 M-5) 웹 **앱 캐시 합계 296 MB ≤ 300 MB**(7.4.5 표): INK 136 + PDF 미리보기 24·타일 64·썸네일 16 + PDF 내보내기 임시 16 + CORE 되돌리기 32 + 웹 녹음 조각 8. 초안의 'INK 184 MB — 나머지는 PDF·CORE·녹음, 300 MB 안' 문장은 틀렸다(초안 예산을 더하면 328~352 MB). DB 메모리 사본·CanvasKit·wasm 힙·재생 `Blob`은 이 합계 밖이다(7.4.5).
-- 개발자 표시: `InkImageCache.stats`(고정 바이트·버킷 낮춤 횟수 포함), 수식 캐시 바이트(내부 → `InkDiagnostics` 경고 없이 통계), 1차 `InkCacheStats`(웹은 공유 장부의 타일·이미지 몫을 나눠 보임). 이 값들이 INFRA 개발자 표시의 **'앱 캐시 합계'**(7.4.5 v2.1 — B-13·I-B11의 같은 기준)에 들어간다.
+- 개발자 표시: `InkImageCache.stats`(고정 바이트·버킷 낮춤 횟수 포함), 수식 캐시 바이트(내부 → `InkDiagnostics` 경고 없이 통계 — (v2.5, C25-02) 공개 `InkDiagnostics.developerValues['mathCacheBytes']`: 진단이 켜진 동안 페이지 paint(inkBase 층, 객체를 그린 annotation 층)가 그 풀의 수식 래스터 캐시 바이트를 알림, 풀이 아직 캐시를 만들지 않았으면 키 없음), 1차 `InkCacheStats`(웹은 공유 장부의 타일·이미지 몫을 나눠 보임). 이 값들이 INFRA 개발자 표시의 **'앱 캐시 합계'**(7.4.5 v2.1 — B-13·I-B11의 같은 기준)에 들어간다.
 
 ### 6.23 웹과 네이티브 차이
 
@@ -1918,10 +1925,10 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 |---|---|---|
 | B12 | 캘리그래피 외곽선 200점 / 1000점 | ≤ 0.2 / ≤ 0.6 ms |
 | B13 | 점선 외곽선 1000점(기본 패턴) | ≤ 0.8 ms |
-| B14 | 객체 페이지: 도형 200 + 텍스트 100 + 수식 20(래스터 캐시 적중) + 이미지 20(캐시 적중) + 테이프 50 — `fromCore` + diff + 층 청크 첫 기록 | ≤ 12 ms (+ 미리보기 1개 갱신 ≤ 0.5 ms) |
+| B14 | 객체 페이지: 도형 200 + 텍스트 100 + 수식 20(래스터 캐시 적중) + 이미지 20(캐시 적중) + 테이프 50 — `fromCore` + diff + 층 청크 첫 기록 | (v2.5, C25-03) **디버그 VM ≤ 25 ms** (+ 미리보기 1개 갱신 ≤ 0.5 ms) — 원래 기준 12 ms는 iPad 릴리스 빌드 실측(9.6)으로 판정 |
 | B15 | 재생: 녹음 획 3,000개, 16 ms 간격 600프레임 `setPlaybackFocus` + 층 4′ paint(기록 비용 — 웹 래스터 비용은 `playbackPaintUs`로 실기기 I-B9) | 평균 ≤ 0.5 ms, 최대 ≤ 4 ms |
 | B16 | `hitTestObject` 객체 2,000개 페이지 | ≤ 0.2 ms |
-| B17 | 벡터 내보내기: 도형 200 + 텍스트 100 + 획 1,000 | ≤ 60 ms |
+| B17 | 벡터 내보내기: 도형 200 + 텍스트 100 + 획 1,000 | (v2.5, C25-03) **디버그 VM ≤ 100 ms** — 원래 기준 60 ms는 iPad 릴리스 빌드 실측(9.6)으로 판정 |
 | B18 | 썸네일: 객체 50(이미지 10, 캐시 적중) + 획 1,000, 512 px | ≤ 800 ms |
 | B19 | `InkMathRenderer.layout` 보통 수식(분수·루트·첨자) | 참고 기록(디버그 VM — 약 10 ms [확인 범위]) |
 | B20 | 멈춤 감지 샘플당 비용 | ≤ 0.02 ms |
@@ -1965,7 +1972,7 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 
 | 패키지 | 버전 | 쓰는 곳 | 웹 | 라이선스 | 비고 |
 |---|---|---|---|---|---|
-| `flutter_math_fork` | 0.7.4 | `lib/src/math/` (`as fm`, `tex.dart`는 `as tex`) | ✔ 순수 Dart [확인 VM·Chrome] | MIT(KaTeX 글꼴 MIT) | 2025-05 이후 갱신 없음 — 깨지면 포크(위험 #6). `provider 6.1.5+1`·`tuple 2.0.2`를 끌어옴 |
+| `flutter_math_fork` | 0.7.4 | `lib/src/math/` (`as fm`, `tex.dart`는 `as tex`) | ✔ 순수 Dart [확인 VM·Chrome] | Apache-2.0(KaTeX 글꼴 MIT) [확인 — R2-B3 `THIRD_PARTY_NOTICES.md`] | 2025-05 이후 갱신 없음 — 깨지면 포크(위험 #6). `provider 6.1.5+1`·`tuple 2.0.2`를 끌어옴 |
 | `flutter_svg` | 2.3.0 | 간접 고정만(INK 코드는 import 안 함) | ✔ | MIT | 최신 2.3.2(2026-10-28)는 게시 14일 미만 |
 | `vector_graphics` | 1.2.3 | 간접 고정 + (v2.1) `math/offscreen_host.dart`에서 `VectorGraphic`·`BytesLoader`만 import(SVG 기호 적재 판정·시험 이음새 — 6.12.2) | ✔ | BSD-3 | 최신 1.2.6(2026-11-02) 대신 |
 | `vector_graphics_compiler` | 1.3.0 | 간접 고정 | — (빌드 도구) | BSD-3 | 최신 1.3.4(2026-10-29) 대신. `xml 7.1.0 → 7.0.1` 하향의 원인(7.5) |
@@ -1998,7 +2005,7 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 |---|---|---|---|
 | T24 | 계약 표면 v2.1 · 값·명령 | 4.0 show 목록, enum 새 값, `InkStyleExtras` 키·`InkTapeStyle`·`StrokeStyleInk` 최종, `InkPageContent.fromCore(objects:)` 최종, **`InkEdit` v2.1(`removedObjectIds`) + `toCommand` 최종(7.2.9 v2.1 표 — 이름 있는 인자 명령, CP-INK-2)**, `InkShapeFitter`·`InkShapeFit`·`NoShapeFitter`·`ShapeAssist`·provider 3개(`inkShapeFitterProvider`·`inkImageCacheProvider`·`defaultPageBackgroundBuilders` + 지연 저장소, 컨트롤러는 판정기를 읽는 함수로 — 4.11), `InkBackgroundSpec.imageFit`, `InkPlaybackFocus`·`InkPlaybackStyle`, **읽기 getter 4개**(`hiddenObjectIds`·`previewObjects`·`playbackFocus`·`StrokeSession.shapeAssist`), `StrokeSession` `final class` 그대로, **`InkRenderConfig.imageCacheBytes`·`mathRasterCacheBytes`**(CP-INK-5), `testing.dart` v2(4.12 — `InkVectorFixtures` 최종, `useInkTestFonts`는 선언 + T26a에서 본문) | `unit/api_surface_test.dart` v2.1(7.2.9 이름·생성자·메서드·getter 전부를 타입 단언으로 — `StrokeSession`은 1차 선언 `final class … implements InkGestureSession` 그대로), `unit/export_list_test.dart` v2(4.0 목록 = show 집합 — 22개 그대로), `unit/pen/style_ink_test.dart` v2(4.10 읽기 규칙 전부: 빠진 키·잘못된 타입·범위 밖, `withInkExtras`가 다른 키 보존, CORE `defaultsFor` 값과 같이 읽힘), `unit/edit/ink_edit_test.dart` v2.1(`toCommand` 표 전부를 **이름 있는 인자 모양**으로: 획만 → `RemoveStrokes`, `removedObjectIds` 있음 → `RemoveElements(elementIds: removedIds 전부)`, **공개 생성자로 만든 `eraseStrokes`에 도형 id + `removedObjectIds` → 도형도 지워지는 명령**(C-3), 부분 지우개 + 도형 → `Composite[SplitStrokes|RemoveStrokes, RemoveElements]`·도형만 → `RemoveElements` 하나, 색 변경 → `Composite[RestyleStrokes, UpdateObjects]`·빈 쪽 빼고 하나면 그 명령만, 복제 → `Composite[AddStrokes, AddObjects]`, `addShape` → `AddObjects`, `removedObjectIds ⊄ removedIds` → `ArgumentError`, `isEmpty` v2·빈 색 변경 → `StateError`, `==`가 `removedObjectIds`를 봄), `unit/render/content_diff_test.dart` v2(객체 정렬·삭제 제외·다른 페이지 `ArgumentError`·`==` 동일성), `unit/render/controller_getters_test.dart`(새 — 읽기 getter가 받은 값 그대로·수정 불가, 없는 id·중복 포함, `shapeAssist` = 받은 값), `unit/providers_test.dart` v2(새 provider `name:`, **CORE 저장소 override 없는 컨테이너**에서 `pageBackgroundBuildersProvider`·`inkPageControllerProvider`·`inkImageCacheProvider` 읽기 예외 없음, 기본 목록 = `[ImageBackgroundLayerBuilder, TemplateBackgroundLayerBuilder]`, **판정기 override를 바꾸면 다음 획부터 새 판정기**(S-12)), `unit/testing/vector_fixtures_test.dart`(새 — 팩토리 8개가 공개 필드 전부를 받음, `exportPage` 결과를 필드별로 다시 만들면 `==`) |
 | T25 | 층 9개 · 객체 단순 렌더 · 선택 | `InkPageView` 층 9개, 객체 단순 그리기(4.13 표), `select`·`InkSelection` v2·`hitTestObject`(frame)·올가미 `includeObjects`·지우개 `eraseShapes`(bounds)·`setHiddenObjectIds`·`setPreviewObjects`(같은 id 대체·**미리보기 > 숨김**), 레이저 `end()` → `null`, 테이프·재생 상태 API | `foundation/b3_v2_smoke_test.dart`(위젯: CORE 가짜 저장소 + `PageObjectFixtures` 4종 + `unknown` → 각 층에 픽셀(겹치는 자리의 위 층 색 = L-1), 올가미로 획 + 객체 선택 → 이동 커밋 → `TransformElements` 한 개 → `updateContent` 뒤 대기 빔, 삭제 → `RemoveElements`, 복제 → `Composite`, 색 변경 → `Composite`, 지우개가 도형만 지움(텍스트는 안 지움), 숨김 → 그 자리 픽셀 없음, 미리보기 객체 → 픽셀 있음·내용 불변, **숨긴 id와 같은 id의 미리보기 → 픽셀 있음**, 레이저 `end()` == null·`pendingIds` 빔·내용 불변(K-9), `toggleTape` 상태, `hitTestTape` bounds, `hitTestRecorded`), `unit/no_platform_imports_test.dart` v2(`package:flutter/material.dart`·`cupertino.dart` 금지 유지, `dart:io`·`Platform` 없음) |
-| T26a | 글꼴 · 텍스트 측정 · 텍스트 래스터 · 시험 글꼴 (**EDITOR 이정표**) | `assets/fonts/` 4개 파일(`NoteSans` 2개·`OFL.txt`·`README.md`), `pubspec.yaml` `flutter: assets:` 파일 단위 3줄(3.1), `tool/fonts/make_note_sans.py`(fonttools 4.67.0, `recalcTimestamp=False`, `--test-font`)·`test_font_chars.txt`, `note_sans_coverage.dart`, `lib/src/testing/ink_test_font.dart`, `InkFonts` 최종(5초 상한·암묵 호출 30초 쉼), `InkTextLayout` 최종(`measure`·`measureSync`·`textStyleOf`·`strutStyleOf`·`rasterize`), `useInkTestFonts` 본문, `THIRD_PARTY_NOTICES.md` | `unit/text/fonts_test.dart`(VM: `ensureLoaded` 한 번만 적재·두 번째는 같은 Future, `noteSansBytes` 크기 = 파일, 실패 주입 → 오류·다음 호출 재시도, **끝나지 않는 원본 주입 → `fake_async` 5초에 `TimeoutException`(두 함수 모두)·늦게 온 바이트 버림·암묵 호출은 30초 안에 다시 시도하지 않음·직접 호출은 다시 시도**, `covers`: 한글 2,350자 표본·'똠'(KS X 1001 밖) false·공백/개행 true), `unit/text/coverage_table_test.dart`(TTF cmap 포맷 4 = 범위표), `unit/text/text_layout_test.dart`(높이 = 줄 수 × fontSize × lineHeight(강제 strut), 빈 글 = 한 줄, 정렬 3종 줄 x, 굵게가 다른 너비, **`measureSync`: 적재 전 `null` → 적재 뒤 `measure`와 같은 값, 적재 실패 뒤 대체 글꼴 값**, **`textStyleOf`·`strutStyleOf` = 그리기에 쓴 값, 같은 스타일·여백 0 `EditableText`의 첫 줄 기준선·줄 높이 = INK 문단**), `unit/text/text_raster_test.dart`(새 — 크기 `⌈w·k⌉×⌈h·k⌉`, 배경색이 있어도 글자 없는 자리 알파 0(투명 바탕), frame 밖 글자 잘림, 쪽 크기 상자 300 dpi → 픽셀 수 ≤ 4 Mpx, frame 0 → `null`), `unit/pubspec_assets_test.dart`(새 — `flutter.assets` = 세 파일·파일이 있음·README 없음), `unit/testing/test_font_test.dart`(새 — `useInkTestFonts` 두 번 불러도 됨, 범위표는 실제 부분 집합), (웹) `web/fonts_web_test.dart`(`useInkTestFonts`로 적재·`measure`가 1초 안에 값, 시험 글꼴 없이 `ensureLoaded` → 5초에 `TimeoutException` — 멈추지 않음) |
+| T26a | 글꼴 · 텍스트 측정 · 텍스트 래스터 · 시험 글꼴 (**EDITOR 이정표**) | `assets/fonts/` 4개 파일(`NoteSans` 2개·`OFL.txt`·`README.md`), `pubspec.yaml` `flutter: assets:` 파일 단위 3줄(3.1), `tool/fonts/make_note_sans.py`(fonttools 4.67.0, `recalcTimestamp=False`, `--test-font`)·`test_font_chars.txt`, `note_sans_coverage.dart`, `lib/src/testing/ink_test_font.dart`, `InkFonts` 최종(5초 상한·암묵 호출 30초 쉼), `InkTextLayout` 최종(`measure`·`measureSync`·`textStyleOf`·`strutStyleOf`·`rasterize`), `useInkTestFonts` 본문, `THIRD_PARTY_NOTICES.md` | `unit/text/fonts_test.dart`(VM: `ensureLoaded` 한 번만 적재·두 번째는 같은 Future, `noteSansBytes` 크기 = 파일, 실패 주입 → 오류·다음 호출 재시도, **끝나지 않는 원본 주입 → `fake_async` 5초에 `TimeoutException`(두 함수 모두)·늦게 온 바이트 버림·암묵 호출은 30초 안에 다시 시도하지 않음·직접 호출은 다시 시도**, `covers`: 한글 2,350자 표본·'똠'(KS X 1001 밖) false·공백/개행 true), `unit/text/coverage_table_test.dart`(TTF cmap 포맷 4 = 범위표), `unit/text/text_layout_test.dart`(높이 = 줄 수 × 강제 strut 줄 높이 — (v2.3, C23-06) 엔진이 강제 strut 줄 높이를 **정수 pt로 반올림**하므로(16 × 1.4 = 22.4 → 줄마다 22) 한 줄 상자 = `max(문단 높이, fontSize × lineHeight)` = 22.4, n줄 = n × 22. 시험은 '줄마다 같은 높이(± 0.5)·합 = n × 실제 줄 높이·`EditableText`와 글자 픽셀이 같음'으로 단언, 빈 글 = 한 줄, 정렬 3종 줄 x, 굵게가 다른 너비, **`measureSync`: 적재 전 `null` → 적재 뒤 `measure`와 같은 값, 적재 실패 뒤 대체 글꼴 값**, **`textStyleOf`·`strutStyleOf` = 그리기에 쓴 값, 같은 스타일·여백 0 `EditableText`의 첫 줄 기준선·줄 높이 = INK 문단**), `unit/text/text_raster_test.dart`(새 — 크기 `⌈w·k⌉×⌈h·k⌉`, 배경색이 있어도 글자 없는 자리 알파 0(투명 바탕), frame 밖 글자 잘림, 쪽 크기 상자 300 dpi → 픽셀 수 ≤ 4 Mpx, frame 0 → `null`), `unit/pubspec_assets_test.dart`(새 — `flutter.assets` = 세 파일·파일이 있음·README 없음), `unit/testing/test_font_test.dart`(새 — `useInkTestFonts` 두 번 불러도 됨, 범위표는 실제 부분 집합), (웹) `web/fonts_web_test.dart`(`useInkTestFonts`로 적재·`measure`가 1초 안에 값, 시험 글꼴 없이 `ensureLoaded` → 5초에 `TimeoutException` — 멈추지 않음) |
 | T26b | 수식 검증 · 배치 · 미리보기 (**recog가 기다림**) | `InkMathRenderer.validate`·`layout` 최종(`rasterize` → `null`), `MathPreview` 최종, `OffscreenMathHost`의 배치 호스트(래스터 호스트는 T36) | `unit/math/math_validate_test.dart`(조사 03의 43개 표본: 42개 null·`\tag` 오류, 빈 글·길이 초과 문구), `unit/math/math_layout_test.dart`(`loadKatexFontsForTest` 뒤 `\frac{a}{b}` 크기 > 0·기준선 ∈ (0, 높이), 글꼴 크기 2배 → 크기 ≈ 2배(±2%), 잘못된 LaTeX → null, **바깥 build 안에서 부르면 `StateError`**(S-9)), `widget/math_preview_test.dart`(정상 → 크기 > 0, 오류 → 크기 0 + `onError` 한 번·build 중 호출 없음), (웹) `web/offscreen_math_web_test.dart`(KaTeX 적재 없이 `layout` non-null) |
 
 - 순서: T24 → T25, T24 → (T26a ∥ T26b). **T24 커밋 해시를 이정표로 알린다**(EDITOR R2-B5·PDF R2-B4·LIBRARY R2-B6이 그 위에서 컴파일한다 — 8.5). T26a 해시도 알린다(EDITOR 텍스트 편집 시험·PDF 텍스트 래스터·Chrome 시험 글꼴이 기다림).
@@ -2030,6 +2037,7 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 | T44 | ink lab 예제 v2 | T27~T40 | P-C | `example/test/smoke_test.dart` v2(새 펜 5종·도형·텍스트·이미지(합성 PNG)·수식·재생 막대 화면이 뜸), `flutter build web` 성공 |
 
 - 병렬화: T27 → (T28, T29, T31) / T30은 B3 뒤 언제든 / T32a → T32b → (T33, T34, T35, T36, T38) → T37a → T37b → (T41, T42) / T39는 T33 뒤 / T40은 T32b 뒤 / T43은 끝.
+- (v2.5, C25-04) T39는 자르지 않고 이번 라운드에 한다(F-11 핵심 — EDITOR E2-15·LIBRARY L2-06은 끝남). T44는 미룬다.
 - 일정이 밀리면 자를 것(3.4): T44(P-C) → T39(P-B — `NoShapeFitter`처럼 `shapePreview`가 늘 `null`인 B3 동작으로 남겨도 계약은 지켜짐) → 테이프 줄무늬·레이저 꼬리 투명도(쓰는 중 꼬리는 떼고 나서만 사라지게 단순화). M-1·M-3·M-4 규칙(층 4′·SVG 적재 대기·참조 수)은 자르지 않는다(필기·수식을 가리거나 잃는 경로).
 
 ### 8.3 통합 단계 몫 (7.7)
@@ -2041,7 +2049,7 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 | I-3 | 4단계 PDF | `integration`(객체 내보내기 — V11: 텍스트 한글 추출·이미지 수·수식 래스터(루트·연립방정식 기호 포함)·점선 조각)이 실패하면 INK 벡터 v2·`rasterize` 쪽 원인 수정 |
 | I-4 | 5단계 LIBRARY | (v2.1, C21-31) 자동 도형 보정 흐름은 **LIBRARY `ink_recognition/test/integration/shape_assist_flow_test.dart`가 INK `createTestPageController(shapeFitter:)`로** recog `GeometricShapeFitter` + INK 멈춤 감지를 함께 돌린다(V9의 INK 부분 — 의존 방향상 INK 쪽에 둘 수 없다). INK는 실패하면 멈춤 감지·미리보기 쪽 원인을 고친다. 수식 패드 `MathPreview` |
 | I-5 | 6단계 EDITOR | E-2x(실제 INK + 실제 CORE: 객체 도구·혼합 선택·텍스트 편집 숨김·녹음 강조·탭 재생) 실패 시 INK 원인 수정 |
-| I-6 | 7단계 INFRA | V5·V6 스모크 v2(합성 '멈춤'으로 자동 도형 — V5 원문, 벡터 v2 이미지·텍스트·수식 개수), 웹 예산(V4: `NoteSans`가 `FontManifest`에 없음, 자산 파일 단위, KaTeX 시작 글꼴 바이트), V3 Chrome 시험이 `useInkTestFonts`로 멈추지 않음 |
+| I-6 | 7단계 INFRA | V5·V6 스모크 v2(벡터 v2 이미지·텍스트·수식 개수) · (v2.2, C22-07 — INK-F3) 합성 '멈춤'으로 자동 도형은 **V5b**(P-B, VM — T39·EDITOR E2-15·LIBRARY L2-06이 모두 병합됐을 때 INFRA H3) — 실패 원인이 멈춤 감지·미리보기면 INK가 고친다, 웹 예산(V4: `NoteSans`가 `FontManifest`에 없음, 자산 파일 단위, KaTeX 시작 글꼴 바이트), V3 Chrome 시험이 `useInkTestFonts`로 멈추지 않음 |
 | I-7 | 끝 | 진행 기록 '2차' 절, README v2. 실기기 합격 판정(9.6 — 통합 뒤, 영역 완료 조건 아님)의 결과를 받아 불합격 항목을 `PenProfile`·`InkTuning` 조정 작업으로 연다 |
 
 ### 8.4 작업량
@@ -2139,7 +2147,7 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
 
 ### 9.6 실기기 체크리스트 (7.8 중 INK 몫 + INK 추가)
 
-**합격 판정**(v2.1, 검토 M-8 — 10장의 초안 7항을 옮김): 아래 표는 **통합 뒤 사용자가 하는 합격 판정이고 INK 영역 완료 조건이 아니다**(개요 5장 — 2차 완료 판정은 컨테이너 시험 7.7 V1~V16, 실기기 확인 7.8은 합격 판정). 판정 대상: B 표 I-B1~I-B10 합격, I-B11·I-B13 확인, I-B12·기록 항목은 기록만. I-B1('붓 끝이 자연스러움')처럼 주관 항목이 있으므로 **불합격 항목은 `PenProfile`·`InkTuning` 값 조정 작업**(8.3 I-7)으로 이어지고, 영역 완료를 되돌리지 않는다. B 표는 Firebase Hosting이 생긴 뒤(7.8 B 머리 v2.1 — U24) 통합 미리보기 채널에서 한다.
+**합격 판정**(v2.1, 검토 M-8 — 10장의 초안 7항을 옮김): 아래 표는 **통합 뒤 사용자가 하는 합격 판정이고 INK 영역 완료 조건이 아니다**(개요 5장 — 2차 완료 판정은 컨테이너 시험 7.7 V1~V16, 실기기 확인 7.8은 합격 판정). 판정 대상: B 표 I-B1~I-B10 합격, I-B11·I-B13 확인, (v2.5, C25-03) I-B14 판정(B14·B17의 원래 기준), I-B12·기록 항목은 기록만. I-B1('붓 끝이 자연스러움')처럼 주관 항목이 있으므로 **불합격 항목은 `PenProfile`·`InkTuning` 값 조정 작업**(8.3 I-7)으로 이어지고, 영역 완료를 되돌리지 않는다. B 표는 Firebase Hosting이 생긴 뒤(7.8 B 머리 v2.1 — U24) 통합 미리보기 채널에서 한다.
 
 **B. iPad 웹(Safari, 홈 화면 앱) — Hosting 뒤 통합 미리보기 배포 직후**
 
@@ -2156,8 +2164,9 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
 | I-B9 | 재생 강조 | 녹음 중 쓴 3쪽 노트(테이프로 가린 부분·텍스트 상자 포함)를 재생·2배속·탐색 | 안 쓴 필기가 옅고 쓰는 순간 진해짐, 최근 획 테두리, **가린 테이프 아래 글씨 모양이 드러나지 않고 텍스트 글자가 옅어지지 않음**(층 4′), 프레임 끊김 없음(개발자 표시 프레임 p95 ≤ 16.7 ms), (v2.1, 검토 S-1) **`playbackPaintUs` p95 기록** — > 4 ms면 블록 베일 래스터 대체 경로를 켬(6.19-6) | B-8 |
 | I-B10 | 올가미 + 객체 | 획(캘리그래피 포함) + 도형 + 텍스트 + 이미지를 함께 선택 → 회전 15°·2배 크기·색 변경 | 미리보기와 손을 뗀 결과가 같음 — 도형 굵기·텍스트 글자 크기·캘리그래피 펜촉 방향까지(7.2.2 단일 규칙·C2-38) | B-5 |
 | I-B11 | 복합 메모리 | B-13 노트(PDF 200쪽 + 이미지 20 + 녹음 30분)에서 스크롤·재생·내보내기 | (v2.1, CD2-10) **개발자 표시 '앱 캐시 합계' ≤ 300 MB**(B-13과 같은 기준 — INK·PDF·CORE·녹음 합계, 7.4.5), INK 몫(외곽선 + 래스터 공유 장부 + 수식 ≤ 136 MB)은 기록, 탭 재로드 없음, 사진이 많은 페이지에서 이미지가 사라지거나 깜박이지 않음(버킷 낮춤 횟수 기록) | B-13 |
-| I-B12 | annotation 재생 비용 | 텍스트 상자 100개 페이지에서 필기 | `annotationPaintUs` p95 기록 — > 4 ms면 annotation 타일 켬(6.8.3) | — |
+| I-B12 | annotation 재생 비용 | 텍스트 상자 100개 페이지를 열고·스크롤하고·상자를 끈 뒤 필기, 같은 필기만 있는 페이지에서도 필기 | (보완 1.1) `annotationPaintUs` p95 기록 — > 4 ms면 annotation 청크 기록 시간 나누기(6.13), 두 페이지 필기 중 `frameRasterP95Ms` 차이 기록 — > 4 ms면 annotation 타일 켬(6.8.3) | — |
 | I-B13 | 썸네일 | 객체가 든 페이지 패널·라이브러리 표지 | 이미지·텍스트·수식이 보이고 테이프는 가림 | B-3 |
+| I-B14 | (v2.5, C25-03) 객체 페이지 첫 기록 · 벡터 내보내기 | 릴리스(AOT) 빌드에서 B14 작업량(도형 200 + 텍스트 100 + 수식 20 + 이미지 20 + 테이프 50 페이지를 처음 그림)과 B17 작업량(도형 200 + 텍스트 100 + 획 1,000 `exportPage`)을 잰다 — 기기에서 재는 수단(profile 모드 통합 시험 또는 ink lab v2 벤치 화면 — T44는 미룸)은 통합 단계 8.3 I-2에서 정한다. 그 전까지 판정은 6.25 디버그 VM 기준 | 원래 기준 **B14 ≤ 12 ms · B17 ≤ 60 ms**(6.25) — 넘으면 `benchmark/README.md` '미달 원인과 조정안'의 ②(annotation 청크 시간 나누기 · L1 외곽선 캐시 재사용)를 INK 작업으로 연다 | — |
 
 **A. 안드로이드 APK** (기기가 있을 때 — U2)
 
@@ -2203,7 +2212,7 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
 | 캘리그래피 회전 뒤 굵기 방향 | (v2.1 해소) CORE C2-38이 각을 돌려 회전한 글씨가 그림처럼 같이 돈다 | 행렬 미리보기 = 커밋(6.4). 남은 위험: CORE 키 상수와 INK 키가 어긋남 → 통합 1단계 대조(8.3 I-1) |
 | 재생 베일(종이 색 덮기)이 형광펜·반투명 획 아래 배경을 옅게 함 | 흐림 모양이 기대와 다름 | 형광펜·테이프는 흐리지 않음(CP-INK-8 승인), 투명 획은 알려진 차이, I-B9에서 확인. (v2.1) 베일은 층 4′라 테이프·텍스트 위에는 그려지지 않는다(K-9) |
 | (v2.1, 검토 S-1) 웹 재생 중 매 프레임 베일 벡터 재생 비용(CanvasKit은 장면 전체를 매 프레임 다시 그림) | 녹음 획이 많은 페이지 재생 중 프레임 저하 | `playbackPaintUs` p95를 I-B9에 기록 → > 4 ms면 통째로 안 쓴 블록의 베일을 `toImageSync`로 래스터해 이미지로 그림(타일 배율 버킷, 공유 장부에 셈 — 6.19-6). VM B15는 기록 비용만 본다 |
-| annotation·underlay 그림 재생 비용(웹 CanvasKit은 매 프레임 장면 전체 재생 — 1차 6.14) | 텍스트·이미지가 많은 페이지에서 필기 중 프레임 저하 | 이미지 = 텍스처 1회, 수식 = 래스터, 텍스트만 문단 재생. `annotationPaintUs` 측정(I-B12) → 넘으면 ink와 같은 청크 래스터 타일을 켬(같은 `InkChunkCache` — 스위치 하나) |
+| annotation·underlay 그림 재생 비용(웹 CanvasKit은 매 프레임 장면 전체 재생 — 1차 6.14) | 텍스트·이미지가 많은 페이지에서 필기 중 프레임 저하 | 이미지 = 텍스처 1회, 수식 = 래스터, 텍스트만 문단 재생. (보완 1.1) I-B12 측정 — 필기 중 프레임 래스터 p95 차이(텍스트 상자 100개 페이지 − 같은 필기만 있는 페이지) > 4 ms → ink와 같은 청크 래스터 타일을 켬(같은 `InkChunkCache` — 스위치 하나), `annotationPaintUs`(층 paint) > 4 ms → annotation 청크 기록 시간 나누기 |
 | 이미지 디코드 메모리(v2.1: 웹은 타일과 공유 장부 96 MB) | 사진 많은 노트에서 탭 재로드, 공유 장부라 이미지가 많으면 타일이 벡터로 돌아가 필기 프레임이 느려질 수 있음 | 표시 버킷 디코드, 그리는 중 고정 + 넘치면 낮은 버킷(작업 집합이 예산 안으로), 동시 2개, `PageObjectLimits`·M-3(2048 px), 헤더로 크기 읽기(원본 디코드 없음). I-B11에서 '앱 캐시 합계 ≤ 300 MB'·버킷 낮춤 횟수·타일 쫓겨남을 기록 |
 | 작업 집합 > 예산에서 다시 기록 ↔ 다시 디코드 반복(초안 — 검토 M-4) | 무한 디코드·깜박임·배터리 | 고정 항목은 쫓아내지 않고 요청 버킷을 낮춤, 상한 기억(통째로 들어갈 때만 올림), 자산별 알림 → 자산마다 다시 기록 ≤ 2회(T35·T36 시험). 초안의 'dispose 뒤 그림 재생' 추측에 기대지 않는다(그리는 이미지는 dispose하지 않음) |
 | (v2.1) 웹 앱 캐시 합계가 300 MB에 꽉 참(296 MB 배정) | 다른 영역이 예산을 넘기면 탭 재로드 | 영역마다 개발자 표시에 자기 몫을 냄(7.4.5), INK는 136 MB를 넘지 않게 장부가 강제(고정 + 낮은 버킷). 넘침은 B-13·I-B11에서 기록 → 총괄 재배분 |
@@ -2351,6 +2360,41 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
 
 - 4.1~4.9의 Dart 블록·L-1 표·`toCommand` 표·4.9 아래 글머리 5개, 5.2의 블록 4개·글머리 5개, 5.3의 블록 2개, 5.4 블록, 4.12의 계약 블록은 00-overview 7.2.9·7.2.2·7.2.3·7.6(v2.1)에서 스크립트로 잘라 붙였고, 붙인 뒤 '계획서의 모든 계약 블록이 개요 본문에 그대로 들어 있음'을 다시 대조했다(일치). 블록을 나눈 자리는 개요 블록의 빈 줄이다(4.2~4.6 = 7.2.9 둘째 블록의 다섯 조각, 4.7~4.9 = 셋째 블록의 세 조각).
 - 4.10(INK 확정 세부)·4.12 둘째 블록(INK 전체 목록)은 계약 원문이 아니다(CP-INK-11 — 계약이 이 두 절을 단일 출처로 가리킨다).
+
+
+### 13.4 동시 개발 착수 정리 (2026-11-06 — 7.6.2 마지막 bullet·C22-09, 계약 v2.3)
+
+| 항목 | 처리 |
+|---|---|
+| 상태 줄 | '승인 · 계약 v2.3' |
+| 5.10 '가정' 블록 | 실제 타입 행으로 바꿈(CORE B2-α·B2-β, INK `fd3370f`) |
+| C22-07 (V5b) | 8.3 I-6 — 합성 멈춤 자동 도형은 V5b(INK-F3) |
+| C22-08 (바탕 `b6c9d0a`) | 머리말 바탕 줄(INK-F1 — R2-B3이 `446518e` 판에서 시작, 진행 기록 '## 2차') |
+| C23-03 (글꼴 `assets:` 블록) | 3.1 아래 글머리 — 총괄이 `5843ec3`에서 넣음, 이후 INK 소유. `pubspec_assets_test`는 동시 개발 첫 작업 |
+| C23-06 (글꼴 사실) | 6.10.1 원본·크기·이름 행, 8.1 T26a 줄 높이 문장, (보완 1.1) 3장 트리의 두 파일 크기(계획 때 값이 남아 있었음 — 검토 지적) |
+| C23-07 (`FakeInkShapeFitter.result`) | 4.12 둘째 블록 |
+| R2-B3 라이선스 확인 | 3장 트리·7.1 표: `flutter_math_fork`는 Apache-2.0 |
+| INK-F1 | R2-B3에서 처리(바탕 판에서 시작, 올가미 규칙 불변) |
+| INK-F2 | T39(P-B)를 미루면 진행 기록 '## 2차'에 `T39 미룸`을 적고, 들어오면 그 병합 때 LIBRARY L2-I3·EDITOR E2-21b·INFRA V5b를 다시 돌리도록 알린다 — 진행 기록 '다음 세션 메모'에 고정 |
+| INK-F3 | 8.3 I-6 |
+| C22-01~06 | INK가 인용한 문장 없음(`dev_tools.dart` v1 사본·R-3·M-4·내보내기 임시 예산은 CORE·PDF 몫) |
+
+### 13.5 계약 v2.4 · v2.5 반영 (2026-11-06, 동시 개발 중 — 총괄 결정)
+
+| 항목 | 처리 |
+|---|---|
+| 상태 줄 | '승인 · 계약 v2.5' |
+| C24-01·C24-02 | INK 몫 없음(시작 글꼴 예산은 INFRA `tool/web_budget.yaml`, 병합 순서는 총괄) |
+| C25-01 (CP-18 색인 질의 예산) | INK 몫 없음(CORE) |
+| C25-02 (`InkDiagnostics.developerValues`) | 1.5 표 새 행, 6.22 개발자 표시 글머리(`mathCacheBytes` 출처), 9.6 I-B9·I-B12는 이미 키 이름으로 적혀 있음. 코드: `@internal` 제거(이름·뜻 그대로), `mathCacheBytes` 추가 — 진행 기록 '변경 요청 (동시 개발)' 1의 결과 |
+| C25-03 (B14 ≤ 25 ms · B17 ≤ 100 ms, 디버그 VM) | 6.21 끝 글머리, 6.25 B14·B17 행, 9.6 새 I-B14(원래 기준 12·60 ms = iPad 릴리스 실측 — 기록 항목), `benchmark/README.md` 기준 표·벤치 기준값 — 진행 기록 '변경 요청 (동시 개발)' 2의 결과 |
+| C25-04 (T39 이번 라운드, T44 미룸) | 8.2 아래 글머리, 6.18 끝 'T39 구현 확정' 글머리. INK-F2('T39 미룸')는 해당 없게 됨 — 대신 T39 병합 때 LIBRARY L2-I3·EDITOR E2-21b·INFRA V5b를 다시 돌리도록 결과 보고에 알린다(진행 기록 '다음 세션 메모') |
+
+### 13.6 독립 검토 보완 2.1 (2026-11-06, 동시 개발 중)
+
+| 항목 | 처리 |
+|---|---|
+| 1. B20 빠른 직선(샘플마다 anchor 이동)이 0.02 ms 기준을 넘나듦(검토 9회 중 6회 미달 — 중앙값 0.0196~0.0261, 기록값 0.0124 재현 안 됨) | 지적 맞음. 원인은 타이머를 '끄고 새로 거는' 순서(VM 타이머 힙이 이벤트 핸들러에 anchor 이동마다 메시지 둘). 검토가 낸 (a)·(b) 대신 **새 타이머를 먼저 만들고 옛 것을 끄게** 바꿨다(6.18 '구현 확정' ①) — 동작·시각·S-8 그대로, 시계를 더하지 않음. (a)는 anchor 이동 시각을 잴 시계가 필요한데 `Stopwatch`는 `fake_async`·`testWidgets`에서 움직이지 않고 `FakeInkClock`은 펌프와 따로 움직여 타이머 시험이 발동하지 않는다. (b)는 필요 없어짐(기준 0.02 ms는 두 케이스 모두 판정, 6.25 B20 행 그대로). 고친 뒤 14회 모두 충족 — 빠른 직선 0.0048~0.0081, 필기선 0.0011~0.0025 ms. 시험 `unit/shape/hold_detector_test.dart` '샘플마다 anchor 이동: 대기 타이머는 늘 하나, 마지막 이동 뒤 500 ms에 발동' 추가 |
 
 ---
 

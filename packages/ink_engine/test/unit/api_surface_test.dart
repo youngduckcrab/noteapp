@@ -104,7 +104,7 @@ void main() {
     expect(hs, HighlighterStraightening.off);
     expect(r, style.width / 2);
     final PenProfile Function(core.PenTool) of = PenProfile.of;
-    expect(of(core.PenTool.brush), PenProfile.ballpoint);
+    expect(of(core.PenTool.brush), PenProfile.brush); // m5-7 T27
     expect(profile, PenProfile.highlighter);
     final InkLayer layer = profile.layer;
     final InkCap cap = profile.cap;

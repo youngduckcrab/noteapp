@@ -1,11 +1,18 @@
 // lib/src/object/object_painter.dart — INTERNAL (m5-7/03-ink 4.13, 6.8.4).
 //
-// Foundation step R2-B3: the simple drawing of every page object in its L-1
-// layer. Shapes: their polyline / ellipse outline (solid, no fill, no arrow
-// heads — T33); text boxes: background, the NoteSans paragraph (the system
-// font until NoteSans is loaded), clipped to the frame, rotated (T34);
-// images: a gray placeholder box (T35); formulas: a light box (no raster —
-// T36); unknown objects: a hatched box. Every object is drawn inside its CORE
+// The drawing of every page object in its L-1 layer — the screen chunks and live
+// parts, and thumbnails (page_composite.dart). Shapes: (m5-7 T33) the final
+// drawing of shape_path.dart — fill, line styles, arrow heads (6.9); text boxes: (m5-7 T34) the final drawing of 6.10.3 — in the
+// frame coordinate system ① the background over the whole frame ② clipped to the frame
+// ③ the paragraph of InkTextLayout (the system font until NoteSans is loaded: the
+// paragraph cache is keyed by the instance and the loaded flag); an empty text without a
+// background draws nothing;
+// images: (m5-7 T35, 6.11.5) the decoded bucket stretched over the frame
+// (drawImageRect, FilterQuality.medium — an unlocked aspect is drawn stretched), the
+// paper-contrast box with two diagonals until it is there; formulas: (m5-7 T36, 6.12.3–6.12.4) the
+// cached raster contain-fitted (centred, uniform scale) into the frame, a light box
+// until it is there, the hatched box of 6.13 for a formula that does not parse
+// (mathInvalid — the caller warns); unknown objects: a hatched box. Every object is drawn inside its CORE
 // bounds (K-6). Colors come from the object or the paper (7.4.10 — no color
 // literals). The render path never throws (4.0): a failing object is skipped
 // and reported.
@@ -15,36 +22,59 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:note_core/note_core.dart' as core;
 
-import '../render/stroke_painter.dart' show inkColor;
+import '../math/math_raster_cache.dart';
 import '../text/fonts.dart';
 import '../text/text_layout.dart';
 import '../tuning.dart';
+import 'shape_path.dart';
 
 /// Paints [o] in page pt. [onePx] = one logical px in pt (hairlines). Returns false when
-/// painting failed (the caller warns).
+/// painting failed (the caller warns). (T36) [mathRasterOf] gives the raster of a formula
+/// to draw now (null → the placeholder; not given → always the placeholder). (T35)
+/// [imageOf] gives the decoded image of an image object the same way.
 bool paintObjectSimple(
   ui.Canvas canvas,
   core.PageObject o, {
   required int paperArgb,
   required double onePx,
+  MathRaster? Function(core.MathObject o)? mathRasterOf,
+  ui.Image? Function(core.ImageObject o)? imageOf,
 }) {
   try {
     switch (o) {
       case core.ShapeObject():
-        _paintShape(canvas, o);
+        paintShape(canvas, o);
       case core.TextBoxObject():
         _inFrame(canvas, o.frame, (w, h) => _paintText(canvas, o, w, h));
       case core.ImageObject():
+        final image = imageOf?.call(o);
         _inFrame(
           canvas,
           o.frame,
-          (w, h) => _paintImagePlaceholder(canvas, w, h, paperArgb, onePx),
+          (w, h) => image == null
+              ? _paintImagePlaceholder(canvas, w, h, paperArgb, onePx)
+              : paintImageStretched(
+                  canvas,
+                  image,
+                  ui.Rect.fromLTWH(0, 0, w, h),
+                ),
         );
       case core.MathObject():
+        final raster = mathRasterOf?.call(o); // (also warns mathInvalid)
+        if (!isRenderableMath(o)) {
+          _inFrame(
+            canvas,
+            o.frame,
+            (w, h) => _paintUnknown(canvas, w, h, paperArgb, onePx),
+          );
+          break;
+        }
         _inFrame(
           canvas,
           o.frame,
-          (w, h) => _paintMathBox(canvas, w, h, paperArgb),
+          (w, h) => raster == null
+              ? _paintMathBox(canvas, w, h, paperArgb)
+              : paintMathRaster(canvas, raster, w, h),
         );
       case core.UnknownObject():
         _inFrame(
@@ -107,57 +137,12 @@ void _inFrame(
   }
 }
 
-double _validWidth(double w) => w.isFinite
-    ? w.clamp(core.ShapeStyle.minWidth, core.ShapeStyle.maxWidth).toDouble()
-    : 2.0;
-
-double _validOpacity(double o) =>
-    o.isFinite ? o.clamp(0.0, 1.0).toDouble() : 1.0;
-
-void _paintShape(ui.Canvas canvas, core.ShapeObject o) {
-  final style = o.style;
-  final paint = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeWidth = _validWidth(style.strokeWidth)
-    ..strokeJoin = ui.StrokeJoin.round
-    ..strokeCap = ui.StrokeCap.round
-    ..isAntiAlias = true
-    ..color = inkColor(
-      style.strokeColorArgb,
-      _validOpacity(style.strokeOpacity),
-    );
-  switch (o.geometry) {
-    case core.PolylineGeometry(:final points, :final closed):
-      if (points.isEmpty) return;
-      final path = ui.Path()..moveTo(points.first.x, points.first.y);
-      for (var i = 1; i < points.length; i++) {
-        path.lineTo(points[i].x, points[i].y);
-      }
-      if (closed && points.length > 2) path.close();
-      canvas.drawPath(path, paint);
-    case core.EllipseGeometry(:final ellipseFrame):
-      final r = ellipseFrame.rect;
-      final c = ellipseFrame.center;
-      canvas
-        ..save()
-        ..translate(c.x, c.y)
-        ..rotate(ellipseFrame.rotation.isFinite ? ellipseFrame.rotation : 0)
-        ..drawOval(
-          ui.Rect.fromCenter(
-            center: ui.Offset.zero,
-            width: r.width,
-            height: r.height,
-          ),
-          paint,
-        )
-        ..restore();
-  }
-}
-
 /// (paragraph, laid out with NoteSans loaded?) per text box instance — rebuilt when the
-/// fonts arrive.
+/// fonts arrive. Moving or rotating a box is a new instance with the same frame width; its
+/// paragraph is laid out again (cheap next to recording the chunk).
 final Expando<(bool, ui.Paragraph)> _paragraphs = Expando('textBoxParagraph');
 
+/// 6.10.3 inside the frame coordinate system (clipped to 0..w × 0..h by _inFrame — K-6).
 void _paintText(ui.Canvas canvas, core.TextBoxObject o, double w, double h) {
   final background = o.style.backgroundArgb;
   if (background != null) {
@@ -166,19 +151,31 @@ void _paintText(ui.Canvas canvas, core.TextBoxObject o, double w, double h) {
       ui.Paint()..color = ui.Color(background),
     );
   }
-  if (o.text.isEmpty) return;
+  final paragraph = textBoxParagraphOf(o);
+  if (paragraph == null) return;
+  canvas.drawParagraph(paragraph, ui.Offset.zero);
+}
+
+/// INTERNAL: the paragraph the annotation layer draws for [o] — laid out at the frame
+/// width with the fonts as they are now (cached per instance and loaded flag); null when
+/// nothing is drawn (empty text, a frame side ≤ 0 or not finite, an invalid font size or
+/// line height). (T42) The vector export reads its lines from the same paragraph.
+@internal
+ui.Paragraph? textBoxParagraphOf(core.TextBoxObject o) {
+  final r = o.frame.rect;
+  final w = r.width, h = r.height;
+  if (!(w > 0) || !(h > 0) || !w.isFinite || !h.isFinite) return null;
+  if (o.text.isEmpty) return null;
   final size = o.style.fontSizePt, line = o.style.lineHeight;
-  if (!(size > 0) || !size.isFinite || !(line > 0) || !line.isFinite) return;
+  if (!(size > 0) || !size.isFinite || !(line > 0) || !line.isFinite) {
+    return null;
+  }
   final loaded = InkFontsDebug.isLoaded;
   final cached = _paragraphs[o];
-  final ui.Paragraph paragraph;
-  if (cached != null && cached.$1 == loaded) {
-    paragraph = cached.$2;
-  } else {
-    paragraph = buildTextBoxParagraph(o.text, o.style, w);
-    _paragraphs[o] = (loaded, paragraph);
-  }
-  canvas.drawParagraph(paragraph, ui.Offset.zero);
+  if (cached != null && cached.$1 == loaded) return cached.$2;
+  final paragraph = buildTextBoxParagraph(o.text, o.style, w);
+  _paragraphs[o] = (loaded, paragraph);
+  return paragraph;
 }
 
 void _paintImagePlaceholder(
@@ -201,6 +198,43 @@ void _paintImagePlaceholder(
   canvas
     ..drawLine(ui.Offset.zero, ui.Offset(w, h), line)
     ..drawLine(ui.Offset(w, 0), ui.Offset(0, h), line);
+}
+
+/// (T35, 6.11.5) The whole [image] stretched over [dst] (an image object's frame: the
+/// aspect differs only when the user unlocked it).
+@internal
+void paintImageStretched(ui.Canvas canvas, ui.Image image, ui.Rect dst) {
+  if (dst.isEmpty) return;
+  canvas.drawImageRect(
+    image,
+    ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+    dst,
+    ui.Paint()..filterQuality = ui.FilterQuality.medium,
+  );
+}
+
+/// (T36, 6.12.4 K-6) [raster] contain-fitted into the w × h frame (frame coordinates):
+/// s = min(w / lw, h / lh) of its laid-out size (lw, lh), centred. The source is the
+/// laid-out part of the image (lw·k × lh·k px — the image is rounded up).
+@internal
+void paintMathRaster(ui.Canvas canvas, MathRaster raster, double w, double h) {
+  final lw = raster.sizePt.width, lh = raster.sizePt.height;
+  if (!(lw > 0) || !(lh > 0)) return;
+  final s = math.min(w / lw, h / lh);
+  final dw = lw * s, dh = lh * s;
+  final k = raster.pixelsPerPt;
+  final image = raster.image;
+  canvas.drawImageRect(
+    image,
+    ui.Rect.fromLTWH(
+      0,
+      0,
+      math.min(lw * k, image.width.toDouble()),
+      math.min(lh * k, image.height.toDouble()),
+    ),
+    ui.Rect.fromLTWH((w - dw) / 2, (h - dh) / 2, dw, dh),
+    ui.Paint()..filterQuality = ui.FilterQuality.medium,
+  );
 }
 
 void _paintMathBox(ui.Canvas canvas, double w, double h, int paperArgb) {

@@ -4,10 +4,14 @@ library;
 // T06 (03-ink 8, 6.26): the stroke pipeline is deterministic across platforms —
 // the FinishedStroke.data checksum of the fixed sample script in Chrome equals
 // the value recorded on the VM (test/unit/stroke/stroke_builder_test.dart).
+// v2 (m5-7/03-ink 9.2): the same for the calligraphy nib outlines (T28) and the
+// dashed outlines (T29, dashes and dots) — test/support/outline_checksums.dart,
+// recorded by nib_outline_test and dash_test on the VM.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/src/stroke/stroke_builder.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../support/outline_checksums.dart';
 import '../support/stroke_scripts.dart';
 
 void main() {
@@ -21,5 +25,13 @@ void main() {
     final a = buildStroke(samples, style: style, viewScale: 1)!;
     final b = buildStroke(samples, style: style, viewScale: 1)!;
     expect(b.data, a.data);
+  });
+
+  test('nib outline checksum = the recorded VM value', () {
+    expect(foldedChecksum(nibChecksumOutlines()), recordedNibChecksum);
+  });
+
+  test('dashed outline checksum = the recorded VM value', () {
+    expect(foldedChecksum(dashedChecksumOutlines()), recordedDashedChecksum);
   });
 }

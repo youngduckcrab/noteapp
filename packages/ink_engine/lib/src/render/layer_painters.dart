@@ -1,7 +1,8 @@
 // lib/src/render/layer_painters.dart — INTERNAL (03-ink 6.10, 6.12).
 //
 // Paints committed strokes the way the page layers stack them: the
-// highlighter groups (6.10) under the ink strokes (fill outlines, 6.8).
+// highlighter groups (6.10) under the ink strokes (fill outlines, 6.8), the
+// tapes (cover, m5-7 T31 — always covered) on top.
 // Used by the page controller layers and the thumbnails.
 import 'dart:ui';
 
@@ -10,6 +11,7 @@ import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
 import 'highlighter_compositor.dart';
 import 'stroke_painter.dart';
+import 'tape_painter.dart';
 
 /// Paints the [layer] strokes of [zOrdered]: highlighter → group composites
 /// on [paperColorArgb]; ink → one fill per stroke from [outlineOf] (pencil
@@ -31,11 +33,16 @@ void paintStrokeLayer(
         paperColorArgb: paperColorArgb,
         marginPt: marginPt,
       );
-    case InkLayer.ink || InkLayer.cover:
-      // (v2.0) cover: no pen gives it yet (tape draws as ballpoint until T31)
+    case InkLayer.ink:
       for (final s in zOrdered) {
         if (s.layer != layer) continue;
         paintFillStroke(canvas, s, outlineOf(s), grain: grain);
+      }
+    case InkLayer.cover:
+      // (m5-7 T31, 6.7-8) tapes, always covered here (thumbnails, previews — K-9)
+      for (final s in zOrdered) {
+        if (s.layer != layer) continue;
+        paintTapeCovered(canvas, s, outlineOf(s));
       }
   }
 }

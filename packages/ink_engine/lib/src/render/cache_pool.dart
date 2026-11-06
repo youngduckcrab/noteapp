@@ -4,28 +4,50 @@
 // is identical), outlineBudgetBytes. L3 (INK T19): the raster tile LRU of
 // raster_tiles.dart, rasterBudgetBytes, least recently used first. The chunk
 // picture count is the sum over the live page controllers (L2 lives in each
-// controller).
+// controller). (m5-7 T36) The formula raster cache (mathRasterCacheBytes,
+// 6.12.3 / 6.22) — app wide like the pool, made on first use. (m5-7 T35) On the
+// web the tile LRU counts in an InkRasterLedger that the decoded images share
+// (rasterBudgetBytes — one 96 MiB budget, 6.11.3 / 7.4.5 v2.1); native keeps the
+// tiles on their own.
 import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
 import '../geometry/outline_generator.dart';
 import '../geometry/stroke_outline.dart';
+import '../image/raster_ledger.dart';
+import '../math/math_raster_cache.dart';
 import '../model/ink_stroke.dart';
 import 'raster_tiles.dart';
 import 'render_config.dart';
 
 /// App-wide caches shared by page controllers (6.13).
 final class InkCachePool {
-  InkCachePool(InkRenderConfig config)
+  InkCachePool(InkRenderConfig config) : this._(config, sharedLedger: _isWeb);
+
+  InkCachePool._(InkRenderConfig config, {required bool sharedLedger})
     : _config = config,
-      _tiles = RasterTileLru(budgetBytes: config.rasterBudgetBytes);
+      _ledger = sharedLedger
+          ? InkRasterLedger(budgetBytes: config.rasterBudgetBytes)
+          : null {
+    _tiles = RasterTileLru(
+      budgetBytes: config.rasterBudgetBytes,
+      ledger: _ledger,
+    );
+  }
+
+  /// Web build (dart2js / dart2wasm): tiles and images share one raster ledger.
+  static const bool _isWeb = bool.fromEnvironment('dart.library.js_interop');
 
   final InkRenderConfig _config;
+
+  /// (T35) The raster ledger the tiles share with the decoded images (web only).
+  final InkRasterLedger? _ledger;
   final LinkedHashMap<String, _OutlineEntry> _outlines = LinkedHashMap();
   int _outlineBytes = 0;
-  final RasterTileLru _tiles;
+  late final RasterTileLru _tiles;
   final Set<int Function()> _pictureCounts = {};
+  MathRasterCache? _math;
   bool _disposed = false;
 
   /// LRU keyed by stroke id, valid while the InkStroke instance is identical (K-4).
@@ -76,8 +98,39 @@ final class InkCachePool {
     _outlineBytes = 0;
     _tiles.dispose();
     _pictureCounts.clear();
+    _math?.dispose();
   }
 }
+
+/// INTERNAL (m5-7 T36): the formula raster cache of [pool] (6.12.3), made on first use
+/// with the pool's mathRasterCacheBytes and scale buckets.
+@internal
+MathRasterCache mathRasterCacheOf(InkCachePool pool) {
+  final cache = pool._math ??= MathRasterCache(
+    budgetBytes: pool._config.mathRasterCacheBytes,
+    scaleBuckets: pool._config.scaleBuckets,
+  );
+  if (pool._disposed) cache.dispose(); // peek → null, nothing is requested
+  return cache;
+}
+
+/// INTERNAL (m5-7 6.22, C25-02): the bytes the formula raster cache of [pool] holds; null
+/// while the pool has made none (no formula drawn yet — the developer value is left out).
+@internal
+int? mathRasterCacheBytesOf(InkCachePool pool) => pool._math?.stats.bytes;
+
+/// INTERNAL (m5-7 T35, 6.22): the raster ledger the tiles of [pool] share with the decoded
+/// images — the web rule; null on native (tiles and images keep their own budgets).
+@internal
+InkRasterLedger? rasterLedgerOf(InkCachePool pool) => pool._ledger;
+
+/// INTERNAL (tests): a pool with ([shared] true) or without the shared raster ledger,
+/// whatever the platform — the web rule can be checked on the VM.
+@visibleForTesting
+InkCachePool debugCachePoolWithLedger(
+  InkRenderConfig config, {
+  required bool shared,
+}) => InkCachePool._(config, sharedLedger: shared);
 
 /// INTERNAL: the raster tile LRU of [pool] (6.13 L3).
 @internal

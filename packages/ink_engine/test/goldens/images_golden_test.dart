@@ -8,6 +8,8 @@ library;
 // covered last row / column; test/support/golden_frame.dart crops to whole
 // pixels), and the list matches 9.2 (pens 2, templates 4 × 2, music /
 // planner × 2, partial erase, thumbnail, pen preview = 17).
+// v2 (m5-7/03-ink 9.4): the 17 round-1 images keep their names (and bytes —
+// their tests are unchanged), plus the 2nd-round images so far.
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -16,6 +18,17 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/golden_frame.dart';
 
 const _dir = 'test/goldens/images';
+
+/// m5-7/03-ink 9.4 images added so far (T27: brush, preview sheet; T33: shapes).
+const Set<String> _roundTwo = {
+  'pens_p1_brush.png',
+  'pens_p1_calligraphy.png',
+  'pens_p1_dashed.png',
+  'pens_p1_preview.png',
+  'pens_p1_tape.png',
+  'shapes_lines.png',
+  'shapes_fill_arrows.png',
+};
 
 List<File> _pngs(String dir) =>
     Directory(dir)
@@ -30,8 +43,10 @@ void main() {
     expect(_pngs('test/goldens').map((f) => f.path), isEmpty);
   });
 
-  test('the 9.2 golden list (17 images)', () {
-    expect(_pngs(_dir), hasLength(17));
+  test('the 9.2 golden list (17 images) + the 2nd-round images', () {
+    final names = {for (final f in _pngs(_dir)) f.uri.pathSegments.last};
+    expect(names.difference(_roundTwo), hasLength(17), reason: 'round 1');
+    expect(names.containsAll(_roundTwo), isTrue);
   });
 
   for (final file in _pngs(_dir)) {

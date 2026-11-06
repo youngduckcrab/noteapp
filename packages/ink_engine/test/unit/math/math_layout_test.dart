@@ -1,7 +1,8 @@
 // T26b (m5-7/03-ink 8.1, 4.10, 6.12.2): InkMathRenderer.layout with the KaTeX
 // fonts — size > 0, baseline in (0, height), twice the font size ≈ twice the size
 // (±2%), an invalid formula → null, a call inside a build → StateError (S-9);
-// rasterize is null in R2-B3 (T36).
+// (T36) rasterize gives the laid-out size × pixelsPerPt (the raster itself:
+// widget/math_render_test.dart, the queue: offscreen_queue_test.dart).
 @TestOn('vm')
 library;
 
@@ -77,15 +78,22 @@ void main() {
     expect(InkMathRenderer.layout('x', fontSizePt: 18), isNotNull);
   });
 
-  test('rasterize is null in R2-B3 (T36)', () async {
-    expect(
-      await InkMathRenderer.rasterize(
-        'x',
+  test(
+    '(T36) rasterize: the laid-out size × pixelsPerPt, rounded up',
+    () async {
+      final l = InkMathRenderer.layout(r'\frac{a}{b}', fontSizePt: 18)!;
+      final image = await InkMathRenderer.rasterize(
+        r'\frac{a}{b}',
         colorArgb: 0xFF000000,
         fontSizePt: 18,
         pixelsPerPt: 2,
-      ),
-      isNull,
-    );
-  });
+      );
+      expect(image, isNotNull);
+      expect(
+        (image!.width, image.height),
+        ((l.sizePt.width * 2).ceil(), (l.sizePt.height * 2).ceil()),
+      );
+      image.dispose();
+    },
+  );
 }

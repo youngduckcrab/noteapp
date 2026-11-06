@@ -5,6 +5,14 @@
 // commit (trashed note → ReadOnlyNoteException) is undone by ONE
 // discardEdit(edit): erased / split originals reappear, transform and recolor
 // previews end, a new stroke disappears.
+// (m5-7/03-ink 8.2 T37b, 6.16 — v2) Objects the same way: transform, recolor,
+// delete, duplicate, stroke eraser and partial eraser edits with shapes / text
+// boxes → toCommand → execute → the pending display is gone before execute
+// returns; the pending transform display is drawn as PageObject.transformed(m,
+// scaleWidth: true) — its pixels are the committed page's (shape width × 2
+// included: no jump); discardEdit restores objects at once (moved, recolored,
+// erased); a partial-eraser gesture over a stroke and a shape is one undo
+// step that brings the original stroke and the shape back together.
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -13,7 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/interop/core_interop.dart' as interop;
 import 'package:ink_engine/src/render/ink_page_controller.dart'
-    show inkPageRenderOf;
+    show inkPageRenderOf, liveObjectsOf;
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
@@ -32,6 +40,7 @@ final _style = core.StrokeStyle.defaultsFor(core.PenTool.ballpoint)
 InkPageContent _inkContentOf(core.PageContent c) => InkPageContent.fromCore(
   page: c.page,
   strokes: c.strokes,
+  objects: c.objects,
   revision: c.revision,
 );
 
@@ -58,6 +67,8 @@ core.Stroke _line(String id, String pageId, double y, int createdAt) {
 typedef _Seen = ({bool insideExecute, Set<String> pendingAfterUpdate});
 
 void main() {
+  // the text box glyphs need the binding (InkFonts reads rootBundle)
+  TestWidgetsFlutterBinding.ensureInitialized();
   late core.NoteStore store;
   late core.Note note;
   late core.NoteSession session;
@@ -359,5 +370,212 @@ void main() {
       expect(controller.pendingIds, isEmpty);
       expect((await paint()).at(60, 300), _bluePx);
     });
+  });
+
+  group('objects (v2, T37b)', () {
+    setUpAll(InkFonts.ensureLoaded);
+
+    // a filled rectangle (w 3), a text box and a horizontal line shape just below 'b'
+    setUp(() {
+      session.execute(
+        core.AddObjects(
+          pageId: pageId,
+          objects: [
+            core.ShapeObject(
+              id: 'sh',
+              pageId: pageId,
+              shapeKind: core.ShapeKind.rectangle,
+              geometry: core.ShapeGeometry.rectangle(
+                const core.PageRect(150, 50, 230, 110),
+              ),
+              style: const core.ShapeStyle(
+                strokeColorArgb: 0xFF006600,
+                strokeWidth: 3,
+                fillColorArgb: 0xFFFFCC00,
+              ),
+              createdAt: 4,
+            ),
+            core.TextBoxObject(
+              id: 'tx',
+              pageId: pageId,
+              frame: const core.ElementFrame(core.PageRect(150, 140, 260, 180)),
+              text: 'Ink 잉크',
+              style: const core.TextBoxStyle(fontSizePt: 16, colorArgb: _red),
+              createdAt: 5,
+            ),
+            core.ShapeObject(
+              id: 'ln',
+              pageId: pageId,
+              shapeKind: core.ShapeKind.line,
+              geometry: core.ShapeGeometry.line(
+                const core.PagePoint(20, 212),
+                const core.PagePoint(120, 212),
+              ),
+              style: const core.ShapeStyle(strokeColorArgb: 0xFF006600),
+              createdAt: 6,
+            ),
+          ],
+        ),
+      );
+      seen.clear();
+    });
+
+    List<String> objectIds() => [
+      for (final o in controller.content!.objects) o.id,
+    ];
+
+    Future<Pixels> paint() => renderPixels(400, 420, (canvas) {
+      paintPaper(canvas, core.PaperColors.white);
+      final render = inkPageRenderOf(controller);
+      for (final layer in InkRenderLayer.values) {
+        render.paint(canvas, layer, 1);
+      }
+    });
+
+    (int, int) compare(Pixels a, Pixels b) {
+      var inked = 0, differ = 0;
+      for (var y = 0; y < a.height; y++) {
+        for (var x = 0; x < a.width; x++) {
+          final pa = a.at(x, y), pb = b.at(x, y);
+          if (samePixel(pa, _white, tol: 2) && samePixel(pb, _white, tol: 2)) {
+            continue;
+          }
+          inked++;
+          if (!samePixel(pa, pb, tol: 24)) differ++;
+        }
+      }
+      return (inked, differ);
+    }
+
+    test('every object edit: pending empty before execute returns', () {
+      // transform
+      final sel = controller.select({'sh', 'tx'})
+        ..setPreviewTransform(core.Affine2.translation(20, 0));
+      final moved = sel.commitTransform()!;
+      expect(controller.pendingIds, {'sh', 'tx'});
+      commit(moved);
+      expect(controller.content!.objects.first.frame.rect.left, 170);
+      // recolor (shape outline + text)
+      final recolor = controller.select({'sh', 'tx'}).recolor(_blue);
+      commit(recolor);
+      final sh = controller.content!.objects.firstWhere((o) => o.id == 'sh');
+      expect((sh as core.ShapeObject).style.strokeColorArgb, _blue);
+      // duplicate (strokes + objects)
+      final dup = controller.select({'a', 'sh', 'tx'}).duplicate();
+      commit(dup);
+      expect(objectIds(), hasLength(5));
+      // delete (a stroke + an object)
+      final del = controller.select({'c', 'tx'}).delete();
+      expect(del.toCommand(), isA<core.RemoveElements>());
+      commit(del);
+      expect(ids(), isNot(contains('c')));
+      expect(objectIds(), isNot(contains('tx')));
+      // stroke eraser over a shape and a stroke
+      final s = controller.beginErase(
+        SyntheticInk.line(
+          const ui.Offset(60, 190),
+          const ui.Offset(60, 220),
+        ).first,
+        spec: const EraserSpec(mode: EraserMode.stroke, radius: 2),
+        viewScale: 1,
+      );
+      for (final x in SyntheticInk.line(
+        const ui.Offset(60, 190),
+        const ui.Offset(60, 220),
+        samples: 6,
+      ).skip(1)) {
+        s.addSample(x);
+      }
+      final erased = s.end()!;
+      expect(erased.removedIds, {'b', 'ln'});
+      commit(erased);
+      expect(ids(), isNot(contains('b')));
+      expect(objectIds(), isNot(contains('ln')));
+    });
+
+    test(
+      'the pending transform display = the committed pixels (width × 2)',
+      () async {
+        final before = await paint();
+        final sel = controller.select({'sh', 'tx'});
+        final m = core.Affine2.scaling(2, 2, originX: 150, originY: 50);
+        sel.setPreviewTransform(m);
+        final edit = sel.commitTransform()!;
+        // pending (not executed yet): drawn as transformed(m, scaleWidth: true)
+        final live = {for (final o in liveObjectsOf(controller)) o.id: o};
+        expect((live['sh']! as core.ShapeObject).style.strokeWidth, 6);
+        expect((live['tx']! as core.TextBoxObject).style.fontSizePt, 32);
+        final pending = await paint();
+        expect(compare(before, pending).$2, greaterThan(1000), reason: 'moved');
+        commit(edit);
+        final committed = await paint();
+        final sh = controller.content!.objects.firstWhere((o) => o.id == 'sh');
+        expect((sh as core.ShapeObject).style.strokeWidth, 6);
+        final (inked, differ) = compare(pending, committed);
+        expect(inked, greaterThan(8000));
+        expect(differ / inked, lessThan(0.01), reason: '$differ of $inked');
+      },
+    );
+
+    test('discardEdit restores objects at once', () async {
+      final before = await paint();
+      Future<void> same(String what) async {
+        final (inked, differ) = compare(before, await paint());
+        expect(inked, greaterThan(1000));
+        expect(differ, 0, reason: what);
+      }
+
+      final sel = controller.select({'sh', 'tx'})
+        ..setPreviewTransform(core.Affine2.translation(40, 200));
+      final moved = sel.commitTransform()!;
+      expect(compare(before, await paint()).$2, greaterThan(1000));
+      controller.discardEdit(moved);
+      expect(liveObjectsOf(controller), isEmpty);
+      await same('transform');
+      final recolor = controller.select({'sh', 'tx'}).recolor(_blue);
+      expect(compare(before, await paint()).$2, greaterThan(100));
+      controller.discardEdit(recolor);
+      await same('recolor');
+      final deleted = controller.select({'sh'}).delete();
+      expect(controller.hitTestObject(const ui.Offset(190, 80)), isNull);
+      controller.discardEdit(deleted);
+      expect(controller.hitTestObject(const ui.Offset(190, 80))?.id, 'sh');
+      await same('delete');
+      expect(controller.pendingIds, isEmpty);
+    });
+
+    test(
+      'partial eraser over a stroke and a shape: one undo brings both back',
+      () async {
+        final undoBefore = session.history.undoDepth;
+        final samples = SyntheticInk.line(
+          const ui.Offset(60, 190),
+          const ui.Offset(60, 225),
+          samples: 8,
+        );
+        final s = controller.beginErase(
+          samples.first,
+          spec: const EraserSpec(mode: EraserMode.partial, radius: 2),
+          viewScale: 1,
+        );
+        for (final x in samples.skip(1)) {
+          s.addSample(x);
+        }
+        final edit = s.end()!;
+        expect(edit.kind, InkEditKind.splitStrokes);
+        expect(edit.removedObjectIds, {'ln'});
+        expect(edit.toCommand(), isA<core.CompositeCommand>());
+        final pieces = {for (final p in edit.added) p.id};
+        expect(pieces, hasLength(2));
+        commit(edit);
+        expect(ids(), isNot(contains('b')));
+        expect(ids(), containsAll(pieces));
+        expect(objectIds(), isNot(contains('ln')));
+        expect(session.history.undoDepth, undoBefore + 1);
+        await session.undo();
+        expect(ids(), ['a', 'b', 'c']);
+        expect(objectIds(), ['sh', 'tx', 'ln']);
+      },
+    );
   });
 }

@@ -179,6 +179,13 @@ void main() {
     },
   );
 
+  test('(v2.5, C25-02) InkDiagnostics.developerValues', () {
+    final d = InkDiagnostics(clock: FakeInkClock());
+    addTearDown(d.dispose);
+    final Map<String, num> values = d.developerValues;
+    expect(values, isEmpty, reason: 'no value → no key');
+  });
+
   test('7.2.9 shape port and provider', () {
     final InkShapeFitter fitter = _Fitter();
     final InkShapeFit? Function(List<Offset>, {required double viewScale}) fit =
@@ -287,8 +294,8 @@ void main() {
       pageSize: const Size(100, 100),
       pixelSize: const Size(10, 10),
     );
-    expect(still!.width, 10);
-    still.dispose();
+    // (T35) bytes not on this device → null (the thumbnail tries later)
+    expect(still, isNull);
     final int budget = cache.budgetBytes;
     final ui.Image? Function(
       String, {

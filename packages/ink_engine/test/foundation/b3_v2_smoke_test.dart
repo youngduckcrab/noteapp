@@ -4,8 +4,10 @@
 // one TransformElements → pending empty after updateContent, delete →
 // RemoveElements, duplicate / recolor → Composite, the eraser removes shapes only,
 // hidden → no pixels, previews (also over a hidden id) → pixels with the content
-// unchanged, laser end() == null (K-9), tape state, hitTestTape by bounds,
-// hitTestRecorded, hitTestObject order.
+// unchanged, laser end() == null (K-9 — since m5-7 T30 its trail fades out
+// over laserFadeMs after the lift), tape state, hitTestTape by bounds,
+// hitTestRecorded, hitTestObject order (since T37a the shape rule of 6.14: the
+// outline, not the frame).
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -15,7 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/interop/core_interop.dart' as interop;
 import 'package:ink_engine/src/render/ink_page_controller.dart'
-    show inkPageRenderOf;
+    show inkPageRenderOf, repaintInkLayer;
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart';
@@ -255,7 +257,10 @@ void main() {
     // hitTestObject: annotation → ink → underlay
     expect(h.controller.hitTestObject(const Offset(200, 120))?.id, 'bg');
     expect(h.controller.hitTestObject(const Offset(100, 60))?.id, 'img');
-    expect(h.controller.hitTestObject(const Offset(150, 205))?.id, 'sh');
+    // (m5-7 T37a, 6.14) a shape takes the tap on its outline; the inside of an
+    // unfilled shape falls through to what is below (here nothing)
+    expect(h.controller.hitTestObject(const Offset(150, 181))?.id, 'sh');
+    expect(h.controller.hitTestObject(const Offset(150, 205)), isNull);
     expect(h.controller.hitTestObject(const Offset(425, 125))?.id, 'un');
     expect(h.controller.hitTestObject(const Offset(560, 800)), isNull);
   });
@@ -549,6 +554,16 @@ void main() {
       expect(laser.end(samples.last), isNull);
       expect(h.controller.pendingIds, isEmpty);
       expect(identical(h.controller.content, before), isTrue);
+      // (m5-7 T30) the trail fades out over laserFadeMs after the lift, then is gone
+      final lifted = await _pump(tester, h);
+      expect(
+        _inkedIn(lifted, const Rect.fromLTWH(40, 590, 380, 80)),
+        greaterThan(50),
+      );
+      (h.controller.clock as FakeInkClock).advanceMs(
+        core.StrokeStyle.defaultsFor(core.PenTool.laser).laserFadeMs + 1.0,
+      );
+      repaintInkLayer(h.controller, InkRenderLayer.overlay);
       final after = await _pump(tester, h);
       expect(_inkedIn(after, const Rect.fromLTWH(40, 590, 380, 80)), 0);
 

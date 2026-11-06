@@ -3,15 +3,21 @@
 // re-record), a middle insertion / deletion / changed object marks the chunks
 // it touches dirty, the same revision is a no-op, more than 16 appended
 // pictures are consolidated.
+// v2 (m5-7/03-ink T32a, 6.8.2): the page objects per L-1 layer — added on top
+// → appended, below kept items → inserted, gone → removed, same id with
+// another instance → changed; the ink layer's appended run is taken over the
+// merged strokes + shapes (inkAppended).
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
+import 'package:ink_engine/src/object/object_view.dart';
 import 'package:ink_engine/src/render/base_cache.dart';
 import 'package:ink_engine/src/render/ink_page_controller.dart'
     show inkChunkCacheOf, inkHighlighterCacheOf, inkPageRenderOf;
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart';
 
 import '../../support/pixels.dart';
 
@@ -103,6 +109,190 @@ void main() {
         ),
       );
       expect(InkContentDiff.between(base, dark).backgroundChanged, isTrue);
+    });
+  });
+
+  group('objects (m5-7 T32a)', () {
+    InkPageContent content(
+      List<core.Stroke> strokes,
+      List<core.PageObject> objects, {
+      int revision = 1,
+    }) => InkPageContent.fromCore(
+      page: SyntheticInk.page(),
+      strokes: strokes,
+      objects: objects,
+      revision: revision,
+    );
+
+    final s1 = _s('s1', 10);
+    final shape = PageObjectFixtures.shape(
+      pageId: 'p1',
+      id: 'sh',
+      createdAt: 20,
+    );
+    final text = PageObjectFixtures.textBox(
+      pageId: 'p1',
+      id: 'tx',
+      createdAt: 5,
+    );
+    final image = PageObjectFixtures.image(
+      pageId: 'p1',
+      id: 'im',
+      assetId: 'a1',
+      createdAt: 5,
+    );
+    final base = content([s1], [shape, text, image]);
+
+    List<String> ids(Iterable<Object> items) => [
+      for (final i in items)
+        switch (i) {
+          InkObjectView(:final id) => id,
+          InkStrokeItem(:final id) => id,
+          InkStroke(:final id) => id,
+          _ => '$i',
+        },
+    ];
+
+    test('same content → no-op; same objects, new revision → no object '
+        'change', () {
+      expect(InkContentDiff.between(base, base).isNoop, isTrue);
+      final again = content([s1], [image, text, shape], revision: 2);
+      final d = InkContentDiff.between(base, again);
+      expect(d.isNoop, isFalse);
+      expect(d.objectsUnchanged, isTrue);
+      expect(d.inkAppended, isEmpty);
+    });
+
+    test('reset → no object lists (every cache starts over)', () {
+      final d = InkContentDiff.between(null, base);
+      expect(d.isReset, isTrue);
+      expect(d.objectsUnchanged, isTrue);
+    });
+
+    test('objects added on top of their layer → appended', () {
+      final text2 = PageObjectFixtures.textBox(
+        pageId: 'p1',
+        id: 'tx2',
+        createdAt: 30,
+      );
+      final image2 = PageObjectFixtures.image(
+        pageId: 'p1',
+        id: 'im2',
+        assetId: 'a2',
+        createdAt: 6,
+      );
+      final shape2 = PageObjectFixtures.shape(
+        pageId: 'p1',
+        id: 'sh2',
+        createdAt: 40,
+      );
+      final d = InkContentDiff.between(
+        base,
+        content([s1], [shape, text, image, text2, image2, shape2]),
+      );
+      expect(ids(d.annotation.appended), ['tx2']);
+      expect(ids(d.underlay.appended), ['im2']);
+      expect(ids(d.shapes.appended), ['sh2']);
+      expect(ids(d.inkAppended), ['sh2']);
+      for (final o in [d.annotation, d.underlay, d.shapes]) {
+        expect(o.inserted, isEmpty);
+        expect(o.removed, isEmpty);
+        expect(o.changed, isEmpty);
+      }
+      expect(d.touched, isEmpty, reason: 'no stroke changed');
+    });
+
+    test('below kept items → inserted', () {
+      final under = PageObjectFixtures.textBox(
+        pageId: 'p1',
+        id: 'tx0',
+        createdAt: 1,
+      );
+      final lowShape = PageObjectFixtures.shape(
+        pageId: 'p1',
+        id: 'sh0',
+        createdAt: 1,
+      );
+      final d = InkContentDiff.between(
+        base,
+        content([s1], [shape, text, image, under, lowShape]),
+      );
+      expect(ids(d.annotation.inserted), ['tx0']);
+      expect(d.annotation.appended, isEmpty);
+      // under the kept stroke s1 (z 10) and the kept shape: inserted
+      expect(ids(d.shapes.inserted), ['sh0']);
+      expect(d.inkAppended, isEmpty);
+    });
+
+    test('the ink layer appended run is over strokes + shapes', () {
+      // a new shape above everything and a new stroke above it: both appended
+      final shapeTop = PageObjectFixtures.shape(
+        pageId: 'p1',
+        id: 'sh3',
+        createdAt: 50,
+      );
+      final s2 = _s('s2', 60);
+      final d1 = InkContentDiff.between(
+        base,
+        content([s1, s2], [shape, text, image, shapeTop]),
+      );
+      expect(ids(d1.inkAppended), ['sh3', 's2']);
+      expect(ids(d1.shapes.appended), ['sh3']);
+      expect(ids(d1.appended), ['s2']);
+      // a new stroke below the kept shape (z 15 < 20): the round-1 stroke rule
+      // still calls it appended (top of the strokes), the merged ink layer
+      // does not
+      final s15 = _s('s15', 15);
+      final d2 = InkContentDiff.between(
+        base,
+        content([s1, s15], [shape, text, image]),
+      );
+      expect(ids(d2.appended), ['s15']);
+      expect(d2.inkAppended, isEmpty);
+      // highlighters are not in the ink layer
+      final hl = _s('hl', 70, tool: core.PenTool.highlighter);
+      final d3 = InkContentDiff.between(
+        base,
+        content([s1, hl], [shape, text, image, shapeTop]),
+      );
+      expect(ids(d3.inkAppended), ['sh3']);
+    });
+
+    test('gone → removed (old views); same id, another instance → changed', () {
+      final moved = shape.transformed(core.Affine2.translation(10, 0));
+      final retext = PageObjectFixtures.textBox(
+        pageId: 'p1',
+        id: 'tx',
+        text: 'changed',
+        createdAt: 5,
+      );
+      final d = InkContentDiff.between(base, content([s1], [moved, retext]));
+      expect(ids(d.underlay.removed), ['im']);
+      expect(d.underlay.removed.single.object, same(image));
+      expect(d.shapes.changed, hasLength(1));
+      expect(d.shapes.changed.single.$1.object, same(shape));
+      expect(d.shapes.changed.single.$2.object, same(moved));
+      expect(d.annotation.changed.single.$2.object, same(retext));
+      expect(d.inkAppended, isEmpty, reason: 'changed, not new');
+      expect({for (final v in d.shapes.touched) v.object}, {shape, moved});
+      final deleted = content(
+        [s1],
+        [shape, text, image.copyWithMeta(deletedAt: 99)],
+      );
+      expect(ids(InkContentDiff.between(base, deleted).underlay.removed), [
+        'im',
+      ]);
+    });
+
+    test('an id that changes layer leaves one and enters the other', () {
+      final asUnknown = PageObjectFixtures.unknown(pageId: 'p1', id: 'im');
+      final d = InkContentDiff.between(
+        base,
+        content([s1], [shape, text, asUnknown]),
+      );
+      expect(ids(d.underlay.removed), ['im']);
+      expect(ids(d.annotation.appended), isEmpty);
+      expect(ids(d.annotation.inserted), ['im']);
     });
   });
 
