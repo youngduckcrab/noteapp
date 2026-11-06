@@ -230,3 +230,46 @@ Future<ContentHitsSample> seedContentHits(FakeLibraryBackend backend) async {
     reportPage: reportPage,
   );
 }
+
+/// Where [seedTextBoxNote] puts each page's text box (note page pt).
+const PageRect kSeedTextBoxRect = PageRect(120, 480, 420, 520);
+
+/// (v2) A note titled [title] with one A4 page per entry of [texts]; page k
+/// holds one text box (session AddObjects — public CORE API) with texts[k] on
+/// [rect]. Returns the note and its page ids in page order.
+Future<(Note, List<PageId>)> seedTextBoxNote(
+  FakeLibraryBackend backend,
+  String title,
+  List<String> texts, {
+  FolderId? folderId,
+  PageRect rect = kSeedTextBoxRect,
+}) async {
+  final store = backend.store;
+  final note = await backend.seedNote(
+    title,
+    folderId: folderId,
+    pages: [for (final _ in texts) PageDraft.blankA4],
+  );
+  final pages = [for (final p in await store.content.pagesOf(note.id)) p.id];
+  final session = await store.openSession(note.id);
+  for (final (i, page) in pages.indexed) {
+    await session.openPage(page);
+    await session
+        .execute(
+          AddObjects(
+            pageId: page,
+            objects: [
+              PageObjectFixtures.textBox(
+                pageId: page,
+                text: texts[i],
+                rect: rect,
+              ),
+            ],
+          ),
+        )
+        .persisted;
+  }
+  await session.close();
+  await store.flush();
+  return (note, pages);
+}

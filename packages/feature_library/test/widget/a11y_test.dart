@@ -5,10 +5,14 @@
 // search results with the clear button, the 새로 만들기 menu with 'PDF
 // 가져오기' (준비 중), an item menu, selection mode, the storage banner with
 // [닫기], the new note / new folder dialogs, and the drawer (portrait).
+// (v2, L2-04 — 6.1.8) The '노트 내용' group: note headers, hit rows and the
+// '더 보기' row are ≥ 44 × 44 and a hit row reads '<title>, <n>쪽, <source>,
+// <snippet>'.
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:feature_library/src/state/providers.dart';
 import 'package:feature_library/src/ui/banners/storage_warning_banner.dart';
+import 'package:feature_library/src/ui/content/content_hits_view.dart';
 import 'package:feature_library/src/ui/dialogs/new_folder_dialog.dart';
 import 'package:feature_library/src/ui/dialogs/new_note_dialog.dart';
 import 'package:feature_library/src/ui/top_bar/library_search_field.dart';
@@ -130,16 +134,77 @@ void main() {
         expect(find.text(LibraryStrings.trashNotice), findsOneWidget);
       });
 
-      check('search results with the clear button', (tester) async {
-        await seed(tester);
-        await pumpAt(tester);
+      Future<void> search(WidgetTester tester, String text) async {
         if (searchInput.evaluate().isEmpty) {
           await tapAndSettle(tester, find.byTooltip(LibraryStrings.search));
         }
-        await tester.enterText(searchInput, '수');
+        await tester.enterText(searchInput, text);
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pumpAndSettle();
+      }
+
+      check('search results with the clear button', (tester) async {
+        await seed(tester);
+        await pumpAt(tester);
+        await search(tester, '수');
         expect(find.byTooltip(LibraryStrings.clearSearch), findsOneWidget);
+      });
+
+      check('content search results (노트 내용 rows, 더 보기)', (tester) async {
+        final sample = await real(tester, () async {
+          final sample = await seedContentHits(backend);
+          await seedTextBoxNote(backend, '주간 회의', const [
+            '회의 1',
+            '회의 2',
+            '회의 3',
+            '회의 4',
+          ]);
+          return sample;
+        });
+        await pumpAt(tester);
+        await search(tester, '회의');
+        final more = find.byType(ContentMoreRow);
+        await tester.ensureVisible(more);
+        await tester.pumpAndSettle();
+        expect(more, findsOneWidget);
+
+        // Every built row of the group is at least 44 × 44 (6.1.8).
+        for (final type in const [
+          ContentNoteHeader,
+          ContentHitRow,
+          ContentMoreRow,
+        ]) {
+          final rows = find.byType(type);
+          expect(rows, findsWidgets, reason: '$type');
+          for (final element in rows.evaluate()) {
+            final box = element.renderObject! as RenderBox;
+            if (box.size.isEmpty) continue; // a hidden group (none here)
+            expect(box.size.width, greaterThanOrEqualTo(44), reason: '$type');
+            expect(box.size.height, greaterThanOrEqualTo(44), reason: '$type');
+          }
+        }
+
+        // A hit row reads '<title>, <n>쪽, <source>, <snippet>' as one button.
+        final agenda = find.byWidgetPredicate(
+          (w) => w is ContentHitRow && w.hit.pageId == sample.meetingPages[0],
+        );
+        await tester.ensureVisible(agenda);
+        await tester.pumpAndSettle();
+        final hit = tester.widget<ContentHitRow>(agenda).hit;
+        expect(hit.snippet, contains('회의'));
+        expect(
+          tester.getSemantics(agenda),
+          matchesSemantics(
+            label: LibraryStrings.contentHitSemantics(
+              '회의록 2026-11',
+              LibraryStrings.pageLabel(1),
+              LibraryStrings.sourceText,
+              hit.snippet,
+            ),
+            isButton: true,
+            hasTapAction: true,
+          ),
+        );
       });
 
       check("the 새로 만들기 menu ('PDF 가져오기' 준비 중)", (tester) async {

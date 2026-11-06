@@ -2,7 +2,8 @@
 // as widget/scenarios_on_fake_test.dart (VM) over CORE's web-safe fake store —
 // among them the new note defaults stored in the settings and read back (on
 // the web 148.0 is also an int), the custom order, the 200-character copy
-// name and NFD title search.
+// name, NFD title search and (v2, L2-04) a text box word found as a '노트 내용'
+// hit that opens the note at its page and box (onOpenNoteAt).
 @TestOn('browser')
 library;
 
