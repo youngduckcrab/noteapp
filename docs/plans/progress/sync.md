@@ -167,7 +167,7 @@
 
 ## 2차
 
-계획 docs/plans/m5-7/07-sync.md(승인 · 계약 v2.2). 바탕: `main` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6`.
+계획 docs/plans/m5-7/07-sync.md(승인 · 계약 v2.3 — 개발 착수 정리 2026-11-06, 계획 13.5). 기반 단계 바탕: `main` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6`.
 
 ### R2-B7b — `functions/` 골격 (계약 7.6.2, 계획 6.4 끝 문단·8.1 B7b)
 
@@ -232,3 +232,53 @@
 - `core_json_keys_test`의 `_kindOf`에 `math_no_engine` → `pageObject`를 더했다. 계획 6.4·6.7.2 표의 이름 목록에는 없지만 CORE 6.3 골든 표(02-core — `math_no_engine.json`, C21-11)에 있고, 없으면 '`field_versions`만 엔티티가 아님' 단언이 깨진다. 계획 8.1의 'CORE 새 골든 9개'와 수가 맞다.
 - 손글씨 고정 자료는 `handwritingFixture({String? id})` 도우미로 따로 두었다. 결과 id는 언제나 `hw_<pageId>`(`HandwritingText.idFor`)라서 `id`를 주면 그 모양이어야 하고 페이지 id를 거기서 읽는다(다른 모양은 `ArgumentError`).
 - 고정 자료의 `createdAt`은 계약 7.6 시험 도우미 기본값 1이 아니라 다른 고정 자료와 같은 `kT0`이다(사각형·글자·크기 값은 그 기본값과 같음). 수식 고정 자료는 `engineId` 없음(`engine: null` — C21-11 '키 항상'을 기본 실행 시험이 늘 확인하게).
+
+### 동시 개발
+
+작업 트리 `/home/user/wt2/sync`(브랜치 `area2/sync`), 바탕 `main` `5843ec3`(계약 v2.3 — 기반 단계 R2-B1~R2-B6·R2-final 끝). 다른 영역은 이 작업 트리에서 기반 단계 표면이다. 순서(계획 8.2): S2-1 → S2-2 → S2-6 → S2-4a → S2-4b → S2-3 → S2-5 → S2-7a → S2-7b → S2-8 → S2-9 → S2-15, `functions/` 줄 S2-10a → S2-10b → S2-11 → S2-12 → S2-13은 세션 사이에 끼움, S2-14는 여유.
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| B7b | 기반 단계에서 완료 | `9cdd3fb`·`e3aa110` | `functions/test/fake_engine.test.ts`·`handler.test.ts` (`npm test` 37) |
+| B7a | 기반 단계에서 완료 | `99b8ead`·`5056fcb` | `test/model/field_units_test.dart`(종류별 키), `test/integration/core_json_keys_test.dart` v2 |
+| 문서 정리 | 완료 | (이 줄의 커밋) | 계획 13.5 — 5.5 실제 타입, 인용 v2.3, C23-01·C23-02, SYNC-F1~F3 |
+| S2-1 | 남음 | | `test/model/field_units_test.dart`, `test/merge/field_merge_test.dart`, `test/merge/field_merge_properties_test.dart`, `test/web/pure_logic_browser_test.dart` |
+| S2-2 | 남음 | | `test/model/scopes_test.dart`, `test/codec/chunk_packer_test.dart`, `test/goldens/chunk_v1_kinds_golden_test.dart` |
+| S2-6 | 남음 | | `test/codec/chunk_codec_test.dart`, `test/engine/held_records_test.dart`, `test/web/pure_logic_browser_test.dart` |
+| S2-4a | 남음 | | `test/testing/fake_local_store_test.dart`, `test/testing/fake_sync_server_test.dart`, `test/contract/fake_local_store_contract_test.dart` |
+| S2-4b | 남음 | | `test/testing/test_device_test.dart`, `test/testing/sync_test_harness_test.dart`, `test/contract/fake_local_store_contract_test.dart`(C-01~C-31), `test/api_surface_test.dart` |
+| S2-3 | 남음 | | `test/merge/record_gate_test.dart`, `test/engine/download_pipeline_test.dart`('lib-scope pageObject') |
+| S2-5 | 남음 | | `test/merge/page_resurrection_test.dart`, `test/merge/purge_guard_test.dart`, `test/engine/upload_pipeline_test.dart` |
+| S2-7a | 남음 | | `test/engine/download_pipeline_test.dart`('S-13 받기'), `test/compaction/compactor_test.dart` |
+| S2-7b | 남음 | | `test/engine/download_pipeline_test.dart`('S-13 다시 적용'), `test/engine/engine_state_test.dart` |
+| S2-8 | 남음 | | `test/scenarios/s23_…`~`s30_…`, `test/scenarios/fuzz_convergence_test.dart` |
+| S2-9 | 남음 | | `test/integration/`(T16-v2 5파일 — 작성·컴파일, 실행은 I-2) |
+| S2-10a | 남음 (P-B) | | `functions/test/{protocol,access,registry,fake_engine,latex}.test.ts` |
+| S2-10b | 남음 (P-B) | | `functions/test/{quota,handler,secrets_hygiene}.test.ts` |
+| S2-11 | 남음 (P-B) | | `functions/test-emulator/recognize_math.emulator.test.ts`(E1~E10) |
+| S2-12 | 남음 (P-C) | | `functions/test/{mathpix,claude}.test.ts` |
+| S2-13 | 남음 (P-C) | | `functions/tool/test/math_eval.test.ts` |
+| S2-14 | 남음 (P-C) | | `test/auth/auth_service_test.dart`, `test/firebase/firebase_auth_backend_test.dart`, `functions/test-emulator/rules.emulator.test.ts`(수동) |
+| S2-15 | 남음 | | `test/api_surface_test.dart`, `test/no_dart_io_test.dart`, `ws check`, analyze, format, 이 절 |
+| I-0~I-5 | 통합 단계 | | 계획 8.3 |
+
+#### 변경 요청 (동시 개발)
+
+- [총괄] 계약 7.4.7 CI 줄 본문이 아직 'firebase-tools 15.34.2'다(7.5 표·C23-01은 15.34.1). 7.4.7 문구를 15.34.1로 맞춰 주기 바람(낮음 — 계획 4.1 인용 아래 주석으로 우회).
+
+#### 의존성 요청 (동시 개발)
+
+- 없음
+
+#### 계획과 다르게 한 점 (동시 개발)
+
+- 없음
+
+#### 이정표 커밋 (동시 개발)
+
+- 없음
+
+#### 다음 세션 메모
+
+- 기반 단계에서 다른 영역이 보낸 [SYNC] 변경 요청(CORE: B7a switch 자리, INFRA: `functions.yml` 시험 수 검사·`with-heavy-lock`)은 B7a·B7b에서 이미 처리됐다 — 새 할 일 없음.
+- SYNC-F1: S2-10a·S2-10b·S2-11(P-B)을 미루게 되면 이 절에 `미룸 — V13, 빠진 작업(<id>)`을 적는다.
