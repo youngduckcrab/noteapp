@@ -1,14 +1,25 @@
 /// Startup modules and the context they share (docs/plans/01-infra.md 4.5.4,
-/// 6.4).
+/// 6.4; 2nd round docs/plans/m5-7/01-infra.md 4.6.2, 6.4).
 library;
 
+import 'package:feature_editor/feature_editor.dart'
+    show
+        DevOverlaySection,
+        EditorInsertMenuItem,
+        EditorPanelBuilder,
+        EditorSelectionMenuItem;
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:note_core/note_core.dart' show OwnerId;
+import 'package:note_core/note_core.dart' show NoteStore, OwnerId;
 
 import '../errors/app_error_log.dart';
+import '../features/app_features.dart';
 import '../runtime/build_info.dart';
 import '../runtime/runtime_info.dart';
+import '../settings/settings_sections.dart' show SettingsSectionEntry;
 import '../web/web_platform.dart';
+import 'idle_tasks.dart';
 import 'startup_report.dart';
 
 /// One unit of startup work, adapting one workspace package.
@@ -53,6 +64,57 @@ abstract class AppModule {
 
   /// Whether [resetLocalData] may be offered after [start] threw [error].
   bool canResetAfter(Object error) => false;
+
+  /// false → skipped: no start(), no overrides(), no contribution, no idle
+  /// tasks (D2-3). Called by AppBootstrapper right before start(); its own
+  /// time limit is 1 s (timeout → skipped is NOT used: a timeout counts as
+  /// enabled = true so a slow settings read never hides a feature).
+  Future<bool> isEnabled(AppModuleContext context) async => true;
+
+  /// Idle-time work after a successful start (6.5). Called once, after
+  /// overrides().
+  List<AppIdleTask> idleTasks() => const [];
+
+  /// Contribution kept INSTEAD of the module's own when start() failed or
+  /// timed out (non-critical). Default null. MediaModule: the recording panel
+  /// only (계약 7.3.3: '녹음할 수 없어요').
+  ShellContribution? fallbackContribution() => null;
+}
+
+/// What one module adds to INFRA-assembled slots (6.7).
+@immutable
+final class ShellContribution {
+  const ShellContribution({
+    required this.moduleId,
+    this.selectionMenuItems = const [],
+    this.insertMenuItems = const [],
+    this.recordingPanel,
+    this.devOverlaySections = const [],
+    this.settingsSections = const [],
+  });
+
+  final String moduleId;
+  final List<EditorSelectionMenuItem> selectionMenuItems;
+  final List<EditorInsertMenuItem> insertMenuItems;
+  final EditorPanelBuilder? recordingPanel;
+  // (v2.1, D2-15) no imageImporter: image import is wired by
+  // FeatureWiringModule itself, outside FEATURE_MEDIA and independent of
+  // MediaModule's start.
+  final List<DevOverlaySection Function(Ref ref)> devOverlaySections;
+  final List<SettingsSectionEntry> settingsSections;
+
+  /// Whether it fills an editor slot (selection / insert items, panel).
+  bool get hasEditorItems =>
+      selectionMenuItems.isNotEmpty ||
+      insertMenuItems.isNotEmpty ||
+      recordingPanel != null;
+
+  @override
+  String toString() =>
+      'ShellContribution($moduleId: ${selectionMenuItems.length} selection, '
+      '${insertMenuItems.length} insert, '
+      'panel ${recordingPanel == null ? 'no' : 'yes'}, '
+      '${devOverlaySections.length} dev, ${settingsSections.length} settings)';
 }
 
 /// Overrides-only module (no async init), e.g. for tests and simple wiring.
@@ -87,7 +149,11 @@ final class AppModuleContext {
     required this.web,
     required this.ownerId,
     required this.errorLog,
+    this.compileTimeFeatures = AppFeatures.all,
   });
+
+  /// How long resolveFeatures() waits for the three settings reads.
+  static const Duration featureReadTimeout = Duration(milliseconds: 500);
 
   final BuildInfo buildInfo;
   final RuntimeInfo runtimeInfo;
@@ -100,8 +166,87 @@ final class AppModuleContext {
   final OwnerId ownerId;
   final AppErrorLog errorLog;
 
+  /// The build's switches (AppFeatures.compileTime in runNoteApp).
+  final AppFeatures compileTimeFeatures;
+
   final Map<Type, Object> _published = {};
   final Map<String, StartupStepOutcome> _outcomes = {};
+
+  /// By moduleId, in contribution order (= module order).
+  final Map<String, ShellContribution> _contributions = {};
+  final Set<String> _lateLogged = {};
+  Future<AppFeatures>? _features;
+
+  /// compileTimeFeatures AND the developer-menu settings of the NoteStore
+  /// published by CoreModule (all three keys read once, ≤ 500 ms, cached).
+  /// No store / read failure → compileTimeFeatures (failure logged, source
+  /// module).
+  Future<AppFeatures> resolveFeatures() => _features ??= _readFeatures();
+
+  Future<AppFeatures> _readFeatures() async {
+    final store = maybe<NoteStore>();
+    if (store == null) return compileTimeFeatures;
+    try {
+      final values = await Future.wait([
+        for (final feature in AppFeature.values)
+          store.settings.get(AppFeatureKeys.of(feature)),
+      ]).timeout(featureReadTimeout);
+      final menu = AppFeatures(
+        media: values[AppFeature.media.index],
+        recognition: values[AppFeature.recognition.index],
+        mathEngine: values[AppFeature.mathEngine.index],
+      );
+      return compileTimeFeatures.and(menu);
+    } on Object catch (error, stackTrace) {
+      _log(
+        error,
+        stackTrace,
+        'feature switches not read — the build values are used',
+      );
+      return compileTimeFeatures;
+    }
+  }
+
+  /// (await resolveFeatures()).isOn(feature)
+  Future<bool> featureOn(AppFeature feature) async =>
+      (await resolveFeatures()).isOn(feature);
+
+  /// Shell contributions of the modules started so far (6.7). Throws
+  /// StateError for a second contribution of the same moduleId. (v2.1,
+  /// C21-20) Once the bootstrapper has recorded an outcome for that module
+  /// (failed / timed out → abandoned), a late call is ignored and logged once
+  /// (`'late contribution of <moduleId> ignored'`, source module) — it never
+  /// joins FeatureWiringModule's assembly or doubles the fallback
+  /// contribution.
+  void contribute(ShellContribution contribution) {
+    final moduleId = contribution.moduleId;
+    if (_outcomes.containsKey(moduleId)) {
+      if (_lateLogged.add(moduleId)) {
+        errorLog.add(
+          AppErrorRecord(
+            time: DateTime.now(),
+            source: AppErrorSource.module,
+            summary: 'late contribution of $moduleId ignored',
+            details:
+                'outcome ${_outcomes[moduleId]!.name} was recorded before '
+                'contribute()',
+          ),
+        );
+      }
+      return;
+    }
+    if (_contributions.containsKey(moduleId)) {
+      throw StateError('Module "$moduleId" already contributed.');
+    }
+    _contributions[moduleId] = contribution;
+  }
+
+  /// Module order, recorded outcomes only: the contribution of a module that
+  /// started, or the fallback contribution of one that failed.
+  List<ShellContribution> get contributions => List.unmodifiable([
+    for (final MapEntry(:key, :value) in _contributions.entries)
+      if (_outcomes.containsKey(key)) value,
+  ]);
 
   /// Makes [value] available to modules started later.
   /// Throws StateError when a value of type T was already published.
@@ -133,10 +278,43 @@ final class AppModuleContext {
 
   /// Called by AppBootstrapper right after each module (never by modules).
   /// Throws StateError when [moduleId] already has an outcome.
-  void recordOutcome(String moduleId, StartupStepOutcome outcome) {
+  ///
+  /// Any outcome but ok drops what the module contributed during start();
+  /// [fallback] (its fallbackContribution() — failed or timed out only)
+  /// takes that place.
+  void recordOutcome(
+    String moduleId,
+    StartupStepOutcome outcome, {
+    ShellContribution? fallback,
+  }) {
     if (_outcomes.containsKey(moduleId)) {
       throw StateError('Module "$moduleId" already has an outcome.');
     }
+    assert(
+      fallback == null || fallback.moduleId == moduleId,
+      'fallback contribution of "${fallback.moduleId}" recorded for '
+      '"$moduleId"',
+    );
     _outcomes[moduleId] = outcome;
+    if (outcome == StartupStepOutcome.ok) return;
+    _contributions.remove(moduleId);
+    if (fallback != null) _contributions[moduleId] = fallback;
+  }
+
+  void _log(Object error, StackTrace stackTrace, String details) {
+    final record = AppErrorRecord.fromError(
+      error,
+      stackTrace,
+      source: AppErrorSource.module,
+    );
+    errorLog.add(
+      AppErrorRecord(
+        time: record.time,
+        source: record.source,
+        summary: record.summary,
+        details: details,
+        stackTrace: record.stackTrace,
+      ),
+    );
   }
 }

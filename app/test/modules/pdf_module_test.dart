@@ -11,6 +11,7 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
+import 'package:noteapp/src/bootstrap/idle_tasks.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
@@ -19,6 +20,7 @@ import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:pdf_io/pdf_io.dart';
 
 import '../fakes/fake_web_platform.dart';
+import '../fakes/idle_fakes.dart';
 
 final _marker = Provider<String>(
   (ref) => 'default',
@@ -122,5 +124,53 @@ void main() {
       isA<ink.ImageBackgroundLayerBuilder>(),
       isA<ink.TemplateBackgroundLayerBuilder>(),
     ]);
+  });
+
+  group('pdf.searchIndexer idle task (2nd round 4.6.4 — injection seam)', () {
+    test('one task, priority searchIndex, 3 s, queued', () {
+      final tasks = PdfModule(indexer: RecordingIndexer().reader).idleTasks();
+      expect(tasks.map((t) => t.id), ['pdf.searchIndexer']);
+      expect(tasks.single.priority, AppIdlePriority.searchIndex);
+      expect(tasks.single.delay, const Duration(seconds: 3));
+      expect(tasks.single.immediate, isFalse);
+    });
+
+    test('the recording reader: start once, dispose once when the scope '
+        'goes away', () async {
+      final indexer = RecordingIndexer();
+      final success = await _boot(
+        PdfModule(initialize: () async {}, indexer: indexer.reader),
+        AppErrorLog(),
+      );
+      final task = success.idleTasks.single;
+      final context = FakeIdleContext();
+      await task.run(context);
+      expect((indexer.reads, indexer.starts, indexer.disposes), (1, 1, 0));
+      await context.dispose();
+      expect((indexer.reads, indexer.starts, indexer.disposes), (1, 1, 1));
+    });
+
+    test('a start() throw registers no dispose (the runner logs it)', () async {
+      final indexer = RecordingIndexer(startError: StateError('no pool'));
+      final context = FakeIdleContext();
+      final task = PdfModule(indexer: indexer.reader).idleTasks().single;
+      await expectLater(task.run(context), throwsStateError);
+      expect(context.callbacks, isEmpty);
+      await context.dispose();
+      expect(indexer.disposes, 0);
+    });
+
+    test('PDF failed to start: no idle task', () async {
+      final indexer = RecordingIndexer();
+      final success = await _boot(
+        PdfModule(
+          initialize: () async => throw StateError('pdfium missing'),
+          indexer: indexer.reader,
+        ),
+        AppErrorLog(),
+      );
+      expect(success.idleTasks, isEmpty);
+      expect(indexer.reads, 0);
+    });
   });
 }

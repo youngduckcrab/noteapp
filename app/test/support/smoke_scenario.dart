@@ -42,12 +42,14 @@ import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/bootstrap_app.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/features/app_features.dart';
 import 'package:noteapp/src/modules/core_module.dart';
 import 'package:noteapp/src/modules/feature_wiring_module.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
+import 'package:noteapp/src/settings/settings_sections.dart';
 import 'package:noteapp/src/web/web_platform.dart';
 import 'package:pdf_io/pdf_io.dart';
 
@@ -171,6 +173,9 @@ void expectContractOverrides(SmokeApp app) {
     appErrorLogProvider,
     startupReportProvider,
     appBootstrapperProvider,
+    // 2nd round shell rows (m5-7/01-infra 4.6.1 · 4.6.7).
+    appFeaturesProvider,
+    shellContributionsProvider,
     // The packages' own lists, added by FeatureWiringModule (4.5.9).
     for (final o in featureEditorOverrides()) o.origin,
     for (final o in featureLibraryOverrides()) o.origin,
@@ -208,8 +213,9 @@ void expectContractOverrides(SmokeApp app) {
     pdfEditorAddPageSources().map((a) => a.id),
   );
   final sections = c.read(devOverlaySectionsProvider);
-  expect(sections.map((s) => s.id), ['pdf.render']);
-  expect(sections.single.lines.value, hasLength(3));
+  // 2nd round S2-4: search.index is always last.
+  expect(sections.map((s) => s.id), ['pdf.render', 'search.index']);
+  expect(sections.first.lines.value, hasLength(3));
 }
 
 /// Steps 3–8 on the production screens. [banner] is the expected match count

@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 동시 개발 1/11** — 작업 표·문서 정리(C22-09·C23-01) — 아래 '## 2차' > '### 동시 개발'. 그 앞은 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
-- 다음 할 일: '### 동시 개발' 작업 표 순서 — R2-B8a → R2-B8b → J0 → J1~J22(체크포인트 병합 — Q14).
+- 마지막 세션: **2차 동시 개발 1/11** — 작업 표·문서 정리(C22-09·C23-01), **R2-B8a**(앱 셸 v2 연결) — 아래 '## 2차' > '### 동시 개발'. 그 앞은 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
+- 다음 할 일: '### 동시 개발' 작업 표 순서 — R2-B8b → J0 → J1~J22(체크포인트 병합 — Q14; R2-B8a 체크포인트 요청함).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -389,8 +389,8 @@
 | R2-B1 | 기반 단계에서 완료 | `3c77de3` | (위 '### R2-B1') |
 | R2-B2i | 기반 단계에서 완료 | `59ed567` | (위 '### R2-B2i') |
 | R2-final | 기반 단계에서 완료 | `708a1c1` | (위 '### R2-final') |
-| 문서(C22-09) | 완료 | (이 줄의 커밋) | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
-| R2-B8a | 남음 | | `app_features_test`·`app_bootstrapper_test` v2·`idle_tasks_test`·`media_module_test`·`recognition_module_test`·`pdf_module_test` v2·`feature_wiring_module_test` v2·`production_modules_test`·`overrides_unique_test` v2 |
+| 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
+| R2-B8a | 완료 | (이 줄의 커밋) | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
 | R2-B8b | 남음 | | `app_routes_test`·`app_router_test`·`production_screens_test`·`pencil_bridge_test`·`api_surface_test`(pencil)·`pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 3경우) |
 | J0 | 남음 | | `tool/test/native_config_test.dart`, 웹 빌드 측정 표(6.15), CI 실측 표(6.16 — 첫 체크포인트 푸시 뒤, 총괄) |
 | J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
@@ -418,6 +418,21 @@
 | J22 | 남음 | | 마감 확인 묶음(8.2 J22 행) |
 | H1~H8 | 통합 단계 | | (계획 8.3) |
 
+#### R2-B8a — 앱 셸 v2 연결 (계획 8.1b)
+
+- 새 파일(`app/lib/src/`): `features/app_features.dart`(4.6.1 — 섹션 UI 제외), `bootstrap/idle_tasks.dart`(4.6.2 — `AppIdlePriority`·`AppIdleTask`·`AppIdleContext`·`AppIdleTaskRunner`), `modules/idle_indexers.dart`, `modules/media_module.dart`, `modules/recognition_module.dart`, `modules/media_wiring.dart`, `modules/recognition_wiring.dart`, `modules/search_wiring.dart`.
+- 바꾼 파일: `AppModule`(`isEnabled`·`idleTasks`·`fallbackContribution`), `AppModuleContext`(`compileTimeFeatures`·`resolveFeatures`·`featureOn`·`contribute`·`contributions`), `ShellContribution`, `StartupStepOutcome.skipped`, `BootstrapSuccess`(`idleTasks`·`contributions`·`features`), `AppBootstrapper(features:)`, `BootstrapApp`(ProviderScope → AppLifecycleBridge → **AppIdleTaskRunner** → 앱, `runNoteApp`은 `AppFeatures.compileTime`), `PdfModule(indexer:)`·`pdf.searchIndexer`, `FeatureWiringModule` v2(기여 합치기·이미지 가져오기 직접·개발자 표시 `[pdf.render?, media?, recog.indexer?, search.index]`), `productionModules()`(5개, `if (kFeature*)`)·`modulesFor`, `shellContributionsProvider`·`defaultSettingsSections(contributed:)`.
+- 다른 영역 2차 구현은 기반 단계 표면이다: `supportedImageSources()` = 빈 집합이라 실제 앱에는 아직 `editorImageImporterProvider` override가 없다(가짜 주입 시험으로 확인), `recognitionSelectionActions()`·`recognitionInsertActions()` = 빈 목록, `mediaIoOverrides()` = 빈 목록. 실제 패키지 사례는 H2.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` | 0건 |
+| `ws check` (R1–R16) | 0 |
+| `ws test --package noteapp` (VM — `flutter test`) | 360 통과 · 1 건너뜀(V5) |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 147초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 33초 |
+| `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 110초 |
+
 #### 변경 요청
 
 - 없음
@@ -428,6 +443,16 @@
 
 #### 계획과 다르게 한 점
 
+- (R2-B8a) `AppModuleContext.recordOutcome`에 이름 있는 인자 `fallback:`을 더했다(계획 4.6.2는 '1차 그대로'). 실패·시간 초과 결과를 기록하는 순간 그 모듈의 기여를 지우고 대체 기여를 같은 자리에 넣어야 해서다 — 부트스트래퍼만 부른다.
+- (R2-B8a) `appFeaturesProvider`·`shellContributionsProvider`는 `BootstrapApp`이 아니라 `AppBootstrapper`의 셸 override 묶음(`BootstrapSuccess.overrides` 앞부분)에 넣었다 — `BootstrapApp`은 그 목록을 그대로 쓰므로 결과는 같고, `overrides_unique_test`가 한 곳에서 본다. 셸 override는 6개 → 8개.
+- (R2-B8a) J6 몫 일부를 당겨 했다: 30초 넘는 작업 기록 1줄, 정리 뒤 늦은 `onDispose` 등록은 바로 호출. J6에는 `BootstrapApp` 재시도 때 이전 실행기 정리가 새 scope 전에 끝나는 순서와 `bootstrap_app_test`가 남는다.
+- (R2-B8a) J9 몫의 연결 함수(`recognition_wiring.dart`·`media_wiring.dart`·`search_wiring.dart`)는 모듈이 쓰므로 본문까지 만들었다. J9에는 각 함수의 전용 시험(`recognition_wiring_test`·`media_wiring_test`·`search_wiring_test`)과 '같은 id 메뉴 항목 → assert + 기록, 뒤의 것 버림' 규칙이 남는다(지금은 그대로 이어 붙임).
+- (R2-B8a) `media.recoverDrafts`의 본문(`recoverPendingRecordings` — `startedAt` 오름차순, 실패 기록 후 다음)은 만들었고, `media.leaveGuard`는 빈 본문이다(`WebPlatform.setLeaveGuard`가 J7). 복구 시험(`FakeAudioRecorder.abandon()`)은 J7.
+- (R2-B8a) 계획 시그니처에 없는 앱 내부 보조 이름: `ShellContribution.hasEditorItems`·`toString`, `AppModuleContext.featureReadTimeout`(500 ms), `MediaModule.lateStartWait`(10 s), `RecognitionModule.config`(시험용 읽기), `SearchIndexLines`·`formatSearchIndexStatus`(줄 형식 '대기 n · 재구축 중|대기 · 마지막 재구축 MM-dd HH:mm:ss|없음'). 앱 셸 내부라 계약 표면이 아니다.
+- (R2-B8a) `MATH_ENDPOINT` 검사: `Uri.tryParse`가 되고 `http`/`https`이고 host가 있어야 쓴다. 아니면 null + 기록 1건(`details` = 원래 값).
+- (R2-B8a) `idle_tasks_test`에서 Flutter 시험 바인딩의 `pump()`는 0초 타이머(`Timer.run` — 스케줄러 작업 루프)를 돌리지 않아 `pump(Duration.zero)`를 쓴다. 한 시험이 `scheduleTask`를 남긴 채 끝나면 바인딩의 작업 루프가 다음 시험에서 멈추므로(관찰함) 시험마다 끝까지 흘려보낸다.
+- (R2-B8a) 1차 V5 스모크(`test/support/smoke_scenario.dart`)의 기대값을 셸 행 2개와 `search.index` 섹션만큼 고쳤다(V5 v2는 J19).
+- (R2-B8a) J5의 `app_module_context_test`(설정 읽기 500 ms 초과·캐시 1회)는 아직 없다 — 기능 해석의 기본 사례는 `app_bootstrapper_test`의 2차 묶음에 있다.
 - (문서) C23-01의 'INFRA(CI·functions.yml 고정값 확인)': `functions.yml`에는 판 문자열이 없다(`functions/package.json` devDependency를 `npm ci`로). 1차 고정값이 남아 있던 `ci.yml`·`web-experiment.yml` 배포 단계 `firebaseToolsVersion`을 15.34.1로 내렸다(계약 7.5 표 '(도구) firebase-tools 15.34.1 — CI').
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
@@ -445,7 +470,10 @@
 #### 이정표 커밋
 
 - 체크포인트 병합 요청(INFRA-F3, Q14): R2-B8a·R2-B8b·J0 끝마다 결과 보고에 적는다.
+- **R2-B8a 체크포인트**: 이 표의 R2-B8a 커밋 — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
 
 #### 다음 세션 메모
 
-- 다음: R2-B8a(계획 8.1b — 약 1.5세션).
+- 다음: R2-B8b(계획 8.1b ①~③ — 라우팅 `?page=&focus=`, `pencil_bridge` Dart 표면, `PencilStylusExtrasSource`·`PencilPort`·`FeatureWiringModule` Pencil override). EDITOR 요청: `StylusExtrasSource.capabilities`, 이벤트 `timestamp`, `EditorScreen(initialFocusRectPt:)`.
+- 그다음 J0(①② 네이티브 설정·`native_config` 정적 시험, ③ 웹 빌드 실측 — 잠금 안, ④ CI 실측은 첫 체크포인트 푸시 뒤 총괄).
+- 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에 적었다.

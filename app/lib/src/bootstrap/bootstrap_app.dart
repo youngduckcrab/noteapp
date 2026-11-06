@@ -16,11 +16,13 @@ import '../errors/app_error_log.dart';
 import '../errors/app_provider_observer.dart';
 import '../errors/diagnostic_report.dart';
 import '../errors/error_handlers.dart';
+import '../features/app_features.dart';
 import '../modules/production_modules.dart';
 import '../runtime/build_info.dart';
 import '../runtime/runtime_info.dart';
 import '../web/web_platform.dart';
 import 'app_bootstrapper.dart';
+import 'idle_tasks.dart';
 import 'splash_view.dart';
 import 'startup_error_screen.dart';
 
@@ -28,7 +30,8 @@ import 'startup_error_screen.dart';
 ///
 /// Splash while the bootstrapper runs; on success
 /// `ProviderScope(key: ValueKey(attempt), overrides, observers:
-/// [AppProviderObserver(errorLog)])` → AppLifecycleBridge → [appBuilder]; on
+/// [AppProviderObserver(errorLog)])` → AppLifecycleBridge →
+/// AppIdleTaskRunner(success.idleTasks) → [appBuilder] (2nd round 6.5.1); on
 /// failure the StartupErrorScreen. "다시 시도" awaits the old bootstrapper's
 /// shutdown() before it creates the next one; "데이터 지우기" does
 /// shutdown() → resetLocalData() → retry.
@@ -153,7 +156,12 @@ class _BootstrapAppState extends State<BootstrapApp> {
         overrides: success.overrides,
         observers: [AppProviderObserver(widget.errorLog)],
         child: AppLifecycleBridge(
-          child: (widget.appBuilder ?? _defaultApp)(success),
+          child: AppIdleTaskRunner(
+            tasks: success.idleTasks,
+            errorLog: widget.errorLog,
+            web: _bootstrapper.web,
+            child: (widget.appBuilder ?? _defaultApp)(success),
+          ),
         ),
       ),
       final BootstrapFailure failure => _ShellFrame(
@@ -240,6 +248,7 @@ Future<void> runNoteApp({
             web: web,
             errorLog: errorLog,
             ownerId: kLocalOwnerId,
+            features: AppFeatures.compileTime,
           ),
       errorLog: errorLog,
     ),

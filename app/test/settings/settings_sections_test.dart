@@ -6,6 +6,7 @@ import 'package:feature_library/feature_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/settings/about_section.dart';
 import 'package:noteapp/src/settings/settings_sections.dart';
 import 'package:noteapp/src/settings/storage_section.dart';
@@ -51,6 +52,42 @@ void main() {
     expect(
       container.read(settingsSectionsProvider).map((e) => e.id),
       defaultSettingsSections().map((e) => e.id),
+    );
+  });
+
+  test('2nd round S2-9: contributed sections go after library.newNote, in '
+      'contribution order (settingsSectionsProvider reads '
+      'shellContributionsProvider)', () {
+    SettingsSectionEntry entry(String id) => SettingsSectionEntry(
+      id: id,
+      title: id,
+      builder: (_) => const SizedBox(),
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        shellContributionsProvider.overrideWithValue([
+          const ShellContribution(moduleId: 'media'),
+          ShellContribution(
+            moduleId: 'recognition',
+            settingsSections: [entry('recog.settings'), entry('recog.more')],
+          ),
+        ]),
+      ],
+    );
+    expect(container.read(settingsSectionsProvider).map((e) => e.id), [
+      'app.storage',
+      'editor.input',
+      'editor.pen',
+      'editor.page',
+      'library.newNote',
+      'recog.settings',
+      'recog.more',
+      'editor.developer',
+      'app.about',
+    ]);
+    expect(
+      () => defaultSettingsSections(contributed: [entry('app.storage')]),
+      throwsA(isA<AssertionError>()),
     );
   });
 

@@ -3,12 +3,16 @@
 // export slots, editor extensions, PDF render stats section — PDF parts only
 // when the PDF module started. Containers hold the module overrides only
 // (no test override of pdfRenderStatsProvider, INFRA-3-2 / C12-06).
+// 2nd round (docs/plans/m5-7/01-infra.md 4.6.4, 6.7): contributions merged
+// into the editor slots, image import outside FEATURE_MEDIA, dev overlay
+// [pdf.render?, media?, recog.indexer?, search.index].
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
+import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
@@ -16,13 +20,17 @@ import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/modules/core_module.dart';
 import 'package:noteapp/src/modules/feature_wiring_module.dart';
+import 'package:noteapp/src/modules/media_wiring.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
 import 'package:noteapp/src/modules/pdf_wiring.dart';
+import 'package:noteapp/src/modules/recognition_wiring.dart';
+import 'package:noteapp/src/modules/search_wiring.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:pdf_io/pdf_io.dart';
 
 import '../fakes/counting_note_store.dart';
+import '../fakes/fake_app_module.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_pdf_actions.dart';
 import '../fakes/fake_web_platform.dart';
@@ -32,6 +40,8 @@ import '../fakes/fake_web_platform.dart';
 Future<(ProviderContainer, BootstrapSuccess)> _boot(
   FeatureWiringModule wiring, {
   bool pdfFails = false,
+  List<AppModule> between = const [],
+  AppErrorLog? log,
 }) async {
   final web = FakeWebPlatform();
   final store = CountingNoteStore();
@@ -43,12 +53,13 @@ Future<(ProviderContainer, BootstrapSuccess)> _boot(
         PdfModule(initialize: () async => throw StateError('no pdfium'))
       else
         PdfModule(),
+      ...between,
       wiring,
     ],
     buildInfo: BuildInfo.local,
     runtimeInfo: RuntimeInfo.detect(web),
     web: web,
-    errorLog: AppErrorLog(),
+    errorLog: log ?? AppErrorLog(),
     ownerId: kLocalOwnerId,
   );
   addTearDown(bootstrapper.shutdown);
@@ -56,11 +67,20 @@ Future<(ProviderContainer, BootstrapSuccess)> _boot(
   return (ProviderContainer.test(overrides: success.overrides), success);
 }
 
-FeatureWiringModule _wiring(FakePdfActions pdf) => FeatureWiringModule(
+final _importer = EditorImageImporter(
+  sources: const {ImageImportSource.files, ImageImportSource.photos},
+  pick: (context, source) async => null,
+);
+
+FeatureWiringModule _wiring(
+  FakePdfActions pdf, {
+  EditorImageImporter? importer,
+}) => FeatureWiringModule(
   importPdf: pdf.importPdf,
   exportPdf: pdf.exportPdf,
   moreMenuActions: pdf.moreMenuActions,
   addPageActions: pdf.addPageActions,
+  imageImporter: () => importer,
 );
 
 void main() {
@@ -123,12 +143,12 @@ void main() {
       expect(extensions.appBarTrailing, isNull);
     });
 
-    test('dev overlay: one pdf.render section whose lines read without an '
-        'exception — the B4 zero stats, three lines', () async {
+    test('dev overlay: pdf.render whose lines read without an exception — '
+        'the B4 zero stats, three lines — then search.index', () async {
       final (container, _) = await _boot(_wiring(FakePdfActions()));
       final sections = container.read(devOverlaySectionsProvider);
-      expect(sections.map((s) => s.id), ['pdf.render']);
-      final section = sections.single;
+      expect(sections.map((s) => s.id), ['pdf.render', 'search.index']);
+      final section = sections.first;
       expect(section.title, 'PDF 렌더');
       expect(section.lines.value, hasLength(3));
       expect(section.lines.value, formatPdfRenderStats(PdfRenderStats.zero));
@@ -161,7 +181,7 @@ void main() {
           extensions.addPageSources.map((i) => i.id),
           pdfEditorAddPageSources().map((a) => a.id),
         );
-        expect(container.read(devOverlaySectionsProvider), hasLength(1));
+        expect(container.read(devOverlaySectionsProvider), hasLength(2));
       },
     );
   });
@@ -192,7 +212,9 @@ void main() {
     final extensions = container.read(editorExtensionsProvider);
     expect(extensions.moreMenuItems, isEmpty);
     expect(extensions.addPageSources, isEmpty);
-    expect(container.read(devOverlaySectionsProvider), isEmpty);
+    expect(container.read(devOverlaySectionsProvider).map((s) => s.id), [
+      'search.index',
+    ]);
     expect(moreMenuCalls, 0);
     expect(
       container.read(pageThumbnailRendererProvider),
@@ -201,7 +223,7 @@ void main() {
   });
 
   test('overrides(): feature package lists first, then the thumbnail '
-      'renderer, then the four PDF rows', () async {
+      'renderer, the PDF rows, then the dev overlay (always)', () async {
     AppModuleContext context({required bool pdfOk}) {
       final web = FakeWebPlatform();
       final ctx = AppModuleContext(
@@ -234,9 +256,258 @@ void main() {
 
     final withoutPdf = _wiring(FakePdfActions());
     await withoutPdf.start(context(pdfOk: false));
+    expect(withoutPdf.overrides().map((o) => o.origin), [
+      ...origins.take(features.length + 1),
+      devOverlaySectionsProvider,
+    ]);
+
+    // With an image importer: right after the editor extensions.
+    final withImages = _wiring(FakePdfActions(), importer: _importer);
+    await withImages.start(context(pdfOk: true));
+    expect(withImages.overrides().map((o) => o.origin), [
+      ...origins.take(features.length + 4),
+      editorImageImporterProvider,
+      devOverlaySectionsProvider,
+    ]);
+  });
+
+  group('2nd round: contributions', () {
+    EditorSelectionMenuItem selection(String id) => EditorSelectionMenuItem(
+      id: id,
+      label: id,
+      icon: Icons.text_fields,
+      onSelected: (context, s) async {},
+    );
+    EditorInsertMenuItem insert(String id) => EditorInsertMenuItem(
+      id: id,
+      label: id,
+      icon: Icons.functions,
+      onSelected: (context, s) async {},
+    );
+    Widget panel(BuildContext context, EditorPanelContext p) =>
+        const SizedBox();
+
+    FakeAppModule contributing(String id, ShellContribution contribution) =>
+        FakeAppModule(
+          id: id,
+          critical: false,
+          onStart: (c) => c.contribute(contribution),
+        );
+
+    test('none (PDF failed, no media / recognition): no editor extensions '
+        'override at all', () async {
+      final (container, success) = await _boot(
+        _wiring(FakePdfActions()),
+        pdfFails: true,
+      );
+      expect(
+        success.overrides.map((o) => o.origin),
+        isNot(contains(editorExtensionsProvider)),
+      );
+      expect(
+        container.read(editorExtensionsProvider),
+        const EditorExtensions(),
+      );
+    });
+
+    test('one (media): the recording panel, even when PDF failed; the media '
+        'dev section before search.index', () async {
+      final (container, _) = await _boot(
+        _wiring(FakePdfActions()),
+        pdfFails: true,
+        between: [
+          contributing(
+            'media',
+            ShellContribution(
+              moduleId: 'media',
+              recordingPanel: panel,
+              devOverlaySections: const [mediaDevOverlaySection],
+            ),
+          ),
+        ],
+      );
+      final extensions = container.read(editorExtensionsProvider);
+      expect(extensions.recordingPanel, panel);
+      expect(extensions.moreMenuItems, isEmpty);
+      expect(extensions.selectionMenuItems, isEmpty);
+      expect(
+        container.read(devOverlaySectionsProvider).map((s) => (s.id, s.title)),
+        [('media', '녹음'), ('search.index', '검색 색인')],
+      );
+    });
+
+    test('two (media, recognition) with PDF: items merged in module order, '
+        'PDF menus kept; dev overlay [pdf.render, media, recog.indexer, '
+        'search.index]', () async {
+      final toText = selection('recog.toText');
+      final toMath = selection('recog.toMath');
+      final mathPad = insert('recog.mathPad');
+      final (container, success) = await _boot(
+        _wiring(
+          FakePdfActions(
+            moreMenuIds: ['pdf.export'],
+            addPageIds: ['pdf.insert'],
+          ),
+        ),
+        between: [
+          contributing(
+            'media',
+            ShellContribution(
+              moduleId: 'media',
+              recordingPanel: panel,
+              devOverlaySections: const [mediaDevOverlaySection],
+            ),
+          ),
+          contributing(
+            'recognition',
+            ShellContribution(
+              moduleId: 'recognition',
+              selectionMenuItems: [toText, toMath],
+              insertMenuItems: [mathPad],
+              devOverlaySections: const [recognitionIndexerSection],
+            ),
+          ),
+        ],
+      );
+      expect(success.contributions.map((c) => c.moduleId), [
+        'media',
+        'recognition',
+      ]);
+      final extensions = container.read(editorExtensionsProvider);
+      expect(extensions.moreMenuItems.map((i) => i.id), ['pdf.export']);
+      expect(extensions.addPageSources.map((i) => i.id), ['pdf.insert']);
+      expect(extensions.selectionMenuItems, [same(toText), same(toMath)]);
+      expect(extensions.insertMenuItems, [same(mathPad)]);
+      expect(extensions.recordingPanel, panel);
+      expect(extensions.appBarTrailing, isNull);
+      expect(container.read(devOverlaySectionsProvider).map((s) => s.id), [
+        'pdf.render',
+        'media',
+        'recog.indexer',
+        'search.index',
+      ]);
+    });
+
+    test('a contribution of a module that failed is not merged (only its '
+        'fallback is)', () async {
+      final (container, _) = await _boot(
+        _wiring(FakePdfActions()),
+        pdfFails: true,
+        between: [
+          FakeAppModule(
+            id: 'recognition',
+            critical: false,
+            startError: StateError('no engine'),
+            onStart: (c) => c.contribute(
+              ShellContribution(
+                moduleId: 'recognition',
+                selectionMenuItems: [selection('recog.toText')],
+              ),
+            ),
+          ),
+          FakeAppModule(
+            id: 'media',
+            critical: false,
+            startError: StateError('no mic'),
+            fallback: ShellContribution(
+              moduleId: 'media',
+              recordingPanel: panel,
+            ),
+          ),
+        ],
+      );
+      final extensions = container.read(editorExtensionsProvider);
+      expect(extensions.selectionMenuItems, isEmpty);
+      expect(extensions.recordingPanel, panel);
+      expect(container.read(devOverlaySectionsProvider).map((s) => s.id), [
+        'search.index',
+      ]);
+    });
+  });
+
+  group('2nd round: image import (outside FEATURE_MEDIA, D2-15)', () {
+    test('the injected importer is wired even when media is off and PDF '
+        'failed', () async {
+      final (container, _) = await _boot(
+        _wiring(FakePdfActions(), importer: _importer),
+        pdfFails: true,
+      );
+      expect(container.read(editorImageImporterProvider), same(_importer));
+    });
+
+    test('media failed to start: the importer stays', () async {
+      final (container, _) = await _boot(
+        _wiring(FakePdfActions(), importer: _importer),
+        between: [
+          FakeAppModule(
+            id: 'media',
+            critical: false,
+            startError: StateError('no mic'),
+          ),
+        ],
+      );
+      expect(container.read(editorImageImporterProvider), same(_importer));
+    });
+
+    test(
+      'no sources (importer null) → no override, image insert hidden',
+      () async {
+        final (container, success) = await _boot(
+          _wiring(FakePdfActions(), importer: null),
+        );
+        expect(
+          success.overrides.map((o) => o.origin),
+          isNot(contains(editorImageImporterProvider)),
+        );
+        expect(container.read(editorImageImporterProvider), isNull);
+      },
+    );
+
+    test('the default: mediaImageImporterOrNull() — media_io has no sources '
+        'before PDF\'s image work, so no override yet', () async {
+      expect(mediaImageImporterOrNull(), isNull);
+      final (container, _) = await _boot(FeatureWiringModule());
+      expect(container.read(editorImageImporterProvider), isNull);
+    });
+
+    test(
+      'an importer that throws → logged (source module), no override',
+      () async {
+        final log = AppErrorLog();
+        final (container, success) = await _boot(
+          FeatureWiringModule(
+            importPdf: FakePdfActions().importPdf,
+            imageImporter: () => throw StateError('picker broken'),
+          ),
+          log: log,
+        );
+        expect(success.report.steps.last.outcome, StartupStepOutcome.ok);
+        expect(container.read(editorImageImporterProvider), isNull);
+        expect(log.records.single.source, AppErrorSource.module);
+        expect(log.records.single.summary, contains('picker broken'));
+      },
+    );
+  });
+
+  test('search.index lines follow the store status (CORE fake: no rebuild '
+      'yet)', () async {
+    final (container, _) = await _boot(_wiring(FakePdfActions()));
+    final section = container
+        .read(devOverlaySectionsProvider)
+        .singleWhere((s) => s.id == 'search.index');
+    expect(section.title, '검색 색인');
+    await Future<void>.delayed(Duration.zero);
+    expect(section.lines.value, hasLength(1));
+    expect(section.lines.value.single, startsWith('대기 0 · '));
     expect(
-      withoutPdf.overrides().map((o) => o.origin),
-      origins.take(features.length + 1),
+      formatSearchIndexStatus(const SearchIndexStatus()).single,
+      '대기 0 · 대기 · 마지막 재구축 없음',
+    );
+    expect(
+      formatSearchIndexStatus(
+        const SearchIndexStatus(pendingOwners: 3, rebuilding: true),
+      ).single,
+      '대기 3 · 재구축 중 · 마지막 재구축 없음',
     );
   });
 }
