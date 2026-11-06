@@ -300,7 +300,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-09 (P-B) | 남음 | | `unit/mixed_language_test.dart` |
 | L2-10a | 완료 | 598eb97 | `unit/indexer_test.dart`(+ `unit/fakes_test.dart`'RecognizerModelAdmin'·`unit/api_surface_test.dart`·`ink_recognition_smoke_test.dart` 갱신), 시험 도우미 `test/support/recording_store.dart`·`indexer_harness.dart` |
 | L2-10b | 완료 | f5d826f | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`('line reuse and confirmed lines' 묶음), `unit/catch_up_test.dart` |
-| L2-11 | 완료 | (다음 기록 커밋에 해시) | `unit/indexer_provider_test.dart` |
+| L2-11 | 완료 | 3602043 | `unit/indexer_provider_test.dart` |
 | L2-12 | 남음 | | `unit/recognition_actions_test.dart`, `unit/object_builders_test.dart` |
 | L2-13 | 남음 | | `widget/latex_editor_sheet_test.dart`, `unit/recognition_actions_test.dart` |
 | L2-14 | 남음 | | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart` |
@@ -367,9 +367,9 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 - `bb5bf30`(L2-07): `recognitionOverrides()`가 **정확히 3개**(손글씨 엔진·수식 엔진·`inkShapeFitterProvider` → `GeometricShapeFitter`)를 낸다 — INFRA V5의 'provider 출처·횟수' 단언 기준. 한 컨테이너에서 같은 provider를 두 번 override할 수 없으므로, `recognitionOverrides()`와 함께 가짜 엔진을 넣는 시험은 그 한 개를 `.origin`으로 빼고 넣는다(`ink_recognition_smoke_test` 참고). `GeometricShapeFitter.fit`은 L2-06까지 늘 null이라 자동 도형 보정은 아직 바꾸지 않는다(EDITOR 토글은 `NoShapeFitter`가 아니므로 보인다).
 - `af9d262`(L2-03): `LibraryScreen`이 내용 검색 결과 행에서 `onOpenNoteAt(noteId, pageId, 합집합 Rect?)`를 실제로 부른다(`onOpenNoteAt == null`이면 `onOpenNote`). INFRA V5의 '위치로 열기'·라우팅 `?page=&focus=`가 이 커밋부터 LIBRARY 쪽 호출을 받는다.
 
-- L2-11: `handwritingIndexerProvider`의 색인기가 `recog.autoIndex`를 따른다 — INFRA V5·설정 섹션에서 '자동 인식' 켬 → `start()`된 색인기가 `disabled` → `idle`(따라잡기 포함). 개발자 표시 `recog.indexer` 섹션은 `recognitionDevOverlayLinesProvider`의 4줄을 그대로 보이면 된다.
-- L2-10b: 색인기 따라잡기(`notesWithStalePages`)가 `start()`·다시 켤 때 돈다 — INFRA 유휴 작업이 `start()`를 부르면(켜져 있을 때) 한 질의로 낡은 페이지를 대기열 뒤에 넣는다. L2-15 변환 창은 `line_reuse.dart` `mergeConfirmed`를 `update` 안에서 쓴다.
-- L2-10a: `HandwritingIndexer.start()`가 실제로 돈다(변경 구독·조용해질 때·작업·쓰기 `update`). INFRA 유휴 작업 `recognition.indexer`가 부르면 구독을 시작하지만, provider의 `enabled`는 L2-11 전까지 거짓이라 `disabled`에 머문다. `foreground:` 없이 만든 색인기의 `start()`는 위젯 바인딩이 필요하다(앱은 있음).
+- `3602043`(L2-11): `handwritingIndexerProvider`의 색인기가 `recog.autoIndex`를 따른다 — INFRA V5·설정 섹션에서 '자동 인식' 켬 → `start()`된 색인기가 `disabled` → `idle`(따라잡기 포함). 개발자 표시 `recog.indexer` 섹션은 `recognitionDevOverlayLinesProvider`의 4줄을 그대로 보이면 된다.
+- `f5d826f`(L2-10b): 색인기 따라잡기(`notesWithStalePages`)가 `start()`·다시 켤 때 돈다 — INFRA 유휴 작업이 `start()`를 부르면(켜져 있을 때) 한 질의로 낡은 페이지를 대기열 뒤에 넣는다. L2-15 변환 창은 `line_reuse.dart` `mergeConfirmed`를 `update` 안에서 쓴다.
+- `598eb97`(L2-10a): `HandwritingIndexer.start()`가 실제로 돈다(변경 구독·조용해질 때·작업·쓰기 `update`). INFRA 유휴 작업 `recognition.indexer`가 부르면 구독을 시작하지만, provider의 `enabled`는 L2-11 전까지 거짓이라 `disabled`에 머문다. `foreground:` 없이 만든 색인기의 `start()`는 위젯 바인딩이 필요하다(앱은 있음).
 
 #### 세션 끝 확인 (세션 1, 2026-11-06, `af9d262` 위)
 
@@ -379,7 +379,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 
 `ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**(L2-04 뒤 — 그 뒤 `feature_library` 변경 없음), `--platform chrome` **18 통과**, `ws test --package ink_recognition --platform vm` **108 통과**, `--platform chrome` **21 통과**(L2-07 뒤).
 
-#### 세션 끝 확인 (세션 3, 2026-11-06, L2-11 커밋 위)
+#### 세션 끝 확인 (세션 3, 2026-11-06, `3602043` 위)
 
 `ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package ink_recognition --platform vm` **181 통과**, `--platform chrome` **21 통과**, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**, `--platform chrome` **18 통과**(이번 세션 `feature_library` 변경 없음).
 
