@@ -81,6 +81,10 @@ abstract interface class AppIdleContext {
 /// null (hidden / paused / detached → wait — the web sends inactive on window
 /// blur, iPad shows system pickers as inactive). A task's throw → errorLog
 /// (source module, summary `'idle task <id> failed'`), the next runs.
+///
+/// [cleanup] (app shell, J6): when given, the runner's dispose hands its
+/// clean-up (the onDispose callbacks) to it, so the owner can wait for it
+/// before it stops the modules or builds the next scope.
 class AppIdleTaskRunner extends StatefulWidget {
   const AppIdleTaskRunner({
     super.key,
@@ -88,15 +92,42 @@ class AppIdleTaskRunner extends StatefulWidget {
     required this.errorLog,
     required this.web,
     required this.child,
+    this.cleanup,
   });
 
   final List<AppIdleTask> tasks;
   final AppErrorLog errorLog;
   final WebPlatform web;
   final Widget child;
+  final AppIdleCleanup? cleanup;
 
   @override
   State<AppIdleTaskRunner> createState() => _AppIdleTaskRunnerState();
+}
+
+/// The clean-ups of disposed [AppIdleTaskRunner]s that have not finished
+/// (BootstrapApp, 6.5.1 ⑤ — the indexers' dispose ends before the modules
+/// stop and before a new scope starts). Each clean-up is bounded (every
+/// callback ≤ 2 s) and never throws.
+final class AppIdleCleanup {
+  final Set<Future<void>> _pending = {};
+
+  /// Tracks [closing] until it completes.
+  void add(Future<void> closing) {
+    _pending.add(closing);
+    unawaited(closing.whenComplete(() => _pending.remove(closing)));
+  }
+
+  /// No clean-up is running.
+  bool get isIdle => _pending.isEmpty;
+
+  /// Completes when every clean-up added so far has finished (at once when
+  /// none is running).
+  Future<void> get done async {
+    while (_pending.isNotEmpty) {
+      await Future.wait(_pending.toList());
+    }
+  }
 }
 
 /// How long one task may run before a note goes to the error log (it is
@@ -133,7 +164,15 @@ class _AppIdleTaskRunnerState extends State<AppIdleTaskRunner>
     _visible = null;
     if (visible != null && !visible.isCompleted) visible.complete();
     final context = _context;
-    if (context != null) unawaited(context.close());
+    if (context != null) {
+      final closing = context.close();
+      final cleanup = widget.cleanup;
+      if (cleanup != null) {
+        cleanup.add(closing);
+      } else {
+        unawaited(closing);
+      }
+    }
     super.dispose();
   }
 

@@ -1,6 +1,8 @@
 // AppIdleTaskRunner (docs/plans/m5-7/01-infra.md 4.6.2, 6.5.1; contract
 // 7.3.3 (v2.1) '시점과 순서'). Widget tests: the time is the tester's fake
-// clock, the lifecycle state is driven through the binding.
+// clock, the lifecycle state is driven through the binding. J6: the runner
+// hands its clean-up to an AppIdleCleanup (BootstrapApp waits for it before
+// the modules stop — bootstrap_app_test).
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -42,22 +44,26 @@ final class _Rig {
     },
   );
 
-  Future<void> pump(WidgetTester tester, List<AppIdleTask> tasks) =>
-      tester.pumpWidget(
-        ProviderScope(
-          child: AppIdleTaskRunner(
-            tasks: tasks,
-            errorLog: errorLog,
-            web: FakeWebPlatform(),
-            child: Builder(
-              builder: (context) {
-                log.add('build');
-                return const SizedBox();
-              },
-            ),
-          ),
+  Future<void> pump(
+    WidgetTester tester,
+    List<AppIdleTask> tasks, {
+    AppIdleCleanup? cleanup,
+  }) => tester.pumpWidget(
+    ProviderScope(
+      child: AppIdleTaskRunner(
+        tasks: tasks,
+        errorLog: errorLog,
+        web: FakeWebPlatform(),
+        cleanup: cleanup,
+        child: Builder(
+          builder: (context) {
+            log.add('build');
+            return const SizedBox();
+          },
         ),
-      );
+      ),
+    ),
+  );
 }
 
 Future<void> _lifecycle(WidgetTester tester, AppLifecycleState state) async {
@@ -336,5 +342,100 @@ void main() {
     rig.gates['first']!.complete();
     await tester.pump(const Duration(seconds: 10));
     expect(rig.log, ['build', 'run:first', 'done:first']);
+  });
+
+  group('AppIdleCleanup (J6)', () {
+    testWidgets('dispose hands the clean-up to it: not idle until the last '
+        'onDispose callback ended; done completes then', (tester) async {
+      final rig = _Rig();
+      final cleanup = AppIdleCleanup();
+      final calls = <String>[];
+      final slow = Completer<void>();
+      await rig.pump(tester, [
+        AppIdleTask(
+          id: 'x.index',
+          priority: AppIdlePriority.searchIndex,
+          immediate: true,
+          run: (c) async {
+            c.onDispose(() async {
+              await slow.future;
+              calls.add('slow');
+            });
+            c.onDispose(() => calls.add('fast'));
+          },
+        ),
+      ], cleanup: cleanup);
+      await _settle(tester);
+      expect(cleanup.isIdle, isTrue);
+
+      await tester.pumpWidget(const SizedBox());
+      expect(cleanup.isIdle, isFalse);
+      var done = false;
+      unawaited(cleanup.done.then((_) => done = true));
+      await _settle(tester);
+      expect(calls, ['fast']);
+      expect(done, isFalse);
+      slow.complete();
+      await _settle(tester);
+      expect(calls, ['fast', 'slow']);
+      expect(done, isTrue);
+      expect(cleanup.isIdle, isTrue);
+    });
+
+    testWidgets('a hanging callback: done after the 2 s limit (logged)', (
+      tester,
+    ) async {
+      final rig = _Rig();
+      final cleanup = AppIdleCleanup();
+      await rig.pump(tester, [
+        AppIdleTask(
+          id: 'x.hang',
+          priority: AppIdlePriority.searchIndex,
+          immediate: true,
+          run: (c) async => c.onDispose(() => Completer<void>().future),
+        ),
+      ], cleanup: cleanup);
+      await _settle(tester);
+      await tester.pumpWidget(const SizedBox());
+      var done = false;
+      unawaited(cleanup.done.then((_) => done = true));
+      await tester.pump(const Duration(milliseconds: 1999));
+      expect(done, isFalse);
+      await tester.pump(const Duration(milliseconds: 1));
+      await _settle(tester);
+      expect(done, isTrue);
+      expect(rig.errorLog.records, hasLength(1));
+    });
+
+    test('done at once when nothing runs; it also waits for a clean-up added '
+        'while it waits', () async {
+      final cleanup = AppIdleCleanup();
+      await cleanup.done;
+      final first = Completer<void>();
+      final second = Completer<void>();
+      cleanup.add(first.future);
+      var done = false;
+      unawaited(cleanup.done.then((_) => done = true));
+      cleanup.add(second.future);
+      first.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(done, isFalse);
+      second.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(done, isTrue);
+      expect(cleanup.isIdle, isTrue);
+    });
+
+    testWidgets('disposed before its queued task started: the task never '
+        'runs, the clean-up ends at once', (tester) async {
+      final rig = _Rig();
+      final cleanup = AppIdleCleanup();
+      await rig.pump(tester, [rig.task('x.never')], cleanup: cleanup);
+      await tester.pumpWidget(const SizedBox());
+      expect(cleanup.isIdle, isTrue);
+      await tester.pump(const Duration(seconds: 5));
+      expect(rig.log, isNot(contains('run:x.never')));
+    });
   });
 }
