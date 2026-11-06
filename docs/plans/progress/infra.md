@@ -403,7 +403,7 @@
 | J8 | 완료 | `b0ffee5` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
 | J9 | 완료 | `ea21681` | `app/test/modules/recognition_wiring_test.dart`(새 — 필드 표·`done` 두 갈래·`execute` 감싸기·동기 시작), `media_wiring_test.dart`(새 — 패널·이미지 가져오기·`media` 섹션·복구 순서·상태 안 읽음), `search_wiring_test.dart`(새 — ≤ 4 Hz·형식·dispose), `feature_wiring_module_test.dart` v2(반복 id 3경우) |
 | J10 | 완료 | `fcf949d` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/pdf_module_test.dart` v2(기록용 리더 start 1·dispose 1·PDF 실패 → 작업 없음 + 기본 리더·실행기 안 0 → 10 → 20 순서) |
-| J11 | 남음 | | `app_router_test`·`production_screens_test` |
+| J11 | 완료 | (이 커밋) — 본문은 R2-B8b `6e7b753` | `app/test/routing/production_screens_test.dart`(J11 +4 — `%2C`·잘못된 focus 9가지(페이지는 열림)·page 없는 focus·폴더 검색 결과 → 보고된 주소 → 새로고침 → 같은 페이지·사각형 → 닫으면 홈), `app_router_test`(R2-B8b — 자리표시 화면 7경우) |
 | J12 | 남음 | | `pencil_wire_contract_test`(①~⑨)·`pencil_bridge_test` — 컴파일은 `ios-compile.yml`(U19) |
 | J13 | 남음 | | `pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 4경우)·`about_section_test` |
 | J14 | 남음 | | `storage_section_test` v2·`about_section_test` v2·`licenses_test`·`diagnostic_report_test` v2 |
@@ -623,6 +623,17 @@
 |---|---|
 | `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
 | `flutter test test/modules/pdf_module_test.dart` | 10 통과 |
+
+#### J11 — 검색 결과 → 위치로 열기 마무리 (계획 8.2, 4.6.6·6.8)
+
+- 코드(라우터 `?page=&focus=`·`FocusRectCodec`·`LibraryScreen(onOpenNoteAt:)` → `openNote` → `EditorScreen(initialFocusRectPt:)`)는 R2-B8b ①에서 끝났다(`6e7b753`) — 이번에는 운영 화면 시험만 보탰다(코드 변경 없음).
+- `production_screens_test` +4: `%2C`로 받은 focus → 같은 사각형 · 읽을 수 없는 focus 9가지(`l > r`·`t > b`·셋·다섯·숫자 아님·빈 값·`1e9`·100001·`NaN`) → `EditorScreen`은 같은 noteId·pageId로 열리고 사각형 없음 · page 없는 focus → 버림 · 폴더 `/folders/f9`의 검색 결과(`onOpenNoteAt`) → 브라우저에 보고된 주소(`routeInformationUpdated`)가 `AppRoutes.note(…, focus: 0.1 pt 반올림)` → 닫으면 그 폴더 → 다시 열고 그 주소로 새 앱 시작(새로고침) → 같은 noteId·pageId·사각형, 아래에 라이브러리 없음 → 닫으면 홈.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/routing/production_screens_test.dart` | 14 통과 |
+| `ws test --package noteapp` (VM) | 518 통과 · 1 건너뜀(V5) · 108초 |
 
 #### 변경 요청
 
