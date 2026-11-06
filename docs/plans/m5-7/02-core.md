@@ -1,6 +1,6 @@
 # 02 · CORE — 문서 모델 · 저장 · 되돌리기 · 색인 (2차 라운드 M5·M6·M7)
 
-> 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 1회차. 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 1회차** (통합 계약 **v2.1** 기준 — 총괄 검토 [00-review.md](00-review.md) 3.2 CORE-M1~M13과 대리 검토 [reviews/core.md](reviews/core.md) 반영, 13절에 항목별 반영 내역)
+> 상태: **승인 · 계약 v2.3** (2026-11-06 동시 개발 착수 때 인용 맞춤 — C22-09: 계약 v2.2가 바꾼 문장(R-3·M-4·7.2.7 v1 사본 문단·`dev_tools.dart` 블록)은 최종 승인 때 이미 맞췄고 12.1 CP-16·17 판정 열을 고쳤다. v2.3(C23-01~07)은 CORE 시그니처·인용 문장 변화 없음. 5.8 표를 기반 단계 결과(실제 타입·커밋)로 바꿨다. 00-review '최종 승인' CORE-F1~F4 처리는 진행 기록 '## 2차' > '### 동시 개발') · 이전: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 1회차. 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 1회차** (통합 계약 **v2.1** 기준 — 총괄 검토 [00-review.md](00-review.md) 3.2 CORE-M1~M13과 대리 검토 [reviews/core.md](reviews/core.md) 반영, 13절에 항목별 반영 내역)
 >
 > 작성 2026-11-05 · 수정 2026-11-05 · 기준: [00-overview.md 7장 '통합 계약 v2.1'](00-overview.md)(변경 이력 7.9 C21-01~35 중 CORE 몫: C21-04·05·06·07·08·09·10·11·19·23·25·29·30·32·33) — **이 문서와 7장이 다르면 7장이 우선**한다. 7장이 덮어쓰지 않은 곳은 1차 계약 v1.5(1차 [00-overview.md](../00-overview.md) 7장 — 시그니처는 v1.4와 같음)가 그대로 유효하다.
 > 이어받는 1차 계획서: [1차 02-core.md](../02-core.md)(승인, 계약 v1.4 — 바탕 코드 작업 트리 `/home/user/wt/core/docs/plans/02-core.md`). 이 문서는 그 위에 **더하고 바꾸는 것만** 적는다. 1차 계획서의 절은 언제나 **'1차 6.x'**, 1차 계약의 절은 **'1차 7.x'**, 이 라운드 계약의 절은 **'7.x'**로 적는다.
@@ -1505,16 +1505,16 @@ final handwritingIndexerProvider = Provider<HandwritingIndexer?>(/* null unless 
 | recog 색인기 | 시험이 `HandwritingRepository.put`·`update`를 직접 부름(경합 사례는 공유 계약 본문 — 6.9.4) | 통합 5단계 L2x |
 | media 녹음기 | 시험이 `RecordingDraftStore`·`createRecording`을 직접 부름(+ CORE `FakeAudioRecorder`) | 통합 4단계 `media`(V8·V16) |
 
-다른 영역이 개발 중 쓰는 CORE 쪽:
+다른 영역이 개발 중 쓰는 CORE 쪽 (기반 단계 결과로 바꿈 — 2026-11-06, 가정 없음: 모두 이 작업 트리에 있는 실제 타입·함수):
 
-| 영역 | 쓰는 것 | 비고 |
+| 영역 | 쓰는 것 (실제 이름) | 상태 · 커밋 |
 |---|---|---|
-| INK·EDITOR·LIBRARY·PDF·INFRA | `createFakeNoteStore()` v2 + `PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback` | B2-α에서 컴파일, B2-β 끝(T23b)부터 동작 |
-| PDF(V8·V16·V11 Chrome) | `testing_web.dart` `openWebTestNoteStore`(실제 웹 CORE) | 열기는 B2-β부터(v1 DB — 객체·녹음 쓰기는 T24·T30·T31 뒤), 실제 초안 저장소는 T31 이정표 |
-| SYNC·PDF·LIBRARY 통합 태그 | `openTestNoteStore()`(실제 CORE) | DB v2는 T24부터. 그 전에는 v1 DB라 객체·녹음 쓰기가 `UnimplementedError`(8.1 'B2 상태') — 이 시험들은 동시 개발 중 기본 skip(1차 7.4.8) |
-| PDF(정규화 동치 시험) | `SearchText.normalize`·`normalizeMapped` | B2-β T21에서 완성 |
-| SYNC(JSON 키 대조) | 객체·손글씨·녹음 JSON 골든(`test/goldens/json/*.json`)과 `toJson` | B2-β 첫 조각(JSON·골든)에서 고정 — 그 커밋 해시를 알림 |
-
+| INK·EDITOR·LIBRARY·PDF·INFRA | `createFakeNoteStore()` v2(`recordings`·`recordingDrafts`·`handwriting`·`search` 동작), `PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`(`package:note_core/testing.dart`) | B2-α `2b2e4b0` 컴파일, B2-β 끝 T23b `0798096`부터 동작 |
+| PDF(V8·V16·V11 Chrome) | `openWebTestNoteStore`·`deleteWebTestNoteStore`(`package:note_core/testing_web.dart` — 실제 웹 CORE), 준비 `dart run <note_core>/tool/prepare_web_test.dart --out test/web` | T23b `0798096`부터 열림(v1 DB). 객체·녹음·초안 쓰기는 T24·T27·T30·T31 이정표 뒤 |
+| SYNC·PDF·LIBRARY 통합 태그 | `openTestNoteStore()`(`package:note_core/testing_vm.dart` — 실제 CORE) | 동시 개발 시작 시점 v1 DB(`kDatabaseSchemaVersion` 1)라 객체·녹음·손글씨·색인 쓰기가 `UnimplementedError('CORE T27/T30/T32/T33a: …')`(8.1 'B2 상태' β 끝 열). DB v2는 T24 이정표부터 — 진행 기록 '이정표 커밋' 표 |
+| PDF(정규화 동치 시험) | `SearchText.normalize`·`normalizeMapped` | T21 `38f3578`에서 완성 |
+| SYNC(JSON 키 대조) | 객체·손글씨·녹음 JSON 골든(`test/goldens/json/*.json`)과 `toJson` | T20a `9777fde`에서 고정(SYNC R2-B7a가 이 해시로 CP-S9 판정) |
+| INFRA 개발자 메뉴(J14b) | `dev_tools.dart` `V1DatabaseCopyInfo`·`v1DatabaseCopyInfo`·`readV1DatabaseCopy`·`deleteV1DatabaseCopy`(C22-01) | 선언 B2-α `2b2e4b0`(언제나 `null`), 동작 T24 |
 
 ---
 
@@ -2586,7 +2586,7 @@ C. TestFlight 뒤 (2차 완료 조건 아님)
 
 v2.0 초안의 CP-1~CP-15는 총괄 검토(00-review 2.2)에서 모두 받아들여져 계약 v2.1에 들어갔다. 아래 '판정'은 그 결과이고, 이 문서 4절은 v2.1 원문을 옮겼다. 새 제안은 CP-16·CP-17이다.
 
-| # | 7장 | 제안 | 판정 (v2.1) | 반영 위치 |
+| # | 7장 | 제안 | 판정 (v2.1 · CP-16·17은 v2.2) | 반영 위치 |
 |---|---|---|---|---|
 | CP-1 | 7.2.3 | 새 명령을 1차 모양으로(`const`·이름 있는 인자·`label`), `RemoveElements.elementIds`를 `List<ElementId>`로 | **승인**(C21-07 — 검토자 권고 `Set`이 아니라 제안대로 `List`) | 4.4, 5.3, 6.4.1 |
 | CP-2 | 7.2.3 규칙 | `TransformElements`가 `TextBoxObject.style.fontSizePt`도 배율([6, 144]) | **승인** — `PageObject.transformed(m, {scaleWidth})` 단일 규칙으로(C21-06, CD2-07) | 4.2 원문, 6.2.5 |
@@ -2603,8 +2603,8 @@ v2.0 초안의 CP-1~CP-15는 총괄 검토(00-review 2.2)에서 모두 받아들
 | CP-13 | 7.2.5 | 손글씨 `copyWith`·`==`, `put` 검증, `stalePages` 페이지 순서 | **승인**(C21-09) | 4.6, 6.9 |
 | CP-14 | 7.6·7.2.5 규칙 | 가짜 검색 = 실제와 같은 판정·같은 순서, `pagesTruncated` 뜻 | **승인**(C21-30·C21-09) | 4.6·4.9 원문, 6.10.6 |
 | CP-15 | 7.2.7 표 | 검색 테이블 표 정정(소유자 테이블·`seq`·FTS 옵션) | **수정 승인** — 사각형 열 변경까지 함께 정정(C21-11) | 4.8 원문, 6.11 |
-| **CP-16** | 7.2.7 문단 (v2.1 사본) | '업그레이드 직전 v1 사본' 문장을 저장 방식별로 구체화: **네이티브 = `VACUUM INTO '<nativeDatabasePath>-v1-backup'`, 웹 = 블롭 저장소(`noteapp_blobs`)의 정규 덤프(`db/v1-backup/…` — 계약의 '같은 저장소 안의 다른 사본 방법')**, 수명 N = 정상 열기 5번 + 7일, V7 '정규 덤프 해시' = 6.12.3 형식 | 규칙(문구) — 계약이 이미 허용한 갈래의 구체화 | 근거 [확인]: 웹 VFS 사본은 지울 길이 없어 계약의 자동 삭제를 채우지 못하고, 남아 있는 동안 열기 메모리·시간을 두 배로 만든다(6.12.4). INFRA 안내서 08·개발자 메뉴가 이 방법·수명을 적는다 |
-| **CP-17** | 7.1 `dev_tools.dart`·7.2.7 | `dev_tools.dart`에 `V1DatabaseCopyInfo`, `v1DatabaseCopyInfo(store)`, `readV1DatabaseCopy(store)`(≤ 4 MiB 조각 스트림), `deleteV1DatabaseCopy(store)` 추가(6.12.4 블록) | 추가 | INFRA 개발자 메뉴 'v1 DB 사본 내보내기·지우기'(X-6, CD2-23)가 부를 CORE 표면이 계약에 없다. 가짜 저장소는 `null`·아무것도 안 함 |
+| **CP-16** | 7.2.7 문단 (v2.1 사본) | '업그레이드 직전 v1 사본' 문장을 저장 방식별로 구체화: **네이티브 = `VACUUM INTO '<nativeDatabasePath>-v1-backup'`, 웹 = 블롭 저장소(`noteapp_blobs`)의 정규 덤프(`db/v1-backup/…` — 계약의 '같은 저장소 안의 다른 사본 방법')**, 수명 N = 정상 열기 5번 + 7일, V7 '정규 덤프 해시' = 6.12.3 형식 | **승인**(C22-02 — 7.2.7 문단) | 근거 [확인]: 웹 VFS 사본은 지울 길이 없어 계약의 자동 삭제를 채우지 못하고, 남아 있는 동안 열기 메모리·시간을 두 배로 만든다(6.12.4). INFRA 안내서 08·개발자 메뉴가 이 방법·수명을 적는다 |
+| **CP-17** | 7.1 `dev_tools.dart`·7.2.7 | `dev_tools.dart`에 `V1DatabaseCopyInfo`, `v1DatabaseCopyInfo(store)`, `readV1DatabaseCopy(store)`(≤ 4 MiB 조각 스트림), `deleteV1DatabaseCopy(store)` 추가(6.12.4 블록) | **승인**(C22-01 — 7.1 표·7.2.7 블록) | INFRA 개발자 메뉴 'v1 DB 사본 내보내기·지우기'(X-6, CD2-23)가 부를 CORE 표면이 계약에 없다. 가짜 저장소는 `null`·아무것도 안 함 |
 
 판정(총괄 기입 — 최종 승인 2026-11-05, 계약 v2.2): **CP-16 승인**(C22-02 — 00-overview 7.2.7 문장을 저장 방식별 방법·수명 5번 + 7일·실패 시 이주 진행으로 고쳤다), **CP-17 승인**(C22-01 — 6.12.4 블록을 7.2.7에 글자 그대로 옮겼다. 머리 주석 한 줄만 계약 표기). B2-α에 선언을 두고 T24에서 동작을 채운다.
 

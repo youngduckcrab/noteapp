@@ -207,7 +207,7 @@
 
 ## 2차
 
-계획 docs/plans/m5-7/02-core.md(승인 · 계약 v2.2). 바탕: `main` `e3aa110` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6` + SYNC R2-B7b `9cdd3fb`·`e3aa110`. `packages/note_core` 트리는 `b6c9d0a`와 같다(`5e728c8`) — 1차 CORE 코드 그대로.
+계획 docs/plans/m5-7/02-core.md(승인 · 계약 v2.3 — 2026-11-06 동시 개발 착수 때 상태 줄·인용 맞춤). 바탕: `main` `e3aa110` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6` + SYNC R2-B7b `9cdd3fb`·`e3aa110`. `packages/note_core` 트리는 `b6c9d0a`와 같다(`5e728c8`) — 1차 CORE 코드 그대로.
 
 ### 이정표 커밋 (CORE 2차)
 
@@ -381,3 +381,58 @@
 - B2-α 가짜 시험 `test/testing/fake_store_b2_alpha_test.dart`를 지웠다(가짜가 α 상태를 벗어남). 그 안의 v1 사본 API 사례(사본 없는 저장소: 읽기 `StateError`·지우기 아무것도 안 함)는 `fake_store_v2_test`로 옮겼다. `test/shared/b2_alpha_store_cases.dart`는 실제 저장소에만 돈다.
 - 초안 저장소의 고아 정리는 가짜를 다시 열 수 없어 공유 본문으로는 보이지 않는다 — 가짜 전용 사례(처음 쓰기 전에 남겨 둔 블롭)를 `recording_draft_contract_fake_test`에 더했다. 공유 본문은 `reopen()` 훅이 있는 실제 저장소(T31)에서 정리까지 본다.
 - 6.18.1 ②(V7 고정 자료를 `test/web/fixtures_v1/`로 복사·`.gitignore`)는 T23b 행에 없어 T25b(고정 자료 Chrome 시험)로 둔다 — 'T25b가 알아 둘 것'과 같다.
+
+### 동시 개발
+
+2차 동시 개발 단계(M5·M6·M7). 작업 트리 `/home/user/wt2/core`(`area2/core`), 바탕 `5843ec3`(총괄 계약 v2.3 커밋 — 기반 단계 R2-B1~B8 전부 들어감). 할 일은 계획 8.2 표(선행 순서 T24 → T26 → (T27, T28, T30, T31, T32) → T33a → T33b → T34 → T29 → T36 → T37, T35는 언제든·T25b 전).
+
+#### 작업 표 (동시 개발)
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| T25a | 기반 단계에서 완료 | b6beece | `test/migration/v1_fixture_files_test.dart` |
+| T22 | 기반 단계에서 완료 | 2b2e4b0 | `test/api_surface_test.dart` v2 외 — 위 '작업 표 (2차)' |
+| T20a·T20b·T21·T23a·T23b | 기반 단계에서 완료 | 9777fde·c443015·38f3578·12ab8c4·0798096 | 위 '작업 표 (2차)' |
+| T24 | 남음 | | `test/storage/schema_v2_test.dart`, `test/storage/generated_migrations/note_db/*`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
+| T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
+| T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
+| T26 | 남음 | | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart` |
+| T27 | 남음 | | `test/session/object_session_contract_real_test.dart`, `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart` |
+| T28 | 남음 | | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
+| T30 | 남음 | | `test/repo/recording_contract_real_test.dart`, `test/repo/recording_repository_test.dart` |
+| T31 | 남음 | | `test/media/recording_draft_contract_real_test.dart`, `test/media/recording_draft_store_test.dart`, `test/web/recording_draft_browser_test.dart`, `test/perf/draft_append_perf_test.dart` |
+| T32 | 남음 | | `test/repo/handwriting_contract_real_test.dart`, `test/repo/handwriting_repository_test.dart`, `test/perf/stale_pages_perf_test.dart` |
+| T33a | 남음 | | `test/search/search_index_writer_test.dart`, `test/web/search_fts_browser_test.dart`(쓰기) |
+| T33b | 남음 | | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
+| T34 | 남음 | | `test/repo/library_search_v2_test.dart`, 1차 `library_contract` |
+| T29 | 남음 | | `test/repo/note_copy_v2_test.dart`, `test/repo/trash_purge_v2_test.dart`, `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart` |
+| T36 | 남음 | | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2) |
+| T37 | 남음 | | `-t perf` PF-1~PF-11, Chrome `perf`, `test/readme_examples_test.dart` v2 |
+| I-1~I-7 | 통합 단계 | | 계획 8.3 |
+
+#### 00-review '최종 승인' CORE 항목 처리
+
+| ID | 처리 |
+|---|---|
+| CORE-F1 | B2-α `2b2e4b0`에 `dev_tools.dart` 선언(본문 `null`·`StateError`·아무것도 안 함, 실제 저장소는 `CORE T24`). 동작·`v1_copy_test`·`v1_copy_browser_test`·첫날 Chrome 확인(웹 정규 덤프 사본 만들기·해시·지우기·다시 열기 시간)은 T24 |
+| CORE-F2 | 완료 — T25a `b6beece`(manifest에 `fullDumpSha256`·`entityDumpSha256`) |
+| CORE-F3 | 완료 — B2-α `2b2e4b0`의 `Recording.durationMs` R-3 주석이 C22-04 문장 |
+| CORE-F4 | 유지 — 다시 연 세션 히스토리 비어 있음(C15-04)은 1차 동작 그대로. T27에서 실제 저장소 객체 세션도 같은 성질을 `note_session_objects_test`로 확인 |
+| C22-09 | 계획서 상태 줄 '승인 · 계약 v2.3', 12.1 CP-16·17 판정 열(C22-02·C22-01), 5.8 표를 실제 타입·커밋으로(2026-11-06) |
+
+#### 변경 요청 (동시 개발)
+
+- 다른 영역이 기반 단계에서 CORE에 보낸 변경 요청: 없음(`/home/user/wt2/notes/*.md`에서 `[CORE]` 검색 — 2026-11-06).
+- 보낸 것: 없음.
+
+#### 의존성 요청 (동시 개발)
+
+- 없음.
+
+#### 계획과 다르게 한 점 (동시 개발)
+
+- (작업마다 더함)
+
+#### 다음 세션 메모
+
+- 다음 작업: T24(DB v2·마이그레이션 — 이정표).
