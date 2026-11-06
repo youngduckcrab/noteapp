@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:sync_engine/src/codec/chunk_codec.dart';
@@ -18,6 +19,23 @@ import 'package:sync_engine/testing.dart';
 import '../support/download_rig.dart';
 import '../support/local_writes.dart';
 import '../support/raw_records.dart';
+
+/// A bookmark upsert (a kind no app knows) of [id] on note [noteId] at [hlc].
+Uint8List bookmark(String id, Hlc hlc, {String noteId = 'n2'}) =>
+    rawUpsertRecord(
+      'bookmark',
+      {'id': id, 'noteId': noteId, 'version': hlc.toString()},
+      {'b': hlc.toString()},
+    );
+
+/// The sync.heldRecords keys among [meta].
+Set<String> heldKeysOf(Map<String, String> meta) => {
+  for (final k in MetaKeys.heldRecordKeys)
+    if (meta.containsKey(k)) k,
+};
+
+int needsAppUpdateCount(ApplyResult r) =>
+    r.issues.where((i) => i.code == SyncIssueCode.needsAppUpdate).length;
 
 EntityRef note(String id) => EntityRef(EntityKind.note, id);
 EntityRef page(String id) => EntityRef(EntityKind.page, id);
@@ -892,5 +910,235 @@ void main() {
         expect(r.hasRow(EntityKind.pageObject, 'O6'), isTrue);
       });
     });
+  });
+  group('S-13 받기 — unknown kinds held in sync.heldRecords (S2-7a, 07-sync '
+      '6.3.3)', () {
+    /// Note n2 from C plus a bookmark upsert and purge, in one chunk.
+    RemoteChunk mixedChunk(DownloadRig r) {
+      final c = FakeLocalStore(nodeId: nodeC, clock: r.base, ownerId: uid)
+        ..localWrite([noteWrite('n2')]);
+      final known = DownloadRig.recordOf(c, EntityKind.note, 'n2');
+      final hlc = Hlc(start.millisecondsSinceEpoch, 0, nodeC);
+      return r.commitRecordBytes([
+        bookmark('b1', hlc),
+        ChunkCodec.encodeRecord(known),
+        rawPurgeRecord('bookmark', 'b0', hlc.toString()),
+      ], maxHlc: known.versions.max);
+    }
+
+    test('the known record applies, the cursor moves, the unknown records are '
+        'held (the chunk\'s all), one needsAppUpdate; the sync.heldRecords keys '
+        'ride on the last applyRemote call with the cursor', () {
+      withDownloadRig((r) {
+        final chunk = mixedChunk(r);
+        r.connect();
+        final result = r.catchUp();
+        expect(result.issues.map((i) => (i.code, i.message)), [
+          (
+            SyncIssueCode.needsAppUpdate,
+            '2 record(s) of kind bookmark held until the app is updated',
+          ),
+        ]);
+        expect(r.hasRow(EntityKind.note, 'n2'), isTrue);
+        expect(r.pipeline.cursor, chunk.serverTime);
+        expect(r.pipeline.heldRecordCount, 2);
+        expect(r.pipeline.heldRecordsMarked, isFalse);
+        expect(r.pipeline.heldRecords.kinds, {'bookmark'});
+        final last = r.sync.applyMetaUpdates.last;
+        expect(last, contains(MetaKeys.cursor));
+        expect(heldKeysOf(last), {
+          MetaKeys.heldRecords,
+          MetaKeys.heldRecordParts.first,
+        });
+        expect(r.sync.writeMetaCalls.expand(heldKeysOf), isEmpty);
+        expect({
+          for (final k in MetaKeys.heldRecordKeys) k: r.a.meta[k] ?? '',
+        }, r.pipeline.heldRecords.encode());
+      });
+    });
+
+    test('a chunk of unknown records only: nothing to apply, the keys go with '
+        'the cursor in one writeMeta', () {
+      withDownloadRig((r) {
+        final hlc = Hlc(start.millisecondsSinceEpoch, 0, nodeC);
+        final chunk = r.commitRecordBytes([bookmark('b1', hlc)], maxHlc: hlc);
+        r.connect();
+        final result = r.catchUp();
+        expect(needsAppUpdateCount(result), 1);
+        expect(r.sync.applyRefs, isEmpty);
+        final write = r.sync.writeMetaCalls.single;
+        expect(write[MetaKeys.cursor], '${chunk.serverTime}');
+        expect(heldKeysOf(write), hasLength(2));
+        expect(r.pipeline.heldRecordCount, 1);
+      });
+    });
+
+    test('received again (overlap, a later session) → no duplicate, no new '
+        'issue, no key written again', () {
+      withDownloadRig((r) {
+        mixedChunk(r);
+        r.connect();
+        r.catchUp();
+        final stored = r.pipeline.heldRecords.encode();
+        // Same session: the catch-up overlap re-reads the chunk (LRU skip).
+        expect(r.catchUp().issues, isEmpty);
+        // A later session from the beginning: decoded again, deduplicated.
+        r.run(r.sync.writeMeta({MetaKeys.cursor: MetaKeys.cleared}));
+        r.pipeline = r.newPipeline();
+        r.connect();
+        expect(r.pipeline.heldRecordCount, 2, reason: 'loaded from the meta');
+        final calls = r.sync.applyMetaUpdates.length;
+        final again = r.catchUp();
+        expect(again.chunks, 1);
+        expect(again.issues, isEmpty);
+        expect(r.pipeline.heldRecords.encode(), stored);
+        expect(r.sync.applyMetaUpdates.skip(calls).expand(heldKeysOf), isEmpty);
+      });
+    });
+
+    test(
+      'K1 + K2: the chunk is held for its future known record; the release '
+      're-reads it — the known record applies, no new issue, one copy held',
+      () {
+        withDownloadRig((r) {
+          const day = Duration(hours: 24);
+          final c = FakeLocalStore(
+            nodeId: nodeC,
+            clock: Clock(() => r.base.now().add(const Duration(hours: 48))),
+            ownerId: uid,
+          )..localWrite([noteWrite('future')]);
+          final future = DownloadRig.recordOf(c, EntityKind.note, 'future');
+          final hlc = Hlc(start.millisecondsSinceEpoch, 0, nodeC);
+          final chunk = r.commitRecordBytes([
+            bookmark('b1', hlc),
+            ChunkCodec.encodeRecord(future),
+          ], maxHlc: future.versions.max);
+          r.connect();
+          final first = r.catchUp();
+          expect(first.held, 1);
+          expect(needsAppUpdateCount(first), 1);
+          expect(r.pipeline.held.entries.keys, [chunk.id]);
+          expect(r.pipeline.heldRecordCount, 1);
+
+          final releaseAt = future.versions.max.millis - day.inMilliseconds;
+          r.async.elapse(day + const Duration(hours: 1));
+          r.serverNowOverride = releaseAt;
+          final released = r.release();
+          expect(released.chunks, 1);
+          expect(released.applied, 1);
+          expect(needsAppUpdateCount(released), 0);
+          expect(r.hasRow(EntityKind.note, 'future'), isTrue);
+          expect(r.pipeline.held.isEmpty, isTrue);
+          expect(r.pipeline.heldRecordCount, 1);
+        });
+      },
+    );
+
+    test('a store failure on the last call: neither the memory nor the meta '
+        'takes the held records; receiving again holds them and reports once '
+        'more', () {
+      withDownloadRig((r) {
+        mixedChunk(r);
+        r.connect();
+        r.sync.nextApplyError = Exception('disk full');
+        final failed = r.run(r.pipeline.catchUp());
+        expect(failed.error, isNotNull);
+        expect(r.pipeline.heldRecordCount, 0);
+        expect(r.a.meta[MetaKeys.heldRecords] ?? '', '');
+        final retry = r.catchUp();
+        expect(needsAppUpdateCount(retry), 1);
+        expect(r.pipeline.heldRecordCount, 2);
+        expect(r.a.meta[MetaKeys.heldRecords], isNotEmpty);
+      });
+    });
+
+    test(
+      'over the caps: none of the chunk is stored, the mark takes it; a later '
+      'chunk of the same kind the mark covers is not stored and reports '
+      'nothing new',
+      () {
+        withDownloadRig((r) {
+          r.pipeline = r.newPipeline(
+            heldRecordsMaxPartBytes: 300,
+            heldRecordsMaxTotalBytes: 400,
+          );
+          final hlc = Hlc(start.millisecondsSinceEpoch, 0, nodeC);
+          final big = r.commitRecordBytes([
+            bookmark('b1', hlc),
+            bookmark('b2', hlc),
+          ], maxHlc: hlc);
+          r.connect();
+          final first = r.catchUp();
+          expect(first.issues.map((i) => i.message), [
+            '2 record(s) of kind bookmark held until the app is updated',
+          ]);
+          expect(r.pipeline.heldRecordCount, 0);
+          final mark = r.pipeline.heldRecords.mark!;
+          expect(mark.from, big.serverTime);
+          expect(mark.kinds, {'bookmark'});
+          expect(r.pipeline.heldRecordsMarked, isTrue);
+
+          r.async.elapse(const Duration(seconds: 1));
+          r.commitRecordBytes([bookmark('b3', hlc)], maxHlc: hlc);
+          final later = r.catchUp();
+          expect(later.chunks, 1);
+          expect(later.issues, isEmpty);
+          expect(r.pipeline.heldRecordCount, 0);
+        });
+      },
+    );
+
+    test('load: the stored value is read back; a corrupt value becomes an '
+        'all-kinds mark and is written back at once (warning)', () {
+      withDownloadRig((r) {
+        mixedChunk(r);
+        r.connect();
+        r.catchUp();
+        r.pipeline = r.newPipeline();
+        r.connect();
+        expect(r.pipeline.heldRecordCount, 2);
+        expect(r.warnings, isEmpty);
+
+        r.run(r.sync.writeMeta({MetaKeys.heldRecordParts.first: '{"p":1,'}));
+        r.pipeline = r.newPipeline();
+        final writes = r.sync.writeMetaCalls.length;
+        r.connect();
+        expect(r.pipeline.heldRecordCount, 0);
+        expect(r.pipeline.heldRecords.mark?.kinds, {'*'});
+        expect(r.warnings.single, contains('corrupt'));
+        final converted = r.sync.writeMetaCalls[writes];
+        expect(converted.keys.toSet(), MetaKeys.heldRecordKeys.toSet());
+        expect(converted, r.pipeline.heldRecords.encode());
+
+        r.pipeline = r.newPipeline();
+        r.connect();
+        expect(r.warnings, hasLength(1), reason: 'the converted value is fine');
+        expect(r.pipeline.heldRecordsMarked, isTrue);
+      });
+    });
+
+    test(
+      'an older app holds the new kinds of the other device (real kinds)',
+      () {
+        withDownloadRig((r) {
+          r.b.localWrite([
+            noteWrite('n1'),
+            pageWrite('p1', 'n1'),
+            strokeWrite('s1', 'p1'),
+            handwritingWrite('p1', 'n1', strokeIds: const ['s1']),
+          ]);
+          r.pushB();
+          final old = EntityKind.values.toSet()..remove(EntityKind.handwriting);
+          r.pipeline = r.newPipeline(knownKinds: old);
+          r.connect();
+          final result = r.catchUp();
+          expect(needsAppUpdateCount(result), 1);
+          expect(r.hasRow(EntityKind.stroke, 's1'), isTrue);
+          expect(r.hasRow(EntityKind.handwriting, 'hw_p1'), isFalse);
+          expect(r.pipeline.heldRecords.kinds, {'handwriting'});
+          expect(r.pipeline.heldRecordCount, 1);
+        });
+      },
+    );
   });
 }

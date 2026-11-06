@@ -1,7 +1,8 @@
 // Internal (not exported). Receiving (6.6): fetch pages from the cursor (6.6.1–6.6.2), apply
 // chunk batches (6.6.3), release held chunks (6.2.5 K2). The cursor, `sync.held`,
-// `sync.scopeStats`, `sync.purged.*` and the deferred-format keys are written in the same
-// transaction as the last applied records, so a crash re-receives the same page (idempotent).
+// `sync.scopeStats`, `sync.purged.*`, the deferred-format keys and (2nd round, S-13 —
+// 07-sync 6.3.3) the `sync.heldRecords` keys are written in the same transaction as the last
+// applied records, so a crash re-receives the same page (idempotent).
 // Phases, backoff and issues over time belong to the engine controller.
 import 'dart:collection';
 
@@ -24,6 +25,7 @@ import '../model/records.dart';
 import '../model/scopes.dart';
 import '../status/sync_issue.dart';
 import 'held_chunks.dart';
+import 'held_records.dart';
 import 'meta_keys.dart';
 
 /// What one applyChunks / catchUp / releaseHeld did.
@@ -130,10 +132,16 @@ final class DownloadPipeline {
     this.afterGroup = _noChecks,
     this.codecFormat = ChunkCodec.formatVersion,
     Set<EntityKind>? knownKinds,
+    this.onWarning = _ignoreWarning,
+    this.heldRecordsMaxPartBytes = HeldRecords.defaultMaxPartBytes,
+    this.heldRecordsMaxTotalBytes = HeldRecords.defaultMaxTotalBytes,
   }) : _applied = LruSet(config.appliedChunkMemory),
        _held = HeldChunks(maxEntries: config.maxHeldChunks),
        knownKinds = Set.unmodifiable(knownKinds ?? EntityKind.values),
-       _knownNames = {for (final k in knownKinds ?? EntityKind.values) k.name};
+       _knownNames = {for (final k in knownKinds ?? EntityKind.values) k.name} {
+    _heldRecords = _emptyHeldRecords();
+    _heldRecordsText = _heldRecords.encode();
+  }
 
   final SyncStore sync;
   final SyncBackend backend;
@@ -165,11 +173,17 @@ final class DownloadPipeline {
 
   /// (2nd round, S-13 — 07-sync 6.3.3, 6.3.8) Kinds this app's codec knows (default: every
   /// EntityKind; fewer = an older app in tests). Chunks are read with
-  /// ChunkCodec.decodeTolerant: the known records of a chunk apply, a record of another kind
-  /// is left out and reported as needsAppUpdate. (S2-4b: such a record is not stored yet —
-  /// holding it in sync.heldRecords is S2-7a.)
+  /// ChunkCodec.decodeTolerant: the known records of a chunk apply, the records of other
+  /// kinds are held in `sync.heldRecords` (HeldRecords — the chunk's all or none) and new
+  /// ones are reported once as needsAppUpdate. The cursor moves on as for any chunk.
   final Set<EntityKind> knownKinds;
   final Set<String> _knownNames;
+
+  /// A warning for the engine log (a corrupt `sync.heldRecords` value converted on load).
+  final void Function(String message) onWarning;
+
+  /// HeldRecords caps (tests shrink them; production uses the defaults — 6.3.2).
+  final int heldRecordsMaxPartBytes, heldRecordsMaxTotalBytes;
 
   final LruSet<String> _applied;
   final MergeRecorder _recorder = MergeRecorder();
@@ -178,8 +192,13 @@ final class DownloadPipeline {
   ScopeStats _stats = ScopeStats();
   HeldChunks _held;
   ServerCursor? _deferredFrom;
+  late HeldRecords _heldRecords;
+
+  /// [_heldRecords] as stored (encode()), to write only the keys whose text changed.
+  late Map<String, String> _heldRecordsText;
 
   static int? _noSample() => null;
+  static void _ignoreWarning(String message) {}
   static void _ignoreChunk(RemoteChunk chunk) {}
   static Future<void> _noGuard(List<PurgeRecord> purges) async {}
   static Future<void> _noChecks(Map<EntityRef, MergeOutcomeKind> o) async {}
@@ -195,6 +214,19 @@ final class DownloadPipeline {
 
   /// `sync.deferredFrom` (6.6.5): a chunk in a newer format was seen.
   ServerCursor? get deferredFrom => _deferredFrom;
+
+  /// `sync.heldRecords` in memory (S-13).
+  HeldRecords get heldRecords => _heldRecords.copy();
+
+  /// SyncEngineDebug.heldRecords / heldRecordsMarked without a copy.
+  int get heldRecordCount => _heldRecords.length;
+  bool get heldRecordsMarked => _heldRecords.mark != null;
+
+  HeldRecords _emptyHeldRecords() => HeldRecords(
+    knownKinds: _knownNames,
+    maxPartBytes: heldRecordsMaxPartBytes,
+    maxTotalBytes: heldRecordsMaxTotalBytes,
+  );
 
   /// Compaction step 5 (6.13): `sync.scopeStats[scope] = {n: snapshotChunks, c: atMillis}`
   /// (writeMeta). Run on the engine's serial executor, like every apply.
@@ -236,6 +268,7 @@ final class DownloadPipeline {
     final deferredFormat = int.tryParse(
       MetaKeys.present(await sync.readMeta(MetaKeys.deferredFormat)) ?? '',
     );
+    await _loadHeldRecords();
     final from = _deferredFrom;
     if (from != null &&
         (deferredFormat == null || codecFormat > deferredFormat)) {
@@ -250,6 +283,30 @@ final class DownloadPipeline {
       _deferredFrom = null;
       _applied.clear();
     }
+  }
+
+  /// `sync.heldRecords` (6.3.2). A corrupt value becomes an all-kinds mark and is written back
+  /// at once (warning) — what the next loads read is the converted value.
+  Future<void> _loadHeldRecords() async {
+    final values = <String, String?>{
+      for (final key in MetaKeys.heldRecordKeys) key: await sync.readMeta(key),
+    };
+    final loaded = HeldRecords.decode(
+      values,
+      knownKinds: _knownNames,
+      maxPartBytes: heldRecordsMaxPartBytes,
+      maxTotalBytes: heldRecordsMaxTotalBytes,
+    );
+    final text = loaded.encode();
+    if (loaded.wasCorrupt) {
+      await sync.writeMeta(text);
+      onWarning(
+        'sync.heldRecords was corrupt: its records are dropped and every kind is '
+        'marked for a rewind from ${loaded.mark?.from}',
+      );
+    }
+    _heldRecords = loaded;
+    _heldRecordsText = text;
   }
 
   /// First sync (cursor null: from the beginning) or catching up (cursor − cursorOverlap),
@@ -396,6 +453,8 @@ final class DownloadPipeline {
 
     final stats = _stats.copy();
     final held = _held.copy();
+    final heldRecords = _heldRecords.copy();
+    var heldRecordsChanged = false;
     var deferredFrom = _deferredFrom;
     ServerCursor? latest;
     var ownSkipped = 0;
@@ -404,9 +463,10 @@ final class DownloadPipeline {
       heldChanged = held.release(id) || heldChanged;
     }
 
-    // 2–3. Own chunks, format, decoding (S-13: records of unknown kinds left out).
+    // 2–3. Own chunks, format, decoding (S-13: records of unknown kinds held, 6.3.3).
     final decoded = <(RemoteChunk, List<SyncRecord>)>[];
-    final unknownKinds = <String, int>{};
+    final newlyHeldKinds = <String>{};
+    var newlyHeld = 0;
     for (final c in fresh) {
       latest = latest == null
           ? c.serverTime
@@ -440,19 +500,28 @@ final class DownloadPipeline {
           isKnownKind: _knownNames.contains,
         );
         decoded.add((c, payload.records));
-        for (final u in payload.unknown) {
-          unknownKinds[u.kindName] = (unknownKinds[u.kindName] ?? 0) + 1;
+        if (payload.unknown.isNotEmpty) {
+          // Dedup by (kind, id, fv): a chunk received again (overlap, K2 release) adds
+          // nothing; one the mark covers is not stored.
+          final n = heldRecords.add(c, payload.unknown);
+          if (n > 0) {
+            newlyHeld += n;
+            heldRecordsChanged = true;
+            newlyHeldKinds.addAll([
+              for (final u in payload.unknown) u.kindName,
+            ]);
+          }
         }
       } on FormatException catch (e) {
         issue(SyncIssueCode.malformedRemoteData, 'chunk ${c.id}: ${e.message}');
       }
     }
-    if (unknownKinds.isNotEmpty) {
-      final names = unknownKinds.keys.toList()..sort();
-      final n = unknownKinds.values.fold(0, (a, b) => a + b);
+    if (newlyHeld > 0) {
+      final names = newlyHeldKinds.toList()..sort();
       issue(
         SyncIssueCode.needsAppUpdate,
-        '$n record(s) of kind ${names.join(', ')} held until the app is updated',
+        '$newlyHeld record(s) of kind ${names.join(', ')} held until the app is '
+        'updated',
       );
     }
 
@@ -542,11 +611,20 @@ final class DownloadPipeline {
       meta[MetaKeys.deferredFrom] = '$deferredFrom';
       meta[MetaKeys.deferredFormat] = '$codecFormat';
     }
+    var heldRecordsText = _heldRecordsText;
+    if (heldRecordsChanged) {
+      heldRecordsText = heldRecords.encode();
+      for (final MapEntry(:key, :value) in heldRecordsText.entries) {
+        if (_heldRecordsText[key] != value) meta[key] = value;
+      }
+    }
 
     void keep() {
       _cursor = cursor;
       _stats = stats;
       _held = held;
+      _heldRecords = heldRecords;
+      _heldRecordsText = heldRecordsText;
       _deferredFrom = deferredFrom;
       purged.absorb(meta);
       for (final c in fresh) {

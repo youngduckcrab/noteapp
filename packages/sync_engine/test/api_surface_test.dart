@@ -448,6 +448,56 @@ class _Private {}
       ], hasLength(16));
     });
 
+    test(
+      '(2nd round, 07-sync 4.2) SyncEngineDebug: heldRecords, '
+      'heldRecordsMarked, reappliedChunks, reappliedRecords with defaults',
+      () {
+        const v1 = SyncEngineDebug(
+          pushCycles: 0,
+          commits: 0,
+          chunksSent: 0,
+          recordsSent: 0,
+          chunksReceived: 0,
+          recordsApplied: 0,
+          recordsKept: 0,
+          ownChunksSkipped: 0,
+          repairsWritten: 0,
+          quarantined: {},
+          heldChunks: 0,
+        );
+        final int held = v1.heldRecords;
+        final bool marked = v1.heldRecordsMarked;
+        final (int, int) reapplied = (v1.reappliedChunks, v1.reappliedRecords);
+        expect((held, marked, reapplied), (0, false, (0, 0)));
+        const v2 = SyncEngineDebug(
+          pushCycles: 0,
+          commits: 0,
+          chunksSent: 0,
+          recordsSent: 0,
+          chunksReceived: 0,
+          recordsApplied: 0,
+          recordsKept: 0,
+          ownChunksSkipped: 0,
+          repairsWritten: 0,
+          quarantined: {},
+          heldChunks: 0,
+          heldRecords: 3,
+          heldRecordsMarked: true,
+          reappliedChunks: 2,
+          reappliedRecords: 5,
+        );
+        expect(
+          (
+            v2.heldRecords,
+            v2.heldRecordsMarked,
+            v2.reappliedChunks,
+            v2.reappliedRecords,
+          ),
+          (3, true, 2, 5),
+        );
+      },
+    );
+
     test('contract types: syncBadgeOf, SyncRemoteAssetFetcher, '
         'SyncMergePolicy.decide, CoreSyncLocalStore (7.2.20, 7.3.3)', () {
       const core.SyncBadge Function(SyncStatus) badge = syncBadgeOf;

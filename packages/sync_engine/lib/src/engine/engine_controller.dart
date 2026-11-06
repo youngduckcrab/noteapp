@@ -369,6 +369,8 @@ final class EngineController {
           : held.entries.length + (held.collapsed == null ? 0 : 1),
       lastPushLatency: _lastPushLatency,
       lastRemoteApplyLatency: _lastRemoteApplyLatency,
+      heldRecords: pipelines ? s.download.heldRecordCount : 0,
+      heldRecordsMarked: pipelines && s.download.heldRecordsMarked,
     );
   }
 
@@ -713,12 +715,14 @@ final class EngineController {
       },
       afterGroup: (outcomes) => _afterGroup(s, outcomes),
       knownKinds: _knownKinds,
+      onWarning: (message) => _log(SyncLogLevel.warning, message),
     );
     s.compactor = Compactor(
       sync: sync,
       backend: backend,
       config: config,
       purged: s.purged,
+      knownKinds: _knownKinds,
     );
     s.listener = LiveListener(
       backend: backend,

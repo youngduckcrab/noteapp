@@ -11,6 +11,7 @@ import 'package:sync_engine/src/codec/chunk_codec.dart';
 import 'package:sync_engine/src/codec/chunk_id.dart';
 import 'package:sync_engine/src/common/varuint.dart';
 import 'package:sync_engine/src/engine/download_pipeline.dart';
+import 'package:sync_engine/src/engine/held_records.dart';
 import 'package:sync_engine/src/engine/upload_pipeline.dart';
 import 'package:sync_engine/src/merge/merge_recorder.dart';
 import 'package:sync_engine/src/merge/page_resurrection.dart';
@@ -95,11 +96,16 @@ final class DownloadRig {
   final List<Map<EntityRef, MergeOutcomeKind>> groups = [];
   final List<PageRepair> restored = [];
 
+  /// DownloadPipeline.onWarning messages (S-13: a corrupt sync.heldRecords value).
+  final List<String> warnings = [];
+
   int get wallMillis => base.now().add(aOffset).millisecondsSinceEpoch;
 
   DownloadPipeline newPipeline({
     int? codecFormat,
     Set<EntityKind>? knownKinds,
+    int heldRecordsMaxPartBytes = HeldRecords.defaultMaxPartBytes,
+    int heldRecordsMaxTotalBytes = HeldRecords.defaultMaxTotalBytes,
   }) => DownloadPipeline(
     sync: sync,
     backend: backend,
@@ -120,6 +126,9 @@ final class DownloadRig {
     },
     codecFormat: codecFormat ?? this.codecFormat,
     knownKinds: knownKinds,
+    onWarning: warnings.add,
+    heldRecordsMaxPartBytes: heldRecordsMaxPartBytes,
+    heldRecordsMaxTotalBytes: heldRecordsMaxTotalBytes,
   );
 
   T run<T>(Future<T> future) => runFake(async, future);

@@ -352,7 +352,8 @@ void main() {
       ..remove(EntityKind.handwriting);
 
     test('knownKinds: an old-app device applies the known records of a mixed '
-        'chunk, leaves the handwriting out and reports needsAppUpdate', () {
+        'chunk, holds the handwriting (debug.heldRecords, sync.heldRecords) and '
+        'reports needsAppUpdate', () {
       withHarness((h, async) {
         final a = h.device('A');
         final old = h.device('B', knownKinds: noHandwriting);
@@ -389,6 +390,13 @@ void main() {
           ),
           isEmpty,
         );
+        // (S2-7a) Held, not dropped: the record waits in sync.heldRecords.
+        expect(old.engine.debug.heldRecords, 1);
+        expect(old.engine.debug.heldRecordsMarked, isFalse);
+        expect(a.engine.debug.heldRecords, 0);
+        expect(old.store.meta['sync.heldRecords'], isNotEmpty);
+        expect(old.store.meta['sync.heldRecords.1'], contains('"handwriting"'));
+        expect(a.store.meta['sync.heldRecords'] ?? '', isEmpty);
         h.checkConverged([a, old], kinds: noHandwriting);
         expect(
           () => h.checkConverged([a, old]),

@@ -6,7 +6,10 @@
 // snapshot chunks on receive (6.6.3 step 2), so records of R it had not applied yet are not
 // lost (SYNC-3-2 ①). The engine controller decides when (trigger, jitter) and runs one
 // compaction as one step of its serial executor; step 5 (sync.scopeStats) is the download
-// pipeline's, which owns that key.
+// pipeline's, which owns that key. (2nd round, S-13 — 07-sync 6.3.6) Chunks are read with
+// ChunkCodec.decodeTolerant: a chunk carrying a record of a kind this app does not know is
+// treated like an undecodable one — left out of the snapshot and never deleted — so an older
+// app's compaction cannot drop a newer app's records (D-S3).
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart';
 
@@ -56,6 +59,7 @@ final class CompactionResult {
     this.skipped,
     this.fetched = 0,
     this.malformed = 0,
+    this.unknownKindChunks = 0,
     this.snapshotChunks = 0,
     this.snapshotRecords = 0,
     this.committed = 0,
@@ -73,6 +77,11 @@ final class CompactionResult {
 
   /// Chunks of R that did not decode: left out of the snapshot and never deleted.
   final int malformed;
+
+  /// (2nd round, S-13) Chunks of R carrying records of a kind this app does not know: like
+  /// [malformed], left out of the snapshot (their known records too — the chunk stays, so
+  /// nothing is lost) and never deleted.
+  final int unknownKindChunks;
 
   /// Snapshot chunks packed / records in them.
   final int snapshotChunks, snapshotRecords;
@@ -95,7 +104,8 @@ final class CompactionResult {
   @override
   String toString() =>
       'CompactionResult($scope, skipped: ${skipped?.name}, fetched: $fetched, '
-      'malformed: $malformed, snapshot: $snapshotChunks/$snapshotRecords, '
+      'malformed: $malformed, unknownKind: $unknownKindChunks, '
+      'snapshot: $snapshotChunks/$snapshotRecords, '
       'committed: $committed, deleted: $deleted, error: $error)';
 }
 
@@ -108,7 +118,9 @@ final class Compactor {
     required this.config,
     required this.purged,
     this.codecFormat = ChunkCodec.formatVersion,
-  }) : _packer = ChunkPacker(config: config, authorNodeId: sync.deviceNodeId);
+    Set<EntityKind>? knownKinds,
+  }) : _knownNames = {for (final k in knownKinds ?? EntityKind.values) k.name},
+       _packer = ChunkPacker(config: config, authorNodeId: sync.deviceNodeId);
 
   final SyncStore sync;
   final SyncBackend backend;
@@ -119,6 +131,9 @@ final class Compactor {
 
   /// Newest chunk format this app reads (6.6.5).
   final int codecFormat;
+
+  /// (2nd round, 6.3.8) Kind names this app's codec knows (default: every EntityKind).
+  final Set<String> _knownNames;
 
   final ChunkPacker _packer;
 
@@ -191,15 +206,24 @@ final class Compactor {
       return skip(CompactionSkip.heldChunk, fetched: fetched);
     }
 
-    // 2. Decode; malformed chunks stay out of the snapshot and out of step 4.
+    // 2. Decode; malformed chunks and chunks with records of unknown kinds stay out of the
+    // snapshot and out of step 4.
     final merged = <String>[];
-    var malformed = 0;
+    var malformed = 0, unknownKind = 0;
     final upserts = <EntityRef, UpsertRecord>{};
     final purges = <EntityRef, PurgeRecord>{};
     for (final c in chunks) {
       final List<SyncRecord> records;
       try {
-        records = ChunkCodec.decode(c.payload);
+        final payload = ChunkCodec.decodeTolerant(
+          c.payload,
+          isKnownKind: _knownNames.contains,
+        );
+        if (payload.unknown.isNotEmpty) {
+          unknownKind++;
+          continue;
+        }
+        records = payload.records;
       } on FormatException {
         malformed++;
         continue;
@@ -226,6 +250,7 @@ final class Compactor {
         skipped: CompactionSkip.nothingToMerge,
         fetched: fetched,
         malformed: malformed,
+        unknownKindChunks: unknownKind,
       );
     }
 
@@ -255,6 +280,7 @@ final class Compactor {
         skipped: CompactionSkip.recordTooLarge,
         fetched: fetched,
         malformed: malformed,
+        unknownKindChunks: unknownKind,
       );
     }
     final snapshotIds = <String>{
@@ -267,6 +293,7 @@ final class Compactor {
           scope: scope,
           fetched: fetched,
           malformed: malformed,
+          unknownKindChunks: unknownKind,
           snapshotChunks: snapshotIds.length,
           snapshotRecords: snapshot.length,
           committed: committed,
