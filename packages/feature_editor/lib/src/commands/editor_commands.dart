@@ -24,6 +24,7 @@ import '../di/editor_extensions.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
 import '../objects/object_factory.dart';
+import '../objects/object_placement.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/page_panel.dart';
@@ -392,6 +393,137 @@ class EditorCommands {
       execute: executeForExtension,
       clearSelection: clearSelection,
     );
+  }
+
+  /// (v2, E2-12 — m5-7/04-editor 6.13.2) The EditorInsertContext of an
+  /// insert menu item — made at the press: the current page, its visible
+  /// part (ObjectPlacement.visibleRectPt), [executeForExtension] and
+  /// selectObject (the object selected with origin insert — 6.6.3; ignored
+  /// when the page holds no such object). Null before the note has pages.
+  EditorInsertContext? insertContext() {
+    if (_disposed) return null;
+    final pages = _session.pages;
+    if (pages.isEmpty) return null;
+    final index = _viewport.currentPageIndex.value.clamp(0, pages.length - 1);
+    final page = pages[index];
+    return EditorInsertContext(
+      noteId: _session.noteId,
+      pageId: page.id,
+      pageSize: page.size,
+      visibleRectPt: ObjectPlacement.visibleRectPt(_viewport, index),
+      execute: executeForExtension,
+      selectObject: (id) {
+        if (_disposed) return;
+        if (_session.pageIfLoaded(page.id)?.objectById(id) == null) return;
+        _ref.read(editorSelectionProvider.notifier).select(page.id, {
+          id,
+        }, origin: SelectionOrigin.insert);
+      },
+    );
+  }
+
+  // ---- images (m5-7/04-editor 6.12) ----
+
+  /// (v2, E2-12 — 6.12.2 steps 3–4) An image the image slot returned, as a
+  /// new ImageObject: on the page under [screenPoint] centred there (the
+  /// long-press point of an image paste) when given and on a page, else on
+  /// the current page centred on its visible part; sized and kept on the
+  /// page by ObjectPlacement.forImage. Over the page's object limit (5.1.1)
+  /// → the notice, no command; else ONE core.AddObjects through _runAsync
+  /// (a note that turned read-only while the picker was open is refused
+  /// there — the 1st-round notice), then the image selected with [origin]
+  /// (insert from the insert menu, paste from an image paste — 6.6.3), the
+  /// tool kept. Returns whether it was added.
+  Future<bool> insertImage(
+    core.ImportedImage imported, {
+    Offset? screenPoint,
+    required SelectionOrigin origin,
+  }) async {
+    if (_disposed) return false;
+    final pages = _session.pages;
+    if (pages.isEmpty) return false;
+    final hit = screenPoint == null || _viewport.viewportSize.isEmpty
+        ? null
+        : _viewport.hitPage(screenPoint);
+    final index =
+        hit?.index ??
+        _viewport.currentPageIndex.value.clamp(0, pages.length - 1);
+    final page = pages[index];
+    final rect = ObjectPlacement.forImage(
+      pageSize: page.size,
+      visibleRectPt: ObjectPlacement.visibleRectPt(_viewport, index),
+      pixelWidth: imported.pixelWidth,
+      pixelHeight: imported.pixelHeight,
+      center: hit == null ? null : _viewport.screenToPage(index, screenPoint!),
+    );
+    final loaded = _session.pageIfLoaded(page.id);
+    if (loaded != null && ObjectFactory.exceedsLimit(loaded, 1)) {
+      _message(
+        EditorStrings.objectLimitReached(
+          core.PageObjectLimits.maxObjectsPerPage,
+        ),
+      );
+      return false;
+    }
+    final image = ObjectFactory.image(
+      pageId: page.id,
+      rectPt: rect,
+      imported: imported,
+      newId: _ref.read(core.idGeneratorProvider).newId,
+      createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+    );
+    final receipt = await _runAsync(
+      core.AddObjects(pageId: page.id, objects: [image]),
+    );
+    if (_disposed || receipt == null) return false;
+    _ref.read(editorSelectionProvider.notifier).select(page.id, {
+      image.id,
+    }, origin: origin);
+    return true;
+  }
+
+  /// (v2, E2-12 — 6.12.3) An image page: [base]'s size turned to the
+  /// image's orientation (ObjectPlacement.imagePageSize), background
+  /// core.ImageBackground(fit: contain) on [base]'s paper colour, inserted
+  /// at [placement] relative to [base] (remembered when the source was
+  /// pressed; the current page when [base] is gone by now) as ONE
+  /// core.InsertPages through _runAsync (a read-only race → the 1st-round
+  /// notice), then the viewport goes to the new page.
+  Future<void> insertImagePage(
+    core.ImportedImage imported, {
+    required core.Page base,
+    required AddPagePlacement placement,
+  }) async {
+    if (_disposed) return;
+    final pages = _session.pages;
+    if (pages.isEmpty) return;
+    final current =
+        pages[_viewport.currentPageIndex.value.clamp(0, pages.length - 1)];
+    final anchorId = pages.any((p) => p.id == base.id) ? base.id : current.id;
+    final request = AddPageRequest(
+      placement: placement,
+      size: ObjectPlacement.imagePageSize(
+        base.size,
+        imported.pixelWidth,
+        imported.pixelHeight,
+      ),
+      background: core.ImageBackground(
+        assetId: imported.asset.id,
+        fit: core.ImageFit.contain,
+        paperColorArgb: base.background.paperColorArgb,
+      ),
+      anchorPageId: placement == AddPagePlacement.end ? null : anchorId,
+    );
+    final receipt = await _runAsync(
+      core.InsertPages(
+        drafts: [
+          core.PageDraft(size: request.size, background: request.background),
+        ],
+        position: request.positionFor(current.id),
+      ),
+    );
+    if (_disposed || receipt == null) return;
+    _jumpToInserted(receipt);
   }
 
   // ---- pages (6.11, 5.1.3 — each one undo step) ----

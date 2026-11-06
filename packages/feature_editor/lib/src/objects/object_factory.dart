@@ -1,7 +1,7 @@
 // lib/src/objects/object_factory.dart — m5-7/04-editor 5.1.1 'EDITOR 사용 규칙'
 // (new objects: ids, page, createdAt, the page limit). (v2, E2-07a) the limit
 // check first — paste needs it; (E2-09) the shape maker; (E2-10) the text
-// box maker of a dragged box; the image maker comes with E2-12.
+// box maker of a dragged box; (E2-12) the image maker.
 import 'dart:ui' show Rect;
 
 import 'package:note_core/note_core.dart' as core;
@@ -56,6 +56,32 @@ abstract final class ObjectFactory {
     ),
     text: '',
     style: style.normalized(),
+    createdAt: createdAt,
+  );
+
+  /// (E2-12, 6.12.2 step 4) A new image over [rectPt] (page pt —
+  /// ObjectPlacement.forImage, rotation 0) showing [imported]'s asset: a new
+  /// id, [createdAt], the pixel size of the stored bytes.
+  static core.ImageObject image({
+    required String pageId,
+    required Rect rectPt,
+    required core.ImportedImage imported,
+    required String Function() newId,
+    required core.EpochMillis createdAt,
+  }) => core.ImageObject(
+    id: newId(),
+    pageId: pageId,
+    frame: core.ElementFrame(
+      core.PageRect.fromLTWH(
+        rectPt.left,
+        rectPt.top,
+        rectPt.width,
+        rectPt.height,
+      ),
+    ),
+    assetId: imported.asset.id,
+    pixelWidth: imported.pixelWidth,
+    pixelHeight: imported.pixelHeight,
     createdAt: createdAt,
   );
 }

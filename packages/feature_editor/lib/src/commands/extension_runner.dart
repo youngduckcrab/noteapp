@@ -39,6 +39,7 @@ class ExtensionRunner {
   final void Function(String message) _notify;
   BuildContext Function()? _body;
   final Set<String> _running = {};
+  final ValueNotifier<Set<String>> _runningIds = ValueNotifier(const {});
   final Set<String> _reportedDuplicates = {};
   bool _disposed = false;
 
@@ -55,6 +56,16 @@ class ExtensionRunner {
   /// Whether the item [id] has started and not finished yet.
   bool isRunning(String id) => _running.contains(id);
 
+  /// (E2-12) The ids that have started and not finished yet — the insert
+  /// menu and the add-page sheet disable those items while they run (6.12.2
+  /// step 1 '한 번에 하나').
+  ValueListenable<Set<String>> get runningIds => _runningIds;
+
+  void _setRunning(String id, {required bool running}) {
+    final changed = running ? _running.add(id) : _running.remove(id);
+    if (changed && !_disposed) _runningIds.value = Set.unmodifiable(_running);
+  }
+
   /// Runs one slot callback under the rules above: [start] gets the body
   /// context synchronously, then [close] runs, then the Future is awaited.
   /// Ignored (returns null, [close] not called) while [id] still runs, when
@@ -68,13 +79,13 @@ class ExtensionRunner {
   }) {
     final context = bodyContext;
     if (context == null || _running.contains(id)) return Future.value();
-    _running.add(id);
+    _setRunning(id, running: true);
     final Future<T> future;
     try {
       future = start(context);
     } on Object catch (error, stack) {
       _close(close);
-      _running.remove(id);
+      _setRunning(id, running: false);
       _failed(id, error, stack, failure);
       return Future.value();
     }
@@ -90,7 +101,7 @@ class ExtensionRunner {
       _failed(id, error, stack, failure);
       return null;
     } finally {
-      _running.remove(id);
+      _setRunning(id, running: false);
     }
   }
 

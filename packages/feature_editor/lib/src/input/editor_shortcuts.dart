@@ -9,7 +9,9 @@
 // included) still gets every key (⌘C / ⌘V copy and paste its text through
 // the system clipboard). (E2-10 — 6.11.3 '캔버스 포커스 양보') while a text
 // edit session is open the canvas does not take the focus on a pointer down,
-// and it takes it back when the session ends.
+// and it takes it back when the session ends. (E2-12 — 6.8) ⌘V with an
+// empty app clipboard pastes an image when the image slot offers the
+// clipboard source (its picker starts inside the key event).
 import 'dart:async';
 
 import 'package:flutter/services.dart';
@@ -17,9 +19,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../commands/editor_commands.dart';
+import '../di/editor_image_importer.dart';
+import '../objects/image_flows.dart';
 import '../scope/editor_scope.dart';
 import '../text/text_box_editor.dart';
 import '../text/text_edit_session.dart';
+import '../tools/element_clipboard.dart';
 import '../tools/tool_state.dart';
 
 /// What a key of the 6.8 table does.
@@ -143,7 +148,22 @@ class EditorShortcuts extends ConsumerStatefulWidget {
 class _EditorShortcutsState extends ConsumerState<EditorShortcuts> {
   late final _EditorKeyActionHandler _action = _EditorKeyActionHandler(
     () => ref.read(editorCommandsProvider),
+    paste: _paste,
   );
+
+  /// ⌘V (6.8): the app clipboard when it has content; else, when the image
+  /// slot offers the clipboard source (and the note is not read-only), an
+  /// image paste at the visible centre (ImageFlows.paste — started inside
+  /// this key event, a user activation on the web too).
+  void _paste() {
+    if (ref.read(editorClipboardProvider) == null &&
+        !ref.read(editorReadOnlyProvider) &&
+        ImageFlows.canPasteImage(ref.read(editorImageImporterProvider))) {
+      unawaited(ref.read(editorImageFlowsProvider).paste());
+      return;
+    }
+    unawaited(ref.read(editorCommandsProvider).paste()); // screen centre
+  }
 
   @override
   Widget build(BuildContext context) => Shortcuts(
@@ -157,9 +177,10 @@ class _EditorShortcutsState extends ConsumerState<EditorShortcuts> {
 }
 
 class _EditorKeyActionHandler extends Action<EditorKeyIntent> {
-  _EditorKeyActionHandler(this._commands);
+  _EditorKeyActionHandler(this._commands, {required this._paste});
 
   final EditorCommands Function() _commands;
+  final VoidCallback _paste;
 
   @override
   bool isEnabled(EditorKeyIntent intent) => !editorTextInputHasFocus();
@@ -175,7 +196,7 @@ class _EditorKeyActionHandler extends Action<EditorKeyIntent> {
       case EditorKeyAction.copy:
         commands.copySelection();
       case EditorKeyAction.paste:
-        unawaited(commands.paste()); // screen centre
+        _paste(); // the app clipboard, else an image (E2-12)
       case EditorKeyAction.delete:
         commands.deleteSelectionOrPages(); // strokes, else selected pages
       case EditorKeyAction.cut:
