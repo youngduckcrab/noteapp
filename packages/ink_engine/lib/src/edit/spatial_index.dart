@@ -6,65 +6,68 @@
 // query clamped the same way still meets them); the exact bounds test after the
 // cell walk keeps the result equal to a brute-force scan. Duplicates across
 // cells are dropped with a per-slot query stamp (Int32List).
+//
+// (m5-7/03-ink 6.8.1, T32a) The grid is generic (GridSpatialIndex): the
+// strokes (StrokeSpatialIndex) and the page objects (ObjectSpatialIndex — id →
+// CORE bounds, the hit test / eraser / lasso candidates) use the same 64 pt
+// cells and rules.
 import 'dart:typed_data';
 import 'dart:ui' show Rect, Size;
 
 import 'package:meta/meta.dart';
 
 import '../model/ink_stroke.dart';
+import '../object/object_view.dart';
 import '../tuning.dart';
 
+/// A uniform grid of items with an id and CORE bounds (see the file comment).
 @internal
-final class StrokeSpatialIndex {
-  StrokeSpatialIndex(Size pageSize, {this.cellPt = InkTuning.gridCellPt})
+abstract base class GridSpatialIndex<T extends Object> {
+  GridSpatialIndex(Size pageSize, {this.cellPt = InkTuning.gridCellPt})
     : columns = _cellsFor(pageSize.width, cellPt),
       rows = _cellsFor(pageSize.height, cellPt) {
     _cells = List<List<int>?>.filled(columns * rows, null);
-  }
-
-  /// Builds the index of every stroke of [strokes].
-  factory StrokeSpatialIndex.of(
-    Size pageSize,
-    Iterable<InkStroke> strokes, {
-    double cellPt = InkTuning.gridCellPt,
-  }) {
-    final index = StrokeSpatialIndex(pageSize, cellPt: cellPt);
-    strokes.forEach(index.insert);
-    return index;
   }
 
   final double cellPt;
   final int columns;
   final int rows;
 
+  /// The id of [item] (one entry per id).
+  String idOf(T item);
+
+  /// The bounds [item] is indexed and queried by.
+  Rect boundsOf(T item);
+
   late final List<List<int>?> _cells;
-  final List<InkStroke?> _slots = [];
+  final List<T?> _slots = [];
   final List<int> _freeSlots = [];
   final Map<String, int> _slotOf = {};
   Int32List _stamps = Int32List(64);
   int _query = 0;
 
-  /// Number of indexed strokes.
+  /// Number of indexed items.
   int get length => _slotOf.length;
 
   bool contains(String id) => _slotOf.containsKey(id);
 
-  /// The indexed stroke with [id], or null.
-  InkStroke? strokeOf(String id) {
+  /// The indexed item with [id], or null.
+  T? itemOf(String id) {
     final slot = _slotOf[id];
     return slot == null ? null : _slots[slot];
   }
 
-  /// Adds [stroke]; a stroke with the same id is replaced. O(cells covered).
-  void insert(InkStroke stroke) {
-    remove(stroke.id);
+  /// Adds [item]; an item with the same id is replaced. O(cells covered).
+  void insert(T item) {
+    final id = idOf(item);
+    remove(id);
     final int slot;
     if (_freeSlots.isNotEmpty) {
       slot = _freeSlots.removeLast();
-      _slots[slot] = stroke;
+      _slots[slot] = item;
     } else {
       slot = _slots.length;
-      _slots.add(stroke);
+      _slots.add(item);
       if (slot >= _stamps.length) {
         final grown = Int32List(_stamps.length * 2);
         grown.setRange(0, _stamps.length, _stamps);
@@ -72,16 +75,16 @@ final class StrokeSpatialIndex {
       }
     }
     _stamps[slot] = 0;
-    _slotOf[stroke.id] = slot;
-    _forCells(stroke.bounds, (cell) => (_cells[cell] ??= <int>[]).add(slot));
+    _slotOf[id] = slot;
+    _forCells(boundsOf(item), (cell) => (_cells[cell] ??= <int>[]).add(slot));
   }
 
-  /// Removes the stroke with [id]; false if it was not indexed. O(cells covered).
+  /// Removes the item with [id]; false if it was not indexed. O(cells covered).
   bool remove(String id) {
     final slot = _slotOf.remove(id);
     if (slot == null) return false;
-    final stroke = _slots[slot]!;
-    _forCells(stroke.bounds, (cell) => _cells[cell]?.remove(slot));
+    final item = _slots[slot] as T;
+    _forCells(boundsOf(item), (cell) => _cells[cell]?.remove(slot));
     _slots[slot] = null;
     _freeSlots.add(slot);
     return true;
@@ -95,10 +98,10 @@ final class StrokeSpatialIndex {
     _query = 0;
   }
 
-  /// Every indexed stroke whose CORE bounds meet [rect] (closed rectangles:
+  /// Every indexed item whose CORE bounds meet [rect] (closed rectangles:
   /// touching edges count), each once, in no particular order.
-  List<InkStroke> query(Rect rect) {
-    final result = <InkStroke>[];
+  List<T> query(Rect rect) {
+    final result = <T>[];
     if (rect.left.isNaN ||
         rect.top.isNaN ||
         rect.right.isNaN ||
@@ -115,8 +118,8 @@ final class StrokeSpatialIndex {
       for (final slot in list) {
         if (_stamps[slot] == stamp) continue;
         _stamps[slot] = stamp;
-        final s = _slots[slot]!;
-        if (boundsMeet(s.bounds, rect)) result.add(s);
+        final s = _slots[slot] as T;
+        if (boundsMeet(boundsOf(s), rect)) result.add(s);
       }
     });
     return result;
@@ -162,4 +165,56 @@ final class StrokeSpatialIndex {
     final n = (extent / cellPt).ceil();
     return n < 1 ? 1 : n;
   }
+}
+
+/// The strokes of a page by their CORE bounds (03-ink 6.18).
+@internal
+final class StrokeSpatialIndex extends GridSpatialIndex<InkStroke> {
+  StrokeSpatialIndex(super.pageSize, {super.cellPt});
+
+  /// Builds the index of every stroke of [strokes].
+  factory StrokeSpatialIndex.of(
+    Size pageSize,
+    Iterable<InkStroke> strokes, {
+    double cellPt = InkTuning.gridCellPt,
+  }) {
+    final index = StrokeSpatialIndex(pageSize, cellPt: cellPt);
+    strokes.forEach(index.insert);
+    return index;
+  }
+
+  @override
+  String idOf(InkStroke item) => item.id;
+
+  @override
+  Rect boundsOf(InkStroke item) => item.bounds;
+
+  /// The indexed stroke with [id], or null.
+  InkStroke? strokeOf(String id) => itemOf(id);
+
+  /// Closed-rectangle overlap (the predicate of [query]).
+  static bool boundsMeet(Rect a, Rect b) => GridSpatialIndex.boundsMeet(a, b);
+}
+
+/// (m5-7/03-ink 6.8.1) The page objects of a page by their CORE bounds.
+@internal
+final class ObjectSpatialIndex extends GridSpatialIndex<InkObjectView> {
+  ObjectSpatialIndex(super.pageSize, {super.cellPt});
+
+  /// Builds the index of every object of [objects].
+  factory ObjectSpatialIndex.of(
+    Size pageSize,
+    Iterable<InkObjectView> objects, {
+    double cellPt = InkTuning.gridCellPt,
+  }) {
+    final index = ObjectSpatialIndex(pageSize, cellPt: cellPt);
+    objects.forEach(index.insert);
+    return index;
+  }
+
+  @override
+  String idOf(InkObjectView item) => item.id;
+
+  @override
+  Rect boundsOf(InkObjectView item) => item.bounds;
 }

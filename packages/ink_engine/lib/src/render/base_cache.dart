@@ -3,7 +3,9 @@
 //
 // The vector caches of the two base layers of one page:
 // - InkContentDiff: what changed between two InkPageContents (by id + object
-//   identity, K-4) — R2.
+//   identity, K-4) — R2. (m5-7/03-ink 6.8.2, T32a) + the page objects per L-1
+//   layer (InkObjectDiff) and the top run of new items of the merged ink layer
+//   (strokes + shapes — inkAppended).
 // - InkChunkCache: the ink layer cut into chunkSizePt chunks, one Picture per
 //   chunk plus small 'appended' Pictures for strokes added on top (R3, R4).
 // - HighlighterBaseCache: one page Picture of the highlighter groups that are
@@ -15,9 +17,97 @@ import 'package:meta/meta.dart';
 
 import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
+import '../object/object_view.dart';
 import 'highlighter_compositor.dart';
 import 'ink_page_content.dart';
 import 'stroke_painter.dart';
+
+/// (m5-7/03-ink 6.8.2) The object changes of one L-1 layer, by id + instance.
+@immutable
+final class InkObjectDiff {
+  const InkObjectDiff({
+    this.appended = const [],
+    this.inserted = const [],
+    this.removed = const [],
+    this.changed = const [],
+  });
+
+  /// New ids at the top of the layer (the ink layer: of the merged strokes +
+  /// shapes), bottom → top — appended pictures (R3).
+  final List<InkObjectView> appended;
+
+  /// New ids below kept items → dirty.
+  final List<InkObjectView> inserted;
+
+  /// Views of the ids that left the layer → dirty where they were.
+  final List<InkObjectView> removed;
+
+  /// (old, new) views of the same id → dirty at both places.
+  final List<(InkObjectView, InkObjectView)> changed;
+
+  bool get isEmpty =>
+      appended.isEmpty &&
+      inserted.isEmpty &&
+      removed.isEmpty &&
+      changed.isEmpty;
+
+  /// Every view whose layer may need a new picture (old and new).
+  Iterable<InkObjectView> get touched sync* {
+    yield* appended;
+    yield* inserted;
+    yield* removed;
+    for (final (a, b) in changed) {
+      yield a;
+      yield b;
+    }
+  }
+
+  static const InkObjectDiff none = InkObjectDiff();
+
+  /// The diff of one layer: [old] / [now] are that layer's views in z order;
+  /// [appendable] = the ids allowed to count as appended (the new top run).
+  factory InkObjectDiff._between(
+    List<InkObjectView> old,
+    List<InkObjectView> now,
+    Set<String> appendable,
+  ) {
+    if (identical(old, now) || (old.isEmpty && now.isEmpty)) return none;
+    final oldById = {for (final v in old) v.id: v};
+    final nowIds = {for (final v in now) v.id};
+    final appended = <InkObjectView>[];
+    final inserted = <InkObjectView>[];
+    final changed = <(InkObjectView, InkObjectView)>[];
+    for (final v in now) {
+      final before = oldById[v.id];
+      if (before == null) {
+        (appendable.contains(v.id) ? appended : inserted).add(v);
+      } else if (!identical(before.object, v.object)) {
+        changed.add((before, v));
+      }
+    }
+    final removed = [
+      for (final v in old)
+        if (!nowIds.contains(v.id)) v,
+    ];
+    if (appended.isEmpty &&
+        inserted.isEmpty &&
+        removed.isEmpty &&
+        changed.isEmpty) {
+      return none;
+    }
+    return InkObjectDiff(
+      appended: List.unmodifiable(appended),
+      inserted: List.unmodifiable(inserted),
+      removed: List.unmodifiable(removed),
+      changed: List.unmodifiable(changed),
+    );
+  }
+
+  @override
+  String toString() =>
+      'InkObjectDiff(+${appended.length} append, +${inserted.length} insert, '
+      '-${removed.length}, ~${changed.length})';
+}
 
 /// R2: the change from one content to the next, by id + object identity. O(n).
 @immutable
@@ -30,6 +120,10 @@ final class InkContentDiff {
     required this.inserted,
     required this.removed,
     required this.changed,
+    this.underlay = InkObjectDiff.none,
+    this.shapes = InkObjectDiff.none,
+    this.annotation = InkObjectDiff.none,
+    this.inkAppended = const [],
   });
 
   factory InkContentDiff.between(InkPageContent? old, InkPageContent now) {
@@ -67,6 +161,29 @@ final class InkContentDiff {
       for (final s in old.strokes)
         if (now.strokeById(s.id) == null) s,
     ];
+    // objects (6.8.2): the appended run of each layer is its top run of new
+    // ids — for the ink layer, of the merged strokes + shapes (a new shape
+    // below a kept stroke is inserted, and so is a new stroke below a kept
+    // shape for inkAppended)
+    final oldUnderlay = objectViewsOf(old, InkObjectLayer.underlay);
+    final oldShapes = objectViewsOf(old, InkObjectLayer.ink);
+    final oldAnnotation = objectViewsOf(old, InkObjectLayer.annotation);
+    final nowUnderlay = objectViewsOf(now, InkObjectLayer.underlay);
+    final nowShapes = objectViewsOf(now, InkObjectLayer.ink);
+    final nowAnnotation = objectViewsOf(now, InkObjectLayer.annotation);
+    final oldShapeIds = {for (final v in oldShapes) v.id};
+    final inkItems = inkLayerItemsOf(now);
+    var inkStart = inkItems.length;
+    while (inkStart > 0) {
+      final item = inkItems[inkStart - 1];
+      final isNew = switch (item) {
+        InkStrokeItem(:final stroke) => old.strokeById(stroke.id) == null,
+        InkObjectView(:final id) => !oldShapeIds.contains(id),
+      };
+      if (!isNew) break;
+      inkStart--;
+    }
+    final inkAppended = inkItems.sublist(inkStart);
     return InkContentDiff._(
       isNoop: false,
       isReset: false,
@@ -75,7 +192,37 @@ final class InkContentDiff {
       inserted: List.unmodifiable(inserted),
       removed: List.unmodifiable(removed),
       changed: List.unmodifiable(changed),
+      underlay: InkObjectDiff._between(
+        oldUnderlay,
+        nowUnderlay,
+        _topNewIds(oldUnderlay, nowUnderlay),
+      ),
+      shapes: InkObjectDiff._between(oldShapes, nowShapes, {
+        for (final item in inkAppended)
+          if (item is InkObjectView) item.id,
+      }),
+      annotation: InkObjectDiff._between(
+        oldAnnotation,
+        nowAnnotation,
+        _topNewIds(oldAnnotation, nowAnnotation),
+      ),
+      inkAppended: List.unmodifiable(inkAppended),
     );
+  }
+
+  /// The ids of the top run of [now] whose ids are not in [old].
+  static Set<String> _topNewIds(
+    List<InkObjectView> old,
+    List<InkObjectView> now,
+  ) {
+    if (now.isEmpty) return const {};
+    final oldIds = {for (final v in old) v.id};
+    final out = <String>{};
+    for (var i = now.length - 1; i >= 0; i--) {
+      if (oldIds.contains(now[i].id)) break;
+      out.add(now[i].id);
+    }
+    return out;
   }
 
   static const InkContentDiff _noop = InkContentDiff._(
@@ -109,6 +256,25 @@ final class InkContentDiff {
   /// (old, new) objects of the same id → dirty at both places.
   final List<(InkStroke, InkStroke)> changed;
 
+  /// (m5-7 T32a) ImageObject changes (underlay layer).
+  final InkObjectDiff underlay;
+
+  /// (m5-7 T32a) ShapeObject changes (ink layer); appended = the shapes of
+  /// [inkAppended].
+  final InkObjectDiff shapes;
+
+  /// (m5-7 T32a) TextBoxObject / MathObject / UnknownObject changes.
+  final InkObjectDiff annotation;
+
+  /// (m5-7 T32a) The top run of new items of the merged ink layer (InkLayer.ink
+  /// strokes + shapes), bottom → top: what the ink chunks may append (R3). On a
+  /// reset or a no-op: empty.
+  final List<InkLayerItem> inkAppended;
+
+  /// No object changed in any layer.
+  bool get objectsUnchanged =>
+      underlay.isEmpty && shapes.isEmpty && annotation.isEmpty;
+
   /// Every stroke whose layer may need a new picture (old and new objects).
   Iterable<InkStroke> get touched sync* {
     yield* appended;
@@ -126,7 +292,8 @@ final class InkContentDiff {
       : isReset
       ? 'InkContentDiff(reset)'
       : 'InkContentDiff(+${appended.length} append, +${inserted.length} '
-            'insert, -${removed.length}, ~${changed.length})';
+            'insert, -${removed.length}, ~${changed.length}; objects '
+            '$underlay $shapes $annotation)';
 }
 
 /// Draws one stroke into a picture being recorded.

@@ -289,12 +289,12 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 | T25 | 기반 단계에서 완료 | fd3370f | 위 '작업 표 (2차)' |
 | T26a | 기반 단계에서 완료 (+ 보충 완료) | fd3370f · (보충) 59a5ba6 | 위 '작업 표 (2차)' + `unit/pubspec_assets_test.dart`(C23-03 — `flutter.assets` = 세 파일·폴더/README/`fonts:` 없음·파일 있음·`rootBundle`이 커밋된 바이트·`InkFonts`가 디버그 원본 없이 적재) |
 | T26b | 기반 단계에서 완료 | fd3370f | 위 '작업 표 (2차)' |
-| T27 | 완료 | (이 커밋 — 다음 커밋에서 해시) | `unit/pen/pen_profile_test.dart` v2(P1 5종 행 = 6.2 표, `defaultsFor` 10종, `PenProfile.of` 매핑 — 붓펜만 새 프로필), `unit/geometry/square_cap_test.dart`(형광펜 외곽선 = 1차 생성기로 기록한 체크섬, 테이프 선 끝 = 1차 사각 캡, 테이프 점 획 = 한 변 `w` 정사각형·모서리 0.7071·w·부드러운 경로도 뾰족, `OutlineSpec.of`), `unit/model/bounds_invariant_test.dart` v2(붓펜, 테이프 사각 캡·점·무작위 100획 + 기존 무작위 300획), (웹) `web/geometry_on_web_test.dart` v2(+ `square_cap_test`), `goldens/pens_p1_golden_test.dart`(`pens_p1_brush.png`·`pens_p1_preview.png`), `widget/pen_preview_test.dart` v2(1차 5종 픽셀 = 1차 그리기 경로, 붓펜 잉크·가운데 굵고 끝 가늘음, P1 5종 예외 없음), `goldens/images_golden_test.dart`(1차 17장 이름 그대로 + 2차 목록) |
+| T27 | 완료 | 31e61a9 | `unit/pen/pen_profile_test.dart` v2(P1 5종 행 = 6.2 표, `defaultsFor` 10종, `PenProfile.of` 매핑 — 붓펜만 새 프로필), `unit/geometry/square_cap_test.dart`(형광펜 외곽선 = 1차 생성기로 기록한 체크섬, 테이프 선 끝 = 1차 사각 캡, 테이프 점 획 = 한 변 `w` 정사각형·모서리 0.7071·w·부드러운 경로도 뾰족, `OutlineSpec.of`), `unit/model/bounds_invariant_test.dart` v2(붓펜, 테이프 사각 캡·점·무작위 100획 + 기존 무작위 300획), (웹) `web/geometry_on_web_test.dart` v2(+ `square_cap_test`), `goldens/pens_p1_golden_test.dart`(`pens_p1_brush.png`·`pens_p1_preview.png`), `widget/pen_preview_test.dart` v2(1차 5종 픽셀 = 1차 그리기 경로, 붓펜 잉크·가운데 굵고 끝 가늘음, P1 5종 예외 없음), `goldens/images_golden_test.dart`(1차 17장 이름 그대로 + 2차 목록) |
 | T28 | 남음 | | `unit/geometry/nib_outline_test.dart`, `bounds_invariant_test` v2, `unit/edit/selection_test.dart` v2, `pen_preview_test` v2, `pens_p1_golden_test`, (웹) 체크섬 |
 | T29 | 남음 | | `unit/geometry/dash_test.dart`, `unit/render/live_dash_test.dart`, `bounds_invariant_test` v2, `pen_preview_test` v2, `pens_p1_golden_test` |
 | T30 | 남음 | | `unit/render/laser_lifetime_test.dart`, `widget/laser_test.dart`, `pen_preview_test` v2, `pens_p1_golden_test` |
 | T31 | 남음 | | `unit/render/tape_state_test.dart`, `widget/tape_test.dart`(cover 분기 점검 포함), `pen_preview_test` v2, `pens_p1_golden_test` |
-| T32a | 남음 | | `unit/object/object_view_test.dart`, `unit/render/content_diff_test.dart` v2, `unit/object/object_index_test.dart` |
+| T32a | 완료 | (이 커밋 — 다음 커밋에서 해시) | `unit/object/object_view_test.dart`(Expando 동일성 — 같은 인스턴스 = 같은 뷰·같은 값 다른 인스턴스 = 다른 뷰, CORE bounds, 층 배정 5종, 획 항목 동일성, ink 층 = ink 층 획 + 도형 `compareOrder` 병합(무작위 300개·같은 시각 id 순·형광펜 빠짐·내용마다 캐시)), `unit/render/content_diff_test.dart` v2(객체 그룹: 같은 내용 no-op·새 판 객체 불변, 층 맨 위 추가 → appended, 아래 → inserted, ink 층 appended = 획 + 도형 병합의 맨 위 새 항목(`inkAppended` — 유지된 도형 아래 새 획은 빠짐), 삭제 → removed, 같은 id 다른 인스턴스 → changed, 층이 바뀐 id), `unit/object/object_index_test.dart`(무작위 객체 1,000·질의 500 = 전수, 지우기·바꾸기 300단계 = 전수, NaN·뒤집힌 질의·빈 색인) |
 | T32b | 남음 | | `widget/objects_render_test.dart`, 1차 L1~L3·appended 시험 |
 | T33 | 남음 (이정표) | | `unit/geometry/shape_path_test.dart`, `unit/model/object_bounds_invariant_test.dart`, (웹) `web/object_bounds_web_test.dart`, `widget/objects_render_test.dart`, `goldens/shapes_golden_test.dart` |
 | T34 | 남음 (이정표) | | `widget/objects_render_test.dart`, `unit/text/text_layout_test.dart` |
@@ -328,6 +328,9 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 3. (T27) 테이프 점 획 정사각형은 모서리 정점을 두 번씩 넣은 다각형이다 — 1차 부드러운 경로(변 중점을 지나는 2차 곡선)가 모서리를 깎지 않게(같은 정점 둘의 중점 = 그 정점). 테이프 **선 끝**의 사각 캡은 1차 것을 그대로 써서 부드러운 경로에서 모서리가 조금 둥글다(1차 형광펜 외곽선도 같음 — 형광펜은 외곽선이 아니라 선으로 그림). T31에서 화면 확인 뒤 필요하면 같은 방법을 캡에도 쓴다.
 4. (T27) 골든 이름: 계획 9.4의 `pens_p1_*.png`를 펜마다 한 장(`pens_p1_brush.png` — 위 실제 필압·아래 가상 필압 S곡선)과 미리보기 장 `pens_p1_preview.png`(펜마다 S곡선·직선 칸)로 했다. T28~T31은 자기 장을 더하고 미리보기 장을 갱신한다. `images_golden_test`는 '17장'을 '1차 17장(이름 그대로) + 2차 목록'으로 바꿨다.
 5. (T27) `bounds_invariant_test`의 테이프는 `PenProfile.of(tape)`가 아직 볼펜이라, 실제 파이프라인 점의 `widthQ`를 `kNominalWidthQ`(테이프 프로필이 만드는 유일한 값)로 바꾼 획에 `PenProfile.tape` 외곽선을 대 본다. T31이 매핑을 바꾸면 이 우회를 실제 파이프라인으로 바꾼다.
+6. (T32a) 객체 색인을 위해 1차 `StrokeSpatialIndex`의 격자 코드를 제네릭 `GridSpatialIndex<T>`(내부)로 올리고 `StrokeSpatialIndex`·`ObjectSpatialIndex`가 그것을 쓴다(칸 64 pt·경계 밖 고정·스탬프 중복 제거 그대로). 1차 `spatial_index_test`는 바꾸지 않고 통과.
+7. (T32a) `InkContentDiff`에 층별 `InkObjectDiff`(`underlay`·`shapes`·`annotation`)와 **`inkAppended`**(ink 층 획 + 도형 병합 목록의 맨 위 새 항목)를 더했다. 1차 획 필드(`appended` 등)는 1차 뜻 그대로(획만 본 맨 위 새 획)라, 유지된 도형 아래에 들어온 새 획도 `appended`에 든다 — T32b의 ink 청크는 `appended` 대신 `inkAppended`를 써야 한다. `content_diff_test` v2는 1차 파일에 그룹으로 더했다.
+8. (T32a) `InkObjectView`는 지금 층·bounds만 갖는다 — 종류별 준비물(도형 경로·문단·이미지 크기)은 T33~T36이 지연 필드로 더한다. `InkLayerItem`은 `InkStrokeItem`(획마다 하나, Expando) | `InkObjectView`의 sealed 내부 타입이다(`InkStroke`는 공개 타입이라 상위 타입을 더하지 않음).
 
 #### 이정표 커밋
 
@@ -336,5 +339,6 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 #### 다음 세션 메모
 
 - 순서(8.2 병렬화): T27 → (T28, T29, T31) / T30은 언제든 / T32a → T32b → (T33, T34, T35, T36, T38) → T37a → T37b → (T41, T42) / T39는 T33 뒤 / T40은 T32b 뒤 / T43은 끝.
+- T32b 다음: `InkChunkCache` 항목을 `InkLayerItem`으로(ink 층 = `inkLayerItemsOf(content)`, 추가는 `diff.inkAppended`, dirty는 `diff.touched` + `diff.shapes.touched`), underlay·annotation 청크 캐시(`objectViewsOf`·`diff.underlay`/`annotation`), 지금 `_paintObjects`가 매 paint 그리는 경로(`ink_page_controller.dart` 1150~1180행 근처)를 캐시로 바꾼다.
 - T28·T29·T31은 T27 뒤 어느 것이든, T30은 언제든. 각 펜 작업은 `PenProfile.of` 매핑 한 줄, `pen_profile_test`·`ink_stroke_test`·`style_ink_v2_test`·`api_surface_test`의 매핑 기대, `pens_p1_golden_test`의 `_pens` 행(새 장 + 미리보기 장 갱신 — `images_golden_test`의 `_roundTwo`에도), `pen_preview_test`의 P1 행을 함께 고친다. `bounds_invariant_test`의 `_tools`에 그 도구를 넣는다.
 - INK-F2: T39(P-B)를 미루면 이 절에 `T39 미룸`을 적는다. 들어오면 그 병합 때 LIBRARY L2-I3·EDITOR E2-21b·INFRA V5b를 다시 돌리도록 결과 보고에 알린다.
