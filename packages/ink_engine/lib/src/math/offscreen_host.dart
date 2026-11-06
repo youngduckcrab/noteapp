@@ -295,9 +295,14 @@ final class OffscreenMathHost {
 
   /// The pipeline over the implicit view; false when there is no view.
   bool _ensureTree() {
-    if (_pipeline != null) return true;
+    if (_pipeline != null && !_fontsChanged) return true;
+    if (_pipeline != null) _abandonTree();
     final view = _viewOrNull();
     if (view == null) return false;
+    if (!_fontsListening) {
+      _fontsListening = true;
+      PaintingBinding.instance.systemFonts.addListener(_systemFontsChanged);
+    }
     _build = BuildOwner(
       focusManager: FocusManager(),
       onBuildScheduled: _isRaster ? () => _rebuildRequested = true : null,
@@ -320,6 +325,27 @@ final class OffscreenMathHost {
     _pipeline = PipelineOwner()..rootNode = renderView;
     renderView.prepareInitialFrame();
     return true;
+  }
+
+  /// (T41) A system fonts change (NoteSans arriving — InkFonts) marks every paragraph of
+  /// the tree with a font update that only the next frame runs; unmounting such a
+  /// paragraph before that frame trips RenderObject.detach's assert (debug, tests) and the
+  /// old formula stays mounted — every later raster was the formula before the change.
+  /// So the next job builds a new tree and the old one is dropped as it is (still attached
+  /// to its own pipeline: its pending updates run harmlessly on a later frame; one small
+  /// tree per fonts change).
+  bool _fontsChanged = false;
+  bool _fontsListening = false;
+
+  void _systemFontsChanged() => _fontsChanged = true;
+
+  void _abandonTree() {
+    _fontsChanged = false;
+    _element = null;
+    _box = null;
+    _boundary = null;
+    _pipeline = null;
+    _build = null;
   }
 
   void _mount(Widget child) {

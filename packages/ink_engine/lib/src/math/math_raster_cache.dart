@@ -82,6 +82,14 @@ final class MathRaster {
   /// Image px per pt: the bucket lowered to the 4 Mpx / 8192 px cap (7.4.5).
   double get pixelsPerPt =>
       rasterScaleFor(sizePt.width, sizePt.height, key.bucket);
+
+  /// (T41) A raster that no cache owns (thumbnails): [r] captured from [formula] at
+  /// [pixelsPerPt]; the caller disposes [image] once it is drawn.
+  static MathRaster detached(
+    MathFormula formula,
+    double pixelsPerPt,
+    OffscreenRaster r,
+  ) => MathRaster._((formula: formula, bucket: pixelsPerPt), r.image, r.size);
 }
 
 /// INTERNAL: the draw key that pins [key] while a chunk picture drew it.

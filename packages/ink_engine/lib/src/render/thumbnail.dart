@@ -9,17 +9,34 @@
 // previous image stays until the new one is ready. No cache outside the
 // widget state (two cells of one pageId never mix). A pencil stroke drawn
 // before the grain was ready is rasterized again once it is.
+//
+// (m5-7 T41, 6.20) The page objects are part of the raster, in L-1 order
+// (K-8, page_composite.dart). The widget cannot return null, so what is not
+// ready is drawn as its placeholder (or the system font) and the page is
+// rasterized again ONCE when it arrives: a decode of one of this page's image
+// assets (InkImageCache.changes of the first ImageBackgroundLayerBuilder in the
+// list — other assets are ignored; no such builder → placeholders), NoteSans
+// loaded (the implicit load starts with the first raster of a text box), a
+// formula raster at the thumbnail scale (kept by the state, disposed with it).
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart' show internal;
+import 'package:note_core/note_core.dart' as core;
 
 import '../background/background_builder.dart';
 import '../background/builder_choice.dart';
 import '../geometry/outline_generator.dart';
+import '../image/image_cache.dart';
+import '../math/math_raster_cache.dart';
+import '../math/math_renderer.dart' show rasterizeFormula;
+import '../text/fonts.dart';
 import 'ink_page_content.dart';
-import 'layer_painters.dart';
+import 'page_composite.dart';
 import 'pencil_grain.dart';
+import 'pinned_raster_cache.dart';
 
 /// (v1.1) INK 4.9. ink_engine does not depend on flutter_riverpod, so the widget reads no
 /// provider: the CALLER passes ref.watch(pageBackgroundBuildersProvider) and
@@ -47,7 +64,13 @@ class InkPageThumbnail extends StatefulWidget {
 /// What one stroke raster shows.
 @immutable
 final class _RasterKey {
-  const _RasterKey(this.pageId, this.pageSize, this.revision, this.paper);
+  const _RasterKey(
+    this.pageId,
+    this.pageSize,
+    this.revision,
+    this.paper,
+    this.generation,
+  );
   final String pageId;
   final Size pageSize;
   final int revision;
@@ -55,16 +78,21 @@ final class _RasterKey {
   /// The highlighter blend depends on the paper (6.10-4).
   final int paper;
 
+  /// (T41) Bumped when an image, the fonts or a formula raster arrived.
+  final int generation;
+
   @override
   bool operator ==(Object other) =>
       other is _RasterKey &&
       other.pageId == pageId &&
       other.pageSize == pageSize &&
       other.revision == revision &&
-      other.paper == paper;
+      other.paper == paper &&
+      other.generation == generation;
 
   @override
-  int get hashCode => Object.hash(pageId, pageSize, revision, paper);
+  int get hashCode =>
+      Object.hash(pageId, pageSize, revision, paper, generation);
 }
 
 class _InkPageThumbnailState extends State<InkPageThumbnail> {
@@ -76,6 +104,19 @@ class _InkPageThumbnailState extends State<InkPageThumbnail> {
   bool _missingGrain = false;
   PencilGrain? _grainListened;
 
+  /// (T41) Raster again once something the last raster missed arrives.
+  int _generation = 0;
+  Set<String> _missingAssets = const {};
+  bool _missingFonts = false;
+  bool _fontsListening = false;
+  InkImageCache? _cacheListened;
+  StreamSubscription<({String assetId, int bucket})>? _changes;
+
+  /// Formula rasters at the thumbnail scale (null = the raster host gave none — the
+  /// placeholder stays); owned by the state.
+  final Map<MathRasterKey, MathRaster?> _maths = {};
+  final Set<MathRasterKey> _mathsPending = {};
+
   @override
   void didUpdateWidget(InkPageThumbnail oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -85,10 +126,79 @@ class _InkPageThumbnailState extends State<InkPageThumbnail> {
   @override
   void dispose() {
     _unlistenGrain();
+    unawaited(_changes?.cancel());
+    _changes = null;
+    if (_fontsListening) InkFontsDebug.removeLoadedListener(_fontsLoaded);
+    for (final m in _maths.values) {
+      m?.image.dispose();
+    }
+    _maths.clear();
     _pendingKey = null;
     _image?.dispose();
     _image = null;
     super.dispose();
+  }
+
+  /// Something the last raster drew as a placeholder arrived: raster again.
+  void _arrived() {
+    if (!mounted) return;
+    setState(() => _generation++);
+  }
+
+  void _fontsLoaded() {
+    if (!_missingFonts) return;
+    _missingFonts = false;
+    _arrived();
+  }
+
+  void _assetChanged(({String assetId, int bucket}) change) {
+    if (!_missingAssets.contains(change.assetId)) return;
+    _missingAssets = const {};
+    _arrived();
+  }
+
+  /// Watches [cache] for [assets] (this page's image assets the last raster missed).
+  void _watchAssets(InkImageCache? cache, Set<String> assets) {
+    _missingAssets = assets;
+    if (assets.isEmpty || cache == null || identical(cache, _cacheListened)) {
+      return;
+    }
+    unawaited(_changes?.cancel());
+    _cacheListened = cache;
+    _changes = cache.isDisposed ? null : cache.changes.listen(_assetChanged);
+  }
+
+  void _watchFonts(bool missing) {
+    _missingFonts = missing;
+    if (!missing) return;
+    if (!_fontsListening) {
+      _fontsListening = true;
+      InkFontsDebug.addLoadedListener(_fontsLoaded);
+    }
+    unawaited(InkFontsDebug.loadImplicitly());
+  }
+
+  /// Starts the raster of [key] for [o] unless it is there or on its way.
+  void _rasterMath(core.MathObject o, MathRasterKey key) {
+    if (_maths.containsKey(key) || !_mathsPending.add(key)) return;
+    unawaited(
+      rasterizeFormula(
+        o.latex,
+        colorArgb: o.style.colorArgb,
+        fontSizePt: o.style.fontSizePt,
+        pixelsPerPt: key.bucket,
+      ).then((r) {
+        _mathsPending.remove(key);
+        if (!mounted) {
+          r?.image.dispose();
+          return;
+        }
+        _maths[key] = r == null
+            ? null
+            : MathRaster.detached(key.formula, key.bucket, r);
+        if (r != null) _arrived();
+      }),
+    );
   }
 
   void _unlistenGrain() {
@@ -125,7 +235,7 @@ class _InkPageThumbnailState extends State<InkPageThumbnail> {
       isScaling: false,
       isThumbnail: true,
     );
-    final hasStrokes = content.strokes.isNotEmpty;
+    final hasStrokes = content.strokes.isNotEmpty || content.objects.isNotEmpty;
     if (hasStrokes) {
       _rasterIfNeeded(
         _RasterKey(
@@ -133,6 +243,7 @@ class _InkPageThumbnailState extends State<InkPageThumbnail> {
           pageSize,
           content.revision,
           background.paperColorArgb,
+          _generation,
         ),
         Size(widget.width * dpr, height * dpr),
       );
@@ -184,16 +295,76 @@ class _InkPageThumbnailState extends State<InkPageThumbnail> {
     if (missingGrain && grain != null && _grainListened == null) {
       _grainListened = grain..addListener(_grainChanged);
     }
-    final recorder = ui.PictureRecorder();
     final pageWidth = content.pageSize.width;
+    final pxPerPt = w / pageWidth;
+    // (T41) what is ready now; the rest is a placeholder until it arrives
+    final cache = imageCacheOf(widget.backgroundBuilders);
+    final images = <String, ui.Image>{};
+    final pins = <InkRasterPin>[];
+    final missingAssets = <String>{};
+    final maths = <String, MathRaster>{};
+    final usedMaths = <MathRasterKey>{};
+    var missingFonts = false;
+    for (final o in content.objects) {
+      switch (o) {
+        case core.ImageObject():
+          if (cache == null || cache.isDisposed) break;
+          final r = o.frame.rect;
+          final side = math.max(r.width, r.height) * pxPerPt;
+          final found = cache.lookup(
+            o.assetId,
+            longSidePx: side.isFinite ? math.max(1, side.ceil()) : 1,
+            pixelWidth: o.pixelWidth,
+            pixelHeight: o.pixelHeight,
+          );
+          final image = found.image;
+          if (image != null) {
+            images[o.id] = image;
+            pins.add(cache.pin(o.assetId, found.bucket));
+          }
+          if ((image == null || found.bucket != found.want) &&
+              found.status == InkImageStatus.ok) {
+            missingAssets.add(o.assetId);
+          }
+        case core.TextBoxObject():
+          if (o.text.isNotEmpty && !InkFontsDebug.isLoaded) {
+            missingFonts = true;
+          }
+        case core.MathObject():
+          if (!isRenderableMath(o)) break;
+          final key = (formula: mathFormulaOf(o), bucket: pxPerPt);
+          usedMaths.add(key);
+          final raster = _maths[key];
+          if (raster != null) {
+            maths[o.id] = raster;
+          } else {
+            _rasterMath(o, key);
+          }
+        case core.ShapeObject() || core.UnknownObject():
+          break;
+      }
+    }
+    // rasters of formulas this page no longer shows
+    _maths.removeWhere((key, raster) {
+      if (usedMaths.contains(key)) return false;
+      raster?.image.dispose();
+      return true;
+    });
+    _watchAssets(cache, missingAssets);
+    _watchFonts(missingFonts);
+    final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder)..scale(w / pageWidth);
-    paintStrokeLayers(
+    paintPageComposite(
       canvas,
-      content.strokes,
+      strokes: content.strokes,
+      objects: content.objects,
       paperColorArgb: content.background.paperColorArgb,
       outlineOf: OutlineGenerator.outline,
+      onePx: pageWidth / w,
       grain: textured ? grain?.value : null,
       marginPt: pageWidth / w,
+      imageOf: (o) => images[o.id],
+      mathRasterOf: (o) => maths[o.id],
     );
     final picture = recorder.endRecording();
     _rasters++;
@@ -233,6 +404,9 @@ class _InkPageThumbnailState extends State<InkPageThumbnail> {
         )
         .whenComplete(() {
           picture.dispose();
+          for (final pin in pins) {
+            pin.release();
+          }
           _busy--;
         });
   }
