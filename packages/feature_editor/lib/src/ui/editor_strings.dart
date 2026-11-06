@@ -62,11 +62,12 @@ abstract final class EditorStrings {
     core.PenTool.highlighter => '형광펜',
     core.PenTool.pencil => '연필',
     core.PenTool.marker => '마커',
-    core.PenTool.brush => '붓',
+    // (2nd round, m5-7/04-editor 6.14.1) the P1 names shown in the picker.
+    core.PenTool.brush => '붓펜',
     core.PenTool.calligraphy => '캘리그래피',
-    core.PenTool.dashed => '점선 펜',
-    core.PenTool.laser => '레이저 펜',
-    core.PenTool.tape => '테이프',
+    core.PenTool.dashed => '점선',
+    core.PenTool.laser => '레이저',
+    core.PenTool.tape => '암기 테이프',
   };
 
   /// Sync icon semantics (6.9.1 — same words as LIBRARY 6.16).
@@ -487,4 +488,219 @@ abstract final class EditorStrings {
   static const templateCornell = '코넬';
   static const templateMusic = '악보';
   static const templatePlanner = '플래너';
+  // ===========================================================================
+  // 2nd round (m5-7/04-editor 1.2 table, E2-00). Later tasks read these; the
+  // section of the plan that uses a string is named in its comment. Menu and
+  // row labels are noun phrases; sentences are 해요체.
+  // ===========================================================================
+
+  // ---- Toolbar v2 and insert menu (6.13.1, 6.12.1) --------------------------
+
+  /// Tool buttons (6.13.1).
+  static const shapeTool = '도형';
+  static const textTool = '텍스트';
+
+  /// [+] (semantics label) and its menu.
+  static const insert = '삽입';
+
+  /// [⋯도구]: the folded shape / text / insert / mic buttons (< 720 px).
+  static const moreTools = '도구 더보기';
+
+  /// Insert menu submenu and the add-page sheet row (6.12.1, 6.12.3).
+  static const image = '이미지';
+
+  /// Image sources (6.12.1 table).
+  static String imageSourceName(core.ImageImportSource source) =>
+      switch (source) {
+        core.ImageImportSource.photos => '사진 보관함',
+        core.ImageImportSource.camera => '카메라로 찍기',
+        core.ImageImportSource.files => '파일에서',
+        core.ImageImportSource.clipboard => '붙여넣기',
+      };
+
+  /// Context menu (6.12.2, source clipboard).
+  static const pasteImage = '이미지 붙여넣기';
+
+  /// importer.pick threw (E-7, 6.21).
+  static const imageInsertFailed = '이미지를 넣지 못했어요';
+
+  /// Over PageObjectLimits (6.21): "이 페이지에는 더 넣을 수 없어요(최대 2,000개)".
+  static String objectLimitReached(int max) =>
+      '이 페이지에는 더 넣을 수 없어요(최대 ${_grouped(max)}개)';
+
+  // ---- Selection menu v2 (6.7) -----------------------------------------------
+
+  static const selectionCut = '잘라내기';
+  static const selectionColor = '색';
+  static const selectionMore = '더보기';
+  static const selectionDuplicate = '복제';
+  static const selectionRotate90 = '90° 돌리기';
+  static const selectionStyle = '스타일';
+  static const selectionVertexEdit = '꼭짓점 편집';
+  static const selectionEditText = '편집';
+  static const selectionFormat = '서식';
+  static const selectionUnlockAspect = '비율 고정 풀기';
+  static const selectionLockAspect = '비율 고정 잠그기';
+
+  /// Rotation tag while dragging the rotation handle (6.6.6): "45°".
+  static String rotationLabel(int degrees) => '$degrees°';
+
+  // ---- Shape tool (6.9.1) ----------------------------------------------------
+
+  static String shapeKindName(core.ShapeKind kind) => switch (kind) {
+    core.ShapeKind.line => '직선',
+    core.ShapeKind.arrow => '화살표',
+    core.ShapeKind.rectangle => '사각형',
+    core.ShapeKind.ellipse => '원/타원',
+    core.ShapeKind.triangle => '삼각형',
+    core.ShapeKind.polygon => '다각형',
+    core.ShapeKind.star => '별',
+  };
+
+  static const shapeKind = '종류';
+  static const shapeStrokeColor = '테두리 색';
+  static const shapeWidth = '굵기';
+  static const shapeLineDash = '선 종류';
+  static const lineSolid = '실선';
+  static const lineDashed = '파선';
+  static const lineDotted = '점선';
+  static const shapeFill = '채우기';
+  static const shapeFillOpacity = '채우기 투명도';
+  static const shapeArrowHeads = '화살촉';
+  static const none = '없음';
+  static const arrowHeadEnd = '끝';
+  static const arrowHeadBoth = '양쪽';
+  static const usePenColor = '펜 색 쓰기';
+  static const polygonSides = '변 수';
+  static const starPoints = '꼭짓점 수';
+
+  /// '더 보기' of a colour row (6.9.1, 6.11.4).
+  static const moreColors = '더 보기';
+
+  // ---- Auto shape (6.10) -----------------------------------------------------
+
+  static const shapeAssist = '자동 도형 보정';
+  static const shapeAssistHint = '선을 긋고 잠시 멈추면 도형으로 바꿔요';
+
+  // ---- Text box (6.11) -------------------------------------------------------
+
+  static const fontSize = '글자 크기';
+  static const fontSizeDown = '글자 작게';
+  static const fontSizeUp = '글자 크게';
+  static const textColor = '글자 색';
+  static const bold = '굵게';
+  static const alignLeft = '왼쪽 정렬';
+  static const alignCenter = '가운데 정렬';
+  static const alignRight = '오른쪽 정렬';
+  static const textBackground = '배경';
+
+  /// Read-only rejection at the end of a session (6.11.5, S-11).
+  static const textCopiedToClipboard = '편집한 글을 클립보드에 복사해 두었어요';
+
+  /// Draft banner (6.11.2, P-B).
+  static const textDraftFound = '저장되지 않은 글이 있어요';
+  static const textDraftRestore = '되살리기';
+  static const textDraftDiscard = '버리기';
+
+  /// Sheet input (6.11.6 A): the panel title and its [완료] (= [done]).
+  static const textInputSheetTitle = '텍스트 입력';
+
+  /// Over the text length limit (6.11.2).
+  static String textTooLong(int max) => '글자는 ${_grouped(max)}자까지 쓸 수 있어요';
+
+  // ---- New pens (6.14) -------------------------------------------------------
+
+  /// Pen settings popup section (6.14.2).
+  static const penAdvanced = '고급';
+  static const nibAngle = '펜촉 각도';
+  static const nibAspect = '펜촉 비율';
+  static const followBarrelRoll = '펜슬 돌리기로 각도 조절';
+  static const dashSpacing = '간격';
+  static const dashDense = '촘촘';
+  static const dashNormal = '보통';
+  static const dashLong = '긴 파선';
+  static const laserFade = '사라지는 시간';
+  static String laserFadeLabel(double seconds) =>
+      '${seconds.toStringAsFixed(1)}초';
+  static const tapeStyle = '모양';
+  static const tapeSolid = '단색';
+  static const tapeStriped = '줄무늬';
+
+  /// More menu (6.14.4).
+  static const tapesRevealAll = '테이프 모두 보이기';
+  static const tapesHideAll = '테이프 모두 가리기';
+
+  // ---- Recording (6.15) ------------------------------------------------------
+
+  /// Mic button (semantics label) and the panel slot (6.15.4).
+  static const recording = '녹음';
+  static const recordingInOtherNote = '다른 노트에서 녹음 중이에요';
+  static const recordingPanelFailed = '녹음 패널을 열지 못했어요';
+
+  /// Settings > page '필기 재생' (6.15.3).
+  static const playbackSection = '필기 재생';
+  static const playbackPreRoll = '탭한 곳보다 앞에서 재생';
+  static String playbackPreRollLabel(int ms) =>
+      '${(ms / 1000).toStringAsFixed(1)}초 앞';
+  static const playbackHighlight = '강조 방식';
+  static const playbackDimUnwritten = '안 쓴 필기 흐리게';
+  static const playbackHighlightRecent = '방금 쓴 필기만 강조';
+  static const tapToSeek = '필기를 탭해 그 부분 재생';
+
+  // ---- Eraser v2 (6.17) ------------------------------------------------------
+
+  static const eraseShapes = '도형도 지우기';
+  static const clearPageIncludeObjects = '도형·텍스트·이미지·수식도 지우기';
+
+  // ---- Gestures (6.4.4) and Apple Pencil (6.5) ------------------------------
+
+  static const gestureTwoFingerTap = '두 손가락 탭';
+  static const gestureThreeFingerTap = '세 손가락 탭';
+  static const gestureFingerLongPress = '손가락 길게 누르기';
+  static const gesturePenButton = '펜 측면 버튼을 누른 채 쓰기(S펜 등)';
+  static const gesturePenButtonHint = '안드로이드 S펜·일부 펜에서 동작해요';
+  static const gestureInvertedStylus = '펜 뒤쪽 지우개';
+  static const gestureInvertedStylusHint = '지우개 끝이 있는 펜에서 동작해요';
+  static const gesturePencilDoubleTap = 'Apple Pencil 두 번 탭';
+  static const gesturePencilSqueeze = 'Apple Pencil 스퀴즈';
+  static const resetGestures = '기본값으로';
+
+  /// Action names (6.4.4 — noun phrases, not 해요체).
+  static const actionNone = '없음';
+  static const actionUndo = '되돌리기';
+  static const actionRedo = '다시 실행';
+  static const actionContextMenu = '메뉴 열기';
+  static const actionEraserWhileHeld = '누르는 동안 지우개';
+  static const actionLassoWhileHeld = '누르는 동안 올가미';
+  static const actionToggleEraser = '지우개 켜고 끄기';
+  static const actionPreviousTool = '이전 도구';
+  static const actionToolPalette = '도구 팔레트';
+  static const actionColorPalette = '색 팔레트';
+  static const actionFollowSystem = 'iPad 설정 따르기';
+
+  /// Pencil rows (6.5.1, CD2-24).
+  static const pencilFollowsSystem = 'iPad 설정을 따르고 있어요';
+  static const pencilNextLaunch = 'iPad 설정을 바꾸면 앱을 다시 열 때 반영돼요';
+
+  // ---- Developer menu and overlay (6.20) ------------------------------------
+
+  static const devTextBoxProbe = '텍스트 상자 시험';
+  static const devTextInputMode = '텍스트 입력 방식';
+  static const devCollectShapeSamples = '도형 표본 모으기';
+  static const devCopyShapeSample = '도형 표본 복사';
+  static const devExpectedShape = '기대 종류';
+  static const devNotAShape = '도형 아님(글씨)';
+  static const devShapeSampleCopied = '도형 표본을 복사했어요';
+  static const devNoShapeSamples = '모은 표본이 없어요';
+
+  /// 1 234 567 → "1,234,567" (no intl — contract 7.4.5).
+  static String _grouped(int n) {
+    final digits = n.abs().toString();
+    final out = StringBuffer(n < 0 ? '-' : '');
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+      out.write(digits[i]);
+    }
+    return out.toString();
+  }
 }

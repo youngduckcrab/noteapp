@@ -1,4 +1,6 @@
-// test/helpers/pointer_driver.dart — 04-editor 9.1 (E-01).
+// test/helpers/pointer_driver.dart — 04-editor 9.1 (E-01); (v2) m5-7/04-editor
+// 6.3.2, 8.2 E2-00: pen button (barrel button) buttons, the web hover →
+// contact order and the eraser tip.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
@@ -77,17 +79,21 @@ class PointerDriver {
     );
   }
 
+  /// [buttons] (v2) changes the pointer's buttons from this event on — the
+  /// web reports contact as bit 0x01 of the move's buttons (6.3.2).
   Future<void> move(
     int pointer,
     Offset to, {
     double? pressure,
     double? tilt,
+    int? buttons,
   }) async {
     final p = _require(pointer);
     final delta = to - p.position;
     p.position = to;
     if (pressure != null) p.pressure = pressure;
     if (tilt != null) p.tilt = tilt;
+    if (buttons != null) p.buttons = buttons;
     await _send(
       PointerMoveEvent(
         timeStamp: _now,
@@ -153,12 +159,18 @@ class PointerDriver {
 
   /// Stylus down at points.first, a move per point every [interval], up at
   /// points.last. [pressures] (same length as [points]) defaults to 0.5.
+  ///
+  /// (v2) [kind] invertedStylus = the eraser tip; [buttons] for the whole
+  /// stroke (native pen button: kPrimaryStylusButton — the Android engine
+  /// sends down(buttons: 0x02) for a touching pen with the button held).
   Future<void> stylusStroke(
     List<Offset> points, {
     List<double>? pressures,
     double tilt = 0,
     Duration interval = const Duration(milliseconds: 4),
     int pointer = 1,
+    PointerDeviceKind kind = PointerDeviceKind.stylus,
+    int buttons = kPrimaryButton,
   }) async {
     if (points.isEmpty) throw ArgumentError.value(points, 'points', 'empty');
     if (pressures != null && pressures.length != points.length) {
@@ -168,14 +180,71 @@ class PointerDriver {
     await down(
       pointer,
       points.first,
-      kind: PointerDeviceKind.stylus,
+      kind: kind,
       pressure: pressureAt(0),
       tilt: tilt,
+      buttons: buttons,
     );
     for (var i = 1; i < points.length; i++) {
       await wait(interval);
       await move(pointer, points[i], pressure: pressureAt(i));
     }
+    await wait(interval);
+    await up(pointer);
+  }
+
+  /// (v2) Native pen-button stroke: down(buttons: 0x02) = contact with the
+  /// barrel button held (6.3.2 — native rule: down is contact).
+  Future<void> nativePenButtonStroke(
+    List<Offset> points, {
+    Duration interval = const Duration(milliseconds: 4),
+    int pointer = 1,
+  }) => stylusStroke(
+    points,
+    interval: interval,
+    pointer: pointer,
+    buttons: kPrimaryStylusButton,
+  );
+
+  /// (v2) Eraser-tip stroke (PointerDeviceKind.invertedStylus).
+  Future<void> eraserTipStroke(
+    List<Offset> points, {
+    Duration interval = const Duration(milliseconds: 4),
+    int pointer = 1,
+  }) => stylusStroke(
+    points,
+    interval: interval,
+    pointer: pointer,
+    kind: PointerDeviceKind.invertedStylus,
+  );
+
+  /// (v2) The web order for a pen-button stroke (6.3.2, research 02 8.4 CDP):
+  /// `down 0x02` at points.first (airborne — barrel button, no contact),
+  /// `move 0x03` to every following point (contact + button), then
+  /// `move 0x02` at points.last (the pen lifts, button still held) and `up`.
+  /// [points] needs at least two points.
+  Future<void> webPenButtonStroke(
+    List<Offset> points, {
+    Duration interval = const Duration(milliseconds: 4),
+    int pointer = 1,
+  }) async {
+    if (points.length < 2) {
+      throw ArgumentError.value(points, 'points', 'needs >= 2 points');
+    }
+    const airborne = kPrimaryStylusButton; // 0x02
+    const contact = kPrimaryButton | kPrimaryStylusButton; // 0x03
+    await down(
+      pointer,
+      points.first,
+      kind: PointerDeviceKind.stylus,
+      buttons: airborne,
+    );
+    for (var i = 1; i < points.length; i++) {
+      await wait(interval);
+      await move(pointer, points[i], buttons: contact);
+    }
+    await wait(interval);
+    await move(pointer, points.last, buttons: airborne);
     await wait(interval);
     await up(pointer);
   }
@@ -238,10 +307,14 @@ class PointerDriver {
   }
 
   /// A hover event (stylus or mouse, not down).
+  ///
+  /// (v2) [buttons]: a hovering pen with its barrel button held reports 0x02
+  /// (the editor ignores hover buttons — 6.3.2, R41).
   Future<void> hover(
     Offset at, {
     PointerDeviceKind kind = PointerDeviceKind.stylus,
     int pointer = 41,
+    int buttons = 0,
   }) async {
     await _ensureAdded(pointer, kind, at);
     await _send(
@@ -250,6 +323,7 @@ class PointerDriver {
         device: pointer,
         kind: kind,
         position: at,
+        buttons: buttons,
       ),
     );
   }
@@ -326,5 +400,5 @@ final class _ActivePointer {
   double pressure;
   double tilt;
   final double radiusMajor;
-  final int buttons;
+  int buttons;
 }

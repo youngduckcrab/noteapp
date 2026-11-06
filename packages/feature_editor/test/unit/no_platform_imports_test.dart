@@ -1,5 +1,6 @@
 // Import rules of feature_editor, checked inside the package before INFRA's
-// ws check (04-editor 6.16; contract 7.1 rules 1-2, 7.4.3).
+// ws check (1st round 04-editor 6.16; 2nd round m5-7/04-editor 6.24 — E2-00;
+// contract 7.1 rules 1-2 and (v2.0) 4, 7.4.3).
 //
 // Every .dart file under lib/ and test/ is read; its directive prologue
 // (library / import / export / part) is parsed with a comment- and
@@ -7,16 +8,21 @@
 //
 // ① package:flutter/material.dart or cupertino.dart (lib and test)
 // ② platform libraries in lib/: dart:io, dart:ffi, dart:html, dart:js,
-//    dart:js_util, package:js, package:web — and dart:js_interop(_unsafe):
-//    EDITOR has no *_browser.dart / *_native.dart files (6.16)
+//    dart:js_util, dart:js_interop(_unsafe), package:js, package:web.
+//    (v2) ONE exception (P-C, web fallback B): lib/src/text/
+//    textarea_overlay_browser.dart may import dart:js_interop and
+//    dart:js_interop_unsafe — still not package:web or dart:html (6.24)
 // ③ another package's src/ (lib and test)
-// ④ testing.dart / testing_vm.dart entry points in lib/
+// ④ testing.dart / testing_vm.dart / testing_web.dart entry points in lib/
 // ⑤ other feature packages (lib and test — contract 7.1 rule 1), and
 //    `.setViewport(` / `.discardPending(` calls in lib/ (only InkPageView
 //    calls setViewport; a failed commit uses discardEdit — 6.16 ⑤)
+// ⑥ (v2) service packages media_io, ink_recognition, pencil_bridge (lib and
+//    test — contract 7.1 rule 4; EDITOR tests use fakes only, 7.4.6)
 //
 // The checker itself is tested on synthetic sources and on a temporary
-// package directory with deliberate violations.
+// package directory with deliberate violations (never on lib/ — review
+// S-12(e)), so it does not race other checks.
 @TestOn('vm')
 library;
 
@@ -42,12 +48,25 @@ const _platformLibraries = {
 };
 const _platformPackages = ['package:js/', 'package:web/'];
 
+/// (v2, 6.24) The only lib/ file that may use the JS interop libraries.
+const webInteropFile = 'lib/src/text/textarea_overlay_browser.dart';
+const _webInteropLibraries = {'dart:js_interop', 'dart:js_interop_unsafe'};
+
+/// (v2, contract 7.1 rule 4) Service packages: never imported by a feature.
+const _servicePackages = ['media_io', 'ink_recognition', 'pencil_bridge'];
+
+const _testingEntryPoints = {
+  'testing.dart',
+  'testing_vm.dart',
+  'testing_web.dart',
+};
+
 const _otherFeaturePackages = ['feature_library', 'pdf_io', 'sync_engine'];
 
 const _forbiddenLibCalls = {'setViewport', 'discardPending'};
 
 void main() {
-  test('lib/ and test/ follow the import rules (6.16 ①-⑤)', () {
+  test('lib/ and test/ follow the import rules (6.16 ①-⑤, 6.24 ⑥)', () {
     final violations = checkPackage(Directory.current);
     expect(violations, isEmpty, reason: violations.join('\n'));
   });
@@ -187,6 +206,55 @@ void f(dynamic c) {
       );
     });
 
+    test('② (v2) the JS interop exception is one file and two libraries', () {
+      for (final uri in ['dart:js_interop', 'dart:js_interop_unsafe']) {
+        expect(violationsOf(webInteropFile, "import '$uri';"), isEmpty);
+        expect(
+          violationsOf('lib/src/text/other_browser.dart', "import '$uri';"),
+          hasLength(1),
+          reason: 'only $webInteropFile may use $uri',
+        );
+      }
+      for (final uri in ['package:web/web.dart', 'dart:html', 'dart:io']) {
+        expect(
+          violationsOf(webInteropFile, "import '$uri';"),
+          hasLength(1),
+          reason: uri,
+        );
+      }
+    });
+
+    test('④ (v2) testing_web.dart in lib only', () {
+      const uri = 'package:note_core/testing_web.dart';
+      expect(violationsOf('lib/src/a.dart', "import '$uri';"), hasLength(1));
+      expect(violationsOf('test/web/a_test.dart', "import '$uri';"), isEmpty);
+    });
+
+    test('⑥ (v2) service packages in lib and test', () {
+      for (final package in _servicePackages) {
+        for (final path in ['lib/src/a.dart', 'test/a_test.dart']) {
+          expect(
+            violationsOf(path, "import 'package:$package/$package.dart';"),
+            hasLength(1),
+            reason: '$path $package',
+          );
+          expect(
+            violationsOf(path, "import 'package:$package/testing.dart';"),
+            contains(contains('service packages')),
+            reason: '$path $package testing',
+          );
+        }
+      }
+      expect(
+        violationsOf(
+          'lib/src/a.dart',
+          "import 'package:note_core/note_core.dart';\n"
+              "import 'package:ink_engine/ink_engine.dart';",
+        ),
+        isEmpty,
+      );
+    });
+
     test('comments and string literals never count', () {
       const source = r"""
 // import 'package:flutter/material.dart';
@@ -261,6 +329,31 @@ void main() {
         hasLength(1),
       );
     });
+
+    test('(v2) scans a temporary tree with one violating file', () {
+      final root = Directory.systemTemp.createTempSync('editor_imports_v2_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      void write(String path, String text) => File('${root.path}/$path')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(text);
+      write(
+        webInteropFile,
+        "import 'dart:js_interop';\nimport 'dart:js_interop_unsafe';\n",
+      );
+      write('lib/src/text/textarea_overlay.dart', "import 'dart:async';\n");
+      write(
+        'test/unit/fake_test.dart',
+        "import 'package:note_core/testing.dart';\n",
+      );
+      write(
+        'lib/src/playback/bad.dart',
+        "import 'package:media_io/media_io.dart';\n",
+      );
+
+      final violations = checkPackage(root);
+      expect(violations, hasLength(1), reason: violations.join('\n'));
+      expect(violations.single, startsWith('lib/src/playback/bad.dart'));
+    });
   });
 }
 
@@ -300,8 +393,9 @@ List<String> violationsOf(String path, String source) {
     }
     if (inLib &&
         (_platformLibraries.contains(uri) ||
-            _platformPackages.any(uri.startsWith))) {
-      out.add('$path: $uri — no platform libraries in lib/ (6.16 ②)');
+            _platformPackages.any(uri.startsWith)) &&
+        !(path == webInteropFile && _webInteropLibraries.contains(uri))) {
+      out.add('$path: $uri — no platform libraries in lib/ (6.16 ②, 6.24)');
     }
     if (uri.startsWith('package:')) {
       final segments = uri.substring('package:'.length).split('/');
@@ -312,10 +406,14 @@ List<String> violationsOf(String path, String source) {
         out.add("$path: $uri — another package's src/ (6.16 ③)");
       }
       final file = segments.last;
-      if (inLib &&
-          segments.length == 2 &&
-          (file == 'testing.dart' || file == 'testing_vm.dart')) {
+      if (inLib && segments.length == 2 && _testingEntryPoints.contains(file)) {
         out.add('$path: $uri — test-only entry point in lib/ (6.16 ④)');
+      }
+      if (_servicePackages.contains(package)) {
+        out.add(
+          '$path: $uri — features never import service packages '
+          '(contract 7.1 rule 4, 6.24 ⑥)',
+        );
       }
       if (_otherFeaturePackages.contains(package)) {
         out.add(

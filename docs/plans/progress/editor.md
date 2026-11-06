@@ -347,7 +347,7 @@
 | ID | 상태 | 커밋 | 완료 조건 시험 파일 |
 |---|---|---|---|
 | R2-B5 | 기반 단계에서 완료 | 78d7f25 | 위 '작업 표 (2차)' |
-| E2-00 | 남음 | | `unit/no_platform_imports_test.dart`, `unit/helpers_smoke_test.dart` |
+| E2-00 | 완료 | (이 커밋 — 해시는 다음 기록에) | `unit/no_platform_imports_test.dart` v2(⑥ 서비스 패키지 금지 lib·test, ② `lib/src/text/textarea_overlay_browser.dart` 한 파일만 `dart:js_interop(_unsafe)` 예외, ④ `testing_web.dart`, 임시 폴더 가짜 트리 — 위반 1개), `unit/helpers_smoke_test.dart`('v2 helpers (E2-00)' 묶음 10개), `unit/editor_strings_test.dart`(새 문구 표본) |
 | E2-01 | 남음 | | `unit/editor_device_state_test.dart`, `unit/text_edit_session_test.dart`, `widget/text_box_inline_test.dart`, `widget/text_input_sheet_test.dart`, `web/text_input_browser_test.dart` |
 | E2-02 | 남음 | | `unit/page_mount_test.dart` v2, `unit/selection_revalidate_test.dart` |
 | E2-03 | 남음 | | `unit/tool_controller_test.dart` v2, `unit/tool_options_test.dart`, `unit/editor_setting_keys_test.dart` v2, `unit/pre_roll_test.dart` |
@@ -396,7 +396,13 @@
 
 #### 계획과 다르게 한 점 (동시 개발)
 
-- 없음
+- E2-00 `EditorStrings.penTypeName`의 P1 다섯 이름을 6.14.1 글자대로 바꿨다(1차 '붓'·'점선 펜'·'레이저 펜'·'테이프' → '붓펜'·'점선'·'레이저'·'암기 테이프'). 1차 화면은 P1 펜을 보이지 않아(저장값 이름만) 1차 시험 영향 없음.
+- E2-00 새 문구 중 계획서가 글자를 정하지 않은 것은 내가 정했다(해요체·명사형 규칙): 자동 도형 안내 '선을 긋고 잠시 멈추면 도형으로 바꿔요', '글자는 10,000자까지 쓸 수 있어요', 필기 재생 줄('탭한 곳보다 앞에서 재생'·'필기를 탭해 그 부분 재생'·'강조 방식'), 텍스트 서식 단추 이름, 개발자 메뉴의 '기대 종류'·'도형 표본을 복사했어요'·'모은 표본이 없어요', '도구 더보기'·'텍스트 입력'. 숫자는 `_grouped`로 천 단위 쉼표(intl 없음 — 7.4.5).
+- E2-00 `FakeImageImporter`는 `store:`를 받는다(계획 5.5 표기 `FakeImageImporter(sources:, next:)` — 에셋을 넣을 저장소가 필요). `next`·`cancelNext`·`throwNext`(+`throwSynchronously`)·`holdNext`(진행 중 두 번 누름)·`onPick`(호출 안에서 동기로 — 메뉴가 열려 있는지 확인)·`calls`·`putAssetIds`를 둔다. `importer` 값은 한 인스턴스라 provider 값이 같다.
+- E2-00 `pumpEditor` 새 인자: `objectsByPageIndex`(다른 `pageId` 객체는 `copyTo`로 그 페이지에 — id·`createdAt` 유지), `recordings: [RecordingSeed]`(오디오 에셋 + `createRecording`), `fakeAudio`(CORE `FakeAudioRecorder(store:)`·`FakeAudioPlayback` override → `handles.audioRecorder`·`audioPlayback`), `imageImporter`, `stylusExtras`, `extensions`. 획의 녹음 메타는 `Stroke.copyWith(recordingId:, recordingOffsetMs:)`로 시드한다.
+- E2-00 `PointerDriver`: `move(buttons:)`·`hover(buttons:)`·`stylusStroke(kind:, buttons:)`와 `nativePenButtonStroke`(down 0x02)·`webPenButtonStroke`(down 0x02 → move 0x03… → move 0x02 → up)·`eraserTipStroke`(`invertedStylus`).
+- E2-00 `test/helpers/mapping_table.dart`는 1차 5.1.3 행 10개 + 2차 5.1.2 행 16개(행마다 덮는 시험 파일·P-A 작업). 9.3의 `unit/mapping_coverage_test.dart`(덮는 파일이 있고 `undoDepth`를 단언하는지)는 덮는 시험이 아직 없어 **E2-22**에서 만든다 — E2-00은 표가 P-B·P-C 작업을 가리키지 않는지만 본다(`helpers_smoke_test`).
+- E2-00 `fake_extensions.dart`: `RecordingSelectionItem`·`RecordingInsertItem`(받은 문맥·`context.mounted` 기록, `onRun` 동기 훅, `throwSync`·`throwAsync`·`holdNext`, 명령 하나를 문맥 `execute`로, 삽입은 `selectAfter`로 `selectObject`), `TestRecordingPanelBuilder`(`throwNext` — E-7 시험), `TestRecordingPanel`(탭 재생 스위치·닫기 — 키 `test.panel.*`). `FakeStylusExtras`는 `emit`·`emitError`·`listenCount`·`cancelCount`.
 
 #### 이정표 커밋 (동시 개발)
 
@@ -405,5 +411,5 @@
 
 #### 다음 세션 메모
 
-- 세션 1(2026-11-06): 작업 표·계획서 C22-09 정리.
+- 세션 1(2026-11-06): 작업 표·계획서 C22-09 정리(abaf1a2), E2-00.
 - EDITOR-F3: E2-15(P-B)를 미루게 되면 이 표의 E2-15 줄을 `미룸`으로 두고 여기에 `E2-15 미룸`을 적는다(E2-21b·V5b·V15 자동 도형 판정 근거).
