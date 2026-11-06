@@ -100,6 +100,20 @@ abstract final class PdfTuning {
   /// One formula raster — longer → left out with a warning.
   static const Duration exportMathRasterTimeout = Duration(seconds: 3);
 
+  // (2차, m5-7/06-pdf 4.5.1 — T27) the library-wide PDF text indexer (6.4).
+
+  /// Least time between two indexed PDF pages (6.4.3).
+  static const Duration indexSliceGap = Duration(milliseconds: 150);
+
+  /// One search unit's body at most (UTF-16 code units); a longer page is cut at line breaks.
+  static const int indexMaxUnitCodeUnits = 30000;
+
+  /// The `:x<n>` tail of the pdf sourceRev (CP-PDF-2) — raise it when the unit rules change.
+  static const int indexExtractorVersion = 1;
+
+  /// Assets queued at a time by the catch-up.
+  static const int indexCatchUpBatch = 50;
+
   // colors — contract 7.4.11 v1.2 (C12-07): the PDF search highlight is an exception to the
   // no-hard-coded-color rule. It is drawn OVER THE PAPER, so contrast with the paper (not the
   // UI theme) decides it; it does not follow the theme (dark mode included). PdfTuning is the
