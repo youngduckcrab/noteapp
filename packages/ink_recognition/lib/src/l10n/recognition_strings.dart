@@ -155,4 +155,40 @@ abstract final class RecognitionStrings {
       '필기가 멈추길 기다리는 중 · 남은 페이지 $queued';
   static String indexerRecognizing(int queued) => '인식 중 · 남은 페이지 $queued';
   static const String indexerPaused = '앱이 뒤에 있어 멈췄어요';
+
+  // The A-4 lab (6.20 — L2-19). Settings entry and the lab sheet.
+  static const String labEntry = '인식 실험 열기';
+  static const String labTitle = '인식 실험';
+  static const String labModelsNeeded = '한국어·English 모델이 모두 준비되면 인식할 수 있어요.';
+  static const String labWritePrompt = '위 문장을 아래 칸에 손으로 써 주세요.';
+  static const String labRecognize = '인식';
+  static const String labPrevious = '이전';
+  static const String labNext = '다음';
+  static const String labCopyJson = '결과 JSON 복사';
+  static const String labCopied = '결과를 복사했어요. 대화에 붙여 넣어 주세요.';
+  static const String labSummary = '요약';
+  static const String labNotYet = '아직 인식하지 않았어요';
+  static const String labLatency = '지연';
+  static String labProgress(int i, int n, String group) => '$i/$n · $group';
+  static String labGroupName(String group) => switch (group) {
+    'korean' => korean,
+    'mixed' => '혼용',
+    _ => english,
+  };
+
+  /// The four result columns: A = ko, en, B = strategy B (ko + en), and A
+  /// again with the points in page coordinates (6.4 S-14).
+  static String labModeName(String mode) => switch (mode) {
+    'ko' => 'A (ko)',
+    'en' => 'en',
+    'mixed' => 'B (ko+en)',
+    _ => 'A · 페이지 좌표',
+  };
+  static String labGroupLine(String group, int done, int total) =>
+      '${labGroupName(group)} · $done/$total문장';
+  static String labCer(String mode, double? rate) =>
+      '${labModeName(mode)} ${rate == null ? '—' : '${(rate * 100).toStringAsFixed(1)}%'}';
+  static String labMs(int ms) => '$ms ms';
+  static String labLatencyLine(String mode, int median, int max) =>
+      '${labModeName(mode)} 중앙값 $median ms · 최댓값 $max ms';
 }

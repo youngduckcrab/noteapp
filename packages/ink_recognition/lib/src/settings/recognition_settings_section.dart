@@ -27,6 +27,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../common/report_error.dart';
 import '../indexer/indexer_status.dart';
 import '../l10n/recognition_strings.dart';
+import '../lab/recognition_lab_sheet.dart';
 import '../model/candidates.dart';
 import '../ports/handwriting_recognizer.dart';
 import '../ports/math_recognizer.dart';
@@ -34,6 +35,7 @@ import '../ports/model_admin.dart';
 import '../providers.dart';
 import '../ui/model_downloads.dart';
 import '../ui/model_row.dart';
+import '../ui/recognition_sheet.dart' show kSheetMinTapStyle;
 import 'recognition_settings_keys.dart';
 
 /// Appendix C keys of the section (INFRA V5 · V6 — not contract).
@@ -51,6 +53,9 @@ abstract final class RecognitionSettingsUiKeys {
   static const ValueKey<String> unsupported = ValueKey(
     'recog.settings.unsupported',
   );
+
+  /// '품질 실험' [인식 실험 열기] (appendix C).
+  static const ValueKey<String> lab = ValueKey('recog.settings.lab');
 
   /// One language choice ('ko' | 'en').
   static ValueKey<String> languageOf(String tag) =>
@@ -231,6 +236,26 @@ class RecognitionSettingsSection extends ConsumerWidget {
               value: values.get(RecognitionSettingsKeys.mathConsent),
               onChanged: (v) => save(RecognitionSettingsKeys.mathConsent, v),
             ),
+            // 6.18 '품질 실험': the A-4 lab only with a handwriting engine
+            // (the apps — never the web, Q9).
+            if (available) ...[
+              const _GroupHeader(RecognitionStrings.labGroup),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton(
+                    key: RecognitionSettingsUiKeys.lab,
+                    style: kSheetMinTapStyle,
+                    onPressed: () => unawaited(openRecognitionLab(context)),
+                    child: const Text(RecognitionStrings.labEntry),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

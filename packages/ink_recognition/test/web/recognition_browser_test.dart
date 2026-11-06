@@ -129,6 +129,8 @@ void main() {
       find.byKey(const ValueKey('recog.settings.consent')),
     );
     expect(consent.onChanged, isNotNull);
+    // (L2-19) no A-4 lab on the web (6.20, Q9), even with an engine.
+    expect(find.byKey(const ValueKey('recog.settings.lab')), findsNothing);
   });
 
   testWidgets('the conversion sheet on the web (recognitionOverrides): the '

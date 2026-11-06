@@ -21,16 +21,23 @@ const ValueKey<String> kSheetCancelKey = ValueKey('recog.sheet.cancel');
 /// The largest share of the screen height a sheet may take (7.4.10).
 const double kSheetMaxHeightFactor = 0.5;
 
+/// Sheets outside the editor (the A-4 lab, the math fixture pad — 6.20,
+/// 6.14.7) may take up to 90%: the 50% rule is for UI over the page.
+const double kOutsideEditorSheetMaxHeightFactor = 0.9;
+
 /// Opens [builder] as a recognition sheet keyed [sheetKey]. Call it before the
 /// run's first await (it reads the Navigator of [context] synchronously).
 ///
 /// The keyed content is at most 50% of the screen height and sits on the
 /// keyboard: the sheet's surface grows by viewInsets.bottom underneath it, so
 /// what the user sees of the sheet stays ≤ 50% with the keyboard up too.
+/// [maxHeightFactor] is [kOutsideEditorSheetMaxHeightFactor] for the sheets
+/// opened outside the editor.
 Future<T?> showRecognitionSheet<T>(
   BuildContext context, {
   required Key sheetKey,
   required WidgetBuilder builder,
+  double maxHeightFactor = kSheetMaxHeightFactor,
 }) => showModalBottomSheet<T>(
   context: context,
   isScrollControlled: true,
@@ -42,8 +49,7 @@ Future<T?> showRecognitionSheet<T>(
     ),
     child: ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight:
-            MediaQuery.sizeOf(sheetContext).height * kSheetMaxHeightFactor,
+        maxHeight: MediaQuery.sizeOf(sheetContext).height * maxHeightFactor,
       ),
       child: KeyedSubtree(key: sheetKey, child: builder(sheetContext)),
     ),

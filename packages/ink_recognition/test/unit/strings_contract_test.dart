@@ -164,4 +164,31 @@ void main() {
       '셀룰러 데이터로 받아요(약 20MB). 한 번 더 누르면 받아요.',
     );
   });
+
+  test('A-4 lab (6.20) — L2-19', () {
+    expect(RecognitionStrings.labGroup, '품질 실험');
+    expect(RecognitionStrings.labEntry, '인식 실험 열기');
+    expect(RecognitionStrings.labTitle, '인식 실험');
+    expect(
+      RecognitionStrings.labModelsNeeded,
+      '한국어·English 모델이 모두 준비되면 인식할 수 있어요.',
+    );
+    expect(RecognitionStrings.labRecognize, '인식');
+    expect(RecognitionStrings.labCopyJson, '결과 JSON 복사');
+    expect(RecognitionStrings.labProgress(3, 30, '혼용'), '3/30 · 혼용');
+    expect(RecognitionStrings.labGroupName('korean'), '한국어');
+    expect(RecognitionStrings.labGroupName('mixed'), '혼용');
+    expect(RecognitionStrings.labGroupName('english'), '영어');
+    expect(RecognitionStrings.labModeName('ko'), 'A (ko)');
+    expect(RecognitionStrings.labModeName('en'), 'en');
+    expect(RecognitionStrings.labModeName('mixed'), 'B (ko+en)');
+    expect(RecognitionStrings.labModeName('koPage'), 'A · 페이지 좌표');
+    expect(RecognitionStrings.labCer('ko', 0.1234), 'A (ko) 12.3%');
+    expect(RecognitionStrings.labCer('en', null), 'en —');
+    expect(RecognitionStrings.labGroupLine('english', 4, 10), '영어 · 4/10문장');
+    expect(
+      RecognitionStrings.labLatencyLine('mixed', 210, 480),
+      'B (ko+en) 중앙값 210 ms · 최댓값 480 ms',
+    );
+  });
 }
