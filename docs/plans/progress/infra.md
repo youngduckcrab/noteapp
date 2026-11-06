@@ -395,7 +395,7 @@
 | J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요) | `1fd1aea`(①②③) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
 | J1 | 완료 | (J1 커밋 — 아래 'J1' 절) | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
 | J2 | 완료 | (J2 커밋 — 아래 'J2' 절) | `native_config_test`(서명 분기 — 커밋된 파일 1·파서 2·규칙마다 깨뜨리기 4), `workflows_test` `android.yml` 묶음 15(단계 순서·NDK·시크릿은 잡 `env`만·`key.properties` 경로·**서명 세 갈래**를 셸 조각으로 실행·아티팩트 이름 두 갈래·가짜 `apksigner` 4경우) — 실제 서명은 GitHub(H6, V14) |
-| J3 | 남음 | | `workflows_test`(ios-compile·testflight) — 실행은 U19 |
+| J3 | 완료 | (J3 커밋 — 아래 'J3' 절) | `workflows_test` `ios-compile.yml` 묶음 7(입력·게이트·`macos-26`·45분·`concurrency`·시크릿·변수 없음·`--no-codesign`·`pipefail`+`tee`·아티팩트·요약 셸 조각을 표본 로그·`Podfile.lock`으로 실행) + `ios-testflight.yml` 묶음 7(`macos-26`·`IOS_SIGNING_MODE`·수동 서명 단계·**두 서명 갈래**를 가짜 `xcodebuild`로 실행·Admin 주석), `guides_test` 06 — 실행은 U19(H6) |
 | J4 | 남음 | | `app/test/storage/native_storage_paths_test.dart`·`core_module_test` |
 | J5 | 남음 | | `feature_switch_section_test`·`settings_sections_test` v2·`app_module_context_test` |
 | J6 | 남음 | | `idle_tasks_test` 보강·`bootstrap_app_test` |
@@ -511,6 +511,20 @@
 | `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
 | `ws check` (R1–R16) / `ws native-reqs` | 0 / 0 |
 
+#### J3 — `ios-compile.yml` · `ios-testflight.yml` 갱신 (계획 8.2, 6.11.5·6.11.6)
+
+- **`.github/workflows/ios-compile.yml`**(새, 6.11.5): `workflow_dispatch`만(입력 `confirm` 'macOS 10배 과금 확인: yes 입력', `ipa` bool 기본 false), 잡 `if: inputs.confirm == 'yes'`, `macos-26`, 45분, `concurrency: ios-compile`(취소 안 함), 시크릿·변수 없음. 단계: Checkout → Flutter(`cache: true`) → `Cache CocoaPods`(`~/Library/Caches/CocoaPods`·`app/ios/Pods`, key `pods-${{ hashFiles('pubspec.lock', 'app/ios/Podfile') }}`) → 훅 캐시(1차 키) → `pub get --enforce-lockfile` → `ws build-info --channel experiment` → `set -o pipefail` + `flutter build ios --release --no-codesign … 2>&1 | tee "$RUNNER_TEMP/ios-build.log"`(걸린 초 → `steps.build.outputs.seconds`) → (`ipa`) `flutter build ipa --no-codesign …` + `ditto`로 `Runner.xcarchive.zip` → 요약(`always()` — 걸린 시간, 'This will become an error' 줄 수와 Flutter가 적은 CocoaPods 전용 플러그인 이름, `Podfile.lock` `PODS:` 수) → 아티팩트 `ios-compile-<run>`(`Podfile.lock`·빌드 로그, `always()`, 7일), (`ipa`) `ios-xcarchive-<run>`(7일).
+- **`.github/workflows/ios-testflight.yml`**(6.11.6, 초안 유지): `macos-latest` → `macos-26`, 잡 `env`에 `IOS_SIGNING_MODE: ${{ vars.IOS_SIGNING_MODE || 'cloud' }}`. `manual`이면 단계 'Certificate and profile (manual signing)'(그 단계 `env`에만 시크릿 `IOS_DIST_P12_BASE64`·`IOS_DIST_P12_PASSWORD`·`IOS_PROFILE_BASE64`) — 임시 키체인에 `.p12`, 프로파일을 `Provisioning Profiles/<UUID>.mobileprovision`로, `IOS_KEYCHAIN`·`IOS_PROFILE_NAME`·`IOS_BUNDLE_ID`를 `$GITHUB_ENV`로. Archive는 `cloud` → 1차의 `-allowProvisioningUpdates`·API 키·`CODE_SIGN_STYLE=Automatic`, `manual` → `CODE_SIGN_STYLE=Manual`·`CODE_SIGN_IDENTITY=Apple Distribution`·`PROVISIONING_PROFILE_SPECIFIER`. Export는 `manual`이면 ExportOptions 사본을 `signingStyle manual`·`signingCertificate`·`provisioningProfiles`(PlistBuddy — 번들 ID의 점 때문)로 고친다. 정리 단계(`always()`, 마지막)는 키체인도 지운다. 머리 주석에 '클라우드 서명은 Admin 키가 필요할 수 있음'(조사 04 요약 11)·'ios-compile.yml 먼저'.
+- **안내서 06**: 4단계 아래 '서명 방식' 소절(클라우드 기본·Admin 보고, 수동 서명 시크릿 3개 + Variable `IOS_SIGNING_MODE` = `manual`, CSR은 Claude가), 문제 해결 줄 보강. `guides_test` 06(잡 `env` 이름이 안내서에 있음)이 이것을 본다.
+- 실행은 U19 승인 때(H6) — 컨테이너에는 macOS가 없다.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/workflows_test.dart tool/test/guides_test.dart` | 73 · 22 통과 |
+| `dart test tool/test` | 464 통과 · 130초 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `ws check` (R1–R16) | 0 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -555,6 +569,10 @@
 - (J2) `guides_test`의 05 사례를 아티팩트 이름 식(두 갈래)에 맞췄다. 안내서 05에 `noteapp-debug-signed-<번호>`·'지우지 말고 알려 주세요'를 넣는 것과 `::error::`가 가리키는 `docs/guides/07-android-signing.md`를 만드는 것은 J18(안내서 v2) 몫이다.
 - (J2) `key.properties`의 비밀번호는 글자·숫자만 쓴다고 정해(6.10.4 무작위 32자) Java properties 이스케이프를 하지 않는다(워크플로 주석).
 
+- (J3) `ios-compile.yml`의 빌드 단계는 `cd app &&` 대신 `working-directory: app`(다른 워크플로와 같은 꼴 — `workflows_test`의 '모든 flutter build' 사례가 그대로 본다). 계획 표의 `cd app && flutter build ios …`와 결과는 같다.
+- (J3) `ios-testflight.yml`의 수동 서명 시크릿은 잡 `env`가 아니라 그 단계 `env`에만 둔다(클라우드 서명 실행에는 들어가지 않게). 안내서 06의 J18 몫(`ios-compile.yml` 언제·어떻게, 웹 노트 옮기기)은 아직이다 — 이번에는 6.11.6이 정한 서명 방식만 넣었다.
+- (J3) 수동 서명의 실제 동작(키체인·프로파일·export)은 검증 전 초안이다 — 시험은 단계 구조와 Archive 인자 두 갈래(가짜 `xcodebuild`)까지.
+
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 
 | 보낸 곳 | 내용 | 처리 |
@@ -576,7 +594,7 @@
 
 #### 다음 세션 메모
 
-- J1·J2 끝. 다음: J3(`ios-compile.yml`·`ios-testflight.yml` 갱신 — 6.11.5·6.11.6)·J4(네이티브 저장 경로 + `native_config_test`의 앱 셸 두 경로 묶음)·J5.
+- J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
 - (총괄·사용자) 고정 키(6.10.4, U20 ①)는 아직 없다 — 키를 만들어 파일 두 개로 건네는 일은 사용자와 함께(안내서 07은 J18). 그 전까지 `android.yml`은 `mode=debug`(`noteapp-debug-signed-<run>`)로 돈다. 시크릿 없이 변수만 넣으면 실패하는지(V14)는 H6.
 - J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
 - J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.

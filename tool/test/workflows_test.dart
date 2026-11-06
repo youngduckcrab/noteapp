@@ -1,13 +1,15 @@
 // .github checks (docs/plans/01-infra.md 6.13 and the 9.1 workflows_test row,
-// I13; docs/plans/m5-7/01-infra.md 6.14 and 6.16 for 2차 R2-B1): the five
+// I13; docs/plans/m5-7/01-infra.md 6.14 and 6.16 for 2차 R2-B1): the six
 // workflows (triggers, concurrency, time limits, the two caches and their
 // keys, browser and integration tests, the test scope — main / manual full
 // runs, the default branch since its previous push, other branches since the
 // default branch, with the full-run fallbacks —, the live channel on main
 // only, the deploy gate on secrets, pinned versions, the iOS gate, the manual
 // APK build, the functions skeleton with its `hashFiles` guard) and the issue
-// templates. Every `ws` call in a workflow is parsed by the real `ws`
-// argument parser, and every `run` script passes `bash -n`.
+// templates; 2차 J2 / J3 (m5-7/01-infra 6.10.3, 6.11.5, 6.11.6): the APK
+// signing ways, ios-compile.yml and the two TestFlight signing ways, their
+// shell steps run with fake tools. Every `ws` call in a workflow is parsed by
+// the real `ws` argument parser, and every `run` script passes `bash -n`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -42,6 +44,7 @@ const _timeouts = {
   'android.yml': 30,
   'ci.yml': 60,
   'functions.yml': 15,
+  'ios-compile.yml': 45,
   'ios-testflight.yml': 45,
   'web-experiment.yml': 25,
 };
@@ -266,12 +269,14 @@ void main() {
   });
 
   group('all workflows', () {
-    test('the four workflows of 6.13 and functions.yml (2차) exist and '
+    test('the four workflows of 6.13, functions.yml and ios-compile.yml (2차) '
+        'exist and '
         'parse', () {
       expect(_workflowNames(), [
         'android.yml',
         'ci.yml',
         'functions.yml',
+        'ios-compile.yml',
         'ios-testflight.yml',
         'web-experiment.yml',
       ]);
@@ -334,7 +339,7 @@ void main() {
           expect(withMap.containsKey('flutter-version'), isFalse);
         }
       }
-      expect(count, 4);
+      expect(count, 5);
       final rootPubspec = _load(p.join(repoRoot, 'pubspec.yaml'));
       expect((rootPubspec['environment'] as YamlMap)['flutter'], '3.47.9');
     });
@@ -351,7 +356,7 @@ void main() {
           }
         }
       }
-      expect(count, 4);
+      expect(count, 5);
     });
 
     test('no `if:` reads `secrets` (not allowed there — job env instead)', () {
@@ -390,7 +395,12 @@ void main() {
     });
 
     test('every build-hooks cache has the same path and key (step 3)', () {
-      for (final name in ['android.yml', 'ci.yml', 'web-experiment.yml']) {
+      for (final name in [
+        'android.yml',
+        'ci.yml',
+        'ios-compile.yml',
+        'web-experiment.yml',
+      ]) {
         final hooks = _usesSteps(
           _workflow(name),
           'actions/cache',
@@ -424,7 +434,7 @@ void main() {
           }
         }
       }
-      expect(count, 5);
+      expect(count, 7);
     });
 
     test('every `ws` call parses with the real ws arguments', () async {
@@ -437,7 +447,7 @@ void main() {
           }
         }
       }
-      expect(calls, hasLength(19));
+      expect(calls, hasLength(20));
       for (final call in calls) {
         final args = _shellWords(call, _sampleVariables);
         final err = StringBuffer();
@@ -479,7 +489,7 @@ void main() {
           }
         }
       }
-      expect(count, 4);
+      expect(count, 5);
     });
 
     test('every deploy is gated on the secret and the project variable', () {
@@ -1699,13 +1709,221 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
     });
   });
 
+  group('ios-compile.yml (2차 J3, m5-7/01-infra 6.11.5)', () {
+    late YamlMap compile;
+    late YamlMap job;
+    late List<YamlMap> steps;
+
+    setUp(() {
+      compile = _workflow('ios-compile.yml');
+      job = _jobs(compile).values.single;
+      steps = _steps(job);
+    });
+
+    test(
+      'manual only: the macOS cost confirmation and the xcarchive switch',
+      () {
+        final on = compile['on'] as YamlMap;
+        expect(on.keys, ['workflow_dispatch']);
+        final inputs =
+            (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
+        expect(inputs.keys, ['confirm', 'ipa']);
+        final confirm = inputs['confirm'] as YamlMap;
+        expect(confirm['type'], 'string');
+        expect(confirm['required'], isTrue);
+        expect(confirm['description'], 'macOS 10배 과금 확인: yes 입력');
+        final ipa = inputs['ipa'] as YamlMap;
+        expect(ipa['type'], 'boolean');
+        expect(ipa['default'], isFalse);
+      },
+    );
+
+    test('gate on the input only, macos-26, 45 minutes, one run at a time '
+        '(not cancelled)', () {
+      expect(job['if'], "inputs.confirm == 'yes'");
+      expect(job['runs-on'], 'macos-26');
+      expect(job['timeout-minutes'], 45);
+      expect((compile['concurrency'] as YamlMap).value, {
+        'group': 'ios-compile',
+        'cancel-in-progress': false,
+      });
+    });
+
+    test('no secret, no variable, no signing', () {
+      final text = File(p.join(_workflowsDir, 'ios-compile.yml'))
+          .readAsStringSync();
+      expect(text, isNot(contains('secrets.')));
+      expect(text, isNot(contains('vars.')));
+      expect(job.containsKey('env'), isFalse);
+      for (final step in steps) {
+        for (final line in _commands(step)) {
+          if (line.startsWith('flutter build ')) {
+            expect(line, contains(' --no-codesign '));
+          }
+        }
+      }
+    });
+
+    test('the 6.11.5 steps in order', () {
+      expect(
+        [for (final s in steps) s['name']],
+        [
+          'Checkout',
+          'Set up Flutter',
+          'Cache CocoaPods',
+          'Cache build hooks',
+          'Dependencies',
+          'Build info',
+          'Build iOS (no signing)',
+          'Build xcarchive (no signing)',
+          'Summary',
+          'Upload Podfile.lock and build log',
+          'Upload xcarchive',
+        ],
+      );
+      expect(
+        _commands(_named(steps, 'Build info')).single,
+        '$_ws build-info --channel experiment --out build/build_info.json',
+      );
+      final pods = _with(_named(steps, 'Cache CocoaPods'));
+      expect('${pods['path']}'.trim().split('\n'), [
+        '~/Library/Caches/CocoaPods',
+        'app/ios/Pods',
+      ]);
+      expect(
+        pods['key'],
+        r"pods-${{ hashFiles('pubspec.lock', 'app/ios/Podfile') }}",
+      );
+    });
+
+    test('the build pipes through tee with pipefail, the xcarchive only on '
+        'request', () {
+      final build = _named(steps, 'Build iOS (no signing)');
+      expect(build['id'], 'build');
+      expect(build['working-directory'], 'app');
+      final lines = _runLines(build);
+      expect(lines.first, 'set -o pipefail');
+      expect(
+        _commands(build).single,
+        'flutter build ios --release --no-codesign $_buildNumber '
+        '$_defineFile 2>&1 | tee "\$RUNNER_TEMP/ios-build.log"',
+      );
+      expect(lines.last, contains(r'seconds='));
+      expect(lines.last, endsWith(r'>> "$GITHUB_OUTPUT"'));
+      final ipa = _named(steps, 'Build xcarchive (no signing)');
+      expect(ipa['if'], 'inputs.ipa');
+      expect(_runLines(ipa).first, 'set -o pipefail');
+      expect(
+        _commands(ipa).single,
+        startsWith('flutter build ipa --release --no-codesign '),
+      );
+      expect(
+        _commands(ipa).single,
+        endsWith('| tee -a "\$RUNNER_TEMP/ios-build.log"'),
+      );
+      expect(_named(steps, 'Upload xcarchive')['if'], 'inputs.ipa');
+    });
+
+    test('artifacts: Podfile.lock and the build log always, 7 days', () {
+      final upload = _named(steps, 'Upload Podfile.lock and build log');
+      expect(upload['if'], 'always()');
+      final withMap = _with(upload);
+      expect(withMap['name'], r'ios-compile-${{ github.run_number }}');
+      expect('${withMap['path']}'.trim().split('\n'), [
+        'app/ios/Podfile.lock',
+        r'${{ runner.temp }}/ios-build.log',
+      ]);
+      expect(withMap['retention-days'], 7);
+      final archive = _with(_named(steps, 'Upload xcarchive'));
+      expect(archive['path'], r'${{ runner.temp }}/Runner.xcarchive.zip');
+      expect(archive['retention-days'], 7);
+      expect(archive['if-no-files-found'], 'error');
+    });
+
+    test('the summary script on a sample log and Podfile.lock', () {
+      final dir = Directory.systemTemp.createTempSync('ios_compile_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      File(p.join(dir.path, 'runner', 'ios-build.log'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('''
+Running pod install...
+Warning: The following plugins do not support Swift Package Manager for ios:
+  - google_mlkit_commons
+  - google_mlkit_digital_ink_recognition
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building com.example for device (ios-release)...
+''');
+      File(p.join(dir.path, 'app', 'ios', 'Podfile.lock'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('''
+PODS:
+  - Flutter (1.0.0)
+  - google_mlkit_commons (0.13.0):
+    - Flutter
+    - MLKitVision
+  - MLKitCommon (14.0.0):
+    - GoogleUtilities/Logger (~> 8.0)
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+
+SPEC CHECKSUMS:
+  Flutter: abc
+''');
+      final summary = File(p.join(dir.path, 'summary'))..writeAsStringSync('');
+      final result = Process.runSync(
+        'bash',
+        ['-eo', 'pipefail', '-c', '${_named(steps, 'Summary')['run']}'],
+        workingDirectory: dir.path,
+        environment: {
+          'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
+          'RUNNER_TEMP': p.join(dir.path, 'runner'),
+          'GITHUB_STEP_SUMMARY': summary.path,
+          'BUILD_SECONDS': '612',
+        },
+        includeParentEnvironment: false,
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(summary.readAsLinesSync(), [
+        '## iOS compile',
+        '- build: 612 s',
+        '- CocoaPods-only warnings: 1 (google_mlkit_commons google_mlkit_digital_ink_recognition)',
+        '- pods in Podfile.lock: 3',
+      ]);
+      // A failed build leaves no log, no Podfile.lock and no time.
+      File(p.join(dir.path, 'runner', 'ios-build.log')).deleteSync();
+      File(p.join(dir.path, 'app', 'ios', 'Podfile.lock')).deleteSync();
+      summary.writeAsStringSync('');
+      final empty = Process.runSync(
+        'bash',
+        ['-eo', 'pipefail', '-c', '${_named(steps, 'Summary')['run']}'],
+        workingDirectory: dir.path,
+        environment: {
+          'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
+          'RUNNER_TEMP': p.join(dir.path, 'runner'),
+          'GITHUB_STEP_SUMMARY': summary.path,
+        },
+        includeParentEnvironment: false,
+      );
+      expect(empty.exitCode, 0, reason: '${empty.stderr}');
+      expect(summary.readAsLinesSync(), [
+        '## iOS compile',
+        '- build: ? s',
+        '- CocoaPods-only warnings: 0 (none)',
+        '- pods in Podfile.lock: 0',
+      ]);
+    });
+  });
+
   group('ios-testflight.yml (draft)', () {
     late YamlMap ios;
     late YamlMap job;
+    late List<YamlMap> steps;
 
     setUp(() {
       ios = _workflow('ios-testflight.yml');
       job = _jobs(ios).values.single;
+      steps = _steps(job);
     });
 
     test('manual only, with the macOS cost confirmation input', () {
@@ -1717,12 +1935,13 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
       expect(confirm['description'], contains('yes'));
     });
 
-    test('the job is gated on the repository variable and the input', () {
+    test('the job is gated on the repository variable and the input; '
+        'macos-26 (6.11.6)', () {
       expect(
         job['if'],
         "vars.IOS_TESTFLIGHT_ENABLED == 'true' && inputs.confirm == 'yes'",
       );
-      expect(job['runs-on'], 'macos-latest');
+      expect(job['runs-on'], 'macos-26');
       expect(job['timeout-minutes'], 45);
       expect((job['env'] as YamlMap).value, {
         for (final name in [
@@ -1732,11 +1951,12 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
           'ASC_PRIVATE_KEY',
         ])
           name: '\${{ secrets.$name }}',
+        'IOS_SIGNING_MODE': r"${{ vars.IOS_SIGNING_MODE || 'cloud' }}",
       });
     });
 
     test('build without signing, archive, export with ExportOptions', () {
-      final runs = [for (final s in _steps(job)) ..._runLines(s)].join('\n');
+      final runs = [for (final s in steps) ..._runLines(s)].join('\n');
       expect(
         runs,
         contains(
@@ -1752,6 +1972,128 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
       expect(runs, contains('cp ExportOptions.plist'));
     });
 
+    test('manual signing: its secrets only in its own step, which runs only '
+        'when IOS_SIGNING_MODE is manual', () {
+      final manual = _named(steps, 'Certificate and profile (manual signing)');
+      expect(manual['if'], "env.IOS_SIGNING_MODE == 'manual'");
+      expect((manual['env'] as YamlMap).value, {
+        for (final name in [
+          'IOS_DIST_P12_BASE64',
+          'IOS_DIST_P12_PASSWORD',
+          'IOS_PROFILE_BASE64',
+        ])
+          name: '\${{ secrets.$name }}',
+      });
+      for (final step in steps) {
+        if (identical(step, manual)) continue;
+        expect('${step['env'] ?? ''}', isNot(contains('IOS_DIST')));
+      }
+      final run = _runLines(manual).join('\n');
+      expect(run, contains('security create-keychain'));
+      expect(run, contains('security import "\$RUNNER_TEMP/dist.p12"'));
+      expect(
+        run,
+        contains(
+          r'cp "$RUNNER_TEMP/profile.mobileprovision" "$profiles/$uuid.mobileprovision"',
+        ),
+      );
+      for (final name in [
+        'IOS_KEYCHAIN',
+        'IOS_PROFILE_NAME',
+        'IOS_BUNDLE_ID',
+      ]) {
+        expect(run, contains('echo "$name='));
+      }
+      final clean = _named(steps, 'Remove signing material');
+      expect(clean['if'], 'always()');
+      expect(identical(steps.last, clean), isTrue);
+      final cleanRun = _runLines(clean).join('\n');
+      expect(cleanRun, contains(r'"$RUNNER_TEMP"/AuthKey_*.p8'));
+      expect(cleanRun, contains(r'"$RUNNER_TEMP/dist.p12"'));
+      expect(cleanRun, contains(r'security delete-keychain "$IOS_KEYCHAIN"'));
+    });
+
+    test('the two signing ways: the archive script run with a fake '
+        'xcodebuild', () {
+      final dir = Directory.systemTemp.createTempSync('ios_archive_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final bin = Directory(p.join(dir.path, 'bin'))..createSync();
+      final args = File(p.join(dir.path, 'args'));
+      final xcodebuild = File(p.join(bin.path, 'xcodebuild'))
+        ..writeAsStringSync(
+          '#!/usr/bin/env bash\nprintf \'%s\\n\' "\$@" > "${args.path}"\n',
+        );
+      Process.runSync('chmod', ['+x', xcodebuild.path]);
+      List<String> archive(String mode) {
+        final result = Process.runSync(
+          'bash',
+          ['-eo', 'pipefail', '-c', '${_named(steps, 'Archive')['run']}'],
+          workingDirectory: dir.path,
+          environment: {
+            'PATH':
+                '${bin.path}:${Platform.environment['PATH'] ?? '/usr/bin:/bin'}',
+            'RUNNER_TEMP': '/tmp/runner',
+            'IOS_SIGNING_MODE': mode,
+            'APPLE_TEAM_ID': 'TEAM123',
+            'ASC_KEY_PATH': '/tmp/runner/AuthKey_K.p8',
+            'ASC_KEY_ID': 'K',
+            'ASC_ISSUER_ID': 'I',
+            'IOS_PROFILE_NAME': 'noteapp App Store',
+          },
+          includeParentEnvironment: false,
+        );
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        return args.readAsLinesSync();
+      }
+
+      const common = [
+        'archive',
+        '-workspace',
+        'Runner.xcworkspace',
+        '-scheme',
+        'Runner',
+        '-configuration',
+        'Release',
+        '-archivePath',
+        '/tmp/runner/Runner.xcarchive',
+        'DEVELOPMENT_TEAM=TEAM123',
+      ];
+      expect(archive('cloud'), [
+        ...common,
+        '-allowProvisioningUpdates',
+        '-authenticationKeyPath',
+        '/tmp/runner/AuthKey_K.p8',
+        '-authenticationKeyID',
+        'K',
+        '-authenticationKeyIssuerID',
+        'I',
+        'CODE_SIGN_STYLE=Automatic',
+      ]);
+      expect(archive('manual'), [
+        ...common,
+        'CODE_SIGN_STYLE=Manual',
+        'CODE_SIGN_IDENTITY=Apple Distribution',
+        'PROVISIONING_PROFILE_SPECIFIER=noteapp App Store',
+      ]);
+      // The export names the certificate and the profile only when manual.
+      final export = '${_named(steps, 'Export and upload')['run']}';
+      expect(export, contains('if [ "\$IOS_SIGNING_MODE" = manual ]; then'));
+      expect(export, contains('plutil -replace signingStyle -string manual'));
+      expect(
+        export,
+        contains(
+          r'Add :provisioningProfiles:$IOS_BUNDLE_ID string $IOS_PROFILE_NAME',
+        ),
+      );
+    });
+
+    test('the cloud signing comment warns about the Admin key', () {
+      final text = File(p.join(_workflowsDir, 'ios-testflight.yml'))
+          .readAsStringSync();
+      expect(text, contains('cloud signing may need an Admin'));
+      expect(text, contains('Run ios-compile.yml first'));
+    });
+
     test('app/ios: ExportOptions.plist and the display name (6.15)', () {
       final export = File(p.join(repoRoot, 'app', 'ios', 'ExportOptions.plist'))
           .readAsStringSync();
@@ -1762,6 +2104,10 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
       expect(
         export,
         matches(RegExp(r'<key>destination</key>\s*<string>upload<')),
+      );
+      expect(
+        export,
+        matches(RegExp(r'<key>signingStyle</key>\s*<string>automatic<')),
       );
       final info = File(p.join(repoRoot, 'app', 'ios', 'Runner', 'Info.plist'))
           .readAsStringSync();

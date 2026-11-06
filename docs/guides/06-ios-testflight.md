@@ -45,6 +45,20 @@ GitHub 저장소 → **Settings** → **Secrets and variables** → **Actions**.
 
 등록한 뒤 `.p8` 파일은 안전한 곳에 보관하거나 지워요.
 
+#### 서명 방식 (보통은 그대로 두세요)
+
+기본은 **클라우드 서명**이에요(Variable `IOS_SIGNING_MODE`를 만들지 않거나 `cloud`). Apple이 인증서를 알아서 만들어 줘요. 다만 클라우드 서명은 API 키 액세스가 **Admin**이어야 된다는 보고가 있어요 — App Manager 키로 '서명(signing)' 단계가 실패하면 Claude에게 알려 주세요. 두 가지 길이 있어요.
+
+- 3단계에서 액세스를 **Admin**으로 한 키를 새로 만들어 세 Secret을 바꿔 넣기
+- App Manager 키를 그대로 쓰고 **수동 서명**으로 바꾸기: Claude가 인증서 요청 파일(CSR)을 만들어 건네면, 배포 인증서와 App Store 프로비저닝 프로파일을 만들어 아래를 더 등록해요.
+
+| 탭 | 이름 | 값 |
+|---|---|---|
+| Secrets | `IOS_DIST_P12_BASE64` | 배포 인증서 `.p12` 파일(Claude가 base64 한 줄로 바꿔 드려요) |
+| Secrets | `IOS_DIST_P12_PASSWORD` | `.p12` 파일의 비밀번호 |
+| Secrets | `IOS_PROFILE_BASE64` | 프로비저닝 프로파일 `.mobileprovision` 파일(base64 한 줄) |
+| Variables | `IOS_SIGNING_MODE` | `manual` |
+
 ### 5단계 — 빌드 실행
 
 1. 저장소 → **Actions** → 왼쪽 **iOS TestFlight** → **Run workflow**를 눌러요.
@@ -66,6 +80,6 @@ GitHub 저장소 → **Settings** → **Secrets and variables** → **Actions**.
 | 증상 | 해결 |
 |---|---|
 | 실행했는데 작업이 건너뛰어졌어요(회색) | Variable `IOS_TESTFLIGHT_ENABLED`가 `true`인지, 확인 칸에 소문자 `yes`를 넣었는지 확인해요. |
-| 서명(signing)·프로비저닝 오류 | 이 워크플로는 아직 검증 전 초안이에요. 실패한 단계의 로그를 Claude에게 보내 주세요. |
+| 서명(signing)·프로비저닝 오류 | 이 워크플로는 아직 검증 전 초안이에요. 실패한 단계의 로그를 Claude에게 보내 주세요. App Manager 키라면 4단계의 '서명 방식'을 보세요. |
 | `.p8` 파일을 잃어버렸어요 | 3단계 화면에서 그 키를 폐기하고 새 키를 만들어 4단계의 세 Secret을 다시 넣어요. |
 | 화면이 안내서와 달라요 | 스크린샷을 보내 주세요. 안내서를 고쳐 드릴게요. |

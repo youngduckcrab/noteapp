@@ -1,0 +1,137 @@
+# iOS compile check (INFRA, docs/plans/m5-7/01-infra.md 6.11.5 — 2차 J3,
+# contract V14 v2.1): `flutter build ios --no-codesign` on macOS, no Apple
+# account and no secret: it catches what the Linux container cannot build:
+# the ML Kit pods against the deployment target (15.5), duplicate symbols of
+# the SwiftPM / CocoaPods mixed mode, pencil_bridge Swift errors, UIScene and
+# plugin registration clashes. No simulator build (the ML Kit pods block the
+# arm64 simulator).
+#
+# macOS runners bill 10x the free minutes: manual only, with `confirm` = yes.
+# When: once after the 2차 integration when U19 is approved, otherwise before
+# the first TestFlight build (required). The run's summary gives the build
+# time, the CocoaPods-only warnings and the pod count; Podfile.lock and the
+# build log are kept 7 days (Podfile.lock is committed after the first
+# success — Q2).
+name: iOS compile
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'macOS 10배 과금 확인: yes 입력'
+        type: string
+        required: true
+      ipa:
+        description: '서명 없는 xcarchive도 만들기'
+        type: boolean
+        default: false
+
+# One run at a time; a second one waits instead of cancelling a paid run.
+concurrency:
+  group: ios-compile
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Build iOS without signing
+    if: inputs.confirm == 'yes'
+    # A fixed label (macos-latest moves).
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            app/ios/Pods
+          key: pods-${{ hashFiles('pubspec.lock', 'app/ios/Podfile') }}
+
+      # Same key as ci.yml step 3.
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      - name: Dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build info
+        run: dart run tool/ws.dart build-info --channel experiment --out build/build_info.json
+
+      - name: Build iOS (no signing)
+        id: build
+        working-directory: app
+        run: |
+          set -o pipefail
+          start=$(date +%s)
+          flutter build ios --release --no-codesign --build-number=$GITHUB_RUN_NUMBER --dart-define-from-file=../build/build_info.json 2>&1 | tee "$RUNNER_TEMP/ios-build.log"
+          echo "seconds=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+
+      - name: Build xcarchive (no signing)
+        if: inputs.ipa
+        working-directory: app
+        run: |
+          set -o pipefail
+          flutter build ipa --release --no-codesign --build-number=$GITHUB_RUN_NUMBER --dart-define-from-file=../build/build_info.json 2>&1 | tee -a "$RUNNER_TEMP/ios-build.log"
+          ditto -c -k --keepParent build/ios/archive/Runner.xcarchive "$RUNNER_TEMP/Runner.xcarchive.zip"
+
+      # Flutter prints "The following plugins do not support Swift Package
+      # Manager for ios:" with one "  - <plugin>" line each, then "This will
+      # become an error in a future version of Flutter" (expected: the two
+      # ML Kit plugins — ws native-reqs NR5).
+      - name: Summary
+        if: always()
+        env:
+          BUILD_SECONDS: ${{ steps.build.outputs.seconds }}
+        run: |
+          log="$RUNNER_TEMP/ios-build.log"
+          touch "$log"
+          warnings=$(grep -c 'This will become an error' "$log" || true)
+          plugins=$(awk '/do not support Swift Package Manager/ {f = 1; next} /This will become an error/ {f = 0} f && /^ *- / {sub(/^ *- /, ""); print}' "$log" | sort -u | paste -sd ' ' -)
+          pods=0
+          if [ -f app/ios/Podfile.lock ]; then
+            pods=$(awk '/^PODS:/ {f = 1; next} /^[A-Z]/ {f = 0} f && /^  - / {n++} END {print n + 0}' app/ios/Podfile.lock)
+          fi
+          {
+            echo "## iOS compile"
+            echo "- build: ${BUILD_SECONDS:-?} s"
+            echo "- CocoaPods-only warnings: $warnings (${plugins:-none})"
+            echo "- pods in Podfile.lock: $pods"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Podfile.lock and build log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-compile-${{ github.run_number }}
+          path: |
+            app/ios/Podfile.lock
+            ${{ runner.temp }}/ios-build.log
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload xcarchive
+        if: inputs.ipa
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-xcarchive-${{ github.run_number }}
+          path: ${{ runner.temp }}/Runner.xcarchive.zip
+          retention-days: 7
+          # Already a zip.
+          compression-level: 0
+          if-no-files-found: error
