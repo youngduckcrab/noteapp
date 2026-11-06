@@ -399,8 +399,8 @@
 | J4 | 완료 | `3779a8f` | `app/test/storage/native_storage_paths_test.dart`(경로 문자열·폴더 생성(재귀·두 번째 호출)·끝 `/`·실패 4종 전파·기본 `CoreModule` 2경우), `core_module_test`(경로 묶음 8 — 두 필드 모두·순서·실패 → 기록 + 둘 다 없음·웹 stub·`configFor`·`defaultNoteStoreConfig`·`resetLocalData`·경로 중 포기), `tool/test/native_config_test.dart` '앱 셸 경로' 묶음(토큰 2·커밋된 파일 1·주석 무관 1·규칙마다 깨뜨리기 12·파일 없음 1) |
 | J5 | 완료 | `16b9c4b` | `app/test/features/feature_switch_section_test.dart`(12 — 문구·빌드에서 끔·저장·시작 때와 다름·인식 꺼짐에서 수식 엔진·[다시 시작] flush → reload·녹음 중(녹음·일시정지) 막기·flush 실패·flush 2초 초과·네이티브 문구·저장 실패·가로), `settings/settings_sections_test.dart` v2(`app.features` 위치·제목·빌더), `settings_screen_test`(8개), `bootstrap/app_module_context_test.dart`(7 — 빌드 ∧ 메뉴·한 번 읽기·동시 호출·저장소 전 캐시 안 함·500 ms 초과·안쪽·읽기 실패) |
 | J6 | 완료 | `864317a` | `app/test/bootstrap/idle_tasks_test.dart` 보강(`AppIdleCleanup` 4 — 마지막 콜백까지 기다림·2초 제한·기다리는 중 더한 정리·첫 작업 전 dispose), `bootstrap/bootstrap_app_test.dart`(유휴 4 — 성공 화면 ProviderScope → AppLifecycleBridge → 실행기(`success.idleTasks`)·오류 화면에는 없음 → 다시 시도 → 새 시도의 작업만·dispose 때 색인기 정리(1초) 끝난 뒤 모듈 stop·정리가 안 끝나면 2초 뒤 stop + 기록) |
-| J7 | 완료 | (이 커밋) | `app/test/modules/media_module_test.dart`(J7 묶음 7 — `abandon()` 초안 복구 0·1·2·실패·최근 갱신 창, 이탈 경고 상태 전이·실행기 안 첫 프레임 직후), `update/update_banner_test.dart` v2(녹음 중 안내·reload 0회·녹음 꺼짐), `web/web_platform_browser_test.dart`(Chrome — `setLeaveGuard` 리스너 1개) |
-| J8 | 남음 | | `recognition_module_test` |
+| J7 | 완료 | `852cce5` | `app/test/modules/media_module_test.dart`(J7 묶음 7 — `abandon()` 초안 복구 0·1·2·실패·최근 갱신 창, 이탈 경고 상태 전이·실행기 안 첫 프레임 직후), `update/update_banner_test.dart` v2(녹음 중 안내·reload 0회·녹음 꺼짐), `web/web_platform_browser_test.dart`(Chrome — `setLeaveGuard` 리스너 1개) |
+| J8 | 완료 | (이 커밋) — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
 | J9 | 남음 | | `recognition_wiring_test`·`media_wiring_test`·`search_wiring_test`·`feature_wiring_module_test` v2 |
 | J10 | 남음 | | `pdf_module_test` v2 |
 | J11 | 남음 | | `app_router_test`·`production_screens_test` |
@@ -592,6 +592,17 @@
 | `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
 | `ws test --package noteapp` (VM) | 482 통과 · 1 건너뜀(V5) · 78초 |
 | `ws test --package noteapp --platform chrome` | 준비 ok · 14 통과 · 1 건너뜀(V6) · 92초 |
+
+#### J8 — `RecognitionModule` 완성 (계획 8.2, 4.6.4·6.5)
+
+- 본문(설정 → `RecognitionConfig`, 기여 — 선택·삽입 메뉴·`recog.settings`·`recog.indexer` 섹션, `recognition.indexer` 유휴 작업)은 R2-B8a에서 이미 완성(`a4c9cca`). 이번에는 완료 조건 시험만 보탰다 — 코드 변경 없음.
+- `recognition_module_test` J8 묶음 4: 컨텍스트를 두 번 dispose해도 색인기 `dispose` 1회 · **실제 `AppIdleTaskRunner` 안**: 2.9초에는 시작 안 함 → 3초 뒤 읽기 1·start 1, 루트 scope가 사라지면 dispose 1, 다시 트리를 바꿔도 그대로(1, 1)·기록 0 · `start()`가 던지면 기록 1건('idle task recognition.indexer failed', source module)·dispose 등록 없음(0) · `recog.indexer` 섹션(id·제목 '손글씨 색인'·`lines`가 `recognitionDevOverlayLinesProvider`의 같은 객체). 기존(R2-B8a): 설정 4조합 + 메뉴로 끔 + 잘못된 값 4개(null + 기록 1건, `details` = 원래 값), 리더 null → 작업 없음, start 1·dispose 1, 꺼짐 2경우. provider override 가짜 없음(기록용 `IndexerHandleReader` — `test/fakes/idle_fakes.dart`의 `RecordingIndexer`).
+- 실제 색인기의 '두 번 `dispose` 안전'은 H2(계획 8.4).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/modules/recognition_module_test.dart` | 22 통과 |
 
 #### 변경 요청
 

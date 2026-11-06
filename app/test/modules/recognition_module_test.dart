@@ -1,7 +1,13 @@
-// RecognitionModule (docs/plans/m5-7/01-infra.md 4.6.4, 6.4, 6.6, 6.7;
+// RecognitionModule (docs/plans/m5-7/01-infra.md 4.6.4, 6.4, 6.5, 6.6, 6.7;
 // contract 7.2.11 / 7.3.3 X31 · X32). R2-B8a: config (4 combinations),
 // contribution, the recognition.indexer idle task through the injection
-// seam (start once, dispose once), switched off → nothing.
+// seam (start once, dispose once), switched off → nothing. J8: the task in
+// the real AppIdleTaskRunner (after the 3 s delay; one dispose when the root
+// scope goes away, none more however often the scope is disposed), a
+// throwing start (one record, no dispose), the recog.indexer section over
+// recognitionDevOverlayLinesProvider. The indexer is a `final class`: no
+// provider override fakes anywhere — the recording IndexerHandleReader.
+import 'package:feature_editor/feature_editor.dart' show DevOverlaySection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -244,6 +250,82 @@ void main() {
       expect(context.callbacks, isEmpty);
     });
 
+    test('the context disposed twice → the indexer disposed once', () async {
+      final rig = _Rig();
+      final success = await rig.boot();
+      final context = FakeIdleContext();
+      await success.idleTasks.single.run(context);
+      await context.dispose();
+      await context.dispose();
+      expect((rig.indexer.starts, rig.indexer.disposes), (1, 1));
+    });
+
+    testWidgets('in the runner: starts after the 3 s delay, not before; the '
+        'root scope going away disposes it once — and only once', (
+      tester,
+    ) async {
+      final rig = _Rig();
+      late BootstrapSuccess success;
+      await tester.runAsync(() async => success = await rig.boot());
+      await tester.pumpWidget(
+        ProviderScope(
+          child: AppIdleTaskRunner(
+            tasks: success.idleTasks,
+            errorLog: rig.log,
+            web: FakeWebPlatform(),
+            child: const SizedBox(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 2900));
+      expect(rig.indexer.starts, 0);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(Duration.zero);
+      expect((rig.indexer.reads, rig.indexer.starts), (1, 1));
+      expect(rig.indexer.disposes, 0);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+      expect(rig.indexer.disposes, 1);
+      await tester.pumpWidget(const SizedBox(width: 1));
+      await tester.pump(const Duration(seconds: 3));
+      expect((rig.indexer.starts, rig.indexer.disposes), (1, 1));
+      expect(rig.log.totalCount, 0);
+    });
+
+    testWidgets('start() throws → one record (idle task recognition.indexer '
+        'failed), no dispose registered', (tester) async {
+      final rig = _Rig(
+        indexer: RecordingIndexer(startError: StateError('no engine')),
+      );
+      late BootstrapSuccess success;
+      await tester.runAsync(() async => success = await rig.boot());
+      await tester.pumpWidget(
+        ProviderScope(
+          child: AppIdleTaskRunner(
+            tasks: success.idleTasks,
+            errorLog: rig.log,
+            web: FakeWebPlatform(),
+            child: const SizedBox(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(Duration.zero);
+      expect(rig.indexer.starts, 1);
+      final record = rig.log.records.single;
+      expect(record.source, AppErrorSource.module);
+      expect(
+        record.summary,
+        startsWith('idle task recognition.indexer failed'),
+      );
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+      expect(rig.indexer.disposes, 0);
+      expect(rig.log.totalCount, 1);
+    });
+
     test('the default reader on the VM fake store: the provider is null '
         '(UnsupportedHandwritingRecognizer) → nothing', () async {
       final store = createFakeNoteStore();
@@ -255,6 +337,22 @@ void main() {
       await RecognitionModule().idleTasks().single.run(context);
       expect(context.callbacks, isEmpty);
     });
+  });
+
+  test('recog.indexer dev section: id, title 손글씨 색인, the lines of '
+      'recognitionDevOverlayLinesProvider', () {
+    final section = Provider<DevOverlaySection>(
+      recognitionIndexerSection,
+      name: '_recogSection',
+    );
+    final container = ProviderContainer.test();
+    final value = container.read(section);
+    expect((value.id, value.title), ('recog.indexer', '손글씨 색인'));
+    expect(
+      value.lines,
+      same(container.read(recognitionDevOverlayLinesProvider)),
+    );
+    expect(value.lines.value, isNotEmpty);
   });
 
   group('switched off → no start, no overrides, no contribution, no idle '
