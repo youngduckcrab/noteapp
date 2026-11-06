@@ -203,12 +203,14 @@ packages/feature_library/
 │     │  ├─ content.dart                   [변경] LibraryContent.contentGroups·contentTruncated
 │     │  └─ content_hits.dart              [새] ContentHitGroup, groupContentHits, focusRectOf, sourceLabelOf
 │     ├─ state/providers.dart              [변경] 검색 무효화 종류 확장(1 s 디바운스), notePageIndexProvider
+│     ├─ state/search_requery.dart         [새] searchRequeryOf — 변경 묶음 → 즉시·디바운스·없음 (6.1.6)
 │     └─ ui/
 │        ├─ library_scope.dart             [변경] openNoteAt
 │        ├─ top_bar/library_search_field.dart   [변경] 힌트 '노트 검색'
 │        └─ content/
 │           ├─ search_results_view.dart    [변경] '노트 내용 (n)' 묶음 슬리버
-│           └─ content_hit_tiles.dart      [새] ContentNoteHeader, ContentHitRow, SourceBadge, SnippetText, ContentMoreRow
+│           └─ content_hits_view.dart      [새] ContentNoteHeader, ContentHitRow, SourceBadge, SnippetText, ContentMoreRow
+│                                          #   (동시 개발 보완 1.1 — 초안 이름 content_hit_tiles.dart를 실제 파일 이름으로)
 └─ test/
    ├─ unit/content_hits_test.dart           [새] L2-01
    ├─ unit/content_provider_test.dart       [변경] L2-01 (내용 묶음·무효화)
@@ -245,7 +247,8 @@ packages/ink_recognition/
 │     ├─ ports/
 │     │  ├─ handwriting_recognizer.dart    # HandwritingRecognizer, UnsupportedHandwritingRecognizer
 │     │  ├─ math_recognizer.dart           # MathRecognizer, ManualOnlyMathRecognizer
-│     │  └─ model_admin.dart               # (internal) RecognizerModelAdmin — 모델 지우기·변경 알림 (6.7.4)
+│     │  ├─ model_admin.dart               # (internal) RecognizerModelAdmin — 모델 지우기·변경 알림 (6.7.4)
+│     │  └─ line_origin.dart               # (internal) PageOriginLineRecognizer — A-4 좌표 기준 비교(페이지 pt 그대로, 6.20)
 │     ├─ lines/
 │     │  ├─ group_into_lines.dart          # groupIntoLines (6.5)
 │     │  ├─ glyph_boxes.dart               # (internal) 글자 상자, estimateGlyphHeight
@@ -260,7 +263,8 @@ packages/ink_recognition/
 │     │  ├─ callable_math_recognizer.dart  # (internal) CallableMathRecognizer (6.11)
 │     │  ├─ callable_protocol.dart         # (internal) 요청·응답·오류 변환 (RequestAbortedException 먼저 — 6.11.4)
 │     │  ├─ math_payload.dart              # (internal) 획 → JSON, 점 줄이기, 512 KB 한도
-│     │  └─ math_fixture_export.dart       # (internal, v2.1 P-C) 패드 획 → 07-sync 6.9.1 고정 자료 JSON (6.14.7)
+│     │  ├─ math_fixture_export.dart       # (internal, v2.1 P-C) 패드 획 → 07-sync 6.9.1 고정 자료 JSON (6.14.7)
+│     │  └─ math_png.dart                  # (internal) 고른 획 → pngBase64(pageThumbnailRendererProvider가 있을 때만 — 6.11.3)
 │     ├─ shapes/
 │     │  ├─ geometric_shape_fitter.dart    # GeometricShapeFitter (6.17)
 │     │  ├─ shape_fit_tuning.dart          # ShapeFitTuning
@@ -271,7 +275,8 @@ packages/ink_recognition/
 │     │  ├─ indexer_status.dart            # HandwritingIndexerStatus, HandwritingIndexerPhase (4.4.1 — v2.1 계약)
 │     │  ├─ line_reuse.dart                # (internal, 순수) 줄 재사용·확정 줄 유지 규칙·update 병합 함수 (6.9.4)
 │     │  ├─ indexer_metrics.dart           # (internal, v2.1) 작업 시간·줄 수 — 개발자 표시 줄용 (6.9.7)
-│     │  └─ catch_up.dart                  # (internal, v2.1) notesWithStalePages 따라잡기 (6.9.5 — note_walk 대체)
+│     │  ├─ catch_up.dart                  # (internal, v2.1) notesWithStalePages 따라잡기 (6.9.5 — note_walk 대체)
+│     │  └─ page_queue.dart                # (internal) 페이지 대기열 — 다시 넣은 페이지 → 조용해진 페이지 → 따라잡기 (6.9.2)
 │     ├─ providers.dart                    # handwritingRecognizerProvider, mathRecognizerProvider, RecognitionConfig,
 │     │                                    #   recognitionOverrides, handwritingIndexerProvider,
 │     │                                    #   (v2.1) recognitionDevOverlayLinesProvider (6.10)
@@ -280,13 +285,15 @@ packages/ink_recognition/
 │     │  ├─ action_scope.dart              # (internal) BuildContext → ProviderContainer 읽기, 시트 띄우기
 │     │  └─ object_builders.dart           # (internal) 획 → TextBoxObject / MathObject (6.13.4·6.15.3)
 │     ├─ ui/
-│     │  ├─ recognition_sheet.dart         # (internal) showRecognitionSheet — 7.4.10 높이 규칙
+│     │  ├─ recognition_sheet.dart         # (internal) showRecognitionSheet — 7.4.10 높이 규칙 + 시트 공용 부품
+│     │  │                                 #   (RecognitionSheetHeader·SheetNotice·ConsentCard — G-3 동의 안내)
+│     │  ├─ recognition_sheets.dart        # (internal) 동작 → 시트 이음매 RecognitionSheets·DefaultRecognitionSheets (6.16)
 │     │  ├─ conversion_sheet.dart          # 텍스트 변환 창 (6.13)
 │     │  ├─ math_pad_sheet.dart            # 수식 입력 패드 (6.14)
 │     │  ├─ math_pad_canvas.dart           # (internal) InkPageView + 임시 Page + 입력
 │     │  ├─ latex_editor_sheet.dart        # LaTeX 편집 창 (6.15)
-│     │  ├─ consent_card.dart              # (internal) G-3 동의 안내
-│     │  └─ model_card.dart                # (internal) 모델 받기 안내
+│     │  ├─ model_row.dart                 # (internal) RecognitionModelRow — 모델 한 줄(설정·실험 창·변환 창 모델 카드 공용)
+│     │  └─ model_downloads.dart           # (internal) ModelDownloads — 사용자가 시작한 모델 받기(Wi-Fi 대기·셀룰러 — 6.7.4)
 │     ├─ settings/
 │     │  ├─ recognition_settings_keys.dart # RecognitionSettingsKeys (4.4.3)
 │     │  └─ recognition_settings_section.dart  # RecognitionSettingsSection (6.18)
@@ -311,7 +318,7 @@ packages/ink_recognition/
    ├─ widget/ conversion_sheet_test · latex_editor_sheet_test · math_pad_manual_test ·
    │          math_pad_engine_test · to_math_test · settings_section_test · recognition_lab_test ·
    │          sheet_rules_test
-   ├─ shared/ line_cases.dart · shape_cases.dart        # VM·Chrome 공유 본문
+   ├─ shared/ line_cases.dart · shape_cases.dart · trace_cases.dart   # VM·Chrome 공유 본문
    ├─ web/recognition_browser_test.dart    # @TestOn('browser') — G-1·공유 본문·웹 시트 문구
    ├─ emulator/callable_emulator_test.dart # @Tags(['emulator']) — V13, 통합 몫 L2-I6 (컨테이너 전역 잠금 + CI)
    ├─ integration/real_core_indexer_test.dart   # @Tags(['integration']) — 실제 CORE 색인 (L2-I1)
@@ -319,11 +326,12 @@ packages/ink_recognition/
    │                                            #   (shapeFitter: GeometricShapeFitter()) 멈춤 → addShape (L2-I3)
    ├─ fixtures/real/                       # (U18 승인 뒤) 실기기 도형 표본 JSON {kind, points, viewScale} — EDITOR 링 버퍼가 모음
    ├─ fixtures/lines/                      # (v2.1) 줄 나누기 경계 사례 손 고정 자료(촘촘한 줄·서로 다른 기울기·떨어진 자모 — 6.5)
-   └─ support/ recognition_test_scope.dart · fake_settings.dart · pump_sheet.dart
+   └─ support/ recognition_test_scope.dart · indexer_harness.dart · recording_store.dart · model_engine.dart   # 9.2
 ```
 
 - `lib/`에 `dart:io`가 없다. ML Kit(`google_mlkit_*`)은 `mlkit_recognizer_native.dart`에서만 import한다(`native_only_imports`, R4②). 플랫폼 판정은 `kIsWeb` + `defaultTargetPlatform`만 쓴다(7.4.1 — `Platform` 금지).
 - 내보내지 않는 `src/` 파일은 이름을 구현자가 바꿔도 된다. 계약 이름(4.2)과 4.4의 LIBRARY 세부 이름만 고정이다.
+- (동시 개발 보완 1.1 — 위 트리를 실제 파일에 맞춤) 초안의 `ui/consent_card.dart`·`ui/model_card.dart`는 따로 두지 않았다: 동의 카드 `ConsentCard`는 시트 공용 부품과 함께 `ui/recognition_sheet.dart`에, 변환 창의 모델 카드는 `ui/conversion_sheet.dart`가 `ui/model_row.dart`의 `RecognitionModelRow`(+ `ui/model_downloads.dart`)로 그린다. 구현 중 더한 내부 파일 `ports/line_origin.dart`·`math/math_png.dart`·`indexer/page_queue.dart`·`ui/recognition_sheets.dart`·`test/shared/trace_cases.dart`와 시험 도우미(9.2)도 트리에 넣었다. 진행 기록 `docs/plans/progress/library.md` '계획과 다르게 한 점'에 같은 내용.
 
 ### 3.3 pubspec.yaml · dart_test.yaml
 
@@ -2512,13 +2520,13 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 | 상태·provider | recog `recognition_overrides`·`indexer_provider`·`indexer`·`indexer_merge`·`catch_up`, lib `content_provider` | `ProviderContainer.test`, `fakeAsync`, 가짜 저장소(v2 — `update`·`notesWithStalePages`), `foreground: ValueNotifier` |
 | 플러그인 경계 | recog `native/mlkit_adapter_test.dart`(`@TestOn('vm')`) | 메서드 채널 가짜로 ML Kit 흐름 전체(6.7.5) |
 | 네트워크 경계 | recog `unit/callable_math_recognizer_test.dart` | `MockClient` 규약·오류·동의·취소 |
-| 위젯 | recog `conversion_sheet`·`latex_editor_sheet`·`math_pad_manual`·`math_pad_engine`·`to_math`·`settings_section`·`recognition_lab`·`sheet_rules`, lib `content_search`·`a11y`·`scenarios_on_fake` | `pump_sheet.dart`(material_ui `MaterialApp` + `ProviderScope(overrides: 가짜 저장소 + 가짜 엔진)` + 시트를 여는 단추), iPad 13" 크기·DPR 2(1차 `test_sizes.dart`와 같은 값) |
+| 위젯 | recog `conversion_sheet`·`latex_editor_sheet`·`math_pad_manual`·`math_pad_engine`·`to_math`·`settings_section`·`recognition_lab`·`sheet_rules`, lib `content_search`·`a11y`·`scenarios_on_fake` | `RecognitionHost.pump`(`test/support/recognition_test_scope.dart` — `ProviderScope(overrides: 가짜 저장소 + 가짜 엔진)` → material_ui `MaterialApp` → `Scaffold` → 에디터 본문 context, 시트는 동작의 `run`으로 연다), iPad 13" 논리 크기 1376×1032 / 1032×1376 · DPR 1(물리 = 논리 — 배치 단언은 논리 px라 1차 `test_sizes.dart`의 DPR 2와 결과가 같다) |
 | 골든 | lib `goldens/library_golden_test.dart` + `library_search_content.png` | Ahem — 배치만(계약 7.4.6). 변환 시트·패드의 수식 렌더는 골든 대신 '경계 안·비어 있지 않음' 단언 |
 | 브라우저 | recog `web/recognition_browser_test.dart`, lib `web/*` | G-1·공유 본문·웹 문구 |
 | 통합 | recog `integration/real_core_indexer_test.dart`·(v2.1) `integration/shape_assist_flow_test.dart`, lib `integration/core_contract_test.dart` | 실제 CORE(DB v2·FTS5)·실제 INK 멈춤 감지 — 8.3 |
 | 에뮬레이터 | recog `emulator/callable_emulator_test.dart` | V13 Dart 쪽 — E1~E3·E5~E9·동의 거짓(6.11.7), 통합 몫 L2-I6 |
 
-시험용 도우미(`test/support/`): `recognition_test_scope.dart`(가짜 저장소 + 노트·페이지·획 시드 + `RecognitionTarget` 만들기 — `execute`는 그 노트 세션의 `execute`, `done`은 호출 수 기록), `fake_settings.dart`(설정 값 바로 넣기), `pump_sheet.dart`(시트 띄우기·클립보드 채널 가짜 `SystemChannels.platform`·수명주기 바꾸기).
+시험용 도우미(`test/support/` — (동시 개발 보완 1.1) 실제 파일 이름): `recognition_test_scope.dart` — `RecognitionHost`(가짜 저장소 + 엔진 override로 시트 띄울 바탕 펌프, 에디터 본문만 떼기 `unmountBody`, 스낵바 읽기), `PlatformLog`(클립보드 채널 가짜 `SystemChannels.platform` — 보낸 순간 기록·응답 바꾸기), `TargetLog`(`RecognitionTarget` 만들기 — `execute` 기록·`executeError`, `done` 호출 수), `SessionDoc`(노트·페이지 + 열린 `NoteSession` — `execute`가 세션으로 가 `undoDepth`를 본다), `glyphStroke`·`strokeOf`·`settle`·`waitFor`; `indexer_harness.dart`(`fakeAsync` 안 색인기 하네스 — 노트·세션 명령·상태 기록), `recording_store.dart`(`RecordingNoteStore` — 색인기가 부른 저장소 호출 기록·원격 흉내·쓰기 실패), `model_engine.dart`(`ControlledModelEngine` — 시험이 모델 받기를 끝냄). 설정 값은 가짜 저장소 `settings.set`으로 바로 넣고(초안의 `fake_settings.dart` 없음), 수명주기는 색인기의 `foreground:` `ValueNotifier`로 바꾼다(초안의 `pump_sheet.dart` 없음).
 
 ### 9.3 계약 보장 ↔ 시험
 
