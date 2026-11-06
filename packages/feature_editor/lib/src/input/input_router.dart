@@ -1,17 +1,21 @@
 // lib/src/input/input_router.dart — 04-editor 6.5 (6.5.2 classification,
 // 6.5.3 input modes, 6.5.4 palm rejection P1–P6, 6.5.6 state machine);
 // (v2) m5-7/04-editor 6.3: the stylus contact rule (6.3.2 — E-4), the gesture
-// at contact (6.3.3) and the pose hover of palm rejection P3 (6.5.3).
+// at contact (6.3.3), the pose hover of palm rejection P3 (6.5.3), taps and
+// long press by GestureSettings.actionFor and the text session (6.3.4), and
+// the pen dot tap judged before a pen stroke ends (6.3.5).
 //
 // One Listener on the canvas feeds every PointerEvent here. The router decides
 // per pointer whether it draws (a ToolInteraction from InputTargets), navigates
 // (pan / pinch), is a tap / long press, or is ignored. It never reads widget
 // or provider state other than InputTargets.policy.
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 
+import '../state/settings/editor_settings.dart';
 import '../tools/tool_interaction.dart';
 import 'input_sample.dart';
 import 'input_targets.dart';
@@ -52,6 +56,18 @@ final class _Track {
   /// Set by cancelAll: the pointer is ignored until up, even if a web stylus
   /// touches again after lifting.
   bool cancelled = false;
+
+  /// (v2) Where and when the current drawing contact started, and how far it
+  /// moved since (the pen dot tap — 6.3.5).
+  Offset contactAt = Offset.zero;
+  Duration contactTime = Duration.zero;
+  double contactMaxMove = 0;
+
+  void markContact(PointerEvent e) {
+    contactAt = e.localPosition;
+    contactTime = e.timeStamp;
+    contactMaxMove = 0;
+  }
 }
 
 /// One burst of touches, from the first finger down to the last finger up.
@@ -256,7 +272,7 @@ class InputRouter {
       return;
     }
     _startDrawing(
-      e.pointer,
+      e,
       track,
       _targets.beginInteraction(sample, source: InteractionSource.mouse),
     );
@@ -277,7 +293,7 @@ class InputRouter {
       return;
     }
     _startDrawing(
-      e.pointer,
+      e,
       track,
       _targets.beginInteraction(
         sample,
@@ -287,28 +303,55 @@ class InputRouter {
     );
   }
 
-  void _startDrawing(int pointer, _Track track, ToolInteraction? interaction) {
+  void _startDrawing(
+    PointerEvent e,
+    _Track track,
+    ToolInteraction? interaction,
+  ) {
     if (interaction == null) {
       track.role = _Role.consumed;
       return;
     }
     _interaction = interaction;
-    _drawPointer = pointer;
-    track.role = _Role.draw;
+    _drawPointer = e.pointer;
+    track
+      ..role = _Role.draw
+      ..markContact(e);
   }
 
   /// Web: a move without the contact bit while touching ends that contact
   /// (contract E-4 (v2.1)); a later move with the bit is a new contact.
   void _onStylusLift(PointerMoveEvent e, InputSample sample, _Track track) {
     track.airborne = true;
-    if (e.pointer == _drawPointer) {
-      final interaction = _interaction!;
-      _interaction = null;
-      _drawPointer = null;
-      interaction.end(sample);
-    }
+    if (e.pointer == _drawPointer) _finishDrawing(sample, track);
     if (!track.cancelled) track.role = _Role.idle;
     _targets.hover(sample);
+  }
+
+  /// The drawing contact ends at [sample] (up, or a web lift). A pen stroke
+  /// that was a pen dot is offered to InputTargets.interceptPenDot first —
+  /// before its end, so a taken dot leaves no stroke and no command (6.3.5,
+  /// contract R-5 (v2.1)).
+  void _finishDrawing(InputSample sample, _Track track) {
+    final interaction = _interaction!;
+    _interaction = null;
+    _drawPointer = null;
+    if (interaction.interceptsPenDot &&
+        _isPenDot(track, sample) &&
+        _targets.interceptPenDot(sample, source: interaction.source)) {
+      interaction.cancel();
+      return;
+    }
+    interaction.end(sample);
+  }
+
+  bool _isPenDot(_Track track, InputSample sample) {
+    final moved = math.max(
+      track.contactMaxMove,
+      (sample.position - track.contactAt).distance,
+    );
+    return moved <= _thresholds.penTapMaxMovement &&
+        sample.timeStamp - track.contactTime <= _thresholds.penTapMaxDuration;
   }
 
   /// P4: active touches rejected, a finger interaction discarded, navigation
@@ -376,11 +419,14 @@ class InputRouter {
           (p.value.role == _Role.navigate || p.value.role == _Role.draw),
     );
     if (others.isEmpty) {
-      // The only active touch.
+      // The only active touch. (v2, 6.3.4) While a text session is open a
+      // finger down starts nothing (it may be the first finger of a pinch):
+      // fingers act as in pen-only mode, a one-finger drag scrolls.
       ToolInteraction? started;
-      if (policy.eyedropperActive ||
-          _targets.hitsSelection(e.localPosition) ||
-          !policy.penOnly) {
+      if (!policy.textSessionActive &&
+          (policy.eyedropperActive ||
+              _targets.hitsSelection(e.localPosition) ||
+              !policy.penOnly)) {
         started = _targets.beginInteraction(
           sample,
           source: InteractionSource.finger,
@@ -389,12 +435,16 @@ class InputRouter {
       if (started != null) {
         _interaction = started;
         _drawPointer = e.pointer;
-        track.role = _Role.draw;
+        track
+          ..role = _Role.draw
+          ..markContact(e);
         return;
       }
       track.role = _Role.navigate;
       _startNavigationWith([e.pointer]);
-      if (policy.gestures.longPressMenu) {
+      // (v2) The timer only when the long press has an action (6.3.4).
+      if (policy.gestures.actionFor(EditorGesture.fingerLongPress) !=
+          EditorAction.none) {
         _longPressTimer = _timerFactory(
           _thresholds.longPressDuration,
           _onLongPress,
@@ -472,6 +522,10 @@ class InputRouter {
       _seq?.moved = true;
     }
     if (e.pointer == _drawPointer) {
+      final fromContact = (e.localPosition - track.contactAt).distance;
+      if (fromContact > track.contactMaxMove) {
+        track.contactMaxMove = fromContact;
+      }
       _interaction?.move(sample);
       return;
     }
@@ -570,11 +624,9 @@ class InputRouter {
     if (track == null) return;
     if (track.kind == _Kind.stylus) _lastStylusActivity = e.timeStamp;
     if (e.pointer == _drawPointer) {
-      final interaction = _interaction!;
-      _interaction = null;
-      _drawPointer = null;
-      interaction.end(sample);
-      if (interaction.source == InteractionSource.finger) {
+      final source = _interaction!.source;
+      _finishDrawing(sample, track);
+      if (source == InteractionSource.finger) {
         _seq?.hadInteraction = true;
       }
     } else if (track.role == _Role.navigate) {
@@ -621,12 +673,14 @@ class InputRouter {
     if (duration > maxDuration) return;
     final gestures = _targets.policy.gestures;
     final centroid = seq.downSum / seq.downCount.toDouble();
+    // (v2, 6.3.4) 2 / 3 fingers only when their action is not none.
+    bool enabled(EditorGesture g) => gestures.actionFor(g) != EditorAction.none;
     switch (count) {
       case 1:
         _targets.tapGesture(1, centroid);
-      case 2 when gestures.twoFingerTapUndo:
+      case 2 when enabled(EditorGesture.twoFingerTap):
         _targets.tapGesture(2, centroid);
-      case 3 when gestures.threeFingerTapRedo:
+      case 3 when enabled(EditorGesture.threeFingerTap):
         _targets.tapGesture(3, centroid);
       default:
         break;

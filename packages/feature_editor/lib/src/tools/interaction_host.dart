@@ -7,6 +7,8 @@
 // menu. E-14: the stroke eyedropper (①). Developer metrics (E-19) plug into
 // the marked places. (v2) E2-04a: the gesture at contact picks a temporary
 // eraser / lasso for that contact (m5-7/04-editor 6.2.3, 6.3.3, 6.3.6 4).
+// E2-04b: the text session in the input policy (6.3.4), two- / three-finger
+// taps by GestureSettings.actionFor and the pen dot hook (6.3.5).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -26,6 +28,7 @@ import '../state/color_palette.dart';
 import '../state/popup.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
+import '../text/text_edit_session.dart';
 import '../ui/dev/dev_metrics.dart';
 import '../ui/editor_strings.dart';
 import '../viewport/viewport_constants.dart';
@@ -129,6 +132,7 @@ class InteractionHost implements InputTargets {
       gestures: settings.gestures,
       stylusSeen: settings.stylusSeen,
       eyedropperActive: _ref.read(editorToolProvider).eyedropperActive,
+      textSessionActive: _ref.read(editorTextEditProvider) != null,
     );
   }
 
@@ -332,6 +336,18 @@ class InteractionHost implements InputTargets {
     _cursor.value = EraserRingCursor(position: position, diameter: diameter);
   }
 
+  /// (v2, 6.3.5) A pen dot before its stroke ends. Nothing takes dots yet:
+  /// the tape toggle (②) comes with E2-14, tap-to-seek (③) with E2-17 — so
+  /// every dot stays a dot stroke.
+  @override
+  bool interceptPenDot(
+    InputSample sample, {
+    required InteractionSource source,
+  }) {
+    if (_disposed) return false;
+    return false;
+  }
+
   /// True only if the lasso tool is active, a selection exists and [screen]
   /// hits its frame (a corner handle or the inflated body — 6.6.5).
   @override
@@ -374,8 +390,10 @@ class InteractionHost implements InputTargets {
   @override
   void navigationCancel() => _viewport.cancelGesture();
 
-  /// 1 = dismiss (context menu → popup → selection), 2 = undo,
-  /// 3 = redo. The router already applied GestureSettings.
+  /// 1 = dismiss (context menu → popup → selection), 2 / 3 = the action of
+  /// twoFingerTap / threeFingerTap (undo / redo — v2 6.3.4; the action runner
+  /// of 6.4.3 replaces this in E2-05). The router only sends 2 / 3 when the
+  /// action is not none.
   @override
   void tapGesture(int fingerCount, Offset centroid) {
     switch (fingerCount) {
@@ -388,11 +406,24 @@ class InteractionHost implements InputTargets {
           _commands.clearSelection();
         }
       case 2:
-        unawaited(_commands.undo());
+        _runTapAction(EditorGesture.twoFingerTap);
       case 3:
-        unawaited(_commands.redo());
+        _runTapAction(EditorGesture.threeFingerTap);
       default:
         break;
+    }
+  }
+
+  void _runTapAction(EditorGesture gesture) {
+    if (_disposed) return;
+    final gestures = _ref.read(editorSettingsProvider).gestures;
+    switch (gestures.actionFor(gesture)) {
+      case EditorAction.undo:
+        unawaited(_commands.undo());
+      case EditorAction.redo:
+        unawaited(_commands.redo());
+      default:
+        break; // none (the router does not send it)
     }
   }
 

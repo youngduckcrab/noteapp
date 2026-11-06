@@ -26,6 +26,7 @@ import '../state/page_panel.dart';
 import '../state/popup.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
+import '../text/text_edit_session.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
 import '../viewport/page_layout.dart';
@@ -255,6 +256,7 @@ final editorInteractionHostProvider = Provider<InteractionHost>(
     editorReadOnlyProvider,
     editorSelectionProvider,
     editorPopupProvider,
+    editorTextEditProvider,
   ],
   name: 'editorInteractionHostProvider',
 );

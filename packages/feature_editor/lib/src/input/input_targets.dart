@@ -17,12 +17,18 @@ class InputPolicy {
     required this.gestures,
     required this.stylusSeen,
     required this.eyedropperActive,
+    this.textSessionActive = false,
   });
   final bool penOnly;
   final PalmRejectionSettings palm;
   final GestureSettings gestures;
   final bool stylusSeen;
   final bool eyedropperActive;
+
+  /// (v2) A text edit session is open (m5-7/04-editor 6.3.4): fingers act as
+  /// in pen-only mode and a finger down starts no interaction, so only a
+  /// confirmed tap, a long press or a pen contact ends the session.
+  final bool textSessionActive;
 
   @override
   bool operator ==(Object other) =>
@@ -31,11 +37,18 @@ class InputPolicy {
       other.palm == palm &&
       other.gestures == gestures &&
       other.stylusSeen == stylusSeen &&
-      other.eyedropperActive == eyedropperActive;
+      other.eyedropperActive == eyedropperActive &&
+      other.textSessionActive == textSessionActive;
 
   @override
-  int get hashCode =>
-      Object.hash(penOnly, palm, gestures, stylusSeen, eyedropperActive);
+  int get hashCode => Object.hash(
+    penOnly,
+    palm,
+    gestures,
+    stylusSeen,
+    eyedropperActive,
+    textSessionActive,
+  );
 }
 
 @immutable
@@ -89,12 +102,21 @@ abstract interface class InputTargets {
   /// hits it (handle or body). The router does not know the active tool.
   bool hitsSelection(Offset screen);
 
+  /// (v2) A pen stroke (ToolInteraction.interceptsPenDot) ended as a pen dot
+  /// (InputThresholds.penTapMaxMovement / penTapMaxDuration) at [sample].
+  /// Called before its end: true = the dot was taken (a tape toggled, a
+  /// recording sought — m5-7/04-editor 6.3.5 ②③) and the router cancels the
+  /// stroke instead of ending it. [source] finger = a finger in finger
+  /// drawing (the tap-to-seek condition is the finger one).
+  bool interceptPenDot(InputSample sample, {required InteractionSource source});
+
   void navigationStart();
   void navigationUpdate(NavigationUpdate update);
   void navigationEnd(Velocity velocity);
   void navigationCancel();
 
-  /// fingerCount 1 = dismiss, 2 = undo, 3 = redo (gated by GestureSettings).
+  /// fingerCount 1 = dismiss, 2 / 3 = the gesture's action (the router only
+  /// sends 2 / 3 when GestureSettings.actionFor is not none — v2 6.3.4).
   void tapGesture(int fingerCount, Offset centroid);
   void longPress(Offset screen);
   void secondaryClick(Offset screen);

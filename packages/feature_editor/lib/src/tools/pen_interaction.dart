@@ -97,6 +97,10 @@ final class PenInteraction extends ToolInteraction {
   @override
   double get travelled => _travelled;
 
+  /// (v2) A dot on a tape / a recorded stroke may be taken instead (6.3.5).
+  @override
+  bool get interceptsPenDot => true;
+
   void _track(Offset position) {
     _travelled += (position - _last).distance;
     _last = position;

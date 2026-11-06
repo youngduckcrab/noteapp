@@ -1,13 +1,17 @@
 // E-05: InputRouter (04-editor 6.5) — the router scenarios R1..R33 of 6.5.6,
 // plus cancelAll / counters / trackpad. (v2) m5-7/04-editor 8.2 E2-04a:
 // R34..R42 (stylus contact rule, gesture at contact — 6.3.2·6.3.3) and the
-// pose hover of palm rejection P3 (R46 — 6.5.3). Events go straight to
+// pose hover of palm rejection P3 (R46 — 6.5.3); E2-04b: R43..R52 (taps and
+// long press by actionFor, the pen dot tap, the text session — 6.3.4·6.3.5). Events go straight to
 // router.handlePointerEvent with synthetic timestamps; testWidgets' fake time
 // (tester.pump) drives the long-press Timer and VelocityTracker's clock.
 // RecordingInputTargets (E-01) records every router → editor call.
+import 'dart:async';
+
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/input/input_router.dart';
 import 'package:feature_editor/src/input/input_targets.dart';
+import 'package:feature_editor/src/input/input_thresholds.dart';
 import 'package:feature_editor/src/input/stylus_contact.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
@@ -1124,6 +1128,386 @@ void main() {
             : t.callsStartingWith('begin'),
         hasLength(2),
       );
+    });
+  });
+
+  group('v2 — taps, pen dots, text session (E2-04b, R43–R52)', () {
+    InputPolicy withActions(
+      InputPolicy base,
+      Map<EditorGesture, EditorAction> actions, {
+      GestureSettings? gestures,
+    }) => InputPolicy(
+      penOnly: base.penOnly,
+      palm: base.palm,
+      gestures: (gestures ?? GestureSettings.defaults).copyWith(
+        actions: actions,
+      ),
+      stylusSeen: base.stylusSeen,
+      eyedropperActive: false,
+    );
+
+    Future<void> twoFingerTap(_Input input) async {
+      input
+        ..down(a, p0)
+        ..down(b, p0 + const Offset(80, 0));
+      await input.wait(const Duration(milliseconds: 100));
+      input
+        ..up(a)
+        ..up(b);
+    }
+
+    Future<void> threeFingerTap(_Input input) async {
+      input
+        ..down(a, p0)
+        ..down(b, p0 + const Offset(60, 0))
+        ..down(c, p0 + const Offset(120, 0));
+      await input.wait(const Duration(milliseconds: 100));
+      input
+        ..up(a)
+        ..up(b)
+        ..up(c);
+    }
+
+    _allModesTest('R43 twoFingerTap / threeFingerTap action none → no '
+        'tapGesture (the v1.4 bools on)', (input, t) async {
+      t.policy = withActions(t.policy, {
+        EditorGesture.twoFingerTap: EditorAction.none,
+        EditorGesture.threeFingerTap: EditorAction.none,
+      });
+      await twoFingerTap(input);
+      await input.wait(const Duration(seconds: 1));
+      await threeFingerTap(input);
+      expect(t.callsStartingWith('tap'), isEmpty);
+    });
+
+    _allModesTest('R44 twoFingerTap = redo → tapGesture(2), also with the '
+        'v1.4 bool off (the actions entry wins)', (input, t) async {
+      t.policy = withActions(
+        t.policy,
+        {
+          EditorGesture.twoFingerTap: EditorAction.redo,
+          EditorGesture.threeFingerTap: EditorAction.undo,
+        },
+        gestures: const GestureSettings(
+          twoFingerTapUndo: false,
+          threeFingerTapRedo: false,
+        ),
+      );
+      await twoFingerTap(input);
+      await input.wait(const Duration(seconds: 1));
+      await threeFingerTap(input);
+      expect(t.callsStartingWith('tap'), ['tap(2)', 'tap(3)']);
+    });
+
+    testWidgets('R45 fingerLongPress = none → no long-press timer', (
+      tester,
+    ) async {
+      final targets = RecordingInputTargets(
+        policy: withActions(_penOnly, {
+          EditorGesture.fingerLongPress: EditorAction.none,
+        }),
+      );
+      var timers = 0;
+      final router = InputRouter(
+        targets: targets,
+        timerFactory: (d, cb) {
+          timers++;
+          return Timer(d, cb);
+        },
+      );
+      final input = _Input(tester, router);
+      input.down(a, p0);
+      await input.wait(const Duration(milliseconds: 600));
+      input.up(a);
+      expect(timers, 0);
+      expect(targets.calls, isNot(contains('longPress')));
+
+      // The default (contextMenu) arms it.
+      targets.policy = _penOnly;
+      input.down(b, p0);
+      expect(timers, 1);
+      await input.wait(const Duration(milliseconds: 600));
+      expect(targets.calls, contains('longPress'));
+      input.up(b);
+      router.cancelAll();
+    });
+
+    Future<void> penDot(
+      _Input input, {
+      required Offset by,
+      required Duration after,
+      PointerDeviceKind kind = _stylus,
+      int id = 100,
+    }) async {
+      input.down(id, p0, kind: kind);
+      await input.wait(after ~/ 2);
+      input.move(id, p0 + by * 0.5);
+      await input.wait(after - after ~/ 2);
+      input.move(id, p0 + by);
+      input.up(id);
+    }
+
+    _allModesTest('R47 a pen 3 px · 150 ms contact → a pen dot: '
+        'interceptPenDot once; taken → cancel once, end 0', (input, t) async {
+      t.penDotTaken = (_, _) => true;
+      await penDot(
+        input,
+        by: const Offset(3, 0),
+        after: const Duration(milliseconds: 150),
+      );
+      expect(t.penDots, hasLength(1));
+      expect(t.penDots.single.source, InteractionSource.stylus);
+      expect(t.penDots.single.sample.event, isA<PointerUpEvent>());
+      final i = t.interactions.single;
+      expect(i.cancelCount, 1);
+      expect(i.endCount, 0);
+    });
+
+    _allModesTest('R47 not taken → end once (the dot stroke stays)', (
+      input,
+      t,
+    ) async {
+      await penDot(
+        input,
+        by: const Offset(3, 0),
+        after: const Duration(milliseconds: 150),
+      );
+      expect(t.penDots, hasLength(1));
+      expect(t.interactions.single.endCount, 1);
+      expect(t.interactions.single.cancelCount, 0);
+    });
+
+    _allModesTest('R47 the limits are inclusive: 4 px · 200 ms is a dot', (
+      input,
+      t,
+    ) async {
+      t.penDotTaken = (_, _) => true;
+      await penDot(
+        input,
+        by: const Offset(4, 0),
+        after: const Duration(milliseconds: 200),
+      );
+      expect(t.penDots, hasLength(1));
+      expect(t.interactions.single.cancelCount, 1);
+    });
+
+    _allModesTest('R48 a pen 6 px, or 250 ms → not a dot (end once, no '
+        'hook)', (input, t) async {
+      t.penDotTaken = (_, _) => true;
+      await penDot(
+        input,
+        by: const Offset(6, 0),
+        after: const Duration(milliseconds: 100),
+      );
+      await input.wait(const Duration(seconds: 1));
+      await penDot(
+        input,
+        by: const Offset(2, 0),
+        after: const Duration(milliseconds: 250),
+        id: 101,
+      );
+      // Out 6 px and back: the farthest point counts.
+      await input.wait(const Duration(seconds: 1));
+      input.down(102, p0, kind: _stylus);
+      input
+        ..move(102, p0 + const Offset(6, 0))
+        ..move(102, p0);
+      input.up(102);
+      expect(t.penDots, isEmpty);
+      expect(t.interactions.map((i) => i.endCount), [1, 1, 1]);
+      expect(t.interactions.map((i) => i.cancelCount), [0, 0, 0]);
+    });
+
+    _allModesTest('R48 not a pen stroke (interceptsPenDot false) → no hook', (
+      input,
+      t,
+    ) async {
+      t
+        ..interactionsInterceptPenDot = false
+        ..penDotTaken = (_, _) => true;
+      await penDot(
+        input,
+        by: const Offset(1, 0),
+        after: const Duration(milliseconds: 50),
+      );
+      expect(t.penDots, isEmpty);
+      expect(t.interactions.single.endCount, 1);
+    });
+
+    _allModesTest('a mouse click is a pen dot with source mouse', (
+      input,
+      t,
+    ) async {
+      await penDot(
+        input,
+        by: Offset.zero,
+        after: const Duration(milliseconds: 80),
+        kind: _mouse,
+        id: 200,
+      );
+      expect(t.penDots.single.source, InteractionSource.mouse);
+    });
+
+    _routerTest(
+      'fingerDrawing: a finger dot goes to the hook with source finger, no '
+      'tap(1)',
+      _fingerDrawing,
+      (input, t) async {
+        t.penDotTaken = (_, _) => true;
+        input.down(a, p0);
+        await input.wait(const Duration(milliseconds: 80));
+        input.up(a);
+        expect(t.penDots.single.source, InteractionSource.finger);
+        expect(t.interactions.single.cancelCount, 1);
+        expect(t.callsStartingWith('tap'), isEmpty);
+      },
+    );
+
+    _allModesTest('web: the dot is judged from the contact move, and a lift '
+        '(move 0x02) is a dot end too', (input, t) async {
+      t.penDotTaken = (_, _) => true;
+      input.down(100, p0, kind: _stylus, buttons: _barrel);
+      await input.wait(const Duration(milliseconds: 300)); // airborne
+      input.move(100, p0 + const Offset(40, 0)); // airborne, far away
+      final at = p0 + const Offset(60, 0);
+      input.move(100, at, buttons: _contactBarrel);
+      await input.wait(const Duration(milliseconds: 100));
+      input.move(100, at + const Offset(2, 0), buttons: _barrel);
+      expect(t.penDots, hasLength(1));
+      expect(t.interactions.single.cancelCount, 1);
+      expect(t.interactions.single.endCount, 0);
+      input.up(100);
+      expect(t.penDots, hasLength(1));
+    }, rule: StylusContactRule.web);
+
+    InputPolicy inSession(InputPolicy base) => InputPolicy(
+      penOnly: base.penOnly,
+      palm: base.palm,
+      gestures: base.gestures,
+      stylusSeen: base.stylusSeen,
+      eyedropperActive: false,
+      textSessionActive: true,
+    );
+
+    _routerTest(
+      'R49 text session, finger drawing: one finger down → no interaction, '
+      'its drag scrolls',
+      inSession(_fingerDrawing),
+      (input, t) async {
+        input.down(a, p0);
+        expect(t.callsStartingWith('begin'), isEmpty);
+        await input.drag(a, const Offset(0, 80));
+        input.up(a);
+        expect(t.callsStartingWith('begin'), isEmpty);
+        expect(t.calls.first, 'navigationStart');
+        expect(t.calls.last, 'navigationEnd');
+        expect(t.callsStartingWith('tap'), isEmpty);
+      },
+    );
+
+    _routerTest(
+      'R49 the selection / eyedropper do not start a finger interaction in '
+      'the session either',
+      InputPolicy(
+        penOnly: true,
+        palm: const PalmRejectionSettings(),
+        gestures: GestureSettings.defaults,
+        stylusSeen: true,
+        eyedropperActive: true,
+        textSessionActive: true,
+      ),
+      (input, t) async {
+        t.selectionHit = (_) => true;
+        input.down(a, p0);
+        await input.drag(a, const Offset(0, 60));
+        input.up(a);
+        expect(t.callsStartingWith('begin'), isEmpty);
+        expect(t.calls, contains('navigationStart'));
+      },
+    );
+
+    _allModesTest('R50 text session: a two-finger drag and a pinch → '
+        'navigation only, no session-end signal (no tap, begin or long '
+        'press)', (input, t) async {
+      t.policy = inSession(t.policy);
+      input
+        ..down(a, p0)
+        ..down(b, p0 + const Offset(80, 0));
+      await input.drag(a, const Offset(0, 60), steps: 3);
+      await input.drag(b, const Offset(0, 60), steps: 3);
+      input
+        ..up(a)
+        ..up(b);
+      await input.wait(const Duration(seconds: 1));
+      input
+        ..down(a, p0)
+        ..down(b, p0 + const Offset(40, 0));
+      await input.drag(b, const Offset(80, 0), steps: 4); // spread
+      await input.wait(const Duration(milliseconds: 700));
+      input
+        ..up(a)
+        ..up(b);
+      expect(t.callsStartingWith('begin'), isEmpty);
+      expect(t.callsStartingWith('tap'), isEmpty);
+      expect(t.callsStartingWith('longPress'), isEmpty);
+      expect(t.calls.where((c) => c == 'navigationStart'), hasLength(2));
+    });
+
+    _allModesTest('R51 text session: a one-finger tap → tapGesture(1) once', (
+      input,
+      t,
+    ) async {
+      t.policy = inSession(t.policy);
+      input.down(a, p0);
+      await input.wait(const Duration(milliseconds: 100));
+      input.up(a);
+      expect(t.calls, ['tap(1)']);
+    });
+
+    _allModesTest('R52 text session: a palm rejected by P1 (pen down) → no '
+        'signal from it', (input, t) async {
+      t.policy = inSession(t.policy);
+      input.down(100, p0, kind: _stylus);
+      input.down(a, p0 + const Offset(200, 300));
+      await input.wait(const Duration(milliseconds: 100));
+      input.up(a);
+      await input.drag(100, const Offset(30, 0), steps: 3);
+      input.up(100);
+      expect(t.callsStartingWith('palmRejected'), hasLength(1));
+      expect(t.callsStartingWith('tap'), isEmpty);
+      expect(t.callsStartingWith('longPress'), isEmpty);
+      expect(t.callsStartingWith('begin'), ['begin(stylus)']); // the pen
+    });
+
+    _routerTest(
+      'text session: the long press still fires (its action ends the '
+      'session — 6.3.4 ②)',
+      inSession(_fingerDrawing),
+      (input, t) async {
+        input.down(a, p0);
+        await input.wait(const Duration(milliseconds: 600));
+        expect(t.calls, ['longPress']);
+        input.up(a);
+      },
+    );
+
+    test('InputPolicy: textSessionActive defaults to false and is part of '
+        '== / hashCode', () {
+      final off = testInputPolicy();
+      final on = testInputPolicy(textSessionActive: true);
+      expect(off.textSessionActive, isFalse);
+      expect(on, isNot(off));
+      expect(on, testInputPolicy(textSessionActive: true));
+      expect(on.hashCode, testInputPolicy(textSessionActive: true).hashCode);
+    });
+
+    test('InputThresholds: the pen dot 4 px · 200 ms, apart from the finger '
+        'tap', () {
+      const t = InputThresholds();
+      expect(t.penTapMaxMovement, 4);
+      expect(t.penTapMaxDuration, const Duration(milliseconds: 200));
+      expect(t.tapMaxMovement, 20);
+      expect(t.singleTapMaxDuration, const Duration(milliseconds: 250));
     });
   });
 

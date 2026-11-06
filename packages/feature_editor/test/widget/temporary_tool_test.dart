@@ -8,7 +8,6 @@ import 'package:feature_editor/src/input/stylus_contact.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/tools/erase_interaction.dart';
 import 'package:feature_editor/src/tools/eyedropper_interaction.dart';
-import 'package:feature_editor/src/tools/interaction_host.dart';
 import 'package:feature_editor/src/tools/lasso_interaction.dart';
 import 'package:feature_editor/src/tools/pen_interaction.dart';
 import 'package:feature_editor/src/tools/selection.dart';

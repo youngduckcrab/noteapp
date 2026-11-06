@@ -12,6 +12,11 @@ abstract class ToolInteraction {
   /// Screen distance travelled so far (P6 cancel window).
   double get travelled;
 
+  /// (v2) True for a pen stroke: when its contact was a pen dot (4 px ·
+  /// 200 ms), the router asks InputTargets.interceptPenDot before [end] and
+  /// [cancel]s it when the dot was taken (m5-7/04-editor 6.3.5).
+  bool get interceptsPenDot => false;
+
   void move(InputSample sample);
   void end(InputSample sample);
   void cancel(); // must leave no trace (no command, overrides cleared)

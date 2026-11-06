@@ -1,4 +1,5 @@
-// lib/src/input/input_thresholds.dart — 04-editor 6.5.5 / 6.5.8.
+// lib/src/input/input_thresholds.dart — 04-editor 6.5.5 / 6.5.8; (v2)
+// m5-7/04-editor 6.3.7 (the pen dot tap of contract R-5 (v2.1)).
 import 'package:meta/meta.dart';
 
 @immutable
@@ -15,6 +16,8 @@ class InputThresholds {
     this.fingerStrokeCancelDistance = 12.0,
     this.minFlingVelocity = 50.0, // = kMinFlingVelocity
     this.maxFlingVelocity = 8000.0, // = kMaxFlingVelocity
+    this.penTapMaxMovement = 4.0,
+    this.penTapMaxDuration = const Duration(milliseconds: 200),
   });
   final double touchSlop;
   final double scaleSlop;
@@ -27,4 +30,11 @@ class InputThresholds {
   final double fingerStrokeCancelDistance;
   final double minFlingVelocity;
   final double maxFlingVelocity;
+
+  /// (v2) A pen dot tap (6.3.5): the contact moved at most this far …
+  final double penTapMaxMovement;
+
+  /// … and lasted at most this long (separate from the finger tap 20 px ·
+  /// 250 ms).
+  final Duration penTapMaxDuration;
 }

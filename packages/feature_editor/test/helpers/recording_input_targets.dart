@@ -17,12 +17,14 @@ InputPolicy testInputPolicy({
   GestureSettings gestures = GestureSettings.defaults,
   bool stylusSeen = false,
   bool eyedropperActive = false,
+  bool textSessionActive = false, // (v2)
 }) => InputPolicy(
   penOnly: penOnly,
   palm: palm,
   gestures: gestures,
   stylusSeen: stylusSeen,
   eyedropperActive: eyedropperActive,
+  textSessionActive: textSessionActive,
 );
 
 class RecordingInputTargets implements InputTargets {
@@ -57,6 +59,20 @@ class RecordingInputTargets implements InputTargets {
   /// [hitsSelection] answer; default: no selection.
   bool Function(Offset screen) selectionHit = _never;
 
+  /// (v2) Whether the interactions handed out are pen strokes
+  /// (ToolInteraction.interceptsPenDot); default true.
+  bool interactionsInterceptPenDot = true;
+
+  /// (v2) [interceptPenDot] answer; default: the dot is not taken.
+  bool Function(InputSample sample, InteractionSource source) penDotTaken =
+      _notTaken;
+
+  /// (v2) Every [interceptPenDot] call (kept out of [calls] so the 1차 call
+  /// lists stay as they were).
+  final List<({InputSample sample, InteractionSource source})> penDots = [];
+
+  static bool _notTaken(InputSample _, InteractionSource _) => false;
+
   /// Called from [stylusDetected] — e.g. to switch [policy] to pen-only as the
   /// real InteractionHost does in auto mode (R6).
   void Function()? onStylusDetected;
@@ -86,6 +102,7 @@ class RecordingInputTargets implements InputTargets {
       startedAt: sample.timeStamp,
       start: sample,
       gesture: gesture,
+      interceptsPenDot: interactionsInterceptPenDot,
     );
     interactions.add(interaction);
     return interaction;
@@ -93,6 +110,15 @@ class RecordingInputTargets implements InputTargets {
 
   @override
   bool hitsSelection(Offset screen) => selectionHit(screen);
+
+  @override
+  bool interceptPenDot(
+    InputSample sample, {
+    required InteractionSource source,
+  }) {
+    penDots.add((sample: sample, source: source));
+    return penDotTaken(sample, source);
+  }
 
   @override
   void navigationStart() => calls.add('navigationStart');
@@ -159,12 +185,16 @@ class RecordingToolInteraction extends ToolInteraction {
     required super.startedAt,
     required this.start,
     this.gesture,
+    this.interceptsPenDot = true,
   }) : _last = start.position;
 
   final InputSample start;
 
   /// (v2) The gesture the router passed at contact.
   final EditorGesture? gesture;
+
+  @override
+  final bool interceptsPenDot;
   final List<InputSample> moves = [];
   InputSample? endSample;
   int endCount = 0;

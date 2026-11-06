@@ -225,6 +225,11 @@ final class _CountingTargets implements InputTargets {
   @override
   bool hitsSelection(Offset screen) => false;
   @override
+  bool interceptPenDot(
+    InputSample sample, {
+    required InteractionSource source,
+  }) => false;
+  @override
   void navigationStart() {}
   @override
   void navigationUpdate(NavigationUpdate update) {}
