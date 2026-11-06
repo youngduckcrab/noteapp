@@ -17,16 +17,23 @@
 // exactly what the commit stores — shape width × 2, text box / formula font size ×
 // 2 clamped to [6, 144], an image's frame only — and its pixels are the
 // committed page's (< 1 % of the inked pixels differ).
+// (T28, 6.4 — C2-38) Calligraphy strokes keep the round-1 matrix preview: the
+// 30° rotation preview draws the pixels of the commit (CORE turns the nib angle
+// with the stroke — nibAngleDeg 45 → 75), and so does the 2× scale (width and nib
+// grow together) — < 1 % of the inked pixels differ.
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
+import 'package:ink_engine/src/geometry/outline_generator.dart';
 import 'package:ink_engine/src/interop/core_interop.dart' as interop;
 import 'package:ink_engine/src/render/cache_pool.dart' show mathRasterCacheOf;
 import 'package:ink_engine/src/render/ink_page_controller.dart'
     show inkAnnotationCacheOf, inkPageRenderOf, liveObjectsOf;
+import 'package:ink_engine/src/stroke/stroke_builder.dart' show buildStroke;
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
@@ -314,6 +321,155 @@ void main() {
       expect(controller.pendingIds, isEmpty);
     });
   });
+
+  group(
+    'calligraphy with the CORE fake store (T28 — C2-38: preview = commit)',
+    () {
+      late core.NoteStore store;
+      late core.NoteSession session;
+      late String pageId;
+      late InkPageController controller;
+      late StreamSubscription<core.PageContentChange> sub;
+
+      setUp(() async {
+        store = core_testing.createFakeNoteStore();
+        final note = await store.library.createNote(title: 'T28 calligraphy');
+        session = await store.openSession(note.id);
+        pageId = session.pages.single.id;
+        final loaded = await session.openPage(pageId);
+        controller = createTestPageController(
+          pageId: pageId,
+          services: testInkCoreServices(idPrefix: 'ink', startMillis: 100000),
+        )..updateContent(_inkContentOf(loaded));
+        sub = session
+            .pageChanges(pageId)
+            .listen(
+              (ch) => controller.updateContent(_inkContentOf(ch.content)),
+            );
+      });
+
+      tearDown(() async {
+        await sub.cancel();
+        controller.dispose();
+        await session.close();
+        await store.close();
+      });
+
+      core.Stroke nibStroke(String id, List<ui.Offset> xy, {double? angle}) {
+        var style = core.StrokeStyle.defaultsFor(core.PenTool.calligraphy)
+            .copyWith(width: 10, colorArgb: 0xFF101010);
+        if (angle != null) style = style.withInkExtras(nibAngleDeg: angle);
+        return interop.newCoreStroke(
+          buildStroke(
+            [
+              for (var i = 0; i < xy.length; i++)
+                InkSample(
+                  position: xy[i],
+                  timeUs: i * 8333,
+                  kind: InkPointerKind.stylus,
+                  pressure: 0.3 + 0.5 * math.sin(i / (xy.length - 1) * math.pi),
+                ),
+            ],
+            style: style,
+            viewScale: 1,
+          )!,
+          id: id,
+          pageId: pageId,
+          penDownMillis: 1000 + id.codeUnitAt(0),
+        );
+      }
+
+      final center = const ui.Offset(160, 170);
+      for (final (name, m, turn) in [
+        (
+          'rotate 30°',
+          core.Affine2.rotation(
+            30 * math.pi / 180,
+            originX: center.dx,
+            originY: center.dy,
+          ),
+          30.0,
+        ),
+        ('scale 2', core.Affine2.scaling(2, 2, originX: 60, originY: 60), 0.0),
+      ]) {
+        test(
+          '$name: the matrix preview pixels = the committed pixels',
+          () async {
+            session.execute(
+              core.AddStrokes(
+                pageId: pageId,
+                strokes: [
+                  nibStroke('a', [
+                    for (var i = 0; i <= 80; i++)
+                      ui.Offset(
+                        70 + 2.5 * i,
+                        120 + 30 * math.sin(i / 80 * 2 * math.pi),
+                      ),
+                  ]),
+                  nibStroke('b', [
+                    for (var i = 0; i <= 40; i++)
+                      ui.Offset(80 + 4.0 * i, 200 + 1.5 * i),
+                  ], angle: 0),
+                  nibStroke('c', [
+                    for (var i = 0; i <= 60; i++)
+                      ui.Offset(
+                        150 + 40 * math.cos(i / 9),
+                        170 + 40 * math.sin(i / 9),
+                      ),
+                  ], angle: 120),
+                ],
+              ),
+            );
+            final before = {
+              for (final s in controller.content!.strokes) s.id: s.source,
+            };
+            final sel = controller.select({'a', 'b', 'c'});
+            sel.setPreviewTransform(m);
+            final preview = await _pagePixels(controller);
+            session.execute(sel.commitTransform()!.toCommand());
+            expect(controller.pendingIds, isEmpty);
+            final committed = await _pagePixels(controller);
+            for (final id in ['a', 'b', 'c']) {
+              final now = controller.content!.strokeById(id)!;
+              expect(now.profile, same(PenProfile.calligraphy));
+              final was = before[id]!.style.nibAngleDeg;
+              expect(
+                now.style.nibAngleDeg,
+                closeTo((was + turn) % 180, 1e-6),
+                reason: '$id: CORE turns the nib (C2-38)',
+              );
+              if (turn == 0) {
+                expect(now.style.width, before[id]!.style.width * 2);
+              }
+            }
+            final (inked, differ) = _compare(preview, committed);
+            expect(inked, greaterThan(2000), reason: 'the strokes are drawn');
+            expect(
+              differ / inked,
+              lessThan(0.01),
+              reason: '$differ of $inked differ',
+            );
+            // without C2-38 (the nib not turned) the rotated page would differ
+            if (turn != 0) {
+              final unturned = await renderPixels(600, 700, (canvas) {
+                paintPaper(canvas, 0xFFFFFFFF);
+                for (final s in controller.content!.strokes) {
+                  final keep = s.source.copyWith(style: before[s.id]!.style);
+                  final ink = InkStroke.of(keep);
+                  canvas.drawPath(
+                    OutlineGenerator.outline(ink).toPath(),
+                    ui.Paint()..color = const ui.Color(0xFF101010),
+                  );
+                }
+              });
+              final (inked2, differ2) = _compare(unturned, committed);
+              expect(differ2 / inked2, greaterThan(0.03));
+            }
+          },
+        );
+      }
+    },
+  );
 
   group('objects (v2, T37a)', () {
     late InkPageController c;

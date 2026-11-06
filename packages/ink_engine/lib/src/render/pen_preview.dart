@@ -12,10 +12,11 @@
 // (m5-7/03-ink 6.2 'pen preview v2', T27) The painter branches on the
 // profile's render method and calls the same paint function as the page
 // layers (preview = real stroke shape). The dashed branch draws the dashed
-// outline (T29 — OutlineGenerator.outline gives the dash pieces), the tape
-// the covered shape with its stripes (T31 — the cover layer's covered look);
-// the nib and laser branches get their own drawing in T28 and T30; until then
-// they draw the filled outline (the tools still map to the ballpoint profile).
+// outline (T29 — OutlineGenerator.outline gives the dash pieces), the nib
+// branch the calligraphy outline of style.nibAngleDeg / nibAspect (T28 — the
+// same fill as the page layers), the tape the covered shape with its stripes
+// (T31 — the cover layer's covered look); the laser branch gets its own
+// drawing in T30 (until then the tool maps to the ballpoint profile).
 import 'dart:collection';
 import 'dart:math' as math;
 

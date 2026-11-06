@@ -23,8 +23,13 @@
 //
 // (m5-7/03-ink T27) OutlineSpec picks the generator by render method: the
 // filled outline above for filledOutline (and the highlighter's
-// strokedPolyline outline); nibOutline and transientTrail use the filled
-// outline too until T28 (nib) and T30 (laser trail) give them their own.
+// strokedPolyline outline); transientTrail uses the filled outline too until
+// T30 (laser trail) gives it its own.
+//
+// (T28, 6.4 N1–N7) nibOutline: the elliptic nib swept along the centerline
+// (nib_outline.dart — style.nibAngleDeg, style.nibAspect), the same O2, O3, O5,
+// O7, O8 steps; every vertex is on a nib ellipse inside disk(p_i, r_i), so K-1
+// holds as for the filled pens.
 //
 // (T29, 6.5 D1–D5) dashedPolyline: the stored centerline split by the dash
 // pattern (style.dashPattern × width, phase 0 at the stroke start —
@@ -38,6 +43,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:meta/meta.dart';
+import 'package:note_core/note_core.dart' as core;
 
 import '../model/ink_layer.dart';
 import '../model/ink_points.dart';
@@ -47,6 +53,8 @@ import '../pen/style_ink.dart';
 import '../tuning.dart';
 import 'dash.dart';
 import 'stroke_outline.dart';
+
+part 'nib_outline.dart';
 
 @immutable
 final class OutlineOptions {
@@ -94,25 +102,47 @@ final class OutlineSpec {
     required this.cap,
     this.constantRadius = false,
     this.dashPattern = defaultDashPattern,
+    this.nibAngleDeg = defaultNibAngleDeg,
+    this.nibAspect = defaultNibAspect,
   });
 
   /// The spec of [profile]: its render method and cap; the highlighter has a
   /// constant radius width / 2 (widthQ ignored). [dashPattern]: the stroke's
-  /// style.dashPattern (dashedPolyline only).
+  /// style.dashPattern (dashedPolyline only); [nibAngleDeg], [nibAspect]: its
+  /// style.nibAngleDeg and style.nibAspect (nibOutline only — T28).
   factory OutlineSpec.of(
     PenProfile profile, {
     List<double> dashPattern = defaultDashPattern,
-  }) => OutlineSpec(
-    method: profile.renderMethod,
-    cap: profile.cap,
-    constantRadius: profile.layer == InkLayer.highlighter,
-    dashPattern: profile.renderMethod == InkRenderMethod.dashedPolyline
-        ? dashPattern
-        : defaultDashPattern,
+    double nibAngleDeg = defaultNibAngleDeg,
+    double nibAspect = defaultNibAspect,
+  }) {
+    final nib = profile.renderMethod == InkRenderMethod.nibOutline;
+    return OutlineSpec(
+      method: profile.renderMethod,
+      cap: profile.cap,
+      constantRadius: profile.layer == InkLayer.highlighter,
+      dashPattern: profile.renderMethod == InkRenderMethod.dashedPolyline
+          ? dashPattern
+          : defaultDashPattern,
+      nibAngleDeg: nib ? nibAngleDeg : defaultNibAngleDeg,
+      nibAspect: nib ? nibAspect : defaultNibAspect,
+    );
+  }
+
+  /// The spec of [style] (its profile, dash pattern and nib).
+  factory OutlineSpec.ofStyle(core.StrokeStyle style) => OutlineSpec.of(
+    style.profile,
+    dashPattern: style.dashPattern,
+    nibAngleDeg: style.nibAngleDeg,
+    nibAspect: style.nibAspect,
   );
 
   /// The default of style.dashPattern (m5-7/03-ink 4.10).
   static const List<double> defaultDashPattern = [4, 3];
+
+  /// The defaults of style.nibAngleDeg and style.nibAspect (m5-7/03-ink 4.10).
+  static const double defaultNibAngleDeg = 45;
+  static const double defaultNibAspect = 0.25;
 
   final InkRenderMethod method;
   final InkCap cap;
@@ -122,6 +152,10 @@ final class OutlineSpec {
 
   /// dashedPolyline: on, off, … in multiples of the width (style.dashPattern).
   final List<double> dashPattern;
+
+  /// nibOutline: the major axis angle (deg, clockwise on the screen) and the
+  /// minor / major ratio of the nib (style.nibAngleDeg, style.nibAspect).
+  final double nibAngleDeg, nibAspect;
 
   /// O1 of a filled pen with square caps (tape): a square, not a circle. The
   /// highlighter (strokedPolyline) keeps the round-1 circle.
@@ -134,11 +168,19 @@ final class OutlineSpec {
       other.method == method &&
       other.cap == cap &&
       other.constantRadius == constantRadius &&
-      _sameList(other.dashPattern, dashPattern);
+      _sameList(other.dashPattern, dashPattern) &&
+      other.nibAngleDeg == nibAngleDeg &&
+      other.nibAspect == nibAspect;
 
   @override
-  int get hashCode =>
-      Object.hash(method, cap, constantRadius, Object.hashAll(dashPattern));
+  int get hashCode => Object.hash(
+    method,
+    cap,
+    constantRadius,
+    Object.hashAll(dashPattern),
+    nibAngleDeg,
+    nibAspect,
+  );
 
   static bool _sameList(List<double> a, List<double> b) {
     if (identical(a, b)) return true;
@@ -160,26 +202,41 @@ abstract final class OutlineGenerator {
   static StrokeOutline outline(
     InkStroke stroke, {
     OutlineOptions options = const OutlineOptions(),
-  }) => outlineOf(
-    stroke.points,
-    width: stroke.style.width,
-    profile: stroke.profile,
-    dashPattern: stroke.style.dashPattern,
+  }) => outlineOfStyle(stroke.points, stroke.style, options: options);
+
+  /// The outline of [points] drawn with [style] (its width, profile, dash
+  /// pattern and nib) — the live builder's chunks.
+  static StrokeOutline outlineOfStyle(
+    InkPoints points,
+    core.StrokeStyle style, {
+    OutlineOptions options = const OutlineOptions(),
+  }) => outlineFor(
+    points,
+    width: style.width,
+    spec: OutlineSpec.ofStyle(style),
     options: options,
   );
 
   /// Same from raw parts (live builder, previews of transformed copies).
-  /// [dashPattern]: style.dashPattern (dashedPolyline only).
+  /// [dashPattern]: style.dashPattern (dashedPolyline only); [nibAngleDeg],
+  /// [nibAspect]: style.nibAngleDeg, style.nibAspect (nibOutline only).
   static StrokeOutline outlineOf(
     InkPoints points, {
     required double width,
     required PenProfile profile,
     List<double> dashPattern = OutlineSpec.defaultDashPattern,
+    double nibAngleDeg = OutlineSpec.defaultNibAngleDeg,
+    double nibAspect = OutlineSpec.defaultNibAspect,
     OutlineOptions options = const OutlineOptions(),
   }) => outlineFor(
     points,
     width: width,
-    spec: OutlineSpec.of(profile, dashPattern: dashPattern),
+    spec: OutlineSpec.of(
+      profile,
+      dashPattern: dashPattern,
+      nibAngleDeg: nibAngleDeg,
+      nibAspect: nibAspect,
+    ),
     options: options,
   );
 
@@ -196,9 +253,15 @@ abstract final class OutlineGenerator {
       pattern: spec.dashPattern,
       options: options,
     ),
+    InkRenderMethod.nibOutline => nib(
+      points,
+      width: width,
+      angleDeg: spec.nibAngleDeg,
+      aspect: spec.nibAspect,
+      options: options,
+    ),
     InkRenderMethod.filledOutline ||
     InkRenderMethod.strokedPolyline ||
-    InkRenderMethod.nibOutline ||
     InkRenderMethod.transientTrail => _filled(
       points,
       width: width,
@@ -206,6 +269,24 @@ abstract final class OutlineGenerator {
       options: options,
     ),
   };
+
+  /// (T28, 6.4) The calligraphy outline of [points]: the nib ellipse of major
+  /// radius r_i = max(minRadiusPt, 2 · width · widthQ_i), minor radius
+  /// [aspect] · r_i (clamped to [0.1, 1]), major axis at [angleDeg] (clockwise on
+  /// the screen), swept along the centerline (nib_outline.dart N1–N7).
+  static StrokeOutline nib(
+    InkPoints points, {
+    required double width,
+    required double angleDeg,
+    required double aspect,
+    OutlineOptions options = const OutlineOptions(),
+  }) => _nibOutline(
+    points,
+    width: width,
+    angleDeg: angleDeg,
+    aspect: aspect,
+    options: options,
+  );
 
   /// (T29) The outline of one dash piece (dash.dart dashedStrokePieces): the round-cap
   /// outline of its centerline, or the dot of a one-point piece (live dashes).

@@ -11,6 +11,10 @@
 // T29 (6.5 K-1): the dashed pen through the real pipeline — every dash piece
 // and dot (default and other patterns, the 4096 cap) — in _tools, its own
 // group and the random strokes.
+// T28 (6.4 K-1): the calligraphy nib outline through the real pipeline — nib
+// angles 0°, 45°, 90°, 135° × aspects 0.1, 0.25, 1 × widths 0.1, 2.5, 30 (max
+// pressure, dot, 180° back and forth), in _tools, and 100 random calligraphy
+// strokes with random nibs (+ the 300 random strokes of every tool).
 //
 // Also run in Chrome by test/web/geometry_on_web_test.dart.
 import 'dart:math' as math;
@@ -80,12 +84,16 @@ void expectInsideBounds(core.Stroke s, String label, {PenProfile? profile}) {
     point(r.right, r.bottom, what);
   }
 
-  final outline = OutlineGenerator.outlineOf(
-    ink.points,
-    width: s.style.width,
-    profile: profile ?? ink.profile,
-    dashPattern: s.style.dashPattern,
-  );
+  final outline = profile == null
+      ? OutlineGenerator.outline(ink)
+      : OutlineGenerator.outlineOf(
+          ink.points,
+          width: s.style.width,
+          profile: profile,
+          dashPattern: s.style.dashPattern,
+          nibAngleDeg: s.style.nibAngleDeg,
+          nibAspect: s.style.nibAspect,
+        );
   rect(outline.bounds, 'outline bounds');
   final dot = outline.dotCenter;
   if (dot != null) {
@@ -197,6 +205,7 @@ const List<core.PenTool> _tools = [
   core.PenTool.pencil,
   core.PenTool.marker,
   core.PenTool.brush, // m5-7 T27: the brush profile
+  core.PenTool.calligraphy, // m5-7 T28: the nib outline (45°, 0.25)
   core.PenTool.dashed, // m5-7 T29: the dashed profile ([4, 3])
   core.PenTool.tape, // m5-7 T31: the tape profile (square caps, cover)
 ];
@@ -336,6 +345,79 @@ void main() {
         });
       }
     }
+  });
+
+  group('calligraphy nibs (PenProfile.calligraphy, 6.4)', () {
+    final base = core.StrokeStyle.defaultsFor(core.PenTool.calligraphy)
+        .copyWith(pressureSensitivity: 1);
+    for (final angle in [0.0, 45.0, 90.0, 135.0]) {
+      for (final aspect in [0.1, 0.25, 1.0]) {
+        test('nib $angle° aspect $aspect', () {
+          for (final width in [0.1, 2.5, 30.0]) {
+            final style = base
+                .copyWith(width: width)
+                .withInkExtras(nibAngleDeg: angle, nibAspect: aspect);
+            final scale = math.max(1.0, width / 4);
+            for (final (name, xy) in [
+              ('S curve', _sCurve(scale)),
+              ('180°', _backAndForth(scale)),
+              (
+                'diagonal',
+                [
+                  for (var i = 0; i <= 60; i++)
+                    ui.Offset(40 + 3.0 * scale * i, 80 + 3.0 * scale * i),
+                ],
+              ),
+              ('dot', [const ui.Offset(30, 30)]),
+              (
+                'tiny',
+                [
+                  const ui.Offset(50, 50),
+                  const ui.Offset(50.05, 50.02),
+                  const ui.Offset(50.02, 50.04),
+                ],
+              ),
+            ]) {
+              final s = _build(
+                _samples(xy, pressure: 1),
+                style,
+                mode: PressureMode.alwaysReal,
+              );
+              expect(s.style.profile, same(PenProfile.calligraphy));
+              expectInsideBounds(s, 'nib $angle° $aspect w $width $name');
+            }
+          }
+        });
+      }
+    }
+
+    test('100 seeded random calligraphy strokes (random nibs)', () {
+      final rnd = _Rng(20261107);
+      for (var k = 0; k < 100; k++) {
+        final width = 0.1 * math.pow(300, rnd.next()).toDouble(); // 0.1 … 30
+        final count = 1 + rnd.nextInt(120);
+        var p = ui.Offset(50 + 500 * rnd.next(), 50 + 700 * rnd.next());
+        var heading = rnd.next() * 2 * math.pi;
+        final xy = <ui.Offset>[];
+        for (var i = 0; i < count; i++) {
+          xy.add(p);
+          heading += rnd.next() < 0.08 ? math.pi : (rnd.next() - 0.5) * 1.6;
+          final step = rnd.next() < 0.1 ? 0.0 : 8 * rnd.next() * rnd.next();
+          p += ui.Offset(math.cos(heading), math.sin(heading)) * step;
+        }
+        final s = _build(
+          _samples(xy, pressureAt: (u) => rnd.next()),
+          base
+              .copyWith(width: width, smoothing: rnd.next())
+              .withInkExtras(
+                nibAngleDeg: 360 * rnd.next() - 90,
+                nibAspect: 1.2 * rnd.next(),
+              ),
+          mode: PressureMode.alwaysReal,
+        );
+        expectInsideBounds(s, 'calligraphy $k (width $width)');
+      }
+    });
   });
 
   group('tape square caps and square dot (PenProfile.tape, real pipeline)', () {

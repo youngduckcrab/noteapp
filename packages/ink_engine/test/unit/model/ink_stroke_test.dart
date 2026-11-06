@@ -78,8 +78,8 @@ void main() {
     expect(s.profile.cap, InkCap.square);
   });
 
-  test('profile and layer follow the tool; calligraphy and laser use the '
-      'ballpoint profile (until m5-7 T28, T30); the tape is cover (T31)', () {
+  test('profile and layer follow the tool; the laser uses the ballpoint '
+      'profile (until m5-7 T30); the tape is cover (T31)', () {
     for (final tool in core.PenTool.values) {
       final s = InkStroke.of(_stroke(tool: tool));
       expect(s.profile, PenProfile.of(tool));
@@ -88,6 +88,7 @@ void main() {
           s.profile,
           same(switch (tool) {
             core.PenTool.brush => PenProfile.brush,
+            core.PenTool.calligraphy => PenProfile.calligraphy,
             core.PenTool.dashed => PenProfile.dashed,
             core.PenTool.tape => PenProfile.tape,
             _ => PenProfile.ballpoint,

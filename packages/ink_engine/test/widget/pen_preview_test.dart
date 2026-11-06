@@ -9,7 +9,9 @@
 // P1 pens draw without exceptions (those still on the ballpoint fallback too).
 // T28~T31 add their rows: T29 the dashed preview (dashedPolyline — dashes and
 // gaps of style.dashPattern × width along the line), T31 the tape preview
-// (the covered shape, opaque, with stripes when striped).
+// (the covered shape, opaque, with stripes when striped), T28 the calligraphy
+// preview (nibOutline — the nib angle of the style: 0° and 90° give different
+// thickness along the same line and S curve).
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
@@ -347,8 +349,55 @@ void main() {
     }
   });
 
-  testWidgets('v2: every P1 pen draws ink without exceptions (ballpoint '
-      'fallback until T28, T30)', (tester) async {
+  testWidgets('v2: the calligraphy preview — the nib angle of the style '
+      '(T28)', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(400, 200);
+    addTearDown(tester.view.reset);
+    Future<List<int>> columns(double angle, PenPreviewShape shape) async {
+      final style = _style(
+        core.PenTool.calligraphy,
+        width: 8,
+      ).copyWith(colorArgb: 0xFF000000).withInkExtras(nibAngleDeg: angle);
+      final built = penPreviewStrokeOf(style, shape, _size)!;
+      expect(built.stroke.profile, same(PenProfile.calligraphy));
+      await tester.pumpWidget(
+        _app(PenPreviewPainter(style: style, shape: shape)),
+      );
+      expect(tester.takeException(), isNull);
+      final px = await _shot(tester);
+      return [
+        for (var x = 0; x < px.width; x++)
+          () {
+            var c = 0;
+            for (var y = 0; y < px.height; y++) {
+              if (px.at(x, y)[0] < 128) c++;
+            }
+            return c;
+          }(),
+      ];
+    }
+
+    // the line: 0° = moving along the major axis (thin, 2b), 90° = across (2a)
+    final flat = await columns(0, PenPreviewShape.line);
+    final across = await columns(90, PenPreviewShape.line);
+    final mid = (_size.width / 2).round();
+    expect(across[mid], greaterThan(flat[mid] * 2), reason: '$across $flat');
+    expect(flat[mid], greaterThan(0), reason: 'the thin line is drawn');
+    // the S curve: the thickness distribution along x differs
+    final s0 = await columns(0, PenPreviewShape.sCurve);
+    final s90 = await columns(90, PenPreviewShape.sCurve);
+    var diff = 0, ink = 0;
+    for (var x = 0; x < s0.length; x++) {
+      diff += (s0[x] - s90[x]).abs();
+      ink += s0[x] + s90[x];
+    }
+    expect(diff / ink, greaterThan(0.2), reason: 'thick and thin swap');
+  });
+
+  testWidgets('v2: every P1 pen draws ink without exceptions (the laser: '
+      'ballpoint fallback until T30)', (tester) async {
     tester.view
       ..devicePixelRatio = 1
       ..physicalSize = const Size(400, 200);

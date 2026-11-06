@@ -9,8 +9,9 @@ library;
 // PenPreviewPainter, S curve and line per pen). T27 has the brush, T29 the
 // dashed pen; T31 the tape (pens_p1_tape.png: covered, striped and revealed
 // over a written line — the cover layer's three looks — and two preview cells,
-// the line striped); T28 and T30 add their pen image and preview cells (the
-// preview sheet image is updated then).
+// the line striped); T28 the calligraphy (pens_p1_calligraphy.png, the default
+// 45° nib) — and the preview sheet became one row per pen (S curve | line, two
+// columns) so the five pens fit in 400 px; T30 adds the laser row.
 // Update with: flutter test --update-goldens test/goldens/pens_p1_golden_test.dart
 import 'dart:math' as math;
 
@@ -27,19 +28,23 @@ import 'package:note_core/note_core.dart' as core;
 /// The P1 pens with their own profile so far: tool, golden width, image name.
 const List<(core.PenTool, double, String)> _pens = [
   (core.PenTool.brush, 4, 'brush'),
+  (core.PenTool.calligraphy, 6, 'calligraphy'), // T28: the 45° nib, aspect 0.25
   (core.PenTool.dashed, 2, 'dashed'), // T29: [4, 3] × 2 pt
 ];
 
 /// The preview sheet rows: the pens above + the tape (T31; its line cell striped).
 const List<(core.PenTool, double)> _previewPens = [
   (core.PenTool.brush, 4),
+  (core.PenTool.calligraphy, 6),
   (core.PenTool.dashed, 2),
   (core.PenTool.tape, 14),
 ];
 
 const double _rowHeight = 70;
 const Size _penImage = Size(400, 10 + _rowHeight * 2);
-const Size _previewCell = Size(360, 64);
+
+/// One preview cell: two per pen row (S curve, line).
+const Size _previewCell = Size(200, 64);
 
 /// An S curve for row [row]; stylus samples with a pressure swell (real) or
 /// touch samples with a speed swell (simulated pressure).
@@ -222,8 +227,8 @@ void main() {
     tester.view
       ..devicePixelRatio = 1
       ..physicalSize = Size(
-        _previewCell.width,
-        _previewCell.height * 2 * _previewPens.length,
+        _previewCell.width * PenPreviewShape.values.length,
+        _previewCell.height * _previewPens.length,
       );
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -238,22 +243,27 @@ void main() {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final (tool, width) in _previewPens)
-                    for (final shape in PenPreviewShape.values)
-                      CustomPaint(
-                        size: _previewCell,
-                        painter: PenPreviewPainter(
-                          style: core.StrokeStyle.defaultsFor(tool)
-                              .copyWith(width: width)
-                              .withInkExtras(
-                                tapeStyle:
-                                    tool == core.PenTool.tape &&
-                                        shape == PenPreviewShape.line
-                                    ? InkTapeStyle.striped
-                                    : null,
-                              ),
-                          shape: shape,
-                        ),
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final shape in PenPreviewShape.values)
+                          CustomPaint(
+                            size: _previewCell,
+                            painter: PenPreviewPainter(
+                              style: core.StrokeStyle.defaultsFor(tool)
+                                  .copyWith(width: width)
+                                  .withInkExtras(
+                                    tapeStyle:
+                                        tool == core.PenTool.tape &&
+                                            shape == PenPreviewShape.line
+                                        ? InkTapeStyle.striped
+                                        : null,
+                                  ),
+                              shape: shape,
+                            ),
+                          ),
+                      ],
+                    ),
                 ],
               ),
             ),

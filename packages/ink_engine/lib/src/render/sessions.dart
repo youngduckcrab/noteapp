@@ -121,12 +121,7 @@ final class LiveStrokeGeometry {
         maxSegments: 1 << 30,
       ).toPath();
     }
-    return _tailPath ??= OutlineGenerator.outlineOf(
-      open,
-      width: _style.width,
-      profile: _style.profile,
-      dashPattern: _style.dashPattern,
-    ).toPath();
+    return _tailPath ??= OutlineGenerator.outlineOfStyle(open, _style).toPath();
   }
 
   /// highlighter centerline x,y pairs (stroked); null for fill pens
@@ -188,14 +183,11 @@ void liveAddStable(LiveStrokeGeometry live, ui.Offset p, {double tiltK = 0}) {
 double liveMeanTiltK(LiveStrokeGeometry live) =>
     live._stable.isEmpty ? 0 : live._tiltKSum / live._stable.length;
 
-/// Freezes one chunk (fill pens): its outline joins frozenPath for good.
+/// Freezes one chunk (fill pens): its outline joins frozenPath for good. (m5-7 T28)
+/// The calligraphy chunks are nib outlines of the stroke's nib (6.4 'live').
 @internal
 void liveFreezeChunk(LiveStrokeGeometry live, InkPoints chunk) {
-  final path = OutlineGenerator.outlineOf(
-    chunk,
-    width: live._style.width,
-    profile: live._style.profile,
-  ).toPath();
+  final path = OutlineGenerator.outlineOfStyle(chunk, live._style).toPath();
   live._frozenChunks.add(path);
   live._frozen.addPath(path, ui.Offset.zero);
   live._changed();
