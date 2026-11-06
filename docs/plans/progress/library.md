@@ -306,8 +306,8 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-14 | 완료 | 6f4a4f8 | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart`(+ 패드), `unit/strings_contract_test.dart` |
 | L2-15 (P-B) | 남음 | | `widget/conversion_sheet_test.dart`, `widget/sheet_rules_test.dart` |
 | L2-16 (P-B) | 완료 | e591105 | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6, 써 둠) |
-| L2-17a (P-B) | 완료 | (아래 '이정표 커밋') | `widget/math_pad_engine_test.dart`, `widget/sheet_rules_test.dart`(+ 엔진 있는 패드), `unit/strings_contract_test.dart`(+ 패드 문구·`mathFailure`) |
-| L2-17b (P-B) | 완료 | (아래 '이정표 커밋') | `widget/to_math_test.dart`, `widget/sheet_rules_test.dart`(+ `recog.toMath` 엔진 없음), `unit/strings_contract_test.dart`(+ `toMathPrimary`) |
+| L2-17a (P-B) | 완료 | 5c7165c | `widget/math_pad_engine_test.dart`, `widget/sheet_rules_test.dart`(+ 엔진 있는 패드), `unit/strings_contract_test.dart`(+ 패드 문구·`mathFailure`) |
+| L2-17b (P-B) | 완료 | 377bdff | `widget/to_math_test.dart`, `widget/sheet_rules_test.dart`(+ `recog.toMath` 엔진 없음), `unit/strings_contract_test.dart`(+ `toMathPrimary`) |
 | L2-18 (P-A / P-B) | 완료 — '품질 실험' 진입 두 단추는 L2-19·L2-22에서 | e2e83d2(P-A), eefe345(P-B) | `widget/settings_section_test.dart`(+ 'model rows (P-B)' 묶음), `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장·모델 행 '쓸 수 없음') (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/model_engine.dart` |
 | L2-19 (P-B, A-4 실험 창) | 남음 | | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` |
 | L2-20 | 남음 | | `ink_recognition/test/web/recognition_browser_test.dart`, `feature_library/test/web/scenarios_browser_test.dart` |
@@ -413,6 +413,8 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 
 #### 이정표 커밋
 
+- `5c7165c`(L2-17a)·`377bdff`(L2-17b): 엔진이 있으면(`RecognitionConfig(mathEndpoint:)` → `CallableMathRecognizer`) **`recog.mathPad`에 손글씨 칸**(`recog.pad.canvas` — 1 s 멈춤 인식, 동의 카드 `recog.consent.agree`·`.manual`이 칸 위에 겹침)이 생기고, **`recog.toMath`가 실제로 동작한다**(`recog.sheet.latex` 시트 — 인식 → [수식으로 바꾸기] → `CompositeCommand([RemoveElements, AddObjects])` 1회 → `done()`). INFRA V5 '자리마다 한 번 열기'에서 `recog.toMath`는 이제 '실행하지 못했어요.' 스낵바가 아니라 시트를 연다. 남은 '실행하지 못했어요' 동작은 `recog.toText`·획 선택의 `recog.copyText`(L2-15).
+
 - `e2e83d2`·`eefe345`(L2-18): `RecognitionSettingsSection`이 실제 행을 그린다 — 손글씨 인식(언어·모델 행 ko/en·Wi-Fi 전용·자동 인식 + 상태 줄), 수식 인식(엔진·동의). INFRA V5의 설정 '인식' 섹션 단언 기준: 키 `recog.settings.language`(`.language.<tag>`)·`.model.<tag>`(`.cellular`)·`.wifiOnly`·`.autoIndex`·`.consent`, 그리고 부록 C 밖의 `recog.settings.mathEngine`·`.status`·`.unsupported`. 웹은 고정 문장 + 손글씨 항목 비활성(엔진이 있어도). '품질 실험' 묶음([인식 실험 열기]·[수식 고정 자료 만들기])은 아직 없다(L2-19·L2-22).
 - `e591105`(L2-16): `CallableMathRecognizer.recognize`가 실제로 요청한다(동의 → 본문 → `AbortableRequest` → 응답 표). INFRA가 `RecognitionConfig(mathEndpoint:)`를 넘기면 수식 패드 손글씨 경로(L2-17a)가 쓸 엔진이 준비된다 — SYNC `functions/`와의 실제 판정은 L2-I6(`emulator/callable_emulator_test.dart`).
 
@@ -444,6 +446,10 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 #### 세션 끝 확인 (세션 5, 2026-11-06, `e591105` 위)
 
 `ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package ink_recognition --platform vm` **317 통과·1 skip(emulator)**, `--platform chrome` **22 통과**, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**, `--platform chrome` **18 통과**(이번 세션 `feature_library` 변경 없음).
+
+#### 세션 끝 확인 (세션 6, 2026-11-06, `377bdff` 위)
+
+`ws check` 위반 0·경고 0, 작업 트리 루트 `flutter analyze --fatal-infos` 0건, `dart format` 변경 없음, `ws test --package ink_recognition --platform vm` **353 통과·1 skip(emulator)**, `--platform chrome` **22 통과**, `ws test --package feature_library --platform vm` **681 통과·1 skip(integration)**, `--platform chrome` **18 통과**(이번 세션 `feature_library` 변경 없음).
 
 #### 다음 세션 메모
 
