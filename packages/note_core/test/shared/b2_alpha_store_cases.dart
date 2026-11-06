@@ -1,9 +1,9 @@
 // Shared body of the B2-α store state (m5-7/02-core 8.1 'B2 상태', column 'B2-α 끝'):
 // the 2nd-round store members read empty and their writes throw
-// UnimplementedError('CORE <task>: …'); object commands throw UnimplementedError('CORE T23a: …')
-// before anything changes; the stroke part of RemoveElements / ClearPage(includeObjects:)
-// works as in v1.4. Runs on the real store (test/testing/open_test_store_test.dart, tasks
-// T30 / T31 / T32 / T33a / T27 / T24 — 8.1 'B2 상태', column 'B2 전체(β) 끝'). The fake store
+// UnimplementedError('CORE <task>: …'); the stroke part of RemoveElements /
+// ClearPage(includeObjects:) works as in v1.4. Runs on the real store
+// (test/testing/open_test_store_test.dart, tasks T31 / T32 / T33a — 8.1 'B2 상태', column
+// 'B2 전체(β) 끝'; recordings since T30, the v1 copy since T24, objects since T27). The fake store
 // left this state with CORE T23b; its v2 behaviour is in test/testing/fake_store_v2_test.dart
 // and the shared contracts (test/shared/*_contract.dart). Web-safe (no dart:io).
 import 'dart:async';
@@ -23,9 +23,7 @@ Matcher throwsPending(String task) => throwsA(
   ),
 );
 
-/// The CORE tasks the store's 2nd-round writes wait for. [objects]: the task the session's
-/// object writes wait for, or null when they work (the fake store since CORE T23a).
-/// [v1Copy]: null when the v1 copy API works (the real store since CORE T24 — an in-memory
+/// The CORE tasks the store's 2nd-round writes wait for. [v1Copy]: null when the v1 copy API works (the real store since CORE T24 — an in-memory
 /// store has no copy). [recordings]: null when the repository works (the real store since
 /// CORE T30 — test/shared/recording_contract.dart).
 typedef B2AlphaTasks = ({
@@ -34,7 +32,6 @@ typedef B2AlphaTasks = ({
   String handwriting,
   String search,
   String? v1Copy,
-  String? objects,
 });
 
 void defineB2AlphaStoreTests(
@@ -83,18 +80,6 @@ void defineB2AlphaStoreTests(
     if (!session.isClosed) await session.close();
     await store.close();
   });
-
-  ShapeObject shapeOn(PageId page) => ShapeObject(
-    id: store.ids.newId(),
-    pageId: page,
-    shapeKind: ShapeKind.line,
-    geometry: const PolylineGeometry([
-      PagePoint(10, 10),
-      PagePoint(50, 50),
-    ], closed: false),
-    style: const ShapeStyle(strokeColorArgb: 0xFF1A1A1A),
-    createdAt: 2000,
-  );
 
   if (tasks.recordings case final recordingsTask?) {
     group('recordings', () {
@@ -208,109 +193,48 @@ void defineB2AlphaStoreTests(
     });
   });
 
-  group(
-    'object commands (CORE ${tasks.objects}) leave the session unchanged',
-    skip: tasks.objects == null ? 'object commands work on this store' : null,
-    () {
-      void expectUnchanged(PageContent before, HistoryState history) {
-        final after = session.pageIfLoaded(pageId)!;
-        expect(after, same(before));
-        expect(after.strokeCount, 2);
-        expect(after.objects, isEmpty);
-        expect(session.history, history);
-      }
-
-      test('AddObjects / UpdateObjects / Composite / InsertPages', () {
-        final before = session.pageIfLoaded(pageId)!;
-        final history = session.history;
-        final pages = session.pages;
-        final shape = shapeOn(pageId);
-        expect(
-          () => session.execute(AddObjects(pageId: pageId, objects: [shape])),
-          throwsPending(tasks.objects!),
-        );
-        expect(
-          () =>
-              session.execute(UpdateObjects(pageId: pageId, objects: [shape])),
-          throwsPending(tasks.objects!),
-        );
-        // The stroke half of a composite is not applied either.
-        expect(
-          () => session.execute(
-            CompositeCommand([
-              AddStrokes(
-                pageId: pageId,
-                strokes: [
-                  StrokeFixtures.synthetic(pageId: pageId, ids: store.ids),
-                ],
-              ),
-              AddObjects(pageId: pageId, objects: [shape]),
-            ]),
-          ),
-          throwsPending(tasks.objects!),
-        );
-        expect(
-          () => session.execute(
-            InsertPages(
-              drafts: [
-                PageDraft(
-                  size: PageSize.a4Portrait,
-                  background: const BlankBackground(),
-                  objects: [shapeOn('draft')],
-                ),
-              ],
-              position: const PageAtEnd(),
-            ),
-          ),
-          throwsPending(tasks.objects!),
-        );
-        expectUnchanged(before, history);
-        expect(session.pages, pages);
-      });
-
-      test('RemoveElements removes strokes as RemoveStrokes', () async {
-        final ids = session.pageIfLoaded(pageId)!.strokes.map((s) => s.id);
-        final receipt = session.execute(
-          RemoveElements(
-            pageId: pageId,
-            elementIds: [ids.first, ids.first, 'unknown'],
-          ),
-        );
-        await receipt.persisted;
-        final content = session.pageIfLoaded(pageId)!;
-        expect(content.strokes.map((s) => s.id), [ids.last]);
-        expect(content.elementById(ids.last), isA<Stroke>());
-        expect(session.history.undoLabel, 'remove-elements');
-        await session.undo();
-        expect(session.pageIfLoaded(pageId)!.strokeCount, 2);
-      });
-
-      test(
-        'ClearPage(includeObjects: true) clears strokes by filter',
-        () async {
-          await session
-              .execute(
-                ClearPage(
-                  pageId: pageId,
-                  filter: StrokeFilter.highlighterOnly,
-                  includeObjects: true,
-                ),
-              )
-              .persisted;
-          final content = session.pageIfLoaded(pageId)!;
-          expect(content.strokeCount, 1);
-          expect(content.strokes.single.style.tool, PenTool.ballpoint);
-          expect(content.objectCount, 0);
-        },
+  // Object commands work on both stores since CORE T27 (test/shared/
+  // object_session_contract.dart); the stroke part of the 2nd-round commands stays v1.4.
+  group('the stroke part of the 2nd-round commands (v1.4)', () {
+    test('RemoveElements removes strokes as RemoveStrokes', () async {
+      final ids = session.pageIfLoaded(pageId)!.strokes.map((s) => s.id);
+      final receipt = session.execute(
+        RemoveElements(
+          pageId: pageId,
+          elementIds: [ids.first, ids.first, 'unknown'],
+        ),
       );
+      await receipt.persisted;
+      final content = session.pageIfLoaded(pageId)!;
+      expect(content.strokes.map((s) => s.id), [ids.last]);
+      expect(content.elementById(ids.last), isA<Stroke>());
+      expect(session.history.undoLabel, 'remove-elements');
+      await session.undo();
+      expect(session.pageIfLoaded(pageId)!.strokeCount, 2);
+    });
 
-      test('PageDraft.copyOf carries the (empty) objects', () {
-        final draft = PageDraft.copyOf(session.pageIfLoaded(pageId)!);
-        expect(draft.strokes, hasLength(2));
-        expect(draft.objects, isEmpty);
-      });
-    },
-  );
+    test('ClearPage(includeObjects: true) clears strokes by filter', () async {
+      await session
+          .execute(
+            ClearPage(
+              pageId: pageId,
+              filter: StrokeFilter.highlighterOnly,
+              includeObjects: true,
+            ),
+          )
+          .persisted;
+      final content = session.pageIfLoaded(pageId)!;
+      expect(content.strokeCount, 1);
+      expect(content.strokes.single.style.tool, PenTool.ballpoint);
+      expect(content.objectCount, 0);
+    });
+
+    test('PageDraft.copyOf carries the (empty) objects', () {
+      final draft = PageDraft.copyOf(session.pageIfLoaded(pageId)!);
+      expect(draft.strokes, hasLength(2));
+      expect(draft.objects, isEmpty);
+    });
+  });
 
   test('EntityJson of the new kinds decodes (CORE T20a)', () {
     expect(

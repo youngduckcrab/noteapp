@@ -42,10 +42,6 @@ abstract interface class SessionBackend {
     PageId pageId,
   );
 
-  /// (v2.0) false while the store has no page object rows (the real store before DB v2,
-  /// m5-7/02-core 8.1): the engine rejects object writes before changing memory.
-  bool get storesPageObjects;
-
   /// Completes after the commit (pending while a failed commit is retried, 4.5 head).
   Future<void> write(SessionWrite write);
 

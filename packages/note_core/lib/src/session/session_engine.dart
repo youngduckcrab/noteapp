@@ -8,7 +8,6 @@ import 'package:clock/clock.dart';
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
-import '../common/pending.dart';
 import '../edit/applied_edit.dart';
 import '../edit/command_resolver.dart';
 import '../edit/commands.dart';
@@ -331,11 +330,6 @@ final class SessionEngine implements NoteSession, ResolveState {
       );
     }
     _checkWritable();
-    // (v2.0, m5-7/02-core 8.1 'B2 상태') a store without page object rows (the real store
-    // before DB v2) rejects object writes before anything is resolved.
-    if (!backend.storesPageObjects && _writesObjects(command)) {
-      notYet('T27', 'page objects need DB v2');
-    }
     final now = _clock.now().millisecondsSinceEpoch;
     final resolved = _resolver.resolve(
       command,
@@ -346,10 +340,6 @@ final class SessionEngine implements NoteSession, ResolveState {
     final edit = resolved.edit;
     if (edit.isEmpty) {
       return CommandReceipt(edit: edit, persisted: Future<void>.value());
-    }
-    if (!backend.storesPageObjects &&
-        edit.deltas.any((d) => d.after is PageObject)) {
-      notYet('T27', 'page objects need DB v2');
     }
     _generation++;
     final applied = _install([for (final d in edit.deltas) d.after!], now);
@@ -362,14 +352,6 @@ final class SessionEngine implements NoteSession, ResolveState {
     _emit(applied, ChangeOrigin.local);
     return CommandReceipt(edit: edit, persisted: persisted);
   }
-
-  /// A command that creates or changes page objects (also inside a CompositeCommand).
-  static bool _writesObjects(EditCommand c) => switch (c) {
-    AddObjects() || UpdateObjects() => true,
-    InsertPages(:final drafts) => drafts.any((d) => d.objects.isNotEmpty),
-    CompositeCommand(:final commands) => commands.any(_writesObjects),
-    _ => false,
-  };
 
   @override
   Future<CommandReceipt> executeAsync(EditCommand command) async {

@@ -397,7 +397,7 @@
 | T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
-| T27 | 남음 | | `test/session/object_session_contract_real_test.dart`, `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart` |
+| T27 | 완료 | (이 커밋) | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
 | T31 | 남음 | | `test/media/recording_draft_contract_real_test.dart`, `test/media/recording_draft_store_test.dart`, `test/web/recording_draft_browser_test.dart`, `test/perf/draft_append_perf_test.dart` |
@@ -417,7 +417,7 @@
 | CORE-F1 | B2-α `2b2e4b0`에 `dev_tools.dart` 선언(본문 `null`·`StateError`·아무것도 안 함, 실제 저장소는 `CORE T24`). 동작·`v1_copy_test`·`v1_copy_browser_test`·첫날 Chrome 확인(웹 정규 덤프 사본 만들기·해시·지우기·다시 열기 시간)은 T24 |
 | CORE-F2 | 완료 — T25a `b6beece`(manifest에 `fullDumpSha256`·`entityDumpSha256`) |
 | CORE-F3 | 완료 — B2-α `2b2e4b0`의 `Recording.durationMs` R-3 주석이 C22-04 문장 |
-| CORE-F4 | 유지 — 다시 연 세션 히스토리 비어 있음(C15-04)은 1차 동작 그대로. T27에서 실제 저장소 객체 세션도 같은 성질을 `note_session_objects_test`로 확인 |
+| CORE-F4 | 유지 — 다시 연 세션 히스토리 비어 있음(C15-04)은 1차 동작 그대로. T27: 실제 저장소 객체 세션도 같은 성질 — `note_session_objects_test` 'a reopened session … its history is empty (C15-04)' |
 | C22-09 | 계획서 상태 줄 '승인 · 계약 v2.3', 12.1 CP-16·17 판정 열(C22-02·C22-01), 5.8 표를 실제 타입·커밋으로(2026-11-06) |
 
 #### 변경 요청 (동시 개발)
@@ -506,6 +506,24 @@
 | 루트 `flutter analyze --fatal-infos` | 0건 | 13초 |
 | 다른 멤버(고치지 않고 확인 — 실제 CORE v2 행·창구) | `ws test --package sync_engine --platform vm` 782 통과(통합 태그는 기본 skip) | 105초 |
 
+#### T27 — 세션·내용 읽기 DB (계획 6.4·6.5·8.2)
+
+- **읽기**(`storage/drift_sessions.dart` `readActiveContent`): 페이지의 활성 `strokes`·`page_objects`를 **한 읽기 트랜잭션**에서(두 읽기 사이에 원격 커밋이 끼지 않게), 둘 다 `Stroke.compareOrder`. 세션 `loadContent`(쓰기 큐 flush 뒤 — 1차 T10)와 `DriftContentReader.loadPage`(`objects` 채움 — PDF 내보내기·썸네일)가 같이 쓴다.
+- **쓰기**: 세션 쓰기는 1차 경로 그대로(`putLocal(strokeNoteId: _noteId)`가 객체 행 `note_id`에도 — T26), 큐 바이트에 `PageObject.estimatedBytes`를 더했다. `SessionBackend.storesPageObjects`와 엔진의 B2 가드(`notYet('T27', …)` 두 곳, `_writesObjects`)는 지웠다 — 가짜·실제 둘 다 객체를 저장한다.
+- **`createNote(PageDraft.objects)`**(`drift_library_repository.dart`): 쓰기 전에 초안마다 객체 ≤ 2,000·`checkObjectLimits`(`ArgumentError` — 노트가 생기지 않음), 객체마다 `copyTo(새 id, 새 페이지, 원래 createdAt)` → `normalizedObject` → `updatedAt = now`, `{*}`·`isNew`·`strokeNoteId: noteId`(InsertPages·가짜 `insertDraftPages`와 같은 규칙).
+- **N-7**(`DriftSessions.committed`): 원격 커밋의 `pageObject` 변경(힌트 `pageId` 항상 — T26)을 획처럼 모아, 로드된 페이지의 것이고 큐에 남은 세션 쓰기가 없으면 `page_objects` 행을 다시 읽어 `remoteCommitted(objects:)`로 넘긴다. 객체가 쓰인 페이지는 `contentPages`(로드 안 된 페이지도 `contentRevision + 1`). DB의 `content_rev + 1`은 T28의 원격 작성기(`applyRemote`) 몫 — 저수준 `tx.putRemote`만 쓰면 오르지 않는다.
+- `test/shared/b2_alpha_store_cases.dart`: '객체 명령이 `CORE T27`을 던짐' 시험과 `tasks.objects`를 지우고, 같은 묶음의 획 쪽 시험 3개(`RemoveElements`·`ClearPage(includeObjects:)`·`PageDraft.copyOf`)는 'the stroke part of the 2nd-round commands (v1.4)' 묶음으로 남겼다.
+- `test/edit/undo_support.dart` `UndoFixture.open(objects:)`: 객체는 세션 `AddObjects` + `clearHistory()`로 넣는다(초안 객체는 새 id를 받아 시험이 id로 가리킬 수 없다).
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **998개 통과**(973 + 객체 계약 실제 8 + 세션 객체 12 + undo 5 + 내용 읽기 1 − B2 객체 시험 1), 5개 건너뜀(perf) | 83초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(바뀐 웹 시험 없음 — 한 읽기 트랜잭션·객체 행 읽기가 웹 워커에서도 컴파일·동작), 1개 건너뜀(perf) | 123초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
@@ -519,6 +537,8 @@
 - T26: `DriftSyncStore._readKind`의 새 두 종류(계획은 T28의 '종류 switch')를 T26에 했다 — 완료 조건의 `readVersioned` 행과 고아 시험(`applyRemote`로 객체 → 페이지)이 쓴다. T28에는 `_RemoteWriter`의 `content_rev`·노트 갱신과 색인 훅이 남는다.
 - T26: `data_json`은 메타 키에 더해 `type`도 뺀다(열이 따로 있음 — 계획 표의 '종류별 키 + `frame`'). `writeEntityRow`·`putLocal`의 `strokeNoteId` 인자 이름은 그대로 두고 객체 행의 `note_id`에도 쓴다(내부 이름).
 - T26: 1차 `field_version_writer_test`의 '모든 표본 왕복'이 `kSampleEntities` 전부(객체 8·손글씨·제목 있는 녹음)를 돌게 했고, v1 DB 전용 표본 `kV1RowSamples`(`test/shared/entity_samples.dart`)는 지웠다.
+- T27: 계획 6.5의 `SessionBackend` 변경(`loadStrokes` → `loadContent`)은 B2-β에서 이미 했다. T27은 B2 가드(`storesPageObjects`)를 **지웠다**(내부 — 두 백엔드 모두 객체를 저장). `NoteContentReader.loadPage`도 세션과 같은 한 읽기 트랜잭션 함수(`readActiveContent`)로 읽는다(계획은 세션 읽기에만 트랜잭션을 적음).
+- T27: 원격 객체가 옛 페이지에서 다른 페이지로 옮겨진 경우(로컬 명령으로는 생기지 않음 — `UpdateObjects`가 `pageId`를 고정)는 1차 획과 같이 힌트 `pageId`(새 페이지)만 고친다 — 옛 페이지가 로드돼 있으면 다시 열 때까지 남는다. 1차와 같은 한계라 고치지 않았다.
 - T24: V7 고정 자료로 하는 웹 시간 측정(6.12.3 Chrome·PF-8)은 T25b 몫이라, 첫날 확인은 같은 크기의 합성 v1(획 2,005개)로 했다. **웹 업그레이드 열기가 1.9~2.5초**(load 6~9)로 PF-8 예산 '사본 포함 1초'를 넘었다 — 덤프 자체는 0.3초라 나머지(블롭 1.4 MB `put`, IndexedDB VFS의 업그레이드 쓰기)를 T25b의 PF-8 시험에서 고정 자료로 다시 재고 넘으면 원인을 나눠 본다.
 
 #### 다음 세션 메모

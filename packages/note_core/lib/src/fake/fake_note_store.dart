@@ -619,9 +619,6 @@ final class _FakeSessionBackend implements SessionBackend {
   }
 
   @override
-  bool get storesPageObjects => true;
-
-  @override
   Future<void> write(SessionWrite write) =>
       store.write(() => store.applySessionWrite(write));
 

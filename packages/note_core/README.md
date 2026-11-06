@@ -178,9 +178,10 @@ final container = ProviderContainer.test(
   memory search index that decides and orders like the real one (text boxes,
   math and handwriting are indexed by the store; pdf goes through
   `store.search.replaceUnits`). On the real store (`openTestNoteStore`) these
-  come with the concurrent tasks: object commands throw
-  `UnimplementedError('CORE T27: …')` before anything changes, and the
-  recording / draft / handwriting / index writes name T30 / T31 / T32 / T33a.
+  come with the concurrent tasks: page object commands (sessions,
+  `createNote` drafts, `store.content.loadPage(…).objects`) since CORE T27,
+  recordings since T30; the draft / handwriting / index writes throw
+  `UnimplementedError('CORE T31: …')` / T32 / T33a until those tasks.
 - `PageObjectFixtures.shape / textBox / image / math / unknown(pageId: …)`
   build valid objects with the contract defaults (`id` omitted → a unique
   `fx-<type>-<n>`).

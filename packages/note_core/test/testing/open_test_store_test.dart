@@ -187,7 +187,6 @@ void main() {
         handwriting: 'T32',
         search: 'T33a',
         v1Copy: null, // works since CORE T24 (an in-memory store has no copy)
-        objects: 'T27',
       ),
       hasV1CopyApi: true,
     );

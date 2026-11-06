@@ -11,7 +11,6 @@ import 'package:drift/drift.dart';
 
 import '../common/errors.dart';
 import '../common/ids.dart';
-import '../common/pending.dart';
 import '../common/sort_keys.dart';
 import '../common/sort_planner.dart';
 import '../common/text_normalize.dart';
@@ -546,13 +545,22 @@ final class DriftLibraryRepository implements LibraryRepository {
         'must be 1..2000 drafts',
       );
     }
-    // (v2.0, m5-7/02-core 8.1) object rows come with DB v2 — CORE T27.
-    if (pages.any((d) => d.objects.isNotEmpty)) {
-      notYet('T27', 'createNote with PageDraft.objects needs DB v2');
-    }
     final draftIds = <PageId>[];
     var bytes = 0;
     for (final d in pages) {
+      // (v2.0) the drafts' objects: the local limits before any write (m5-7/02-core
+      // 6.4.1 — the same checks as InsertPages).
+      if (d.objects.length > PageObjectLimits.maxObjectsPerPage) {
+        throw ArgumentError.value(
+          d.objects.length,
+          'draft.objects',
+          'at most ${PageObjectLimits.maxObjectsPerPage} objects per page',
+        );
+      }
+      d.objects.forEach(checkObjectLimits);
+      for (final o in d.objects) {
+        bytes += o.estimatedBytes;
+      }
       final id = d.id;
       if (id != null) {
         if (!isValidEntityId(id)) {
@@ -623,6 +631,22 @@ final class DriftLibraryRepository implements LibraryRepository {
               createdAt: st.createdAt,
               updatedAt: tx.now,
             ),
+            const {kAllFields},
+            strokeNoteId: noteId,
+            isNew: true,
+          );
+        }
+        // (v2.0) objects: new ids, the original createdAt (z-order kept), normalized —
+        // as InsertPages (6.4.1).
+        for (final o in d.objects) {
+          await tx.putLocal(
+            normalizedObject(
+              o.copyTo(
+                id: s.ids.newId(),
+                pageId: pageIds[i],
+                createdAt: o.createdAt,
+              ),
+            ).copyWithMeta(updatedAt: tx.now),
             const {kAllFields},
             strokeNoteId: noteId,
             isNew: true,

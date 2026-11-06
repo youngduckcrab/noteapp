@@ -2,12 +2,13 @@
 // (CORE 6.14, contract 7.2.8 N-1..N-7).
 //
 // Each open note has one SessionEngine (N-5) on a DB backend: openPage loads the page's
-// active strokes after the queued writes commit; edits are written through the write
-// queue with the versions the engine stamped (memory and rows agree, 6.7.6). After
-// every commit the store calls [DriftSessions.committed]: a note row change of an open
-// note (rename, trash, restore — N-4) reaches the session, and remote writes of its
-// pages / strokes are read back and applied (N-7). Rows with a session write that is
-// still queued are left alone: that write commits later and the memory already holds it.
+// active strokes and (v2.0) page objects in one read transaction after the queued writes
+// commit (m5-7/02-core 6.5); edits are written through the write queue with the versions
+// the engine stamped (memory and rows agree, 6.7.6). After every commit the store calls
+// [DriftSessions.committed]: a note row change of an open note (rename, trash, restore —
+// N-4) reaches the session, and remote writes of its pages / strokes / (v2.0) page objects
+// are read back and applied (N-7). Rows with a session write that is still queued are left
+// alone: that write commits later and the memory already holds it.
 import 'dart:async';
 
 import 'package:collection/collection.dart';
@@ -144,7 +145,7 @@ final class DriftSessions {
       _uncommitted.containsKey(EntityRef(kind, id));
 
   /// After a commit (WriteQueue.onCommitted): note rows of open notes reach their
-  /// sessions; remote page / stroke writes are read back (N-4, N-7).
+  /// sessions; remote page / stroke / (v2.0) page object writes are read back (N-4, N-7).
   Future<void> committed(List<ChangeBatch> batches) async {
     if (_open.isEmpty) return;
     final touched = <NoteId, _Touched>{};
@@ -163,6 +164,10 @@ final class DriftSessions {
           case EntityKind.stroke when remote && c.pageId != null:
             t.remote = true;
             t.strokes[c.id] = c.pageId!;
+          // (v2.0) page objects carry noteId and pageId hints always (02-core 6.13).
+          case EntityKind.pageObject when remote && c.pageId != null:
+            t.remote = true;
+            t.objects[c.id] = c.pageId!;
           default:
             break;
         }
@@ -210,11 +215,25 @@ final class DriftSessions {
           strokes[r.id] = (strokes[r.id]!.$1, strokeOf(r));
         }
       }
+      final objects = <ElementId, (PageId, PageObject?)>{
+        for (final MapEntry(key: id, value: pageId) in t.objects.entries)
+          if (!_held(EntityKind.pageObject, id) &&
+              session.pageIfLoaded(pageId) != null)
+            id: (pageId, null),
+      };
+      for (final chunk in _chunks(objects.keys.toList())) {
+        for (final r in await (_db.select(
+          _db.pageObjects,
+        )..where((o) => o.id.isIn(chunk))).get()) {
+          objects[r.id] = (objects[r.id]!.$1, pageObjectOf(r));
+        }
+      }
       session.remoteCommitted(
         note: note,
         pages: pages,
         strokes: strokes,
-        contentPages: t.strokes.values.toSet(),
+        objects: objects,
+        contentPages: {...t.strokes.values, ...t.objects.values},
       );
     }
   }
@@ -225,6 +244,7 @@ final class _Touched {
   bool remote = false;
   final Set<PageId> pages = {};
   final Map<ElementId, PageId> strokes = {};
+  final Map<ElementId, PageId> objects = {};
 }
 
 final class _DriftSessionBackend implements SessionBackend {
@@ -240,19 +260,8 @@ final class _DriftSessionBackend implements SessionBackend {
     PageId pageId,
   ) async {
     await _s.queue.flush();
-    final rows = await (_db.select(
-      _db.strokes,
-    )..where((t) => t.pageId.equals(pageId) & t.deletedAt.isNull())).get();
-    // (v2.0) no page_objects table before DB v2 (CORE T24 / T27).
-    return (
-      strokes: [for (final r in rows) strokeOf(r)],
-      objects: <PageObject>[],
-    );
+    return readActiveContent(_db, pageId);
   }
-
-  /// (v2.0, m5-7/02-core 8.1) object rows come with DB v2 — CORE T27.
-  @override
-  bool get storesPageObjects => false;
 
   @override
   Future<void> write(SessionWrite w) {
@@ -268,6 +277,7 @@ final class _DriftSessionBackend implements SessionBackend {
     var bytes = 0;
     for (final e in w.entities) {
       if (e is Stroke) bytes += e.points.length * 8;
+      if (e is PageObject) bytes += e.estimatedBytes;
     }
     return _s.queue
         .run(
@@ -345,3 +355,23 @@ Future<void> refreshNoteDerived(
     ..touch(EntityKind.note)
     ..addChange(EntityChange(kind: EntityKind.note, id: noteId));
 }
+
+/// The active strokes and (v2.0) page objects of [pageId], each in Stroke.compareOrder, in
+/// one read transaction (m5-7/02-core 6.5: a remote commit cannot fall between the two
+/// reads). Session loads (after a queue flush) and NoteContentReader.loadPage share it.
+Future<({List<Stroke> strokes, List<PageObject> objects})> readActiveContent(
+  NoteDatabase db,
+  PageId pageId,
+) => db.transaction(() async {
+  final strokes = await (db.select(
+    db.strokes,
+  )..where((t) => t.pageId.equals(pageId) & t.deletedAt.isNull())).get();
+  final objects = await (db.select(
+    db.pageObjects,
+  )..where((t) => t.pageId.equals(pageId) & t.deletedAt.isNull())).get();
+  return (
+    strokes: [for (final r in strokes) strokeOf(r)]..sort(Stroke.compareOrder),
+    objects: [for (final r in objects) pageObjectOf(r)]
+      ..sort(Stroke.compareOrder),
+  );
+});
