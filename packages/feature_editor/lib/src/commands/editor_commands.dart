@@ -117,6 +117,7 @@ class EditorCommands {
       if (metrics.isRunning) {
         metrics.recordStrokeCommitted(
           pointCount: edit.added.single.points.length,
+          recordingOffsetMs: edit.added.single.recordingOffsetMs,
         );
       }
     }

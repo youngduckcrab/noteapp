@@ -37,6 +37,7 @@ import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_sample.dart';
 import '../input/input_targets.dart';
+import '../input/stylus_contact.dart';
 import '../objects/object_factory.dart';
 import '../playback/playback_highlighter.dart';
 import '../playback/recording_link.dart';
@@ -954,6 +955,8 @@ class InteractionHost implements InputTargets {
   @override
   void hover(InputSample sample) {
     if (_disposed) return;
+    final metrics = _ref.read(editorDevMetricsProvider);
+    if (metrics.isRunning) metrics.recordHover('flutter(${sample.kind.name})');
     final tools = _ref.read(editorToolProvider);
     final scale = _viewport.camera.scale;
     final CursorState? next;
@@ -1072,10 +1075,18 @@ class InteractionHost implements InputTargets {
     }
     final metrics = _ref.read(editorDevMetricsProvider);
     if (!metrics.isRunning) return;
+    final rule = StylusContact.platformRule;
+    final stylus =
+        event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus;
     metrics.recordPointer(
       event,
       drawing: _downPointers.isNotEmpty,
       activePointers: _downPointers.length,
+      contactRule: rule.name,
+      // (v2, 6.20) a stylus event that is not a contact (hover, a web pen
+      // in the air with the barrel button held) shows '공중'.
+      contact: !stylus || StylusContact.isContact(rule, event),
     );
   }
 

@@ -1,6 +1,8 @@
 // lib/src/ui/dev/dev_metrics.dart — 04-editor 6.12.1 (EDITOR-M10: only the
 // values EDITOR alone knows; latency, input rate, pressure and frame times
-// come from ink.inkDiagnosticsProvider).
+// come from ink.inkDiagnosticsProvider). (v2, E2-20 — m5-7/04-editor 6.20)
+// the pointer's buttons / contact rule / airborne state, the hover source,
+// the last stroke's recording offset and the current page's objects.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -25,6 +27,12 @@ class DevMetricsSnapshot {
     required this.currentPage,
     required this.currentPageStrokes,
     required this.lastStrokePoints,
+    this.lastButtons = 0,
+    this.contactRule = '-',
+    this.airborne = false,
+    this.hoverSource = '-',
+    this.currentPageObjects = 0,
+    this.lastStrokeOffsetMs,
   });
 
   static const DevMetricsSnapshot empty = DevMetricsSnapshot(
@@ -51,6 +59,28 @@ class DevMetricsSnapshot {
   final int currentPage;
   final int currentPageStrokes, lastStrokePoints;
 
+  /// (v2) The last pointer event's buttons (shown in hex).
+  final int lastButtons;
+
+  /// (v2) The stylus contact rule ('native' / 'web' — 6.3.2), '-' before a
+  /// pointer.
+  final String contactRule;
+
+  /// (v2) The last stylus event was not a contact (hover, a web pen held
+  /// above the screen with the barrel button pressed — E-4).
+  final bool airborne;
+
+  /// (v2) Where the last hover came from: `flutter(<kind>)`, or (E2-18)
+  /// `pencilPose(<height>)`; '-' before one.
+  final String hoverSource;
+
+  /// (v2) Objects on the current page (the limit is
+  /// core.PageObjectLimits.maxObjectsPerPage).
+  final int currentPageObjects;
+
+  /// (v2) recordingOffsetMs of the last committed stroke (null: not linked).
+  final int? lastStrokeOffsetMs;
+
   @override
   bool operator ==(Object other) =>
       other is DevMetricsSnapshot &&
@@ -64,7 +94,13 @@ class DevMetricsSnapshot {
       other.mountedRangeLabel == mountedRangeLabel &&
       other.currentPage == currentPage &&
       other.currentPageStrokes == currentPageStrokes &&
-      other.lastStrokePoints == lastStrokePoints;
+      other.lastStrokePoints == lastStrokePoints &&
+      other.lastButtons == lastButtons &&
+      other.contactRule == contactRule &&
+      other.airborne == airborne &&
+      other.hoverSource == hoverSource &&
+      other.currentPageObjects == currentPageObjects &&
+      other.lastStrokeOffsetMs == lastStrokeOffsetMs;
 
   @override
   int get hashCode => Object.hash(
@@ -79,6 +115,12 @@ class DevMetricsSnapshot {
     currentPage,
     currentPageStrokes,
     lastStrokePoints,
+    lastButtons,
+    contactRule,
+    airborne,
+    hoverSource,
+    currentPageObjects,
+    lastStrokeOffsetMs,
   );
 }
 
@@ -119,6 +161,10 @@ class DevMetrics extends ChangeNotifier {
   double _zoom = 0, _scale = 0;
   String _visible = '-', _mounted = '-';
   int _currentPage = 0, _pageStrokes = 0, _lastStrokePoints = 0;
+  int _buttons = 0, _pageObjects = 0;
+  String _contactRule = '-', _hoverSource = '-';
+  bool _airborne = false;
+  int? _lastStrokeOffset;
 
   void start() {
     if (_disposed) return;
@@ -139,23 +185,45 @@ class DevMetrics extends ChangeNotifier {
     _palmRejected = 0;
     _lastStrokePoints = 0;
     _lastKind = null;
+    _lastStrokeOffset = null;
     _changed();
   }
 
+  /// (v2) [contactRule] (the router's StylusContactRule name) and
+  /// [contact] (StylusContact.isContact for a stylus event) fill the pointer
+  /// line's rule and airborne state.
   void recordPointer(
     PointerEvent event, {
     required bool drawing,
     required int activePointers,
+    String? contactRule,
+    bool contact = true,
   }) {
     if (!_running) return;
     _lastKind = event.kind;
     _activePointers = activePointers;
+    _buttons = event.buttons;
+    if (contactRule != null) _contactRule = contactRule;
+    _airborne = !contact;
     _changed();
   }
 
-  void recordStrokeCommitted({required int pointCount}) {
+  /// (v2) [recordingOffsetMs]: the stroke's recording link (null: none).
+  void recordStrokeCommitted({
+    required int pointCount,
+    int? recordingOffsetMs,
+  }) {
     if (!_running) return;
     _lastStrokePoints = pointCount;
+    _lastStrokeOffset = recordingOffsetMs;
+    _changed();
+  }
+
+  /// (v2) `flutter(<kind>)` for a Flutter hover event, (E2-18)
+  /// `pencilPose(<height>)` for a Pencil hover pose.
+  void recordHover(String source) {
+    if (!_running || source == _hoverSource) return;
+    _hoverSource = source;
     _changed();
   }
 
@@ -177,9 +245,10 @@ class DevMetrics extends ChangeNotifier {
     _changed();
   }
 
-  void recordPage({required int strokes}) {
+  void recordPage({required int strokes, int objects = 0}) {
     if (!_running) return;
     _pageStrokes = strokes;
+    _pageObjects = objects;
     _changed();
   }
 
@@ -212,6 +281,12 @@ class DevMetrics extends ChangeNotifier {
       currentPage: _currentPage,
       currentPageStrokes: _pageStrokes,
       lastStrokePoints: _lastStrokePoints,
+      lastButtons: _buttons,
+      contactRule: _contactRule,
+      airborne: _airborne,
+      hoverSource: _hoverSource,
+      currentPageObjects: _pageObjects,
+      lastStrokeOffsetMs: _lastStrokeOffset,
     );
     if (next == _snapshot) return;
     _snapshot = next;
