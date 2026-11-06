@@ -6,3 +6,4 @@
 tags:
   media: {skip: "Chrome fake microphone only — ws test --platform chrome --run-skipped -t media"}
   integration: {skip: "integration stage only — ws test --run-skipped -t integration"}
+  perf: {skip: "run explicitly — ws test --package media_io [--platform chrome] --run-skipped -t perf"}  # T41 (06-pdf 9.5)
