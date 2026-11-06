@@ -107,7 +107,8 @@ final class UploadPipeline {
   final Future<void> Function(List<PurgeRecord> purges) onPurgesCommitted;
 
   /// A commit of records in these scopes succeeded (PurgeGuard's recent-upload window,
-  /// 6.7.4).
+  /// 6.7.4). A chunk carrying only handwriting results does not report its scope (2nd
+  /// round 07-sync 6.2.5).
   final void Function(Set<String> scopes) onScopesCommitted;
 
   /// A commit carried records of these assets without storagePath: their bytes may need an
@@ -360,7 +361,13 @@ final class _Run {
     }
     commits++;
     chunks += group.length;
-    p.onScopesCommitted({for (final c in group) c.write.scope});
+    // A chunk carrying only handwriting results is no edit of its note (D-S11, SYNC-M3):
+    // its scope is not reported as sent, so PurgeGuard makes no recovered copy for it.
+    p.onScopesCommitted({
+      for (final c in group)
+        if (!c.items.every((i) => i.record.ref.kind == EntityKind.handwriting))
+          c.write.scope,
+    });
     final sent = [
       for (final c in group)
         for (final item in c.items) item,
