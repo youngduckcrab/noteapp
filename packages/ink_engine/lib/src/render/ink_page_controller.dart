@@ -542,7 +542,7 @@ final class InkPageController extends ChangeNotifier {
       return;
     }
     _hiddenObjectIds = Set.unmodifiable(ids);
-    _invalidate();
+    _invalidateObjectDisplay();
   }
 
   /// Transient objects drawn with the same renderer (shape tool drag, vertex drag, image being
@@ -564,7 +564,7 @@ final class InkPageController extends ChangeNotifier {
     }
     if (objects.isEmpty && _previewObjects.isEmpty) return;
     _previewObjects = List.unmodifiable(objects);
-    _invalidate();
+    _invalidateObjectDisplay();
   }
 
   // (v2.1) read-only views of what was set (EDITOR tests observe their own calls — EDITOR M-1)
@@ -944,6 +944,68 @@ final class InkPageController extends ChangeNotifier {
       r.fire();
     }
   }
+
+  /// (m5-7 T38, 6.17) The hidden or the preview objects changed: only the layers whose
+  /// drawing changes are told to repaint — the base layer of the committed objects that
+  /// start or stop being left out of the base drawing (_syncHidden marks their chunks
+  /// dirty: the chunk pictures are recorded again only when that set changes), and the
+  /// live part of the object layers whose live list changed (a preview moved 60 times
+  /// repaints that live part 60 times and records nothing). Strokes are not affected.
+  void _invalidateObjectDisplay() {
+    final before = _display;
+    if (before == null || _disposed) {
+      _invalidate();
+      return;
+    }
+    _display = null;
+    final after = _currentDisplay();
+    final layers = <InkRenderLayer>{};
+    final content = _content;
+    if (content != null) {
+      void base(String id) {
+        final o = objectByIdOf(content, id);
+        if (o != null) layers.add(_baseRenderLayerOf(objectLayerOf(o)));
+      }
+
+      for (final id in after.objectsHidden) {
+        if (!before.objectsHidden.contains(id)) base(id);
+      }
+      for (final id in before.objectsHidden) {
+        if (!after.objectsHidden.contains(id)) base(id);
+      }
+    }
+    for (final layer in InkObjectLayer.values) {
+      bool inLayer(core.PageObject o) => objectLayerOf(o) == layer;
+      if (!listEquals(
+        before.liveObjects.where(inLayer).toList(),
+        after.liveObjects.where(inLayer).toList(),
+      )) {
+        layers.add(_liveRenderLayerOf(layer));
+      }
+    }
+    if (layers.isEmpty) return;
+    if (config.rasterTiles) _rasterSchedule.activity();
+    for (final layer in layers) {
+      _repaints[layer]!.fire();
+    }
+  }
+
+  /// The render layer that draws the committed objects of [layer] (its chunk pictures).
+  static InkRenderLayer _baseRenderLayerOf(InkObjectLayer layer) =>
+      switch (layer) {
+        InkObjectLayer.underlay => InkRenderLayer.underlay,
+        InkObjectLayer.ink => InkRenderLayer.inkBase,
+        InkObjectLayer.annotation => InkRenderLayer.annotation,
+      };
+
+  /// The render layer that draws the live objects of [layer] (pending, selection preview,
+  /// setPreviewObjects).
+  static InkRenderLayer _liveRenderLayerOf(InkObjectLayer layer) =>
+      switch (layer) {
+        InkObjectLayer.underlay => InkRenderLayer.underlay,
+        InkObjectLayer.ink => InkRenderLayer.inkActive,
+        InkObjectLayer.annotation => InkRenderLayer.annotation,
+      };
 
   _Display _currentDisplay() {
     final cached = _display;

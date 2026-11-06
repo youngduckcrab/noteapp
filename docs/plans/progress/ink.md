@@ -302,7 +302,7 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 | T36 | 남음 (이정표) | | `widget/math_render_test.dart`, `unit/math/offscreen_queue_test.dart`, (웹) `web/offscreen_math_web_test.dart` |
 | T37a | 남음 | | `unit/object/object_hit_test.dart`, `unit/edit/lasso_test.dart` v2, `unit/edit/selection_test.dart` v2 |
 | T37b | 남음 | | `unit/edit/stroke_eraser_test.dart`·`partial_eraser_test.dart` v2, `unit/interop/fake_store_handoff_test.dart` v2 |
-| T38 | 남음 | | `widget/object_preview_hidden_test.dart` |
+| T38 | 완료 | (아래 '세션 확인' 3) | `widget/object_preview_hidden_test.dart`(새 — 숨김: 도형·텍스트 상자·이미지마다 그 자리 픽셀 없음·다른 객체는 그대로·`hitTestObject`는 맞음·다시 보이면 처음 픽셀과 차 0, 숨김을 바꾸면 **바뀐 객체의 청크만** 다시 기록하고 **그 층만** 다시 그리기 알림(텍스트 → annotation, 도형 → inkBase, 이미지 → underlay), 같은 집합(다른 인스턴스)·페이지에 없는 id만 더함 → 알림 0·기록 0, getter = 준 집합(없는 id 포함·수정 불가), 나중에 들어온 객체가 숨긴 id면 숨긴 채 시작; 미리보기: 커밋된 id → 대체(원래 자리 비고 새 자리 그림)·다른 id → 그 층에 더함(텍스트 > 이미지)·hit test는 미리보기를 안 봄, 숨긴 id의 미리보기 → 그림(시트 초안), 비우면 다시 숨김, 내용 불변; 도형 미리보기 60회: inkBase 알림 1·inkActive 60·ink 청크 기록 +1, 다른 층 알림 없음, 텍스트 상자 미리보기 60회: annotation 청크 기록 +1, 빈 목록 → 커밋 그림과 픽셀 차 0; 다른 페이지 객체 → `ArgumentError`·목록 그대로·알림 0, getter = 준 목록(중복 포함·수정 불가)) |
 | T39 | 남음 (P-B) | | `unit/shape/hold_detector_test.dart`, `widget/shape_assist_test.dart` |
 | T40 | 남음 | | `unit/render/playback_index_test.dart`, `widget/playback_focus_test.dart`, `unit/edit/hit_test_test.dart` |
 | T41 | 남음 | | `widget/thumbnail_v2_test.dart` |
@@ -347,6 +347,8 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 19. (T34) 글꼴 도착 알림: 컨트롤러는 자기가 시작한 적재의 Future만 기다리지 않고 내부 `InkFontsDebug.addLoadedListener`로 **누가 시작한 적재든**(EDITOR `measure`·PDF·직접 `ensureLoaded`) 끝나면 `fonts` 키 청크를 다시 기록한다(6.10.3은 '적재가 끝나면'만 적음). 적재 실패는 `fontLoadFailed` 경고(6.24)이고, 시스템 글꼴로 기록된 청크가 남아 있는 동안 annotation 층 paint마다 `loadImplicitly`를 물어 30초 쉼(4.10)이 지난 첫 paint가 다시 적재한다(타이머 없음). `FlutterError.reportError`는 내지 않는다(오프라인은 예상된 상황 — 다른 경고 키와 같음). 리스너는 `dispose`에서 뗀다.
 20. (T34) 글꼴 도착 시험은 계획의 `objects_render_test` 대신 새 파일 `widget/text_fonts_arrival_test.dart`다 — '시스템 글꼴 픽셀 ≠ NoteSans 픽셀'을 보려면 NoteSans가 엔진에 한 번도 등록되지 않은 프로세스가 있어야 하는데 `objects_render_test`는 `setUpAll(InkFonts.ensureLoaded)`로 시작한다(시험 파일마다 프로세스가 따로).
 21. (T34) `text_layout_test`의 '`measure` 값 = 그린 문단 높이'는 픽셀로 단언했다(그 높이 frame = 더 높은 frame의 픽셀, 한 줄 낮추면 잘림) — 값 비교만으로는 같은 함수를 두 번 부르는 것이라. 그린 쪽은 내부 `paintObjectSimple`(annotation 청크가 쓰는 그 함수)이다.
+
+22. (T38) `setHiddenObjectIds`·`setPreviewObjects`는 전체 `_invalidate()` 대신 내부 `_invalidateObjectDisplay()`로 **그림이 바뀌는 층만** 다시 그리기를 알린다(6.17 '해당 층의 살아 있는 부분만'): 전·후 표시 상태(`_Display`)를 그 자리에서 계산해 기본 그림에서 빠지는/돌아오는 커밋 객체의 층(ink → inkBase, underlay, annotation — 청크 dirty 표시는 기존 `_syncHidden`)과 살아 있는 목록이 바뀐 층(ink → inkActive)만. 전 상태가 아직 없으면(한 번도 그리지 않음) 전체 알림. 래스터 타일 쉼(`_rasterSchedule.activity()`)은 알릴 층이 있을 때만.
 
 #### 이정표 커밋
 
