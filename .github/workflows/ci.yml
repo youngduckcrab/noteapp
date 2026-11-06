@@ -169,6 +169,24 @@ jobs:
           flutter pub get --enforce-lockfile
           printf '%s %s\n' "$SECONDS" '의존성' >> "$RUNNER_TEMP/step-seconds"
 
+      # 2차 J20 (docs/plans/m5-7/01-infra.md 4.2, Q8 — a warning step): when
+      # pubspec.lock changed since the test scope's base (AFFECTED_BASE, or
+      # the previous push of the default branch), every new or re-versioned
+      # hosted package must have been published at least 14 days ago (6.1).
+      # A violation marks this step; the job goes on. No base (a first push,
+      # a manual run on main) or an unchanged lock: nothing to check.
+      - name: Lock age
+        continue-on-error: true
+        run: |
+          LOCK_BASE="${AFFECTED_BASE:-$BEFORE_SHA}"
+          if [ -z "$LOCK_BASE" ] || [ "$LOCK_BASE" = 0000000000000000000000000000000000000000 ]; then
+            echo 'lock age: no base to compare with — skipped'
+          elif git diff --quiet "$LOCK_BASE" -- pubspec.lock; then
+            echo "lock age: pubspec.lock unchanged since $LOCK_BASE — skipped"
+          else
+            dart run tool/ws.dart lock-age --since "$LOCK_BASE"
+          fi
+
       # 6
       - name: Workspace rules (strict)
         if: env.STRICT_CHECK == 'true'

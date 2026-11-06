@@ -412,8 +412,8 @@
 | J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
 | J17 | 완료 | `95d88a8` | `tool/test/web_budget_test.dart`(16 — 형식 3(4.3.3 모양·잘못된 파일 7가지·커밋된 `tool/web_budget.yaml` 값), 측정 2(gzip = 파일별 `dart:io` gzip 합·없는 보고 자산 → null·빌드/`main.dart.js`/`FontManifest.json` 없음·깨진 JSON), 보고 7(한도 안 · 넘음(크기·증가분·묶음) · 원본 글꼴 한도 · 금지 글꼴 · 빌드에 없는 글꼴 파일 · `measure`는 표시만 · 표 형식), 명령 4(`check` 0 + 요약 파일 · 넘으면 1 / `measure` 0 · `--budget` · 빌드·예산 없음 → 3 · 예산 없이 `measure`)), `workflows_test`(`ci.yml` 'Web budget' 단계 — 순서·명령·조건 없음, `ws` 호출 21개) |
 | J18 | 완료 | `1e29a75` | `tool/test/guides_test.dart` v2(30 — 파일 9개·README 순서 01 → 02 → 04 → 08·공통 형식 8개(08은 계약 문장 줄을 뺀 해요체)·01 첫 단락 'Hosting만'·'Spark'·'실연결'·'실연결 때 정할 것' 절·03 Functions 한 줄·04 B-1 네 단계(마지막 = `AppStrings.sectionV1Copy`·`v1CopyPresent` 머리)·B-15·B-16 하는 법·마이크·'복구된 녹음'·되돌리기 금지·`reloadBlockedByRecording`·05 아티팩트 두 이름(`android.yml` 식에서)·'고정 키 등록은 07'·'파일 두 개'·'앱을 지우지 말고'·06 `ios-compile.yml` 이름·입력·`ios-compile-<번호>`·`ITSAppUsesNonExemptEncryption`(Info.plist `false`)·07 시크릿 4개·변수(= `android.yml` 잡 `env`)·`::error::` 두 문장·요약 줄·08 **계약 7.8 A-1~A-6·B-1~B-16·C-1~C-4 순서와 문장 글자 그대로**·머리말 3줄·항목마다 '알려 줄 것'·보고 양식·B-13 순서·C-1 다시 열기) |
-| J19 | 완료 | (이 커밋) | `app/test/integration/app_smoke_v2_test.dart`(V5 v2 — 지금 되는 단계: 시작 5모듈 ok·7.3.3 행 한 번씩·오디오/인식 행의 출처 모듈·값, 자리 4개(이미지 = 주입 가져오기·녹음 패널 = `mediaRecordingPanel`·선택/삽입 = 실제 recog 동작 id), 개발자 섹션 순서·`recog.settings` 위치·유휴 작업 4개, 5모듈 위 1차 V5 흐름, 9 라우팅(`onOpenNoteAt` → `?page=&focus=` → 에디터 인자·주소)), `integration/feature_switch_test.dart`(V15 — 기대 행 표 1 + 주입 8조합 + 모두 끔 1차 흐름 + `AppFeatures.compileTime`(H5는 `--dart-define` 3개)), `web/app_smoke_v2_browser_test.dart`(V6 v2 — `setUpAll(useInkTestFonts)`, 웹 저장소, 같은 단계, 오류 기록 0·`MissingPluginException` 0), `support/smoke_v2_fakes.dart` |
-| J20 | 남음 | | `tool/test/lock_age_test.dart` |
+| J19 | 완료 | `0b3c5d2` | `app/test/integration/app_smoke_v2_test.dart`(V5 v2 — 지금 되는 단계: 시작 5모듈 ok·7.3.3 행 한 번씩·오디오/인식 행의 출처 모듈·값, 자리 4개(이미지 = 주입 가져오기·녹음 패널 = `mediaRecordingPanel`·선택/삽입 = 실제 recog 동작 id), 개발자 섹션 순서·`recog.settings` 위치·유휴 작업 4개, 5모듈 위 1차 V5 흐름, 9 라우팅(`onOpenNoteAt` → `?page=&focus=` → 에디터 인자·주소)), `integration/feature_switch_test.dart`(V15 — 기대 행 표 1 + 주입 8조합 + 모두 끔 1차 흐름 + `AppFeatures.compileTime`(H5는 `--dart-define` 3개)), `web/app_smoke_v2_browser_test.dart`(V6 v2 — `setUpAll(useInkTestFonts)`, 웹 저장소, 같은 단계, 오류 기록 0·`MissingPluginException` 0), `support/smoke_v2_fakes.dart` |
+| J20 | 완료 | (이 커밋) | `tool/test/lock_age_test.dart`(21 — 잠금 파서 3(hosted만·서버 주소·실제 워크스페이스 lock·깨진 파일 4가지), 바뀐 항목 3(새·판 바뀜·서버 바뀜 / 같음·지움 제외 / 기준에 lock 없음 → 전부), API 답 2(`published`·없는 판·깨진 답 5가지), 달력 일수(UTC 날짜 — 13·14 경계·시간대), `checkLockAge` 3(가짜 HTTP: **13일 → 위반·14일 → 통과·네트워크 오류(null·예외)·목록에 없는 판·깨진 답 → 경고**, 이름 순 요청 1번씩, 표·줄 형식, `--min-days`, 바뀐 것 없음 → 요청 0), 명령 9(실제 git 저장소 + 가짜 내려받기: 위반 → 1·통과 → 0 + 요약 파일·네트워크 오류 → 0·`--now` 없으면 컨텍스트 시계·기준 ref에 lock 없음·커밋 아닌 ref → 경고 0·사용 오류 7가지 → 2·lock 없음 → 3·**실제 `httpDownload` + 127.0.0.1 서버 → 답·닫힌 포트 → 경고**)), `workflows_test`(+1 'Lock age' 단계 — `continue-on-error`·위치·`bash -n`·가짜 `git`/`dart`로 6경우, 단계 순서·명령·`ws` 호출 22개) |
 | J21 | 남음 | | `workflows_test`(android-emulator) |
 | J22 | 남음 | | 마감 확인 묶음(8.2 J22 행) |
 | H1~H8 | 통합 단계 | | (계획 8.3) |
@@ -726,7 +726,7 @@
 
 #### J19 — 앱 스모크 v2 골격 · 기능 스위치 시험 (계획 8.2, 9.1 '앱 스모크 v2 단계', 계약 V5·V6·V15 v2.1)
 
-- 커밋: (이 커밋).
+- 커밋: `0b3c5d2`.
 - `app/test/support/smoke_v2_fakes.dart`(새): `SmokeV2Fakes` — **가짜는 모듈 주입 인자로만**(9.1, 계약 7.3.3 '시험 이음새'): `MediaModule(initialize: 호출 수만 셈, mediaOverrides: FakeAudioRecorder(저장소를 provider에서 읽음)·FakeAudioPlayback)`, `RecognitionModule(overridesFor: FakeHandwritingRecognizer·FakeMathRecognizer·GeometricShapeFitter(), mathEndpoint: 'https://math.invalid/recognize')`, `FeatureWiringModule(imageImporter: 1×1 PNG 한 장을 앱 에셋 저장소에 넣는 가짜)`; 나머지(CoreModule·PdfModule·PDF 동작)는 실제. `modules(core, features:)` = `modulesFor`(꺼진 모듈은 만들지도 않음). `bootSmokeV2App`, `expectContractOverridesV2`(시작 단계·시작한 모듈 순서·override 출처 = 7.3.3 행 + 셸 행 + 패키지 목록, 각 한 번, 오디오 행은 `MediaModule.overrides()`에서만·인식 행은 `RecognitionModule.overrides()`에서만, 값 = 주입 가짜·실제 PDF), `featureRows`/`expectedFeatureRows`(V15 행 6개 — 녹음·인식 메뉴·수식 엔진·자동 도형 보정·이미지 삽입·이미지 페이지, provider 값 문자열), `differingRows`, `expectNoMissingPlugin`.
 - `support/smoke_scenario.dart`: `bootSmokeApp`을 `bootSmokeAppWith(modules:, features:)` 위로 옮김(1차 V5·V6는 그대로 3모듈).
 - `integration/app_smoke_v2_test.dart`(새, V5 v2): 9.1 표의 'J19' 단계 — 1 시작, 자리 4개(provider 값), 5모듈 위 1차 V5 흐름(새 노트 → 획 → 되돌리기/다시 → 닫기 → 다시 열기), 9 라우팅. 2~8·10(텍스트 상자·도형·이미지·올가미·녹음·재생·내보내기 개수)은 H3에서 이 파일에 더한다.
@@ -743,6 +743,21 @@
 | `ws check` | 0 |
 | `flutter analyze --fatal-infos`(app) / `dart format` | 0건 / 변경 0 |
 
+#### J20 — `ws lock-age` · `ci.yml` 'Lock age' 경고 단계 (계획 8.2, 4.2·6.1, Q8 — P-C)
+
+- 커밋: (이 커밋).
+- `tool/src/lock_age.dart`(새): `parseHostedPackages`(pubspec.lock의 `source: hosted`만 — 이름·판·`description.url`), `changedHostedPackages`(기준 대비 새로 생기거나 판·서버가 바뀐 것, 이름 순; 기준 lock 없음 → 전부), `publishedOf`(`<url>/api/packages/<이름>` 답의 `versions[].published`), `calendarDaysBetween`(UTC 날짜 차), `checkLockAge`(패키지마다 요청 1번 — 일수 < `--min-days`면 위반, 못 읽으면 경고), `LockAgeReport.format`(표 + `violation:`/`warning:` 줄 + 끝줄 `ws lock-age: N violation(s), M warning(s)`).
+- `ws lock-age --since <git-ref> [--min-days 14] [--now YYYY-MM-DD]`(`cli.dart`): 기준 lock = `git show <ref>:pubspec.lock`(ref가 커밋이 아니면 경고 + 비교 없음, ref에 lock이 없으면 모든 hosted 항목이 새것), 내려받기는 `WsContext.download`(= `web-assets fetch`의 `httpDownload` — 환경 프록시 사용), `GITHUB_STEP_SUMMARY`가 있으면 '### Lock age (since <ref>)' + 표. 종료 코드 0(통과·경고만) / 1(위반) / 2(사용 오류) / 3(작업 폴더에 pubspec.lock 없음·`git show` 실패).
+- `ci.yml`: 'Dependencies' 바로 다음 'Lock age' 단계 — `continue-on-error: true`(Q8 '경고 단계': 위반은 단계만 표시, 잡은 계속), 기준 `LOCK_BASE = AFFECTED_BASE`(영역 브랜치 = `origin/<기본 브랜치>`) 없으면 `BEFORE_SHA`(기본 브랜치의 이전 푸시), 기준이 없거나 0이면 건너뜀, `git diff --quiet <기준> -- pubspec.lock`이 같으면 건너뜀, 다르면 `ws lock-age --since "$LOCK_BASE"`.
+- 실제 실행 한 번(컨테이너, 프록시 경유 pub.dev): `ws lock-age --since b6c9d0a`(1차 통합 HEAD — R2-B1 lock 변경 대비) → 새·바뀐 hosted 항목 48개 전부 14일 이상(가장 짧은 것 `image_picker_ios` 0.8.13+13 · `shared_preferences_android` 2.5.3 — 2026-10-22, 15일), `0 violation(s), 0 warning(s)`, 종료 0.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/lock_age_test.dart` | 21 통과 |
+| `dart test tool/test/workflows_test.dart` | 74 통과 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `dart test tool/test` | 527 통과 · 89초 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -753,6 +768,7 @@
 
 #### 계획과 다르게 한 점
 
+- (J20) 계획 4.2는 `lock-age`의 종료 코드를 0 / 1로 적었다. 인자 오류(2)와 작업 폴더에 `pubspec.lock`이 없을 때(3)는 다른 `ws` 명령과 같은 코드를 쓴다. `--since`의 ref가 커밋이 아니면 실패가 아니라 경고(0)다 — '네트워크 오류는 경고'와 같은 취지(경고 단계에서 비교할 기준이 없으면 막지 않음). 14일은 게시 시각이 아니라 UTC 달력 날짜 차로 센다(`--now`가 날짜뿐이라).
 - (J19) 자리 3·4(선택·삽입 메뉴)는 지금 '비어 있지 않음'이 아니라 '실제 `recognitionSelectionActions()`·`recognitionInsertActions()`의 id와 같음'으로 본다 — 이 작업 트리의 recog는 R2-B6 표면이라 두 목록이 비어 있다(9.1 표의 '자리 4개가 비어 있지 않음'은 자리 1·2만 지금 성립). LIBRARY 병합 뒤 H3에서 두 목록 `isNotEmpty`를 더한다. 녹음 패널 열기(단계 6)·삽입 메뉴 열기(단계 8)도 화면이 아니라 provider 값으로 봤다 — 이 작업 트리의 EDITOR는 마이크 버튼·삽입 메뉴가 없는 기반 표면이다(H3에서 화면으로).
 - (J19) V15의 행 비교는 위젯이 아니라 provider 값(녹음 패널·녹음기 종류·개발자 섹션·유휴 작업 / recog 메뉴 id·`recog.settings`·색인기 / `RecognitionConfig.mathEndpoint`·수식 인식기 / `inkShapeFitterProvider` / `editorImageImporterProvider`·페이지 추가 출처)이다. '자동 도형 보정' 행은 provider 값(주입 `GeometricShapeFitter` ↔ 기본 `NoShapeFitter`)이라 지금도 차이에 든다 — 화면의 보정 토글 비교(C22-07: E2-15·L2-06이 모두 병합됐을 때만 기대 목록)는 H5.
 - (J19) '주입' 방식은 `AppBootstrapper.features` + `modulesFor(features:)`(= `productionModules()`가 `--dart-define`으로 하는 일 — 꺼진 모듈은 없음)다. 개발자 메뉴로 끈 경우(`skipped`)는 `app_bootstrapper_test`·`app_module_context_test`가 본다.
@@ -876,6 +892,7 @@
 - J12 Swift는 컴파일된 적이 없다(컨테이너에 Xcode 없음). 첫 `ios-compile.yml` 실행(U19·H6)에서 API 이름(`UIPencilInteraction.Tap`/`.Squeeze`·`hoverPose`·`UIHoverGestureRecognizer.zOffset`/`altitudeAngle`/`azimuthAngle(in:)`/`rollAngle`·`UIPencilPreferredAction` 7개·`showInkAttributes` 16.0)을 확인할 것 — 위 '계획과 다르게 한 점'(J12) 마지막 줄. 고칠 때는 `pencil_wire_contract_test`를 함께 맞춘다.
 - 위젯 시험에서 스트림 이벤트로 바뀐 `ValueListenable`을 보려면 `pump()`를 두 번(첫 번째는 예약된 프레임이 없어 마이크로태스크만 비운다 — J13 `about_section_test`의 `deliver`).
 - (2차 동시 개발 세션 7) J14·J14b·J17 끝. 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄), J15(`ws test --dart-define`·`ci.yml` 잡 분리 — **J0 ④ 실측이 선행**이라 잡별 시간 제한 값은 실측 뒤. `--dart-define`·`test_command_test` v2 부분과 잡 구조·시나리오 5개 시험은 실측 없이도 먼저 쓸 수 있음 — 제한 값만 비워 두고 진행 기록에 적을 것), J16(`functions.yml` 완성 — SYNC R2-B7b 골격·LIBRARY emulator 시험이 선행. 이 작업 트리의 `functions/` 상태를 먼저 볼 것), J18(안내서 v2 — J2·J3·J14b 끝나서 시작 가능: 01 Hosting만, 04 B-1·B-15·B-16, 05 '지우지 말고 알려 주세요'·'고정 키 등록은 07', 07 새 파일(`android.yml`의 `::error::`가 가리킴), 08 ↔ 계약 7.8 문장 대조), J19(앱 스모크 v2·`feature_switch_test` — J7~J9 끝, `useInkTestFonts` C23-07), J20(`ws lock-age`, P-C), J21(`android-emulator.yml`, P-C), J22(마감). 다음 순서 추천: J18 → J19 → J20 → J21 → J15(실측 없이 되는 부분) → J16 → J22.
+- (2차 동시 개발 세션 8) J20 끝. J15에서 `ci.yml`을 잡으로 나눌 때 'Lock age' 단계는 `check` 잡(의존성 다음)으로 옮기고, `workflows_test`의 'lock age' 사례(`steps.indexOf(Dependencies) + 1`)를 그 잡 기준으로 고친다.
 - (2차 동시 개발 세션 8) J19 끝. H3는 `app_smoke_v2_test.dart`에 9.1 표의 2~8·10 단계를 더하고(`SmokeV2Fakes.recorder`·`playback`·`picks`·`math`·`handwriting`이 그때 쓸 가짜), 자리 3·4 `isNotEmpty`를 더한다. H5는 `feature_switch_test.dart`를 `--dart-define FEATURE_MEDIA=false --dart-define FEATURE_RECOGNITION=false --dart-define FEATURE_MATH_ENGINE=false`로 돌린다(`ws test --dart-define`은 J15).
 - (2차 동시 개발 세션 8) J18 끝. `guides_test`의 1차 사례 '02, 04: live는 `main`만'과 02 사례는 아직 `ci.yml`의 `jobs.values.single`에서 Channel 단계·`env`를 찾는다 — **J15 잡 분리 때 `web` 잡(배포 잡)에서 찾도록 같이 고칠 것**(계획 6.21 끝).
 - J17의 묶음별 글꼴 한도(`tool/web_budget.yaml`의 `gzip_max: null` 두 개)는 위 '변경 요청'의 총괄 결정이 오면 넣고 `web_budget_test`의 '커밋된 파일' 사례를 같이 고친다. J15 잡 분리 때 'Web budget' 단계는 웹 빌드 잡의 'Finalize web build' 바로 다음에 둔다(`workflows_test`의 순서·명령·조건 사례가 본다).

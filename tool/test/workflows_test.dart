@@ -209,6 +209,7 @@ const _sampleVariables = {
   'DEFAULT_BRANCH': _devBranch,
   'GITHUB_REF_NAME': 'area/infra',
   'AFFECTED_BASE': 'origin/$_devBranch',
+  'LOCK_BASE': 'origin/$_devBranch',
 };
 
 /// Evaluates the `||` / `&&` / `==` / `!=` expressions of [expression]
@@ -447,7 +448,8 @@ void main() {
           }
         }
       }
-      expect(calls, hasLength(21)); // + web-budget check (J17)
+      // + web-budget check (J17), + lock-age (J20)
+      expect(calls, hasLength(22));
       for (final call in calls) {
         final args = _shellWords(call, _sampleVariables);
         final err = StringBuffer();
@@ -640,6 +642,7 @@ void main() {
           'Cache build hooks', // 3
           'Cache browser test assets', // 4
           'Dependencies', // 5
+          'Lock age', // 2차 J20
           'Workspace rules (strict)', // 6
           'Workspace rules',
           'Analyze', // 7
@@ -665,6 +668,7 @@ void main() {
     test('commands of each step', () {
       final expected = {
         'Dependencies': ['flutter pub get --enforce-lockfile'],
+        'Lock age': ['$_ws lock-age --since "\$LOCK_BASE"'],
         'Workspace rules (strict)': ['$_ws check --strict'],
         'Workspace rules': ['$_ws check'],
         'Analyze': ['$_ws analyze'],
@@ -758,6 +762,100 @@ void main() {
         'Web budget',
       ]) {
         expect(step(name).containsKey('if'), isFalse, reason: name);
+      }
+    });
+
+    // m5-7/01-infra 4.2 (2차 J20, Q8): a warning step — runs ws lock-age
+    // only when pubspec.lock changed since the scope's base; a violation
+    // never fails the job.
+    test('lock age: warning step, base = AFFECTED_BASE or the previous push, '
+        'only when pubspec.lock changed', () {
+      final lockAge = step('Lock age');
+      expect(lockAge['continue-on-error'], isTrue);
+      expect(lockAge.containsKey('if'), isFalse);
+      expect(steps.indexOf(lockAge), steps.indexOf(step('Dependencies')) + 1);
+      final script = '${lockAge['run']}';
+      expect(
+        Process.runSync('bash', ['-n', '-c', script]).exitCode,
+        0,
+        reason: 'bash -n',
+      );
+      final scratch = Directory.systemTemp.createTempSync('ws_ci_lock_age_');
+      addTearDown(() => scratch.deleteSync(recursive: true));
+      final bin = Directory(p.join(scratch.path, 'bin'))..createSync();
+      final dartLog = p.join(scratch.path, 'dart-args');
+      final gitLog = p.join(scratch.path, 'git-args');
+      void fake(String name, String body) {
+        final file = File(p.join(bin.path, name))
+          ..writeAsStringSync('#!/bin/sh\n$body');
+        Process.runSync('chmod', ['+x', file.path]);
+      }
+
+      fake('dart', 'echo "\$*" > "$dartLog"\n');
+      // git diff --quiet: 0 = unchanged, 1 = changed (FAKE_DIFF).
+      fake('git', 'echo "\$*" > "$gitLog"\nexit "\${FAKE_DIFF:-0}"\n');
+      const before = '1234567890abcdef1234567890abcdef12345678';
+      // (AFFECTED_BASE, BEFORE_SHA, diff exit) → (git args, dart args, echo)
+      final scenarios = [
+        ('', '', '0', null, null, 'no base to compare with'),
+        ('', _zeroSha, '0', null, null, 'no base to compare with'),
+        (
+          '',
+          before,
+          '0',
+          'diff --quiet $before -- pubspec.lock',
+          null,
+          'unchanged since $before',
+        ),
+        (
+          '',
+          before,
+          '1',
+          'diff --quiet $before -- pubspec.lock',
+          'run tool/ws.dart lock-age --since $before',
+          null,
+        ),
+        (
+          'origin/$_devBranch',
+          before,
+          '1',
+          'diff --quiet origin/$_devBranch -- pubspec.lock',
+          'run tool/ws.dart lock-age --since origin/$_devBranch',
+          null,
+        ),
+        (
+          'origin/$_devBranch',
+          '',
+          '0',
+          'diff --quiet origin/$_devBranch -- pubspec.lock',
+          null,
+          'unchanged since origin/$_devBranch',
+        ),
+      ];
+      for (final (affected, beforeSha, diff, gitArgs, dartArgs, echo)
+          in scenarios) {
+        for (final log in [dartLog, gitLog]) {
+          if (File(log).existsSync()) File(log).deleteSync();
+        }
+        final result = Process.runSync(
+          'bash',
+          ['-e', '-c', script],
+          environment: {
+            'PATH': '${bin.path}:${Platform.environment['PATH']}',
+            'AFFECTED_BASE': affected,
+            'BEFORE_SHA': beforeSha,
+            'FAKE_DIFF': diff,
+          },
+        );
+        final what = '($affected, $beforeSha, $diff)';
+        expect(result.exitCode, 0, reason: '$what ${result.stderr}');
+        String? read(String log) =>
+            File(log).existsSync() ? File(log).readAsStringSync().trim() : null;
+        expect(read(gitLog), gitArgs, reason: what);
+        expect(read(dartLog), dartArgs, reason: what);
+        if (echo != null) {
+          expect('${result.stdout}', contains(echo), reason: what);
+        }
       }
     });
 
