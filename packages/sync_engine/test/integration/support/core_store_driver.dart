@@ -5,7 +5,10 @@
 // openSession (N-6) and reopening the same file. (2nd round, 07-sync 6.6) A session's
 // AddObjects / UpdateObjects / RemoveElements, store.handwriting.put and
 // store.recordings.createRecording / renameRecording (compile-only until the CORE milestones
-// of 07-sync 6.7.2 — the integration tag is skipped by default). Commit failures for S-20 (5.1.2) come from
+// of 07-sync 6.7.2 — the integration tag is skipped by default); (S2-9) CoreTestStore's edits
+// for the T16-v2 scenarios (objects through a session's AddObjects / TransformElements /
+// UpdateObjects / RemoveElements, DeletePages, a fresh handwriting result, a recording with its
+// audio asset, a stroke linked to a recording, trash + purge). Commit failures for S-20 (5.1.2) come from
 // moving the database file away (CoreTestStore.failCommits): openTestNoteStore takes no
 // fault hook, and the write queue's own hook (WriteQueue.failNextCommits) is CORE src/.
 import 'dart:io';
@@ -85,17 +88,27 @@ final class CoreTestStore {
   }
 
   /// One synthetic stroke on [pageId] through a session (opens the note: N-6 markOpened).
-  Future<Stroke> addStroke(PageId pageId, {int seed = 0}) async {
+  /// (2nd round) [recordingId] / [recordingOffsetMs] link it to a recording (M6 pen meta).
+  Future<Stroke> addStroke(
+    PageId pageId, {
+    int seed = 0,
+    RecordingId? recordingId,
+    int? recordingOffsetMs,
+  }) async {
     final page = await store.content.getPage(pageId);
     if (page == null) throw StateError('no page $pageId');
     final session = await store.openSession(page.noteId);
     try {
-      final stroke = StrokeFixtures.synthetic(
-        pageId: pageId,
-        ids: store.ids,
-        seed: seed,
-        createdAt: store.clock.now().millisecondsSinceEpoch,
-      );
+      final stroke =
+          StrokeFixtures.synthetic(
+            pageId: pageId,
+            ids: store.ids,
+            seed: seed,
+            createdAt: store.clock.now().millisecondsSinceEpoch,
+          ).copyWith(
+            recordingId: recordingId,
+            recordingOffsetMs: recordingOffsetMs,
+          );
       await session.executeAsync(AddStrokes(pageId: pageId, strokes: [stroke]));
       await session.flush();
       return stroke;
@@ -113,6 +126,130 @@ final class CoreTestStore {
     } finally {
       await session.close();
     }
+  }
+
+  // ---- 2nd round (07-sync 6.7.2, T16-v2): edits the way EDITOR / LIBRARY make them --------
+
+  EpochMillis get _now => store.clock.now().millisecondsSinceEpoch;
+
+  /// The note of [pageId] (deleted pages too).
+  Future<NoteId> noteOf(PageId pageId) async {
+    final page = await store.content.getPage(pageId);
+    if (page == null) throw StateError('no page $pageId');
+    return page.noteId;
+  }
+
+  /// Runs [command] in a session of [pageId]'s note.
+  Future<void> editPage(PageId pageId, EditCommand command) async =>
+      edit(await noteOf(pageId), command);
+
+  /// The active objects of [pageId] (PageContent.objects).
+  Future<List<PageObject>> objectsOf(PageId pageId) async =>
+      (await store.content.loadPage(pageId)).objects;
+
+  /// The active object [id] of [pageId], or null.
+  Future<PageObject?> objectOf(PageId pageId, ElementId id) async {
+    for (final o in await objectsOf(pageId)) {
+      if (o.id == id) return o;
+    }
+    return null;
+  }
+
+  /// Adds [object] (a fixture: version null, its own pageId) through a session's AddObjects.
+  Future<T> addObject<T extends PageObject>(T object) async {
+    await editPage(
+      object.pageId,
+      AddObjects(pageId: object.pageId, objects: [object]),
+    );
+    return object;
+  }
+
+  /// A lasso move: TransformElements by (dx, dy) — strokes and objects alike.
+  Future<void> moveElements(
+    PageId pageId,
+    List<ElementId> ids, {
+    required double dx,
+    required double dy,
+  }) => editPage(
+    pageId,
+    TransformElements(
+      pageId: pageId,
+      elementIds: ids,
+      transform: Affine2.translation(dx, dy),
+    ),
+  );
+
+  /// Handles, style or a text editing session's end: UpdateObjects with [objects] (same ids).
+  Future<void> updateObjects(PageId pageId, List<PageObject> objects) =>
+      editPage(pageId, UpdateObjects(pageId: pageId, objects: objects));
+
+  /// Delete / cut: RemoveElements.
+  Future<void> removeElements(PageId pageId, List<ElementId> ids) =>
+      editPage(pageId, RemoveElements(pageId: pageId, elementIds: ids));
+
+  /// The page panel's delete: DeletePages.
+  Future<void> deletePages(NoteId noteId, List<PageId> pageIds) =>
+      edit(noteId, DeletePages(pageIds: pageIds));
+
+  /// The recognizer's write of [pageId]'s result: one line per entry of [lines] over the
+  /// page's input strokes, sourceRev = HandwritingText.sourceRevOf(those strokes) (CORE 6.9.2
+  /// — the value a fresh result has), engine 't16:ko'. Returns the value written.
+  Future<HandwritingText> putHandwriting(
+    PageId pageId,
+    List<String> lines,
+  ) async {
+    final page = await store.content.getPage(pageId);
+    if (page == null) throw StateError('no page $pageId');
+    final input = [
+      for (final s in (await store.content.loadPage(pageId)).strokes)
+        if (HandwritingText.isRecognitionInput(s)) s,
+    ];
+    final value = HandwritingText(
+      noteId: page.noteId,
+      pageId: pageId,
+      engineId: 't16:ko',
+      sourceRev: HandwritingText.sourceRevOf(input),
+      lines: [
+        for (final (i, text) in lines.indexed)
+          HandwritingLine(
+            text: text,
+            rect: PageRect(40, 80 + 60.0 * i, 320, 120 + 60.0 * i),
+            strokeIds: [for (final s in input) s.id],
+          ),
+      ],
+      createdAt: _now,
+    );
+    await store.handwriting.put(value);
+    return value;
+  }
+
+  /// A finished recording the way media_io saves it (M-1): the audio asset first, then
+  /// RecordingRepository.createRecording.
+  Future<Recording> createRecording(
+    NoteId noteId, {
+    int seed = 0,
+    int durationMs = 1000,
+    String? title,
+  }) async {
+    final audio = await store.assets.put(
+      Uint8List.fromList(List<int>.generate(400, (i) => (i * 37 + seed) % 251)),
+      type: AssetType.audio,
+      mimeType: 'audio/webm',
+    );
+    return store.recordings.createRecording(
+      id: store.ids.newId(),
+      noteId: noteId,
+      assetId: audio.id,
+      durationMs: durationMs,
+      startedAt: _now,
+      title: title,
+    );
+  }
+
+  /// The library's trash, then the trash's purge of [noteId] (purge takes trashed roots only).
+  Future<void> trashAndPurge(NoteId noteId) async {
+    await store.library.trashItems([NoteRef(noteId)]);
+    await store.trash.purge([NoteRef(noteId)]);
   }
 }
 
