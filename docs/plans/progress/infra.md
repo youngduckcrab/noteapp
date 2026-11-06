@@ -392,7 +392,7 @@
 | 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
 | R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
 | R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
-| J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요) | (아래 'J0' 절) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
+| J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요) | `1fd1aea`(①②③) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
 | J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
 | J2 | 남음 | | `native_config_test`(서명 분기)·`workflows_test`(서명 세 갈래) — 실제 서명은 GitHub(H6) |
 | J3 | 남음 | | `workflows_test`(ios-compile·testflight) — 실행은 U19 |
@@ -456,6 +456,8 @@
 | `dart test tool/test` | 372 통과 · 75초 |
 
 #### J0 ①②③ — 네이티브 설정 · `native_config` 정적 시험 · 웹 빌드 실측 (계획 8.2, 6.10.1, 6.11.1~6.11.4, 6.15)
+
+- 커밋: `1fd1aea`(①②③), 이 기록 줄은 그 뒤 커밋. ④는 아직.
 
 - **① 네이티브 설정 파일**(부록 B): `app/android/app/src/main/AndroidManifest.xml`(`xmlns:tools`, 권한 5개 `INTERNET`·`RECORD_AUDIO`·`FOREGROUND_SERVICE`·`FOREGROUND_SERVICE_MICROPHONE`·`POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` `tools:node="remove"`, 라벨 `필기노트`, `allowBackup="false"`(D20), `flutter_foreground_task` `ForegroundService`(`microphone`·`exported=false`·`stopWithTask=true`), `RebootReceiver` 제거 — 서비스·수신기 이름은 pub 캐시 `flutter_foreground_task-11.0.3`의 매니페스트·README로 다시 확인함), `app/ios/Runner/Info.plist`(마이크·사진·카메라 문구 확정본 글자 그대로, `UIBackgroundModes` `[audio]`, `ITSAppUsesNonExemptEncryption` false), `project.pbxproj` `IPHONEOS_DEPLOYMENT_TARGET` 3곳 15.0 → **15.5**, 새 `app/ios/Podfile`(Flutter 3.47.9 `templates/cocoapods/Podfile-ios` + ML Kit README 줄 — `platform :ios, '15.5'`·`$iOSVersion`·armv7 제외·배포 대상 올림), `Debug.xcconfig`·`Release.xcconfig` 첫 줄 `#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.<debug|release>.xcconfig"`(Flutter `addPodsDependencyToFlutterXcconfig`가 쓰는 줄과 같음 — CI 빌드가 저장소 파일을 바꾸지 않게).
 - **② `tool/src/native_config.dart`**: `NativeConfigPaths`, `AndroidManifestInfo.parse`(`package:xml` — 주석·속성 순서 무관), `parsePlist`, `pbxDeploymentTargets`, `PodfileInfo.parse`(줄 전체 주석 무시), `xcconfigIncludes`, `NativeConfig.load`, `AppNativeExpectations`(값 표), `appNativeConfigProblems`(한 줄씩 — J1 `ws native-reqs`가 같은 `NativeConfig`를 읽는다). **`tool/test/native_config_test.dart`**: 파서 단위 시험, 커밋된 파일 검사(문구 글자 그대로·15.5 정확히 3번·Podfile 템플릿 줄 보존 — 이 Flutter의 템플릿 파일과 대조), 규칙마다 커밋된 파일을 하나씩 깨뜨려 그 문제 한 줄(부팅 권한은 두 줄)만 나오는지 23경우.
@@ -528,7 +530,8 @@
 
 - 체크포인트 병합 요청(INFRA-F3, Q14): R2-B8a·R2-B8b·J0 끝마다 결과 보고에 적는다.
 - **R2-B8a 체크포인트**: `a4c9cca`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
-- **R2-B8b 체크포인트**: `6e7b753`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(D24). J0 ③ 웹 빌드 실측이 이 체크포인트 뒤다.
+- **R2-B8b 체크포인트**: `6e7b753`(+ 기록 커밋 `20f831d`) — 총괄에게 `main` 병합 요청(D24).
+- **J0 체크포인트(①②③)**: `1fd1aea`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청. 이 체크포인트의 첫 푸시 CI 실행 기록이 J0 ④(6.16 실측)의 입력이다.
 
 #### 다음 세션 메모
 
