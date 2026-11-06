@@ -26,7 +26,6 @@ import '../repo/empty_v2_repositories.dart';
 import '../repo/events.dart';
 import '../repo/handwriting_repository.dart';
 import '../repo/note_store.dart';
-import '../repo/recording_repository.dart';
 import '../repo/status.dart';
 import '../search/search_types.dart';
 import '../session/note_session.dart';
@@ -35,6 +34,7 @@ import 'db/note_database.dart';
 import 'drift_content_reader.dart';
 import 'drift_library_repository.dart';
 import 'drift_pen_preset_repository.dart';
+import 'drift_recording_draft_store.dart';
 import 'drift_recording_repository.dart';
 import 'drift_sessions.dart';
 import 'drift_settings_repository.dart';
@@ -95,6 +95,10 @@ final class DriftNoteStore implements NoteStore {
     trash = DriftTrashRepository(this);
     penPresets = DriftPenPresetRepository(this);
     recordings = DriftRecordingRepository(this);
+    recordingDrafts = DriftRecordingDraftStore(
+      this,
+      assetChunks ?? blobs.chunks,
+    );
     settings = DriftSettingsRepository(this);
     content = DriftContentReader(db);
     thumbnails = ThumbnailCacheImpl(blobs.thumbnails);
@@ -258,13 +262,13 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final DriftSyncStore sync;
 
-  // (v2) 2nd-round getters. Recordings since CORE T30; the others read empty and their writes
-  // throw UnimplementedError until the named CORE task (02-core 8.1 'B2 상태': T31 drafts,
-  // T32 handwriting, T33a search).
+  // (v2) 2nd-round getters. Recordings since CORE T30, recording drafts since T31; the others
+  // read empty and their writes throw UnimplementedError until the named CORE task (02-core
+  // 8.1 'B2 상태': T32 handwriting, T33a search).
   @override
   late final DriftRecordingRepository recordings;
   @override
-  final RecordingDraftStore recordingDrafts = EmptyRecordingDraftStore('T31');
+  late final DriftRecordingDraftStore recordingDrafts;
   @override
   final HandwritingRepository handwriting = EmptyHandwritingRepository('T32');
   @override

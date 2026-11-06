@@ -180,8 +180,9 @@ final container = ProviderContainer.test(
   `store.search.replaceUnits`). On the real store (`openTestNoteStore`) these
   come with the concurrent tasks: page object commands (sessions,
   `createNote` drafts, `store.content.loadPage(…).objects`) since CORE T27,
-  recordings since T30; the draft / handwriting / index writes throw
-  `UnimplementedError('CORE T31: …')` / T32 / T33a until those tasks.
+  recordings since T30, recording drafts (chunks and meta in the asset blob
+  store) since T31; the handwriting / index writes throw
+  `UnimplementedError('CORE T32: …')` / T33a until those tasks.
 - `PageObjectFixtures.shape / textBox / image / math / unknown(pageId: …)`
   build valid objects with the contract defaults (`id` omitted → a unique
   `fx-<type>-<n>`).

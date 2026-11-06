@@ -183,7 +183,7 @@ void main() {
       tasks: (
         recordings:
             null, // works since CORE T30 (test/shared/recording_contract.dart)
-        drafts: 'T31',
+        drafts: null, // works since CORE T31 (test/shared/recording_draft_contract.dart)
         handwriting: 'T32',
         search: 'T33a',
         v1Copy: null, // works since CORE T24 (an in-memory store has no copy)

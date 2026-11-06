@@ -1,5 +1,5 @@
 // The recording draft contract (m5-7/02-core 6.7.2) on createFakeNoteStore(): the hooks reach
-// the fake's draft rows and memory blob map. The real store from CORE T31.
+// the fake's draft rows and memory blob map. The real store: recording_draft_contract_real_test.
 import 'dart:convert';
 import 'dart:typed_data';
 

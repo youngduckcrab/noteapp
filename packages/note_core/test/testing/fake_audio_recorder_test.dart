@@ -2,7 +2,7 @@
 // and empty keep-alive chunks, interrupt, the M-1 order of stop (asset batch before the
 // recording batch), stopDurationErrorMs, 0 ms → null, cancel, start guards, a failed store
 // keeps the draft, abandon → pendingDrafts after 10 s → recoverDraft, the exclusions, inside
-// and outside fake_async, and the real in-memory CORE's B2 state (VM).
+// and outside fake_async, and the same flow on the real in-memory CORE (VM, since CORE T31).
 @TestOn('vm')
 library;
 
@@ -272,26 +272,38 @@ void main() {
     });
   });
 
-  // The real in-memory CORE writes drafts from CORE T31 on (m5-7/02-core 8.1 'B2 상태'); until
-  // then the recorder's start reports that task and goes back to idle. T31 replaces this case
-  // with the full stop / recover flow (asset writes through idb_shim timers).
-  test('on the real in-memory CORE: start waits for CORE T31', () async {
-    final real = await openTestNoteStore();
-    addTearDown(real.close);
-    final n = await real.library.createNote(title: 'real');
-    final r = FakeAudioRecorder(store: real);
-    await expectLater(
-      r.start(recordingId: 'rec-1', noteId: n.id),
-      throwsA(
-        isA<UnimplementedError>().having(
-          (e) => e.message,
-          'message',
-          startsWith('CORE T31: '),
-        ),
-      ),
-    );
-    expect(r.status.phase, RecorderPhase.idle);
-    expect(r.status.error, isA<UnimplementedError>());
-    expect(await r.pendingDrafts(), isEmpty);
-  });
+  // The real in-memory CORE writes drafts since CORE T31 (storage/drift_recording_draft_store):
+  // the recorder's whole flow — stop (asset, then recording; draft gone) and abandon →
+  // pendingDrafts after 10 s → recoverDraft — on openTestNoteStore (outside fake_async; the
+  // in-memory IndexedDB ends on its own timers).
+  test(
+    'on the real in-memory CORE: stop, and abandon → recoverDraft',
+    () async {
+      final real = await openTestNoteStore(clock: Clock(() => now));
+      addTearDown(real.close);
+      final n = await real.library.createNote(title: 'real');
+      final r = FakeAudioRecorder(store: real)..stopDurationErrorMs = 0;
+      await r.start(recordingId: 'rec-1', noteId: n.id);
+      r.advance(const Duration(milliseconds: 2500));
+      final rec = (await r.stop())!;
+      expect((rec.id, rec.durationMs), ('rec-1', 2500));
+      expect(await real.assets.readBytes(rec.assetId), isNotEmpty);
+      expect(await real.recordingDrafts.listDrafts(), isEmpty);
+      expect(await real.recordings.recordingsOf(n.id), [rec]);
+
+      final a = FakeAudioRecorder(store: real);
+      await a.start(recordingId: 'rec-2', noteId: n.id);
+      a.advance(const Duration(milliseconds: 3100));
+      await a.abandon();
+      final b = FakeAudioRecorder(store: real);
+      expect(await b.pendingDrafts(), isEmpty, reason: 'updated within 10 s');
+      now = now.add(const Duration(seconds: 11));
+      final pending = (await b.pendingDrafts()).single;
+      expect(pending.recordingId, 'rec-2');
+      expect(pending.chunkCount, 3);
+      final recovered = (await b.recoverDraft(pending.draftId))!;
+      expect((recovered.id, recovered.durationMs), ('rec-2', 3000));
+      expect(await real.recordingDrafts.listDrafts(), isEmpty);
+    },
+  );
 }

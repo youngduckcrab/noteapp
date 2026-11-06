@@ -400,7 +400,7 @@
 | T27 | 완료 | 2db774e | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
-| T31 | 남음 | | `test/media/recording_draft_contract_real_test.dart`, `test/media/recording_draft_store_test.dart`, `test/web/recording_draft_browser_test.dart`, `test/perf/draft_append_perf_test.dart` |
+| T31 | 완료 | (이 커밋) | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
 | T32 | 남음 | | `test/repo/handwriting_contract_real_test.dart`, `test/repo/handwriting_repository_test.dart`, `test/perf/stale_pages_perf_test.dart` |
 | T33a | 남음 | | `test/search/search_index_writer_test.dart`, `test/web/search_fts_browser_test.dart`(쓰기) |
 | T33b | 남음 | | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
@@ -524,6 +524,31 @@
 | `ws test --package note_core --platform vm` | **998개 통과**(973 + 객체 계약 실제 8 + 세션 객체 12 + undo 5 + 내용 읽기 1 − B2 객체 시험 1), 5개 건너뜀(perf) | 83초 |
 | `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(바뀐 웹 시험 없음 — 한 읽기 트랜잭션·객체 행 읽기가 웹 워커에서도 컴파일·동작), 1개 건너뜀(perf) | 123초 |
 
+#### T31 — 녹음 초안 저장소 (계획 6.7·8.2, 계약 7.2.4)
+
+- `storage/drift_recording_draft_store.dart` `DriftRecordingDraftStore` — `DriftNoteStore.recordingDrafts`(B2의 `EmptyRecordingDraftStore`는 지웠다). 블롭은 에셋과 같은 저장소(`assetChunks ?? blobs.chunks` — 웹 IndexedDB, VM은 메모리 IndexedDB, 네이티브 파일 블롭은 T35), 키 `rd/<draftId>/<6자리>`·`rd/<draftId>/meta`(UTF-8 JSON `{v:1, recordingId, noteId, mimeType, startedAt}`). 행 `recording_drafts`는 쓰기 큐 작업으로 직접 쓴다(`putLocal` 아님 — 버전·outbox·`ChangeBatch`·백업 없음).
+- `begin`: 검증(`ArgumentError`) → 첫 사용 정리 → 같은 `recordingId`의 행 **또는 행 없는 meta**가 있으면 `StateError` → ① meta `put`(기다림) → ② 큐 작업에서 같은 `recordingId` 행을 다시 보고(경합) 행 삽입 → 커밋 뒤 초안(`updatedAt = tx.now`). ②가 `StateError`면 ①의 meta를 지운다(나중에 meta로 되살아나지 않게).
+- `append`: 초안마다 Future 사슬(부른 순서), 조각은 **부를 때 복사**. 사슬 안에서 행 또는 meta 확인(없으면 `StateError`) → 4 MiB·`activeMs` 검사(`ArgumentError`) → 번호(`_next` — 처음엔 블롭 키에서 0부터 끊김 없는 수) → ① 조각 `put` → ② 큐 작업(행이 없으면 `StateError` — 다른 곳에서 버림)으로 `chunk_count`·`bytes`·`active_ms`·`updated_at`. Future는 ② 커밋 뒤(재시도 중 미완료). 빈 조각은 ①을 건너뛴다. 999,999 넘으면 `ArgumentError`.
+- `listDrafts`: 정리 → 진행 중 사슬·큐 flush → 행마다 블롭 키로 맞춤(끊김 없는 조각 수, 행보다 많은 조각의 길이 더함, 적으면 조각 길이 합) → 행 없는 meta 접두사는 meta로 되살려(`activeMs 0`, `updatedAt = startedAt`) 큐 작업으로 행을 다시 쓴다(그 사이 같은 id·`recordingId` 행이 생겼으면 건너뜀 — UNIQUE 충돌로 큐가 재시도에 갇히지 않게) → `startedAt`, `draftId` 순.
+- `readAll`: 그 초안의 사슬·큐를 기다린 뒤, 결과 한 벌 + 조각 하나(M-4) — 행의 `chunkCount`가 조각 수와 같으면 행 `bytes`로 버퍼를 잡고, 다르면 길이를 먼저 읽는다. `discard`: 사슬 기다림 → (없으면 아무것도 안 함) ① `deletePrefix` ② 큐 작업으로 행 삭제.
+- 첫 사용 정리: `rd/` 키 전부와 행 id를 보고 **행도 meta도 없는** 접두사만 지운다(실패하면 다음에 다시).
+- 시험 이음새: `@visibleForTesting debugWriteOrder`(블롭 키 `put`과 `row:<id>`를 일어난 순서로 — 가짜의 `blobWrites`와 같은 형식).
+- `test/testing/fake_audio_recorder_test.dart`의 'start waits for CORE T31'을 실제 메모리 CORE에서 `stop`(에셋 → 녹음, 초안 없어짐)·`abandon` → 10초 뒤 `pendingDrafts` → `recoverDraft` 흐름으로 바꿨다(시험 파일 머리말이 T31에 바꾸라고 적어 둔 것).
+- `test/shared/b2_alpha_store_cases.dart` `tasks.drafts`를 null 허용으로(실제 저장소는 초안 묶음을 건너뜀).
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 4초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,017개 통과**(998 + 계약 실제 9 + 저장소 12 − B2 초안 묶음 2), 6개 건너뜀(perf — PF-7 더함). 첫 실행은 `fake_audio_recorder_test`의 B2 상태 시험이 실패(기대대로 — 위처럼 바꿈) | 125초 |
+| PF-7 VM(`flutter test --run-skipped -t perf test/perf/draft_append_perf_test.dart`) | 중앙값 **5.83 ms**(예산 ≤ 10 ms) — 파일 DB + 메모리 IndexedDB 블롭(네이티브 파일 블롭은 T35 뒤 다시 잼) | 1초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **78개 통과**(74 + `recording_draft_browser_test` 4), 1개 건너뜀(perf) | 207초 |
+| Chrome 기록(`recording_draft_browser_test` — 실제 웹 저장소, 다른 영역 시험이 함께 돎) | PF-7 Chrome `append` 8 KiB 중앙값 **10.70 ms**(기록 — ≤ 30 ms). 30분 분량(1,800 × 8 KiB = 14,745,600 B): 조각 쓰기 2,785 ms, `readAll` **1,601 ms**, `AssetStore.put` **142 ms**; `usedJSHeapSize` 299.2 → `readAll` 뒤 332.1 → `put` 뒤 347.0 MB(+33 MB ≈ 결과 한 벌 14 MB + GC 전 조각들 — M-4 '한 벌' 범위) | — |
+| `ws check` | R1~R16 위반 0·경고 0 | 96초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 26초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
@@ -539,15 +564,19 @@
 - T26: 1차 `field_version_writer_test`의 '모든 표본 왕복'이 `kSampleEntities` 전부(객체 8·손글씨·제목 있는 녹음)를 돌게 했고, v1 DB 전용 표본 `kV1RowSamples`(`test/shared/entity_samples.dart`)는 지웠다.
 - T27: 계획 6.5의 `SessionBackend` 변경(`loadStrokes` → `loadContent`)은 B2-β에서 이미 했다. T27은 B2 가드(`storesPageObjects`)를 **지웠다**(내부 — 두 백엔드 모두 객체를 저장). `NoteContentReader.loadPage`도 세션과 같은 한 읽기 트랜잭션 함수(`readActiveContent`)로 읽는다(계획은 세션 읽기에만 트랜잭션을 적음).
 - T27: 원격 객체가 옛 페이지에서 다른 페이지로 옮겨진 경우(로컬 명령으로는 생기지 않음 — `UpdateObjects`가 `pageId`를 고정)는 1차 획과 같이 힌트 `pageId`(새 페이지)만 고친다 — 옛 페이지가 로드돼 있으면 다시 열 때까지 남는다. 1차와 같은 한계라 고치지 않았다.
+- T31: 계획 표의 '①이 실패하면 행을 쓰지 않음' 외에 ②가 경합으로 `StateError`면 ①의 meta도 지운다(계획에 없음 — meta만 남으면 다음 `listDrafts`가 초안으로 되살리므로). 30분 분량 Chrome 기록은 조각 1,800개를 `append` ①과 같은 키로 블롭에 바로 쓰고 행을 한 번 고쳐 만든다(`append` 1,800번은 커밋 1,800번이라 공유 Chrome 시간을 줄이려고 — `append` 시간은 PF-7 Chrome 기록이 따로 잰다).
+- T31: 노트 영구 삭제 때 초안(행·meta·조각)을 버리는 것(6.7.2 끝·6.14.2)은 계획 8.2대로 T29(`deleteNoteContents` 확장) 몫 — 지금 실제 저장소는 영구 삭제된 노트의 초안을 남긴다.
 - T24: V7 고정 자료로 하는 웹 시간 측정(6.12.3 Chrome·PF-8)은 T25b 몫이라, 첫날 확인은 같은 크기의 합성 v1(획 2,005개)로 했다. **웹 업그레이드 열기가 1.9~2.5초**(load 6~9)로 PF-8 예산 '사본 포함 1초'를 넘었다 — 덤프 자체는 0.3초라 나머지(블롭 1.4 MB `put`, IndexedDB VFS의 업그레이드 쓰기)를 T25b의 PF-8 시험에서 고정 자료로 다시 재고 넘으면 원인을 나눠 본다.
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T28, T30. 다음은 (T27, T31, T32) — 순서 제안: **T27**(실제 저장소 객체 세션 — EDITOR E-2x·PDF 내보내기 `integration` 이정표, 가장 큼) → T31(실제 초안 저장소 — PDF `media` 이정표) → T32(손글씨 저장소 — LIBRARY L2x). T35는 T25b 전 언제든. 그다음 T33a → T33b → T34 → T29 → T36 → T37.
-- T27이 할 것: `session_engine.dart` 337·352의 `notYet('T27', …)`, `drift_library_repository.dart` 551의 `createNote(PageDraft.objects)`, `DriftSessions`의 `loadContent`(획 + `page_objects` 같은 읽기 트랜잭션)·객체 쓰기(`strokeNoteId: _noteId`를 객체에도)·N-7(원격 커밋의 `page_objects` 다시 읽기 → `remoteCommitted(objects:)`), `DriftContentReader.loadPage`의 `objects`. B2 시험 `open_test_store_test`의 `objects: 'T27'`을 null로, `test/shared/object_session_contract.dart`를 실제 저장소로(`object_session_contract_real_test`).
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31. 다음은 **T32**(손글씨 저장소 + `pages.ink_rev` 캐시 — LIBRARY L2x 이정표) → T33a(T26·T32 뒤 — 색인 쓰기 훅을 한 곳에: 로컬 세션 쓰기·원격 `_RemoteWriter`·손글씨 `put`/`update`) → T33b → T34 → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 잰다.
+- T32가 할 것: `empty_v2_repositories.dart`의 `EmptyHandwritingRepository('T32')`를 실제 저장소로(T30·T31처럼 지우고 `DriftNoteStore.handwriting` 교체), `test/shared/handwriting_contract.dart`를 실제 저장소로(`handwriting_contract_real_test`), `b2_alpha_store_cases`의 `tasks.handwriting`을 null 허용으로. 엔티티 쓰기는 `ink_rev`·`ink_rev_at`을 건드리지 않는다(T26) — 6.9.3 `refresh`가 `ink_rev_at != content_rev`인 페이지만 다시 계산해 캐시를 쓰고(outbox 없음), `ink_rev`를 손글씨 행의 `sourceRev`와 비교한다.
+- T29가 할 것(초안 몫): 영구 삭제 때 그 노트의 `recording_drafts` 행 삭제 + 커밋 뒤 `rd/<draftId>/` 블롭 삭제(6.14.2 — `afterCommit`). 지금은 남는다.
+- 초안 저장소 시험 도구: `test/media/draft_store_support.dart` `openDraftStore(path, idbFactory)`(파일 DB + 같은 메모리 IndexedDB로 다시 열기), `DriftRecordingDraftStore.debugWriteOrder`·`.blobs`.
 - 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
-- 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1` — T27의 N-7 시험(`PageContentChange(remote)`·`contentRevision`)이 이것을 본다. 손글씨는 노트 `updatedAt`을 옮기지 않는다.
-- 남은 2차 표면 `UnimplementedError`: 초안 T31, 손글씨 T32, 색인 T33a(`empty_v2_repositories.dart`), 객체 명령 T27.
+- 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.
+- 남은 2차 표면 `UnimplementedError`: 손글씨 T32, 색인 T33a(`empty_v2_repositories.dart`).
 - 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
 - v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
 - Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.

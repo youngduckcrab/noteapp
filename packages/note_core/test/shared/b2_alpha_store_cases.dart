@@ -2,8 +2,9 @@
 // the 2nd-round store members read empty and their writes throw
 // UnimplementedError('CORE <task>: …'); the stroke part of RemoveElements /
 // ClearPage(includeObjects:) works as in v1.4. Runs on the real store
-// (test/testing/open_test_store_test.dart, tasks T31 / T32 / T33a — 8.1 'B2 상태', column
-// 'B2 전체(β) 끝'; recordings since T30, the v1 copy since T24, objects since T27). The fake store
+// (test/testing/open_test_store_test.dart, tasks T32 / T33a — 8.1 'B2 상태', column
+// 'B2 전체(β) 끝'; recordings since T30, drafts since T31, the v1 copy since T24, objects since
+// T27). The fake store
 // left this state with CORE T23b; its v2 behaviour is in test/testing/fake_store_v2_test.dart
 // and the shared contracts (test/shared/*_contract.dart). Web-safe (no dart:io).
 import 'dart:async';
@@ -25,10 +26,11 @@ Matcher throwsPending(String task) => throwsA(
 
 /// The CORE tasks the store's 2nd-round writes wait for. [v1Copy]: null when the v1 copy API works (the real store since CORE T24 — an in-memory
 /// store has no copy). [recordings]: null when the repository works (the real store since
-/// CORE T30 — test/shared/recording_contract.dart).
+/// CORE T30 — test/shared/recording_contract.dart). [drafts]: null when the draft store works
+/// (the real store since CORE T31 — test/shared/recording_draft_contract.dart).
 typedef B2AlphaTasks = ({
   String? recordings,
-  String drafts,
+  String? drafts,
   String handwriting,
   String search,
   String? v1Copy,
@@ -112,31 +114,33 @@ void defineB2AlphaStoreTests(
     });
   }
 
-  group('recording drafts', () {
-    test('reads are empty; readAll knows no draft', () async {
-      final drafts = store.recordingDrafts;
-      expect(await drafts.listDrafts(), isEmpty);
-      expect(drafts.readAll('d1'), throwsStateError);
-    });
+  if (tasks.drafts case final draftsTask?) {
+    group('recording drafts', () {
+      test('reads are empty; readAll knows no draft', () async {
+        final drafts = store.recordingDrafts;
+        expect(await drafts.listDrafts(), isEmpty);
+        expect(drafts.readAll('d1'), throwsStateError);
+      });
 
-    test('writes throw UnimplementedError(CORE ${tasks.drafts})', () {
-      final drafts = store.recordingDrafts;
-      expect(
-        drafts.begin(
-          recordingId: 'r1',
-          noteId: note.id,
-          mimeType: 'audio/mp4',
-          startedAt: 0,
-        ),
-        throwsPending(tasks.drafts),
-      );
-      expect(
-        drafts.append('d1', Uint8List(16), activeMs: 1000),
-        throwsPending(tasks.drafts),
-      );
-      expect(drafts.discard('d1'), throwsPending(tasks.drafts));
+      test('writes throw UnimplementedError(CORE $draftsTask)', () {
+        final drafts = store.recordingDrafts;
+        expect(
+          drafts.begin(
+            recordingId: 'r1',
+            noteId: note.id,
+            mimeType: 'audio/mp4',
+            startedAt: 0,
+          ),
+          throwsPending(draftsTask),
+        );
+        expect(
+          drafts.append('d1', Uint8List(16), activeMs: 1000),
+          throwsPending(draftsTask),
+        );
+        expect(drafts.discard('d1'), throwsPending(draftsTask));
+      });
     });
-  });
+  }
 
   group('handwriting', () {
     test('reads are empty, also for a page with input strokes', () async {
