@@ -235,4 +235,26 @@ void main() {
       await store.close();
     }
   });
+
+  test('(T39) preload: false — the first seek loads the source and keeps its '
+      'position (just_audio 0.10.6 on the web loads such a source neither on '
+      'play() nor keeps a seek made before the load)', () async {
+    final url = web.URL.createObjectURL(
+      createHandoffBlob(silentWav(1000), 'audio/wav')! as web.Blob,
+    );
+    final port = JustAudioPlayerPort();
+    try {
+      expect(await port.load(PlayerUrlSource(url, preload: false)), isNull);
+      expect(port.snapshot.processing, PlayerProcessing.idle);
+      await port.seek(const Duration(milliseconds: 300));
+      expect(port.snapshot.processing, PlayerProcessing.ready);
+      expect(port.position, const Duration(milliseconds: 300));
+      // loaded once: the next seek does not load again (the position stays where it is put)
+      await port.seek(const Duration(milliseconds: 600));
+      expect(port.position, const Duration(milliseconds: 600));
+    } finally {
+      await port.dispose();
+      web.URL.revokeObjectURL(url);
+    }
+  });
 }

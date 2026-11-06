@@ -166,6 +166,12 @@ final class JustAudioPlayerPort implements PlayerPort {
   bool _sessionConfigured = false;
   bool _disposed = false;
 
+  /// (PDF T39) A URL source set with preload: false and not loaded yet. just_audio 0.10.6 on the
+  /// web never loads such a source on play() (it stays idle with playing = true — V8 found it)
+  /// and a seek before the load is lost when the load starts at 0, so the first play() / seek()
+  /// loads it first (load() → then the seek / the play request).
+  bool _loadPending = false;
+
   @override
   PlayerSnapshot get snapshot => _snapshot;
 
@@ -226,22 +232,40 @@ final class JustAudioPlayerPort implements PlayerPort {
   Future<Duration?> load(PlayerSource source) async {
     if (_disposed) throw StateError('JustAudioPlayerPort was disposed');
     await _configureSession();
+    _loadPending = false;
     try {
-      return await switch (source) {
+      final length = await switch (source) {
         PlayerUrlSource(:final url, :final preload) => _p.setUrl(
           url,
           preload: preload,
         ),
         PlayerFileSource(:final path) => _p.setFilePath(path),
       };
+      _loadPending = source is PlayerUrlSource && !source.preload;
+      return length;
     } on Object catch (e) {
       throw _failureOf(e);
+    }
+  }
+
+  /// Loads a preload: false source before its first play / seek; a failure goes to [snapshots]
+  /// as a [PlayerFailure] (false = not loaded).
+  Future<bool> _loadIfPending() async {
+    if (!_loadPending) return true;
+    _loadPending = false;
+    try {
+      await _p.load();
+      return true;
+    } on Object catch (e) {
+      if (!_ctrl.isClosed) _ctrl.addError(_failureOf(e));
+      return false;
     }
   }
 
   @override
   Future<void> play() async {
     if (_disposed) return;
+    if (!await _loadIfPending() || _disposed) return;
     final p = _p;
     // just_audio's play() completes when the playback pauses or stops; its errors also arrive
     // on errorStream / the state stream.
@@ -261,6 +285,7 @@ final class JustAudioPlayerPort implements PlayerPort {
   @override
   Future<void> seek(Duration position) async {
     if (_disposed || _player == null) return;
+    if (!await _loadIfPending() || _disposed) return;
     await _p.seek(position);
   }
 
@@ -275,6 +300,7 @@ final class JustAudioPlayerPort implements PlayerPort {
 
   @override
   Future<void> unload() async {
+    _loadPending = false;
     if (_disposed || _player == null) return;
     await _p.stop();
   }

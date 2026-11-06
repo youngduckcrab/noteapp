@@ -295,7 +295,7 @@
 | T36b | 완료 | 93cb7ce | `widget/recording_list_test`(13), `widget/recording_sheets_test`(10), `widget/recording_stuck_drafts_test`(13) — `test/support/panel_world.dart`에 `FakeFileDownloads`·`ScriptedRecorder.pending`/`onRecover`/`beforePending`·`seedRecording(mimeType:, bytes:, title:)` |
 | T37 | 완료 | c791531 | `unit/dev_overlay_lines_test`(10), `unit/init_test` v2(12 — 실제 override 둘·저장소 없는 컨테이너·config 고르기·저장소 있을 때 동작·컨테이너와 함께 정리), (고침) `web/testing_registrar_browser_test`(override 둘), (더함) `web/recorder_engine_browser_test` '웹의 mediaIoOverrides'(브라우저 엔진·실제 Web Locks·`enc:`/`web:` 줄) |
 | T38 | 완료 | (세션 9) | `unit/testing_fakes_test`(8 — T30 5 + T38 3: 실제 `mediaIoOverrides()` 서비스 녹음 → 정지 → 녹음 행 → 열기 → 재생 → `dispose` 뒤 복원·임시 디렉터리(녹음·재생 캐시 파일 포함) 지움, `micPermission: false` → `permissionDenied`·시작 거절, `importImageForNote` → 이미지 에셋) |
-| T39 | 남음 | | `media/record_playback_media_test`(V8), `media/draft_recovery_media_test`(V16) — CORE T31 이정표 전에는 `skip:`, 판정은 통합 4-c |
+| T39 | 완료 (판정은 통합 4-c) | (세션 9) | `web/media/record_playback_media_test`(V8), `web/media/draft_recovery_media_test`(V16), (고침) `web/media/visibility_pause_media_test` — 셋 다 `web/media/media_world.dart` `mediaStoreTest`로 실제 웹 저장소 변형(CORE T31 전에는 실행 중 스스로 skip) + CORE 가짜 저장소 변형(지금 돎); (더함) `web/playback_browser_test` 'preload: false — 첫 seek가 적재'(1) |
 | T40 | 남음 | | `integration/media_real_core_test` — 판정은 통합 4-d |
 | T41 | 남음 | | `perf/media_perf_test`, `web/media_perf_browser_test`, `media/big_recording_perf_media_test` |
 
@@ -304,7 +304,7 @@
 | ID | 처리 |
 |---|---|
 | C22-09 | 계획서 상태 줄 '승인 · 계약 v2.3', 4·5장 계약 블록 18개를 v2.3 원문과 대조(모든 줄이 원문에 있음)해 표시 줄을 'v2.3'·현재 행 번호로, V8 판정 문장(C22-04)을 6.1 E10·6.8.7·6.17·8.2 T39·10 #4에 맞춤, 바탕 `18c5ae5` → `b6c9d0a`(C22-08 — 그 사이 `pdf_io` 변화 없음 확인). 계획서 5장에는 '가정' 블록이 없다(계약 원문 블록만) |
-| PDF-F1 | T39에서: V8은 C22-04 식으로 단언, 두 값과 옛 식 결과는 진행 기록에 |
+| PDF-F1 | T39에서: V8은 C22-04 식으로 단언(실제 웹 저장소 변형 — 통합 4-c), 두 값과 옛 식 결과는 진행 기록에 — 세션 9 가짜 저장소 실측은 아래 '검사' 9 (T39) 행, 일시정지 때문에 식 위쪽이 빠듯함은 '변경 요청' |
 | PDF-F2 | T26 전: 길이 보정은 한 번 복사(`BufferLedger` `peakCount ≤ 2` — T31a·T31b), 장부 `copy`·`overBudget`은 C22-06 예외 둘만(T25a·T26). 기각 대안 코드(네이티브 2 Mpx·12 MiB 넘는 입력 빼기)는 만들지 않음 |
 | PDF-F3 | `media_io`를 바꾼 커밋마다 `ws test --package media_io --platform chrome --run-skipped -t media` 결과를 아래 '검사'에 |
 
@@ -312,7 +312,7 @@
 
 #### 변경 요청
 
-- 없음
+- [총괄] 계약 7.7.2 V8 판정식(C22-04 `lastBlockStartMs − 50 ≤ 시계 ≤ endMs + 50`)은 일시정지 없는 Chrome 녹음 6개(6.1 E10 — 시계 = 파일 끝 − 37~59 ms)로 정했는데, V8 시나리오는 가운데 일시정지 1초를 넣는다. T39 실측(가짜 저장소, 실제 Chrome MediaRecorder)에서 일시정지 한 번마다 파일이 시계보다 패킷 하나쯤(≈ 60 ms) 짧아져 `시계 − endMs`가 +35·+46·+52·+65 ms(부하 없는 쪽 4번 중 2번이 +50 넘음)였다. 위쪽 여유를 '+50 + 60 ms × 일시정지 수'(또는 +120)로 넓히거나 V8의 일시정지를 판정식에서 빼는 것을 검토해 주세요. 그때까지 `record_playback_media_test`는 계약 원문 식으로 단언한다(실제 웹 저장소 변형 — 통합 4-c).
 
 #### 의존성 요청
 
@@ -426,6 +426,13 @@
 - T37: `mediaIoOverrides()`의 두 서비스는 컨테이너마다 하나인 내부 provider `mediaPlaybackHandoffProvider`(파일 전용 이름 `_playbackHandoffProvider`)로 같은 `PlaybackHandoff`를 나눈다. 재생 설정은 `store.settings`(녹음기의 `RecorderStores.of(store)`와 같음), `recorderActive`는 녹음기 phase ≠ `idle`(`starting`·`finishing`도 활성).
 - T37: 이 작업 트리의 `app`은 아직 `mediaIoOverrides`를 쓰지 않는다(INFRA 2차 연결은 통합 단계) — override가 빈 목록에서 둘로 바뀌어 INFRA·EDITOR 시험이 '지원 안 함'을 기대했다면 통합 때 실제 녹음기(VM = 네이티브 엔진 — 플러그인이 없으면 `checkSupport` = `unsupported`)를 보게 된다.
 - T38: `testing.dart`의 공개 모양은 R2-B4(T30)·T33·T34·T35b에서 이미 계획 4.3.2대로 갖춰져 있어 새 이름·멤버를 더하지 않았다 — 이 작업은 완료 조건 시험(실제 `mediaIoOverrides()` 서비스를 가짜 플랫폼만으로 돌림)과 머리 주석 정리다. 시험은 공개 진입점(`media_io.dart`·`testing.dart`)과 CORE 가짜 저장소만 쓰고(경로는 `fakes.directory` 아래인지만 봄), 녹음기 서비스의 시계가 실제 `Stopwatch`라 정지 전에 5 ms를 실제로 기다린다(0 ms 정지는 아무것도 남기지 않음 — 6.6.3; 시간 단언은 없음). `testing.dart` 주석에 그 두 가지(몇 ms 기다림, `FakeRecordPlatform.fileBytes`를 채움)를 적었다.
+- T39: 실제 웹 저장소 변형은 정적 `skip:` 대신 **실행 중 탐침**으로 건너뛴다 — `media_world.dart` `RealWebStores.draftsReady()`가 탐침 저장소에서 `recordingDrafts.begin`을 해 보고 `UnimplementedError`(CORE T31 전)면 `markTestSkipped('CORE T31 milestone …')`. PDF-F3가 `media_io` 커밋마다 `--run-skipped -t media`를 돌리므로 정적 `skip:`은 매번 실행돼 실패한다. CORE T31이 들어오면 저절로 켜진다(통합 4-c 판정).
+- T39: 같은 본문을 CORE 가짜 저장소에서도 돌린다(`mediaStoreTest` — 계획에 없는 변형, 지금 실제 Chrome MediaRecorder 위에서 흐름을 확인). 실제 시간에 민감한 비교 — V8 C22-04 식(`lastBlockStart − 50 ≤ 시계 ≤ endMs + 50`)과 가려짐 시험의 '파일 ≈ 시계 ±150 ms' — 은 판정 변형(`MediaStores.judged` = 실제 저장소)에서만 단언하고 가짜 변형은 값을 찍기만 한다(PDF-F1). 이 컨테이너(다른 에이전트 6개)에서 잰 값이 실행마다 크게 흔들렸다 — V8 `endMs − 시계` = −52·+121·−65·−46 ms, 가려짐 시험 차 247 ms(앞 세션들은 −5~−8 ms). MediaRecorder의 start·stop 이벤트가 부하로 늦게 오는 것으로 본다(시계는 계획 6.7대로 엔진 이벤트에 맞춤 — 바꾸지 않음). 통합 4-c는 조용한 환경에서 판정할 것.
+- T39: `visibility_pause_media_test`(T32b)도 `mediaStoreTest`로 바꿨다 — 계획 9.4 '`media` 시험 모두 실제 웹 저장소'.
+- T39: CORE `WebStorageConfig`는 `sqlite3.wasm`·`drift_worker.js`를 시험 페이지 URL 기준으로 풀어서 `test/web/media/` 시험은 그 폴더에 두 파일이 있어야 한다 — `tool/prepare_web_test.dart`가 CORE 스크립트를 `--out test/web`과 `--out test/web/media`로 두 번 부르고 `.gitignore`에 두 줄을 더했다.
+- T39: V16 '탭 닫힘'은 `dispose` 없이 흉내 낸다 — `BrowserRecorderEngine.lastCapture`의 `detach()`(아무도 듣지 않음)·`stop()`·`stopTracks()`, 잠금은 `navigator.locks.request(name, {steal: true})`로 빼앗아 곧 놓는다(브라우저가 닫힌 탭의 잠금을 놓는 것과 같음). 녹음기 시계는 `clockProvider`를 FakeAsync 시계로 덮어 손으로 최근 갱신 창(10초 + 20초)을 넘긴다. 세 '탭'은 `mediaIoOverrides()` 컨테이너 셋(A 녹음, B 같은 저장소의 두 번째 녹음기, 다음 시작). A 서비스는 시험이 끝난 뒤에만 `dispose`한다. 실제 저장소 변형은 '다음 시작' 전에 저장소를 닫고 같은 이름으로 다시 연다.
+- T39: V8의 '저장된 WebM에 Duration 있음'은 첫 Cluster 앞의 Info > Duration(0x4489, float64)을 읽어 `durationMs`와 같은지 본다(`webmInfoDurationMs`). 'Chrome 표본 webm 저장(환경 변수가 있을 때만)'은 브라우저 시험이 파일을 쓸 수 없어 `--dart-define=MEDIA_IO_DUMP_WEBM=true`일 때 base64 한 줄(`media-io-webm …`)을 찍는 것으로 했다.
+- T39 (lib 고침): V8이 찾은 결함 — just_audio 0.10.6 웹에서 `setUrl(…, preload: false)` 뒤 `play()`는 적재하지 않아 `idle`·`playing = true`에 머물고, 적재 전 `seek`는 적재가 0에서 시작하며 사라진다(Chrome 진단으로 확인). `JustAudioPlayerPort`가 preload: false 원본을 첫 `play()`·`seek()` 때 먼저 `load()`한다(`_loadIfPending` — 실패는 `snapshots` 오류). 웹 재생(6.11.3 S-7 'preload: false')은 이 고침 전에는 재생되지 않았다.
 
 #### 이정표 커밋
 
@@ -520,6 +527,11 @@
 | 9 (T38) | `ws test --package media_io --platform chrome` | 74 통과 + 1 skip, prepare ok, 173 s |
 | 9 (T38) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 11:12:29–11:24:12 UTC, 잠금 대기 589초) | 1 통과 — `visibility_pause_media_test` |
 | 9 (T38) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
+| 9 (T39) | `ws test --package media_io` (VM) | 400 통과 (포트 고침 뒤 그대로), 40 s |
+| 9 (T39) | `ws test --package media_io --platform chrome` | 75 통과 + 3 skip (74 + `playback_browser_test` preload: false 1; skip 3 = `media` 태그 파일), prepare ok(`test/web`·`test/web/media`), 117 s |
+| 9 (T39) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 12:25:14–12:27:41 UTC, 잠금 대기 0초) | 3 통과 + 3 skip(실제 웹 저장소 변형 — CORE T31 전, 실행 중 skip). V8(가짜 저장소): file=1976 ms lastBlockStart=1916 ms clock=2011 ms, end−clock=−35 ms, clock−lastBlockStart=+95 ms, 옛 식 \|end−clock\|≤50 참, 시계(정지 호출 때)=2005 ms, 2배속 기울기 1.937, seek(700) 뒤 700 ms. V16(가짜 저장소): 복구 3000 ms(초안 3조각 20878 B, activeMs 3051). 가려짐(가짜 저장소): file=2514 ms clock=2530 ms |
+| 9 (T39) | 같은 `media` 시험을 `ws with-heavy-lock -- flutter test`로 고치며 돌린 앞 실행 4번(부하 — 다른 에이전트 6개) | V8 end−clock = −52·+121·−65·−46 ms(clock−lastBlockStart = +112·−61·+125·+106), 가려짐 차 247 ms 한 번, V16 통과 3번(3300·3180 ms). V8 재생은 포트 고침 전 `ready`에 머묾(아래 '계획과 다르게 한 점' T39 lib 고침) |
+| 9 (T39) | `flutter analyze --fatal-infos`(media_io), `dart format`, `ws check` | 0건, 변경 없음, R1~R16 위반 0·경고 0 |
 
 #### 다음 세션 메모
 
