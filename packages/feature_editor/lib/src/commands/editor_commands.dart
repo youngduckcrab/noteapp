@@ -345,6 +345,25 @@ class EditorCommands {
     return _run(core.UpdateObjects(pageId: pageId, objects: objects)) != null;
   }
 
+  /// (v2, E2-09 — m5-7/04-editor 6.9.2) A drawn shape: ONE
+  /// core.AddObjects([objects]) on the loaded page [pageId] through [_run];
+  /// over the page's object limit (5.1.1) → the notice, no command. Returns
+  /// whether it was accepted.
+  bool addObjects(String pageId, List<core.PageObject> objects) {
+    if (_disposed || objects.isEmpty) return false;
+    final content = _session.pageIfLoaded(pageId);
+    if (content != null &&
+        ObjectFactory.exceedsLimit(content, objects.length)) {
+      _message(
+        EditorStrings.objectLimitReached(
+          core.PageObjectLimits.maxObjectsPerPage,
+        ),
+      );
+      return false;
+    }
+    return _run(core.AddObjects(pageId: pageId, objects: objects)) != null;
+  }
+
   // ---- extension slots (m5-7/04-editor 6.7.4) ----
 
   /// (v2) `execute` of the extension contexts (EditorSelectionContext /

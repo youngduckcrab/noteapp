@@ -16,13 +16,15 @@
 // the selection priority (a′) (6.6.2), taps that select an object (6.3.5 ④)
 // and (part 2) the frame v2 hit test — rotated frames and the rotate handle
 // with its angle tag (6.6.4, 6.6.6). E2-08: a single object's edge, vertex
-// and text width handles → ObjectEditInteraction (6.6.5).
+// and text width handles → ObjectEditInteraction (6.6.5). E2-09: the shape
+// tool (6.9.2 — ShapeInteraction, a new shape selected with origin drawn).
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart' show Color, Size;
+import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -32,6 +34,7 @@ import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_sample.dart';
 import '../input/input_targets.dart';
+import '../objects/object_factory.dart';
 import '../playback/playback_highlighter.dart';
 import '../playback/recording_link.dart';
 import '../playback/tap_to_seek.dart';
@@ -56,8 +59,11 @@ import 'selection.dart';
 import 'selection_hit_test.dart';
 import 'selection_priority.dart';
 import 'selection_transform_interaction.dart';
+import 'shape_drafts.dart';
+import 'shape_interaction.dart';
 import 'tool_controller.dart';
 import 'tool_interaction.dart';
+import 'tool_options.dart';
 import 'tool_state.dart';
 
 sealed class CursorState {
@@ -302,8 +308,22 @@ class InteractionHost implements InputTargets {
           onSelected: _onLassoSelected,
         );
       case EditorTool.shape:
+        selections.clear();
+        interaction = ShapeInteraction.start(
+          down: sample,
+          source: source,
+          controller: mount.controller,
+          pageId: hit.pageId,
+          pageIndex: hit.index,
+          options: _ref.read(editorToolOptionsProvider),
+          viewport: _viewport,
+          snap: _shapeSnap,
+          onCommit: (kind, geometry, style) =>
+              _onShapeDrawn(hit.pageId, kind, geometry, style),
+          onTap: _onShapeTap,
+        );
       case EditorTool.text:
-        // (v2) ShapeInteraction comes in E2-09, the text tool in E2-10.
+        // (v2) The text tool comes in E2-10.
         interaction = null;
     }
     _lastStarted = interaction;
@@ -337,6 +357,46 @@ class InteractionHost implements InputTargets {
       _commands.notify(EditorStrings.eyedropperMissed);
     }
     tools.setEyedropper(false);
+  }
+
+  /// (E2-09, 6.9.2) Shift held → always snap, Alt → never (a hardware
+  /// keyboard; without one the thresholds).
+  static ShapeSnap _shapeSnap() {
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isAltPressed) return ShapeSnap.off;
+    if (keyboard.isShiftPressed) return ShapeSnap.always;
+    return ShapeSnap.normal;
+  }
+
+  /// (E2-09, 6.9.2 ③) A shape drawn: ObjectFactory → ONE AddObjects
+  /// (EditorCommands.addObjects — the limit notice, the rejection) → the
+  /// new shape selected with origin drawn (its handles at once).
+  void _onShapeDrawn(
+    String pageId,
+    core.ShapeKind kind,
+    core.ShapeGeometry geometry,
+    core.ShapeStyle style,
+  ) {
+    if (_disposed) return;
+    final shape = ObjectFactory.shape(
+      pageId: pageId,
+      kind: kind,
+      geometry: geometry,
+      style: style,
+      newId: _ref.read(core.idGeneratorProvider).newId,
+      createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+    );
+    if (!_commands.addObjects(pageId, [shape])) return;
+    _ref.read(editorSelectionProvider.notifier).select(pageId, {
+      shape.id,
+    }, origin: SelectionOrigin.drawn);
+  }
+
+  /// (E2-09) A shape tool tap (a diagonal under 8 px — 6.9.2 ③): the object
+  /// there selected (6.3.5 ④, origin tap), else nothing (the down already
+  /// dropped the selection).
+  void _onShapeTap(Offset screen) {
+    if (!_disposed) _tapSelectObject(screen);
   }
 
   void _onLassoSelected(String pageId, Set<String> ids) {
