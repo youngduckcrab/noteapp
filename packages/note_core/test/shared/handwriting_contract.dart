@@ -1,8 +1,10 @@
 // Shared body (m5-7/02-core 6.9.3, 6.9.4): HandwritingRepository — put validation and upsert,
 // update (read-merge-write in one write: race cases 1, 2, 4–7; case 3 needs the remote path and
 // is the real store's), removeForPage, forPage / watchPage, stalePages and notesWithStalePages
-// (exact answers, page / recency order), writes from inside a transform. The fake store runs
-// it now (test/repo/handwriting_contract_fake_test.dart), the real store from CORE T32.
+// (exact answers, page / recency order), writes from inside a transform, an unchanged value
+// writes nothing (createdAt of a row kept). The fake store runs
+// it (test/repo/handwriting_contract_fake_test.dart), the real store since CORE T32
+// (test/repo/handwriting_contract_real_test.dart — with race case 3).
 // Web-safe.
 import 'dart:async';
 
@@ -94,6 +96,37 @@ void defineHandwritingContract(FutureOr<NoteStore> Function() open) {
       expect(changes.first.noteId, note.id);
       expect(changes.first.pageId, pages[0]);
     });
+
+    test(
+      'an unchanged value writes nothing; an existing row keeps createdAt',
+      () async {
+        await get0().put(result(pages[0]));
+        final stored = (await get0().forPage(pages[0]))!;
+        final batches = <ChangeBatch>[];
+        final sub = store.changes.listen(batches.add);
+        addTearDown(sub.cancel);
+        await get0().put(result(pages[0]));
+        expect(
+          await get0().update(pages[0], (cur) => result(pages[0])),
+          stored,
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(batches, isEmpty);
+        expect(await get0().forPage(pages[0]), stored);
+        final later = HandwritingText(
+          noteId: note.id,
+          pageId: pages[0],
+          engineId: 'fake/2:ko',
+          sourceRev: stored.sourceRev,
+          lines: stored.lines,
+          createdAt: 99,
+        );
+        await get0().put(later);
+        final next = (await get0().forPage(pages[0]))!;
+        expect(next.engineId, 'fake/2:ko');
+        expect(next.createdAt, stored.createdAt);
+      },
+    );
 
     test('validation', () async {
       await expectLater(

@@ -184,7 +184,7 @@ void main() {
         recordings:
             null, // works since CORE T30 (test/shared/recording_contract.dart)
         drafts: null, // works since CORE T31 (test/shared/recording_draft_contract.dart)
-        handwriting: 'T32',
+        handwriting: null, // works since CORE T32 (test/shared/handwriting_contract.dart)
         search: 'T33a',
         v1Copy: null, // works since CORE T24 (an in-memory store has no copy)
       ),

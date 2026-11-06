@@ -18,6 +18,7 @@ import '../common/ids.dart';
 import '../common/sort_keys.dart';
 import '../common/sort_planner.dart';
 import '../common/text_normalize.dart';
+import '../common/write_guard.dart';
 import '../edit/command_resolver.dart';
 import '../edit/page_draft.dart';
 import '../model/asset.dart';
@@ -211,14 +212,7 @@ final class FakeNoteStore implements NoteStore {
   /// (v2.0) A write from inside a HandwritingRepository.update transform is a StateError
   /// (it would wait for its own queue — 6.9.4).
   Future<T> write<T>(T Function() body) {
-    if (Zone.current[kInTransformZoneKey] == true) {
-      return Future.error(
-        StateError(
-          'A store write was called from inside a HandwritingRepository.update '
-          'transform (it must be synchronous and pure)',
-        ),
-      );
-    }
+    if (inUpdateTransform) return Future.error(writeInTransformError());
     return queue.run(body);
   }
 

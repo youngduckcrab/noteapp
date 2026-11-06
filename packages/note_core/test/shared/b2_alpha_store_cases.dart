@@ -2,9 +2,9 @@
 // the 2nd-round store members read empty and their writes throw
 // UnimplementedError('CORE <task>: …'); the stroke part of RemoveElements /
 // ClearPage(includeObjects:) works as in v1.4. Runs on the real store
-// (test/testing/open_test_store_test.dart, tasks T32 / T33a — 8.1 'B2 상태', column
-// 'B2 전체(β) 끝'; recordings since T30, drafts since T31, the v1 copy since T24, objects since
-// T27). The fake store
+// (test/testing/open_test_store_test.dart, task T33a — 8.1 'B2 상태', column
+// 'B2 전체(β) 끝'; recordings since T30, drafts since T31, handwriting since T32, the v1 copy
+// since T24, objects since T27). The fake store
 // left this state with CORE T23b; its v2 behaviour is in test/testing/fake_store_v2_test.dart
 // and the shared contracts (test/shared/*_contract.dart). Web-safe (no dart:io).
 import 'dart:async';
@@ -27,11 +27,13 @@ Matcher throwsPending(String task) => throwsA(
 /// The CORE tasks the store's 2nd-round writes wait for. [v1Copy]: null when the v1 copy API works (the real store since CORE T24 — an in-memory
 /// store has no copy). [recordings]: null when the repository works (the real store since
 /// CORE T30 — test/shared/recording_contract.dart). [drafts]: null when the draft store works
-/// (the real store since CORE T31 — test/shared/recording_draft_contract.dart).
+/// (the real store since CORE T31 — test/shared/recording_draft_contract.dart). [handwriting]:
+/// null when the repository works (the real store since CORE T32 —
+/// test/shared/handwriting_contract.dart).
 typedef B2AlphaTasks = ({
   String? recordings,
   String? drafts,
-  String handwriting,
+  String? handwriting,
   String search,
   String? v1Copy,
 });
@@ -142,30 +144,32 @@ void defineB2AlphaStoreTests(
     });
   }
 
-  group('handwriting', () {
-    test('reads are empty, also for a page with input strokes', () async {
-      final hw = store.handwriting;
-      expect(await hw.forPage(pageId), isNull);
-      expect(await hw.watchPage(pageId).first, isNull);
-      expect(await hw.stalePages(note.id), isEmpty);
-      expect(await hw.notesWithStalePages(), isEmpty);
-    });
+  if (tasks.handwriting case final handwritingTask?) {
+    group('handwriting', () {
+      test('reads are empty, also for a page with input strokes', () async {
+        final hw = store.handwriting;
+        expect(await hw.forPage(pageId), isNull);
+        expect(await hw.watchPage(pageId).first, isNull);
+        expect(await hw.stalePages(note.id), isEmpty);
+        expect(await hw.notesWithStalePages(), isEmpty);
+      });
 
-    test('writes throw UnimplementedError(CORE ${tasks.handwriting})', () {
-      final hw = store.handwriting;
-      final value = HandwritingText(
-        noteId: note.id,
-        pageId: pageId,
-        engineId: 'fake',
-        sourceRev: '0000000000000000',
-        lines: const [],
-        createdAt: 1,
-      );
-      expect(hw.put(value), throwsPending(tasks.handwriting));
-      expect(hw.update(pageId, (_) => value), throwsPending(tasks.handwriting));
-      expect(hw.removeForPage(pageId), throwsPending(tasks.handwriting));
+      test('writes throw UnimplementedError(CORE $handwritingTask)', () {
+        final hw = store.handwriting;
+        final value = HandwritingText(
+          noteId: note.id,
+          pageId: pageId,
+          engineId: 'fake',
+          sourceRev: '0000000000000000',
+          lines: const [],
+          createdAt: 1,
+        );
+        expect(hw.put(value), throwsPending(handwritingTask));
+        expect(hw.update(pageId, (_) => value), throwsPending(handwritingTask));
+        expect(hw.removeForPage(pageId), throwsPending(handwritingTask));
+      });
     });
-  });
+  }
 
   group('search', () {
     test('reads are empty; status is the default', () async {

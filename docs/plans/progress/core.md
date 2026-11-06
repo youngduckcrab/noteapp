@@ -401,7 +401,7 @@
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
 | T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
-| T32 | 남음 | | `test/repo/handwriting_contract_real_test.dart`, `test/repo/handwriting_repository_test.dart`, `test/perf/stale_pages_perf_test.dart` |
+| T32 | 완료 | (이 커밋) | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
 | T33a | 남음 | | `test/search/search_index_writer_test.dart`, `test/web/search_fts_browser_test.dart`(쓰기) |
 | T33b | 남음 | | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 남음 | | `test/repo/library_search_v2_test.dart`, 1차 `library_contract` |
@@ -549,6 +549,30 @@
 | `ws check` | R1~R16 위반 0·경고 0 | 96초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 26초 |
 
+#### T32 — 손글씨 저장소 · `pages.ink_rev` 캐시 (계획 6.9·8.2, 계약 7.2.5)
+
+- `storage/drift_handwriting_repository.dart` `DriftHandwritingRepository` — `DriftNoteStore.handwriting`(B2의 `EmptyHandwritingRepository`는 지웠다 — `empty_v2_repositories.dart`에는 `EmptySearchIndex`(T33a)만 남음).
+- 쓰기는 모두 쓰기 큐 작업(`putLocal`): 새 행 `{*}`, 있으면 바뀐 JSON 키만(`changedJsonKeys` — 삭제됐던 행은 `deletedAt`이 풀려 되살아남), `removeForPage`는 `{deletedAt}`. 있던 행의 `createdAt`은 유지, `updatedAt` = 트랜잭션 시각. 활성 행과 동기 키가 하나도 다르지 않으면 쓰지 않고(ChangeBatch·outbox·버전 없음) 저장된 값을 돌려준다 — 가짜도 같게 고쳤다(공유 본문 새 사례).
+- 검증(6.9.4): 페이지 행 없음 → `EntityNotFoundException`(삭제된 페이지 행은 허용), 노트 불일치·후보 > 5·빈 `languageTag` → `ArgumentError`, `update`는 결과의 `pageId` 불일치도 `ArgumentError`.
+- `update`: 큐 작업 하나(= 한 쓰기 트랜잭션) 안에서 행 읽기 → `transform`(동기, transform 존) → 검증·쓰기. `transform`이 던진 예외는 **작업의 결과로 돌려 받아**(그때까지 쓴 것 없음) 호출자에게 다시 던진다 — `FormatException` 같은 비도메인 예외가 큐의 커밋 재시도(저장 실패 취급)로 가지 않게. 같은 커밋의 다른 작업은 그대로 커밋된다(`handwriting_repository_test`).
+- transform 안 쓰기 금지: `common/write_guard.dart`(`kInTransformZoneKey`·`inUpdateTransform`·`runUpdateTransform` — 가짜에서 옮김)를 `WriteQueue.run`이 본다 → 실제 저장소의 모든 큐 쓰기가 transform 존에서 `StateError`로 바로 실패(가짜는 `FakeNoteStore.write`). 큐를 거치기 전에 블롭부터 쓰는 API(`assets.put`·초안 `append`의 ①)는 블롭 쓰기 뒤 큐에서 실패한다.
+- `stalePages`·`notesWithStalePages`(6.9.3): `refresh`는 `ink_rev`가 있고 `ink_rev_at = content_rev`인 페이지는 캐시를 믿고, 나머지만 50쪽씩 **SQL에서 입력 획을 이어 붙여**(`group_concat(id || ':' || updated_at || ';', '' ORDER BY id)`, 도구 highlighter·tape·laser 제외 — 페이지당 한 행만 Dart로) `sourceRevOfJoined`(SHA-256)로 해시한다. 캐시 쓰기는 다시 계산한 페이지 전부를 **큐 작업 하나**로(50행씩 `UPDATE pages … FROM (VALUES …) WHERE content_rev = 읽은 값` — 그 사이 내용이 바뀐 페이지는 쓰지 않음, outbox·ChangeBatch·touch 없음), 호출이 끝나기 전에 기다린다. `notesWithStalePages`는 ① 낡은 캐시 페이지(소유자의 활성 노트·활성 페이지) → `refresh` → ② 한 질의(`EXISTS` + `LEFT JOIN handwriting ON id = 'hw_' || page_id`) — `updated_at ↓, id ↑`.
+- 해시 이음새: `common/source_rev.dart`(`sourceRevOfPairs`·`sourceRevOfJoined`·`kEmptySourceRev`) — `HandwritingText.sourceRevOf`가 위임. 엔티티 id는 ASCII(`isValidEntityId`)라 SQLite BINARY 순서 = `String.compareTo` 순서(혼합 id 시험).
+- 시험 이음새: `@visibleForTesting debugInkRefreshedPages`(획 행을 다시 읽은 페이지 수).
+- 색인(ink 단위 다시 색인 — 6.10.3)은 T33a 몫: `put`·`update`·`removeForPage`·원격 `putRemote` 훅에 넣는다.
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,047개 통과**, 7개 건너뜀(perf) | 102초 |
+| PF-6·PF-11 VM(`flutter test --run-skipped -t perf test/perf/stale_pages_perf_test.dart`, load 8) | PF-6 첫 `stalePages` **50.2 ms**(≤ 150), 캐시 최신 1.3 ms, 바뀐 페이지 1개 중앙값 **4.7 ms**(≤ 10). PF-11(5,000쪽·획 10만, DB 163 MiB) 첫 따라잡기 **390 ms**(≤ 1.5 s), 그 뒤 `notesWithStalePages` 중앙값 **1.0 ms**(≤ 30) — 덮개 색인 없이 예산 안 | 111초(시드 99초) |
+| `ws test --package note_core --platform chrome` | 준비 ok, **91개 통과**(78 + `handwriting_browser_test` 13), 1개 건너뜀(perf) | 158초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 92초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 21초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
@@ -566,17 +590,21 @@
 - T27: 원격 객체가 옛 페이지에서 다른 페이지로 옮겨진 경우(로컬 명령으로는 생기지 않음 — `UpdateObjects`가 `pageId`를 고정)는 1차 획과 같이 힌트 `pageId`(새 페이지)만 고친다 — 옛 페이지가 로드돼 있으면 다시 열 때까지 남는다. 1차와 같은 한계라 고치지 않았다.
 - T31: 계획 표의 '①이 실패하면 행을 쓰지 않음' 외에 ②가 경합으로 `StateError`면 ①의 meta도 지운다(계획에 없음 — meta만 남으면 다음 `listDrafts`가 초안으로 되살리므로). 30분 분량 Chrome 기록은 조각 1,800개를 `append` ①과 같은 키로 블롭에 바로 쓰고 행을 한 번 고쳐 만든다(`append` 1,800번은 커밋 1,800번이라 공유 Chrome 시간을 줄이려고 — `append` 시간은 PF-7 Chrome 기록이 따로 잰다).
 - T31: 노트 영구 삭제 때 초안(행·meta·조각)을 버리는 것(6.7.2 끝·6.14.2)은 계획 8.2대로 T29(`deleteNoteContents` 확장) 몫 — 지금 실제 저장소는 영구 삭제된 노트의 초안을 남긴다.
+- T32: 6.9.3의 `refresh`를 두 군데 바꿨다(PF-6·PF-11 첫 측정이 예산을 넘어서 — 첫 구현 293 ms / 2.46 s). ① 획 행(`page_id, id, updated_at, tool`)을 Dart로 읽어 고르는 대신 SQL 집계(`group_concat … ORDER BY id` — SQLite ≥ 3.44, VM·wasm·네이티브 모두 묶인 3.54.1)로 페이지당 한 행만 읽는다(drift `TypedResult.read`가 2만 행에 130~190 ms). ② 캐시 쓰기를 50쪽 묶음마다 큐 작업 하나가 아니라 `refresh` 한 번에 큐 작업 하나로(파일 DB `journal_mode=delete`·`synchronous=FULL`에서 커밋 하나가 약 15 ms — 5,000쪽이면 100번에 1.5 s). 읽기 묶음(50쪽)과 '그 사이 content_rev가 바뀐 페이지는 쓰지 않음'은 그대로다. 덮개 색인 `idx_strokes_ink`는 넣지 않았다(PF-11 390 ms — 예산 안).
+- T32: 계획 6.9.4에 없는 두 가지 — 있던 행의 `createdAt` 유지(메타 키라 동기화되지 않으므로 기기마다 달라지지 않게), 동기 키가 같으면 쓰지 않음(색인기가 같은 결과를 다시 써도 동기화·`ChangeBatch`가 생기지 않게). 가짜도 같이 고쳤고 공유 본문에 사례를 더했다.
+- T32: 알려진 경합(1차와 같은 한계 — 썸네일 `contentRevision`도 같음): 세션의 로컬 커밋은 `content_rev`를 세션 메모리 값으로 **덮어쓴다**(`+1`이 아님). 원격 획 커밋과 그 페이지가 열린 세션의 로컬 커밋이 엇갈리면 두 변경 뒤에도 `content_rev`가 한 번만 오를 수 있고, 그 사이에 계산된 `ink_rev` 캐시가 최신으로 보일 수 있다(다음 획 변경에서 바로잡힘). 고치려면 세션 쓰기를 `MAX(content_rev + 1, 세션 값)`으로 — 1차 동작이라 T32에서는 건드리지 않았다(다음 세션 메모).
 - T24: V7 고정 자료로 하는 웹 시간 측정(6.12.3 Chrome·PF-8)은 T25b 몫이라, 첫날 확인은 같은 크기의 합성 v1(획 2,005개)로 했다. **웹 업그레이드 열기가 1.9~2.5초**(load 6~9)로 PF-8 예산 '사본 포함 1초'를 넘었다 — 덤프 자체는 0.3초라 나머지(블롭 1.4 MB `put`, IndexedDB VFS의 업그레이드 쓰기)를 T25b의 PF-8 시험에서 고정 자료로 다시 재고 넘으면 원인을 나눠 본다.
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31. 다음은 **T32**(손글씨 저장소 + `pages.ink_rev` 캐시 — LIBRARY L2x 이정표) → T33a(T26·T32 뒤 — 색인 쓰기 훅을 한 곳에: 로컬 세션 쓰기·원격 `_RemoteWriter`·손글씨 `put`/`update`) → T33b → T34 → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 잰다.
-- T32가 할 것: `empty_v2_repositories.dart`의 `EmptyHandwritingRepository('T32')`를 실제 저장소로(T30·T31처럼 지우고 `DriftNoteStore.handwriting` 교체), `test/shared/handwriting_contract.dart`를 실제 저장소로(`handwriting_contract_real_test`), `b2_alpha_store_cases`의 `tasks.handwriting`을 null 허용으로. 엔티티 쓰기는 `ink_rev`·`ink_rev_at`을 건드리지 않는다(T26) — 6.9.3 `refresh`가 `ink_rev_at != content_rev`인 페이지만 다시 계산해 캐시를 쓰고(outbox 없음), `ink_rev`를 손글씨 행의 `sourceRev`와 비교한다.
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32. 다음은 **T33a**(T26·T32 뒤 — 색인 쓰기 훅을 한 곳에: 로컬 세션 쓰기·원격 `_RemoteWriter`·손글씨 `put`/`update`/`removeForPage`·원격 손글씨) → T33b → T34 → T29 → T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 잰다.
+- T33a가 손글씨에 붙일 곳: `DriftHandwritingRepository._store`(새 행·바뀐 행 — 같은 트랜잭션의 savepoint에서 ink 단위 다시 색인, 실패는 원천 쓰기를 막지 않음 C-13)와 `removeForPage`(ink 단위 제거), 원격은 `_RemoteWriter`의 `HandwritingText` 경우.
+- `content_rev` 경합(위 '계획과 다르게 한 점' T32): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`·`putLocal(Page)`)를 `MAX(content_rev + 1, 값)`으로 바꿀지 T37(또는 통합) 전에 판단 — 썸네일 캐시도 같은 이득.
 - T29가 할 것(초안 몫): 영구 삭제 때 그 노트의 `recording_drafts` 행 삭제 + 커밋 뒤 `rd/<draftId>/` 블롭 삭제(6.14.2 — `afterCommit`). 지금은 남는다.
 - 초안 저장소 시험 도구: `test/media/draft_store_support.dart` `openDraftStore(path, idbFactory)`(파일 DB + 같은 메모리 IndexedDB로 다시 열기), `DriftRecordingDraftStore.debugWriteOrder`·`.blobs`.
 - 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
 - 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.
-- 남은 2차 표면 `UnimplementedError`: 손글씨 T32, 색인 T33a(`empty_v2_repositories.dart`).
+- 남은 2차 표면 `UnimplementedError`: 색인 T33a(`empty_v2_repositories.dart` `EmptySearchIndex`).
 - 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
 - v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
 - Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.

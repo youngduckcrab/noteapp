@@ -18,6 +18,7 @@ import 'package:meta/meta.dart';
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
+import '../common/write_guard.dart';
 import '../model/asset.dart';
 import '../model/handwriting.dart';
 import '../model/page.dart';
@@ -156,6 +157,8 @@ final class WriteQueue {
     int bytes = 0,
   }) {
     if (_closed) return Future.error(StateError('The note store is closed'));
+    // (v2.0, m5-7/02-core 6.9.4) No store write from inside an update transform.
+    if (inUpdateTransform) return Future.error(writeInTransformError());
     final job = _Job<Object?>(body, origin, bytes, clock.now());
     _queue.add(job);
     _setStatus(pendingOps: _pending);
