@@ -4,7 +4,7 @@
 
 - 2차 동시 개발(세션 9 + 보완 1.1~1.4·2.1~2.4·3.1, 2026-11-06): **8.2의 T24~T37 모두 완료**. 마지막까지 남았던 T33b·T37의 PF-3·PF-4(검색 질의 예산 — 계약 V10)는 총괄이 CP-18을 승인해(**계약 v2.5 C25-01**) v2.5 예산 — 후보 100개 미만 중앙값 ≤ 5 ms(1글자 LIKE ≤ 15 ms), 그 밖(후보 상한 2,000까지) ≤ 50 ms — 으로 판정해 통과했다(보완 3.1 `19a5b30` — `search_perf_test`가 질의마다 센 후보 수로 예산을 고르는 시험 하나, load 2.6~4.3에서 두 번 통과). 그 전까지: PF-3·PF-4는 v2.4까지의 원문 예산(중앙값 ≤ 5 ms / 1글자 LIKE ≤ 15 ms)을 흔한 낱말 질의(후보 1,000~5,000개)가 20~46 ms로 넘었다 — 설계(후보 상한 2,000·가짜와 같은 판정)에 묶인 값이라 이 영역 혼자 닫을 수 없어 변경 요청 [총괄] V10(계획 12.1 CP-18)을 올렸다(아래 '## 2차' > '동시 개발' > '보완 1.1'). 마지막 작업 커밋은 T37(`b6c7bae`·`b1ce7ab`·`b05cd2a`)과 보완 1.1(`8f29456`·`6995ec1`). 보완 1.2·1.3은 같은 미비점 4건을 다시 받아 HEAD에서 확인만 했다(각각 기록 커밋 하나 — 검토 글이 보완 1.1 앞 상태 `9e29118`과 맞음, '보완 1.3' 절에 HEAD의 파일·행 표). 보완 1.4(네 번째 — 같은 4건)에서 처음으로 load < 4에서 쟀다: 원문 V10은 흔한 낱말 7개가 여전히 19~31 ms(부하 탓이 아님 — 검토 1번 그대로), CP-18 제안의 아래 칸 경계(300·600개)는 여유가 없어 **100개로 고쳤다**('보완 1.4'). 보완 2.1(새 검토 5건): R-8 시험(`undo_objects_test` — 녹음·손글씨가 히스토리 밖, 가짜·실제)과 CP-9 `seedSyntheticNote(objectsPerPage:)`를 더했고, INFRA 웹 예산표 몫을 변경 요청 [INFRA]로 보냈다. PF-3·PF-4는 그때 그대로 판정 대기였다('보완 2.1'). 보완 2.2는 같은 5건을 다시 받아(검토 글이 보완 2.1 앞 `b0eff3d`와 맞음) HEAD에서 확인만 했다(기록 커밋 하나 — '보완 2.2' 절에 HEAD의 파일·행 표, 원문 V10은 여전히 흔한 낱말 7~9개가 넘음). 보완 2.3도 같은 5건(세 번째 — 여전히 `b0eff3d` 상태의 글)이라 HEAD에서 확인만 했다(기록 커밋 하나 — '보완 2.3' 절, load 1.0~1.4에서도 원문 V10 8개가 넘음: 흔한 낱말 32.7~35.4 ms·1글자 LIKE 21.4~23.9 ms). 보완 2.4도 같은 5건(네 번째 — 글자까지 같음)이라 HEAD(`542fa79`)에서 확인만 했다(기록 커밋 하나 — '보완 2.4' 절, load 5.0~5.7에서 원문 V10 10·9개가 넘음). 보완 3.1: 계약 v2.5 C25-01(CP-18 승인) 반영 — '보완 3.1' 절.
 - 2차 기반 단계 마지막: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
-- 2차 다음 할 일: 동시 개발 몫은 없다(CP-18 승인 — v2.5 C25-01을 보완 3.1에서 반영). 다음은 통합 단계(7.7 — I-1~I-7): I-6에서 PF-3·PF-4를 v2.5 예산으로 load < 4에서 다시 판정(9.1).
+- 2차 통합 단계(2026-11-06, 7.7.1 1단계): **CORE 몫 I-1~I-7 끝** — C26-03(`1523f3a`), `content_rev` 경합 수정(`820449d`), V7(VM·Chrome)·V10 CORE 부분(VM·Chrome 같은 결과, PF-3·PF-4 v2.5 예산 load 4.8 → 3.5, PF-10 ≤ 12 MB·≤ 50 ms, PF-10w +133 ms) 통과, 다른 영역 integration·media 시험에서 CORE 원인 실패 없음(아래 '## 2차' > '통합 단계'). 남은 것: [SYNC]·[PDF] 시험 쪽 4건(그 영역 몫), 실기기 9.5.
 - 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
 - 다음 할 일: 총괄이 7.6 커밋 실패 훅(SYNC 요청 1)을 채택하면 CORE가 구현(아래 제안). iPad 확인(계획서 9.2·10절 #9). 10절 #7(SYNC T16을 막는 CORE 결함 없음)은 통합 태그 전체 통과로 확인(SYNC 42개)
 
@@ -409,7 +409,7 @@
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
 | T37 | 완료 — PF-1~PF-11·README·Chrome `perf`·(보완 2.1) CP-9 `objectsPerPage`. PF-3·PF-4는 T33b와 같이 v2.5 C25-01 예산으로(보완 3.1) | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4 `ec0d7d7`(README PF-3·PF-4 load < 4 값) · 보완 2.1 `f99d064`(CP-9 `objectsPerPage` — 아래 '보완 2.1' 3번) · 보완 3.1 `19a5b30`(README 성능표 PF-3·PF-4 v2.5) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2, (CP-9) `test/dev/seed_synthetic_note_test.dart` |
-| I-1~I-7 | 통합 단계 | | 계획 8.3 |
+| I-1~I-7 | 통합 단계 — CORE 몫 끝(아래 '통합 단계'): V7·V10 CORE 부분 통과, CORE 원인 실패 없음. 다른 영역 시험 쪽 4건은 그 영역에 보냄. 실기기(9.5)는 컨테이너 밖 | `1523f3a`(C26-03)·`820449d`(`content_rev` 경합)·진행 기록 커밋 | 계획 8.3, `test/shared/search_contract.dart` C26-03 사례, `test/session/content_rev_race_test.dart` |
 
 #### 00-review '최종 승인' CORE 항목 처리
 
@@ -1136,3 +1136,80 @@ HEAD에서 바로 볼 곳:
 - Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.
 - 웹 PF-8(사본 포함 업그레이드 1.4~4.4 s — 컴파일러·부하에 따라, 사본 없이 0.35 s): 대부분 덤프 전체의 `package:crypto` SHA-256(위 'T25b' 절). 예산은 VM만이라 그대로 뒀다. 통합 단계에서 릴리스 웹 빌드(V6)로 첫 실행 시간을 보고 1 s를 넘으면 한 조각 덤프의 `crypto.subtle.digest` 또는 meta 조각별 해시를 검토(meta 형식을 바꾸면 INFRA 개발자 메뉴 확인).
 - 계약 7.2.6 문장 '둘 중 하나라도 없으면 1차처럼 `storageUnavailable`'대로 앱(INFRA J4 `defaultNoteStoreConfig`)이 네이티브에서 두 경로를 넘기는지 통합 단계 I-6에서 본다(이 작업 트리의 app은 기반 단계 상태 — `nativeDatabasePath` null 확인 시험만 있음).
+
+### 통합 단계
+
+2차 통합(계약 7.7.1 1단계 CORE — 계획 8.3 I-1~I-7). 바탕: 통합 브랜치 `claude/note-app-planning-bk29xb` `8c2256e`(INFRA 체크포인트 `b032244` 뒤 CORE `68f696b` → INK → SYNC → PDF → LIBRARY → EDITOR 병합). 다른 영역 통합 담당과 같은 컨테이너(CPU 4, load 1.6~9 — 시각마다 아래에 적음). 기준선 VM 로그(총괄 `ws test`, 병합 직후): note_core 1199 통과·13 건너뜀(perf)·실패 0.
+
+#### 커밋
+
+| 커밋 | 내용 |
+|---|---|
+| `1523f3a` | **C26-03**(계약 v2.6): `searchPages` pdf 결과의 사각형 = 질의 낱말마다 대표 단위에서의 첫 일치(발췌가 첫 낱말에 쓰는 규칙 — `norm`에서 처음 나오는 곳)의 글자 상자를 줄 묶음마다 합친 목록을 질의 순서대로 이음(이미 든 상자는 다시 넣지 않음). 실제·가짜가 같은 내부 함수 `search_pipeline.dart` `pdfHitBoxes`를 부른다(CP-14). 발췌·`matchRange`는 그대로 첫 낱말. 공유 본문 `test/shared/search_contract.dart`에 'pdf (v2.6, C26-03)' 사례(가짜·실제 VM·Chrome — 두 줄, 질의 순서, 같은 낱말 두 번, 1글자 LIKE 경로). 계획 6.10.4 pdf 행 |
+| `820449d` | **`content_rev` 경합**(T32 '계획과 다르게 한 점'·'다음 세션 메모'에서 통합 단계로 미룬 것): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`)를 `MAX(content_rev + 1, 세션 값)`으로. 세션이 아직 못 본 원격 쓰기가 쓰기 큐에서 먼저 커밋되면 두 변경이 한 번만 올랐다(재현: `test/session/content_rev_race_test.dart` — 고치기 전 기대 3·실제 2). 경합이 없으면 세션 값 그대로(같은 파일 두 번째 사례, 1차 시험 전부 그대로 통과). 계획 6.9.3·9.1 |
+| (이 커밋) | 진행 기록 이 절, README 검색 절(C26-03 사각형 규칙) |
+
+#### I-1 — CORE 병합 · V7 · 패키지 시험 (계약 7.7.2 V1·V3·V7)
+
+- `ws check`(R1~R16) 위반 0(16:17 UTC). 패키지 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음(328 파일).
+- VM `flutter test`(C26-03·경합 수정 뒤, 16:29 UTC): **1203 통과·13 건너뜀(perf)·실패 0**(기준선 1199 + C26-03 공유 사례 2(가짜·실제) + 경합 시험 2).
+- Chrome `ws with-heavy-lock -- ws test --package note_core --platform chrome`: C26-03 뒤(16:10~16:14 UTC) **115 통과·2 건너뜀(perf)·실패 0**. 경합 수정 뒤 다시(16:29~16:47 UTC): **115 통과·2 건너뜀·실패 0** — 첫 시도는 마지막 파일(`json_web_format_browser_test`)을 불러오는 중에 멈춰(load 0 — Chrome 시작 멈춤, 시험 실패 아님) `ws`의 15분 제한으로 끊기고 두 번째 시도에서 통과('ok (try 2, after a time-out)').
+- **V7 판정: 통과(VM·Chrome)** — `test/migration/v1_fixture_migration_test.dart`(VM 파일 DB + 파일 블롭, `openNoteStore`: ①엔티티 표 v1 열 덤프 = manifest `entityDumpSha256`(행·필드 버전 — C-14) ②outbox·kv 그대로(`outboxDumpSha256`) ③v2 표·`user_version` 2 ④업그레이드 직전 v1 사본 `<path>-v1-backup`이 v1 SQLite이고 그 정규 덤프 sha256 = `fullDumpSha256` ⑤객체·녹음·검색 동작·다시 열어도 같음), `test/web/v1_fixture_migration_browser_test.dart`(Chrome 웹 워커: ①②③⑤ + ④′ 블롭 저장소의 정규 덤프 사본 sha256 = `fullDumpSha256`, `readV1DatabaseCopy` 결과도 같음), `test/storage/generated_migrations/note_db/migration_test.dart`(drift 생성 마이그레이션 1 → 2), `v1_fixture_files_test`(고정 자료 파일 = manifest). PF-8 VM 사본 포함 업그레이드 78 ms(≤ 1 s, 사본 없이 43 ms).
+- C2-38(INK 병합 뒤): CORE 캘리그래피 키 `kCalligraphyNibAngleKey = 'nibAngleDeg'`(`object_rules.dart`, `calligraphy_transform_test`가 문자열로 단언) = INK `InkStyleExtras.nibAngleDeg`(`style_ink_v2_test` 'wire keys' 단언). 끝에서 끝으로는 INK `selection_test` 'calligraphy with the CORE fake store (T28 — C2-38: preview = commit)' 회전 30°·크기 2배(미리보기 픽셀 = 커밋 픽셀)가 기준선에서 통과.
+
+#### I-2 — SYNC T16-v2 (실제 CORE 2개)
+
+- `sync_engine` `flutter test --run-skipped -t integration test/integration`(16:11, 경합 수정 뒤 16:31 다시): **64 통과·2 실패** — C-01~C-31(`core_sync_store_contract_test` 새 종류 C-26~C-31 포함)·객체 동시 편집·삭제 대 수정(`core_objects_scenarios_test`)·모르는 `type` 왕복(U1)·모르는 `kind` 보류·손글씨 H1·H2·H4·녹음 R2·폴더 순환은 통과. 실패 2건은 **시험 쪽 가정**이라 CORE를 고치지 않고 [SYNC]에 보냈다(반환 changeRequests):
+  - H3 `core_handwriting_test.dart` 129행: `content.getPage(page)!` — `NoteContentReader.getPage`는 계약상 '활성 페이지 또는 null'(가짜·실제 둘 다 삭제 페이지에 null). 임시 진단 사본(커밋하지 않고 지움)으로 확인: 두 기기 모두 손글씨 행 `lines ['정적분']`·`deletedAt null`, 페이지 행은 삭제 — 시험의 나머지 단언은 실제 CORE에서 맞다.
+  - R1 `core_recording_title_test.dart` 49행: 두 기기에서 **삭제된** 녹음의 `renameRecording` → `EntityNotFoundException` — 계획 6.6 표 '없거나 삭제된 녹음이면 `EntityNotFoundException`'(가짜도 같음, 공유 `recording_contract`). 앞 절반(이름 대 삭제 → 삭제되고 이름도 남음)은 통과.
+- CORE 원인(힌트·고아·키 집합·`content_rev`) 실패 없음.
+
+#### I-3 — PDF `integration` · `media`
+
+- `pdf_io` `flutter test --run-skipped -t integration test/integration`(16:13): 22 통과·2 실패, 둘 다 CORE 원인 아님:
+  - `search_indexer_core_test`(V10 PDF 부분, 실제 CORE): 탐침 `searchIndexWritable`이 소유자 키 `'probe#0'`을 써서 CORE 작성기 검증(계약 7.2.5 `<assetId>#<pdfPageIndex>` — assetId 64자 16진)이 `ArgumentError`를 던짐 → 시험이 시작 전에 실패. 임시 사본(유효 키 `'0' * 64 + '#0'`, 커밋하지 않고 지움)으로 돌리면 실제 CORE에서 'HHHH'·'Second'·크기 바꾼 쪽 사각형이 1차 `searchNote`와 ±0.5 pt로 같다(V10 'PDF 출처 결과의 사각형이 노트 페이지 pt로 맞음' — 실제 = 가짜). → [PDF]
+  - C26-03으로 'second lecture'의 v2 사각형이 두 개(`Second` 72.9–132.0, `lecture` 139.2–191.3 × y 106.7–120.3 pt — 실제·가짜 같음)가 되어 `expectSameRects(…, 'second lecture', second, lines: 1)`(1개 기대)가 실패한다 — 비통합 VM 시험 `pdfium/search_indexer_fake_core_test.dart`도 같은 줄에서 실패(기준선 로그 pdf_io 실패 1건이 이것 — 기준선이 `1523f3a` 뒤에 pdf_io를 돌림). 계약 v2.6 C26-03의 의도된 변화. → [PDF]
+  - `export_objects_v11_test`(V11): 점선 획 조각 1개(> 1 기대) — CORE 아님: 같은 `Stroke`(`StrokeStyle.defaultsFor(PenTool.dashed)`, 21점)가 `openTestNoteStore`의 `createNote` → `loadPage`에서 스타일 그대로 돌아옴(임시 시험으로 확인, 지움). INK 벡터 내보내기·PDF 쪽.
+  - `core_gateway_test`·`real_wiring_test`·`ink_*`·`math_raster_real_test` 통과.
+- `media_io` `integration`(VM, 실제 CORE `openTestNoteStore`): 5 통과(녹음 → 에셋·`Recording` 행·`audioBytesOf`, 순서 바뀐 `createRecording` → `ArgumentError`·행 없음, 닫고 다시 연 저장소의 초안 그대로 복구, 빈 조각 → `updatedAt`, 노트 영구 삭제 뒤 복구할 것 없음).
+- `media`(Chrome 가짜 마이크, 무거운 잠금, 16:25~16:26 UTC load 1.7~3): V8·V16·가려짐 각각 **실제 웹 저장소(`openWebTestNoteStore`) 변형 포함 6 통과**(동시 개발 때는 실제 변형 5개가 탐침으로 건너뛰었다). V16 실제 웹 저장소: 녹음기 버림 → 새 컨테이너 복구 3,000 ms·초안 3조각 21,350 B·원래 `recordingId`. V8 실제 웹 저장소: 파일 1,975 ms·마지막 블록 시작 1,915 ms·시계 2,013 ms(시계 − 마지막 블록 시작 = +98 ms, 파일 끝 − 시계 = −38 ms — C26-01 판정식 안). 86 MB 녹음(`big_recording_perf_media_test`)은 PDF 몫이라 돌리지 않았다.
+
+#### I-4 — LIBRARY L2x
+
+- `feature_library` `integration`(`core_contract_test` — 실제 CORE 파일 DB): 11 통과(텍스트 상자 내용 검색 → 그 페이지·상자로 열림 포함). `ink_recognition` `integration`: 8 통과 — `real_core_indexer_test`(합성 페이지 `notesWithStalePages` → `stalePages` → 가짜 엔진 → `update` → `searchPages`가 ink 줄 사각형으로 찾음·끝나면 낡은 쪽 없음, 진행 중 원격 결과 → 작업 버림·다시 실행 안 함), `shape_assist_flow_test` 6.
+
+#### I-5 — EDITOR E-2x
+
+- `feature_editor` `integration` `real_core_ink_smoke_test`(실제 CORE + 실제 INK — 펜·부분 지우개·되돌리기·올가미 이동·나갔다 다시 열기): 통과. 기준선 VM의 feature_editor 실패 4건(`erase_v2`·`lasso_mixed`·`shape_tool`·`text_box` — 탭 선택·부분 지우개가 객체를 못 잡음)은 CORE 가짜 저장소 위 위젯 시험이고, 동시 개발 동안 CORE 가짜의 객체 동작 변경은 T27의 내부 가드 삭제 하나뿐이라 CORE 원인으로 보지 않았다(EDITOR·INK 통합 담당 몫).
+
+#### I-6 — INFRA · V10 CORE 부분
+
+- V5 v2(`app/test/integration/app_smoke_v2_test.dart` — 메모리 CORE + 실제 모듈, 검색 결과가 그 페이지·사각형으로 열림)·`feature_switch_test` 통과(경합 수정 뒤 다시 12 통과). 1차 V5 `app_smoke_test`는 override 집합이 다르다고 실패 — 앱 셸 연결(INFRA) 몫, CORE 아님. V6(Chrome)은 INFRA 단계에서.
+- 네이티브 경로 연결(정적 시험): `app/lib/src/modules/core_module.dart` `defaultNoteStoreConfig`가 `nativeDatabasePath`·`nativeAssetDirectoryPath`를 같은 `NativeStoragePaths`에서 둘 다(또는 둘 다 없이) 넘김(계약 7.2.6 — 한쪽만이면 CORE `storageUnavailable`) — `dart test tool/test/native_config_test.dart` 65 통과.
+- 개발자 메뉴 v1 사본(CP-17): INFRA `V1CopySection`의 기본 인자가 CORE `v1DatabaseCopyInfo`·`readV1DatabaseCopy`·`deleteV1DatabaseCopy`(`package:note_core/dev_tools.dart`) 그대로. CORE 동작은 `v1_copy_test`(VM)·`v1_copy_browser_test`(Chrome — 만들기·읽기·지우기·다시 열기) 통과.
+- **V10 CORE 부분 판정: 통과.**
+  - VM·Chrome 같은 결과: 공유 검색 본문(`search_contract` — 6.10.2 질의 표·조사 03 9.2 질의·C26-03 포함)이 가짜·실제 VM·Chrome(`search_fts_browser_test`)에서 통과, `fts_candidate_equivalence_test`(FTS5 = 흉내) 통과.
+  - 5,000쪽 질의 예산(v2.5 C25-01): 처음 `flutter test --run-skipped -t perf test/perf`(16:18~16:21 UTC, load 5.1 → 6.2, 성능 파일 여러 개가 동시에 돔 — PF-11 시드 142 s·10만 획 시드와 겹침)에서 PF-4 '가'(4,995개) 53.7 ms > 50·PF-10 한국어 질의 79.9 ms > 50으로 두 파일 실패 → 부하 규칙대로 그 두 파일만 `--concurrency=1`로 다시(16:21~16:22, load 4.8 → 3.5): **모두 통과** — PF-3 100개 미만 1.8~3.5 ms(≤ 5), 그 밖 4.5~37.3 ms(≤ 50), PF-4 '각'(0개) 10.3 ms(≤ 15), 576~4,995개 16.7~22.8 ms(≤ 50). C26-03의 추가 비용은 여러 낱말 질의의 매핑 한 번뿐(한 낱말은 기존 발췌 범위를 그대로 씀).
+  - 실제 모양 500쪽(PF-10, VM): DB 증가 한국어 8.31 / 혼용 6.15 / 영어 3.62 MiB(≤ 12 MB, 글자 상자 블롭 5.34~5.36 MiB는 SQLite 밖), 100쪽 질의 37.5 / 32.3 / 15.8 ms(≤ 50, 같은 프로세스 저장소), 네이티브 저장소 혼용 40.5 ms(기록).
+  - PF-10w(Chrome `search_reopen_time_browser_test`, 무거운 잠금, 16:22~16:24 UTC load 3.1 → 1.6): 다시 열기 131 → 264 ms(**+133 ms ≤ +300 ms**), 첫 질의 129 ms(DDC, 기록). 1차 `open_time_browser_test`: 빈 DB 열기 544 ms, 획 1만 개 362~406 ms.
+  - 그 밖 성능(같은 첫 실행 — 모두 예산 안): PF-1 191.98 ms(≤ 400), PF-2 0.70 ms(≤ 2), PF-6 65.6 ms(≤ 150)·한 쪽 바뀜 8.08 ms(≤ 10), PF-7 5.57·7.62 ms(≤ 10), PF-8 78.36 ms(≤ 1,000), PF-11 첫 따라잡기 347 ms(≤ 1,500)·그 뒤 1.03 ms(≤ 30), 1차 목록 16.6 ms·1획 커밋 13.1 ms·`openSession` 9.15 ms·`openPage` 76.7 ms·`AddStrokes` 0.41 ms·디코드 61.7 ms.
+  - INFRA 웹 예산표 기록 행(변경 요청 [INFRA] 보완 2.1) 값 갱신: PF-10 크기는 위와 같음(바뀌지 않음), PF-10w는 **+133 ms(131 → 264 ms)**.
+
+#### I-7 — 끝
+
+- README 검색 절에 사각형 규칙(C26-03)을 적었다. 7.8 실기기 확인(계획 9.5 A-1·A-c1·A-c2·B-1·B-10·B-13·B-14·B-c1·B-c2·C-c1)은 컨테이너 밖 — 사용자 기기·Firebase Hosting(U24·U25)이 생긴 뒤 결과를 받는다.
+
+#### 변경 요청 (통합 단계)
+
+- 받은 것: 다른 영역 진행 기록에서 CORE에 온 요청 — PDF `pdf.md` '[CORE·총괄] (T29, V10)'(여러 낱말 강조)은 계약 v2.6 C26-03으로 판정돼 `1523f3a`에서 반영. '[PDF 통합·CORE] U+0002'는 C26-04로 PDF 어댑터 몫(CORE 정규화는 그대로 — 계약대로).
+- 보낸 것(반환 changeRequests): [SYNC] H3 `getPage` 가정, [SYNC] R1 삭제된 녹음 이름 바꾸기, [PDF] V10 탐침 키, [PDF] C26-03 'second lecture' 기대값.
+
+#### 계획과 다르게 한 점 (통합 단계)
+
+- C26-03 '그 페이지 첫 일치'를 **대표 단위 안의 첫 일치**로 구현했다 — 판정(`searchMatches`)이 단위마다라 대표 단위가 모든 질의 낱말을 가지며, 한 PDF 쪽은 `PdfTuning.indexMaxUnitCodeUnits`(30,000) 안이면 단위 하나다. '첫 일치'는 발췌와 같은 규칙(`norm`에서 처음 나오는 곳)이라 첫 사각형은 늘 `matchRange` 자리다. 같은 상자가 두 번 나오면(같은 낱말 두 번) 한 번만 넣는다.
+- `content_rev` 경합은 1차 동작이라 T32·T37에서 두었던 것을 통합 단계에서 고쳤다(계획 6.9.3에 적음). `Page` 엔티티로 함께 쓰이는 페이지(배경·크기 변경과 같은 커밋)는 그 엔티티 값 그대로다(드묾 — 원격 적용이 그 사이에 끼면 같은 한계가 남음).
+- 다른 영역 시험의 원인 나누기에 임시 진단 파일을 그 영역 경로에 잠깐 만들었다가(`sync_engine/test/integration/zz_core_debug_h3_test.dart`, `pdf_io/test/{support,integration}/zz_tmp_*`) 돌린 즉시 지웠다(커밋하지 않음 — `git status`로 확인).
+
+#### 확인
+
+- 위 각 절의 명령·시각·결과. 남은 것: 다른 영역 결함 4건(반환 changeRequests)과 컨테이너 밖 실기기 확인.

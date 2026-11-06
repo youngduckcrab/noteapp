@@ -272,6 +272,10 @@ final inNote = await store.search.searchPages(query, withinNote: noteId);
 
 - Trashed notes and deleted pages are left out. A pdf hit appears on every
   live page that shows that PDF page.
+- Rects: ink → the matched lines, text / math → the object bounds, pdf → for
+  each query word the glyph boxes of its first match, merged per line and
+  joined in query order (contract v2.6 C26-03 — a phrase is highlighted as a
+  whole). The snippet and `matchRange` follow the first query word.
 - `store.search.status` reports `rebuilding` and `pendingOwners`;
   `rebuild()` is idempotent. Providers: `searchIndexProvider`,
   `librarySearchProvider(query)`.
