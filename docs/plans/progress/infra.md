@@ -415,7 +415,7 @@
 | J19 | 완료 | `0b3c5d2` | `app/test/integration/app_smoke_v2_test.dart`(V5 v2 — 지금 되는 단계: 시작 5모듈 ok·7.3.3 행 한 번씩·오디오/인식 행의 출처 모듈·값, 자리 4개(이미지 = 주입 가져오기·녹음 패널 = `mediaRecordingPanel`·선택/삽입 = 실제 recog 동작 id), 개발자 섹션 순서·`recog.settings` 위치·유휴 작업 4개, 5모듈 위 1차 V5 흐름, 9 라우팅(`onOpenNoteAt` → `?page=&focus=` → 에디터 인자·주소)), `integration/feature_switch_test.dart`(V15 — 기대 행 표 1 + 주입 8조합 + 모두 끔 1차 흐름 + `AppFeatures.compileTime`(H5는 `--dart-define` 3개)), `web/app_smoke_v2_browser_test.dart`(V6 v2 — `setUpAll(useInkTestFonts)`, 웹 저장소, 같은 단계, 오류 기록 0·`MissingPluginException` 0), `support/smoke_v2_fakes.dart` |
 | J20 | 완료 | `8e1f05a` | `tool/test/lock_age_test.dart`(21 — 잠금 파서 3(hosted만·서버 주소·실제 워크스페이스 lock·깨진 파일 4가지), 바뀐 항목 3(새·판 바뀜·서버 바뀜 / 같음·지움 제외 / 기준에 lock 없음 → 전부), API 답 2(`published`·없는 판·깨진 답 5가지), 달력 일수(UTC 날짜 — 13·14 경계·시간대), `checkLockAge` 3(가짜 HTTP: **13일 → 위반·14일 → 통과·네트워크 오류(null·예외)·목록에 없는 판·깨진 답 → 경고**, 이름 순 요청 1번씩, 표·줄 형식, `--min-days`, 바뀐 것 없음 → 요청 0), 명령 9(실제 git 저장소 + 가짜 내려받기: 위반 → 1·통과 → 0 + 요약 파일·네트워크 오류 → 0·`--now` 없으면 컨텍스트 시계·기준 ref에 lock 없음·커밋 아닌 ref → 경고 0·사용 오류 7가지 → 2·lock 없음 → 3·**실제 `httpDownload` + 127.0.0.1 서버 → 답·닫힌 포트 → 경고**)), `workflows_test`(+1 'Lock age' 단계 — `continue-on-error`·위치·`bash -n`·가짜 `git`/`dart`로 6경우, 단계 순서·명령·`ws` 호출 22개) |
 | J21 | 완료 | `7f07a5a` | `tool/test/workflows_test.dart` `android-emulator.yml` 묶음 7(수동만·`concurrency`·`ubuntu-latest` 30분·시크릿/변수 없음·6.10.5 단계 순서·Java/NDK = `android.yml`·에뮬레이터 `api-level` 34·`google_apis`·`x86_64`·`-noaudio` 없음·스크립트 두 줄(`adb install -r -g` → `flutter test integration_test/native_smoke_test.dart`)·KVM 단계를 가짜 `sudo`로 실행·실행할 시험 파일 구조) + 공통 사례(액션 판·잡 제한·flutter-action 6·`pub get` 6·build-hooks 캐시·`flutter build`의 debug APK 예외 1), `app/integration_test/native_smoke_test.dart`(4경우 — 실행은 GitHub 수동) |
-| J22 | 완료 — 마감 확인 묶음 통과(바탕 `5563d84`). J0 ④(CI 실측)만 총괄의 첫 체크포인트 푸시 뒤 | (이 커밋) | 아래 '#### J22' 표(8.2 J22 행의 검사 9가지) |
+| J22 | 완료 — 마감 확인 묶음 통과(바탕 `5563d84`). J0 ④(CI 실측)만 총괄의 첫 체크포인트 푸시 뒤 | `c338edb` | 아래 '#### J22' 표(8.2 J22 행의 검사 9가지) |
 | H1~H8 | 통합 단계 | | (계획 8.3) |
 
 #### R2-B8a — 앱 셸 v2 연결 (계획 8.1b)
@@ -971,7 +971,7 @@
 
 - (2차 동시 개발 세션 9) J21 `7f07a5a`·J16 `adc4403`·J15 앞 몫(`--dart-define`) `9fd7e1a`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(tool·app/integration_test) 변경 0, `ws test --package noteapp` VM 579 통과·3 건너뜀(63.9초)·Chrome 14 통과·2 건너뜀(87.9초), `--run-skipped -t integration --dart-define FEATURE_*=false` ×3 VM 13 통과(226.7초), `dart test tool/test` 541 통과 + 1 시간 초과(`export_names_test` 'the real script' — 6.13 `emulator` 경로와 겹친 부하) → 그 파일만 다시 13 통과, 6.13 `emulator` 경로 1회 통과(J16). `pencil_bridge`는 바뀌지 않아 돌리지 않았다.
 
-- (2차 동시 개발 세션 10) J15 잡 분리 `5563d84`·J22 마감 확인(+ 이 기록 커밋) — 체크포인트 아님. **INFRA 동시 개발 몫은 J0 ④(CI 실측 — 총괄의 첫 체크포인트 푸시 뒤)만 남았다.** 세션 끝 확인: `ws check` 0·`--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 바뀜 0, `dart test tool/test` 547 통과, `ws test` VM 11·Chrome 9 실행 전부 통과, `git status` 비어 있음.
+- (2차 동시 개발 세션 10) J15 잡 분리 `5563d84`·J22 마감 확인 `c338edb`(+ 이 기록 커밋) — 체크포인트 아님. **INFRA 동시 개발 몫은 J0 ④(CI 실측 — 총괄의 첫 체크포인트 푸시 뒤)만 남았다.** 세션 끝 확인: `ws check` 0·`--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 바뀜 0, `dart test tool/test` 547 통과, `ws test` VM 11·Chrome 9 실행 전부 통과, `git status` 비어 있음.
 
 #### 다음 세션 메모
 
