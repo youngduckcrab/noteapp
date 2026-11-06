@@ -3,7 +3,9 @@
 // One PDF page's text → its search units: body = PDFium's text as it is (\r\n kept), one rect
 // per UTF-16 code unit as fractions [0, 1] of the displayed page (rotation applied — the engine's
 // charRects are displayed page pt, y down), PageRect.zero where the position is unknown (no box,
-// zero width or height), pdfPageAspect = displayed width / height. A body longer than
+// zero width or height), pdfPageAspect = displayed width / height. (T29) The boxes of one text
+// line share one vertical band (_lineBands — CORE merges a hit's boxes per line by equal top and
+// bottom). A body longer than
 // PdfTuning.indexMaxUnitCodeUnits is cut after the last '\n' before the limit (at the limit when
 // the piece has none, never inside a surrogate pair); an empty or blank page has no units.
 import 'dart:math' as math;
@@ -32,6 +34,7 @@ abstract final class PdfSearchUnitBuilder {
           : core.PageRect.zero,
       growable: false,
     );
+    _lineBands(body, rects);
     final units = <core.SearchUnitDraft>[];
     var start = 0;
     while (start < body.length) {
@@ -73,6 +76,46 @@ abstract final class PdfSearchUnitBuilder {
     return out.right > out.left || out.bottom > out.top
         ? out
         : core.PageRect.zero; // wholly outside the page
+  }
+
+  /// (T29) Gives the boxes of one text line one vertical band: a run of boxes, cut at '\n' and
+  /// where a box no longer overlaps the run's band by at least half the smaller height (the
+  /// 1차 per-line merge rule, 6.10.2 step 4), gets the band's top and bottom; left and right
+  /// stay per character. CORE merges a hit's boxes per line as 'consecutive boxes with the same
+  /// top and bottom' (02-core 6.10.4) and stores one band per such group (6.10.3 — ~12 B per
+  /// line): with PDFium's tight glyph boxes ('S' taller than 'e') a line would otherwise come
+  /// back as several rects. PageRect.zero boxes stay zero and do not cut a run.
+  static void _lineBands(String body, List<core.PageRect> rects) {
+    var runStart = 0;
+    double? top, bottom;
+    void close(int end) {
+      if (top != null) {
+        for (var i = runStart; i < end; i++) {
+          final r = rects[i];
+          if (r == core.PageRect.zero) continue;
+          rects[i] = core.PageRect(r.left, top!, r.right, bottom!);
+        }
+      }
+      runStart = end;
+      top = bottom = null;
+    }
+
+    for (var i = 0; i < rects.length; i++) {
+      if (body.codeUnitAt(i) == 0x0A) {
+        close(i + 1);
+        continue;
+      }
+      final r = rects[i];
+      if (r == core.PageRect.zero) continue;
+      if (top != null) {
+        final overlap = math.min(bottom!, r.bottom) - math.max(top!, r.top);
+        final smaller = math.min(bottom! - top!, r.bottom - r.top);
+        if (overlap < 0.5 * smaller) close(i);
+      }
+      top = top == null ? r.top : math.min(top!, r.top);
+      bottom = bottom == null ? r.bottom : math.max(bottom!, r.bottom);
+    }
+    close(rects.length);
   }
 
   static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;

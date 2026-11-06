@@ -622,6 +622,9 @@ void main() {
 
   test('catch-up order: most recent asset first', () async {
     final older = await w.addPdf();
+    // createdAt is the fake store's wall clock (ms): two puts in one millisecond would tie and
+    // the order would be the sort's (T29 — seen once under load).
+    await Future<void>.delayed(const Duration(milliseconds: 3));
     final newer = await w.addPdf();
     w.engine.beforeLoadText = null;
     final opened = <String>[];

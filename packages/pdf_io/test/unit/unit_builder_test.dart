@@ -2,7 +2,10 @@
 // a 90°-rotated page (displayed size), PageRect.zero for characters without a box,
 // rects.length == body.length in every unit, pdfPageAspect = displayed width / height, a page
 // over 30,000 code units cut at line breaks (and at the limit without one — never inside a
-// surrogate pair), empty / blank pages, the owner key and the sourceRev tail ':x1'.
+// surrogate pair), empty / blank pages, the owner key and the sourceRev tail ':x1'. (T29) The
+// boxes of one text line share one vertical band (CORE merges a hit's boxes per line by equal
+// top and bottom): mixed glyph heights, a '\n' cut, a box below the band (PDFium's joined
+// hyphenated line end), PageRect.zero kept.
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -143,5 +146,73 @@ void main() {
     expect(PdfTuning.indexExtractorVersion, 1);
     expect(PdfTuning.indexMaxUnitCodeUnits, 30000);
     expect(PdfTuning.indexSliceGap, const Duration(milliseconds: 150));
+  });
+
+  group('(T29) one vertical band per text line', () {
+    core.PageRect at(int left, int top, int right, int bottom) =>
+        core.PageRect(left / 100, top / 100, right / 100, bottom / 100);
+
+    test('mixed glyph heights → the line\'s union top and bottom, left / right kept', () {
+      // 'Sec' — S taller than e and c, c dips below the baseline
+      final unit = PdfSearchUnitBuilder.build(
+        _text('Sec', const [
+          ui.Rect.fromLTRB(10, 20, 18, 32),
+          ui.Rect.fromLTRB(19, 24, 26, 32),
+          ui.Rect.fromLTRB(27, 24, 34, 33),
+        ]),
+        const ui.Size(100, 100),
+      ).single;
+      expect(unit.rects, [
+        at(10, 20, 18, 33),
+        at(19, 20, 26, 33),
+        at(27, 20, 34, 33),
+      ]);
+    });
+
+    test('a line break cuts the band; PageRect.zero boxes stay zero and do not cut it', () {
+      final unit = PdfSearchUnitBuilder.build(
+        _text('a b\r\ncd', const [
+          ui.Rect.fromLTRB(10, 22, 16, 30),
+          ui.Rect.zero, // a space without a box
+          ui.Rect.fromLTRB(20, 18, 26, 30),
+          ui.Rect.zero,
+          ui.Rect.zero,
+          ui.Rect.fromLTRB(10, 52, 16, 60),
+          ui.Rect.fromLTRB(17, 50, 23, 61),
+        ]),
+        const ui.Size(100, 100),
+      ).single;
+      expect(unit.rects, [
+        at(10, 18, 16, 30),
+        core.PageRect.zero,
+        at(20, 18, 26, 30),
+        core.PageRect.zero,
+        core.PageRect.zero,
+        at(10, 50, 16, 61),
+        at(17, 50, 23, 61),
+      ]);
+    });
+
+    test('a box below the band without a line break starts a new band (PDFium joins a '
+        'hyphenated line end with U+0002 and no break)', () {
+      final unit = PdfSearchUnitBuilder.build(
+        _text('IN\u0002DE', const [
+          ui.Rect.fromLTRB(10, 48, 12, 60),
+          ui.Rect.fromLTRB(13, 48, 22, 60),
+          ui.Rect.fromLTRB(23, 54, 27, 56), // the hyphen: inside line 1's band
+          ui.Rect.fromLTRB(10, 88, 19, 100), // line 2
+          ui.Rect.fromLTRB(20, 88, 28, 101),
+        ]),
+        const ui.Size(100, 200),
+      ).single;
+      double top(int i) => unit.rects[i].top * 200;
+      double bottom(int i) => unit.rects[i].bottom * 200;
+      expect([
+        for (var i = 0; i < 3; i++) (top(i), bottom(i)),
+      ], everyElement((48.0, 60.0)));
+      expect([
+        for (var i = 3; i < 5; i++) (top(i), bottom(i)),
+      ], everyElement((88.0, 101.0)));
+    });
   });
 }
