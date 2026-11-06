@@ -284,7 +284,7 @@
 | T28 | 남음 | | `unit/normalizer_equivalence_test`, `web/normalizer_equivalence_browser_test` |
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
 | T31a | 완료 | 8dc3b6f | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
-| T31b | 남음 | | `unit/recorder_service_test`, `unit/stop_recover_buffers_test` |
+| T31b | 완료 | (세션 3 기록 커밋) | `unit/recorder_service_test`(42), `unit/stop_recover_buffers_test`(5) — 가짜 엔진·잠금 `test/support/fake_engines.dart`, 기록 감싼 저장소·가짜 시간 `test/support/recorder_world.dart` |
 | T32a | 완료 | 0c64fad | `unit/webm_timeline_test`, `unit/mp4_duration_test`, (더함) `web/pure_logic_browser_test` — 손 표본 사례는 `test/support/webm_timeline_cases.dart`·`mp4_duration_cases.dart`(VM·Chrome 같은 단언), Chrome 표본 `test/support/fixtures/chrome_opus_*.webm` 7개 |
 | T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
 | T33 | 남음 | | `unit/native_engine_test`, `unit/foreground_service_test`, `unit/audio_session_test` |
@@ -338,6 +338,14 @@
 - T24: 배경 몫은 `template_underlay.dart`의 src 함수 `pdfPageBackground(page, {build})`가 만든다(1차 `pdfPageUnderlay`는 그 결과로 다시 씀 — 1차 `vectorize` 결과 그대로). 1차 변환 코드는 `pdfHighlighterLayer`·`pdfInkLayer`(src)로 꺼내 `vectorize`와 `layersFromInk`가 같이 쓴다. `planPage`는 `includeInk == false`이거나 획·객체가 모두 없으면 INK `exportPage`를 부르지 않는다.
 - T24: 덮개(테이프)는 INK 색의 알파를 0xFF로 바꾸고 불투명도 1로 둔다(K-9 '항상 가린 모양'). `InkImageVector.pixelWidth/Height`는 쓰지 않는다(5.2 — 해석기가 바이트 크기를 읽음).
 - T24: R2-B4 시험 `unit/plan_items_test`의 'PDF page … objects are left out until T24'는 객체 없이 'PDF page: no background items'로 바꿨다(객체 항목은 INK 실제 내보내기 몫 — `integration/ink_vectorizer_v2_test`). `integration/ink_vectorizer_v2_test`는 지금 `--run-skipped`로 돌리면 첫 단언(이미지 참조 자리에 INK 기반 단계의 점선 획 채우기)에서 실패한다 — INK T42 전이라 예상한 실패.
+- T31b: 엔진 포트(`record/recorder_engine.dart`)에 6.6.2에 없는 내부 멤버를 더했다 — `writesDraftChunks`(웹 true = 조각 → `DraftWriter`, 네이티브 false = 파일·초안은 행만), `draftMimeType`(초안 `begin`의 MIME — 엔진 시작 전에 알아야 함; 실제 쓴 MIME은 세션 `mimeType`이고 정지 때 에셋 MIME은 그것), `leftoverFile(recordingId)`·`deleteOrphanFiles(keep)`(6.9.5 네이티브 복구·정리), `RecorderEngineResult.file`·`RecorderEngineFile`(`read`·`probeDurationMs`·`delete` — 6.6.4 네이티브 디코더 길이). 세션 `events`는 단일 구독(시작 직후 듣고 그 전 사건은 쌓임). 사용자 `pause()`/`resume()`은 엔진 호출이 끝나면 서비스가 바로 상태를 바꾼다(엔진 사건을 기다리지 않음 — 같은 사건이 뒤에 와도 무시). 시스템 멈춤만 `EnginePaused(bySystem: true, reason)` 사건으로 받는다.
+- T31b: 4.2.5 `MediaErrorCode` 목록에 6.8.3·6.8.5·6.8.6이 쓰는 이유를 더했다 — `hiddenTab`·`microphoneLost`·`storageBacklog`·`storageFailed`·`permissionDenied`·`microphoneNotFound`·`microphoneBusy`(내부 열거형). 시스템이 멈춘 동안 `status.error`에 그 이유(`MediaIoException(hiddenTab|microphoneLost|storageBacklog|engineFailed)`)를 싣고 `interrupted = true`, 사용자 재개가 지운다. 조각 쓰기 실패는 녹음을 계속하며 `error: storageFailed`, 다시 쓰면 지운다(패널 T36a가 코드로 문구를 고른다).
+- T31b: 서비스는 `NoteStore` 대신 `RecorderStores`(`drafts`·`assets`·`recordings`·`settings` — `RecorderStores.of(store)`)를 '처음 쓸 때' 한 번 읽고, 시각은 `DateTime Function() now`로 받는다(`package:clock`이 `media_io` 의존성이 아니어서 `core.Clock` 타입을 쓰지 않음 — 연결(T37)은 `() => ref.read(core.clockProvider).now()`). 정지·복구가 같이 쓰는 길이 재기·머리 패치·`unsaved` 이어 붙이기·파일 이름·`put` → `createRecording`은 `record/recording_output.dart`, 제외 규칙 ①~⑤·직렬화·영구 실패는 `record/recovery.dart` `DraftRecovery`, 개발자 표시 수(`recovered`·`dropped`·`lastRecording`·`lastSaveFailed`·`lastBitRate(Source)`)는 `RecorderDiagnostics`(T37이 줄로 그림). 서비스에 `stuckDrafts()`(⑤로 빠진 초안 — T36b 패널 줄)를 더했다.
+- T31b: `start()`는 `starting`을 낸 뒤 `checkSupport(requestPermission: false)`를 보고 `begin` 전에 `UnsupportedError`(상태는 오류 없이 `idle` — CORE 가짜와 같음). 시작 뒤 `EngineFailed`는 `paused` + `interrupted` + `error: engineFailed`(계획에 없던 경우 — 녹음한 데까지는 정지로 저장 가능). 엔진 `stop()`이 실패하면 웹은 초안에 쓴 데까지로, 네이티브는 `leftoverFile`로 이어 간다. 정지의 `drain()` 중에 초안을 잃으면(`StateError`) `idle` + `draftLost`, `null`.
+- T31b: 저장 실패 때 초안과 함께 Web Lock도 이 페이지가 `dispose`까지 쥔다(6.6.3 '초안·잠금은 남김') — 같은 페이지의 `pendingDrafts()`는 잠금(④)으로 뺀다. Web Locks가 없으면 10초 뒤 같은 페이지의 유휴 복구가 가져갈 수 있다(같은 `recordingId`라 녹음은 하나).
+- T31b: 6.10.1 '바이트가 비면 discard'와 네이티브 '파일이 없거나 열리지 않음'(탐침 길이 없음)은 둘 다 영구 실패로 세어 `diagnostics.dropped`를 올린다. 같은 id 녹음 행이 이미 있으면 `put`(같은 바이트 → 같은 에셋)·`createRecording`(멱등)이 그 행을 돌려준다(따로 `getRecording`으로 건너뛰지 않음).
+- T31b: `fake_async` 안에서 `StreamSubscription.cancel()`의 완료 Future가 루트 존 것이라 기다리면 멈춘다 — 엔진 사건 구독 취소와 상태 컨트롤러 `close()`는 기다리지 않는다(`unawaited`). 시험은 실제 시간에 기대지 않는다(저장소 시계 = `async.getClock`, 녹음 시계 = `FakeStopwatch`).
+- T31b: '같은 저장소를 쓰는 서비스 둘'의 'A를 버림(정리 없이)'은 A의 초안 쓰기를 붙잡아(`LoggedDrafts.appendGate` — 얼어붙은 탭) `updatedAt`이 멈추게 해 만든다. 문을 열면 붙잡힌 빈 조각이 이미 정리된 초안에 닿아 `StateError` → A `idle` + `draftLost`. 이 시험은 Web Locks 없이(시각 규칙만), 잠금 규칙은 따로('다른 문맥이 쥔 잠금은 나이와 무관하게 뺌').
 - T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
 #### 이정표 커밋
@@ -367,6 +375,10 @@
 | 2 (T24) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 | 2 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 2 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
+| 3 (T31b) | `ws test --package media_io` (VM) | 150 통과 (103 + T31b 47) |
+| 3 (T31b) | `ws test --package media_io --platform chrome` | 33 통과, prepare ok, 106 s |
+| 3 (T31b) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 05:56:48–05:59:54 UTC, 잠금 대기 122초) | `media` 시험 아직 없음 — 'no matching tests' |
+| 3 (T31b) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
