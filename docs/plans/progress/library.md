@@ -289,7 +289,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 |---|---|---|---|
 | B6-a | 기반 단계에서 완료 | 99cdeef | `feature_library_smoke_test.dart`, `unit/api_surface_test.dart` |
 | B6-b | 기반 단계에서 완료 | 99cdeef | `ink_recognition_smoke_test.dart`, `unit/api_surface_test.dart`·`handwriting_trace_test.dart`·`fakes_test.dart`·`synthetic_shapes_test.dart`·`group_into_lines_test.dart`, `web/recognition_browser_test.dart` |
-| L2-01 | 남음 | | feature_library `unit/content_hits_test.dart`, `unit/content_provider_test.dart` |
+| L2-01 | 완료 | (이 커밋) | feature_library `unit/content_hits_test.dart`, `unit/content_provider_test.dart` |
 | L2-02 | 남음 | | `widget/content_search_test.dart`, `unit/strings_contract_test.dart` |
 | L2-03 | 남음 | | `widget/content_search_test.dart` |
 | L2-04 | 남음 | | `goldens/library_golden_test.dart`, `widget/a11y_test.dart`, `shared/library_scenarios.dart` → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart` |
@@ -329,7 +329,9 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 
 #### 계획과 다르게 한 점
 
-- 없음
+- L2-01 다시 묻기 판정(6.1.6 표 구체화, `lib/src/state/search_requery.dart` `searchRequeryOf`): CORE 세션 커밋은 획·페이지·객체 변경 옆에 노트 `updatedAt` 변경(`note`)을 같은 묶음에 싣는다(가짜 저장소 `applySessionWrite` [확인]). 표를 변경 하나씩 적용하면 `note` 때문에 모든 편집이 '즉시'가 되어 6.1.6의 '`pageObject` → 1 s 뒤'·'`stroke` → 없음'이 성립하지 않으므로 **묶음 단위**로 판정한다 — ① 폴더 변경, 또는 `deleted`·`purged` 노트 → 즉시 ② `page`·`pageObject`·`handwriting` → 디바운스 ③ `stroke` → 없음(옆의 `note`는 세션 부산물) ④ 그 밖의 `note`(이름·이동·복원·`markOpened`) → 즉시 ⑤ 나머지 → 없음. 그래서 `createNote`·`copyItems`(노트 + 페이지)는 1차의 즉시 대신 1 s 디바운스다(새 노트는 홈으로 가므로 검색 화면에 영향 없음).
+- 디바운스 타이머는 `libraryContentProvider` 안이 아니라 따로 둔 내부 provider `librarySearchRequeryProvider(query)`(상태를 바꾸지 않는 `Provider<void>`)에 있다 — 내용 provider는 검색 결과가 올 때마다 다시 만들어져 `onDispose`가 타이머를 끊기 때문. 즉시 다시 묻기는 대기 중인 디바운스 창도 끝낸다. 다시 묻기는 `librarySearchProvider(query)`와 `notePageIndexProvider`(가족 전체)를 함께 무효화한다(6.1.5 '검색과 함께').
+- `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
 

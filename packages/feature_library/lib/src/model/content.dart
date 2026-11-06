@@ -1,13 +1,16 @@
-// lib/src/model/content.dart — 05-library 6.3.3 (libraryContentProvider).
+// lib/src/model/content.dart — 05-library 6.3.3 (libraryContentProvider);
+// (v2) 4.4.10 / 6.1.1: the '노트 내용' groups of a search.
 import 'package:collection/collection.dart' show ListEquality;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:note_core/note_core.dart' show Folder, Note;
 
+import 'content_hits.dart';
 import 'item_key.dart';
 import 'section.dart';
 
 const ListEquality<Folder> _foldersEq = ListEquality<Folder>();
 const ListEquality<Note> _notesEq = ListEquality<Note>();
+const ListEquality<ContentHitGroup> _groupsEq = ListEquality<ContentHitGroup>();
 
 /// What the content pane shows for one section (trash excluded: the trash
 /// view reads trashItemsProvider itself).
@@ -18,6 +21,8 @@ final class LibraryContent {
     this.folders = const [],
     this.notes = const [],
     this.truncated = false,
+    this.contentGroups = const [],
+    this.contentTruncated = false,
   });
 
   final LibrarySection section;
@@ -29,7 +34,13 @@ final class LibraryContent {
   /// Search hit the 50 limit in a group.
   final bool truncated;
 
-  bool get isEmpty => folders.isEmpty && notes.isEmpty;
+  /// (v2) SearchSection only: groupContentHits(LibrarySearchResult.pages).
+  final List<ContentHitGroup> contentGroups;
+
+  /// (v2) SearchSection only: LibrarySearchResult.pagesTruncated.
+  final bool contentTruncated;
+
+  bool get isEmpty => folders.isEmpty && notes.isEmpty && contentGroups.isEmpty;
 
   /// Folders then notes — display order of the whole pane.
   List<LibraryItemKey> get orderedKeys => [
@@ -42,21 +53,27 @@ final class LibraryContent {
       other is LibraryContent &&
       other.section == section &&
       other.truncated == truncated &&
+      other.contentTruncated == contentTruncated &&
       _foldersEq.equals(other.folders, folders) &&
-      _notesEq.equals(other.notes, notes);
+      _notesEq.equals(other.notes, notes) &&
+      _groupsEq.equals(other.contentGroups, contentGroups);
 
   @override
   int get hashCode => Object.hash(
     section,
     truncated,
+    contentTruncated,
     _foldersEq.hash(folders),
     _notesEq.hash(notes),
+    _groupsEq.hash(contentGroups),
   );
 
   @override
   String toString() =>
       'LibraryContent($section, ${folders.length} folders, '
-      '${notes.length} notes${truncated ? ', truncated' : ''})';
+      '${notes.length} notes${truncated ? ', truncated' : ''}'
+      '${contentGroups.isEmpty ? '' : ', ${contentGroups.length} content notes'}'
+      '${contentTruncated ? ', content truncated' : ''})';
 }
 
 /// State of a folder id that the active FolderTree does not contain (6.4).

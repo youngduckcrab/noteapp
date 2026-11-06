@@ -8,9 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart'
     show
         AssetId,
-        EntityChange,
-        EntityKind,
         FolderId,
+        NoteId,
+        PageId,
         assetStoreProvider,
         favoriteNotesProvider,
         folderTreeProvider,
@@ -30,6 +30,7 @@ import 'package:note_core/note_core.dart'
 import '../common/report_error.dart';
 
 import '../model/content.dart';
+import '../model/content_hits.dart';
 import '../model/new_note_spec.dart';
 import '../model/section.dart';
 import '../model/selection.dart';
@@ -40,6 +41,7 @@ import '../thumbnails/cover_thumbnail_scheduler.dart';
 import 'expansion_notifier.dart';
 import 'library_actions.dart';
 import 'prefs_notifier.dart';
+import 'search_requery.dart';
 import 'section_notifier.dart';
 import 'selection_notifier.dart';
 
@@ -99,9 +101,46 @@ LibrarySort? _sortOnceLoaded(Ref ref) {
 /// Search groups are cut at this many hits by CORE (searchLibrary limit).
 const int kLibrarySearchLimit = 50;
 
-/// A folder or note change can change search results (names, trash, …).
-bool _changesSearchResults(EntityChange change) =>
-    change.kind == EntityKind.folder || change.kind == EntityKind.note;
+/// (v2) pageId → 1-based index among the note's active pages (CORE pagesOf
+/// order) — the `<n>쪽` of a content hit (6.1.5). One read per note per
+/// search; invalidated together with the search (6.1.6).
+final notePageIndexProvider = FutureProvider.autoDispose
+    .family<Map<PageId, int>, NoteId>(
+      (ref, noteId) async {
+        final pages = await ref
+            .watch(noteContentReaderProvider)
+            .pagesOf(noteId);
+        return Map.unmodifiable({
+          for (final (i, page) in pages.indexed) page.id: i + 1,
+        });
+      },
+      retry: noRetry,
+      name: 'notePageIndexProvider',
+    );
+
+/// (v2) Asks CORE again for an open search (6.1.6 — SearchRequeryDebouncer):
+/// folder / note changes at once, page / pageObject / handwriting changes 1 s
+/// after the last one (at most 5 s after the first), strokes never. A requery
+/// invalidates librarySearchProvider([query]) and notePageIndexProvider; the
+/// content keeps the previous result until the new one arrives (AsyncData with
+/// isLoading). Never changes its own state, so the timers survive rebuilds of
+/// libraryContentProvider.
+final librarySearchRequeryProvider = Provider.autoDispose.family<void, String>((
+  ref,
+  query,
+) {
+  final debouncer = SearchRequeryDebouncer(
+    requery: () {
+      ref.invalidate(librarySearchProvider(query));
+      ref.invalidate(notePageIndexProvider);
+    },
+  );
+  final changes = ref.watch(noteStoreProvider).changes.listen(debouncer.add);
+  ref.onDispose(() {
+    debouncer.dispose();
+    unawaited(changes.cancel());
+  });
+}, name: 'librarySearchRequeryProvider');
 
 /// The CORE stream / query of [section] as LibraryContent (6.3.3 table).
 /// AsyncLoading until the view settings are loaded. TrashSection →
@@ -131,13 +170,9 @@ final libraryContentProvider = Provider.autoDispose
               .whenData((n) => LibraryContent(section: section, notes: n));
         case SearchSection(:final query):
           // 6.14: the search is a one-time query — a folder / note change
-          // (an action on a result, a drop, another device) asks again.
-          final changes = ref
-              .watch(noteStoreProvider)
-              .changes
-              .where((batch) => batch.changes.any(_changesSearchResults))
-              .listen((_) => ref.invalidate(librarySearchProvider(query)));
-          ref.onDispose(() => unawaited(changes.cancel()));
+          // (an action on a result, a drop, another device) asks again;
+          // (v2) content changes ask again debounced (6.1.6).
+          ref.watch(librarySearchRequeryProvider(query));
           return ref
               .watch(librarySearchProvider(query))
               .whenData(
@@ -148,6 +183,8 @@ final libraryContentProvider = Provider.autoDispose
                   truncated:
                       r.folders.length >= kLibrarySearchLimit ||
                       r.notes.length >= kLibrarySearchLimit,
+                  contentGroups: groupContentHits(r.pages),
+                  contentTruncated: r.pagesTruncated,
                 ),
               );
         case TrashSection():
