@@ -301,3 +301,39 @@
 | 10 M0 개발자 표시 | E-19 | `unit/dev_metrics_test.dart`, `widget/dev_overlay_test.dart`, `widget/dev_menu_test.dart` |
 | 10 M1 색·굵기·프리셋·지우개·되돌리기·확대·입력 모드·올가미·페이지 | E-03·E-05·E-09~E-11·E-14~E-17 | 위 행들 — `widget/color_picker_test.dart`, `widget/preset_bar_test.dart`, `widget/erase_test.dart`, `widget/undo_redo_test.dart`, `widget/lasso_test.dart`, `widget/page_panel_test.dart` |
 | 10 M1 펜 5종 | E-07·E-15 | `unit/tool_controller_test.dart`, `widget/pen_settings_panel_test.dart` |
+
+## 2차
+
+계획 [../m5-7/04-editor.md](../m5-7/04-editor.md)(승인 · 계약 v2.2 — 7.6.2 R2-B5 행, 04-editor 8.1 R2-B5, 4.1~4.3) · 계약 [../m5-7/00-overview.md](../m5-7/00-overview.md) 7.2.10. 작업 트리: `/home/user/noteapp`(브랜치 `claude/note-app-planning-bk29xb` — 계약의 `main`)에서 직접. 바탕: `f3e4fcc`(R2-B1 `3c77de3` · R2-B7b `9cdd3fb` · R2-B2·B7a·B2i 묶음 `2b2e4b0`…`7dacf36` · 묶음 검사 `44f5c92` · INK R2-B3 `fd3370f`·`f3e4fcc` 위).
+
+### 이정표 커밋 (EDITOR 2차)
+
+| 이정표 | 커밋 | 날짜 | 되는 것 | 기다리는 영역 |
+|---|---|---|---|---|
+| R2-B5 표면 | 78d7f25 | 2026-11-06 | 7.2.10 공개 표면 전부 컴파일: `EditorExtensions` v2(+ 자리 항목·문맥 6종), `EditorImageImporter`·`editorImageImporterProvider`, `EditorScreen.initialFocusRectPt`(받기만), `EditorGesture`·`EditorAction`·`GestureSettings` v2(JSON 동작), Stylus v2(`timestamp`·`capabilities`), export 14개 | INFRA B8a·B8b(자리 연결·`PencilStylusExtrasSource`·`?focus=`), recog(선택·삽입 항목), media_io(`RecordingPanel`·이미지 가져오기) |
+
+### 작업 표 (2차)
+
+| ID | 상태 | 커밋 | 비고 — 완료 조건 |
+|---|---|---|---|
+| R2-B5 | 완료 | 78d7f25 | `widget/smoke_test.dart`(가짜 저장소로 `EditorScreen(initialPageId:, initialFocusRectPt:)` 표시 → 노트 범위 `editorInitialFocusRectProvider` == 사각형 → 뒤로 → `onClose` 1회, 인자 없음 → null, 모르는 페이지·`initialPageId` 없음 + 사각형 → 정상 열림), `unit/api_surface_test.dart` v2(export = 4.1 목록 40개, `PlaybackHighlightStyle`·`WebTextInputMode` 없음, 새 타입·생성자·필드를 타입 단언으로, `StylusExtraEvent` 하위 타입 4개 exhaustive switch, `editorImageImporterProvider` 기본 null·이름), `unit/gesture_settings_test.dart`(새 — 표 7행 기본값·허용값 전부, `actionFor` ①②③, v1.4 JSON `{"twoFingerUndo":false,…}` → `none`, `actions` 왕복(모든 제스처 × 모든 허용 동작, JSON 문자열 거쳐), 모르는 제스처·동작·`allowedFor` 밖 값 조용히 버림, `actions`가 객체 아님 → 통째 무시, `withAction` 기본값 → 명시 항목 지움·bool `false` 제스처 예외, `toJson` bool = `action != none`·이름순·4.3.2 예시와 글자까지 같음, `copyWith`·`==`), `unit/stylus_extras_test.dart`(새 — `NoStylusExtras().capabilities == StylusCapabilities.none`, 이벤트 4종·능력 값 동등 — `timestamp`만 달라도 다름, 하위 타입끼리 다름), `unit/editor_extensions_test.dart`(새 필드 기본값·`==`(순서 포함)·항목 `==`·가져오기 `==`(집합 순서 무관)), `unit/editor_settings_test.dart`(새 필드 3개 기본값·scope·JSON 왕복·모르는 값·1차 저장값 읽기, `playbackHighlight` JSON 이름 = `InkPlaybackStyle.name`) |
+
+확인(2026-11-06): `packages/feature_editor` `flutter analyze --fatal-infos` 0, `ws test --package feature_editor --platform vm` **658 통과**·1 건너뜀(R2-B3 때 591 + 67), `--platform chrome` 1 통과(1차 브라우저 스모크 — R2-B5는 웹 시험을 더하지 않음). 작업 트리에 PDF R2-B4의 커밋 전 파일이 있어 `ws check`(작업 트리에서는 `packages/media_io/lib/src/config.dart` R11 1건 — PDF 파일)와 루트 analyze는 **HEAD `f3e4fcc` 복제본 + EDITOR 변경**에서 돌렸다: `flutter pub get --enforce-lockfile` 0, `ws check` 위반 0, 루트 `flutter analyze --fatal-infos` 0. 같은 복제본의 `ws test --package noteapp --platform vm`은 260 통과 **1 실패** — `app/test/modules/pdf_module_test.dart` 103행(INK R2-B3 변경 요청 5와 같은 것, EDITOR 변경과 무관 — EDITOR를 쓰지 않는 시험).
+
+### 계획·계약과 다르게 한 점 (2차 R2-B5)
+
+1. **`GestureSettings.fromJson`이 v1.4 bool 셋을 `actionFor(g) != none`으로 다시 맞춘다** — 4.3.2 표는 읽기 규칙만 적었다. 그래서 읽은 값은 늘 일관되고(`bool == action != none`, `withAction`이 만드는 값과 같은 꼴) `fromJson(toJson(x)) == x`가 성립한다. 1차 라우터는 아직 bool을 읽으므로 옛 앱과 섞인 값(`twoFingerUndo:false` + `actions.twoFingerTap:"redo"`)도 라우터와 `actionFor`가 같은 켬/끔을 본다. 쓰기는 계약대로 bool = `action != none`이라 저장 결과는 같다.
+2. `withAction(g, a)`에서 `a`가 `allowedFor(g)` 밖이면 **아무것도 바꾸지 않는다**(`this`) — 4.3.2에 규칙이 없어 `copyWith`의 '버림'과 맞췄다.
+3. `withAction`의 'bool `false` 제스처 예외'는 4.3.2 두 문장을 그대로 따랐다: 이전 bool이 `false`인 제스처에 기본값을 고르면 명시 항목으로 남기고, bool은 `a != none`(= `true`)으로 맞춘다. 결과 `actionFor`는 어느 쪽이든 기본값이다(예외 문장의 근거 '지우면 ②로 none'은 bool을 먼저 맞추면 생기지 않는다).
+4. **`toJson`은 `actions`를 늘 쓴다**(명시 항목이 없으면 `{}`) — 4.3.2 표 그대로. 1차 시험 3개의 정확한 JSON 기댓값을 v2 저장 형식(6.18 — `gestures.actions`·`shapeAssist`·`playbackHighlight`·`tapToSeek`)으로 고쳤다: `unit/editor_settings_test.dart`(device·synced 키), `unit/editor_settings_notifier_test.dart`('a synced change writes only the synced key'), `widget/settings_sections_test.dart`(제스처 저장값).
+5. 4.3.2의 `static const GestureSettings defaults` 때문에 린트 `use_named_constants`가 `const GestureSettings()`를 info로 잡는다 → lib 2곳(`EditorSettings` 기본값, 입력 설정 '기본값으로')과 시험 5곳을 `GestureSettings.defaults`로 바꿨다(값 같음).
+6. `EditorSettingsNotifier`의 '잘못된 저장값' 보고가 **bool 필드는 보고하지 않는다**(저장된 값이 bool이면 유효). 그러지 않으면 옛 앱과 섞인 위 1의 값에서 `gestures.twoFingerUndo`가 잘못된 값으로 보고된다(4.3.2 '옛 앱과 섞일 때'는 받아들인 상황). 모든 bool 필드는 두 값 모두 유효하므로 다른 보고는 그대로다. `actions` 안의 모르는 이름은 원래 규칙(모르는 키는 건너뜀)으로 보고되지 않고, `actions`가 객체가 아니면 1차 규칙대로 보고된다.
+7. 함수 필드(`recordingPanel`, 항목의 `onSelected`·`isVisible`, `EditorImageImporter.pick`)는 Dart 함수 `==`로 비교한다 — 1차 `EditorMenuItem`·`appBarTrailing`과 같은 '함수 동일성'. 4.3.1은 `recordingPanel`을 `identical`이라고 적었지만, 같은 객체의 메서드 tear-off는 `==`는 참이고 `identical`은 보장되지 않아 provider 값이 같아도 다르다고 볼 수 있다(최상위 함수·클로저는 둘이 같다).
+8. 4.3.3의 `EditorSettingsNotifier` 새 setter 셋(`setShapeAssist`·`setPlaybackHighlight`·`setTapToSeek`)은 넣지 않았다 — 8.1 R2-B5가 '모델·JSON만', 8.2 E2-05가 '`EditorSettings` 새 setter'다.
+9. `editorInitialFocusRectProvider`는 `editorInitialPageIdProvider`처럼 노트 범위 밖에서 읽으면 던진다(`dependencies: const []`, `EditorScreen`이 override). R2-B5에서는 아무도 읽지 않는다(E2-19).
+10. 7.6 '기반 단계 시험 도우미' 블록에 EDITOR 몫은 없다(EDITOR는 `testing.dart`가 없다 — 3장). R2-B5는 웹 시험을 더하지 않았다(새 표면이 순수 값 타입 — 1차 브라우저 스모크는 그대로 통과).
+11. `README.md`의 공개 API 문단을 v2 목록으로 고쳤다.
+
+### 변경 요청 (2차)
+
+- 없음(INFRA `pdf_module_test` 103행은 INK 변경 요청 5와 같다).
