@@ -227,7 +227,7 @@
 | 손글씨 저장소 | T32 | 8cf5524 | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) `handwriting`: `put`·`update`(한 쓰기 트랜잭션 — 경합 사례 1~7, transform 안 쓰기 `StateError`)·`removeForPage`·`forPage`·`watchPage`, `stalePages`·`notesWithStalePages`(`pages.ink_rev` 캐시 — 정확한 답·페이지 순서·최근 노트 먼저, PF-6·PF-11 예산 안). ink 검색 단위는 T33a | LIBRARY(L2x)·인식 |
 | 색인 쓰기 | T33a | 5776751 | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) `search`의 `SearchIndexWriter`(pdf — 검증·글자 상자 블롭 SQLite 밖·`sourceRevOf`/`sourceRevs` 꼬리 그대로·빈 목록 = 소유자 유지)·`status`·`rebuild`, CORE 자체 색인(텍스트 상자·수식·손글씨 — 실패 격리·보류 재시도). 질의 `searchPages`는 T33b | PDF |
 | 검색 색인 | T33b | 9084734 (질의 734b9b5) | 2026-11-06 | `searchPages`·`searchLibrary.pages`·`pagesTruncated` 실제(실제 저장소·웹 저장소 — 공유 검색 본문: 결과·순서·사각형이 가짜와 같음), 질의 속도(PF-3·PF-4 — 후보가 적은 질의 2~5 ms, 상한 질의 27~41 ms는 변경 요청 [총괄] V10), 실제 모양 500쪽 DB 증가 3.6~8.3 MiB(≤ 12 MB)·웹 다시 열기 +84 ms(≤ +300 ms) | LIBRARY·PDF |
-| 네이티브 저장 | T35 | | | 파일 DB + 파일 블롭 | INFRA(A-1) |
+| 네이티브 저장 | T35 | 340a7ab | 2026-11-06 | `openNoteStore`(네이티브)가 두 경로로 파일 DB(WAL·배경 isolate) + 파일 블롭(`<dir>/blobs`·`<dir>/thumbs` — 원자적 쓰기, 없는 디렉터리를 만듦, 쓸 수 없으면 `storageUnavailable`), 한 경로만이면 `storageUnavailable`, `deleteLocalNoteData`가 블롭·v1 사본까지 — APK에서 노트·에셋·썸네일·초안이 남음(A-1). `openTestNoteStore`는 그대로(메모리 블롭) | INFRA(A-1) |
 
 ### 작업 표 (2차)
 
@@ -394,7 +394,7 @@
 | T22 | 기반 단계에서 완료 | 2b2e4b0 | `test/api_surface_test.dart` v2 외 — 위 '작업 표 (2차)' |
 | T20a·T20b·T21·T23a·T23b | 기반 단계에서 완료 | 9777fde·c443015·38f3578·12ab8c4·0798096 | 위 '작업 표 (2차)' |
 | T24 | 완료 | a2b0489 | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
-| T35 | 완료 | (다음 커밋에 적음) | `test/assets/file_blob_store_test.dart`(33 — 공유 사례 8건을 파일·메모리 IndexedDB 둘 다에 + 파일만 17), `test/storage/native_file_store_test.dart`(12), 1차 `open_errors_test`(+ 한 경로만 1건)·`asset_store_test`(+ 네이티브 다시 열기 1건)·`v1_copy_test`·`commit_latency_perf_test`(네이티브 저장소로)·`draft_append_perf_test`(PF-7 두 블롭으로) |
+| T35 | 완료 | 340a7ab | `test/assets/file_blob_store_test.dart`(33 — 공유 사례 8건을 파일·메모리 IndexedDB 둘 다에 + 파일만 17), `test/storage/native_file_store_test.dart`(12), 1차 `open_errors_test`(+ 한 경로만 1건)·`asset_store_test`(+ 네이티브 다시 열기 1건)·`v1_copy_test`·`commit_latency_perf_test`(네이티브 저장소로)·`draft_append_perf_test`(PF-7 두 블롭으로) |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 완료 | 2db774e | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
