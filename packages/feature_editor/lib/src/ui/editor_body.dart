@@ -1,5 +1,5 @@
 // lib/src/ui/editor_body.dart — 04-editor 6.4.3 (EditorBody), 6.9.1 layout,
-// 6.17.2–6.17.4.
+// 6.17.2–6.17.4; (v2) the bottom panel slot (m5-7/04-editor 6.15.4 — E2-16).
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +12,7 @@ import '../viewport/page_viewport.dart';
 import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
 import 'editor_strings.dart';
+import 'panels/editor_panel_slot.dart';
 import 'popup_host.dart';
 import 'presets/preset_bar_view.dart';
 import 'toolbar/editor_toolbar.dart';
@@ -21,7 +22,9 @@ import 'toolbar/editor_toolbar.dart';
 ///   EditorShortcuts → PopupHost → Scaffold → SafeArea → Column
 ///   ├─ ReadOnlyBanner / StorageWarningBanner (height 0 when not shown)
 ///   ├─ EditorToolbar (52 px) · PresetBarView (44 px)
-///   └─ Expanded: PageViewport
+///   ├─ Expanded: PageViewport
+///   └─ (v2) EditorPanelArea: the bottom panel slot while open (≤ 40 % of
+///      the Column height — 6.15.4)
 ///
 /// Also: command and storage-error snack bars, flushAll when the app is
 /// hidden or paused (AppLifecycleListener — 6.17.4), and turning read only
@@ -66,19 +69,22 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
           body: SafeArea(
             child: StorageErrorNotices(
               child: CommandMessages(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const ReadOnlyBanner(),
-                    const StorageWarningBanner(),
-                    EditorToolbar(
-                      onBack: widget.onBack,
-                      onOpenSettings: widget.onOpenSettings,
-                    ),
-                    const PresetBarView(),
-                    const Divider(height: 1),
-                    const Expanded(child: PageViewport()),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const ReadOnlyBanner(),
+                      const StorageWarningBanner(),
+                      EditorToolbar(
+                        onBack: widget.onBack,
+                        onOpenSettings: widget.onOpenSettings,
+                      ),
+                      const PresetBarView(),
+                      const Divider(height: 1),
+                      const Expanded(child: PageViewport()),
+                      EditorPanelArea(bodyHeight: constraints.maxHeight),
+                    ],
+                  ),
                 ),
               ),
             ),

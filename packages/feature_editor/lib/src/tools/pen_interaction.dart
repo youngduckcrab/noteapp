@@ -1,4 +1,5 @@
-// lib/src/tools/pen_interaction.dart — 04-editor 6.6.3.
+// lib/src/tools/pen_interaction.dart — 04-editor 6.6.3; (v2) the recording
+// meta of the stroke (m5-7/04-editor 6.15.1 — E2-16).
 import 'package:flutter/gestures.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -23,7 +24,8 @@ ink.InkSample toInkSample(
 
 /// Drives one ink.StrokeSession from pen down to up (6.6.3):
 ///   1. start: controller.beginStroke(toInk(down), style: current pen, viewScale: camera
-///      scale after settleNow — logical px per pt, contract 7.2.15 v1.1);
+///      scale after settleNow — logical px per pt, contract 7.2.15 v1.1; (v2) meta: the
+///      recording link read just before — RecordingLink.metaFor, R-1);
 ///   2. every move → stroke.addSample (no filtering or batching — contract E-1);
 ///   3. up → stroke.end(toInk(up)) → EditorCommands.commitInkEdit; [onCommitted] (recent
 ///      colour) only when the command was accepted — a rejected commit has already
@@ -55,12 +57,14 @@ final class PenInteraction extends ToolInteraction {
     required core.StrokeStyle style,
     required EditorCommands commands,
     required void Function(core.StrokeStyle style) onCommitted,
+    ink.InkStrokeMeta meta = const ink.InkStrokeMeta(),
   }) {
     final viewScale = viewport.camera.scale;
     final session = controller.beginStroke(
       toInkSample(viewport, pageIndex, down.event),
       style: style,
       viewScale: viewScale,
+      meta: meta,
     );
     return PenInteraction._(
       source: source,

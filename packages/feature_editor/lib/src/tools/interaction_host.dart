@@ -8,7 +8,8 @@
 // the marked places. (v2) E2-04a: the gesture at contact picks a temporary
 // eraser / lasso for that contact (m5-7/04-editor 6.2.3, 6.3.3, 6.3.6 4).
 // E2-04b: the text session in the input policy (6.3.4), two- / three-finger
-// taps by GestureSettings.actionFor and the pen dot hook (6.3.5).
+// taps by GestureSettings.actionFor and the pen dot hook (6.3.5). E2-16: the
+// pen stroke's recording meta at contact (6.15.1 — R-1).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -23,6 +24,7 @@ import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_sample.dart';
 import '../input/input_targets.dart';
+import '../playback/recording_link.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/popup.dart';
@@ -192,15 +194,23 @@ class InteractionHost implements InputTargets {
     switch (tool) {
       case EditorTool.pen:
         _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
+        final style = tools.currentPen;
         interaction = PenInteraction.start(
           down: sample,
           source: source,
           controller: mount.controller,
           pageIndex: hit.index,
           viewport: _viewport,
-          style: tools.currentPen,
+          style: style,
           commands: _commands,
           onCommitted: _onStrokeCommitted,
+          // R-1: the recorder's status read now, synchronously, right before
+          // beginStroke (on the web this is the contact move — 6.3.2).
+          meta: RecordingLink.metaFor(
+            _ref.read(core.audioRecorderServiceProvider),
+            _session.noteId,
+            style.tool,
+          ),
         );
       case EditorTool.eraser:
         _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)

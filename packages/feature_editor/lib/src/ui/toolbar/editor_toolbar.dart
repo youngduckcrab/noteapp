@@ -1,8 +1,10 @@
-// lib/src/ui/toolbar/editor_toolbar.dart — 04-editor 6.9.1.
+// lib/src/ui/toolbar/editor_toolbar.dart — 04-editor 6.9.1; (v2) the mic
+// button in front of the undo button (m5-7/04-editor 6.13.1, 6.15.4 — E2-16).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../../di/editor_extensions.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/page_panel.dart';
 import '../../state/popup.dart';
@@ -11,6 +13,7 @@ import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
 import '../popup_host.dart';
+import 'mic_button.dart';
 import 'more_menu.dart';
 import 'sync_badge_icon.dart';
 import 'tool_button.dart';
@@ -27,9 +30,10 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   _ => Icons.edit,
 };
 
-/// [←] title [▤] │ [펜●] [지우개] [올가미] │ [↶] [↷] │ [✋] [100%] [☁] [⋯] — 52 px.
+/// [←] title [▤] │ [펜●] [지우개] [올가미] │ [🎤] │ [↶] [↷] │ [✋] [100%] [☁] [⋯] — 52 px.
 /// The title is hidden below 700 px. [▤] toggles the page panel (E-17). On a
-/// read-only note the tool buttons are disabled (6.9.1).
+/// read-only note the tool buttons are disabled (6.9.1). (v2) [🎤] only when
+/// EditorExtensions.recordingPanel is set.
 class EditorToolbar extends ConsumerWidget {
   const EditorToolbar({super.key, required this.onBack, this.onOpenSettings});
 
@@ -50,6 +54,9 @@ class EditorToolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final title = ref.watch(editorSessionValueProvider).note.title;
+    final hasPanel = ref.watch(
+      editorExtensionsProvider.select((e) => e.recordingPanel != null),
+    );
     return Material(
       color: scheme.surface,
       child: SizedBox(
@@ -80,6 +87,7 @@ class EditorToolbar extends ConsumerWidget {
               const _Divider(),
               const _ToolButtons(),
               const _Divider(),
+              if (hasPanel) ...[const MicButton(), const _Divider()],
               const UndoRedoButtons(),
               const _Divider(),
               const _FingerToggle(),
