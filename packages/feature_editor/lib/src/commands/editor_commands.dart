@@ -335,6 +335,16 @@ class EditorCommands {
     return true;
   }
 
+  /// (v2, E2-08 — m5-7/04-editor 6.6.5) The end of an edge / vertex / text
+  /// width drag (and later the style / format edits — 6.7.5): ONE
+  /// core.UpdateObjects([objects]) on [pageId] through [_run]. Rejected (a
+  /// read-only race → the 1st-round notice, anything else → _rejected's
+  /// report + '실행하지 못했어요') → false; the caller drops its preview.
+  bool updateObjects(String pageId, List<core.PageObject> objects) {
+    if (_disposed || objects.isEmpty) return false;
+    return _run(core.UpdateObjects(pageId: pageId, objects: objects)) != null;
+  }
+
   // ---- extension slots (m5-7/04-editor 6.7.4) ----
 
   /// (v2) `execute` of the extension contexts (EditorSelectionContext /

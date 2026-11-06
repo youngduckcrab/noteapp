@@ -1,6 +1,7 @@
 // lib/src/ui/overlays/selection_menu.dart — 04-editor 6.6.5 (selection menu);
 // (v2) m5-7/04-editor 6.7.1 (items), 6.7.2 ('색 ●' → the recolor popup),
-// 6.7.3 (cut · copy · delete · duplicate).
+// 6.7.3 (cut · copy · delete · duplicate); (E2-08) 꼭짓점 편집 and 비율 고정
+// 풀기/잠그기 in '⋯' (6.6.4, 6.6.5).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -21,12 +22,13 @@ import 'selection_frame_painter.dart' show selectionRepaint;
 
 /// A rounded bar 8 px above the selection frame (below it when there is no
 /// room). (v2, 6.7.1) [잘라내기] [복사] [삭제] [색 ●] [확장 항목 ≤ 2] [⋯]; '⋯'
-/// (더보기) opens 복제 · 90° 돌리기 · (단일 텍스트) 편집 · 넘친 확장 항목 · 선택
-/// 해제. Hidden while the selection is dragged. A sibling of the page area's Listener (6.4.3), so its taps
+/// (더보기) opens 복제 · 90° 돌리기 · (E2-08) (단일 다각형) 꼭짓점 편집 ·
+/// (단일 텍스트) 편집 · (E2-08) (단일 이미지) 비율 고정 풀기/잠그기 · 넘친 확장
+/// 항목 · 선택 해제. Hidden while the selection is dragged. A sibling of the page area's Listener (6.4.3), so its taps
 /// never reach the input router; the '⋯' menu sits in the overlay.
 ///
-/// - Read-only note: 잘라내기 · 삭제 · 색 · 복제 · 돌리기 · 편집 disabled; 복사 and
-///   선택 해제 stay.
+/// - Read-only note: 잘라내기 · 삭제 · 색 · 복제 · 돌리기 · 편집 · (E2-08) 꼭짓점
+///   편집 · 비율 고정 disabled; 복사 and 선택 해제 stay.
 /// - '색' hidden when nothing can be recolored (images and / or unknown
 ///   objects only — INK leaves them out); '90° 돌리기' hidden for unknown
 ///   objects only (SelectionMenuModel).
@@ -45,6 +47,10 @@ class SelectionMenu extends ConsumerWidget {
   static const editTextKey = ValueKey('editor.selectionMenu.editText');
   static const formatKey = ValueKey('editor.selectionMenu.format');
   static const clearKey = ValueKey('editor.selectionMenu.clear');
+
+  /// (E2-08) '비율 고정 풀기' / '비율 고정 잠그기' (a single image) — not in
+  /// appendix C (an EDITOR test key).
+  static const aspectKey = ValueKey('editor.selectionMenu.aspect');
 
   /// The colour dot inside '색'.
   static const colorDotKey = ValueKey('editor.selectionMenu.color.dot');
@@ -320,6 +326,20 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
                           ? null
                           : () => _fromMore(commands.rotateSelection90),
                     ),
+                  if (single != null && hasVertexMode(single))
+                    _MoreItem(
+                      key: SelectionMenu.verticesKey,
+                      label: EditorStrings.selectionVertexEdit,
+                      // A check while the vertex handles are shown.
+                      icon: selection.vertexMode ? Icons.check : null,
+                      onPressed: readOnly
+                          ? null
+                          : () => _fromMore(
+                              () => ref
+                                  .read(editorSelectionProvider.notifier)
+                                  .setVertexMode(!selection.vertexMode),
+                            ),
+                    ),
                   if (single is core.TextBoxObject)
                     _MoreItem(
                       key: SelectionMenu.editTextKey,
@@ -332,6 +352,20 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
                                   .read(editorTextEditProvider.notifier)
                                   .start(single, isNew: false);
                             }),
+                    ),
+                  if (single is core.ImageObject)
+                    _MoreItem(
+                      key: SelectionMenu.aspectKey,
+                      label: selection.aspectUnlocked
+                          ? EditorStrings.selectionLockAspect
+                          : EditorStrings.selectionUnlockAspect,
+                      onPressed: readOnly
+                          ? null
+                          : () => _fromMore(
+                              () => ref
+                                  .read(editorSelectionProvider.notifier)
+                                  .setAspectUnlocked(!selection.aspectUnlocked),
+                            ),
                     ),
                   for (final item in overflow)
                     _MoreItem(

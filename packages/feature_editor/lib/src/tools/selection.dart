@@ -2,7 +2,10 @@
 // 6.6.1 (elementIds = strokes AND objects, origin, vertexMode) and 6.6.7
 // (revalidation by elementById) — E2-02. The selection rules that use them
 // (priority (a′), mixed lasso, vertex editing) come in E2-06 / E2-08. (v2,
-// E2-06) the frame as drawn (6.6.4): selectionFrameOnScreen.
+// E2-06) the frame as drawn (6.6.4): selectionFrameOnScreen. (E2-08) the
+// handles of each single object kind (6.6.4 table), vertex mode and the
+// image aspect unlock (6.6.5), the frame following an edge / vertex drag's
+// preview copy.
 import 'dart:async';
 import 'dart:ui' show Offset, Rect;
 
@@ -15,6 +18,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../document/mounted_pages.dart';
 import '../scope/editor_scope.dart';
 import '../viewport/viewport_controller.dart';
+import 'object_resize.dart';
 import 'selection_hit_test.dart';
 import 'tool_controller.dart';
 import 'tool_state.dart';
@@ -35,6 +39,7 @@ class EditorSelection {
     this.origin = SelectionOrigin.lasso,
     this.isDragging = false,
     this.vertexMode = false,
+    this.aspectUnlocked = false,
   });
   final String pageId;
 
@@ -48,17 +53,23 @@ class EditorSelection {
   /// (v2) single polyline shape: vertex handles shown (6.6.5).
   final bool vertexMode;
 
+  /// (E2-08, 6.6.4) single image: '비율 고정 풀기' — the 4 edge handles
+  /// shown (a free resize, UpdateObjects). Off again with a new selection.
+  final bool aspectUnlocked;
+
   EditorSelection copyWith({
     Set<String>? elementIds,
     SelectionOrigin? origin,
     bool? isDragging,
     bool? vertexMode,
+    bool? aspectUnlocked,
   }) => EditorSelection(
     pageId: pageId,
     elementIds: elementIds ?? this.elementIds,
     origin: origin ?? this.origin,
     isDragging: isDragging ?? this.isDragging,
     vertexMode: vertexMode ?? this.vertexMode,
+    aspectUnlocked: aspectUnlocked ?? this.aspectUnlocked,
   );
 
   static const SetEquality<String> _ids = SetEquality<String>();
@@ -70,6 +81,7 @@ class EditorSelection {
       other.origin == origin &&
       other.isDragging == isDragging &&
       other.vertexMode == vertexMode &&
+      other.aspectUnlocked == aspectUnlocked &&
       _ids.equals(other.elementIds, elementIds);
 
   @override
@@ -78,13 +90,15 @@ class EditorSelection {
     origin,
     isDragging,
     vertexMode,
+    aspectUnlocked,
     _ids.hash(elementIds),
   );
 
   @override
   String toString() =>
       'EditorSelection($pageId, $elementIds, ${origin.name}'
-      '${isDragging ? ', dragging' : ''}${vertexMode ? ', vertices' : ''})';
+      '${isDragging ? ', dragging' : ''}${vertexMode ? ', vertices' : ''}'
+      '${aspectUnlocked ? ', aspect unlocked' : ''})';
 }
 
 /// Per note (scoped). Mirrors controller.selection of the selected page.
@@ -123,11 +137,15 @@ class EditorSelectionNotifier extends Notifier<EditorSelection?> {
       _pages[pageId]?.controller;
 
   /// controller.select(ids) and remember (pageId, the INK selection's
-  /// allIds, [origin]). Empty ids → clear().
+  /// allIds, [origin]). Empty ids → clear(). (E2-08) [vertexMode] and
+  /// [aspectUnlocked] carry those modes over (the host re-selects the same
+  /// ids after a handle drag) — kept only where they apply.
   void select(
     String pageId,
     Set<String> ids, {
     SelectionOrigin origin = SelectionOrigin.lasso,
+    bool vertexMode = false,
+    bool aspectUnlocked = false,
   }) {
     final old = state;
     if (old != null && old.pageId != pageId) {
@@ -143,10 +161,13 @@ class EditorSelectionNotifier extends Notifier<EditorSelection?> {
       state = null;
       return;
     }
+    final single = singleObjectOf(selection);
     state = EditorSelection(
       pageId: pageId,
       elementIds: Set.unmodifiable(selection.allIds),
       origin: origin,
+      vertexMode: vertexMode && single != null && hasVertexMode(single),
+      aspectUnlocked: aspectUnlocked && single is core.ImageObject,
     );
   }
 
@@ -165,22 +186,30 @@ class EditorSelectionNotifier extends Notifier<EditorSelection?> {
   }
 
   /// (v2) Vertex handles on / off — only for a single ShapeObject with
-  /// PolylineGeometry (6.6.5); otherwise turning it on does nothing.
+  /// PolylineGeometry (6.6.5); otherwise turning it on does nothing. (E2-08)
+  /// Not for a line / an arrow (their end points are always vertex handles)
+  /// nor a star (P-C — its many points' handles overlap): [hasVertexMode].
   void setVertexMode(bool value) {
     final s = state;
     if (s == null || s.vertexMode == value) return;
     if (value) {
       final sel = inkSelectionOf(_pages, s);
-      final objects = sel?.objects ?? const <core.PageObject>[];
-      final single = sel != null && sel.strokeIds.isEmpty && objects.length == 1
-          ? objects.single
-          : null;
-      if (single is! core.ShapeObject ||
-          single.geometry is! core.PolylineGeometry) {
-        return;
-      }
+      final single = sel == null ? null : singleObjectOf(sel);
+      if (single == null || !hasVertexMode(single)) return;
     }
     state = s.copyWith(vertexMode: value);
+  }
+
+  /// (E2-08, 6.6.4) '비율 고정 풀기' on / off — only for a single image;
+  /// otherwise turning it on does nothing.
+  void setAspectUnlocked(bool value) {
+    final s = state;
+    if (s == null || s.aspectUnlocked == value) return;
+    if (value) {
+      final sel = inkSelectionOf(_pages, s);
+      if (sel == null || singleObjectOf(sel) is! core.ImageObject) return;
+    }
+    state = s.copyWith(aspectUnlocked: value);
   }
 
   /// 6.6.6 / (v2) 6.6.7: called from PageMount.onContentChanged (no CORE
@@ -282,31 +311,61 @@ bool isImmovableSelection(ink.InkSelection sel) =>
     sel.objects.isNotEmpty &&
     sel.objects.every((o) => o is core.UnknownObject);
 
+/// (E2-08, 6.6.5) Whether [object] has a vertex mode ('꼭짓점 편집'): a
+/// polyline shape that is neither a line / an arrow (their end points are
+/// always vertex handles) nor a star (P-C).
+bool hasVertexMode(core.PageObject object) =>
+    object is core.ShapeObject &&
+    object.geometry is core.PolylineGeometry &&
+    !ObjectResize.isEndpointShape(object) &&
+    object.shapeKind != core.ShapeKind.star;
+
 /// (v2, 6.6.4) The selection frame as drawn on screen (viewport
-/// coordinates): [quad], the resize [handles] shown and whether the rotate
-/// handle is.
+/// coordinates): [quad], the resize [handles] shown, whether the rotate
+/// handle is and (E2-08) the [vertices] handles.
 @immutable
 final class SelectionFrameShape {
   const SelectionFrameShape({
     required this.quad,
     required this.handles,
     required this.rotatable,
+    this.vertices = const [],
+    this.boxed = true,
   });
 
+  /// The frame. (E2-08) A line / an arrow: (a, b, b, a) — the segment
+  /// between its end points, its body the segment inflated in its own axes.
   final SelectionQuad quad;
 
-  /// The resize handles drawn (E2-06: the 4 corners; edges come in E2-08).
+  /// The resize handles drawn: corners and (E2-08) the edges of the object
+  /// kind (6.6.4 table).
   final List<ink.SelectionHandle> handles;
 
   /// The rotate handle is drawn (and hit).
   final bool rotatable;
 
+  /// (E2-08) Vertex handles (screen, by point index): a line's / an arrow's
+  /// end points, a polygon's vertices in vertex mode.
+  final List<Offset> vertices;
+
+  /// (E2-08) false for a line / an arrow: the dashed line joins the end
+  /// points, no box.
+  final bool boxed;
+
+  /// Every handle shown (resize + vertex + rotate).
+  int get handleCount => handles.length + vertices.length + (rotatable ? 1 : 0);
+
   /// The axis-aligned box of the frame and its handles (the selection menu
   /// keeps clear of it).
   Rect get extent {
     var out = quad.bounds;
-    if (handles.isNotEmpty) {
+    if (handles.isNotEmpty || vertices.isNotEmpty) {
       out = out.inflate(SelectionHitTest.handleVisualRadius);
+    }
+    for (final v in vertices) {
+      out = out.expandToInclude(
+        Rect.fromCircle(center: v, radius: SelectionHitTest.handleVisualRadius),
+      );
     }
     if (rotatable) {
       out = out.expandToInclude(
@@ -325,6 +384,7 @@ final class SelectionFrameShape {
     p,
     handles: handles,
     rotatable: rotatable,
+    vertices: vertices,
   );
 
   /// [p] on the body (the frame inflated by 8 px, in its own axes).
@@ -335,13 +395,20 @@ final class SelectionFrameShape {
       other is SelectionFrameShape &&
       other.quad == quad &&
       other.rotatable == rotatable &&
-      const ListEquality<ink.SelectionHandle>().equals(other.handles, handles);
+      other.boxed == boxed &&
+      const ListEquality<ink.SelectionHandle>().equals(
+        other.handles,
+        handles,
+      ) &&
+      const ListEquality<Offset>().equals(other.vertices, vertices);
 
   @override
   int get hashCode => Object.hash(
     quad,
     rotatable,
+    boxed,
     const ListEquality<ink.SelectionHandle>().hash(handles),
+    const ListEquality<Offset>().hash(vertices),
   );
 }
 
@@ -350,9 +417,12 @@ final class SelectionFrameShape {
 /// (SelectionGeometry.transformedCorners — a rotation preview shows a rotated
 /// rectangle), 4 corners + the rotate handle. One object: its own frame
 /// (`object.frame.corners` — rotated for text, image, ellipse, math; the
-/// points' box for a polyline) through the preview, 4 corners + the rotate
-/// handle; an unknown object: its frame, no handles, never previewed. Null
-/// when there is no selection or its page is not laid out.
+/// points' box for a polyline) through the preview, with (E2-08) the
+/// handles of its kind (6.6.4 table — [_singleHandles]); an unknown object:
+/// its frame, no handles, never previewed. (E2-08) While an edge / vertex
+/// drag shows an edited copy of the object (controller.previewObjects, same
+/// id) the frame follows that copy. Null when there is no selection or its
+/// page is not laid out.
 SelectionFrameShape? selectionFrameOnScreen(
   ViewportController viewport,
   MountedPages pages,
@@ -363,28 +433,105 @@ SelectionFrameShape? selectionFrameOnScreen(
   final index = viewport.pages.indexWhere((p) => p.id == selection!.pageId);
   if (index < 0) return null;
   final preview = sel.previewTransform;
-  final single = singleObjectOf(sel);
-  final List<Offset> pageCorners;
-  var handles = SelectionHitTest.cornerHandles;
-  var rotatable = true;
-  if (single == null) {
-    pageCorners = ink.SelectionGeometry.transformedCorners(sel.bounds, preview);
-  } else if (single is core.UnknownObject) {
-    pageCorners = [for (final c in single.frame.corners) Offset(c.x, c.y)];
-    handles = const [];
-    rotatable = false;
-  } else {
-    pageCorners = [
-      for (final c in single.frame.corners) _apply(preview, c.x, c.y),
-    ];
+  Offset screen(Offset page) => viewport.pageToScreen(index, page);
+  final selected = singleObjectOf(sel);
+  if (selected == null) {
+    return SelectionFrameShape(
+      quad: SelectionQuad.fromCorners([
+        for (final c in ink.SelectionGeometry.transformedCorners(
+          sel.bounds,
+          preview,
+        ))
+          screen(c),
+      ]),
+      handles: SelectionHitTest.cornerHandles,
+      rotatable: true,
+    );
+  }
+  if (selected is core.UnknownObject) {
+    return SelectionFrameShape(
+      quad: SelectionQuad.fromCorners([
+        for (final c in selected.frame.corners) screen(Offset(c.x, c.y)),
+      ]),
+      handles: const [],
+      rotatable: false,
+    );
+  }
+  final single =
+      _editedCopyOf(pages[selection!.pageId]?.controller, selected) ?? selected;
+  Offset through(core.PagePoint p) => screen(_apply(preview, p.x, p.y));
+  if (single is core.ShapeObject) {
+    final geometry = single.geometry;
+    if (geometry is core.PolylineGeometry &&
+        ObjectResize.isEndpointShape(single)) {
+      final a = through(geometry.points[0]);
+      final b = through(geometry.points[1]);
+      return SelectionFrameShape(
+        quad: SelectionQuad(a, b, b, a),
+        handles: const [],
+        rotatable: false,
+        vertices: [a, b],
+        boxed: false,
+      );
+    }
+    if (geometry is core.PolylineGeometry && selection.vertexMode) {
+      return SelectionFrameShape(
+        quad: SelectionQuad.fromCorners([
+          for (final c in single.frame.corners) through(c),
+        ]),
+        handles: const [],
+        rotatable: false,
+        vertices: [for (final p in geometry.points) through(p)],
+      );
+    }
   }
   return SelectionFrameShape(
     quad: SelectionQuad.fromCorners([
-      for (final c in pageCorners) viewport.pageToScreen(index, c),
+      for (final c in single.frame.corners) through(c),
     ]),
-    handles: handles,
-    rotatable: rotatable,
+    handles: _singleHandles(single, selection),
+    rotatable: true,
   );
+}
+
+/// (E2-08, 6.6.4 table) The resize handles of a single object (not a line /
+/// an arrow, not in vertex mode, not unknown): a polyline shape and an
+/// ellipse 4 corners + 4 edges, a text box 4 corners + left / right (its
+/// width), an image 4 corners (+ 4 edges once its aspect is unlocked), a
+/// math object 4 corners.
+List<ink.SelectionHandle> _singleHandles(
+  core.PageObject object,
+  EditorSelection selection,
+) => switch (object) {
+  core.ShapeObject() => SelectionHitTest.allHandles,
+  core.TextBoxObject() => _textHandles,
+  core.ImageObject() =>
+    selection.aspectUnlocked
+        ? SelectionHitTest.allHandles
+        : SelectionHitTest.cornerHandles,
+  core.MathObject() || core.UnknownObject() => SelectionHitTest.cornerHandles,
+};
+
+const List<ink.SelectionHandle> _textHandles = [
+  ink.SelectionHandle.topLeft,
+  ink.SelectionHandle.topRight,
+  ink.SelectionHandle.right,
+  ink.SelectionHandle.bottomRight,
+  ink.SelectionHandle.bottomLeft,
+  ink.SelectionHandle.left,
+];
+
+/// (E2-08) The edited copy of [object] an edge / vertex drag shows
+/// (controller.previewObjects — same id), or null.
+core.PageObject? _editedCopyOf(
+  ink.InkPageController? controller,
+  core.PageObject object,
+) {
+  if (controller == null) return null;
+  for (final o in controller.previewObjects) {
+    if (o.id == object.id && o.runtimeType == object.runtimeType) return o;
+  }
+  return null;
 }
 
 Offset _apply(core.Affine2 m, double x, double y) {

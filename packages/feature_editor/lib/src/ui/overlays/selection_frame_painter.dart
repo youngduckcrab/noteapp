@@ -1,5 +1,6 @@
 // lib/src/ui/overlays/selection_frame_painter.dart — 04-editor 6.6.5 (selection
-// display); (v2) m5-7/04-editor 6.6.4 (frame v2) — E2-06.
+// display); (v2) m5-7/04-editor 6.6.4 (frame v2) — E2-06; (E2-08) edge
+// squares, vertex circles and a line's / an arrow's segment.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
@@ -14,9 +15,12 @@ import '../../viewport/viewport_controller.dart';
 /// selectionFrameOnScreen): a dashed 1 px quad (colorScheme.primary, dash 6 /
 /// 4) — INK's bounds for several elements (turned by a rotation preview),
 /// the object's own — possibly rotated — frame for one object — the corner
-/// handles (12 px circles, [fill] inside, primary border) and the rotate
-/// handle: a circle [SelectionHitTest.rotateHandleOffset] px outside the
-/// top edge's middle, joined to it by a line. Repaints from the viewport and
+/// handles (12 px circles, [fill] inside, primary border), (E2-08) the edge
+/// handles (10 px squares turned with the frame), the vertex handles (10 px
+/// circles) — a line / an arrow: the dashed segment between its end points,
+/// no box — and the rotate handle: a circle
+/// [SelectionHitTest.rotateHandleOffset] px outside the top edge's middle,
+/// joined to it by a line. Repaints from the viewport and
 /// the selected page's INK controller (selection changes and preview
 /// transforms) — no provider state changes while dragging.
 class SelectionFramePainter extends CustomPainter {
@@ -50,9 +54,11 @@ class SelectionFramePainter extends CustomPainter {
       ..strokeWidth = lineWidth
       ..color = color;
     _dashed(canvas, quad.topLeft, quad.topRight, line);
-    _dashed(canvas, quad.topRight, quad.bottomRight, line);
-    _dashed(canvas, quad.bottomRight, quad.bottomLeft, line);
-    _dashed(canvas, quad.bottomLeft, quad.topLeft, line);
+    if (frame.boxed) {
+      _dashed(canvas, quad.topRight, quad.bottomRight, line);
+      _dashed(canvas, quad.bottomRight, quad.bottomLeft, line);
+      _dashed(canvas, quad.bottomLeft, quad.topLeft, line);
+    }
     final inside = Paint()..color = fill;
     final border = Paint()
       ..style = PaintingStyle.stroke
@@ -77,6 +83,11 @@ class SelectionFramePainter extends CustomPainter {
           ..drawRect(square, border)
           ..restore();
       }
+    }
+    for (final v in frame.vertices) {
+      canvas
+        ..drawCircle(v, SelectionHitTest.vertexVisualRadius, inside)
+        ..drawCircle(v, SelectionHitTest.vertexVisualRadius, border);
     }
     if (frame.rotatable) {
       final knob = quad.rotateHandlePosition;

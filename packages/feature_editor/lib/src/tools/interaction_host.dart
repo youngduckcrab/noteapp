@@ -15,7 +15,8 @@
 // GestureSettings action through EditorActionRunner (6.4.2, 6.4.3). E2-06:
 // the selection priority (a′) (6.6.2), taps that select an object (6.3.5 ④)
 // and (part 2) the frame v2 hit test — rotated frames and the rotate handle
-// with its angle tag (6.6.4, 6.6.6).
+// with its angle tag (6.6.4, 6.6.6). E2-08: a single object's edge, vertex
+// and text width handles → ObjectEditInteraction (6.6.5).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -49,6 +50,7 @@ import '../viewport/viewport_controller.dart';
 import 'erase_interaction.dart';
 import 'eyedropper_interaction.dart';
 import 'lasso_interaction.dart';
+import 'object_edit_interaction.dart';
 import 'pen_interaction.dart';
 import 'selection.dart';
 import 'selection_hit_test.dart';
@@ -365,7 +367,9 @@ class InteractionHost implements InputTargets {
   /// ③: a handle → resize from that corner or (v2) rotate, the body → move
   /// (6.6.5) after the move-start threshold; (v2) a body tap before it is a
   /// selection tap (6.6.2): the text tool on a single text box starts editing
-  /// it, else nothing.
+  /// it, else nothing. (E2-08) A single object's edge / vertex handle →
+  /// ObjectEditInteraction (UpdateObjects); the modes (vertex mode, aspect
+  /// unlock) survive the re-selection after either drag.
   ToolInteraction? _beginTransform(
     InputSample sample,
     InteractionSource source, {
@@ -382,6 +386,40 @@ class InteractionHost implements InputTargets {
     final size = _viewport.pages[index].size;
     final notifier = _ref.read(editorSelectionProvider.notifier)
       ..setDragging(true);
+    void reselect(Set<String> ids) {
+      if (_disposed) return;
+      notifier.select(
+        selection.pageId,
+        ids,
+        origin: selection.origin,
+        vertexMode: selection.vertexMode,
+        aspectUnlocked: selection.aspectUnlocked,
+      );
+    }
+
+    final single = singleObjectOf(sel);
+    if (handle != null &&
+        single != null &&
+        ObjectEditInteraction.handles(single, handle)) {
+      return ObjectEditInteraction.start(
+        down: sample,
+        source: source,
+        controller: mount.controller,
+        session: _session,
+        pageId: selection.pageId,
+        pageIndex: index,
+        object: single,
+        handle: handle,
+        viewport: _viewport,
+        commands: _commands,
+        // The same id again (UpdateObjects keeps it) — dropped when a remote
+        // delete took it during the drag (select filters by INK's content).
+        onSettled: () => reselect({single.id}),
+        onFinished: () {
+          if (!_disposed) notifier.setDragging(false);
+        },
+      );
+    }
     return SelectionTransformInteraction.start(
       down: sample,
       source: source,
@@ -392,13 +430,9 @@ class InteractionHost implements InputTargets {
       handle: handle,
       viewport: _viewport,
       commands: _commands,
-      onCommitted: (ids) {
-        // TransformElements keeps ids: select them again (6.6.5), (v2) the
-        // origin kept (6.6.3).
-        if (!_disposed) {
-          notifier.select(selection.pageId, ids, origin: selection.origin);
-        }
-      },
+      // TransformElements keeps ids: select them again (6.6.5), (v2) the
+      // origin kept (6.6.3).
+      onCommitted: reselect,
       onFinished: () {
         if (_disposed) return;
         _rotationLabel.value = null;

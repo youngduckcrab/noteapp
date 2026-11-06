@@ -1,5 +1,6 @@
 // lib/src/tools/selection_hit_test.dart — 04-editor 6.6.5; (v2) m5-7/04-editor
-// 6.6.4 (rotated frames, the rotate handle, the 8 handle directions) — E2-06.
+// 6.6.4 (rotated frames, the rotate handle, the 8 handle directions) — E2-06;
+// (E2-08) vertex handles (6.6.5 — a line's end points, a polygon's vertices).
 //
 // Hit testing of the selection frame only; the transform math is
 // ink.SelectionGeometry (contract 7.2.15, INK 4.7).
@@ -18,8 +19,11 @@ abstract final class SelectionHitTest {
   /// middle of the frame's top edge, along the edge's outward normal.
   static const double rotateHandleOffset = 28;
 
-  /// (v2) Half the side of an edge handle's square (px — drawn from E2-08).
+  /// (v2) Half the side of an edge handle's square (px).
   static const double edgeHandleHalfSide = 5;
+
+  /// (E2-08) The radius of a vertex handle's small circle (px).
+  static const double vertexVisualRadius = 5;
 
   /// M1 shows the 4 corner handles only (keepAspect resize).
   static const List<ink.SelectionHandle> cornerHandles = [
@@ -78,13 +82,15 @@ abstract final class SelectionHitTest {
       boundsOnScreen.inflate(bodyInflate).contains(p);
 
   /// (v2) The handle of [quad] within [handleHitRadius] px of [p] — one of
-  /// [handles] or, when [rotatable], the rotate handle — the nearest one when
-  /// several are (a small frame); null when none is.
+  /// [handles], (E2-08) one of the [vertices] (screen positions, by index)
+  /// or, when [rotatable], the rotate handle — the nearest one when several
+  /// are (a small frame); null when none is.
   static FrameHandle? hitFrameHandle(
     SelectionQuad quad,
     Offset p, {
     Iterable<ink.SelectionHandle> handles = cornerHandles,
     bool rotatable = true,
+    List<Offset> vertices = const [],
   }) {
     FrameHandle? best;
     var bestDistance = double.infinity;
@@ -96,6 +102,9 @@ abstract final class SelectionHitTest {
       }
     }
 
+    for (var i = 0; i < vertices.length; i++) {
+      consider(FrameHandle.vertex(i), vertices[i]);
+    }
     for (final handle in handles) {
       consider(FrameHandle.resize(handle), quad.handlePosition(handle));
     }
@@ -123,27 +132,52 @@ abstract final class SelectionHitTest {
 }
 
 /// (v2, 6.6.4) A handle of the selection frame: one of INK's 8 resize
-/// handles ([resize]) or the rotate handle ([isRotate]).
+/// handles ([resize]), (E2-08) a vertex handle ([vertex] — the index of the
+/// point in the shape's PolylineGeometry) or the rotate handle ([isRotate]).
 @immutable
 final class FrameHandle {
-  const FrameHandle.resize(ink.SelectionHandle this.resize);
-  const FrameHandle.rotate() : resize = null;
+  const FrameHandle.resize(ink.SelectionHandle this.resize) : vertex = null;
+  const FrameHandle.rotate() : resize = null, vertex = null;
 
-  /// null = the rotate handle.
+  /// (E2-08) The vertex handle of point [vertex].
+  const FrameHandle.vertex(int this.vertex) : resize = null;
+
+  /// null = the rotate handle or a vertex handle.
   final ink.SelectionHandle? resize;
 
-  bool get isRotate => resize == null;
+  /// (E2-08) The point index of a vertex handle; null otherwise.
+  final int? vertex;
+
+  bool get isRotate => resize == null && vertex == null;
+
+  /// (E2-08) A vertex handle.
+  bool get isVertex => vertex != null;
+
+  /// (E2-08) One of the 4 corner handles.
+  bool get isCorner {
+    final r = resize;
+    return r != null && SelectionHitTest.cornerHandles.contains(r);
+  }
+
+  /// (E2-08) One of the 4 edge handles.
+  bool get isEdge {
+    final r = resize;
+    return r != null && SelectionHitTest.edgeHandles.contains(r);
+  }
 
   @override
   bool operator ==(Object other) =>
-      other is FrameHandle && other.resize == resize;
+      other is FrameHandle && other.resize == resize && other.vertex == vertex;
 
   @override
-  int get hashCode => resize.hashCode;
+  int get hashCode => Object.hash(resize, vertex);
 
   @override
-  String toString() =>
-      isRotate ? 'FrameHandle.rotate' : 'FrameHandle.${resize!.name}';
+  String toString() => isVertex
+      ? 'FrameHandle.vertex($vertex)'
+      : isRotate
+      ? 'FrameHandle.rotate'
+      : 'FrameHandle.${resize!.name}';
 }
 
 /// (v2, 6.6.4) The selection frame as a — possibly rotated — rectangle on

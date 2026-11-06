@@ -423,4 +423,96 @@ void main() {
       expect(SelectionHitTest.edgeHandles, hasLength(4));
     });
   });
+
+  group('(E2-08) vertex handles', () {
+    test('FrameHandle.vertex: its index, neither rotate nor resize; isCorner '
+        '/ isEdge', () {
+      const v = FrameHandle.vertex(2);
+      expect(v.vertex, 2);
+      expect(v.isVertex, isTrue);
+      expect(v.isRotate, isFalse);
+      expect(v.resize, isNull);
+      expect(v.isCorner, isFalse);
+      expect(v.isEdge, isFalse);
+      expect(v, const FrameHandle.vertex(2));
+      expect(v, isNot(const FrameHandle.vertex(1)));
+      expect(v, isNot(const FrameHandle.rotate()));
+      expect(v.hashCode, const FrameHandle.vertex(2).hashCode);
+      expect(const FrameHandle.rotate().isVertex, isFalse);
+      expect(
+        const FrameHandle.resize(ink.SelectionHandle.topLeft).isCorner,
+        isTrue,
+      );
+      expect(const FrameHandle.resize(ink.SelectionHandle.left).isEdge, isTrue);
+      expect(
+        const FrameHandle.resize(ink.SelectionHandle.left).isCorner,
+        isFalse,
+      );
+    });
+
+    test('hitFrameHandle: the nearest vertex within 22 px, by index; '
+        'vertices and handles compete by distance', () {
+      // A line (100,100) → (300,100): the quad (a, b, b, a).
+      const a = Offset(100, 100), b = Offset(300, 100);
+      const line = SelectionQuad(a, b, b, a);
+      expect(
+        SelectionHitTest.hitFrameHandle(
+          line,
+          const Offset(110, 105),
+          handles: const [],
+          rotatable: false,
+          vertices: const [a, b],
+        ),
+        const FrameHandle.vertex(0),
+      );
+      expect(
+        SelectionHitTest.hitFrameHandle(
+          line,
+          const Offset(295, 92),
+          handles: const [],
+          rotatable: false,
+          vertices: const [a, b],
+        ),
+        const FrameHandle.vertex(1),
+      );
+      expect(
+        SelectionHitTest.hitFrameHandle(
+          line,
+          const Offset(200, 100),
+          handles: const [],
+          rotatable: false,
+          vertices: const [a, b],
+        ),
+        isNull,
+      );
+      // The line's body: the segment inflated by 8 px in its own axes.
+      expect(
+        SelectionHitTest.hitQuadBody(line, const Offset(200, 107)),
+        isTrue,
+      );
+      expect(
+        SelectionHitTest.hitQuadBody(line, const Offset(200, 110)),
+        isFalse,
+      );
+      expect(SelectionHitTest.hitQuadBody(line, const Offset(95, 100)), isTrue);
+      // A vertex closer than a corner wins.
+      final box = SelectionQuad.fromRect(const Rect.fromLTRB(0, 0, 100, 100));
+      expect(
+        SelectionHitTest.hitFrameHandle(
+          box,
+          const Offset(9, 9),
+          vertices: const [Offset(10, 10)],
+        ),
+        const FrameHandle.vertex(0),
+      );
+      expect(
+        SelectionHitTest.hitFrameHandle(
+          box,
+          const Offset(1, 1),
+          vertices: const [Offset(10, 10)],
+        ),
+        const FrameHandle.resize(ink.SelectionHandle.topLeft),
+      );
+    });
+  });
 }
