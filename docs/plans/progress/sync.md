@@ -253,7 +253,7 @@
 | S2-7b | 남음 | | `test/engine/download_pipeline_test.dart`('S-13 다시 적용'), `test/engine/engine_state_test.dart` |
 | S2-8 | 남음 | | `test/scenarios/s23_…`~`s30_…`, `test/scenarios/fuzz_convergence_test.dart` |
 | S2-9 | 남음 | | `test/integration/`(T16-v2 5파일 — 작성·컴파일, 실행은 I-2) |
-| S2-10a | 완료 (P-B) | (이 줄의 커밋) | `functions/test/protocol.test.ts`(6.8.3 표 각 행·경계 — 획 2,000/2,001, 점 10,000/10,001, JSON 524,288/+1 B, base64 2,097,152/+1자), `access.test.ts`, `registry.test.ts`('auto'·이름·`fake` 금지·`gemini`·Mathpix/Claude 설정 조건·`createRegistry` 주입·설정을 resolve마다 읽음·키는 엔진을 만들 때만·소스 검사), `fake_engine.test.ts`(B7b 그대로), `latex.test.ts` — `npm ci && npm test` `# tests 105` |
+| S2-10a | 완료 (P-B) | `abfe2b1` | `functions/test/protocol.test.ts`(6.8.3 표 각 행·경계 — 획 2,000/2,001, 점 10,000/10,001, JSON 524,288/+1 B, base64 2,097,152/+1자), `access.test.ts`, `registry.test.ts`('auto'·이름·`fake` 금지·`gemini`·Mathpix/Claude 설정 조건·`createRegistry` 주입·설정을 resolve마다 읽음·키는 엔진을 만들 때만·소스 검사), `fake_engine.test.ts`(B7b 그대로), `latex.test.ts` — `npm ci && npm test` `# tests 105` |
 | S2-10b | 남음 (P-B) | | `functions/test/{quota,handler,secrets_hygiene}.test.ts` |
 | S2-11 | 남음 (P-B) | | `functions/test-emulator/recognize_math.emulator.test.ts`(E1~E10) |
 | S2-12 | 남음 (P-C) | | `functions/test/{mathpix,claude}.test.ts` |
@@ -273,7 +273,7 @@
 #### 계획과 다르게 한 점 (동시 개발)
 
 - S2-10a: 계획 6.8.3 표의 `pngBase64` 위반 메시지 '`pngBase64 is not a PNG` 등'을 넷으로 나눴다 — 문자열 아님·빈 값 `pngBase64 must be a non-empty string`, 길이 초과 `pngBase64 is larger than 2 MB`, base64 아님(문자 집합 밖·길이 % 4 ≠ 0·`=`가 끝 말고 있음) `pngBase64 is not base64`, 서명 다름 `pngBase64 is not a PNG`. 모두 `invalid-argument`라 앱 동작은 같다. `engine`·`locale`이 `null`이면 없는 것으로 본다(기본값). PNG 서명은 앞 12자만 풀어 본다(본문 전체는 처리 본문이 엔진에 넘길 때 푼다).
-- S2-10a: `latex.ts`(계획 3.2 '출력 정리·정규화')는 `stripMathDelimiters`·`normalizeLatex`(6.9.3 규칙) 두 함수다. 4.5는 `normalizeLatex`를 `tool/eval_score.ts`에 두는데, S2-13에서 그 파일이 이 함수를 다시 내보내게 한다(서버와 도구가 같은 규칙). 6.9.3 '경우 표 20개'는 S2-13 `math_eval.test.ts` 몫이고, 여기 `latex.test.ts`는 같은 규칙을 함수 단위로 시험한다(28).
+- S2-10a: `latex.ts`(계획 3.2 '출력 정리·정규화')는 `stripMathDelimiters`·`normalizeLatex`(6.9.3 규칙) 두 함수다. 4.5는 `normalizeLatex`를 `tool/eval_score.ts`에 두는데, S2-13에서 그 파일이 이 함수를 다시 내보내게 한다(서버와 도구가 같은 규칙). 6.9.3 '경우 표 20개'는 S2-13 `math_eval.test.ts` 몫이고, 여기 `latex.test.ts`는 같은 규칙을 함수 단위로 시험한다(30).
 - S2-10a: 등록부는 Mathpix·Claude 설정이 다 있어도 어댑터 공장(S2-12)이 없으면 `notConfigured`다. `registryFromParams`는 `MATH_API_KEY`를 getter로 넘겨 가짜 엔진 경로에서는 비밀값을 읽지 않는다.
 - S2-2: 골든의 Chrome용 상수는 1차처럼 따로 파일 `test/shared/chunk_v1_kinds_golden_bytes.dart`(Python 스크립트가 `.bin`과 함께 씀)에 두었다(계획 3.1 트리에는 `chunk_kinds_cases.dart`만 있음). 모르는 kind 기록 바이트 도우미 `test/support/raw_records.dart`(3.1 트리의 [새])를 S2-6보다 먼저 S2-2에서 만들었다.
 
@@ -282,6 +282,12 @@
 #### 이정표 커밋 (동시 개발)
 
 - 없음
+
+#### 세션 기록
+
+| 세션 | 끝낸 작업 | 끝 확인 |
+|---|---|---|
+| 1 (2026-11-06) | 문서 정리, S2-1, S2-2, S2-10a | `ws check` 0·0, 루트 `flutter analyze --fatal-infos` 0, `sync_engine` VM 811 통과·4 건너뜀(`integration`, 약 100 s), Chrome `ws test --package sync_engine --platform chrome` 30 통과, `functions` `npm ci && npm test` `# tests 105`, 에뮬레이터 1회 `# tests 0`(31 s) |
 
 #### 다음 세션 메모
 
