@@ -284,12 +284,12 @@
 | T28 | 남음 | | `unit/normalizer_equivalence_test`, `web/normalizer_equivalence_browser_test` |
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
 | T31a | 완료 | 8dc3b6f | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
-| T31b | 완료 | (세션 3 기록 커밋) | `unit/recorder_service_test`(42), `unit/stop_recover_buffers_test`(5) — 가짜 엔진·잠금 `test/support/fake_engines.dart`, 기록 감싼 저장소·가짜 시간 `test/support/recorder_world.dart` |
+| T31b | 완료 | 1b8261c | `unit/recorder_service_test`(42), `unit/stop_recover_buffers_test`(5) — 가짜 엔진·잠금 `test/support/fake_engines.dart`, 기록 감싼 저장소·가짜 시간 `test/support/recorder_world.dart` |
 | T32a | 완료 | 0c64fad | `unit/webm_timeline_test`, `unit/mp4_duration_test`, (더함) `web/pure_logic_browser_test` — 손 표본 사례는 `test/support/webm_timeline_cases.dart`·`mp4_duration_cases.dart`(VM·Chrome 같은 단언), Chrome 표본 `test/support/fixtures/chrome_opus_*.webm` 7개 |
 | T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
 | T33 | 남음 | | `unit/native_engine_test`, `unit/foreground_service_test`, `unit/audio_session_test` |
 | T34 | 남음 | | `unit/playback_service_test`, `unit/audio_source_native_test`, `web/playback_browser_test` |
-| T35a | 완료 | (세션 3 기록 커밋) | `unit/image_header_test`(17), `unit/image_normalizer_test`(18) — 표본 `test/support/fixtures/img_*.{jpg,png,webp}` 8개(Pillow) + `package:image`로 시험 안에서 만든 표본 |
+| T35a | 완료 | 486c4e7 | `unit/image_header_test`(17), `unit/image_normalizer_test`(18) — 표본 `test/support/fixtures/img_*.{jpg,png,webp}` 8개(Pillow) + `package:image`로 시험 안에서 만든 표본 |
 | T35b | 남음 | | `unit/image_import_test`, `web/image_codec_browser_test`, `unit/supported_sources_test` |
 | T36a | 남음 | | `widget/recording_panel_test` |
 | T36b | 남음 | | `widget/recording_list_test`, `widget/recording_sheets_test`, `widget/recording_stuck_drafts_test` |
@@ -387,9 +387,16 @@
 | 3 (T35a) | `ws test --package media_io --platform chrome` | 33 통과, prepare ok, 121 s |
 | 3 (T35a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 06:11:34–06:13:30 UTC, 잠금 대기 28초) | `media` 시험 아직 없음 — 'no matching tests' |
 | 3 (T35a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
+| 3 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
+| 3 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
+| 3 (끝) | `ws test --package pdf_io` (VM) / `--platform chrome` (이 세션에 바뀌지 않음) | 652 통과 + 8 skip, 90 s / 84 통과 + 1 skip, 234 s, prepare ok |
 
 #### 다음 세션 메모
 
+- (세션 3 끝) 완료: T31b(`1b8261c`), T35a(`486c4e7`). `git status` 깨끗. 다음 후보: `media_io` T32b(웹 녹음기 — T31b 포트대로 `recorder_engine_browser.dart`·`web_locks_browser.dart`·`page_events_*`·`file_download_*` + 공장 파일), T33(네이티브 — `FakeRecordPlatform`), T34(재생 — T31b와 무관, 바로 가능), T35b(가져오기 흐름 — T35a 위, `image_codec_browser.dart`·`image_codec_factory.dart`·`image_picker_port.dart`), `pdf_io` T25a(T21·T24 뒤 — 이제 가능), T22·T23(실제 해석기), T27·T28(아무 때나 — T28 사전 조사는 아래 세션 1 메모).
+- T31b가 남긴 것: 엔진 본문(T32b·T33)은 `record/recorder_engine.dart` 주석의 규칙을 지킨다 — 세션 `events`는 단일 구독이고 첫 사건이 `EngineStarted`(또는 `EngineFailed`), 사용자 `pause()`/`resume()`은 엔진이 멈춘·재개한 뒤 완료(사건 불필요), 시스템 멈춤만 `EnginePaused(bySystem: true, reason: hiddenTab|microphoneLost)`, `stop()`은 웹이면 마지막 조각을 `onChunk`로 넘긴 뒤 완료(`file: null`)·네이티브면 `RecorderEngineResult(file:)`, `abandon()`은 마무리 없이 캡처만 멈춤(웹 `requestData` 먼저). 네이티브는 `writesDraftChunks == false`, `draftMimeType 'audio/mp4'`, `leftoverFile`·`deleteOrphanFiles`(`media_io/rec/`). 서비스 연결(`mediaIoOverrides()`의 두 override — `MediaRecorderService(stores: () => RecorderStores.of(ref.read(core.noteStoreProvider)), now: () => ref.read(core.clockProvider).now(), config:, engine: 공장 엔진, locks: 공장 잠금)` + `ref.onDispose(s.dispose)`)은 T37. 패널(T36a)은 `status.error`의 `MediaIoException.code`로 6.16 문구를 고르고, 복구 못 한 초안 줄(T36b)은 서비스 `stuckDrafts()`를 쓴다(내부 provider로 감쌈).
+- T31b 시험 도우미: `test/support/recorder_world.dart`의 `RecorderWorld`(가짜 저장소 + `fakeAsync` 시계 + 노트 하나)·`RecorderTab`(서비스 하나 + 기록 감싼 저장소 `LoggedDrafts`(`appendGate`·`appendErrors`·`readAllError`)·`LoggedAssets`(`putErrors`)·`LoggedRecordings`(`createErrors`)·`LoggedSettings`(`failingKeys`), `record(Duration)`이 1초마다 64 B 조각), `settle(async, future)`. `fake_async` 안에서는 `StreamSubscription.cancel()`의 Future를 기다리지 말 것(루트 존 — 멈춤).
+- T35a가 남긴 것: `ImageNormalizer(codec:).normalize(bytes)` → `NormalizedImage(bytes, mimeType, width, height, path)` 또는 `MediaIoException(decodeFailed|unsupportedFormat|tooLarge)`. T35b는 공장으로 `IoImageCodec`(VM·네이티브)/브라우저 코덱을 고르고, `importImageForNote`가 정규화 뒤 `AssetStore.put(type: image, mimeType: n.mimeType, fileName: 6.12.5)`.
 - (세션 2 끝) 완료: T32a(`0c64fad`), T24(`80da665`). `git status` 깨끗. 다음 후보: `media_io` T31b(T31a·T32a가 끝나 이제 시작 가능 — 큰 작업, 한 세션 몫), T35a(순수 — T35b의 선행), `pdf_io` T25a(T21·T24가 끝나 이제 시작 가능), T22·T23(실제 해석기 — `checkComposeOps` 규칙 공유), T27·T28(아무 때나).
 - T32a가 남긴 것: 정지·복구 경로(T31b)는 `WebmTimeline.measure(bytes)?.endMs`(실패 → 시계 값 + 'duration from clock')와 `patchedHead(bytes, endMs)`(→ `head + bytes[restOffset..]`을 한 번 복사 — `BufferLedger.swap`, `null` → 'duration patch skipped'), 웹 MP4는 `Mp4Duration.measure`를 쓴다. `test/support/webm_builder.dart`(`webmFile`·`cluster`·`blocks`·`cutEnd`·`applyPatch`)로 T31b `stop_recover_buffers_test`의 1 MiB 합성 WebM 초안과 T41의 86 MB 표본을 만들 수 있다(`blocks(n, filler:)`로 크기 조절 — 블록 상대 타임코드가 int16이므로 Cluster당 블록 546개(60 ms 간격) 이하).
 - T24가 남긴 것: 내보내기 서비스는 아직 1차 `vectorize` + `encode`를 쓴다 — `planPage` + 해석기(T25a·T25b) + `encodeItems`로 바꾸는 것은 T26. `integration/ink_vectorizer_v2_test`는 INK T42 뒤 통합 4-a에서 판정.
