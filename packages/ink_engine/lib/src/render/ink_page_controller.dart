@@ -401,8 +401,8 @@ final class InkPageController extends ChangeNotifier {
   /// beginStroke: [style] is normalized() here; pen-down time for createdAt =
   /// services.nowMillis() (now).
   /// (v2.0) [shapeAssist]: StrokeSession.shapeAssist returns it as given; holdToSnap reads
-  /// [shapeFitter] now (ignored for highlighter, laser and tape). R2-B3: the hold is not
-  /// detected yet (shapePreview stays null — T39).
+  /// [shapeFitter] now (ignored for highlighter, laser and tape) and (m5-7 T39, 6.18) the
+  /// session watches for a hold: a fit is StrokeSession.shapePreview, drawn at layer 4′.
   StrokeSession beginStroke(
     InkSample first, {
     required core.StrokeStyle style,
@@ -437,6 +437,7 @@ final class InkPageController extends ChangeNotifier {
       _host,
       builder,
       penDownMillis,
+      first: first,
       shapeAssist: shapeAssist,
       fitter: fitter,
     );
@@ -2137,7 +2138,9 @@ final class InkPageController extends ChangeNotifier {
     if (active is StrokeSession &&
         active.isActive &&
         active.style.profile.layer == InkLayer.ink &&
-        active.style.profile.renderMethod != InkRenderMethod.transientTrail) {
+        active.style.profile.renderMethod != InkRenderMethod.transientTrail &&
+        // (m5-7 T39, 6.18) while a shape preview shows, layer 4′ draws it instead
+        strokeSessionPreviewShape(active) == null) {
       final start = clock.nowUs();
       final live = active.live;
       final style = active.style;
@@ -2165,8 +2168,27 @@ final class InkPageController extends ChangeNotifier {
   /// top). T39 (shape assist preview) and T40 (playback emphasis) draw here.
   void _paintEndStage(ui.Canvas canvas, _Display display, int paper) {
     _paintPlayback(canvas, display, paper);
+    _paintShapePreview(canvas, paper);
     final debug = _debugEndStage;
     if (debug != null) debug(canvas);
+  }
+
+  /// (m5-7 T39, 6.18) The shape preview of the stroke being written: the ShapeObject
+  /// its end() would commit, drawn by the shape painter (6.9) at the height of the
+  /// committed result — over every ink item, under text, formulas and tapes.
+  void _paintShapePreview(ui.Canvas canvas, int paper) {
+    final active = _active;
+    if (active is! StrokeSession) return;
+    final shape = strokeSessionPreviewShape(active);
+    if (shape == null) return;
+    if (!paintObjectSimple(
+      canvas,
+      shape,
+      paperArgb: paper,
+      onePx: 1 / _currentViewScale,
+    )) {
+      diagnostics.onWarning('objectPaintFailed');
+    }
   }
 
   /// (m5-7 T40, 6.19) The playback emphasis of [_playbackFocus] (normalized, 4.10);

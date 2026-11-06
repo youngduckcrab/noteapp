@@ -3,9 +3,12 @@
 @Tags(['bench'])
 library;
 
+import 'dart:ui' as ui;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/geometry/outline_generator.dart';
+import 'package:ink_engine/src/shape/hold_detector.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import 'support/bench.dart';
@@ -61,11 +64,64 @@ void main() {
     );
   });
 
-  test(
-    'B20 hold detection per sample',
-    () {},
-    skip:
-        'T39 (P-B, 6.18) is not implemented: there is no hold detector to '
-        'measure yet (03-ink 8.2 cut order T44 → T39)',
-  );
+  group('B20 hold detection per sample (6.18)', () {
+    // cursive writing: the anchor moves every few samples (the no-sample timer is
+    // re-armed each time); a fast line: every sample moves it (the worst case).
+    final cursive = cursiveSamples(2000);
+    final fast = [
+      for (var i = 0; i < 2000; i++)
+        InkSample(
+          position: ui.Offset(40 + 9.0 * i, 300),
+          timeUs: i * 4167,
+          kind: InkPointerKind.stylus,
+          pressure: 0.5,
+        ),
+    ];
+    for (final (name, samples) in [
+      ('cursive 2000 samples, 240 Hz', cursive),
+      ('fast line 2000 samples (9 pt apart)', fast),
+    ]) {
+      test(name, () {
+        var anchorMoves = 0;
+        final stats = measure(
+          () {
+            final first = samples.first;
+            final d = HoldDetector(
+              start: first.position,
+              startUs: first.timeUs,
+              viewScale: 1,
+              onHold: () {},
+              onMove: () {},
+            );
+            var anchor = d.anchor;
+            var moves = 0;
+            for (var i = 1; i < samples.length; i++) {
+              final s = samples[i];
+              d.add(s.position, s.timeUs);
+              if (d.anchor != anchor) {
+                anchor = d.anchor;
+                moves++;
+              }
+            }
+            d.stop();
+            anchorMoves = moves;
+          },
+          warmup: 5,
+          runs: 30,
+        );
+        // per sample
+        final perSample = BenchStats([
+          for (final ms in stats.samples) ms / (samples.length - 1),
+        ]);
+        expect(anchorMoves, greaterThan(samples.length ~/ 10));
+        report(
+          'B20',
+          'hold detection: $name',
+          perSample,
+          criteria: {'median_ms': 0.02},
+          extra: {'anchor_moves': anchorMoves},
+        );
+      });
+    }
+  });
 }

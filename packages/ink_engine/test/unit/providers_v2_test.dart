@@ -139,7 +139,11 @@ void main() {
     );
     expect(strokeSessionFitterOf(c), isNull);
     c.cancel();
-    expect(first.calls + second.calls, 0, reason: 'R2-B3 never asks it');
+    expect(
+      first.calls + second.calls,
+      0,
+      reason: 'cancelled before any hold (T39 asks only after one)',
+    );
   });
 
   test('createTestPageController(shapeFitter:) wires the fitter', () {

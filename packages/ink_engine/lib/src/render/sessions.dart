@@ -17,8 +17,13 @@
 // 2nd round (contract 7.2.9, m5-7/03-ink 4.4, 4.6, 4.13 — foundation step
 // R2-B3):
 //  * StrokeSession: receives ShapeAssist (the shapeAssist getter is what
-//    beginStroke got) and reads the shape fitter then; shapePreview stays
-//    null (the hold detection is T39). A laser stroke end() returns null — no
+//    beginStroke got) and reads the shape fitter then; (m5-7 T39, 6.18) with a
+//    fitter a HoldDetector watches the samples: a hold asks the fitter for the
+//    centerline so far, a fit becomes shapePreview (drawn at layer 4′ instead
+//    of the live stroke), moving again drops it, end() with a preview yields
+//    InkEdit(addShape) with one ShapeObject in the pen's style and no stroke;
+//    a throwing fitter keeps the stroke (warning shapeFitterThrew). A laser
+//    stroke end() returns null — no
 //    InkEdit, nothing pending (K-9); (m5-7 T30, 6.6) it is a fading trail on
 //    the overlay layer (laser_trail.dart: the points carry the InkClock time
 //    of their arrival, the trail fades out over laserFadeMs after the lift and
@@ -33,7 +38,13 @@ import 'dart:collection';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:flutter/foundation.dart'
+    show
+        ErrorDescription,
+        FlutterError,
+        FlutterErrorDetails,
+        ValueListenable,
+        ValueNotifier;
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -52,6 +63,7 @@ import '../model/ink_points.dart';
 import '../object/object_hit.dart';
 import '../pen/pen_profile.dart';
 import '../pen/style_ink.dart';
+import '../shape/hold_detector.dart';
 import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
 import 'ink_page_content.dart';
@@ -256,6 +268,7 @@ final class StrokeSession implements InkGestureSession {
     this._penDownMillis,
     this._shapeAssist,
     this._fitter,
+    InkSample first,
   ) {
     if (_builder.style.profile.renderMethod == InkRenderMethod.transientTrail) {
       final style = _builder.style;
@@ -265,6 +278,16 @@ final class StrokeSession implements InkGestureSession {
         nowUs: _host.clock.nowUs(),
       );
       _syncTrail();
+    }
+    if (_fitter != null) {
+      // (m5-7 T39, 6.18) the hold starts at the pen-down sample
+      _hold = HoldDetector(
+        start: first.position,
+        startUs: first.timeUs,
+        viewScale: _builder.viewScale,
+        onHold: _onHold,
+        onMove: _dropPreview,
+      );
     }
   }
 
@@ -277,6 +300,16 @@ final class StrokeSession implements InkGestureSession {
   final InkShapeFitter? _fitter;
   final ValueNotifier<InkShapeFit?> _shapePreview = ValueNotifier(null);
   bool _active = true;
+
+  /// (m5-7 T39) The hold detector (only with a fitter).
+  HoldDetector? _hold;
+
+  /// (m5-7 T39) The shape drawn at layer 4′ while [shapePreview] has a value: the
+  /// ShapeObject end() would commit, with a placeholder id.
+  core.ShapeObject? _previewShape;
+
+  /// (m5-7 T39) A throwing fitter is reported once per session.
+  bool _fitterThrewReported = false;
 
   /// (m5-7 T30) The laser's trail (null for every other pen).
   LaserTrail? _trail;
@@ -291,7 +324,9 @@ final class StrokeSession implements InkGestureSession {
   }
 
   /// (v2.0) The shape fitted after a hold, shown in layer 4′; null otherwise (moving
-  /// again, end, cancel). R2-B3: always null.
+  /// again, end, cancel). (m5-7 T39, 6.18) Set when the pen held still ≥
+  /// InkTuning.shapeHoldMs within InkTuning.shapeHoldRadiusPx and the fitter found a
+  /// shape in the centerline so far; the live stroke is not drawn meanwhile.
   ValueListenable<InkShapeFit?> get shapePreview => _shapePreview;
 
   /// (v2.1) what beginStroke received
@@ -315,6 +350,7 @@ final class StrokeSession implements InkGestureSession {
   void addSample(InkSample sample) {
     _checkActive();
     _builder.add(sample);
+    _hold?.add(sample.position, sample.timeUs);
     _syncTrail();
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
@@ -325,12 +361,81 @@ final class StrokeSession implements InkGestureSession {
     _checkActive();
     final list = samples.toList(growable: false);
     if (list.isEmpty) return;
-    list.forEach(_builder.add);
+    final hold = _hold;
+    for (final s in list) {
+      _builder.add(s);
+      // (T39) sample by sample: a hold inside the batch sees the points up to it
+      hold?.add(s.position, s.timeUs);
+    }
     _syncTrail();
     _host.diagnostics.onSamples(list, receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
     _host.repaint(_layer);
   }
+
+  /// (m5-7 T39, 6.18 fire()) The pen held still: the fitter gets the centerline so
+  /// far (stable points + raw tail, page pt); a fit becomes the preview. A throwing
+  /// fitter counts as 'not a shape' (warning shapeFitterThrew, 6.24).
+  void _onHold() {
+    final fitter = _fitter;
+    if (!_active || fitter == null) return;
+    final points = List<ui.Offset>.unmodifiable(livePoints(live));
+    InkShapeFit? fit;
+    try {
+      fit = fitter.fit(points, viewScale: _builder.viewScale);
+    } on Object catch (error, stack) {
+      fit = null;
+      _host.diagnostics.onWarning('shapeFitterThrew');
+      if (!_fitterThrewReported) {
+        _fitterThrewReported = true;
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'ink_engine',
+            context: ErrorDescription('while fitting a shape to a held stroke'),
+          ),
+        );
+      }
+    }
+    if (fit == null) return;
+    _previewShape = _shapeOf(fit, id: _previewShapeId);
+    _shapePreview.value = fit;
+    _host.repaint(InkRenderLayer.inkActive);
+  }
+
+  /// (m5-7 T39) Moving again (or cancel): the preview goes, the live stroke is back.
+  void _dropPreview() {
+    final fit = _shapePreview.value;
+    if (fit == null) return;
+    _host.diagnostics.onShapeFit(fit.kind.name, fit.score, accepted: false);
+    _previewShape = null;
+    _shapePreview.value = null;
+    _host.repaint(InkRenderLayer.inkActive);
+  }
+
+  /// The id of the layer 4′ preview shape (never committed).
+  static const String _previewShapeId = 'shape-preview';
+
+  /// (6.18) The ShapeObject of [fit] in this pen's style: stroke color, width and
+  /// opacity of the pen, dashed for the dashed pen (else solid), no fill, no heads;
+  /// createdAt = pen-down nowMillis.
+  core.ShapeObject _shapeOf(InkShapeFit fit, {required String id}) =>
+      core.ShapeObject(
+        id: id,
+        pageId: _host.pageId,
+        shapeKind: fit.kind,
+        geometry: fit.geometry,
+        style: core.ShapeStyle(
+          strokeColorArgb: style.colorArgb,
+          strokeWidth: style.width,
+          strokeOpacity: style.opacity,
+          dash: style.tool == core.PenTool.dashed
+              ? core.LineDash.dashed
+              : core.LineDash.solid,
+        ).normalized(),
+        createdAt: _penDownMillis,
+      );
 
   /// 4.12 lastWidthFactor / pressureSource / stylusCapability.
   void _reportWidthFactor() {
@@ -351,10 +456,29 @@ final class StrokeSession implements InkGestureSession {
   /// updateContent contains it, discardEdit (failed commit) is called, or the timeout passes.
   /// (v2.0) laser: null — no InkEdit, nothing pending, the content is not changed (E-3).
   /// (m5-7 T30) The trail stays and fades out over laserFadeMs from now (6.6-2).
+  /// (m5-7 T39) With a shape preview: InkEdit(addShape) with ONE ShapeObject (id =
+  /// services.newStrokeId(), the pen's style, createdAt = pen-down nowMillis) and no
+  /// stroke; [last] (the lift) does not drop the preview.
   InkEdit? end([InkSample? last]) {
     _checkActive();
     _active = false;
+    _hold?.stop();
+    final fit = _shapePreview.value;
+    _previewShape = null;
     _shapePreview.value = null;
+    if (fit != null) {
+      final shape = _shapeOf(fit, id: _host.services.newStrokeId());
+      _host.diagnostics.onShapeFit(fit.kind.name, fit.score, accepted: true);
+      final edit = InkEdit(
+        pageId: _host.pageId,
+        kind: InkEditKind.addShape,
+        addedObjects: List.unmodifiable([shape]),
+      );
+      _host.addPending(edit);
+      liveClear(live);
+      _host.sessionEnded(this);
+      return edit;
+    }
     final trail = _trail;
     if (trail != null || style.tool == core.PenTool.laser) {
       if (trail != null) {
@@ -401,7 +525,8 @@ final class StrokeSession implements InkGestureSession {
   void cancel() {
     if (!_active) return;
     _active = false;
-    _shapePreview.value = null;
+    _hold?.stop();
+    _dropPreview();
     final trail = _trail;
     if (trail != null) {
       // (T30) a cancelled laser disappears at once
@@ -417,19 +542,31 @@ final class StrokeSession implements InkGestureSession {
   }
 }
 
+/// [first] = the pen-down sample [builder] already has (the hold's first anchor).
 @internal
 StrokeSession newStrokeSession(
   InkPageHost host,
   StrokeBuilder builder,
   core.EpochMillis penDownMillis, {
+  required InkSample first,
   ShapeAssist shapeAssist = ShapeAssist.off,
   InkShapeFitter? fitter,
-}) => StrokeSession._(host, builder, penDownMillis, shapeAssist, fitter);
+}) => StrokeSession._(host, builder, penDownMillis, shapeAssist, fitter, first);
 
 /// The shape fitter [s] read at beginStroke (null: off, or a tool without shape assist —
 /// highlighter, laser, tape). Tests (S-12: a changed override applies from the next stroke).
 @internal
 InkShapeFitter? strokeSessionFitterOf(StrokeSession s) => s._fitter;
+
+/// (m5-7 T39) The hold detector of [s] (null without a fitter). Tests.
+@internal
+HoldDetector? strokeSessionHoldOf(StrokeSession s) => s._hold;
+
+/// (m5-7 T39) The shape layer 4′ draws for [s] while it is active and has a shape
+/// preview (the committed shape with a placeholder id), else null.
+@internal
+core.ShapeObject? strokeSessionPreviewShape(StrokeSession s) =>
+    s._active ? s._previewShape : null;
 
 /// Shape assist applies to this tool (not highlighter, laser or tape — 03-ink 4.10).
 @internal

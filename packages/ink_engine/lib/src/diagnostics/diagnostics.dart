@@ -262,6 +262,12 @@ class InkDiagnostics extends ChangeNotifier {
   /// (m5-7 6.8.3, I-B12) annotation layer paint times (µs) — paints that drew objects.
   final List<double> _annotationPaintUs = [];
 
+  /// (m5-7 T39, 6.18) shape assist previews shown / committed, the last one shown.
+  int _shapeFits = 0;
+  int _shapeFitsAccepted = 0;
+  String? _lastShapeKind;
+  double? _lastShapeScore;
+
   /// Active paints (paint time, event time of the newest sample painted)
   /// waiting for their FrameTiming, oldest first.
   final List<(int, int)> _awaitingFrame = [];
@@ -302,6 +308,10 @@ class InkDiagnostics extends ChangeNotifier {
     _eventToRasterEnd.clear();
     _playbackPaintUs.clear();
     _annotationPaintUs.clear();
+    _shapeFits = 0;
+    _shapeFitsAccepted = 0;
+    _lastShapeKind = null;
+    _lastShapeScore = null;
     _awaitingFrame.clear();
     _pendingReceiveUs = null;
     _pendingEventUs = null;
@@ -438,6 +448,27 @@ class InkDiagnostics extends ChangeNotifier {
     if (!_enabled) return;
     _push(_annotationPaintUs, us.toDouble());
   }
+
+  /// (m5-7 T39, 6.18) A shape assist preview ended: committed by end() ([accepted]) or
+  /// dropped (moving again, cancel). A statistic, not a warning.
+  @meta.internal
+  void onShapeFit(String kind, double score, {required bool accepted}) {
+    if (!_enabled) return;
+    _shapeFits++;
+    if (accepted) _shapeFitsAccepted++;
+    _lastShapeKind = kind;
+    _lastShapeScore = score;
+  }
+
+  /// (m5-7 T39) INTERNAL (tests, INK developer tools): the shape assist statistic.
+  @meta.internal
+  ({int fits, int accepted, String? lastKind, double? lastScore})
+  get shapeFitStats => (
+    fits: _shapeFits,
+    accepted: _shapeFitsAccepted,
+    lastKind: _lastShapeKind,
+    lastScore: _lastShapeScore,
+  );
 
   /// (m5-7 T40, 6.19-6, 6.8.3) Developer display values that are not in [snapshot] (the
   /// contract's snapshot fields stay as they are), each the p95 (µs, nearest rank) of

@@ -1,8 +1,7 @@
 // lib/src/shape/shape_assist.dart — contract 7.2.9 (m5-7/03-ink 4.4, 4.5). Final (T24).
 //
-// The port of automatic shape correction: INK detects the hold (T39), the
-// fitter decides. Foundation step R2-B3: StrokeSession only receives
-// ShapeAssist and its shapePreview stays null (03-ink 4.13).
+// The port of automatic shape correction: INK detects the hold (m5-7 T39 —
+// shape/hold_detector.dart, render/sessions.dart; 6.18), the fitter decides.
 import 'dart:ui' show Offset;
 
 import 'package:meta/meta.dart';
