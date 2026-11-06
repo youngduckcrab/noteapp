@@ -1,8 +1,8 @@
 // lib/src/object/object_painter.dart — INTERNAL (m5-7/03-ink 4.13, 6.8.4).
 //
 // Foundation step R2-B3: the simple drawing of every page object in its L-1
-// layer. Shapes: their polyline / ellipse outline (solid, no fill, no arrow
-// heads — T33); text boxes: background, the NoteSans paragraph (the system
+// layer. Shapes: (m5-7 T33) the final drawing of shape_path.dart — fill, line
+// styles, arrow heads (6.9); text boxes: background, the NoteSans paragraph (the system
 // font until NoteSans is loaded), clipped to the frame, rotated (T34);
 // images: a gray placeholder box (T35); formulas: a light box (no raster —
 // T36); unknown objects: a hatched box. Every object is drawn inside its CORE
@@ -15,10 +15,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:note_core/note_core.dart' as core;
 
-import '../render/stroke_painter.dart' show inkColor;
 import '../text/fonts.dart';
 import '../text/text_layout.dart';
 import '../tuning.dart';
+import 'shape_path.dart';
 
 /// Paints [o] in page pt. [onePx] = one logical px in pt (hairlines). Returns false when
 /// painting failed (the caller warns).
@@ -31,7 +31,7 @@ bool paintObjectSimple(
   try {
     switch (o) {
       case core.ShapeObject():
-        _paintShape(canvas, o);
+        paintShape(canvas, o);
       case core.TextBoxObject():
         _inFrame(canvas, o.frame, (w, h) => _paintText(canvas, o, w, h));
       case core.ImageObject():
@@ -104,53 +104,6 @@ void _inFrame(
     paint(w, h);
   } finally {
     canvas.restore();
-  }
-}
-
-double _validWidth(double w) => w.isFinite
-    ? w.clamp(core.ShapeStyle.minWidth, core.ShapeStyle.maxWidth).toDouble()
-    : 2.0;
-
-double _validOpacity(double o) =>
-    o.isFinite ? o.clamp(0.0, 1.0).toDouble() : 1.0;
-
-void _paintShape(ui.Canvas canvas, core.ShapeObject o) {
-  final style = o.style;
-  final paint = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeWidth = _validWidth(style.strokeWidth)
-    ..strokeJoin = ui.StrokeJoin.round
-    ..strokeCap = ui.StrokeCap.round
-    ..isAntiAlias = true
-    ..color = inkColor(
-      style.strokeColorArgb,
-      _validOpacity(style.strokeOpacity),
-    );
-  switch (o.geometry) {
-    case core.PolylineGeometry(:final points, :final closed):
-      if (points.isEmpty) return;
-      final path = ui.Path()..moveTo(points.first.x, points.first.y);
-      for (var i = 1; i < points.length; i++) {
-        path.lineTo(points[i].x, points[i].y);
-      }
-      if (closed && points.length > 2) path.close();
-      canvas.drawPath(path, paint);
-    case core.EllipseGeometry(:final ellipseFrame):
-      final r = ellipseFrame.rect;
-      final c = ellipseFrame.center;
-      canvas
-        ..save()
-        ..translate(c.x, c.y)
-        ..rotate(ellipseFrame.rotation.isFinite ? ellipseFrame.rotation : 0)
-        ..drawOval(
-          ui.Rect.fromCenter(
-            center: ui.Offset.zero,
-            width: r.width,
-            height: r.height,
-          ),
-          paint,
-        )
-        ..restore();
   }
 }
 

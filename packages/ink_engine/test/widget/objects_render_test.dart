@@ -14,6 +14,9 @@
 // - Draw keys (6.11.3): every chunk keeps the asset / hairline keys of what it
 //   drew; a key change records only those chunks (an asset, another zoom
 //   octave). The cover page picture.
+// - (T33, 6.9) Shapes: an arrow at opacity 0.5 is painted once where its line
+//   and head overlap (S-10 — the overlap pixel = the line's middle pixel),
+//   dashes leave gaps, a fill is drawn under the outline, dotted dots.
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -139,6 +142,16 @@ bool _near(List<int> px, int argb, {int tol = 6}) => samePixel(px, [
   argb % 256,
   255,
 ], tol: tol);
+
+/// Paints every layer of [c] over white paper at 1 px per pt.
+Future<Pixels> _pixelsOf(InkPageController c, {int w = 300, int h = 300}) =>
+    renderPixels(w, h, (canvas) {
+      paintPaper(canvas, 0xFFFFFFFF);
+      final render = inkPageRenderOf(c);
+      for (final layer in InkRenderLayer.values) {
+        render.paint(canvas, layer, 1);
+      }
+    });
 
 void main() {
   // text boxes draw with NoteSans from the start: no implicit load (and no
@@ -440,6 +453,118 @@ void main() {
       );
       expect((underlay.dirtyCount, annotation.dirtyCount), (12, 12));
       expect(ink.dirtyCount, 0);
+    });
+  });
+
+  group('shapes (T33, 6.9)', () {
+    core.ShapeObject styled(
+      String id,
+      core.ShapeGeometry geometry, {
+      core.ShapeKind kind = core.ShapeKind.line,
+      double width = 6,
+      double opacity = 1,
+      core.LineDash dash = core.LineDash.solid,
+      core.ArrowHeads heads = core.ArrowHeads.none,
+      int? fill,
+    }) => core.ShapeObject(
+      id: id,
+      pageId: _pageId,
+      shapeKind: kind,
+      geometry: geometry,
+      style: core.ShapeStyle(
+        strokeColorArgb: _red,
+        strokeWidth: width,
+        strokeOpacity: opacity,
+        dash: dash,
+        arrowHeads: heads,
+        fillColorArgb: fill,
+        fillOpacity: 0.5,
+      ),
+      createdAt: 1,
+    );
+
+    test(
+      'arrow at opacity 0.5: the line / head overlap is painted once',
+      () async {
+        final arrow = styled(
+          'ar',
+          core.ShapeGeometry.line(
+            const core.PagePoint(40, 100),
+            const core.PagePoint(240, 100),
+          ),
+          kind: core.ShapeKind.arrow,
+          opacity: 0.5,
+          heads: core.ArrowHeads.end,
+        );
+        final c = createTestPageController()
+          ..updateContent(_content(const [], [arrow]));
+        addTearDown(c.dispose);
+        final px = await _pixelsOf(c);
+        final middle = px.at(140, 100);
+        expect(middle[1], lessThan(200), reason: 'the line is drawn');
+        expect(middle[1], greaterThan(60), reason: 'half transparent');
+        // L = 18, base midpoint at 240 − 18·cos 25° ≈ 223.7; the round cap reaches 226.7
+        for (final x in const [224, 226, 232]) {
+          expect(
+            samePixel(px.at(x, 100), middle, tol: 2),
+            isTrue,
+            reason: '$x',
+          );
+        }
+        expect(samePixel(px.at(150, 100), middle, tol: 2), isTrue);
+      },
+    );
+
+    test('dashes leave gaps; a fill under the outline; dotted dots', () async {
+      final dashed = styled(
+        'da',
+        core.ShapeGeometry.line(
+          const core.PagePoint(40, 40),
+          const core.PagePoint(240, 40),
+        ),
+        width: 4,
+        dash: core.LineDash.dashed,
+      );
+      final dotted = styled(
+        'do',
+        core.ShapeGeometry.line(
+          const core.PagePoint(40, 80),
+          const core.PagePoint(240, 80),
+        ),
+        width: 4,
+        dash: core.LineDash.dotted,
+      );
+      final filled = styled(
+        'fi',
+        core.ShapeGeometry.rectangle(const core.PageRect(60, 140, 200, 240)),
+        kind: core.ShapeKind.rectangle,
+        width: 4,
+        fill: _blue,
+      );
+      final c = createTestPageController()
+        ..updateContent(_content(const [], [dashed, dotted, filled]));
+      addTearDown(c.dispose);
+      final px = await _pixelsOf(c);
+      bool paper(List<int> p) => samePixel(p, const [255, 255, 255, 255]);
+      // [4, 3] × 4: visible 16 pt from x = 40, gap 12 pt
+      expect(paper(px.at(48, 40)), isFalse, reason: 'in the first dash');
+      expect(paper(px.at(62, 40)), isTrue, reason: 'in the first gap');
+      expect(paper(px.at(76, 40)), isFalse, reason: 'second dash');
+      // [0, 2] × 4: dots of diameter 4 every 8 pt
+      expect(paper(px.at(48, 80)), isFalse, reason: 'dot at 48');
+      expect(paper(px.at(52, 80)), isTrue, reason: 'between two dots');
+      expect(
+        paper(px.at(40, 84)),
+        isTrue,
+        reason: 'a dot is round, 2 pt radius',
+      );
+      // the fill (blue × 0.5) inside, the red outline over it at the edge
+      final inside = px.at(130, 190);
+      expect(inside[2], greaterThan(200));
+      expect(inside[0], lessThan(160));
+      final edge = px.at(60, 190);
+      expect(edge[0], greaterThan(180));
+      expect(edge[2], lessThan(90), reason: 'outline over the fill');
     });
   });
 
