@@ -1,6 +1,6 @@
 # 2차 라운드(M5·M6·M7) 동시 개발 영역 개요
 
-> 상태: **확정 — 2차 기반 단계 완료, 동시 개발 중 (통합 계약 v2.5 — 7.9 C23-01~07·C24-01~02·C25-01~04, 최종 승인 2026-11-05)** — 7개 영역 계획서 01~07 모두 승인([00-review.md](00-review.md) '최종 승인' 절에 승인 요약·개발 중 주의할 점·기반 단계와 통합 순서·사용자 질문). v2.1(C21-01~35) 뒤 최종 승인에서 바뀐 곳은 본문에 `(v2.2)`로 표시했고 [7.9 변경 이력](#79-계약-변경-이력)의 C22-01~C22-09에 모두 있다. v2.0 초안에서 v2.1로 바뀐 곳은 `(v2.1)`로 표시했고 C21-01~C21-35에 있다
+> 상태: **확정 — 2차 기반 단계 완료, 동시 개발 중 (통합 계약 v2.6 — 7.9 C23-01~07·C24-01~02·C25-01~04·C26-01~04, 최종 승인 2026-11-05)** — 7개 영역 계획서 01~07 모두 승인([00-review.md](00-review.md) '최종 승인' 절에 승인 요약·개발 중 주의할 점·기반 단계와 통합 순서·사용자 질문). v2.1(C21-01~35) 뒤 최종 승인에서 바뀐 곳은 본문에 `(v2.2)`로 표시했고 [7.9 변경 이력](#79-계약-변경-이력)의 C22-01~C22-09에 모두 있다. v2.0 초안에서 v2.1로 바뀐 곳은 `(v2.1)`로 표시했고 C21-01~C21-35에 있다
 >
 > 기준: 1차 [00-overview.md](../00-overview.md) 7장 통합 계약 v1.5(1차 통합 반영 — v1.4 대비 시그니처 변경 없음) · [00-review.md](../00-review.md) · 마스터 기획서 [PLAN.md](../../PLAN.md) F-03·F-10~F-16, 5장, 7.6, 10장 M5~M7 · 조사 [01-hooks](research/01-hooks.md) · [02-audio-stylus](research/02-audio-stylus.md) · [03-recognition](research/03-recognition.md) · [04-native](research/04-native.md) · 설계 초안 [A(기존 패키지 중심 — 바탕)](drafts/overview-A.md) · [B(기능 모듈 중심)](drafts/overview-B.md) · 채점·판정 [judgement.md](drafts/judgement.md) (A 29점 / B 21점)
 
@@ -2374,6 +2374,15 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C-4 | 네이티브 필기 지연(PLAN 5.4 20 ms) — 1차부터 미뤄진 판정 |
 
 ### 7.9 계약 변경 이력
+
+#### v2.6 (2026-11-06, 2차 동시 개발 끝 — 총괄)
+
+| # | 절 | 변경 | 출처 | 반영할 영역 (통합 단계) |
+|---|---|---|---|---|
+| C26-01 | 7.7.2 V8 판정식(C22-04) | 위쪽 한계를 `endMs + 50 + 60 × (일시정지 수)` ms로 넓힌다(실제 Chrome MediaRecorder에서 일시정지 한 번마다 파일이 패킷 하나 ≈ 60 ms 짧아짐 — PDF T39 실측 +35·+46·+52·+65 ms). 아래쪽 한계는 그대로 | PDF T39 | PDF(record_playback_media_test 판정식) |
+| C26-02 | 7.2.12 PDF 공개 표면, 7.3.3 | `pdfDevOverlayLinesProvider`(`Provider<List<String>>`, 기본 빈 목록, media_io의 `mediaDevOverlayLinesProvider`와 같은 모양)를 **추가만**으로 둔다 — 내보내기 장부 `overBudget`·`peakBytes` 줄(C22-06 ②). INFRA가 FeatureWiringModule의 PDF DevOverlaySection에 붙인다 | PDF T26 | PDF(provider + 시험, debugPrint 제거), INFRA(연결 + overrides 시험) |
+| C26-03 | 7.2.5 `searchPages` 스니펫·사각형 | PDF 결과의 강조 사각형은 **질의 낱말마다 그 페이지 첫 일치**를 합친 목록으로 준다(1차 `searchNote`처럼 구 전체가 강조되게). 순서·후보 규칙(7.2.5, CP-14)은 그대로 | PDF 검토 | CORE(실제·가짜 같게 — 공유 계약 시험 갱신) |
+| C26-04 | PDF 엔진 어댑터 | PDFium이 줄 끝 하이픈 낱말을 이어 붙일 때 넣는 U+0002(낱말 글자 사이)는 PDF 엔진 어댑터가 U+00AD로 바꿔 넘긴다(같은 길이 — 글자 상자 1:1 유지). CORE 정규화는 바꾸지 않는다 | PDF 검토 | PDF(어댑터 + 'IN-/DEXING' 시험) |
 
 #### v2.5 (2026-11-06, 2차 동시 개발 중 — 총괄)
 
