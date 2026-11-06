@@ -274,10 +274,18 @@ class RecordControls extends StatelessWidget {
 
 /// The status line under the recording row; empty when [line] has no text.
 class StatusLine extends StatelessWidget {
-  const StatusLine({super.key, required this.line, required this.onResume});
+  const StatusLine({
+    super.key,
+    required this.line,
+    required this.onResume,
+    this.trailing,
+  });
 
   final PanelStatusLine line;
   final VoidCallback onResume;
+
+  /// (T36b) After the text — the web [파일로 내려받기] of a failed save (6.10.4).
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +309,7 @@ class StatusLine extends StatelessWidget {
             onPressed: onResume,
             child: const Text(MediaStringsKo.resumeRecording),
           ),
+        ?trailing,
       ],
     );
   }

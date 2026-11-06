@@ -4,11 +4,13 @@
 // (40 % of an iPad Pro 13" height) and a recording seeder.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_io/media_io.dart';
+import 'package:media_io/src/platform/file_download.dart';
 import 'package:media_io/src/providers.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
@@ -75,11 +77,69 @@ final class ScriptedRecorder implements core.AudioRecorderService {
   @override
   int? offsetNowMs() => null;
 
-  @override
-  Future<List<core.RecordingDraft>> pendingDrafts() async => const [];
+  /// What pendingDrafts() answers (logged as 'pendingDrafts').
+  List<core.RecordingDraft> pending = const [];
+
+  /// recoverDraft(id) (logged as 'recoverDraft:{id}') runs this; default null.
+  Future<core.Recording?> Function(String draftId)? onRecover;
+
+  /// Runs inside pendingDrafts() before it answers (to look at the store at that moment).
+  Future<void> Function()? beforePending;
 
   @override
-  Future<core.Recording?> recoverDraft(String draftId) async => null;
+  Future<List<core.RecordingDraft>> pendingDrafts() async {
+    calls.add('pendingDrafts');
+    await beforePending?.call();
+    return pending;
+  }
+
+  @override
+  Future<core.Recording?> recoverDraft(String draftId) async {
+    calls.add('recoverDraft:$draftId');
+    return onRecover?.call(draftId);
+  }
+}
+
+/// The web download port as a fake: logs 'prepare:{fileName}:{bytes}', 'save:{fileName}',
+/// 'revoke:{fileName}' in call order.
+final class FakeFileDownloads implements FileDownloads {
+  final List<String> log = [];
+  final List<Uint8List> prepared = [];
+
+  @override
+  bool get available => true;
+
+  @override
+  PreparedFileDownload? prepare(
+    Uint8List bytes, {
+    required String mimeType,
+    required String fileName,
+  }) {
+    log.add('prepare:$fileName:${bytes.length}');
+    prepared.add(bytes);
+    return _FakePrepared(this, fileName);
+  }
+}
+
+final class _FakePrepared implements PreparedFileDownload {
+  _FakePrepared(this._owner, this.fileName);
+  final FakeFileDownloads _owner;
+  bool _revoked = false;
+
+  @override
+  final String fileName;
+
+  @override
+  void save() {
+    if (!_revoked) _owner.log.add('save:$fileName');
+  }
+
+  @override
+  void revoke() {
+    if (_revoked) return;
+    _revoked = true;
+    _owner.log.add('revoke:$fileName');
+  }
 }
 
 final class PanelWorld {
@@ -90,6 +150,7 @@ final class PanelWorld {
     core.AudioSupport support = core.AudioSupport.supported,
     bool scripted = false,
     bool consentShown = true,
+    FileDownloads? downloads,
   }) async {
     final store = core_testing.createFakeNoteStore();
     final core.AudioRecorderService recorder = scripted
@@ -104,8 +165,11 @@ final class PanelWorld {
       recorder,
       core_testing.FakeAudioPlayback(),
       note.id,
-    );
+    )..downloads = downloads;
   }
+
+  /// null → the default port (no download — native).
+  FileDownloads? downloads;
 
   final core.NoteStore store;
   final core.AudioRecorderService recorder;
@@ -125,11 +189,18 @@ final class PanelWorld {
     required int startedAt,
     int durationMs = 60000,
     core.NoteId? noteId,
+    String mimeType = 'audio/mp4',
+    int? bytes,
+    String? title,
   }) async {
+    final tag = utf8.encode('audio:$id');
+    final data = bytes == null
+        ? tag
+        : (Uint8List(bytes)..setRange(0, tag.length, tag));
     final asset = await store.assets.put(
-      utf8.encode('audio:$id'),
+      data,
       type: core.AssetType.audio,
-      mimeType: 'audio/mp4',
+      mimeType: mimeType,
     );
     return store.recordings.createRecording(
       id: id,
@@ -137,6 +208,7 @@ final class PanelWorld {
       assetId: asset.id,
       durationMs: durationMs,
       startedAt: startedAt,
+      title: title,
     );
   }
 
@@ -146,6 +218,8 @@ final class PanelWorld {
       core.noteStoreProvider.overrideWithValue(store),
       core.audioRecorderServiceProvider.overrideWithValue(recorder),
       core.audioPlaybackServiceProvider.overrideWithValue(playback),
+      if (downloads != null)
+        fileDownloadsProvider.overrideWithValue(downloads!),
     ],
     child: MaterialApp(
       home: Scaffold(

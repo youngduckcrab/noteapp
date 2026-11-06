@@ -6,9 +6,10 @@
 // settingsRepositoryProvider) — no EDITOR type (INFRA adapts EditorPanelContext, X29).
 //
 // T36a: the recording row, the status line (6.13.2), the playback row, '열 때·정지 뒤 열기만'
-// (PDF-M8 — open(), never seekMs / play), the tap-to-seek toggle and the narrow layout. T36b
-// adds the recordings list, the name / delete sheets, the sizes, the badge and the stuck-draft
-// row in the space under the divider.
+// (PDF-M8 — open(), never seekMs / play), the tap-to-seek toggle and the narrow layout. T36b:
+// the recordings list under the divider (names, badge, sizes, total — tap = open only), the
+// rename / delete sheets, the stuck-draft lines at the bottom ([다시 시도], [⋯] → web download ·
+// 지우기) and the web download of a failed save (6.10.4).
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -16,9 +17,14 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../errors.dart';
 import '../providers.dart';
+import '../record/recover_attempts.dart';
+import 'draft_download.dart';
 import 'playback_bar.dart';
 import 'record_controls.dart';
+import 'recording_list.dart';
 import 'sheets.dart';
+import 'strings_ko.dart';
+import 'stuck_drafts_row.dart';
 
 /// Below this width the playback row puts speed and tap-to-seek on a second line (6.13.1).
 const double recordingPanelNarrowWidth = 600;
@@ -59,6 +65,12 @@ class _RecordingPanelBodyState extends ConsumerState<_RecordingPanelBody> {
   Object? _localError;
   bool _openChecked = false;
   bool _acting = false;
+
+  /// The last recording of this note seen in the status (the draft of a failed save — 6.10.4).
+  core.RecordingId? _lastRecordingId;
+
+  /// Stuck drafts with an action running ([다시 시도] / [지우기]).
+  final Set<String> _draftBusy = {};
 
   String get _noteId => widget.panel.noteId;
   core.AudioRecorderService get _recorder =>
@@ -159,6 +171,7 @@ class _RecordingPanelBodyState extends ConsumerState<_RecordingPanelBody> {
   /// 6.13.3 '정지': stop → open the new recording (no play / seek — R-5 v2.1, PDF-M8).
   Future<void> _stop() => _act(() async {
     setState(() => _localError = null);
+    _lastRecordingId = _recorder.status.recordingId ?? _lastRecordingId;
     try {
       final recording = await _recorder.stop();
       if (recording != null && recording.noteId == _noteId) {
@@ -178,6 +191,135 @@ class _RecordingPanelBodyState extends ConsumerState<_RecordingPanelBody> {
 
   Future<void> _pause() => _act(() => _recorder.pause());
   Future<void> _resume() => _act(() => _recorder.resume());
+
+  // ---- T36b: list, sheets, stuck drafts ------------------------------------------------------
+
+  core.NoteStore get _store => ref.read(core.noteStoreProvider);
+
+  Future<void> _open(core.Recording recording) async {
+    try {
+      await _playback.open(recording); // open only (PDF-M8)
+    } on Object catch (e, s) {
+      _report(e, s, 'open');
+    }
+  }
+
+  /// [⋯] of a recording: rename (1–100 chars, empty = default name) or delete (confirm; the open
+  /// recording is closed first).
+  Future<void> _recordingActions(RecordingListRow row) async {
+    final action = await showRecordingActionsSheet(context);
+    if (!mounted || action == null) return;
+    final recording = row.recording;
+    switch (action) {
+      case RecordingAction.rename:
+        final result = await showRenameSheet(context, current: recording.title);
+        if (result == null) return;
+        try {
+          await _store.recordings.renameRecording(recording.id, result.title);
+        } on Object catch (e, s) {
+          _report(e, s, 'rename');
+        }
+      case RecordingAction.delete:
+        final ok = await showConfirmSheet(
+          context,
+          message: MediaStringsKo.deleteRecordingQuestion,
+          confirm: MediaStringsKo.delete,
+        );
+        if (!ok) return;
+        final playback = _playback;
+        try {
+          if (playback.status.recordingId == recording.id) {
+            await playback.close();
+          }
+          await _store.recordings.deleteRecording(recording.id);
+        } on Object catch (e, s) {
+          _report(e, s, 'delete');
+        }
+    }
+  }
+
+  Future<void> _draftAction(
+    core.RecordingDraft draft,
+    Future<void> Function() body,
+  ) async {
+    if (!_draftBusy.add(draft.draftId)) return;
+    setState(() {});
+    try {
+      await body();
+    } finally {
+      _draftBusy.remove(draft.draftId);
+      if (mounted) {
+        setState(() {});
+        ref.invalidate(stuckDraftsProvider(_noteId));
+      }
+    }
+  }
+
+  /// [다시 시도] (6.10.3): attempts back to 0, then pendingDrafts() → recoverDraft() once.
+  Future<void> _retryDraft(core.RecordingDraft draft) =>
+      _draftAction(draft, () async {
+        final store = _store;
+        final recorder = _recorder;
+        try {
+          await RecoverAttempts(store.settings).reset(draft.draftId);
+          final pending = await recorder.pendingDrafts();
+          if (pending.any((d) => d.draftId == draft.draftId)) {
+            await recorder.recoverDraft(draft.draftId);
+          }
+        } on Object catch (e, s) {
+          _report(e, s, 'retry draft');
+        }
+      });
+
+  /// [⋯] of a stuck draft: (web) the two-step download in the sheet, '지우기' (confirm → discard).
+  Future<void> _draftMenu(core.RecordingDraft draft) async {
+    final downloads = ref.read(fileDownloadsProvider);
+    final store = _store;
+    final discard = await showStuckDraftSheet(
+      context,
+      download: downloads.available
+          ? DraftDownloadButton(
+              prepare: () => prepareDraftDownload(store, downloads, draft),
+              onError: (e, s) => _report(e, s, 'draft download'),
+            )
+          : null,
+    );
+    if (!mounted || !discard) return;
+    final ok = await showConfirmSheet(
+      context,
+      message: MediaStringsKo.discardDraftQuestion,
+      confirm: MediaStringsKo.discardDraft,
+    );
+    if (!ok) return;
+    await _draftAction(draft, () async {
+      try {
+        await store.recordingDrafts.discard(draft.draftId);
+        await RecoverAttempts(store.settings).clear(draft.draftId);
+      } on Object catch (e, s) {
+        _report(e, s, 'discard draft');
+      }
+    });
+  }
+
+  /// The web download of a failed save (6.10.4): the draft of [recordingId], if it is still there.
+  Widget? _saveFailedDownload(core.RecordingId? recordingId) {
+    final downloads = ref.read(fileDownloadsProvider);
+    if (!downloads.available || recordingId == null) return null;
+    final store = _store;
+    return DraftDownloadButton(
+      key: ValueKey('save-failed-$recordingId'),
+      prepare: () async {
+        final drafts = await store.recordingDrafts.listDrafts();
+        for (final d in drafts) {
+          if (d.recordingId == recordingId) {
+            return prepareDraftDownload(store, downloads, d);
+          }
+        }
+        return null;
+      },
+      onError: (e, s) => _report(e, s, 'save-failed download'),
+    );
+  }
 
   void _report(Object e, StackTrace s, String what) {
     FlutterError.reportError(
@@ -199,6 +341,13 @@ class _RecordingPanelBodyState extends ConsumerState<_RecordingPanelBody> {
     final recordings = ref.watch(core.noteRecordingsProvider(_noteId)).value;
     if (recordings != null) _openLatestOnce(recordings);
 
+    if (rec.recordingId != null && rec.noteId == _noteId) {
+      _lastRecordingId = rec.recordingId;
+    }
+    final list = ref.watch(recordingListProvider(_noteId)).value;
+    final stuck =
+        ref.watch(stuckDraftsProvider(_noteId)).value ??
+        const <core.RecordingDraft>[];
     final mode = recordRowMode(rec, _noteId, _support);
     final line = statusLineFor(
       status: rec,
@@ -229,7 +378,13 @@ class _RecordingPanelBodyState extends ConsumerState<_RecordingPanelBody> {
                 onStop: _stop,
                 onClose: widget.panel.onClose,
               ),
-              StatusLine(line: line, onResume: _resume),
+              StatusLine(
+                line: line,
+                onResume: _resume,
+                trailing: line.text == MediaStringsKo.saveFailed
+                    ? _saveFailedDownload(rec.recordingId ?? _lastRecordingId)
+                    : null,
+              ),
               if (showsPlayback)
                 PlaybackBar(
                   playback: playback,
@@ -240,8 +395,24 @@ class _RecordingPanelBodyState extends ConsumerState<_RecordingPanelBody> {
                   narrow: constraints.maxWidth < recordingPanelNarrowWidth,
                 ),
               const Divider(height: 1),
-              // T36b: the recordings list (scrolls inside the EDITOR slot — 4.2.5)
-              const Expanded(child: SizedBox.shrink()),
+              // the recordings list scrolls inside the EDITOR slot (4.2.5)
+              Expanded(
+                child: RecordingList(
+                  rows: list?.rows ?? const [],
+                  totalBytes: list?.totalBytes ?? 0,
+                  openId: showsPlayback ? openId : null,
+                  canOpen: !recorderActive,
+                  onOpen: _open,
+                  onActions: _recordingActions,
+                ),
+              ),
+              for (final draft in stuck)
+                StuckDraftRow(
+                  draft: draft,
+                  busy: _draftBusy.contains(draft.draftId),
+                  onRetry: () => _retryDraft(draft),
+                  onMenu: () => _draftMenu(draft),
+                ),
             ],
           ),
         ),

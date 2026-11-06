@@ -2,7 +2,8 @@
 // user-visible string of media_io lives here.
 //
 // R2-B4 (T30): the placeholder strings. T36a: the recording / status / playback rows and the
-// consent sheet. T36b adds the list, the name / delete sheets and the stuck-draft row.
+// consent sheet. T36b: the list, the name / delete sheets, the stuck-draft row and the web
+// download.
 abstract final class MediaStringsKo {
   /// Recording panel title.
   static const String panelTitle = '녹음';
@@ -56,6 +57,39 @@ abstract final class MediaStringsKo {
   // --- consent sheet (6.13.3 ①) ---
   static const String cancel = '취소';
   static const String startRecording = '녹음 시작';
+
+  // --- recordings list (6.13.1) ---
+  /// Default name of a recording without a title: '녹음 N' by startedAt order (7.2.4).
+  static String defaultTitle(int n) => '녹음 $n';
+  static const String recoveredBadge = '복구됨';
+  static const String webmWarning = '⚠ 아이패드 앱에서는 재생되지 않을 수 있어요';
+  static const String recordingActions = '녹음 메뉴';
+  static const String openRecording = '이 녹음 열기';
+
+  /// '이 노트의 녹음 3개 · 27.6 MB'
+  static String listTotal(int count, String size) => '이 노트의 녹음 $count개 · $size';
+
+  /// '11월 5일 14:02'
+  static String dateTime(DateTime t) =>
+      '${t.month}월 ${t.day}일 ${t.hour.toString().padLeft(2, '0')}:'
+      '${t.minute.toString().padLeft(2, '0')}';
+
+  // --- name / delete sheets (6.13.1) ---
+  static const String rename = '이름 바꾸기';
+  static const String delete = '삭제';
+  static const String nameHint = '비우면 기본 이름';
+  static const String save = '저장';
+  static const String deleteRecordingQuestion =
+      '이 녹음을 지울까요? 녹음과 함께 쓴 필기는 그대로 남아요.';
+
+  // --- drafts that could not be recovered (6.10.3, 6.13.2) and the web download (6.10.4) ---
+  static const String stuckDrafts = '복구하지 못한 녹음이 있어요';
+  static const String retry = '다시 시도';
+  static const String draftActions = '복구하지 못한 녹음 메뉴';
+  static const String discardDraft = '지우기';
+  static const String discardDraftQuestion = '이 녹음을 지울까요? 되돌릴 수 없어요.';
+  static const String downloadFile = '파일로 내려받기';
+  static const String saveFile = '저장하기';
 
   /// '0.5×', '0.75×', '1.0×' … (the same text on the VM and the web — no double.toString).
   static String speedLabel(double speed) {

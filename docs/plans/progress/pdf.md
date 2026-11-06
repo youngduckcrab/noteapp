@@ -292,7 +292,7 @@
 | T35a | 완료 | 486c4e7 | `unit/image_header_test`(17), `unit/image_normalizer_test`(18) — 표본 `test/support/fixtures/img_*.{jpg,png,webp}` 8개(Pillow) + `package:image`로 시험 안에서 만든 표본 |
 | T35b | 남음 | | `unit/image_import_test`, `web/image_codec_browser_test`, `unit/supported_sources_test` |
 | T36a | 완료 | 27d5165 | `widget/recording_panel_test`(26 — 6.13.2 행·6.13.3 동작·iPad 세로/가로·좁은 폭·순수 `statusLineFor` 웹 문구), `widget/recording_panel_placeholder_test`(T30 — 이제 전체 패널: override 없으면 CORE 기본 녹음기 = 지원 안 함) — 시험 세계 `test/support/panel_world.dart`(`PanelWorld`·`ScriptedRecorder`) |
-| T36b | 남음 | | `widget/recording_list_test`, `widget/recording_sheets_test`, `widget/recording_stuck_drafts_test` |
+| T36b | 완료 | (세션 6 — 커밋 줄은 세션 끝 기록에) | `widget/recording_list_test`(13), `widget/recording_sheets_test`(10), `widget/recording_stuck_drafts_test`(13) — `test/support/panel_world.dart`에 `FakeFileDownloads`·`ScriptedRecorder.pending`/`onRecover`/`beforePending`·`seedRecording(mimeType:, bytes:, title:)` |
 | T37 | 남음 | | `unit/dev_overlay_lines_test`, `unit/init_test` v2 |
 | T38 | 남음 | | `unit/testing_fakes_test` |
 | T39 | 남음 | | `media/record_playback_media_test`(V8), `media/draft_recovery_media_test`(V16) — CORE T31 이정표 전에는 `skip:`, 판정은 통합 4-c |
@@ -388,6 +388,15 @@
 - T36a: 내부 provider `recorderStatusProvider`·`playbackStatusProvider`(`StreamProvider.autoDispose`, `name:`)를 `providers.dart`에 더했다. 재생 위치 글자는 `Ticker`가 재생 중일 때만 돌며 200 ms마다 `positionMs()`를 읽는다. 배속 글자는 `MediaStringsKo.speedLabel`(웹의 `1.0.toString() == '1'`을 피함). 목록 자리(구분선 아래)는 T36b까지 빈 `Expanded`다. 패널 제목 글자('녹음')는 더 보이지 않는다(녹음 단추가 '녹음').
 - T36a: 위젯 시험 주의 — CORE 가짜 저장소는 `testWidgets`의 가짜 시간 존 안에서 만든다(`tester.runAsync` 안에서 만든 저장소를 가짜 존에서 쓰면 `FakeAudioRecorder.stop()`이 `finishing`에서 멈춤 — 쓰기 큐 microtask가 다른 존). 재생 중에는 `Ticker` 때문에 `pumpAndSettle`이 끝나지 않으므로 시트 애니메이션은 `pump(400 ms)`로 넘긴다. 세계마다 `ProviderScope(key: ObjectKey(world))`(같은 시험에서 두 세계를 띄울 때 패널 상태가 이어지지 않게).
 
+- T36b: 목록은 최신(`startedAt` 큰 것)이 위다(6.13.1 그림 순서). 이름 '녹음 N'은 노트의 **모든** 녹음(제목 있는 것 포함)을 `startedAt`(같으면 id) 순으로 센 번호다 — 이름을 바꿔도 다른 녹음의 번호가 바뀌지 않게(순수 함수 `recordingDisplayNames`, `providers.dart`). 행 탭은 그 녹음을 **열기만** 한다(PDF-M8 — `open`, 재생·탐색 없음, 녹음기 활성 중엔 탭 없음). 열린 행은 `selected` + ▶ 아이콘.
+- T36b: 크기 글자는 10진 단위(`formatBytes` — '20.6 MB', '512 KB'), 합계는 CORE `audioBytesOf`, 각 행 크기·MIME은 `AssetStore.getAsset`(바이트가 없어도 메타데이터 — 6.13.1). WebM 경고는 날짜 줄 아래 둘째 줄(그림은 날짜 대신 경고였지만 날짜를 잃지 않게). 목록 데이터는 내부 provider `recordingListProvider`(`FutureProvider.autoDispose.family`, `noteRecordingsProvider(noteId).future`를 watch, 자동 재시도 없음).
+- T36b: 복구하지 못한 초안 줄은 녹음기 포트가 아니라 **저장소 초안 목록 + `media.recoverAttempts`**에서 직접 읽는다(내부 provider `stuckDraftsProvider` — CORE `FakeAudioRecorder`에는 시도 규칙이 없고(6.10.3 끝) 패널은 CORE 포트만 읽으므로 `MediaRecorderService.stuckDrafts()`를 쓰지 않음). **이 노트의 초안만**, 초안마다 한 줄(보통 0~1개). [다시 시도]·[지우기] 뒤 provider를 다시 읽는다. [다시 시도] = `RecoverAttempts.reset` → `pendingDrafts()` → 목록에 있으면 `recoverDraft()` 한 번(실패는 `FlutterError.reportError`). [지우기] = 확인 시트 → `recordingDrafts.discard` → 시도 항목 지움.
+- T36b: 웹 내려받기 포트 `platform/file_download.dart`(`FileDownloads.available`·`prepare(bytes, mimeType:, fileName:)` → `PreparedFileDownload.save()`(동기)·`revoke()`)와 기본값 `NoFileDownloads`(내려받기 항목 없음)를 두고, 내부 provider `fileDownloadsProvider`로 패널에 준다 — 브라우저 본문(`file_download_browser.dart`, Blob + object URL + `<a download>`)과 웹 기본값 연결은 T32b(계획 8.2 T32b 완료 조건 `web/file_download_browser_test`). 그래서 T32b 전에는 웹에서도 내려받기 항목이 안 보인다. 준비(①)는 `ui/draft_download.dart` `prepareDraftDownload`(`readAll` → WebM이면 `measureRecording` + `patchRecordingHead` → 파일 이름 `recordingFileName`), 단추 `DraftDownloadButton`이 [파일로 내려받기] → [저장하기]로 바뀌고 [저장하기]는 누름 처리 안에서 동기로 `save()`한다.
+- T36b: object URL은 **저장 직후가 아니라 단추가 사라질 때**(시트를 닫음·패널을 닫음·줄이 없어짐) `revoke`한다 — 저장 직후 바로 놓으면 iPad Safari가 내려받기를 시작하기 전에 URL이 사라질 수 있어서다 [추측 — B-14]. 같은 시트에서 [저장하기]를 다시 누를 수 있다.
+- T36b: 정지 저장 실패(`saveFailed`) 때 웹 내려받기는 상황 줄 끝의 단추(`StatusLine.trailing`)다. 초안은 그 녹음 id(상태의 `recordingId`, 없으면 패널이 마지막으로 본 이 노트의 녹음 id)로 `listDrafts`에서 찾는다.
+- T36b: 이름 시트는 입력란 `maxLength: 100` + 저장 때 `normalizeRecordingTitle`(다듬기, 100 rune까지 자름, 빈 값 → `null` = 기본 이름 — CORE `checkRecordingTitle`이 100 rune 넘으면 `ArgumentError`라 미리 자름). 삭제가 열린 녹음이면 `close()` 뒤 `deleteRecording`.
+- T36b: `draftLost` 줄은 T36a의 `statusLineFor`가 이미 냈다 — T36b는 시험만 더했다(`recording_stuck_drafts_test`).
+
 #### 이정표 커밋
 
 - 없음(PDF는 이정표 커밋 알림 대상이 아니다 — 7.6.2. 다른 영역 이정표 중 PDF가 기다리는 것: INK T36·T42, CORE T31·T33a·T33b — 통합 단계)
@@ -448,6 +457,10 @@
 | 6 (T25b) | `ws test --package pdf_io` (VM) | 741 통과 + 9 skip (703 + T25b 38 — `raster_ports_test` 13·`object_resolver_text_math_test` 25, skip + `integration/math_raster_real_test`), 141 s |
 | 6 (T25b) | `ws test --package pdf_io --platform chrome` | 99 통과 + 1 skip (95 + `object_resolver_text_browser_test` 4), prepare ok, 278 s |
 | 6 (T25b) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
+| 6 (T36b) | `ws test --package media_io` (VM) | 277 통과 (241 + T36b 36 — 목록 13·시트 10·복구 못 한 초안 13), 47 s |
+| 6 (T36b) | `ws test --package media_io --platform chrome` | 37 통과, prepare ok, 145 s |
+| 6 (T36b) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 08:44:29–08:46:33 UTC, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
+| 6 (T36b) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
