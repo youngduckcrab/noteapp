@@ -211,8 +211,8 @@ final class _FakeRecorder {
 /// just_audio's platform: duration per source (URL / path), a position you set, speed and seek
 /// recorded; processing states ready / completed on demand; can fail a load (unsupported format).
 ///
-/// [calls] entries: `init`, `load:<uri>`, `play`, `pause`, `seek:<ms>`, `speed:<x>`,
-/// `volume:<x>`, `dispose`, `disposePlayer`, `disposeAllPlayers`.
+/// [calls] entries: `init`, `load:<uri>` (a file path arrives as a file: URI), `play`, `pause`,
+/// `seek:<ms>`, `speed:<x>`, `volume:<x>`, `dispose`, `disposePlayer`, `disposeAllPlayers`.
 final class FakeJustAudioPlatform extends JustAudioPlatform {
   FakeJustAudioPlatform({this.defaultDuration = const Duration(seconds: 2)}) {
     assert(!kIsWeb, mediaFakesVmOnlyMessage);
@@ -285,6 +285,15 @@ final class FakeJustAudioPlatform extends JustAudioPlatform {
   }
 }
 
+/// The URI of a load request: just_audio 0.10 sends every source inside a playlist
+/// (ConcatenatingAudioSourceMessage), so the first URI child is the one.
+String _uriOf(AudioSourceMessage source) => switch (source) {
+  UriAudioSourceMessage(:final uri) => uri,
+  ConcatenatingAudioSourceMessage(:final children) when children.isNotEmpty =>
+    _uriOf(children.first),
+  _ => source.id,
+};
+
 final class _FakeAudioPlayer extends AudioPlayerPlatform {
   _FakeAudioPlayer(super.id, this._platform);
 
@@ -318,8 +327,7 @@ final class _FakeAudioPlayer extends AudioPlayerPlatform {
 
   @override
   Future<LoadResponse> load(LoadRequest request) async {
-    final source = request.audioSourceMessage;
-    final uri = source is UriAudioSourceMessage ? source.uri : source.id;
+    final uri = _uriOf(request.audioSourceMessage);
     _platform._calls.add('load:$uri');
     if (_platform._failNextLoad) {
       _platform._failNextLoad = false;
@@ -350,6 +358,10 @@ final class _FakeAudioPlayer extends AudioPlayerPlatform {
     final to = request.position ?? Duration.zero;
     _platform._calls.add('seek:${to.inMilliseconds}');
     position = to;
+    // Like the real players: a seek away from the end is ready again.
+    if (processing == ProcessingStateMessage.completed) {
+      processing = ProcessingStateMessage.ready;
+    }
     emit();
     return SeekResponse();
   }

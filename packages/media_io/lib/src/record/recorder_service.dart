@@ -17,6 +17,8 @@
 // timeline → WebM head patch (one copy) → AssetStore.put(audio) → createRecording → draft discard
 // → lock release → idle. A failed save keeps the draft (and the lock — recovery is for the next
 // start-up) and throws MediaIoException(saveFailed). BufferLedger counts the full-size buffers.
+// (P-B) A web recording of at least stopHandoffMinBytes leaves Blob([bytes]) in the playback
+// hand-off right after createRecording (6.6.5 ③ — the panel's open after stop reads no bytes).
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -26,6 +28,7 @@ import '../config.dart';
 import '../errors.dart';
 import '../platform/web_locks.dart';
 import '../platform/web_locks_stub.dart';
+import '../playback/handoff_blob.dart';
 import '../providers.dart';
 import '../tuning.dart';
 import 'buffer_ledger.dart';
@@ -45,6 +48,7 @@ final class MediaRecorderService implements core.AudioRecorderService {
     this._stopwatch = Stopwatch.new,
     BufferLedger? ledger,
     RecorderDiagnostics? diagnostics,
+    this._handoff,
   }) : _storesOf = stores,
        ledger = ledger ?? BufferLedger(),
        diagnostics = diagnostics ?? RecorderDiagnostics();
@@ -55,6 +59,9 @@ final class MediaRecorderService implements core.AudioRecorderService {
   final RecorderEngine engine;
   final WebLocks _locks;
   final Stopwatch Function() _stopwatch;
+
+  /// (P-B, 6.6.5 ③) The player hand-off: a large web recording leaves its Blob there on stop.
+  final PlaybackHandoff? _handoff;
 
   /// The full-size buffers of the stop and recovery paths (6.6.5 — tests read peakCount).
   final BufferLedger ledger;
@@ -560,6 +567,10 @@ final class MediaRecorderService implements core.AudioRecorderService {
         durationMs: length.durationMs,
         startedAt: draft.startedAt,
       );
+      // ⑤ (web, P-B) ≥ stopHandoffMinBytes → Blob([bytes]) for the next open (no second read).
+      if (engine.writesDraftChunks) {
+        _handoff?.offer(recording.assetId, bytes, mimeType);
+      }
       await _discardDraft(stores, draft.draftId);
       s.lock?.release();
       await _deleteFile(file);

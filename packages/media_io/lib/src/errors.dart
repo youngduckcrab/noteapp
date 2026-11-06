@@ -15,6 +15,9 @@ enum MediaErrorCode {
   /// Playback: the format does not play here (webm on iOS native).
   unsupportedFormat,
 
+  /// Playback: the player or the play cache failed for another reason (6.11.2 '오류').
+  playbackFailed,
+
   /// Image import: the image could not be decoded.
   decodeFailed,
 

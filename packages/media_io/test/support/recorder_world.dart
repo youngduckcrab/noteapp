@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:media_io/src/config.dart';
 import 'package:media_io/src/platform/web_locks.dart';
 import 'package:media_io/src/platform/web_locks_stub.dart';
+import 'package:media_io/src/playback/handoff_blob.dart';
 import 'package:media_io/src/record/buffer_ledger.dart';
 import 'package:media_io/src/record/recorder_service.dart';
 import 'package:media_io/src/record/recording_output.dart';
@@ -284,6 +285,7 @@ final class RecorderTab {
     FakeRecorderEngine? engine,
     WebLocks? locks,
     MediaIoConfig config = const MediaIoConfig(),
+    PlaybackHandoff? handoff,
   }) : engine = engine ?? FakeRecorderEngine() {
     drafts = LoggedDrafts(world.store.recordingDrafts, log);
     assets = LoggedAssets(world.store.assets, log);
@@ -302,6 +304,7 @@ final class RecorderTab {
       locks: locks ?? const UnavailableWebLocks(),
       stopwatch: () => FakeStopwatch(() => world.async.elapsed),
       ledger: ledger,
+      handoff: handoff,
     );
   }
 

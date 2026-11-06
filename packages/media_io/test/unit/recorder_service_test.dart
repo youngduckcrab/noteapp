@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:media_io/src/config.dart';
 import 'package:media_io/src/errors.dart';
 import 'package:media_io/src/platform/web_locks.dart';
+import 'package:media_io/src/playback/handoff_blob.dart';
 import 'package:media_io/src/providers.dart';
 import 'package:media_io/src/record/recording_output.dart';
 import 'package:media_io/src/record/recover_attempts.dart';
@@ -574,6 +575,55 @@ void main() {
         expect(tab.wait(b), isNull);
         expect(tab.engine.count('stop'), 1);
       });
+    });
+  });
+
+  group('(P-B) the playback hand-off (6.6.5 ③)', () {
+    fakeTest('a web recording of at least minBytes leaves its Blob for the '
+        'next open of that asset', (w) {
+      final offered = <int>[];
+      final handoff = PlaybackHandoff(
+        blobOf: (bytes, mime) {
+          offered.add(bytes.length);
+          return 'blob($mime)';
+        },
+        minBytes: 16,
+      );
+      final tab = RecorderTab(w, handoff: handoff);
+      tab.start(w.recordingId());
+      final chunks = twoSecondWebm();
+      final recording = recordChunksAndStop(tab, chunks)!;
+      // The saved (head-patched) bytes, once.
+      final saved = tab.wait(w.store.assets.readBytes(recording.assetId))!;
+      expect(offered, [saved.length]);
+      expect(handoff.take(recording.assetId), 'blob(audio/webm;codecs=opus)');
+    });
+
+    fakeTest('smaller than minBytes, or native (a file, no Blob) → nothing', (
+      w,
+    ) {
+      final handoff = PlaybackHandoff(
+        blobOf: (_, _) => 'blob',
+        minBytes: 1 << 30,
+      );
+      final tab = RecorderTab(w, handoff: handoff);
+      tab.start(w.recordingId());
+      recordChunksAndStop(tab, twoSecondWebm());
+      expect(handoff.holds, isFalse);
+
+      final native = PlaybackHandoff(blobOf: (_, _) => 'blob', minBytes: 1);
+      final nativeTab = RecorderTab(
+        w,
+        engine: FakeRecorderEngine(writesDraftChunks: false),
+        handoff: native,
+      );
+      nativeTab.start(w.recordingId());
+      nativeTab.session.file!
+        ..bytes = Uint8List.fromList(List.filled(64, 1))
+        ..probeMs = 2000;
+      nativeTab.record(const Duration(seconds: 2));
+      expect(nativeTab.wait(nativeTab.service.stop()), isNotNull);
+      expect(native.holds, isFalse);
     });
   });
 

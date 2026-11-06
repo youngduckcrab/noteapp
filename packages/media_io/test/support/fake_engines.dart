@@ -1,11 +1,14 @@
 // Fakes behind media_io's internal ports (m5-7/06-pdf 6.5 '시험은 test/support/fake_engines.dart의
 // 가짜를 생성자로 넣는다'): the recorder engine (web-like chunks or a native-like file), its
-// files and the Web Locks port. PDF T34–T35b add the player and picker fakes here.
+// files and the Web Locks port; (T34) the player port over fake time and an in-memory audio
+// source. PDF T35b adds the picker fake here.
 import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:media_io/src/errors.dart';
 import 'package:media_io/src/platform/web_locks.dart';
+import 'package:media_io/src/playback/audio_source.dart';
+import 'package:media_io/src/playback/player_port.dart';
 import 'package:media_io/src/record/recorder_engine.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -278,4 +281,198 @@ final class _FakeHold implements WebLockHold {
     _locks.held.remove(name);
     _locks.log.add('release $name');
   }
+}
+
+/// A player over fake time (PlayerPort): [load] answers with [lengths] (by URL / path) or
+/// [defaultLength], or throws [failNextLoad]; a URL with preload: false loads on the first
+/// [play]. While playing, [position] = the base + elapsed ([now]) × speed, up to the length.
+///
+/// [calls]: `load:<url|path>`, `load(deferred):<url>`, `play`, `pause`, `seek:<ms>`,
+/// `speed:<x>`, `unload`, `dispose`.
+final class FakePlayerPort implements PlayerPort {
+  FakePlayerPort({
+    required this.now,
+    this.defaultLength = const Duration(seconds: 2),
+  });
+
+  /// Fake time (`() => async.elapsed`).
+  final Duration Function() now;
+  final Duration defaultLength;
+
+  /// The length a source reports (null = unknown).
+  final Map<String, Duration?> lengths = {};
+  final List<String> calls = [];
+
+  /// The next load throws this.
+  PlayerFailure? failNextLoad;
+
+  /// While set, a load waits for it.
+  Completer<void>? loadGate;
+
+  final StreamController<PlayerSnapshot> _ctrl =
+      StreamController<PlayerSnapshot>.broadcast(sync: true);
+  PlayerSnapshot _snapshot = PlayerSnapshot.idle;
+  Duration _base = Duration.zero;
+  Duration? _since;
+  double _speed = 1;
+  Duration? _length;
+  bool _deferred = false;
+  bool disposed = false;
+
+  @override
+  PlayerSnapshot get snapshot => _snapshot;
+
+  @override
+  Stream<PlayerSnapshot> get snapshots => _ctrl.stream;
+
+  void _set(PlayerProcessing processing, {required bool playing}) {
+    final next = PlayerSnapshot(processing, playing: playing);
+    if (next == _snapshot) return;
+    _snapshot = next;
+    _ctrl.add(next);
+  }
+
+  void _fold() {
+    final since = _since;
+    if (since == null) return;
+    _base = _clamp(_base + (now() - since) * _speed);
+    _since = now();
+  }
+
+  Duration _clamp(Duration d) {
+    final length = _length;
+    if (d < Duration.zero) return Duration.zero;
+    return length != null && d > length ? length : d;
+  }
+
+  @override
+  Future<Duration?> load(PlayerSource source) async {
+    final key = switch (source) {
+      PlayerUrlSource(:final url) => url,
+      PlayerFileSource(:final path) => path,
+    };
+    final deferred = source is PlayerUrlSource && !source.preload;
+    calls.add(deferred ? 'load(deferred):$key' : 'load:$key');
+    if (loadGate case final gate?) await gate.future;
+    if (failNextLoad case final failure?) {
+      failNextLoad = null;
+      throw failure;
+    }
+    _base = Duration.zero;
+    _since = null;
+    _length = lengths.containsKey(key) ? lengths[key] : defaultLength;
+    _deferred = deferred;
+    if (deferred) {
+      _set(PlayerProcessing.idle, playing: false);
+      return null;
+    }
+    _set(PlayerProcessing.ready, playing: false);
+    return _length;
+  }
+
+  @override
+  Future<void> play() async {
+    calls.add('play');
+    if (_snapshot.playing) return;
+    _deferred = false;
+    _since = now();
+    _set(
+      _snapshot.processing == PlayerProcessing.idle
+          ? PlayerProcessing.ready
+          : _snapshot.processing,
+      playing: true,
+    );
+  }
+
+  @override
+  Future<void> pause() async {
+    calls.add('pause');
+    _fold();
+    _since = null;
+    _set(_snapshot.processing, playing: false);
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    calls.add('seek:${position.inMilliseconds}');
+    _base = _clamp(position);
+    if (_since != null) _since = now();
+    if (_snapshot.processing == PlayerProcessing.completed) {
+      _set(PlayerProcessing.ready, playing: _snapshot.playing);
+    }
+  }
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    calls.add('speed:$speed');
+    _fold();
+    _speed = speed;
+  }
+
+  @override
+  Duration get position {
+    final since = _since;
+    if (since == null || _deferred) return _base;
+    return _clamp(_base + (now() - since) * _speed);
+  }
+
+  /// The source reaches its end (processing completed; just_audio keeps 'playing').
+  void complete() {
+    _fold();
+    _base = _length ?? _base;
+    _since = null;
+    _set(PlayerProcessing.completed, playing: _snapshot.playing);
+  }
+
+  /// A player error while open.
+  void fail(PlayerFailure failure) => _ctrl.addError(failure);
+
+  @override
+  Future<void> unload() async {
+    calls.add('unload');
+    _since = null;
+    _base = Duration.zero;
+    _set(PlayerProcessing.idle, playing: false);
+  }
+
+  @override
+  Future<void> dispose() async {
+    calls.add('dispose');
+    disposed = true;
+    await _ctrl.close();
+  }
+}
+
+/// An in-memory audio source: `mem:<assetId>` URLs (preload as [preload]), counting byte reads
+/// and keeping the hand-off objects it got.
+final class FakeAudioSources implements AudioSourceProvider {
+  FakeAudioSources({this.preload = true, this.usesRecordingDuration = false});
+
+  final bool preload;
+
+  @override
+  final bool usesRecordingDuration;
+
+  int byteReads = 0;
+  int releases = 0;
+  final List<Object?> handoffs = [];
+
+  @override
+  Future<PlayerSource?> prepare(
+    core.AssetId assetId, {
+    required String? mimeType,
+    required String? fileName,
+    required Future<Uint8List?> Function() bytes,
+    Object? handoff,
+  }) async {
+    handoffs.add(handoff);
+    if (handoff == null) {
+      byteReads++;
+      if (await bytes() == null) return null;
+    }
+    return PlayerUrlSource('mem:$assetId', preload: preload);
+  }
+
+  @override
+  void release() => releases++;
 }
