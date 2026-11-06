@@ -78,7 +78,9 @@ import 'laser_trail.dart';
 import 'lasso_overlay.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
-import 'playback.dart' show InkPlaybackFocus;
+import 'playback.dart' show InkPlaybackFocus, normalizedPlaybackFocus;
+import 'playback_index.dart';
+import 'playback_painter.dart';
 import 'raster_tiles.dart';
 import 'render_config.dart';
 import 'selection.dart';
@@ -315,6 +317,11 @@ final class InkPageController extends ChangeNotifier {
   List<core.PageObject> _previewObjects = const [];
   InkPlaybackFocus? _playbackFocus;
   final Set<String> _revealedTapes = {};
+
+  /// (m5-7 T40, 6.19) The recordings' stroke tracks (regrouped at the first playback
+  /// paint after a content change) and the layer 4′ emphasis pictures.
+  final PlaybackIndex _playbackIndex = PlaybackIndex();
+  final PlaybackPainter _playbackPainter = PlaybackPainter();
 
   /// (T34) An implicit NoteSans load this controller started or joined is running.
   bool _fontsWaiting = false;
@@ -652,11 +659,14 @@ final class InkPageController extends ChangeNotifier {
   InkPlaybackFocus? get playbackFocus => _playbackFocus;
 
   // playback (M6)
-  /// null = off (K-7). The same value again does nothing. R2-B3: state only (T40 draws it).
+  /// null = off (K-7). The same value again does nothing. (T40, 6.19) Drawn at layer 4′
+  /// (the end of inkActive): a change repaints inkActive only — the base chunks and the
+  /// raster tiles are never recorded again for it.
   void setPlaybackFocus(InkPlaybackFocus? focus) {
     _checkNotDisposed();
     if (focus == _playbackFocus) return;
     _playbackFocus = focus;
+    if (focus == null) _playbackPainter.clear();
     _repaints[InkRenderLayer.inkActive]!.fire();
   }
 
@@ -906,6 +916,7 @@ final class InkPageController extends ChangeNotifier {
     _removePictureCount();
     _hl.dispose();
     _selectionPreview.dispose();
+    _playbackPainter.clear();
     for (final r in _repaints.values) {
       r.dispose();
     }
@@ -2139,15 +2150,44 @@ final class InkPageController extends ChangeNotifier {
       final end = clock.nowUs();
       diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);
     }
-    _paintEndStage(canvas);
+    _paintEndStage(canvas, display, paper);
   }
 
   /// (v2.1, CD2-09 — 6.1) Layer 4′: the last step of inkActive, above every ink item and
   /// below the annotation and cover layers (text, formulas and covered tapes stay on
   /// top). T39 (shape assist preview) and T40 (playback emphasis) draw here.
-  void _paintEndStage(ui.Canvas canvas) {
+  void _paintEndStage(ui.Canvas canvas, _Display display, int paper) {
+    _paintPlayback(canvas, display, paper);
     final debug = _debugEndStage;
     if (debug != null) debug(canvas);
+  }
+
+  /// (m5-7 T40, 6.19) The playback emphasis of [_playbackFocus] (normalized, 4.10);
+  /// nothing when it is off or no stroke of the page links to its recording. The
+  /// paint time goes to the developer value `playbackPaintUs` (6.19-6).
+  void _paintPlayback(ui.Canvas canvas, _Display display, int paper) {
+    final focus = _playbackFocus;
+    final content = _content;
+    if (focus == null || content == null) return;
+    _playbackIndex.update(content);
+    final f = normalizedPlaybackFocus(focus);
+    final track = _playbackIndex.trackOf(f.recordingId);
+    if (track == null) {
+      _playbackPainter.clear();
+      return;
+    }
+    final measure = diagnostics.enabled;
+    final start = measure ? clock.nowUs() : 0;
+    _playbackPainter.paint(
+      canvas,
+      track: track,
+      focus: f,
+      viewScale: _currentViewScale,
+      paperArgb: paper,
+      hidden: display.hidden,
+      outlineOf: cachePool.outlineFor,
+    );
+    if (measure) diagnostics.onPlaybackPaint(clock.nowUs() - start);
   }
 
   /// A live object (pending, selection preview, preview) with the exact one-px width of
@@ -2400,6 +2440,16 @@ void debugSetInkActiveEndStage(
     controller._repaints[InkRenderLayer.inkActive]!.fire();
   }
 }
+
+/// INTERNAL (tests, benchmarks): the playback index of [controller] (m5-7 T40, 6.19).
+@meta.internal
+PlaybackIndex playbackIndexOf(InkPageController controller) =>
+    controller._playbackIndex;
+
+/// INTERNAL (tests, benchmarks): the layer 4′ playback painter of [controller] (T40).
+@meta.internal
+PlaybackPaintStats playbackStatsOf(InkPageController controller) =>
+    controller._playbackPainter.stats;
 
 /// INTERNAL (tests): the inkBase paint counters of [controller] (6.13).
 @meta.internal

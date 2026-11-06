@@ -256,6 +256,9 @@ class InkDiagnostics extends ChangeNotifier {
   final List<double> _tileRaster = [];
   final List<double> _eventToRasterEnd = [];
 
+  /// (m5-7 T40) layer 4′ playback emphasis paint times (µs).
+  final List<double> _playbackPaintUs = [];
+
   /// Active paints (paint time, event time of the newest sample painted)
   /// waiting for their FrameTiming, oldest first.
   final List<(int, int)> _awaitingFrame = [];
@@ -294,6 +297,7 @@ class InkDiagnostics extends ChangeNotifier {
     _frameRasterMs.clear();
     _tileRaster.clear();
     _eventToRasterEnd.clear();
+    _playbackPaintUs.clear();
     _awaitingFrame.clear();
     _pendingReceiveUs = null;
     _pendingEventUs = null;
@@ -415,6 +419,23 @@ class InkDiagnostics extends ChangeNotifier {
     _visibleStrokeCount = visibleStrokes;
     _changed();
   }
+
+  /// (m5-7 T40, 6.19-6) The paint time of one layer 4′ playback emphasis paint.
+  @meta.internal
+  void onPlaybackPaint(int us) {
+    if (!_enabled) return;
+    _push(_playbackPaintUs, us.toDouble());
+  }
+
+  /// (m5-7 T40, 6.19-6) Developer display values that are not in [snapshot] (the
+  /// contract's snapshot fields stay as they are): `playbackPaintUs` = the p95 (µs,
+  /// nearest rank) of the last InkTuning.latencyWindow layer 4′ playback paints —
+  /// present once one was measured while [enabled].
+  @meta.internal
+  Map<String, num> get developerValues => {
+    if (_playbackPaintUs.isNotEmpty)
+      'playbackPaintUs': LatencySummary._of(_playbackPaintUs).p95Ms,
+  };
 
   @meta.internal
   void onWarning(String code) {

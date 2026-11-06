@@ -3,6 +3,8 @@
 // 0.01 pt; dot strokes are one disc; highlighter radius = width / 2 (square
 // caps ignored); controller.hitTest picks the topmost z and honours the three
 // core.StrokeFilter values; strokeIdsInRect is exact, not bounds-based.
+// (m5-7 T40) hitTestRecorded: only strokes linked to a recording (the given id),
+// every tool, the topmost, 8 pt default tolerance.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -529,6 +531,63 @@ void main() {
         c.strokeIdsInRect(const ui.Rect.fromLTWH(0, 0, 100, 100)),
         isEmpty,
       );
+      expect(c.hitTestRecorded(const ui.Offset(10, 10)), isNull);
+    });
+
+    // m5-7 T40 (4.3, 4.10, 6.19): strokes linked to a recording only.
+    core.Stroke recorded(
+      String id,
+      double y,
+      String? recording, {
+      core.PenTool tool = core.PenTool.ballpoint,
+      int createdAt = 1000,
+    }) => strokeThrough(
+      segment(ui.Offset(100, y), ui.Offset(300, y)),
+      _style(tool, width: 4),
+      id: id,
+      createdAt: createdAt,
+    ).copyWith(recordingId: recording, recordingOffsetMs: 0);
+
+    test('hitTestRecorded: recording id filter, topmost linked stroke', () {
+      load([
+        recorded('a-low', 100, 'A', createdAt: 1000),
+        recorded('b', 100, 'B', createdAt: 2000),
+        recorded('none', 100, null, createdAt: 3000),
+        recorded('a-tape', 200, 'A', tool: core.PenTool.tape),
+        recorded('a-hl', 300, 'A', tool: core.PenTool.highlighter),
+      ]);
+      const p = ui.Offset(200, 100);
+      expect(c.hitTest(p)?.id, 'none', reason: 'the plain hit test sees all');
+      expect(c.hitTestRecorded(p)?.id, 'b', reason: 'any recording: topmost');
+      expect(c.hitTestRecorded(p, recordingId: 'A')?.id, 'a-low');
+      expect(c.hitTestRecorded(p, recordingId: 'B')?.id, 'b');
+      expect(c.hitTestRecorded(p, recordingId: 'C'), isNull);
+      // every tool, tape and highlighter included
+      expect(
+        c.hitTestRecorded(const ui.Offset(200, 200), recordingId: 'A')?.id,
+        'a-tape',
+      );
+      expect(
+        c.hitTestRecorded(const ui.Offset(200, 300), recordingId: 'A')?.id,
+        'a-hl',
+      );
+    });
+
+    test('hitTestRecorded: default tolerance 8 pt from the ink edge', () {
+      // radius = width / 2 = 2: the ink edge at y = 102
+      load([recorded('a', 100, 'A')]);
+      expect(c.hitTestRecorded(const ui.Offset(200, 109.9))?.id, 'a');
+      expect(c.hitTestRecorded(const ui.Offset(200, 110.1)), isNull);
+      expect(
+        c.hitTestRecorded(const ui.Offset(200, 103.5), tolerance: 1),
+        isNull,
+      );
+      expect(
+        c.hitTestRecorded(const ui.Offset(200, 101.9), tolerance: -1)?.id,
+        'a',
+        reason: 'negative tolerance = the ink itself',
+      );
+      expect(c.hitTestRecorded(const ui.Offset(double.nan, 100)), isNull);
     });
   });
 }
