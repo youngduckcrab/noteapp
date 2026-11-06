@@ -212,4 +212,29 @@ final class _BrowserWebPlatform implements WebPlatform {
 
   @override
   void reload() => web.window.location.reload();
+
+  /// The one 'beforeunload' listener of this platform object: the same JS
+  /// function is added and removed, so the page never holds two.
+  late final JSFunction _beforeUnload = ((web.BeforeUnloadEvent event) {
+    event.preventDefault();
+    // Older Chrome / Safari show the dialog only when returnValue is set.
+    event.returnValue = '';
+  }).toJS;
+
+  bool _leaveGuard = false;
+
+  @override
+  void setLeaveGuard(bool enabled) {
+    if (enabled == _leaveGuard) return;
+    try {
+      if (enabled) {
+        web.window.addEventListener('beforeunload', _beforeUnload);
+      } else {
+        web.window.removeEventListener('beforeunload', _beforeUnload);
+      }
+      _leaveGuard = enabled;
+    } on Object {
+      // No window (a worker) or a broken page: nothing to guard then.
+    }
+  }
 }

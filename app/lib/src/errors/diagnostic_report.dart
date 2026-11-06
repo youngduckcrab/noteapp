@@ -4,6 +4,8 @@ library;
 import 'package:note_core/note_core.dart';
 
 import '../bootstrap/startup_report.dart';
+import '../features/app_features.dart';
+import '../features/feature_status.dart';
 import '../runtime/build_info.dart';
 import '../runtime/runtime_info.dart';
 import 'app_error_log.dart';
@@ -13,7 +15,9 @@ abstract final class DiagnosticReport {
   /// Longest report.
   static const int maxLength = 8000;
 
-  /// Max 8000 chars. Sections: header, build, runtime, startup, storage
+  /// Max 8000 chars. Sections: header, build, runtime, startup (every step
+  /// with its outcome — a feature module switched off is 'skipped'), (2차
+  /// 6.18) features ([appFeatureStatusLine] of [features]), storage
   /// (CORE StorageInfo — backend, durable, multi-tab, persistGranted, usage /
   /// quota, missing features), persistence (CORE PersistenceStatus — pending,
   /// last commit + latency, consecutive failures), last [maxErrors] errors
@@ -22,6 +26,7 @@ abstract final class DiagnosticReport {
     required BuildInfo build,
     required RuntimeInfo runtime,
     StartupReport? startup,
+    Map<AppFeature, AppFeatureState>? features,
     StorageInfo? storage,
     PersistenceStatus? persistence,
     required List<AppErrorRecord> errors,
@@ -44,6 +49,7 @@ abstract final class DiagnosticReport {
           : '실행: ${runtime.rendererLabel}',
       '브라우저: ${runtime.userAgent ?? _unknown}',
       '시작: ${startup == null ? _unknown : _startup(startup)}',
+      '기능: ${features == null ? _unknown : appFeatureStatusLine(features)}',
       '저장소: ${storage == null ? _unknown : _storage(storage)}',
       '저장 상태: $persistenceText',
     ];

@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:noteapp/src/bootstrap/app_module.dart';
+import 'package:noteapp/src/bootstrap/idle_tasks.dart';
 
 /// An [AppModule] whose timing and failures are constructor arguments and
 /// whose calls are counted. Every call is also appended to [events] (shared
@@ -25,6 +26,9 @@ final class FakeAppModule extends AppModule {
     this.resettable = false,
     this.abandonDelay = Duration.zero,
     this.onStart,
+    this.enabled,
+    this._idleTasks = const [],
+    this.fallback,
     List<String>? events,
   }) : label = label ?? '$id 준비하는 중',
        events = events ?? [];
@@ -61,6 +65,15 @@ final class FakeAppModule extends AppModule {
 
   /// Runs at the beginning of start() (publish values, check the context).
   final void Function(AppModuleContext context)? onStart;
+
+  /// isEnabled's body (2nd round); null → true.
+  final Future<bool> Function(AppModuleContext context)? enabled;
+  final List<AppIdleTask> _idleTasks;
+
+  /// fallbackContribution's answer.
+  final ShellContribution? fallback;
+  int enabledCalls = 0;
+  int idleTasksCalls = 0;
 
   final List<String> events;
 
@@ -119,6 +132,21 @@ final class FakeAppModule extends AppModule {
     if (abandonDelay > Duration.zero) await Future<void>.delayed(abandonDelay);
     events.add('abandoned:$id');
   }
+
+  @override
+  Future<bool> isEnabled(AppModuleContext context) async {
+    enabledCalls++;
+    return enabled == null ? true : enabled!(context);
+  }
+
+  @override
+  List<AppIdleTask> idleTasks() {
+    idleTasksCalls++;
+    return _idleTasks;
+  }
+
+  @override
+  ShellContribution? fallbackContribution() => fallback;
 
   @override
   bool canResetAfter(Object error) {

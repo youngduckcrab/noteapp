@@ -66,6 +66,8 @@ abstract final class AppStrings {
   static const String sectionPageFlip = '페이지 넘김';
   static const String sectionNewNote = '새 노트 기본값';
   static const String sectionDeveloper = '개발자 표시';
+  static const String sectionFeatures = '기능 켜고 끄기';
+  static const String sectionV1Copy = '이전 판 DB 사본';
   static const String sectionAbout = '앱 정보';
   static const String groupGeneral = '일반';
 
@@ -102,6 +104,38 @@ abstract final class AppStrings {
   static const String storageRefresh = '다시 확인';
   static const String storageRefreshFailed = '저장 공간 정보를 다시 읽지 못했어요.';
 
+  /// 2차 6.18: per-type attachment bytes (AssetStorageUsage.bytesByType) and
+  /// the search index row.
+  static const String storageAssets = '첨부 파일';
+  static String storageAssetUsage({
+    required int count,
+    required int total,
+    required int audio,
+    required int image,
+    required int pdf,
+  }) =>
+      '$count개 · ${megabytes(total)} (녹음 ${megabytes(audio)} · '
+      '이미지 ${megabytes(image)} · PDF ${megabytes(pdf)})';
+  static const String storageAssetsUnread = '첨부 파일 정보를 읽지 못했어요';
+  static const String storageSearchIndex = '검색 색인';
+  static String storageSearchIndexStatus(
+    int pendingOwners, {
+    required bool rebuilding,
+  }) => '대기 $pendingOwners개${rebuilding ? ' · 재구축 중' : ''}';
+  static const String storageRebuildIndex = '다시 만들기';
+  static const String storageRebuildConfirm =
+      '검색 색인을 처음부터 다시 만들어요. 시간이 걸릴 수 있어요.';
+  static const String storageRebuildFailed =
+      '검색 색인을 다시 만들지 못했어요. 진단 정보를 복사해 보내 주세요.';
+
+  /// '0 MB', '<0.1 MB', '12.3 MB' (1024-based, one decimal).
+  static String megabytes(int bytes) {
+    if (bytes <= 0) return '0 MB';
+    final mb = bytes / (1024 * 1024);
+    if (mb < 0.05) return '<0.1 MB';
+    return '${mb.toStringAsFixed(1)} MB';
+  }
+
   /// AboutSection ('앱 정보').
   static const String aboutBuild = '빌드';
   static const String aboutRenderer = '렌더러';
@@ -114,6 +148,20 @@ abstract final class AppStrings {
   static const String aboutErrors = '오류';
   static String aboutErrorCount(int count) => '$count건';
   static const String aboutUpdate = '새 버전';
+
+  /// The feature line (2차 6.18): '녹음 켬 · 인식 꺼짐(개발자 메뉴) · 수식 엔진
+  /// 꺼짐(빌드)' — appFeatureStatusLine.
+  static const String aboutFeatures = '기능';
+
+  /// The Apple Pencil line (iOS, 2차 6.12.3 / 6.18): 'iOS 17.5 · 더블탭 · 호버';
+  /// squeeze and roll only once this run has received one ('· 스퀴즈(받음)').
+  static const String aboutPencil = 'Apple Pencil';
+  static String aboutPencilOs(String os) => 'iOS $os';
+  static const String aboutPencilUnread = '능력을 읽지 못했어요';
+  static const String aboutPencilDoubleTap = '더블탭';
+  static const String aboutPencilHover = '호버';
+  static const String aboutPencilSqueezeSeen = '스퀴즈(받음)';
+  static const String aboutPencilRollSeen = '롤(받음)';
   static const String checkForUpdate = '새 버전 확인';
   static const String updateDisabled = '이 빌드에서는 새 버전을 확인하지 않아요.';
   static const String updateUnknown = '아직 확인하지 않았어요.';
@@ -121,6 +169,50 @@ abstract final class AppStrings {
   static String updateFound(int buildNumber, String shortSha) =>
       '새 버전이 있어요 (#$buildNumber · $shortSha). 새로고침하면 적용돼요.';
   static const String licenses = '오픈소스 라이선스';
+
+  /// FeatureSwitchSection ('기능 켜고 끄기' — docs/plans/m5-7/01-infra.md 6.6).
+  static const String featureMedia = '녹음';
+  static const String featureMediaHint = '녹음·녹음 패널. 이미지 넣기는 꺼지지 않아요';
+  static const String featureRecognition = '인식';
+  static const String featureRecognitionHint = '손글씨·수식 인식, 자동 도형 보정';
+  static const String featureMathEngine = '수식 엔진';
+  static const String featureMathEngineHint =
+      '수식 인식 서버(인식이 켜져 있을 때). 수식 직접 입력은 꺼지지 않아요';
+  static const String featureOffInBuild = '이 빌드에서 꺼져 있어요';
+  static const String featureRestartToApply = '다시 시작하면 적용돼요';
+  static const String featureRestart = '다시 시작';
+  static const String featureRestartNative = '앱을 완전히 닫았다가 다시 열어 주세요';
+  static const String featureSaveFailed = '설정을 저장하지 못했어요.';
+  static const String featureFlushFailed =
+      '저장이 아직 끝나지 않아 다시 시작하지 않았어요. 잠시 뒤 다시 눌러 주세요.';
+
+  /// V1CopySection ('이전 판 DB 사본' — 2차 6.18, 4.6.7; contract 7.2.7).
+  static const String v1CopyLoading = '확인하는 중…';
+  static String v1CopyPresent({
+    required String createdAt,
+    required String size,
+    required int normalOpens,
+  }) => '사본 있음: $createdAt · $size · 정상 열기 $normalOpens번';
+  static String v1CopyFailed(String reason) =>
+      '사본을 만들지 못했어요($reason) — 이전 판 데이터는 새 판으로 옮겨졌어요';
+  static const String v1CopyFailedQuota = '저장 공간 부족';
+  static const String v1CopyFailedIo = '읽기·쓰기 오류';
+  static const String v1CopyFailedOther = '알 수 없는 오류';
+  static const String v1CopyNone = '사본 없음';
+  static const String v1CopyPending = '이 판의 저장소에서는 아직 볼 수 없어요';
+  static const String v1CopyInfoError = '사본 정보를 읽지 못했어요';
+  static const String v1CopyExport = '내보내기';
+  static const String v1CopyDelete = '지우기';
+  static String v1CopyPreparing(String received, String total) =>
+      '준비 중… $received / $total';
+  static const String v1CopyReadFailed = '사본을 읽지 못했어요';
+  static const String v1CopyDeleteConfirm = '이전 판 DB 사본을 지워요. 되돌릴 수 없어요.';
+  static const String v1CopyDeleteFailed = '사본을 지우지 못했어요';
+
+  /// Reload while recording (6.17 — the update banner and the feature
+  /// switches).
+  static const String reloadBlockedByRecording =
+      '녹음 중에는 새로 고칠 수 없어요. 녹음을 멈춘 뒤 눌러 주세요.';
 
   /// Backup export (AboutSection, BackupReadySheet — 4.5.8).
   static const String backupExport = '백업 내보내기';

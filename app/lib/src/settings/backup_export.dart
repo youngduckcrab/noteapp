@@ -12,12 +12,18 @@ import '../errors/app_error_log.dart';
 import '../web/web_platform.dart';
 
 /// Backup bytes ready to hand to the browser.
+/// (2차 v2.1, J14b) mimeType is a field: the v1 DB copy export passes
+/// v1CopyMimeType(info.fileName); the 1차 JSON backup keeps the default.
 @immutable
 final class BackupFile {
-  const BackupFile({required this.bytes, required this.fileName});
+  const BackupFile({
+    required this.bytes,
+    required this.fileName,
+    this.mimeType = 'application/json',
+  });
   final Uint8List bytes;
-  final String fileName; // backupFileName(now)
-  String get mimeType => 'application/json';
+  final String fileName; // backupFileName(now) | V1DatabaseCopyInfo.fileName
+  final String mimeType;
 }
 
 enum BackupDelivery { share, download }

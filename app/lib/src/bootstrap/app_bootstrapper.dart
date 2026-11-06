@@ -1,5 +1,6 @@
 /// Runs the startup modules and assembles the root overrides
-/// (docs/plans/01-infra.md 4.5.4, 6.4, 6.7).
+/// (docs/plans/01-infra.md 4.5.4, 6.4, 6.7; 2nd round
+/// docs/plans/m5-7/01-infra.md 4.6.2, 6.4).
 library;
 
 import 'dart:async';
@@ -11,11 +12,14 @@ import 'package:note_core/note_core.dart'
 
 import '../app/strings.dart';
 import '../errors/app_error_log.dart';
+import '../features/app_features.dart';
 import '../providers.dart';
 import '../runtime/build_info.dart';
 import '../runtime/runtime_info.dart';
+import '../settings/settings_sections.dart' show shellContributionsProvider;
 import '../web/web_platform.dart';
 import 'app_module.dart';
+import 'idle_tasks.dart';
 import 'startup_report.dart';
 
 sealed class BootstrapResult {
@@ -28,11 +32,21 @@ final class BootstrapSuccess extends BootstrapResult {
     required super.report,
     required this.overrides,
     required this.startedModules,
+    this.idleTasks = const [],
+    this.contributions = const [],
+    this.features = AppFeatures.all,
   });
 
   /// Shell overrides first, then module overrides in module order.
   final List<Override> overrides;
   final List<AppModule> startedModules;
+
+  /// Started modules' tasks in module order (the runner orders by priority).
+  final List<AppIdleTask> idleTasks;
+  final List<ShellContribution> contributions;
+
+  /// resolveFeatures() result of this attempt.
+  final AppFeatures features;
 }
 
 final class BootstrapFailure extends BootstrapResult {
@@ -86,6 +100,9 @@ const Duration _stopTimeout = Duration(seconds: 2);
 /// How long [AppBootstrapper.shutdown] waits for late-start cleanups in total.
 const Duration _abandonTimeout = Duration(seconds: 2);
 
+/// How long AppModule.isEnabled may take (timeout → enabled).
+const Duration _isEnabledTimeout = Duration(seconds: 1);
+
 final class AppBootstrapper {
   AppBootstrapper({
     required List<AppModule> modules,
@@ -95,8 +112,8 @@ final class AppBootstrapper {
     required this.errorLog,
     required this.ownerId,
     this.slowStageThreshold = const Duration(seconds: 3),
+    this.features = AppFeatures.all,
   }) : _modules = List<AppModule>.unmodifiable(modules);
-
   final List<AppModule> _modules;
 
   final BuildInfo buildInfo;
@@ -107,6 +124,10 @@ final class AppBootstrapper {
   /// See AppModuleContext.ownerId (new database only).
   final OwnerId ownerId;
   final Duration slowStageThreshold;
+
+  /// The build's switches (runNoteApp: AppFeatures.compileTime) —
+  /// AppModuleContext.compileTimeFeatures.
+  final AppFeatures features;
 
   final ValueNotifier<String> _stageLabel = ValueNotifier<String>('');
   final ValueNotifier<bool> _isSlow = ValueNotifier<bool>(false);
@@ -140,13 +161,23 @@ final class AppBootstrapper {
       web: web,
       ownerId: ownerId,
       errorLog: errorLog,
+      compileTimeFeatures: features,
     );
     final steps = <StartupStep>[];
     final moduleOverrides = <Override>[];
+    final idleTasks = <AppIdleTask>[];
 
     for (final module in _modules) {
       final attempt = await _startModule(module, context);
-      context.recordOutcome(module.id, attempt.outcome);
+      context.recordOutcome(
+        module.id,
+        attempt.outcome,
+        fallback: switch (attempt.outcome) {
+          StartupStepOutcome.failedNonCritical ||
+          StartupStepOutcome.timedOut => _fallbackOf(module),
+          _ => null,
+        },
+      );
       steps.add(
         StartupStep(
           id: module.id,
@@ -159,8 +190,11 @@ final class AppBootstrapper {
       if (attempt.outcome == StartupStepOutcome.ok) {
         _started.add(module);
         moduleOverrides.addAll(attempt.overrides!);
+        idleTasks.addAll(attempt.idleTasks);
         continue;
       }
+      // Switched off: no start, no overrides, no contribution, no error.
+      if (attempt.outcome == StartupStepOutcome.skipped) continue;
       final error = attempt.error!;
       final stackTrace = attempt.stackTrace ?? StackTrace.empty;
       if (!module.critical) {
@@ -191,6 +225,8 @@ final class AppBootstrapper {
       );
     }
 
+    final resolved = await context.resolveFeatures();
+    final contributions = context.contributions;
     final report = _report(stopwatch, steps, context);
     return BootstrapSuccess(
       report: report,
@@ -201,10 +237,61 @@ final class AppBootstrapper {
         appErrorLogProvider.overrideWithValue(errorLog),
         startupReportProvider.overrideWithValue(report),
         appBootstrapperProvider.overrideWithValue(this),
+        appFeaturesProvider.overrideWithValue(resolved),
+        shellContributionsProvider.overrideWithValue(contributions),
         ...moduleOverrides,
       ],
       startedModules: List<AppModule>.unmodifiable(_started),
+      idleTasks: List<AppIdleTask>.unmodifiable(idleTasks),
+      contributions: contributions,
+      features: resolved,
     );
+  }
+
+  /// isEnabled() with its 1 s limit; a throw or a timeout counts as enabled
+  /// (logged, source module) so a slow settings read never hides a feature.
+  Future<bool> _isEnabled(AppModule module, AppModuleContext context) async {
+    try {
+      return await Future<bool>.sync(() => module.isEnabled(context))
+          .timeout(_isEnabledTimeout);
+    } on Object catch (error, stackTrace) {
+      _log(
+        error,
+        stackTrace,
+        AppErrorSource.module,
+        'module "${module.id}" isEnabled failed; treated as enabled',
+      );
+      return true;
+    }
+  }
+
+  ShellContribution? _fallbackOf(AppModule module) {
+    try {
+      return module.fallbackContribution();
+    } on Object catch (error, stackTrace) {
+      _log(
+        error,
+        stackTrace,
+        AppErrorSource.module,
+        'module "${module.id}" fallbackContribution failed',
+      );
+      return null;
+    }
+  }
+
+  /// idleTasks() of a started module; a throw → none (logged).
+  List<AppIdleTask> _idleTasksOf(AppModule module) {
+    try {
+      return module.idleTasks();
+    } on Object catch (error, stackTrace) {
+      _log(
+        error,
+        stackTrace,
+        AppErrorSource.module,
+        'module "${module.id}" idleTasks failed',
+      );
+      return const [];
+    }
   }
 
   /// start → overrides() of one module, with the timeout and the slow flag.
@@ -214,6 +301,10 @@ final class AppBootstrapper {
   ) async {
     _stageLabel.value = module.label;
     _isSlow.value = false;
+    final enabledWatch = Stopwatch()..start();
+    if (!await _isEnabled(module, context)) {
+      return _ModuleAttempt(StartupStepOutcome.skipped, enabledWatch.elapsed);
+    }
     final slowTimer = Timer(slowStageThreshold, () => _isSlow.value = true);
     final stopwatch = Stopwatch()..start();
     var timedOut = false;
@@ -236,6 +327,7 @@ final class AppBootstrapper {
         StartupStepOutcome.ok,
         stopwatch.elapsed,
         overrides: overrides,
+        idleTasks: _idleTasksOf(module),
       );
     } on Object catch (error, stackTrace) {
       if (timedOut) _abandoned.add(_abandon(module));
@@ -408,6 +500,7 @@ final class _ModuleAttempt {
     this.outcome,
     this.elapsed, {
     this.overrides,
+    this.idleTasks = const [],
     this.error,
     this.stackTrace,
   });
@@ -415,6 +508,7 @@ final class _ModuleAttempt {
   final StartupStepOutcome outcome;
   final Duration elapsed;
   final List<Override>? overrides;
+  final List<AppIdleTask> idleTasks;
   final Object? error;
   final StackTrace? stackTrace;
 }

@@ -5,9 +5,16 @@
 //
 // The B2 fake store's exportBackupJson is UnimplementedError (계약 7.6):
 // CountingNoteStore.exportBackupResult injects the bytes.
+//
+// 2차 J13 (docs/plans/m5-7/01-infra.md 6.12.3, 6.18): the Apple Pencil row
+// over a PencilStylusExtrasSource on a fake pencil event stream.
+// 2차 J14 (6.18): the feature row in four cases (all on · off in the build ·
+// off in the developer menu · failed start) and in the diagnostics copy.
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:feature_editor/feature_editor.dart'
+    show NoStylusExtras, stylusExtrasProvider;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -15,13 +22,17 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
+import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/features/app_features.dart';
+import 'package:noteapp/src/pencil/pencil_stylus_extras.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:noteapp/src/settings/about_section.dart';
 import 'package:noteapp/src/settings/backup_sheet.dart';
 import 'package:noteapp/src/web/web_platform.dart';
+import 'package:pencil_bridge/pencil_bridge.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
@@ -461,6 +472,302 @@ void main() {
       expect(find.byType(BackupReadySheet), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
       expect(h.errorLog.totalCount, errorsBefore);
+    });
+  });
+
+  group('Apple Pencil row (J13 — 6.12.3, 6.18)', () {
+    const t = Duration(seconds: 3);
+    late StreamController<PencilEvent> native;
+
+    setUp(() {
+      native = StreamController<PencilEvent>.broadcast();
+    });
+    tearDown(() => native.close());
+
+    Finder pencilRow() => find.text(AppStrings.aboutPencil);
+
+    /// Delivers the added events (a microtask), then builds the frame their
+    /// `seen` change scheduled.
+    Future<void> deliver(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('no row without a supported stylus source (web, Android)', (
+      tester,
+    ) async {
+      await _pump(tester);
+      expect(pencilRow(), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      await _pump(
+        tester,
+        extra: [stylusExtrasProvider.overrideWithValue(const NoStylusExtras())],
+      );
+      expect(pencilRow(), findsNothing);
+    });
+
+    testWidgets('iOS 17.5 · 더블탭 · 호버; squeeze and roll only after this '
+        'run received one — the section listens itself while shown', (
+      tester,
+    ) async {
+      final adapter = PencilStylusExtrasSource(
+        capabilities: const PencilCapabilities(
+          os: '17.5',
+          squeeze: true,
+          hover: true,
+          roll: true,
+        ),
+        events: native.stream,
+      );
+      await _pump(
+        tester,
+        extra: [stylusExtrasProvider.overrideWithValue(adapter)],
+      );
+      expect(pencilRow(), findsOneWidget);
+      expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey<String>('app.about.pencil')),
+          matching: find.text('iOS 17.5 · 더블탭 · 호버'),
+        ),
+        findsOneWidget,
+      );
+      // Nothing else listens in this test: the section's own subscription.
+      expect(native.hasListener, isTrue);
+
+      native.add(const PencilTap(t, preferredAction: 'switchEraser'));
+      await deliver(tester);
+      expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+
+      native.add(
+        const PencilSqueeze(t, phase: 'began', preferredAction: 'ignore'),
+      );
+      await deliver(tester);
+      expect(find.text('iOS 17.5 · 더블탭 · 호버 · 스퀴즈(받음)'), findsOneWidget);
+
+      native.add(const PencilRoll(t, angle: 0.5));
+      await deliver(tester);
+      expect(
+        find.text('iOS 17.5 · 더블탭 · 호버 · 스퀴즈(받음) · 롤(받음)'),
+        findsOneWidget,
+      );
+
+      // Leaving the section ends its subscription; what was seen stays.
+      await tester.pumpWidget(const SizedBox());
+      expect(native.hasListener, isFalse);
+      expect(adapter.seen.value, (squeeze: true, roll: true));
+    });
+
+    testWidgets('seen before the section opened (the editor listened) shows '
+        'at once', (tester) async {
+      final adapter = PencilStylusExtrasSource(
+        capabilities: const PencilCapabilities(os: '18.1', squeeze: true),
+        events: native.stream,
+      );
+      final editor = adapter.events.listen((_) {});
+      addTearDown(editor.cancel);
+      native.add(
+        const PencilSqueeze(t, phase: 'ended', preferredAction: 'ignore'),
+      );
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+
+      await _pump(
+        tester,
+        extra: [stylusExtrasProvider.overrideWithValue(adapter)],
+      );
+      expect(find.text('iOS 18.1 · 더블탭 · 스퀴즈(받음)'), findsOneWidget);
+    });
+
+    testWidgets('capabilities read failed → 능력을 읽지 못했어요 · 더블탭', (tester) async {
+      await _pump(
+        tester,
+        extra: [
+          stylusExtrasProvider.overrideWithValue(
+            PencilStylusExtrasSource(
+              capabilities: kPencilFallbackCapabilities,
+              events: native.stream,
+            ),
+          ),
+        ],
+      );
+      expect(find.text('능력을 읽지 못했어요 · 더블탭'), findsOneWidget);
+    });
+
+    testWidgets('landscape: the row fits', (tester) async {
+      final h = SettingsHarness(
+        store: CountingNoteStore(exportBackupResult: _bytes),
+      );
+      await h.pump(
+        tester,
+        sectionPage(const AboutSection()),
+        logical: ipadLandscape,
+        extra: [
+          stylusExtrasProvider.overrideWithValue(
+            PencilStylusExtrasSource(
+              capabilities: const PencilCapabilities(os: '17.5', hover: true),
+              events: native.stream,
+            ),
+          ),
+        ],
+      );
+      await tester.pump();
+      expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('feature row (J14 — 6.18)', () {
+    const featureKey = ValueKey<String>('app.about.features');
+
+    StartupReport report(List<(String, StartupStepOutcome)> steps) =>
+        StartupReport(
+          steps: [
+            const StartupStep(
+              id: 'core',
+              elapsed: Duration(milliseconds: 120),
+              outcome: StartupStepOutcome.ok,
+            ),
+            for (final (id, outcome) in steps)
+              StartupStep(id: id, elapsed: Duration.zero, outcome: outcome),
+          ],
+          bootstrapElapsed: const Duration(milliseconds: 300),
+        );
+
+    Future<SettingsHarness> pumpFeatures(
+      WidgetTester tester, {
+      required AppFeatures compileTime,
+      required AppFeatures started,
+      required StartupReport report,
+      Size logical = ipadPortrait,
+    }) async {
+      final h = SettingsHarness(
+        store: CountingNoteStore(exportBackupResult: _bytes),
+        report: report,
+      );
+      await h.pump(
+        tester,
+        sectionPage(AboutSection(compileTime: compileTime)),
+        logical: logical,
+        extra: [appFeaturesProvider.overrideWithValue(started)],
+      );
+      await tester.pump();
+      return h;
+    }
+
+    String rowText(WidgetTester tester) {
+      final texts = tester.widgetList<Text>(
+        find.descendant(
+          of: find.byKey(featureKey),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(texts.first.data, AppStrings.aboutFeatures);
+      return texts.last.data!;
+    }
+
+    Color? rowColor(WidgetTester tester) => tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byKey(featureKey),
+            matching: find.byType(Text),
+          ),
+        )
+        .last
+        .style
+        ?.color;
+
+    testWidgets('all on', (tester) async {
+      await pumpFeatures(
+        tester,
+        compileTime: AppFeatures.all,
+        started: AppFeatures.all,
+        report: report([
+          ('media', StartupStepOutcome.ok),
+          ('recognition', StartupStepOutcome.ok),
+        ]),
+      );
+      expect(rowText(tester), '녹음 켬 · 인식 켬 · 수식 엔진 켬');
+      final scheme = Theme.of(tester.element(find.byKey(featureKey)))
+          .colorScheme;
+      expect(rowColor(tester), isNot(scheme.error));
+    });
+
+    testWidgets('off in the build (the module was not even made)', (
+      tester,
+    ) async {
+      const build = AppFeatures(media: false, recognition: false);
+      await pumpFeatures(
+        tester,
+        compileTime: build,
+        started: build,
+        report: report(const []),
+      );
+      expect(rowText(tester), '녹음 꺼짐(빌드) · 인식 꺼짐(빌드) · 수식 엔진 꺼짐(인식 꺼짐)');
+      final scheme = Theme.of(tester.element(find.byKey(featureKey)))
+          .colorScheme;
+      expect(rowColor(tester), scheme.error);
+    });
+
+    testWidgets('off in the developer menu (skipped steps)', (tester) async {
+      await pumpFeatures(
+        tester,
+        compileTime: const AppFeatures(mathEngine: false),
+        started: const AppFeatures(recognition: false, mathEngine: false),
+        report: report([
+          ('media', StartupStepOutcome.ok),
+          ('recognition', StartupStepOutcome.skipped),
+        ]),
+      );
+      expect(rowText(tester), '녹음 켬 · 인식 꺼짐(개발자 메뉴) · 수식 엔진 꺼짐(빌드)');
+      // The skipped step is in the startup row too.
+      expect(find.textContaining('recognition 0ms (skipped)'), findsOneWidget);
+    });
+
+    testWidgets('failed start (media timed out, recognition failed)', (
+      tester,
+    ) async {
+      await pumpFeatures(
+        tester,
+        compileTime: AppFeatures.all,
+        started: AppFeatures.all,
+        report: report([
+          ('media', StartupStepOutcome.timedOut),
+          ('recognition', StartupStepOutcome.failedNonCritical),
+        ]),
+      );
+      expect(rowText(tester), '녹음 시작 실패 · 인식 시작 실패 · 수식 엔진 꺼짐(인식 꺼짐)');
+    });
+
+    testWidgets('진단 정보 복사 carries the same line and the skipped step', (
+      tester,
+    ) async {
+      final copied = _mockClipboard(tester);
+      await pumpFeatures(
+        tester,
+        compileTime: AppFeatures.all,
+        started: const AppFeatures(media: false),
+        report: report([
+          ('media', StartupStepOutcome.skipped),
+          ('recognition', StartupStepOutcome.ok),
+        ]),
+      );
+      await tester.tap(find.byKey(const Key('about-copy-diagnostics')));
+      await tester.pump();
+      expect(copied, hasLength(1));
+      expect(copied.single, contains('\n기능: 녹음 꺼짐(개발자 메뉴) · 인식 켬 · 수식 엔진 켬\n'));
+      expect(copied.single, contains('media 0ms skipped'));
+    });
+
+    testWidgets('landscape: the row fits', (tester) async {
+      await pumpFeatures(
+        tester,
+        compileTime: const AppFeatures(mathEngine: false),
+        started: const AppFeatures(media: false, mathEngine: false),
+        report: report([('media', StartupStepOutcome.skipped)]),
+        logical: ipadLandscape,
+      );
+      expect(find.byKey(featureKey), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

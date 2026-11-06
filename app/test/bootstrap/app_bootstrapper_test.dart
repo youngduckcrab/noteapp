@@ -9,11 +9,14 @@ import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
+import 'package:noteapp/src/bootstrap/idle_tasks.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/features/app_features.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
+import 'package:noteapp/src/settings/settings_sections.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
@@ -24,8 +27,11 @@ final _b = Provider<String>((ref) => 'b default', name: '_testB');
 final _c = Provider<String>((ref) => 'c default', name: '_testC');
 
 final class _Harness {
-  _Harness(List<AppModule> modules, {FakeWebPlatform? web})
-    : web = web ?? FakeWebPlatform() {
+  _Harness(
+    List<AppModule> modules, {
+    FakeWebPlatform? web,
+    AppFeatures features = AppFeatures.all,
+  }) : web = web ?? FakeWebPlatform() {
     bootstrapper = AppBootstrapper(
       modules: modules,
       buildInfo: BuildInfo.local,
@@ -33,6 +39,7 @@ final class _Harness {
       web: this.web,
       errorLog: errorLog,
       ownerId: kLocalOwnerId,
+      features: features,
     );
   }
 
@@ -54,7 +61,8 @@ BootstrapSuccess _success(BootstrapResult? result) =>
 BootstrapFailure _failure(BootstrapResult? result) =>
     result! as BootstrapFailure;
 
-const _shellOverrideCount = 6;
+// 1차 six + appFeaturesProvider + shellContributionsProvider (2nd round).
+const _shellOverrideCount = 8;
 
 void main() {
   group('AppModuleContext', () {
@@ -187,6 +195,8 @@ void main() {
         expect(container.read(appErrorLogProvider), same(h.errorLog));
         expect(container.read(startupReportProvider), same(success.report));
         expect(container.read(appBootstrapperProvider), same(h.bootstrapper));
+        expect(container.read(appFeaturesProvider), AppFeatures.all);
+        expect(container.read(shellContributionsProvider), isEmpty);
         expect(container.read(_a), 'A');
         expect(container.read(_b), 'B');
         expect(container.read(_c), 'C');
@@ -662,6 +672,277 @@ void main() {
         expect(done(), isTrue);
         expect(events, ['start:core', 'started:core', 'stop:core']);
       });
+    });
+  });
+
+  group('2nd round (01-infra 4.6.2, 6.4)', () {
+    AppIdleTask task(String id, {int priority = 10}) =>
+        AppIdleTask(id: id, priority: priority, run: (_) async {});
+
+    test('isEnabled false → skipped: no start, no overrides, no idle tasks, '
+        'no contribution, no error record', () {
+      fakeAsync((async) {
+        final media = FakeAppModule(
+          id: 'media',
+          critical: false,
+          enabled: (_) async => false,
+          overrides: [_b.overrideWithValue('B')],
+          idleTasks: [task('media.recoverDrafts', priority: 0)],
+          fallback: const ShellContribution(moduleId: 'media'),
+          onStart: (c) =>
+              c.contribute(const ShellContribution(moduleId: 'media')),
+        );
+        final h = _Harness([FakeAppModule(id: 'core'), media]);
+        final result = _watch(h.bootstrapper.run());
+        async.flushMicrotasks();
+
+        final success = _success(result());
+        expect(success.report.steps.map((s) => (s.id, s.outcome, s.error)), [
+          ('core', StartupStepOutcome.ok, null),
+          ('media', StartupStepOutcome.skipped, null),
+        ]);
+        expect(media.enabledCalls, 1);
+        expect(media.started, 0);
+        expect(media.overridesCalls, 0);
+        expect(media.idleTasksCalls, 0);
+        expect(success.overrides, hasLength(_shellOverrideCount));
+        expect(success.idleTasks, isEmpty);
+        expect(success.contributions, isEmpty);
+        expect(success.startedModules.map((m) => m.id), ['core']);
+        expect(h.errorLog.totalCount, 0);
+      });
+    });
+
+    test('isEnabled throwing or taking > 1 s counts as enabled (logged)', () {
+      fakeAsync((async) {
+        final throwing = FakeAppModule(
+          id: 'a',
+          critical: false,
+          enabled: (_) async => throw StateError('settings broken'),
+        );
+        final slow = FakeAppModule(
+          id: 'b',
+          critical: false,
+          enabled: (_) =>
+              Future.delayed(const Duration(seconds: 2), () => false),
+        );
+        final h = _Harness([throwing, slow]);
+        final result = _watch(h.bootstrapper.run());
+        async.elapse(const Duration(seconds: 1));
+
+        final success = _success(result());
+        expect(success.report.steps.map((s) => s.outcome), [
+          StartupStepOutcome.ok,
+          StartupStepOutcome.ok,
+        ]);
+        expect([throwing.started, slow.started], [1, 1]);
+        expect(h.errorLog.records.map((r) => (r.source, r.details)), [
+          (
+            AppErrorSource.module,
+            'module "a" isEnabled failed; treated as enabled',
+          ),
+          (
+            AppErrorSource.module,
+            'module "b" isEnabled failed; treated as enabled',
+          ),
+        ]);
+        async.elapse(const Duration(seconds: 2));
+      });
+    });
+
+    test('idle tasks: started modules only, module order, idleTasks() once '
+        'after overrides()', () {
+      fakeAsync((async) {
+        final pdf = FakeAppModule(
+          id: 'pdf',
+          critical: false,
+          idleTasks: [task('pdf.searchIndexer')],
+        );
+        final media = FakeAppModule(
+          id: 'media',
+          critical: false,
+          startError: StateError('no mic'),
+          idleTasks: [task('media.recoverDrafts', priority: 0)],
+        );
+        final recognition = FakeAppModule(
+          id: 'recognition',
+          critical: false,
+          idleTasks: [task('recognition.indexer', priority: 20)],
+        );
+        final h = _Harness([
+          FakeAppModule(id: 'core'),
+          pdf,
+          media,
+          recognition,
+        ]);
+        final result = _watch(h.bootstrapper.run());
+        async.flushMicrotasks();
+
+        final success = _success(result());
+        expect(success.idleTasks.map((t) => t.id), [
+          'pdf.searchIndexer',
+          'recognition.indexer',
+        ]);
+        expect([pdf, media, recognition].map((m) => m.idleTasksCalls), [
+          1,
+          0,
+          1,
+        ]);
+        expect(() => success.idleTasks.add(task('x')), throwsUnsupportedError);
+      });
+    });
+
+    test('a module that contributed and then failed: its contribution is '
+        'dropped, its fallback contribution takes the place', () {
+      fakeAsync((async) {
+        const own = ShellContribution(moduleId: 'media');
+        const fallback = ShellContribution(moduleId: 'media');
+        final h = _Harness([
+          FakeAppModule(
+            id: 'recognition',
+            critical: false,
+            onStart: (c) =>
+                c.contribute(const ShellContribution(moduleId: 'recognition')),
+          ),
+          FakeAppModule(
+            id: 'media',
+            critical: false,
+            startError: StateError('no mic'),
+            fallback: fallback,
+            onStart: (c) => c.contribute(own),
+          ),
+          FakeAppModule(
+            id: 'pdf',
+            critical: false,
+            startError: StateError('no pdfium'),
+            onStart: (c) =>
+                c.contribute(const ShellContribution(moduleId: 'pdf')),
+          ),
+        ]);
+        final result = _watch(h.bootstrapper.run());
+        async.flushMicrotasks();
+
+        final success = _success(result());
+        expect(success.contributions.map((c) => c.moduleId), [
+          'recognition',
+          'media',
+        ]);
+        expect(success.contributions[1], same(fallback));
+        final container = ProviderContainer.test(overrides: success.overrides);
+        expect(
+          container.read(shellContributionsProvider),
+          success.contributions,
+        );
+      });
+    });
+
+    test('a skipped module gets no fallback contribution', () {
+      fakeAsync((async) {
+        final h = _Harness([
+          FakeAppModule(
+            id: 'media',
+            critical: false,
+            enabled: (_) async => false,
+            fallback: const ShellContribution(moduleId: 'media'),
+          ),
+        ]);
+        final result = _watch(h.bootstrapper.run());
+        async.flushMicrotasks();
+        expect(_success(result()).contributions, isEmpty);
+      });
+    });
+
+    test('late contribution after a timeout is ignored and logged once; only '
+        'the fallback contribution stays', () {
+      fakeAsync((async) {
+        late AppModuleContext seen;
+        const fallback = ShellContribution(moduleId: 'media');
+        final gate = Completer<void>();
+        final h = _Harness([
+          FakeAppModule(
+            id: 'media',
+            critical: false,
+            startTimeout: const Duration(seconds: 5),
+            gate: gate,
+            fallback: fallback,
+            onStart: (c) => seen = c,
+          ),
+          FakeAppModule(id: 'featureWiring', critical: false),
+        ]);
+        final result = _watch(h.bootstrapper.run());
+        async.elapse(const Duration(seconds: 5));
+        final success = _success(result());
+        expect(success.report.steps.first.outcome, StartupStepOutcome.timedOut);
+        expect(success.contributions, [same(fallback)]);
+        final recordsBefore = h.errorLog.totalCount;
+
+        // The late start finishes and contributes — twice, even.
+        gate.complete();
+        async.flushMicrotasks();
+        seen.contribute(const ShellContribution(moduleId: 'media'));
+        seen.contribute(const ShellContribution(moduleId: 'media'));
+        expect(seen.contributions, [same(fallback)]);
+        expect(success.contributions, [same(fallback)]);
+        final late = h.errorLog.records.skip(recordsBefore).toList();
+        expect(late.map((r) => (r.source, r.summary)), [
+          (AppErrorSource.module, 'late contribution of media ignored'),
+        ]);
+      });
+    });
+
+    test('contribute twice during one start → StateError', () {
+      final ctx = AppModuleContext(
+        buildInfo: BuildInfo.local,
+        runtimeInfo: RuntimeInfo.detect(FakeWebPlatform()),
+        web: FakeWebPlatform(),
+        ownerId: kLocalOwnerId,
+        errorLog: AppErrorLog(),
+      );
+      ctx.contribute(const ShellContribution(moduleId: 'media'));
+      expect(
+        () => ctx.contribute(const ShellContribution(moduleId: 'media')),
+        throwsStateError,
+      );
+      // Not visible before the outcome is recorded.
+      expect(ctx.contributions, isEmpty);
+      ctx.recordOutcome('media', StartupStepOutcome.ok);
+      expect(ctx.contributions.map((c) => c.moduleId), ['media']);
+    });
+
+    test('features: the build AND the developer menu of the published store; '
+        'BootstrapSuccess.features and appFeaturesProvider', () async {
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      await store.settings.set(AppFeatureKeys.recognition, false);
+      final seen = <AppFeatures>[];
+      final h = _Harness([
+        FakeAppModule(id: 'core', onStart: (c) => c.publish<NoteStore>(store)),
+        FakeAppModule(
+          id: 'media',
+          critical: false,
+          enabled: (c) async {
+            seen.add(await c.resolveFeatures());
+            return c.featureOn(AppFeature.media);
+          },
+        ),
+      ], features: const AppFeatures(mathEngine: false));
+      final success = _success(await h.bootstrapper.run());
+      const expected = AppFeatures(recognition: false, mathEngine: false);
+      expect(seen, [expected]);
+      expect(success.features, expected);
+      expect(success.report.steps.last.outcome, StartupStepOutcome.ok);
+      final container = ProviderContainer.test(overrides: success.overrides);
+      expect(container.read(appFeaturesProvider), expected);
+      await h.bootstrapper.shutdown();
+    });
+
+    test('features without a store: the build values', () async {
+      final h = _Harness([
+        FakeAppModule(id: 'x'),
+      ], features: const AppFeatures(media: false));
+      final success = _success(await h.bootstrapper.run());
+      expect(success.features, const AppFeatures(media: false));
+      expect(h.errorLog.totalCount, 0);
     });
   });
 

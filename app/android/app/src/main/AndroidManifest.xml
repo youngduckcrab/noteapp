@@ -1,8 +1,26 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- 2nd round (docs/plans/m5-7/01-infra.md 6.10.1, contract 7.4.3 v2.1).
+         INTERNET also in release: ML Kit model downloads, the math function. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- record_android merges it too; declared so the static test sees it
+         (a microphone foreground service needs RECORD_AUDIO). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- No auto start on boot (contract 7.4.3): flutter_foreground_task's
+         manifest asks for it; remove it in the merge. -->
+    <uses-permission
+        android:name="android.permission.RECEIVE_BOOT_COMPLETED"
+        tools:node="remove"/>
+    <!-- allowBackup="false": D20 (contract 7.4.3 v2.1) — notes are kept by
+         the app's backup export, not by Android auto backup. -->
     <application
-        android:label="noteapp"
+        android:label="필기노트"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -25,6 +43,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- flutter_foreground_task 11.0.3: the app declares the service
+             (its README: 'Warning: Do not change service name'). Recording
+             only; it stops when the task is removed. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="microphone"
+            android:exported="false"
+            android:stopWithTask="true"/>
+        <!-- No auto start on boot (contract 7.4.3). -->
+        <receiver
+            android:name="com.pravera.flutter_foreground_task.service.RebootReceiver"
+            tools:node="remove"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -6,8 +6,14 @@
 // The tests drive the screens only through their contract callbacks and
 // contract behaviour (7.2.17 / 7.2.18), never through placeholder body text,
 // so the areas can replace their placeholders without breaking this file.
+//
+// 2차 (docs/plans/m5-7/01-infra.md 4.6.6, 6.8 — R2-B8b ①, J11): content
+// search hits open through LibraryScreen.onOpenNoteAt → `?page=&focus=` →
+// EditorScreen(initialPageId:, initialFocusRectPt:); `%2C`, unreadable focus
+// and a reload on the reported address reach the real EditorScreen too.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -232,6 +238,167 @@ void main() {
       expect(_location(tester), '/');
       expect(find.byType(LibraryScreen), findsOneWidget);
       expect(_anyEditor, findsNothing);
+    });
+
+    testWidgets('onOpenNoteAt(noteId, pageId, rect) → the editor gets the '
+        'page and the focus rect; closing returns to the library', (
+      tester,
+    ) async {
+      await _pumpShell(tester);
+      expect(_library(tester).onOpenNoteAt, isNotNull);
+
+      const rect = Rect.fromLTRB(120, 80, 320.5, 200);
+      _library(tester).onOpenNoteAt!('n1', 'p3', rect);
+      await tester.pumpAndSettle();
+
+      expect(_location(tester), '/notes/n1?page=p3&focus=120,80,320.5,200');
+      expect(_editor(tester).noteId, 'n1');
+      expect(_editor(tester).initialPageId, 'p3');
+      expect(_editor(tester).initialFocusRectPt, rect);
+      // Pushed over the library (the search view stays below).
+      expect(_anyLibrary, findsOneWidget);
+
+      _editor(tester).onClose();
+      await tester.pumpAndSettle();
+      expect(_location(tester), '/');
+      expect(find.byType(LibraryScreen), findsOneWidget);
+    });
+
+    testWidgets('onOpenNoteAt without a rect opens the page only', (
+      tester,
+    ) async {
+      await _pumpShell(tester);
+      _library(tester).onOpenNoteAt!('n1', 'p 3', null);
+      await tester.pumpAndSettle();
+
+      expect(_location(tester), AppRoutes.note('n1', pageId: 'p 3'));
+      expect(_editor(tester).initialPageId, 'p 3');
+      expect(_editor(tester).initialFocusRectPt, isNull);
+    });
+
+    testWidgets('a deep link with ?page=&focus= reaches EditorScreen', (
+      tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        initialLocation: '/notes/n1?page=p3&focus=-1.5,0,36,72.8',
+      );
+      expect(_editor(tester).initialPageId, 'p3');
+      expect(
+        _editor(tester).initialFocusRectPt,
+        const Rect.fromLTRB(-1.5, 0, 36, 72.8),
+      );
+    });
+
+    // J11 (6.8): the same three cases as the placeholder screens in
+    // app_router_test, now through the real LibraryScreen / EditorScreen.
+    testWidgets('%2C between the focus values reaches EditorScreen the same', (
+      tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        initialLocation: '/notes/n1?page=p3&focus=120%2C80%2C320.5%2C200',
+      );
+      expect(_editor(tester).noteId, 'n1');
+      expect(_editor(tester).initialPageId, 'p3');
+      expect(
+        _editor(tester).initialFocusRectPt,
+        const Rect.fromLTRB(120, 80, 320.5, 200),
+      );
+    });
+
+    testWidgets('an unreadable focus is dropped; EditorScreen still opens the '
+        'page', (tester) async {
+      for (final bad in [
+        '10,0,5,5', // l > r
+        '0,10,5,5', // t > b
+        '1,2,3',
+        '1,2,3,4,5',
+        'x,1,2,3',
+        '',
+        '1,2,3,1e9',
+        '1,2,3,100001',
+        'NaN,0,1,1',
+      ]) {
+        await _pumpShell(
+          tester,
+          initialLocation: '/notes/n1?page=p3&focus=$bad',
+        );
+        expect(find.byType(EditorScreen), findsOneWidget, reason: bad);
+        expect(_editor(tester).noteId, 'n1', reason: bad);
+        expect(_editor(tester).initialPageId, 'p3', reason: bad);
+        expect(_editor(tester).initialFocusRectPt, isNull, reason: bad);
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('focus without page is dropped at EditorScreen', (
+      tester,
+    ) async {
+      await _pumpShell(tester, initialLocation: '/notes/n1?focus=1,2,3,4');
+      expect(_editor(tester).noteId, 'n1');
+      expect(_editor(tester).initialPageId, isNull);
+      expect(_editor(tester).initialFocusRectPt, isNull);
+    });
+
+    testWidgets('search hit in a folder → reload on the reported address '
+        'opens the same page and rect; closing then goes home', (tester) async {
+      final reported = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation,
+        (call) async {
+          if (call.method == 'routeInformationUpdated') {
+            reported.add((call.arguments as Map)['uri'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.navigation,
+          null,
+        ),
+      );
+      const hit = Rect.fromLTRB(-1.25, 0, 36.04, 72.75);
+      // What the address keeps: each value rounded to 0.1 pt.
+      const rect = Rect.fromLTRB(-1.3, 0, 36, 72.8);
+
+      await _pumpShell(tester, initialLocation: '/folders/f9');
+      expect(_library(tester).folderId, 'f9');
+      expect(_library(tester).onOpenNoteAt, isNotNull);
+      _library(tester).onOpenNoteAt!('a/b c', 'p 3', hit);
+      await tester.pumpAndSettle();
+
+      final address = reported.last;
+      expect(address, AppRoutes.note('a/b c', pageId: 'p 3', focus: rect));
+      expect(address, contains('focus=-1.3,0,36,72.8'));
+      expect(_editor(tester).noteId, 'a/b c');
+      expect(_editor(tester).initialPageId, 'p 3');
+      expect(_editor(tester).initialFocusRectPt, rect);
+
+      // Closing before a reload returns to the folder the search ran in.
+      _editor(tester).onClose();
+      await tester.pumpAndSettle();
+      expect(_location(tester), '/folders/f9');
+
+      // Open again, then reload: a new app starts on the browser's address.
+      _library(tester).onOpenNoteAt!('a/b c', 'p 3', hit);
+      await tester.pumpAndSettle();
+      expect(reported.last, address);
+      await tester.pumpWidget(const SizedBox());
+      await _pumpShell(tester, initialLocation: address);
+
+      expect(_location(tester), address);
+      expect(_editor(tester).noteId, 'a/b c');
+      expect(_editor(tester).initialPageId, 'p 3');
+      expect(_editor(tester).initialFocusRectPt, rect);
+      expect(_anyLibrary, findsNothing);
+
+      // After a reload nothing is below the editor → home.
+      _editor(tester).onClose();
+      await tester.pumpAndSettle();
+      expect(_location(tester), '/');
+      expect(find.byType(LibraryScreen), findsOneWidget);
     });
 
     testWidgets('deep links to a folder and to settings', (tester) async {

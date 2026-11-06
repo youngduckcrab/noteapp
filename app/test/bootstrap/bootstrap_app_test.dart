@@ -1,5 +1,8 @@
 // BootstrapApp: splash → app, startup error screen, retry, reset, reload
 // (docs/plans/01-infra.md 4.5.4, 6.4, 9.1). Time is the tester's fake time.
+// 2nd round (J6 — docs/plans/m5-7/01-infra.md 6.5.1): the success screen's
+// AppIdleTaskRunner (none on the error screen), and its clean-up (the
+// indexers' dispose) ending before the modules stop / a new scope starts.
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -14,6 +17,7 @@ import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/bootstrap/bootstrap_app.dart';
+import 'package:noteapp/src/bootstrap/idle_tasks.dart';
 import 'package:noteapp/src/bootstrap/splash_view.dart';
 import 'package:noteapp/src/bootstrap/startup_error_screen.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
@@ -24,6 +28,7 @@ import 'package:noteapp/src/runtime/runtime_info.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
+import '../fakes/fake_native_paths.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_web_platform.dart';
 
@@ -406,6 +411,7 @@ void main() {
     final attempts = _Attempts([
       () => [
         CoreModule(
+          nativePaths: noNativePaths,
           open: (config) {
             openCount++;
             return first(config);
@@ -414,6 +420,7 @@ void main() {
       ],
       () => [
         CoreModule(
+          nativePaths: noNativePaths,
           open: (config) async {
             openCount++;
             lateClosesAtSecondOpen = late.closeCount;
@@ -537,6 +544,181 @@ void main() {
     expect(events.last, 'stop:core');
   });
 
+  group('idle tasks (J6 — 6.5.1)', () {
+    /// An immediate idle task that registers a clean-up taking [cleanup]
+    /// (an indexer's dispose) and records it in [events].
+    AppIdleTask indexer(
+      List<String> events, {
+      String id = 'core.indexer',
+      Duration cleanup = const Duration(seconds: 1),
+      Completer<void>? hang,
+    }) => AppIdleTask(
+      id: id,
+      priority: AppIdlePriority.searchIndex,
+      immediate: true,
+      run: (c) async {
+        events.add('run:$id');
+        c.onDispose(() async {
+          events.add('dispose:$id');
+          if (hang != null) {
+            await hang.future;
+          } else {
+            await Future<void>.delayed(cleanup);
+          }
+          events.add('disposed:$id');
+        });
+      },
+    );
+
+    Finder runner() => find.descendant(
+      of: find.byType(ProviderScope),
+      matching: find.byType(AppIdleTaskRunner),
+    );
+
+    testWidgets('the success screen: ProviderScope → AppLifecycleBridge → '
+        'AppIdleTaskRunner(success.idleTasks) → the app', (tester) async {
+      final events = <String>[];
+      final task = indexer(events);
+      final attempts = _Attempts([
+        () => [
+          FakeAppModule(id: 'core', idleTasks: [task]),
+        ],
+      ]);
+      await _pumpApp(tester, attempts);
+      await tester.pump();
+      await tester.pump();
+      expect(_app, findsOneWidget);
+      expect(runner(), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppLifecycleBridge),
+          matching: find.byType(AppIdleTaskRunner),
+        ),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: runner(), matching: _app), findsOneWidget);
+      final widget = tester.widget<AppIdleTaskRunner>(runner());
+      expect(widget.tasks, [same(task)]);
+      expect(widget.web, same(attempts.web));
+      expect(widget.errorLog, same(attempts.errorLog));
+      expect(widget.cleanup, isNotNull);
+      await tester.pump();
+      expect(events, ['run:core.indexer']);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+    });
+
+    testWidgets('the error screen has no runner: nothing runs, nothing to '
+        'clean up; 다시 시도 → success → one runner with the new attempt\'s '
+        'tasks', (tester) async {
+      final events = <String>[];
+      final attempts = _Attempts(events: events, [
+        () => [
+          FakeAppModule(
+            id: 'core',
+            startError: StateError('first try'),
+            idleTasks: [indexer(events, id: 'core.first')],
+            events: events,
+          ),
+        ],
+        () => [
+          FakeAppModule(
+            id: 'core',
+            idleTasks: [indexer(events, id: 'core.second')],
+            events: events,
+          ),
+        ],
+      ]);
+      await _pumpApp(tester, attempts);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(StartupErrorScreen), findsOneWidget);
+      expect(find.byType(AppIdleTaskRunner), findsNothing);
+
+      await tester.tap(find.text(AppStrings.retry));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(_app, findsOneWidget);
+      expect(runner(), findsOneWidget);
+      await tester.pump();
+      expect(events.where((e) => e.startsWith('run:')), ['run:core.second']);
+      expect(
+        events.indexOf('create:2'),
+        greaterThan(events.indexOf('stop:core')),
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+    });
+
+    testWidgets('disposing BootstrapApp: the runner\'s clean-up (indexer '
+        'dispose, 1 s) ends BEFORE the modules stop', (tester) async {
+      final events = <String>[];
+      final attempts = _Attempts(events: events, [
+        () => [
+          FakeAppModule(
+            id: 'core',
+            events: events,
+            idleTasks: [indexer(events)],
+          ),
+          FakeAppModule(id: 'pdf', critical: false, events: events),
+        ],
+      ]);
+      await _pumpApp(tester, attempts);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(events.last, 'run:core.indexer');
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(events.last, 'dispose:core.indexer');
+      expect(events, isNot(contains('stop:core')));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      final tail = events.sublist(events.indexOf('dispose:core.indexer'));
+      expect(tail, [
+        'dispose:core.indexer',
+        'disposed:core.indexer',
+        'stop:pdf',
+        'stop:core',
+      ]);
+    });
+
+    testWidgets('a clean-up that never ends holds the shutdown 2 s at most '
+        '(then logged, source module)', (tester) async {
+      final events = <String>[];
+      final hang = Completer<void>();
+      final attempts = _Attempts(events: events, [
+        () => [
+          FakeAppModule(
+            id: 'core',
+            events: events,
+            idleTasks: [indexer(events, hang: hang)],
+          ),
+        ],
+      ]);
+      await _pumpApp(tester, attempts);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1999));
+      expect(events, isNot(contains('stop:core')));
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(events.last, 'stop:core');
+      expect(
+        attempts.errorLog.records.single.summary,
+        startsWith('idle task clean-up failed'),
+      );
+      hang.complete();
+    });
+  });
+
   testWidgets('runNoteApp runs BootstrapApp with the given bootstrapper and '
       'installs the global error handlers', (tester) async {
     final flutterOnError = FlutterError.onError;
@@ -553,6 +735,11 @@ void main() {
         () => [FakeAppModule(id: 'core', startError: StateError('no store'))],
       ]);
       _useIpadPortrait(tester);
+      // runApp's warm-up frame reuses the LAST raw frame time stamp, which
+      // is the previous test's fake clock until this test pumps once — a
+      // previous test that ran longer would make the splash spinner's ticker
+      // see time go backwards.
+      await tester.pump();
       await runNoteApp(createBootstrapper: attempts.create);
       expect(FlutterError.onError, isNot(same(flutterOnError)));
       expect(PlatformDispatcher.instance.onError, isNot(same(platformOnError)));

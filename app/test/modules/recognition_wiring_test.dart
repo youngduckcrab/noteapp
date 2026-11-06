@@ -1,0 +1,268 @@
+// Recognition actions → editor slots (docs/plans/m5-7/01-infra.md 4.6.5, 6.7
+// '자리 변환'; contract 7.3.1 X30 v2.1 — CP13 승인, 7.2.10 v2.1 '자리
+// 콜백 동기 시작'). Every RecognitionTarget field of the 6.7 table, the two
+// `done` branches (selection → clearSelection; insert → select the last
+// added object, or nothing), the insert `execute` wrapper (AddObjects, inside
+// CompositeCommand, no addition, a throwing command) and the menu items
+// calling `run` synchronously.
+import 'dart:async';
+
+import 'package:feature_editor/feature_editor.dart'
+    show EditorInsertContext, EditorSelectionContext;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_recognition/ink_recognition.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart';
+import 'package:note_core/testing.dart';
+import 'package:noteapp/src/modules/recognition_wiring.dart';
+
+const _page = PageSize.a4Portrait;
+
+final class _FakeBuildContext extends Fake implements BuildContext {}
+
+/// Records what the editor side receives.
+final class _Editor {
+  final List<EditCommand> executed = [];
+  final List<String> selected = [];
+  int cleared = 0;
+
+  /// Throws on the next execute when set.
+  Error? failNext;
+
+  void execute(EditCommand command) {
+    if (failNext case final error?) {
+      failNext = null;
+      throw error;
+    }
+    executed.add(command);
+  }
+
+  EditorSelectionContext selection({
+    List<Stroke> strokes = const [],
+    List<PageObject> objects = const [],
+  }) => EditorSelectionContext(
+    noteId: 'n1',
+    pageId: 'p1',
+    pageSize: _page,
+    strokes: strokes,
+    objects: objects,
+    boundsPt: const Rect.fromLTWH(10, 20, 300, 40),
+    execute: execute,
+    clearSelection: () => cleared++,
+  );
+
+  EditorInsertContext insert() => EditorInsertContext(
+    noteId: 'n1',
+    pageId: 'p1',
+    pageSize: _page,
+    visibleRectPt: const Rect.fromLTWH(0, 100, 595, 400),
+    execute: execute,
+    selectObject: selected.add,
+  );
+}
+
+PageObject _math(String id) => PageObjectFixtures.math(pageId: 'p1', id: id);
+
+PageObject _text(String id) => PageObjectFixtures.textBox(pageId: 'p1', id: id);
+
+void main() {
+  group('recognitionTargetOfSelection — the 6.7 table, selection column', () {
+    test('noteId, pageId, pageSize, strokes, objects, areaPt = boundsPt, '
+        'execute as is, done = clearSelection', () {
+      final editor = _Editor();
+      final ids = SequentialIdGenerator();
+      final stroke = StrokeFixtures.synthetic(pageId: 'p1', ids: ids);
+      final object = _text('t1');
+      final selection = editor.selection(strokes: [stroke], objects: [object]);
+      final target = recognitionTargetOfSelection(selection);
+
+      expect(
+        (target.noteId, target.pageId, target.pageSize),
+        ('n1', 'p1', _page),
+      );
+      expect(target.strokes, same(selection.strokes));
+      expect(target.objects, same(selection.objects));
+      expect(target.areaPt, selection.boundsPt);
+      expect(target.execute, same(selection.execute));
+      expect(target.done, same(selection.clearSelection));
+
+      final command = RemoveElements(pageId: 'p1', elementIds: [object.id]);
+      target.execute(command);
+      expect(editor.executed, [same(command)]);
+      target.done();
+      expect(editor.cleared, 1);
+      expect(editor.selected, isEmpty);
+    });
+  });
+
+  group('recognitionTargetOfInsert — the 6.7 table, insert column', () {
+    test('noteId, pageId, pageSize; no strokes, no objects; areaPt = '
+        'visibleRectPt; execute forwards the command', () {
+      final editor = _Editor();
+      final insert = editor.insert();
+      final target = recognitionTargetOfInsert(insert);
+      expect(
+        (target.noteId, target.pageId, target.pageSize),
+        ('n1', 'p1', _page),
+      );
+      expect(target.strokes, isEmpty);
+      expect(target.objects, isEmpty);
+      expect(target.areaPt, insert.visibleRectPt);
+      final command = AddObjects(pageId: 'p1', objects: [_math('m1')]);
+      target.execute(command);
+      expect(editor.executed, [same(command)]);
+    });
+
+    test('done after AddObjects → selectObject(the last added object)', () {
+      final editor = _Editor();
+      final target = recognitionTargetOfInsert(editor.insert());
+      target.execute(
+        AddObjects(pageId: 'p1', objects: [_math('m1'), _math('m2')]),
+      );
+      target.done();
+      expect(editor.selected, ['m2']);
+      expect(editor.cleared, 0);
+    });
+
+    test('inside CompositeCommand (nested too) the last added object wins', () {
+      final editor = _Editor();
+      final target = recognitionTargetOfInsert(editor.insert());
+      target.execute(
+        CompositeCommand([
+          AddObjects(pageId: 'p1', objects: [_math('m1')]),
+          CompositeCommand([
+            AddObjects(pageId: 'p1', objects: [_math('m2')]),
+            const RemoveElements(pageId: 'p1', elementIds: ['old']),
+          ]),
+        ]),
+      );
+      target.done();
+      expect(editor.selected, ['m2']);
+    });
+
+    test('a later command that adds nothing keeps the remembered id; a later '
+        'addition replaces it', () {
+      final editor = _Editor();
+      final target = recognitionTargetOfInsert(editor.insert());
+      target.execute(AddObjects(pageId: 'p1', objects: [_math('m1')]));
+      target.execute(const RemoveElements(pageId: 'p1', elementIds: ['x']));
+      target.done();
+      expect(editor.selected, ['m1']);
+      target.execute(AddObjects(pageId: 'p1', objects: [_text('t9')]));
+      target.done();
+      expect(editor.selected, ['m1', 't9']);
+    });
+
+    test('no addition → done does nothing', () {
+      final editor = _Editor();
+      final target = recognitionTargetOfInsert(editor.insert());
+      target.done();
+      target.execute(const RemoveElements(pageId: 'p1', elementIds: ['x']));
+      target.execute(const AddObjects(pageId: 'p1', objects: []));
+      target.execute(const CompositeCommand([]));
+      target.done();
+      expect(editor.selected, isEmpty);
+      expect(editor.cleared, 0);
+    });
+
+    test('a throwing command adds nothing: the error reaches the caller and '
+        'done selects nothing', () {
+      final editor = _Editor()..failNext = StateError('read-only');
+      final target = recognitionTargetOfInsert(editor.insert());
+      expect(
+        () => target.execute(AddObjects(pageId: 'p1', objects: [_math('m1')])),
+        throwsStateError,
+      );
+      target.done();
+      expect(editor.selected, isEmpty);
+    });
+  });
+
+  group('menu items', () {
+    RecognitionAction action(
+      String id, {
+      required void Function(RecognitionTarget target) onRun,
+      Completer<void>? gate,
+      bool Function(RecognitionTarget target)? isVisible,
+    }) => RecognitionAction(
+      id: id,
+      label: '라벨 $id',
+      icon: Icons.functions,
+      run: (context, target) {
+        onRun(target);
+        return gate?.future ?? Future<void>.value();
+      },
+      isVisible: isVisible,
+    );
+
+    test('selectionMenuItemOf: id, label, icon; onSelected calls run '
+        'synchronously (before any microtask) with the selection target and '
+        'returns its Future', () async {
+      final editor = _Editor();
+      RecognitionTarget? got;
+      final gate = Completer<void>();
+      final item = selectionMenuItemOf(
+        action('recog.toText', onRun: (t) => got = t, gate: gate),
+      );
+      expect(
+        (item.id, item.label, item.icon),
+        ('recog.toText', '라벨 recog.toText', Icons.functions),
+      );
+      expect(item.isVisible, isNull);
+
+      var finished = false;
+      final selection = editor.selection(objects: [_text('t1')]);
+      unawaited(
+        item
+            .onSelected(_FakeBuildContext(), selection)
+            .then((_) => finished = true),
+      );
+      expect(got, isNotNull, reason: 'run started inside onSelected');
+      expect(got!.objects, same(selection.objects));
+      got!.done();
+      expect(editor.cleared, 1);
+      await pumpEventQueue();
+      expect(finished, isFalse, reason: 'the Future is run\'s own');
+      gate.complete();
+      await pumpEventQueue();
+      expect(finished, isTrue);
+    });
+
+    test('selectionMenuItemOf: isVisible reads the same target fields', () {
+      final editor = _Editor();
+      final item = selectionMenuItemOf(
+        action(
+          'recog.toMath',
+          onRun: (_) {},
+          isVisible: (t) => t.objects.isEmpty && t.areaPt.width > 100,
+        ),
+      );
+      expect(item.isVisible!(editor.selection()), isTrue);
+      expect(
+        item.isVisible!(editor.selection(objects: [_text('t1')])),
+        isFalse,
+      );
+    });
+
+    test('insertMenuItemOf: id, label, icon; onSelected calls run '
+        'synchronously with the insert target; its done selects the object '
+        'the action added; isVisible is not used', () async {
+      final editor = _Editor();
+      RecognitionTarget? got;
+      final item = insertMenuItemOf(
+        action('recog.mathPad', onRun: (t) => got = t, isVisible: (_) => false),
+      );
+      expect(
+        (item.id, item.label, item.icon),
+        ('recog.mathPad', '라벨 recog.mathPad', Icons.functions),
+      );
+      final pending = item.onSelected(_FakeBuildContext(), editor.insert());
+      expect(got, isNotNull, reason: 'run started inside onSelected');
+      expect(got!.areaPt, const Rect.fromLTWH(0, 100, 595, 400));
+      got!.execute(AddObjects(pageId: 'p1', objects: [_math('m7')]));
+      got!.done();
+      expect(editor.selected, ['m7']);
+      await pending;
+    });
+  });
+}

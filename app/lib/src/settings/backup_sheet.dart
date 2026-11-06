@@ -8,7 +8,7 @@ import '../web/web_platform.dart';
 import 'backup_export.dart';
 
 /// Bottom sheet: file name + size, [공유 · 파일에 저장] (only when
-/// web.canShareFiles(mimeType: 'application/json')) and [내려받기].
+/// web.canShareFiles(mimeType: file.mimeType)) and [내려받기].
 /// Closes with the BackupExportOutcome of the pressed button (null = dismissed).
 ///
 /// Each button calls [deliverBackup] directly from its own tap (fresh user

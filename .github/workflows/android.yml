@@ -1,6 +1,6 @@
-# Android APK (INFRA, docs/plans/01-infra.md 6.13 `android.yml`, 6.14):
-# release APK for arm64 tablets, kept as a 7-day workflow artifact
-# (docs/guides/05-android-apk.md).
+# Android APK (INFRA, docs/plans/01-infra.md 6.13 `android.yml`, 6.14;
+# docs/plans/m5-7/01-infra.md 6.10.3 v2): release APK for arm64 tablets,
+# kept as a 7-day workflow artifact (docs/guides/05-android-apk.md).
 #
 # Manual only (2차 R2-B1 — the free Actions minutes, docs/plans/m5-7/
 # 01-infra.md 6.16): Actions → Android APK → Run workflow. GitHub offers Run
@@ -9,11 +9,19 @@
 # the branch to build can be chosen there. The channel is `live` for main and
 # `preview` for every other branch (as in ci.yml).
 #
-# Signing: the template's debug key, made fresh on every runner — a new APK
-# cannot be installed over the previous one (uninstall first, local data is
-# lost). Release signing from secrets waits until an Android tablet is
-# confirmed (6.14). The container has no Android SDK: this workflow is only
-# checked on GitHub (unverified).
+# Signing (2차 J2, contract V14 v2.1 — D2-7): the fixed sideload key from the
+# repository secrets (docs/guides/07-android-signing.md), so a new APK
+# installs over the previous one and keeps the notes. Three ways:
+# - the four ANDROID_* secrets are set → app/android/key.properties, the
+#   release key, artifact `noteapp-apk-<run>`; the certificate must match the
+#   ANDROID_CERT_SHA256 variable when it is set;
+# - a secret is missing but ANDROID_CERT_SHA256 is set (the repository uses
+#   the fixed key: deleted or misspelled secret, a fork) → the job fails
+#   before the build — an APK that cannot be installed over is never made;
+# - neither (before the fixed key) → the template's debug key, made fresh on
+#   every runner, artifact `noteapp-debug-signed-<run>`.
+# The container has no Android SDK: this workflow is only checked on GitHub
+# (tool/test/workflows_test.dart runs its shell steps with fake tools).
 name: Android APK
 
 on:
@@ -31,9 +39,40 @@ jobs:
     name: Build release APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # `if:` cannot read secrets: the steps read them from here.
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # Before any setup, so a missing key fails in seconds. key.properties is
+      # read by app/android/app/build.gradle.kts (rootProject.file) and is
+      # gitignored; the passwords are made of letters and digits (guide 07),
+      # so the properties file needs no escaping.
+      - name: Signing
+        id: signing
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] \
+            && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "storeFile=$RUNNER_TEMP/release.jks"
+              echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+              echo "keyAlias=$ANDROID_KEY_ALIAS"
+              echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            } > app/android/key.properties
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+          elif [ -n "$ANDROID_CERT_SHA256" ]; then
+            echo "::error::고정 키 서명 재료가 없어요 — 이 APK는 덮어 설치할 수 없어 만들지 않아요(docs/guides/07-android-signing.md)"
+            exit 1
+          else
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+          fi
 
       # Generated Android project: AGP 9.1.0, Gradle 9.3.1, Kotlin 2.4.0,
       # Java 17 target.
@@ -44,14 +83,23 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      # Flutter 3.47.9's default NDK (FlutterExtension.kt ndkVersion) is not
+      # on the runner image; Gradle downloads it on a cache miss.
+      - name: Cache Android NDK
+        uses: actions/cache@v6
+        with:
+          path: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          key: ndk-28.2.13676358
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version-file: pubspec.yaml
           cache: true
 
-      # Same key as ci.yml step 3.
-      - name: Cache build hooks
+      # Same key as ci.yml step 3. The sqlite3 build hook (note_core) downloads
+      # its binary from the GitHub release when the cache misses.
+      - name: Build hooks (downloads sqlite3 when not cached)
         uses: actions/cache@v6
         with:
           path: .dart_tool/hooks_runner
@@ -72,12 +120,40 @@ jobs:
         working-directory: app
         run: flutter build apk --release --split-per-abi --build-number=$GITHUB_RUN_NUMBER --dart-define-from-file=../build/build_info.json
 
+      # apksigner of the newest build-tools. A release APK whose certificate is
+      # not ANDROID_CERT_SHA256 fails (the secrets hold another key).
+      - name: Check signature
+        env:
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
+        run: |
+          apk=app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
+          digest=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: *//p' | head -n 1)
+          if [ -z "$digest" ]; then
+            echo "::error::apksigner printed no SHA-256 digest for $apk"
+            exit 1
+          fi
+          expected=$(printf '%s' "$ANDROID_CERT_SHA256" | tr -d ': ' | tr 'A-F' 'a-f')
+          if [ "$SIGNING_MODE" = release ] && [ -n "$expected" ] && [ "$digest" != "$expected" ]; then
+            echo "::error::서명 지문 $digest 이(가) ANDROID_CERT_SHA256와 달라요 — 시크릿에 다른 키가 들어 있어요(docs/guides/07-android-signing.md)"
+            exit 1
+          fi
+          if [ "$SIGNING_MODE" = release ]; then
+            echo "서명: 고정 키 (${digest:0:16})" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "서명: debug 키 — 이전 APK 위에 덮어 설치할 수 없어요. 설치가 안 되면 앱을 지우지 말고 알려 주세요" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: noteapp-apk-${{ github.run_number }}
+          name: noteapp-${{ steps.signing.outputs.mode == 'release' && 'apk' || 'debug-signed' }}-${{ github.run_number }}
           path: app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           retention-days: 7
           # An APK is already a zip.
           compression-level: 0
           if-no-files-found: error
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f app/android/key.properties "$RUNNER_TEMP/release.jks"

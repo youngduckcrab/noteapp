@@ -22,6 +22,10 @@ const String _noteIdParam = 'noteId';
 ///   would catch pen strokes (INFRA-M7).
 /// - No redirects (M4 adds the login redirect); ids are percent-encoded by
 ///   [AppRoutes] and decoded by go_router.
+/// - `/notes/:noteId?page=<pageId>&focus=<l>,<t>,<r>,<b>` (2차 6.8, S2-6):
+///   `focus` counts only with `page` and is dropped when
+///   [FocusRectCodec.decode] cannot read it — the page still opens. A reload
+///   keeps the address, so the editor goes back to the same place.
 ///
 /// The screens get a [GoRouterAppNavigator] over the returned router. The
 /// caller owns the router and disposes it.
@@ -79,14 +83,7 @@ GoRouter createAppRouter({
         pageBuilder: (context, state) => NoTransitionPage<void>(
           key: state.pageKey,
           name: state.name,
-          child: screens.editor(
-            context,
-            EditorRouteArgs(
-              noteId: state.pathParameters[_noteIdParam]!,
-              initialPageId: state.uri.queryParameters[AppRoutes.pageQueryKey],
-            ),
-            navigator,
-          ),
+          child: screens.editor(context, _editorArgs(state), navigator),
         ),
       ),
       GoRoute(
@@ -97,4 +94,16 @@ GoRouter createAppRouter({
     ],
   );
   return router;
+}
+
+EditorRouteArgs _editorArgs(GoRouterState state) {
+  final query = state.uri.queryParameters;
+  final pageId = query[AppRoutes.pageQueryKey];
+  return EditorRouteArgs(
+    noteId: state.pathParameters[_noteIdParam]!,
+    initialPageId: pageId,
+    initialFocusRectPt: pageId == null
+        ? null
+        : FocusRectCodec.decode(query[AppRoutes.focusQueryKey]),
+  );
 }

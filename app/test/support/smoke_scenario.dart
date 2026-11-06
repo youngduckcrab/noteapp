@@ -39,15 +39,18 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/app/note_app.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
+import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/bootstrap/bootstrap_app.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/features/app_features.dart';
 import 'package:noteapp/src/modules/core_module.dart';
 import 'package:noteapp/src/modules/feature_wiring_module.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
+import 'package:noteapp/src/settings/settings_sections.dart';
 import 'package:noteapp/src/web/web_platform.dart';
 import 'package:pdf_io/pdf_io.dart';
 
@@ -97,7 +100,21 @@ final class SmokeApp {
 /// [core], the real PdfModule() and FeatureWiringModule() (production
 /// arguments), the production screens (appScreenBuildersProvider is not
 /// overridden) — until the LibraryScreen shows.
-Future<SmokeApp> bootSmokeApp(WidgetTester tester, CoreModule core) async {
+Future<SmokeApp> bootSmokeApp(WidgetTester tester, CoreModule core) =>
+    bootSmokeAppWith(
+      tester,
+      modules: [core, PdfModule(), FeatureWiringModule()],
+    );
+
+/// [bootSmokeApp] with any module list and build switches (2nd round —
+/// docs/plans/m5-7/01-infra.md 9.1: the five modules of
+/// test/support/smoke_v2_fakes.dart, [features] = the build's switches as
+/// AppBootstrapper.features, V15).
+Future<SmokeApp> bootSmokeAppWith(
+  WidgetTester tester, {
+  required List<AppModule> modules,
+  AppFeatures features = AppFeatures.all,
+}) async {
   tester.view
     ..physicalSize = const Size(2064, 2752)
     ..devicePixelRatio = 2;
@@ -110,12 +127,13 @@ Future<SmokeApp> bootSmokeApp(WidgetTester tester, CoreModule core) async {
     BootstrapApp(
       errorLog: errorLog,
       createBootstrapper: () => bootstrapper = AppBootstrapper(
-        modules: [core, PdfModule(), FeatureWiringModule()],
+        modules: modules,
         buildInfo: BuildInfo.local,
         runtimeInfo: RuntimeInfo.detect(web),
         web: web,
         errorLog: errorLog,
         ownerId: kLocalOwnerId,
+        features: features,
       ),
     ),
   );
@@ -171,6 +189,9 @@ void expectContractOverrides(SmokeApp app) {
     appErrorLogProvider,
     startupReportProvider,
     appBootstrapperProvider,
+    // 2nd round shell rows (m5-7/01-infra 4.6.1 · 4.6.7).
+    appFeaturesProvider,
+    shellContributionsProvider,
     // The packages' own lists, added by FeatureWiringModule (4.5.9).
     for (final o in featureEditorOverrides()) o.origin,
     for (final o in featureLibraryOverrides()) o.origin,
@@ -208,8 +229,9 @@ void expectContractOverrides(SmokeApp app) {
     pdfEditorAddPageSources().map((a) => a.id),
   );
   final sections = c.read(devOverlaySectionsProvider);
-  expect(sections.map((s) => s.id), ['pdf.render']);
-  expect(sections.single.lines.value, hasLength(3));
+  // 2nd round S2-4: search.index is always last.
+  expect(sections.map((s) => s.id), ['pdf.render', 'search.index']);
+  expect(sections.first.lines.value, hasLength(3));
 }
 
 /// Steps 3–8 on the production screens. [banner] is the expected match count

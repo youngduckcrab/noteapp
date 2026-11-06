@@ -9,6 +9,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show kLocalOwnerId;
 
+import '../app/licenses.dart';
 import '../app/lifecycle_bridge.dart';
 import '../app/note_app.dart';
 import '../app/strings.dart';
@@ -16,11 +17,13 @@ import '../errors/app_error_log.dart';
 import '../errors/app_provider_observer.dart';
 import '../errors/diagnostic_report.dart';
 import '../errors/error_handlers.dart';
+import '../features/app_features.dart';
 import '../modules/production_modules.dart';
 import '../runtime/build_info.dart';
 import '../runtime/runtime_info.dart';
 import '../web/web_platform.dart';
 import 'app_bootstrapper.dart';
+import 'idle_tasks.dart';
 import 'splash_view.dart';
 import 'startup_error_screen.dart';
 
@@ -28,10 +31,15 @@ import 'startup_error_screen.dart';
 ///
 /// Splash while the bootstrapper runs; on success
 /// `ProviderScope(key: ValueKey(attempt), overrides, observers:
-/// [AppProviderObserver(errorLog)])` → AppLifecycleBridge → [appBuilder]; on
+/// [AppProviderObserver(errorLog)])` → AppLifecycleBridge →
+/// AppIdleTaskRunner(success.idleTasks) → [appBuilder] (2nd round 6.5.1); on
 /// failure the StartupErrorScreen. "다시 시도" awaits the old bootstrapper's
 /// shutdown() before it creates the next one; "데이터 지우기" does
-/// shutdown() → resetLocalData() → retry.
+/// shutdown() → resetLocalData() → retry. Every shutdown() — retry, reset,
+/// and this widget's dispose (app end) — first waits for the clean-up of a
+/// disposed idle task runner (AppIdleCleanup: the indexers' dispose,
+/// each callback ≤ 2 s), so the modules never stop under a running indexer
+/// and a new scope never meets the old one's indexers (J6).
 class BootstrapApp extends StatefulWidget {
   const BootstrapApp({
     super.key,
@@ -62,6 +70,9 @@ class _BootstrapAppState extends State<BootstrapApp> {
   /// A retry or reset is running: further taps are ignored.
   bool _restarting = false;
 
+  /// Clean-up of the success screen's idle task runner after it went away.
+  final AppIdleCleanup _idleCleanup = AppIdleCleanup();
+
   @override
   void initState() {
     super.initState();
@@ -70,8 +81,15 @@ class _BootstrapAppState extends State<BootstrapApp> {
 
   @override
   void dispose() {
-    unawaited(_bootstrapper.shutdown());
+    // The scope below is unmounted first: its runner's clean-up has started.
+    unawaited(_shutdown(_bootstrapper));
     super.dispose();
+  }
+
+  /// The idle clean-up first (6.5.1 ⑤), then [bootstrapper].shutdown().
+  Future<void> _shutdown(AppBootstrapper bootstrapper) async {
+    await _idleCleanup.done;
+    await bootstrapper.shutdown();
   }
 
   void _start() {
@@ -92,7 +110,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     // Splash while the old attempt shuts down (late-start cleanup ≤ 2 s).
     setState(() => _result = null);
     try {
-      await _bootstrapper.shutdown();
+      await _shutdown(_bootstrapper);
       if (!mounted) return;
       setState(() {
         _attempt++;
@@ -109,7 +127,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
     _restarting = true;
     try {
       // No open store while the data is erased (CORE 6.18).
-      await _bootstrapper.shutdown();
+      await _shutdown(_bootstrapper);
       try {
         await resetLocalData();
       } on Object catch (error, stackTrace) {
@@ -153,7 +171,13 @@ class _BootstrapAppState extends State<BootstrapApp> {
         overrides: success.overrides,
         observers: [AppProviderObserver(widget.errorLog)],
         child: AppLifecycleBridge(
-          child: (widget.appBuilder ?? _defaultApp)(success),
+          child: AppIdleTaskRunner(
+            tasks: success.idleTasks,
+            errorLog: widget.errorLog,
+            web: _bootstrapper.web,
+            cleanup: _idleCleanup,
+            child: (widget.appBuilder ?? _defaultApp)(success),
+          ),
         ),
       ),
       final BootstrapFailure failure => _ShellFrame(
@@ -226,6 +250,7 @@ Future<void> runNoteApp({
   usePathUrlStrategy();
   final errorLog = AppErrorLog(capacity: 100);
   installGlobalErrorHandlers(errorLog);
+  registerAppLicenses(errorLog: errorLog);
   final buildInfo = BuildInfo.fromEnvironment();
   final web = createWebPlatform();
   final runtime = RuntimeInfo.detect(web);
@@ -240,6 +265,7 @@ Future<void> runNoteApp({
             web: web,
             errorLog: errorLog,
             ownerId: kLocalOwnerId,
+            features: AppFeatures.compileTime,
           ),
       errorLog: errorLog,
     ),

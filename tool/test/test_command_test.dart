@@ -1,7 +1,7 @@
 // ws test (docs/plans/01-infra.md 4.2 and 9.1, contract 00-overview 7.4.8;
 // 2차: the heavy test lock and the fake media Chrome, docs/plans/m5-7/
-// 01-infra.md 6.13), with a fake process runner: no real flutter / Chrome is
-// started.
+// 01-infra.md 6.13; --dart-define, J15), with a fake process runner: no real
+// flutter / Chrome is started.
 
 import 'dart:io';
 
@@ -460,6 +460,114 @@ void main() {
     );
   });
 
+  group('--dart-define (2차 J15, m5-7/01-infra 6.13 — V15)', () {
+    test('passed to every member, in order, after the options and before '
+        'the files', () async {
+      final (code, _, _) = await ws([
+        '--dart-define',
+        'FEATURE_MEDIA=false',
+        '--dart-define',
+        'FEATURE_RECOGNITION=false',
+        '--dart-define',
+        'FEATURE_MATH_ENGINE=false',
+        '--run-skipped',
+        '-t',
+        'integration',
+      ]);
+      expect(code, 0);
+      final calls = flutterCalls();
+      expect(calls, hasLength(3));
+      for (final call in calls) {
+        final defines = [
+          for (final a in call.arguments)
+            if (a.startsWith('--dart-define')) a,
+        ];
+        expect(defines, [
+          '--dart-define=FEATURE_MEDIA=false',
+          '--dart-define=FEATURE_RECOGNITION=false',
+          '--dart-define=FEATURE_MATH_ENGINE=false',
+        ], reason: call.workingDirectory);
+        final first = call.arguments.indexOf(defines.first);
+        expect(
+          call.arguments.indexOf('--run-skipped'),
+          lessThan(first),
+          reason: 'flutter test options first',
+        );
+        expect(
+          call.arguments.skip(first + 3).every((a) => a.startsWith('test/')),
+          isTrue,
+          reason: '${call.arguments}',
+        );
+      }
+      expect(calls.first.arguments, [
+        'test',
+        '--tags',
+        'integration',
+        '--exclude-tags',
+        'bench',
+        '--run-skipped',
+        '--dart-define=FEATURE_MEDIA=false',
+        '--dart-define=FEATURE_RECOGNITION=false',
+        '--dart-define=FEATURE_MATH_ENGINE=false',
+        'test/a_test.dart',
+        'test/unit/b_test.dart',
+      ]);
+    });
+
+    test('Chrome runs get them too; one value stays whole (commas, `=`, an '
+        'empty value)', () async {
+      final (code, _, _) = await ws([
+        '--platform',
+        'chrome',
+        '--package',
+        'ink_engine',
+        '--dart-define',
+        'MATH_ENDPOINT=http://127.0.0.1:5001/demo-noteapp/a,b?x=1',
+        '--dart-define',
+        'EMPTY=',
+      ]);
+      expect(code, 0);
+      expect(flutterCalls().single.arguments, [
+        'test',
+        '--platform',
+        'chrome',
+        '--exclude-tags',
+        'bench',
+        '--dart-define=MATH_ENDPOINT=http://127.0.0.1:5001/demo-noteapp/a,b?x=1',
+        '--dart-define=EMPTY=',
+        'test/web',
+      ]);
+    });
+
+    test('without it nothing is added', () async {
+      await ws(['--package', 'noteapp']);
+      expect(
+        flutterCalls().single.arguments.where((a) => a.contains('dart-define')),
+        isEmpty,
+      );
+    });
+
+    test('not KEY=VALUE is a usage error (2) before any run', () async {
+      for (final bad in ['FEATURE_MEDIA', '=false', 'A B=1']) {
+        processes.calls.clear();
+        final (code, _, err) = await ws(['--dart-define', bad]);
+        expect(code, usageExitCode, reason: bad);
+        expect(err, contains('--dart-define must be KEY=VALUE'), reason: bad);
+        expect(flutterCalls(), isEmpty, reason: bad);
+      }
+    });
+
+    test('isDartDefine', () {
+      expect(isDartDefine('A=1'), isTrue);
+      expect(isDartDefine('A='), isTrue);
+      expect(isDartDefine('A=b=c,d'), isTrue);
+      expect(isDartDefine('A'), isFalse);
+      expect(isDartDefine('=1'), isFalse);
+      expect(isDartDefine(' A=1'), isFalse);
+      expect(isDartDefine(''), isFalse);
+    });
+  });
+
   test(
     '--package selects members; unknown names are a usage error (2)',
     () async {
@@ -887,5 +995,111 @@ void main() {
       ));
       expect(parseTestCounts('no counters'), isNull);
     });
+
+    // `flutter test` picks the github reporter by itself on GitHub Actions
+    // (test_core `defaultReporter` — `inGithubContext`), so the CI summary
+    // table read 0 / 0 / 0 for every member (CI run 10 on 5843ec3, J0 ④).
+    test('reads the closing line of the github reporter', () {
+      expect(
+        parseTestCounts(
+          '✅ test/unit/a_test.dart: one\n'
+          '::group::⏭️ Skipped tests\n'
+          '⏭️ test/unit/a_test.dart: two (skipped)\n'
+          '::endgroup::\n'
+          '\n'
+          '🎉 880 tests passed, 5 skipped.\n',
+        ),
+        (passed: 880, skipped: 5, failed: 0),
+      );
+      expect(parseTestCounts('🎉 1 test passed.\n'), (
+        passed: 1,
+        skipped: 0,
+        failed: 0,
+      ));
+      expect(
+        parseTestCounts(
+          '::group::❌ test/unit/a_test.dart: one (failed)\n'
+          'Expected: 1\n'
+          '::endgroup::\n'
+          '\n'
+          '::error::4 tests passed, 2 failed, 1 skipped.\n',
+        ),
+        (passed: 4, skipped: 1, failed: 2),
+      );
+      expect(parseTestCounts('::error::0 tests passed, 1 failed.\n'), (
+        passed: 0,
+        skipped: 0,
+        failed: 1,
+      ));
+    });
+
+    test('whichever closing form comes last wins', () {
+      // A test that prints a counter-like line before the github summary.
+      expect(
+        parseTestCounts(
+          '✅ test/a_test.dart: prints 00:01 +9 -9: x\n'
+          '00:01 +9 -9: x\n'
+          '🎉 3 tests passed.\n',
+        ),
+        (passed: 3, skipped: 0, failed: 0),
+      );
+      // A counter after a printed summary-like line.
+      expect(
+        parseTestCounts(
+          '00:00 +0: a prints 🎉 3 tests passed.\n'
+          '00:02 +5 ~1: All tests passed!\n',
+        ),
+        (passed: 5, skipped: 1, failed: 0),
+      );
+      // Not the github summary: no icon or `::error::` before it.
+      expect(parseTestCounts('3 tests passed.\n'), isNull);
+    });
   });
+
+  test(
+    'the github reporter (GitHub Actions) fills the summary counts',
+    () async {
+      processes.results['note_core:flutter'] = const RunResult(
+        exitCode: 0,
+        output:
+            '✅ test/unit/b_test.dart: x\n'
+            '\n'
+            '🎉 880 tests passed, 5 skipped.\n',
+      );
+      processes.results['ink_engine:flutter'] = const RunResult(
+        exitCode: 1,
+        output:
+            '::group::❌ test/unit/a_test.dart: y (failed)\n'
+            '::endgroup::\n'
+            '\n'
+            '::error::3 tests passed, 2 failed, 1 skipped.\n',
+      );
+      final (code, out, _) = await ws([]);
+      expect(code, 1);
+      List<String> row(String member) => out
+          .split('\n')
+          .firstWhere((l) => l.startsWith(member))
+          .split(RegExp(r'\s+'));
+      expect(row('note_core'), [
+        'note_core',
+        'vm',
+        '-',
+        '880',
+        '0',
+        '5',
+        matches(r'^\d+\.\ds$'),
+        'ok',
+      ]);
+      expect(row('ink_engine'), [
+        'ink_engine',
+        'vm',
+        '-',
+        '3',
+        '2',
+        '1',
+        matches(r'^\d+\.\ds$'),
+        'FAILED',
+      ]);
+    },
+  );
 }

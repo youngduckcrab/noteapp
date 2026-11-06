@@ -7,7 +7,13 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:note_core/note_core.dart';
 
-enum StartupStepOutcome { ok, failedNonCritical, timedOut, failedCritical }
+enum StartupStepOutcome {
+  ok,
+  failedNonCritical,
+  timedOut,
+  failedCritical,
+  skipped,
+}
 
 @immutable
 final class StartupStep {

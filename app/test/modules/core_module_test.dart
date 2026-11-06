@@ -1,7 +1,10 @@
 // CoreModule (docs/plans/01-infra.md 4.5.9, 6.4, 9.1; contract 7.2.12 /
 // 7.3.3 / 7.4.3): config with absolute URLs, publish + override, flush,
 // close, persistence errors, reset, and the late store after a timeout
-// (INFRA-2-9, fake_async).
+// (INFRA-2-9, fake_async). 2nd round (J4 — docs/plans/m5-7/01-infra.md
+// 4.6.4, 6.9; contract 7.2.6 v2.1): the native storage paths — published
+// and BOTH config fields set, a failing path function logged with neither
+// field, the web stub's null, abandoned while the paths resolve.
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
@@ -15,8 +18,11 @@ import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/modules/core_module.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
+import 'package:noteapp/src/storage/native_storage_paths.dart';
+import 'package:noteapp/src/storage/native_storage_paths_stub.dart' as web_stub;
 
 import '../fakes/counting_note_store.dart';
+import '../fakes/fake_native_paths.dart';
 import '../fakes/fake_note_store_opener.dart';
 import '../fakes/fake_web_platform.dart';
 
@@ -70,8 +76,10 @@ void main() {
         'document.baseURI (계약 7.2.12 · 7.4.3)', () async {
       final opener = fakeOpenNoteStore();
       final web = FakeWebPlatform(baseUri: Uri.parse('https://n.web.app/'));
-      await CoreModule(open: opener.call)
-          .start(_context(web: web, ownerId: 'owner-7'));
+      await CoreModule(
+        nativePaths: noNativePaths,
+        open: opener.call,
+      ).start(_context(web: web, ownerId: 'owner-7'));
 
       final config = opener.lastConfig!;
       expect(opener.openCount, 1);
@@ -115,6 +123,7 @@ void main() {
       final opener = fakeOpenNoteStore();
       const custom = NoteStoreConfig(inMemory: true);
       await CoreModule(
+        nativePaths: noNativePaths,
         open: opener.call,
         configFor: (_) => custom,
       ).start(_context());
@@ -127,7 +136,10 @@ void main() {
         'the same instance', () async {
       final store = CountingNoteStore();
       final context = _context();
-      final module = CoreModule(open: fakeOpenNoteStore(store: store).call);
+      final module = CoreModule(
+        nativePaths: noNativePaths,
+        open: fakeOpenNoteStore(store: store).call,
+      );
       await module.start(context);
       expect(context.require<NoteStore>(), same(store));
 
@@ -145,7 +157,10 @@ void main() {
     test('onAppHidden → flush; stop → status unsubscribed, then close '
         '(once)', () async {
       final store = CountingNoteStore();
-      final module = CoreModule(open: fakeOpenNoteStore(store: store).call);
+      final module = CoreModule(
+        nativePaths: noNativePaths,
+        open: fakeOpenNoteStore(store: store).call,
+      );
       await module.onAppHidden(); // not started: nothing
       expect(store.flushCount, 0);
       await module.start(_context());
@@ -170,9 +185,174 @@ void main() {
         'bad header',
       );
       final context = _context();
-      final module = CoreModule(open: fakeOpenNoteStore(error: error).call);
+      final module = CoreModule(
+        nativePaths: noNativePaths,
+        open: fakeOpenNoteStore(error: error).call,
+      );
       expect(module.start(context), throwsA(same(error)));
       expect(context.maybe<NoteStore>(), isNull);
+    });
+  });
+
+  group('native storage paths (J4 — 6.9, contract 7.2.6)', () {
+    const paths = NativeStoragePaths(
+      databasePath: '/support/noteapp/noteapp.sqlite',
+      assetDirectoryPath: '/support/noteapp/assets',
+    );
+
+    test('paths → published once and BOTH native fields set from them; '
+        'the web fields and every other field unchanged', () async {
+      final opener = fakeOpenNoteStore();
+      final nativePaths = FixedNativePaths(paths);
+      final log = AppErrorLog();
+      final context = _context(errorLog: log, ownerId: 'owner-3');
+      await CoreModule(
+        nativePaths: nativePaths.call,
+        open: opener.call,
+      ).start(context);
+
+      expect(nativePaths.calls, 1);
+      expect(context.maybe<NativeStoragePaths>(), same(paths));
+      final config = opener.lastConfig!;
+      expect(config.nativeDatabasePath, '/support/noteapp/noteapp.sqlite');
+      expect(config.nativeAssetDirectoryPath, '/support/noteapp/assets');
+      expect(config.ownerId, 'owner-3');
+      expect(config.inMemory, isFalse);
+      expect(config.databaseName, const NoteStoreConfig().databaseName);
+      expect(config.web.sqlite3WasmPath, endsWith('/sqlite3.wasm'));
+      expect(log.records, isEmpty);
+    });
+
+    test('the paths are resolved before open (open sees them)', () async {
+      final order = <String>[];
+      final store = CountingNoteStore();
+      await CoreModule(
+        nativePaths: () async {
+          order.add('paths');
+          return paths;
+        },
+        open: (config) async {
+          order.add('open ${config.nativeDatabasePath}');
+          return store;
+        },
+      ).start(_context());
+      expect(order, ['paths', 'open /support/noteapp/noteapp.sqlite']);
+    });
+
+    test('a throwing path function → one record (source: module), nothing '
+        'published, NEITHER field set, open still runs (CORE then reports '
+        'storageUnavailable → the startup error screen)', () async {
+      final opener = fakeOpenNoteStore(
+        error: const NoteStoreOpenException(
+          NoteStoreOpenFailure.storageUnavailable,
+          'no native path',
+        ),
+      );
+      final log = AppErrorLog();
+      final context = _context(errorLog: log);
+      final module = CoreModule(
+        nativePaths: failingNativePaths(StateError('support dir missing')),
+        open: opener.call,
+      );
+      await expectLater(
+        module.start(context),
+        throwsA(isA<NoteStoreOpenException>()),
+      );
+
+      expect(log.records, hasLength(1));
+      expect(log.records.single.source, AppErrorSource.module);
+      expect(log.records.single.summary, contains('support dir missing'));
+      expect(context.maybe<NativeStoragePaths>(), isNull);
+      expect(opener.openCount, 1);
+      expect(opener.lastConfig!.nativeDatabasePath, isNull);
+      expect(opener.lastConfig!.nativeAssetDirectoryPath, isNull);
+    });
+
+    test('the web stub answers null: nothing published, neither field, no '
+        'record', () async {
+      expect(await web_stub.resolveNativeStoragePaths(), isNull);
+      final opener = fakeOpenNoteStore();
+      final log = AppErrorLog();
+      final context = _context(errorLog: log);
+      await CoreModule(
+        nativePaths: web_stub.resolveNativeStoragePaths,
+        open: opener.call,
+      ).start(context);
+      expect(context.maybe<NativeStoragePaths>(), isNull);
+      expect(opener.lastConfig!.nativeDatabasePath, isNull);
+      expect(opener.lastConfig!.nativeAssetDirectoryPath, isNull);
+      expect(log.records, isEmpty);
+    });
+
+    test('a custom configFor reads the published paths', () async {
+      final opener = fakeOpenNoteStore();
+      NativeStoragePaths? seen;
+      await CoreModule(
+        nativePaths: FixedNativePaths(paths).call,
+        open: opener.call,
+        configFor: (context) {
+          seen = context.maybe<NativeStoragePaths>();
+          return const NoteStoreConfig(inMemory: true);
+        },
+      ).start(_context());
+      expect(seen, same(paths));
+      expect(opener.lastConfig!.inMemory, isTrue);
+    });
+
+    test('defaultNoteStoreConfig: both fields from the published value, or '
+        'neither', () {
+      final without = _context();
+      expect(defaultNoteStoreConfig(without).nativeDatabasePath, isNull);
+      expect(defaultNoteStoreConfig(without).nativeAssetDirectoryPath, isNull);
+      final withPaths = _context()..publish<NativeStoragePaths>(paths);
+      final config = defaultNoteStoreConfig(withPaths);
+      expect(config.nativeDatabasePath, paths.databasePath);
+      expect(config.nativeAssetDirectoryPath, paths.assetDirectoryPath);
+    });
+
+    test('resetLocalData erases with the same config (both paths)', () async {
+      final eraser = RecordingLocalDataEraser();
+      final opener = fakeOpenNoteStore();
+      final module = CoreModule(
+        nativePaths: FixedNativePaths(paths).call,
+        open: opener.call,
+        deleteLocalData: eraser.call,
+      );
+      await module.start(_context());
+      await module.resetLocalData!();
+      expect(eraser.calls.single, same(opener.lastConfig));
+      expect(eraser.calls.single.nativeDatabasePath, paths.databasePath);
+      expect(
+        eraser.calls.single.nativeAssetDirectoryPath,
+        paths.assetDirectoryPath,
+      );
+    });
+
+    test('abandoned (20 s) while the paths resolve: no open, nothing '
+        'published, the late start returns quietly', () {
+      fakeAsync((async) {
+        final gate = Completer<NativeStoragePaths?>();
+        final opener = fakeOpenNoteStore();
+        final log = AppErrorLog();
+        final context = _context(errorLog: log);
+        final module = CoreModule(
+          nativePaths: gatedNativePaths(gate),
+          open: opener.call,
+        );
+        var started = false;
+        unawaited(module.start(context).then((_) => started = true));
+        var cleanupDone = false;
+        unawaited(module.onStartAbandoned().then((_) => cleanupDone = true));
+        async.flushMicrotasks();
+        expect(cleanupDone, isTrue);
+        gate.complete(paths);
+        async.flushMicrotasks();
+        expect(started, isTrue);
+        expect(opener.openCount, 0);
+        expect(context.maybe<NativeStoragePaths>(), isNull);
+        expect(context.maybe<NoteStore>(), isNull);
+        expect(log.records, isEmpty);
+      });
     });
   });
 
@@ -212,6 +392,7 @@ void main() {
           ),
         );
         final module = CoreModule(
+          nativePaths: noNativePaths,
           open: opener.call,
           deleteLocalData: eraser.call,
         );
@@ -228,6 +409,7 @@ void main() {
     test('resetLocalData passes the eraser failure on', () async {
       final eraser = RecordingLocalDataEraser(error: StateError('locked'));
       final module = CoreModule(
+        nativePaths: noNativePaths,
         open: fakeOpenNoteStore(
           error: const NoteStoreOpenException(
             NoteStoreOpenFailure.unknown,
@@ -250,7 +432,10 @@ void main() {
         'one record; the same error again → nothing', () async {
       final store = CountingNoteStore();
       final log = AppErrorLog();
-      final module = CoreModule(open: fakeOpenNoteStore(store: store).call);
+      final module = CoreModule(
+        nativePaths: noNativePaths,
+        open: fakeOpenNoteStore(store: store).call,
+      );
       await module.start(_context(errorLog: log));
       await _settle();
       expect(log.records, isEmpty);
@@ -316,7 +501,10 @@ void main() {
           ),
         );
       final log = AppErrorLog();
-      final module = CoreModule(open: fakeOpenNoteStore(store: store).call);
+      final module = CoreModule(
+        nativePaths: noNativePaths,
+        open: fakeOpenNoteStore(store: store).call,
+      );
       await module.start(_context(errorLog: log));
       await _settle();
       expect(log.records, hasLength(1));
@@ -333,7 +521,10 @@ void main() {
         final gate = Completer<NoteStore>();
         final store = CountingNoteStore();
         final context = _context();
-        final module = CoreModule(open: fakeOpenNoteStore(gate: gate).call);
+        final module = CoreModule(
+          nativePaths: noNativePaths,
+          open: fakeOpenNoteStore(gate: gate).call,
+        );
         var startDone = false;
         unawaited(module.start(context).then((_) => startDone = true));
         async.flushMicrotasks();
@@ -367,7 +558,12 @@ void main() {
         final log = AppErrorLog();
         final web = FakeWebPlatform();
         final bootstrapper = AppBootstrapper(
-          modules: [CoreModule(open: fakeOpenNoteStore(gate: gate).call)],
+          modules: [
+            CoreModule(
+              nativePaths: noNativePaths,
+              open: fakeOpenNoteStore(gate: gate).call,
+            ),
+          ],
           buildInfo: BuildInfo.local,
           runtimeInfo: _runtime,
           web: web,
@@ -408,7 +604,12 @@ void main() {
         final gate = Completer<NoteStore>();
         final store = CountingNoteStore();
         final bootstrapper = AppBootstrapper(
-          modules: [CoreModule(open: fakeOpenNoteStore(gate: gate).call)],
+          modules: [
+            CoreModule(
+              nativePaths: noNativePaths,
+              open: fakeOpenNoteStore(gate: gate).call,
+            ),
+          ],
           buildInfo: BuildInfo.local,
           runtimeInfo: _runtime,
           web: FakeWebPlatform(),
@@ -433,8 +634,12 @@ void main() {
         final gate = Completer<NoteStore>();
         final store = CountingNoteStore(closeError: StateError('close boom'));
         final log = AppErrorLog();
-        final module = CoreModule(open: fakeOpenNoteStore(gate: gate).call);
+        final module = CoreModule(
+          nativePaths: noNativePaths,
+          open: fakeOpenNoteStore(gate: gate).call,
+        );
         unawaited(module.start(_context(errorLog: log)));
+        async.flushMicrotasks(); // open is in progress (paths resolved)
         unawaited(module.onStartAbandoned());
         gate.complete(store);
         async.flushMicrotasks();
@@ -449,13 +654,17 @@ void main() {
       fakeAsync((async) {
         final gate = Completer<NoteStore>();
         final log = AppErrorLog();
-        final module = CoreModule(open: fakeOpenNoteStore(gate: gate).call);
+        final module = CoreModule(
+          nativePaths: noNativePaths,
+          open: fakeOpenNoteStore(gate: gate).call,
+        );
         Object? startError;
         unawaited(
           module.start(_context(errorLog: log)).catchError((Object e) {
             startError = e;
           }),
         );
+        async.flushMicrotasks(); // open is in progress (paths resolved)
         var cleanupDone = false;
         unawaited(module.onStartAbandoned().then((_) => cleanupDone = true));
         gate.completeError(

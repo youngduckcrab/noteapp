@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 
 import '../app/strings.dart';
+import '../errors/app_error_log.dart';
 import '../providers.dart';
 
 /// '저장 공간': CORE StorageInfo and PersistenceStatus.
@@ -19,11 +22,100 @@ import '../providers.dart';
 /// Shows backend, durable, multi-tab safety, persistGranted, usage / quota,
 /// missing browser features, pending writes, last commit time + latency,
 /// consecutive failures.
-class StorageSection extends ConsumerWidget {
+/// 2차 (docs/plans/m5-7/01-infra.md 6.18):
+/// - '첨부 파일 n개 · x MB (녹음 a MB · 이미지 b MB · PDF c MB)' from
+///   AssetStore.usage() (bytesByType; a missing type is 0) — queried when the
+///   section is shown and again with "다시 확인" (the 1차 rule).
+/// - '검색 색인: 대기 n개 · 재구축 중' over SearchIndex.status + [다시 만들기]
+///   (key app.storage.rebuildIndex): confirm dialog → SearchIndex.rebuild();
+///   the button is disabled while this section's rebuild runs or the status
+///   says rebuilding. A failed rebuild → a note + one AppErrorLog record
+///   (source manual).
+class StorageSection extends ConsumerStatefulWidget {
   const StorageSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StorageSection> createState() => _StorageSectionState();
+}
+
+class _StorageSectionState extends ConsumerState<StorageSection> {
+  late Future<AssetStorageUsage> _usage;
+  StreamSubscription<SearchIndexStatus>? _indexStatus;
+  SearchIndexStatus _index = const SearchIndexStatus();
+  bool _rebuilding = false;
+  bool _rebuildFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _usage = _queryUsage();
+    _indexStatus = ref.read(searchIndexProvider).status.listen((status) {
+      if (mounted) setState(() => _index = status);
+    }, onError: (Object _) {});
+  }
+
+  @override
+  void dispose() {
+    unawaited(_indexStatus?.cancel());
+    super.dispose();
+  }
+
+  Future<AssetStorageUsage> _queryUsage() =>
+      ref.read(assetStoreProvider).usage();
+
+  void _refresh() {
+    ref.invalidate(latestStorageInfoProvider);
+    final usage = _queryUsage();
+    setState(() {
+      _usage = usage;
+    });
+  }
+
+  Future<void> _rebuildIndex() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.storageSearchIndex),
+        content: const Text(AppStrings.storageRebuildConfirm),
+        actions: [
+          TextButton(
+            key: const Key('app.storage.rebuildIndex.cancel'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            key: const Key('app.storage.rebuildIndex.confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.storageRebuildIndex),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _rebuilding) return;
+    final index = ref.read(searchIndexProvider);
+    final errorLog = ref.read(appErrorLogProvider);
+    setState(() {
+      _rebuilding = true;
+      _rebuildFailed = false;
+    });
+    try {
+      await index.rebuild();
+    } catch (error, stackTrace) {
+      errorLog.add(
+        AppErrorRecord.fromError(
+          error,
+          stackTrace,
+          source: AppErrorSource.manual,
+        ),
+      );
+      if (mounted) setState(() => _rebuildFailed = true);
+    } finally {
+      if (mounted) setState(() => _rebuilding = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final latest = ref.watch(latestStorageInfoProvider);
     final StorageInfo info = latest.value ?? ref.watch(storageInfoProvider);
     final status =
@@ -74,6 +166,25 @@ class StorageSection extends ConsumerWidget {
               ? AppStrings.unknown
               : '${usage == null ? '?' : AppStrings.bytes(usage)} / '
                     '${quota == null ? '?' : AppStrings.bytes(quota)}',
+        ),
+        FutureBuilder<AssetStorageUsage>(
+          future: _usage,
+          builder: (context, snapshot) => _InfoRow(
+            key: const Key('storage-assets'),
+            label: AppStrings.storageAssets,
+            value: switch (snapshot) {
+              AsyncSnapshot(:final data?) => AppStrings.storageAssetUsage(
+                count: data.assetCount,
+                total: data.totalBytes,
+                audio: data.bytesByType[AssetType.audio] ?? 0,
+                image: data.bytesByType[AssetType.image] ?? 0,
+                pdf: data.bytesByType[AssetType.pdf] ?? 0,
+              ),
+              AsyncSnapshot(hasError: true) => AppStrings.storageAssetsUnread,
+              _ => '…',
+            },
+            warn: snapshot.hasError,
+          ),
         ),
         _InfoRow(
           label: AppStrings.storageMissingFeatures,
@@ -130,24 +241,54 @@ class StorageSection extends ConsumerWidget {
               ),
             ),
           ),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: OutlinedButton.icon(
-              key: const Key('storage-refresh'),
-              onPressed: latest.isLoading
-                  ? null
-                  : () => ref.invalidate(latestStorageInfoProvider),
-              icon: latest.isLoading
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh),
-              label: const Text(AppStrings.storageRefresh),
+        _InfoRow(
+          key: const Key('storage-search-index'),
+          label: AppStrings.storageSearchIndex,
+          value: AppStrings.storageSearchIndexStatus(
+            _index.pendingOwners,
+            rebuilding: _index.rebuilding || _rebuilding,
+          ),
+        ),
+        if (_rebuildFailed)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              AppStrings.storageRebuildFailed,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
             ),
           ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: OutlinedButton.icon(
+                key: const Key('storage-refresh'),
+                onPressed: latest.isLoading ? null : _refresh,
+                icon: latest.isLoading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+                label: const Text(AppStrings.storageRefresh),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: OutlinedButton.icon(
+                key: const ValueKey<String>('app.storage.rebuildIndex'),
+                onPressed: _rebuilding || _index.rebuilding
+                    ? null
+                    : _rebuildIndex,
+                icon: const Icon(Icons.manage_search),
+                label: const Text(AppStrings.storageRebuildIndex),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -176,7 +317,12 @@ class StorageSection extends ConsumerWidget {
 
 /// One `label · value` line. The value wraps; the label column is fixed.
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value, this.warn = false});
+  const _InfoRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.warn = false,
+  });
 
   final String label;
   final String value;

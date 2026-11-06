@@ -1,15 +1,17 @@
 # 사용자 안내서
 
-필기노트를 GitHub와 Firebase에 올리고 iPad에서 시험하는 방법을 모았어요. 처음에는 01 → 02 → 04 순서로 보면 돼요. 나머지는 필요할 때 봐요.
+필기노트를 GitHub와 Firebase에 올리고 iPad에서 시험하는 방법을 모았어요. 처음에는 01 → 02 → 04 → 08 순서로 보면 돼요. 나머지는 필요할 때 봐요. 2차 라운드에서 Firebase는 Hosting(Spark 무료)만 써요.
 
 | 순서 | 안내서 | 언제 보나요 |
 |---|---|---|
 | 1 | [01. Firebase 프로젝트 만들기](01-firebase-project.md) | 처음 한 번 |
 | 2 | [02. GitHub에 배포 키 등록하기](02-github-secrets.md) | 01을 마친 뒤 |
 | 3 | [04. iPad에서 웹 버전 시험하기](04-ipad-web-test.md) | 첫 배포가 끝난 뒤, 그리고 새 버전이 나올 때마다 |
-| 나중에 | [03. 예산 알림 설정하기](03-budget-alert.md) | Firebase 요금제를 Blaze로 바꿀 때 (M4의 Storage·Functions) |
+| 4 | [08. 실기기 체크리스트 (2차)](08-device-checklist.md) | Claude가 2차 판 확인을 요청할 때 |
+| 나중에 | [03. 예산 알림 설정하기](03-budget-alert.md) | Firebase 요금제를 Blaze로 바꿀 때 (실연결 단계의 Storage·Functions) |
 | 나중에 | [05. 안드로이드 APK 설치하기](05-android-apk.md) | 안드로이드 태블릿이 있을 때 |
-| 나중에 | [06. iOS TestFlight (초안)](06-ios-testflight.md) | 네이티브 앱으로 바꿀 때 |
+| 나중에 | [07. 안드로이드 고정 서명 키 등록하기](07-android-signing.md) | Claude가 키 파일 두 개를 건넸을 때 (05보다 먼저) |
+| 나중에 | [06. iOS TestFlight (초안)](06-ios-testflight.md) | 네이티브 앱으로 바꿀 때, iOS 컴파일 확인을 할 때 |
 
 ## 모든 안내서에 공통인 것
 

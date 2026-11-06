@@ -124,4 +124,16 @@ final class FakeWebPlatform implements WebPlatform {
 
   @override
   void reload() => reloadCount++;
+
+  /// Every [setLeaveGuard] call, in order.
+  final List<bool> leaveGuardCalls = [];
+
+  /// The guard as the browser would hold it (idempotent, like the real one).
+  bool leaveGuard = false;
+
+  @override
+  void setLeaveGuard(bool enabled) {
+    leaveGuardCalls.add(enabled);
+    leaveGuard = enabled;
+  }
 }

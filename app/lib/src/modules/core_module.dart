@@ -1,5 +1,6 @@
 /// Local storage adapter (docs/plans/01-infra.md 4.5.9, 6.4 `CoreModule`,
-/// contract 7.2.12 / 7.3.3).
+/// contract 7.2.12 / 7.3.3; 2nd round docs/plans/m5-7/01-infra.md 4.6.4,
+/// 6.9 — the native storage paths).
 library;
 
 import 'dart:async';
@@ -9,6 +10,7 @@ import 'package:note_core/note_core.dart';
 
 import '../bootstrap/app_module.dart';
 import '../errors/app_error_log.dart';
+import '../storage/native_storage_paths.dart';
 
 /// Opens local storage via package:note_core (계약 7.2.12, X1) and owns
 /// the store's lifetime.
@@ -17,6 +19,7 @@ final class CoreModule extends AppModule {
     this._open = openNoteStore,
     this._deleteLocalData = deleteLocalNoteData,
     this._configFor = defaultNoteStoreConfig,
+    this._nativePaths = resolveNativeStoragePaths,
   });
 
   static const String moduleId = 'core';
@@ -24,6 +27,7 @@ final class CoreModule extends AppModule {
   final Future<NoteStore> Function(NoteStoreConfig) _open;
   final Future<void> Function(NoteStoreConfig) _deleteLocalData;
   final NoteStoreConfig Function(AppModuleContext context) _configFor;
+  final Future<NativeStoragePaths?> Function() _nativePaths;
 
   AppErrorLog? _errorLog;
   NoteStoreConfig? _lastConfig;
@@ -43,6 +47,11 @@ final class CoreModule extends AppModule {
   @override
   Duration get startTimeout => const Duration(seconds: 20); // critical
 
+  /// paths = await nativePaths() (a throw → context.errorLog, source: module,
+  /// and paths = null — CORE then reports storageUnavailable on a native
+  /// build); non-null paths → `context.publish<NativeStoragePaths>(paths)`
+  /// (defaultNoteStoreConfig reads them). If onStartAbandoned() ran while the
+  /// paths were resolved → return without opening. Then (1st round)
   /// config = configFor(context); _opening = open(config); store = await
   /// _opening; if onStartAbandoned() already ran → return without publishing
   /// (the late store is closed there). Else `context.publish<NoteStore>(store)`;
@@ -54,6 +63,20 @@ final class CoreModule extends AppModule {
   @override
   Future<void> start(AppModuleContext context) async {
     _errorLog = context.errorLog;
+    NativeStoragePaths? paths;
+    try {
+      paths = await _nativePaths();
+    } on Object catch (error, stackTrace) {
+      context.errorLog.add(
+        AppErrorRecord.fromError(
+          error,
+          stackTrace,
+          source: AppErrorSource.module,
+        ),
+      );
+    }
+    if (_abandoned) return;
+    if (paths != null) context.publish<NativeStoragePaths>(paths);
     final config = _configFor(context);
     _lastConfig = config;
     final opening = _open(config);
@@ -208,16 +231,27 @@ final class CoreModule extends AppModule {
 ///     sqlite3WasmPath: context.web.resolveAppUrl('sqlite3.wasm'),
 ///     driftWorkerPath: context.web.resolveAppUrl('drift_worker.js'),
 ///   ),
-/// ) — every other field keeps the CORE 4.8 default
-/// (databaseName 'noteapp', requestPersistentStorage true, …).
+///   nativeDatabasePath: paths?.databasePath,
+///   nativeAssetDirectoryPath: paths?.assetDirectoryPath,
+/// ) with paths = `context.maybe<NativeStoragePaths>()` — every other field
+/// keeps the CORE 4.8 default (databaseName 'noteapp',
+/// requestPersistentStorage true, …).
 /// 계약 7.2.12 · 7.4.3 (v1.1, C11-11): on the web both paths are ABSOLUTE
 /// URLs resolved against document.baseURI; CORE's Uri.base.resolve(path)
 /// returns them unchanged. Never relative in production.
-NoteStoreConfig defaultNoteStoreConfig(AppModuleContext context) =>
-    NoteStoreConfig(
-      ownerId: context.ownerId,
-      web: WebStorageConfig(
-        sqlite3WasmPath: context.web.resolveAppUrl('sqlite3.wasm'),
-        driftWorkerPath: context.web.resolveAppUrl('drift_worker.js'),
-      ),
-    );
+/// 계약 7.2.6 (v2.1, 공통-1): BOTH native fields come from the same published
+/// NativeStoragePaths, or neither is set (the 1st-round shell passed none,
+/// so the 1st-round APK could not keep notes). Static check:
+/// tool/test/native_config_test.dart ('app shell storage paths').
+NoteStoreConfig defaultNoteStoreConfig(AppModuleContext context) {
+  final paths = context.maybe<NativeStoragePaths>();
+  return NoteStoreConfig(
+    ownerId: context.ownerId,
+    web: WebStorageConfig(
+      sqlite3WasmPath: context.web.resolveAppUrl('sqlite3.wasm'),
+      driftWorkerPath: context.web.resolveAppUrl('drift_worker.js'),
+    ),
+    nativeDatabasePath: paths?.databasePath,
+    nativeAssetDirectoryPath: paths?.assetDirectoryPath,
+  );
+}

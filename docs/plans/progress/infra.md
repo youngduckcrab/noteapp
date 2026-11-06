@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 R2-final — 기반 단계 전체 확인**(R2-B1~R2-B6이 `main`에 있음, 검사 HEAD `708a1c1` — 아래 '## 2차') — 그 앞은 R2-B2 묶음 검사·R2-B2i·R2-B1.
-- 다음 할 일: 동시 개발 시작 조건이 채워졌다. INFRA는 R2-B8a → R2-B8b → J0(체크포인트 병합 — Q14).
+- 마지막 세션: **2차 동시 개발 2/11** — **R2-B8b**(라우팅 `?page=&focus=`·`pencil_bridge` Dart 표면·Pencil 어댑터), **J0 ①②③**(네이티브 설정·`native_config` 정적 시험·웹 빌드 실측; ④ CI 실측은 첫 체크포인트 푸시 뒤) — 아래 '## 2차' > '### 동시 개발'. 그 앞 1/11은 작업 표·문서 정리(C22-09·C23-01)·R2-B8a, 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
+- 다음 할 일: '### 동시 개발' 작업 표 순서 — J1 → J2~J22(J0 ④는 총괄의 첫 체크포인트 푸시 뒤 — 체크포인트 병합 Q14; R2-B8a·R2-B8b·J0 체크포인트 요청함).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -377,3 +377,670 @@
 - **시작 글꼴**(`FontManifest.json`): 14개 패밀리 — `flutter_math_fork` KaTeX 12개 패밀리 20개 파일 + MaterialIcons + CupertinoIcons, 합계 661,088 B · gzip **382,428 B**(계획 4.3.3 초안 `startup_fonts_gzip_max: 400000`까지 17,572 B). KaTeX 20개가 370,093 B gzip(MaterialIcons 10,170 B·CupertinoIcons 1,011 B)으로 거의 전부다 — J0에서 묶음별 한도를 제안할 때 이 값을 쓴다. `NoteSans`는 `FontManifest`에도 `AssetManifest`에도 없다(계약 7.4.5의 '`FontManifest`에 넣지 않음'은 지켜짐; INK 글꼴 파일은 아직 `ink_engine` pubspec `flutter: assets:`에 없다 — 아래).
 - pdf_io Chrome 멈춤(R2-B2 묶음 검사)은 이번에 다시 나타나지 않았다(92초, 첫 시도 통과).
 - **남은 것(다른 영역·총괄)**: INK가 INFRA에 요청한 `packages/ink_engine/pubspec.yaml`의 `flutter: assets:` 블록(글꼴 3줄)은 INFRA가 넣지 않았다 — 그 파일에서 INFRA가 고칠 수 있는 것은 R2-B1의 의존 4줄(CP3 한 번 예외)뿐이고, 01-infra 3.3은 글꼴 블록을 INK R2-B3 몫으로 적었다. 총괄에게 결정을 요청했다(INK가 동시 개발 첫 작업으로 넣거나 INFRA에 한 번 더 예외). 블록이 없는 동안 앱·VM 패키지 시험에서 `InkFonts.ensureLoaded()`는 실패하고 대체 글꼴을 쓴다(INK 보고 — 예외 없음); 이번 검사는 그 때문에 실패한 시험이 없다.
+
+### 동시 개발 (계획 8.1b·8.2 — 작업 트리 `/home/user/wt2/infra`, 브랜치 `area2/infra`, 바탕 `5843ec3` = 계약 v2.3)
+
+다른 영역의 2차 구현은 이 작업 트리에서 기반 단계 표면(단순 구현·가짜)이다. 실제 구현이 필요한 판정은 `integration`·`media`·`emulator` 태그 시험으로 써 두고 통합 단계(H1~H8)에서 판정한다.
+
+#### 작업 표
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| R2-B1 | 기반 단계에서 완료 | `3c77de3` | (위 '### R2-B1') |
+| R2-B2i | 기반 단계에서 완료 | `59ed567` | (위 '### R2-B2i') |
+| R2-final | 기반 단계에서 완료 | `708a1c1` | (위 '### R2-final') |
+| 문서(C22-09) | 완료 | `f3261fe` | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
+| R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
+| R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
+| J0 | 진행 중 — ①②③ 완료, ④ 예비 실측만(GitHub 실행 10 = `5843ec3`의 단일 잡 — 아래 '#### J0 ④ 예비 실측', 잡별 제한은 그대로). 완료 조건의 실행(첫 체크포인트 푸시의 잡 분리 `ci.yml` — 잡별 제한 = 실측 × 1.5)은 대기 | `1fd1aea`(①②③)·`711d551`(예비 실측·`parseTestCounts` github 형식) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
+| J1 | 완료 | `3ff3b76` | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
+| J2 | 완료 | `0da5b71` | `native_config_test`(서명 분기 — 커밋된 파일 1·파서 2·규칙마다 깨뜨리기 4), `workflows_test` `android.yml` 묶음 15(단계 순서·NDK·시크릿은 잡 `env`만·`key.properties` 경로·**서명 세 갈래**를 셸 조각으로 실행·아티팩트 이름 두 갈래·가짜 `apksigner` 4경우) — 실제 서명은 GitHub(H6, V14) |
+| J3 | 완료 | `44609e8` | `workflows_test` `ios-compile.yml` 묶음 7(입력·게이트·`macos-26`·45분·`concurrency`·시크릿·변수 없음·`--no-codesign`·`pipefail`+`tee`·아티팩트·요약 셸 조각을 표본 로그·`Podfile.lock`으로 실행) + `ios-testflight.yml` 묶음 7(`macos-26`·`IOS_SIGNING_MODE`·수동 서명 단계·**두 서명 갈래**를 가짜 `xcodebuild`로 실행·Admin 주석), `guides_test` 06 — 실행은 U19(H6) |
+| J4 | 완료 | `3779a8f` | `app/test/storage/native_storage_paths_test.dart`(경로 문자열·폴더 생성(재귀·두 번째 호출)·끝 `/`·실패 4종 전파·기본 `CoreModule` 2경우), `core_module_test`(경로 묶음 8 — 두 필드 모두·순서·실패 → 기록 + 둘 다 없음·웹 stub·`configFor`·`defaultNoteStoreConfig`·`resetLocalData`·경로 중 포기), `tool/test/native_config_test.dart` '앱 셸 경로' 묶음(토큰 2·커밋된 파일 1·주석 무관 1·규칙마다 깨뜨리기 12·파일 없음 1) |
+| J5 | 완료 | `16b9c4b` | `app/test/features/feature_switch_section_test.dart`(12 — 문구·빌드에서 끔·저장·시작 때와 다름·인식 꺼짐에서 수식 엔진·[다시 시작] flush → reload·녹음 중(녹음·일시정지) 막기·flush 실패·flush 2초 초과·네이티브 문구·저장 실패·가로), `settings/settings_sections_test.dart` v2(`app.features` 위치·제목·빌더), `settings_screen_test`(8개), `bootstrap/app_module_context_test.dart`(7 — 빌드 ∧ 메뉴·한 번 읽기·동시 호출·저장소 전 캐시 안 함·500 ms 초과·안쪽·읽기 실패) |
+| J6 | 완료 | `864317a` | `app/test/bootstrap/idle_tasks_test.dart` 보강(`AppIdleCleanup` 4 — 마지막 콜백까지 기다림·2초 제한·기다리는 중 더한 정리·첫 작업 전 dispose), `bootstrap/bootstrap_app_test.dart`(유휴 4 — 성공 화면 ProviderScope → AppLifecycleBridge → 실행기(`success.idleTasks`)·오류 화면에는 없음 → 다시 시도 → 새 시도의 작업만·dispose 때 색인기 정리(1초) 끝난 뒤 모듈 stop·정리가 안 끝나면 2초 뒤 stop + 기록) |
+| J7 | 완료 | `852cce5` | `app/test/modules/media_module_test.dart`(J7 묶음 7 — `abandon()` 초안 복구 0·1·2·실패·최근 갱신 창, 이탈 경고 상태 전이·실행기 안 첫 프레임 직후), `update/update_banner_test.dart` v2(녹음 중 안내·reload 0회·녹음 꺼짐), `web/web_platform_browser_test.dart`(Chrome — `setLeaveGuard` 리스너 1개) |
+| J8 | 완료 | `b0ffee5` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
+| J9 | 완료 | `ea21681` | `app/test/modules/recognition_wiring_test.dart`(새 — 필드 표·`done` 두 갈래·`execute` 감싸기·동기 시작), `media_wiring_test.dart`(새 — 패널·이미지 가져오기·`media` 섹션·복구 순서·상태 안 읽음), `search_wiring_test.dart`(새 — ≤ 4 Hz·형식·dispose), `feature_wiring_module_test.dart` v2(반복 id 3경우) |
+| J10 | 완료 | `fcf949d` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/pdf_module_test.dart` v2(기록용 리더 start 1·dispose 1·PDF 실패 → 작업 없음 + 기본 리더·실행기 안 0 → 10 → 20 순서) |
+| J11 | 완료 | `fe6100d` — 본문은 R2-B8b `6e7b753` | `app/test/routing/production_screens_test.dart`(J11 +4 — `%2C`·잘못된 focus 9가지(페이지는 열림)·page 없는 focus·폴더 검색 결과 → 보고된 주소 → 새로고침 → 같은 페이지·사각형 → 닫으면 홈), `app_router_test`(R2-B8b — 자리표시 화면 7경우) |
+| J12 | 완료 | `5b71ea3` | `packages/pencil_bridge/test/pencil_wire_contract_test.dart`(28 — ⓪~⑨ + 가용성 판독기 자체 11경우), `pencil_bridge_test`(+1 — Swift 빌더 모양의 squeeze 순서·자세 없는 tap) — **컴파일은 `ios-compile.yml`(U19)**, 동작은 TestFlight 뒤(C-1) |
+| J13 | 완료 | `f771299` — 능력 조회 시간 제한·실패 처리·`timestamp`는 R2-B8b `6e7b753` | `app/test/pencil/pencil_stylus_extras_test.dart`(J13 +3 — `os`·대체 `?`·`seen` 전이(구독자 없으면 안 셈·tap·hover·모르는 단계는 안 셈·종류마다 알림 1번·되돌아가지 않음·능력 불변)·두 구독자에 알림 1번), `modules/feature_wiring_module_test.dart`(Pencil 5경우 — 지원·미지원·기본 포트·실패·500 ms 초과, J13: `os` '17.5'·'?'), `settings/about_section_test.dart`(J13 +5 — 지원 안 함 2·'iOS 17.5 · 더블탭 · 호버' → 스퀴즈 받음 → 롤 받음·섹션 자신의 구독·떠나면 구독 끊김·열기 전에 받은 것·읽기 실패 문구·가로) |
+| J14 | 완료 | `9e10ac3` | `app/test/settings/storage_section_test.dart` v2(첨부 파일 6 — 세 종류·없는 종류 0 MB·작은 크기 `<0.1 MB`·첨부 없음 '0개 · 0 MB'·CORE 가짜 저장소의 `bytesByType`·보일 때 1회·[다시 확인]·다시 보일 때·`usage()` 실패; 검색 색인 6 — 상태 따라감·확인 창 취소·확인 → `rebuild()` 1회·진행 중 비활성·실패 문구 + 기록 1건·닫기·가로), `settings/about_section_test.dart` v2(기능 줄 4가지 — 모두 켬·빌드에서 끔·개발자 메뉴로 끔(`skipped`)·시작 실패 + 진단 복사·가로, Pencil 줄 키), `app/test/app/licenses_test.dart`(가짜 에셋 번들 있음/없음·기록 1번·지연 읽기·앱 번들에 실제 에셋·라이선스 화면), `errors/diagnostic_report_test.dart` v2(기능 줄·`skipped` 단계), `features/feature_status_test.dart`(새 — 상태 표) |
+| J14b | 완료 | `b0cefb5` | `app/test/settings/v1_copy_section_test.dart`(새, 19 — `v1CopyMimeType` 표, 다섯 상태: 사본 있음(웹·네이티브 이름)·사본 실패(quota·io·other·모르는 값)·사본 없음·아직 볼 수 없음(기록 0)·읽기 오류(기록 1), 확인 중 줄, 보일 때마다 `info`, 기본 api(CORE B2-α 선언) → '사본 없음', 내보내기 두 이름(4 MiB·4 MiB·1 B → 시트의 `BackupFile` 바이트·`info.fileName`·MIME → 내려받기)·[취소]·스트림 오류·떠나면 구독 끊김, 지우기 확인 → `delete` 1 → 다시 조회 · 취소 · 오류, 가로), `backup_export_test`(+1 — 기본 MIME `application/json`·준 MIME이 내려받기·공유까지), `settings_sections_test`(`app.v1Copy` 위치·제목·빌더), `settings_screen_test`(섹션 9개) |
+| J15 | 완료 — 잡별 제한은 계획의 임시값(15·30·30·30·15분). 실측 × 1.5로 바꾸기와 '첫 푸시에서 모든 잡이 제한 안' 확인은 J0 ④와 함께(첫 체크포인트 푸시의 CI 실행 기록) | `9fd7e1a`(`--dart-define`)·`5563d84`(잡 분리) | `tool/test/test_command_test.dart`(`--dart-define` 묶음 5), `tool/test/workflows_test.dart` `ci.yml` 묶음 v2(잡 5개·이름·`needs`·잡별 제한·워크플로 `env` 없음·잡 `env`·`check` 출력 = Test scope 단계 출력·잡별 단계 순서·명령·준비 단계가 잡마다 같음·`fetch-depth`·캐시 위치·조건 있는 단계 목록·Lock age·Native requirements·**푸시별 시나리오 12개를 잡 수준으로**(Test scope 스크립트 실행 → `GITHUB_ENV`·`GITHUB_OUTPUT` → `check` 출력 → `vm`·`chrome` 잡 `env` → 단계 `if`·`--affected-since` 인자, `heavy` 잡 `if`, `web` `TEST_SCOPE`, Channel 스크립트)·`heavy` `if` 글자 그대로·`--run-skipped`는 `heavy`에만·`origin/main` 없음·`refs/heads/main`은 Test scope·Channel에만·Timing 스크립트 실행) + 전체 묶음(잡 출력/`needs.*.outputs.*` 참조 대조·flutter-action·`pub get` 11·빌드 훅 캐시 잡별·`ws` 호출 25·`_evaluate` 괄호·`true`), `tool/test/guides_test.dart`(02·04 사례가 `web` 잡에서 찾음) |
+| J16 | 완료 | `adc4403` | `tool/test/workflows_test.dart` `functions.yml` 묶음 9(경로·`concurrency`·15분·시크릿 없음·체크아웃 뒤 모든 단계 `hashFiles` 가드(8단계)·**6.14 순서** `npm ci` → `npm test` → `npm run test:emulator`(Flutter 전 — 07-sync RQ-8) → flutter-action → 빌드 훅 캐시 → `pub get` → Dart emulator·`npm ci`만·`npm test` 시험 수 > 0(가짜 `npm` 5경우)·**`test:emulator`를 가짜 `npm`으로 실행**(`# tests 0` 통과·실패 → 실패·요약 줄 시험 수)·**Dart 단계 단어 = `npx --prefix functions firebase emulators:exec --config app/firebase.json --only functions,auth --project demo-noteapp "<ws test --package ink_recognition --run-skipped -t emulator>"`**·`with-heavy-lock` 없음·가리키는 것이 있음(`app/firebase.json` 5001·9099·`.env.demo-noteapp`·`firebase-tools` 15.34.1·스크립트 3개·`emulator` 태그 skip)·`tool/README` 컨테이너 경로와 같은 글자) + 공통(flutter-action 7·`pub get` 7·빌드 훅 캐시·`ws` 호출 23개를 실제 해석기로), 컨테이너 6.13 경로 1회(아래) — 실행은 GitHub(V13) |
+| J17 | 완료 | `95d88a8` | `tool/test/web_budget_test.dart`(16 — 형식 3(4.3.3 모양·잘못된 파일 7가지·커밋된 `tool/web_budget.yaml` 값), 측정 2(gzip = 파일별 `dart:io` gzip 합·없는 보고 자산 → null·빌드/`main.dart.js`/`FontManifest.json` 없음·깨진 JSON), 보고 7(한도 안 · 넘음(크기·증가분·묶음) · 원본 글꼴 한도 · 금지 글꼴 · 빌드에 없는 글꼴 파일 · `measure`는 표시만 · 표 형식), 명령 4(`check` 0 + 요약 파일 · 넘으면 1 / `measure` 0 · `--budget` · 빌드·예산 없음 → 3 · 예산 없이 `measure`)), `workflows_test`(`ci.yml` 'Web budget' 단계 — 순서·명령·조건 없음, `ws` 호출 21개) |
+| J18 | 완료 | `1e29a75` | `tool/test/guides_test.dart` v2(30 — 파일 9개·README 순서 01 → 02 → 04 → 08·공통 형식 8개(08은 계약 문장 줄을 뺀 해요체)·01 첫 단락 'Hosting만'·'Spark'·'실연결'·'실연결 때 정할 것' 절·03 Functions 한 줄·04 B-1 네 단계(마지막 = `AppStrings.sectionV1Copy`·`v1CopyPresent` 머리)·B-15·B-16 하는 법·마이크·'복구된 녹음'·되돌리기 금지·`reloadBlockedByRecording`·05 아티팩트 두 이름(`android.yml` 식에서)·'고정 키 등록은 07'·'파일 두 개'·'앱을 지우지 말고'·06 `ios-compile.yml` 이름·입력·`ios-compile-<번호>`·`ITSAppUsesNonExemptEncryption`(Info.plist `false`)·07 시크릿 4개·변수(= `android.yml` 잡 `env`)·`::error::` 두 문장·요약 줄·08 **계약 7.8 A-1~A-6·B-1~B-16·C-1~C-4 순서와 문장 글자 그대로**·머리말 3줄·항목마다 '알려 줄 것'·보고 양식·B-13 순서·C-1 다시 열기) |
+| J19 | 완료 | `0b3c5d2` | `app/test/integration/app_smoke_v2_test.dart`(V5 v2 — 지금 되는 단계: 시작 5모듈 ok·7.3.3 행 한 번씩·오디오/인식 행의 출처 모듈·값, 자리 4개(이미지 = 주입 가져오기·녹음 패널 = `mediaRecordingPanel`·선택/삽입 = 실제 recog 동작 id), 개발자 섹션 순서·`recog.settings` 위치·유휴 작업 4개, 5모듈 위 1차 V5 흐름, 9 라우팅(`onOpenNoteAt` → `?page=&focus=` → 에디터 인자·주소)), `integration/feature_switch_test.dart`(V15 — 기대 행 표 1 + 주입 8조합 + 모두 끔 1차 흐름 + `AppFeatures.compileTime`(H5는 `--dart-define` 3개)), `web/app_smoke_v2_browser_test.dart`(V6 v2 — `setUpAll(useInkTestFonts)`, 웹 저장소, 같은 단계, 오류 기록 0·`MissingPluginException` 0), `support/smoke_v2_fakes.dart` |
+| J20 | 완료 | `8e1f05a` | `tool/test/lock_age_test.dart`(21 — 잠금 파서 3(hosted만·서버 주소·실제 워크스페이스 lock·깨진 파일 4가지), 바뀐 항목 3(새·판 바뀜·서버 바뀜 / 같음·지움 제외 / 기준에 lock 없음 → 전부), API 답 2(`published`·없는 판·깨진 답 5가지), 달력 일수(UTC 날짜 — 13·14 경계·시간대), `checkLockAge` 3(가짜 HTTP: **13일 → 위반·14일 → 통과·네트워크 오류(null·예외)·목록에 없는 판·깨진 답 → 경고**, 이름 순 요청 1번씩, 표·줄 형식, `--min-days`, 바뀐 것 없음 → 요청 0), 명령 9(실제 git 저장소 + 가짜 내려받기: 위반 → 1·통과 → 0 + 요약 파일·네트워크 오류 → 0·`--now` 없으면 컨텍스트 시계·기준 ref에 lock 없음·커밋 아닌 ref → 경고 0·사용 오류 7가지 → 2·lock 없음 → 3·**실제 `httpDownload` + 127.0.0.1 서버 → 답·닫힌 포트 → 경고**)), `workflows_test`(+1 'Lock age' 단계 — `continue-on-error`·위치·`bash -n`·가짜 `git`/`dart`로 6경우, 단계 순서·명령·`ws` 호출 22개) |
+| J21 | 완료 | `7f07a5a` | `tool/test/workflows_test.dart` `android-emulator.yml` 묶음 7(수동만·`concurrency`·`ubuntu-latest` 30분·시크릿/변수 없음·6.10.5 단계 순서·Java/NDK = `android.yml`·에뮬레이터 `api-level` 34·`google_apis`·`x86_64`·`-noaudio` 없음·스크립트 두 줄(`adb install -r -g` → `flutter test integration_test/native_smoke_test.dart`)·KVM 단계를 가짜 `sudo`로 실행·실행할 시험 파일 구조) + 공통 사례(액션 판·잡 제한·flutter-action 6·`pub get` 6·build-hooks 캐시·`flutter build`의 debug APK 예외 1), `app/integration_test/native_smoke_test.dart`(4경우 — 실행은 GitHub 수동) |
+| J22 | 완료 — 마감 확인 묶음 통과(바탕 `5563d84`). J0 ④(CI 실측)만 총괄의 첫 체크포인트 푸시 뒤 | `c338edb` | 아래 '#### J22' 표(8.2 J22 행의 검사 9가지) |
+| H1~H8 | 통합 단계 | | (계획 8.3) |
+
+#### R2-B8a — 앱 셸 v2 연결 (계획 8.1b)
+
+- 새 파일(`app/lib/src/`): `features/app_features.dart`(4.6.1 — 섹션 UI 제외), `bootstrap/idle_tasks.dart`(4.6.2 — `AppIdlePriority`·`AppIdleTask`·`AppIdleContext`·`AppIdleTaskRunner`), `modules/idle_indexers.dart`, `modules/media_module.dart`, `modules/recognition_module.dart`, `modules/media_wiring.dart`, `modules/recognition_wiring.dart`, `modules/search_wiring.dart`.
+- 바꾼 파일: `AppModule`(`isEnabled`·`idleTasks`·`fallbackContribution`), `AppModuleContext`(`compileTimeFeatures`·`resolveFeatures`·`featureOn`·`contribute`·`contributions`), `ShellContribution`, `StartupStepOutcome.skipped`, `BootstrapSuccess`(`idleTasks`·`contributions`·`features`), `AppBootstrapper(features:)`, `BootstrapApp`(ProviderScope → AppLifecycleBridge → **AppIdleTaskRunner** → 앱, `runNoteApp`은 `AppFeatures.compileTime`), `PdfModule(indexer:)`·`pdf.searchIndexer`, `FeatureWiringModule` v2(기여 합치기·이미지 가져오기 직접·개발자 표시 `[pdf.render?, media?, recog.indexer?, search.index]`), `productionModules()`(5개, `if (kFeature*)`)·`modulesFor`, `shellContributionsProvider`·`defaultSettingsSections(contributed:)`.
+- 다른 영역 2차 구현은 기반 단계 표면이다: `supportedImageSources()` = 빈 집합이라 실제 앱에는 아직 `editorImageImporterProvider` override가 없다(가짜 주입 시험으로 확인), `recognitionSelectionActions()`·`recognitionInsertActions()` = 빈 목록, `mediaIoOverrides()` = 빈 목록. 실제 패키지 사례는 H2.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` | 0건 |
+| `ws check` (R1–R16) | 0 |
+| `ws test --package noteapp` (VM — `flutter test`) | 360 통과 · 1 건너뜀(V5) |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 147초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 33초 |
+| `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 110초 |
+
+#### R2-B8b — 라우팅 `?page=&focus=` · `pencil_bridge` Dart 표면 · Pencil 어댑터 (계획 8.1b)
+
+- 커밋: `6e7b753`, 이 기록 줄은 그 뒤 커밋.
+
+- **① 라우팅**(4.6.6·6.8, S2-6): `AppRoutes.focusQueryKey`·`note(noteId, pageId:, focus:)`, `FocusRectCodec`(`encode` 0.1 pt 반올림·끝 `.0` 없음·쉼표 그대로, `decode` 네 수·유한·`l ≤ r`·`t ≤ b`·`|v| ≤ 100000`·`%2C` 받음), `EditorRouteArgs.initialFocusRectPt`(page 없으면 assert), `AppNavigator.openNote(…, focusRectPt:)`, 라우터가 `page`가 있을 때만 `focus`를 해석, 운영 화면 빌더 `LibraryScreen(onOpenNoteAt:)` → `openNote` → `EditorScreen(initialFocusRectPt:)`. 자리표시 에디터는 'focus: …' 줄을 보인다.
+- **② `packages/pencil_bridge`**(4.4.2·4.4.3·6.12.1): `lib/pencil_bridge.dart`(계약 이름 7개만 `show`), `src/pencil_events.dart`(값 타입 — `==`·`hashCode`·`toString`, `PencilCapabilities.fromWire`·`unsupported`), `src/wire.dart`(`PencilWire` 상수·`decode`), `src/pencil_bridge_impl.dart`(`isSupported`, `capabilities()` — 지원 안 함 → 채널 호출 없음, 오류 다시 던짐; `events` — 캐시한 `receiveBroadcastStream().handleError(…).map(decode).where(…).cast()`, `asBroadcastStream` 없음; `debugDroppedEvents`·`debugReset`). R2-B1 스모크 시험은 지웠다(실제 시험으로 바뀜). README 갱신. Swift는 아직 R2-B1의 빈 등록(J12) — 그때까지 iOS에서 `capabilities()`는 `MissingPluginException`이고 어댑터가 대체 능력을 쓴다.
+- **③ 앱 어댑터**(4.6.5·6.12.3, X35): `src/modules/pencil_wiring.dart`(`PencilPort`), `src/pencil/pencil_stylus_extras.dart`(`PencilStylusExtrasSource`·`stylusCapabilitiesOf`·`kPencilFallbackCapabilities`·`stylusEventOf`·`stylusPreferredActionOf`·`stylusSqueezePhaseOf` — 네 종류 모두 `timestamp` 전달), `FeatureWiringModule(pencil:)` — `isSupported`이면 `start`에서 능력을 한 번 읽고(500 ms, 실패·시간 초과 → 기록 1건 + 대체 능력) `stylusExtrasProvider` override. 시험 가짜 `app/test/fakes/fake_pencil_port.dart`(모듈 생성자 주입 — S2-2).
+- EDITOR 요청(인수인계 메모) 처리: `StylusExtrasSource.capabilities`(실행 중 고정)·이벤트 `timestamp`·`EditorScreen(initialFocusRectPt:)` 연결 — 끝. 능력 조회 시간 제한·실패 처리도 여기서 했다(J13 몫을 당김 — 아래 '계획과 다르게 한 점').
+- `asBroadcastStream()`을 넣으면 `pencil_bridge_test`의 '두 구독 → cancel 1회' 시험이 실패하는 것을 한 번 확인했다(되돌림).
+
+| 검사 | 결과 |
+|---|---|
+| `app`·`pencil_bridge` `flutter analyze --fatal-infos` / 루트 `flutter analyze --fatal-infos` | 0건 / 0건 |
+| `dart format --output=none --set-exit-if-changed app packages/pencil_bridge` | 변경 0 |
+| `ws check` (R1–R16) | 0 |
+| `ws test --package pencil_bridge` (VM) | 33 통과 |
+| `ws test --package noteapp` (VM) | 428 통과 · 1 건너뜀(V5) · 63초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 87초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 28초 |
+| `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 97초 |
+| `dart test tool/test` | 372 통과 · 75초 |
+
+#### J0 ①②③ — 네이티브 설정 · `native_config` 정적 시험 · 웹 빌드 실측 (계획 8.2, 6.10.1, 6.11.1~6.11.4, 6.15)
+
+- 커밋: `1fd1aea`(①②③), 이 기록 줄은 그 뒤 커밋. ④는 아직.
+
+- **① 네이티브 설정 파일**(부록 B): `app/android/app/src/main/AndroidManifest.xml`(`xmlns:tools`, 권한 5개 `INTERNET`·`RECORD_AUDIO`·`FOREGROUND_SERVICE`·`FOREGROUND_SERVICE_MICROPHONE`·`POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` `tools:node="remove"`, 라벨 `필기노트`, `allowBackup="false"`(D20), `flutter_foreground_task` `ForegroundService`(`microphone`·`exported=false`·`stopWithTask=true`), `RebootReceiver` 제거 — 서비스·수신기 이름은 pub 캐시 `flutter_foreground_task-11.0.3`의 매니페스트·README로 다시 확인함), `app/ios/Runner/Info.plist`(마이크·사진·카메라 문구 확정본 글자 그대로, `UIBackgroundModes` `[audio]`, `ITSAppUsesNonExemptEncryption` false), `project.pbxproj` `IPHONEOS_DEPLOYMENT_TARGET` 3곳 15.0 → **15.5**, 새 `app/ios/Podfile`(Flutter 3.47.9 `templates/cocoapods/Podfile-ios` + ML Kit README 줄 — `platform :ios, '15.5'`·`$iOSVersion`·armv7 제외·배포 대상 올림), `Debug.xcconfig`·`Release.xcconfig` 첫 줄 `#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.<debug|release>.xcconfig"`(Flutter `addPodsDependencyToFlutterXcconfig`가 쓰는 줄과 같음 — CI 빌드가 저장소 파일을 바꾸지 않게).
+- **② `tool/src/native_config.dart`**: `NativeConfigPaths`, `AndroidManifestInfo.parse`(`package:xml` — 주석·속성 순서 무관), `parsePlist`, `pbxDeploymentTargets`, `PodfileInfo.parse`(줄 전체 주석 무시), `xcconfigIncludes`, `NativeConfig.load`, `AppNativeExpectations`(값 표), `appNativeConfigProblems`(한 줄씩 — J1 `ws native-reqs`가 같은 `NativeConfig`를 읽는다). **`tool/test/native_config_test.dart`**: 파서 단위 시험, 커밋된 파일 검사(문구 글자 그대로·15.5 정확히 3번·Podfile 템플릿 줄 보존 — 이 Flutter의 템플릿 파일과 대조), 규칙마다 커밋된 파일을 하나씩 깨뜨려 그 문제 한 줄(부팅 권한은 두 줄)만 나오는지 23경우.
+- **③ 웹 빌드 실측**(잠금 안 — `ws with-heavy-lock`): 기본 `flutter build web --release`와 기능 셋을 끈 빌드. 결과 표와 묶음별 한도 제안은 계획 6.15 'J0 실측 결과'(여기 요약):
+
+| 측정 | 값 |
+|---|---|
+| `main.dart.js` 기본 | 4,694,993 B · gzip **1,382,988 B**(1차 기준 +16,950 B, 한도 1,666,038 B까지 283,050 B) |
+| `main.dart.js` 기능 셋 끔(`FEATURE_MEDIA`·`FEATURE_RECOGNITION`·`FEATURE_MATH_ENGINE` = false) | 4,682,895 B · gzip 1,379,757 B(−3,231 B) |
+| 시작 글꼴 합계 | 661,088 B · gzip **382,428 B**(한도 400,000 B까지 17,572 B) — KaTeX 12패밀리 20파일 gzip 371,014 B, 아이콘 gzip 11,414 B(MaterialIcons 10,391 · CupertinoIcons 1,023) |
+| `NoteSans` | `FontManifest`·`AssetManifest`에 없음(지연 적재), 빌드 산출물에는 파일로 있음 |
+| `record_web` 워크릿 | 11,762 B |
+| `ws web-assets verify` | 2개, 문제 0 |
+
+- 한도 제안(총괄 결정 — changeRequests): KaTeX `gzip_max` 380,000 · 아이콘 `gzip_max` 20,000(합계 400,000 유지). 계획 문장('KaTeX 실측 + 5%')대로면 KaTeX 389,565 + 아이콘 실측 11,414가 이미 합계 한도를 넘어, 합계를 410,000으로 올리는 안도 함께 적었다.
+- **④ CI 단계별 시간 실측**: 컨테이너에서 할 수 없다(푸시·GitHub 실행 기록). 총괄의 첫 체크포인트 푸시(R2-B8a·R2-B8b·J0) 뒤 `ci.yml` 실행의 단계 시간을 받아 6.16 표·월 분 재계산·잡 분리안(J15)을 정한다 — 그때까지 J0은 '진행 중'.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/native_config_test.dart` | 37 통과 |
+| `cd app && flutter build web --release` (잠금 안) | 성공 · 컴파일 260초(부하 평균 8 — 다른 에이전트와 CPU 공유) |
+| 같은 빌드 + `--dart-define` 기능 셋 false | 성공 · 136초 |
+
+#### J1 — `ws native-reqs` (계획 8.2, 4.3.2, 6.3)
+
+- 커밋: `3ff3b76`.
+
+- **`tool/native_requirements.yaml`**(4.3.2 그대로 + `flutter_defaults: {min_sdk: 24, compile_sdk: 36}` — 6.3 문장의 대체값): `app:`(15.5·`flutter`·`flutter`·필기노트·`false`·필기노트), `cocoapods_only_allowed` ML Kit 둘, `plugins` 10개(영역 열 = 요구를 낸 계획서), `plugins_without_requirements` 13개, `app_extra`(`INTERNET`, `ITSAppUsesNonExemptEncryption: false`).
+- **`tool/src/native_reqs.dart`**: `NativeRequirements.parse/load`(키·태그·SDK 값 검사, 두 목록 겹침 거절), `FlutterPluginsDependencies.parse/load`(`plugins.ios/android` — `native_build`·`dev_dependency`, `dependencyGraph` 이름 집합, 상대 경로는 파일 위치 기준), `podspecIosMinimum`(`s.platform`·`ios.deployment_target` 큰 값), `swiftPackageIosMinimum`(`"x"`·`.vNN`·`.vNN_M`), `flutterGradleDefaults`(`FlutterExtension.kt`), `PluginNativeInfo.read`(`ios/`·`darwin/`·`android/build.gradle(.kts)`), `nativeRequirementProblems`(NR7 — `native_config_test`와 같은 함수), `checkNativeRequirements`(NR1~NR7) → `NativeReqsReport.format()`(표·앱 줄·발견·요약).
+- **`tool/src/native_config.dart`**: `gradleSdkValue`(kts·groovy·괄호·주석 무시, Flutter 기본값 식 → `flutter`), `AndroidGradleInfo`, `NativeConfigPaths.androidGradle`, `NativeConfig.androidGradle`(J2가 서명 분기를 여기에 더한다).
+- **`ws native-reqs`**(`cli.dart`): 입력이 없거나 틀리면 종료 3(`flutter pub get` 안내), 위반 1, NR4만 있으면 0. NR7에는 `appNativeConfigProblems`(J0) 줄도 더한다(같은 문구는 한 줄).
+- 실제 워크스페이스 실행 결과(컨테이너): 플러그인 23개, `app: ios 15.5 · minSdk 24 (flutter — FlutterExtension.kt) · compileSdk 36 (flutter — FlutterExtension.kt) · CocoaPods-only: google_mlkit_commons, google_mlkit_digital_ink_recognition`, 위반 0·경고 0. `plugin_packages`(53) = `dependencyGraph`. Dart 전용(`native_build: false`)은 `path_provider_android` 2.3.1·`path_provider_foundation` 2.6.0.
+
+| 검사 | 결과 |
+|---|---|
+| `dart run tool/ws.dart native-reqs` | 종료 0 · 23개 · 위반 0 · 경고 0 |
+| `dart test tool/test/native_reqs_test.dart tool/test/native_config_test.dart` | 65 통과 |
+| `dart test tool/test` | 437 통과 · 130초 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `ws check` (R1–R16) | 0 |
+
+#### J2 — release 고정 서명 · `android.yml` v2 (계획 8.2, 6.10.2·6.10.3)
+
+- 커밋: `0da5b71`.
+
+- **`app/android/app/build.gradle.kts`**(6.10.2 그대로): `rootProject.file("key.properties")`(= `app/android/key.properties`, gitignore에 있음)가 있으면 `signingConfigs.create("release")`(네 값) + release 빌드가 그 키, 없으면 debug 키(1차와 같음).
+- **`tool/src/native_config.dart`**: `AndroidGradleInfo`에 `keyPropertiesFile`·`createsReleaseSigningOnlyWithKeyProperties`·`signingProperties`·`releaseUsesReleaseKeyElseDebug`(주석 무시·변수 이름 무관), `AppNativeExpectations.keyProperties`·`signingProperties`, `appNativeConfigProblems`에 서명 줄 4종.
+- **`.github/workflows/android.yml` v2**(6.10.3): 잡 `env`에 시크릿 4개 + `vars.ANDROID_CERT_SHA256`. 단계 `Signing`(`id: signing` — Checkout 바로 뒤): 넷 다 있음 → `$RUNNER_TEMP/release.jks` + `key.properties` 4줄 + `mode=release` / 하나라도 없고 변수 있음 → `::error::고정 키 서명 재료가 없어요 — 이 APK는 덮어 설치할 수 없어 만들지 않아요(docs/guides/07-android-signing.md)` + 실패(뒤 단계는 정리만 돈다) / 그 밖 → `mode=debug`. `Cache Android NDK`(`ndk-28.2.13676358` — `FlutterExtension.kt` `ndkVersion`과 대조), 훅 캐시 단계 이름 'Build hooks (downloads sqlite3 when not cached)', `Check signature`(가장 높은 build-tools의 `apksigner verify --print-certs` → `SHA-256 digest`, release이고 변수가 있는데 다르면 실패 — 변수는 keytool 꼴(대문자·콜론)도 받음, 실행 요약 '서명: 고정 키 (앞 16자)' 또는 '서명: debug 키 — 이전 APK 위에 덮어 설치할 수 없어요. 설치가 안 되면 앱을 지우지 말고 알려 주세요'), 아티팩트 이름 `noteapp-${{ … 'apk' || 'debug-signed' }}-<run>`, `Remove signing material`(`if: always()`, 마지막).
+- 실제 서명·APK는 GitHub에서만(H6 — V14). 고정 키 만들기·전달(6.10.4, U20 ①)은 사용자와 함께 하는 일이라 이 작업에 넣지 않았다(아래 '다음 세션 메모').
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/native_config_test.dart tool/test/workflows_test.dart` | 48 · 63 통과(서명 세 갈래·가짜 `apksigner`는 `bash -e`/`-eo pipefail`로 실제 실행) |
+| `dart test tool/test` | 454 통과 · 90초 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `ws check` (R1–R16) / `ws native-reqs` | 0 / 0 |
+
+#### J3 — `ios-compile.yml` · `ios-testflight.yml` 갱신 (계획 8.2, 6.11.5·6.11.6)
+
+- 커밋: `44609e8`, 커밋 번호 기록은 그 뒤 커밋.
+
+- **`.github/workflows/ios-compile.yml`**(새, 6.11.5): `workflow_dispatch`만(입력 `confirm` 'macOS 10배 과금 확인: yes 입력', `ipa` bool 기본 false), 잡 `if: inputs.confirm == 'yes'`, `macos-26`, 45분, `concurrency: ios-compile`(취소 안 함), 시크릿·변수 없음. 단계: Checkout → Flutter(`cache: true`) → `Cache CocoaPods`(`~/Library/Caches/CocoaPods`·`app/ios/Pods`, key `pods-${{ hashFiles('pubspec.lock', 'app/ios/Podfile') }}`) → 훅 캐시(1차 키) → `pub get --enforce-lockfile` → `ws build-info --channel experiment` → `set -o pipefail` + `flutter build ios --release --no-codesign … 2>&1 | tee "$RUNNER_TEMP/ios-build.log"`(걸린 초 → `steps.build.outputs.seconds`) → (`ipa`) `flutter build ipa --no-codesign …` + `ditto`로 `Runner.xcarchive.zip` → 요약(`always()` — 걸린 시간, 'This will become an error' 줄 수와 Flutter가 적은 CocoaPods 전용 플러그인 이름, `Podfile.lock` `PODS:` 수) → 아티팩트 `ios-compile-<run>`(`Podfile.lock`·빌드 로그, `always()`, 7일), (`ipa`) `ios-xcarchive-<run>`(7일).
+- **`.github/workflows/ios-testflight.yml`**(6.11.6, 초안 유지): `macos-latest` → `macos-26`, 잡 `env`에 `IOS_SIGNING_MODE: ${{ vars.IOS_SIGNING_MODE || 'cloud' }}`. `manual`이면 단계 'Certificate and profile (manual signing)'(그 단계 `env`에만 시크릿 `IOS_DIST_P12_BASE64`·`IOS_DIST_P12_PASSWORD`·`IOS_PROFILE_BASE64`) — 임시 키체인에 `.p12`, 프로파일을 `Provisioning Profiles/<UUID>.mobileprovision`로, `IOS_KEYCHAIN`·`IOS_PROFILE_NAME`·`IOS_BUNDLE_ID`를 `$GITHUB_ENV`로. Archive는 `cloud` → 1차의 `-allowProvisioningUpdates`·API 키·`CODE_SIGN_STYLE=Automatic`, `manual` → `CODE_SIGN_STYLE=Manual`·`CODE_SIGN_IDENTITY=Apple Distribution`·`PROVISIONING_PROFILE_SPECIFIER`. Export는 `manual`이면 ExportOptions 사본을 `signingStyle manual`·`signingCertificate`·`provisioningProfiles`(PlistBuddy — 번들 ID의 점 때문)로 고친다. 정리 단계(`always()`, 마지막)는 키체인도 지운다. 머리 주석에 '클라우드 서명은 Admin 키가 필요할 수 있음'(조사 04 요약 11)·'ios-compile.yml 먼저'.
+- **안내서 06**: 4단계 아래 '서명 방식' 소절(클라우드 기본·Admin 보고, 수동 서명 시크릿 3개 + Variable `IOS_SIGNING_MODE` = `manual`, CSR은 Claude가), 문제 해결 줄 보강. `guides_test` 06(잡 `env` 이름이 안내서에 있음)이 이것을 본다.
+- 실행은 U19 승인 때(H6) — 컨테이너에는 macOS가 없다.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/workflows_test.dart tool/test/guides_test.dart` | 73 · 22 통과 |
+| `dart test tool/test` | 464 통과 · 130초 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `ws check` (R1–R16) | 0 |
+
+#### J4 — 네이티브 저장 경로 (계획 8.2, 4.6.3·4.6.4·6.9, 계약 7.2.6 v2.1)
+
+- **`app/lib/src/storage/`**(새): `native_storage_paths.dart`(`export 'native_storage_paths_stub.dart' if (dart.library.io) 'native_storage_paths_native.dart' show resolveNativeStoragePaths` + 타입 export), `native_storage_paths_types.dart`(`NativeStoragePaths` — `==`·`hashCode`·`toString`), `_stub.dart`(null), `_native.dart`(`getApplicationSupportDirectory()` → `<support>/noteapp/`를 `create(recursive: true)` → `…/noteapp.sqlite`·`…/assets`; `assets/`·파일은 CORE 몫이라 만들지 않음, 실패는 그대로 던짐). `path_provider`는 이 파일만 import(R4).
+- **`CoreModule(nativePaths:)`**(기본 `resolveNativeStoragePaths`): `start`가 먼저 경로를 읽고(던지면 기록 1건 source module, 경로 없음) 있으면 `publish<NativeStoragePaths>`, 그다음 1차 순서. 경로를 읽는 동안 `onStartAbandoned()`가 불리면 열지 않고 돌아간다(늦은 저장소가 생기지 않게). **`defaultNoteStoreConfig`**: `context.maybe<NativeStoragePaths>()` 하나에서 `nativeDatabasePath`·`nativeAssetDirectoryPath` 둘 다(없으면 둘 다 없음). `resetLocalData`는 같은 config(두 경로)로 지운다.
+- **`tool/src/app_shell_storage.dart`**(새, J0에서 미룬 '앱 셸 두 경로 정적 묶음'): `dartTokens`(주석 버림·문자열 한 토큰)·`appShellStoragePathProblems` 5규칙 — 조건부 export, `path_provider`·`_native.dart`를 다른 `lib/` 파일이 부르지 않음, `defaultNoteStoreConfig`의 두 필드가 한 번씩 같은 변수(`context.maybe<NativeStoragePaths>()`)에서, `CoreModule` 기본값 두 개, `productionModules()`·`modulesFor()`가 인자 없는 `CoreModule()`.
+- VM 시험의 기본 경로 함수는 `MissingPluginException`(시험 바인딩 없으면 'Binding has not yet been initialized')으로 던져 기록 1건이 생긴다 — 오류 기록·순서를 세는 시험(`core_module_test`·`production_modules_test`·`pdf_wiring_test`·`feature_wiring_module_test`·`overrides_unique_test`·`bootstrap_app_test`·V5 `app_smoke_test`)은 새 가짜 `test/fakes/fake_native_paths.dart`의 `noNativePaths`를 넘긴다. 늦은 저장소 시험 2개는 경로를 읽는 한 차례가 더 생겨 `flushMicrotasks()` 한 번 뒤에 포기한다(시나리오 '여는 중 20초 초과' 그대로).
+- H2 몫: 실제 CORE VM 파일 DB로 한 번(`openNoteStore` → 노트 1개 → 닫고 다시 열기 → 남아 있음). 실기기 위치·백업 제외는 A-1.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / 루트 `flutter analyze --fatal-infos` | 0건 / 0건 |
+| `dart format --output=none --set-exit-if-changed app tool` | 변경 0 |
+| `ws check` (R1–R16) | 0 |
+| `ws test --package noteapp` (VM) | 446 통과 · 1 건너뜀(V5) · 51초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 28초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 77초 |
+| `dart test tool/test/native_config_test.dart` | 65 통과 |
+
+#### J5 — 개발자 메뉴 기능 스위치 · 설정 배치 (계획 8.2, 4.6.1·6.6·6.17·S2-9)
+
+- **`app/lib/src/features/feature_switch_section.dart`**(새): `FeatureSwitchSection`(섹션 `app.features` '기능 켜고 끄기') — 스위치 3개('녹음' · '녹음·녹음 패널. 이미지 넣기는 꺼지지 않아요', '인식' · '손글씨·수식 인식, 자동 도형 보정', '수식 엔진'), 값은 `settingsSnapshotProvider`, 쓰기는 `settingsRepositoryProvider.set(AppFeatureKeys.of(f), v)`. 빌드에서 꺼진 스위치는 비활성·꺼짐·'이 빌드에서 꺼져 있어요'. **빌드 ∧ 메뉴**가 이번 시작(`appFeaturesProvider`)과 `isOn`으로 다르면 '다시 시작하면 적용돼요' + 웹 [다시 시작](녹음 중 → 6.17 문구·reload 0회 / 아니면 `store.flush()`(2초) → `web.reload()`), 네이티브는 '… 앱을 완전히 닫았다가 다시 열어 주세요'(단추 없음). `FeatureSwitchSectionKeys`(시험·V15).
+- **설정 배치**(S2-9): `defaultSettingsSections`에 `app.features`를 `editor.developer` 뒤에(`app.v1Copy`는 J14b). 기여 섹션은 R2-B8a 그대로 `library.newNote` 뒤.
+- **`AppModuleContext.resolveFeatures`**: 저장소가 publish되기 전 호출은 빌드 값을 돌려주되 **캐시하지 않는다**(전에는 캐시해서 그 뒤 모듈도 메뉴 값을 못 봄). 문자열 `AppStrings.reloadBlockedByRecording`은 J7 업데이트 배너도 쓴다.
+- 시험 가짜: `test/fakes/fake_settings_repository.dart`(읽기 기록·지연·실패), `CountingNoteStore.settingsOverride`.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` | 0건 |
+| `dart format` (app) | 변경 0 |
+| `ws test --package noteapp` (VM) | 465 통과 · 1 건너뜀(V5) · 48초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 31초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 99초 |
+| `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6) | 1 통과 · 135초 |
+
+#### J6 — 유휴 작업 실행기 마무리 (계획 8.2, 6.5.1 ⑤)
+
+- R2-B8a에서 30초 기록·늦은 `onDispose` 즉시 호출·dispose 역순 2초는 끝났다. 이번에 남은 '정리 순서'를 넣었다.
+- **`AppIdleCleanup`**(`idle_tasks.dart`, 앱 내부): 끝나지 않은 실행기 정리(`onDispose` 콜백들)를 모아 `done`으로 기다린다. `AppIdleTaskRunner(cleanup:)`(선택 인자)가 dispose 때 자기 정리를 넘긴다.
+- **`BootstrapApp`**: 실행기에 `cleanup`을 주고, 모든 `shutdown()`(다시 시도·데이터 지우기·위젯 dispose = 앱 끝) 앞에서 `await _idleCleanup.done` — 색인기 `dispose`가 끝난 뒤 모듈이 멈추고(저장소 닫기 포함), 새 scope가 옛 색인기와 겹치지 않는다. 위젯 트리는 자식부터 unmount되므로 `BootstrapApp.dispose` 때 실행기 정리는 이미 시작돼 있다.
+- `bootstrap_app_test`의 `runNoteApp` 시험이 앞 시험이 가짜 시계를 오래 돌리면 실패하는 것을 찾았다(`runApp`의 warm-up 프레임이 앞 시험의 마지막 프레임 시각을 다시 씀 → 스플래시 스피너 ticker가 시간이 거꾸로 감). `runNoteApp` 전에 `pump()` 한 번.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `ws test --package noteapp` (VM) | 473 통과 · 1 건너뜀(V5) · 70초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, VM) | 1 통과 · 43초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) · 97초 |
+
+#### J7 — `MediaModule` 완성 (계획 8.2, 6.5.2·6.17, 4.6.4·4.6.7)
+
+- **`WebPlatform.setLeaveGuard(bool)`**(4.6.7 그대로): 브라우저 구현은 JS 함수 하나(`late final`)를 `beforeunload`에 붙이고 뗀다(`preventDefault()` + `returnValue = ''`). 같은 값이면 아무것도 하지 않아 리스너는 언제나 0개 또는 1개, 던지지 않는다. VM·네이티브 stub은 아무것도 하지 않는다. `FakeWebPlatform`은 호출 목록 `leaveGuardCalls`와 현재 값 `leaveGuard`를 남긴다.
+- **`media.leaveGuard`**(immediate, 6.17): `audioRecorderServiceProvider.statusStream`(구독 때 현재 값부터 — 계약 7.2.4) → `web.setLeaveGuard(status.isActive)`. 스트림 오류는 기록 1건(source module). 정리(`onDispose`)는 구독 취소(기다리지 않음) + `setLeaveGuard(false)`.
+- **`media.recoverDrafts`**: 본문은 R2-B8a의 `recoverPendingRecordings` 그대로(`pendingDrafts()`만 따름 — `status.isActive`를 보지 않음, `startedAt` 오름차순, 실패는 'recoverDraft <draftId> failed: …' 기록 후 다음).
+- **`UpdateBanner`**(6.17): [새로고침] 때 `ref.read(audioRecorderServiceProvider).status.isActive`(녹음·일시정지)면 새로 고치지 않고(flush도 없음) 배너에 둘째 줄 '녹음 중에는 새로 고칠 수 없어요. 녹음을 멈춘 뒤 눌러 주세요.'(문구는 J5의 `AppStrings.reloadBlockedByRecording`). 다음 누름에서 다시 확인 — 녹음이 끝났으면 둘째 줄을 지우고 1차 흐름(flush → reload). `ConsumerWidget` → `ConsumerStatefulWidget`(생성자 그대로).
+- 시험: `media_module_test` J7 묶음 7 — 복구 5(초안 0·1(원래 `recordingId`·'복구된 녹음'·초안 지워짐)·2(`pendingDrafts()`가 최신부터 줘도 오래된 것부터)·하나 실패(기록 1건·다음 계속·실패한 초안 남음)·최근 갱신 창 안 초안 제외 → 창이 지난 뒤 다음 시작에서 복구), 이탈 경고 2(상태 전이 → 켬·일시정지도 켬·정지 → 끔·정리 → 끔 + 구독 끊김 / 실행기 안: 첫 프레임 직후 3초 지연 전·앞의 긴 복구 작업(25초)이 도는 동안 녹음 시작 → 켬 → 정리 → 끔). 초안은 모두 CORE `FakeAudioRecorder.abandon()`(녹음기 A)으로 만들고, 같은 저장소의 녹음기 B를 `MediaModule(mediaOverrides:)` 주입 인자로 넣어 부트스트래퍼 → `success.overrides`·`success.idleTasks`로 돌린다. `update_banner_test` v2 2(녹음 중·일시정지 → 안내·`notifyAppHidden` 0회·`reload` 0회 → 정지 뒤 누름 → reload 1회 / 녹음 꺼짐(기본 `UnsupportedAudioRecorder`) → reload). `web_platform_browser_test`(Chrome) `setLeaveGuard` 3(두 번 켜도 리스너 1개·두 번 꺼도 0개·켜고 끄기 두 번·실제 `beforeunload`가 취소됨 — `preventDefault`를 센 수로 리스너 수를 잰다).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `ws test --package noteapp` (VM) | 482 통과 · 1 건너뜀(V5) · 78초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 14 통과 · 1 건너뜀(V6) · 92초 |
+
+#### J8 — `RecognitionModule` 완성 (계획 8.2, 4.6.4·6.5)
+
+- 본문(설정 → `RecognitionConfig`, 기여 — 선택·삽입 메뉴·`recog.settings`·`recog.indexer` 섹션, `recognition.indexer` 유휴 작업)은 R2-B8a에서 이미 완성(`a4c9cca`). 이번에는 완료 조건 시험만 보탰다 — 코드 변경 없음.
+- `recognition_module_test` J8 묶음 4: 컨텍스트를 두 번 dispose해도 색인기 `dispose` 1회 · **실제 `AppIdleTaskRunner` 안**: 2.9초에는 시작 안 함 → 3초 뒤 읽기 1·start 1, 루트 scope가 사라지면 dispose 1, 다시 트리를 바꿔도 그대로(1, 1)·기록 0 · `start()`가 던지면 기록 1건('idle task recognition.indexer failed', source module)·dispose 등록 없음(0) · `recog.indexer` 섹션(id·제목 '손글씨 색인'·`lines`가 `recognitionDevOverlayLinesProvider`의 같은 객체). 기존(R2-B8a): 설정 4조합 + 메뉴로 끔 + 잘못된 값 4개(null + 기록 1건, `details` = 원래 값), 리더 null → 작업 없음, start 1·dispose 1, 꺼짐 2경우. provider override 가짜 없음(기록용 `IndexerHandleReader` — `test/fakes/idle_fakes.dart`의 `RecordingIndexer`).
+- 실제 색인기의 '두 번 `dispose` 안전'은 H2(계획 8.4).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/modules/recognition_module_test.dart` | 22 통과 |
+
+#### J9 — 자리 변환 · 연결 함수 시험 · 합치기 규칙 (계획 8.2, 6.7, 4.6.5)
+
+- 연결 함수 세 파일(`recognition_wiring.dart`·`media_wiring.dart`·`search_wiring.dart`)의 본문은 R2-B8a. 이번에는 **합치기 규칙**(6.7 '같은 id의 메뉴 항목 → 디버그 assert + 오류 기록, 뒤의 것 버림')을 `FeatureWiringModule.start`에 넣었다: 기여의 선택·삽입 항목을 모듈 순서로 잇되 칸(선택·삽입)마다 id가 이미 나왔으면 기록 1건('duplicate <칸> menu item id <id> — the one of <모듈> is dropped', `details` 'first contributed by <모듈>', source module) + 버림. 모든 기록 뒤 디버그 빌드에서 assert(시작 실패 → 비필수라 그 모듈 override 없음). 시험용 정적 스위치 `FeatureWiringModule.debugAssertUniqueMenuIds`(`@visibleForTesting`, 기본 true).
+- 시험: `recognition_wiring_test`(새, 10) — 선택 대상 필드 표 전부(`strokes`·`objects` 같은 객체·`areaPt` = `boundsPt`·`execute` 그대로·`done` = `clearSelection`), 삽입 대상(빈 `strokes`·`objects`·`areaPt` = `visibleRectPt`·`execute` 전달), 삽입 `done`: `AddObjects` 마지막 객체·`CompositeCommand` 안(중첩도) 마지막·추가 없는 뒤 명령은 기억 유지·뒤의 추가가 바꿈·추가 없음 → 아무것도 안 함·던지는 명령 → 기억 안 함, 메뉴 항목 두 종류 — `onSelected`가 **첫 마이크로태스크 전에** `run`을 부르고 `run`의 Future를 돌려줌·`isVisible` 같은 대상·삽입은 `isVisible` 안 씀. `media_wiring_test`(새, 6) — 패널 인자(`media_module_test`에서 옮김), `mediaImageImporterOrNull`(소스 없음 → null / 있으면 그 소스·`importImageForNote`·수정 불가), `media` 섹션(같은 `ValueListenable`), `recoverPendingRecordings` 3(0개·`startedAt` 오름차순 + null 결과는 세지 않음·실패 기록 문구 'recoverDraft d-b failed: Bad state: …' 후 다음 — 녹음기의 `status`를 읽으면 실패하는 가짜로 '복구는 상태를 보지 않음'을 확인). `search_wiring_test`(새, 8 — fake_async) — 줄 형식(없음·재구축 중·지역 시각 `MM-dd HH:mm:ss`), **100 Hz 상태 → 1초에 4번·간격 ≥ 250 ms·조용해지면 마지막 상태**, 조용한 뒤 다음 상태는 바로, 스트림 오류 → 줄 유지, dispose → 구독 끊김·대기 타이머 없음, `searchIndexSection`(id·제목·provider dispose 때 줄도 dispose). `feature_wiring_module_test` v2 +3 — 반복 id(assert 끔: 기록 2·첫 것 남음·순서 / 기본(assert 켬): 기록 2 뒤 시작 실패(`failedNonCritical`)·에디터 자리 기본값 / 칸이 다르면 같은 id여도 기록 없음).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `ws test --package noteapp` (VM) | 512 통과 · 1 건너뜀(V5) · 69초 |
+
+#### J10 — `PdfModule` v2 (계획 8.2, 4.6.4·6.5)
+
+- `pdf.searchIndexer` 유휴 작업(주입 이음새 `indexer: IndexerHandleReader`, 기본 `readPdfSearchIndexer`)은 R2-B8a ④에서 완성(`a4c9cca`) — 이번에는 시험만 보탰다(코드 변경 없음).
+- `pdf_module_test` v2 +2: 기본 리더가 가짜 저장소 위에서 `pdfSearchIndexerProvider`를 읽어(그 provider는 `noteStoreProvider`가 있어야 함 — PDF 인수인계 요청 2) start·dispose를 넘기고, 작업의 dispose 뒤 provider 자신의 `onDispose`(두 번째 dispose)도 던지지 않음(R2-B4 표면 — 실제 색인기의 '두 번 dispose 안전'은 H2) · **실제 실행기 안 순서**: 모듈 순서를 recognition → pdf → media로 넣어도 `media.recoverDrafts`(0) → `pdf.searchIndexer`(10) → `recognition.indexer`(20), 기록 0. 기존(R2-B8a): 작업 1개·우선순위·3초·기록용 리더로 start 1·dispose 1·start 실패 → dispose 등록 없음·PDF 실패 → 작업 없음(리더 읽기 0).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/modules/pdf_module_test.dart` | 10 통과 |
+
+#### J11 — 검색 결과 → 위치로 열기 마무리 (계획 8.2, 4.6.6·6.8)
+
+- 커밋: `fe6100d`, 이 기록 줄은 그 뒤 커밋.
+- 코드(라우터 `?page=&focus=`·`FocusRectCodec`·`LibraryScreen(onOpenNoteAt:)` → `openNote` → `EditorScreen(initialFocusRectPt:)`)는 R2-B8b ①에서 끝났다(`6e7b753`) — 이번에는 운영 화면 시험만 보탰다(코드 변경 없음).
+- `production_screens_test` +4: `%2C`로 받은 focus → 같은 사각형 · 읽을 수 없는 focus 9가지(`l > r`·`t > b`·셋·다섯·숫자 아님·빈 값·`1e9`·100001·`NaN`) → `EditorScreen`은 같은 noteId·pageId로 열리고 사각형 없음 · page 없는 focus → 버림 · 폴더 `/folders/f9`의 검색 결과(`onOpenNoteAt`) → 브라우저에 보고된 주소(`routeInformationUpdated`)가 `AppRoutes.note(…, focus: 0.1 pt 반올림)` → 닫으면 그 폴더 → 다시 열고 그 주소로 새 앱 시작(새로고침) → 같은 noteId·pageId·사각형, 아래에 라이브러리 없음 → 닫으면 홈.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/routing/production_screens_test.dart` | 14 통과 |
+| `ws test --package noteapp` (VM) | 518 통과 · 1 건너뜀(V5) · 108초 |
+
+#### J12 — `pencil_bridge` Swift 구현 · 와이어 대조 시험 (계획 8.2, 4.4.3·4.4.4·6.12.2·6.12.4)
+
+- 커밋: `5b71ea3`, 이 기록 줄은 그 뒤 커밋.
+- Swift 파일 4개(`ios/pencil_bridge/Sources/pencil_bridge/`): `PencilBridgePlugin.swift`(플러그인 — `register(with:)`는 채널 두 개와 핸들러만, UI 작업 없음; `handle` → `capabilities`, 그 밖은 `FlutterMethodNotImplemented`; `detachFromEngine(for:)` → detach; `capabilities()` = `os`·`squeeze`/`roll`(17.5+)·`hover`(16.1+)·`prefersPencilOnlyDrawing`·선호 동작 둘), `PencilEventStream.swift`(`FlutterStreamHandler` + `UIPencilInteractionDelegate` + `UIGestureRecognizerDelegate` — `onListen` → attach, `onCancel` → detach + `eventSink = nil`; attach 대상 = `registrar?.viewController?.view` → 없으면 활성 `UIWindowScene.keyWindow`의 root view → 없으면 `UIWindow.didBecomeKeyNotification`을 기다림; 붙이는 것: `UIPencilInteraction`(delegate self), `UIHoverGestureRecognizer`(펜슬만·`cancelsTouchesInView = false`·delegate self), 17.5+ `PencilRollRecognizer`(delegate self); `shouldRecognizeSimultaneouslyWith` → `true`; 더블탭 17.5 미만(`pencilInteractionDidTap` — 위치 없음)·17.5+(`didReceiveTap` — `hoverPose`의 위치·`zOffset`), 스퀴즈 17.5+(단계 4개, 모르는 단계는 보내지 않음, `hoverPose`의 위치·`zOffset`·`rollAngle`), 호버 `.began`·`.changed`(16.1 `zOffset`·16.4 `altitudeAngle`·`azimuthAngle(in:)`·17.5 `rollAngle`, 16 ms보다 짧은 간격 버림)), `PencilRollRecognizer.swift`(17.5+ 수동 인식기 — `cancelsTouchesInView`·`delaysTouchesBegan`·`delaysTouchesEnded` 모두 false, 펜슬만, `touchesBegan/Moved`에서 `touch.rollAngle`을 16 ms 간격 이상으로, 끝·취소 때 `.failed` — 인식하지 않음), `PencilWire.swift`(Dart `PencilWire`의 Swift 사본 — 채널 이름 3개, `minInterval` 0.016 s, 종류마다 맵 빌더 하나(`tapEvent`·`squeezeEvent`·`hoverEvent`·`rollEvent` — 사전 리터럴 = `type`·`t`·필수 키, 선택 키는 값이 있을 때만 `event["k"] =`, 숫자는 모두 `Double`), `actionName`(17.5 블록 안 전체 `switch` + `@unknown default: "unknown"`, 그 아래는 16.0 `showInkAttributes` + 옛 4개)).
+- `pencil_wire_contract_test` 다시 씀(R2-B1의 '빈 등록' 사례는 지움): ⓪⑥ 클래스 = `pluginClass`·`FlutterPlugin`을 채택한 파일은 하나·`register`에 UI 작업 없음, ① Swift 상수 = Dart 상수·채널·메서드가 그 상수를 씀·문자열은 한 번만, ②③ `"type"` 값 = `PencilWire.types`·빌더마다 리터럴 키 = `type`·`t`·필수, `event["k"]` = 선택(4.4.3 표 = `PencilWire.eventKeys`)·그 키로 만든 맵(필수만·전부)이 Dart `decode`에서 맞는 타입·빌더 4개가 모두 쓰임·`capabilities` 키 7개 = `fromWire`가 읽는 것, ④ 동작 이름 = `PencilWire.actions`·`case .x: return "x"`·17.5 `switch`가 7개 전부, 스퀴즈 단계 = `PencilWire.phases`, ⑤ 16.0~17.5 API 12개(`didReceiveTap`·`didReceiveSqueeze`·`hoverPose`·`rollAngle`·`preferredSqueezeAction`·`showContextualPalette`·`runSystemShortcut`·`PencilRollRecognizer`·`altitudeAngle`·`azimuthAngle`·`zOffset`·`showInkAttributes`)의 모든 사용이 그 판 이상의 `@available`/`#available` 안(중괄호 머리 판독 — `else`·`guard … else` 블록은 보장 없음, `if #available(…), 조건` 조건부도 인정) + 판독기 자체 11경우, ⑦⑧ `Package.swift`(`sources:`·`exclude:` 없음)·podspec이 Swift 파일 4개 전부·iOS 15.0 ≤ 앱 15.5(Podfile·pbxproj 3곳), ⑨ `onListen` → attach·`onCancel` → detach·`viewController`가 `keyWindow`보다 먼저·delegate self 3개·펜슬만·`return true`·detach가 셋 다 뗌·롤 인식기 수동(상태는 `.failed`만)·60 Hz.
+- 시험이 잡는지 한 번씩 확인(되돌림): `rollAngle`을 가용성 블록 밖으로·동시 인식 `false`·선택 키 이름 바꿈·채널 이름 바꿈·`keyWindow` 먼저·동작 이름 틀림·롤 인식기 `.recognized` — 7가지 모두 실패.
+- README(상태·파일 4개·시험 설명)와 `lib/src/wire.dart` 머리 주석(Swift 사본 경로) 갱신. Dart 코드 변경 없음.
+
+| 검사 | 결과 |
+|---|---|
+| `pencil_bridge` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `ws test --package pencil_bridge` (VM) | 57 통과 · 6.7초 |
+| `ws native-reqs` | 23 플러그인 · 위반 0 · 경고 0 |
+| `ws check` (R1–R16) | 0 |
+| `dart test tool/test/native_reqs_test.dart tool/test/native_config_test.dart` | 89 통과 |
+| Swift 컴파일 | 컨테이너에 Xcode 없음 — `ios-compile.yml`(U19, H6) |
+
+#### J13 — Pencil 어댑터 마무리 · 앱 정보 Apple Pencil 줄 (계획 8.2, 6.12.3·6.18)
+
+- 커밋: `f771299`, 이 기록 줄은 그 뒤 커밋.
+- 능력 조회 500 ms 제한·실패 → 기록 1건 + `kPencilFallbackCapabilities`, 네 종류 `timestamp` 전달은 R2-B8b ③에서 끝났다(`6e7b753`, 위 '계획과 다르게 한 점' R2-B8b).
+- `PencilStylusExtrasSource`(앱 내부)에 `os`(시작 때 능력의 `systemVersion`, 읽기 실패면 `'?'`)와 `seen`(`ValueListenable<({bool squeeze, bool roll})>` — 이번 실행에서 스퀴즈·롤을 받았는지, 어느 구독자의 `events`든 지나가면 켜지고 꺼지지 않음)을 더했다. `events`는 `late final` 한 번 만든 `map → where → cast`(브로드캐스트 그대로, `asBroadcastStream` 없음 — 기존 시험 그대로 통과).
+- `AboutSection`: `stylusExtrasProvider.isSupported`이면 '빌드·렌더러·홈 화면 앱' 아래 'Apple Pencil' 줄 — 'iOS 17.5 · 더블탭 · 호버' + 받은 뒤에만 '· 스퀴즈(받음)'·'· 롤(받음)'(6.12.3 — 능력은 OS 가용성일 뿐), 능력 읽기 실패면 '능력을 읽지 못했어요 · 더블탭'. 섹션이 보이는 동안 스스로 `events`를 구독한다(라이브러리 → 설정처럼 에디터가 없을 때도 설정 화면에서 스퀴즈하면 줄이 바뀜 — 네이티브 쪽은 구독 수로 attach/detach). 문구는 `AppStrings.aboutPencil*`.
+- 진단 정보 복사의 Pencil 줄은 넣지 않았다(진단 보고 v2는 J14).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/pencil test/settings/about_section_test.dart test/modules/feature_wiring_module_test.dart` | 19 · 17 · 25 통과 |
+| `ws test --package noteapp` (VM) | 526 통과 · 1 건너뜀(V5) · 111초 |
+
+#### J14 — 설정·앱 정보 v2 (계획 8.2, 6.18·4.6.7)
+
+- 커밋: `9e10ac3`.
+- **저장 공간**(`StorageSection` → `ConsumerStatefulWidget`, 공개 이름 그대로): '첨부 파일 n개 · x MB (녹음 a MB · 이미지 b MB · PDF c MB)' — `assetStoreProvider.usage()`의 `bytesByType`(없는 종류 0). 섹션이 보일 때 한 번, [다시 확인]으로 다시(1차 규칙). '검색 색인: 대기 n개 · 재구축 중'(`searchIndexProvider.status` 구독) + [다시 만들기](키 `app.storage.rebuildIndex`, 확인 창 '검색 색인을 처음부터 다시 만들어요. 시간이 걸릴 수 있어요.' → `rebuild()`(모든 원천), 이 섹션의 재구축 중이거나 상태가 `rebuilding`이면 비활성, 실패 → 문구 + 기록 1건(manual)).
+- **앱 정보**: '기능' 줄(키 `app.about.features`) — `appFeatureStatesOf(compileTime, appFeaturesProvider, startupReport.steps)` → '녹음 켬 · 인식 꺼짐(개발자 메뉴) · 수식 엔진 꺼짐(빌드)'. 하나라도 꺼져 있으면 오류 색(11절 위험 9). Pencil 줄에 키 `app.about.pencil`(부록 C). 진단 정보 복사에 같은 줄.
+- **`registerAppLicenses`**(`app/lib/src/app/licenses.dart`): `LicenseRegistry`에 지연 수집기 하나 — 'NoteSans (Noto Sans KR subset)' + `packages/ink_engine/assets/fonts/OFL.txt`. 에셋이 없으면 항목 없음 + 기록 1번(수집할 때마다 다시 시도). `runNoteApp`이 오류 처리기 설치 직후 부른다(6.4).
+- **`DiagnosticReport` v2**: '시작' 다음 줄에 '기능: …'(모르면 '알 수 없음' — 시작 실패 화면). `skipped` 단계는 1차부터 시작 줄에 결과 이름으로 나왔다('media 0ms skipped') — 시험으로 못 박음.
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format --set-exit-if-changed lib test` | 0건 / 변경 0 |
+| `flutter test` storage·about·diagnostic·licenses·feature_status | 21 · 23 · 6 · 6 · 8 통과 |
+| `ws test --package noteapp` (VM) | 559 통과 · 1 건너뜀(V5) · 129초 |
+
+#### J14b — 개발자 메뉴 `V1CopySection` · `BackupFile.mimeType` (계획 8.2, 6.18·4.6.7, 계약 7.2.7 · C22-01 CP-17)
+
+- 커밋: `b0cefb5`.
+- `app/lib/src/settings/v1_copy_section.dart`: `V1CopyApi`(기본값 = `package:note_core/dev_tools.dart`의 CP-17 함수 셋)·`V1CopySection`·`v1CopyMimeType` — 계획 4.6.7 시그니처·주석 그대로. 다섯 상태, 내보내기 두 단계(`BytesBuilder(copy: false)`로 조각 모음 → `BackupReadySheet` → 1차 `deliverBackup`, 결과 문구는 1차 백업과 같은 스낵바), 지우기(확인 창 → `delete` → 다시 조회). 키 `app.v1Copy.export`·`app.v1Copy.delete`(부록 C) + `app.v1Copy.cancel`·`app.v1Copy.progress`·`app.v1Copy.delete.confirm`·`.cancel`.
+- `BackupFile.mimeType`을 필드로(기본 `application/json` — 1차 호출부 그대로). 시트의 `canShareFiles(mimeType:)`가 그 값을 쓴다.
+- 설정 섹션 `app.v1Copy`('이전 판 DB 사본')를 `app.features`와 `app.about` 사이에(S2-9). 이 작업 트리의 CORE는 B2-α 선언(`v1DatabaseCopyInfo` → `null`)이라 실제 앱에서는 '사본 없음'이 보인다 — 실제 CP-17 함수 + 실제 CORE VM 파일 DB로 '사본 없음' 1회는 H2(T24 뒤).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format --set-exit-if-changed lib test` | 0건 / 변경 0 |
+| `ws check` (R1–R16) | 0 |
+| `flutter test test/settings/` | 89 통과(v1 사본 19) |
+
+#### J17 — `ws web-budget` · `tool/web_budget.yaml` · CI 단계 (계획 8.2, 4.2·4.3.3·6.15)
+
+- 커밋: `95d88a8`.
+- `tool/src/web_budget.dart`: `WebBudget.parse/load`(4.3.3 형식 — 모든 한도는 `null` 가능 = 표시만), `measureWebBuild`(`main.dart.js` 원본·gzip, `assets/FontManifest.json`의 패밀리마다 파일 합, `report_assets`), `webBudgetReport`(`check`면 한도 대조, `measure`면 모두 'report'), Markdown 표 + 끝줄 `ws web-budget check: N violation(s)`. `ws web-budget measure|check [--build-dir] [--budget]`, `GITHUB_STEP_SUMMARY`가 있으면 '### Web budget (check)' + 표를 덧붙임.
+- `tool/web_budget.yaml`: 4.3.3 그대로(묶음별 `gzip_max: null` — 위 '변경 요청'의 총괄 결정 전까지 표시만).
+- `ci.yml`: 'Finalize web build' 다음, 배포 앞에 'Web budget' 단계(`ws web-budget check --build-dir app/build/web`, 조건 없음 — 넘으면 배포 전에 멈춤). J15의 잡 분리 때 웹 빌드 잡으로 함께 옮긴다.
+- 실제 빌드로 한 번(J0 때 남은 `app/build/web` = 기능 끈 빌드): `main.dart.js` 4,682,895 B · gzip 1,379,757 B(한도 1,666,038 — ok, 기준 대비 +13,719), 시작 글꼴 14 패밀리 22 파일 gzip 382,428 B(한도 400,000 — ok), KaTeX 371,014 B · 아이콘 11,414 B(표시만), 금지 글꼴 없음, 워크릿 11,762 B — J0 측정 표와 같은 값. 종료 0.
+
+| 검사 | 결과 |
+|---|---|
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `dart test tool/test/web_budget_test.dart` | 16 통과 |
+| `dart test tool/test/workflows_test.dart` | 73 통과 |
+| `dart test tool/test` | 497 통과 · 155초 (처음 1회는 `workflows_test`의 `ws` 호출 수 20 → 21에서 실패 — 고침) |
+
+#### J18 — 안내서 v2 (계획 8.2, 3.7·6.21, 계약 3.7·7.8)
+
+- 커밋: `1e29a75`.
+- `docs/guides/01`: 맨 위 굵은 단락 '2차 라운드에서는 Hosting만 써요 — Spark(무료) 요금제, 결제 계정 없음. 동기화·로그인·서버 함수(Blaze)는 나중의 실연결 단계에서 따로 켜요.' + 'Hosting(Spark)은 실연결이 아니에요', 순서 'Spark로 프로젝트 만들기 → Hosting 시작 → [02]'(약 15분), 1차 'M4 때 정할 것' 절 → '실연결 때 정할 것 (지금은 하지 않음)'(Firestore·Storage·Authentication·Functions). `03`: 'Functions 배포는 실연결 미니 라운드' 한 줄. `README`: 01 → 02 → 04 → 08, 07(05보다 먼저)·08 줄.
+- `04`: 머리에 08 링크, '먼저 알아 둘 것'에 **웹 배포 되돌리기 금지**(옛 판은 DB v2 노트를 열지 못함), 새 절 '10단계 — 2차 판으로 옮기기 (08 B-1)'(① 배포 전에 백업 내보내기 — 출처는 `main` 뒤 live·그 전 개발 브랜치 미리보기, ② 2차 배포 — 개발 브랜치가 기본 브랜치라 DB v2 병합 푸시가 곧 배포 → Claude가 병합 전에 ① 요청, ③ 첫 실행, ④ **설정 → 이전 판 DB 사본** '사본 있음: …'), '녹음할 때'(Safari 마이크 허용 — 탭은 'aA', 홈 화면 앱은 iPad 설정(미확인), 탭 닫지 않기·'복구된 녹음', 자동 일시정지, 녹음 중 새로고침 문구 = `AppStrings.reloadBlockedByRecording`), 'B-15 하는 법'·'B-16 하는 법'. 1차 단락('live 주소에는 `main`에 올린 코드만 …')과 9.3 표 1~20은 그대로.
+- `05`: 아티팩트 이름 표(`noteapp-apk-<번호>` 고정 키 판 / `noteapp-debug-signed-<번호>` '덮어 설치할 수 없는 시험판 — 실제 노트가 든 기기에는 설치하지 마세요'), '4단계 — 처음 쓸 때 허가하기'(마이크·알림, ML Kit 모델 Wi-Fi 약 20 MB — 미확인, 08 링크), '새 버전으로 바꿀 때' v2('고정 키 등록은 07을 보세요(키는 Claude가 파일 두 개로 건네요 — Claude는 GitHub 설정을 직접 바꿀 수 없어요)', 고정 키 판끼리 덮어 설치, 처음 한 번은 지우고 설치, **'앱이 설치되지 않음'이 뜨면 앱을 지우지 말고 알려 주세요**, 자동 백업에 노트 없음 → 백업 내보내기). 1차의 '설치 오류 → 지우고 설치' 문장과 문제 해결 줄은 '지우지 말고 알려 주세요'로 바꿈.
+- `06`: '먼저 알아 둘 것'(웹 노트를 앱으로 옮기기는 아직 안 됨 — Q12, `ITSAppUsesNonExemptEncryption` false), 새 절 'iOS 컴파일 확인 (계정 없이)'(언제 — U19 승인 시 통합 뒤 1회 / 아니면 첫 TestFlight 전 필수, 10배, **confirm** `yes`·**ipa**, `ios-compile-<번호>` 7일), 5단계에 '처음이면 컴파일 확인 먼저', 문제 해결 2줄.
+- `07`(새): 6.10.4 절차 — 파일 두 개(`noteapp-signing-secrets.txt`·`noteapp-sideload.p12`) → Secrets 4개(칸 이름 표)·Variables `ANDROID_CERT_SHA256` → 따로 보관 → Run workflow → 확인('서명: 고정 키 (…)'·`noteapp-apk-<번호>`), 'Claude는 이 저장소의 GitHub 설정을 직접 바꿀 수 없어요(권한이 없어요)', 문제 해결에 `android.yml`의 `::error::` 두 문장('고정 키 서명 재료가 없어요' — 시크릿 삭제·오타, '… ANDROID_CERT_SHA256와 달라요' — 시크릿이 바뀜)과 'debug 키' 요약 줄.
+- `08`(새): 계약 7.8 A·B·C의 머리말(`> ` 인용 줄)과 항목 26개를 **글자 그대로** `- [ ] **A-1** …` 체크박스로, 항목마다 바로 아래 '하는 법'/'알려 줄 것'(예: A-5 개발자 표시 `녹음`(`media`) 섹션 사진), 'B-13 순서'(9단계 — 1차 V7 500쪽·색인 뒤 다시 열기 포함), C-1에 'iPadOS Apple Pencil 설정을 바꾼 뒤에는 **앱을 완전히 닫았다 열어요**(시작할 때 한 번 읽음)', '확인 방법' = 결과 보고 양식(기기·판·항목·결과·메모), 문제 해결.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/guides_test.dart` | 30 통과 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+
+#### J19 — 앱 스모크 v2 골격 · 기능 스위치 시험 (계획 8.2, 9.1 '앱 스모크 v2 단계', 계약 V5·V6·V15 v2.1)
+
+- 커밋: `0b3c5d2`.
+- `app/test/support/smoke_v2_fakes.dart`(새): `SmokeV2Fakes` — **가짜는 모듈 주입 인자로만**(9.1, 계약 7.3.3 '시험 이음새'): `MediaModule(initialize: 호출 수만 셈, mediaOverrides: FakeAudioRecorder(저장소를 provider에서 읽음)·FakeAudioPlayback)`, `RecognitionModule(overridesFor: FakeHandwritingRecognizer·FakeMathRecognizer·GeometricShapeFitter(), mathEndpoint: 'https://math.invalid/recognize')`, `FeatureWiringModule(imageImporter: 1×1 PNG 한 장을 앱 에셋 저장소에 넣는 가짜)`; 나머지(CoreModule·PdfModule·PDF 동작)는 실제. `modules(core, features:)` = `modulesFor`(꺼진 모듈은 만들지도 않음). `bootSmokeV2App`, `expectContractOverridesV2`(시작 단계·시작한 모듈 순서·override 출처 = 7.3.3 행 + 셸 행 + 패키지 목록, 각 한 번, 오디오 행은 `MediaModule.overrides()`에서만·인식 행은 `RecognitionModule.overrides()`에서만, 값 = 주입 가짜·실제 PDF), `featureRows`/`expectedFeatureRows`(V15 행 6개 — 녹음·인식 메뉴·수식 엔진·자동 도형 보정·이미지 삽입·이미지 페이지, provider 값 문자열), `differingRows`, `expectNoMissingPlugin`.
+- `support/smoke_scenario.dart`: `bootSmokeApp`을 `bootSmokeAppWith(modules:, features:)` 위로 옮김(1차 V5·V6는 그대로 3모듈).
+- `integration/app_smoke_v2_test.dart`(새, V5 v2): 9.1 표의 'J19' 단계 — 1 시작, 자리 4개(provider 값), 5모듈 위 1차 V5 흐름(새 노트 → 획 → 되돌리기/다시 → 닫기 → 다시 열기), 9 라우팅. 2~8·10(텍스트 상자·도형·이미지·올가미·녹음·재생·내보내기 개수)은 H3에서 이 파일에 더한다.
+- `integration/feature_switch_test.dart`(새, V15): 기대 행 표가 '켠 구성과의 차이 = V15 문장'(녹음 / 인식 메뉴·수식 엔진·자동 도형 보정 / 수식 엔진, 이미지 두 행은 늘 같음)인지(순수 시험), 주입 8조합마다 시작·override 표·행 = 기대, 모두 끔에서 1차 V5 흐름, `AppFeatures.compileTime`(평소 모두 켬 — H5가 `--dart-define` 3개로 같은 파일을 돌림).
+- `web/app_smoke_v2_browser_test.dart`(새, V6 v2): `setUpAll(useInkTestFonts)`(C23-07), 실행마다 따로인 웹 저장소(`noteapp_smoke2_<run>`), V5 v2와 같은 단계, 오류 기록 0·`MissingPluginException` 기록 0, 끝에 두 DB 삭제.
+
+| 검사 | 결과 |
+|---|---|
+| `flutter test --run-skipped -t integration test/integration/app_smoke_v2_test.dart` | 1 통과(5초) |
+| `flutter test --run-skipped -t integration test/integration/feature_switch_test.dart` | 11 통과(9초) |
+| `ws with-heavy-lock -- ws test --package noteapp --platform chrome --run-skipped -t integration` | 2 통과(V6 v2·V6 1차, 130초) |
+| `ws test --package noteapp --run-skipped -t integration`(VM) | 13 통과(V5 1차 1·V5 v2 1·V15 11, 54초) |
+| `ws test --package noteapp`(VM) | 579 통과·3 건너뜀(integration 파일, 103초) |
+| `ws check` | 0 |
+| `flutter analyze --fatal-infos`(app) / `dart format` | 0건 / 변경 0 |
+
+#### J20 — `ws lock-age` · `ci.yml` 'Lock age' 경고 단계 (계획 8.2, 4.2·6.1, Q8 — P-C)
+
+- 커밋: `8e1f05a`.
+- `tool/src/lock_age.dart`(새): `parseHostedPackages`(pubspec.lock의 `source: hosted`만 — 이름·판·`description.url`), `changedHostedPackages`(기준 대비 새로 생기거나 판·서버가 바뀐 것, 이름 순; 기준 lock 없음 → 전부), `publishedOf`(`<url>/api/packages/<이름>` 답의 `versions[].published`), `calendarDaysBetween`(UTC 날짜 차), `checkLockAge`(패키지마다 요청 1번 — 일수 < `--min-days`면 위반, 못 읽으면 경고), `LockAgeReport.format`(표 + `violation:`/`warning:` 줄 + 끝줄 `ws lock-age: N violation(s), M warning(s)`).
+- `ws lock-age --since <git-ref> [--min-days 14] [--now YYYY-MM-DD]`(`cli.dart`): 기준 lock = `git show <ref>:pubspec.lock`(ref가 커밋이 아니면 경고 + 비교 없음, ref에 lock이 없으면 모든 hosted 항목이 새것), 내려받기는 `WsContext.download`(= `web-assets fetch`의 `httpDownload` — 환경 프록시 사용), `GITHUB_STEP_SUMMARY`가 있으면 '### Lock age (since <ref>)' + 표. 종료 코드 0(통과·경고만) / 1(위반) / 2(사용 오류) / 3(작업 폴더에 pubspec.lock 없음·`git show` 실패).
+- `ci.yml`: 'Dependencies' 바로 다음 'Lock age' 단계 — `continue-on-error: true`(Q8 '경고 단계': 위반은 단계만 표시, 잡은 계속), 기준 `LOCK_BASE = AFFECTED_BASE`(영역 브랜치 = `origin/<기본 브랜치>`) 없으면 `BEFORE_SHA`(기본 브랜치의 이전 푸시), 기준이 없거나 0이면 건너뜀, `git diff --quiet <기준> -- pubspec.lock`이 같으면 건너뜀, 다르면 `ws lock-age --since "$LOCK_BASE"`.
+- 실제 실행 한 번(컨테이너, 프록시 경유 pub.dev): `ws lock-age --since b6c9d0a`(1차 통합 HEAD — R2-B1 lock 변경 대비) → 새·바뀐 hosted 항목 48개 전부 14일 이상(가장 짧은 것 `image_picker_ios` 0.8.13+13 · `shared_preferences_android` 2.5.3 — 2026-10-22, 15일), `0 violation(s), 0 warning(s)`, 종료 0.
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/lock_age_test.dart` | 21 통과 |
+| `dart test tool/test/workflows_test.dart` | 74 통과 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `dart test tool/test` | 527 통과 · 89초 |
+
+#### J21 — `android-emulator.yml` · `app/integration_test/native_smoke_test.dart` (계획 8.2, 6.10.5 — P-C)
+
+- 커밋: `7f07a5a`.
+- `.github/workflows/android-emulator.yml`(새, 수동만 — `workflow_dispatch` 입력 없음, `concurrency: android-emulator-<ref>` 취소): `ubuntu-latest`·30분, 시크릿·변수 없음. 단계: 체크아웃 → **Enable KVM**(udev 규칙 `99-kvm4all.rules` → `udevadm control --reload-rules` → `trigger --name-match=kvm`) → Java 17(temurin, gradle 캐시)·NDK 캐시(`android.yml`과 같은 값) → flutter-action(루트 pubspec 판) → build-hooks 캐시(`ci.yml` 3단계와 같은 키) → `flutter pub get --enforce-lockfile` → **`flutter build apk --debug`**(`app/`, 에뮬레이터 부팅 전) → `reactivecircus/android-emulator-runner@v2`(`api-level: 34`, `target: google_apis`, `arch: x86_64`, `disable-animations: true`, `working-directory: app`, `emulator-options`는 액션 기본값에서 `-noaudio`만 뺀 것) 스크립트 두 줄: `adb install -r -g build/app/outputs/flutter-apk/app-debug.apk` → `flutter test integration_test/native_smoke_test.dart`.
+- `app/integration_test/native_smoke_test.dart`(새): `runNoteApp`과 같은 시작(`AppBootstrapper` + `productionModules()` + `AppFeatures.compileTime`, 위젯 없이 `ProviderContainer(overrides: success.overrides)`) 위에서 — ① `resolveNativeStoragePaths()` → DB 파일이 그 경로에 있음 → 노트 1개 → `shutdown` → 다시 시작 → `getNote` 제목 같음(오류 기록 0) ② `supportedImageSources()` ⊇ {photos, camera}(PDF 6.12 안드로이드 표) · `editorImageImporterProvider.sources` = 그 집합 ③ `handwritingRecognizerProvider` = ML Kit(`isAvailable`·`engineId` `mlkit-digital-ink/…`) → `ensureModel('en', wifiOnly: false)`(4분 제한 — 실패면 `markTestSkipped`) → `ready` → 손으로 만든 합성 'hi'(h 한 획 + i 줄기·점) → 앞 3후보에 'hi' ④ `audioRecorderServiceProvider` `checkSupport()` = supported → `start`(id = `idGeneratorProvider`) → 2초 → `stop()` → 녹음(id·노트·`durationMs > 0`) → `recordingsOf` = [id](오류 기록 0). 시간에 기대는 단언은 없다(2초는 녹음 길이를 만드는 대기일 뿐 — `durationMs > 0`만 본다).
+- 컨테이너 시험(VM, `flutter test integration_test/native_smoke_test.dart -d flutter-tester` 한 번 — 확인용, 커밋된 시험 경로 아님): 컴파일·실행됨, ① 통과(데스크톱 `path_provider_linux` 경로 — 만든 `~/.local/share/flutter_tester/`는 지움), ②③④는 이 작업 트리의 기반 단계 표면(빈 `supportedImageSources()`·지원 안 함 인식기·녹음기)이라 실패 — 예상대로. 실제 판정은 통합 뒤 GitHub 수동 실행(H6 무렵 — 9.2 '안드로이드 에뮬레이터 네이티브 스모크' 실행 기록).
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/workflows_test.dart` | 82 통과 |
+| `cd app && flutter analyze --fatal-infos integration_test` | 0건 |
+| `ws check` | 0 |
+
+#### J16 — `functions.yml` 완성 (계획 8.2, 6.14 — P-B, 계약 7.4.7·V13)
+
+- 커밋: `adc4403`.
+- 이 작업 트리의 `functions/`는 SYNC R2-B7b 골격(`package.json` 스크립트 `build`·`test`·`test:emulator`, `scripts/emulator_suite.sh`(`--with-dart` 포함), 단위 시험 2파일, `.env.demo-noteapp`)이다 — 에뮬레이터 시험 파일(`test-emulator/`, SYNC S2-11)과 LIBRARY `emulator` 태그 시험(`callable_emulator_test`, L2-I6)은 아직 없다. 둘 다 없어도 단계가 통과하게 짰다: `npm run test:emulator`는 `# tests 0`도 통과(07-sync I-0 — 시험 수 > 0은 `npm test`만 본다), `ws test -t emulator`는 맞는 시험이 없으면 'no matching tests'(종료 79 → 통과).
+- `functions.yml`: 'Unit tests' 뒤에 **Emulator tests**(`functions/`, `set -o pipefail` + `tee`, 요약에 '- npm run test:emulator: 시험 N개 통과') → **Set up Flutter**(루트 pubspec 판) → **Cache build hooks**(`ci.yml` 3단계와 같은 키 — note_core sqlite3 훅) → **Dependencies**(`flutter pub get --enforce-lockfile`) → **Dart emulator tests**(루트에서 `npx --prefix functions firebase emulators:exec --config app/firebase.json --only functions,auth --project demo-noteapp "dart run tool/ws.dart test --package ink_recognition --run-skipped -t emulator"` — 6.13 컨테이너 경로에서 `with-heavy-lock`만 뺀 것: CI 러너는 잡 하나라 잠금이 늘 비어 있음). 모든 새 단계에 `hashFiles('functions/package.json') != ''` 가드. 잡 이름 'Server functions (npm and emulator tests)'. 머리 주석 갱신.
+- J21 커밋(`7f07a5a`)의 `workflows_test`에 분석 info 1건(`no_adjacent_strings_in_list` — KVM 규칙 줄)이 남아 있었다 — 이 커밋에서 상수(`_kvmRule`)로 고쳤다(`dart analyze --fatal-infos tool` 0).
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/workflows_test.dart` | 84 통과 |
+| `dart analyze --fatal-infos tool` | 0건 |
+| 컨테이너 6.13 `emulator` 경로 1회(잠금 안) | 통과(종료 0) — 아래 |
+
+- 컨테이너 실행(계획 8.2 J16 '6.13의 `emulator` 경로를 한 번'): 전제 `npm ci --prefix functions`(10:34:39Z~10:34:48Z) + `npm --prefix functions run build` → `dart run tool/ws.dart with-heavy-lock -- npx --prefix functions firebase emulators:exec --config app/firebase.json --only functions,auth --project demo-noteapp "dart run tool/ws.dart test --run-skipped -t emulator"`, 2026-11-06T10:45:11Z 시작 → 10:45:19Z 잠금(대기 0초) → 에뮬레이터 auth·functions 시작(`asia-northeast3-recognizeMath` 적재 — demo 프로젝트) → 안쪽 `ws test`는 'heavy test lock held by the caller'(다시 잡지 않음) → 멤버 11개 모두 'no matching tests'(이 작업 트리에 `emulator` 태그 시험 없음 — LIBRARY L2-I6 전) → 'Script exited successfully (code 0)' → 10:59:22Z 끝(14분 11초, 다른 에이전트 시험과 CPU를 나눔), 잠금 풀림. 첫 시도는 `timeout 590`에 걸려(10분 — 멤버마다 시험 파일 적재가 1~2.5분) SIGTERM → 에뮬레이터 깨끗이 종료·잠금 풀림을 확인하고 백그라운드로 다시 돌렸다. 컨테이너에는 `ss`가 없어 `emulator_suite.sh`의 포트 확인은 건너뛰어진다(`command -v ss` — SYNC 스크립트, 동작 문제 아님).
+
+#### J15 — `ws test --dart-define` · `ci.yml` 잡 분리 (계획 8.2, 4.2·6.13·6.16)
+
+- 커밋: `9fd7e1a`(앞 몫 — `--dart-define`), 잡 분리 `5563d84`(아래 '잡 분리').
+- `ws test --dart-define KEY=VALUE`(반복, `cli.dart` — `splitCommas: false`라 값의 쉼표가 갈라지지 않음): 각 `flutter test`에 `--dart-define=KEY=VALUE`를 준 순서대로, 다른 옵션(`--tags`·`--exclude-tags`·`--run-skipped`·`--reporter`) 뒤·시험 파일 앞에 넣는다(멤버마다 같음, VM·Chrome 모두). `KEY=VALUE`가 아니면(`=` 없음·빈 키·키에 공백) 실행 전에 사용 오류 2. `TestOptions.dartDefines`·`isDartDefine`(`test_command.dart`). `tool/README.md` 명령 표에 한 줄.
+- 실제 실행 1회(VM, 잠금 없음): `ws test --package noteapp --run-skipped -t integration --dart-define FEATURE_MEDIA=false --dart-define FEATURE_RECOGNITION=false --dart-define FEATURE_MATH_ENGINE=false` → 13 통과(226.7초 — 같은 때 다른 무거운 실행과 겹침). `feature_switch_test`의 `AppFeatures.compileTime` 사례 제목이 'media false · recognition false · mathEngine false'로 바뀌어 정의가 시험까지 닿음을 확인했다(H5의 V15 명령과 같은 모양 — 이 작업 트리의 다른 영역은 기반 표면).
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/test_command_test.dart` | 48 통과(+5: 순서·여러 개·멤버마다·옵션 뒤 파일 앞 / Chrome·쉼표·`=`·빈 값 / 없으면 안 붙음 / 사용 오류 3가지 → 2·실행 0 / `isDartDefine`) |
+| `dart analyze --fatal-infos tool` | 0건 |
+
+**잡 분리**(6.16 — 2차 동시 개발 세션 10):
+
+- `ci.yml`의 잡 하나(`verify` 60분)를 잡 5개로 나눴다: `check`(15분 — Start clock → Test scope(`id: scope`) → Checkout(전체 기록) → Flutter → Dependencies → Lock age → 규칙(--strict/보통) → Analyze → Tool tests → **Native requirements**(`ws native-reqs`, 새) → Timing), `vm`(30분, `needs: check` — 바뀐 멤버 또는 전체), `chrome`(30분, `needs: check` — 같은 범위 `--platform chrome`, 브라우저 자산 캐시), `heavy`(30분, `needs: check`, 잡 `if: (github.event_name == 'push' && needs.check.outputs.full_run == 'true') \|\| inputs.integration == true` — 통합 태그 VM·Chrome + **Media tests (Chrome fake mic)** `ws test --platform chrome --run-skipped -t media`), `web`(15분, `needs: [check, vm, chrome]` — Channel → Build info → Verify web assets → Web build → Finalize → Web budget → Deploy → Summary). `concurrency`는 워크플로 수준 그대로.
+- 범위 넘김: Test scope 단계가 `GITHUB_ENV`(같은 잡 — FULL_RUN·STRICT_CHECK·AFFECTED_BASE·TEST_SCOPE)와 `GITHUB_OUTPUT`(`full_run`·`affected_base`·`test_scope`)에 쓰고, `check` 잡 `outputs`가 단계 출력을 받는다. `vm`·`chrome` 잡 `env`의 `FULL_RUN`·`AFFECTED_BASE`, `web` 잡 `env`의 `TEST_SCOPE`가 `needs.check.outputs.*`. 그래서 단계 `if`(`env.FULL_RUN == 'true'` 등)는 1차·R2-B1 글자 그대로다. 수동 입력 `integration`은 이제 `heavy` 잡 전체(통합 태그 + media)를 켠다(설명 문구 갱신).
+- 잡마다 준비(Start clock·Checkout·Flutter·`pub get`)가 반복되고 Dependencies 스크립트는 다섯 잡이 글자 그대로 같다(시험). 빌드 훅 캐시는 멤버를 빌드하는 `vm`·`chrome`·`heavy`·`web`에만, 브라우저 시험 자산 캐시는 `chrome`·`heavy`에만. `fetch-depth: 0`은 `check`(lock diff)·`vm`·`chrome`(`--affected-since`)만 — `heavy`는 전 멤버, `web`의 build-info는 `GITHUB_SHA`를 읽는다.
+- 요약: 각 잡의 마지막 단계(`always()`)가 자기 단계 시간 표('### 단계 시간 — <잡 id>', 행 '잡 전체')를 쓴다 — `check`·`vm`·`chrome`·`heavy`는 같은 Timing 스크립트(`check`에는 '시험 범위:' 줄도), `web` Summary는 '빌드 결과'(빌드 라벨·채널·시험 범위·주소) 뒤에 같은 표. 안내서 02의 '실행 화면 Summary의 빌드 결과·주소' 문구는 그대로 맞다(실행 Summary가 잡 요약을 모두 보여 줌). 02 문제 해결 '빨간 X' 줄에 '빨간 X가 붙은 잡을 눌러'·'앞 잡이 실패하면 Build and deploy web은 돌지 않아 빌드 결과가 없음'을 더했다.
+- 잡별 제한은 계획 표의 임시값이다(2코어 추정). 실측 × 1.5로 바꾸기와 '첫 푸시에서 모든 잡이 제한 안'(8.2 J15 완료 조건 끝)은 J0 ④(첫 체크포인트 푸시의 실행 기록 — 총괄)와 함께 한다. 잡 수준 `if`·`needs` 문맥·`env`에서 `needs`·잡 `outputs`에서 `steps`를 읽는 것은 GitHub 문맥 표(기억)대로이고 첫 푸시에서 확인한다(계획 6.16의 '미확인 → 첫 푸시로 확인').
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/workflows_test.dart tool/test/guides_test.dart` | 119 통과 |
+| 일부러 깨뜨리기 2가지(`heavy` `if`에서 `github.event_name == 'push'` 뺌 · `vm` `AFFECTED_BASE`를 `full_run` 출력으로) | 둘 다 '푸시별' 사례가 잡음(되돌림) |
+| `dart test tool/test` | 547 통과 |
+| `dart analyze --fatal-infos tool` · `dart format` | 0건 · 바뀜 없음 |
+| `ws check` | 0 |
+
+#### J22 — 동시 개발 마감 확인 (계획 8.2 J22 행, 1차 I15와 같은 방식)
+
+- 바탕: `5563d84`(J15 잡 분리까지 — 이 작업 트리의 다른 영역은 기반 단계 표면). 2026-11-06 11:20Z~12:17Z, 다른 영역 에이전트 6개와 CPU 공유(부하 평균 5~9). 무거운 실행(Chrome 전체·웹 빌드·`emulator` 경로)은 전역 잠금 안에서 하나씩.
+
+| 검사 (8.2 J22 행) | 결과 |
+|---|---|
+| `ws check` · `ws check --strict` | R1~R16 위반 0·경고 0 (둘 다) — `--strict` 1분 7초 |
+| `ws analyze` | 0건 (13.2초) |
+| `dart format --output=none --set-exit-if-changed app tool packages` | 1,370 파일, 바뀜 0 |
+| `dart test tool/test` | 547 통과 (2분 33초 — J15 변경 뒤, 같은 내용) |
+| `ws test` (VM, 전 멤버 11) | 전부 통과 — note_core 880(건너뜀 5)·ink_engine 889·feature_editor 658(1)·feature_library 628(1)·pdf_io 604(7)·sync_engine 782(4)·ink_lab 1·media_io 37·ink_recognition 57·pencil_bridge 57·noteapp 579(3), 14분 16초 |
+| `ws test --platform chrome` (전 멤버 — 잠금 안, 대기 8초) | 9 실행 전부 통과 — note_core 71(1)·ink_engine 199·feature_editor 1·feature_library 17·pdf_io 54(1)·sync_engine 26·media_io 3·ink_recognition 9·noteapp 14(2), ink_lab·pencil_bridge는 `test/web/` 없음, 19분 24초 |
+| `ws test --run-skipped -t integration --package noteapp` | 13 통과 (95.5초 — `app_smoke_v2_test`·`feature_switch_test`·1차 V5 등) |
+| `ws native-reqs` | 플러그인 23, 위반 0·경고 0 (ios 15.5 · minSdk 24 · compileSdk 36 · CocoaPods 전용 = ML Kit 둘) |
+| `cd app && flutter build web --release`(잠금 안) + `ws web-assets verify` + `ws web-budget check` | 빌드 성공(컴파일 187초, 전체 5분 4초) · 자산 2개 문제 0 · 위반 0 — 아래 표 |
+| 6.13 `emulator` 경로 1회(`with-heavy-lock` → `emulators:exec --only functions,auth --project demo-noteapp` → `ws test --run-skipped -t emulator`) | 종료 0(12분 1초) — 11 멤버 모두 'no matching tests'(이 작업 트리에는 `emulator` 태그 시험이 아직 없음 — LIBRARY·SYNC 실제 시험은 통합 단계, J16 기록과 같음), 안쪽 `ws test`는 `NOTEAPP_HEAVY_LOCK_HELD=1`로 잠금을 다시 잡지 않음 |
+
+웹 예산(`ws web-budget check`, 기준 = 1차 통합 실측 `main.dart.js` 4,633,843 B):
+
+| 항목 | raw | gzip | 한도 (gzip) | J0 ③ 대비 |
+|---|---:|---:|---:|---|
+| `main.dart.js` | 4,725,938 | 1,392,625 | 1,666,038 | +30,945 raw · +9,637 gzip (J4~J21 앱 셸 몫) |
+| 기준 대비 증가 | +92,095 | +26,587 | +300,000 | 한도까지 273,413 B |
+| 시작 글꼴 (14 묶음, 22 파일) | 661,228 | 382,523 | 400,000 · raw 700,000 | KaTeX 371,014 · 아이콘 11,509 (묶음별 한도는 '변경 요청'의 총괄 결정 대기 — `null` = 표시만) |
+| 금지 글꼴 (NoteSans) | — | — | — | 없음 |
+
+- 남은 것: J0 ④(CI 단계별 시간 실측 → 6.16 표·월 분 재계산·`ci.yml` 잡별 제한 = 실측 × 1.5·'첫 푸시에서 모든 잡이 제한 안') — 총괄의 첫 체크포인트 푸시 실행 기록이 있어야 해서 컨테이너에서는 할 수 없다. 그 밖의 INFRA 동시 개발 몫은 없다. 실제 다른 영역 2차 구현이 필요한 판정(`integration`·`media`·`emulator` 태그, H1~H8)은 통합 단계.
+- 정리: 웹 빌드 산출물 `app/build/web`은 git 무시 경로라 두었다(다음 빌드가 덮어씀). 에뮬레이터 프로세스 남은 것 없음.
+
+#### J0 ④ 예비 실측 — GitHub `ci.yml` 실행 10 (계획 6.16 'J0 ④ 예비 실측', 2차 동시 개발 세션 11)
+
+- 왜 '예비'인가: 완료 조건은 R2-B8b 뒤 **첫 체크포인트 푸시**의 실행(J15의 잡 5개)이다. 총괄은 아직 체크포인트를 `main`에 병합·푸시하지 않았다(`/home/user/noteapp` HEAD = `5843ec3`). GitHub에 있는 가장 새 실행은 그 바탕 `5843ec3`(2차 기반 단계 끝·계약 v2.3)의 개발 브랜치 푸시 — **J15 전의 단일 잡**이다. GitHub API(실행·잡·단계 시각, 잡 기록)만 읽었다(푸시·재실행 없음).
+- 실행: `ci.yml` 실행 10(id 42162715968, 2026-11-06 04:28:29Z~05:03:47Z, `ubuntu-latest` 2코어, 성공). 'Test scope' = '기본 브랜치 — `a23c14f` 이후 바뀐 멤버'(`FULL_RUN=false`·`STRICT_CHECK=true`)였지만 전역 경로(`tool/`·lock)가 바뀌어 `ws test`가 11 멤버 전부를 돌렸다 → 전체 실행과 같은 양. 통합 태그 단계·배포(시크릿 없음)는 건너뜀.
+
+| 단계 (단일 잡) | 시간 |
+|---|---:|
+| 준비 — Set up job 1초 · 체크아웃 3초 · Flutter 23초 · 캐시 2초 · Dependencies(`pub get`) 21초 | 50초 |
+| Workspace rules (strict) | 53초 |
+| Analyze | 44초 |
+| VM tests (11 멤버 — note_core 110.1 · ink_engine 114.1 · feature_editor 214.3 · feature_library 185.4 · pdf_io 104.5 · sync_engine 128.6 · ink_lab 22.4 · media_io 22.6 · ink_recognition 26.0 · pencil_bridge 11.0 · noteapp 71.8초) | 16분 53초 |
+| Tool tests (`dart test tool/test` 372) | 1분 18초 |
+| Browser tests (9 실행 — note_core 115.3 · ink_engine 122.6 · feature_editor 68.9 · feature_library 85.6 · pdf_io 120.7 · sync_engine 50.5 · media_io 60.9 · ink_recognition 66.4 · noteapp 90.4초, 잠금 대기 0초) | 13분 3초 |
+| Channel · Build info · Verify web assets | 6초 |
+| Web build (컴파일 66.1초) · Finalize | 1분 9초 |
+| 뒷정리(캐시 저장 — 빌드 훅 109 MB · pub 121 MB · prep 3 MB) | 17초 |
+| **합계** | **35분 14초** (청구 36분) |
+
+- 계획 6.16 표의 전체 실행 '약 35분'(1차 통합 뒤 30분 + 2차 멤버 약 5) 추정과 같다. 1차 통합 뒤 실측 대비 VM +1.9분 · Chrome +3.0분.
+- J15 잡 5개에 나눠 본 값(잡마다 준비 50초 + 뒷정리 17초 — 이 실행의 고정분):
+
+| 잡 | 단계 합 (이 실행) | × 1.5 | 지금 `timeout-minutes` |
+|---|---:|---:|---:|
+| `check` (+ Lock age · native-reqs, 각 수 초 — 미측정) | ≈ 4분 10초 | 6.3분 | 15 |
+| `vm` | ≈ 18분 | 27분 | 30 |
+| `chrome` | ≈ 14분 10초 | 21분 | 30 |
+| `heavy` | 이 실행에서 건너뜀 — 값 없음 | — | 30 |
+| `web` (+ Web budget, 수 초) | ≈ 2분 25초 | 3.6분 | 15 |
+
+- 결정: **`ci.yml` 잡별 제한은 바꾸지 않았다**(주석의 'Provisional' 그대로). 모두 `× 1.5` 안이고, 제한은 멈춘 잡이 먹는 분만 바꾸므로 더 줄여도 평소 사용 분은 같다. 잡 분리 뒤 첫 실행(완료 조건)에서 잰 값으로 정한다. 다만 `vm`(27 / 30분)은 다른 영역의 2차 구현 시험이 합쳐지면 넘을 수 있다 — 통합 단계 첫 푸시에서 `vm`·`chrome` 잡 시간을 먼저 볼 것(넘으면 6.16 시간 제한 대책 ④처럼 멤버 묶음 둘로).
+- 월 분 예비 재계산(청구는 잡마다 분 단위 올림): 전체 실행 = `check` 5 + `vm` 18~19 + `chrome` 15 + `web` 3 ≈ 42분 × 12회 = 504, `heavy`(`main` 푸시·수동 `integration`·이전 푸시 없음 — 값 없음, 6분 × 4회 가정) 24, 바뀐 멤버만 도는 기본 브랜치·영역 브랜치 푸시 = 잡 4개 고정분 때문에 약 15분(표의 12분보다 큼) × 25회 × 2 = 750, `android.yml` 실측 6분 26초(실행 4 — 첫 회 10분 40초) → 7 × 5 = 35, `functions.yml` 60(R2-B1 골격은 29초 — J16의 emulator 단계는 아직 GitHub에서 돈 적 없음), `ios-compile.yml` 200 · `android-emulator.yml` 15 · `web-experiment.yml` 6 → **약 1,594분 — 월 2,000분의 80% 경계**(표의 1,346보다 +248: 잡마다 고정분). 6.16 표는 완료 조건의 실측 뒤에 바꾼다. 1,600분을 넘는지는 그 실측으로 판정해 총괄에게 알린다(6.16 끝).
+- 같은 기록에서 찾은 결함(고침): GitHub Actions에서는 `flutter test`가 github 보고 형식(`✅ …` 줄, 끝줄 `🎉 880 tests passed, 5 skipped.` / 실패 때 `::error::4 tests passed, 2 failed, 1 skipped.` — 잠긴 `test_core` 0.6.18 `defaultReporter`의 `inGithubContext`)을 스스로 고른다. `ws test`의 `parseTestCounts`는 `+n ~n -n:` 계수기만 읽어서 **CI 요약표의 passed·failed·skipped가 모든 멤버에서 0**이었다(실패 때는 failed 1로 대신함). `tool/src/test_command.dart` `parseTestCounts`가 github 형식의 끝줄도 읽고, 두 형식 중 출력에서 나중에 나온 것을 쓴다. 시험: `tool/test/test_command_test.dart` +3(github 끝줄 4가지 — 건너뜀 있음·단수 `1 test`·실패·0 통과 / 나중에 나온 형식이 이김·아이콘 없는 문장은 무시 / `ws test` 요약표 행이 두 멤버(통과·실패)에서 github 형식의 수를 보임).
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/test_command_test.dart` | 51 통과 |
+| `dart analyze --fatal-infos tool` | 0건 |
+
+#### 변경 요청
+
+- [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
+
+#### 의존성 요청
+
+- 없음
+
+#### 계획과 다르게 한 점
+
+- (J21) 계획 6.10.5는 에뮬레이터 단계를 `cd app && flutter test integration_test/native_smoke_test.dart` 하나로 적었다. 녹음 사례(④)는 마이크 권한이 있어야 하는데 권한 창은 Flutter 밖이라 시험이 누를 수 없다 — 그래서 에뮬레이터 부팅 전에 `flutter build apk --debug`(`app/`)를 만들고, 에뮬레이터 스크립트 첫 줄에서 `adb install -r -g`로 깔아 둔다(`RECORD_AUDIO`·`POST_NOTIFICATIONS` 허용). `flutter test`는 같은 패키지·debug 키·버전 코드로 `adb install -r`하므로 허용이 남는다(Flutter 도구의 설치 방식 — 기억, 첫 실행에서 확인). 이 debug 빌드는 빌드 정보·실행 번호를 넘기지 않는다(넘기면 버전 코드가 커져 `flutter test` 설치가 '다운그레이드'로 지우고 다시 깔아 허용이 사라짐) — `workflows_test`의 'flutter build는 빌드 정보·실행 번호' 사례에 이 한 줄만 예외로 두었다. 액션 기본 `emulator-options`의 `-noaudio`를 뺐다(에뮬레이터 마이크). 시험 내용(①~④)은 계획 그대로이고, ①은 '다시 열기'를 `AppBootstrapper.shutdown` → 새 시작으로 했다(앱 셸 경로 전체 — `openNoteStore`만 따로 부르지 않음).
+- (J20) 계획 4.2는 `lock-age`의 종료 코드를 0 / 1로 적었다. 인자 오류(2)와 작업 폴더에 `pubspec.lock`이 없을 때(3)는 다른 `ws` 명령과 같은 코드를 쓴다. `--since`의 ref가 커밋이 아니면 실패가 아니라 경고(0)다 — '네트워크 오류는 경고'와 같은 취지(경고 단계에서 비교할 기준이 없으면 막지 않음). 14일은 게시 시각이 아니라 UTC 달력 날짜 차로 센다(`--now`가 날짜뿐이라).
+- (J19) 자리 3·4(선택·삽입 메뉴)는 지금 '비어 있지 않음'이 아니라 '실제 `recognitionSelectionActions()`·`recognitionInsertActions()`의 id와 같음'으로 본다 — 이 작업 트리의 recog는 R2-B6 표면이라 두 목록이 비어 있다(9.1 표의 '자리 4개가 비어 있지 않음'은 자리 1·2만 지금 성립). LIBRARY 병합 뒤 H3에서 두 목록 `isNotEmpty`를 더한다. 녹음 패널 열기(단계 6)·삽입 메뉴 열기(단계 8)도 화면이 아니라 provider 값으로 봤다 — 이 작업 트리의 EDITOR는 마이크 버튼·삽입 메뉴가 없는 기반 표면이다(H3에서 화면으로).
+- (J19) V15의 행 비교는 위젯이 아니라 provider 값(녹음 패널·녹음기 종류·개발자 섹션·유휴 작업 / recog 메뉴 id·`recog.settings`·색인기 / `RecognitionConfig.mathEndpoint`·수식 인식기 / `inkShapeFitterProvider` / `editorImageImporterProvider`·페이지 추가 출처)이다. '자동 도형 보정' 행은 provider 값(주입 `GeometricShapeFitter` ↔ 기본 `NoShapeFitter`)이라 지금도 차이에 든다 — 화면의 보정 토글 비교(C22-07: E2-15·L2-06이 모두 병합됐을 때만 기대 목록)는 H5.
+- (J19) '주입' 방식은 `AppBootstrapper.features` + `modulesFor(features:)`(= `productionModules()`가 `--dart-define`으로 하는 일 — 꺼진 모듈은 없음)다. 개발자 메뉴로 끈 경우(`skipped`)는 `app_bootstrapper_test`·`app_module_context_test`가 본다.
+- (J18) 08의 항목 문장은 계약 7.8 표의 '확인' 칸에서 개정 표시 `(v2.1) `과 굵게 표시 `**`만 뺀 글자 그대로다(`guides_test`도 같은 규칙으로 대조). 계약 문장은 한다체('설치한다.')라서 공통 형식의 해요체 검사는 08의 계약 문장 줄(`- [ ] **X-n** …`·`> …`)을 빼고 본다. 해요체 검사에 '했다.'를 더했다(기존 안내서에 없음).
+- (J18) 04 B-1 ④는 계획 6.21의 '설정 → 개발자 → 이전 판 DB 사본'이 아니라 앱 그대로 **설정 → 이전 판 DB 사본**이다 — 설정 화면에 '개발자' 묶음이 없고 `app.v1Copy` 섹션이 바로 있다(J14b). 08은 계약 문장('개발자 메뉴에 v1 사본 있음')을 그대로 두고 '먼저 알아 둘 것'에서 '개발자 메뉴' = 설정 아래쪽의 개발자 표시·기능 켜고 끄기·이전 판 DB 사본 섹션이라고 푼다.
+- (J18) 계획 6.21의 01 첫 문장 '… Hosting만 씁니다'는 공통 형식(해요체)에 맞춰 '써요'로 썼다.
+- (R2-B8a) `AppModuleContext.recordOutcome`에 이름 있는 인자 `fallback:`을 더했다(계획 4.6.2는 '1차 그대로'). 실패·시간 초과 결과를 기록하는 순간 그 모듈의 기여를 지우고 대체 기여를 같은 자리에 넣어야 해서다 — 부트스트래퍼만 부른다.
+- (R2-B8a) `appFeaturesProvider`·`shellContributionsProvider`는 `BootstrapApp`이 아니라 `AppBootstrapper`의 셸 override 묶음(`BootstrapSuccess.overrides` 앞부분)에 넣었다 — `BootstrapApp`은 그 목록을 그대로 쓰므로 결과는 같고, `overrides_unique_test`가 한 곳에서 본다. 셸 override는 6개 → 8개.
+- (R2-B8a) J6 몫 일부를 당겨 했다: 30초 넘는 작업 기록 1줄, 정리 뒤 늦은 `onDispose` 등록은 바로 호출. J6에는 `BootstrapApp` 재시도 때 이전 실행기 정리가 새 scope 전에 끝나는 순서와 `bootstrap_app_test`가 남는다.
+- (R2-B8a) J9 몫의 연결 함수(`recognition_wiring.dart`·`media_wiring.dart`·`search_wiring.dart`)는 모듈이 쓰므로 본문까지 만들었다. 전용 시험과 '같은 id 메뉴 항목' 규칙은 J9에서 끝냈다.
+- (R2-B8a) `media.recoverDrafts`의 본문(`recoverPendingRecordings` — `startedAt` 오름차순, 실패 기록 후 다음)은 만들었고, `media.leaveGuard`는 빈 본문이다(`WebPlatform.setLeaveGuard`가 J7). 복구 시험(`FakeAudioRecorder.abandon()`)은 J7.
+- (R2-B8a) 계획 시그니처에 없는 앱 내부 보조 이름: `ShellContribution.hasEditorItems`·`toString`, `AppModuleContext.featureReadTimeout`(500 ms), `MediaModule.lateStartWait`(10 s), `RecognitionModule.config`(시험용 읽기), `SearchIndexLines`·`formatSearchIndexStatus`(줄 형식 '대기 n · 재구축 중|대기 · 마지막 재구축 MM-dd HH:mm:ss|없음'). 앱 셸 내부라 계약 표면이 아니다.
+- (R2-B8a) `MATH_ENDPOINT` 검사: `Uri.tryParse`가 되고 `http`/`https`이고 host가 있어야 쓴다. 아니면 null + 기록 1건(`details` = 원래 값).
+- (R2-B8a) `idle_tasks_test`에서 Flutter 시험 바인딩의 `pump()`는 0초 타이머(`Timer.run` — 스케줄러 작업 루프)를 돌리지 않아 `pump(Duration.zero)`를 쓴다. 한 시험이 `scheduleTask`를 남긴 채 끝나면 바인딩의 작업 루프가 다음 시험에서 멈추므로(관찰함) 시험마다 끝까지 흘려보낸다.
+- (R2-B8a) 1차 V5 스모크(`test/support/smoke_scenario.dart`)의 기대값을 셸 행 2개와 `search.index` 섹션만큼 고쳤다(V5 v2는 J19).
+- (R2-B8a) J5의 `app_module_context_test`(설정 읽기 500 ms 초과·캐시 1회)는 아직 없다 — 기능 해석의 기본 사례는 `app_bootstrapper_test`의 2차 묶음에 있다.
+- (R2-B8b) `FocusRectCodec`에 앱 내부 보조 `maxAbs`(100000)·`canEncode(rect)`를 더했다. `AppRoutes.note`는 `decode`가 다시 읽지 못할 focus(무한대·NaN·`l > r`·`t > b`·±100000 밖)를 주소에 넣지 않는다 — 만든 주소가 언제나 열리게. `encode`는 유한하지 않은 사각형에 `ArgumentError`.
+- (R2-B8b) `FocusRectCodec.decode`의 수 형식은 `-?숫자(.숫자)?`만 받는다(지수·`+`·공백·`NaN`·`Infinity`·`.5`·`1.` 거절 — `encode`가 쓰지 않는 형식). 계획의 '유한한 수 4개'보다 좁다.
+- (R2-B8b) `GoRouterAppNavigator.openNote`는 `pageId` 없는 `focusRectPt`를 assert 없이 버린다(`AppRoutes.note`의 assert는 직접 부를 때만 — 화면 콜백은 늘 page와 함께 부름).
+- (R2-B8b) `PencilBridge.capabilities()`: 결과가 맵이 아니면 `PlatformException(code: 'invalid-result')`(계획에 없음 — 앱 어댑터가 다른 오류처럼 대체 능력으로 처리). `PencilCapabilities.fromWire`는 타입이 틀린 값도 '없음'으로 보고 기본값을 쓴다(`os` 기본 '').
+- (R2-B8b) `PencilWire`에 `eventKeys`(종류별 필수·선택 키 표, 4.4.3)를 더했다 — `decode`가 쓰고 J12 와이어 대조 시험 ③이 Swift 키 집합과 비교한다(내부 상수, 진입점에 없음). `decode`는 선택 키도 타입이 틀리면 버린다(값이 null이면 없음으로 봄), `t`가 유한하지 않으면 버린다.
+- (R2-B8b) `debugDroppedEvents`는 구독자마다 따로 센다(브로드캐스트 스트림의 `map`은 구독자마다 돈다 — 구독자 둘이면 나쁜 이벤트 하나가 2). 채널 오류는 처음 한 번만 `debugPrint`(`debugReset`이 되돌림).
+- (R2-B8b, J13 몫을 당김) 능력 조회 500 ms 시간 제한·실패 처리(기록 1건 + `kPencilFallbackCapabilities`, override는 남음)를 `FeatureWiringModule.start`에 넣었다. 상수 `FeatureWiringModule.pencilCapabilitiesTimeout`(앱 내부). J13에는 앱 정보 Pencil 줄(스퀴즈·롤은 이벤트를 받은 뒤)과 Swift 쪽(J12) 뒤 마무리가 남는다.
+- (R2-B8b) `overrides_unique_test`에 7번째 경우 'iPad(펜슬 지원)'를 더했다 — `stylusExtrasProvider`가 한 번만(`FakePencilPort` 주입).
+- (J0) `native_config_test`의 9.1 묶음 중 `build.gradle.kts` 서명 분기는 J2, `native_requirements.yaml`이 모두 충족되는지는 J1(그 파일이 J1에서 생김), **앱 셸 두 경로 정적 묶음**(6.9)은 J4로 미뤘다 — 검사할 `app/lib/src/storage/native_storage_paths*.dart`·`defaultNoteStoreConfig` v2가 J4 코드라 지금 쓰면 실패하는 시험이 된다. J4 완료 조건에 'J0 정적 묶음'이 이미 있다.
+- (J0) `appNativeConfigProblems`가 6.11.4 표의 `CFBundleDisplayName`도 본다(1차 값). Podfile은 `use_frameworks!`와 각 타깃 배포 대상 올림 줄까지 확인하고, 이 Flutter의 템플릿 파일(`$FLUTTER_ROOT/packages/flutter_tools/templates/cocoapods/Podfile-ios`)의 주석 아닌 줄이 커밋된 Podfile에 모두 있는지 본다(11절 위험 2 — Flutter 판 올림 때 깨져서 알려 줌; `flutter`가 PATH에 없으면 건너뜀).
+- (J0) 기능 끈 빌드는 6.15 표의 두 스위치가 아니라 V15·H5와 같은 세 스위치(`FEATURE_MATH_ENGINE` 포함)로 쟀다.
+- (문서) C23-01의 'INFRA(CI·functions.yml 고정값 확인)': `functions.yml`에는 판 문자열이 없다(`functions/package.json` devDependency를 `npm ci`로). 1차 고정값이 남아 있던 `ci.yml`·`web-experiment.yml` 배포 단계 `firebaseToolsVersion`을 15.34.1로 내렸다(계약 7.5 표 '(도구) firebase-tools 15.34.1 — CI').
+
+- (J1) 픽스처(가짜 플러그인 7개 — pod만·SwiftPM만·둘 다(`darwin/`)·`.iOS(.v15)`(NR2 사례에서 `.v16`)·Gradle kts·groovy·Dart 전용 — 와 가짜 `.flutter-plugins-dependencies`)는 `tool/test/fixtures/native/`에 커밋하지 않고 시험마다 임시 폴더에 쓴다(`tool/test/support/fixture_workspace.dart`의 기존 방식 — 사례마다 파일 하나만 바꾸기 쉽다).
+- (J1) NR7 = `nativeRequirementProblems`(요구 파일이 정한 것: 플러그인 요구·`app:`·`app_extra:`). 확정 문구·Podfile 줄 같은 J0 값은 `appNativeConfigProblems`가 맡고, `ws native-reqs`는 두 함수의 줄을 합쳐(같은 설정은 같은 문구라 한 줄) NR7로 보인다. CI 게이트는 `native_config_test`(두 함수 모두 + 요구 파일 ↔ `AppNativeExpectations` 값 대조).
+- (J1) NR1에 반대 방향을 경고로 더했다: 요구 파일에 있지만 앱이 iOS·안드로이드로 해석하지 않는 이름(종료 0).
+- (J1) 플러그인 iOS 최소 = podspec 값과 `Package.swift` 값 중 큰 것, 앱 값 = Xcode 프로젝트의 가장 낮은 `IPHONEOS_DEPLOYMENT_TARGET`(없으면 요구 파일 값). Gradle 값이 'flutter'를 담은 식이면(`flutter.compileSdkVersion`, `android_file_picker`의 `flutterCompileSdkVersion`) Flutter 기본값으로 보고 비교하지 않는다. `native_build: false`인 플러그인은 파일을 읽지 않고 표에 '(Dart only)'.
+- (J1) 표의 열은 6.3 예시의 `spm`(yes/no) 대신 `ios(spm)`(그 `Package.swift`의 iOS 값, 없으면 `no`), 마지막 줄은 `ws native-reqs: N plugin(s), V violation(s), W warning(s)`(다른 `ws` 명령과 같은 꼴).
+
+- (J2) `Signing` 단계를 Java·Flutter 준비보다 앞(Checkout 바로 뒤)에 두었다 — 재료가 없으면 몇 초 안에 실패한다. 계획 표의 단계 순서(빌드 → 서명 확인)와 결과는 같다.
+- (J2) 훅 캐시 단계 이름은 `android.yml`만 'Build hooks (downloads sqlite3 when not cached)'로 바꿨다(6.10.3). `ci.yml`·`web-experiment.yml`은 'Cache build hooks' 그대로(경로·키는 세 곳 같음 — `workflows_test`가 본다).
+- (J2) `guides_test`의 05 사례를 아티팩트 이름 식(두 갈래)에 맞췄다. 안내서 05에 `noteapp-debug-signed-<번호>`·'지우지 말고 알려 주세요'를 넣는 것과 `::error::`가 가리키는 `docs/guides/07-android-signing.md`를 만드는 것은 J18(안내서 v2) 몫이다.
+- (J2) `key.properties`의 비밀번호는 글자·숫자만 쓴다고 정해(6.10.4 무작위 32자) Java properties 이스케이프를 하지 않는다(워크플로 주석).
+
+- (J3) `ios-compile.yml`의 빌드 단계는 `cd app &&` 대신 `working-directory: app`(다른 워크플로와 같은 꼴 — `workflows_test`의 '모든 flutter build' 사례가 그대로 본다). 계획 표의 `cd app && flutter build ios …`와 결과는 같다.
+- (J3) `ios-testflight.yml`의 수동 서명 시크릿은 잡 `env`가 아니라 그 단계 `env`에만 둔다(클라우드 서명 실행에는 들어가지 않게). 안내서 06의 J18 몫(`ios-compile.yml` 언제·어떻게, 웹 노트 옮기기)은 아직이다 — 이번에는 6.11.6이 정한 서명 방식만 넣었다.
+- (J3) 수동 서명의 실제 동작(키체인·프로파일·export)은 검증 전 초안이다 — 시험은 단계 구조와 Archive 인자 두 갈래(가짜 `xcodebuild`)까지.
+
+- (J4) 계획 6.9의 `native_storage_paths_test`는 `PathProviderPlatform.instance`를 바꾸지 않고 `plugins.flutter.io/path_provider` 채널을 시험 메신저로 흉내 낸다(앱은 `path_provider_platform_interface`에 의존하지 않음 — 계약 7.5). 플랫폼 인터페이스의 기본 구현이 이 채널이라 실제 함수 경로 그대로다.
+- (J4) 앱 셸 정적 묶음은 `native_config.dart`가 아니라 새 `tool/src/app_shell_storage.dart`에 두고 `native_config_test`가 부른다(네이티브 설정 파일이 아닌 Dart 소스라서). 토큰 비교는 `package:analyzer` 없이 작은 토크나이저로 한다(시험 컴파일 시간).
+- (J5) `FeatureSwitchSection`에 앱 내부 인자 `compileTime`(기본 `AppFeatures.compileTime` — 시험이 빌드에서 끈 경우를 만든다)과 상수 `flushTimeout`(2초)을 더했다(계획 시그니처는 `const FeatureSwitchSection({super.key})`).
+- (J5) '다시 시작하면 적용돼요'는 '바꾼 뒤'가 아니라 **빌드 ∧ 메뉴 ≠ 이번 시작**일 때 보인다 — 화면을 나갔다 와도 남고, 시작 때 설정 읽기가 시간 초과였던 경우도 알려 준다. 되돌리면 사라진다.
+- (J5) [다시 시작]은 `store.flush()`가 2초 안에 끝나지 않거나 실패하면 새로 고치지 않고 '저장이 아직 끝나지 않아 다시 시작하지 않았어요. 잠시 뒤 다시 눌러 주세요.' + 기록 1건(계획에 없음 — 쓰기 대기 중 새로 고침으로 잃는 것을 막으려고). 설정 쓰기 실패는 '설정을 저장하지 못했어요.' + 기록 1건(source manual). 수식 엔진 설명 '수식 인식 서버(인식이 켜져 있을 때). 수식 직접 입력은 꺼지지 않아요'는 계획에 문구가 없어 6.6 표('남는 것')에서 만들었다.
+- (J5) 계획 6.6 시험 목록의 `app_module_context_test`는 새 파일 `app/test/bootstrap/app_module_context_test.dart`(1차에는 없었다).
+- (J6) 계획의 '재시도 때 이전 실행기의 정리가 새 scope 전에 끝남': 지금 '다시 시도'·'데이터 지우기'는 시작 오류 화면에서만 열리고 그 화면에는 실행기가 없다(성공 화면에서 다시 시작하는 길이 없음). 그래서 순서 보장은 모든 `shutdown()` 앞의 `AppIdleCleanup.done`으로 넣고, 시험은 실제로 일어나는 두 경우 — 앱 끝(`BootstrapApp` dispose: 색인기 정리 → 모듈 stop)과 오류 화면 → 다시 시도 → 새 실행기 — 로 했다. M4 등에서 성공 화면에서 다시 시작하는 길이 생기면 그 경로도 `_shutdown`을 쓰면 된다(옛 scope가 한 프레임 뒤 unmount되므로 그 프레임을 먼저 기다릴 것).
+- (J6) `AppIdleTaskRunner`에 선택 인자 `cleanup`(계획 4.6.2 시그니처에 없음 — 앱 내부)과 `AppIdleCleanup` 클래스를 더했다.
+- (J4) `CoreModule`이 경로 함수 실패를 기록할 때 `AppErrorRecord.fromError(error, stackTrace, source: module)` 한 건 — 계획은 '오류 기록(source module)'까지만 정했다. 경로를 읽는 중 포기되면 `open`을 부르지 않는다(계획에 없음 — 늦은 저장소 닫기 규칙(INFRA-2-9)이 경로 단계에도 맞게).
+
+- (J7) `media_module_test`의 녹음기 B는 CORE `FakeAudioRecorder`를 감싼 시험용 `_RecorderB`(인터페이스 위임)다 — 복구 호출 순서를 보고, `pendingDrafts()` 목록을 최신부터 주어 정렬을 확인하고(가짜 초안 저장소는 시작 순서대로 돌려줘 정렬이 안 보인다), 한 초안의 복구를 던지게 하려고. 초안 만들기·복구 자체는 `FakeAudioRecorder` 그대로. 저장소 시계는 `FakeAsync().getClock(…)` + `elapseBlocking`(앱은 `package:clock`에 의존하지 않는다 — 계약 7.5).
+- (J7) 6.17 시험의 '앞에 30초짜리 복구 작업'은 25초로 했다 — 실행기가 30초를 넘긴 작업을 기록하므로(6.5.1 ④) '기록 0건'을 함께 보려고.
+- (J7) `media.leaveGuard` 정리는 구독 취소를 기다리지 않는다(취소 즉시 이벤트가 멈춤). 시험 바인딩의 가짜 시간 안에서는 루트 zone의 취소 Future가 2초 제한 안에 끝나지 않아 정리 실패 기록이 생겼다(관찰함).
+- (J7) 업데이트 배너의 녹음 중 안내는 배너 안 둘째 줄(오류 색)이다 — 계획은 문구만 정했다. 배너는 Navigator 위라 SnackBar·Overlay를 쓰지 않는다(1차 규칙).
+
+- (J9) 반복 id의 디버그 assert는 기록과 버림을 마친 **뒤** `start()` 끝에서 실패한다 — 디버그 빌드에서는 `FeatureWiringModule` 시작이 실패해(비필수) 그 모듈의 override가 모두 빠진다(크게 보이게). 릴리스는 기록 + 뒤의 것 버림만. 시험은 `@visibleForTesting static bool debugAssertUniqueMenuIds`로 두 동작을 다 본다(계획에 없는 앱 내부 이름). 칸(선택·삽입)이 다르면 같은 id도 허용한다.
+- (J9) `mediaRecordingPanel` 인자 시험을 `media_module_test`에서 `media_wiring_test`로 옮겼다(함수가 있는 파일 기준).
+
+- (J12) 계획 4.4.4는 한 클래스(`PencilBridgePlugin`)가 `FlutterPlugin`·`FlutterStreamHandler`·`UIPencilInteractionDelegate`·`UIGestureRecognizerDelegate`를 모두 채택하는 요지다. 실제로는 플러그인 클래스(`FlutterPlugin`만)와 이벤트 쪽 클래스 `PencilEventStream`(`FlutterStreamHandler` + UIKit delegate 둘)으로 나눴다 — 캐시의 `file_picker_darwin` 2.4.2(`FilePickerPlugin` + `IOSFilePickerHandler`)와 같은 꼴로, UIKit delegate 채택이 메인 액터 격리를 추론하게 해도 `FlutterPlugin` 요구 사항과 섞이지 않게. 채널 상수와 맵 빌더는 `PencilWire.swift`(계획에 없는 파일 — 대조 시험이 한 곳을 읽게). ⓪ 시험의 '`FlutterPlugin`을 채택한 클래스는 하나'는 그대로다.
+- (J12) 위치는 붙인 뷰(`registrar.viewController.view` = 이 엔진의 Flutter 뷰) 좌표 그대로 보낸다 — 계획 6.12.2 표의 '`view` 좌표 → 창 좌표' 변환은 하지 않았다. 4.4.3의 전제(Flutter 뷰가 창 전체를 덮음)에서는 같은 값이고, Flutter 전역 논리 px는 Flutter 뷰 기준이라 이쪽이 맞다(실기기 C-1에서 확인).
+- (J12) 시각 `t`는 모든 종류에서 `ProcessInfo.processInfo.systemUptime`(롤만 `UITouch.timestamp` — 같은 기준), 17.5의 `Tap`·`Squeeze` 객체 시각은 쓰지 않았다(계획 표 그대로·컴파일 확인 전 API를 줄이려고). 모르는 스퀴즈 단계(`@unknown default`)는 보내지 않는다. `actionName`의 17.5 미만 길은 `showInkAttributes`를 `#available(iOS 16.0, *)`로 따로 본다(캐시의 `apple_pencil_double_tap` 2.0.0과 같은 판). 롤 인식기는 끝·취소 때 `state = .failed`를 직접 넣는다(계획 '상태를 바꾸지 않음 → 끝에 .failed'와 같은 결과를 명시). `detachFromEngine(for:)`에서 detach(계획에 없음 — 엔진이 먼저 사라질 때 인식기를 떼려고).
+- (J12) 컴파일 위험(11절 위험 1): `UIPencilInteraction.Tap`·`.Squeeze`·`hoverPose`(`location`·`zOffset`·`rollAngle`)·`UIHoverGestureRecognizer`의 16.1~17.5 속성·`UIPencilPreferredAction` 7개 이름은 캐시의 공개 플러그인 두 개가 쓰는 이름과 SDK 기억으로 맞췄다 — 첫 `ios-compile.yml` 실행(U19)에서 확인해야 한다. 실패하면 앱 전체 iOS 빌드가 깨지므로 TestFlight 전에 반드시 한 번.
+
+- (J13) `PencilStylusExtrasSource`에 앱 내부 `os`·`seen`을 더했다(계획 4.6.5 시그니처에 없음 — 앱 정보 줄이 OS 판과 '받음'을 알아야 해서). 새 최상위 이름은 없다(`seen`은 레코드 타입). 앱 정보 섹션이 보이는 동안 스스로 이벤트를 구독하는 것도 계획에 없다 — 에디터가 없는 설정 화면에서도 '받음'이 생기게.
+- (J13) 계획 4.6.7의 줄 예시('iOS 17.5 · 스퀴즈 · 호버 · 롤')가 아니라 6.12.3(v2.1)의 규칙('스퀴즈·롤은 받은 뒤 · 스퀴즈(받음)')을 따랐고, 더블탭은 iOS면 언제나 붙는다(능력 표 그대로). 능력 읽기 실패(`os` '?')는 'iOS ?' 대신 '능력을 읽지 못했어요'.
+
+- (J14) 계획에 없는 앱 내부 이름: `features/feature_status.dart`의 `AppFeatureState`(on·offInBuild·offInMenu·startFailed·offWithRecognition)·`appFeatureStatesOf`·`appFeatureStatusLine`·`mediaStepId`·`recognitionStepId`(시작 단계 id — 시험이 모듈 id와 같은지 본다), `licenses.dart`의 `noteSansLicenseAsset`·`noteSansLicenseName`, `AboutSection(compileTime:)`(J5 `FeatureSwitchSection`과 같은 시험 이음새), `DiagnosticReport.format(features:)`, `AppStrings.megabytes` 등 문구. 계약 표면이 아니다.
+- (J14) 기능 줄의 상태는 계획 예시의 세 가지(켬·꺼짐(개발자 메뉴)·꺼짐(빌드))에 '시작 실패'(모듈 단계 `failedNonCritical`·`timedOut`·`failedCritical`)와 수식 엔진 전용 '꺼짐(인식 꺼짐)'(빌드·메뉴로는 켜져 있지만 인식이 꺼졌거나 실패 — `AppFeatures.isOn(mathEngine)`과 같은 규칙)을 더했다. `MATH_ENDPOINT`가 비어 수식 엔진 주소가 없는 경우는 따로 표시하지 않는다(스위치 상태만).
+- (J14) 'x MB'는 1024 기준 소수 한 자리, 0은 '0 MB', 0이 아니지만 0.05 MB 미만은 '<0.1 MB'(0.0 MB로 보이지 않게). 1차 '사용량' 줄의 `AppStrings.bytes`('12.3MB')와 따로 둔 이유는 계획 문구가 'x MB'라서.
+- (J14) `usage()` 실패는 '첨부 파일 정보를 읽지 못했어요'(오류 색)만 — 기록은 남기지 않는다(1차 '다시 확인' 실패 문구와 같은 취급). 다시 만들기 실패는 기록 1건(사용자가 누른 동작 — source manual).
+- (J14) 라이선스 화면 시험: `LicensePage`를 `pumpAndSettle`로 기다린 첫 실행이 5분 넘게 끝나지 않아(CPU 0 % — 멈춤으로 보고 끊음) 100 ms씩 다섯 번 `pump`한다. `CachingAssetBundle`은 실패한 `loadString`도 캐시해서 '수집할 때마다 다시 시도'가 보이지 않으므로 시험의 가짜 번들은 `AssetBundle`을 바로 상속한다.
+
+- (J14b) 계획 4.6.7에 없는 것: 확인 중 줄('확인하는 중…' — `info()`가 답하기 전), 모르는 `failure` 값은 'other' 문구, 사본 크기·진행 표시는 J14의 `AppStrings.megabytes`('12.3 MB'), 만든 시각은 지역 시각 `yyyy-MM-dd HH:mm`. 내보내기·지우기 실패 기록의 `details`는 'readV1DatabaseCopy failed'·'deleteV1DatabaseCopy failed'·'v1DatabaseCopyInfo failed'(1차 'prepareBackup failed'와 같은 꼴). 시트를 닫은 뒤 스낵바 문구는 1차 백업 것을 그대로 쓴다('백업 파일을 내려받았어요…').
+- (J14b) 섹션 본문에 `ValueKey('app.v1Copy')`를 달았다가 설정 화면이 섹션 본문을 같은 키로 감싸서(1차 `SettingsScreen` — `ValueKey(entry.id)`) `settings_screen_test`가 '요소가 둘'로 실패했다 — 섹션 자신에는 키를 달지 않는다.
+
+- (J17) 계획 4.2 표의 종료 코드는 0 / 1이다. 빌드 폴더·`main.dart.js`·`FontManifest.json`·예산 파일이 없거나 형식이 틀리면 다른 `ws` 명령과 같이 3(환경 오류)으로 했다. `FontManifest.json`에 있지만 빌드에 없는 글꼴 파일은 'missing' 줄(위반 아님), `measure`는 예산 파일이 없어도 잰다(묶음·보고 자산 없이). 원본 글꼴 한도(`startup_fonts_raw_max`)는 합계 줄 하나에 gzip 한도와 함께 보인다('400,000 · raw 700,000'). 도구 내부 이름(`ByteSize`·`FontBundle`·`WebBudgetRow`·`groupBytes` 등)은 계약 표면이 아니다. 'Web budget' 단계는 `ci.yml`에만 넣었다(`web-experiment.yml`은 실험 채널 — 계획이 정하지 않음).
+
+- (J15) 계획 6.16 표·8.2 J15 행의 '워크플로 `env`의 `DEFAULT_BRANCH`·`FULL_RUN` 식이 1차와 글자 그대로'·'`outputs.full_run: ${{ env.FULL_RUN }}`'은 따르지 않았다. R2-B1이 `FULL_RUN`을 식이 아니라 'Test scope' 단계(셸)로 정하게 바꾼 뒤라 워크플로 `env`에 둘 식이 없다 — 대신 `check` 잡이 단계 출력(`steps.scope.outputs.*`)을 잡 `outputs`로 내고, 다른 잡은 `needs.check.outputs.*`를 잡 `env`로 받는다(`env`에 `GITHUB_ENV`로 쓴 값이 잡 `outputs` 식에서 보이는지 확실하지 않아 단계 출력을 썼다). 워크플로 `env`는 두지 않는다(시험).
+- (J15) `web`의 `needs`는 계획의 `[vm, chrome]`이 아니라 `[check, vm, chrome]` — `needs.<잡>.outputs`는 직접 적은 잡만 읽을 수 있어 요약의 '시험 범위'(`check` 출력)를 받으려면 `check`가 있어야 한다. 순서는 같다(`vm`·`chrome`이 이미 `check` 뒤).
+- (J15) 1차 푸시별 시나리오 5개를 R2-B1의 수동 실행 사례까지 12개로 넓혀 잡 수준에서 본다(`full`·`integration` 입력 조합 — `integration`만 켠 영역 브랜치 수동 실행은 `vm`·`chrome`은 바뀐 멤버, `heavy`는 돈다).
+- (J15) `check` 잡에는 빌드 훅 캐시를 두지 않았다(세션 9 메모의 '캐시'는 뺌) — 멤버를 빌드하지 않는 잡이 같은 키로 먼저 저장하면 빈(또는 일부만 든) 폴더가 그 키를 차지해 뒤 잡들이 정확히 맞는 키로 복원하고 저장하지 않는다. 다른 잡들 사이에도 같은 키를 먼저 저장한 잡이 이기는 것은 1차부터(워크플로 사이 공유) 같다.
+- (J15) 각 잡 끝 단계 이름은 'Timing'(계획에 이름 없음), 표 마지막 행은 '전체 (요약 전까지)'에서 '잡 전체'로.
+
+#### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
+
+| 보낸 곳 | 내용 | 처리 |
+|---|---|---|
+| CORE | R2-B2i `CountingNoteStore` getter 4개 | 기반 단계에서 완료(`59ed567`) |
+| INK 1 | `ink_engine/pubspec.yaml` `flutter: assets:` 블록 | 총괄이 넣음(C23-03) — INFRA 몫 없음 |
+| INK 2·PDF 1·EDITOR 5 | `pdf_module_test` 배경 빌더 목록 | R2-final에서 완료(`708a1c1`) |
+| INK 3 | Chrome 시험의 `useInkTestFonts()`, `InkMathRenderer.layout` WidgetsBinding | J19 `app_smoke_v2_browser_test` 등 앱 Chrome 시험 작성 때(C23-07) |
+| EDITOR 1~4 | `StylusExtrasSource.capabilities`, 이벤트 `timestamp`, `editorImageImporterProvider` 기본 null·`EditorExtensions` 새 필드, `EditorScreen(initialFocusRectPt:)` | R2-B8a(③)·R2-B8b(①③)·J13 |
+| PDF 2 | `pdfSearchIndexerProvider`를 읽으면 `core.noteStoreProvider` 필요, `PdfSearchIndexer` `start`·`dispose` 반복 안전 | J10(기본 리더 — 가짜 저장소 위에서 읽기·두 번 dispose 던지지 않음, R2-B4 표면)·H2(실제 색인기) |
+| SYNC | `functions/` 생김 → `functions.yml` 단계가 돈다(`# tests 37`) | J16(첫 푸시가 실행 — H6) |
+
+#### 이정표 커밋
+
+- 체크포인트 병합 요청(INFRA-F3, Q14): R2-B8a·R2-B8b·J0 끝마다 결과 보고에 적는다.
+- **R2-B8a 체크포인트**: `a4c9cca`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
+- **R2-B8b 체크포인트**: `6e7b753`(+ 기록 커밋 `20f831d`) — 총괄에게 `main` 병합 요청(D24).
+- **J0 체크포인트(①②③)**: `1fd1aea`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청. 이 체크포인트의 첫 푸시 CI 실행 기록이 J0 ④(6.16 실측)의 입력이다.
+- (2차 동시 개발 세션 3) J1 `3ff3b76`·J2 `0da5b71`·J3 `44609e8`(+ 기록 커밋) — 체크포인트 아님(INFRA-F3의 체크포인트는 R2-B8a·R2-B8b·J0). 다음 병합 때 함께 들어가면 된다.
+- (2차 동시 개발 세션 4) J4 `3779a8f`·J5 `16b9c4b`·J6 `864317a`(+ 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool·pencil_bridge) 변경 0, `ws test --package noteapp` VM 473 통과·Chrome 11 통과, V5·V6 통과, `dart test tool/test` 481 통과(117초).
+- (2차 동시 개발 세션 5) J7 `852cce5`·J8 `b0ffee5`·J9 `ea21681`·J10 `fcf949d`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app) 변경 0, `ws test --package noteapp` VM 514 통과(65초)·Chrome 14 통과(110초), V5(`--run-skipped -t integration`) 1 통과. `tool`·`pencil_bridge`는 이번에 바뀌지 않아 돌리지 않았다.
+
+- (2차 동시 개발 세션 6) J11 `fe6100d`·J12 `5b71ea3`·J13 `f771299`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·pencil_bridge) 변경 0, `ws test --package noteapp` VM 526 통과(111초)·Chrome 14 통과·1 건너뜀(111초), V5(`--run-skipped -t integration`, VM) 1 통과(53초), `ws test --package pencil_bridge` 57 통과, `ws native-reqs` 위반 0, `dart test tool/test/native_reqs_test.dart tool/test/native_config_test.dart` 89 통과(`tool`은 바뀌지 않음).
+
+- (2차 동시 개발 세션 7) J14 `9e10ac3`·J14b `b0cefb5`·J17 `95d88a8`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool) 변경 0, `ws test --package noteapp` VM 579 통과·1 건너뜀(75초)·Chrome 14 통과·1 건너뜀(104초), V5(`--run-skipped -t integration`, VM) 1 통과(45초), `dart test tool/test` 497 통과(155초). `pencil_bridge`는 바뀌지 않아 돌리지 않았다.
+
+- (2차 동시 개발 세션 8) J18 `1e29a75`·J19 `0b3c5d2`·J20 `8e1f05a`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool) 변경 0, `ws test --package noteapp` VM 579 통과·3 건너뜀(103초)·Chrome 14 통과·2 건너뜀(110초), `--run-skipped -t integration` VM 13 통과(54초)·Chrome 2 통과(130초, 잠금 안), `dart test tool/test` 527 통과(89초). `pencil_bridge`는 바뀌지 않아 돌리지 않았다.
+
+- (2차 동시 개발 세션 9) J21 `7f07a5a`·J16 `adc4403`·J15 앞 몫(`--dart-define`) `9fd7e1a`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(tool·app/integration_test) 변경 0, `ws test --package noteapp` VM 579 통과·3 건너뜀(63.9초)·Chrome 14 통과·2 건너뜀(87.9초), `--run-skipped -t integration --dart-define FEATURE_*=false` ×3 VM 13 통과(226.7초), `dart test tool/test` 541 통과 + 1 시간 초과(`export_names_test` 'the real script' — 6.13 `emulator` 경로와 겹친 부하) → 그 파일만 다시 13 통과, 6.13 `emulator` 경로 1회 통과(J16). `pencil_bridge`는 바뀌지 않아 돌리지 않았다.
+
+- (2차 동시 개발 세션 10) J15 잡 분리 `5563d84`·J22 마감 확인 `c338edb`(+ 이 기록 커밋) — 체크포인트 아님. **INFRA 동시 개발 몫은 J0 ④(CI 실측 — 총괄의 첫 체크포인트 푸시 뒤)만 남았다.** 세션 끝 확인: `ws check` 0·`--strict` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 바뀜 0, `dart test tool/test` 547 통과, `ws test` VM 11·Chrome 9 실행 전부 통과, `git status` 비어 있음.
+
+- (2차 동시 개발 세션 11) J0 ④ 예비 실측 + `parseTestCounts` github 형식 `711d551`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(tool) 바뀜 0, `dart test tool/test` 550 통과(98초), `ws test --package noteapp --package pencil_bridge` VM 579(건너뜀 3)·57 통과, `--platform chrome --package noteapp` 14 통과·2 건너뜀(114초), `git status` 비어 있음. **INFRA 동시 개발 몫은 J0 ④의 완료 조건 실행(첫 체크포인트 푸시)만 남았다.**
+
+#### 다음 세션 메모
+
+- (2차 동시 개발 세션 3 끝) J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
+- (2차 동시 개발 세션 4) J4·J5·J6 끝. 다음: J7(`MediaModule` 완성 — `media.leaveGuard`·`WebPlatform.setLeaveGuard`, 복구 시험(`FakeAudioRecorder.abandon()`), 업데이트 배너 보호 — 문구는 J5에서 만든 `AppStrings.reloadBlockedByRecording`)·J8·J9. 새 VM 시험에서 기본 `CoreModule`을 `start`하면 경로 함수가 던져 기록 1건이 생긴다 — 오류 기록을 세면 `nativePaths: noNativePaths`(`test/fakes/fake_native_paths.dart`).
+- J4 주의(2차 동시 개발 세션 3에서 본 것): ① 앱은 `path_provider_platform_interface`에 의존하지 않는다(계약 7.5에 없음) — `native_storage_paths_test`는 `PathProviderPlatform.instance`를 바꾸지 말고 `MethodChannel('plugins.flutter.io/path_provider')`의 `getApplicationSupportDirectory`를 `TestDefaultBinaryMessengerBinding`으로 흉내 내면 된다(플랫폼 인터페이스 2.1.3의 기본 구현이 그 채널이고 `flutter test`는 Dart 플러그인 등록을 돌리지 않는다 — 처음 실행 때 확인). ② 기본 `nativePaths`로 `CoreModule(...)`을 만드는 VM 시험이 많다(`core_module_test`·`production_modules_test`·`bootstrap_app_test`·`overrides_unique_test`·`feature_wiring_module_test` 등) — VM에서는 기본 경로 함수가 `MissingPluginException`으로 실패해 오류 기록 1건이 생긴다. 오류 기록을 세는 시험은 `nativePaths: () async => null`을 넘기거나 채널을 흉내 낸다. ③ `app_smoke_test`(V5)는 `configFor`로 `inMemory`를 쓰므로 경로와 무관.
+- (총괄·사용자) 고정 키(6.10.4, U20 ①)는 아직 없다 — 키를 만들어 파일 두 개로 건네는 일은 사용자와 함께(안내서 07은 J18). 그 전까지 `android.yml`은 `mode=debug`(`noteapp-debug-signed-<run>`)로 돈다. 시크릿 없이 변수만 넣으면 실패하는지(V14)는 H6.
+- (2차 동시 개발 세션 5) J7·J8·J9·J10 끝. 다음: J11(검색 결과 → 위치로 열기 마무리 — `production_screens_test`의 새로고침·`%2C`·잘못된 focus 세 경우, 라이브러리 콜백·에디터 인자 — 자리표시 화면 사례는 R2-B8b `app_router_test`에 이미 있음)·J12(`pencil_bridge` Swift + 와이어 대조 시험 ①~⑨, 컴파일은 CI)·J13·J14·J14b. J8·J10은 코드가 R2-B8a에서 이미 완성돼 시험만 보탰다 — J11도 R2-B8b에서 상당 부분 끝났으니 먼저 남은 사례만 확인할 것.
+- 위젯 시험에서 `setUp`(루트 zone)에서 만든 녹음기·스트림의 `cancel()` Future는 시험 바인딩의 가짜 시간 안에서 끝나지 않을 수 있다(J7에서 관찰) — 정리 콜백에서 그런 Future를 기다리지 말 것. 가짜 저장소·녹음기 조작은 `tester.runAsync` 안에서.
+- 저장소 시계를 움직이는 VM 시험은 `FakeAsync().getClock(…)` + `elapseBlocking`(앱은 `package:clock` 의존 없음 — `media_module_test`의 `_Clocked`).
+- J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
+- J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
+- 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에, J13 몫은 (R2-B8b)에 적었다.
+- (2차 동시 개발 세션 6) J11·J12·J13 끝. 다음: J14(설정·앱 정보 v2 6.18 — `storage_section` 종류별 용량(`AssetStore.usage().bytesByType`)·검색 색인 줄 + [다시 만들기](확인 창·진행 중 비활성), `about_section` 기능 상태 줄 4가지(모두 켬·빌드에서 끔·개발자 메뉴로 끔·시작 실패 — `appFeaturesProvider` + `startupReportProvider`), `registerAppLicenses`(NoteSans OFL — 가짜 에셋 번들 있음/없음, `licenses_test`), `DiagnosticReport` v2(기능 상태·`skipped` 단계 — 원하면 Pencil 줄도))·J14b(`V1CopySection` 다섯 상태 + `BackupFile.mimeType`)·J15. J14의 앱 정보 섹션에는 J13의 'Apple Pencil' 줄이 이미 있다(빌드·렌더러·홈 화면 앱 아래) — 기능 줄은 그 근처에.
+- J12 Swift는 컴파일된 적이 없다(컨테이너에 Xcode 없음). 첫 `ios-compile.yml` 실행(U19·H6)에서 API 이름(`UIPencilInteraction.Tap`/`.Squeeze`·`hoverPose`·`UIHoverGestureRecognizer.zOffset`/`altitudeAngle`/`azimuthAngle(in:)`/`rollAngle`·`UIPencilPreferredAction` 7개·`showInkAttributes` 16.0)을 확인할 것 — 위 '계획과 다르게 한 점'(J12) 마지막 줄. 고칠 때는 `pencil_wire_contract_test`를 함께 맞춘다.
+- 위젯 시험에서 스트림 이벤트로 바뀐 `ValueListenable`을 보려면 `pump()`를 두 번(첫 번째는 예약된 프레임이 없어 마이크로태스크만 비운다 — J13 `about_section_test`의 `deliver`).
+- (2차 동시 개발 세션 7) J14·J14b·J17 끝. 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄), J15(`ws test --dart-define`·`ci.yml` 잡 분리 — **J0 ④ 실측이 선행**이라 잡별 시간 제한 값은 실측 뒤. `--dart-define`·`test_command_test` v2 부분과 잡 구조·시나리오 5개 시험은 실측 없이도 먼저 쓸 수 있음 — 제한 값만 비워 두고 진행 기록에 적을 것), J16(`functions.yml` 완성 — SYNC R2-B7b 골격·LIBRARY emulator 시험이 선행. 이 작업 트리의 `functions/` 상태를 먼저 볼 것), J18(안내서 v2 — J2·J3·J14b 끝나서 시작 가능: 01 Hosting만, 04 B-1·B-15·B-16, 05 '지우지 말고 알려 주세요'·'고정 키 등록은 07', 07 새 파일(`android.yml`의 `::error::`가 가리킴), 08 ↔ 계약 7.8 문장 대조), J19(앱 스모크 v2·`feature_switch_test` — J7~J9 끝, `useInkTestFonts` C23-07), J20(`ws lock-age`, P-C), J21(`android-emulator.yml`, P-C), J22(마감). 다음 순서 추천: J18 → J19 → J20 → J21 → J15(실측 없이 되는 부분) → J16 → J22.
+- (2차 동시 개발 세션 8) J20 끝. J15에서 `ci.yml`을 잡으로 나눌 때 'Lock age' 단계는 `check` 잡(의존성 다음)으로 옮기고, `workflows_test`의 'lock age' 사례(`steps.indexOf(Dependencies) + 1`)를 그 잡 기준으로 고친다.
+- (2차 동시 개발 세션 8) J19 끝. H3는 `app_smoke_v2_test.dart`에 9.1 표의 2~8·10 단계를 더하고(`SmokeV2Fakes.recorder`·`playback`·`picks`·`math`·`handwriting`이 그때 쓸 가짜), 자리 3·4 `isNotEmpty`를 더한다. H5는 `feature_switch_test.dart`를 `--dart-define FEATURE_MEDIA=false --dart-define FEATURE_RECOGNITION=false --dart-define FEATURE_MATH_ENGINE=false`로 돌린다(`ws test --dart-define`은 J15).
+- (2차 동시 개발 세션 8) J18 끝. `guides_test`의 1차 사례 '02, 04: live는 `main`만'과 02 사례는 아직 `ci.yml`의 `jobs.values.single`에서 Channel 단계·`env`를 찾는다 — **J15 잡 분리 때 `web` 잡(배포 잡)에서 찾도록 같이 고칠 것**(계획 6.21 끝).
+- J17의 묶음별 글꼴 한도(`tool/web_budget.yaml`의 `gzip_max: null` 두 개)는 위 '변경 요청'의 총괄 결정이 오면 넣고 `web_budget_test`의 '커밋된 파일' 사례를 같이 고친다. J15 잡 분리 때 'Web budget' 단계는 웹 빌드 잡의 'Finalize web build' 바로 다음에 둔다(`workflows_test`의 순서·명령·조건 사례가 본다).
+- J14의 `StorageSection`은 이제 `ConsumerStatefulWidget`이고 `assetStoreProvider`·`searchIndexProvider`를 읽는다(시험은 두 provider를 가짜로 override). 실제 CORE `usage().bytesByType`·`rebuild()`는 H2에서.
+- `LicensePage`를 `pumpAndSettle`로 기다리는 시험은 쓰지 말 것(J14 — 첫 실행이 5분 넘게 끝나지 않음). 100 ms씩 몇 번 `pump`.
+- (2차 동시 개발 세션 8 끝) J18·J19·J20 끝. 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄), J21(`android-emulator.yml` + `app/integration_test/native_smoke_test.dart`, P-C — 6.10.5: 수동만·KVM 권한 단계·`reactivecircus/android-emulator-runner@v2`·`api-level: 34`·`google_apis`·`x86_64`·30분, 시험 = `workflows_test` 구조. `integration_test`는 R2-B1에서 lock에 있음. 액션 판은 계획 7.3 표에서 확인하고 없으면 의존성 요청), J15(`ws test --dart-define` + `ci.yml` 잡 분리 — 잡별 시간 제한 값만 J0 ④ 실측 뒤. 이때 `guides_test` 02·04 사례와 'Lock age'·'Web budget' 단계의 잡 위치를 같이 고침), J16(`functions.yml` 완성 — 이 작업 트리의 `functions/` 상태 먼저), J22(마감). 다음 순서 추천: J21 → J15(실측 없이 되는 부분) → J16 → J22.
+- (2차 동시 개발 세션 9) J21(`7f07a5a`)·J16(`adc4403`) 끝, J15는 앞 몫(`ws test --dart-define`)만 끝. 남은 동시 개발 몫: **J15 잡 분리**, J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄), J22(마감). 다음 순서: J15 잡 분리 → J22.
+- J15 잡 분리 할 일(계획 6.16 표·8.2 J15 행 — 지금 `ci.yml`은 단일 잡 `verify` 60분, 'Test scope' 단계가 `FULL_RUN`·`STRICT_CHECK`·`AFFECTED_BASE`·`TEST_SCOPE`를 `GITHUB_ENV`에 씀): ① 잡 5개 — `check`(15분: Test scope → 체크아웃 → Flutter → 캐시 → Dependencies → **Lock age**(지금 'Dependencies' 바로 뒤 — `workflows_test`의 'lock age' 사례 `steps.indexOf(Dependencies) + 1`을 `check` 잡 기준으로) → check(--strict) → analyze → `dart test tool/test` → **`ws native-reqs`**(새 단계), `outputs: full_run·strict·affected_base·test_scope`), `vm`(30분, `needs: check`, `ws test` 전체 또는 `--affected-since "$AFFECTED_BASE" --all-if-no-base`), `chrome`(30분, 같은 범위 `--platform chrome`), `heavy`(30분, `if: (github.event_name == 'push' && needs.check.outputs.full_run == 'true') || inputs.integration == true` — 통합 태그 VM·Chrome + **`ws test --platform chrome --run-skipped -t media`**), `web`(15분, `needs: [vm, chrome]` — Channel → Build info → Verify web assets → Web build → Finalize → **Web budget**(Finalize 바로 다음 — `workflows_test` 순서 사례) → Deploy → Summary). ② 잡 사이 값은 `needs.check.outputs.*`를 잡 `env`로(`env`는 잡 수준 `if`에서 못 읽음 — `heavy`는 출력). 계획 표의 'workflow `env`의 `FULL_RUN` 식이 1차와 글자 그대로'는 R2-B1이 'Test scope' 단계로 옮긴 뒤라 그대로 둘 수 없다 — `check` 출력으로 하고 '계획과 다르게 한 점'에 적을 것. ③ 잡별 제한은 계획 표의 임시값(15·30·30·30·15) — 실측 × 1.5는 J0 ④ 뒤. ④ 요약: 잡마다 단계 시간 표가 따로 생기므로 `web` 잡 Summary가 '빌드 라벨·채널·시험 범위·주소'를, 각 잡은 자기 단계 시간 표를. ⑤ `workflows_test`: 잡 5개·`needs`·제한·`heavy` `if`(FULL_RUN 푸시 참·영역 브랜치 푸시 거짓·수동 `integration` 참 — `_evaluate`에 `needs.check.outputs.full_run`·`inputs.integration`·`github.event_name` 표본), 푸시별 시나리오 5개(지금 'per push: the test scope …' 사례)를 잡 수준으로, `origin/main` 글자 없음·`refs/heads/main`은 Test scope·Channel·concurrency에만, 'every flutter-action'·'pub get'·'build-hooks cache' 개수(잡마다 준비 단계가 생김 — 지금 7·7), `ws` 호출 개수(23 + `native-reqs`·`-t media`), 'every deploy is gated'(배포 잡 `env`). ⑥ `guides_test` 02·04 사례가 `ci.yml` `jobs.values.single`에서 Channel·`env`를 찾는다 → `web` 잡으로(계획 6.21 끝). ⑦ `concurrency`는 워크플로 수준 그대로(기본 브랜치 푸시는 실행마다 따로).
+- 세션 9에서 본 것: 컨테이너 6.13 `emulator` 경로(전 멤버 `-t emulator`)는 부하 때 14분이 걸린다 — `timeout 590`으로 감싸지 말고 백그라운드로. `dart test tool/test`의 `export_names_test` 'the real script' 사례(1분 30초 제한)는 다른 무거운 실행과 겹치면 시간 초과 — 한 번 다시 돌리면 통과(J16 기록). `flutter test integration_test/native_smoke_test.dart -d flutter-tester`는 컨테이너 VM에서 돌지만 `~/.local/share/flutter_tester/noteapp/`에 DB를 만든다 — 돌렸으면 지울 것(J21 기록).
+- (2차 동시 개발 세션 10) J15 잡 분리 끝 — `ci.yml` 잡 5개(`check` → `vm`·`chrome`·`heavy` → `web`). 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄. 받으면 6.16 표를 실측으로, `ci.yml` 잡별 `timeout-minutes`와 `workflows_test`의 `_ciTimeouts`를 실측 × 1.5로, '첫 푸시에서 모든 잡이 제한 안'을 진행 기록에), J22(마감). 첫 푸시에서 볼 것: 잡 `outputs`(`steps.scope.outputs.*`)가 `vm`·`chrome`·`web` 잡 `env`에 닿는지(요약의 '시험 범위' 줄과 `vm`의 `--affected-since` 인자), `heavy`가 영역 브랜치 푸시에서 'skipped'인지, 빌드 훅 캐시가 `vm`·`chrome` 중 먼저 끝난 잡의 것으로 저장되는지.
+- (2차 동시 개발 세션 10 끝) J15·J22 끝. 남은 동시 개발 몫은 **J0 ④뿐**이고 컨테이너에서 할 수 없다(첫 체크포인트 푸시의 `ci.yml` 실행 기록 필요 — 푸시는 총괄). 다음 세션: 실행 기록(단계 시간 표 — 이제 잡마다 '### 단계 시간 — <잡>')을 받았으면 ① 계획 6.16 표의 '추정'을 실측으로 바꾸고 월 분 재계산(1,600분 넘으면 총괄에게) ② `ci.yml` 잡별 `timeout-minutes`와 `workflows_test`의 `_ciTimeouts`를 실측 × 1.5로(주석의 'Provisional' 고침) ③ 작업 표 J0·J15를 '완료'로, 이 J22 표 아래에 CI 실측 표를 덧붙인다. 받지 못했으면 할 일이 없다 — `ws check`·`dart test tool/test`·`git status`만 확인하고 끝낸다(다른 영역 코드는 이 작업 트리에서 바뀌지 않으므로 J22 묶음을 다시 돌릴 필요 없음).
+- (2차 동시 개발 세션 11) 첫 체크포인트 푸시는 아직 없다(`/home/user/noteapp` HEAD = `5843ec3`, GitHub의 가장 새 `ci.yml` 실행 = 실행 10 on `5843ec3`, 단일 잡). 그 실행을 GitHub API로 읽어 **J0 ④ 예비 실측**(위 '#### J0 ④ 예비 실측' — 35분 14초, 잡 5개로 나눈 예상은 모두 지금 제한 안, 월 분 예비 재계산 약 1,594분 = 80% 경계)을 적었고, 그 기록에서 본 결함(CI 요약표의 통과·실패·건너뜀이 0 — github 보고 형식)을 `parseTestCounts`에서 고쳤다. 잡별 제한은 바꾸지 않았다.
+- J0 ④ 완료 조건을 닫는 법(통합 단계 첫 푸시 뒤 — 이제 실질적으로 H 단계와 겹친다): GitHub API `GET /repos/youngduckcrab/noteapp/actions/runs?branch=<브랜치>` → 잡 5개 `GET …/runs/<id>/jobs`의 단계 `started_at`·`completed_at`(또는 잡마다 'Timing' 단계의 요약표)로 잡 시간 → ① `ci.yml` 잡별 `timeout-minutes`·`workflows_test`의 `_ciTimeouts` = 실측 × 1.5(올림, 주석 'Provisional' 고침) ② 계획 6.16 표를 실측으로(위 예비 재계산의 잡 고정분 1분 7초·청구 올림 방식 그대로) ③ 월 분이 1,600분을 넘으면 총괄에게 ④ 작업 표 J0·J15 '완료'. `vm` 잡(예상 18분 · 제한 30분)을 먼저 볼 것 — 다른 영역 2차 시험이 합쳐지면 VM이 가장 많이 는다.
+- 다음 GitHub 실행부터 `ws test` 요약표에 통과·실패·건너뜀 수가 보인다(이 세션의 `parseTestCounts` 고침) — 예비 실측의 표는 멤버별 시간만 믿을 것(수는 `🎉 …` 끝줄에서 읽음).

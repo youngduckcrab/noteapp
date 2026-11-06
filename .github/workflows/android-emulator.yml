@@ -1,0 +1,97 @@
+# Android emulator smoke (INFRA, docs/plans/m5-7/01-infra.md 6.10.5 — 2차
+# J21, P-C): app/integration_test/native_smoke_test.dart on an API 34
+# google_apis x86_64 emulator — the native storage paths (openNoteStore →
+# one note → start again), the image import sources, ML Kit 'en' on a
+# synthetic 'hi' (skipped when the model does not download) and 2 s of
+# recording from the emulator microphone (silent) → a recording row. The only
+# automatic look at the native paths while there is no Android device (U2);
+# a Linux runner bills 1x (macOS 10x).
+#
+# Manual only: Actions → Android emulator smoke → Run workflow. The container
+# has no Android SDK: tool/test/workflows_test.dart checks the structure, the
+# run is GitHub's.
+name: Android emulator smoke
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: android-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  emulator:
+    name: Native smoke on the Android emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Hardware acceleration for the x86_64 emulator: /dev/kvm of the runner
+      # is root-only.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Same as android.yml (AGP 9.1.0, Java 17 target).
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Cache Android NDK
+        uses: actions/cache@v6
+        with:
+          path: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          key: ndk-28.2.13676358
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      # Same key as ci.yml step 3.
+      - name: Build hooks (downloads sqlite3 when not cached)
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      - name: Dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # A debug APK of the app, built before the emulator boots: the next step
+      # installs it with `adb install -g` (RECORD_AUDIO and POST_NOTIFICATIONS
+      # granted — the permission dialog is outside Flutter); flutter test then
+      # reinstalls the test build with `adb install -r`, which keeps them
+      # (same package, debug key and version code). No build info: the smoke
+      # does not read it.
+      - name: Build debug APK
+        working-directory: app
+        run: flutter build apk --debug
+
+      # The action's default emulator options without -noaudio (the recording
+      # step needs the emulator microphone). Each script line runs on its own
+      # in working-directory.
+      - name: Native smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
+          disable-animations: true
+          working-directory: app
+          script: |
+            adb install -r -g build/app/outputs/flutter-apk/app-debug.apk
+            flutter test integration_test/native_smoke_test.dart

@@ -1,6 +1,6 @@
 # 01. 기반 · 빌드 · 배포 · 플랫폼 설정 (INFRA) — 2차 라운드(M5·M6·M7) 상세 계획서
 
-> 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 2회차 + 총괄 직접 수정(13.7). 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 2회차** (통합 계약 **v2.1** 기준 — 2026-11-05 현재 최신판, 변경 이력 C21-01~35. 수정 1회차: 총괄 검토 [00-review.md](00-review.md) 3.1 INFRA-M1~M15·공통 결정 CD2-01~25와 대리 검토 [reviews/infra.md](reviews/infra.md) 반영. 수정 2회차: 총괄 재검토 4건 — v1 DB 사본 API를 CORE CP-17로(옛 CP16 거둠), 바탕 HEAD `b6c9d0a`(`bb1bc60`의 기본 브랜치 비교·`FULL_RUN`·잡 60분), 영역 브랜치 `media` 규칙 하나로, 안내서 05의 07 안내 줄. 항목별 반영 위치는 [13절](#13-검토-반영-내역) — 수정 2회차는 [13.6](#136-수정-2회차-총괄-재검토-4건))
+> 상태: **승인 · 계약 v2.3** (동시 개발 착수 2026-11-06 — 계약 v2.2(C22-01~08)·v2.3(C23-01~07)이 바꾼 문장의 인용을 맞췄다(C22-09, 13.8). 최종 승인 2026-11-05 · 통합 계약 v2.2 — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 2회차 + 총괄 직접 수정(13.7). 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 2회차** (통합 계약 **v2.1** 기준 — 2026-11-05 현재 최신판, 변경 이력 C21-01~35. 수정 1회차: 총괄 검토 [00-review.md](00-review.md) 3.1 INFRA-M1~M15·공통 결정 CD2-01~25와 대리 검토 [reviews/infra.md](reviews/infra.md) 반영. 수정 2회차: 총괄 재검토 4건 — v1 DB 사본 API를 CORE CP-17로(옛 CP16 거둠), 바탕 HEAD `b6c9d0a`(`bb1bc60`의 기본 브랜치 비교·`FULL_RUN`·잡 60분), 영역 브랜치 `media` 규칙 하나로, 안내서 05의 07 안내 줄. 항목별 반영 위치는 [13절](#13-검토-반영-내역) — 수정 2회차는 [13.6](#136-수정-2회차-총괄-재검토-4건))
 >
 > 기준: 2차 개요 [00-overview.md](00-overview.md) 7장 **통합 계약 v2.1**(이하 '계약 7.x') · 1차 계약 v1.5(1차 통합 반영 — 시그니처는 v1.4와 같음, 이하 '1차 7.x') · 1차 INFRA 계획서 `/home/user/wt/infra/docs/plans/01-infra.md`(이하 '1차 INFRA n.n') · 조사 [01-hooks](research/01-hooks.md) · [02-audio-stylus](research/02-audio-stylus.md) · [03-recognition](research/03-recognition.md) · [04-native](research/04-native.md) · 판정 [judgement.md](drafts/judgement.md) · 마스터 기획서 [PLAN.md](../../PLAN.md) F-03·F-10~F-16, 7.6, 9.5, 10장 M5~M7
 > 작성 기준일: 2026-11-05 · 검증 환경: Flutter 3.47.9 / Dart 3.13.7(`/opt/flutter`), 리눅스 컨테이너(CPU 4), 헤드리스 Chrome
@@ -530,7 +530,7 @@ INFRA의 '공개 API'는 ① 모든 영역이 지키는 워크스페이스 규�
 | W2-1 | 새 멤버 3개(`media_io`·`ink_recognition`·`pencil_bridge`)의 형제 의존은 `allowed_dependencies` v2 안에서만(R8). 서비스 패키지 ↔ 피처 패키지 import 금지(계약 7.1 규칙 4)는 R8 표로 기계적으로 지켜진다 | 계약 7.1 |
 | W2-2 | `native_only_imports`에 `package:google_mlkit_digital_ink_recognition/`·`package:google_mlkit_commons/`·`package:flutter_foreground_task/`·`package:path_provider/` 추가 — `lib/`에서는 `*_native.dart`(또는 `*_io.dart`)에서만 import(R4②) | 계약 7.4.1, C2-29 |
 | W2-3 | **R4④(새)**: `lib/`에서 `dart:io`의 `Platform`을 쓰지 않는다(`*_native.dart` 안에서도). 플랫폼 판정은 `kIsWeb` + `defaultTargetPlatform`, 기능 판정은 서비스의 능력 API | 계약 7.4.1 |
-| W2-4 | **R16(새, v2.1)**: `plugin_free_members`(`feature_editor`·`feature_library`·`ink_engine`·`note_core`)의 `dependencies`·`dev_dependencies`에 플러그인이 없다. `pdf_io`·`sync_engine`은 기존 예외만 허용한다(`plugin_exceptions` — `pdf_io: [file_picker]`, `sync_engine`: Firebase 4종·`connectivity_plus`). `plugin_packages`는 앱이 해석한 플러그인 **전부**이고 `ws native-reqs`가 `.flutter-plugins-dependencies`와 같은지 본다(NR6) | 계약 7.4.1 v2.1, C2-29, CD2-20 |
+| W2-4 | **R16(새, v2.1)**: `plugin_free_members`(`feature_editor`·`feature_library`·`ink_engine`·`note_core`)의 `dependencies`·`dev_dependencies`에 플러그인이 없다. `pdf_io`·`sync_engine`은 기존 예외만 허용한다(`plugin_exceptions` — `pdf_io: [file_picker]`, `sync_engine`: Firebase 4종·`connectivity_plus`). `plugin_packages`는 앱이 해석한 플러그인 **전부**(`app/.flutter-plugins-dependencies`의 `dependencyGraph` 이름 — v2.2 C22-03, `plugins.<플랫폼>`이 아님)이고 `ws native-reqs`가 그 `dependencyGraph`와 같은지 본다(NR6) | 계약 7.4.1 v2.1·v2.2(C22-03), C2-29, CD2-20 |
 | W2-5 | 태그 `media`(Chrome 가짜 마이크)·`emulator`(Firebase 에뮬레이터)는 패키지 `dart_test.yaml`에 선언하고 `skip:`을 단다(R15 `skip_by_default_tags`에 추가). `media` 시험 파일은 `RecordPluginWeb.registerWith`·`JustAudioPlugin.registerWith`(또는 `media_io` `testing.dart`의 `registerMediaWebPlugins()`)를 직접 부른다 | 계약 7.4.6 |
 | W2-6 | (v2.1) `media`·`emulator` 태그는 `ws test`로 돌린다: `-t media --platform chrome`이면 `ws`가 `tool/chrome-fakemedia`를 Chrome으로 쓰고, `media`·`emulator`·전체 Chrome 실행은 무거운 시험 잠금(고정 경로 `/tmp/noteapp-heavy-tests.lock`, `NOTEAPP_HEAVY_LOCK`으로 바꿈)을 잡는다 — 영역이 `CHROME_EXECUTABLE`을 직접 바꾸지 않는다. npm·셸 스크립트는 `dart run tool/ws.dart with-heavy-lock -- <명령>`으로 감싸고, 그 안의 `ws test`는 `NOTEAPP_HEAVY_LOCK_HELD=1`을 보고 잠금을 다시 잡지 않는다 | 계약 5장·7.4.6 v2.1, D2-12 (CP10 승인, CD2-19) |
 | W2-7 | 플러그인을 새로 쓰거나 판을 바꾸는 영역은 그 계획서 부록 B(네이티브·권한 요구 — 초안의 14절)를 적고, INFRA가 `tool/native_requirements.yaml`·네이티브 설정에 넣는다. `ws native-reqs`가 0이어야 통합한다(V12) | 계약 7.4.3·7.4.6 |
@@ -1451,6 +1451,8 @@ abstract interface class WebPlatform {
 
 아래 코드 블록은 계약 7장 **v2.1**을 **글자 그대로** 옮긴 것이다(수정 1회차에서 v2.1 본문으로 다시 복사 — 발췌는 블록 위에 출처 절을 적고, 생략한 곳은 `// …` 주석 한 줄로 표시. 블록 밖 '(v2.1)' 문장도 계약 본문 그대로다). 1차 계약 v1.5에서 쓰던 것(1차 INFRA 5.1~5.6)은 그대로 쓴다.
 
+(동시 개발 착수 — C22-09) 기반 단계(R2-B1~R2-B6, `main` `5843ec3`)가 끝나 아래 블록은 **가정이 아니라 실제 타입**이다: INFRA가 쓰는 이름은 각 영역 진입점(`note_core.dart`·`dev_tools.dart`·`testing.dart`, `feature_editor.dart`, `feature_library.dart`, `ink_recognition.dart`(+`testing.dart`), `pdf_io.dart`, `media_io.dart`(+`testing.dart`), `ink_engine.dart`(+`testing.dart`))에 계약 시그니처 그대로 있고 각 영역 `api_surface_test`가 지킨다. 계약 v2.2·v2.3이 바꾼 것 중 이 절에 걸리는 것: C22-01(CP-17 v1 사본 API — 아래 CORE 블록, 이제 계약 7.2.7), C22-03(R16 `plugin_packages` = `dependencyGraph` — 4.1 W2-4), C23-01(`firebase-tools` **15.34.1** — 5.6), C23-07(`FakeInkShapeFitter.result`, Chrome 시험의 `useInkTestFonts()`, `InkMathRenderer.layout`의 WidgetsBinding — 5.5·9.1).
+
 ### 5.1 CORE (`package:note_core/note_core.dart`)
 
 계약 7.2.6 — 저장소 묶음·이미지 타입·네이티브 경로(INFRA: `NoteStoreConfig.nativeAssetDirectoryPath`, 저장 공간 섹션의 `bytesByType`, `CountingNoteStore` 위임):
@@ -1601,7 +1603,7 @@ final class FakeAudioPlayback implements AudioPlaybackService {
 }
 ```
 
-CORE CP-17 발췌 — v1 사본 개발자 도구(INFRA: 개발자 메뉴 `app.v1Copy` — `V1CopySection`, 4.6.7·6.18). 계약 7.2.7 v2.1은 메뉴만 INFRA에 두고 사본을 읽고 지울 표면을 정하지 않았다. 아래는 02-core 6.12.4의 'CORE 확정 세부' 블록을 **글자 그대로** 옮긴 것이고, CORE가 02-core 12.1 CP-17로 계약 반영을 요청했다(판정 대기 — 02-core 12.2 Q11 기본값: 이대로 진행, 거절되면 함수를 지우고 INFRA 메뉴를 숨긴다). CORE B2-α(T22)가 선언하고(`v1DatabaseCopyInfo` → `null`, 나머지 `UnimplementedError('CORE T24')`), T24가 동작을 채운다(02-core 8.1 B2 상태 표). 가짜 저장소는 `null`·아무것도 안 함:
+CORE CP-17 발췌 — v1 사본 개발자 도구(INFRA: 개발자 메뉴 `app.v1Copy` — `V1CopySection`, 4.6.7·6.18). 계약 7.2.7 v2.1은 메뉴만 INFRA에 두고 사본을 읽고 지울 표면을 정하지 않았다. 아래는 02-core 6.12.4의 'CORE 확정 세부' 블록을 **글자 그대로** 옮긴 것이고, CORE가 02-core 12.1 CP-17로 계약 반영을 요청했고 **계약 v2.2 C22-01로 승인**됐다(00-overview 7.2.7 — `dev_tools.dart` 함수, 기반 단계 B2-α에 선언돼 `main`에 있음). CORE B2-α(T22)가 선언하고(`v1DatabaseCopyInfo` → `null`, 나머지 `UnimplementedError('CORE T24')`), T24가 동작을 채운다(02-core 8.1 B2 상태 표). 가짜 저장소는 `null`·아무것도 안 함:
 
 ```dart
 // package:note_core/dev_tools.dart — (v2.1) CORE 확정 세부, CP-17
@@ -2042,7 +2044,7 @@ tool   : functions/tool/math_eval.ts — reads fixtures (stroke JSON + expected 
          engine with keys from developer env vars, writes the 03-recognition 6.6 score table.
 ```
 
-계약 7.4.7 v2.1(INFRA 몫): `.env.local`·`.secret.local`·`node_modules/`·`lib/`·`eval-out/`·`firebase-debug*.log`는 `.gitignore`(INFRA), **`functions/.env.demo-noteapp`은 커밋**(어떤 무시 규칙에도 걸리지 않음을 INFRA 시험이 확인 — 3.1 `repo_hygiene_test`), CI `functions` 잡은 `npm ci && npm test && npm run test:emulator`(firebase-tools 15.34.2 = `functions/package.json` devDependency, 스크립트 `build`·`test`·`test:emulator`, `--config ../app/firebase.json` — CP11 승인), `npm test` 시험 수 > 0, **`functions/`가 없는 커밋에서는 잡을 건너뛴다(`hashFiles('functions/package.json')` 가드)**. 에뮬레이터 사용자 `owner-uid`·`stranger-uid`. INFRA가 기대하는 SYNC 쪽 스크립트 이름은 5.9 R-6(수락됨 — 07-sync RQ-4).
+계약 7.4.7 v2.1(INFRA 몫): `.env.local`·`.secret.local`·`node_modules/`·`lib/`·`eval-out/`·`firebase-debug*.log`는 `.gitignore`(INFRA), **`functions/.env.demo-noteapp`은 커밋**(어떤 무시 규칙에도 걸리지 않음을 INFRA 시험이 확인 — 3.1 `repo_hygiene_test`), CI `functions` 잡은 `npm ci && npm test && npm run test:emulator`(firebase-tools **15.34.1**(v2.3, C23-01) = `functions/package.json` devDependency, 스크립트 `build`·`test`·`test:emulator`, `--config ../app/firebase.json` — CP11 승인), `npm test` 시험 수 > 0, **`functions/`가 없는 커밋에서는 잡을 건너뛴다(`hashFiles('functions/package.json')` 가드)**. 에뮬레이터 사용자 `owner-uid`·`stranger-uid`. INFRA가 기대하는 SYNC 쪽 스크립트 이름은 5.9 R-6(수락됨 — 07-sync RQ-4).
 
 ### 5.7 동작 보장 중 INFRA가 지키는 것
 
@@ -2083,7 +2085,7 @@ INFRA는 의존 대상이 '전부'다(계약 4.3). 기반 단계 뒤 `main`에�
 | R-3 | PDF·LIBRARY | `PdfSearchIndexer.dispose()`·`HandwritingIndexer.dispose()`는 멱등 | 받아들임 — 계약 7.2.11·7.2.12 v2.1 |
 | R-4 | LIBRARY | `recognitionDevOverlayLinesProvider`(CP4) | 승인(= CP-L2) — 계약 7.2.11 v2.1 |
 | R-5 | INK | `NoteSans` OFL 원문을 패키지 에셋 `packages/ink_engine/assets/fonts/OFL.txt`로(CP5) | 승인 — 계약 7.4.5 v2.1(파일 단위 에셋 — 글꼴 두 파일 + `OFL.txt`) |
-| R-6 | SYNC | `functions/package.json`에 `firebase-tools: 15.34.2` devDependency·스크립트 `build`·`test`·`test:emulator`, `--config ../app/firebase.json`(CP11) | 받아들임 — 07-sync RQ-4, 계약 7.4.7 v2.1 |
+| R-6 | SYNC | `functions/package.json`에 `firebase-tools: 15.34.1`(v2.3, C23-01) devDependency·스크립트 `build`·`test`·`test:emulator`, `--config ../app/firebase.json`(CP11) | 받아들임 — 07-sync RQ-4, 계약 7.4.7 v2.1 |
 | R-7 | LIBRARY | `emulator` 시험은 함수 주소를 `NOTEAPP_FUNCTIONS_URL`(기본 `http://127.0.0.1:5001/demo-noteapp/asia-northeast3/recognizeMath`)·`FIREBASE_AUTH_EMULATOR_HOST`로 읽는다 | 받아들임(05-library) |
 | R-8 | INK | R2-B1이 `packages/ink_engine/pubspec.yaml`에 의존 4줄을 넣는다(CP3) | 승인 — 계약 7.6 R2-B1 '한 번 예외' |
 | R-9 (새) | CORE | 개발자 메뉴 'v1 DB 사본 내보내기·지우기'(계약 7.2.7 v2.1 — INFRA 몫)가 쓸 공개 API를 `dev_tools.dart`에 둔다: 사본 정보·사본 읽기·사본 지우기 | CORE가 같은 때 따로 정의했다 — **CORE CP-17**(02-core 6.12.4: `V1DatabaseCopyInfo`·`v1DatabaseCopyInfo`·`readV1DatabaseCopy`(≤ 4 MiB 조각 `Stream`)·`deleteV1DatabaseCopy`, B2-α 선언·T24 동작). INFRA는 자기 제안(옛 12.2 CP16 — `LegacyDbCopyInfo`·`Future<Uint8List>`)을 거두고 CP-17 이름·모양을 그대로 쓴다(5.1 블록, 4.6.7, J14b). 요청은 CP-17로 충족 |
@@ -2098,7 +2100,7 @@ INFRA는 의존 대상이 '전부'다(계약 4.3). 기반 단계 뒤 `main`에�
 - **R2-B1에서 한 번에**: 계약 7.5 v2.1의 새 의존 **전부**(추가 행 포함 — `media_io` 직접 6줄(CP-PDF-9)·간접 고정 2줄(CP1), 루트 dev `xml`(CP2), 앱 dev `integration_test`)를 각 pubspec에 미리 넣고 lock을 만든다. 바탕 lock은 1차 통합 HEAD의 것이다(1차 G1 뒤 `analyzer` `direct dev` 한 줄만 바뀐 상태). 기존 잠금 변화는 `xml 7.1.0 → 7.0.1` 한 건이고(계약 7.5), 추가는 계약 확인 때 44개 + `integration_test`가 끌어오는 hosted 항목(`webdriver 3.2.0`·`sync_http 0.3.1` 등 — 검토 S-5에서 확인, 정확한 목록은 R2-B1 진행 기록)이다. 이번 계획 작성 때 계약 확인 작업 공간(`designA/ws`)의 lock과 바탕 lock을 비교해 같은 결과를 다시 얻었다(확인함 — `/tmp/claude-0/plan57-scratch/infra57/lockdiff.py`).
 - **게시 14일 규칙 재확인에서 찾은 것** (확인함, 2026-11-05 pub.dev API): 추가 44개 중 `shared_preferences_android 2.5.4`(2026-10-27)·`shared_preferences_foundation 2.6.1`(2026-10-27)이 **9일**밖에 안 됐다. 둘 다 `flutter_foreground_task 11.0.3` → `shared_preferences 2.5.6`(제약 `^2.3.4`·`^2.5.0`)이 끌어온다. `media_io` pubspec에 `shared_preferences_android: 2.5.3`(2026-10-22)·`shared_preferences_foundation: 2.6.0`(2026-10-17)을 간접 고정하면 해석이 되고 lock 변화는 이 두 줄뿐이다(확인함 — `infra57/ws`에서 `flutter pub get`, "Changed 2 dependencies"). (v2.1) **CP1 승인** — 계약 7.5 표에 들어갔으므로 R2-B1에 넣는다.
 - 나머지 추가분은 모두 14일 이상이다: `file_selector_macos 0.9.5+2`(10-19, 17일)가 가장 가깝다. `image_picker_ios`·`flutter_svg`·`vector_graphics`·`vector_graphics_compiler`의 간접 고정은 계약 7.5 그대로다. CP-PDF-9의 6개는 모두 14일 이상이고 최신판이다(06-pdf 3.4 — `record_web 2.1.3` 2026-09-11, `just_audio_web 0.4.16` 2025-05-13, `record_platform_interface 2.1.0` 2026-06-10, `just_audio_platform_interface 4.6.0` 2025-08-13, `image_picker_platform_interface 2.11.2` 2026-10-06).
-- **`firebase-tools 15.34.2`**(2026-10-28 게시)는 R2-B1 커밋 날 14일이 지났는지 다시 본다(계약 7.5 v2.1 — **2026-11-11부터 통과**). 그 전에 R2-B1을 커밋하게 되면 `functions.yml` 골격의 `npx firebase` 단계는 R2-B7b가 들어올 때까지 어차피 건너뛰므로(`hashFiles` 가드 — 6.14) 판 문자열만 두고 진행 기록에 '11-11 이후 재확인'을 적는다. SYNC R2-B7b(`functions/package.json` devDependency)도 같은 날짜 규칙을 따른다.
+- (v2.3, C23-01) 고정 판은 **`firebase-tools 15.34.1`**(2026-10-21 게시 — 14일 통과)이다. 아래 15.34.2 문장은 C23-01 전의 계획이다: **`firebase-tools 15.34.2`**(2026-10-28 게시)는 R2-B1 커밋 날 14일이 지났는지 다시 본다(계약 7.5 v2.1 — **2026-11-11부터 통과**). 그 전에 R2-B1을 커밋하게 되면 `functions.yml` 골격의 `npx firebase` 단계는 R2-B7b가 들어올 때까지 어차피 건너뛰므로(`hashFiles` 가드 — 6.14) 판 문자열만 두고 진행 기록에 '11-11 이후 재확인'을 적는다. SYNC R2-B7b(`functions/package.json` devDependency)도 같은 날짜 규칙을 따른다.
 - **기반 단계를 실제로 하는 날에 다시 계산한다**: 14일 판정은 채택하는 날 기준이다. R2-B1 작업 첫 단계에서 `ws lock-age --since <1차 통합 HEAD>`(J20 전이면 같은 스크립트를 임시로)을 돌려, 그 사이 새로 14일을 넘긴 판이 있어도 **계약 표의 판을 그대로 쓴다**(바꾸면 계약 변경). 그 사이 계약 판이 회수(retract)되면 총괄에게 알린다.
 - **lock 소유**: lock은 INFRA만 다시 만든다(1차 7.4.1). 동시 개발 중 영역이 의존을 바꿔야 하면 '의존성 요청' → INFRA가 `infra` 브랜치에서 lock을 다시 만들고 총괄이 병합(1차와 같음). 통합 단계에서는 영역 병합마다 INFRA가 `flutter pub get` → `--enforce-lockfile` 확인(H1).
 - **`packages/ink_engine/pubspec.yaml`**: `flutter_math_fork` 계열 4줄을 R2-B1이 넣는다 — (v2.1) CP3 승인(계약 7.6 R2-B1 '한 번 예외'). INK의 다른 줄은 건드리지 않는다.
@@ -2672,7 +2674,7 @@ dart run tool/ws.dart with-heavy-lock -- \
 | 비밀값·환경 | 없음. 에뮬레이터는 커밋된 `functions/.env.demo-noteapp`(SYNC — `OWNER_UIDS=owner-uid` 등)을 읽는다. `.env.local`·`.secret.local`은 만들지 않는다(가짜 엔진은 키를 쓰지 않음 — 계약 7.4.7 v2.1, 검토 S-11의 '더미 값 주체' 질문은 이것으로 닫힘) |
 | 골격(R2-B1) | 가드 + 첫 세 단계(npm ci·test). `test:emulator`·Dart 단계는 SYNC 골격(R2-B7b)·LIBRARY emulator 시험이 생긴 뒤 J16에서 켠다 |
 
-- firebase-tools는 `functions/package.json` devDependencies의 `15.34.2`를 `npx`로 쓴다(5.9 R-6). 러너의 Node 22.23.4(조사 04 3.4)와 같은 줄기다.
+- firebase-tools는 `functions/package.json` devDependencies의 `15.34.1`(v2.3, C23-01)을 `npx`로 쓴다(5.9 R-6). `ci.yml`·`web-experiment.yml` 배포 단계의 `firebaseToolsVersion`도 15.34.1이다. 러너의 Node 22.23.4(조사 04 3.4)와 같은 줄기다.
 - `setup-node`는 `@v6`(`using: node24`)로 고정한다. `@v7`도 있으나 게시일을 확인하지 못해(github.com API 접근 불가) 보수적으로 고른다(7.4). 시험(`workflows_test`): 경로 필터, (v2.1) 체크아웃 뒤 모든 단계의 `if`가 `hashFiles('functions/package.json') != ''`(잡 수준 `if`에는 없음), `npm ci`만(설치 `npm install` 금지), 시험 수 > 0 확인 단계, 비밀값 없음, `emulators:exec` 인자(`--project demo-noteapp`, `--only functions,auth`, `--config app/firebase.json`), Dart 단계의 `ws` 인자를 실제 인자 해석기로 확인(1차 I13 방식).
 
 ### 6.15 웹 예산 (1차 INFRA 6.13 예산표 이어받음, 계약 7.4.5 v2.1, J0·J17)
@@ -2687,6 +2689,20 @@ dart run tool/ws.dart with-heavy-lock -- \
 
 - `ws web-budget check`는 CI 웹 빌드 뒤(`finalize-web` 다음)에 돌고, 실패하면 배포 전에 멈춘다. 한도를 넘기면 원인 영역에 알리고(예: KaTeX → INK가 포크해 지연 적재 — 계약 7.4.5·U15, 아이콘 → 아이콘 수 줄이기), 총괄 승인 없이 한도를 올리지 않는다.
 - **J0 실측**(R2-B8b 뒤, 동시 개발 첫 체크포인트): `cd app && flutter build web --release` → `ws web-budget measure` 표를 진행 기록·이 표에 남기고, `main.dart.js` 증가분이 +300 KB 안인지, KaTeX·아이콘 묶음 값으로 묶음별 한도를 제안한다(아이콘이 2차 UI로 늘 여유를 두고 KaTeX는 실측 + 5%). 기준값(`baseline`)은 H5에서 2차 통합 뒤 한 번 더 고친다(그 값은 3라운드 기준).
+- **J0 실측 결과**(2026-11-06, 작업 트리 `area2/infra` — R2-B8b `6e7b753` 뒤, 다른 영역은 기반 단계 표면 상태라 그 2차 구현 코드는 아직 없음. `dart:io` gzip, 파일별 gzip의 합 — `ws finalize-web`과 같은 방식):
+
+  | 측정 항목 | 값 | 비교 |
+  |---|---|---|
+  | `main.dart.js` (기본 빌드) | 4,694,993 B, gzip **1,382,988 B** | 1차 기준 대비 gzip +16,950 B(+1.2%), R2-final 대비 +7,505 B(R2-B8a·B8b 셸 연결). 한도 1,666,038 B까지 283,050 B |
+  | `main.dart.js` (`FEATURE_MEDIA`·`FEATURE_RECOGNITION`·`FEATURE_MATH_ENGINE` = false) | 4,682,895 B, gzip 1,379,757 B | 기본 빌드 대비 gzip −3,231 B(지금은 `media_io`·`ink_recognition`이 기반 단계 표면이라 작음 — H5에서 다시) |
+  | 시작 글꼴 합계 (`FontManifest.json` 14개 패밀리·22개 파일) | 원본 661,088 B, gzip **382,428 B** | 합계 한도 400,000 B까지 17,572 B |
+  | ㄴ KaTeX (`packages/flutter_math_fork/` 12개 패밀리·20개 파일) | 원본 640,372 B, gzip 371,014 B | |
+  | ㄴ 아이콘 (MaterialIcons 트리 셰이킹 19,244 B · CupertinoIcons 1,472 B) | 원본 20,716 B, gzip 11,414 B (10,391 + 1,023) | |
+  | `NoteSans` | `FontManifest.json`·`AssetManifest`에 없음(지연 적재 지켜짐) — 빌드 산출물 `assets/packages/ink_engine/fonts/`에 파일 3개(466,936 + 466,440 + OFL 4,388 B) | 금지 글꼴 규칙 통과 |
+  | `record_web` 워크릿 | 11,762 B(표시만) | |
+  | 빌드 시간 | 컴파일 260초(기본, 부하 평균 8)·136초(기능 끈 빌드) | 1차 117초 — 다른 에이전트와 CPU 공유 |
+
+  **묶음별 한도 제안**(총괄 결정 — 계약 7.4.5 v2.1): 위 규칙('KaTeX는 실측 + 5%, 아이콘은 여유')을 그대로 쓰면 KaTeX 389,565 B + 아이콘 실측 11,414 B가 이미 합계 한도 400,000 B를 넘는다. 그래서 합계 400,000 B를 지키는 쪽으로 **KaTeX `gzip_max: 380,000`**(실측 + 2.4% — 글꼴 파일은 `flutter_math_fork` 판이 바뀔 때만 바뀜)·**아이콘 `gzip_max: 20,000`**(실측의 약 1.75배 — 2차 UI 아이콘 추가 여유)을 제안한다. 합계 한도를 410,000 B로 올리고 KaTeX 389,565 B(+5%)를 쓰는 안은 총괄이 고를 수 있게 함께 적는다. `main.dart.js` 한도는 그대로(기준 + 300 KB) — 다른 영역 2차 구현이 들어오는 H5에서 다시 잰다.
 - 메모리 예산(계약 7.4.5 v2.1 — 웹 합계 296 MB, 래스터·디코드 4 Mpx 상한)은 각 영역 몫이고, INFRA는 실기기 B-13 결과(개발자 표시 '앱 캐시 합계' ≤ 300 MB)를 안내서 08 보고 양식으로 받는다.
 
 ### 6.16 GitHub Actions 사용 시간 예산 · CI 잡 분리 (1차 INFRA 6.13 이어받음 — v2.1 재계산, J0)
@@ -2701,6 +2717,8 @@ dart run tool/ws.dart with-heavy-lock -- \
 - 실행 요약에 '시험 범위:' 줄(전체 / `<before 7자>` 이후 / 기본 브랜치 대비)을 낸다. 아래 J15 잡 분리의 `FULL_RUN`은 이 정의를 따른다(`heavy`는 `FULL_RUN` 푸시와 수동 `integration`만).
 
 **J0 완료 조건**(R2-B8b 뒤 첫 체크포인트 푸시 — 사용자가 GitHub에 올린 뒤): `ci.yml` 단계별 시간 표(1차 I13의 'Start clock' + 단계마다 `$SECONDS` 기록 → 요약)를 실행 1회 이상 읽어, 아래 표의 '추정'을 **실측으로 바꾸고 월 분을 다시 계산**해 진행 기록과 이 절에 적는다. 실측이 표보다 크면 아래 절약 장치를 순서대로 켠다.
+
+**J0 ④ 예비 실측**(2026-11-06, 2차 동시 개발 세션 11 — 완료 조건의 실행은 아님): 첫 체크포인트 푸시 전이라, 그 전에 GitHub에 있던 실행 하나를 읽었다 — `ci.yml` 실행 10(`5843ec3` = 2차 기반 단계 끝·계약 v2.3, 개발 브랜치 푸시, **J15 전의 단일 잡**, 2코어 러너). 시험 범위는 '`a23c14f` 이후 바뀐 멤버'였지만 전역 경로가 바뀌어 11 멤버 전부(VM 11 실행·Chrome 9 실행)라 전체 실행과 같다. 단계: 준비(체크아웃·Flutter·캐시·`pub get`) 50초 · `check --strict` 53초 · analyze 44초 · VM 16분 53초 · 도구 시험 1분 18초 · Chrome 13분 3초 · 웹 빌드 1분 8초(컴파일 66초) · 그 밖 7초 · 뒷정리(캐시 저장) 17초 = **35분 14초**(청구 36분) — 위 표의 '약 35분' 추정과 같다(1차 통합 뒤 30분 대비 VM +1.9분 · Chrome +3.0분). 이 단계 시간을 J15의 잡 5개에 나눠 보면 `check` ≈ 4분 10초 · `vm` ≈ 18분 · `chrome` ≈ 14분 10초 · `web` ≈ 2분 25초(× 1.5 = 6.3 · 27 · 21 · 3.6분 — 모두 지금 제한 15 · 30 · 30 · 15분 안, `vm`이 가장 가깝다), `heavy`는 이 실행에서 건너뛰어 값이 없다. 잡마다 준비 + 뒷정리 ≈ 1분 7초가 붙어 전체 실행은 청구 약 42분(+ `heavy`)이 되고, 바뀐 멤버만 도는 푸시도 잡 4개의 고정분 때문에 약 15분(표의 12분보다 큼)으로 본다 — 이 값으로 월 분을 다시 세면 약 1,594분(80% 경계 — 아래 표는 완료 조건의 실측 뒤에 바꾼다). 자세한 표는 진행 기록 '#### J0 ④ 예비 실측'. 같은 기록에서 찾은 것: GitHub에서는 `flutter test`가 github 보고 형식을 쓰므로 `ws test` 요약표의 통과·실패·건너뜀이 모두 0이었다 → `parseTestCounts`가 그 형식의 끝줄도 읽게 고침(`test_command_test`).
 
 **잡 분리안**(J15 — J0 실측으로 확정, 같은 워크플로 안의 잡 5개, `needs`로 순서. 검토 M-6의 4묶음 중 'check·analyze·VM'을 VM이 9분이라 둘로 나눔):
 
@@ -2851,7 +2869,7 @@ dart run tool/ws.dart with-heavy-lock -- \
 | `flutter_riverpod` / `material_ui` / `meta` / `collection` / `web` | v1.4 값 | + media_io, ink_recognition (`web`은 media_io `*_browser.dart`) | |
 | (npm) `firebase-functions` / `firebase-admin` / `typescript` / `@types/node` | 7.4.0 / 14.5.0 / 6.0.3 / 22.20.5 | functions/ | 조사 04 6.4에서 설치·에뮬레이터 실행 확인 |
 | (npm) `@anthropic-ai/sdk` | 1.1.0 | functions/ (v2.1, CP-S5 — P-C Claude 어댑터만) | 2026-10-21 게시, Apache-2.0. 쓰는 매개변수(`fallbacks`·`output_config`)가 타입에 있음 [확인 — SYNC 검토]. 간접 의존 판은 lock 만들 때 확인 |
-| (도구) `firebase-tools` | 15.34.2 | CI, (v2.1) `functions/` devDependency | v1.4 INFRA 고정값. 2026-10-28 게시라 (v2.1) R2-B1·R2-B7b 커밋 때 14일이 지났는지 다시 확인한다(2026-11-11부터 통과) |
+| (도구) `firebase-tools` | 15.34.1 (v2.3, C23-01) | CI, (v2.1) `functions/` devDependency | (v2.3) 15.34.1(2026-10-21 게시)로 내림 — 15.34.2는 실연결 미니 라운드 때 다시 판단. 이전 문장: v1.4 INFRA 고정값. 2026-10-28 게시라 (v2.1) R2-B1·R2-B7b 커밋 때 14일이 지났는지 다시 확인한다(2026-11-11부터 통과) |
 | `xml` | 7.0.1 | 루트 dev (v2.1, CP2 — `native_config_test`) | 이미 간접으로 7.0.1, lock 변화 없음 |
 | `integration_test`(SDK) | SDK | `app` dev (v2.1 — INFRA J21) | `webdriver`·`sync_http` 등 hosted 항목이 lock에 새로 들어오므로 R2-B1에서 함께 해석한다. 플러그인이라 `plugin_packages`에도 |
 
@@ -2869,7 +2887,7 @@ INFRA가 초안에서 제안한 행(CP1 `shared_preferences_*` 간접 고정, CP
 | `reactivecircus/android-emulator-runner` (새, P-C) | `@v2` | v2 `action.yml` 있음, v3 없음(확인함 — raw 파일) |
 | macOS 러너 | `macos-26` | arm64, Xcode 26.6 기본, CocoaPods 1.17.0(조사 04 4.1 — runner-images README 확인) |
 | Node (functions 잡) | 22 | 러너 기본 22.23.4(조사 04 3.4), 계약 7.4.7 |
-| `firebase-tools` | 15.34.2 | 1차 고정값, `functions/package.json` devDependencies로(5.9 R-6). 2026-10-28 게시 — R2-B1·R2-B7b 커밋 날 14일 재확인(11-11부터 통과, 6.1) |
+| `firebase-tools` | 15.34.1 (v2.3, C23-01) | `ci.yml`·`web-experiment.yml` 배포 단계, `functions/package.json` devDependencies로(5.9 R-6). 이전 문장: 1차 고정값 15.34.2, 2026-10-28 게시 — R2-B1·R2-B7b 커밋 날 14일 재확인(11-11부터 통과, 6.1) |
 | Playwright (H7, 새) | 컨테이너 설치본 1.63.0 | 저장소 의존 아님(스크래치 스크립트 — 1차 G4 방식), `/opt/node22/bin/playwright --version` 확인함 |
 | 그 밖 | 1차 그대로 | `actions/checkout@v7`·`cache@v6`·`setup-java@v6`·`upload-artifact@v7`·`subosito/flutter-action@v2`·`FirebaseExtended/action-hosting-deploy@v0` |
 
@@ -3058,7 +3076,7 @@ R2-B8a·B8b는 B4·B5·B6의 계약 표면을 컴파일에 쓰므로 그 뒤에 
 7. CI 단계별 시간이 실측되고(J0) 6.16 예산이 다시 계산되었으며, `ci.yml`의 모든 잡이 잡별 제한 안에서 끝난다(J15·H6).
 8. 무거운 시험 잠금이 고정 경로·중첩 넘김·재시도 동안 유지로 동작하고(`heavy_lock_test`), `emulator` 태그가 컨테이너에서 한 번 돌았다(6.13 경로).
 9. 통합 9단계 Playwright 스모크(H7)가 콘솔 오류 0으로 통과했다. Hosting이 있으면 미리보기 배포 뒤 안내서 08을 전달했다(H8 — 없으면 '대기'로 기록).
-10. 안내서 01·04·05·07·08이 2차(v2.1) 내용으로 갱신되고(`guides_test` — 08 ↔ 계약 7.8 문장 대조), 개발자 메뉴에 'v1 DB 사본 내보내기·지우기'가 있다(J14b — CORE CP-17, 다섯 상태 시험. CP-17이 거절되면 12.1 Q16대로 섹션 없이).
+10. 안내서 01·04·05·07·08이 2차(v2.1) 내용으로 갱신되고(`guides_test` — 08 ↔ 계약 7.8 문장 대조), 개발자 메뉴에 'v1 DB 사본 내보내기·지우기'가 있다(J14b — CORE CP-17 = 계약 v2.2 C22-01, 다섯 상태 시험).
 11. 진행 기록에 측정값(웹 예산·시작 시간·CI 시간)과 계획과 다르게 한 점이 남아 있다.
 
 ## 11. 리스크와 대응
@@ -3083,7 +3101,7 @@ R2-B8a·B8b는 B4·B5·B6의 계약 표면을 컴파일에 쓰므로 그 뒤에 
 | 16 | (v2.1, 검토 M-6, 수정 2회차) Actions 무료 시간 초과·잡 시간 제한 — 1차 통합 실측(로컬 합계 약 21분, 2코어 러너 전체 실행 추정 30~40분 — `bb1bc60`이 단일 잡을 60분으로 올림)에 2차 멤버 3개·`media`·통합 태그가 더해짐, 기본 브랜치(= 개발 브랜치) 푸시마다 `FULL_RUN` | 통합 브랜치 CI 실패, 월말 CI 멈춤 | J0 실측·6.16 재계산(완료 조건), 잡 분리(잡별 제한), 브랜치 affected(`--all-if-no-base`)·`heavy`는 `FULL_RUN` 푸시·수동만, 영역 브랜치는 체크포인트·통합 때만 푸시, 기본 브랜치 푸시는 묶어서, `ios-compile.yml` 월 1회, 에뮬레이터 잡 수동 |
 | 17 | 안드로이드 개발자 인증(2027 전 세계 예정)·Node 22 지원 종료(2027-04-30) | 시험 APK 설치 방법·서버 함수 런타임 변화 | 안내서 05에 감시 항목, 실연결 미니 라운드에서 함수 런타임 재확인(계약 위험 12·15) |
 | 18 | (v2.1) 무거운 시험 잠금이 다른 에이전트의 강제 종료로 남음 | 다음 무거운 시험이 20분 기다리다 4로 끝남 | PID 생존 확인으로 낡은 잠금 회수, 형식이 깨진 파일 1분 규칙, 대기 중 1분마다 쥔 PID·명령 출력(사람이 판단 가능) |
-| 19 | (v2.1, 수정 2회차) CORE CP-17이 거절되거나 T24(실제 사본)가 늦음, 큰 웹 사본 | 개발자 메뉴 'v1 DB 사본'으로 B-1 마지막 확인 불가 / 내보내기 준비 중 메모리 부족 | CP-17은 B2-α에 선언되므로 섹션은 동시 개발 첫날부터 컴파일되고 T24 전에는 '사본 없음'(DB가 v1이라 이주도 없음 — 맞는 표시). 거절되면 섹션을 뺀다(12.1 Q16). B-1은 사본 확인 없이도 '노트가 열림'까지는 판정. 준비 중 메모리는 사본 크기의 약 두 배 — 사본 크기를 먼저 보이고, iPad에서 실패하면 진단 기록으로 남는다(기록 1건). 덩어리를 합치지 않는 내려받기(Blob 조각)는 필요할 때 `WebPlatform`에 더한다 |
+| 19 | (v2.1, 수정 2회차) T24(실제 사본)가 늦음(CP-17은 C22-01로 승인), 큰 웹 사본 | 개발자 메뉴 'v1 DB 사본'으로 B-1 마지막 확인 불가 / 내보내기 준비 중 메모리 부족 | CP-17은 B2-α에 선언되므로 섹션은 동시 개발 첫날부터 컴파일되고 T24 전에는 '사본 없음'(DB가 v1이라 이주도 없음 — 맞는 표시). B-1은 사본 확인 없이도 '노트가 열림'까지는 판정. 준비 중 메모리는 사본 크기의 약 두 배 — 사본 크기를 먼저 보이고, iPad에서 실패하면 진단 기록으로 남는다(기록 1건). 덩어리를 합치지 않는 내려받기(Blob 조각)는 필요할 때 `WebPlatform`에 더한다 |
 
 ## 12. 총괄에게 묻는 질문 · 계약 변경 제안
 
@@ -3271,6 +3289,19 @@ INFRA는 승인 상태다. EDITOR 12.2 Q16(V5의 자동 도형 단계가 P-B 작
 | 1 | 계약 v2.2 C22-07(00-overview 7.7.2 'P-B에 기대는 기준'·V5b) | V5 2단계에서 '합성 멈춤으로 자동 도형'을 빼고 기대값을 `ShapeObject` 1(도구)로. 자동 도형은 새 **V5b** `app/test/integration/app_smoke_shape_assist_test.dart`(VM, P-B)로 옮겨 단계·기대값·원인 좁히기 시험을 9.1 단계 표 아래에 적었다. V5b는 INK T39·EDITOR E2-15·LIBRARY L2-06이 모두 병합됐을 때만 H3에서 만들고, 아니면 '미룸'(2차 완료 판정을 막지 않음). V6은 V5 본 흐름만 | 8.3 H3, 9.1 파일 표·2단계·V5b 문단, 10 #3 |
 | 2 | 같은 규칙의 V15 행 | 기대 차이 목록의 '자동 도형 보정'은 EDITOR E2-15·LIBRARY L2-06이 모두 병합됐을 때만 넣는다 | 8.3 H5, 9.1 V15 행 |
 | 3 | 미판정 CP·질문 | CP17 승인(C22-03), Q14 된다(총괄 체크포인트 병합), Q15 공지한다, Q16 받아들인다(CORE CP-17 = C22-01) | 12.1, 12.2 |
+
+### 13.8 동시 개발 착수 — 계약 인용 맞추기 (2026-11-06, C22-09 · 계약 v2.3)
+
+| # | 계약 | 이 계획서에서 바꾼 곳 |
+|---|---|---|
+| 1 | C22-01 (CP-17 승인) | 5.1 CP-17 블록 머리 '판정 대기' → 승인, 10 #10·11 #19의 '거절되면' 갈래 삭제(12.1 Q16 답은 기록으로 남김). 00-review INFRA-F2 처리 |
+| 2 | C22-03 (R16 `dependencyGraph`) | 4.1 W2-4 R16 행 |
+| 3 | C23-01 (`firebase-tools` 15.34.1) | 5.6·5.9 R-6·6.1·6.14·7.2·7.3 표. 코드: `ci.yml`·`web-experiment.yml` 배포 단계 `firebaseToolsVersion` 15.34.1(`workflows_test`) |
+| 4 | C23-04 (R2-B1 CI 세부 승인) | 바꿀 문장 없음(6.16·6.10.3이 이미 그 정책) |
+| 5 | C23-07 (`useInkTestFonts`·WidgetsBinding) | 5절 머리 문단. J19 `app_smoke_v2_browser_test`는 이미 `setUpAll(useInkTestFonts)` |
+| 6 | 5절 '가정' | 5절 머리 문단 — 블록 = `main` `5843ec3`의 실제 타입 |
+
+00-review '최종 승인'의 INFRA 항목: INFRA-F1(V5에 자동 도형 없음 — J19·H3·H5에서 지킴), INFRA-F2(위 1), INFRA-F3(B8a·B8b·J0 체크포인트 병합 요청 — 진행 기록 '### 동시 개발'·결과 보고), INFRA-F4(H1 — 통합 단계).
 
 ## 부록 A. 확장 지점 · 자리 사용표 (초안의 13절)
 

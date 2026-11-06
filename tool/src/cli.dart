@@ -4,9 +4,10 @@
 /// Commands: `list`, `check` (R1–R16; R14 since the integration step G3,
 /// R16 since the 2차 step R2-B1), `analyze`, `test` (vm / chrome,
 /// `--affected-since`, `--all-if-no-base`, the heavy test lock and the fake
-/// media Chrome for `media`), `with-heavy-lock`, `affected`, `channel-id`,
-/// `build-info`, `finalize-web`, `web-assets verify|fetch` and
-/// `hosting-config`.
+/// media Chrome for `media`), `with-heavy-lock`, `native-reqs` (NR1–NR7,
+/// 2차 J1), `web-budget measure|check` (2차 J17), `lock-age` (2차 J20),
+/// `affected`, `channel-id`, `build-info`, `finalize-web`,
+/// `web-assets verify|fetch` and `hosting-config`.
 ///
 /// Exit codes: 0 success, 1 check / test failure, 2 usage error, 3
 /// environment error (no workspace, flutter, git or Chrome not found, no
@@ -26,9 +27,13 @@ import 'export_names.dart';
 import 'flutter_runner.dart';
 import 'heavy_lock.dart';
 import 'hosting_config.dart';
+import 'lock_age.dart';
+import 'native_config.dart';
+import 'native_reqs.dart';
 import 'rules.dart';
 import 'test_command.dart';
 import 'web_assets.dart';
+import 'web_budget.dart';
 import 'web_finalize.dart';
 import 'workspace.dart';
 
@@ -116,11 +121,14 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
         ..addCommand(_TestCommand(ctx))
         ..addCommand(_WithHeavyLockCommand(ctx))
         ..addCommand(_AnalyzeCommand(ctx))
+        ..addCommand(_NativeReqsCommand(ctx))
         ..addCommand(_AffectedCommand(ctx))
         ..addCommand(_ChannelIdCommand(ctx))
         ..addCommand(_BuildInfoCommand(ctx))
         ..addCommand(_FinalizeWebCommand(ctx))
         ..addCommand(_WebAssetsCommand(ctx))
+        ..addCommand(_WebBudgetCommand(ctx))
+        ..addCommand(_LockAgeCommand(ctx))
         ..addCommand(_HostingConfigCommand(ctx));
   try {
     final code = await runner.run(arguments);
@@ -150,6 +158,18 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   } on ExportNamesException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on NativeReqsException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on NativeConfigException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on WebBudgetException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on LockAgeException catch (e) {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   } on _HeavyLockTimeout catch (e) {
@@ -437,6 +457,16 @@ final class _TestCommand extends _WsCommand {
         help: 'Reporter passed to flutter test.',
         valueHelp: 'name',
       )
+      // 2차 J15 (docs/plans/m5-7/01-infra.md 4.2, 6.13 — V15): FEATURE_*=false
+      // builds of the app shell's tests. Values may hold commas.
+      ..addMultiOption(
+        'dart-define',
+        help:
+            'Passed to every flutter test run as --dart-define=<KEY=VALUE> '
+            '(repeatable, in order).',
+        valueHelp: 'KEY=VALUE',
+        splitCommas: false,
+      )
       ..addOption(
         'member-timeout',
         help:
@@ -477,6 +507,12 @@ final class _TestCommand extends _WsCommand {
     rejectRest();
     final args = argResults!;
     final excluded = args['exclude-tags'] as List<String>;
+    final defines = args['dart-define'] as List<String>;
+    for (final define in defines) {
+      if (!isDartDefine(define)) {
+        usageException('--dart-define must be KEY=VALUE, got `$define`');
+      }
+    }
     final workspace = loadWorkspace();
     final since = args['affected-since'] as String?;
     final allIfNoBase = args['all-if-no-base'] as bool;
@@ -540,6 +576,7 @@ final class _TestCommand extends _WsCommand {
       excludeTags: args.wasParsed('exclude-tags') ? excluded : null,
       runSkipped: args['run-skipped'] as bool,
       reporter: args['reporter'] as String?,
+      dartDefines: defines,
     );
     final TestPlan plan;
     try {
@@ -969,6 +1006,267 @@ final class _WebAssetsFetchCommand extends _WebAssetsSubcommand {
       'ws web-assets fetch: ${results.length} asset(s), $failures failure(s)',
     );
     return failures == 0 ? 0 : 1;
+  }
+}
+
+final class _WebBudgetCommand extends _WsCommand {
+  _WebBudgetCommand(super.ctx) {
+    addSubcommand(_WebBudgetSubcommand(ctx, check: false));
+    addSubcommand(_WebBudgetSubcommand(ctx, check: true));
+  }
+
+  @override
+  String get name => 'web-budget';
+
+  @override
+  String get description =>
+      'Measure a web build (main.dart.js, startup fonts, report assets) and '
+      'check it against $webBudgetPath (docs/plans/m5-7/01-infra.md 6.15).';
+}
+
+final class _WebBudgetSubcommand extends _WsCommand {
+  _WebBudgetSubcommand(super.ctx, {required this.check}) {
+    argParser
+      ..addOption(
+        'build-dir',
+        help: 'Web build directory (default: <root>/app/build/web).',
+        valueHelp: 'dir',
+      )
+      ..addOption(
+        'budget',
+        help:
+            'Budget file (default: <root>/$webBudgetPath; measure uses its '
+            'bundles and report assets when it exists).',
+        valueHelp: 'file',
+      );
+  }
+
+  final bool check;
+
+  @override
+  String get name => check ? 'check' : 'measure';
+
+  @override
+  String get description => check
+      ? 'Measure and compare with the limits (null = report only); a '
+            'forbidden font family is a violation. Exit 1 on a violation.'
+      : 'Print the sizes (also to GITHUB_STEP_SUMMARY). Always exit 0.';
+
+  @override
+  Future<int> run() async {
+    rejectRest();
+    final args = argResults!;
+    final workspaceRoot = root;
+    final buildDir = args['build-dir'] != null
+        ? resolvePath(args['build-dir'] as String)
+        : p.join(workspaceRoot, 'app', 'build', 'web');
+    final budgetPath = args['budget'] != null
+        ? resolvePath(args['budget'] as String)
+        : p.join(workspaceRoot, webBudgetPath);
+    final budget = check || File(budgetPath).existsSync()
+        ? WebBudget.load(budgetPath)
+        : const WebBudget();
+    final measurement = measureWebBuild(
+      buildDir,
+      reportAssets: budget.reportAssets,
+    );
+    final report = webBudgetReport(measurement, budget, check: check);
+    final text = report.format(command: name);
+    ctx.out.write(text);
+    final summary = ctx.environment['GITHUB_STEP_SUMMARY'];
+    if (summary != null && summary.isNotEmpty) {
+      File(summary).writeAsStringSync(
+        '### Web budget ($name)\n\n$text\n',
+        mode: FileMode.append,
+      );
+    }
+    return report.violations.isEmpty ? 0 : 1;
+  }
+}
+
+/// `ws lock-age` (docs/plans/m5-7/01-infra.md 4.2, J20 — P-C, Q8 '경고
+/// 단계'): see lock_age.dart. The base lock is `git show <ref>:pubspec.lock`;
+/// a ref that is not a commit is a warning (nothing compared, exit 0), a ref
+/// without pubspec.lock makes every hosted entry new.
+final class _LockAgeCommand extends _WsCommand {
+  _LockAgeCommand(super.ctx) {
+    argParser
+      ..addOption(
+        'since',
+        help: 'Git ref whose pubspec.lock is the base (required).',
+        valueHelp: 'git-ref',
+      )
+      ..addOption(
+        'min-days',
+        help: 'Minimum whole days (UTC) between publication and now.',
+        valueHelp: 'n',
+        defaultsTo: '$defaultLockAgeMinDays',
+      )
+      ..addOption(
+        'now',
+        help: 'The day to check against (tests; default: today, UTC).',
+        valueHelp: 'YYYY-MM-DD',
+      );
+  }
+
+  @override
+  String get name => 'lock-age';
+
+  @override
+  String get description =>
+      'Check that every hosted package new or changed in pubspec.lock since '
+      'a git ref was published at least --min-days ago (pub API). Exit 1 on '
+      'a violation; network errors are warnings.';
+
+  @override
+  Future<int> run() async {
+    rejectRest();
+    final args = argResults!;
+    final since = args['since'] as String?;
+    if (since == null || since.isEmpty) usageException('--since is required');
+    final minDaysText = args['min-days'] as String;
+    final minDays = int.tryParse(minDaysText);
+    if (minDays == null || minDays < 0) {
+      usageException('--min-days must be a whole number, got `$minDaysText`');
+    }
+    final nowText = args['now'] as String?;
+    final DateTime now;
+    if (nowText == null) {
+      now = ctx.now().toUtc();
+    } else {
+      final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(nowText);
+      final parsed = match == null
+          ? null
+          : DateTime.utc(
+              int.parse(match.group(1)!),
+              int.parse(match.group(2)!),
+              int.parse(match.group(3)!),
+            );
+      if (parsed == null || _date(parsed) != nowText) {
+        usageException('--now must be YYYY-MM-DD, got `$nowText`');
+      }
+      now = parsed;
+    }
+    final workspaceRoot = root;
+    final lockFile = File(p.join(workspaceRoot, 'pubspec.lock'));
+    if (!lockFile.existsSync()) {
+      throw _EnvironmentError('no pubspec.lock at $workspaceRoot');
+    }
+    final git = requireGit();
+    Future<RunResult> runGit(List<String> arguments) => ctx.processes.run(
+      git,
+      arguments,
+      workingDirectory: workspaceRoot,
+      echo: false,
+    );
+
+    final LockAgeReport report;
+    final commit = await runGit([
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      '$since^{commit}',
+    ]);
+    if (commit.exitCode != 0) {
+      report = LockAgeReport(
+        entries: const [],
+        minDays: minDays,
+        now: now,
+        baseWarning: '`$since` is not a commit',
+      );
+    } else {
+      final exists = await runGit(['cat-file', '-e', '$since:pubspec.lock']);
+      String? baseLock;
+      if (exists.exitCode == 0) {
+        final shown = await runGit(['show', '$since:pubspec.lock']);
+        if (shown.exitCode != 0) {
+          throw _EnvironmentError(
+            '`git show $since:pubspec.lock` failed (exit code '
+            '${shown.exitCode}): ${shown.output.trim()}',
+          );
+        }
+        baseLock = shown.output;
+      }
+      report = await checkLockAge(
+        baseLock: baseLock,
+        lock: lockFile.readAsStringSync(),
+        fetch: ctx.download,
+        now: now,
+        minDays: minDays,
+      );
+    }
+    final text = report.format(since: since);
+    ctx.out.write(text);
+    final summary = ctx.environment['GITHUB_STEP_SUMMARY'];
+    if (summary != null && summary.isNotEmpty) {
+      File(summary).writeAsStringSync(
+        '### Lock age (since $since)\n\n$text\n',
+        mode: FileMode.append,
+      );
+    }
+    return report.violations.isEmpty ? 0 : 1;
+  }
+
+  static String _date(DateTime t) => t.toIso8601String().substring(0, 10);
+}
+
+final class _NativeReqsCommand extends _WsCommand {
+  _NativeReqsCommand(super.ctx);
+
+  @override
+  String get name => 'native-reqs';
+
+  @override
+  String get description =>
+      'Check the native requirements of the app\'s plugins against the '
+      'app\'s native files (NR1–NR7, ${NativeReqsPaths.requirements}). '
+      'Needs ${NativeReqsPaths.pluginsDependencies} (flutter pub get). '
+      'Exit 1 on a violation; NR4 is a warning.';
+
+  @override
+  Future<int> run() async {
+    rejectRest();
+    final workspaceRoot = root;
+    final config = NativeConfig.load(workspaceRoot);
+    final report = checkNativeRequirements(
+      requirements: NativeRequirements.load(
+        p.join(workspaceRoot, NativeReqsPaths.requirements),
+      ),
+      dependencies: FlutterPluginsDependencies.load(
+        p.join(workspaceRoot, NativeReqsPaths.pluginsDependencies),
+      ),
+      pluginPackages: WorkspaceRules.load(
+        p.join(workspaceRoot, 'tool', 'workspace_rules.yaml'),
+      ).pluginPackages,
+      config: config,
+      flutterDefaults: _flutterDefaults(),
+      appProblems: appNativeConfigProblems(config),
+    );
+    ctx.out.write(report.format());
+    return report.violations.isEmpty ? 0 : 1;
+  }
+
+  /// Flutter's default SDK levels from the Flutter in use (null when it or
+  /// its `FlutterExtension.kt` is not found — the requirements file's
+  /// `flutter_defaults` then apply).
+  ({int minSdk, int compileSdk})? _flutterDefaults() {
+    final flutter = locateFlutter(
+      environment: ctx.environment,
+      resolvedExecutable: ctx.resolvedExecutable,
+      isFile: ctx.isFile,
+      windows: Platform.isWindows,
+    );
+    if (flutter == null) return null;
+    try {
+      final sdkRoot = p.dirname(
+        p.dirname(File(flutter).resolveSymbolicLinksSync()),
+      );
+      final kotlin = File(p.join(sdkRoot, NativeReqsPaths.flutterExtension));
+      if (!kotlin.existsSync()) return null;
+      return flutterGradleDefaults(kotlin.readAsStringSync());
+    } on FileSystemException {
+      return null;
+    }
   }
 }
 

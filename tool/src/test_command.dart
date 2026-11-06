@@ -70,6 +70,7 @@ final class TestOptions {
     this.runSkipped = false,
     this.reporter,
     this.memberTimeout,
+    this.dartDefines = const [],
   });
 
   /// Member names to test; empty = every member.
@@ -95,6 +96,10 @@ final class TestOptions {
   /// default ([defaultChromeMemberTimeout] for chrome, none for vm),
   /// [Duration.zero] = none.
   final Duration? memberTimeout;
+
+  /// `KEY=VALUE` pairs passed to every `flutter test` run as
+  /// `--dart-define=KEY=VALUE`, in this order (2차 J15 — V15).
+  final List<String> dartDefines;
 
   /// The time limit that applies, `null` = none.
   Duration? get effectiveMemberTimeout {
@@ -239,8 +244,16 @@ List<String> flutterTestArguments(TestTarget target, TestOptions options) => [
   for (final tag in options.effectiveExcludeTags) ...['--exclude-tags', tag],
   if (options.runSkipped) '--run-skipped',
   if (options.reporter != null) ...['--reporter', options.reporter!],
+  for (final define in options.dartDefines) '--dart-define=$define',
   ...target.paths,
 ];
+
+/// Whether [value] is a `--dart-define` value: `KEY=VALUE` with a non-empty
+/// key without spaces (the value may be empty and hold `=` or commas).
+bool isDartDefine(String value) {
+  final equals = value.indexOf('=');
+  return equals > 0 && !value.substring(0, equals).contains(RegExp(r'\s'));
+}
 
 /// The outcome of one member.
 enum MemberOutcome {
@@ -295,17 +308,33 @@ final class MemberTestResult {
   };
 }
 
-/// Reads the final `+passed ~skipped -failed:` counter of a `flutter test`
-/// run (compact and expanded reporters). Returns `null` if there is none.
+/// Reads the final counts of a `flutter test` run: the last
+/// `+passed ~skipped -failed:` counter (compact and expanded reporters) or the
+/// last closing line of the github reporter — `🎉 7 tests passed, 2 skipped.`
+/// or `::error::4 tests passed, 1 failed, 2 skipped.` (`flutter test` picks
+/// that reporter by itself on GitHub Actions, so the CI summary table needs
+/// it). Whichever comes last in [output] wins. Returns `null` if there is
+/// none.
 ({int passed, int skipped, int failed})? parseTestCounts(String output) {
-  final matches = RegExp(r'\+(\d+)(?: ~(\d+))?(?: -(\d+))?: ')
-      .allMatches(output);
-  if (matches.isEmpty) return null;
-  final last = matches.last;
+  final counter = RegExp(r'\+(\d+)(?: ~(\d+))?(?: -(\d+))?: ')
+      .allMatches(output)
+      .lastOrNull;
+  final github = RegExp(
+    r'(?:🎉 |::error::)(\d+) tests? passed'
+    r'(?:, (\d+) failed)?(?:, (\d+) skipped)?\.',
+  ).allMatches(output).lastOrNull;
+  if (counter == null && github == null) return null;
+  if (github != null && (counter == null || github.start > counter.start)) {
+    return (
+      passed: int.parse(github.group(1)!),
+      skipped: int.parse(github.group(3) ?? '0'),
+      failed: int.parse(github.group(2) ?? '0'),
+    );
+  }
   return (
-    passed: int.parse(last.group(1)!),
-    skipped: int.parse(last.group(2) ?? '0'),
-    failed: int.parse(last.group(3) ?? '0'),
+    passed: int.parse(counter!.group(1)!),
+    skipped: int.parse(counter.group(2) ?? '0'),
+    failed: int.parse(counter.group(3) ?? '0'),
   );
 }
 

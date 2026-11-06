@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/modules/core_module.dart';
 
+import '../fakes/fake_native_paths.dart';
 import '../support/smoke_scenario.dart';
 
 void main() {
@@ -22,7 +23,10 @@ void main() {
     // 1. Real modules; CORE in memory. Every 7.3.3 override once, real.
     final app = await bootSmokeApp(
       tester,
-      CoreModule(configFor: (_) => const NoteStoreConfig(inMemory: true)),
+      CoreModule(
+        nativePaths: noNativePaths,
+        configFor: (_) => const NoteStoreConfig(inMemory: true),
+      ),
     );
     expectContractOverrides(app);
 

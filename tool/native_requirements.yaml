@@ -1,0 +1,51 @@
+# Native requirements of the app and of every plugin it pulls in (INFRA,
+# docs/plans/m5-7/01-infra.md 4.3.2 and 6.3; contract 00-overview 7.4.3 v2.1,
+# appendix B of each area plan). Read by `dart run tool/ws.dart native-reqs`
+# (NR1-NR7) and tool/test/native_config_test.dart (the same NR7 check on the
+# committed files — the CI gate).
+#
+# Plugin names are the ones of app/.flutter-plugins-dependencies (for a
+# federated plugin, the platform implementation). Every iOS / Android plugin
+# of the app must be listed under `plugins` or `plugins_without_requirements`
+# (NR1 — a new plugin comes in with its requirements, W2-7). Web-only and
+# desktop implementations are not listed here; they are in `plugin_packages`
+# of tool/workspace_rules.yaml (NR6). Permissions without a dot get the
+# `android.permission.` prefix; service attributes get `android:`.
+app:
+  ios_deployment_target: '15.5'        # pbxproj 3 places + Podfile platform + $iOSVersion
+  android_min_sdk: flutter              # 'flutter' = Flutter default (FlutterExtension.kt; 24 in 3.47.9)
+  android_compile_sdk: flutter          # 36 in 3.47.9
+  android_label: 필기노트
+  android_allow_backup: false          # D20 (contract 7.4.3 v2.1, U27)
+  ios_display_name: 필기노트
+flutter_defaults: {min_sdk: 24, compile_sdk: 36}   # when FlutterExtension.kt cannot be read (6.3)
+cocoapods_only_allowed: [google_mlkit_digital_ink_recognition, google_mlkit_commons]   # V12
+plugins:
+  record_android:  {area: PDF, android_permissions: [RECORD_AUDIO]}
+  record_ios:      {area: PDF, ios_plist_keys: [NSMicrophoneUsageDescription]}
+  just_audio:      {area: PDF}
+  audio_session:   {area: PDF, ios_background_modes: [audio]}
+  flutter_foreground_task:
+    area: PDF
+    android_permissions: [FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE, POST_NOTIFICATIONS]
+    android_services:
+      - {name: com.pravera.flutter_foreground_task.service.ForegroundService,
+         foregroundServiceType: microphone, exported: 'false', stopWithTask: 'true'}   # 00-review Q7 (06-pdf appendix B)
+    android_removed:                    # tools:node="remove" (contract 7.4.3)
+      - {tag: receiver, name: com.pravera.flutter_foreground_task.service.RebootReceiver}
+      - {tag: uses-permission, name: android.permission.RECEIVE_BOOT_COMPLETED}
+  image_picker_ios: {area: PDF, ios_plist_keys: [NSPhotoLibraryUsageDescription, NSCameraUsageDescription]}
+  image_picker_android: {area: PDF}
+  google_mlkit_digital_ink_recognition: {area: LIBRARY, android_permissions: [INTERNET]}
+  google_mlkit_commons: {area: LIBRARY}
+  pencil_bridge:   {area: INFRA}
+# 1차 plugins and the dev-only integration_test (app dev — J21): no native
+# requirement.
+plugins_without_requirements: [android_file_picker, file_picker_darwin, pdfium_flutter, jni,
+  jni_flutter, path_provider_android, path_provider_foundation, url_launcher_android,
+  url_launcher_ios, shared_preferences_android, shared_preferences_foundation,
+  flutter_plugin_android_lifecycle, integration_test]
+app_extra:
+  android_permissions: [INTERNET]      # main manifest (1차 had it in debug / profile only)
+  ios_plist:
+    ITSAppUsesNonExemptEncryption: false

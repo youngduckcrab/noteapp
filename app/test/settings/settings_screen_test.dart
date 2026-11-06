@@ -181,6 +181,6 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
     );
-    expect(container.read(settingsSectionsProvider), hasLength(7));
+    expect(container.read(settingsSectionsProvider), hasLength(9));
   });
 }
