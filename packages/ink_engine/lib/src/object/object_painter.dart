@@ -2,8 +2,11 @@
 //
 // Foundation step R2-B3: the simple drawing of every page object in its L-1
 // layer. Shapes: (m5-7 T33) the final drawing of shape_path.dart — fill, line
-// styles, arrow heads (6.9); text boxes: background, the NoteSans paragraph (the system
-// font until NoteSans is loaded), clipped to the frame, rotated (T34);
+// styles, arrow heads (6.9); text boxes: (m5-7 T34) the final drawing of 6.10.3 — in the
+// frame coordinate system ① the background over the whole frame ② clipped to the frame
+// ③ the paragraph of InkTextLayout (the system font until NoteSans is loaded: the
+// paragraph cache is keyed by the instance and the loaded flag); an empty text without a
+// background draws nothing;
 // images: a gray placeholder box (T35); formulas: a light box (no raster —
 // T36); unknown objects: a hatched box. Every object is drawn inside its CORE
 // bounds (K-6). Colors come from the object or the paper (7.4.10 — no color
@@ -108,9 +111,11 @@ void _inFrame(
 }
 
 /// (paragraph, laid out with NoteSans loaded?) per text box instance — rebuilt when the
-/// fonts arrive.
+/// fonts arrive. Moving or rotating a box is a new instance with the same frame width; its
+/// paragraph is laid out again (cheap next to recording the chunk).
 final Expando<(bool, ui.Paragraph)> _paragraphs = Expando('textBoxParagraph');
 
+/// 6.10.3 inside the frame coordinate system (clipped to 0..w × 0..h by _inFrame — K-6).
 void _paintText(ui.Canvas canvas, core.TextBoxObject o, double w, double h) {
   final background = o.style.backgroundArgb;
   if (background != null) {

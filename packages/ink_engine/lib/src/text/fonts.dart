@@ -92,6 +92,10 @@ final class _FontState {
   int? _failedAtUs;
   final Map<bool, Future<Uint8List>> _bytes = {};
 
+  /// Told once each time NoteSans becomes loaded (page controllers re-record the
+  /// chunks that drew a text box with the system font — T34).
+  final List<void Function()> _loadedListeners = [];
+
   Duration get _timeout =>
       const Duration(milliseconds: InkTuning.fontLoadTimeoutMs);
 
@@ -168,6 +172,9 @@ final class _FontState {
         _loading = null;
         _failed = false;
         _failedAtUs = null;
+        for (final listener in List.of(_loadedListeners)) {
+          listener();
+        }
       },
       onError: (Object error, StackTrace stack) {
         if (gen == _generation) {
@@ -244,7 +251,15 @@ abstract final class InkFontsDebug {
   /// testing.dart debugSetInkFontSource: a new source, the state starts over.
   static void setSource(InkFontSource? source) => _fonts.setSource(source);
 
-  /// Forgets everything (tests): not loaded, no failure, no cached bytes; the source and
-  /// [nowUs] are kept.
+  /// Forgets everything (tests): not loaded, no failure, no cached bytes; the source,
+  /// [nowUs] and the loaded listeners are kept.
   static void reset() => _fonts.reset();
+
+  /// [listener] runs each time NoteSans becomes loaded (whoever started the load), after
+  /// [isLoaded] turned true. Remove it with [removeLoadedListener].
+  static void addLoadedListener(void Function() listener) =>
+      _fonts._loadedListeners.add(listener);
+
+  static void removeLoadedListener(void Function() listener) =>
+      _fonts._loadedListeners.remove(listener);
 }

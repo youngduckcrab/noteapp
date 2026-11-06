@@ -283,7 +283,12 @@ final class InkPageController extends ChangeNotifier {
   List<core.PageObject> _previewObjects = const [];
   InkPlaybackFocus? _playbackFocus;
   final Set<String> _revealedTapes = {};
+
+  /// (T34) An implicit NoteSans load this controller started or joined is running.
   bool _fontsWaiting = false;
+
+  /// (T34) A text box was drawn with the system font: listening for the fonts.
+  bool _fontsListening = false;
 
   // viewport (6.12 R9)
   ui.Rect? _visiblePageRect;
@@ -829,6 +834,8 @@ final class InkPageController extends ChangeNotifier {
     if (sel != null) disposeInkSelection(sel);
     _selection = null;
     _pending.clear();
+    if (_fontsListening) InkFontsDebug.removeLoadedListener(_onFontsLoaded);
+    _fontsListening = false;
     _rasterSchedule.dispose();
     _chunks.dispose();
     _underlay.dispose();
@@ -1559,6 +1566,8 @@ final class InkPageController extends ChangeNotifier {
     int paper,
   ) {
     _syncHairlines();
+    // (T34) cached text in the system font: ask for NoteSans again (after a failure's pause)
+    if (_fontsListening && layer == InkObjectLayer.annotation) _wantFonts();
     if (content != null) {
       final views = objectViewsOf(content, layer);
       if (views.isNotEmpty) {
@@ -1598,20 +1607,39 @@ final class InkPageController extends ChangeNotifier {
     }
   }
 
-  /// A text box is drawn: NoteSans is loaded implicitly (7.4.5 'when first drawn'); once it
-  /// is there, everything is drawn again with it.
+  /// A text box is drawn before NoteSans is there (6.10.3): it is drawn with the system
+  /// font, NoteSans is loaded implicitly (7.4.5 'when first drawn') and, once loaded —
+  /// by this load or anyone's — the chunks that drew a text box are recorded again
+  /// (InkDrawKeys.fonts — annotation only). A failed load warns `fontLoadFailed` (6.24)
+  /// and the text stays in the system font; after the 30 s pause (4.10) the next paint
+  /// of the annotation layer tries again.
   void _wantFonts() {
-    if (InkFontsDebug.isLoaded || _fontsWaiting) return;
+    if (_disposed || InkFontsDebug.isLoaded) return;
+    if (!_fontsListening) {
+      _fontsListening = true;
+      InkFontsDebug.addLoadedListener(_onFontsLoaded);
+    }
+    if (_fontsWaiting) return;
+    final load = InkFontsDebug.loadImplicitly();
+    // pausing after a failure: no load runs (the next paint asks again)
+    if (!InkFontsDebug.isLoading) return;
     _fontsWaiting = true;
     unawaited(
-      InkFontsDebug.loadImplicitly().then((_) {
+      load.then((_) {
         _fontsWaiting = false;
-        if (_disposed || !InkFontsDebug.isLoaded) return;
-        // (T32b) only the chunks that drew a text box with the system font
-        _annotation.markDirtyWithKey(InkDrawKeys.fonts);
-        _invalidate();
+        if (_disposed || InkFontsDebug.isLoaded) return;
+        diagnostics.onWarning('fontLoadFailed');
       }),
     );
+  }
+
+  void _onFontsLoaded() {
+    InkFontsDebug.removeLoadedListener(_onFontsLoaded);
+    _fontsListening = false;
+    if (_disposed) return;
+    // (T32b) only the chunks that drew a text box with the system font
+    _annotation.markDirtyWithKey(InkDrawKeys.fonts);
+    _invalidate();
   }
 
   /// Ink-layer previews, pending strokes and the stroke being written (R5–R7).

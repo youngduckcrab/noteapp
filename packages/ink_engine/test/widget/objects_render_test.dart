@@ -17,6 +17,12 @@
 // - (T33, 6.9) Shapes: an arrow at opacity 0.5 is painted once where its line
 //   and head overlap (S-10 — the overlap pixel = the line's middle pixel),
 //   dashes leave gaps, a fill is drawn under the outline, dotted dots.
+// - (T34, 6.10.3) Text boxes: the text is clipped to the frame (no pixel
+//   outside it, also rotated 30°), the background fills the frame (rotated,
+//   translucent), an empty text without a background draws nothing, the text
+//   color. The system font → NoteSans redraw is text_fonts_arrival_test.dart
+//   (it needs a process where NoteSans was never registered).
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -565,6 +571,178 @@ void main() {
       final edge = px.at(60, 190);
       expect(edge[0], greaterThan(180));
       expect(edge[2], lessThan(90), reason: 'outline over the fill');
+    });
+  });
+
+  group('text boxes (T34, 6.10.3)', () {
+    const long =
+        '가나다라마바사아자차카타파하 hello world 필기 노트 텍스트 상자 '
+        '시험 문장입니다 길게 씁니다';
+    const frame = core.PageRect(60, 100, 240, 160); // 180 × 60 pt
+    core.TextBoxObject box(
+      String id, {
+      core.PageRect rect = frame,
+      double rotation = 0,
+      String text = long,
+      int? background,
+      int color = 0xFF1A1A1A,
+      double fontSize = 20,
+    }) => core.TextBoxObject(
+      id: id,
+      pageId: _pageId,
+      frame: core.ElementFrame(rect, rotation: rotation),
+      text: text,
+      style: core.TextBoxStyle(
+        fontSizePt: fontSize,
+        colorArgb: color,
+        backgroundArgb: background,
+      ),
+      createdAt: 1,
+    );
+
+    Future<Pixels> pixels(List<core.PageObject> objects) async {
+      final c = createTestPageController()
+        ..updateContent(_content(const [], objects));
+      addTearDown(c.dispose);
+      return _pixelsOf(c);
+    }
+
+    bool paper(List<int> p) => samePixel(p, const [255, 255, 255, 255]);
+
+    /// Is the pixel centre (x + ½, y + ½) inside [r] rotated by [rotation] about its
+    /// centre, grown by [margin] pt?
+    bool inFrame(
+      int x,
+      int y,
+      core.PageRect r,
+      double rotation, {
+      double margin = 1.5,
+    }) {
+      final cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+      final dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+      final cos = math.cos(-rotation), sin = math.sin(-rotation);
+      final lx = dx * cos - dy * sin, ly = dx * sin + dy * cos;
+      return lx.abs() <= (r.right - r.left) / 2 + margin &&
+          ly.abs() <= (r.bottom - r.top) / 2 + margin;
+    }
+
+    /// (ink pixels inside the grown frame, non-paper pixels outside it).
+    (int, int) inkInOut(Pixels px, core.PageRect r, double rotation) {
+      var inside = 0, outside = 0;
+      for (var y = 0; y < px.height; y++) {
+        for (var x = 0; x < px.width; x++) {
+          if (paper(px.at(x, y))) continue;
+          if (inFrame(x, y, r, rotation)) {
+            inside++;
+          } else {
+            outside++;
+          }
+        }
+      }
+      return (inside, outside);
+    }
+
+    test('the text is clipped to the frame — no pixel outside it, also '
+        'rotated 30°', () async {
+      // the same text in a taller frame runs below the 60 pt frame: it overflows
+      final tall = await pixels([
+        box('t', rect: const core.PageRect(60, 100, 240, 290)),
+      ]);
+      var below = 0;
+      for (var y = 170; y < 290; y++) {
+        for (var x = 60; x < 240; x++) {
+          if (!paper(tall.at(x, y))) below++;
+        }
+      }
+      expect(below, greaterThan(200), reason: 'the text needs > 60 pt');
+
+      for (final rotation in const [0.0, math.pi / 6]) {
+        final px = await pixels([box('t', rotation: rotation)]);
+        final (inside, outside) = inkInOut(px, frame, rotation);
+        expect(inside, greaterThan(500), reason: 'drawn ($rotation)');
+        expect(outside, 0, reason: 'clipped to the frame ($rotation)');
+      }
+    });
+
+    test('the background fills the frame (rotated, translucent); the text '
+        'color', () async {
+      const r = core.PageRect(40, 40, 200, 120); // 160 × 80
+      final px = await pixels([
+        box('b', rect: r, text: '가', background: _green, color: _blue),
+      ]);
+      // corners of the frame away from the glyph: the background
+      for (final (x, y) in const [
+        (42, 118),
+        (198, 42),
+        (198, 118),
+        (120, 110),
+      ]) {
+        expect(_near(px.at(x, y), _green, tol: 0), isTrue, reason: '($x, $y)');
+      }
+      for (final (x, y) in const [(38, 80), (202, 80), (120, 38), (120, 122)]) {
+        expect(paper(px.at(x, y)), isTrue, reason: 'outside ($x, $y)');
+      }
+      final (_, outside) = inkInOut(px, r, 0);
+      expect(outside, 0);
+      // the glyph in the text color (alpha 0xFF) on the background
+      var blue = 0;
+      for (var y = 40; y < 70; y++) {
+        for (var x = 40; x < 70; x++) {
+          if (_near(px.at(x, y), _blue, tol: 24)) blue++;
+        }
+      }
+      expect(blue, greaterThan(10), reason: 'the glyph is drawn in its color');
+
+      // rotated 30°: the frame-local corners are the background, the rest is paper
+      const rot = math.pi / 6;
+      final rotated = await pixels([
+        box('b', rect: r, text: '', background: _green, rotation: rot),
+      ]);
+      final (inside, out) = inkInOut(rotated, r, rot);
+      expect(out, 0);
+      expect(inside, greaterThan(160 * 80 * 0.95));
+      Offset world(double lx, double ly) {
+        final dx = lx - 80, dy = ly - 40;
+        return Offset(
+          120 + dx * math.cos(rot) - dy * math.sin(rot),
+          80 + dx * math.sin(rot) + dy * math.cos(rot),
+        );
+      }
+
+      for (final (lx, ly) in const [(4.0, 4.0), (156.0, 4.0), (156.0, 76.0)]) {
+        final p = world(lx, ly);
+        expect(
+          _near(rotated.at(p.dx.floor(), p.dy.floor()), _green, tol: 0),
+          isTrue,
+          reason: 'local ($lx, $ly)',
+        );
+      }
+
+      // a translucent background is blended once over the paper
+      final half = await pixels([
+        box('h', rect: r, text: '', background: 0x80DD0000),
+      ]);
+      final p = half.at(120, 80);
+      expect(p[0], closeTo(238, 3));
+      expect(p[1], closeTo(127, 3));
+      expect(p[2], closeTo(127, 3));
+    });
+
+    test('an empty text without a background draws nothing', () async {
+      final px = await pixels([
+        box('e', text: ''),
+        box(
+          'e2',
+          rect: const core.PageRect(20, 20, 280, 90),
+          text: '',
+          rotation: 0.3,
+        ),
+      ]);
+      final (inside, outside) = inkInOut(px, frame, 0);
+      expect((inside, outside), (0, 0), reason: 'every pixel is the paper');
+      // the same boxes with a background (or a text) draw
+      final drawn = await pixels([box('e', text: '', background: _green)]);
+      expect(inkInOut(drawn, frame, 0).$1, greaterThan(0));
     });
   });
 

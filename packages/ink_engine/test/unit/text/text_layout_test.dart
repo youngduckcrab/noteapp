@@ -4,6 +4,9 @@
 // after it, the fallback value after a failure), textStyleOf / strutStyleOf are what
 // INK paints with, and an EditableText with the same styles and no padding lays the
 // glyphs out where INK's paragraph does (E-6).
+// (T34) measure = the drawn paragraph: a text box framed at the measured height
+// clips nothing (one line less clips the last line); rasterize puts the glyphs on
+// the pixels of the screen drawing (no background).
 @TestOn('vm')
 library;
 
@@ -15,6 +18,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
+import 'package:ink_engine/src/object/object_painter.dart';
 import 'package:ink_engine/src/text/fonts.dart';
 import 'package:ink_engine/src/text/text_layout.dart';
 import 'package:ink_engine/testing.dart';
@@ -203,6 +207,156 @@ void main() {
         (editPixels.count - inkPixels.count).abs(),
         lessThanOrEqualTo(inkPixels.count ~/ 50),
       );
+    });
+  });
+
+  group('T34: the drawn text box', () {
+    setUpAll(() async {
+      debugSetInkFontSource(_files);
+      await InkFonts.ensureLoaded();
+    });
+    tearDownAll(() => debugSetInkFontSource(null));
+
+    core.TextBoxObject box(
+      String text,
+      core.TextBoxStyle s,
+      core.PageRect r, {
+      double rotation = 0,
+    }) => core.TextBoxObject(
+      id: 'tb',
+      pageId: 'p1',
+      frame: core.ElementFrame(r, rotation: rotation),
+      text: text,
+      style: s,
+      createdAt: 1,
+    );
+
+    /// The box drawn by the annotation painter at [k] px per pt, the frame's top-left at
+    /// the image origin, [w] × [h] pt of image.
+    Future<ByteData> drawn(
+      core.TextBoxObject o,
+      double w,
+      double h, {
+      double k = 2,
+    }) async {
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder)
+        ..scale(k)
+        ..translate(-o.frame.rect.left, -o.frame.rect.top);
+      expect(
+        paintObjectSimple(canvas, o, paperArgb: 0xFFFFFFFF, onePx: 1 / k),
+        isTrue,
+      );
+      final picture = recorder.endRecording();
+      final image = await picture.toImage((w * k).ceil(), (h * k).ceil());
+      picture.dispose();
+      final data = (await image.toByteData())!;
+      image.dispose();
+      return data;
+    }
+
+    int alphaDiff(ByteData a, ByteData b) {
+      expect(a.lengthInBytes, b.lengthInBytes);
+      var n = 0;
+      for (var i = 3; i < a.lengthInBytes; i += 4) {
+        if ((a.getUint8(i) - b.getUint8(i)).abs() > 8) n++;
+      }
+      return n;
+    }
+
+    int inked(ByteData a) {
+      var n = 0;
+      for (var i = 3; i < a.lengthInBytes; i += 4) {
+        if (a.getUint8(i) > 128) n++;
+      }
+      return n;
+    }
+
+    test('measure = the drawn paragraph: framed at the measured height nothing '
+        'is clipped, one line less clips the last line', () async {
+      final cases = <(String, core.TextBoxStyle, double)>[
+        ('안녕 hello\n둘째 줄\n셋째', style, 200),
+        (
+          '안녕하세요 필기노트입니다 이 문장은 줄바꿈 시험을 위한 긴 문장입니다',
+          style.copyWith(align: core.TextAlignKind.center, bold: true),
+          140,
+        ),
+        (
+          'Big gy\n큰 글씨',
+          const core.TextBoxStyle(fontSizePt: 30, lineHeight: 2),
+          260,
+        ),
+        ('한 줄', const core.TextBoxStyle(fontSizePt: 12, lineHeight: 1), 120),
+      ];
+      for (final (text, s, w) in cases) {
+        final measured = await InkTextLayout.measure(text, s, widthPt: w);
+        final p = buildTextBoxParagraph(text, s, w);
+        expect(measured.height, closeTo(p.height, 0.01), reason: text);
+        final lineH = p.computeLineMetrics().last.height;
+        final h = measured.height;
+        final exact = await drawn(
+          box(text, s, core.PageRect(30, 40, 30 + w, 40 + h)),
+          w,
+          h + 60,
+        );
+        final roomy = await drawn(
+          box(text, s, core.PageRect(30, 40, 30 + w, 40 + h + 60)),
+          w,
+          h + 60,
+        );
+        expect(inked(exact), greaterThan(50), reason: text);
+        expect(alphaDiff(exact, roomy), 0, reason: 'nothing clipped: $text');
+        final short = await drawn(
+          box(text, s, core.PageRect(30, 40, 30 + w, 40 + h - lineH)),
+          w,
+          h + 60,
+        );
+        expect(
+          alphaDiff(short, roomy),
+          greaterThan(20),
+          reason: 'the last line is clipped: $text',
+        );
+      }
+    });
+
+    test('rasterize puts the glyphs on the pixels of the screen drawing (no '
+        'background)', () async {
+      for (final s in [
+        style,
+        style.copyWith(
+          bold: true,
+          align: core.TextAlignKind.center,
+          backgroundArgb: 0xFF00AA00,
+        ),
+        const core.TextBoxStyle(
+          fontSizePt: 28,
+          lineHeight: 1.2,
+          align: core.TextAlignKind.end,
+        ),
+      ]) {
+        final o = box(
+          '안녕 hello\n둘째 줄 가나다 wrapping text',
+          s,
+          const core.PageRect(100, 50, 340, 150),
+        );
+        final raster = await InkTextLayout.rasterize(o, pixelsPerPt: 2);
+        expect(raster, isNotNull);
+        expect((raster!.width, raster.height), (480, 200));
+        final rasterBytes = (await raster.toByteData())!;
+        raster.dispose();
+        expect(
+          rasterBytes.getUint8((198 * 480 + 2) * 4 + 3),
+          0,
+          reason: 'transparent: the background is not drawn',
+        );
+        final screen = await drawn(
+          o.copyWith(style: s.copyWith(clearBackground: true)),
+          240,
+          100,
+        );
+        expect(inked(screen), greaterThan(200));
+        expect(alphaDiff(rasterBytes, screen), 0);
+      }
     });
   });
 
