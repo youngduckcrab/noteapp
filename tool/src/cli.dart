@@ -457,6 +457,16 @@ final class _TestCommand extends _WsCommand {
         help: 'Reporter passed to flutter test.',
         valueHelp: 'name',
       )
+      // 2차 J15 (docs/plans/m5-7/01-infra.md 4.2, 6.13 — V15): FEATURE_*=false
+      // builds of the app shell's tests. Values may hold commas.
+      ..addMultiOption(
+        'dart-define',
+        help:
+            'Passed to every flutter test run as --dart-define=<KEY=VALUE> '
+            '(repeatable, in order).',
+        valueHelp: 'KEY=VALUE',
+        splitCommas: false,
+      )
       ..addOption(
         'member-timeout',
         help:
@@ -497,6 +507,12 @@ final class _TestCommand extends _WsCommand {
     rejectRest();
     final args = argResults!;
     final excluded = args['exclude-tags'] as List<String>;
+    final defines = args['dart-define'] as List<String>;
+    for (final define in defines) {
+      if (!isDartDefine(define)) {
+        usageException('--dart-define must be KEY=VALUE, got `$define`');
+      }
+    }
     final workspace = loadWorkspace();
     final since = args['affected-since'] as String?;
     final allIfNoBase = args['all-if-no-base'] as bool;
@@ -560,6 +576,7 @@ final class _TestCommand extends _WsCommand {
       excludeTags: args.wasParsed('exclude-tags') ? excluded : null,
       runSkipped: args['run-skipped'] as bool,
       reporter: args['reporter'] as String?,
+      dartDefines: defines,
     );
     final TestPlan plan;
     try {

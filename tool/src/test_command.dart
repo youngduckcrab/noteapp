@@ -70,6 +70,7 @@ final class TestOptions {
     this.runSkipped = false,
     this.reporter,
     this.memberTimeout,
+    this.dartDefines = const [],
   });
 
   /// Member names to test; empty = every member.
@@ -95,6 +96,10 @@ final class TestOptions {
   /// default ([defaultChromeMemberTimeout] for chrome, none for vm),
   /// [Duration.zero] = none.
   final Duration? memberTimeout;
+
+  /// `KEY=VALUE` pairs passed to every `flutter test` run as
+  /// `--dart-define=KEY=VALUE`, in this order (2차 J15 — V15).
+  final List<String> dartDefines;
 
   /// The time limit that applies, `null` = none.
   Duration? get effectiveMemberTimeout {
@@ -239,8 +244,16 @@ List<String> flutterTestArguments(TestTarget target, TestOptions options) => [
   for (final tag in options.effectiveExcludeTags) ...['--exclude-tags', tag],
   if (options.runSkipped) '--run-skipped',
   if (options.reporter != null) ...['--reporter', options.reporter!],
+  for (final define in options.dartDefines) '--dart-define=$define',
   ...target.paths,
 ];
+
+/// Whether [value] is a `--dart-define` value: `KEY=VALUE` with a non-empty
+/// key without spaces (the value may be empty and hold `=` or commas).
+bool isDartDefine(String value) {
+  final equals = value.indexOf('=');
+  return equals > 0 && !value.substring(0, equals).contains(RegExp(r'\s'));
+}
 
 /// The outcome of one member.
 enum MemberOutcome {
