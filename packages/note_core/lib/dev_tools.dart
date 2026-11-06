@@ -8,12 +8,12 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 
 import 'src/common/ids.dart';
-import 'src/common/pending.dart';
 import 'src/dev/synthetic.dart';
 import 'src/edit/commands.dart';
 import 'src/edit/page_draft.dart';
 import 'src/repo/note_store.dart';
 import 'src/storage/drift_note_store.dart';
+import 'src/storage/v1_copy/v1_copy.dart' show v1CopyFileName;
 
 /// CORE: synthetic handwriting-like note for iPad performance checks (strokes carry widthQ,
 /// 6.2.4). Uses ONLY the NoteStore interface (library.createNote + session AddStrokes), so it
@@ -113,20 +113,32 @@ final class V1DatabaseCopyInfo {
 }
 
 /// null when there is no copy and no failure record (new DB, deleted, or a store without one — fakes).
-/// CORE: the copy is made from CORE T24 on (DB v2); until then no store has one.
-Future<V1DatabaseCopyInfo?> v1DatabaseCopyInfo(NoteStore store) async => null;
+/// CORE: the real store records the copy made right before its v1 → v2 upgrade (02-core 6.12.4,
+/// T24); normalOpens counts the opens that ended without error since then.
+Future<V1DatabaseCopyInfo?> v1DatabaseCopyInfo(NoteStore store) async {
+  if (store is! DriftNoteStore) return null;
+  final r = await store.v1Copies.record();
+  if (r == null) return null;
+  return V1DatabaseCopyInfo(
+    createdAt: r.createdAt,
+    bytes: r.bytes,
+    normalOpens: r.normalOpens,
+    fileName: v1CopyFileName(r.method),
+    failure: r.failure,
+  );
+}
 
 /// The copy in ≤ 4 MiB chunks (INFRA writes a file / web download). StateError when there is none.
-/// CORE: the real store answers from CORE T24 on (UnimplementedError until then); a store
-/// without one (the fake store) has none.
-Stream<Uint8List> readV1DatabaseCopy(NoteStore store) async* {
-  if (store is DriftNoteStore) notYet('T24', 'readV1DatabaseCopy');
-  throw StateError('This store has no v1 database copy');
+/// CORE: a native copy is the SQLite file, a web copy the canonical dump text (6.12.4); a failure
+/// record alone is 'none'. A store without one (the fake store) has none.
+Stream<Uint8List> readV1DatabaseCopy(NoteStore store) {
+  if (store is DriftNoteStore) return store.v1Copies.read();
+  return Stream.error(StateError('This store has no v1 database copy'));
 }
 
 /// Deletes the copy and its kv record; no-op when none.
-/// CORE: the real store from CORE T24 on (UnimplementedError until then); no-op for a store
-/// without one (the fake store).
+/// CORE: the bytes first, then the record (a failure record is deleted the same way); no-op for
+/// a store without one (the fake store).
 Future<void> deleteV1DatabaseCopy(NoteStore store) async {
-  if (store is DriftNoteStore) notYet('T24', 'deleteV1DatabaseCopy');
+  if (store is DriftNoteStore) await store.v1Copies.delete();
 }

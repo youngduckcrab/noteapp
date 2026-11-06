@@ -25,12 +25,14 @@ Matcher throwsPending(String task) => throwsA(
 
 /// The CORE tasks the store's 2nd-round writes wait for. [objects]: the task the session's
 /// object writes wait for, or null when they work (the fake store since CORE T23a).
+/// [v1Copy]: null when the v1 copy API works (the real store since CORE T24 — an in-memory
+/// store has no copy).
 typedef B2AlphaTasks = ({
   String recordings,
   String drafts,
   String handwriting,
   String search,
-  String v1Copy,
+  String? v1Copy,
   String? objects,
 });
 
@@ -320,11 +322,13 @@ void defineB2AlphaStoreTests(
 
   test('v1 database copy API (dev_tools.dart, C22-01)', () async {
     expect(await v1DatabaseCopyInfo(store), isNull);
-    if (hasV1CopyApi) {
-      expect(readV1DatabaseCopy(store).toList(), throwsPending(tasks.v1Copy));
-      expect(deleteV1DatabaseCopy(store), throwsPending(tasks.v1Copy));
+    final pending = tasks.v1Copy;
+    if (hasV1CopyApi && pending != null) {
+      expect(readV1DatabaseCopy(store).toList(), throwsPending(pending));
+      expect(deleteV1DatabaseCopy(store), throwsPending(pending));
     } else {
-      // A store without one (the fake store): nothing to read, nothing to delete.
+      // A store without one (the fake store, an in-memory real store): nothing to read,
+      // nothing to delete.
       expect(readV1DatabaseCopy(store).toList(), throwsStateError);
       await deleteV1DatabaseCopy(store);
     }

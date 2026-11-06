@@ -224,7 +224,7 @@ void main() {
 
   test('schema constants', () {
     expect(kNoteSchemaVersion, 1);
-    expect(kDatabaseSchemaVersion, 1);
+    expect(kDatabaseSchemaVersion, 2); // (v2) DB v2 — m5-7 T24
     expect(kStrokePointsFormatVersion, 1);
     final newer = (kSampleEntities['note']! as Note).copyWith(schemaVersion: 2);
     expect(newer.requiresNewerApp, isTrue);

@@ -185,21 +185,24 @@ void main() {
         drafts: 'T31',
         handwriting: 'T32',
         search: 'T33a',
-        v1Copy: 'T24',
+        v1Copy: null, // works since CORE T24 (an in-memory store has no copy)
         objects: 'T27',
       ),
       hasV1CopyApi: true,
     );
 
-    test('the sync window reads no row of the new kinds (DB v1)', () async {
-      final store = await openTestNoteStore();
-      addTearDown(store.close);
-      final refs = [
-        const EntityRef(EntityKind.pageObject, 'o1'),
-        EntityRef(EntityKind.handwriting, HandwritingText.idFor('p1')),
-      ];
-      expect(await store.sync.readVersioned(refs), [null, null]);
-      expect(kDatabaseSchemaVersion, 1);
-    });
+    test(
+      'the sync window reads no row of the new kinds yet (DB v2, rows T26)',
+      () async {
+        final store = await openTestNoteStore();
+        addTearDown(store.close);
+        final refs = [
+          const EntityRef(EntityKind.pageObject, 'o1'),
+          EntityRef(EntityKind.handwriting, HandwritingText.idFor('p1')),
+        ];
+        expect(await store.sync.readVersioned(refs), [null, null]);
+        expect(kDatabaseSchemaVersion, 2);
+      },
+    );
   });
 }

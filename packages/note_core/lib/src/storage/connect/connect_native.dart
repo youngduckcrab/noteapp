@@ -10,6 +10,7 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../common/errors.dart';
 import '../../repo/note_store.dart';
 import '../../repo/status.dart';
+import '../v1_copy/v1_copy_file.dart' show v1CopyPathOf, v1CopyTempPathOf;
 
 Future<(QueryExecutor, StorageInfo)> openNoteDatabaseExecutor(
   NoteStoreConfig config,
@@ -34,12 +35,18 @@ Future<(QueryExecutor, StorageInfo)> openNoteDatabaseExecutor(
   );
 }
 
-/// Deletes the database file and its -wal / -shm files and the blob database of
-/// that file (6.18).
+/// Deletes the database file and its -wal / -shm files, (v2) the v1 copy made before the
+/// upgrade and its temporary file (6.12.4), and the blob database of that file (6.18).
 Future<void> deleteLocalData(NoteStoreConfig config) async {
   final path = config.nativeDatabasePath;
   if (config.inMemory || path == null) return;
-  for (final p in [path, '$path-wal', '$path-shm']) {
+  for (final p in [
+    path,
+    '$path-wal',
+    '$path-shm',
+    v1CopyPathOf(path),
+    v1CopyTempPathOf(path),
+  ]) {
     final f = File(p);
     if (f.existsSync()) await f.delete();
   }

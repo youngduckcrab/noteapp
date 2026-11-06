@@ -4,6 +4,7 @@
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
 // content reader; T9 the trash; T10 note sessions; T12 pen presets and settings;
 // T13 assets and thumbnails (blob IndexedDB); T14 the sync window; T19 the backup export.
+// (v2) m5-7/02-core T24: DB v2 and the v1 copy made before the upgrade (6.12.4).
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -41,6 +42,7 @@ import 'drift_trash_repository.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
 import 'row_mappers.dart';
+import 'v1_copy/v1_copy.dart';
 import 'watch_hub.dart';
 import 'web_storage/storage_query.dart';
 import 'write_queue.dart';
@@ -76,8 +78,10 @@ final class DriftNoteStore implements NoteStore {
     required this._storeKey,
     required String? persistedHlc,
     required this.blobs,
+    required V1CopyTarget? v1CopyTarget,
     BlobStore? assetChunks,
   }) {
+    v1Copies = V1Copies(db, v1CopyTarget, clock);
     queue = WriteQueue(
       db: db,
       hlc: hlc,
@@ -114,6 +118,11 @@ final class DriftNoteStore implements NoteStore {
   /// database opens on first use. [assetChunks] replaces the chunk store (tests).
   /// [storageQuery]: navigator.storage for refreshStorageInfo (6.12; null off
   /// the web — storageInfo then stays as given).
+  ///
+  /// (v2) Upgrading a v1 database first copies it (6.12.4): a native file database to
+  /// `<path>-v1-backup`, a web database as the canonical dump in the blob store; no copy
+  /// for in-memory databases. [v1CopyMethod] forces the form (tests). [databaseFactory]
+  /// gets the copy maker (null: none) to pass on to NoteDatabase.
   static Future<DriftNoteStore> open({
     required QueryExecutor executor,
     required StorageInfo storageInfo,
@@ -123,7 +132,10 @@ final class DriftNoteStore implements NoteStore {
     bool autoPurge = false,
     IdbFactory? blobFactory,
     @visibleForTesting BlobStore? assetChunks,
-    @visibleForTesting NoteDatabase Function(QueryExecutor)? databaseFactory,
+    @visibleForTesting
+    NoteDatabase Function(QueryExecutor executor, V1CopyMaker? v1Copy)?
+    databaseFactory,
+    @visibleForTesting V1CopyMethod? v1CopyMethod,
   }) async {
     if (deviceNodeId != null && !isValidNodeId(deviceNodeId)) {
       throw ArgumentError.value(
@@ -133,10 +145,26 @@ final class DriftNoteStore implements NoteStore {
       );
     }
     final key = storeKeyOf(config);
-    final db = (databaseFactory ?? NoteDatabase.new)(executor);
+    final clock = config.clock ?? const Clock();
+    final blobs = IdbBlobDatabase(
+      blobFactory ?? newIdbFactoryMemory(),
+      config.web.blobDatabaseName,
+    );
+    final copyTarget = V1CopyTarget.of(
+      backend: storageInfo.backend,
+      inMemory: config.inMemory,
+      databasePath: config.nativeDatabasePath,
+      blobs: assetChunks ?? blobs.chunks,
+      method: v1CopyMethod,
+    );
+    final copyMaker = copyTarget == null
+        ? null
+        : v1CopyMakerOf(copyTarget, clock);
+    final db = databaseFactory != null
+        ? databaseFactory(executor, copyMaker)
+        : NoteDatabase(executor, v1Copy: copyMaker);
     try {
       final values = await _readOrCreateKv(db, config, deviceNodeId);
-      final clock = config.clock ?? const Clock();
       final store = DriftNoteStore._(
         db: db,
         config: config,
@@ -149,10 +177,8 @@ final class DriftNoteStore implements NoteStore {
         ids: config.idGenerator ?? UuidV7IdGenerator(clock: clock),
         storeKey: key,
         persistedHlc: values.persistedHlc,
-        blobs: IdbBlobDatabase(
-          blobFactory ?? newIdbFactoryMemory(),
-          config.web.blobDatabaseName,
-        ),
+        blobs: blobs,
+        v1CopyTarget: copyTarget,
         assetChunks: assetChunks,
       );
       if (key != null) {
@@ -161,12 +187,19 @@ final class DriftNoteStore implements NoteStore {
       // 6.2.2: the default presets exist right after open (one commit, once per DB).
       if (config.seedDefaultPenPresets) await store.penPresets.ensureDefaults();
       if (autoPurge) store.trash.startAutoPurge();
+      // (v2) 6.12.4 lifetime: this open ended without error.
+      await store.v1Copies.countNormalOpen();
       return store;
     } on Object catch (e, s) {
       try {
         await db.close();
       } on Object {
         // The original error is the one to report.
+      }
+      try {
+        await blobs.close();
+      } on Object {
+        // Same.
       }
       Error.throwWithStackTrace(classifyOpenError(e), s);
     }
@@ -190,6 +223,9 @@ final class DriftNoteStore implements NoteStore {
 
   /// Asset chunks and thumbnails (6.13), outside SQLite.
   final IdbBlobDatabase blobs;
+
+  /// (v2) The v1 database copy of this store (6.12.4 — dev_tools.dart).
+  late final V1Copies v1Copies;
 
   /// Re-queried watch streams (C-1); refreshed by the write queue after each commit.
   final WatchHub watches = WatchHub();

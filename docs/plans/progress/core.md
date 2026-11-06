@@ -393,7 +393,7 @@
 | T25a | 기반 단계에서 완료 | b6beece | `test/migration/v1_fixture_files_test.dart` |
 | T22 | 기반 단계에서 완료 | 2b2e4b0 | `test/api_surface_test.dart` v2 외 — 위 '작업 표 (2차)' |
 | T20a·T20b·T21·T23a·T23b | 기반 단계에서 완료 | 9777fde·c443015·38f3578·12ab8c4·0798096 | 위 '작업 표 (2차)' |
-| T24 | 남음 | | `test/storage/schema_v2_test.dart`, `test/storage/generated_migrations/note_db/*`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
+| T24 | 완료 | (이정표 표 'DB v2·마이그레이션') | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
 | T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
 | T26 | 남음 | | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart` |
@@ -429,10 +429,43 @@
 
 - 없음.
 
+#### T24 — DB 스키마 v2 · 마이그레이션 · v1 사본 · 정규 덤프 (계획 6.10.1·6.11·6.12·8.2, 계약 7.2.7 C22-01·C22-02)
+
+- **스키마**(`storage/db/tables.dart`): 새 테이블 5개(`page_objects`·`handwriting`·`recording_drafts`·`search_owners`·`search_units` — 행 클래스 `PageObjectRow`·`HandwritingRow`·`RecordingDraftRow`·`SearchOwnerRow`·`SearchUnitRow`), `pages` + `ink_rev`·`ink_rev_at`·`bg_asset_id`·`bg_pdf_index`, `recordings` + `title`(새 열은 열 목록 **끝** — `ALTER TABLE ADD COLUMN`과 같은 자리), 색인 9개 + `idx_recordings_note`·`idx_pages_bg`, `recording_drafts.recording_id` UNIQUE, `search_units` UNIQUE(`source`,`owner_key`,`seq`)·`id` = rowid(AUTOINCREMENT 없음 — 'max + 1'). FTS5 `search_fts`는 drift 밖(`kSearchFtsCreateSql` — 6.11 1안): `onCreate`·업그레이드 3단계에서 `customStatement`. 새 DB도 kv `search.normalizerVersion = '1'`을 쓴다. `kDatabaseSchemaVersion = 2`.
+- **생성물**: `dart run build_runner build` → `dart run drift_dev make-migrations` — `drift_schemas/note_db/drift_schema_v2.json`, `lib/src/storage/db/note_database.steps.dart`, `test/storage/generated_migrations/note_db/{generated/schema.dart,schema_v1.dart,schema_v2.dart,migration_test.dart}`.
+- **업그레이드**(`storage/db/migrations.dart` `kSchemaSteps = {1: upgradeV1ToV2}`): 0단계(사본)는 `NoteDatabase.onUpgrade`에서 `runSchemaUpgrade` **앞**(트랜잭션 밖), 1~6단계는 한 트랜잭션 안 — 생성 `migrationSteps(from1To2:)`로 1·2단계(`Schema2`의 테이블·열·색인), 3 FTS, 4 `bg_*`(`json_extract`, pdf·image만), 5 `name_norm`·`title_norm`을 `SearchText.normalize`로 **달라진 행만** UPDATE, 6 kv `search.normalizerVersion`·`db.v1Copy`.
+- **v1 사본**(`storage/v1_copy/` — 6.12.4): 저장 방식은 `StorageInfo.backend`로 고른다(네이티브 파일 → `VACUUM INTO '<path>-v1-backup.tmp'` → 이름 바꾸기, 웹(메모리 제외) → 블롭 저장소 `db/v1-backup/<6자리>` 4 MiB 조각 + **마지막에** `db/v1-backup/meta`, 메모리 → 없음). 실패하면 쓴 것을 지우고 실패 기록(`{failed: quota|io|other, at, method, normalOpens}` — 분류는 오류 문자열로, 백그라운드 isolate·웹 워커를 거친 오류는 타입이 없음)을 남기고 이주는 진행. 열기가 오류 없이 끝날 때마다 `normalOpens + 1`(업그레이드한 열기 포함 → 1), `normalOpens ≥ 5` **이고** 7일 지난 첫 열기에서 바이트 → kv 순으로 지움. `deleteLocalNoteData`(네이티브)가 사본·`.tmp`도 지운다(웹은 블롭 DB째 지움 — 1차 그대로). `dev_tools.dart` 함수 4개가 실제로 동작(`fileName` `noteapp-v1-backup.sqlite` | `.sql.txt`, 실패 기록만 있으면 `readV1DatabaseCopy`는 `StateError`).
+- **정규 덤프**(`storage/db/canonical_dump.dart`): `tool/src/v1_dump.dart`와 같은 바이트(V7 고정 자료에서 `fullDumpSha256`·`entityDumpSha256` 그대로). 첫 열이 NOT NULL 단일 기본 키인 표는 `quote(pk) || ','` 키로 2,000행씩 읽는다(그 키는 겹치지 않고 서로의 접두사가 아니라 줄 전체 순서와 같다 — 안쪽 질의는 키만 비교, 바깥 질의는 그 쪽의 줄만 만든다). 그 밖의 표는 한 번에. 4 MiB 조각 스트림.
+- **정규화 위임**(6.10.1, 검토 S-16): `normalizeForSearch` = `SearchText.normalize`(실제·가짜 저장소의 `name_norm`·`title_norm`·제목 질의).
+
+확인 (2026-11-06, load 6~9 — 다른 영역 시험이 함께 돎)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| **첫날** `flutter analyze --fatal-infos`(`note_database.steps.dart` 포함) | 0건 — 생성 머리말 `ignore_for_file: type=lint` | 7초 |
+| **첫날** FTS 1안 `SchemaVerifier`(`generated_migrations/note_db/migration_test.dart` — `migrateAndValidate` 1 → 2, 자료 보존 사례) | 통과(스키마 밖 `search_fts`는 검사하지 않음) | 1초 |
+| **첫날** Chrome 웹 사본(`v1_copy_browser_test` — 합성 v1 + 획 2,000개 randomblob(257), 덤프 1,423,335 B) | 만들기·해시(meta sha256 = 브라우저 안 덤프)·읽기·지우기 동작. 업그레이드 열기(사본 포함) 1,856~2,466 ms, 사본 있는 다시 열기 250~268 ms, 지우기 14~21 ms, 지운 뒤 다시 열기 182~272 ms(두 번 실행). 같은 DB의 덤프만 279 ms(2,000행 쪽)·223 ms(한 번에) | — |
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 4초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `flutter test`(VM) | **915개 통과**, 5개 건너뜀(perf 파일) | 98~113초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(71 + `canonical_dump_browser_test` 1 + `v1_copy_browser_test` 2), 1개 건너뜀(perf) | 156.1초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 69초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
-- (작업마다 더함)
+- T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
+- T24: '새 v2 = 이주한 v2의 `sqlite_master`' 비교는 v1 원본을 **V7 고정 자료**(1차 코드가 쓴 DB)로 하고, 식별자 따옴표·괄호 앞 공백을 정규화해 비교한다. 생성 `schema_v1`이 만든 v1 표와 업그레이드가 생성 `Schema2`로 만든 새 표는 `PRIMARY KEY(id)`처럼 1차 실제 표(`PRIMARY KEY ("id")`)와 글자가 조금 다르다(열·형·제약·순서는 같음). 이주 시험(`migration_v2_test`)의 합성 v1은 계획대로 생성 `schema_v1`로 만든다.
+- T24: 생성 시험 `migration_test.dart`는 `package:flutter_test` 대신 `package:test` + `@TestOn('vm')`(note_core는 순수 Dart 멤버)로 고쳤고, 자료 보존 사례를 실제 행(폴더 `name_norm` 재계산·pdf 배경 `bg_*`·녹음 `title` NULL·outbox)으로 채웠다.
+- T24: `kDatabaseSchemaVersion`이 2가 되어 백업 골든 `test/goldens/backup/backup_v1.json`의 `schema.database`가 1 → 2(그 한 글자만)로 바뀌었다 — T24 커밋에 함께 넣었다(골든 다시 만들기 별도 커밋 규칙의 예외: 버전 상수가 바뀌는 커밋에서 바로 깨지므로). `backup_v2.json`(객체·손글씨·녹음 제목)은 계획대로 T29.
+- T24: v1 사본의 실패 기록도 같은 수명(정상 열기 5번 + 7일)으로 지운다(계획은 실패 기록의 수명을 정하지 않음). 사본 kv(`db.v1Copy`)는 기기 로컬 기록이라 쓰기 큐를 거치지 않고 DB에 바로 쓴다(열기 끝·`deleteV1DatabaseCopy` — outbox·HLC 없음, 실패해도 열기를 막지 않음).
+- T24: 시험 이음새 — `DriftNoteStore.open`의 `@visibleForTesting databaseFactory`가 `(executor, v1CopyMaker)`를 받도록 바꿨고(1차 `open_errors_test`의 3곳 고침), `@visibleForTesting v1CopyMethod`로 VM에서 웹 형식(블롭 덤프)을 돌린다. `open_errors_test`의 '새 앱' DB는 v3로 올렸다.
+- T24: `test/shared/b2_alpha_store_cases.dart`의 `tasks.v1Copy`를 null 허용으로(실제 저장소는 T24부터 사본 API가 동작 — 메모리 저장소는 사본 없음).
+- T24: V7 고정 자료로 하는 웹 시간 측정(6.12.3 Chrome·PF-8)은 T25b 몫이라, 첫날 확인은 같은 크기의 합성 v1(획 2,005개)로 했다. **웹 업그레이드 열기가 1.9~2.5초**(load 6~9)로 PF-8 예산 '사본 포함 1초'를 넘었다 — 덤프 자체는 0.3초라 나머지(블롭 1.4 MB `put`, IndexedDB VFS의 업그레이드 쓰기)를 T25b의 PF-8 시험에서 고정 자료로 다시 재고 넘으면 원인을 나눠 본다.
 
 #### 다음 세션 메모
 
-- 다음 작업: T24(DB v2·마이그레이션 — 이정표).
+- 다음 작업: T26(행 변환·쓰기 경로 — 이정표). 그다음 (T27, T28, T30, T31, T32) 중 하나, T35는 T25b 전 언제든.
+- T26이 할 것: `row_mappers`의 `page_objects`·`handwriting`·`recordings.title`·`pages`의 `bg_*`(배경에서 파생 — 업그레이드 4단계와 같은 규칙: pdf → `assetId`·`pdfPageIndex`, image → `assetId`만)·`ink_rev` 캐시 열. `writeEntityRow`·`deleteEntityRow`의 새 두 종류(지금 `UnimplementedError('CORE T26: …')`), `readVersionedRow`·`readVersionedPage`·`DriftSyncStore._readKind`의 새 두 종류(지금 '행 없음'), `WriteTxn._hints`.
+- v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database` — 생성 `schema_v1` + 합성 행, 덤프를 돌려줌; VM·Chrome 공용), 웹 v1 DB는 `openNoteDatabaseExecutor(config)`로 열어 같은 함수를 부른다(`v1_copy_browser_test`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
+- 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 이미 있으면 다시 만들지 않는다 — 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.

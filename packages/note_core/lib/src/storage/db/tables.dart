@@ -1,9 +1,15 @@
-// lib/src/storage/db/tables.dart (internal) — CORE 6.11 drift schema v1.
+// lib/src/storage/db/tables.dart (internal) — CORE 6.11 drift schema (v2: m5-7/02-core 6.11).
 //
 // Every table renames its generated row class (`@DataClassName('XxxRow')`):
 // drift would otherwise generate `Stroke` from `Strokes` and clash with the
 // model. Times are integer ms, there are no foreign keys (orphans are allowed,
-// 6.10.1), and the eight entity tables carry `field_versions` (6.10.2).
+// 6.10.1), and the entity tables carry `field_versions` (6.10.2).
+//
+// (v2) Columns added to a v1 table come LAST in its column list: the upgrade adds them
+// with ALTER TABLE ADD COLUMN, which SQLite puts after the last column (before the table
+// constraints), so a new v2 database and an upgraded one have the same CREATE TABLE text
+// (schema_v2_test). The FTS5 table search_fts is not a drift table: NoteDatabase creates it
+// with a statement (kSearchFtsCreateSql — 6.11 option 1).
 import 'package:drift/drift.dart';
 
 @DataClassName('KvRow')
@@ -78,6 +84,7 @@ class Notes extends Table {
 
 @DataClassName('PageRow')
 @TableIndex(name: 'idx_pages_note', columns: {#noteId, #deletedAt, #sortKey})
+@TableIndex(name: 'idx_pages_bg', columns: {#bgAssetId, #bgPdfIndex}) // v2
 class Pages extends Table {
   TextColumn get id => text()();
   TextColumn get noteId => text()();
@@ -92,6 +99,12 @@ class Pages extends Table {
   TextColumn get fieldVersions =>
       text().named('field_versions').nullable()(); // 7.2.10
   IntColumn get contentRev => integer()(); // local
+  // (v2) local cache of HandwritingRepository.stalePages (6.9.3): no version, no outbox.
+  TextColumn get inkRev => text().nullable()();
+  IntColumn get inkRevAt => integer().nullable()();
+  // (v2) derived from background_json on every page write (pdf / image backgrounds).
+  TextColumn get bgAssetId => text().nullable()();
+  IntColumn get bgPdfIndex => integer().nullable()();
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -171,6 +184,7 @@ class Assets extends Table {
 }
 
 @DataClassName('RecordingRow')
+@TableIndex(name: 'idx_recordings_note', columns: {#noteId, #deletedAt}) // v2
 class Recordings extends Table {
   TextColumn get id => text()();
   TextColumn get noteId => text()();
@@ -183,6 +197,7 @@ class Recordings extends Table {
   TextColumn get version => text()(); // = versions.max (HLC text)
   TextColumn get fieldVersions =>
       text().named('field_versions').nullable()(); // 7.2.10
+  TextColumn get title => text().nullable()(); // v2 (7.2.4)
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -219,3 +234,126 @@ class Outbox extends Table {
   TextColumn get hlc => text()();
   IntColumn get enqueuedAt => integer()();
 }
+
+// --- (v2) 2nd-round tables (m5-7/02-core 6.11, contract 7.2.7) ---
+
+/// Page objects (7.2.2): the kind-specific keys + `frame` of the object JSON in data_json
+/// (the meta keys are columns). note_id is denormalized (purge, copy); '' for a remote
+/// orphan. asset_id: image objects and unknown objects whose top-level assetId is an asset.
+@DataClassName('PageObjectRow')
+@TableIndex(name: 'idx_objects_page', columns: {#pageId, #deletedAt})
+@TableIndex(name: 'idx_objects_note', columns: {#noteId})
+@TableIndex(name: 'idx_objects_asset', columns: {#assetId})
+class PageObjects extends Table {
+  TextColumn get id => text()();
+  TextColumn get pageId => text()();
+  TextColumn get noteId => text()();
+  TextColumn get type => text()();
+  // minX..maxY = PageObject.bounds (derived)
+  RealColumn get minX => real()();
+  RealColumn get minY => real()();
+  RealColumn get maxX => real()();
+  RealColumn get maxY => real()();
+  TextColumn get dataJson => text()();
+  TextColumn get assetId => text().nullable()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get deletedAt => integer().nullable()();
+  TextColumn get version => text()(); // = versions.max (HLC text)
+  TextColumn get fieldVersions =>
+      text().named('field_versions').nullable()(); // 7.2.10
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Handwriting recognition results (7.2.5): one row per page, id `hw_<pageId>`.
+@DataClassName('HandwritingRow')
+@TableIndex(name: 'idx_handwriting_note', columns: {#noteId, #deletedAt})
+class Handwriting extends Table {
+  TextColumn get id => text()();
+  TextColumn get pageId => text()();
+  TextColumn get noteId => text()();
+  TextColumn get engineId => text()();
+  TextColumn get sourceRev => text()();
+  TextColumn get linesJson => text()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get deletedAt => integer().nullable()();
+  TextColumn get version => text()(); // = versions.max (HLC text)
+  TextColumn get fieldVersions =>
+      text().named('field_versions').nullable()(); // 7.2.10
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Recording drafts (7.2.4, 6.7) — device-local: no version, no outbox, not in backups.
+/// The chunks live in the blob store under `rd/<draftId>/…`.
+@DataClassName('RecordingDraftRow')
+@TableIndex(name: 'idx_drafts_note', columns: {#noteId})
+class RecordingDrafts extends Table {
+  TextColumn get draftId => text()();
+  TextColumn get recordingId => text().unique()();
+  TextColumn get noteId => text()();
+  TextColumn get mimeType => text()();
+  IntColumn get startedAt => integer()();
+  IntColumn get chunkCount => integer()();
+  IntColumn get bytes => integer()();
+  IntColumn get activeMs => integer()();
+  IntColumn get updatedAt => integer()();
+  @override
+  Set<Column> get primaryKey => {draftId};
+}
+
+/// Search index owners (6.10.3) — device-local, derived. note_id / page_id are NULL for
+/// pdf owners. pending: the owner still has to be re-indexed (C-13).
+@DataClassName('SearchOwnerRow')
+@TableIndex(name: 'idx_search_owners_note', columns: {#noteId})
+@TableIndex(name: 'idx_search_owners_pending', columns: {#pending})
+class SearchOwners extends Table {
+  TextColumn get source => text()();
+  TextColumn get ownerKey => text()();
+  TextColumn get noteId => text().nullable()();
+  TextColumn get pageId => text().nullable()();
+  TextColumn get sourceRev => text()();
+  BoolColumn get pending => boolean()();
+  @override
+  Set<Column> get primaryKey => {source, ownerKey};
+}
+
+/// Search units (6.10.3) — device-local, derived. id is the rowid ('most recent first'
+/// order, 6.10.4) and the rowid of search_fts. Non-pdf units keep one rectangle in page pt
+/// (rect_*); pdf units keep their glyph boxes outside SQLite (rects_ref = blob key).
+@DataClassName('SearchUnitRow')
+@TableIndex(name: 'idx_search_units_note', columns: {#noteId})
+@TableIndex(name: 'idx_search_units_pdf', columns: {#assetId, #pdfIndex})
+class SearchUnits extends Table {
+  IntColumn get id => integer()();
+  TextColumn get source => text()();
+  TextColumn get ownerKey => text()();
+  IntColumn get seq => integer()();
+  TextColumn get noteId => text().nullable()();
+  TextColumn get pageId => text().nullable()();
+  TextColumn get assetId => text().nullable()();
+  IntColumn get pdfIndex => integer().nullable()();
+  TextColumn get body => text()();
+  TextColumn get norm => text()();
+  RealColumn get rectL => real().nullable()();
+  RealColumn get rectT => real().nullable()();
+  RealColumn get rectR => real().nullable()();
+  RealColumn get rectB => real().nullable()();
+  TextColumn get rectsRef => text().nullable()();
+  RealColumn get pdfAspect => real().nullable()();
+  @override
+  Set<Column> get primaryKey => {id};
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {source, ownerKey, seq},
+  ];
+}
+
+/// The FTS5 table of the search index (6.10.3, contract 7.2.7): rowid = search_units.id,
+/// one column g (the index terms). Not a drift table — created by this statement in
+/// NoteDatabase.onCreate and in the v1 → v2 upgrade.
+const String kSearchFtsCreateSql =
+    "CREATE VIRTUAL TABLE search_fts USING fts5(g, content='', "
+    "contentless_delete=1, tokenize='unicode61 remove_diacritics 0')";

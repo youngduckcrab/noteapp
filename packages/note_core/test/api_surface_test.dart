@@ -1118,7 +1118,7 @@ void main() {
     expect(decode(EntityKind.setting, setting.toJson()), setting);
     expect(
       [kNoteSchemaVersion, kDatabaseSchemaVersion, kStrokePointsFormatVersion],
-      [1, 1, 1],
+      [1, 2, 1], // (v2) kDatabaseSchemaVersion 2 — 7.2.7, CORE T24
     );
   });
 
@@ -2467,8 +2467,8 @@ void main() {
     ], hasLength(7));
   });
 
-  test('v2 7.2.7 schema versions (DB v2 is CORE T24)', () {
-    expect([kNoteSchemaVersion, kDatabaseSchemaVersion], [1, 1]);
+  test('v2 7.2.7 schema versions (DB v2 since CORE T24)', () {
+    expect([kNoteSchemaVersion, kDatabaseSchemaVersion], [1, 2]);
   });
 
   test('v2 providers (7.2.4, 7.2.5)', () {
