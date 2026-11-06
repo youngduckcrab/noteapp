@@ -13,10 +13,24 @@
 //  * LassoSession: the LassoOptions rule of 6.21 (INK T17): RDP-simplified
 //    closed polygon, nonzero winding with a y-band index, spatial index
 //    candidates, centerline coverage of segment midpoints >= coverage.
+//
+// 2nd round (contract 7.2.9, m5-7/03-ink 4.4, 4.6, 4.13 — foundation step
+// R2-B3):
+//  * StrokeSession: receives ShapeAssist (the shapeAssist getter is what
+//    beginStroke got) and reads the shape fitter then; shapePreview stays
+//    null (the hold detection is T39). A laser stroke draws like a ballpoint
+//    while written and end() returns null — no InkEdit, nothing pending
+//    (K-9; the fading trail is T30).
+//  * EraserSession: EraserSpec.eraseShapes — a shape whose CORE bounds meet
+//    the swept capsule is removed whole (removedObjectIds; never with
+//    highlighterOnly; T37b brings the outline distance).
+//  * LassoSession: LassoOptions.includeObjects — an object whose frame
+//    center is inside (nonzero) is selected.
 import 'dart:collection';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -33,7 +47,9 @@ import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
 import '../model/ink_points.dart';
 import '../pen/style_ink.dart';
+import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
+import 'ink_page_content.dart';
 import 'ink_page_controller.dart';
 import 'page_host.dart';
 import 'selection.dart';
@@ -193,12 +209,30 @@ List<ui.Path> liveFrozenChunks(LiveStrokeGeometry live) =>
 // --- pen -----------------------------------------------------------------------
 
 final class StrokeSession implements InkGestureSession {
-  StrokeSession._(this._host, this._builder, this._penDownMillis);
+  StrokeSession._(
+    this._host,
+    this._builder,
+    this._penDownMillis,
+    this._shapeAssist,
+    this._fitter,
+  );
 
   final InkPageHost _host;
   final StrokeBuilder _builder;
   final core.EpochMillis _penDownMillis;
+  final ShapeAssist _shapeAssist;
+
+  /// The fitter read at beginStroke (holdToSnap on a tool that allows it), else null.
+  final InkShapeFitter? _fitter;
+  final ValueNotifier<InkShapeFit?> _shapePreview = ValueNotifier(null);
   bool _active = true;
+
+  /// (v2.0) The shape fitted after a hold, shown in layer 4′; null otherwise (moving
+  /// again, end, cancel). R2-B3: always null.
+  ValueListenable<InkShapeFit?> get shapePreview => _shapePreview;
+
+  /// (v2.1) what beginStroke received
+  ShapeAssist get shapeAssist => _shapeAssist;
 
   /// normalized
   core.StrokeStyle get style => _builder.style;
@@ -244,9 +278,16 @@ final class StrokeSession implements InkGestureSession {
   /// than t's range of 500 000 ms (rollover, 6.7 F8).
   /// null if discarded / nothing drawn. The stroke stays visible as pending until
   /// updateContent contains it, discardEdit (failed commit) is called, or the timeout passes.
+  /// (v2.0) laser: null — no InkEdit, nothing pending, the content is not changed (E-3).
   InkEdit? end([InkSample? last]) {
     _checkActive();
     _active = false;
+    _shapePreview.value = null;
+    if (style.tool == core.PenTool.laser) {
+      liveClear(live);
+      _host.sessionEnded(this);
+      return null;
+    }
     final finished = _builder.finish(last: last);
     final parts = [..._builder.rolledOver, ?finished];
     InkEdit? edit;
@@ -279,6 +320,7 @@ final class StrokeSession implements InkGestureSession {
   void cancel() {
     if (!_active) return;
     _active = false;
+    _shapePreview.value = null;
     liveClear(live);
     _host.sessionEnded(this);
   }
@@ -292,8 +334,22 @@ final class StrokeSession implements InkGestureSession {
 StrokeSession newStrokeSession(
   InkPageHost host,
   StrokeBuilder builder,
-  core.EpochMillis penDownMillis,
-) => StrokeSession._(host, builder, penDownMillis);
+  core.EpochMillis penDownMillis, {
+  ShapeAssist shapeAssist = ShapeAssist.off,
+  InkShapeFitter? fitter,
+}) => StrokeSession._(host, builder, penDownMillis, shapeAssist, fitter);
+
+/// The shape fitter [s] read at beginStroke (null: off, or a tool without shape assist —
+/// highlighter, laser, tape). Tests (S-12: a changed override applies from the next stroke).
+@internal
+InkShapeFitter? strokeSessionFitterOf(StrokeSession s) => s._fitter;
+
+/// Shape assist applies to this tool (not highlighter, laser or tape — 03-ink 4.10).
+@internal
+bool shapeAssistAllowed(core.PenTool tool) =>
+    tool != core.PenTool.highlighter &&
+    tool != core.PenTool.laser &&
+    tool != core.PenTool.tape;
 
 // --- eraser --------------------------------------------------------------------
 
@@ -309,6 +365,9 @@ final class EraserSession implements InkGestureSession {
   final InkPageHost _host;
   final EraserSpec spec;
   final LinkedHashSet<String> _touched = LinkedHashSet<String>();
+
+  /// (v2.0) touched shapes (removed whole)
+  final LinkedHashSet<String> _touchedObjects = LinkedHashSet<String>();
   ui.Offset _last;
   bool _active = true;
 
@@ -334,6 +393,8 @@ final class EraserSession implements InkGestureSession {
 
   /// stroke mode → eraseStrokes(removedIds); partial → splitStrokes(removedIds, added =
   /// fragments made with core.Stroke.fragment). null if nothing was touched.
+  /// (v2.0) Touched shapes join removedIds and removedObjectIds (RemoveElements; partial:
+  /// Composite[SplitStrokes | RemoveStrokes, RemoveElements] — CP-INK-2).
   InkEdit? end([InkSample? last]) {
     if (!_active) throw StateError('The eraser session has ended');
     if (last != null && last.position.isFinite) {
@@ -342,24 +403,39 @@ final class EraserSession implements InkGestureSession {
     _active = false;
     InkEdit? edit;
     final content = _host.content;
-    if (_touched.isNotEmpty && content != null) {
+    if ((_touched.isNotEmpty || _touchedObjects.isNotEmpty) &&
+        content != null) {
       // originals another update removed meanwhile are left out
       final ordered = [
         for (final id in _touched)
           if (content.zIndexOf(id) >= 0) id,
       ]..sort((a, b) => content.zIndexOf(a).compareTo(content.zIndexOf(b)));
-      if (ordered.isNotEmpty) {
-        final removed = Set<String>.unmodifiable(LinkedHashSet.of(ordered));
+      final shapes = [
+        for (final id in _touchedObjects) ?objectByIdOf(content, id),
+      ]..sort(core.Stroke.compareOrder);
+      if (ordered.isNotEmpty || shapes.isNotEmpty) {
+        final removedElements = <core.PageElement>[
+          for (final id in ordered) content.strokeById(id)!.source,
+          ...shapes,
+        ]..sort(core.Stroke.compareOrder);
+        final removed = Set<String>.unmodifiable(
+          LinkedHashSet.of(removedElements.map((e) => e.id)),
+        );
+        final removedObjects = Set<String>.unmodifiable(
+          LinkedHashSet.of(shapes.map((o) => o.id)),
+        );
         edit = _partial == null
             ? InkEdit(
                 pageId: _host.pageId,
                 kind: InkEditKind.eraseStrokes,
                 removedIds: removed,
+                removedObjectIds: removedObjects,
               )
             : InkEdit(
                 pageId: _host.pageId,
                 kind: InkEditKind.splitStrokes,
                 removedIds: removed,
+                removedObjectIds: removedObjects,
                 added: List.unmodifiable(_fragments(ordered)),
               );
         _host.addPending(edit);
@@ -383,6 +459,7 @@ final class EraserSession implements InkGestureSession {
 
   void _clear() {
     _touched.clear();
+    _touchedObjects.clear();
     _partial?.clear();
     _previews.clear();
   }
@@ -435,8 +512,77 @@ final class EraserSession implements InkGestureSession {
         }
       }
     }
+    // (v2.0) shapes: the CORE bounds meet the capsule → removed whole (R2-B3; the
+    // outline distance is T37b). Never with highlighterOnly.
+    if (spec.eraseShapes && spec.filter != core.StrokeFilter.highlighterOnly) {
+      final area = ui.Rect.fromPoints(a, b).inflate(radius);
+      for (final o in _host.objectsNear(area)) {
+        if (o is! core.ShapeObject || _touchedObjects.contains(o.id)) continue;
+        if (capsuleMeetsRect(a, b, radius, interop.rectOf(o.bounds))) {
+          _touchedObjects.add(o.id);
+          changed = true;
+        }
+      }
+    }
     if (changed) _host.displayChanged();
   }
+}
+
+/// The capsule a → b of [radius] meets the closed rectangle [r] (distance from the
+/// segment to the rectangle ≤ radius).
+@internal
+bool capsuleMeetsRect(ui.Offset a, ui.Offset b, double radius, ui.Rect r) {
+  double dist2(ui.Offset p) {
+    final dx = p.dx < r.left
+        ? r.left - p.dx
+        : (p.dx > r.right ? p.dx - r.right : 0.0);
+    final dy = p.dy < r.top
+        ? r.top - p.dy
+        : (p.dy > r.bottom ? p.dy - r.bottom : 0.0);
+    return dx * dx + dy * dy;
+  }
+
+  final r2 = radius * radius;
+  if (dist2(a) <= r2 || dist2(b) <= r2) return true;
+  if (_segmentsCross(a, b, r)) return true;
+  // the nearest point of the rectangle is then a corner (or the segment's end, checked above)
+  for (final c in [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft]) {
+    if (_pointSegmentDist2(c, a, b) <= r2) return true;
+  }
+  return false;
+}
+
+bool _segmentsCross(ui.Offset a, ui.Offset b, ui.Rect r) {
+  if (r.contains(a) || r.contains(b)) return true;
+  final edges = [
+    (r.topLeft, r.topRight),
+    (r.topRight, r.bottomRight),
+    (r.bottomRight, r.bottomLeft),
+    (r.bottomLeft, r.topLeft),
+  ];
+  for (final (p, q) in edges) {
+    if (_intersects(a, b, p, q)) return true;
+  }
+  return false;
+}
+
+double _cross(ui.Offset o, ui.Offset a, ui.Offset b) =>
+    (a.dx - o.dx) * (b.dy - o.dy) - (a.dy - o.dy) * (b.dx - o.dx);
+
+bool _intersects(ui.Offset a, ui.Offset b, ui.Offset c, ui.Offset d) {
+  final d1 = _cross(c, d, a), d2 = _cross(c, d, b);
+  final d3 = _cross(a, b, c), d4 = _cross(a, b, d);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+double _pointSegmentDist2(ui.Offset p, ui.Offset a, ui.Offset b) {
+  final abx = b.dx - a.dx, aby = b.dy - a.dy;
+  final len2 = abx * abx + aby * aby;
+  var t = len2 == 0 ? 0.0 : ((p.dx - a.dx) * abx + (p.dy - a.dy) * aby) / len2;
+  t = t.clamp(0.0, 1.0);
+  final dx = a.dx + t * abx - p.dx, dy = a.dy + t * aby - p.dy;
+  return dx * dx + dy * dy;
 }
 
 @internal
@@ -448,6 +594,10 @@ EraserSession newEraserSession(
 
 @internal
 Set<String> eraserTouched(EraserSession s) => s._touched;
+
+/// (v2.0) The shapes the eraser touched so far (hidden while the gesture lasts).
+@internal
+Set<String> eraserTouchedObjects(EraserSession s) => s._touchedObjects;
 
 /// Partial mode: the memory-only preview pieces of the touched originals
 /// (6.20 P8), drawn instead of them while the gesture lasts.
@@ -517,7 +667,21 @@ final class LassoSession implements InkGestureSession {
             if (LassoSelector.selects(s, polygon, _options.coverage))
               (content.zIndexOf(s.id), s.id),
         ]..sort((a, b) => a.$1.compareTo(b.$1));
-        final picked = [for (final (_, id) in zPicked) id];
+        var picked = [for (final (_, id) in zPicked) id];
+        if (_options.includeObjects) {
+          // (v2.0) an object is selected when its frame center is inside (nonzero)
+          final objects = [
+            for (final o in _host.objectsNear(polygon.bounds))
+              if (polygon.contains(o.frame.center.x, o.frame.center.y)) o,
+          ];
+          if (objects.isNotEmpty) {
+            final elements = <core.PageElement>[
+              for (final id in picked) content.strokeById(id)!.source,
+              ...objects,
+            ]..sort(core.Stroke.compareOrder);
+            picked = [for (final e in elements) e.id];
+          }
+        }
         if (picked.isNotEmpty) {
           result = newInkSelection(_host, picked);
           _host.lassoSelected(result);

@@ -2,6 +2,8 @@
 // from their InkPageController (implemented privately by the controller).
 import 'dart:ui' show Rect;
 
+import 'package:note_core/note_core.dart' as core;
+
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/ink_clock.dart';
 import '../edit/ink_edit.dart';
@@ -31,6 +33,10 @@ abstract interface class InkPageHost {
   /// 6.18 spatial index: the committed strokes whose CORE bounds meet
   /// [pageRect] (closed), without the pending-removed ones; no particular order.
   List<InkStroke> strokesNear(Rect pageRect);
+
+  /// (v2.0) The committed page objects whose CORE bounds meet [pageRect] (closed), without
+  /// the pending-removed ones; z order (R2-B3: a scan — the object index is T32a).
+  List<core.PageObject> objectsNear(Rect pageRect);
 
   /// Registers the pending display of [edit] (6.12 R6).
   void addPending(InkEdit edit);

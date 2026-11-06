@@ -1,4 +1,5 @@
-// lib/src/render/render_config.dart — 03-ink 4.9.
+// lib/src/render/render_config.dart — 03-ink 4.9; (v2.1, CP-INK-5) imageCacheBytes,
+// mathRasterCacheBytes (m5-7/03-ink 4.10). Final fields (T24).
 import 'package:meta/meta.dart';
 
 @immutable
@@ -16,6 +17,8 @@ final class InkRenderConfig {
     this.releaseInvisibleAfterMs = 2000,
     this.maxAppendedPictures = 16,
     this.pendingCommitTimeoutMs = 3000,
+    this.imageCacheBytes,
+    this.mathRasterCacheBytes = 8 * 1024 * 1024,
   });
 
   /// Native (iPad / Android app): chunk 256 pt → tiles ≤ 1024 px, outline 64 MB, raster 128 MB.
@@ -49,6 +52,16 @@ final class InkRenderConfig {
   final int maxAppendedPictures;
   final int pendingCommitTimeoutMs;
 
+  /// Decoded-image budget. null = platform rule: native → own ledger of 128 MiB; web → the
+  /// SAME ledger as the raster tiles (rasterBudgetBytes, 96 MiB in webDefaults — 7.4.5).
+  /// A value → an own ledger of that size (tests, or a native override).
+  final int? imageCacheBytes;
+
+  /// 8 MiB on both platforms (7.4.5)
+  final int mathRasterCacheBytes;
+
+  /// (v2.1) copyWith cannot clear [imageCacheBytes] back to null; pass
+  /// clearImageCacheBytes: true for that.
   InkRenderConfig copyWith({
     bool? rasterTiles,
     double? chunkSizePt,
@@ -62,6 +75,9 @@ final class InkRenderConfig {
     int? releaseInvisibleAfterMs,
     int? maxAppendedPictures,
     int? pendingCommitTimeoutMs,
+    int? imageCacheBytes,
+    bool clearImageCacheBytes = false,
+    int? mathRasterCacheBytes,
   }) => InkRenderConfig(
     rasterTiles: rasterTiles ?? this.rasterTiles,
     chunkSizePt: chunkSizePt ?? this.chunkSizePt,
@@ -80,6 +96,10 @@ final class InkRenderConfig {
     maxAppendedPictures: maxAppendedPictures ?? this.maxAppendedPictures,
     pendingCommitTimeoutMs:
         pendingCommitTimeoutMs ?? this.pendingCommitTimeoutMs,
+    imageCacheBytes: clearImageCacheBytes
+        ? null
+        : (imageCacheBytes ?? this.imageCacheBytes),
+    mathRasterCacheBytes: mathRasterCacheBytes ?? this.mathRasterCacheBytes,
   );
 
   @override
@@ -99,7 +119,9 @@ final class InkRenderConfig {
         other.maxTileRastersPerFrame == maxTileRastersPerFrame &&
         other.releaseInvisibleAfterMs == releaseInvisibleAfterMs &&
         other.maxAppendedPictures == maxAppendedPictures &&
-        other.pendingCommitTimeoutMs == pendingCommitTimeoutMs;
+        other.pendingCommitTimeoutMs == pendingCommitTimeoutMs &&
+        other.imageCacheBytes == imageCacheBytes &&
+        other.mathRasterCacheBytes == mathRasterCacheBytes;
   }
 
   @override
@@ -116,5 +138,7 @@ final class InkRenderConfig {
     releaseInvisibleAfterMs,
     maxAppendedPictures,
     pendingCommitTimeoutMs,
+    imageCacheBytes,
+    mathRasterCacheBytes,
   );
 }

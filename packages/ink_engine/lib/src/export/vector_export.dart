@@ -19,6 +19,14 @@
 // highlighter line (all points equal) becomes a 0.001 pt horizontal segment:
 // PDF does not paint a degenerate subpath with square caps, the screen draws
 // the axis-aligned square of side width (stroke_painter.dart).
+//
+// (v2.0, 2nd round contract 7.2.9 — m5-7/03-ink 4.8) Vector export v2, paint
+// order = L-1: highlighterGroups, inkShapes, underlay (image objects),
+// annotations (text boxes, formulas), cover (tape strokes). Foundation step
+// R2-B3: the v2 lists are empty and InkFillShape.objectId is null (stroke
+// items as in round 1 — dashed and tape strokes are filled outlines too);
+// T42 fills them. Every value type compares by value (InkVectorFixtures,
+// testing.dart, rebuilds exportPage results field by field).
 import 'dart:typed_data';
 import 'dart:ui' show Rect;
 
@@ -64,6 +72,8 @@ final class InkExportOptions {
 }
 
 /// One filled ink stroke (z-ordered).
+/// (v2.1, CP-INK-1) [objectId] — ShapeObject id for shape pieces (then strokeId = object id,
+/// tool = core.PenTool.ballpoint placeholder), null for strokes.
 final class InkFillShape {
   InkFillShape._({
     required this.strokeId,
@@ -71,6 +81,7 @@ final class InkFillShape {
     required this.path,
     required this.colorArgb,
     required this.opacity,
+    this.objectId,
   });
   final String strokeId;
   final core.PenTool tool;
@@ -79,6 +90,27 @@ final class InkFillShape {
   final InkVectorPath path;
   final int colorArgb;
   final double opacity;
+  final String? objectId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkFillShape &&
+      other.strokeId == strokeId &&
+      other.tool == tool &&
+      _pathEquals(other.path, path) &&
+      other.colorArgb == colorArgb &&
+      other.opacity == opacity &&
+      other.objectId == objectId;
+
+  @override
+  int get hashCode => Object.hash(
+    strokeId,
+    tool,
+    _pathHash(path),
+    colorArgb,
+    opacity,
+    objectId,
+  );
 }
 
 /// One highlighter stroke inside a group.
@@ -95,6 +127,17 @@ final class InkHighlighterLine {
   final InkVectorPath centerline;
   final double width;
   final InkCap cap;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkHighlighterLine &&
+      other.strokeId == strokeId &&
+      _pathEquals(other.centerline, centerline) &&
+      other.width == width &&
+      other.cap == cap;
+
+  @override
+  int get hashCode => Object.hash(strokeId, _pathHash(centerline), width, cap);
 }
 
 /// Same color + opacity highlighters. Paint all lines of a group as ONE stroked path
@@ -110,13 +153,29 @@ final class InkHighlighterGroup {
   final double opacity;
   final InkBlendMode blend;
   final List<InkHighlighterLine> lines;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkHighlighterGroup &&
+      other.colorArgb == colorArgb &&
+      other.opacity == opacity &&
+      other.blend == blend &&
+      _listEquals(other.lines, lines);
+
+  @override
+  int get hashCode =>
+      Object.hash(colorArgb, opacity, blend, Object.hashAll(lines));
 }
 
+// --- vector export v2 (paint order = L-1): 추가 ---
 final class InkPageVectors {
   InkPageVectors._({
     required this.highlighterGroups,
     required this.inkShapes,
     required this.bounds,
+    this.underlay = const [],
+    this.annotations = const [],
+    this.cover = const [],
   });
 
   static final InkPageVectors _empty = InkPageVectors._(
@@ -128,11 +187,140 @@ final class InkPageVectors {
   /// draw first (below ink)
   final List<InkHighlighterGroup> highlighterGroups;
 
-  /// then these, in order
+  /// then these, in order — (v2.0) also ShapeObject outlines / fills and dashed strokes
+  /// pre-split into dash segments (PDF needs no dash operator)
   final List<InkFillShape> inkShapes;
   final Rect bounds;
-  bool get isEmpty => highlighterGroups.isEmpty && inkShapes.isEmpty;
+
+  /// image objects
+  final List<InkImageVector> underlay;
+
+  /// text boxes, math (z order)
+  final List<InkAnnotationVector> annotations;
+
+  /// tape strokes (always covered in exports)
+  final List<InkFillShape> cover;
+
+  bool get isEmpty =>
+      highlighterGroups.isEmpty &&
+      inkShapes.isEmpty &&
+      underlay.isEmpty &&
+      annotations.isEmpty &&
+      cover.isEmpty;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkPageVectors &&
+      _listEquals(other.highlighterGroups, highlighterGroups) &&
+      _listEquals(other.inkShapes, inkShapes) &&
+      other.bounds == bounds &&
+      _listEquals(other.underlay, underlay) &&
+      _listEquals(other.annotations, annotations) &&
+      _listEquals(other.cover, cover);
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAll(highlighterGroups),
+    Object.hashAll(inkShapes),
+    bounds,
+    Object.hashAll(underlay),
+    Object.hashAll(annotations),
+    Object.hashAll(cover),
+  );
 }
+
+/// One image object (underlay, z order).
+@immutable
+final class InkImageVector {
+  const InkImageVector._({
+    required this.assetId,
+    required this.frame,
+    required this.pixelWidth,
+    required this.pixelHeight,
+  });
+  final String assetId;
+  final core.ElementFrame frame;
+  final int pixelWidth, pixelHeight;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkImageVector &&
+      other.assetId == assetId &&
+      other.frame == frame &&
+      other.pixelWidth == pixelWidth &&
+      other.pixelHeight == pixelHeight;
+
+  @override
+  int get hashCode => Object.hash(assetId, frame, pixelWidth, pixelHeight);
+}
+
+/// A text box or a formula (annotations, z order).
+sealed class InkAnnotationVector {
+  const InkAnnotationVector();
+  core.ElementFrame get frame;
+}
+
+final class InkTextVector extends InkAnnotationVector {
+  const InkTextVector._({required this.object, required this.lines});
+  final core.TextBoxObject object;
+
+  /// laid out with InkFonts.noteSans, frame-local pt. (v2.1, CP-INK-9) Empty when the fonts
+  /// are not loaded (→ PDF raster fallback).
+  final List<InkTextLine> lines;
+
+  @override
+  core.ElementFrame get frame => object.frame;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkTextVector &&
+      other.object == object &&
+      _listEquals(other.lines, lines);
+
+  @override
+  int get hashCode => Object.hash(object, Object.hashAll(lines));
+}
+
+@immutable
+final class InkTextLine {
+  const InkTextLine._({
+    required this.text,
+    required this.x,
+    required this.baselineY,
+    required this.width,
+  });
+  final String text;
+  final double x, baselineY, width;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkTextLine &&
+      other.text == text &&
+      other.x == x &&
+      other.baselineY == baselineY &&
+      other.width == width;
+
+  @override
+  int get hashCode => Object.hash(text, x, baselineY, width);
+}
+
+final class InkMathVector extends InkAnnotationVector {
+  const InkMathVector._({required this.object});
+  final core.MathObject object;
+
+  @override
+  core.ElementFrame get frame => object.frame;
+
+  @override
+  bool operator ==(Object other) =>
+      other is InkMathVector && other.object == object;
+
+  @override
+  int get hashCode => object.hashCode;
+}
+// (v2.1, CP-INK-10) UnknownObject is never exported (screen / thumbnail placeholder only).
+// (v2.1, CP-INK-9) PDF awaits InkFonts.ensureLoaded() before export; when fonts are not loaded
+//   InkTextVector.lines is empty (→ PDF raster fallback).
 
 abstract final class InkVectorExport {
   static InkPageVectors exportStrokes(
@@ -282,3 +470,123 @@ InkVectorPath _centerline(Float32List xy) {
   verbs[0] = InkPathVerb.moveTo.index;
   return InkVectorPath(verbs, xy);
 }
+
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// Same verbs and coordinates (paths compare by content).
+bool _pathEquals(InkVectorPath a, InkVectorPath b) {
+  if (identical(a, b)) return true;
+  if (a.verbs.length != b.verbs.length || a.coords.length != b.coords.length) {
+    return false;
+  }
+  for (var i = 0; i < a.verbs.length; i++) {
+    if (a.verbs[i] != b.verbs[i]) return false;
+  }
+  for (var i = 0; i < a.coords.length; i++) {
+    if (a.coords[i] != b.coords[i]) return false;
+  }
+  return true;
+}
+
+int _pathHash(InkVectorPath p) =>
+    Object.hash(p.verbs.length, p.coords.length, Object.hashAll(p.verbs));
+
+// --- INTERNAL constructors (testing.dart InkVectorFixtures — 03-ink 4.12) ---------------
+
+@internal
+InkPageVectors newInkPageVectors({
+  required List<InkHighlighterGroup> highlighterGroups,
+  required List<InkFillShape> inkShapes,
+  required List<InkImageVector> underlay,
+  required List<InkAnnotationVector> annotations,
+  required List<InkFillShape> cover,
+  required Rect bounds,
+}) => InkPageVectors._(
+  highlighterGroups: List.unmodifiable(highlighterGroups),
+  inkShapes: List.unmodifiable(inkShapes),
+  bounds: bounds,
+  underlay: List.unmodifiable(underlay),
+  annotations: List.unmodifiable(annotations),
+  cover: List.unmodifiable(cover),
+);
+
+@internal
+InkFillShape newInkFillShape({
+  required String strokeId,
+  required core.PenTool tool,
+  required InkVectorPath path,
+  required int colorArgb,
+  required double opacity,
+  String? objectId,
+}) => InkFillShape._(
+  strokeId: strokeId,
+  tool: tool,
+  path: path,
+  colorArgb: colorArgb,
+  opacity: opacity,
+  objectId: objectId,
+);
+
+@internal
+InkHighlighterGroup newInkHighlighterGroup({
+  required int colorArgb,
+  required double opacity,
+  required InkBlendMode blend,
+  required List<InkHighlighterLine> lines,
+}) => InkHighlighterGroup._(
+  colorArgb: colorArgb,
+  opacity: opacity,
+  blend: blend,
+  lines: List.unmodifiable(lines),
+);
+
+@internal
+InkHighlighterLine newInkHighlighterLine({
+  required String strokeId,
+  required InkVectorPath centerline,
+  required double width,
+  required InkCap cap,
+}) => InkHighlighterLine._(
+  strokeId: strokeId,
+  centerline: centerline,
+  width: width,
+  cap: cap,
+);
+
+@internal
+InkImageVector newInkImageVector({
+  required String assetId,
+  required core.ElementFrame frame,
+  required int pixelWidth,
+  required int pixelHeight,
+}) => InkImageVector._(
+  assetId: assetId,
+  frame: frame,
+  pixelWidth: pixelWidth,
+  pixelHeight: pixelHeight,
+);
+
+@internal
+InkTextVector newInkTextVector({
+  required core.TextBoxObject object,
+  required List<InkTextLine> lines,
+}) => InkTextVector._(object: object, lines: List.unmodifiable(lines));
+
+@internal
+InkTextLine newInkTextLine({
+  required String text,
+  required double x,
+  required double baselineY,
+  required double width,
+}) => InkTextLine._(text: text, x: x, baselineY: baselineY, width: width);
+
+@internal
+InkMathVector newInkMathVector({required core.MathObject object}) =>
+    InkMathVector._(object: object);

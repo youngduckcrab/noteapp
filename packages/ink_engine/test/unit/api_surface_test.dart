@@ -381,12 +381,16 @@ void main() {
     setViewport(deviceScale: 2, isScaling: false);
     final double? bucket = c.renderStats.currentBucket;
     expect(bucket, 2.0);
+    // (v2.0, 2nd round contract 7.2.9) nine layers, L-1 order
     expect(InkRenderLayer.values, [
       InkRenderLayer.background,
+      InkRenderLayer.underlay,
       InkRenderLayer.highlighterBase,
       InkRenderLayer.highlighterActive,
       InkRenderLayer.inkBase,
       InkRenderLayer.inkActive,
+      InkRenderLayer.annotation,
+      InkRenderLayer.cover,
       InkRenderLayer.overlay,
     ]);
     final List<Object?> statFields = [
@@ -477,6 +481,7 @@ void main() {
       InkEditKind.recolorStrokes,
       InkEditKind.deleteStrokes,
       InkEditKind.duplicateStrokes,
+      InkEditKind.addShape, // (v2.0)
     ]);
     discardEdit(edit);
     discardPending('none');
@@ -747,7 +752,12 @@ void main() {
         pageBackgroundBuildersProvider;
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    expect(container.read(builders), [templates]);
+    // (v2.0) default = defaultPageBackgroundBuilders(ref) = [image, template]; read
+    // without a CORE store override (the image builder's store is resolved lazily)
+    expect(container.read(builders), [
+      isA<ImageBackgroundLayerBuilder>(),
+      templates,
+    ]);
 
     const List<TemplateVectorItem> Function(
       core.PageTemplate, {

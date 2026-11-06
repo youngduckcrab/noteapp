@@ -371,8 +371,10 @@ void main() {
     final sub = container.listen(inkPageControllerProvider('p1'), (_, _) {});
     final controller = sub.read();
     expect(controller.pageId, 'p1');
-    expect(controller.backgroundBuilders, const [
-      TemplateBackgroundLayerBuilder(),
+    // (v2.0) default = defaultPageBackgroundBuilders(ref) = [image, template]
+    expect(controller.backgroundBuilders, [
+      isA<ImageBackgroundLayerBuilder>(),
+      const TemplateBackgroundLayerBuilder(),
     ]);
     expect(controller.services.newStrokeId(), isNotEmpty);
     container.read(pressureModeProvider.notifier).set(PressureMode.alwaysReal);

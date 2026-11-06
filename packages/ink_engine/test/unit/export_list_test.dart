@@ -1,7 +1,9 @@
-// The exported names of ink_engine's three entry points (03-ink 4.0 / 4.14, 8 T00):
-// lib/ink_engine.dart and lib/dev_tools.dart export with `show` lists only, and those
-// lists are exactly the names below; lib/testing.dart declares exactly the helpers of
-// 4.14. Integration check R14 compares these names with the other packages (5.5).
+// The exported names of ink_engine's three entry points (03-ink 4.0 / 4.14, 8 T00;
+// 2nd round m5-7/03-ink 4.0 / 4.12, T24): lib/ink_engine.dart and lib/dev_tools.dart
+// export with `show` lists only, and those lists are exactly the names below (22 new
+// names in the 2nd round); lib/testing.dart declares exactly the helpers of 4.14 / 4.12
+// (private helpers aside). Integration check R14 compares these names with the other
+// packages (5.5).
 @TestOn('vm')
 library;
 
@@ -58,6 +60,32 @@ const Set<String> inkEngineNames = {
   'inkPageThumbnailRendererProvider',
 };
 
+/// (v2.0) the 22 names the 2nd round adds to the show list (m5-7/03-ink 4.0).
+const Set<String> inkEngineNamesV2 = {
+  'InkTapeStyle',
+  'InkPlaybackFocus',
+  'InkPlaybackStyle',
+  'ShapeAssist',
+  'InkShapeFitter',
+  'InkShapeFit',
+  'NoShapeFitter',
+  'inkShapeFitterProvider',
+  'ImageBackgroundLayerBuilder',
+  'InkImageCache',
+  'inkImageCacheProvider',
+  'defaultPageBackgroundBuilders',
+  'InkImageVector',
+  'InkAnnotationVector',
+  'InkTextVector',
+  'InkTextLine',
+  'InkMathVector',
+  'InkMathRenderer',
+  'InkMathLayout',
+  'MathPreview',
+  'InkFonts',
+  'InkTextLayout',
+};
+
 const Set<String> devToolsNames = {'InkDevTools'};
 
 const Set<String> testingNames = {
@@ -67,6 +95,13 @@ const Set<String> testingNames = {
   'MemoryPressureStore',
   'SolidBackgroundBuilder',
   'createTestPageController',
+  // (v2.0 / v2.1) m5-7/03-ink 4.12, contract 7.6
+  'FakeInkShapeFitter',
+  'loadKatexFontsForTest',
+  'debugSetInkFontSource',
+  'useInkTestFonts',
+  'InkVectorFixtures',
+  'testPngBytes',
 };
 
 /// Names removed from INK's public API by the contract (7.2.0, 7.2.15, 4.0).
@@ -165,13 +200,18 @@ Set<String> _topLevelNames(String source) {
   for (final m in variable.allMatches(source)) {
     names.add(m.group(1)!);
   }
-  return names;
+  return {
+    for (final n in names)
+      if (!n.startsWith('_')) n,
+  };
 }
 
 void main() {
-  test('lib/ink_engine.dart show list = 03-ink 4.0', () {
+  test('lib/ink_engine.dart show list = 03-ink 4.0 + m5-7/03-ink 4.0', () {
     final names = _shownNames('lib/ink_engine.dart');
-    expect(names, inkEngineNames);
+    expect(inkEngineNamesV2, hasLength(22));
+    expect(inkEngineNames.intersection(inkEngineNamesV2), isEmpty);
+    expect(names, {...inkEngineNames, ...inkEngineNamesV2});
     expect(names.intersection(removedNames), isEmpty);
   });
 
@@ -192,6 +232,7 @@ void main() {
   test('entry points do not overlap', () {
     expect(inkEngineNames.intersection(devToolsNames), isEmpty);
     expect(inkEngineNames.intersection(testingNames), isEmpty);
+    expect(inkEngineNamesV2.intersection(testingNames), isEmpty);
     expect(devToolsNames.intersection(testingNames), isEmpty);
   });
 }

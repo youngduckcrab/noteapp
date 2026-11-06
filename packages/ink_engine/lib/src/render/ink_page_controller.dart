@@ -10,7 +10,16 @@
 // of 6.12 R9 (currentBucket) and the second render cache stage (6.13 L3,
 // INK T19: raster tiles of the ink chunks in the pool LRU, made one per frame
 // when quiet, plus the time-sliced first recording of a page's chunks).
-import 'dart:async' show scheduleMicrotask;
+//
+// 2nd round (contract 7.2.9, m5-7/03-ink 4.3, 4.13 — foundation step R2-B3):
+// nine render layers (L-1); page objects drawn simply in their layer every
+// paint (images → underlay, shapes → ink after the stroke chunks, text boxes
+// / formulas / unknown objects → annotation — no object caches yet, T32b);
+// select / hitTestObject / setHiddenObjectIds / setPreviewObjects (a preview
+// with a committed id replaces it; previews win over hidden ids); the
+// read-only getters; playback focus as state only (T40); hitTestRecorded;
+// the memorization tape state (tapes still draw as ballpoint — T31).
+import 'dart:async' show scheduleMicrotask, unawaited;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -34,9 +43,12 @@ import '../input/pressure_mode.dart';
 import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
+import '../object/object_painter.dart';
 import '../pen/style_ink.dart';
+import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
 import '../stroke/stroke_meta.dart';
+import '../text/fonts.dart';
 import 'base_cache.dart';
 import 'cache_pool.dart';
 import 'highlighter_compositor.dart';
@@ -44,6 +56,7 @@ import 'ink_page_content.dart';
 import 'lasso_overlay.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
+import 'playback.dart' show InkPlaybackFocus;
 import 'raster_tiles.dart';
 import 'render_config.dart';
 import 'selection.dart';
@@ -72,14 +85,21 @@ final class InkCoreServices {
   int get hashCode => Object.hash(newStrokeId, nowMillis);
 }
 
+/// (v2.0) L-1, bottom → top. Layer 4′ (playback emphasis, shape assist preview) is the last
+/// step of the inkActive painter, not a value (m5-7/03-ink 4.1).
 enum InkRenderLayer {
   background,
+  underlay,
   highlighterBase,
   highlighterActive,
   inkBase,
   inkActive,
+  annotation,
+  cover,
   overlay,
 }
+
+InkShapeFitter _noShapeFitter() => const NoShapeFitter();
 
 @immutable
 final class InkPageRenderStats {
@@ -137,6 +157,7 @@ final class InkPageController extends ChangeNotifier {
     required this.clock,
     required this.pencilGrain,
     required List<PageBackgroundLayerBuilder> backgroundBuilders,
+    this.shapeFitter = _noShapeFitter,
   }) : _backgroundBuilders = List.unmodifiable(backgroundBuilders) {
     _host = _Host(this);
     _render = InkPageRender._(this);
@@ -160,6 +181,10 @@ final class InkPageController extends ChangeNotifier {
   final InkDiagnostics diagnostics;
   final InkClock clock;
   final PencilGrain pencilGrain;
+
+  /// (v2.0) read at every beginStroke with ShapeAssist.holdToSnap (inkShapeFitterProvider —
+  /// a changed override applies from the next stroke, S-12)
+  final InkShapeFitter Function() shapeFitter;
   final List<PageBackgroundLayerBuilder> _backgroundBuilders;
   List<PageBackgroundLayerBuilder> get backgroundBuilders =>
       _backgroundBuilders;
@@ -223,6 +248,13 @@ final class InkPageController extends ChangeNotifier {
   /// 6.18: built on first use, then kept up to date from the R2 diff.
   StrokeSpatialIndex? _spatial;
 
+  // (v2.0) objects, playback, tapes (m5-7/03-ink 4.3, 4.10)
+  Set<String> _hiddenObjectIds = const {};
+  List<core.PageObject> _previewObjects = const [];
+  InkPlaybackFocus? _playbackFocus;
+  final Set<String> _revealedTapes = {};
+  bool _fontsWaiting = false;
+
   // viewport (6.12 R9)
   ui.Rect? _visiblePageRect;
   double? _deviceScale;
@@ -251,6 +283,7 @@ final class InkPageController extends ChangeNotifier {
         old.page.background != content.page.background;
     final diff = InkContentDiff.between(old, content);
     _content = content;
+    _revealedTapes.removeWhere((id) => !_isTapeId(content, id));
     _applyDiff(diff, content);
     _resolvePending(content);
     _pruneTimedOut();
@@ -271,11 +304,15 @@ final class InkPageController extends ChangeNotifier {
   /// setViewport through InkPageView, never from EDITOR).
   /// beginStroke: [style] is normalized() here; pen-down time for createdAt =
   /// services.nowMillis() (now).
+  /// (v2.0) [shapeAssist]: StrokeSession.shapeAssist returns it as given; holdToSnap reads
+  /// [shapeFitter] now (ignored for highlighter, laser and tape). R2-B3: the hold is not
+  /// detected yet (shapePreview stays null — T39).
   StrokeSession beginStroke(
     InkSample first, {
     required core.StrokeStyle style,
     required double viewScale,
     InkStrokeMeta meta = const InkStrokeMeta(),
+    ShapeAssist shapeAssist = ShapeAssist.off,
   }) {
     _beginGesture(viewScale);
     final kind = first.kind;
@@ -296,7 +333,17 @@ final class InkPageController extends ChangeNotifier {
     );
     final penDownMillis = services.nowMillis();
     builder.add(first);
-    final session = newStrokeSession(_host, builder, penDownMillis);
+    final fitter =
+        shapeAssist == ShapeAssist.holdToSnap && shapeAssistAllowed(style.tool)
+        ? shapeFitter()
+        : null;
+    final session = newStrokeSession(
+      _host,
+      builder,
+      penDownMillis,
+      shapeAssist: shapeAssist,
+      fitter: fitter,
+    );
     _active = session;
     diagnostics
       ..onSamples([first], receiveUs: clock.nowUs())
@@ -356,21 +403,26 @@ final class InkPageController extends ChangeNotifier {
   // --- selection ---------------------------------------------------------
   InkSelection? get selection => _selection;
 
-  /// Ids not on this page are ignored; replaces the current selection. An empty result
-  /// clears the selection and returns an empty InkSelection (isEmpty).
-  InkSelection select(Set<String> strokeIds) {
+  /// ids may mix strokes and objects; unknown ids ignored.
+  /// Ids not on this page are ignored; replaces the current selection; the result is in z
+  /// order whatever the input order. An empty result clears the selection and returns an
+  /// empty InkSelection (isEmpty).
+  InkSelection select(Set<String> elementIds) {
     _checkNotDisposed();
     final content = _content;
-    final ids = <String>[
-      if (content != null)
+    final elements = <core.PageElement>[
+      if (content != null) ...[
         for (final s in content.strokes)
-          if (strokeIds.contains(s.id)) s.id,
-    ];
-    if (ids.isEmpty) {
+          if (elementIds.contains(s.id)) s.source,
+        for (final o in content.objects)
+          if (elementIds.contains(o.id)) o,
+      ],
+    ]..sort(core.Stroke.compareOrder);
+    if (elements.isEmpty) {
       clearSelection();
       return newInkSelection(_host, const []);
     }
-    return _setSelection(newInkSelection(_host, ids));
+    return _setSelection(newInkSelection(_host, elements.map((e) => e.id)));
   }
 
   void clearSelection() {
@@ -418,6 +470,200 @@ final class InkPageController extends ChangeNotifier {
     );
   }
 
+  /// Topmost object at the point (annotation → ink → underlay); UnknownObject included.
+  /// (v2.0, 03-ink 4.10) Hidden objects count (the text box under EDITOR's editor can be
+  /// tapped again); previews and pending-removed objects do not. Within a layer the
+  /// larger z wins. R2-B3: the frame (shapes too) contains the point within [tolerance].
+  core.PageObject? hitTestObject(
+    ui.Offset pagePoint, {
+    double tolerance = 4.0,
+  }) {
+    final content = _content;
+    if (content == null || !pagePoint.isFinite) return null;
+    final tol = tolerance > 0 && tolerance.isFinite ? tolerance : 0.0;
+    final p = core.PagePoint(pagePoint.dx, pagePoint.dy);
+    for (final layer in const [
+      InkObjectLayer.annotation,
+      InkObjectLayer.ink,
+      InkObjectLayer.underlay,
+    ]) {
+      final objects = _objectsOfLayer(content, layer);
+      for (var i = objects.length - 1; i >= 0; i--) {
+        final o = objects[i];
+        if (_isPendingRemoved(o.id)) continue;
+        if (o.frame.contains(p, tolerance: tol)) return o;
+      }
+    }
+    return null;
+  }
+
+  /// Not drawn (e.g. the text box under EDITOR's EditableText). Selection still sees them.
+  /// Ids not on the page are kept (an object arriving later starts hidden); the same set
+  /// again does nothing.
+  void setHiddenObjectIds(Set<String> ids) {
+    _checkNotDisposed();
+    if (_hiddenObjectIds.length == ids.length &&
+        _hiddenObjectIds.containsAll(ids)) {
+      return;
+    }
+    _hiddenObjectIds = Set.unmodifiable(ids);
+    _invalidate();
+  }
+
+  /// Transient objects drawn with the same renderer (shape tool drag, vertex drag, image being
+  /// placed). An entry whose id equals a committed object REPLACES it on screen; the others are
+  /// drawn in their L-1 layer. (v2.1) A preview is drawn even when its id is hidden (preview wins
+  /// over setHiddenObjectIds). Empty list = none. Never stored, never exported.
+  /// Every object must be on this page (ArgumentError). Hit tests, selection, exports and
+  /// thumbnails never see previews.
+  void setPreviewObjects(List<core.PageObject> objects) {
+    _checkNotDisposed();
+    for (final o in objects) {
+      if (o.pageId != pageId) {
+        throw ArgumentError.value(
+          o.pageId,
+          'objects',
+          'preview object ${o.id} belongs to another page than $pageId',
+        );
+      }
+    }
+    if (objects.isEmpty && _previewObjects.isEmpty) return;
+    _previewObjects = List.unmodifiable(objects);
+    _invalidate();
+  }
+
+  // (v2.1) read-only views of what was set (EDITOR tests observe their own calls — EDITOR M-1)
+  /// The last set given to setHiddenObjectIds (unmodifiable, absent ids included).
+  Set<String> get hiddenObjectIds => _hiddenObjectIds;
+
+  /// The last list given to setPreviewObjects (unmodifiable, duplicates included).
+  List<core.PageObject> get previewObjects => _previewObjects;
+
+  /// The last value given to setPlaybackFocus (as given); null = off.
+  InkPlaybackFocus? get playbackFocus => _playbackFocus;
+
+  // playback (M6)
+  /// null = off (K-7). The same value again does nothing. R2-B3: state only (T40 draws it).
+  void setPlaybackFocus(InkPlaybackFocus? focus) {
+    _checkNotDisposed();
+    if (focus == _playbackFocus) return;
+    _playbackFocus = focus;
+    _repaints[InkRenderLayer.inkActive]!.fire();
+  }
+
+  /// Topmost stroke linked to a recording ([recordingId] when given, else any) whose ink is
+  /// within [tolerance] pt of [pagePoint] (every tool, tape included; the exact distance of
+  /// hitTest). Pending-removed strokes are skipped.
+  InkStroke? hitTestRecorded(
+    ui.Offset pagePoint, {
+    String? recordingId,
+    double tolerance = 8.0,
+  }) {
+    final content = _content;
+    if (content == null || !pagePoint.isFinite) return null;
+    final radius = tolerance > 0 && tolerance.isFinite ? tolerance : 0.0;
+    final candidates = [
+      for (final s in _strokesNear(
+        ui.Rect.fromCircle(center: pagePoint, radius: radius),
+      ))
+        if (s.source.recordingId case final id?)
+          if (recordingId == null || id == recordingId) s,
+    ];
+    return InkHitTest.topmostAt(
+      candidates,
+      pagePoint,
+      radius,
+      zOf: (s) => content.zIndexOf(s.id),
+    );
+  }
+
+  // memorization tape (state per controller, never stored — U10)
+  /// Topmost tape stroke whose CORE bounds contain [pagePoint] (R2-B3: bounds — T31 uses
+  /// the band). Pending-removed tapes are skipped.
+  InkStroke? hitTestTape(ui.Offset pagePoint) {
+    final content = _content;
+    if (content == null || !pagePoint.isFinite) return null;
+    InkStroke? best;
+    var bestZ = -1;
+    for (final s in _strokesNear(
+      ui.Rect.fromLTWH(pagePoint.dx, pagePoint.dy, 0, 0),
+    )) {
+      if (s.style.tool != core.PenTool.tape) continue;
+      final b = s.bounds;
+      if (pagePoint.dx < b.left ||
+          pagePoint.dx > b.right ||
+          pagePoint.dy < b.top ||
+          pagePoint.dy > b.bottom) {
+        continue;
+      }
+      final z = content.zIndexOf(s.id);
+      if (z > bestZ) {
+        bestZ = z;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  /// false for ids that are not tapes of this page.
+  bool isTapeRevealed(String strokeId) {
+    final content = _content;
+    return content != null &&
+        _revealedTapes.contains(strokeId) &&
+        _isTapeId(content, strokeId);
+  }
+
+  /// Covered ↔ revealed; ids that are not tapes of this page are ignored.
+  void toggleTape(String strokeId) {
+    _checkNotDisposed();
+    final content = _content;
+    if (content == null || !_isTapeId(content, strokeId)) return;
+    if (!_revealedTapes.remove(strokeId)) _revealedTapes.add(strokeId);
+    _repaints[InkRenderLayer.cover]!.fire();
+  }
+
+  /// Applies to the tapes present now; tapes that arrive later start covered. (v2.1) EDITOR keeps
+  /// the note-level 'show all' and re-applies it after every updateContent. Lifetime = controller.
+  void setAllTapesRevealed(bool revealed) {
+    _checkNotDisposed();
+    if (revealed) {
+      final content = _content;
+      if (content != null) {
+        for (final s in content.strokes) {
+          if (s.style.tool == core.PenTool.tape) _revealedTapes.add(s.id);
+        }
+      }
+    } else {
+      _revealedTapes.clear();
+    }
+    _repaints[InkRenderLayer.cover]!.fire();
+  }
+
+  static bool _isTapeId(InkPageContent content, String id) =>
+      content.strokeById(id)?.style.tool == core.PenTool.tape;
+
+  static List<core.PageObject> _objectsOfLayer(
+    InkPageContent content,
+    InkObjectLayer layer,
+  ) => switch (layer) {
+    InkObjectLayer.underlay => underlayObjectsOf(content),
+    InkObjectLayer.ink => inkObjectsOf(content),
+    InkObjectLayer.annotation => annotationObjectsOf(content),
+  };
+
+  /// The committed objects whose CORE bounds meet [pageRect] (closed), z order, without the
+  /// pending-removed ones (R2-B3: a scan).
+  List<core.PageObject> _objectsNear(ui.Rect pageRect) {
+    final content = _content;
+    if (content == null) return const [];
+    return [
+      for (final o in content.objects)
+        if (!_isPendingRemoved(o.id) &&
+            interop.rectOf(o.bounds).overlaps(pageRect.inflate(1e-9)))
+          o,
+    ];
+  }
+
   /// Ids (z-order) of the strokes whose ink meets [pageRect] (closed; 6.18
   /// exact test). Strokes hidden by a pending erase or delete are left out.
   List<String> strokeIdsInRect(ui.Rect pageRect) {
@@ -448,6 +694,7 @@ final class InkPageController extends ChangeNotifier {
   // --- commit hand-off (6.12 R6) — pendingIds / discardPending / discardEdit: contract 7.2.15
   /// Ids whose display is overridden until CORE content reflects the edit
   /// (new / duplicated strokes, erased or split originals, transformed / recolored targets).
+  /// (v2.0) Objects of the edit too.
   Set<String> get pendingIds => {
     for (final p in _pending) ...[
       ...p.addedIds,
@@ -583,20 +830,25 @@ final class InkPageController extends ChangeNotifier {
         edit,
         clock.nowUs(),
         targetsAtCommit: {
-          for (final id in edit.targetIds) id: content?.strokeById(id)?.source,
+          for (final id in edit.targetIds)
+            id: content == null ? null : _elementOf(content, id),
         },
       ),
     );
     _invalidate();
   }
 
+  /// The committed stroke (core value) or object [id] of [content].
+  static Object? _elementOf(InkPageContent content, String id) =>
+      content.strokeById(id)?.source ?? objectByIdOf(content, id);
+
   void _resolvePending(InkPageContent content) {
     var resetPreview = false;
     _pending.removeWhere((p) {
-      p.addedIds.removeWhere((id) => content.strokeById(id) != null);
-      p.removedIds.removeWhere((id) => content.strokeById(id) == null);
+      p.addedIds.removeWhere((id) => _elementOf(content, id) != null);
+      p.removedIds.removeWhere((id) => _elementOf(content, id) == null);
       p.targetIds.removeWhere((id) {
-        final now = content.strokeById(id)?.source;
+        final now = _elementOf(content, id);
         return now == null || !identical(now, p.targetsAtCommit[id]);
       });
       if (!p.isEmpty) return false;
@@ -633,7 +885,7 @@ final class InkPageController extends ChangeNotifier {
   void _refreshSelection(InkPageContent content) {
     final sel = _selection;
     if (sel == null) return;
-    if (retainSelectionIds(sel, (id) => content.strokeById(id) != null)) {
+    if (retainSelectionIds(sel, (id) => _elementOf(content, id) != null)) {
       return;
     }
     disposeInkSelection(sel);
@@ -750,11 +1002,20 @@ final class InkPageController extends ChangeNotifier {
     final transforms = <String, core.Affine2>{};
     final colors = <String, int>{};
     final added = <core.Stroke>[];
+    // (v2.0) objects: recolored values and pending added objects
+    final recolored = <String, core.PageObject>{};
+    final addedObjects = <core.PageObject>[];
     for (final p in _pending) {
       removed.addAll(p.removedIds);
       for (final s in p.edit.added) {
         if (p.addedIds.contains(s.id) && content?.strokeById(s.id) == null) {
           added.add(s);
+        }
+      }
+      for (final o in p.edit.addedObjects) {
+        if (p.addedIds.contains(o.id) &&
+            (content == null || objectByIdOf(content, o.id) == null)) {
+          addedObjects.add(o);
         }
       }
       final m = p.edit.transform;
@@ -769,24 +1030,67 @@ final class InkPageController extends ChangeNotifier {
         for (final id in p.targetIds) {
           colors[id] = color;
         }
+        for (final o in p.edit.updatedObjects) {
+          if (p.targetIds.contains(o.id)) recolored[o.id] = o;
+        }
       }
     }
     final active = _active;
     final previews = <core.Stroke>[];
     if (active is EraserSession && active.isActive) {
       removed.addAll(eraserTouched(active));
+      removed.addAll(eraserTouchedObjects(active));
       // 6.20 P8: the pieces the partial eraser leaves, instead of the originals
       previews.addAll(eraserPreviewPieces(active));
     }
     final sel = _selection;
     final selectionPreviewIds = <String>{};
     if (sel != null && !sel.isDisposed && !sel.previewTransform.isIdentity) {
-      for (final id in sel.strokeIds) {
+      for (final id in selectionIdsOf(sel)) {
         if (transforms.containsKey(id)) continue; // a pending transform wins
+        if (content != null &&
+            objectByIdOf(content, id) is core.UnknownObject) {
+          continue; // an unknown object stays in place (6.14)
+        }
         transforms[id] = sel.previewTransform;
         selectionPreviewIds.add(id);
       }
     }
+    // (v2.0) objects drawn by the live part instead of the base drawing (6.8.4, 6.17):
+    // pending / selection transforms and recolors (CORE PageObject.transformed — the
+    // resolver's rule), pending added objects, then setPreviewObjects (preview wins over
+    // hidden; a preview with a committed id replaces it).
+    final liveObjects = <core.PageObject>[];
+    final objectsHidden = <String>{..._hiddenObjectIds};
+    if (content != null) {
+      for (final o in content.objects) {
+        if (removed.contains(o.id)) {
+          objectsHidden.add(o.id);
+          continue;
+        }
+        final m = transforms[o.id];
+        final recolor = recolored[o.id];
+        if (m == null && recolor == null) continue;
+        objectsHidden.add(o.id);
+        if (_hiddenObjectIds.contains(o.id)) continue;
+        final base = recolor ?? o;
+        liveObjects.add(
+          m == null ? base : base.transformed(m, scaleWidth: true),
+        );
+      }
+    }
+    for (final o in addedObjects) {
+      if (!_hiddenObjectIds.contains(o.id)) liveObjects.add(o);
+    }
+    final previewById = <String, core.PageObject>{};
+    for (final o in _previewObjects) {
+      previewById.remove(o.id); // the later entry of a repeated id is drawn
+      previewById[o.id] = o;
+    }
+    objectsHidden.addAll(previewById.keys);
+    liveObjects
+      ..removeWhere((o) => previewById.containsKey(o.id))
+      ..addAll(previewById.values);
     final overrides = <_Override>[
       if (content != null)
         for (final s in content.strokes)
@@ -799,7 +1103,10 @@ final class InkPageController extends ChangeNotifier {
               fromSelection: selectionPreviewIds.contains(s.id),
             ),
     ];
-    final hidden = {...removed, ...transforms.keys, ...colors.keys};
+    final hidden = <String>{
+      for (final id in {...removed, ...transforms.keys, ...colors.keys})
+        if (content == null || content.strokeById(id) != null) id,
+    };
     // 6.10-6: a group with anything being written, pending or previewed is
     // composited by the active layer only (committed lines included).
     final activeKeys = <HighlighterGroupKey>{
@@ -816,6 +1123,8 @@ final class InkPageController extends ChangeNotifier {
     };
     return _Display(
       hidden: hidden,
+      objectsHidden: objectsHidden,
+      liveObjects: liveObjects,
       overrides: overrides,
       added: added,
       previews: previews,
@@ -837,6 +1146,19 @@ final class InkPageController extends ChangeNotifier {
     switch (layer) {
       case InkRenderLayer.background:
         return;
+      case InkRenderLayer.underlay:
+        _paintObjects(canvas, content, display, InkObjectLayer.underlay, paper);
+      case InkRenderLayer.annotation:
+        _paintObjects(
+          canvas,
+          content,
+          display,
+          InkObjectLayer.annotation,
+          paper,
+        );
+      case InkRenderLayer.cover:
+        // R2-B3: tapes still draw as ballpoint strokes in the ink layer (T31)
+        return;
       case InkRenderLayer.highlighterBase:
         if (content == null) return;
         _hl.paintBase(
@@ -849,6 +1171,14 @@ final class InkPageController extends ChangeNotifier {
       case InkRenderLayer.inkBase:
         if (content == null) return;
         _paintInkBase(canvas, content, display);
+        // R2-B3: committed shapes after the stroke chunks (mixing them with the strokes
+        // by compareOrder inside the chunks is T32b)
+        _paintObjectList(
+          canvas,
+          inkObjectsOf(content),
+          display.objectsHidden,
+          paper,
+        );
         if (diagnostics.enabled) {
           diagnostics.onCacheStats(
             cachePool.stats,
@@ -858,7 +1188,7 @@ final class InkPageController extends ChangeNotifier {
       case InkRenderLayer.highlighterActive:
         _paintActiveHighlighters(canvas, display, paper, margin);
       case InkRenderLayer.inkActive:
-        _paintActiveInk(canvas, display, margin);
+        _paintActiveInk(canvas, display, margin, paper);
       case InkRenderLayer.overlay:
         final active = _active;
         if (active is! LassoSession || !active.isActive) return;
@@ -1049,8 +1379,81 @@ final class InkPageController extends ChangeNotifier {
         : InkStroke.of(interop.previewTransformedOf(o.stroke.source, m));
   }
 
+  /// (v2.0) One object layer the R2-B3 way: the committed objects not hidden, then the live
+  /// ones (pending, selection preview, setPreviewObjects) — redrawn on every paint.
+  void _paintObjects(
+    ui.Canvas canvas,
+    InkPageContent? content,
+    _Display display,
+    InkObjectLayer layer,
+    int paper,
+  ) {
+    if (content != null) {
+      _paintObjectList(
+        canvas,
+        _objectsOfLayer(content, layer),
+        display.objectsHidden,
+        paper,
+      );
+    }
+    _paintObjectList(
+      canvas,
+      [
+        for (final o in display.liveObjects)
+          if (objectLayerOf(o) == layer) o,
+      ],
+      const {},
+      paper,
+    );
+  }
+
+  void _paintObjectList(
+    ui.Canvas canvas,
+    List<core.PageObject> objects,
+    Set<String> hidden,
+    int paper,
+  ) {
+    if (objects.isEmpty) return;
+    final onePx = 1 / _currentViewScale;
+    for (final o in objects) {
+      if (hidden.contains(o.id)) continue;
+      if (o is core.TextBoxObject) _wantFonts();
+      if (!paintObjectSimple(canvas, o, paperArgb: paper, onePx: onePx)) {
+        diagnostics.onWarning('objectPaintFailed');
+      }
+    }
+  }
+
+  /// A text box is drawn: NoteSans is loaded implicitly (7.4.5 'when first drawn'); once it
+  /// is there, everything is drawn again with it.
+  void _wantFonts() {
+    if (InkFontsDebug.isLoaded || _fontsWaiting) return;
+    _fontsWaiting = true;
+    unawaited(
+      InkFontsDebug.loadImplicitly().then((_) {
+        _fontsWaiting = false;
+        if (!_disposed && InkFontsDebug.isLoaded) _invalidate();
+      }),
+    );
+  }
+
   /// Ink-layer previews, pending strokes and the stroke being written (R5–R7).
-  void _paintActiveInk(ui.Canvas canvas, _Display display, double margin) {
+  void _paintActiveInk(
+    ui.Canvas canvas,
+    _Display display,
+    double margin,
+    int paper,
+  ) {
+    // (v2.0) live shapes (pending, selection preview, setPreviewObjects)
+    _paintObjectList(
+      canvas,
+      [
+        for (final o in display.liveObjects)
+          if (objectLayerOf(o) == InkObjectLayer.ink) o,
+      ],
+      const {},
+      paper,
+    );
     // Committed-looking strokes are drawn under the chunk clips, like the
     // chunk pictures that take them over (pixel-exact hand-off, R6).
     final selectionItems = <SelectionPreviewItem>[];
@@ -1130,6 +1533,8 @@ final class InkPageController extends ChangeNotifier {
       final end = clock.nowUs();
       diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);
     }
+    // layer 4′ (playback emphasis, shape assist preview) is the last step here: R2-B3
+    // draws nothing in it yet (T39, T40).
   }
 
   /// The active highlighter groups (6.10-6): for each, ONE composite of its
@@ -1356,13 +1761,18 @@ final class _Repaint extends ChangeNotifier {
 
 final class _Pending {
   _Pending(this.edit, this.createdUs, {required this.targetsAtCommit})
-    : addedIds = {for (final s in edit.added) s.id},
+    : addedIds = {
+        for (final s in edit.added) s.id,
+        for (final o in edit.addedObjects) o.id,
+      },
       removedIds = {...edit.removedIds},
       targetIds = {...edit.targetIds};
 
   final InkEdit edit;
   final int createdUs;
-  final Map<String, core.Stroke?> targetsAtCommit;
+
+  /// The committed stroke (core value) or object instance of each target at commit time.
+  final Map<String, Object?> targetsAtCommit;
   final Set<String> addedIds;
   final Set<String> removedIds;
   final Set<String> targetIds;
@@ -1389,13 +1799,24 @@ final class _Override {
 final class _Display {
   _Display({
     required this.hidden,
+    required this.objectsHidden,
+    required this.liveObjects,
     required this.overrides,
     required this.added,
     required this.previews,
     required this.highlighters,
     required this.activeHighlighterKeys,
   });
+
+  /// Strokes left out of the base caches.
   final Set<String> hidden;
+
+  /// (v2.0) Committed objects left out of the base drawing (hidden ids, pending removed,
+  /// transformed / recolored, replaced by a preview).
+  final Set<String> objectsHidden;
+
+  /// (v2.0) Objects drawn by the live part of their layer.
+  final List<core.PageObject> liveObjects;
   final List<_Override> overrides;
   final List<core.Stroke> added;
 
@@ -1431,6 +1852,9 @@ final class _Host implements InkPageHost {
   bool isPendingRemoved(String id) => _c._isPendingRemoved(id);
   @override
   List<InkStroke> strokesNear(ui.Rect pageRect) => _c._strokesNear(pageRect);
+  @override
+  List<core.PageObject> objectsNear(ui.Rect pageRect) =>
+      _c._objectsNear(pageRect);
   @override
   void addPending(InkEdit edit) => _c._addPending(edit);
 

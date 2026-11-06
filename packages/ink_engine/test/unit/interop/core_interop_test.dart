@@ -588,11 +588,22 @@ void main() {
             paperColorArgb: core.PaperColors.black,
           ),
         ),
+        // (v2.0) the image fit comes along (ImageBackground default: contain)
         const InkBackgroundSpec(
           kind: InkBackgroundKind.image,
           paperColorArgb: core.PaperColors.black,
           assetId: 'img-1',
+          imageFit: core.ImageFit.contain,
         ),
+      );
+      expect(
+        InkBackgroundSpec.fromCore(
+          const core.ImageBackground(
+            assetId: 'img-1',
+            fit: core.ImageFit.cover,
+          ),
+        ).imageFit,
+        core.ImageFit.cover,
       );
       expect(
         interop.backgroundSpecOf(const core.BlankBackground()),

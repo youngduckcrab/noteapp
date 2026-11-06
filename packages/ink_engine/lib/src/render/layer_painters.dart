@@ -31,7 +31,8 @@ void paintStrokeLayer(
         paperColorArgb: paperColorArgb,
         marginPt: marginPt,
       );
-    case InkLayer.ink:
+    case InkLayer.ink || InkLayer.cover:
+      // (v2.0) cover: no pen gives it yet (tape draws as ballpoint until T31)
       for (final s in zOrdered) {
         if (s.layer != layer) continue;
         paintFillStroke(canvas, s, outlineOf(s), grain: grain);
@@ -39,7 +40,7 @@ void paintStrokeLayer(
   }
 }
 
-/// Both layers, highlighter first (thumbnails, previews).
+/// Every layer, highlighter first (thumbnails, previews).
 void paintStrokeLayers(
   Canvas canvas,
   Iterable<InkStroke> zOrdered, {

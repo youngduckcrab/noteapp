@@ -19,7 +19,9 @@ import '../background/builder_choice.dart';
 import '../interop/core_interop.dart' as interop;
 import 'ink_page_controller.dart';
 
-/// Paints one page: background → highlighter → active highlighter → ink → active ink → overlay.
+/// Paints one page in the L-1 order (v2.0): background → underlay (images) → highlighter →
+/// active highlighter → ink (strokes + shapes) → active ink (+ layer 4′) → annotation (text,
+/// formulas, unknown objects) → cover (tape) → overlay.
 /// Fills its box; page pt are mapped uniformly (viewScale = size.width / pageSize.width).
 /// No gesture handling (EDITOR wraps it with its own Listener).
 /// The ONLY caller of controller.setViewport (contract 7.2.15 v1.1): after layout, from one
@@ -74,11 +76,15 @@ class _InkPageViewState extends State<InkPageView> {
   _ViewportReport? _pending;
   bool _scheduled = false;
 
+  /// Every layer but the background (the builder widget), bottom → top (L-1).
   static const List<InkRenderLayer> _paintedLayers = [
+    InkRenderLayer.underlay,
     InkRenderLayer.highlighterBase,
     InkRenderLayer.highlighterActive,
     InkRenderLayer.inkBase,
     InkRenderLayer.inkActive,
+    InkRenderLayer.annotation,
+    InkRenderLayer.cover,
     InkRenderLayer.overlay,
   ];
 

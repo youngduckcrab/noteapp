@@ -85,4 +85,25 @@ void main() {
       lessThan(InkTuning.syntheticMaxPoints),
     );
   });
+
+  test(
+    '(v2.0) contract values of the 2nd round constants (m5-7/03-ink 6.26)',
+    () {
+      expect(InkTuning.shapeHoldMs, 500);
+      expect(InkTuning.shapeHoldRadiusPx, 8);
+      expect(InkTuning.fontLoadTimeoutMs, 5000);
+      expect(InkTuning.fontRetryAfterMs, 30000);
+      // the three over-the-paper colors keep their contract names (7.4.10)
+      expect(
+        InkTuning.laserArgb,
+        core.StrokeStyle.defaultsFor(core.PenTool.laser).colorArgb,
+      );
+      expect(InkTuning.playbackEmphasisArgb, 0xFFFF8A00);
+      expect(InkTuning.playbackDimOpacity, 0.25);
+      // 7.4.5: one raster ≤ 4 Mpx (16 MiB RGBA), texture-safe side
+      expect(InkTuning.maxRasterPixels * 4, 16 * 1024 * 1024);
+      expect(InkTuning.maxRasterSidePx, 8192);
+      expect(InkTuning.imageBucketsPx, [128, 256, 512, 1024, 2048, 4096]);
+    },
+  );
 }

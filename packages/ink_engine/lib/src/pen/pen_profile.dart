@@ -1,4 +1,4 @@
-// lib/src/pen/pen_profile.dart — 03-ink 4.2, values 6.9.
+// lib/src/pen/pen_profile.dart — 03-ink 4.2, values 6.9 (2nd round: m5-7/03-ink 4.1, 4.10).
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -6,7 +6,17 @@ import '../model/ink_layer.dart';
 
 enum InkCap { round, square }
 
-enum InkRenderMethod { filledOutline, strokedPolyline }
+/// (v2.0) PenProfile.of: brush → filledOutline (high pressure gain, long taper);
+/// calligraphy → nibOutline; dashed → dashedPolyline (round caps); laser → transientTrail;
+/// tape → filledOutline, square cap, layer cover. Foundation step R2-B3: the five P1 tools
+/// still map to the ballpoint profile (m5-7/03-ink 4.13 — T27~T31 switch them one by one).
+enum InkRenderMethod {
+  filledOutline,
+  strokedPolyline,
+  nibOutline,
+  dashedPolyline,
+  transientTrail,
+}
 
 /// Fixed per-tool rendering behaviour (6.9). Not user-editable, never stored.
 /// Default style values (color, width, opacity, smoothing, extras) are NOT here: they are
@@ -64,7 +74,8 @@ final class PenProfile {
   final bool groupComposite;
 
   /// ballpoint / fountain / highlighter / pencil / marker → their profile;
-  /// brush, calligraphy, dashed, laser, tape (P1) → ballpoint until M5.
+  /// brush, calligraphy, dashed, laser, tape (P1) → ballpoint (R2-B3; m5-7/03-ink T27~T31
+  /// give them their own profiles).
   static PenProfile of(core.PenTool tool) => switch (tool) {
     core.PenTool.ballpoint => ballpoint,
     core.PenTool.fountain => fountain,

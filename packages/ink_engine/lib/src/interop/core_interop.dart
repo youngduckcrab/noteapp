@@ -140,10 +140,11 @@ InkBackgroundSpec backgroundSpecOf(core.PageBackground b) => switch (b) {
     assetId: assetId,
     pdfPageIndex: pdfPageIndex,
   ),
-  core.ImageBackground(:final assetId) => InkBackgroundSpec(
+  core.ImageBackground(:final assetId, :final fit) => InkBackgroundSpec(
     kind: InkBackgroundKind.image,
     paperColorArgb: b.paperColorArgb,
     assetId: assetId,
+    imageFit: fit,
   ),
 };
 

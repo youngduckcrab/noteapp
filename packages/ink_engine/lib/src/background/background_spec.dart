@@ -1,4 +1,5 @@
-// lib/src/background/background_spec.dart — contract 7.2.16 (03-ink 4.10).
+// lib/src/background/background_spec.dart — contract 7.2.16 (03-ink 4.10); (v2.0) imageFit
+// (m5-7/03-ink 4.7). Final (T24).
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -14,10 +15,11 @@ final class InkBackgroundSpec {
     this.template,
     this.assetId,
     this.pdfPageIndex,
+    this.imageFit,
   });
 
   /// BlankBackground → blank, TemplateBackground → template (+template), PdfBackground →
-  /// pdf (+assetId, pdfPageIndex), ImageBackground → image (+assetId). Paper color =
+  /// pdf (+assetId, pdfPageIndex), ImageBackground → image (+assetId, imageFit). Paper color =
   /// background.paperColorArgb. `unknown` is only for hand-made specs.
   factory InkBackgroundSpec.fromCore(core.PageBackground background) =>
       interop.backgroundSpecOf(background);
@@ -34,6 +36,9 @@ final class InkBackgroundSpec {
   /// pdf, 0-based
   final int? pdfPageIndex;
 
+  /// kind == image (null on a hand-made spec → drawn as contain)
+  final core.ImageFit? imageFit;
+
   /// core.PaperColors.isDark(paperColorArgb)
   bool get isDarkPaper => core.PaperColors.isDark(paperColorArgb);
 
@@ -44,11 +49,18 @@ final class InkBackgroundSpec {
       other.paperColorArgb == paperColorArgb &&
       other.template == template &&
       other.assetId == assetId &&
-      other.pdfPageIndex == pdfPageIndex;
+      other.pdfPageIndex == pdfPageIndex &&
+      other.imageFit == imageFit;
 
   @override
-  int get hashCode =>
-      Object.hash(kind, paperColorArgb, template, assetId, pdfPageIndex);
+  int get hashCode => Object.hash(
+    kind,
+    paperColorArgb,
+    template,
+    assetId,
+    pdfPageIndex,
+    imageFit,
+  );
 
   @override
   String toString() =>

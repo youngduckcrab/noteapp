@@ -89,8 +89,10 @@ void main() {
       container.read(pressureCapabilityProvider),
       const PressureCapabilityState(),
     );
-    expect(container.read(pageBackgroundBuildersProvider), const [
-      TemplateBackgroundLayerBuilder(),
+    // (v2.0) default = defaultPageBackgroundBuilders(ref) = [image, template]
+    expect(container.read(pageBackgroundBuildersProvider), [
+      isA<ImageBackgroundLayerBuilder>(),
+      const TemplateBackgroundLayerBuilder(),
     ]);
     expect(
       container.read(inkPageThumbnailRendererProvider),

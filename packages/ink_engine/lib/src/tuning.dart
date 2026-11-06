@@ -122,4 +122,58 @@ abstract final class InkTuning {
   static const int syntheticMaxPoints = 160;
   static const double syntheticHz = 120;
   static const double syntheticMarginPt = 24;
+
+  // ---- 2nd round (m5-7/03-ink 6.26) ------------------------------------------------
+
+  // 6.18 automatic shape correction (contract 7.2.9 values)
+  static const int shapeHoldMs = 500;
+  static const double shapeHoldRadiusPx = 8;
+
+  // 6.19 playback emphasis. Colors drawn over the paper (contract 7.4.10 exception).
+  static const int playbackEmphasisArgb = 0xFFFF8A00;
+  static const double playbackDimOpacity = 0.25;
+  static const double playbackEmphasisWidthPx = 2.0;
+  static const int playbackVeilBlock = 64;
+
+  // 6.6 laser (fixed color, CP-INK-7 — never StrokeStyle.colorArgb)
+  static const int laserArgb = 0xFFFF3B30;
+  static const int laserMaxTrails = 16;
+  static const double laserGlowWidthFactor = 2.5;
+  static const double laserGlowOpacity = 0.3;
+  static const int laserFadeSteps = 8;
+
+  // 6.5 / 6.9 dashes and shapes
+  static const int dashMaxSegments = 4096;
+  static const double arrowHeadHalfAngleDeg = 25;
+  static const double ellipseDashSegmentPt = 2.0;
+  static const int ellipseMinSegments = 32;
+  static const int ellipseMaxSegments = 256;
+
+  // 6.7 memorization tape
+  static const double tapeStripeSpacingPt = 6;
+  static const double tapeStripeWidthPt = 1.5;
+  static const double tapeRevealedBorderOpacity = 0.6;
+
+  // 6.11 images and placeholders
+  /// Placeholder tint: light paper 8% darker, dark paper 8% lighter (6.11.5).
+  static const double placeholderTint = 0.08;
+  static const List<int> imageBucketsPx = [128, 256, 512, 1024, 2048, 4096];
+  static const int maxConcurrentImageDecodes = 2;
+
+  /// (v2.1, 7.4.5) one formula / text raster: ≤ 4 Mpx (16 MiB RGBA), longest side ≤ 8192.
+  static const int maxRasterPixels = 4194304;
+  static const int maxRasterSidePx = 8192;
+
+  // 6.12 formulas — waiting for asynchronously loaded SVG glyph pictures
+  static const int mathSvgPollMs = 4;
+  static const int mathSvgSettleMaxRebuilds = 8;
+  static const int mathSvgSettleMs = 1000;
+  static const int mathRasterRetryMs = 5000;
+
+  // 6.10 fonts (contract 7.2.9 value: 5 s)
+  static const int fontLoadTimeoutMs = 5000;
+  static const int fontRetryAfterMs = 30000;
+
+  // 6.20 thumbnails v2
+  static const int thumbnailObjectWaitMs = 2000;
 }

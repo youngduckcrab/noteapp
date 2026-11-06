@@ -2,7 +2,10 @@
 // no dart:io / dart:ffi / dart:html / dart:js / dart:js_util / package:js, no SDK
 // Material / Cupertino (lib and test), no flutter_riverpod (INK uses package:riverpod
 // only, 7.4.4), and dart:js_interop only in *_browser.dart files reached through a
-// conditional import.
+// conditional import. (v2.0, m5-7/03-ink 3.1 / 8.1 T25) No `Platform` identifier
+// (kIsWeb + defaultTargetPlatform only); flutter_math_fork only under lib/src/math/;
+// INK never imports provider or flutter_svg, and vector_graphics only in the
+// off-screen math host (T36).
 @TestOn('vm')
 library;
 
@@ -76,6 +79,38 @@ void main() {
           for (final banned in _everywhereForbidden)
             if (_matches(uri, banned)) '${file.path}: $uri',
     ];
+    expect(problems, isEmpty);
+  });
+
+  test('(v2.0) no Platform identifier in lib/', () {
+    final platform = RegExp(r'(?<![\w.])Platform\.');
+    final problems = <String>[
+      for (final file in _dartFiles('lib'))
+        if (platform.hasMatch(file.readAsStringSync())) file.path,
+    ];
+    expect(problems, isEmpty);
+  });
+
+  test('(v2.0) flutter_math_fork only under lib/src/math/; no provider / '
+      'flutter_svg; vector_graphics only in the off-screen host', () {
+    final problems = <String>[];
+    for (final file in _dartFiles('lib')) {
+      final path = file.path.replaceAll(r'\', '/');
+      for (final uri in _directiveUris(file.readAsStringSync())) {
+        if (uri.startsWith('package:flutter_math_fork/') &&
+            !path.startsWith('lib/src/math/')) {
+          problems.add('$path: $uri');
+        }
+        if (uri.startsWith('package:provider/') ||
+            uri.startsWith('package:flutter_svg/')) {
+          problems.add('$path: $uri');
+        }
+        if (uri.startsWith('package:vector_graphics') &&
+            path != 'lib/src/math/offscreen_host.dart') {
+          problems.add('$path: $uri');
+        }
+      }
+    }
     expect(problems, isEmpty);
   });
 

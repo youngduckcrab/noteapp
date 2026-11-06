@@ -1,0 +1,33 @@
+# Hangul syllables of the INK Chrome test font (m5-7/03-ink 4.12 useInkTestFonts).
+# One or more syllables per line; '#' starts a comment; non-Hangul characters are ignored
+# (ASCII U+0020-007E and the compatibility jamo U+3131-318E are always included).
+# Other areas: add the characters of new Chrome test sentences here through the progress
+# log 'change requests' (INK regenerates the font: make_note_sans.py --test-font).
+
+# sentences named in the 2nd round plans
+안녕 hello
+줄 1
+한글 텍스트 상자
+검색
+안녕하세요 필기노트입니다
+손글씨 변환 인식 결과
+녹음 재생 복구된 녹음
+수식 이미지 도형 제목 본문 메모
+회의 첫째 둘째 셋째 넷째 다섯째
+페이지 노트 내보내기 가져오기
+테스트 시험 문장 줄바꿈 긴 짧은
+가나다라마바사아자차카타파하
+거너더러머버서어저처커터퍼허
+고노도로모보소오조초코토포호
+구누두루무부수우주추쿠투푸후
+그느드르므브스으즈츠크트프흐
+기니디리미비시이지치키티피히
+
+# frequent syllables
+의 이 는 을 를 에 가 고 다 하 지 서 한 로 기 도 으 자 사 대 리 시 어 니 수 전 정 주 아
+인 일 나 상 제 장 부 소 원 보 해 문 우 국 성 경 들 과 만 동 생 적 중 위 용 화 공 와 관
+요 것 신 연 비 내 개 실 면 계 행 무 회 진 미 년 방 그 출 발 체 명 선 물 업 학 분 금 영
+식 세 여 오 구 모 조 산 반 된 감 통 오 물 결 현 했 될 할 없 있 같 많 또 및 더 잘 못 안
+때 등 및 말 알 왜 뭐 네 예 왼 오른 위 아래 앞 뒤 안 밖 옆 새 옛 큰 작 높 낮 빨 노 파 초
+검 흰 색 펜 붓 형 광 연필 점선 레이저 테이프 지우개 올가미 선택 복사 붙여넣기 삭제 취소
+되돌리기 다시 저장 열기 닫기 설정 확인 완료 실패 오류 경고 알림 시작 정지 일시 재개

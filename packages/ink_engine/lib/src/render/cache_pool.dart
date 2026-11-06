@@ -146,3 +146,8 @@ final class InkCacheStats {
       'InkCacheStats(outlines $outlineEntries / $outlineBytes B, '
       'tiles $rasterTiles / $rasterBytes B, pictures $chunkPictures)';
 }
+
+/// INTERNAL: the render config [pool] was made with (the web image budget is its raster
+/// ledger — m5-7/03-ink 4.10).
+@internal
+InkRenderConfig cachePoolConfigOf(InkCachePool pool) => pool._config;
