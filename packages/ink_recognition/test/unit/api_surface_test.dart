@@ -5,9 +5,10 @@
 // Imports only the two entry points (plus the CORE / INK types they use) and
 // uses every exported name in the call shapes of the contract block — a
 // renamed, re-typed or missing name breaks the build. The test also checks the
-// R2-B6 behaviour the contract row 7.6.2 fixes (defaults, empty action lists,
-// placeholder section) — (L2-07) recognitionOverrides() now gives its 3
-// overrides with GeometricShapeFitter; (L2-10a) the indexer runs. Names
+// R2-B6 behaviour the contract row 7.6.2 fixes (defaults, placeholder
+// section) — (L2-07) recognitionOverrides() now gives its 3 overrides with
+// GeometricShapeFitter; (L2-10a) the indexer runs; (L2-12) the action lists
+// hold the 4.4.4 actions. Names
 // beyond the list are INFRA's R14. VM only: it reads the entry point files.
 @TestOn('vm')
 library;
@@ -588,11 +589,15 @@ void main() {
       expect(bare.isVisible, isNull);
     });
 
-    test('R2-B6: both action lists are empty', () {
+    test('(L2-12) the action lists — 4.4.4 ids in order '
+        '(unit/recognition_actions_test has the rest)', () {
       final List<RecognitionAction> selection = recognitionSelectionActions();
       final List<RecognitionAction> insert = recognitionInsertActions();
-      expect(selection, isEmpty);
-      expect(insert, isEmpty);
+      expect(
+        [for (final a in selection) a.id],
+        ['recog.toText', 'recog.copyText', 'recog.toMath', 'recog.editMath'],
+      );
+      expect([for (final a in insert) a.id], ['recog.mathPad']);
     });
   });
 
