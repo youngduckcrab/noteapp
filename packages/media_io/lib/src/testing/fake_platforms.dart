@@ -10,8 +10,10 @@
 // invalid_use_of_visible_for_testing_member: error). Only the platform interface packages are
 // imported here (and testing_vm_factory.dart for the one file write of FakeRecordPlatform).
 //
-// 2차 foundation step R2-B4 (T30): the basic behaviour below. PDF T31b / T32 / T37 extend the
-// scripting when their service tests need more.
+// 2차 foundation step R2-B4 (T30): the basic behaviour; T33 / T34 / T35b added the scripting
+// their engine tests needed (start config and errors, iOS session calls, durations per source,
+// pick sources). T38: complete — testing_fakes_test runs the real mediaIoOverrides() services on
+// these alone.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';

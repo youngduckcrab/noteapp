@@ -294,7 +294,7 @@
 | T36a | 완료 | 27d5165 | `widget/recording_panel_test`(26 — 6.13.2 행·6.13.3 동작·iPad 세로/가로·좁은 폭·순수 `statusLineFor` 웹 문구), `widget/recording_panel_placeholder_test`(T30 — 이제 전체 패널: override 없으면 CORE 기본 녹음기 = 지원 안 함) — 시험 세계 `test/support/panel_world.dart`(`PanelWorld`·`ScriptedRecorder`) |
 | T36b | 완료 | 93cb7ce | `widget/recording_list_test`(13), `widget/recording_sheets_test`(10), `widget/recording_stuck_drafts_test`(13) — `test/support/panel_world.dart`에 `FakeFileDownloads`·`ScriptedRecorder.pending`/`onRecover`/`beforePending`·`seedRecording(mimeType:, bytes:, title:)` |
 | T37 | 완료 | c791531 | `unit/dev_overlay_lines_test`(10), `unit/init_test` v2(12 — 실제 override 둘·저장소 없는 컨테이너·config 고르기·저장소 있을 때 동작·컨테이너와 함께 정리), (고침) `web/testing_registrar_browser_test`(override 둘), (더함) `web/recorder_engine_browser_test` '웹의 mediaIoOverrides'(브라우저 엔진·실제 Web Locks·`enc:`/`web:` 줄) |
-| T38 | 남음 | | `unit/testing_fakes_test` |
+| T38 | 완료 | (세션 9) | `unit/testing_fakes_test`(8 — T30 5 + T38 3: 실제 `mediaIoOverrides()` 서비스 녹음 → 정지 → 녹음 행 → 열기 → 재생 → `dispose` 뒤 복원·임시 디렉터리(녹음·재생 캐시 파일 포함) 지움, `micPermission: false` → `permissionDenied`·시작 거절, `importImageForNote` → 이미지 에셋) |
 | T39 | 남음 | | `media/record_playback_media_test`(V8), `media/draft_recovery_media_test`(V16) — CORE T31 이정표 전에는 `skip:`, 판정은 통합 4-c |
 | T40 | 남음 | | `integration/media_real_core_test` — 판정은 통합 4-d |
 | T41 | 남음 | | `perf/media_perf_test`, `web/media_perf_browser_test`, `media/big_recording_perf_media_test` |
@@ -425,6 +425,7 @@
 - T37: `initializeMediaIo`는 첫 호출에서 `preparePlatformRecording(config)`(안드로이드 FGS 옵션, 웹 MIME 표)만 더 한다(예외는 삼킴). '남은 파일 정리 예약'은 따로 두지 않았다 — 시작 뒤 첫 `pendingDrafts()`(INFRA `MediaModule` 유휴 복구)가 `deleteOrphanFiles`를 부른다(T31b `DraftRecovery`). 계획 4.2.1의 '10 ms 안'은 실제 시간 단언을 쓰지 않는 규칙에 따라 시험하지 않는다(옛 1 s Stopwatch 단언도 뺌) — 본문이 동기 준비 한 번뿐이다.
 - T37: `mediaIoOverrides()`의 두 서비스는 컨테이너마다 하나인 내부 provider `mediaPlaybackHandoffProvider`(파일 전용 이름 `_playbackHandoffProvider`)로 같은 `PlaybackHandoff`를 나눈다. 재생 설정은 `store.settings`(녹음기의 `RecorderStores.of(store)`와 같음), `recorderActive`는 녹음기 phase ≠ `idle`(`starting`·`finishing`도 활성).
 - T37: 이 작업 트리의 `app`은 아직 `mediaIoOverrides`를 쓰지 않는다(INFRA 2차 연결은 통합 단계) — override가 빈 목록에서 둘로 바뀌어 INFRA·EDITOR 시험이 '지원 안 함'을 기대했다면 통합 때 실제 녹음기(VM = 네이티브 엔진 — 플러그인이 없으면 `checkSupport` = `unsupported`)를 보게 된다.
+- T38: `testing.dart`의 공개 모양은 R2-B4(T30)·T33·T34·T35b에서 이미 계획 4.3.2대로 갖춰져 있어 새 이름·멤버를 더하지 않았다 — 이 작업은 완료 조건 시험(실제 `mediaIoOverrides()` 서비스를 가짜 플랫폼만으로 돌림)과 머리 주석 정리다. 시험은 공개 진입점(`media_io.dart`·`testing.dart`)과 CORE 가짜 저장소만 쓰고(경로는 `fakes.directory` 아래인지만 봄), 녹음기 서비스의 시계가 실제 `Stopwatch`라 정지 전에 5 ms를 실제로 기다린다(0 ms 정지는 아무것도 남기지 않음 — 6.6.3; 시간 단언은 없음). `testing.dart` 주석에 그 두 가지(몇 ms 기다림, `FakeRecordPlatform.fileBytes`를 채움)를 적었다.
 
 #### 이정표 커밋
 
@@ -515,6 +516,10 @@
 | 8 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 8 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 | 8 (끝) | 패키지 시험 (T37 뒤 `media_io` VM 397·Chrome 74 + 1 skip·`media` 1 — 그 뒤 lib 변화 없음, `pdf_io`는 이번 세션 변화 없음) | 위 행 그대로 |
+| 9 (T38) | `ws test --package media_io` (VM) | 400 통과 (397 + T38 3), 73 s |
+| 9 (T38) | `ws test --package media_io --platform chrome` | 74 통과 + 1 skip, prepare ok, 173 s |
+| 9 (T38) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 11:12:29–11:24:12 UTC, 잠금 대기 589초) | 1 통과 — `visibility_pause_media_test` |
+| 9 (T38) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
