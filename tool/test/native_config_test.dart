@@ -8,8 +8,9 @@
 // appNativeConfigProblems (each one broken on purpose once). J1 part:
 // tool/native_requirements.yaml fully met (the NR7 check of `ws
 // native-reqs`, tool/test/native_reqs_test.dart) and agreeing with
-// AppNativeExpectations. Later parts of this file: build.gradle.kts signing
-// branch (J2), the app shell's two native storage paths (J4 — 6.9).
+// AppNativeExpectations. J2 part: the build.gradle.kts release signing
+// branch (the committed file and each rule broken once). Later part of this
+// file: the app shell's two native storage paths (J4 — 6.9).
 
 import 'dart:io';
 
@@ -211,6 +212,49 @@ FOO = bar
     });
   });
 
+  group('AndroidGradleInfo (J1 SDK levels, J2 signing branch)', () {
+    test('SDK levels as gradleSdkValue reads them', () {
+      final info = AndroidGradleInfo.parse(
+        'minSdk = 26 // was flutter.minSdkVersion\n'
+        'compileSdk = flutter.compileSdkVersion',
+      );
+      expect((info.minSdk, info.compileSdk), ('26', 'flutter'));
+      expect(info.keyPropertiesFile, isNull);
+      expect(info.createsReleaseSigningOnlyWithKeyProperties, isFalse);
+      expect(info.releaseUsesReleaseKeyElseDebug, isFalse);
+    });
+
+    test('the signing branch under any variable name, comments ignored', () {
+      final info = AndroidGradleInfo.parse('''
+val props = rootProject.file("signing/key.properties")
+val loaded = Properties()
+android {
+    signingConfigs {
+        if (props.exists()) {
+            create("release") {
+                storeFile = file(loaded.getProperty("storeFile"))
+                keyAlias = loaded.getProperty("keyAlias")
+                // keyPassword = loaded.getProperty("keyPassword")
+                storePassword = loaded.getProperty("keyAlias")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig = if (props.exists())
+                signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+        }
+    }
+}
+''');
+      expect(info.keyPropertiesFile, 'signing/key.properties');
+      expect(info.createsReleaseSigningOnlyWithKeyProperties, isTrue);
+      // storePassword reads another entry; keyPassword is commented out.
+      expect(info.signingProperties, {'storeFile', 'keyAlias'});
+      expect(info.releaseUsesReleaseKeyElseDebug, isTrue);
+    });
+  });
+
   group('the committed files (J0)', () {
     late NativeConfig config;
     setUpAll(() => config = NativeConfig.load(repoRoot));
@@ -327,6 +371,27 @@ FOO = bar
         if (code.isEmpty || code.startsWith('#')) continue;
         expect(committed, contains(line), reason: 'template line: $line');
       }
+    });
+
+    test('build.gradle.kts (6.10.2, J2): the fixed key when key.properties '
+        'exists, else the debug key', () {
+      final gradle = config.androidGradle;
+      expect(gradle.keyPropertiesFile, 'key.properties');
+      expect(gradle.createsReleaseSigningOnlyWithKeyProperties, isTrue);
+      expect(gradle.signingProperties, AppNativeExpectations.signingProperties);
+      expect(gradle.releaseUsesReleaseKeyElseDebug, isTrue);
+      // `rootProject` is app/android (its settings.gradle.kts), where
+      // android.yml writes the file — and git never takes it.
+      expect(
+        File(p.join(repoRoot, 'app/android/settings.gradle.kts')).existsSync(),
+        isTrue,
+      );
+      final ignored = Process.runSync('git', [
+        'check-ignore',
+        '-q',
+        'app/android/key.properties',
+      ], workingDirectory: repoRoot);
+      expect(ignored.exitCode, 0, reason: 'key.properties must be ignored');
     });
 
     test('xcconfig (6.11.3): #include? of the pods file first, then '
@@ -495,6 +560,46 @@ FOO = bar
         NativeConfigPaths.releaseXcconfig,
         _replace('#include "Generated.xcconfig"', ''),
         'release xcconfig: missing #include "Generated.xcconfig"',
+      ),
+      'gradle: another properties file': (
+        NativeConfigPaths.androidGradle,
+        _replace(
+          'rootProject.file("key.properties")',
+          'file("key.properties")',
+        ),
+        // Without the variable the two branches are not found either.
+        [
+          'build.gradle.kts: reads (nothing), expected rootProject.file("key.properties")',
+          'create("release") must sit in if (',
+          'release must use signingConfigs "release"',
+        ],
+      ),
+      'gradle: release signing without the guard': (
+        NativeConfigPaths.androidGradle,
+        _replace(
+          'if (keystorePropertiesFile.exists()) {\n            create("release")',
+          'run {\n            create("release")',
+        ),
+        'create("release") must sit in if (<key.properties file>.exists())',
+      ),
+      'gradle: a signing property not read': (
+        NativeConfigPaths.androidGradle,
+        _replace(
+          'keyPassword = keystoreProperties.getProperty("keyPassword")',
+          '',
+        ),
+        'the release signing config does not read keyPassword',
+      ),
+      'gradle: release always on the debug key (1차)': (
+        NativeConfigPaths.androidGradle,
+        _replace(
+          'signingConfig = if (keystorePropertiesFile.exists())\n'
+              '                signingConfigs.getByName("release") else '
+              'signingConfigs.getByName("debug")',
+          'signingConfig = signingConfigs.getByName("debug")',
+        ),
+        'release must use signingConfigs "release" when key.properties '
+            'exists, else "debug"',
       ),
     };
     for (final MapEntry(key: name, value: (path, edit, expected))

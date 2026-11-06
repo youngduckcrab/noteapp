@@ -406,8 +406,16 @@ void main() {
         ))
           step['with'] as YamlMap,
     ].single;
-    final artifact = '${upload['name']}'.split(r'${{').first;
-    expect(artifact, 'noteapp-apk-');
+    // 2차 J2 (m5-7/01-infra 6.10.3): the name tells the signing —
+    // noteapp-apk-<run> (fixed key) or noteapp-debug-signed-<run>. The guide
+    // names the fixed-key one; the debug-signed one comes with guide v2 (J18).
+    final name = '${upload['name']}';
+    expect(
+      name,
+      "noteapp-\${{ steps.signing.outputs.mode == 'release' && 'apk' || "
+      "'debug-signed' }}-\${{ github.run_number }}",
+    );
+    const artifact = 'noteapp-apk-';
     expect(text, contains('`$artifact<번호>`'));
     expect(text, contains('`${p.basename('${upload['path']}')}`'));
     expect(text, contains('${upload['retention-days']}일 뒤 사라져요'));

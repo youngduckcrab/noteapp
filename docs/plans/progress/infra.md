@@ -394,7 +394,7 @@
 | R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
 | J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요) | `1fd1aea`(①②③) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
 | J1 | 완료 | (J1 커밋 — 아래 'J1' 절) | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
-| J2 | 남음 | | `native_config_test`(서명 분기)·`workflows_test`(서명 세 갈래) — 실제 서명은 GitHub(H6) |
+| J2 | 완료 | (J2 커밋 — 아래 'J2' 절) | `native_config_test`(서명 분기 — 커밋된 파일 1·파서 2·규칙마다 깨뜨리기 4), `workflows_test` `android.yml` 묶음 15(단계 순서·NDK·시크릿은 잡 `env`만·`key.properties` 경로·**서명 세 갈래**를 셸 조각으로 실행·아티팩트 이름 두 갈래·가짜 `apksigner` 4경우) — 실제 서명은 GitHub(H6, V14) |
 | J3 | 남음 | | `workflows_test`(ios-compile·testflight) — 실행은 U19 |
 | J4 | 남음 | | `app/test/storage/native_storage_paths_test.dart`·`core_module_test` |
 | J5 | 남음 | | `feature_switch_section_test`·`settings_sections_test` v2·`app_module_context_test` |
@@ -497,6 +497,20 @@
 | `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
 | `ws check` (R1–R16) | 0 |
 
+#### J2 — release 고정 서명 · `android.yml` v2 (계획 8.2, 6.10.2·6.10.3)
+
+- **`app/android/app/build.gradle.kts`**(6.10.2 그대로): `rootProject.file("key.properties")`(= `app/android/key.properties`, gitignore에 있음)가 있으면 `signingConfigs.create("release")`(네 값) + release 빌드가 그 키, 없으면 debug 키(1차와 같음).
+- **`tool/src/native_config.dart`**: `AndroidGradleInfo`에 `keyPropertiesFile`·`createsReleaseSigningOnlyWithKeyProperties`·`signingProperties`·`releaseUsesReleaseKeyElseDebug`(주석 무시·변수 이름 무관), `AppNativeExpectations.keyProperties`·`signingProperties`, `appNativeConfigProblems`에 서명 줄 4종.
+- **`.github/workflows/android.yml` v2**(6.10.3): 잡 `env`에 시크릿 4개 + `vars.ANDROID_CERT_SHA256`. 단계 `Signing`(`id: signing` — Checkout 바로 뒤): 넷 다 있음 → `$RUNNER_TEMP/release.jks` + `key.properties` 4줄 + `mode=release` / 하나라도 없고 변수 있음 → `::error::고정 키 서명 재료가 없어요 — 이 APK는 덮어 설치할 수 없어 만들지 않아요(docs/guides/07-android-signing.md)` + 실패(뒤 단계는 정리만 돈다) / 그 밖 → `mode=debug`. `Cache Android NDK`(`ndk-28.2.13676358` — `FlutterExtension.kt` `ndkVersion`과 대조), 훅 캐시 단계 이름 'Build hooks (downloads sqlite3 when not cached)', `Check signature`(가장 높은 build-tools의 `apksigner verify --print-certs` → `SHA-256 digest`, release이고 변수가 있는데 다르면 실패 — 변수는 keytool 꼴(대문자·콜론)도 받음, 실행 요약 '서명: 고정 키 (앞 16자)' 또는 '서명: debug 키 — 이전 APK 위에 덮어 설치할 수 없어요. 설치가 안 되면 앱을 지우지 말고 알려 주세요'), 아티팩트 이름 `noteapp-${{ … 'apk' || 'debug-signed' }}-<run>`, `Remove signing material`(`if: always()`, 마지막).
+- 실제 서명·APK는 GitHub에서만(H6 — V14). 고정 키 만들기·전달(6.10.4, U20 ①)은 사용자와 함께 하는 일이라 이 작업에 넣지 않았다(아래 '다음 세션 메모').
+
+| 검사 | 결과 |
+|---|---|
+| `dart test tool/test/native_config_test.dart tool/test/workflows_test.dart` | 48 · 63 통과(서명 세 갈래·가짜 `apksigner`는 `bash -e`/`-eo pipefail`로 실제 실행) |
+| `dart test tool/test` | 454 통과 · 90초 |
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `ws check` (R1–R16) / `ws native-reqs` | 0 / 0 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -536,6 +550,11 @@
 - (J1) 플러그인 iOS 최소 = podspec 값과 `Package.swift` 값 중 큰 것, 앱 값 = Xcode 프로젝트의 가장 낮은 `IPHONEOS_DEPLOYMENT_TARGET`(없으면 요구 파일 값). Gradle 값이 'flutter'를 담은 식이면(`flutter.compileSdkVersion`, `android_file_picker`의 `flutterCompileSdkVersion`) Flutter 기본값으로 보고 비교하지 않는다. `native_build: false`인 플러그인은 파일을 읽지 않고 표에 '(Dart only)'.
 - (J1) 표의 열은 6.3 예시의 `spm`(yes/no) 대신 `ios(spm)`(그 `Package.swift`의 iOS 값, 없으면 `no`), 마지막 줄은 `ws native-reqs: N plugin(s), V violation(s), W warning(s)`(다른 `ws` 명령과 같은 꼴).
 
+- (J2) `Signing` 단계를 Java·Flutter 준비보다 앞(Checkout 바로 뒤)에 두었다 — 재료가 없으면 몇 초 안에 실패한다. 계획 표의 단계 순서(빌드 → 서명 확인)와 결과는 같다.
+- (J2) 훅 캐시 단계 이름은 `android.yml`만 'Build hooks (downloads sqlite3 when not cached)'로 바꿨다(6.10.3). `ci.yml`·`web-experiment.yml`은 'Cache build hooks' 그대로(경로·키는 세 곳 같음 — `workflows_test`가 본다).
+- (J2) `guides_test`의 05 사례를 아티팩트 이름 식(두 갈래)에 맞췄다. 안내서 05에 `noteapp-debug-signed-<번호>`·'지우지 말고 알려 주세요'를 넣는 것과 `::error::`가 가리키는 `docs/guides/07-android-signing.md`를 만드는 것은 J18(안내서 v2) 몫이다.
+- (J2) `key.properties`의 비밀번호는 글자·숫자만 쓴다고 정해(6.10.4 무작위 32자) Java properties 이스케이프를 하지 않는다(워크플로 주석).
+
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 
 | 보낸 곳 | 내용 | 처리 |
@@ -557,7 +576,8 @@
 
 #### 다음 세션 메모
 
-- J1 끝. 다음: J2(`build.gradle.kts` 고정 서명 — `AndroidGradleInfo`(J1)에 서명 분기를 더하고 `native_config_test` 서명 묶음, `android.yml` v2·`workflows_test` 서명 세 갈래)·J3·J4(J4에 `native_config_test`의 앱 셸 두 경로 묶음).
+- J1·J2 끝. 다음: J3(`ios-compile.yml`·`ios-testflight.yml` 갱신 — 6.11.5·6.11.6)·J4(네이티브 저장 경로 + `native_config_test`의 앱 셸 두 경로 묶음)·J5.
+- (총괄·사용자) 고정 키(6.10.4, U20 ①)는 아직 없다 — 키를 만들어 파일 두 개로 건네는 일은 사용자와 함께(안내서 07은 J18). 그 전까지 `android.yml`은 `mode=debug`(`noteapp-debug-signed-<run>`)로 돈다. 시크릿 없이 변수만 넣으면 실패하는지(V14)는 H6.
 - J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
 - J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
 - 남은 J6·J7·J9 몫은 위 '계획과 다르게 한 점'(R2-B8a)에, J13 몫은 (R2-B8b)에 적었다.

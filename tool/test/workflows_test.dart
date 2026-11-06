@@ -87,6 +87,14 @@ const _apkBuild =
     'flutter build apk --release --split-per-abi $_buildNumber $_defineFile';
 const _inkLabDir = 'packages/ink_engine/example';
 
+/// The fixed Android key secrets (m5-7/01-infra 6.10.3, guide 07).
+const _androidSecrets = [
+  'ANDROID_KEYSTORE_BASE64',
+  'ANDROID_KEYSTORE_PASSWORD',
+  'ANDROID_KEY_ALIAS',
+  'ANDROID_KEY_PASSWORD',
+];
+
 /// The development branch: the repository's default branch while the remote
 /// has no main.
 const _devBranch = 'claude/note-app-planning-bk29xb';
@@ -1109,19 +1117,32 @@ void main() {
       expect(job['timeout-minutes'], 30);
     });
 
-    test('the 6.13 steps in order', () {
+    test('the 6.10.3 steps in order: signing first, signature check after '
+        'the build, clean-up last', () {
       expect(
-        [for (final s in steps) s['uses'] ?? _commands(s).single],
+        [for (final s in steps) s['name']],
         [
-          'actions/checkout@v7',
-          'actions/setup-java@v6',
-          'subosito/flutter-action@v2',
-          'actions/cache@v6',
-          'flutter pub get --enforce-lockfile',
-          _buildInfoFromEnv,
-          _apkBuild,
-          'actions/upload-artifact@v7',
+          'Checkout',
+          'Signing',
+          'Set up Java',
+          'Cache Android NDK',
+          'Set up Flutter',
+          'Build hooks (downloads sqlite3 when not cached)',
+          'Dependencies',
+          'Build info',
+          'Build APK',
+          'Check signature',
+          'Upload APK',
+          'Remove signing material',
         ],
+      );
+      expect(
+        [
+          for (final s in steps)
+            if (s['run'] != null && _commands(s).isNotEmpty)
+              _commands(s).single,
+        ],
+        ['flutter pub get --enforce-lockfile', _buildInfoFromEnv, _apkBuild],
       );
     });
 
@@ -1132,17 +1153,303 @@ void main() {
       expect(java['cache'], 'gradle');
     });
 
-    test('the arm64 APK is kept for 7 days, uncompressed', () {
-      final upload = _with(
-        _usesSteps(android, 'actions/upload-artifact').single,
+    test("the NDK cache holds Flutter's default NDK version", () {
+      final ndk = _with(_named(steps, 'Cache Android NDK'));
+      const version = '28.2.13676358';
+      expect(ndk['path'], '/usr/local/lib/android/sdk/ndk/$version');
+      expect(ndk['key'], 'ndk-$version');
+      final flutterRoot = _flutterRoot();
+      if (flutterRoot == null) {
+        markTestSkipped('flutter not on PATH');
+        return;
+      }
+      final kotlin = File(
+        p.join(
+          flutterRoot,
+          'packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt',
+        ),
+      ).readAsStringSync();
+      expect(kotlin, contains('val ndkVersion: String = "$version"'));
+    });
+
+    test('the secrets come in through the job env only; the variable too', () {
+      expect((job['env'] as YamlMap).value, {
+        for (final name in _androidSecrets) name: '\${{ secrets.$name }}',
+        'ANDROID_CERT_SHA256': r'${{ vars.ANDROID_CERT_SHA256 }}',
+      });
+      for (final step in steps) {
+        expect('${step.value}', isNot(contains('secrets.')));
+        expect('${step['if'] ?? ''}', isNot(contains('vars.')));
+      }
+    });
+
+    test('key.properties: the file build.gradle.kts reads, written by the '
+        'signing step and removed by the clean-up step', () {
+      final gradle = File(p.join(repoRoot, 'app/android/app/build.gradle.kts'))
+          .readAsStringSync();
+      // rootProject = app/android (its settings.gradle.kts).
+      expect(gradle, contains('rootProject.file("key.properties")'));
+      expect(
+        File(p.join(repoRoot, 'app/android/settings.gradle.kts')).existsSync(),
+        isTrue,
       );
-      expect(upload['name'], r'noteapp-apk-${{ github.run_number }}');
+      expect(
+        '${_named(steps, 'Signing')['run']}',
+        contains('} > app/android/key.properties'),
+      );
+      final clean = _named(steps, 'Remove signing material');
+      expect(clean['if'], 'always()');
+      expect(_runLines(clean), [
+        'rm -f app/android/key.properties "\$RUNNER_TEMP/release.jks"',
+      ]);
+      // A failed signing step skips every later step except the clean-up.
+      for (final step in steps.skip(2)) {
+        if (identical(step, clean)) continue;
+        expect(step['if'], isNull, reason: '${step['name']}');
+      }
+    });
+
+    group('the signing step, run with fake environments', () {
+      late Directory dir;
+      setUp(() {
+        dir = Directory.systemTemp.createTempSync('android_signing_');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        Directory(p.join(dir.path, 'work', 'app', 'android'))
+            .createSync(recursive: true);
+        Directory(p.join(dir.path, 'runner')).createSync();
+      });
+
+      final keystore = List<int>.generate(300, (i) => (i * 7) % 256);
+      final secrets = {
+        'ANDROID_KEYSTORE_BASE64': base64Encode(keystore),
+        'ANDROID_KEYSTORE_PASSWORD': 'Pass1234word5678',
+        'ANDROID_KEY_ALIAS': 'noteapp-sideload',
+        'ANDROID_KEY_PASSWORD': 'Key9876pass5432',
+      };
+      const cert = 'AB:CD:EF:01';
+
+      ({int code, String stdout, String output, File properties, File jks})
+      runSigning(Map<String, String> env) {
+        final output = File(p.join(dir.path, 'output'))..writeAsStringSync('');
+        final result = Process.runSync(
+          'bash',
+          ['-e', '-c', '${_named(steps, 'Signing')['run']}'],
+          workingDirectory: p.join(dir.path, 'work'),
+          environment: {
+            'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
+            'RUNNER_TEMP': p.join(dir.path, 'runner'),
+            'GITHUB_OUTPUT': output.path,
+            for (final name in [..._androidSecrets, 'ANDROID_CERT_SHA256'])
+              name: env[name] ?? '',
+          },
+          includeParentEnvironment: false,
+        );
+        return (
+          code: result.exitCode,
+          stdout: '${result.stdout}',
+          output: output.readAsStringSync(),
+          properties: File(
+            p.join(dir.path, 'work', 'app', 'android', 'key.properties'),
+          ),
+          jks: File(p.join(dir.path, 'runner', 'release.jks')),
+        );
+      }
+
+      test('four secrets → release: the key file and key.properties', () {
+        for (final env in [
+          {...secrets, 'ANDROID_CERT_SHA256': cert},
+          // Before the variable is set (first run after the secrets).
+          secrets,
+        ]) {
+          final run = runSigning(env);
+          expect(run.code, 0, reason: run.stdout);
+          expect(run.output, 'mode=release\n');
+          expect(run.jks.readAsBytesSync(), keystore);
+          expect(run.properties.readAsLinesSync(), [
+            'storeFile=${run.jks.path}',
+            'storePassword=Pass1234word5678',
+            'keyAlias=noteapp-sideload',
+            'keyPassword=Key9876pass5432',
+          ]);
+          expect(
+            run.properties.readAsLinesSync().map((l) => l.split('=').first),
+            unorderedEquals([
+              'storeFile',
+              'storePassword',
+              'keyAlias',
+              'keyPassword',
+            ]),
+          );
+          run.properties.deleteSync();
+        }
+      });
+
+      test('a secret missing while ANDROID_CERT_SHA256 is set → the job '
+          'fails before the build', () {
+        for (final missing in _androidSecrets) {
+          final run = runSigning({
+            ...secrets,
+            missing: '',
+            'ANDROID_CERT_SHA256': cert,
+          });
+          expect(run.code, 1, reason: missing);
+          expect(
+            run.stdout,
+            contains(
+              '::error::고정 키 서명 재료가 없어요 — 이 APK는 덮어 설치할 수 없어 '
+              '만들지 않아요(docs/guides/07-android-signing.md)',
+            ),
+          );
+          expect(run.output, isEmpty);
+          expect(run.properties.existsSync(), isFalse);
+        }
+      });
+
+      test('no fixed key yet (no variable, not all secrets) → debug', () {
+        for (final env in [
+          <String, String>{},
+          {...secrets, 'ANDROID_KEY_PASSWORD': ''},
+        ]) {
+          final run = runSigning(env);
+          expect(run.code, 0, reason: run.stdout);
+          expect(run.output, 'mode=debug\n');
+          expect(run.properties.existsSync(), isFalse);
+          expect(run.jks.existsSync(), isFalse);
+        }
+      });
+    });
+
+    test('the artifact name tells the signing: noteapp-apk-<run> or '
+        'noteapp-debug-signed-<run>', () {
+      final upload = _with(_named(steps, 'Upload APK'));
+      String nameFor(String mode) => '${upload['name']}'.replaceAllMapped(
+        RegExp(r'\$\{\{ (.+?) \}\}'),
+        (m) {
+          final expression = m.group(1)!;
+          if (expression == 'github.run_number') return '42';
+          final choice = RegExp(r"^(.+) && '([^']*)' \|\| '([^']*)'$")
+              .firstMatch(expression);
+          expect(choice, isNotNull, reason: expression);
+          return _evaluate(choice!.group(1)!, {
+                'steps.signing.outputs.mode': mode,
+              })
+              ? choice.group(2)!
+              : choice.group(3)!;
+        },
+      );
+      expect(nameFor('release'), 'noteapp-apk-42');
+      expect(nameFor('debug'), 'noteapp-debug-signed-42');
       expect(
         upload['path'],
         'app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk',
       );
       expect(upload['retention-days'], 7);
       expect(upload['compression-level'], 0);
+      expect(upload['if-no-files-found'], 'error');
+    });
+
+    group('the signature check, run with a fake apksigner', () {
+      late Directory dir;
+      const digest =
+          '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+      setUp(() {
+        dir = Directory.systemTemp.createTempSync('android_apksigner_');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        // `sort -V` must pick 36.1.0 (a plain sort would take 9.0.0).
+        for (final (version, printed) in [
+          ('9.0.0', 'f' * 64),
+          ('34.0.0', 'e' * 64),
+          ('36.1.0', digest),
+        ]) {
+          final tool = File(
+            p.join(dir.path, 'sdk', 'build-tools', version, 'apksigner'),
+          )..createSync(recursive: true);
+          tool.writeAsStringSync('''
+#!/usr/bin/env bash
+[ "\$1 \$2 \$3" = "verify --print-certs app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" ] || exit 9
+[ -n "\$FAKE_SILENT" ] && exit 0
+echo "Signer #1 certificate DN: CN=noteapp sideload"
+echo "Signer #1 certificate SHA-256 digest: $printed"
+echo "Signer #1 certificate SHA-1 digest: 0123456789abcdef0123456789abcdef01234567"
+echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
+''');
+          Process.runSync('chmod', ['+x', tool.path]);
+        }
+      });
+
+      ({int code, String stdout, String summary}) check(
+        String mode, {
+        String cert = '',
+        bool silent = false,
+      }) {
+        final summary = File(p.join(dir.path, 'summary'))
+          ..writeAsStringSync('');
+        final result = Process.runSync(
+          'bash',
+          [
+            '-e',
+            '-o',
+            'pipefail',
+            '-c',
+            '${_named(steps, 'Check signature')['run']}',
+          ],
+          workingDirectory: dir.path,
+          environment: {
+            'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
+            'ANDROID_HOME': p.join(dir.path, 'sdk'),
+            'GITHUB_STEP_SUMMARY': summary.path,
+            'SIGNING_MODE': mode,
+            'ANDROID_CERT_SHA256': cert,
+            if (silent) 'FAKE_SILENT': '1',
+          },
+          includeParentEnvironment: false,
+        );
+        return (
+          code: result.exitCode,
+          stdout: '${result.stdout}',
+          summary: summary.readAsStringSync(),
+        );
+      }
+
+      test('release with the registered fingerprint (keytool form: '
+          'upper case, colons) → the fixed key in the summary', () {
+        final keytool = [
+          for (var i = 0; i < digest.length; i += 2)
+            digest.substring(i, i + 2).toUpperCase(),
+        ].join(':');
+        for (final cert in [keytool, digest, '']) {
+          final run = check('release', cert: cert);
+          expect(run.code, 0, reason: run.stdout);
+          expect(run.summary, '서명: 고정 키 (0123456789abcdef)\n');
+        }
+      });
+
+      test('release with another fingerprint → failure', () {
+        final run = check('release', cert: 'AA:BB');
+        expect(run.code, 1);
+        expect(
+          run.stdout,
+          contains('::error::서명 지문 $digest 이(가) ANDROID_CERT_SHA256와 달라요'),
+        );
+        expect(run.summary, isEmpty);
+      });
+
+      test('debug → the summary says it cannot be installed over', () {
+        // The variable is never compared on a debug build.
+        final run = check('debug', cert: 'AA:BB');
+        expect(run.code, 0, reason: run.stdout);
+        expect(
+          run.summary,
+          '서명: debug 키 — 이전 APK 위에 덮어 설치할 수 없어요. 설치가 안 되면 앱을 '
+          '지우지 말고 알려 주세요\n',
+        );
+      });
+
+      test('no digest printed → failure', () {
+        final run = check('release', silent: true);
+        expect(run.code, 1);
+        expect(run.stdout, contains('::error::apksigner printed no SHA-256'));
+      });
     });
   });
 
@@ -1514,4 +1821,17 @@ void main() {
       expect(_load(p.join(dir, 'config.yml'))['blank_issues_enabled'], isTrue);
     });
   });
+}
+
+/// FLUTTER_ROOT, or the SDK of `flutter` on PATH (null when not found).
+String? _flutterRoot() {
+  final env = Platform.environment['FLUTTER_ROOT'];
+  if (env != null && env.isNotEmpty) return env;
+  for (final dir in (Platform.environment['PATH'] ?? '').split(':')) {
+    final flutter = File(p.join(dir, 'flutter'));
+    if (flutter.existsSync()) {
+      return p.dirname(p.dirname(flutter.resolveSymbolicLinksSync()));
+    }
+  }
+  return null;
 }

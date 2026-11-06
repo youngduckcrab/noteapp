@@ -130,33 +130,82 @@ final class AndroidManifestInfo {
 /// `flutterCompileSdkVersion`), any other expression as written, and null
 /// when the setting is missing (docs/plans/m5-7/01-infra.md 6.3).
 String? gradleSdkValue(String text, String key) {
-  final code = text
-      .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
-      .replaceAll(RegExp(r'//[^\n]*'), '');
   final match = RegExp(
     '\\b$key(?:Version)?\\b\\s*(?:=\\s*|\\(\\s*|[ \\t]+)(\\d+|[A-Za-z_][\\w.]*)',
-  ).firstMatch(code);
+  ).firstMatch(_gradleCode(text));
   if (match == null) return null;
   final value = match.group(1)!;
   if (RegExp(r'^\d+$').hasMatch(value)) return value;
   return value.toLowerCase().contains('flutter') ? gradleFlutterDefault : value;
 }
 
+/// [text] without `//` and `/* */` comments.
+String _gradleCode(String text) => text
+    .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+    .replaceAll(RegExp(r'//[^\n]*'), '');
+
 /// What [gradleSdkValue] returns for Flutter's default SDK level.
 const String gradleFlutterDefault = 'flutter';
 
-/// The SDK settings of the app's `build.gradle.kts` (J1 — NR3, NR4 and the
-/// `app:` block of `tool/native_requirements.yaml`). Values as
-/// [gradleSdkValue] returns them.
+/// The settings of the app's `build.gradle.kts` the checks need: the SDK
+/// levels (J1 — NR3, NR4 and the `app:` block of
+/// `tool/native_requirements.yaml`; values as [gradleSdkValue] returns them)
+/// and the release signing branch (J2 — 6.10.2). Comments are ignored.
 final class AndroidGradleInfo {
-  const AndroidGradleInfo({required this.minSdk, required this.compileSdk});
+  const AndroidGradleInfo({
+    required this.minSdk,
+    required this.compileSdk,
+    this.keyPropertiesFile,
+    this.createsReleaseSigningOnlyWithKeyProperties = false,
+    this.signingProperties = const {},
+    this.releaseUsesReleaseKeyElseDebug = false,
+  });
 
-  factory AndroidGradleInfo.parse(String text) => AndroidGradleInfo(
-    minSdk: gradleSdkValue(text, 'minSdk'),
-    compileSdk: gradleSdkValue(text, 'compileSdk'),
-  );
+  factory AndroidGradleInfo.parse(String text) {
+    final code = _gradleCode(text);
+    final file = RegExp(
+      r'val\s+(\w+)\s*=\s*rootProject\.file\(\s*"([^"]+)"\s*\)',
+    ).firstMatch(code);
+    final variable = file == null ? null : RegExp.escape(file.group(1)!);
+    bool has(String pattern) =>
+        variable != null &&
+        RegExp(pattern.replaceAll('VAR', variable)).hasMatch(code);
+    return AndroidGradleInfo(
+      minSdk: gradleSdkValue(text, 'minSdk'),
+      compileSdk: gradleSdkValue(text, 'compileSdk'),
+      keyPropertiesFile: file?.group(2),
+      createsReleaseSigningOnlyWithKeyProperties: has(
+        r'if\s*\(\s*VAR\.exists\(\)\s*\)\s*\{\s*create\(\s*"release"\s*\)',
+      ),
+      signingProperties: {
+        for (final m in RegExp(
+          r'(\w+)\s*=\s*(?:file\()?\s*\w+\.getProperty\(\s*"(\w+)"\s*\)',
+        ).allMatches(code))
+          if (m.group(1) == m.group(2)) m.group(2)!,
+      },
+      releaseUsesReleaseKeyElseDebug: has(
+        r'signingConfig\s*=\s*if\s*\(\s*VAR\.exists\(\)\s*\)\s*'
+        r'signingConfigs\.getByName\(\s*"release"\s*\)\s*else\s*'
+        r'signingConfigs\.getByName\(\s*"debug"\s*\)',
+      ),
+    );
+  }
 
   final String? minSdk, compileSdk;
+
+  /// The file of `val <name> = rootProject.file("<file>")` (relative to
+  /// `app/android/`).
+  final String? keyPropertiesFile;
+
+  /// `if (<name>.exists()) { create("release") { … } }`.
+  final bool createsReleaseSigningOnlyWithKeyProperties;
+
+  /// `x = <props>.getProperty("x")` settings (`storeFile = file(…)` too).
+  final Set<String> signingProperties;
+
+  /// `signingConfig = if (<name>.exists())` the `"release"` signing config,
+  /// `else` the `"debug"` one.
+  final bool releaseUsesReleaseKeyElseDebug;
 }
 
 /// Parses an XML property list into Dart values:
@@ -397,6 +446,18 @@ abstract final class AppNativeExpectations {
   /// `UIBackgroundModes` entries (background recording — M6-2).
   static const Set<String> iosBackgroundModes = {'audio'};
 
+  /// The file android.yml writes the signing secrets to, next to
+  /// `app/android/settings.gradle.kts` (6.10.2 — gitignored).
+  static const String keyProperties = 'key.properties';
+
+  /// The `key.properties` entries the release signing config reads.
+  static const Set<String> signingProperties = {
+    'storeFile',
+    'storePassword',
+    'keyAlias',
+    'keyPassword',
+  };
+
   /// The CocoaPods include of each Flutter xcconfig (6.11.3), as Flutter's
   /// `addPodsDependencyToFlutterXcconfig` writes it.
   static String podsXcconfig(String mode) =>
@@ -460,6 +521,35 @@ List<String> appNativeConfigProblems(NativeConfig config) {
     problems.add(
       'AndroidManifest: ${AppNativeExpectations.rebootReceiver} is not '
       'removed (tools:node="remove")',
+    );
+  }
+
+  // --- Android release signing (6.10.2) ---
+  final gradle = config.androidGradle;
+  const keyProperties = AppNativeExpectations.keyProperties;
+  if (gradle.keyPropertiesFile != keyProperties) {
+    problems.add(
+      'build.gradle.kts: reads ${gradle.keyPropertiesFile ?? '(nothing)'}, '
+      'expected rootProject.file("$keyProperties")',
+    );
+  }
+  if (!gradle.createsReleaseSigningOnlyWithKeyProperties) {
+    problems.add(
+      'build.gradle.kts: create("release") must sit in '
+      'if (<$keyProperties file>.exists())',
+    );
+  }
+  for (final name in AppNativeExpectations.signingProperties) {
+    if (!gradle.signingProperties.contains(name)) {
+      problems.add(
+        'build.gradle.kts: the release signing config does not read $name',
+      );
+    }
+  }
+  if (!gradle.releaseUsesReleaseKeyElseDebug) {
+    problems.add(
+      'build.gradle.kts: release must use signingConfigs "release" when '
+      '$keyProperties exists, else "debug"',
     );
   }
 
