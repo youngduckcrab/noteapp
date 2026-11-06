@@ -151,7 +151,8 @@ double _validWidth(double w) => w.isFinite
     ? w.clamp(core.ShapeStyle.minWidth, core.ShapeStyle.maxWidth).toDouble()
     : 2.0;
 
-double _validOpacity(double o) =>
+/// A stored opacity as drawn: clamped to [0, 1], not finite → 1 (5.2).
+double shapeOpacity(double o) =>
     o.isFinite ? o.clamp(0.0, 1.0).toDouble() : 1.0;
 
 bool _hasHeads(core.ShapeObject o) =>
@@ -364,10 +365,10 @@ void paintShape(ui.Canvas canvas, core.ShapeObject o) {
       ui.Paint()
         ..style = ui.PaintingStyle.fill
         ..isAntiAlias = true
-        ..color = inkColor(fillArgb, _validOpacity(style.fillOpacity)),
+        ..color = inkColor(fillArgb, shapeOpacity(style.fillOpacity)),
     );
   }
-  final opacity = _validOpacity(style.strokeOpacity);
+  final opacity = shapeOpacity(style.strokeOpacity);
   final stroke = g.strokePath, dots = g.dotPath, heads = g.headPath;
   if (stroke == null && dots == null && heads == null) return;
   // S-10: line + heads (+ dots) overlap — one layer, the opacity applied once
@@ -406,10 +407,7 @@ typedef ShapeOutline = ({List<Float32List> fill, List<Float32List> stroke});
 
 /// The vector geometry of [o] (6.9.5).
 ShapeOutline shapeOutlineOf(core.ShapeObject o) {
-  final g = shapeGeometryOf(o);
-  final r = g.width / 2;
   final fill = <Float32List>[];
-  final stroke = <Float32List>[];
   // the fill: the closed polyline as given, the ellipse sampled finely
   if (o.style.fillColorArgb != null) {
     switch (o.geometry) {
@@ -423,6 +421,33 @@ ShapeOutline shapeOutlineOf(core.ShapeObject o) {
         break;
     }
   }
+  final parts = shapeOutlinePartsOf(o);
+  return (
+    fill: fill,
+    stroke: [
+      ...parts.pieces,
+      for (final c in parts.dots) _circlePolygon(c, parts.dotRadius),
+      ...parts.heads,
+    ],
+  );
+}
+
+/// (T42) The outline of [o] in parts: [pieces] = the outline polygons of the solid
+/// centerline (a solid ellipse sampled — ellipseDashSegments) or of every dash piece,
+/// [heads] = the arrow head triangles (both positive O7 orientation), [dots] = the dot
+/// centers of radius [dotRadius] = width / 2. shapeOutlineOf lists them as polygons
+/// (pieces, dots as inscribed polygons, heads); the vector export draws the dots as
+/// exact circles (4 cubics) instead.
+typedef ShapeOutlineParts = ({
+  List<Float32List> pieces,
+  List<Float32List> heads,
+  List<ui.Offset> dots,
+  double dotRadius,
+});
+
+/// See [ShapeOutlineParts].
+ShapeOutlineParts shapeOutlinePartsOf(core.ShapeObject o) {
+  final g = shapeGeometryOf(o);
   List<ui.Offset> line = g.centerline;
   if (g.oval != null) {
     final frame = (o.geometry as core.EllipseGeometry).ellipseFrame;
@@ -431,21 +456,17 @@ ShapeOutline shapeOutlineOf(core.ShapeObject o) {
       ellipseDashSegments(frame.rect.width / 2, frame.rect.height / 2),
     );
   }
-  final pieces = g.capsules.isNotEmpty
+  final runs = g.capsules.isNotEmpty
       ? g.capsules
       : (g.dots.isEmpty && line.length >= 2
             ? [line]
             : const <List<ui.Offset>>[]);
-  for (final piece in pieces) {
-    stroke.addAll(_roundOutline(piece, g.width));
-  }
-  for (final c in g.dots) {
-    stroke.add(_circlePolygon(c, r));
-  }
-  for (final h in g.heads) {
-    stroke.add(_oriented(h));
-  }
-  return (fill: fill, stroke: stroke);
+  return (
+    pieces: [for (final run in runs) ..._roundOutline(run, g.width)],
+    heads: [for (final h in g.heads) _oriented(h)],
+    dots: g.dots,
+    dotRadius: g.width / 2,
+  );
 }
 
 const _roundOutlineSpec = OutlineSpec(
@@ -454,7 +475,15 @@ const _roundOutlineSpec = OutlineSpec(
   constantRadius: true,
 );
 
-/// The round-1 fill outline (O1–O8) of [pts] with the constant radius [width] / 2.
+/// (T42) Shape outlines split the centerline at every corner sharper than 10° (O3 with
+/// cos 10° instead of the stroke threshold): each run gets its own round caps, so the
+/// inner side of a corner keeps the full half width and the caps meet as the round join
+/// the screen strokes (the stroke threshold keeps 90° corners in one run, whose inner side
+/// points sit r·cos 45° from the edges — 15 % thinner rectangle sides in the PDF).
+const _shapeOutlineOptions = OutlineOptions(sharpCornerCos: 0.9848);
+
+/// The round-1 fill outline (O1–O8) of [pts] with the constant radius [width] / 2,
+/// split at every corner sharper than 10° ([_shapeOutlineOptions]).
 List<Float32List> _roundOutline(List<ui.Offset> pts, double width) {
   final raw = Float32List(pts.length * InkPoints.stride);
   for (var i = 0; i < pts.length; i++) {
@@ -465,6 +494,7 @@ List<Float32List> _roundOutline(List<ui.Offset> pts, double width) {
     InkPoints.fromRaw(raw),
     width: width,
     spec: _roundOutlineSpec,
+    options: _shapeOutlineOptions,
   );
   final dot = outline.dotCenter;
   if (dot != null) return [_circlePolygon(dot, outline.dotRadius)];

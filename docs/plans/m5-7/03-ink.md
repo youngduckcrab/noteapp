@@ -1589,6 +1589,7 @@ CORE `bounds = geometry.frame.bounds.inflate(0.75·w + (화살표 ? L : 0))`.
 #### 6.9.5 내보내기 · 적중용 다각형
 
 - 벡터 내보내기는 채우기 경로(폴리라인 그대로, 타원은 4개 3차 베지어 k = 0.5523 + 회전)와 **테두리 외곽선 다각형**(1차 채움 외곽선 생성기를 반지름 `w/2` 고정으로 — 닫힌 폴리라인은 첫 점을 끝에 다시 붙여 둥근 이음, 타원은 표본 폴리라인, 화살표 머리는 같은 경로에 — 6.9.3)을 만든다(6.21). 도형 조각의 `InkFillShape.objectId` = 객체 id(CP-INK-1). 화면은 GPU 선 긋기, PDF는 외곽선 채움이라 픽셀 차가 있을 수 있다(1 px 안 — `vector_export_v2_test`가 화면 래스터와 내보낸 경로 래스터의 차 < 1%).
+- (T42 구현) 테두리 외곽선 생성기는 1차 O3 꺾임 분할 문턱(`sharpCornerCos` −0.17 ≈ 100°) 대신 **10°**(cos 0.9848)를 쓴다 — 90° 모서리를 한 덩어리로 두면 안쪽 변 점이 모서리 이등분선 위 `r`(변에서 `r·cos 45°`)에 놓여 사각형 테두리가 PDF에서 15 % 얇아진다. 10° 넘는 꼭짓점마다 나눈 덩어리의 둥근 캡이 화면의 둥근 이음과 같은 합집합이 된다. 점선 점은 벡터 내보내기에서 내접 다각형 대신 **4개 3차 베지어 원**(k = 0.5523, 같은 방향)이다(`shapeOutlineOf`의 내접 다각형은 K-6 기하 시험용으로 그대로). 화면(GPU 선 긋기)과의 차는 가장자리 픽셀뿐이다(`vector_export_v2_test` 실측: 잉크 −0.04 %, 24 단계 넘게 다른 픽셀 0.34 %·최대 73).
 - 적중·지우개는 테두리 거리(≤ 허용 + `w/2`)와 채운 도형 내부(nonzero)로 판정한다(6.14·6.15).
 
 ### 6.10 텍스트 상자 · 글꼴 (`TextBoxObject`, `InkFonts`, `InkTextLayout`)
@@ -1856,6 +1857,7 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 - `isEmpty`(1차 getter) = 모든 목록이 빔.
 - (v2.1, CP-INK-1 승인) 도형 조각은 `InkFillShape.objectId` = 객체 id이고 `strokeId`도 객체 id, `tool`은 `core.PenTool.ballpoint`(자리 값 — 의미 없음). 획 조각은 `objectId == null`. 화살표 선과 머리는 한 조각(6.9.3).
 - 줄 텍스트는 `NoteSans`가 적재돼 있을 때만 채운다(CP-INK-9 승인 — PDF가 내보내기 전에 `ensureLoaded`를 기다림).
+- (T42 구현) 줄은 annotation 층이 그리는 **같은 문단**(`textBoxParagraphOf` — 인스턴스·적재 여부마다 캐시)에서 읽는다: `computeLineMetrics`의 `left`·`baseline`·`width`, 줄 글자 범위는 `getLineNumberAt`(코드 단위마다 — 빈 줄은 `''`), 줄 끝 줄바꿈(`\n`·`\r\n`·`\r`·U+2028·U+2029)은 뺀다. 줄 윗변(앞 줄 높이 합) ≥ frame 높이면 그 줄부터 뺀다. 그리기 frame이 없는 객체(변 ≤ 0·무한)는 화면처럼 내보내지 않는다.
 - 모르는 객체는 넣지 않는다(CP-INK-10 승인).
 - 성능 목표 B17: 도형 200개 + 텍스트 상자 100개 + 획 1,000개 ≤ 60 ms(글꼴 적재 뒤).
 

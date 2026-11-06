@@ -151,19 +151,31 @@ void _paintText(ui.Canvas canvas, core.TextBoxObject o, double w, double h) {
       ui.Paint()..color = ui.Color(background),
     );
   }
-  if (o.text.isEmpty) return;
+  final paragraph = textBoxParagraphOf(o);
+  if (paragraph == null) return;
+  canvas.drawParagraph(paragraph, ui.Offset.zero);
+}
+
+/// INTERNAL: the paragraph the annotation layer draws for [o] — laid out at the frame
+/// width with the fonts as they are now (cached per instance and loaded flag); null when
+/// nothing is drawn (empty text, a frame side ≤ 0 or not finite, an invalid font size or
+/// line height). (T42) The vector export reads its lines from the same paragraph.
+@internal
+ui.Paragraph? textBoxParagraphOf(core.TextBoxObject o) {
+  final r = o.frame.rect;
+  final w = r.width, h = r.height;
+  if (!(w > 0) || !(h > 0) || !w.isFinite || !h.isFinite) return null;
+  if (o.text.isEmpty) return null;
   final size = o.style.fontSizePt, line = o.style.lineHeight;
-  if (!(size > 0) || !size.isFinite || !(line > 0) || !line.isFinite) return;
+  if (!(size > 0) || !size.isFinite || !(line > 0) || !line.isFinite) {
+    return null;
+  }
   final loaded = InkFontsDebug.isLoaded;
   final cached = _paragraphs[o];
-  final ui.Paragraph paragraph;
-  if (cached != null && cached.$1 == loaded) {
-    paragraph = cached.$2;
-  } else {
-    paragraph = buildTextBoxParagraph(o.text, o.style, w);
-    _paragraphs[o] = (loaded, paragraph);
-  }
-  canvas.drawParagraph(paragraph, ui.Offset.zero);
+  if (cached != null && cached.$1 == loaded) return cached.$2;
+  final paragraph = buildTextBoxParagraph(o.text, o.style, w);
+  _paragraphs[o] = (loaded, paragraph);
+  return paragraph;
 }
 
 void _paintImagePlaceholder(

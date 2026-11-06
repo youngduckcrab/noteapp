@@ -20,13 +20,28 @@
 // PDF does not paint a degenerate subpath with square caps, the screen draws
 // the axis-aligned square of side width (stroke_painter.dart).
 //
-// (v2.0, 2nd round contract 7.2.9 — m5-7/03-ink 4.8) Vector export v2, paint
-// order = L-1: highlighterGroups, inkShapes, underlay (image objects),
-// annotations (text boxes, formulas), cover (tape strokes). Foundation step
-// R2-B3: the v2 lists are empty and InkFillShape.objectId is null (stroke
-// items as in round 1 — dashed and tape strokes are filled outlines too);
-// T42 fills them. Every value type compares by value (InkVectorFixtures,
+// (v2.0, 2nd round contract 7.2.9 — m5-7/03-ink 4.8, 6.21, T42) Vector export
+// v2, paint order = L-1 (PDF: underlay → highlighterGroups → inkShapes →
+// annotations → cover, K-8), every list in z order:
+//   underlay — image objects → InkImageVector(assetId, frame, pixel size);
+//   highlighterGroups — as above;
+//   inkShapes — the ink layer (InkLayer.ink strokes and ShapeObjects merged by
+//     compareOrder, the screen's ink chunks): strokes as above (a dashed stroke
+//     = its dash outlines and dots in one path, a stored laser stroke = the
+//     ballpoint fallback the screen draws), a shape = its fill piece (closed
+//     polyline polygon / ellipse as 4 cubics) then its outline piece (the
+//     outline polygons of 6.9.5 with the arrow heads and the dots in one
+//     nonzero path), both with objectId = strokeId = the object id and tool =
+//     ballpoint (CP-INK-1);
+//   annotations — text boxes → InkTextVector(object, the lines of the screen
+//     paragraph, frame-local pt; empty until NoteSans is loaded — CP-INK-9),
+//     formulas → InkMathVector(object); unknown objects never (CP-INK-10);
+//   cover — tape strokes, always covered (opacity 1, whatever the reveal).
+// Objects without a drawable frame (a side ≤ 0 or not finite) are left out
+// like on screen. bounds = the union of every exported piece (paths, lines,
+// object bounds). Every value type compares by value (InkVectorFixtures,
 // testing.dart, rebuilds exportPage results field by field).
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show Rect;
 
@@ -37,10 +52,15 @@ import '../geometry/outline_generator.dart';
 import '../geometry/vector_path.dart';
 import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
+import '../object/object_painter.dart' show textBoxParagraphOf;
+import '../object/object_view.dart';
+import '../object/shape_path.dart'
+    show ShapeOutlineParts, shapeGeometryOf, shapeOpacity, shapeOutlinePartsOf;
 import '../pen/pen_profile.dart';
 import '../render/highlighter_compositor.dart';
 import '../render/ink_page_content.dart';
 import '../render/stroke_painter.dart' show strokeOpacity;
+import '../text/fonts.dart';
 import '../tuning.dart';
 
 enum InkBlendMode { normal, multiply }
@@ -329,98 +349,408 @@ abstract final class InkVectorExport {
   }) {
     final zOrdered = _zOrdered(strokes);
     if (zOrdered.isEmpty) return InkPageVectors._empty;
-    final blend = core.PaperColors.isDark(options.paperColorArgb)
-        ? InkBlendMode.normal
-        : InkBlendMode.multiply;
-    final groups = <HighlighterGroupKey, _GroupBuilder>{};
-    final groupOrder = <_GroupBuilder>[];
-    final shapes = <InkFillShape>[];
-    final cover = <InkFillShape>[];
-    Rect? bounds;
-    void include(Rect r) =>
-        bounds = bounds == null ? r : bounds!.expandToInclude(r);
-
-    for (final s in zOrdered) {
-      if (s.layer == InkLayer.highlighter) {
-        final key = HighlighterGroupKey.of(s.style);
-        if (key.opacityPercent <= 0) continue;
-        final line = HighlighterLine.of(s);
-        final g = groups.putIfAbsent(key, () {
-          final created = _GroupBuilder(key);
-          groupOrder.add(created);
-          return created;
-        });
-        g.lines.add(
-          InkHighlighterLine._(
-            strokeId: s.id,
-            centerline: _centerline(line.xy),
-            width: line.width,
-            cap: s.profile.cap,
-          ),
-        );
-        include(line.bounds);
-        continue;
-      }
-      if (s.layer == InkLayer.cover) {
-        // (m5-7 T31, 6.7-8) a tape: always the covered shape, opaque, whatever the
-        // reveal state on screen (stripes are one color in PDF — 12.2 Q8)
-        final outline = OutlineGenerator.outline(s);
-        final path = outline.toVectorPath(smooth: options.smooth);
-        if (path.verbs.isEmpty) continue;
-        cover.add(
-          InkFillShape._(
-            strokeId: s.id,
-            tool: s.style.tool,
-            path: path,
-            colorArgb: _opaque(s.style.colorArgb),
-            opacity: 1,
-          ),
-        );
-        include(outline.bounds);
-        continue;
-      }
-      final opacity = _fillOpacity(s, options.pencilOpacityFactor);
-      if (opacity <= 0) continue;
-      final outline = OutlineGenerator.outline(s);
-      final path = outline.toVectorPath(smooth: options.smooth);
-      if (path.verbs.isEmpty) continue;
-      shapes.add(
-        InkFillShape._(
-          strokeId: s.id,
-          tool: s.style.tool,
-          path: path,
-          colorArgb: _opaque(s.style.colorArgb),
-          opacity: opacity,
-        ),
-      );
-      include(outline.bounds);
-    }
-    return InkPageVectors._(
-      highlighterGroups: List.unmodifiable([
-        for (final g in groupOrder)
-          InkHighlighterGroup._(
-            colorArgb: g.key.colorArgb,
-            opacity: g.key.opacity,
-            blend: blend,
-            lines: List.unmodifiable(g.lines),
-          ),
-      ]),
-      inkShapes: List.unmodifiable(shapes),
-      cover: List.unmodifiable(cover),
-      bounds: bounds ?? Rect.zero,
-    );
+    return (_PageExport(options)
+          ..strokesOutsideInk(zOrdered)
+          ..inkItems([
+            for (final s in zOrdered)
+              if (s.layer == InkLayer.ink) InkStrokeItem.of(s),
+          ]))
+        .build();
   }
 
   /// options == null → InkExportOptions(paperColorArgb: content.background.paperColorArgb).
   static InkPageVectors exportPage(
     InkPageContent content, {
     InkExportOptions? options,
-  }) => exportStrokes(
-    content.strokes,
-    options:
-        options ??
-        InkExportOptions(paperColorArgb: content.background.paperColorArgb),
+  }) {
+    if (content.strokes.isEmpty && content.objects.isEmpty) {
+      return InkPageVectors._empty;
+    }
+    final export = _PageExport(
+      options ??
+          InkExportOptions(paperColorArgb: content.background.paperColorArgb),
+    );
+    // content.strokes: compareOrder, no deleted strokes (InkPageContent.fromCore)
+    return (export
+          ..strokesOutsideInk(content.strokes)
+          ..inkItems(inkLayerItemsOf(content))
+          ..underlay(objectViewsOf(content, InkObjectLayer.underlay))
+          ..annotations(objectViewsOf(content, InkObjectLayer.annotation)))
+        .build();
+  }
+}
+
+/// One export run: the lists in L-1 order, filled layer by layer (each in z order).
+final class _PageExport {
+  _PageExport(this.options)
+    : blend = core.PaperColors.isDark(options.paperColorArgb)
+          ? InkBlendMode.normal
+          : InkBlendMode.multiply;
+
+  final InkExportOptions options;
+  final InkBlendMode blend;
+  final Map<HighlighterGroupKey, _GroupBuilder> _groups = {};
+  final List<_GroupBuilder> _groupOrder = [];
+  final List<InkFillShape> _shapes = [];
+  final List<InkFillShape> _cover = [];
+  final List<InkImageVector> _underlay = [];
+  final List<InkAnnotationVector> _annotations = [];
+  Rect? _bounds;
+
+  void _include(Rect r) =>
+      _bounds = _bounds == null ? r : _bounds!.expandToInclude(r);
+
+  /// The highlighter groups and the cover (tape) shapes of [zOrdered]; the ink-layer
+  /// strokes go through [inkItems].
+  void strokesOutsideInk(List<InkStroke> zOrdered) {
+    for (final s in zOrdered) {
+      switch (s.layer) {
+        case InkLayer.highlighter:
+          _highlighter(s);
+        case InkLayer.cover:
+          _tape(s);
+        case InkLayer.ink:
+          break;
+      }
+    }
+  }
+
+  void _highlighter(InkStroke s) {
+    final key = HighlighterGroupKey.of(s.style);
+    if (key.opacityPercent <= 0) return;
+    final line = HighlighterLine.of(s);
+    final g = _groups.putIfAbsent(key, () {
+      final created = _GroupBuilder(key);
+      _groupOrder.add(created);
+      return created;
+    });
+    g.lines.add(
+      InkHighlighterLine._(
+        strokeId: s.id,
+        centerline: _centerline(line.xy),
+        width: line.width,
+        cap: s.profile.cap,
+      ),
+    );
+    _include(line.bounds);
+  }
+
+  /// (m5-7 T31, 6.7-8) a tape: always the covered shape, opaque, whatever the reveal
+  /// state on screen (stripes are one color in PDF — 12.2 Q8).
+  void _tape(InkStroke s) {
+    final outline = OutlineGenerator.outline(s);
+    final path = outline.toVectorPath(smooth: options.smooth);
+    if (path.verbs.isEmpty) return;
+    _cover.add(
+      InkFillShape._(
+        strokeId: s.id,
+        tool: s.style.tool,
+        path: path,
+        colorArgb: _opaque(s.style.colorArgb),
+        opacity: 1,
+      ),
+    );
+    _include(outline.bounds);
+  }
+
+  /// The ink layer in z order: strokes (their screen outline — dashed strokes as their
+  /// dash outlines in one path) and shapes (fill, then the outline with the heads).
+  void inkItems(List<InkLayerItem> items) {
+    for (final item in items) {
+      switch (item) {
+        case InkStrokeItem(:final stroke):
+          _stroke(stroke);
+        case InkObjectView(:final object):
+          if (object is core.ShapeObject) _shape(object);
+      }
+    }
+  }
+
+  void _stroke(InkStroke s) {
+    final opacity = _fillOpacity(s, options.pencilOpacityFactor);
+    if (opacity <= 0) return;
+    final outline = OutlineGenerator.outline(s);
+    final path = outline.toVectorPath(smooth: options.smooth);
+    if (path.verbs.isEmpty) return;
+    _shapes.add(
+      InkFillShape._(
+        strokeId: s.id,
+        tool: s.style.tool,
+        path: path,
+        colorArgb: _opaque(s.style.colorArgb),
+        opacity: opacity,
+      ),
+    );
+    _include(outline.bounds);
+  }
+
+  /// 6.9.5 / 6.21: the fill piece (fillColorArgb on a closed polyline or an ellipse —
+  /// the screen's fill area), then the outline piece (the outline polygons of every
+  /// centerline / dash piece, the dots, the arrow heads — one nonzero path, painted
+  /// once). Both carry objectId = strokeId = the object id, tool = ballpoint
+  /// (CP-INK-1); a piece with opacity 0 paints nothing on screen and is left out.
+  void _shape(core.ShapeObject o) {
+    final style = o.style;
+    final fillArgb = style.fillColorArgb;
+    final fillOpacity = shapeOpacity(style.fillOpacity);
+    if (fillArgb != null && fillOpacity > 0) {
+      final fill = _shapeFillPath(o);
+      if (fill != null) _addShapePiece(o, fill, fillArgb, fillOpacity);
+    }
+    final strokeOpacity = shapeOpacity(style.strokeOpacity);
+    if (strokeOpacity > 0) {
+      final parts = shapeOutlinePartsOf(o);
+      _addShapePiece(
+        o,
+        _outlinePath(parts),
+        style.strokeColorArgb,
+        strokeOpacity,
+      );
+    }
+  }
+
+  void _addShapePiece(
+    core.ShapeObject o,
+    InkVectorPath path,
+    int argb,
+    double opacity,
+  ) {
+    if (path.verbs.isEmpty) return;
+    _shapes.add(
+      InkFillShape._(
+        strokeId: o.id,
+        tool: core.PenTool.ballpoint,
+        path: path,
+        colorArgb: _opaque(argb),
+        opacity: opacity,
+        objectId: o.id,
+      ),
+    );
+    _include(path.bounds);
+  }
+
+  /// Image objects (z order) with a drawable frame.
+  void underlay(List<InkObjectView> views) {
+    for (final view in views) {
+      final o = view.object;
+      if (o is! core.ImageObject || !_drawableFrame(o.frame)) continue;
+      _underlay.add(
+        InkImageVector._(
+          assetId: o.assetId,
+          frame: o.frame,
+          pixelWidth: o.pixelWidth,
+          pixelHeight: o.pixelHeight,
+        ),
+      );
+      _include(view.bounds);
+    }
+  }
+
+  /// Text boxes and formulas (z order) with a drawable frame; unknown objects are never
+  /// exported (CP-INK-10).
+  void annotations(List<InkObjectView> views) {
+    for (final view in views) {
+      final o = view.object;
+      if (!_drawableFrame(o.frame)) continue;
+      switch (o) {
+        case core.TextBoxObject():
+          _annotations.add(InkTextVector._(object: o, lines: _textLines(o)));
+        case core.MathObject():
+          _annotations.add(InkMathVector._(object: o));
+        case core.ShapeObject() || core.ImageObject() || core.UnknownObject():
+          continue;
+      }
+      _include(view.bounds);
+    }
+  }
+
+  InkPageVectors build() => InkPageVectors._(
+    highlighterGroups: List.unmodifiable([
+      for (final g in _groupOrder)
+        InkHighlighterGroup._(
+          colorArgb: g.key.colorArgb,
+          opacity: g.key.opacity,
+          blend: blend,
+          lines: List.unmodifiable(g.lines),
+        ),
+    ]),
+    inkShapes: List.unmodifiable(_shapes),
+    underlay: List.unmodifiable(_underlay),
+    annotations: List.unmodifiable(_annotations),
+    cover: List.unmodifiable(_cover),
+    bounds: _bounds ?? Rect.zero,
   );
+}
+
+/// The screen draws a frame only with finite sides > 0 (6.8.4).
+bool _drawableFrame(core.ElementFrame frame) {
+  final r = frame.rect;
+  return r.width > 0 &&
+      r.height > 0 &&
+      r.width.isFinite &&
+      r.height.isFinite &&
+      frame.center.x.isFinite &&
+      frame.center.y.isFinite;
+}
+
+/// The fill area of [o] as drawn on screen (shapeGeometryOf(o).fill): a closed polyline
+/// as its polygon (moveTo, lineTo…, close), an ellipse as 4 cubics (k = 0.5523) rotated
+/// about its center; null when the shape has no fill area.
+InkVectorPath? _shapeFillPath(core.ShapeObject o) {
+  if (shapeGeometryOf(o).fill == null) return null;
+  switch (o.geometry) {
+    case core.PolylineGeometry(:final points):
+      final pts = [
+        for (final p in points)
+          if (p.x.isFinite && p.y.isFinite) p,
+      ];
+      final verbs = Uint8List(pts.length + 1)
+        ..fillRange(1, pts.length, InkPathVerb.lineTo.index);
+      verbs[0] = InkPathVerb.moveTo.index;
+      verbs[pts.length] = InkPathVerb.close.index;
+      final coords = Float32List(2 * pts.length);
+      for (var i = 0; i < pts.length; i++) {
+        coords[2 * i] = pts[i].x;
+        coords[2 * i + 1] = pts[i].y;
+      }
+      return InkVectorPath(verbs, coords);
+    case core.EllipseGeometry(:final ellipseFrame):
+      return _ellipsePath(ellipseFrame);
+  }
+}
+
+/// The ellipse inscribed in [frame] (rotated about its center): moveTo + 4 cubics with
+/// k = 0.5523 + close, from the local (a, 0) through (0, b) — positive orientation.
+InkVectorPath _ellipsePath(core.ElementFrame frame) {
+  final r = frame.rect;
+  final a = r.width / 2, b = r.height / 2;
+  final c = frame.center;
+  final rot = frame.rotation.isFinite ? frame.rotation : 0.0;
+  final cr = math.cos(rot), sr = math.sin(rot);
+  const k = 0.5523;
+  final local = <double>[
+    a, 0, //
+    a, k * b, k * a, b, 0, b,
+    -k * a, b, -a, k * b, -a, 0,
+    -a, -k * b, -k * a, -b, 0, -b,
+    k * a, -b, a, -k * b, a, 0,
+  ];
+  final coords = Float32List(local.length);
+  for (var i = 0; i < local.length; i += 2) {
+    final x = local[i], y = local[i + 1];
+    coords[i] = c.x + x * cr - y * sr;
+    coords[i + 1] = c.y + x * sr + y * cr;
+  }
+  return InkVectorPath(
+    Uint8List.fromList([
+      InkPathVerb.moveTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.close.index,
+    ]),
+    coords,
+  );
+}
+
+/// The outline piece of a shape (6.9.5): the line / dash-piece polygons, the dots as
+/// circles (moveTo + 4 cubics, k = 0.5523 · r, from (x + r, y) through (x, y + r)), the
+/// head triangles — every sub-path positively oriented, one nonzero path (S-10). The
+/// polygons are moveTo, lineTo…, close (no smoothing: the heads keep their points).
+InkVectorPath _outlinePath(ShapeOutlineParts parts) {
+  final verbs = <int>[];
+  final coords = <double>[];
+  void polygon(Float32List poly) {
+    final m = poly.length ~/ 2;
+    if (m < 3) return;
+    verbs
+      ..add(InkPathVerb.moveTo.index)
+      ..addAll(List.filled(m - 1, InkPathVerb.lineTo.index))
+      ..add(InkPathVerb.close.index);
+    coords.addAll(poly);
+  }
+
+  parts.pieces.forEach(polygon);
+  final r = parts.dotRadius;
+  final k = 0.5523 * r;
+  for (final c in parts.dots) {
+    final x = c.dx, y = c.dy;
+    verbs.addAll([
+      InkPathVerb.moveTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.cubicTo.index,
+      InkPathVerb.close.index,
+    ]);
+    coords.addAll([
+      x + r, y, //
+      x + r, y + k, x + k, y + r, x, y + r,
+      x - k, y + r, x - r, y + k, x - r, y,
+      x - r, y - k, x - k, y - r, x, y - r,
+      x + k, y - r, x + r, y - k, x + r, y,
+    ]);
+  }
+  parts.heads.forEach(polygon);
+  return InkVectorPath(Uint8List.fromList(verbs), Float32List.fromList(coords));
+}
+
+/// 6.21: the lines of the paragraph the annotation layer draws (textBoxParagraphOf —
+/// the same layout): text of the line without its line break, x = the line's left,
+/// baselineY, width — frame-local pt. Lines that start at or below the frame height are
+/// left out (the frame clips them on screen). Empty while NoteSans is not loaded
+/// (CP-INK-9 — PDF falls back to the raster) and for an empty text.
+List<InkTextLine> _textLines(core.TextBoxObject o) {
+  if (!InkFontsDebug.isLoaded) return const [];
+  final paragraph = textBoxParagraphOf(o);
+  if (paragraph == null) return const [];
+  final metrics = paragraph.computeLineMetrics();
+  if (metrics.isEmpty) return const [];
+  final text = o.text;
+  // the code-unit range of every line (a line without code units — the empty line after
+  // a final line break — stays empty)
+  final start = List<int>.filled(metrics.length, -1);
+  final end = List<int>.filled(metrics.length, -1);
+  for (var i = 0; i < text.length; i++) {
+    final line = paragraph.getLineNumberAt(i);
+    if (line == null || line < 0 || line >= metrics.length) continue;
+    if (start[line] < 0) start[line] = i;
+    end[line] = i + 1;
+  }
+  final height = o.frame.rect.height;
+  final out = <InkTextLine>[];
+  var top = 0.0;
+  for (final m in metrics) {
+    if (top >= height) break;
+    final n = m.lineNumber;
+    var lineText = n >= 0 && n < start.length && start[n] >= 0
+        ? text.substring(start[n], end[n])
+        : '';
+    lineText = _withoutLineBreak(lineText);
+    out.add(
+      InkTextLine._(
+        text: lineText,
+        x: m.left,
+        baselineY: m.baseline,
+        width: m.width,
+      ),
+    );
+    top += m.height;
+  }
+  return out;
+}
+
+/// [line] without one trailing line break (\n, \r\n, \r, U+2028, U+2029).
+String _withoutLineBreak(String line) {
+  if (line.endsWith('\r\n')) return line.substring(0, line.length - 2);
+  if (line.endsWith('\n') ||
+      line.endsWith('\r') ||
+      line.endsWith(' ') ||
+      line.endsWith(' ')) {
+    return line.substring(0, line.length - 1);
+  }
+  return line;
 }
 
 final class _GroupBuilder {
