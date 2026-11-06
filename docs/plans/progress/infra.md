@@ -398,7 +398,7 @@
 | J3 | 완료 | `44609e8` | `workflows_test` `ios-compile.yml` 묶음 7(입력·게이트·`macos-26`·45분·`concurrency`·시크릿·변수 없음·`--no-codesign`·`pipefail`+`tee`·아티팩트·요약 셸 조각을 표본 로그·`Podfile.lock`으로 실행) + `ios-testflight.yml` 묶음 7(`macos-26`·`IOS_SIGNING_MODE`·수동 서명 단계·**두 서명 갈래**를 가짜 `xcodebuild`로 실행·Admin 주석), `guides_test` 06 — 실행은 U19(H6) |
 | J4 | 완료 | `3779a8f` | `app/test/storage/native_storage_paths_test.dart`(경로 문자열·폴더 생성(재귀·두 번째 호출)·끝 `/`·실패 4종 전파·기본 `CoreModule` 2경우), `core_module_test`(경로 묶음 8 — 두 필드 모두·순서·실패 → 기록 + 둘 다 없음·웹 stub·`configFor`·`defaultNoteStoreConfig`·`resetLocalData`·경로 중 포기), `tool/test/native_config_test.dart` '앱 셸 경로' 묶음(토큰 2·커밋된 파일 1·주석 무관 1·규칙마다 깨뜨리기 12·파일 없음 1) |
 | J5 | 완료 | `16b9c4b` | `app/test/features/feature_switch_section_test.dart`(12 — 문구·빌드에서 끔·저장·시작 때와 다름·인식 꺼짐에서 수식 엔진·[다시 시작] flush → reload·녹음 중(녹음·일시정지) 막기·flush 실패·flush 2초 초과·네이티브 문구·저장 실패·가로), `settings/settings_sections_test.dart` v2(`app.features` 위치·제목·빌더), `settings_screen_test`(8개), `bootstrap/app_module_context_test.dart`(7 — 빌드 ∧ 메뉴·한 번 읽기·동시 호출·저장소 전 캐시 안 함·500 ms 초과·안쪽·읽기 실패) |
-| J6 | 완료 | (이 커밋) | `app/test/bootstrap/idle_tasks_test.dart` 보강(`AppIdleCleanup` 4 — 마지막 콜백까지 기다림·2초 제한·기다리는 중 더한 정리·첫 작업 전 dispose), `bootstrap/bootstrap_app_test.dart`(유휴 4 — 성공 화면 ProviderScope → AppLifecycleBridge → 실행기(`success.idleTasks`)·오류 화면에는 없음 → 다시 시도 → 새 시도의 작업만·dispose 때 색인기 정리(1초) 끝난 뒤 모듈 stop·정리가 안 끝나면 2초 뒤 stop + 기록) |
+| J6 | 완료 | `864317a` | `app/test/bootstrap/idle_tasks_test.dart` 보강(`AppIdleCleanup` 4 — 마지막 콜백까지 기다림·2초 제한·기다리는 중 더한 정리·첫 작업 전 dispose), `bootstrap/bootstrap_app_test.dart`(유휴 4 — 성공 화면 ProviderScope → AppLifecycleBridge → 실행기(`success.idleTasks`)·오류 화면에는 없음 → 다시 시도 → 새 시도의 작업만·dispose 때 색인기 정리(1초) 끝난 뒤 모듈 stop·정리가 안 끝나면 2초 뒤 stop + 기록) |
 | J7 | 남음 | | `media_module_test`·`update_banner_test` v2·`web_platform_browser_test` |
 | J8 | 남음 | | `recognition_module_test` |
 | J9 | 남음 | | `recognition_wiring_test`·`media_wiring_test`·`search_wiring_test`·`feature_wiring_module_test` v2 |
@@ -656,6 +656,7 @@
 - **R2-B8b 체크포인트**: `6e7b753`(+ 기록 커밋 `20f831d`) — 총괄에게 `main` 병합 요청(D24).
 - **J0 체크포인트(①②③)**: `1fd1aea`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청. 이 체크포인트의 첫 푸시 CI 실행 기록이 J0 ④(6.16 실측)의 입력이다.
 - (2차 동시 개발 세션 3) J1 `3ff3b76`·J2 `0da5b71`·J3 `44609e8`(+ 기록 커밋) — 체크포인트 아님(INFRA-F3의 체크포인트는 R2-B8a·R2-B8b·J0). 다음 병합 때 함께 들어가면 된다.
+- (2차 동시 개발 세션 4) J4 `3779a8f`·J5 `16b9c4b`·J6 `864317a`(+ 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool·pencil_bridge) 변경 0, `ws test --package noteapp` VM 473 통과·Chrome 11 통과, V5·V6 통과, `dart test tool/test` 481 통과(117초).
 
 #### 다음 세션 메모
 
