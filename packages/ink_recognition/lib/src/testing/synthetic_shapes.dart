@@ -5,7 +5,8 @@
 // right after the foundation stage.
 //
 // The guarantee 'GeometricShapeFitter with the default ShapeFitTuning always
-// judges it a rectangle' is asserted from L2-06 on (synthetic_shapes_test);
+// judges it a rectangle within 1 pt' is asserted since L2-06 for the whole
+// size / pointsPerSide / viewScale range (synthetic_shapes_test);
 // the R2-B6 test checks the path shape, closure and the ArgumentError rules.
 import 'dart:ui' show Offset, Rect;
 

@@ -294,7 +294,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-03 | 완료 | af9d262 | `widget/content_search_test.dart`('opening' 묶음) |
 | L2-04 | 완료 | 0343c27, 8695c4a(골든) | `goldens/library_golden_test.dart`(+ `library_search_content.png`), `widget/a11y_test.dart`('content search results' — 가로·세로), `shared/library_scenarios.dart`('content search: a text box word …') → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart` |
 | L2-05 | 완료 | 661abb0 | ink_recognition `unit/group_into_lines_test.dart`(V9·경계 사례 `test/fixtures/lines/*.json` 11개·4.4.6·1,000획 기록), `unit/synthetic_handwriting_test.dart`, `shared/line_cases.dart`(`lineAccuracy` — `web/recognition_browser_test.dart`에서도) |
-| L2-06 (P-B) | 남음 | | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`, `unit/shape_real_samples_test.dart`, `shared/shape_cases.dart` |
+| L2-06 (P-B) | 완료 | (이 커밋) | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`(+ 4.3 범위 판정), `unit/shape_real_samples_test.dart`(표본 없음 → skip), `shared/shape_cases.dart` → `web/recognition_browser_test.dart`(Chrome V9), `unit/api_surface_test.dart` 갱신 (+ L2-I3 `integration/shape_assist_flow_test.dart` 써 둠 — 기본 skip) |
 | L2-07 | 완료 | bb5bf30 | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` (+ `ink_recognition_smoke_test`·`unit/api_surface_test`·`web/recognition_browser_test` 갱신) |
 | L2-08 (P-B, ML Kit) | 남음 | | `native/mlkit_adapter_test.dart`, `unit/mlkit_errors_test.dart` |
 | L2-09 (P-B) | 완료 | 6facf70 | `unit/mixed_language_test.dart` |
@@ -314,7 +314,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-22 (P-C) | 남음 | | `unit/math_fixture_export_test.dart`, `widget/math_pad_engine_test.dart` |
 | L2-I1 | 통합 단계 | | `ink_recognition/test/integration/real_core_indexer_test.dart`(`integration` — 미리 써 둠) |
 | L2-I2 | 통합 단계 | | `feature_library/test/integration/core_contract_test.dart` |
-| L2-I3 | 통합 단계 | | `ink_recognition/test/integration/shape_assist_flow_test.dart`(`integration` — 미리 써 둠) |
+| L2-I3 | 통합 단계 | | `ink_recognition/test/integration/shape_assist_flow_test.dart`(`integration` — L2-06과 함께 써 둠, 6.17.4 경우 1~6; 동시 개발 트리의 INK는 멈춤 감지 전이라 돌리지 않음) |
 | L2-I4 | 통합 단계 | | INFRA `app_smoke_v2_test.dart`·`feature_switch_test.dart` |
 | L2-I5 | 통합 단계 | | 실기기 결과 → 진행 기록 |
 | L2-I6 | 통합 단계 | | `emulator/callable_emulator_test.dart`(`emulator` — L2-16과 함께 써 둠) |
@@ -419,9 +419,20 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - 모델 카드: `modelNeeded(언어)` + `RecognitionModelRow(keyPrefix: 'recog.sheet.model')`(L2-18 행 그대로 — [받기]·iPad 두 번 누르기·안드로이드 5 s 뒤 [지금 셀룰러로 받기]). 시트는 `ModelDownloads`(받기 끝)와 엔진 `modelChanges`(그 언어)를 듣다가 `modelState`가 `ready`면 이어 인식한다. `recognizeLine`의 `ModelNotReady`도 같은 카드. 그 밖 `RecognitionFailure` → '인식하지 못했어요 …' [다시](보고 안 함), 예상 밖 예외 → 보고 1회 + 같은 줄.
   - 부록 C 밖 키(계약 아님): `recog.sheet.toText.status`(상태 줄)·`recog.sheet.language.<tag>`(언어 단추 글)·`recog.sheet.model.<tag>`(`.cellular`)(모델 카드 행). 언어 고르기는 `SegmentedButton`(한국어 | English, 최소 64×44 + `padded`). 새 문구(내부 `RecognitionStrings`): `close` '닫기'·`toTextBox` '텍스트 상자로'·`copy` '복사'·`conversionLanguage` '언어'·`lineLabel(n)` 'n줄'·`textTooLong`. 시험 훅 `ConversionSheetDebug.isWeb`(VM에서 웹 문장 확인 — null이면 `kIsWeb`).
   - 시험 주의: 가짜 저장소는 획을 쓸 때 `updatedAt`을 찍으므로 기대 `sourceRev`는 `loadPage`로 읽은 획에서 셈(`_Doc.rev`). 모델 카드가 뜬 프레임에는 행의 `modelState` 답이 아직 안 그려져 있다 — `pump()` 한 번 더 뒤에 [받기]를 찾는다. '①' 시험은 실제 `HandwritingIndexer` + 같은 가짜 엔진(100 ms) — 색인기 2줄째 인식 중 [복사] → 엔진 호출 5회(시트 1 + 버린 작업 2 + 다시 2), `handwriting` 변경 2.
+- L2-06 도형 판정기(`shapes/shape_classifier.dart` `classifyShape`·`resamplePath`·`segmentDistance`·`turnDegrees`, `shapes/shape_beautify.dart` `beautifyShape` — 내부, `GeometricShapeFitter.fit`):
+  - 7.3 E-L2·E-L3 개선판(`/tmp/claude-0/plan57-scratch/library57/shape/lib/shape_fit.dart`)을 문턱값만 `ShapeFitTuning`에서 읽게 옮겼다(128점 재표본은 상수 `kShapePreResample`). 시제품의 '재표본 대각선 < 8 pt → null'은 6.17.1 1단계대로 `fit`의 '원래 점 경계 대각선 × viewScale < 24'로 바꿨다(판정 안에서는 대각선 0만 거름). 쓰지 않던 `_cornerShare`(E-L2에서 버린 시도)는 옮기지 않았다.
+  - **V9 기록(VM·Chrome 같은 수)**: 시드 20261105 — 직선 100 %·원 100 %·타원 93.5 %(잘못 4.0)·삼각형 87.5 %(3.0)·사각형 96.0 %(0)·오각형 → 다각형 97.0 %(원 2.5)·낙서 거부 96.0 %; 시드 7 — 100·100·92.5(5.0)·83.5(4.0)·95.0(0.5)·99.5·98.5; 시드 42 — 100·100·89.0(6.0)·87.0(2.5)·96.0(0)·98.0(2.0)·98.0. **6.17.3 표의 개선판 열과 칸마다 같다.** `fit` 1회 VM 중앙값 34 µs(140획, 다른 에이전트 부하 중 — 목표 ≤ 0.5 ms; 시험은 3배 1.5 ms 문턱).
+  - **추가 1 — 모서리 다시 앉히기(`_reseatCorners`)**: 꼭짓점 4개가 직각 검사(90° ± 16°)에 떨어지면, 각 꼭짓점을 이웃 두 꼭짓점 사이의 고리 점 중 그 현에서 가장 먼 점으로 옮겨(2회) 한 번 더 검사한다. 이유: `SyntheticShapes.rectanglePath`의 **세로로 긴 사각형**(예: 48 × 192, 짧은 위 변 가운데에서 시작)은 '시작점에서 가장 먼 점'이 둥글려진 모서리가 아니라 맞은편 짧은 변 위(모서리에서 ~13 pt)에 떨어져 사다리꼴로 판정됐다(시제품 `rect_refine`은 가로로 긴 것만 돌려 못 봤음). 사각형 아닌 사각형으로 끝날 때만 도는 갈래라 **합성 1,400개 × 3시드 수는 바뀌지 않았다**(위 기록 = 고치기 전과 같음). 4.3 범위 전부(짧은 변 48~2400 × 비 1:1~4:1 가로·세로 × `pointsPerSide` 4·5·8·24·48 × viewScale 1·0.25~4 중 규칙에 맞는 것, 1,000건 넘음)가 사각형·rect ≤ 1 pt.
+  - **추가 2 — 타원 크기는 최소제곱**: 분류기의 `a = √(2λ₁)`은 각도로 고르게 퍼진 점을 가정해, 경로 길이로 재표본한 2:1 타원이 9 % 좁게 나왔다(240 → 219 pt). 다듬기에서 분류기의 중심·각을 그대로 두고 원래 점으로 `A·u² + B·v² = 1`을 최소제곱으로 풀어 a·b를 다시 잡는다(퇴화하면 분류기 값). 원도 반지름 = (a + b) / 2를 이 값으로. 판정(타원 오차·원 판정)은 분류기 값 그대로라 V9에는 영향 없음.
+  - 다듬기 구체화(6.17.2): 직선은 원래 획의 처음·끝 점, 가운데 기준으로 `SelectionGeometry.snapAngle` 각(15° ± 3°)으로 돌림. 타원·사각형 각은 (−45°, 45°]로 접고(홀수 번 접으면 두 축을 바꿈) ±8° 안이면 0. 사각형 변 다듬기는 꼭짓점 사각의 무게중심을 축으로 돌린 틀에서(시제품 `rect_refine`과 같은 규칙 — 가장 가까운 변, 변 양 끝 15 % 뺌, 중앙값, 2개 미만이면 꼭짓점 경계), 결과 = `ShapeGeometry.rectangle(가운데 기준 rect, rotation: 각)`(4점, 왼쪽 위부터 시계 방향 — 돌린 사각형의 `frame`은 축 맞춤 AABB임에 주의). 삼각형·다각형은 **경로 순서를 지키고**(각도 정렬은 오목 다각형의 변을 바꾸므로 쓰지 않음) 넓이 부호로 시계 방향을 맞춘 뒤 가장 위(같으면 왼쪽) 꼭짓점부터. 다각형 5~8과 '사각형 아닌 사각형'은 `ShapeKind.polygon`.
+  - `score` = clamp(1 − 오차 ÷ 문턱, 0, 1) — 문턱: 직선 `lineMaxDeviation`, 원·타원 `ellipseMaxError`, 삼각형·사각형·다각형 `polygonMaxError`(정확한 사각형도 평활화로 모서리가 깎여 0.5 안팎 — `minScore` 기본 0이라 거르지 않음). `fit`은 점 4개 미만·NaN/무한 좌표·viewScale ≤ 0/무한 → null, 예상 밖 예외는 `reportRecognitionError` 1회 + null(던지지 않음).
+  - `shared/shape_cases.dart`의 생성기 `SyntheticShapeGenerator`는 시제품 `bin/eval.dart` `_hand`를 Random 호출 순서까지 그대로(`resamplePath`로 200점). 판정 이름 `verdictOf`: 타원 중 회전 0·정사각 frame → 'circle'. 실기기 표본 회귀(`shape_real_samples_test`)는 폴더 `test/fixtures/real/`이 없으면(지금) skip — 빈 폴더는 커밋하지 않았다.
+  - L2-I3 흐름 시험(`integration/shape_assist_flow_test.dart`)을 6.17.4 경우 1~6으로 써 두었다(`integration` 태그 — 기본 skip, `FakeInkClock`과 fake_async를 함께 진행, 펜 표본 8 ms). 이 작업 트리의 INK 컨트롤러는 기반 단계 표면(멈춤 감지 T39 전 — `shapePreview`가 늘 null)이라 지금은 돌리지 않았다 — 통합 단계에서 처음 판정.
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
+
+- (이 커밋, L2-06): **`GeometricShapeFitter.fit`이 실제로 판정한다**(직선·원·타원·삼각형·사각형·다각형, 낙서·작은 획 → null). `recognitionOverrides()`가 이미 `inkShapeFitterProvider`를 이것으로 바꾸므로(L2-07), INK의 멈춤 감지(T39)가 붙으면 EDITOR '도형 보정' 켬 → 500 ms 멈춤 → 미리보기 → 도형 추가가 바로 동작한다. INFRA V5b '합성 멈춤'의 `SyntheticShapes.rectanglePath`(가로·세로 모두)는 사각형·rect ≤ 1 pt가 보장된다.
 
 - (이 커밋, L2-15): **`recog.toText`와 획 선택의 `recog.copyText`가 텍스트 변환 창(`recog.sheet.toText`)을 연다** — 이제 `recognitionSelectionActions()`·`recognitionInsertActions()` 어느 동작도 '실행하지 못했어요.' 스낵바로 끝나지 않는다(INFRA V5 '자리마다 한 번 열기'). 줄 칸 `recog.sheet.line.<i>`·칩 `recog.sheet.chip.<i>.<j>`(부록 C), [텍스트 상자로] → `CompositeCommand([RemoveElements, AddObjects([TextBoxObject])], 'recog-to-text')` 1회 → `done()`, [복사] → 클립보드 + 확정 줄 `update`. 웹·엔진 없음은 고정 문장 + [닫기].
 

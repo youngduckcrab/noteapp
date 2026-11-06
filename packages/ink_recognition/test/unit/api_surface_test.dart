@@ -376,7 +376,7 @@ void main() {
         tuning: ShapeFitTuning(minDiagonalLogicalPx: 30),
       );
       expect(tuned.tuning.minDiagonalLogicalPx, 30);
-      // R2-B6: never fits (L2-06 adds the classifier).
+      // (L2-06) The classifier is in: a closed square → a rectangle.
       final ink.InkShapeFit? fit = port.fit(const [
         Offset.zero,
         Offset(100, 0),
@@ -384,7 +384,8 @@ void main() {
         Offset(0, 100),
         Offset.zero,
       ], viewScale: 1);
-      expect(fit, isNull);
+      expect(fit?.kind, core.ShapeKind.rectangle);
+      expect(fit!.score, inInclusiveRange(0, 1));
     });
 
     test('ShapeFitTuning defaults (05-library 4.4.5), ==, copyWith', () {

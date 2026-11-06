@@ -7,6 +7,7 @@
 // pages, lineAccuracy) gives the same numbers on dart2js. (L2-15) The
 // conversion sheet on the web: the fixed sentence and [닫기]. L2-20 adds the
 // remaining web cases (with useInkTestFonts in setUpAll).
+// (L2-06) The shape fitter's V9 cases (shared/shape_cases.dart) on dart2js.
 // (L2-18) The settings section on the web: the contract 7.4.2 sentence and a
 // disabled handwriting group — even with an available engine.
 @TestOn('browser')
@@ -23,6 +24,7 @@ import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
 
 import '../shared/line_cases.dart';
+import '../shared/shape_cases.dart';
 import '../shared/trace_cases.dart';
 import '../support/recognition_test_scope.dart';
 
@@ -163,4 +165,5 @@ void main() {
 
   defineHandwritingTraceTests();
   defineLineCaseTests();
+  defineShapeCaseTests(); // (L2-06) the same V9 on dart2js
 }
