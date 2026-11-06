@@ -309,8 +309,8 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-17a (P-B) | 완료 | 5c7165c | `widget/math_pad_engine_test.dart`, `widget/sheet_rules_test.dart`(+ 엔진 있는 패드), `unit/strings_contract_test.dart`(+ 패드 문구·`mathFailure`) |
 | L2-17b (P-B) | 완료 | 377bdff | `widget/to_math_test.dart`, `widget/sheet_rules_test.dart`(+ `recog.toMath` 엔진 없음), `unit/strings_contract_test.dart`(+ `toMathPrimary`) |
 | L2-18 (P-A / P-B) | 완료 — '품질 실험' [인식 실험 열기]는 L2-19에서 넣음, [수식 고정 자료 만들기]는 L2-22 | e2e83d2(P-A), eefe345(P-B) | `widget/settings_section_test.dart`(+ 'model rows (P-B)' 묶음), `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장·모델 행 '쓸 수 없음') (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/model_engine.dart` |
-| L2-19 (P-B, A-4 실험 창) | 완료 | (커밋 후 기록) | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` (+ `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart` 웹에 실험 진입 없음) |
-| L2-20 | 남음 | | `ink_recognition/test/web/recognition_browser_test.dart`, `feature_library/test/web/scenarios_browser_test.dart` |
+| L2-19 (P-B, A-4 실험 창) | 완료 | 5c1a6ab | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` (+ `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart` 웹에 실험 진입 없음) |
+| L2-20 | 완료 | (커밋 후 기록) | `ink_recognition/test/web/recognition_browser_test.dart`(31 — `setUpAll(useInkTestFonts)`·ML Kit 채널 호출 0회·`CallableMathRecognizer`+`MockClient`·바로 복사 동기 클립보드·패드 미리보기 배치 + 앞 세션의 웹 문장·`line_cases`·`shape_cases`·`trace_cases`), `feature_library/test/web/scenarios_browser_test.dart`(L2-04 — 18 통과) |
 | L2-22 (P-C) | 남음 | | `unit/math_fixture_export_test.dart`, `widget/math_pad_engine_test.dart` |
 | L2-I1 | 통합 단계 | | `ink_recognition/test/integration/real_core_indexer_test.dart`(`integration` — 미리 써 둠) |
 | L2-I2 | 통합 단계 | | `feature_library/test/integration/core_contract_test.dart` |
@@ -445,11 +445,12 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - CER: `SearchText.normalize` → 공백 지움 → 코드 포인트 레벤슈타인 ÷ 목표 길이. **묶음 CER = 합한 거리 ÷ 합한 길이**(문장 CER의 평균이 아님 — 말뭉치 CER). 빈 목표는 둘 다 비면 0, 아니면 1.
   - JSON(`JsonEncoder.withIndent`, `Clipboard.setData`는 `onPressed` 안 동기 시작): `kind 'recognition-lab'`·`version 1`·`engineId`·`platform`·`models`·`summary`(묶음별 `sentences`·`cer`, 열별 `latencyMs.median/max`)·`sentences`(인식한 문장만 — `index`·`group`·`target`·`lines`·`text`·`cer`·`ms` 또는 `error`). **획·점 없음**(시험이 키 이름으로 확인).
   - 새 문구(내부 `RecognitionStrings`): `labEntry`·`labTitle`·`labModelsNeeded`·`labWritePrompt`(목표 문장의 의미 안내)·`labRecognize`·`labPrevious`·`labNext`·`labCopyJson`·`labCopied`·`labSummary`·`labNotYet`·`labLatency`·`labProgress`·`labGroupName`·`labModeName`·`labGroupLine`·`labCer`·`labMs`·`labLatencyLine`. 문장 30개는 6.20 예시를 그대로 앞에 두고 나머지를 채웠다(개인 필기 아님).
+- L2-20 Chrome 묶음 마무리(`test/web/recognition_browser_test.dart`): `setUpAll`에서 `TestWidgetsFlutterBinding.ensureInitialized()` → `ink_testing.useInkTestFonts()`(C23-07). 'ML Kit 채널 호출 0회'는 플러그인 채널(`google_mlkit_digital_ink_recognizer`)에 기록하는 가짜를 걸고(계획 8.2 L2-20이 정한 확인 — 7.4.6 예외의 웹 짝) 엔진 `modelState`·`ensureModel`·`recognizeLine`, 변환 창 열고 닫기까지 돌린 뒤 기록이 빈 것을 본다. 수식 엔진은 `MockClient`로 요청 머리(`Authorization: Bearer`)·본문(`v: 1`, `t` 첫 점 기준 0)·응답(`engineId 'fake/1'`)을 dart2js에서 확인. 바로 복사는 run을 부른 직후(첫 `await` 전) `Clipboard.setData` 기록 1개. 패드 미리보기는 KaTeX 글꼴을 싣지 않고도 `MathPreview` 크기 > 0·예외 없음.
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
 
-- (L2-19 커밋): **설정 › 인식 › 품질 실험 [인식 실험 열기]**(안드로이드·iPad 앱만)로 A-4 실험 창이 열린다 — 사용자가 APK에서 ko·English 모델을 받고 30문장을 써서 [결과 JSON 복사] → 대화에 붙여 넣으면 묶음별 CER(A·en·B·페이지 좌표)·줄당 시간이 나온다(계약 7.8 A-4, 9.4 A-4). INFRA V5: 설정 섹션에 키 `recog.settings.lab`(부록 C)이 엔진이 있을 때만 보인다.
+- `5c1a6ab`(L2-19): **설정 › 인식 › 품질 실험 [인식 실험 열기]**(안드로이드·iPad 앱만)로 A-4 실험 창이 열린다 — 사용자가 APK에서 ko·English 모델을 받고 30문장을 써서 [결과 JSON 복사] → 대화에 붙여 넣으면 묶음별 CER(A·en·B·페이지 좌표)·줄당 시간이 나온다(계약 7.8 A-4, 9.4 A-4). INFRA V5: 설정 섹션에 키 `recog.settings.lab`(부록 C)이 엔진이 있을 때만 보인다.
 
 - `8d30baa`(L2-08): **안드로이드·iOS 네이티브에서 `recognitionOverrides()`가 ML Kit 어댑터를 준다** — 손글씨 변환 창·설정 모델 행·색인기가 실제 엔진으로 돈다(APK A-4로 품질 확인). INFRA에 알림: **VM 시험에서도**(`defaultTargetPlatform` = android) `handwritingRecognizerProvider`는 ML Kit 어댑터(`isAvailable` 참)이고 `handwritingIndexerProvider`는 색인기를 만든다 — 저장소 override가 꼭 있어야 하고, V5에서 '색인기 null'을 기대하던 단언은 바꿔야 한다. 채널 가짜 없이 돌면 `modelState` → `unsupported`(설정 행 '쓸 수 없음'), `ensureModel`·인식 → `RecognizerUnsupported`(색인기 `off`) — 예외가 밖으로 나가지 않는다. '엔진 없음' 화면을 시험하려면 `debugDefaultTargetPlatformOverride = TargetPlatform.linux` 또는 `FakeHandwritingRecognizer(isAvailable: false)`.
 
