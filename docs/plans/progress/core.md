@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 2차 동시 개발(세션 9 + 보완 1.1·1.2·1.3, 2026-11-06): **8.2의 T24~T37 중 T33b·T37의 PF-3·PF-4(검색 질의 예산 — 계약 V10)만 남고 나머지 완료**. PF-3·PF-4는 원문 예산(중앙값 ≤ 5 ms / 1글자 LIKE ≤ 15 ms)을 흔한 낱말 질의(후보 1,000~5,000개)가 20~46 ms로 넘는다 — 설계(후보 상한 2,000·가짜와 같은 판정)에 묶인 값이라 이 영역 혼자 닫을 수 없어 **변경 요청 [총괄] V10(계획 12.1 CP-18) 판정 대기**(아래 '## 2차' > '동시 개발' > '보완 1.1'). 마지막 작업 커밋은 T37(`b6c7bae`·`b1ce7ab`·`b05cd2a`)과 보완 1.1(`8f29456`·`6995ec1`). 보완 1.2·1.3은 같은 미비점 4건을 다시 받아 HEAD에서 확인만 했다(각각 기록 커밋 하나 — 검토 글이 보완 1.1 앞 상태 `9e29118`과 맞음, '보완 1.3' 절에 HEAD의 파일·행 표).
+- 2차 동시 개발(세션 9 + 보완 1.1·1.2·1.3, 2026-11-06): **8.2의 T24~T37 중 T33b·T37의 PF-3·PF-4(검색 질의 예산 — 계약 V10)만 남고 나머지 완료**. PF-3·PF-4는 원문 예산(중앙값 ≤ 5 ms / 1글자 LIKE ≤ 15 ms)을 흔한 낱말 질의(후보 1,000~5,000개)가 20~46 ms로 넘는다 — 설계(후보 상한 2,000·가짜와 같은 판정)에 묶인 값이라 이 영역 혼자 닫을 수 없어 **변경 요청 [총괄] V10(계획 12.1 CP-18) 판정 대기**(아래 '## 2차' > '동시 개발' > '보완 1.1'). 마지막 작업 커밋은 T37(`b6c7bae`·`b1ce7ab`·`b05cd2a`)과 보완 1.1(`8f29456`·`6995ec1`). 보완 1.2·1.3은 같은 미비점 4건을 다시 받아 HEAD에서 확인만 했다(각각 기록 커밋 하나 — 검토 글이 보완 1.1 앞 상태 `9e29118`과 맞음, '보완 1.3' 절에 HEAD의 파일·행 표). 보완 1.4(네 번째 — 같은 4건)에서 처음으로 load < 4에서 쟀다: 원문 V10은 흔한 낱말 7개가 여전히 19~31 ms(부하 탓이 아님 — 검토 1번 그대로), CP-18 제안의 아래 칸 경계(300·600개)는 여유가 없어 **100개로 고쳤다**('보완 1.4').
 - 2차 기반 단계 마지막: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
 - 2차 다음 할 일: 총괄의 CP-18 판정을 받아 PF-3·PF-4를 닫는다(승인 → `search_perf_test`의 'V10 as written' 시험을 지우고 'CP-18 as proposed' 시험이 판정, 거절 → 후보 상한·질의 설계 변경 — 7.2.5 계약 변경이 따름). 그리고 통합 단계(7.7 — I-1~I-7). 그 밖의 동시 개발 몫은 없다.
 - 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
@@ -404,11 +404,11 @@
 | T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
 | T32 | 완료 | 8cf5524 | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
 | T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
-| T33b | 진행 중 — **PF-3·PF-4만 남음**: 원문(V10) 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(아래 '보완 1.1'·'보완 1.2'). 나머지 완료 조건 시험은 통과 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
+| T33b | 진행 중 — **PF-3·PF-4만 남음**: 원문(V10) 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(아래 '보완 1.1'·'보완 1.2'). 나머지 완료 조건 시험은 통과 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4(CP-18 경계 100개 — '보완 1.4' 절) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
-| T37 | 진행 중 — **PF-3·PF-4만 남음**(T33b와 같은 이유). PF-1·PF-2·PF-5~PF-11·README·Chrome `perf`는 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
+| T37 | 진행 중 — **PF-3·PF-4만 남음**(T33b와 같은 이유). PF-1·PF-2·PF-5~PF-11·README·Chrome `perf`는 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4(README PF-3·PF-4 load < 4 값) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
 #### 00-review '최종 승인' CORE 항목 처리
@@ -425,7 +425,7 @@
 
 - 다른 영역이 기반 단계에서 CORE에 보낸 변경 요청: 없음(`/home/user/wt2/notes/*.md`에서 `[CORE]` 검색 — 2026-11-06).
 - 보낸 것:
-  - **[총괄] V10 · 7.7(검색 질의 예산) — CORE T33b, 2026-11-06**: '5,000쪽 합성 색인 질의 중앙값 ≤ 5 ms(VM)'는 **후보가 적은 질의**(≲ 150개 — 드문 2·3음절·낱말 중간·영문 접두사·AND)에서 맞는다(2~5 ms, load 5~6). 후보 상한 2,000을 채우는 **흔한 낱말**(합성 자료에서 거의 모든 쪽에 있는 2·3음절·영문 접두사·AND)은 27~41 ms다. 비용은 읽는 후보 수에 비례한다: 계약 7.2.5의 '살아 있는 후보만 2,000개, 최근 먼저'와 CP-14의 '가짜와 같은 판정·순서'를 지키려면 후보마다 살아있음 읽기(페이지·노트 색인 탐색 — 상한에서 ~3 ms)와 `norm`(쪽당 ~320자)을 SQLite에서 Dart로 옮겨 공용 판정·점수(~4 ms)를 해야 하고, `norm` 옮기기만 후보당 ~4 µs(상한에서 6~8 ms)다. FTS MATCH 자체는 1 ms(조사 03 9.2의 5 ms 근거는 MATCH만 잰 값). PF-4(1글자 LIKE ≤ 15 ms)도 1글자는 거의 늘 후보가 많아 576개 11~14 ms(낮은 부하)·상한 24~34 ms. **제안**(보완 1.1에서 고침 — 계획 12.1 **CP-18**, 판정 대기): V10(과 계획 6.19 PF-3·PF-4)을 '후보 300개 미만 질의 중앙값 ≤ 5 ms(1글자 LIKE는 600개 미만 ≤ 15 ms), **그 밖의 질의(후보 상한 2,000까지) ≤ 50 ms**(VM)'로. 처음 보낸 '후보 상한에 걸리는 질의 ≤ 40 ms'는 300~2,000개(상한에 걸리지 않는 1글자 LIKE 1,072개 등)를 빠뜨렸고, 영문 접두사 상한 질의가 load 5.5에서 43.7 ms라 40 ms에 여유가 없어 PF-10 질의 예산과 같은 50 ms로 올렸다. 예산을 그대로 두는 길은 후보 상한 낮추기(7.2.5 `SearchIndex.searchPages` 주석 '(v2.1) At most 2,000 candidates'·`LibrarySearchResult.pagesTruncated` 주석 변경 — 흔한 낱말에서 `pagesTruncated`가 늘 참이 되고 결과가 최근 단위 몇백 개로 좁아짐)인데, **상한 300 실험**(보완 1.1 — 임시로 바꿔 재고 되돌림)에서도 PF-3 흔한 낱말 5개 중 4개가 5.1~9.7 ms(load 6)였다 — FTS 접두사 확장과 결과 100쪽의 원문 읽기·발췌(≈ 3 ms)가 남아 상한 300으로도 5 ms를 지키지 못한다(상한 ≲ 150 또는 돌려주는 쪽 수 축소까지 필요). **판정 전까지(7.4.9 — 원문 유지)** `test/perf/search_perf_test.dart`의 'V10 as written' 시험이 원문 예산을 14개 질의 모두에 단언하고(지금 실패 — T33b·T37의 PF-3·PF-4는 '진행 중'), 'CP-18 as proposed' 시험이 제안 예산을 회귀 방지로 단언한다(V10 판정이 아님). 세션 6~9에는 제안 기준만 단언해 원문 기준 미달이 시험 결과에 보이지 않았다(검토 미비점 1 — 보완 1.1에서 고침).
+  - **[총괄] V10 · 7.7(검색 질의 예산) — CORE T33b, 2026-11-06**: '5,000쪽 합성 색인 질의 중앙값 ≤ 5 ms(VM)'는 **후보가 적은 질의**(≲ 150개 — 드문 2·3음절·낱말 중간·영문 접두사·AND)에서 맞는다(2~5 ms, load 5~6). 후보 상한 2,000을 채우는 **흔한 낱말**(합성 자료에서 거의 모든 쪽에 있는 2·3음절·영문 접두사·AND)은 27~41 ms다. 비용은 읽는 후보 수에 비례한다: 계약 7.2.5의 '살아 있는 후보만 2,000개, 최근 먼저'와 CP-14의 '가짜와 같은 판정·순서'를 지키려면 후보마다 살아있음 읽기(페이지·노트 색인 탐색 — 상한에서 ~3 ms)와 `norm`(쪽당 ~320자)을 SQLite에서 Dart로 옮겨 공용 판정·점수(~4 ms)를 해야 하고, `norm` 옮기기만 후보당 ~4 µs(상한에서 6~8 ms)다. FTS MATCH 자체는 1 ms(조사 03 9.2의 5 ms 근거는 MATCH만 잰 값). PF-4(1글자 LIKE ≤ 15 ms)도 1글자는 거의 늘 후보가 많아 576개 11~14 ms(낮은 부하)·상한 24~34 ms. **제안**(보완 1.1·1.4에서 고침 — 계획 12.1 **CP-18**, 판정 대기): V10(과 계획 6.19 PF-3·PF-4)을 '후보 **100개 미만** 질의 중앙값 ≤ 5 ms(1글자 LIKE는 ≤ 15 ms), **그 밖의 질의(후보 상한 2,000까지) ≤ 50 ms**(VM)'로. (보완 1.4) 보완 1.1의 경계 '300개 미만(1글자 LIKE 600개 미만)'은 load < 4에서도 여유가 없었다 — 136개·결과 100쪽 질의 3.3~5.2 ms, 576개 1글자 LIKE 14.2~15.8 ms(여덟 번, 아래 '보완 1.4'). 비용은 읽는 후보 수와 돌려주는 쪽 수(100까지 — 원문·발췌 ≈ 3 ms)에 함께 비례하고 1글자 LIKE에는 5,000단위를 다 훑는 바닥값이 더해져, 후보 100개 미만이면 5 ms 안(38~65개 1.5~3.2 ms)이다. 처음 보낸 '후보 상한에 걸리는 질의 ≤ 40 ms'는 300~2,000개(상한에 걸리지 않는 1글자 LIKE 1,072개 등)를 빠뜨렸고, 영문 접두사 상한 질의가 load 5.5에서 43.7 ms라 40 ms에 여유가 없어 PF-10 질의 예산과 같은 50 ms로 올렸다. 예산을 그대로 두는 길은 후보 상한 낮추기(7.2.5 `SearchIndex.searchPages` 주석 '(v2.1) At most 2,000 candidates'·`LibrarySearchResult.pagesTruncated` 주석 변경 — 흔한 낱말에서 `pagesTruncated`가 늘 참이 되고 결과가 최근 단위 몇백 개로 좁아짐)인데, **상한 300 실험**(보완 1.1 — 임시로 바꿔 재고 되돌림)에서도 PF-3 흔한 낱말 5개 중 4개가 5.1~9.7 ms(load 6)였다 — FTS 접두사 확장과 결과 100쪽의 원문 읽기·발췌(≈ 3 ms)가 남아 상한 300으로도 5 ms를 지키지 못한다(상한 ≲ 150 또는 돌려주는 쪽 수 축소까지 필요). **판정 전까지(7.4.9 — 원문 유지)** `test/perf/search_perf_test.dart`의 'V10 as written' 시험이 원문 예산을 14개 질의 모두에 단언하고(지금 실패 — T33b·T37의 PF-3·PF-4는 '진행 중'), 'CP-18 as proposed' 시험이 제안 예산을 회귀 방지로 단언한다(V10 판정이 아님). 세션 6~9에는 제안 기준만 단언해 원문 기준 미달이 시험 결과에 보이지 않았다(검토 미비점 1 — 보완 1.1에서 고침).
 
 #### 의존성 요청 (동시 개발)
 
@@ -866,6 +866,51 @@ HEAD에서 바로 볼 곳:
 | `ws check` | R1~R16 위반 0·경고 0 | 1분 45초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 21초 |
 
+#### 보완 1.4 — 같은 미비점 4건 네 번째, 처음으로 load < 4에서 잼 (2026-11-06)
+
+받은 4건은 보완 1.1·1.2·1.3과 **글자까지 같다**('8 of its 14', '형' 16.73 ms, load 9~12). 검토 글은 보완 1.1 앞 상태(`9e29118` — `search_perf_test`에 `kHeldBelow` 시험 하나, 계획에 CP-18 없음)와 맞는다. 통합 브랜치(`/home/user/noteapp`, `462bdfe` — 계약 v2.4 C24-01·02)에는 `area2/core`가 아직 병합되지 않았고(`search_perf_test.dart` 없음), v2.4에 V10·CP-18 판정은 없다. HEAD에서 하나씩 다시 확인했다.
+
+| 미비점 | HEAD에서 | 상태 |
+|---|---|---|
+| 1 PF-3·PF-4를 약한 기준으로만 단언, 'recorded only' 8개 | `packages/note_core/test/perf/search_perf_test.dart` 88행 'PF-3/4 (V10 as written)' — 14개 질의 **모두** 원문 예산(PF-3 ≤ 5 ms, PF-4 ≤ 15 ms) 단언, 지금 실패(기록만 하는 질의 없음). 103행 'CP-18 as proposed' — 제안 예산의 회귀 방지(판정 아님). 진행 기록 작업 표 T33b·T37 '진행 중 — PF-3·PF-4만 남음', 'T37' 절 755행에 '정정(보완 1.1)'. 1.1 앞 상태의 'recorded only'는 8개가 아니라 7개(PF-3 5 + PF-4 2 — 후보 수는 시드 3으로 정해져 있음) | 처리됨(`6995ec1`). **닫기는 막힘** — [총괄] V10(계획 12.1 CP-18) 판정 대기. 검토자의 '낮은 부하로도 닫히지 않는다'는 이번 load < 4 측정으로 확인(아래) |
+| 2 '형'(576개)이 부하에서 15 ms 넘음 — I-6 메모 | '다음 세션 메모' ①. 이번에 load < 4에서도 14.2~15.8 ms였다 — 부하만의 문제가 아니라 CP-18 제안의 아래 칸 경계(600개)에 여유가 없었다 | **고침**(이 커밋): CP-18 제안의 경계를 300·600개 → **100개**로(아래) |
+| 3 6.19 PF-10 '≤ 20 ms [추측]' | `docs/plans/m5-7/02-core.md` 2265행(6.19 PF-10 '질의 ≤ 50 ms(T33b 첫 측정 32~42 ms로 확정 — 같은 프로세스 저장소에서 단언, 네이티브 저장소는 기록만 …)'), 2039행(6.10.7 같은 말) | 처리됨(`8f29456`) |
+| 4 12.1에 V10 변경 요청 없음 | 같은 문서 2610행 **CP-18**(판정 '대기'), 2589행 12.1 머리 '동시 개발 중 새 제안: CP-18(판정 대기)', 2258·2259행 PF-3·PF-4 'CP-18 판정 대기 — 승인 전까지 이 원문으로 판정(7.4.9)' | 처리됨(`8f29456`) — 이번에 CP-18 행의 제안 문구·근거를 고침 |
+
+- 측정(13:07~13:13, **load 1.5~3.9**(1분 평균, 시험 자신 포함) — 다른 영역이 잠시 쉬던 때, 같은 파일 여덟 번; 앞 다섯 번은 옛 경계, 뒤 세 번은 고친 경계로):
+
+  | 질의 (후보 수, 결과 쪽) | 원문 예산 | load < 4 여덟 번 |
+  |---|---|---|
+  | PF-3 흔한 낱말 5개 — 2음절(4,967)·3음절(3,633)·낱말 중간(3,633)·영문 접두사(2,558)·AND(2,539), 결과 100쪽 | 5 ms | 21.9~31.3 ms(질의별 걬윛 21.9~29.3 · 쿜닀뀝 24.7~29.3 · 닀뀝 22.5~25.2 · jiz 23.1~31.3 · AND 26.0~30.0) |
+  | PF-3 2음절 '뫺믭' (136, 100) | 5 | 3.3~5.2 ms(여덟 번 중 한 번 5.17) |
+  | PF-3 드문 질의 5개 (38~65, 38~65) | 5 | 1.5~3.2 ms |
+  | PF-4 1글자 '가' (4,995, 100) · '섘' (1,072, 100) | 15 | 20.1~22.6 · 18.8~21.5 ms |
+  | PF-4 1글자 '형' (576, 100) | 15 | 14.2~15.8 ms(값을 본 일곱 번 중 다섯 번 15 ms 이상) |
+  | PF-5 5,000쪽 `replaceUnits` | 기록 | 5.7~6.4 s |
+
+  - 'V10 as written': 여덟 번 모두 **실패**(흔한 낱말 7개 — 부하가 낮아도 19~31 ms, 검토 1번의 '설계에 묶인 값'과 같음 — 여기에 '형'·'뫺믭'이 번갈아 더해짐).
+  - 'CP-18 as proposed'(옛 경계 300·600개): 다섯 번 중 한 번만 통과 — '형'(576개 < 600 → 15 ms 칸)과 '뫺믭'(136개 < 300 → 5 ms 칸)이 load < 4에서도 예산 경계. 즉 보완 1.1의 제안은 정식 판정 조건(9.1 load < 4)에서도 통과가 보장되지 않았다.
+  - 고친 경계(100개)로 세 번: 모두 통과(가장 큰 값 흔한 낱말 29.3 ms·1글자 LIKE 21.8 ms — '그 밖 ≤ 50 ms'; 드문 질의 3.2 ms 이하 — 5 ms). 옛 경계 다섯 번 중 값을 다 본 두 번도 고친 경계로는 통과.
+- **고친 것(이 커밋 하나)**: CP-18 제안을 '후보 **100개 미만** 질의 ≤ 5 ms(1글자 LIKE ≤ 15 ms), 그 밖(후보 상한 2,000까지) ≤ 50 ms(VM)'로 — 비용이 읽는 후보 수와 돌려주는 쪽 수(100까지 — 원문·발췌 ≈ 3 ms)에 함께 비례하고(1글자 LIKE는 5,000단위를 다 훑는 바닥값이 더해짐), 후보 100개 미만이면 쪽 수도 100 미만이라 5 ms에 1 ms 넘는 여유가 있다. 이 합성 자료에서 1글자 질의는 가장 드문 것도 576개라 PF-4의 15 ms 칸에 드는 질의는 없다(모두 50 ms 칸 — CP-18 행에 적음).
+  - `test/perf/search_perf_test.dart`: `kHeldBelow`를 `{'PF-3': 300, 'PF-4': 600}` → `100`(한 값), 머리 주석·시험 이름. 'V10 as written'은 그대로(판정).
+  - 계획 `02-core.md`: 머리 '동시 개발 중 고친 곳' 줄, 6.19 PF-3·PF-4 행, 12.1 CP-18 행(제안 문구·고친 까닭·load < 4 근거·비용 모양).
+  - README 성능표 PF-3·PF-4 행에 load < 4 값.
+  - 진행 기록: 요약, 작업 표 T33b·T37 커밋 열, 변경 요청 [총괄] V10의 제안 문구, '다음 세션 메모' ①·'검색 질의 예산'.
+- 막힘(그대로): V10 원문 판정은 이 영역 혼자 닫을 수 없다 — 예산 문구(7.7.2 V10)도, 이름이 붙은 유일한 대안인 후보 상한 낮추기(7.2.5 '(v2.1) At most 2,000 candidates')도 계약이고, 상한 300 실험(보완 1.1)으로도 모자랐다. 판정 뒤 할 일은 '다음 세션 메모' ④.
+
+커밋: 이 커밋 하나(시험 경계·계획·README·진행 기록).
+
+확인 (2026-11-06 보완 1.4, load 1.5~4 측정 뒤 다른 영역 시험이 다시 돌기 시작)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(326개 파일) | 4초 · 3초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 88초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 50` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 183초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (여덟 번, load 1.5~3.9) | 'V10 as written' 여덟 번 모두 **실패**(흔한 낱말 7개 — 판정 대기라 예상한 결과). 'CP-18 as proposed' 옛 경계 다섯 번 중 한 번 통과, 고친 경계 세 번 모두 통과 | 각 13~20초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 69초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T33a: 6.10.3 '쓰기 훅' 위치는 `WriteTxn.putLocal`·`putRemote` 한 곳(내부 `TxnIndexHooks`)으로 — 세션·undo·`createNote`·손글씨 저장소·원격 적용이 모두 지난다. 같은 `sourceRev`·보류 아님이면 다시 쓰지 않는다(계획에 없음 — 같은 버전 재적용). 원격 고아 텍스트·수식은 단위 없이 소유자만 두었다가 페이지가 오면(`_adoptOrphans`) 다시 색인한다. 보류 표시는 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`(소유자 행이 없으면 `source_rev ''`).
@@ -908,9 +953,9 @@ HEAD에서 바로 볼 곳:
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T34, T29(세션 6·7), T36(세션 7), T35·T25b(세션 8). **T33b·T37은 PF-3·PF-4만 남음** — 원문 V10 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(보완 1.1). 판정이 오기 전에 이 영역이 할 일은 없다. 통합 단계(8.3 I-1~I-7)에서 할 것: ① 성능 예산을 load < 4에서 다시 판정(9.1 — 이 컨테이너에서는 부하가 4~19라 PF-2·PF-3(136개 질의)·PF-10 질의가 부하 높은 실행에서 넘었다가 낮을 때 다시 재서 통과; 'T37' 절). I-6의 V10 판정 메모(검토 미비점 2): 제안 기준(CP-18)으로도 경계인 질의가 둘 있다 — PF-4 1글자 '형'(576개) 14.3 ms(load 5) · 15.9(load 5.5) · 16.7(load 9~12 — 검토자), PF-3 2음절 '뫺믭'(136개, 결과 100쪽) 4.5~9.8 ms(load 4~9). 보완 1.2(load 5~8)에서는 '형' 21.2·16.1 ms, '뫺믭' 5.8·8.3 ms, 그리고 제안의 '그 밖 ≤ 50 ms'에 AND 흔함 '걬윛 jizav'(2,539개)가 한 번 50.8 ms(다른 실행 33.4 ms). 보완 1.3(load 11.3)에서는 '형' 17.46 ms, '뫺믭' 5.24 ms, AND 흔함 41.85 ms. 부하 높은 실행의 실패는 load < 4에서 다시 잰다, ② INFRA 웹 예산표에 PF-10 크기·PF-10w 값 옮기기(INFRA 몫 — 값은 README 성능표), ③ 실기기(9.5 A-c1·B-13)에서 네이티브·웹 검색 시간 — 네이티브 저장소의 PF-10 질의는 후보 행이 drift 배경 isolate를 건너는 값이 더해진다(VM 기록 35~67 ms, 같은 프로세스 20~37 ms), ④ 변경 요청 [총괄] V10(CP-18)의 답이 오면 `search_perf_test`를 맞춤 — 승인: 'V10 as written' 시험을 지우고 계획 6.19 PF-3·PF-4 행·6.10.7을 새 문구로, 거절: 후보 상한·질의 설계를 바꿈(상한 300 실험 값은 '보완 1.1').
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T34, T29(세션 6·7), T36(세션 7), T35·T25b(세션 8). **T33b·T37은 PF-3·PF-4만 남음** — 원문 V10 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(보완 1.1). 판정이 오기 전에 이 영역이 할 일은 없다. 통합 단계(8.3 I-1~I-7)에서 할 것: ① 성능 예산을 load < 4에서 다시 판정(9.1 — 이 컨테이너에서는 부하가 4~19라 PF-2·PF-3(136개 질의)·PF-10 질의가 부하 높은 실행에서 넘었다가 낮을 때 다시 재서 통과; 'T37' 절). I-6의 V10 판정 메모(검토 미비점 2): 제안 기준(CP-18)으로도 경계인 질의가 둘 있다 — PF-4 1글자 '형'(576개) 14.3 ms(load 5) · 15.9(load 5.5) · 16.7(load 9~12 — 검토자), PF-3 2음절 '뫺믭'(136개, 결과 100쪽) 4.5~9.8 ms(load 4~9). 보완 1.2(load 5~8)에서는 '형' 21.2·16.1 ms, '뫺믭' 5.8·8.3 ms, 그리고 제안의 '그 밖 ≤ 50 ms'에 AND 흔함 '걬윛 jizav'(2,539개)가 한 번 50.8 ms(다른 실행 33.4 ms). 보완 1.3(load 11.3)에서는 '형' 17.46 ms, '뫺믭' 5.24 ms, AND 흔함 41.85 ms. **보완 1.4(load 1.5~3.9, 여덟 번)**: '형' 14.2~15.8 ms(값을 본 일곱 번 중 다섯 번 15 ms 넘음), '뫺믭' 3.3~5.2 ms — 낮은 부하에서도 경계라 CP-18 제안의 경계를 100개로 고쳤고(두 질의는 이제 '그 밖 ≤ 50 ms' 칸), 고친 경계로 값을 다 본 다섯 번 모두 통과. 흔한 낱말 PF-3 22~31 ms·1글자 LIKE 19~23 ms(그 밖 칸 50 ms에 여유). 부하 높은 실행의 실패는 load < 4에서 다시 잰다, ② INFRA 웹 예산표에 PF-10 크기·PF-10w 값 옮기기(INFRA 몫 — 값은 README 성능표), ③ 실기기(9.5 A-c1·B-13)에서 네이티브·웹 검색 시간 — 네이티브 저장소의 PF-10 질의는 후보 행이 drift 배경 isolate를 건너는 값이 더해진다(VM 기록 35~67 ms, 같은 프로세스 20~37 ms), ④ 변경 요청 [총괄] V10(CP-18)의 답이 오면 `search_perf_test`를 맞춤 — 승인: 'V10 as written' 시험을 지우고 계획 6.19 PF-3·PF-4 행·6.10.7을 새 문구로, 거절: 후보 상한·질의 설계를 바꿈(상한 300 실험 값은 '보완 1.1').
 - T35(세션 8): 블롭 묶음은 내부 `BlobDatabase`(`assets/blob_store.dart` — `chunks`·`thumbnails`·`close`), 구현 `IdbBlobDatabase`·`FileBlobDatabase`(`assets/file_blob_store_native.dart`). `DriftNoteStore.open(blobDatabase:)`가 있으면 그것, 없으면 `blobFactory`의 IndexedDB. 실제 네이티브 열기는 `openNoteStore` → `connect_native.openFileBlobDatabase`. 시험 도구: `perf_support.openNativeFileStore(tag)`, `native_file_store_test`의 `config()`. 읽기 전용 사례는 root에서 건너뜀(CI 비 root에서 돈다).
-- 검색 질의 예산: 변경 요청 [총괄] V10(CP-18)의 답이 오면 `test/perf/search_perf_test.dart`를 맞춘다 — 'CP-18 as proposed' 시험의 `kHeldBelow`(300·600)·`kProposedOtherBudget`(50 ms)가 제안 값이다(보완 1.1에서 40 → 50 ms). 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
+- 검색 질의 예산: 변경 요청 [총괄] V10(CP-18)의 답이 오면 `test/perf/search_perf_test.dart`를 맞춘다 — 'CP-18 as proposed' 시험의 `kHeldBelow`(100 — 보완 1.4에서 300·600 → 100)·`kProposedOtherBudget`(50 ms — 보완 1.1에서 40 → 50 ms)가 제안 값이다. 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
 - T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
 - 영구 삭제(T29 ①, 세션 6에 끝남): `deleteNoteContents`가 객체·손글씨·그 노트의 색인 행·초안까지 지운다(아래 'T29 ①' 절).

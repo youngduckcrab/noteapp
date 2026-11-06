@@ -434,9 +434,9 @@ and take 20 ~ 46 ms — change request CP-18 (plan 12.1) waits for a ruling:
 |---|---|---|---|
 | PF-1 | `openPage`, 2,000 objects + 2,000 strokes (`object_page_perf_test`) | ≤ 400 ms | 196 ~ 227 ms |
 | PF-2 | `execute(UpdateObjects 1)` on 2,000 objects | mean ≤ 2 ms | 0.64 ~ 0.88 ms (2.04 at load 13) |
-| PF-3 | 5,000-page index: 2-, 3-syllable, word-middle, Latin prefix, AND queries (`search_perf_test`) | median ≤ 5 ms (V10) | **not met**: under 300 candidates 1.7 ~ 4.7 ms (load 5; 136 candidates / 100 pages up to 8.8 ms at load 9); frequent words, 2,500 ~ 5,000 candidates: 24 ~ 46 ms |
-| PF-4 | same index, 1-syllable LIKE | median ≤ 15 ms (V10) | **not met**: 576 candidates 14.3 ~ 16.7 ms; 1,072 / 4,995 candidates 20 ~ 27 / 20 ~ 23 ms |
-| PF-5 | 5,000 × `replaceUnits` (pdf) | record only | 6.9 ~ 7.3 s |
+| PF-3 | 5,000-page index: 2-, 3-syllable, word-middle, Latin prefix, AND queries (`search_perf_test`) | median ≤ 5 ms (V10) | **not met**: at load < 4 (8 runs), 38 ~ 65 candidates 1.5 ~ 3.2 ms, 136 candidates / 100 pages 3.3 ~ 5.2 ms; frequent words, 2,500 ~ 5,000 candidates: 22 ~ 31 ms (24 ~ 46 ms at load 5 ~ 9) |
+| PF-4 | same index, 1-syllable LIKE | median ≤ 15 ms (V10) | **not met**: at load < 4, 576 candidates 14.2 ~ 15.8 ms; 1,072 / 4,995 candidates 18.8 ~ 21.5 / 20.1 ~ 22.6 ms (20 ~ 27 ms at load 5 ~ 9) |
+| PF-5 | 5,000 × `replaceUnits` (pdf) | record only | 5.7 ~ 7.3 s |
 | PF-6 | `stalePages` 20 × 1,000 strokes: first / one page changed | ≤ 150 / ≤ 10 ms | 54 / 5.6 ms |
 | PF-7 | draft `append` 8 KiB: test store / native file blobs | median ≤ 10 ms | 4.4 / 5.9 ms |
 | PF-8 | V7 fixture v1 → v2 with the v1 copy (`migration_perf_test`) | ≤ 1 s | 68 ms (43 ms without the copy step) |

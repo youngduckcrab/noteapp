@@ -15,7 +15,9 @@
 //   judgement (plan 10장 #1), at load < 4 (plan 9.1).
 // - 'CP-18 as proposed' holds the queries with fewer candidates than [kHeldBelow] to the same
 //   budgets and every other query to [kProposedOtherBudget] — the budget the change request
-//   proposes, kept as a regression guard meanwhile. It is not the V10 judgement.
+//   proposes, kept as a regression guard meanwhile. It is not the V10 judgement. (Review 1.4:
+//   the threshold was 300 candidates, 600 for LIKE; at load < 4 the 136-candidate query took
+//   up to 5.2 ms and the 576-candidate LIKE query 14.2 to 15.8 ms, so it is now 100 for both.)
 // ignore_for_file: avoid_print
 @TestOn('vm')
 @Tags(['perf'])
@@ -42,8 +44,8 @@ const Map<String, Duration> kBudget = {
   'PF-4': Duration(milliseconds: 15),
 };
 
-/// CP-18 (pending): queries with fewer candidates than these keep [kBudget] …
-const Map<String, int> kHeldBelow = {'PF-3': 300, 'PF-4': 600};
+/// CP-18 (pending): queries with fewer candidates than this keep [kBudget] …
+const int kHeldBelow = 100;
 
 /// … and every other query (up to the 2,000-candidate cap) is held to this.
 const Duration kProposedOtherBudget = Duration(milliseconds: 50);
@@ -98,8 +100,8 @@ void main() {
     );
   });
 
-  test('PF-3/4 (CP-18 as proposed, pending): under ${kHeldBelow['PF-3']} '
-      'candidates ≤ 5 ms (LIKE: under ${kHeldBelow['PF-4']}, ≤ 15 ms), '
+  test('PF-3/4 (CP-18 as proposed, pending): under $kHeldBelow '
+      'candidates ≤ 5 ms (1-syllable LIKE ≤ 15 ms), '
       'others ≤ ${kProposedOtherBudget.inMilliseconds} ms', () {
     expect(measured, hasLength(14));
     expect(
@@ -115,7 +117,7 @@ void main() {
 
 /// The budget change request CP-18 proposes for [q].
 Duration proposedBudget(QueryTime q) =>
-    q.candidates < kHeldBelow[q.id]! ? kBudget[q.id]! : kProposedOtherBudget;
+    q.candidates < kHeldBelow ? kBudget[q.id]! : kProposedOtherBudget;
 
 String describe(QueryTime q) =>
     '${q.id} ${q.name} "${q.query}": ${ms(q.median)} ms '
