@@ -8,7 +8,8 @@
 // goldens/pen_preview.png), the brush draws with its own profile, and all five
 // P1 pens draw without exceptions (those still on the ballpoint fallback too).
 // T28~T31 add their rows: T29 the dashed preview (dashedPolyline — dashes and
-// gaps of style.dashPattern × width along the line).
+// gaps of style.dashPattern × width along the line), T31 the tape preview
+// (the covered shape, opaque, with stripes when striped).
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
@@ -20,6 +21,7 @@ import 'package:ink_engine/src/render/highlighter_compositor.dart';
 import 'package:ink_engine/src/render/pen_preview.dart'
     show penPreviewScript, penPreviewStrokeOf;
 import 'package:ink_engine/src/render/stroke_painter.dart';
+import 'package:ink_engine/src/render/tape_painter.dart' show tapeStripeColor;
 import 'package:note_core/note_core.dart' as core;
 
 import '../support/pixels.dart';
@@ -293,8 +295,60 @@ void main() {
     }
   });
 
+  testWidgets('v2: the tape preview — the covered shape (opaque even at '
+      'opacity 0.3), stripes when striped, never the revealed border (T31)', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(400, 200);
+    addTearDown(tester.view.reset);
+    const tape = 0xFF7E57C2;
+    bool near(List<int> p, int argb, int tol) => samePixel(p, [
+      (argb >> 16) & 0xFF,
+      (argb >> 8) & 0xFF,
+      argb & 0xFF,
+      255,
+    ], tol: tol);
+    final y = (_size.height / 2).round();
+    for (final striped in [false, true]) {
+      final style = _style(core.PenTool.tape, width: 14)
+          .copyWith(opacity: 0.3)
+          .withInkExtras(
+            tapeStyle: striped ? InkTapeStyle.striped : InkTapeStyle.solid,
+          );
+      final built = penPreviewStrokeOf(style, PenPreviewShape.line, _size)!;
+      expect(built.stroke.profile, same(PenProfile.tape));
+      expect(built.stroke.layer, InkLayer.cover);
+      await tester.pumpWidget(
+        _app(PenPreviewPainter(style: style, shape: PenPreviewShape.line)),
+      );
+      expect(tester.takeException(), isNull);
+      final px = await _shot(tester);
+      var solid = 0, dark = 0, other = 0;
+      for (var x = 60; x < 180; x++) {
+        final p = px.at(x, y);
+        if (near(p, tape, 3)) {
+          solid++;
+        } else if (near(p, tapeStripeColor(tape).toARGB32(), 30)) {
+          dark++;
+        } else {
+          other++;
+        }
+      }
+      expect(other, lessThan(4), reason: 'opaque: no paper shows through');
+      if (striped) {
+        expect(dark, greaterThan(10), reason: 'stripes');
+        expect(solid, greaterThan(40));
+      } else {
+        expect(dark, 0);
+        expect(solid, 120);
+      }
+    }
+  });
+
   testWidgets('v2: every P1 pen draws ink without exceptions (ballpoint '
-      'fallback until T28, T30, T31)', (tester) async {
+      'fallback until T28, T30)', (tester) async {
     tester.view
       ..devicePixelRatio = 1
       ..physicalSize = const Size(400, 200);

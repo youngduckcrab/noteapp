@@ -335,6 +335,7 @@ abstract final class InkVectorExport {
     final groups = <HighlighterGroupKey, _GroupBuilder>{};
     final groupOrder = <_GroupBuilder>[];
     final shapes = <InkFillShape>[];
+    final cover = <InkFillShape>[];
     Rect? bounds;
     void include(Rect r) =>
         bounds = bounds == null ? r : bounds!.expandToInclude(r);
@@ -358,6 +359,24 @@ abstract final class InkVectorExport {
           ),
         );
         include(line.bounds);
+        continue;
+      }
+      if (s.layer == InkLayer.cover) {
+        // (m5-7 T31, 6.7-8) a tape: always the covered shape, opaque, whatever the
+        // reveal state on screen (stripes are one color in PDF — 12.2 Q8)
+        final outline = OutlineGenerator.outline(s);
+        final path = outline.toVectorPath(smooth: options.smooth);
+        if (path.verbs.isEmpty) continue;
+        cover.add(
+          InkFillShape._(
+            strokeId: s.id,
+            tool: s.style.tool,
+            path: path,
+            colorArgb: _opaque(s.style.colorArgb),
+            opacity: 1,
+          ),
+        );
+        include(outline.bounds);
         continue;
       }
       final opacity = _fillOpacity(s, options.pencilOpacityFactor);
@@ -387,6 +406,7 @@ abstract final class InkVectorExport {
           ),
       ]),
       inkShapes: List.unmodifiable(shapes),
+      cover: List.unmodifiable(cover),
       bounds: bounds ?? Rect.zero,
     );
   }

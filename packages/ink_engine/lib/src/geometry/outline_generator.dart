@@ -367,6 +367,7 @@ abstract final class OutlineGenerator {
           i,
           squareStart: squareEnds && start == 0,
           squareEnd: squareEnds && last,
+          sharpCorners: spec.squareDot,
           options: options,
         ),
       );
@@ -444,6 +445,7 @@ abstract final class OutlineGenerator {
     required bool squareStart,
     required bool squareEnd,
     required OutlineOptions options,
+    bool sharpCorners = false,
   }) {
     // O2 point tangents: the adjacent segment at the run ends.
     final count = b - a + 1;
@@ -534,6 +536,13 @@ abstract final class OutlineGenerator {
     final right = side(-1);
     final out = _Coords(left.length + right.length + 4 * _maxCapPoints(options))
       ..addAll(left);
+    // (m5-7 T31) the square cap corners of the tape: kept by O8 and listed twice, so
+    // the smooth path keeps them sharp (the midpoint of a repeated vertex is the
+    // vertex itself — like the square dot of T27)
+    final corners = <int>[];
+    if (sharpCorners && squareEnd) {
+      corners.addAll([out.length ~/ 2, out.length ~/ 2 + 1]);
+    }
     // O6 end cap: L_b → p_b + τ·r → R_b
     _cap(
       out,
@@ -549,6 +558,9 @@ abstract final class OutlineGenerator {
     for (var i = right.length - 2; i >= 0; i -= 2) {
       out.add(right.data[i], right.data[i + 1]);
     }
+    if (sharpCorners && squareStart) {
+      corners.addAll([out.length ~/ 2, out.length ~/ 2 + 1]);
+    }
     // O6 start cap: R_a → p_a − τ·r → L_a
     _cap(
       out,
@@ -563,8 +575,14 @@ abstract final class OutlineGenerator {
     );
 
     final poly = Float32List(out.length)..setRange(0, out.length, out.data);
-    _orientPositive(poly); // O7
-    return _simplify(poly, rs, a, b, options); // O8
+    final reversed = _orientPositive(poly); // O7
+    if (corners.isEmpty) return _simplify(poly, rs, a, b, options); // O8
+    final m = poly.length ~/ 2;
+    final sharp = List<bool>.filled(m, false);
+    for (final k in corners) {
+      sharp[reversed ? m - 1 - k : k] = true;
+    }
+    return _simplify(poly, rs, a, b, options, sharp: sharp); // O8
   }
 
   /// The cap vertices strictly between the two side points around (cx, cy).
@@ -609,20 +627,22 @@ abstract final class OutlineGenerator {
   /// the smallest radius of the run, so the thinnest strokes keep their shape;
   /// a result with fewer than 3 vertices keeps the polygon as it is. The kept
   /// vertices are a subset, so the bounds can only shrink (K-1 still holds).
+  /// [sharp]: vertices that are always kept and then listed twice (T31 square caps).
   static Float32List _simplify(
     Float32List poly,
     Float64List rs,
     int a,
     int b,
-    OutlineOptions options,
-  ) {
+    OutlineOptions options, {
+    List<bool>? sharp,
+  }) {
     var minR = double.infinity;
     for (var i = a; i <= b; i++) {
       minR = math.min(minR, rs[i]);
     }
     final tol = math.min(options.simplifyTolerance, 0.25 * minR);
     final count = poly.length ~/ 2;
-    if (!(tol > 0) || count < 4) return poly;
+    if (!(tol > 0) || count < 4) return _doubled(poly, sharp, null);
     final keep = List<bool>.filled(count, false);
     // rdpMark with the error segmentDistance(…) / tol, inlined (T22 B1: the
     // closure call was most of the outline time); the same arithmetic.
@@ -670,23 +690,47 @@ abstract final class OutlineGenerator {
         ..add(at)
         ..add(j);
     }
+    if (sharp != null) {
+      for (var i = 0; i < count; i++) {
+        if (sharp[i]) keep[i] = true;
+      }
+    }
     var kept = 0;
     for (final k in keep) {
       if (k) kept++;
     }
-    if (kept == count || kept < 3) return poly;
-    final out = Float32List(kept * 2);
+    if (kept == count || kept < 3) return _doubled(poly, sharp, null);
+    return _doubled(poly, sharp, keep);
+  }
+
+  /// The [keep] vertices of [poly] (all when null), each [sharp] one twice.
+  static Float32List _doubled(
+    Float32List poly,
+    List<bool>? sharp,
+    List<bool>? keep,
+  ) {
+    if (sharp == null && keep == null) return poly;
+    final count = poly.length ~/ 2;
+    var n = 0;
+    for (var i = 0; i < count; i++) {
+      if (keep != null && !keep[i]) continue;
+      n += sharp != null && sharp[i] ? 2 : 1;
+    }
+    final out = Float32List(n * 2);
     var o = 0;
     for (var i = 0; i < count; i++) {
-      if (!keep[i]) continue;
-      out[o++] = poly[2 * i];
-      out[o++] = poly[2 * i + 1];
+      if (keep != null && !keep[i]) continue;
+      for (var t = sharp != null && sharp[i] ? 2 : 1; t > 0; t--) {
+        out[o++] = poly[2 * i];
+        out[o++] = poly[2 * i + 1];
+      }
     }
     return out;
   }
 
-  static void _orientPositive(Float32List poly) {
-    if (signedArea(poly) >= 0) return;
+  /// O7; true when [poly] was reversed.
+  static bool _orientPositive(Float32List poly) {
+    if (signedArea(poly) >= 0) return false;
     final m = poly.length ~/ 2;
     for (var i = 0, j = m - 1; i < j; i++, j--) {
       final x = poly[2 * i], y = poly[2 * i + 1];
@@ -695,6 +739,7 @@ abstract final class OutlineGenerator {
       poly[2 * j] = x;
       poly[2 * j + 1] = y;
     }
+    return true;
   }
 
   static double _finite(double v) => v.isFinite ? v : 0;

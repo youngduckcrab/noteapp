@@ -5,17 +5,15 @@
 // highlighter, the stroked centerline with its square cap corners.
 //
 // v2 (m5-7/03-ink T27, 6.2 K-1): the brush (pressure gain 0.9, f ≤ 2.2,
-// long tapers) and the tape's square caps and square dot. PenProfile.of(tape)
-// switches to the tape profile in T31; until then the tape strokes are checked
-// with PenProfile.tape's outline over points of widthQ = kNominalWidthQ, the
-// only widthQ the tape profile makes (f = 1).
+// long tapers) and the tape's square caps and square dot — since T31 through
+// the real pipeline (PenProfile.of(tape) = the tape profile: widthQ is always
+// kNominalWidthQ, f = 1).
 // T29 (6.5 K-1): the dashed pen through the real pipeline — every dash piece
 // and dot (default and other patterns, the 4096 cap) — in _tools, its own
 // group and the random strokes.
 //
 // Also run in Chrome by test/web/geometry_on_web_test.dart.
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -58,32 +56,6 @@ core.Stroke _build(
   return interop.newCoreStroke(
     f!,
     id: 's-$_ids',
-    pageId: 'page-1',
-    penDownMillis: 1700000000000,
-  );
-}
-
-/// A tape stroke as the tape profile builds it: [samples] through the real
-/// pipeline, then every widthQ = kNominalWidthQ (f = 1: no pressure, no taper).
-core.Stroke _tapeStroke(List<InkSample> samples, core.StrokeStyle style) {
-  final f = buildStroke(samples, style: style, viewScale: 1);
-  expect(f, isNotNull);
-  final data = Float32List.fromList(f!.data);
-  for (var i = 2; i < data.length; i += core.StrokePoints.stride) {
-    data[i] = core.kNominalWidthQ;
-  }
-  _ids++;
-  return interop.newCoreStroke(
-    FinishedStroke(
-      style: f.style,
-      data: data,
-      hasTilt: f.hasTilt,
-      hasAzimuth: f.hasAzimuth,
-      startTimeUs: f.startTimeUs,
-      pressureSource: f.pressureSource,
-      meta: const InkStrokeMeta(),
-    ),
-    id: 't-$_ids',
     pageId: 'page-1',
     penDownMillis: 1700000000000,
   );
@@ -226,6 +198,7 @@ const List<core.PenTool> _tools = [
   core.PenTool.marker,
   core.PenTool.brush, // m5-7 T27: the brush profile
   core.PenTool.dashed, // m5-7 T29: the dashed profile ([4, 3])
+  core.PenTool.tape, // m5-7 T31: the tape profile (square caps, cover)
 ];
 
 void main() {
@@ -365,7 +338,7 @@ void main() {
     }
   });
 
-  group('tape square caps and square dot (PenProfile.tape)', () {
+  group('tape square caps and square dot (PenProfile.tape, real pipeline)', () {
     final base = core.StrokeStyle.defaultsFor(core.PenTool.tape);
     for (final width in [0.1, 14.0, 60.0]) {
       test('width $width', () {
@@ -391,9 +364,10 @@ void main() {
             ],
           ),
         ]) {
-          final s = _tapeStroke(_samples(xy, pressure: 0.8), style);
+          final s = _build(_samples(xy, pressure: 0.8), style);
+          expect(s.style.profile, same(PenProfile.tape));
           expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
-          expectInsideBounds(s, 'tape $name', profile: PenProfile.tape);
+          expectInsideBounds(s, 'tape $name');
         }
       });
     }
@@ -412,15 +386,12 @@ void main() {
           final step = rnd.next() < 0.1 ? 0.0 : 8 * rnd.next() * rnd.next();
           p += ui.Offset(math.cos(heading), math.sin(heading)) * step;
         }
-        final s = _tapeStroke(
+        final s = _build(
           _samples(xy, pressure: rnd.next()),
           base.copyWith(width: width, smoothing: rnd.next()),
         );
-        expectInsideBounds(
-          s,
-          'tape $k (width $width)',
-          profile: PenProfile.tape,
-        );
+        expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
+        expectInsideBounds(s, 'tape $k (width $width)');
       }
     });
   });

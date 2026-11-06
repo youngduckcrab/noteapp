@@ -117,7 +117,8 @@ final class InkPageThumbnailRenderer implements core.PageThumbnailRenderer {
     var yields = 0;
     final watch = Stopwatch()..start();
     for (final s in strokes) {
-      if (s.layer != InkLayer.ink) continue;
+      // (m5-7 T31) ink strokes and tapes (cover) — the highlighter is a polyline
+      if (s.layer == InkLayer.highlighter) continue;
       outlines[s] = OutlineGenerator.outline(s);
       if (watch.elapsedMicroseconds >= _sliceUs) {
         yields++;

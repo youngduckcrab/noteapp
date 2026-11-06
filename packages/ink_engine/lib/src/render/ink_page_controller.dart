@@ -21,7 +21,10 @@
 // select / hitTestObject / setHiddenObjectIds / setPreviewObjects (a preview
 // with a committed id replaces it; previews win over hidden ids); the
 // read-only getters; playback focus as state only (T40); hitTestRecorded;
-// the memorization tape state (tapes still draw as ballpoint — T31).
+// the memorization tape state. (m5-7 T31, 6.7) Tapes are the cover layer:
+// the page picture of the committed tapes (covered, or the revealed border)
+// and the live tapes (pending, previews, the one being written) above the
+// text boxes; hitTestTape is the band.
 // (m5-7 T36, 6.12.3) Formulas are drawn from the pool's raster cache: the chunk
 // that drew one pins its raster (InkDrawHold), a raster that arrives records
 // only the annotation chunks that drew that formula, another bucket after
@@ -80,6 +83,7 @@ import 'selection.dart';
 import 'selection_preview.dart';
 import 'sessions.dart';
 import 'stroke_painter.dart';
+import 'tape_painter.dart';
 
 // --- page controller --- contract 7.2.15
 @immutable
@@ -280,6 +284,9 @@ final class InkPageController extends ChangeNotifier {
   /// The zoom octave (a power of two of the view scale) the hairlines of the cached
   /// object pictures were drawn at (InkDrawKeys.hairline).
   double _hairlineScale = 1;
+
+  /// (T31) The zoom octave the revealed tape borders of the cover picture were drawn at.
+  double _coverScale = 1;
 
   /// (T32b, tests) Drawn by the layer 4′ stage after everything else of inkActive.
   void Function(ui.Canvas canvas)? _debugEndStage;
@@ -671,31 +678,23 @@ final class InkPageController extends ChangeNotifier {
   }
 
   // memorization tape (state per controller, never stored — U10)
-  /// Topmost tape stroke whose CORE bounds contain [pagePoint] (R2-B3: bounds — T31 uses
-  /// the band). Pending-removed tapes are skipped.
+  /// Topmost tape stroke whose band holds [pagePoint] (6.7-7, T31: the exact distance to
+  /// the centerline ≤ the tape radius w / 2 — the hitTest capsule with no tolerance).
+  /// Pending-removed tapes are skipped.
   InkStroke? hitTestTape(ui.Offset pagePoint) {
     final content = _content;
     if (content == null || !pagePoint.isFinite) return null;
-    InkStroke? best;
-    var bestZ = -1;
-    for (final s in _strokesNear(
-      ui.Rect.fromLTWH(pagePoint.dx, pagePoint.dy, 0, 0),
-    )) {
-      if (s.style.tool != core.PenTool.tape) continue;
-      final b = s.bounds;
-      if (pagePoint.dx < b.left ||
-          pagePoint.dx > b.right ||
-          pagePoint.dy < b.top ||
-          pagePoint.dy > b.bottom) {
-        continue;
-      }
-      final z = content.zIndexOf(s.id);
-      if (z > bestZ) {
-        bestZ = z;
-        best = s;
-      }
-    }
-    return best;
+    return InkHitTest.topmostAt(
+      [
+        for (final s in _strokesNear(
+          ui.Rect.fromLTWH(pagePoint.dx, pagePoint.dy, 0, 0),
+        ))
+          if (s.style.tool == core.PenTool.tape) s,
+      ],
+      pagePoint,
+      0,
+      zOf: (s) => content.zIndexOf(s.id),
+    );
   }
 
   /// false for ids that are not tapes of this page.
@@ -1483,6 +1482,75 @@ final class InkPageController extends ChangeNotifier {
     _annotation.markDirtyWithKey(InkDrawKeys.hairline);
   }
 
+  /// (m5-7 T31, 6.7-5) The cover layer: the page picture of the committed tapes (T32b —
+  /// recorded again when a tape, the hidden set or the revealed set changes, and for a
+  /// revealed tape when the zoom octave changes: its border is 1 logical px), then the
+  /// live tapes — pending, pending transform / recolor, the selection preview, partial-
+  /// eraser pieces and the tape being written — always covered (L-1: a tape covers the
+  /// text boxes even while it is written).
+  void _paintCover(ui.Canvas canvas, InkPageContent content, _Display display) {
+    final octave = _octaveOf(_currentViewScale);
+    if (octave != _coverScale) {
+      _coverScale = octave;
+      if (_revealedTapes.isNotEmpty) _cover.markDirty();
+    }
+    _cover.paint(canvas, [
+      for (final s in content.strokes)
+        if (s.layer == InkLayer.cover && !display.hidden.contains(s.id)) s,
+    ], _drawTape);
+    for (final o in display.overrides) {
+      if (o.stroke.layer != InkLayer.cover) continue;
+      final s = _overrideStroke(o);
+      paintTapeCovered(
+        canvas,
+        s,
+        o.transform == null
+            ? cachePool.outlineFor(s)
+            : OutlineGenerator.outline(s),
+        colorArgb: o.colorArgb,
+      );
+    }
+    for (final added in display.added) {
+      final s = InkStroke.of(added);
+      if (s.layer != InkLayer.cover) continue;
+      paintTapeCovered(canvas, s, cachePool.outlineFor(s));
+    }
+    for (final piece in display.previews) {
+      final s = InkStroke.of(piece);
+      if (s.layer != InkLayer.cover) continue;
+      paintTapeCovered(
+        canvas,
+        s,
+        _previewOutlines[s] ??= OutlineGenerator.outline(s),
+      );
+    }
+    final active = _active;
+    if (active is StrokeSession &&
+        active.isActive &&
+        active.style.profile.layer == InkLayer.cover) {
+      final live = active.live;
+      if (!live.isEmpty) {
+        paintTapeCoveredPaths(
+          canvas,
+          [live.frozenPath, live.tailPath],
+          colorArgb: active.style.colorArgb,
+          striped: active.style.tapeStyle == InkTapeStyle.striped,
+          bounds: live.bounds,
+        );
+      }
+    }
+  }
+
+  /// One committed tape into the cover picture: covered, or (revealed) its border.
+  void _drawTape(ui.Canvas canvas, InkStroke s) {
+    final outline = cachePool.outlineFor(s);
+    if (_revealedTapes.contains(s.id)) {
+      paintTapeRevealed(canvas, s, outline, lineWidthPt: 1 / _coverScale);
+    } else {
+      paintTapeCovered(canvas, s, outline);
+    }
+  }
+
   /// One committed ink stroke into a chunk picture (6.8 fill, 6.11 grain).
   void _drawInk(ui.Canvas canvas, InkStroke s) {
     ui.Image? grain;
@@ -1654,13 +1722,8 @@ final class InkPageController extends ChangeNotifier {
           paper,
         );
       case InkRenderLayer.cover:
-        // (T32b) the page picture of the committed tapes; R2-B3: PenProfile.of(tape) is
-        // still the ballpoint (ink layer), so it stays empty until T31
         if (content == null) return;
-        _cover.paint(canvas, [
-          for (final s in content.strokes)
-            if (s.layer == InkLayer.cover && !display.hidden.contains(s.id)) s,
-        ], _drawInk);
+        _paintCover(canvas, content, display);
       case InkRenderLayer.highlighterBase:
         if (content == null) return;
         _hl.paintBase(

@@ -24,6 +24,7 @@ const Set<String> _roundTwo = {
   'pens_p1_brush.png',
   'pens_p1_dashed.png',
   'pens_p1_preview.png',
+  'pens_p1_tape.png',
   'shapes_lines.png',
   'shapes_fill_arrows.png',
 };

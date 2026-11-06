@@ -4,7 +4,8 @@
 // checksum recorded with the round-1 generator. The one new shape is the dot
 // of a square-capped fill pen (tape): an axis-aligned square of side w (corners
 // 0.7071 · w from the point, inside the K-1 inflation 0.75 · w), drawn with
-// sharp corners by the smooth path too.
+// sharp corners by the smooth path too. (T31) The tape's line-end corners are
+// the round-1 square cap corners listed twice, sharp in the smooth path.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -115,8 +116,26 @@ void main() {
       width: w,
       profile: PenProfile.highlighter,
     );
-    expect(tape.polygons.single, highlighter.polygons.single);
+    // (T31) the same vertices; the tape lists its four cap corners twice so the
+    // smooth path keeps them sharp (the highlighter outline is unchanged)
+    expect(
+      _vertices(tape.polygons.single),
+      _vertices(highlighter.polygons.single),
+    );
+    expect(
+      tape.polygons.single.length,
+      highlighter.polygons.single.length + 4 * 2,
+    );
     expect(tape.bounds, const ui.Rect.fromLTRB(3, 3, 117, 17));
+    final smooth = tape.toPath();
+    for (final corner in const [
+      ui.Offset(3.3, 3.3),
+      ui.Offset(116.7, 3.3),
+      ui.Offset(116.7, 16.7),
+      ui.Offset(3.3, 16.7),
+    ]) {
+      expect(smooth.contains(corner), isTrue, reason: 'sharp corner $corner');
+    }
     // diagonal: the corners are r · √2 from the end points
     final diag = outlineFor(
       [ui.Offset.zero, const ui.Offset(30, 40)],

@@ -461,10 +461,11 @@ void main() {
   });
 
   group('fill shapes', () {
-    test('InkFillShape.tool = core.PenTool (P1 tools keep their own tool)', () {
+    test('InkFillShape.tool = core.PenTool (P1 tools keep their own tool); '
+        'tapes go to cover (m5-7 T31)', () {
       final tools = [
         for (final t in core.PenTool.values)
-          if (t != core.PenTool.highlighter) t,
+          if (t != core.PenTool.highlighter && t != core.PenTool.tape) t,
       ];
       final strokes = [
         for (var i = 0; i < tools.length; i++)
@@ -475,12 +476,21 @@ void main() {
             createdAt: i,
           ),
       ];
-      final v = InkVectorExport.exportStrokes(strokes);
+      final tape = _ink(
+        _wave(ui.Offset(20, 30.0 + 40 * tools.length)),
+        _style(core.PenTool.tape),
+        id: 'tape',
+        createdAt: tools.length,
+      );
+      final v = InkVectorExport.exportStrokes([...strokes, tape]);
       expect(v.inkShapes.map((s) => s.tool), tools);
       expect(v.inkShapes.map((s) => s.strokeId), tools.map((t) => t.name));
       for (final s in v.inkShapes) {
         expect(s.tool, isA<core.PenTool>());
       }
+      expect(v.cover.map((s) => (s.strokeId, s.tool)), [
+        ('tape', core.PenTool.tape),
+      ]);
     });
 
     test(

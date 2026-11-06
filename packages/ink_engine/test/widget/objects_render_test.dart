@@ -3,8 +3,7 @@
 // - L-1 order through a real InkPageView: image (underlay) < highlighter <
 //   strokes and shapes z mixed by compareOrder inside the ink chunks < layer
 //   4′ (the last step of inkActive) < text box (annotation). The tape above
-//   the text (cover > annotation) is T31's tape_test (PenProfile.of(tape) is
-//   still the ballpoint until then).
+//   the text (cover > annotation) is T31's tape_test.
 // - Counters: every layer records each chunk once; the same content again
 //   (same revision, or a new revision with the same instances) records
 //   nothing; one object changed → only its chunk in its layer; an object on
@@ -782,27 +781,26 @@ void main() {
       expect(cache.strokeCount, 1);
     });
 
-    test(
-      'the controller: no cover strokes before T31, toggles mark it dirty',
-      () {
-        final tape = _line(
-          'tape',
-          const Offset(40, 40),
-          const Offset(90, 40),
-          1,
-          tool: core.PenTool.tape,
-        );
-        final c = createTestPageController()
-          ..updateContent(_content([tape], const []));
-        addTearDown(c.dispose);
-        _paintAll(c);
-        expect(inkCoverCacheOf(c).recordCount, 0, reason: 'tape = ballpoint');
-        expect(inkChunkCacheOf(c).strokeCountOf(0), 1);
-        c.toggleTape('tape');
-        expect(inkCoverCacheOf(c).isDirty, isTrue);
-        expect(inkChunkCacheOf(c).dirtyCount, 0, reason: 'ink chunks kept');
-      },
-    );
+    test('the controller: tapes go to the cover picture (T31), toggles mark it '
+        'dirty', () {
+      final tape = _line(
+        'tape',
+        const Offset(40, 40),
+        const Offset(90, 40),
+        1,
+        tool: core.PenTool.tape,
+      );
+      final c = createTestPageController()
+        ..updateContent(_content([tape], const []));
+      addTearDown(c.dispose);
+      _paintAll(c);
+      expect(inkCoverCacheOf(c).recordCount, 1);
+      expect(inkCoverCacheOf(c).strokeCount, 1);
+      expect(inkChunkCacheOf(c).strokeCountOf(0), 0, reason: 'not in ink');
+      c.toggleTape('tape');
+      expect(inkCoverCacheOf(c).isDirty, isTrue);
+      expect(inkChunkCacheOf(c).dirtyCount, 0, reason: 'ink chunks kept');
+    });
   });
 
   group('images (T35, 6.11.5)', () {

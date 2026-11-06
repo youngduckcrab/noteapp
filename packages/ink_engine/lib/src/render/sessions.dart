@@ -285,9 +285,13 @@ final class StrokeSession implements InkGestureSession {
   PressureSource get pressureSource => _builder.pressureSource;
   LiveStrokeGeometry get live => _builder.live;
 
-  InkRenderLayer get _layer => style.profile.layer == InkLayer.highlighter
-      ? InkRenderLayer.highlighterActive
-      : InkRenderLayer.inkActive;
+  /// The live layer of the stroke being written (m5-7 T31: a tape is drawn by the
+  /// cover layer — above the text boxes, L-1).
+  InkRenderLayer get _layer => switch (style.profile.layer) {
+    InkLayer.highlighter => InkRenderLayer.highlighterActive,
+    InkLayer.cover => InkRenderLayer.cover,
+    InkLayer.ink => InkRenderLayer.inkActive,
+  };
 
   void addSample(InkSample sample) {
     _checkActive();

@@ -12,10 +12,10 @@
 // (m5-7/03-ink 6.2 'pen preview v2', T27) The painter branches on the
 // profile's render method and calls the same paint function as the page
 // layers (preview = real stroke shape). The dashed branch draws the dashed
-// outline (T29 — OutlineGenerator.outline gives the dash pieces); the nib,
-// laser and tape branches get their own drawing in T28, T30 and T31; until
-// then they draw the filled outline (the tools still map to the ballpoint
-// profile).
+// outline (T29 — OutlineGenerator.outline gives the dash pieces), the tape
+// the covered shape with its stripes (T31 — the cover layer's covered look);
+// the nib and laser branches get their own drawing in T28 and T30; until then
+// they draw the filled outline (the tools still map to the ballpoint profile).
 import 'dart:collection';
 import 'dart:math' as math;
 
@@ -28,12 +28,14 @@ import '../geometry/stroke_outline.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../interop/core_interop.dart' as interop;
+import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
 import '../pen/pen_profile.dart';
 import '../stroke/stroke_builder.dart';
 import 'highlighter_compositor.dart';
 import 'pencil_grain.dart';
 import 'stroke_painter.dart';
+import 'tape_painter.dart';
 
 enum PenPreviewShape { sCurve, line }
 
@@ -68,6 +70,13 @@ class PenPreviewPainter extends CustomPainter {
           groupHighlighters([stroke]),
           paperColorArgb: paperColorArgb,
           marginPt: 1,
+        );
+      case InkRenderMethod.filledOutline when stroke.layer == InkLayer.cover:
+        // (T31) the tape: the covered shape (+ stripes), never the revealed border
+        paintTapeCovered(
+          canvas,
+          stroke,
+          sample.outline ?? OutlineGenerator.outline(stroke),
         );
       case InkRenderMethod.filledOutline:
       case InkRenderMethod.nibOutline:
