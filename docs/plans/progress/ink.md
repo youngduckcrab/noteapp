@@ -295,7 +295,7 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 | T30 | 남음 | | `unit/render/laser_lifetime_test.dart`, `widget/laser_test.dart`, `pen_preview_test` v2, `pens_p1_golden_test` |
 | T31 | 남음 | | `unit/render/tape_state_test.dart`, `widget/tape_test.dart`(cover 분기 점검 포함), `pen_preview_test` v2, `pens_p1_golden_test` |
 | T32a | 완료 | 1e7dbd8 | `unit/object/object_view_test.dart`(Expando 동일성 — 같은 인스턴스 = 같은 뷰·같은 값 다른 인스턴스 = 다른 뷰, CORE bounds, 층 배정 5종, 획 항목 동일성, ink 층 = ink 층 획 + 도형 `compareOrder` 병합(무작위 300개·같은 시각 id 순·형광펜 빠짐·내용마다 캐시)), `unit/render/content_diff_test.dart` v2(객체 그룹: 같은 내용 no-op·새 판 객체 불변, 층 맨 위 추가 → appended, 아래 → inserted, ink 층 appended = 획 + 도형 병합의 맨 위 새 항목(`inkAppended` — 유지된 도형 아래 새 획은 빠짐), 삭제 → removed, 같은 id 다른 인스턴스 → changed, 층이 바뀐 id), `unit/object/object_index_test.dart`(무작위 객체 1,000·질의 500 = 전수, 지우기·바꾸기 300단계 = 전수, NaN·뒤집힌 질의·빈 색인) |
-| T32b | 남음 | | `widget/objects_render_test.dart`, 1차 L1~L3·appended 시험 |
+| T32b | 완료 | (이 커밋) | `widget/objects_render_test.dart`(L-1: 이미지 < 형광펜 < 획·도형 z 섞임(겹친 자리 위 항목 색 — 도형 아래 새 획·획 위 도형 둘 다) < 4′(시험 훅) < 텍스트, 층마다 청크 한 번 기록·캐시, 같은 내용(같은 판·새 판 같은 인스턴스) → 기록 0, 객체 하나 바꿈 → 그 층 그 청크만 +1(텍스트·이미지·도형), 맨 위 객체 → appended(annotation·ink `inkAppended`), 유지된 도형 아래 새 획 → dirty·맨 위 획 → appended, 숨김 → 그 청크만·미리보기 60회 → 기본 기록 1회, 청크별 그린 키(자산·hairline) → `markDirtyWithKey`는 그 청크만, 다른 확대 옥타브 → hairline 청크만, 배경 바뀜 → 객체 청크 전부, `CoverPictureCache`), 1차 L1~L3·appended 시험(`content_diff_test`·`progressive_load_test`·`raster_*`·`handoff_test`) 그대로 통과 |
 | T33 | 남음 (이정표) | | `unit/geometry/shape_path_test.dart`, `unit/model/object_bounds_invariant_test.dart`, (웹) `web/object_bounds_web_test.dart`, `widget/objects_render_test.dart`, `goldens/shapes_golden_test.dart` |
 | T34 | 남음 (이정표) | | `widget/objects_render_test.dart`, `unit/text/text_layout_test.dart` |
 | T35 | 남음 | | `unit/image/image_cache_test.dart`, `unit/image/image_working_set_test.dart`, `unit/image/raster_ledger_test.dart`, `unit/image/image_header_test.dart`, `widget/image_background_test.dart`, `widget/objects_render_test.dart`, (웹) `web/image_decode_web_test.dart` |
@@ -331,6 +331,12 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 6. (T32a) 객체 색인을 위해 1차 `StrokeSpatialIndex`의 격자 코드를 제네릭 `GridSpatialIndex<T>`(내부)로 올리고 `StrokeSpatialIndex`·`ObjectSpatialIndex`가 그것을 쓴다(칸 64 pt·경계 밖 고정·스탬프 중복 제거 그대로). 1차 `spatial_index_test`는 바꾸지 않고 통과.
 7. (T32a) `InkContentDiff`에 층별 `InkObjectDiff`(`underlay`·`shapes`·`annotation`)와 **`inkAppended`**(ink 층 획 + 도형 병합 목록의 맨 위 새 항목)를 더했다. 1차 획 필드(`appended` 등)는 1차 뜻 그대로(획만 본 맨 위 새 획)라, 유지된 도형 아래에 들어온 새 획도 `appended`에 든다 — T32b의 ink 청크는 `appended` 대신 `inkAppended`를 써야 한다. `content_diff_test` v2는 1차 파일에 그룹으로 더했다.
 8. (T32a) `InkObjectView`는 지금 층·bounds만 갖는다 — 종류별 준비물(도형 경로·문단·이미지 크기)은 T33~T36이 지연 필드로 더한다. `InkLayerItem`은 `InkStrokeItem`(획마다 하나, Expando) | `InkObjectView`의 sealed 내부 타입이다(`InkStroke`는 공개 타입이라 상위 타입을 더하지 않음).
+
+9. (T32b) cover 층 캐시(`CoverPictureCache` — 테이프 페이지 그림 하나, 테이프 diff·숨김·`toggleTape`·`setAllTapesRevealed`에 다시 기록)와 `InkLayer.cover` 획의 길(diff·숨김 → cover)은 넣었지만 `PenProfile.of(tape)`가 아직 볼펜이라 비어 있다. 그래서 T32b 시험의 L-1 순서는 '텍스트 < 테이프'를 빼고 T31 `tape_test`(쓰는 중 테이프가 텍스트 상자 위)로 넘긴다. 그리는 함수는 지금 채움 획(T31이 가림·줄무늬·드러냄으로 바꿈).
+10. (T32b) 층 4′는 `inkActive` painter 끝의 `_paintEndStage`(T39·T40이 여기서 그림)이고, 시험은 내부 `debugSetInkActiveEndStage(controller, paint)`로 그 자리에 그린다(4.12 공개 도구 아님 — `ink_page_controller.dart`의 `@internal`).
+11. (T32b) 청크별 그린 키(`InkDrawKeys` — 내부, `base_cache.dart`): `asset(assetId)`(이미지·자리표시), `fonts`(그릴 때 NoteSans가 아직 없던 텍스트 상자 — 적재되면 `_annotation.markDirtyWithKey(fonts)`만), `hairline`(1 논리 px 선을 쓰는 자리표시 — 이미지·모르는 객체). 청크 그림은 확대와 무관하게 재사용되므로 자리표시 선 굵기를 **확대 옥타브**(viewScale에 가장 가까운 2의 거듭제곱)로 그리고, 옥타브가 바뀌면 hairline 키가 있는 청크만 다시 기록한다(살아 있는 부분은 그 paint의 정확한 1 px). 수식 래스터 키는 T36이 더한다.
+12. (T32b) ink 청크 추가 규칙: `diff.inkAppended`(획 + 도형 병합의 맨 위)만 append, 획만 본 `appended`에 있어도 유지된 도형 아래면 dirty, 획만 본 목록에서 `inserted`여도(예: 유지된 형광펜보다 아래 시각) ink 층 맨 위면 append. `renderStats.chunkPictures`는 1차 뜻대로 ink 청크 그림 수만 센다.
+13. (T32b) underlay·annotation 청크는 첫 표시에도 시간 나누기 없이 그 paint에 다 기록한다(객체 그림은 싸다 — 6.8.3). 객체가 없는 층은 기록·그리기를 건너뛴다(빈 그림 12장을 만들지 않음). 살아 있는 ink 층 도형(대기·선택 미리보기·`setPreviewObjects`)은 청크 자르기 그대로 `paintClipped`로 그린다(R6 넘겨받기 픽셀 일치 — T37b 시험이 이 길을 쓴다).
 
 #### 이정표 커밋
 

@@ -6,8 +6,14 @@
 //   identity, K-4) — R2. (m5-7/03-ink 6.8.2, T32a) + the page objects per L-1
 //   layer (InkObjectDiff) and the top run of new items of the merged ink layer
 //   (strokes + shapes — inkAppended).
-// - InkChunkCache: the ink layer cut into chunkSizePt chunks, one Picture per
-//   chunk plus small 'appended' Pictures for strokes added on top (R3, R4).
+// - InkChunkCache: a layer cut into chunkSizePt chunks, one Picture per chunk
+//   plus small 'appended' Pictures for items added on top (R3, R4). (m5-7/03-ink
+//   6.8.3, T32b) The items are InkLayerItems — the ink layer's strokes and
+//   shapes (z mixed), the underlay's images, the annotation's text boxes /
+//   formulas / unknown objects — and every chunk remembers the draw keys of
+//   what it drew (assets, fonts, hairlines — 6.11.3), so a key change records
+//   only the chunks that drew it.
+// - CoverPictureCache: (T32b) one page Picture of the committed tapes.
 // - HighlighterBaseCache: one page Picture of the highlighter groups that are
 //   not being written, and the opaque Picture of each group that is (6.10-6).
 // The raster tiles of the ink chunks (6.13 L3) are in raster_tiles.dart.
@@ -299,14 +305,41 @@ final class InkContentDiff {
 /// Draws one stroke into a picture being recorded.
 typedef InkStrokeDraw = void Function(ui.Canvas canvas, InkStroke stroke);
 
+/// (m5-7 T32b) Draws one layer item (stroke or object) into a picture being recorded.
+typedef InkItemDraw = void Function(ui.Canvas canvas, InkLayerItem item);
+
+/// (m5-7 T32b, 6.11.3) The draw keys of [item] at the moment it is drawn: what its
+/// picture depends on besides the item itself (an image asset, the fonts, the hairline
+/// width). Asked right before the item is drawn into a chunk.
+typedef InkDrawKeysOf = Iterable<Object> Function(InkLayerItem item);
+
+/// (m5-7/03-ink 6.8.3, 6.11.3) The draw keys a chunk remembers. A key changes without a
+/// content change (an image decoded at another bucket, NoteSans loaded, another zoom
+/// octave); InkChunkCache.markDirtyWithKey records only the chunks that drew it.
+@immutable
+abstract final class InkDrawKeys {
+  /// NoteSans was not loaded yet when a text box was drawn (the system font).
+  static const Object fonts = #inkDrawKeyFonts;
+
+  /// A 1-logical-px line was drawn (placeholders, 6.11.5 / 6.13): its width depends on the
+  /// zoom octave the chunk was recorded at.
+  static const Object hairline = #inkDrawKeyHairline;
+
+  /// The image asset [assetId] was drawn (or its placeholder).
+  static Object asset(String assetId) => (#inkDrawKeyAsset, assetId);
+}
+
 /// Draws chunk [index] some other way (a raster tile, 6.13-5); false → the
 /// vector picture is drawn.
 typedef InkChunkDraw = bool Function(ui.Canvas canvas, int index);
 
-/// R3/R4, 6.13 L2: the ink layer as chunkSizePt × chunkSizePt Pictures.
-/// A chunk records the strokes that overlap it (z order), clipped to its
-/// rectangle without anti-aliasing so neighbouring chunks never paint a pixel
-/// twice. The outer chunks reach far past the page (the view clips).
+/// R3/R4, 6.13 L2: a layer as chunkSizePt × chunkSizePt Pictures. A chunk
+/// records the items that overlap it (z order), clipped to its rectangle
+/// without anti-aliasing so neighbouring chunks never paint a pixel twice. The
+/// outer chunks reach far past the page (the view clips). (m5-7 T32b) Items are
+/// InkLayerItems (the ink layer: strokes and shapes z mixed; underlay /
+/// annotation: objects), and with [drawKeysOf] every chunk keeps the draw keys
+/// of what it drew (markDirtyWithKey).
 ///
 /// 6.13 time slicing: a chunk not recorded since [reset] (the page has just
 /// been shown) is recorded stroke by stroke within a frame budget, visible
@@ -318,6 +351,7 @@ final class InkChunkCache {
     required this.chunkSizePt,
     required this.maxAppended,
     this.onChunkCleared,
+    this.drawKeysOf,
   }) : assert(chunkSizePt > 0);
 
   final double chunkSizePt;
@@ -328,6 +362,9 @@ final class InkChunkCache {
   /// A chunk's pictures were dropped (dirty, consolidated, reset): its raster
   /// tiles are stale (6.13-6).
   final void Function(int index)? onChunkCleared;
+
+  /// (m5-7 T32b) The draw keys of an item as it is drawn; null = no keys kept.
+  final InkDrawKeysOf? drawKeysOf;
 
   /// CORE bounds hold the outline (K-1); this covers the anti-aliased fringe.
   static const double marginPt = 4;
@@ -397,78 +434,100 @@ final class InkChunkCache {
     }
   }
 
-  /// R3: [stroke] lies on top of everything recorded — one small picture per
+  /// (m5-7 T32b, 6.11.3) Marks dirty the chunks that drew [key] (their draw keys);
+  /// returns how many. A loading recording that drew it starts over.
+  int markDirtyWithKey(Object key) {
+    var n = 0;
+    for (var i = 0; i < _chunks.length; i++) {
+      final c = _chunks[i];
+      if (c.keys.contains(key) || (c.partial?.keys.contains(key) ?? false)) {
+        _clearAt(i);
+        n++;
+      }
+    }
+    return n;
+  }
+
+  /// The draw keys of chunk ([col], [row]): those of its picture and appended pictures.
+  @visibleForTesting
+  Set<Object> drawKeysAt(int col, int row) =>
+      Set.unmodifiable(_chunks[row * _cols + col].keys);
+
+  /// R3: [item] lies on top of everything recorded — one small picture per
   /// chunk it touches; a dirty chunk will include it when it is recorded.
-  void append(InkStroke stroke, InkStrokeDraw draw) {
-    for (final i in _indicesFor(stroke.bounds)) {
+  void append(InkLayerItem item, InkItemDraw draw) {
+    for (final i in _indicesFor(item.bounds)) {
       final chunk = _chunks[i];
       if (chunk.picture == null) {
-        // a recording in progress takes it as its new top stroke
-        chunk.partial?.strokes.add(stroke);
+        // a recording in progress takes it as its new top item
+        chunk.partial?.items.add(item);
         continue;
       }
       if (chunk.appended.length >= maxAppended) {
         _clearAt(i); // consolidate (R4)
         continue;
       }
-      chunk.appended.add(_record(i, [stroke], draw));
+      chunk.appended.add(_record(i, [item], draw, chunk.keys));
     }
   }
 
-  /// Records the dirty chunks from [zOrdered] (the visible ink strokes,
+  /// Records the dirty chunks from [zOrdered] (the visible items of the layer,
   /// bottom → top). Chunks recorded before are recorded in full; loading
   /// chunks in [order] (every index, highest priority first; default: index
   /// order) until [outOfTime] — asked after each stroke, so a call always
   /// makes progress — says the budget is spent. True when every chunk has
   /// its picture.
   bool record(
-    Iterable<InkStroke> zOrdered,
-    InkStrokeDraw draw, {
+    Iterable<InkLayerItem> zOrdered,
+    InkItemDraw draw, {
     List<int>? order,
     bool Function()? outOfTime,
   }) {
     if (_chunks.isEmpty) return true;
-    final need = <int, List<InkStroke>>{
+    final need = <int, List<InkLayerItem>>{
       for (var i = 0; i < _chunks.length; i++)
         if (_chunks[i].picture == null && _chunks[i].partial == null)
-          i: <InkStroke>[],
+          i: <InkLayerItem>[],
     };
     if (need.isEmpty && _chunks.every((c) => c.picture != null)) return true;
     if (need.isNotEmpty) {
-      for (final s in zOrdered) {
-        for (final i in _indicesFor(s.bounds)) {
-          need[i]?.add(s);
+      for (final item in zOrdered) {
+        for (final i in _indicesFor(item.bounds)) {
+          need[i]?.add(item);
         }
       }
     }
     // edits: in full now (never blank a chunk that was shown)
-    for (final MapEntry(key: i, value: strokes) in need.entries) {
+    for (final MapEntry(key: i, value: items) in need.entries) {
       final c = _chunks[i];
       if (!c.loaded) continue;
-      c.picture = _record(i, strokes, draw);
-      c.recordedStrokes = strokes.length;
+      c.picture = _record(i, items, draw, c.keys);
+      c.recordedStrokes = items.length;
       _recordCount++;
     }
-    // loading: stroke by stroke within the budget, [order] first
+    // loading: item by item within the budget, [order] first
     var spent = false;
     for (final i in order ?? Iterable<int>.generate(_chunks.length)) {
       final c = _chunks[i];
       if (c.picture != null) continue;
       if (spent) return false;
       final p = c.partial ??= _Partial(_clipRectOf(i), need[i] ?? []);
-      while (p.next < p.strokes.length) {
-        draw(p.canvas, p.strokes[p.next++]);
+      while (p.next < p.items.length) {
+        final item = p.items[p.next++];
+        _noteKeys(p.keys, item);
+        draw(p.canvas, item);
         if (outOfTime != null && outOfTime()) {
           spent = true;
           break;
         }
       }
-      if (p.next < p.strokes.length) return false;
+      if (p.next < p.items.length) return false;
       c
         ..picture = p.recorder.endRecording()
-        ..recordedStrokes = p.strokes.length
+        ..recordedStrokes = p.items.length
         ..loaded = true
         ..partial = null;
+      c.keys.addAll(p.keys);
       _recordCount++;
     }
     return _chunks.every((c) => c.picture != null);
@@ -492,8 +551,8 @@ final class InkChunkCache {
   /// [record] everything, then [drawChunks].
   void paint(
     ui.Canvas canvas,
-    Iterable<InkStroke> zOrdered,
-    InkStrokeDraw draw,
+    Iterable<InkLayerItem> zOrdered,
+    InkItemDraw draw,
   ) {
     record(zOrdered, draw);
     drawChunks(canvas);
@@ -510,7 +569,7 @@ final class InkChunkCache {
   /// Bumped whenever the chunk's pictures are dropped.
   int generationOf(int index) => _chunks[index].generation;
 
-  /// Strokes drawn by the chunk's picture and appended pictures.
+  /// Items (strokes, objects) drawn by the chunk's picture and appended pictures.
   int strokeCountOf(int index) {
     final c = _chunks[index];
     return c.recordedStrokes + c.appended.length;
@@ -554,20 +613,20 @@ final class InkChunkCache {
     return [for (final k in keyed) k.$1];
   }
 
-  /// Draws [stroke] the way a chunk picture would: once per chunk it touches,
+  /// Draws [item] the way a chunk picture would: once per chunk it touches,
   /// under that chunk's clip. Skia rasterizes the anti-aliased edge of a
-  /// path differently when a clip cuts it, so a pending stroke drawn like
+  /// path differently when a clip cuts it, so a pending item drawn like
   /// this hands over to its chunk pictures pixel for pixel (6.12 R6).
-  void paintClipped(ui.Canvas canvas, InkStroke stroke, InkStrokeDraw draw) {
+  void paintClipped(ui.Canvas canvas, InkLayerItem item, InkItemDraw draw) {
     if (_chunks.isEmpty) {
-      draw(canvas, stroke);
+      draw(canvas, item);
       return;
     }
-    for (final i in _indicesFor(stroke.bounds)) {
+    for (final i in _indicesFor(item.bounds)) {
       canvas
         ..save()
         ..clipRect(_clipRectOf(i), doAntiAlias: false);
-      draw(canvas, stroke);
+      draw(canvas, item);
       canvas.restore();
     }
   }
@@ -591,14 +650,25 @@ final class InkChunkCache {
     _rows = 0;
   }
 
-  ui.Picture _record(int index, List<InkStroke> strokes, InkStrokeDraw draw) {
+  ui.Picture _record(
+    int index,
+    List<InkLayerItem> items,
+    InkItemDraw draw,
+    Set<Object> keys,
+  ) {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder)
       ..clipRect(_clipRectOf(index), doAntiAlias: false);
-    for (final s in strokes) {
-      draw(canvas, s);
+    for (final item in items) {
+      _noteKeys(keys, item);
+      draw(canvas, item);
     }
     return recorder.endRecording();
+  }
+
+  void _noteKeys(Set<Object> keys, InkLayerItem item) {
+    final of = drawKeysOf;
+    if (of != null) keys.addAll(of(item));
   }
 
   /// The chunk's page tile; the outer edges reach [_farPt] past the page.
@@ -636,8 +706,11 @@ final class _Chunk {
   ui.Picture? picture;
   final List<ui.Picture> appended = [];
 
-  /// Strokes in [picture].
+  /// Items in [picture].
   int recordedStrokes = 0;
+
+  /// (m5-7 T32b) The draw keys of [picture] and [appended].
+  final Set<Object> keys = {};
 
   /// Recorded at least once since the grid was made.
   bool loaded = false;
@@ -655,6 +728,7 @@ final class _Chunk {
       p.dispose();
     }
     appended.clear();
+    keys.clear();
     partial?.recorder.endRecording().dispose();
     partial = null;
     generation++;
@@ -663,7 +737,7 @@ final class _Chunk {
 
 /// A chunk recording resumed in the next frame (6.13 time slicing).
 final class _Partial {
-  _Partial(ui.Rect clip, this.strokes) : recorder = ui.PictureRecorder() {
+  _Partial(ui.Rect clip, this.items) : recorder = ui.PictureRecorder() {
     canvas = ui.Canvas(recorder)..clipRect(clip, doAntiAlias: false);
   }
 
@@ -671,8 +745,57 @@ final class _Partial {
   late final ui.Canvas canvas;
 
   /// Bottom → top; appends land at the end.
-  final List<InkStroke> strokes;
+  final List<InkLayerItem> items;
   int next = 0;
+
+  /// The draw keys of the items drawn so far.
+  final Set<Object> keys = {};
+}
+
+/// (m5-7/03-ink 6.8.3, T32b) The cover layer's base drawing: one page Picture of the
+/// committed tapes (InkLayer.cover), recorded again when a tape changes or a tape is
+/// revealed / covered (markDirty).
+final class CoverPictureCache {
+  ui.Picture? _picture;
+  int _recordCount = 0;
+  int _strokes = 0;
+
+  /// Times the page picture was recorded.
+  @visibleForTesting
+  int get recordCount => _recordCount;
+
+  /// Tapes in the current picture (0 when dirty).
+  int get strokeCount => _picture == null ? 0 : _strokes;
+
+  bool get isDirty => _picture == null;
+
+  void markDirty() {
+    _picture?.dispose();
+    _picture = null;
+  }
+
+  /// Records [zOrdered] (the visible committed tapes) when dirty, then draws the picture.
+  /// Nothing is recorded or drawn while there is no tape.
+  void paint(ui.Canvas canvas, List<InkStroke> zOrdered, InkStrokeDraw draw) {
+    if (zOrdered.isEmpty) {
+      markDirty();
+      return;
+    }
+    var picture = _picture;
+    if (picture == null) {
+      final recorder = ui.PictureRecorder();
+      final c = ui.Canvas(recorder);
+      for (final s in zOrdered) {
+        draw(c, s);
+      }
+      picture = _picture = recorder.endRecording();
+      _strokes = zOrdered.length;
+      _recordCount++;
+    }
+    canvas.drawPicture(picture);
+  }
+
+  void dispose() => markDirty();
 }
 
 /// The opaque lines of one highlighter group, recorded once (6.10-2).

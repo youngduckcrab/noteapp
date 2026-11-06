@@ -12,14 +12,18 @@
 // when quiet, plus the time-sliced first recording of a page's chunks).
 //
 // 2nd round (contract 7.2.9, m5-7/03-ink 4.3, 4.13 — foundation step R2-B3):
-// nine render layers (L-1); page objects drawn simply in their layer every
-// paint (images → underlay, shapes → ink after the stroke chunks, text boxes
-// / formulas / unknown objects → annotation — no object caches yet, T32b);
+// nine render layers (L-1); page objects drawn simply in their layer
+// (images → underlay, shapes → ink, text boxes / formulas / unknown objects →
+// annotation); (m5-7 T32b, 6.8.3) from the layer caches: the ink chunks hold
+// strokes and shapes z mixed, underlay and annotation have their own chunk
+// pictures (draw keys per chunk — assets, fonts, hairlines), cover one page
+// picture of the tapes, and inkActive ends with the layer 4′ stage (6.1);
 // select / hitTestObject / setHiddenObjectIds / setPreviewObjects (a preview
 // with a committed id replaces it; previews win over hidden ids); the
 // read-only getters; playback focus as state only (T40); hitTestRecorded;
 // the memorization tape state (tapes still draw as ballpoint — T31).
 import 'dart:async' show scheduleMicrotask, unawaited;
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -44,6 +48,7 @@ import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
 import '../object/object_painter.dart';
+import '../object/object_view.dart';
 import '../pen/style_ink.dart';
 import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
@@ -241,6 +246,31 @@ final class InkPageController extends ChangeNotifier {
 
   /// The ids the base caches were last told to leave out (display.hidden).
   Set<String> _baseHidden = const {};
+
+  // (m5-7 T32b, 6.8.3) the object layer caches: underlay (images) and annotation (text
+  // boxes, formulas, unknown objects) chunk pictures — no raster tiles — and the cover
+  // layer's page picture of the tapes
+  late final InkChunkCache _underlay = InkChunkCache(
+    chunkSizePt: config.chunkSizePt,
+    maxAppended: config.maxAppendedPictures,
+    drawKeysOf: _objectDrawKeys,
+  );
+  late final InkChunkCache _annotation = InkChunkCache(
+    chunkSizePt: config.chunkSizePt,
+    maxAppended: config.maxAppendedPictures,
+    drawKeysOf: _objectDrawKeys,
+  );
+  final CoverPictureCache _cover = CoverPictureCache();
+
+  /// The objects the base caches were last told to leave out (display.objectsHidden).
+  Set<String> _baseObjectsHidden = const {};
+
+  /// The zoom octave (a power of two of the view scale) the hairlines of the cached
+  /// object pictures were drawn at (InkDrawKeys.hairline).
+  double _hairlineScale = 1;
+
+  /// (T32b, tests) Drawn by the layer 4′ stage after everything else of inkActive.
+  void Function(ui.Canvas canvas)? _debugEndStage;
 
   /// A chunk was recorded with a pencil stroke before the grain was ready.
   bool _chunksMissingGrain = false;
@@ -619,6 +649,7 @@ final class InkPageController extends ChangeNotifier {
     final content = _content;
     if (content == null || !_isTapeId(content, strokeId)) return;
     if (!_revealedTapes.remove(strokeId)) _revealedTapes.add(strokeId);
+    _cover.markDirty();
     _repaints[InkRenderLayer.cover]!.fire();
   }
 
@@ -636,6 +667,7 @@ final class InkPageController extends ChangeNotifier {
     } else {
       _revealedTapes.clear();
     }
+    _cover.markDirty();
     _repaints[InkRenderLayer.cover]!.fire();
   }
 
@@ -799,6 +831,9 @@ final class InkPageController extends ChangeNotifier {
     _pending.clear();
     _rasterSchedule.dispose();
     _chunks.dispose();
+    _underlay.dispose();
+    _annotation.dispose();
+    _cover.dispose();
     _tiles.dropAll();
     _removePictureCount();
     _hl.dispose();
@@ -907,17 +942,23 @@ final class InkPageController extends ChangeNotifier {
     final cached = _display;
     if (cached != null) return cached;
     final d = _display = _computeDisplay();
-    _syncHidden(d.hidden);
+    _syncHidden(d.hidden, d.objectsHidden);
     return d;
   }
 
   /// R2–R4: what the content change means for the base caches. Appended
-  /// strokes (top of the z order) become small chunk pictures; everything
+  /// items (top of the z order) become small chunk pictures; everything
   /// else marks the chunks it touches dirty. Highlighters: one page picture.
+  /// (m5-7 T32b, 6.8.2) The ink chunks append the top run of the merged strokes
+  /// + shapes (inkAppended); underlay / annotation objects go to their own chunks;
+  /// tapes (InkLayer.cover) to the cover picture.
   void _applyDiff(InkContentDiff diff, InkPageContent content) {
     if (diff.isNoop) return;
     if (diff.isReset) {
       _chunks.reset(content.pageSize);
+      _underlay.reset(content.pageSize);
+      _annotation.reset(content.pageSize);
+      _cover.markDirty();
       _chunkOrder = null;
       _hl.markDirty();
       _spatial = null;
@@ -934,45 +975,98 @@ final class InkPageController extends ChangeNotifier {
         spatial.insert(now);
       }
     }
+    final inkAppended = {for (final item in diff.inkAppended) item.id};
     var highlighters = diff.backgroundChanged;
     void dirty(InkStroke s) {
-      if (s.layer == InkLayer.highlighter) {
-        highlighters = true;
-      } else {
-        _chunks.markDirty(s.bounds);
+      switch (s.layer) {
+        case InkLayer.highlighter:
+          highlighters = true;
+        case InkLayer.cover:
+          _cover.markDirty();
+        case InkLayer.ink:
+          _chunks.markDirty(s.bounds);
       }
     }
 
-    diff.inserted.forEach(dirty);
+    void added(InkStroke s) {
+      // a new ink stroke at the top of the merged ink layer is appended below
+      if (s.layer != InkLayer.ink || !inkAppended.contains(s.id)) dirty(s);
+    }
+
+    diff.inserted.forEach(added);
+    diff.appended.forEach(added);
     diff.removed.forEach(dirty);
     for (final (before, now) in diff.changed) {
       dirty(before);
       dirty(now);
     }
-    for (final s in diff.appended) {
-      if (s.layer == InkLayer.highlighter) {
-        highlighters = true;
-      } else if (!_baseHidden.contains(s.id)) {
-        _chunks.append(s, _drawInk);
+    if (highlighters) _hl.markDirty();
+    // objects (6.8.2): inserted / removed / changed → dirty where they are and were
+    void objectsDirty(InkObjectDiff d, InkChunkCache cache) {
+      for (final v in d.inserted) {
+        cache.markDirty(v.bounds);
+      }
+      for (final v in d.removed) {
+        cache.markDirty(v.bounds);
+      }
+      for (final (before, now) in d.changed) {
+        cache
+          ..markDirty(before.bounds)
+          ..markDirty(now.bounds);
       }
     }
-    if (highlighters) _hl.markDirty();
+
+    objectsDirty(diff.underlay, _underlay);
+    objectsDirty(diff.shapes, _chunks);
+    objectsDirty(diff.annotation, _annotation);
+    if (diff.backgroundChanged) {
+      // the placeholders take their tint from the paper (6.11.5)
+      _underlay.markAllDirty();
+      _annotation.markAllDirty();
+    }
+    // appended: the ink layer's top run (strokes + shapes, z mixed), the others' own
+    for (final item in diff.inkAppended) {
+      final hidden = switch (item) {
+        InkStrokeItem() => _baseHidden.contains(item.id),
+        InkObjectView() => _baseObjectsHidden.contains(item.id),
+      };
+      if (!hidden) _chunks.append(item, _drawInkItem);
+    }
+    for (final v in diff.underlay.appended) {
+      if (!_baseObjectsHidden.contains(v.id)) _underlay.append(v, _drawObject);
+    }
+    for (final v in diff.annotation.appended) {
+      if (!_baseObjectsHidden.contains(v.id)) {
+        _annotation.append(v, _drawObject);
+      }
+    }
   }
 
   /// R7: ids that start or stop being hidden (pending erase, previews,
-  /// discarded edits) mark the base pictures they appear in dirty.
-  void _syncHidden(Set<String> hidden) {
+  /// discarded edits) mark the base pictures they appear in dirty. (m5-7 T32b) Objects
+  /// too ([objectsHidden]: hidden ids, pending, transformed, replaced by a preview).
+  void _syncHidden(Set<String> hidden, Set<String> objectsHidden) {
     final content = _content;
     if (content != null) {
       var highlighters = false;
       void touch(String id) {
         final s = content.strokeById(id);
         if (s == null) return;
-        if (s.layer == InkLayer.highlighter) {
-          highlighters = true;
-        } else {
-          _chunks.markDirty(s.bounds);
+        switch (s.layer) {
+          case InkLayer.highlighter:
+            highlighters = true;
+          case InkLayer.cover:
+            _cover.markDirty();
+          case InkLayer.ink:
+            _chunks.markDirty(s.bounds);
         }
+      }
+
+      void touchObject(String id) {
+        final o = objectByIdOf(content, id);
+        if (o == null) return;
+        final v = InkObjectView.of(o);
+        _objectCache(v.layer).markDirty(v.bounds);
       }
 
       for (final id in hidden) {
@@ -981,9 +1075,83 @@ final class InkPageController extends ChangeNotifier {
       for (final id in _baseHidden) {
         if (!hidden.contains(id)) touch(id);
       }
+      for (final id in objectsHidden) {
+        if (!_baseObjectsHidden.contains(id)) touchObject(id);
+      }
+      for (final id in _baseObjectsHidden) {
+        if (!objectsHidden.contains(id)) touchObject(id);
+      }
       if (highlighters) _hl.markDirty();
     }
     _baseHidden = hidden;
+    _baseObjectsHidden = objectsHidden;
+  }
+
+  /// The chunk cache of an object layer (shapes: the ink chunks).
+  InkChunkCache _objectCache(InkObjectLayer layer) => switch (layer) {
+    InkObjectLayer.underlay => _underlay,
+    InkObjectLayer.ink => _chunks,
+    InkObjectLayer.annotation => _annotation,
+  };
+
+  /// One item of the ink chunks: a committed ink stroke or a shape (z mixed, 6.8.1).
+  void _drawInkItem(ui.Canvas canvas, InkLayerItem item) {
+    switch (item) {
+      case InkStrokeItem(:final stroke):
+        _drawInk(canvas, stroke);
+      case InkObjectView():
+        _drawObject(canvas, item);
+    }
+  }
+
+  /// One object into a chunk picture (or the live part): the R2-B3 painter, the hairlines
+  /// at the recorded zoom octave (InkDrawKeys.hairline). Never throws (4.0).
+  void _drawObject(ui.Canvas canvas, InkLayerItem item) {
+    if (item is! InkObjectView) return;
+    final o = item.object;
+    if (o is core.TextBoxObject) _wantFonts();
+    final paper = _content?.background.paperColorArgb ?? core.PaperColors.white;
+    if (!paintObjectSimple(
+      canvas,
+      o,
+      paperArgb: paper,
+      onePx: 1 / _hairlineScale,
+    )) {
+      diagnostics.onWarning('objectPaintFailed');
+    }
+  }
+
+  /// (6.8.3, 6.11.3) What an object's chunk picture depends on besides the object: its
+  /// image asset, NoteSans when it is not loaded yet, the hairline width.
+  static Iterable<Object> _objectDrawKeys(InkLayerItem item) sync* {
+    if (item is! InkObjectView) return;
+    switch (item.object) {
+      case core.ImageObject(:final assetId):
+        yield InkDrawKeys.asset(assetId);
+        yield InkDrawKeys.hairline;
+      case core.TextBoxObject():
+        if (!InkFontsDebug.isLoaded) yield InkDrawKeys.fonts;
+      case core.UnknownObject():
+        yield InkDrawKeys.hairline;
+      case core.ShapeObject() || core.MathObject():
+        break;
+    }
+  }
+
+  /// The zoom octave of [viewScale]: the power of two nearest to it.
+  static double _octaveOf(double viewScale) {
+    if (!(viewScale > 0) || !viewScale.isFinite) return 1;
+    final e = (math.log(viewScale) / math.ln2).round().clamp(-16, 16);
+    return math.pow(2, e).toDouble();
+  }
+
+  /// Another zoom octave: the cached pictures with hairlines are recorded again.
+  void _syncHairlines() {
+    final octave = _octaveOf(_currentViewScale);
+    if (octave == _hairlineScale) return;
+    _hairlineScale = octave;
+    _underlay.markDirtyWithKey(InkDrawKeys.hairline);
+    _annotation.markDirtyWithKey(InkDrawKeys.hairline);
   }
 
   /// One committed ink stroke into a chunk picture (6.8 fill, 6.11 grain).
@@ -1157,8 +1325,13 @@ final class InkPageController extends ChangeNotifier {
           paper,
         );
       case InkRenderLayer.cover:
-        // R2-B3: tapes still draw as ballpoint strokes in the ink layer (T31)
-        return;
+        // (T32b) the page picture of the committed tapes; R2-B3: PenProfile.of(tape) is
+        // still the ballpoint (ink layer), so it stays empty until T31
+        if (content == null) return;
+        _cover.paint(canvas, [
+          for (final s in content.strokes)
+            if (s.layer == InkLayer.cover && !display.hidden.contains(s.id)) s,
+        ], _drawInk);
       case InkRenderLayer.highlighterBase:
         if (content == null) return;
         _hl.paintBase(
@@ -1171,14 +1344,6 @@ final class InkPageController extends ChangeNotifier {
       case InkRenderLayer.inkBase:
         if (content == null) return;
         _paintInkBase(canvas, content, display);
-        // R2-B3: committed shapes after the stroke chunks (mixing them with the strokes
-        // by compareOrder inside the chunks is T32b)
-        _paintObjectList(
-          canvas,
-          inkObjectsOf(content),
-          display.objectsHidden,
-          paper,
-        );
         if (diagnostics.enabled) {
           diagnostics.onCacheStats(
             cachePool.stats,
@@ -1211,12 +1376,16 @@ final class InkPageController extends ChangeNotifier {
     final budgetUs = config.frameWorkBudgetMs * 1000;
     bool outOfTime() => clock.nowUs() - startUs >= budgetUs;
     final order = _currentChunkOrder();
+    // (T32b, 6.8.1) the ink strokes and shapes merged by compareOrder
     final recorded = _chunks.record(
       [
-        for (final s in content.strokes)
-          if (s.layer == InkLayer.ink && !display.hidden.contains(s.id)) s,
+        for (final item in inkLayerItemsOf(content))
+          if (!(item is InkStrokeItem
+              ? display.hidden.contains(item.id)
+              : display.objectsHidden.contains(item.id)))
+            item,
       ],
-      _drawInk,
+      _drawInkItem,
       order: order,
       outOfTime: outOfTime,
     );
@@ -1379,8 +1548,9 @@ final class InkPageController extends ChangeNotifier {
         : InkStroke.of(interop.previewTransformedOf(o.stroke.source, m));
   }
 
-  /// (v2.0) One object layer the R2-B3 way: the committed objects not hidden, then the live
-  /// ones (pending, selection preview, setPreviewObjects) — redrawn on every paint.
+  /// (v2.0) One object layer: (T32b, 6.8.3) the layer's chunk pictures of the committed
+  /// objects not hidden, then the live ones (pending, selection preview,
+  /// setPreviewObjects) — redrawn on every paint.
   void _paintObjects(
     ui.Canvas canvas,
     InkPageContent? content,
@@ -1388,13 +1558,17 @@ final class InkPageController extends ChangeNotifier {
     InkObjectLayer layer,
     int paper,
   ) {
+    _syncHairlines();
     if (content != null) {
-      _paintObjectList(
-        canvas,
-        _objectsOfLayer(content, layer),
-        display.objectsHidden,
-        paper,
-      );
+      final views = objectViewsOf(content, layer);
+      if (views.isNotEmpty) {
+        final cache = _objectCache(layer);
+        cache.record([
+          for (final v in views)
+            if (!display.objectsHidden.contains(v.id)) v,
+        ], _drawObject);
+        cache.drawChunks(canvas);
+      }
     }
     _paintObjectList(
       canvas,
@@ -1432,7 +1606,10 @@ final class InkPageController extends ChangeNotifier {
     unawaited(
       InkFontsDebug.loadImplicitly().then((_) {
         _fontsWaiting = false;
-        if (!_disposed && InkFontsDebug.isLoaded) _invalidate();
+        if (_disposed || !InkFontsDebug.isLoaded) return;
+        // (T32b) only the chunks that drew a text box with the system font
+        _annotation.markDirtyWithKey(InkDrawKeys.fonts);
+        _invalidate();
       }),
     );
   }
@@ -1444,16 +1621,12 @@ final class InkPageController extends ChangeNotifier {
     double margin,
     int paper,
   ) {
-    // (v2.0) live shapes (pending, selection preview, setPreviewObjects)
-    _paintObjectList(
-      canvas,
-      [
-        for (final o in display.liveObjects)
-          if (objectLayerOf(o) == InkObjectLayer.ink) o,
-      ],
-      const {},
-      paper,
-    );
+    // (v2.0) live shapes (pending, selection preview, setPreviewObjects) — (T32b) under the
+    // chunk clips like the chunk pictures that take them over (R6)
+    for (final o in display.liveObjects) {
+      if (objectLayerOf(o) != InkObjectLayer.ink) continue;
+      _chunks.paintClipped(canvas, InkObjectView.of(o), _drawLiveObject);
+    }
     // Committed-looking strokes are drawn under the chunk clips, like the
     // chunk pictures that take them over (pixel-exact hand-off, R6).
     final selectionItems = <SelectionPreviewItem>[];
@@ -1473,8 +1646,8 @@ final class InkPageController extends ChangeNotifier {
       final grain = s.profile.textured ? _grain() : null;
       _chunks.paintClipped(
         canvas,
-        s,
-        (c, s) => paintFillStroke(
+        InkStrokeItem.of(s),
+        (c, _) => paintFillStroke(
           c,
           s,
           outline,
@@ -1497,7 +1670,7 @@ final class InkPageController extends ChangeNotifier {
     for (final added in display.added) {
       final s = InkStroke.of(added);
       if (s.layer != InkLayer.ink) continue;
-      _chunks.paintClipped(canvas, s, _drawInk);
+      _chunks.paintClipped(canvas, InkStrokeItem.of(s), _drawInkItem);
     }
     for (final piece in display.previews) {
       final s = InkStroke.of(piece);
@@ -1506,8 +1679,8 @@ final class InkPageController extends ChangeNotifier {
       final grain = s.profile.textured ? _grain() : null;
       _chunks.paintClipped(
         canvas,
-        s,
-        (c, s) => paintFillStroke(c, s, outline, grain: grain),
+        InkStrokeItem.of(s),
+        (c, _) => paintFillStroke(c, s, outline, grain: grain),
       );
     }
     final active = _active;
@@ -1533,8 +1706,27 @@ final class InkPageController extends ChangeNotifier {
       final end = clock.nowUs();
       diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);
     }
-    // layer 4′ (playback emphasis, shape assist preview) is the last step here: R2-B3
-    // draws nothing in it yet (T39, T40).
+    _paintEndStage(canvas);
+  }
+
+  /// (v2.1, CD2-09 — 6.1) Layer 4′: the last step of inkActive, above every ink item and
+  /// below the annotation and cover layers (text, formulas and covered tapes stay on
+  /// top). T39 (shape assist preview) and T40 (playback emphasis) draw here.
+  void _paintEndStage(ui.Canvas canvas) {
+    final debug = _debugEndStage;
+    if (debug != null) debug(canvas);
+  }
+
+  /// A live object (pending, selection preview, preview) with the exact one-px width of
+  /// this paint.
+  void _drawLiveObject(ui.Canvas canvas, InkLayerItem item) {
+    if (item is! InkObjectView) return;
+    _paintObjectList(
+      canvas,
+      [item.object],
+      const {},
+      _content?.background.paperColorArgb ?? core.PaperColors.white,
+    );
   }
 
   /// The active highlighter groups (6.10-6): for each, ONE composite of its
@@ -1718,6 +1910,34 @@ InkPageRender inkPageRenderOf(InkPageController controller) =>
 @meta.internal
 InkChunkCache inkChunkCacheOf(InkPageController controller) =>
     controller._chunks;
+
+/// INTERNAL (tests): the underlay chunk pictures of [controller] (m5-7 T32b, 6.8.3).
+@meta.internal
+InkChunkCache inkUnderlayCacheOf(InkPageController controller) =>
+    controller._underlay;
+
+/// INTERNAL (tests): the annotation chunk pictures of [controller] (m5-7 T32b, 6.8.3).
+@meta.internal
+InkChunkCache inkAnnotationCacheOf(InkPageController controller) =>
+    controller._annotation;
+
+/// INTERNAL (tests): the cover page picture of [controller] (m5-7 T32b, 6.8.3).
+@meta.internal
+CoverPictureCache inkCoverCacheOf(InkPageController controller) =>
+    controller._cover;
+
+/// INTERNAL (tests): draws [paint] at the layer 4′ stage of [controller]'s inkActive
+/// layer (m5-7 T32b, 6.1); null removes it.
+@meta.internal
+void debugSetInkActiveEndStage(
+  InkPageController controller,
+  void Function(ui.Canvas canvas)? paint,
+) {
+  controller._debugEndStage = paint;
+  if (!controller._disposed) {
+    controller._repaints[InkRenderLayer.inkActive]!.fire();
+  }
+}
 
 /// INTERNAL (tests): the inkBase paint counters of [controller] (6.13).
 @meta.internal
