@@ -398,7 +398,7 @@
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 남음 | | `test/session/object_session_contract_real_test.dart`, `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart` |
-| T28 | 남음 | | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
+| T28 | 완료 | (이정표 표) | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 남음 | | `test/repo/recording_contract_real_test.dart`, `test/repo/recording_repository_test.dart` |
 | T31 | 남음 | | `test/media/recording_draft_contract_real_test.dart`, `test/media/recording_draft_store_test.dart`, `test/web/recording_draft_browser_test.dart`, `test/perf/draft_append_perf_test.dart` |
 | T32 | 남음 | | `test/repo/handwriting_contract_real_test.dart`, `test/repo/handwriting_repository_test.dart`, `test/perf/stale_pages_perf_test.dart` |
@@ -470,6 +470,22 @@
 | `ws test --package note_core --platform vm` | **939개 통과**(915 + 새 24), 5개 건너뜀(perf) | 81초 |
 | `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(바뀐 시험 없음 — 행 변환이 웹에서도 컴파일·동작), 1개 건너뜀(perf). 첫 시도는 부하로 시간 초과, 두 번째 시도 통과(ws 자동 재시도) | 1,026초(잠금 대기 포함) |
 
+#### T28 — 동기화 창구 v2 (계획 6.13·8.2)
+
+- `_RemoteWriter.write`(원격 적용·`commitRepairs` 공용)에 두 종류: **객체**는 획과 같다 — 쓰인 페이지(옮겨졌으면 옛 페이지도)를 `written`에, 그 노트를 영향 노트로(`updatedAt = max(현재, 객체 updatedAt)`). **손글씨 결과**는 쓰인 페이지를 `written`에(작업 끝 `content_rev + 1` 한 번 — 썸네일·`ink_rev` 캐시), 노트는 영향 노트(`affectedNoteIds`·`page_count` 재계산)지만 `updatedAt`은 옮기지 않는다(파생 기록 — 로컬 `put`(6.9.4)과 같게, 다른 기기의 인식 결과가 라이브러리 '최근' 순서를 바꾸지 않게). 고아(페이지 행 없음)는 올릴 페이지·영향 노트가 없다. 새로 만든 페이지는 1차처럼 0에서 시작.
+- `pendingChanges`·`acknowledge`·`readVersioned`(`_readKind`는 T26)·정책 호출(`local`·`pending`)·`KeepLocal`·`TakeRemote(dropPendingLocal)`·`WriteMerged`·`commitRepairs`(필드만 새 HLC, 없는 행은 `{*}`)는 종류에 무관한 1차 코드가 그대로 돈다 — 시험으로 확인.
+- 색인 훅(원격 텍스트 상자·수식·손글씨 → 검색 단위)은 T33a(쓰기 훅을 한 곳에 둔다).
+- 수렴(`field_lww_convergence_v2_test`): 두 저장소의 로컬 편집은 쓰기 큐 `putLocal`(바뀐 키)로 낸다 — 실제 저장소의 객체 명령은 T27, 녹음·손글씨 저장소는 T30·T32. 객체 다른 키 동시 편집(키마다 새 값), 같은 키(나중 것), 삭제 대 수정(둘 다 삭제 + 새 텍스트), 녹음 `title` 대 삭제, 손글씨 `lines`·`engineId`·`sourceRev` — 다섯 경우 모두 JSON·필드 버전 같음, outbox 빔.
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 2초 |
+| `ws test --package note_core --platform vm` | 첫 실행 1개 실패(부하 — 출력을 남기지 못함), 다시 돌려 **960개 통과**(939 + 새 21), 5개 건너뜀(perf). `test/sync`·`test/storage` 두 번 더 돌려 195개 모두 통과 | 75~96초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**, 1개 건너뜀(perf) | 226초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
@@ -479,6 +495,7 @@
 - T24: v1 사본의 실패 기록도 같은 수명(정상 열기 5번 + 7일)으로 지운다(계획은 실패 기록의 수명을 정하지 않음). 사본 kv(`db.v1Copy`)는 기기 로컬 기록이라 쓰기 큐를 거치지 않고 DB에 바로 쓴다(열기 끝·`deleteV1DatabaseCopy` — outbox·HLC 없음, 실패해도 열기를 막지 않음).
 - T24: 시험 이음새 — `DriftNoteStore.open`의 `@visibleForTesting databaseFactory`가 `(executor, v1CopyMaker)`를 받도록 바꿨고(1차 `open_errors_test`의 3곳 고침), `@visibleForTesting v1CopyMethod`로 VM에서 웹 형식(블롭 덤프)을 돌린다. `open_errors_test`의 '새 앱' DB는 v3로 올렸다.
 - T24: `test/shared/b2_alpha_store_cases.dart`의 `tasks.v1Copy`를 null 허용으로(실제 저장소는 T24부터 사본 API가 동작 — 메모리 저장소는 사본 없음).
+- T28: 원격 손글씨 결과는 노트를 영향 노트로 두되 `updatedAt`은 옮기지 않는다(계획 6.13은 '영향 노트 `refreshNoteDerived`'만 적음 — 로컬 `put`과 같게).
 - T26: `DriftSyncStore._readKind`의 새 두 종류(계획은 T28의 '종류 switch')를 T26에 했다 — 완료 조건의 `readVersioned` 행과 고아 시험(`applyRemote`로 객체 → 페이지)이 쓴다. T28에는 `_RemoteWriter`의 `content_rev`·노트 갱신과 색인 훅이 남는다.
 - T26: `data_json`은 메타 키에 더해 `type`도 뺀다(열이 따로 있음 — 계획 표의 '종류별 키 + `frame`'). `writeEntityRow`·`putLocal`의 `strokeNoteId` 인자 이름은 그대로 두고 객체 행의 `note_id`에도 쓴다(내부 이름).
 - T26: 1차 `field_version_writer_test`의 '모든 표본 왕복'이 `kSampleEntities` 전부(객체 8·손글씨·제목 있는 녹음)를 돌게 했고, v1 DB 전용 표본 `kV1RowSamples`(`test/shared/entity_samples.dart`)는 지웠다.
