@@ -219,7 +219,7 @@
 | B2-β 끝 | T23b | 0798096 | 2026-11-06 | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
 | DB v2·마이그레이션 | T24 | a2b0489 | 2026-11-06 | openTestNoteStore가 v2 DB, v1 사본(네이티브 파일·웹 블롭 덤프), dev_tools v1 사본 API 동작 — 새 종류의 행 쓰기는 T26부터 | SYNC·PDF·LIBRARY·INFRA |
 | 쓰기 경로 | T26 | 3bfff8a | 2026-11-06 | 새 종류(객체·손글씨) 행·`recordings.title`·`pages.bg_*`, 힌트(`noteId`·`pageId` 항상), 원격 고아 객체 입양, `readVersioned`·백업 읽기 — SYNC 시나리오 시험 가능(원격 객체의 `content_rev`는 T28) | SYNC |
-| 객체 읽기·쓰기 DB | T27 | | | 실제 저장소 객체 명령·N-7 | EDITOR·PDF |
+| 객체 읽기·쓰기 DB | T27 | 2db774e | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) 세션의 객체 명령 전부(Add/Update/Remove/Transform/Clear/Insert·DuplicatePages)·undo/redo, `createNote(PageDraft.objects)`, `NoteContentReader.loadPage(…).objects`(PDF 내보내기 `integration`), 원격 객체 → 로드된 페이지 `PageContentChange(remote)`(N-7) | EDITOR(E-2x)·PDF |
 | 동기화 창구 v2 | T28 | 3d49685 | 2026-11-06 | `applyRemote`·`commitRepairs`·`readVersioned`·`pendingChanges`가 새 종류(객체·손글씨)로 동작, 원격 객체·손글씨가 쓰인 페이지 `content_rev + 1`, 모르는 `type` 왕복(C-12) — T16-v2(로컬 객체 편집은 실제 저장소 세션 T27부터, 녹음·손글씨 저장소 T30·T32) | SYNC |
 | 복사·휴지통·백업 | T29 | | | copyNote·영구 삭제·백업 v2 | LIBRARY·SYNC |
 | 녹음 저장소 | T30 | 3b5adfa | 2026-11-06 | 실제 저장소 `recordings`: `createRecording`(id 멱등 — 검증보다 먼저 저장된 행)·`renameRecording`·`deleteRecording`·`recordingsOf`·`watchRecordings`·`audioBytesOf`, 공유 본문 `recording_contract`가 가짜·실제 둘 다 | PDF(media)·EDITOR |
@@ -397,7 +397,7 @@
 | T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
-| T27 | 완료 | (이 커밋) | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
+| T27 | 완료 | 2db774e | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
 | T31 | 남음 | | `test/media/recording_draft_contract_real_test.dart`, `test/media/recording_draft_store_test.dart`, `test/web/recording_draft_browser_test.dart`, `test/perf/draft_append_perf_test.dart` |
