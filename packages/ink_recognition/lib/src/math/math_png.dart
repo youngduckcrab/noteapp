@@ -35,20 +35,19 @@ Rect? strokesAreaPt(List<core.Stroke> strokes) {
   return area;
 }
 
-/// The engine image of [strokes] (6.11.3), or null when there is no
-/// [renderer], no stroke, the area is not finite, or the renderer gives
-/// nothing. A throwing renderer is reported once and gives null (the strokes
-/// are still sent). [pageId] / [noteId] name the temporary page (never
-/// stored); its strokes are copies moved by (margin − area.topLeft).
-Future<MathPng?> renderMathPng(
-  core.PageThumbnailRenderer? renderer,
+/// [strokes] on a temporary page of [areaPt] plus [kMathPngMarginPt] on each
+/// side (blank white background): copies moved by (margin − area.topLeft),
+/// page id [pageId], z order. null when there is no stroke or the area is not
+/// finite. The engine image (6.11.3) and recog.toMath's read-only strokes
+/// view (6.15.3) both draw this page.
+({core.Page page, List<core.Stroke> strokes})? mathAreaPage(
   List<core.Stroke> strokes, {
   required Rect areaPt,
   required String pageId,
   required String noteId,
   required core.EpochMillis nowMs,
-}) async {
-  if (renderer == null || strokes.isEmpty) return null;
+}) {
+  if (strokes.isEmpty) return null;
   if (!(areaPt.width >= 0 && areaPt.height >= 0) ||
       !areaPt.left.isFinite ||
       !areaPt.top.isFinite ||
@@ -56,8 +55,6 @@ Future<MathPng?> renderMathPng(
       !areaPt.bottom.isFinite) {
     return null;
   }
-  final width = areaPt.width + 2 * kMathPngMarginPt;
-  final height = areaPt.height + 2 * kMathPngMarginPt;
   final move = core.Affine2.translation(
     kMathPngMarginPt - areaPt.left,
     kMathPngMarginPt - areaPt.top,
@@ -66,7 +63,10 @@ Future<MathPng?> renderMathPng(
     id: pageId,
     noteId: noteId,
     sortKey: 'a0',
-    size: core.PageSize(width, height),
+    size: core.PageSize(
+      areaPt.width + 2 * kMathPngMarginPt,
+      areaPt.height + 2 * kMathPngMarginPt,
+    ),
     background: const core.BlankBackground(),
     createdAt: nowMs,
     updatedAt: nowMs,
@@ -75,13 +75,38 @@ Future<MathPng?> renderMathPng(
     for (final s in strokes)
       s.transformed(move, scaleWidth: false).copyWith(pageId: pageId),
   ]..sort(core.Stroke.compareOrder);
+  return (page: page, strokes: moved);
+}
+
+/// The engine image of [strokes] (6.11.3), or null when there is no
+/// [renderer], no stroke, the area is not finite, or the renderer gives
+/// nothing. A throwing renderer is reported once and gives null (the strokes
+/// are still sent). [pageId] / [noteId] name the temporary page (never
+/// stored — [mathAreaPage]).
+Future<MathPng?> renderMathPng(
+  core.PageThumbnailRenderer? renderer,
+  List<core.Stroke> strokes, {
+  required Rect areaPt,
+  required String pageId,
+  required String noteId,
+  required core.EpochMillis nowMs,
+}) async {
+  if (renderer == null) return null;
+  final area = mathAreaPage(
+    strokes,
+    areaPt: areaPt,
+    pageId: pageId,
+    noteId: noteId,
+    nowMs: nowMs,
+  );
+  if (area == null) return null;
   try {
     final thumb = await renderer.render(
-      core.PageContent(page: page, strokes: moved, revision: 0),
+      core.PageContent(page: area.page, strokes: area.strokes, revision: 0),
       maxSidePx: kMathPngMaxSidePx,
     );
     if (thumb == null || thumb.bytes.isEmpty || thumb.width <= 0) return null;
-    return (png: thumb.bytes, pxPerPt: thumb.width / width);
+    return (png: thumb.bytes, pxPerPt: thumb.width / area.page.size.width);
   } catch (e, s) {
     reportRecognitionError(e, s, 'rendering the math engine image');
     return null;

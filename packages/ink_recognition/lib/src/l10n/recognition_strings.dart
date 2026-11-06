@@ -79,6 +79,9 @@ abstract final class RecognitionStrings {
   static const String mathPadTitle = '수식 입력';
   static const String insert = '넣기';
 
+  /// recog.toMath's primary (6.15.3 — L2-17b).
+  static const String toMathPrimary = '수식으로 바꾸기';
+
   // Math pad handwriting area (6.14.1–6.14.4 — L2-17a).
   static const String padUndo = '되돌리기';
   static const String padEraser = '지우개';

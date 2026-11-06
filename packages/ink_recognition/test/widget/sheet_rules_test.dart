@@ -2,7 +2,8 @@
 // landscape / portrait and a compact width: height ≤ 50% of the screen, tap
 // targets ≥ 44×44 (iOS guideline), no overflow, still usable with the
 // keyboard up. L2-13: the LaTeX editor; L2-14: the math pad (direct input);
-// L2-17a: the math pad with an engine (handwriting area + tools);
+// L2-17a: the math pad with an engine (handwriting area + tools); L2-17b:
+// recog.toMath without an engine (notice + read-only strokes view);
 // L2-15 adds the conversion sheet (the package-side twin of INFRA V5 opening
 // each slot).
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -58,6 +59,23 @@ final List<SheetCase> _sheets = [
         ),
   ),
   (
+    name: 'LaTeX editor (recog.toMath, no engine — strokes view)',
+    key: kLatexSheetKey,
+    overrides: _none,
+    open: (body, log) => recognitionSelectionActions()
+        .singleWhere((a) => a.id == 'recog.toMath')
+        .run(
+          body,
+          log.target(
+            strokes: [
+              glyphStroke('s1', 110, 110, 60),
+              glyphStroke('s2', 180, 110, 60),
+            ],
+            areaPt: const Rect.fromLTWH(100, 100, 300, 120),
+          ),
+        ),
+  ),
+  (
     name: 'math pad (recog.mathPad, direct input)',
     key: kMathPadSheetKey,
     overrides: _none,
@@ -98,6 +116,9 @@ void main() {
         final pending = sheet.open(host.body, log);
         await tester.pumpAndSettle();
         expect(find.byKey(sheet.key), findsOneWidget);
+        if (sheet.name.contains('toMath')) {
+          expect(find.byKey(kMathStrokesViewKey), findsOneWidget);
+        }
         final canvas = find.byKey(kMathPadCanvasKey);
         if (canvas.evaluate().isNotEmpty) {
           // 6.14.1: 40% of the sheet's height, at least 140 px

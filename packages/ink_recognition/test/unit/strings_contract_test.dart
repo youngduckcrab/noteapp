@@ -60,6 +60,7 @@ void main() {
     expect(RecognitionStrings.copyLatex, 'LaTeX 복사');
     expect(RecognitionStrings.mathPadTitle, '수식 입력');
     expect(RecognitionStrings.insert, '넣기');
+    expect(RecognitionStrings.toMathPrimary, '수식으로 바꾸기'); // L2-17b
     expect(RecognitionStrings.copied, '복사했어요.');
     expect(RecognitionStrings.readOnly, '읽기 전용 노트라 바꿀 수 없어요.');
     expect(RecognitionStrings.runFailed, '실행하지 못했어요.');

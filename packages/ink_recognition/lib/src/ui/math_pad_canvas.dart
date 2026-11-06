@@ -326,3 +326,85 @@ class _MathPadCanvasState extends ConsumerState<MathPadCanvas> {
     );
   }
 }
+
+/// recog.toMath's read-only strokes view (6.15.3): the chosen strokes on a
+/// temporary page (math_png.dart mathAreaPage — moved to the area's top-left,
+/// never stored), scaled to fit [height] keeping the page's aspect ratio. No
+/// input.
+class MathStrokesView extends ConsumerStatefulWidget {
+  const MathStrokesView({
+    super.key,
+    required this.page,
+    required this.strokes,
+    required this.height,
+  });
+
+  final core.Page page;
+  final List<core.Stroke> strokes;
+  final double height;
+
+  @override
+  ConsumerState<MathStrokesView> createState() => _MathStrokesViewState();
+}
+
+class _MathStrokesViewState extends ConsumerState<MathStrokesView> {
+  ink.InkPageController? _controller;
+  int _revision = 0;
+
+  void _schedulePush() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = _controller;
+      if (!mounted || controller == null) return;
+      controller.updateContent(
+        ink.InkPageContent.fromCore(
+          page: widget.page,
+          strokes: widget.strokes,
+          revision: ++_revision,
+        ),
+      );
+    });
+  }
+
+  @override
+  void didUpdateWidget(MathStrokesView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.page != widget.page ||
+        !identical(oldWidget.strokes, widget.strokes)) {
+      _schedulePush();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = ref.watch(ink.inkPageControllerProvider(widget.page.id));
+    if (!identical(controller, _controller)) {
+      _controller = controller;
+      _schedulePush();
+    }
+    final size = widget.page.size;
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: kMathStrokesViewKey,
+      height: widget.height,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: size.width / size.height,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: IgnorePointer(
+              child: ink.InkPageView(controller: controller),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The read-only strokes view's key (not appendix C).
+const ValueKey<String> kMathStrokesViewKey = ValueKey('recog.sheet.strokes');
+
+/// The read-only strokes view's height (logical px).
+const double kMathStrokesViewHeight = 96;
