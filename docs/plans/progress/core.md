@@ -405,7 +405,7 @@
 | T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
 | T33b | 완료 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
-| T29 | 진행 중 | 585022b(① 영구 삭제) — ②③ 남음 | `test/repo/note_copy_v2_test.dart`, `test/repo/trash_purge_v2_test.dart`(완료 — 가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart` |
+| T29 | 진행 중 | 585022b(① 영구 삭제) · (② 복사 — 아래 'T29 ②') — ③ 백업 남음 | `test/repo/note_copy_v2_test.dart`(완료 — 가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(완료 — 가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart` |
 | T36 | 남음 | | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2) |
 | T37 | 남음 | | `-t perf` PF-1~PF-11, Chrome `perf`, `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
@@ -649,6 +649,11 @@
 - 가짜(`fake_note_store.dart` `_purgeGroup`)는 B2-β부터 같은 범위를 지운다(녹음·초안·색인 소유자·객체·손글씨) — 바꾸지 않음.
 - 시험 `test/repo/trash_purge_v2_test.dart`: 가짜·실제 각각 `purge`·`emptyTrash` 뒤 지운 노트의 객체·손글씨 결과·텍스트·손글씨 검색 결과·초안이 없고 pdf 소유자(`sourceRevOf`)는 남으며 다른 노트는 그대로·공유 pdf 쪽 검색은 남은 노트만(4건), 실제 저장소에서 `purgeExpired`(31일 뒤) 뒤 그 노트의 `page_objects`·`handwriting`·`search_owners`·`search_units`·`recording_drafts`·outbox 행 0, FTS 행 2개 줄고 pdf 단위 수 그대로, 초안 블롭 `rd/<id>/` 없음, 다른 노트 행 그대로 — 그리고 `RemotePurge`도 같음(2건). 바꾸기 전 코드에서는 실제 저장소 4건이 실패함을 확인했다.
 
+#### T29 ② — `copyNote` v2 (계획 6.14.1·8.2) — 세션 7
+
+- `DriftLibraryRepository.copyNote`(`copyItems`·폴더 복사·`duplicateNoteForRecovery` 공용): 1차 순서(노트 → 페이지 → 획) 뒤에 ① 원본 노트의 활성 녹음을 `startedAt → id` 순으로 새 id(같은 `assetId`·`title`·`durationMs`·`startedAt`, `createdAt = updatedAt = now`)로 — 옛 id → 새 id 표, ② 복사된 획의 `recordingId`가 표에 있으면 새 id(없으면 — 삭제된 녹음 — 그대로, R-7), ③ 페이지마다 활성 객체를 `Stroke.compareOrder` 순으로 `copyTo(새 id, 새 페이지, 원래 createdAt).copyWithMeta(updatedAt: now)`(행 `note_id`는 `strokeNoteId:` 인자), ④ 원본 페이지에 활성 손글씨 결과가 있으면 새 노트·페이지로, `lines[].strokeIds`는 복사된 획의 새 id로(복사되지 않은 id — 지운 획 — 는 뺌), `sourceRev`는 복사된 **입력** 획(`isRecognitionInput` — 형광펜·테이프·레이저 제외)의 `(새 id, now)` 쌍으로 `sourceRevOfPairs`(획 값을 들고 있지 않게 쌍만 모음). ⑤ 색인은 쓰기 훅이 ③④에서 만든다. 가짜(`fake_note_store.dart` `copyNote`)는 B2-β부터 같은 단계 — 바꾸지 않음.
+- 시험 `test/repo/note_copy_v2_test.dart`: 가짜·실제 각각 ① `copyItems(노트)` — 녹음 둘(삭제된 것 빼고) 새 id·같은 값, 획 `recordingId` 새 녹음 id·삭제된 녹음 id 그대로·없음, 객체 4개(지운 것 빼고) 새 id·같은 페이지 밖 JSON·같은 에셋·`createdAt`·모르는 `type` 1개, 손글씨 결과 새 노트·페이지·`strokeIds` 재매핑(지운 획 빠짐)·`alternatives`·`rect` 그대로·`sourceRev` = 복사된 입력 획 값·복사본 `stalePages` 빈 목록(원본은 그대로 stale), 텍스트 상자·손글씨 검색이 두 노트 모두에서·`withinNote` 복사본 쪽, 원본 그대로 ② `copyItems(폴더)` 안의 노트도 같음 ③ 사본의 사본도 다시 매핑. 실제만: `duplicateNoteForRecovery`(휴지통 노트 → 같은 복사본, 휴지통 원본은 검색에서 빠짐), outbox(녹음 2·객체 4·손글씨 1·획 4 — `noteId` 복사본, 객체·손글씨 `pageId` 복사본 페이지, `upsert`·`{*}`). 바꾸기 전 코드에서 실제 5건 실패를 확인했다.
+
 확인 (2026-11-06 세션 6 끝 — T34·T29 ① 뒤, load 4~7)
 
 | 검사 | 결과 | 시간 |
@@ -671,6 +676,7 @@
 - T33b(세션 6): 판정과 점수를 `matchScore` 한 번으로(같은 값 — 무작위 동치 시험), 발췌 대응표를 일치 위치까지만(`normalizeMappedPrefix` — 같은 발췌), 3단계 읽기를 `UNION ALL` 한 문장으로, pdf 글자 상자를 `SearchRectsCodec.view`(읽을 때 만듦)로. 모두 내부 — 공개 이름 변화 없음(`normalizeMappedPrefix`는 `search_text.dart`에 있어 배럴에서 `hide`).
 - T33b(세션 6): 6.19 PF-3·PF-4 예산은 후보가 적은 질의(PF-3 300개·PF-4 600개 미만)에만 단언한다 — 상한 질의는 기록만(변경 요청 [총괄] V10). PF-10 질의 예산은 6.19의 '≤ 20 ms [추측 — 첫 측정으로 확정]'을 첫 측정(32~42 ms, load 10 — 후보 500개 × 2,500자 `norm` 17 ms가 대부분)으로 **≤ 50 ms로 확정**했다(계약 V10에는 PF-10 질의 예산이 없다 — 7.4.5의 DB 증가·다시 열기 목표만).
 - T33b(세션 6): PF-3 시험의 질의 표를 넓혔다 — 잦은·보통·드문 2음절, 3음절, 낱말 중간(조사 03 9.2 '낱말 중간'), 영문 접두사, AND 각각 잦은·드문 것, 1글자 LIKE 셋. 질의마다 후보 수를 함께 적는다.
+- T29 ②: 계획 8.2의 '공유 `library_contract` 확장'은 `test/shared/library_contract.dart`에 넣지 않고 `test/repo/note_copy_v2_test.dart` 한 파일이 가짜·실제 두 저장소를 돌게 했다(`trash_purge_v2_test`와 같은 모양 — 녹음·손글씨·검색 준비가 1차 계약 본문의 열기 함수(`ClockedStoreFactory`)와 맞지 않아서). `duplicateNoteForRecovery`는 가짜 `SyncStore`에 없어(`_unsupported`) 실제만.
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
 - T24: '새 v2 = 이주한 v2의 `sqlite_master`' 비교는 v1 원본을 **V7 고정 자료**(1차 코드가 쓴 DB)로 하고, 식별자 따옴표·괄호 앞 공백을 정규화해 비교한다. 생성 `schema_v1`이 만든 v1 표와 업그레이드가 생성 `Schema2`로 만든 새 표는 `PRIMARY KEY(id)`처럼 1차 실제 표(`PRIMARY KEY ("id")`)와 글자가 조금 다르다(열·형·제약·순서는 같음). 이주 시험(`migration_v2_test`)의 합성 v1은 계획대로 생성 `schema_v1`로 만든다.
 - T24: 생성 시험 `migration_test.dart`는 `package:flutter_test` 대신 `package:test` + `@TestOn('vm')`(note_core는 순수 Dart 멤버)로 고쳤고, 자료 보존 사례를 실제 행(폴더 `name_norm` 재계산·pdf 배경 `bg_*`·녹음 `title` NULL·outbox)으로 채웠다.
@@ -693,13 +699,13 @@
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34. **T29 진행 중** — ① 영구 삭제 끝(세션 6), 남은 것은 ② `copyNote` 1~5단계 ③ 백업 v2(아래 'T29 남은 것'). 그다음 T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34. **T29 진행 중** — ① 영구 삭제 끝(세션 6), ② `copyNote` v2 끝(세션 7), 남은 것은 ③ 백업 v2(아래 'T29 남은 것'). 그다음 T36 → T37. T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
 - 검색 질의 예산: 변경 요청 [총괄] V10의 답이 오면 `test/perf/search_perf_test.dart`의 `kHeldBelow`·예산을 맞춘다(상한 질의 ≤ 40 ms 제안). 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
 - T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
 - 영구 삭제(T29 ①, 세션 6에 끝남): `deleteNoteContents`가 객체·손글씨·그 노트의 색인 행·초안까지 지운다(아래 'T29 ①' 절).
 - `content_rev` 경합(위 '계획과 다르게 한 점' T32): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`·`putLocal(Page)`)를 `MAX(content_rev + 1, 값)`으로 바꿀지 T37(또는 통합) 전에 판단 — 썸네일 캐시도 같은 이득.
-- T29 남은 것: ② `copyNote` 1~5단계(6.14.1 — 객체 새 id·같은 에셋·`createdAt` 보존, 녹음 새 id·획 `recordingId` 바꿈(R-6), 삭제된 녹음은 복사 안 함, 손글씨 결과 `strokeIds` 재매핑·복사본 `stalePages` 빈 목록, `duplicateNoteForRecovery` 같음 — `test/repo/note_copy_v2_test.dart`, 공유 `library_contract` 확장 가짜·실제) ③ 백업 v2(새 종류·골든 `backup_v2.json` — v1 사본·색인 제외, `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`). T29 이정표(복사·휴지통·백업)는 ②③까지 끝난 커밋.
+- T29 남은 것: ③ 백업 v2(새 종류·골든 `backup_v2.json` — v1 사본·색인 제외, `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`). T29 이정표(복사·휴지통·백업)는 ③까지 끝난 커밋.
 - 초안 저장소 시험 도구: `test/media/draft_store_support.dart` `openDraftStore(path, idbFactory)`(파일 DB + 같은 메모리 IndexedDB로 다시 열기), `DriftRecordingDraftStore.debugWriteOrder`·`.blobs`.
 - 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
 - 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.

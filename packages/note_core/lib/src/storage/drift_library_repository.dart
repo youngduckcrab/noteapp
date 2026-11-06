@@ -13,10 +13,13 @@ import '../common/errors.dart';
 import '../common/ids.dart';
 import '../common/sort_keys.dart';
 import '../common/sort_planner.dart';
+import '../common/source_rev.dart';
 import '../common/text_normalize.dart';
 import '../edit/command_resolver.dart';
 import '../edit/page_draft.dart';
+import '../model/asset.dart';
 import '../model/folder.dart';
+import '../model/handwriting.dart';
 import '../model/note.dart';
 import '../model/page.dart';
 import '../model/stroke.dart';
@@ -965,6 +968,13 @@ final class DriftLibraryRepository implements LibraryRepository {
 
   /// Copy of [n] with its active pages and strokes under new ids, active, in [folderId]
   /// (6.8; also the path of duplicateNoteForRecovery, 6.10.5). Assets are shared.
+  /// (v2.0, m5-7/02-core 6.14.1) After the note → pages → strokes order of 1st round:
+  /// ① active recordings under new ids (same asset / title / timing), ② copied strokes
+  /// linked to a copied recording get its new id (others keep theirs — R-7), ③ active page
+  /// objects under new ids with their createdAt, ④ each page's active handwriting result
+  /// for the new note / page (strokeIds mapped, ids not copied dropped, sourceRev of the
+  /// copied input strokes), ⑤ the write hook indexes ③ and ④. Same order and result as the
+  /// fake store.
   Future<NoteId> copyNote(
     WriteTxn tx,
     Note n, {
@@ -997,6 +1007,31 @@ final class DriftLibraryRepository implements LibraryRepository {
       const {kAllFields},
       isNew: true,
     );
+    // ① recordings (R-6): old id → new id.
+    final recordingIds = <RecordingId, RecordingId>{};
+    final recordingRows =
+        await (_db.select(_db.recordings)
+              ..where((t) => t.noteId.equals(n.id) & t.deletedAt.isNull())
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.startedAt),
+                (t) => OrderingTerm.asc(t.id),
+              ]))
+            .get();
+    for (final r in recordingRows) {
+      final rec = recordingOf(r);
+      final copy = Recording(
+        id: s.ids.newId(),
+        noteId: id,
+        assetId: rec.assetId,
+        durationMs: rec.durationMs,
+        startedAt: rec.startedAt,
+        createdAt: tx.now,
+        updatedAt: tx.now,
+        title: rec.title,
+      );
+      recordingIds[rec.id] = copy.id;
+      await tx.putLocal(copy, const {kAllFields}, isNew: true);
+    }
     for (var i = 0; i < pages.length; i++) {
       final p = pages[i];
       final pageId = newPageIds[i];
@@ -1013,6 +1048,8 @@ final class DriftLibraryRepository implements LibraryRepository {
         const {kAllFields},
         isNew: true,
       );
+      final strokeIds = <ElementId, ElementId>{};
+      final inputs = <(String, int)>[];
       for (var offset = 0; ; offset += kCopyStrokeChunk) {
         final rows =
             await (_db.select(_db.strokes)
@@ -1022,23 +1059,76 @@ final class DriftLibraryRepository implements LibraryRepository {
                 .get();
         for (final r in rows) {
           final st = strokeOf(r);
+          final copy = Stroke(
+            id: s.ids.newId(),
+            pageId: pageId,
+            style: st.style,
+            points: st.points,
+            // ② R-6: a copied recording's new id; otherwise as it was (R-7).
+            recordingId: recordingIds[st.recordingId] ?? st.recordingId,
+            recordingOffsetMs: st.recordingOffsetMs,
+            createdAt: st.createdAt,
+            updatedAt: tx.now,
+          );
+          strokeIds[st.id] = copy.id;
+          if (HandwritingText.isRecognitionInput(copy)) {
+            inputs.add((copy.id, copy.updatedAt));
+          }
           await tx.putLocal(
-            Stroke(
-              id: s.ids.newId(),
-              pageId: pageId,
-              style: st.style,
-              points: st.points,
-              recordingId: st.recordingId,
-              recordingOffsetMs: st.recordingOffsetMs,
-              createdAt: st.createdAt,
-              updatedAt: tx.now,
-            ),
+            copy,
             const {kAllFields},
             strokeNoteId: id,
             isNew: true,
           );
         }
         if (rows.length < kCopyStrokeChunk) break;
+      }
+      // ③ objects: new ids, the original createdAt (z-order kept).
+      final objectRows = await (_db.select(
+        _db.pageObjects,
+      )..where((t) => t.pageId.equals(p.id) & t.deletedAt.isNull())).get();
+      final objects = [for (final r in objectRows) pageObjectOf(r)]
+        ..sort(Stroke.compareOrder);
+      for (final o in objects) {
+        await tx.putLocal(
+          o
+              .copyTo(id: s.ids.newId(), pageId: pageId, createdAt: o.createdAt)
+              .copyWithMeta(updatedAt: tx.now),
+          const {kAllFields},
+          strokeNoteId: id,
+          isNew: true,
+        );
+      }
+      // ④ the handwriting result — searchable at once, even where nothing can recognize.
+      final hwRow =
+          await (_db.select(_db.handwriting)..where(
+                (t) =>
+                    t.id.equals(HandwritingText.idFor(p.id)) &
+                    t.deletedAt.isNull(),
+              ))
+              .getSingleOrNull();
+      if (hwRow != null) {
+        final hw = handwritingOf(hwRow);
+        await tx.putLocal(
+          HandwritingText(
+            noteId: id,
+            pageId: pageId,
+            engineId: hw.engineId,
+            sourceRev: sourceRevOfPairs(inputs),
+            lines: List.unmodifiable([
+              for (final l in hw.lines)
+                l.copyWith(
+                  strokeIds: List.unmodifiable([
+                    for (final sid in l.strokeIds) ?strokeIds[sid],
+                  ]),
+                ),
+            ]),
+            createdAt: tx.now,
+            updatedAt: tx.now,
+          ),
+          const {kAllFields},
+          isNew: true,
+        );
       }
     }
     return id;
