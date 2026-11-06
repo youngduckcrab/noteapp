@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../actions/editor_action_runner.dart';
 import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
@@ -263,6 +264,8 @@ final editorInteractionHostProvider = Provider<InteractionHost>(
     editorPanelProvider,
     editorNoteRecordingIdsProvider,
     editorPlaybackHighlightProvider,
+    // (v2) finger taps / long press → actions (6.4.3)
+    editorActionRunnerProvider,
   ],
   name: 'editorInteractionHostProvider',
 );

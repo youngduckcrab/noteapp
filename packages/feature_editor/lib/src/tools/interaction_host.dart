@@ -11,6 +11,8 @@
 // taps by GestureSettings.actionFor and the pen dot hook (6.3.5). E2-16: the
 // pen stroke's recording meta at contact (6.15.1 — R-1). E2-17: tap-to-seek
 // (6.3.5 ③, 6.15.3 — R-5 (v2.1)) for one-finger taps and pen / finger dots.
+// E2-05: two- / three-finger taps and the finger long press run their
+// GestureSettings action through EditorActionRunner (6.4.2, 6.4.3).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -21,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
+import '../actions/editor_action_runner.dart';
 import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_sample.dart';
@@ -479,9 +482,9 @@ class InteractionHost implements InputTargets {
   void navigationCancel() => _viewport.cancelGesture();
 
   /// 1 = dismiss (context menu → popup → (v2) tap-to-seek ③ → selection),
-  /// 2 / 3 = the action of twoFingerTap / threeFingerTap (undo / redo — v2
-  /// 6.3.4; the action runner of 6.4.3 replaces this in E2-05). The router
-  /// only sends 2 / 3 when the action is not none.
+  /// 2 / 3 = the action of twoFingerTap / threeFingerTap through the action
+  /// runner (v2 6.4.2 — undo, redo or toggleEraser). The router only sends
+  /// 2 / 3 when the action is not none.
   @override
   void tapGesture(int fingerCount, Offset centroid) {
     switch (fingerCount) {
@@ -496,38 +499,38 @@ class InteractionHost implements InputTargets {
           _commands.clearSelection();
         }
       case 2:
-        _runTapAction(EditorGesture.twoFingerTap);
+        _runGesture(EditorGesture.twoFingerTap, centroid);
       case 3:
-        _runTapAction(EditorGesture.threeFingerTap);
+        _runGesture(EditorGesture.threeFingerTap, centroid);
       default:
         break;
     }
   }
 
-  void _runTapAction(EditorGesture gesture) {
+  void _runGesture(EditorGesture gesture, Offset at) {
     if (_disposed) return;
-    final gestures = _ref.read(editorSettingsProvider).gestures;
-    switch (gestures.actionFor(gesture)) {
-      case EditorAction.undo:
-        unawaited(_commands.undo());
-      case EditorAction.redo:
-        unawaited(_commands.redo());
-      default:
-        break; // none (the router does not send it)
-    }
+    final action = _ref
+        .read(editorSettingsProvider)
+        .gestures
+        .actionFor(gesture);
+    _ref.read(editorActionRunnerProvider).run(action, GestureSource(at));
   }
+
+  /// (v2) The fingerLongPress action (6.4.2 — contextMenu by default; the
+  /// router does not time a long press whose action is none).
+  @override
+  void longPress(Offset screen) =>
+      _runGesture(EditorGesture.fingerLongPress, screen);
+
+  /// The mouse right button: always the context menu ([openContextMenuAt]).
+  @override
+  void secondaryClick(Offset screen) => openContextMenuAt(screen);
 
   /// On the selection → its menu (already shown while a selection exists);
   /// elsewhere → the context menu (붙여넣기 when the clipboard has strokes,
   /// 올가미 도구). Nothing on a read-only note (both items edit).
-  @override
-  void longPress(Offset screen) => _menuAt(screen);
-
-  /// Same as [longPress] (mouse right button).
-  @override
-  void secondaryClick(Offset screen) => _menuAt(screen);
-
-  void _menuAt(Offset screen) {
+  /// EditorAction.contextMenu (6.4.1 — the 1st-round `_menuAt`).
+  void openContextMenuAt(Offset screen) {
     if (_disposed) return;
     if (_onSelection(screen)) {
       closeContextMenu();

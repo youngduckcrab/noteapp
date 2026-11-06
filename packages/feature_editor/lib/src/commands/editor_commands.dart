@@ -81,6 +81,16 @@ class EditorCommands {
   /// menu (the host depends on these commands, so it is bound afterwards).
   void bindHost(InteractionHost host) => _host = host;
 
+  /// (v2, E2-05) true while the router drives a tool interaction — the
+  /// action runner (6.4.3) ignores everything but the palettes then.
+  bool get interactionActive => _router?.hasActiveInteraction ?? false;
+
+  /// (v2, E2-05) EditorAction.contextMenu at [viewport] (the 1st-round long
+  /// press menu: on the selection its menu, elsewhere the context menu).
+  void openContextMenuAt(Offset viewport) {
+    if (!_disposed) _host?.openContextMenuAt(viewport);
+  }
+
   // ---- commands (5.1.3) ----
 
   /// One gesture = one InkEdit = one execute (contract E-1, 7.2.15 hand-off).

@@ -22,6 +22,7 @@ import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
 import '../pen/pen_advanced_controls.dart';
 import '../pen/pen_type_selector.dart';
+import 'gesture_action_tile.dart';
 
 /// Keys of the section controls (tests; not exported).
 abstract final class SettingsSectionKeys {
@@ -30,12 +31,9 @@ abstract final class SettingsSectionKeys {
   static const penCooldown = ValueKey('editor.settings.penCooldown');
   static const hoverAsPen = ValueKey('editor.settings.hoverAsPen');
   static const maxTouchRadius = ValueKey('editor.settings.maxTouchRadius');
-  static const twoFingerTapUndo = ValueKey('editor.settings.twoFingerTapUndo');
-  static const threeFingerTapRedo = ValueKey(
-    'editor.settings.threeFingerTapRedo',
-  );
-  static const longPressMenu = ValueKey('editor.settings.longPressMenu');
+  // (v2) the gesture rows: GestureActionTiles.rowKey (appendix C)
   static const fixedGestures = ValueKey('editor.settings.fixedGestures');
+  static const resetGestures = ValueKey('editor.settings.resetGestures');
   static const resetInput = ValueKey('editor.settings.resetInput');
   static const pressureMode = ValueKey('editor.settings.pressureMode');
   static const pressureState = ValueKey('editor.settings.pressureState');
@@ -60,8 +58,9 @@ abstract final class SettingsSectionKeys {
 
 /// 입력: 입력 모드(자동/펜 전용/손가락 필기), 팜 리젝션(펜 직후 터치 무시 시간,
 /// 펜 hover 중 터치 무시, 접촉 반경 — 지원 기기 안내 문구 포함),
-/// 제스처(두 손가락 탭 되돌리기, 세 손가락 탭 다시 실행, 길게 누르기 메뉴 켜기/끄기,
-/// 나머지 제스처는 읽기 전용 표).
+/// 제스처((v2, m5-7/04-editor 6.4.4) 제스처마다 동작을 고르는 줄 — 손가락 탭·
+/// 길게 누르기·펜 버튼·지우개 끝·Apple Pencil, 바꿀 수 없는 제스처는 회색 표,
+/// [기본값으로]).
 class EditorInputSettingsSection extends ConsumerWidget {
   const EditorInputSettingsSection({super.key});
   @override
@@ -69,7 +68,6 @@ class EditorInputSettingsSection extends ConsumerWidget {
     final settings = ref.watch(editorSettingsProvider);
     final notifier = ref.read(editorSettingsProvider.notifier);
     final palm = settings.palmRejection;
-    final gestures = settings.gestures;
     final hintStyle = _hintStyle(context);
     final cooldownMs = palm.penCooldown.inMilliseconds.clamp(0, 1500);
     final radius = palm.maxTouchRadius.clamp(20.0, 120.0);
@@ -152,27 +150,7 @@ class EditorInputSettingsSection extends ConsumerWidget {
         ),
         _Padded(Text(EditorStrings.maxTouchRadiusHint, style: hintStyle)),
         const _Label(EditorStrings.gestures),
-        SwitchListTile(
-          key: SettingsSectionKeys.twoFingerTapUndo,
-          title: const Text(EditorStrings.twoFingerTapUndo),
-          value: gestures.twoFingerTapUndo,
-          onChanged: (v) =>
-              notifier.setGestures(gestures.copyWith(twoFingerTapUndo: v)),
-        ),
-        SwitchListTile(
-          key: SettingsSectionKeys.threeFingerTapRedo,
-          title: const Text(EditorStrings.threeFingerTapRedo),
-          value: gestures.threeFingerTapRedo,
-          onChanged: (v) =>
-              notifier.setGestures(gestures.copyWith(threeFingerTapRedo: v)),
-        ),
-        SwitchListTile(
-          key: SettingsSectionKeys.longPressMenu,
-          title: const Text(EditorStrings.longPressMenu),
-          value: gestures.longPressMenu,
-          onChanged: (v) =>
-              notifier.setGestures(gestures.copyWith(longPressMenu: v)),
-        ),
+        const GestureActionTiles(),
         const _Label(EditorStrings.fixedGestures),
         _Padded(
           Table(
@@ -184,7 +162,7 @@ class EditorInputSettingsSection extends ConsumerWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(gesture),
+                      child: Text(gesture, style: hintStyle),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -193,6 +171,14 @@ class EditorInputSettingsSection extends ConsumerWidget {
                   ],
                 ),
             ],
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            key: SettingsSectionKeys.resetGestures,
+            onPressed: () => notifier.setGestures(GestureSettings.defaults),
+            child: const Text(EditorStrings.resetGestures),
           ),
         ),
         Align(

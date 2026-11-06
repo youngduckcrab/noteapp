@@ -1,4 +1,5 @@
 // lib/src/state/popup.dart — 04-editor 6.9.2 (popup state, per note).
+// (v2) E2-05: popups at a point (m5-7/04-editor 6.4.1 palettes).
 import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
@@ -21,14 +22,34 @@ final class PenSettingsPopup extends EditorPopup {
   int get hashCode => (PenSettingsPopup).hashCode;
 }
 
+/// The quick pen popup: below the pen button, or (v2, EditorAction
+/// toolPalette — m5-7/04-editor 6.4.1) at [globalPosition] (the pencil's
+/// hover point, global logical px).
 final class QuickPenPopup extends EditorPopup {
-  const QuickPenPopup();
+  const QuickPenPopup({this.globalPosition});
+  final Offset? globalPosition;
 
   @override
-  bool operator ==(Object other) => other is QuickPenPopup;
+  bool operator ==(Object other) =>
+      other is QuickPenPopup && other.globalPosition == globalPosition;
 
   @override
-  int get hashCode => (QuickPenPopup).hashCode;
+  int get hashCode => Object.hash(QuickPenPopup, globalPosition);
+}
+
+/// (v2, EditorAction colorPalette — m5-7/04-editor 6.4.1) the recent colours
+/// and the user palette (the two rows of the colour panel), below the pen
+/// button or at [globalPosition].
+final class ColorPalettePopup extends EditorPopup {
+  const ColorPalettePopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ColorPalettePopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(ColorPalettePopup, globalPosition);
 }
 
 final class EraserSettingsPopup extends EditorPopup {

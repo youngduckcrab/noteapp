@@ -1,8 +1,14 @@
 // E-11: undo / redo wiring (04-editor 6.8): [↶] [↷] enabled from
 // core.historyStateProvider, two- / three-finger taps, ignored during an
 // interaction, scrolling to the first affected page in note order, read-only,
-// and a racing ReadOnlyNoteException (N-4 v1.1).
+// and a racing ReadOnlyNoteException (N-4 v1.1). (v2, m5-7/04-editor 8.2
+// E2-05) the finger taps run their GestureSettings action through
+// EditorActionRunner: two-finger tap set to redo → one redo, none → nothing,
+// toggleEraser → the tool (no command).
+import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/tools/tool_controller.dart';
+import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/toolbar/undo_redo_buttons.dart';
 import 'package:flutter/gestures.dart';
@@ -222,5 +228,75 @@ void main() {
     await _settle(tester);
     expect(h.recorder!.countOf('undo'), 1);
     expect(h.viewport.currentPageIndex.value, 4);
+  });
+
+  group('(v2) gesture actions (E2-05)', () {
+    void setAction(
+      EditorTestHandles h,
+      EditorGesture gesture,
+      EditorAction action,
+    ) {
+      final notifier = h.container.read(editorSettingsProvider.notifier);
+      notifier.setGestures(
+        h.container
+            .read(editorSettingsProvider)
+            .gestures
+            .withAction(gesture, action),
+      );
+    }
+
+    testWidgets('two-finger tap set to redo (settings changed while the '
+        'note is open) → one redo; none → nothing', (tester) async {
+      final h = await pumpEditor(tester);
+      await _draw(h);
+      await _draw(h, dy: 80);
+      await h.container.read(editorCommandsProvider).undo();
+      await _settle(tester);
+      expect(h.session.history.redoDepth, 1);
+      await h.driver.wait(_afterPen);
+      final c = pageCenterOf(h, 0);
+
+      setAction(h, EditorGesture.twoFingerTap, EditorAction.redo);
+      await tester.pump();
+      await h.driver.multiTap([c, c + const Offset(60, 0)]);
+      await _settle(tester);
+      expect(h.recorder!.countOf('undo'), 1); // the one above
+      expect(h.recorder!.countOf('redo'), 1);
+      expect(h.session.history.undoDepth, 2);
+
+      setAction(h, EditorGesture.twoFingerTap, EditorAction.none);
+      await tester.pump();
+      await h.driver.multiTap([c, c + const Offset(60, 0)]);
+      await _settle(tester);
+      expect(h.recorder!.countOf('undo'), 1);
+      expect(h.recorder!.countOf('redo'), 1);
+      expect(h.session.history.undoDepth, 2);
+      await tester.pump(const Duration(seconds: 1)); // settings write
+    });
+
+    testWidgets('three-finger tap set to toggleEraser → eraser, again → the '
+        'previous tool; no command, no undo', (tester) async {
+      final h = await pumpEditor(tester);
+      await _draw(h);
+      await h.driver.wait(_afterPen);
+      final c = pageCenterOf(h, 0);
+      setAction(h, EditorGesture.threeFingerTap, EditorAction.toggleEraser);
+      await tester.pump();
+      final three = [c, c + const Offset(60, 0), c + const Offset(120, 0)];
+
+      await h.driver.multiTap(three);
+      await tester.pump();
+      expect(
+        h.container.read(editorToolProvider).activeTool,
+        EditorTool.eraser,
+      );
+      await h.driver.multiTap(three);
+      await tester.pump();
+      expect(h.container.read(editorToolProvider).activeTool, EditorTool.pen);
+      expect(h.recorder!.countOf('undo'), 0);
+      expect(h.recorder!.countOf('redo'), 0);
+      expect(h.session.history.undoDepth, 1);
+      await tester.pump(const Duration(seconds: 1));
+    });
   });
 }

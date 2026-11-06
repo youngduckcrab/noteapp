@@ -274,20 +274,17 @@ abstract final class EditorStrings {
   static const maxTouchRadiusHint =
       '접촉 크기를 알려 주는 기기에서만 동작해요. 웹 브라우저에서는 적용되지 않아요';
 
-  /// Input section: gestures (F-12 — on/off only, contract 7.8).
+  /// Input section: gestures ((v2) one row per gesture with its action —
+  /// m5-7/04-editor 6.4.4; the names are under 'Gestures (6.4.4)' below).
   static const gestures = '제스처';
-  static const twoFingerTapUndo = '두 손가락 탭으로 되돌리기';
-  static const threeFingerTapRedo = '세 손가락 탭으로 다시 실행';
-  static const longPressMenu = '손가락 길게 누르기로 메뉴 열기';
 
-  /// The gestures that cannot be changed (read-only table).
+  /// The gestures that cannot be changed (read-only grey table — (v2) the
+  /// three fixed rows of m5-7/04-editor 6.4.4).
   static const fixedGestures = '바꿀 수 없는 제스처';
   static const fixedGestureTable = <(String, String)>[
     ('두 손가락으로 끌기', '화면 이동'),
     ('두 손가락 벌리기·오므리기', '확대·축소'),
     ('펜 전용 모드에서 한 손가락으로 끌기', '화면 이동'),
-    ('펜 전용 모드에서 한 손가락 짧게 탭', '선택 해제·메뉴 닫기'),
-    ('트랙패드 두 손가락 스크롤·핀치', '화면 이동·확대'),
   ];
   static const resetInput = '입력 설정 기본값으로';
 
