@@ -411,8 +411,8 @@
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
 | J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
 | J17 | 완료 | `95d88a8` | `tool/test/web_budget_test.dart`(16 — 형식 3(4.3.3 모양·잘못된 파일 7가지·커밋된 `tool/web_budget.yaml` 값), 측정 2(gzip = 파일별 `dart:io` gzip 합·없는 보고 자산 → null·빌드/`main.dart.js`/`FontManifest.json` 없음·깨진 JSON), 보고 7(한도 안 · 넘음(크기·증가분·묶음) · 원본 글꼴 한도 · 금지 글꼴 · 빌드에 없는 글꼴 파일 · `measure`는 표시만 · 표 형식), 명령 4(`check` 0 + 요약 파일 · 넘으면 1 / `measure` 0 · `--budget` · 빌드·예산 없음 → 3 · 예산 없이 `measure`)), `workflows_test`(`ci.yml` 'Web budget' 단계 — 순서·명령·조건 없음, `ws` 호출 21개) |
-| J18 | 완료 | (이 커밋) | `tool/test/guides_test.dart` v2(30 — 파일 9개·README 순서 01 → 02 → 04 → 08·공통 형식 8개(08은 계약 문장 줄을 뺀 해요체)·01 첫 단락 'Hosting만'·'Spark'·'실연결'·'실연결 때 정할 것' 절·03 Functions 한 줄·04 B-1 네 단계(마지막 = `AppStrings.sectionV1Copy`·`v1CopyPresent` 머리)·B-15·B-16 하는 법·마이크·'복구된 녹음'·되돌리기 금지·`reloadBlockedByRecording`·05 아티팩트 두 이름(`android.yml` 식에서)·'고정 키 등록은 07'·'파일 두 개'·'앱을 지우지 말고'·06 `ios-compile.yml` 이름·입력·`ios-compile-<번호>`·`ITSAppUsesNonExemptEncryption`(Info.plist `false`)·07 시크릿 4개·변수(= `android.yml` 잡 `env`)·`::error::` 두 문장·요약 줄·08 **계약 7.8 A-1~A-6·B-1~B-16·C-1~C-4 순서와 문장 글자 그대로**·머리말 3줄·항목마다 '알려 줄 것'·보고 양식·B-13 순서·C-1 다시 열기) |
-| J19 | 남음 | | `app_smoke_v2_test`·`feature_switch_test`(integration)·`app_smoke_v2_browser_test` |
+| J18 | 완료 | `1e29a75` | `tool/test/guides_test.dart` v2(30 — 파일 9개·README 순서 01 → 02 → 04 → 08·공통 형식 8개(08은 계약 문장 줄을 뺀 해요체)·01 첫 단락 'Hosting만'·'Spark'·'실연결'·'실연결 때 정할 것' 절·03 Functions 한 줄·04 B-1 네 단계(마지막 = `AppStrings.sectionV1Copy`·`v1CopyPresent` 머리)·B-15·B-16 하는 법·마이크·'복구된 녹음'·되돌리기 금지·`reloadBlockedByRecording`·05 아티팩트 두 이름(`android.yml` 식에서)·'고정 키 등록은 07'·'파일 두 개'·'앱을 지우지 말고'·06 `ios-compile.yml` 이름·입력·`ios-compile-<번호>`·`ITSAppUsesNonExemptEncryption`(Info.plist `false`)·07 시크릿 4개·변수(= `android.yml` 잡 `env`)·`::error::` 두 문장·요약 줄·08 **계약 7.8 A-1~A-6·B-1~B-16·C-1~C-4 순서와 문장 글자 그대로**·머리말 3줄·항목마다 '알려 줄 것'·보고 양식·B-13 순서·C-1 다시 열기) |
+| J19 | 완료 | (이 커밋) | `app/test/integration/app_smoke_v2_test.dart`(V5 v2 — 지금 되는 단계: 시작 5모듈 ok·7.3.3 행 한 번씩·오디오/인식 행의 출처 모듈·값, 자리 4개(이미지 = 주입 가져오기·녹음 패널 = `mediaRecordingPanel`·선택/삽입 = 실제 recog 동작 id), 개발자 섹션 순서·`recog.settings` 위치·유휴 작업 4개, 5모듈 위 1차 V5 흐름, 9 라우팅(`onOpenNoteAt` → `?page=&focus=` → 에디터 인자·주소)), `integration/feature_switch_test.dart`(V15 — 기대 행 표 1 + 주입 8조합 + 모두 끔 1차 흐름 + `AppFeatures.compileTime`(H5는 `--dart-define` 3개)), `web/app_smoke_v2_browser_test.dart`(V6 v2 — `setUpAll(useInkTestFonts)`, 웹 저장소, 같은 단계, 오류 기록 0·`MissingPluginException` 0), `support/smoke_v2_fakes.dart` |
 | J20 | 남음 | | `tool/test/lock_age_test.dart` |
 | J21 | 남음 | | `workflows_test`(android-emulator) |
 | J22 | 남음 | | 마감 확인 묶음(8.2 J22 행) |
@@ -711,7 +711,7 @@
 
 #### J18 — 안내서 v2 (계획 8.2, 3.7·6.21, 계약 3.7·7.8)
 
-- 커밋: (이 커밋).
+- 커밋: `1e29a75`.
 - `docs/guides/01`: 맨 위 굵은 단락 '2차 라운드에서는 Hosting만 써요 — Spark(무료) 요금제, 결제 계정 없음. 동기화·로그인·서버 함수(Blaze)는 나중의 실연결 단계에서 따로 켜요.' + 'Hosting(Spark)은 실연결이 아니에요', 순서 'Spark로 프로젝트 만들기 → Hosting 시작 → [02]'(약 15분), 1차 'M4 때 정할 것' 절 → '실연결 때 정할 것 (지금은 하지 않음)'(Firestore·Storage·Authentication·Functions). `03`: 'Functions 배포는 실연결 미니 라운드' 한 줄. `README`: 01 → 02 → 04 → 08, 07(05보다 먼저)·08 줄.
 - `04`: 머리에 08 링크, '먼저 알아 둘 것'에 **웹 배포 되돌리기 금지**(옛 판은 DB v2 노트를 열지 못함), 새 절 '10단계 — 2차 판으로 옮기기 (08 B-1)'(① 배포 전에 백업 내보내기 — 출처는 `main` 뒤 live·그 전 개발 브랜치 미리보기, ② 2차 배포 — 개발 브랜치가 기본 브랜치라 DB v2 병합 푸시가 곧 배포 → Claude가 병합 전에 ① 요청, ③ 첫 실행, ④ **설정 → 이전 판 DB 사본** '사본 있음: …'), '녹음할 때'(Safari 마이크 허용 — 탭은 'aA', 홈 화면 앱은 iPad 설정(미확인), 탭 닫지 않기·'복구된 녹음', 자동 일시정지, 녹음 중 새로고침 문구 = `AppStrings.reloadBlockedByRecording`), 'B-15 하는 법'·'B-16 하는 법'. 1차 단락('live 주소에는 `main`에 올린 코드만 …')과 9.3 표 1~20은 그대로.
 - `05`: 아티팩트 이름 표(`noteapp-apk-<번호>` 고정 키 판 / `noteapp-debug-signed-<번호>` '덮어 설치할 수 없는 시험판 — 실제 노트가 든 기기에는 설치하지 마세요'), '4단계 — 처음 쓸 때 허가하기'(마이크·알림, ML Kit 모델 Wi-Fi 약 20 MB — 미확인, 08 링크), '새 버전으로 바꿀 때' v2('고정 키 등록은 07을 보세요(키는 Claude가 파일 두 개로 건네요 — Claude는 GitHub 설정을 직접 바꿀 수 없어요)', 고정 키 판끼리 덮어 설치, 처음 한 번은 지우고 설치, **'앱이 설치되지 않음'이 뜨면 앱을 지우지 말고 알려 주세요**, 자동 백업에 노트 없음 → 백업 내보내기). 1차의 '설치 오류 → 지우고 설치' 문장과 문제 해결 줄은 '지우지 말고 알려 주세요'로 바꿈.
@@ -724,6 +724,25 @@
 | `dart test tool/test/guides_test.dart` | 30 통과 |
 | `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
 
+#### J19 — 앱 스모크 v2 골격 · 기능 스위치 시험 (계획 8.2, 9.1 '앱 스모크 v2 단계', 계약 V5·V6·V15 v2.1)
+
+- 커밋: (이 커밋).
+- `app/test/support/smoke_v2_fakes.dart`(새): `SmokeV2Fakes` — **가짜는 모듈 주입 인자로만**(9.1, 계약 7.3.3 '시험 이음새'): `MediaModule(initialize: 호출 수만 셈, mediaOverrides: FakeAudioRecorder(저장소를 provider에서 읽음)·FakeAudioPlayback)`, `RecognitionModule(overridesFor: FakeHandwritingRecognizer·FakeMathRecognizer·GeometricShapeFitter(), mathEndpoint: 'https://math.invalid/recognize')`, `FeatureWiringModule(imageImporter: 1×1 PNG 한 장을 앱 에셋 저장소에 넣는 가짜)`; 나머지(CoreModule·PdfModule·PDF 동작)는 실제. `modules(core, features:)` = `modulesFor`(꺼진 모듈은 만들지도 않음). `bootSmokeV2App`, `expectContractOverridesV2`(시작 단계·시작한 모듈 순서·override 출처 = 7.3.3 행 + 셸 행 + 패키지 목록, 각 한 번, 오디오 행은 `MediaModule.overrides()`에서만·인식 행은 `RecognitionModule.overrides()`에서만, 값 = 주입 가짜·실제 PDF), `featureRows`/`expectedFeatureRows`(V15 행 6개 — 녹음·인식 메뉴·수식 엔진·자동 도형 보정·이미지 삽입·이미지 페이지, provider 값 문자열), `differingRows`, `expectNoMissingPlugin`.
+- `support/smoke_scenario.dart`: `bootSmokeApp`을 `bootSmokeAppWith(modules:, features:)` 위로 옮김(1차 V5·V6는 그대로 3모듈).
+- `integration/app_smoke_v2_test.dart`(새, V5 v2): 9.1 표의 'J19' 단계 — 1 시작, 자리 4개(provider 값), 5모듈 위 1차 V5 흐름(새 노트 → 획 → 되돌리기/다시 → 닫기 → 다시 열기), 9 라우팅. 2~8·10(텍스트 상자·도형·이미지·올가미·녹음·재생·내보내기 개수)은 H3에서 이 파일에 더한다.
+- `integration/feature_switch_test.dart`(새, V15): 기대 행 표가 '켠 구성과의 차이 = V15 문장'(녹음 / 인식 메뉴·수식 엔진·자동 도형 보정 / 수식 엔진, 이미지 두 행은 늘 같음)인지(순수 시험), 주입 8조합마다 시작·override 표·행 = 기대, 모두 끔에서 1차 V5 흐름, `AppFeatures.compileTime`(평소 모두 켬 — H5가 `--dart-define` 3개로 같은 파일을 돌림).
+- `web/app_smoke_v2_browser_test.dart`(새, V6 v2): `setUpAll(useInkTestFonts)`(C23-07), 실행마다 따로인 웹 저장소(`noteapp_smoke2_<run>`), V5 v2와 같은 단계, 오류 기록 0·`MissingPluginException` 기록 0, 끝에 두 DB 삭제.
+
+| 검사 | 결과 |
+|---|---|
+| `flutter test --run-skipped -t integration test/integration/app_smoke_v2_test.dart` | 1 통과(5초) |
+| `flutter test --run-skipped -t integration test/integration/feature_switch_test.dart` | 11 통과(9초) |
+| `ws with-heavy-lock -- ws test --package noteapp --platform chrome --run-skipped -t integration` | 2 통과(V6 v2·V6 1차, 130초) |
+| `ws test --package noteapp --run-skipped -t integration`(VM) | 13 통과(V5 1차 1·V5 v2 1·V15 11, 54초) |
+| `ws test --package noteapp`(VM) | 579 통과·3 건너뜀(integration 파일, 103초) |
+| `ws check` | 0 |
+| `flutter analyze --fatal-infos`(app) / `dart format` | 0건 / 변경 0 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -734,6 +753,9 @@
 
 #### 계획과 다르게 한 점
 
+- (J19) 자리 3·4(선택·삽입 메뉴)는 지금 '비어 있지 않음'이 아니라 '실제 `recognitionSelectionActions()`·`recognitionInsertActions()`의 id와 같음'으로 본다 — 이 작업 트리의 recog는 R2-B6 표면이라 두 목록이 비어 있다(9.1 표의 '자리 4개가 비어 있지 않음'은 자리 1·2만 지금 성립). LIBRARY 병합 뒤 H3에서 두 목록 `isNotEmpty`를 더한다. 녹음 패널 열기(단계 6)·삽입 메뉴 열기(단계 8)도 화면이 아니라 provider 값으로 봤다 — 이 작업 트리의 EDITOR는 마이크 버튼·삽입 메뉴가 없는 기반 표면이다(H3에서 화면으로).
+- (J19) V15의 행 비교는 위젯이 아니라 provider 값(녹음 패널·녹음기 종류·개발자 섹션·유휴 작업 / recog 메뉴 id·`recog.settings`·색인기 / `RecognitionConfig.mathEndpoint`·수식 인식기 / `inkShapeFitterProvider` / `editorImageImporterProvider`·페이지 추가 출처)이다. '자동 도형 보정' 행은 provider 값(주입 `GeometricShapeFitter` ↔ 기본 `NoShapeFitter`)이라 지금도 차이에 든다 — 화면의 보정 토글 비교(C22-07: E2-15·L2-06이 모두 병합됐을 때만 기대 목록)는 H5.
+- (J19) '주입' 방식은 `AppBootstrapper.features` + `modulesFor(features:)`(= `productionModules()`가 `--dart-define`으로 하는 일 — 꺼진 모듈은 없음)다. 개발자 메뉴로 끈 경우(`skipped`)는 `app_bootstrapper_test`·`app_module_context_test`가 본다.
 - (J18) 08의 항목 문장은 계약 7.8 표의 '확인' 칸에서 개정 표시 `(v2.1) `과 굵게 표시 `**`만 뺀 글자 그대로다(`guides_test`도 같은 규칙으로 대조). 계약 문장은 한다체('설치한다.')라서 공통 형식의 해요체 검사는 08의 계약 문장 줄(`- [ ] **X-n** …`·`> …`)을 빼고 본다. 해요체 검사에 '했다.'를 더했다(기존 안내서에 없음).
 - (J18) 04 B-1 ④는 계획 6.21의 '설정 → 개발자 → 이전 판 DB 사본'이 아니라 앱 그대로 **설정 → 이전 판 DB 사본**이다 — 설정 화면에 '개발자' 묶음이 없고 `app.v1Copy` 섹션이 바로 있다(J14b). 08은 계약 문장('개발자 메뉴에 v1 사본 있음')을 그대로 두고 '먼저 알아 둘 것'에서 '개발자 메뉴' = 설정 아래쪽의 개발자 표시·기능 켜고 끄기·이전 판 DB 사본 섹션이라고 푼다.
 - (J18) 계획 6.21의 01 첫 문장 '… Hosting만 씁니다'는 공통 형식(해요체)에 맞춰 '써요'로 썼다.
@@ -854,6 +876,7 @@
 - J12 Swift는 컴파일된 적이 없다(컨테이너에 Xcode 없음). 첫 `ios-compile.yml` 실행(U19·H6)에서 API 이름(`UIPencilInteraction.Tap`/`.Squeeze`·`hoverPose`·`UIHoverGestureRecognizer.zOffset`/`altitudeAngle`/`azimuthAngle(in:)`/`rollAngle`·`UIPencilPreferredAction` 7개·`showInkAttributes` 16.0)을 확인할 것 — 위 '계획과 다르게 한 점'(J12) 마지막 줄. 고칠 때는 `pencil_wire_contract_test`를 함께 맞춘다.
 - 위젯 시험에서 스트림 이벤트로 바뀐 `ValueListenable`을 보려면 `pump()`를 두 번(첫 번째는 예약된 프레임이 없어 마이크로태스크만 비운다 — J13 `about_section_test`의 `deliver`).
 - (2차 동시 개발 세션 7) J14·J14b·J17 끝. 남은 동시 개발 몫: J0 ④(첫 체크포인트 푸시의 CI 실행 기록 — 총괄), J15(`ws test --dart-define`·`ci.yml` 잡 분리 — **J0 ④ 실측이 선행**이라 잡별 시간 제한 값은 실측 뒤. `--dart-define`·`test_command_test` v2 부분과 잡 구조·시나리오 5개 시험은 실측 없이도 먼저 쓸 수 있음 — 제한 값만 비워 두고 진행 기록에 적을 것), J16(`functions.yml` 완성 — SYNC R2-B7b 골격·LIBRARY emulator 시험이 선행. 이 작업 트리의 `functions/` 상태를 먼저 볼 것), J18(안내서 v2 — J2·J3·J14b 끝나서 시작 가능: 01 Hosting만, 04 B-1·B-15·B-16, 05 '지우지 말고 알려 주세요'·'고정 키 등록은 07', 07 새 파일(`android.yml`의 `::error::`가 가리킴), 08 ↔ 계약 7.8 문장 대조), J19(앱 스모크 v2·`feature_switch_test` — J7~J9 끝, `useInkTestFonts` C23-07), J20(`ws lock-age`, P-C), J21(`android-emulator.yml`, P-C), J22(마감). 다음 순서 추천: J18 → J19 → J20 → J21 → J15(실측 없이 되는 부분) → J16 → J22.
+- (2차 동시 개발 세션 8) J19 끝. H3는 `app_smoke_v2_test.dart`에 9.1 표의 2~8·10 단계를 더하고(`SmokeV2Fakes.recorder`·`playback`·`picks`·`math`·`handwriting`이 그때 쓸 가짜), 자리 3·4 `isNotEmpty`를 더한다. H5는 `feature_switch_test.dart`를 `--dart-define FEATURE_MEDIA=false --dart-define FEATURE_RECOGNITION=false --dart-define FEATURE_MATH_ENGINE=false`로 돌린다(`ws test --dart-define`은 J15).
 - (2차 동시 개발 세션 8) J18 끝. `guides_test`의 1차 사례 '02, 04: live는 `main`만'과 02 사례는 아직 `ci.yml`의 `jobs.values.single`에서 Channel 단계·`env`를 찾는다 — **J15 잡 분리 때 `web` 잡(배포 잡)에서 찾도록 같이 고칠 것**(계획 6.21 끝).
 - J17의 묶음별 글꼴 한도(`tool/web_budget.yaml`의 `gzip_max: null` 두 개)는 위 '변경 요청'의 총괄 결정이 오면 넣고 `web_budget_test`의 '커밋된 파일' 사례를 같이 고친다. J15 잡 분리 때 'Web budget' 단계는 웹 빌드 잡의 'Finalize web build' 바로 다음에 둔다(`workflows_test`의 순서·명령·조건 사례가 본다).
 - J14의 `StorageSection`은 이제 `ConsumerStatefulWidget`이고 `assetStoreProvider`·`searchIndexProvider`를 읽는다(시험은 두 provider를 가짜로 override). 실제 CORE `usage().bytesByType`·`rebuild()`는 H2에서.

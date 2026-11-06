@@ -39,6 +39,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/app/note_app.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
+import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/bootstrap/bootstrap_app.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
@@ -99,7 +100,21 @@ final class SmokeApp {
 /// [core], the real PdfModule() and FeatureWiringModule() (production
 /// arguments), the production screens (appScreenBuildersProvider is not
 /// overridden) — until the LibraryScreen shows.
-Future<SmokeApp> bootSmokeApp(WidgetTester tester, CoreModule core) async {
+Future<SmokeApp> bootSmokeApp(WidgetTester tester, CoreModule core) =>
+    bootSmokeAppWith(
+      tester,
+      modules: [core, PdfModule(), FeatureWiringModule()],
+    );
+
+/// [bootSmokeApp] with any module list and build switches (2nd round —
+/// docs/plans/m5-7/01-infra.md 9.1: the five modules of
+/// test/support/smoke_v2_fakes.dart, [features] = the build's switches as
+/// AppBootstrapper.features, V15).
+Future<SmokeApp> bootSmokeAppWith(
+  WidgetTester tester, {
+  required List<AppModule> modules,
+  AppFeatures features = AppFeatures.all,
+}) async {
   tester.view
     ..physicalSize = const Size(2064, 2752)
     ..devicePixelRatio = 2;
@@ -112,12 +127,13 @@ Future<SmokeApp> bootSmokeApp(WidgetTester tester, CoreModule core) async {
     BootstrapApp(
       errorLog: errorLog,
       createBootstrapper: () => bootstrapper = AppBootstrapper(
-        modules: [core, PdfModule(), FeatureWiringModule()],
+        modules: modules,
         buildInfo: BuildInfo.local,
         runtimeInfo: RuntimeInfo.detect(web),
         web: web,
         errorLog: errorLog,
         ownerId: kLocalOwnerId,
+        features: features,
       ),
     ),
   );
