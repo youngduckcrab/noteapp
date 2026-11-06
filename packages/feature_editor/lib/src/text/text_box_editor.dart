@@ -1,0 +1,263 @@
+// lib/src/text/text_box_editor.dart — m5-7/04-editor 6.11.3, 6.11.5, 6.11.6
+// (E2-01: the inline overlay and the text field both input modes share).
+//
+// TextBoxEditorLayer is a sibling ABOVE the page area's input Listener
+// (page_viewport.dart — where SelectionMenu sits), so a finger or a pen on
+// the editor reaches only the TextField, never the input router. In the
+// inline mode it places a material_ui TextField on the session's draft
+// frame: Positioned at the frame's unrotated top-left on screen, then
+// scale(camera.scale) and a rotation about the frame centre. The field
+// itself is laid out in page pt (width = frame width, text = fontSizePt), so
+// it wraps exactly as INK will paint the box; its text style and strut are
+// INK's own (InkTextLayout.textStyleOf / strutStyleOf, CP-INK-3) with zero
+// inner padding, so nothing jumps when the session ends (E-6, B-15).
+//
+// Ends from here: a pointer down outside the editor's tap group (onTapOutside
+// → tapOutside — in E2-01 that includes the canvas: the viewport's tap group
+// and the router-side ends come in E2-10), the field losing the focus after
+// having had it (focusLost), Esc (escape), and the session's page leaving
+// the mounted pages (pageUnmounted).
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ink_engine/ink_engine.dart' as ink;
+import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' as core;
+
+import '../scope/editor_scope.dart';
+import '../state/settings/editor_device_state.dart';
+import 'text_edit_session.dart';
+
+/// The key of the session's TextField (both modes — appendix C).
+const textEditorKey = ValueKey('editor.textEditor');
+
+/// TextAlign of a box alignment.
+TextAlign textAlignOf(core.TextAlignKind align) => switch (align) {
+  core.TextAlignKind.start => TextAlign.start,
+  core.TextAlignKind.center => TextAlign.center,
+  core.TextAlignKind.end => TextAlign.end,
+};
+
+/// The session's TextField with its controller and focus node (one per
+/// session — key it by the box id). Text changes go to
+/// TextEditNotifier.updateText (draft only — controller.text includes the
+/// characters still being composed, V1); a pointer down outside the tap
+/// group, a focus loss after having had the focus and Esc end the session.
+/// The IME composing range is closed (clearComposing) before an end.
+class TextSessionField extends ConsumerStatefulWidget {
+  const TextSessionField({
+    super.key,
+    required this.initialText,
+    this.style,
+    this.strutStyle,
+    this.textAlign = TextAlign.start,
+    this.expands = false,
+  });
+
+  final String initialText;
+  final TextStyle? style;
+  final StrutStyle? strutStyle;
+  final TextAlign textAlign;
+
+  /// Fill the parent's height (sheet mode); else grow with the text.
+  final bool expands;
+
+  @override
+  ConsumerState<TextSessionField> createState() => _TextSessionFieldState();
+}
+
+class _TextSessionFieldState extends ConsumerState<TextSessionField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialText,
+  );
+  final FocusNode _focus = FocusNode(debugLabel: 'TextBoxEditor');
+  bool _hadFocus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_focusChanged);
+    // autofocus only acts when nothing else asked for the focus in the same
+    // frame (a closing menu restores its own) — ask once more after it.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_focus.hasFocus) _focus.requestFocus();
+    });
+  }
+
+  void _focusChanged() {
+    if (_focus.hasFocus) {
+      _hadFocus = true;
+    } else if (_hadFocus) {
+      _end(TextEditEndReason.focusLost);
+    }
+  }
+
+  void _end(TextEditEndReason reason) {
+    final notifier = ref.read(editorTextEditProvider.notifier);
+    if (ref.read(editorTextEditProvider) == null) return;
+    _controller.clearComposing();
+    notifier
+      ..updateText(_controller.text)
+      ..end(reason: reason);
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      _end(TextEditEndReason.escape);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  void dispose() {
+    _focus
+      ..removeListener(_focusChanged)
+      ..dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notifier = ref.read(editorTextEditProvider.notifier);
+    final scheme = Theme.of(context).colorScheme;
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: _onKey,
+      child: TextField(
+        key: textEditorKey,
+        controller: _controller,
+        focusNode: _focus,
+        autofocus: true,
+        maxLines: null,
+        minLines: widget.expands ? null : 1,
+        expands: widget.expands,
+        keyboardType: TextInputType.multiline,
+        // contentPadding == EdgeInsets.zero (V6 ①).
+        decoration: const InputDecoration.collapsed(hintText: null),
+        style: widget.style,
+        strutStyle: widget.strutStyle,
+        textAlign: widget.textAlign,
+        textAlignVertical: widget.expands ? TextAlignVertical.top : null,
+        cursorColor: scheme.primary,
+        // No outer Scrollable; keeps a second scroll from happening (6.11.3).
+        scrollPadding: EdgeInsets.zero,
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(core.PageObjectLimits.maxTextLength),
+        ],
+        onChanged: notifier.updateText,
+        // groupId: the default (EditableText) — Flutter's selection handles
+        // and toolbar are wrapped in a TextFieldTapRegion of this group, so
+        // touching them is "inside" (V6 ④).
+        onTapOutside: (_) => _end(TextEditEndReason.tapOutside),
+      ),
+    );
+  }
+}
+
+/// The inline editor over the session's box (6.11.3). Nothing outside a
+/// session or in sheet mode (the sheet panel is TextInputSheet).
+class TextBoxEditorLayer extends ConsumerWidget {
+  const TextBoxEditorLayer({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(editorTextEditProvider);
+    if (session == null || session.mode != WebTextInputMode.inline) {
+      return const SizedBox.shrink();
+    }
+    final viewport = ref.watch(editorViewportProvider);
+    final pages = ref.watch(editorMountedPagesProvider);
+    final style = session.draft.style;
+    final field = TextSessionField(
+      key: ValueKey('editor.textEditor.${session.boxId}'),
+      initialText: session.draft.text,
+      style: ink.InkTextLayout.textStyleOf(style),
+      strutStyle: ink.InkTextLayout.strutStyleOf(style),
+      textAlign: textAlignOf(style.align),
+    );
+    return ListenableBuilder(
+      listenable: Listenable.merge([viewport, pages]),
+      builder: (context, child) {
+        final index = viewport.pages.indexWhere((p) => p.id == session.pageId);
+        if (index < 0 || pages[session.pageId] == null) {
+          _endWhenUnmounted(context, ref, session);
+          return const SizedBox.shrink();
+        }
+        final draft = session.draft;
+        final r = draft.frame.rect;
+        final w = r.right - r.left;
+        final h = r.bottom - r.top;
+        final topLeft = viewport.pageToScreen(index, Offset(r.left, r.top));
+        final background = draft.style.backgroundArgb;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: topLeft.dx,
+              top: topLeft.dy,
+              child: Transform(
+                transform: editorTransformOf(
+                  scale: viewport.camera.scale,
+                  widthPt: w,
+                  heightPt: h,
+                  rotation: draft.frame.rotation,
+                ),
+                child: SizedBox(
+                  width: w,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: h),
+                    child: background == null
+                        ? child
+                        : ColoredBox(color: Color(background), child: child),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      child: field,
+    );
+  }
+
+  /// The session's page left the mounted pages: end it after this frame
+  /// (6.11.3 — pageUnmounted), unless another session started meanwhile.
+  static void _endWhenUnmounted(
+    BuildContext context,
+    WidgetRef ref,
+    TextEditState session,
+  ) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      final now = ref.read(editorTextEditProvider);
+      if (now == null || now.boxId != session.boxId) return;
+      if (ref.read(editorMountedPagesProvider)[session.pageId] != null) return;
+      ref
+          .read(editorTextEditProvider.notifier)
+          .end(reason: TextEditEndReason.pageUnmounted);
+    });
+  }
+}
+
+/// Page pt (the editor's own layout, origin = the frame's unrotated
+/// top-left) → screen offset from that top-left on screen: rotate by
+/// [rotation] about the frame centre (widthPt / 2, heightPt / 2), then scale
+/// by the camera [scale].
+Matrix4 editorTransformOf({
+  required double scale,
+  required double widthPt,
+  required double heightPt,
+  required double rotation,
+}) {
+  final scaled = Matrix4.diagonal3Values(scale, scale, 1);
+  if (rotation == 0) return scaled;
+  final cx = widthPt / 2, cy = heightPt / 2;
+  return scaled
+      .multiplied(Matrix4.translationValues(cx, cy, 0))
+      .multiplied(Matrix4.rotationZ(rotation))
+      .multiplied(Matrix4.translationValues(-cx, -cy, 0));
+}

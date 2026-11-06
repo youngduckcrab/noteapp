@@ -5,7 +5,8 @@
 // selection menu and the context menu (E-10), the canvas focus (E-12 — P / E /
 // L, focused again by a pointer down), the eyedropper banner (E-14), the
 // add-page button, the page indicator and the page panel (E-17), the
-// developer overlay (E-19) — 6.4.3 tree.
+// developer overlay (E-19) — 6.4.3 tree. (v2, E2-01) The inline text editor
+// and the sheet-mode text panel (m5-7/04-editor 6.11.3, 6.11.6).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,8 @@ import 'package:note_core/note_core.dart' as core;
 import '../input/editor_shortcuts.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../text/text_box_editor.dart';
+import '../text/text_input_sheet.dart';
 import '../ui/dev/dev_overlay.dart';
 import '../ui/overlays/add_page_button.dart';
 import '../ui/overlays/context_menu.dart';
@@ -148,12 +151,16 @@ class _PageViewportState extends ConsumerState<PageViewport> {
                 ),
               ),
               // Siblings of the Listener: their taps never reach the router.
+              // (v2, E2-01) The text editor over its box (6.11.3).
+              const TextBoxEditorLayer(),
               const SelectionMenu(),
               const EditorContextMenu(),
               const AddPageButton(),
               const PageIndicator(),
               const EyedropperBanner(),
               const PagePanel(),
+              // (v2, E2-01) Sheet-mode text input at the top (6.11.6 A).
+              const TextInputSheet(),
               const DevOverlay(),
             ],
           );

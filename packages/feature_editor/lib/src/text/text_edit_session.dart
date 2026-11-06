@@ -176,7 +176,9 @@ class TextEditNotifier extends Notifier<TextEditState?> {
   @visibleForTesting
   static bool? debugIsWebOverride;
 
-  static bool get _isWeb => debugIsWebOverride ?? kIsWeb;
+  /// kIsWeb, or [debugIsWebOverride] in tests (the developer menu shows the
+  /// input-mode row only on the web).
+  static bool get isWeb => debugIsWebOverride ?? kIsWeb;
 
   TextEditEndReason? _lastEndReason;
 
@@ -197,7 +199,7 @@ class TextEditNotifier extends Notifier<TextEditState?> {
   /// The input mode a new session uses (6.11.6): inline on native, the
   /// developer choice on the web (textarea falls back to inline until E2-11).
   WebTextInputMode get modeForNewSession {
-    if (!_isWeb) return WebTextInputMode.inline;
+    if (!isWeb) return WebTextInputMode.inline;
     final mode = ref.read(editorDeviceStateProvider).webTextInput;
     return mode == WebTextInputMode.textarea ? WebTextInputMode.inline : mode;
   }
