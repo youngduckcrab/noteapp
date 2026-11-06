@@ -340,7 +340,9 @@ final container = ProviderContainer.test(
   0.1 ms timers, so advance time (e.g. `async.elapse(1 ms)` in a loop).
 - Fixtures: `StrokeFixtures.synthetic(pageId:, ids:, seed:, pointCount:)`,
   `newerVersionWinsPolicy`, and `seedSyntheticNote(store, pages:, strokesPerPage:)`
-  from `dev_tools.dart`.
+  from `dev_tools.dart` — (2차, CP-9) `objectsPerPage:` adds page objects to
+  every page (per 17: 10 shapes of every kind, 5 text boxes, 1 math, 1 image of
+  one 64 × 48 PNG asset; `objectsPerPage: 340` = INK's object page B14).
 - (2차, plan m5-7/02-core 6.17) Both stores have the 2nd-round behaviour:
   page object commands, recordings, recording drafts, handwriting results
   (`update`, `stalePages`, `notesWithStalePages`) and the search index. The

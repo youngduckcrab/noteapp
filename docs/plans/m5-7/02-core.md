@@ -2,6 +2,8 @@
 
 > 상태: **승인 · 계약 v2.3** (2026-11-06 동시 개발 착수 때 인용 맞춤 — C22-09: 계약 v2.2가 바꾼 문장(R-3·M-4·7.2.7 v1 사본 문단·`dev_tools.dart` 블록)은 최종 승인 때 이미 맞췄고 12.1 CP-16·17 판정 열을 고쳤다. v2.3(C23-01~07)은 CORE 시그니처·인용 문장 변화 없음. 5.8 표를 기반 단계 결과(실제 타입·커밋)로 바꿨다. 00-review '최종 승인' CORE-F1~F4 처리는 진행 기록 '## 2차' > '### 동시 개발') · 이전: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 1회차. 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 1회차** (통합 계약 **v2.1** 기준 — 총괄 검토 [00-review.md](00-review.md) 3.2 CORE-M1~M13과 대리 검토 [reviews/core.md](reviews/core.md) 반영, 13절에 항목별 반영 내역)
 >
+> 동시 개발 중 고친 곳 (2026-11-06, CORE 보완 2.1): 4.11 `dev_tools.dart` 줄과 12.1 CP-9 행에 `objectsPerPage` 구현(T37로 — 8.2 표에 작업이 없었음).
+>
 > 동시 개발 중 고친 곳 (2026-11-06, CORE 보완 1.1 — 독립 검토 미비점 3·4): 6.19 PF-10 질의 예산을 첫 측정으로 정한 값(≤ 50 ms)으로, 6.10.7 끝 문단, 6.19 PF-3·PF-4 행에 CP-18 표시, 12.1 **CP-18**(V10 질의 예산 — 판정 대기) 추가. 승인 전까지 PF-3·PF-4는 원문(V10)으로 판정한다(7.4.9). (보완 1.4) CP-18 제안의 '원문 예산을 지키는 질의' 경계를 후보 300개(1글자 LIKE 600개) 미만 → **100개 미만**으로 — load < 4에서도 136개 질의 3.3~5.2 ms, 576개 LIKE 14.2~15.8 ms로 예산 경계였다.
 >
 > 작성 2026-11-05 · 수정 2026-11-05 · 기준: [00-overview.md 7장 '통합 계약 v2.1'](00-overview.md)(변경 이력 7.9 C21-01~35 중 CORE 몫: C21-04·05·06·07·08·09·10·11·19·23·25·29·30·32·33) — **이 문서와 7장이 다르면 7장이 우선**한다. 7장이 덮어쓰지 않은 곳은 1차 계약 v1.5(1차 [00-overview.md](../00-overview.md) 7장 — 시그니처는 v1.4와 같음)가 그대로 유효하다.
@@ -1294,7 +1296,7 @@ final class FakeAudioRecorder implements AudioRecorderService {
 | `note_core.dart` | `PagePoint`, `ElementFrame`, `PageObject`, `ShapeObject`, `TextBoxObject`, `ImageObject`, `MathObject`, `UnknownObject`, `PageObjectLimits`, `ShapeKind`, `LineDash`, `ArrowHeads`, `ShapeStyle`, `ShapeGeometry`, `PolylineGeometry`, `EllipseGeometry`, `TextAlignKind`, `TextBoxStyle`, `MathStyle`, `AddObjects`, `UpdateObjects`, `RemoveElements`, `RecordingRepository`, `RecordingDraftStore`, `RecordingDraft`, `AudioSupport`, `RecorderPhase`, `RecorderStatus`, `AudioRecorderService`, `PlaybackPhase`, `PlaybackStatus`, `AudioPlaybackService`, `UnsupportedAudioRecorder`, `UnsupportedAudioPlayback`, `HandwritingLine`, `HandwritingText`, `HandwritingRepository`, `SearchSource`, `SearchUnitDraft`, `SearchIndexWriter`, `PageSearchHit`, `SearchIndexStatus`, `SearchIndex`, `SearchText`, (v2.1, CP-10) `SearchTextMapping`, `ImageImportSource`, `ImportedImage`, `ImageImportLimits`, provider 6개(4.10) |
 | `testing.dart` | `PageObjectFixtures`, `FakeAudioRecorder`, `FakeAudioPlayback` |
 | (v2.1) `testing_web.dart` (새 진입점 — C2-39) | `openWebTestNoteStore`, `deleteWebTestNoteStore` |
-| `dev_tools.dart` | (v2.1, CP-17) `V1DatabaseCopyInfo`, `v1DatabaseCopyInfo`, `readV1DatabaseCopy`, `deleteV1DatabaseCopy`(6.12.4 — INFRA 개발자 메뉴) |
+| `dev_tools.dart` | (v2.1, CP-17) `V1DatabaseCopyInfo`, `v1DatabaseCopyInfo`, `readV1DatabaseCopy`, `deleteV1DatabaseCopy`(6.12.4 — INFRA 개발자 메뉴). 이름 추가 없이 (CP-9, P-C) `seedSyntheticNote`에 이름 있는 인자 `int objectsPerPage = 0` |
 | `testing_vm.dart` | 없음 |
 
 - `api_surface_test`(1차 T4·T5)에 위 이름을 모두 참조하는 컴파일 검사를 더하고, 내보내지 않아야 할 이름(`test/support/absent_names.dart`)에 `normalizeForSearch`, `DriftSearchIndex`, `MemorySearchIndex`, `SearchIndexer`, `FileBlobDatabase`, `upgradeV1ToV2`, `searchMatches`(내부 일치 판정), `ftsCandidateMatches`(내부 FTS 후보 흉내 — 6.10.6), `canonicalDump`(내부 정규 덤프 — 6.12.4), `SearchRectsCodec`(내부 사각형 형식 — 6.10.3)를 더한다. `testing_web.dart`는 `@TestOn('browser')` 시험 하나(`test/web/testing_web_browser_test.dart`)가 두 이름을 참조해 컴파일·동작을 본다(VM `api_surface_test`는 브라우저 전용 진입점을 import하지 않는다).
@@ -2598,7 +2600,7 @@ v2.0 초안의 CP-1~CP-15는 총괄 검토(00-review 2.2)에서 모두 받아들
 | CP-6 | 7.2.2 규칙 | 알려진 `type`의 모르는 enum 이름 → `UnknownObject` | **승인**(C21-06) | 4.2 원문, 6.2.6 |
 | CP-7 | 7.2.4 | `Unsupported*` 동작표, `copyWith`·`==`, `title` 키 항상, `createRecording` 멱등, 초안 규칙 | **승인**(C21-08) | 4.5, 6.6, 6.7, 6.8.2 |
 | CP-8 | 7.6 | `FakeAudioRecorder.abandon()`·초안 쓰기, `FakeAudioPlayback.calls` | **승인**(C21-30) | 4.9 원문, 6.8.3·6.8.4 |
-| CP-9 | 1차 4.10 | `seedSyntheticNote(…, int objectsPerPage = 0)` | **승인(P-C)** | 3절 트리, 8.2 '자를 것' |
+| CP-9 | 1차 4.10 | `seedSyntheticNote(…, int objectsPerPage = 0)` | **승인(P-C)** | 3절 트리, 4.11, 8.2 '자를 것'. (동시 개발 보완 2.1 — 8.2 표에 작업이 없어 T37(성능 도구)로 구현) 쪽마다 획 뒤에 세션 `AddObjects` 하나, 0~`PageObjectLimits.maxObjectsPerPage`, 쪽 안 격자, 17개마다 도형 10(모든 `ShapeKind` 차례로)·텍스트 상자 5·수식 1·이미지 1(노트마다 64 × 48 PNG 에셋 하나 — `store.assets.put`), 340 = INK B14 객체 페이지(도형 200·텍스트 100·수식 20·이미지 20). 시험 `test/dev/seed_synthetic_note_test.dart` |
 | CP-10 | 7.2.5 | `SearchText.normalizeMapped` 공개 | **승인**(C21-09) | 4.6(`SearchTextMapping` 필드), 6.10.1 |
 | CP-11 | 7.2.6 규칙 | 로컬 `AssetStore.put(type: image)` 형식 검사 | **승인**(C21-10) | 4.7 원문, 6.15.2 |
 | CP-12 | 7.2.2·7.2.4 문구 | ① 뒤집기 근사 문구 ② M-2 '묻지 않고' | **승인**(C21-19·C2-38) | 5.4 원문, 6.2.1 |

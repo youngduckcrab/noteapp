@@ -1614,6 +1614,7 @@ void main() {
       int strokesPerPage,
       int pointsPerStroke,
       int seed,
+      int objectsPerPage, // (v2.0, CORE CP-9)
     })
     seed = dev.seedSyntheticNote;
     expect([synthetic, many, policy, openTest, seed], hasLength(5));
