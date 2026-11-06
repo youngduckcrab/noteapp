@@ -297,7 +297,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-06 (P-B) | 남음 | | `unit/shape_fitter_test.dart`, `unit/shape_geometry_test.dart`, `unit/synthetic_shapes_test.dart`, `unit/shape_real_samples_test.dart`, `shared/shape_cases.dart` |
 | L2-07 | 완료 | bb5bf30 | `unit/recognition_overrides_test.dart`, `unit/settings_keys_test.dart`, `unit/strings_contract_test.dart` (+ `ink_recognition_smoke_test`·`unit/api_surface_test`·`web/recognition_browser_test` 갱신) |
 | L2-08 (P-B, ML Kit) | 남음 | | `native/mlkit_adapter_test.dart`, `unit/mlkit_errors_test.dart` |
-| L2-09 (P-B) | 완료 | 이 커밋 | `unit/mixed_language_test.dart` |
+| L2-09 (P-B) | 완료 | 6facf70 | `unit/mixed_language_test.dart` |
 | L2-10a | 완료 | 598eb97 | `unit/indexer_test.dart`(+ `unit/fakes_test.dart`'RecognizerModelAdmin'·`unit/api_surface_test.dart`·`ink_recognition_smoke_test.dart` 갱신), 시험 도우미 `test/support/recording_store.dart`·`indexer_harness.dart` |
 | L2-10b | 완료 | f5d826f | `unit/line_reuse_test.dart`, `unit/indexer_merge_test.dart`, `unit/indexer_test.dart`('line reuse and confirmed lines' 묶음), `unit/catch_up_test.dart` |
 | L2-11 | 완료 | 3602043 | `unit/indexer_provider_test.dart` |
@@ -305,7 +305,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-13 | 완료 | 1c7848e | `widget/latex_editor_sheet_test.dart`, `widget/sheet_rules_test.dart`(편집 창 — L2-14·15가 더함), `unit/recognition_actions_test.dart`('direct copy' 묶음 — L2-12 커밋), `unit/strings_contract_test.dart` |
 | L2-14 | 완료 | 6f4a4f8 | `widget/math_pad_manual_test.dart`, `widget/sheet_rules_test.dart`(+ 패드), `unit/strings_contract_test.dart` |
 | L2-15 (P-B) | 남음 | | `widget/conversion_sheet_test.dart`, `widget/sheet_rules_test.dart` |
-| L2-16 (P-B) | 남음 | | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6) |
+| L2-16 (P-B) | 완료 | 이 커밋 | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6, 써 둠) |
 | L2-17a (P-B) | 남음 | | `widget/math_pad_engine_test.dart` |
 | L2-17b (P-B) | 남음 | | `widget/to_math_test.dart` |
 | L2-18 (P-A / P-B) | 완료 — '품질 실험' 진입 두 단추는 L2-19·L2-22에서 | e2e83d2(P-A), eefe345(P-B) | `widget/settings_section_test.dart`(+ 'model rows (P-B)' 묶음), `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장·모델 행 '쓸 수 없음') (+ `unit/api_surface_test.dart` 갱신), 시험 도우미 `test/support/model_engine.dart` |
@@ -387,6 +387,13 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - '검색용 자동 인식' 켬: `modelState(recog.language)`가 `notDownloaded`·`downloading`이면 안드로이드는 `ModelDownloads.start(lang, wifiOnly: recog.modelWifiOnly)`(엔진 호출 1회 — 색인기의 같은 요청은 어댑터가 합류), iPad는 그 행의 [받기]를 `FilledButton`으로 강조(받기가 시작되면 끝). `ready`·`unsupported`면 아무것도 안 함.
   - **L2-08 어댑터에 넘길 점**: 셀룰러 요청이 먼저 끝나 모델이 받아졌는데 Wi-Fi 요청이 아직 돌면, `modelState`는 `downloading`이 아니라 `ready`여야 한다(6.7.2 표의 '받는 중이면 downloading'보다 '받아짐'이 먼저). 시험 엔진 `test/support/model_engine.dart` `ControlledModelEngine`이 그렇게 답한다.
 - L2-09 전략 B(`engines/mixed_language.dart` `pickMixedCandidates` + `hasHangulSyllable` — 내부·순수): 6.8 주석 세 규칙 그대로, 빈 목록은 '1순위 없음'으로 본다(ko 빈 목록 → en 규칙, en 빈 목록·라틴 ko 1순위 → `[ko 1순위]`, 세 번째 규칙에서 ko가 비면 en 목록). '새 후보'는 목록에 같은 글이 없을 때. 한글 판정은 완성형 음절(U+AC00–U+D7A3)만 — 낱자모는 아님. 결과는 수정 불가 목록이고 후보 객체를 그대로 담는다. 쓰는 곳은 L2-19 실험 창뿐(변환 창에는 내지 않음 — 12.2 Q3).
+- L2-16 수식 엔진(`math/callable_math_recognizer.dart`·`math_payload.dart`·`callable_protocol.dart`):
+  - 호출 순서: `cancel` 구독(완료 → 깃발) → ① `await consent()`(거짓 → `RecognizerConsentRequired`, HTTP·토큰 0회) → 이미 끊겼으면 `RecognizerCancelled`(HTTP 0회) → ② 본문 → 토큰 → ③ `http.AbortableRequest('POST', abortTrigger: cancel)`(**넘겨받은 `cancel` 그대로** — K1이 `identical`로 단언) → ④ `Future.any([주고받기, cancel])`에 `timeout`(35 s). catch는 `on RequestAbortedException` → `on ClientException` → `on TimeoutException` 순(뒤 둘은 깃발이 서 있으면 `Cancelled`). K2가 순서를 가른다 — 순서를 바꿔 돌려 K2만 실패하는 것을 확인함(E-L7과 같은 결과).
+  - **시간 초과는 요청을 끊지 않는다**(`abortTrigger`가 `cancel`과 같아야 해서 따로 합칠 수 없음) — 35 s 뒤 `RecognizerOffline`을 내고, 늦은 응답은 `Future.any`가 버린다.
+  - 응답 표 구체화(6.11.4): 200 + `result.latex` 문자열 → `MathResult`(`engineId` = `'<engine>/<engineVersion>'`, 둘 중 하나라도 문자열이 아니면 `'callable'`; `confidence` 수 → double; `alternatives`는 문자열만). 200인데 JSON이 아니거나 `latex`가 없음 → `bad-response`. 오류 `{"error": {"status", "message"}}`: 표의 이름 그대로, 그 밖 이름은 소문자·붙임표 코드(`NOT_FOUND` → `'not-found'`). 200이 아닌데 JSON이 아니거나 `error.status`가 없음 → `internal`.
+  - 본문: 512 KB 판정에 쓴 획 JSON 문자열을 본문에 그대로 이어 붙인다(두 번 인코딩하지 않음 — `encodeMathRequest`는 `jsonEncode({'data': buildMathData(...)})`와 글자까지 같음을 시험). 점 줄이기는 ε마다 원래 점에서 다시(0.25 → 0.5 → 1 → 2 pt), 끝점·시간은 남은 점과 함께. 점 없는 획은 뺀다. PNG(`MathInput.png`)는 호출하는 쪽(L2-17a 패드·L2-17b `recog.toMath`)이 `pageThumbnailRendererProvider`로 만든다 — 이 파일은 base64 2 MB 한도만 본다.
+  - 기록(6.24, VM JIT, 다른 에이전트 부하 중): 본문 200획 × 100점 중앙값 **9.2 ms**(최소 7.4·최대 27.9 — 목표 ≤ 20 ms). 처음 판(획 JSON 두 번 인코딩)은 중앙값 26 ms라 고쳤다.
+  - `emulator/callable_emulator_test.dart`(L2-I6 — 기본 skip): 6.11.7 E1~E3·E5~E9·G-3. 67바이트 PNG는 SYNC `functions/test/handler.test.ts` `png67`과 같은 바이트. 컨테이너에서는 skip만 확인(`flutter test test/emulator` → 1 skip).
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋
