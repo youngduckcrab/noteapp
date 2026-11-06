@@ -1,9 +1,11 @@
 // lib/src/library_screen.dart — contract 00-overview 7.2.18, 05-library 4.2 /
-// 6.1. The screen root: one Scaffold (S-2) with the sidebar pinned in the
-// expanded size class or in the drawer otherwise, and the content pane of the
-// current section (6.4). LibraryDragScope above the Scaffold serves every
-// drag of the screen (drawer included): edge auto scrolling and, without a
-// pinned sidebar, the drawer opening at the left edge (6.10.4).
+// 6.1; (2차) contract m5-7/00-overview 7.2.11, m5-7/05-library 4.1
+// (LibraryOpenNoteAt, onOpenNoteAt). The screen root: one Scaffold (S-2)
+// with the sidebar pinned in the expanded size class or in the drawer
+// otherwise, and the content pane of the current section (6.4).
+// LibraryDragScope above the Scaffold serves every drag of the screen (drawer
+// included): edge auto scrolling and, without a pinned sidebar, the drawer
+// opening at the left edge (6.10.4).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
@@ -18,6 +20,14 @@ import 'ui/layout/size_class.dart';
 import 'ui/library_scope.dart';
 import 'ui/sidebar/library_sidebar.dart';
 
+/// (v2.0, 2차 contract 7.2.11) Opens a note at a page; [focusRectPt] is the
+/// area to bring into view in page pt (null = the page only).
+typedef LibraryOpenNoteAt = void Function(
+  String noteId,
+  String pageId,
+  Rect? focusRectPt,
+);
+
 /// The library (home) screen. The app shell routes `/` (folderId null) and
 /// `/folders/:folderId` to it; the screen knows no router and only calls the
 /// callbacks below. The only provider the app shell must override is CORE's
@@ -29,6 +39,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
     required this.onOpenFolder,
     required this.onOpenNote,
     required this.onOpenSettings,
+    this.onOpenNoteAt,
   });
 
   /// The folder shown in the content area; null is the top level ('홈').
@@ -44,6 +55,11 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
   /// Opens the settings screen (sidebar settings button, sync status).
   final VoidCallback onOpenSettings;
+
+  /// Content search hit → page + rect (page pt). null → onOpenNote(noteId) (page ignored).
+  // (v2.0) 2차 foundation step R2-B6: stored only; the '노트 내용' search
+  // results (L2-02, L2-03) call it.
+  final LibraryOpenNoteAt? onOpenNoteAt;
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();

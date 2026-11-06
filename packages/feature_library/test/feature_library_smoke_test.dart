@@ -2,7 +2,8 @@
 // LibraryScreen on CORE's shared fake store creates a note with '새 노트' and
 // opens it with onOpenNote exactly once. Since L10 the button is the empty
 // home's '새 노트'; since L12 it opens the new note dialog and [만들기]
-// creates the note.
+// creates the note. (2차 R2-B6, m5-7/05-library 8.1 B6-a) The screen also
+// builds with onOpenNoteAt (stored only — nothing calls it yet).
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,7 @@ void _useIpad13Landscape(WidgetTester tester) {
 final class _Calls {
   final List<String?> openedFolders = [];
   final List<String> openedNotes = [];
+  final List<(String, String, Rect?)> openedNotesAt = [];
   int openedSettings = 0;
 }
 
@@ -28,6 +30,7 @@ Future<_Calls> _pumpLibrary(
   WidgetTester tester,
   NoteStore store, {
   String? folderId,
+  bool withOpenNoteAt = false,
 }) async {
   final calls = _Calls();
   await tester.pumpWidget(
@@ -39,6 +42,10 @@ Future<_Calls> _pumpLibrary(
           onOpenFolder: calls.openedFolders.add,
           onOpenNote: calls.openedNotes.add,
           onOpenSettings: () => calls.openedSettings++,
+          onOpenNoteAt: withOpenNoteAt
+              ? (noteId, pageId, focusRectPt) =>
+                    calls.openedNotesAt.add((noteId, pageId, focusRectPt))
+              : null,
         ),
       ),
     ),
@@ -71,6 +78,27 @@ void main() {
     expect(note.folderId, isNull);
     expect(calls.openedFolders, isEmpty);
     expect(calls.openedSettings, 0);
+  });
+
+  testWidgets('(v2.0) with onOpenNoteAt the screen builds; a new note still '
+      'opens with onOpenNote', (tester) async {
+    _useIpad13Landscape(tester);
+    final store = createFakeNoteStore();
+    addTearDown(store.close);
+    final calls = await _pumpLibrary(tester, store, withOpenNoteAt: true);
+    await tester.pumpAndSettle();
+
+    final screen = tester.widget<LibraryScreen>(find.byType(LibraryScreen));
+    expect(screen.onOpenNoteAt, isNotNull);
+    expect(find.text(LibraryStrings.emptyHome), findsOneWidget);
+    await tester.tap(find.text(LibraryStrings.newNote));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(LibraryStrings.create));
+    await tester.pumpAndSettle();
+
+    expect(calls.openedNotes, hasLength(1));
+    expect(calls.openedNotesAt, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a second tap while createNote is pending creates nothing', (
