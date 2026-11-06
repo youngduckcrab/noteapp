@@ -26,6 +26,10 @@
 // that drew one pins its raster (InkDrawHold), a raster that arrives records
 // only the annotation chunks that drew that formula, another bucket after
 // setViewport asks the page's formulas again.
+// (m5-7 T37a, 6.14) hitTestObject / the lasso and eraser candidates come from the
+// object spatial index (64 pt cells, kept up to date from the diff like the
+// strokes'); hitTestObject applies the exact per-kind rule (object_hit.dart:
+// frames, and for shapes the outline distance ≤ tolerance + w / 2 or the fill).
 import 'dart:async' show StreamSubscription, scheduleMicrotask, unawaited;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -54,6 +58,7 @@ import '../interop/core_interop.dart' as interop;
 import '../math/math_raster_cache.dart';
 import '../model/ink_layer.dart';
 import '../model/ink_stroke.dart';
+import '../object/object_hit.dart';
 import '../object/object_painter.dart';
 import '../object/object_view.dart';
 import '../pen/style_ink.dart';
@@ -284,6 +289,10 @@ final class InkPageController extends ChangeNotifier {
 
   /// 6.18: built on first use, then kept up to date from the R2 diff.
   StrokeSpatialIndex? _spatial;
+
+  /// (m5-7 T37a, 6.8.1) The objects' index: built on first use, kept up to date from the
+  /// object diffs (every layer).
+  ObjectSpatialIndex? _objectSpatial;
 
   // (v2.0) objects, playback, tapes (m5-7/03-ink 4.3, 4.10)
   Set<String> _hiddenObjectIds = const {};
@@ -536,7 +545,10 @@ final class InkPageController extends ChangeNotifier {
   /// Topmost object at the point (annotation → ink → underlay); UnknownObject included.
   /// (v2.0, 03-ink 4.10) Hidden objects count (the text box under EDITOR's editor can be
   /// tapped again); previews and pending-removed objects do not. Within a layer the
-  /// larger z wins. R2-B3: the frame (shapes too) contains the point within [tolerance].
+  /// larger z wins. (m5-7 T37a, 6.14) Candidates = the object index (bounds inflated by
+  /// [tolerance]·√2 — a rotated frame's inflated corners); text boxes, formulas, images, unknown objects: the frame contains the
+  /// point within [tolerance]; shapes: the outline within tolerance + w / 2, an arrow head
+  /// within [tolerance], or the inside of a filled shape (an unfilled inside is a miss).
   core.PageObject? hitTestObject(
     ui.Offset pagePoint, {
     double tolerance = 4.0,
@@ -544,21 +556,39 @@ final class InkPageController extends ChangeNotifier {
     final content = _content;
     if (content == null || !pagePoint.isFinite) return null;
     final tol = tolerance > 0 && tolerance.isFinite ? tolerance : 0.0;
-    final p = core.PagePoint(pagePoint.dx, pagePoint.dy);
-    for (final layer in const [
-      InkObjectLayer.annotation,
-      InkObjectLayer.ink,
-      InkObjectLayer.underlay,
-    ]) {
-      final objects = _objectsOfLayer(content, layer);
-      for (var i = objects.length - 1; i >= 0; i--) {
-        final o = objects[i];
-        if (_isPendingRemoved(o.id)) continue;
-        if (o.frame.contains(p, tolerance: tol)) return o;
-      }
+    InkObjectView? best;
+    // a rotated frame inflated by tol in its own axes reaches tol·√2 past its AABB
+    // (the corners), so the candidates are the bounds within tol·√2
+    final near = ui.Rect.fromCircle(
+      center: pagePoint,
+      radius: tol * math.sqrt2,
+    );
+    for (final v in _objectIndexOf(content).query(near)) {
+      if (_isPendingRemoved(v.id)) continue;
+      if (best != null && _objectHitOrder(v, best) < 0) continue;
+      if (!ObjectHitTest.hits(v.object, pagePoint, tol)) continue;
+      best = v;
     }
-    return null;
+    return best?.object;
   }
+
+  /// 4.10 order of two objects at one point: annotation > ink (shapes) > underlay, then z.
+  static int _objectHitOrder(InkObjectView a, InkObjectView b) {
+    final byLayer = _hitRank(a.layer).compareTo(_hitRank(b.layer));
+    return byLayer != 0 ? byLayer : InkLayerItem.compareOrder(a, b);
+  }
+
+  static int _hitRank(InkObjectLayer layer) => switch (layer) {
+    InkObjectLayer.underlay => 0,
+    InkObjectLayer.ink => 1,
+    InkObjectLayer.annotation => 2,
+  };
+
+  ObjectSpatialIndex _objectIndexOf(InkPageContent content) =>
+      _objectSpatial ??= ObjectSpatialIndex.of(content.pageSize, [
+        for (final layer in InkObjectLayer.values)
+          ...objectViewsOf(content, layer),
+      ]);
 
   /// Not drawn (e.g. the text box under EDITOR's EditableText). Selection still sees them.
   /// Ids not on the page are kept (an object arriving later starts hidden); the same set
@@ -707,26 +737,15 @@ final class InkPageController extends ChangeNotifier {
   static bool _isTapeId(InkPageContent content, String id) =>
       content.strokeById(id)?.style.tool == core.PenTool.tape;
 
-  static List<core.PageObject> _objectsOfLayer(
-    InkPageContent content,
-    InkObjectLayer layer,
-  ) => switch (layer) {
-    InkObjectLayer.underlay => underlayObjectsOf(content),
-    InkObjectLayer.ink => inkObjectsOf(content),
-    InkObjectLayer.annotation => annotationObjectsOf(content),
-  };
-
   /// The committed objects whose CORE bounds meet [pageRect] (closed), z order, without the
-  /// pending-removed ones (R2-B3: a scan).
+  /// pending-removed ones (m5-7 T37a: the object index).
   List<core.PageObject> _objectsNear(ui.Rect pageRect) {
     final content = _content;
     if (content == null) return const [];
     return [
-      for (final o in content.objects)
-        if (!_isPendingRemoved(o.id) &&
-            interop.rectOf(o.bounds).overlaps(pageRect.inflate(1e-9)))
-          o,
-    ];
+      for (final v in _objectIndexOf(content).query(pageRect))
+        if (!_isPendingRemoved(v.id)) v.object,
+    ]..sort(core.Stroke.compareOrder);
   }
 
   /// Ids (z-order) of the strokes whose ink meets [pageRect] (closed; 6.18
@@ -1065,7 +1084,25 @@ final class InkPageController extends ChangeNotifier {
       _chunkOrder = null;
       _hl.markDirty();
       _spatial = null;
+      _objectSpatial = null;
       return;
+    }
+    final objectSpatial = _objectSpatial;
+    if (objectSpatial != null) {
+      // removals first: an id that moved to another layer is removed from one and
+      // inserted into the other
+      for (final d in [diff.underlay, diff.shapes, diff.annotation]) {
+        for (final v in d.removed) {
+          objectSpatial.remove(v.id);
+        }
+      }
+      for (final d in [diff.underlay, diff.shapes, diff.annotation]) {
+        d.inserted.forEach(objectSpatial.insert);
+        d.appended.forEach(objectSpatial.insert);
+        for (final (_, now) in d.changed) {
+          objectSpatial.insert(now);
+        }
+      }
     }
     final spatial = _spatial;
     if (spatial != null) {
@@ -2291,6 +2328,13 @@ final class InkBaseStats {
 @meta.internal
 SelectionPreviewStats selectionPreviewStatsOf(InkPageController controller) =>
     controller._selectionPreview.stats;
+
+/// INTERNAL (tests, m5-7 T37a): the objects [controller]'s live parts draw now — selection
+/// previews and pending transforms as CORE PageObject.transformed(m, scaleWidth: true),
+/// recolors, pending additions, setPreviewObjects (6.8.4, 6.14).
+@meta.internal
+List<core.PageObject> liveObjectsOf(InkPageController controller) =>
+    List.unmodifiable(controller._currentDisplay().liveObjects);
 
 /// INTERNAL (tests): the highlighter page picture of [controller] (6.10-6/-7).
 @meta.internal
