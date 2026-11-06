@@ -16,9 +16,15 @@ Pure Dart, web safe. Entry points:
 
 State: the whole of plan chapter 4 works on both stores. `openNoteStore` opens
 SQLite through drift (web: `WasmDatabase` in `drift_worker.js`; VM: a native
-file or memory database), asset bytes and thumbnails live in IndexedDB
-(memory on the VM). `createFakeNoteStore()` has the same meaning in memory
-(no outbox, no remote path — plan 6.19).
+file or memory database), asset bytes and thumbnails live in IndexedDB on the
+web. (2차 T35, plan m5-7/02-core 6.15.3) Off the web a durable store needs both
+`nativeDatabasePath` and `nativeAssetDirectoryPath` (one alone, or a directory
+that cannot be made or written → `storageUnavailable`): a WAL file database
+plus file blobs under `<dir>/blobs` and `<dir>/thumbs`, which CORE makes when
+missing; `deleteLocalNoteData` removes the database, its v1 copy and those two
+directories. `openTestNoteStore(filePath:)` keeps the in-memory blobs.
+`createFakeNoteStore()` has the same meaning in memory (no outbox, no remote
+path — plan 6.19).
 
 The examples below are also compiled and run by
 `test/readme_examples_test.dart`.
@@ -210,6 +216,13 @@ store left it, `noteapp_v1_web.sqlite` the same rows with the rollback journal
 header for Chrome), the PDF asset bytes, `fixture_source.json` (source commit,
 generator hash, entity ids) and `manifest.json` (row counts and canonical dump
 hashes). Never open these files in place — tests copy them first.
+
+(2차 T25b) `test/migration/v1_fixture_migration_test.dart` (VM: file database
++ file blobs) and `test/web/v1_fixture_migration_browser_test.dart` (Chrome:
+the fixture as the initial bytes of a new web database) upgrade it and compare
+with the manifest (`test/shared/v7_fixture_checks.dart`); PF-8 is
+`test/perf/migration_perf_test.dart`. `tool/prepare_web_test.dart` copies the
+Chrome files to `test/web/fixtures_v1/`.
 
 ```text
 dart run tool/v1_fixture_manifest.dart --check  # manifest.json matches the files

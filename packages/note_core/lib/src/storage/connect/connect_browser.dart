@@ -11,15 +11,20 @@ import '../../common/errors.dart';
 import '../../repo/note_store.dart';
 import '../../repo/status.dart';
 
+/// (v2) [initialDatabaseBytes] (tests — m5-7/02-core 6.12.3 V7): the bytes of a database
+/// file that drift writes when no database of this name exists yet (WasmDatabase.open
+/// initializeDatabase); the V7 browser test starts a new web database from the fixture.
 Future<(QueryExecutor, StorageInfo)> openNoteDatabaseExecutor(
-  NoteStoreConfig config,
-) async {
+  NoteStoreConfig config, {
+  @visibleForTesting FutureOr<Uint8List?> Function()? initialDatabaseBytes,
+}) async {
   final WasmDatabaseResult result;
   try {
     result = await WasmDatabase.open(
       databaseName: config.databaseName,
       sqlite3Uri: Uri.base.resolve(config.web.sqlite3WasmPath),
       driftWorkerUri: Uri.base.resolve(config.web.driftWorkerPath),
+      initializeDatabase: initialDatabaseBytes,
     );
   } on Object catch (e) {
     throw NoteStoreOpenException(

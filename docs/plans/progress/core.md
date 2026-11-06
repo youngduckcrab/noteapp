@@ -395,7 +395,7 @@
 | T20a·T20b·T21·T23a·T23b | 기반 단계에서 완료 | 9777fde·c443015·38f3578·12ab8c4·0798096 | 위 '작업 표 (2차)' |
 | T24 | 완료 | a2b0489 | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
 | T35 | 완료 | 340a7ab | `test/assets/file_blob_store_test.dart`(33 — 공유 사례 8건을 파일·메모리 IndexedDB 둘 다에 + 파일만 17), `test/storage/native_file_store_test.dart`(12), 1차 `open_errors_test`(+ 한 경로만 1건)·`asset_store_test`(+ 네이티브 다시 열기 1건)·`v1_copy_test`·`commit_latency_perf_test`(네이티브 저장소로)·`draft_append_perf_test`(PF-7 두 블롭으로) |
-| T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
+| T25b | 완료 | (다음 커밋에 적음) | `test/migration/v1_fixture_migration_test.dart`(3 — VM 파일 DB + 파일 블롭), `test/web/v1_fixture_migration_browser_test.dart`(2 — Chrome 웹 워커), 공유 본문 `test/shared/v7_fixture_checks.dart`(①②③⑤), `test/perf/migration_perf_test.dart`(PF-8) |
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 완료 | 2db774e | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
@@ -707,6 +707,32 @@
 | 커밋 지연(`commit_latency_perf_test` — 이제 네이티브 저장소) | 중앙값 **11.17 ms**(`lastCommitLatency` 9.49 ms, 예산 < 30 ms) | 1초 |
 | `ws test --package note_core --platform chrome --heavy-lock` | 준비 ok, **112개 통과**(웹 코드 변화는 `openFileBlobDatabase` null·`IdbBlobDatabase implements BlobDatabase`뿐 — 개수 그대로), 2개 건너뜀(perf) | 440초(load 11~17) |
 
+#### T25b — V7 시험 (계획 6.12.3·6.12.4·6.18.1·8.2, 계약 7.7.2 V7) — 세션 8
+
+- 고정 자료·`manifest.json`·`tool/v1_fixture_manifest.dart`는 T25a(`b6beece`)에 이미 있다(CORE-F2 — manifest를 T25a에서 만듦). T25b는 시험·전달·훅.
+- 웹 초기 바이트 훅: `connect_browser.dart` `openNoteDatabaseExecutor(config, {@visibleForTesting initialDatabaseBytes})` → `WasmDatabase.open(initializeDatabase:)`. drift가 버퍼를 워커로 **옮겨(transfer) 원본이 분리**되므로 시험은 열 때마다 복사본을 준다(같은 바이트로 두 번째 DB를 열다 `DataCloneError`가 났었다).
+- 전달: `tool/prepare_web_test.dart`가 `--out` 없이(note_core 자신) 돌 때 `noteapp_v1_web.sqlite`·`pdf_asset.pdf`·`manifest.json`을 `test/web/fixtures_v1/`로 복사(같은 바이트면 건너뜀), 패키지 `.gitignore`에 그 디렉터리. Chrome 시험은 `package:web` `fetch('fixtures_v1/…')`로 받고, 없으면 '준비 스크립트를 먼저' 메시지로 실패(건너뛰지 않음).
+- 공유 본문 `test/shared/v7_fixture_checks.dart`(웹 안전): `V7Manifest`(manifest 읽기), `v7Clock()`(고정 자료 끝 + 1일에서 실제 시간으로 흐름 — 휴지통 노트 C가 30일 자동 정리에 걸리지 않게), `expectV7Upgraded` ①(엔티티 8표의 v1 열 − 파생 열 덤프 = `entityDumpSha256`, `name_norm`·`title_norm` = `SearchText.normalize`, v1 표 행 수 = manifest — kv 빼고) ②(outbox v1 열 덤프 = `outboxDumpSha256`, manifest kv 행 그대로, 새 kv 키는 `search.normalizerVersion`·`db.v1Copy`뿐) ③(새 표 6개 0행, `bg_asset_id`·`bg_pdf_index` = `background_json`, pdf 배경 4쪽, 녹음 `title` NULL), `exerciseV7Store` ⑤(활성 노트 2, 노트 A 획 읽기, pdf 바이트 `hasBytes`·`readBytes` = 고정 자료, 원격 녹음 1개·제목 없음 → 텍스트 상자 추가(세션)·녹음 만들기 → `expectV7Made`: 객체·녹음 제목·`searchPages('마이그레이션')` = 그 쪽 text 하나·`searchLibrary('물리')`가 분해형 한글 폴더·`searchLibrary('역학')` 노트 A), `v7StateSha`(kv·FTS 표 뺀 모든 표 덤프 — 닫기 전 = 다시 연 뒤).
+- VM(`v1_fixture_migration_test`): 고정 자료를 임시 디렉터리에 복사, pdf 바이트를 1차 키(`<assetId>/000000`)의 **파일 블롭**으로 미리 두고 `openNoteStore(두 경로, v7Clock)` → ①②③, ④ `<path>-v1-backup`(임시 파일 없음)이 `user_version` 1이고 정규 덤프 길이·SHA-256 = `fullDumpBytes`·`fullDumpSha256`, kv `{method: vacuum, bytes: 파일 크기, normalOpens: 1}`, `v1DatabaseCopyInfo`(`noteapp-v1-backup.sqlite`)·`readV1DatabaseCopy` = 파일 바이트, ⑤ → 닫고 다시 열기: 상태 덤프 같음·⑤ 결과 그대로·사본 파일 해시 그대로·`normalOpens` 2(`createdAt`·`bytes` 그대로). 그리고 고정 자료 파일 해시 = manifest, 휴지통 노트 C가 남음(`purgeExpired` 0).
+- Chrome(`v1_fixture_migration_browser_test`): 새 웹 DB 이름에 pdf 바이트를 블롭 IndexedDB(1차 키)에 먼저 넣고, 초기 바이트 훅 + `DriftNoteStore.open`(`openNoteStore`와 같은 실행기·블롭 팩토리 — 공개 `openNoteStore`에는 시험 인자를 더할 수 없음) → ①②③, ④′ `db/v1-backup/000000` + meta(마지막), 이어 붙인 조각 = `fullDumpBytes`·`fullDumpSha256`, meta `sha256`·`bytes`·`chunkCount`·`format`, kv `method: dump`, `v1DatabaseCopyInfo`(`noteapp-v1-backup.sql.txt`)·`readV1DatabaseCopy` 해시, ⑤ → 다시 열기(사본 있음) 상태 같음·`normalOpens` 2·meta 바이트 그대로 → 사본 지우기 → 다시 열기(사본 없음) 상태 같음. 사본 단계 없는 같은 업그레이드(두 번째 새 DB, `databaseFactory`로 사본 만드는 쪽 없음)와 사본 단계의 부분(열린 저장소에서 같은 v1 표 덤프 질의·SHA-256·블롭 넣기)을 따로 재서 찍는다.
+- PF-8(`migration_perf_test`, VM): 고정 자료 새 복사본을 `openNoteStore`(두 경로)로 6번(첫 번째 워밍업) — 사본 파일이 생겼는지 확인, 같은 업그레이드를 사본 단계 없이도 재서 기록.
+
+확인 (2026-11-06 세션 8 — T25b)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 4초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,178개 통과**(1,175 + V7 3), 12개 건너뜀(perf + 읽기 전용 2 — PF-8 1건 더함) | 178초 |
+| `ws test --package note_core --platform chrome --heavy-lock` | 준비 ok(고정 자료 복사 포함), **114개 통과**(112 + V7 2), 2개 건너뜀(perf) | 296초 |
+| PF-8 VM(`--run-skipped -t perf test/perf/migration_perf_test.dart`, load 17) | 사본 포함 중앙값 **119 ms**(예산 ≤ 1 s — 92~468 ms), 사본 단계 없이 65 ms | 2초 |
+| PF-8 Chrome(기록 — 6.19 예산은 VM 열) | `ws` Chrome 실행(load 9~11): 사본 포함 업그레이드 열기 **1,845 ms**, 사본 단계 없이 350 ms; 다시 열기 사본 있음 218 ms·지운 뒤 170 ms, 사본 지우기 10 ms. 같은 시험을 `flutter test --platform chrome`(DDC, load 10~15)로: 4,426~4,445 ms / 360~423 ms, 다시 열기 296~315 / 279~383 ms. `--wasm`(dart2wasm)으로: 1,447 ms / 349 ms, 다시 열기 158 / 167 ms | 25~34초(파일 하나) |
+| 사본 단계의 부분(열린 저장소에서 다시 — Chrome) | 덤프 질의 + 줄 만들기 201~341 ms, **SHA-256(2 MB, `package:crypto`) 624 ms(`ws`)·3,647 ms(DDC)·212 ms(wasm)**, 블롭 넣기 18~50 ms | — |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 53초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 14초 |
+
+- **웹 PF-8 판단**: T24가 남긴 '웹 업그레이드 열기 1.9~2.5 s'의 원인은 사본 단계이고, 그중 가장 큰 몫은 덤프 전체의 SHA-256(순수 Dart `package:crypto` — 시험 컴파일러에 따라 0.2~3.6 s)이다. 덤프 질의는 0.2~0.3 s, 블롭 쓰기는 수십 ms. 계약·계획에 웹 PF-8 예산은 없어(6.19 예산 열은 VM, 6.12.4 '웹 비용'은 기록) 코드는 바꾸지 않았다. 줄이려면 ① 덤프가 한 조각(≤ 4 MiB)일 때 `crypto.subtle.digest`(1차 `content_hasher_browser.dart`가 이미 씀 — 점진 해시가 없어 여러 조각이면 안 됨) ② meta의 `sha256`을 조각별 해시로 바꾸기(meta 형식 변경 — 6.12.4·dev_tools 소비자 INFRA 확인 필요). 실제 릴리스 빌드(dart2js -O4·wasm) 수치는 통합 단계 V6·실기기(9.5)에서 본다 — 다음 세션 메모.
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T33a: 6.10.3 '쓰기 훅' 위치는 `WriteTxn.putLocal`·`putRemote` 한 곳(내부 `TxnIndexHooks`)으로 — 세션·undo·`createNote`·손글씨 저장소·원격 적용이 모두 지난다. 같은 `sourceRev`·보류 아님이면 다시 쓰지 않는다(계획에 없음 — 같은 버전 재적용). 원격 고아 텍스트·수식은 단위 없이 소유자만 두었다가 페이지가 오면(`_adoptOrphans`) 다시 색인한다. 보류 표시는 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`(소유자 행이 없으면 `source_rev ''`).
@@ -720,6 +746,11 @@
 - T33b(세션 6): PF-3 시험의 질의 표를 넓혔다 — 잦은·보통·드문 2음절, 3음절, 낱말 중간(조사 03 9.2 '낱말 중간'), 영문 접두사, AND 각각 잦은·드문 것, 1글자 LIKE 셋. 질의마다 후보 수를 함께 적는다.
 - T29 ②: 계획 8.2의 '공유 `library_contract` 확장'은 `test/shared/library_contract.dart`에 넣지 않고 `test/repo/note_copy_v2_test.dart` 한 파일이 가짜·실제 두 저장소를 돌게 했다(`trash_purge_v2_test`와 같은 모양 — 녹음·손글씨·검색 준비가 1차 계약 본문의 열기 함수(`ClockedStoreFactory`)와 맞지 않아서). `duplicateNoteForRecovery`는 가짜 `SyncStore`에 없어(`_unsupported`) 실제만.
 - T29 ③: 골든 갱신은 별도 커밋(1차 7.4.8) — 제외 시험(`784b675`, 골든 그대로)과 골든 상태·`backup_v2.json`(다음 커밋)을 나눴다. 골든 상태를 바꾸는 커밋은 그 상태를 쓰는 종류 수 사례·가짜 시드를 함께 고친다(따로 두면 그 커밋에서 깨짐).
+- T35: 파일 블롭의 키 의미를 IndexedDB 저장소와 같게 맞췄다 — 이름 접두사(끝 `/` 없는 `keys('a')`·`deletePrefix('a')`)와 `''`(전부)도 된다(계획 6.15.3은 '접두사의 디렉터리를 나열'·'그 디렉터리를 재귀 삭제'만 적음). 계획에 없는 것: 열 때 각 디렉터리에 쓰기 시험(읽기 전용을 열기에서 `storageUnavailable`로 — 계획의 '만들 수 없으면'을 '쓸 수 없으면'까지), 한 저장소 작업의 호출 순서 직렬화, 비게 된 부모 디렉터리 정리, 파일이 될 수 없는 키 거부, 썸네일 파일 이름 퍼센트 인코딩·MIME 길이 uint16(계획은 'MIME 길이'의 크기를 정하지 않음).
+- T35: 읽기 전용 디렉터리 시험 2건은 root에서 건너뛴다(root는 모드를 무시) — 같은 실패 경로를 '만들 수 없음'(일반 파일 아래·파일이 자리를 차지) 사례로 root에서도 확인한다.
+- T35: 네이티브 DB 실행기를 먼저 만들고(부모 디렉터리 만들기 포함) 그다음 파일 블롭을 연다 — 블롭이 실패하면 실행기를 닫고 던진다. 그래서 블롭 루트를 만들 수 없을 때도 DB 디렉터리는 만들어져 있다(빈 디렉터리).
+- T25b: Chrome 시험은 공개 `openNoteStore` 대신 같은 실행기(`openNoteDatabaseExecutor` + 초기 바이트 훅)와 같은 블롭 팩토리로 `DriftNoteStore.open`을 부른다(계획 6.12.3은 '`openNoteStore` → 같은 검사' — 공개 시그니처에 시험 인자를 더할 수 없어서). 자동 정리 타이머·`persist()` 질의만 빠진다. VM은 공개 `openNoteStore` 그대로.
+- T25b: ⑤ '이어서 객체 추가·녹음 생성·검색이 동작, 다시 열어도 같음'의 '같음'을 kv·FTS 표를 뺀 **모든 표의 정규 덤프 해시**로 고정했다(+ ⑤ 결과·사본 그대로·`normalOpens` +1).
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
 - T24: '새 v2 = 이주한 v2의 `sqlite_master`' 비교는 v1 원본을 **V7 고정 자료**(1차 코드가 쓴 DB)로 하고, 식별자 따옴표·괄호 앞 공백을 정규화해 비교한다. 생성 `schema_v1`이 만든 v1 표와 업그레이드가 생성 `Schema2`로 만든 새 표는 `PRIMARY KEY(id)`처럼 1차 실제 표(`PRIMARY KEY ("id")`)와 글자가 조금 다르다(열·형·제약·순서는 같음). 이주 시험(`migration_v2_test`)의 합성 v1은 계획대로 생성 `schema_v1`로 만든다.
 - T24: 생성 시험 `migration_test.dart`는 `package:flutter_test` 대신 `package:test` + `@TestOn('vm')`(note_core는 순수 Dart 멤버)로 고쳤고, 자료 보존 사례를 실제 행(폴더 `name_norm` 재계산·pdf 배경 `bg_*`·녹음 `title` NULL·outbox)으로 채웠다.
@@ -742,8 +773,8 @@
 
 #### 다음 세션 메모
 
-- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34, T29(세션 6·7 — 영구 삭제·복사·백업 v2), T36(세션 7). 다음은 T37(성능·문서 — 6.19 PF-1~PF-11 전부, README 2차 사용 예, `readme_examples_test` v2) — T35·T25b도 남음(T35 → T25b). T35(네이티브 파일 블롭·파일 DB)는 T25b 전 언제든 — T35 뒤 PF-7(VM)을 파일 블롭으로 다시 재고, PF-10의 블롭 읽기(지금 메모리 IndexedDB)도 파일 블롭으로 다시 잰다.
-- T35 준비(세션 7 조사): 블롭은 지금 `IdbBlobDatabase`(구체 타입)를 `DriftNoteStore.blobs`로 들고 `drift_search_index.dart`·`drift_recording_draft_store.dart`·`v1_copy/v1_copy.dart`·`fake_note_store.dart`가 `.blobs`(`chunks`·`thumbnails`·`close`)를 쓴다(lib 12곳, test 13파일). 파일 블롭은 같은 모양의 내부 묶음(예: `chunks`·`thumbnails`·`close`를 가진 추상 묶음)을 두고 `assets/file_blob_store_native.dart`가 구현, `connect_native.dart`가 `nativeAssetDirectoryPath` 유무로 고르게 하는 것이 가장 작다. `openTestNoteStore(filePath:)`는 계획대로 메모리 블롭(시그니처·동작 그대로 — `blobFactory: blobIdbFactory(config)` 경로) — 실제 열기 경로(`openNoteStore`)만 두 경로를 요구한다. `connect_native.deleteLocalData`는 이미 DB·`-wal`·`-shm`·v1 사본·임시 파일을 지운다(T24) — `blobs/`·`thumbs/`를 더한다. 1차 시험 중 `nativeDatabasePath`만 넘기는 곳은 test 9곳(`grep -rn nativeDatabasePath test`).
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T33b, T34, T29(세션 6·7), T36(세션 7), **T35·T25b(세션 8)**. **남은 것은 T37 하나**(성능·문서 — 6.19 PF-1~PF-11 전부를 `--run-skipped -t perf`로, Chrome `perf`(PF-10w·1차 `open_time_browser_test`), PF-10 색인 크기 기록(README·INFRA 웹 예산표), README 2차 사용 예(객체 넣기·녹음 만들기·초안·PDF 색인 작성기·검색·**네이티브 설정(두 경로)**·`update`)와 `test/readme_examples_test.dart` v2(가짜·실제)). PF-1·PF-2(`object_page_perf_test`)는 아직 파일이 없다 — T37에서 만든다. PF-10의 블롭 읽기는 지금 메모리 IndexedDB(`openFileStore`) — T37에서 네이티브 파일 블롭(`perf_support.openNativeFileStore`)으로도 한 번 잰다. PF-7은 세션 8에 두 블롭으로 쟀다(4.57 / 6.81 ms).
+- T35(세션 8): 블롭 묶음은 내부 `BlobDatabase`(`assets/blob_store.dart` — `chunks`·`thumbnails`·`close`), 구현 `IdbBlobDatabase`·`FileBlobDatabase`(`assets/file_blob_store_native.dart`). `DriftNoteStore.open(blobDatabase:)`가 있으면 그것, 없으면 `blobFactory`의 IndexedDB. 실제 네이티브 열기는 `openNoteStore` → `connect_native.openFileBlobDatabase`. 시험 도구: `perf_support.openNativeFileStore(tag)`, `native_file_store_test`의 `config()`. 읽기 전용 사례는 root에서 건너뜀(CI 비 root에서 돈다).
 - 검색 질의 예산: 변경 요청 [총괄] V10의 답이 오면 `test/perf/search_perf_test.dart`의 `kHeldBelow`·예산을 맞춘다(상한 질의 ≤ 40 ms 제안). 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
 - T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
 - 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
@@ -754,5 +785,7 @@
 - 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.
 - 남은 2차 표면 `UnimplementedError`: 없음(T33a에서 `empty_v2_repositories.dart`·`common/pending.dart`를 지웠다).
 - 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
-- v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
+- v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). V7: `test/shared/v7_fixture_checks.dart`(`V7Manifest`·`v7Clock`·`expectV7Upgraded`·`exerciseV7Store`·`expectV7Made`·`v7StateSha`), 웹 초기 바이트 훅 `connect_browser.openNoteDatabaseExecutor(initialDatabaseBytes:)`(열 때마다 바이트 복사본 — drift가 버퍼를 옮김), Chrome 고정 자료는 `test/web/fixtures_v1/`(준비 스크립트가 복사).
 - Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.
+- 웹 PF-8(사본 포함 업그레이드 1.4~4.4 s — 컴파일러·부하에 따라, 사본 없이 0.35 s): 대부분 덤프 전체의 `package:crypto` SHA-256(위 'T25b' 절). 예산은 VM만이라 그대로 뒀다. 통합 단계에서 릴리스 웹 빌드(V6)로 첫 실행 시간을 보고 1 s를 넘으면 한 조각 덤프의 `crypto.subtle.digest` 또는 meta 조각별 해시를 검토(meta 형식을 바꾸면 INFRA 개발자 메뉴 확인).
+- 계약 7.2.6 문장 '둘 중 하나라도 없으면 1차처럼 `storageUnavailable`'대로 앱(INFRA J4 `defaultNoteStoreConfig`)이 네이티브에서 두 경로를 넘기는지 통합 단계 I-6에서 본다(이 작업 트리의 app은 기반 단계 상태 — `nativeDatabasePath` null 확인 시험만 있음).
