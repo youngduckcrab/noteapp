@@ -402,7 +402,7 @@
 | J7 | 완료 | `852cce5` | `app/test/modules/media_module_test.dart`(J7 묶음 7 — `abandon()` 초안 복구 0·1·2·실패·최근 갱신 창, 이탈 경고 상태 전이·실행기 안 첫 프레임 직후), `update/update_banner_test.dart` v2(녹음 중 안내·reload 0회·녹음 꺼짐), `web/web_platform_browser_test.dart`(Chrome — `setLeaveGuard` 리스너 1개) |
 | J8 | 완료 | `b0ffee5` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/recognition_module_test.dart`(J8 묶음 4 — 두 번 dispose → 1회·실행기 안 3초 뒤 start 1·scope 사라짐 → dispose 1·start 실패 → 기록 1·dispose 0·`recog.indexer` 섹션) |
 | J9 | 완료 | `ea21681` | `app/test/modules/recognition_wiring_test.dart`(새 — 필드 표·`done` 두 갈래·`execute` 감싸기·동기 시작), `media_wiring_test.dart`(새 — 패널·이미지 가져오기·`media` 섹션·복구 순서·상태 안 읽음), `search_wiring_test.dart`(새 — ≤ 4 Hz·형식·dispose), `feature_wiring_module_test.dart` v2(반복 id 3경우) |
-| J10 | 완료 | (이 커밋) — 본문은 R2-B8a `a4c9cca` | `app/test/modules/pdf_module_test.dart` v2(기록용 리더 start 1·dispose 1·PDF 실패 → 작업 없음 + 기본 리더·실행기 안 0 → 10 → 20 순서) |
+| J10 | 완료 | `fcf949d` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/pdf_module_test.dart` v2(기록용 리더 start 1·dispose 1·PDF 실패 → 작업 없음 + 기본 리더·실행기 안 0 → 10 → 20 순서) |
 | J11 | 남음 | | `app_router_test`·`production_screens_test` |
 | J12 | 남음 | | `pencil_wire_contract_test`(①~⑨)·`pencil_bridge_test` — 컴파일은 `ios-compile.yml`(U19) |
 | J13 | 남음 | | `pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 4경우)·`about_section_test` |
@@ -710,7 +710,7 @@
 - **J0 체크포인트(①②③)**: `1fd1aea`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청. 이 체크포인트의 첫 푸시 CI 실행 기록이 J0 ④(6.16 실측)의 입력이다.
 - (2차 동시 개발 세션 3) J1 `3ff3b76`·J2 `0da5b71`·J3 `44609e8`(+ 기록 커밋) — 체크포인트 아님(INFRA-F3의 체크포인트는 R2-B8a·R2-B8b·J0). 다음 병합 때 함께 들어가면 된다.
 - (2차 동시 개발 세션 4) J4 `3779a8f`·J5 `16b9c4b`·J6 `864317a`(+ 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app·tool·pencil_bridge) 변경 0, `ws test --package noteapp` VM 473 통과·Chrome 11 통과, V5·V6 통과, `dart test tool/test` 481 통과(117초).
-- (2차 동시 개발 세션 5) J7 `852cce5`·J8 `b0ffee5`·J9 `ea21681`·J10(이 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app) 변경 0, `ws test --package noteapp` VM 514 통과(65초)·Chrome 14 통과(110초), V5(`--run-skipped -t integration`) 1 통과. `tool`·`pencil_bridge`는 이번에 바뀌지 않아 돌리지 않았다.
+- (2차 동시 개발 세션 5) J7 `852cce5`·J8 `b0ffee5`·J9 `ea21681`·J10 `fcf949d`(+ 이 기록 커밋) — 체크포인트 아님. 세션 끝 확인: `ws check` 0, 루트 `flutter analyze --fatal-infos` 0, `dart format`(app) 변경 0, `ws test --package noteapp` VM 514 통과(65초)·Chrome 14 통과(110초), V5(`--run-skipped -t integration`) 1 통과. `tool`·`pencil_bridge`는 이번에 바뀌지 않아 돌리지 않았다.
 
 #### 다음 세션 메모
 
