@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 R2-B2 묶음 검사**(CORE B2-α·B2-β + SYNC R2-B7a + INFRA R2-B2i, HEAD `7dacf36` — 아래 '## 2차') — 그 앞은 R2-B2i·R2-B1.
-- 다음 할 일: 동시 개발 R2-B8a → R2-B8b → J0(동시 개발 시작 조건 = R2-B1~R2-B6이 `main`에 있음).
+- 마지막 세션: **2차 R2-final — 기반 단계 전체 확인**(R2-B1~R2-B6이 `main`에 있음, 검사 HEAD `708a1c1` — 아래 '## 2차') — 그 앞은 R2-B2 묶음 검사·R2-B2i·R2-B1.
+- 다음 할 일: 동시 개발 시작 조건이 채워졌다. INFRA는 R2-B8a → R2-B8b → J0(체크포인트 병합 — Q14).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -37,6 +37,7 @@
 | R2-B1 (2차) | 완료 | 3c77de3 | `tool/test/rules_test.dart`(R4 `Platform`·R16·2차 목록)·`chrome_fakemedia_test`·`heavy_lock_test`·`test_command_test`(잠금·`media` 래퍼)·`hosting_config_test`(`functions`·`emulators`)·`workflows_test`(시험 범위·`functions.yml`·수동 APK)·`repo_hygiene_test`·`workspace_test`(`functions/`)·`guides_test`(05), `packages/pencil_bridge/test/pencil_wire_contract_test.dart` |
 | R2-B2i (2차) | 완료 | 59ed567 | `app/test/fakes/counting_note_store.dart`: `recordings`·`recordingDrafts`·`handwriting`·`search` → `inner` 위임 4줄(바탕 = CORE 계약 타입 커밋 `2b2e4b0`, R2-B2·R2-B7a와 한 묶음). INFRA 기존 시험 전부 |
 | R2-B2 묶음 검사 (2차) | 완료 | — (검사 전용) | HEAD `7dacf36`에서 `flutter pub get --enforce-lockfile`·`ws check`(·`--strict`)·루트 analyze·`ws test`(VM 11개·Chrome 7개 멤버)·`dart test tool/test` 모두 통과(아래 '## 2차' > 'R2-B2 묶음 검사') |
+| R2-final (2차) | 완료 | 708a1c1 | 2차 기반 단계 전체 확인: 앱 시험 3곳의 배경 빌더 목록을 계약 v2.2(C2-20)로(`modules/pdf_module_test`·`modules/production_modules_test`·`support/smoke_scenario`). HEAD `708a1c1`에서 pub get·`ws check`(·`--strict`)·analyze·`dart format`·`ws test`(VM 11개·Chrome 9개 멤버, V5·V6 포함)·`dart test tool/test`·릴리스 웹 빌드·`functions/` `npm ci && npm test` 모두 통과(아래 '## 2차' > 'R2-final') |
 
 ## 변경 요청
 
@@ -350,3 +351,29 @@
 
 - **pdf_io Chrome 첫 시도 멈춤**: `compose_browser_test.dart`가 끝난 뒤(시험 시계 00:17) `loading .../pdf_io/test/web/pure_logic_browser_test.dart`에서 더 진행하지 않아 멤버 제한 15분에 끝내고 다시 실행 → `ok (try 2, after a time-out)`. 따로 다시 돌리면 재현되지 않음. 1차 'Chrome 실행 안정화'에 적은 헤드리스 Chrome 멈춤과 같은 모양(시험 파일 불러오기 중 멈춤, 원인 미확정)이고, 이번 묶음은 `packages/pdf_io`를 바꾸지 않았다(의존하는 `note_core`만 바뀜). 재시도 정책이 의도대로 동작했다. 다시 자주 보이면 CI 잡 제한(전체 Chrome 단계가 15분 더 걸림)과 함께 살핀다.
 - 이전 메모의 '묶음 뒤 전체 Chrome 실행'(R2-B1·R2-B2i)은 위로 끝냈다.
+
+### R2-final — 2차 기반 단계 전체 확인 (계약 7.6.2 — 동시 개발 시작 조건 = R2-B1~R2-B6이 `main`에 있음)
+
+- 커밋: `708a1c1`(앱 시험 고침), 이 기록 줄은 그 뒤 커밋. 검사 대상 = HEAD `708a1c1`(작업 트리 깨끗함). 그 앞 기반 단계 커밋: INFRA R2-B1 `3c77de3`, SYNC R2-B7b `9cdd3fb`, CORE T25a `b6beece`·B2-α `2b2e4b0`·B2-β `9777fde`..`0798096`, SYNC R2-B7a `99b8ead`, INFRA R2-B2i `59ed567`, INK R2-B3 `fd3370f`, EDITOR R2-B5 `78d7f25`, PDF R2-B4 `5636d4e`, LIBRARY R2-B6 `99cdeef`(각 진행 기록 커밋 포함).
+- **고친 것(INFRA 경로만)**: INK R2-B3·PDF R2-B4가 배경 빌더 목록을 계약 v2.2 7.2.9·7.2.12·7.3.3(C2-20)으로 바꿔 앱 시험 3곳이 1차 목록을 기대하고 있었다(INK·EDITOR·PDF 변경 요청). `app/test/modules/pdf_module_test.dart`(시작 실패 → INK 기본 `[image, template]`, 기본 인자 → `[pdf, image, template]`), `app/test/modules/production_modules_test.dart`(모듈 함께 → `[pdf, image, template]` — B4 뒤 새로 깨졌던 곳), `app/test/support/smoke_scenario.dart`(V5·V6 → 같은 세 빌더). `PdfModule.overrides()` 문서 주석의 기본 목록 문구도. 동작 변화 없음.
+- 2026-11-06 03:53–04:21 UTC, 다른 에이전트의 무거운 시험 없음(잠금 대기 0초, load 1–2).
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `flutter pub get --enforce-lockfile` | 통과(lock 변화 없음) | 2초 |
+| `ws check` / `ws check --strict` (R1–R16) | 0 · 0 | 55초 · 51초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 10초 |
+| `dart format --output=none --set-exit-if-changed` (추적 중인 Dart 1,315개, R11 대상) | 변경 0 | 5초 |
+| `dart test tool/test` | 372 통과 | 52초 |
+| `ws test` (VM, 11개 멤버) | 모두 통과 — note_core 880(+5 건너뜀)·ink_engine 889·feature_editor 658(+1)·feature_library 628(+1)·pdf_io 604(+7)·sync_engine 782(+4)·ink_lab 1·media_io 37·ink_recognition 57·pencil_bridge 6·noteapp 261(+1 = V5) | 8분 9초 |
+| `ws test --package noteapp --run-skipped -t integration` (V5, 잠금 아래) | 1 통과 | 23초 |
+| `ws test --platform chrome` (전체, 무거운 시험 잠금) | 9개 멤버 통과, 시간 초과·재시도 없음 — note_core 71(+1)·ink_engine 199·feature_editor 1·feature_library 17·pdf_io 54(+1)·sync_engine 26·media_io 3·ink_recognition 9·noteapp 11(+1 = V6). `ink_lab`·`pencil_bridge`는 `test/web/` 없음 | 9분 46초 |
+| `ws test --package noteapp --platform chrome --run-skipped -t integration` (V6, 잠금 아래) | 준비 ok · 1 통과 | 1분 28초 |
+| `cd app && flutter build web --release` (잠금 아래) | 성공(wasm dry run 성공) | 2분 1초(컴파일 117초) |
+| `ws web-assets verify` | 2개, 문제 0 | 2초 |
+| `functions/` `npm ci && npm test` (Node 22.23.4, npm 10.9.9) | 721개 설치 · `# tests 37`, 37 통과 | 21초 + 2초 |
+
+- **웹 크기**(`dart:io` gzip — `ws finalize-web`과 같은 방식): `main.dart.js` **4,667,466 B**(1차 G4 4,633,843 B 대비 **+33,623 B, +0.73%**), gzip **1,375,483 B**(1차 1,366,038 B 대비 +9,445 B — 시작 한도 1,666,038 B까지 290,555 B 남음). 앱 셸이 아직 새 모듈(`MediaModule`·`RecognitionModule`)·새 확장 자리를 연결하지 않아(R2-B8a) `media_io`·`ink_recognition` 코드와 객체 편집 UI 대부분이 트리 셰이킹으로 빠진 값이다 — 기준 갱신은 J0(R2-B8b 뒤)에서.
+- **시작 글꼴**(`FontManifest.json`): 14개 패밀리 — `flutter_math_fork` KaTeX 12개 패밀리 20개 파일 + MaterialIcons + CupertinoIcons, 합계 661,088 B · gzip **382,428 B**(계획 4.3.3 초안 `startup_fonts_gzip_max: 400000`까지 17,572 B). KaTeX 20개가 370,093 B gzip(MaterialIcons 10,170 B·CupertinoIcons 1,011 B)으로 거의 전부다 — J0에서 묶음별 한도를 제안할 때 이 값을 쓴다. `NoteSans`는 `FontManifest`에도 `AssetManifest`에도 없다(계약 7.4.5의 '`FontManifest`에 넣지 않음'은 지켜짐; INK 글꼴 파일은 아직 `ink_engine` pubspec `flutter: assets:`에 없다 — 아래).
+- pdf_io Chrome 멈춤(R2-B2 묶음 검사)은 이번에 다시 나타나지 않았다(92초, 첫 시도 통과).
+- **남은 것(다른 영역·총괄)**: INK가 INFRA에 요청한 `packages/ink_engine/pubspec.yaml`의 `flutter: assets:` 블록(글꼴 3줄)은 INFRA가 넣지 않았다 — 그 파일에서 INFRA가 고칠 수 있는 것은 R2-B1의 의존 4줄(CP3 한 번 예외)뿐이고, 01-infra 3.3은 글꼴 블록을 INK R2-B3 몫으로 적었다. 총괄에게 결정을 요청했다(INK가 동시 개발 첫 작업으로 넣거나 INFRA에 한 번 더 예외). 블록이 없는 동안 앱·VM 패키지 시험에서 `InkFonts.ensureLoaded()`는 실패하고 대체 글꼴을 쓴다(INK 보고 — 예외 없음); 이번 검사는 그 때문에 실패한 시험이 없다.
