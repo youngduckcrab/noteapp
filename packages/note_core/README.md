@@ -428,16 +428,19 @@ Performance budgets (plan 9.1, VM, `test/perf/`). Measured on 2026-11-05 in a
 2nd-round budgets (plan m5-7/02-core 6.19, `flutter test --run-skipped -t perf`).
 Measured on 2026-11-06 (CORE T37) in the same shared container, load 4 ~ 13 —
 the time budgets are judged at load < 4 (plan 9.1); a run at high load can
-go over the small ones (PF-2, PF-3) and is measured again. PF-3 and PF-4 are
-not met as written (contract V10): frequent words read up to 2,000 candidates
-and take 20 ~ 46 ms — change request CP-18 (plan 12.1) waits for a ruling:
+go over the small ones (PF-2, PF-3) and is measured again. PF-3 and PF-4 use
+the V10 budget of contract v2.5 (C25-01 — change request CP-18, plan 12.1,
+approved): a query with fewer than 100 candidates (FTS5 / LIKE rows before the
+2,000 cap, counted by the test for every query) is held to 5 ms (1-syllable
+LIKE: 15 ms), any other query to 50 ms. Frequent words read up to 2,000
+candidates and take 20 ~ 46 ms:
 
 | # | Test | Budget | Measured |
 |---|---|---|---|
 | PF-1 | `openPage`, 2,000 objects + 2,000 strokes (`object_page_perf_test`) | ≤ 400 ms | 196 ~ 227 ms |
 | PF-2 | `execute(UpdateObjects 1)` on 2,000 objects | mean ≤ 2 ms | 0.64 ~ 0.88 ms (2.04 at load 13) |
-| PF-3 | 5,000-page index: 2-, 3-syllable, word-middle, Latin prefix, AND queries (`search_perf_test`) | median ≤ 5 ms (V10) | **not met**: at load < 4 (8 runs), 38 ~ 65 candidates 1.5 ~ 3.2 ms, 136 candidates / 100 pages 3.3 ~ 5.2 ms; frequent words, 2,500 ~ 5,000 candidates: 22 ~ 31 ms (24 ~ 46 ms at load 5 ~ 9) |
-| PF-4 | same index, 1-syllable LIKE | median ≤ 15 ms (V10) | **not met**: at load < 4, 576 candidates 14.2 ~ 15.8 ms; 1,072 / 4,995 candidates 18.8 ~ 21.5 / 20.1 ~ 22.6 ms (20 ~ 27 ms at load 5 ~ 9) |
+| PF-3 | 5,000-page index: 2-, 3-syllable, word-middle, Latin prefix, AND queries (`search_perf_test`) | median: < 100 candidates ≤ 5 ms, others ≤ 50 ms (V10, v2.5) | 38 ~ 65 candidates 1.6 ~ 2.7 ms; 136 candidates / 100 pages 4.0 ~ 4.5 ms; frequent words, 2,500 ~ 5,000 candidates: 24 ~ 34 ms (load 2.6 ~ 4.3; 22 ~ 31 ms in 8 runs at load < 4, 24 ~ 46 ms at load 5 ~ 9) |
+| PF-4 | same index, 1-syllable LIKE | median: < 100 candidates ≤ 15 ms, others ≤ 50 ms (V10, v2.5) | absent syllable (0 candidates — the whole LIKE scan) 7.4 ~ 8.3 ms; 576 / 1,072 / 4,995 candidates 14.0 ~ 14.2 / 20.9 ~ 21.4 / 21.8 ~ 24.8 ms (load 2.6 ~ 4.3; 20 ~ 27 ms at load 5 ~ 9) |
 | PF-5 | 5,000 × `replaceUnits` (pdf) | record only | 5.7 ~ 7.3 s |
 | PF-6 | `stalePages` 20 × 1,000 strokes: first / one page changed | ≤ 150 / ≤ 10 ms | 54 / 5.6 ms |
 | PF-7 | draft `append` 8 KiB: test store / native file blobs | median ≤ 10 ms | 4.4 / 5.9 ms |

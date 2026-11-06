@@ -1,23 +1,23 @@
-// CORE T33b — m5-7/02-core 6.19 PF-3 · PF-4 · PF-5 (contract 7.7.2 V10): a 5,000-page synthetic
-// index (one pdf unit of 80 words per PDF page, no glyph boxes — 조사 03 9.2 shape; Hangul words
-// from 400 syllables, 20 % Latin; 50 notes × 100 pages show the pages) on the in-memory store.
-// PF-5: building it with replaceUnits (record only). PF-3: 2- and 3-syllable, word-middle,
-// Latin prefix and AND queries, median ≤ 5 ms. PF-4: one-syllable LIKE queries, median ≤ 15 ms.
-// Each query is measured with its candidate count (FTS5 MATCH / LIKE rows before the 2,000 cap).
+// CORE T33b — m5-7/02-core 6.19 PF-3 · PF-4 · PF-5 (contract 7.7.2 V10, budget of v2.5
+// C25-01): a 5,000-page synthetic index (one pdf unit of 80 words per PDF page, no glyph boxes —
+// 조사 03 9.2 shape; Hangul words from 400 syllables, 20 % Latin; 50 notes × 100 pages show the
+// pages) on the in-memory store. PF-5: building it with replaceUnits (record only). PF-3: 2- and
+// 3-syllable, word-middle, Latin prefix and AND queries. PF-4: one-syllable LIKE queries.
 //
-// Two tests judge the same measurements (taken once, in setUpAll):
-// - 'V10 as written' holds every query of the set to its budget — the contract text holds
-//   until a change is approved (7.4.9). This design does not meet it for frequent words: the
-//   time grows with the candidates read (each one's liveness, and its normalized text judged
-//   and scored in Dart — 6.10.4 steps 1–2, the same judgement as the fake — CP-14): 20 to 46 ms
-//   with 1,000 to 5,000 candidates (load 5 to 9). So this test fails until 총괄 rules on change
-//   request CP-18 (plan 12.1; progress log '[총괄] V10'). It is the PF-3 / PF-4 completion
-//   judgement (plan 10장 #1), at load < 4 (plan 9.1).
-// - 'CP-18 as proposed' holds the queries with fewer candidates than [kHeldBelow] to the same
-//   budgets and every other query to [kProposedOtherBudget] — the budget the change request
-//   proposes, kept as a regression guard meanwhile. It is not the V10 judgement. (Review 1.4:
-//   the threshold was 300 candidates, 600 for LIKE; at load < 4 the 136-candidate query took
-//   up to 5.2 ms and the 576-candidate LIKE query 14.2 to 15.8 ms, so it is now 100 for both.)
+// The budget (contract v2.5 C25-01 — change request CP-18, plan 12.1, approved) depends on the
+// query's candidates (FTS5 MATCH / LIKE rows before the 2,000 cap — 7.2.5), which the test counts
+// with its own SQL for every query and uses to pick the budget:
+// - fewer than [kFewCandidates] candidates: median ≤ 5 ms (PF-3), ≤ 15 ms (PF-4, 1-syllable LIKE);
+// - any other query (the search reads up to the 2,000-candidate cap): median ≤ 50 ms.
+// The cost grows with the candidates read (each one's liveness, and its normalized text judged
+// and scored in Dart — 6.10.4 steps 1–2, the same judgement as the fake — CP-14) and with the
+// pages returned (up to 100), so the frequent words of this corpus (1,000 to 5,000 candidates)
+// take 20 to 46 ms. The set has queries on both sides of the threshold for PF-3 and PF-4 (the
+// absent syllable is the PF-4 query under it: every syllable of the corpus has ≥ 576 candidates);
+// the test checks that. It is the PF-3 / PF-4 completion judgement (plan 10장 #1), at load < 4
+// (plan 9.1). (Until v2.5 a second test held every query to the v2.4 text — median ≤ 5 ms, 1-
+// syllable LIKE ≤ 15 ms whatever the candidates — and failed on the frequent words; the threshold
+// was 300 candidates, 600 for LIKE, until review 1.4.)
 // ignore_for_file: avoid_print
 @TestOn('vm')
 @Tags(['perf'])
@@ -38,17 +38,18 @@ import 'package:test/test.dart';
 import 'perf_support.dart';
 import 'search_corpus.dart';
 
-/// The V10 budgets as written (6.19 PF-3 · PF-4).
-const Map<String, Duration> kBudget = {
+/// V10 (contract v2.5 C25-01): a query with fewer candidates than this is held to
+/// [kFewBudget] …
+const int kFewCandidates = 100;
+
+/// … the budget of such a query per PF row (6.19 PF-3 · PF-4) …
+const Map<String, Duration> kFewBudget = {
   'PF-3': Duration(milliseconds: 5),
   'PF-4': Duration(milliseconds: 15),
 };
 
-/// CP-18 (pending): queries with fewer candidates than this keep [kBudget] …
-const int kHeldBelow = 100;
-
 /// … and every other query (up to the 2,000-candidate cap) is held to this.
-const Duration kProposedOtherBudget = Duration(milliseconds: 50);
+const Duration kOtherBudget = Duration(milliseconds: 50);
 
 const String _asset =
     'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd';
@@ -85,39 +86,41 @@ void main() {
     measured = await measureQueries(store, vocab);
   });
 
-  test('PF-3/4 (V10 as written): every query ≤ 5 ms, '
-      '1-syllable LIKE ≤ 15 ms (median)', () {
-    expect(measured, hasLength(14));
+  test('PF-3/4 (V10, contract v2.5 C25-01): under $kFewCandidates '
+      'candidates ≤ 5 ms (1-syllable LIKE ≤ 15 ms), '
+      'others ≤ ${kOtherBudget.inMilliseconds} ms (median)', () {
+    expect(measured, hasLength(15));
+    // Both budgets of each PF row are exercised: the counted candidates put at least one
+    // query on each side of the threshold.
+    for (final id in kFewBudget.keys) {
+      for (final few in [true, false]) {
+        expect(
+          measured.where(
+            (q) => q.id == id && (q.candidates < kFewCandidates) == few,
+          ),
+          isNotEmpty,
+          reason:
+              '$id has no query with ${few ? 'fewer than' : 'at least'} '
+              '$kFewCandidates candidates',
+        );
+      }
+    }
     expect(
       [
         for (final q in measured)
-          if (q.median >= kBudget[q.id]!) describe(q),
+          if (q.median >= budgetOf(q)) describe(q),
       ],
       isEmpty,
       reason:
-          'over the V10 budget (6.19 PF-3/PF-4, contract 7.7.2) — change '
-          'request CP-18 (plan 12.1, progress log "[총괄] V10") is waiting',
-    );
-  });
-
-  test('PF-3/4 (CP-18 as proposed, pending): under $kHeldBelow '
-      'candidates ≤ 5 ms (1-syllable LIKE ≤ 15 ms), '
-      'others ≤ ${kProposedOtherBudget.inMilliseconds} ms', () {
-    expect(measured, hasLength(14));
-    expect(
-      [
-        for (final q in measured)
-          if (q.median >= proposedBudget(q)) describe(q),
-      ],
-      isEmpty,
-      reason: 'over the CP-18 proposed budget (regression guard)',
+          'over the V10 budget (contract v2.5 C25-01, plan 6.19 PF-3/PF-4 — '
+          'judged at load < 4, plan 9.1)',
     );
   });
 }
 
-/// The budget change request CP-18 proposes for [q].
-Duration proposedBudget(QueryTime q) =>
-    q.candidates < kHeldBelow ? kBudget[q.id]! : kProposedOtherBudget;
+/// The V10 budget of [q] (contract v2.5 C25-01): chosen by its counted candidates.
+Duration budgetOf(QueryTime q) =>
+    q.candidates < kFewCandidates ? kFewBudget[q.id]! : kOtherBudget;
 
 String describe(QueryTime q) =>
     '${q.id} ${q.name} "${q.query}": ${ms(q.median)} ms '
@@ -195,6 +198,9 @@ Future<List<QueryTime>> measureQueries(
       '1 syllable LIKE (frequent)': kSyllables.first,
       '1 syllable LIKE': kSyllables[200],
       '1 syllable LIKE (rarest)': kSyllables.last,
+      // Not a syllable of the corpus (kSyllables steps by 27): no candidates, the
+      // whole LIKE scan of the 5,000 units — the PF-4 query under the threshold.
+      '1 syllable LIKE (absent)': String.fromCharCode(0xAC01),
     },
   };
   final out = <QueryTime>[];
@@ -208,11 +214,13 @@ Future<List<QueryTime>> measureQueries(
         pages: (await store.search.searchPages(query)).length,
         median: await medianSearch(store, query),
       );
-      final v10 = q.median < kBudget[id]! ? 'ok' : 'OVER';
-      final proposed = q.median < proposedBudget(q) ? 'ok' : 'OVER';
+      final band = q.candidates < kFewCandidates
+          ? '< $kFewCandidates candidates'
+          : '≥ $kFewCandidates candidates';
       print(
-        '[perf] ${describe(q)} — V10 ${kBudget[id]!.inMilliseconds} ms: $v10'
-        ' · CP-18 ${proposedBudget(q).inMilliseconds} ms: $proposed',
+        '[perf] ${describe(q)} — V10 v2.5 '
+        '${budgetOf(q).inMilliseconds} ms ($band): '
+        '${q.median < budgetOf(q) ? 'ok' : 'OVER'}',
       );
       out.add(q);
     }
