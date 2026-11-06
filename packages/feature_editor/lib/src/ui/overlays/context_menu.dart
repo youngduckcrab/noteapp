@@ -5,14 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../scope/editor_scope.dart';
+import '../../tools/element_clipboard.dart';
 import '../../tools/interaction_host.dart';
-import '../../tools/stroke_clipboard.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
 
 /// The context menu opened by a long press or a secondary click away from the
 /// selection (InteractionHost.contextMenu): [붙여넣기] at that point when the
-/// app clipboard has strokes, [올가미 도구]. Placed at the press point, kept
+/// app clipboard has content — (v2, m5-7/04-editor 6.8) strokes and objects —
+/// then (E2-12) [이미지 붙여넣기] when the image slot offers the clipboard
+/// source, [올가미 도구]. Placed at the press point, kept
 /// inside the page area. A sibling of the page area's Listener (6.4.3); a tap
 /// elsewhere on the canvas closes it (tapGesture(1)).
 class EditorContextMenu extends ConsumerWidget {

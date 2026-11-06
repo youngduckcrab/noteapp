@@ -6,10 +6,10 @@ import 'dart:ui' show Rect;
 
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/tools/element_clipboard.dart';
 import 'package:feature_editor/src/tools/selection.dart';
 import 'package:feature_editor/src/tools/selection_hit_test.dart';
 import 'package:feature_editor/src/tools/selection_transform_interaction.dart';
-import 'package:feature_editor/src/tools/stroke_clipboard.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';

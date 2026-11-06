@@ -23,6 +23,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../di/editor_extensions.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
+import '../objects/object_factory.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/page_panel.dart';
@@ -31,9 +32,9 @@ import '../state/preset_bar.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../state/settings/pre_roll.dart';
+import '../tools/element_clipboard.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
-import '../tools/stroke_clipboard.dart';
 import '../tools/tool_controller.dart';
 import '../tools/tool_options.dart';
 import '../tools/tool_state.dart';
@@ -136,32 +137,82 @@ class EditorCommands {
     );
   }
 
-  /// Copies the selected strokes (CORE state — session.pageIfLoaded) to the
-  /// app clipboard (6.6.7). Allowed on a read-only note.
+  /// Copies the selected elements — (v2, m5-7/04-editor 6.7.3) strokes AND
+  /// objects, read from CORE state (session.pageIfLoaded(pageId).elementById)
+  /// — to the app clipboard (6.8). Not a command; allowed on a read-only
+  /// note.
   void copySelection() {
     if (_disposed) return;
     final selection = _ref.read(editorSelectionProvider);
     if (selection == null) return;
     final page = _session.pageIfLoaded(selection.pageId);
     if (page == null) return;
-    final strokes = [
-      for (final id in selection.elementIds) ?page.strokeById(id),
+    final elements = [
+      for (final id in selection.elementIds) ?page.elementById(id),
     ];
-    if (strokes.isEmpty) return;
-    _ref.read(editorClipboardProvider.notifier).copy(strokes);
+    if (elements.isEmpty) return;
+    _ref.read(editorClipboardProvider.notifier).copy(elements);
+  }
+
+  /// (v2, 6.7.3) Cut = copy, then commitInkEdit(controller, sel.delete())
+  /// (one step — RemoveStrokes, or RemoveElements with objects). A rejected
+  /// delete keeps the clipboard (the copy happened — accepted) and the
+  /// selection. Ignored on a read-only note.
+  void cutSelection() {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    if (inkSelectionOf(_pages, _ref.read(editorSelectionProvider)) == null) {
+      return;
+    }
+    copySelection();
+    deleteSelection();
+  }
+
+  /// (v2, 6.7.3) Duplicate = commitInkEdit(controller, sel.duplicate()) (one
+  /// step — AddStrokes, AddObjects or their composite; copies +16 pt, new
+  /// ids, on top); accepted → the new elements (edit.added +
+  /// edit.addedObjects) selected with origin paste (6.6.3), the tool kept.
+  /// Ignored on a read-only note, when the page would pass the object limit
+  /// (notice — 6.21) and during a drag.
+  void duplicateSelection() {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final selection = _ref.read(editorSelectionProvider);
+    final sel = inkSelectionOf(_pages, selection);
+    if (selection == null || sel == null || selection.isDragging) return;
+    final page = _session.pageIfLoaded(selection.pageId);
+    if (page != null &&
+        ObjectFactory.exceedsLimit(page, sel.objectIds.length)) {
+      _message(
+        EditorStrings.objectLimitReached(
+          core.PageObjectLimits.maxObjectsPerPage,
+        ),
+      );
+      return;
+    }
+    final controller = _pages[selection.pageId]!.controller;
+    final edit = sel.duplicate();
+    if (commitInkEdit(controller, edit)) {
+      _ref.read(editorSelectionProvider.notifier).select(selection.pageId, {
+        for (final s in edit.added) s.id,
+        for (final o in edit.addedObjects) o.id,
+      }, origin: SelectionOrigin.paste);
+    }
   }
 
   /// Pastes the clipboard (6.6.7): at [screenPoint] when it is on a page,
   /// else centred on the screen centre in the current page's coordinates
-  /// (repeated pastes move +16 pt each). One core.AddStrokes through _runAsync,
-  /// then the pasted strokes selected (controller.select — contract 7.2.15
-  /// paste rule). (v2, m5-7/04-editor 6.6.3 — Q8) the tool stays; the
+  /// (repeated pastes move +16 pt each). (v2, m5-7/04-editor 6.8) strokes and
+  /// objects: one step through _runAsync — core.AddStrokes or core.AddObjects
+  /// when only one kind is there, else CompositeCommand([AddStrokes,
+  /// AddObjects]); over the page's object limit (5.1.1) → the notice, no
+  /// command. Then the pasted elements selected (controller.select —
+  /// contract 7.2.15 paste rule); (v2, 6.6.3 — Q8) the tool stays and the
   /// selection's origin is paste, so a body drag moves it with any tool.
   /// Ignored on a read-only note.
   Future<void> paste({Offset? screenPoint}) async {
     if (_disposed || _ref.read(editorReadOnlyProvider)) return;
     final clipboard = _ref.read(editorClipboardProvider.notifier);
-    if (_ref.read(editorClipboardProvider) == null) return;
+    final content = _ref.read(editorClipboardProvider);
+    if (content == null) return;
     final pages = _session.pages;
     if (pages.isEmpty || _viewport.viewportSize.isEmpty) return;
     final hit = screenPoint == null ? null : _viewport.hitPage(screenPoint);
@@ -178,7 +229,17 @@ class EditorCommands {
       );
     }
     final page = pages[index];
-    final strokes = clipboard.instantiate(
+    final loaded = _session.pageIfLoaded(page.id);
+    if (loaded != null &&
+        ObjectFactory.exceedsLimit(loaded, content.objectCount)) {
+      _message(
+        EditorStrings.objectLimitReached(
+          core.PageObjectLimits.maxObjectsPerPage,
+        ),
+      );
+      return;
+    }
+    final pasted = clipboard.instantiate(
       pageId: page.id,
       pageSize: Size(page.size.width, page.size.height),
       center: center,
@@ -186,13 +247,21 @@ class EditorCommands {
       newId: _ref.read(core.idGeneratorProvider).newId,
       createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
     );
-    if (strokes.isEmpty) return;
+    final strokes = pasted.strokes, objects = pasted.objects;
+    if (strokes.isEmpty && objects.isEmpty) return;
+    final addStrokes = core.AddStrokes(pageId: page.id, strokes: strokes);
+    final addObjects = core.AddObjects(pageId: page.id, objects: objects);
     final receipt = await _runAsync(
-      core.AddStrokes(pageId: page.id, strokes: strokes),
+      objects.isEmpty
+          ? addStrokes
+          : strokes.isEmpty
+          ? addObjects
+          : core.CompositeCommand([addStrokes, addObjects]),
     );
     if (_disposed || receipt == null) return;
     _ref.read(editorSelectionProvider.notifier).select(page.id, {
       for (final s in strokes) s.id,
+      for (final o in objects) o.id,
     }, origin: SelectionOrigin.paste);
   }
 

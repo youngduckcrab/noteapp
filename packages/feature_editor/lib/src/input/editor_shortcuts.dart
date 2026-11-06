@@ -4,7 +4,10 @@
 // the 6.8 table is registered with ⌘ (macOS, iPadOS) and Ctrl (others).
 // EditorCanvasFocus is the canvas focus node (autofocus, focused again by any
 // pointer down on the page area) and handles P / E / L while it is the
-// primary focus.
+// primary focus. (v2, E2-07a — m5-7/04-editor 6.7.6) ⌘X cut, ⌘D duplicate,
+// S / T the shape / text tool; a focused text field (the text box editor
+// included) still gets every key (⌘C / ⌘V copy and paste its text through
+// the system clipboard).
 import 'dart:async';
 
 import 'package:flutter/services.dart';
@@ -22,6 +25,12 @@ enum EditorKeyAction {
   copy,
   paste,
   delete,
+
+  /// (v2) ⌘X
+  cut,
+
+  /// (v2) ⌘D
+  duplicate,
   escape,
   zoomIn,
   zoomOut,
@@ -75,6 +84,10 @@ final Map<ShortcutActivator, EditorKeyIntent> editorShortcutMap = () {
       a: const EditorKeyIntent(EditorKeyAction.copy),
     for (final a in _commandKey(LogicalKeyboardKey.keyV))
       a: const EditorKeyIntent(EditorKeyAction.paste),
+    for (final a in _commandKey(LogicalKeyboardKey.keyX))
+      a: const EditorKeyIntent(EditorKeyAction.cut),
+    for (final a in _commandKey(LogicalKeyboardKey.keyD))
+      a: const EditorKeyIntent(EditorKeyAction.duplicate),
     const SingleActivator(LogicalKeyboardKey.delete): delete,
     const SingleActivator(LogicalKeyboardKey.backspace): delete,
     const SingleActivator(LogicalKeyboardKey.escape): const EditorKeyIntent(
@@ -161,6 +174,10 @@ class _EditorKeyActionHandler extends Action<EditorKeyIntent> {
         unawaited(commands.paste()); // screen centre
       case EditorKeyAction.delete:
         commands.deleteSelectionOrPages(); // strokes, else selected pages
+      case EditorKeyAction.cut:
+        commands.cutSelection();
+      case EditorKeyAction.duplicate:
+        commands.duplicateSelection();
       case EditorKeyAction.escape:
         commands.escape();
       case EditorKeyAction.zoomIn:
@@ -182,8 +199,9 @@ class _EditorKeyActionHandler extends Action<EditorKeyIntent> {
 
 /// The canvas focus (6.8): `Focus(autofocus: true)` around the page area,
 /// focused again whenever a pointer goes down on it. While it is the primary
-/// focus, P / E / L (no modifier) select the pen / eraser / lasso — not on a
-/// read-only note, where those tools are disabled (6.9.1).
+/// focus, P / E / L (no modifier) select the pen / eraser / lasso and (v2)
+/// S / T the shape / text tool — not on a read-only note, where those tools
+/// are disabled (6.9.1).
 class EditorCanvasFocus extends ConsumerStatefulWidget {
   const EditorCanvasFocus({super.key, required this.child});
 
@@ -211,6 +229,8 @@ class _EditorCanvasFocusState extends ConsumerState<EditorCanvasFocus> {
       LogicalKeyboardKey.keyP => EditorTool.pen,
       LogicalKeyboardKey.keyE => EditorTool.eraser,
       LogicalKeyboardKey.keyL => EditorTool.lasso,
+      LogicalKeyboardKey.keyS => EditorTool.shape,
+      LogicalKeyboardKey.keyT => EditorTool.text,
       _ => null,
     };
     if (tool == null || ref.read(editorReadOnlyProvider)) {

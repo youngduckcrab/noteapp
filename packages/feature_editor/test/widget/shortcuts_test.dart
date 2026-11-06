@@ -1,12 +1,17 @@
 // E-12: keyboard shortcuts (04-editor 6.8): every key of the table with ⌘
 // and with Ctrl, text inputs keep their own keys (a focused text field turns
 // every editor Action off), P / E / L only while the canvas is the primary
-// focus, and a pointer down on the canvas focuses it again.
+// focus, and a pointer down on the canvas focuses it again. (v2, E2-07a —
+// m5-7/04-editor 6.7.6) ⌘X cut, ⌘D duplicate (strokes + objects, one step
+// each), S / T the shape / text tool, and a text edit session keeps every
+// key (Ctrl+V pastes the system clipboard's text into the editor).
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/input/editor_shortcuts.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/text/text_box_editor.dart';
+import 'package:feature_editor/src/text/text_edit_session.dart';
+import 'package:feature_editor/src/tools/element_clipboard.dart';
 import 'package:feature_editor/src/tools/selection.dart';
-import 'package:feature_editor/src/tools/stroke_clipboard.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:flutter/gestures.dart';
@@ -15,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart';
 
 import '../helpers/pump_editor.dart';
 import '../helpers/test_data.dart';
@@ -491,5 +497,162 @@ void main() {
       }
       expect(twin.map((e) => e.value), [entry.value], reason: '$a');
     }
+  });
+
+  group('(v2) E2-07a', () {
+    final shape = PageObjectFixtures.shape(
+      pageId: 'x',
+      id: 'shape-1',
+      rect: const core.PageRect(300, 120, 420, 200),
+      createdAt: 5,
+    );
+    final box = PageObjectFixtures.textBox(
+      pageId: 'x',
+      id: 'tb-1',
+      text: 'memo',
+      rect: const core.PageRect(100, 500, 400, 540),
+      createdAt: 6,
+    );
+
+    Future<EditorTestHandles> pumpMixed(WidgetTester tester) => pumpEditor(
+      tester,
+      strokesByPageIndex: {
+        0: [strokeA, strokeB],
+      },
+      objectsByPageIndex: {
+        0: [shape, box],
+      },
+    );
+
+    List<String> edits(EditorTestHandles h) => [
+      for (final c in h.recorder!.calls)
+        if (c.startsWith('execute')) c,
+    ];
+
+    for (final mod in _Mod.values) {
+      testWidgets('${mod.name}: X cuts (clipboard + one remove step), D '
+          'duplicates (one step, the copies selected — origin paste)', (
+        tester,
+      ) async {
+        final h = await pumpMixed(tester);
+        _select(h, {strokeA.id, shape.id});
+        await tester.pump();
+
+        await _press(tester, LogicalKeyboardKey.keyD, mod: mod);
+        await _settle(tester);
+        expect(edits(h), ['execute:composite']);
+        expect(h.session.history.undoDepth, 1);
+        final page = h.session.pageIfLoaded(h.pageId(0))!;
+        expect(page.strokes, hasLength(3));
+        expect(page.objects, hasLength(3));
+        final copies = {
+          for (final e in [...page.strokes, ...page.objects])
+            if (e.id != strokeA.id &&
+                e.id != strokeB.id &&
+                e.id != shape.id &&
+                e.id != box.id)
+              e.id,
+        };
+        expect(copies, hasLength(2));
+        expect(_selection(h)?.elementIds, copies);
+        expect(_selection(h)?.origin, SelectionOrigin.paste);
+        expect(_tools(h).activeTool, EditorTool.lasso);
+        // The copy sits +16 pt from the original (INK duplicateOffsetPt).
+        final copyShape = page.objects.firstWhere((o) => copies.contains(o.id));
+        expect(
+          copyShape.frame.rect.left - shape.frame.rect.left,
+          closeTo(16, 1e-9),
+        );
+
+        // Cut the copies: clipboard has them, one remove step, no selection.
+        await _press(tester, LogicalKeyboardKey.keyX, mod: mod);
+        await _settle(tester);
+        expect(edits(h), ['execute:composite', 'execute:remove-elements']);
+        expect(h.session.history.undoDepth, 2);
+        final clip = h.container.read(editorClipboardProvider)!;
+        expect(clip.elements.map((e) => e.id).toSet(), copies);
+        expect(clip.objectCount, 1);
+        expect(_selection(h), isNull);
+        final after = h.session.pageIfLoaded(h.pageId(0))!;
+        expect(after.strokes, hasLength(2));
+        expect(after.objects, hasLength(2));
+
+        // Nothing selected: X and D do nothing.
+        await _press(tester, LogicalKeyboardKey.keyX, mod: mod);
+        await _press(tester, LogicalKeyboardKey.keyD, mod: mod);
+        await _settle(tester);
+        expect(edits(h), hasLength(2));
+      });
+    }
+
+    testWidgets('S / T select the shape / text tool while the canvas has the '
+        'focus; not on a read-only note', (tester) async {
+      final h = await pumpEditor(tester);
+      expect(_canvasFocused(), isTrue);
+      await _press(tester, LogicalKeyboardKey.keyS);
+      expect(_tools(h).activeTool, EditorTool.shape);
+      await _press(tester, LogicalKeyboardKey.keyT);
+      expect(_tools(h).activeTool, EditorTool.text);
+      await _press(tester, LogicalKeyboardKey.keyS, mod: _Mod.control);
+      expect(_tools(h).activeTool, EditorTool.text);
+      await _press(tester, LogicalKeyboardKey.keyP);
+      expect(_tools(h).activeTool, EditorTool.pen);
+
+      await h.store.library.trashItems([core.NoteRef(h.noteId)]);
+      await tester.pump();
+      expect(h.container.read(editorReadOnlyProvider), isTrue);
+      await _press(tester, LogicalKeyboardKey.keyS);
+      await _press(tester, LogicalKeyboardKey.keyT);
+      expect(_tools(h).activeTool, EditorTool.pen);
+    });
+
+    testWidgets('a text edit session keeps X, D, V, Delete, S and T to the '
+        'editor: no command, no tool change, the app clipboard untouched; '
+        'Ctrl+V pastes the system clipboard text into the box', (tester) async {
+      final h = await pumpMixed(tester);
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async => switch (call.method) {
+          'Clipboard.getData' => <String, Object?>{'text': ' 붙임'},
+          'Clipboard.hasStrings' => <String, Object?>{'value': true},
+          _ => null,
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final seeded =
+          h.session.pageIfLoaded(h.pageId(0))!.objectById(box.id)!
+              as core.TextBoxObject;
+      h.container
+          .read(editorTextEditProvider.notifier)
+          .start(seeded, isNew: false);
+      await tester.pump();
+      await tester.pump();
+      final field = tester.widget<TextField>(find.byKey(textEditorKey));
+      expect(field.focusNode!.hasFocus, isTrue);
+      expect(editorTextInputHasFocus(), isTrue);
+      field.controller!.selection = const TextSelection.collapsed(offset: 4);
+      await tester.pump();
+
+      for (final mod in _Mod.values) {
+        await _press(tester, LogicalKeyboardKey.keyX, mod: mod);
+        await _press(tester, LogicalKeyboardKey.keyD, mod: mod);
+      }
+      await _press(tester, LogicalKeyboardKey.keyS);
+      await _press(tester, LogicalKeyboardKey.keyT);
+      await _press(tester, LogicalKeyboardKey.keyV, mod: _Mod.control);
+      await _settle(tester);
+
+      expect(edits(h), isEmpty);
+      expect(h.container.read(editorClipboardProvider), isNull);
+      expect(_tools(h).activeTool, EditorTool.pen);
+      expect(h.container.read(editorTextEditProvider), isNotNull);
+      expect(field.controller!.text, contains('붙임'));
+      expect(field.controller!.text, startsWith('memo'));
+    });
   });
 }
