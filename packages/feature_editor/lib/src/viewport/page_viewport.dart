@@ -9,7 +9,8 @@
 // and the sheet-mode text panel (m5-7/04-editor 6.11.3, 6.11.6). (E2-10) The
 // canvas joins the editor's tap group while a text session is open
 // (TextFieldTapRegion — a canvas down is not the editor's onTapOutside; the
-// router decides, 6.11.5) and the new text box outline (6.11.1).
+// router decides, 6.11.5) and the new text box outline (6.11.1). (E2-19) The
+// position flash (6.16).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +28,7 @@ import '../ui/overlays/add_page_button.dart';
 import '../ui/overlays/context_menu.dart';
 import '../ui/overlays/cursor_painter.dart';
 import '../ui/overlays/eyedropper_banner.dart';
+import '../ui/overlays/focus_flash.dart';
 import '../ui/overlays/new_text_box_outline.dart';
 import '../ui/overlays/page_indicator.dart';
 import '../ui/overlays/rotation_label.dart';
@@ -148,6 +150,8 @@ class _PageViewportState extends ConsumerState<PageViewport> {
                             const RotationLabel(),
                             // (v2, E2-10) the text tool's new box (6.11.1).
                             const NewTextBoxOutline(),
+                            // (v2, E2-19) the position flash (6.16).
+                            const FocusFlash(),
                             IgnorePointer(
                               child: RepaintBoundary(
                                 child: CustomPaint(

@@ -5,8 +5,8 @@
 // more-menu item, and the four settings sections as plain Columns.
 // 2nd round R2-B5 (m5-7/04-editor 8.1): EditorScreen(initialFocusRectPt: …)
 // on the fake store opens, hands the rect to the per-note scope
-// (editorInitialFocusRectProvider — received only, no behaviour yet) and
-// closes.
+// (editorInitialFocusRectProvider) and closes. Bringing the rect into view
+// and the flash (E2-19) are in initial_focus_test.dart.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
@@ -153,7 +153,7 @@ void main() {
     expect(closed, 1);
 
     // Without the argument the scope holds null; an unknown page with a
-    // rect still opens normally (the rect is only received in R2-B5).
+    // rect still opens normally (the rect is ignored — E2-19).
     for (final (initialPageId, rect) in <(String?, Rect?)>[
       (pageId, null),
       ('no-such-page', focus),

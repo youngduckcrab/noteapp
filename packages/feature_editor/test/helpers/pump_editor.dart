@@ -93,6 +93,11 @@ Future<EditorTestHandles> pumpEditor(
   List<Override> overrides = const [], // e.g. syncBadgeProvider
   Size logicalSize = const Size(1032, 1376),
   String? initialPageId,
+  // (v2) initialPageId = the seeded page at this index (wins over
+  // initialPageId).
+  int? initialPageIndex,
+  // (v2) EditorScreen.initialFocusRectPt (6.16 — with initialPageId).
+  Rect? initialFocusRectPt,
   VoidCallback? onClose,
   VoidCallback? onOpenSettings,
   bool recordSession = true, // wrap the CORE session in RecordingNoteSession
@@ -199,7 +204,10 @@ Future<EditorTestHandles> pumpEditor(
         home: EditorScreen(
           key: ValueKey(noteId),
           noteId: noteId,
-          initialPageId: initialPageId,
+          initialPageId: initialPageIndex == null
+              ? initialPageId
+              : seededPageId(seedKey, initialPageIndex),
+          initialFocusRectPt: initialFocusRectPt,
           onClose: () {
             handles.closeCount++;
             onClose?.call();

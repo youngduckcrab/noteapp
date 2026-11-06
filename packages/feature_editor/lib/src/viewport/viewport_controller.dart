@@ -104,7 +104,8 @@ class ViewportController extends ChangeNotifier {
   double _fitScale = 1;
   ViewportCamera _camera = const ViewportCamera(scale: 1, origin: Offset.zero);
   bool _placed = false; // a real camera exists (size and pages known)
-  ({ViewportAnchor? anchor, String? initialPageId})? _pendingRestore;
+  ({ViewportAnchor? anchor, String? initialPageId, Rect? focusRectPt})?
+  _pendingRestore;
 
   final ValueNotifier<double> _settledScale = ValueNotifier(1);
   final ValueNotifier<bool> _isInteracting = ValueNotifier(false);
@@ -242,12 +243,23 @@ class ViewportController extends ChangeNotifier {
   /// First display: [initialPageId] (if it is a page of the note) at the top
   /// at fit width / else [anchor] (page id, offset in page, zoom) / else the
   /// first page at zoom 1. An anchor whose page is gone goes to page 0.
+  /// (v2, m5-7/04-editor 6.16) With [initialPageId] and [focusRectPt]
+  /// (displayed page pt of that page): from that start camera, the rect is
+  /// brought into view as [revealPageRect] does (no animation).
   /// Settles at once (no interaction). Before the viewport size and pages are
   /// known it is kept and applied when they arrive.
-  void restore(ViewportAnchor? anchor, {String? initialPageId}) {
+  void restore(
+    ViewportAnchor? anchor, {
+    String? initialPageId,
+    Rect? focusRectPt,
+  }) {
     if (_disposed) return;
     if (!_valid) {
-      _pendingRestore = (anchor: anchor, initialPageId: initialPageId);
+      _pendingRestore = (
+        anchor: anchor,
+        initialPageId: initialPageId,
+        focusRectPt: focusRectPt,
+      );
       return;
     }
     _pendingRestore = null;
@@ -255,8 +267,12 @@ class ViewportController extends ChangeNotifier {
     _gestureActive = false;
     _gestureBase = null;
     _placed = true;
-    _place(_restoreCamera(anchor, initialPageId), settle: true);
+    _place(_restoreCamera(anchor, initialPageId, focusRectPt), settle: true);
   }
+
+  /// Whether the first camera has been placed (viewport size and pages
+  /// known, [restore] applied).
+  bool get isPlaced => _placed && _valid;
 
   // ---- navigation (called by InteractionHost) ----
 
@@ -432,13 +448,19 @@ class ViewportController extends ChangeNotifier {
       _fitScale = _fitFor(i);
       base = _pageCamera(i);
     }
+    final target = _revealCamera(base, i, focusRectPt);
+    if (target == _camera) return Future<void>.value();
+    return _moveTo(target, animate: animate);
+  }
+
+  /// The camera that shows [focusRectPt] of page [i] starting from [base]:
+  /// [base] itself when the rect is already fully visible, else the rect
+  /// centred at [base]'s zoom (zoomed out when it does not fit — see
+  /// [revealPageRect]).
+  ViewportCamera _revealCamera(ViewportCamera base, int i, Rect focusRectPt) {
     final docRect = focusRectPt.shift(_layout.rectOf(i).topLeft);
     final visible = base.visibleDocRect(_viewportSize);
-    if (_containsRect(visible, docRect)) {
-      return base == _camera
-          ? Future<void>.value()
-          : _moveTo(base, animate: animate);
-    }
+    if (_containsRect(visible, docRect)) return base;
     var scale = base.scale;
     final availW = _viewportSize.width - 2 * _revealMargin;
     final availH = _viewportSize.height - 2 * _revealMargin;
@@ -453,10 +475,7 @@ class ViewportController extends ChangeNotifier {
     final origin =
         docRect.center -
         Offset(_viewportSize.width, _viewportSize.height) / (2 * scale);
-    return _moveTo(
-      ViewportCamera(scale: scale, origin: origin),
-      animate: animate,
-    );
+    return ViewportCamera(scale: scale, origin: origin);
   }
 
   /// No-op if any part of the page is on screen; else [jumpToPage].
@@ -630,7 +649,11 @@ class ViewportController extends ChangeNotifier {
       final pending = _pendingRestore;
       _pendingRestore = null;
       _place(
-        _restoreCamera(pending?.anchor, pending?.initialPageId),
+        _restoreCamera(
+          pending?.anchor,
+          pending?.initialPageId,
+          pending?.focusRectPt,
+        ),
         settle: true,
       );
       return;
@@ -657,14 +680,20 @@ class ViewportController extends ChangeNotifier {
     _scheduleSettle();
   }
 
-  ViewportCamera _restoreCamera(ViewportAnchor? anchor, String? initialPageId) {
+  ViewportCamera _restoreCamera(
+    ViewportAnchor? anchor,
+    String? initialPageId, [
+    Rect? focusRectPt,
+  ]) {
     if (initialPageId != null) {
       final i = _pages.indexWhere((p) => p.id == initialPageId);
       if (i >= 0) {
         _fitScale = _fitFor(i);
-        return _vertical
+        final start = _vertical
             ? _pageStartCamera(i, scale: _fitScale)
             : _pageCamera(i);
+        if (focusRectPt == null) return start;
+        return _clamp(_revealCamera(start, i, focusRectPt));
       }
     }
     if (anchor != null) {

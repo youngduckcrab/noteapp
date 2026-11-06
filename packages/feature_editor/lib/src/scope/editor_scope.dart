@@ -32,6 +32,7 @@ import '../state/settings/editor_settings_notifier.dart';
 import '../text/text_edit_session.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
+import '../ui/overlays/focus_flash.dart';
 import '../viewport/page_layout.dart';
 import '../viewport/viewport_controller.dart';
 import '../viewport/viewport_memory.dart';
@@ -51,13 +52,37 @@ final editorInitialPageIdProvider = Provider<String?>(
 );
 
 /// Overridden by EditorScreen with EditorScreen.initialFocusRectPt (throws
-/// elsewhere). 2nd-round contract 7.2.10, m5-7/04-editor 6.19. Nothing reads
-/// it before E2-19 (6.16), which ignores it without a known initialPageId.
+/// elsewhere). 2nd-round contract 7.2.10, m5-7/04-editor 6.19. Read by
+/// [editorViewportProvider] (6.16): ignored without a known initialPageId.
 final editorInitialFocusRectProvider = Provider<Rect?>(
   (ref) => throw UnimplementedError('Overridden by EditorScreen'),
   dependencies: const [],
   name: 'editorInitialFocusRectProvider',
 );
+
+/// (v2, m5-7/04-editor 6.16) The position flash of this note (FocusFlash):
+/// started by the initial focus rect and by EditorCommands.navigateToPage
+/// with a rect.
+final editorFocusFlashProvider = Provider<FocusFlashController>(
+  (ref) {
+    ref.watch(editorNoteIdProvider);
+    final flash = FocusFlashController();
+    ref.onDispose(flash.dispose);
+    return flash;
+  },
+  dependencies: [editorNoteIdProvider],
+  name: 'editorFocusFlashProvider',
+);
+
+/// The part of [rectPt] on a page of [size] (displayed page pt), or null when
+/// [rectPt] is null or nothing of it is on the page (6.11.6, 6.16).
+Rect? clipFocusRect(Rect? rectPt, core.PageSize size) {
+  if (rectPt == null) return null;
+  final clipped = rectPt.intersect(
+    Rect.fromLTWH(0, 0, size.width, size.height),
+  );
+  return clipped.isFinite && !clipped.isEmpty ? clipped : null;
+}
 
 /// The note's session, opened and closed by core.noteSessionProvider.
 final editorSessionProvider = FutureProvider<core.NoteSession>(
@@ -101,6 +126,10 @@ LayoutAxis _axisOf(PageFlipMode mode) => mode == PageFlipMode.horizontalPaged
 /// Start position (6.3.5, 4.2): a known EditorScreen.initialPageId → that page
 /// at fit width; else the last viewed position of the note
 /// (ViewportMemory.load — a page no longer in the note → page 0), else page 0.
+/// (v2, m5-7/04-editor 6.16) With a known initialPageId and
+/// EditorScreen.initialFocusRectPt (clipped to the page): the start camera
+/// brings that rect into view (as navigateToPage) and, once the first camera
+/// is placed, the rect flashes (editorFocusFlashProvider).
 /// Every settle after a camera change (isInteracting → false) saves the
 /// position (ViewportMemory debounces 2 s); EditorCommands.flushAll saves and
 /// writes it on leaving.
@@ -114,9 +143,31 @@ final editorViewportProvider = Provider<ViewportController>(
       ..setAxis(_axisOf(ref.read(editorSettingsProvider).pageFlipMode))
       ..updatePages(session.pages);
     var disposed = false;
-    if (initialPageId != null &&
-        session.pages.any((p) => p.id == initialPageId)) {
-      controller.restore(null, initialPageId: initialPageId);
+    final initialPage = initialPageId == null
+        ? null
+        : session.pages.where((p) => p.id == initialPageId).firstOrNull;
+    if (initialPage != null) {
+      final focus = clipFocusRect(
+        ref.watch(editorInitialFocusRectProvider),
+        initialPage.size,
+      );
+      controller.restore(
+        null,
+        initialPageId: initialPage.id,
+        focusRectPt: focus,
+      );
+      if (focus != null) {
+        final flash = ref.watch(editorFocusFlashProvider);
+        void placed() {
+          if (!controller.isPlaced) return;
+          controller.removeListener(placed);
+          flash.show(pageId: initialPage.id, rectPt: focus);
+        }
+
+        controller.addListener(placed);
+        placed();
+        ref.onDispose(() => controller.removeListener(placed));
+      }
     } else {
       memory
           .load(noteId)
@@ -163,6 +214,8 @@ final editorViewportProvider = Provider<ViewportController>(
     editorSessionValueProvider,
     editorNoteIdProvider,
     editorInitialPageIdProvider,
+    editorInitialFocusRectProvider,
+    editorFocusFlashProvider,
   ],
   name: 'editorViewportProvider',
 );
@@ -232,6 +285,7 @@ final editorCommandsProvider = Provider<EditorCommands>(
     editorSelectionProvider,
     editorPopupProvider,
     editorPagePanelProvider,
+    editorFocusFlashProvider,
   ],
   name: 'editorCommandsProvider',
 );

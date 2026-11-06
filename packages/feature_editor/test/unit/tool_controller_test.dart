@@ -269,6 +269,7 @@ void main() {
       'diameter': 20.0,
       'filter': 'highlighterOnly',
       'returnToPrevious': true,
+      'eraseShapes': true, // (v2, 6.17)
     });
     expect(EraserSettings.fromJson(e.toJson()), e);
     expect(const EraserSettings().toJson(), {
@@ -277,6 +278,7 @@ void main() {
       'diameter': 12.0,
       'filter': 'all',
       'returnToPrevious': false,
+      'eraseShapes': true,
     });
     final invalid = <String>[];
     expect(
@@ -286,10 +288,17 @@ void main() {
         'diameter': 500,
         'filter': 7,
         'returnToPrevious': 'yes',
+        'eraseShapes': 0,
       }, invalidFields: invalid),
       const EraserSettings(),
     );
-    expect(invalid, ['mode', 'diameter', 'filter', 'returnToPrevious']);
+    expect(invalid, [
+      'mode',
+      'diameter',
+      'filter',
+      'returnToPrevious',
+      'eraseShapes',
+    ]);
   });
 
   test('changes are written 500 ms later, one key each, and restored in a new '
@@ -343,6 +352,7 @@ void main() {
         'diameter': 30.0,
         'filter': 'exceptHighlighter',
         'returnToPrevious': true,
+        'eraseShapes': true,
       });
       final stored = env.storedValue(_styles);
       expect(stored['v'], 1);

@@ -8,8 +8,8 @@
 // E-04 adds the per-note ProviderScope (6.13.1 #4). E-13: EditorRoot (states,
 // leaving with flushAll and '저장하는 중…') and EditorBody (ui/editor_body.dart).
 // 2nd round R2-B5: initialFocusRectPt is passed into the per-note scope
-// (editorInitialFocusRectProvider) and not used yet; bringing the rect into
-// view and the focus flash come in E2-19 (m5-7/04-editor 6.16).
+// (editorInitialFocusRectProvider); E2-19 brings the rect into view and
+// flashes it (m5-7/04-editor 6.16 — editorViewportProvider, FocusFlash).
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kDebugMode;

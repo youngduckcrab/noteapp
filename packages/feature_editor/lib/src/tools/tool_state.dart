@@ -1,6 +1,7 @@
 // lib/src/tools/tool_state.dart — 04-editor 6.6.1; stored forms 6.14
 // (editor.penStyles, editor.eraser, editor.toolSelection). (v2, E2-03)
 // m5-7/04-editor 6.2.1: the shape and text tools, lastTool / lastPenType.
+// (E2-19) 6.17: EraserSettings.eraseShapes.
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -17,6 +18,7 @@ class EraserSettings {
     this.diameter = 12.0,
     this.filter = core.StrokeFilter.all,
     this.returnToPreviousTool = false,
+    this.eraseShapes = true,
   });
   static const double minDiameter = 1.0;
   static const double maxDiameter = 100.0;
@@ -27,9 +29,19 @@ class EraserSettings {
   final core.StrokeFilter filter;
   final bool returnToPreviousTool;
 
-  /// ink.EraserSpec(mode: mode, radius: diameter / 2, filter: filter)
-  ink.EraserSpec toSpec() =>
-      ink.EraserSpec(mode: mode, radius: diameter / 2, filter: filter);
+  /// (v2, m5-7/04-editor 6.17 — U22) a touched shape is removed whole, in
+  /// both modes (INK EraserSpec.eraseShapes). Text, images and math are
+  /// never erased.
+  final bool eraseShapes;
+
+  /// ink.EraserSpec(mode: mode, radius: diameter / 2, filter: filter,
+  /// eraseShapes: eraseShapes)
+  ink.EraserSpec toSpec() => ink.EraserSpec(
+    mode: mode,
+    radius: diameter / 2,
+    filter: filter,
+    eraseShapes: eraseShapes,
+  );
 
   /// [diameter] clamped to [minDiameter, maxDiameter] on the 0.5 pt step.
   static double snapDiameter(double value) {
@@ -49,20 +61,24 @@ class EraserSettings {
     double? diameter,
     core.StrokeFilter? filter,
     bool? returnToPreviousTool,
+    bool? eraseShapes,
   }) => EraserSettings(
     mode: mode ?? this.mode,
     diameter: diameter ?? this.diameter,
     filter: filter ?? this.filter,
     returnToPreviousTool: returnToPreviousTool ?? this.returnToPreviousTool,
+    eraseShapes: eraseShapes ?? this.eraseShapes,
   );
 
-  /// {"v":1,"mode":"partial","diameter":12.0,"filter":"all","returnToPrevious":false}
+  /// {"v":1,"mode":"partial","diameter":12.0,"filter":"all","returnToPrevious":false,
+  /// "eraseShapes":true} — (v2) "eraseShapes" added, "v" stays 1 (6.18).
   Map<String, Object?> toJson() => {
     'v': 1,
     'mode': mode.name,
     'diameter': diameter,
     'filter': filter.name,
     'returnToPrevious': returnToPreviousTool,
+    'eraseShapes': eraseShapes,
   };
 
   /// Missing fields take the defaults; invalid ones too, and their names are
@@ -105,6 +121,12 @@ class EraserSettings {
         d.returnToPreviousTool,
         (v) => v is bool ? v : null,
       ),
+      // (v2) missing (a 1st-round value) → true.
+      eraseShapes: field(
+        'eraseShapes',
+        d.eraseShapes,
+        (v) => v is bool ? v : null,
+      ),
     );
   }
 
@@ -114,14 +136,16 @@ class EraserSettings {
       other.mode == mode &&
       other.diameter == diameter &&
       other.filter == filter &&
-      other.returnToPreviousTool == returnToPreviousTool;
+      other.returnToPreviousTool == returnToPreviousTool &&
+      other.eraseShapes == eraseShapes;
   @override
-  int get hashCode => Object.hash(mode, diameter, filter, returnToPreviousTool);
+  int get hashCode =>
+      Object.hash(mode, diameter, filter, returnToPreviousTool, eraseShapes);
 
   @override
   String toString() =>
       'EraserSettings(${mode.name}, $diameter pt, ${filter.name}, '
-      'returnToPrevious: $returnToPreviousTool)';
+      'returnToPrevious: $returnToPreviousTool, eraseShapes: $eraseShapes)';
 }
 
 @immutable

@@ -124,9 +124,10 @@ class EditorCommands {
   }
 
   /// After the confirmation dialog (6.6.4 #5, E-09):
-  /// core.ClearPage(pageId: current page, filter: eraser filter) through _runAsync.
-  /// Ignored on a read-only note.
-  Future<void> clearCurrentPage() async {
+  /// core.ClearPage(pageId: current page, filter: eraser filter,
+  /// includeObjects: [includeObjects] — v2.1, m5-7/04-editor 6.17) through
+  /// _runAsync: one step. Ignored on a read-only note.
+  Future<void> clearCurrentPage({bool includeObjects = false}) async {
     if (_disposed || _ref.read(editorReadOnlyProvider)) return;
     final pages = _session.pages;
     if (pages.isEmpty) return;
@@ -135,6 +136,7 @@ class EditorCommands {
       core.ClearPage(
         pageId: pages[index].id,
         filter: _ref.read(editorToolProvider).eraser.filter,
+        includeObjects: includeObjects,
       ),
     );
   }
@@ -768,22 +770,18 @@ class EditorCommands {
 
   /// 6.11.6: an unknown id (deleted page) is ignored; else the page is
   /// brought into view, and [focusRectPt] (displayed page pt, clipped to the
-  /// page) is shown when given.
+  /// page) is shown when given — (v2, m5-7/04-editor 6.16) and flashed
+  /// (editorFocusFlashProvider; a rect off the page → no flash).
   void navigateToPage(String pageId, Rect? focusRectPt) {
     if (_disposed) return;
     final pages = _session.pages;
     final index = pages.indexWhere((p) => p.id == pageId);
     if (index < 0) return;
-    final size = pages[index].size;
-    final rect = focusRectPt?.intersect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-    );
-    unawaited(
-      _viewport.revealPageRect(
-        index,
-        focusRectPt: rect == null || rect.isEmpty ? null : rect,
-      ),
-    );
+    final rect = clipFocusRect(focusRectPt, pages[index].size);
+    unawaited(_viewport.revealPageRect(index, focusRectPt: rect));
+    if (rect != null) {
+      _ref.read(editorFocusFlashProvider).show(pageId: pageId, rectPt: rect);
+    }
   }
 
   /// A page like the last one (size, background — a PDF / image page gives
