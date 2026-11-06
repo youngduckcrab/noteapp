@@ -155,9 +155,17 @@ B3 216, B4 0.077, B5 1.85, B6 16.6, B7 2.7, B8 1.9, B9 157, B10 445, B11 4.5 —
   에만 있다 — 앱 개발자 표시에 보이게 하는 공개 표면은 변경 요청(진행 기록 '변경 요청 (동시 개발)').
   측정: 녹음 중 쓴 3쪽 노트를 재생·2배속·탐색하며 값을 기록, > 4 ms면 6.19-6의 블록 베일 래스터
   대체 경로를 켠다. VM B15는 기록 비용만 본다(웹 CanvasKit은 매 프레임 장면 전체를 다시 래스터).
-- **annotation 층 웹 그림 재생 비용**: 웹은 매 프레임 장면을 다시 그리므로 annotation 청크 그림
-  (텍스트 문단·수식 래스터)도 프레임마다 재생된다. 개발자 표시의 프레임 래스터 p95
-  (`InkStatsSnapshot.frameRasterP95Ms`)를 텍스트 상자 100개 페이지에서 스크롤하며 기록한다(B-13).
+- **`annotationPaintUs`** (I-B12, 6.8.3): annotation 층 paint 시간의 p95(µs) — 객체(텍스트 상자·수식·
+  모르는 객체, 미리보기 포함)를 그린 paint만, 진단을 켠 동안만 잰다. 값은 `playbackPaintUs`와 같은 INK
+  내부 `InkDiagnostics.developerValues['annotationPaintUs']`(공개 표면은 같은 변경 요청). 층마다
+  RepaintBoundary라 필기 중에는 annotation 층이 paint되지 않는다 — 이 값은 페이지 표시(청크 첫 기록)·
+  스크롤·상자 끌기·획 끝의 비용이다. 텍스트 상자 100개 페이지를 열고·스크롤하고·상자를 끌며 기록,
+  > 4 ms면 새로 보이는 페이지의 annotation 청크 기록 시간 나누기(6.13 — B14 조정안 ②).
+- **annotation 층 웹 그림 재생 비용**(I-B12, 6.8.3): 웹은 매 프레임 장면을 다시 그리므로 필기 중에도
+  남겨 둔 annotation 그림(텍스트 문단·수식 래스터)이 프레임마다 재생된다. 이것은 엔진 래스터 단계라
+  어떤 Dart paint에도 들지 않는다 — 텍스트 상자 100개 페이지와 같은 필기만 있는 페이지에서 각각
+  필기하며 개발자 표시의 프레임 래스터 p95(`InkStatsSnapshot.frameRasterP95Ms`)를 기록하고, 그 차이
+  > 4 ms면 annotation 타일을 켠다.
 - **웹 INK 앱 캐시 합계 ≤ 136 MB** (6.22): 외곽선 32 + 공유 래스터 장부 96(타일 + 이미지 디코드)
   + 수식 래스터 8. 값은 `InkRenderConfig.webDefaults`가 정하고(`test/unit/render/render_config_test.dart`
   가 합 136 MiB를 단언), 실제 사용량은 개발자 표시의 `InkCacheStats`(외곽선·타일 바이트)와

@@ -1734,13 +1734,19 @@ final class InkPageController extends ChangeNotifier {
       case InkRenderLayer.underlay:
         _paintObjects(canvas, content, display, InkObjectLayer.underlay, paper);
       case InkRenderLayer.annotation:
-        _paintObjects(
+        // (6.8.3, I-B12) the paint time of a paint that drew objects → annotationPaintUs
+        final measure = diagnostics.enabled;
+        final start = measure ? clock.nowUs() : 0;
+        final drew = _paintObjects(
           canvas,
           content,
           display,
           InkObjectLayer.annotation,
           paper,
         );
+        if (measure && drew) {
+          diagnostics.onAnnotationPaint(clock.nowUs() - start);
+        }
       case InkRenderLayer.cover:
         if (content == null) return;
         _paintCover(canvas, content, display);
@@ -1963,8 +1969,9 @@ final class InkPageController extends ChangeNotifier {
 
   /// (v2.0) One object layer: (T32b, 6.8.3) the layer's chunk pictures of the committed
   /// objects not hidden, then the live ones (pending, selection preview,
-  /// setPreviewObjects) — redrawn on every paint.
-  void _paintObjects(
+  /// setPreviewObjects) — redrawn on every paint. Returns whether the layer had objects
+  /// to draw (committed or live — the annotation paint time counts only those paints).
+  bool _paintObjects(
     ui.Canvas canvas,
     InkPageContent? content,
     _Display display,
@@ -1976,9 +1983,11 @@ final class InkPageController extends ChangeNotifier {
     if (_fontsListening && layer == InkObjectLayer.annotation) _wantFonts();
     if (layer == InkObjectLayer.annotation) _liveMath.clear();
     if (layer == InkObjectLayer.underlay) _liveImages.clear();
+    var committed = false;
     if (content != null) {
       final views = objectViewsOf(content, layer);
       if (views.isNotEmpty) {
+        committed = true;
         final cache = _objectCache(layer);
         cache.record([
           for (final v in views)
@@ -1987,15 +1996,12 @@ final class InkPageController extends ChangeNotifier {
         cache.drawChunks(canvas);
       }
     }
-    _paintObjectList(
-      canvas,
-      [
-        for (final o in display.liveObjects)
-          if (objectLayerOf(o) == layer) o,
-      ],
-      const {},
-      paper,
-    );
+    final live = [
+      for (final o in display.liveObjects)
+        if (objectLayerOf(o) == layer) o,
+    ];
+    _paintObjectList(canvas, live, const {}, paper);
+    return committed || live.isNotEmpty;
   }
 
   void _paintObjectList(

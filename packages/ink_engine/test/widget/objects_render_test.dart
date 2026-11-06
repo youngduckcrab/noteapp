@@ -27,6 +27,9 @@
 //   over a rotated frame (nothing outside it); a bigger device scale asks for a
 //   bigger bucket only after scaling ends (the smaller one drawn meanwhile); an
 //   asset without bytes warns imageMissing once and keeps the placeholder.
+// - (6.8.3, I-B12) The developer value annotationPaintUs: the p95 of the
+//   annotation layer paints that drew objects (committed or a preview), only
+//   while the diagnostics are enabled.
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -145,6 +148,21 @@ void _paintAll(InkPageController c, {double viewScale = 1}) {
   for (final layer in InkRenderLayer.values) {
     render.paint(canvas, layer, viewScale);
   }
+  recorder.endRecording().dispose();
+}
+
+/// Moves 7 µs on every read: a paint that reads the clock twice lasts > 0.
+final class _TickClock implements InkClock {
+  int us = 0;
+  @override
+  int nowUs() => us += 7;
+  @override
+  bool get alignedWithEventTimestamps => true;
+}
+
+void _paintAnnotation(InkPageController c) {
+  final recorder = ui.PictureRecorder();
+  inkPageRenderOf(c).paint(ui.Canvas(recorder), InkRenderLayer.annotation, 1);
   recorder.endRecording().dispose();
 }
 
@@ -1048,5 +1066,56 @@ void main() {
         expect(_near(p.at(25, 25), 0xFF228844), isTrue);
       },
     );
+  });
+
+  test('developer value annotationPaintUs (6.8.3, I-B12): the annotation '
+      'paints that drew objects, only while enabled', () {
+    final c = createTestPageController(clock: _TickClock());
+    addTearDown(c.dispose);
+    bool measured() =>
+        c.diagnostics.developerValues.containsKey('annotationPaintUs');
+    // a stroke and a shape only: the annotation layer draws nothing
+    c.diagnostics.enabled = true;
+    addTearDown(() => c.diagnostics.enabled = false);
+    c.updateContent(
+      _content(
+        [_line('a', const Offset(20, 20), const Offset(80, 20), 1)],
+        [_rect('r', const core.PageRect(20, 40, 80, 80), 2)],
+      ),
+    );
+    _paintAll(c);
+    _paintAnnotation(c);
+    expect(measured(), isFalse, reason: 'no object in the layer');
+    // a text box preview on that page: a paint that drew a live object
+    c.setPreviewObjects([
+      _box('pv', const core.PageRect(20, 100, 120, 140), 3),
+    ]);
+    _paintAnnotation(c);
+    expect(measured(), isTrue, reason: 'the preview was drawn');
+    c
+      ..setPreviewObjects(const [])
+      ..diagnostics.reset();
+    // disabled: not collected (no clock read either)
+    c.diagnostics.enabled = false;
+    c.updateContent(
+      _content(const [], [
+        _box('tx', const core.PageRect(20, 100, 120, 140), 3, text: 'x'),
+      ], revision: 2),
+    );
+    _paintAll(c);
+    expect(measured(), isFalse, reason: 'not collected while disabled');
+    // enabled: the first paint (records) and the next ones (chunk pictures)
+    c.diagnostics.enabled = true;
+    for (var i = 0; i < 5; i++) {
+      _paintAnnotation(c);
+    }
+    final value = c.diagnostics.developerValues['annotationPaintUs'];
+    expect(value, isNotNull);
+    expect(value, greaterThan(0));
+    expect(c.diagnostics.developerValues.keys, [
+      'annotationPaintUs',
+    ], reason: 'no playback focus: no playbackPaintUs');
+    c.diagnostics.reset();
+    expect(c.diagnostics.developerValues, isEmpty);
   });
 }

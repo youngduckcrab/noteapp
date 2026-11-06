@@ -259,6 +259,9 @@ class InkDiagnostics extends ChangeNotifier {
   /// (m5-7 T40) layer 4′ playback emphasis paint times (µs).
   final List<double> _playbackPaintUs = [];
 
+  /// (m5-7 6.8.3, I-B12) annotation layer paint times (µs) — paints that drew objects.
+  final List<double> _annotationPaintUs = [];
+
   /// Active paints (paint time, event time of the newest sample painted)
   /// waiting for their FrameTiming, oldest first.
   final List<(int, int)> _awaitingFrame = [];
@@ -298,6 +301,7 @@ class InkDiagnostics extends ChangeNotifier {
     _tileRaster.clear();
     _eventToRasterEnd.clear();
     _playbackPaintUs.clear();
+    _annotationPaintUs.clear();
     _awaitingFrame.clear();
     _pendingReceiveUs = null;
     _pendingEventUs = null;
@@ -427,14 +431,27 @@ class InkDiagnostics extends ChangeNotifier {
     _push(_playbackPaintUs, us.toDouble());
   }
 
-  /// (m5-7 T40, 6.19-6) Developer display values that are not in [snapshot] (the
-  /// contract's snapshot fields stay as they are): `playbackPaintUs` = the p95 (µs,
-  /// nearest rank) of the last InkTuning.latencyWindow layer 4′ playback paints —
-  /// present once one was measured while [enabled].
+  /// (m5-7 6.8.3, I-B12) The paint time of one annotation layer paint that drew
+  /// objects (chunk records + chunk pictures + live objects).
+  @meta.internal
+  void onAnnotationPaint(int us) {
+    if (!_enabled) return;
+    _push(_annotationPaintUs, us.toDouble());
+  }
+
+  /// (m5-7 T40, 6.19-6, 6.8.3) Developer display values that are not in [snapshot] (the
+  /// contract's snapshot fields stay as they are), each the p95 (µs, nearest rank) of
+  /// the last InkTuning.latencyWindow paints, present once one was measured while
+  /// [enabled]: `playbackPaintUs` = layer 4′ playback paints, `annotationPaintUs` =
+  /// annotation layer paints that drew objects (text boxes, formulas, unknown objects —
+  /// the replay of the retained annotation picture inside other layers' frames is the
+  /// engine's raster step, not a paint: frameRasterP95Ms, I-B12).
   @meta.internal
   Map<String, num> get developerValues => {
     if (_playbackPaintUs.isNotEmpty)
       'playbackPaintUs': LatencySummary._of(_playbackPaintUs).p95Ms,
+    if (_annotationPaintUs.isNotEmpty)
+      'annotationPaintUs': LatencySummary._of(_annotationPaintUs).p95Ms,
   };
 
   @meta.internal
