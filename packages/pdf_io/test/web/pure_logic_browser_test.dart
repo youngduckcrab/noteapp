@@ -4,7 +4,8 @@ library;
 // Pure logic that must give the same results under dart2js as on the VM (06-pdf 9.1,
 // contract 7.4.8: dart2js number differences). Grows with the tasks that add pure logic
 // (T8 tile math, T11 normalizer, T12 encoder bytes and alpha255, T15 export chunks — 16
-// pages per addPages on the web).
+// pages per addPages on the web; (2차) T21 object matrices and the v2 encoder — the same
+// cases as unit/affine_test and unit/compose_encoder_v2_test).
 import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:crypto/crypto.dart';
@@ -16,6 +17,7 @@ import 'package:pdf_io/src/text/hangul_jamo.dart';
 import 'package:pdf_io/src/ui/strings_ko.dart';
 
 import '../support/compose_fixture.dart';
+import '../support/compose_v2_cases.dart';
 import '../support/export_world.dart';
 import '../support/fixture_digest.dart';
 
@@ -154,4 +156,7 @@ void main() {
     expect(result.pageCount, 20);
     expect(result.fileName, 'n.pdf');
   });
+
+  group('(2차) T21 object matrices', affineCases);
+  group('(2차) T21 compose encoder v2', encoderV2Cases);
 }

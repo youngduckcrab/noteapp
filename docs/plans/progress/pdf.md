@@ -272,7 +272,7 @@
 |---|---|---|---|
 | T20 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test` v2, `unit/init_v2_test`, `unit/plan_items_test` |
 | T30 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test`, `unit/init_test`, `widget/recording_panel_placeholder_test`, `unit/testing_fakes_test`, `web/testing_registrar_browser_test` |
-| T21 | 남음 | | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 |
+| T21 | 완료 | (이 커밋) | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
 | T22 | 남음 | | `pdfium/compose_objects_native_test` |
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
 | T24 | 남음 | | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(INK T42 뒤 — 통합 단계) |
@@ -319,7 +319,11 @@
 
 #### 계획과 다르게 한 점
 
-- 없음
+- T21: 백엔드가 해석 전에 하는 구조 검사(모르는 명령·좌표 수·열린 경로 안 `image`/`text`·인덱스 범위·글꼴 미적재·글꼴 두 번)를 src 전용 `lib/src/export/compose_ops_check.dart` `checkComposeOps`로 두었다. 완료 조건 '열린 경로 뒤 image → `ArgumentError`'는 인코더 입력(항목)으로는 만들 수 없어서(경로 항목마다 `endObject`가 붙음) 이 검사와 `RecordingComposeBackend` v2(같은 검사 → `ArgumentError`, 아무것도 기록하지 않음)로 단언한다. T22·T23의 실제 해석기도 같은 규칙을 쓴다.
+- T21: `RecordingComposeBackend` v2의 조각 기록은 새 최상위 이름 없이 레코드 목록 `parts`(`job`·`outputIndex`·`part`(그 쪽의 몇 번째 조각 — z 순서)·`images`('jpeg 64x48'·'rgba 2x2 alpha')·`texts`·`fontIds`·`byteLength`)와 `partsOfPage(outputIndex, {job})`로 했다.
+- T21: `PdfComposePageOps.isEmpty`는 '`verbs`도 `fonts`도 없음'(6.2.7)이다. `encodeItems`는 그릴 항목이 없으면 조각을 내지 않는다(빈 목록). 텍스트 항목의 글꼴이 `sentFonts`에도 `fontBytes`에도 없으면 `ArgumentError`(이때 `sentFonts`는 바뀌지 않음).
+- T21: 6.2.3의 U(단위 정사각형 → 사각형)·T(텍스트 공간 → 기준선)는 `lib/src/export/object_geometry.dart`의 `unitSquareToRect`·`textSpaceAt`(src 전용). 배경 fit·수식 contain 식은 그것을 쓰는 T25a·T25b에서 같은 파일에 더한다.
+- T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
 #### 이정표 커밋
 
@@ -329,6 +333,9 @@
 
 | 세션 | 검사 | 결과 |
 |---|---|---|
+| 1 (T21) | `ws test --package pdf_io` (VM) | 634 통과 + 7 skip (R2-B4 604 + T21 30) |
+| 1 (T21) | `ws test --package pdf_io --platform chrome` | 84 통과 + 1 skip (54 + T21 30), 285 s |
+| 1 (T21) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 

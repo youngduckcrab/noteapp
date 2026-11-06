@@ -8,7 +8,8 @@
 /// The fixture builder (PDF T2), FakePdfNoteGateway (PDF T4), FakePdfEngine (PDF T5),
 /// FakePdfFileSource (PDF T6), FakeRemoteAssetFetcher (PDF T7), BoxInkVectorizer (PDF T12),
 /// RecordingComposeBackend (PDF T15) and FakePdfOutputSink (PDF T15b) are real; (2차, R2-B4)
-/// BoxInkVectorizer.planPage too (m5-7/06-pdf 4.3.1).
+/// BoxInkVectorizer.planPage too (m5-7/06-pdf 4.3.1); (2차, T21) RecordingComposeBackend
+/// checks and records the parts of the v2 ops.
 library;
 
 import 'dart:async';
@@ -23,6 +24,7 @@ import 'src/compose/compose_backend.dart';
 import 'src/engine/page_info.dart';
 import 'src/engine/pdf_engine.dart';
 import 'src/errors.dart';
+import 'src/export/compose_ops_check.dart';
 import 'src/export/compose_plan.dart';
 import 'src/export/export_types.dart';
 import 'src/export/vectors.dart';
@@ -1134,6 +1136,12 @@ final class FakePdfOutputSink implements PdfOutputSink {
 /// Checks like the real backends: an empty plan, a source index or an output index out of
 /// range → ArgumentError; addPages / finish after finish or abort, begin after [dispose] →
 /// StateError. [dispose] aborts the open jobs.
+///
+/// (2차, m5-7/06-pdf 4.3.1 — PDF T21) Every part is checked like the real backends check it
+/// before interpreting (bad verbs or coordinates, an image / text op inside an open path,
+/// an image / text index out of range, a text op whose font no part of the job carried, a
+/// font carried twice → ArgumentError, nothing recorded), and [parts] records per part its
+/// job, output page, position among that page's parts, images, texts and fonts.
 final class RecordingComposeBackend implements PdfComposeBackend {
   RecordingComposeBackend({this.supported = true, this.result});
 
@@ -1160,6 +1168,31 @@ final class RecordingComposeBackend implements PdfComposeBackend {
       if (job.$1 == number) ...job.$2,
   ];
   final List<(int, List<PdfComposePageOps>)> _sent = [];
+
+  /// (2차) One entry per part of every addPages call, in the order sent: [job] (1-based, as in
+  /// [events]), [outputIndex], [part] (1-based position among the parts of that output page
+  /// in that job — z order), [images] ('jpeg 64x48', 'rgba 64x48', 'rgba 64x48 alpha'),
+  /// [texts], [fontIds] (the fonts this part carries, ascending) and [byteLength].
+  final List<
+    ({
+      int job,
+      int outputIndex,
+      int part,
+      List<String> images,
+      List<String> texts,
+      List<int> fontIds,
+      int byteLength,
+    })
+  >
+  parts = [];
+
+  /// (2차) The parts of output page [outputIndex] in job [job], in order.
+  List<PdfComposePageOps> partsOfPage(int outputIndex, {int job = 1}) => [
+    for (final sent in _sent)
+      if (sent.$1 == job)
+        for (final page in sent.$2)
+          if (page.outputIndex == outputIndex) page,
+  ];
 
   @override
   bool get isSupported => supported;
@@ -1204,21 +1237,47 @@ final class _RecordingComposeJob implements PdfComposeJob {
   final PdfComposePlan _plan;
   final int _number;
   bool _closed = false, _finishing = false;
+  final Set<int> _fonts = {};
+  final Map<int, int> _partCount = {};
 
   @override
   Future<void> addPages(List<PdfComposePageOps> pages) async {
     if (_closed || _finishing) {
       throw StateError('compose job $_number is finished or aborted');
     }
+    final loaded = {..._fonts};
     for (final page in pages) {
       if (page.outputIndex < 0 || page.outputIndex >= _plan.pages.length) {
         throw ArgumentError.value(page.outputIndex, 'outputIndex');
       }
+      checkComposeOps(page, loadedFonts: loaded);
+      loaded.addAll(page.fonts.keys);
     }
+    _fonts.addAll(loaded);
     final copy = List<PdfComposePageOps>.unmodifiable(pages);
     _backend.events.add('addPages#$_number');
     _backend.chunks.add(copy);
     _backend._sent.add((_number, copy));
+    for (final page in copy) {
+      final part = (_partCount[page.outputIndex] ?? 0) + 1;
+      _partCount[page.outputIndex] = part;
+      _backend.parts.add((
+        job: _number,
+        outputIndex: page.outputIndex,
+        part: part,
+        images: [
+          for (final image in page.images)
+            switch (image) {
+              PdfJpegData() => 'jpeg ${image.width}x${image.height}',
+              PdfRgbaData(:final hasAlpha) =>
+                'rgba ${image.width}x${image.height}${hasAlpha ? ' alpha' : ''}',
+            },
+        ],
+        texts: List.unmodifiable(page.texts),
+        fontIds: List.unmodifiable(page.fonts.keys.toList()..sort()),
+        byteLength: page.byteLength,
+      ));
+    }
     await _backend.beforeAddPages?.call();
     final error = _backend.addPagesError;
     if (error != null) Error.throwWithStackTrace(error, StackTrace.current);
