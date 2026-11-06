@@ -55,6 +55,12 @@ abstract final class RecognitionStrings {
   static const String mathOffline = '수식 인식 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.';
   static const String mathFailed = '수식을 인식하지 못했어요. 다시 시도해 주세요.';
 
+  // Sheet buttons and fields (6.12, 6.15).
+  static const String cancel = '취소';
+  static const String apply = '적용';
+  static const String copyLatex = 'LaTeX 복사';
+  static const String latexField = 'LaTeX';
+
   // Action labels (4.4.4).
   static const String toText = '텍스트로 변환';
   static const String copyText = '텍스트 복사';

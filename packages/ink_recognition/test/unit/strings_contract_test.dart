@@ -53,4 +53,13 @@ void main() {
       '수식 인식 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.',
     );
   });
+
+  test('sheet buttons (6.12, 6.15 — L2-13)', () {
+    expect(RecognitionStrings.cancel, '취소');
+    expect(RecognitionStrings.apply, '적용');
+    expect(RecognitionStrings.copyLatex, 'LaTeX 복사');
+    expect(RecognitionStrings.copied, '복사했어요.');
+    expect(RecognitionStrings.readOnly, '읽기 전용 노트라 바꿀 수 없어요.');
+    expect(RecognitionStrings.runFailed, '실행하지 못했어요.');
+  });
 }

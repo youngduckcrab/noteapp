@@ -7,6 +7,7 @@
 // clipboard log on SystemChannels.platform, targets and strokes.
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -19,6 +20,13 @@ import 'package:note_core/testing.dart' as core_testing;
 /// iPad Pro 13" (contract 7.4.6) — landscape / portrait.
 const Size kIpadLandscape = Size(1376, 1032);
 const Size kIpadPortrait = Size(1032, 1376);
+
+/// The fake store's clock in these tests (fixed — no real time in asserts).
+final DateTime kHostNow = DateTime.utc(2026, 11, 6, 10);
+
+/// CORE's fake store with its clock fixed at [kHostNow].
+core.NoteStore createFixedClockStore() =>
+    core_testing.createFakeNoteStore(clock: FakeAsync().getClock(kHostNow));
 
 const String kNoteId = 'note-1';
 const String kPageId = 'page-1';
@@ -36,7 +44,7 @@ final class RecognitionHost {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final s = store ?? core_testing.createFakeNoteStore();
+    final s = store ?? createFixedClockStore();
     if (store == null) addTearDown(s.close);
     final showBody = ValueNotifier<bool>(true);
     addTearDown(showBody.dispose);

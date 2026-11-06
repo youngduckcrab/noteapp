@@ -288,7 +288,7 @@ void main() {
     });
 
     testWidgets('the scope reads the app container lazily', (tester) async {
-      final store = core_testing.createFakeNoteStore();
+      final store = createFixedClockStore();
       addTearDown(store.close);
       final recognizer = FakeHandwritingRecognizer();
       final math = FakeMathRecognizer();
@@ -315,7 +315,7 @@ void main() {
       expect(scope.settings, same(store.settings));
       expect(scope.renderer, isNull);
       expect(scope.newId(), isNot(scope.newId()));
-      expect(scope.nowMs(), store.clock.now().millisecondsSinceEpoch);
+      expect(scope.nowMs(), kHostNow.millisecondsSinceEpoch);
     });
 
     testWidgets('an exception in a sheet: run completes, reported once, '
@@ -475,8 +475,9 @@ void main() {
     ) async {
       final host = await RecognitionHost.pump(tester);
       final platform = PlatformLog(tester)
-        ..reply = (call) async =>
-            throw PlatformException(code: 'NotAllowedError');
+        ..reply = (call) async => call.method == 'Clipboard.setData'
+            ? throw PlatformException(code: 'NotAllowedError')
+            : null;
       final reported = await _reports(() async {
         await copyText().run(host.body, log.target(objects: [_math]));
         await tester.pump();

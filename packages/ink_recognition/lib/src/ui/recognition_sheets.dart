@@ -10,13 +10,14 @@
 // captured its scope (ActionRun), and opens its sheet before its first await
 // (the sheet shows '인식 중…' while it works — 6.13.1).
 //
-// L2-12: the sheets land with their tasks — the LaTeX editor (recog.editMath)
-// L2-13, the math pad L2-14, the conversion sheet L2-15, recog.toMath
+// The sheets land with their tasks — the LaTeX editor (recog.editMath) L2-13
+// (done), the math pad L2-14, the conversion sheet L2-15, recog.toMath
 // L2-17b. Until then the default throws UnimplementedError, which the run's
 // guard reports once and shows as '실행하지 못했어요' (6.16, 6.22).
 import 'package:note_core/note_core.dart' as core;
 
 import '../actions/action_scope.dart';
+import 'latex_editor_sheet.dart';
 
 abstract interface class RecognitionSheets {
   /// recog.toText ([copy] false — primary '텍스트 상자로') / recog.copyText
@@ -54,7 +55,7 @@ final class DefaultRecognitionSheets implements RecognitionSheets {
 
   @override
   Future<void> latexEditor(ActionRun run, core.MathObject math) =>
-      throw UnimplementedError('LaTeX editor sheet — L2-13');
+      openLatexEditor(run, math);
 
   @override
   Future<void> mathPad(ActionRun run) =>

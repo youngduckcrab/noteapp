@@ -117,15 +117,17 @@ final class ActionRun {
   /// Whether [execute] already ran.
   bool get executed => _executed;
 
-  /// target.execute — at most once per run (a second call is a bug:
-  /// StateError, which the run's guard reports). Throws like
-  /// NoteSession.execute (ReadOnlyNoteException …); the sheet shows it.
+  /// target.execute — at most one command per run (one undo step; a second
+  /// call after a successful one is a bug: StateError, which the run's guard
+  /// or the sheet reports). Throws like NoteSession.execute
+  /// (ReadOnlyNoteException …) — a refused command does not count, so the
+  /// sheet that shows the notice stays usable.
   void execute(core.EditCommand command) {
     if (_executed) {
       throw StateError('$actionId: execute runs at most once per action');
     }
-    _executed = true;
     target.execute(command);
+    _executed = true;
   }
 
   /// A snack bar through the messenger captured before the first await;
