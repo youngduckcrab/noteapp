@@ -33,9 +33,21 @@ void main() {
       EntityKind.penPreset,
       EntityKind.asset,
       EntityKind.recording,
+      // (2nd round, R2-B7a) general records until S2-1 (07-sync 6.2.2).
+      EntityKind.pageObject,
+      EntityKind.handwriting,
     ]) {
       expect(FieldUnits.groupsOf(k), isEmpty, reason: k.name);
     }
+  });
+
+  test('the pageObject keys are the union of the known object types', () {
+    expect(kPageObjectTypeKeys.keys, ['shape', 'text', 'image', 'math']);
+    final union = {for (final keys in kPageObjectTypeKeys.values) ...keys};
+    expect(union, kCoreJsonKeys[EntityKind.pageObject]);
+    expect(union, FieldUnits.keysOf(EntityKind.pageObject));
+    // C21-11: math always writes engine, also when it is null.
+    expect(kPageObjectTypeKeys['math'], contains('engine'));
   });
 
   test('meta keys are identity and derived values', () {
@@ -74,14 +86,41 @@ void main() {
     }
   });
 
+  // (2nd round, SYNC-M4) compared per kind: a page object serializes the keys of its
+  // type, not the union (07-sync 6.4).
   test('the CORE key table matches what CORE entities serialize', () {
     for (final kind in EntityKind.values) {
+      if (kind == EntityKind.pageObject) continue;
       expect(
         fixtureEntity(kind).toJson().keys.toSet(),
         kCoreJsonKeys[kind],
         reason: kind.name,
       );
     }
+  });
+
+  test('each known page object type serializes the keys of '
+      'kPageObjectTypeKeys', () {
+    for (final MapEntry(key: type, value: keys)
+        in kPageObjectTypeKeys.entries) {
+      final object = objectFixture(type);
+      expect(object.type, type);
+      final json = object.toJson();
+      expect(json.keys.toSet(), keys, reason: type);
+      final decoded = EntityJson.decode(EntityKind.pageObject, json);
+      expect(decoded, object, reason: type);
+      expect(decoded.toJson().keys.toSet(), keys, reason: type);
+    }
+  });
+
+  test('an unknown object type is left out of the key comparison and '
+      'round-trips key for key', () {
+    final object = objectFixture('sticker');
+    expect(object, isA<UnknownObject>());
+    expect(kPageObjectTypeKeys, isNot(contains(object.type)));
+    final json = object.toJson();
+    expect(json, containsPair('stickerId', 'cat-01'));
+    expect(EntityJson.decode(EntityKind.pageObject, json).toJson(), json);
   });
 
   test('a key outside the table is a unit of its own', () {

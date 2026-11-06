@@ -150,6 +150,10 @@ abstract final class RecordGate {
         return n == null ? null : '${doc.ref} of permanently deleted note $n';
       case EntityKind.penPreset || EntityKind.setting || EntityKind.asset:
         return null;
+      // (2nd round, R2-B7a) general records for now: never dropped here. S2-3 adds the
+      // rule for a permanently deleted note (contract 7.2.8, 07-sync 6.2.4).
+      case EntityKind.pageObject || EntityKind.handwriting:
+        return null;
     }
   }
 

@@ -52,7 +52,8 @@ final class ChunkPacker {
   final SyncConfig config;
   final String authorNodeId;
 
-  /// Kind order inside a scope (6.4.3 step 2), then id, then upsert before purge.
+  /// Kind order inside a scope (6.4.3 step 2; 2nd round: contract 7.2.8), then id, then
+  /// upsert before purge.
   static const List<EntityKind> kindOrder = [
     EntityKind.folder,
     EntityKind.note,
@@ -62,6 +63,8 @@ final class ChunkPacker {
     EntityKind.asset,
     EntityKind.recording,
     EntityKind.stroke,
+    EntityKind.pageObject,
+    EntityKind.handwriting,
   ];
 
   static int compareRecords(SyncRecord a, SyncRecord b) {

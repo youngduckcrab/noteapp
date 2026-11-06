@@ -3,6 +3,12 @@
 // (packages/note_core/test/goldens/json, CORE 6.3), each non-meta key in exactly one merge
 // unit, and every golden entity through SyncDoc and back unchanged. Reads the CORE files
 // from the workspace (VM, run from packages/sync_engine).
+//
+// v2 (2nd round, R2-B7a — contract 7.2.8, 07-sync 6.4, SYNC-M4): handwriting and recording
+// golden keys = keysOf(kind); each known page object type golden has the keys of
+// kPageObjectTypeKeys[type] and their union is keysOf(pageObject); an unknown type
+// (unknown.json) is left out of the key comparison and only goes through SyncDoc and back.
+// Runs from the CORE B2-beta JSON golden commit (T20a) on (CP-S9).
 @Tags(['integration'])
 @TestOn('vm')
 library;
@@ -14,6 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:sync_engine/src/model/field_versions_ext.dart';
 import 'package:sync_engine/sync_engine.dart';
+
+import '../support/entity_fixtures.dart';
 
 final Directory _goldens = Directory('../note_core/test/goldens/json');
 
@@ -27,6 +35,15 @@ EntityKind? _kindOf(String name) => switch (name) {
   'asset' => EntityKind.asset,
   'recording' => EntityKind.recording,
   'setting' => EntityKind.setting,
+  'shape_rect' ||
+  'shape_ellipse' ||
+  'shape_arrow' ||
+  'text_box' ||
+  'image' ||
+  'math' ||
+  'math_no_engine' ||
+  'unknown' => EntityKind.pageObject,
+  'handwriting' => EntityKind.handwriting,
   _ => null,
 };
 
@@ -59,12 +76,38 @@ void main() {
     );
   });
 
-  test('table 6.3.1 keys = the golden JSON keys of each kind', () {
+  test('table 6.3.1 keys = the golden JSON keys of each kind (pageObject: '
+      'below)', () {
     for (final MapEntry(key: name, value: json) in goldens.entries) {
       final kind = _kindOf(name);
-      if (kind == null) continue;
+      if (kind == null || kind == EntityKind.pageObject) continue;
       expect(json.keys.toSet(), FieldUnits.keysOf(kind), reason: name);
     }
+  });
+
+  test('page object goldens: each known type has the keys of '
+      'kPageObjectTypeKeys, their union is keysOf(pageObject); unknown types '
+      'are left out', () {
+    final types = <String>{};
+    final union = <String>{};
+    final unknown = <String>[];
+    for (final MapEntry(key: name, value: json) in goldens.entries) {
+      if (_kindOf(name) != EntityKind.pageObject) continue;
+      final type = json['type'];
+      final keys = kPageObjectTypeKeys[type];
+      if (keys == null) {
+        unknown.add(name);
+        continue;
+      }
+      types.add(type! as String);
+      union.addAll(json.keys);
+      expect(json.keys.toSet(), keys, reason: name);
+    }
+    expect(types, kPageObjectTypeKeys.keys.toSet());
+    expect(union, FieldUnits.keysOf(EntityKind.pageObject));
+    expect(unknown, ['unknown']);
+    // C21-11: the engine key is written when there is no engine.
+    expect(goldens['math_no_engine'], containsPair('engine', isNull));
   });
 
   test('every non-meta golden key is in exactly one merge unit; groups only '

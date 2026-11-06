@@ -1,5 +1,11 @@
 // One CORE entity per kind in the sync/backup wire format (CORE 6.3 key table), shared by
 // the model, codec and merge tests. Every map decodes with CORE EntityJson.decode.
+//
+// (2nd round, R2-B7a — 07-sync 6.4, 5.1.5) pageObject and handwriting JSON come from the
+// contract constructors (real from CORE B2-alpha) and CORE's T20a toJson(); recording
+// JSON carries `title`. The page object helpers of note_core/testing.dart (CORE T23b) are
+// not used here, so every test that goes through these maps is decided at the CORE T20a
+// commit (07-sync 8.1: no use of them in this package's test/).
 import 'package:note_core/note_core.dart';
 
 const String kNodeA = '3f2a9c0d11e0b7a4';
@@ -39,11 +45,147 @@ const Map<EntityKind, Set<String>> kCoreJsonKeys = {
     'createdAt', 'deletedAt', 'version',
   },
   EntityKind.recording: {
-    'id', 'noteId', 'assetId', 'durationMs', 'startedAt', 'createdAt', //
-    'updatedAt', 'deletedAt', 'version',
+    'id', 'noteId', 'assetId', 'durationMs', 'startedAt', 'title', //
+    'createdAt', 'updatedAt', 'deletedAt', 'version',
   },
   EntityKind.setting: {'key', 'valueJson', 'updatedAt', 'deletedAt', 'version'},
+  // The union of [kPageObjectTypeKeys] (07-sync 6.2.1).
+  EntityKind.pageObject: {
+    'id', 'pageId', 'type', 'frame', 'shape', 'geometry', 'style', 'text', //
+    'assetId', 'px', 'latex', 'engine', 'createdAt', 'updatedAt', 'deletedAt',
+    'version',
+  },
+  EntityKind.handwriting: {
+    'id', 'noteId', 'pageId', 'engineId', 'sourceRev', 'lines', 'createdAt', //
+    'updatedAt', 'deletedAt', 'version',
+  },
 };
+
+/// The 8 keys every page object writes (contract 7.2.7).
+const Set<String> _kObjectCommonKeys = {
+  'id', 'pageId', 'type', 'frame', 'createdAt', 'updatedAt', 'deletedAt', //
+  'version',
+};
+
+/// Page object JSON keys per known `type` (contract 7.2.7, 07-sync 6.2.1). Every key is
+/// always written, also when its value is null (`math` `engine` — C21-11). An unknown
+/// `type` (UnknownObject) has no fixed key set and is not listed.
+const Map<String, Set<String>> kPageObjectTypeKeys = {
+  'shape': {..._kObjectCommonKeys, 'shape', 'geometry', 'style'},
+  'text': {..._kObjectCommonKeys, 'text', 'style'},
+  'image': {..._kObjectCommonKeys, 'assetId', 'px'},
+  'math': {..._kObjectCommonKeys, 'latex', 'style', 'engine'},
+};
+
+/// The asset of the image object fixture (64 lowercase hex).
+const String kImageAssetId =
+    '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08';
+
+/// One page object of [type] on page 'p1' (version at [kT0] on [kNodeA]), built with the
+/// contract constructors: 'shape' · 'text' · 'image' · 'math' → ShapeObject (rectangle,
+/// PolylineGeometry) · TextBoxObject · ImageObject · MathObject (no engine); 'sticker' →
+/// UnknownObject with the unknown key `stickerId` and a nested map. Rectangles, text and
+/// sizes are the defaults of the contract 7.6 page object test helpers.
+PageObject objectFixture(String type, {String? id}) {
+  final version = Hlc(kT0, 0, kNodeA);
+  const pageId = 'p1';
+  return switch (type) {
+    'shape' => ShapeObject(
+      id: id ?? 'o-shape',
+      pageId: pageId,
+      shapeKind: ShapeKind.rectangle,
+      geometry: const PolylineGeometry([
+        PagePoint(100, 100),
+        PagePoint(300, 100),
+        PagePoint(300, 220),
+        PagePoint(100, 220),
+      ], closed: true),
+      style: const ShapeStyle(strokeColorArgb: 0xFF1A1A1A),
+      createdAt: kT0,
+      version: version,
+    ),
+    'text' => TextBoxObject(
+      id: id ?? 'o-text',
+      pageId: pageId,
+      frame: const ElementFrame(PageRect(100, 300, 400, 340)),
+      text: '안녕 hello',
+      style: const TextBoxStyle(),
+      createdAt: kT0,
+      version: version,
+    ),
+    'image' => ImageObject(
+      id: id ?? 'o-image',
+      pageId: pageId,
+      frame: const ElementFrame(PageRect(100, 400, 300, 550)),
+      assetId: kImageAssetId,
+      pixelWidth: 400,
+      pixelHeight: 300,
+      createdAt: kT0,
+      version: version,
+    ),
+    'math' => MathObject(
+      id: id ?? 'o-math',
+      pageId: pageId,
+      frame: const ElementFrame(PageRect(100, 600, 200, 650)),
+      latex: r'\frac{a}{b}',
+      style: const MathStyle(),
+      createdAt: kT0,
+      version: version,
+    ),
+    'sticker' => UnknownObject({
+      'id': id ?? 'o-sticker',
+      'pageId': pageId,
+      'type': 'sticker',
+      'frame': [400.0, 100.0, 450.0, 150.0, 0.0],
+      'stickerId': 'cat-01',
+      'tint': {
+        'argb': 4294940672,
+        'stops': [0.0, 0.5, 1.0],
+      },
+      'createdAt': kT0,
+      'updatedAt': kT0,
+      'deletedAt': null,
+      'version': version.toString(),
+    }),
+    _ => throw ArgumentError.value(type, 'type', 'no object fixture'),
+  };
+}
+
+/// The handwriting result fixture of page 'p1' in note 'n1': two lines, one with
+/// alternatives, one confirmed by the user. Its id is always `hw_<pageId>`
+/// (HandwritingText.idFor); an [id] must have that form and names the page.
+HandwritingText handwritingFixture({String? id}) {
+  final String pageId;
+  if (id == null) {
+    pageId = 'p1';
+  } else if (id.startsWith('hw_') && id.length > 3) {
+    pageId = id.substring(3);
+  } else {
+    throw ArgumentError.value(id, 'id', 'a handwriting id is hw_<pageId>');
+  }
+  return HandwritingText(
+    noteId: 'n1',
+    pageId: pageId,
+    engineId: 'mlkit-digital-ink/19.0.0:ko',
+    sourceRev: '0123456789abcdef',
+    lines: const [
+      HandwritingLine(
+        text: '미분 방정식',
+        alternatives: ['미분 방정석', '미분방정식'],
+        rect: PageRect(40, 80, 320, 120),
+        strokeIds: ['s1', 's2'],
+      ),
+      HandwritingLine(
+        text: 'hello 2학기',
+        rect: PageRect(40, 140, 300, 182),
+        strokeIds: ['s3'],
+        userConfirmed: true,
+      ),
+    ],
+    createdAt: kT0,
+    version: Hlc(kT0, 0, kNodeA),
+  );
+}
 
 Map<String, Object?> _style({double width = 2.2, double opacity = 0.9}) => {
   'tool': 'fountain',
@@ -160,6 +302,7 @@ Map<String, Object?> fixtureJson(EntityKind kind, {String? id}) {
           'a54b81412d4c4ab56653bb9e4c02912b0820bb37e2bba00722ddef4d78083d4a',
       'durationMs': 61000,
       'startedAt': kT0 - 61000,
+      'title': '1교시 녹음',
       'createdAt': kT0,
       'updatedAt': kT0,
       'deletedAt': null,
@@ -172,6 +315,8 @@ Map<String, Object?> fixtureJson(EntityKind kind, {String? id}) {
       'deletedAt': null,
       'version': v,
     },
+    EntityKind.pageObject => objectFixture('shape', id: id).toJson(),
+    EntityKind.handwriting => handwritingFixture(id: id).toJson(),
   };
 }
 

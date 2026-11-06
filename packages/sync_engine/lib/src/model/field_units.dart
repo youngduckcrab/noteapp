@@ -45,11 +45,22 @@ abstract final class FieldUnits {
       'createdAt', 'deletedAt', 'version',
     },
     EntityKind.recording => const {
-      'id', 'noteId', 'assetId', 'durationMs', 'startedAt', 'createdAt', //
-      'updatedAt', 'deletedAt', 'version',
+      'id', 'noteId', 'assetId', 'durationMs', 'startedAt', 'title', //
+      'createdAt', 'updatedAt', 'deletedAt', 'version',
     },
     EntityKind.setting => const {
       'key', 'valueJson', 'updatedAt', 'deletedAt', 'version', //
+    },
+    // (2nd round, contract 7.2.8) the union of the four known object types (07-sync
+    // 6.2.1); the keys of each type are a subset of it.
+    EntityKind.pageObject => const {
+      'id', 'pageId', 'type', 'frame', 'shape', 'geometry', 'style', 'text', //
+      'assetId', 'px', 'latex', 'engine', 'createdAt', 'updatedAt',
+      'deletedAt', 'version',
+    },
+    EntityKind.handwriting => const {
+      'id', 'noteId', 'pageId', 'engineId', 'sourceRev', 'lines', //
+      'createdAt', 'updatedAt', 'deletedAt', 'version',
     },
   };
 
@@ -75,6 +86,9 @@ abstract final class FieldUnits {
     EntityKind.penPreset ||
     EntityKind.asset ||
     EntityKind.recording => const [],
+    // (2nd round, R2-B7a) general records for now: every key is a unit of its own.
+    // S2-1 replaces this with the one object / result unit (contract 7.2.8, 07-sync 6.2.2).
+    EntityKind.pageObject || EntityKind.handwriting => const [],
   };
 
   /// All units for the keys present in either snapshot (metaKeys excluded).
