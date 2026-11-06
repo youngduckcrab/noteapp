@@ -1,6 +1,7 @@
 // Internal (not exported) — PDF character boxes of m5-7/02-core 6.10.3 / 6.10.4: the blob format
 // (SearchRectsCodec), the per-line merge of a hit's boxes and the fraction → note page pt
 // conversion (pdf_io's 1차 PdfPageFit, contain + centered).
+import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -59,7 +60,12 @@ abstract final class SearchRectsCodec {
   }
 
   /// The boxes as page fractions (k / 65535). FormatException on a damaged blob.
-  static List<PageRect> decode(Uint8List data) {
+  static List<PageRect> decode(Uint8List data) => List.of(view(data));
+
+  /// [decode] without making the boxes: the blob is checked now (FormatException), a box is
+  /// made when it is read — a hit reads only its match's boxes (6.10.4 '일치 범위의 글자
+  /// 상자만 푼다'; CORE T33b, PF-10).
+  static List<PageRect> view(Uint8List data) {
     if (data.length < 11 ||
         data[0] != 0x53 ||
         data[1] != 0x52 ||
@@ -98,16 +104,37 @@ abstract final class SearchRectsCodec {
         'SearchRectsCodec blob: groups do not cover n',
       );
     }
-    return [
-      for (var i = 0; i < n; i++)
-        PageRect(
-          b.getUint16(o + 4 * i, Endian.little) / _scale,
-          tops[i] / _scale,
-          b.getUint16(o + 4 * i + 2, Endian.little) / _scale,
-          bottoms[i] / _scale,
-        ),
-    ];
+    return _RectsView(b, o, tops, bottoms);
   }
+}
+
+/// The boxes of a checked SearchRectsCodec blob, made on read (unmodifiable).
+final class _RectsView extends ListBase<PageRect> {
+  _RectsView(this._b, this._lr, this._tops, this._bottoms);
+  final ByteData _b;
+  final int _lr; // offset of the left / right pairs
+  final Uint16List _tops, _bottoms;
+
+  @override
+  int get length => _tops.length;
+
+  @override
+  set length(int _) => throw UnsupportedError('unmodifiable');
+
+  @override
+  PageRect operator [](int i) {
+    RangeError.checkValidIndex(i, this);
+    return PageRect(
+      _b.getUint16(_lr + 4 * i, Endian.little) / SearchRectsCodec._scale,
+      _tops[i] / SearchRectsCodec._scale,
+      _b.getUint16(_lr + 4 * i + 2, Endian.little) / SearchRectsCodec._scale,
+      _bottoms[i] / SearchRectsCodec._scale,
+    );
+  }
+
+  @override
+  void operator []=(int i, PageRect value) =>
+      throw UnsupportedError('unmodifiable');
 }
 
 /// The boxes of code units [start, end) merged per text line (consecutive boxes with the same

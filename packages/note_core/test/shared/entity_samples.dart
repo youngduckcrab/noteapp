@@ -132,7 +132,7 @@ final Map<String, SyncEntity> kSampleEntities = {
   'handwriting': kSampleHandwriting,
 };
 
-/// The recording as a v1 database row holds it (no title column until CORE T24).
+/// The recording without a title (the v1.4 shape).
 const Recording kSampleRecordingV1 = Recording(
   id: '0193f1d2-7c40-7000-8000-0000000000r1',
   noteId: '0193f1d2-7c40-7000-8000-00000000a001',
@@ -143,16 +143,6 @@ const Recording kSampleRecordingV1 = Recording(
   updatedAt: kT,
   version: kV,
 );
-
-/// The v1.4 entity shapes as a v1 database stores them (storage row round trips): no page
-/// objects / handwriting tables and no recordings.title column until CORE T24 (DB v2).
-final Map<String, SyncEntity> kV1RowSamples = {
-  for (final e in kSampleEntities.entries)
-    if (e.value.kind != EntityKind.pageObject &&
-        e.value.kind != EntityKind.handwriting)
-      e.key: e.value,
-  'recording': kSampleRecordingV1,
-};
 
 const String kSamplePageId = '0193f1d2-7c40-7aaa-8bbb-111122223333';
 const String kSampleImageAssetId =

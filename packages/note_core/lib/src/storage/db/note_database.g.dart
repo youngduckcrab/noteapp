@@ -2223,6 +2223,48 @@ class $PagesTable extends Pages with TableInfo<$PagesTable, PageRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _inkRevMeta = const VerificationMeta('inkRev');
+  @override
+  late final GeneratedColumn<String> inkRev = GeneratedColumn<String>(
+    'ink_rev',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _inkRevAtMeta = const VerificationMeta(
+    'inkRevAt',
+  );
+  @override
+  late final GeneratedColumn<int> inkRevAt = GeneratedColumn<int>(
+    'ink_rev_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bgAssetIdMeta = const VerificationMeta(
+    'bgAssetId',
+  );
+  @override
+  late final GeneratedColumn<String> bgAssetId = GeneratedColumn<String>(
+    'bg_asset_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bgPdfIndexMeta = const VerificationMeta(
+    'bgPdfIndex',
+  );
+  @override
+  late final GeneratedColumn<int> bgPdfIndex = GeneratedColumn<int>(
+    'bg_pdf_index',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2237,6 +2279,10 @@ class $PagesTable extends Pages with TableInfo<$PagesTable, PageRow> {
     version,
     fieldVersions,
     contentRev,
+    inkRev,
+    inkRevAt,
+    bgAssetId,
+    bgPdfIndex,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2345,6 +2391,33 @@ class $PagesTable extends Pages with TableInfo<$PagesTable, PageRow> {
     } else if (isInserting) {
       context.missing(_contentRevMeta);
     }
+    if (data.containsKey('ink_rev')) {
+      context.handle(
+        _inkRevMeta,
+        inkRev.isAcceptableOrUnknown(data['ink_rev']!, _inkRevMeta),
+      );
+    }
+    if (data.containsKey('ink_rev_at')) {
+      context.handle(
+        _inkRevAtMeta,
+        inkRevAt.isAcceptableOrUnknown(data['ink_rev_at']!, _inkRevAtMeta),
+      );
+    }
+    if (data.containsKey('bg_asset_id')) {
+      context.handle(
+        _bgAssetIdMeta,
+        bgAssetId.isAcceptableOrUnknown(data['bg_asset_id']!, _bgAssetIdMeta),
+      );
+    }
+    if (data.containsKey('bg_pdf_index')) {
+      context.handle(
+        _bgPdfIndexMeta,
+        bgPdfIndex.isAcceptableOrUnknown(
+          data['bg_pdf_index']!,
+          _bgPdfIndexMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2402,6 +2475,22 @@ class $PagesTable extends Pages with TableInfo<$PagesTable, PageRow> {
         DriftSqlType.int,
         data['${effectivePrefix}content_rev'],
       )!,
+      inkRev: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ink_rev'],
+      ),
+      inkRevAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ink_rev_at'],
+      ),
+      bgAssetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bg_asset_id'],
+      ),
+      bgPdfIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bg_pdf_index'],
+      ),
     );
   }
 
@@ -2424,6 +2513,10 @@ class PageRow extends DataClass implements Insertable<PageRow> {
   final String version;
   final String? fieldVersions;
   final int contentRev;
+  final String? inkRev;
+  final int? inkRevAt;
+  final String? bgAssetId;
+  final int? bgPdfIndex;
   const PageRow({
     required this.id,
     required this.noteId,
@@ -2437,6 +2530,10 @@ class PageRow extends DataClass implements Insertable<PageRow> {
     required this.version,
     this.fieldVersions,
     required this.contentRev,
+    this.inkRev,
+    this.inkRevAt,
+    this.bgAssetId,
+    this.bgPdfIndex,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2457,6 +2554,18 @@ class PageRow extends DataClass implements Insertable<PageRow> {
       map['field_versions'] = Variable<String>(fieldVersions);
     }
     map['content_rev'] = Variable<int>(contentRev);
+    if (!nullToAbsent || inkRev != null) {
+      map['ink_rev'] = Variable<String>(inkRev);
+    }
+    if (!nullToAbsent || inkRevAt != null) {
+      map['ink_rev_at'] = Variable<int>(inkRevAt);
+    }
+    if (!nullToAbsent || bgAssetId != null) {
+      map['bg_asset_id'] = Variable<String>(bgAssetId);
+    }
+    if (!nullToAbsent || bgPdfIndex != null) {
+      map['bg_pdf_index'] = Variable<int>(bgPdfIndex);
+    }
     return map;
   }
 
@@ -2478,6 +2587,18 @@ class PageRow extends DataClass implements Insertable<PageRow> {
           ? const Value.absent()
           : Value(fieldVersions),
       contentRev: Value(contentRev),
+      inkRev: inkRev == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inkRev),
+      inkRevAt: inkRevAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inkRevAt),
+      bgAssetId: bgAssetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bgAssetId),
+      bgPdfIndex: bgPdfIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bgPdfIndex),
     );
   }
 
@@ -2499,6 +2620,10 @@ class PageRow extends DataClass implements Insertable<PageRow> {
       version: serializer.fromJson<String>(json['version']),
       fieldVersions: serializer.fromJson<String?>(json['fieldVersions']),
       contentRev: serializer.fromJson<int>(json['contentRev']),
+      inkRev: serializer.fromJson<String?>(json['inkRev']),
+      inkRevAt: serializer.fromJson<int?>(json['inkRevAt']),
+      bgAssetId: serializer.fromJson<String?>(json['bgAssetId']),
+      bgPdfIndex: serializer.fromJson<int?>(json['bgPdfIndex']),
     );
   }
   @override
@@ -2517,6 +2642,10 @@ class PageRow extends DataClass implements Insertable<PageRow> {
       'version': serializer.toJson<String>(version),
       'fieldVersions': serializer.toJson<String?>(fieldVersions),
       'contentRev': serializer.toJson<int>(contentRev),
+      'inkRev': serializer.toJson<String?>(inkRev),
+      'inkRevAt': serializer.toJson<int?>(inkRevAt),
+      'bgAssetId': serializer.toJson<String?>(bgAssetId),
+      'bgPdfIndex': serializer.toJson<int?>(bgPdfIndex),
     };
   }
 
@@ -2533,6 +2662,10 @@ class PageRow extends DataClass implements Insertable<PageRow> {
     String? version,
     Value<String?> fieldVersions = const Value.absent(),
     int? contentRev,
+    Value<String?> inkRev = const Value.absent(),
+    Value<int?> inkRevAt = const Value.absent(),
+    Value<String?> bgAssetId = const Value.absent(),
+    Value<int?> bgPdfIndex = const Value.absent(),
   }) => PageRow(
     id: id ?? this.id,
     noteId: noteId ?? this.noteId,
@@ -2548,6 +2681,10 @@ class PageRow extends DataClass implements Insertable<PageRow> {
         ? fieldVersions.value
         : this.fieldVersions,
     contentRev: contentRev ?? this.contentRev,
+    inkRev: inkRev.present ? inkRev.value : this.inkRev,
+    inkRevAt: inkRevAt.present ? inkRevAt.value : this.inkRevAt,
+    bgAssetId: bgAssetId.present ? bgAssetId.value : this.bgAssetId,
+    bgPdfIndex: bgPdfIndex.present ? bgPdfIndex.value : this.bgPdfIndex,
   );
   PageRow copyWithCompanion(PagesCompanion data) {
     return PageRow(
@@ -2569,6 +2706,12 @@ class PageRow extends DataClass implements Insertable<PageRow> {
       contentRev: data.contentRev.present
           ? data.contentRev.value
           : this.contentRev,
+      inkRev: data.inkRev.present ? data.inkRev.value : this.inkRev,
+      inkRevAt: data.inkRevAt.present ? data.inkRevAt.value : this.inkRevAt,
+      bgAssetId: data.bgAssetId.present ? data.bgAssetId.value : this.bgAssetId,
+      bgPdfIndex: data.bgPdfIndex.present
+          ? data.bgPdfIndex.value
+          : this.bgPdfIndex,
     );
   }
 
@@ -2586,7 +2729,11 @@ class PageRow extends DataClass implements Insertable<PageRow> {
           ..write('deletedAt: $deletedAt, ')
           ..write('version: $version, ')
           ..write('fieldVersions: $fieldVersions, ')
-          ..write('contentRev: $contentRev')
+          ..write('contentRev: $contentRev, ')
+          ..write('inkRev: $inkRev, ')
+          ..write('inkRevAt: $inkRevAt, ')
+          ..write('bgAssetId: $bgAssetId, ')
+          ..write('bgPdfIndex: $bgPdfIndex')
           ..write(')'))
         .toString();
   }
@@ -2605,6 +2752,10 @@ class PageRow extends DataClass implements Insertable<PageRow> {
     version,
     fieldVersions,
     contentRev,
+    inkRev,
+    inkRevAt,
+    bgAssetId,
+    bgPdfIndex,
   );
   @override
   bool operator ==(Object other) =>
@@ -2621,7 +2772,11 @@ class PageRow extends DataClass implements Insertable<PageRow> {
           other.deletedAt == this.deletedAt &&
           other.version == this.version &&
           other.fieldVersions == this.fieldVersions &&
-          other.contentRev == this.contentRev);
+          other.contentRev == this.contentRev &&
+          other.inkRev == this.inkRev &&
+          other.inkRevAt == this.inkRevAt &&
+          other.bgAssetId == this.bgAssetId &&
+          other.bgPdfIndex == this.bgPdfIndex);
 }
 
 class PagesCompanion extends UpdateCompanion<PageRow> {
@@ -2637,6 +2792,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
   final Value<String> version;
   final Value<String?> fieldVersions;
   final Value<int> contentRev;
+  final Value<String?> inkRev;
+  final Value<int?> inkRevAt;
+  final Value<String?> bgAssetId;
+  final Value<int?> bgPdfIndex;
   final Value<int> rowid;
   const PagesCompanion({
     this.id = const Value.absent(),
@@ -2651,6 +2810,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
     this.version = const Value.absent(),
     this.fieldVersions = const Value.absent(),
     this.contentRev = const Value.absent(),
+    this.inkRev = const Value.absent(),
+    this.inkRevAt = const Value.absent(),
+    this.bgAssetId = const Value.absent(),
+    this.bgPdfIndex = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PagesCompanion.insert({
@@ -2666,6 +2829,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
     required String version,
     this.fieldVersions = const Value.absent(),
     required int contentRev,
+    this.inkRev = const Value.absent(),
+    this.inkRevAt = const Value.absent(),
+    this.bgAssetId = const Value.absent(),
+    this.bgPdfIndex = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        noteId = Value(noteId),
@@ -2690,6 +2857,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
     Expression<String>? version,
     Expression<String>? fieldVersions,
     Expression<int>? contentRev,
+    Expression<String>? inkRev,
+    Expression<int>? inkRevAt,
+    Expression<String>? bgAssetId,
+    Expression<int>? bgPdfIndex,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2705,6 +2876,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
       if (version != null) 'version': version,
       if (fieldVersions != null) 'field_versions': fieldVersions,
       if (contentRev != null) 'content_rev': contentRev,
+      if (inkRev != null) 'ink_rev': inkRev,
+      if (inkRevAt != null) 'ink_rev_at': inkRevAt,
+      if (bgAssetId != null) 'bg_asset_id': bgAssetId,
+      if (bgPdfIndex != null) 'bg_pdf_index': bgPdfIndex,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2722,6 +2897,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
     Value<String>? version,
     Value<String?>? fieldVersions,
     Value<int>? contentRev,
+    Value<String?>? inkRev,
+    Value<int?>? inkRevAt,
+    Value<String?>? bgAssetId,
+    Value<int?>? bgPdfIndex,
     Value<int>? rowid,
   }) {
     return PagesCompanion(
@@ -2737,6 +2916,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
       version: version ?? this.version,
       fieldVersions: fieldVersions ?? this.fieldVersions,
       contentRev: contentRev ?? this.contentRev,
+      inkRev: inkRev ?? this.inkRev,
+      inkRevAt: inkRevAt ?? this.inkRevAt,
+      bgAssetId: bgAssetId ?? this.bgAssetId,
+      bgPdfIndex: bgPdfIndex ?? this.bgPdfIndex,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2780,6 +2963,18 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
     if (contentRev.present) {
       map['content_rev'] = Variable<int>(contentRev.value);
     }
+    if (inkRev.present) {
+      map['ink_rev'] = Variable<String>(inkRev.value);
+    }
+    if (inkRevAt.present) {
+      map['ink_rev_at'] = Variable<int>(inkRevAt.value);
+    }
+    if (bgAssetId.present) {
+      map['bg_asset_id'] = Variable<String>(bgAssetId.value);
+    }
+    if (bgPdfIndex.present) {
+      map['bg_pdf_index'] = Variable<int>(bgPdfIndex.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2801,6 +2996,10 @@ class PagesCompanion extends UpdateCompanion<PageRow> {
           ..write('version: $version, ')
           ..write('fieldVersions: $fieldVersions, ')
           ..write('contentRev: $contentRev, ')
+          ..write('inkRev: $inkRev, ')
+          ..write('inkRevAt: $inkRevAt, ')
+          ..write('bgAssetId: $bgAssetId, ')
+          ..write('bgPdfIndex: $bgPdfIndex, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5712,6 +5911,15 @@ class $RecordingsTable extends Recordings
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5724,6 +5932,7 @@ class $RecordingsTable extends Recordings
     deletedAt,
     version,
     fieldVersions,
+    title,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5813,6 +6022,12 @@ class $RecordingsTable extends Recordings
         ),
       );
     }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
     return context;
   }
 
@@ -5862,6 +6077,10 @@ class $RecordingsTable extends Recordings
         DriftSqlType.string,
         data['${effectivePrefix}field_versions'],
       ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
     );
   }
 
@@ -5882,6 +6101,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
   final int? deletedAt;
   final String version;
   final String? fieldVersions;
+  final String? title;
   const RecordingRow({
     required this.id,
     required this.noteId,
@@ -5893,6 +6113,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
     this.deletedAt,
     required this.version,
     this.fieldVersions,
+    this.title,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5910,6 +6131,9 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
     map['version'] = Variable<String>(version);
     if (!nullToAbsent || fieldVersions != null) {
       map['field_versions'] = Variable<String>(fieldVersions);
+    }
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
     }
     return map;
   }
@@ -5930,6 +6154,9 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
       fieldVersions: fieldVersions == null && nullToAbsent
           ? const Value.absent()
           : Value(fieldVersions),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
     );
   }
 
@@ -5949,6 +6176,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
       deletedAt: serializer.fromJson<int?>(json['deletedAt']),
       version: serializer.fromJson<String>(json['version']),
       fieldVersions: serializer.fromJson<String?>(json['fieldVersions']),
+      title: serializer.fromJson<String?>(json['title']),
     );
   }
   @override
@@ -5965,6 +6193,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
       'deletedAt': serializer.toJson<int?>(deletedAt),
       'version': serializer.toJson<String>(version),
       'fieldVersions': serializer.toJson<String?>(fieldVersions),
+      'title': serializer.toJson<String?>(title),
     };
   }
 
@@ -5979,6 +6208,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
     Value<int?> deletedAt = const Value.absent(),
     String? version,
     Value<String?> fieldVersions = const Value.absent(),
+    Value<String?> title = const Value.absent(),
   }) => RecordingRow(
     id: id ?? this.id,
     noteId: noteId ?? this.noteId,
@@ -5992,6 +6222,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
     fieldVersions: fieldVersions.present
         ? fieldVersions.value
         : this.fieldVersions,
+    title: title.present ? title.value : this.title,
   );
   RecordingRow copyWithCompanion(RecordingsCompanion data) {
     return RecordingRow(
@@ -6009,6 +6240,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
       fieldVersions: data.fieldVersions.present
           ? data.fieldVersions.value
           : this.fieldVersions,
+      title: data.title.present ? data.title.value : this.title,
     );
   }
 
@@ -6024,7 +6256,8 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('version: $version, ')
-          ..write('fieldVersions: $fieldVersions')
+          ..write('fieldVersions: $fieldVersions, ')
+          ..write('title: $title')
           ..write(')'))
         .toString();
   }
@@ -6041,6 +6274,7 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
     deletedAt,
     version,
     fieldVersions,
+    title,
   );
   @override
   bool operator ==(Object other) =>
@@ -6055,7 +6289,8 @@ class RecordingRow extends DataClass implements Insertable<RecordingRow> {
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
           other.version == this.version &&
-          other.fieldVersions == this.fieldVersions);
+          other.fieldVersions == this.fieldVersions &&
+          other.title == this.title);
 }
 
 class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
@@ -6069,6 +6304,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
   final Value<int?> deletedAt;
   final Value<String> version;
   final Value<String?> fieldVersions;
+  final Value<String?> title;
   final Value<int> rowid;
   const RecordingsCompanion({
     this.id = const Value.absent(),
@@ -6081,6 +6317,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
     this.deletedAt = const Value.absent(),
     this.version = const Value.absent(),
     this.fieldVersions = const Value.absent(),
+    this.title = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RecordingsCompanion.insert({
@@ -6094,6 +6331,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
     this.deletedAt = const Value.absent(),
     required String version,
     this.fieldVersions = const Value.absent(),
+    this.title = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        noteId = Value(noteId),
@@ -6114,6 +6352,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
     Expression<int>? deletedAt,
     Expression<String>? version,
     Expression<String>? fieldVersions,
+    Expression<String>? title,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6127,6 +6366,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (version != null) 'version': version,
       if (fieldVersions != null) 'field_versions': fieldVersions,
+      if (title != null) 'title': title,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6142,6 +6382,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
     Value<int?>? deletedAt,
     Value<String>? version,
     Value<String?>? fieldVersions,
+    Value<String?>? title,
     Value<int>? rowid,
   }) {
     return RecordingsCompanion(
@@ -6155,6 +6396,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
       deletedAt: deletedAt ?? this.deletedAt,
       version: version ?? this.version,
       fieldVersions: fieldVersions ?? this.fieldVersions,
+      title: title ?? this.title,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6192,6 +6434,9 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
     if (fieldVersions.present) {
       map['field_versions'] = Variable<String>(fieldVersions.value);
     }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6211,6 +6456,7 @@ class RecordingsCompanion extends UpdateCompanion<RecordingRow> {
           ..write('deletedAt: $deletedAt, ')
           ..write('version: $version, ')
           ..write('fieldVersions: $fieldVersions, ')
+          ..write('title: $title, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7237,6 +7483,3371 @@ class OutboxCompanion extends UpdateCompanion<OutboxRow> {
   }
 }
 
+class $PageObjectsTable extends PageObjects
+    with TableInfo<$PageObjectsTable, PageObjectRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PageObjectsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageIdMeta = const VerificationMeta('pageId');
+  @override
+  late final GeneratedColumn<String> pageId = GeneratedColumn<String>(
+    'page_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _minXMeta = const VerificationMeta('minX');
+  @override
+  late final GeneratedColumn<double> minX = GeneratedColumn<double>(
+    'min_x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _minYMeta = const VerificationMeta('minY');
+  @override
+  late final GeneratedColumn<double> minY = GeneratedColumn<double>(
+    'min_y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _maxXMeta = const VerificationMeta('maxX');
+  @override
+  late final GeneratedColumn<double> maxX = GeneratedColumn<double>(
+    'max_x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _maxYMeta = const VerificationMeta('maxY');
+  @override
+  late final GeneratedColumn<double> maxY = GeneratedColumn<double>(
+    'max_y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dataJsonMeta = const VerificationMeta(
+    'dataJson',
+  );
+  @override
+  late final GeneratedColumn<String> dataJson = GeneratedColumn<String>(
+    'data_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<String> version = GeneratedColumn<String>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fieldVersionsMeta = const VerificationMeta(
+    'fieldVersions',
+  );
+  @override
+  late final GeneratedColumn<String> fieldVersions = GeneratedColumn<String>(
+    'field_versions',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    pageId,
+    noteId,
+    type,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    dataJson,
+    assetId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    version,
+    fieldVersions,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'page_objects';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PageObjectRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('page_id')) {
+      context.handle(
+        _pageIdMeta,
+        pageId.isAcceptableOrUnknown(data['page_id']!, _pageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pageIdMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteIdMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('min_x')) {
+      context.handle(
+        _minXMeta,
+        minX.isAcceptableOrUnknown(data['min_x']!, _minXMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_minXMeta);
+    }
+    if (data.containsKey('min_y')) {
+      context.handle(
+        _minYMeta,
+        minY.isAcceptableOrUnknown(data['min_y']!, _minYMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_minYMeta);
+    }
+    if (data.containsKey('max_x')) {
+      context.handle(
+        _maxXMeta,
+        maxX.isAcceptableOrUnknown(data['max_x']!, _maxXMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_maxXMeta);
+    }
+    if (data.containsKey('max_y')) {
+      context.handle(
+        _maxYMeta,
+        maxY.isAcceptableOrUnknown(data['max_y']!, _maxYMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_maxYMeta);
+    }
+    if (data.containsKey('data_json')) {
+      context.handle(
+        _dataJsonMeta,
+        dataJson.isAcceptableOrUnknown(data['data_json']!, _dataJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dataJsonMeta);
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    if (data.containsKey('field_versions')) {
+      context.handle(
+        _fieldVersionsMeta,
+        fieldVersions.isAcceptableOrUnknown(
+          data['field_versions']!,
+          _fieldVersionsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PageObjectRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PageObjectRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      pageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}page_id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      minX: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}min_x'],
+      )!,
+      minY: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}min_y'],
+      )!,
+      maxX: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}max_x'],
+      )!,
+      maxY: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}max_y'],
+      )!,
+      dataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data_json'],
+      )!,
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}version'],
+      )!,
+      fieldVersions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}field_versions'],
+      ),
+    );
+  }
+
+  @override
+  $PageObjectsTable createAlias(String alias) {
+    return $PageObjectsTable(attachedDatabase, alias);
+  }
+}
+
+class PageObjectRow extends DataClass implements Insertable<PageObjectRow> {
+  final String id;
+  final String pageId;
+  final String noteId;
+  final String type;
+  final double minX;
+  final double minY;
+  final double maxX;
+  final double maxY;
+  final String dataJson;
+  final String? assetId;
+  final int createdAt;
+  final int updatedAt;
+  final int? deletedAt;
+  final String version;
+  final String? fieldVersions;
+  const PageObjectRow({
+    required this.id,
+    required this.pageId,
+    required this.noteId,
+    required this.type,
+    required this.minX,
+    required this.minY,
+    required this.maxX,
+    required this.maxY,
+    required this.dataJson,
+    this.assetId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.version,
+    this.fieldVersions,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['page_id'] = Variable<String>(pageId);
+    map['note_id'] = Variable<String>(noteId);
+    map['type'] = Variable<String>(type);
+    map['min_x'] = Variable<double>(minX);
+    map['min_y'] = Variable<double>(minY);
+    map['max_x'] = Variable<double>(maxX);
+    map['max_y'] = Variable<double>(maxY);
+    map['data_json'] = Variable<String>(dataJson);
+    if (!nullToAbsent || assetId != null) {
+      map['asset_id'] = Variable<String>(assetId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['version'] = Variable<String>(version);
+    if (!nullToAbsent || fieldVersions != null) {
+      map['field_versions'] = Variable<String>(fieldVersions);
+    }
+    return map;
+  }
+
+  PageObjectsCompanion toCompanion(bool nullToAbsent) {
+    return PageObjectsCompanion(
+      id: Value(id),
+      pageId: Value(pageId),
+      noteId: Value(noteId),
+      type: Value(type),
+      minX: Value(minX),
+      minY: Value(minY),
+      maxX: Value(maxX),
+      maxY: Value(maxY),
+      dataJson: Value(dataJson),
+      assetId: assetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(assetId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      version: Value(version),
+      fieldVersions: fieldVersions == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fieldVersions),
+    );
+  }
+
+  factory PageObjectRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PageObjectRow(
+      id: serializer.fromJson<String>(json['id']),
+      pageId: serializer.fromJson<String>(json['pageId']),
+      noteId: serializer.fromJson<String>(json['noteId']),
+      type: serializer.fromJson<String>(json['type']),
+      minX: serializer.fromJson<double>(json['minX']),
+      minY: serializer.fromJson<double>(json['minY']),
+      maxX: serializer.fromJson<double>(json['maxX']),
+      maxY: serializer.fromJson<double>(json['maxY']),
+      dataJson: serializer.fromJson<String>(json['dataJson']),
+      assetId: serializer.fromJson<String?>(json['assetId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      version: serializer.fromJson<String>(json['version']),
+      fieldVersions: serializer.fromJson<String?>(json['fieldVersions']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'pageId': serializer.toJson<String>(pageId),
+      'noteId': serializer.toJson<String>(noteId),
+      'type': serializer.toJson<String>(type),
+      'minX': serializer.toJson<double>(minX),
+      'minY': serializer.toJson<double>(minY),
+      'maxX': serializer.toJson<double>(maxX),
+      'maxY': serializer.toJson<double>(maxY),
+      'dataJson': serializer.toJson<String>(dataJson),
+      'assetId': serializer.toJson<String?>(assetId),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'version': serializer.toJson<String>(version),
+      'fieldVersions': serializer.toJson<String?>(fieldVersions),
+    };
+  }
+
+  PageObjectRow copyWith({
+    String? id,
+    String? pageId,
+    String? noteId,
+    String? type,
+    double? minX,
+    double? minY,
+    double? maxX,
+    double? maxY,
+    String? dataJson,
+    Value<String?> assetId = const Value.absent(),
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? version,
+    Value<String?> fieldVersions = const Value.absent(),
+  }) => PageObjectRow(
+    id: id ?? this.id,
+    pageId: pageId ?? this.pageId,
+    noteId: noteId ?? this.noteId,
+    type: type ?? this.type,
+    minX: minX ?? this.minX,
+    minY: minY ?? this.minY,
+    maxX: maxX ?? this.maxX,
+    maxY: maxY ?? this.maxY,
+    dataJson: dataJson ?? this.dataJson,
+    assetId: assetId.present ? assetId.value : this.assetId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    version: version ?? this.version,
+    fieldVersions: fieldVersions.present
+        ? fieldVersions.value
+        : this.fieldVersions,
+  );
+  PageObjectRow copyWithCompanion(PageObjectsCompanion data) {
+    return PageObjectRow(
+      id: data.id.present ? data.id.value : this.id,
+      pageId: data.pageId.present ? data.pageId.value : this.pageId,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      type: data.type.present ? data.type.value : this.type,
+      minX: data.minX.present ? data.minX.value : this.minX,
+      minY: data.minY.present ? data.minY.value : this.minY,
+      maxX: data.maxX.present ? data.maxX.value : this.maxX,
+      maxY: data.maxY.present ? data.maxY.value : this.maxY,
+      dataJson: data.dataJson.present ? data.dataJson.value : this.dataJson,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      version: data.version.present ? data.version.value : this.version,
+      fieldVersions: data.fieldVersions.present
+          ? data.fieldVersions.value
+          : this.fieldVersions,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PageObjectRow(')
+          ..write('id: $id, ')
+          ..write('pageId: $pageId, ')
+          ..write('noteId: $noteId, ')
+          ..write('type: $type, ')
+          ..write('minX: $minX, ')
+          ..write('minY: $minY, ')
+          ..write('maxX: $maxX, ')
+          ..write('maxY: $maxY, ')
+          ..write('dataJson: $dataJson, ')
+          ..write('assetId: $assetId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('version: $version, ')
+          ..write('fieldVersions: $fieldVersions')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    pageId,
+    noteId,
+    type,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    dataJson,
+    assetId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    version,
+    fieldVersions,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PageObjectRow &&
+          other.id == this.id &&
+          other.pageId == this.pageId &&
+          other.noteId == this.noteId &&
+          other.type == this.type &&
+          other.minX == this.minX &&
+          other.minY == this.minY &&
+          other.maxX == this.maxX &&
+          other.maxY == this.maxY &&
+          other.dataJson == this.dataJson &&
+          other.assetId == this.assetId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.version == this.version &&
+          other.fieldVersions == this.fieldVersions);
+}
+
+class PageObjectsCompanion extends UpdateCompanion<PageObjectRow> {
+  final Value<String> id;
+  final Value<String> pageId;
+  final Value<String> noteId;
+  final Value<String> type;
+  final Value<double> minX;
+  final Value<double> minY;
+  final Value<double> maxX;
+  final Value<double> maxY;
+  final Value<String> dataJson;
+  final Value<String?> assetId;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<String> version;
+  final Value<String?> fieldVersions;
+  final Value<int> rowid;
+  const PageObjectsCompanion({
+    this.id = const Value.absent(),
+    this.pageId = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.type = const Value.absent(),
+    this.minX = const Value.absent(),
+    this.minY = const Value.absent(),
+    this.maxX = const Value.absent(),
+    this.maxY = const Value.absent(),
+    this.dataJson = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.version = const Value.absent(),
+    this.fieldVersions = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PageObjectsCompanion.insert({
+    required String id,
+    required String pageId,
+    required String noteId,
+    required String type,
+    required double minX,
+    required double minY,
+    required double maxX,
+    required double maxY,
+    required String dataJson,
+    this.assetId = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String version,
+    this.fieldVersions = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       pageId = Value(pageId),
+       noteId = Value(noteId),
+       type = Value(type),
+       minX = Value(minX),
+       minY = Value(minY),
+       maxX = Value(maxX),
+       maxY = Value(maxY),
+       dataJson = Value(dataJson),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       version = Value(version);
+  static Insertable<PageObjectRow> custom({
+    Expression<String>? id,
+    Expression<String>? pageId,
+    Expression<String>? noteId,
+    Expression<String>? type,
+    Expression<double>? minX,
+    Expression<double>? minY,
+    Expression<double>? maxX,
+    Expression<double>? maxY,
+    Expression<String>? dataJson,
+    Expression<String>? assetId,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<String>? version,
+    Expression<String>? fieldVersions,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (pageId != null) 'page_id': pageId,
+      if (noteId != null) 'note_id': noteId,
+      if (type != null) 'type': type,
+      if (minX != null) 'min_x': minX,
+      if (minY != null) 'min_y': minY,
+      if (maxX != null) 'max_x': maxX,
+      if (maxY != null) 'max_y': maxY,
+      if (dataJson != null) 'data_json': dataJson,
+      if (assetId != null) 'asset_id': assetId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (version != null) 'version': version,
+      if (fieldVersions != null) 'field_versions': fieldVersions,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PageObjectsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? pageId,
+    Value<String>? noteId,
+    Value<String>? type,
+    Value<double>? minX,
+    Value<double>? minY,
+    Value<double>? maxX,
+    Value<double>? maxY,
+    Value<String>? dataJson,
+    Value<String?>? assetId,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? deletedAt,
+    Value<String>? version,
+    Value<String?>? fieldVersions,
+    Value<int>? rowid,
+  }) {
+    return PageObjectsCompanion(
+      id: id ?? this.id,
+      pageId: pageId ?? this.pageId,
+      noteId: noteId ?? this.noteId,
+      type: type ?? this.type,
+      minX: minX ?? this.minX,
+      minY: minY ?? this.minY,
+      maxX: maxX ?? this.maxX,
+      maxY: maxY ?? this.maxY,
+      dataJson: dataJson ?? this.dataJson,
+      assetId: assetId ?? this.assetId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      version: version ?? this.version,
+      fieldVersions: fieldVersions ?? this.fieldVersions,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (pageId.present) {
+      map['page_id'] = Variable<String>(pageId.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (minX.present) {
+      map['min_x'] = Variable<double>(minX.value);
+    }
+    if (minY.present) {
+      map['min_y'] = Variable<double>(minY.value);
+    }
+    if (maxX.present) {
+      map['max_x'] = Variable<double>(maxX.value);
+    }
+    if (maxY.present) {
+      map['max_y'] = Variable<double>(maxY.value);
+    }
+    if (dataJson.present) {
+      map['data_json'] = Variable<String>(dataJson.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<String>(version.value);
+    }
+    if (fieldVersions.present) {
+      map['field_versions'] = Variable<String>(fieldVersions.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PageObjectsCompanion(')
+          ..write('id: $id, ')
+          ..write('pageId: $pageId, ')
+          ..write('noteId: $noteId, ')
+          ..write('type: $type, ')
+          ..write('minX: $minX, ')
+          ..write('minY: $minY, ')
+          ..write('maxX: $maxX, ')
+          ..write('maxY: $maxY, ')
+          ..write('dataJson: $dataJson, ')
+          ..write('assetId: $assetId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('version: $version, ')
+          ..write('fieldVersions: $fieldVersions, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HandwritingTable extends Handwriting
+    with TableInfo<$HandwritingTable, HandwritingRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HandwritingTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageIdMeta = const VerificationMeta('pageId');
+  @override
+  late final GeneratedColumn<String> pageId = GeneratedColumn<String>(
+    'page_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _engineIdMeta = const VerificationMeta(
+    'engineId',
+  );
+  @override
+  late final GeneratedColumn<String> engineId = GeneratedColumn<String>(
+    'engine_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceRevMeta = const VerificationMeta(
+    'sourceRev',
+  );
+  @override
+  late final GeneratedColumn<String> sourceRev = GeneratedColumn<String>(
+    'source_rev',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _linesJsonMeta = const VerificationMeta(
+    'linesJson',
+  );
+  @override
+  late final GeneratedColumn<String> linesJson = GeneratedColumn<String>(
+    'lines_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<String> version = GeneratedColumn<String>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fieldVersionsMeta = const VerificationMeta(
+    'fieldVersions',
+  );
+  @override
+  late final GeneratedColumn<String> fieldVersions = GeneratedColumn<String>(
+    'field_versions',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    pageId,
+    noteId,
+    engineId,
+    sourceRev,
+    linesJson,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    version,
+    fieldVersions,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'handwriting';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HandwritingRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('page_id')) {
+      context.handle(
+        _pageIdMeta,
+        pageId.isAcceptableOrUnknown(data['page_id']!, _pageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pageIdMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteIdMeta);
+    }
+    if (data.containsKey('engine_id')) {
+      context.handle(
+        _engineIdMeta,
+        engineId.isAcceptableOrUnknown(data['engine_id']!, _engineIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_engineIdMeta);
+    }
+    if (data.containsKey('source_rev')) {
+      context.handle(
+        _sourceRevMeta,
+        sourceRev.isAcceptableOrUnknown(data['source_rev']!, _sourceRevMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceRevMeta);
+    }
+    if (data.containsKey('lines_json')) {
+      context.handle(
+        _linesJsonMeta,
+        linesJson.isAcceptableOrUnknown(data['lines_json']!, _linesJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_linesJsonMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    if (data.containsKey('field_versions')) {
+      context.handle(
+        _fieldVersionsMeta,
+        fieldVersions.isAcceptableOrUnknown(
+          data['field_versions']!,
+          _fieldVersionsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HandwritingRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HandwritingRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      pageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}page_id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      )!,
+      engineId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}engine_id'],
+      )!,
+      sourceRev: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_rev'],
+      )!,
+      linesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}lines_json'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}version'],
+      )!,
+      fieldVersions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}field_versions'],
+      ),
+    );
+  }
+
+  @override
+  $HandwritingTable createAlias(String alias) {
+    return $HandwritingTable(attachedDatabase, alias);
+  }
+}
+
+class HandwritingRow extends DataClass implements Insertable<HandwritingRow> {
+  final String id;
+  final String pageId;
+  final String noteId;
+  final String engineId;
+  final String sourceRev;
+  final String linesJson;
+  final int createdAt;
+  final int updatedAt;
+  final int? deletedAt;
+  final String version;
+  final String? fieldVersions;
+  const HandwritingRow({
+    required this.id,
+    required this.pageId,
+    required this.noteId,
+    required this.engineId,
+    required this.sourceRev,
+    required this.linesJson,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.version,
+    this.fieldVersions,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['page_id'] = Variable<String>(pageId);
+    map['note_id'] = Variable<String>(noteId);
+    map['engine_id'] = Variable<String>(engineId);
+    map['source_rev'] = Variable<String>(sourceRev);
+    map['lines_json'] = Variable<String>(linesJson);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['version'] = Variable<String>(version);
+    if (!nullToAbsent || fieldVersions != null) {
+      map['field_versions'] = Variable<String>(fieldVersions);
+    }
+    return map;
+  }
+
+  HandwritingCompanion toCompanion(bool nullToAbsent) {
+    return HandwritingCompanion(
+      id: Value(id),
+      pageId: Value(pageId),
+      noteId: Value(noteId),
+      engineId: Value(engineId),
+      sourceRev: Value(sourceRev),
+      linesJson: Value(linesJson),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      version: Value(version),
+      fieldVersions: fieldVersions == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fieldVersions),
+    );
+  }
+
+  factory HandwritingRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HandwritingRow(
+      id: serializer.fromJson<String>(json['id']),
+      pageId: serializer.fromJson<String>(json['pageId']),
+      noteId: serializer.fromJson<String>(json['noteId']),
+      engineId: serializer.fromJson<String>(json['engineId']),
+      sourceRev: serializer.fromJson<String>(json['sourceRev']),
+      linesJson: serializer.fromJson<String>(json['linesJson']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      version: serializer.fromJson<String>(json['version']),
+      fieldVersions: serializer.fromJson<String?>(json['fieldVersions']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'pageId': serializer.toJson<String>(pageId),
+      'noteId': serializer.toJson<String>(noteId),
+      'engineId': serializer.toJson<String>(engineId),
+      'sourceRev': serializer.toJson<String>(sourceRev),
+      'linesJson': serializer.toJson<String>(linesJson),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'version': serializer.toJson<String>(version),
+      'fieldVersions': serializer.toJson<String?>(fieldVersions),
+    };
+  }
+
+  HandwritingRow copyWith({
+    String? id,
+    String? pageId,
+    String? noteId,
+    String? engineId,
+    String? sourceRev,
+    String? linesJson,
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? version,
+    Value<String?> fieldVersions = const Value.absent(),
+  }) => HandwritingRow(
+    id: id ?? this.id,
+    pageId: pageId ?? this.pageId,
+    noteId: noteId ?? this.noteId,
+    engineId: engineId ?? this.engineId,
+    sourceRev: sourceRev ?? this.sourceRev,
+    linesJson: linesJson ?? this.linesJson,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    version: version ?? this.version,
+    fieldVersions: fieldVersions.present
+        ? fieldVersions.value
+        : this.fieldVersions,
+  );
+  HandwritingRow copyWithCompanion(HandwritingCompanion data) {
+    return HandwritingRow(
+      id: data.id.present ? data.id.value : this.id,
+      pageId: data.pageId.present ? data.pageId.value : this.pageId,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      engineId: data.engineId.present ? data.engineId.value : this.engineId,
+      sourceRev: data.sourceRev.present ? data.sourceRev.value : this.sourceRev,
+      linesJson: data.linesJson.present ? data.linesJson.value : this.linesJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      version: data.version.present ? data.version.value : this.version,
+      fieldVersions: data.fieldVersions.present
+          ? data.fieldVersions.value
+          : this.fieldVersions,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HandwritingRow(')
+          ..write('id: $id, ')
+          ..write('pageId: $pageId, ')
+          ..write('noteId: $noteId, ')
+          ..write('engineId: $engineId, ')
+          ..write('sourceRev: $sourceRev, ')
+          ..write('linesJson: $linesJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('version: $version, ')
+          ..write('fieldVersions: $fieldVersions')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    pageId,
+    noteId,
+    engineId,
+    sourceRev,
+    linesJson,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    version,
+    fieldVersions,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HandwritingRow &&
+          other.id == this.id &&
+          other.pageId == this.pageId &&
+          other.noteId == this.noteId &&
+          other.engineId == this.engineId &&
+          other.sourceRev == this.sourceRev &&
+          other.linesJson == this.linesJson &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.version == this.version &&
+          other.fieldVersions == this.fieldVersions);
+}
+
+class HandwritingCompanion extends UpdateCompanion<HandwritingRow> {
+  final Value<String> id;
+  final Value<String> pageId;
+  final Value<String> noteId;
+  final Value<String> engineId;
+  final Value<String> sourceRev;
+  final Value<String> linesJson;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<String> version;
+  final Value<String?> fieldVersions;
+  final Value<int> rowid;
+  const HandwritingCompanion({
+    this.id = const Value.absent(),
+    this.pageId = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.engineId = const Value.absent(),
+    this.sourceRev = const Value.absent(),
+    this.linesJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.version = const Value.absent(),
+    this.fieldVersions = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HandwritingCompanion.insert({
+    required String id,
+    required String pageId,
+    required String noteId,
+    required String engineId,
+    required String sourceRev,
+    required String linesJson,
+    required int createdAt,
+    required int updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String version,
+    this.fieldVersions = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       pageId = Value(pageId),
+       noteId = Value(noteId),
+       engineId = Value(engineId),
+       sourceRev = Value(sourceRev),
+       linesJson = Value(linesJson),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       version = Value(version);
+  static Insertable<HandwritingRow> custom({
+    Expression<String>? id,
+    Expression<String>? pageId,
+    Expression<String>? noteId,
+    Expression<String>? engineId,
+    Expression<String>? sourceRev,
+    Expression<String>? linesJson,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<String>? version,
+    Expression<String>? fieldVersions,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (pageId != null) 'page_id': pageId,
+      if (noteId != null) 'note_id': noteId,
+      if (engineId != null) 'engine_id': engineId,
+      if (sourceRev != null) 'source_rev': sourceRev,
+      if (linesJson != null) 'lines_json': linesJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (version != null) 'version': version,
+      if (fieldVersions != null) 'field_versions': fieldVersions,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HandwritingCompanion copyWith({
+    Value<String>? id,
+    Value<String>? pageId,
+    Value<String>? noteId,
+    Value<String>? engineId,
+    Value<String>? sourceRev,
+    Value<String>? linesJson,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? deletedAt,
+    Value<String>? version,
+    Value<String?>? fieldVersions,
+    Value<int>? rowid,
+  }) {
+    return HandwritingCompanion(
+      id: id ?? this.id,
+      pageId: pageId ?? this.pageId,
+      noteId: noteId ?? this.noteId,
+      engineId: engineId ?? this.engineId,
+      sourceRev: sourceRev ?? this.sourceRev,
+      linesJson: linesJson ?? this.linesJson,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      version: version ?? this.version,
+      fieldVersions: fieldVersions ?? this.fieldVersions,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (pageId.present) {
+      map['page_id'] = Variable<String>(pageId.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (engineId.present) {
+      map['engine_id'] = Variable<String>(engineId.value);
+    }
+    if (sourceRev.present) {
+      map['source_rev'] = Variable<String>(sourceRev.value);
+    }
+    if (linesJson.present) {
+      map['lines_json'] = Variable<String>(linesJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<String>(version.value);
+    }
+    if (fieldVersions.present) {
+      map['field_versions'] = Variable<String>(fieldVersions.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HandwritingCompanion(')
+          ..write('id: $id, ')
+          ..write('pageId: $pageId, ')
+          ..write('noteId: $noteId, ')
+          ..write('engineId: $engineId, ')
+          ..write('sourceRev: $sourceRev, ')
+          ..write('linesJson: $linesJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('version: $version, ')
+          ..write('fieldVersions: $fieldVersions, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RecordingDraftsTable extends RecordingDrafts
+    with TableInfo<$RecordingDraftsTable, RecordingDraftRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RecordingDraftsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _draftIdMeta = const VerificationMeta(
+    'draftId',
+  );
+  @override
+  late final GeneratedColumn<String> draftId = GeneratedColumn<String>(
+    'draft_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recordingIdMeta = const VerificationMeta(
+    'recordingId',
+  );
+  @override
+  late final GeneratedColumn<String> recordingId = GeneratedColumn<String>(
+    'recording_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mimeTypeMeta = const VerificationMeta(
+    'mimeType',
+  );
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+    'mime_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chunkCountMeta = const VerificationMeta(
+    'chunkCount',
+  );
+  @override
+  late final GeneratedColumn<int> chunkCount = GeneratedColumn<int>(
+    'chunk_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bytesMeta = const VerificationMeta('bytes');
+  @override
+  late final GeneratedColumn<int> bytes = GeneratedColumn<int>(
+    'bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _activeMsMeta = const VerificationMeta(
+    'activeMs',
+  );
+  @override
+  late final GeneratedColumn<int> activeMs = GeneratedColumn<int>(
+    'active_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    draftId,
+    recordingId,
+    noteId,
+    mimeType,
+    startedAt,
+    chunkCount,
+    bytes,
+    activeMs,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'recording_drafts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecordingDraftRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('draft_id')) {
+      context.handle(
+        _draftIdMeta,
+        draftId.isAcceptableOrUnknown(data['draft_id']!, _draftIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_draftIdMeta);
+    }
+    if (data.containsKey('recording_id')) {
+      context.handle(
+        _recordingIdMeta,
+        recordingId.isAcceptableOrUnknown(
+          data['recording_id']!,
+          _recordingIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_recordingIdMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteIdMeta);
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(
+        _mimeTypeMeta,
+        mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mimeTypeMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('chunk_count')) {
+      context.handle(
+        _chunkCountMeta,
+        chunkCount.isAcceptableOrUnknown(data['chunk_count']!, _chunkCountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_chunkCountMeta);
+    }
+    if (data.containsKey('bytes')) {
+      context.handle(
+        _bytesMeta,
+        bytes.isAcceptableOrUnknown(data['bytes']!, _bytesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bytesMeta);
+    }
+    if (data.containsKey('active_ms')) {
+      context.handle(
+        _activeMsMeta,
+        activeMs.isAcceptableOrUnknown(data['active_ms']!, _activeMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_activeMsMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {draftId};
+  @override
+  RecordingDraftRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecordingDraftRow(
+      draftId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}draft_id'],
+      )!,
+      recordingId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recording_id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      )!,
+      mimeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mime_type'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}started_at'],
+      )!,
+      chunkCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chunk_count'],
+      )!,
+      bytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bytes'],
+      )!,
+      activeMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}active_ms'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $RecordingDraftsTable createAlias(String alias) {
+    return $RecordingDraftsTable(attachedDatabase, alias);
+  }
+}
+
+class RecordingDraftRow extends DataClass
+    implements Insertable<RecordingDraftRow> {
+  final String draftId;
+  final String recordingId;
+  final String noteId;
+  final String mimeType;
+  final int startedAt;
+  final int chunkCount;
+  final int bytes;
+  final int activeMs;
+  final int updatedAt;
+  const RecordingDraftRow({
+    required this.draftId,
+    required this.recordingId,
+    required this.noteId,
+    required this.mimeType,
+    required this.startedAt,
+    required this.chunkCount,
+    required this.bytes,
+    required this.activeMs,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['draft_id'] = Variable<String>(draftId);
+    map['recording_id'] = Variable<String>(recordingId);
+    map['note_id'] = Variable<String>(noteId);
+    map['mime_type'] = Variable<String>(mimeType);
+    map['started_at'] = Variable<int>(startedAt);
+    map['chunk_count'] = Variable<int>(chunkCount);
+    map['bytes'] = Variable<int>(bytes);
+    map['active_ms'] = Variable<int>(activeMs);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  RecordingDraftsCompanion toCompanion(bool nullToAbsent) {
+    return RecordingDraftsCompanion(
+      draftId: Value(draftId),
+      recordingId: Value(recordingId),
+      noteId: Value(noteId),
+      mimeType: Value(mimeType),
+      startedAt: Value(startedAt),
+      chunkCount: Value(chunkCount),
+      bytes: Value(bytes),
+      activeMs: Value(activeMs),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory RecordingDraftRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecordingDraftRow(
+      draftId: serializer.fromJson<String>(json['draftId']),
+      recordingId: serializer.fromJson<String>(json['recordingId']),
+      noteId: serializer.fromJson<String>(json['noteId']),
+      mimeType: serializer.fromJson<String>(json['mimeType']),
+      startedAt: serializer.fromJson<int>(json['startedAt']),
+      chunkCount: serializer.fromJson<int>(json['chunkCount']),
+      bytes: serializer.fromJson<int>(json['bytes']),
+      activeMs: serializer.fromJson<int>(json['activeMs']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'draftId': serializer.toJson<String>(draftId),
+      'recordingId': serializer.toJson<String>(recordingId),
+      'noteId': serializer.toJson<String>(noteId),
+      'mimeType': serializer.toJson<String>(mimeType),
+      'startedAt': serializer.toJson<int>(startedAt),
+      'chunkCount': serializer.toJson<int>(chunkCount),
+      'bytes': serializer.toJson<int>(bytes),
+      'activeMs': serializer.toJson<int>(activeMs),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  RecordingDraftRow copyWith({
+    String? draftId,
+    String? recordingId,
+    String? noteId,
+    String? mimeType,
+    int? startedAt,
+    int? chunkCount,
+    int? bytes,
+    int? activeMs,
+    int? updatedAt,
+  }) => RecordingDraftRow(
+    draftId: draftId ?? this.draftId,
+    recordingId: recordingId ?? this.recordingId,
+    noteId: noteId ?? this.noteId,
+    mimeType: mimeType ?? this.mimeType,
+    startedAt: startedAt ?? this.startedAt,
+    chunkCount: chunkCount ?? this.chunkCount,
+    bytes: bytes ?? this.bytes,
+    activeMs: activeMs ?? this.activeMs,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  RecordingDraftRow copyWithCompanion(RecordingDraftsCompanion data) {
+    return RecordingDraftRow(
+      draftId: data.draftId.present ? data.draftId.value : this.draftId,
+      recordingId: data.recordingId.present
+          ? data.recordingId.value
+          : this.recordingId,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      chunkCount: data.chunkCount.present
+          ? data.chunkCount.value
+          : this.chunkCount,
+      bytes: data.bytes.present ? data.bytes.value : this.bytes,
+      activeMs: data.activeMs.present ? data.activeMs.value : this.activeMs,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecordingDraftRow(')
+          ..write('draftId: $draftId, ')
+          ..write('recordingId: $recordingId, ')
+          ..write('noteId: $noteId, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('chunkCount: $chunkCount, ')
+          ..write('bytes: $bytes, ')
+          ..write('activeMs: $activeMs, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    draftId,
+    recordingId,
+    noteId,
+    mimeType,
+    startedAt,
+    chunkCount,
+    bytes,
+    activeMs,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecordingDraftRow &&
+          other.draftId == this.draftId &&
+          other.recordingId == this.recordingId &&
+          other.noteId == this.noteId &&
+          other.mimeType == this.mimeType &&
+          other.startedAt == this.startedAt &&
+          other.chunkCount == this.chunkCount &&
+          other.bytes == this.bytes &&
+          other.activeMs == this.activeMs &&
+          other.updatedAt == this.updatedAt);
+}
+
+class RecordingDraftsCompanion extends UpdateCompanion<RecordingDraftRow> {
+  final Value<String> draftId;
+  final Value<String> recordingId;
+  final Value<String> noteId;
+  final Value<String> mimeType;
+  final Value<int> startedAt;
+  final Value<int> chunkCount;
+  final Value<int> bytes;
+  final Value<int> activeMs;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const RecordingDraftsCompanion({
+    this.draftId = const Value.absent(),
+    this.recordingId = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.chunkCount = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.activeMs = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RecordingDraftsCompanion.insert({
+    required String draftId,
+    required String recordingId,
+    required String noteId,
+    required String mimeType,
+    required int startedAt,
+    required int chunkCount,
+    required int bytes,
+    required int activeMs,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : draftId = Value(draftId),
+       recordingId = Value(recordingId),
+       noteId = Value(noteId),
+       mimeType = Value(mimeType),
+       startedAt = Value(startedAt),
+       chunkCount = Value(chunkCount),
+       bytes = Value(bytes),
+       activeMs = Value(activeMs),
+       updatedAt = Value(updatedAt);
+  static Insertable<RecordingDraftRow> custom({
+    Expression<String>? draftId,
+    Expression<String>? recordingId,
+    Expression<String>? noteId,
+    Expression<String>? mimeType,
+    Expression<int>? startedAt,
+    Expression<int>? chunkCount,
+    Expression<int>? bytes,
+    Expression<int>? activeMs,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (draftId != null) 'draft_id': draftId,
+      if (recordingId != null) 'recording_id': recordingId,
+      if (noteId != null) 'note_id': noteId,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (startedAt != null) 'started_at': startedAt,
+      if (chunkCount != null) 'chunk_count': chunkCount,
+      if (bytes != null) 'bytes': bytes,
+      if (activeMs != null) 'active_ms': activeMs,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RecordingDraftsCompanion copyWith({
+    Value<String>? draftId,
+    Value<String>? recordingId,
+    Value<String>? noteId,
+    Value<String>? mimeType,
+    Value<int>? startedAt,
+    Value<int>? chunkCount,
+    Value<int>? bytes,
+    Value<int>? activeMs,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return RecordingDraftsCompanion(
+      draftId: draftId ?? this.draftId,
+      recordingId: recordingId ?? this.recordingId,
+      noteId: noteId ?? this.noteId,
+      mimeType: mimeType ?? this.mimeType,
+      startedAt: startedAt ?? this.startedAt,
+      chunkCount: chunkCount ?? this.chunkCount,
+      bytes: bytes ?? this.bytes,
+      activeMs: activeMs ?? this.activeMs,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (draftId.present) {
+      map['draft_id'] = Variable<String>(draftId.value);
+    }
+    if (recordingId.present) {
+      map['recording_id'] = Variable<String>(recordingId.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (chunkCount.present) {
+      map['chunk_count'] = Variable<int>(chunkCount.value);
+    }
+    if (bytes.present) {
+      map['bytes'] = Variable<int>(bytes.value);
+    }
+    if (activeMs.present) {
+      map['active_ms'] = Variable<int>(activeMs.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecordingDraftsCompanion(')
+          ..write('draftId: $draftId, ')
+          ..write('recordingId: $recordingId, ')
+          ..write('noteId: $noteId, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('chunkCount: $chunkCount, ')
+          ..write('bytes: $bytes, ')
+          ..write('activeMs: $activeMs, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SearchOwnersTable extends SearchOwners
+    with TableInfo<$SearchOwnersTable, SearchOwnerRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SearchOwnersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ownerKeyMeta = const VerificationMeta(
+    'ownerKey',
+  );
+  @override
+  late final GeneratedColumn<String> ownerKey = GeneratedColumn<String>(
+    'owner_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pageIdMeta = const VerificationMeta('pageId');
+  @override
+  late final GeneratedColumn<String> pageId = GeneratedColumn<String>(
+    'page_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceRevMeta = const VerificationMeta(
+    'sourceRev',
+  );
+  @override
+  late final GeneratedColumn<String> sourceRev = GeneratedColumn<String>(
+    'source_rev',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pendingMeta = const VerificationMeta(
+    'pending',
+  );
+  @override
+  late final GeneratedColumn<bool> pending = GeneratedColumn<bool>(
+    'pending',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pending" IN (0, 1))',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    source,
+    ownerKey,
+    noteId,
+    pageId,
+    sourceRev,
+    pending,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'search_owners';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SearchOwnerRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('owner_key')) {
+      context.handle(
+        _ownerKeyMeta,
+        ownerKey.isAcceptableOrUnknown(data['owner_key']!, _ownerKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ownerKeyMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    }
+    if (data.containsKey('page_id')) {
+      context.handle(
+        _pageIdMeta,
+        pageId.isAcceptableOrUnknown(data['page_id']!, _pageIdMeta),
+      );
+    }
+    if (data.containsKey('source_rev')) {
+      context.handle(
+        _sourceRevMeta,
+        sourceRev.isAcceptableOrUnknown(data['source_rev']!, _sourceRevMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceRevMeta);
+    }
+    if (data.containsKey('pending')) {
+      context.handle(
+        _pendingMeta,
+        pending.isAcceptableOrUnknown(data['pending']!, _pendingMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pendingMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {source, ownerKey};
+  @override
+  SearchOwnerRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SearchOwnerRow(
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      ownerKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_key'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      ),
+      pageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}page_id'],
+      ),
+      sourceRev: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_rev'],
+      )!,
+      pending: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pending'],
+      )!,
+    );
+  }
+
+  @override
+  $SearchOwnersTable createAlias(String alias) {
+    return $SearchOwnersTable(attachedDatabase, alias);
+  }
+}
+
+class SearchOwnerRow extends DataClass implements Insertable<SearchOwnerRow> {
+  final String source;
+  final String ownerKey;
+  final String? noteId;
+  final String? pageId;
+  final String sourceRev;
+  final bool pending;
+  const SearchOwnerRow({
+    required this.source,
+    required this.ownerKey,
+    this.noteId,
+    this.pageId,
+    required this.sourceRev,
+    required this.pending,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['source'] = Variable<String>(source);
+    map['owner_key'] = Variable<String>(ownerKey);
+    if (!nullToAbsent || noteId != null) {
+      map['note_id'] = Variable<String>(noteId);
+    }
+    if (!nullToAbsent || pageId != null) {
+      map['page_id'] = Variable<String>(pageId);
+    }
+    map['source_rev'] = Variable<String>(sourceRev);
+    map['pending'] = Variable<bool>(pending);
+    return map;
+  }
+
+  SearchOwnersCompanion toCompanion(bool nullToAbsent) {
+    return SearchOwnersCompanion(
+      source: Value(source),
+      ownerKey: Value(ownerKey),
+      noteId: noteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteId),
+      pageId: pageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pageId),
+      sourceRev: Value(sourceRev),
+      pending: Value(pending),
+    );
+  }
+
+  factory SearchOwnerRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SearchOwnerRow(
+      source: serializer.fromJson<String>(json['source']),
+      ownerKey: serializer.fromJson<String>(json['ownerKey']),
+      noteId: serializer.fromJson<String?>(json['noteId']),
+      pageId: serializer.fromJson<String?>(json['pageId']),
+      sourceRev: serializer.fromJson<String>(json['sourceRev']),
+      pending: serializer.fromJson<bool>(json['pending']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'source': serializer.toJson<String>(source),
+      'ownerKey': serializer.toJson<String>(ownerKey),
+      'noteId': serializer.toJson<String?>(noteId),
+      'pageId': serializer.toJson<String?>(pageId),
+      'sourceRev': serializer.toJson<String>(sourceRev),
+      'pending': serializer.toJson<bool>(pending),
+    };
+  }
+
+  SearchOwnerRow copyWith({
+    String? source,
+    String? ownerKey,
+    Value<String?> noteId = const Value.absent(),
+    Value<String?> pageId = const Value.absent(),
+    String? sourceRev,
+    bool? pending,
+  }) => SearchOwnerRow(
+    source: source ?? this.source,
+    ownerKey: ownerKey ?? this.ownerKey,
+    noteId: noteId.present ? noteId.value : this.noteId,
+    pageId: pageId.present ? pageId.value : this.pageId,
+    sourceRev: sourceRev ?? this.sourceRev,
+    pending: pending ?? this.pending,
+  );
+  SearchOwnerRow copyWithCompanion(SearchOwnersCompanion data) {
+    return SearchOwnerRow(
+      source: data.source.present ? data.source.value : this.source,
+      ownerKey: data.ownerKey.present ? data.ownerKey.value : this.ownerKey,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      pageId: data.pageId.present ? data.pageId.value : this.pageId,
+      sourceRev: data.sourceRev.present ? data.sourceRev.value : this.sourceRev,
+      pending: data.pending.present ? data.pending.value : this.pending,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SearchOwnerRow(')
+          ..write('source: $source, ')
+          ..write('ownerKey: $ownerKey, ')
+          ..write('noteId: $noteId, ')
+          ..write('pageId: $pageId, ')
+          ..write('sourceRev: $sourceRev, ')
+          ..write('pending: $pending')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(source, ownerKey, noteId, pageId, sourceRev, pending);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SearchOwnerRow &&
+          other.source == this.source &&
+          other.ownerKey == this.ownerKey &&
+          other.noteId == this.noteId &&
+          other.pageId == this.pageId &&
+          other.sourceRev == this.sourceRev &&
+          other.pending == this.pending);
+}
+
+class SearchOwnersCompanion extends UpdateCompanion<SearchOwnerRow> {
+  final Value<String> source;
+  final Value<String> ownerKey;
+  final Value<String?> noteId;
+  final Value<String?> pageId;
+  final Value<String> sourceRev;
+  final Value<bool> pending;
+  final Value<int> rowid;
+  const SearchOwnersCompanion({
+    this.source = const Value.absent(),
+    this.ownerKey = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.pageId = const Value.absent(),
+    this.sourceRev = const Value.absent(),
+    this.pending = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SearchOwnersCompanion.insert({
+    required String source,
+    required String ownerKey,
+    this.noteId = const Value.absent(),
+    this.pageId = const Value.absent(),
+    required String sourceRev,
+    required bool pending,
+    this.rowid = const Value.absent(),
+  }) : source = Value(source),
+       ownerKey = Value(ownerKey),
+       sourceRev = Value(sourceRev),
+       pending = Value(pending);
+  static Insertable<SearchOwnerRow> custom({
+    Expression<String>? source,
+    Expression<String>? ownerKey,
+    Expression<String>? noteId,
+    Expression<String>? pageId,
+    Expression<String>? sourceRev,
+    Expression<bool>? pending,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (source != null) 'source': source,
+      if (ownerKey != null) 'owner_key': ownerKey,
+      if (noteId != null) 'note_id': noteId,
+      if (pageId != null) 'page_id': pageId,
+      if (sourceRev != null) 'source_rev': sourceRev,
+      if (pending != null) 'pending': pending,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SearchOwnersCompanion copyWith({
+    Value<String>? source,
+    Value<String>? ownerKey,
+    Value<String?>? noteId,
+    Value<String?>? pageId,
+    Value<String>? sourceRev,
+    Value<bool>? pending,
+    Value<int>? rowid,
+  }) {
+    return SearchOwnersCompanion(
+      source: source ?? this.source,
+      ownerKey: ownerKey ?? this.ownerKey,
+      noteId: noteId ?? this.noteId,
+      pageId: pageId ?? this.pageId,
+      sourceRev: sourceRev ?? this.sourceRev,
+      pending: pending ?? this.pending,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (ownerKey.present) {
+      map['owner_key'] = Variable<String>(ownerKey.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (pageId.present) {
+      map['page_id'] = Variable<String>(pageId.value);
+    }
+    if (sourceRev.present) {
+      map['source_rev'] = Variable<String>(sourceRev.value);
+    }
+    if (pending.present) {
+      map['pending'] = Variable<bool>(pending.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SearchOwnersCompanion(')
+          ..write('source: $source, ')
+          ..write('ownerKey: $ownerKey, ')
+          ..write('noteId: $noteId, ')
+          ..write('pageId: $pageId, ')
+          ..write('sourceRev: $sourceRev, ')
+          ..write('pending: $pending, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SearchUnitsTable extends SearchUnits
+    with TableInfo<$SearchUnitsTable, SearchUnitRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SearchUnitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ownerKeyMeta = const VerificationMeta(
+    'ownerKey',
+  );
+  @override
+  late final GeneratedColumn<String> ownerKey = GeneratedColumn<String>(
+    'owner_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _seqMeta = const VerificationMeta('seq');
+  @override
+  late final GeneratedColumn<int> seq = GeneratedColumn<int>(
+    'seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pageIdMeta = const VerificationMeta('pageId');
+  @override
+  late final GeneratedColumn<String> pageId = GeneratedColumn<String>(
+    'page_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pdfIndexMeta = const VerificationMeta(
+    'pdfIndex',
+  );
+  @override
+  late final GeneratedColumn<int> pdfIndex = GeneratedColumn<int>(
+    'pdf_index',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _normMeta = const VerificationMeta('norm');
+  @override
+  late final GeneratedColumn<String> norm = GeneratedColumn<String>(
+    'norm',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rectLMeta = const VerificationMeta('rectL');
+  @override
+  late final GeneratedColumn<double> rectL = GeneratedColumn<double>(
+    'rect_l',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rectTMeta = const VerificationMeta('rectT');
+  @override
+  late final GeneratedColumn<double> rectT = GeneratedColumn<double>(
+    'rect_t',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rectRMeta = const VerificationMeta('rectR');
+  @override
+  late final GeneratedColumn<double> rectR = GeneratedColumn<double>(
+    'rect_r',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rectBMeta = const VerificationMeta('rectB');
+  @override
+  late final GeneratedColumn<double> rectB = GeneratedColumn<double>(
+    'rect_b',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rectsRefMeta = const VerificationMeta(
+    'rectsRef',
+  );
+  @override
+  late final GeneratedColumn<String> rectsRef = GeneratedColumn<String>(
+    'rects_ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pdfAspectMeta = const VerificationMeta(
+    'pdfAspect',
+  );
+  @override
+  late final GeneratedColumn<double> pdfAspect = GeneratedColumn<double>(
+    'pdf_aspect',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    source,
+    ownerKey,
+    seq,
+    noteId,
+    pageId,
+    assetId,
+    pdfIndex,
+    body,
+    norm,
+    rectL,
+    rectT,
+    rectR,
+    rectB,
+    rectsRef,
+    pdfAspect,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'search_units';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SearchUnitRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('owner_key')) {
+      context.handle(
+        _ownerKeyMeta,
+        ownerKey.isAcceptableOrUnknown(data['owner_key']!, _ownerKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ownerKeyMeta);
+    }
+    if (data.containsKey('seq')) {
+      context.handle(
+        _seqMeta,
+        seq.isAcceptableOrUnknown(data['seq']!, _seqMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seqMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    }
+    if (data.containsKey('page_id')) {
+      context.handle(
+        _pageIdMeta,
+        pageId.isAcceptableOrUnknown(data['page_id']!, _pageIdMeta),
+      );
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    }
+    if (data.containsKey('pdf_index')) {
+      context.handle(
+        _pdfIndexMeta,
+        pdfIndex.isAcceptableOrUnknown(data['pdf_index']!, _pdfIndexMeta),
+      );
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('norm')) {
+      context.handle(
+        _normMeta,
+        norm.isAcceptableOrUnknown(data['norm']!, _normMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_normMeta);
+    }
+    if (data.containsKey('rect_l')) {
+      context.handle(
+        _rectLMeta,
+        rectL.isAcceptableOrUnknown(data['rect_l']!, _rectLMeta),
+      );
+    }
+    if (data.containsKey('rect_t')) {
+      context.handle(
+        _rectTMeta,
+        rectT.isAcceptableOrUnknown(data['rect_t']!, _rectTMeta),
+      );
+    }
+    if (data.containsKey('rect_r')) {
+      context.handle(
+        _rectRMeta,
+        rectR.isAcceptableOrUnknown(data['rect_r']!, _rectRMeta),
+      );
+    }
+    if (data.containsKey('rect_b')) {
+      context.handle(
+        _rectBMeta,
+        rectB.isAcceptableOrUnknown(data['rect_b']!, _rectBMeta),
+      );
+    }
+    if (data.containsKey('rects_ref')) {
+      context.handle(
+        _rectsRefMeta,
+        rectsRef.isAcceptableOrUnknown(data['rects_ref']!, _rectsRefMeta),
+      );
+    }
+    if (data.containsKey('pdf_aspect')) {
+      context.handle(
+        _pdfAspectMeta,
+        pdfAspect.isAcceptableOrUnknown(data['pdf_aspect']!, _pdfAspectMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {source, ownerKey, seq},
+  ];
+  @override
+  SearchUnitRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SearchUnitRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      ownerKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_key'],
+      )!,
+      seq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seq'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      ),
+      pageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}page_id'],
+      ),
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      ),
+      pdfIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pdf_index'],
+      ),
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      norm: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}norm'],
+      )!,
+      rectL: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rect_l'],
+      ),
+      rectT: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rect_t'],
+      ),
+      rectR: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rect_r'],
+      ),
+      rectB: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rect_b'],
+      ),
+      rectsRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rects_ref'],
+      ),
+      pdfAspect: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}pdf_aspect'],
+      ),
+    );
+  }
+
+  @override
+  $SearchUnitsTable createAlias(String alias) {
+    return $SearchUnitsTable(attachedDatabase, alias);
+  }
+}
+
+class SearchUnitRow extends DataClass implements Insertable<SearchUnitRow> {
+  final int id;
+  final String source;
+  final String ownerKey;
+  final int seq;
+  final String? noteId;
+  final String? pageId;
+  final String? assetId;
+  final int? pdfIndex;
+  final String body;
+  final String norm;
+  final double? rectL;
+  final double? rectT;
+  final double? rectR;
+  final double? rectB;
+  final String? rectsRef;
+  final double? pdfAspect;
+  const SearchUnitRow({
+    required this.id,
+    required this.source,
+    required this.ownerKey,
+    required this.seq,
+    this.noteId,
+    this.pageId,
+    this.assetId,
+    this.pdfIndex,
+    required this.body,
+    required this.norm,
+    this.rectL,
+    this.rectT,
+    this.rectR,
+    this.rectB,
+    this.rectsRef,
+    this.pdfAspect,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['source'] = Variable<String>(source);
+    map['owner_key'] = Variable<String>(ownerKey);
+    map['seq'] = Variable<int>(seq);
+    if (!nullToAbsent || noteId != null) {
+      map['note_id'] = Variable<String>(noteId);
+    }
+    if (!nullToAbsent || pageId != null) {
+      map['page_id'] = Variable<String>(pageId);
+    }
+    if (!nullToAbsent || assetId != null) {
+      map['asset_id'] = Variable<String>(assetId);
+    }
+    if (!nullToAbsent || pdfIndex != null) {
+      map['pdf_index'] = Variable<int>(pdfIndex);
+    }
+    map['body'] = Variable<String>(body);
+    map['norm'] = Variable<String>(norm);
+    if (!nullToAbsent || rectL != null) {
+      map['rect_l'] = Variable<double>(rectL);
+    }
+    if (!nullToAbsent || rectT != null) {
+      map['rect_t'] = Variable<double>(rectT);
+    }
+    if (!nullToAbsent || rectR != null) {
+      map['rect_r'] = Variable<double>(rectR);
+    }
+    if (!nullToAbsent || rectB != null) {
+      map['rect_b'] = Variable<double>(rectB);
+    }
+    if (!nullToAbsent || rectsRef != null) {
+      map['rects_ref'] = Variable<String>(rectsRef);
+    }
+    if (!nullToAbsent || pdfAspect != null) {
+      map['pdf_aspect'] = Variable<double>(pdfAspect);
+    }
+    return map;
+  }
+
+  SearchUnitsCompanion toCompanion(bool nullToAbsent) {
+    return SearchUnitsCompanion(
+      id: Value(id),
+      source: Value(source),
+      ownerKey: Value(ownerKey),
+      seq: Value(seq),
+      noteId: noteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteId),
+      pageId: pageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pageId),
+      assetId: assetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(assetId),
+      pdfIndex: pdfIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pdfIndex),
+      body: Value(body),
+      norm: Value(norm),
+      rectL: rectL == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rectL),
+      rectT: rectT == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rectT),
+      rectR: rectR == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rectR),
+      rectB: rectB == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rectB),
+      rectsRef: rectsRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rectsRef),
+      pdfAspect: pdfAspect == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pdfAspect),
+    );
+  }
+
+  factory SearchUnitRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SearchUnitRow(
+      id: serializer.fromJson<int>(json['id']),
+      source: serializer.fromJson<String>(json['source']),
+      ownerKey: serializer.fromJson<String>(json['ownerKey']),
+      seq: serializer.fromJson<int>(json['seq']),
+      noteId: serializer.fromJson<String?>(json['noteId']),
+      pageId: serializer.fromJson<String?>(json['pageId']),
+      assetId: serializer.fromJson<String?>(json['assetId']),
+      pdfIndex: serializer.fromJson<int?>(json['pdfIndex']),
+      body: serializer.fromJson<String>(json['body']),
+      norm: serializer.fromJson<String>(json['norm']),
+      rectL: serializer.fromJson<double?>(json['rectL']),
+      rectT: serializer.fromJson<double?>(json['rectT']),
+      rectR: serializer.fromJson<double?>(json['rectR']),
+      rectB: serializer.fromJson<double?>(json['rectB']),
+      rectsRef: serializer.fromJson<String?>(json['rectsRef']),
+      pdfAspect: serializer.fromJson<double?>(json['pdfAspect']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'source': serializer.toJson<String>(source),
+      'ownerKey': serializer.toJson<String>(ownerKey),
+      'seq': serializer.toJson<int>(seq),
+      'noteId': serializer.toJson<String?>(noteId),
+      'pageId': serializer.toJson<String?>(pageId),
+      'assetId': serializer.toJson<String?>(assetId),
+      'pdfIndex': serializer.toJson<int?>(pdfIndex),
+      'body': serializer.toJson<String>(body),
+      'norm': serializer.toJson<String>(norm),
+      'rectL': serializer.toJson<double?>(rectL),
+      'rectT': serializer.toJson<double?>(rectT),
+      'rectR': serializer.toJson<double?>(rectR),
+      'rectB': serializer.toJson<double?>(rectB),
+      'rectsRef': serializer.toJson<String?>(rectsRef),
+      'pdfAspect': serializer.toJson<double?>(pdfAspect),
+    };
+  }
+
+  SearchUnitRow copyWith({
+    int? id,
+    String? source,
+    String? ownerKey,
+    int? seq,
+    Value<String?> noteId = const Value.absent(),
+    Value<String?> pageId = const Value.absent(),
+    Value<String?> assetId = const Value.absent(),
+    Value<int?> pdfIndex = const Value.absent(),
+    String? body,
+    String? norm,
+    Value<double?> rectL = const Value.absent(),
+    Value<double?> rectT = const Value.absent(),
+    Value<double?> rectR = const Value.absent(),
+    Value<double?> rectB = const Value.absent(),
+    Value<String?> rectsRef = const Value.absent(),
+    Value<double?> pdfAspect = const Value.absent(),
+  }) => SearchUnitRow(
+    id: id ?? this.id,
+    source: source ?? this.source,
+    ownerKey: ownerKey ?? this.ownerKey,
+    seq: seq ?? this.seq,
+    noteId: noteId.present ? noteId.value : this.noteId,
+    pageId: pageId.present ? pageId.value : this.pageId,
+    assetId: assetId.present ? assetId.value : this.assetId,
+    pdfIndex: pdfIndex.present ? pdfIndex.value : this.pdfIndex,
+    body: body ?? this.body,
+    norm: norm ?? this.norm,
+    rectL: rectL.present ? rectL.value : this.rectL,
+    rectT: rectT.present ? rectT.value : this.rectT,
+    rectR: rectR.present ? rectR.value : this.rectR,
+    rectB: rectB.present ? rectB.value : this.rectB,
+    rectsRef: rectsRef.present ? rectsRef.value : this.rectsRef,
+    pdfAspect: pdfAspect.present ? pdfAspect.value : this.pdfAspect,
+  );
+  SearchUnitRow copyWithCompanion(SearchUnitsCompanion data) {
+    return SearchUnitRow(
+      id: data.id.present ? data.id.value : this.id,
+      source: data.source.present ? data.source.value : this.source,
+      ownerKey: data.ownerKey.present ? data.ownerKey.value : this.ownerKey,
+      seq: data.seq.present ? data.seq.value : this.seq,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      pageId: data.pageId.present ? data.pageId.value : this.pageId,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      pdfIndex: data.pdfIndex.present ? data.pdfIndex.value : this.pdfIndex,
+      body: data.body.present ? data.body.value : this.body,
+      norm: data.norm.present ? data.norm.value : this.norm,
+      rectL: data.rectL.present ? data.rectL.value : this.rectL,
+      rectT: data.rectT.present ? data.rectT.value : this.rectT,
+      rectR: data.rectR.present ? data.rectR.value : this.rectR,
+      rectB: data.rectB.present ? data.rectB.value : this.rectB,
+      rectsRef: data.rectsRef.present ? data.rectsRef.value : this.rectsRef,
+      pdfAspect: data.pdfAspect.present ? data.pdfAspect.value : this.pdfAspect,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SearchUnitRow(')
+          ..write('id: $id, ')
+          ..write('source: $source, ')
+          ..write('ownerKey: $ownerKey, ')
+          ..write('seq: $seq, ')
+          ..write('noteId: $noteId, ')
+          ..write('pageId: $pageId, ')
+          ..write('assetId: $assetId, ')
+          ..write('pdfIndex: $pdfIndex, ')
+          ..write('body: $body, ')
+          ..write('norm: $norm, ')
+          ..write('rectL: $rectL, ')
+          ..write('rectT: $rectT, ')
+          ..write('rectR: $rectR, ')
+          ..write('rectB: $rectB, ')
+          ..write('rectsRef: $rectsRef, ')
+          ..write('pdfAspect: $pdfAspect')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    source,
+    ownerKey,
+    seq,
+    noteId,
+    pageId,
+    assetId,
+    pdfIndex,
+    body,
+    norm,
+    rectL,
+    rectT,
+    rectR,
+    rectB,
+    rectsRef,
+    pdfAspect,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SearchUnitRow &&
+          other.id == this.id &&
+          other.source == this.source &&
+          other.ownerKey == this.ownerKey &&
+          other.seq == this.seq &&
+          other.noteId == this.noteId &&
+          other.pageId == this.pageId &&
+          other.assetId == this.assetId &&
+          other.pdfIndex == this.pdfIndex &&
+          other.body == this.body &&
+          other.norm == this.norm &&
+          other.rectL == this.rectL &&
+          other.rectT == this.rectT &&
+          other.rectR == this.rectR &&
+          other.rectB == this.rectB &&
+          other.rectsRef == this.rectsRef &&
+          other.pdfAspect == this.pdfAspect);
+}
+
+class SearchUnitsCompanion extends UpdateCompanion<SearchUnitRow> {
+  final Value<int> id;
+  final Value<String> source;
+  final Value<String> ownerKey;
+  final Value<int> seq;
+  final Value<String?> noteId;
+  final Value<String?> pageId;
+  final Value<String?> assetId;
+  final Value<int?> pdfIndex;
+  final Value<String> body;
+  final Value<String> norm;
+  final Value<double?> rectL;
+  final Value<double?> rectT;
+  final Value<double?> rectR;
+  final Value<double?> rectB;
+  final Value<String?> rectsRef;
+  final Value<double?> pdfAspect;
+  const SearchUnitsCompanion({
+    this.id = const Value.absent(),
+    this.source = const Value.absent(),
+    this.ownerKey = const Value.absent(),
+    this.seq = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.pageId = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.pdfIndex = const Value.absent(),
+    this.body = const Value.absent(),
+    this.norm = const Value.absent(),
+    this.rectL = const Value.absent(),
+    this.rectT = const Value.absent(),
+    this.rectR = const Value.absent(),
+    this.rectB = const Value.absent(),
+    this.rectsRef = const Value.absent(),
+    this.pdfAspect = const Value.absent(),
+  });
+  SearchUnitsCompanion.insert({
+    this.id = const Value.absent(),
+    required String source,
+    required String ownerKey,
+    required int seq,
+    this.noteId = const Value.absent(),
+    this.pageId = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.pdfIndex = const Value.absent(),
+    required String body,
+    required String norm,
+    this.rectL = const Value.absent(),
+    this.rectT = const Value.absent(),
+    this.rectR = const Value.absent(),
+    this.rectB = const Value.absent(),
+    this.rectsRef = const Value.absent(),
+    this.pdfAspect = const Value.absent(),
+  }) : source = Value(source),
+       ownerKey = Value(ownerKey),
+       seq = Value(seq),
+       body = Value(body),
+       norm = Value(norm);
+  static Insertable<SearchUnitRow> custom({
+    Expression<int>? id,
+    Expression<String>? source,
+    Expression<String>? ownerKey,
+    Expression<int>? seq,
+    Expression<String>? noteId,
+    Expression<String>? pageId,
+    Expression<String>? assetId,
+    Expression<int>? pdfIndex,
+    Expression<String>? body,
+    Expression<String>? norm,
+    Expression<double>? rectL,
+    Expression<double>? rectT,
+    Expression<double>? rectR,
+    Expression<double>? rectB,
+    Expression<String>? rectsRef,
+    Expression<double>? pdfAspect,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (source != null) 'source': source,
+      if (ownerKey != null) 'owner_key': ownerKey,
+      if (seq != null) 'seq': seq,
+      if (noteId != null) 'note_id': noteId,
+      if (pageId != null) 'page_id': pageId,
+      if (assetId != null) 'asset_id': assetId,
+      if (pdfIndex != null) 'pdf_index': pdfIndex,
+      if (body != null) 'body': body,
+      if (norm != null) 'norm': norm,
+      if (rectL != null) 'rect_l': rectL,
+      if (rectT != null) 'rect_t': rectT,
+      if (rectR != null) 'rect_r': rectR,
+      if (rectB != null) 'rect_b': rectB,
+      if (rectsRef != null) 'rects_ref': rectsRef,
+      if (pdfAspect != null) 'pdf_aspect': pdfAspect,
+    });
+  }
+
+  SearchUnitsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? source,
+    Value<String>? ownerKey,
+    Value<int>? seq,
+    Value<String?>? noteId,
+    Value<String?>? pageId,
+    Value<String?>? assetId,
+    Value<int?>? pdfIndex,
+    Value<String>? body,
+    Value<String>? norm,
+    Value<double?>? rectL,
+    Value<double?>? rectT,
+    Value<double?>? rectR,
+    Value<double?>? rectB,
+    Value<String?>? rectsRef,
+    Value<double?>? pdfAspect,
+  }) {
+    return SearchUnitsCompanion(
+      id: id ?? this.id,
+      source: source ?? this.source,
+      ownerKey: ownerKey ?? this.ownerKey,
+      seq: seq ?? this.seq,
+      noteId: noteId ?? this.noteId,
+      pageId: pageId ?? this.pageId,
+      assetId: assetId ?? this.assetId,
+      pdfIndex: pdfIndex ?? this.pdfIndex,
+      body: body ?? this.body,
+      norm: norm ?? this.norm,
+      rectL: rectL ?? this.rectL,
+      rectT: rectT ?? this.rectT,
+      rectR: rectR ?? this.rectR,
+      rectB: rectB ?? this.rectB,
+      rectsRef: rectsRef ?? this.rectsRef,
+      pdfAspect: pdfAspect ?? this.pdfAspect,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (ownerKey.present) {
+      map['owner_key'] = Variable<String>(ownerKey.value);
+    }
+    if (seq.present) {
+      map['seq'] = Variable<int>(seq.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (pageId.present) {
+      map['page_id'] = Variable<String>(pageId.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (pdfIndex.present) {
+      map['pdf_index'] = Variable<int>(pdfIndex.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (norm.present) {
+      map['norm'] = Variable<String>(norm.value);
+    }
+    if (rectL.present) {
+      map['rect_l'] = Variable<double>(rectL.value);
+    }
+    if (rectT.present) {
+      map['rect_t'] = Variable<double>(rectT.value);
+    }
+    if (rectR.present) {
+      map['rect_r'] = Variable<double>(rectR.value);
+    }
+    if (rectB.present) {
+      map['rect_b'] = Variable<double>(rectB.value);
+    }
+    if (rectsRef.present) {
+      map['rects_ref'] = Variable<String>(rectsRef.value);
+    }
+    if (pdfAspect.present) {
+      map['pdf_aspect'] = Variable<double>(pdfAspect.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SearchUnitsCompanion(')
+          ..write('id: $id, ')
+          ..write('source: $source, ')
+          ..write('ownerKey: $ownerKey, ')
+          ..write('seq: $seq, ')
+          ..write('noteId: $noteId, ')
+          ..write('pageId: $pageId, ')
+          ..write('assetId: $assetId, ')
+          ..write('pdfIndex: $pdfIndex, ')
+          ..write('body: $body, ')
+          ..write('norm: $norm, ')
+          ..write('rectL: $rectL, ')
+          ..write('rectT: $rectT, ')
+          ..write('rectR: $rectR, ')
+          ..write('rectB: $rectB, ')
+          ..write('rectsRef: $rectsRef, ')
+          ..write('pdfAspect: $pdfAspect')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NoteDatabase extends GeneratedDatabase {
   _$NoteDatabase(QueryExecutor e) : super(e);
   $NoteDatabaseManager get managers => $NoteDatabaseManager(this);
@@ -7250,6 +10861,13 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
   late final $RecordingsTable recordings = $RecordingsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $OutboxTable outbox = $OutboxTable(this);
+  late final $PageObjectsTable pageObjects = $PageObjectsTable(this);
+  late final $HandwritingTable handwriting = $HandwritingTable(this);
+  late final $RecordingDraftsTable recordingDrafts = $RecordingDraftsTable(
+    this,
+  );
+  late final $SearchOwnersTable searchOwners = $SearchOwnersTable(this);
+  late final $SearchUnitsTable searchUnits = $SearchUnitsTable(this);
   late final Index idxFoldersParent = Index(
     'idx_folders_parent',
     'CREATE INDEX idx_folders_parent ON folders (owner_id, parent_id, deleted_at)',
@@ -7278,6 +10896,10 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
     'idx_pages_note',
     'CREATE INDEX idx_pages_note ON pages (note_id, deleted_at, sort_key)',
   );
+  late final Index idxPagesBg = Index(
+    'idx_pages_bg',
+    'CREATE INDEX idx_pages_bg ON pages (bg_asset_id, bg_pdf_index)',
+  );
   late final Index idxStrokesPage = Index(
     'idx_strokes_page',
     'CREATE INDEX idx_strokes_page ON strokes (page_id, deleted_at)',
@@ -7290,9 +10912,49 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
     'idx_strokes_recording',
     'CREATE INDEX idx_strokes_recording ON strokes (recording_id)',
   );
+  late final Index idxRecordingsNote = Index(
+    'idx_recordings_note',
+    'CREATE INDEX idx_recordings_note ON recordings (note_id, deleted_at)',
+  );
   late final Index idxOutboxEntity = Index(
     'idx_outbox_entity',
     'CREATE UNIQUE INDEX idx_outbox_entity ON outbox (entity_kind, entity_id)',
+  );
+  late final Index idxObjectsPage = Index(
+    'idx_objects_page',
+    'CREATE INDEX idx_objects_page ON page_objects (page_id, deleted_at)',
+  );
+  late final Index idxObjectsNote = Index(
+    'idx_objects_note',
+    'CREATE INDEX idx_objects_note ON page_objects (note_id)',
+  );
+  late final Index idxObjectsAsset = Index(
+    'idx_objects_asset',
+    'CREATE INDEX idx_objects_asset ON page_objects (asset_id)',
+  );
+  late final Index idxHandwritingNote = Index(
+    'idx_handwriting_note',
+    'CREATE INDEX idx_handwriting_note ON handwriting (note_id, deleted_at)',
+  );
+  late final Index idxDraftsNote = Index(
+    'idx_drafts_note',
+    'CREATE INDEX idx_drafts_note ON recording_drafts (note_id)',
+  );
+  late final Index idxSearchOwnersNote = Index(
+    'idx_search_owners_note',
+    'CREATE INDEX idx_search_owners_note ON search_owners (note_id)',
+  );
+  late final Index idxSearchOwnersPending = Index(
+    'idx_search_owners_pending',
+    'CREATE INDEX idx_search_owners_pending ON search_owners (pending)',
+  );
+  late final Index idxSearchUnitsNote = Index(
+    'idx_search_units_note',
+    'CREATE INDEX idx_search_units_note ON search_units (note_id)',
+  );
+  late final Index idxSearchUnitsPdf = Index(
+    'idx_search_units_pdf',
+    'CREATE INDEX idx_search_units_pdf ON search_units (asset_id, pdf_index)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -7309,6 +10971,11 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
     recordings,
     settings,
     outbox,
+    pageObjects,
+    handwriting,
+    recordingDrafts,
+    searchOwners,
+    searchUnits,
     idxFoldersParent,
     idxFoldersTrash,
     idxNotesFolder,
@@ -7316,10 +10983,21 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
     idxNotesFavorite,
     idxNotesTrash,
     idxPagesNote,
+    idxPagesBg,
     idxStrokesPage,
     idxStrokesNote,
     idxStrokesRecording,
+    idxRecordingsNote,
     idxOutboxEntity,
+    idxObjectsPage,
+    idxObjectsNote,
+    idxObjectsAsset,
+    idxHandwritingNote,
+    idxDraftsNote,
+    idxSearchOwnersNote,
+    idxSearchOwnersPending,
+    idxSearchUnitsNote,
+    idxSearchUnitsPdf,
   ];
 }
 
@@ -8317,6 +11995,10 @@ typedef $$PagesTableCreateCompanionBuilder = PagesCompanion Function({
   required String version,
   Value<String?> fieldVersions,
   required int contentRev,
+  Value<String?> inkRev,
+  Value<int?> inkRevAt,
+  Value<String?> bgAssetId,
+  Value<int?> bgPdfIndex,
   Value<int> rowid,
 });
 typedef $$PagesTableUpdateCompanionBuilder = PagesCompanion Function({
@@ -8332,6 +12014,10 @@ typedef $$PagesTableUpdateCompanionBuilder = PagesCompanion Function({
   Value<String> version,
   Value<String?> fieldVersions,
   Value<int> contentRev,
+  Value<String?> inkRev,
+  Value<int?> inkRevAt,
+  Value<String?> bgAssetId,
+  Value<int?> bgPdfIndex,
   Value<int> rowid,
 });
 
@@ -8400,6 +12086,26 @@ class $$PagesTableFilterComposer extends Composer<_$NoteDatabase, $PagesTable> {
 
   ColumnFilters<int> get contentRev => $composableBuilder(
     column: $table.contentRev,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inkRev => $composableBuilder(
+    column: $table.inkRev,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get inkRevAt => $composableBuilder(
+    column: $table.inkRevAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bgAssetId => $composableBuilder(
+    column: $table.bgAssetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bgPdfIndex => $composableBuilder(
+    column: $table.bgPdfIndex,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -8472,6 +12178,26 @@ class $$PagesTableOrderingComposer
     column: $table.contentRev,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get inkRev => $composableBuilder(
+    column: $table.inkRev,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get inkRevAt => $composableBuilder(
+    column: $table.inkRevAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bgAssetId => $composableBuilder(
+    column: $table.bgAssetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bgPdfIndex => $composableBuilder(
+    column: $table.bgPdfIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PagesTableAnnotationComposer
@@ -8524,6 +12250,20 @@ class $$PagesTableAnnotationComposer
     column: $table.contentRev,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get inkRev =>
+      $composableBuilder(column: $table.inkRev, builder: (column) => column);
+
+  GeneratedColumn<int> get inkRevAt =>
+      $composableBuilder(column: $table.inkRevAt, builder: (column) => column);
+
+  GeneratedColumn<String> get bgAssetId =>
+      $composableBuilder(column: $table.bgAssetId, builder: (column) => column);
+
+  GeneratedColumn<int> get bgPdfIndex => $composableBuilder(
+    column: $table.bgPdfIndex,
+    builder: (column) => column,
+  );
 }
 
 class $$PagesTableTableManager
@@ -8566,6 +12306,10 @@ class $$PagesTableTableManager
                 Value<String> version = const Value.absent(),
                 Value<String?> fieldVersions = const Value.absent(),
                 Value<int> contentRev = const Value.absent(),
+                Value<String?> inkRev = const Value.absent(),
+                Value<int?> inkRevAt = const Value.absent(),
+                Value<String?> bgAssetId = const Value.absent(),
+                Value<int?> bgPdfIndex = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PagesCompanion(
                 id: id,
@@ -8580,6 +12324,10 @@ class $$PagesTableTableManager
                 version: version,
                 fieldVersions: fieldVersions,
                 contentRev: contentRev,
+                inkRev: inkRev,
+                inkRevAt: inkRevAt,
+                bgAssetId: bgAssetId,
+                bgPdfIndex: bgPdfIndex,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8596,6 +12344,10 @@ class $$PagesTableTableManager
                 required String version,
                 Value<String?> fieldVersions = const Value.absent(),
                 required int contentRev,
+                Value<String?> inkRev = const Value.absent(),
+                Value<int?> inkRevAt = const Value.absent(),
+                Value<String?> bgAssetId = const Value.absent(),
+                Value<int?> bgPdfIndex = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PagesCompanion.insert(
                 id: id,
@@ -8610,6 +12362,10 @@ class $$PagesTableTableManager
                 version: version,
                 fieldVersions: fieldVersions,
                 contentRev: contentRev,
+                inkRev: inkRev,
+                inkRevAt: inkRevAt,
+                bgAssetId: bgAssetId,
+                bgPdfIndex: bgPdfIndex,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9933,6 +13689,7 @@ typedef $$RecordingsTableCreateCompanionBuilder = RecordingsCompanion Function({
   Value<int?> deletedAt,
   required String version,
   Value<String?> fieldVersions,
+  Value<String?> title,
   Value<int> rowid,
 });
 typedef $$RecordingsTableUpdateCompanionBuilder = RecordingsCompanion Function({
@@ -9946,6 +13703,7 @@ typedef $$RecordingsTableUpdateCompanionBuilder = RecordingsCompanion Function({
   Value<int?> deletedAt,
   Value<String> version,
   Value<String?> fieldVersions,
+  Value<String?> title,
   Value<int> rowid,
 });
 
@@ -10005,6 +13763,11 @@ class $$RecordingsTableFilterComposer
 
   ColumnFilters<String> get fieldVersions => $composableBuilder(
     column: $table.fieldVersions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -10067,6 +13830,11 @@ class $$RecordingsTableOrderingComposer
     column: $table.fieldVersions,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$RecordingsTableAnnotationComposer
@@ -10111,6 +13879,9 @@ class $$RecordingsTableAnnotationComposer
     column: $table.fieldVersions,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
 }
 
 class $$RecordingsTableTableManager
@@ -10154,6 +13925,7 @@ class $$RecordingsTableTableManager
                 Value<int?> deletedAt = const Value.absent(),
                 Value<String> version = const Value.absent(),
                 Value<String?> fieldVersions = const Value.absent(),
+                Value<String?> title = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecordingsCompanion(
                 id: id,
@@ -10166,6 +13938,7 @@ class $$RecordingsTableTableManager
                 deletedAt: deletedAt,
                 version: version,
                 fieldVersions: fieldVersions,
+                title: title,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10180,6 +13953,7 @@ class $$RecordingsTableTableManager
                 Value<int?> deletedAt = const Value.absent(),
                 required String version,
                 Value<String?> fieldVersions = const Value.absent(),
+                Value<String?> title = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecordingsCompanion.insert(
                 id: id,
@@ -10192,6 +13966,7 @@ class $$RecordingsTableTableManager
                 deletedAt: deletedAt,
                 version: version,
                 fieldVersions: fieldVersions,
+                title: title,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -10749,6 +14524,1671 @@ typedef $$OutboxTableProcessedTableManager =
       OutboxRow,
       PrefetchHooks Function()
     >;
+typedef $$PageObjectsTableCreateCompanionBuilder =
+    PageObjectsCompanion Function({
+      required String id,
+      required String pageId,
+      required String noteId,
+      required String type,
+      required double minX,
+      required double minY,
+      required double maxX,
+      required double maxY,
+      required String dataJson,
+      Value<String?> assetId,
+      required int createdAt,
+      required int updatedAt,
+      Value<int?> deletedAt,
+      required String version,
+      Value<String?> fieldVersions,
+      Value<int> rowid,
+    });
+typedef $$PageObjectsTableUpdateCompanionBuilder =
+    PageObjectsCompanion Function({
+      Value<String> id,
+      Value<String> pageId,
+      Value<String> noteId,
+      Value<String> type,
+      Value<double> minX,
+      Value<double> minY,
+      Value<double> maxX,
+      Value<double> maxY,
+      Value<String> dataJson,
+      Value<String?> assetId,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int?> deletedAt,
+      Value<String> version,
+      Value<String?> fieldVersions,
+      Value<int> rowid,
+    });
+
+class $$PageObjectsTableFilterComposer
+    extends Composer<_$NoteDatabase, $PageObjectsTable> {
+  $$PageObjectsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get minX => $composableBuilder(
+    column: $table.minX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get minY => $composableBuilder(
+    column: $table.minY,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get maxX => $composableBuilder(
+    column: $table.maxX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get maxY => $composableBuilder(
+    column: $table.maxY,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PageObjectsTableOrderingComposer
+    extends Composer<_$NoteDatabase, $PageObjectsTable> {
+  $$PageObjectsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get minX => $composableBuilder(
+    column: $table.minX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get minY => $composableBuilder(
+    column: $table.minY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get maxX => $composableBuilder(
+    column: $table.maxX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get maxY => $composableBuilder(
+    column: $table.maxY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PageObjectsTableAnnotationComposer
+    extends Composer<_$NoteDatabase, $PageObjectsTable> {
+  $$PageObjectsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get pageId =>
+      $composableBuilder(column: $table.pageId, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<double> get minX =>
+      $composableBuilder(column: $table.minX, builder: (column) => column);
+
+  GeneratedColumn<double> get minY =>
+      $composableBuilder(column: $table.minY, builder: (column) => column);
+
+  GeneratedColumn<double> get maxX =>
+      $composableBuilder(column: $table.maxX, builder: (column) => column);
+
+  GeneratedColumn<double> get maxY =>
+      $composableBuilder(column: $table.maxY, builder: (column) => column);
+
+  GeneratedColumn<String> get dataJson =>
+      $composableBuilder(column: $table.dataJson, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => column,
+  );
+}
+
+class $$PageObjectsTableTableManager
+    extends
+        RootTableManager<
+          _$NoteDatabase,
+          $PageObjectsTable,
+          PageObjectRow,
+          $$PageObjectsTableFilterComposer,
+          $$PageObjectsTableOrderingComposer,
+          $$PageObjectsTableAnnotationComposer,
+          $$PageObjectsTableCreateCompanionBuilder,
+          $$PageObjectsTableUpdateCompanionBuilder,
+          (
+            PageObjectRow,
+            BaseReferences<_$NoteDatabase, $PageObjectsTable, PageObjectRow>,
+          ),
+          PageObjectRow,
+          PrefetchHooks Function()
+        > {
+  $$PageObjectsTableTableManager(_$NoteDatabase db, $PageObjectsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PageObjectsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PageObjectsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PageObjectsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> pageId = const Value.absent(),
+                Value<String> noteId = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<double> minX = const Value.absent(),
+                Value<double> minY = const Value.absent(),
+                Value<double> maxX = const Value.absent(),
+                Value<double> maxY = const Value.absent(),
+                Value<String> dataJson = const Value.absent(),
+                Value<String?> assetId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> version = const Value.absent(),
+                Value<String?> fieldVersions = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PageObjectsCompanion(
+                id: id,
+                pageId: pageId,
+                noteId: noteId,
+                type: type,
+                minX: minX,
+                minY: minY,
+                maxX: maxX,
+                maxY: maxY,
+                dataJson: dataJson,
+                assetId: assetId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                version: version,
+                fieldVersions: fieldVersions,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String pageId,
+                required String noteId,
+                required String type,
+                required double minX,
+                required double minY,
+                required double maxX,
+                required double maxY,
+                required String dataJson,
+                Value<String?> assetId = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> deletedAt = const Value.absent(),
+                required String version,
+                Value<String?> fieldVersions = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PageObjectsCompanion.insert(
+                id: id,
+                pageId: pageId,
+                noteId: noteId,
+                type: type,
+                minX: minX,
+                minY: minY,
+                maxX: maxX,
+                maxY: maxY,
+                dataJson: dataJson,
+                assetId: assetId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                version: version,
+                fieldVersions: fieldVersions,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PageObjectsTable, PageObjectRow>(table),
+                  BaseReferences<
+                    _$NoteDatabase,
+                    $PageObjectsTable,
+                    PageObjectRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PageObjectsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NoteDatabase,
+      $PageObjectsTable,
+      PageObjectRow,
+      $$PageObjectsTableFilterComposer,
+      $$PageObjectsTableOrderingComposer,
+      $$PageObjectsTableAnnotationComposer,
+      $$PageObjectsTableCreateCompanionBuilder,
+      $$PageObjectsTableUpdateCompanionBuilder,
+      (
+        PageObjectRow,
+        BaseReferences<_$NoteDatabase, $PageObjectsTable, PageObjectRow>,
+      ),
+      PageObjectRow,
+      PrefetchHooks Function()
+    >;
+typedef $$HandwritingTableCreateCompanionBuilder =
+    HandwritingCompanion Function({
+      required String id,
+      required String pageId,
+      required String noteId,
+      required String engineId,
+      required String sourceRev,
+      required String linesJson,
+      required int createdAt,
+      required int updatedAt,
+      Value<int?> deletedAt,
+      required String version,
+      Value<String?> fieldVersions,
+      Value<int> rowid,
+    });
+typedef $$HandwritingTableUpdateCompanionBuilder =
+    HandwritingCompanion Function({
+      Value<String> id,
+      Value<String> pageId,
+      Value<String> noteId,
+      Value<String> engineId,
+      Value<String> sourceRev,
+      Value<String> linesJson,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int?> deletedAt,
+      Value<String> version,
+      Value<String?> fieldVersions,
+      Value<int> rowid,
+    });
+
+class $$HandwritingTableFilterComposer
+    extends Composer<_$NoteDatabase, $HandwritingTable> {
+  $$HandwritingTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get engineId => $composableBuilder(
+    column: $table.engineId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceRev => $composableBuilder(
+    column: $table.sourceRev,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get linesJson => $composableBuilder(
+    column: $table.linesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HandwritingTableOrderingComposer
+    extends Composer<_$NoteDatabase, $HandwritingTable> {
+  $$HandwritingTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get engineId => $composableBuilder(
+    column: $table.engineId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceRev => $composableBuilder(
+    column: $table.sourceRev,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get linesJson => $composableBuilder(
+    column: $table.linesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HandwritingTableAnnotationComposer
+    extends Composer<_$NoteDatabase, $HandwritingTable> {
+  $$HandwritingTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get pageId =>
+      $composableBuilder(column: $table.pageId, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get engineId =>
+      $composableBuilder(column: $table.engineId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceRev =>
+      $composableBuilder(column: $table.sourceRev, builder: (column) => column);
+
+  GeneratedColumn<String> get linesJson =>
+      $composableBuilder(column: $table.linesJson, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => column,
+  );
+}
+
+class $$HandwritingTableTableManager
+    extends
+        RootTableManager<
+          _$NoteDatabase,
+          $HandwritingTable,
+          HandwritingRow,
+          $$HandwritingTableFilterComposer,
+          $$HandwritingTableOrderingComposer,
+          $$HandwritingTableAnnotationComposer,
+          $$HandwritingTableCreateCompanionBuilder,
+          $$HandwritingTableUpdateCompanionBuilder,
+          (
+            HandwritingRow,
+            BaseReferences<_$NoteDatabase, $HandwritingTable, HandwritingRow>,
+          ),
+          HandwritingRow,
+          PrefetchHooks Function()
+        > {
+  $$HandwritingTableTableManager(_$NoteDatabase db, $HandwritingTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HandwritingTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HandwritingTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HandwritingTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> pageId = const Value.absent(),
+                Value<String> noteId = const Value.absent(),
+                Value<String> engineId = const Value.absent(),
+                Value<String> sourceRev = const Value.absent(),
+                Value<String> linesJson = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> version = const Value.absent(),
+                Value<String?> fieldVersions = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HandwritingCompanion(
+                id: id,
+                pageId: pageId,
+                noteId: noteId,
+                engineId: engineId,
+                sourceRev: sourceRev,
+                linesJson: linesJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                version: version,
+                fieldVersions: fieldVersions,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String pageId,
+                required String noteId,
+                required String engineId,
+                required String sourceRev,
+                required String linesJson,
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> deletedAt = const Value.absent(),
+                required String version,
+                Value<String?> fieldVersions = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HandwritingCompanion.insert(
+                id: id,
+                pageId: pageId,
+                noteId: noteId,
+                engineId: engineId,
+                sourceRev: sourceRev,
+                linesJson: linesJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                version: version,
+                fieldVersions: fieldVersions,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$HandwritingTable, HandwritingRow>(table),
+                  BaseReferences<
+                    _$NoteDatabase,
+                    $HandwritingTable,
+                    HandwritingRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HandwritingTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NoteDatabase,
+      $HandwritingTable,
+      HandwritingRow,
+      $$HandwritingTableFilterComposer,
+      $$HandwritingTableOrderingComposer,
+      $$HandwritingTableAnnotationComposer,
+      $$HandwritingTableCreateCompanionBuilder,
+      $$HandwritingTableUpdateCompanionBuilder,
+      (
+        HandwritingRow,
+        BaseReferences<_$NoteDatabase, $HandwritingTable, HandwritingRow>,
+      ),
+      HandwritingRow,
+      PrefetchHooks Function()
+    >;
+typedef $$RecordingDraftsTableCreateCompanionBuilder =
+    RecordingDraftsCompanion Function({
+      required String draftId,
+      required String recordingId,
+      required String noteId,
+      required String mimeType,
+      required int startedAt,
+      required int chunkCount,
+      required int bytes,
+      required int activeMs,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$RecordingDraftsTableUpdateCompanionBuilder =
+    RecordingDraftsCompanion Function({
+      Value<String> draftId,
+      Value<String> recordingId,
+      Value<String> noteId,
+      Value<String> mimeType,
+      Value<int> startedAt,
+      Value<int> chunkCount,
+      Value<int> bytes,
+      Value<int> activeMs,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$RecordingDraftsTableFilterComposer
+    extends Composer<_$NoteDatabase, $RecordingDraftsTable> {
+  $$RecordingDraftsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get draftId => $composableBuilder(
+    column: $table.draftId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recordingId => $composableBuilder(
+    column: $table.recordingId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chunkCount => $composableBuilder(
+    column: $table.chunkCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get activeMs => $composableBuilder(
+    column: $table.activeMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RecordingDraftsTableOrderingComposer
+    extends Composer<_$NoteDatabase, $RecordingDraftsTable> {
+  $$RecordingDraftsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get draftId => $composableBuilder(
+    column: $table.draftId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recordingId => $composableBuilder(
+    column: $table.recordingId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chunkCount => $composableBuilder(
+    column: $table.chunkCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get activeMs => $composableBuilder(
+    column: $table.activeMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RecordingDraftsTableAnnotationComposer
+    extends Composer<_$NoteDatabase, $RecordingDraftsTable> {
+  $$RecordingDraftsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get draftId =>
+      $composableBuilder(column: $table.draftId, builder: (column) => column);
+
+  GeneratedColumn<String> get recordingId => $composableBuilder(
+    column: $table.recordingId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get chunkCount => $composableBuilder(
+    column: $table.chunkCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bytes =>
+      $composableBuilder(column: $table.bytes, builder: (column) => column);
+
+  GeneratedColumn<int> get activeMs =>
+      $composableBuilder(column: $table.activeMs, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$RecordingDraftsTableTableManager
+    extends
+        RootTableManager<
+          _$NoteDatabase,
+          $RecordingDraftsTable,
+          RecordingDraftRow,
+          $$RecordingDraftsTableFilterComposer,
+          $$RecordingDraftsTableOrderingComposer,
+          $$RecordingDraftsTableAnnotationComposer,
+          $$RecordingDraftsTableCreateCompanionBuilder,
+          $$RecordingDraftsTableUpdateCompanionBuilder,
+          (
+            RecordingDraftRow,
+            BaseReferences<
+              _$NoteDatabase,
+              $RecordingDraftsTable,
+              RecordingDraftRow
+            >,
+          ),
+          RecordingDraftRow,
+          PrefetchHooks Function()
+        > {
+  $$RecordingDraftsTableTableManager(
+    _$NoteDatabase db,
+    $RecordingDraftsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RecordingDraftsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RecordingDraftsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RecordingDraftsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> draftId = const Value.absent(),
+                Value<String> recordingId = const Value.absent(),
+                Value<String> noteId = const Value.absent(),
+                Value<String> mimeType = const Value.absent(),
+                Value<int> startedAt = const Value.absent(),
+                Value<int> chunkCount = const Value.absent(),
+                Value<int> bytes = const Value.absent(),
+                Value<int> activeMs = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RecordingDraftsCompanion(
+                draftId: draftId,
+                recordingId: recordingId,
+                noteId: noteId,
+                mimeType: mimeType,
+                startedAt: startedAt,
+                chunkCount: chunkCount,
+                bytes: bytes,
+                activeMs: activeMs,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String draftId,
+                required String recordingId,
+                required String noteId,
+                required String mimeType,
+                required int startedAt,
+                required int chunkCount,
+                required int bytes,
+                required int activeMs,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => RecordingDraftsCompanion.insert(
+                draftId: draftId,
+                recordingId: recordingId,
+                noteId: noteId,
+                mimeType: mimeType,
+                startedAt: startedAt,
+                chunkCount: chunkCount,
+                bytes: bytes,
+                activeMs: activeMs,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$RecordingDraftsTable, RecordingDraftRow>(table),
+                  BaseReferences<
+                    _$NoteDatabase,
+                    $RecordingDraftsTable,
+                    RecordingDraftRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RecordingDraftsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NoteDatabase,
+      $RecordingDraftsTable,
+      RecordingDraftRow,
+      $$RecordingDraftsTableFilterComposer,
+      $$RecordingDraftsTableOrderingComposer,
+      $$RecordingDraftsTableAnnotationComposer,
+      $$RecordingDraftsTableCreateCompanionBuilder,
+      $$RecordingDraftsTableUpdateCompanionBuilder,
+      (
+        RecordingDraftRow,
+        BaseReferences<
+          _$NoteDatabase,
+          $RecordingDraftsTable,
+          RecordingDraftRow
+        >,
+      ),
+      RecordingDraftRow,
+      PrefetchHooks Function()
+    >;
+typedef $$SearchOwnersTableCreateCompanionBuilder =
+    SearchOwnersCompanion Function({
+      required String source,
+      required String ownerKey,
+      Value<String?> noteId,
+      Value<String?> pageId,
+      required String sourceRev,
+      required bool pending,
+      Value<int> rowid,
+    });
+typedef $$SearchOwnersTableUpdateCompanionBuilder =
+    SearchOwnersCompanion Function({
+      Value<String> source,
+      Value<String> ownerKey,
+      Value<String?> noteId,
+      Value<String?> pageId,
+      Value<String> sourceRev,
+      Value<bool> pending,
+      Value<int> rowid,
+    });
+
+class $$SearchOwnersTableFilterComposer
+    extends Composer<_$NoteDatabase, $SearchOwnersTable> {
+  $$SearchOwnersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerKey => $composableBuilder(
+    column: $table.ownerKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceRev => $composableBuilder(
+    column: $table.sourceRev,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pending => $composableBuilder(
+    column: $table.pending,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SearchOwnersTableOrderingComposer
+    extends Composer<_$NoteDatabase, $SearchOwnersTable> {
+  $$SearchOwnersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerKey => $composableBuilder(
+    column: $table.ownerKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceRev => $composableBuilder(
+    column: $table.sourceRev,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pending => $composableBuilder(
+    column: $table.pending,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SearchOwnersTableAnnotationComposer
+    extends Composer<_$NoteDatabase, $SearchOwnersTable> {
+  $$SearchOwnersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerKey =>
+      $composableBuilder(column: $table.ownerKey, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get pageId =>
+      $composableBuilder(column: $table.pageId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceRev =>
+      $composableBuilder(column: $table.sourceRev, builder: (column) => column);
+
+  GeneratedColumn<bool> get pending =>
+      $composableBuilder(column: $table.pending, builder: (column) => column);
+}
+
+class $$SearchOwnersTableTableManager
+    extends
+        RootTableManager<
+          _$NoteDatabase,
+          $SearchOwnersTable,
+          SearchOwnerRow,
+          $$SearchOwnersTableFilterComposer,
+          $$SearchOwnersTableOrderingComposer,
+          $$SearchOwnersTableAnnotationComposer,
+          $$SearchOwnersTableCreateCompanionBuilder,
+          $$SearchOwnersTableUpdateCompanionBuilder,
+          (
+            SearchOwnerRow,
+            BaseReferences<_$NoteDatabase, $SearchOwnersTable, SearchOwnerRow>,
+          ),
+          SearchOwnerRow,
+          PrefetchHooks Function()
+        > {
+  $$SearchOwnersTableTableManager(_$NoteDatabase db, $SearchOwnersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SearchOwnersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SearchOwnersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SearchOwnersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> source = const Value.absent(),
+                Value<String> ownerKey = const Value.absent(),
+                Value<String?> noteId = const Value.absent(),
+                Value<String?> pageId = const Value.absent(),
+                Value<String> sourceRev = const Value.absent(),
+                Value<bool> pending = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SearchOwnersCompanion(
+                source: source,
+                ownerKey: ownerKey,
+                noteId: noteId,
+                pageId: pageId,
+                sourceRev: sourceRev,
+                pending: pending,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String source,
+                required String ownerKey,
+                Value<String?> noteId = const Value.absent(),
+                Value<String?> pageId = const Value.absent(),
+                required String sourceRev,
+                required bool pending,
+                Value<int> rowid = const Value.absent(),
+              }) => SearchOwnersCompanion.insert(
+                source: source,
+                ownerKey: ownerKey,
+                noteId: noteId,
+                pageId: pageId,
+                sourceRev: sourceRev,
+                pending: pending,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SearchOwnersTable, SearchOwnerRow>(table),
+                  BaseReferences<
+                    _$NoteDatabase,
+                    $SearchOwnersTable,
+                    SearchOwnerRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SearchOwnersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NoteDatabase,
+      $SearchOwnersTable,
+      SearchOwnerRow,
+      $$SearchOwnersTableFilterComposer,
+      $$SearchOwnersTableOrderingComposer,
+      $$SearchOwnersTableAnnotationComposer,
+      $$SearchOwnersTableCreateCompanionBuilder,
+      $$SearchOwnersTableUpdateCompanionBuilder,
+      (
+        SearchOwnerRow,
+        BaseReferences<_$NoteDatabase, $SearchOwnersTable, SearchOwnerRow>,
+      ),
+      SearchOwnerRow,
+      PrefetchHooks Function()
+    >;
+typedef $$SearchUnitsTableCreateCompanionBuilder =
+    SearchUnitsCompanion Function({
+      Value<int> id,
+      required String source,
+      required String ownerKey,
+      required int seq,
+      Value<String?> noteId,
+      Value<String?> pageId,
+      Value<String?> assetId,
+      Value<int?> pdfIndex,
+      required String body,
+      required String norm,
+      Value<double?> rectL,
+      Value<double?> rectT,
+      Value<double?> rectR,
+      Value<double?> rectB,
+      Value<String?> rectsRef,
+      Value<double?> pdfAspect,
+    });
+typedef $$SearchUnitsTableUpdateCompanionBuilder =
+    SearchUnitsCompanion Function({
+      Value<int> id,
+      Value<String> source,
+      Value<String> ownerKey,
+      Value<int> seq,
+      Value<String?> noteId,
+      Value<String?> pageId,
+      Value<String?> assetId,
+      Value<int?> pdfIndex,
+      Value<String> body,
+      Value<String> norm,
+      Value<double?> rectL,
+      Value<double?> rectT,
+      Value<double?> rectR,
+      Value<double?> rectB,
+      Value<String?> rectsRef,
+      Value<double?> pdfAspect,
+    });
+
+class $$SearchUnitsTableFilterComposer
+    extends Composer<_$NoteDatabase, $SearchUnitsTable> {
+  $$SearchUnitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerKey => $composableBuilder(
+    column: $table.ownerKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pdfIndex => $composableBuilder(
+    column: $table.pdfIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get norm => $composableBuilder(
+    column: $table.norm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rectL => $composableBuilder(
+    column: $table.rectL,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rectT => $composableBuilder(
+    column: $table.rectT,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rectR => $composableBuilder(
+    column: $table.rectR,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rectB => $composableBuilder(
+    column: $table.rectB,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rectsRef => $composableBuilder(
+    column: $table.rectsRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get pdfAspect => $composableBuilder(
+    column: $table.pdfAspect,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SearchUnitsTableOrderingComposer
+    extends Composer<_$NoteDatabase, $SearchUnitsTable> {
+  $$SearchUnitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerKey => $composableBuilder(
+    column: $table.ownerKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pageId => $composableBuilder(
+    column: $table.pageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pdfIndex => $composableBuilder(
+    column: $table.pdfIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get norm => $composableBuilder(
+    column: $table.norm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rectL => $composableBuilder(
+    column: $table.rectL,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rectT => $composableBuilder(
+    column: $table.rectT,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rectR => $composableBuilder(
+    column: $table.rectR,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rectB => $composableBuilder(
+    column: $table.rectB,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rectsRef => $composableBuilder(
+    column: $table.rectsRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get pdfAspect => $composableBuilder(
+    column: $table.pdfAspect,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SearchUnitsTableAnnotationComposer
+    extends Composer<_$NoteDatabase, $SearchUnitsTable> {
+  $$SearchUnitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerKey =>
+      $composableBuilder(column: $table.ownerKey, builder: (column) => column);
+
+  GeneratedColumn<int> get seq =>
+      $composableBuilder(column: $table.seq, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get pageId =>
+      $composableBuilder(column: $table.pageId, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<int> get pdfIndex =>
+      $composableBuilder(column: $table.pdfIndex, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get norm =>
+      $composableBuilder(column: $table.norm, builder: (column) => column);
+
+  GeneratedColumn<double> get rectL =>
+      $composableBuilder(column: $table.rectL, builder: (column) => column);
+
+  GeneratedColumn<double> get rectT =>
+      $composableBuilder(column: $table.rectT, builder: (column) => column);
+
+  GeneratedColumn<double> get rectR =>
+      $composableBuilder(column: $table.rectR, builder: (column) => column);
+
+  GeneratedColumn<double> get rectB =>
+      $composableBuilder(column: $table.rectB, builder: (column) => column);
+
+  GeneratedColumn<String> get rectsRef =>
+      $composableBuilder(column: $table.rectsRef, builder: (column) => column);
+
+  GeneratedColumn<double> get pdfAspect =>
+      $composableBuilder(column: $table.pdfAspect, builder: (column) => column);
+}
+
+class $$SearchUnitsTableTableManager
+    extends
+        RootTableManager<
+          _$NoteDatabase,
+          $SearchUnitsTable,
+          SearchUnitRow,
+          $$SearchUnitsTableFilterComposer,
+          $$SearchUnitsTableOrderingComposer,
+          $$SearchUnitsTableAnnotationComposer,
+          $$SearchUnitsTableCreateCompanionBuilder,
+          $$SearchUnitsTableUpdateCompanionBuilder,
+          (
+            SearchUnitRow,
+            BaseReferences<_$NoteDatabase, $SearchUnitsTable, SearchUnitRow>,
+          ),
+          SearchUnitRow,
+          PrefetchHooks Function()
+        > {
+  $$SearchUnitsTableTableManager(_$NoteDatabase db, $SearchUnitsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SearchUnitsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SearchUnitsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SearchUnitsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> ownerKey = const Value.absent(),
+                Value<int> seq = const Value.absent(),
+                Value<String?> noteId = const Value.absent(),
+                Value<String?> pageId = const Value.absent(),
+                Value<String?> assetId = const Value.absent(),
+                Value<int?> pdfIndex = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<String> norm = const Value.absent(),
+                Value<double?> rectL = const Value.absent(),
+                Value<double?> rectT = const Value.absent(),
+                Value<double?> rectR = const Value.absent(),
+                Value<double?> rectB = const Value.absent(),
+                Value<String?> rectsRef = const Value.absent(),
+                Value<double?> pdfAspect = const Value.absent(),
+              }) => SearchUnitsCompanion(
+                id: id,
+                source: source,
+                ownerKey: ownerKey,
+                seq: seq,
+                noteId: noteId,
+                pageId: pageId,
+                assetId: assetId,
+                pdfIndex: pdfIndex,
+                body: body,
+                norm: norm,
+                rectL: rectL,
+                rectT: rectT,
+                rectR: rectR,
+                rectB: rectB,
+                rectsRef: rectsRef,
+                pdfAspect: pdfAspect,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String source,
+                required String ownerKey,
+                required int seq,
+                Value<String?> noteId = const Value.absent(),
+                Value<String?> pageId = const Value.absent(),
+                Value<String?> assetId = const Value.absent(),
+                Value<int?> pdfIndex = const Value.absent(),
+                required String body,
+                required String norm,
+                Value<double?> rectL = const Value.absent(),
+                Value<double?> rectT = const Value.absent(),
+                Value<double?> rectR = const Value.absent(),
+                Value<double?> rectB = const Value.absent(),
+                Value<String?> rectsRef = const Value.absent(),
+                Value<double?> pdfAspect = const Value.absent(),
+              }) => SearchUnitsCompanion.insert(
+                id: id,
+                source: source,
+                ownerKey: ownerKey,
+                seq: seq,
+                noteId: noteId,
+                pageId: pageId,
+                assetId: assetId,
+                pdfIndex: pdfIndex,
+                body: body,
+                norm: norm,
+                rectL: rectL,
+                rectT: rectT,
+                rectR: rectR,
+                rectB: rectB,
+                rectsRef: rectsRef,
+                pdfAspect: pdfAspect,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SearchUnitsTable, SearchUnitRow>(table),
+                  BaseReferences<
+                    _$NoteDatabase,
+                    $SearchUnitsTable,
+                    SearchUnitRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SearchUnitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NoteDatabase,
+      $SearchUnitsTable,
+      SearchUnitRow,
+      $$SearchUnitsTableFilterComposer,
+      $$SearchUnitsTableOrderingComposer,
+      $$SearchUnitsTableAnnotationComposer,
+      $$SearchUnitsTableCreateCompanionBuilder,
+      $$SearchUnitsTableUpdateCompanionBuilder,
+      (
+        SearchUnitRow,
+        BaseReferences<_$NoteDatabase, $SearchUnitsTable, SearchUnitRow>,
+      ),
+      SearchUnitRow,
+      PrefetchHooks Function()
+    >;
 
 class $NoteDatabaseManager {
   final _$NoteDatabase _db;
@@ -10772,4 +16212,14 @@ class $NoteDatabaseManager {
       $$SettingsTableTableManager(_db, _db.settings);
   $$OutboxTableTableManager get outbox =>
       $$OutboxTableTableManager(_db, _db.outbox);
+  $$PageObjectsTableTableManager get pageObjects =>
+      $$PageObjectsTableTableManager(_db, _db.pageObjects);
+  $$HandwritingTableTableManager get handwriting =>
+      $$HandwritingTableTableManager(_db, _db.handwriting);
+  $$RecordingDraftsTableTableManager get recordingDrafts =>
+      $$RecordingDraftsTableTableManager(_db, _db.recordingDrafts);
+  $$SearchOwnersTableTableManager get searchOwners =>
+      $$SearchOwnersTableTableManager(_db, _db.searchOwners);
+  $$SearchUnitsTableTableManager get searchUnits =>
+      $$SearchUnitsTableTableManager(_db, _db.searchUnits);
 }

@@ -17,6 +17,10 @@
 // to the working directory) — another package that opens the real web store with
 // package:note_core/testing_web.dart runs, from its own directory,
 //   dart run <note_core>/tool/prepare_web_test.dart --out test/web
+//
+// (v2.1, m5-7/02-core 6.12.3 '전달', T25b) Without --out (note_core itself) the V7 fixture
+// files the browser test fetches are copied too: test/fixtures/db_v1/{noteapp_v1_web.sqlite,
+// pdf_asset.pdf, manifest.json} → test/web/fixtures_v1/ (in the package .gitignore).
 import 'dart:io';
 import 'dart:isolate';
 
@@ -63,6 +67,28 @@ Future<void> main(List<String> args) async {
   }
   await _install(cached, File('${webDir.path}/sqlite3.wasm'));
   stdout.writeln('${webDir.path}: drift_worker.js and sqlite3.wasm are ready');
+
+  if (_outDir(args) == null) await _installV7Fixture(package, webDir);
+}
+
+/// The V7 fixture files of the browser test (6.12.3): copied as they are, checked against
+/// the sha256 of manifest.json.
+const List<String> _v7FixtureFiles = [
+  'noteapp_v1_web.sqlite',
+  'pdf_asset.pdf',
+  'manifest.json',
+];
+
+Future<void> _installV7Fixture(Directory package, Directory webDir) async {
+  final from = Directory('${package.path}/test/fixtures/db_v1');
+  final to = Directory('${webDir.path}/fixtures_v1');
+  await to.create(recursive: true);
+  for (final name in _v7FixtureFiles) {
+    final file = File('${from.path}/$name');
+    if (!file.existsSync()) _fail('V7 fixture file not found: ${file.path}');
+    await _install(file, File('${to.path}/$name'));
+  }
+  stdout.writeln('${to.path}: the V7 fixture is ready');
 }
 
 /// The value of `--out <dir>` / `--out=<dir>`; null when absent.

@@ -1,5 +1,7 @@
 // CORE T18 — 9.1 budget: one stroke enqueued → committed on a file database (WAL,
-// synchronous = NORMAL), median < 30 ms.
+// synchronous = NORMAL), median < 30 ms. (v2, m5-7 T35) The store is the one openNoteStore
+// gives the native app: both native paths (file database in the background isolate + file
+// blobs, 6.15.3).
 @TestOn('vm')
 @Tags(['perf'])
 library;
@@ -12,7 +14,7 @@ import 'perf_support.dart';
 
 void main() {
   test('one stroke enqueue → commit (file database): median < 30 ms', () async {
-    final store = await openFileStore(await tempDatabasePath('commit'));
+    final store = await openNativeFileStore('commit');
     final note = await store.library.createNote(title: 'commit');
     final session = await store.openSession(note.id);
     addTearDown(session.close);

@@ -2,8 +2,9 @@
 
 ## 요약
 
-- 2차 마지막 세션: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
-- 2차 다음 할 일: 총괄이 R2-B2(α + β) + SYNC R2-B7a + INFRA R2-B2i 묶음을 `main`에 병합하고 묶음 검사(7.6.2 예외) → R2-B3(INK) … → 동시 개발(T24 DB v2·마이그레이션 먼저 — 8.2).
+- 2차 동시 개발(세션 9 + 보완 1.1~1.4·2.1~2.4·3.1, 2026-11-06): **8.2의 T24~T37 모두 완료**. 마지막까지 남았던 T33b·T37의 PF-3·PF-4(검색 질의 예산 — 계약 V10)는 총괄이 CP-18을 승인해(**계약 v2.5 C25-01**) v2.5 예산 — 후보 100개 미만 중앙값 ≤ 5 ms(1글자 LIKE ≤ 15 ms), 그 밖(후보 상한 2,000까지) ≤ 50 ms — 으로 판정해 통과했다(보완 3.1 `19a5b30` — `search_perf_test`가 질의마다 센 후보 수로 예산을 고르는 시험 하나, load 2.6~4.3에서 두 번 통과). 그 전까지: PF-3·PF-4는 v2.4까지의 원문 예산(중앙값 ≤ 5 ms / 1글자 LIKE ≤ 15 ms)을 흔한 낱말 질의(후보 1,000~5,000개)가 20~46 ms로 넘었다 — 설계(후보 상한 2,000·가짜와 같은 판정)에 묶인 값이라 이 영역 혼자 닫을 수 없어 변경 요청 [총괄] V10(계획 12.1 CP-18)을 올렸다(아래 '## 2차' > '동시 개발' > '보완 1.1'). 마지막 작업 커밋은 T37(`b6c7bae`·`b1ce7ab`·`b05cd2a`)과 보완 1.1(`8f29456`·`6995ec1`). 보완 1.2·1.3은 같은 미비점 4건을 다시 받아 HEAD에서 확인만 했다(각각 기록 커밋 하나 — 검토 글이 보완 1.1 앞 상태 `9e29118`과 맞음, '보완 1.3' 절에 HEAD의 파일·행 표). 보완 1.4(네 번째 — 같은 4건)에서 처음으로 load < 4에서 쟀다: 원문 V10은 흔한 낱말 7개가 여전히 19~31 ms(부하 탓이 아님 — 검토 1번 그대로), CP-18 제안의 아래 칸 경계(300·600개)는 여유가 없어 **100개로 고쳤다**('보완 1.4'). 보완 2.1(새 검토 5건): R-8 시험(`undo_objects_test` — 녹음·손글씨가 히스토리 밖, 가짜·실제)과 CP-9 `seedSyntheticNote(objectsPerPage:)`를 더했고, INFRA 웹 예산표 몫을 변경 요청 [INFRA]로 보냈다. PF-3·PF-4는 그때 그대로 판정 대기였다('보완 2.1'). 보완 2.2는 같은 5건을 다시 받아(검토 글이 보완 2.1 앞 `b0eff3d`와 맞음) HEAD에서 확인만 했다(기록 커밋 하나 — '보완 2.2' 절에 HEAD의 파일·행 표, 원문 V10은 여전히 흔한 낱말 7~9개가 넘음). 보완 2.3도 같은 5건(세 번째 — 여전히 `b0eff3d` 상태의 글)이라 HEAD에서 확인만 했다(기록 커밋 하나 — '보완 2.3' 절, load 1.0~1.4에서도 원문 V10 8개가 넘음: 흔한 낱말 32.7~35.4 ms·1글자 LIKE 21.4~23.9 ms). 보완 2.4도 같은 5건(네 번째 — 글자까지 같음)이라 HEAD(`542fa79`)에서 확인만 했다(기록 커밋 하나 — '보완 2.4' 절, load 5.0~5.7에서 원문 V10 10·9개가 넘음). 보완 3.1: 계약 v2.5 C25-01(CP-18 승인) 반영 — '보완 3.1' 절.
+- 2차 기반 단계 마지막: **R2-B2b(B2-β) 완료 — T20a `9777fde`('B2-β JSON 골든' 이정표) → T20b `c443015` → T21 `38f3578` → T23a `12ab8c4` → T23b `0798096`('B2-β 끝' 이정표)**(아래 '## 2차' > 'B2-β'). 가짜 저장소 v2(객체·녹음·초안·손글씨·메모리 색인)·`PageObjectFixtures`·`FakeAudioRecorder`·`FakeAudioPlayback`·`testing_web.dart`가 동작한다. 실제 저장소는 8.1 'B2 상태' 'β 끝' 열(객체 명령 T27, 새 저장소 쓰기 T30~T33a, DB v1). 그 앞은 T22(B2-α) `2b2e4b0`, T25a `b6beece`.
+- 2차 다음 할 일: 동시 개발 몫은 없다(CP-18 승인 — v2.5 C25-01을 보완 3.1에서 반영). 다음은 통합 단계(7.7 — I-1~I-7): I-6에서 PF-3·PF-4를 v2.5 예산으로 load < 4에서 다시 판정(9.1).
 - 1차 마지막 세션: **통합 단계(7개 영역 병합 뒤)** — SYNC 통합 담당의 변경 요청 2건 처리(아래 '## 통합 단계' > '7개 영역 병합 뒤 — SYNC 변경 요청'): `openTestNoteStore`의 drift 다중 DB 경고 끔, 파일 DB 롤백 저널을 문서·테스트로 고정. 커밋 실패 공개 훅은 계약 7.6 변경이라 **총괄 결정 대기**. 그 앞은 1차 통합(CORE → INK → EDITOR·LIBRARY) 확인, 동시 개발 마지막은 세션 5
 - 다음 할 일: 총괄이 7.6 커밋 실패 훅(SYNC 요청 1)을 채택하면 CORE가 구현(아래 제안). iPad 확인(계획서 9.2·10절 #9). 10절 #7(SYNC T16을 막는 CORE 결함 없음)은 통합 태그 전체 통과로 확인(SYNC 42개)
 
@@ -207,7 +208,7 @@
 
 ## 2차
 
-계획 docs/plans/m5-7/02-core.md(승인 · 계약 v2.2). 바탕: `main` `e3aa110` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6` + SYNC R2-B7b `9cdd3fb`·`e3aa110`. `packages/note_core` 트리는 `b6c9d0a`와 같다(`5e728c8`) — 1차 CORE 코드 그대로.
+계획 docs/plans/m5-7/02-core.md(승인 · 계약 v2.3 — 2026-11-06 동시 개발 착수 때 상태 줄·인용 맞춤). 바탕: `main` `e3aa110` = 1차 통합 HEAD `b6c9d0a` + 계획 병합 `a23c14f` + INFRA R2-B1 `3c77de3`·`7e6a2e6` + SYNC R2-B7b `9cdd3fb`·`e3aa110`. `packages/note_core` 트리는 `b6c9d0a`와 같다(`5e728c8`) — 1차 CORE 코드 그대로.
 
 ### 이정표 커밋 (CORE 2차)
 
@@ -217,17 +218,17 @@
 | B2-α 계약 타입 커밋 | T22 | 2b2e4b0 | 2026-11-05 | 공개 선언 전부 컴파일 — R2-B7a 바탕, R2-B2i 위임, 전 영역 코드 작성 시작 | SYNC·INFRA·전 영역 |
 | B2-β JSON 골든 | T20a | 9777fde | 2026-11-06 | 객체·손글씨·녹음 JSON 키 고정 — 키 대조 시험(CP-S9) | SYNC(R2-B7a가 이 해시로 판정 — sync.md) |
 | B2-β 끝 | T23b | 0798096 | 2026-11-06 | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
-| DB v2·마이그레이션 | T24 | | | openTestNoteStore가 v2 DB, v1 사본 | SYNC·PDF·LIBRARY·INFRA |
-| 쓰기 경로 | T26 | | | 새 종류 행·힌트·고아 — SYNC 시나리오 시험 | SYNC |
-| 객체 읽기·쓰기 DB | T27 | | | 실제 저장소 객체 명령·N-7 | EDITOR·PDF |
-| 동기화 창구 v2 | T28 | | | applyRemote·readVersioned 새 종류 — T16-v2 | SYNC |
-| 복사·휴지통·백업 | T29 | | | copyNote·영구 삭제·백업 v2 | LIBRARY·SYNC |
-| 녹음 저장소 | T30 | | | createRecording(멱등)·watch | PDF(media)·EDITOR |
-| 실제 초안 저장소 | T31 | | | meta·되살림·조각 — V16 | PDF(media) |
-| 손글씨 저장소 | T32 | | | update·stalePages·notesWithStalePages | LIBRARY |
-| 색인 쓰기 | T33a | | | SearchIndexWriter 실제 — PDF 색인기 | PDF |
-| 검색 색인 | T33b | | | searchPages·searchLibrary.pages 실제 | LIBRARY·PDF |
-| 네이티브 저장 | T35 | | | 파일 DB + 파일 블롭 | INFRA(A-1) |
+| DB v2·마이그레이션 | T24 | a2b0489 | 2026-11-06 | openTestNoteStore가 v2 DB, v1 사본(네이티브 파일·웹 블롭 덤프), dev_tools v1 사본 API 동작 — 새 종류의 행 쓰기는 T26부터 | SYNC·PDF·LIBRARY·INFRA |
+| 쓰기 경로 | T26 | 3bfff8a | 2026-11-06 | 새 종류(객체·손글씨) 행·`recordings.title`·`pages.bg_*`, 힌트(`noteId`·`pageId` 항상), 원격 고아 객체 입양, `readVersioned`·백업 읽기 — SYNC 시나리오 시험 가능(원격 객체의 `content_rev`는 T28) | SYNC |
+| 객체 읽기·쓰기 DB | T27 | 2db774e | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) 세션의 객체 명령 전부(Add/Update/Remove/Transform/Clear/Insert·DuplicatePages)·undo/redo, `createNote(PageDraft.objects)`, `NoteContentReader.loadPage(…).objects`(PDF 내보내기 `integration`), 원격 객체 → 로드된 페이지 `PageContentChange(remote)`(N-7) | EDITOR(E-2x)·PDF |
+| 동기화 창구 v2 | T28 | 3d49685 | 2026-11-06 | `applyRemote`·`commitRepairs`·`readVersioned`·`pendingChanges`가 새 종류(객체·손글씨)로 동작, 원격 객체·손글씨가 쓰인 페이지 `content_rev + 1`, 모르는 `type` 왕복(C-12) — T16-v2(로컬 객체 편집은 실제 저장소 세션 T27부터, 녹음·손글씨 저장소 T30·T32) | SYNC |
+| 복사·휴지통·백업 | T29 | 6ae70e9 | 2026-11-06 | `copyItems`·폴더 복사·`duplicateNoteForRecovery`가 녹음(획 연결 바꿈)·객체·손글씨 결과까지 복사(복사본 바로 검색·stale 없음 — `8147320`), 영구 삭제가 객체·손글씨·색인·초안까지(`585022b`), 백업에 새 종류 — 골든 `backup_v2.json`(실제 = 가짜 = 웹), 색인·초안·캐시·v1 사본 없음 | LIBRARY·SYNC |
+| 녹음 저장소 | T30 | 3b5adfa | 2026-11-06 | 실제 저장소 `recordings`: `createRecording`(id 멱등 — 검증보다 먼저 저장된 행)·`renameRecording`·`deleteRecording`·`recordingsOf`·`watchRecordings`·`audioBytesOf`, 공유 본문 `recording_contract`가 가짜·실제 둘 다 | PDF(media)·EDITOR |
+| 실제 초안 저장소 | T31 | 2d8dd0a | 2026-11-06 | 실제 저장소(`openTestNoteStore`·`openWebTestNoteStore`)의 `recordingDrafts`: meta 먼저·부른 순서 `append`(커밋 뒤 완료)·빈 조각·행 유실 → meta로 되살림·첫 사용 고아 정리·`readAll` 한 벌·`discard` — PDF `media` Chrome 시험(X-1, V16) | PDF(media) |
+| 손글씨 저장소 | T32 | 8cf5524 | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) `handwriting`: `put`·`update`(한 쓰기 트랜잭션 — 경합 사례 1~7, transform 안 쓰기 `StateError`)·`removeForPage`·`forPage`·`watchPage`, `stalePages`·`notesWithStalePages`(`pages.ink_rev` 캐시 — 정확한 답·페이지 순서·최근 노트 먼저, PF-6·PF-11 예산 안). ink 검색 단위는 T33a | LIBRARY(L2x)·인식 |
+| 색인 쓰기 | T33a | 5776751 | 2026-11-06 | 실제 저장소(`openTestNoteStore`·웹 저장소) `search`의 `SearchIndexWriter`(pdf — 검증·글자 상자 블롭 SQLite 밖·`sourceRevOf`/`sourceRevs` 꼬리 그대로·빈 목록 = 소유자 유지)·`status`·`rebuild`, CORE 자체 색인(텍스트 상자·수식·손글씨 — 실패 격리·보류 재시도). 질의 `searchPages`는 T33b | PDF |
+| 검색 색인 | T33b | 9084734 (질의 734b9b5) | 2026-11-06 | `searchPages`·`searchLibrary.pages`·`pagesTruncated` 실제(실제 저장소·웹 저장소 — 공유 검색 본문: 결과·순서·사각형이 가짜와 같음), 질의 속도(PF-3·PF-4 — 후보가 적은 질의 2~5 ms, 상한 질의 27~41 ms: 계약 v2.5 C25-01 예산 안 — 보완 3.1 `19a5b30`), 실제 모양 500쪽 DB 증가 3.6~8.3 MiB(≤ 12 MB)·웹 다시 열기 +84 ms(≤ +300 ms) | LIBRARY·PDF |
+| 네이티브 저장 | T35 | 340a7ab | 2026-11-06 | `openNoteStore`(네이티브)가 두 경로로 파일 DB(WAL·배경 isolate) + 파일 블롭(`<dir>/blobs`·`<dir>/thumbs` — 원자적 쓰기, 없는 디렉터리를 만듦, 쓸 수 없으면 `storageUnavailable`), 한 경로만이면 `storageUnavailable`, `deleteLocalNoteData`가 블롭·v1 사본까지 — APK에서 노트·에셋·썸네일·초안이 남음(A-1). `openTestNoteStore`는 그대로(메모리 블롭) | INFRA(A-1) |
 
 ### 작업 표 (2차)
 
@@ -381,3 +382,757 @@
 - B2-α 가짜 시험 `test/testing/fake_store_b2_alpha_test.dart`를 지웠다(가짜가 α 상태를 벗어남). 그 안의 v1 사본 API 사례(사본 없는 저장소: 읽기 `StateError`·지우기 아무것도 안 함)는 `fake_store_v2_test`로 옮겼다. `test/shared/b2_alpha_store_cases.dart`는 실제 저장소에만 돈다.
 - 초안 저장소의 고아 정리는 가짜를 다시 열 수 없어 공유 본문으로는 보이지 않는다 — 가짜 전용 사례(처음 쓰기 전에 남겨 둔 블롭)를 `recording_draft_contract_fake_test`에 더했다. 공유 본문은 `reopen()` 훅이 있는 실제 저장소(T31)에서 정리까지 본다.
 - 6.18.1 ②(V7 고정 자료를 `test/web/fixtures_v1/`로 복사·`.gitignore`)는 T23b 행에 없어 T25b(고정 자료 Chrome 시험)로 둔다 — 'T25b가 알아 둘 것'과 같다.
+
+### 동시 개발
+
+2차 동시 개발 단계(M5·M6·M7). 작업 트리 `/home/user/wt2/core`(`area2/core`), 바탕 `5843ec3`(총괄 계약 v2.3 커밋 — 기반 단계 R2-B1~B8 전부 들어감). 할 일은 계획 8.2 표(선행 순서 T24 → T26 → (T27, T28, T30, T31, T32) → T33a → T33b → T34 → T29 → T36 → T37, T35는 언제든·T25b 전).
+
+#### 작업 표 (동시 개발)
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| T25a | 기반 단계에서 완료 | b6beece | `test/migration/v1_fixture_files_test.dart` |
+| T22 | 기반 단계에서 완료 | 2b2e4b0 | `test/api_surface_test.dart` v2 외 — 위 '작업 표 (2차)' |
+| T20a·T20b·T21·T23a·T23b | 기반 단계에서 완료 | 9777fde·c443015·38f3578·12ab8c4·0798096 | 위 '작업 표 (2차)' |
+| T24 | 완료 | a2b0489 | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
+| T35 | 완료 | 340a7ab | `test/assets/file_blob_store_test.dart`(33 — 공유 사례 8건을 파일·메모리 IndexedDB 둘 다에 + 파일만 17), `test/storage/native_file_store_test.dart`(12), 1차 `open_errors_test`(+ 한 경로만 1건)·`asset_store_test`(+ 네이티브 다시 열기 1건)·`v1_copy_test`·`commit_latency_perf_test`(네이티브 저장소로)·`draft_append_perf_test`(PF-7 두 블롭으로) |
+| T25b | 완료 | 302bc4a | `test/migration/v1_fixture_migration_test.dart`(3 — VM 파일 DB + 파일 블롭), `test/web/v1_fixture_migration_browser_test.dart`(2 — Chrome 웹 워커), 공유 본문 `test/shared/v7_fixture_checks.dart`(①②③⑤), `test/perf/migration_perf_test.dart`(PF-8) |
+| T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
+| T27 | 완료 | 2db774e · 보완 2.1 `0ae0d4d`(R-8 시험 — 아래 '보완 2.1' 2번) | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`(+ 보완 2.1 R-8 — 녹음·손글씨가 히스토리 밖, 가짜·실제 각 2), `test/session/content_reader_test.dart`(+ objects) |
+| T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
+| T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
+| T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
+| T32 | 완료 | 8cf5524 | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
+| T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
+| T33b | 완료 — PF-3·PF-4는 계약 v2.5 C25-01(CP-18 승인) 예산으로 판정·통과(아래 '보완 3.1'). 그 전에는 원문(V10 v2.4) 예산 미달로 '진행 중'이었다('보완 1.1'~'보완 2.4') | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4 `ec0d7d7`(CP-18 경계 100개 — '보완 1.4' 절) · 보완 3.1 `19a5b30`(v2.5 판정 시험·계획·README) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
+| T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
+| T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
+| T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
+| T37 | 완료 — PF-1~PF-11·README·Chrome `perf`·(보완 2.1) CP-9 `objectsPerPage`. PF-3·PF-4는 T33b와 같이 v2.5 C25-01 예산으로(보완 3.1) | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4 `ec0d7d7`(README PF-3·PF-4 load < 4 값) · 보완 2.1 `f99d064`(CP-9 `objectsPerPage` — 아래 '보완 2.1' 3번) · 보완 3.1 `19a5b30`(README 성능표 PF-3·PF-4 v2.5) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2, (CP-9) `test/dev/seed_synthetic_note_test.dart` |
+| I-1~I-7 | 통합 단계 | | 계획 8.3 |
+
+#### 00-review '최종 승인' CORE 항목 처리
+
+| ID | 처리 |
+|---|---|
+| CORE-F1 | B2-α `2b2e4b0`에 `dev_tools.dart` 선언(본문 `null`·`StateError`·아무것도 안 함, 실제 저장소는 `CORE T24`). 동작·`v1_copy_test`·`v1_copy_browser_test`·첫날 Chrome 확인(웹 정규 덤프 사본 만들기·해시·지우기·다시 열기 시간)은 T24 |
+| CORE-F2 | 완료 — T25a `b6beece`(manifest에 `fullDumpSha256`·`entityDumpSha256`) |
+| CORE-F3 | 완료 — B2-α `2b2e4b0`의 `Recording.durationMs` R-3 주석이 C22-04 문장 |
+| CORE-F4 | 유지 — 다시 연 세션 히스토리 비어 있음(C15-04)은 1차 동작 그대로. T27: 실제 저장소 객체 세션도 같은 성질 — `note_session_objects_test` 'a reopened session … its history is empty (C15-04)' |
+| C22-09 | 계획서 상태 줄 '승인 · 계약 v2.3', 12.1 CP-16·17 판정 열(C22-02·C22-01), 5.8 표를 실제 타입·커밋으로(2026-11-06) |
+
+#### 변경 요청 (동시 개발)
+
+- 다른 영역이 기반 단계에서 CORE에 보낸 변경 요청: 없음(`/home/user/wt2/notes/*.md`에서 `[CORE]` 검색 — 2026-11-06).
+- 보낸 것:
+  - **[총괄] V10 · 7.7(검색 질의 예산) — CORE T33b, 2026-11-06** — **판정: 승인(계약 v2.5 C25-01, 2026-11-06 — 아래 제안 문구 그대로, 7.2.5 후보 규칙·CP-14는 그대로). 보완 3.1 `19a5b30`에서 반영해 닫음.** 요청 원문: '5,000쪽 합성 색인 질의 중앙값 ≤ 5 ms(VM)'는 **후보가 적은 질의**(≲ 150개 — 드문 2·3음절·낱말 중간·영문 접두사·AND)에서 맞는다(2~5 ms, load 5~6). 후보 상한 2,000을 채우는 **흔한 낱말**(합성 자료에서 거의 모든 쪽에 있는 2·3음절·영문 접두사·AND)은 27~41 ms다. 비용은 읽는 후보 수에 비례한다: 계약 7.2.5의 '살아 있는 후보만 2,000개, 최근 먼저'와 CP-14의 '가짜와 같은 판정·순서'를 지키려면 후보마다 살아있음 읽기(페이지·노트 색인 탐색 — 상한에서 ~3 ms)와 `norm`(쪽당 ~320자)을 SQLite에서 Dart로 옮겨 공용 판정·점수(~4 ms)를 해야 하고, `norm` 옮기기만 후보당 ~4 µs(상한에서 6~8 ms)다. FTS MATCH 자체는 1 ms(조사 03 9.2의 5 ms 근거는 MATCH만 잰 값). PF-4(1글자 LIKE ≤ 15 ms)도 1글자는 거의 늘 후보가 많아 576개 11~14 ms(낮은 부하)·상한 24~34 ms. **제안**(보완 1.1·1.4에서 고침 — 계획 12.1 **CP-18**, v2.5 C25-01 승인): V10(과 계획 6.19 PF-3·PF-4)을 '후보 **100개 미만** 질의 중앙값 ≤ 5 ms(1글자 LIKE는 ≤ 15 ms), **그 밖의 질의(후보 상한 2,000까지) ≤ 50 ms**(VM)'로. (보완 1.4) 보완 1.1의 경계 '300개 미만(1글자 LIKE 600개 미만)'은 load < 4에서도 여유가 없었다 — 136개·결과 100쪽 질의 3.3~5.2 ms, 576개 1글자 LIKE 14.2~15.8 ms(여덟 번, 아래 '보완 1.4'). 비용은 읽는 후보 수와 돌려주는 쪽 수(100까지 — 원문·발췌 ≈ 3 ms)에 함께 비례하고 1글자 LIKE에는 5,000단위를 다 훑는 바닥값이 더해져, 후보 100개 미만이면 5 ms 안(38~65개 1.5~3.2 ms)이다. 처음 보낸 '후보 상한에 걸리는 질의 ≤ 40 ms'는 300~2,000개(상한에 걸리지 않는 1글자 LIKE 1,072개 등)를 빠뜨렸고, 영문 접두사 상한 질의가 load 5.5에서 43.7 ms라 40 ms에 여유가 없어 PF-10 질의 예산과 같은 50 ms로 올렸다. 예산을 그대로 두는 길은 후보 상한 낮추기(7.2.5 `SearchIndex.searchPages` 주석 '(v2.1) At most 2,000 candidates'·`LibrarySearchResult.pagesTruncated` 주석 변경 — 흔한 낱말에서 `pagesTruncated`가 늘 참이 되고 결과가 최근 단위 몇백 개로 좁아짐)인데, **상한 300 실험**(보완 1.1 — 임시로 바꿔 재고 되돌림)에서도 PF-3 흔한 낱말 5개 중 4개가 5.1~9.7 ms(load 6)였다 — FTS 접두사 확장과 결과 100쪽의 원문 읽기·발췌(≈ 3 ms)가 남아 상한 300으로도 5 ms를 지키지 못한다(상한 ≲ 150 또는 돌려주는 쪽 수 축소까지 필요). **판정 전까지(7.4.9 — 원문 유지)** `test/perf/search_perf_test.dart`의 'V10 as written' 시험이 원문 예산을 14개 질의 모두에 단언했고(판정 전까지 실패 — T33b·T37의 PF-3·PF-4는 '진행 중'이었다), 'CP-18 as proposed' 시험이 제안 예산을 회귀 방지로 단언했다(V10 판정이 아님). 승인 뒤(보완 3.1) 두 시험을 v2.5 판정 시험 하나로 합쳤다. 세션 6~9에는 제안 기준만 단언해 원문 기준 미달이 시험 결과에 보이지 않았다(검토 미비점 1 — 보완 1.1에서 고침).
+
+  - **[INFRA] 웹 예산표(01-infra 6.15)에 CORE 검색 색인 크기 기록 행 — CORE T37, 2026-11-06(보완 2.1)**: 계획 02-core 8.2 T37 '색인 크기 기록(PF-10 — README·INFRA 웹 예산표)'의 INFRA 몫. 계약 7.4.5 (v2.1) '검색 색인 크기' 목표의 측정값을 예산표에 **기록 행**으로 올려 달라(한도 행이 아님 — `tool/web_budget.yaml`·`ws web-budget`은 빌드 산출물만 재고, 목표를 넘을 때의 대응(원문 열을 블롭으로·색인 범위 축소를 총괄에 올림)은 계약대로 CORE 몫): ① 실제 모양 500쪽 PDF 색인(쪽당 2,500자 + 글자 상자)의 **DB 파일 증가**(목표 ≤ 12 MB) 한국어 8.31 / 혼용 6.15 / 영어 3.62 MiB, 글자 상자 블롭 5.35 MiB는 SQLite 밖(블롭 저장소), ② **Chrome 저장소 다시 열기 증가**(목표 ≤ 300 ms) +183 ms(218 → 401 ms, 한국어 500쪽). 출처: `packages/note_core/README.md` 2차 성능표, `test/perf/search_real_shape_perf_test.dart`(PF-10, VM), `test/web/search_reopen_time_browser_test.dart`(PF-10w, Chrome `perf`). 통합 단계 I-6(V10의 '실제 모양 500쪽' 판정)에서 다시 재면 CORE가 그 값을 진행 기록에 남기니 그 값으로 바꿔 달라. CORE는 INFRA 파일을 고치지 않는다(이 작업 트리 소유 아님).
+
+#### 의존성 요청 (동시 개발)
+
+- 없음.
+
+#### T24 — DB 스키마 v2 · 마이그레이션 · v1 사본 · 정규 덤프 (계획 6.10.1·6.11·6.12·8.2, 계약 7.2.7 C22-01·C22-02)
+
+- **스키마**(`storage/db/tables.dart`): 새 테이블 5개(`page_objects`·`handwriting`·`recording_drafts`·`search_owners`·`search_units` — 행 클래스 `PageObjectRow`·`HandwritingRow`·`RecordingDraftRow`·`SearchOwnerRow`·`SearchUnitRow`), `pages` + `ink_rev`·`ink_rev_at`·`bg_asset_id`·`bg_pdf_index`, `recordings` + `title`(새 열은 열 목록 **끝** — `ALTER TABLE ADD COLUMN`과 같은 자리), 색인 9개 + `idx_recordings_note`·`idx_pages_bg`, `recording_drafts.recording_id` UNIQUE, `search_units` UNIQUE(`source`,`owner_key`,`seq`)·`id` = rowid(AUTOINCREMENT 없음 — 'max + 1'). FTS5 `search_fts`는 drift 밖(`kSearchFtsCreateSql` — 6.11 1안): `onCreate`·업그레이드 3단계에서 `customStatement`. 새 DB도 kv `search.normalizerVersion = '1'`을 쓴다. `kDatabaseSchemaVersion = 2`.
+- **생성물**: `dart run build_runner build` → `dart run drift_dev make-migrations` — `drift_schemas/note_db/drift_schema_v2.json`, `lib/src/storage/db/note_database.steps.dart`, `test/storage/generated_migrations/note_db/{generated/schema.dart,schema_v1.dart,schema_v2.dart,migration_test.dart}`.
+- **업그레이드**(`storage/db/migrations.dart` `kSchemaSteps = {1: upgradeV1ToV2}`): 0단계(사본)는 `NoteDatabase.onUpgrade`에서 `runSchemaUpgrade` **앞**(트랜잭션 밖), 1~6단계는 한 트랜잭션 안 — 생성 `migrationSteps(from1To2:)`로 1·2단계(`Schema2`의 테이블·열·색인), 3 FTS, 4 `bg_*`(`json_extract`, pdf·image만), 5 `name_norm`·`title_norm`을 `SearchText.normalize`로 **달라진 행만** UPDATE, 6 kv `search.normalizerVersion`·`db.v1Copy`.
+- **v1 사본**(`storage/v1_copy/` — 6.12.4): 저장 방식은 `StorageInfo.backend`로 고른다(네이티브 파일 → `VACUUM INTO '<path>-v1-backup.tmp'` → 이름 바꾸기, 웹(메모리 제외) → 블롭 저장소 `db/v1-backup/<6자리>` 4 MiB 조각 + **마지막에** `db/v1-backup/meta`, 메모리 → 없음). 실패하면 쓴 것을 지우고 실패 기록(`{failed: quota|io|other, at, method, normalOpens}` — 분류는 오류 문자열로, 백그라운드 isolate·웹 워커를 거친 오류는 타입이 없음)을 남기고 이주는 진행. 열기가 오류 없이 끝날 때마다 `normalOpens + 1`(업그레이드한 열기 포함 → 1), `normalOpens ≥ 5` **이고** 7일 지난 첫 열기에서 바이트 → kv 순으로 지움. `deleteLocalNoteData`(네이티브)가 사본·`.tmp`도 지운다(웹은 블롭 DB째 지움 — 1차 그대로). `dev_tools.dart` 함수 4개가 실제로 동작(`fileName` `noteapp-v1-backup.sqlite` | `.sql.txt`, 실패 기록만 있으면 `readV1DatabaseCopy`는 `StateError`).
+- **정규 덤프**(`storage/db/canonical_dump.dart`): `tool/src/v1_dump.dart`와 같은 바이트(V7 고정 자료에서 `fullDumpSha256`·`entityDumpSha256` 그대로). 첫 열이 NOT NULL 단일 기본 키인 표는 `quote(pk) || ','` 키로 2,000행씩 읽는다(그 키는 겹치지 않고 서로의 접두사가 아니라 줄 전체 순서와 같다 — 안쪽 질의는 키만 비교, 바깥 질의는 그 쪽의 줄만 만든다). 그 밖의 표는 한 번에. 4 MiB 조각 스트림.
+- **정규화 위임**(6.10.1, 검토 S-16): `normalizeForSearch` = `SearchText.normalize`(실제·가짜 저장소의 `name_norm`·`title_norm`·제목 질의).
+
+확인 (2026-11-06, load 6~9 — 다른 영역 시험이 함께 돎)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| **첫날** `flutter analyze --fatal-infos`(`note_database.steps.dart` 포함) | 0건 — 생성 머리말 `ignore_for_file: type=lint` | 7초 |
+| **첫날** FTS 1안 `SchemaVerifier`(`generated_migrations/note_db/migration_test.dart` — `migrateAndValidate` 1 → 2, 자료 보존 사례) | 통과(스키마 밖 `search_fts`는 검사하지 않음) | 1초 |
+| **첫날** Chrome 웹 사본(`v1_copy_browser_test` — 합성 v1 + 획 2,000개 randomblob(257), 덤프 1,423,335 B) | 만들기·해시(meta sha256 = 브라우저 안 덤프)·읽기·지우기 동작. 업그레이드 열기(사본 포함) 1,856~2,466 ms, 사본 있는 다시 열기 250~268 ms, 지우기 14~21 ms, 지운 뒤 다시 열기 182~272 ms(두 번 실행). 같은 DB의 덤프만 279 ms(2,000행 쪽)·223 ms(한 번에) | — |
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 4초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `flutter test`(VM) | **915개 통과**, 5개 건너뜀(perf 파일) | 98~113초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(71 + `canonical_dump_browser_test` 1 + `v1_copy_browser_test` 2), 1개 건너뜀(perf) | 156.1초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 69초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+| 다른 멤버(고치지 않고 확인 — 가짜의 정규화 위임·v2 DB) | `ws test --package feature_library --platform vm` 628 통과, `sync_engine` VM 782 통과(통합 태그는 기본 skip) | 334초·154초 |
+| 세션 끝 다시 돌림(커밋 `409c4f2` 뒤) | `ws check` 0, `ws test --package note_core --platform chrome` 74 통과 | 214초 |
+
+#### T26 — 행 변환 · 쓰기 경로 (계획 6.11·6.13·8.2, C2-13)
+
+- **행 변환**(`storage/row_mappers.dart`): `page_objects` — `note_id`는 비정규화(획과 같은 `strokeNoteId` 인자 — 원격 고아는 `''`), `type` 열, `min_x…max_y` = `bounds`, `data_json` = `toJson()`에서 **열이 따로 있는 키**(`kObjectColumnKeys` = `id`·`pageId`·`type`·`createdAt`·`updatedAt`·`deletedAt`·`version`)를 뺀 것(`toJson` 순서 그대로 — `frame`·종류별 키·`UnknownObject`의 모르는 키), `asset_id` = `referencedAssets`(이미지, 최상위 `assetId`가 AssetId인 `UnknownObject`). 읽기는 열 키 + `data_json`을 `PageObject.fromJson`으로(`UnknownObject`는 키·값·순서까지 돌아온다). `handwriting` — `lines_json` = `lines[i].toJson()` 배열. `recordings.title` 쓰기·읽기(업데이트 때 NULL로 지우기 포함). `pages`의 `bg_asset_id`·`bg_pdf_index`는 **쓰기마다** 배경에서 파생(`backgroundColumns` — 업그레이드 4단계와 같은 규칙, `keepLocal`과 상관없음), `ink_rev`·`ink_rev_at`은 엔티티 쓰기가 건드리지 않는다(새 행 NULL, 업데이트는 유지 — 6.9.3 캐시는 T32가 쓴다). `deleteEntityRow`·`readVersionedRow`·`readVersionedPage`(백업 키셋 페이지)와 `DriftSyncStore._readKind`(`readVersioned`)에 두 종류.
+- **힌트**(`WriteTxn._hints`): `PageObject` → `noteId = noteIdOfPage(pageId)`, `pageId`; `HandwritingText` → 그대로 — 둘 다 항상(outbox·`EntityChange`, 로컬·원격·`commitRepairs`·`WriteMerged`).
+- **원격 고아 객체**: `putRemote`가 페이지 행이 없는 객체를 `note_id = ''`로 저장하고 그 커밋에는 내지 않는다. `_adoptOrphans`(페이지가 오는 `putRemote`)가 획과 함께 객체의 `note_id`·outbox `noteId`를 채우고 `EntityChange`를 그 커밋 batch에 넣는다(같은 `applyRemote` 호출 안에서 객체가 먼저 와도 batch 하나).
+- 남긴 것(T28): `_RemoteWriter.write`의 객체·손글씨 경우(쓰인 기존 페이지 `content_rev + 1`, 영향 노트 `refreshNoteDerived`), 색인 훅. 지금은 원격 객체가 행·힌트·고아 입양만 되고 페이지 `content_rev`는 오르지 않는다.
+
+확인 (2026-11-06, 다른 영역 시험이 함께 돎)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 2초 |
+| `ws test --package note_core --platform vm` | **939개 통과**(915 + 새 24), 5개 건너뜀(perf) | 81초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(바뀐 시험 없음 — 행 변환이 웹에서도 컴파일·동작), 1개 건너뜀(perf). 첫 시도는 부하로 시간 초과, 두 번째 시도 통과(ws 자동 재시도) | 1,026초(잠금 대기 포함) |
+
+#### T28 — 동기화 창구 v2 (계획 6.13·8.2)
+
+- `_RemoteWriter.write`(원격 적용·`commitRepairs` 공용)에 두 종류: **객체**는 획과 같다 — 쓰인 페이지(옮겨졌으면 옛 페이지도)를 `written`에, 그 노트를 영향 노트로(`updatedAt = max(현재, 객체 updatedAt)`). **손글씨 결과**는 쓰인 페이지를 `written`에(작업 끝 `content_rev + 1` 한 번 — 썸네일·`ink_rev` 캐시), 노트는 영향 노트(`affectedNoteIds`·`page_count` 재계산)지만 `updatedAt`은 옮기지 않는다(파생 기록 — 로컬 `put`(6.9.4)과 같게, 다른 기기의 인식 결과가 라이브러리 '최근' 순서를 바꾸지 않게). 고아(페이지 행 없음)는 올릴 페이지·영향 노트가 없다. 새로 만든 페이지는 1차처럼 0에서 시작.
+- `pendingChanges`·`acknowledge`·`readVersioned`(`_readKind`는 T26)·정책 호출(`local`·`pending`)·`KeepLocal`·`TakeRemote(dropPendingLocal)`·`WriteMerged`·`commitRepairs`(필드만 새 HLC, 없는 행은 `{*}`)는 종류에 무관한 1차 코드가 그대로 돈다 — 시험으로 확인.
+- 색인 훅(원격 텍스트 상자·수식·손글씨 → 검색 단위)은 T33a(쓰기 훅을 한 곳에 둔다).
+- 수렴(`field_lww_convergence_v2_test`): 두 저장소의 로컬 편집은 쓰기 큐 `putLocal`(바뀐 키)로 낸다 — 실제 저장소의 객체 명령은 T27, 녹음·손글씨 저장소는 T30·T32. 객체 다른 키 동시 편집(키마다 새 값), 같은 키(나중 것), 삭제 대 수정(둘 다 삭제 + 새 텍스트), 녹음 `title` 대 삭제, 손글씨 `lines`·`engineId`·`sourceRev` — 다섯 경우 모두 JSON·필드 버전 같음, outbox 빔.
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 2초 |
+| `ws test --package note_core --platform vm` | 첫 실행 1개 실패(부하 — 출력을 남기지 못함), 다시 돌려 **960개 통과**(939 + 새 21), 5개 건너뜀(perf). `test/sync`·`test/storage` 두 번 더 돌려 195개 모두 통과 | 75~96초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**, 1개 건너뜀(perf) | 226초 |
+
+#### T30 — 녹음 저장소 (계획 6.6·8.2, 계약 7.2.4)
+
+- `storage/drift_recording_repository.dart` `DriftRecordingRepository` — `DriftNoteStore.recordings`(B2의 `EmptyRecordingRepository`는 지웠다). 쓰기는 큐 작업 하나(`putLocal`): 새 행 `{*}`(`createdAt = updatedAt = now`, `isNew`), `renameRecording` `{title, updatedAt}` → outbox `{title}`(같은 값이면 쓰지 않음), `deleteRecording` `{deletedAt, updatedAt}` → `{deletedAt}`(이미 삭제면 아무것도 안 함). outbox·`EntityChange` 힌트 `noteId`(1차 `_hints`).
+- `createRecording`(CP-7 멱등): 같은 id의 행이 있으면 **검증보다 먼저** 그 행을 그대로(삭제된 행도 — 되살리지 않음, 쓰기·`ChangeBatch` 없음). 인자가 저장된 행과 다르면(`noteId`·`assetId`·`durationMs`·`startedAt`) `@visibleForTesting`이 아닌 내부 계수 `debugIdempotentMismatches`만 올린다 — note_core에 개발 로그 창구가 없어서다(6.6 '개발 로그'). 검증 순서: id → 노트 행(휴지통 허용, 영구 삭제 = 행 없음 → `EntityNotFoundException`) → 에셋 행·`type == audio`(M-1) → `durationMs ≥ 0` → 제목(앞뒤 공백 자름, 빈 값 null, 룬 100자 초과 `ArgumentError`).
+- 읽기: `recordingsOf`·`watchRecordings` = 노트 소유자가 현재 소유자일 때만, 활성 행 `startedAt` → id(`idx_recordings_note`). watch는 `WatchHub`(녹음·노트 커밋마다 다시 읽고 같은 값이면 내지 않음 — 노트 이름 바꾸기·다른 노트 녹음은 내지 않음). 원격으로 온 녹음(1차 경로)도 같은 목록·watch. `getRecording`은 삭제된 것도. `audioBytesOf` = 활성 녹음의 **서로 다른** 에셋 행 `size` 합(바이트가 이 기기에 없어도).
+- 삭제는 획의 `recordingId`·`recordingOffsetMs`를 건드리지 않는다(R-7), 에셋 바이트는 남는다(U13). 히스토리 밖(R-8).
+- `test/shared/b2_alpha_store_cases.dart`의 `tasks.recordings`를 null 허용으로(실제 저장소는 T30부터 녹음 묶음을 건너뜀).
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 2초 |
+| `ws test --package note_core --platform vm` | **973개 통과**(960 + 공유 본문 6 + 저장소 9 − B2 녹음 묶음 2), 5개 건너뜀(perf) | 122초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**, 1개 건너뜀(perf) | 235초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 192초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 13초 |
+| 다른 멤버(고치지 않고 확인 — 실제 CORE v2 행·창구) | `ws test --package sync_engine --platform vm` 782 통과(통합 태그는 기본 skip) | 105초 |
+
+#### T27 — 세션·내용 읽기 DB (계획 6.4·6.5·8.2)
+
+- **읽기**(`storage/drift_sessions.dart` `readActiveContent`): 페이지의 활성 `strokes`·`page_objects`를 **한 읽기 트랜잭션**에서(두 읽기 사이에 원격 커밋이 끼지 않게), 둘 다 `Stroke.compareOrder`. 세션 `loadContent`(쓰기 큐 flush 뒤 — 1차 T10)와 `DriftContentReader.loadPage`(`objects` 채움 — PDF 내보내기·썸네일)가 같이 쓴다.
+- **쓰기**: 세션 쓰기는 1차 경로 그대로(`putLocal(strokeNoteId: _noteId)`가 객체 행 `note_id`에도 — T26), 큐 바이트에 `PageObject.estimatedBytes`를 더했다. `SessionBackend.storesPageObjects`와 엔진의 B2 가드(`notYet('T27', …)` 두 곳, `_writesObjects`)는 지웠다 — 가짜·실제 둘 다 객체를 저장한다.
+- **`createNote(PageDraft.objects)`**(`drift_library_repository.dart`): 쓰기 전에 초안마다 객체 ≤ 2,000·`checkObjectLimits`(`ArgumentError` — 노트가 생기지 않음), 객체마다 `copyTo(새 id, 새 페이지, 원래 createdAt)` → `normalizedObject` → `updatedAt = now`, `{*}`·`isNew`·`strokeNoteId: noteId`(InsertPages·가짜 `insertDraftPages`와 같은 규칙).
+- **N-7**(`DriftSessions.committed`): 원격 커밋의 `pageObject` 변경(힌트 `pageId` 항상 — T26)을 획처럼 모아, 로드된 페이지의 것이고 큐에 남은 세션 쓰기가 없으면 `page_objects` 행을 다시 읽어 `remoteCommitted(objects:)`로 넘긴다. 객체가 쓰인 페이지는 `contentPages`(로드 안 된 페이지도 `contentRevision + 1`). DB의 `content_rev + 1`은 T28의 원격 작성기(`applyRemote`) 몫 — 저수준 `tx.putRemote`만 쓰면 오르지 않는다.
+- `test/shared/b2_alpha_store_cases.dart`: '객체 명령이 `CORE T27`을 던짐' 시험과 `tasks.objects`를 지우고, 같은 묶음의 획 쪽 시험 3개(`RemoveElements`·`ClearPage(includeObjects:)`·`PageDraft.copyOf`)는 'the stroke part of the 2nd-round commands (v1.4)' 묶음으로 남겼다.
+- `test/edit/undo_support.dart` `UndoFixture.open(objects:)`: 객체는 세션 `AddObjects` + `clearHistory()`로 넣는다(초안 객체는 새 id를 받아 시험이 id로 가리킬 수 없다).
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **998개 통과**(973 + 객체 계약 실제 8 + 세션 객체 12 + undo 5 + 내용 읽기 1 − B2 객체 시험 1), 5개 건너뜀(perf) | 83초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(바뀐 웹 시험 없음 — 한 읽기 트랜잭션·객체 행 읽기가 웹 워커에서도 컴파일·동작), 1개 건너뜀(perf) | 123초 |
+
+#### T31 — 녹음 초안 저장소 (계획 6.7·8.2, 계약 7.2.4)
+
+- `storage/drift_recording_draft_store.dart` `DriftRecordingDraftStore` — `DriftNoteStore.recordingDrafts`(B2의 `EmptyRecordingDraftStore`는 지웠다). 블롭은 에셋과 같은 저장소(`assetChunks ?? blobs.chunks` — 웹 IndexedDB, VM은 메모리 IndexedDB, 네이티브 파일 블롭은 T35), 키 `rd/<draftId>/<6자리>`·`rd/<draftId>/meta`(UTF-8 JSON `{v:1, recordingId, noteId, mimeType, startedAt}`). 행 `recording_drafts`는 쓰기 큐 작업으로 직접 쓴다(`putLocal` 아님 — 버전·outbox·`ChangeBatch`·백업 없음).
+- `begin`: 검증(`ArgumentError`) → 첫 사용 정리 → 같은 `recordingId`의 행 **또는 행 없는 meta**가 있으면 `StateError` → ① meta `put`(기다림) → ② 큐 작업에서 같은 `recordingId` 행을 다시 보고(경합) 행 삽입 → 커밋 뒤 초안(`updatedAt = tx.now`). ②가 `StateError`면 ①의 meta를 지운다(나중에 meta로 되살아나지 않게).
+- `append`: 초안마다 Future 사슬(부른 순서), 조각은 **부를 때 복사**. 사슬 안에서 행 또는 meta 확인(없으면 `StateError`) → 4 MiB·`activeMs` 검사(`ArgumentError`) → 번호(`_next` — 처음엔 블롭 키에서 0부터 끊김 없는 수) → ① 조각 `put` → ② 큐 작업(행이 없으면 `StateError` — 다른 곳에서 버림)으로 `chunk_count`·`bytes`·`active_ms`·`updated_at`. Future는 ② 커밋 뒤(재시도 중 미완료). 빈 조각은 ①을 건너뛴다. 999,999 넘으면 `ArgumentError`.
+- `listDrafts`: 정리 → 진행 중 사슬·큐 flush → 행마다 블롭 키로 맞춤(끊김 없는 조각 수, 행보다 많은 조각의 길이 더함, 적으면 조각 길이 합) → 행 없는 meta 접두사는 meta로 되살려(`activeMs 0`, `updatedAt = startedAt`) 큐 작업으로 행을 다시 쓴다(그 사이 같은 id·`recordingId` 행이 생겼으면 건너뜀 — UNIQUE 충돌로 큐가 재시도에 갇히지 않게) → `startedAt`, `draftId` 순.
+- `readAll`: 그 초안의 사슬·큐를 기다린 뒤, 결과 한 벌 + 조각 하나(M-4) — 행의 `chunkCount`가 조각 수와 같으면 행 `bytes`로 버퍼를 잡고, 다르면 길이를 먼저 읽는다. `discard`: 사슬 기다림 → (없으면 아무것도 안 함) ① `deletePrefix` ② 큐 작업으로 행 삭제.
+- 첫 사용 정리: `rd/` 키 전부와 행 id를 보고 **행도 meta도 없는** 접두사만 지운다(실패하면 다음에 다시).
+- 시험 이음새: `@visibleForTesting debugWriteOrder`(블롭 키 `put`과 `row:<id>`를 일어난 순서로 — 가짜의 `blobWrites`와 같은 형식).
+- `test/testing/fake_audio_recorder_test.dart`의 'start waits for CORE T31'을 실제 메모리 CORE에서 `stop`(에셋 → 녹음, 초안 없어짐)·`abandon` → 10초 뒤 `pendingDrafts` → `recoverDraft` 흐름으로 바꿨다(시험 파일 머리말이 T31에 바꾸라고 적어 둔 것).
+- `test/shared/b2_alpha_store_cases.dart` `tasks.drafts`를 null 허용으로(실제 저장소는 초안 묶음을 건너뜀).
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 4초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,017개 통과**(998 + 계약 실제 9 + 저장소 12 − B2 초안 묶음 2), 6개 건너뜀(perf — PF-7 더함). 첫 실행은 `fake_audio_recorder_test`의 B2 상태 시험이 실패(기대대로 — 위처럼 바꿈) | 125초 |
+| PF-7 VM(`flutter test --run-skipped -t perf test/perf/draft_append_perf_test.dart`) | 중앙값 **5.83 ms**(예산 ≤ 10 ms) — 파일 DB + 메모리 IndexedDB 블롭(네이티브 파일 블롭은 T35 뒤 다시 잼) | 1초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **78개 통과**(74 + `recording_draft_browser_test` 4), 1개 건너뜀(perf) | 207초 |
+| Chrome 기록(`recording_draft_browser_test` — 실제 웹 저장소, 다른 영역 시험이 함께 돎) | PF-7 Chrome `append` 8 KiB 중앙값 **10.70 ms**(기록 — ≤ 30 ms). 30분 분량(1,800 × 8 KiB = 14,745,600 B): 조각 쓰기 2,785 ms, `readAll` **1,601 ms**, `AssetStore.put` **142 ms**; `usedJSHeapSize` 299.2 → `readAll` 뒤 332.1 → `put` 뒤 347.0 MB(+33 MB ≈ 결과 한 벌 14 MB + GC 전 조각들 — M-4 '한 벌' 범위) | — |
+| `ws check` | R1~R16 위반 0·경고 0 | 96초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 26초 |
+
+#### T32 — 손글씨 저장소 · `pages.ink_rev` 캐시 (계획 6.9·8.2, 계약 7.2.5)
+
+- `storage/drift_handwriting_repository.dart` `DriftHandwritingRepository` — `DriftNoteStore.handwriting`(B2의 `EmptyHandwritingRepository`는 지웠다 — `empty_v2_repositories.dart`에는 `EmptySearchIndex`(T33a)만 남음).
+- 쓰기는 모두 쓰기 큐 작업(`putLocal`): 새 행 `{*}`, 있으면 바뀐 JSON 키만(`changedJsonKeys` — 삭제됐던 행은 `deletedAt`이 풀려 되살아남), `removeForPage`는 `{deletedAt}`. 있던 행의 `createdAt`은 유지, `updatedAt` = 트랜잭션 시각. 활성 행과 동기 키가 하나도 다르지 않으면 쓰지 않고(ChangeBatch·outbox·버전 없음) 저장된 값을 돌려준다 — 가짜도 같게 고쳤다(공유 본문 새 사례).
+- 검증(6.9.4): 페이지 행 없음 → `EntityNotFoundException`(삭제된 페이지 행은 허용), 노트 불일치·후보 > 5·빈 `languageTag` → `ArgumentError`, `update`는 결과의 `pageId` 불일치도 `ArgumentError`.
+- `update`: 큐 작업 하나(= 한 쓰기 트랜잭션) 안에서 행 읽기 → `transform`(동기, transform 존) → 검증·쓰기. `transform`이 던진 예외는 **작업의 결과로 돌려 받아**(그때까지 쓴 것 없음) 호출자에게 다시 던진다 — `FormatException` 같은 비도메인 예외가 큐의 커밋 재시도(저장 실패 취급)로 가지 않게. 같은 커밋의 다른 작업은 그대로 커밋된다(`handwriting_repository_test`).
+- transform 안 쓰기 금지: `common/write_guard.dart`(`kInTransformZoneKey`·`inUpdateTransform`·`runUpdateTransform` — 가짜에서 옮김)를 `WriteQueue.run`이 본다 → 실제 저장소의 모든 큐 쓰기가 transform 존에서 `StateError`로 바로 실패(가짜는 `FakeNoteStore.write`). 큐를 거치기 전에 블롭부터 쓰는 API(`assets.put`·초안 `append`의 ①)는 블롭 쓰기 뒤 큐에서 실패한다.
+- `stalePages`·`notesWithStalePages`(6.9.3): `refresh`는 `ink_rev`가 있고 `ink_rev_at = content_rev`인 페이지는 캐시를 믿고, 나머지만 50쪽씩 **SQL에서 입력 획을 이어 붙여**(`group_concat(id || ':' || updated_at || ';', '' ORDER BY id)`, 도구 highlighter·tape·laser 제외 — 페이지당 한 행만 Dart로) `sourceRevOfJoined`(SHA-256)로 해시한다. 캐시 쓰기는 다시 계산한 페이지 전부를 **큐 작업 하나**로(50행씩 `UPDATE pages … FROM (VALUES …) WHERE content_rev = 읽은 값` — 그 사이 내용이 바뀐 페이지는 쓰지 않음, outbox·ChangeBatch·touch 없음), 호출이 끝나기 전에 기다린다. `notesWithStalePages`는 ① 낡은 캐시 페이지(소유자의 활성 노트·활성 페이지) → `refresh` → ② 한 질의(`EXISTS` + `LEFT JOIN handwriting ON id = 'hw_' || page_id`) — `updated_at ↓, id ↑`.
+- 해시 이음새: `common/source_rev.dart`(`sourceRevOfPairs`·`sourceRevOfJoined`·`kEmptySourceRev`) — `HandwritingText.sourceRevOf`가 위임. 엔티티 id는 ASCII(`isValidEntityId`)라 SQLite BINARY 순서 = `String.compareTo` 순서(혼합 id 시험).
+- 시험 이음새: `@visibleForTesting debugInkRefreshedPages`(획 행을 다시 읽은 페이지 수).
+- 색인(ink 단위 다시 색인 — 6.10.3)은 T33a 몫: `put`·`update`·`removeForPage`·원격 `putRemote` 훅에 넣는다.
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,047개 통과**, 7개 건너뜀(perf) | 102초 |
+| PF-6·PF-11 VM(`flutter test --run-skipped -t perf test/perf/stale_pages_perf_test.dart`, load 8) | PF-6 첫 `stalePages` **50.2 ms**(≤ 150), 캐시 최신 1.3 ms, 바뀐 페이지 1개 중앙값 **4.7 ms**(≤ 10). PF-11(5,000쪽·획 10만, DB 163 MiB) 첫 따라잡기 **390 ms**(≤ 1.5 s), 그 뒤 `notesWithStalePages` 중앙값 **1.0 ms**(≤ 30) — 덮개 색인 없이 예산 안 | 111초(시드 99초) |
+| `ws test --package note_core --platform chrome` | 준비 ok, **91개 통과**(78 + `handwriting_browser_test` 13), 1개 건너뜀(perf) | 158초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 92초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 21초 |
+
+#### T33a — 검색 색인 ① 쓰기 쪽 (계획 6.10.3·6.10.5·8.2, 계약 7.2.5)
+
+- `storage/search_indexer.dart` `SearchIndexer`(쓰기 트랜잭션 안의 색인 행) + `storage/drift_search_index.dart` `DriftSearchIndex`(`DriftNoteStore.search` — 작성기·상태·재구축, 질의 `searchPages`는 T33b까지 빈 목록). B2의 `repo/empty_v2_repositories.dart`(`EmptySearchIndex`)와 `common/pending.dart`(`notYet`)는 쓰는 곳이 없어져 지웠다 — 2차 표면의 `UnimplementedError`는 이제 없다.
+- 쓰기 훅: `write_queue.dart`에 내부 인터페이스 `TxnIndexHooks`(`entityWritten`·`objectsAdopted`·`beforeCommit`·`committed`·`rolledBack`)와 `WriteQueue.indexHooks`. `WriteTxn.putLocal`(로컬만 바뀐 경로 포함)·`putRemote`가 행을 쓴 뒤 `entityWritten(entity, versions.max, noteId 힌트)`를 부른다 — 세션 커밋·undo/redo·`createNote(PageDraft.objects)`·손글씨 `put`/`update`/`removeForPage`·`applyRemote`·`commitRepairs`가 모두 이 두 함수를 지나므로 훅은 이 한 곳이다. `TextBoxObject`(text)·`MathObject`(math)·`HandwritingText`(ink)만 색인하고 도형·이미지·`UnknownObject`·획은 바로 돌아온다.
+- 소유자 행 쓰기(한 savepoint — 6.10.5): 옛 단위의 FTS 행 `DELETE … WHERE rowid IN (…)`(contentless_delete) → 단위 행 삭제 → 새 단위 행(id = SQLite rowid 규칙 '지금 최대 + 1', 다시 색인된 내용이 '최근') + FTS 행(`g` = `indexTerms(norm)`) → 소유자 upsert(`sourceRev`, `pending = 0`). 삭제된 원천 → 소유자·단위 삭제. `sourceRev`: text·math `<객체 version>:1`, ink `<HandwritingText.sourceRev>:<version>:1`. 소유자 행의 `sourceRev`가 같고 보류가 아니면 다시 쓰지 않는다(같은 버전 재적용).
+- 단위 규칙: 본문이 `SearchText.normalize`로 빈 문자열이면 단위 없음(소유자만), ink는 줄마다(빈 줄 제외, `seq` = 남은 줄 순서, 사각형 = `line.rect`), text·math는 단위 하나(사각형 = `bounds`). 가짜(`memory_search_index.dart`)의 `body.trim().isNotEmpty`를 같은 규칙(`normalize(...).isNotEmpty`)으로 맞췄다.
+- 원격 고아 객체(페이지 행이 아직 없음 — `note_id ''`): 소유자만(단위 없음 — 가짜와 같음). 페이지가 오는 커밋의 `_adoptOrphans`가 입양한 객체 id로 `objectsAdopted`를 불러 text·math 행을 노트와 함께 다시 색인한다.
+- 실패 격리(C-13): 색인 쓰기는 원천 쓰기 작업 안의 중첩 `db.transaction`(savepoint). 실패 → savepoint만 되돌리고 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`로 보류 표시(못 쓰면 `dart:developer` `log`만) → 원천 쓰기는 정상 커밋·Future 정상 완료. 재시도: `WriteQueue._attempt`가 모든 작업 뒤 커밋 전에 `beforeCommit` — 커밋된 보류 수 > 0이면 보류 소유자 최대 20개(`kSearchRetryPerTransaction`, source·owner_key 순)를 원천 행(page_objects·handwriting — 없으면 소유자 삭제)에서 다시 색인하고 그 트랜잭션 안에서 보류 수를 다시 센다(보류가 없고 표시도 없던 트랜잭션은 질의 0개). 커밋되면 `committed()`가 보류 수를 바꾸고 `status`를 낸다, 되돌려지면 `rolledBack()`. 저장소 열기(`DriftSearchIndex.opened` — `ensureDefaults` 전): 보류 수 읽기, 보류가 있으면 빈 큐 작업 하나(그 트랜잭션 끝이 재시도). 타이머 없음.
+- `SearchIndexWriter`(pdf): 검증은 가짜와 공용 `search/search_writer_checks.dart`(`checkSearchWriterOwner`·`checkSearchUnits`·`splitPdfOwnerKey` — 가짜도 이것을 쓰게 고침). `replaceUnits` ① 사각형이 있는 단위마다 블롭 `si/pdf/<assetId>/<pdfIndex>/<16 hex>-<seq 4자리>`에 `SearchRectsCodec.encode` `put`(호출마다 새 토큰 — 키를 덮어쓰지 않음) ② 큐 작업 하나(`writeOwnerRows` — 옛 `rects_ref` 모음) ③ 작업 Future가 끝난 뒤(= 커밋 뒤) 옛 블롭 삭제. ②가 실패하면(작업 오류) ①의 새 블롭을 지우고 다시 던진다. `removeOwner`도 커밋 뒤 블롭 삭제. 고아 블롭 정리: 작성기·`rebuild`의 첫 사용 때 한 번(`si/` 키 중 `rects_ref`에 없는 것) — 모든 작성기 호출이 이것을 기다린 뒤 자기 블롭을 쓰므로 진행 중인 호출의 블롭을 지우지 않는다. 블롭은 자산 조각과 같은 저장소(`assetChunks ?? blobs.chunks` — 초안 `rd/`와 같은 방식, T35 뒤 네이티브 파일 블롭).
+- `rebuild({sources})`: `rebuilding: true` → 큐 작업 ① 고른 원천의 FTS·단위·소유자 삭제(pdf `rects_ref` 모음 → 커밋 뒤 블롭 삭제) ② text·math는 `page_objects`(type·`deleted_at IS NULL`·id 순)에서, ink는 `handwriting`에서 **200행씩 큐 작업 하나**(`kSearchRebuildChunk`) ③ kv `search.lastRebuildAt`(전체 재구축이면 `search.normalizerVersion`도) → `rebuilding: false`·`lastRebuildAt`. 열 때 kv `search.normalizerVersion` ≠ 1이면 `rebuild()`를 기다리지 않고 시작한다.
+- `status`: 구독 즉시 현재 값 + 바뀔 때(`Stream.multi` — 가짜와 같은 비동기 전달).
+- 시험 이음새: `SearchIndexer.failNextIndexWrites(n)`(훅·재시도 savepoint 안 실패, pdf는 작업 실패), `DriftSearchIndex.debugLog`(`put`·`commit`·`delete`·`orphan` 순서).
+- B2-α 공유 본문(`test/shared/b2_alpha_store_cases.dart`)의 `tasks.search`를 null 허용으로 — 실제 저장소는 쓰기 시험을 건너뛴다(읽기 빈 결과 시험은 그대로 통과).
+- 남은 것(T33b): `searchPages` 후보 SQL·pdf 펼침·대표 단위 원문·사각형 블롭 읽기(`BlobStore.getMany`), 블롭이 없는 `rects_ref`를 '사각형 없음'으로 읽기. 영구 삭제 때 그 노트의 소유자 삭제는 T29(`deleteNoteContents` 확장 — 지금은 남는다, 질의는 살아 있는 페이지만 보므로 결과에는 나오지 않음).
+
+확인 (2026-11-06, load 7~8)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 2초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,072개 통과**(1,047 + 새 26 − B2 색인 쓰기 1), 7개 건너뜀(perf) | 115초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **95개 통과**(91 + `search_fts_browser_test` 4), 1개 건너뜀(perf) | 184초 |
+
+#### T33b — 검색 색인 ② 질의 쪽 (계획 6.10.4·6.10.6·8.2)
+
+- `DriftSearchIndex.searchPages` / `search(query, limit:, withinNote:)`(가짜 `MemorySearchIndex.search`와 같은 모양 — `pagesTruncated`). 1단계 후보: 두 글자 이상 낱말이 있으면 `search_fts JOIN search_units u ON u.id = search_fts.rowid WHERE search_fts MATCH ? AND 살아있음(u) ORDER BY search_fts.rowid DESC LIMIT 2001`, 없으면 `u.norm LIKE ? ESCAPE '\'`(낱말마다, `likeContains`) `… ORDER BY u.id DESC LIMIT 2001` — 열은 id·source·owner_key·seq·note_id·page_id·asset_id·pdf_index·norm뿐(`body`·`rects_ref` 없음 — `debugCandidateSql` 시험). 살아있음 = 삭제 안 된 페이지·휴지통 아닌 노트·현재 소유자·`withinNote`(pdf는 그 쪽을 배경으로 쓰는 페이지 — 세션 6부터 아래 ①의 `live` 열). 2001번째 행이 있으면 상한에 걸림. `EXPLAIN QUERY PLAN`에 정렬 단계(TEMP B-TREE) 없음 — FTS는 `INDEX 192:M1`(rowid 내림차순을 FTS가 바로 냄).
+- 2단계: pdf 펼침·노트 `updatedAt`(세션 6부터 후보 질의의 `live` 열에서 — ①)으로 공용 `rankSearchCandidates`. 3단계: 돌려줄 페이지의 대표 단위만 `body`·`rects_ref`·`pdf_aspect`, 같은 원천 단위는 사각형 열만, 대표 pdf 단위의 상자는 `BlobStore.getMany` 한 번(새 내부 메서드 — IndexedDB 트랜잭션 하나, 시험 구현 3개도 고침) → `SearchRectsCodec.view`(⑤); 블롭 없음·깨짐 = 상자 없음(C-13). 페이지 크기 `pages.width/height` → 공용 `searchHitOf`.
+- `searchLibrary`(`drift_library_repository.dart`)의 `pages`·`pagesTruncated`를 `search.search(query, limit: 100)`로 채웠다 — 공유 검색 본문이 `searchLibrary`를 쓰므로 T34 앞당김(T34에는 `library_search_v2_test`·1차 `library_contract` 회귀만 남음).
+- `searchMatches`(`search/search_match.dart`, 실제·가짜 공용) 속도: 단위 전체를 낱말로 나누던 것을 **질의 낱말의 출현 위치**로 판정하게 바꿨다(같은 의미 — 질의 낱말은 낱말 문자만이라 출현마다 단위의 한 낱말 안에 있다: CJK 질의 → '포함', 비CJK → 그 출현의 낱말 시작·CJK 여부만 `runAround`로 본다). 문자 분류는 코드 포인트마다 캐시(`search_runs.dart` `_classOf` — ASCII·한글 음절 빠른 길). 옛 정의를 시험에 옮겨 무작위 4,000쌍(서로게이트·결합 문자·사용자 영역 포함)에서 같은 답(`search_query_test`). 후보 2,000개 판정 500 ms → 10 ms 안팎.
+- 시험: `test/search/search_contract_real_test.dart`(공유 본문 12 — 가짜와 같은 결과·순서·`pagesTruncated`), `test/search/search_index_test.dart`(6 — 휴지통·삭제 페이지와 복원·undo, `withinNote`·다른 소유자, 휴지통 단위가 후보 상한을 먹지 않음, 블롭 없음 → 상자 없음, 후보 SQL 열·`EXPLAIN QUERY PLAN`, 같은 쓰기에 가짜와 같은 결과), `test/search/fts_candidate_equivalence_test.dart`(공유 `test/shared/fts_equivalence_cases.dart` — 시드 33, 단위 2,000·질의 500: FTS5 MATCH 집합 = `ftsCandidateMatches` 집합), `test/web/search_fts_browser_test.dart`(+ 공유 검색 본문 12 + FTS 흉내 동치 1 — wasm), `test/search/search_query_test.dart`(+ 판정 동치 1).
+- (세션 6 — 질의 속도, 같은 의미) ① **후보 질의 하나로 살아있음·펼침·노트 시각**: 후보마다 한 번 도는 상관 부질의 `live`가 살아있음 판정이자 2단계 입력이다 — 비pdf는 그 노트의 `updated_at`, pdf는 그 PDF 쪽을 보이는 살아 있는 노트 페이지마다 `pageId␟noteId␟updatedAt`(`group_concat`, U+001F), 살아 있지 않으면 NULL. `SELECT * FROM (SELECT 열, live … ORDER BY rowid DESC LIMIT -1) WHERE live IS NOT NULL LIMIT 2001` — 안쪽은 co-routine(`LIMIT -1`이 평탄화를 막아 `live`를 행마다 한 번만 계산), `EXPLAIN QUERY PLAN`에 TEMP B-TREE 없음(`group_concat`의 `ORDER BY`는 TEMP B-TREE가 생겨 뺐다 — 펼침 순서는 2단계가 전부 정렬하므로 결과에 영향 없음). 따로 하던 pdf 펼침 질의(에셋의 5,000쪽 전부를 읽던 것 — 10 ms)와 노트 `updatedAt` 질의가 없어졌다. ② **판정·점수 한 번에**: `matchScore`(`search_ranking.dart`) — 첫 질의 낱말의 겹치지 않는 출현을 한 번 훑어 판정과 점수 재료를 함께(겹친 출현은 같은 낱말 안이라 판정을 바꾸지 않음), 질의 낱말 나누기는 질의마다 한 번(`searchMatchesRuns`·`unitScoreRuns`), `runCharBefore`는 정규식 대신 코드 포인트 분류 캐시, 정렬 비교에 레코드를 만들지 않음. 무작위 4,000쌍에서 `matchScore` = `searchMatches ? unitScore : null`(비트 같음)·`runCharBefore` = 정규식(`search_query_test`). ③ **정규화 빠른 길**: 한글 음절은 대소문자가 없어 그대로, 그 밖의 비ASCII 소문자는 코드 포인트마다 캐시(`toLowerCase` 한 코드 포인트 — 문맥 없음). 발췌는 단위의 `norm`에서 일치 위치를 알고 그 위치까지만 대응표를 만든다(내부 `normalizeMappedPrefix` — 배럴에서 `hide`, `snippetOf(bodyNorm:)`; 대응표 앞부분 = 전체 대응표 앞부분 시험과 발췌 같음 시험은 `search_text_cases` — VM·Chrome). ④ **3단계 한 문장**: 대표 단위(원문·`rects_ref`·`pdf_aspect`·사각형), 같은 원천 다른 단위(사각형만), 페이지 크기를 `UNION ALL` 한 문장(500개씩)으로 — 질의 작성기 대신 raw SQL. ⑤ **글자 상자는 읽을 때 만든다**: `SearchRectsCodec.view`(검사는 바로 — 머리·크기·줄 묶음, 상자는 `[]`에서 만듦), 일치 범위의 상자만 만든다(6.10.4 '일치 범위의 글자 상자만 푼다'). 실제 모양 500쪽 질의의 블롭 단계 51 ms → 6 ms. `decode`는 `List.of(view)`. 시험 `search_rects_codec_test`(view = decode·범위 밖 `RangeError`·수정 불가·깨진 블롭 `FormatException`).
+- 1글자 경로의 `LIKE`를 `instr`로 바꿔 쟀다 — LIKE가 조금 빨라(5,000행 5.1 ms 대 5.9 ms) 계획대로 `LIKE … ESCAPE`를 유지했다.
+- **PF-3·PF-4**(`test/perf/search_perf_test.dart`, 5,000쪽 × 80낱말, 질의마다 후보 수를 함께 잼 — 2026-11-06, load 5~6, CPU 4 공유): 후보가 적은 질의 — 드문 2음절(65개) 3.4~4.6 ms, 3음절(40) 2.3~2.9, 낱말 중간(40) 1.9~4.2, 영문 접두사(46) 2.6~3.4, AND(38) 3.0~4.4, 2음절(136개, 결과 100쪽) 5.0~7.1 ms. **후보 상한(2,000)을 채우는 흔한 낱말** — 2음절(4,967개) 30~41 ms, 3음절·낱말 중간(3,633) 27~36, 영문 접두사(2,558) 31~39, AND(2,539) 32~34. PF-4 1글자 LIKE — 후보 576개 11~35 ms(부하에 따라), 1,072개 16~27, 상한 24~34. 첫 측정(세션 5 — 149·54·22·111·114 ms, LIKE 64~70)에서 3~5배 줄었다. 나눠 잰 값(상한 질의, load 5~9): 후보 SQL 12~15 ms(FTS MATCH 자체 1 ms, 메타 열 2.5, `live` 3, **`norm`을 Dart로 옮기기 6~8** — 후보당 ~4 µs, 쪽당 ~320자), 후보 객체 1.5, 판정·순위 3~5, 3단계 2~3. 세션 6~9에는 예산을 후보가 `kHeldBelow`(PF-3 300개·PF-4 600개)보다 적은 질의만 단언하고 그보다 많은 질의는 기록만 했다 — **보완 1.1에서 바꿈**: 원문(V10) 예산을 모든 질의에 단언하는 시험(판정 전까지 실패)과 CP-18 제안 예산 시험으로 나눴다(아래 '보완 1.1'). 상한 질의의 5 ms는 이 설계(후보마다 살아있음 + `norm` 판정·점수 — CP-14 가짜와 같은 판정)로는 닿지 않아 위 '변경 요청' [총괄] V10 — (v2.5) C25-01로 승인되어 후보 100개 이상 질의는 ≤ 50 ms로 판정한다(아래 '보완 3.1'). PF-5(5,000쪽 `replaceUnits`) 6.5~7.5 s(기록).
+- **PF-10**(`test/perf/search_real_shape_perf_test.dart` — 파일 DB, 쪽당 2,500자 · 줄 50자 · 글자마다 상자, 시드 21·22·23): DB 증가 **한국어 8.31 MiB · 혼용 6.15 · 영어 3.62**(FTS `optimize` + `VACUUM` 뒤 8.03 · 5.87 · 3.44 — 계획 6.10.7 실험 7.70 · 6.67 · 2.82와 비슷), 12 MB 목표 안. 글자 상자 블롭 5.34~5.36 MiB(SQLite 밖 — 계획 추정 5.5 MB). 100쪽(사각형 포함) 질의 중앙값 32~42 ms(load 10) — 첫 구현 104~117 ms에서 블롭 상자 지연 만들기(⑤)로. 나눠 잰 값: 후보 SQL 17 ms(후보 500개 × `norm` 2,500자), 원문 100개 4, 블롭 100개 6, 판정 3. 6.19의 '질의 ≤ 20 ms [추측 — 첫 측정으로 확정]'을 **≤ 50 ms로 확정**(아래 '계획과 다르게 한 점'). `replaceUnits` 500쪽 5.4~9.5 s(부하가 낮을 때) · 25~29 s(load 10 — 파일 DB 커밋마다 fsync).
+- **PF-10w**(`test/web/search_reopen_time_browser_test.dart`, `perf`, Chrome 실제 웹 저장소): 한국어 500쪽(PF-10과 같은 생성기·시드 21) 색인 전후로 `openNoteStore` + 첫 목록 다섯 번의 중앙값 — **색인 없음 224 ms → 있음 308 ms(+84 ms, 예산 +300 ms 통과)**(load 10~11; 표본 [261, 147, 213, 270, 224] → [471, 262, 265, 343, 308]). 첫 실행(load 14.6, 표본 셋)은 481 → 1,016 ms(+535 — 표본 [481, 405, 708] → [1,016, 1,572, 769])로 넘어서 부하 규칙대로 한 번 다시 돌렸고, 표본을 다섯으로 늘렸다. 웹 색인 500쪽 21~23 s, 첫 질의(100쪽·상자) 167~534 ms(DDC — 기록).
+
+확인 (2026-11-06 세션 6, load 5~14 — 다른 영역 시험과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,096개 통과**(1,092 + `matchScore` 동치 1 + 대응표 앞부분 1 + 발췌 같음 1 + 상자 view 1), 9개 건너뜀(perf) | 92초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **110개 통과**(108 + 대응표 앞부분·발췌 같음 2), 2개 건너뜀(perf — PF-10w 하나 늘어남). 첫 시도가 부하로 시간 초과 → ws가 다시 돌려 통과(try 2) | 1,149초 |
+| PF-3·4·5(`flutter test --run-skipped -t perf test/perf/search_perf_test.dart`) | 후보 300개(PF-4 600개) 미만 질의 예산 통과 — 2음절 136개 질의가 5.0~7.1 ms로 경계(부하) | 15~18초 |
+| PF-10(`… test/perf/search_real_shape_perf_test.dart`) | 3건 — DB 증가 12 MB 안, 질의 50 ms 안(32~42 ms) | 1분 38초 |
+| PF-10w(`flutter test --platform chrome --run-skipped -t perf test/web/search_reopen_time_browser_test.dart`, `ws with-heavy-lock`) | +84 ms(예산 +300) 통과 — 첫 실행 +535 ms(load 14.6)는 다시 돌림 | 27~33초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 46초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 23초 |
+
+확인 (2026-11-06, load 12~13 — 다른 영역 시험과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,092개 통과**(1,072 + 실제 검색 본문 12 + `search_index_test` 6 + FTS 동치 1 + 판정 동치 1), 8개 건너뜀(perf) | 189초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **108개 통과**(95 + 공유 검색 본문 12 + FTS 흉내 동치 1), 1개 건너뜀(perf) | 194초 |
+| PF-3·4·5(`flutter test --run-skipped -t perf test/perf/search_perf_test.dart`) | 위 '남은 것' ① 값 — 예산 단언 꺼 둠 | 30초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 65초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 15초 |
+
+#### T34 — `searchLibrary` v2 (계획 6.10.4 'searchLibrary'·8.2, 계약 7.2.5 `LibrarySearchResult`)
+
+- 코드 변화 없음 — `searchLibrary`의 `pages`·`pagesTruncated` 연결은 T33b(`734b9b5`)에서 했다(공유 검색 본문이 쓰므로). T34는 완료 조건 시험만.
+- `test/repo/library_search_v2_test.dart`: 가짜·실제 각각 ① 폴더·노트는 1차 제목 결과 그대로이고 내용만 맞는 노트는 `notes`에 없이 `pages`에만(반대로 제목만 맞는 노트는 `pages`에 없음) ② `limit`은 폴더·노트에만, `pages`는 100까지 따로 ③ 101쪽 → 100쪽 + `pagesTruncated`, 1글자 낱말이 섞인 질의('교재 본문 7' → 19쪽, 잘림 없음) ④ 휴지통 노트는 `notes`·`pages` 둘 다에서 빠지고 복원하면 돌아옴 ⑤ 빈·공백 질의는 모두 빈 목록·`pagesTruncated` 거짓. 그리고 같은 쓰기(폴더·텍스트 상자 노트 둘·pdf 120쪽)에 질의 6개('강의'·'수학'·'meet'·'교재 1'·'정'·'없는말')의 결과가 가짜 = 실제(제목·폴더 이름·페이지 위치·출처·발췌·범위·사각형·점수·`pagesTruncated` — id는 저장소마다 달라 제목과 쪽 위치로 바꿔 비교, 실제 저장소도 `SequentialIdGenerator` — 점수·노트 시각이 같을 때의 `pageId` 순서가 같도록).
+- 1차 `test/shared/library_contract.dart`의 검색 사례(NFD 제목·휴지통 제외·`%`·`_`·`\` 글자 그대로·최근 먼저·`limit`)는 가짜·실제 모두 그대로 통과.
+
+#### T29 ① — 영구 삭제 v2 (계획 6.14.2·8.2) — 세션 6
+
+- `deleteNoteContents(tx, noteIds, {drafts})`(`drift_trash_repository.dart` — 휴지통 `purge`·`emptyTrash`·`purgeExpired`와 `RemotePurge`(`drift_sync_store.dart`)가 같이 씀): 1차 페이지·획·녹음에 더해 `page_objects`·`handwriting`(노트 id로, 그리고 그 페이지 id로 — 노트 id가 아직 없는 원격 고아 행까지), 그 outbox 항목(`pageObject`·`handwriting` — 노트 id·페이지 id), 그 노트의 `search_units`(note_id — pdf 단위는 note_id가 없어 남음)의 FTS 행(rowid `DELETE` — contentless_delete)·단위·`search_owners`(note_id), `recording_drafts` 행. 초안 조각·meta(`rd/<draftId>/`)는 커밋 뒤 `DriftRecordingDraftStore.dropPurged`(새 내부 메서드 — 접두사 삭제, 실패하면 다음 열기 첫 사용의 고아 정리)가 지운다. `touch`에 `pageObject`·`handwriting`을 더했다. 지운 소유자가 보류였으면 그 트랜잭션 끝의 보류 재시도·다시 세기가 `pendingOwners`를 맞춘다(보류 > 0이면 늘 다시 셈).
+- 가짜(`fake_note_store.dart` `_purgeGroup`)는 B2-β부터 같은 범위를 지운다(녹음·초안·색인 소유자·객체·손글씨) — 바꾸지 않음.
+- 시험 `test/repo/trash_purge_v2_test.dart`: 가짜·실제 각각 `purge`·`emptyTrash` 뒤 지운 노트의 객체·손글씨 결과·텍스트·손글씨 검색 결과·초안이 없고 pdf 소유자(`sourceRevOf`)는 남으며 다른 노트는 그대로·공유 pdf 쪽 검색은 남은 노트만(4건), 실제 저장소에서 `purgeExpired`(31일 뒤) 뒤 그 노트의 `page_objects`·`handwriting`·`search_owners`·`search_units`·`recording_drafts`·outbox 행 0, FTS 행 2개 줄고 pdf 단위 수 그대로, 초안 블롭 `rd/<id>/` 없음, 다른 노트 행 그대로 — 그리고 `RemotePurge`도 같음(2건). 바꾸기 전 코드에서는 실제 저장소 4건이 실패함을 확인했다.
+
+#### T29 ② — `copyNote` v2 (계획 6.14.1·8.2) — 세션 7
+
+- `DriftLibraryRepository.copyNote`(`copyItems`·폴더 복사·`duplicateNoteForRecovery` 공용): 1차 순서(노트 → 페이지 → 획) 뒤에 ① 원본 노트의 활성 녹음을 `startedAt → id` 순으로 새 id(같은 `assetId`·`title`·`durationMs`·`startedAt`, `createdAt = updatedAt = now`)로 — 옛 id → 새 id 표, ② 복사된 획의 `recordingId`가 표에 있으면 새 id(없으면 — 삭제된 녹음 — 그대로, R-7), ③ 페이지마다 활성 객체를 `Stroke.compareOrder` 순으로 `copyTo(새 id, 새 페이지, 원래 createdAt).copyWithMeta(updatedAt: now)`(행 `note_id`는 `strokeNoteId:` 인자), ④ 원본 페이지에 활성 손글씨 결과가 있으면 새 노트·페이지로, `lines[].strokeIds`는 복사된 획의 새 id로(복사되지 않은 id — 지운 획 — 는 뺌), `sourceRev`는 복사된 **입력** 획(`isRecognitionInput` — 형광펜·테이프·레이저 제외)의 `(새 id, now)` 쌍으로 `sourceRevOfPairs`(획 값을 들고 있지 않게 쌍만 모음). ⑤ 색인은 쓰기 훅이 ③④에서 만든다. 가짜(`fake_note_store.dart` `copyNote`)는 B2-β부터 같은 단계 — 바꾸지 않음.
+- 시험 `test/repo/note_copy_v2_test.dart`: 가짜·실제 각각 ① `copyItems(노트)` — 녹음 둘(삭제된 것 빼고) 새 id·같은 값, 획 `recordingId` 새 녹음 id·삭제된 녹음 id 그대로·없음, 객체 4개(지운 것 빼고) 새 id·같은 페이지 밖 JSON·같은 에셋·`createdAt`·모르는 `type` 1개, 손글씨 결과 새 노트·페이지·`strokeIds` 재매핑(지운 획 빠짐)·`alternatives`·`rect` 그대로·`sourceRev` = 복사된 입력 획 값·복사본 `stalePages` 빈 목록(원본은 그대로 stale), 텍스트 상자·손글씨 검색이 두 노트 모두에서·`withinNote` 복사본 쪽, 원본 그대로 ② `copyItems(폴더)` 안의 노트도 같음 ③ 사본의 사본도 다시 매핑. 실제만: `duplicateNoteForRecovery`(휴지통 노트 → 같은 복사본, 휴지통 원본은 검색에서 빠짐), outbox(녹음 2·객체 4·손글씨 1·획 4 — `noteId` 복사본, 객체·손글씨 `pageId` 복사본 페이지, `upsert`·`{*}`). 바꾸기 전 코드에서 실제 5건 실패를 확인했다.
+
+#### T29 ③ — 백업 v2 (계획 6.14.4·8.2) — 세션 7
+
+- 코드 변화 없음: 실제 저장소(`readVersionedPage` — T26·T28에서 새 두 종류)와 가짜(`byKind`에 `pageObject`·`handwriting` — B2-β)가 이미 `EntityKind.values` 순으로 새 종류를 내보내고, `formatVersion` 1·`schema.database` 2(T24 `kDatabaseSchemaVersion`)다. 색인·초안·`ink_rev`·`bg_*`·v1 사본은 엔티티 테이블이 아니라 읽히지 않는다 — 이것을 시험으로 고정했다.
+- `784b675`(제외 시험): 공유 본문 `test/shared/backup_cases.dart`에 '색인·초안·페이지 캐시·파생 열 없음'(텍스트 상자 + pdf 배경 노트·pdf 색인 단위·녹음 초안 조각·`stalePages`로 캐시 채움 → 내보낸 것에 단위 본문·`sourceRev`·초안 id·조각·mime·`inkRev`·`bgAssetId`·`bgPdfPageIndex`·`nameNorm`·`titleNorm` 없음, 늘어난 것은 노트·페이지·객체 하나씩) — 가짜·실제 VM·웹 저장소 모두. 실제만(`backup_export_test`): 빈 v1 파일 DB를 열어 v1 사본이 생긴 저장소의 내보내기 — `schema.database` 2, 사본 기록·파일 이름·SQLite 머리 없음, 사본보다 작음.
+- `6ae70e9`(골든 — 이정표): 골든 상태에 에셋 2(오디오·이미지), 제목 있는 녹음 1(`stk-00`이 그 녹음에 연결 — `recordingOffsetMs` 1500), 객체 5종(별 도형·텍스트 상자·이미지·수식·모르는 `type` `sticker`), 손글씨 결과 1(`page-a1`, `alternatives`·`strokeIds`)을 더하고 `backup_v1.json` → `backup_v2.json`(실제 VM 저장소로 만들고 가짜·웹이 같은 바이트). 가짜 시드(`seedFakeBackupState`)에 녹음·객체·손글씨를, 종류 수 사례에 새 종류를 더했다.
+
+#### T36 — provider v2 (계획 4.10·6.16·8.2) — 세션 7
+
+- 코드 변화 없음: 여섯 provider(`audioRecorderServiceProvider`·`audioPlaybackServiceProvider`·`recordingRepositoryProvider`·`noteRecordingsProvider`·`handwritingRepositoryProvider`·`searchIndexProvider`)는 B2-α(`2b2e4b0`)에 4.10 표대로 있고, 실제 저장소 멤버가 T30·T32·T33a·T33b로 동작한다. T36은 공유 본문 시험만.
+- `test/shared/providers_contract.dart`에 v2 사례 3을 더했다(가짜·실제 모두): ① `noteRecordingsProvider` — 만들기·두 번째(앞선 `startedAt` → 앞에)·이름 바꾸기·다른 노트 녹음(값 안 냄)·삭제의 값 순서가 정확히 5개, 마지막 리스너를 닫으면 `container.exists` 거짓(autoDispose), 다시 읽으면 현재 값 ② `handwritingRepositoryProvider`로 `put`·`stalePages` 빈 목록, `searchIndexProvider`로 텍스트 상자·손글씨 각 질의가 그 페이지 하나(쪽마다 대표 결과 하나라 질의를 나눔) ③ `updateOverrides`로 `noteStoreProvider`를 바꾸면 파생 셋이 새 저장소의 멤버(6.16 '저장소가 바뀌면 함께 다시 만듦').
+
+확인 (2026-11-06 세션 6 끝 — T34·T29 ① 뒤, load 4~7)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,113개 통과**(1,096 + `library_search_v2_test` 11 + `trash_purge_v2_test` 6), 9개 건너뜀(perf) | 93초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **110개 통과**, 2개 건너뜀(perf) | 181초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 50초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 34초 |
+
+확인 (2026-11-06 세션 7 끝 — T29 ②③·T36 뒤, load 8~9)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 5초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 4초 |
+| `ws test --package note_core --platform vm` | **1,130개 통과**(1,113 + `note_copy_v2_test` 8 + 백업 2(가짜·실제 공유 1건씩) + 백업 v1 사본 1 + provider v2 6(가짜·실제 3건씩)), 9개 건너뜀(perf) | 176초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **112개 통과**(+ 백업 공유 사례 2 — 가짜·웹 저장소), 2개 건너뜀(perf) | 203초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 18초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 13초 |
+
+#### T35 — 네이티브 파일 블롭 · 파일 DB (계획 6.15.3·8.2, 계약 7.2.6 공통-1) — 세션 8
+
+- `assets/blob_store.dart`에 내부 묶음 `BlobDatabase`(`chunks`·`thumbnails`·`close`)를 두고 `IdbBlobDatabase`가 구현, `DriftNoteStore.blobs`의 형을 그것으로 바꿨다(시험의 `store.blobs.chunks…`는 그대로). `DriftNoteStore.open`에 `blobDatabase:`(있으면 그것 — 저장소가 맡아 닫음, 열기 실패 때도).
+- `assets/file_blob_store_native.dart` `FileBlobDatabase.open(root)`: `<root>`·`blobs/`·`thumbs/`를 `create(recursive: true)`로 만들고, 각 디렉터리에 쓰기 시험(임시 파일 쓰기·`flush`·지우기 — 읽기 전용이면 여기서 실패), 남은 `.…tmp-…` 파일을 재귀로 지운다. 키 = `blobs/<key>`(`/` = 하위 디렉터리), 쓰기 = 같은 디렉터리 `.<name>.tmp-<토큰>`에 `writeAsBytes(flush: true)` → `rename`(실패하면 임시 파일 지우고 그 오류 — 재시도 없음). `keys(prefix)`는 접두사의 디렉터리 부분을 나열하고 이름 접두사가 맞는 항목만 재귀로(점으로 시작하는 이름은 키가 아님) → 정렬. `deletePrefix`는 `…/`로 끝나면 그 디렉터리 재귀 삭제, 아니면 그 디렉터리에서 이름이 맞는 항목들; 비게 된 부모 디렉터리는 지운다(`delete` 뒤도). 키 조각이 비었거나 `.`로 시작하거나 `\`·NUL이 있으면 `put` `ArgumentError`, `get` null, `delete`·`deletePrefix`·`keys`는 아무것도 안 함(루트 밖을 건드리지 않음). 썸네일 `thumbs/<pageId 퍼센트 인코딩>.bin`(앞 점은 `%2E`) — 머리 rev·width·height uint32 LE + MIME 길이 uint16 LE + MIME + 바이트(범위 밖 `ArgumentError`, 머리가 맞지 않는 파일은 썸네일 없음). 한 저장소(`chunks`·`thumbnails` 각각)의 작업은 부른 순서로 하나씩(IndexedDB 한 object store의 트랜잭션 순서와 같은 의미 — `put` → `deletePrefix` → `put`을 기다리지 않고 불러도 그 순서). `put`은 부를 때 바이트를 복사한다(브라우저 IndexedDB의 clone과 같게 — idb_shim 메모리는 참조를 둔다). `close`는 이미 부른 작업을 기다리고 그 뒤 호출은 `StateError`.
+- `connect_native.dart`: `openNoteDatabaseExecutor`가 `inMemory`가 아니면 **두 경로 모두** 요구(하나라도 없으면 `storageUnavailable`, 아무것도 만들지 않음), DB 파일의 부모 디렉터리를 만든다(못 만들면 `storageUnavailable`). 새 `openFileBlobDatabase(config)`(웹·stub는 null) — `FileSystemException`이면 `storageUnavailable`(cause 그 예외). `openNoteStore`가 실행기 → 파일 블롭 순으로 열고 블롭 실패면 실행기를 닫고 던진다. `deleteLocalData`는 DB·`-wal`·`-shm`·v1 사본·그 임시 파일(T24) + `<root>/blobs`·`<root>/thumbs`(루트와 그 밖의 파일은 남김) + 시험용 메모리 블롭 팩토리. `openTestNoteStore`는 그대로(메모리 IndexedDB 블롭 — 경로 하나로 엶).
+- 시험: `file_blob_store_test` — 공유 사례 8건(넣기·읽기·지우기, 접두사 `keys`·`deletePrefix`(끝 `/` 있음·없음·중첩·`''`), `getMany`, 9 MiB 3청크 왕복, 다시 열기, 닫힌 뒤 `StateError`, 썸네일 필드 왕복·`totalBytes`, 두 저장소 분리)을 파일·메모리 IndexedDB 둘 다에, 파일만 17건(없는 중첩 루트 만들기, 배치·머리 바이트, 이상한 page id, 임시 파일 경유 원자적 쓰기, `put`이 부를 때 복사, 실패한 쓰기 → 옛 값·임시 파일 없음, 열 때 임시 파일 정리·점 이름 안 나열, 빈 부모 정리, 파일이 될 수 없는 키, uint32 밖, 머리가 깨진 파일, 호출 순서, `close`가 기다림, 루트를 쓸 수 없음 3가지). `native_file_store_test` — 두 경로 → `nativeFile`·durable·경고 없음·`FileBlobDatabase`·`journal_mode` wal, 없는 루트·하위·DB 디렉터리를 만들고 엶, 한 경로만(양쪽) → `storageUnavailable`·아무것도 안 만듦, `inMemory`는 경로 무시, 루트를 만들 수 없음·`thumbs`가 파일·DB 디렉터리를 만들 수 없음 → `storageUnavailable`, 읽기 전용, 남은 임시 파일 정리, 다시 열면 에셋(9 MiB 3파일)·썸네일·초안(2조각 `readAll`)·검색 글자 상자 블롭 그대로, v1 파일 DB를 연 저장소의 `deleteLocalNoteData`(열린 동안 `StateError`, 뒤 DB·v1 사본·`blobs`·`thumbs` 없음·루트와 남의 파일 남음, 다시 열면 빈 저장소), 빈 상태 삭제.
+- **읽기 전용 사례 2건은 이 컨테이너(root)에서 건너뛴다**(root는 0555 디렉터리에 쓸 수 있다 — 시험이 먼저 확인하고 `markTestSkipped`). 대신 '루트·`blobs`·DB 디렉터리를 만들 수 없음'(일반 파일 아래·파일이 자리를 차지) 사례가 같은 `storageUnavailable` 경로를 root에서도 지난다. CI(비 root)에서는 읽기 전용 사례가 돈다.
+- 1차 시험 갱신(6.15.3 끝 문단): `open_errors_test`의 파일 설정에 임시 블롭 루트(+ '`nativeDatabasePath`만 → `storageUnavailable`·파일 없음' 1건), `v1_copy_test`의 `openNoteStore` 1곳, `asset_store_test`에 네이티브 다시 열기 1건(메모리 블롭 사례는 그대로 — `openTestNoteStore`), `commit_latency_perf_test`는 `openNativeFileStore`(새 `perf_support` 도우미 — `openNoteStore` 두 경로, WAL·배경 isolate)로 — 주석의 'WAL, synchronous = NORMAL'이 이제 사실이다.
+
+확인 (2026-11-06 세션 8 — T35, load 7~9)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,175개 통과**(1,130 + `file_blob_store_test` 32 + `native_file_store_test` 11 + `open_errors_test` 1 + `asset_store_test` 1), 11개 건너뜀(perf + 읽기 전용 2 — root; PF-7은 이제 2건) | 228초 |
+| PF-7 VM(`--run-skipped -t perf test/perf/draft_append_perf_test.dart`) | 시험 파일 저장소(메모리 블롭) **4.57 ms**, 네이티브 파일 블롭 **6.81 ms**(예산 ≤ 10 ms) | 2초 |
+| 커밋 지연(`commit_latency_perf_test` — 이제 네이티브 저장소) | 중앙값 **11.17 ms**(`lastCommitLatency` 9.49 ms, 예산 < 30 ms) | 1초 |
+| `ws test --package note_core --platform chrome --heavy-lock` | 준비 ok, **112개 통과**(웹 코드 변화는 `openFileBlobDatabase` null·`IdbBlobDatabase implements BlobDatabase`뿐 — 개수 그대로), 2개 건너뜀(perf) | 440초(load 11~17) |
+
+#### T25b — V7 시험 (계획 6.12.3·6.12.4·6.18.1·8.2, 계약 7.7.2 V7) — 세션 8
+
+- 고정 자료·`manifest.json`·`tool/v1_fixture_manifest.dart`는 T25a(`b6beece`)에 이미 있다(CORE-F2 — manifest를 T25a에서 만듦). T25b는 시험·전달·훅.
+- 웹 초기 바이트 훅: `connect_browser.dart` `openNoteDatabaseExecutor(config, {@visibleForTesting initialDatabaseBytes})` → `WasmDatabase.open(initializeDatabase:)`. drift가 버퍼를 워커로 **옮겨(transfer) 원본이 분리**되므로 시험은 열 때마다 복사본을 준다(같은 바이트로 두 번째 DB를 열다 `DataCloneError`가 났었다).
+- 전달: `tool/prepare_web_test.dart`가 `--out` 없이(note_core 자신) 돌 때 `noteapp_v1_web.sqlite`·`pdf_asset.pdf`·`manifest.json`을 `test/web/fixtures_v1/`로 복사(같은 바이트면 건너뜀), 패키지 `.gitignore`에 그 디렉터리. Chrome 시험은 `package:web` `fetch('fixtures_v1/…')`로 받고, 없으면 '준비 스크립트를 먼저' 메시지로 실패(건너뛰지 않음).
+- 공유 본문 `test/shared/v7_fixture_checks.dart`(웹 안전): `V7Manifest`(manifest 읽기), `v7Clock()`(고정 자료 끝 + 1일에서 실제 시간으로 흐름 — 휴지통 노트 C가 30일 자동 정리에 걸리지 않게), `expectV7Upgraded` ①(엔티티 8표의 v1 열 − 파생 열 덤프 = `entityDumpSha256`, `name_norm`·`title_norm` = `SearchText.normalize`, v1 표 행 수 = manifest — kv 빼고) ②(outbox v1 열 덤프 = `outboxDumpSha256`, manifest kv 행 그대로, 새 kv 키는 `search.normalizerVersion`·`db.v1Copy`뿐) ③(새 표 6개 0행, `bg_asset_id`·`bg_pdf_index` = `background_json`, pdf 배경 4쪽, 녹음 `title` NULL), `exerciseV7Store` ⑤(활성 노트 2, 노트 A 획 읽기, pdf 바이트 `hasBytes`·`readBytes` = 고정 자료, 원격 녹음 1개·제목 없음 → 텍스트 상자 추가(세션)·녹음 만들기 → `expectV7Made`: 객체·녹음 제목·`searchPages('마이그레이션')` = 그 쪽 text 하나·`searchLibrary('물리')`가 분해형 한글 폴더·`searchLibrary('역학')` 노트 A), `v7StateSha`(kv·FTS 표 뺀 모든 표 덤프 — 닫기 전 = 다시 연 뒤).
+- VM(`v1_fixture_migration_test`): 고정 자료를 임시 디렉터리에 복사, pdf 바이트를 1차 키(`<assetId>/000000`)의 **파일 블롭**으로 미리 두고 `openNoteStore(두 경로, v7Clock)` → ①②③, ④ `<path>-v1-backup`(임시 파일 없음)이 `user_version` 1이고 정규 덤프 길이·SHA-256 = `fullDumpBytes`·`fullDumpSha256`, kv `{method: vacuum, bytes: 파일 크기, normalOpens: 1}`, `v1DatabaseCopyInfo`(`noteapp-v1-backup.sqlite`)·`readV1DatabaseCopy` = 파일 바이트, ⑤ → 닫고 다시 열기: 상태 덤프 같음·⑤ 결과 그대로·사본 파일 해시 그대로·`normalOpens` 2(`createdAt`·`bytes` 그대로). 그리고 고정 자료 파일 해시 = manifest, 휴지통 노트 C가 남음(`purgeExpired` 0).
+- Chrome(`v1_fixture_migration_browser_test`): 새 웹 DB 이름에 pdf 바이트를 블롭 IndexedDB(1차 키)에 먼저 넣고, 초기 바이트 훅 + `DriftNoteStore.open`(`openNoteStore`와 같은 실행기·블롭 팩토리 — 공개 `openNoteStore`에는 시험 인자를 더할 수 없음) → ①②③, ④′ `db/v1-backup/000000` + meta(마지막), 이어 붙인 조각 = `fullDumpBytes`·`fullDumpSha256`, meta `sha256`·`bytes`·`chunkCount`·`format`, kv `method: dump`, `v1DatabaseCopyInfo`(`noteapp-v1-backup.sql.txt`)·`readV1DatabaseCopy` 해시, ⑤ → 다시 열기(사본 있음) 상태 같음·`normalOpens` 2·meta 바이트 그대로 → 사본 지우기 → 다시 열기(사본 없음) 상태 같음. 사본 단계 없는 같은 업그레이드(두 번째 새 DB, `databaseFactory`로 사본 만드는 쪽 없음)와 사본 단계의 부분(열린 저장소에서 같은 v1 표 덤프 질의·SHA-256·블롭 넣기)을 따로 재서 찍는다.
+- PF-8(`migration_perf_test`, VM): 고정 자료 새 복사본을 `openNoteStore`(두 경로)로 6번(첫 번째 워밍업) — 사본 파일이 생겼는지 확인, 같은 업그레이드를 사본 단계 없이도 재서 기록.
+
+확인 (2026-11-06 세션 8 — T25b)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 4초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 1초 |
+| `ws test --package note_core --platform vm` | **1,178개 통과**(1,175 + V7 3), 12개 건너뜀(perf + 읽기 전용 2 — PF-8 1건 더함) | 178초 |
+| `ws test --package note_core --platform chrome --heavy-lock` | 준비 ok(고정 자료 복사 포함), **114개 통과**(112 + V7 2), 2개 건너뜀(perf) | 296초 |
+| PF-8 VM(`--run-skipped -t perf test/perf/migration_perf_test.dart`, load 17) | 사본 포함 중앙값 **119 ms**(예산 ≤ 1 s — 92~468 ms), 사본 단계 없이 65 ms | 2초 |
+| PF-8 Chrome(기록 — 6.19 예산은 VM 열) | `ws` Chrome 실행(load 9~11): 사본 포함 업그레이드 열기 **1,845 ms**, 사본 단계 없이 350 ms; 다시 열기 사본 있음 218 ms·지운 뒤 170 ms, 사본 지우기 10 ms. 같은 시험을 `flutter test --platform chrome`(DDC, load 10~15)로: 4,426~4,445 ms / 360~423 ms, 다시 열기 296~315 / 279~383 ms. `--wasm`(dart2wasm)으로: 1,447 ms / 349 ms, 다시 열기 158 / 167 ms | 25~34초(파일 하나) |
+| 사본 단계의 부분(열린 저장소에서 다시 — Chrome) | 덤프 질의 + 줄 만들기 201~341 ms, **SHA-256(2 MB, `package:crypto`) 624 ms(`ws`)·3,647 ms(DDC)·212 ms(wasm)**, 블롭 넣기 18~50 ms | — |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 53초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 14초 |
+
+- **웹 PF-8 판단**: T24가 남긴 '웹 업그레이드 열기 1.9~2.5 s'의 원인은 사본 단계이고, 그중 가장 큰 몫은 덤프 전체의 SHA-256(순수 Dart `package:crypto` — 시험 컴파일러에 따라 0.2~3.6 s)이다. 덤프 질의는 0.2~0.3 s, 블롭 쓰기는 수십 ms. 계약·계획에 웹 PF-8 예산은 없어(6.19 예산 열은 VM, 6.12.4 '웹 비용'은 기록) 코드는 바꾸지 않았다. 줄이려면 ① 덤프가 한 조각(≤ 4 MiB)일 때 `crypto.subtle.digest`(1차 `content_hasher_browser.dart`가 이미 씀 — 점진 해시가 없어 여러 조각이면 안 됨) ② meta의 `sha256`을 조각별 해시로 바꾸기(meta 형식 변경 — 6.12.4·dev_tools 소비자 INFRA 확인 필요). 실제 릴리스 빌드(dart2js -O4·wasm) 수치는 통합 단계 V6·실기기(9.5)에서 본다 — 다음 세션 메모.
+
+#### T37 — 성능 · 문서 (계획 6.19·8.2·10장 1·8) — 세션 9
+
+- PF-1·PF-2 `test/perf/object_page_perf_test.dart`(새 파일, 파일 DB): 2,000획(`seedSyntheticNote`) 페이지에 객체 2,000개(도형 모든 종류·텍스트 상자·수식·모르는 객체 각 500, 40 × 50 격자)를 세션 `AddObjects` 한 번으로 넣고 flush. PF-1 = 새 세션마다 `openPage`(두 페이지를 번갈아) 3번 중앙값, PF-2 = 텍스트 상자 `UpdateObjects` 1개(`copyWith(text:)`) `execute` 120번 중 앞 20번 워밍업 뒤 100번 평균(사이에 쓰기 큐 커밋 — 1차 `page_perf_test`의 AddStrokes와 같은 모양).
+- PF-10에 **네이티브 저장소 한 번 더**(`perf_support.openNativeFileStore` — `openNoteStore` 두 경로: WAL 파일 DB(배경 isolate) + 파일 블롭, 혼용 자료): 크기 예산은 같이 단언하고, 질의 시간은 기록만(아래). 첫 측정 88 ms(load 6)을 나눠 보니(`DriftSearchIndex`에 임시 `Stopwatch` — 저장소에 남기지 않음) **글자 상자 블롭 100개 `getMany`가 53~71 ms**(메모리 IndexedDB 5~9 ms)였다: 파일마다 `readAsBytes`(열기·길이·읽기·닫기 — IO 서비스 왕복 4번)를 100개 동시에. 그래서 `FileBlobDatabase`의 `getMany`를 **키 8개 이상이면 짧은 isolate에서 동기 읽기**(`Isolate.run` — 경로 목록만 보내고 바이트는 `Isolate.exit`로 복사 없이 돌아옴)로 바꿨다(`kFileBlobBatchReadMin = 8`, 내부). 블롭 읽기 2.6~6.5 ms. 남은 차이는 후보 행(쪽당 `norm` 2,500자 × 500)이 drift 배경 isolate에서 건너오는 값(후보 단계 16~56 ms vs 같은 프로세스 15~39 ms, load 6~7)이다 — 설계(후보 상한·`norm`을 Dart로 옮김)에 묶인 값이라 고치지 않았다. 녹음 초안 `readAll`(조각 수백~1,800개 `getMany`)도 같은 길을 탄다.
+- `test/assets/file_blob_store_test.dart` 공유 사례 1건(두 블롭 DB 모두 — 키 20개 + 없는 키 + 파일 저장소에서는 디렉터리인 키, 기다리지 않은 `put` 뒤 `getMany`가 그 값을 봄), 파일 전용 사례 1줄(묶음 읽기에서 파일이 될 수 없는 키 → null, 루트 밖을 읽지 않음).
+
+- README 2차 사용 예(`packages/note_core/README.md` — 머리말에 2차 계획·계약 링크, `dev_tools.dart` 줄에 v1 사본 세 함수): 네이티브 설정(두 경로 — INFRA J4), 페이지 객체(X18 — `AddObjects`·`UpdateObjects`·`RemoveElements`, `createNote` 초안, `loadPage(…).objects`), 녹음·초안(X19·X20 — `begin` → `append` → `readAll` → `assets.put(audio)` → `createRecording`(같은 id 재시도) → `discard`), PDF 색인 작성기(X23 — 소유자 키·`sourceRev`·비율 사각형·`pdfPageAspect`·빈 목록), 검색(X21 — `searchLibrary`의 `pages`·`pagesTruncated`, `searchPages(withinNote:)`), 손글씨 결과(X22 — `notesWithStalePages` → `stalePages` → `isRecognitionInput`·`sourceRevOf` → `update`(병합 규칙은 recog 몫)). '다른 영역 시험' 절의 'B2 상태' 문단(실제 저장소는 T32·T33a까지 `UnimplementedError`)을 지금 상태로 고쳤다.
+- `test/readme_examples_test.dart` v2: 위 예를 README 글 그대로(필요한 값만 둘레에서 줌) 가짜·실제(`openTestNoteStore`) 둘 다로 실행(4 × 2) + 네이티브 설정은 실제만(임시 디렉터리: `nativeFile`·배너 없음·에셋이 `blobs/` 파일·`deleteLocalNoteData` 뒤 DB·`blobs`·`thumbs` 없음·경로 하나면 `storageUnavailable`). 검색 예는 pdf 두 쪽(한 쪽은 빈 목록 — 스캔 쪽)·휴지통 뒤 결과 없음, 손글씨 예는 `searchLibrary('안녕')`의 `ink` 결과까지.
+- 내부 주석 둘(`LibrarySearchResult.pages`의 'CORE:' 줄 — 계약 줄이 아님, `DriftNoteStore`의 2차 getter 주석)의 '실제 저장소는 T33b까지 비어 있음'을 지웠다.
+
+확인 (2026-11-06 세션 9 — T37 ① 성능, 공유 CPU 4개 · 다른 영역 6곳과 같이)
+
+| 검사 | 결과 | load |
+|---|---|---|
+| `flutter test --run-skipped -t perf --concurrency=1 test/perf`(VM 전체, 6분 35초) | 15 통과 · 3 실패 — 모두 부하에 걸린 시간 예산: PF-2 평균 2.04 ms(중앙값 0.70), PF-3 후보 136개 질의 8.14 ms, PF-10 한국어 질의 54.85 ms. 같은 시험을 낮은 부하에서 따로 다시 잰 값은 아래 '성능 기록' | 7 → 13 |
+| PF-1·PF-2 단독(첫 측정) | PF-1 **197 ms**(250·131·197 — 예산 ≤ 400), PF-2 평균 **0.64 ms**(중앙값 0.56 — 예산 ≤ 2) | 6.7 |
+| PF-10 혼용 네이티브 저장소(블롭 묶음 읽기 뒤) | 질의 35~67 ms(전체 실행 35.09 ms — 같은 프로세스 저장소는 같은 실행에서 29.46 ms), DB 증가 6.15 MiB(예산 12) | 6~13 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**(1,178 + 블롭 2 + README 9), 13개 건너뜀(perf 파일 + 읽기 전용 2) | 13 → 19 |
+| 다시 잰 VM perf(부하가 내려간 뒤) | `object_page_perf_test` PF-1 196 ms·PF-2 평균 **0.88 ms**(load 8.6), PF-10 한국어 질의 **37.1 ms**(load 4.3), `search_perf_test` PF-3 후보 300개 미만 1.7~**4.7 ms**(136개 질의)·PF-4 576개 **14.3 ms**(load 5.1) — 모두 그때 단언하던 기준 안. 결국 PF-1·PF-2·PF-5~PF-11은 예산 안인 실행이 있다. **정정(보완 1.1)**: PF-3·PF-4는 후보 300·600개 미만 질의(잠정 기준)만 예산 안이었다 — 원문(V10) 기준으로는 14개 질의 중 흔한 낱말 7개가 20~46 ms로 미달이다(아래 '보완 1.1'). (보완 3.1) 계약 v2.5 C25-01 예산으로는 PF-3·PF-4도 예산 안(load 2.6~4.3 두 번) — PF-1~PF-11 모두 예산 안인 실행이 있다 | 4 ~ 9 |
+| Chrome perf(`ws test --package note_core --platform chrome --run-skipped -t perf --heavy-lock`) | 2개 통과: PF-10w 다시 열기 색인 없음 218 ms → 있음 401 ms(**+183 ms**, 예산 +300), 첫 질의 154 ms(기록), 500쪽 색인 20.6 s; 1차 `open_time_browser_test` 빈 DB 865 ms·1만 획 433~510 ms·`openPage` 200획 77 ms | 9 ~ 10 |
+| PF-3 136개 질의의 단계(임시 계측 — 남기지 않음, load 6) | 부하 튐이 없는 실행: 후보 SQL 1.6 ms + 행 0.2 + 순위 0.55 + 3단계 읽기 1.4 + 결과 100개(발췌) 1.7 = 약 5.5 ms. 실행의 절반 넘게 어느 한 단계에 4~6 ms 튐(다른 영역과 CPU 공유 — 스케줄링). 그래서 이 질의(후보는 적지만 결과가 100쪽)는 load 5 이상에서 5 ms 예산 경계다(세션 6에도 5.0~7.1 ms '경계') | 6 |
+
+
+세션 9 끝 확인 (2026-11-06, 기록 커밋 직전 트리)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음 | 4초 · 4초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 174초 |
+| `ws test --package note_core --platform chrome --heavy-lock` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 213초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 41초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 16초 |
+
+- README 끝에 2차 성능표(PF-1~PF-11·PF-10 크기 세 언어·네이티브 PF-10·PF-10w·1차 Chrome 열기)를 더했다. 계획 8.2 T37의 'INFRA 웹 예산표'는 INFRA 소유(`tool/web_budget.yaml`·안내서)라 이 작업 트리에서 고치지 않았다 — 값은 README 표와 이 절(PF-10 DB 증가 한국어 8.31 / 혼용 6.15 / 영어 3.62 MiB + 글자 상자 블롭 5.35 MiB, PF-10w +183 ms)에 있다. 통합 단계 I-7에서 INFRA가 옮긴다 — (보완 2.1) '변경 요청 (동시 개발)'의 [INFRA] 웹 예산표 항목으로 보냈다.
+
+#### 보완 1.1 — 독립 검토 미비점 (2026-11-06)
+
+검토자가 찾은 4건. 모두 맞다(숫자 하나만 정정 — 아래 1번). 1번은 이 영역 혼자 닫을 수 없어 총괄 판정을 기다린다.
+
+1. **T33b/T37 PF-3·PF-4 — 원문(V10) 기준 미달을 약한 기준으로 가렸다**: 맞다. 세션 6~9의 `search_perf_test`는 후보 `kHeldBelow`(300·600개) 미만 질의만 단언해, 변경 요청이 판정 전인데(7.4.9 — 승인 전까지 원문) 계획 10장 #1의 완료 시험을 약하게 만들었고, T37의 'PF-1~PF-11 모두 예산 안인 실행이 있다'도 그 약한 기준에서만 참이었다. 정정: 'recorded only'였던 질의는 14개 중 **7개**(PF-3 11개 중 5 + PF-4 3개 중 2 — 검토 글의 '8'은 5 + 2의 합과 다름).
+   - `test/perf/search_perf_test.dart`: 측정은 `setUpAll`에서 한 번(질의마다 후보 수·결과 쪽 수·중앙값), 시험 둘 — ① **'PF-3/4 (V10 as written)'** 14개 질의 모두 원문 예산(PF-3 ≤ 5 ms, PF-4 ≤ 15 ms) — PF-3·PF-4의 완료 판정(10장 #1, load < 4 — 9.1). **지금 실패한다**(흔한 낱말 7개 — 설계에 묶인 값, 부하가 낮아도 닫히지 않음). ② **'PF-3/4 (CP-18 as proposed, pending)'** 제안 예산(후보 300·600개 미만 ≤ 5·15 ms, 그 밖 ≤ 50 ms) — 판정 전까지 회귀 방지, V10 판정이 아니다. 줄마다 'V10 … ok/OVER · CP-18 … ok/OVER'를 찍는다.
+   - 진행 기록: 요약 줄·작업 표(T33b·T37 → '진행 중 — PF-3·PF-4만 남음')·T33b·T37 절·'계획과 다르게 한 점'·'다음 세션 메모'·변경 요청(제안을 '그 밖의 질의 ≤ 50 ms'로 고치고 상한 300 실험을 근거로 더함). README 성능표의 PF-3·PF-4 행을 원문 예산과 '미달'로.
+   - 측정(2026-11-06 12:24~12:30, load 4~9 — 다른 영역 6곳과 CPU 4 공유, 같은 파일 세 번 + 상한 300 실험 한 번):
+
+   | 질의 (후보 수, 결과 쪽) | 원문 예산 | 1회 (load 4→7) | 2회 (8.8) | 3회 (5.5) | 상한 300 실험 (6) |
+   |---|---|---|---|---|---|
+   | PF-3 2음절 흔함 (4,967, 100) | 5 ms | 45.82 | 36.99 | 30.58 | 9.00 |
+   | PF-3 2음절 (136, 100) | 5 | 9.79 | 8.78 | 8.62 | 4.49 |
+   | PF-3 2음절 드묾 (65, 65) | 5 | 2.77 | 3.13 | 3.17 | 2.72 |
+   | PF-3 3음절 흔함 (3,633, 100) | 5 | 29.07 | 26.01 | 28.38 | 5.11 |
+   | PF-3 3음절 드묾 (40, 40) | 5 | 2.80 | 1.87 | 2.23 | 1.80 |
+   | PF-3 낱말 중간 흔함 (3,633, 100) | 5 | 26.86 | 24.26 | 26.58 | 4.96 |
+   | PF-3 낱말 중간 드묾 (40, 40) | 5 | 1.83 | 1.71 | 2.03 | 1.66 |
+   | PF-3 영문 접두사 흔함 (2,558, 100) | 5 | 40.57 | 36.98 | 43.73 | 9.68 |
+   | PF-3 영문 접두사 드묾 (46, 46) | 5 | 2.72 | 1.83 | 2.11 | 2.87 |
+   | PF-3 AND 흔함 (2,539, 100) | 5 | 23.18 | 27.17 | 27.11 | 5.97 |
+   | PF-3 AND 드묾 (38, 38) | 5 | 2.04 | 1.94 | 3.02 | 1.93 |
+   | PF-4 1글자 흔함 (4,995, 100) | 15 | 19.75 | 22.50 | 22.59 | 4.15 |
+   | PF-4 1글자 (1,072, 100) | 15 | 27.00 | 19.73 | 20.93 | 6.52 |
+   | PF-4 1글자 가장 드묾 (576, 100) | 15 | 16.42 | 14.53 | 15.91 | 8.28 |
+
+   - 상한 300 실험: `lib/src/search/search_pipeline.dart`의 `kSearchCandidateCap`을 임시로 300으로 바꿔 같은 시험을 돌리고 되돌렸다(커밋하지 않음 — 7.2.5 계약 값). 흔한 낱말이 4~10 ms로 줄지만 PF-3 흔한 낱말 5개 중 4개가 여전히 5 ms를 넘는다 → 예산을 그대로 두는 길(대안 b)은 상한 300으로도 모자란다(변경 요청에 근거로 적음).
+   - 막힘: 이 영역이 고를 수 있는 길이 없다 — 예산 문구(V10)도 후보 상한(7.2.5)도 계약이다. **총괄이 V10(CP-18)을 판정해야 한다**. 판정 뒤 할 일은 '다음 세션 메모' ④.
+2. **PF-4 576개 질의가 부하에서 15 ms를 넘음**: 맞다 — 이번에도 16.42(load 4→7)·14.53(8.8)·15.91 ms(5.5). 계획 9.1대로 정식 판정은 통합 단계 load < 4(I-6)라 코드는 그대로 두고, I-6 메모로 '다음 세션 메모' ①에 적었다(136개·결과 100쪽 질의도 같은 경계).
+3. **계획 6.19 PF-10 행이 '≤ 20 ms [추측]' 그대로**: 맞다. 6.19 PF-10 행과 6.10.7 끝 문단을 '≤ 50 ms(T33b 첫 측정으로 확정 — 같은 프로세스 저장소 `openTestNoteStore`에서 단언, 네이티브 저장소 `openNoteStore`는 기록만)'로 고쳤다.
+4. **V10 변경 요청이 계획 12.1에 없음**: 맞다. 12.1에 **CP-18**(7.7.2 V10 + 6.19 PF-3·PF-4 — 판정 '대기', 근거·대안·상한 300 실험)을 더하고, 6.19 PF-3·PF-4 행·6.10.7 질의 예산 문단에 'CP-18 대기 — 승인 전까지 원문'을 적었다. 10장 #9가 이 표를 읽는다.
+
+커밋: `8f29456`(계획 6.19·6.10.7·12.1 CP-18 — 미비점 3·4), `6995ec1`(`search_perf_test`·README·진행 기록 — 미비점 1·2), 이 기록 커밋.
+
+확인 (2026-11-06 보완 1.1, load 4~10 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(326개 파일) | 9초 · 3초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) — 바뀐 것은 perf 파일뿐 | 140초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 40` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 252초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (세 번) | 'V10 as written' **실패**(흔한 낱말 7개 + 부하 때 136개 질의 — 위 표, 판정 대기라 예상한 결과), 'CP-18 as proposed' 부하에 따라 통과·실패(136개 질의 8.6~9.8 ms, 영문 접두사 43.7 ms, 1글자 576개 15.9 ms — load 5~9; 정식 판정은 load < 4) | 각 16~20초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 34초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+
+#### 보완 1.2 — 같은 미비점 4건 다시 받음 (2026-11-06)
+
+받은 4건은 보완 1.1의 4건과 **글자까지 같다**(숫자도 같음 — '8 of its 14', '형' 16.73 ms, load 9~12). 검토자가 본 것은 보완 1.1 **앞** 상태(`9e29118`)다: 그 커밋의 `search_perf_test.dart`에는 `kHeldBelow`로 고른 질의만 단언하는 시험 하나뿐이고(`git show 9e29118:…search_perf_test.dart` — 'V10 as written' 없음), 계획에는 CP-18이 없다(`git show 9e29118:docs/plans/m5-7/02-core.md | grep -c CP-18` → 0). 지금 HEAD(`f18f8d0`)에서 하나씩 다시 확인했다 — 2~4번은 이미 처리돼 있고, 1번은 여전히 총괄 판정을 기다린다. 코드·계획은 바꾸지 않았다(이 기록만).
+
+1. **PF-3·PF-4가 약한 기준으로만 단언됨** — 이미 처리(`6995ec1`). 지금 `test/perf/search_perf_test.dart`는 시험이 둘이다: 'PF-3/4 (V10 as written)'이 **14개 질의 모두**에 원문 예산(PF-3 ≤ 5 ms, PF-4 ≤ 15 ms)을 단언하고(완료 판정 — 지금 실패), 'PF-3/4 (CP-18 as proposed, pending)'은 제안 예산의 회귀 방지일 뿐 V10 판정이 아니다(파일 머리 주석·`reason` 문구). T37의 'PF-1~PF-11 … 예산 안인 실행' 줄(위 'T37' 절)에는 보완 1.1에서 '정정 — PF-3·PF-4는 잠정 기준에서만'을 붙였고, 작업 표·요약은 T33b·T37을 '진행 중 — PF-3·PF-4만 남음'으로 둔다. '8개'는 7개다(PF-3 5 + PF-4 2 — 보완 1.1 1번). **남은 것(막힘)**: 설계에 묶인 값이라 이 영역 혼자 닫을 수 없다 — 예산 문구(7.7.2 V10)도, 이름이 붙은 유일한 대안인 후보 상한(7.2.5 `SearchIndex.searchPages` '(v2.1) At most 2,000 candidates')도 계약이다. 상한 300 실험(보완 1.1)으로도 PF-3 흔한 낱말 5개 중 4개가 5 ms를 넘었다. 변경 요청 [총괄] V10(계획 12.1 CP-18)은 그대로 판정 대기, 7.4.9대로 원문 유지.
+   - 이번 측정(12:45·12:46, load 5.0~7.6, 두 번): 'V10 as written' **실패** — 흔한 낱말 7개 PF-3 25.7~50.8 ms(2음절 4,967개 29.3·30.0, 3음절 3,633개 26.6·25.7, 낱말 중간 3,633개 26.2·26.8, 영문 접두사 2,558개 45.2·33.0, AND 2,539개 33.4·50.8)·PF-4 21.9~28.6 ms(4,995개 27.1·28.6, 1,072개 21.9·21.9), 그리고 경계 질의 둘(아래 2번). 드문 질의(후보 38~65개)는 1.7~4.5 ms로 원문 안. 'CP-18 as proposed'도 이 부하에서는 실패(136개 질의 5.8·8.3 ms, 576개 21.2·16.1 ms, AND 흔함 한 번 50.8 ms) — 정식 판정은 load < 4(9.1).
+2. **PF-4 576개 질의 '형'이 부하에서 15 ms를 넘음** — 이미 처리(I-6 메모 — '다음 세션 메모' ①). 이번에도 21.2·16.1 ms(load 5~8). 계획 9.1대로 load < 4에서 다시 잰다. 이번 실행에서 CP-18 제안의 '그 밖 ≤ 50 ms'도 AND 흔함이 한 번 50.8 ms(load 7)로 경계였다 — 낮은 부하 값(23~41 ms, 보완 1.1·세션 6)으로는 여유가 있으나 I-6에서 같이 본다('다음 세션 메모' ①에 더함).
+3. **계획 6.19 PF-10 행 '≤ 20 ms [추측]'** — 이미 처리(`8f29456`). 지금 6.19 PF-10 행은 '질의 ≤ 50 ms(T33b 첫 측정 32~42 ms로 확정 — 같은 프로세스 저장소 `openTestNoteStore`에서 단언, 네이티브 저장소 `openNoteStore`의 같은 질의는 기록만 …)'이고 6.10.7 끝 문단도 같다. 계획서 머리 '동시 개발 중 고친 곳' 줄에 적혀 있다.
+4. **V10 변경 요청이 계획 12.1에 없음** — 이미 처리(`8f29456`). 12.1에 **CP-18**(7.7.2 V10 + 6.19 PF-3·PF-4·6.10.7, 판정 '대기', 근거·대안·상한 300 실험) 행이 있고, 12.1 머리 문장에 '동시 개발 중 새 제안: CP-18(판정 대기)', 6.19 PF-3·PF-4 행에 'CP-18 판정 대기 — 승인 전까지 원문'. 10장 #9가 이 표를 읽는다.
+
+커밋: 이 기록 커밋 하나(코드·계획 변화 없음).
+
+확인 (2026-11-06 보완 1.2, load 5~8 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(326개 파일) | 9초 · 4초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 135초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 50` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 333초(잠금 대기 포함 5분 38초) |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (두 번 — 한 번 재실행) | 'V10 as written' **실패**(위 1번 — 판정 대기라 예상한 결과), 'CP-18 as proposed' 이 부하에서 실패(경계 질의 — 위 1·2번) | 각 16~18초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 2분 58초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 34초 |
+
+#### 보완 1.3 — 같은 미비점 4건 세 번째 (2026-11-06)
+
+받은 4건은 보완 1.1·1.2와 **글자까지 같다**('8 of its 14', '형' 16.73 ms, load 9~12). 검토 글은 보완 1.1 앞 상태(`9e29118` — `search_perf_test`에 `kHeldBelow` 시험 하나, 계획에 CP-18 없음)와 맞는다. 통합 브랜치(`/home/user/noteapp`, `b032244`)에는 `area2/core`가 아직 병합되지 않았다(`git branch -a --contains 6995ec1` → `area2/core`만). HEAD(`21da8b1`)에서 하나씩 다시 확인했다 — 2~4번은 처리돼 있고 1번은 총괄 판정을 기다린다. 코드·계획은 바꾸지 않았다(이 기록만).
+
+HEAD에서 바로 볼 곳:
+
+| 미비점 | HEAD에서 | 상태 |
+|---|---|---|
+| 1 PF-3·PF-4를 약한 기준으로만 단언 | `packages/note_core/test/perf/search_perf_test.dart` 86행 'PF-3/4 (V10 as written)' — 14개 질의 **모두** 원문 예산(PF-3 ≤ 5 ms, PF-4 ≤ 15 ms) 단언, 지금 실패. 101행 'PF-3/4 (CP-18 as proposed, pending)' — 제안 예산의 회귀 방지(판정 아님 — 파일 머리 주석). 진행 기록 작업 표 T33b·T37 '진행 중 — PF-3·PF-4만 남음', 'T37' 절의 '예산 안인 실행' 줄에 '정정(보완 1.1)' | 처리됨(`6995ec1`). **닫기는 막힘** — [총괄] V10(계획 12.1 CP-18) 판정 대기 |
+| 2 '형'(576개)이 부하에서 15 ms 넘음 | '다음 세션 메모' ① I-6 메모 | 처리됨 — 통합 단계 I-6에서 load < 4로 판정(9.1) |
+| 3 6.19 PF-10 '≤ 20 ms [추측]' | `docs/plans/m5-7/02-core.md` 2265행(6.19 PF-10 '질의 ≤ 50 ms(T33b 첫 측정 32~42 ms로 확정 — 같은 프로세스 저장소 `openTestNoteStore`에서 단언, 네이티브 저장소 `openNoteStore`의 같은 질의는 기록만 …)'), 2039행(6.10.7 끝 문단 — 같은 말) | 처리됨(`8f29456`) |
+| 4 12.1에 V10 변경 요청 없음 | 같은 문서 2610행 **CP-18**(7.7.2 V10 + 6.19 PF-3·PF-4·6.10.7, 판정 '대기', 근거·대안·상한 300 실험), 2589행 12.1 머리 '동시 개발 중 새 제안: CP-18(판정 대기)', 2258·2259행 PF-3·PF-4 'CP-18 판정 대기 — 승인 전까지 이 원문으로 판정(7.4.9)' | 처리됨(`8f29456`) |
+
+- 1번 남은 것(막힘): 이 영역 혼자 닫을 길이 없다 — 예산 문구(7.7.2 V10)도, 이름이 붙은 유일한 대안인 후보 상한 낮추기(7.2.5 `SearchIndex.searchPages` '(v2.1) At most 2,000 candidates')도 계약이고, 상한 300 실험(보완 1.1)으로도 PF-3 흔한 낱말 5개 중 4개가 5 ms를 넘었다. 판정 뒤 할 일은 '다음 세션 메모' ④.
+- 이번 측정(12:58, load 11.3 — 다른 영역 6곳과 CPU 4 공유, 한 번): 'V10 as written' **실패 9건** — 흔한 낱말 7개(PF-3 2음절 4,967개 31.84 ms · 3음절 3,633개 29.04 · 낱말 중간 3,633개 27.20 · 영문 접두사 2,558개 32.81 · AND 2,539개 41.85, PF-4 4,995개 26.46 · 1,072개 20.47)와 경계 질의 2개('뫺믭' 136개 5.24 ms, '형' 576개 17.46 ms). 드문 질의(후보 38~65개)는 2.07~3.26 ms로 원문 안. 'CP-18 as proposed'는 이 부하에서 경계 질의 2개로 실패(정식 판정은 load < 4 — 9.1). PF-5 8.4 s(기록).
+
+커밋: 이 기록 커밋 하나(코드·계획 변화 없음).
+
+확인 (2026-11-06 보완 1.3, load 7~12 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(326개 파일) | 5초 · 3초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 144초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 50` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 225초(전체 3분 46초) |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (한 번) | 'V10 as written' **실패**(위 9건 — 판정 대기라 예상한 결과), 'CP-18 as proposed' 이 부하에서 경계 질의 2개로 실패 | 27초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 1분 45초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 21초 |
+
+#### 보완 1.4 — 같은 미비점 4건 네 번째, 처음으로 load < 4에서 잼 (2026-11-06)
+
+받은 4건은 보완 1.1·1.2·1.3과 **글자까지 같다**('8 of its 14', '형' 16.73 ms, load 9~12). 검토 글은 보완 1.1 앞 상태(`9e29118` — `search_perf_test`에 `kHeldBelow` 시험 하나, 계획에 CP-18 없음)와 맞는다. 통합 브랜치(`/home/user/noteapp`, `462bdfe` — 계약 v2.4 C24-01·02)에는 `area2/core`가 아직 병합되지 않았고(`search_perf_test.dart` 없음), v2.4에 V10·CP-18 판정은 없다. HEAD에서 하나씩 다시 확인했다.
+
+| 미비점 | HEAD에서 | 상태 |
+|---|---|---|
+| 1 PF-3·PF-4를 약한 기준으로만 단언, 'recorded only' 8개 | `packages/note_core/test/perf/search_perf_test.dart` 88행 'PF-3/4 (V10 as written)' — 14개 질의 **모두** 원문 예산(PF-3 ≤ 5 ms, PF-4 ≤ 15 ms) 단언, 지금 실패(기록만 하는 질의 없음). 103행 'CP-18 as proposed' — 제안 예산의 회귀 방지(판정 아님). 진행 기록 작업 표 T33b·T37 '진행 중 — PF-3·PF-4만 남음', 'T37' 절 755행에 '정정(보완 1.1)'. 1.1 앞 상태의 'recorded only'는 8개가 아니라 7개(PF-3 5 + PF-4 2 — 후보 수는 시드 3으로 정해져 있음) | 처리됨(`6995ec1`). **닫기는 막힘** — [총괄] V10(계획 12.1 CP-18) 판정 대기. 검토자의 '낮은 부하로도 닫히지 않는다'는 이번 load < 4 측정으로 확인(아래) |
+| 2 '형'(576개)이 부하에서 15 ms 넘음 — I-6 메모 | '다음 세션 메모' ①. 이번에 load < 4에서도 14.2~15.8 ms였다 — 부하만의 문제가 아니라 CP-18 제안의 아래 칸 경계(600개)에 여유가 없었다 | **고침**(이 커밋): CP-18 제안의 경계를 300·600개 → **100개**로(아래) |
+| 3 6.19 PF-10 '≤ 20 ms [추측]' | `docs/plans/m5-7/02-core.md` 2265행(6.19 PF-10 '질의 ≤ 50 ms(T33b 첫 측정 32~42 ms로 확정 — 같은 프로세스 저장소에서 단언, 네이티브 저장소는 기록만 …)'), 2039행(6.10.7 같은 말) | 처리됨(`8f29456`) |
+| 4 12.1에 V10 변경 요청 없음 | 같은 문서 2610행 **CP-18**(판정 '대기'), 2589행 12.1 머리 '동시 개발 중 새 제안: CP-18(판정 대기)', 2258·2259행 PF-3·PF-4 'CP-18 판정 대기 — 승인 전까지 이 원문으로 판정(7.4.9)' | 처리됨(`8f29456`) — 이번에 CP-18 행의 제안 문구·근거를 고침 |
+
+- 측정(13:07~13:13, **load 1.5~3.9**(1분 평균, 시험 자신 포함) — 다른 영역이 잠시 쉬던 때, 같은 파일 여덟 번; 앞 다섯 번은 옛 경계, 뒤 세 번은 고친 경계로):
+
+  | 질의 (후보 수, 결과 쪽) | 원문 예산 | load < 4 여덟 번 |
+  |---|---|---|
+  | PF-3 흔한 낱말 5개 — 2음절(4,967)·3음절(3,633)·낱말 중간(3,633)·영문 접두사(2,558)·AND(2,539), 결과 100쪽 | 5 ms | 21.9~31.3 ms(질의별 걬윛 21.9~29.3 · 쿜닀뀝 24.7~29.3 · 닀뀝 22.5~25.2 · jiz 23.1~31.3 · AND 26.0~30.0) |
+  | PF-3 2음절 '뫺믭' (136, 100) | 5 | 3.3~5.2 ms(여덟 번 중 한 번 5.17) |
+  | PF-3 드문 질의 5개 (38~65, 38~65) | 5 | 1.5~3.2 ms |
+  | PF-4 1글자 '가' (4,995, 100) · '섘' (1,072, 100) | 15 | 20.1~22.6 · 18.8~21.5 ms |
+  | PF-4 1글자 '형' (576, 100) | 15 | 14.2~15.8 ms(값을 본 일곱 번 중 다섯 번 15 ms 이상) |
+  | PF-5 5,000쪽 `replaceUnits` | 기록 | 5.7~6.4 s |
+
+  - 'V10 as written': 여덟 번 모두 **실패**(흔한 낱말 7개 — 부하가 낮아도 19~31 ms, 검토 1번의 '설계에 묶인 값'과 같음 — 여기에 '형'·'뫺믭'이 번갈아 더해짐).
+  - 'CP-18 as proposed'(옛 경계 300·600개): 다섯 번 중 한 번만 통과 — '형'(576개 < 600 → 15 ms 칸)과 '뫺믭'(136개 < 300 → 5 ms 칸)이 load < 4에서도 예산 경계. 즉 보완 1.1의 제안은 정식 판정 조건(9.1 load < 4)에서도 통과가 보장되지 않았다.
+  - 고친 경계(100개)로 세 번: 모두 통과(가장 큰 값 흔한 낱말 29.3 ms·1글자 LIKE 21.8 ms — '그 밖 ≤ 50 ms'; 드문 질의 3.2 ms 이하 — 5 ms). 옛 경계 다섯 번 중 값을 다 본 두 번도 고친 경계로는 통과.
+- **고친 것(이 커밋 하나)**: CP-18 제안을 '후보 **100개 미만** 질의 ≤ 5 ms(1글자 LIKE ≤ 15 ms), 그 밖(후보 상한 2,000까지) ≤ 50 ms(VM)'로 — 비용이 읽는 후보 수와 돌려주는 쪽 수(100까지 — 원문·발췌 ≈ 3 ms)에 함께 비례하고(1글자 LIKE는 5,000단위를 다 훑는 바닥값이 더해짐), 후보 100개 미만이면 쪽 수도 100 미만이라 5 ms에 1 ms 넘는 여유가 있다. 이 합성 자료에서 1글자 질의는 가장 드문 것도 576개라 PF-4의 15 ms 칸에 드는 질의는 없다(모두 50 ms 칸 — CP-18 행에 적음).
+  - `test/perf/search_perf_test.dart`: `kHeldBelow`를 `{'PF-3': 300, 'PF-4': 600}` → `100`(한 값), 머리 주석·시험 이름. 'V10 as written'은 그대로(판정).
+  - 계획 `02-core.md`: 머리 '동시 개발 중 고친 곳' 줄, 6.19 PF-3·PF-4 행, 12.1 CP-18 행(제안 문구·고친 까닭·load < 4 근거·비용 모양).
+  - README 성능표 PF-3·PF-4 행에 load < 4 값.
+  - 진행 기록: 요약, 작업 표 T33b·T37 커밋 열, 변경 요청 [총괄] V10의 제안 문구, '다음 세션 메모' ①·'검색 질의 예산'.
+- 막힘(그대로): V10 원문 판정은 이 영역 혼자 닫을 수 없다 — 예산 문구(7.7.2 V10)도, 이름이 붙은 유일한 대안인 후보 상한 낮추기(7.2.5 '(v2.1) At most 2,000 candidates')도 계약이고, 상한 300 실험(보완 1.1)으로도 모자랐다. 판정 뒤 할 일은 '다음 세션 메모' ④.
+
+커밋: `ec0d7d7`(시험 경계·계획·README·진행 기록), 이 해시를 적는 기록 커밋.
+
+확인 (2026-11-06 보완 1.4, load 1.5~4 측정 뒤 다른 영역 시험이 다시 돌기 시작)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(326개 파일) | 4초 · 3초 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 88초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 50` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 183초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (여덟 번, load 1.5~3.9) | 'V10 as written' 여덟 번 모두 **실패**(흔한 낱말 7개 — 판정 대기라 예상한 결과). 'CP-18 as proposed' 옛 경계 다섯 번 중 한 번 통과, 고친 경계 세 번 모두 통과 | 각 13~20초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 69초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+
+#### 보완 2.1 — 독립 검토 미비점 5건 (2026-11-06)
+
+새 검토 글이다(앞 보완 1.1~1.4의 4건과 다름). 하나씩 확인했다 — 2·3·4·5번은 고쳤고, 1번은 그대로 막혀 있다(총괄 판정 대기).
+
+1. **T33b·T37 PF-3·PF-4 — 완료 시험 'PF-3/4 (V10 as written)'이 지금도 실패**: 맞다(계획 10장 #1 기준 미완료 — 작업 표 '진행 중'이 맞음). 검토자의 '14개 중 8개'(PF-3 흔한 낱말 5 + PF-4 3 — '형' 576개가 그 실행에서 15.6 ms)도 맞다(보완 1.4의 '7개'는 '형'·'뫺믭'이 번갈아 경계를 넘는 것을 뺀 수). 통합 브랜치(`/home/user/noteapp` `462bdfe` — 계약 v2.4 C24-01·02)에 V10·CP-18 판정이 없음을 다시 확인했다(`git log`·`grep CP-18 00-overview.md` → 없음). 이번 측정(이 세션 처음, load 3.2 → 3.9, 한 번): 'V10 as written' **실패 8건** — PF-3 흔한 낱말 5개 24.3~34.7 ms(2음절 4,967개 26.29 · 3음절 3,633개 34.72 · 낱말 중간 3,633개 26.28 · 영문 접두사 2,558개 24.28 · AND 2,539개 27.46), PF-4 '가' 4,995개 21.64 · '섘' 1,072개 19.64 ms, 그리고 '뫺믭'(136개·결과 100쪽) 10.65 ms. '형'(576개) 14.72 ms, 드문 질의 5개 1.8~3.0 ms. 'CP-18 as proposed' 통과. 코드·계획은 바꾸지 않았다 — 예산 문구(7.7.2 V10)도, 이름 붙은 유일한 대안인 후보 상한 낮추기(7.2.5 '(v2.1) At most 2,000 candidates')도 계약이고 상한 300 실험(보완 1.1)으로도 모자랐다. **막힘 그대로**: [총괄] V10(계획 12.1 CP-18) 판정 대기. 판정 뒤 할 일은 '다음 세션 메모' ④.
+2. **R-8 시험이 없음**(계획 9.3 'R-6·R-7·R-8 → `undo_objects_test`(녹음·손글씨가 히스토리에 없음)'): 맞다 — `undo_objects_test`는 T27의 객체 undo만 보고, `recording_repository_test`·`handwriting_repository_test`·공유 본문 어디에도 열린 세션의 히스토리를 보는 사례가 없었다. `test/edit/undo_objects_test.dart`에 **가짜·실제 저장소 각 2건**을 더했다(공용 본문 `_outsideHistoryCases`): 녹음 'rec-r8'에 이어진 획 3개(`AddStrokes`)와 텍스트 상자(`AddObjects` → undo)로 undo 1·redo 1인 세션을 열어 두고 ① `createRecording`·`renameRecording` → `history`가 같고 `historyStream`·`pageChanges`에 아무것도 안 나옴, 페이지 그대로 → redo·undo·undo(녹음 중 그린 획까지 되돌림)가 모두 그 세션의 단계만 되돌림 → 녹음은 이름 '2교시'·활성 그대로, `recordingsOf`에 남음 → `deleteRecording`도 히스토리 그대로, redo로 획이 돌아와도(`recordingId` 그대로 — R-7) 녹음은 삭제된 채. ② 손글씨 `put`·`update`(확정 줄 병합 모양) → 같은 검사 → undo·redo 왕복 뒤에도 저장된 결과 그대로(획이 없어져 `stalePages`에 그 페이지 — 지우지 않고 색인기가 맞춤, 6.4.3) → `removeForPage`도 히스토리 그대로, redo가 결과를 되살리지 않음. 기존 T27 사례 5건은 `group('page objects on the real store')` 안으로 옮겼다(맨 위 `tearDown(f.close)`가 새 사례에도 걸리지 않게 — 사례 이름 앞에 그 말이 붙음).
+
+3. **CP-9 `objectsPerPage`가 없음, 뺐다는 기록도 없음**(12.1 '승인(P-C)', 3절 트리 `dev_tools.dart # (변경) CP-9 objectsPerPage(P-C)`): 맞다 — 8.2 표에 CP-9를 맡은 작업이 없어 세션 1~9 어디서도 하지 않았고, '자를 것'으로 뺐다고 적지도 않았다. 빼지 않고 **구현했다**(INK 계획 860·2268행이 B14·I-B11에 쓴다고 적음 — 다른 영역의 코드에는 아직 쓰는 곳 없음, `grep -r objectsPerPage` 통합 브랜치·다른 작업 트리). T37(성능 도구)의 몫으로 기록한다.
+   - `seedSyntheticNote(…, int objectsPerPage = 0)`(`lib/dev_tools.dart` — 이름 있는 인자 추가만, 공개 이름 변화 없음): 0~`PageObjectLimits.maxObjectsPerPage`(밖이면 아무것도 쓰기 전에 `ArgumentError`), 쪽마다 획 뒤에 세션 `AddObjects` 하나(획이 0이어도). 객체는 내부 `lib/src/dev/synthetic_objects.dart`의 `syntheticObjects` — 쪽 안 격자(여백 10 pt, 칸의 10% 안쪽), 17개마다 도형 10(모든 `ShapeKind` 차례로, 다각형 5~8변, 채움 번갈아)·텍스트 상자 5·수식 1·이미지 1. 이미지는 노트마다 **64 × 48 RGB PNG 에셋 하나**(`syntheticPng` — 저장 deflate 블록 하나 + CRC-32·Adler-32, 시드마다 다른 그라데이션; `store.assets.put(type: image, mimeType: 'image/png')` 한 번 — 같은 바이트라 같은 에셋), 이미지 칸은 4:3 비율로 칸 가운데. 17개 미만이면 이미지도 에셋도 없다. 340 = INK B14 객체 페이지(도형 200·텍스트 100·수식 20·이미지 20). id는 `store.ids`, `createdAt`은 획 뒤.
+   - 시험 `test/dev/seed_synthetic_note_test.dart`(+ `@TestOn('vm')` — PNG 검사에 `dart:io` `ZLibDecoder`): 가짜·실제(`openTestNoteStore`) 각 2건(340 → 종류별 수·모든 `ShapeKind`·이미지 에셋 하나·4:3·모두 쪽 안·`version` 있음·획 뒤·히스토리 0 / 16개 → 이미지·에셋 없음 + 한도 2,000개·획 0), 같은 시드 = 같은 객체·다른 시드 = 다름, PNG(서명·IHDR 64 × 48 8비트 RGB·청크마다 CRC·zlib 풀기 = 걸러진 줄 48개, CRC-32 검사값 `0xCBF43926`·Adler-32 'Wikipedia' `0x11E60398`), 인자 오류 2건 더. 저장소 밖에서 Python `zlib`·PIL로도 열어 봤다(64 × 48 RGB).
+   - `test/api_surface_test.dart`가 `int objectsPerPage` 인자까지 시그니처를 고정하고, README '다른 영역 시험' 절의 `seedSyntheticNote` 줄에 `objectsPerPage:`를 적었다. 계획: 4.11 `dev_tools.dart` 줄, 12.1 CP-9 행 '반영 위치', 머리 '동시 개발 중 고친 곳'.
+
+4. **T37 'INFRA 웹 예산표' 몫에 변경 요청이 없음**: 맞다 — 'T37' 절 끝에 '통합 단계 I-7에서 INFRA가 옮긴다'고만 적고 INFRA에 보내지 않았다. INFRA 파일(`docs/plans/m5-7/01-infra.md` 6.15 예산표·`tool/web_budget.yaml`)은 이 작업 트리 소유가 아니라 고치지 않고, '변경 요청 (동시 개발)'에 **[INFRA] 웹 예산표에 CORE 검색 색인 크기 기록 행**을 더했다(값·출처·한도가 아닌 기록 행인 까닭). 'T37' 절 끝 문장과 '다음 세션 메모' ②가 그 요청을 가리키게 고쳤다.
+5. **요약 첫 줄 표기**: 맞다 — '세션 9 + 보완 1.1·1.2·1.3'이라 적고 같은 줄에서 보완 1.4를 설명했다. '세션 9 + 보완 1.1~1.4·2.1'로 고치고 보완 2.1을 한 문장 더했다.
+
+커밋: `0ae0d4d`(2번 — R-8 시험), `f99d064`(3번 — CP-9), 이 기록 커밋(1·4·5번 — 진행 기록만).
+
+확인 (2026-11-06 보완 2.1, load 1.4~3.9 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(327개 파일) | 4초 · 3초 |
+| `ws test --package note_core --platform vm` | **1,199개 통과**(1,189 + R-8 4 + CP-9 6), 13개 건너뜀(perf 파일 + 읽기 전용 2) | 109초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 35` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 189초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (한 번, load 3.2 → 3.9) | 'V10 as written' **실패**(8건 — 위 1번, 판정 대기라 예상한 결과), 'CP-18 as proposed' 통과 | 18초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 65초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 11초 |
+
+#### 보완 2.2 — 같은 미비점 5건 다시 받음 (2026-11-06)
+
+받은 5건은 보완 2.1의 5건과 **내용이 같다**('14개 질의 중 8개', PF-3 흔한 낱말 5개 23.1~31.5 ms·PF-4 1글자 LIKE 3개 15.6~27.1 ms, load 1.5~2.3 — 보완 2.1이 적은 '형' 15.6 ms와 같은 실행). 검토 글은 보완 2.1 앞 상태(`b0eff3d` — `git show b0eff3d:…`로 확인: 요약 첫 줄 '세션 9 + 보완 1.1·1.2·1.3', `undo_objects_test`에 R-8 사례 없음, `seedSyntheticNote`에 `objectsPerPage` 없음, '변경 요청 (동시 개발)'에 [INFRA] 없음)과 맞는다. 2·3·4·5번은 보완 2.1 커밋(`0ae0d4d`·`f99d064`·`4791160`)에 들어 있다. HEAD(`4791160`)에서 하나씩 다시 확인했다 — 코드·계획은 바꾸지 않았다(이 기록 커밋 하나).
+
+| 미비점 | HEAD에서 | 상태 |
+|---|---|---|
+| 1 PF-3·PF-4 'V10 as written' 실패 | `packages/note_core/test/perf/search_perf_test.dart` 88행 'PF-3/4 (V10 as written)'(14개 질의 모두 원문 예산 단언), 103행 'CP-18 as proposed'(회귀 방지). 작업 표 T33b·T37 '진행 중 — PF-3·PF-4만 남음'. 계획 `docs/plans/m5-7/02-core.md` 2612행 CP-18 '대기', 2260·2261행 PF-3·PF-4. 통합 브랜치 `/home/user/noteapp`(`462bdfe`, 계약 v2.4)에 V10·CP-18 판정 없음(`grep -n 'CP-18' 00-overview.md` → 없음, 7.7.2 V10 2325행 원문 그대로) | 검토자 말이 맞음 — **막힘 그대로**: [총괄] V10(계획 12.1 CP-18) 판정 대기. 이번 측정은 아래 |
+| 2 R-8 시험 없음 | `packages/note_core/test/edit/undo_objects_test.dart` 62행 `_outsideHistoryCases`, 214행 `createRecording`·`renameRecording`·`deleteRecording`, 254행 손글씨 `put`·`update`·`removeForPage`, 294·295행 가짜·실제. `flutter test test/edit/undo_objects_test.dart -r expanded` → 'R-8 on the fake store …'·'R-8 on the real store …' 각 2건 통과 | 처리됨(`0ae0d4d`) |
+| 3 CP-9 `objectsPerPage` 없음·기록 없음 | `packages/note_core/lib/dev_tools.dart` 36행 `int objectsPerPage = 0`, `lib/src/dev/synthetic_objects.dart`, `test/api_surface_test.dart` 1617행, `test/dev/seed_synthetic_note_test.dart`(가짜·실제 + PNG·인자 오류 — 통과), README 343행, 계획 1299행(4.11)·2603행(12.1 CP-9 '반영 위치'), 진행 기록 '계획과 다르게 한 점 (동시 개발)' 'T37(보완 2.1): CP-9' 줄 | 처리됨(`f99d064`) — 빼지 않고 구현 |
+| 4 INFRA 웹 예산표 변경 요청 없음 | 이 파일 '변경 요청 (동시 개발)'의 **[INFRA] 웹 예산표(01-infra 6.15)에 CORE 검색 색인 크기 기록 행**(값·출처·기록 행인 까닭), 'T37' 절 끝 문장이 그 요청을 가리킴 | 처리됨(`4791160`) — 이번 결과의 changeRequests에도 다시 [INFRA]로 낸다 |
+| 5 요약 첫 줄 표기 | '## 요약' 첫 줄 '세션 9 + 보완 1.1~1.4·2.1' | 처리됨(`4791160`) — 이번에 '·2.2'를 더함 |
+
+- 측정(이 세션, 같은 파일 두 번 — 다른 영역이 Chrome 시험을 시작하던 때):
+  - 1회(load 3.1 → 4.6, 프로세스 181 → 290): 'V10 as written' **실패 9건** — PF-3 흔한 낱말 5개 29.0~56.6 ms(2음절 4,967개 29.21 · 3음절 3,633개 36.25 · 낱말 중간 3,633개 56.55 · 영문 접두사 2,558개 34.75 · AND 2,539개 28.95), PF-4 '가' 31.22 · '섘' 22.21 · '형' 17.01 ms, 그리고 드문 낱말 중간 '괎뗏'(40개) 5.23 ms. **'CP-18 as proposed'도 실패 2건**('닀뀝' 56.55 ms > 50, '괎뗏' 5.23 ms > 5) — 부하가 오르던 실행이라 한 번 다시 돌렸다.
+  - 2회(load 4.8 → 4.9): 'V10 as written' **실패 7건** — PF-3 흔한 낱말 5개 25.0~34.0 ms, PF-4 '가' 29.32 · '섘' 26.88 ms. '형' 13.34 · '뫺믭' 4.01 ms, 드문 질의 5개 1.7~2.8 ms. 'CP-18 as proposed' 통과.
+  - 판정은 보완 2.1과 같다: 원문 V10은 흔한 낱말 질의(후보 1,000~5,000개)에서 이 설계로 닫히지 않는다(부하 탓이 아님 — 보완 1.4 load < 4 여덟 번). 1회의 CP-18 실패는 I-6 메모로 남긴다(아래 '다음 세션 메모' ①).
+
+확인 (2026-11-06 보완 2.2, load 1.4~4.9 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(327개 파일) | 3초 · 3초 |
+| `flutter test test/edit/undo_objects_test.dart test/dev/seed_synthetic_note_test.dart test/api_surface_test.dart` | 39개 통과(R-8 4·CP-9 포함) | 13초 |
+| `ws test --package note_core --platform vm` | **1,199개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 96초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 35` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 177초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (두 번) | 'V10 as written' **실패**(9건·7건 — 위, 판정 대기라 예상한 결과), 'CP-18 as proposed' 1회 실패(부하)·2회 통과 | 17초 · 16초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 68초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+
+#### 보완 2.3 — 같은 미비점 5건 세 번째 (2026-11-06)
+
+받은 5건은 보완 2.1·2.2의 5건과 **글자까지 같다**('14개 질의 중 8개', PF-3 흔한 낱말 5개 23.1~31.5 ms·PF-4 1글자 LIKE 3개 15.6~27.1 ms, load 1.5~2.3). 검토 글은 여전히 보완 2.1 앞 상태(`b0eff3d`)를 본다 — 2번 'R-8 시험이 어디에도 없음', 3번 '`objectsPerPage` 인자가 없음·기록 없음', 4번 '[INFRA] 항목이 없음', 5번 '요약 첫 줄 보완 1.1·1.2·1.3'은 모두 `0ae0d4d`·`f99d064`·`4791160`(보완 2.1) 앞의 글이다. HEAD(`1a5426c`)에서 하나씩 다시 확인했다(파일·행은 보완 2.2 표와 같음 — 그 뒤 코드 변경 없음). 코드·계획은 바꾸지 않았다(이 기록 커밋 하나).
+
+| 미비점 | HEAD(`1a5426c`)에서 | 판정 |
+|---|---|---|
+| 1 PF-3·PF-4 'V10 as written' 실패 | `packages/note_core/test/perf/search_perf_test.dart` 88행 'PF-3/4 (V10 as written)', 103행 'CP-18 as proposed'. 작업 표 T33b·T37 '진행 중 — PF-3·PF-4만 남음'. 계획 `docs/plans/m5-7/02-core.md` 2612행 CP-18 '**대기**', 2260·2261행. 통합 브랜치 `/home/user/noteapp` HEAD `462bdfe`(계약 v2.4 — 7.9 마지막 C24-02)에 V10·CP-18 판정 없음(`grep -n 'CP-18' docs/plans/m5-7/00-overview.md` → 없음, 2325행 V10 원문 그대로) | **검토자 말이 맞음 — 막힘 그대로**: [총괄] V10(계획 12.1 CP-18) 판정 대기. 이 영역 안에서 닫을 길이 없다(아래) |
+| 2 R-8 시험 없음 | `packages/note_core/test/edit/undo_objects_test.dart` 62행 `_outsideHistoryCases`, 214행 `createRecording`·`renameRecording`·`deleteRecording`, 254행 손글씨 `put`·`update`·`removeForPage`, 294·295행 가짜·실제. 이번 세션 `flutter test test/edit/undo_objects_test.dart test/dev/seed_synthetic_note_test.dart test/api_surface_test.dart` → 39개 통과 | **검토자가 틀림**(옛 상태) — 처리됨 `0ae0d4d` |
+| 3 CP-9 `objectsPerPage` 없음·기록 없음 | `packages/note_core/lib/dev_tools.dart` 36행 `int objectsPerPage = 0`, `lib/src/dev/synthetic_objects.dart`, `test/api_surface_test.dart` 1617행, `test/dev/seed_synthetic_note_test.dart`, README 343행, 계획 2603행(12.1 CP-9 '반영 위치'), 이 파일 '계획과 다르게 한 점 (동시 개발)'의 'T37(보완 2.1): CP-9' 줄 | **검토자가 틀림**(옛 상태) — 처리됨 `f99d064`(빼지 않고 구현) |
+| 4 INFRA 웹 예산표 변경 요청 없음 | 이 파일 '변경 요청 (동시 개발)'의 **[INFRA] 웹 예산표(01-infra 6.15)에 CORE 검색 색인 크기 기록 행**, 'T37' 절 끝 문장이 그 요청을 가리킴 | **검토자가 틀림**(옛 상태) — 처리됨 `4791160`. 이번 결과의 changeRequests에도 [INFRA]로 다시 낸다 |
+| 5 요약 첫 줄 표기 | '## 요약' 첫 줄 '세션 9 + 보완 1.1~1.4·2.1·2.2'(보완 2.1에서 고침, 2.2에서 '·2.2' 더함) | **검토자가 틀림**(옛 상태) — 처리됨 `4791160`. 이번에 '2.1~2.3'으로 |
+
+- 1번을 이 영역에서 닫을 수 없는 까닭(보완 1.1~2.2와 같음, 다시 적음): 원문 V10(중앙값 ≤ 5 ms)을 넘는 것은 후보가 1,000~5,000개인 흔한 낱말 질의뿐이다. 계약 7.2.5 '살아 있는 후보만 2,000개, 최근 먼저'와 CP-14 '가짜와 같은 판정·순서'가 후보마다 살아있음 판정·`norm` 판정·점수를 요구해 상한에서 그 몫만 12~16 ms다(살아있음 3·`norm` 옮기기 6~8·판정·순위 3~5 — 계획 12.1 CP-18 근거)(FTS MATCH는 1 ms). 예산을 지키는 유일한 이름 붙은 대안(후보 상한 낮추기)은 7.2.5 주석 '(v2.1) At most 2,000 candidates' 변경이라 7.4.9(동시 개발 중 공유 표면은 추가만)에 걸리고, 상한 300 실험으로도 모자랐다(보완 1.1). 판정이 오면 할 일은 '다음 세션 메모' 검색 질의 예산 줄.
+- 측정(이 세션, 한 번 — load 1.0 → 1.4, 이 컨테이너에서 본 가장 낮은 부하): 'V10 as written' **실패 8건**(검토자와 같은 8개) — PF-3 흔한 낱말 5개 32.7~35.4 ms(2음절 4,967개 33.32 · 3음절 3,633개 35.35 · 낱말 중간 3,633개 33.86 · 영문 접두사 2,558개 35.00 · AND 2,539개 32.70), PF-4 '가' 4,995개 22.23 · '섘' 1,072개 23.86 · '형' 576개 21.43 ms. '뫺믭'(136개·결과 100쪽) 4.37 ms, 드문 질의 5개 1.7~4.4 ms. 'CP-18 as proposed' 통과. 부하가 가장 낮은 실행에서도 흔한 낱말 질의가 원문 예산의 6~7배다 — 부하 탓이 아님(보완 1.4와 같은 판정).
+- I-6 메모 하나 더: CP-18 제안의 '후보 100개 미만 ≤ 5 ms' 칸에서 드문 2음절 '뇨뉯'(65개·결과 65쪽)이 이번에 4.38 ms였다(앞 실행들은 1.5~3.2 ms). 돌려주는 쪽 수에 비례하는 몫(원문·발췌)이라 100개 바로 아래 질의는 여유가 작다 — 판정에서 경계를 정할 때 참고.
+- 총괄에게: 같은 검토 글이 세 번(보완 2.1·2.2·2.3) 왔다. 2~5번은 `b0eff3d` 상태의 글이니 다음 검토는 HEAD(이 기록 커밋 뒤)를 기준으로 해 주면 1번만 남는다.
+
+확인 (2026-11-06 보완 2.3, load 1.0~7.0 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(327개 파일) | 4초 · 2초 |
+| `flutter test test/edit/undo_objects_test.dart test/dev/seed_synthetic_note_test.dart test/api_surface_test.dart` | 39개 통과(R-8 4·CP-9 포함) | 실행 4초 |
+| `ws test --package note_core --platform vm` | **1,199개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 94초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 35` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 202초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (한 번, load 1.0 → 1.4) | 'V10 as written' **실패**(8건 — 위, 판정 대기라 예상한 결과), 'CP-18 as proposed' 통과 | 15초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 83초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 13초 |
+
+#### 보완 2.4 — 같은 미비점 5건 네 번째 (2026-11-06)
+
+받은 5건은 보완 2.1·2.2·2.3의 5건과 **글자까지 같다**('14개 질의 중 8개', PF-3 흔한 낱말 5개 23.1~31.5 ms·PF-4 1글자 LIKE 3개 15.6~27.1 ms, load 1.5~2.3). 2~5번은 여전히 보완 2.1 앞 상태(`b0eff3d`)의 글이다. HEAD(`542fa79` — 보완 2.3 기록 커밋, 그 뒤 코드 변경 없음)에서 하나씩 다시 확인했다. 코드·계획은 바꾸지 않았다(이 기록 커밋 하나).
+
+| 미비점 | HEAD(`542fa79`)에서 | 판정 |
+|---|---|---|
+| 1 PF-3·PF-4 'V10 as written' 실패 | `packages/note_core/test/perf/search_perf_test.dart` 88행 'PF-3/4 (V10 as written)', 103행 'CP-18 as proposed'. 작업 표 T33b·T37 '진행 중 — PF-3·PF-4만 남음'. 계획 `docs/plans/m5-7/02-core.md` 2612행 CP-18 '**대기**', 2260·2261행. 통합 브랜치 `/home/user/noteapp` HEAD 그대로 `462bdfe`(계약 v2.4 — 7.9 마지막 C24-02), `grep -n 'CP-18' docs/plans/m5-7/00-overview.md` → 없음, 2325행 V10 원문 그대로 | **검토자 말이 맞음 — 막힘 그대로**: [총괄] V10(계획 12.1 CP-18) 판정 대기. 닫을 수 없는 까닭은 '보완 2.3' 1번 아래 글과 같다(원문 예산은 계약 7.7.2, 이름 붙은 대안인 후보 상한 낮추기는 7.2.5 주석 변경이라 7.4.9에 걸리고 상한 300 실험으로도 모자람) |
+| 2 R-8 시험 없음 | `packages/note_core/test/edit/undo_objects_test.dart` 62행 `_outsideHistoryCases`, 214행 `createRecording`·`renameRecording`·`deleteRecording`, 257·259·280행 손글씨 `put`·`update`·`removeForPage`, 294·295행 가짜·실제. 이번 세션 `flutter test test/edit/undo_objects_test.dart test/dev/seed_synthetic_note_test.dart test/api_surface_test.dart` → 39개 통과('R-8 on the fake/real store …' 각 2건 포함) | **검토자가 틀림**(옛 상태) — 처리됨 `0ae0d4d` |
+| 3 CP-9 `objectsPerPage` 없음·기록 없음 | `packages/note_core/lib/dev_tools.dart` 36행 `int objectsPerPage = 0`, `lib/src/dev/synthetic_objects.dart`, `test/dev/seed_synthetic_note_test.dart`('(CP-9) objectsPerPage on the fake/real store …' — 통과), 계획 1299행(4.11)·2603행(12.1 CP-9 '반영 위치'), 이 파일 '계획과 다르게 한 점 (동시 개발)'의 'T37(보완 2.1): CP-9' 줄 | **검토자가 틀림**(옛 상태) — 처리됨 `f99d064`(빼지 않고 구현) |
+| 4 INFRA 웹 예산표 변경 요청 없음 | 이 파일 '변경 요청 (동시 개발)'의 **[INFRA] 웹 예산표(01-infra 6.15)에 CORE 검색 색인 크기 기록 행**, 'T37' 절 끝 문장이 그 요청을 가리킴 | **검토자가 틀림**(옛 상태) — 처리됨 `4791160`. 이번 결과의 changeRequests에도 [INFRA]로 다시 낸다 |
+| 5 요약 첫 줄 표기 | '## 요약' 첫 줄 '세션 9 + 보완 1.1~1.4·2.1~2.3' | **검토자가 틀림**(옛 상태) — 처리됨 `4791160`. 이번에 '2.1~2.4'로 |
+
+- 측정(이 세션, 같은 파일 두 번 — load 5.0~5.7, 다른 영역 6곳과 CPU 4 공유):
+  - 1회(load 5.0 → 5.4): 'V10 as written' **실패 10건** — PF-3 흔한 낱말 5개 23.3~36.0 ms(2음절 4,967개 23.26 · 3음절 3,633개 35.96 · 낱말 중간 3,633개 33.12 · 영문 접두사 2,558개 31.91 · AND 2,539개 30.54), PF-4 '가' 22.54 · '섘' 19.61 · '형' 15.31 ms, 그리고 '뫺믭'(136개) 8.85 · '뇨뉯'(65개) 8.00 ms. **'CP-18 as proposed'도 실패 1건**('뇨뉯' 8.00 ms > 5) — 부하로 보여 한 번 다시 돌렸다.
+  - 2회(load 5.3 → 5.7): 'V10 as written' **실패 9건** — PF-3 흔한 낱말 5개 33.7~40.1 ms, PF-4 '가' 32.03 · '섘' 27.10 · '형' 15.51 ms, '뫺믭' 8.35 ms. '뇨뉯' 4.07 ms, 드문 질의 5개 2.3~2.9 ms. 'CP-18 as proposed' 통과.
+  - 판정은 보완 2.1~2.3과 같다(흔한 낱말 질의는 load 1.0에서도 원문의 6~7배 — 보완 2.3). '뇨뉯'(65개·결과 65쪽)은 보완 2.3 4.38 ms에 이어 이번 1회 8.00 ms — CP-18 '100개 미만 ≤ 5 ms' 칸의 여유가 load 5에서는 없다는 I-6 메모를 더한다('다음 세션 메모' ①).
+- 총괄에게(보완 2.3과 같음): 같은 검토 글이 네 번(보완 2.1~2.4) 왔다. 다음 검토가 HEAD(이 기록 커밋 뒤)를 기준으로 하면 1번만 남는다. 1번은 총괄의 CP-18 판정이 있어야 닫힌다.
+
+확인 (2026-11-06 보완 2.4, load 3.8~5.7 — 다른 영역 6곳과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(327개 파일) | 4초 · 4초 |
+| `flutter test test/edit/undo_objects_test.dart test/dev/seed_synthetic_note_test.dart test/api_surface_test.dart` | 39개 통과(R-8 4·CP-9 포함) | 11초 |
+| `ws test --package note_core --platform vm` | **1,199개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) | 103초 |
+| `ws test --package note_core --platform chrome --heavy-lock-timeout 35` | 준비 ok, **114개 통과**, 2개 건너뜀(perf) | 168초 |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (두 번, load 5.0~5.7) | 'V10 as written' **실패**(10건·9건 — 위, 판정 대기라 예상한 결과), 'CP-18 as proposed' 1회 실패('뇨뉯' — 부하)·2회 통과 | 15초 · 18초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 96초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 21초 |
+
+#### 보완 3.1 — 계약 v2.5 C25-01 반영: PF-3·PF-4 판정 (2026-11-06)
+
+총괄 결정(통합 브랜치 `/home/user/noteapp` `e868644` — 00-overview 7.9 v2.5): **C25-01 CP-18 승인** — 5,000쪽 합성 색인 질의 예산 '후보 100개 미만 질의 중앙값 ≤ 5 ms(1글자 LIKE ≤ 15 ms), 그 밖의 질의(후보 상한 2,000까지) ≤ 50 ms(VM)'. 7.2.5 후보 규칙과 CP-14는 그대로. C25-02(INK `developerValues`)·C25-03(INK 벤치 기준)·C25-04(INK T39·EDITOR E2-18·E2-10b 이번 라운드)는 CORE 시그니처·코드 몫 없음. 이 작업 트리의 문서에는 v2.5가 아직 없어(통합 단계에서 병합) 위 원문을 기준으로 했다.
+
+1. **`test/perf/search_perf_test.dart`** — 'PF-3/4 (V10 as written)'(판정 전 원문 예산 — 흔한 낱말에서 실패)과 'PF-3/4 (CP-18 as proposed, pending)'(회귀 방지)을 **판정 시험 하나**로 합쳤다: 'PF-3/4 (V10, contract v2.5 C25-01): under 100 candidates ≤ 5 ms (1-syllable LIKE ≤ 15 ms), others ≤ 50 ms (median)'. 질의마다 `candidatesOf`(FTS5 MATCH·LIKE 행 수, 상한 전 — 이 자료의 단위는 모두 살아 있음)로 **시험이 센 후보 수**가 예산 칸을 고른다(`budgetOf` — `kFewCandidates` 100, `kFewBudget` PF-3 5 ms·PF-4 15 ms, `kOtherBudget` 50 ms; 예산은 전처럼 '미만'으로 단언 — 원문 '≤'보다 엄격). 그리고 PF-3·PF-4 각각 100개 미만·이상 칸에 질의가 하나 이상 있는지 단언한다(한 칸이 비면 그 예산을 아무도 재지 않으므로). 이 자료의 음절은 가장 드문 '형'도 576개라 PF-4의 100개 미만 칸이 비어 **자료에 없는 음절 '각'(U+AC01 — 후보 0, 5,000단위를 다 훑는 LIKE 바닥값)**을 더했다(질의 14 → 15). 머리 주석·줄 기록('V10 v2.5 <예산> ms (< / ≥ 100 candidates): ok/OVER')을 고쳤다. 측정·자료·나머지 질의는 그대로.
+2. **계획 `02-core.md`**: 상태 줄 '승인 · 계약 v2.5'(v2.4는 CORE 변화 없음, v2.5 C25-01 반영 위치), 머리 '동시 개발 중 고친 곳'에 (v2.5) 한 문장, 2.2 표 5.4 성능 줄, 6.10.7 질의 예산 문단(v2.5 문구·후보 수의 뜻·비용이 나오는 곳)·합성 색인 문단, 6.19 PF-3·PF-4 행(v2.5 예산·시험이 센 후보 수·PF-4의 없는 음절), PF-10 행(PF-10 질의 ≤ 50 ms는 CORE 예산이고 v2.5 '그 밖 ≤ 50 ms'와 같은 값 — 후보 500개), 10장 #1(PF-3·PF-4는 v2.5 예산, load < 4), 12.1 머리 문장·표 머리·**CP-18 판정 칸 '승인 v2.5 C25-01'**(반영 내용·판정 전 기록).
+3. **README** 2차 성능표: 머리 문단(v2.5 예산), PF-3·PF-4 행의 예산·값('not met' → 이번 측정 값).
+4. 이 진행 기록: 요약, 이정표 T33b 행, 작업 표 T33b·T37 → **완료**, 변경 요청 [총괄] V10 → 판정 승인·닫음, 'T33b'·'T37' 절의 판정 대기 문장, '계획과 다르게 한 점'(없는 음절 질의 한 줄 더함), '다음 세션 메모'(첫 줄·④·검색 질의 예산 줄).
+5. 남은 검토 지적: 보완 2.1~2.4의 2~5번은 이미 처리돼 있고(`0ae0d4d`·`f99d064`·`4791160`), 1번(PF-3·PF-4 'V10 as written' 실패)은 이번 판정으로 닫혔다. 다른 영역 진행 기록·`/home/user/wt2/notes/`에 CORE 몫 변경 요청 없음(2026-11-06 다시 검색). I-6 메모(부하 높은 실행의 경계 질의 — '다음 세션 메모' ①)는 통합 단계 몫으로 그대로 둔다.
+
+측정(`flutter test --run-skipped -t perf test/perf/search_perf_test.dart`, 두 번 — 14:56~14:57, load 2.6~4.3, 다른 영역과 CPU 4 공유): 두 번 모두 **통과**(15개 질의 모두 v2.5 예산 안, 네 칸 모두 질의 있음).
+
+| 질의 (후보 수, 결과 쪽) | v2.5 예산 | 1회 (load 4.3 → 3.0) | 2회 (2.8 → 2.6) |
+|---|---|---|---|
+| PF-3 2음절 흔함 '걬윛' (4,967, 100) | 50 ms | 24.90 | 30.07 |
+| PF-3 2음절 '뫺믭' (136, 100) | 50 | 4.52 | 3.99 |
+| PF-3 2음절 드묾 '뇨뉯' (65, 65) | 5 | 2.66 | 2.56 |
+| PF-3 3음절 흔함 '쿜닀뀝' (3,633, 100) | 50 | 25.79 | 25.07 |
+| PF-3 3음절 드묾 '닛괎뗏' (40, 40) | 5 | 1.98 | 2.15 |
+| PF-3 낱말 중간 흔함 '닀뀝' (3,633, 100) | 50 | 30.72 | 24.56 |
+| PF-3 낱말 중간 드묾 '괎뗏' (40, 40) | 5 | 1.65 | 1.64 |
+| PF-3 영문 접두사 흔함 'jiz' (2,558, 100) | 50 | 23.92 | 32.41 |
+| PF-3 영문 접두사 드묾 'jhu' (46, 46) | 5 | 1.93 | 1.99 |
+| PF-3 AND 흔함 '걬윛 jizav' (2,539, 100) | 50 | 33.94 | 27.50 |
+| PF-3 AND 드묾 '뇨뉯 jizav' (38, 38) | 5 | 2.03 | 2.27 |
+| PF-4 1글자 흔함 '가' (4,995, 100) | 50 | 24.81 | 21.75 |
+| PF-4 1글자 '섘' (1,072, 100) | 50 | 21.36 | 20.94 |
+| PF-4 1글자 가장 드묾 '형' (576, 100) | 50 | 14.03 | 14.22 |
+| PF-4 1글자 자료에 없음 '각' (0, 0) — 새 질의 | 15 | 8.31 | 7.40 |
+| PF-5 5,000쪽 `replaceUnits` | 기록 | 6.71 s | 6.35 s |
+
+- 가장 여유가 작은 칸: 100개 미만 PF-3 2.7 ms(예산 5 — '뇨뉯'은 보완 2.3·2.4에서 4.38·8.00 ms(load 1.4·5)까지 나옴, I-6 메모 그대로), 그 밖 칸 33.9 ms(예산 50 — 보완 2.2에서 load 4.6에 56.55 ms 한 번, I-6 메모 그대로), 없는 음절 8.3 ms(예산 15).
+
+커밋: `19a5b30`(시험·계획·README), 이 기록 커밋.
+
+확인 (2026-11-06 보완 3.1, load 2.2~4.3 — 다른 영역과 CPU 4 공유)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` · `dart format --set-exit-if-changed lib test tool` | 0건 · 변경 없음(327개 파일) | 4초 · 3초 |
+| `ws test --package note_core --platform vm` | **1,199개 통과**, 13개 건너뜀(perf 파일 + 읽기 전용 2) — 바뀐 시험은 perf 파일뿐(`@TestOn('vm')`, 기본 건너뜀) | 109초 |
+| `ws test --package note_core --platform chrome` | 돌리지 않음 — `lib/`·Chrome 시험 변화 없음(바뀐 것은 VM 전용 perf 시험·문서) | — |
+| `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (두 번) | 두 번 모두 **통과**(위 표) | 각 14초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 73초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+
+#### 계획과 다르게 한 점 (동시 개발)
+
+- T33a: 6.10.3 '쓰기 훅' 위치는 `WriteTxn.putLocal`·`putRemote` 한 곳(내부 `TxnIndexHooks`)으로 — 세션·undo·`createNote`·손글씨 저장소·원격 적용이 모두 지난다. 같은 `sourceRev`·보류 아님이면 다시 쓰지 않는다(계획에 없음 — 같은 버전 재적용). 원격 고아 텍스트·수식은 단위 없이 소유자만 두었다가 페이지가 오면(`_adoptOrphans`) 다시 색인한다. 보류 표시는 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`(소유자 행이 없으면 `source_rev ''`).
+- T33a: 재구축의 pdf 블롭은 `si/pdf/` 접두사 전체를 지우지 않고 **지운 행이 참조하던 키만** 커밋 뒤 지운다(진행 중인 `replaceUnits`의 새 블롭을 지우지 않게 — 남는 고아는 다음 열기의 첫 사용 정리). 고아 정리가 실패하면 그 세션에서는 다시 하지 않는다(진행 중 호출의 블롭과 경합하지 않게).
+- T33a: 가짜 메모리 색인의 '빈 본문' 규칙을 `body.trim()` → `SearchText.normalize(body)`로 실제와 같게, 작성기 검증을 공용 `search/search_writer_checks.dart`로.
+- T33b: `searchLibrary`의 `pages`·`pagesTruncated` 연결(계획상 T34)을 T33b에서 했다 — 공유 검색 본문(`search_contract`)이 `searchLibrary`를 쓴다.
+- T33b: `searchMatches`를 출현 위치 기반으로 다시 썼다(같은 의미 — 무작위 동치 시험). 계획 6.10.2의 정의 문장은 그대로다.
+- T33b(세션 6): 6.10.4 1단계 SQL에 살아있음 대신 상관 부질의 `live` 열(비pdf → 노트 `updated_at`, pdf → `pageId␟noteId␟updatedAt` 목록)을 두고 그것으로 2단계의 pdf 펼침·노트 시각을 채운다(계획은 펼침·시각을 따로 '한 질의로 모아 읽음'). 후보·판정·순서는 같다(공유 본문·`search_index_test`·VM·Chrome).
+- T33b(세션 6): 판정과 점수를 `matchScore` 한 번으로(같은 값 — 무작위 동치 시험), 발췌 대응표를 일치 위치까지만(`normalizeMappedPrefix` — 같은 발췌), 3단계 읽기를 `UNION ALL` 한 문장으로, pdf 글자 상자를 `SearchRectsCodec.view`(읽을 때 만듦)로. 모두 내부 — 공개 이름 변화 없음(`normalizeMappedPrefix`는 `search_text.dart`에 있어 배럴에서 `hide`).
+- T33b(세션 6 — **보완 1.1에서 되돌림**): 세션 6~9에는 6.19 PF-3·PF-4 예산을 후보가 적은 질의(PF-3 300개·PF-4 600개 미만)에만 단언하고 상한 질의는 기록만 했다. 7.4.9(승인 전까지 원문)와 맞지 않아 보완 1.1에서 원문 예산을 모든 질의에 단언하도록 되돌렸다 — 그 시험은 [총괄] V10(CP-18) 판정 전까지 실패했다(보완 3.1에서 v2.5 C25-01 예산 시험 하나로 합침). PF-10 질의 예산은 6.19의 '≤ 20 ms [추측 — 첫 측정으로 확정]'을 첫 측정(32~42 ms, load 10 — 후보 500개 × 2,500자 `norm` 17 ms가 대부분)으로 **≤ 50 ms로 확정**했다(계약 V10에는 PF-10 질의 예산이 없다 — 7.4.5의 DB 증가·다시 열기 목표만). 계획 6.19 PF-10 행과 6.10.7 끝 문단은 보완 1.1에서 이 값으로 고쳤다.
+- T33b(보완 3.1): PF-4 질의 표에 **자료에 없는 음절**('각' U+AC01 — `kSyllables`는 27씩 건너뜀, 후보 0)을 더했다(질의 15개). v2.5의 '후보 100개 미만 1글자 LIKE ≤ 15 ms' 칸에 이 합성 자료의 음절이 하나도 없어서다(가장 드문 '형'도 576개) — 이 질의가 5,000단위를 다 훑는 LIKE 바닥값으로 그 칸을 잰다. 시험은 PF-3·PF-4 각각 100개 미만·이상 칸에 질의가 하나 이상 있는지도 단언한다(자료가 바뀌어 한 칸이 비면 실패). 계획 6.19 PF-4 행에 적음.
+- T33b(세션 6): PF-3 시험의 질의 표를 넓혔다 — 잦은·보통·드문 2음절, 3음절, 낱말 중간(조사 03 9.2 '낱말 중간'), 영문 접두사, AND 각각 잦은·드문 것, 1글자 LIKE 셋. 질의마다 후보 수를 함께 적는다.
+- T29 ②: 계획 8.2의 '공유 `library_contract` 확장'은 `test/shared/library_contract.dart`에 넣지 않고 `test/repo/note_copy_v2_test.dart` 한 파일이 가짜·실제 두 저장소를 돌게 했다(`trash_purge_v2_test`와 같은 모양 — 녹음·손글씨·검색 준비가 1차 계약 본문의 열기 함수(`ClockedStoreFactory`)와 맞지 않아서). `duplicateNoteForRecovery`는 가짜 `SyncStore`에 없어(`_unsupported`) 실제만.
+- T29 ③: 골든 갱신은 별도 커밋(1차 7.4.8) — 제외 시험(`784b675`, 골든 그대로)과 골든 상태·`backup_v2.json`(다음 커밋)을 나눴다. 골든 상태를 바꾸는 커밋은 그 상태를 쓰는 종류 수 사례·가짜 시드를 함께 고친다(따로 두면 그 커밋에서 깨짐).
+- T35: 파일 블롭의 키 의미를 IndexedDB 저장소와 같게 맞췄다 — 이름 접두사(끝 `/` 없는 `keys('a')`·`deletePrefix('a')`)와 `''`(전부)도 된다(계획 6.15.3은 '접두사의 디렉터리를 나열'·'그 디렉터리를 재귀 삭제'만 적음). 계획에 없는 것: 열 때 각 디렉터리에 쓰기 시험(읽기 전용을 열기에서 `storageUnavailable`로 — 계획의 '만들 수 없으면'을 '쓸 수 없으면'까지), 한 저장소 작업의 호출 순서 직렬화, 비게 된 부모 디렉터리 정리, 파일이 될 수 없는 키 거부, 썸네일 파일 이름 퍼센트 인코딩·MIME 길이 uint16(계획은 'MIME 길이'의 크기를 정하지 않음).
+- T35: 읽기 전용 디렉터리 시험 2건은 root에서 건너뛴다(root는 모드를 무시) — 같은 실패 경로를 '만들 수 없음'(일반 파일 아래·파일이 자리를 차지) 사례로 root에서도 확인한다.
+- T35: 네이티브 DB 실행기를 먼저 만들고(부모 디렉터리 만들기 포함) 그다음 파일 블롭을 연다 — 블롭이 실패하면 실행기를 닫고 던진다. 그래서 블롭 루트를 만들 수 없을 때도 DB 디렉터리는 만들어져 있다(빈 디렉터리).
+- T37(보완 2.1): CP-9 `seedSyntheticNote(objectsPerPage:)`는 8.2 표에 맡은 작업이 없어(3절 트리·12.1·8.2 '자를 것'에만 있음) 세션 1~9에 빠졌다 — 보완 2.1에서 T37 몫으로 구현했다(위 '보완 2.1' 3번). 객체 섞음(17개 주기)·PNG 에셋 하나는 계획에 없던 세부다.
+- T37: 파일 블롭 `getMany`가 키 8개 이상이면 짧은 isolate에서 동기 읽기로(계획 6.15.3은 읽기 방법을 정하지 않음 — PF-10 네이티브 측정에서 비동기 파일 읽기 100개가 53~71 ms). 한 저장소 작업의 호출 순서 직렬화는 그대로(isolate 읽기도 큐 안에서).
+- T37: PF-10의 질의 예산(≤ 50 ms — 세션 6 첫 측정으로 확정)은 계획대로 시험용 같은 프로세스 저장소(`openTestNoteStore`)에서만 단언하고, 네이티브 저장소(`openNoteStore` — drift 배경 isolate)의 같은 질의는 기록만 한다(후보 행이 isolate를 건너는 값이 더해짐 — 위 'T37' 절).
+- T25b: Chrome 시험은 공개 `openNoteStore` 대신 같은 실행기(`openNoteDatabaseExecutor` + 초기 바이트 훅)와 같은 블롭 팩토리로 `DriftNoteStore.open`을 부른다(계획 6.12.3은 '`openNoteStore` → 같은 검사' — 공개 시그니처에 시험 인자를 더할 수 없어서). 자동 정리 타이머·`persist()` 질의만 빠진다. VM은 공개 `openNoteStore` 그대로.
+- T25b: ⑤ '이어서 객체 추가·녹음 생성·검색이 동작, 다시 열어도 같음'의 '같음'을 kv·FTS 표를 뺀 **모든 표의 정규 덤프 해시**로 고정했다(+ ⑤ 결과·사본 그대로·`normalOpens` +1).
+- T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
+- T24: '새 v2 = 이주한 v2의 `sqlite_master`' 비교는 v1 원본을 **V7 고정 자료**(1차 코드가 쓴 DB)로 하고, 식별자 따옴표·괄호 앞 공백을 정규화해 비교한다. 생성 `schema_v1`이 만든 v1 표와 업그레이드가 생성 `Schema2`로 만든 새 표는 `PRIMARY KEY(id)`처럼 1차 실제 표(`PRIMARY KEY ("id")`)와 글자가 조금 다르다(열·형·제약·순서는 같음). 이주 시험(`migration_v2_test`)의 합성 v1은 계획대로 생성 `schema_v1`로 만든다.
+- T24: 생성 시험 `migration_test.dart`는 `package:flutter_test` 대신 `package:test` + `@TestOn('vm')`(note_core는 순수 Dart 멤버)로 고쳤고, 자료 보존 사례를 실제 행(폴더 `name_norm` 재계산·pdf 배경 `bg_*`·녹음 `title` NULL·outbox)으로 채웠다.
+- T24: `kDatabaseSchemaVersion`이 2가 되어 백업 골든 `test/goldens/backup/backup_v1.json`의 `schema.database`가 1 → 2(그 한 글자만)로 바뀌었다 — T24 커밋에 함께 넣었다(골든 다시 만들기 별도 커밋 규칙의 예외: 버전 상수가 바뀌는 커밋에서 바로 깨지므로). `backup_v2.json`(객체·손글씨·녹음 제목)은 계획대로 T29.
+- T24: v1 사본의 실패 기록도 같은 수명(정상 열기 5번 + 7일)으로 지운다(계획은 실패 기록의 수명을 정하지 않음). 사본 kv(`db.v1Copy`)는 기기 로컬 기록이라 쓰기 큐를 거치지 않고 DB에 바로 쓴다(열기 끝·`deleteV1DatabaseCopy` — outbox·HLC 없음, 실패해도 열기를 막지 않음).
+- T24: 시험 이음새 — `DriftNoteStore.open`의 `@visibleForTesting databaseFactory`가 `(executor, v1CopyMaker)`를 받도록 바꿨고(1차 `open_errors_test`의 3곳 고침), `@visibleForTesting v1CopyMethod`로 VM에서 웹 형식(블롭 덤프)을 돌린다. `open_errors_test`의 '새 앱' DB는 v3로 올렸다.
+- T24: `test/shared/b2_alpha_store_cases.dart`의 `tasks.v1Copy`를 null 허용으로(실제 저장소는 T24부터 사본 API가 동작 — 메모리 저장소는 사본 없음).
+- T28: 원격 손글씨 결과는 노트를 영향 노트로 두되 `updatedAt`은 옮기지 않는다(계획 6.13은 '영향 노트 `refreshNoteDerived`'만 적음 — 로컬 `put`과 같게).
+- T26: `DriftSyncStore._readKind`의 새 두 종류(계획은 T28의 '종류 switch')를 T26에 했다 — 완료 조건의 `readVersioned` 행과 고아 시험(`applyRemote`로 객체 → 페이지)이 쓴다. T28에는 `_RemoteWriter`의 `content_rev`·노트 갱신과 색인 훅이 남는다.
+- T26: `data_json`은 메타 키에 더해 `type`도 뺀다(열이 따로 있음 — 계획 표의 '종류별 키 + `frame`'). `writeEntityRow`·`putLocal`의 `strokeNoteId` 인자 이름은 그대로 두고 객체 행의 `note_id`에도 쓴다(내부 이름).
+- T26: 1차 `field_version_writer_test`의 '모든 표본 왕복'이 `kSampleEntities` 전부(객체 8·손글씨·제목 있는 녹음)를 돌게 했고, v1 DB 전용 표본 `kV1RowSamples`(`test/shared/entity_samples.dart`)는 지웠다.
+- T27: 계획 6.5의 `SessionBackend` 변경(`loadStrokes` → `loadContent`)은 B2-β에서 이미 했다. T27은 B2 가드(`storesPageObjects`)를 **지웠다**(내부 — 두 백엔드 모두 객체를 저장). `NoteContentReader.loadPage`도 세션과 같은 한 읽기 트랜잭션 함수(`readActiveContent`)로 읽는다(계획은 세션 읽기에만 트랜잭션을 적음).
+- T27: 원격 객체가 옛 페이지에서 다른 페이지로 옮겨진 경우(로컬 명령으로는 생기지 않음 — `UpdateObjects`가 `pageId`를 고정)는 1차 획과 같이 힌트 `pageId`(새 페이지)만 고친다 — 옛 페이지가 로드돼 있으면 다시 열 때까지 남는다. 1차와 같은 한계라 고치지 않았다.
+- T31: 계획 표의 '①이 실패하면 행을 쓰지 않음' 외에 ②가 경합으로 `StateError`면 ①의 meta도 지운다(계획에 없음 — meta만 남으면 다음 `listDrafts`가 초안으로 되살리므로). 30분 분량 Chrome 기록은 조각 1,800개를 `append` ①과 같은 키로 블롭에 바로 쓰고 행을 한 번 고쳐 만든다(`append` 1,800번은 커밋 1,800번이라 공유 Chrome 시간을 줄이려고 — `append` 시간은 PF-7 Chrome 기록이 따로 잰다).
+- T31: 노트 영구 삭제 때 초안(행·meta·조각)을 버리는 것(6.7.2 끝·6.14.2)은 계획 8.2대로 T29(`deleteNoteContents` 확장) 몫 — 지금 실제 저장소는 영구 삭제된 노트의 초안을 남긴다.
+- T32: 6.9.3의 `refresh`를 두 군데 바꿨다(PF-6·PF-11 첫 측정이 예산을 넘어서 — 첫 구현 293 ms / 2.46 s). ① 획 행(`page_id, id, updated_at, tool`)을 Dart로 읽어 고르는 대신 SQL 집계(`group_concat … ORDER BY id` — SQLite ≥ 3.44, VM·wasm·네이티브 모두 묶인 3.54.1)로 페이지당 한 행만 읽는다(drift `TypedResult.read`가 2만 행에 130~190 ms). ② 캐시 쓰기를 50쪽 묶음마다 큐 작업 하나가 아니라 `refresh` 한 번에 큐 작업 하나로(파일 DB `journal_mode=delete`·`synchronous=FULL`에서 커밋 하나가 약 15 ms — 5,000쪽이면 100번에 1.5 s). 읽기 묶음(50쪽)과 '그 사이 content_rev가 바뀐 페이지는 쓰지 않음'은 그대로다. 덮개 색인 `idx_strokes_ink`는 넣지 않았다(PF-11 390 ms — 예산 안).
+- T32: 계획 6.9.4에 없는 두 가지 — 있던 행의 `createdAt` 유지(메타 키라 동기화되지 않으므로 기기마다 달라지지 않게), 동기 키가 같으면 쓰지 않음(색인기가 같은 결과를 다시 써도 동기화·`ChangeBatch`가 생기지 않게). 가짜도 같이 고쳤고 공유 본문에 사례를 더했다.
+- T32: 알려진 경합(1차와 같은 한계 — 썸네일 `contentRevision`도 같음): 세션의 로컬 커밋은 `content_rev`를 세션 메모리 값으로 **덮어쓴다**(`+1`이 아님). 원격 획 커밋과 그 페이지가 열린 세션의 로컬 커밋이 엇갈리면 두 변경 뒤에도 `content_rev`가 한 번만 오를 수 있고, 그 사이에 계산된 `ink_rev` 캐시가 최신으로 보일 수 있다(다음 획 변경에서 바로잡힘). 고치려면 세션 쓰기를 `MAX(content_rev + 1, 세션 값)`으로 — 1차 동작이라 T32에서는 건드리지 않았다(다음 세션 메모).
+- T24: V7 고정 자료로 하는 웹 시간 측정(6.12.3 Chrome·PF-8)은 T25b 몫이라, 첫날 확인은 같은 크기의 합성 v1(획 2,005개)로 했다. **웹 업그레이드 열기가 1.9~2.5초**(load 6~9)로 PF-8 예산 '사본 포함 1초'를 넘었다 — 덤프 자체는 0.3초라 나머지(블롭 1.4 MB `put`, IndexedDB VFS의 업그레이드 쓰기)를 T25b의 PF-8 시험에서 고정 자료로 다시 재고 넘으면 원인을 나눠 본다.
+
+#### 다음 세션 메모
+
+- 끝난 것(동시 개발): T24, T26, T27, T28, T30, T31, T32, T33a, T34, T29(세션 6·7), T36(세션 7), T35·T25b(세션 8). T33b·T37도 끝남 — PF-3·PF-4는 [총괄] V10(계획 12.1 CP-18)이 v2.5 C25-01로 승인되어 v2.5 예산으로 판정·통과(보완 3.1). 동시 개발 몫은 남지 않았다. 통합 단계(8.3 I-1~I-7)에서 할 것: ① 성능 예산을 load < 4에서 다시 판정(9.1 — 이 컨테이너에서는 부하가 4~19라 PF-2·PF-3(136개 질의)·PF-10 질의가 부하 높은 실행에서 넘었다가 낮을 때 다시 재서 통과; 'T37' 절). I-6의 V10 판정 메모(검토 미비점 2): 제안 기준(CP-18)으로도 경계인 질의가 둘 있다 — PF-4 1글자 '형'(576개) 14.3 ms(load 5) · 15.9(load 5.5) · 16.7(load 9~12 — 검토자), PF-3 2음절 '뫺믭'(136개, 결과 100쪽) 4.5~9.8 ms(load 4~9). 보완 1.2(load 5~8)에서는 '형' 21.2·16.1 ms, '뫺믭' 5.8·8.3 ms, 그리고 제안의 '그 밖 ≤ 50 ms'에 AND 흔함 '걬윛 jizav'(2,539개)가 한 번 50.8 ms(다른 실행 33.4 ms). 보완 1.3(load 11.3)에서는 '형' 17.46 ms, '뫺믭' 5.24 ms, AND 흔함 41.85 ms. **보완 1.4(load 1.5~3.9, 여덟 번)**: '형' 14.2~15.8 ms(값을 본 일곱 번 중 다섯 번 15 ms 넘음), '뫺믭' 3.3~5.2 ms — 낮은 부하에서도 경계라 CP-18 제안의 경계를 100개로 고쳤고(두 질의는 이제 '그 밖 ≤ 50 ms' 칸), 고친 경계로 값을 다 본 다섯 번 모두 통과. 흔한 낱말 PF-3 22~31 ms·1글자 LIKE 19~23 ms(그 밖 칸 50 ms에 여유). **보완 2.2(load 3.1 → 4.6, 다른 영역 Chrome 시험이 시작하던 때)**: 고친 경계로도 한 번 실패했다 — 낱말 중간 흔함 '닀뀝'(3,633개) 56.55 ms > 50, 드문 '괎뗏'(40개) 5.23 ms > 5(다시 돌린 load 4.8에서는 25.03·2.33 ms로 통과). CP-18이 승인됐어도(v2.5 C25-01) I-6 판정은 load < 4에서 해야 한다. (보완 2.3·2.4) 드문 2음절 '뇨뉯'(65개·결과 65쪽)이 4.38 ms(load 1.4)·8.00 ms(load 5 — 다시 돌린 실행 4.07 ms)였다: CP-18 '100개 미만 ≤ 5 ms' 칸은 돌려주는 쪽 수에 비례하는 몫(원문·발췌) 때문에 100개 바로 아래에서 여유가 작다 — 판정에서 경계를 정할 때 참고. 부하 높은 실행의 실패는 load < 4에서 다시 잰다, ② INFRA 웹 예산표에 PF-10 크기·PF-10w 값 옮기기(INFRA 몫 — 변경 요청 [INFRA] 웹 예산표(보완 2.1), 값은 README 성능표), ③ 실기기(9.5 A-c1·B-13)에서 네이티브·웹 검색 시간 — 네이티브 저장소의 PF-10 질의는 후보 행이 drift 배경 isolate를 건너는 값이 더해진다(VM 기록 35~67 ms, 같은 프로세스 20~37 ms), ④ (끝남 — 보완 3.1) 변경 요청 [총괄] V10(CP-18)이 v2.5 C25-01로 승인되어 `search_perf_test`를 v2.5 판정 시험 하나로 합치고 계획 6.19 PF-3·PF-4·PF-10 행·6.10.7·10장 #1·12.1을 고쳤다.
+- 보완 2.1: CP-9 `seedSyntheticNote(objectsPerPage:)`가 동작한다 — INK 벤치 B14(`objectsPerPage: 340`이 그 객체 페이지)·iPad I-B11이 쓸 수 있다(통합 단계 I-1에서 INK에 알림). 객체·PNG 생성은 내부 `lib/src/dev/synthetic_objects.dart`. R-8 시험은 `test/edit/undo_objects_test.dart`의 `_outsideHistoryCases`(가짜·실제) — 기존 T27 사례는 `group('page objects on the real store')` 안.
+- T35(세션 8): 블롭 묶음은 내부 `BlobDatabase`(`assets/blob_store.dart` — `chunks`·`thumbnails`·`close`), 구현 `IdbBlobDatabase`·`FileBlobDatabase`(`assets/file_blob_store_native.dart`). `DriftNoteStore.open(blobDatabase:)`가 있으면 그것, 없으면 `blobFactory`의 IndexedDB. 실제 네이티브 열기는 `openNoteStore` → `connect_native.openFileBlobDatabase`. 시험 도구: `perf_support.openNativeFileStore(tag)`, `native_file_store_test`의 `config()`. 읽기 전용 사례는 root에서 건너뜀(CI 비 root에서 돈다).
+- 검색 질의 예산(v2.5 C25-01 — 보완 3.1): `test/perf/search_perf_test.dart`는 판정 시험 하나다 — `kFewCandidates`(100)·`kFewBudget`(PF-3 5 ms·PF-4 15 ms)·`kOtherBudget`(50 ms), `budgetOf`가 질의마다 센 후보 수(`candidatesOf` — FTS5 MATCH·LIKE 행, 상한 전)로 예산을 고른다. 질의 15개(PF-4에 자료에 없는 음절 '각' — 후보 0, 100개 미만 칸), 네 칸(PF-3·PF-4 × 100개 미만·이상) 모두에 질의가 있는지 단언. 줄마다 'V10 v2.5 <예산> ms (< / ≥ 100 candidates): ok/OVER'를 찍는다. (보완 2.3) 제안의 '100개 미만 ≤ 5 ms' 칸에서 '뇨뉯'(65개·결과 65쪽)이 4.38 ms까지 나왔다(load 1.0) — 판정 때 경계 여유를 함께 본다. 질의 속도의 남은 큰 몫은 후보마다 `norm`을 Dart로 옮기는 값(후보당 ~4 µs, 2,500자 쪽은 ~34 µs)과 살아있음 부질의다 — 더 줄이려면 설계 변경(후보 상한 낮추기 등)이 필요하다. 쪼개 재는 도구는 저장소에 두지 않았다: `DriftSearchIndex.search`에 단계별 `Stopwatch`를 넣고 `test/perf/search_corpus.dart`로 5,000쪽 자료를 만들어 쟀다(세션 6 — 1단계 SQL·후보 객체·순위·3단계·블롭·발췌).
+- T33b 질의 시험 도구: `DriftSearchIndex.debugCandidateSql`, `test/perf/search_corpus.dart`(어휘·쪽 글·글자 상자·pdf 라이브러리 — PF-10 생성기도 여기에).
+- 색인 시험 도구: `SearchIndexer.failNextIndexWrites`, `DriftSearchIndex.debugLog`, `test/search/search_index_writer_test.dart`의 `snapshot`·`ftsMatch`·`expectFtsInSync`.
+- 영구 삭제(T29 ①, 세션 6에 끝남): `deleteNoteContents`가 객체·손글씨·그 노트의 색인 행·초안까지 지운다(아래 'T29 ①' 절).
+- `content_rev` 경합(위 '계획과 다르게 한 점' T32): 세션 로컬 쓰기(`drift_sessions.dart` `localPages`·`putLocal(Page)`)를 `MAX(content_rev + 1, 값)`으로 바꿀지 통합 단계에서 판단(T37은 성능·문서만 — 1차 동작 그대로 둠) — 썸네일 캐시도 같은 이득.
+- 초안 저장소 시험 도구: `test/media/draft_store_support.dart` `openDraftStore(path, idbFactory)`(파일 DB + 같은 메모리 IndexedDB로 다시 열기), `DriftRecordingDraftStore.debugWriteOrder`·`.blobs`.
+- 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
+- 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1`(`applyRemote`의 원격 작성기 — 저수준 `tx.putRemote`만으로는 오르지 않음, T27 `note_session_objects_test`는 `applyRemote`로 확인). 손글씨는 노트 `updatedAt`을 옮기지 않는다.
+- 남은 2차 표면 `UnimplementedError`: 없음(T33a에서 `empty_v2_repositories.dart`·`common/pending.dart`를 지웠다).
+- 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
+- v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). V7: `test/shared/v7_fixture_checks.dart`(`V7Manifest`·`v7Clock`·`expectV7Upgraded`·`exerciseV7Store`·`expectV7Made`·`v7StateSha`), 웹 초기 바이트 훅 `connect_browser.openNoteDatabaseExecutor(initialDatabaseBytes:)`(열 때마다 바이트 복사본 — drift가 버퍼를 옮김), Chrome 고정 자료는 `test/web/fixtures_v1/`(준비 스크립트가 복사).
+- Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.
+- 웹 PF-8(사본 포함 업그레이드 1.4~4.4 s — 컴파일러·부하에 따라, 사본 없이 0.35 s): 대부분 덤프 전체의 `package:crypto` SHA-256(위 'T25b' 절). 예산은 VM만이라 그대로 뒀다. 통합 단계에서 릴리스 웹 빌드(V6)로 첫 실행 시간을 보고 1 s를 넘으면 한 조각 덤프의 `crypto.subtle.digest` 또는 meta 조각별 해시를 검토(meta 형식을 바꾸면 INFRA 개발자 메뉴 확인).
+- 계약 7.2.6 문장 '둘 중 하나라도 없으면 1차처럼 `storageUnavailable`'대로 앱(INFRA J4 `defaultNoteStoreConfig`)이 네이티브에서 두 경로를 넘기는지 통합 단계 I-6에서 본다(이 작업 트리의 app은 기반 단계 상태 — `nativeDatabasePath` null 확인 시험만 있음).

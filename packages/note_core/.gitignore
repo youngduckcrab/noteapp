@@ -2,3 +2,5 @@
 # 00-overview 7.4.8). Never committed.
 test/web/sqlite3.wasm
 test/web/drift_worker.js
+# (v2.1, m5-7/02-core 6.18.1) the V7 fixture copied for the browser tests (T25b).
+test/web/fixtures_v1/

@@ -2,7 +2,8 @@
 // and validation, empty keep-alive chunks, listDrafts reconciliation and the row-less meta
 // rebuild, 0-chunk drafts, orphan cleanup, readAll, discard (also cut after step ①). Store
 // internals (row loss, orphan chunks, write order) go through [DraftStoreHooks]. The fake store
-// runs it now (test/media/recording_draft_contract_fake_test.dart), the real store from CORE T31.
+// runs it (test/media/recording_draft_contract_fake_test.dart), the real store since CORE T31
+// (test/media/recording_draft_contract_real_test.dart).
 // Web-safe.
 import 'dart:async';
 import 'dart:typed_data';

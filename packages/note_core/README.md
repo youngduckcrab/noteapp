@@ -3,22 +3,34 @@
 Owned by CORE: document model, local storage, undo, sync outbox. Plan:
 [docs/plans/02-core.md](../../docs/plans/02-core.md), contract:
 [00-overview.md 7장](../../docs/plans/00-overview.md) (7.2.2 ~ 7.2.14, 7.6 B2).
+2nd round (M5 ~ M7: page objects, recordings, handwriting results, search
+index, DB v2): plan [docs/plans/m5-7/02-core.md](../../docs/plans/m5-7/02-core.md),
+contract [m5-7/00-overview.md 7장](../../docs/plans/m5-7/00-overview.md)
+(7.2.2 ~ 7.2.8, 7.6).
 
 Pure Dart, web safe. Entry points:
 
 | Import | Use |
 |---|---|
 | `package:note_core/note_core.dart` | Everything public: data types, commands, `NoteSession`, repositories, `SyncStore`, `AssetStore`, providers |
-| `package:note_core/dev_tools.dart` | `seedSyntheticNote` (developer menu) |
+| `package:note_core/dev_tools.dart` | `seedSyntheticNote` (developer menu); (2차) the v1 copy of the upgrade: `v1DatabaseCopyInfo`, `readV1DatabaseCopy`, `deleteV1DatabaseCopy` |
 | `package:note_core/testing.dart` | `test/` only: `createFakeNoteStore`, `FakeNoteStoreFaults`, `StrokeFixtures`, `newerVersionWinsPolicy`, (2차) `PageObjectFixtures`, `FakeAudioRecorder`, `FakeAudioPlayback` |
 | `package:note_core/testing_vm.dart` | VM `test/` only: `openTestNoteStore` (the SQLite store in memory or on a file) |
 | `package:note_core/testing_web.dart` | (2차) `test/web/` only: `openWebTestNoteStore`, `deleteWebTestNoteStore` (the real web store under a test name) |
 
-State: the whole of plan chapter 4 works on both stores. `openNoteStore` opens
+State: the whole of plan chapter 4 (1st and 2nd round) works on both stores;
+a 1st-round database is upgraded to v2 on open, after a v1 copy (2nd-round
+plan 6.12.4, `dev_tools.dart`). `openNoteStore` opens
 SQLite through drift (web: `WasmDatabase` in `drift_worker.js`; VM: a native
-file or memory database), asset bytes and thumbnails live in IndexedDB
-(memory on the VM). `createFakeNoteStore()` has the same meaning in memory
-(no outbox, no remote path — plan 6.19).
+file or memory database), asset bytes and thumbnails live in IndexedDB on the
+web. (2차 T35, plan m5-7/02-core 6.15.3) Off the web a durable store needs both
+`nativeDatabasePath` and `nativeAssetDirectoryPath` (one alone, or a directory
+that cannot be made or written → `storageUnavailable`): a WAL file database
+plus file blobs under `<dir>/blobs` and `<dir>/thumbs`, which CORE makes when
+missing; `deleteLocalNoteData` removes the database, its v1 copy and those two
+directories. `openTestNoteStore(filePath:)` keeps the in-memory blobs.
+`createFakeNoteStore()` has the same meaning in memory (no outbox, no remote
+path — plan 6.19).
 
 The examples below are also compiled and run by
 `test/readme_examples_test.dart`.
@@ -142,6 +154,163 @@ final report = await store.sync.applyRemote(
   `contentRevision`, `hasLocalBytes`) of entities passed in are never stored.
   CORE computes them.
 
+## Native storage (INFRA J4, 2차)
+
+```dart
+final config = NoteStoreConfig(
+  // Android / iOS: both paths (app support directory). One alone →
+  // storageUnavailable, like a directory that cannot be made or written.
+  nativeDatabasePath: '$supportDir/noteapp.db',
+  nativeAssetDirectoryPath: '$supportDir/assets', // made when missing
+);
+final store = await openNoteStore(config); // nativeFile, no banner
+// 'reset local data': await store.close(); await deleteLocalNoteData(config);
+// removes the database, its v1 copy and <assets>/blobs, <assets>/thumbs.
+```
+
+## Page objects (EDITOR, X18)
+
+```dart
+final box = TextBoxObject(
+  id: store.ids.newId(),
+  pageId: page.id,
+  frame: const ElementFrame(PageRect(72, 72, 372, 112)),
+  text: '회의 메모',
+  style: const TextBoxStyle(),
+  createdAt: store.clock.now().millisecondsSinceEpoch,
+);
+session.execute(AddObjects(pageId: page.id, objects: [box])); // one undo step
+session.execute(
+  UpdateObjects(pageId: page.id, objects: [box.copyWith(text: '회의 메모 2')]),
+); // only the changed JSON keys get a new field version (C-11)
+session.execute(RemoveElements(pageId: page.id, elementIds: [box.id]));
+final objects = session.pageIfLoaded(page.id)!.objects; // active, in order
+```
+
+- `UpdateObjects` replaces by id (same id, same type). An `UnknownObject` or a
+  missing id throws `ArgumentError` before anything changes.
+- `createNote(pages: [PageDraft(…, objects: […])])` writes objects with the
+  note (new ids, the original `createdAt`), and
+  `store.content.loadPage(pageId)` reads them without a session (PDF export).
+
+## Recordings (media_io, X19 · X20)
+
+```dart
+final recordingId = store.ids.newId(); // chosen at record start (strokes link to it)
+final draft = await store.recordingDrafts.begin(
+  recordingId: recordingId,
+  noteId: noteId,
+  mimeType: 'audio/webm',
+  startedAt: startedAt,
+);
+await store.recordingDrafts.append(draft.draftId, chunk, activeMs: 1000);
+// … stop: the whole draft → one audio asset → then the recording row (M-1)
+final audio = await store.assets.put(
+  await store.recordingDrafts.readAll(draft.draftId),
+  type: AssetType.audio,
+  mimeType: 'audio/webm',
+);
+final recording = await store.recordings.createRecording(
+  id: recordingId, // a retry with the same id returns the same row
+  noteId: noteId,
+  assetId: audio.id,
+  durationMs: 1000,
+  startedAt: startedAt,
+);
+await store.recordingDrafts.discard(draft.draftId);
+```
+
+- After a crash or a closed tab, `listDrafts()` returns the leftovers (a web
+  draft whose row was not yet durable comes back from its meta).
+- `append` completes when the chunk is durable; each chunk ≤ 4 MiB, an empty
+  chunk only moves `activeMs`. A second `begin` for the same `recordingId`
+  throws `StateError`.
+- `renameRecording(id, title)`, `deleteRecording(id)` (soft — strokes keep
+  their `recordingId`), `watchRecordings(noteId)` / `noteRecordingsProvider`,
+  `audioBytesOf(noteId)`.
+
+## PDF text index (PDF, X23)
+
+```dart
+final ownerKey = '${asset.id}#$pdfPageIndex'; // one owner per PDF page
+final sourceRev = '${asset.id}:${SearchText.normalizerVersion}';
+if (await store.search.sourceRevOf(SearchSource.pdf, ownerKey) != sourceRev) {
+  await store.search.replaceUnits(
+    SearchSource.pdf,
+    ownerKey,
+    [
+      SearchUnitDraft(
+        body: pageText,
+        rects: glyphBoxes, // fractions of the PDF page, one per UTF-16 unit, or []
+        pdfPageAspect: pdfWidth / pdfHeight,
+      ),
+    ],
+    sourceRev: sourceRev,
+  );
+}
+```
+
+- An empty unit list still records the owner with its `sourceRev` (a scanned
+  page). `sourceRevs(SearchSource.pdf)` answers every owner in one query for
+  the start-up catch-up. Text boxes, math and handwriting are indexed by CORE
+  itself.
+- An index write failure never fails the source write (C-13): the owner is
+  marked pending and retried on the next write transaction or store open.
+
+## Search (LIBRARY, X21)
+
+```dart
+final result = await store.library.searchLibrary(query);
+// result.folders / result.notes: titles (1st round); result.pages: content hits
+for (final hit in result.pages) {
+  // hit.noteId, hit.pageId, hit.source, hit.snippet, hit.matchRange,
+  // hit.rects (note page pt — pdf boxes already fitted), best first
+}
+final more = result.pagesTruncated; // the limit or the 2,000-candidate cap cut it
+final inNote = await store.search.searchPages(query, withinNote: noteId);
+```
+
+- Trashed notes and deleted pages are left out. A pdf hit appears on every
+  live page that shows that PDF page.
+- `store.search.status` reports `rebuilding` and `pendingOwners`;
+  `rebuild()` is idempotent. Providers: `searchIndexProvider`,
+  `librarySearchProvider(query)`.
+
+## Handwriting results (recognition, X22)
+
+```dart
+for (final noteId in await store.handwriting.notesWithStalePages()) {
+  for (final pageId in await store.handwriting.stalePages(noteId)) {
+    final input = [
+      for (final s in (await store.content.loadPage(pageId)).strokes)
+        if (HandwritingText.isRecognitionInput(s)) s,
+    ];
+    final fresh = HandwritingText(
+      noteId: noteId,
+      pageId: pageId,
+      engineId: engineId,
+      sourceRev: HandwritingText.sourceRevOf(input),
+      lines: await recognize(input), // engine work, outside CORE
+      createdAt: store.clock.now().millisecondsSinceEpoch,
+    );
+    await store.handwriting.update(
+      pageId,
+      // recog's merge rule (user-confirmed lines — 05-library 6.9.4); null = keep
+      (current) => mergeConfirmed(current, fresh),
+    );
+  }
+}
+```
+
+- `update` reads, merges and writes in ONE CORE write transaction, so a
+  result that arrived meanwhile (sync, the conversion UI) is merged, not
+  overwritten (G-4). `transform` is synchronous and pure; returning null
+  leaves the stored value as it is.
+- Input strokes are the page's active strokes with
+  `HandwritingText.isRecognitionInput` (not highlighter / tape / laser).
+  After `put` / `update` with the current `sourceRev`, `stalePages` no longer
+  lists the page.
+
 ## Tests in other areas
 
 ```dart
@@ -171,16 +340,16 @@ final container = ProviderContainer.test(
   0.1 ms timers, so advance time (e.g. `async.elapse(1 ms)` in a loop).
 - Fixtures: `StrokeFixtures.synthetic(pageId:, ids:, seed:, pointCount:)`,
   `newerVersionWinsPolicy`, and `seedSyntheticNote(store, pages:, strokesPerPage:)`
-  from `dev_tools.dart`.
-- (2차, plan m5-7/02-core 6.17, 8.1 'B2 상태') The fake store already has the
-  2nd-round behaviour: page object commands, recordings, recording drafts,
-  handwriting results (`update`, `stalePages`, `notesWithStalePages`) and a
-  memory search index that decides and orders like the real one (text boxes,
-  math and handwriting are indexed by the store; pdf goes through
-  `store.search.replaceUnits`). On the real store (`openTestNoteStore`) these
-  come with the concurrent tasks: object commands throw
-  `UnimplementedError('CORE T27: …')` before anything changes, and the
-  recording / draft / handwriting / index writes name T30 / T31 / T32 / T33a.
+  from `dev_tools.dart` — (2차, CP-9) `objectsPerPage:` adds page objects to
+  every page (per 17: 10 shapes of every kind, 5 text boxes, 1 math, 1 image of
+  one 64 × 48 PNG asset; `objectsPerPage: 340` = INK's object page B14).
+- (2차, plan m5-7/02-core 6.17) Both stores have the 2nd-round behaviour:
+  page object commands, recordings, recording drafts, handwriting results
+  (`update`, `stalePages`, `notesWithStalePages`) and the search index. The
+  fake's memory index decides and orders like the real FTS index (CP-14 —
+  the shared search cases run on both); text boxes, math and handwriting are
+  indexed by the store, pdf goes through `store.search.replaceUnits`. The
+  examples above run on both (`test/readme_examples_test.dart`).
 - `PageObjectFixtures.shape / textBox / image / math / unknown(pageId: …)`
   build valid objects with the contract defaults (`id` omitted → a unique
   `fx-<type>-<n>`).
@@ -208,6 +377,13 @@ store left it, `noteapp_v1_web.sqlite` the same rows with the rollback journal
 header for Chrome), the PDF asset bytes, `fixture_source.json` (source commit,
 generator hash, entity ids) and `manifest.json` (row counts and canonical dump
 hashes). Never open these files in place — tests copy them first.
+
+(2차 T25b) `test/migration/v1_fixture_migration_test.dart` (VM: file database
++ file blobs) and `test/web/v1_fixture_migration_browser_test.dart` (Chrome:
+the fixture as the initial bytes of a new web database) upgrade it and compare
+with the manifest (`test/shared/v7_fixture_checks.dart`); PF-8 is
+`test/perf/migration_perf_test.dart`. `tool/prepare_web_test.dart` copies the
+Chrome files to `test/web/fixtures_v1/`.
 
 ```text
 dart run tool/v1_fixture_manifest.dart --check  # manifest.json matches the files
@@ -248,3 +424,31 @@ Performance budgets (plan 9.1, VM, `test/perf/`). Measured on 2026-11-05 in a
 | Decode 1,000,000 points | < 300 ms | 60 ms |
 | `watchListing` first value, 200 folders + 1,000 notes | < 100 ms | 17 ms |
 | Chrome `openNoteStore`: empty / 10,000 strokes (`test/web/open_time_browser_test.dart`, DDC) | record only | 567 ms / 338 ~ 411 ms |
+
+2nd-round budgets (plan m5-7/02-core 6.19, `flutter test --run-skipped -t perf`).
+Measured on 2026-11-06 (CORE T37) in the same shared container, load 4 ~ 13 —
+the time budgets are judged at load < 4 (plan 9.1); a run at high load can
+go over the small ones (PF-2, PF-3) and is measured again. PF-3 and PF-4 use
+the V10 budget of contract v2.5 (C25-01 — change request CP-18, plan 12.1,
+approved): a query with fewer than 100 candidates (FTS5 / LIKE rows before the
+2,000 cap, counted by the test for every query) is held to 5 ms (1-syllable
+LIKE: 15 ms), any other query to 50 ms. Frequent words read up to 2,000
+candidates and take 20 ~ 46 ms:
+
+| # | Test | Budget | Measured |
+|---|---|---|---|
+| PF-1 | `openPage`, 2,000 objects + 2,000 strokes (`object_page_perf_test`) | ≤ 400 ms | 196 ~ 227 ms |
+| PF-2 | `execute(UpdateObjects 1)` on 2,000 objects | mean ≤ 2 ms | 0.64 ~ 0.88 ms (2.04 at load 13) |
+| PF-3 | 5,000-page index: 2-, 3-syllable, word-middle, Latin prefix, AND queries (`search_perf_test`) | median: < 100 candidates ≤ 5 ms, others ≤ 50 ms (V10, v2.5) | 38 ~ 65 candidates 1.6 ~ 2.7 ms; 136 candidates / 100 pages 4.0 ~ 4.5 ms; frequent words, 2,500 ~ 5,000 candidates: 24 ~ 34 ms (load 2.6 ~ 4.3; 22 ~ 31 ms in 8 runs at load < 4, 24 ~ 46 ms at load 5 ~ 9) |
+| PF-4 | same index, 1-syllable LIKE | median: < 100 candidates ≤ 15 ms, others ≤ 50 ms (V10, v2.5) | absent syllable (0 candidates — the whole LIKE scan) 7.4 ~ 8.3 ms; 576 / 1,072 / 4,995 candidates 14.0 ~ 14.2 / 20.9 ~ 21.4 / 21.8 ~ 24.8 ms (load 2.6 ~ 4.3; 20 ~ 27 ms at load 5 ~ 9) |
+| PF-5 | 5,000 × `replaceUnits` (pdf) | record only | 5.7 ~ 7.3 s |
+| PF-6 | `stalePages` 20 × 1,000 strokes: first / one page changed | ≤ 150 / ≤ 10 ms | 54 / 5.6 ms |
+| PF-7 | draft `append` 8 KiB: test store / native file blobs | median ≤ 10 ms | 4.4 / 5.9 ms |
+| PF-8 | V7 fixture v1 → v2 with the v1 copy (`migration_perf_test`) | ≤ 1 s | 68 ms (43 ms without the copy step) |
+| PF-9 | 1st-round table above | unchanged | see above (this run: 45 / 95 / 0.86 / 11 / 71 / 17 ms) |
+| PF-10 | 500 real-shape PDF pages (2,500 chars + glyph boxes each): DB growth Korean / mixed / English | ≤ 12 MB | 8.31 / 6.15 / 3.62 MiB (+ 5.35 MiB glyph box blobs outside SQLite) |
+| PF-10 | same, query of 100 pages with rects (in-process store) | median ≤ 50 ms | 20 ~ 37 ms (55 at load 13) |
+| PF-10 | mixed on the native store (`openNoteStore`, file blobs) | record only | 35 ms |
+| PF-10w | Chrome reopen after the Korean 500-page index (`search_reopen_time_browser_test`) | ≤ +300 ms | +183 ms (218 → 401 ms) |
+| PF-11 | 100,000-stroke library: first catch-up / then `notesWithStalePages` | ≤ 1.5 s / ≤ 30 ms | 553 / 1.2 ms |
+| — | Chrome `openNoteStore`: empty / 10,000 strokes (`open_time_browser_test`) | record only | 865 ms / 433 ~ 510 ms |

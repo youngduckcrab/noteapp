@@ -55,3 +55,19 @@ Future<NoteStore> openFileStore(String path) async {
   addTearDown(store.close);
   return store;
 }
+
+/// (v2, m5-7 T35) The native store of openNoteStore — a file database (WAL, background
+/// isolate) plus file blobs (6.15.3) — in a new temporary directory, closed and deleted
+/// after the test.
+Future<NoteStore> openNativeFileStore(String tag) async {
+  final dir = await Directory.systemTemp.createTemp('note_core_perf_${tag}_');
+  addTearDown(() => dir.delete(recursive: true));
+  final store = await openNoteStore(
+    NoteStoreConfig(
+      nativeDatabasePath: '${dir.path}/notes.db',
+      nativeAssetDirectoryPath: '${dir.path}/assets',
+    ),
+  );
+  addTearDown(store.close);
+  return store;
+}

@@ -119,8 +119,8 @@ final class LibrarySearchResult {
 
   /// (v2.0, 2nd-round contract 7.2.5) content hits (ink, pdf, text, math).
   /// LibraryRepository.searchLibrary(query, {limit = 50}) now also fills pages (≤ 100).
-  /// CORE: filled by the fake store (memory index — 6.10.6); empty on the real store until
-  /// CORE T33b (02-core 8.1).
+  /// CORE: filled by both stores — the fake's memory index judges and orders like the real
+  /// FTS index (m5-7/02-core 6.10.6, CP-14).
   final List<PageSearchHit> pages;
 
   /// (v2.1, CP-14) more pages than limit, or the 2,000-candidate cap was hit

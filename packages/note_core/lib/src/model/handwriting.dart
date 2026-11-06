@@ -1,15 +1,13 @@
 // lib/src/model/handwriting.dart — (v2.0) 2nd-round contract 7.2.5 / 02-core 4.6, 6.9:
 // HandwritingLine, HandwritingText (EntityKind.handwriting, one per page, deterministic id).
-import 'dart:convert';
-
 import 'package:collection/collection.dart';
-import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 
 import '../common/geometry.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../common/json_read.dart';
+import '../common/source_rev.dart';
 import 'pen_style.dart';
 import 'stroke.dart';
 import 'sync_entity.dart';
@@ -132,21 +130,8 @@ final class HandwritingText implements SyncEntity {
   /// (CORE 6.9.2) Sorted by id with String.compareTo (UTF-16 order — the same on the VM and
   /// the web), `"<id>:<updatedAt>;"` joined, SHA-256 of the UTF-8 bytes (package:crypto),
   /// lowercase hex, first 16 chars. No strokes → 'e3b0c44298fc1c14' (the empty string's hash).
-  static String sourceRevOf(Iterable<Stroke> inputStrokes) {
-    final sorted = inputStrokes.toList()..sort((a, b) => a.id.compareTo(b.id));
-    final text = StringBuffer();
-    for (final s in sorted) {
-      text
-        ..write(s.id)
-        ..write(':')
-        ..write(s.updatedAt)
-        ..write(';');
-    }
-    return sha256
-        .convert(utf8.encode(text.toString()))
-        .toString()
-        .substring(0, 16);
-  }
+  static String sourceRevOf(Iterable<Stroke> inputStrokes) =>
+      sourceRevOfPairs([for (final s in inputStrokes) (s.id, s.updatedAt)]);
 
   /// (CORE 6.9.2) tool not highlighter / tape / laser. Deleted strokes are the caller's to drop.
   static bool isRecognitionInput(Stroke s) => switch (s.style.tool) {

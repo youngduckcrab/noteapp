@@ -46,15 +46,82 @@ List<String> codePointBigrams(String run) {
   ];
 }
 
+/// Per code point: bit 1 = run character, bit 2 = CJK character (cached — the regexes run
+/// once per distinct code point).
+final Map<int, int> _classes = {};
+
+int _classOf(int cp) {
+  // Fast paths: ASCII, Hangul syllables.
+  if (cp < 0x80) {
+    final alnum =
+        (cp >= 0x30 && cp <= 0x39) ||
+        (cp >= 0x41 && cp <= 0x5A) ||
+        (cp >= 0x61 && cp <= 0x7A);
+    return alnum ? 1 : 0;
+  }
+  if (cp >= 0xAC00 && cp <= 0xD7A3) return 3;
+  return _classes[cp] ??= () {
+    final c = String.fromCharCode(cp);
+    return (_run.hasMatch(c) ? 1 : 0) | (_cjk.hasMatch(c) ? 2 : 0);
+  }();
+}
+
+/// The code point ending just before code unit [index] of [text] and its start.
+(int, int) _cpBefore(String text, int index) {
+  final c = text.codeUnitAt(index - 1);
+  if (c >= 0xDC00 && c <= 0xDFFF && index >= 2) {
+    final h = text.codeUnitAt(index - 2);
+    if (h >= 0xD800 && h <= 0xDBFF) {
+      return (0x10000 + ((h - 0xD800) << 10) + (c - 0xDC00), index - 2);
+    }
+  }
+  return (c, index - 1);
+}
+
+/// The code point at code unit [index] of [text] and its length in code units.
+(int, int) _cpAt(String text, int index) {
+  final c = text.codeUnitAt(index);
+  if (c >= 0xD800 && c <= 0xDBFF && index + 1 < text.length) {
+    final l = text.codeUnitAt(index + 1);
+    if (l >= 0xDC00 && l <= 0xDFFF) {
+      return (0x10000 + ((c - 0xD800) << 10) + (l - 0xDC00), 2);
+    }
+  }
+  return (c, 1);
+}
+
+/// The maximal run of [text] around the run characters [start, end) (code units): its start,
+/// end and whether it holds a CJK character — the run [searchRunsOf] would give there.
+({int start, int end, bool cjk}) runAround(String text, int start, int end) {
+  var cjk = false;
+  for (var i = start; i < end;) {
+    final (cp, n) = _cpAt(text, i);
+    if (_classOf(cp) & 2 != 0) cjk = true;
+    i += n;
+  }
+  var s = start;
+  while (s > 0) {
+    final (cp, from) = _cpBefore(text, s);
+    final k = _classOf(cp);
+    if (k & 1 == 0) break;
+    if (k & 2 != 0) cjk = true;
+    s = from;
+  }
+  var e = end;
+  while (e < text.length) {
+    final (cp, n) = _cpAt(text, e);
+    final k = _classOf(cp);
+    if (k & 1 == 0) break;
+    if (k & 2 != 0) cjk = true;
+    e += n;
+  }
+  return (start: s, end: e, cjk: cjk);
+}
+
 /// Whether the code point ending just before code unit [index] of [text] is a run character
 /// (false at the start of the text).
 bool runCharBefore(String text, int index) {
   if (index <= 0) return false;
-  var from = index - 1;
-  final c = text.codeUnitAt(from);
-  if (c >= 0xDC00 && c <= 0xDFFF && from > 0) {
-    final h = text.codeUnitAt(from - 1);
-    if (h >= 0xD800 && h <= 0xDBFF) from--;
-  }
-  return _run.matchAsPrefix(text.substring(from, index)) != null;
+  final (cp, _) = _cpBefore(text, index);
+  return _classOf(cp) & 1 != 0;
 }

@@ -10,6 +10,8 @@ import 'package:collection/collection.dart';
 
 import '../common/errors.dart';
 import '../common/ids.dart';
+import '../common/source_rev.dart';
+import '../common/write_guard.dart';
 import '../model/asset.dart';
 import '../model/handwriting.dart';
 import '../model/note.dart';
@@ -433,10 +435,6 @@ final class FakeRecordingDrafts implements RecordingDraftStore {
 
 // ---- handwriting (6.9) -----------------------------------------------------------------
 
-/// Set while a HandwritingRepository.update transform runs: a store write from inside it
-/// would wait for the same queue (deadlock), so it is a StateError (6.9.4 — like N-2).
-const Object kInTransformZoneKey = #noteCoreHandwritingTransform;
-
 final class FakeHandwriting implements HandwritingRepository {
   FakeHandwriting(this.s);
   final FakeNoteStore s;
@@ -473,18 +471,34 @@ final class FakeHandwriting implements HandwritingRepository {
     }
   }
 
-  /// Stores [value] (deletedAt cleared, updatedAt / version filled) and re-indexes the page.
+  /// Stores [value] (deletedAt cleared, updatedAt / version filled, an existing row's
+  /// createdAt kept) and re-indexes the page. No synced key differs from the active row →
+  /// nothing is written and the stored value is returned (as the SQLite store).
   HandwritingText _store(HandwritingText value) {
-    final stored = value.copyWith(
-      clearDeletedAt: true,
-      updatedAt: s.now,
-      version: s.hlc.now(),
+    final prev = s.handwritingRows[value.pageId];
+    final candidate = HandwritingText(
+      noteId: value.noteId,
+      pageId: value.pageId,
+      engineId: value.engineId,
+      sourceRev: value.sourceRev,
+      lines: value.lines,
+      createdAt: prev?.createdAt ?? value.createdAt,
     );
+    if (prev != null && !prev.isDeleted && _sameContent(prev, candidate)) {
+      return prev;
+    }
+    final stored = candidate.copyWith(updatedAt: s.now, version: s.hlc.now());
     s.handwritingRows[value.pageId] = stored;
     s.search.handwritingWritten(stored);
     s.record(ChangeOrigin.local, [s.changeOf(stored)]);
     return stored;
   }
+
+  static bool _sameContent(HandwritingText a, HandwritingText b) =>
+      a.noteId == b.noteId &&
+      a.engineId == b.engineId &&
+      a.sourceRev == b.sourceRev &&
+      const ListEquality<HandwritingLine>().equals(a.lines, b.lines);
 
   @override
   Future<HandwritingText?> forPage(PageId pageId) async => _active(pageId);
@@ -508,10 +522,7 @@ final class FakeHandwriting implements HandwritingRepository {
       throw EntityNotFoundException('Page $pageId does not exist');
     }
     final current = _active(pageId);
-    final next = runZoned(
-      () => transform(current),
-      zoneValues: {kInTransformZoneKey: true},
-    );
+    final next = runUpdateTransform(() => transform(current));
     if (next == null) return current;
     if (next.pageId != pageId) {
       throw ArgumentError.value(next.pageId, 'pageId', 'must be $pageId');
@@ -539,12 +550,10 @@ final class FakeHandwriting implements HandwritingRepository {
     s.activeStrokesOf(pageId).where(HandwritingText.isRecognitionInput),
   );
 
-  static const String _emptyRev = 'e3b0c44298fc1c14';
-
   bool _stale(PageId pageId) {
     final rev = _inkRev(pageId);
     final h = _active(pageId);
-    return h == null ? rev != _emptyRev : h.sourceRev != rev;
+    return h == null ? rev != kEmptySourceRev : h.sourceRev != rev;
   }
 
   @override

@@ -4,6 +4,7 @@
 // values (device node, HLC, owner); T7 the write queue; T8 the library and the
 // content reader; T9 the trash; T10 note sessions; T12 pen presets and settings;
 // T13 assets and thumbnails (blob IndexedDB); T14 the sync window; T19 the backup export.
+// (v2) m5-7/02-core T24: DB v2 and the v1 copy made before the upgrade (6.12.4).
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -21,19 +22,19 @@ import '../common/ids.dart';
 import '../migration/note_migrator.dart';
 import '../model/sync_entity.dart';
 import '../repo/content_reader.dart';
-import '../repo/empty_v2_repositories.dart';
 import '../repo/events.dart';
-import '../repo/handwriting_repository.dart';
 import '../repo/note_store.dart';
-import '../repo/recording_repository.dart';
 import '../repo/status.dart';
-import '../search/search_types.dart';
 import '../session/note_session.dart';
 import 'change_bus.dart';
 import 'db/note_database.dart';
 import 'drift_content_reader.dart';
+import 'drift_handwriting_repository.dart';
 import 'drift_library_repository.dart';
 import 'drift_pen_preset_repository.dart';
+import 'drift_recording_draft_store.dart';
+import 'drift_recording_repository.dart';
+import 'drift_search_index.dart';
 import 'drift_sessions.dart';
 import 'drift_settings_repository.dart';
 import 'drift_sync_store.dart';
@@ -41,6 +42,7 @@ import 'drift_trash_repository.dart';
 import 'kv_keys.dart';
 import 'open_errors.dart';
 import 'row_mappers.dart';
+import 'v1_copy/v1_copy.dart';
 import 'watch_hub.dart';
 import 'web_storage/storage_query.dart';
 import 'write_queue.dart';
@@ -76,8 +78,10 @@ final class DriftNoteStore implements NoteStore {
     required this._storeKey,
     required String? persistedHlc,
     required this.blobs,
+    required V1CopyTarget? v1CopyTarget,
     BlobStore? assetChunks,
   }) {
+    v1Copies = V1Copies(db, v1CopyTarget, clock);
     queue = WriteQueue(
       db: db,
       hlc: hlc,
@@ -89,6 +93,12 @@ final class DriftNoteStore implements NoteStore {
     library = DriftLibraryRepository(this);
     trash = DriftTrashRepository(this);
     penPresets = DriftPenPresetRepository(this);
+    recordings = DriftRecordingRepository(this);
+    handwriting = DriftHandwritingRepository(this);
+    recordingDrafts = DriftRecordingDraftStore(
+      this,
+      assetChunks ?? blobs.chunks,
+    );
     settings = DriftSettingsRepository(this);
     content = DriftContentReader(db);
     thumbnails = ThumbnailCacheImpl(blobs.thumbnails);
@@ -98,6 +108,8 @@ final class DriftNoteStore implements NoteStore {
       thumbnailBytes: thumbnails.totalBytes,
     );
     sync = DriftSyncStore(this);
+    search = DriftSearchIndex(this, assetChunks ?? blobs.chunks);
+    queue.indexHooks = search.indexer;
     sessions = DriftSessions(this);
     queue.onCommitted = sessions.committed;
     _noteMigrator = NoteMigrator(kNoteMigrationSteps, store: this);
@@ -114,6 +126,14 @@ final class DriftNoteStore implements NoteStore {
   /// database opens on first use. [assetChunks] replaces the chunk store (tests).
   /// [storageQuery]: navigator.storage for refreshStorageInfo (6.12; null off
   /// the web — storageInfo then stays as given).
+  /// (v2) [blobDatabase]: the blobs to use instead of the IndexedDB of [blobFactory] —
+  /// the native file blobs (m5-7/02-core 6.15.3); the store owns it from here on (closed
+  /// with the store, and when the open fails).
+  ///
+  /// (v2) Upgrading a v1 database first copies it (6.12.4): a native file database to
+  /// `<path>-v1-backup`, a web database as the canonical dump in the blob store; no copy
+  /// for in-memory databases. [v1CopyMethod] forces the form (tests). [databaseFactory]
+  /// gets the copy maker (null: none) to pass on to NoteDatabase.
   static Future<DriftNoteStore> open({
     required QueryExecutor executor,
     required StorageInfo storageInfo,
@@ -122,8 +142,12 @@ final class DriftNoteStore implements NoteStore {
     String? deviceNodeId,
     bool autoPurge = false,
     IdbFactory? blobFactory,
+    BlobDatabase? blobDatabase,
     @visibleForTesting BlobStore? assetChunks,
-    @visibleForTesting NoteDatabase Function(QueryExecutor)? databaseFactory,
+    @visibleForTesting
+    NoteDatabase Function(QueryExecutor executor, V1CopyMaker? v1Copy)?
+    databaseFactory,
+    @visibleForTesting V1CopyMethod? v1CopyMethod,
   }) async {
     if (deviceNodeId != null && !isValidNodeId(deviceNodeId)) {
       throw ArgumentError.value(
@@ -133,10 +157,28 @@ final class DriftNoteStore implements NoteStore {
       );
     }
     final key = storeKeyOf(config);
-    final db = (databaseFactory ?? NoteDatabase.new)(executor);
+    final clock = config.clock ?? const Clock();
+    final blobs =
+        blobDatabase ??
+        IdbBlobDatabase(
+          blobFactory ?? newIdbFactoryMemory(),
+          config.web.blobDatabaseName,
+        );
+    final copyTarget = V1CopyTarget.of(
+      backend: storageInfo.backend,
+      inMemory: config.inMemory,
+      databasePath: config.nativeDatabasePath,
+      blobs: assetChunks ?? blobs.chunks,
+      method: v1CopyMethod,
+    );
+    final copyMaker = copyTarget == null
+        ? null
+        : v1CopyMakerOf(copyTarget, clock);
+    final db = databaseFactory != null
+        ? databaseFactory(executor, copyMaker)
+        : NoteDatabase(executor, v1Copy: copyMaker);
     try {
       final values = await _readOrCreateKv(db, config, deviceNodeId);
-      final clock = config.clock ?? const Clock();
       final store = DriftNoteStore._(
         db: db,
         config: config,
@@ -149,24 +191,31 @@ final class DriftNoteStore implements NoteStore {
         ids: config.idGenerator ?? UuidV7IdGenerator(clock: clock),
         storeKey: key,
         persistedHlc: values.persistedHlc,
-        blobs: IdbBlobDatabase(
-          blobFactory ?? newIdbFactoryMemory(),
-          config.web.blobDatabaseName,
-        ),
+        blobs: blobs,
+        v1CopyTarget: copyTarget,
         assetChunks: assetChunks,
       );
       if (key != null) {
         _openStoreCounts.update(key, (n) => n + 1, ifAbsent: () => 1);
       }
+      // (v2) 6.10.5: the pending count; a rebuild or a retry job when needed (not awaited).
+      await store.search.opened();
       // 6.2.2: the default presets exist right after open (one commit, once per DB).
       if (config.seedDefaultPenPresets) await store.penPresets.ensureDefaults();
       if (autoPurge) store.trash.startAutoPurge();
+      // (v2) 6.12.4 lifetime: this open ended without error.
+      await store.v1Copies.countNormalOpen();
       return store;
     } on Object catch (e, s) {
       try {
         await db.close();
       } on Object {
         // The original error is the one to report.
+      }
+      try {
+        await blobs.close();
+      } on Object {
+        // Same.
       }
       Error.throwWithStackTrace(classifyOpenError(e), s);
     }
@@ -188,8 +237,12 @@ final class DriftNoteStore implements NoteStore {
 
   final ChangeBus bus = ChangeBus();
 
-  /// Asset chunks and thumbnails (6.13), outside SQLite.
-  final IdbBlobDatabase blobs;
+  /// Asset chunks and thumbnails (6.13), outside SQLite: IndexedDB, or (v2) the native
+  /// file blobs (m5-7/02-core 6.15.3).
+  final BlobDatabase blobs;
+
+  /// (v2) The v1 database copy of this store (6.12.4 — dev_tools.dart).
+  late final V1Copies v1Copies;
 
   /// Re-queried watch streams (C-1); refreshed by the write queue after each commit.
   final WatchHub watches = WatchHub();
@@ -220,16 +273,16 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final DriftSyncStore sync;
 
-  // (v2.0) 2nd-round getters — reads empty, writes UnimplementedError until the named CORE
-  // task (02-core 8.1 'B2 상태': T30 recordings, T31 drafts, T32 handwriting, T33a search).
+  // (v2) 2nd-round getters: recordings (CORE T30), recording drafts (T31), handwriting
+  // results (T32), the search index (writes T33a, queries T33b).
   @override
-  final RecordingRepository recordings = EmptyRecordingRepository('T30');
+  late final DriftRecordingRepository recordings;
   @override
-  final RecordingDraftStore recordingDrafts = EmptyRecordingDraftStore('T31');
+  late final DriftRecordingDraftStore recordingDrafts;
   @override
-  final HandwritingRepository handwriting = EmptyHandwritingRepository('T32');
+  late final DriftHandwritingRepository handwriting;
   @override
-  final SearchIndex search = EmptySearchIndex('T33a');
+  late final DriftSearchIndex search;
 
   /// Open note sessions (6.14).
   late final DriftSessions sessions;
@@ -298,6 +351,7 @@ final class DriftNoteStore implements NoteStore {
     await assets.close();
     await thumbnails.close();
     await queue.close();
+    await search.close();
     watches.close();
     await bus.close();
     await blobs.close();

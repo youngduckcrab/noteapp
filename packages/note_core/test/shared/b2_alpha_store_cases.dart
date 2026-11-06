@@ -1,9 +1,10 @@
 // Shared body of the B2-α store state (m5-7/02-core 8.1 'B2 상태', column 'B2-α 끝'):
 // the 2nd-round store members read empty and their writes throw
-// UnimplementedError('CORE <task>: …'); object commands throw UnimplementedError('CORE T23a: …')
-// before anything changes; the stroke part of RemoveElements / ClearPage(includeObjects:)
-// works as in v1.4. Runs on the real store (test/testing/open_test_store_test.dart, tasks
-// T30 / T31 / T32 / T33a / T27 / T24 — 8.1 'B2 상태', column 'B2 전체(β) 끝'). The fake store
+// UnimplementedError('CORE <task>: …'); the stroke part of RemoveElements /
+// ClearPage(includeObjects:) works as in v1.4. Runs on the real store
+// (test/testing/open_test_store_test.dart — 8.1 'B2 상태', column 'B2 전체(β) 끝';
+// recordings since T30, drafts since T31, handwriting since T32, the search index writes since
+// T33a, the v1 copy since T24, objects since T27). The fake store
 // left this state with CORE T23b; its v2 behaviour is in test/testing/fake_store_v2_test.dart
 // and the shared contracts (test/shared/*_contract.dart). Web-safe (no dart:io).
 import 'dart:async';
@@ -23,15 +24,19 @@ Matcher throwsPending(String task) => throwsA(
   ),
 );
 
-/// The CORE tasks the store's 2nd-round writes wait for. [objects]: the task the session's
-/// object writes wait for, or null when they work (the fake store since CORE T23a).
+/// The CORE tasks the store's 2nd-round writes wait for. [v1Copy]: null when the v1 copy API works (the real store since CORE T24 — an in-memory
+/// store has no copy). [recordings]: null when the repository works (the real store since
+/// CORE T30 — test/shared/recording_contract.dart). [drafts]: null when the draft store works
+/// (the real store since CORE T31 — test/shared/recording_draft_contract.dart). [handwriting]:
+/// null when the repository works (the real store since CORE T32 —
+/// test/shared/handwriting_contract.dart). [search]: null when the index writes work (the real
+/// store since CORE T33a — test/search/search_index_writer_test.dart).
 typedef B2AlphaTasks = ({
-  String recordings,
-  String drafts,
-  String handwriting,
-  String search,
-  String v1Copy,
-  String? objects,
+  String? recordings,
+  String? drafts,
+  String? handwriting,
+  String? search,
+  String? v1Copy,
 });
 
 void defineB2AlphaStoreTests(
@@ -81,97 +86,91 @@ void defineB2AlphaStoreTests(
     await store.close();
   });
 
-  ShapeObject shapeOn(PageId page) => ShapeObject(
-    id: store.ids.newId(),
-    pageId: page,
-    shapeKind: ShapeKind.line,
-    geometry: const PolylineGeometry([
-      PagePoint(10, 10),
-      PagePoint(50, 50),
-    ], closed: false),
-    style: const ShapeStyle(strokeColorArgb: 0xFF1A1A1A),
-    createdAt: 2000,
-  );
+  if (tasks.recordings case final recordingsTask?) {
+    group('recordings', () {
+      test('reads are empty', () async {
+        final recordings = store.recordings;
+        expect(await recordings.watchRecordings(note.id).first, isEmpty);
+        expect(await recordings.recordingsOf(note.id), isEmpty);
+        expect(await recordings.getRecording('r1'), isNull);
+        expect(await recordings.audioBytesOf(note.id), 0);
+      });
 
-  group('recordings', () {
-    test('reads are empty', () async {
-      final recordings = store.recordings;
-      expect(await recordings.watchRecordings(note.id).first, isEmpty);
-      expect(await recordings.recordingsOf(note.id), isEmpty);
-      expect(await recordings.getRecording('r1'), isNull);
-      expect(await recordings.audioBytesOf(note.id), 0);
+      test('writes throw UnimplementedError(CORE $recordingsTask)', () {
+        final recordings = store.recordings;
+        expect(
+          recordings.createRecording(
+            id: 'r1',
+            noteId: note.id,
+            assetId: 'a' * 64,
+            durationMs: 1000,
+            startedAt: 0,
+          ),
+          throwsPending(recordingsTask),
+        );
+        expect(
+          recordings.renameRecording('r1', 'x'),
+          throwsPending(recordingsTask),
+        );
+        expect(recordings.deleteRecording('r1'), throwsPending(recordingsTask));
+      });
     });
+  }
 
-    test('writes throw UnimplementedError(CORE ${tasks.recordings})', () {
-      final recordings = store.recordings;
-      expect(
-        recordings.createRecording(
-          id: 'r1',
+  if (tasks.drafts case final draftsTask?) {
+    group('recording drafts', () {
+      test('reads are empty; readAll knows no draft', () async {
+        final drafts = store.recordingDrafts;
+        expect(await drafts.listDrafts(), isEmpty);
+        expect(drafts.readAll('d1'), throwsStateError);
+      });
+
+      test('writes throw UnimplementedError(CORE $draftsTask)', () {
+        final drafts = store.recordingDrafts;
+        expect(
+          drafts.begin(
+            recordingId: 'r1',
+            noteId: note.id,
+            mimeType: 'audio/mp4',
+            startedAt: 0,
+          ),
+          throwsPending(draftsTask),
+        );
+        expect(
+          drafts.append('d1', Uint8List(16), activeMs: 1000),
+          throwsPending(draftsTask),
+        );
+        expect(drafts.discard('d1'), throwsPending(draftsTask));
+      });
+    });
+  }
+
+  if (tasks.handwriting case final handwritingTask?) {
+    group('handwriting', () {
+      test('reads are empty, also for a page with input strokes', () async {
+        final hw = store.handwriting;
+        expect(await hw.forPage(pageId), isNull);
+        expect(await hw.watchPage(pageId).first, isNull);
+        expect(await hw.stalePages(note.id), isEmpty);
+        expect(await hw.notesWithStalePages(), isEmpty);
+      });
+
+      test('writes throw UnimplementedError(CORE $handwritingTask)', () {
+        final hw = store.handwriting;
+        final value = HandwritingText(
           noteId: note.id,
-          assetId: 'a' * 64,
-          durationMs: 1000,
-          startedAt: 0,
-        ),
-        throwsPending(tasks.recordings),
-      );
-      expect(
-        recordings.renameRecording('r1', 'x'),
-        throwsPending(tasks.recordings),
-      );
-      expect(recordings.deleteRecording('r1'), throwsPending(tasks.recordings));
+          pageId: pageId,
+          engineId: 'fake',
+          sourceRev: '0000000000000000',
+          lines: const [],
+          createdAt: 1,
+        );
+        expect(hw.put(value), throwsPending(handwritingTask));
+        expect(hw.update(pageId, (_) => value), throwsPending(handwritingTask));
+        expect(hw.removeForPage(pageId), throwsPending(handwritingTask));
+      });
     });
-  });
-
-  group('recording drafts', () {
-    test('reads are empty; readAll knows no draft', () async {
-      final drafts = store.recordingDrafts;
-      expect(await drafts.listDrafts(), isEmpty);
-      expect(drafts.readAll('d1'), throwsStateError);
-    });
-
-    test('writes throw UnimplementedError(CORE ${tasks.drafts})', () {
-      final drafts = store.recordingDrafts;
-      expect(
-        drafts.begin(
-          recordingId: 'r1',
-          noteId: note.id,
-          mimeType: 'audio/mp4',
-          startedAt: 0,
-        ),
-        throwsPending(tasks.drafts),
-      );
-      expect(
-        drafts.append('d1', Uint8List(16), activeMs: 1000),
-        throwsPending(tasks.drafts),
-      );
-      expect(drafts.discard('d1'), throwsPending(tasks.drafts));
-    });
-  });
-
-  group('handwriting', () {
-    test('reads are empty, also for a page with input strokes', () async {
-      final hw = store.handwriting;
-      expect(await hw.forPage(pageId), isNull);
-      expect(await hw.watchPage(pageId).first, isNull);
-      expect(await hw.stalePages(note.id), isEmpty);
-      expect(await hw.notesWithStalePages(), isEmpty);
-    });
-
-    test('writes throw UnimplementedError(CORE ${tasks.handwriting})', () {
-      final hw = store.handwriting;
-      final value = HandwritingText(
-        noteId: note.id,
-        pageId: pageId,
-        engineId: 'fake',
-        sourceRev: '0000000000000000',
-        lines: const [],
-        createdAt: 1,
-      );
-      expect(hw.put(value), throwsPending(tasks.handwriting));
-      expect(hw.update(pageId, (_) => value), throwsPending(tasks.handwriting));
-      expect(hw.removeForPage(pageId), throwsPending(tasks.handwriting));
-    });
-  });
+  }
 
   group('search', () {
     test('reads are empty; status is the default', () async {
@@ -187,125 +186,66 @@ void defineB2AlphaStoreTests(
       expect(result.pagesTruncated, isFalse);
     });
 
-    test('writes throw UnimplementedError(CORE ${tasks.search})', () {
-      final search = store.search;
-      expect(
-        search.replaceUnits(SearchSource.pdf, 'a#0', const [
-          SearchUnitDraft(body: 'x'),
-        ], sourceRev: 'a:1'),
-        throwsPending(tasks.search),
-      );
-      expect(
-        search.removeOwner(SearchSource.pdf, 'a#0'),
-        throwsPending(tasks.search),
-      );
-      expect(search.rebuild(), throwsPending(tasks.search));
-    });
+    if (tasks.search case final searchTask?) {
+      test('writes throw UnimplementedError(CORE $searchTask)', () {
+        final search = store.search;
+        expect(
+          search.replaceUnits(SearchSource.pdf, 'a#0', const [
+            SearchUnitDraft(body: 'x'),
+          ], sourceRev: 'a:1'),
+          throwsPending(searchTask),
+        );
+        expect(
+          search.removeOwner(SearchSource.pdf, 'a#0'),
+          throwsPending(searchTask),
+        );
+        expect(search.rebuild(), throwsPending(searchTask));
+      });
+    }
   });
 
-  group(
-    'object commands (CORE ${tasks.objects}) leave the session unchanged',
-    skip: tasks.objects == null ? 'object commands work on this store' : null,
-    () {
-      void expectUnchanged(PageContent before, HistoryState history) {
-        final after = session.pageIfLoaded(pageId)!;
-        expect(after, same(before));
-        expect(after.strokeCount, 2);
-        expect(after.objects, isEmpty);
-        expect(session.history, history);
-      }
-
-      test('AddObjects / UpdateObjects / Composite / InsertPages', () {
-        final before = session.pageIfLoaded(pageId)!;
-        final history = session.history;
-        final pages = session.pages;
-        final shape = shapeOn(pageId);
-        expect(
-          () => session.execute(AddObjects(pageId: pageId, objects: [shape])),
-          throwsPending(tasks.objects!),
-        );
-        expect(
-          () =>
-              session.execute(UpdateObjects(pageId: pageId, objects: [shape])),
-          throwsPending(tasks.objects!),
-        );
-        // The stroke half of a composite is not applied either.
-        expect(
-          () => session.execute(
-            CompositeCommand([
-              AddStrokes(
-                pageId: pageId,
-                strokes: [
-                  StrokeFixtures.synthetic(pageId: pageId, ids: store.ids),
-                ],
-              ),
-              AddObjects(pageId: pageId, objects: [shape]),
-            ]),
-          ),
-          throwsPending(tasks.objects!),
-        );
-        expect(
-          () => session.execute(
-            InsertPages(
-              drafts: [
-                PageDraft(
-                  size: PageSize.a4Portrait,
-                  background: const BlankBackground(),
-                  objects: [shapeOn('draft')],
-                ),
-              ],
-              position: const PageAtEnd(),
-            ),
-          ),
-          throwsPending(tasks.objects!),
-        );
-        expectUnchanged(before, history);
-        expect(session.pages, pages);
-      });
-
-      test('RemoveElements removes strokes as RemoveStrokes', () async {
-        final ids = session.pageIfLoaded(pageId)!.strokes.map((s) => s.id);
-        final receipt = session.execute(
-          RemoveElements(
-            pageId: pageId,
-            elementIds: [ids.first, ids.first, 'unknown'],
-          ),
-        );
-        await receipt.persisted;
-        final content = session.pageIfLoaded(pageId)!;
-        expect(content.strokes.map((s) => s.id), [ids.last]);
-        expect(content.elementById(ids.last), isA<Stroke>());
-        expect(session.history.undoLabel, 'remove-elements');
-        await session.undo();
-        expect(session.pageIfLoaded(pageId)!.strokeCount, 2);
-      });
-
-      test(
-        'ClearPage(includeObjects: true) clears strokes by filter',
-        () async {
-          await session
-              .execute(
-                ClearPage(
-                  pageId: pageId,
-                  filter: StrokeFilter.highlighterOnly,
-                  includeObjects: true,
-                ),
-              )
-              .persisted;
-          final content = session.pageIfLoaded(pageId)!;
-          expect(content.strokeCount, 1);
-          expect(content.strokes.single.style.tool, PenTool.ballpoint);
-          expect(content.objectCount, 0);
-        },
+  // Object commands work on both stores since CORE T27 (test/shared/
+  // object_session_contract.dart); the stroke part of the 2nd-round commands stays v1.4.
+  group('the stroke part of the 2nd-round commands (v1.4)', () {
+    test('RemoveElements removes strokes as RemoveStrokes', () async {
+      final ids = session.pageIfLoaded(pageId)!.strokes.map((s) => s.id);
+      final receipt = session.execute(
+        RemoveElements(
+          pageId: pageId,
+          elementIds: [ids.first, ids.first, 'unknown'],
+        ),
       );
+      await receipt.persisted;
+      final content = session.pageIfLoaded(pageId)!;
+      expect(content.strokes.map((s) => s.id), [ids.last]);
+      expect(content.elementById(ids.last), isA<Stroke>());
+      expect(session.history.undoLabel, 'remove-elements');
+      await session.undo();
+      expect(session.pageIfLoaded(pageId)!.strokeCount, 2);
+    });
 
-      test('PageDraft.copyOf carries the (empty) objects', () {
-        final draft = PageDraft.copyOf(session.pageIfLoaded(pageId)!);
-        expect(draft.strokes, hasLength(2));
-        expect(draft.objects, isEmpty);
-      });
-    },
-  );
+    test('ClearPage(includeObjects: true) clears strokes by filter', () async {
+      await session
+          .execute(
+            ClearPage(
+              pageId: pageId,
+              filter: StrokeFilter.highlighterOnly,
+              includeObjects: true,
+            ),
+          )
+          .persisted;
+      final content = session.pageIfLoaded(pageId)!;
+      expect(content.strokeCount, 1);
+      expect(content.strokes.single.style.tool, PenTool.ballpoint);
+      expect(content.objectCount, 0);
+    });
+
+    test('PageDraft.copyOf carries the (empty) objects', () {
+      final draft = PageDraft.copyOf(session.pageIfLoaded(pageId)!);
+      expect(draft.strokes, hasLength(2));
+      expect(draft.objects, isEmpty);
+    });
+  });
 
   test('EntityJson of the new kinds decodes (CORE T20a)', () {
     expect(
@@ -320,11 +260,13 @@ void defineB2AlphaStoreTests(
 
   test('v1 database copy API (dev_tools.dart, C22-01)', () async {
     expect(await v1DatabaseCopyInfo(store), isNull);
-    if (hasV1CopyApi) {
-      expect(readV1DatabaseCopy(store).toList(), throwsPending(tasks.v1Copy));
-      expect(deleteV1DatabaseCopy(store), throwsPending(tasks.v1Copy));
+    final pending = tasks.v1Copy;
+    if (hasV1CopyApi && pending != null) {
+      expect(readV1DatabaseCopy(store).toList(), throwsPending(pending));
+      expect(deleteV1DatabaseCopy(store), throwsPending(pending));
     } else {
-      // A store without one (the fake store): nothing to read, nothing to delete.
+      // A store without one (the fake store, an in-memory real store): nothing to read,
+      // nothing to delete.
       expect(readV1DatabaseCopy(store).toList(), throwsStateError);
       await deleteV1DatabaseCopy(store);
     }

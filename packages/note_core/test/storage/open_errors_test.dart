@@ -1,4 +1,7 @@
-// CORE T6 — open error classification (6.18) and the schema step runner (6.15).
+// CORE T6 — open error classification (6.18) and the schema step runner (6.15). (v2, m5-7
+// T24) The store now writes v2 databases: the 'newer app' below is a v3 one. (v2, m5-7 T35)
+// openNoteStore off the web needs both native paths: the file configs carry a temporary
+// blob root (6.15.3); native_file_store_test.dart has the native storage cases.
 @TestOn('vm')
 library;
 
@@ -16,11 +19,11 @@ import 'package:note_core/testing_vm.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:test/test.dart';
 
-/// A newer app's database: schema v2 with the given steps.
-class _V2Database extends NoteDatabase {
-  _V2Database(super.executor, {required super.upgradeSteps});
+/// A newer app's database: schema v3 with the given steps.
+class _V3Database extends NoteDatabase {
+  _V3Database(super.executor, {required super.upgradeSteps});
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 }
 
 Matcher _openFailure(NoteStoreOpenFailure reason) =>
@@ -36,6 +39,7 @@ void main() {
   });
   tearDown(() => dir.deleteSync(recursive: true));
 
+  /// A database of this app (v2 — the name is from the 1st round).
   Future<void> createV1() async {
     final s = await openTestNoteStore(filePath: path);
     await s.close();
@@ -59,7 +63,10 @@ void main() {
     }
   }
 
-  NoteStoreConfig fileConfig() => NoteStoreConfig(nativeDatabasePath: path);
+  NoteStoreConfig fileConfig() => NoteStoreConfig(
+    nativeDatabasePath: path,
+    nativeAssetDirectoryPath: '${dir.path}/assets',
+  );
 
   group('newerSchema', () {
     test(
@@ -130,10 +137,10 @@ void main() {
           executor: NativeDatabase(File(path)),
           storageInfo: const StorageInfo(backend: StorageBackend.nativeFile),
           config: fileConfig(),
-          databaseFactory: (e) => _V2Database(
+          databaseFactory: (e, _) => _V3Database(
             e,
             upgradeSteps: {
-              1: (m, db, from) async {
+              2: (m, db, from) async {
                 await db.customStatement('CREATE TABLE extra (x INTEGER)');
                 throw StateError('step failed');
               },
@@ -150,18 +157,18 @@ void main() {
               .having(
                 (e) => e.cause,
                 'cause',
-                isA<SchemaStepError>().having((s) => s.from, 'from', 1),
+                isA<SchemaStepError>().having((s) => s.from, 'from', 2),
               ),
         ),
       );
-      expect(userVersion(), 1);
+      expect(userVersion(), 2);
       final raw = sqlite.sqlite3.open(path);
       addTearDown(raw.close);
       expect(
         raw.select("SELECT name FROM sqlite_master WHERE name = 'extra'"),
         isEmpty,
       );
-      // The v1 app still opens it.
+      // The v2 app (this one) still opens it.
       final store = await openTestNoteStore(filePath: path);
       await store.close();
     });
@@ -173,11 +180,11 @@ void main() {
           executor: NativeDatabase(File(path)),
           storageInfo: const StorageInfo(backend: StorageBackend.nativeFile),
           config: fileConfig(),
-          databaseFactory: (e) => _V2Database(e, upgradeSteps: const {}),
+          databaseFactory: (e, _) => _V3Database(e, upgradeSteps: const {}),
         ),
         throwsA(_openFailure(NoteStoreOpenFailure.migrationFailed)),
       );
-      expect(userVersion(), 1);
+      expect(userVersion(), 2);
     });
 
     test('a working step runs once and sets user_version', () async {
@@ -187,10 +194,10 @@ void main() {
         executor: NativeDatabase(File(path)),
         storageInfo: const StorageInfo(backend: StorageBackend.nativeFile),
         config: fileConfig(),
-        databaseFactory: (e) => _V2Database(
+        databaseFactory: (e, _) => _V3Database(
           e,
           upgradeSteps: {
-            1: (m, db, from) async {
+            2: (m, db, from) async {
               runs++;
               await db.customStatement('CREATE TABLE extra (x INTEGER)');
             },
@@ -200,14 +207,15 @@ void main() {
       final row = await store.db
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(row.read<int>('user_version'), 2);
+      expect(row.read<int>('user_version'), 3);
       await store.close();
       expect(runs, 1);
     });
 
-    test('schema steps of this version: none for v1', () {
-      expect(kSchemaSteps, isEmpty);
-      expect(kDatabaseSchemaVersion, 1);
+    test('schema steps of this version: v1 → v2 (m5-7 T24)', () {
+      expect(kSchemaSteps.keys, [1]);
+      expect(kSchemaSteps[1], same(upgradeV1ToV2));
+      expect(kDatabaseSchemaVersion, 2);
     });
   });
 
@@ -226,6 +234,17 @@ void main() {
         throwsA(_openFailure(NoteStoreOpenFailure.storageUnavailable)),
       );
     });
+
+    test(
+      '(v2) a database path without nativeAssetDirectoryPath (6.15.3)',
+      () async {
+        await expectLater(
+          openNoteStore(NoteStoreConfig(nativeDatabasePath: path)),
+          throwsA(_openFailure(NoteStoreOpenFailure.storageUnavailable)),
+        );
+        expect(File(path).existsSync(), isFalse);
+      },
+    );
   });
 
   group('openNoteStore and deleteLocalNoteData (native)', () {

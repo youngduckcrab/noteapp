@@ -181,25 +181,28 @@ void main() {
     defineB2AlphaStoreTests(
       openTestNoteStore,
       tasks: (
-        recordings: 'T30',
-        drafts: 'T31',
-        handwriting: 'T32',
-        search: 'T33a',
-        v1Copy: 'T24',
-        objects: 'T27',
+        recordings:
+            null, // works since CORE T30 (test/shared/recording_contract.dart)
+        drafts: null, // works since CORE T31 (test/shared/recording_draft_contract.dart)
+        handwriting: null, // works since CORE T32 (test/shared/handwriting_contract.dart)
+        search: null, // writes since CORE T33a (test/search/search_index_writer_test.dart)
+        v1Copy: null, // works since CORE T24 (an in-memory store has no copy)
       ),
       hasV1CopyApi: true,
     );
 
-    test('the sync window reads no row of the new kinds (DB v1)', () async {
-      final store = await openTestNoteStore();
-      addTearDown(store.close);
-      final refs = [
-        const EntityRef(EntityKind.pageObject, 'o1'),
-        EntityRef(EntityKind.handwriting, HandwritingText.idFor('p1')),
-      ];
-      expect(await store.sync.readVersioned(refs), [null, null]);
-      expect(kDatabaseSchemaVersion, 1);
-    });
+    test(
+      'a new store has no row of the new kinds (DB v2; written since T26)',
+      () async {
+        final store = await openTestNoteStore();
+        addTearDown(store.close);
+        final refs = [
+          const EntityRef(EntityKind.pageObject, 'o1'),
+          EntityRef(EntityKind.handwriting, HandwritingText.idFor('p1')),
+        ];
+        expect(await store.sync.readVersioned(refs), [null, null]);
+        expect(kDatabaseSchemaVersion, 2);
+      },
+    );
   });
 }

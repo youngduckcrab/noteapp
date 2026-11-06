@@ -9,7 +9,8 @@
 // applyRemote / commitRepairs write rows with [WriteTxn.putRemote] (versions as given,
 // local-only columns of an existing row kept) and then fix the device-local values
 // (6.10.3): new rows start without local values, notes get page_count / first_page_id
-// recomputed and updated_at = max(current, applied), written pages content_rev + 1.
+// recomputed and updated_at = max(current, applied), written pages content_rev + 1
+// (v2: also for page objects and handwriting results — m5-7/02-core 6.13).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -21,6 +22,7 @@ import '../common/ids.dart';
 import '../common/sort_planner.dart';
 import '../model/asset.dart';
 import '../model/entity_json.dart';
+import '../model/handwriting.dart';
 import '../model/note.dart';
 import '../model/page.dart';
 import '../model/stroke.dart';
@@ -209,8 +211,18 @@ final class DriftSyncStore implements SyncStore {
       )..where((t) => t.key.isIn(ids))).get())
         versionedSetting(r),
     ],
-    // (v2.0) A v1 database has no such rows; the tables come with DB v2 (CORE T24 / T28).
-    EntityKind.pageObject || EntityKind.handwriting => const [],
+    EntityKind.pageObject => [
+      for (final r in await (_db.select(
+        _db.pageObjects,
+      )..where((t) => t.id.isIn(ids))).get())
+        versionedObject(r),
+    ],
+    EntityKind.handwriting => [
+      for (final r in await (_db.select(
+        _db.handwriting,
+      )..where((t) => t.id.isIn(ids))).get())
+        versionedHandwriting(r),
+    ],
   };
 
   // ---- applyRemote (6.10.3) ----------------------------------------------------------
@@ -510,10 +522,11 @@ final class _RemoteWriter {
   final DriftSyncStore sync;
   final WriteTxn tx;
 
-  /// Affected notes → the largest applied updatedAt.
+  /// Affected notes → the largest applied updatedAt (0: affected, updatedAt not moved).
   final Map<NoteId, EpochMillis> notes = {};
 
-  /// Pages whose row or strokes were written, and page rows created here.
+  /// Pages whose row, strokes, objects or handwriting result were written, and page
+  /// rows created here.
   final Set<PageId> written = {};
   final Set<PageId> created = {};
 
@@ -566,6 +579,24 @@ final class _RemoteWriter {
         _affect(entity.noteId, entity.updatedAt);
         if (before is Recording && before.noteId != entity.noteId) {
           _affect(before.noteId, entity.updatedAt);
+        }
+      // (v2 — m5-7/02-core 6.13) An object is page content like a stroke. An orphan
+      // (no page row yet) bumps nothing and affects no note.
+      case PageObject():
+        written.add(entity.pageId);
+        _affect(await tx.noteIdOfPage(entity.pageId), entity.updatedAt);
+        if (before is PageObject && before.pageId != entity.pageId) {
+          written.add(before.pageId);
+          _affect(await tx.noteIdOfPage(before.pageId), entity.updatedAt);
+        }
+      // A handwriting result is derived: its page's content_rev + 1 (thumbnail, ink_rev
+      // cache — 6.9.3) and its note affected, but the note's updatedAt is not moved
+      // (as the local put — 6.9.4).
+      case HandwritingText():
+        written.add(entity.pageId);
+        _affect(entity.noteId, 0);
+        if (before is HandwritingText && before.noteId != entity.noteId) {
+          _affect(before.noteId, 0);
         }
       case Asset():
         if (local == null) {
@@ -769,7 +800,9 @@ final class _RemoteApply {
       await tx.purge(EntityRef(EntityKind.folder, id), outbox: false);
     }
     final notes = noteIds.toList();
-    purgedPages.addAll(await deleteNoteContents(tx, notes));
+    purgedPages.addAll(
+      await deleteNoteContents(tx, notes, drafts: sync.s.recordingDrafts),
+    );
     for (final id in notes) {
       await deleteOutboxEntry(_db, EntityKind.note, id);
       await tx.purge(EntityRef(EntityKind.note, id), outbox: false);

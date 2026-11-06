@@ -1,6 +1,8 @@
 // Runs, index terms, FTS query text and the match judgement (m5-7/02-core 6.10.2): the 9.2
 // table, FTS grammar injection, the FTS candidate model as a superset of the judgement, the
 // ranking order. Web-safe.
+import 'dart:math';
+
 import 'package:note_core/note_core.dart';
 import 'package:note_core/src/search/search_match.dart';
 import 'package:note_core/src/search/search_ranking.dart';
@@ -30,6 +32,29 @@ Set<int> _search(String query) {
             ))
         if (searchMatches(SearchText.normalize(body), q)) id,
   };
+}
+
+/// searchMatches as 6.10.2 states it: every query run against the runs of the whole unit
+/// (the first implementation — the occurrence-based one must decide the same).
+bool _referenceMatches(String unitNorm, String queryNorm) {
+  final query = searchRunsOf(queryNorm);
+  if (query.isEmpty) return false;
+  final unitRuns = searchRunsOf(unitNorm);
+  for (final q in query) {
+    if (q.codePoints == 1) {
+      if (!unitNorm.contains(q.text)) return false;
+      continue;
+    }
+    final ok = q.isCjk
+        ? unitRuns.any((r) => r.isCjk && r.text.contains(q.text))
+        : unitRuns.any(
+            (r) =>
+                (!r.isCjk && r.text.startsWith(q.text)) ||
+                (q.codePoints == 2 && r.isCjk && r.text.contains(q.text)),
+          );
+    if (!ok) return false;
+  }
+  return true;
 }
 
 void main() {
@@ -148,6 +173,79 @@ void main() {
         expect(searchMatches('aim 모델', 'aim'), isTrue);
       },
     );
+
+    test(
+      'the occurrence-based decision = the run-split definition (seed 7)',
+      () {
+        // Letters, digits, Hangul, Han (also outside the BMP), kana, private use, a combining
+        // mark, an emoji and separators.
+        const pieces = [
+          'a', 'b', 'ab', 'aa', 'é', '1', '2', '회', '의', '록', '회의', '漢', //
+          '𠀀', 'の', '\uE000', '\u0301', '😀', ' ', '-', '.', 'x',
+        ];
+        final r = Random(7);
+        String text(int n) =>
+            [for (var i = 0; i < n; i++) pieces[r.nextInt(pieces.length)]]
+                .join();
+        var matched = 0;
+        for (var i = 0; i < 4000; i++) {
+          final unit = SearchText.normalize(text(1 + r.nextInt(16)));
+          final query = SearchText.normalize(text(1 + r.nextInt(4)));
+          final expected = _referenceMatches(unit, query);
+          expect(
+            searchMatches(unit, query),
+            expected,
+            reason: '$unit / $query',
+          );
+          if (expected) matched++;
+        }
+        expect(matched, greaterThan(200));
+      },
+    );
+
+    test('matchScore (one pass) = searchMatches ? unitScore : null; runCharBefore = the regex', () {
+      const pieces = [
+        'a', 'b', 'ab', 'aa', 'é', '1', '회', '의', '회의', '漢', '𠀀', 'の', //
+        '\uE000', '\u0301', '😀', ' ', '-', '.', 'x', 'aim모델',
+      ];
+      final r = Random(11);
+      String text(int n) =>
+          [for (var i = 0; i < n; i++) pieces[r.nextInt(pieces.length)]].join();
+      final runChar = RegExp(r'^[\p{L}\p{N}\p{Co}]$', unicode: true);
+      var scored = 0;
+      for (var i = 0; i < 4000; i++) {
+        final unit = SearchText.normalize(text(1 + r.nextInt(20)));
+        final query = SearchText.normalize(text(1 + r.nextInt(4)));
+        final source = SearchSource.values[r.nextInt(4)];
+        final expected = searchMatches(unit, query)
+            ? unitScore(source, unit, query)
+            : null;
+        expect(
+          matchScore(source, unit, searchRunsOf(query)),
+          expected,
+          reason: '$unit / $query',
+        );
+        if (expected != null) scored++;
+        for (var k = 0; k <= unit.length; k++) {
+          final before = k == 0
+              ? false
+              : runChar.hasMatch(
+                  String.fromCharCode(
+                    unit.runes.elementAt(unit.substring(0, k).runes.length - 1),
+                  ),
+                );
+          // Only at code point boundaries (the callers' indexes).
+          if (k > 0 &&
+              k < unit.length &&
+              unit.codeUnitAt(k) >= 0xDC00 &&
+              unit.codeUnitAt(k) <= 0xDFFF) {
+            continue;
+          }
+          expect(runCharBefore(unit, k), before, reason: '$unit @ $k');
+        }
+      }
+      expect(scored, greaterThan(200));
+    });
 
     test('the FTS candidate model is a superset of the judgement', () {
       const units = [

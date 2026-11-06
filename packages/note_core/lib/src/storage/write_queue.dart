@@ -18,7 +18,9 @@ import 'package:meta/meta.dart';
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
+import '../common/write_guard.dart';
 import '../model/asset.dart';
+import '../model/handwriting.dart';
 import '../model/page.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
@@ -50,6 +52,24 @@ const int kMaxBytesPerTransaction = 4 * 1024 * 1024;
 /// Whether [e], thrown by a job, is a domain error of that job (completes it, no
 /// retry) rather than a storage failure (retries the transaction).
 bool isDomainError(Object e) => e is Error || e is NoteCoreException;
+
+/// (v2) The search index work of the write transactions (m5-7/02-core 6.10.3, 6.10.5 —
+/// storage/search_indexer.dart). Every call runs inside the running transaction.
+abstract interface class TxnIndexHooks {
+  /// [entity] was just stored by a job with [version] (its stored versions.max); [noteId] is
+  /// the note hint of the write (null: an orphan object whose page is not here yet).
+  Future<void> entityWritten(SyncEntity entity, Hlc version, NoteId? noteId);
+
+  /// The orphan page objects [ids] got the note [noteId] (their page row arrived).
+  Future<void> objectsAdopted(List<ElementId> ids, NoteId noteId);
+
+  /// At the end of every transaction, after its jobs (the pending retry).
+  Future<void> beforeCommit();
+
+  /// The transaction committed / was rolled back (to be retried).
+  void committed();
+  void rolledBack();
+}
 
 final class _Job<T> {
   _Job(this.body, this.origin, this.bytes, this.enqueuedAt);
@@ -122,6 +142,9 @@ final class WriteQueue {
   /// N-4 / N-7). A failure is not the commit's failure.
   Future<void> Function(List<ChangeBatch> batches)? onCommitted;
 
+  /// (v2) The search index rows written with the jobs (m5-7/02-core 6.10.3).
+  TxnIndexHooks? indexHooks;
+
   /// Transactions attempted so far (tests: group commit).
   @visibleForTesting
   int debugTransactionCount = 0;
@@ -155,6 +178,8 @@ final class WriteQueue {
     int bytes = 0,
   }) {
     if (_closed) return Future.error(StateError('The note store is closed'));
+    // (v2.0, m5-7/02-core 6.9.4) No store write from inside an update transform.
+    if (inUpdateTransform) return Future.error(writeInTransformError());
     final job = _Job<Object?>(body, origin, bytes, clock.now());
     _queue.add(job);
     _setStatus(pendingOps: _pending);
@@ -215,6 +240,7 @@ final class WriteQueue {
         for (final job in batch) {
           await job.attempt(WriteTxn._(this, job.origin, now), db);
         }
+        await indexHooks?.beforeCommit();
         if (_failing > 0) {
           _failing--;
           Error.throwWithStackTrace(_failError, StackTrace.current);
@@ -230,7 +256,9 @@ final class WriteQueue {
         }
       });
       if (hlcText != null) _persistedHlc = hlcText;
+      indexHooks?.committed();
     } on Object catch (e) {
+      indexHooks?.rolledBack();
       _running = false;
       final failures = _status.consecutiveFailures + 1;
       _setStatus(
@@ -402,6 +430,11 @@ final class WriteTxn {
         strokeNoteId: hints.noteId,
         assetChunkCount: assetChunkCount,
       );
+      await _queue.indexHooks?.entityWritten(
+        entity,
+        current.versions.max,
+        hints.noteId,
+      );
       return current.versions;
     }
     final h = fixedVersion ?? stamp();
@@ -413,6 +446,7 @@ final class WriteTxn {
       strokeNoteId: hints.noteId,
       assetChunkCount: assetChunkCount,
     );
+    await _queue.indexHooks?.entityWritten(entity, versions.max, hints.noteId);
     await recordOutbox(
       db,
       kind: entity.kind,
@@ -439,10 +473,11 @@ final class WriteTxn {
   /// Remote write (internal path of applyRemote / commitRepairs): stores [entity] with
   /// [versions] as given (no re-stamp, no outbox), keeps local-only columns of an
   /// existing row, merges the version into the HLC unless [advanceClock] is false (the
-  /// caller receives once). A stroke whose page row is not here is an orphan: it is
-  /// stored with note_id '' and listed in the batch of the commit that brings its page
-  /// (6.10.1, 6.10.3, contract 7.2.10 v1.2). [assetChunkCount]: chunk_count of a new
-  /// asset row. Returns the routing hints (noteId null for an orphan stroke).
+  /// caller receives once). A stroke or (v2) page object whose page row is not here is
+  /// an orphan: it is stored with note_id '' and listed in the batch of the commit that
+  /// brings its page (6.10.1, 6.10.3, contract 7.2.10 v1.2; m5-7/02-core 6.13).
+  /// [assetChunkCount]: chunk_count of a new asset row. Returns the routing hints
+  /// (noteId null for an orphan).
   Future<({NoteId? noteId, PageId? pageId})> putRemote(
     SyncEntity entity,
     EntityFieldVersions versions, {
@@ -451,7 +486,8 @@ final class WriteTxn {
   }) async {
     _touched.add(entity.kind);
     final hints = await _hints(entity, null);
-    final orphan = entity is Stroke && hints.noteId == null;
+    final orphan =
+        (entity is Stroke || entity is PageObject) && hints.noteId == null;
     await writeEntityRow(
       db,
       entity,
@@ -460,6 +496,7 @@ final class WriteTxn {
       strokeNoteId: hints.noteId ?? '',
       assetChunkCount: assetChunkCount,
     );
+    await _queue.indexHooks?.entityWritten(entity, versions.max, hints.noteId);
     if (!orphan) {
       addChange(
         EntityChange(
@@ -526,40 +563,75 @@ final class WriteTxn {
         );
       case Recording(:final noteId):
         return (noteId: noteId, pageId: null);
+      // (v2, C2-13 — m5-7/02-core 6.13) Always both hints.
+      case PageObject(:final pageId):
+        return (
+          noteId: strokeNoteId ?? await noteIdOfPage(pageId),
+          pageId: pageId,
+        );
+      case HandwritingText(:final noteId, :final pageId):
+        return (noteId: noteId, pageId: pageId);
       default:
         return (noteId: null, pageId: null);
     }
   }
 
+  /// Orphan strokes and (v2) page objects of [page] (note_id '') get its note; their
+  /// outbox entries get the noteId hint and their EntityChanges join this commit.
   Future<void> _adoptOrphans(Page page) async {
     final s = db.strokes;
-    final rows =
+    final strokes =
         await (db.selectOnly(s)
               ..addColumns([s.id, s.deletedAt])
               ..where(s.pageId.equals(page.id) & s.noteId.equals('')))
             .get();
-    if (rows.isEmpty) return;
-    await (db.update(s)
-          ..where((t) => t.pageId.equals(page.id) & t.noteId.equals('')))
-        .write(StrokesCompanion(noteId: Value(page.noteId)));
-    final o = db.outbox;
-    await (db.update(o)..where(
+    final o = db.pageObjects;
+    final objects =
+        await (db.selectOnly(o)
+              ..addColumns([o.id, o.deletedAt])
+              ..where(o.pageId.equals(page.id) & o.noteId.equals('')))
+            .get();
+    if (strokes.isEmpty && objects.isEmpty) return;
+    if (strokes.isNotEmpty) {
+      await (db.update(s)
+            ..where((t) => t.pageId.equals(page.id) & t.noteId.equals('')))
+          .write(StrokesCompanion(noteId: Value(page.noteId)));
+    }
+    if (objects.isNotEmpty) {
+      await (db.update(o)
+            ..where((t) => t.pageId.equals(page.id) & t.noteId.equals('')))
+          .write(PageObjectsCompanion(noteId: Value(page.noteId)));
+      // (v2) Their text / math search units now have a note (6.10.3).
+      await _queue.indexHooks?.objectsAdopted([
+        for (final r in objects) r.read(o.id)!,
+      ], page.noteId);
+    }
+    final out = db.outbox;
+    await (db.update(out)..where(
           (t) =>
-              t.entityKind.equals(EntityKind.stroke.name) &
+              t.entityKind.isIn([
+                EntityKind.stroke.name,
+                EntityKind.pageObject.name,
+              ]) &
               t.pageId.equals(page.id) &
               (t.noteId.isNull() | t.noteId.equals('')),
         ))
         .write(OutboxCompanion(noteId: Value(page.noteId)));
-    for (final r in rows) {
-      addChange(
-        EntityChange(
-          kind: EntityKind.stroke,
-          id: r.read(s.id)!,
-          noteId: page.noteId,
-          pageId: page.id,
-          deleted: r.read(s.deletedAt) != null,
-        ),
-      );
+    for (final (kind, rows, id, deletedAt) in [
+      (EntityKind.stroke, strokes, s.id, s.deletedAt),
+      (EntityKind.pageObject, objects, o.id, o.deletedAt),
+    ]) {
+      for (final r in rows) {
+        addChange(
+          EntityChange(
+            kind: kind,
+            id: r.read(id)!,
+            noteId: page.noteId,
+            pageId: page.id,
+            deleted: r.read(deletedAt) != null,
+          ),
+        );
+      }
     }
   }
 }

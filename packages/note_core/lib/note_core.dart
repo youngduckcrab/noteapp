@@ -51,7 +51,7 @@ export 'src/repo/recording_repository.dart';
 export 'src/repo/settings_repository.dart';
 export 'src/repo/status.dart';
 export 'src/repo/trash_repository.dart';
-export 'src/search/search_text.dart';
+export 'src/search/search_text.dart' hide normalizeMappedPrefix;
 export 'src/search/search_types.dart';
 export 'src/session/note_session.dart';
 export 'src/session/page_content.dart';

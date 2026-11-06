@@ -1,7 +1,8 @@
 // Shared body (m5-7/02-core 6.5, 6.4.2 — N-1..N-6 with page objects): synchronous apply,
 // PageContentChange ids of strokes AND objects, re-entry, page not open, read-only, a shared
 // session, reload after reopen, NoteContentReader.loadPage objects. The fake store runs it now
-// (test/session/object_session_contract_fake_test.dart); the real store from CORE T27.
+// (test/session/object_session_contract_fake_test.dart), the real store since CORE T27
+// (test/session/object_session_contract_real_test.dart).
 // Web-safe.
 import 'dart:async';
 

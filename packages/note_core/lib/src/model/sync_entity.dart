@@ -28,7 +28,7 @@ abstract interface class SyncEntity {
 }
 
 const int kNoteSchemaVersion = 1; // note content format the app can edit
-const int kDatabaseSchemaVersion = 1; // drift schema
+const int kDatabaseSchemaVersion = 2; // drift schema
 const int kStrokePointsFormatVersion = 1;
 
 /// Reads the optional `version` key (HLC text) of an entity JSON object.

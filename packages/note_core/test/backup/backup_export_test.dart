@@ -4,14 +4,18 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:drift/native.dart';
+import 'package:note_core/dev_tools.dart';
 import 'package:note_core/note_core.dart';
 import 'package:note_core/src/storage/drift_note_store.dart';
 import 'package:note_core/testing_vm.dart';
 import 'package:test/test.dart';
 
 import '../shared/backup_cases.dart';
+import '../shared/v1_database.dart';
 import '../storage/storage_support.dart';
 import '../sync/support/sync_support.dart';
 import 'backup_golden.dart';
@@ -104,6 +108,40 @@ void main() {
       expect(
         _entities(bytes).where((e) => e['kind'] == 'folder'),
         hasLength(1),
+      );
+    });
+
+    test('(v2.1) the v1 database copy is not in the backup (6.14.4)', () async {
+      final dir = Directory.systemTemp.createTempSync('note_core_backup_v1_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = '${dir.path}/notes.db';
+      // An empty v1 database (the synthetic v1 rows carry placeholder stroke bytes).
+      await createV1Database(NativeDatabase(File(path)), statements: const []);
+      final upgraded = await openTestNoteStore(
+        filePath: path,
+        clock: kBackupClock,
+        deviceNodeId: kBackupNode,
+      );
+      addTearDown(upgraded.close);
+      final copy = (await v1DatabaseCopyInfo(upgraded))!;
+      expect(copy.bytes, greaterThan(0));
+      await upgraded.library.createNote(title: '이주 뒤');
+      final bytes = await upgraded.exportBackupJson();
+      final doc = jsonDecode(utf8.decode(bytes)) as Map<String, Object?>;
+      expect((doc['schema']! as Map<String, Object?>)['database'], 2);
+      final text = utf8.decode(bytes);
+      for (final local in ['v1Copy', copy.fileName, 'SQLite format']) {
+        expect(text, isNot(contains(local)), reason: local);
+      }
+      expect(
+        bytes.length,
+        lessThan(copy.bytes),
+        reason: 'the entities only, not the copy',
+      );
+      expect(
+        {for (final e in _entities(bytes)) e['kind']},
+        {'note', 'page', 'penPreset'},
+        reason: 'the data written after the upgrade (and the seeded presets)',
       );
     });
 

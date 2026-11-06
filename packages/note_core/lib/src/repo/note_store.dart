@@ -10,6 +10,7 @@ import 'package:drift/drift.dart' show QueryExecutor;
 import 'package:meta/meta.dart';
 
 import '../assets/asset_store.dart';
+import '../assets/blob_store.dart';
 import '../common/ids.dart';
 import '../search/search_types.dart';
 import '../session/note_session.dart';
@@ -96,7 +97,10 @@ final class NoteStoreConfig {
   /// (v2.0, 2nd-round contract 7.2.6 — C2-16) file BlobStore root (native).
   /// 네이티브 저장(공통-1): nativeDatabasePath와 nativeAssetDirectoryPath가 모두 있으면 CORE는
   /// 파일 DB + 파일 블롭 저장소를 쓴다. (v2.1) 루트 디렉터리가 없으면 CORE가 만든다.
-  /// CORE: field only until CORE T35 — the native store keeps the 1차 behaviour (02-core 8.1).
+  /// CORE: m5-7/02-core 6.15.3 — openNoteStore off the web without both paths (and not
+  /// inMemory) → storageUnavailable; so are a root or a 'blobs' / 'thumbs' subdirectory that
+  /// cannot be made or written. deleteLocalNoteData removes 'blobs' and 'thumbs' (not the
+  /// root). openTestNoteStore ignores it (in-memory blobs, 1st-round behaviour).
   final String? nativeAssetDirectoryPath;
 }
 
@@ -146,12 +150,25 @@ abstract interface class NoteStore {
 
 /// Opens (and migrates) the database. Throws NoteStoreOpenException.
 /// CORE: 6.18 — every failure is classified; the connection is closed before throwing.
+/// CORE: (v2) native — a file database plus the file blobs of nativeAssetDirectoryPath
+/// (m5-7/02-core 6.15.3).
 Future<NoteStore> openNoteStore(NoteStoreConfig config) async {
   final QueryExecutor executor;
   final StorageInfo info;
   try {
     (executor, info) = await openNoteDatabaseExecutor(config);
   } on Object catch (e, s) {
+    Error.throwWithStackTrace(classifyOpenError(e), s);
+  }
+  final BlobDatabase? fileBlobs;
+  try {
+    fileBlobs = await openFileBlobDatabase(config);
+  } on Object catch (e, s) {
+    try {
+      await executor.close();
+    } on Object {
+      // The blob error is the one to report.
+    }
     Error.throwWithStackTrace(classifyOpenError(e), s);
   }
   // 6.12 ①: persisted() / persist() (≤ 1 s) / estimate() while the database
@@ -169,6 +186,7 @@ Future<NoteStore> openNoteStore(NoteStoreConfig config) async {
     storageQuery: query,
     autoPurge: true,
     blobFactory: blobIdbFactory(config),
+    blobDatabase: fileBlobs,
   );
   store.storageInfoAtOpen = await probed;
   return store;
@@ -176,6 +194,8 @@ Future<NoteStore> openNoteStore(NoteStoreConfig config) async {
 
 /// Drops the SQLite DB and the blob IndexedDB of [config] (startup error screen reset).
 /// CORE: 6.18 — StateError while a store of the same database is open in this process.
+/// CORE: (v2) native — also the v1 copy file and the 'blobs' / 'thumbs' directories under
+/// nativeAssetDirectoryPath (m5-7/02-core 6.15.3, 6.12.4).
 Future<void> deleteLocalNoteData(NoteStoreConfig config) async {
   if (isStoreOpen(config)) {
     throw StateError(

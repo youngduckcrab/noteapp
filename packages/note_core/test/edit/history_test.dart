@@ -284,9 +284,6 @@ final class _MapBackend implements SessionBackend {
   );
 
   @override
-  bool get storesPageObjects => true;
-
-  @override
   Future<void> write(SessionWrite write) async {
     for (final e in write.entities) {
       if (e is Stroke) strokes[e.id] = e;

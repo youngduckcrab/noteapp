@@ -2,9 +2,11 @@
 // (test/backup/backup_export_test.dart), the fake (test/testing/fake_backup_export_test.dart)
 // and in Chrome (test/web/backup_export_browser_test.dart). Web-safe (no dart:io).
 //
-// The golden state: folders 2, notes 3 (one in the trash), pages 4, strokes 20 (one
-// erased), presets 5, asset 1, settings 2 (one reset). Whole-entity versions only (the
-// fake keeps no per-field versions), so both stores export the same bytes.
+// The golden state (v2 — m5-7/02-core 6.14.4): folders 2, notes 3 (one in the trash),
+// pages 4, strokes 20 (one erased, one linked to the recording), presets 5, assets 3 (pdf,
+// audio, image), settings 2 (one reset), a recording with a title, page objects of the 5
+// types (shape, text box, image, math, an unknown type) and a handwriting result. Whole-entity
+// versions only (the fake keeps no per-field versions), so both stores export the same bytes.
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -44,6 +46,8 @@ List<VersionedEntity> backupGoldenState() {
       pageId: pageId,
       style: s.style,
       points: s.points,
+      recordingId: n == 0 ? 'rec-a' : null,
+      recordingOffsetMs: n == 0 ? 1500 : null,
       createdAt: s.createdAt,
       // Not after its note: applyRemote raises Note.updatedAt to the max (6.10.3).
       updatedAt: kBackupT,
@@ -188,6 +192,90 @@ List<VersionedEntity> backupGoldenState() {
         version: x,
       ),
     ),
+    // (v2.0) the new kinds and the recording title.
+    v(
+      (x) => Asset(
+        id: 'a' * 64,
+        ownerId: kLocalOwnerId,
+        type: AssetType.audio,
+        mimeType: 'audio/mp4',
+        size: 4096,
+        createdAt: kBackupT,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => Asset(
+        id: 'b' * 64,
+        ownerId: kLocalOwnerId,
+        type: AssetType.image,
+        mimeType: 'image/png',
+        size: 2048,
+        fileName: '그림.png',
+        createdAt: kBackupT,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => Recording(
+        id: 'rec-a',
+        noteId: 'note-a',
+        assetId: 'a' * 64,
+        durationMs: 65000,
+        startedAt: kBackupT - 60000,
+        createdAt: kBackupT,
+        updatedAt: kBackupT,
+        title: '1교시 강의',
+        version: x,
+      ),
+    ),
+    for (final o in <PageObject>[
+      PageObjectFixtures.shape(
+        id: 'obj-1',
+        pageId: 'page-a1',
+        kind: ShapeKind.star,
+        createdAt: kBackupT + 1,
+      ),
+      PageObjectFixtures.textBox(
+        id: 'obj-2',
+        pageId: 'page-a1',
+        text: '극한의 정의',
+        createdAt: kBackupT + 2,
+      ),
+      PageObjectFixtures.image(
+        id: 'obj-3',
+        pageId: 'page-a1',
+        assetId: 'b' * 64,
+        createdAt: kBackupT + 3,
+      ),
+      PageObjectFixtures.math(
+        id: 'obj-4',
+        pageId: 'page-b1',
+        latex: r'\lim_{x \to 0} \frac{\sin x}{x} = 1',
+        createdAt: kBackupT + 4,
+      ),
+      PageObjectFixtures.unknown(id: 'obj-5', pageId: 'page-b1'),
+    ])
+      v((x) => o.copyWithMeta(updatedAt: kBackupT, version: x)),
+    v(
+      (x) => HandwritingText(
+        noteId: 'note-a',
+        pageId: 'page-a1',
+        engineId: 'mlkit-digital-ink/19.0.0:ko',
+        sourceRev: '0123456789abcdef:ko',
+        lines: const [
+          HandwritingLine(
+            text: '미분 정의',
+            alternatives: ['미분 정이'],
+            rect: PageRect(40, 60, 320, 110),
+            strokeIds: ['stk-00', 'stk-01'],
+            languageTag: 'ko',
+          ),
+        ],
+        createdAt: kBackupT,
+        version: x,
+      ),
+    ),
   ];
 }
 
@@ -214,6 +302,12 @@ Future<void> seedFakeBackupState(
         fake.assetRows[entity.id] = entity;
       case SettingValue():
         fake.syncedSettings[entity.key] = entity;
+      case Recording():
+        fake.recordingRows[entity.id] = entity;
+      case PageObject():
+        fake.putObject(entity);
+      case HandwritingText():
+        fake.handwritingRows[entity.pageId] = entity;
       default:
         throw UnsupportedError('${entity.kind} is not in the fake');
     }
@@ -237,6 +331,19 @@ Map<String, Object?> _parse(Uint8List bytes) =>
 List<Map<String, Object?>> _entities(Map<String, Object?> doc) => [
   for (final e in doc['entities']! as List<Object?>) e! as Map<String, Object?>,
 ];
+
+/// Entities per kind name in [doc].
+Map<String, int> _kindCounts(Map<String, Object?> doc) {
+  final counts = <String, int>{};
+  for (final e in _entities(doc)) {
+    counts.update(e['kind']! as String, (n) => n + 1, ifAbsent: () => 1);
+  }
+  return counts;
+}
+
+/// The PDF asset of the golden state (its search owner is device-local).
+const String _backupPdfAsset =
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 
 /// [open] returns a fresh store on [kBackupClock] (no default presets, device node
 /// [kBackupNode]); [seed] writes the golden state into it.
@@ -291,8 +398,11 @@ void defineBackupTests({
         'page': 4,
         'stroke': 20,
         'penPreset': 5,
-        'asset': 1,
+        'asset': 3,
+        'recording': 1,
         'setting': 2,
+        'pageObject': 5,
+        'handwriting': 1,
       });
       final want = {
         for (final v in state) '${v.entity.kind.name}/${v.entity.id}': v,
@@ -331,12 +441,15 @@ void defineBackupTests({
       ]) {
         expect(text, isNot(contains(local)), reason: local);
       }
-      final asset = _entities(jsonDecode(text) as Map<String, Object?>)
-          .singleWhere((e) => e['kind'] == 'asset');
-      expect(
-        (asset['data']! as Map<String, Object?>).keys,
-        isNot(contains('bytes')),
-      );
+      final assets = _entities(jsonDecode(text) as Map<String, Object?>)
+          .where((e) => e['kind'] == 'asset');
+      expect(assets, hasLength(3));
+      for (final asset in assets) {
+        expect(
+          (asset['data']! as Map<String, Object?>).keys,
+          isNot(contains('bytes')),
+        );
+      }
     });
 
     test('deterministic: kind then id order, the same bytes twice', () async {
@@ -357,6 +470,72 @@ void defineBackupTests({
           return k != 0 ? k : (a.$2! as String).compareTo(b.$2! as String);
         });
       expect(keys, sorted);
+    });
+
+    test('(v2.0) no search index, recording drafts, page caches or derived '
+        'columns (m5-7/02-core 6.14.4)', () async {
+      final before = _kindCounts(_parse(await store.exportBackupJson()));
+      final note = await store.library.createNote(
+        title: '색인 노트',
+        pages: [
+          PageDraft(
+            size: PageSize.a4Portrait,
+            background: const PdfBackground(
+              assetId: _backupPdfAsset,
+              pdfPageIndex: 0,
+            ),
+            objects: [PageObjectFixtures.textBox(pageId: 'x', text: '상자 글자')],
+          ),
+        ],
+      );
+      await store.search.replaceUnits(
+        SearchSource.pdf,
+        '$_backupPdfAsset#0',
+        const [SearchUnitDraft(body: '교재에만 있는 낱말')],
+        sourceRev: 'pdf-rev-1',
+      );
+      final draft = await store.recordingDrafts.begin(
+        recordingId: store.ids.newId(),
+        noteId: note.id,
+        mimeType: 'audio/webm',
+        startedAt: kBackupT,
+      );
+      await store.recordingDrafts.append(
+        draft.draftId,
+        Uint8List.fromList(utf8.encode('draft-chunk-bytes')),
+        activeMs: 10,
+      );
+      // Fills the page caches of the SQLite store (pages.ink_rev).
+      expect(await store.handwriting.stalePages(note.id), isEmpty);
+      expect(await store.search.searchPages('교재에만'), hasLength(1));
+      expect(await store.search.searchPages('상자 글자'), hasLength(1));
+
+      final doc = _parse(await store.exportBackupJson());
+      final text = jsonEncode(doc);
+      for (final local in [
+        '교재에만 있는 낱말',
+        'pdf-rev-1',
+        draft.draftId,
+        'draft-chunk-bytes',
+        'audio/webm',
+        'inkRev',
+        'bgAssetId',
+        'bgPdfPageIndex',
+        'nameNorm',
+        'titleNorm',
+      ]) {
+        expect(text, isNot(contains(local)), reason: local);
+      }
+      // Only the new note's entities were added: the note, its page and the text box.
+      final after = _kindCounts(doc);
+      expect(
+        {
+          for (final k in after.keys)
+            if (after[k] != before[k]) k: after[k]! - (before[k] ?? 0),
+        },
+        {'note': 1, 'page': 1, 'pageObject': 1},
+      );
+      expect(text, contains('상자 글자'), reason: 'the object itself is data');
     });
 
     test('later edits are in the next export', () async {

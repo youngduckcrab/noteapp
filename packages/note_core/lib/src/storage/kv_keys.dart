@@ -18,6 +18,17 @@ abstract final class KvKeys {
 
   /// `sync.*`: SYNC meta (readMeta / writeMeta / applyRemote metaUpdates only).
   static const String syncPrefix = 'sync.';
+
+  /// (v2) SearchText.normalizerVersion the search index was built with (6.10.5): written
+  /// by the v1 → v2 upgrade and by a new database; another value → rebuild.
+  static const String searchNormalizerVersion = 'search.normalizerVersion';
+
+  /// (v2) Time of the last SearchIndex.rebuild (6.10.5).
+  static const String searchLastRebuildAt = 'search.lastRebuildAt';
+
+  /// (v2) The v1 database copy made right before the v1 → v2 upgrade (6.12.4): JSON
+  /// {createdAt, method, bytes, normalOpens} or {failed, at, method, normalOpens}.
+  static const String v1Copy = 'db.v1Copy';
 }
 
 final RegExp _nodeIdPattern = RegExp(r'^[0-9a-f]{16}$');

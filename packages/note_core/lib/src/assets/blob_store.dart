@@ -17,6 +17,10 @@ const int kAssetChunkBytes = 4 * 1024 * 1024;
 abstract interface class BlobStore {
   Future<void> put(String key, Uint8List bytes);
   Future<Uint8List?> get(String key);
+
+  /// (v2) The values of [keys] in their order, null for a missing key — one read (one
+  /// IndexedDB transaction on the web; m5-7/02-core 6.10.4 search rects).
+  Future<List<Uint8List?>> getMany(List<String> keys);
   Future<void> delete(String key);
 
   /// Deletes every key that starts with [prefix].
@@ -24,6 +28,18 @@ abstract interface class BlobStore {
 
   /// The keys that start with [prefix], in ascending order.
   Future<List<String>> keys(String prefix);
+}
+
+/// (v2) The byte storage of one note store (m5-7/02-core 6.15.3, 6.18): the IndexedDB
+/// database on the web and in VM tests (IdbBlobDatabase), the file blobs under
+/// `NoteStoreConfig.nativeAssetDirectoryPath` on native (FileBlobDatabase). The store owns
+/// it and closes it last; every use after [close] fails with StateError.
+abstract interface class BlobDatabase {
+  /// Asset chunks and every other keyed value outside SQLite (recording draft chunks
+  /// 'rd/…', search glyph boxes 'si/…', the web v1 copy 'db/v1-backup/…').
+  BlobStore get chunks;
+  ThumbnailStore get thumbnails;
+  Future<void> close();
 }
 
 /// Page thumbnails by page id (one IndexedDB object store, 6.13).
