@@ -1,17 +1,20 @@
-// lib/src/ink_adapter/template_underlay.dart — 06-pdf 6.11.8 'underlay' (PDF T12). Internal
-// (not exported). With ink_vectorizer.dart the only place that calls INK's vector export.
+// lib/src/ink_adapter/template_underlay.dart — 06-pdf 6.11.8 'underlay' (PDF T12); (2차)
+// m5-7/06-pdf 6.2.1 L-1 1 (T24). Internal (not exported). With ink_vectorizer.dart the only
+// place that calls INK's vector export.
 //
 // The underlay of a blank / template page: the paper fill when the paper is not white, then
 // the template's lines and dots from ink.TemplateVectors.build (CORE PageTemplate passed as
 // it is — INK applies its defaults). Lines are grouped by (color, width) into one stroked
 // object each (butt caps, one subpath per segment); dots by color into one filled object of
-// circle subpaths (file size, 6.11.8).
+// circle subpaths (file size, 6.11.8). (2차) pdfPageBackground gives the same parts as the
+// background of the page layers, with an image background page's PdfAssetImageRef.background.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
+import '../export/page_layers.dart';
 import '../export/vectors.dart';
 
 /// Shape of ink.TemplateVectors.build (tests pass a recording builder).
@@ -24,27 +27,51 @@ typedef PdfTemplateVectorBuild = List<ink.TemplateVectorItem> Function(
 
 /// The underlay of [page] (6.11.8): empty for a PDF page; otherwise the paper fill (only
 /// when the paper is not core.PaperColors.white) and, for a template page, its lines and
-/// dots. Image backgrounds get the paper only here; (2차) the image itself is the plan's
-/// PdfAssetImageRef.background (InkEngineVectorizer.planPage).
+/// dots. Image backgrounds get the paper only here (1차 vectorize); (2차) the image itself is
+/// [pdfPageBackground]'s PdfAssetImageRef.background.
 List<PdfVectorItem> pdfPageUnderlay(
   core.Page page, {
   PdfTemplateVectorBuild build = ink.TemplateVectors.build,
 }) {
-  final background = page.background;
-  if (background is core.PdfBackground) return const [];
-  final size = ui.Size(page.size.width, page.size.height);
-  final paper = background.paperColorArgb;
+  final part = pdfPageBackground(page, build: build);
+  final paper = part.paperArgb;
   return [
-    if (paper != core.PaperColors.white)
+    if (paper != null)
       PdfFillItem(
-        path: PdfVectorPath.rect(ui.Offset.zero & size),
+        path: PdfVectorPath.rect(
+          ui.Offset.zero & ui.Size(page.size.width, page.size.height),
+        ),
         colorArgb: paper,
       ),
-    if (background case core.TemplateBackground(:final template))
-      ...pdfTemplateItems(
+    ...?part.templateItems,
+  ];
+}
+
+/// (2차, T24) The L-1 1 part of [page] (6.2.1): none for a PDF page; otherwise the paper colour
+/// when it is not core.PaperColors.white, the template items of a template page, and an image
+/// background page's PdfAssetImageRef.background(fit, page size).
+PdfPageBackgroundPart pdfPageBackground(
+  core.Page page, {
+  PdfTemplateVectorBuild build = ink.TemplateVectors.build,
+}) {
+  final background = page.background;
+  if (background is core.PdfBackground) return PdfPageBackgroundPart.none;
+  final size = ui.Size(page.size.width, page.size.height);
+  final paper = background.paperColorArgb;
+  return PdfPageBackgroundPart(
+    paperArgb: paper == core.PaperColors.white ? null : paper,
+    templateItems: switch (background) {
+      core.TemplateBackground(:final template) => pdfTemplateItems(
         build(template, pageSize: size, paperColorArgb: paper),
       ),
-  ];
+      _ => null,
+    },
+    image: switch (background) {
+      core.ImageBackground(:final assetId, :final fit) =>
+        PdfAssetImageRef.background(assetId: assetId, fit: fit, pageSize: size),
+      _ => null,
+    },
+  );
 }
 
 /// INK template items → PDF items: one stroke item per (color, width) of the lines, one

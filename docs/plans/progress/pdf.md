@@ -276,7 +276,7 @@
 | T21 | 완료 | 4068fcd | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
 | T22 | 남음 | | `pdfium/compose_objects_native_test` |
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
-| T24 | 남음 | | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(INK T42 뒤 — 통합 단계) |
+| T24 | 완료 | (이 커밋) | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
 | T25a | 남음 | | `unit/image_probe_test`, `unit/object_resolver_image_test`, `unit/export_memory_test`, `web/object_resolver_browser_test` |
 | T25b | 남음 | | `unit/raster_ports_test`, `unit/object_resolver_text_math_test`, `web/object_resolver_text_browser_test`, `integration/math_raster_real_test`(INK T36 뒤 — 통합 단계) |
 | T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
@@ -285,7 +285,7 @@
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
 | T31a | 완료 | 8dc3b6f | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
 | T31b | 남음 | | `unit/recorder_service_test`, `unit/stop_recover_buffers_test` |
-| T32a | 완료 | (이 커밋) | `unit/webm_timeline_test`, `unit/mp4_duration_test`, (더함) `web/pure_logic_browser_test` — 손 표본 사례는 `test/support/webm_timeline_cases.dart`·`mp4_duration_cases.dart`(VM·Chrome 같은 단언), Chrome 표본 `test/support/fixtures/chrome_opus_*.webm` 7개 |
+| T32a | 완료 | 0c64fad | `unit/webm_timeline_test`, `unit/mp4_duration_test`, (더함) `web/pure_logic_browser_test` — 손 표본 사례는 `test/support/webm_timeline_cases.dart`·`mp4_duration_cases.dart`(VM·Chrome 같은 단언), Chrome 표본 `test/support/fixtures/chrome_opus_*.webm` 7개 |
 | T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
 | T33 | 남음 | | `unit/native_engine_test`, `unit/foreground_service_test`, `unit/audio_session_test` |
 | T34 | 남음 | | `unit/playback_service_test`, `unit/audio_source_native_test`, `web/playback_browser_test` |
@@ -334,6 +334,10 @@
 - T32a: lacing된 블록(Chrome은 쓰지 않음)은 TOC를 읽지 않고 `DefaultDuration`(없으면 `opusDefaultPacketMs`) × 프레임 수로 잰다. 다른 트랙(Tracks의 오디오 트랙 번호와 다름)의 블록은 건너뛴다. 끝 창의 Cluster ID 후보가 구조는 맞지만 온전한 블록이 없으면(잘린 마지막 Cluster) 더 앞 후보로 간다 — 앞 후보의 걷기는 잘린 Cluster를 지나 끝까지 간다.
 - T32a: `Mp4Duration` 3단계(trun 합)는 조각 하나를 'moof가 온전하고 바로 뒤 mdat가 파일 끝에 잘리지 않았을 때'만 센다(맨 끝 moof 뒤에 mdat가 없어도 뺀다 — 복구 초안의 반쯤 쓴 조각). 오디오 트랙은 `hdlr` 'soun'인 trak(없으면 첫 trak), 다른 트랙의 traf는 건너뛴다.
 - T32a: 계획 9.2 표에 없는 Chrome 시험 `media_io/test/web/pure_logic_browser_test.dart`를 더했다 — 두 계산이 dart2js 수치(64비트 읽기 없음·비트 연산 대신 산술)에서도 같은지 VM과 같은 손 표본 사례로 본다(픽스처 파일을 읽는 Chrome 표본 묶음은 VM에서만).
+- T24: `PdfPageBackgroundPart`의 세 필드는 `paperArgb`(흰색이면 `null`)·`templateItems`(`List<PdfVectorItem>?` — 속지 쪽이 아니면 `null`)·`image`. `==`는 종이색·이미지 참조는 값으로, 벡터 항목(속지·형광펜·잉크·덮개)은 1차처럼 동일성으로 본다(`PdfPageLayers`도 같음). `planFromLayers`가 종이 채우기 항목(쪽 사각형)을 만들고, 항목이 없으면 `PdfPagePlan.empty`, 있으면 바꿀 수 없는 목록.
+- T24: 배경 몫은 `template_underlay.dart`의 src 함수 `pdfPageBackground(page, {build})`가 만든다(1차 `pdfPageUnderlay`는 그 결과로 다시 씀 — 1차 `vectorize` 결과 그대로). 1차 변환 코드는 `pdfHighlighterLayer`·`pdfInkLayer`(src)로 꺼내 `vectorize`와 `layersFromInk`가 같이 쓴다. `planPage`는 `includeInk == false`이거나 획·객체가 모두 없으면 INK `exportPage`를 부르지 않는다.
+- T24: 덮개(테이프)는 INK 색의 알파를 0xFF로 바꾸고 불투명도 1로 둔다(K-9 '항상 가린 모양'). `InkImageVector.pixelWidth/Height`는 쓰지 않는다(5.2 — 해석기가 바이트 크기를 읽음).
+- T24: R2-B4 시험 `unit/plan_items_test`의 'PDF page … objects are left out until T24'는 객체 없이 'PDF page: no background items'로 바꿨다(객체 항목은 INK 실제 내보내기 몫 — `integration/ink_vectorizer_v2_test`). `integration/ink_vectorizer_v2_test`는 지금 `--run-skipped`로 돌리면 첫 단언(이미지 참조 자리에 INK 기반 단계의 점선 획 채우기)에서 실패한다 — INK T42 전이라 예상한 실패.
 - T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
 #### 이정표 커밋
@@ -357,6 +361,10 @@
 | 2 (T32a) | `ws test --package media_io --platform chrome` | 33 통과 (3 + T32a 30), prepare ok |
 | 2 (T32a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 05:15:21–05:16:15 UTC, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
 | 2 (T32a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
+| 2 (T24) | `ws test --package pdf_io` (VM) | 652 통과 + 8 skip (634 + T24 18, skip은 `integration/ink_vectorizer_v2_test` 1개 더함) |
+| 2 (T24) | `ws test --package pdf_io --platform chrome` | 84 통과 + 1 skip, prepare ok, 159 s |
+| 2 (T24) | `flutter test --run-skipped test/integration/ink_vectorizer_v2_test.dart` | 예상한 실패 1(INK 기반 단계 — 첫 항목이 이미지 참조가 아니라 점선 획 채우기). 글꼴 적재(`setUpAll`)는 통과 |
+| 2 (T24) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
