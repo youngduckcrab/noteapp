@@ -9,10 +9,12 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../../di/editor_extensions.dart';
 import '../../di/editor_image_importer.dart';
+import '../../di/stylus_extras.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/page_panel.dart';
 import '../../state/popup.dart';
 import '../../state/settings/editor_settings_notifier.dart';
+import '../../stylus/stylus_extras_listener.dart' show penOnlyEffectiveWith;
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
@@ -298,8 +300,12 @@ class _FingerToggle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // (v2, E2-18 — 6.5.3) with iPadOS '펜슬로만 그리기' auto is pen only.
+    final capabilities = ref.watch(stylusExtrasProvider).capabilities;
     final penOnly = ref.watch(
-      editorSettingsProvider.select((s) => s.isPenOnlyEffective),
+      editorSettingsProvider.select(
+        (s) => penOnlyEffectiveWith(s, capabilities),
+      ),
     );
     final commands = ref.watch(editorCommandsProvider);
     return IconButton(

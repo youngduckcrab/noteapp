@@ -15,6 +15,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/dev_tools.dart' as dev;
 import 'package:note_core/note_core.dart' as core;
 
+import '../../di/stylus_extras.dart';
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
 import '../../state/settings/pre_roll.dart';
@@ -29,6 +30,10 @@ import 'gesture_action_tile.dart';
 abstract final class SettingsSectionKeys {
   static const inputMode = ValueKey('editor.settings.inputMode');
   static const inputModeHint = ValueKey('editor.settings.inputMode.hint');
+  // (v2, E2-18 — m5-7/04-editor 6.5.3) auto under iPadOS '펜슬로만 그리기'.
+  static const inputModePencilOnly = ValueKey(
+    'editor.settings.inputMode.pencilOnly',
+  );
   static const penCooldown = ValueKey('editor.settings.penCooldown');
   static const hoverAsPen = ValueKey('editor.settings.hoverAsPen');
   static const maxTouchRadius = ValueKey('editor.settings.maxTouchRadius');
@@ -71,6 +76,10 @@ class EditorInputSettingsSection extends ConsumerWidget {
     final palm = settings.palmRejection;
     final hintStyle = _hintStyle(context);
     final cooldownMs = palm.penCooldown.inMilliseconds.clamp(0, 1500);
+    // (v2, 6.5.3) auto follows iPadOS '펜슬로만 그리기' (read at app start).
+    final followsPencilOnly =
+        settings.inputMode == InputMode.auto &&
+        ref.watch(stylusExtrasProvider).capabilities.prefersPencilOnlyDrawing;
     final radius = palm.maxTouchRadius.clamp(20.0, 120.0);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -110,6 +119,14 @@ class EditorInputSettingsSection extends ConsumerWidget {
             style: hintStyle,
           ),
         ),
+        if (followsPencilOnly)
+          _Padded(
+            Text(
+              EditorStrings.pencilFollowsSystem,
+              key: SettingsSectionKeys.inputModePencilOnly,
+              style: hintStyle,
+            ),
+          ),
         const _Label(EditorStrings.palmRejection),
         _Padded(Text(EditorStrings.penCooldownLabel(cooldownMs))),
         Semantics(

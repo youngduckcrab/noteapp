@@ -2,8 +2,8 @@
 // (E2-05). Per note (scoped).
 //
 // Runs the EditorAction a gesture is set to (GestureSettings.actionFor):
-// finger taps and the finger long press (InteractionHost), and — in E2-18 —
-// the Apple Pencil double tap / squeeze (StylusExtrasListener). Every action
+// finger taps and the finger long press (InteractionHost), and (E2-18) the
+// Apple Pencil double tap / squeeze (StylusExtrasListener). Every action
 // makes at most one command (undo / redo through EditorCommands); switching
 // tools and opening a popup are not commands.
 import 'dart:async';
@@ -151,7 +151,7 @@ class EditorActionRunner {
 }
 
 /// The note's action runner (6.19): InteractionHost (finger taps, long
-/// press) and, in E2-18, StylusExtrasListener.
+/// press) and StylusExtrasListener (E2-18).
 final editorActionRunnerProvider = Provider<EditorActionRunner>(
   (ref) => EditorActionRunner(ref, commands: ref.watch(editorCommandsProvider)),
   dependencies: [

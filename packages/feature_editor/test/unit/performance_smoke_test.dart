@@ -8,8 +8,8 @@
 // fake INK; the INK of this work tree is the foundation implementation, so
 // the real INK v2 figures come with the integration stage):
 // - the pen-down extra cost (the contact rule + the gesture at contact +
-//   the recording meta while recording) 10,000 times < 20 ms (the barrel
-//   roll angle is E2-18 — P-B — and joins this figure when it lands);
+//   the recording meta while recording + (E2-18) the barrel roll nib angle
+//   of a calligraphy pen) 10,000 times < 20 ms;
 // - one playback highlight frame's EDITOR share (positionMs + the logic +
 //   setPlaybackFocus on 8 mounted page controllers) 1,000 times < 50 ms;
 // - one rotate preview of a mixed selection of everything on a page of
@@ -34,6 +34,7 @@ import 'dart:math' as math;
 import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:fake_async/fake_async.dart';
+import 'package:feature_editor/feature_editor.dart' show StylusCapabilities;
 import 'package:feature_editor/src/document/mounted_pages.dart';
 import 'package:feature_editor/src/document/page_mount.dart';
 import 'package:feature_editor/src/input/input_router.dart';
@@ -43,6 +44,7 @@ import 'package:feature_editor/src/input/stylus_contact.dart';
 import 'package:feature_editor/src/playback/playback_highlighter.dart';
 import 'package:feature_editor/src/playback/recording_link.dart';
 import 'package:feature_editor/src/state/settings/editor_settings.dart';
+import 'package:feature_editor/src/stylus/barrel_roll.dart';
 import 'package:feature_editor/src/text/text_box_editor.dart';
 import 'package:feature_editor/src/text/text_box_placement.dart';
 import 'package:feature_editor/src/text/text_edit_session.dart';
@@ -194,7 +196,7 @@ void main() {
   // ---- v2 (E2-22, m5-7/04-editor 6.22) ------------------------------------
 
   test('v2: pen-down extra cost (contact + gesture at contact + recording '
-      'meta) 10,000 times < 20 ms', () {
+      'meta + barrel roll nib angle) 10,000 times < 20 ms', () {
     fakeAsync((async) {
       final store = createFakeNoteStore();
       final recorder = FakeAudioRecorder(store: store);
@@ -214,11 +216,22 @@ void main() {
             pressure: 0.5,
           ),
       ];
+      // (E2-18 — 6.5.4) a roll 100 ms before the downs (event timestamps),
+      // a calligraphy pen that follows it.
+      const capabilities = StylusCapabilities(barrelRoll: true);
+      final calligraphy = core.StrokeStyle.defaultsFor(
+        core.PenTool.calligraphy,
+      );
+      final roll = BarrelRollTracker()
+        ..note(math.pi / 6, timestamp: const Duration(seconds: 10));
+      const downAt = Duration(seconds: 10, milliseconds: 100);
       var linked = 0;
       var buttons = 0;
+      var rolled = 0;
       final ms = _bestMs(() {
         linked = 0;
         buttons = 0;
+        rolled = 0;
         for (var i = 0; i < 10000; i++) {
           final e = downs[i % downs.length];
           final rule = i.isEven
@@ -232,10 +245,17 @@ void main() {
             core.PenTool.ballpoint,
           );
           if (meta.recordingId != null) linked++;
+          final style = roll.styleAtPenDown(
+            calligraphy,
+            downTimeStamp: downAt,
+            capabilities: capabilities,
+          );
+          if (!identical(style, calligraphy)) rolled++;
         }
       });
       expect(linked, 10000);
       expect(buttons, 5000);
+      expect(rolled, 10000);
       expect(ms, lessThan(20), reason: '10,000 pen downs took $ms ms');
       unawaited(recorder.stop());
       unawaited(store.close());

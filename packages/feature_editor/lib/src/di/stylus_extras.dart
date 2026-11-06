@@ -5,7 +5,8 @@
 // Native-only pencil events enter the editor through this interface only.
 // INFRA's PencilStylusExtrasSource (pencil_bridge) overrides
 // stylusExtrasProvider on iPad (contract 7.3.3). R2-B5 (foundation): the v2
-// types; nothing subscribes yet — the listener comes in E2-18 (6.5).
+// types. E2-18: StylusExtrasListener (stylus/stylus_extras_listener.dart)
+// subscribes while the note's page viewport is on screen (6.5).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -225,7 +226,7 @@ class NoStylusExtras implements StylusExtrasSource {
 
 /// Native-only pencil events (squeeze, double tap, barrel roll, hover pose).
 /// Default: unsupported (web). INFRA overrides it on iPad (contract 7.3.3);
-/// consumed from E2-18.
+/// consumed by StylusExtrasListener (E2-18).
 final stylusExtrasProvider = Provider<StylusExtrasSource>(
   (ref) => const NoStylusExtras(),
   name: 'stylusExtrasProvider',

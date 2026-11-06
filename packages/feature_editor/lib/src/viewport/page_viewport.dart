@@ -10,7 +10,8 @@
 // canvas joins the editor's tap group while a text session is open
 // (TextFieldTapRegion — a canvas down is not the editor's onTapOutside; the
 // router decides, 6.11.5) and the new text box outline (6.11.1). (E2-19) The
-// position flash (6.16).
+// position flash (6.16). (E2-18) The Apple Pencil events while the viewport
+// is on screen (StylusExtrasListener — 6.5.1).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../input/editor_shortcuts.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../stylus/stylus_extras_listener.dart';
 import '../text/text_box_editor.dart';
 import '../text/text_edit_session.dart';
 import '../text/text_input_sheet.dart';
@@ -136,35 +138,39 @@ class _PageViewportState extends ConsumerState<PageViewport> {
                     gestures: const {EagerGestureRecognizer: _eagerFactory},
                     child: _InputListener(
                       router: router,
-                      child: ClipRect(
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ListenableBuilder(
-                              listenable: camera,
-                              builder: (context, _) => _buildPages(viewport),
-                            ),
-                            const SelectionFrame(),
-                            // (v2, E2-06) the angle tag of a rotate drag
-                            // (6.6.6).
-                            const RotationLabel(),
-                            // (v2, E2-10) the text tool's new box (6.11.1).
-                            const NewTextBoxOutline(),
-                            // (v2, E2-19) the position flash (6.16).
-                            const FocusFlash(),
-                            IgnorePointer(
-                              child: RepaintBoundary(
-                                child: CustomPaint(
-                                  painter: CursorPainter(
-                                    cursor: host.cursor,
-                                    ringColor: scheme.onSurface.withValues(
-                                      alpha: 0.6,
+                      // (v2, E2-18) hover poses → viewport coordinates of
+                      // this box (6.5.3).
+                      child: StylusExtrasListener(
+                        child: ClipRect(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ListenableBuilder(
+                                listenable: camera,
+                                builder: (context, _) => _buildPages(viewport),
+                              ),
+                              const SelectionFrame(),
+                              // (v2, E2-06) the angle tag of a rotate drag
+                              // (6.6.6).
+                              const RotationLabel(),
+                              // (v2, E2-10) the text tool's new box (6.11.1).
+                              const NewTextBoxOutline(),
+                              // (v2, E2-19) the position flash (6.16).
+                              const FocusFlash(),
+                              IgnorePointer(
+                                child: RepaintBoundary(
+                                  child: CustomPaint(
+                                    painter: CursorPainter(
+                                      cursor: host.cursor,
+                                      ringColor: scheme.onSurface.withValues(
+                                        alpha: 0.6,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),

@@ -21,6 +21,7 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
 import '../di/editor_extensions.dart';
+import '../di/stylus_extras.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
 import '../objects/object_factory.dart';
@@ -33,6 +34,7 @@ import '../state/preset_bar.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../state/settings/pre_roll.dart';
+import '../stylus/stylus_extras_listener.dart' show penOnlyEffectiveWith;
 import '../tools/element_clipboard.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
@@ -731,17 +733,18 @@ class EditorCommands {
 
   /// Finger drawing on ↔ off: on = InputMode.fingerDrawing, off =
   /// InputMode.penOnly (6.9.1 [✋]). From auto it goes to the opposite of
-  /// what auto does now (EditorSettings.isPenOnlyEffective).
+  /// what auto does now (EditorSettings.isPenOnlyEffective — (v2, E2-18)
+  /// with iPadOS '펜슬로만 그리기', 6.5.3).
   void toggleFingerDrawing() {
     if (_disposed) return;
     final settings = _ref.read(editorSettingsProvider);
+    final penOnly = penOnlyEffectiveWith(
+      settings,
+      _ref.read(stylusExtrasProvider).capabilities,
+    );
     _ref
         .read(editorSettingsProvider.notifier)
-        .setInputMode(
-          settings.isPenOnlyEffective
-              ? InputMode.fingerDrawing
-              : InputMode.penOnly,
-        );
+        .setInputMode(penOnly ? InputMode.fingerDrawing : InputMode.penOnly);
   }
 
   /// More menu '페이지 넘김' (vertical scroll / horizontal paging). The

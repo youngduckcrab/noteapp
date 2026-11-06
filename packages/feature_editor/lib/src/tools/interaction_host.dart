@@ -20,7 +20,9 @@
 // tool (6.9.2 — ShapeInteraction, a new shape selected with origin drawn).
 // E2-10: the text tool (6.11.1 — TextToolInteraction, the new box outline)
 // and the router-side ends of a text edit session (6.11.5 — a pen / mouse
-// contact, a one-finger tap, the long press).
+// contact, a one-finger tap, the long press). E2-18: the Apple Pencil hover
+// pose cursor (6.5.3), iPadOS '펜슬로만 그리기' in the input policy and the
+// barrel roll → calligraphy nib angle at pen down (6.5.4).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -34,6 +36,7 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../actions/editor_action_runner.dart';
 import '../commands/editor_commands.dart';
+import '../di/stylus_extras.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_sample.dart';
 import '../input/input_targets.dart';
@@ -50,6 +53,8 @@ import '../state/settings/editor_device_state.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../state/settings/pre_roll.dart';
+import '../stylus/barrel_roll.dart';
+import '../stylus/stylus_extras_listener.dart' show penOnlyEffectiveWith;
 import '../text/text_box_placement.dart';
 import '../text/text_edit_session.dart';
 import '../ui/dev/dev_metrics.dart';
@@ -159,6 +164,10 @@ class InteractionHost implements InputTargets {
   ToolInteraction? _lastStarted;
   bool _disposed = false;
 
+  /// (v2, E2-18 — 6.5.4) The last barrel roll of this note screen
+  /// (StylusExtrasListener notes it; the pen down reads it).
+  final BarrelRollTracker barrelRoll = BarrelRollTracker();
+
   ValueListenable<CursorState?> get cursor => _cursor;
 
   /// The open context menu (long press / secondary click), or null.
@@ -188,7 +197,12 @@ class InteractionHost implements InputTargets {
   InputPolicy get policy {
     final settings = _ref.read(editorSettingsProvider);
     return InputPolicy(
-      penOnly: settings.isPenOnlyEffective,
+      // (v2, 6.5.3 — S-12(c)) auto is pen only from the start when iPadOS
+      // '펜슬로만 그리기' is on (the source's capabilities).
+      penOnly: penOnlyEffectiveWith(
+        settings,
+        _ref.read(stylusExtrasProvider).capabilities,
+      ),
       palm: settings.palmRejection,
       gestures: settings.gestures,
       stylusSeen: settings.stylusSeen,
@@ -295,7 +309,13 @@ class InteractionHost implements InputTargets {
     switch (tool) {
       case EditorTool.pen:
         _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
-        final style = tools.currentPen;
+        // (v2, E2-18 — 6.5.4) a recent barrel roll turns the calligraphy
+        // nib of this stroke only.
+        final style = barrelRoll.styleAtPenDown(
+          tools.currentPen,
+          downTimeStamp: sample.timeStamp,
+          capabilities: _ref.read(stylusExtrasProvider).capabilities,
+        );
         interaction = PenInteraction.start(
           down: sample,
           source: source,
@@ -965,15 +985,13 @@ class InteractionHost implements InputTargets {
     } else {
       switch (tools.activeTool) {
         case EditorTool.pen when sample.kind != PointerDeviceKind.mouse:
-          final style = tools.currentPen;
-          next = PenDotCursor(
-            position: sample.position,
-            diameter: math.max(
-              4,
-              2 * ink.StrokeStyleInk(style).previewRadius * scale,
-            ),
-            color: Color(style.colorArgb).withValues(alpha: 0.5),
-          );
+          next = _penDot(tools.currentPen, sample.position, scale);
+        // (v2, E2-18 — 6.5.3) on the native iPad the pencil hover is a mouse
+        // hover; the pen dot comes from the hover pose there, so a mouse
+        // hover leaves it alone.
+        case EditorTool.pen
+            when _ref.read(stylusExtrasProvider).capabilities.hoverPose:
+          return;
         case EditorTool.eraser:
           next = EraserRingCursor(
             position: sample.position,
@@ -989,6 +1007,43 @@ class InteractionHost implements InputTargets {
     _cursor.value = next;
     _hoverTimer?.cancel();
     _hoverTimer = next == null ? null : Timer(kHoverCursorTimeout, _hideCursor);
+  }
+
+  /// The 1st-round pen dot: max(4, 2 × previewRadius × scale) px, the pen
+  /// colour at 50 %, × [sizeFactor] (the hover pose — 6.5.3).
+  static PenDotCursor _penDot(
+    core.StrokeStyle style,
+    Offset position,
+    double scale, {
+    double sizeFactor = 1,
+  }) => PenDotCursor(
+    position: position,
+    diameter:
+        math.max(4, 2 * ink.StrokeStyleInk(style).previewRadius * scale) *
+        sizeFactor,
+    color: Color(style.colorArgb).withValues(alpha: 0.5),
+  );
+
+  /// (v2, E2-18 — 6.5.3) A StylusHoverPose at [position] (viewport px) on a
+  /// source with capabilities.hoverPose: the pen tool's pen dot there, the
+  /// 1st-round diameter × (1 + 0.5 × height) — at height 0 (touching) the
+  /// real width, up to 1.5 × at the top of the hover range (height 0..1,
+  /// UIKit zOffset; none → 0) — hidden after [kHoverCursorTimeout] without
+  /// a pose. Other tools keep the Flutter hover's cursor.
+  void poseHover(Offset position, {double? height}) {
+    if (_disposed) return;
+    final tools = _ref.read(editorToolProvider);
+    if (tools.eyedropperActive || tools.activeTool != EditorTool.pen) return;
+    if (_commands.interactionActive) return; // touching: no hover cursor
+    final h = (height ?? 0).clamp(0.0, 1.0);
+    _cursor.value = _penDot(
+      tools.currentPen,
+      position,
+      _viewport.camera.scale,
+      sizeFactor: 1 + 0.5 * h,
+    );
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(kHoverCursorTimeout, _hideCursor);
   }
 
   void _hideCursor() {

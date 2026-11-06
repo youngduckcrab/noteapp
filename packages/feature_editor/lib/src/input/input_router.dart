@@ -127,6 +127,7 @@ class InputRouter {
   Duration? _lastStylusActivity; // down / move / up (airborne included)
   Duration? _lastStylusHover;
   Duration? _lastPoseHover; // on [_clock], not event timestamps (6.5.3)
+  Duration? _lastPoseHoverStamp; // the pose's own timestamp (event base)
   bool _stylusReported = false;
   Timer? _longPressTimer;
 
@@ -139,10 +140,21 @@ class InputRouter {
 
   /// (v2) Native iPad: a StylusHoverPose arrived (6.5.3). The pencil hover
   /// reaches Flutter as a mouse hover, so palm rejection P3
-  /// (treatHoverAsPenActivity) counts these instead. The time is taken from
-  /// the router's monotonic clock and finger downs are compared on the same
-  /// clock (the event timestamp's base is unconfirmed — C-1).
-  void noteStylusPoseHover() => _lastPoseHover = _clock();
+  /// (treatHoverAsPenActivity) counts these instead.
+  ///
+  /// (v2.1, CP-E6 — E2-18) With the event's [timestamp] (iOS systemUptime —
+  /// the same base as PointerEvent.timeStamp [추측, C-1]) a finger down is
+  /// compared with it on its own PointerEvent.timeStamp; without one the
+  /// time is taken from the router's monotonic clock and the finger down is
+  /// read from the same clock. The two are separate ledgers: a value of one
+  /// base is never compared with a value of the other.
+  void noteStylusPoseHover({Duration? timestamp}) {
+    if (timestamp != null) {
+      _lastPoseHoverStamp = timestamp;
+    } else {
+      _lastPoseHover = _clock();
+    }
+  }
 
   /// Finger pointers down that are not rejected or consumed.
   int get activeTouchCount => _pointers.values
@@ -479,7 +491,9 @@ class InputRouter {
     if (recent(_lastStylusActivity)) return true;
     if (palm.treatHoverAsPenActivity) {
       if (recent(_lastStylusHover)) return true;
-      // (v2) The iPad pose hover, on the router's own clock (6.5.3).
+      // (v2) The iPad pose hover: its timestamp against the down's
+      // timestamp, else the router's own clock against itself (6.5.3).
+      if (recent(_lastPoseHoverStamp)) return true;
       final pose = _lastPoseHover;
       if (pose != null && recentAt(_clock(), pose)) return true;
     }

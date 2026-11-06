@@ -2,7 +2,8 @@
 // plus cancelAll / counters / trackpad. (v2) m5-7/04-editor 8.2 E2-04a:
 // R34..R42 (stylus contact rule, gesture at contact — 6.3.2·6.3.3) and the
 // pose hover of palm rejection P3 (R46 — 6.5.3); E2-04b: R43..R52 (taps and
-// long press by actionFor, the pen dot tap, the text session — 6.3.4·6.3.5). Events go straight to
+// long press by actionFor, the pen dot tap, the text session — 6.3.4·6.3.5);
+// E2-18: R46b (a pose hover's event timestamp — CP-E6). Events go straight to
 // router.handlePointerEvent with synthetic timestamps; testWidgets' fake time
 // (tester.pump) drives the long-press Timer and VelocityTracker's clock.
 // RecordingInputTargets (E-01) records every router → editor call.
@@ -1128,6 +1129,44 @@ void main() {
             : t.callsStartingWith('begin'),
         hasLength(2),
       );
+    });
+  });
+
+  group('v2.1 — pose hover with an event timestamp (R46b, 6.5.3 CP-E6)', () {
+    _allModesTest('R46b a timestamped pose: the finger down is compared on '
+        'its own timeStamp', (input, t) async {
+      input.router.noteStylusPoseHover(timestamp: input.now);
+      await input.wait(const Duration(milliseconds: 100));
+      input.down(a, p0);
+      input.up(a);
+      expect(t.callsStartingWith('palmRejected'), hasLength(1));
+
+      // 600 ms after the pose's stamp → normal.
+      await input.wait(const Duration(milliseconds: 500));
+      input.down(b, p0);
+      input.up(b);
+      expect(t.callsStartingWith('palmRejected'), hasLength(1));
+    });
+
+    _allModesTest('R46b the two bases are not mixed: an old stamp does not '
+        'reject even though the pose just arrived on the router clock; a '
+        'stamp-less pose still uses the clock', (input, t) async {
+      // Stamped 2 s before the down's timeStamp (its arrival is now on the
+      // monotonic clock — not looked at).
+      input.router.noteStylusPoseHover(
+        timestamp: input.now - const Duration(seconds: 2),
+      );
+      await input.wait(const Duration(milliseconds: 100));
+      input.down(a, p0);
+      input.up(a);
+      expect(t.callsStartingWith('palmRejected'), isEmpty);
+
+      await input.wait(const Duration(milliseconds: 500));
+      input.router.noteStylusPoseHover(); // the clock ledger
+      await input.wait(const Duration(milliseconds: 100));
+      input.down(b, p0);
+      input.up(b);
+      expect(t.callsStartingWith('palmRejected'), hasLength(1));
     });
   });
 
