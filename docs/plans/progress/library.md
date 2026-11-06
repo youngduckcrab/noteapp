@@ -5,6 +5,7 @@
 - 마지막 세션: 통합 단계 1차(CORE → INK → EDITOR·LIBRARY 병합 뒤) — L21 실제 CORE로 통과('통합 단계' 절). 동시 개발 단계 몫(L0~L20)은 세션 8까지 끝(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, 세션 7: L17·L18, 세션 8: L19·L20, L2는 기반 단계 B6에서 완료)
 - 다음 할 일: INFRA·PDF 병합 뒤 남은 통합 확인('통합 단계' › 남은 것 — V5 배너 문구, 앱 웹 빌드에서 9.2 준비, 사용자 iPad 확인)
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
+- (2차) 기반 단계 R2-B6 완료 — `99cdeef`(아래 '## 2차'). 기준: 계획서 `docs/plans/m5-7/05-library.md` 8.1, 통합 계약 m5-7/00-overview 7장 v2.2(7.2.11, 7.6.2 R2-B6 행, 7.6 시험 도우미)
 
 ## 작업 표
 
@@ -237,3 +238,41 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 - PDF 병합·INFRA 연결 뒤: 9.2 #28(선택 막대 'PDF 내보내기'·노트 ⋯ 'PDF로 내보내기')과 'PDF 가져오기'가 실제 함수로 — 자리 provider(`libraryPdfImportActionProvider`·`libraryPdfExportActionProvider`)는 L14·L18에서 준비됨, INFRA가 7.3.3 표대로 override.
 - 9.2 #6(썸네일)·#24(스크롤 느낌)·K-3(렌더 시간): 기기에서.
 - 변경 요청: 없음. 의존성 요청: 없음(`pubspec.lock` 변경 없음). 공개 API 변경 없음.
+
+## 2차
+
+계획 docs/plans/m5-7/05-library.md(승인 · 계약 v2.2 — 7.6.2 R2-B6 행, 7.6 시험 도우미 블록의 `ink_recognition/testing.dart`, 05-library 8.1 B6-a·B6-b). 바탕: `main` `c824a37`(1차 통합 HEAD `b6c9d0a` + 계획 + R2-B1 `3c77de3` + R2-B7b `9cdd3fb` + R2-B2·B7a·B2i 묶음 + R2-B3 INK T24 `fd3370f` + R2-B5 `78d7f25` + R2-B4 `5636d4e`).
+
+### 작업 표 (2차)
+
+| ID | 상태 | 커밋 | 비고 — 완료 조건 |
+|---|---|---|---|
+| B6-a | 완료 | 99cdeef | `feature_library`: `LibraryOpenNoteAt`·`LibraryScreen.onOpenNoteAt`(받기만 — 필드 저장, 화면 동작 없음), 내보내기 12개. `test/feature_library_smoke_test.dart`(기존 6개 + `onOpenNoteAt`을 넘겨 띄우고 새 노트는 여전히 `onOpenNote` 1회·`onOpenNoteAt` 0회), `unit/api_surface_test.dart`(12개 이름 — `LibraryOpenNoteAt` 함수형·생성자 인자·기본 null) |
+| B6-b | 완료 | 99cdeef | `ink_recognition`: 7.2.11 공개 표면 35개 이름(05-library 4.2 목록) + `testing.dart` 4개. `test/ink_recognition_smoke_test.dart`(새로 씀 — `recognitionOverrides()` + 가짜 저장소로 provider 전부 읽기, 저장소 override 없이도 예외 없음, 쓸 수 있는 엔진 → 색인기·컨테이너 dispose, 설정 섹션 빌드), `unit/api_surface_test.dart`(진입점 두 개의 `show` 목록 = 4.2 목록·4.3 목록, 계약 블록 호출 모양 전부 — `HandwritingIndexer(store:, recognizer:, enabled:, foreground:)` 포함, 4.4.2 기본 엔진, 4.4.5 기본값·`==`·`copyWith`, 6.19 `toString`), `unit/handwriting_trace_test.dart`(본문 `shared/trace_cases.dart` — Chrome에서도), `unit/fakes_test.dart`('줄 1'·'줄 2'·변형 2개, `failNext` 한 번, `failWith` 매번, `fake_async` 지연, 취소, CP-L4 멤버, `SyntheticHandwriting` id 형식·결정성), `unit/synthetic_shapes_test.dart`(B6 몫: 4n+1점·윗변 가운데 시작·정확히 닫힘·시계 방향·변마다 n점 고른 간격·`ArgumentError` — 판정 단언은 L2-06), `unit/group_into_lines_test.dart`(B6 몫 — 아래 3), `web/recognition_browser_test.dart`(B6 몫: 진입점 import, `recognitionOverrides()` → 지원 안 함·직접 입력만·`NoShapeFitter`·색인기 null, 쓸 수 있는 가짜 엔진이어도 웹은 색인기 null, 공유 본문). 패키지에서 `flutter test` 태그 경고 없음(`dart_test.yaml`은 R2-B1 그대로) |
+
+확인(2026-11-06, 커밋 전 작업 트리): `flutter analyze --fatal-infos` 두 패키지 0건, `dart format` 변경 없음, `ws test --package feature_library --package ink_recognition --platform vm` **feature_library 628 통과·1 skip(integration), ink_recognition 57 통과**, `ws test --package ink_recognition --platform chrome` **9 통과**, `ws test --package feature_library --platform chrome` **17 통과**, `ws check`(R1~R16, R14 포함) 위반 0·경고 0.
+
+### 7.6.2 R2-B6 행 대비 동작 (기반 단계 — 동시 개발에서 교체)
+
+- **최종**: 모델·실패 타입·포트, `HandwritingTrace.fromStroke`(`ts = createdAt + t(i)`, `Float64List`), `UnsupportedHandwritingRecognizer`·`ManualOnlyMathRecognizer`(4.4.2 — provider 기본값), `ShapeFitTuning`(4.4.5), `RecognitionConfig`, provider 4개의 이름·타입, `RecognitionTarget`·`RecognitionAction`, `HandwritingIndexerStatus`·`HandwritingIndexerPhase`(+ 6.19 `toString`), `testing.dart`의 가짜 엔진 두 개와 `SyntheticShapes.rectanglePath`(INFRA V5b가 기반 단계 뒤 바로 씀).
+- **단순**: `recognitionOverrides()`는 `[ink.inkShapeFitterProvider.overrideWithValue(const NoShapeFitter())]` 하나(계약 7.6.2 — `config`는 아직 읽지 않음, 엔진 두 개·`GeometricShapeFitter`는 L2-07), `GeometricShapeFitter.fit` → 늘 null(L2-06), `groupIntoLines`는 획마다 한 줄(L2-05), 동작 목록 둘 다 빈 목록(L2-12), `HandwritingIndexer.start()` 아무것도 안 함·`dispose()` 멱등·`status` = `off`(L2-10a·L2-10b), `handwritingIndexerProvider`는 웹이거나 엔진을 쓸 수 없으면 null이고 그 밖에는 `enabled`가 늘 거짓인 색인기(L2-11에서 `recog.autoIndex`를 따름 — 설정 키는 L2-07), `recognitionDevOverlayLinesProvider`는 `['손글씨 색인 없음 (이 기기에서 인식 불가)']` 고정(L2-11), `RecognitionSettingsSection`은 빈 `Column`(L2-18), `SyntheticHandwriting`은 계약 id 형식·6.6 틀만 맞춘 단순 생성(L2-05가 E-L5 시제품으로 교체).
+
+### 계획·계약과 다르게 한 점 (2차 R2-B6)
+
+1. **고르기(`createPlatformHandwritingRecognizer` 조건부 export)를 만들지 않았다** — 8.2 L2-07 작업이다. 8.1 B6-b의 브라우저 시험 '`stub 선택`'은 '`recognitionOverrides()`를 넣은 웹 컨테이너에서 손글씨 엔진이 `UnsupportedHandwritingRecognizer`'로 확인했다(B6의 `recognitionOverrides()`는 손글씨 provider를 override하지 않으므로 지금은 기본값). 조건부 export와 '웹은 stub 파일·VM은 native 파일' 확인은 L2-07·L2-20에서. `RecognitionStrings`·설정 키(`RecognitionSettingsKeys`)도 L2-07이라 개발자 줄 문장은 `providers.dart`의 private 상수로 두었다.
+2. `HandwritingIndexer`는 계약 생성자 인자를 아직 **보관하지 않는다**(쓰지 않는 private 필드는 analyze 경고). `dispose()` 뒤에도 `status`의 `ValueNotifier`는 닫지 않는다(provider·개발자 표시가 dispose 뒤에 읽어도 안전 — L2-10a에서 수명 규칙을 정함).
+3. `groupIntoLines`(B6 몫): 점 없는 획을 버리고, 줄 = 획 하나, 순서 = 획 상자 윗변 → 왼쪽 → 첫 시각 → 입력 순서(4.4.6 출력 규칙만 지킴). 8.1 표에 시험 파일이 없어 `unit/group_into_lines_test.dart`를 B6 몫으로 더했다(L2-05가 6.5·V9 사례로 바꿈).
+4. 가짜 엔진의 세부(4.3이 정하지 않은 것): `FakeHandwritingRecognizer(isAvailable: false)` → `modelState` = `unsupported`, `ensureModel`·`recognizeLine` → `RecognizerUnsupported`(호출은 먼저 기록). `ensureModel`은 횟수를 세고 그 언어를 `ready`로. 기본 답의 n은 실패한 호출도 센다. `FakeMathRecognizer`: 호출 기록 → `isAvailable` 거짓이면 `RecognizerUnsupported` → `failWith`(매번) → 지연. 지연 중에 `cancel`이 끝나면 `RecognizerCancelled`(지연 0이면 취소를 보지 않고 바로 답). `confidence`는 null(4.3 그대로). `FakeHandwritingRecognizer`의 내부 `RecognizerModelAdmin` 구현은 그 인터페이스가 생기는 L2-08에서.
+5. 가짜 두 개의 생성자는 Dart의 private named parameter(`this._answer` 등 — 부르는 쪽 이름은 `answer:`·`isAvailable:`·`latency:`·`latex:`·`failWith:`)로 썼다. 호출 모양은 계약과 같다(`api_surface_test`가 계약 인자 이름으로 부름). 1차 EDITOR 코드도 같은 문법을 쓴다.
+6. `SyntheticHandwriting.lines`(B6 몫): 줄 번호는 0부터, `<n>`은 페이지 안 획 번호(0부터, 쓴 순서) — E-L5 시제품 `synth.dart`와 같다. 획은 글자마다 지그재그 하나(6~12점, 8 ms 간격), 줄 간격·글자 높이는 6.6 범위. `lineCount`가 0~99 밖이면 `ArgumentError`(id의 줄 자리가 두 자리).
+7. `SyntheticShapes.rectanglePath`: 점 수 = 4 × `pointsPerSide` + 1(마지막 = 처음). 윗변은 가운데에서 나눠 앞쪽 ⌈n/2⌉점(가운데 → 오른쪽 위 모서리 전)과 뒤쪽 ⌊n/2⌋점(왼쪽 위 모서리 → 가운데 전)이라 n이 홀수면 두 반쪽의 간격이 조금 다르다(n 짝수 — 기본 24 — 면 윗변 전체가 w/n 간격). 크기 규칙은 '두 변 모두 ≥ 48 pt'로 검사한다(정규화된 rect에서 `shortestSide ≥ 48`과 같고, 폭·높이가 음수인 rect도 거절).
+8. 공개 이름을 더하지 않고 값 타입에 `==`·`hashCode`·`toString`을 더했다: `TextCandidate`, `MathResult`, `RecognitionConfig`(`==`·`toString`), 실패 7종(`toString`), `HandwritingTrace`·`HandwritingLineInput`·`MathInput`(`toString`).
+9. `unit/api_surface_test.dart`는 진입점 파일의 `show` 목록을 읽어 4.2·4.3 목록과 맞춰 보므로 `@TestOn('vm')`이다(Chrome 몫은 `web/recognition_browser_test.dart`).
+10. 이 진행 기록(`docs/plans/progress/library.md`)은 이 단계 경로 목록 밖이지만 영역 자기 진행 파일이다(계약 2차 2.2).
+
+### 다른 영역에 알림
+
+- INFRA(R2-B8a `RecognitionModule`): 지금 `recognitionOverrides()`는 override 1개(`inkShapeFitterProvider` → `NoShapeFitter`)다. L2-07 병합 뒤 정확히 3개(4.4.8)가 된다 — V5의 'provider 출처·횟수' 단언은 그때의 3개 기준으로. `handwritingIndexerProvider`는 웹·지원 안 함에서 null이고, 만들어진 색인기의 `start()`는 L2-10a까지 아무것도 하지 않는다(유휴 작업 `recognition.indexer`가 불러도 안전).
+- INFRA V5b·LIBRARY L2-I3: `SyntheticShapes.rectanglePath`는 이 커밋부터 최종 모양이다. '기본 판정기가 늘 사각형으로 판정'은 L2-06(P-B)이 `GeometricShapeFitter`를 넣을 때 켠다.
+- EDITOR·INFRA: `recognitionSelectionActions()`·`recognitionInsertActions()`는 L2-12까지 빈 목록이다.
+
