@@ -393,9 +393,9 @@
 | R2-B8a | 완료 | `a4c9cca` | `app/test/features/app_features_test.dart`, `bootstrap/app_bootstrapper_test.dart`(v2 묶음 — skipped·실패 모듈 기여 제거·대체 기여·늦은 기여 무시·기능 해석), `bootstrap/idle_tasks_test.dart`(6.5.1 표), `modules/media_module_test.dart`, `modules/recognition_module_test.dart`, `modules/pdf_module_test.dart`(이음새), `modules/feature_wiring_module_test.dart` v2, `modules/production_modules_test.dart`(`modulesFor` 4조합), `bootstrap/overrides_unique_test.dart` v2(표 6경우), `settings/settings_sections_test.dart`(기여 섹션 위치) |
 | R2-B8b | 완료 | `6e7b753` | `app/test/routing/app_routes_test.dart`(왕복 20·잘못된 값 9 + 숫자 형식 9·`%2C`·주소에서 버림), `routing/app_router_test.dart`(`?page=&focus=` 7경우 — 인자 전달·`%2C`·잘못된 focus·page 없는 focus·`openNote` 푸시·새로고침 같은 위치), `routing/production_screens_test.dart`(`onOpenNoteAt` → 에디터 인자 3경우), `packages/pencil_bridge/test/pencil_bridge_test.dart`(디코딩·두 구독 → cancel 1회 → listen 2회째·캐시·오류 버림·`capabilities`·다른 플랫폼 채널 0회), `packages/pencil_bridge/test/api_surface_test.dart`, `app/test/pencil/pencil_stylus_extras_test.dart`, `modules/feature_wiring_module_test.dart`(Pencil 5경우), `bootstrap/overrides_unique_test.dart`(iPad 경우) |
 | J0 | 진행 중 — ①②③ 완료, ④ 대기(첫 체크포인트 푸시 뒤 GitHub 실행 기록 필요) | `1fd1aea`(①②③) | `tool/test/native_config_test.dart`(파서 7·커밋된 파일 8·규칙마다 깨뜨리기 23), 웹 빌드 측정 표(아래·계획 6.15), CI 실측 표(6.16 — ④) |
-| J1 | 완료 | (J1 커밋 — 아래 'J1' 절) | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
-| J2 | 완료 | (J2 커밋 — 아래 'J2' 절) | `native_config_test`(서명 분기 — 커밋된 파일 1·파서 2·규칙마다 깨뜨리기 4), `workflows_test` `android.yml` 묶음 15(단계 순서·NDK·시크릿은 잡 `env`만·`key.properties` 경로·**서명 세 갈래**를 셸 조각으로 실행·아티팩트 이름 두 갈래·가짜 `apksigner` 4경우) — 실제 서명은 GitHub(H6, V14) |
-| J3 | 완료 | (J3 커밋 — 아래 'J3' 절) | `workflows_test` `ios-compile.yml` 묶음 7(입력·게이트·`macos-26`·45분·`concurrency`·시크릿·변수 없음·`--no-codesign`·`pipefail`+`tee`·아티팩트·요약 셸 조각을 표본 로그·`Podfile.lock`으로 실행) + `ios-testflight.yml` 묶음 7(`macos-26`·`IOS_SIGNING_MODE`·수동 서명 단계·**두 서명 갈래**를 가짜 `xcodebuild`로 실행·Admin 주석), `guides_test` 06 — 실행은 U19(H6) |
+| J1 | 완료 | `3ff3b76` | `tool/test/native_reqs_test.dart`(파서 9·깨끗한 픽스처 2·NR1~NR7 각각 깨뜨리기 8·실제 워크스페이스 2·`ws native-reqs` 명령 3), `native_config_test`(J1 묶음 4 — NR7을 커밋된 파일에), `ws native-reqs` 0 |
+| J2 | 완료 | `0da5b71` | `native_config_test`(서명 분기 — 커밋된 파일 1·파서 2·규칙마다 깨뜨리기 4), `workflows_test` `android.yml` 묶음 15(단계 순서·NDK·시크릿은 잡 `env`만·`key.properties` 경로·**서명 세 갈래**를 셸 조각으로 실행·아티팩트 이름 두 갈래·가짜 `apksigner` 4경우) — 실제 서명은 GitHub(H6, V14) |
+| J3 | 완료 | `44609e8` | `workflows_test` `ios-compile.yml` 묶음 7(입력·게이트·`macos-26`·45분·`concurrency`·시크릿·변수 없음·`--no-codesign`·`pipefail`+`tee`·아티팩트·요약 셸 조각을 표본 로그·`Podfile.lock`으로 실행) + `ios-testflight.yml` 묶음 7(`macos-26`·`IOS_SIGNING_MODE`·수동 서명 단계·**두 서명 갈래**를 가짜 `xcodebuild`로 실행·Admin 주석), `guides_test` 06 — 실행은 U19(H6) |
 | J4 | 남음 | | `app/test/storage/native_storage_paths_test.dart`·`core_module_test` |
 | J5 | 남음 | | `feature_switch_section_test`·`settings_sections_test` v2·`app_module_context_test` |
 | J6 | 남음 | | `idle_tasks_test` 보강·`bootstrap_app_test` |
@@ -483,6 +483,8 @@
 
 #### J1 — `ws native-reqs` (계획 8.2, 4.3.2, 6.3)
 
+- 커밋: `3ff3b76`.
+
 - **`tool/native_requirements.yaml`**(4.3.2 그대로 + `flutter_defaults: {min_sdk: 24, compile_sdk: 36}` — 6.3 문장의 대체값): `app:`(15.5·`flutter`·`flutter`·필기노트·`false`·필기노트), `cocoapods_only_allowed` ML Kit 둘, `plugins` 10개(영역 열 = 요구를 낸 계획서), `plugins_without_requirements` 13개, `app_extra`(`INTERNET`, `ITSAppUsesNonExemptEncryption: false`).
 - **`tool/src/native_reqs.dart`**: `NativeRequirements.parse/load`(키·태그·SDK 값 검사, 두 목록 겹침 거절), `FlutterPluginsDependencies.parse/load`(`plugins.ios/android` — `native_build`·`dev_dependency`, `dependencyGraph` 이름 집합, 상대 경로는 파일 위치 기준), `podspecIosMinimum`(`s.platform`·`ios.deployment_target` 큰 값), `swiftPackageIosMinimum`(`"x"`·`.vNN`·`.vNN_M`), `flutterGradleDefaults`(`FlutterExtension.kt`), `PluginNativeInfo.read`(`ios/`·`darwin/`·`android/build.gradle(.kts)`), `nativeRequirementProblems`(NR7 — `native_config_test`와 같은 함수), `checkNativeRequirements`(NR1~NR7) → `NativeReqsReport.format()`(표·앱 줄·발견·요약).
 - **`tool/src/native_config.dart`**: `gradleSdkValue`(kts·groovy·괄호·주석 무시, Flutter 기본값 식 → `flutter`), `AndroidGradleInfo`, `NativeConfigPaths.androidGradle`, `NativeConfig.androidGradle`(J2가 서명 분기를 여기에 더한다).
@@ -499,6 +501,8 @@
 
 #### J2 — release 고정 서명 · `android.yml` v2 (계획 8.2, 6.10.2·6.10.3)
 
+- 커밋: `0da5b71`.
+
 - **`app/android/app/build.gradle.kts`**(6.10.2 그대로): `rootProject.file("key.properties")`(= `app/android/key.properties`, gitignore에 있음)가 있으면 `signingConfigs.create("release")`(네 값) + release 빌드가 그 키, 없으면 debug 키(1차와 같음).
 - **`tool/src/native_config.dart`**: `AndroidGradleInfo`에 `keyPropertiesFile`·`createsReleaseSigningOnlyWithKeyProperties`·`signingProperties`·`releaseUsesReleaseKeyElseDebug`(주석 무시·변수 이름 무관), `AppNativeExpectations.keyProperties`·`signingProperties`, `appNativeConfigProblems`에 서명 줄 4종.
 - **`.github/workflows/android.yml` v2**(6.10.3): 잡 `env`에 시크릿 4개 + `vars.ANDROID_CERT_SHA256`. 단계 `Signing`(`id: signing` — Checkout 바로 뒤): 넷 다 있음 → `$RUNNER_TEMP/release.jks` + `key.properties` 4줄 + `mode=release` / 하나라도 없고 변수 있음 → `::error::고정 키 서명 재료가 없어요 — 이 APK는 덮어 설치할 수 없어 만들지 않아요(docs/guides/07-android-signing.md)` + 실패(뒤 단계는 정리만 돈다) / 그 밖 → `mode=debug`. `Cache Android NDK`(`ndk-28.2.13676358` — `FlutterExtension.kt` `ndkVersion`과 대조), 훅 캐시 단계 이름 'Build hooks (downloads sqlite3 when not cached)', `Check signature`(가장 높은 build-tools의 `apksigner verify --print-certs` → `SHA-256 digest`, release이고 변수가 있는데 다르면 실패 — 변수는 keytool 꼴(대문자·콜론)도 받음, 실행 요약 '서명: 고정 키 (앞 16자)' 또는 '서명: debug 키 — 이전 APK 위에 덮어 설치할 수 없어요. 설치가 안 되면 앱을 지우지 말고 알려 주세요'), 아티팩트 이름 `noteapp-${{ … 'apk' || 'debug-signed' }}-<run>`, `Remove signing material`(`if: always()`, 마지막).
@@ -512,6 +516,8 @@
 | `ws check` (R1–R16) / `ws native-reqs` | 0 / 0 |
 
 #### J3 — `ios-compile.yml` · `ios-testflight.yml` 갱신 (계획 8.2, 6.11.5·6.11.6)
+
+- 커밋: `44609e8`, 커밋 번호 기록은 그 뒤 커밋.
 
 - **`.github/workflows/ios-compile.yml`**(새, 6.11.5): `workflow_dispatch`만(입력 `confirm` 'macOS 10배 과금 확인: yes 입력', `ipa` bool 기본 false), 잡 `if: inputs.confirm == 'yes'`, `macos-26`, 45분, `concurrency: ios-compile`(취소 안 함), 시크릿·변수 없음. 단계: Checkout → Flutter(`cache: true`) → `Cache CocoaPods`(`~/Library/Caches/CocoaPods`·`app/ios/Pods`, key `pods-${{ hashFiles('pubspec.lock', 'app/ios/Podfile') }}`) → 훅 캐시(1차 키) → `pub get --enforce-lockfile` → `ws build-info --channel experiment` → `set -o pipefail` + `flutter build ios --release --no-codesign … 2>&1 | tee "$RUNNER_TEMP/ios-build.log"`(걸린 초 → `steps.build.outputs.seconds`) → (`ipa`) `flutter build ipa --no-codesign …` + `ditto`로 `Runner.xcarchive.zip` → 요약(`always()` — 걸린 시간, 'This will become an error' 줄 수와 Flutter가 적은 CocoaPods 전용 플러그인 이름, `Podfile.lock` `PODS:` 수) → 아티팩트 `ios-compile-<run>`(`Podfile.lock`·빌드 로그, `always()`, 7일), (`ipa`) `ios-xcarchive-<run>`(7일).
 - **`.github/workflows/ios-testflight.yml`**(6.11.6, 초안 유지): `macos-latest` → `macos-26`, 잡 `env`에 `IOS_SIGNING_MODE: ${{ vars.IOS_SIGNING_MODE || 'cloud' }}`. `manual`이면 단계 'Certificate and profile (manual signing)'(그 단계 `env`에만 시크릿 `IOS_DIST_P12_BASE64`·`IOS_DIST_P12_PASSWORD`·`IOS_PROFILE_BASE64`) — 임시 키체인에 `.p12`, 프로파일을 `Provisioning Profiles/<UUID>.mobileprovision`로, `IOS_KEYCHAIN`·`IOS_PROFILE_NAME`·`IOS_BUNDLE_ID`를 `$GITHUB_ENV`로. Archive는 `cloud` → 1차의 `-allowProvisioningUpdates`·API 키·`CODE_SIGN_STYLE=Automatic`, `manual` → `CODE_SIGN_STYLE=Manual`·`CODE_SIGN_IDENTITY=Apple Distribution`·`PROVISIONING_PROFILE_SPECIFIER`. Export는 `manual`이면 ExportOptions 사본을 `signingStyle manual`·`signingCertificate`·`provisioningProfiles`(PlistBuddy — 번들 ID의 점 때문)로 고친다. 정리 단계(`always()`, 마지막)는 키체인도 지운다. 머리 주석에 '클라우드 서명은 Admin 키가 필요할 수 있음'(조사 04 요약 11)·'ios-compile.yml 먼저'.
@@ -591,10 +597,12 @@
 - **R2-B8a 체크포인트**: `a4c9cca`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청(다른 영역의 시작 조건 아님, D24).
 - **R2-B8b 체크포인트**: `6e7b753`(+ 기록 커밋 `20f831d`) — 총괄에게 `main` 병합 요청(D24).
 - **J0 체크포인트(①②③)**: `1fd1aea`(+ 이 기록 커밋) — 총괄에게 `main` 병합 요청. 이 체크포인트의 첫 푸시 CI 실행 기록이 J0 ④(6.16 실측)의 입력이다.
+- (2차 동시 개발 세션 3) J1 `3ff3b76`·J2 `0da5b71`·J3 `44609e8`(+ 기록 커밋) — 체크포인트 아님(INFRA-F3의 체크포인트는 R2-B8a·R2-B8b·J0). 다음 병합 때 함께 들어가면 된다.
 
 #### 다음 세션 메모
 
-- J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
+- (2차 동시 개발 세션 3 끝) J1·J2·J3 끝. 다음: J4(네이티브 저장 경로 6.9 — `resolveNativeStoragePaths`·`CoreModule` 경로 publish·`defaultNoteStoreConfig` v2 + `native_config_test`의 앱 셸 두 경로 정적 묶음)·J5·J6.
+- J4 주의(2차 동시 개발 세션 3에서 본 것): ① 앱은 `path_provider_platform_interface`에 의존하지 않는다(계약 7.5에 없음) — `native_storage_paths_test`는 `PathProviderPlatform.instance`를 바꾸지 말고 `MethodChannel('plugins.flutter.io/path_provider')`의 `getApplicationSupportDirectory`를 `TestDefaultBinaryMessengerBinding`으로 흉내 내면 된다(플랫폼 인터페이스 2.1.3의 기본 구현이 그 채널이고 `flutter test`는 Dart 플러그인 등록을 돌리지 않는다 — 처음 실행 때 확인). ② 기본 `nativePaths`로 `CoreModule(...)`을 만드는 VM 시험이 많다(`core_module_test`·`production_modules_test`·`bootstrap_app_test`·`overrides_unique_test`·`feature_wiring_module_test` 등) — VM에서는 기본 경로 함수가 `MissingPluginException`으로 실패해 오류 기록 1건이 생긴다. 오류 기록을 세는 시험은 `nativePaths: () async => null`을 넘기거나 채널을 흉내 낸다. ③ `app_smoke_test`(V5)는 `configFor`로 `inMemory`를 쓰므로 경로와 무관.
 - (총괄·사용자) 고정 키(6.10.4, U20 ①)는 아직 없다 — 키를 만들어 파일 두 개로 건네는 일은 사용자와 함께(안내서 07은 J18). 그 전까지 `android.yml`은 `mode=debug`(`noteapp-debug-signed-<run>`)로 돈다. 시크릿 없이 변수만 넣으면 실패하는지(V14)는 H6.
 - J0 ④(CI 단계별 시간 실측 → 6.16·J15)는 총괄의 첫 체크포인트 푸시 뒤 실행 기록이 있어야 한다. 받으면 J0을 '완료'로 바꾼다.
 - J11(검색 결과 → 위치로 열기)의 자리표시 화면 사례(새로고침·`%2C`·잘못된 focus)는 R2-B8b `app_router_test`에 이미 있다 — J11에는 `production_screens_test`의 같은 세 경우와 라이브러리 콜백·에디터 인자 마무리가 남는다.
