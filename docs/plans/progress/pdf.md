@@ -279,7 +279,7 @@
 | T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
 | T25a | 완료 | 402f84a | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
 | T25b | 완료 | 1027492 | `unit/raster_ports_test`(13 — 상한 식 6·`rasterPixelSize`·contain 3·기본 INK 포트 VM 3), `unit/object_resolver_text_math_test`(25), `web/object_resolver_text_browser_test`(4), `integration/math_raster_real_test`(써 둠 — `skip:` INK T36 이정표, 판정은 통합 4-a) — 가짜 포트 `test/support/fake_rasterizers.dart`, 큰 표본 `pageSizeTextBox`·`bigMathObject`는 `test/support/object_fixtures.dart` |
-| T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
+| T26 | 완료 | (이 커밋) | `unit/export_service_objects_test`(18 — 3쪽 객체 노트의 조각·순서·글꼴 한 번, S-2 호출 순서, `includeInk` 거짓, 경고 4종 순서·`fail` 정책, 해석 중 취소, 진행률, 글꼴 기다림 한 번(일괄)·네이티브 래스터·웹 S-12 멈춤·웹 ASCII, 장부: 큰 표본 3종·같은 6 MiB JPEG 5쪽 + 4 Mpx 래스터(읽기 2번·`peakCopyBytes` 16 MiB·`peakTotalBytes` ≤ 32 MiB)·사본 0·웹 JPEG 복제 `encoded`·`addPages` 오류 뒤 해제, 웹 16조각), `widget/export_flow_test` v2(+3 — 경고 줄 3종 세로·가로 가이드라인, 웹 글꼴 없음 문구), `pdfium/export_objects_e2e_test`(1 — 실 PDFium·실제 NoteSans: 텍스트 추출·이미지 3·`/SMask` 2·글꼴 파일 2, 장부 기록) — 시험 세계 `test/support/export_world.dart` v2(`ObjectsGateway`·가짜 포트·글꼴·`ledgers`·`web`) |
 | T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
 | T28 | 완료 | 76b31ce | `unit/normalizer_equivalence_test`(6), `web/normalizer_equivalence_browser_test`(같은 6 — 사례 `test/support/normalizer_equivalence_cases.dart`), 1차 `text_normalizer_test`(기대값 둘 고침)·`hangul_jamo_test`·`search_service_test`·`pdfium/search_real_test` 그대로 통과 |
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
@@ -313,6 +313,8 @@
 #### 변경 요청
 
 - [총괄] 계약 7.7.2 V8 판정식(C22-04 `lastBlockStartMs − 50 ≤ 시계 ≤ endMs + 50`)은 일시정지 없는 Chrome 녹음 6개(6.1 E10 — 시계 = 파일 끝 − 37~59 ms)로 정했는데, V8 시나리오는 가운데 일시정지 1초를 넣는다. T39 실측(가짜 저장소, 실제 Chrome MediaRecorder)에서 일시정지 한 번마다 파일이 시계보다 패킷 하나쯤(≈ 60 ms) 짧아져 `시계 − endMs`가 +35·+46·+52·+65 ms(부하 없는 쪽 4번 중 2번이 +50 넘음)였다. 위쪽 여유를 '+50 + 60 ms × 일시정지 수'(또는 +120)로 넓히거나 V8의 일시정지를 판정식에서 빼는 것을 검토해 주세요. 그때까지 `record_playback_media_test`는 계약 원문 식으로 단언한다(실제 웹 저장소 변형 — 통합 4-c).
+
+- [총괄·INFRA] 계약 7.4.5 C22-06 ②는 'M-3 밖 큰 입력의 초과를 PDF가 개발자 표시에 센다'인데, PDF가 내보내기 장부 값(`overBudget`·`peakBytes`)을 개발자 표시에 내보낼 공개 표면이 계약에 없다(`pdfRenderStatsProvider`의 `PdfRenderStats`는 계약 타입이라 필드를 더하지 않음 — 7.4.9). 지금은 내보내기 끝에 `debugPrint('pdf export: over budget n')`. 개발자 표시에 줄이 필요하면 표면(예: `media_io`의 `mediaDevOverlayLinesProvider` 같은 줄 목록)을 정해 주세요.
 
 #### 의존성 요청
 
@@ -445,6 +447,13 @@
 - T40: 시계는 `FakeAsync` 하나의 `getClock`(저장소 `clock:`)과 `FakeStopwatch`(녹음 시계)이고 손으로 `elapse`한다(그 존 안에서 아무것도 돌리지 않음 — 실제 drift는 보통 존에서). `media_io`에 `clock` 패키지 의존이 없어서 이 방식으로 손 시계를 만들었다(새 의존 없음).
 - T40: '순서를 바꾼 시험용 서비스 → CORE `ArgumentError`'는 서비스를 바꾸지 않고 에셋 없는 `createRecording`을 저장소에 직접 불러 단언한다(서비스 순서 자체는 T31b `recorder_service_test` M-1 기록). '노트 영구 삭제 뒤 복구'는 `pendingDrafts`로 초안을 본 뒤 `trashItems` + `purge` → `recoverDraft`가 `null`·초안 없음·시도 기록 없음·녹음 행 없음 — CORE는 노트를 지울 때 초안 행도 지우므로(02-core 6장 `deleteNoteContents`) 실제 쪽은 '초안 없음 → `null`' 길로, 가짜 쪽은 그 가짜의 동작대로 가며 결과 단언은 같다.
 
+- T26: 서비스의 내부 포트(수식·텍스트 래스터, 글꼴 기다림·바이트, 웹 규칙, 장부 보기)는 공개 생성자(1차 4.9 인자 목록 그대로)를 바꾸지 않고 **private 생성자 + src 전용 `createPdfExportService(...)`**(`export_service.dart`, barrel 밖 — T20의 `createPdfSearchIndexer`와 같은 방식)로 넣는다. 공개 생성자는 기본 포트(INK)로 그 private 생성자에 넘긴다. 기본 글꼴 기다림 `loadNoteSansFonts`는 `object_resolver.dart`에 두었다(`package:ink_engine` import 파일을 계획 3.5의 여섯 곳으로 유지 — `no_platform_imports_test`).
+- T26: 글꼴 기다림(6.2.2 1단계)은 `flush`·쪽 목록 뒤, 출력 쪽 계획 전에 한 번(일괄이면 일괄 전체에 한 번 — 결과를 기억), 실패·시간 초과 → `fontsReady = false`. S-12 판정(웹 + `fontsReady` 거짓 + `includeInk`)은 `begin` 전에 고른 쪽을 `loadPage`로 한 번 더 읽어 ASCII 밖 글자가 든 살아 있는 텍스트 상자를 찾는다(이 드문 경우에만 쪽을 두 번 읽음). 멈춤은 `exportFailed`·detail `PdfStringsKo.fontsUnavailableDetail`('fonts-unavailable')이고 **보고하지 않는다**(1차 'exportFailed는 한 번 보고'의 예외 — 오프라인 기기이지 결함이 아님). 문구는 `errorMessage`가 detail로 고른다.
+- T26: 조각 보내기 — 항목을 해석한 결과에 `PdfImageItem`이 있으면 그 쪽의 쌓인 항목을 `encodeItems`로 조각으로 만들어 큐에 넣고 **큐 전체를 바로 보낸다**(앞 쪽의 벡터 조각도 함께 — 순서 유지). 그 밖의 항목은 쪽 끝에서 조각으로 만들어 1차 묶음 규칙(웹 16·네이티브 8 조각, 8 MiB)으로 큐에 둔다. 1차의 '쪽 하나 = ops 하나'는 '조각 하나'로 셈이 바뀌었다(1차 시험 그대로 통과).
+- T26: 웹은 RGBA를 transfer하고 JPEG는 구조적 복제라(T23) **웹에서 JPEG가 든 조각을 보내는 동안 그 복제를 `encoded`로 잡는다**(6.2.10 '보내는 사본' — 계획은 '캐시에 남길 JPEG만'인데 T23에서 모든 웹 JPEG를 복제하므로 모두 셈). 네이티브는 이미지 바이트 합을 `holdCopy`(CP-PDF-14 ①). 둘 다 `addPages`가 끝나면(오류·취소여도 `finally`) 놓고, 성공한 뒤에만 `resolver.sent`(오류면 `resolver.dispose`가 모두 놓음).
+- T26: 개발자 표시 `export: over budget n`(6.2.10 ⑤, 계약 7.4.5 C22-06 'PDF가 개발자 표시에 센다')은 PDF가 내보낼 공개 표면이 계약에 없어(`PdfRenderStats`는 계약 타입) 지금은 내보내기가 끝날 때 `overBudget > 0`이면 `debugPrint('pdf export: over budget n')` 한 줄이다 — '변경 요청'.
+- T26: 시험 세계 — `ExportWorld` v2는 1차 시험이 쓰던 그대로 `gateway`(`FakePdfNoteGateway`)를 두고, 서비스는 그것을 감싼 `ObjectsGateway`(쪽 객체를 `loadPage`에 더함 — `testing.dart`를 바꾸지 않으려고 `test/support`에 둠)를 쓴다. 계획 4.3.1의 `PdfObjectFixtures.pageWithObjects`는 만들지 않았다(이 감싸개로 충분 — T29에서 필요하면 더함).
+
 #### 이정표 커밋
 
 - 없음(PDF는 이정표 커밋 알림 대상이 아니다 — 7.6.2. 다른 영역 이정표 중 PDF가 기다리는 것: INK T36·T42, CORE T31·T33a·T33b — 통합 단계)
@@ -561,9 +570,16 @@
 | 10 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 10 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 | 10 (끝) | 패키지 시험 (T22 뒤 `pdf_io` VM 754 + 9 skip, T23 뒤 `pdf_io` Chrome 112 + 1 skip — T23은 웹 파일만 바꿈, T40 뒤 `media_io` VM 405 + 1 skip·`media` 3 + 3 skip — `media_io` lib 변화 없음, `media_io` 일반 Chrome은 바뀐 파일 없음(세션 9의 75 + 3 skip 그대로)) | 위 행 그대로 |
+| 11 (T26) | `flutter test test/unit/export_service_objects_test.dart` | 18 통과 |
+| 11 (T26) | `flutter test test/widget/export_flow_test.dart` | 17 통과 (1차 14 + v2 3) |
+| 11 (T26) | `flutter test test/pdfium/export_objects_e2e_test.dart` | 1 통과 — 장부 기록: `peakBytes` 1,391,924 B · `peakCopyBytes` 1,391,112 B · `peakTotalBytes` 2,783,036 B · `overBudget` 0 (가장 큰 것은 수식 래스터 834 × 417 한 장) |
+| 11 (T26) | `ws test --package pdf_io` (VM) | 776 통과 + 9 skip (754 + T26 22), 65 s |
+| 11 (T26) | `ws test --package pdf_io --platform chrome` | 두 번 모두 `TIMED OUT (2 tries)`(1803 s): 부하(load ≈ 5) 중 워커 시험(`compose_objects_browser_test` 'addFunction 없는 워커'·`compose_browser_test` 'idle shutdown' — 이 작업이 바꾸지 않은 파일)이 30 s를 넘겨 실패한 뒤 헤드리스 Chrome이 멈춤(1차부터 알려진 멈춤). 두 파일만 `ws with-heavy-lock -- flutter test --platform chrome`로 다시 → 40 통과(8 s). 전체 다시 돌린 결과는 아래 T27 행 |
+| 11 (T26) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
+- (세션 11) T26 완료(커밋은 '이정표 커밋' 아래 표의 작업 표 행). 내보내기 서비스 v2의 내부 포트는 src 전용 `createPdfExportService(gateway:, vectorizer:, backend:, math:, text:, loadFonts:, fontBytes:, fontLoadTimeout:, mathTimeout:, web:, onLedger:)`로 넣는다 — T29의 `real_wiring`·V11은 공개 생성자(실제 INK 포트·`InkFonts`)를 쓰면 되고, perf는 `onLedger`로 장부를 읽을 수 있다. 시험 세계 `test/support/export_world.dart` v2(`ObjectsGateway` — 쪽 객체, `ledgers`, `web`, `fontsReady`, `fontWaits`).
 - (세션 10 끝) 완료: T22(`c4a402a`), T23(`199b9c4`), T40(`709c920` — 판정은 통합 4-d). `git status` 깨끗. 남은 동시 개발 몫: `pdf_io` T26·T27·T29, `media_io` T41. 세션 둘에 넷 — 다음 후보: 세션 11 = T26(내보내기 서비스 v2 — 선행 T22~T25b 모두 끝남) + T27(색인기 — 아무 때나, T29의 선행), 세션 12 = T29(T26·T27 뒤) + T41. 잘라야 하면 계획 8.2대로 P-C(T41 perf·T29 perf)부터.
 - (세션 10) T26에 남긴 것: 두 실제 백엔드가 `image`·`text` 명령과 같은 쪽 여러 조각을 해석한다(T22 네이티브·T23 웹, 같은 탐침 `composeObjectProbes`). 구조 위반(`checkComposeOps` — 실리지 않은 글꼴·같은 글꼴 두 번 포함)은 두 백엔드 모두 `PdfIoException(exportFailed)`이고 작업은 `abort`까지 남는다(`RecordingComposeBackend` v2는 `ArgumentError`). 서비스는 작업마다 `sentFonts`를 새로 시작하고 `encodeItems(fontBytes: ctx.fontBytes, sentFonts: …)`의 조각을 이미지·래스터가 든 항목 뒤 바로 `addPages`(S-2). 웹 백엔드는 RGBA를 transfer하므로 **보낸 뒤 `PdfRgbaData.rgba`는 길이 0** — 서비스·해석기가 다시 읽지 말고 장부는 잡을 때 크기로 놓을 것. 웹 JPEG·글꼴은 늘 구조적 복제(글꼴은 INK 캐시 바이트라 transfer 금지) — 웹에서 JPEG를 보내는 동안의 사본은 장부 `encoded`로 셀 것(계획의 '캐시에 남길 JPEG만'을 '모든 웹 JPEG'로 — '계획과 다르게 한 점' T23). 네이티브는 이미지가 든 조각의 `addPages` 앞뒤로 `ledger.holdCopy`/놓기(6.2.10 — CP-PDF-14 ①). `pdfium/export_objects_e2e_test`는 `test/support/compose_probes.dart`의 `ProbePdfObjects`(이미지 수·`/SMask`·글꼴 수)와 `ComposedPdf.text`를 그대로 쓸 수 있고, 추출 공백은 U+00A0일 수 있다(T22 — `_lines`처럼 공백으로 읽기).
 - (세션 10) T40이 남긴 것: `test/support/media_core_scenarios.dart`(`MediaCoreStores`·`FileCoreStores.ready()` 탐침·`FakeCoreStores`·`mediaCoreScenarios`) — 통합 4-d에서 CORE T30/T31이 합류하면 실제 쪽 5개가 스스로 돈다. 실제 CORE에서 처음 돌 때 볼 곳: 다시 연 파일 저장소에서 초안 조각(blob)이 남는지(CORE `openTestNoteStore`는 경로별 idb_shim을 프로세스 동안 유지), '빈 조각 `append` → `updatedAt` = 지금'(CORE 7.2.4), `purge`가 초안 행을 지우는지.

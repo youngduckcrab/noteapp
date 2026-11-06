@@ -34,12 +34,19 @@ abstract final class PdfStringsKo {
     PdfErrorCode.noteNotFound => '노트를 찾을 수 없어요.',
     PdfErrorCode.readOnlyNote => '읽기 전용 노트라 페이지를 넣을 수 없어요.',
     PdfErrorCode.storageFailed => 'PDF를 저장하지 못했어요. 저장 공간을 확인해 주세요.',
-    PdfErrorCode.exportFailed => 'PDF를 만들지 못했어요.',
+    PdfErrorCode.exportFailed =>
+      detail == fontsUnavailableDetail
+          ? '글꼴을 받지 못해 내보낼 수 없어요. 인터넷에 연결한 뒤 다시 해 주세요.'
+          : 'PDF를 만들지 못했어요.',
     PdfErrorCode.pickerFailed => '파일을 읽지 못했어요.',
     PdfErrorCode.cancelled => '취소했어요.',
     PdfErrorCode.busy => '다른 PDF 작업이 진행 중이에요.',
     PdfErrorCode.unsupportedPlatform => '이 기기에서는 아직 지원하지 않아요.',
   };
+
+  /// (2차, m5-7/06-pdf 6.2.2 S-12) PdfIoException.detail of the web export stop without NoteSans
+  /// (code exportFailed — the message above is picked by this detail).
+  static const String fontsUnavailableDetail = 'fonts-unavailable';
 
   /// Bytes → MiB text: whole numbers without a fraction, otherwise one decimal.
   static String megabytes(int bytes) {

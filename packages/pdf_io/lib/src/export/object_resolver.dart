@@ -42,6 +42,10 @@ import 'vectors.dart';
 /// TimeoutException).
 typedef PdfFontBytesSource = Future<Uint8List> Function({required bool bold});
 
+/// (T26) The export service's default font wait (6.2.2 step 1): ink.InkFonts.ensureLoaded —
+/// here so that package:ink_engine stays in the files of 3.5.
+Future<void> loadNoteSansFonts() => ink.InkFonts.ensureLoaded();
+
 /// Per export: options, cancel, the page being resolved and the warnings collected so far.
 final class ResolveContext {
   ResolveContext({
