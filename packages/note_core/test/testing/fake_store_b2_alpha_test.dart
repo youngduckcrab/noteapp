@@ -13,6 +13,7 @@ void main() {
       handwriting: 'T23b',
       search: 'T23b',
       v1Copy: '-',
+      objects: null,
     ),
     hasV1CopyApi: false,
   );

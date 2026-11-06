@@ -8,6 +8,7 @@ import 'package:clock/clock.dart';
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
+import '../common/pending.dart';
 import '../edit/applied_edit.dart';
 import '../edit/command_resolver.dart';
 import '../edit/commands.dart';
@@ -22,21 +23,65 @@ import 'page_content.dart';
 import 'session_backend.dart';
 
 final class _Loaded {
-  _Loaded(this.byId, this.sorted, this.content);
+  _Loaded(
+    this.byId,
+    this.sorted,
+    this.objectsById,
+    this.sortedObjects,
+    this.content,
+  );
   final Map<ElementId, Stroke> byId;
   final List<Stroke> sorted;
+
+  /// (v2.0) active page objects, and the same in Stroke.compareOrder.
+  final Map<ElementId, PageObject> objectsById;
+  final List<PageObject> sortedObjects;
   PageContent content;
   int pins = 0;
+
+  PageContent next(Page page) => PageContent(
+    page: page,
+    strokes: sorted,
+    objects: sortedObjects,
+    revision: content.revision + 1,
+  );
 }
 
-final class _PageDiff {
+/// Changes of one kind of element on a page (for the sorted lists).
+final class _KindDiff {
   final Set<ElementId> added = {};
   final Set<ElementId> removed = {};
   final Set<ElementId> updated = {};
-  bool pageChanged = false;
   bool orderChanged = false;
+}
+
+final class _PageDiff {
+  // The emitted sets hold stroke AND object ids (2nd-round contract 7.2.3, C2-10).
+  final Set<ElementId> added = {};
+  final Set<ElementId> removed = {};
+  final Set<ElementId> updated = {};
+  final _KindDiff strokes = _KindDiff();
+  final _KindDiff objects = _KindDiff();
+  bool pageChanged = false;
   bool get isEmpty =>
       added.isEmpty && removed.isEmpty && updated.isEmpty && !pageChanged;
+
+  void add(ElementId id, {required bool object}) {
+    added.add(id);
+    (object ? objects : strokes).added.add(id);
+  }
+
+  void remove(ElementId id, {required bool object}) {
+    removed.add(id);
+    (object ? objects : strokes).removed.add(id);
+  }
+
+  void update(ElementId id, {required bool object, required bool order}) {
+    updated.add(id);
+    final k = object ? objects : strokes;
+    k.updated.add(id);
+    if (order) k.orderChanged = true;
+  }
 }
 
 final class _Applied {
@@ -132,8 +177,14 @@ final class SessionEngine implements NoteSession, ResolveState {
   @override
   Map<ElementId, Stroke>? activeStrokes(PageId pageId) => _loaded[pageId]?.byId;
   @override
+  Map<ElementId, PageObject>? activeObjects(PageId pageId) =>
+      _loaded[pageId]?.objectsById;
+  @override
   bool isKnownStroke(ElementId id) =>
       _tombstones.containsKey(EntityRef(EntityKind.stroke, id));
+  @override
+  bool isKnownObject(ElementId id) =>
+      _tombstones.containsKey(EntityRef(EntityKind.pageObject, id));
 
   // ---- pages --------------------------------------------------------------------
 
@@ -155,14 +206,24 @@ final class SessionEngine implements NoteSession, ResolveState {
 
   Future<PageContent> _load(PageId pageId) async {
     try {
-      final strokes = await backend.loadStrokes(pageId);
+      final loaded = await backend.loadContent(pageId);
       _checkOpen();
-      final byId = {for (final s in strokes) s.id: s};
+      final byId = {for (final s in loaded.strokes) s.id: s};
       final sorted = byId.values.toList()..sort(Stroke.compareOrder);
+      final objectsById = {for (final o in loaded.objects) o.id: o};
+      final sortedObjects = objectsById.values.toList()
+        ..sort(Stroke.compareOrder);
       final l = _Loaded(
         byId,
         sorted,
-        PageContent(page: _pagesById[pageId]!, strokes: sorted, revision: 0),
+        objectsById,
+        sortedObjects,
+        PageContent(
+          page: _pagesById[pageId]!,
+          strokes: sorted,
+          objects: sortedObjects,
+          revision: 0,
+        ),
       )..pins = _loadWaiters.remove(pageId) ?? 0;
       _loaded[pageId] = l;
       _evict();
@@ -270,6 +331,11 @@ final class SessionEngine implements NoteSession, ResolveState {
       );
     }
     _checkWritable();
+    // (v2.0, m5-7/02-core 8.1 'B2 상태') a store without page object rows (the real store
+    // before DB v2) rejects object writes before anything is resolved.
+    if (!backend.storesPageObjects && _writesObjects(command)) {
+      notYet('T27', 'page objects need DB v2');
+    }
     final now = _clock.now().millisecondsSinceEpoch;
     final resolved = _resolver.resolve(
       command,
@@ -280,6 +346,10 @@ final class SessionEngine implements NoteSession, ResolveState {
     final edit = resolved.edit;
     if (edit.isEmpty) {
       return CommandReceipt(edit: edit, persisted: Future<void>.value());
+    }
+    if (!backend.storesPageObjects &&
+        edit.deltas.any((d) => d.after is PageObject)) {
+      notYet('T27', 'page objects need DB v2');
     }
     _generation++;
     final applied = _install([for (final d in edit.deltas) d.after!], now);
@@ -292,6 +362,14 @@ final class SessionEngine implements NoteSession, ResolveState {
     _emit(applied, ChangeOrigin.local);
     return CommandReceipt(edit: edit, persisted: persisted);
   }
+
+  /// A command that creates or changes page objects (also inside a CompositeCommand).
+  static bool _writesObjects(EditCommand c) => switch (c) {
+    AddObjects() || UpdateObjects() => true,
+    InsertPages(:final drafts) => drafts.any((d) => d.objects.isNotEmpty),
+    CompositeCommand(:final commands) => commands.any(_writesObjects),
+    _ => false,
+  };
 
   @override
   Future<CommandReceipt> executeAsync(EditCommand command) async {
@@ -394,7 +472,7 @@ final class SessionEngine implements NoteSession, ResolveState {
 
   Set<PageId> _strokePagesOf(AppliedEdit edit) => {
     for (final d in edit.deltas)
-      if (d.after case final Stroke s) s.pageId,
+      if (d.after case final PageElement e) e.pageId,
   };
 
   /// Applies one history step; null when every entity was skipped (no-op entry).
@@ -470,6 +548,9 @@ final class SessionEngine implements NoteSession, ResolveState {
     if (sample is Stroke) {
       return _loaded[sample.pageId]?.byId[d.id] ?? _tombstones[ref];
     }
+    if (sample is PageObject) {
+      return _loaded[sample.pageId]?.objectsById[d.id] ?? _tombstones[ref];
+    }
     return null;
   }
 
@@ -477,6 +558,7 @@ final class SessionEngine implements NoteSession, ResolveState {
       switch (e) {
         Stroke() => e.copyWith(updatedAt: now, version: v),
         Page() => e.copyWith(updatedAt: now, version: v),
+        PageObject() => e.copyWithMeta(updatedAt: now, version: v),
         _ => throw StateError('History holds an unexpected ${e.kind.name}'),
       };
 
@@ -484,6 +566,11 @@ final class SessionEngine implements NoteSession, ResolveState {
       switch (e) {
         Stroke() => e.copyWith(deletedAt: now, updatedAt: now, version: v),
         Page() => e.copyWith(deletedAt: now, updatedAt: now, version: v),
+        PageObject() => e.copyWithMeta(
+          deletedAt: now,
+          updatedAt: now,
+          version: v,
+        ),
         _ => throw StateError('History holds an unexpected ${e.kind.name}'),
       };
 
@@ -506,22 +593,23 @@ final class SessionEngine implements NoteSession, ResolveState {
         case Stroke():
           final l = _loaded[e.pageId];
           if (l != null) {
-            final diff = a.diffs[e.pageId] ??= _PageDiff();
-            final old = l.byId[e.id];
-            if (e.isDeleted) {
-              if (old != null) {
-                l.byId.remove(e.id);
-                diff.removed.add(e.id);
-              }
-            } else {
-              l.byId[e.id] = e;
-              if (old == null) {
-                diff.added.add(e.id);
-              } else {
-                diff.updated.add(e.id);
-                if (old.createdAt != e.createdAt) diff.orderChanged = true;
-              }
-            }
+            _installElement(l.byId, e, a.diffs[e.pageId] ??= _PageDiff());
+          }
+          if (e.isDeleted) {
+            _tombstones[ref] = e;
+          } else {
+            _tombstones.remove(ref);
+          }
+          a.bumped.add(e.pageId);
+          a.written.add(e);
+        case PageObject():
+          final l = _loaded[e.pageId];
+          if (l != null) {
+            _installElement(
+              l.objectsById,
+              e,
+              a.diffs[e.pageId] ??= _PageDiff(),
+            );
           }
           if (e.isDeleted) {
             _tombstones[ref] = e;
@@ -569,11 +657,7 @@ final class SessionEngine implements NoteSession, ResolveState {
     for (final entry in a.diffs.entries) {
       final l = _loaded[entry.key]!;
       _resort(l, entry.value);
-      l.content = PageContent(
-        page: _pagesById[entry.key]!,
-        strokes: l.sorted,
-        revision: l.content.revision + 1,
-      );
+      l.content = l.next(_pagesById[entry.key]!);
     }
     // Note: local derived values (C-9).
     final first = _active.isEmpty ? null : _active.first.id;
@@ -590,35 +674,68 @@ final class SessionEngine implements NoteSession, ResolveState {
     return a;
   }
 
+  /// One element (stroke or object) into a loaded page's map, recorded in [diff].
+  static void _installElement<T extends PageElement>(
+    Map<ElementId, T> byId,
+    T e,
+    _PageDiff diff,
+  ) {
+    final object = e is PageObject;
+    final old = byId[e.id];
+    if (e.isDeleted) {
+      if (old != null) {
+        byId.remove(e.id);
+        diff.remove(e.id, object: object);
+      }
+    } else {
+      byId[e.id] = e;
+      if (old == null) {
+        diff.add(e.id, object: object);
+      } else {
+        diff.update(e.id, object: object, order: old.createdAt != e.createdAt);
+      }
+    }
+  }
+
   void _resort(_Loaded l, _PageDiff d) {
+    _resortList(l.sorted, l.byId, d.strokes);
+    _resortList(l.sortedObjects, l.objectsById, d.objects);
+  }
+
+  /// Unchanged elements keep their instance (K-4 — INK diffs by identity).
+  static void _resortList<T extends PageElement>(
+    List<T> sorted,
+    Map<ElementId, T> byId,
+    _KindDiff d,
+  ) {
     if (d.orderChanged) {
-      l.sorted
+      sorted
         ..clear()
-        ..addAll(l.byId.values)
+        ..addAll(byId.values)
         ..sort(Stroke.compareOrder);
       return;
     }
     if (d.removed.isNotEmpty) {
-      l.sorted.removeWhere((s) => d.removed.contains(s.id));
+      sorted.removeWhere((s) => d.removed.contains(s.id));
     }
     if (d.updated.isNotEmpty) {
-      for (var i = 0; i < l.sorted.length; i++) {
-        final id = l.sorted[i].id;
-        if (d.updated.contains(id)) l.sorted[i] = l.byId[id]!;
+      for (var i = 0; i < sorted.length; i++) {
+        final id = sorted[i].id;
+        if (d.updated.contains(id)) sorted[i] = byId[id]!;
       }
     }
     for (final id in d.added) {
-      final s = l.byId[id]!;
-      var lo = 0, hi = l.sorted.length;
+      final s = byId[id]!;
+      var lo = 0, hi = sorted.length;
       while (lo < hi) {
         final mid = (lo + hi) ~/ 2;
-        if (Stroke.compareOrder(l.sorted[mid], s) < 0) {
+        if (Stroke.compareOrder(sorted[mid], s) < 0) {
           lo = mid + 1;
         } else {
           hi = mid;
         }
       }
-      l.sorted.insert(lo, s);
+      sorted.insert(lo, s);
     }
   }
 
@@ -694,13 +811,15 @@ final class SessionEngine implements NoteSession, ResolveState {
 
   /// N-7: a remote write (applyRemote, commitRepairs) committed rows of this note. The
   /// store passes the committed values read back: [pages] (null = row gone), the strokes
-  /// of loaded pages in [strokes] (stroke id → its page and row, null row = gone), and
+  /// of loaded pages in [strokes] (stroke id → its page and row, null row = gone), (v2.0)
+  /// the page objects of loaded pages in [objects] (the same shape — m5-7/02-core 6.5), and
   /// [contentPages], the pages whose strokes changed. Not in the history; a later undo
   /// skips these entities (their versions changed, 6.7.3).
   void remoteCommitted({
     Note? note,
     Map<PageId, Page?> pages = const {},
     Map<ElementId, (PageId, Stroke?)> strokes = const {},
+    Map<ElementId, (PageId, PageObject?)> objects = const {},
     Set<PageId> contentPages = const {},
   }) {
     if (_closed) return;
@@ -725,32 +844,60 @@ final class SessionEngine implements NoteSession, ResolveState {
         (diffs[id] ??= _PageDiff()).pageChanged = true;
       }
     }
-    for (final MapEntry(key: id, value: (pageId, row)) in strokes.entries) {
-      final l = _loaded[pageId];
-      if (l == null) continue;
-      final diff = diffs[pageId] ??= _PageDiff();
-      final old = l.byId[id];
-      final ref = EntityRef(EntityKind.stroke, id);
+    void remoteElement<T extends PageElement>(
+      Map<ElementId, T> byId,
+      ElementId id,
+      PageId pageId,
+      T? row,
+      EntityRef ref,
+      _PageDiff diff,
+    ) {
+      final object = ref.kind == EntityKind.pageObject;
+      final old = byId[id];
       if (row == null || row.isDeleted || row.pageId != pageId) {
         if (old != null) {
-          l.byId.remove(id);
-          diff.removed.add(id);
+          byId.remove(id);
+          diff.remove(id, object: object);
         }
         if (row != null && row.isDeleted) {
           _tombstones[ref] = row;
         } else {
           _tombstones.remove(ref);
         }
-        continue;
+        return;
       }
       _tombstones.remove(ref);
-      l.byId[id] = row;
+      byId[id] = row;
       if (old == null) {
-        diff.added.add(id);
+        diff.add(id, object: object);
       } else {
-        diff.updated.add(id);
-        if (old.createdAt != row.createdAt) diff.orderChanged = true;
+        diff.update(id, object: object, order: old.createdAt != row.createdAt);
       }
+    }
+
+    for (final MapEntry(key: id, value: (pageId, row)) in strokes.entries) {
+      final l = _loaded[pageId];
+      if (l == null) continue;
+      remoteElement(
+        l.byId,
+        id,
+        pageId,
+        row,
+        EntityRef(EntityKind.stroke, id),
+        diffs[pageId] ??= _PageDiff(),
+      );
+    }
+    for (final MapEntry(key: id, value: (pageId, row)) in objects.entries) {
+      final l = _loaded[pageId];
+      if (l == null) continue;
+      remoteElement(
+        l.objectsById,
+        id,
+        pageId,
+        row,
+        EntityRef(EntityKind.pageObject, id),
+        diffs[pageId] ??= _PageDiff(),
+      );
     }
     for (final id in bumped) {
       final p = _pagesById[id];
@@ -770,11 +917,7 @@ final class SessionEngine implements NoteSession, ResolveState {
       final l = _loaded[id];
       if (l == null) continue;
       _resort(l, d);
-      l.content = PageContent(
-        page: _pagesById[id]!,
-        strokes: l.sorted,
-        revision: l.content.revision + 1,
-      );
+      l.content = l.next(_pagesById[id]!);
       a.diffs[id] = d;
     }
     final base = note ?? _note;
@@ -851,7 +994,9 @@ final class SessionEngine implements NoteSession, ResolveState {
 
 /// JSON keys whose values differ between two versions of an entity, meta keys excluded
 /// (CORE 6.7.6). Strokes and pages are compared field by field (no point encoding).
+/// (v2.0) Page objects: their JSON keys minus the meta keys (m5-7/02-core 6.3).
 Set<String> changedFieldsOf(SyncEntity a, SyncEntity b) {
+  if (a is PageObject && b is PageObject) return changedObjectKeys(a, b);
   if (a is Stroke && b is Stroke) {
     return {
       if (a.pageId != b.pageId) 'pageId',

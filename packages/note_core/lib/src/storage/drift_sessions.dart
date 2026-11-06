@@ -236,13 +236,23 @@ final class _DriftSessionBackend implements SessionBackend {
   NoteDatabase get _db => _s.db;
 
   @override
-  Future<List<Stroke>> loadStrokes(PageId pageId) async {
+  Future<({List<Stroke> strokes, List<PageObject> objects})> loadContent(
+    PageId pageId,
+  ) async {
     await _s.queue.flush();
     final rows = await (_db.select(
       _db.strokes,
     )..where((t) => t.pageId.equals(pageId) & t.deletedAt.isNull())).get();
-    return [for (final r in rows) strokeOf(r)];
+    // (v2.0) no page_objects table before DB v2 (CORE T24 / T27).
+    return (
+      strokes: [for (final r in rows) strokeOf(r)],
+      objects: <PageObject>[],
+    );
   }
+
+  /// (v2.0, m5-7/02-core 8.1) object rows come with DB v2 — CORE T27.
+  @override
+  bool get storesPageObjects => false;
 
   @override
   Future<void> write(SessionWrite w) {

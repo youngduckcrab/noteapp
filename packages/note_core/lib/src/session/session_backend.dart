@@ -21,7 +21,8 @@ final class SessionWrite {
   /// local, undo or redo.
   final ChangeOrigin origin;
 
-  /// Written strokes and pages (after values; pages carry the local contentRevision).
+  /// Written strokes, (v2.0) page objects and pages (after values; pages carry the local
+  /// contentRevision).
   final List<SyncEntity> entities;
 
   /// JSON keys written per entity (outbox, 6.5 / 6.7.6).
@@ -35,8 +36,15 @@ final class SessionWrite {
 }
 
 abstract interface class SessionBackend {
-  /// Active strokes of [pageId] after every queued write is committed (6.14 openPage).
-  Future<List<Stroke>> loadStrokes(PageId pageId);
+  /// Active strokes and (v2.0) page objects of [pageId] after every queued write is committed
+  /// (6.14 openPage; m5-7/02-core 6.5 — one read).
+  Future<({List<Stroke> strokes, List<PageObject> objects})> loadContent(
+    PageId pageId,
+  );
+
+  /// (v2.0) false while the store has no page object rows (the real store before DB v2,
+  /// m5-7/02-core 8.1): the engine rejects object writes before changing memory.
+  bool get storesPageObjects;
 
   /// Completes after the commit (pending while a failed commit is retried, 4.5 head).
   Future<void> write(SessionWrite write);

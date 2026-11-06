@@ -11,6 +11,7 @@ import 'package:drift/drift.dart';
 
 import '../common/errors.dart';
 import '../common/ids.dart';
+import '../common/pending.dart';
 import '../common/sort_keys.dart';
 import '../common/sort_planner.dart';
 import '../common/text_normalize.dart';
@@ -544,6 +545,10 @@ final class DriftLibraryRepository implements LibraryRepository {
         'pages',
         'must be 1..2000 drafts',
       );
+    }
+    // (v2.0, m5-7/02-core 8.1) object rows come with DB v2 — CORE T27.
+    if (pages.any((d) => d.objects.isNotEmpty)) {
+      notYet('T27', 'createNote with PageDraft.objects needs DB v2');
     }
     final draftIds = <PageId>[];
     var bytes = 0;

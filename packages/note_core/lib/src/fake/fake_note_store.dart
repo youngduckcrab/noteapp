@@ -134,6 +134,9 @@ final class FakeNoteStore implements NoteStore {
   final Map<PageId, Page> pages = {};
   final Map<ElementId, Stroke> strokes = {};
   final Map<PageId, Set<ElementId>> strokesOfPage = {};
+  // (v2.0) page objects (m5-7/02-core 6.17), all rows including deleted ones.
+  final Map<ElementId, PageObject> objects = {};
+  final Map<PageId, Set<ElementId>> objectsOfPage = {};
   final Map<PresetId, PenPreset> presets = {};
   final Map<AssetId, Asset> assetRows = {};
   final Map<AssetId, Uint8List> blobs = {};
@@ -295,6 +298,17 @@ final class FakeNoteStore implements NoteStore {
     (strokesOfPage[s.pageId] ??= {}).add(s.id);
   }
 
+  /// (v2.0) Active page objects of [pageId], Stroke.compareOrder.
+  List<PageObject> activeObjectsOf(PageId pageId) => [
+    for (final id in objectsOfPage[pageId] ?? const <ElementId>{})
+      if (objects[id] case final o? when !o.isDeleted) o,
+  ]..sort(Stroke.compareOrder);
+
+  void putObject(PageObject o) {
+    objects[o.id] = o;
+    (objectsOfPage[o.pageId] ??= {}).add(o.id);
+  }
+
   /// pageCount / firstPageId of [noteId] recomputed (local derived values).
   void refreshNoteDerived(NoteId noteId) {
     final n = notes[noteId];
@@ -315,7 +329,7 @@ final class FakeNoteStore implements NoteStore {
       deleted: e.isDeleted,
       purged: purged,
     ),
-    Stroke(:final pageId) => EntityChange(
+    Stroke(:final pageId) || PageObject(:final pageId) => EntityChange(
       kind: e.kind,
       id: e.id,
       noteId: pages[pageId]?.noteId,
@@ -344,6 +358,17 @@ final class FakeNoteStore implements NoteStore {
     List<PageDraft> drafts,
     Hlc v,
   ) {
+    // (v2.0) the drafts' objects: the local limits before any write (6.4.1).
+    for (final d in drafts) {
+      if (d.objects.length > PageObjectLimits.maxObjectsPerPage) {
+        throw ArgumentError.value(
+          d.objects.length,
+          'draft.objects',
+          'at most ${PageObjectLimits.maxObjectsPerPage} objects per page',
+        );
+      }
+      d.objects.forEach(checkObjectLimits);
+    }
     final keys = SortKeys.nBetween(null, null, drafts.length);
     final changes = <EntityChange>[];
     final t = now;
@@ -378,6 +403,14 @@ final class FakeNoteStore implements NoteStore {
           version: v,
         );
         putStroke(copy);
+        changes.add(changeOf(copy));
+      }
+      // (v2.0) objects: new ids, the original createdAt, normalized (as InsertPages).
+      for (final o in d.objects) {
+        final copy = normalizedObject(
+          o.copyTo(id: ids.newId(), pageId: pageId, createdAt: o.createdAt),
+        ).copyWithMeta(updatedAt: t, version: v);
+        putObject(copy);
         changes.add(changeOf(copy));
       }
     }
@@ -459,6 +492,8 @@ final class FakeNoteStore implements NoteStore {
       switch (e) {
         case Stroke():
           putStroke(e);
+        case PageObject():
+          putObject(e);
         case Page():
           pages[e.id] = e;
         default:
@@ -521,6 +556,7 @@ final class FakeNoteStore implements NoteStore {
       EntityKind.note: notes.values,
       EntityKind.page: pages.values,
       EntityKind.stroke: strokes.values,
+      EntityKind.pageObject: objects.values,
       EntityKind.penPreset: presets.values,
       EntityKind.asset: assetRows.values,
       EntityKind.setting: syncedSettings.values,
@@ -542,10 +578,18 @@ final class _FakeSessionBackend implements SessionBackend {
   final FakeNoteStore store;
 
   @override
-  Future<List<Stroke>> loadStrokes(PageId pageId) async {
+  Future<({List<Stroke> strokes, List<PageObject> objects})> loadContent(
+    PageId pageId,
+  ) async {
     await store.flush();
-    return store.activeStrokesOf(pageId);
+    return (
+      strokes: store.activeStrokesOf(pageId),
+      objects: store.activeObjectsOf(pageId),
+    );
   }
+
+  @override
+  bool get storesPageObjects => true;
 
   @override
   Future<void> write(SessionWrite write) =>
@@ -1293,6 +1337,14 @@ final class _FakeLibrary implements LibraryRepository {
         s.putStroke(copy);
         changes.add(s.changeOf(copy));
       }
+      // (v2.0, m5-7/02-core 6.14.1 ③) objects: new ids, the original createdAt.
+      for (final o in s.activeObjectsOf(p.id)) {
+        final copy = o
+            .copyTo(id: s.ids.newId(), pageId: pageId, createdAt: o.createdAt)
+            .copyWithMeta(updatedAt: t, version: v);
+        s.putObject(copy);
+        changes.add(s.changeOf(copy));
+      }
     }
     s.refreshNoteDerived(id);
     return id;
@@ -1473,6 +1525,9 @@ final class _FakeTrash implements TrashRepository {
         s.thumbnailRows.remove(p.id);
         for (final sid in s.strokesOfPage.remove(p.id) ?? const <ElementId>{}) {
           s.strokes.remove(sid);
+        }
+        for (final oid in s.objectsOfPage.remove(p.id) ?? const <ElementId>{}) {
+          s.objects.remove(oid);
         }
       }
     }
@@ -1791,6 +1846,7 @@ final class _FakeContentReader implements NoteContentReader {
     return PageContent(
       page: p,
       strokes: s.activeStrokesOf(pageId),
+      objects: s.activeObjectsOf(pageId),
       revision: 0,
     );
   }

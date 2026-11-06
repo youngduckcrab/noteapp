@@ -22,7 +22,12 @@ final class _State implements ResolveState {
   @override
   Map<ElementId, Stroke>? activeStrokes(PageId pageId) => loaded[pageId];
   @override
+  Map<ElementId, PageObject>? activeObjects(PageId pageId) =>
+      loaded.containsKey(pageId) ? const {} : null;
+  @override
   bool isKnownStroke(ElementId id) => false;
+  @override
+  bool isKnownObject(ElementId id) => false;
 }
 
 Page _page(String id, String key) => Page(

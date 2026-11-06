@@ -22,13 +22,15 @@ Matcher throwsPending(String task) => throwsA(
   ),
 );
 
-/// The CORE tasks the store's 2nd-round writes wait for.
+/// The CORE tasks the store's 2nd-round writes wait for. [objects]: the task the session's
+/// object writes wait for, or null when they work (the fake store since CORE T23a).
 typedef B2AlphaTasks = ({
   String recordings,
   String drafts,
   String handwriting,
   String search,
   String v1Copy,
+  String? objects,
 });
 
 void defineB2AlphaStoreTests(
@@ -200,101 +202,109 @@ void defineB2AlphaStoreTests(
     });
   });
 
-  group('object commands (CORE T23a) leave the session unchanged', () {
-    void expectUnchanged(PageContent before, HistoryState history) {
-      final after = session.pageIfLoaded(pageId)!;
-      expect(after, same(before));
-      expect(after.strokeCount, 2);
-      expect(after.objects, isEmpty);
-      expect(session.history, history);
-    }
+  group(
+    'object commands (CORE ${tasks.objects}) leave the session unchanged',
+    skip: tasks.objects == null ? 'object commands work on this store' : null,
+    () {
+      void expectUnchanged(PageContent before, HistoryState history) {
+        final after = session.pageIfLoaded(pageId)!;
+        expect(after, same(before));
+        expect(after.strokeCount, 2);
+        expect(after.objects, isEmpty);
+        expect(session.history, history);
+      }
 
-    test('AddObjects / UpdateObjects / Composite / InsertPages', () {
-      final before = session.pageIfLoaded(pageId)!;
-      final history = session.history;
-      final pages = session.pages;
-      final shape = shapeOn(pageId);
-      expect(
-        () => session.execute(AddObjects(pageId: pageId, objects: [shape])),
-        throwsPending('T23a'),
-      );
-      expect(
-        () => session.execute(UpdateObjects(pageId: pageId, objects: [shape])),
-        throwsPending('T23a'),
-      );
-      // The stroke half of a composite is not applied either.
-      expect(
-        () => session.execute(
-          CompositeCommand([
-            AddStrokes(
-              pageId: pageId,
-              strokes: [
-                StrokeFixtures.synthetic(pageId: pageId, ids: store.ids),
-              ],
-            ),
-            AddObjects(pageId: pageId, objects: [shape]),
-          ]),
-        ),
-        throwsPending('T23a'),
-      );
-      expect(
-        () => session.execute(
-          InsertPages(
-            drafts: [
-              PageDraft(
-                size: PageSize.a4Portrait,
-                background: const BlankBackground(),
-                objects: [shapeOn('draft')],
+      test('AddObjects / UpdateObjects / Composite / InsertPages', () {
+        final before = session.pageIfLoaded(pageId)!;
+        final history = session.history;
+        final pages = session.pages;
+        final shape = shapeOn(pageId);
+        expect(
+          () => session.execute(AddObjects(pageId: pageId, objects: [shape])),
+          throwsPending(tasks.objects!),
+        );
+        expect(
+          () =>
+              session.execute(UpdateObjects(pageId: pageId, objects: [shape])),
+          throwsPending(tasks.objects!),
+        );
+        // The stroke half of a composite is not applied either.
+        expect(
+          () => session.execute(
+            CompositeCommand([
+              AddStrokes(
+                pageId: pageId,
+                strokes: [
+                  StrokeFixtures.synthetic(pageId: pageId, ids: store.ids),
+                ],
               ),
-            ],
-            position: const PageAtEnd(),
+              AddObjects(pageId: pageId, objects: [shape]),
+            ]),
           ),
-        ),
-        throwsPending('T23a'),
-      );
-      expectUnchanged(before, history);
-      expect(session.pages, pages);
-    });
-
-    test('RemoveElements removes strokes as RemoveStrokes', () async {
-      final ids = session.pageIfLoaded(pageId)!.strokes.map((s) => s.id);
-      final receipt = session.execute(
-        RemoveElements(
-          pageId: pageId,
-          elementIds: [ids.first, ids.first, 'unknown'],
-        ),
-      );
-      await receipt.persisted;
-      final content = session.pageIfLoaded(pageId)!;
-      expect(content.strokes.map((s) => s.id), [ids.last]);
-      expect(content.elementById(ids.last), isA<Stroke>());
-      expect(session.history.undoLabel, 'remove-elements');
-      await session.undo();
-      expect(session.pageIfLoaded(pageId)!.strokeCount, 2);
-    });
-
-    test('ClearPage(includeObjects: true) clears strokes by filter', () async {
-      await session
-          .execute(
-            ClearPage(
-              pageId: pageId,
-              filter: StrokeFilter.highlighterOnly,
-              includeObjects: true,
+          throwsPending(tasks.objects!),
+        );
+        expect(
+          () => session.execute(
+            InsertPages(
+              drafts: [
+                PageDraft(
+                  size: PageSize.a4Portrait,
+                  background: const BlankBackground(),
+                  objects: [shapeOn('draft')],
+                ),
+              ],
+              position: const PageAtEnd(),
             ),
-          )
-          .persisted;
-      final content = session.pageIfLoaded(pageId)!;
-      expect(content.strokeCount, 1);
-      expect(content.strokes.single.style.tool, PenTool.ballpoint);
-      expect(content.objectCount, 0);
-    });
+          ),
+          throwsPending(tasks.objects!),
+        );
+        expectUnchanged(before, history);
+        expect(session.pages, pages);
+      });
 
-    test('PageDraft.copyOf carries the (empty) objects', () {
-      final draft = PageDraft.copyOf(session.pageIfLoaded(pageId)!);
-      expect(draft.strokes, hasLength(2));
-      expect(draft.objects, isEmpty);
-    });
-  });
+      test('RemoveElements removes strokes as RemoveStrokes', () async {
+        final ids = session.pageIfLoaded(pageId)!.strokes.map((s) => s.id);
+        final receipt = session.execute(
+          RemoveElements(
+            pageId: pageId,
+            elementIds: [ids.first, ids.first, 'unknown'],
+          ),
+        );
+        await receipt.persisted;
+        final content = session.pageIfLoaded(pageId)!;
+        expect(content.strokes.map((s) => s.id), [ids.last]);
+        expect(content.elementById(ids.last), isA<Stroke>());
+        expect(session.history.undoLabel, 'remove-elements');
+        await session.undo();
+        expect(session.pageIfLoaded(pageId)!.strokeCount, 2);
+      });
+
+      test(
+        'ClearPage(includeObjects: true) clears strokes by filter',
+        () async {
+          await session
+              .execute(
+                ClearPage(
+                  pageId: pageId,
+                  filter: StrokeFilter.highlighterOnly,
+                  includeObjects: true,
+                ),
+              )
+              .persisted;
+          final content = session.pageIfLoaded(pageId)!;
+          expect(content.strokeCount, 1);
+          expect(content.strokes.single.style.tool, PenTool.ballpoint);
+          expect(content.objectCount, 0);
+        },
+      );
+
+      test('PageDraft.copyOf carries the (empty) objects', () {
+        final draft = PageDraft.copyOf(session.pageIfLoaded(pageId)!);
+        expect(draft.strokes, hasLength(2));
+        expect(draft.objects, isEmpty);
+      });
+    },
+  );
 
   test('EntityJson of the new kinds decodes (CORE T20a)', () {
     expect(

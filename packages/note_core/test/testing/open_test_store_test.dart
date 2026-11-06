@@ -186,6 +186,7 @@ void main() {
         handwriting: 'T32',
         search: 'T33a',
         v1Copy: 'T24',
+        objects: 'T27',
       ),
       hasV1CopyApi: true,
     );

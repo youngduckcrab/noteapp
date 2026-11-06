@@ -273,10 +273,18 @@ final class _MapBackend implements SessionBackend {
   final Map<ElementId, Stroke> strokes = {};
 
   @override
-  Future<List<Stroke>> loadStrokes(PageId pageId) async => [
-    for (final s in strokes.values)
-      if (s.pageId == pageId && !s.isDeleted) s,
-  ];
+  Future<({List<Stroke> strokes, List<PageObject> objects})> loadContent(
+    PageId pageId,
+  ) async => (
+    strokes: [
+      for (final s in strokes.values)
+        if (s.pageId == pageId && !s.isDeleted) s,
+    ],
+    objects: const <PageObject>[],
+  );
+
+  @override
+  bool get storesPageObjects => true;
 
   @override
   Future<void> write(SessionWrite write) async {

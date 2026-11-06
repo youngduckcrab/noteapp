@@ -23,11 +23,14 @@ final class EntityDelta {
   final SyncEntity? after; // after.version is set
 
   /// 6.7.4: 96 B per delta (256 B for a page) + the point arrays it keeps alive
-  /// (once when before and after share the same array).
+  /// (once when before and after share the same array). (v2.0, m5-7/02-core 6.4.4) + the
+  /// PageObject.estimatedBytes of the objects it keeps (once when the same instance).
   int get estimatedBytes {
     if (kind == EntityKind.page || before is Page || after is Page) return 256;
     var bytes = 96;
     final b = before, a = after;
+    if (b is PageObject) bytes += b.estimatedBytes;
+    if (a is PageObject && !identical(a, b)) bytes += a.estimatedBytes;
     final bp = b is Stroke ? b.points : null;
     final ap = a is Stroke ? a.points : null;
     if (bp != null) bytes += bp.length * 24;

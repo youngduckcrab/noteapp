@@ -1,14 +1,16 @@
 // Internal: EditCommand → AppliedEdit (CORE 6.5). Pure: validates and resolves against a
 // read-only view of the session state and returns the deltas; it never mutates the state,
 // so an invalid command changes nothing.
+import 'package:collection/collection.dart';
+
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
-import '../common/pending.dart';
 import '../common/sort_keys.dart';
 import '../common/sort_planner.dart';
 import '../model/page.dart';
 import '../model/pen_style.dart';
+import '../model/shape_geometry.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
 import '../sync/outbox_types.dart';
@@ -29,8 +31,39 @@ abstract interface class ResolveState {
   /// Active strokes of a loaded page; null when the page is not loaded.
   Map<ElementId, Stroke>? activeStrokes(PageId pageId);
 
+  /// (v2.0) Active page objects of a loaded page; null when the page is not loaded.
+  Map<ElementId, PageObject>? activeObjects(PageId pageId);
+
   /// A (deleted) stroke id the session knows outside the loaded pages.
   bool isKnownStroke(ElementId id);
+
+  /// (v2.0) A (deleted) page object id the session knows outside the loaded pages.
+  bool isKnownObject(ElementId id);
+}
+
+/// (v2.0, m5-7/02-core 6.3) Field-version keys of a page object: its JSON keys minus the meta
+/// keys (id, pageId, type, createdAt, updatedAt, version).
+const Set<String> kObjectMetaKeys = {
+  'id',
+  'pageId',
+  'type',
+  'createdAt',
+  'updatedAt',
+  'version',
+};
+
+/// JSON keys whose values differ between [a] and [b], meta keys excluded (C-11 — only changed
+/// keys get a new field version).
+Set<String> changedObjectKeys(PageObject a, PageObject b) {
+  final ja = a.toJson(), jb = b.toJson();
+  const deep = DeepCollectionEquality();
+  return {
+    for (final k in {...ja.keys, ...jb.keys})
+      if (!kObjectMetaKeys.contains(k) &&
+          (ja.containsKey(k) != jb.containsKey(k) ||
+              !deep.equals(ja[k], jb[k])))
+        k,
+  };
 }
 
 /// Result of [CommandResolver.resolve].
@@ -49,35 +82,74 @@ final class CommandResolver {
   CommandResolver({required this.ids});
   final IdGenerator ids;
 
-  /// Throws ArgumentError, PageNotOpenException, LastPageDeletionException.
-  /// (v2.0, 02-core 8.1 'B2 상태') A command that creates or changes page objects
-  /// (AddObjects, UpdateObjects, InsertPages with PageDraft.objects — also inside a
-  /// CompositeCommand) throws UnimplementedError('CORE T23a: …') before anything is resolved.
+  /// Throws ArgumentError, PageNotOpenException, LastPageDeletionException. Pure: a throw
+  /// (anywhere in a CompositeCommand) leaves the session as it was (6.4.1).
   ResolvedEdit resolve(
     EditCommand command,
     ResolveState state, {
     required EpochMillis now,
     required Hlc version,
   }) {
-    _rejectObjectWrites(command);
     final w = _Work(state, now, version, ids)..apply(command);
     return w.finish(command.label);
   }
+}
 
-  static void _rejectObjectWrites(EditCommand c) {
-    switch (c) {
-      case AddObjects():
-        notYet('T23a', 'AddObjects');
-      case UpdateObjects():
-        notYet('T23a', 'UpdateObjects');
-      case InsertPages(:final drafts)
-          when drafts.any((d) => d.objects.isNotEmpty):
-        notYet('T23a', 'InsertPages with PageDraft.objects');
-      case CompositeCommand(:final commands):
-        commands.forEach(_rejectObjectWrites);
-      default:
-        break;
-    }
+/// (m5-7/02-core 6.2.3) The normalization of a LOCAL object write: styles by the 6.2.3 table,
+/// frames (and an ellipse's frame) by ElementFrame.normalized(). UnknownObject as it is.
+PageObject normalizedObject(PageObject o) => switch (o) {
+  ShapeObject(:final geometry, :final style) => o.copyWith(
+    geometry: geometry is EllipseGeometry
+        ? EllipseGeometry(geometry.ellipseFrame.normalized())
+        : geometry,
+    style: style.normalized(),
+  ),
+  TextBoxObject(:final frame, :final style) => o.copyWith(
+    frame: frame.normalized(),
+    style: style.normalized(),
+  ),
+  ImageObject(:final frame) => o.copyWith(frame: frame.normalized()),
+  MathObject(:final frame, :final style) => o.copyWith(
+    frame: frame.normalized(),
+    style: style.normalized(),
+  ),
+  UnknownObject() => o,
+};
+
+/// (m5-7/02-core 6.4.1) The local content limits of one object (ArgumentError).
+void checkObjectLimits(PageObject o) {
+  switch (o) {
+    case TextBoxObject(:final text)
+        when text.length > PageObjectLimits.maxTextLength:
+      throw ArgumentError.value(
+        text.length,
+        'text.length',
+        'object ${o.id}: at most ${PageObjectLimits.maxTextLength}',
+      );
+    case MathObject(:final latex)
+        when latex.length > PageObjectLimits.maxLatexLength:
+      throw ArgumentError.value(
+        latex.length,
+        'latex.length',
+        'object ${o.id}: at most ${PageObjectLimits.maxLatexLength}',
+      );
+    case ShapeObject(geometry: PolylineGeometry(:final points))
+        when points.length < 2 ||
+            points.length > PageObjectLimits.maxPolylinePoints:
+      throw ArgumentError.value(
+        points.length,
+        'points.length',
+        'object ${o.id}: 2..${PageObjectLimits.maxPolylinePoints} points',
+      );
+    case ImageObject(:final pixelWidth, :final pixelHeight)
+        when pixelWidth < 1 || pixelHeight < 1:
+      throw ArgumentError.value(
+        '${pixelWidth}x$pixelHeight',
+        'pixelWidth / pixelHeight',
+        'object ${o.id}: at least 1 × 1',
+      );
+    default:
+      break;
   }
 }
 
@@ -101,6 +173,9 @@ final class _Work {
 
   /// Stroke overrides per page (null = no longer active).
   final Map<PageId, Map<ElementId, Stroke?>> _strokes = {};
+
+  /// (v2.0) Page object overrides per page (null = no longer active).
+  final Map<PageId, Map<ElementId, PageObject?>> _objects = {};
 
   /// Pages created by this edit: their stroke set starts empty.
   final Set<PageId> _newPages = {};
@@ -148,14 +223,45 @@ final class _Work {
     }
   }
 
+  Map<ElementId, PageObject> _baseObjects(PageId pageId) {
+    if (_newPages.contains(pageId)) return const {};
+    final base = state.activeObjects(pageId);
+    if (base == null) {
+      throw PageNotOpenException('Page $pageId is not open in this session');
+    }
+    return base;
+  }
+
+  PageObject? _activeObject(PageId pageId, ElementId id) {
+    final o = _objects[pageId];
+    if (o != null && o.containsKey(id)) return o[id];
+    return _baseObjects(pageId)[id];
+  }
+
+  Iterable<PageObject> _allActiveObjects(PageId pageId) sync* {
+    final o = _objects[pageId] ?? const <ElementId, PageObject?>{};
+    for (final x in _baseObjects(pageId).values) {
+      if (!o.containsKey(x.id)) yield x;
+    }
+    for (final x in o.values) {
+      if (x != null) yield x;
+    }
+  }
+
+  /// Strokes and objects share ONE id space (6.4.1 — the 1st-round rule): the page, this edit,
+  /// and the deleted ids the session knows.
   bool _strokeIdTaken(PageId pageId, ElementId id) {
     final o = _strokes[pageId];
     if (o != null && o.containsKey(id)) return true;
     if (_base(pageId).containsKey(id)) return true;
+    if (_baseObjects(pageId).containsKey(id)) return true;
     for (final m in _strokes.values) {
       if (m.containsKey(id)) return true;
     }
-    return state.isKnownStroke(id);
+    for (final m in _objects.values) {
+      if (m.containsKey(id)) return true;
+    }
+    return state.isKnownStroke(id) || state.isKnownObject(id);
   }
 
   void _put(SyncEntity? before, SyncEntity after, Set<String> fields) {
@@ -171,6 +277,10 @@ final class _Work {
       _pages[after.id] = after;
     } else if (after is Stroke) {
       (_strokes[after.pageId] ??= {})[after.id] = after.isDeleted
+          ? null
+          : after;
+    } else if (after is PageObject) {
+      (_objects[after.pageId] ??= {})[after.id] = after.isDeleted
           ? null
           : after;
     }
@@ -197,14 +307,25 @@ final class _Work {
         :final scaleStrokeWidth,
       ):
         _base(pageId);
+        _baseObjects(pageId);
         if (transform.isIdentity) return;
         for (final id in elementIds.toSet()) {
           final s = _active(pageId, id);
-          if (s == null) continue;
-          final t = s
-              .transformed(transform, scaleWidth: scaleStrokeWidth)
-              .copyWith(updatedAt: now, version: v);
-          _put(s, t, {'points', if (t.style != s.style) 'style'});
+          if (s != null) {
+            final t = s
+                .transformed(transform, scaleWidth: scaleStrokeWidth)
+                .copyWith(updatedAt: now, version: v);
+            _put(s, t, {'points', if (t.style != s.style) 'style'});
+            continue;
+          }
+          // (v2.0, m5-7/02-core 6.4.1) objects: THE transform rule (6.2.5), the same function
+          // as every preview; UnknownObject cannot be transformed (skipped).
+          final o = _activeObject(pageId, id);
+          if (o == null || o is UnknownObject) continue;
+          final t = o.transformed(transform, scaleWidth: scaleStrokeWidth);
+          final keys = changedObjectKeys(o, t);
+          if (keys.isEmpty) continue;
+          _put(o, t.copyWithMeta(updatedAt: now, version: v), keys);
         }
       case RestyleStrokes(:final pageId, :final strokeIds, :final patch):
         _base(pageId);
@@ -218,9 +339,15 @@ final class _Work {
             'style',
           });
         }
-      case ClearPage(:final pageId, :final filter):
-        // (v2.0) includeObjects: no page object exists before CORE T23a (02-core 8.1).
+      case ClearPage(:final pageId, :final filter, :final includeObjects):
         _base(pageId);
+        _baseObjects(pageId);
+        // (v2.0) includeObjects: every PageObject, UnknownObject included (6.4.1).
+        if (includeObjects) {
+          _removeObjects(pageId, [
+            for (final o in _allActiveObjects(pageId)) o.id,
+          ]);
+        }
         final ids = [
           for (final s in _allActive(pageId))
             if (switch (filter) {
@@ -261,13 +388,118 @@ final class _Work {
       case CompositeCommand(:final commands):
         commands.forEach(apply);
       case RemoveElements(:final pageId, :final elementIds):
-        // (v2.0) Strokes as RemoveStrokes; objects come with CORE T23a (none exist before
-        // it — 02-core 8.1).
+        // (v2.0) strokes and objects; unknown / deleted / repeated ids ignored.
         _base(pageId);
+        _baseObjects(pageId);
         _removeStrokes(pageId, elementIds);
-      case AddObjects() || UpdateObjects():
-        // Rejected by CommandResolver._rejectObjectWrites before any work.
-        notYet('T23a', c.label);
+        _removeObjects(pageId, elementIds);
+      case AddObjects(:final pageId, :final objects):
+        _base(pageId);
+        _baseObjects(pageId);
+        _addObjects(pageId, objects);
+      case UpdateObjects(:final pageId, :final objects):
+        _base(pageId);
+        _baseObjects(pageId);
+        _updateObjects(pageId, objects);
+    }
+  }
+
+  // ---- (v2.0) page objects (m5-7/02-core 6.4.1) -----------------------------------------
+
+  void _addObjects(PageId pageId, List<PageObject> objects) {
+    final seen = <ElementId>{};
+    for (final o in objects) {
+      if (o.pageId != pageId) {
+        throw ArgumentError(
+          'Object ${o.id} belongs to page ${o.pageId}, not $pageId',
+        );
+      }
+      if (o.version != null) {
+        throw ArgumentError(
+          'Object ${o.id} already has a version (must be null)',
+        );
+      }
+      if (o.deletedAt != null) {
+        throw ArgumentError('Object ${o.id} is deleted');
+      }
+      if (!isValidEntityId(o.id)) {
+        throw ArgumentError.value(o.id, 'object.id', 'invalid entity id');
+      }
+      if (!seen.add(o.id) || _strokeIdTaken(pageId, o.id)) {
+        throw ArgumentError.value(o.id, 'object.id', 'id already exists');
+      }
+      checkObjectLimits(o);
+    }
+    final count = _allActiveObjects(pageId).length + objects.length;
+    if (count > PageObjectLimits.maxObjectsPerPage) {
+      throw ArgumentError.value(
+        count,
+        'objects',
+        'page $pageId: at most ${PageObjectLimits.maxObjectsPerPage} objects',
+      );
+    }
+    for (final o in objects) {
+      _put(null, normalizedObject(o).copyWithMeta(updatedAt: now, version: v), {
+        kAllFields,
+      });
+      _insertedElements.add(o.id);
+    }
+  }
+
+  void _updateObjects(PageId pageId, List<PageObject> objects) {
+    final next = <(PageObject, PageObject)>[];
+    final seen = <ElementId>{};
+    for (final o in objects) {
+      if (!seen.add(o.id)) {
+        throw ArgumentError.value(o.id, 'object.id', 'listed twice');
+      }
+      final cur = _activeObject(pageId, o.id);
+      if (cur == null) {
+        throw ArgumentError.value(
+          o.id,
+          'object.id',
+          'no active object on page $pageId',
+        );
+      }
+      if (cur is UnknownObject || o is UnknownObject) {
+        throw ArgumentError.value(
+          o.id,
+          'object',
+          'an UnknownObject cannot be edited',
+        );
+      }
+      if (cur.runtimeType != o.runtimeType || cur.type != o.type) {
+        throw ArgumentError.value(o.id, 'object', 'the type cannot change');
+      }
+      if (o.pageId != cur.pageId || o.createdAt != cur.createdAt) {
+        throw ArgumentError.value(
+          o.id,
+          'object',
+          'pageId and createdAt cannot change (z-order is fixed)',
+        );
+      }
+      if (o.deletedAt != null) {
+        throw ArgumentError(
+          'Object ${o.id} is deleted (remove it with RemoveElements)',
+        );
+      }
+      checkObjectLimits(o);
+      next.add((cur, normalizedObject(o)));
+    }
+    for (final (cur, o) in next) {
+      final keys = changedObjectKeys(cur, o);
+      if (keys.isEmpty) continue;
+      _put(cur, o.copyWithMeta(updatedAt: now, version: v), keys);
+    }
+  }
+
+  void _removeObjects(PageId pageId, List<ElementId> ids) {
+    for (final id in ids.toSet()) {
+      final o = _activeObject(pageId, id);
+      if (o == null) continue; // unknown / already deleted ids are ignored
+      _put(o, o.copyWithMeta(deletedAt: now, updatedAt: now, version: v), {
+        'deletedAt',
+      });
     }
   }
 
@@ -371,6 +603,15 @@ final class _Work {
       updatedAt: now,
       version: v,
     );
+    // (v2.0) the draft's objects: limits before anything (6.4.1).
+    if (draft.objects.length > PageObjectLimits.maxObjectsPerPage) {
+      throw ArgumentError.value(
+        draft.objects.length,
+        'draft.objects',
+        'at most ${PageObjectLimits.maxObjectsPerPage} objects per page',
+      );
+    }
+    draft.objects.forEach(checkObjectLimits);
     _newPages.add(pageId);
     _put(null, page, {kAllFields});
     _insertedPages.add(pageId);
@@ -386,6 +627,14 @@ final class _Work {
         updatedAt: now,
         version: v,
       );
+      _put(null, copy, {kAllFields});
+      _insertedElements.add(copy.id);
+    }
+    // (v2.0) objects: new ids, the original createdAt (z-order kept), normalized.
+    for (final o in draft.objects) {
+      final copy = normalizedObject(
+        o.copyTo(id: ids.newId(), pageId: pageId, createdAt: o.createdAt),
+      ).copyWithMeta(updatedAt: now, version: v);
       _put(null, copy, {kAllFields});
       _insertedElements.add(copy.id);
     }
@@ -428,6 +677,8 @@ final class _Work {
     final sources = _targets(pageIds);
     for (final source in sources) {
       final strokes = _allActive(source.id).toList()..sort(Stroke.compareOrder);
+      final objects = _allActiveObjects(source.id).toList()
+        ..sort(Stroke.compareOrder);
       final order = _activePages();
       final index = order.indexWhere((p) => p.id == source.id) + 1;
       final key = _placeKeys(order, index, 1).single;
@@ -436,6 +687,7 @@ final class _Work {
           size: source.size,
           background: source.background,
           strokes: strokes,
+          objects: objects,
         ),
         key,
       );
@@ -487,7 +739,7 @@ final class _Work {
           ? {kAllFields}
           : acc.fields;
       final after = acc.after;
-      if (after is Stroke) affected.add(after.pageId);
+      if (after is PageElement) affected.add(after.pageId);
       if (after is Page) affected.add(after.id);
     }
     return ResolvedEdit(
@@ -503,7 +755,9 @@ final class _Work {
         ),
         insertedElementIds: List.unmodifiable([
           for (final id in _insertedElements)
-            if (fields.containsKey(EntityRef(EntityKind.stroke, id))) id,
+            if (fields.containsKey(EntityRef(EntityKind.stroke, id)) ||
+                fields.containsKey(EntityRef(EntityKind.pageObject, id)))
+              id,
         ]),
       ),
       fields,
