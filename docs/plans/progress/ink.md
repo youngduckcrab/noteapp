@@ -2,6 +2,7 @@
 
 ## 요약
 
+- (2차) 기반 단계 R2-B3 완료 — `fd3370f`(T24 표면·T25·T26a 글꼴·측정·T26b 수식 검증·배치 한 커밋, 2026-11-06). 이정표 T24 표면 = T26a = `fd3370f`. 자세한 기록은 맨 아래 '## 2차'. 다음: 동시 개발(T27~), INFRA `flutter: assets:` 블록이 들어오면 `pubspec_assets_test`.
 - 마지막 세션: 10 = 동시 개발 단계 보완 1.1 — 독립 검토 미비점 5개 처리(① `InkPageThumbnailRenderer`의 계약 밖 공개 static `grainWait`·`sliceUs` → 비공개 ② 9.1 '속지 벡터' Chrome 감싸기 `web/template_vectors_web_test.dart` ③ ink lab 등록을 '변경 요청'·'의존성 요청'에 명시(대상 INFRA) ④ 골든 9.2 — `images/`, ≤ 400×400, 불투명 ⑤ `pen_preview_test` 빈 크기 단언). 세션 9까지: T21 벡터 내보내기, T22 벤치마크 스위트 완료 — **동시 개발 단계 몫 전부 완료**(세션 1: T01~T04, 세션 2: T05·T06, 세션 3: T07·T08, 세션 4: T09~T11, 세션 5: T12(INK-α 완료)·T23·T13·T13b, 세션 6: T14~T16, 세션 7: T17·T18, 세션 8: T19·T20(INK-β 완료))
 - 통합 단계(1차 통합 — CORE → INK → EDITOR·LIBRARY 병합 뒤): 실제 CORE와 합친 INK 확인(VM·골든·Chrome·벤치마크·ink lab·R14 미리 보기) 통과, INK 코드 변경 없음. EDITOR E-21 통과(EDITOR 확인). 전체 병합 뒤 변경 요청 1건(ink lab README의 '워크스페이스 밖' 문단) 처리. 아래 '## 통합 단계'
 - 다음 할 일: 동시 개발 단계 몫 없음. PDF 병합 뒤 `integration/ink_vectorizer_test`(형광펜 → Multiply 선 객체, 속지 6종)·`ink_thumbnail_test`가 INK 출력을 판정한다. 총괄 결정 대기 없음(LassoOptions 문구는 계약 v1.5 C15-01로 반영 — '## 통합 단계'; ink lab 등록은 INFRA가 처리). 9.3 iPad 확인은 사용자 몫
@@ -219,3 +220,59 @@
 확인: 루트 `flutter pub get` — 루트 `pubspec.lock` 변경 없음. `ws test --package ink_lab` 스모크 1개 통과(VM). `packages/ink_engine/example`에서 `flutter build web` 성공(`build/web`, git 밖). INK `lib/`·`test/`·`example/` 코드 변경 없음(README와 이 기록만, 1689f7e). 03-ink.md는 바꿀 곳 없음(1976·2663행 모두 '등록은 INFRA' — 사실과 맞음).
 
 - (계약 v1.5 C15-01, 2026-11-05) `lasso_options.dart` 주석·03-ink 4.7·6.21 L2 표의 퇴화 기준을 '∫\|winding\| dA < minAreaPt2 (= shoelace \|area\| for simple polygons; a figure 8 adds its loops)' 글자 그대로로(내부 `lasso_polygon.dart` 머리 주석도 같게, 03-ink 머리·4장·12.1 기준 계약 v1.5, 13.5). 구현 `isDegenerate`는 이미 이 뜻 — `unit/edit/lasso_test.dart`에 대칭 8자 경계 테스트(3pt² 고리 2개: 신발끈 0, ∫\|w\| dA 6 → 4pt²·5.9pt²에서 퇴화 아님·선택 {a}, 6.1pt²에서 null) 추가. 패키지 analyze 0, `ws test --package ink_engine` 780개·Chrome `web/lasso_web_test` 통과, `ws check` 0. 동작·공개 API 변경 없음(446518e)
+
+## 2차
+
+계획 docs/plans/m5-7/03-ink.md(승인 · 계약 v2.2 — 7.6.2 R2-B3 행, 03-ink 4.13 표, 8.1 T24·T25·T26a·T26b). 바탕: `main` `44f5c92`(1차 통합 HEAD `b6c9d0a` + 계획 + R2-B1 `3c77de3` + R2-B7b `9cdd3fb` + R2-B2·B7a·B2i 묶음 `2b2e4b0`…`7dacf36` + 묶음 검사 `44f5c92`). INK-F1: 1차 `lasso_polygon.dart`·`lasso_options.dart`(C15-01 문구)에서 시작했고 두 파일의 올가미 규칙은 바꾸지 않았다(`includeObjects` 필드만 더함).
+
+### 이정표 커밋 (INK 2차 — 03-ink 8.5)
+
+| 이정표 | 커밋 | 날짜 | 되는 것 | 기다리는 영역 |
+|---|---|---|---|---|
+| T24 표면 | fd3370f | 2026-11-06 | 7.2.9 v2.1 공개 표면 전부 컴파일·기본 동작(4.13 표), `InkVectorFixtures`, `testing.dart` v2 | EDITOR R2-B5·PDF R2-B4·LIBRARY R2-B6(그 위에서 컴파일), PDF 벡터화 시험(손으로 만든 v2 값) |
+| T26a 글꼴·측정 | fd3370f | 2026-11-06 | `InkFonts`·`InkTextLayout`(`measure`·`measureSync`·`textStyleOf`·`strutStyleOf`·`rasterize`) 실제 동작, `useInkTestFonts` — 단 앱·패키지 시험의 `rootBundle` 적재는 INFRA의 `flutter: assets:` 블록 뒤(아래 '변경 요청 (2차)' 1) | EDITOR 텍스트 편집기·시트 초안 높이·Chrome 시험, PDF 텍스트 래스터·Chrome 시험, LIBRARY 변환 상자 높이, INFRA V3 Chrome |
+| T33 도형 렌더 | | | 도형 7종 최종 모양 | EDITOR |
+| T34 텍스트 렌더 | | | 텍스트 상자 최종 그리기 | EDITOR(E-6) |
+| T36 수식 래스터 | | | `rasterize`(SVG 적재 대기·4 Mpx) | recog, PDF |
+| T42 벡터 v2 | | | `InkPageVectors` v2 실제 값 | PDF |
+
+T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5·B6이 바로 그 위에서 시작). T26b(수식 검증·배치·`MathPreview`)도 같은 커밋이라 recog가 기다리는 '수식 미리보기'도 이 해시부터 된다.
+
+### 작업 표 (2차)
+
+| ID | 상태 | 커밋 | 비고 — 완료 조건 |
+|---|---|---|---|
+| T24 | 완료 | fd3370f | 계약 표면 v2.1. `unit/api_surface_v2_test.dart`(새 — 7.2.9 이름·생성자·메서드·getter를 타입 단언으로, `StrokeSession`은 1차 `final class` 그대로), `unit/api_surface_test.dart`(1차 — enum 값 목록 v2·기본 빌더 목록만 고침), `unit/export_list_test.dart` v2(새 이름 22개 + testing.dart 6개), `unit/pen/style_ink_v2_test.dart`(4.10 읽기 규칙 전부, `withInkExtras` 다른 키 보존, `defaultsFor`, C2-38 키 동작 대조), `unit/edit/ink_edit_v2_test.dart`(`toCommand` v2.1 표 — 이름 있는 인자 모양, C-3 가짜 저장소 실행, CP-INK-2, 빈 쪽 빼고 하나면 그 명령, ⊄ → `ArgumentError`, `isEmpty` v2, `==`), `unit/render/ink_page_content_v2_test.dart`(객체 정렬·삭제 제외·다른 페이지 `ArgumentError`·동일성 `==`·층 배정), `unit/render/controller_getters_test.dart`(새), `unit/providers_v2_test.dart`(새 provider `name:`, 저장소 override 없는 컨테이너, 기본 목록, 지연 저장소, S-12), `unit/testing/vector_fixtures_test.dart`(`exportPage` 결과를 필드별로 다시 만들면 `==`), `unit/tuning_test.dart`(2차 상수 추가) |
+| T25 | 완료 | fd3370f | 층 9개·객체 단순 렌더·선택. `foundation/b3_v2_smoke_test.dart`(위젯: CORE 가짜 저장소 + 객체 6종 → 층마다 픽셀·겹친 자리 위 층 색(L-1), 올가미 획 + 도형 → 미리보기 픽셀 → `TransformElements` 한 개 → 대기 빔, 복제·색 변경 → `Composite`, 삭제 → `RemoveElements`, 지우개 두 모드가 도형만 지움·`highlighterOnly`·`eraseShapes: false`는 안 지움, 숨김 → 픽셀 없음·적중은 됨, 같은 id 미리보기 대체·숨긴 id 미리보기 그림·내용 불변, 레이저 `end()` == null·대기 빔·내용 동일(K-9), 테이프 상태·뒤에 온 테이프는 가림·지운 테이프 빠짐, `hitTestTape` bounds, `hitTestRecorded`, `hitTestObject` 순서, 렌더 경로 예외 없음), `unit/no_platform_imports_test.dart` v2(`Platform` 없음, `flutter_math_fork`는 `lib/src/math/`만, `provider`·`flutter_svg` 없음) |
+| T26a | 완료 | fd3370f | 글꼴·측정·래스터·시험 글꼴. `assets/fonts/`(NoteSans 2개·`OFL.txt`·`README.md`), `tool/fonts/make_note_sans.py`·`test_font_chars.txt`, `lib/src/text/note_sans_coverage.dart`(생성), `lib/src/testing/ink_test_font.dart`(생성), `THIRD_PARTY_NOTICES.md`. `unit/text/fonts_test.dart`(한 번만 적재·같은 Future, 바이트 = 파일, 실패 → 재시도, 끝나지 않는 원본 → `fake_async` 5초 `TimeoutException`(두 함수)·늦은 바이트 버림·암묵 호출 30초 쉼·직접 호출 재시도, `covers` 2,350자·'똠'·공백), `unit/text/coverage_table_test.dart`(cmap 포맷 4 = 범위표, 두 굵기 같음), `unit/text/text_layout_test.dart`(줄 높이 강제 strut, 빈 글 한 줄, 정렬 3종, 굵게 너비, `measureSync` 전·후·실패 뒤, 스타일 값, **같은 스타일·여백 0 `EditableText`의 글자 픽셀 상자 = INK 문단**), `unit/text/text_raster_test.dart`, `unit/testing/test_font_test.dart`, (웹) `web/fonts_web_test.dart`. `pubspec_assets_test`는 만들지 않음(아래 1) |
+| T26b | 완료 | fd3370f | 수식 검증·배치·미리보기. `unit/math/math_validate_test.dart`(조사 03 표본 43개: 42개 null·`\tag` → `Undefined control sequence: \gdef`, 빈 글·길이 초과 문구), `unit/math/math_layout_test.dart`(`loadKatexFontsForTest` 뒤 크기·기준선, 2배 ±2%, 잘못된 LaTeX → null, 바깥 build 안 → `StateError`, `rasterize` → null), `widget/math_preview_test.dart`(크기 > 0, 오류 → 크기 0 + `onError` (latex, 문구)마다 한 번·프레임 뒤), (웹) `web/offscreen_math_web_test.dart`(KaTeX 적재 없이 `layout` non-null) |
+
+확인(2026-11-06, 커밋 전 작업 트리 — 다른 영역 경로 변경 없음): `flutter analyze --fatal-infos`(루트 전체) 0, `ws check` 위반 0, `packages/ink_engine` VM `flutter test` **889 통과**(1차 780 + 2차 109, 골든 포함), Chrome `ws test --package ink_engine --platform chrome` **199 통과**(1차 193 + 6), `ws test --platform vm` ink_lab 1 · feature_editor 591 · pdf_io 580 · feature_library 626 통과, **noteapp 260 통과 1 실패** — INFRA `app/test/modules/pdf_module_test.dart` 103행이 1차 기본 목록 `[TemplateBackgroundLayerBuilder]`를 단언한다(계약 v2.0이 기본값을 `[image, template]`로 바꿈 → 변경 요청 5). C2-19: `grep -rn "InkLayer\.\|InkRenderLayer\.\|InkRenderMethod\.\|InkEditKind\." packages/ app/ --include=*.dart | grep -v packages/ink_engine/` → EDITOR 3줄(`InkEditKind.addStroke` 2 — 시험의 생성자 인자와 lib의 `==` 비교, `InkRenderLayer.overlay` 1), exhaustive switch 없음.
+
+### 4.13 표 대비 R2-B3 동작 (기반 단계 — 동시 개발에서 교체)
+
+- **최종**: `InkStyleExtras`·`InkTapeStyle`·`StrokeStyleInk` 새 getter·`withInkExtras`, `InkPageContent.fromCore(objects:)`, `InkEdit` v2.1·`toCommand`, 읽기 getter 4개, 도형 포트 4개 이름, `InkBackgroundSpec.imageFit`, `InkRenderConfig` 예산 필드 2개, `defaultPageBackgroundBuilders`·기본값(지연 저장소), `InkFonts`·`InkTextLayout` 전부, `InkMathRenderer.validate`·`layout`, `MathPreview`, `testing.dart` v2.
+- **단순**: 객체는 매 paint 단순 기록(캐시 없음 — T32b) — 이미지 = 종이 대비 회색 상자 + 대각선, 도형 = 실선 폴리라인·타원(채우기·화살표·점선 없음 — T33) **ink 층 청크 뒤**(획과 z 섞기는 T32b), 텍스트 = 배경 + NoteSans(적재 전 대체 글꼴) 문단·frame 자르기·회전(T34), 수식 = 연한 상자(T36), 모르는 객체 = 빗금 상자. `hitTestObject` = frame(도형도), 지우개 = 도형 `bounds`와 캡슐 겹침(T37b), 올가미 = frame 중심. P1 펜 5종은 볼펜 프로필(레이저도 쓰는 동안 볼펜 — 사라짐 없음, T30), 테이프 cover 층은 비어 있고 테이프는 볼펜으로 그림(T31). 재생 초점은 상태만(T40), 층 4′ 비어 있음. `ImageBackgroundLayerBuilder`는 종이 색, `InkImageCache.peek`·`load` → null·`changes` 없음(T35). 벡터 v2 목록 빔·`objectId` null(T42). 썸네일은 1차 그대로(획만 — T41). `InkMathRenderer.rasterize` → null(T36). `shapePreview`는 늘 null(T39 — P-B).
+
+### 계획·계약과 다르게 한 점 (2차 R2-B3)
+
+1. **`pubspec.yaml`의 `flutter: assets:` 블록을 넣지 않았다** — 이번 단계 지시가 `pubspec.yaml`을 INFRA 소유로 뺐다(03-ink 3.1은 R2-B3(T26a)에서 INK가 넣는다고 적음). 그래서 지금은 앱·패키지 시험의 `rootBundle.load('packages/ink_engine/assets/fonts/…')`가 실패하고 `InkFonts.ensureLoaded()`는 그 오류로 끝난다(화면은 대체 글꼴, 측정은 대체 글꼴 값 — 예외 없음). INK 시험은 VM에서 `debugSetInkFontSource`로 `assets/fonts/` 파일을 직접 읽는다. `unit/pubspec_assets_test.dart`(T26a 표)는 블록이 들어온 뒤 만든다. → 변경 요청 1.
+2. `FakeInkShapeFitter`의 바꿀 수 있는 필드 이름은 `result`다 — 4.12의 `InkShapeFit? fit;`는 `InkShapeFitter.fit` 메서드와 이름이 겹쳐 Dart에서 선언할 수 없다. 생성자 인자는 계획대로 `fit:`.
+3. `InkEdit`의 `removedObjectIds ⊆ removedIds`는 `toCommand()`의 `ArgumentError`로만 검사한다 — `const` 생성자의 `assert`에는 `containsAll` 호출을 쓸 수 없다(4.10은 둘 다 적음).
+4. `inkCoreServicesProvider`가 CORE의 id 생성기·시계를 **쓸 때 읽는다**(1차는 provider 본문에서 `ref.watch`). 4.11 '저장소 override 없는 컨테이너에서 `inkPageControllerProvider` 읽기 예외 없음'을 지키려면 컨트롤러를 만들 때 `noteStoreProvider`를 읽지 않아야 한다. 저장소가 있는 앱·시험의 값은 1차와 같다.
+5. 글꼴 원본 주소는 google/fonts **`main`이 가리키던 커밋 `24ddc1f`**(2026-11-06)로 고정했다 — 그 파일을 마지막으로 바꾼 커밋을 찾을 GitHub API가 이 세션에 없었다(03-ink 6.10.1 S-7). sha256 `194018e6…61e252`가 계획과 같아 같은 바이트다.
+6. 이름 바꾸기를 name ID 1·2·4·6에 더해 3(고유 id)도 고치고 16·17·21·22·25·256 이상(가변 글꼴 이름)을 지웠다 — 원본 이름 'Noto Sans KR'이 수정본에 남지 않게. 그래서 크기·해시가 계획(이름을 바꾸지 않은 시험 출력)과 다르다: Regular 466,936 B `b8acd7a9…c1041`, Bold 466,440 B `f53c5385…fc624`(gzip 213,615·216,764), 두 번 실행 같은 바이트 확인. 시험 글꼴 432 코드 포인트 64,452 B(≤ 64 KiB). `assets/fonts/README.md`에 명령·해시.
+7. 줄 높이: 이 엔진은 강제 strut 줄 높이를 정수 pt로 반올림한다(16 × 1.4 = 22.4 → 줄마다 22). `measure` = `max(문단 높이, 22.4)`(4.10 그대로)라 한 줄 상자는 22.4, n줄은 n × 22다. 시험은 '줄마다 같은 높이(± 0.5) · 합 = n × 실제 줄 높이 · `EditableText`와 글자 픽셀이 같음'으로 단언한다(8.1의 '높이 = 줄 수 × fontSize × lineHeight'를 그대로 쓰면 n줄에서 실패).
+8. `InkVectorFixtures`·`useInkTestFonts` 본문은 `testing.dart`에 직접 두었다(3장 트리의 `src/testing/vector_fixtures.dart` 대신) — 1차 `export_list_test`의 'testing.dart는 아무것도 다시 export하지 않음' 규칙을 지키려고. 생성된 base64 상수만 `src/testing/ink_test_font.dart`. `export_list_test`는 `_`로 시작하는 비공개 최상위 이름을 세지 않게 했다.
+9. 2차 시험은 1차 파일을 고치는 대신 새 파일(`*_v2_test.dart`, `controller_getters_test`, `providers_v2_test`)에 두었다. 1차 시험은 계약이 바꾼 기댓값만 고쳤다: `InkRenderLayer`·`InkEditKind` 값 목록(`api_surface_test`), 기본 배경 빌더 목록 `[image, template]`(`api_surface_test`·`providers_test`·`b3_behaviour_test`), 이미지 배경 spec의 `imageFit`(`core_interop_test`), export 이름 목록.
+10. `InkMathRenderer.layout`은 초기화된 `WidgetsBinding`이 있어야 한다(`flutter_math_fork` 위젯이 전역 키를 씀) — 없으면 `StateError`. 앱에는 늘 있고, 바인딩 없는 순수 `test()`는 `TestWidgetsFlutterBinding.ensureInitialized()`를 부른다.
+11. `THIRD_PARTY_NOTICES.md`: `flutter_math_fork`는 **Apache License 2.0**이다(3장 트리 주석은 MIT로 적음). KaTeX 글꼴은 MIT.
+12. 시험 이름: 계획의 `unit/render/content_diff_test.dart` v2 대신 `unit/render/ink_page_content_v2_test.dart`(객체 diff는 T32a라 R2-B3에는 `fromCore` 규칙만).
+
+### 변경 요청 (2차)
+
+1. **[INFRA]** `packages/ink_engine/pubspec.yaml`에 03-ink 3.1의 `flutter: assets:` 블록(파일 단위 3줄: `assets/fonts/NoteSans-Regular.ttf`, `assets/fonts/NoteSans-Bold.ttf`, `assets/fonts/OFL.txt` — 폴더·README는 넣지 않음)을 넣어 주세요. 의존 줄·lock과 무관하고, 들어온 뒤 INK가 `unit/pubspec_assets_test.dart`를 더한다. 그 전에는 앱·다른 영역 VM 시험의 `InkFonts`가 대체 글꼴로 동작한다(Chrome 시험은 어차피 `useInkTestFonts()`).
+2. **[EDITOR]·[LIBRARY]** `FakeInkShapeFitter(fit: …, minPoints: …)`의 바꿀 수 있는 필드는 `result`(위 2). recog `shape_assist_flow_test`·EDITOR 시험에서 `fitter.fit = x` 대신 `fitter.result = x`.
+3. **[EDITOR]·[LIBRARY]·[PDF]·[INFRA]** Chrome 시험에서 `InkFonts`·`InkTextLayout`을 거치면 `setUpAll(useInkTestFonts)`(4.12). `InkMathRenderer.layout`을 바인딩 없는 `test()`에서 부르면 먼저 `TestWidgetsFlutterBinding.ensureInitialized()`(위 10).
+4. **[총괄]** 03-ink 계획 본문 정정(이번 기록이 근거): 6.10.1 크기·해시(위 6), 8.1 T26a 줄 높이 문장(위 7), 4.12 `FakeInkShapeFitter` 필드(위 2), 3장 트리 `flutter_math_fork` 라이선스(위 11).
+5. **[INFRA]** `app/test/modules/pdf_module_test.dart` 103행('INK's default: template backgrounds only')을 계약 7.2.9 v2.0 기본값 `[isA<ink.ImageBackgroundLayerBuilder>(), isA<ink.TemplateBackgroundLayerBuilder>()]`으로. 그 아래 `pdfIoOverrides()` 시험(빌더 2개)은 PDF R2-B4가 목록을 `[pdf, ...ink.defaultPageBackgroundBuilders(ref)]`(3개)로 바꿀 때 함께.
