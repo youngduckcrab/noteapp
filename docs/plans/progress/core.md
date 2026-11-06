@@ -404,11 +404,11 @@
 | T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
 | T32 | 완료 | 8cf5524 | `test/repo/handwriting_contract_real_test.dart`(공유 본문 13 + 경합 사례 3 두 건), `test/repo/handwriting_repository_test.dart`(16), `test/perf/stale_pages_perf_test.dart`(PF-6·PF-11), `test/web/handwriting_browser_test.dart`(공유 본문 13 — 실제 웹 저장소), 공유 본문에 1건 더함(같은 값 다시 쓰기 → 쓰기 없음·`createdAt` 유지 — 가짜도) |
 | T33a | 완료 | 5776751 | `test/search/search_index_writer_test.dart`(26 — 쓰기 훅·작성기 검증·블롭 순서·고아·재구축·정규화 판·실패 격리), `test/web/search_fts_browser_test.dart`(쓰기 4 — wasm contentless_delete·DELETE·재삽입·IndexedDB 상자·재구축), `test/testing/open_test_store_test.dart`(B2-α 본문의 색인 쓰기 시험은 실제 저장소에서 건너뜀) |
-| T33b | 진행 중 — **PF-3·PF-4만 남음**: 원문(V10) 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(아래 '보완 1.1'·'보완 1.2'). 나머지 완료 조건 시험은 통과 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4(CP-18 경계 100개 — '보완 1.4' 절) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
+| T33b | 진행 중 — **PF-3·PF-4만 남음**: 원문(V10) 예산 미달, [총괄] V10(계획 12.1 CP-18) 판정 대기(아래 '보완 1.1'·'보완 1.2'). 나머지 완료 조건 시험은 통과 | 734b9b5(질의) · 9084734(성능·PF-10·PF-10w) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4 `ec0d7d7`(CP-18 경계 100개 — '보완 1.4' 절) | `test/search/search_contract_real_test.dart`, `test/search/search_index_test.dart`, `test/search/fts_candidate_equivalence_test.dart`, `test/web/search_fts_browser_test.dart`, `test/perf/search_perf_test.dart`, `test/perf/search_real_shape_perf_test.dart`, `test/web/search_reopen_time_browser_test.dart` |
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
-| T37 | 진행 중 — **PF-3·PF-4만 남음**(T33b와 같은 이유). PF-1·PF-2·PF-5~PF-11·README·Chrome `perf`는 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4(README PF-3·PF-4 load < 4 값) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
+| T37 | 진행 중 — **PF-3·PF-4만 남음**(T33b와 같은 이유). PF-1·PF-2·PF-5~PF-11·README·Chrome `perf`는 완료 | b6c7bae(① 성능) · b1ce7ab(② README) · b05cd2a(③ README 성능표·기록) · 보완 1.1 `8f29456`(계획)·`6995ec1`(시험·기록) · 보완 1.4 `ec0d7d7`(README PF-3·PF-4 load < 4 값) | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
 #### 00-review '최종 승인' CORE 항목 처리
@@ -898,7 +898,7 @@ HEAD에서 바로 볼 곳:
   - 진행 기록: 요약, 작업 표 T33b·T37 커밋 열, 변경 요청 [총괄] V10의 제안 문구, '다음 세션 메모' ①·'검색 질의 예산'.
 - 막힘(그대로): V10 원문 판정은 이 영역 혼자 닫을 수 없다 — 예산 문구(7.7.2 V10)도, 이름이 붙은 유일한 대안인 후보 상한 낮추기(7.2.5 '(v2.1) At most 2,000 candidates')도 계약이고, 상한 300 실험(보완 1.1)으로도 모자랐다. 판정 뒤 할 일은 '다음 세션 메모' ④.
 
-커밋: 이 커밋 하나(시험 경계·계획·README·진행 기록).
+커밋: `ec0d7d7`(시험 경계·계획·README·진행 기록), 이 해시를 적는 기록 커밋.
 
 확인 (2026-11-06 보완 1.4, load 1.5~4 측정 뒤 다른 영역 시험이 다시 돌기 시작)
 
