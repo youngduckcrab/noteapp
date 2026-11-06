@@ -10,7 +10,10 @@
 //
 //   pdfioComposeBegin    {jobId, sources: [ArrayBuffer], pages: ArrayBuffer (Float64 plan)}
 //                        → {pageCount}
-//   pdfioComposeAddPages {jobId, pages: [{outputIndex, verbs, coords, paints}]} → {done}
+//   pdfioComposeAddPages {jobId, pages: [{outputIndex, verbs, coords, paints, images, texts,
+//                        fonts}]} → {done}
+//                        (2차) images: [{jpeg, width, height, hasAlpha, data: ArrayBuffer}],
+//                        texts: [string], fonts: [[fontId, ArrayBuffer]] (m5-7/06-pdf 6.2.6)
 //   pdfioComposeFinish   {jobId} → {data: ArrayBuffer} (transferred; pdfrx encodePdf)
 //   pdfioComposeAbort    {jobId} → {}
 //   pdfioComposeJobCount {} → {count}   (test hook: open jobs in this worker)
@@ -22,6 +25,14 @@
 //
 // If the pdfrx worker internals are not what this file expects, every compose command
 // fails with 'pdfio-incompatible-pdfrx' (Dart: engineUnavailable). pdfrx is pinned exactly.
+//
+// (2차, m5-7/06-pdf T23 — 6.2.5–6.2.7) image and text ops, the same steps as the native
+// interpreter: a part's fonts first (FPDFText_LoadFont, closed with FPDFFont_Close before the
+// document), JPEG bytes as they are (FPDFImageObj_LoadJpegFileInline through an
+// FPDF_FILEACCESS whose m_GetBlock is a Pdfium.addFunction callback — pdfrx's own
+// createDocumentFromJpegData does the same, E6), RGBA as a BGRA bitmap (BGRx without alpha:
+// no SMask), text as UTF-16 in wasm memory. The compatibility check also needs
+// Pdfium.addFunction / removeFunction.
 'use strict';
 
 (function () {
@@ -34,6 +45,8 @@
     typeof encodePdf === 'function' &&
     typeof Pdfium === 'object' &&
     Pdfium !== null &&
+    typeof Pdfium.addFunction === 'function' &&
+    typeof Pdfium.removeFunction === 'function' &&
     typeof StringUtils === 'function';
   if (!compatible) {
     const incompatible = function () {
@@ -57,10 +70,17 @@
   const CUBIC_TO = 2;
   const CLOSE = 3;
   const END_OBJECT = 7;
+  const IMAGE = 8;
+  const TEXT = 9;
+  const IMAGE_ARGS = 7;
+  const TEXT_ARGS = 13;
   const PAINT_STRIDE = 10;
   const PLAN_STRIDE = 6;
+  const FONT_TRUETYPE = 2; // FPDF_FONT_TRUETYPE
+  const BITMAP_BGRX = 3; // FPDFBitmap_BGRx
+  const BITMAP_BGRA = 4; // FPDFBitmap_BGRA
 
-  /** jobId → {dst, sources: [docHandle], buffers: [ptr], rows} */
+  /** jobId → {dst, sources: [docHandle], buffers: [ptr], rows, fonts: Map<fontId, FPDF_FONT>} */
   const jobs = new Map();
 
   function wasm() {
@@ -204,6 +224,11 @@
 
   function release(job) {
     const w = wasm();
+    // Fonts first: a font points at its document.
+    job.fonts.forEach(function (font) {
+      w.FPDFFont_Close(font);
+    });
+    job.fonts.clear();
     if (job.dst) w.FPDF_CloseDocument(job.dst);
     job.dst = 0;
     job.sources.forEach(function (doc) {
@@ -233,7 +258,7 @@
     const sources = params.sources || [];
     const rows = decodePlan(new Float64Array(params.pages), sources.length);
     const w = wasm();
-    const job = { dst: 0, sources: [], buffers: [], rows: rows };
+    const job = { dst: 0, sources: [], buffers: [], rows: rows, fonts: new Map() };
     try {
       job.dst = w.FPDF_CreateNewDocument();
       if (!job.dst) fail('FPDF_CreateNewDocument failed');
@@ -313,6 +338,12 @@
     const verbs = new Uint8Array(ops.verbs);
     const coords = new Float32Array(ops.coords);
     const paints = new Float32Array(ops.paints);
+    const images = ops.images || [];
+    const texts = ops.texts || [];
+    // 6.2.6: the part's fonts go into the document before its ops run.
+    (ops.fonts || []).forEach(function (entry) {
+      loadFont(job, entry[0], entry[1]);
+    });
     if (verbs.length === 0) return;
     const page = w.FPDF_LoadPage(job.dst, outputIndex);
     if (!page) fail('FPDF_LoadPage ' + outputIndex + ' failed');
@@ -376,6 +407,34 @@
             }
             break;
           }
+          case IMAGE: {
+            if (object) fail('verb ' + v + ': image inside an open path object');
+            if (c + IMAGE_ARGS > coords.length) fail('verb ' + v + ': coords end early');
+            const image = images[coords[c]];
+            if (!image) fail('verb ' + v + ': image ' + coords[c] + ' missing');
+            place(page, imageObject(job, page, image, v), coords, c + 1, m);
+            c += IMAGE_ARGS;
+            break;
+          }
+          case TEXT: {
+            if (object) fail('verb ' + v + ': text inside an open path object');
+            if (c + TEXT_ARGS > coords.length) fail('verb ' + v + ': coords end early');
+            const text = texts[coords[c]];
+            if (typeof text !== 'string') fail('verb ' + v + ': text ' + coords[c] + ' missing');
+            const font = job.fonts.get(coords[c + 1]);
+            if (!font) fail('verb ' + v + ': font ' + coords[c + 1] + ' not loaded');
+            const textObject = textObjectOf(job, font, coords[c + 2], text, v);
+            w.FPDFPageObj_SetFillColor(
+              textObject,
+              Math.round(coords[c + 3]),
+              Math.round(coords[c + 4]),
+              Math.round(coords[c + 5]),
+              Math.round(coords[c + 6])
+            );
+            place(page, textObject, coords, c + 7, m);
+            c += TEXT_ARGS;
+            break;
+          }
           default:
             fail('verb ' + v + ': unknown opcode ' + verbs[v]);
         }
@@ -386,6 +445,142 @@
     } finally {
       if (object) w.FPDFPageObj_Destroy(object);
       w.FPDF_ClosePage(page);
+    }
+  }
+
+  // ---- (2차) 6.2.5–6.2.7 fonts, image and text objects --------------------------------
+
+  /** FPDFText_LoadFont(TrueType, cid) — PDFium copies the data; the wasm buffer is freed here. */
+  function loadFont(job, fontId, buffer) {
+    if (job.fonts.has(fontId)) fail('font ' + fontId + ' already loaded in this job');
+    const w = wasm();
+    const bytes = new Uint8Array(buffer);
+    const ptr = w.malloc(Math.max(bytes.length, 1));
+    if (!ptr) fail('font ' + fontId + ': out of memory');
+    try {
+      new Uint8Array(Pdfium.memory.buffer, ptr, bytes.length).set(bytes);
+      const font = w.FPDFText_LoadFont(job.dst, ptr, bytes.length, FONT_TRUETYPE, 1);
+      if (!font) fail('font ' + fontId + ': FPDFText_LoadFont failed');
+      job.fonts.set(fontId, font);
+    } finally {
+      w.free(ptr);
+    }
+  }
+
+  /** A new image object holding [image] (not inserted yet — the caller owns it). */
+  function imageObject(job, page, image, v) {
+    const w = wasm();
+    const object = w.FPDFPageObj_NewImageObj(job.dst);
+    if (!object) fail('verb ' + v + ': FPDFPageObj_NewImageObj failed');
+    try {
+      const pages = w.malloc(4);
+      if (!pages) fail('out of memory');
+      let ok = 0;
+      try {
+        new Int32Array(Pdfium.memory.buffer, pages, 1)[0] = page;
+        ok = image.jpeg ? loadJpeg(pages, object, image) : setBitmap(pages, object, image);
+      } finally {
+        w.free(pages);
+      }
+      if (!ok) {
+        fail('verb ' + v + ': loading a ' + (image.jpeg ? 'JPEG' : 'bitmap') + ' ' + image.width + 'x' + image.height + ' failed');
+      }
+      return object;
+    } catch (e) {
+      w.FPDFPageObj_Destroy(object);
+      throw e;
+    }
+  }
+
+  /** FPDF_FILEACCESS {m_FileLen, m_GetBlock, m_Param} (12 bytes in wasm32) over the JPEG bytes. */
+  function loadJpeg(pages, object, image) {
+    const w = wasm();
+    const data = new Uint8Array(image.data);
+    const access = w.malloc(12);
+    if (!access) fail('out of memory');
+    const getBlock = function (param, position, pBuf, size) {
+      if (position + size > data.length) return 0;
+      new Uint8Array(Pdfium.memory.buffer, pBuf, size).set(data.subarray(position, position + size));
+      return 1;
+    };
+    const callback = Pdfium.addFunction(getBlock, 'iiiii');
+    try {
+      const fields = new Uint32Array(Pdfium.memory.buffer, access, 3);
+      fields[0] = data.length;
+      fields[1] = callback;
+      fields[2] = 0;
+      return w.FPDFImageObj_LoadJpegFileInline(pages, 1, object, access);
+    } finally {
+      Pdfium.removeFunction(callback);
+      w.free(access);
+    }
+  }
+
+  /** Straight RGBA → BGRA (BGRx without alpha) in wasm memory → FPDFImageObj_SetBitmap (copies). */
+  function setBitmap(pages, object, image) {
+    const w = wasm();
+    const width = image.width;
+    const height = image.height;
+    const src = new Uint8Array(image.data);
+    const length = width * height * 4;
+    if (!(width > 0 && height > 0) || src.length !== length) {
+      fail('bitmap: ' + src.length + ' B for ' + width + 'x' + height);
+    }
+    const ptr = w.malloc(length);
+    if (!ptr) fail('bitmap ' + width + 'x' + height + ': out of memory');
+    try {
+      const dst = new Uint8Array(Pdfium.memory.buffer, ptr, length);
+      for (let i = 0; i < length; i += 4) {
+        dst[i] = src[i + 2];
+        dst[i + 1] = src[i + 1];
+        dst[i + 2] = src[i];
+        dst[i + 3] = src[i + 3];
+      }
+      const bitmap = w.FPDFBitmap_CreateEx(width, height, image.hasAlpha ? BITMAP_BGRA : BITMAP_BGRX, ptr, width * 4);
+      if (!bitmap) fail('FPDFBitmap_CreateEx ' + width + 'x' + height + ' failed');
+      try {
+        return w.FPDFImageObj_SetBitmap(pages, 1, object, bitmap);
+      } finally {
+        w.FPDFBitmap_Destroy(bitmap);
+      }
+    } finally {
+      w.free(ptr);
+    }
+  }
+
+  /** A new text object (not inserted yet): UTF-16 + NUL in wasm memory → FPDFText_SetText. */
+  function textObjectOf(job, font, fontSize, text, v) {
+    const w = wasm();
+    const object = w.FPDFPageObj_CreateTextObj(job.dst, font, fontSize);
+    if (!object) fail('verb ' + v + ': FPDFPageObj_CreateTextObj failed');
+    try {
+      const ptr = w.malloc((text.length + 1) * 2);
+      if (!ptr) fail('out of memory');
+      try {
+        const units = new Uint16Array(Pdfium.memory.buffer, ptr, text.length + 1);
+        for (let i = 0; i < text.length; i++) units[i] = text.charCodeAt(i);
+        units[text.length] = 0;
+        if (!w.FPDFText_SetText(object, ptr)) fail('verb ' + v + ': FPDFText_SetText failed');
+      } finally {
+        w.free(ptr);
+      }
+      return object;
+    } catch (e) {
+      w.FPDFPageObj_Destroy(object);
+      throw e;
+    }
+  }
+
+  /** The object's own matrix (coords[c..c+5]), then note → user [m], then onto the page. */
+  function place(page, object, coords, c, m) {
+    const w = wasm();
+    try {
+      w.FPDFPageObj_Transform(object, coords[c], coords[c + 1], coords[c + 2], coords[c + 3], coords[c + 4], coords[c + 5]);
+      w.FPDFPageObj_Transform(object, m[0], m[1], m[2], m[3], m[4], m[5]);
+      if (!w.FPDFPage_InsertObject(page, object)) fail('FPDFPage_InsertObject failed');
+    } catch (e) {
+      w.FPDFPageObj_Destroy(object);
+      throw e;
     }
   }
 

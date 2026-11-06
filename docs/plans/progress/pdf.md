@@ -274,8 +274,8 @@
 | T20 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test` v2, `unit/init_v2_test`, `unit/plan_items_test` |
 | T30 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test`, `unit/init_test`, `widget/recording_panel_placeholder_test`, `unit/testing_fakes_test`, `web/testing_registrar_browser_test` |
 | T21 | 완료 | 4068fcd | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
-| T22 | 완료 | (세션 10 첫 커밋 — 다음 커밋이 해시를 적음) | `pdfium/compose_objects_native_test`(13 — 객체 탐침 9 + 실제 NoteSans 1 + 객체 든 작업의 abort·finish·실패 3) — 탐침 v2 `test/support/compose_probes.dart` `composeObjectProbes()`(T23이 Chrome에서 같은 목록)·`ProbePdfObjects`(저장된 PDF의 이미지·글꼴 사전 읽기) |
-| T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
+| T22 | 완료 | c4a402a | `pdfium/compose_objects_native_test`(13 — 객체 탐침 9 + 실제 NoteSans 1 + 객체 든 작업의 abort·finish·실패 3) — 탐침 v2 `test/support/compose_probes.dart` `composeObjectProbes()`(T23이 Chrome에서 같은 목록)·`ProbePdfObjects`(저장된 PDF의 이미지·글꼴 사전 읽기) |
+| T23 | 완료 | (이 커밋 — 세션 끝 기록이 해시를 적음) | `web/compose_objects_browser_test`(13 — T22와 같은 객체 탐침 9(`useInkTestFonts`) + `addFunction` 없는 워커 → `engineUnavailable` + 객체 든 작업의 abort·finish + RGBA transfer·JPEG/글꼴 바이트 유지), `web/compose_browser_test`(1차 그대로 통과) |
 | T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
 | T25a | 완료 | 402f84a | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
 | T25b | 완료 | 1027492 | `unit/raster_ports_test`(13 — 상한 식 6·`rasterPixelSize`·contain 3·기본 INK 포트 VM 3), `unit/object_resolver_text_math_test`(25), `web/object_resolver_text_browser_test`(4), `integration/math_raster_real_test`(써 둠 — `skip:` INK T36 이정표, 판정은 통합 4-a) — 가짜 포트 `test/support/fake_rasterizers.dart`, 큰 표본 `pageSizeTextBox`·`bigMathObject`는 `test/support/object_fixtures.dart` |
@@ -438,6 +438,9 @@
 - T22: 이미지·글꼴 바이트는 `TransferableTypedData`(한 번 복사 — 6.2.8)로, 텍스트는 문자열 목록으로 워커에 간다. 워커는 메시지를 `PdfComposePageOps`로 되살려(같은 `checkComposeOps`를 쓰려고) 해석한다.
 - T22: **추출되는 공백이 U+00A0** — PDFium이 적재한 TrueType의 ToUnicode를 글꼴 cmap에서 거꾸로 만들 때 NoteSans는 U+0020·U+00A0가 같은 글리프라 NBSP로 적힌다(VM 실측: '안녕 hello' → `[50504, 45397, 160, 104, …]`). CORE `SearchText`는 U+00A0를 공백으로 접으므로(7.2.5) 검색(T27·V10)에는 차이가 없다. 탐침은 NBSP를 공백으로 읽고 비교한다(Chrome 시험 글꼴은 U+00A0가 없어 U+0020이 나올 것). 앱에서 내보낸 PDF의 글을 복사하면 NBSP가 붙는다 — 실기기 체크 거리로 적어 둠(필요하면 INK 글꼴에서 U+00A0를 다른 글리프로 — 지금은 요청하지 않음).
 - T22: 탐침의 이미지 수·`/DCTDecode`·크기·`/SMask`·글꼴 수는 저장된 PDF의 객체 사전을 읽어 센다(`ProbePdfObjects` — FFI 없이 Chrome에서도 같은 단언). VM 탐침은 실제 NoteSans(`ink.InkFonts.noteSansBytes` — VM `flutter test`에서 rootBundle로 읽힘, 정상 466 KB·굵게 466 KB)를 쓴다.
+- T23: 웹도 구조 검사(`checkComposeOps`)를 하되 **보내기 전 Dart 쪽**에서 한다(작업마다 실린 글꼴 id 집합을 들고) — 어기면 네이티브와 같은 `exportFailed`, 아무것도 보내지 않음. 확장 JS도 `image`/`text`의 열린 경로·좌표 수·인덱스·글꼴을 다시 본다(방어).
+- T23: 전송 — RGBA는 transfer(목록이 버퍼 전체면 그 버퍼, 아니면 사본을 transfer — 보낸 뒤 호출자의 `rgba`는 떨어져 나가 길이 0), **JPEG와 글꼴 바이트는 구조적 복제**(1차 `_buffer`). 계획 6.2.7은 '이미지·글꼴 버퍼는 transfer, 캐시에 남길 JPEG만 복제'인데 ① 글꼴은 INK `InkFonts.noteSansBytes`가 캐시한 바이트라 transfer하면 INK 캐시가 떨어져 나가 다음 내보내기가 빈 글꼴을 받고, ② 백엔드 포트(`PdfComposePageOps`)에는 'JPEG 캐시에 남김' 표시가 없어 백엔드가 고를 수 없다. 그래서 웹 JPEG는 늘 복제이고, 보내는 동안의 그 사본은 T26이 장부 `encoded`로 센다(한 번에 이미지 하나 — 6.2.10 ①). T26 서비스는 웹에서 보낸 뒤 `PdfRgbaData.rgba`를 다시 읽지 않아야 한다(장부는 잡을 때의 크기로 놓음).
+- T23: 호환 검사 실패 흉내는 확장을 적재하는 동안만 `Pdfium.addFunction`을 숨긴다(적재 뒤 되돌림) — 아예 지우면 pdfrx 자신의 시작(시스템 글꼴 콜백 `addFunction`)이 먼저 깨져 'compose worker init failed'로 끝나 확장의 `pdfio-incompatible-pdfrx` 표시가 나오지 않는다. 결과 코드는 둘 다 `engineUnavailable`.
 
 #### 이정표 커밋
 
@@ -544,6 +547,9 @@
 | 10 (T22) | `ws test --package pdf_io` (VM) | 754 통과 + 9 skip (741 + T22 13), 118 s |
 | 10 (T22) | `ws test --package pdf_io --platform chrome` | 99 통과 + 1 skip (그대로 — 바뀐 공유 탐침 파일 `compose_probes.dart`가 `compose_browser_test`에서 컴파일·통과), prepare ok, 239 s |
 | 10 (T22) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
+| 10 (T23) | `ws with-heavy-lock -- flutter test --platform chrome test/web/compose_objects_browser_test.dart` | 13 통과 (첫 시도: '`addFunction` 없음' 흉내가 pdfrx 시작부터 깨뜨려 1 실패 → 확장 적재 동안만 숨기게 고침) |
+| 10 (T23) | `ws test --package pdf_io --platform chrome` | 112 통과 + 1 skip (99 + T23 13 — `compose_browser_test` 1차 그대로), prepare ok, 185 s |
+| 10 (T23) | `flutter analyze --fatal-infos`(pdf_io), `dart format`, `node --check web/pdf_io_compose_ext.js` | 0건, 변경 없음, ok (VM 시험은 바뀐 파일이 웹 전용이라 T22 행 그대로) |
 
 #### 다음 세션 메모
 

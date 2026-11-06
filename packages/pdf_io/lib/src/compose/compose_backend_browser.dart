@@ -8,6 +8,12 @@
 // parameters} → {id, status: 'success' | 'error', result | error}. The worker is created on
 // the first begin and terminated after PdfTuning.composeWorkerIdleTimeout without jobs, when
 // an abort does not answer within 5 s, on a worker error, and on dispose.
+//
+// (2차, m5-7/06-pdf T23 — 6.2.7) parts carry images, texts and fonts: the structural rules
+// of checkComposeOps run here before a part is sent (a broken part → exportFailed, nothing
+// sent — the native worker gives the same), RGBA buffers are transferred (the resolver drops
+// them once sent), JPEG and font bytes are structured clones (the JPEG cache and INK's font
+// cache keep using theirs), texts go as strings.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
@@ -18,7 +24,9 @@ import 'package:web/web.dart' as web;
 
 import '../config.dart';
 import '../errors.dart';
+import '../export/compose_ops_check.dart';
 import '../export/compose_plan.dart';
+import '../export/vectors.dart';
 import '../tuning.dart';
 import 'compose_backend.dart';
 import 'compose_layout.dart';
@@ -225,6 +233,9 @@ final class _BrowserComposeJob implements PdfComposeJob {
   Future<void>? _pending; // last addPages in flight
   Future<Uint8List>? _finishing;
 
+  /// (2차) Font ids earlier parts of this job carried (checkComposeOps).
+  final Set<int> _loadedFonts = {};
+
   void _checkOpen(String member) {
     if (_phase != _JobPhase.open) {
       throw StateError('PdfComposeJob.$member after finish/abort');
@@ -248,6 +259,20 @@ final class _BrowserComposeJob implements PdfComposeJob {
       }
     }
     if (work.isEmpty) return;
+    // (2차) The rules the native worker applies, before anything is sent.
+    final loaded = {..._loadedFonts};
+    for (final page in work) {
+      try {
+        checkComposeOps(page, loadedFonts: loaded);
+      } on ArgumentError catch (e) {
+        throw PdfIoException(
+          PdfErrorCode.exportFailed,
+          detail: 'page ${page.outputIndex}: ${e.message} (${e.name})',
+          cause: e,
+        );
+      }
+      loaded.addAll(page.fonts.keys);
+    }
     final transfer = <JSObject>[];
     final list = <JSAny?>[];
     for (final page in work) {
@@ -256,9 +281,25 @@ final class _BrowserComposeJob implements PdfComposeJob {
           ..setProperty('outputIndex'.toJS, page.outputIndex.toJS)
           ..setProperty('verbs'.toJS, _buffer(page.verbs, transfer))
           ..setProperty('coords'.toJS, _buffer(page.coords, transfer))
-          ..setProperty('paints'.toJS, _buffer(page.paints, transfer)),
+          ..setProperty('paints'.toJS, _buffer(page.paints, transfer))
+          ..setProperty(
+            'images'.toJS,
+            [for (final image in page.images) _image(image, transfer)].toJS,
+          )
+          ..setProperty(
+            'texts'.toJS,
+            [for (final text in page.texts) text.toJS].toJS,
+          )
+          ..setProperty(
+            'fonts'.toJS,
+            [
+              for (final MapEntry(:key, :value) in page.fonts.entries)
+                <JSAny?>[key.toJS, _buffer(value, transfer)].toJS,
+            ].toJS,
+          ),
       );
     }
+    _loadedFonts.addAll(loaded);
     final parameters = JSObject()
       ..setProperty('jobId'.toJS, _jobId.toJS)
       ..setProperty('pages'.toJS, list.toJS);
@@ -318,6 +359,36 @@ final class _BrowserComposeJob implements PdfComposeJob {
         }
     }
   }
+}
+
+/// (2차, 6.2.7) One image of a part: {jpeg, width, height, hasAlpha, data}. RGBA is
+/// transferred (its own buffer when the list covers all of it — the caller's list is
+/// detached afterwards — else a transferred copy); JPEG bytes go through [_buffer] (a
+/// structured clone, so a cached JPEG stays usable).
+JSObject _image(PdfImageData image, List<JSObject> transfer) {
+  final object = JSObject()
+    ..setProperty('width'.toJS, image.width.toJS)
+    ..setProperty('height'.toJS, image.height.toJS);
+  switch (image) {
+    case PdfJpegData(:final bytes):
+      object
+        ..setProperty('jpeg'.toJS, true.toJS)
+        ..setProperty('hasAlpha'.toJS, false.toJS)
+        ..setProperty('data'.toJS, _buffer(bytes, transfer));
+    case PdfRgbaData(:final rgba, :final hasAlpha):
+      final whole =
+          rgba.offsetInBytes == 0 &&
+          rgba.lengthInBytes == rgba.buffer.lengthInBytes;
+      final buffer = whole
+          ? rgba.buffer.toJS
+          : Uint8List.fromList(rgba).buffer.toJS;
+      transfer.add(buffer);
+      object
+        ..setProperty('jpeg'.toJS, false.toJS)
+        ..setProperty('hasAlpha'.toJS, hasAlpha.toJS)
+        ..setProperty('data'.toJS, buffer);
+  }
+  return object;
 }
 
 /// The ArrayBuffer to send for [data]: its own buffer when [data] covers all of it
