@@ -220,3 +220,62 @@ void defineObjectJsonWebCases() {
     });
   });
 }
+
+/// Calligraphy nib angle under TransformElements (C2-38, m5-7/02-core 6.2.7) — VM:
+/// test/edit/calligraphy_transform_test.dart, Chrome: test/web/object_json_browser_test.dart.
+void defineCalligraphyTransformCases() {
+  group('Stroke.transformed: calligraphy nib angle (C2-38)', () {
+    final ids = SequentialIdGenerator(prefix: 'c');
+    Stroke pen(PenTool tool, Map<String, Object?> extras) => Stroke(
+      id: ids.newId(),
+      pageId: 'p1',
+      style: StrokeStyle.defaultsFor(tool).copyWith(extras: extras),
+      points: StrokePoints.fromList(const [
+        StrokePoint(10, 10, widthQ: 0.5, t: 0),
+        StrokePoint(20, 15, widthQ: 0.5, t: 8),
+      ]),
+      createdAt: 1,
+    );
+    double? nib(Stroke s) =>
+        (s.style.extras['nibAngleDeg'] as num?)?.toDouble();
+    Affine2 turn(double deg) => Affine2.rotation(deg * math.pi / 180);
+
+    test('no key + 30° → 75', () {
+      final s = pen(PenTool.calligraphy, const {});
+      expect(nib(s.transformed(turn(30))), closeTo(75, 1e-9));
+    });
+
+    test('170 + 30° → 20 (folded into [0, 180))', () {
+      final s = pen(PenTool.calligraphy, const {'nibAngleDeg': 170});
+      expect(nib(s.transformed(turn(30))), closeTo(20, 1e-9));
+    });
+
+    test('-90° → 135', () {
+      final s = pen(PenTool.calligraphy, const {});
+      expect(nib(s.transformed(turn(-90))), closeTo(135, 1e-9));
+    });
+
+    test('180° and a move: extras unchanged (no key written)', () {
+      final s = pen(PenTool.calligraphy, const {});
+      expect(s.transformed(turn(180)).style.extras, isEmpty);
+      expect(s.transformed(Affine2.rotation(math.pi)).style.extras, isEmpty);
+      expect(s.transformed(Affine2.translation(5, 5)).style.extras, isEmpty);
+      expect(s.transformed(Affine2.scaling(2, 2)).style.extras, isEmpty);
+      final keyed = pen(PenTool.calligraphy, const {'nibAngleDeg': 30});
+      expect(keyed.transformed(turn(180)).style, keyed.style);
+    });
+
+    test('a ballpoint stroke is unchanged', () {
+      final s = pen(PenTool.ballpoint, const {});
+      expect(s.transformed(turn(30)).style, s.style);
+    });
+
+    test("a non-number value ('x') is read as 45", () {
+      final s = pen(PenTool.calligraphy, const {'nibAngleDeg': 'x', 'k': 1});
+      final t = s.transformed(turn(30));
+      expect(nib(t), closeTo(75, 1e-9));
+      expect(t.style.extras['k'], 1);
+      expect(t.style.extras['nibAngleDeg'], isA<double>());
+    });
+  });
+}

@@ -33,7 +33,18 @@ final class MathObject extends PageObject {
     MathStyle? style,
     String? engineId,
     EpochMillis? updatedAt,
-  }) => notYet('T20b', 'MathObject.copyWith');
+  }) => MathObject(
+    id: id,
+    pageId: pageId,
+    frame: frame ?? this.frame,
+    latex: latex ?? this.latex,
+    style: style ?? this.style,
+    engineId: engineId ?? this.engineId,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt,
+    version: version,
+  );
 
   // CORE 4.3: same member set as ShapeObject
   @override
@@ -52,16 +63,34 @@ final class MathObject extends PageObject {
   @override
   Set<AssetId> get referencedAssets => const {};
 
+  /// (CORE 6.2.5) frame.transformed(m) + fontSizePt × s clamped [6, 144].
   @override
-  PageObject transformed(Affine2 m, {bool scaleWidth = true}) =>
-      notYet('T20b', 'MathObject.transformed');
+  PageObject transformed(Affine2 m, {bool scaleWidth = true}) => copyWith(
+    frame: frame.transformed(m),
+    style: style.copyWith(
+      fontSizePt: _scaled(
+        style.fontSizePt,
+        m,
+        MathStyle.minFontSize,
+        MathStyle.maxFontSize,
+      ),
+    ),
+  );
 
   @override
   PageObject copyTo({
     required ElementId id,
     required PageId pageId,
     required EpochMillis createdAt,
-  }) => notYet('T20b', 'MathObject.copyTo');
+  }) => MathObject(
+    id: id,
+    pageId: pageId,
+    frame: frame,
+    latex: latex,
+    style: style,
+    engineId: engineId,
+    createdAt: createdAt,
+  );
 
   @override
   PageObject copyWithMeta({
@@ -69,10 +98,21 @@ final class MathObject extends PageObject {
     EpochMillis? deletedAt,
     bool clearDeletedAt = false,
     Hlc? version,
-  }) => notYet('T20b', 'MathObject.copyWithMeta');
+  }) => MathObject(
+    id: id,
+    pageId: pageId,
+    frame: frame,
+    latex: latex,
+    style: style,
+    engineId: engineId,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
+    version: version ?? this.version,
+  );
 
   @override
-  int get estimatedBytes => notYet('T20b', 'MathObject.estimatedBytes');
+  int get estimatedBytes => 160 + 2 * latex.length;
 
   /// `engine` is always written (null when [engineId] is unset — 7.2.7 v2.1).
   @override

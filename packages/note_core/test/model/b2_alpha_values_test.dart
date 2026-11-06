@@ -190,40 +190,7 @@ void main() {
     });
 
     test('the algorithm bodies name their CORE task', () {
-      final shape = _shape();
       final cases = <String, List<Object? Function()>>{
-        'T20b': [
-          () => const PagePoint(0, 0).transformed(Affine2.identity),
-          () => _frame.center,
-          () => _frame.corners,
-          () => _frame.bounds,
-          () => _frame.transformed(Affine2.identity),
-          () => _frame.contains(const PagePoint(0, 0)),
-          () => _frame.normalized(),
-          () => _line.transformed(Affine2.identity),
-          () =>
-              ShapeGeometry.line(const PagePoint(0, 0), const PagePoint(1, 1)),
-          () => ShapeGeometry.rectangle(const PageRect(0, 0, 1, 1)),
-          () => ShapeGeometry.ellipse(const PageRect(0, 0, 1, 1)),
-          () => ShapeGeometry.triangle(const PageRect(0, 0, 1, 1)),
-          () => ShapeGeometry.regularPolygon(const PageRect(0, 0, 1, 1), 5),
-          () => ShapeGeometry.star(const PageRect(0, 0, 1, 1)),
-          () => _style.arrowHeadLength,
-          () => _style.normalized(),
-          () => _style.copyWith(strokeWidth: 3),
-          () => const TextBoxStyle().normalized(),
-          () => const MathStyle().copyWith(fontSizePt: 20),
-          () => shape.bounds,
-          () => shape.copyWith(shapeKind: ShapeKind.arrow),
-          () => shape.transformed(Affine2.identity),
-          () => shape.copyTo(id: 'x', pageId: 'p2', createdAt: 1),
-          () => shape.copyWithMeta(updatedAt: 1),
-          () => shape.estimatedBytes,
-          () => _text().bounds,
-          () => _text().copyWith(text: 'x'),
-          () => _image().transformed(Affine2.identity),
-          () => _math().estimatedBytes,
-        ],
         'T21': [
           () => HandwritingText.sourceRevOf(const []),
           () => HandwritingText.isRecognitionInput(

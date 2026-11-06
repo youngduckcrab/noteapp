@@ -226,6 +226,7 @@ void main() {
               : _with(_json('unknown'), 'frame', frame);
           final o = UnknownObject(raw);
           expect(o.frame, placeholder, reason: '$frame');
+          expect(o.bounds, placeholder.rect);
           expect(o.toJson(), {...raw, 'deletedAt': null});
         }
       },

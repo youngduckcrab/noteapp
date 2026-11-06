@@ -26,7 +26,18 @@ final class ImageObject extends PageObject {
   @override
   Set<AssetId> get referencedAssets => {assetId};
   ImageObject copyWith({ElementFrame? frame, EpochMillis? updatedAt}) =>
-      notYet('T20b', 'ImageObject.copyWith');
+      ImageObject(
+        id: id,
+        pageId: pageId,
+        frame: frame ?? this.frame,
+        assetId: assetId,
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        deletedAt: deletedAt,
+        version: version,
+      );
 
   // CORE 4.3: same member set as ShapeObject
   @override
@@ -42,16 +53,25 @@ final class ImageObject extends PageObject {
   @override
   final Hlc? version;
 
+  /// (CORE 6.2.5) frame only.
   @override
   PageObject transformed(Affine2 m, {bool scaleWidth = true}) =>
-      notYet('T20b', 'ImageObject.transformed');
+      copyWith(frame: frame.transformed(m));
 
   @override
   PageObject copyTo({
     required ElementId id,
     required PageId pageId,
     required EpochMillis createdAt,
-  }) => notYet('T20b', 'ImageObject.copyTo');
+  }) => ImageObject(
+    id: id,
+    pageId: pageId,
+    frame: frame,
+    assetId: assetId,
+    pixelWidth: pixelWidth,
+    pixelHeight: pixelHeight,
+    createdAt: createdAt,
+  );
 
   @override
   PageObject copyWithMeta({
@@ -59,10 +79,22 @@ final class ImageObject extends PageObject {
     EpochMillis? deletedAt,
     bool clearDeletedAt = false,
     Hlc? version,
-  }) => notYet('T20b', 'ImageObject.copyWithMeta');
+  }) => ImageObject(
+    id: id,
+    pageId: pageId,
+    frame: frame,
+    assetId: assetId,
+    pixelWidth: pixelWidth,
+    pixelHeight: pixelHeight,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
+    version: version ?? this.version,
+  );
 
+  /// The image bytes are an asset, not history (CORE 6.4.4).
   @override
-  int get estimatedBytes => notYet('T20b', 'ImageObject.estimatedBytes');
+  int get estimatedBytes => 160;
 
   @override
   Map<String, Object?> toJson() => _objectJson(this, {

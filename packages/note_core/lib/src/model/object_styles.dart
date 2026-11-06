@@ -1,10 +1,12 @@
 // lib/src/model/object_styles.dart — (v2.0) 2nd-round contract 7.2.2 / 02-core 4.2, 4.3,
 // 6.2.3: ShapeStyle, TextAlignKind, TextBoxStyle, MathStyle. Normalization table (the
 // contract's 'single source'): 02-core 6.2.3.
+import 'dart:math' as math;
+
 import 'package:meta/meta.dart';
 
 import '../common/json_read.dart';
-import '../common/pending.dart';
+import 'object_rules.dart';
 import 'shape_geometry.dart';
 
 @immutable
@@ -30,8 +32,19 @@ final class ShapeStyle {
   final ArrowHeads arrowHeads; // line / arrow only; others ignore it
 
   /// Arrowhead length in pt: max(6, 3 * strokeWidth). Part of the bounds rule below.
-  double get arrowHeadLength => notYet('T20b', 'ShapeStyle.arrowHeadLength');
-  ShapeStyle normalized() => notYet('T20b', 'ShapeStyle.normalized');
+  double get arrowHeadLength => math.max(6, 3 * strokeWidth);
+
+  /// (CORE 6.2.3) Colors alpha 0xFF (opacity lives in the *Opacity fields), strokeWidth
+  /// [0.1, 30], strokeOpacity [0.05, 1], fillOpacity [0, 1]; NaN → the default.
+  ShapeStyle normalized() => ShapeStyle(
+    strokeColorArgb: opaqueArgb(strokeColorArgb),
+    strokeWidth: clampOr(strokeWidth, minWidth, maxWidth, 2.0),
+    strokeOpacity: clampOr(strokeOpacity, 0.05, 1, 1.0),
+    dash: dash,
+    fillColorArgb: fillColorArgb == null ? null : opaqueArgb(fillColorArgb!),
+    fillOpacity: clampOr(fillOpacity, 0, 1, 1.0),
+    arrowHeads: arrowHeads,
+  );
   ShapeStyle copyWith({
     int? strokeColorArgb,
     double? strokeWidth,
@@ -41,7 +54,15 @@ final class ShapeStyle {
     bool clearFill = false,
     double? fillOpacity,
     ArrowHeads? arrowHeads,
-  }) => notYet('T20b', 'ShapeStyle.copyWith');
+  }) => ShapeStyle(
+    strokeColorArgb: strokeColorArgb ?? this.strokeColorArgb,
+    strokeWidth: strokeWidth ?? this.strokeWidth,
+    strokeOpacity: strokeOpacity ?? this.strokeOpacity,
+    dash: dash ?? this.dash,
+    fillColorArgb: clearFill ? null : fillColorArgb ?? this.fillColorArgb,
+    fillOpacity: fillOpacity ?? this.fillOpacity,
+    arrowHeads: arrowHeads ?? this.arrowHeads,
+  );
 
   /// Every key always (fillColorArgb null when unset — CORE 6.3).
   Map<String, Object?> toJson() => {
@@ -121,7 +142,16 @@ final class TextBoxStyle {
   final TextAlignKind align;
   final double lineHeight; // [1.0, 3.0], multiple of fontSizePt
   final int? backgroundArgb; // null = transparent
-  TextBoxStyle normalized() => notYet('T20b', 'TextBoxStyle.normalized');
+  /// (CORE 6.2.3) fontSizePt [6, 144], colorArgb alpha 0xFF, lineHeight [1.0, 3.0],
+  /// backgroundArgb as is (a translucent background is allowed); NaN → the default.
+  TextBoxStyle normalized() => TextBoxStyle(
+    fontSizePt: clampOr(fontSizePt, minFontSize, maxFontSize, 16),
+    colorArgb: opaqueArgb(colorArgb),
+    bold: bold,
+    align: align,
+    lineHeight: clampOr(lineHeight, 1.0, 3.0, 1.4),
+    backgroundArgb: backgroundArgb,
+  );
   TextBoxStyle copyWith({
     double? fontSizePt,
     int? colorArgb,
@@ -130,7 +160,16 @@ final class TextBoxStyle {
     double? lineHeight,
     int? backgroundArgb,
     bool clearBackground = false,
-  }) => notYet('T20b', 'TextBoxStyle.copyWith');
+  }) => TextBoxStyle(
+    fontSizePt: fontSizePt ?? this.fontSizePt,
+    colorArgb: colorArgb ?? this.colorArgb,
+    bold: bold ?? this.bold,
+    align: align ?? this.align,
+    lineHeight: lineHeight ?? this.lineHeight,
+    backgroundArgb: clearBackground
+        ? null
+        : backgroundArgb ?? this.backgroundArgb,
+  );
 
   /// Every key always (backgroundArgb null when unset — CORE 6.3).
   Map<String, Object?> toJson() => {
@@ -187,10 +226,15 @@ final class MathStyle {
   final int colorArgb;
   final double fontSizePt; // [6, 144]; scaled by TransformElements
   // (v2.1) alpha 0xFF, size clamped
-  MathStyle normalized() => notYet('T20b', 'MathStyle.normalized');
+  MathStyle normalized() => MathStyle(
+    colorArgb: opaqueArgb(colorArgb),
+    fontSizePt: clampOr(fontSizePt, minFontSize, maxFontSize, 18),
+  );
   // (v2.1)
-  MathStyle copyWith({int? colorArgb, double? fontSizePt}) =>
-      notYet('T20b', 'MathStyle.copyWith');
+  MathStyle copyWith({int? colorArgb, double? fontSizePt}) => MathStyle(
+    colorArgb: colorArgb ?? this.colorArgb,
+    fontSizePt: fontSizePt ?? this.fontSizePt,
+  );
   Map<String, Object?> toJson() => {
     'colorArgb': colorArgb,
     'fontSizePt': fontSizePt,

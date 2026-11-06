@@ -2,6 +2,7 @@
 // PageElement is sealed, so its subtypes live in this library: (v2.0, 2nd-round contract
 // 7.2.2) the new subtypes are `part` files of this library (page_object.dart,
 // shape_object.dart, …). A part file cannot import, so their imports are here.
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -10,7 +11,7 @@ import '../common/geometry.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../common/json_read.dart';
-import '../common/pending.dart';
+import 'object_rules.dart';
 import 'object_styles.dart';
 import 'pen_style.dart';
 import 'shape_geometry.dart';
@@ -85,16 +86,20 @@ final class Stroke extends PageElement {
       );
 
   /// Points transformed; if scaleWidth: width = clamp(width * m.uniformScale, 0.1, 30.0).
+  /// (v2.1, C2-38 — m5-7/02-core 6.2.7) A calligraphy stroke's nib angle turns with m.
   Stroke transformed(Affine2 m, {bool scaleWidth = true}) => Stroke(
     id: id,
     pageId: pageId,
-    style: scaleWidth
-        ? style.copyWith(
-            width: (style.width * m.uniformScale)
-                .clamp(StrokeStyle.minWidth, StrokeStyle.maxWidth)
-                .toDouble(),
-          )
-        : style,
+    style: _turnNib(
+      scaleWidth
+          ? style.copyWith(
+              width: (style.width * m.uniformScale)
+                  .clamp(StrokeStyle.minWidth, StrokeStyle.maxWidth)
+                  .toDouble(),
+            )
+          : style,
+      m,
+    ),
     points: points.transformed(m),
     recordingId: recordingId,
     recordingOffsetMs: recordingOffsetMs,
@@ -215,5 +220,28 @@ final class Stroke extends PageElement {
       'Stroke($id, page: $pageId, ${style.tool.name}, ${points.length} points'
       '${isDeleted ? ', deleted' : ''})';
 }
+
+/// (C2-38, CORE 6.2.7) r = fold(deg(m.rotation)), fold(a) = a − 180·⌊a / 180⌋ ∈ [0, 180). r == 0
+/// (a move / scale, or a half turn) leaves extras as they are (no key is written); otherwise
+/// extras['nibAngleDeg'] = fold(old + r), old = the stored number or 45. A rotation within
+/// 1e-9° of 0 or 180 (floating error of Affine2.rotation(pi)) counts as 0.
+StrokeStyle _turnNib(StrokeStyle style, Affine2 m) {
+  if (style.tool != PenTool.calligraphy) return style;
+  final r = _foldDegrees(m.rotation * 180 / math.pi);
+  if (r < 1e-9 || 180 - r < 1e-9) return style;
+  final old = style.extras[kCalligraphyNibAngleKey];
+  final from = old is num && old.isFinite
+      ? old.toDouble()
+      : kDefaultCalligraphyNibAngleDeg;
+  return style.copyWith(
+    extras: Map.unmodifiable({
+      ...style.extras,
+      kCalligraphyNibAngleKey: _foldDegrees(from + r),
+    }),
+  );
+}
+
+double _foldDegrees(double a) => a - 180 * (a / 180).floorToDouble();
+
 // Removed: kDefaultPressure, StrokePoint.pressure, StrokePoints.hasPressure/pressure(i),
 //          Stroke.boundsInflationPerWidth.

@@ -25,14 +25,31 @@ final class ShapeObject extends PageObject {
   /// Derived, identical on every device (K-6):
   ///   geometry.frame.bounds.inflate(style.strokeWidth * 0.75
   ///       + (arrowHeads != none && shapeKind is line|arrow ? style.arrowHeadLength : 0))
+  /// (CORE 6.2.4) computed once, like Stroke.bounds.
   @override
-  PageRect get bounds => notYet('T20b', 'ShapeObject.bounds');
+  late final PageRect bounds = geometry.frame.bounds.inflate(
+    style.strokeWidth * 0.75 +
+        (style.arrowHeads != ArrowHeads.none &&
+                (shapeKind == ShapeKind.line || shapeKind == ShapeKind.arrow)
+            ? style.arrowHeadLength
+            : 0),
+  );
   ShapeObject copyWith({
     ShapeKind? shapeKind,
     ShapeGeometry? geometry,
     ShapeStyle? style,
     EpochMillis? updatedAt,
-  }) => notYet('T20b', 'ShapeObject.copyWith');
+  }) => ShapeObject(
+    id: id,
+    pageId: pageId,
+    shapeKind: shapeKind ?? this.shapeKind,
+    geometry: geometry ?? this.geometry,
+    style: style ?? this.style,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt,
+    version: version,
+  );
 
   // id, pageId, createdAt, updatedAt, deletedAt, version — as Stroke
   @override
@@ -51,16 +68,35 @@ final class ShapeObject extends PageObject {
   @override
   Set<AssetId> get referencedAssets => const {};
 
+  /// (CORE 6.2.5) geometry.transformed(m); strokeWidth × s clamped [0.1, 30] when [scaleWidth].
   @override
-  PageObject transformed(Affine2 m, {bool scaleWidth = true}) =>
-      notYet('T20b', 'ShapeObject.transformed');
+  PageObject transformed(Affine2 m, {bool scaleWidth = true}) => copyWith(
+    geometry: geometry.transformed(m),
+    style: scaleWidth
+        ? style.copyWith(
+            strokeWidth: _scaled(
+              style.strokeWidth,
+              m,
+              ShapeStyle.minWidth,
+              ShapeStyle.maxWidth,
+            ),
+          )
+        : style,
+  );
 
   @override
   PageObject copyTo({
     required ElementId id,
     required PageId pageId,
     required EpochMillis createdAt,
-  }) => notYet('T20b', 'ShapeObject.copyTo');
+  }) => ShapeObject(
+    id: id,
+    pageId: pageId,
+    shapeKind: shapeKind,
+    geometry: geometry,
+    style: style,
+    createdAt: createdAt,
+  );
 
   @override
   PageObject copyWithMeta({
@@ -68,10 +104,23 @@ final class ShapeObject extends PageObject {
     EpochMillis? deletedAt,
     bool clearDeletedAt = false,
     Hlc? version,
-  }) => notYet('T20b', 'ShapeObject.copyWithMeta');
+  }) => ShapeObject(
+    id: id,
+    pageId: pageId,
+    shapeKind: shapeKind,
+    geometry: geometry,
+    style: style,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
+    version: version ?? this.version,
+  );
 
   @override
-  int get estimatedBytes => notYet('T20b', 'ShapeObject.estimatedBytes');
+  int get estimatedBytes => switch (geometry) {
+    PolylineGeometry(:final points) => 160 + 16 * points.length,
+    EllipseGeometry() => 160,
+  };
 
   /// `frame` is written from the geometry and ignored on read (CORE 6.2.6).
   @override

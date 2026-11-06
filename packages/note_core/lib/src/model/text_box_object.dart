@@ -30,7 +30,17 @@ final class TextBoxObject extends PageObject {
     String? text,
     TextBoxStyle? style,
     EpochMillis? updatedAt,
-  }) => notYet('T20b', 'TextBoxObject.copyWith');
+  }) => TextBoxObject(
+    id: id,
+    pageId: pageId,
+    frame: frame ?? this.frame,
+    text: text ?? this.text,
+    style: style ?? this.style,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt,
+    version: version,
+  );
 
   // CORE 4.3: same member set as ShapeObject
   @override
@@ -49,16 +59,34 @@ final class TextBoxObject extends PageObject {
   @override
   Set<AssetId> get referencedAssets => const {};
 
+  /// (CORE 6.2.5, CP-2) frame.transformed(m) + fontSizePt × s clamped [6, 144] — the wrap
+  /// width and the text scale together, whatever [scaleWidth] says.
   @override
-  PageObject transformed(Affine2 m, {bool scaleWidth = true}) =>
-      notYet('T20b', 'TextBoxObject.transformed');
+  PageObject transformed(Affine2 m, {bool scaleWidth = true}) => copyWith(
+    frame: frame.transformed(m),
+    style: style.copyWith(
+      fontSizePt: _scaled(
+        style.fontSizePt,
+        m,
+        TextBoxStyle.minFontSize,
+        TextBoxStyle.maxFontSize,
+      ),
+    ),
+  );
 
   @override
   PageObject copyTo({
     required ElementId id,
     required PageId pageId,
     required EpochMillis createdAt,
-  }) => notYet('T20b', 'TextBoxObject.copyTo');
+  }) => TextBoxObject(
+    id: id,
+    pageId: pageId,
+    frame: frame,
+    text: text,
+    style: style,
+    createdAt: createdAt,
+  );
 
   @override
   PageObject copyWithMeta({
@@ -66,10 +94,20 @@ final class TextBoxObject extends PageObject {
     EpochMillis? deletedAt,
     bool clearDeletedAt = false,
     Hlc? version,
-  }) => notYet('T20b', 'TextBoxObject.copyWithMeta');
+  }) => TextBoxObject(
+    id: id,
+    pageId: pageId,
+    frame: frame,
+    text: text,
+    style: style,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
+    version: version ?? this.version,
+  );
 
   @override
-  int get estimatedBytes => notYet('T20b', 'TextBoxObject.estimatedBytes');
+  int get estimatedBytes => 160 + 2 * text.length;
 
   @override
   Map<String, Object?> toJson() =>

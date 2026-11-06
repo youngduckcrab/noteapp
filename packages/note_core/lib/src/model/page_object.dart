@@ -91,6 +91,10 @@ Map<String, Object?> _objectJson(PageObject o, Map<String, Object?> body) => {
   'version': o.version?.toString(),
 };
 
+/// [value] × m.uniformScale clamped to [min, max] (CORE 6.2.5).
+double _scaled(double value, Affine2 m, double min, double max) =>
+    (value * m.uniformScale).clamp(min, max).toDouble();
+
 ElementFrame _readFrame(Map<String, Object?> json) =>
     ElementFrame.fromJson(readList(json, 'frame'));
 

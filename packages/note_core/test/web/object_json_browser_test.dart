@@ -6,4 +6,7 @@ import 'package:test/test.dart';
 
 import '../shared/object_json_web_cases.dart';
 
-void main() => defineObjectJsonWebCases();
+void main() {
+  defineObjectJsonWebCases();
+  defineCalligraphyTransformCases();
+}

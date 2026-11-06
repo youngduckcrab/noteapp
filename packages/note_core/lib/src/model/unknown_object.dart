@@ -116,16 +116,25 @@ final class UnknownObject extends PageObject {
   @override
   final Hlc? version;
 
+  /// Cannot be transformed: the same instance (the resolver skips it — CORE 6.2.5).
   @override
-  PageObject transformed(Affine2 m, {bool scaleWidth = true}) =>
-      notYet('T20b', 'UnknownObject.transformed');
+  PageObject transformed(Affine2 m, {bool scaleWidth = true}) => this;
 
+  /// rawJson with only the meta keys changed (CORE 6.2.5).
   @override
   PageObject copyTo({
     required ElementId id,
     required PageId pageId,
     required EpochMillis createdAt,
-  }) => notYet('T20b', 'UnknownObject.copyTo');
+  }) => UnknownObject({
+    ...rawJson,
+    'id': id,
+    'pageId': pageId,
+    'createdAt': createdAt,
+    'updatedAt': createdAt,
+    'deletedAt': null,
+    'version': null,
+  });
 
   @override
   PageObject copyWithMeta({
@@ -133,10 +142,16 @@ final class UnknownObject extends PageObject {
     EpochMillis? deletedAt,
     bool clearDeletedAt = false,
     Hlc? version,
-  }) => notYet('T20b', 'UnknownObject.copyWithMeta');
+  }) => UnknownObject({
+    ...toJson(),
+    'updatedAt': updatedAt ?? this.updatedAt,
+    'deletedAt': clearDeletedAt ? null : deletedAt ?? this.deletedAt,
+    'version': (version ?? this.version)?.toString(),
+  });
 
+  /// 160 B + 2 × the UTF-16 length of jsonEncode(rawJson) (CORE 4.3).
   @override
-  int get estimatedBytes => notYet('T20b', 'UnknownObject.estimatedBytes');
+  late final int estimatedBytes = 160 + 2 * jsonEncode(rawJson).length;
 
   @override
   bool operator ==(Object other) =>

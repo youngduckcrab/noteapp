@@ -6,7 +6,6 @@ import 'dart:math' as math;
 import 'package:meta/meta.dart';
 
 import 'json_read.dart';
-import 'pending.dart';
 
 @immutable
 final class PageRect {
@@ -199,7 +198,10 @@ final class Affine2 {
 final class PagePoint {
   const PagePoint(this.x, this.y); // pt, page coordinates, y down
   final double x, y;
-  PagePoint transformed(Affine2 m) => notYet('T20b', 'PagePoint.transformed');
+  PagePoint transformed(Affine2 m) {
+    final (x2, y2) = m.apply(x, y);
+    return PagePoint(x2, y2);
+  }
 
   // CORE 4.3: ==, hashCode (x, y), toString — no JSON of its own (frames and geometry
   // write arrays)
@@ -212,6 +214,14 @@ final class PagePoint {
 
   @override
   String toString() => 'PagePoint($x, $y)';
+}
+
+/// norm(θ) of CORE 6.2.1: folded into (−π, π] — θ − 2π·⌈(θ − π) / 2π⌉, so −π → π and
+/// 3π → π.
+double _foldRotation(double theta) {
+  if (theta > -math.pi && theta <= math.pi) return theta;
+  return theta -
+      2 * math.pi * ((theta - math.pi) / (2 * math.pi)).ceilToDouble();
 }
 
 /// (v2.0) Rotated box in page pt. [rect] is the UNROTATED box; [rotation] (rad, clockwise
@@ -227,19 +237,87 @@ final class ElementFrame {
   // width, height in [0, 14400] (a straight line's frame may be flat)
   final PageRect rect;
   final double rotation; // normalized to (-pi, pi]
-  PagePoint get center => notYet('T20b', 'ElementFrame.center');
+  PagePoint get center =>
+      PagePoint((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2);
   // tl, tr, br, bl after rotation
-  List<PagePoint> get corners => notYet('T20b', 'ElementFrame.corners');
-  PageRect get bounds =>
-      notYet('T20b', 'ElementFrame.bounds'); // AABB of corners
+  /// (CORE 6.2.1) p' = c + R(θ)(p − c), R(θ) = [[cos θ, −sin θ], [sin θ, cos θ]]; rotation 0
+  /// gives the rect's corners exactly.
+  List<PagePoint> get corners {
+    final r = rect;
+    if (rotation == 0) {
+      return [
+        PagePoint(r.left, r.top),
+        PagePoint(r.right, r.top),
+        PagePoint(r.right, r.bottom),
+        PagePoint(r.left, r.bottom),
+      ];
+    }
+    final c = center;
+    final cos = math.cos(rotation), sin = math.sin(rotation);
+    PagePoint turn(double x, double y) {
+      final dx = x - c.x, dy = y - c.y;
+      return PagePoint(c.x + cos * dx - sin * dy, c.y + sin * dx + cos * dy);
+    }
+
+    return [
+      turn(r.left, r.top),
+      turn(r.right, r.top),
+      turn(r.right, r.bottom),
+      turn(r.left, r.bottom),
+    ];
+  }
+
+  PageRect get bounds {
+    if (rotation == 0) return rect;
+    final p = corners;
+    return PageRect(
+      math.min(math.min(p[0].x, p[1].x), math.min(p[2].x, p[3].x)),
+      math.min(math.min(p[0].y, p[1].y), math.min(p[2].y, p[3].y)),
+      math.max(math.max(p[0].x, p[1].x), math.max(p[2].x, p[3].x)),
+      math.max(math.max(p[0].y, p[1].y), math.max(p[2].y, p[3].y)),
+    );
+  } // AABB of corners
 
   /// Similarity transforms (move / uniform scale / rotate) are exact: center' = m(center),
   /// width·s, height·s, rotation + m.rotation, s = m.uniformScale. Other transforms are
   /// approximated the same way (EDITOR sends non-uniform resizes as UpdateObjects).
-  ElementFrame transformed(Affine2 m) =>
-      notYet('T20b', 'ElementFrame.transformed');
-  bool contains(PagePoint p, {double tolerance = 0}) =>
-      notYet('T20b', 'ElementFrame.contains');
+  /// (CORE 6.2.1) c' = m(c), s = m.uniformScale, w' = w·s, h' = h·s, θ' = norm(θ +
+  /// m.rotation), rect' = w'×h' around c'. A pure translation moves the rect edges exactly.
+  ElementFrame transformed(Affine2 m) {
+    final turned = _foldRotation(rotation + m.rotation);
+    if (m.a == 1 && m.b == 0 && m.c == 0 && m.d == 1) {
+      return ElementFrame(
+        PageRect(
+          rect.left + m.tx,
+          rect.top + m.ty,
+          rect.right + m.tx,
+          rect.bottom + m.ty,
+        ),
+        rotation: turned,
+      );
+    }
+    final c = center.transformed(m);
+    final s = m.uniformScale;
+    final halfW = rect.width * s / 2, halfH = rect.height * s / 2;
+    return ElementFrame(
+      PageRect(c.x - halfW, c.y - halfH, c.x + halfW, c.y + halfH),
+      rotation: turned,
+    );
+  }
+
+  /// (CORE 6.2.1) [p] turned back by −θ about the center, inside rect.inflate(tolerance).
+  bool contains(PagePoint p, {double tolerance = 0}) {
+    final box = rect.inflate(tolerance);
+    if (rotation == 0) return box.containsPoint(p.x, p.y);
+    final c = center;
+    final cos = math.cos(rotation), sin = math.sin(rotation);
+    final dx = p.x - c.x, dy = p.y - c.y;
+    return box.containsPoint(
+      c.x + cos * dx + sin * dy,
+      c.y - sin * dx + cos * dy,
+    );
+  }
+
   // [left, top, right, bottom, rotation]
   List<double> toJson() => [
     rect.left,
@@ -271,7 +349,26 @@ final class ElementFrame {
   /// (contract: maxSide, normalized) width / height clamped to [0, maxSide] around the same
   /// center; rotation folded into (-pi, pi] (so -pi → pi, 3·pi → pi). The const constructor and
   /// fromJson keep the given values.
-  ElementFrame normalized() => notYet('T20b', 'ElementFrame.normalized');
+  ElementFrame normalized() {
+    var r = rect;
+    final w = r.width, h = r.height;
+    if (!(w >= 0 && w <= maxSide) || !(h >= 0 && h <= maxSide)) {
+      final c = center;
+      final halfW = _clampSide(w) / 2, halfH = _clampSide(h) / 2;
+      r = PageRect(
+        w >= 0 && w <= maxSide ? r.left : c.x - halfW,
+        h >= 0 && h <= maxSide ? r.top : c.y - halfH,
+        w >= 0 && w <= maxSide ? r.right : c.x + halfW,
+        h >= 0 && h <= maxSide ? r.bottom : c.y + halfH,
+      );
+    }
+    final folded = _foldRotation(rotation);
+    if (identical(r, rect) && folded == rotation) return this;
+    return ElementFrame(r, rotation: folded);
+  }
+
+  static double _clampSide(double side) =>
+      side.isNaN ? 0 : side.clamp(0, maxSide).toDouble();
 
   // CORE 4.3: ==, hashCode over the raw (rect, rotation):
   // ElementFrame(r, rotation: -pi) != ElementFrame(r, rotation: pi)
