@@ -294,7 +294,7 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 | T29 | 남음 | | `unit/geometry/dash_test.dart`, `unit/render/live_dash_test.dart`, `bounds_invariant_test` v2, `pen_preview_test` v2, `pens_p1_golden_test` |
 | T30 | 남음 | | `unit/render/laser_lifetime_test.dart`, `widget/laser_test.dart`, `pen_preview_test` v2, `pens_p1_golden_test` |
 | T31 | 남음 | | `unit/render/tape_state_test.dart`, `widget/tape_test.dart`(cover 분기 점검 포함), `pen_preview_test` v2, `pens_p1_golden_test` |
-| T32a | 완료 | (이 커밋 — 다음 커밋에서 해시) | `unit/object/object_view_test.dart`(Expando 동일성 — 같은 인스턴스 = 같은 뷰·같은 값 다른 인스턴스 = 다른 뷰, CORE bounds, 층 배정 5종, 획 항목 동일성, ink 층 = ink 층 획 + 도형 `compareOrder` 병합(무작위 300개·같은 시각 id 순·형광펜 빠짐·내용마다 캐시)), `unit/render/content_diff_test.dart` v2(객체 그룹: 같은 내용 no-op·새 판 객체 불변, 층 맨 위 추가 → appended, 아래 → inserted, ink 층 appended = 획 + 도형 병합의 맨 위 새 항목(`inkAppended` — 유지된 도형 아래 새 획은 빠짐), 삭제 → removed, 같은 id 다른 인스턴스 → changed, 층이 바뀐 id), `unit/object/object_index_test.dart`(무작위 객체 1,000·질의 500 = 전수, 지우기·바꾸기 300단계 = 전수, NaN·뒤집힌 질의·빈 색인) |
+| T32a | 완료 | 1e7dbd8 | `unit/object/object_view_test.dart`(Expando 동일성 — 같은 인스턴스 = 같은 뷰·같은 값 다른 인스턴스 = 다른 뷰, CORE bounds, 층 배정 5종, 획 항목 동일성, ink 층 = ink 층 획 + 도형 `compareOrder` 병합(무작위 300개·같은 시각 id 순·형광펜 빠짐·내용마다 캐시)), `unit/render/content_diff_test.dart` v2(객체 그룹: 같은 내용 no-op·새 판 객체 불변, 층 맨 위 추가 → appended, 아래 → inserted, ink 층 appended = 획 + 도형 병합의 맨 위 새 항목(`inkAppended` — 유지된 도형 아래 새 획은 빠짐), 삭제 → removed, 같은 id 다른 인스턴스 → changed, 층이 바뀐 id), `unit/object/object_index_test.dart`(무작위 객체 1,000·질의 500 = 전수, 지우기·바꾸기 300단계 = 전수, NaN·뒤집힌 질의·빈 색인) |
 | T32b | 남음 | | `widget/objects_render_test.dart`, 1차 L1~L3·appended 시험 |
 | T33 | 남음 (이정표) | | `unit/geometry/shape_path_test.dart`, `unit/model/object_bounds_invariant_test.dart`, (웹) `web/object_bounds_web_test.dart`, `widget/objects_render_test.dart`, `goldens/shapes_golden_test.dart` |
 | T34 | 남음 (이정표) | | `widget/objects_render_test.dart`, `unit/text/text_layout_test.dart` |
@@ -335,6 +335,10 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 #### 이정표 커밋
 
 위 '이정표 커밋 (INK 2차 — 03-ink 8.5)' 표에 채운다(T33·T34·T36·T42).
+
+#### 세션 확인
+
+- 세션 1 (2026-11-06): 59a5ba6(문서·T26a 보충) · 31e61a9(T27) · 1e7dbd8(T32a). 끝 확인: `ws check` 위반 0, 루트 `flutter analyze --fatal-infos` 0, `dart format` 변경 없음, `packages/ink_engine` VM `flutter test` **931 통과**(기반 단계 889 + 42), Chrome `ws test --package ink_engine --platform chrome` **210 통과**(199 + 11). 1차 골든 17장 바이트 불변.
 
 #### 다음 세션 메모
 
