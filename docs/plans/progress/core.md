@@ -399,7 +399,7 @@
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 남음 | | `test/session/object_session_contract_real_test.dart`, `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart` |
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
-| T30 | 남음 | | `test/repo/recording_contract_real_test.dart`, `test/repo/recording_repository_test.dart` |
+| T30 | 완료 | (이정표 표) | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
 | T31 | 남음 | | `test/media/recording_draft_contract_real_test.dart`, `test/media/recording_draft_store_test.dart`, `test/web/recording_draft_browser_test.dart`, `test/perf/draft_append_perf_test.dart` |
 | T32 | 남음 | | `test/repo/handwriting_contract_real_test.dart`, `test/repo/handwriting_repository_test.dart`, `test/perf/stale_pages_perf_test.dart` |
 | T33a | 남음 | | `test/search/search_index_writer_test.dart`, `test/web/search_fts_browser_test.dart`(쓰기) |
@@ -486,6 +486,26 @@
 | `ws test --package note_core --platform vm` | 첫 실행 1개 실패(부하 — 출력을 남기지 못함), 다시 돌려 **960개 통과**(939 + 새 21), 5개 건너뜀(perf). `test/sync`·`test/storage` 두 번 더 돌려 195개 모두 통과 | 75~96초 |
 | `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**, 1개 건너뜀(perf) | 226초 |
 
+#### T30 — 녹음 저장소 (계획 6.6·8.2, 계약 7.2.4)
+
+- `storage/drift_recording_repository.dart` `DriftRecordingRepository` — `DriftNoteStore.recordings`(B2의 `EmptyRecordingRepository`는 지웠다). 쓰기는 큐 작업 하나(`putLocal`): 새 행 `{*}`(`createdAt = updatedAt = now`, `isNew`), `renameRecording` `{title, updatedAt}` → outbox `{title}`(같은 값이면 쓰지 않음), `deleteRecording` `{deletedAt, updatedAt}` → `{deletedAt}`(이미 삭제면 아무것도 안 함). outbox·`EntityChange` 힌트 `noteId`(1차 `_hints`).
+- `createRecording`(CP-7 멱등): 같은 id의 행이 있으면 **검증보다 먼저** 그 행을 그대로(삭제된 행도 — 되살리지 않음, 쓰기·`ChangeBatch` 없음). 인자가 저장된 행과 다르면(`noteId`·`assetId`·`durationMs`·`startedAt`) `@visibleForTesting`이 아닌 내부 계수 `debugIdempotentMismatches`만 올린다 — note_core에 개발 로그 창구가 없어서다(6.6 '개발 로그'). 검증 순서: id → 노트 행(휴지통 허용, 영구 삭제 = 행 없음 → `EntityNotFoundException`) → 에셋 행·`type == audio`(M-1) → `durationMs ≥ 0` → 제목(앞뒤 공백 자름, 빈 값 null, 룬 100자 초과 `ArgumentError`).
+- 읽기: `recordingsOf`·`watchRecordings` = 노트 소유자가 현재 소유자일 때만, 활성 행 `startedAt` → id(`idx_recordings_note`). watch는 `WatchHub`(녹음·노트 커밋마다 다시 읽고 같은 값이면 내지 않음 — 노트 이름 바꾸기·다른 노트 녹음은 내지 않음). 원격으로 온 녹음(1차 경로)도 같은 목록·watch. `getRecording`은 삭제된 것도. `audioBytesOf` = 활성 녹음의 **서로 다른** 에셋 행 `size` 합(바이트가 이 기기에 없어도).
+- 삭제는 획의 `recordingId`·`recordingOffsetMs`를 건드리지 않는다(R-7), 에셋 바이트는 남는다(U13). 히스토리 밖(R-8).
+- `test/shared/b2_alpha_store_cases.dart`의 `tasks.recordings`를 null 허용으로(실제 저장소는 T30부터 녹음 묶음을 건너뜀).
+
+확인 (2026-11-06)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 2초 |
+| `ws test --package note_core --platform vm` | **973개 통과**(960 + 공유 본문 6 + 저장소 9 − B2 녹음 묶음 2), 5개 건너뜀(perf) | 122초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**, 1개 건너뜀(perf) | 235초 |
+| `ws check` | R1~R16 위반 0·경고 0 | 192초 |
+| 루트 `flutter analyze --fatal-infos` | 0건 | 13초 |
+| 다른 멤버(고치지 않고 확인 — 실제 CORE v2 행·창구) | `ws test --package sync_engine --platform vm` 782 통과(통합 태그는 기본 skip) | 105초 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
@@ -503,7 +523,11 @@
 
 #### 다음 세션 메모
 
-- 다음 작업: T26(행 변환·쓰기 경로 — 이정표). 그다음 (T27, T28, T30, T31, T32) 중 하나, T35는 T25b 전 언제든.
-- T26이 할 것: `row_mappers`의 `page_objects`·`handwriting`·`recordings.title`·`pages`의 `bg_*`(배경에서 파생 — 업그레이드 4단계와 같은 규칙: pdf → `assetId`·`pdfPageIndex`, image → `assetId`만)·`ink_rev` 캐시 열. `writeEntityRow`·`deleteEntityRow`의 새 두 종류(지금 `UnimplementedError('CORE T26: …')`), `readVersionedRow`·`readVersionedPage`·`DriftSyncStore._readKind`의 새 두 종류(지금 '행 없음'), `WriteTxn._hints`.
-- v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database` — 생성 `schema_v1` + 합성 행, 덤프를 돌려줌; VM·Chrome 공용), 웹 v1 DB는 `openNoteDatabaseExecutor(config)`로 열어 같은 함수를 부른다(`v1_copy_browser_test`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
-- 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 이미 있으면 다시 만들지 않는다 — 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
+- 끝난 것(동시 개발): T24, T26, T28, T30. 다음은 (T27, T31, T32) — 순서 제안: **T27**(실제 저장소 객체 세션 — EDITOR E-2x·PDF 내보내기 `integration` 이정표, 가장 큼) → T31(실제 초안 저장소 — PDF `media` 이정표) → T32(손글씨 저장소 — LIBRARY L2x). T35는 T25b 전 언제든. 그다음 T33a → T33b → T34 → T29 → T36 → T37.
+- T27이 할 것: `session_engine.dart` 337·352의 `notYet('T27', …)`, `drift_library_repository.dart` 551의 `createNote(PageDraft.objects)`, `DriftSessions`의 `loadContent`(획 + `page_objects` 같은 읽기 트랜잭션)·객체 쓰기(`strokeNoteId: _noteId`를 객체에도)·N-7(원격 커밋의 `page_objects` 다시 읽기 → `remoteCommitted(objects:)`), `DriftContentReader.loadPage`의 `objects`. B2 시험 `open_test_store_test`의 `objects: 'T27'`을 null로, `test/shared/object_session_contract.dart`를 실제 저장소로(`object_session_contract_real_test`).
+- 행 쓰기의 규칙(T26): 객체 행의 `note_id`는 `writeEntityRow(strokeNoteId:)`·`putLocal(strokeNoteId:)` 인자로 준다(없으면 `_hints`가 `noteIdOfPage`). 원격 고아는 `''` → 페이지가 오는 커밋의 `_adoptOrphans`.
+- 원격 `content_rev`(T28): 객체·손글씨가 쓰인 기존 페이지 `+1` — T27의 N-7 시험(`PageContentChange(remote)`·`contentRevision`)이 이것을 본다. 손글씨는 노트 `updatedAt`을 옮기지 않는다.
+- 남은 2차 표면 `UnimplementedError`: 초안 T31, 손글씨 T32, 색인 T33a(`empty_v2_repositories.dart`), 객체 명령 T27.
+- 생성물 다시 만들기: 패키지에서 `dart run build_runner build` → `dart run drift_dev make-migrations`(`migration_test.dart`는 손으로 고친 판을 유지). 스키마를 바꾸면 `schema_v2_test`의 표·색인 목록도 고친다.
+- v1 사본 시험 도구: `test/shared/v1_database.dart`(`createV1Database`). T25b의 고정 자료 초기 바이트 훅(`connect_browser.dart` `@visibleForTesting`)은 아직 없다.
+- Chrome 시험은 무거운 잠금 대기가 길 수 있다(다른 영역 웹 빌드·media 시험 — 이번 세션 한 번은 15분 대기). `--heavy-lock-timeout <분>`을 넉넉히.

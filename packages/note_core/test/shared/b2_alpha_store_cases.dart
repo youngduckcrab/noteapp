@@ -26,9 +26,10 @@ Matcher throwsPending(String task) => throwsA(
 /// The CORE tasks the store's 2nd-round writes wait for. [objects]: the task the session's
 /// object writes wait for, or null when they work (the fake store since CORE T23a).
 /// [v1Copy]: null when the v1 copy API works (the real store since CORE T24 — an in-memory
-/// store has no copy).
+/// store has no copy). [recordings]: null when the repository works (the real store since
+/// CORE T30 — test/shared/recording_contract.dart).
 typedef B2AlphaTasks = ({
-  String recordings,
+  String? recordings,
   String drafts,
   String handwriting,
   String search,
@@ -95,34 +96,36 @@ void defineB2AlphaStoreTests(
     createdAt: 2000,
   );
 
-  group('recordings', () {
-    test('reads are empty', () async {
-      final recordings = store.recordings;
-      expect(await recordings.watchRecordings(note.id).first, isEmpty);
-      expect(await recordings.recordingsOf(note.id), isEmpty);
-      expect(await recordings.getRecording('r1'), isNull);
-      expect(await recordings.audioBytesOf(note.id), 0);
-    });
+  if (tasks.recordings case final recordingsTask?) {
+    group('recordings', () {
+      test('reads are empty', () async {
+        final recordings = store.recordings;
+        expect(await recordings.watchRecordings(note.id).first, isEmpty);
+        expect(await recordings.recordingsOf(note.id), isEmpty);
+        expect(await recordings.getRecording('r1'), isNull);
+        expect(await recordings.audioBytesOf(note.id), 0);
+      });
 
-    test('writes throw UnimplementedError(CORE ${tasks.recordings})', () {
-      final recordings = store.recordings;
-      expect(
-        recordings.createRecording(
-          id: 'r1',
-          noteId: note.id,
-          assetId: 'a' * 64,
-          durationMs: 1000,
-          startedAt: 0,
-        ),
-        throwsPending(tasks.recordings),
-      );
-      expect(
-        recordings.renameRecording('r1', 'x'),
-        throwsPending(tasks.recordings),
-      );
-      expect(recordings.deleteRecording('r1'), throwsPending(tasks.recordings));
+      test('writes throw UnimplementedError(CORE $recordingsTask)', () {
+        final recordings = store.recordings;
+        expect(
+          recordings.createRecording(
+            id: 'r1',
+            noteId: note.id,
+            assetId: 'a' * 64,
+            durationMs: 1000,
+            startedAt: 0,
+          ),
+          throwsPending(recordingsTask),
+        );
+        expect(
+          recordings.renameRecording('r1', 'x'),
+          throwsPending(recordingsTask),
+        );
+        expect(recordings.deleteRecording('r1'), throwsPending(recordingsTask));
+      });
     });
-  });
+  }
 
   group('recording drafts', () {
     test('reads are empty; readAll knows no draft', () async {

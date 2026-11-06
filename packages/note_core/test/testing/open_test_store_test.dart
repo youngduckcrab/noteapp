@@ -181,7 +181,8 @@ void main() {
     defineB2AlphaStoreTests(
       openTestNoteStore,
       tasks: (
-        recordings: 'T30',
+        recordings:
+            null, // works since CORE T30 (test/shared/recording_contract.dart)
         drafts: 'T31',
         handwriting: 'T32',
         search: 'T33a',

@@ -1,14 +1,13 @@
 // Internal: the 2nd-round repositories of a store before their CORE task (02-core 8.1
 // 'B2 상태'). Reads answer as for an empty store (no drafts, no handwriting results, no
-// search index; recordings are not listed — not even a row that came by the 1차 remote
-// path) and every write throws UnimplementedError('CORE <task>: …').
-// The real store (DriftNoteStore) passes T30 / T31 / T32 / T33a. (The fake store used them
+// search index) and every write throws UnimplementedError('CORE <task>: …').
+// The real store (DriftNoteStore) passes T31 / T32 / T33a (recordings: the real repository
+// since CORE T30 — storage/drift_recording_repository.dart). (The fake store used them
 // until CORE T23b — it now has fake/fake_v2_repositories.dart and fake/memory_search_index.dart.)
 import 'dart:typed_data';
 
 import '../common/ids.dart';
 import '../common/pending.dart';
-import '../model/asset.dart';
 import '../model/handwriting.dart';
 import '../search/search_types.dart';
 import 'handwriting_repository.dart';
@@ -17,44 +16,6 @@ import 'recording_repository.dart';
 /// A watch stream with one value that stays open, like the store's watch streams (1차 rule:
 /// the current value right after listen, then every change — there is none here).
 Stream<T> _holdOne<T>(T value) => Stream<T>.multi((c) => c.add(value));
-
-final class EmptyRecordingRepository implements RecordingRepository {
-  EmptyRecordingRepository(this.writeTask);
-
-  /// The CORE task whose implementation the writes wait for.
-  final String writeTask;
-
-  @override
-  Stream<List<Recording>> watchRecordings(NoteId noteId) =>
-      _holdOne<List<Recording>>(const []);
-
-  @override
-  Future<List<Recording>> recordingsOf(NoteId noteId) async => const [];
-
-  @override
-  Future<Recording?> getRecording(RecordingId id) async => null;
-
-  @override
-  Future<Recording> createRecording({
-    required RecordingId id,
-    required NoteId noteId,
-    required AssetId assetId,
-    required int durationMs,
-    required EpochMillis startedAt,
-    String? title,
-  }) async => notYet(writeTask, 'RecordingRepository.createRecording');
-
-  @override
-  Future<void> renameRecording(RecordingId id, String? title) async =>
-      notYet(writeTask, 'RecordingRepository.renameRecording');
-
-  @override
-  Future<void> deleteRecording(RecordingId id) async =>
-      notYet(writeTask, 'RecordingRepository.deleteRecording');
-
-  @override
-  Future<int> audioBytesOf(NoteId noteId) async => 0;
-}
 
 final class EmptyRecordingDraftStore implements RecordingDraftStore {
   EmptyRecordingDraftStore(this.writeTask);
