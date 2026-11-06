@@ -135,6 +135,31 @@ void _sharedCases(
       ]);
     });
 
+    test(
+      'getMany of many keys (files: the batch read on an isolate — T37): '
+      'key order, null for missing keys, after the puts called before it',
+      () async {
+        final keys = [
+          for (var i = 0; i < kFileBlobBatchReadMin + 12; i++)
+            'm/${i.toString().padLeft(6, '0')}',
+        ];
+        // Not awaited: getMany still sees every put called before it.
+        final puts = [
+          for (final (i, k) in keys.indexed)
+            if (i.isEven) db.chunks.put(k, _bytes(100 + i, i)),
+        ];
+        // 'm' is the directory of the other keys in the file store: not a value either.
+        final read = await db.chunks.getMany([...keys.reversed, 'none', 'm']);
+        await Future.wait(puts);
+        expect(read, [
+          for (final (i, _) in keys.indexed.toList().reversed)
+            i.isEven ? _bytes(100 + i, i) : null,
+          null,
+          null,
+        ]);
+      },
+    );
+
     test('9 MiB asset: 3 chunks written, all present, joined back', () async {
       final bytes = _bytes(9 * _mib);
       final count = await writeChunks(db.chunks, 'x', bytes);
@@ -405,6 +430,15 @@ void main() {
       await db.chunks.deletePrefix('../out');
       expect(await db.chunks.keys('../'), isEmpty);
       expect(await db.chunks.getMany(['../outside', 'none']), [null, null]);
+      // The batch read on an isolate (T37) answers the same.
+      await db.chunks.put('ok', _bytes(3));
+      expect(
+        await db.chunks.getMany([
+          for (var i = 0; i < kFileBlobBatchReadMin; i++) '../outside',
+          'ok',
+        ]),
+        [for (var i = 0; i < kFileBlobBatchReadMin; i++) null, _bytes(3)],
+      );
       expect(File('${tmp.path}/outside').existsSync(), isTrue);
     });
 

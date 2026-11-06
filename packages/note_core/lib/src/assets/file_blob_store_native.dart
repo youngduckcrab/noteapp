@@ -16,6 +16,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -28,6 +29,12 @@ const String kFileBlobsDirectory = 'blobs';
 
 /// The subdirectory of the page thumbnails (6.15.3).
 const String kFileThumbnailsDirectory = 'thumbs';
+
+/// A getMany of at least this many keys reads its files with synchronous reads on a
+/// short-lived isolate (CORE T37 — PF-10 on the native store: the 100 glyph box blobs of one
+/// search took 53–71 ms as parallel asynchronous reads, each file four round trips to the IO
+/// service; a recording draft's readAll reads every chunk the same way).
+const int kFileBlobBatchReadMin = 8;
 
 /// The file name extension of a thumbnail.
 const String kThumbnailFileExtension = '.bin';
@@ -152,6 +159,29 @@ Future<void> _writeAtomically(File target, List<int> bytes) async {
 }
 
 /// The bytes of [file]; null when there is no such file (a directory is not one).
+/// [_readFile] of every path (null = not a key → null) on a new isolate; only the path list
+/// goes to it, the byte lists come back without a copy (Isolate.exit).
+Future<List<Uint8List?>> _readFilesOnIsolate(List<String?> paths) =>
+    Isolate.run(
+      () => [for (final p in paths) p == null ? null : _readFileSync(File(p))],
+      debugName: 'note_core file blobs',
+    );
+
+/// The synchronous [_readFile].
+Uint8List? _readFileSync(File file) {
+  try {
+    return file.readAsBytesSync();
+  } on PathNotFoundException {
+    return null;
+  } on FileSystemException {
+    if (FileSystemEntity.typeSync(file.path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      return null;
+    }
+    rethrow;
+  }
+}
+
 Future<Uint8List?> _readFile(File file) async {
   try {
     return await file.readAsBytes();
@@ -224,10 +254,14 @@ final class _FileBlobStore implements BlobStore {
   @override
   Future<List<Uint8List?>> getMany(List<String> keys) async {
     if (keys.isEmpty) return const [];
+    final paths = [for (final k in keys) _isKey(k) ? _fileOf(k).path : null];
+    if (paths.length >= kFileBlobBatchReadMin) {
+      return _run(() => _readFilesOnIsolate(paths));
+    }
     return _run(
       () => Future.wait([
-        for (final k in keys)
-          _isKey(k) ? _readFile(_fileOf(k)) : Future<Uint8List?>.value(),
+        for (final p in paths)
+          p == null ? Future<Uint8List?>.value() : _readFile(File(p)),
       ]),
     );
   }

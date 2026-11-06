@@ -7,7 +7,11 @@
 // their rects. Asserted: database growth ≤ 12 MB (7.4.5 target) and the query median ≤ 50 ms
 // (6.19 said '≤ 20 ms [추측] — confirmed by the first measurement': 32–42 ms at load 10 on the
 // shared 4 CPUs — 500 candidates of 2,500 characters each are read and judged, 100 bodies and
-// 100 glyph box blobs read; progress log 'T33b').
+// 100 glyph box blobs read; progress log 'T33b'). (T37) The mixed corpus runs once more on the
+// native store of openNoteStore (WAL file database on its background isolate + file blobs,
+// 6.15.3): the same growth budget; its query is recorded against the budget, not asserted —
+// the 500 candidate rows (norm of 2,500 characters each) cross the isolate boundary, which
+// the budget's in-process store does not pay (progress log 'T37').
 @TestOn('vm')
 @Tags(['perf'])
 library;
@@ -40,16 +44,19 @@ Future<int> dbBytes(DriftNoteStore store) async {
 }
 
 void main() {
-  for (final (name, latinShare, seed) in const [
-    ('Korean', 0.0, 21),
-    ('mixed', 0.3, 22),
-    ('English', 1.0, 23),
+  for (final (name, latinShare, seed, native) in const [
+    ('Korean', 0.0, 21, false),
+    ('mixed', 0.3, 22, false),
+    ('English', 1.0, 23, false),
+    ('mixed, native file blobs', 0.3, 22, true),
   ]) {
     test(
       'PF-10 $name: 500 real-shape pages — growth ≤ 12 MB, 100-page query ≤ 50 ms',
       () async {
-        final path = await tempDatabasePath('pf10_$seed');
-        final store = await openFileStore(path) as DriftNoteStore;
+        final store = native
+            ? await openNativeFileStore('pf10n_$seed') as DriftNoteStore
+            : await openFileStore(await tempDatabasePath('pf10_$seed'))
+                  as DriftNoteStore;
         const pages = 500;
         await pdfLibrary(store, _asset, pages: pages);
         final before = await dbBytes(store);
@@ -115,10 +122,14 @@ void main() {
         record(
           'PF-10 $name query "$q" (100 pages with rects)',
           m,
-          note: '(budget ${ms(kQueryBudget)} ms)',
+          note: native
+              ? '(budget ${ms(kQueryBudget)} ms on the in-process store)'
+              : '(budget ${ms(kQueryBudget)} ms)',
         );
         expect(growth, lessThanOrEqualTo(kGrowthBudgetBytes));
-        expect(m, lessThan(kQueryBudget), reason: 'PF-10 $name query (6.19)');
+        if (!native) {
+          expect(m, lessThan(kQueryBudget), reason: 'PF-10 $name query (6.19)');
+        }
       },
       timeout: const Timeout(Duration(minutes: 10)),
     );

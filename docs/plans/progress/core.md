@@ -407,7 +407,7 @@
 | T34 | 완료 | d995a2c | `test/repo/library_search_v2_test.dart`(가짜·실제 각 5 + 같은 결과 1), 1차 `library_contract`(가짜·실제 — 제목 검색 사례 그대로 통과) |
 | T29 | 완료 | 585022b(① 영구 삭제) · 8147320(② 복사) · 784b675(③ 백업 제외 시험) · 6ae70e9(③ 골든 v2 — 이정표) | `test/repo/note_copy_v2_test.dart`(가짜·실제 각 3 + 실제 복구 복제·outbox 2), `test/repo/trash_purge_v2_test.dart`(가짜·실제 4 + 실제 행·outbox·블롭 2), `test/backup/backup_export_test.dart`·`test/testing/fake_backup_export_test.dart`·`test/web/backup_export_browser_test.dart`(골든 `test/goldens/backup/backup_v2.json` — 실제 VM = 가짜 = 웹 같은 바이트, 색인·초안·캐시·파생 열·v1 사본 제외) |
 | T36 | 완료 | e98067b | `test/providers/providers_fake_test.dart`·`providers_real_test.dart`(`test/shared/providers_contract.dart` v2 — 공유 v2 사례 5: 값·오디오 기본값(B2-α) + `noteRecordingsProvider` 갱신·dispose, 손글씨·색인 provider 읽기·쓰기, `noteStoreProvider` 바뀜 따라감) |
-| T37 | 남음 | | `-t perf` PF-1~PF-11, Chrome `perf`, `test/readme_examples_test.dart` v2 |
+| T37 | 진행 중 (세션 9) | (이 커밋) ① 성능 | `test/perf/object_page_perf_test.dart`(PF-1·PF-2 — 새 파일), `test/perf/*`(`--run-skipped -t perf` PF-1~PF-11), `test/perf/search_real_shape_perf_test.dart`(+ 네이티브 저장소 PF-10), `test/assets/file_blob_store_test.dart`(+ 묶음 읽기 2), Chrome `perf`(PF-10w·1차 `open_time_browser_test`), `test/readme_examples_test.dart` v2 |
 | I-1~I-7 | 통합 단계 | | 계획 8.3 |
 
 #### 00-review '최종 승인' CORE 항목 처리
@@ -733,6 +733,21 @@
 
 - **웹 PF-8 판단**: T24가 남긴 '웹 업그레이드 열기 1.9~2.5 s'의 원인은 사본 단계이고, 그중 가장 큰 몫은 덤프 전체의 SHA-256(순수 Dart `package:crypto` — 시험 컴파일러에 따라 0.2~3.6 s)이다. 덤프 질의는 0.2~0.3 s, 블롭 쓰기는 수십 ms. 계약·계획에 웹 PF-8 예산은 없어(6.19 예산 열은 VM, 6.12.4 '웹 비용'은 기록) 코드는 바꾸지 않았다. 줄이려면 ① 덤프가 한 조각(≤ 4 MiB)일 때 `crypto.subtle.digest`(1차 `content_hasher_browser.dart`가 이미 씀 — 점진 해시가 없어 여러 조각이면 안 됨) ② meta의 `sha256`을 조각별 해시로 바꾸기(meta 형식 변경 — 6.12.4·dev_tools 소비자 INFRA 확인 필요). 실제 릴리스 빌드(dart2js -O4·wasm) 수치는 통합 단계 V6·실기기(9.5)에서 본다 — 다음 세션 메모.
 
+#### T37 — 성능 · 문서 (계획 6.19·8.2·10장 1·8) — 세션 9
+
+- PF-1·PF-2 `test/perf/object_page_perf_test.dart`(새 파일, 파일 DB): 2,000획(`seedSyntheticNote`) 페이지에 객체 2,000개(도형 모든 종류·텍스트 상자·수식·모르는 객체 각 500, 40 × 50 격자)를 세션 `AddObjects` 한 번으로 넣고 flush. PF-1 = 새 세션마다 `openPage`(두 페이지를 번갈아) 3번 중앙값, PF-2 = 텍스트 상자 `UpdateObjects` 1개(`copyWith(text:)`) `execute` 120번 중 앞 20번 워밍업 뒤 100번 평균(사이에 쓰기 큐 커밋 — 1차 `page_perf_test`의 AddStrokes와 같은 모양).
+- PF-10에 **네이티브 저장소 한 번 더**(`perf_support.openNativeFileStore` — `openNoteStore` 두 경로: WAL 파일 DB(배경 isolate) + 파일 블롭, 혼용 자료): 크기 예산은 같이 단언하고, 질의 시간은 기록만(아래). 첫 측정 88 ms(load 6)을 나눠 보니(`DriftSearchIndex`에 임시 `Stopwatch` — 저장소에 남기지 않음) **글자 상자 블롭 100개 `getMany`가 53~71 ms**(메모리 IndexedDB 5~9 ms)였다: 파일마다 `readAsBytes`(열기·길이·읽기·닫기 — IO 서비스 왕복 4번)를 100개 동시에. 그래서 `FileBlobDatabase`의 `getMany`를 **키 8개 이상이면 짧은 isolate에서 동기 읽기**(`Isolate.run` — 경로 목록만 보내고 바이트는 `Isolate.exit`로 복사 없이 돌아옴)로 바꿨다(`kFileBlobBatchReadMin = 8`, 내부). 블롭 읽기 2.6~6.5 ms. 남은 차이는 후보 행(쪽당 `norm` 2,500자 × 500)이 drift 배경 isolate에서 건너오는 값(후보 단계 16~56 ms vs 같은 프로세스 15~39 ms, load 6~7)이다 — 설계(후보 상한·`norm`을 Dart로 옮김)에 묶인 값이라 고치지 않았다. 녹음 초안 `readAll`(조각 수백~1,800개 `getMany`)도 같은 길을 탄다.
+- `test/assets/file_blob_store_test.dart` 공유 사례 1건(두 블롭 DB 모두 — 키 20개 + 없는 키 + 파일 저장소에서는 디렉터리인 키, 기다리지 않은 `put` 뒤 `getMany`가 그 값을 봄), 파일 전용 사례 1줄(묶음 읽기에서 파일이 될 수 없는 키 → null, 루트 밖을 읽지 않음).
+
+확인 (2026-11-06 세션 9 — T37 ① 성능, 공유 CPU 4개 · 다른 영역 6곳과 같이)
+
+| 검사 | 결과 | load |
+|---|---|---|
+| `flutter test --run-skipped -t perf --concurrency=1 test/perf`(VM 전체, 6분 35초) | 15 통과 · 3 실패 — 모두 부하에 걸린 시간 예산: PF-2 평균 2.04 ms(중앙값 0.70), PF-3 후보 136개 질의 8.14 ms, PF-10 한국어 질의 54.85 ms. 같은 시험을 낮은 부하에서 따로 다시 잰 값은 아래 '성능 기록' | 7 → 13 |
+| PF-1·PF-2 단독(첫 측정) | PF-1 **197 ms**(250·131·197 — 예산 ≤ 400), PF-2 평균 **0.64 ms**(중앙값 0.56 — 예산 ≤ 2) | 6.7 |
+| PF-10 혼용 네이티브 저장소(블롭 묶음 읽기 뒤) | 질의 35~67 ms(전체 실행 35.09 ms — 같은 프로세스 저장소는 같은 실행에서 29.46 ms), DB 증가 6.15 MiB(예산 12) | 6~13 |
+| `ws test --package note_core --platform vm` | **1,189개 통과**(1,178 + 블롭 2 + README 9), 13개 건너뜀(perf 파일 + 읽기 전용 2) | 13 → 19 |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T33a: 6.10.3 '쓰기 훅' 위치는 `WriteTxn.putLocal`·`putRemote` 한 곳(내부 `TxnIndexHooks`)으로 — 세션·undo·`createNote`·손글씨 저장소·원격 적용이 모두 지난다. 같은 `sourceRev`·보류 아님이면 다시 쓰지 않는다(계획에 없음 — 같은 버전 재적용). 원격 고아 텍스트·수식은 단위 없이 소유자만 두었다가 페이지가 오면(`_adoptOrphans`) 다시 색인한다. 보류 표시는 `INSERT … ON CONFLICT DO UPDATE SET pending = 1`(소유자 행이 없으면 `source_rev ''`).
@@ -749,6 +764,8 @@
 - T35: 파일 블롭의 키 의미를 IndexedDB 저장소와 같게 맞췄다 — 이름 접두사(끝 `/` 없는 `keys('a')`·`deletePrefix('a')`)와 `''`(전부)도 된다(계획 6.15.3은 '접두사의 디렉터리를 나열'·'그 디렉터리를 재귀 삭제'만 적음). 계획에 없는 것: 열 때 각 디렉터리에 쓰기 시험(읽기 전용을 열기에서 `storageUnavailable`로 — 계획의 '만들 수 없으면'을 '쓸 수 없으면'까지), 한 저장소 작업의 호출 순서 직렬화, 비게 된 부모 디렉터리 정리, 파일이 될 수 없는 키 거부, 썸네일 파일 이름 퍼센트 인코딩·MIME 길이 uint16(계획은 'MIME 길이'의 크기를 정하지 않음).
 - T35: 읽기 전용 디렉터리 시험 2건은 root에서 건너뛴다(root는 모드를 무시) — 같은 실패 경로를 '만들 수 없음'(일반 파일 아래·파일이 자리를 차지) 사례로 root에서도 확인한다.
 - T35: 네이티브 DB 실행기를 먼저 만들고(부모 디렉터리 만들기 포함) 그다음 파일 블롭을 연다 — 블롭이 실패하면 실행기를 닫고 던진다. 그래서 블롭 루트를 만들 수 없을 때도 DB 디렉터리는 만들어져 있다(빈 디렉터리).
+- T37: 파일 블롭 `getMany`가 키 8개 이상이면 짧은 isolate에서 동기 읽기로(계획 6.15.3은 읽기 방법을 정하지 않음 — PF-10 네이티브 측정에서 비동기 파일 읽기 100개가 53~71 ms). 한 저장소 작업의 호출 순서 직렬화는 그대로(isolate 읽기도 큐 안에서).
+- T37: PF-10의 질의 예산(≤ 50 ms — 세션 6 첫 측정으로 확정)은 계획대로 시험용 같은 프로세스 저장소(`openTestNoteStore`)에서만 단언하고, 네이티브 저장소(`openNoteStore` — drift 배경 isolate)의 같은 질의는 기록만 한다(후보 행이 isolate를 건너는 값이 더해짐 — 위 'T37' 절).
 - T25b: Chrome 시험은 공개 `openNoteStore` 대신 같은 실행기(`openNoteDatabaseExecutor` + 초기 바이트 훅)와 같은 블롭 팩토리로 `DriftNoteStore.open`을 부른다(계획 6.12.3은 '`openNoteStore` → 같은 검사' — 공개 시그니처에 시험 인자를 더할 수 없어서). 자동 정리 타이머·`persist()` 질의만 빠진다. VM은 공개 `openNoteStore` 그대로.
 - T25b: ⑤ '이어서 객체 추가·녹음 생성·검색이 동작, 다시 열어도 같음'의 '같음'을 kv·FTS 표를 뺀 **모든 표의 정규 덤프 해시**로 고정했다(+ ⑤ 결과·사본 그대로·`normalOpens` +1).
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
