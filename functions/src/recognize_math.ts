@@ -5,18 +5,20 @@
 // Order (6.8.2): sign-in → owner list → request check → engine and its input → daily cap (right
 // before the engine: a bad request never uses a count) → engine call under the deadline signal →
 // output check → one log line per call (6.8.10 — sizes, engine, outcome, ms; never content).
-// S2-11 wires QUOTA_STORE (FirestoreQuotaStore) in the onCall deps; until then the deployed deps
-// count in memory.
+// The onCall wiring reads QUOTA_STORE on the first call (quotaStoreFor): Firestore through the
+// Admin SDK in production, memory in the emulator demo (.env.demo-noteapp).
 
+import { getApps, initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableFunction, type FunctionsErrorCode } from "firebase-functions/https";
 import { isOwner, parseOwnerUids } from "./access.js";
 import { EngineError, type EngineInput, type EngineOutput, type EngineRegistry } from "./engines/engine.js";
 import { registryFromParams } from "./engines/registry.js";
 import { httpsErrorOf } from "./errors.js";
 import { functionsLogger, inputSizeFields, withEngineInfo, type LogFields, type LogValue, type Logger } from "./log.js";
-import { DAILY_CAP, MATH_API_KEY, OWNER_UIDS } from "./params.js";
+import { DAILY_CAP, MATH_API_KEY, OWNER_UIDS, QUOTA_STORE } from "./params.js";
 import { LIMITS, parseRequest, type RecognizeMathResult } from "./protocol.js";
-import { MemoryQuotaStore, seoulDayKey, type QuotaStore } from "./quota.js";
+import { quotaStoreFor, seoulDayKey, type QuotaStore } from "./quota.js";
 
 export interface HandlerDeps {
   /** OWNER_UIDS, comma separated, trimmed; empty → nobody. */
@@ -190,7 +192,10 @@ export function checkOutput(out: EngineOutput): EngineOutput | string {
 const handler = createRecognizeMathHandler({
   ownerUids: () => parseOwnerUids(OWNER_UIDS.value()),
   engines: registryFromParams(),
-  quota: new MemoryQuotaStore(),
+  quota: quotaStoreFor(
+    () => QUOTA_STORE.value(),
+    () => getFirestore(getApps()[0] ?? initializeApp()),
+  ),
   dailyCap: () => DAILY_CAP.value(),
   now: () => Date.now(),
   engineSignal: (ms) => AbortSignal.timeout(ms),
