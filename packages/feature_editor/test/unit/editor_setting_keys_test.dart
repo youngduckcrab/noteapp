@@ -4,7 +4,8 @@
 // (v2) E2-01 adds editor.deviceState (device); E2-03 adds editor.toolOptions
 // and editor.playback.preRollMs (synced) — the P-A end state of
 // m5-7/04-editor 6.18: device 5, synced 6; all is List<SettingKey<Object?>>
-// and preRollMs is the only integer key (E2-10b adds editor.textDraft later).
+// and preRollMs is the only integer key. (P-B) E2-10b adds editor.textDraft
+// (device): device 6, synced 6.
 import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -12,10 +13,10 @@ import 'package:note_core/note_core.dart' as core;
 void main() {
   final all = EditorSettingKeys.all;
 
-  test('all lists the eleven keys (6.14 + 6.18), each once', () {
+  test('all lists the twelve keys (6.14 + 6.18), each once', () {
     expect(all, isA<List<core.SettingKey<Object?>>>());
-    expect(all, hasLength(11));
-    expect({for (final k in all) k.name}, hasLength(11));
+    expect(all, hasLength(12));
+    expect({for (final k in all) k.name}, hasLength(12));
   });
 
   test("names: 'editor.' prefix and the CORE name rule", () {
@@ -35,6 +36,7 @@ void main() {
       'editor.viewport': core.SettingScope.device,
       'editor.presetBar': core.SettingScope.device,
       'editor.deviceState': core.SettingScope.device,
+      'editor.textDraft': core.SettingScope.device,
       'editor.settings.synced': core.SettingScope.synced,
       'editor.penStyles': core.SettingScope.synced,
       'editor.eraser': core.SettingScope.synced,
@@ -42,7 +44,7 @@ void main() {
       'editor.toolOptions': core.SettingScope.synced,
       'editor.playback.preRollMs': core.SettingScope.synced,
     });
-    expect(all.where((k) => k.scope == core.SettingScope.device), hasLength(5));
+    expect(all.where((k) => k.scope == core.SettingScope.device), hasLength(6));
     expect(all.where((k) => k.scope == core.SettingScope.synced), hasLength(6));
   });
 
@@ -73,6 +75,7 @@ void main() {
       EditorSettingKeys.viewport,
       EditorSettingKeys.presetBar,
       EditorSettingKeys.deviceState,
+      EditorSettingKeys.textDraft,
       EditorSettingKeys.syncedSettings,
       EditorSettingKeys.penStyles,
       EditorSettingKeys.eraser,

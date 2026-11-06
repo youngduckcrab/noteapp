@@ -1,5 +1,6 @@
 // lib/src/ui/editor_body.dart — 04-editor 6.4.3 (EditorBody), 6.9.1 layout,
-// 6.17.2–6.17.4; (v2) the bottom panel slot (m5-7/04-editor 6.15.4 — E2-16).
+// 6.17.2–6.17.4; (v2) the bottom panel slot (m5-7/04-editor 6.15.4 — E2-16),
+// (P-B) the kept text draft banner (6.11.2 — E2-10b).
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import '../text/text_edit_session.dart';
 import '../viewport/page_viewport.dart';
 import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
+import 'banners/text_draft_banner.dart';
 import 'editor_strings.dart';
 import 'panels/editor_panel_slot.dart';
 import 'popup_host.dart';
@@ -24,7 +26,8 @@ import 'toolbar/editor_toolbar.dart';
 ///
 ///   EditorShortcuts → (v2) PlaybackHighlightDriver → PopupHost → Scaffold →
 ///   SafeArea → Column
-///   ├─ ReadOnlyBanner / StorageWarningBanner (height 0 when not shown)
+///   ├─ ReadOnlyBanner / StorageWarningBanner / (v2) TextDraftBanner
+///   │  (height 0 when not shown)
 ///   ├─ EditorToolbar (52 px) · PresetBarView (44 px)
 ///   ├─ Expanded: PageViewport
 ///   └─ (v2) EditorPanelArea: the bottom panel slot while open (≤ 40 % of
@@ -103,6 +106,7 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
                       children: [
                         const ReadOnlyBanner(),
                         const StorageWarningBanner(),
+                        const TextDraftBanner(),
                         EditorToolbar(
                           onBack: widget.onBack,
                           onOpenSettings: widget.onOpenSettings,

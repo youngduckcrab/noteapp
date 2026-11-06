@@ -370,6 +370,43 @@ class EditorCommands {
     return _run(core.AddObjects(pageId: pageId, objects: objects)) != null;
   }
 
+  /// (v2, E2-10b — m5-7/04-editor 6.11.2, P-B) Puts a kept text draft back
+  /// as a NEW box (a new id and createdAt): ONE AddObjects through
+  /// executeAsync (the page may not be loaded) on the draft's page — or on
+  /// the current page when that page is gone (the frame kept). The original
+  /// box is not touched (a duplicate is the user's to delete). Then that
+  /// page comes into view and the box flashes. False when nothing was added
+  /// (read only, no page, the object limit, a refused command).
+  Future<bool> restoreTextDraft(core.TextBoxObject draft) async {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return false;
+    final pages = _session.pages;
+    if (pages.isEmpty) return false;
+    final pageId = pages.any((p) => p.id == draft.pageId)
+        ? draft.pageId
+        : pages[_viewport.currentPageIndex.value.clamp(0, pages.length - 1)].id;
+    final content = _session.pageIfLoaded(pageId);
+    if (content != null && ObjectFactory.exceedsLimit(content, 1)) {
+      _message(
+        EditorStrings.objectLimitReached(
+          core.PageObjectLimits.maxObjectsPerPage,
+        ),
+      );
+      return false;
+    }
+    final box = draft.copyTo(
+      id: _ref.read(core.idGeneratorProvider).newId(),
+      pageId: pageId,
+      createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+    );
+    final receipt = await _runAsync(
+      core.AddObjects(pageId: pageId, objects: [box]),
+    );
+    if (receipt == null || _disposed) return false;
+    final r = box.frame.rect;
+    navigateToPage(pageId, Rect.fromLTRB(r.left, r.top, r.right, r.bottom));
+    return true;
+  }
+
   // ---- extension slots (m5-7/04-editor 6.7.4) ----
 
   /// (v2) `execute` of the extension contexts (EditorSelectionContext /

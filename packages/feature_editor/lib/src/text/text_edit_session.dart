@@ -2,6 +2,8 @@
 // (E2-01: the minimal session — new box and existing box, one command at the
 // end, end reasons. E2-10: the router-side ends live in InteractionHost —
 // penContact, canvasTap, longPress; a tool change ends the session here).
+// (P-B) E2-10b: every draft change goes to TextDraftStore (kept every 5 s in
+// editor.textDraft), removed after the session's command (6.11.2).
 //
 // E-6: one edit session = at most one command = one undo step. While the
 // session runs, the existing box is hidden on its INK page controller (the
@@ -18,6 +20,7 @@ import '../document/mounted_pages.dart';
 import '../scope/editor_scope.dart';
 import '../state/settings/editor_device_state.dart';
 import '../tools/tool_controller.dart';
+import 'text_draft_store.dart';
 
 @immutable
 class TextEditState {
@@ -264,6 +267,15 @@ class TextEditNotifier extends Notifier<TextEditState?> {
     final next = s.withDraft(_measuredSync(draft) ?? draft);
     state = next;
     if (next.mode == WebTextInputMode.sheet) _apply(next);
+    // (P-B, 6.11.2) a long session keeps its draft (not a command).
+    ref
+        .read(editorTextDraftStoreProvider)
+        .changed(
+          pageId: next.pageId,
+          boxId: next.boxId,
+          isNew: next.isNew,
+          draft: next.draft,
+        );
   }
 
   /// Ends the session exactly once (idempotent — the first reason wins):
@@ -280,6 +292,7 @@ class TextEditNotifier extends Notifier<TextEditState?> {
     final session = ref.read(editorSessionValueProvider);
     final ids = ref.read(core.idGeneratorProvider);
     final clock = ref.read(core.clockProvider);
+    final drafts = ref.read(editorTextDraftStoreProvider);
     void finish(core.TextBoxObject finalDraft) {
       final command = textSessionCommand(
         s,
@@ -292,6 +305,10 @@ class TextEditNotifier extends Notifier<TextEditState?> {
         commands.runTextSession(command, text: finalDraft.text);
       }
       _clear(pages, s.pageId);
+      // (P-B, 6.11.2) after the command (or none) — also after a read-only
+      // refusal (the text went to the clipboard; restoring would be refused
+      // again — 6.11.5).
+      unawaited(drafts.sessionEnded());
     }
 
     final sync = _measuredSync(s.draft);
@@ -358,6 +375,7 @@ final editorTextEditProvider =
         editorSessionValueProvider,
         editorMountedPagesProvider,
         editorCommandsProvider,
+        editorTextDraftStoreProvider,
       ],
       name: 'editorTextEditProvider',
     );

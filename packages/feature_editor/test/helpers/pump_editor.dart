@@ -89,6 +89,14 @@ Future<EditorTestHandles> pumpEditor(
   // (v2) the extension slots (editorExtensionsProvider).
   EditorExtensions? extensions,
   EditorSettings? settings, // written to the CORE keys before pumping
+  // (v2, E2-10b) runs after the note is seeded, before the screen opens —
+  // e.g. a text draft an earlier run left in editor.textDraft.
+  Future<void> Function(
+    core.NoteStore store,
+    core.NoteId noteId,
+    core.PageId Function(int index) pageId,
+  )?
+  beforePump,
   bool settle = true,
   List<Override> overrides = const [], // e.g. syncBadgeProvider
   Size logicalSize = const Size(1032, 1376),
@@ -148,6 +156,10 @@ Future<EditorTestHandles> pumpEditor(
       EditorSettingKeys.syncedSettings,
       settings.toJson(core.SettingScope.synced),
     );
+  }
+
+  if (beforePump != null) {
+    await beforePump(s, noteId, (index) => seededPageId(seedKey, index));
   }
 
   RecordingNoteSession? recorder;
