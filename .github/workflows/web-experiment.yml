@@ -126,7 +126,7 @@ jobs:
           channelId: ${{ env.CHANNEL_ID }}
           expires: 7d
           entryPoint: app
-          firebaseToolsVersion: 15.34.2
+          firebaseToolsVersion: 15.34.1
           disableComment: true
 
       - name: Summary

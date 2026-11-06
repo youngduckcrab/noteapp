@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 R2-final — 기반 단계 전체 확인**(R2-B1~R2-B6이 `main`에 있음, 검사 HEAD `708a1c1` — 아래 '## 2차') — 그 앞은 R2-B2 묶음 검사·R2-B2i·R2-B1.
-- 다음 할 일: 동시 개발 시작 조건이 채워졌다. INFRA는 R2-B8a → R2-B8b → J0(체크포인트 병합 — Q14).
+- 마지막 세션: **2차 동시 개발 1/11** — 작업 표·문서 정리(C22-09·C23-01) — 아래 '## 2차' > '### 동시 개발'. 그 앞은 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
+- 다음 할 일: '### 동시 개발' 작업 표 순서 — R2-B8a → R2-B8b → J0 → J1~J22(체크포인트 병합 — Q14).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -377,3 +377,75 @@
 - **시작 글꼴**(`FontManifest.json`): 14개 패밀리 — `flutter_math_fork` KaTeX 12개 패밀리 20개 파일 + MaterialIcons + CupertinoIcons, 합계 661,088 B · gzip **382,428 B**(계획 4.3.3 초안 `startup_fonts_gzip_max: 400000`까지 17,572 B). KaTeX 20개가 370,093 B gzip(MaterialIcons 10,170 B·CupertinoIcons 1,011 B)으로 거의 전부다 — J0에서 묶음별 한도를 제안할 때 이 값을 쓴다. `NoteSans`는 `FontManifest`에도 `AssetManifest`에도 없다(계약 7.4.5의 '`FontManifest`에 넣지 않음'은 지켜짐; INK 글꼴 파일은 아직 `ink_engine` pubspec `flutter: assets:`에 없다 — 아래).
 - pdf_io Chrome 멈춤(R2-B2 묶음 검사)은 이번에 다시 나타나지 않았다(92초, 첫 시도 통과).
 - **남은 것(다른 영역·총괄)**: INK가 INFRA에 요청한 `packages/ink_engine/pubspec.yaml`의 `flutter: assets:` 블록(글꼴 3줄)은 INFRA가 넣지 않았다 — 그 파일에서 INFRA가 고칠 수 있는 것은 R2-B1의 의존 4줄(CP3 한 번 예외)뿐이고, 01-infra 3.3은 글꼴 블록을 INK R2-B3 몫으로 적었다. 총괄에게 결정을 요청했다(INK가 동시 개발 첫 작업으로 넣거나 INFRA에 한 번 더 예외). 블록이 없는 동안 앱·VM 패키지 시험에서 `InkFonts.ensureLoaded()`는 실패하고 대체 글꼴을 쓴다(INK 보고 — 예외 없음); 이번 검사는 그 때문에 실패한 시험이 없다.
+
+### 동시 개발 (계획 8.1b·8.2 — 작업 트리 `/home/user/wt2/infra`, 브랜치 `area2/infra`, 바탕 `5843ec3` = 계약 v2.3)
+
+다른 영역의 2차 구현은 이 작업 트리에서 기반 단계 표면(단순 구현·가짜)이다. 실제 구현이 필요한 판정은 `integration`·`media`·`emulator` 태그 시험으로 써 두고 통합 단계(H1~H8)에서 판정한다.
+
+#### 작업 표
+
+| ID | 상태 | 커밋 | 완료 조건 시험 파일 |
+|---|---|---|---|
+| R2-B1 | 기반 단계에서 완료 | `3c77de3` | (위 '### R2-B1') |
+| R2-B2i | 기반 단계에서 완료 | `59ed567` | (위 '### R2-B2i') |
+| R2-final | 기반 단계에서 완료 | `708a1c1` | (위 '### R2-final') |
+| 문서(C22-09) | 완료 | (이 줄의 커밋) | 계획 상태 줄 '승인 · 계약 v2.3', 5절 머리, 13.8, C23-01 `firebaseToolsVersion` 15.34.1 — `tool/test/workflows_test.dart` |
+| R2-B8a | 남음 | | `app_features_test`·`app_bootstrapper_test` v2·`idle_tasks_test`·`media_module_test`·`recognition_module_test`·`pdf_module_test` v2·`feature_wiring_module_test` v2·`production_modules_test`·`overrides_unique_test` v2 |
+| R2-B8b | 남음 | | `app_routes_test`·`app_router_test`·`production_screens_test`·`pencil_bridge_test`·`api_surface_test`(pencil)·`pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 3경우) |
+| J0 | 남음 | | `tool/test/native_config_test.dart`, 웹 빌드 측정 표(6.15), CI 실측 표(6.16 — 첫 체크포인트 푸시 뒤, 총괄) |
+| J1 | 남음 | | `tool/test/native_reqs_test.dart`, `ws native-reqs` 0 |
+| J2 | 남음 | | `native_config_test`(서명 분기)·`workflows_test`(서명 세 갈래) — 실제 서명은 GitHub(H6) |
+| J3 | 남음 | | `workflows_test`(ios-compile·testflight) — 실행은 U19 |
+| J4 | 남음 | | `app/test/storage/native_storage_paths_test.dart`·`core_module_test` |
+| J5 | 남음 | | `feature_switch_section_test`·`settings_sections_test` v2·`app_module_context_test` |
+| J6 | 남음 | | `idle_tasks_test` 보강·`bootstrap_app_test` |
+| J7 | 남음 | | `media_module_test`·`update_banner_test` v2·`web_platform_browser_test` |
+| J8 | 남음 | | `recognition_module_test` |
+| J9 | 남음 | | `recognition_wiring_test`·`media_wiring_test`·`search_wiring_test`·`feature_wiring_module_test` v2 |
+| J10 | 남음 | | `pdf_module_test` v2 |
+| J11 | 남음 | | `app_router_test`·`production_screens_test` |
+| J12 | 남음 | | `pencil_wire_contract_test`(①~⑨)·`pencil_bridge_test` — 컴파일은 `ios-compile.yml`(U19) |
+| J13 | 남음 | | `pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 4경우)·`about_section_test` |
+| J14 | 남음 | | `storage_section_test` v2·`about_section_test` v2·`licenses_test`·`diagnostic_report_test` v2 |
+| J14b | 남음 | | `v1_copy_section_test`·`backup_export_test`·`settings_sections_test` |
+| J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
+| J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
+| J17 | 남음 | | `tool/test/web_budget_test.dart` |
+| J18 | 남음 | | `tool/test/guides_test.dart` v2 |
+| J19 | 남음 | | `app_smoke_v2_test`·`feature_switch_test`(integration)·`app_smoke_v2_browser_test` |
+| J20 | 남음 | | `tool/test/lock_age_test.dart` |
+| J21 | 남음 | | `workflows_test`(android-emulator) |
+| J22 | 남음 | | 마감 확인 묶음(8.2 J22 행) |
+| H1~H8 | 통합 단계 | | (계획 8.3) |
+
+#### 변경 요청
+
+- 없음
+
+#### 의존성 요청
+
+- 없음
+
+#### 계획과 다르게 한 점
+
+- (문서) C23-01의 'INFRA(CI·functions.yml 고정값 확인)': `functions.yml`에는 판 문자열이 없다(`functions/package.json` devDependency를 `npm ci`로). 1차 고정값이 남아 있던 `ci.yml`·`web-experiment.yml` 배포 단계 `firebaseToolsVersion`을 15.34.1로 내렸다(계약 7.5 표 '(도구) firebase-tools 15.34.1 — CI').
+
+#### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
+
+| 보낸 곳 | 내용 | 처리 |
+|---|---|---|
+| CORE | R2-B2i `CountingNoteStore` getter 4개 | 기반 단계에서 완료(`59ed567`) |
+| INK 1 | `ink_engine/pubspec.yaml` `flutter: assets:` 블록 | 총괄이 넣음(C23-03) — INFRA 몫 없음 |
+| INK 2·PDF 1·EDITOR 5 | `pdf_module_test` 배경 빌더 목록 | R2-final에서 완료(`708a1c1`) |
+| INK 3 | Chrome 시험의 `useInkTestFonts()`, `InkMathRenderer.layout` WidgetsBinding | J19 `app_smoke_v2_browser_test` 등 앱 Chrome 시험 작성 때(C23-07) |
+| EDITOR 1~4 | `StylusExtrasSource.capabilities`, 이벤트 `timestamp`, `editorImageImporterProvider` 기본 null·`EditorExtensions` 새 필드, `EditorScreen(initialFocusRectPt:)` | R2-B8a(③)·R2-B8b(①③)·J13 |
+| PDF 2 | `pdfSearchIndexerProvider`를 읽으면 `core.noteStoreProvider` 필요, `PdfSearchIndexer` `start`·`dispose` 반복 안전 | J10·H2 |
+| SYNC | `functions/` 생김 → `functions.yml` 단계가 돈다(`# tests 37`) | J16(첫 푸시가 실행 — H6) |
+
+#### 이정표 커밋
+
+- 체크포인트 병합 요청(INFRA-F3, Q14): R2-B8a·R2-B8b·J0 끝마다 결과 보고에 적는다.
+
+#### 다음 세션 메모
+
+- 다음: R2-B8a(계획 8.1b — 약 1.5세션).

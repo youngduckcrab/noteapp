@@ -286,7 +286,7 @@ jobs:
           channelId: ${{ steps.channel.outputs.id }}
           expires: 7d
           entryPoint: app
-          firebaseToolsVersion: 15.34.2
+          firebaseToolsVersion: 15.34.1
           # No repoToken: nothing is posted to GitHub.
           disableComment: true
 

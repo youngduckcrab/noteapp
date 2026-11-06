@@ -509,7 +509,8 @@ void main() {
               r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
             );
             expect(withMap['projectId'], r'${{ vars.FIREBASE_PROJECT_ID }}');
-            expect(withMap['firebaseToolsVersion'], '15.34.2', reason: name);
+            // Contract v2.3 C23-01: the pinned firebase-tools is 15.34.1.
+            expect(withMap['firebaseToolsVersion'], '15.34.1', reason: name);
             expect(withMap['entryPoint'], 'app');
             expect(withMap['expires'], '7d');
             expect(withMap['disableComment'], isTrue);
