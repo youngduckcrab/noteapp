@@ -238,6 +238,19 @@ List<Map<String, Object?>> _entities(Map<String, Object?> doc) => [
   for (final e in doc['entities']! as List<Object?>) e! as Map<String, Object?>,
 ];
 
+/// Entities per kind name in [doc].
+Map<String, int> _kindCounts(Map<String, Object?> doc) {
+  final counts = <String, int>{};
+  for (final e in _entities(doc)) {
+    counts.update(e['kind']! as String, (n) => n + 1, ifAbsent: () => 1);
+  }
+  return counts;
+}
+
+/// The PDF asset of the golden state (its search owner is device-local).
+const String _backupPdfAsset =
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
 /// [open] returns a fresh store on [kBackupClock] (no default presets, device node
 /// [kBackupNode]); [seed] writes the golden state into it.
 void defineBackupTests({
@@ -357,6 +370,72 @@ void defineBackupTests({
           return k != 0 ? k : (a.$2! as String).compareTo(b.$2! as String);
         });
       expect(keys, sorted);
+    });
+
+    test('(v2.0) no search index, recording drafts, page caches or derived '
+        'columns (m5-7/02-core 6.14.4)', () async {
+      final before = _kindCounts(_parse(await store.exportBackupJson()));
+      final note = await store.library.createNote(
+        title: '색인 노트',
+        pages: [
+          PageDraft(
+            size: PageSize.a4Portrait,
+            background: const PdfBackground(
+              assetId: _backupPdfAsset,
+              pdfPageIndex: 0,
+            ),
+            objects: [PageObjectFixtures.textBox(pageId: 'x', text: '상자 글자')],
+          ),
+        ],
+      );
+      await store.search.replaceUnits(
+        SearchSource.pdf,
+        '$_backupPdfAsset#0',
+        const [SearchUnitDraft(body: '교재에만 있는 낱말')],
+        sourceRev: 'pdf-rev-1',
+      );
+      final draft = await store.recordingDrafts.begin(
+        recordingId: store.ids.newId(),
+        noteId: note.id,
+        mimeType: 'audio/webm',
+        startedAt: kBackupT,
+      );
+      await store.recordingDrafts.append(
+        draft.draftId,
+        Uint8List.fromList(utf8.encode('draft-chunk-bytes')),
+        activeMs: 10,
+      );
+      // Fills the page caches of the SQLite store (pages.ink_rev).
+      expect(await store.handwriting.stalePages(note.id), isEmpty);
+      expect(await store.search.searchPages('교재에만'), hasLength(1));
+      expect(await store.search.searchPages('상자 글자'), hasLength(1));
+
+      final doc = _parse(await store.exportBackupJson());
+      final text = jsonEncode(doc);
+      for (final local in [
+        '교재에만 있는 낱말',
+        'pdf-rev-1',
+        draft.draftId,
+        'draft-chunk-bytes',
+        'audio/webm',
+        'inkRev',
+        'bgAssetId',
+        'bgPdfPageIndex',
+        'nameNorm',
+        'titleNorm',
+      ]) {
+        expect(text, isNot(contains(local)), reason: local);
+      }
+      // Only the new note's entities were added: the note, its page and the text box.
+      final after = _kindCounts(doc);
+      expect(
+        {
+          for (final k in after.keys)
+            if (after[k] != before[k]) k: after[k]! - (before[k] ?? 0),
+        },
+        {'note': 1, 'page': 1, 'pageObject': 1},
+      );
+      expect(text, contains('상자 글자'), reason: 'the object itself is data');
     });
 
     test('later edits are in the next export', () async {
