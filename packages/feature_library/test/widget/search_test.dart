@@ -217,7 +217,7 @@ void main() {
       expect(noteTile('일기'), findsOneWidget);
     });
 
-    testWidgets('expanded: 240 wide, hint 제목 검색', (tester) async {
+    testWidgets('expanded: 240 wide, hint 노트 검색 (v2)', (tester) async {
       await pumpAt(tester);
       expect(tester.getSize(find.byType(LibrarySearchField)).width, 240);
       expect(

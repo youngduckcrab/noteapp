@@ -4,12 +4,19 @@
 // location as meta. An empty group is not shown; results cut at the search
 // limit end with a hint. The query is highlighted in names / titles. Rows and
 // tiles are the listing's own (⋯, selection, drag and drop all work).
+// (v2) '노트 내용 (n)' — the content hits grouped by note (6.1.3,
+// content_hits_view.dart); while CORE is asked again the previous rows, the
+// scroll position and the expanded notes stay, with a small progress mark in
+// the group header (6.1.6).
+import 'package:collection/collection.dart' show SetEquality;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' show Note, NoteId, PageSearchHit;
 
 import '../../dnd/library_drag_scope.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/content.dart';
+import '../../model/content_hits.dart';
 import '../../model/item_key.dart';
 import '../../model/section.dart';
 import '../../model/view_prefs.dart';
@@ -17,15 +24,24 @@ import '../../state/providers.dart';
 import '../layout/grid_metrics.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
+import 'content_hits_view.dart';
 import 'item_list.dart';
 import 'note_meta.dart';
 import 'note_tile.dart';
+import 'tile_parts.dart';
 
 class SearchResultsView extends ConsumerStatefulWidget {
-  const SearchResultsView({super.key, required this.content});
+  const SearchResultsView({
+    super.key,
+    required this.content,
+    this.refreshing = false,
+  });
 
   /// Content of a SearchSection, not empty.
   final LibraryContent content;
+
+  /// (v2) CORE is being asked again; [content] is the previous result.
+  final bool refreshing;
 
   @override
   ConsumerState<SearchResultsView> createState() => _SearchResultsViewState();
@@ -33,6 +49,43 @@ class SearchResultsView extends ConsumerStatefulWidget {
 
 class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
   final ScrollController _controller = ScrollController();
+
+  /// (v2) Notes whose content hits are all shown; cleared when the query
+  /// changes, notes that left the results are dropped.
+  final Set<NoteId> _expanded = {};
+  List<ContentHitGroup>? _flatGroups;
+  Set<NoteId>? _flatExpanded;
+  List<ContentEntry> _flat = const [];
+
+  String get _query => (widget.content.section as SearchSection).query;
+
+  @override
+  void didUpdateWidget(SearchResultsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldQuery = (oldWidget.content.section as SearchSection).query;
+    if (oldQuery != _query) {
+      _expanded.clear();
+    } else {
+      final present = {for (final g in widget.content.contentGroups) g.noteId};
+      _expanded.retainAll(present);
+    }
+  }
+
+  /// The flattened content group, cached per (groups, expanded).
+  List<ContentEntry> _entries(List<ContentHitGroup> groups) {
+    if (!identical(groups, _flatGroups) ||
+        !const SetEquality<NoteId>().equals(_flatExpanded, _expanded)) {
+      _flatGroups = groups;
+      _flatExpanded = {..._expanded};
+      _flat = flattenContentGroups(groups, _expanded);
+    }
+    return _flat;
+  }
+
+  void _expand(NoteId noteId) => setState(() => _expanded.add(noteId));
+
+  /// 6.1.4: a content hit opens its note at the hit.
+  void _openHit(Note note, PageSearchHit hit) => openLibraryNote(context, note);
 
   @override
   void dispose() {
@@ -43,9 +96,12 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
   @override
   Widget build(BuildContext context) {
     final content = widget.content;
-    final query = (content.section as SearchSection).query;
+    final query = _query;
     final folders = content.folders;
     final notes = content.notes;
+    final contentGroups = content.contentGroups;
+    final entries = _entries(contentGroups);
+    final contentCount = contentGroups.fold(0, (n, g) => n + g.hits.length);
     final sizeClass = LibraryScope.of(context).sizeClass;
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final grid =
@@ -152,6 +208,53 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
                     ),
                   ),
                 ),
+              if (contentGroups.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: SearchGroupHeader(
+                    label: LibraryStrings.searchContentGroup(contentCount),
+                    side: side,
+                    busy: widget.refreshing,
+                  ),
+                ),
+                SliverList.builder(
+                  itemCount: entries.length,
+                  itemBuilder: (context, i) => switch (entries[i]) {
+                    ContentHeaderEntry(:final noteId) => ContentNoteHeader(
+                      key: ValueKey<ContentEntry>(entries[i]),
+                      noteId: noteId,
+                      query: query,
+                      side: side,
+                    ),
+                    ContentHitEntry(:final hit) => ContentHitRow(
+                      key: ValueKey<ContentEntry>(entries[i]),
+                      hit: hit,
+                      side: side,
+                      onOpen: _openHit,
+                    ),
+                    ContentMoreEntry(:final noteId, :final hidden) =>
+                      ContentMoreRow(
+                        key: ValueKey<ContentEntry>(entries[i]),
+                        noteId: noteId,
+                        hidden: hidden,
+                        side: side,
+                        onExpand: () => _expand(noteId),
+                      ),
+                  },
+                ),
+                if (content.contentTruncated)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(side, 8, side, 24),
+                      child: Text(
+                        LibraryStrings.contentTruncated,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
             ],
           ),
@@ -161,11 +264,21 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
   }
 }
 
-/// '폴더 (n)' / '노트 (n)' above a result group (a semantics header).
+/// '폴더 (n)' / '노트 (n)' / (v2) '노트 내용 (n)' above a result group (a
+/// semantics header).
 class SearchGroupHeader extends StatelessWidget {
-  const SearchGroupHeader({super.key, required this.label, required this.side});
+  const SearchGroupHeader({
+    super.key,
+    required this.label,
+    required this.side,
+    this.busy = false,
+  });
 
   final String label;
+
+  /// (v2) A small progress mark after the label (the group is being asked
+  /// again — 6.1.6).
+  final bool busy;
 
   /// Left / right padding (the grid padding).
   final double side;
@@ -175,14 +288,27 @@ class SearchGroupHeader extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(side, 16, side, 8),
-      child: Semantics(
-        header: true,
-        child: Text(
-          label,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+      child: Row(
+        children: [
+          Flexible(
+            child: Semantics(
+              header: true,
+              child: Text(
+                label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           ),
-        ),
+          if (busy) ...[
+            const SizedBox(width: 8),
+            const SizedBox.square(
+              dimension: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ],
       ),
     );
   }

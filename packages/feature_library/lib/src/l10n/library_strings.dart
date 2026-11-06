@@ -1,6 +1,7 @@
 // lib/src/l10n/library_strings.dart — 05-library 6.18 (contract 7.4.5: Korean
 // 해요체 UI strings live in one constants file per area; no intl).
-import 'package:note_core/note_core.dart' show PageTemplateKind, PaperColors;
+import 'package:note_core/note_core.dart'
+    show PageTemplateKind, PaperColors, SearchSource;
 
 import 'korean_josa.dart';
 
@@ -22,6 +23,9 @@ abstract final class LibraryStrings {
   static const String pathSeparator = ' › ';
   static const String ellipsis = '…';
 
+  /// (v2) Between a content group's note title and its location (6.1.3).
+  static const String metaSeparator = ' · ';
+
   /// Sidebar header (app name row).
   static const String appTitle = '노트';
 
@@ -36,7 +40,9 @@ abstract final class LibraryStrings {
 
   /// Title of the search section: `'"<query>" 검색 결과'`.
   static String searchResultsTitle(String query) => '"$query" 검색 결과';
-  static const String searchHint = '제목 검색';
+
+  /// (v2, 6.21) '제목 검색' → '노트 검색' (the search finds note content too).
+  static const String searchHint = '노트 검색';
 
   // Search (6.14)
   /// Compact top bar: the search icon's tooltip (opens the search field).
@@ -54,6 +60,40 @@ abstract final class LibraryStrings {
 
   /// Below results cut at the search limit.
   static const String searchTruncated = '결과가 많아요. 검색어를 더 입력해 보세요.';
+
+  // (v2) Content hits — '노트 내용' (6.1.3, 6.21)
+  /// Group header: '노트 내용 (7)' (n = hit pages).
+  static String searchContentGroup(int n) => '노트 내용 ($n)';
+
+  /// Row under a note's first 3 hits.
+  static String contentMore(int n) => '이 노트에서 $n개 더 보기';
+
+  /// Below the content group when CORE cut the hits (pagesTruncated).
+  static const String contentTruncated = '내용 결과가 많아요. 검색어를 더 입력해 보세요.';
+
+  /// Source badges (SearchSource ink / pdf / text / math).
+  static const String sourceInk = '손글씨';
+  static const String sourcePdf = 'PDF';
+  static const String sourceText = '텍스트';
+  static const String sourceMath = '수식';
+  static String sourceLabel(SearchSource source) => switch (source) {
+    SearchSource.ink => sourceInk,
+    SearchSource.pdf => sourcePdf,
+    SearchSource.text => sourceText,
+    SearchSource.math => sourceMath,
+  };
+
+  /// A hit's page: '3쪽'; [pageUnknown] while loading or not found.
+  static String pageLabel(int n) => '$n쪽';
+  static const String pageUnknown = '페이지';
+
+  /// Semantics of a content hit row: `'<title>, <page>, <source>, <snippet>'`.
+  static String contentHitSemantics(
+    String title,
+    String page,
+    String source,
+    String snippet,
+  ) => '$title, $page, $source, $snippet';
 
   /// Meta line of a recent note: `'<location> · <last opened>'`.
   static String recentNoteMeta(String location, String opened) =>
