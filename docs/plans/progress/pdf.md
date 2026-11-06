@@ -275,7 +275,7 @@
 | T30 | 기반 단계에서 완료 | 5636d4e | `contract/api_surface_test`, `unit/init_test`, `widget/recording_panel_placeholder_test`, `unit/testing_fakes_test`, `web/testing_registrar_browser_test` |
 | T21 | 완료 | 4068fcd | `unit/affine_test`, `unit/compose_encoder_v2_test`, `web/pure_logic_browser_test` v2 (사례는 `test/support/compose_v2_cases.dart` 하나 — VM·Chrome이 같은 단언) |
 | T22 | 완료 | c4a402a | `pdfium/compose_objects_native_test`(13 — 객체 탐침 9 + 실제 NoteSans 1 + 객체 든 작업의 abort·finish·실패 3) — 탐침 v2 `test/support/compose_probes.dart` `composeObjectProbes()`(T23이 Chrome에서 같은 목록)·`ProbePdfObjects`(저장된 PDF의 이미지·글꼴 사전 읽기) |
-| T23 | 완료 | (이 커밋 — 세션 끝 기록이 해시를 적음) | `web/compose_objects_browser_test`(13 — T22와 같은 객체 탐침 9(`useInkTestFonts`) + `addFunction` 없는 워커 → `engineUnavailable` + 객체 든 작업의 abort·finish + RGBA transfer·JPEG/글꼴 바이트 유지), `web/compose_browser_test`(1차 그대로 통과) |
+| T23 | 완료 | 199b9c4 | `web/compose_objects_browser_test`(13 — T22와 같은 객체 탐침 9(`useInkTestFonts`) + `addFunction` 없는 워커 → `engineUnavailable` + 객체 든 작업의 abort·finish + RGBA transfer·JPEG/글꼴 바이트 유지), `web/compose_browser_test`(1차 그대로 통과) |
 | T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
 | T25a | 완료 | 402f84a | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
 | T25b | 완료 | 1027492 | `unit/raster_ports_test`(13 — 상한 식 6·`rasterPixelSize`·contain 3·기본 INK 포트 VM 3), `unit/object_resolver_text_math_test`(25), `web/object_resolver_text_browser_test`(4), `integration/math_raster_real_test`(써 둠 — `skip:` INK T36 이정표, 판정은 통합 4-a) — 가짜 포트 `test/support/fake_rasterizers.dart`, 큰 표본 `pageSizeTextBox`·`bigMathObject`는 `test/support/object_fixtures.dart` |
@@ -296,7 +296,7 @@
 | T37 | 완료 | c791531 | `unit/dev_overlay_lines_test`(10), `unit/init_test` v2(12 — 실제 override 둘·저장소 없는 컨테이너·config 고르기·저장소 있을 때 동작·컨테이너와 함께 정리), (고침) `web/testing_registrar_browser_test`(override 둘), (더함) `web/recorder_engine_browser_test` '웹의 mediaIoOverrides'(브라우저 엔진·실제 Web Locks·`enc:`/`web:` 줄) |
 | T38 | 완료 | 64b6b2c | `unit/testing_fakes_test`(8 — T30 5 + T38 3: 실제 `mediaIoOverrides()` 서비스 녹음 → 정지 → 녹음 행 → 열기 → 재생 → `dispose` 뒤 복원·임시 디렉터리(녹음·재생 캐시 파일 포함) 지움, `micPermission: false` → `permissionDenied`·시작 거절, `importImageForNote` → 이미지 에셋) |
 | T39 | 완료 (판정은 통합 4-c) | 46f5375 | `web/media/record_playback_media_test`(V8), `web/media/draft_recovery_media_test`(V16), (고침) `web/media/visibility_pause_media_test` — 셋 다 `web/media/media_world.dart` `mediaStoreTest`로 실제 웹 저장소 변형(CORE T31 전에는 실행 중 스스로 skip) + CORE 가짜 저장소 변형(지금 돎); (더함) `web/playback_browser_test` 'preload: false — 첫 seek가 적재'(1) |
-| T40 | 남음 | | `integration/media_real_core_test` — 판정은 통합 4-d |
+| T40 | 완료 (판정은 통합 4-d) | (이 커밋 — 세션 끝 기록이 해시를 적음) | `integration/media_real_core_test`(5 — 실제 CORE 파일 저장소, CORE T30/T31 전에는 실행 중 스스로 skip), (더함) `unit/media_fake_core_test`(같은 5 — CORE 가짜 저장소, 지금 돎) — 본문 `test/support/media_core_scenarios.dart` `mediaCoreScenarios` |
 | T41 | 남음 | | `perf/media_perf_test`, `web/media_perf_browser_test`, `media/big_recording_perf_media_test` |
 
 #### 00-review '최종 승인' PDF 항목
@@ -441,6 +441,9 @@
 - T23: 웹도 구조 검사(`checkComposeOps`)를 하되 **보내기 전 Dart 쪽**에서 한다(작업마다 실린 글꼴 id 집합을 들고) — 어기면 네이티브와 같은 `exportFailed`, 아무것도 보내지 않음. 확장 JS도 `image`/`text`의 열린 경로·좌표 수·인덱스·글꼴을 다시 본다(방어).
 - T23: 전송 — RGBA는 transfer(목록이 버퍼 전체면 그 버퍼, 아니면 사본을 transfer — 보낸 뒤 호출자의 `rgba`는 떨어져 나가 길이 0), **JPEG와 글꼴 바이트는 구조적 복제**(1차 `_buffer`). 계획 6.2.7은 '이미지·글꼴 버퍼는 transfer, 캐시에 남길 JPEG만 복제'인데 ① 글꼴은 INK `InkFonts.noteSansBytes`가 캐시한 바이트라 transfer하면 INK 캐시가 떨어져 나가 다음 내보내기가 빈 글꼴을 받고, ② 백엔드 포트(`PdfComposePageOps`)에는 'JPEG 캐시에 남김' 표시가 없어 백엔드가 고를 수 없다. 그래서 웹 JPEG는 늘 복제이고, 보내는 동안의 그 사본은 T26이 장부 `encoded`로 센다(한 번에 이미지 하나 — 6.2.10 ①). T26 서비스는 웹에서 보낸 뒤 `PdfRgbaData.rgba`를 다시 읽지 않아야 한다(장부는 잡을 때의 크기로 놓음).
 - T23: 호환 검사 실패 흉내는 확장을 적재하는 동안만 `Pdfium.addFunction`을 숨긴다(적재 뒤 되돌림) — 아예 지우면 pdfrx 자신의 시작(시스템 글꼴 콜백 `addFunction`)이 먼저 깨져 'compose worker init failed'로 끝나 확장의 `pdfio-incompatible-pdfrx` 표시가 나오지 않는다. 결과 코드는 둘 다 `engineUnavailable`.
+- T40: 시나리오 본문은 `test/support/media_core_scenarios.dart` 하나이고, 실제 CORE(`openTestNoteStore(filePath:)` — 닫았다 같은 파일로 다시 열기)는 `integration/media_real_core_test`(`@Tags(['integration'])`, 판정 4-d), CORE 가짜 저장소(다시 열기 = 같은 객체)는 계획 표 밖의 `unit/media_fake_core_test`(태그 없음 — 매 실행)가 돌린다(flutter_test `group`에는 `tags:`가 없어 한 파일에 섞지 못함). 이 트리의 실제 CORE는 `recordingDrafts`·`recordings` 쓰기가 `UnimplementedError`(CORE T30·T31)라 실제 쪽은 탐침(초안 `begin` + 에셋 없는 `createRecording`)으로 실행 중 `markTestSkipped` — T39 `mediaStoreTest`와 같은 방식(정적 `skip:`은 `--run-skipped -t integration`에서 돌아 늘 실패).
+- T40: 시계는 `FakeAsync` 하나의 `getClock`(저장소 `clock:`)과 `FakeStopwatch`(녹음 시계)이고 손으로 `elapse`한다(그 존 안에서 아무것도 돌리지 않음 — 실제 drift는 보통 존에서). `media_io`에 `clock` 패키지 의존이 없어서 이 방식으로 손 시계를 만들었다(새 의존 없음).
+- T40: '순서를 바꾼 시험용 서비스 → CORE `ArgumentError`'는 서비스를 바꾸지 않고 에셋 없는 `createRecording`을 저장소에 직접 불러 단언한다(서비스 순서 자체는 T31b `recorder_service_test` M-1 기록). '노트 영구 삭제 뒤 복구'는 `pendingDrafts`로 초안을 본 뒤 `trashItems` + `purge` → `recoverDraft`가 `null`·초안 없음·시도 기록 없음·녹음 행 없음 — CORE는 노트를 지울 때 초안 행도 지우므로(02-core 6장 `deleteNoteContents`) 실제 쪽은 '초안 없음 → `null`' 길로, 가짜 쪽은 그 가짜의 동작대로 가며 결과 단언은 같다.
 
 #### 이정표 커밋
 
@@ -550,6 +553,11 @@
 | 10 (T23) | `ws with-heavy-lock -- flutter test --platform chrome test/web/compose_objects_browser_test.dart` | 13 통과 (첫 시도: '`addFunction` 없음' 흉내가 pdfrx 시작부터 깨뜨려 1 실패 → 확장 적재 동안만 숨기게 고침) |
 | 10 (T23) | `ws test --package pdf_io --platform chrome` | 112 통과 + 1 skip (99 + T23 13 — `compose_browser_test` 1차 그대로), prepare ok, 185 s |
 | 10 (T23) | `flutter analyze --fatal-infos`(pdf_io), `dart format`, `node --check web/pdf_io_compose_ext.js` | 0건, 변경 없음, ok (VM 시험은 바뀐 파일이 웹 전용이라 T22 행 그대로) |
+| 10 (T40) | `flutter test test/unit/media_fake_core_test.dart` | 5 통과 |
+| 10 (T40) | `flutter test --run-skipped test/integration/media_real_core_test.dart` | 5 skip(실행 중 — 'CORE T30/T31 milestone', 탐침 `UnimplementedError`), 태그 없이 돌리면 파일째 skip |
+| 10 (T40) | `ws test --package media_io` (VM) | 405 통과 + 1 skip (400 + T40 가짜 5, skip = `integration` 파일), 37 s |
+| 10 (T40) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 13:08:32–13:10:32 UTC, 잠금 대기 0초) | 3 통과 + 3 skip(실제 웹 저장소 변형 — CORE T31 전 실행 중 skip), lib 변화 없음 |
+| 10 (T40) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
