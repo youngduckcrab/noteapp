@@ -73,8 +73,25 @@ final class ShapeObject extends PageObject {
   @override
   int get estimatedBytes => notYet('T20b', 'ShapeObject.estimatedBytes');
 
+  /// `frame` is written from the geometry and ignored on read (CORE 6.2.6).
   @override
-  Map<String, Object?> toJson() => notYet('T20a', 'ShapeObject.toJson');
+  Map<String, Object?> toJson() => _objectJson(this, {
+    'shape': shapeKind.name,
+    'geometry': geometry.toJson(),
+    'style': style.toJson(),
+  });
+
+  factory ShapeObject._fromJson(Map<String, Object?> json) => ShapeObject(
+    id: readString(json, 'id'),
+    pageId: readString(json, 'pageId'),
+    shapeKind: readEnum(json, 'shape', ShapeKind.values),
+    geometry: ShapeGeometry.fromJson(readMap(json, 'geometry')),
+    style: ShapeStyle.fromJson(readMap(json, 'style')),
+    createdAt: readInt(json, 'createdAt'),
+    updatedAt: readInt(json, 'updatedAt'),
+    deletedAt: readIntOrNull(json, 'deletedAt'),
+    version: readVersion(json),
+  );
 
   // CORE 4.3: ==, hashCode over every field
   @override

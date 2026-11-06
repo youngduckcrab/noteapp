@@ -55,9 +55,44 @@ sealed class PageObject extends PageElement {
   /// (v2.1, CP-6) A known type with an enum name this app does not know (`shape`, `dash`,
   /// `arrowHeads`, `align`) is also read as UnknownObject. Never normalizes (remote values
   /// round-trip unchanged; normalization happens when a LOCAL command is resolved).
-  factory PageObject.fromJson(Map<String, Object?> json) =>
-      notYet('T20a', 'PageObject.fromJson');
+  /// (CORE 6.2.6) A missing or wrong required key of a known type is a FormatException (the
+  /// record is dropped — as Stroke.fromJson); unknown keys of a known type are ignored.
+  factory PageObject.fromJson(Map<String, Object?> json) {
+    final type = readString(json, 'type');
+    try {
+      switch (type) {
+        case 'shape':
+          return ShapeObject._fromJson(json);
+        case 'text':
+          return TextBoxObject._fromJson(json);
+        case 'image':
+          return ImageObject._fromJson(json);
+        case 'math':
+          return MathObject._fromJson(json);
+      }
+    } on UnknownEnumNameException {
+      return UnknownObject(json);
+    }
+    return UnknownObject(json);
+  }
 }
+
+/// The common keys every object writes, in the 7.2.7 order: id, pageId, type, frame, then the
+/// type's keys ([body]), then createdAt, updatedAt, deletedAt, version (CORE 6.3).
+Map<String, Object?> _objectJson(PageObject o, Map<String, Object?> body) => {
+  'id': o.id,
+  'pageId': o.pageId,
+  'type': o.type,
+  'frame': o.frame.toJson(),
+  ...body,
+  'createdAt': o.createdAt,
+  'updatedAt': o.updatedAt,
+  'deletedAt': o.deletedAt,
+  'version': o.version?.toString(),
+};
+
+ElementFrame _readFrame(Map<String, Object?> json) =>
+    ElementFrame.fromJson(readList(json, 'frame'));
 
 abstract final class PageObjectLimits {
   static const int maxObjectsPerPage = 2000;

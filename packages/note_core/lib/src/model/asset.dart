@@ -179,8 +179,6 @@ final class Recording implements SyncEntity {
   /// startedAt order.
   /// JSON: 'title' — (v2.1, CP-7) always written (null when unset); absent on read = null.
   /// Old apps ignore it (no deployed old app before 실연결).
-  /// CORE: the JSON key is CORE T20a (02-core 8.1) — until then toJson / fromJson are the
-  /// v1.4 key set and the recording.json golden is unchanged.
   final String? title;
   @override
   EntityKind get kind => EntityKind.recording;
@@ -215,6 +213,7 @@ final class Recording implements SyncEntity {
     'assetId': assetId,
     'durationMs': durationMs,
     'startedAt': startedAt,
+    'title': title,
     'createdAt': createdAt,
     'updatedAt': updatedAt,
     'deletedAt': deletedAt,
@@ -231,6 +230,7 @@ final class Recording implements SyncEntity {
     updatedAt: readInt(json, 'updatedAt'),
     deletedAt: readIntOrNull(json, 'deletedAt'),
     version: readVersion(json),
+    title: readStringOrNull(json, 'title'),
   );
 
   @override

@@ -296,14 +296,14 @@ void defineB2AlphaStoreTests(
     });
   });
 
-  test('EntityJson of the new kinds is CORE T20a', () {
+  test('EntityJson of the new kinds decodes (CORE T20a)', () {
     expect(
       () => EntityJson.decode(EntityKind.pageObject, const {}),
-      throwsPending('T20a'),
+      throwsFormatException,
     );
     expect(
       () => EntityJson.decode(EntityKind.handwriting, const {}),
-      throwsPending('T20a'),
+      throwsFormatException,
     );
   });
 

@@ -1,0 +1,40 @@
+{
+  "id": "0193f1d2-7c4b-7000-8000-0000000000b8",
+  "pageId": "0193f1d2-7c40-7aaa-8bbb-111122223333",
+  "type": "sticker",
+  "frame": [
+    400.0,
+    100.0,
+    450.0,
+    150.0,
+    0.0
+  ],
+  "sticker": {
+    "pack": "animals",
+    "name": "cat",
+    "tint": [
+      255,
+      128,
+      0
+    ]
+  },
+  "layers": [
+    {
+      "k": "a",
+      "v": 1
+    },
+    {
+      "k": "b",
+      "v": [
+        true,
+        null,
+        2.5
+      ]
+    }
+  ],
+  "futureKey": "미래",
+  "createdAt": 1793750400007,
+  "updatedAt": 1793750400007,
+  "deletedAt": null,
+  "version": "001793750400000-0000-3f2a9c0d11e0b7a4"
+}

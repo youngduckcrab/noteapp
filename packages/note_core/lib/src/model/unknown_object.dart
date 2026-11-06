@@ -15,8 +15,37 @@ typedef _UnknownParts = ({
   Hlc? version,
 });
 
-_UnknownParts _readUnknownParts(Map<String, Object?> rawJson) =>
-    notYet('T20a', 'UnknownObject(rawJson)');
+/// The frame drawn for an UnknownObject whose `frame` key cannot be read (7.2.2).
+const ElementFrame _kUnknownFramePlaceholder = ElementFrame(
+  PageRect(0, 0, 1, 1),
+);
+
+/// An AssetId: 64 lowercase hex (1차 ids.dart — the SHA-256 of the bytes).
+final RegExp _assetIdPattern = RegExp(r'^[0-9a-f]{64}$');
+
+_UnknownParts _readUnknownParts(Map<String, Object?> rawJson) {
+  final copy = jsonDeepCopy(rawJson, 'rawJson')! as Map<String, Object?>;
+  final frameJson = copy['frame'];
+  var frame = _kUnknownFramePlaceholder;
+  if (frameJson is List<Object?>) {
+    try {
+      frame = ElementFrame.fromJson(frameJson);
+    } on FormatException {
+      frame = _kUnknownFramePlaceholder;
+    }
+  }
+  return (
+    rawJson: copy,
+    type: readString(copy, 'type'),
+    frame: frame,
+    id: readString(copy, 'id'),
+    pageId: readString(copy, 'pageId'),
+    createdAt: readInt(copy, 'createdAt'),
+    updatedAt: readInt(copy, 'updatedAt'),
+    deletedAt: readIntOrNull(copy, 'deletedAt'),
+    version: readVersion(copy),
+  );
+}
 
 /// Object written by a newer app (or, v2.1 CP-6, a known type with an unknown enum name). It can
 /// be selected, deleted and copied as a whole and is synced unchanged; it cannot be transformed or
@@ -53,13 +82,25 @@ final class UnknownObject extends PageObject {
   /// only, and only when it is an AssetId (64 lowercase hex — 1차 ids.dart); otherwise {}.
   /// The same value goes to page_objects.asset_id (6.11) so a later asset GC keeps it (검토 S-13).
   @override
-  Set<AssetId> get referencedAssets =>
-      notYet('T20a', 'UnknownObject.referencedAssets');
+  Set<AssetId> get referencedAssets {
+    final assetId = rawJson['assetId'];
+    return assetId is String && _assetIdPattern.hasMatch(assetId)
+        ? {assetId}
+        : const {};
+  }
 
   /// (v2.1) rawJson with the meta keys (id, pageId, createdAt, updatedAt, deletedAt, version) set
   /// to the current values; every other key as read. ==, hashCode: deep equality of toJson().
   @override
-  Map<String, Object?> toJson() => notYet('T20a', 'UnknownObject.toJson');
+  Map<String, Object?> toJson() => {
+    ...rawJson,
+    'id': id,
+    'pageId': pageId,
+    'createdAt': createdAt,
+    'updatedAt': updatedAt,
+    'deletedAt': deletedAt,
+    'version': version?.toString(),
+  };
 
   // Meta values read from rawJson (02-core 6.2.6).
   @override

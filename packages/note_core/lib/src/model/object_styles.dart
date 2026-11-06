@@ -3,6 +3,7 @@
 // contract's 'single source'): 02-core 6.2.3.
 import 'package:meta/meta.dart';
 
+import '../common/json_read.dart';
 import '../common/pending.dart';
 import 'shape_geometry.dart';
 
@@ -41,9 +42,35 @@ final class ShapeStyle {
     double? fillOpacity,
     ArrowHeads? arrowHeads,
   }) => notYet('T20b', 'ShapeStyle.copyWith');
-  Map<String, Object?> toJson() => notYet('T20a', 'ShapeStyle.toJson');
-  factory ShapeStyle.fromJson(Map<String, Object?> json) =>
-      notYet('T20a', 'ShapeStyle.fromJson');
+
+  /// Every key always (fillColorArgb null when unset — CORE 6.3).
+  Map<String, Object?> toJson() => {
+    'strokeColorArgb': strokeColorArgb,
+    'strokeWidth': strokeWidth,
+    'strokeOpacity': strokeOpacity,
+    'dash': dash.name,
+    'fillColorArgb': fillColorArgb,
+    'fillOpacity': fillOpacity,
+    'arrowHeads': arrowHeads.name,
+  };
+
+  /// strokeColorArgb required; absent keys take the constructor defaults; an unknown `dash` /
+  /// `arrowHeads` name is an UnknownEnumNameException (PageObject.fromJson → UnknownObject).
+  /// Never normalizes (CORE 6.2.3).
+  factory ShapeStyle.fromJson(Map<String, Object?> json) => ShapeStyle(
+    strokeColorArgb: readInt(json, 'strokeColorArgb'),
+    strokeWidth: readDoubleOr(json, 'strokeWidth', 2.0),
+    strokeOpacity: readDoubleOr(json, 'strokeOpacity', 1.0),
+    dash: readEnumOr(json, 'dash', LineDash.values, LineDash.solid),
+    fillColorArgb: readIntOrNull(json, 'fillColorArgb'),
+    fillOpacity: readDoubleOr(json, 'fillOpacity', 1.0),
+    arrowHeads: readEnumOr(
+      json,
+      'arrowHeads',
+      ArrowHeads.values,
+      ArrowHeads.none,
+    ),
+  );
 
   // CORE 4.3: ==, hashCode (1차 7.4.4)
   @override
@@ -104,9 +131,27 @@ final class TextBoxStyle {
     int? backgroundArgb,
     bool clearBackground = false,
   }) => notYet('T20b', 'TextBoxStyle.copyWith');
-  Map<String, Object?> toJson() => notYet('T20a', 'TextBoxStyle.toJson');
-  factory TextBoxStyle.fromJson(Map<String, Object?> json) =>
-      notYet('T20a', 'TextBoxStyle.fromJson');
+
+  /// Every key always (backgroundArgb null when unset — CORE 6.3).
+  Map<String, Object?> toJson() => {
+    'fontSizePt': fontSizePt,
+    'colorArgb': colorArgb,
+    'bold': bold,
+    'align': align.name,
+    'lineHeight': lineHeight,
+    'backgroundArgb': backgroundArgb,
+  };
+
+  /// Absent keys take the constructor defaults; an unknown `align` name is an
+  /// UnknownEnumNameException. Never normalizes.
+  factory TextBoxStyle.fromJson(Map<String, Object?> json) => TextBoxStyle(
+    fontSizePt: readDoubleOr(json, 'fontSizePt', 16),
+    colorArgb: readIntOrNull(json, 'colorArgb') ?? 0xFF1A1A1A,
+    bold: readBoolOr(json, 'bold', false),
+    align: readEnumOr(json, 'align', TextAlignKind.values, TextAlignKind.start),
+    lineHeight: readDoubleOr(json, 'lineHeight', 1.4),
+    backgroundArgb: readIntOrNull(json, 'backgroundArgb'),
+  );
 
   // CORE 4.3: ==, hashCode (1차 7.4.4)
   @override
@@ -146,9 +191,16 @@ final class MathStyle {
   // (v2.1)
   MathStyle copyWith({int? colorArgb, double? fontSizePt}) =>
       notYet('T20b', 'MathStyle.copyWith');
-  Map<String, Object?> toJson() => notYet('T20a', 'MathStyle.toJson');
-  factory MathStyle.fromJson(Map<String, Object?> json) =>
-      notYet('T20a', 'MathStyle.fromJson');
+  Map<String, Object?> toJson() => {
+    'colorArgb': colorArgb,
+    'fontSizePt': fontSizePt,
+  };
+
+  /// Absent keys take the constructor defaults. Never normalizes.
+  factory MathStyle.fromJson(Map<String, Object?> json) => MathStyle(
+    colorArgb: readIntOrNull(json, 'colorArgb') ?? 0xFF1A1A1A,
+    fontSizePt: readDoubleOr(json, 'fontSizePt', 18),
+  );
 
   // CORE 4.3: ==, hashCode (1차 7.4.4)
   @override

@@ -72,7 +72,20 @@ final class TextBoxObject extends PageObject {
   int get estimatedBytes => notYet('T20b', 'TextBoxObject.estimatedBytes');
 
   @override
-  Map<String, Object?> toJson() => notYet('T20a', 'TextBoxObject.toJson');
+  Map<String, Object?> toJson() =>
+      _objectJson(this, {'text': text, 'style': style.toJson()});
+
+  factory TextBoxObject._fromJson(Map<String, Object?> json) => TextBoxObject(
+    id: readString(json, 'id'),
+    pageId: readString(json, 'pageId'),
+    frame: _readFrame(json),
+    text: readString(json, 'text'),
+    style: TextBoxStyle.fromJson(readMap(json, 'style')),
+    createdAt: readInt(json, 'createdAt'),
+    updatedAt: readInt(json, 'updatedAt'),
+    deletedAt: readIntOrNull(json, 'deletedAt'),
+    version: readVersion(json),
+  );
 
   // CORE 4.3: ==, hashCode over every field
   @override

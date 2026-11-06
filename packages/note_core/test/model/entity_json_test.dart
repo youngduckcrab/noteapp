@@ -19,28 +19,12 @@ void main() {
     }
   });
 
-  test('the 8 v1.4 kinds are covered by the samples (10 entity shapes)', () {
-    // (v2.0) pageObject / handwriting get their samples and decoders with CORE T20a
-    // (m5-7/02-core 8.1); until then decoding them is UnimplementedError('CORE T20a: …').
-    const newKinds = {EntityKind.pageObject, EntityKind.handwriting};
+  test('every kind is covered by the samples (19 entity shapes)', () {
     expect(
       kSampleEntities.values.map((e) => e.kind).toSet(),
-      EntityKind.values.toSet().difference(newKinds),
+      EntityKind.values.toSet(),
     );
-    expect(kSampleEntities.length, 10);
-    for (final kind in newKinds) {
-      expect(
-        () => EntityJson.decode(kind, const {}),
-        throwsA(
-          isA<UnimplementedError>().having(
-            (e) => e.message,
-            'message',
-            startsWith('CORE T20a: '),
-          ),
-        ),
-        reason: kind.name,
-      );
-    }
+    expect(kSampleEntities.length, 19);
   });
 
   test('local-only fields are not serialized and get fixed values', () {
@@ -67,14 +51,17 @@ void main() {
     expect(stroke.toJson().containsKey('bounds'), isFalse);
   });
 
-  test('unknown keys are ignored', () {
+  test('unknown keys are ignored (an UnknownObject keeps them — C-12)', () {
     for (final e in kSampleEntities.values) {
       final json = {
         ...e.toJson(),
         'futureField': 42,
         'nested': {'x': 1},
       };
-      expect(EntityJson.decode(e.kind, json).toJson(), e.toJson());
+      expect(
+        EntityJson.decode(e.kind, json).toJson(),
+        e is UnknownObject ? json : e.toJson(),
+      );
     }
   });
 
@@ -112,6 +99,58 @@ void main() {
         'updatedAt',
       ],
       'setting': ['key', 'valueJson', 'updatedAt'],
+      // (v2.0, m5-7/02-core 6.2.6) known object types; `frame` is ignored for shapes.
+      'shape_rect': [
+        'id',
+        'pageId',
+        'type',
+        'shape',
+        'geometry',
+        'style',
+        'createdAt',
+        'updatedAt',
+      ],
+      'text_box': [
+        'id',
+        'pageId',
+        'type',
+        'frame',
+        'text',
+        'style',
+        'createdAt',
+        'updatedAt',
+      ],
+      'image': [
+        'id',
+        'pageId',
+        'type',
+        'frame',
+        'assetId',
+        'px',
+        'createdAt',
+        'updatedAt',
+      ],
+      'math': [
+        'id',
+        'pageId',
+        'type',
+        'frame',
+        'latex',
+        'style',
+        'createdAt',
+        'updatedAt',
+      ],
+      'unknown': ['id', 'pageId', 'type', 'createdAt', 'updatedAt'],
+      'handwriting': [
+        'id',
+        'noteId',
+        'pageId',
+        'engineId',
+        'sourceRev',
+        'lines',
+        'createdAt',
+        'updatedAt',
+      ],
     };
     for (final e in required.entries) {
       final entity = kSampleEntities[e.key]!;

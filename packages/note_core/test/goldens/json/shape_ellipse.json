@@ -1,0 +1,35 @@
+{
+  "id": "0193f1d2-7c4b-7000-8000-0000000000b2",
+  "pageId": "0193f1d2-7c40-7aaa-8bbb-111122223333",
+  "type": "shape",
+  "frame": [
+    100.0,
+    300.0,
+    260.0,
+    400.0,
+    0.5
+  ],
+  "shape": "ellipse",
+  "geometry": {
+    "ellipse": [
+      100.0,
+      300.0,
+      260.0,
+      400.0,
+      0.5
+    ]
+  },
+  "style": {
+    "strokeColorArgb": 4281944491,
+    "strokeWidth": 3.0,
+    "strokeOpacity": 1.0,
+    "dash": "solid",
+    "fillColorArgb": 4294960640,
+    "fillOpacity": 0.4,
+    "arrowHeads": "none"
+  },
+  "createdAt": 1793750400001,
+  "updatedAt": 1793750400700,
+  "deletedAt": null,
+  "version": "001793750400000-0000-3f2a9c0d11e0b7a4"
+}

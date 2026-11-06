@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 import '../common/geometry.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
+import '../common/json_read.dart';
 import '../common/pending.dart';
 import 'stroke.dart';
 import 'sync_entity.dart';
@@ -31,9 +32,38 @@ final class HandwritingLine {
   /// becomes false and the old confirmed text goes first in alternatives. Rule owner: recog
   /// (05-library 6.9.4); writers merge through HandwritingRepository.update (G-4).
   final bool userConfirmed;
-  Map<String, Object?> toJson() => notYet('T20a', 'HandwritingLine.toJson');
-  factory HandwritingLine.fromJson(Map<String, Object?> json) =>
-      notYet('T20a', 'HandwritingLine.fromJson');
+
+  /// `{text, alternatives, rect:[l,t,r,b], strokeIds, languageTag, userConfirmed}` (CORE 6.3).
+  Map<String, Object?> toJson() => {
+    'text': text,
+    'alternatives': alternatives,
+    'rect': [rect.left, rect.top, rect.right, rect.bottom],
+    'strokeIds': strokeIds,
+    'languageTag': languageTag,
+    'userConfirmed': userConfirmed,
+  };
+
+  /// text, rect and strokeIds required; alternatives / languageTag / userConfirmed take the
+  /// constructor defaults when absent. Never validates the local limits (6.9.4 — put does).
+  factory HandwritingLine.fromJson(Map<String, Object?> json) {
+    final r = asFiniteDoubles(readList(json, 'rect'), 'rect');
+    if (r.length != 4) {
+      throw FormatException('JSON key "rect": expected [l, t, r, b], got $r');
+    }
+    final alternatives = json['alternatives'];
+    return HandwritingLine(
+      text: readString(json, 'text'),
+      alternatives: alternatives == null
+          ? const []
+          : List<String>.unmodifiable(asStrings(alternatives, 'alternatives')),
+      rect: PageRect(r[0], r[1], r[2], r[3]),
+      strokeIds: List<ElementId>.unmodifiable(
+        asStrings(readList(json, 'strokeIds'), 'strokeIds'),
+      ),
+      languageTag: readStringOrNull(json, 'languageTag') ?? 'ko',
+      userConfirmed: readBoolOr(json, 'userConfirmed', false),
+    );
+  }
 
   // CORE 4.6: argument list of the contract's '(v2.1, CP-13) copyWith'
   HandwritingLine copyWith({
@@ -116,9 +146,43 @@ final class HandwritingText implements SyncEntity {
   bool get isDeleted => deletedAt != null;
 
   @override
-  Map<String, Object?> toJson() => notYet('T20a', 'HandwritingText.toJson');
-  factory HandwritingText.fromJson(Map<String, Object?> json) =>
-      notYet('T20a', 'HandwritingText.fromJson');
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'noteId': noteId,
+    'pageId': pageId,
+    'engineId': engineId,
+    'sourceRev': sourceRev,
+    'lines': [for (final l in lines) l.toJson()],
+    'createdAt': createdAt,
+    'updatedAt': updatedAt,
+    'deletedAt': deletedAt,
+    'version': version?.toString(),
+  };
+
+  /// FormatException when `id` is not idFor(pageId) (CORE 6.9.1).
+  factory HandwritingText.fromJson(Map<String, Object?> json) {
+    final id = readString(json, 'id');
+    final pageId = readString(json, 'pageId');
+    if (id != idFor(pageId)) {
+      throw FormatException(
+        'HandwritingText id "$id" is not idFor("$pageId") = "${idFor(pageId)}"',
+      );
+    }
+    return HandwritingText(
+      noteId: readString(json, 'noteId'),
+      pageId: pageId,
+      engineId: readString(json, 'engineId'),
+      sourceRev: readString(json, 'sourceRev'),
+      lines: List<HandwritingLine>.unmodifiable([
+        for (final l in readList(json, 'lines'))
+          HandwritingLine.fromJson(asMap(l, 'lines')),
+      ]),
+      createdAt: readInt(json, 'createdAt'),
+      updatedAt: readInt(json, 'updatedAt'),
+      deletedAt: readIntOrNull(json, 'deletedAt'),
+      version: readVersion(json),
+    );
+  }
 
   // CORE 4.6: argument list of the contract's '(v2.1, CP-13) copyWith'
   HandwritingText copyWith({

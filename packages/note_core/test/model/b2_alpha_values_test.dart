@@ -192,24 +192,6 @@ void main() {
     test('the algorithm bodies name their CORE task', () {
       final shape = _shape();
       final cases = <String, List<Object? Function()>>{
-        'T20a': [
-          () => _frame.toJson(),
-          () => ElementFrame.fromJson(const [0, 0, 1, 1, 0]),
-          () => _line.toJson(),
-          () => ShapeGeometry.fromJson(const {'poly': <double>[]}),
-          () => _style.toJson(),
-          () => ShapeStyle.fromJson(const {}),
-          () => const TextBoxStyle().toJson(),
-          () => TextBoxStyle.fromJson(const {}),
-          () => const MathStyle().toJson(),
-          () => MathStyle.fromJson(const {}),
-          shape.toJson,
-          () => _text().toJson(),
-          () => _image().toJson(),
-          () => _math().toJson(),
-          () => PageObject.fromJson(const {'type': 'shape'}),
-          () => UnknownObject(const {'type': 'sticker'}),
-        ],
         'T20b': [
           () => const PagePoint(0, 0).transformed(Affine2.identity),
           () => _frame.center,
@@ -218,7 +200,6 @@ void main() {
           () => _frame.transformed(Affine2.identity),
           () => _frame.contains(const PagePoint(0, 0)),
           () => _frame.normalized(),
-          () => _line.frame,
           () => _line.transformed(Affine2.identity),
           () =>
               ShapeGeometry.line(const PagePoint(0, 0), const PagePoint(1, 1)),
@@ -365,7 +346,7 @@ void main() {
       updatedAt: 0,
     );
 
-    test('Recording.title: copyWith, clearTitle, ==; JSON key is T20a', () {
+    test('Recording.title: copyWith, clearTitle, ==', () {
       expect(recording.title, isNull);
       final named = recording.copyWith(title: '수업');
       expect(named.title, '수업');
@@ -373,8 +354,6 @@ void main() {
       expect(named.copyWith(durationMs: 2).title, '수업');
       expect(named.copyWith(clearTitle: true), recording);
       expect(named.copyWith(clearTitle: true).hashCode, recording.hashCode);
-      // Until CORE T20a the v1.4 key set is written (recording.json golden unchanged).
-      expect(named.toJson().containsKey('title'), isFalse);
     });
 
     test('RecordingDraft, RecorderStatus, PlaybackStatus: defaults and ==', () {

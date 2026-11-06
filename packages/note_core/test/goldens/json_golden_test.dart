@@ -22,8 +22,9 @@ void main() {
     'field_versions': kSampleFieldVersions.toJson(),
   };
 
-  test('11 golden files', () {
-    expect(docs.length, 11);
+  // (v2.0, m5-7/02-core 6.3) 11 v1.4 files + 9 new (8 page objects, handwriting).
+  test('20 golden files', () {
+    expect(docs.length, 20);
   });
 
   for (final e in docs.entries) {

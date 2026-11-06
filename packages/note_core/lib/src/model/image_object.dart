@@ -65,7 +65,29 @@ final class ImageObject extends PageObject {
   int get estimatedBytes => notYet('T20b', 'ImageObject.estimatedBytes');
 
   @override
-  Map<String, Object?> toJson() => notYet('T20a', 'ImageObject.toJson');
+  Map<String, Object?> toJson() => _objectJson(this, {
+    'assetId': assetId,
+    'px': [pixelWidth, pixelHeight],
+  });
+
+  factory ImageObject._fromJson(Map<String, Object?> json) {
+    final px = readList(json, 'px');
+    if (px.length != 2) {
+      throw FormatException('JSON key "px": expected [w, h], got $px');
+    }
+    return ImageObject(
+      id: readString(json, 'id'),
+      pageId: readString(json, 'pageId'),
+      frame: _readFrame(json),
+      assetId: readString(json, 'assetId'),
+      pixelWidth: asInt(px[0], 'px'),
+      pixelHeight: asInt(px[1], 'px'),
+      createdAt: readInt(json, 'createdAt'),
+      updatedAt: readInt(json, 'updatedAt'),
+      deletedAt: readIntOrNull(json, 'deletedAt'),
+      version: readVersion(json),
+    );
+  }
 
   // CORE 4.3: ==, hashCode over every field
   @override

@@ -21,7 +21,7 @@ abstract final class EntityJson {
         EntityKind.asset => Asset.fromJson(json),
         EntityKind.recording => Recording.fromJson(json),
         EntityKind.setting => SettingValue.fromJson(json),
-        // (v2.0, 02-core 6.3) the decoders are CORE T20a (UnimplementedError until then).
+        // (v2.0, 02-core 6.3)
         EntityKind.pageObject => PageObject.fromJson(json),
         EntityKind.handwriting => HandwritingText.fromJson(json),
       };

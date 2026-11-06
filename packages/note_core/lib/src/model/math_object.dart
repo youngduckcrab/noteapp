@@ -74,8 +74,26 @@ final class MathObject extends PageObject {
   @override
   int get estimatedBytes => notYet('T20b', 'MathObject.estimatedBytes');
 
+  /// `engine` is always written (null when [engineId] is unset — 7.2.7 v2.1).
   @override
-  Map<String, Object?> toJson() => notYet('T20a', 'MathObject.toJson');
+  Map<String, Object?> toJson() => _objectJson(this, {
+    'latex': latex,
+    'style': style.toJson(),
+    'engine': engineId,
+  });
+
+  factory MathObject._fromJson(Map<String, Object?> json) => MathObject(
+    id: readString(json, 'id'),
+    pageId: readString(json, 'pageId'),
+    frame: _readFrame(json),
+    latex: readString(json, 'latex'),
+    style: MathStyle.fromJson(readMap(json, 'style')),
+    engineId: readStringOrNull(json, 'engine'),
+    createdAt: readInt(json, 'createdAt'),
+    updatedAt: readInt(json, 'updatedAt'),
+    deletedAt: readIntOrNull(json, 'deletedAt'),
+    version: readVersion(json),
+  );
 
   // CORE 4.3: ==, hashCode over every field
   @override

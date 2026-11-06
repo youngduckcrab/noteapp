@@ -109,3 +109,84 @@ Map<String, Object?> readExtras(Map<String, Object?> json, String key) {
   if (v == null) return const {};
   return Map<String, Object?>.unmodifiable(asMap(v, key));
 }
+
+// --- (v2.0) 2nd-round page object JSON (m5-7/02-core 6.2.6, 6.3) ---
+
+/// A known object type carrying an enum name this app does not know (`shape`, `dash`,
+/// `arrowHeads`, `align` — 02-core 6.2.6, CP-6). PageObject.fromJson reads the whole object as
+/// UnknownObject instead of dropping it; a direct style / geometry read reports it as a
+/// FormatException (this type).
+final class UnknownEnumNameException extends FormatException {
+  UnknownEnumNameException(this.key, this.name)
+    : super('JSON key "$key": unknown name "$name"');
+  final String key;
+  final String name;
+}
+
+/// The enum value named by `json[key]`; [fallback] when the key is absent or null.
+T readEnumOr<T extends Enum>(
+  Map<String, Object?> json,
+  String key,
+  List<T> values,
+  T fallback,
+) {
+  final v = json[key];
+  if (v == null) return fallback;
+  return enumByName(asString(v, key), key, values);
+}
+
+/// The enum value named by the required string `json[key]`.
+T readEnum<T extends Enum>(
+  Map<String, Object?> json,
+  String key,
+  List<T> values,
+) => enumByName(readString(json, key), key, values);
+
+T enumByName<T extends Enum>(String name, String key, List<T> values) {
+  for (final v in values) {
+    if (v.name == name) return v;
+  }
+  throw UnknownEnumNameException(key, name);
+}
+
+/// A finite number (FormatException for NaN / infinity — local maps can carry them).
+double asFiniteDouble(Object? value, String key) {
+  final d = asDouble(value, key);
+  if (!d.isFinite) {
+    throw FormatException('JSON key "$key": expected a finite number, got $d');
+  }
+  return d;
+}
+
+/// `[n0, n1, …]` of finite numbers.
+List<double> asFiniteDoubles(Object? value, String key) => [
+  for (final e in asList(value, key)) asFiniteDouble(e, key),
+];
+
+/// A list of strings (each element checked).
+List<String> asStrings(Object? value, String key) => [
+  for (final e in asList(value, key)) asString(e, key),
+];
+
+/// An unmodifiable deep copy of a JSON value: null, bool, num, String, List, Map with String
+/// keys. Anything else is a FormatException (UnknownObject keeps rawJson this way — C-12).
+Object? jsonDeepCopy(Object? value, String key) {
+  if (value == null || value is bool || value is num || value is String) {
+    return value;
+  }
+  if (value is List) {
+    return List<Object?>.unmodifiable([
+      for (final e in value) jsonDeepCopy(e, key),
+    ]);
+  }
+  if (value is Map) {
+    final out = <String, Object?>{};
+    for (final e in value.entries) {
+      final k = e.key;
+      if (k is! String) _fail(key, 'object with string keys', value);
+      out[k] = jsonDeepCopy(e.value, key);
+    }
+    return Map<String, Object?>.unmodifiable(out);
+  }
+  _fail(key, 'JSON value', value);
+}

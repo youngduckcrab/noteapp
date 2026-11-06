@@ -241,11 +241,32 @@ final class ElementFrame {
   bool contains(PagePoint p, {double tolerance = 0}) =>
       notYet('T20b', 'ElementFrame.contains');
   // [left, top, right, bottom, rotation]
-  List<double> toJson() => notYet('T20a', 'ElementFrame.toJson');
+  List<double> toJson() => [
+    rect.left,
+    rect.top,
+    rect.right,
+    rect.bottom,
+    rotation,
+  ];
 
   /// FormatException on bad input; (v2.1) never normalizes
-  factory ElementFrame.fromJson(List<Object?> json) =>
-      notYet('T20a', 'ElementFrame.fromJson');
+  /// (CORE 6.2.1) Length 5, finite numbers (integers too — the web writes 1.0 as 1),
+  /// right ≥ left, bottom ≥ top, sides ≤ [maxSide]. A zero side (a straight line, a point) is
+  /// allowed; the rotation is only checked to be finite (3·pi is read as given).
+  factory ElementFrame.fromJson(List<Object?> json) {
+    if (json.length != 5) {
+      throw FormatException('ElementFrame needs 5 numbers, got ${json.length}');
+    }
+    final v = [for (final e in json) asFiniteDouble(e, 'frame')];
+    final (l, t, r, b) = (v[0], v[1], v[2], v[3]);
+    if (r < l || b < t) {
+      throw FormatException('ElementFrame: right < left or bottom < top: $v');
+    }
+    if (r - l > maxSide || b - t > maxSide) {
+      throw FormatException('ElementFrame: a side is larger than $maxSide: $v');
+    }
+    return ElementFrame(PageRect(l, t, r, b), rotation: v[4]);
+  }
 
   /// (contract: maxSide, normalized) width / height clamped to [0, maxSide] around the same
   /// center; rotation folded into (-pi, pi] (so -pi → pi, 3·pi → pi). The const constructor and
