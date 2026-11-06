@@ -3,7 +3,8 @@
 // this package at the foundation stage works — recognitionOverrides() in a
 // root scope with CORE's fake store, every provider reads without an
 // exception, the settings section builds, and an available engine gives an
-// indexer that the container disposes (start() does nothing yet).
+// indexer that the container disposes (start() does nothing yet). (L2-07)
+// recognitionOverrides() gives GeometricShapeFitter to INK.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -37,7 +38,7 @@ void main() {
     ]);
     expect(
       container.read(ink.inkShapeFitterProvider),
-      isA<ink.NoShapeFitter>(),
+      isA<GeometricShapeFitter>(), // L2-07 (4.4.8)
     );
   });
 
@@ -59,7 +60,12 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           core.noteStoreProvider.overrideWithValue(store),
-          ...recognitionOverrides(),
+          // (L2-07) recognitionOverrides() overrides the engine itself: a
+          // test engine replaces that one override (a provider may be
+          // overridden once per container).
+          ...recognitionOverrides().where(
+            (o) => o.origin != handwritingRecognizerProvider,
+          ),
           handwritingRecognizerProvider.overrideWithValue(recognizer),
         ],
       );

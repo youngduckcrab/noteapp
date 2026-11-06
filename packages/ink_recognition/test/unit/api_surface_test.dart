@@ -5,8 +5,9 @@
 // Imports only the two entry points (plus the CORE / INK types they use) and
 // uses every exported name in the call shapes of the contract block — a
 // renamed, re-typed or missing name breaks the build. The test also checks the
-// R2-B6 behaviour the contract row 7.6.2 fixes (defaults, NoShapeFitter
-// override, empty action lists, idle indexer, placeholder section). Names
+// R2-B6 behaviour the contract row 7.6.2 fixes (defaults, empty action lists,
+// idle indexer, placeholder section) — (L2-07) recognitionOverrides() now
+// gives its 3 overrides with GeometricShapeFitter. Names
 // beyond the list are INFRA's R14. VM only: it reads the entry point files.
 @TestOn('vm')
 library;
@@ -485,22 +486,22 @@ void main() {
       expect(full.idTokenProvider, same(token));
     });
 
-    test('recognitionOverrides() — R2-B6: only the shape fitter, '
-        'as NoShapeFitter (contract 7.6.2)', () {
+    test('recognitionOverrides() — (L2-07) exactly 3 overrides with or '
+        'without config; the defaults stay the provider values (4.4.8)', () {
       final List<Override> overrides = recognitionOverrides();
       final List<Override> withConfig = recognitionOverrides(
         config: RecognitionConfig(mathEndpoint: Uri.parse('http://x/y')),
       );
-      expect(overrides, hasLength(1));
-      expect(withConfig, hasLength(1));
+      expect(overrides, hasLength(3));
+      expect(withConfig, hasLength(3));
       final container = ProviderContainer.test(overrides: overrides);
       expect(
         container.read(ink.inkShapeFitterProvider),
-        isA<ink.NoShapeFitter>(),
+        isA<GeometricShapeFitter>(),
       );
       expect(
         container.read(handwritingRecognizerProvider),
-        isA<UnsupportedHandwritingRecognizer>(),
+        isA<UnsupportedHandwritingRecognizer>(), // ML Kit: L2-08
       );
       expect(
         container.read(mathRecognizerProvider),

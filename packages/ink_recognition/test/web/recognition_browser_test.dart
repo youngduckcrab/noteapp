@@ -1,6 +1,6 @@
 // ink_recognition on dart2js (m5-7/05-library 8.1 B6-b, 9.3 G-1). R2-B6
 // part: the web-safe entry point imports and runs in Chrome, the web gets the
-// unsupported handwriting engine (the stub) and never an indexer — even when
+// unsupported handwriting engine (the stub — L2-07) and never an indexer — even when
 // a test overrides an available engine — and the HandwritingTrace body shared
 // with the VM keeps 13-digit epoch ms exact. (L2-05) The line grouping body
 // shared with the VM (shared/line_cases.dart — V9 on the same synthetic
@@ -27,8 +27,8 @@ void main() {
     expect(kIsWeb, isTrue);
   });
 
-  test('recognitionOverrides(): unsupported handwriting, manual math, '
-      'NoShapeFitter, no indexer (G-1)', () async {
+  test('recognitionOverrides(): the stub (unsupported handwriting), manual '
+      'math, GeometricShapeFitter, no indexer (G-1)', () async {
     final container = ProviderContainer.test(overrides: recognitionOverrides());
     final hw = container.read(handwritingRecognizerProvider);
     expect(hw, isA<UnsupportedHandwritingRecognizer>());
@@ -38,9 +38,10 @@ void main() {
       container.read(mathRecognizerProvider),
       isA<ManualOnlyMathRecognizer>(),
     );
+    expect(recognitionOverrides(), hasLength(3));
     expect(
       container.read(ink.inkShapeFitterProvider),
-      isA<ink.NoShapeFitter>(),
+      isA<GeometricShapeFitter>(),
     );
     expect(container.read(handwritingIndexerProvider), isNull);
     expect(container.read(recognitionDevOverlayLinesProvider).value, [
