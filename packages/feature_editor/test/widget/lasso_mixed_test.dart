@@ -7,6 +7,7 @@
 // command), and taps that select an object (lasso / shape / text tool).
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/text/text_edit_session.dart';
 import 'package:feature_editor/src/tools/selection.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
@@ -298,7 +299,14 @@ void main() {
     await tester.pump();
     await h.driver.multiTap([text]);
     await tester.pump();
-    expect(_selection(h), isNull); // a text box is the text tool's own (E2-10)
+    // A text box is the text tool's own: its edit session (E2-10, 6.3.5 ⑤);
+    // the next tap ends it (⓪ — used up).
+    expect(_selection(h), isNull);
+    expect(h.container.read(editorTextEditProvider)?.boxId, _text.id);
+    await h.driver.multiTap([empty]);
+    await tester.pump();
+    expect(h.container.read(editorTextEditProvider), isNull);
+    expect(_selection(h), isNull);
     await h.driver.multiTap([image]);
     await tester.pump();
     expect(_selection(h)?.elementIds, {_image.id});

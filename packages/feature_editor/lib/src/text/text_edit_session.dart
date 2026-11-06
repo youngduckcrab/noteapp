@@ -1,6 +1,7 @@
 // lib/src/text/text_edit_session.dart — m5-7/04-editor 6.11.2, 6.11.5
 // (E2-01: the minimal session — new box and existing box, one command at the
-// end, end reasons. The router-side ends come in E2-10).
+// end, end reasons. E2-10: the router-side ends live in InteractionHost —
+// penContact, canvasTap, longPress; a tool change ends the session here).
 //
 // E-6: one edit session = at most one command = one undo step. While the
 // session runs, the existing box is hidden on its INK page controller (the
@@ -16,6 +17,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../document/mounted_pages.dart';
 import '../scope/editor_scope.dart';
 import '../state/settings/editor_device_state.dart';
+import '../tools/tool_controller.dart';
 
 @immutable
 class TextEditState {
@@ -193,6 +195,13 @@ class TextEditNotifier extends Notifier<TextEditState?> {
   @override
   TextEditState? build() {
     ref.watch(editorSessionValueProvider);
+    // (E2-10, 6.11.5) a tool change ends the session (toolChange). A
+    // temporary tool (pen button, eraser tip) does not change the tool.
+    ref.listen(editorToolProvider.select((t) => t.activeTool), (prev, next) {
+      if (prev != next && state != null) {
+        unawaited(end(reason: TextEditEndReason.toolChange));
+      }
+    });
     return null;
   }
 

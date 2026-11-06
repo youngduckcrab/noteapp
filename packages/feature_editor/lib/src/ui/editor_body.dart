@@ -10,6 +10,7 @@ import '../input/editor_shortcuts.dart';
 import '../playback/playback_highlighter.dart';
 import '../scope/editor_scope.dart';
 import '../state/popup.dart';
+import '../text/text_edit_session.dart';
 import '../viewport/page_viewport.dart';
 import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
@@ -63,7 +64,16 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
 
   BuildContext _bodyContext() => context;
 
-  void _flush() => unawaited(ref.read(editorCommandsProvider).flushAll());
+  /// (v2, E2-10 — 6.11.5) an open text session ends first (appHidden — its
+  /// one command), then the writes.
+  void _flush() => unawaited(_endTextAndFlush());
+
+  Future<void> _endTextAndFlush() async {
+    final text = ref.read(editorTextEditProvider.notifier);
+    await text.end(reason: TextEditEndReason.appHidden);
+    if (!mounted) return;
+    await ref.read(editorCommandsProvider).flushAll();
+  }
 
   @override
   void dispose() {

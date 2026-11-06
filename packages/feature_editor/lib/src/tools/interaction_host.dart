@@ -18,12 +18,15 @@
 // with its angle tag (6.6.4, 6.6.6). E2-08: a single object's edge, vertex
 // and text width handles → ObjectEditInteraction (6.6.5). E2-09: the shape
 // tool (6.9.2 — ShapeInteraction, a new shape selected with origin drawn).
+// E2-10: the text tool (6.11.1 — TextToolInteraction, the new box outline)
+// and the router-side ends of a text edit session (6.11.5 — a pen / mouse
+// contact, a one-finger tap, the long press).
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/painting.dart' show Color, Size;
+import 'package:flutter/painting.dart' show Color, Rect, Size;
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -45,6 +48,7 @@ import '../state/popup.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../state/settings/pre_roll.dart';
+import '../text/text_box_placement.dart';
 import '../text/text_edit_session.dart';
 import '../ui/dev/dev_metrics.dart';
 import '../ui/editor_strings.dart';
@@ -61,6 +65,7 @@ import 'selection_priority.dart';
 import 'selection_transform_interaction.dart';
 import 'shape_drafts.dart';
 import 'shape_interaction.dart';
+import 'text_tool_interaction.dart';
 import 'tool_controller.dart';
 import 'tool_interaction.dart';
 import 'tool_options.dart';
@@ -144,6 +149,8 @@ class InteractionHost implements InputTargets {
   final ValueNotifier<CursorState?> _cursor = ValueNotifier(null);
   final ValueNotifier<ContextMenuRequest?> _contextMenu = ValueNotifier(null);
   final ValueNotifier<RotationLabelState?> _rotationLabel = ValueNotifier(null);
+  final ValueNotifier<NewTextBoxOutlineState?> _newTextBoxOutline =
+      ValueNotifier(null);
   Timer? _hoverTimer;
   ToolInteraction? _lastStarted;
   bool _disposed = false;
@@ -159,6 +166,11 @@ class InteractionHost implements InputTargets {
 
   /// (v2, 6.6.6) The angle tag while the rotate handle is dragged, or null.
   ValueListenable<RotationLabelState?> get rotationLabel => _rotationLabel;
+
+  /// (v2, 6.11.1) The new text box's outline while the text tool drags, or
+  /// null (the NewTextBoxOutline overlay).
+  ValueListenable<NewTextBoxOutlineState?> get newTextBoxOutline =>
+      _newTextBoxOutline;
 
   /// The interaction most recently returned by [beginInteraction] (tests,
   /// developer metrics).
@@ -206,6 +218,17 @@ class InteractionHost implements InputTargets {
     }
     // ② read-only note → no tool input (6.17.2) — temporary tools included.
     if (_ref.read(editorReadOnlyProvider)) return null;
+    // (v2, 6.3.6 3) a pen / mouse contact while a text session is open (a
+    // finger never gets here during one — 6.3.4): the session ends
+    // (penContact — its one command runs inside end()) and the contact goes
+    // on with the current tool.
+    if (_ref.read(editorTextEditProvider) != null) {
+      unawaited(
+        _ref
+            .read(editorTextEditProvider.notifier)
+            .end(reason: TextEditEndReason.penContact),
+      );
+    }
     final selections = _ref.read(editorSelectionProvider.notifier);
     // (v2, 6.3.6 4) a pen button / eraser tip at contact → a temporary tool
     // for this contact only; ToolState does not change (6.2.3).
@@ -216,6 +239,9 @@ class InteractionHost implements InputTargets {
     // lasso tool or a lasso / paste / insert selection, else the selection
     // is dropped and the tool runs. A temporary lasso always starts a new
     // lasso (E2-04a).
+    // (E2-10) a down that drops a selection on its body: the text tool's tap
+    // there is a new box, not that object selected again (6.11.1).
+    var droppedBody = false;
     if (tool != EditorTool.lasso || temporary == null) {
       final at = _selectionHitAt(sample.position);
       if (at != null) {
@@ -234,6 +260,7 @@ class InteractionHost implements InputTargets {
               return transform;
             }
           case SelectionPriority.drop:
+            droppedBody = at.kind == SelectionHitKind.body;
             selections.clear();
         }
       }
@@ -323,8 +350,23 @@ class InteractionHost implements InputTargets {
           onTap: _onShapeTap,
         );
       case EditorTool.text:
-        // (v2) The text tool comes in E2-10.
-        interaction = null;
+        // (v2, 6.11.1) a tap: the text box there edited, another object
+        // selected, else a new box; a drag: a new box as wide as the drag.
+        selections.clear();
+        final style = _ref.read(editorToolOptionsProvider).textStyle;
+        interaction = TextToolInteraction.start(
+          down: sample,
+          source: source,
+          pageId: hit.pageId,
+          pageIndex: hit.index,
+          lineHeightPt: style.fontSizePt * style.lineHeight,
+          viewport: _viewport,
+          onOutline: (outline) {
+            if (!_disposed) _newTextBoxOutline.value = outline;
+          },
+          onTap: (screen) => _onTextTap(screen, selectObject: !droppedBody),
+          onDrag: (rect) => _onTextDrag(hit.pageId, rect),
+        );
     }
     _lastStarted = interaction;
     return interaction;
@@ -397,6 +439,89 @@ class InteractionHost implements InputTargets {
   /// dropped the selection).
   void _onShapeTap(Offset screen) {
     if (!_disposed) _tapSelectObject(screen);
+  }
+
+  /// (E2-10, 6.11.1) A text tool tap: the text box under it → its edit
+  /// session; another object → selected (origin tap — 6.3.5 ④) unless
+  /// [selectObject] is false (the down dropped that object's tap selection
+  /// — its body down is a new box); else a new box by the tap rule
+  /// (newTextBoxAt) in ToolOptions.textStyle.
+  void _onTextTap(Offset screen, {required bool selectObject}) {
+    if (_disposed ||
+        _editTextBoxAt(screen) ||
+        (selectObject && _tapSelectObject(screen))) {
+      return;
+    }
+    final hit = _viewport.hitPage(screen);
+    if (hit == null) return;
+    final page = _viewport.pages[hit.index];
+    _startNewTextBox(
+      hit.pageId,
+      newTextBoxAt(
+        id: _ref.read(core.idGeneratorProvider).newId(),
+        pageId: hit.pageId,
+        point: hit.pagePoint,
+        pageWidth: page.size.width,
+        style: _ref.read(editorToolOptionsProvider).textStyle.normalized(),
+        createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  /// (E2-10, 6.11.1) A text tool drag: a new box over the outline.
+  void _onTextDrag(String pageId, Rect rectPt) {
+    if (_disposed) return;
+    _startNewTextBox(
+      pageId,
+      ObjectFactory.textBox(
+        pageId: pageId,
+        rectPt: rectPt,
+        style: _ref.read(editorToolOptionsProvider).textStyle,
+        newId: _ref.read(core.idGeneratorProvider).newId,
+        createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  /// A new box's session — not when the page is full (the notice instead:
+  /// its AddObjects would go over the limit — 5.1.1).
+  void _startNewTextBox(String pageId, core.TextBoxObject box) {
+    final content = _session.pageIfLoaded(pageId);
+    if (content != null && ObjectFactory.exceedsLimit(content, 1)) {
+      _commands.notify(
+        EditorStrings.objectLimitReached(
+          core.PageObjectLimits.maxObjectsPerPage,
+        ),
+      );
+      return;
+    }
+    _ref.read(editorTextEditProvider.notifier).start(box, isNew: true);
+  }
+
+  /// (E2-10, 6.3.5 ⑤) The text tool on a text box under [screen]: its edit
+  /// session (an existing box). Not on a read-only note.
+  bool _editTextBoxAt(Offset screen) {
+    if (_ref.read(editorToolProvider).activeTool != EditorTool.text ||
+        _ref.read(editorReadOnlyProvider)) {
+      return false;
+    }
+    final hit = _viewport.hitPage(screen);
+    if (hit == null) return false;
+    final mount = _pages[hit.pageId];
+    if (mount == null || mount.isDisposed || !mount.isLoaded.value) {
+      return false;
+    }
+    final object = mount.controller.hitTestObject(
+      _viewport.screenToPage(hit.index, screen),
+    );
+    if (object is! core.TextBoxObject) return false;
+    // The stored box (INK's copy may lag a remote edit by a frame).
+    final stored = _session.pageIfLoaded(hit.pageId)?.objectById(object.id);
+    _ref.read(editorSelectionProvider.notifier).clear();
+    _ref
+        .read(editorTextEditProvider.notifier)
+        .start(stored is core.TextBoxObject ? stored : object, isNew: false);
+    return true;
   }
 
   void _onLassoSelected(String pageId, Set<String> ids) {
@@ -699,7 +824,9 @@ class InteractionHost implements InputTargets {
   @override
   void navigationCancel() => _viewport.cancelGesture();
 
-  /// 1 = dismiss (context menu → popup → (v2) tap-to-seek ③ → selection),
+  /// 1 = (v2) ⓪ an open text session ends (canvasTap — the tap is used up),
+  /// else dismiss (context menu → popup → (v2) tap-to-seek ③ → object
+  /// selection ④ → the text tool's text box ⑤ → selection cleared),
   /// 2 / 3 = the action of twoFingerTap / threeFingerTap through the action
   /// runner (v2 6.4.2 — undo, redo or toggleEraser). The router only sends
   /// 2 / 3 when the action is not none.
@@ -707,7 +834,13 @@ class InteractionHost implements InputTargets {
   void tapGesture(int fingerCount, Offset centroid) {
     switch (fingerCount) {
       case 1:
-        if (_contextMenu.value != null) {
+        if (_ref.read(editorTextEditProvider) != null) {
+          unawaited(
+            _ref
+                .read(editorTextEditProvider.notifier)
+                .end(reason: TextEditEndReason.canvasTap),
+          );
+        } else if (_contextMenu.value != null) {
           closeContextMenu();
         } else if (_ref.read(editorPopupProvider) != null) {
           _ref.read(editorPopupProvider.notifier).close();
@@ -715,6 +848,8 @@ class InteractionHost implements InputTargets {
           // ③ taken: the selection stays.
         } else if (_tapSelectObject(centroid)) {
           // ④ (v2) the object under the tap is the selection now.
+        } else if (_editTextBoxAt(centroid)) {
+          // ⑤ (v2) the text tool edits the text box under the tap.
         } else {
           _commands.clearSelection();
         }
@@ -737,10 +872,20 @@ class InteractionHost implements InputTargets {
   }
 
   /// (v2) The fingerLongPress action (6.4.2 — contextMenu by default; the
-  /// router does not time a long press whose action is none).
+  /// router does not time a long press whose action is none). An open text
+  /// session ends first (longPress — 6.3.4 ②), then the action runs.
   @override
-  void longPress(Offset screen) =>
-      _runGesture(EditorGesture.fingerLongPress, screen);
+  void longPress(Offset screen) {
+    if (_disposed) return;
+    if (_ref.read(editorTextEditProvider) != null) {
+      unawaited(
+        _ref
+            .read(editorTextEditProvider.notifier)
+            .end(reason: TextEditEndReason.longPress),
+      );
+    }
+    _runGesture(EditorGesture.fingerLongPress, screen);
+  }
 
   /// The mouse right button: always the context menu ([openContextMenuAt]).
   @override
@@ -878,5 +1023,6 @@ class InteractionHost implements InputTargets {
     _cursor.dispose();
     _contextMenu.dispose();
     _rotationLabel.dispose();
+    _newTextBoxOutline.dispose();
   }
 }

@@ -19,6 +19,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import 'scope/editor_scope.dart';
+import 'text/text_edit_session.dart';
 import 'ui/editor_body.dart';
 import 'ui/editor_strings.dart';
 
@@ -136,6 +137,8 @@ class _EditorRootState extends ConsumerState<EditorRoot> {
   /// runs only after it has completed. No timeout: CORE write Futures stay
   /// pending while a failed commit is retried (contract 7.2.9 v1.2). After
   /// 300 ms '저장하는 중…' shows. Failed writes are reported by flushAll.
+  /// (v2, E2-10 — 6.11.5) An open text session ends first (leaving — its one
+  /// command goes before the flush).
   Future<void> _close() async {
     if (_closing) return;
     _closing = true;
@@ -144,6 +147,10 @@ class _EditorRootState extends ConsumerState<EditorRoot> {
       _savingTimer = Timer(_savingNoticeDelay, () {
         if (mounted) setState(() => _showSaving = true);
       });
+      await ref
+          .read(editorTextEditProvider.notifier)
+          .end(reason: TextEditEndReason.leaving);
+      if (!mounted) return;
       await ref.read(editorCommandsProvider).flushAll();
       _savingTimer?.cancel();
     }

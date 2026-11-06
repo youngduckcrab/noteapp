@@ -13,10 +13,11 @@
 // inner padding, so nothing jumps when the session ends (E-6, B-15).
 //
 // Ends from here: a pointer down outside the editor's tap group (onTapOutside
-// → tapOutside — in E2-01 that includes the canvas: the viewport's tap group
-// and the router-side ends come in E2-10), the field losing the focus after
-// having had it (focusLost), Esc (escape), and the session's page leaving
-// the mounted pages (pageUnmounted).
+// → tapOutside — (E2-10) the canvas is in the group while a session is open,
+// its ends come from the router: InteractionHost), the field losing the
+// focus after having had it (focusLost — not while FocusManager suspends it
+// for an inactive app), Esc (escape), and the session's page leaving the
+// mounted pages (pageUnmounted).
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +31,12 @@ import 'text_edit_session.dart';
 
 /// The key of the session's TextField (both modes — appendix C).
 const textEditorKey = ValueKey('editor.textEditor');
+
+/// The focus node of a session's TextField: EditorCanvasFocus takes the
+/// focus back from it when the session has ended (6.11.3 '캔버스 포커스 양보').
+class TextSessionFocusNode extends FocusNode {
+  TextSessionFocusNode() : super(debugLabel: 'TextBoxEditor');
+}
 
 /// TextAlign of a box alignment.
 TextAlign textAlignOf(core.TextAlignKind align) => switch (align) {
@@ -70,7 +77,7 @@ class _TextSessionFieldState extends ConsumerState<TextSessionField> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.initialText,
   );
-  final FocusNode _focus = FocusNode(debugLabel: 'TextBoxEditor');
+  final FocusNode _focus = TextSessionFocusNode();
   bool _hadFocus = false;
 
   @override
@@ -87,9 +94,18 @@ class _TextSessionFieldState extends ConsumerState<TextSessionField> {
   void _focusChanged() {
     if (_focus.hasFocus) {
       _hadFocus = true;
-    } else if (_hadFocus) {
+    } else if (_hadFocus && !_suspended) {
       _end(TextEditEndReason.focusLost);
     }
+  }
+
+  /// (E2-10) The app is not resumed: FocusManager suspends the primary focus
+  /// while the app is inactive (control centre, app switcher) and gives it
+  /// back on resume — not a focus loss. Hiding the app ends the session
+  /// (appHidden — EditorBody's AppLifecycleListener).
+  static bool get _suspended {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state != null && state != AppLifecycleState.resumed;
   }
 
   void _end(TextEditEndReason reason) {
