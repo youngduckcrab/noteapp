@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import 'platform/file_download.dart';
+import 'platform/file_download_factory.dart';
 import 'record/recover_attempts.dart';
 import 'tuning.dart';
 import 'ui/strings_ko.dart';
@@ -52,10 +53,10 @@ final playbackStatusProvider = StreamProvider.autoDispose<core.PlaybackStatus>(
 /// No automatic retry (a failed read shows as an empty list until the next refresh).
 Duration? _noRetry(int retryCount, Object error) => null;
 
-/// (T36b) The web '파일로 내려받기' port (6.10.4) — NoFileDownloads until PDF T32b wires the
-/// browser body; tests override it with a fake.
+/// (T36b) The web '파일로 내려받기' port (6.10.4) — (T32b) the platform's: Blob + `<a download>` on
+/// the web, NoFileDownloads elsewhere; tests override it with a fake.
 final fileDownloadsProvider = Provider<FileDownloads>(
-  (ref) => const NoFileDownloads(),
+  (ref) => createPlatformFileDownloads(),
   name: 'fileDownloadsProvider',
 );
 

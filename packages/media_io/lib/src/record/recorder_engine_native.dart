@@ -33,8 +33,10 @@ import 'audio_session_native.dart';
 import 'foreground_service_native.dart';
 import 'recorder_engine.dart';
 
-/// recorder_engine_factory.dart on the VM / native platforms.
-RecorderEngine createPlatformRecorderEngine() => NativeRecorderEngine();
+/// recorder_engine_factory.dart on the VM / native platforms (the config comes with each
+/// start request).
+RecorderEngine createPlatformRecorderEngine(MediaIoConfig config) =>
+    NativeRecorderEngine();
 
 /// recorder_engine_factory.dart: initializeMediaIo's platform step (Android FGS init — 6.9.4).
 void preparePlatformRecording(MediaIoConfig config) =>

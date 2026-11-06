@@ -286,7 +286,7 @@
 | T31a | 완료 | 8dc3b6f | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
 | T31b | 완료 | 1b8261c | `unit/recorder_service_test`(42), `unit/stop_recover_buffers_test`(5) — 가짜 엔진·잠금 `test/support/fake_engines.dart`, 기록 감싼 저장소·가짜 시간 `test/support/recorder_world.dart` |
 | T32a | 완료 | 0c64fad | `unit/webm_timeline_test`, `unit/mp4_duration_test`, (더함) `web/pure_logic_browser_test` — 손 표본 사례는 `test/support/webm_timeline_cases.dart`·`mp4_duration_cases.dart`(VM·Chrome 같은 단언), Chrome 표본 `test/support/fixtures/chrome_opus_*.webm` 7개 |
-| T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
+| T32b | 완료 | (이 커밋 — 세션 끝 기록에 해시) | `unit/web_mime_test`(15), (더함) `unit/web_recorder_session_test`(32 — 순수 세션 규칙을 `fake_async`로), `web/recorder_engine_browser_test`(22), `web/file_download_browser_test`(4), `web/media/visibility_pause_media_test`(1, `media`) — 가짜 `test/support/fake_web_capture.dart`(`FakeWebCapture`·`FakePageEvents`·`FakeWakeLock`), 손 타이머 `test/support/manual_timers.dart` |
 | T33 | 완료 | c71fe40 | `unit/native_engine_test`(17), `unit/foreground_service_test`(9), `unit/audio_session_test`(5), (더함) `widget/recording_panel_test` 순수 `statusLineFor` 네이티브 중단 줄, `unit/no_platform_imports_test` I-3 — 시험 세계 `test/support/native_world.dart`(`NativeWorld` — `installFakeMediaPlatforms` + 가짜 저장소 + 손으로 움직이는 시계) |
 | T34 | 완료 | d69f957 | `unit/playback_service_test`(22 — just_audio + `FakeJustAudioPlatform` 11, 가짜 시간 대본 플레이어 7, 길이 탐침 3, 형식 오류 1), `unit/audio_source_native_test`(6), `web/playback_browser_test`(4), (더함) `unit/recorder_service_test` '넘김' 2 |
 | T35a | 완료 | 486c4e7 | `unit/image_header_test`(17), `unit/image_normalizer_test`(18) — 표본 `test/support/fixtures/img_*.{jpg,png,webp}` 8개(Pillow) + `package:image`로 시험 안에서 만든 표본 |
@@ -410,6 +410,16 @@
 - T35b: 준비 중 시트는 계약 문장대로 `showModalBottomSheet(isDismissible: false, enableDrag: false)`이고, 닫기는 시트 본문이 `ValueNotifier`를 듣다가 자기 경로를 잡아 둔 navigator로 `removeRoute`한다(시트가 아직 그려지기 전에 끝나도 그려지는 즉시 닫힘, 위에 다른 경로가 있어도 그 시트만 빠짐). 문구 8개(이미지 6.16 표 + '이미지를 준비하고 있어요…')와 `imageFileStem`은 `MediaStringsKo`에.
 - T35b: 웹 클립보드는 첫 항목부터 `image/png`·`image/jpeg`·`image/webp`·`image/gif` 순서로 찾는다. 거절 판정은 DOMException 이름 `NotAllowedError`(또는 `SecurityError`) → `clipboardDenied`, 그 밖 실패·이미지 없음 → `clipboardEmpty`. `createImageBitmap`은 `imageOrientation: 'from-image'`를 주고, 그 값을 모르는 엔진(`TypeError`)이면 옵션 없이 다시(기본이 EXIF 적용). `OffscreenCanvas`가 없으면 `<canvas>` + `toBlob`.
 - T33: 정지 뒤 파일 읽기는 계획대로 `File.readAsBytes`(비동기)라 네이티브 엔진 시험은 `fake_async` 밖에서 돈다 — 녹음 시계는 손으로 움직이는 `FakeStopwatch`, 저장소 시계는 실행하지 않는 `FakeAsync`의 `getClock`을 손으로 `elapse`해 벽시계에 기대지 않는다(`test/support/native_world.dart`).
+- T32b: 웹 녹음 한 번의 규칙(조각·감시·가시성·마이크·Wake Lock·정지)을 순수 `lib/src/record/web_recorder_session.dart`(포트 `WebCapture` = MediaRecorder + 트랙, `PageEvents`, 타이머 `StartTimer`)로 떼었다. `recorder_engine_browser.dart`는 MIME·`checkSupport`·`getUserMedia`·스트림 유지와 바인딩 `MediaRecorderCapture`(dataavailable → `Blob.arrayBuffer` 사슬 — stop 이벤트가 마지막 바이트 뒤)만 갖는다. 시간 규칙(감시 2.5 s·mute 1 s·유예 3 s·정지 3 s)은 VM `fake_async` 시험(`unit/web_recorder_session_test` — 계획에 없는 파일을 더함)이 보고, Chrome 시험은 손 타이머(`test/support/manual_timers.dart`)로 바인딩·실제 이벤트만 본다.
+- T32b: `media` 태그 시험은 계획의 `test/media/…`가 아니라 `test/web/media/…`에 둔다 — `ws test --platform chrome`은 `test/web`만 돌린다(INFRA `tool/src/test_command.dart` — `paths: ['test/web']`). T39·T41의 `media/…` 파일도 `test/web/media/`에.
+- T32b: 공장 `createPlatformRecorderEngine(MediaIoConfig config)` — 인자를 하나 더했다(웹은 `allowNonAacOnWeb`로 MIME을 고르고 `draftMimeType`을 시작 전에 안다). 네이티브·stub은 무시. T37이 `config ?? MediaIoRuntime.config`를 넘긴다. 웹 `preparePlatformRecording`은 MIME 표를 한 번 재 두고(동기), `platformPlaybackSessionSetup`은 `null`.
+- T32b: `checkSupport(requestPermission: true)`는 `NotAllowedError`·`SecurityError`만 `permissionDenied`, 그 밖 실패(`NotFoundError` 등)는 `supported`로 둔다 — `start`가 `microphoneNotFound`(`NotFoundError`·`OverconstrainedError`)·`microphoneBusy`(`NotReadableError`·`AbortError`)·`engineFailed`로 정확한 문구를 낸다(4.2.3에 '마이크 없음' 규칙이 없고, `unsupported`면 패널이 '이 브라우저에서는 녹음할 수 없어요'로 잘못 안내). 헤드리스 Chrome(장치 없음)에서 실제로 그 길을 시험한다.
+- T32b: `abandon()`은 '`requestData` 뒤 트랙 정지' 대신 `MediaRecorder.stop()` → 마지막 조각 → stop 이벤트(≤ `webStopFlushTimeout`)를 기다린 뒤 트랙을 멈춘다 — 같은 바이트이고, 마지막 조각이 `onChunk`에 닿은 뒤에 완료되는 것이 보장된다(서비스 `dispose`가 그 뒤 writer를 비움). 초안 마무리는 하지 않는다(서비스 몫) 그대로.
+- T32b: 빈 `dataavailable`(크기 0)은 `onChunk`에 넘기지 않고 감시 타이머만 다시 건다(일시정지 중 살아 있음은 `DraftWriter` 몫 — 6.8.5). 감시 '세 번 연속'은 감시가 부른 응답만 이어질 때다(제때 온 조각이 있으면 0). MediaRecorder `error` 이벤트·요청 없는 stop 이벤트 → `EngineFailed`(서비스는 `interrupted` + `engineFailed`), 그 뒤 `resume` → `StateError`.
+- T32b: Wake Lock '한 번 다시 요청'은 시스템 해제마다 한 번(거절되면 다시 묻지 않고 `wakeLock=none`), 가려질 때 브라우저가 먼저 놓은 경우는 다시 묻지 않는다. `MediaTuning`에 `webWatchdogIgnoredStreak`(3)·`webChannelCount`(1)·`webMicProcessing`(false)을 더했고 계획 4.5.2 표·3.3 트리(`web_recorder_session.dart`)도 고쳤다.
+- T32b: 개발자 표시 몫 — 엔진 `developerNote` = `wakeLock=held watchdog=0 hidden-pauses=1`(+ ` timeslice ignored`, ` mic=kept`), `enc:` 부분은 `BrowserRecorderEngine.encoderLine`(`mp4a=no mp4=yes webm/opus=yes` — `WebMimeTable.encoderLine`). 엔진 포트에는 아직 없다(T37이 필요하면 `RecorderEngine`에 더함).
+- T32b: `fileDownloadsProvider`의 기본값을 공장 `platform/file_download_factory.dart`(웹 `BrowserFileDownloads`, 그 밖 `NoFileDownloads` — `file_download_stub.dart`)로 바꿨다. `web_locks_factory.dart`(웹 `BrowserWebLocks` — `ifAvailable: true`, 콜백이 놓을 때까지 풀리지 않는 Promise)·`page_events_factory.dart`(웹 `BrowserPageEvents`, 그 밖 `AlwaysVisiblePageEvents`)도 만들었다 — 서비스·엔진 연결은 T37.
+- T32b: `BrowserPageEvents`의 스트림은 비동기 broadcast(DOM 이벤트 다음 마이크로태스크에 전달)라 Chrome 시험은 `visibilitychange` 뒤 한 번 양보한다. Chrome 시험(마이크 없음)은 WebAudio `MediaStreamDestination` 스트림으로 실제 MediaRecorder를 돌린다 — 헤드리스 탭의 AudioContext는 suspended라 조각은 빈 Blob이지만 start·pause·requestData·stop 이벤트는 진짜. Wake Lock은 `navigator.wakeLock`에 JS 스텁(own property)을 덮어 호출을 JS 쪽에서 기록하고, 트랙 `mute`/`unmute`는 합성 `Event`를 보낸다.
 
 #### 이정표 커밋
 
@@ -489,6 +499,10 @@
 | 7 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 7 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 | 7 (끝) | 패키지 시험 (T35b 뒤 `media_io` VM 338·Chrome 47 — 그 뒤 lib 변화 없음, `pdf_io`는 이번 세션 변화 없음) | 위 행 그대로 |
+| 8 (T32b) | `ws test --package media_io` (VM) | 385 통과 (338 + T32b 47 — MIME 15·세션 32), 54 s |
+| 8 (T32b) | `ws test --package media_io --platform chrome` | 73 통과 + 1 skip (47 + 엔진 22·내려받기 4, skip = `media` 1), prepare ok, 107 s |
+| 8 (T32b) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 10:21:01–10:23:00 UTC, 잠금 대기 0초) | 1 통과 — `visibility_pause_media_test`: file=2519 ms clock=2527 ms(차 −8 ms) wall=4420 ms hidden=1809 ms watchdog=0 |
+| 8 (T32b) | `flutter analyze --fatal-infos`(media_io), `dart format`, `ws check` | 0건, 변경 없음, R1~R16 위반 0·경고 0 |
 
 #### 다음 세션 메모
 

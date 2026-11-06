@@ -237,6 +237,7 @@ packages/media_io/
 │     │  ├─ foreground_service_native.dart  flutter_foreground_task (6.9.4, P-B)
 │     │  ├─ draft_writer.dart           조각 순서 쓰기·메모리 상한·실패 재시도·일시정지 중 빈 조각·거절 감지 (6.8.5)
 │     │  ├─ web_mime.dart               MIME 후보 표·고르기(순수) (6.8.1)
+│     │  ├─ web_recorder_session.dart   (T32b) 웹 녹음 한 번의 규칙(순수 — 조각·감시·가시성·마이크·Wake Lock·정지, 포트 `WebCapture` + `PageEvents`) (6.8.2~6.8.6)
 │     │  ├─ webm_timeline.dart          (v2.1) EBML 블록 타임라인 길이 계산 + 머리만 다시 쓰는 Duration 패치(순수) (6.8.7)
 │     │  ├─ mp4_duration.dart           (v2.1, S-7) MP4/조각 MP4 상자에서 타임라인 길이(순수) (6.6.4)
 │     │  ├─ buffer_ledger.dart          (v2.1) 정지·복구 경로의 전체 크기 버퍼 계측 훅 (6.6.5)
@@ -931,6 +932,8 @@ final class MediaFakePlatforms {
 | `webRequestDataWatchdog` | 2.5 × `webDraftChunkMs` | 조각이 안 오면 `requestData()`(Safari 대비 — 6.8.2) |
 | `webMemoryBacklogMaxBytes` | 8 × 1024 × 1024 | 7.4.5 '웹 녹음 메모리 조각 ≤ 8 MB' |
 | `webStopFlushTimeout` | 3 s | 정지 때 마지막 `dataavailable` 대기 |
+| `webWatchdogIgnoredStreak` | 3 | (T32b) 감시 타이머가 이만큼 연속 필요했으면 개발자 표시 'timeslice ignored'(6.8.2) |
+| `webChannelCount` / `webMicProcessing` | 1 / false | (T32b) `getUserMedia` 오디오 제약 — 모노, 에코 제거·잡음 억제·자동 이득 끔(6.8.1 — B-8에서 들어 보고 이 한 곳에서 바꿈) |
 | `micStreamKeepAlive` | 30 s | `checkSupport(requestPermission)`으로 얻은 스트림 유지 |
 | `micMuteLostMs` | 1,000 | (v2.1, 검토 S-6) 보이는 동안 트랙 `mute`가 이만큼 이어지면 마이크 끊김(6.8.3) |
 | `micUnmuteGraceMs` | 3,000 | (v2.1, 검토 S-6) 다시 보이게 된 뒤 `unmute`를 기다리는 시간 |

@@ -17,8 +17,18 @@ abstract final class MediaTuning {
   /// draft writer splits a bigger chunk and keeps unsaved chunks at this size (6.8.5).
   static const int draftChunkMaxBytes = 4 * 1024 * 1024;
 
+  /// (T32b) The watchdog was needed this many times in a row → developer overlay 'timeslice
+  /// ignored' (6.8.2).
+  static const int webWatchdogIgnoredStreak = 3;
+
   /// Wait for the last dataavailable on stop.
   static const Duration webStopFlushTimeout = Duration(seconds: 3);
+
+  /// (T32b) getUserMedia audio constraints (6.8.1): mono, and the browser's echo cancellation,
+  /// noise suppression and auto gain control off (the raw sound, like native record) — [추측 —
+  /// B-8 listens and may turn them on here].
+  static const int webChannelCount = 1;
+  static const bool webMicProcessing = false;
 
   /// Keep the stream from checkSupport(requestPermission: true).
   static const Duration micStreamKeepAlive = Duration(seconds: 30);

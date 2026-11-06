@@ -1,13 +1,12 @@
 // lib/src/record/recorder_engine_stub.dart — recorder_engine_factory.dart where there is neither
-// dart:io nor the browser body (m5-7/06-pdf 6.18): no recorder (checkSupport → unsupported;
-// start throws UnsupportedError). Until PDF T32b adds recorder_engine_browser.dart the web gets
-// this one too. Internal.
+// dart:io nor the browser (m5-7/06-pdf 6.18): no recorder (checkSupport → unsupported; start
+// throws UnsupportedError). Internal.
 import 'package:note_core/note_core.dart' as core;
 
 import '../config.dart';
 import 'recorder_engine.dart';
 
-RecorderEngine createPlatformRecorderEngine() =>
+RecorderEngine createPlatformRecorderEngine(MediaIoConfig config) =>
     const UnsupportedRecorderEngine();
 
 /// Nothing to prepare.

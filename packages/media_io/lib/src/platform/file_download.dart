@@ -6,8 +6,8 @@
 // SYNCHRONOUSLY inside the user's tap — a click after an `await` may not count as a user action
 // on iPad Safari [추측 — B-14]. The URL is revoked when the panel / sheet goes away. Native has
 // no download (drafts stay in the app support directory and are recovered on the next launch).
-// The browser body is platform/file_download_browser.dart (PDF T32b); until it is wired the
-// panel uses [NoFileDownloads] (no download items).
+// Bodies behind file_download_factory.dart: file_download_browser.dart (PDF T32b) and
+// file_download_stub.dart ([NoFileDownloads] — no download items).
 import 'dart:typed_data';
 
 abstract interface class FileDownloads {
@@ -32,7 +32,7 @@ abstract interface class PreparedFileDownload {
   void revoke();
 }
 
-/// No download (native and the default until PDF T32b wires the browser body).
+/// No download (native, the VM).
 final class NoFileDownloads implements FileDownloads {
   const NoFileDownloads();
 
