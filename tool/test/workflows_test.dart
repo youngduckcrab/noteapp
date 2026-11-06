@@ -100,6 +100,8 @@ const _inkLabDir = 'packages/ink_engine/example';
 const _emulatorApkBuild = 'flutter build apk --debug';
 const _emulatorApk = 'build/app/outputs/flutter-apk/app-debug.apk';
 const _nativeSmoke = 'integration_test/native_smoke_test.dart';
+const _kvmRule =
+    'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"';
 
 /// The fixed Android key secrets (m5-7/01-infra 6.10.3, guide 07).
 const _androidSecrets = [
@@ -351,7 +353,7 @@ void main() {
           expect(withMap.containsKey('flutter-version'), isFalse);
         }
       }
-      expect(count, 6);
+      expect(count, 7);
       final rootPubspec = _load(p.join(repoRoot, 'pubspec.yaml'));
       expect((rootPubspec['environment'] as YamlMap)['flutter'], '3.47.9');
     });
@@ -368,7 +370,7 @@ void main() {
           }
         }
       }
-      expect(count, 6);
+      expect(count, 7);
     });
 
     test('no `if:` reads `secrets` (not allowed there — job env instead)', () {
@@ -411,6 +413,7 @@ void main() {
         'android-emulator.yml',
         'android.yml',
         'ci.yml',
+        'functions.yml',
         'ios-compile.yml',
         'web-experiment.yml',
       ]) {
@@ -472,8 +475,9 @@ void main() {
           }
         }
       }
-      // + web-budget check (J17), + lock-age (J20)
-      expect(calls, hasLength(22));
+      // + web-budget check (J17), + lock-age (J20), + the Dart emulator tests
+      // of functions.yml (J16)
+      expect(calls, hasLength(23));
       for (final call in calls) {
         final args = _shellWords(call, _sampleVariables);
         final err = StringBuffer();
@@ -1588,7 +1592,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
     });
   });
 
-  group('functions.yml (2차 R2-B1 skeleton, m5-7/01-infra 6.14)', () {
+  group('functions.yml (2차 R2-B1 skeleton → J16, m5-7/01-infra 6.14)', () {
     late YamlMap functions;
     late YamlMap job;
     late List<YamlMap> steps;
@@ -1643,7 +1647,53 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
           for (final s in steps.skip(1))
             if (s['if'] == present) s['name'],
         ],
-        ['Set up Node', 'Install', 'Unit tests'],
+        [
+          'Set up Node',
+          'Install',
+          'Unit tests',
+          'Emulator tests',
+          'Set up Flutter',
+          'Cache build hooks',
+          'Dependencies',
+          'Dart emulator tests',
+        ],
+      );
+    });
+
+    test('the 6.14 order: npm ci → npm test → npm run test:emulator (before '
+        'Flutter — 07-sync RQ-8) → Flutter → pub get → the Dart emulator '
+        'tests', () {
+      expect(
+        [for (final s in steps) s['name']],
+        [
+          'Checkout',
+          'Set up Node',
+          'Install',
+          'Unit tests',
+          'Emulator tests',
+          'Set up Flutter',
+          'Cache build hooks',
+          'Dependencies',
+          'Dart emulator tests',
+          'Skipped (no functions/)',
+        ],
+      );
+      expect(_named(steps, 'Emulator tests')['working-directory'], 'functions');
+      expect(
+        '${_named(steps, 'Emulator tests')['run']}',
+        contains('npm run test:emulator'),
+      );
+      expect(
+        _named(steps, 'Set up Flutter')['uses'],
+        'subosito/flutter-action@v2',
+      );
+      expect(_runLines(_named(steps, 'Dependencies')), [
+        'flutter pub get --enforce-lockfile',
+      ]);
+      // The Dart step runs at the repository root (--config app/firebase.json).
+      expect(
+        _named(steps, 'Dart emulator tests').containsKey('working-directory'),
+        isFalse,
       );
     });
 
@@ -1699,11 +1749,127 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
       expect(runWith(['# tests 3'], exitCode: 1), isNot(0));
     });
 
-    test('the emulator steps are J16 (not in the skeleton)', () {
-      final text = File(p.join(_workflowsDir, 'functions.yml'))
+    test(
+      'npm run test:emulator: `# tests 0` passes (no emulator test file '
+      'before SYNC S2-11), a failure fails, the count goes to the summary',
+      () {
+        final run = '${_named(steps, 'Emulator tests')['run']}';
+        expect(run, contains('set -o pipefail'));
+        final scratch = Directory.systemTemp.createTempSync('ws_fn_emu_');
+        addTearDown(() => scratch.deleteSync(recursive: true));
+        final npm = File(p.join(scratch.path, 'bin', 'npm'))
+          ..createSync(recursive: true);
+        final calls = File(p.join(scratch.path, 'calls'));
+        Process.runSync('chmod', ['+x', npm.path]);
+        ({int code, String summary}) runWith(
+          List<String> output, {
+          int exitCode = 0,
+        }) {
+          npm.writeAsStringSync(
+            '#!/bin/sh\necho "\$*" >> "${calls.path}"\n'
+            "printf '%s\\n' ${[for (final l in output) "'$l'"].join(' ')}\n"
+            'exit $exitCode\n',
+          );
+          final summary = File(p.join(scratch.path, 'summary'))
+            ..writeAsStringSync('');
+          final code = Process.runSync(
+            'bash',
+            ['-e', '-c', run],
+            environment: {
+              'PATH': '${p.dirname(npm.path)}:/usr/bin:/bin',
+              'RUNNER_TEMP': scratch.path,
+              'GITHUB_STEP_SUMMARY': summary.path,
+            },
+          ).exitCode;
+          return (code: code, summary: summary.readAsStringSync());
+        }
+
+        final zero = runWith(['# tests 0', '# pass 0']);
+        expect(zero.code, 0);
+        expect(zero.summary, '- npm run test:emulator: 시험 0개 통과\n');
+        final ten = runWith(['TAP version 13', '# tests 10', '# pass 10']);
+        expect(ten.code, 0);
+        expect(ten.summary, '- npm run test:emulator: 시험 10개 통과\n');
+        expect(runWith(['# tests 10', '# fail 1'], exitCode: 1).code, isNot(0));
+        expect(runWith(['no counter']).summary, contains('시험 ?개'));
+        expect(calls.readAsLinesSync().toSet(), {'run test:emulator'});
+      },
+    );
+
+    test('the Dart emulator tests: emulators:exec of functions/ firebase with '
+        'the committed config and demo project, the ink_recognition '
+        'emulator tag inside (6.13 path without with-heavy-lock)', () {
+      final step = _named(steps, 'Dart emulator tests');
+      final lines = _runLines(step);
+      expect(lines, hasLength(1));
+      const inner =
+          '$_ws test --package ink_recognition --run-skipped -t emulator';
+      expect(_shellWords(lines.single, {}), [
+        'npx',
+        '--prefix',
+        'functions',
+        'firebase',
+        'emulators:exec',
+        '--config',
+        'app/firebase.json',
+        '--only',
+        'functions,auth',
+        '--project',
+        'demo-noteapp',
+        inner,
+      ]);
+      // The CI runner is one job: the heavy-test lock is never taken here.
+      for (final s in steps) {
+        expect('${s['run'] ?? ''}', isNot(contains('with-heavy-lock')));
+      }
+      // What the command names exists: the emulator config (functions 5001,
+      // auth 9099), the demo project's committed values, firebase-tools in
+      // functions/package.json (npx --prefix functions), the tag in
+      // ink_recognition's dart_test.yaml.
+      final firebase = jsonDecode(
+        File(p.join(repoRoot, 'app', 'firebase.json')).readAsStringSync(),
+      ) as Map<String, Object?>;
+      final emulators = firebase['emulators']! as Map<String, Object?>;
+      expect((emulators['functions']! as Map)['port'], 5001);
+      expect((emulators['auth']! as Map)['port'], 9099);
+      expect(
+        File(p.join(repoRoot, 'functions', '.env.demo-noteapp')).existsSync(),
+        isTrue,
+      );
+      final package = jsonDecode(
+        File(p.join(repoRoot, 'functions', 'package.json')).readAsStringSync(),
+      ) as Map<String, Object?>;
+      expect(
+        package['devDependencies']! as Map<String, Object?>,
+        containsPair('firebase-tools', '15.34.1'),
+      );
+      expect(
+        (package['scripts']! as Map<String, Object?>).keys,
+        containsAll(['build', 'test', 'test:emulator']),
+      );
+      final tags =
+          _load(
+                p.join(
+                  repoRoot,
+                  'packages',
+                  'ink_recognition',
+                  'dart_test.yaml',
+                ),
+              )['tags']
+              as YamlMap;
+      expect(tags.keys, contains('emulator'));
+      expect('${(tags['emulator'] as YamlMap)['skip']}', isNotEmpty);
+      // The same tag and lock-free inner command as the container path of
+      // tool/README.md (which adds with-heavy-lock and runs every member).
+      final readme = File(p.join(repoRoot, 'tool', 'README.md'))
           .readAsStringSync();
-      expect(text, isNot(contains('emulators:exec')));
-      expect(text, contains('J16'));
+      expect(readme, contains('"$_ws test --run-skipped -t emulator"'));
+      expect(
+        readme,
+        contains(
+          'npx --prefix functions firebase emulators:exec --config app/firebase.json',
+        ),
+      );
     });
   });
 
@@ -1868,8 +2034,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
       expect(result.exitCode, 0, reason: '${result.stderr}');
       expect(log.readAsLinesSync(), [
         'tee /etc/udev/rules.d/99-kvm4all.rules',
-        'stdin: KERNEL=="kvm", GROUP="kvm", MODE="0666", '
-            'OPTIONS+="static_node=kvm"',
+        'stdin: $_kvmRule',
         'udevadm control --reload-rules',
         'udevadm trigger --name-match=kvm',
       ]);
