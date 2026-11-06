@@ -35,6 +35,7 @@ import 'package:meta/meta.dart' as meta;
 import 'package:note_core/note_core.dart' as core;
 
 import '../background/background_builder.dart';
+import '../background/builder_choice.dart' show imageCacheOf;
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/ink_clock.dart';
 import '../edit/eraser_spec.dart';
@@ -44,6 +45,7 @@ import '../edit/lasso_options.dart';
 import '../edit/spatial_index.dart';
 import '../geometry/outline_generator.dart';
 import '../geometry/stroke_outline.dart';
+import '../image/image_cache.dart';
 import '../input/ink_sample.dart';
 import '../input/pressure_capability.dart';
 import '../input/pressure_detector.dart';
@@ -303,6 +305,18 @@ final class InkPageController extends ChangeNotifier {
   final Set<MathFormula> _liveMath = {};
   final Set<String> _mathInvalidWarned = {};
   double? _mathBucket;
+
+  // (T35, 6.11) image objects: the cache of the first image builder (null → placeholders,
+  // 6.20), its change notices (listened to once an image was drawn), per asset the
+  // buckets whose arrival changes what this page draws, the assets the live part drew in
+  // the last paint, the (asset, status) pairs warned about, the device scale the images
+  // were last asked at
+  late final InkImageCache? _images = imageCacheOf(_backgroundBuilders);
+  StreamSubscription<({String assetId, int bucket})>? _imageChanges;
+  final Map<String, Set<int>> _awaitedImages = {};
+  final Set<String> _liveImages = {};
+  final Set<(String, InkImageStatus)> _imageWarned = {};
+  double? _imageScale;
 
   // viewport (6.12 R9)
   ui.Rect? _visiblePageRect;
@@ -814,6 +828,7 @@ final class InkPageController extends ChangeNotifier {
     _bucket = scaleBucketFor(config.scaleBuckets, deviceScale);
     if (_disposed) return;
     _syncMathBucket();
+    _syncImageScale();
     if (!config.rasterTiles) return;
     if (visibleChanged || scaleChanged) _tiles.clearEvicted();
     if (visibleChanged || scaleChanged || scalingChanged) {
@@ -853,6 +868,8 @@ final class InkPageController extends ChangeNotifier {
     _fontsListening = false;
     unawaited(_mathChanges?.cancel());
     _mathChanges = null;
+    unawaited(_imageChanges?.cancel());
+    _imageChanges = null;
     _rasterSchedule.dispose();
     _chunks.dispose();
     _underlay.dispose();
@@ -1203,21 +1220,29 @@ final class InkPageController extends ChangeNotifier {
       paperArgb: paper,
       onePx: 1 / _hairlineScale,
       mathRasterOf: _mathRasterFor,
+      imageOf: _imageFor,
     )) {
       diagnostics.onWarning('objectPaintFailed');
     }
   }
 
   /// (6.8.3, 6.11.3) What an object's chunk picture depends on besides the object: its
-  /// image asset, NoteSans when it is not loaded yet, the hairline width, (T36) the
-  /// formula (its raster at some bucket or its placeholder) and the hold that pins the
-  /// raster the chunk draws (an invalid formula: the hairline placeholder).
+  /// image asset and (T35) the hold that pins the decode the chunk draws (the hairline
+  /// placeholder until there is one), NoteSans when it is not loaded yet, the hairline
+  /// width, (T36) the formula (its raster at some bucket or its placeholder) and the hold
+  /// that pins the raster the chunk draws (an invalid formula: the hairline placeholder).
   Iterable<Object> _objectDrawKeys(InkLayerItem item) sync* {
     if (item is! InkObjectView) return;
     switch (item.object) {
-      case core.ImageObject(:final assetId):
-        yield InkDrawKeys.asset(assetId);
-        yield InkDrawKeys.hairline;
+      case final core.ImageObject o:
+        yield InkDrawKeys.asset(o.assetId);
+        final found = _imageLookupFor(o);
+        final images = _images;
+        if (found == null || found.image == null || images == null) {
+          yield InkDrawKeys.hairline;
+        } else {
+          yield images.holdOf(o.assetId, found.bucket);
+        }
       case core.TextBoxObject():
         if (!InkFontsDebug.isLoaded) yield InkDrawKeys.fonts;
       case core.UnknownObject():
@@ -1300,6 +1325,107 @@ final class InkPageController extends ChangeNotifier {
       final o = v.object;
       if (o is core.MathObject && !_baseObjectsHidden.contains(o.id)) {
         _mathRasterFor(o);
+      }
+    }
+  }
+
+  /// (T35, 6.11.2) The long side (device px) image [o] is shown at: its frame's long side
+  /// × the device scale (2 before the first viewport report).
+  int _imageLongSidePx(core.ImageObject o) {
+    final r = o.frame.rect;
+    final s = _deviceScale;
+    final scale = s != null && s > 0 && s.isFinite ? s : 2.0;
+    final long = math.max(r.width, r.height) * scale;
+    if (!long.isFinite || long < 1) return 1;
+    return math.min(long.ceil(), 1 << 16);
+  }
+
+  /// (T35, 6.11) What to draw image [o] with now: the cache's decode at this view's bucket
+  /// (a missing one is queued; the chunks that drew the asset are recorded again when it
+  /// arrives — _onImageChange). No image builder → null (the placeholder). An asset
+  /// without bytes / that does not decode / without a store warns once (6.24).
+  InkImageLookup? _imageLookupFor(core.ImageObject o) {
+    final cache = _images;
+    if (cache == null || _disposed) return null;
+    _imageChanges ??= cache.changes.listen(_onImageChange);
+    final found = cache.lookup(
+      o.assetId,
+      longSidePx: _imageLongSidePx(o),
+      pixelWidth: o.pixelWidth,
+      pixelHeight: o.pixelHeight,
+    );
+    if (found.status != InkImageStatus.ok) {
+      _warnImage(o.assetId, found.status);
+    } else if (found.image == null || found.bucket != found.want) {
+      (_awaitedImages[o.assetId] ??= {}).add(found.want);
+    }
+    return found;
+  }
+
+  ui.Image? _imageFor(core.ImageObject o) => _imageLookupFor(o)?.image;
+
+  /// [_imageFor] for the live part: the asset is remembered so its arrival repaints.
+  ui.Image? _liveImageFor(core.ImageObject o) {
+    final found = _imageLookupFor(o);
+    if (found != null) _liveImages.add(o.assetId);
+    return found?.image;
+  }
+
+  void _warnImage(String assetId, InkImageStatus status) {
+    final code = switch (status) {
+      InkImageStatus.ok => null,
+      InkImageStatus.missing => 'imageMissing',
+      InkImageStatus.failed => 'imageDecodeFailed',
+      InkImageStatus.storeUnavailable => 'imageStoreUnavailable',
+    };
+    if (code != null && _imageWarned.add((assetId, status))) {
+      diagnostics.onWarning(code);
+    }
+  }
+
+  /// (T35, 6.11.3) An image change: bytes arrived (bucket 0 — ask again) or a decode this
+  /// page waits for arrived → only the underlay chunks that drew that asset are recorded
+  /// again and the layer repaints (also when the live part drew it). An eviction concerns
+  /// nobody drawing (drawn entries are pinned); a decode that ended without an image warns
+  /// when this page draws the asset (the placeholder stays).
+  void _onImageChange(({String assetId, int bucket}) change) {
+    final cache = _images;
+    if (_disposed || cache == null) return;
+    final id = change.assetId;
+    final key = InkDrawKeys.asset(id);
+    final live = _liveImages.contains(id);
+    if (change.bucket != 0) {
+      if (!cache.contains(id, change.bucket)) {
+        final status = cache.statusOf(id);
+        if (status != InkImageStatus.ok && (live || _underlay.hasKey(key))) {
+          _warnImage(id, status);
+        }
+        return;
+      }
+      final awaited = _awaitedImages[id];
+      if (awaited == null || !awaited.remove(change.bucket)) return;
+      if (awaited.isEmpty) _awaitedImages.remove(id);
+    } else {
+      _awaitedImages.remove(id);
+    }
+    final n = _underlay.markDirtyWithKey(key);
+    if (n > 0 || live) _repaints[InkRenderLayer.underlay]!.fire();
+  }
+
+  /// (T35, 6.11.2) Another device scale (setViewport, not while scaling): the page's images
+  /// are asked at it now — a bigger bucket is decoded (drawn stretched meanwhile) and its
+  /// arrival records only the chunks that drew that asset; a smaller one uses what is there.
+  void _syncImageScale() {
+    if (_isScaling || _imageChanges == null) return;
+    final s = _deviceScale;
+    if (s == _imageScale) return;
+    _imageScale = s;
+    final content = _content;
+    if (content == null) return;
+    for (final v in objectViewsOf(content, InkObjectLayer.underlay)) {
+      final o = v.object;
+      if (o is core.ImageObject && !_baseObjectsHidden.contains(o.id)) {
+        _imageLookupFor(o);
       }
     }
   }
@@ -1728,6 +1854,7 @@ final class InkPageController extends ChangeNotifier {
     // (T34) cached text in the system font: ask for NoteSans again (after a failure's pause)
     if (_fontsListening && layer == InkObjectLayer.annotation) _wantFonts();
     if (layer == InkObjectLayer.annotation) _liveMath.clear();
+    if (layer == InkObjectLayer.underlay) _liveImages.clear();
     if (content != null) {
       final views = objectViewsOf(content, layer);
       if (views.isNotEmpty) {
@@ -1767,6 +1894,7 @@ final class InkPageController extends ChangeNotifier {
         paperArgb: paper,
         onePx: onePx,
         mathRasterOf: _liveMathRasterFor,
+        imageOf: _liveImageFor,
       )) {
         diagnostics.onWarning('objectPaintFailed');
       }

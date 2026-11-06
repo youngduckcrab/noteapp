@@ -22,12 +22,19 @@
 //   translucent), an empty text without a background draws nothing, the text
 //   color. The system font → NoteSans redraw is text_fonts_arrival_test.dart
 //   (it needs a process where NoteSans was never registered).
+// - (T35, 6.11.5) Images: before the decode the paper-contrast placeholder;
+//   when it arrives only the underlay chunks that drew that asset are recorded
+//   again (the layer repaints, the chunk pins the decode); the image stretched
+//   over a rotated frame (nothing outside it); a bigger device scale asks for a
+//   bigger bucket only after scaling ends (the smaller one drawn meanwhile); an
+//   asset without bytes warns imageMissing once and keeps the placeholder.
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
+import 'package:ink_engine/src/image/image_cache.dart';
 import 'package:ink_engine/src/render/base_cache.dart';
 import 'package:ink_engine/src/render/ink_page_controller.dart'
     show
@@ -794,6 +801,253 @@ void main() {
         c.toggleTape('tape');
         expect(inkCoverCacheOf(c).isDirty, isTrue);
         expect(inkChunkCacheOf(c).dirtyCount, 0, reason: 'ink chunks kept');
+      },
+    );
+  });
+
+  group('images (T35, 6.11.5)', () {
+    const blue = 0xFF3366CC;
+    late core.NoteStore store;
+    late InkImageCache cache;
+    late String assetId;
+    late String bigId;
+
+    setUp(() async {
+      store = createFakeNoteStore();
+      cache = InkImageCache(assets: store.assets);
+      final png = await testPngBytes(width: 120, height: 80, argb: blue);
+      assetId = (await store.assets.put(
+        png,
+        type: core.AssetType.image,
+        mimeType: 'image/png',
+      )).id;
+      final big = await testPngBytes(width: 1200, height: 800, argb: blue);
+      bigId = (await store.assets.put(
+        big,
+        type: core.AssetType.image,
+        mimeType: 'image/png',
+      )).id;
+    });
+    tearDown(() async {
+      cache.dispose();
+      await store.close();
+    });
+
+    InkPageController controller() {
+      final c = createTestPageController(
+        backgroundBuilders: [
+          ImageBackgroundLayerBuilder(assets: store.assets, images: cache),
+          const TemplateBackgroundLayerBuilder(),
+        ],
+      );
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    core.ImageObject image(
+      String id,
+      String asset,
+      core.PageRect r, {
+      double rotation = 0,
+      int pw = 120,
+      int ph = 80,
+    }) => core.ImageObject(
+      id: id,
+      pageId: _pageId,
+      frame: core.ElementFrame(r, rotation: rotation),
+      assetId: asset,
+      pixelWidth: pw,
+      pixelHeight: ph,
+      createdAt: 1,
+    );
+
+    Future<void> decoded() async {
+      for (var i = 0; i < 2000 && cache.stats.queued > 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      await pumpEventQueue();
+    }
+
+    test(
+      'placeholder → the decode: only the chunks that drew the asset',
+      () async {
+        final c = controller();
+        final text = _box(
+          't',
+          const core.PageRect(20, 300, 120, 340),
+          1,
+          text: 'x',
+        );
+        c.updateContent(
+          _content(const [], [
+            image('im', assetId, const core.PageRect(20, 20, 140, 100)),
+            image(
+              'far',
+              bigId,
+              const core.PageRect(300, 300, 420, 380),
+              pw: 1200,
+              ph: 800,
+            ),
+            text,
+          ]),
+        );
+        final underlay = inkUnderlayCacheOf(c);
+        final annotation = inkAnnotationCacheOf(c);
+        final before = await _pixelsOf(c, w: 500, h: 500);
+        final placeholder = before.at(30, 30);
+        expect(_near(placeholder, blue), isFalse);
+        expect(placeholder[0], lessThan(250), reason: 'paper-contrast gray');
+        final records = underlay.recordCount;
+        final annotationRecords = annotation.recordCount;
+        var underlayRepaints = 0;
+        void count() => underlayRepaints++;
+        c.layerRepaint(InkRenderLayer.underlay).addListener(count);
+        addTearDown(
+          () => c.layerRepaint(InkRenderLayer.underlay).removeListener(count),
+        );
+        await decoded();
+        expect(underlayRepaints, greaterThan(0));
+        expect(underlay.dirtyCount, 2, reason: 'the two chunks with images');
+        final after = await _pixelsOf(c, w: 500, h: 500);
+        expect(underlay.recordCount, records + 2);
+        expect(annotation.recordCount, annotationRecords);
+        expect(_near(after.at(30, 30), blue), isTrue);
+        expect(underlay.heldPinCount, 2, reason: 'each chunk pins its decode');
+        // the top-left quarter is blue, the bottom-right quarter inverted
+        expect(_near(after.at(130, 90), blue), isFalse);
+        expect(_near(after.at(19, 19), 0xFFFFFFFF), isTrue);
+        // nothing else changes: painting again records nothing
+        await _pixelsOf(c, w: 500, h: 500);
+        expect(underlay.recordCount, records + 2);
+      },
+    );
+
+    test(
+      'a rotated frame: the image stretched in it, nothing outside',
+      () async {
+        final c = controller();
+        const r = core.PageRect(60, 60, 180, 140);
+        c.updateContent(
+          _content(const [], [image('im', assetId, r, rotation: math.pi / 6)]),
+        );
+        _paintAll(c);
+        await decoded();
+        final p = await _pixelsOf(c);
+        final cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+        const a = math.pi / 6; // 30°
+        ui.Offset toPage(double lx, double ly) => ui.Offset(
+          cx + lx * math.cos(a) - ly * math.sin(a),
+          cy + lx * math.sin(a) + ly * math.cos(a),
+        );
+        // inside the top-left quarter of the frame (local −w/4, −h/4)
+        final q = toPage(-r.width / 4, -r.height / 4);
+        expect(_near(p.at(q.dx.round(), q.dy.round()), blue), isTrue);
+        // every pixel well outside the rotated frame is paper
+        var outside = 0;
+        for (var y = 0; y < 300; y++) {
+          for (var x = 0; x < 300; x++) {
+            final dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+            final lx = dx * math.cos(-a) - dy * math.sin(-a);
+            final ly = dx * math.sin(-a) + dy * math.cos(-a);
+            if (lx.abs() <= r.width / 2 + 1.5 &&
+                ly.abs() <= r.height / 2 + 1.5) {
+              continue;
+            }
+            if (!_near(p.at(x, y), 0xFFFFFFFF, tol: 1)) outside++;
+          }
+        }
+        expect(outside, 0);
+      },
+    );
+
+    test(
+      'zoom: a bigger bucket after scaling ends; the smaller one meanwhile',
+      () async {
+        final c = controller();
+        c.updateContent(
+          _content(const [], [
+            image(
+              'im',
+              bigId,
+              const core.PageRect(20, 20, 140, 100),
+              pw: 1200,
+              ph: 800,
+            ),
+          ]),
+        );
+        _paintAll(c); // device scale 2 (no report yet): 240 px → bucket 256
+        await decoded();
+        _paintAll(c);
+        expect(debugImageDecodes(cache).map((d) => d.width), [256]);
+        final underlay = inkUnderlayCacheOf(c);
+        final records = underlay.recordCount;
+        c.setViewport(deviceScale: 4, isScaling: true);
+        await decoded();
+        expect(debugImageDecodes(cache).map((d) => d.width), [256]);
+        c.setViewport(deviceScale: 4, isScaling: false); // 480 px → 512
+        expect(cache.stats.queued, 1);
+        _paintAll(c);
+        expect(
+          underlay.recordCount,
+          records,
+          reason: 'the 256 decode stretched',
+        );
+        await decoded();
+        expect(debugImageDecodes(cache).map((d) => d.width), [256, 512]);
+        expect(underlay.dirtyCount, 1);
+        _paintAll(c);
+        expect(underlay.recordCount, records + 1);
+        expect(debugImageIsPinned(cache, bigId, 512), isTrue);
+        expect(debugImageIsPinned(cache, bigId, 256), isFalse);
+        // zooming out uses the bigger decode there is (no smaller decode)
+        c.setViewport(deviceScale: 1, isScaling: false);
+        await decoded();
+        expect(debugImageDecodes(cache), hasLength(2));
+      },
+    );
+
+    test(
+      'no bytes: the placeholder and imageMissing once; bytes arrive → drawn',
+      () async {
+        final c = controller()..diagnostics.enabled = true;
+        addTearDown(() => c.diagnostics.enabled = false);
+        final other = createFakeNoteStore();
+        addTearDown(other.close);
+        final png = await testPngBytes(width: 60, height: 40, argb: 0xFF228844);
+        final missing = (await other.assets.put(
+          png,
+          type: core.AssetType.image,
+          mimeType: 'image/png',
+        )).id;
+        c.updateContent(
+          _content(const [], [
+            image(
+              'im',
+              missing,
+              const core.PageRect(20, 20, 80, 60),
+              pw: 60,
+              ph: 40,
+            ),
+          ]),
+        );
+        _paintAll(c);
+        await decoded();
+        _paintAll(c);
+        _paintAll(c);
+        expect(c.diagnostics.snapshot.warnings, 1, reason: 'imageMissing');
+        expect(cache.statusOf(missing), InkImageStatus.missing);
+        // the bytes arrive on this device: the chunk is recorded again and decodes
+        await store.assets.put(
+          png,
+          type: core.AssetType.image,
+          mimeType: 'image/png',
+        );
+        await pumpEventQueue();
+        expect(inkUnderlayCacheOf(c).dirtyCount, 1);
+        _paintAll(c);
+        await decoded();
+        final p = await _pixelsOf(c);
+        expect(_near(p.at(25, 25), 0xFF228844), isTrue);
       },
     );
   });

@@ -72,7 +72,7 @@ void main() {
   });
 
   test(
-    'InkImageCache R2-B3: peek / load null, no change events, budgets',
+    'InkImageCache: an asset without bytes → peek / load null; budgets',
     () async {
       final store = core_testing.createFakeNoteStore();
       addTearDown(store.close);

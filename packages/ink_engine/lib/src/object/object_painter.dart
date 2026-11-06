@@ -7,7 +7,9 @@
 // ③ the paragraph of InkTextLayout (the system font until NoteSans is loaded: the
 // paragraph cache is keyed by the instance and the loaded flag); an empty text without a
 // background draws nothing;
-// images: a gray placeholder box (T35); formulas: (m5-7 T36, 6.12.3–6.12.4) the
+// images: (m5-7 T35, 6.11.5) the decoded bucket stretched over the frame
+// (drawImageRect, FilterQuality.medium — an unlocked aspect is drawn stretched), the
+// paper-contrast box with two diagonals until it is there; formulas: (m5-7 T36, 6.12.3–6.12.4) the
 // cached raster contain-fitted (centred, uniform scale) into the frame, a light box
 // until it is there, the hatched box of 6.13 for a formula that does not parse
 // (mathInvalid — the caller warns); unknown objects: a hatched box. Every object is drawn inside its CORE
@@ -28,13 +30,15 @@ import 'shape_path.dart';
 
 /// Paints [o] in page pt. [onePx] = one logical px in pt (hairlines). Returns false when
 /// painting failed (the caller warns). (T36) [mathRasterOf] gives the raster of a formula
-/// to draw now (null → the placeholder; not given → always the placeholder).
+/// to draw now (null → the placeholder; not given → always the placeholder). (T35)
+/// [imageOf] gives the decoded image of an image object the same way.
 bool paintObjectSimple(
   ui.Canvas canvas,
   core.PageObject o, {
   required int paperArgb,
   required double onePx,
   MathRaster? Function(core.MathObject o)? mathRasterOf,
+  ui.Image? Function(core.ImageObject o)? imageOf,
 }) {
   try {
     switch (o) {
@@ -43,10 +47,17 @@ bool paintObjectSimple(
       case core.TextBoxObject():
         _inFrame(canvas, o.frame, (w, h) => _paintText(canvas, o, w, h));
       case core.ImageObject():
+        final image = imageOf?.call(o);
         _inFrame(
           canvas,
           o.frame,
-          (w, h) => _paintImagePlaceholder(canvas, w, h, paperArgb, onePx),
+          (w, h) => image == null
+              ? _paintImagePlaceholder(canvas, w, h, paperArgb, onePx)
+              : paintImageStretched(
+                  canvas,
+                  image,
+                  ui.Rect.fromLTWH(0, 0, w, h),
+                ),
         );
       case core.MathObject():
         final raster = mathRasterOf?.call(o); // (also warns mathInvalid)
@@ -175,6 +186,19 @@ void _paintImagePlaceholder(
   canvas
     ..drawLine(ui.Offset.zero, ui.Offset(w, h), line)
     ..drawLine(ui.Offset(w, 0), ui.Offset(0, h), line);
+}
+
+/// (T35, 6.11.5) The whole [image] stretched over [dst] (an image object's frame: the
+/// aspect differs only when the user unlocked it).
+@internal
+void paintImageStretched(ui.Canvas canvas, ui.Image image, ui.Rect dst) {
+  if (dst.isEmpty) return;
+  canvas.drawImageRect(
+    image,
+    ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+    dst,
+    ui.Paint()..filterQuality = ui.FilterQuality.medium,
+  );
 }
 
 /// (T36, 6.12.4 K-6) [raster] contain-fitted into the w × h frame (frame coordinates):

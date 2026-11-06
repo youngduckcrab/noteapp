@@ -287,8 +287,8 @@ void main() {
       pageSize: const Size(100, 100),
       pixelSize: const Size(10, 10),
     );
-    expect(still!.width, 10);
-    still.dispose();
+    // (T35) bytes not on this device → null (the thumbnail tries later)
+    expect(still, isNull);
     final int budget = cache.budgetBytes;
     final ui.Image? Function(
       String, {

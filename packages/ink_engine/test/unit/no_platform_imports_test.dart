@@ -5,7 +5,8 @@
 // conditional import. (v2.0, m5-7/03-ink 3.1 / 8.1 T25) No `Platform` identifier
 // (kIsWeb + defaultTargetPlatform only); flutter_math_fork only under lib/src/math/;
 // INK never imports provider or flutter_svg, and vector_graphics only in the
-// off-screen math host (T36).
+// off-screen math host (T36). (T35, 6.11.1) No ui.ImageDescriptor (its width /
+// height are not supported on the web): images decode through instantiateImageCodec.
 @TestOn('vm')
 library;
 
@@ -112,6 +113,21 @@ void main() {
       }
     }
     expect(problems, isEmpty);
+  });
+
+  test('(T35) no ImageDescriptor in lib/; images decode with '
+      'instantiateImageCodec at a target size', () {
+    final problems = <String>[
+      for (final file in _dartFiles('lib'))
+        for (final line in file.readAsLinesSync())
+          if (!line.trimLeft().startsWith('//') &&
+              line.contains('ImageDescriptor'))
+            '${file.path}: $line',
+    ];
+    expect(problems, isEmpty);
+    final cache = File('lib/src/image/image_cache.dart').readAsStringSync();
+    expect(cache, contains('instantiateImageCodec('));
+    expect(cache, contains('allowUpscaling: false'));
   });
 
   test('the browser clock is reached only through the conditional import', () {

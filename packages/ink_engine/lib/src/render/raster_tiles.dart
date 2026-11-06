@@ -9,6 +9,8 @@
 //   least recently USED first (6.13-7). A tile evicted for the budget tells
 //   its owner, which then leaves that chunk to vectors until the viewport
 //   changes (no evict / re-raster loop when the visible tiles do not fit).
+//   (m5-7 T35) On the web it counts in InkCachePool's InkRasterLedger, shared
+//   with the decoded images: one budget, one least-recently-used order (6.22).
 // - PageRasterTiles: the tiles of one page controller (stretched fallback to
 //   another bucket, 6.13-5; drop on dirty, 6.13-6; release, 6.13-7).
 // - RasterScheduler: the timers of 6.13-2 (idle after input, zoom settle,
@@ -19,6 +21,8 @@ import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:meta/meta.dart';
+
+import '../image/raster_ledger.dart';
 
 /// 6.13-1: the smallest of [buckets] >= [deviceScale]; null above the largest
 /// (vector only) and for a [deviceScale] that is not a positive finite number.
@@ -125,23 +129,44 @@ RasterTile rasterizeChunk({
 
 /// The app-wide tile LRU (6.13 L3, rasterBudgetBytes): least recently used
 /// first; a tile evicted for the budget is reported to its owner.
-final class RasterTileLru {
-  RasterTileLru({required int budgetBytes}) : _budget = budgetBytes;
+final class RasterTileLru implements RasterLedgerMember {
+  /// (T35) [ledger]: the budget shared with the decoded images (web) — its budget
+  /// replaces [budgetBytes].
+  RasterTileLru({required int budgetBytes, InkRasterLedger? ledger})
+    : _budget = budgetBytes,
+      _ledger = ledger {
+    ledger?.join(this);
+  }
 
   final int _budget;
+  final InkRasterLedger? _ledger;
   final LinkedHashMap<RasterTileKey, RasterTile> _tiles = LinkedHashMap();
+
+  /// (T35) Ledger use stamps of the tiles (shared ledger only).
+  final Map<RasterTileKey, int> _uses = {};
   int _bytes = 0;
   bool _disposed = false;
 
-  int get budgetBytes => _budget;
+  int get budgetBytes => _ledger?.budgetBytes ?? _budget;
   int get length => _tiles.length;
   int get bytes => _bytes;
+
+  /// (T35) The shared ledger (web), or null.
+  InkRasterLedger? get ledger => _ledger;
 
   /// The tile of [key], now the most recently used.
   RasterTile? use(RasterTileKey key) {
     final t = _tiles.remove(key);
-    if (t != null) _tiles[key] = t;
+    if (t != null) {
+      _tiles[key] = t;
+      _stamp(key);
+    }
     return t;
+  }
+
+  void _stamp(RasterTileKey key) {
+    final ledger = _ledger;
+    if (ledger != null) _uses[key] = ledger.nextUse();
   }
 
   /// The tile of [key] without touching its LRU place.
@@ -161,13 +186,20 @@ final class RasterTileLru {
     remove(key);
     _tiles[key] = tile;
     _bytes += tile.bytes;
-    trimTo(_budget);
+    _stamp(key);
+    final ledger = _ledger;
+    if (ledger != null) {
+      ledger.trim(); // tiles and unpinned images, least recently used first
+    } else {
+      trimTo(_budget);
+    }
   }
 
   /// Frees the tile of [key] (not an eviction: the owner is not told).
   bool remove(RasterTileKey key) {
     final t = _tiles.remove(key);
     if (t == null) return false;
+    _uses.remove(key);
     _bytes -= t.bytes;
     t.dispose();
     return true;
@@ -177,6 +209,7 @@ final class RasterTileLru {
   void removeWhere(bool Function(RasterTileKey key) test) {
     _tiles.removeWhere((key, t) {
       if (!test(key)) return false;
+      _uses.remove(key);
       _bytes -= t.bytes;
       t.dispose();
       return true;
@@ -186,12 +219,49 @@ final class RasterTileLru {
   /// Evicts least recently used tiles until [maxBytes] fits; owners are told.
   void trimTo(int maxBytes) {
     while (_bytes > maxBytes && _tiles.isNotEmpty) {
-      final key = _tiles.keys.first;
+      _evictFirst();
+    }
+  }
+
+  void _evictFirst() {
+    final key = _tiles.keys.first;
+    final t = _tiles.remove(key)!;
+    _uses.remove(key);
+    _bytes -= t.bytes;
+    t.dispose();
+    final owner = key.owner;
+    if (owner is RasterTileOwner) owner.tileEvicted(key);
+  }
+
+  // --- RasterLedgerMember (T35 — web, shared with the images) ---------------
+
+  @override
+  int get ledgerBytes => _bytes;
+
+  /// Tiles can always be evicted.
+  @override
+  int get heldBytes => 0;
+
+  @override
+  int? oldestEvictableUse({Object? keep}) {
+    for (final key in _tiles.keys) {
+      if (key == keep) continue;
+      return _uses[key] ?? 0;
+    }
+    return null;
+  }
+
+  @override
+  void evictOldest({Object? keep}) {
+    for (final key in _tiles.keys) {
+      if (key == keep) continue;
       final t = _tiles.remove(key)!;
+      _uses.remove(key);
       _bytes -= t.bytes;
       t.dispose();
       final owner = key.owner;
       if (owner is RasterTileOwner) owner.tileEvicted(key);
+      return;
     }
   }
 
@@ -217,6 +287,7 @@ final class RasterTileLru {
 
   void dispose() {
     _disposed = true;
+    _ledger?.leave(this);
     removeWhere((_) => true);
   }
 }
