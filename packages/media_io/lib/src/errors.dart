@@ -47,6 +47,10 @@ enum MediaErrorCode {
   /// the panel only offers stop.
   microphoneLost,
 
+  /// (T33) Paused by the system on a native device: a call, Siri, another app took the audio
+  /// focus (record's AudioInterruptionMode.pause — 6.9.2). Resumable; no automatic resume.
+  systemInterruption,
+
   /// Paused by the recorder: queued + unsaved chunks over 8 MiB (6.8.5).
   storageBacklog,
 

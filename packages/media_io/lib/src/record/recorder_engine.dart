@@ -35,6 +35,10 @@ abstract interface class RecorderEngine {
   /// (the first pendingDrafts() after start-up). Web: nothing.
   Future<void> deleteOrphanFiles(Set<core.RecordingId> keep);
 
+  /// (T33) What the engine adds to the developer overlay (6.14 — native: the config the device
+  /// applied, 'FGS failed: …'); null = nothing.
+  String? get developerNote;
+
   Future<void> dispose();
 }
 

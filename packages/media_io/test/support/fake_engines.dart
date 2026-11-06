@@ -33,6 +33,9 @@ final class FakeRecorderEngine implements RecorderEngine {
 
   core.AudioSupport support;
 
+  @override
+  String? developerNote;
+
   /// null → true unless the MIME is WebM.
   bool? crossPlatformPlayable;
   bool backgroundCapable;

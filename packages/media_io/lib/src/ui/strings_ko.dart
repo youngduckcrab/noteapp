@@ -3,7 +3,7 @@
 //
 // R2-B4 (T30): the placeholder strings. T36a: the recording / status / playback rows and the
 // consent sheet. T36b: the list, the name / delete sheets, the stuck-draft row and the web
-// download.
+// download. T33: the native interruption line and the foreground service notification.
 abstract final class MediaStringsKo {
   /// Recording panel title.
   static const String panelTitle = '녹음';
@@ -33,6 +33,10 @@ abstract final class MediaStringsKo {
   static const String starting = '녹음을 준비하고 있어요…';
   static const String finishing = '녹음을 저장하고 있어요…';
   static const String hiddenTab = '화면을 벗어나 녹음이 멈췄어요. 이어서 녹음할까요?';
+
+  /// (T33) Native: a call / Siri / another app's audio paused the recording (6.9.2) — 6.16 has
+  /// no row for it; the hiddenTab line's shape with the cause the user can see.
+  static const String systemInterruption = '다른 소리 때문에 녹음이 멈췄어요. 이어서 녹음할까요?';
   static const String resumeRecording = '이어서 녹음';
   static const String microphoneLost = '마이크가 끊겨 이어서 녹음할 수 없어요. 정지해서 저장해 주세요.';
   static const String storageBacklog = '저장이 밀려 녹음을 멈췄어요';
@@ -90,6 +94,11 @@ abstract final class MediaStringsKo {
   static const String discardDraftQuestion = '이 녹음을 지울까요? 되돌릴 수 없어요.';
   static const String downloadFile = '파일로 내려받기';
   static const String saveFile = '저장하기';
+
+  // --- (T33) the Android microphone foreground service notification (6.9.4) ---
+  static const String foregroundChannelName = '녹음';
+  static const String foregroundTitle = '필기노트 녹음 중';
+  static const String foregroundText = '탭하면 노트로 돌아가요';
 
   /// '0.5×', '0.75×', '1.0×' … (the same text on the VM and the web — no double.toString).
   static String speedLabel(double speed) {

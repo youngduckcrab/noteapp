@@ -322,6 +322,26 @@ void main() {
         RecordRowMode.pausedResumable,
         reason: 'paused by the user',
       );
+      // (T33) native: a call / Siri paused it — resumable, its own line
+      const interrupted = core.RecorderStatus(
+        phase: core.RecorderPhase.paused,
+        noteId: noteId,
+        interrupted: true,
+        error: MediaIoException(MediaErrorCode.systemInterruption),
+      );
+      expect(
+        recordRowMode(interrupted, noteId, null),
+        RecordRowMode.pausedResumable,
+      );
+      final line = statusLineFor(
+        status: interrupted,
+        noteId: noteId,
+        support: null,
+        localError: null,
+        web: false,
+      );
+      expect(line.text, '다른 소리 때문에 녹음이 멈췄어요. 이어서 녹음할까요?');
+      expect(line.action, StatusLineAction.resumeRecording);
       expect(nextPlaybackSpeed(1.0), 1.25);
       expect(nextPlaybackSpeed(2.0), 0.5);
       expect(nextPlaybackSpeed(0.9), 1.0);

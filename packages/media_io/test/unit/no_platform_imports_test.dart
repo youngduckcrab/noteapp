@@ -107,6 +107,25 @@ void main() {
     );
   });
 
+  test('package:record / audio_session only in their native files (I-3)', () {
+    expect(
+      _offending(
+        (d, uri) =>
+            uri.startsWith('package:record/') &&
+            d.file != 'src/record/recorder_engine_native.dart',
+      ),
+      isEmpty,
+    );
+    expect(
+      _offending(
+        (d, uri) =>
+            uri.startsWith('package:audio_session/') &&
+            d.file != 'src/record/audio_session_native.dart',
+      ),
+      isEmpty,
+    );
+  });
+
   test('package:just_audio / image_picker only in their port files (I-4)', () {
     expect(
       _offending(
@@ -166,9 +185,18 @@ void main() {
   test('platform files are reached only through conditional exports', () {
     bool isPlatformFile(String uri) =>
         uri.endsWith('_browser.dart') || uri.endsWith('_native.dart');
+    // (T33) a platform file may import a platform file of the same kind (the native engine
+    // uses the native audio session and foreground service): it is itself reached only
+    // through a conditional export, so no web-safe file gets the platform code.
+    bool sameKind(_Directive d, String uri) =>
+        (d.file.endsWith('_native.dart') && uri.endsWith('_native.dart')) ||
+        (d.file.endsWith('_browser.dart') && uri.endsWith('_browser.dart'));
     expect(
       _offending(
-        (d, uri) => isPlatformFile(uri) && !(d.isExport && d.isConditional),
+        (d, uri) =>
+            isPlatformFile(uri) &&
+            !(d.isExport && d.isConditional) &&
+            !(!d.isExport && sameKind(d, uri)),
       ),
       isEmpty,
     );

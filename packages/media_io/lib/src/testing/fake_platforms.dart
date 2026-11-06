@@ -34,7 +34,9 @@ const String mediaFakesVmOnlyMessage =
 /// [calls] entries: `create`, `hasPermission(request: <bool>)`, `isEncoderSupported(<encoder>)`,
 /// `start(<encoder>, <bitRate>, <sampleRate>, <numChannels>, <path>)`, `startStream`,
 /// `pause`, `resume`, `stop`, `cancel`, `dispose`, `getAmplitude`, `listInputDevices`,
-/// `isRecording`, `isPaused`.
+/// `isRecording`, `isPaused`; (T33) while defaultTargetPlatform is iOS, AudioRecorder.ios is a
+/// recording fake: `ios.manageAudioSession(<bool>)`, `ios.setAudioSessionActive(<bool>)`,
+/// `ios.setAudioSessionCategory(<category>)`.
 final class FakeRecordPlatform extends RecordPlatform {
   FakeRecordPlatform({
     this.permission = true,
@@ -58,6 +60,16 @@ final class FakeRecordPlatform extends RecordPlatform {
 
   /// written to the start(path) file at stop()
   Uint8List fileBytes = Uint8List(0);
+
+  /// (T33) The config of the last start / startStream.
+  RecordConfig? lastConfig;
+
+  /// (T33) When set, start() reports it through setOnConfigChanged (the device changed the
+  /// request — e.g. a lower bit rate).
+  RecordConfig? appliedConfig;
+
+  /// (T33) The next start() throws this (once).
+  Object? startError;
 
   final List<String> _calls = [];
   final Map<String, _FakeRecorder> _recorders = {};
@@ -112,8 +124,16 @@ final class FakeRecordPlatform extends RecordPlatform {
       'start(${config.encoder.name}, ${config.bitRate}, ${config.sampleRate}, '
       '${config.numChannels}, $path)',
     );
-    _recorder(recorderId).path = path;
+    lastConfig = config;
+    if (startError case final error?) {
+      startError = null;
+      Error.throwWithStackTrace(error, StackTrace.current);
+    }
+    final recorder = _recorder(recorderId)..path = path;
     _set(recorderId, RecordState.record);
+    if (appliedConfig case final applied?) {
+      recorder.onConfigChanged?.call(applied);
+    }
   }
 
   @override
@@ -122,6 +142,7 @@ final class FakeRecordPlatform extends RecordPlatform {
     RecordConfig config,
   ) async {
     _calls.add('startStream');
+    lastConfig = config;
     _set(recorderId, RecordState.record);
     return const Stream<Uint8List>.empty();
   }
@@ -196,7 +217,39 @@ final class FakeRecordPlatform extends RecordPlatform {
   void setOnConfigChanged(
     String recorderId,
     void Function(RecordConfig config)? handler,
-  ) {}
+  ) => _recorder(recorderId).onConfigChanged = handler;
+
+  @override
+  RecordIos? getIos(String recorderId) =>
+      defaultTargetPlatform == TargetPlatform.iOS
+      ? _FakeRecordIos(_calls)
+      : null;
+}
+
+/// AudioRecorder.ios while the target platform is iOS: records its calls.
+final class _FakeRecordIos implements RecordIos {
+  _FakeRecordIos(this._calls);
+
+  final List<String> _calls;
+
+  @override
+  Future<void> manageAudioSession(bool manage) async =>
+      _calls.add('ios.manageAudioSession($manage)');
+
+  @override
+  Future<void> setAudioSessionActive(bool active) async =>
+      _calls.add('ios.setAudioSessionActive($active)');
+
+  @override
+  Future<void> setAudioSessionCategory({
+    IosAudioCategory category = IosAudioCategory.playAndRecord,
+    List<IosAudioCategoryOptions> options = const [
+      IosAudioCategoryOptions.duckOthers,
+      IosAudioCategoryOptions.defaultToSpeaker,
+      IosAudioCategoryOptions.allowBluetooth,
+      IosAudioCategoryOptions.allowBluetoothA2DP,
+    ],
+  }) async => _calls.add('ios.setAudioSessionCategory(${category.name})');
 }
 
 final class _FakeRecorder {
@@ -206,6 +259,7 @@ final class _FakeRecorder {
       StreamController<RecordState>.broadcast();
   RecordState state = RecordState.stop;
   String? path;
+  void Function(RecordConfig config)? onConfigChanged;
 }
 
 /// just_audio's platform: duration per source (URL / path), a position you set, speed and seek

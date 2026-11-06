@@ -60,7 +60,9 @@ RecordRowMode recordRowMode(
       if (!mine) return RecordRowMode.otherNote;
       if (!status.interrupted) return RecordRowMode.pausedResumable;
       return switch (mediaErrorCodeOf(status.error)) {
-        null || MediaErrorCode.hiddenTab => RecordRowMode.pausedResumable,
+        null ||
+        MediaErrorCode.hiddenTab ||
+        MediaErrorCode.systemInterruption => RecordRowMode.pausedResumable,
         _ => RecordRowMode.pausedStopOnly,
       };
   }
@@ -95,9 +97,13 @@ PanelStatusLine statusLineFor({
           ? line(MediaStringsKo.webFormatWarning)
           : none;
     case RecordRowMode.pausedResumable:
-      return status.interrupted
-          ? line(MediaStringsKo.hiddenTab, StatusLineAction.resumeRecording)
-          : none;
+      if (!status.interrupted) return none;
+      return line(
+        mediaErrorCodeOf(status.error) == MediaErrorCode.systemInterruption
+            ? MediaStringsKo.systemInterruption
+            : MediaStringsKo.hiddenTab,
+        StatusLineAction.resumeRecording,
+      );
     case RecordRowMode.pausedStopOnly:
       return line(switch (mediaErrorCodeOf(status.error)) {
         MediaErrorCode.storageBacklog => MediaStringsKo.storageBacklog,
