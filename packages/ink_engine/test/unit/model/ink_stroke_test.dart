@@ -78,32 +78,27 @@ void main() {
     expect(s.profile.cap, InkCap.square);
   });
 
-  test(
-    'profile and layer follow the tool; P1 tools other than the brush use the '
-    'ballpoint profile (until m5-7 T28~T31)',
-    () {
-      for (final tool in core.PenTool.values) {
-        final s = InkStroke.of(_stroke(tool: tool));
-        expect(s.profile, PenProfile.of(tool));
-        if (!tool.isP0) {
-          expect(
-            s.profile,
-            same(
-              tool == core.PenTool.brush
-                  ? PenProfile.brush
-                  : PenProfile.ballpoint,
-            ),
-          );
-        }
+  test('profile and layer follow the tool; P1 tools other than the brush and '
+      'dashed use the ballpoint profile (until m5-7 T28, T30, T31)', () {
+    for (final tool in core.PenTool.values) {
+      final s = InkStroke.of(_stroke(tool: tool));
+      expect(s.profile, PenProfile.of(tool));
+      if (!tool.isP0) {
         expect(
-          s.layer,
-          tool == core.PenTool.highlighter
-              ? InkLayer.highlighter
-              : InkLayer.ink,
+          s.profile,
+          same(switch (tool) {
+            core.PenTool.brush => PenProfile.brush,
+            core.PenTool.dashed => PenProfile.dashed,
+            _ => PenProfile.ballpoint,
+          }),
         );
       }
-    },
-  );
+      expect(
+        s.layer,
+        tool == core.PenTool.highlighter ? InkLayer.highlighter : InkLayer.ink,
+      );
+    }
+  });
 
   test('isDot: one point or a zero-length centerline', () {
     expect(

@@ -6,8 +6,9 @@ library;
 // real stroke pipeline and painted with the page layer painters — one image per
 // pen (pens_p1_<pen>.png: an S curve with real pressure above one with
 // simulated pressure) and the 'pen preview' sheet (pens_p1_preview.png,
-// PenPreviewPainter, S curve and line per pen). T27 has the brush; T28~T31 add
-// their pen image and preview cells (the preview sheet image is updated then).
+// PenPreviewPainter, S curve and line per pen). T27 has the brush, T29 the
+// dashed pen; T28, T30 and T31 add their pen image and preview cells (the
+// preview sheet image is updated then).
 // Update with: flutter test --update-goldens test/goldens/pens_p1_golden_test.dart
 import 'dart:math' as math;
 
@@ -23,6 +24,7 @@ import 'package:note_core/note_core.dart' as core;
 /// The P1 pens with their own profile so far: tool, golden width, image name.
 const List<(core.PenTool, double, String)> _pens = [
   (core.PenTool.brush, 4, 'brush'),
+  (core.PenTool.dashed, 2, 'dashed'), // T29: [4, 3] × 2 pt
 ];
 
 const double _rowHeight = 70;

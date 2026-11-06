@@ -48,6 +48,7 @@ import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
 import '../model/ink_points.dart';
 import '../object/object_hit.dart';
+import '../pen/pen_profile.dart';
 import '../pen/style_ink.dart';
 import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
@@ -67,10 +68,20 @@ abstract interface class InkGestureSession {
 /// (quantized) stroke when the session ends.
 final class LiveStrokeGeometry {
   LiveStrokeGeometry._(this._style)
-    : _polylineMode = _style.profile.layer == InkLayer.highlighter;
+    : _polylineMode = _style.profile.layer == InkLayer.highlighter,
+      _dashMode = _style.profile.renderMethod == InkRenderMethod.dashedPolyline;
 
   final core.StrokeStyle _style;
   final bool _polylineMode;
+
+  /// (m5-7/03-ink T29, 6.5 'live') the dashed pen: frozenPath holds every finished
+  /// dash (append-only), tailPath the open dash + the dashes on the raw tail.
+  final bool _dashMode;
+
+  /// dashed: the pattern (multiples of the width) from the open dash on, and where
+  /// that dash starts along the open points (pt — > 0 when it starts on the tail)
+  List<double> _openDashPattern = OutlineSpec.defaultDashPattern;
+  double _openDashLead = 0;
 
   /// stable (filtered) centerline positions, append-only during one stroke
   final List<ui.Offset> _stable = [];
@@ -96,13 +107,25 @@ final class LiveStrokeGeometry {
   ui.Path get frozenPath => _frozen;
 
   /// open chunk + raw tail, rebuilt on every update, fill pens only
+  /// (dashed: the open dash and the dashes after it, 6.5 'live')
   ui.Path get tailPath {
     final open = _open;
     if (_polylineMode || open == null) return ui.Path();
+    if (_dashMode) {
+      return _tailPath ??= OutlineGenerator.dashed(
+        open,
+        width: _style.width,
+        pattern: _openDashPattern,
+        lead: _openDashLead,
+        // the open part is about one dash: no D5 stretch
+        maxSegments: 1 << 30,
+      ).toPath();
+    }
     return _tailPath ??= OutlineGenerator.outlineOf(
       open,
       width: _style.width,
       profile: _style.profile,
+      dashPattern: _style.dashPattern,
     ).toPath();
   }
 
@@ -178,8 +201,25 @@ void liveFreezeChunk(LiveStrokeGeometry live, InkPoints chunk) {
   live._changed();
 }
 
+/// (m5-7/03-ink T29) Freezes one finished dash of the dashed pen ([piece]: its
+/// centerline [a + r, b − r], or one point for a dot): its outline joins
+/// frozenPath for good.
+@internal
+void liveFreezeDash(LiveStrokeGeometry live, InkPoints piece) {
+  final path = OutlineGenerator.dashPiece(
+    piece,
+    width: live._style.width,
+  ).toPath();
+  live._frozenChunks.add(path);
+  live._frozen.addPath(path, ui.Offset.zero);
+  live._changed();
+}
+
 /// Replaces the open part: [tail] after the stable points, [open] = open chunk
 /// + tail with live widthQ (fill pens), [straight] (highlighter alwaysStraight).
+/// Dashed pen: [open] starts at the open dash (or at the last stable point, the
+/// open dash then starting [dashLead] pt further on the tail) and [dashPattern] is
+/// the pattern from that dash on.
 @internal
 void liveSetOpen(
   LiveStrokeGeometry live, {
@@ -187,12 +227,16 @@ void liveSetOpen(
   required InkPoints? open,
   required (ui.Offset, ui.Offset)? straight,
   required ui.Rect bounds,
+  List<double>? dashPattern,
+  double dashLead = 0,
 }) {
   live
     .._tail = tail
     .._open = open
     .._straight = straight
     .._bounds = bounds
+    .._openDashPattern = dashPattern ?? OutlineSpec.defaultDashPattern
+    .._openDashLead = dashLead
     .._changed();
 }
 

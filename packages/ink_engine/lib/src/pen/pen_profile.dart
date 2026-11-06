@@ -9,8 +9,8 @@ enum InkCap { round, square }
 /// (v2.0) PenProfile.of: brush → filledOutline (high pressure gain, long taper);
 /// calligraphy → nibOutline; dashed → dashedPolyline (round caps); laser → transientTrail;
 /// tape → filledOutline, square cap, layer cover. The P1 profiles exist (m5-7/03-ink 6.2);
-/// PenProfile.of switches the tools to them one by one: brush since T27, the other four
-/// still map to the ballpoint profile until T28~T31.
+/// PenProfile.of switches the tools to them one by one: brush since T27, dashed since
+/// T29, the other three still map to the ballpoint profile until T28, T30 and T31.
 enum InkRenderMethod {
   filledOutline,
   strokedPolyline,
@@ -74,9 +74,9 @@ final class PenProfile {
   /// highlighter non-darkening composite (6.10)
   final bool groupComposite;
 
-  /// ballpoint / fountain / highlighter / pencil / marker / brush → their profile;
-  /// calligraphy, dashed, laser, tape (P1) → ballpoint until m5-7/03-ink T28~T31 switch
-  /// them to [calligraphy], [dashed], [laser] and [tape].
+  /// ballpoint / fountain / highlighter / pencil / marker / brush / dashed → their
+  /// profile; calligraphy, laser, tape (P1) → ballpoint until m5-7/03-ink T28, T30 and
+  /// T31 switch them to [calligraphy], [laser] and [tape].
   static PenProfile of(core.PenTool tool) => switch (tool) {
     core.PenTool.ballpoint => ballpoint,
     core.PenTool.fountain => fountain,
@@ -84,8 +84,8 @@ final class PenProfile {
     core.PenTool.pencil => pencil,
     core.PenTool.marker => marker,
     core.PenTool.brush => brush,
+    core.PenTool.dashed => dashed,
     core.PenTool.calligraphy ||
-    core.PenTool.dashed ||
     core.PenTool.laser ||
     core.PenTool.tape => ballpoint,
   };

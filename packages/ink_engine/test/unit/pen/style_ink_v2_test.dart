@@ -239,12 +239,12 @@ void main() {
     expect(turned.style.nibAngleDeg, closeTo(75, 1e-6));
   });
 
-  test('P1 tools other than the brush still use the ballpoint profile '
-      '(m5-7 T27: brush; T28~T31 the others)', () {
+  test('P1 tools other than the brush and dashed still use the ballpoint '
+      'profile (m5-7 T27: brush, T29: dashed; T28, T30, T31 the others)', () {
     expect(PenProfile.of(core.PenTool.brush), PenProfile.brush);
+    expect(PenProfile.of(core.PenTool.dashed), PenProfile.dashed);
     for (final tool in [
       core.PenTool.calligraphy,
-      core.PenTool.dashed,
       core.PenTool.laser,
       core.PenTool.tape,
     ]) {

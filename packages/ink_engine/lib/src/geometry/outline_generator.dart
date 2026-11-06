@@ -23,9 +23,16 @@
 //
 // (m5-7/03-ink T27) OutlineSpec picks the generator by render method: the
 // filled outline above for filledOutline (and the highlighter's
-// strokedPolyline outline); nibOutline, dashedPolyline and transientTrail use
-// the filled outline too until T28 (nib), T29 (dashes) and T30 (laser trail)
-// give them their own.
+// strokedPolyline outline); nibOutline and transientTrail use the filled
+// outline too until T28 (nib) and T30 (laser trail) give them their own.
+//
+// (T29, 6.5 D1–D5) dashedPolyline: the stored centerline split by the dash
+// pattern (style.dashPattern × width, phase 0 at the stroke start —
+// dash.dart dashedStrokePieces), every capsule piece the round-cap outline
+// above (O1–O8), every short piece a dot of radius r: all of them ONE outline
+// (one nonZero path of many contours). Every vertex is on some disk(p, r) of a
+// centerline point (a piece point lies on the centerline), so K-1 holds as
+// for the filled pens. A dot stroke (O1) stays the one round dot.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -36,7 +43,9 @@ import '../model/ink_layer.dart';
 import '../model/ink_points.dart';
 import '../model/ink_stroke.dart';
 import '../pen/pen_profile.dart';
+import '../pen/style_ink.dart';
 import '../tuning.dart';
+import 'dash.dart';
 import 'stroke_outline.dart';
 
 @immutable
@@ -84,21 +93,35 @@ final class OutlineSpec {
     required this.method,
     required this.cap,
     this.constantRadius = false,
+    this.dashPattern = defaultDashPattern,
   });
 
   /// The spec of [profile]: its render method and cap; the highlighter has a
-  /// constant radius width / 2 (widthQ ignored).
-  factory OutlineSpec.of(PenProfile profile) => OutlineSpec(
+  /// constant radius width / 2 (widthQ ignored). [dashPattern]: the stroke's
+  /// style.dashPattern (dashedPolyline only).
+  factory OutlineSpec.of(
+    PenProfile profile, {
+    List<double> dashPattern = defaultDashPattern,
+  }) => OutlineSpec(
     method: profile.renderMethod,
     cap: profile.cap,
     constantRadius: profile.layer == InkLayer.highlighter,
+    dashPattern: profile.renderMethod == InkRenderMethod.dashedPolyline
+        ? dashPattern
+        : defaultDashPattern,
   );
+
+  /// The default of style.dashPattern (m5-7/03-ink 4.10).
+  static const List<double> defaultDashPattern = [4, 3];
 
   final InkRenderMethod method;
   final InkCap cap;
 
   /// r = width / 2 for every point (highlighter); otherwise from widthQ.
   final bool constantRadius;
+
+  /// dashedPolyline: on, off, … in multiples of the width (style.dashPattern).
+  final List<double> dashPattern;
 
   /// O1 of a filled pen with square caps (tape): a square, not a circle. The
   /// highlighter (strokedPolyline) keeps the round-1 circle.
@@ -110,11 +133,28 @@ final class OutlineSpec {
       other is OutlineSpec &&
       other.method == method &&
       other.cap == cap &&
-      other.constantRadius == constantRadius;
+      other.constantRadius == constantRadius &&
+      _sameList(other.dashPattern, dashPattern);
 
   @override
-  int get hashCode => Object.hash(method, cap, constantRadius);
+  int get hashCode =>
+      Object.hash(method, cap, constantRadius, Object.hashAll(dashPattern));
+
+  static bool _sameList(List<double> a, List<double> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }
+
+/// The round-cap filled outline of one dash piece.
+const OutlineSpec _dashPieceSpec = OutlineSpec(
+  method: InkRenderMethod.filledOutline,
+  cap: InkCap.round,
+);
 
 abstract final class OutlineGenerator {
   static StrokeOutline outline(
@@ -124,19 +164,22 @@ abstract final class OutlineGenerator {
     stroke.points,
     width: stroke.style.width,
     profile: stroke.profile,
+    dashPattern: stroke.style.dashPattern,
     options: options,
   );
 
   /// Same from raw parts (live builder, previews of transformed copies).
+  /// [dashPattern]: style.dashPattern (dashedPolyline only).
   static StrokeOutline outlineOf(
     InkPoints points, {
     required double width,
     required PenProfile profile,
+    List<double> dashPattern = OutlineSpec.defaultDashPattern,
     OutlineOptions options = const OutlineOptions(),
   }) => outlineFor(
     points,
     width: width,
-    spec: OutlineSpec.of(profile),
+    spec: OutlineSpec.of(profile, dashPattern: dashPattern),
     options: options,
   );
 
@@ -147,10 +190,15 @@ abstract final class OutlineGenerator {
     required OutlineSpec spec,
     OutlineOptions options = const OutlineOptions(),
   }) => switch (spec.method) {
+    InkRenderMethod.dashedPolyline => dashed(
+      points,
+      width: width,
+      pattern: spec.dashPattern,
+      options: options,
+    ),
     InkRenderMethod.filledOutline ||
     InkRenderMethod.strokedPolyline ||
     InkRenderMethod.nibOutline ||
-    InkRenderMethod.dashedPolyline ||
     InkRenderMethod.transientTrail => _filled(
       points,
       width: width,
@@ -158,6 +206,79 @@ abstract final class OutlineGenerator {
       options: options,
     ),
   };
+
+  /// (T29) The outline of one dash piece (dash.dart dashedStrokePieces): the round-cap
+  /// outline of its centerline, or the dot of a one-point piece (live dashes).
+  static StrokeOutline dashPiece(
+    InkPoints piece, {
+    required double width,
+    OutlineOptions options = const OutlineOptions(),
+  }) => _filled(piece, width: width, spec: _dashPieceSpec, options: options);
+
+  /// (T29, 6.5) The dashed outline of [points]: [pattern] (multiples of [width]) from
+  /// phase 0 — or, live, from [lead] pt on (dash.dart dashIntervalsAfter) — split into
+  /// round-cap pieces and dots of radius r = max(minRadiusPt, 2 · width · max widthQ).
+  /// A stroke that is one point or shorter than 1e-3 pt is the O1 dot (from phase 0).
+  static StrokeOutline dashed(
+    InkPoints points, {
+    required double width,
+    required List<double> pattern,
+    double lead = 0,
+    int maxSegments = InkTuning.dashMaxSegments,
+    OutlineOptions options = const OutlineOptions(),
+  }) {
+    final n = points.length;
+    if (n == 0) {
+      return StrokeOutline(polygons: const [], bounds: ui.Rect.zero);
+    }
+    if (!(lead > 0) && (n == 1 || points.arcLength() < _dotLength)) {
+      return _filled(
+        points,
+        width: width,
+        spec: _dashPieceSpec,
+        options: options,
+      );
+    }
+    var maxQ = 0.0;
+    for (var i = 0; i < n; i++) {
+      final q = _finite(points.widthQ(i));
+      if (q > maxQ) maxQ = q;
+    }
+    final r = math.max(InkTuning.minRadiusPt, 2 * width * maxQ);
+    final polygons = <Float32List>[];
+    final dots = <ui.Offset>[];
+    ui.Rect? bounds;
+    for (final piece in dashedStrokePieces(
+      points,
+      [for (final v in pattern) v * width],
+      radius: r,
+      lead: lead,
+      maxSegments: maxSegments,
+    )) {
+      final o = _filled(
+        piece,
+        width: width,
+        spec: _dashPieceSpec,
+        options: options,
+      );
+      final c = o.dotCenter;
+      ui.Rect b;
+      if (c != null) {
+        dots.add(c);
+        b = ui.Rect.fromCircle(center: c, radius: r);
+      } else {
+        polygons.addAll(o.polygons);
+        b = o.bounds;
+      }
+      bounds = bounds == null ? b : bounds.expandToInclude(b);
+    }
+    return StrokeOutline(
+      polygons: polygons,
+      bounds: bounds ?? ui.Rect.zero,
+      dots: dots,
+      dotRadius: dots.isEmpty ? 0 : r,
+    );
+  }
 
   /// The round-1 fill outline (O1–O8) with [spec]'s cap and radius rule.
   static StrokeOutline _filled(

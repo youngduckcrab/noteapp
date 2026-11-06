@@ -22,6 +22,7 @@ const _dir = 'test/goldens/images';
 /// m5-7/03-ink 9.4 images added so far (T27: brush, preview sheet; T33: shapes).
 const Set<String> _roundTwo = {
   'pens_p1_brush.png',
+  'pens_p1_dashed.png',
   'pens_p1_preview.png',
   'shapes_lines.png',
   'shapes_fill_arrows.png',

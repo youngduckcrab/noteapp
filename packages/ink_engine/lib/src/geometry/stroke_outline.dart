@@ -17,6 +17,7 @@ final class StrokeOutline {
     required this.bounds,
     this.dotCenter,
     this.dotRadius = 0,
+    this.dots = const [],
   });
 
   /// each: x0,y0,x1,y1,... implicitly closed
@@ -29,10 +30,15 @@ final class StrokeOutline {
   final ui.Offset? dotCenter;
   final double dotRadius;
 
+  /// (m5-7/03-ink T29, 6.5 D2') The dots of a dashed stroke next to [polygons]: circles
+  /// of [dotRadius], drawn as four cubics each in the polygons' orientation (a dot that
+  /// overlaps a dash never cancels it under nonZero). Empty for every other outline.
+  final List<ui.Offset> dots;
+
   bool get isDot => dotCenter != null;
 
   int get vertexCount {
-    var n = isDot ? 1 : 0;
+    var n = (isDot ? 1 : 0) + 4 * dots.length;
     for (final p in polygons) {
       n += p.length ~/ 2;
     }
@@ -99,7 +105,36 @@ final class StrokeOutline {
       }
       path.close();
     }
+    for (final d in dots) {
+      final cc = _circleCubics(d, dotRadius);
+      path.moveTo(cc[0], cc[1]);
+      for (var i = 2; i + 5 < cc.length; i += 6) {
+        path.cubicTo(
+          cc[i],
+          cc[i + 1],
+          cc[i + 2],
+          cc[i + 3],
+          cc[i + 4],
+          cc[i + 5],
+        );
+      }
+      path.close();
+    }
     return path;
+  }
+
+  /// A circle as moveTo + 4 cubics (k = 0.5523 · r) from (x + r, y) through (x, y + r):
+  /// a positive shoelace orientation in y-down coordinates, like every polygon.
+  static List<double> _circleCubics(ui.Offset c, double r) {
+    final k = 0.5523 * r;
+    final x = c.dx, y = c.dy;
+    return [
+      x + r, y, //
+      x + r, y + k, x + k, y + r, x, y + r,
+      x - k, y + r, x - r, y + k, x - r, y,
+      x - r, y - k, x - k, y - r, x, y - r,
+      x + k, y - r, x + r, y - k, x + r, y,
+    ];
   }
 
   /// The same geometry as [toPath] for PDF export (6.24): a quadratic
@@ -108,24 +143,9 @@ final class StrokeOutline {
   InkVectorPath toVectorPath({bool smooth = true}) {
     final c = dotCenter;
     if (c != null) {
-      final r = dotRadius, k = 0.5523 * dotRadius;
-      final x = c.dx, y = c.dy;
       return InkVectorPath(
-        Uint8List.fromList([
-          InkPathVerb.moveTo.index,
-          InkPathVerb.cubicTo.index,
-          InkPathVerb.cubicTo.index,
-          InkPathVerb.cubicTo.index,
-          InkPathVerb.cubicTo.index,
-          InkPathVerb.close.index,
-        ]),
-        Float32List.fromList([
-          x + r, y, //
-          x + r, y + k, x + k, y + r, x, y + r,
-          x - k, y + r, x - r, y + k, x - r, y,
-          x - r, y - k, x - k, y - r, x, y - r,
-          x + k, y - r, x + r, y - k, x + r, y,
-        ]),
+        Uint8List.fromList(_circleVerbs),
+        Float32List.fromList(_circleCubics(c, dotRadius)),
       );
     }
     // Sizes first: moveTo + (lineTo | cubicTo) per vertex + close.
@@ -136,6 +156,8 @@ final class StrokeOutline {
       verbCount += m + 2 - (smooth ? 0 : 1);
       coordCount += smooth ? 2 + 6 * m : 2 * m;
     }
+    verbCount += _circleVerbs.length * dots.length;
+    coordCount += 26 * dots.length;
     final verbs = Uint8List(verbCount);
     final coords = Float32List(coordCount);
     var v = 0, o = 0;
@@ -173,6 +195,22 @@ final class StrokeOutline {
       }
       verbs[v++] = InkPathVerb.close.index;
     }
+    for (final d in dots) {
+      verbs.setRange(v, v + _circleVerbs.length, _circleVerbs);
+      v += _circleVerbs.length;
+      final cc = _circleCubics(d, dotRadius);
+      coords.setRange(o, o + cc.length, cc);
+      o += cc.length;
+    }
     return InkVectorPath(verbs, coords);
   }
+
+  static final List<int> _circleVerbs = [
+    InkPathVerb.moveTo.index,
+    InkPathVerb.cubicTo.index,
+    InkPathVerb.cubicTo.index,
+    InkPathVerb.cubicTo.index,
+    InkPathVerb.cubicTo.index,
+    InkPathVerb.close.index,
+  ];
 }

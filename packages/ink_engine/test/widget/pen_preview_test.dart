@@ -7,7 +7,8 @@
 // render method — the round-1 pens keep their pixels (also the unchanged
 // goldens/pen_preview.png), the brush draws with its own profile, and all five
 // P1 pens draw without exceptions (those still on the ballpoint fallback too).
-// T28~T31 add their rows.
+// T28~T31 add their rows: T29 the dashed preview (dashedPolyline — dashes and
+// gaps of style.dashPattern × width along the line).
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
@@ -240,8 +241,60 @@ void main() {
     expect(column(left), lessThan(column(midX)), reason: 'tapered start');
   });
 
+  testWidgets('v2: the dashed preview — dashes and gaps of the pattern × '
+      'width (T29)', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(400, 200);
+    addTearDown(tester.view.reset);
+    for (final (pattern, on, off) in [
+      (const [4.0, 3.0], 8.0, 6.0),
+      (const [2.0, 2.0], 4.0, 4.0),
+    ]) {
+      final style = _style(
+        core.PenTool.dashed,
+        width: 2,
+      ).withInkExtras(dashPattern: pattern).copyWith(colorArgb: 0xFF000000);
+      final built = penPreviewStrokeOf(style, PenPreviewShape.line, _size)!;
+      expect(built.stroke.profile, same(PenProfile.dashed));
+      expect(built.outline!.polygons.length, greaterThan(5));
+      await tester.pumpWidget(
+        _app(PenPreviewPainter(style: style, shape: PenPreviewShape.line)),
+      );
+      final px = await _shot(tester);
+      // runs of ink / paper along the middle row
+      final y = (_size.height / 2).round();
+      final runs = <(bool, int)>[];
+      for (var x = 0; x < px.width; x++) {
+        final ink = px.at(x, y)[0] < 128;
+        if (runs.isNotEmpty && runs.last.$1 == ink) {
+          runs[runs.length - 1] = (ink, runs.last.$2 + 1);
+        } else {
+          runs.add((ink, 1));
+        }
+      }
+      // drop the paper margins and the last (cut) dash
+      final inner = runs.sublist(1, runs.length - 2);
+      final dashes = [
+        for (final r in inner)
+          if (r.$1) r.$2,
+      ];
+      final gaps = [
+        for (final r in inner)
+          if (!r.$1) r.$2,
+      ];
+      expect(dashes.length, greaterThan(5), reason: '$pattern');
+      for (final d in dashes) {
+        expect(d.toDouble(), closeTo(on, 1.5), reason: '$pattern dash');
+      }
+      for (final g in gaps) {
+        expect(g.toDouble(), closeTo(off, 1.5), reason: '$pattern gap');
+      }
+    }
+  });
+
   testWidgets('v2: every P1 pen draws ink without exceptions (ballpoint '
-      'fallback until T28~T31)', (tester) async {
+      'fallback until T28, T30, T31)', (tester) async {
     tester.view
       ..devicePixelRatio = 1
       ..physicalSize = const Size(400, 200);

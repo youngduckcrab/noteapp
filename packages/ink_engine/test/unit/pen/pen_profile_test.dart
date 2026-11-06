@@ -225,8 +225,8 @@ void main() {
     expect(_all.toSet(), hasLength(10));
   });
 
-  test('PenProfile.of: P0 tools and brush → their profile; calligraphy, '
-      'dashed, laser, tape → ballpoint until T28~T31', () {
+  test('PenProfile.of: P0 tools, brush and dashed → their profile; '
+      'calligraphy, laser, tape → ballpoint until T28, T30, T31', () {
     expect(PenProfile.of(core.PenTool.ballpoint), same(PenProfile.ballpoint));
     expect(PenProfile.of(core.PenTool.fountain), same(PenProfile.fountain));
     expect(
@@ -236,9 +236,9 @@ void main() {
     expect(PenProfile.of(core.PenTool.pencil), same(PenProfile.pencil));
     expect(PenProfile.of(core.PenTool.marker), same(PenProfile.marker));
     expect(PenProfile.of(core.PenTool.brush), same(PenProfile.brush));
+    expect(PenProfile.of(core.PenTool.dashed), same(PenProfile.dashed));
     for (final tool in [
       core.PenTool.calligraphy,
-      core.PenTool.dashed,
       core.PenTool.laser,
       core.PenTool.tape,
     ]) {

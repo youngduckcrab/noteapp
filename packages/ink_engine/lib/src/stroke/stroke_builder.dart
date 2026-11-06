@@ -42,6 +42,7 @@ import '../input/pressure_mode.dart';
 import '../input/simulated_pressure.dart';
 import '../model/ink_layer.dart';
 import '../model/ink_points.dart';
+import '../pen/pen_profile.dart';
 import '../pen/style_ink.dart';
 import '../render/sessions.dart';
 import '../tuning.dart';
@@ -119,6 +120,9 @@ final class StrokeBuilder {
     this._meta,
     this._predictor,
   ) : _highlighter = _style.profile.layer == InkLayer.highlighter,
+      _dashPt = _style.profile.renderMethod == InkRenderMethod.dashedPolyline
+          ? [for (final v in _style.dashPattern) v * _style.width]
+          : null,
       _filter = OneEuroFilter(
         smoothing: _style.smoothing,
         viewScale: _viewScale,
@@ -132,6 +136,10 @@ final class StrokeBuilder {
   final PressureDetector _pressure;
   final InkPredictor _predictor;
   final bool _highlighter;
+
+  /// (m5-7/03-ink T29) the dashed pen's pattern in pt (style.dashPattern × width);
+  /// null for every other pen
+  final List<double>? _dashPt;
   final OneEuroFilter _filter;
   final SimulatedPressure _sim;
   final RealPressureSmoother _real = RealPressureSmoother();
@@ -161,6 +169,10 @@ final class StrokeBuilder {
   final List<double> _liveF = [];
   final List<double> _liveS = [];
   int _frozenChunks = 0;
+  // dashed pen (6.5 'live'): the next dash not frozen yet — its pattern index (even)
+  // and its start along the live centerline (pt)
+  int _dashIndex = 0;
+  double _dashStart = 0;
   double _minX = double.infinity, _minY = double.infinity;
   double _maxX = double.negativeInfinity, _maxY = double.negativeInfinity;
   double _maxRadius = 0;
@@ -549,6 +561,12 @@ final class StrokeBuilder {
       return;
     }
 
+    final dash = _dashPt;
+    if (dash != null) {
+      _updateLiveDashes(dash, n, tail);
+      return;
+    }
+
     // freeze complete chunks once the pressure source is decided
     const chunk = InkTuning.liveChunkPoints;
     if (_pressure.source != PressureSource.pending) {
@@ -568,6 +586,98 @@ final class StrokeBuilder {
       straight: null,
       bounds: _bounds(),
     );
+  }
+
+  /// (m5-7/03-ink 6.5 'live') The dashed pen: every dash that ends on the stable
+  /// centerline is frozen (append-only — the dash boundaries are arc lengths of the
+  /// stable points, so they never move); the open dash, and the dashes on the raw
+  /// tail after it, are the open part rebuilt on every update. The widths do not
+  /// depend on the pressure (gain 0), so freezing does not wait for the decision.
+  void _updateLiveDashes(List<double> pattern, int n, List<Offset> tail) {
+    final r = math.max(
+      InkTuning.minRadiusPt,
+      2 * _style.width * _liveWidthQ(n - 1),
+    );
+    final stable = _liveS[n - 1];
+    while (true) {
+      final end = _dashStart + pattern[_dashIndex];
+      if (end > stable) break;
+      liveFreezeDash(
+        _live,
+        end - _dashStart >= 2 * r && end > _dashStart
+            ? _liveSpan(_dashStart + r, end - r)
+            : _liveSpan((_dashStart + end) / 2, null),
+      );
+      _dashStart = end + pattern[_dashIndex + 1];
+      _dashIndex = (_dashIndex + 2) % pattern.length;
+    }
+    final from = math.min(_dashStart, stable);
+    final open = _liveSpan(from, stable, tail: tail);
+    liveSetOpen(
+      _live,
+      tail: tail,
+      open: open,
+      straight: null,
+      bounds: _bounds(),
+      dashPattern: [
+        for (var k = 0; k < pattern.length; k++)
+          _style.dashPattern[(_dashIndex + k) % pattern.length],
+      ],
+      dashLead: _dashStart - from,
+    );
+  }
+
+  /// The live centerline from arc length [a] to [b] (the stable points strictly
+  /// between, interpolated ends) + [tail]; [b] null → the one point at [a].
+  InkPoints _liveSpan(double a, double? b, {List<Offset> tail = const []}) {
+    final n = _liveX.length;
+    final xs = <double>[], ys = <double>[];
+    void at(double s) {
+      // the last i with _liveS[i] ≤ s (binary search), then the segment lerp
+      var lo = 0, hi = n - 1;
+      while (lo < hi) {
+        final mid = (lo + hi + 1) ~/ 2;
+        if (_liveS[mid] <= s) {
+          lo = mid;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      if (lo >= n - 1) {
+        xs.add(_liveX[n - 1]);
+        ys.add(_liveY[n - 1]);
+        return;
+      }
+      final s0 = _liveS[lo], s1 = _liveS[lo + 1];
+      final u = s1 > s0 ? ((s - s0) / (s1 - s0)).clamp(0.0, 1.0) : 0.0;
+      xs.add(_liveX[lo] + (_liveX[lo + 1] - _liveX[lo]) * u);
+      ys.add(_liveY[lo] + (_liveY[lo + 1] - _liveY[lo]) * u);
+    }
+
+    at(a);
+    if (b != null) {
+      for (var i = 0; i < n; i++) {
+        final s = _liveS[i];
+        if (s > a && s < b) {
+          xs.add(_liveX[i]);
+          ys.add(_liveY[i]);
+        }
+      }
+      at(b);
+    }
+    for (final t in tail) {
+      xs.add(t.dx);
+      ys.add(t.dy);
+    }
+    const stride = core.StrokePoints.stride;
+    final q = _liveWidthQ(n - 1);
+    final data = Float32List(xs.length * stride);
+    for (var k = 0; k < xs.length; k++) {
+      data[k * stride] = xs[k];
+      data[k * stride + 1] = ys[k];
+      data[k * stride + 2] = q;
+    }
+    return InkPoints.fromRaw(data);
   }
 
   /// Live points [from, to) + [tail] as interleaved InkPoints (widthQ = live).

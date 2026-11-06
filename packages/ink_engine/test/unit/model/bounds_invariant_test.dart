@@ -9,6 +9,9 @@
 // switches to the tape profile in T31; until then the tape strokes are checked
 // with PenProfile.tape's outline over points of widthQ = kNominalWidthQ, the
 // only widthQ the tape profile makes (f = 1).
+// T29 (6.5 K-1): the dashed pen through the real pipeline — every dash piece
+// and dot (default and other patterns, the 4096 cap) — in _tools, its own
+// group and the random strokes.
 //
 // Also run in Chrome by test/web/geometry_on_web_test.dart.
 import 'dart:math' as math;
@@ -109,6 +112,7 @@ void expectInsideBounds(core.Stroke s, String label, {PenProfile? profile}) {
     ink.points,
     width: s.style.width,
     profile: profile ?? ink.profile,
+    dashPattern: s.style.dashPattern,
   );
   rect(outline.bounds, 'outline bounds');
   final dot = outline.dotCenter;
@@ -116,6 +120,12 @@ void expectInsideBounds(core.Stroke s, String label, {PenProfile? profile}) {
     rect(
       ui.Rect.fromCircle(center: dot, radius: outline.dotRadius),
       'dot circle',
+    );
+  }
+  for (final d in outline.dots) {
+    rect(
+      ui.Rect.fromCircle(center: d, radius: outline.dotRadius),
+      'dash dot circle',
     );
   }
   for (final poly in outline.polygons) {
@@ -215,6 +225,7 @@ const List<core.PenTool> _tools = [
   core.PenTool.pencil,
   core.PenTool.marker,
   core.PenTool.brush, // m5-7 T27: the brush profile
+  core.PenTool.dashed, // m5-7 T29: the dashed profile ([4, 3])
 ];
 
 void main() {
@@ -311,6 +322,43 @@ void main() {
             final s = _build(_samples(xy, pressure: 0.7), style);
             expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
             expectInsideBounds(s, '$mode');
+          }
+        });
+      }
+    }
+  });
+
+  group('dashed pieces and dots (PenProfile.dashed, 6.5)', () {
+    final base = core.StrokeStyle.defaultsFor(core.PenTool.dashed);
+    for (final pattern in [
+      [4.0, 3.0],
+      [0.0, 2.0],
+      [1.0, 1.0, 0.0, 3.0],
+      [50.0, 0.5],
+      [0.25, 0.25], // the 4096 cap on the long strokes below at 0.1 pt
+    ]) {
+      for (final width in [0.1, 1.0, 30.0]) {
+        test('$pattern width $width', () {
+          final style = base
+              .copyWith(width: width)
+              .withInkExtras(dashPattern: pattern);
+          final scale = math.max(1.0, width / 4);
+          for (final (name, xy) in [
+            ('S curve', _sCurve(scale)),
+            ('180°', _backAndForth(scale)),
+            (
+              'long',
+              [
+                for (var i = 0; i <= 400; i++)
+                  ui.Offset(20 + 2.0 * scale * i, 400 + 60 * math.sin(i / 40)),
+              ],
+            ),
+            ('dot', [const ui.Offset(30, 30)]),
+          ]) {
+            final s = _build(_samples(xy, pressure: 0.8), style);
+            expect(s.style.profile, same(PenProfile.dashed));
+            expect(s.points.maxWidthQ, closeTo(core.kNominalWidthQ, 1e-9));
+            expectInsideBounds(s, 'dashed $pattern $name');
           }
         });
       }
