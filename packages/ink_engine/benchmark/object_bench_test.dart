@@ -300,7 +300,9 @@ void main() {
         'B14',
         'object page 200 shapes + 100 text + 20 math + 20 images + 50 tapes',
         stats,
-        criteria: {'median_ms': 12},
+        // (contract v2.5, C25-03) the debug VM limit; the original 12 ms is judged
+        // on an iPad release build (03-ink 9.6 I-B14)
+        criteria: {'median_ms': 25},
         extra: extra,
       );
     });
@@ -442,7 +444,9 @@ void main() {
       'B17',
       'vector export 200 shapes + 100 text + 1000 strokes',
       stats,
-      criteria: {'median_ms': 60},
+      // (contract v2.5, C25-03) the debug VM limit; the original 60 ms is judged on
+      // an iPad release build (03-ink 9.6 I-B14)
+      criteria: {'median_ms': 100},
       extra: {
         'ink_shapes': v.inkShapes.length,
         'annotations': v.annotations.length,
