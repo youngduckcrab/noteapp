@@ -14,6 +14,14 @@
 //   included (the same rule as the dashed pen — 6.5: simple and predictable).
 //   A solid ellipse uses the exact point–ellipse distance (Eberly's
 //   bisection), not a sampled polygon. An unfilled shape's inside is not hit.
+// (T37b, 6.15) The eraser's swept capsule a → b of radius R touches a shape by
+// the same geometry: the centerline within R + w / 2 of the segment a → b
+// (segment–segment distances; a solid ellipse: 0 when the segment crosses the
+// curve, the nearer end when it lies inside — the distance to the boundary is
+// concave there — else the golden-section minimum of the exact point–ellipse
+// distance, convex outside the convex region), a head triangle within R, or an
+// end of the segment inside the fill (a segment that enters the fill otherwise
+// crosses the outline and is caught by the first test).
 // Non-finite input never hits; nothing here throws (4.0).
 import 'dart:math' as math;
 import 'dart:ui' show Offset;
@@ -44,6 +52,120 @@ abstract final class ObjectHitTest {
       if (polygonDistance(head, p) <= tolerance) return true;
     }
     return g.fill != null && fillContains(o, p);
+  }
+
+  /// 6.15: does the eraser capsule [a] → [b] of [radius] touch the shape [o] (see the file
+  /// comment)? a == b is the disc around a.
+  static bool shapeTouchesCapsule(
+    core.ShapeObject o,
+    Offset a,
+    Offset b,
+    double radius,
+  ) {
+    if (!a.isFinite || !b.isFinite || !(radius >= 0) || !radius.isFinite) {
+      return false;
+    }
+    final g = shapeGeometryOf(o);
+    if (outlineSegmentDistance(o, a, b) <= radius + g.width / 2) return true;
+    for (final head in g.heads) {
+      if (polygonSegmentDistance(head, a, b) <= radius) return true;
+    }
+    return g.fill != null && (fillContains(o, a) || fillContains(o, b));
+  }
+
+  /// The distance from the segment [a] → [b] to the centerline the painter strokes; +∞
+  /// when the shape has no drawable outline.
+  static double outlineSegmentDistance(core.ShapeObject o, Offset a, Offset b) {
+    final g = shapeGeometryOf(o);
+    if (g.oval != null) {
+      final geometry = o.geometry;
+      if (geometry is core.EllipseGeometry) {
+        return ellipseSegmentDistance(geometry.ellipseFrame, a, b);
+      }
+    }
+    final pts = g.centerline;
+    if (pts.isEmpty) return double.infinity;
+    if (pts.length == 1) return segmentPointDistance(a, b, pts.single);
+    var best = double.infinity;
+    for (var i = 0; i + 1 < pts.length; i++) {
+      final d = segmentSegmentDistance(a, b, pts[i], pts[i + 1]);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
+  /// Distance from the segment [a] → [b] to the filled polygon [poly] (0 when they meet).
+  static double polygonSegmentDistance(List<Offset> poly, Offset a, Offset b) {
+    if (poly.isEmpty) return double.infinity;
+    if (poly.length >= 3 && windingNumber(poly, a) != 0) return 0;
+    if (poly.length == 1) return segmentPointDistance(a, b, poly.single);
+    var best = double.infinity;
+    for (var i = 0; i < poly.length; i++) {
+      final d = segmentSegmentDistance(
+        a,
+        b,
+        poly[i],
+        poly[(i + 1) % poly.length],
+      );
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
+  /// Distance from [p] to the segment [a] → [b].
+  static double segmentPointDistance(Offset a, Offset b, Offset p) =>
+      InkHitTest.pointSegmentDistance(p.dx, p.dy, a.dx, a.dy, b.dx, b.dy);
+
+  /// Distance between the segments [a] → [b] and [c] → [d] (0 when they cross or touch).
+  static double segmentSegmentDistance(Offset a, Offset b, Offset c, Offset d) {
+    final d1 = _cross(c, d, a), d2 = _cross(c, d, b);
+    final d3 = _cross(a, b, c), d4 = _cross(a, b, d);
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+        ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+      return 0;
+    }
+    // touching and collinear overlaps put an end point on the other segment
+    return math.min(
+      math.min(segmentPointDistance(c, d, a), segmentPointDistance(c, d, b)),
+      math.min(segmentPointDistance(a, b, c), segmentPointDistance(a, b, d)),
+    );
+  }
+
+  /// The exact distance from the segment [a] → [b] to the ellipse curve inscribed in
+  /// [frame] (rotated with it; see the file comment).
+  static double ellipseSegmentDistance(
+    core.ElementFrame frame,
+    Offset a,
+    Offset b,
+  ) {
+    final (x0, y0) = _local(frame, a);
+    final (x1, y1) = _local(frame, b);
+    final ea = frame.rect.width / 2, eb = frame.rect.height / 2;
+    if (![x0, y0, x1, y1, ea, eb].every((v) => v.isFinite)) {
+      return double.infinity;
+    }
+    final la = Offset(x0, y0), lb = Offset(x1, y1);
+    if (!(ea > 0) || !(eb > 0)) {
+      // a flat ellipse is the segment on its long axis (a zero one: its center)
+      final h = ea > 0 ? Offset(ea, 0) : Offset(0, eb > 0 ? eb : 0);
+      return segmentSegmentDistance(la, lb, -h, h);
+    }
+    // q(u) = (x(u) / ea)² + (y(u) / eb)² − 1 along the segment: ≤ 0 inside
+    final dx = x1 - x0, dy = y1 - y0;
+    final ia = 1 / (ea * ea), ib = 1 / (eb * eb);
+    final alpha = dx * dx * ia + dy * dy * ib;
+    final beta = 2 * (x0 * dx * ia + y0 * dy * ib);
+    final gamma = x0 * x0 * ia + y0 * y0 * ib - 1;
+    final q1 = alpha + beta + gamma;
+    if ((gamma <= 0) != (q1 <= 0)) return 0; // one end inside, one outside
+    double at(Offset p) => _ellipseDistanceLocal(ea, eb, p.dx, p.dy);
+    if (gamma <= 0) return math.min(at(la), at(lb)); // inside: concave
+    if (alpha > 0) {
+      final u = -beta / (2 * alpha);
+      if (u > 0 && u < 1 && alpha * u * u + beta * u + gamma <= 0) return 0;
+    }
+    // outside the convex region all along: the distance is convex in u
+    return InkHitTest.minimize((u) => at(Offset.lerp(la, lb, u)!)).gap;
   }
 
   /// The distance from [p] to the centerline the painter strokes (w / 2 not taken
@@ -155,7 +277,17 @@ abstract final class ObjectHitTest {
   /// A flat frame is a segment, a zero frame a point.
   static double ellipseDistance(core.ElementFrame frame, Offset p) {
     final (x, y) = _local(frame, p);
-    var a = frame.rect.width / 2, b = frame.rect.height / 2;
+    return _ellipseDistanceLocal(
+      frame.rect.width / 2,
+      frame.rect.height / 2,
+      x,
+      y,
+    );
+  }
+
+  /// The distance from (x, y) to the axis-aligned ellipse of semi-axes [a], [b] centered
+  /// at the origin.
+  static double _ellipseDistanceLocal(double a, double b, double x, double y) {
     if (!x.isFinite || !y.isFinite || !a.isFinite || !b.isFinite) {
       return double.infinity;
     }

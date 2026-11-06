@@ -21,9 +21,10 @@
 //    null (the hold detection is T39). A laser stroke draws like a ballpoint
 //    while written and end() returns null — no InkEdit, nothing pending
 //    (K-9; the fading trail is T30).
-//  * EraserSession: EraserSpec.eraseShapes — a shape whose CORE bounds meet
-//    the swept capsule is removed whole (removedObjectIds; never with
-//    highlighterOnly; T37b brings the outline distance).
+//  * EraserSession: EraserSpec.eraseShapes — a shape the swept capsule touches
+//    is removed whole (removedObjectIds; never with highlighterOnly; since
+//    m5-7 T37b the exact rule of 6.15 — object_hit.dart: the outline within
+//    R + w / 2, a head within R, the inside of a filled shape).
 //  * LassoSession: LassoOptions.includeObjects — an object whose frame
 //    center is inside (nonzero) is selected.
 import 'dart:collection';
@@ -46,6 +47,7 @@ import '../input/pressure_capability.dart';
 import '../interop/core_interop.dart' as interop;
 import '../model/ink_layer.dart';
 import '../model/ink_points.dart';
+import '../object/object_hit.dart';
 import '../pen/style_ink.dart';
 import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
@@ -512,13 +514,14 @@ final class EraserSession implements InkGestureSession {
         }
       }
     }
-    // (v2.0) shapes: the CORE bounds meet the capsule → removed whole (R2-B3; the
-    // outline distance is T37b). Never with highlighterOnly.
+    // (v2.0, m5-7 T37b — 6.15) shapes: the capsule within R + w / 2 of the outline, R of
+    // an arrow head, or reaching into a filled shape → removed whole (object index
+    // candidates). Never with highlighterOnly; other objects are never erased.
     if (spec.eraseShapes && spec.filter != core.StrokeFilter.highlighterOnly) {
       final area = ui.Rect.fromPoints(a, b).inflate(radius);
       for (final o in _host.objectsNear(area)) {
         if (o is! core.ShapeObject || _touchedObjects.contains(o.id)) continue;
-        if (capsuleMeetsRect(a, b, radius, interop.rectOf(o.bounds))) {
+        if (ObjectHitTest.shapeTouchesCapsule(o, a, b, radius)) {
           _touchedObjects.add(o.id);
           changed = true;
         }
@@ -526,63 +529,6 @@ final class EraserSession implements InkGestureSession {
     }
     if (changed) _host.displayChanged();
   }
-}
-
-/// The capsule a → b of [radius] meets the closed rectangle [r] (distance from the
-/// segment to the rectangle ≤ radius).
-@internal
-bool capsuleMeetsRect(ui.Offset a, ui.Offset b, double radius, ui.Rect r) {
-  double dist2(ui.Offset p) {
-    final dx = p.dx < r.left
-        ? r.left - p.dx
-        : (p.dx > r.right ? p.dx - r.right : 0.0);
-    final dy = p.dy < r.top
-        ? r.top - p.dy
-        : (p.dy > r.bottom ? p.dy - r.bottom : 0.0);
-    return dx * dx + dy * dy;
-  }
-
-  final r2 = radius * radius;
-  if (dist2(a) <= r2 || dist2(b) <= r2) return true;
-  if (_segmentsCross(a, b, r)) return true;
-  // the nearest point of the rectangle is then a corner (or the segment's end, checked above)
-  for (final c in [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft]) {
-    if (_pointSegmentDist2(c, a, b) <= r2) return true;
-  }
-  return false;
-}
-
-bool _segmentsCross(ui.Offset a, ui.Offset b, ui.Rect r) {
-  if (r.contains(a) || r.contains(b)) return true;
-  final edges = [
-    (r.topLeft, r.topRight),
-    (r.topRight, r.bottomRight),
-    (r.bottomRight, r.bottomLeft),
-    (r.bottomLeft, r.topLeft),
-  ];
-  for (final (p, q) in edges) {
-    if (_intersects(a, b, p, q)) return true;
-  }
-  return false;
-}
-
-double _cross(ui.Offset o, ui.Offset a, ui.Offset b) =>
-    (a.dx - o.dx) * (b.dy - o.dy) - (a.dy - o.dy) * (b.dx - o.dx);
-
-bool _intersects(ui.Offset a, ui.Offset b, ui.Offset c, ui.Offset d) {
-  final d1 = _cross(c, d, a), d2 = _cross(c, d, b);
-  final d3 = _cross(a, b, c), d4 = _cross(a, b, d);
-  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
-}
-
-double _pointSegmentDist2(ui.Offset p, ui.Offset a, ui.Offset b) {
-  final abx = b.dx - a.dx, aby = b.dy - a.dy;
-  final len2 = abx * abx + aby * aby;
-  var t = len2 == 0 ? 0.0 : ((p.dx - a.dx) * abx + (p.dy - a.dy) * aby) / len2;
-  t = t.clamp(0.0, 1.0);
-  final dx = a.dx + t * abx - p.dx, dy = a.dy + t * aby - p.dy;
-  return dx * dx + dy * dy;
 }
 
 @internal

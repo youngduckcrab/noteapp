@@ -4,6 +4,12 @@
 // RemoveStrokes; several passes in one gesture make one SplitStrokes with the
 // pieces computed once per original; crumbs are dropped; pieces are
 // core.Stroke.fragment copies; dots go whole; highlighter cut ends are flat.
+// (m5-7/03-ink 8.2 T37b, 6.15 — v2) A shape the partial eraser touches goes
+// whole: one gesture over a stroke and a shape = one splitStrokes edit
+// (removedIds = the original + the shape, removedObjectIds = the shape, the
+// pieces added) → CompositeCommand([SplitStrokes, RemoveElements]); everything
+// of the stroke erased + a shape → Composite([RemoveStrokes, RemoveElements]);
+// a shape only → RemoveElements alone; text boxes are never erased.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -297,6 +303,87 @@ void main() {
     )..addSample(_at(const ui.Offset(200, 320), 1));
     final edit = s.end()!;
     expect(edit.removedIds, {'pen'});
+  });
+
+  group('shapes (v2, 6.15)', () {
+    final shape = core.ShapeObject(
+      id: 'sh',
+      pageId: 'p1',
+      shapeKind: core.ShapeKind.line,
+      geometry: core.ShapeGeometry.line(
+        const core.PagePoint(100, 400),
+        const core.PagePoint(300, 400),
+      ),
+      style: const core.ShapeStyle(strokeColorArgb: 0xFFDD0000),
+      createdAt: 1,
+    );
+    final text = core.TextBoxObject(
+      id: 'tx',
+      pageId: 'p1',
+      frame: const core.ElementFrame(core.PageRect(150, 480, 250, 520)),
+      text: 'keep',
+      style: const core.TextBoxStyle(),
+      createdAt: 2,
+    );
+    void loadAll(List<core.Stroke> strokes) => c.updateContent(
+      SyntheticInk.pageContentWith(strokes: strokes, objects: [shape, text]),
+    );
+
+    test(
+      'a stroke and a shape in one pass → Composite[Split, RemoveElements]',
+      () {
+        loadAll([line('a', 300)]);
+        final edit = erase(const [ui.Offset(200, 280), ui.Offset(200, 420)])!;
+        expect(edit.kind, InkEditKind.splitStrokes);
+        expect(edit.removedIds, {'sh', 'a'});
+        expect(edit.removedObjectIds, {'sh'});
+        expect(edit.added, hasLength(2));
+        final cmd = edit.toCommand() as core.CompositeCommand;
+        expect(cmd.commands.map((x) => x.runtimeType), [
+          core.SplitStrokes,
+          core.RemoveElements,
+        ]);
+        expect((cmd.commands[1] as core.RemoveElements).elementIds, ['sh']);
+        expect(
+          c.pendingIds,
+          containsAll(['a', 'sh', ...edit.added.map((s) => s.id)]),
+        );
+      },
+    );
+
+    test(
+      'a whole stroke + a shape → Composite[RemoveStrokes, RemoveElements]',
+      () {
+        loadAll([
+          strokeThrough(
+            segment(const ui.Offset(195, 300), const ui.Offset(205, 300)),
+            _pen,
+            id: 'short',
+          ),
+        ]);
+        final edit = erase(const [ui.Offset(200, 290), ui.Offset(200, 410)])!;
+        expect(edit.added, isEmpty);
+        final cmd = edit.toCommand() as core.CompositeCommand;
+        expect(cmd.commands.map((x) => x.runtimeType), [
+          core.RemoveStrokes,
+          core.RemoveElements,
+        ]);
+      },
+    );
+
+    test('a shape only → RemoveElements alone; the text box stays', () {
+      loadAll([line('a', 300)]);
+      final edit = erase(const [
+        ui.Offset(120, 390),
+        ui.Offset(120, 530),
+        ui.Offset(220, 500),
+      ])!;
+      expect(edit.removedIds, {'sh'});
+      expect(edit.removedObjectIds, {'sh'});
+      expect(edit.toCommand(), isA<core.RemoveElements>());
+      expect(c.content!.objects.map((o) => o.id), contains('tx'));
+      expect(c.pendingIds, {'sh'});
+    });
   });
 
   group('intervals', () {
