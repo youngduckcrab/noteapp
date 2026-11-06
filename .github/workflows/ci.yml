@@ -275,6 +275,12 @@ jobs:
           dart run tool/ws.dart finalize-web --build-dir app/build/web --info build/build_info.json
           date +%s > "$RUNNER_TEMP/deploy-start"
 
+      # 15b (2차 J17, m5-7/01-infra 6.15) — tool/web_budget.yaml; over a limit or
+      # a forbidden font family stops the run before the deploy. The table also
+      # goes to the step summary.
+      - name: Web budget
+        run: dart run tool/ws.dart web-budget check --build-dir app/build/web
+
       # 16 — `expires` applies to preview channels only.
       - name: Deploy to Firebase Hosting
         id: deploy

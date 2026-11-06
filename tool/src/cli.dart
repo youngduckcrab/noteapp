@@ -5,7 +5,8 @@
 /// R16 since the 2차 step R2-B1), `analyze`, `test` (vm / chrome,
 /// `--affected-since`, `--all-if-no-base`, the heavy test lock and the fake
 /// media Chrome for `media`), `with-heavy-lock`, `native-reqs` (NR1–NR7,
-/// 2차 J1), `affected`, `channel-id`, `build-info`, `finalize-web`,
+/// 2차 J1), `web-budget measure|check` (2차 J17), `affected`, `channel-id`,
+/// `build-info`, `finalize-web`,
 /// `web-assets verify|fetch` and `hosting-config`.
 ///
 /// Exit codes: 0 success, 1 check / test failure, 2 usage error, 3
@@ -31,6 +32,7 @@ import 'native_reqs.dart';
 import 'rules.dart';
 import 'test_command.dart';
 import 'web_assets.dart';
+import 'web_budget.dart';
 import 'web_finalize.dart';
 import 'workspace.dart';
 
@@ -124,6 +126,7 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
         ..addCommand(_BuildInfoCommand(ctx))
         ..addCommand(_FinalizeWebCommand(ctx))
         ..addCommand(_WebAssetsCommand(ctx))
+        ..addCommand(_WebBudgetCommand(ctx))
         ..addCommand(_HostingConfigCommand(ctx));
   try {
     final code = await runner.run(arguments);
@@ -159,6 +162,9 @@ Future<int> runWs(List<String> arguments, {WsContext? context}) async {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   } on NativeConfigException catch (e) {
+    ctx.err.writeln('ws: ${e.message}');
+    return environmentExitCode;
+  } on WebBudgetException catch (e) {
     ctx.err.writeln('ws: ${e.message}');
     return environmentExitCode;
   } on _HeavyLockTimeout catch (e) {
@@ -978,6 +984,81 @@ final class _WebAssetsFetchCommand extends _WebAssetsSubcommand {
       'ws web-assets fetch: ${results.length} asset(s), $failures failure(s)',
     );
     return failures == 0 ? 0 : 1;
+  }
+}
+
+final class _WebBudgetCommand extends _WsCommand {
+  _WebBudgetCommand(super.ctx) {
+    addSubcommand(_WebBudgetSubcommand(ctx, check: false));
+    addSubcommand(_WebBudgetSubcommand(ctx, check: true));
+  }
+
+  @override
+  String get name => 'web-budget';
+
+  @override
+  String get description =>
+      'Measure a web build (main.dart.js, startup fonts, report assets) and '
+      'check it against $webBudgetPath (docs/plans/m5-7/01-infra.md 6.15).';
+}
+
+final class _WebBudgetSubcommand extends _WsCommand {
+  _WebBudgetSubcommand(super.ctx, {required this.check}) {
+    argParser
+      ..addOption(
+        'build-dir',
+        help: 'Web build directory (default: <root>/app/build/web).',
+        valueHelp: 'dir',
+      )
+      ..addOption(
+        'budget',
+        help:
+            'Budget file (default: <root>/$webBudgetPath; measure uses its '
+            'bundles and report assets when it exists).',
+        valueHelp: 'file',
+      );
+  }
+
+  final bool check;
+
+  @override
+  String get name => check ? 'check' : 'measure';
+
+  @override
+  String get description => check
+      ? 'Measure and compare with the limits (null = report only); a '
+            'forbidden font family is a violation. Exit 1 on a violation.'
+      : 'Print the sizes (also to GITHUB_STEP_SUMMARY). Always exit 0.';
+
+  @override
+  Future<int> run() async {
+    rejectRest();
+    final args = argResults!;
+    final workspaceRoot = root;
+    final buildDir = args['build-dir'] != null
+        ? resolvePath(args['build-dir'] as String)
+        : p.join(workspaceRoot, 'app', 'build', 'web');
+    final budgetPath = args['budget'] != null
+        ? resolvePath(args['budget'] as String)
+        : p.join(workspaceRoot, webBudgetPath);
+    final budget = check || File(budgetPath).existsSync()
+        ? WebBudget.load(budgetPath)
+        : const WebBudget();
+    final measurement = measureWebBuild(
+      buildDir,
+      reportAssets: budget.reportAssets,
+    );
+    final report = webBudgetReport(measurement, budget, check: check);
+    final text = report.format(command: name);
+    ctx.out.write(text);
+    final summary = ctx.environment['GITHUB_STEP_SUMMARY'];
+    if (summary != null && summary.isNotEmpty) {
+      File(summary).writeAsStringSync(
+        '### Web budget ($name)\n\n$text\n',
+        mode: FileMode.append,
+      );
+    }
+    return report.violations.isEmpty ? 0 : 1;
   }
 }
 

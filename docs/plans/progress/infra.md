@@ -407,10 +407,10 @@
 | J12 | 완료 | `5b71ea3` | `packages/pencil_bridge/test/pencil_wire_contract_test.dart`(28 — ⓪~⑨ + 가용성 판독기 자체 11경우), `pencil_bridge_test`(+1 — Swift 빌더 모양의 squeeze 순서·자세 없는 tap) — **컴파일은 `ios-compile.yml`(U19)**, 동작은 TestFlight 뒤(C-1) |
 | J13 | 완료 | `f771299` — 능력 조회 시간 제한·실패 처리·`timestamp`는 R2-B8b `6e7b753` | `app/test/pencil/pencil_stylus_extras_test.dart`(J13 +3 — `os`·대체 `?`·`seen` 전이(구독자 없으면 안 셈·tap·hover·모르는 단계는 안 셈·종류마다 알림 1번·되돌아가지 않음·능력 불변)·두 구독자에 알림 1번), `modules/feature_wiring_module_test.dart`(Pencil 5경우 — 지원·미지원·기본 포트·실패·500 ms 초과, J13: `os` '17.5'·'?'), `settings/about_section_test.dart`(J13 +5 — 지원 안 함 2·'iOS 17.5 · 더블탭 · 호버' → 스퀴즈 받음 → 롤 받음·섹션 자신의 구독·떠나면 구독 끊김·열기 전에 받은 것·읽기 실패 문구·가로) |
 | J14 | 완료 | `9e10ac3` | `app/test/settings/storage_section_test.dart` v2(첨부 파일 6 — 세 종류·없는 종류 0 MB·작은 크기 `<0.1 MB`·첨부 없음 '0개 · 0 MB'·CORE 가짜 저장소의 `bytesByType`·보일 때 1회·[다시 확인]·다시 보일 때·`usage()` 실패; 검색 색인 6 — 상태 따라감·확인 창 취소·확인 → `rebuild()` 1회·진행 중 비활성·실패 문구 + 기록 1건·닫기·가로), `settings/about_section_test.dart` v2(기능 줄 4가지 — 모두 켬·빌드에서 끔·개발자 메뉴로 끔(`skipped`)·시작 실패 + 진단 복사·가로, Pencil 줄 키), `app/test/app/licenses_test.dart`(가짜 에셋 번들 있음/없음·기록 1번·지연 읽기·앱 번들에 실제 에셋·라이선스 화면), `errors/diagnostic_report_test.dart` v2(기능 줄·`skipped` 단계), `features/feature_status_test.dart`(새 — 상태 표) |
-| J14b | 완료 | (이 커밋) | `app/test/settings/v1_copy_section_test.dart`(새, 19 — `v1CopyMimeType` 표, 다섯 상태: 사본 있음(웹·네이티브 이름)·사본 실패(quota·io·other·모르는 값)·사본 없음·아직 볼 수 없음(기록 0)·읽기 오류(기록 1), 확인 중 줄, 보일 때마다 `info`, 기본 api(CORE B2-α 선언) → '사본 없음', 내보내기 두 이름(4 MiB·4 MiB·1 B → 시트의 `BackupFile` 바이트·`info.fileName`·MIME → 내려받기)·[취소]·스트림 오류·떠나면 구독 끊김, 지우기 확인 → `delete` 1 → 다시 조회 · 취소 · 오류, 가로), `backup_export_test`(+1 — 기본 MIME `application/json`·준 MIME이 내려받기·공유까지), `settings_sections_test`(`app.v1Copy` 위치·제목·빌더), `settings_screen_test`(섹션 9개) |
+| J14b | 완료 | `b0cefb5` | `app/test/settings/v1_copy_section_test.dart`(새, 19 — `v1CopyMimeType` 표, 다섯 상태: 사본 있음(웹·네이티브 이름)·사본 실패(quota·io·other·모르는 값)·사본 없음·아직 볼 수 없음(기록 0)·읽기 오류(기록 1), 확인 중 줄, 보일 때마다 `info`, 기본 api(CORE B2-α 선언) → '사본 없음', 내보내기 두 이름(4 MiB·4 MiB·1 B → 시트의 `BackupFile` 바이트·`info.fileName`·MIME → 내려받기)·[취소]·스트림 오류·떠나면 구독 끊김, 지우기 확인 → `delete` 1 → 다시 조회 · 취소 · 오류, 가로), `backup_export_test`(+1 — 기본 MIME `application/json`·준 MIME이 내려받기·공유까지), `settings_sections_test`(`app.v1Copy` 위치·제목·빌더), `settings_screen_test`(섹션 9개) |
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
 | J16 | 남음 | | `workflows_test`(functions) — 실행은 GitHub(V13) |
-| J17 | 남음 | | `tool/test/web_budget_test.dart` |
+| J17 | 완료 | (이 커밋) | `tool/test/web_budget_test.dart`(16 — 형식 3(4.3.3 모양·잘못된 파일 7가지·커밋된 `tool/web_budget.yaml` 값), 측정 2(gzip = 파일별 `dart:io` gzip 합·없는 보고 자산 → null·빌드/`main.dart.js`/`FontManifest.json` 없음·깨진 JSON), 보고 7(한도 안 · 넘음(크기·증가분·묶음) · 원본 글꼴 한도 · 금지 글꼴 · 빌드에 없는 글꼴 파일 · `measure`는 표시만 · 표 형식), 명령 4(`check` 0 + 요약 파일 · 넘으면 1 / `measure` 0 · `--budget` · 빌드·예산 없음 → 3 · 예산 없이 `measure`)), `workflows_test`(`ci.yml` 'Web budget' 단계 — 순서·명령·조건 없음, `ws` 호출 21개) |
 | J18 | 남음 | | `tool/test/guides_test.dart` v2 |
 | J19 | 남음 | | `app_smoke_v2_test`·`feature_switch_test`(integration)·`app_smoke_v2_browser_test` |
 | J20 | 남음 | | `tool/test/lock_age_test.dart` |
@@ -683,7 +683,7 @@
 
 #### J14b — 개발자 메뉴 `V1CopySection` · `BackupFile.mimeType` (계획 8.2, 6.18·4.6.7, 계약 7.2.7 · C22-01 CP-17)
 
-- 커밋: 이 커밋(작업 표의 해시는 다음 기록 커밋에서 채움).
+- 커밋: `b0cefb5`.
 - `app/lib/src/settings/v1_copy_section.dart`: `V1CopyApi`(기본값 = `package:note_core/dev_tools.dart`의 CP-17 함수 셋)·`V1CopySection`·`v1CopyMimeType` — 계획 4.6.7 시그니처·주석 그대로. 다섯 상태, 내보내기 두 단계(`BytesBuilder(copy: false)`로 조각 모음 → `BackupReadySheet` → 1차 `deliverBackup`, 결과 문구는 1차 백업과 같은 스낵바), 지우기(확인 창 → `delete` → 다시 조회). 키 `app.v1Copy.export`·`app.v1Copy.delete`(부록 C) + `app.v1Copy.cancel`·`app.v1Copy.progress`·`app.v1Copy.delete.confirm`·`.cancel`.
 - `BackupFile.mimeType`을 필드로(기본 `application/json` — 1차 호출부 그대로). 시트의 `canShareFiles(mimeType:)`가 그 값을 쓴다.
 - 설정 섹션 `app.v1Copy`('이전 판 DB 사본')를 `app.features`와 `app.about` 사이에(S2-9). 이 작업 트리의 CORE는 B2-α 선언(`v1DatabaseCopyInfo` → `null`)이라 실제 앱에서는 '사본 없음'이 보인다 — 실제 CP-17 함수 + 실제 CORE VM 파일 DB로 '사본 없음' 1회는 H2(T24 뒤).
@@ -693,6 +693,21 @@
 | `app` `flutter analyze --fatal-infos` / `dart format --set-exit-if-changed lib test` | 0건 / 변경 0 |
 | `ws check` (R1–R16) | 0 |
 | `flutter test test/settings/` | 89 통과(v1 사본 19) |
+
+#### J17 — `ws web-budget` · `tool/web_budget.yaml` · CI 단계 (계획 8.2, 4.2·4.3.3·6.15)
+
+- 커밋: 이 커밋(작업 표의 해시는 다음 기록 커밋에서 채움).
+- `tool/src/web_budget.dart`: `WebBudget.parse/load`(4.3.3 형식 — 모든 한도는 `null` 가능 = 표시만), `measureWebBuild`(`main.dart.js` 원본·gzip, `assets/FontManifest.json`의 패밀리마다 파일 합, `report_assets`), `webBudgetReport`(`check`면 한도 대조, `measure`면 모두 'report'), Markdown 표 + 끝줄 `ws web-budget check: N violation(s)`. `ws web-budget measure|check [--build-dir] [--budget]`, `GITHUB_STEP_SUMMARY`가 있으면 '### Web budget (check)' + 표를 덧붙임.
+- `tool/web_budget.yaml`: 4.3.3 그대로(묶음별 `gzip_max: null` — 위 '변경 요청'의 총괄 결정 전까지 표시만).
+- `ci.yml`: 'Finalize web build' 다음, 배포 앞에 'Web budget' 단계(`ws web-budget check --build-dir app/build/web`, 조건 없음 — 넘으면 배포 전에 멈춤). J15의 잡 분리 때 웹 빌드 잡으로 함께 옮긴다.
+- 실제 빌드로 한 번(J0 때 남은 `app/build/web` = 기능 끈 빌드): `main.dart.js` 4,682,895 B · gzip 1,379,757 B(한도 1,666,038 — ok, 기준 대비 +13,719), 시작 글꼴 14 패밀리 22 파일 gzip 382,428 B(한도 400,000 — ok), KaTeX 371,014 B · 아이콘 11,414 B(표시만), 금지 글꼴 없음, 워크릿 11,762 B — J0 측정 표와 같은 값. 종료 0.
+
+| 검사 | 결과 |
+|---|---|
+| `dart analyze --fatal-infos tool` / `dart format` | 0건 / 변경 0 |
+| `dart test tool/test/web_budget_test.dart` | 16 통과 |
+| `dart test tool/test/workflows_test.dart` | 73 통과 |
+| `dart test tool/test` | 497 통과 · 155초 (처음 1회는 `workflows_test`의 `ws` 호출 수 20 → 21에서 실패 — 고침) |
 
 #### 변경 요청
 
@@ -776,6 +791,8 @@
 
 - (J14b) 계획 4.6.7에 없는 것: 확인 중 줄('확인하는 중…' — `info()`가 답하기 전), 모르는 `failure` 값은 'other' 문구, 사본 크기·진행 표시는 J14의 `AppStrings.megabytes`('12.3 MB'), 만든 시각은 지역 시각 `yyyy-MM-dd HH:mm`. 내보내기·지우기 실패 기록의 `details`는 'readV1DatabaseCopy failed'·'deleteV1DatabaseCopy failed'·'v1DatabaseCopyInfo failed'(1차 'prepareBackup failed'와 같은 꼴). 시트를 닫은 뒤 스낵바 문구는 1차 백업 것을 그대로 쓴다('백업 파일을 내려받았어요…').
 - (J14b) 섹션 본문에 `ValueKey('app.v1Copy')`를 달았다가 설정 화면이 섹션 본문을 같은 키로 감싸서(1차 `SettingsScreen` — `ValueKey(entry.id)`) `settings_screen_test`가 '요소가 둘'로 실패했다 — 섹션 자신에는 키를 달지 않는다.
+
+- (J17) 계획 4.2 표의 종료 코드는 0 / 1이다. 빌드 폴더·`main.dart.js`·`FontManifest.json`·예산 파일이 없거나 형식이 틀리면 다른 `ws` 명령과 같이 3(환경 오류)으로 했다. `FontManifest.json`에 있지만 빌드에 없는 글꼴 파일은 'missing' 줄(위반 아님), `measure`는 예산 파일이 없어도 잰다(묶음·보고 자산 없이). 원본 글꼴 한도(`startup_fonts_raw_max`)는 합계 줄 하나에 gzip 한도와 함께 보인다('400,000 · raw 700,000'). 도구 내부 이름(`ByteSize`·`FontBundle`·`WebBudgetRow`·`groupBytes` 등)은 계약 표면이 아니다. 'Web budget' 단계는 `ci.yml`에만 넣었다(`web-experiment.yml`은 실험 채널 — 계획이 정하지 않음).
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 

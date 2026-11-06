@@ -447,7 +447,7 @@ void main() {
           }
         }
       }
-      expect(calls, hasLength(20));
+      expect(calls, hasLength(21)); // + web-budget check (J17)
       for (final call in calls) {
         final args = _shellWords(call, _sampleVariables);
         final err = StringBuffer();
@@ -655,6 +655,7 @@ void main() {
           'Verify web assets', // 13
           'Web build', // 14
           'Finalize web build', // 15
+          'Web budget', // 2차 J17
           'Deploy to Firebase Hosting', // 16
           'Summary', // 17
         ],
@@ -680,6 +681,7 @@ void main() {
         'Verify web assets': ['$_ws web-assets verify'],
         'Web build': [_webBuild],
         'Finalize web build': [_finalize],
+        'Web budget': ['$_ws web-budget check --build-dir app/build/web'],
       };
       for (final MapEntry(:key, :value) in expected.entries) {
         expect(_commands(step(key)), value, reason: key);
@@ -753,6 +755,7 @@ void main() {
         'Verify web assets',
         'Web build',
         'Finalize web build',
+        'Web budget',
       ]) {
         expect(step(name).containsKey('if'), isFalse, reason: name);
       }
