@@ -7,8 +7,9 @@
 // nib ellipse; a sharp corner splits the polygon; turning the points by ψ with the
 // angle + ψ turns the outline (0°, 45°, 90°, 135°); the real pipeline reads the
 // style's nib (OutlineGenerator.outline), and the live chunks are nib outlines
-// (6.4 'live'). The outline checksum recorded here is also checked in Chrome
-// (test/web/geometry_on_web_test.dart).
+// (6.4 'live'). The outline checksum (test/support/outline_checksums.dart) is
+// also checked in Chrome (test/web/determinism_test.dart, and this file through
+// test/web/geometry_on_web_test.dart).
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -23,6 +24,7 @@ import 'package:ink_engine/src/render/sessions.dart';
 import 'package:ink_engine/src/stroke/stroke_builder.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../../support/outline_checksums.dart';
 import '../../support/outline_helpers.dart';
 
 StrokeOutline _nib(
@@ -141,41 +143,6 @@ List<ui.Offset> _sCurve({ui.Offset origin = const ui.Offset(60, 120)}) =>
       length: 260,
       step: 2,
     );
-
-/// Quantized polygons of an outline (0.01 pt), arithmetic only (web-safe).
-int _outlineChecksum(StrokeOutline o) {
-  const m = 1000000007;
-  var sum = 0;
-  void add(double v) => sum = (sum * 31 + (v * 100).round() + m) % m;
-  for (final poly in o.polygons) {
-    add(poly.length.toDouble());
-    for (final v in poly) {
-      add(v);
-    }
-  }
-  return sum;
-}
-
-/// Nib outlines of a few shapes, angles, aspects and widths.
-List<StrokeOutline> _checksumOutlines() => [
-  for (final (angle, aspect) in [(0.0, 0.25), (45.0, 0.1), (135.0, 0.6)])
-    for (final width in [0.5, 2.5, 18.0])
-      for (final xy in [
-        _line(const ui.Offset(20, 30), 0),
-        _line(const ui.Offset(20, 30), 60),
-        _sCurve(),
-        [
-          const ui.Offset(50, 300),
-          const ui.Offset(150, 300),
-          const ui.Offset(60, 320),
-        ],
-        [const ui.Offset(400, 400)],
-      ])
-        _nib(xy, width: width, angleDeg: angle, aspect: aspect),
-];
-
-/// The checksum of _checksumOutlines() recorded on the VM (T28).
-const int _recordedNibChecksum = 168632678;
 
 void main() {
   group('the support point formula (N4)', () {
@@ -560,11 +527,8 @@ void main() {
     );
   });
 
-  test('outline checksum = the recorded VM value (Chrome: the same)', () {
-    var sum = 0;
-    for (final o in _checksumOutlines()) {
-      sum = (sum * 7 + _outlineChecksum(o)) % 1000000007;
-    }
-    expect(sum, _recordedNibChecksum);
+  test('outline checksum = the recorded VM value (Chrome: the same — '
+      'determinism_test)', () {
+    expect(foldedChecksum(nibChecksumOutlines()), recordedNibChecksum);
   });
 }

@@ -5,7 +5,10 @@
 // 4096 cap stretching the whole pattern by one factor, an invalid pattern the
 // default [4, 3]. All pieces are one outline (one nonZero path, many contours).
 //
-// Also run in Chrome by test/web/geometry_on_web_test.dart.
+// The outline checksum of fixed dashed outlines (test/support/
+// outline_checksums.dart) is the recorded VM value — Chrome: the same
+// (test/web/determinism_test.dart). Also run in Chrome by
+// test/web/geometry_on_web_test.dart.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -16,6 +19,8 @@ import 'package:ink_engine/src/geometry/dash.dart';
 import 'package:ink_engine/src/geometry/outline_generator.dart';
 import 'package:ink_engine/src/geometry/stroke_outline.dart';
 import 'package:note_core/note_core.dart' as core;
+
+import '../../support/outline_checksums.dart';
 
 var _ids = 0;
 
@@ -339,5 +344,10 @@ void main() {
     expect(xs, hasLength(2));
     expect(xs[0].$1, closeTo(4, 0.05));
     expect(xs[1].$2, closeTo(9, 0.05));
+  });
+
+  test('outline checksum = the recorded VM value (Chrome: the same — '
+      'determinism_test)', () {
+    expect(foldedChecksum(dashedChecksumOutlines()), recordedDashedChecksum);
   });
 }
