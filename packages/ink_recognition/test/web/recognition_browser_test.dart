@@ -4,8 +4,9 @@
 // a test overrides an available engine — and the HandwritingTrace body shared
 // with the VM keeps 13-digit epoch ms exact. (L2-05) The line grouping body
 // shared with the VM (shared/line_cases.dart — V9 on the same synthetic
-// pages, lineAccuracy) gives the same numbers on dart2js. L2-20 adds the
-// conversion sheet and web wording cases (with useInkTestFonts in setUpAll).
+// pages, lineAccuracy) gives the same numbers on dart2js. (L2-15) The
+// conversion sheet on the web: the fixed sentence and [닫기]. L2-20 adds the
+// remaining web cases (with useInkTestFonts in setUpAll).
 // (L2-18) The settings section on the web: the contract 7.4.2 sentence and a
 // disabled handwriting group — even with an available engine.
 @TestOn('browser')
@@ -23,6 +24,7 @@ import 'package:note_core/testing.dart' as core_testing;
 
 import '../shared/line_cases.dart';
 import '../shared/trace_cases.dart';
+import '../support/recognition_test_scope.dart';
 
 void main() {
   test('runs on the web', () {
@@ -125,6 +127,38 @@ void main() {
       find.byKey(const ValueKey('recog.settings.consent')),
     );
     expect(consent.onChanged, isNotNull);
+  });
+
+  testWidgets('the conversion sheet on the web (recognitionOverrides): the '
+      'fixed sentence, [닫기], no primary, no line card (L2-15)', (tester) async {
+    final host = await RecognitionHost.pump(
+      tester,
+      overrides: recognitionOverrides(),
+    );
+    for (final id in ['recog.toText', 'recog.copyText']) {
+      final run = recognitionSelectionActions()
+          .singleWhere((a) => a.id == id)
+          .run(
+            host.body,
+            TargetLog().target(
+              strokes: [
+                glyphStroke('s1', 110, 110, 40),
+                glyphStroke('s2', 160, 110, 40),
+              ],
+            ),
+          );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('recog.sheet.toText')), findsOneWidget);
+      expect(
+        find.text('이 기기(웹)에서는 손글씨 인식을 쓸 수 없어요. 안드로이드 앱에서 쓸 수 있어요.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('recog.sheet.primary')), findsNothing);
+      expect(find.byKey(const ValueKey('recog.sheet.line.0')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('recog.sheet.cancel')));
+      await tester.pumpAndSettle();
+      await run;
+    }
   });
 
   defineHandwritingTraceTests();

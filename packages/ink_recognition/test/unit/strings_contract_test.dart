@@ -66,6 +66,20 @@ void main() {
     expect(RecognitionStrings.runFailed, '실행하지 못했어요.');
   });
 
+  test('conversion sheet (6.13 — L2-15)', () {
+    expect(RecognitionStrings.close, '닫기');
+    expect(RecognitionStrings.toTextBox, '텍스트 상자로');
+    expect(RecognitionStrings.copy, '복사');
+    expect(RecognitionStrings.conversionLanguage, '언어');
+    expect(RecognitionStrings.lineLabel(3), '3줄');
+    expect(
+      RecognitionStrings.textTooLong,
+      '글이 너무 길어요. 10,000자까지 텍스트 상자로 바꿀 수 있어요.',
+    );
+    expect(RecognitionStrings.tooManyLines(2), '나머지 2줄은 선택을 나눠 변환해 주세요.');
+    expect(RecognitionStrings.recognizeFailed, '인식하지 못했어요. 다시 시도해 주세요.');
+  });
+
   test('math pad handwriting area (6.14.1, 6.14.4 — L2-17a)', () {
     expect(RecognitionStrings.padUndo, '되돌리기');
     expect(RecognitionStrings.padEraser, '지우개');

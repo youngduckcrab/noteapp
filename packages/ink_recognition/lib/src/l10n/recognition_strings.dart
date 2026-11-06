@@ -82,6 +82,20 @@ abstract final class RecognitionStrings {
   /// recog.toMath's primary (6.15.3 — L2-17b).
   static const String toMathPrimary = '수식으로 바꾸기';
 
+  // The conversion sheet (6.13 — L2-15).
+  static const String close = '닫기';
+
+  /// recog.toText's primary.
+  static const String toTextBox = '텍스트 상자로';
+
+  /// recog.copyText's primary / recog.toText's secondary.
+  static const String copy = '복사';
+  static const String conversionLanguage = '언어';
+  static String lineLabel(int n) => '$n줄';
+
+  /// More than PageObjectLimits.maxTextLength characters (6.13.4).
+  static const String textTooLong = '글이 너무 길어요. 10,000자까지 텍스트 상자로 바꿀 수 있어요.';
+
   // Math pad handwriting area (6.14.1–6.14.4 — L2-17a).
   static const String padUndo = '되돌리기';
   static const String padEraser = '지우개';

@@ -4,12 +4,14 @@
 // keyboard up. L2-13: the LaTeX editor; L2-14: the math pad (direct input);
 // L2-17a: the math pad with an engine (handwriting area + tools); L2-17b:
 // recog.toMath without an engine (notice + read-only strokes view);
-// L2-15 adds the conversion sheet (the package-side twin of INFRA V5 opening
-// each slot).
+// L2-15: the conversion sheet (recog.toText — line cards, chips, language
+// buttons; the model card). The package-side twin of INFRA V5 opening each
+// slot.
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/testing.dart' as ink_testing;
 import 'package:ink_recognition/ink_recognition.dart';
+import 'package:ink_recognition/src/ui/conversion_sheet.dart';
 import 'package:ink_recognition/src/ui/latex_editor_sheet.dart';
 import 'package:ink_recognition/src/ui/math_pad_canvas.dart';
 import 'package:ink_recognition/src/ui/math_pad_sheet.dart';
@@ -72,6 +74,54 @@ final List<SheetCase> _sheets = [
               glyphStroke('s2', 180, 110, 60),
             ],
             areaPt: const Rect.fromLTWH(100, 100, 300, 120),
+          ),
+        ),
+  ),
+  (
+    name: 'conversion sheet (recog.toText, two lines)',
+    key: kConversionSheetKey,
+    overrides: () => [
+      handwritingRecognizerProvider.overrideWithValue(
+        FakeHandwritingRecognizer(),
+      ),
+    ],
+    open: (body, log) => recognitionSelectionActions()
+        .singleWhere((a) => a.id == 'recog.toText')
+        .run(
+          body,
+          log.target(
+            strokes: [
+              for (var line = 0; line < 2; line++)
+                for (var j = 0; j < 3; j++)
+                  glyphStroke(
+                    'l${line}g$j',
+                    110 + 50.0 * j,
+                    110 + 80.0 * line,
+                    40,
+                  ),
+            ],
+            areaPt: const Rect.fromLTWH(100, 100, 300, 200),
+          ),
+        ),
+  ),
+  (
+    name: 'conversion sheet (recog.copyText, the model card)',
+    key: kConversionSheetKey,
+    overrides: () => [
+      handwritingRecognizerProvider.overrideWithValue(
+        FakeHandwritingRecognizer()
+          ..modelStates['ko'] = RecognitionModelState.notDownloaded,
+      ),
+    ],
+    open: (body, log) => recognitionSelectionActions()
+        .singleWhere((a) => a.id == 'recog.copyText')
+        .run(
+          body,
+          log.target(
+            strokes: [
+              glyphStroke('s1', 110, 110, 40),
+              glyphStroke('s2', 160, 110, 40),
+            ],
           ),
         ),
   ),

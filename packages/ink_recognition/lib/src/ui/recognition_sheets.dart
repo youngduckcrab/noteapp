@@ -10,14 +10,15 @@
 // captured its scope (ActionRun), and opens its sheet before its first await
 // (the sheet shows '인식 중…' while it works — 6.13.1).
 //
-// The sheets land with their tasks — the LaTeX editor (recog.editMath) L2-13
-// and the math pad (direct input L2-14, handwriting L2-17a), recog.toMath
-// L2-17b (done), the conversion sheet L2-15. Until then the default throws
-// UnimplementedError, which the run's guard reports once and shows as
-// '실행하지 못했어요' (6.16, 6.22).
+// The sheets landed with their tasks — the LaTeX editor (recog.editMath)
+// L2-13, the math pad (direct input L2-14, handwriting L2-17a), recog.toMath
+// L2-17b and the conversion sheet (recog.toText / recog.copyText with
+// strokes) L2-15. A sheet that throws is reported once by the run's guard and
+// shown as '실행하지 못했어요' (6.16, 6.22).
 import 'package:note_core/note_core.dart' as core;
 
 import '../actions/action_scope.dart';
+import 'conversion_sheet.dart';
 import 'latex_editor_sheet.dart';
 import 'math_pad_sheet.dart';
 
@@ -49,7 +50,7 @@ final class DefaultRecognitionSheets implements RecognitionSheets {
     ActionRun run, {
     required List<core.Stroke> inputs,
     required bool copy,
-  }) => throw UnimplementedError('conversion sheet — L2-15');
+  }) => openConversion(run, inputs: inputs, copy: copy);
 
   @override
   Future<void> toMath(ActionRun run, {required List<core.Stroke> inputs}) =>

@@ -98,9 +98,10 @@ Future<List<List<int>>> groupTraceIndicesInBackground(
 List<List<int>> _groupTraceIndices(List<HandwritingTrace> traces) =>
     groupTraceIndices(traces);
 
-/// The last [count] characters of [text] (UTF-16, never half a surrogate
-/// pair).
-String _tail(String text, int count) {
+/// (internal) The last [count] characters of [text] (UTF-16, never half a
+/// surrogate pair) — the preContext of the next line (the indexer and the
+/// conversion sheet, 6.13.1).
+String textTail(String text, int count) {
   if (text.length <= count) return text;
   var start = text.length - count;
   final unit = text.codeUnitAt(start);
@@ -753,7 +754,7 @@ final class HandwritingIndexer {
         rev,
         HandwritingLineInput(
           lineTraces,
-          preContext: _tail(previous, IndexerTuning.preContextChars),
+          preContext: textTail(previous, IndexerTuning.preContextChars),
           writingAreaPt: Size(
             pageWidth,
             math.max(
