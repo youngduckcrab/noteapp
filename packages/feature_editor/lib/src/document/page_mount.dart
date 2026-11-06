@@ -1,4 +1,7 @@
-// lib/src/document/page_mount.dart — 04-editor 6.4.4 (E-04).
+// lib/src/document/page_mount.dart — 04-editor 6.4.4 (E-04); (v2)
+// m5-7/04-editor 6.14.4, 6.15.2, I-10 (E2-02): page objects go to INK, the
+// note-level tape 'show all' is applied again after every updateContent, and
+// a new mount gets the playback focus.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -10,7 +13,13 @@ import 'package:note_core/note_core.dart' as core;
 ///     session.pageChanges(page.id).listen(_onChange) — sync broadcast: emits `load`
 ///     first when already loaded (CORE 4.4).
 ///   - _onChange(c): controller.updateContent(ink.InkPageContent.fromCore(
-///         page: c.content.page, strokes: c.content.strokes, revision: c.content.revision));
+///         page: c.content.page, strokes: c.content.strokes,
+///         objects: c.content.objects (v2), revision: c.content.revision));
+///     (v2, I-10) then, when [tapesRevealedAll] says true, setAllTapesRevealed(true)
+///     — INK applies it to the tapes present now only, so tapes that arrived
+///     with this content (drawn, undone, remote) are revealed too; (v2) on the
+///     first content, the [playbackFocus] of the note (if any) is set on the
+///     controller (a page mounted during playback is emphasized at once);
 ///     isLoaded.value = true; then onContentChanged(c) (selection revalidation, 6.6.6;
 ///     dev metrics stroke count). MUST NOT call session.execute — inside a session
 ///     stream listener it throws StateError (contract 7.2.8 N-2 v1.1).
@@ -23,6 +32,8 @@ final class PageMount {
     required core.Page page,
     required this._controller,
     this._onContentChanged,
+    this._tapesRevealedAll,
+    this._playbackFocus,
   }) : _session = session,
        _pageId = page.id {
     // Listen first: a page that is already loaded delivers its `load` change
@@ -38,8 +49,17 @@ final class PageMount {
   final String _pageId;
   final ink.InkPageController _controller;
   final void Function(core.PageContentChange change)? _onContentChanged;
+
+  /// (v2) The note-level tape state (editorTapesRevealedAllProvider): true =
+  /// 'show all', read at every content change.
+  final bool? Function()? _tapesRevealedAll;
+
+  /// (v2) The note's playback focus, applied once to a new mount (E2-17 gives
+  /// the value; null = none).
+  final ink.InkPlaybackFocus? Function()? _playbackFocus;
   late final StreamSubscription<core.PageContentChange> _subscription;
   final ValueNotifier<bool> _isLoaded = ValueNotifier(false);
+  final ValueNotifier<int> _contentChanges = ValueNotifier(0);
 
   /// openPage completed and its pin is held (released by [dispose]).
   bool _pinned = false;
@@ -48,6 +68,11 @@ final class PageMount {
   String get pageId => _pageId;
   ink.InkPageController get controller => _controller;
   ValueListenable<bool> get isLoaded => _isLoaded;
+
+  /// (v2, m5-7/04-editor 6.7.2) How many CORE content changes reached this
+  /// mount (after the controller got each one): the selection menu follows
+  /// it (the '색' dot after a recolor).
+  ValueListenable<int> get contentChanges => _contentChanges;
   core.PageContent? get content => _session.pageIfLoaded(_pageId);
 
   /// True after [dispose].
@@ -87,10 +112,19 @@ final class PageMount {
       ink.InkPageContent.fromCore(
         page: c.page,
         strokes: c.strokes,
+        objects: c.objects,
         revision: c.revision,
       ),
     );
+    if (_tapesRevealedAll?.call() ?? false) {
+      _controller.setAllTapesRevealed(true);
+    }
+    if (!_isLoaded.value) {
+      final focus = _playbackFocus?.call();
+      if (focus != null) _controller.setPlaybackFocus(focus);
+    }
     _isLoaded.value = true;
+    _contentChanges.value++;
     _onContentChanged?.call(change);
   }
 
@@ -119,5 +153,6 @@ final class PageMount {
       _session.closePage(_pageId);
     }
     _isLoaded.dispose();
+    _contentChanges.dispose();
   }
 }

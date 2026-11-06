@@ -24,8 +24,23 @@ enum ColorPickerMode { wheel, square }
 /// survives saturation 0 or value 0. When the colour changes elsewhere (a
 /// preset, another pen type, the eyedropper) the HSV is computed again,
 /// keeping the old hue when the new saturation or value is 0.
+///
+/// (v2, m5-7/04-editor 6.7.2) With [onColor] the panel edits [colorArgb]
+/// instead of the pen's colour (the recolor popup's '더 보기'): every change
+/// goes to [onColor] (opaque), the opacity part of an 8-digit HEX is
+/// ignored and [스포이드] is not shown.
 class ColorPickerPanel extends ConsumerStatefulWidget {
-  const ColorPickerPanel({super.key});
+  const ColorPickerPanel({super.key, this.colorArgb, this.onColor})
+    : assert(
+        (colorArgb == null) == (onColor == null),
+        'colorArgb and onColor go together',
+      );
+
+  /// The colour edited with [onColor] (null: the current pen's colour).
+  final int? colorArgb;
+
+  /// Receives the edited colour (null: ToolController.setColor).
+  final ValueChanged<int>? onColor;
 
   static const wheelSegmentKey = ValueKey('editor.color.mode.wheel');
   static const squareSegmentKey = ValueKey('editor.color.mode.square');
@@ -56,16 +71,27 @@ class _ColorPickerPanelState extends ConsumerState<ColorPickerPanel> {
 
   void _apply(HSVColor next) {
     setState(() => _hsv = next);
-    ref.read(editorToolProvider.notifier).setColor(ColorMath.fromHsv(next));
+    _setColor(ColorMath.fromHsv(next));
+  }
+
+  void _setColor(int argb) {
+    final onColor = widget.onColor;
+    if (onColor != null) {
+      onColor(ColorMath.opaque(argb));
+    } else {
+      ref.read(editorToolProvider.notifier).setColor(argb);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final argb = ref.watch(
+    final int penArgb = ref.watch(
       editorToolProvider.select((s) => s.currentPen.colorArgb),
     );
+    final argb = widget.colorArgb ?? penArgb;
     final hsv = _syncFrom(argb);
     final tools = ref.read(editorToolProvider.notifier);
+    final penColour = widget.onColor == null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -124,20 +150,23 @@ class _ColorPickerPanelState extends ConsumerState<ColorPickerPanel> {
         const SizedBox(height: 8),
         HexRgbFields(
           argb: argb,
-          onColor: tools.setColor,
-          onOpacity: tools.setOpacity,
+          onColor: _setColor,
+          onOpacity: penColour ? tools.setOpacity : (_) {},
         ),
-        const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            key: ColorPickerPanel.eyedropperKey,
-            icon: const Icon(Icons.colorize),
-            label: const Text(EditorStrings.eyedropper),
-            style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
-            onPressed: () => ref.read(editorCommandsProvider).startEyedropper(),
+        if (penColour) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: ColorPickerPanel.eyedropperKey,
+              icon: const Icon(Icons.colorize),
+              label: const Text(EditorStrings.eyedropper),
+              style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+              onPressed: () =>
+                  ref.read(editorCommandsProvider).startEyedropper(),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

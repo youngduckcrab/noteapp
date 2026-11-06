@@ -5,7 +5,13 @@
 // selection menu and the context menu (E-10), the canvas focus (E-12 — P / E /
 // L, focused again by a pointer down), the eyedropper banner (E-14), the
 // add-page button, the page indicator and the page panel (E-17), the
-// developer overlay (E-19) — 6.4.3 tree.
+// developer overlay (E-19) — 6.4.3 tree. (v2, E2-01) The inline text editor
+// and the sheet-mode text panel (m5-7/04-editor 6.11.3, 6.11.6). (E2-10) The
+// canvas joins the editor's tap group while a text session is open
+// (TextFieldTapRegion — a canvas down is not the editor's onTapOutside; the
+// router decides, 6.11.5) and the new text box outline (6.11.1). (E2-19) The
+// position flash (6.16). (E2-18) The Apple Pencil events while the viewport
+// is on screen (StylusExtrasListener — 6.5.1).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,12 +21,19 @@ import 'package:note_core/note_core.dart' as core;
 import '../input/editor_shortcuts.dart';
 import '../input/input_router.dart';
 import '../scope/editor_scope.dart';
+import '../stylus/stylus_extras_listener.dart';
+import '../text/text_box_editor.dart';
+import '../text/text_edit_session.dart';
+import '../text/text_input_sheet.dart';
 import '../ui/dev/dev_overlay.dart';
 import '../ui/overlays/add_page_button.dart';
 import '../ui/overlays/context_menu.dart';
 import '../ui/overlays/cursor_painter.dart';
 import '../ui/overlays/eyedropper_banner.dart';
+import '../ui/overlays/focus_flash.dart';
+import '../ui/overlays/new_text_box_outline.dart';
 import '../ui/overlays/page_indicator.dart';
+import '../ui/overlays/rotation_label.dart';
 import '../ui/overlays/selection_frame_painter.dart';
 import '../ui/overlays/selection_menu.dart';
 import '../ui/pages/page_panel.dart';
@@ -106,6 +119,9 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     final host = ref.watch(editorInteractionHostProvider);
     final camera = _cameraOf(viewport);
     final scheme = Theme.of(context).colorScheme;
+    // (v2, 6.11.3 '탭 묶음') only while a session is open — else the 1st
+    // round (other text fields' onTapOutside on a canvas down).
+    final editing = ref.watch(editorTextEditProvider.select((s) => s != null));
     return ColoredBox(
       color: scheme.surfaceContainer,
       child: LayoutBuilder(
@@ -114,46 +130,64 @@ class _PageViewportState extends ConsumerState<PageViewport> {
           return Stack(
             fit: StackFit.expand,
             children: [
-              EditorCanvasFocus(
-                child: RawGestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  gestures: const {EagerGestureRecognizer: _eagerFactory},
-                  child: _InputListener(
-                    router: router,
-                    child: ClipRect(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ListenableBuilder(
-                            listenable: camera,
-                            builder: (context, _) => _buildPages(viewport),
-                          ),
-                          const SelectionFrame(),
-                          IgnorePointer(
-                            child: RepaintBoundary(
-                              child: CustomPaint(
-                                painter: CursorPainter(
-                                  cursor: host.cursor,
-                                  ringColor: scheme.onSurface.withValues(
-                                    alpha: 0.6,
+              TextFieldTapRegion(
+                enabled: editing,
+                child: EditorCanvasFocus(
+                  child: RawGestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    gestures: const {EagerGestureRecognizer: _eagerFactory},
+                    child: _InputListener(
+                      router: router,
+                      // (v2, E2-18) hover poses → viewport coordinates of
+                      // this box (6.5.3).
+                      child: StylusExtrasListener(
+                        child: ClipRect(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ListenableBuilder(
+                                listenable: camera,
+                                builder: (context, _) => _buildPages(viewport),
+                              ),
+                              const SelectionFrame(),
+                              // (v2, E2-06) the angle tag of a rotate drag
+                              // (6.6.6).
+                              const RotationLabel(),
+                              // (v2, E2-10) the text tool's new box (6.11.1).
+                              const NewTextBoxOutline(),
+                              // (v2, E2-19) the position flash (6.16).
+                              const FocusFlash(),
+                              IgnorePointer(
+                                child: RepaintBoundary(
+                                  child: CustomPaint(
+                                    painter: CursorPainter(
+                                      cursor: host.cursor,
+                                      ringColor: scheme.onSurface.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
               // Siblings of the Listener: their taps never reach the router.
+              // (v2, E2-01) The text editor over its box (6.11.3).
+              const TextBoxEditorLayer(),
               const SelectionMenu(),
               const EditorContextMenu(),
               const AddPageButton(),
               const PageIndicator(),
               const EyedropperBanner(),
               const PagePanel(),
+              // (v2, E2-01) Sheet-mode text input at the top (6.11.6 A).
+              const TextInputSheet(),
               const DevOverlay(),
             ],
           );

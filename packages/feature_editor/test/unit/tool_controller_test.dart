@@ -5,6 +5,11 @@
 // (editor.penStyles / editor.eraser synced, editor.toolSelection device)
 // written 500 ms after a change and restored in a new container, P1 styles
 // round trip, remote synced values, invalid stored entries.
+// (v2, E2-03 — m5-7/04-editor 6.2.1, 6.2.2): the shape and text tools,
+// lastTool / lastPenType stored and restored, swapWithLast both ways, the
+// forward-compatible fallback (unknown names → pen / ballpoint / null without
+// a report, a non-string → pen with one report), the eraser previousTool
+// rule unchanged.
 import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
@@ -264,6 +269,7 @@ void main() {
       'diameter': 20.0,
       'filter': 'highlighterOnly',
       'returnToPrevious': true,
+      'eraseShapes': true, // (v2, 6.17)
     });
     expect(EraserSettings.fromJson(e.toJson()), e);
     expect(const EraserSettings().toJson(), {
@@ -272,6 +278,7 @@ void main() {
       'diameter': 12.0,
       'filter': 'all',
       'returnToPrevious': false,
+      'eraseShapes': true,
     });
     final invalid = <String>[];
     expect(
@@ -281,10 +288,17 @@ void main() {
         'diameter': 500,
         'filter': 7,
         'returnToPrevious': 'yes',
+        'eraseShapes': 0,
       }, invalidFields: invalid),
       const EraserSettings(),
     );
-    expect(invalid, ['mode', 'diameter', 'filter', 'returnToPrevious']);
+    expect(invalid, [
+      'mode',
+      'diameter',
+      'filter',
+      'returnToPrevious',
+      'eraseShapes',
+    ]);
   });
 
   test('changes are written 500 ms later, one key each, and restored in a new '
@@ -328,6 +342,9 @@ void main() {
         'activeTool': 'eraser',
         'penType': 'fountain',
         'previousTool': 'pen',
+        // (v2) the pair before the last switch (pen / fountain → eraser).
+        'lastTool': 'pen',
+        'lastPenType': 'fountain',
       });
       expect(env.storedValue(_eraser), {
         'v': 1,
@@ -335,6 +352,7 @@ void main() {
         'diameter': 30.0,
         'filter': 'exceptHighlighter',
         'returnToPrevious': true,
+        'eraseShapes': true,
       });
       final stored = env.storedValue(_styles);
       expect(stored['v'], 1);
@@ -481,7 +499,9 @@ void main() {
       });
       env.storeValue(_selection, {
         'v': 1,
-        'activeTool': 'wand',
+        // (v2, 6.2.2) a non-string is reported; an unknown name (a newer
+        // app's tool / pen) is not.
+        'activeTool': 7,
         'penType': 'quill',
         'previousTool': 'pen',
       });
@@ -495,12 +515,12 @@ void main() {
         'editor.penStyles.styles.fountain',
         'editor.penStyles.styles.pencil',
         'editor.toolSelection.activeTool',
-        'editor.toolSelection.penType',
         'editor.eraser.mode',
       ]) {
         expect(message, contains(path));
       }
       expect(message, isNot(contains('quill')));
+      expect(message, isNot(contains('editor.toolSelection.penType')));
       final s = env.toolState;
       expect(s.penStyles, ToolState.defaultPenStyles());
       expect(s.activeTool, EditorTool.pen);
@@ -508,6 +528,153 @@ void main() {
       expect(s.penType, core.PenTool.ballpoint);
       expect(s.eraser, const EraserSettings(diameter: 3));
     });
+  });
+
+  group('v2 (E2-03)', () {
+    void storeSelection(SettingsEnv env, Map<String, Object?> json) =>
+        env.storeValue(_selection, {'v': 1, ...json});
+
+    List<FlutterErrorDetails> captureReports() {
+      final reported = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = reported.add;
+      addTearDown(() => FlutterError.onError = previous);
+      return reported;
+    }
+
+    test('unknown activeTool "ruler" → pen, no report', () {
+      final reported = captureReports();
+      runSettingsEnv((env) {
+        storeSelection(env, {
+          'activeTool': 'ruler',
+          'penType': 'brushPen2',
+          'previousTool': 'compass',
+          'lastTool': 'ruler',
+          'lastPenType': 'quill',
+        });
+        env.loadTools();
+        final s = env.toolState;
+        expect(s.activeTool, EditorTool.pen);
+        expect(s.penType, core.PenTool.ballpoint);
+        expect(s.previousTool, isNull);
+        expect(s.lastTool, isNull);
+        expect(s.lastPenType, isNull);
+        expect(reported, isEmpty);
+      });
+    });
+
+    test('activeTool not a string → pen, one report', () {
+      final reported = captureReports();
+      runSettingsEnv((env) {
+        storeSelection(env, {'activeTool': true, 'lastTool': 3});
+        env.loadTools();
+        expect(env.toolState.activeTool, EditorTool.pen);
+        expect(env.toolState.lastTool, isNull);
+        expect(reported, hasLength(1));
+        final message = '${reported.single.exception}';
+        expect(message, contains('editor.toolSelection.activeTool'));
+        expect(message, contains('editor.toolSelection.lastTool'));
+      });
+    });
+
+    test('shape and text are tools; stored and restored', () {
+      runSettingsEnv((env) {
+        env.loadTools();
+        env.tools.selectTool(EditorTool.shape);
+        env.async.elapse(_debounce);
+        expect(env.storedValue(_selection)['activeTool'], 'shape');
+        expect(env.restoredToolState().activeTool, EditorTool.shape);
+        env.tools.selectTool(EditorTool.text);
+        env.async.elapse(_debounce);
+        final restored = env.restoredToolState();
+        expect(restored.activeTool, EditorTool.text);
+        expect(restored.lastTool, EditorTool.shape);
+      });
+    });
+
+    test('lastTool / lastPenType: the pair before every real switch, stored '
+        'and restored', () {
+      runSettingsEnv((env) {
+        env.loadTools();
+        final tools = env.tools;
+        expect(env.toolState.lastTool, isNull);
+        tools.selectTool(EditorTool.pen); // same tool: nothing
+        expect(env.toolState.lastTool, isNull);
+        tools.selectPenType(core.PenTool.highlighter);
+        expect(env.toolState.lastTool, EditorTool.pen);
+        expect(env.toolState.lastPenType, core.PenTool.ballpoint);
+        tools.selectTool(EditorTool.lasso);
+        expect(env.toolState.lastTool, EditorTool.pen);
+        expect(env.toolState.lastPenType, core.PenTool.highlighter);
+        tools.selectPenType(core.PenTool.highlighter); // back to the pen
+        expect(env.toolState.lastTool, EditorTool.lasso);
+        expect(env.toolState.lastPenType, core.PenTool.highlighter);
+        env.async.elapse(_debounce);
+        expect(env.storedValue(_selection), {
+          'v': 1,
+          'activeTool': 'pen',
+          'penType': 'highlighter',
+          'previousTool': null,
+          'lastTool': 'lasso',
+          'lastPenType': 'highlighter',
+        });
+        final restored = env.restoredToolState();
+        expect(restored.lastTool, EditorTool.lasso);
+        expect(restored.lastPenType, core.PenTool.highlighter);
+      });
+    });
+
+    test('swapWithLast: both ways; no-op without lastTool', () {
+      runSettingsEnv((env) {
+        env.loadTools();
+        final tools = env.tools;
+        tools.swapWithLast();
+        expect(env.toolState, ToolState.defaults(), reason: 'no lastTool');
+        tools
+          ..selectPenType(core.PenTool.fountain)
+          ..selectTool(EditorTool.lasso);
+        tools.swapWithLast();
+        var s = env.toolState;
+        expect(
+          (s.activeTool, s.penType),
+          (EditorTool.pen, core.PenTool.fountain),
+        );
+        expect(
+          (s.lastTool, s.lastPenType),
+          (EditorTool.lasso, core.PenTool.fountain),
+        );
+        tools.swapWithLast();
+        s = env.toolState;
+        expect(s.activeTool, EditorTool.lasso);
+        expect(
+          (s.lastTool, s.lastPenType),
+          (EditorTool.pen, core.PenTool.fountain),
+        );
+        // lastPenType null (old stored value) → the current pen type stays.
+        tools.selectTool(EditorTool.shape);
+        expect(env.toolState.lastTool, EditorTool.lasso);
+      });
+    });
+
+    test(
+      'swapWithLast to the eraser keeps the 1st-round previousTool rule',
+      () {
+        runSettingsEnv((env) {
+          env.loadTools();
+          final tools = env.tools
+            ..selectTool(EditorTool.eraser)
+            ..selectTool(EditorTool.lasso);
+          expect(env.toolState.previousTool, isNull);
+          tools.swapWithLast();
+          expect(env.toolState.activeTool, EditorTool.eraser);
+          expect(env.toolState.previousTool, EditorTool.lasso);
+          tools.returnFromEraser();
+          expect(env.toolState.activeTool, EditorTool.lasso);
+          expect(env.toolState.previousTool, isNull);
+          expect(env.toolState.lastTool, EditorTool.eraser);
+        });
+      },
+    );
   });
 
   test('the eyedropper is transient: not stored, ended by a tool change', () {

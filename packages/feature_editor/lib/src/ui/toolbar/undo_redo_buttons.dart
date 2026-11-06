@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../../scope/editor_scope.dart';
+import '../../text/text_edit_session.dart';
 import '../editor_strings.dart';
 
 /// [↶] [↷] of the toolbar. Enabled from `core.historyStateProvider(noteId)`
@@ -13,7 +14,11 @@ import '../editor_strings.dart';
 /// history provider of its own, contract 7.2.0); both disabled on a
 /// read-only note. Taps run EditorCommands.undo / redo (ignored during a tool
 /// interaction; a racing ReadOnlyNoteException is caught there — N-4 v1.1).
-/// No tooltips (6.9.1): semantics labels only.
+/// No tooltips (6.9.1): semantics labels only. (v2, E2-10 — 6.11.7) an open
+/// text session ends first — the button's down already ended it
+/// (tapOutside); the undo waits for its command, so the whole session goes
+/// back as one step. [↶] is enabled during a session too (its command may
+/// be the step to undo).
 class UndoRedoButtons extends ConsumerWidget {
   const UndoRedoButtons({super.key});
 
@@ -28,20 +33,28 @@ class UndoRedoButtons extends ConsumerWidget {
         core.HistoryState.empty;
     final readOnly = ref.watch(editorReadOnlyProvider);
     final commands = ref.watch(editorCommandsProvider);
+    final editing = ref.watch(editorTextEditProvider.select((s) => s != null));
+    Future<void> afterSession(Future<void> Function() step) async {
+      await ref
+          .read(editorTextEditProvider.notifier)
+          .end(reason: TextEditEndReason.undoRedo);
+      await step();
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
           key: undoKey,
-          onPressed: !readOnly && history.canUndo
-              ? () => unawaited(commands.undo())
+          onPressed: !readOnly && (history.canUndo || editing)
+              ? () => unawaited(afterSession(commands.undo))
               : null,
           icon: const Icon(Icons.undo, semanticLabel: EditorStrings.undo),
         ),
         IconButton(
           key: redoKey,
           onPressed: !readOnly && history.canRedo
-              ? () => unawaited(commands.redo())
+              ? () => unawaited(afterSession(commands.redo))
               : null,
           icon: const Icon(Icons.redo, semanticLabel: EditorStrings.redo),
         ),

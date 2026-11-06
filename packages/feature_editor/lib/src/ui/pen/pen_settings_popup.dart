@@ -3,9 +3,12 @@
 // E-13 opens this panel from the toolbar (the active pen tapped again).
 // E-14: the colour part (#4 picker, #5 recent colours, #6 palette). E-15: pen
 // types (#1), width + preview (#2), opacity (#3) and '고급' (#7). E-16:
-// [프리셋으로 저장] (#8) → SavePresetPopup (replaces this popup).
+// [프리셋으로 저장] (#8) → SavePresetPopup (replaces this popup). (v2,
+// m5-7/04-editor 6.14.2–6.14.3 — E2-14) '고급' also holds PenExtrasControls;
+// the laser has no colour rows (INK draws its trail in InkTuning.laserArgb).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' as core;
 
 import '../../state/popup.dart';
 import '../../tools/tool_controller.dart';
@@ -16,6 +19,7 @@ import '../color/user_palette_grid.dart';
 import '../editor_strings.dart';
 import '../popup_host.dart';
 import 'pen_advanced_controls.dart';
+import 'pen_extras_controls.dart';
 import 'pen_preview.dart';
 import 'pen_type_selector.dart';
 import 'width_slider.dart';
@@ -33,6 +37,7 @@ class PenSettingsPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pen = ref.watch(editorToolProvider.select((s) => s.currentPen));
+    final colours = pen.tool != core.PenTool.laser;
     return PopupPanelFrame(
       key: panelKey,
       title: EditorStrings.penSettings,
@@ -41,14 +46,16 @@ class PenSettingsPanel extends ConsumerWidget {
         const SizedBox(height: 8),
         const WidthSlider(),
         PenPreview(style: pen),
-        const SizedBox(height: 12),
-        const OpacitySlider(),
-        const SizedBox(height: 12),
-        const ColorPickerPanel(),
-        const SizedBox(height: 12),
-        const RecentColorsRow(),
-        const SizedBox(height: 8),
-        const UserPaletteGrid(),
+        if (colours) ...const [
+          SizedBox(height: 12),
+          OpacitySlider(),
+          SizedBox(height: 12),
+          ColorPickerPanel(),
+          SizedBox(height: 12),
+          RecentColorsRow(),
+          SizedBox(height: 8),
+          UserPaletteGrid(),
+        ],
         const SizedBox(height: 4),
         Theme(
           // No divider lines around the expansion tile inside the panel.
@@ -58,7 +65,7 @@ class PenSettingsPanel extends ConsumerWidget {
             tilePadding: EdgeInsets.zero,
             childrenPadding: EdgeInsets.only(bottom: 8),
             title: Text(EditorStrings.advanced),
-            children: [PenAdvancedControls()],
+            children: [PenAdvancedControls(), PenExtrasControls()],
           ),
         ),
         const SizedBox(height: 4),

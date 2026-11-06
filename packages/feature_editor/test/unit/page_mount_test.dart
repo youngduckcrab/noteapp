@@ -6,6 +6,15 @@
 //   - dispose → no subscription left, closePage once (also when it comes
 //     while the page is still loading);
 //   - no execute from inside a session stream listener (N-2 v1.1).
+// (v2, E2-02 — m5-7/04-editor 6.14.4, 6.15.2, I-10):
+//   - a page with objects: load → InkPageContent.objects match;
+//   - AddObjects / UpdateObjects / RemoveElements and their undo →
+//     updateContent once each, objects on the controller follow;
+//   - the note-level tape 'show all' (true) is applied again after every
+//     updateContent: a tape stroke that arrives later is revealed (the fake
+//     store has no remote path — a session change from outside the mount
+//     stands for it); null / false leave new tapes covered;
+//   - a new mount gets the note's playback focus with its first content.
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
@@ -33,7 +42,10 @@ final class _Env {
   final List<ink.InkPageController> _controllers = [];
   final List<PageMount> _mounts = [];
 
-  void open({Map<String, List<core.Stroke>> strokes = const {}}) {
+  void open({
+    Map<String, List<core.Stroke>> strokes = const {},
+    Map<String, List<core.PageObject>> objects = const {},
+  }) {
     store = createFakeNoteStore();
     late core.Note note;
     unawaited(
@@ -69,6 +81,22 @@ final class _Env {
         ..closePage(pageId)
         ..clearHistory();
     }
+    for (final MapEntry(key: pageId, value: list) in objects.entries) {
+      unawaited(inner.openPage(pageId));
+      async.flushMicrotasks();
+      inner.execute(
+        core.AddObjects(
+          pageId: pageId,
+          objects: [
+            for (final o in list)
+              o.copyTo(id: o.id, pageId: pageId, createdAt: o.createdAt),
+          ],
+        ),
+      );
+      inner
+        ..closePage(pageId)
+        ..clearHistory();
+    }
     async.flushMicrotasks();
   }
 
@@ -82,6 +110,8 @@ final class _Env {
     String pageId, {
     ink.InkPageController? controller,
     void Function(core.PageContentChange change)? onContentChanged,
+    bool? Function()? tapesRevealedAll,
+    ink.InkPlaybackFocus? Function()? playbackFocus,
   }) {
     final page = session.pages.firstWhere((p) => p.id == pageId);
     final m = PageMount(
@@ -89,6 +119,8 @@ final class _Env {
       page: page,
       controller: controller ?? this.controller(pageId),
       onContentChanged: onContentChanged,
+      tapesRevealedAll: tapesRevealedAll,
+      playbackFocus: playbackFocus,
     );
     _mounts.add(m);
     return m;
@@ -296,6 +328,169 @@ void main() {
     } finally {
       FlutterError.onError = previous;
     }
+  });
+
+  group('v2 (E2-02)', () {
+    core.TextBoxObject text(String id, {String t = '글'}) =>
+        PageObjectFixtures.textBox(pageId: _p0, id: id, text: t);
+    core.Stroke tape(String id, {double y = 400}) => lineStroke(
+      id: id,
+      pageId: _p0,
+      x0: 60,
+      y0: y,
+      x1: 300,
+      y1: y,
+      tool: core.PenTool.tape,
+    );
+
+    _mountTest('a page with objects: load → InkPageContent.objects match', (
+      env,
+    ) {
+      env.open(
+        strokes: {
+          _p0: [_stroke('a')],
+        },
+        objects: {
+          _p0: [
+            PageObjectFixtures.shape(pageId: _p0, id: 'shape-1'),
+            text('text-1'),
+          ],
+        },
+      );
+      final mount = env.mount(_p0);
+      env.async.flushMicrotasks();
+      final loaded = env.session.pageIfLoaded(_p0)!;
+      final content = mount.controller.content!;
+      expect(content.objects.map((o) => o.id), ['shape-1', 'text-1']);
+      expect(content.objects.map((o) => o.id), loaded.objects.map((o) => o.id));
+      expect(content.objects.last, loaded.objects.last);
+      expect(content.strokes.map((s) => s.id), ['a']);
+      expect(content.revision, loaded.revision);
+    });
+
+    _mountTest('AddObjects / UpdateObjects / RemoveElements and undo → '
+        'updateContent once each', (env) {
+      env.open();
+      final changes = <core.PageContentChange>[];
+      final mount = env.mount(_p0, onContentChanged: changes.add);
+      env.async.flushMicrotasks();
+      changes.clear();
+      final revisions = <int>[];
+      void step(void Function() run) {
+        final before = changes.length;
+        run();
+        env.async.flushMicrotasks();
+        expect(changes.length, before + 1, reason: 'one change per command');
+        final content = mount.controller.content!;
+        expect(content.revision, env.session.pageIfLoaded(_p0)!.revision);
+        revisions.add(content.revision);
+      }
+
+      List<String> texts() => [
+        for (final o in mount.controller.content!.objects)
+          (o as core.TextBoxObject).text,
+      ];
+
+      step(
+        () => env.session.execute(
+          core.AddObjects(
+            pageId: _p0,
+            objects: [text('t1', t: '처음')],
+          ),
+        ),
+      );
+      expect(texts(), ['처음']);
+      step(
+        () => env.session.execute(
+          core.UpdateObjects(
+            pageId: _p0,
+            objects: [text('t1', t: '고침')],
+          ),
+        ),
+      );
+      expect(texts(), ['고침']);
+      step(
+        () => env.session.execute(
+          core.RemoveElements(pageId: _p0, elementIds: const ['t1']),
+        ),
+      );
+      expect(mount.controller.content!.objects, isEmpty);
+      step(() => unawaited(env.session.undo()));
+      expect(texts(), ['고침']);
+      step(() => unawaited(env.session.undo()));
+      expect(texts(), ['처음']);
+      step(() => unawaited(env.session.undo()));
+      expect(mount.controller.content!.objects, isEmpty);
+      expect(revisions.toSet(), hasLength(6), reason: 'a new revision each');
+      expect(env.session.executeDuringDelivery, isFalse);
+    });
+
+    _mountTest('show all (true): a tape that arrives later is revealed after '
+        'updateContent', (env) {
+      env.open(
+        strokes: {
+          _p0: [tape('old')],
+        },
+      );
+      bool? all;
+      final mount = env.mount(_p0, tapesRevealedAll: () => all);
+      env.async.flushMicrotasks();
+      final c = mount.controller;
+      expect(c.isTapeRevealed('old'), isFalse, reason: 'covered at first');
+
+      // The note-level value turns true (TapesRevealedAllNotifier.setAll).
+      all = true;
+      c.setAllTapesRevealed(true);
+      expect(c.isTapeRevealed('old'), isTrue);
+
+      // A tape stroke from outside this mount (remote / another tool).
+      env.session.execute(core.AddStrokes(pageId: _p0, strokes: [tape('new')]));
+      env.async.flushMicrotasks();
+      expect(c.content!.strokeById('new'), isNotNull);
+      expect(c.isTapeRevealed('new'), isTrue);
+      expect(c.isTapeRevealed('old'), isTrue);
+      expect(env.session.executeDuringDelivery, isFalse);
+    });
+
+    _mountTest('null / false: a later tape starts covered', (env) {
+      env.open();
+      for (final value in [null, false]) {
+        final mount = env.mount(_p0, tapesRevealedAll: () => value);
+        env.async.flushMicrotasks();
+        final id = 'tape-$value';
+        env.session.execute(core.AddStrokes(pageId: _p0, strokes: [tape(id)]));
+        env.async.flushMicrotasks();
+        expect(mount.controller.isTapeRevealed(id), isFalse, reason: '$value');
+        mount.dispose();
+        env.async.flushMicrotasks();
+      }
+    });
+
+    _mountTest('a new mount gets the playback focus with its first content '
+        'only', (env) {
+      env.open();
+      const focus = ink.InkPlaybackFocus(recordingId: 'rec-1', positionMs: 500);
+      var calls = 0;
+      final mount = env.mount(
+        _p0,
+        playbackFocus: () {
+          calls++;
+          return focus;
+        },
+      );
+      expect(mount.controller.playbackFocus, isNull);
+      env.async.flushMicrotasks();
+      expect(mount.controller.playbackFocus, focus);
+      expect(calls, 1);
+      // Later content changes leave the focus to its driver (E2-17).
+      mount.controller.setPlaybackFocus(null);
+      env.session.execute(
+        core.AddStrokes(pageId: _p0, strokes: [_stroke('n')]),
+      );
+      env.async.flushMicrotasks();
+      expect(mount.controller.playbackFocus, isNull);
+      expect(calls, 1);
+    });
   });
 
   test('MountedPages: register / lookup / unregister, notified later', () {

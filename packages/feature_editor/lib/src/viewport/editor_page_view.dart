@@ -6,7 +6,9 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../document/mounted_pages.dart';
 import '../document/page_mount.dart';
+import '../playback/playback_highlighter.dart';
 import '../scope/editor_scope.dart';
+import '../state/tape_state.dart';
 import '../tools/selection.dart';
 import 'viewport_controller.dart';
 
@@ -73,6 +75,10 @@ class _EditorPageViewState extends ConsumerState<EditorPageView> {
       page: widget.page,
       controller: controller,
       onContentChanged: _onContentChanged,
+      // (v2, I-10) the note-level tape 'show all', again after each content.
+      tapesRevealedAll: () => ref.read(editorTapesRevealedAllProvider),
+      // (v2, 6.15.2) the playback focus of the note for a new mount.
+      playbackFocus: () => ref.read(editorPlaybackHighlightProvider).current,
     );
     _mount = mount;
     _mountedPages.register(mount);

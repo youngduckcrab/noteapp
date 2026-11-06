@@ -155,6 +155,18 @@ class EditorSettingsNotifier extends Notifier<EditorSettings> {
   void toggleDevOverlay() =>
       _update(state.copyWith(showDevOverlay: !state.showDevOverlay));
 
+  /// (v2, m5-7/04-editor 4.3.3) Synced: the shape assist (U14).
+  void setShapeAssist(bool value) =>
+      _update(state.copyWith(shapeAssist: value));
+
+  /// (v2, 4.3.3) Synced: the playback highlight style (the INK enum as is).
+  void setPlaybackHighlight(ink.InkPlaybackStyle value) =>
+      _update(state.copyWith(playbackHighlight: value));
+
+  /// (v2, 4.3.3) Device: tap a recorded stroke to play from there (the
+  /// recording panel's switch — EditorPanelContext.setTapToSeek).
+  void setTapToSeek(bool value) => _update(state.copyWith(tapToSeek: value));
+
   /// Called by the input router the first time a stylus is seen.
   void markStylusSeen() {
     if (state.stylusSeen) return;

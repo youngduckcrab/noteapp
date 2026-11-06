@@ -1,11 +1,15 @@
 // lib/src/tools/tool_state.dart — 04-editor 6.6.1; stored forms 6.14
-// (editor.penStyles, editor.eraser, editor.toolSelection).
+// (editor.penStyles, editor.eraser, editor.toolSelection). (v2, E2-03)
+// m5-7/04-editor 6.2.1: the shape and text tools, lastTool / lastPenType.
+// (E2-19) 6.17: EraserSettings.eraseShapes.
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
-enum EditorTool { pen, eraser, lasso } // M5: shape, text, image, math
+/// (v2) Image insertion and math are actions of the insert menu, not modal
+/// tools.
+enum EditorTool { pen, eraser, lasso, shape, text }
 
 @immutable
 class EraserSettings {
@@ -14,6 +18,7 @@ class EraserSettings {
     this.diameter = 12.0,
     this.filter = core.StrokeFilter.all,
     this.returnToPreviousTool = false,
+    this.eraseShapes = true,
   });
   static const double minDiameter = 1.0;
   static const double maxDiameter = 100.0;
@@ -24,9 +29,19 @@ class EraserSettings {
   final core.StrokeFilter filter;
   final bool returnToPreviousTool;
 
-  /// ink.EraserSpec(mode: mode, radius: diameter / 2, filter: filter)
-  ink.EraserSpec toSpec() =>
-      ink.EraserSpec(mode: mode, radius: diameter / 2, filter: filter);
+  /// (v2, m5-7/04-editor 6.17 — U22) a touched shape is removed whole, in
+  /// both modes (INK EraserSpec.eraseShapes). Text, images and math are
+  /// never erased.
+  final bool eraseShapes;
+
+  /// ink.EraserSpec(mode: mode, radius: diameter / 2, filter: filter,
+  /// eraseShapes: eraseShapes)
+  ink.EraserSpec toSpec() => ink.EraserSpec(
+    mode: mode,
+    radius: diameter / 2,
+    filter: filter,
+    eraseShapes: eraseShapes,
+  );
 
   /// [diameter] clamped to [minDiameter, maxDiameter] on the 0.5 pt step.
   static double snapDiameter(double value) {
@@ -46,20 +61,24 @@ class EraserSettings {
     double? diameter,
     core.StrokeFilter? filter,
     bool? returnToPreviousTool,
+    bool? eraseShapes,
   }) => EraserSettings(
     mode: mode ?? this.mode,
     diameter: diameter ?? this.diameter,
     filter: filter ?? this.filter,
     returnToPreviousTool: returnToPreviousTool ?? this.returnToPreviousTool,
+    eraseShapes: eraseShapes ?? this.eraseShapes,
   );
 
-  /// {"v":1,"mode":"partial","diameter":12.0,"filter":"all","returnToPrevious":false}
+  /// {"v":1,"mode":"partial","diameter":12.0,"filter":"all","returnToPrevious":false,
+  /// "eraseShapes":true} — (v2) "eraseShapes" added, "v" stays 1 (6.18).
   Map<String, Object?> toJson() => {
     'v': 1,
     'mode': mode.name,
     'diameter': diameter,
     'filter': filter.name,
     'returnToPrevious': returnToPreviousTool,
+    'eraseShapes': eraseShapes,
   };
 
   /// Missing fields take the defaults; invalid ones too, and their names are
@@ -102,6 +121,12 @@ class EraserSettings {
         d.returnToPreviousTool,
         (v) => v is bool ? v : null,
       ),
+      // (v2) missing (a 1st-round value) → true.
+      eraseShapes: field(
+        'eraseShapes',
+        d.eraseShapes,
+        (v) => v is bool ? v : null,
+      ),
     );
   }
 
@@ -111,14 +136,16 @@ class EraserSettings {
       other.mode == mode &&
       other.diameter == diameter &&
       other.filter == filter &&
-      other.returnToPreviousTool == returnToPreviousTool;
+      other.returnToPreviousTool == returnToPreviousTool &&
+      other.eraseShapes == eraseShapes;
   @override
-  int get hashCode => Object.hash(mode, diameter, filter, returnToPreviousTool);
+  int get hashCode =>
+      Object.hash(mode, diameter, filter, returnToPreviousTool, eraseShapes);
 
   @override
   String toString() =>
       'EraserSettings(${mode.name}, $diameter pt, ${filter.name}, '
-      'returnToPrevious: $returnToPreviousTool)';
+      'returnToPrevious: $returnToPreviousTool, eraseShapes: $eraseShapes)';
 }
 
 @immutable
@@ -128,6 +155,8 @@ class ToolState {
     required this.penType,
     required this.penStyles,
     this.previousTool,
+    this.lastTool,
+    this.lastPenType,
     this.eraser = const EraserSettings(),
     this.eyedropperActive = false,
   });
@@ -151,6 +180,12 @@ class ToolState {
   final EditorTool? previousTool; // tool active before switching to eraser
   final core.PenTool penType;
 
+  /// (v2) The tool and pen type that were active before the last switch (any
+  /// tool) — EditorAction.previousTool swaps (activeTool, penType) with
+  /// these. Persisted (device).
+  final EditorTool? lastTool;
+  final core.PenTool? lastPenType;
+
   /// Unmodifiable, one normalized style per core.PenTool value (P1 tools are kept
   /// so presets/sync with them round-trip; the selector shows only isP0).
   final Map<core.PenTool, core.StrokeStyle> penStyles;
@@ -167,10 +202,17 @@ class ToolState {
     Map<core.PenTool, core.StrokeStyle>? penStyles,
     EraserSettings? eraser,
     bool? eyedropperActive,
+    EditorTool? lastTool,
+    core.PenTool? lastPenType,
+    // true: lastTool / lastPenType take the given values as they are (null
+    // clears them).
+    bool clearLast = false,
   }) => ToolState(
     activeTool: activeTool ?? this.activeTool,
     previousTool: clearPreviousTool ? null : previousTool ?? this.previousTool,
     penType: penType ?? this.penType,
+    lastTool: clearLast ? lastTool : lastTool ?? this.lastTool,
+    lastPenType: clearLast ? lastPenType : lastPenType ?? this.lastPenType,
     penStyles: penStyles == null ? this.penStyles : Map.unmodifiable(penStyles),
     eraser: eraser ?? this.eraser,
     eyedropperActive: eyedropperActive ?? this.eyedropperActive,
@@ -184,6 +226,8 @@ class ToolState {
       other.activeTool == activeTool &&
       other.previousTool == previousTool &&
       other.penType == penType &&
+      other.lastTool == lastTool &&
+      other.lastPenType == lastPenType &&
       other.eraser == eraser &&
       other.eyedropperActive == eyedropperActive &&
       _styles.equals(other.penStyles, penStyles);
@@ -193,6 +237,8 @@ class ToolState {
     activeTool,
     previousTool,
     penType,
+    lastTool,
+    lastPenType,
     eraser,
     eyedropperActive,
     _styles.hash(penStyles),
@@ -201,5 +247,6 @@ class ToolState {
   @override
   String toString() =>
       'ToolState(${activeTool.name}, pen: ${penType.name}, '
-      'previous: ${previousTool?.name}, eyedropper: $eyedropperActive)';
+      'previous: ${previousTool?.name}, last: ${lastTool?.name}/'
+      '${lastPenType?.name}, eyedropper: $eyedropperActive)';
 }

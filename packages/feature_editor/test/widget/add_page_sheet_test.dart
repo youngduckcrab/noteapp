@@ -6,6 +6,14 @@
 // current.copyWith(size:, background: backgroundFor(...)), no strokes,
 // revision 0, new cells when the colour / orientation changes, INK
 // arguments = provider values).
+// (v2, m5-7/04-editor 8.2 E2-12, 6.12.3) The '이미지' row: the placement and
+// the anchor page are remembered at the press, pick starts before the sheet
+// closes, then ONE InsertPages with ImageBackground(fit: contain) on the
+// base page's paper colour, sized by the orientation rule (wide →
+// landscape, tall → portrait, near-square → the base page's), and the
+// viewport goes to the new page.
+import 'dart:async';
+
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
@@ -18,6 +26,7 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../helpers/fake_image_importer.dart';
 import '../helpers/pump_editor.dart';
 
 Future<void> _openSheet(WidgetTester tester, EditorTestHandles h) async {
@@ -395,5 +404,196 @@ void main() {
     expect(ids[3], h.pageId(2));
     expect(h.session.pages[2].size, core.PageSize.a4Portrait.landscape);
     expect(h.container.read(editorCurrentPageIndexProvider), 2);
+  });
+
+  group('(v2) the image row', () {
+    Future<EditorTestHandles> pumpWithImages(WidgetTester tester) => pumpEditor(
+      tester,
+      pages: 3,
+      imageImporter: (s) => FakeImageImporter(store: s),
+    );
+
+    List<String> edits(EditorTestHandles h) => [
+      for (final c in h.recorder!.calls)
+        if (c.startsWith('execute')) c,
+    ];
+
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('the sources in order; a wide image before page 1 → pick '
+        'while the sheet is open, one InsertPages: landscape, '
+        'ImageBackground(contain) on the paper colour, the viewport on it', (
+      tester,
+    ) async {
+      final h = await pumpWithImages(tester);
+      h.session.execute(
+        core.SetPageBackground(
+          pageIds: [h.pageId(1)],
+          background: const core.BlankBackground(
+            paperColorArgb: core.PaperColors.ivory,
+          ),
+        ),
+      );
+      h.recorder!.clearCalls();
+      await h.viewport.jumpToPage(1, animate: false);
+      await tester.pump();
+      final importer = h.imageImporter!
+        ..pixelWidth = 1600
+        ..pixelHeight = 900;
+      await _openSheet(tester, h);
+      final photos = find.byKey(
+        AddPageSheet.imageSourceKey(core.ImageImportSource.photos),
+      );
+      final files = find.byKey(
+        AddPageSheet.imageSourceKey(core.ImageImportSource.files),
+      );
+      await tester.ensureVisible(photos);
+      await tester.pump();
+      expect(photos, findsOneWidget);
+      expect(files, findsOneWidget);
+      expect(
+        find.byKey(AddPageSheet.imageSourceKey(core.ImageImportSource.camera)),
+        findsNothing,
+      );
+      expect(
+        tester.getTopLeft(photos).dx,
+        lessThan(tester.getTopLeft(files).dx),
+      );
+      expect(find.text(EditorStrings.image), findsOneWidget);
+      await _tap(tester, AddPageSheet.placementKey(AddPagePlacement.before));
+      await tester.ensureVisible(photos);
+      await tester.pump();
+
+      EditorPopup? popupAtPick;
+      importer.onPick = (_) =>
+          popupAtPick = h.container.read(editorPopupProvider);
+      await tester.tap(photos);
+      expect(importer.calls, hasLength(1));
+      expect(popupAtPick, isA<AddPagePopup>()); // the sheet was still open
+      expect(h.container.read(editorPopupProvider), isNull);
+      expect(importer.calls.single.source, core.ImageImportSource.photos);
+      await settle(tester);
+      expect(find.byKey(AddPageSheet.panelKey), findsNothing);
+
+      expect(edits(h), ['executeAsync:insert-pages']);
+      expect(h.session.history.undoDepth, 2); // the paper colour + the page
+      final pages = h.session.pages;
+      expect(pages, hasLength(4));
+      expect(pages[2].id, h.pageId(1)); // inserted before page 1
+      final page = pages[1];
+      expect(page.size, core.PageSize.a4Portrait.landscape);
+      expect(
+        page.background,
+        core.ImageBackground(
+          assetId: importer.putAssetIds.single,
+          fit: core.ImageFit.contain,
+          paperColorArgb: core.PaperColors.ivory,
+        ),
+      );
+      expect(h.container.read(editorCurrentPageIndexProvider), 1);
+    });
+
+    testWidgets('a tall image on a landscape base → portrait; a near-square '
+        'one keeps the base orientation', (tester) async {
+      final h = await pumpWithImages(tester);
+      h.session.execute(
+        core.ResizePages(
+          pageIds: [h.pageId(0)],
+          size: core.PageSize.a4Portrait.landscape,
+        ),
+      );
+      await tester.pump();
+      final importer = h.imageImporter!
+        ..pixelWidth = 900
+        ..pixelHeight = 1600;
+      await _openSheet(tester, h);
+      await _tap(tester, AddPageSheet.placementKey(AddPagePlacement.end));
+      await _tap(
+        tester,
+        AddPageSheet.imageSourceKey(core.ImageImportSource.files),
+      );
+      await settle(tester);
+      var pages = h.session.pages;
+      expect(pages, hasLength(4));
+      expect(pages.last.size, core.PageSize.a4Portrait);
+      expect(pages.last.background, isA<core.ImageBackground>());
+      expect(h.container.read(editorCurrentPageIndexProvider), 3);
+
+      // Near-square (1000 × 1050): the landscape base page 0 stays landscape.
+      await h.viewport.jumpToPage(0, animate: false);
+      await tester.pump(const Duration(milliseconds: 200));
+      importer
+        ..pixelWidth = 1000
+        ..pixelHeight = 1050;
+      await _openSheet(tester, h);
+      await _tap(tester, AddPageSheet.placementKey(AddPagePlacement.after));
+      await _tap(
+        tester,
+        AddPageSheet.imageSourceKey(core.ImageImportSource.photos),
+      );
+      await settle(tester);
+      pages = h.session.pages;
+      expect(pages, hasLength(5));
+      expect(pages[0].id, h.pageId(0));
+      expect(pages[1].size, core.PageSize.a4Portrait.landscape);
+      expect(
+        (pages[1].background as core.ImageBackground).assetId,
+        importer.putAssetIds.last,
+      );
+      expect(h.session.history.undoDepth, 3); // resize + 2 image pages
+    });
+
+    testWidgets('the anchor is remembered at the press: the viewport moves '
+        'while the picker is open, the page still goes after the base page', (
+      tester,
+    ) async {
+      final h = await pumpWithImages(tester);
+      final hold = Completer<void>();
+      final importer = h.imageImporter!..holdNext = hold;
+      await _openSheet(tester, h); // base = page 0
+      await _tap(tester, AddPageSheet.placementKey(AddPagePlacement.after));
+      await _tap(
+        tester,
+        AddPageSheet.imageSourceKey(core.ImageImportSource.photos),
+      );
+      expect(importer.calls, hasLength(1));
+      await h.viewport.jumpToPage(2, animate: false);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(h.container.read(editorCurrentPageIndexProvider), 2);
+      hold.complete();
+      await settle(tester);
+      final ids = [for (final p in h.session.pages) p.id];
+      expect(ids, hasLength(4));
+      expect(ids[0], h.pageId(0));
+      expect(ids[2], h.pageId(1)); // the new page right after page 0
+      expect(h.session.pages[1].background, isA<core.ImageBackground>());
+    });
+
+    testWidgets('a cancelled pick → no page; a read-only note → the sources '
+        'are disabled', (tester) async {
+      final h = await pumpWithImages(tester);
+      h.imageImporter!.cancelNext = true;
+      await _openSheet(tester, h);
+      await _tap(
+        tester,
+        AddPageSheet.imageSourceKey(core.ImageImportSource.photos),
+      );
+      await settle(tester);
+      expect(h.session.pages, hasLength(3));
+      expect(edits(h), isEmpty);
+
+      await h.store.library.trashItems([core.NoteRef(h.noteId)]);
+      await tester.pump();
+      await _openSheet(tester, h);
+      final chip = find.byKey(
+        AddPageSheet.imageSourceKey(core.ImageImportSource.photos),
+      );
+      await tester.ensureVisible(chip);
+      expect(tester.widget<ActionChip>(chip).onPressed, isNull);
+    });
   });
 }

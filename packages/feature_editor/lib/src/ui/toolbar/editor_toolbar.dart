@@ -1,35 +1,56 @@
-// lib/src/ui/toolbar/editor_toolbar.dart — 04-editor 6.9.1.
+// lib/src/ui/toolbar/editor_toolbar.dart — 04-editor 6.9.1; (v2) the mic
+// button in front of the undo button (m5-7/04-editor 6.13.1, 6.15.4 — E2-16),
+// the insert menu [+] in front of it (6.13.1 — E2-12). (E2-13) Toolbar v2
+// (6.13.1): the shape and text buttons after the lasso, [⋯도구] below
+// [EditorToolbar.foldWidth], the title from [EditorToolbar.titleMinWidth].
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../../di/editor_extensions.dart';
+import '../../di/editor_image_importer.dart';
+import '../../di/stylus_extras.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/page_panel.dart';
 import '../../state/popup.dart';
 import '../../state/settings/editor_settings_notifier.dart';
+import '../../stylus/stylus_extras_listener.dart' show penOnlyEffectiveWith;
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
 import '../popup_host.dart';
+import 'insert_menu.dart';
+import 'mic_button.dart';
 import 'more_menu.dart';
+import 'overflow_tools_menu.dart';
 import 'sync_badge_icon.dart';
 import 'tool_button.dart';
 import 'undo_redo_buttons.dart';
 import 'zoom_chip.dart';
 
-/// Icon of a pen type (6.9.1; P1 types fall back to the ballpoint icon).
+/// Icon of a pen type (6.9.1; (v2, m5-7/04-editor 6.14.1) the P1 types).
 IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   core.PenTool.ballpoint => Icons.edit,
   core.PenTool.fountain => Icons.history_edu,
   core.PenTool.highlighter => Icons.border_color,
   core.PenTool.pencil => Icons.create,
   core.PenTool.marker => Icons.brush,
-  _ => Icons.edit,
+  core.PenTool.brush => Icons.draw,
+  core.PenTool.calligraphy => Icons.gesture,
+  core.PenTool.dashed => Icons.line_style,
+  core.PenTool.laser => Icons.flare,
+  core.PenTool.tape => Icons.visibility_off,
 };
 
-/// [←] title [▤] │ [펜●] [지우개] [올가미] │ [↶] [↷] │ [✋] [100%] [☁] [⋯] — 52 px.
-/// The title is hidden below 700 px. [▤] toggles the page panel (E-17). On a
-/// read-only note the tool buttons are disabled (6.9.1).
+/// [←] title [▤] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+] [🎤] │ [↶] [↷] │
+/// [✋] [100%] [☁] [⋯] — 52 px (v2, m5-7/04-editor 6.13.1). The title shows
+/// from [titleMinWidth] (1st round 700 — more buttons now). Below
+/// [foldWidth] (split screen — A-6) [도형] [텍스트] [+] [🎤] fold into
+/// [⋯도구] (OverflowToolsMenu); below [scrollWidth] the buttons scroll
+/// sideways instead of overflowing. [▤] toggles the page panel (E-17). On a
+/// read-only note the tool buttons are disabled (6.9.1). [🎤] only when
+/// EditorExtensions.recordingPanel is set; [+] only when the image slot or
+/// EditorExtensions.insertMenuItems offers something (InsertMenu.hasItems).
 class EditorToolbar extends ConsumerWidget {
   const EditorToolbar({super.key, required this.onBack, this.onOpenSettings});
 
@@ -37,7 +58,19 @@ class EditorToolbar extends ConsumerWidget {
   final VoidCallback? onOpenSettings;
 
   static const double height = 52;
-  static const double titleMinWidth = 700;
+
+  /// (v2) The title shows when the toolbar is at least this wide.
+  static const double titleMinWidth = 1000;
+
+  /// (v2) Below this width [도형] [텍스트] [+] [🎤] fold into [⋯도구]. The
+  /// plan's 720 px is the floor; every button unfolded with [+], [🎤] and
+  /// the sync badge takes 805 px (title hidden), so the fold starts at 820.
+  static const double foldWidth = 820;
+
+  /// (v2) Below this width the folded toolbar (≈ 660 px with the sync
+  /// badge) scrolls sideways instead of overflowing.
+  static const double scrollWidth = 680;
+
   static const backKey = ValueKey('editor.toolbar.back');
   static const penKey = ValueKey('editor.toolbar.pen');
   static const eraserKey = ValueKey('editor.toolbar.eraser');
@@ -46,49 +79,83 @@ class EditorToolbar extends ConsumerWidget {
   static const titleKey = ValueKey('editor.toolbar.title');
   static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
+  /// (v2) Appendix C.
+  static const shapeKey = OverflowToolsMenu.shapeKey;
+  static const textKey = OverflowToolsMenu.textKey;
+  static const overflowToolsKey = OverflowToolsMenu.buttonKey;
+
+  /// (v2) The sideways scroll below [scrollWidth].
+  static const scrollKey = ValueKey('editor.toolbar.scroll');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final title = ref.watch(editorSessionValueProvider).note.title;
+    final hasPanel = ref.watch(
+      editorExtensionsProvider.select((e) => e.recordingPanel != null),
+    );
+    final hasInsert = InsertMenu.hasItems(
+      ref.watch(editorImageImporterProvider),
+      ref.watch(editorExtensionsProvider.select((e) => e.insertMenuItems)),
+    );
     return Material(
       color: scheme.surface,
       child: SizedBox(
         height: height,
         child: LayoutBuilder(
-          builder: (context, constraints) => Row(
-            children: [
-              IconButton(
-                key: backKey,
-                onPressed: onBack,
-                icon: const Icon(
-                  Icons.arrow_back,
-                  semanticLabel: EditorStrings.back,
-                ),
-              ),
-              if (constraints.maxWidth >= titleMinWidth)
-                Expanded(
-                  child: Text(
-                    title,
-                    key: titleKey,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+          builder: (context, constraints) {
+            final fold = constraints.maxWidth < foldWidth;
+            final scroll = constraints.maxWidth < scrollWidth;
+            final row = Row(
+              mainAxisSize: scroll ? MainAxisSize.min : MainAxisSize.max,
+              children: [
+                IconButton(
+                  key: backKey,
+                  onPressed: onBack,
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    semanticLabel: EditorStrings.back,
                   ),
-                )
-              else
-                const Spacer(),
-              const _PagePanelButton(),
-              const _Divider(),
-              const _ToolButtons(),
-              const _Divider(),
-              const UndoRedoButtons(),
-              const _Divider(),
-              const _FingerToggle(),
-              const ZoomChip(),
-              const EditorSyncBadgeIcon(),
-              EditorMoreMenu(onOpenSettings: onOpenSettings),
-              const SizedBox(width: 4),
-            ],
-          ),
+                ),
+                if (constraints.maxWidth >= titleMinWidth)
+                  Expanded(
+                    child: Text(
+                      title,
+                      key: titleKey,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  )
+                else if (!scroll)
+                  const Spacer(),
+                const _PagePanelButton(),
+                const _Divider(),
+                _ToolButtons(withObjectTools: !fold),
+                const _Divider(),
+                if (fold) ...[
+                  OverflowToolsMenu(hasInsert: hasInsert, hasPanel: hasPanel),
+                  const _Divider(),
+                ] else ...[
+                  if (hasInsert) const InsertMenu(),
+                  if (hasPanel) const MicButton(),
+                  if (hasInsert || hasPanel) const _Divider(),
+                ],
+                const UndoRedoButtons(),
+                const _Divider(),
+                const _FingerToggle(),
+                const ZoomChip(),
+                const EditorSyncBadgeIcon(),
+                EditorMoreMenu(onOpenSettings: onOpenSettings),
+                const SizedBox(width: 4),
+              ],
+            );
+            if (!scroll) return row;
+            return SingleChildScrollView(
+              key: scrollKey,
+              scrollDirection: Axis.horizontal,
+              child: row,
+            );
+          },
         ),
       ),
     );
@@ -110,9 +177,13 @@ class _Divider extends StatelessWidget {
 
 /// Tap: inactive tool → select it; the active pen / eraser again → its
 /// settings popup. Long press: pen → quick popup (active or not), eraser →
-/// eraser popup.
+/// eraser popup. (v2, 6.13.1) With [withObjectTools], [도형] (`interests`)
+/// and [텍스트] (`text_fields`) like the others: the active one again or a
+/// long press (active or not) → its tool popup under the button.
 class _ToolButtons extends ConsumerWidget {
-  const _ToolButtons();
+  const _ToolButtons({required this.withObjectTools});
+
+  final bool withObjectTools;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -169,6 +240,35 @@ class _ToolButtons extends ConsumerWidget {
           active: active == EditorTool.lasso,
           onTap: tap(EditorTool.lasso, null),
         ),
+        if (withObjectTools) ...[
+          CompositedTransformTarget(
+            link: anchors.shape,
+            child: ToolButton(
+              key: EditorToolbar.shapeKey,
+              icon: Icons.interests,
+              label: EditorStrings.shapeTool,
+              active: active == EditorTool.shape,
+              onTap: tap(
+                EditorTool.shape,
+                const ShapeToolPopup(anchored: true),
+              ),
+              onLongPress: () =>
+                  popups.open(const ShapeToolPopup(anchored: true)),
+            ),
+          ),
+          CompositedTransformTarget(
+            link: anchors.text,
+            child: ToolButton(
+              key: EditorToolbar.textKey,
+              icon: Icons.text_fields,
+              label: EditorStrings.textTool,
+              active: active == EditorTool.text,
+              onTap: tap(EditorTool.text, const TextToolPopup(anchored: true)),
+              onLongPress: () =>
+                  popups.open(const TextToolPopup(anchored: true)),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -200,8 +300,12 @@ class _FingerToggle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // (v2, E2-18 — 6.5.3) with iPadOS '펜슬로만 그리기' auto is pen only.
+    final capabilities = ref.watch(stylusExtrasProvider).capabilities;
     final penOnly = ref.watch(
-      editorSettingsProvider.select((s) => s.isPenOnlyEffective),
+      editorSettingsProvider.select(
+        (s) => penOnlyEffectiveWith(s, capabilities),
+      ),
     );
     final commands = ref.watch(editorCommandsProvider);
     return IconButton(

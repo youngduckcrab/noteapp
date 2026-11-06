@@ -3,7 +3,9 @@
 // E-09: clearing the current page (confirmation dialog → EditorCommands).
 // E-15: the eraser popup panel (mode, size, filter, return to the previous
 // tool); its "현재 페이지 지우기" button and the more menu item (E-13) both
-// call [confirmClearCurrentPage].
+// call [confirmClearCurrentPage]. (v2, E2-19 — m5-7/04-editor 6.17) the
+// panel's '도형도 지우기' switch (EraserSettings.eraseShapes) and the dialog's
+// '도형·텍스트·이미지·수식도 지우기' check (ClearPage.includeObjects).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -31,26 +33,32 @@ String clearPageTitleFor(core.StrokeFilter filter) => switch (filter) {
 
 /// Asks "이 페이지의 필기를 모두 지울까요?" (worded by [filter]) and, when the
 /// user confirms, runs [EditorCommands.clearCurrentPage] — one
-/// core.ClearPage(current page, eraser filter) step through _runAsync. INK
-/// clearPage is not used (contract 7.2.15). Returns true when the user
-/// confirmed.
+/// core.ClearPage(current page, eraser filter, includeObjects: the dialog's
+/// check — v2, 6.17) step through _runAsync. INK clearPage is not used
+/// (contract 7.2.15). Returns true when the user confirmed.
 Future<bool> confirmClearCurrentPage(
   BuildContext context, {
   required EditorCommands commands,
   required core.StrokeFilter filter,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showDialog<ClearPageConfirmation>(
     context: context,
     builder: (context) => ClearPageDialog(filter: filter),
   );
-  if (confirmed != true) return false;
-  await commands.clearCurrentPage();
+  if (confirmed == null) return false;
+  await commands.clearCurrentPage(includeObjects: confirmed.includeObjects);
   return true;
 }
 
-/// The confirmation dialog of [confirmClearCurrentPage]: pops true on
-/// [EditorStrings.clearPageConfirm], false on [EditorStrings.cancel].
-class ClearPageDialog extends StatelessWidget {
+/// What [ClearPageDialog] pops on [EditorStrings.clearPageConfirm] (null on
+/// [EditorStrings.cancel] or a dismissal).
+typedef ClearPageConfirmation = ({bool includeObjects});
+
+/// The confirmation dialog of [confirmClearCurrentPage]. (v2, 6.17) With the
+/// eraser filter `all` it shows the check '도형·텍스트·이미지·수식도 지우기'
+/// (on by default); with highlighter only / except highlighter the check is
+/// hidden and off.
+class ClearPageDialog extends StatefulWidget {
   const ClearPageDialog({super.key, required this.filter});
 
   final core.StrokeFilter filter;
@@ -61,25 +69,59 @@ class ClearPageDialog extends StatelessWidget {
   /// Key of the cancel button.
   static const cancelKey = ValueKey('editor.clearPage.cancel');
 
+  /// (v2) Key of the '도형·텍스트·이미지·수식도 지우기' check.
+  static const includeObjectsKey = ValueKey('editor.clearPage.includeObjects');
+
+  /// (v2) Whether [filter] offers the objects check (6.17).
+  static bool offersObjects(core.StrokeFilter filter) =>
+      filter == core.StrokeFilter.all;
+
+  @override
+  State<ClearPageDialog> createState() => _ClearPageDialogState();
+}
+
+class _ClearPageDialogState extends State<ClearPageDialog> {
+  late bool _includeObjects = ClearPageDialog.offersObjects(widget.filter);
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final offers = ClearPageDialog.offersObjects(widget.filter);
     return AlertDialog(
-      title: Text(clearPageTitleFor(filter)),
-      content: const Text(EditorStrings.clearPageBody),
+      title: Text(clearPageTitleFor(widget.filter)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(EditorStrings.clearPageBody),
+          if (offers) ...[
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              key: ClearPageDialog.includeObjectsKey,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text(EditorStrings.clearPageIncludeObjects),
+              value: _includeObjects,
+              onChanged: (v) => setState(() => _includeObjects = v ?? false),
+            ),
+          ],
+        ],
+      ),
       actions: [
         TextButton(
-          key: cancelKey,
-          onPressed: () => Navigator.of(context).pop(false),
+          key: ClearPageDialog.cancelKey,
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text(EditorStrings.cancel),
         ),
         FilledButton(
-          key: confirmKey,
+          key: ClearPageDialog.confirmKey,
           style: FilledButton.styleFrom(
             backgroundColor: scheme.error,
             foregroundColor: scheme.onError,
           ),
-          onPressed: () => Navigator.of(context).pop(true),
+          onPressed: () => Navigator.of(context).pop<ClearPageConfirmation>((
+            includeObjects: offers && _includeObjects,
+          )),
           child: const Text(EditorStrings.clearPageConfirm),
         ),
       ],
@@ -115,8 +157,9 @@ abstract final class EraserSizeMapping {
 /// Eraser settings popup panel (6.9.3 end, 300 wide): SegmentedButton[획 |
 /// 부분] (ink.EraserMode) · size slider + circle preview (diameter × zoom,
 /// at most [maxPreviewPx]) · SegmentedButton[전체 | 형광펜만 | 형광펜 제외]
-/// (core.StrokeFilter) · "지운 뒤 이전 도구로 돌아가기" · '현재 페이지 지우기' in
-/// the error colour (disabled on a read-only note).
+/// (core.StrokeFilter) · (v2) '도형도 지우기' (EraserSettings.eraseShapes) ·
+/// "지운 뒤 이전 도구로 돌아가기" · '현재 페이지 지우기' in the error colour
+/// (disabled on a read-only note).
 class EraserSettingsPanel extends ConsumerWidget {
   const EraserSettingsPanel({super.key});
 
@@ -127,6 +170,9 @@ class EraserSettingsPanel extends ConsumerWidget {
   static const previewKey = ValueKey('editor.popup.eraser.preview');
   static const filterKey = ValueKey('editor.popup.eraser.filter');
   static const returnKey = ValueKey('editor.popup.eraser.return');
+
+  /// (v2, 6.17) the '도형도 지우기' switch.
+  static const eraseShapesKey = ValueKey('editor.popup.eraser.eraseShapes');
 
   static ValueKey<String> modeSegmentKey(ink.EraserMode mode) =>
       ValueKey('editor.popup.eraser.mode.${mode.name}');
@@ -244,6 +290,14 @@ class EraserSettingsPanel extends ConsumerWidget {
               tools.updateEraser((e) => e.copyWith(filter: s.first)),
         ),
         const SizedBox(height: 4),
+        SwitchListTile(
+          key: eraseShapesKey,
+          contentPadding: EdgeInsets.zero,
+          title: const Text(EditorStrings.eraseShapes),
+          value: eraser.eraseShapes,
+          onChanged: (v) =>
+              tools.updateEraser((e) => e.copyWith(eraseShapes: v)),
+        ),
         SwitchListTile(
           key: returnKey,
           contentPadding: EdgeInsets.zero,

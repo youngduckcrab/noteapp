@@ -6,8 +6,18 @@
 //   while one of its streams delivers;
 // - after rejectNext(error), the next execute / undo does not reach CORE and
 //   throws that error.
+// (v2, m5-7/04-editor 8.2 E2-00) the new helpers:
+// - PointerDriver: a pen-button down (0x02) reaches a Listener unchanged, the
+//   web order down 0x02 → move 0x03 → move 0x02 → up, the eraser tip;
+// - pumpEditor seeds page objects and recordings and overrides the fake
+//   audio ports, the image slot, the Pencil source and the extensions;
+// - FakeImageImporter puts an asset into the fake store and returns an
+//   ImportedImage (onPick runs inside the call; cancel, sync / async errors);
+// - FakeStylusExtras injects Pencil events;
+// - the test extension items, ink_edit_builders and the mapping table.
 import 'dart:async';
 
+import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/input/input_sample.dart';
 import 'package:feature_editor/src/input/input_targets.dart';
 import 'package:flutter/gestures.dart';
@@ -16,6 +26,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart';
 
+import '../helpers/fake_extensions.dart';
+import '../helpers/fake_image_importer.dart';
+import '../helpers/fake_stylus_extras.dart';
+import '../helpers/ink_edit_builders.dart';
+import '../helpers/mapping_table.dart';
 import '../helpers/pointer_driver.dart';
 import '../helpers/pump_editor.dart';
 import '../helpers/recording_input_targets.dart';
@@ -452,6 +467,361 @@ void main() {
       expect(i.travelled, 5);
       expect(i.isEnded, isTrue);
       expect(targets.policy.penOnly, isFalse);
+    });
+  });
+  group('v2 helpers (E2-00)', () {
+    testWidgets('a pen-button down (0x02) reaches the Listener unchanged', (
+      tester,
+    ) async {
+      final events = await _pumpListener(tester);
+      final d = PointerDriver(tester);
+      await d.nativePenButtonStroke(const [Offset(100, 100), Offset(120, 110)]);
+
+      expect(events, [
+        isA<PointerDownEvent>(),
+        isA<PointerMoveEvent>(),
+        isA<PointerUpEvent>(),
+      ]);
+      expect(events.first.buttons, kPrimaryStylusButton);
+      expect(events.first.buttons, 0x02);
+      expect(events.first.kind, PointerDeviceKind.stylus);
+      expect(events[1].buttons, 0x02);
+    });
+
+    testWidgets('the web order down 0x02 → move 0x03 → move 0x02 → up', (
+      tester,
+    ) async {
+      final events = await _pumpListener(tester);
+      final d = PointerDriver(tester);
+      await d.webPenButtonStroke(const [
+        Offset(100, 100),
+        Offset(110, 100),
+        Offset(120, 100),
+      ]);
+
+      String typeOf(PointerEvent e) => switch (e) {
+        PointerDownEvent() => 'down',
+        PointerMoveEvent() => 'move',
+        PointerUpEvent() => 'up',
+        _ => e.runtimeType.toString(),
+      };
+      expect(
+        [for (final e in events) (typeOf(e), e.buttons)],
+        [
+          ('down', 0x02),
+          ('move', 0x03),
+          ('move', 0x03),
+          ('move', 0x02),
+          ('up', 0),
+        ],
+      );
+      expect(events.every((e) => e.kind == PointerDeviceKind.stylus), isTrue);
+      expect(events.map((e) => e.pointer).toSet(), hasLength(1));
+      expect(events[3].position, const Offset(120, 100));
+      expect(
+        () => d.webPenButtonStroke(const [Offset(1, 1)]),
+        throwsArgumentError,
+      );
+    });
+
+    testWidgets('move(buttons:) and hover(buttons:) and the eraser tip', (
+      tester,
+    ) async {
+      final events = await _pumpListener(tester);
+      final d = PointerDriver(tester);
+      await d.hover(const Offset(50, 50), buttons: 0x02);
+      await d.eraserTipStroke(const [Offset(10, 10), Offset(20, 20)]);
+      await d.down(
+        3,
+        const Offset(5, 5),
+        kind: PointerDeviceKind.stylus,
+        buttons: 0x02,
+      );
+      await d.move(3, const Offset(6, 6), buttons: 0x03);
+      await d.move(3, const Offset(7, 7));
+      await d.up(3);
+
+      expect(events.first, isA<PointerHoverEvent>());
+      expect(events.first.buttons, 0x02);
+      final tip = events.whereType<PointerDownEvent>().first;
+      expect(tip.kind, PointerDeviceKind.invertedStylus);
+      final moves = events.whereType<PointerMoveEvent>().skip(1).toList();
+      expect([for (final m in moves) m.buttons], [0x03, 0x03]);
+    });
+
+    testWidgets('pumpEditor seeds page objects and recordings', (tester) async {
+      final shape = PageObjectFixtures.shape(
+        pageId: 'elsewhere',
+        id: 'shape-1',
+      );
+      final text = PageObjectFixtures.textBox(
+        pageId: 'elsewhere',
+        id: 'text-1',
+      );
+      final h = await pumpEditor(
+        tester,
+        objectsByPageIndex: {
+          1: [shape, text],
+        },
+        strokesByPageIndex: {
+          1: [strokeA.copyWith(recordingId: 'rec-1', recordingOffsetMs: 1200)],
+        },
+        recordings: const [
+          RecordingSeed(id: 'rec-1', durationMs: 5000, title: '복구된 녹음'),
+        ],
+        fakeAudio: true,
+      );
+
+      expect(h.session.history.undoDepth, 0);
+      final content = await h.session.openPage(h.pageId(1));
+      expect(content.objectCount, 2);
+      expect(content.objectById('shape-1'), isA<core.ShapeObject>());
+      expect(content.objectById('shape-1')!.pageId, h.pageId(1));
+      expect(content.objectById('text-1')!.createdAt, text.createdAt);
+      expect(content.strokeById(strokeA.id)!.recordingId, 'rec-1');
+      h.session.closePage(h.pageId(1));
+
+      final recordings = await h.store.recordings.recordingsOf(h.noteId);
+      expect(recordings, hasLength(1));
+      expect(recordings.single.id, 'rec-1');
+      expect(recordings.single.title, '복구된 녹음');
+      expect(recordings.single.durationMs, 5000);
+      final audio = await h.store.assets.getAsset(recordings.single.assetId);
+      expect(audio!.type, core.AssetType.audio);
+
+      expect(
+        h.container.read(core.audioRecorderServiceProvider),
+        same(h.audioRecorder),
+      );
+      expect(
+        h.container.read(core.audioPlaybackServiceProvider),
+        same(h.audioPlayback),
+      );
+    });
+
+    testWidgets('pumpEditor overrides the image slot, Pencil and extensions', (
+      tester,
+    ) async {
+      final pencil = FakeStylusExtras();
+      final item = RecordingSelectionItem();
+      final h = await pumpEditor(
+        tester,
+        pages: 1,
+        imageImporter: (store) => FakeImageImporter(store: store),
+        stylusExtras: pencil,
+        extensions: EditorExtensions(selectionMenuItems: [item.item]),
+      );
+      expect(
+        h.container.read(editorImageImporterProvider),
+        same(h.imageImporter!.importer),
+      );
+      expect(h.imageImporter!.store, same(h.store));
+      expect(h.container.read(stylusExtrasProvider), same(pencil));
+      expect(h.stylusExtras, same(pencil));
+      expect(h.container.read(editorExtensionsProvider).selectionMenuItems, [
+        item.item,
+      ]);
+    });
+
+    testWidgets('FakeImageImporter puts an asset and returns ImportedImage', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox());
+      final context = tester.element(find.byType(SizedBox));
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      final fake = FakeImageImporter(
+        store: store,
+        sources: const {core.ImageImportSource.photos},
+        pixelWidth: 640,
+        pixelHeight: 480,
+      );
+      final seen = <int>[];
+      fake.onPick = (call) => seen.add(call.index);
+
+      final future = fake.importer.pick(context, core.ImageImportSource.photos);
+      expect(seen, [0], reason: 'onPick runs inside the call');
+      final image = await tester.runAsync(() => future);
+      expect(image!.pixelWidth, 640);
+      expect(image.pixelHeight, 480);
+      expect(image.asset.type, core.AssetType.image);
+      expect(
+        await tester.runAsync(() => store.assets.hasBytes(image.asset.id)),
+        isTrue,
+      );
+      expect(fake.putAssetIds, [image.asset.id]);
+      expect(fake.calls.single.source, core.ImageImportSource.photos);
+      expect(fake.calls.single.context, same(context));
+      expect(fake.calls.single.contextMounted, isTrue);
+      expect(fake.importer.sources, {core.ImageImportSource.photos});
+
+      fake.cancelNext = true;
+      expect(
+        await tester.runAsync(
+          () => fake.pick(context, core.ImageImportSource.photos),
+        ),
+        isNull,
+      );
+
+      fake.throwNext = StateError('picker failed');
+      await expectLater(
+        fake.pick(context, core.ImageImportSource.photos),
+        throwsStateError,
+      );
+      fake
+        ..throwNext = StateError('sync')
+        ..throwSynchronously = true;
+      expect(
+        () => fake.pick(context, core.ImageImportSource.photos),
+        throwsStateError,
+      );
+      expect(fake.calls, hasLength(4));
+    });
+
+    test('FakeStylusExtras injects Pencil events', () async {
+      final pencil = FakeStylusExtras(
+        capabilities: const StylusCapabilities(doubleTap: true),
+      );
+      expect(pencil.isSupported, isTrue);
+      expect(pencil.capabilities.doubleTap, isTrue);
+      expect(pencil.capabilities.squeeze, isFalse);
+      expect(pencil.hasListener, isFalse);
+
+      final got = <StylusExtraEvent>[];
+      final sub = pencil.events.listen(got.add);
+      expect(pencil.hasListener, isTrue);
+      expect(pencil.listenCount, 1);
+      pencil
+        ..emit(const StylusDoubleTap())
+        ..emit(
+          const StylusSqueeze(
+            phase: StylusSqueezePhase.ended,
+            hoverPosition: Offset(3, 4),
+          ),
+        );
+      await Future<void>.delayed(Duration.zero);
+      expect(got, [
+        const StylusDoubleTap(),
+        const StylusSqueeze(
+          phase: StylusSqueezePhase.ended,
+          hoverPosition: Offset(3, 4),
+        ),
+      ]);
+      await sub.cancel();
+      expect(pencil.cancelCount, 1);
+      expect(FakeStylusExtras(isSupported: false).isSupported, isFalse);
+      await pencil.close();
+    });
+
+    testWidgets('test extension items record their calls and run one command', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox());
+      final context = tester.element(find.byType(SizedBox));
+      final executed = <core.EditCommand>[];
+      final shape = PageObjectFixtures.shape(pageId: 'p1');
+      final selectionItem = RecordingSelectionItem(
+        command: (sel) => core.RemoveElements(
+          pageId: sel.pageId,
+          elementIds: [for (final o in sel.objects) o.id],
+        ),
+        isVisible: (sel) => sel.objects.isNotEmpty,
+      );
+      final selection = EditorSelectionContext(
+        noteId: 'n',
+        pageId: 'p1',
+        pageSize: core.PageSize.a4Portrait,
+        strokes: const [],
+        objects: [shape],
+        boundsPt: Rect.zero,
+        execute: executed.add,
+        clearSelection: () {},
+      );
+      expect(selectionItem.item.isVisible!(selection), isTrue);
+      expect(selectionItem.visibleCalls, 1);
+      await selectionItem.item.onSelected(context, selection);
+      expect(selectionItem.calls.single.menu, same(selection));
+      expect(executed.single, isA<core.RemoveElements>());
+      expect(selectionItem.item, same(selectionItem.item));
+
+      selectionItem.throwSync = StateError('sync');
+      expect(
+        () => selectionItem.item.onSelected(context, selection),
+        throwsStateError,
+      );
+
+      final selected = <String>[];
+      final insertItem = RecordingInsertItem(
+        command: (insert) =>
+            core.AddObjects(pageId: insert.pageId, objects: [shape]),
+        selectAfter: shape.id,
+      );
+      await insertItem.item.onSelected(
+        context,
+        EditorInsertContext(
+          noteId: 'n',
+          pageId: 'p1',
+          pageSize: core.PageSize.a4Portrait,
+          visibleRectPt: const Rect.fromLTWH(0, 0, 100, 100),
+          execute: executed.add,
+          selectObject: selected.add,
+        ),
+      );
+      expect(executed.last, isA<core.AddObjects>());
+      expect(selected, [shape.id]);
+
+      final panels = TestRecordingPanelBuilder();
+      final on = ValueNotifier(true);
+      addTearDown(on.dispose);
+      var closed = 0;
+      final panel = panels.builder(
+        context,
+        EditorPanelContext(
+          noteId: 'n',
+          tapToSeek: on,
+          setTapToSeek: (v) => on.value = v,
+          close: () => closed++,
+        ),
+      );
+      expect(panel, isA<TestRecordingPanel>());
+      expect(panels.panelContexts, hasLength(1));
+      panels.throwNext = StateError('build');
+      expect(
+        () => panels.builder(context, panels.panelContexts.single),
+        throwsStateError,
+      );
+      expect(closed, 0);
+    });
+
+    test('addShapeEdit commits as one AddObjects', () {
+      final shape = PageObjectFixtures.shape(pageId: 'p1');
+      final edit = addShapeEdit('p1', shape);
+      final command = edit.toCommand();
+      expect(command, isA<core.AddObjects>());
+      command as core.AddObjects;
+      expect(command.pageId, 'p1');
+      expect(command.objects, [shape]);
+      final erase = eraseStrokesEdit('p1', objectIds: {shape.id}).toCommand();
+      expect(erase, isA<core.RemoveElements>());
+    });
+
+    test('the mapping table rows are covered by P-A test files', () {
+      expect(kEditorCommandMapping, isNotEmpty);
+      for (final row in kEditorCommandMapping) {
+        expect(kNotPaTasks, isNot(contains(row.task)), reason: row.action);
+        expect(
+          row.coveredBy.startsWith('widget/') ||
+              row.coveredBy.startsWith('unit/'),
+          isTrue,
+          reason: row.coveredBy,
+        );
+        expect(row.coveredBy, endsWith('_test.dart'));
+      }
+      final autoShape = kEditorCommandMapping.singleWhere(
+        (r) => r.action == '자동 도형 보정 확정',
+      );
+      expect(autoShape.coveredBy, 'widget/shape_tool_test.dart');
+      expect(autoShape.task, 'E2-09');
     });
   });
 }

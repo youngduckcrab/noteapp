@@ -1,5 +1,6 @@
 // lib/src/ui/pages/add_page_sheet.dart — 04-editor 6.11.4 (페이지 추가 시트,
-// EDITOR-2-3 — contract 7.2.15 v1.1 C11-17, 7.2.16 v1.1 C11-19).
+// EDITOR-2-3 — contract 7.2.15 v1.1 C11-17, 7.2.16 v1.1 C11-19); (v2, E2-12)
+// the '이미지' row (m5-7/04-editor 6.12.3).
 import 'dart:async';
 
 import 'package:flutter/services.dart';
@@ -8,11 +9,15 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
+import '../../di/editor_image_importer.dart';
+import '../../objects/image_flows.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/popup.dart';
 import '../editor_strings.dart';
 import '../popup_host.dart';
+import '../toolbar/insert_menu.dart';
 import 'page_choices.dart';
 
 /// [current] = the current page (core.Page); [size] = the size row's value with the
@@ -50,6 +55,7 @@ Widget templatePreviewCell(
 /// | 색 | core.PaperColors.all | the page's paper (white when not listed) |
 /// | 크기 | A4 · Letter · 16:9 · 사용자 지정 (100–3000 pt) | PageSizePreset.match |
 /// | 방향 | 세로 / 가로 | the page's |
+/// | (v2) 이미지 | the image slot's sources (hidden without them) | — |
 /// | 다른 소스 | EditorExtensions.addPageSources | — |
 ///
 /// Initial values come from the anchor page (popup.anchorPageId — the panel
@@ -57,6 +63,10 @@ Widget templatePreviewCell(
 /// page of its paper colour. [추가] closes the sheet and runs
 /// EditorCommands.addPage; a '다른 소스' item closes it and runs
 /// onSelected(context, commands.menuContext()) through PopupHost.runMenuItem.
+/// (v2, 6.12.3) An '이미지' source remembers the placement and the anchor
+/// page, starts the picker synchronously, then closes the sheet
+/// (ImageFlows.insertPage — the image page comes after the picker); the
+/// sources are disabled on a read-only note and while a picker is open.
 class AddPageSheet extends ConsumerStatefulWidget {
   const AddPageSheet({super.key, required this.popup});
 
@@ -81,6 +91,8 @@ class AddPageSheet extends ConsumerStatefulWidget {
       ValueKey('editor.addPage.size.${preset?.name ?? 'custom'}');
   static ValueKey<String> sourceKey(String id) =>
       ValueKey('editor.addPage.source.$id');
+  static ValueKey<String> imageSourceKey(core.ImageImportSource source) =>
+      ValueKey('editor.addPage.image.${source.name}');
 
   static String _choiceName(TemplateChoice c) => switch (c) {
     BlankChoice() => 'blank',
@@ -192,15 +204,42 @@ class _AddPageSheetState extends ConsumerState<AddPageSheet> {
     unawaited(run);
   }
 
-  Widget _label(BuildContext context, String text) => Padding(
-    padding: const EdgeInsets.only(top: 12, bottom: 6),
-    child: Text(text, style: Theme.of(context).textTheme.labelLarge),
-  );
+  /// 6.12.3: the placement and the anchor page are remembered now; the
+  /// picker starts inside this onPressed, then the sheet closes.
+  void _pickImagePage(core.ImageImportSource source) {
+    final popups = ref.read(editorPopupProvider.notifier);
+    unawaited(
+      ref
+          .read(editorImageFlowsProvider)
+          .insertPage(
+            source,
+            base: _base,
+            placement: _placement,
+            close: popups.close,
+          ),
+    );
+  }
+
+  Widget _label(BuildContext context, String text, {IconData? icon}) {
+    final label = Text(text, style: Theme.of(context).textTheme.labelLarge);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 6),
+      child: icon == null
+          ? label
+          : Row(
+              children: [Icon(icon, size: 18), const SizedBox(width: 6), label],
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final readOnly = ref.watch(editorReadOnlyProvider);
     final sources = ref.watch(editorExtensionsProvider).addPageSources;
+    final imageSources = ImageFlows.sourcesOf(
+      ref.watch(editorImageImporterProvider),
+    );
+    final runner = ref.watch(editorExtensionRunnerProvider);
     final scheme = Theme.of(context).colorScheme;
     final size = _size;
     final custom = _preset == null;
@@ -370,6 +409,27 @@ class _AddPageSheetState extends ConsumerState<AddPageSheet> {
           selected: {_landscape},
           onSelectionChanged: (s) => setState(() => _landscape = s.first),
         ),
+        if (imageSources.isNotEmpty) ...[
+          _label(context, EditorStrings.image, icon: Icons.add_photo_alternate),
+          ValueListenableBuilder<Set<String>>(
+            valueListenable: runner.runningIds,
+            builder: (context, running, _) => Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final source in imageSources)
+                  ActionChip(
+                    key: AddPageSheet.imageSourceKey(source),
+                    avatar: Icon(imageSourceIcon(source), size: 18),
+                    label: Text(EditorStrings.imageSourceName(source)),
+                    onPressed: readOnly || running.contains(ImageFlows.runId)
+                        ? null
+                        : () => _pickImagePage(source),
+                  ),
+              ],
+            ),
+          ),
+        ],
         if (menu != null) ...[
           _label(context, EditorStrings.otherSources),
           Wrap(

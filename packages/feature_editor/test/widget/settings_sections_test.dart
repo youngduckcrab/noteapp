@@ -3,15 +3,18 @@
 // (500 ms debounce), the pressure mode → ink.pressureModeProvider, the
 // detection state text (INK state overridden), the pen section edits the same
 // editorToolProvider values as the pen popup (any P0 type), the resets, the
-// read-only gesture table, '합성 노트 만들기' and the hint texts.
+// read-only gesture table, '합성 노트 만들기' and the hint texts. (v2) The
+// gesture rows pick an action in a sheet (m5-7/04-editor 6.4.4).
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
+import 'package:feature_editor/src/state/settings/pre_roll.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/pen/pen_advanced_controls.dart';
 import 'package:feature_editor/src/ui/pen/pen_type_selector.dart';
 import 'package:feature_editor/src/ui/settings/editor_settings_sections.dart';
+import 'package:feature_editor/src/ui/settings/gesture_action_tile.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -187,16 +190,23 @@ void main() {
     );
   });
 
-  testWidgets('gestures: the three tap gestures on / off → '
+  testWidgets('gestures: the three finger gestures set to 없음 → '
       'editor.settings.synced; the fixed gestures as a read-only table; '
       'reset of the input settings', (tester) async {
     final env = await _pump(tester);
-    for (final key in [
-      SettingsSectionKeys.twoFingerTapUndo,
-      SettingsSectionKeys.threeFingerTapRedo,
-      SettingsSectionKeys.longPressMenu,
+    // (v2, m5-7/04-editor 6.4.4) each row opens a sheet of its actions —
+    // the details are in gesture_settings_section_test.
+    for (final g in [
+      EditorGesture.twoFingerTap,
+      EditorGesture.threeFingerTap,
+      EditorGesture.fingerLongPress,
     ]) {
-      await _tap(tester, find.byKey(key));
+      await _tap(tester, find.byKey(GestureActionTiles.rowKey(g)));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(GestureActionTiles.optionKey(EditorAction.none)),
+      );
+      await tester.pumpAndSettle();
     }
     expect(
       _settings(env).gestures,
@@ -204,6 +214,11 @@ void main() {
         twoFingerTapUndo: false,
         threeFingerTapRedo: false,
         longPressMenu: false,
+        actions: {
+          EditorGesture.twoFingerTap: EditorAction.none,
+          EditorGesture.threeFingerTap: EditorAction.none,
+          EditorGesture.fingerLongPress: EditorAction.none,
+        },
       ),
     );
     expect(
@@ -216,7 +231,11 @@ void main() {
         'twoFingerUndo': false,
         'threeFingerRedo': false,
         'longPressMenu': false,
-        'actions': <String, Object?>{}, // 2nd round: v1.4 bools + actions
+        'actions': {
+          'fingerLongPress': 'none',
+          'threeFingerTap': 'none',
+          'twoFingerTap': 'none',
+        }, // 2nd round: v1.4 bools + actions
       },
     );
 
@@ -404,6 +423,73 @@ void main() {
       ),
     );
     expect(_settings(env).pageFlipMode, PageFlipMode.verticalScroll);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('(v2, E2-17) page section 필기 재생: tap-to-seek switch '
+      '(device), pre-roll 0–5 s in 0.5 s steps stored on release '
+      '(editor.playback.preRollMs), the highlight style (synced)', (
+    tester,
+  ) async {
+    final env = await _pump(tester);
+    await _show(tester, find.text(EditorStrings.playbackSection));
+    expect(find.text(EditorStrings.playbackSection), findsOneWidget);
+
+    await _tap(tester, find.byKey(SettingsSectionKeys.playbackTapToSeek));
+    expect(_settings(env).tapToSeek, isFalse);
+    expect(
+      (await _stored(
+        tester,
+        env,
+        EditorSettingKeys.deviceSettings,
+      ))['tapToSeek'],
+      false,
+    );
+
+    await _show(tester, find.byKey(SettingsSectionKeys.playbackPreRoll));
+    final slider = _slider(tester, SettingsSectionKeys.playbackPreRoll);
+    expect((slider.min, slider.max, slider.divisions), (0, 5000, 10));
+    expect(slider.value, 1500);
+    expect(find.text(EditorStrings.playbackPreRollLabel(1500)), findsOneWidget);
+    // While dragging only the label moves; the value is set on release.
+    slider.onChanged!(3100);
+    await tester.pump();
+    expect(env.container.read(editorPreRollMsProvider), 1500);
+    expect(find.text(EditorStrings.playbackPreRollLabel(3000)), findsWidgets);
+    _slider(tester, SettingsSectionKeys.playbackPreRoll).onChangeEnd!(3100);
+    await tester.pump();
+    expect(env.container.read(editorPreRollMsProvider), 3000);
+    await tester.drag(
+      find.byKey(SettingsSectionKeys.playbackPreRoll),
+      const Offset(2000, 0),
+    );
+    await tester.pump();
+    expect(env.container.read(editorPreRollMsProvider), 5000);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(
+      await env.store.settings.get(EditorSettingKeys.playbackPreRollMs),
+      5000,
+    );
+
+    await _tap(
+      tester,
+      find.descendant(
+        of: find.byKey(SettingsSectionKeys.playbackHighlight),
+        matching: find.text(EditorStrings.playbackHighlightRecent),
+      ),
+    );
+    expect(
+      _settings(env).playbackHighlight,
+      ink.InkPlaybackStyle.highlightRecent,
+    );
+    expect(
+      (await _stored(
+        tester,
+        env,
+        EditorSettingKeys.syncedSettings,
+      ))['playbackHighlight'],
+      'highlightRecent',
+    );
     await tester.pump(const Duration(seconds: 1));
   });
 

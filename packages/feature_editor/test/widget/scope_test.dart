@@ -92,7 +92,7 @@ void main() {
       stroke.id,
     });
     await tester.pump();
-    expect(ca.read(editorSelectionProvider)?.strokeIds, {stroke.id});
+    expect(ca.read(editorSelectionProvider)?.elementIds, {stroke.id});
     expect(cb.read(editorSelectionProvider), isNull);
 
     // Popup in B only.

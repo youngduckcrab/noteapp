@@ -1,9 +1,9 @@
 # 04 · EDITOR — 에디터 화면 (2차 라운드 M5·M6·M7)
 
-> 상태: **승인** (최종 승인 2026-11-05 · 통합 계약 **v2.2** — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표) · 승인한 판본: 수정 3회차 + 총괄 직접 수정(13.4). 계약 v2.2(C22-01~09)가 바꾼 문장의 인용은 개발 착수 때 맞춘다(C22-09) — 그때까지 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 3회차** (통합 계약 **v2.1** 기준 — 7.9 마지막 행 C21-35, 2026-11-05) — 총괄 검토에서 나온 새 모순 2건(5.1.2 '자동 도형 보정 확정' 매핑 행을 덮는 시험이 P-B E2-15뿐이라 10 #4가 P-B에 묶임, INFRA V5 자동 도형 단계가 EDITOR 자신의 P-B E2-15에도 묶여 10 #5·E2-23이 P-B에 묶임)을 반영했다(13.3). 수정 2회차는 총괄 승인 검토에서 나온 새 모순 2건(텍스트 세션 중 1차 `EditorCanvasFocus`가 편집기 포커스를 빼앗음, E2-21 자동 도형 단계가 P-B에 묶임)을 반영했다(13.2). 수정 1회차는 총괄 검토 [00-review.md](00-review.md) 3.4 EDITOR-M1~M14와 권장 S-1·S-11·S-12를 반영했다(13.1). 초안은 v2.0 기준이었다
+> 상태: **승인 · 계약 v2.3** (동시 개발 착수 2026-11-06 — C22-09: 5.5 '가정' 확인, v2.2·v2.3이 바꾼 문장의 인용을 맞춤, 00-review '최종 승인'의 EDITOR-F1~F4 처리 — 13.5) · 최종 승인 2026-11-05 · 통합 계약 v2.2 — [00-review.md '최종 승인'](00-review.md#최종-승인), 이 영역의 개발 중 반영 항목은 그 절의 '영역별 개발 중 반영' 표 · 승인한 판본: 수정 3회차 + 총괄 직접 수정(13.4). 이 계획서와 계약이 다르면 계약이 우선이다. 이전 상태: **수정 3회차** (통합 계약 **v2.1** 기준 — 7.9 마지막 행 C21-35, 2026-11-05) — 총괄 검토에서 나온 새 모순 2건(5.1.2 '자동 도형 보정 확정' 매핑 행을 덮는 시험이 P-B E2-15뿐이라 10 #4가 P-B에 묶임, INFRA V5 자동 도형 단계가 EDITOR 자신의 P-B E2-15에도 묶여 10 #5·E2-23이 P-B에 묶임)을 반영했다(13.3). 수정 2회차는 총괄 승인 검토에서 나온 새 모순 2건(텍스트 세션 중 1차 `EditorCanvasFocus`가 편집기 포커스를 빼앗음, E2-21 자동 도형 단계가 P-B에 묶임)을 반영했다(13.2). 수정 1회차는 총괄 검토 [00-review.md](00-review.md) 3.4 EDITOR-M1~M14와 권장 S-1·S-11·S-12를 반영했다(13.1). 초안은 v2.0 기준이었다
 >
 > 작성 2026-11-05 · 영역 ID **EDITOR** · 소유 경로 `packages/feature_editor/` · 기준: [00-overview.md 7장 '통합 계약 v2.1'](00-overview.md) — **이 문서와 7장이 다르면 7장이 우선**한다. 7장이 덮어쓰지 않은 곳은 1차 계약 v1.5(1차 통합 반영 — 시그니처는 v1.4와 같음, 1차 [00-overview.md](../00-overview.md) 7장)가 그대로 유효하다.
-> 이어받는 문서: 1차 EDITOR 계획서(승인본 v0.3, `/home/user/wt/editor/docs/plans/04-editor.md`, 이하 **'1차 계획서'**) · 바탕 코드: (v2.1, CD2-01) **1차 통합 HEAD** `/home/user/noteapp`(브랜치 `claude/note-app-planning-bk29xb`, 통합 계약 v1.5 커밋 `18c5ae5` 이후)의 `packages/feature_editor` — `lib/`는 1차 작업 트리 `/home/user/wt/editor`(`93dc827`)와 같고(`diff -rq` 차이 0, 16,911줄), `test/`는 통합에서 3파일이 바뀌고 `test/web/editor_browser_smoke_test.dart`가 더해져 시험 파일 61개다 [확인]. 아래 줄 번호 인용은 같은 `lib/` 기준이라 그대로 맞고, 기반 단계 시작 때 한 번 더 확인한다 · 조사: [01-hooks](research/01-hooks.md) · [02-audio-stylus](research/02-audio-stylus.md) · [03-recognition](research/03-recognition.md) · [04-native](research/04-native.md) · 판정: [judgement.md](drafts/judgement.md) · 함께 본 영역 계획서: [01-infra.md](01-infra.md)(6.12 `pencil_bridge` 어댑터, 13절 자리 표), [02-core.md](02-core.md)(5.3 EDITOR, 12.1 CP-1·CP-2)
+> 이어받는 문서: 1차 EDITOR 계획서(승인본 v0.3, `/home/user/wt/editor/docs/plans/04-editor.md`, 이하 **'1차 계획서'**) · 바탕 코드: (v2.1, CD2-01) **1차 통합 HEAD** `/home/user/noteapp`(브랜치 `claude/note-app-planning-bk29xb`, 통합 계약 v1.5 커밋 `18c5ae5` 이후 — (v2.2, C22-08) 2차 바탕은 1차 통합 HEAD `b6c9d0a`, `18c5ae5` 인용은 이 HEAD로 읽는다. EDITOR 소유 경로의 코드 차이는 없다)의 `packages/feature_editor` — `lib/`는 1차 작업 트리 `/home/user/wt/editor`(`93dc827`)와 같고(`diff -rq` 차이 0, 16,911줄), `test/`는 통합에서 3파일이 바뀌고 `test/web/editor_browser_smoke_test.dart`가 더해져 시험 파일 61개다 [확인]. 아래 줄 번호 인용은 같은 `lib/` 기준이라 그대로 맞고, 기반 단계 시작 때 한 번 더 확인한다 · 조사: [01-hooks](research/01-hooks.md) · [02-audio-stylus](research/02-audio-stylus.md) · [03-recognition](research/03-recognition.md) · [04-native](research/04-native.md) · 판정: [judgement.md](drafts/judgement.md) · 함께 본 영역 계획서: [01-infra.md](01-infra.md)(6.12 `pencil_bridge` 어댑터, 13절 자리 표), [02-core.md](02-core.md)(5.3 EDITOR, 12.1 CP-1·CP-2)
 
 이 문서를 읽는 법
 
@@ -491,8 +491,8 @@ abstract interface class StylusExtrasSource {
 
 #### 4.3.1 값 동등 · 자리 항목 규칙
 
-- `EditorExtensions`의 `==`·`hashCode`는 1차와 같이 목록 순서까지 비교하고(`ListEquality`), 새 필드 셋(`selectionMenuItems`·`insertMenuItems`·`recordingPanel`)을 더한다. `recordingPanel`은 함수 동일성(`identical`) 비교다.
-- `EditorSelectionMenuItem`·`EditorInsertMenuItem`·`EditorImageImporter`는 1차 `EditorMenuItem`과 같은 규칙으로 필드 전부를 비교하는 `==`를 둔다(함수 필드는 동일성). 문맥 타입(`EditorSelectionContext`·`EditorInsertContext`·`EditorPanelContext`)은 열릴 때마다 새로 만드는 일회용 값이라 `==`를 두지 않는다(`@immutable`만).
+- `EditorExtensions`의 `==`·`hashCode`는 1차와 같이 목록 순서까지 비교하고(`ListEquality`), 새 필드 셋(`selectionMenuItems`·`insertMenuItems`·`recordingPanel`)을 더한다. `recordingPanel`은 Dart 함수 `==`로 비교한다((v2.3, C23-05) 1차 `EditorMenuItem`·`appBarTrailing`과 같음 — 같은 인스턴스 메서드의 tear-off가 다른 값으로 보이지 않게. `identical`이 아님).
+- `EditorSelectionMenuItem`·`EditorInsertMenuItem`·`EditorImageImporter`는 1차 `EditorMenuItem`과 같은 규칙으로 필드 전부를 비교하는 `==`를 둔다(함수 필드는 Dart 함수 `==` — C23-05). 문맥 타입(`EditorSelectionContext`·`EditorInsertContext`·`EditorPanelContext`)은 열릴 때마다 새로 만드는 일회용 값이라 `==`를 두지 않는다(`@immutable`만).
 - 자리 항목의 `id`는 위젯 키(`ValueKey('editor.ext.<id>')`)와 시험에서 쓴다. 같은 목록 안에서 `id`가 겹치면 뒤의 것을 버리고 `FlutterError.reportError` 1회(개발 중 실수 발견용).
 - 항목 실행 규칙(계약 7.2.10 (v2.1) '자리 콜백의 시작과 `context`' + E-7 — 1차 `EditorMenuItem`은 메뉴를 먼저 닫고 `await`했지만 2차 자리는 순서가 다르다, 검토 S-6·CD2-15): 메뉴 항목·시트 단추의 `onPressed` 안에서 ① 두 번 누름 검사(같은 항목이 끝나기 전이면 무시) ② `final future = item.onSelected(bodyContext, ctx)`(이미지 출처는 `importer.pick(bodyContext, source)`)를 **동기적으로** 부른다 — 이 줄 앞에 `await`·`Future.delayed`·`addPostFrameCallback`이 없다(사용자 동작 활성화가 살아 있는 동안 브라우저 선택기·클립보드가 열리게) ③ 그다음 메뉴·시트를 닫는다(`MenuController.close()` / `Navigator.pop`) ④ `future`를 기다린다. ②의 동기 예외와 `Future` 오류 모두 `FlutterError.reportError(library: 'feature_editor', context: 'while running <id>')` 후 스낵바 '실행하지 못했어요'(1차 `EditorStrings.commandFailed`) — 동기 예외여도 ③은 한다. 이 처리는 `commands/extension_runner.dart` 하나에 둔다.
 - 넘기는 `context` = **에디터 본문**(`EditorBody`의 `State.context`). `ExtensionRunner`는 `EditorBody`가 넘긴 `BuildContext Function()`으로만 context를 얻고, 메뉴 항목·시트·팝업의 context는 넘기지 않는다(메뉴가 닫히면 unmounted — recog는 `ProviderScope.containerOf`, media는 `showModalBottomSheet`에 이 context를 쓴다). 항목이 끝나기 전에 노트 화면을 떠나면 그 context는 unmounted가 되므로 끝난 뒤 처리(스낵바·`selectObject`)는 `mounted` 검사 뒤에만 한다.
@@ -523,9 +523,9 @@ class GestureSettings {
 | 단계 | 규칙 |
 |---|---|
 | `actionFor(g)` | ① `actions[g]`가 있고 `allowedFor(g)`에 들면 그 값 ② 없으면 v1.4 bool이 있는 제스처(`twoFingerTap`↔`twoFingerTapUndo`, `threeFingerTap`↔`threeFingerTapRedo`, `fingerLongPress`↔`longPressMenu`)의 bool이 `false`면 `none` ③ 그 밖은 `defaultFor(g)` |
-| `fromJson` | v1.4 키 `twoFingerUndo`·`threeFingerRedo`·`longPressMenu`(bool, 잘못된 형식은 기본값 `true`)와 `actions`(객체). `actions`의 키 = `EditorGesture.name`, 값 = `EditorAction.name`. 모르는 제스처·모르는 동작·`allowedFor` 밖 동작은 **조용히 버린다**(오류 보고 없음 — 새 판이 만든 값). `actions`가 객체가 아니면 통째로 무시 |
+| `fromJson` | v1.4 키 `twoFingerUndo`·`threeFingerRedo`·`longPressMenu`(bool, 잘못된 형식은 기본값 `true`)와 `actions`(객체). (v2.3, R2-B5) 읽은 뒤 v1.4 bool 셋을 `actionFor(g) != none`으로 다시 맞춘다 — `fromJson(toJson(x)) == x`. `actions`의 키 = `EditorGesture.name`, 값 = `EditorAction.name`. 모르는 제스처·모르는 동작·`allowedFor` 밖 동작은 **조용히 버린다**(오류 보고 없음 — 새 판이 만든 값). `actions`가 객체가 아니면 통째로 무시 |
 | `toJson` | `{"twoFingerUndo": actionFor(twoFingerTap) != none, "threeFingerRedo": …, "longPressMenu": …, "actions": {명시된 항목만, 이름순}}`. 명시되지 않은 제스처는 쓰지 않는다 — 기본값이 다음 판에서 바뀌어도 사용자가 손대지 않은 항목은 새 기본값을 따른다 |
-| `withAction(g, a)` | `a == defaultFor(g)`이면 `actions`에서 `g`를 지우되, v1.4 bool이 `false`인 제스처는 명시 항목으로 남긴다(지우면 ②로 `none`이 되므로). 그 밖은 `actions[g] = a`. v1.4 bool도 `a != none`으로 맞춘다 |
+| `withAction(g, a)` | (v2.3, C23-05 — R2-B5 코드에 맞춘 문구) `a`가 `allowedFor(g)` 밖이면 그대로(`this`). `a == defaultFor(g)`이고 `g`의 이전 v1.4 bool이 `false`가 아니면 `actions`에서 `g`를 지운다. 이전 bool이 `false`인 제스처는 기본값이어도 명시 항목 `actions[g] = a`로 남긴다(옛 앱이 bool만 읽어도 같은 결과가 되게 — 결과 `actionFor`는 어느 쪽이든 기본값). 그 밖은 `actions[g] = a`. 마지막으로 그 제스처의 v1.4 bool을 `a != none`으로 맞춘다 |
 | 옛 앱과 섞일 때 | 옛 앱(1차)은 bool만 읽는다. 새 앱이 `twoFingerTap = redo`로 바꾸면 bool은 `true`라 옛 앱은 '되돌리기'로 동작한다(옛 앱은 다른 동작을 모름 — 받아들임). 옛 앱이 bool만 바꿔 쓰면 `actions`는 그대로 남아 새 앱에서 ①이 이긴다 — 옛 앱의 '끄기'가 새 앱에서 무시될 수 있다. 실연결 전이고 사용자 한 명이 모든 기기를 함께 갱신하므로(D4와 같은 근거) 받아들인다 |
 
 JSON 예(`editor.settings.synced`의 `gestures`):
@@ -1486,7 +1486,7 @@ R2-B3은 '단순하지만 동작하는 구현'이다(7.6.2 (v2.1) R2-B3 행, 03-
 | Pencil | `FakeStylusExtras(capabilities:)` — `StreamController.broadcast()`로 이벤트 주입 | `test/helpers/fake_stylus_extras.dart` |
 | 실제 결합 | 통합 단계 E2-21(실제 INK + `openTestNoteStore()` + 가짜 오디오 포트)·(P-B) E2-21b, INFRA V5·V6 | `test/integration/` |
 
-가정(기반 단계 뒤 실제 타입으로 바꿈 — 7.6 끝 문장): 없음. 초안의 'CP-1이 정해지기 전에는 위치 인자' 가정은 v2.1에서 이름 있는 인자로 정해져 지웠다(C21-07).
+가정(기반 단계 뒤 실제 타입으로 바꿈 — 7.6 끝 문장): 없음. 초안의 'CP-1이 정해지기 전에는 위치 인자' 가정은 v2.1에서 이름 있는 인자로 정해져 지웠다(C21-07). (동시 개발 착수 2026-11-06, C22-09) 기반 단계 R2-B2·R2-B3 실제 타입으로 확인했다 — 위 표의 이음새는 모두 `note_core/testing.dart`·`ink_engine/testing.dart`에 있다. (v2.3, C23-07) `FakeInkShapeFitter`의 설정 필드는 `result`(생성자 인자는 `fit:` 그대로 — 시험은 `fitter.result = x`), `InkMathRenderer.layout`을 일반 `test()`에서 부르면 먼저 `TestWidgetsFlutterBinding.ensureInitialized()`.
 
 ---
 
@@ -2959,6 +2959,19 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 | 1 | E2-21 `objects_smoke_test`의 순서 '… 붙여넣기 → 닫고 다시 열기 → 유지 → 되돌리기 사슬로 처음 상태'가 1차 v1.5 C15-04·계약 V5 문장·01-infra 9.1 V5 5단계와 맞지 않음(다시 연 세션은 되돌리기가 없음 — 실제 CORE에서 다시 연 뒤 `undoDepth == 0`, 1차 `real_core_ink_smoke_test.dart` 276행) | 순서를 '… 붙여넣기 → 되돌리기 사슬 끝까지(처음 상태) → 다시 실행으로 원래 상태 → 닫고 다시 열기 → 모두 유지·`content.objects` 종류·개수·다시 연 세션 `undoDepth == 0`(C15-04)'로 바꿨다. E2-21b는 이미 C15-04 순서라 그대로 | E2-21(8.3) |
 | 2 | E2-23·10 #5·12.2 Q16 기본 진행의 '뒤 단계의 EDITOR 경로는 같은 순서를 P-A 기능만으로 거치는 E2-21로 판정'이 부정확(① 항목 1의 순서 차이 ② E2-21은 V5 6단계 `editor.panelSlot`, 8단계 `editor.ext.recog.*`, 9단계 `initialFocusRectPt`·`editor.focusFlash`를 거치지 않음) | Q16 총괄 답으로 V5 본 흐름에서 자동 도형 단계가 빠져(V5b — P-B, INK T39·EDITOR E2-15·LIBRARY L2-06이 모두 병합됐을 때만) '뒤 단계가 돌지 않을 때의 대체 판정'이 필요 없어졌으므로 그 문장을 지웠다. 대신 E2-23에 V5·V6 단계가 실패할 때 원인을 좁히는 EDITOR 시험을 **단계별로** 적었다: 2~5단계 = E2-21 `objects_smoke_test`(항목 1 순서), 6~7단계 = E2-21 `recording_link_smoke_test` + E2-16 `widget/recording_panel_slot_test.dart`, 8단계 = E2-07c `widget/selection_extensions_test.dart`·E2-12 `widget/insert_menu_test.dart`, 9단계 = E2-19 `widget/initial_focus_test.dart`, V6만 실패 = `web/editor_browser_smoke_v2_test.dart`, V5b = E2-21b·E2-15 `shape_assist_test`. 실패가 있으면 진행 기록 '2차' 절 E2-23 줄에 실패 단계·대응 시험·원인을 적는다. 10 #5는 'V5b는 #1 규칙(P-B)'으로, 12.2 Q16 기본 진행의 같은 문장은 '지움 — E2-23 단계별 대응'으로 고쳤다 | E2-23(8.3), 10 #5, 12.2 머리·Q16 |
 | 3 | 12.2 Q15(내부 device 키 2개) 답 대기 | 총괄 답: 올리지 않는다(1차 `editor.toolSelection`·`editor.viewport`와 같은 내부 키 취급) | 12.2 Q15 |
+
+### 13.5 동시 개발 착수 정리 (2026-11-06 — 계약 v2.3, C22-09)
+
+| # | 항목 | 처리 | 위치 |
+|---|---|---|---|
+| 1 | 상태 줄 | '승인 · 계약 v2.3' | 머리 |
+| 2 | C22-08 바탕 HEAD | `18c5ae5` 인용을 `b6c9d0a`로 읽는다고 적음(EDITOR 코드 차이 없음) | 머리 '이어받는 문서' |
+| 3 | C22-04 R-3 | 이미 v2.2 문장(총괄 최종 승인 때 맞춤) — 바꿀 것 없음 | 5.1.3 R-3 |
+| 4 | C22-07 E2-23·10 #5 | 이미 총괄 직접 수정(13.4) — 바꿀 것 없음 | 8.3, 10 |
+| 5 | C23-05 함수 값 비교·`withAction` 문구 | `recordingPanel`·항목 함수 필드 = Dart 함수 `==`. `withAction`·`fromJson` 행을 R2-B5 코드에 맞춤 | 4.3.1, 4.3.2 |
+| 6 | C23-07 시험 도우미 | `FakeInkShapeFitter.result`·`InkMathRenderer.layout` 바인딩 주의를 5.5에 적음 | 5.5 |
+| 7 | 5.5 '가정' | 없음 — 기반 단계 실제 타입으로 확인 | 5.5 |
+| 8 | 00-review '최종 승인' EDITOR-F1~F4 | F1(E2-21 C15-04 순서)·F2(E2-23 기록)는 통합 단계 몫으로 진행 기록 작업 표에, F3(E2-15를 미루면 `E2-15 미룸`)은 진행 기록 '동시 개발' 메모에, F4(E2-01 첫 작업 — Hosting 없음 → Chrome 시험과 통합 Playwright 스모크)는 작업 순서에 반영 | 진행 기록 '## 2차 / 동시 개발' |
 
 ---
 

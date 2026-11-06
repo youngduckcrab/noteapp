@@ -1,0 +1,183 @@
+// lib/src/ui/toolbar/overflow_tools_menu.dart — m5-7/04-editor 6.13.1
+// (E2-13): the folded toolbar's [⋯도구] (key `editor.toolbar.overflowTools`,
+// appendix C). Below EditorToolbar.foldWidth the [도형] [텍스트] [+] [🎤]
+// buttons fold into this one menu:
+//
+//   도형 · 텍스트   — like their toolbar buttons: an inactive tool → select it,
+//                    the active one → its tool popup (at this button);
+//   이미지 ▸ · insert items — the [+] rows (insertMenuRows — started inside
+//                    the press, then the menu closes; disabled on a
+//                    read-only note);
+//   녹음            — opens / closes the bottom panel (EditorExtensions.
+//                    recordingPanel only).
+//
+// The button shows the active tool's icon (shape / text) on primaryContainer
+// while one of the folded tools is active, and the mic's dot (red: this note
+// records; grey: another note) while folded.
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' as core;
+
+import '../../commands/extension_runner.dart';
+import '../../di/editor_extensions.dart';
+import '../../di/editor_image_importer.dart';
+import '../../objects/image_flows.dart';
+import '../../scope/editor_scope.dart';
+import '../../state/panel.dart';
+import '../../state/popup.dart';
+import '../../tools/tool_controller.dart';
+import '../../tools/tool_state.dart';
+import '../editor_strings.dart';
+import 'insert_menu.dart';
+import 'mic_button.dart';
+import 'tool_button.dart';
+
+class OverflowToolsMenu extends ConsumerStatefulWidget {
+  const OverflowToolsMenu({
+    super.key = buttonKey,
+    required this.hasInsert,
+    required this.hasPanel,
+  });
+
+  /// Appendix C.
+  static const buttonKey = ValueKey('editor.toolbar.overflowTools');
+
+  /// Rows (the same keys as the toolbar buttons they replace — only one of
+  /// the two is built at a time).
+  static const shapeKey = ValueKey('editor.toolbar.shape');
+  static const textKey = ValueKey('editor.toolbar.text');
+
+  /// Whether the [+] rows are offered (InsertMenu.hasItems).
+  final bool hasInsert;
+
+  /// Whether the 녹음 row is offered (EditorExtensions.recordingPanel).
+  final bool hasPanel;
+
+  @override
+  ConsumerState<OverflowToolsMenu> createState() => OverflowToolsMenuState();
+}
+
+class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
+  final MenuController _menu = MenuController();
+
+  /// Whether the menu is open (tests).
+  @visibleForTesting
+  bool get isOpen => _menu.isOpen;
+
+  void _toggle() => _menu.isOpen ? _menu.close() : _menu.open();
+
+  void _close() {
+    if (_menu.isOpen) _menu.close();
+  }
+
+  /// Bottom-left of this button (global) — where a tool popup opens.
+  Offset? _below() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(box.size.bottomLeft(Offset.zero));
+  }
+
+  void _tool(EditorTool tool, EditorPopup Function(Offset? at) popup) {
+    final active = ref.read(editorToolProvider).activeTool;
+    if (active == tool) {
+      ref.read(editorPopupProvider.notifier).open(popup(_below()));
+    } else {
+      ref.read(editorCommandsProvider).selectTool(tool);
+    }
+    _close();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final readOnly = ref.watch(editorReadOnlyProvider);
+    final active = ref.watch(editorToolProvider.select((s) => s.activeTool));
+    final noteId = ref.watch(editorNoteIdProvider);
+    final panelOpen = ref.watch(editorPanelProvider);
+    final indicator = widget.hasPanel
+        ? micIndicatorOf(ref.watch(editorRecorderStatusProvider).value, noteId)
+        : MicIndicator.none;
+    final scheme = Theme.of(context).colorScheme;
+    final runner = ref.watch(editorExtensionRunnerProvider);
+    final sources = widget.hasInsert
+        ? ImageFlows.sourcesOf(ref.watch(editorImageImporterProvider))
+        : const <core.ImageImportSource>[];
+    final items = widget.hasInsert
+        ? runner.withoutDuplicates(
+            ref.watch(
+              editorExtensionsProvider.select((e) => e.insertMenuItems),
+            ),
+            (item) => item.id,
+          )
+        : const <EditorInsertMenuItem>[];
+    final folded = active == EditorTool.shape || active == EditorTool.text;
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: runner.runningIds,
+      builder: (context, running, _) => MenuAnchor(
+        controller: _menu,
+        menuChildren: [
+          InsertMenuRow(
+            key: OverflowToolsMenu.shapeKey,
+            icon: Icons.interests,
+            label: EditorStrings.shapeTool,
+            selected: active == EditorTool.shape,
+            onPressed: readOnly
+                ? null
+                : () => _tool(
+                    EditorTool.shape,
+                    (at) => ShapeToolPopup(globalPosition: at),
+                  ),
+          ),
+          InsertMenuRow(
+            key: OverflowToolsMenu.textKey,
+            icon: Icons.text_fields,
+            label: EditorStrings.textTool,
+            selected: active == EditorTool.text,
+            onPressed: readOnly
+                ? null
+                : () => _tool(
+                    EditorTool.text,
+                    (at) => TextToolPopup(globalPosition: at),
+                  ),
+          ),
+          if (widget.hasInsert)
+            ...insertMenuRows(
+              ref,
+              sources: sources,
+              items: items,
+              running: running,
+              close: _close,
+              enabled: !readOnly,
+            ),
+          if (widget.hasPanel)
+            InsertMenuRow(
+              key: MicButton.micKey,
+              icon: indicator == MicIndicator.thisNote
+                  ? Icons.mic
+                  : Icons.mic_none,
+              label: EditorStrings.recording,
+              selected: panelOpen,
+              onPressed: () {
+                ref.read(editorPanelProvider.notifier).toggle();
+                _close();
+              },
+            ),
+        ],
+        child: ToolButton(
+          icon: switch (active) {
+            EditorTool.shape => Icons.interests,
+            EditorTool.text => Icons.text_fields,
+            _ => Icons.widgets_outlined,
+          },
+          label: EditorStrings.moreTools,
+          active: folded,
+          dotColor: switch (indicator) {
+            MicIndicator.none => null,
+            MicIndicator.thisNote => MicButton.recordingDotColor,
+            MicIndicator.otherNote => scheme.outline,
+          },
+          onTap: _toggle,
+        ),
+      ),
+    );
+  }
+}

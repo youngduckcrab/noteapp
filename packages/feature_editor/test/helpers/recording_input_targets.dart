@@ -1,8 +1,9 @@
 // test/helpers/recording_input_targets.dart — 04-editor 9.1 (E-01).
 //
-// An InputTargets double for unit/input_router_test.dart (6.5.6 R1..R33): it
-// records every router → editor call as a short string, in order, and hands
-// out RecordingToolInteractions that record their own move / end / cancel.
+// An InputTargets double for unit/input_router_test.dart (6.5.6 R1..R33;
+// (v2) m5-7/04-editor 8.2 R34..R52): it records every router → editor call
+// as a short string, in order, and hands out RecordingToolInteractions that
+// record their own move / end / cancel.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/input/input_sample.dart';
 import 'package:feature_editor/src/input/input_targets.dart';
@@ -16,12 +17,14 @@ InputPolicy testInputPolicy({
   GestureSettings gestures = GestureSettings.defaults,
   bool stylusSeen = false,
   bool eyedropperActive = false,
+  bool textSessionActive = false, // (v2)
 }) => InputPolicy(
   penOnly: penOnly,
   palm: palm,
   gestures: gestures,
   stylusSeen: stylusSeen,
   eyedropperActive: eyedropperActive,
+  textSessionActive: textSessionActive,
 );
 
 class RecordingInputTargets implements InputTargets {
@@ -33,7 +36,8 @@ class RecordingInputTargets implements InputTargets {
   InputPolicy policy;
 
   /// Every call except [observe], in order, e.g. 'begin(stylus)',
-  /// 'navigationStart', 'tap(2)', 'scroll(zoom: true)'.
+  /// 'begin(stylus, penButton)' (v2 — a gesture at contact), 'navigationStart',
+  /// 'tap(2)', 'scroll(zoom: true)'.
   final List<String> calls = [];
 
   /// Every observed event (observe is recorded separately: it fires per event).
@@ -55,6 +59,20 @@ class RecordingInputTargets implements InputTargets {
   /// [hitsSelection] answer; default: no selection.
   bool Function(Offset screen) selectionHit = _never;
 
+  /// (v2) Whether the interactions handed out are pen strokes
+  /// (ToolInteraction.interceptsPenDot); default true.
+  bool interactionsInterceptPenDot = true;
+
+  /// (v2) [interceptPenDot] answer; default: the dot is not taken.
+  bool Function(InputSample sample, InteractionSource source) penDotTaken =
+      _notTaken;
+
+  /// (v2) Every [interceptPenDot] call (kept out of [calls] so the 1차 call
+  /// lists stay as they were).
+  final List<({InputSample sample, InteractionSource source})> penDots = [];
+
+  static bool _notTaken(InputSample _, InteractionSource _) => false;
+
   /// Called from [stylusDetected] — e.g. to switch [policy] to pen-only as the
   /// real InteractionHost does in auto mode (R6).
   void Function()? onStylusDetected;
@@ -71,13 +89,20 @@ class RecordingInputTargets implements InputTargets {
   ToolInteraction? beginInteraction(
     InputSample sample, {
     required InteractionSource source,
+    EditorGesture? gesture,
   }) {
-    calls.add('begin(${source.name})');
+    calls.add(
+      gesture == null
+          ? 'begin(${source.name})'
+          : 'begin(${source.name}, ${gesture.name})',
+    );
     if (refuseInteractions) return null;
     final interaction = RecordingToolInteraction(
       source: source,
       startedAt: sample.timeStamp,
       start: sample,
+      gesture: gesture,
+      interceptsPenDot: interactionsInterceptPenDot,
     );
     interactions.add(interaction);
     return interaction;
@@ -85,6 +110,15 @@ class RecordingInputTargets implements InputTargets {
 
   @override
   bool hitsSelection(Offset screen) => selectionHit(screen);
+
+  @override
+  bool interceptPenDot(
+    InputSample sample, {
+    required InteractionSource source,
+  }) {
+    penDots.add((sample: sample, source: source));
+    return penDotTaken(sample, source);
+  }
 
   @override
   void navigationStart() => calls.add('navigationStart');
@@ -150,9 +184,17 @@ class RecordingToolInteraction extends ToolInteraction {
     required super.source,
     required super.startedAt,
     required this.start,
+    this.gesture,
+    this.interceptsPenDot = true,
   }) : _last = start.position;
 
   final InputSample start;
+
+  /// (v2) The gesture the router passed at contact.
+  final EditorGesture? gesture;
+
+  @override
+  final bool interceptsPenDot;
   final List<InputSample> moves = [];
   InputSample? endSample;
   int endCount = 0;

@@ -22,6 +22,12 @@ class RecordingNoteSession implements core.NoteSession {
   /// [rejectNext] is recorded with a ':rejected' suffix.
   List<String> get calls => List.unmodifiable(_calls);
 
+  final List<core.EditCommand> _commands = [];
+
+  /// (v2) The commands handed to execute / executeAsync that reached the
+  /// inner session, in order (cleared by [clearCalls]).
+  List<core.EditCommand> get commands => List.unmodifiable(_commands);
+
   /// True once `execute` was called from inside a listener of one of this
   /// session's streams (noteStream, pagesStream, pageChanges, historyStream).
   bool get executeDuringDelivery => _executeDuringDelivery;
@@ -33,8 +39,11 @@ class RecordingNoteSession implements core.NoteSession {
   /// inner session (commit-failure injection, e.g. const core.ReadOnlyNoteException('race')).
   void rejectNext(Object error) => _rejectNext = error;
 
-  /// Forgets the recorded calls (the delivery flag stays).
-  void clearCalls() => _calls.clear();
+  /// Forgets the recorded calls and commands (the delivery flag stays).
+  void clearCalls() {
+    _calls.clear();
+    _commands.clear();
+  }
 
   int _activeSubscriptions = 0;
 
@@ -100,6 +109,7 @@ class RecordingNoteSession implements core.NoteSession {
       Error.throwWithStackTrace(rejection, StackTrace.current);
     }
     _calls.add('execute:${command.label}');
+    _commands.add(command);
     return inner.execute(command);
   }
 
@@ -111,6 +121,7 @@ class RecordingNoteSession implements core.NoteSession {
       Error.throwWithStackTrace(rejection, StackTrace.current);
     }
     _calls.add('executeAsync:${command.label}');
+    _commands.add(command);
     return inner.executeAsync(command);
   }
 

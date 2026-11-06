@@ -1,4 +1,5 @@
 // lib/src/state/popup.dart — 04-editor 6.9.2 (popup state, per note).
+// (v2) E2-05: popups at a point (m5-7/04-editor 6.4.1 palettes).
 import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
@@ -21,14 +22,113 @@ final class PenSettingsPopup extends EditorPopup {
   int get hashCode => (PenSettingsPopup).hashCode;
 }
 
+/// The quick pen popup: below the pen button, or (v2, EditorAction
+/// toolPalette — m5-7/04-editor 6.4.1) at [globalPosition] (the pencil's
+/// hover point, global logical px).
 final class QuickPenPopup extends EditorPopup {
-  const QuickPenPopup();
+  const QuickPenPopup({this.globalPosition});
+  final Offset? globalPosition;
 
   @override
-  bool operator ==(Object other) => other is QuickPenPopup;
+  bool operator ==(Object other) =>
+      other is QuickPenPopup && other.globalPosition == globalPosition;
 
   @override
-  int get hashCode => (QuickPenPopup).hashCode;
+  int get hashCode => Object.hash(QuickPenPopup, globalPosition);
+}
+
+/// (v2, EditorAction colorPalette — m5-7/04-editor 6.4.1) the recent colours
+/// and the user palette (the two rows of the colour panel), below the pen
+/// button or at [globalPosition].
+final class ColorPalettePopup extends EditorPopup {
+  const ColorPalettePopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ColorPalettePopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(ColorPalettePopup, globalPosition);
+}
+
+/// (v2, m5-7/04-editor 6.7.2) The recolor popup of the selection menu's
+/// '색 ●': the recent colours, the user palette and '더 보기' (the colour
+/// panel), its top-left at [globalPosition] (under the '색' button — global
+/// logical px).
+final class RecolorPopup extends EditorPopup {
+  const RecolorPopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecolorPopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(RecolorPopup, globalPosition);
+}
+
+/// (v2, E2-09 — m5-7/04-editor 6.9.1) The shape tool popup (kind, style);
+/// at [globalPosition], else under the toolbar's shape button when
+/// [anchored] (E2-13 — 6.13.1), else centred.
+final class ShapeToolPopup extends EditorPopup {
+  const ShapeToolPopup({this.globalPosition, this.anchored = false});
+  final Offset? globalPosition;
+  final bool anchored;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ShapeToolPopup &&
+      other.globalPosition == globalPosition &&
+      other.anchored == anchored;
+
+  @override
+  int get hashCode => Object.hash(ShapeToolPopup, globalPosition, anchored);
+}
+
+/// (v2, E2-09 — 6.7.5) The selection menu's '스타일' (selected shapes).
+final class ShapeStylePopup extends EditorPopup {
+  const ShapeStylePopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ShapeStylePopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(ShapeStylePopup, globalPosition);
+}
+
+/// (v2, E2-10 — m5-7/04-editor 6.11.4) The text tool popup (the style of
+/// the next box — ToolOptions.textStyle); at [globalPosition], else under
+/// the toolbar's text button when [anchored] (E2-13 — 6.13.1), else centred.
+final class TextToolPopup extends EditorPopup {
+  const TextToolPopup({this.globalPosition, this.anchored = false});
+  final Offset? globalPosition;
+  final bool anchored;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextToolPopup &&
+      other.globalPosition == globalPosition &&
+      other.anchored == anchored;
+
+  @override
+  int get hashCode => Object.hash(TextToolPopup, globalPosition, anchored);
+}
+
+/// (v2, E2-10 — 6.7.5) The selection menu's '서식' (a selected text box,
+/// outside an edit session).
+final class TextFormatPopup extends EditorPopup {
+  const TextFormatPopup({this.globalPosition});
+  final Offset? globalPosition;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextFormatPopup && other.globalPosition == globalPosition;
+
+  @override
+  int get hashCode => Object.hash(TextFormatPopup, globalPosition);
 }
 
 final class EraserSettingsPopup extends EditorPopup {

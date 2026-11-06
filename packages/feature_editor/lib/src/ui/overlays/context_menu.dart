@@ -4,21 +4,28 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../di/editor_image_importer.dart';
+import '../../objects/image_flows.dart';
 import '../../scope/editor_scope.dart';
+import '../../tools/element_clipboard.dart';
 import '../../tools/interaction_host.dart';
-import '../../tools/stroke_clipboard.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
 
 /// The context menu opened by a long press or a secondary click away from the
 /// selection (InteractionHost.contextMenu): [붙여넣기] at that point when the
-/// app clipboard has strokes, [올가미 도구]. Placed at the press point, kept
+/// app clipboard has content — (v2, m5-7/04-editor 6.8) strokes and objects —
+/// then (v2, E2-12 — 6.12.2) [이미지 붙여넣기] when the image slot offers the
+/// clipboard source and the note is not read-only (the picker starts inside
+/// the tap, then the menu closes — ImageFlows.paste; the image is centred on
+/// the press point when it is on a page), [올가미 도구]. Placed at the press point, kept
 /// inside the page area. A sibling of the page area's Listener (6.4.3); a tap
 /// elsewhere on the canvas closes it (tapGesture(1)).
 class EditorContextMenu extends ConsumerWidget {
   const EditorContextMenu({super.key});
 
   static const pasteKey = ValueKey('editor.contextMenu.paste');
+  static const pasteImageKey = ValueKey('editor.contextMenu.pasteImage');
   static const lassoKey = ValueKey('editor.contextMenu.lasso');
 
   @override
@@ -47,6 +54,9 @@ class _MenuItems extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final commands = ref.watch(editorCommandsProvider);
     final hasClipboard = ref.watch(editorClipboardProvider) != null;
+    final pasteImage =
+        ImageFlows.canPasteImage(ref.watch(editorImageImporterProvider)) &&
+        !ref.watch(editorReadOnlyProvider);
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: scheme.surfaceContainerHigh,
@@ -65,6 +75,19 @@ class _MenuItems extends ConsumerWidget {
                   host.closeContextMenu();
                   unawaited(commands.paste(screenPoint: request.position));
                 },
+              ),
+            if (pasteImage)
+              _Item(
+                key: EditorContextMenu.pasteImageKey,
+                label: EditorStrings.pasteImage,
+                onTap: () => unawaited(
+                  ref
+                      .read(editorImageFlowsProvider)
+                      .paste(
+                        screenPoint: request.position,
+                        close: host.closeContextMenu,
+                      ),
+                ),
               ),
             _Item(
               key: EditorContextMenu.lassoKey,

@@ -1,4 +1,6 @@
-// lib/src/ui/dev/dev_overlay.dart — 04-editor 6.12.1, 6.12.2.
+// lib/src/ui/dev/dev_overlay.dart — 04-editor 6.12.1, 6.12.2; (v2, E2-20 —
+// m5-7/04-editor 6.20) the pointer line's buttons / rule / airborne state,
+// the hover source, the recording line and the object count.
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../../di/dev_overlay_section.dart';
+import '../../document/mounted_pages.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
@@ -45,6 +48,7 @@ class _DevOverlayState extends ConsumerState<DevOverlay> {
   DevMetrics? _metrics;
   ViewportController? _viewport;
   core.NoteSession? _session;
+  MountedPages? _mounted;
   StreamSubscription<List<core.Page>>? _pagesSub;
   ProviderSubscription<EditorSettings>? _settingsSub;
   Listenable? _listened;
@@ -79,6 +83,10 @@ class _DevOverlayState extends ConsumerState<DevOverlay> {
       diagnostics.enabled = true;
       viewport.addListener(_onViewport);
       _pagesSub = session.pagesStream.listen((_) => _onPage());
+      // (v2) a page mounted (its content loaded) → its counts.
+      final MountedPages pages = ref.read(editorMountedPagesProvider);
+      _mounted = pages;
+      pages.addListener(_onPage);
       _settingsSub = ref.listenManual<EditorSettings>(
         editorSettingsProvider,
         (_, s) => metrics.recordInputMode(inputModeLabelOf(s)),
@@ -95,6 +103,8 @@ class _DevOverlayState extends ConsumerState<DevOverlay> {
     _metrics?.stop();
     _diagnostics?.enabled = false;
     _viewport?.removeListener(_onViewport);
+    _mounted?.removeListener(_onPage);
+    _mounted = null;
     unawaited(_pagesSub?.cancel());
     _pagesSub = null;
     _settingsSub?.close();
@@ -118,8 +128,10 @@ class _DevOverlayState extends ConsumerState<DevOverlay> {
     if (pages.isEmpty) return;
     final current =
         pages[viewport.currentPageIndex.value.clamp(0, pages.length - 1)];
+    final content = session.pageIfLoaded(current.id);
     _metrics?.recordPage(
-      strokes: session.pageIfLoaded(current.id)?.strokeCount ?? 0,
+      strokes: content?.strokeCount ?? 0,
+      objects: content?.objectCount ?? 0,
     );
   }
 
@@ -170,6 +182,12 @@ class _DevOverlayState extends ConsumerState<DevOverlay> {
     final lines = <String>[
       ...devInkLines(_diagnostics!.snapshot),
       ...devEditorLines(_metrics!.snapshot),
+      devRecordingLine(
+        recorder: ref.read(core.audioRecorderServiceProvider).status,
+        lastStrokeOffsetMs: _metrics!.snapshot.lastStrokeOffsetMs,
+        playback: ref.read(core.audioPlaybackServiceProvider).status,
+        positionMs: ref.read(core.audioPlaybackServiceProvider).positionMs(),
+      ),
       devStorageLine(info, status),
       for (final s in sections) ...[
         '[${s.title}]',
@@ -244,18 +262,41 @@ List<String> devInkLines(ink.InkStatsSnapshot s) {
   return [latency, input, pressure, cache];
 }
 
-/// [EDITOR] block (6.12.2) from DevMetrics.
+/// `0x02` — [buttons] in hex, at least 2 digits.
+String buttonsHex(int buttons) =>
+    '0x${buttons.toRadixString(16).padLeft(2, '0')}';
+
+/// [EDITOR] block (6.12.2) from DevMetrics. (v2, 6.20) The pointer line adds
+/// the buttons (hex), the contact rule and '공중' for a stylus event that is
+/// not a contact; a hover line (its source); the view line adds the
+/// current page's objects against the limit.
 List<String> devEditorLines(DevMetricsSnapshot m) {
   final pointers =
       '[EDITOR] 포인터 ${m.activePointers} (${m.lastKind?.name ?? '-'})  '
+      'buttons ${buttonsHex(m.lastButtons)}  규칙 ${m.contactRule}'
+      '${m.airborne ? '  공중' : ''}  '
       '팜 거부 ${m.palmRejectedCount}  모드 ${m.inputModeLabel}';
+  final hover = '       호버 출처 ${m.hoverSource}';
   final view =
       '       줌 ${(m.zoom * 100).round()}% scale ${m.scale.toStringAsFixed(2)}  '
       '보임 ${m.visibleRangeLabel}  마운트 ${m.mountedRangeLabel}  '
       '현재 ${m.currentPage}  페이지 획 ${m.currentPageStrokes}  '
+      '객체 ${m.currentPageObjects} / ${core.PageObjectLimits.maxObjectsPerPage}  '
       '마지막 획 점 ${m.lastStrokePoints}';
-  return [pointers, view];
+  return [pointers, hover, view];
 }
+
+/// (v2, 6.20 — A-5, B-8) [녹음] line: the recorder's phase, the last
+/// stroke's recordingOffsetMs, the player's phase and position.
+String devRecordingLine({
+  required core.RecorderStatus recorder,
+  required int? lastStrokeOffsetMs,
+  required core.PlaybackStatus playback,
+  required int positionMs,
+}) =>
+    '[녹음] ${recorder.phase.name}  '
+    '마지막 획 offset ${lastStrokeOffsetMs == null ? '-' : '${lastStrokeOffsetMs}ms'}  '
+    '재생 ${playback.phase.name} ${positionMs}ms';
 
 /// [저장] line (6.12.2) from CORE.
 String devStorageLine(core.StorageInfo info, core.PersistenceStatus? status) {

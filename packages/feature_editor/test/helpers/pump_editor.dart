@@ -1,9 +1,13 @@
-// test/helpers/pump_editor.dart — 04-editor 9.1 (E-01).
+// test/helpers/pump_editor.dart — 04-editor 9.1 (E-01); (v2) m5-7/04-editor
+// 8.2 E2-00: page objects and recordings in the seeded note, the fake audio
+// ports, the image slot and the Pencil source.
 //
 // The handles cover the store, the seeded note, the session (and its
 // recorder), the per-note provider container, the pointer driver, the
 // viewport controller and the mounted pages' INK controllers (E-04).
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/document/mounted_pages.dart';
@@ -19,6 +23,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart';
 
+import 'fake_image_importer.dart';
+import 'fake_stylus_extras.dart';
 import 'pointer_driver.dart';
 import 'recording_note_session.dart';
 
@@ -27,6 +33,23 @@ import 'recording_note_session.dart';
 core.PageId seededPageId(String seedKey, int index) => '$seedKey-p$index';
 
 int _seedCount = 0;
+
+/// (v2) A recording of the seeded note (an audio asset + a Recording row).
+/// Strokes link to it through Stroke.recordingId / recordingOffsetMs.
+final class RecordingSeed {
+  const RecordingSeed({
+    required this.id,
+    this.durationMs = 60000,
+    this.startedAt = 1000,
+    this.title,
+  });
+  final core.RecordingId id;
+  final int durationMs;
+  final core.EpochMillis startedAt;
+
+  /// e.g. '복구된 녹음' (a recovered recording — 6.15.3).
+  final String? title;
+}
 
 /// Pumps EditorScreen inside material_ui MaterialApp + ProviderScope with
 /// core.noteStoreProvider = createFakeNoteStore() (or [store]) and a seeded note.
@@ -51,11 +74,38 @@ Future<EditorTestHandles> pumpEditor(
   int pages = 3, // A4 blank pages of the seeded note
   core.PageSize pageSize = core.PageSize.a4Portrait, // of every seeded page
   Map<int, List<core.Stroke>> strokesByPageIndex = const {},
+  // (v2) page objects per page index; an object whose pageId is not the
+  // seeded page id is moved there (copyTo keeps its id and createdAt).
+  Map<int, List<core.PageObject>> objectsByPageIndex = const {},
+  // (v2) recordings of the seeded note (Recording rows + audio assets).
+  List<RecordingSeed> recordings = const [],
+  // (v2) override the audio ports with CORE's fakes (handles.audioRecorder /
+  // handles.audioPlayback); FakeAudioRecorder uses the store.
+  bool fakeAudio = false,
+  // (v2) the image slot (editorImageImporterProvider) — see FakeImageImporter.
+  FakeImageImporter Function(core.NoteStore store)? imageImporter,
+  // (v2) the Pencil source (stylusExtrasProvider).
+  FakeStylusExtras? stylusExtras,
+  // (v2) the extension slots (editorExtensionsProvider).
+  EditorExtensions? extensions,
   EditorSettings? settings, // written to the CORE keys before pumping
+  // (v2, E2-10b) runs after the note is seeded, before the screen opens —
+  // e.g. a text draft an earlier run left in editor.textDraft.
+  Future<void> Function(
+    core.NoteStore store,
+    core.NoteId noteId,
+    core.PageId Function(int index) pageId,
+  )?
+  beforePump,
   bool settle = true,
   List<Override> overrides = const [], // e.g. syncBadgeProvider
   Size logicalSize = const Size(1032, 1376),
   String? initialPageId,
+  // (v2) initialPageId = the seeded page at this index (wins over
+  // initialPageId).
+  int? initialPageIndex,
+  // (v2) EditorScreen.initialFocusRectPt (6.16 — with initialPageId).
+  Rect? initialFocusRectPt,
   VoidCallback? onClose,
   VoidCallback? onOpenSettings,
   bool recordSession = true, // wrap the CORE session in RecordingNoteSession
@@ -77,7 +127,26 @@ Future<EditorTestHandles> pumpEditor(
     pages,
     pageSize,
     strokesByPageIndex,
+    objectsByPageIndex,
   );
+  for (final r in recordings) {
+    final asset = await s.assets.put(
+      Uint8List.fromList(utf8.encode('audio of ${r.id}')),
+      type: core.AssetType.audio,
+      mimeType: 'audio/webm',
+    );
+    await s.recordings.createRecording(
+      id: r.id,
+      noteId: noteId,
+      assetId: asset.id,
+      durationMs: r.durationMs,
+      startedAt: r.startedAt,
+      title: r.title,
+    );
+  }
+  final audioRecorder = fakeAudio ? FakeAudioRecorder(store: s) : null;
+  final audioPlayback = fakeAudio ? FakeAudioPlayback() : null;
+  final importer = imageImporter?.call(s);
   if (settings != null) {
     await s.settings.set(
       EditorSettingKeys.deviceSettings,
@@ -89,6 +158,10 @@ Future<EditorTestHandles> pumpEditor(
     );
   }
 
+  if (beforePump != null) {
+    await beforePump(s, noteId, (index) => seededPageId(seedKey, index));
+  }
+
   RecordingNoteSession? recorder;
   final handles = EditorTestHandles._(
     tester,
@@ -97,6 +170,10 @@ Future<EditorTestHandles> pumpEditor(
     noteId: noteId,
     seedKey: seedKey,
     driver: PointerDriver(tester),
+    audioRecorder: audioRecorder,
+    audioPlayback: audioPlayback,
+    imageImporter: importer,
+    stylusExtras: stylusExtras,
   );
   await tester.pumpWidget(
     ProviderScope(
@@ -123,13 +200,26 @@ Future<EditorTestHandles> pumpEditor(
             if (id == noteId) recorder = wrapped;
             return wrapped;
           }),
+        if (audioRecorder != null)
+          core.audioRecorderServiceProvider.overrideWithValue(audioRecorder),
+        if (audioPlayback != null)
+          core.audioPlaybackServiceProvider.overrideWithValue(audioPlayback),
+        if (importer != null)
+          editorImageImporterProvider.overrideWithValue(importer.importer),
+        if (stylusExtras != null)
+          stylusExtrasProvider.overrideWithValue(stylusExtras),
+        if (extensions != null)
+          editorExtensionsProvider.overrideWithValue(extensions),
         ...overrides,
       ],
       child: MaterialApp(
         home: EditorScreen(
           key: ValueKey(noteId),
           noteId: noteId,
-          initialPageId: initialPageId,
+          initialPageId: initialPageIndex == null
+              ? initialPageId
+              : seededPageId(seedKey, initialPageIndex),
+          initialFocusRectPt: initialFocusRectPt,
           onClose: () {
             handles.closeCount++;
             onClose?.call();
@@ -152,10 +242,16 @@ Future<core.NoteId> _seedNote(
   int pages,
   core.PageSize pageSize,
   Map<int, List<core.Stroke>> strokesByPageIndex,
+  Map<int, List<core.PageObject>> objectsByPageIndex,
 ) async {
-  for (final index in strokesByPageIndex.keys) {
-    if (index < 0 || index >= pages) {
-      throw ArgumentError.value(index, 'strokesByPageIndex', 'no such page');
+  for (final (name, keys) in [
+    ('strokesByPageIndex', strokesByPageIndex.keys),
+    ('objectsByPageIndex', objectsByPageIndex.keys),
+  ]) {
+    for (final index in keys) {
+      if (index < 0 || index >= pages) {
+        throw ArgumentError.value(index, name, 'no such page');
+      }
     }
   }
   final note = await store.library.createNote(
@@ -169,21 +265,44 @@ Future<core.NoteId> _seedNote(
         ),
     ],
   );
-  if (strokesByPageIndex.values.every((s) => s.isEmpty)) return note.id;
+  if (strokesByPageIndex.values.every((s) => s.isEmpty) &&
+      objectsByPageIndex.values.every((o) => o.isEmpty)) {
+    return note.id;
+  }
 
   final session = await store.openSession(note.id);
   try {
-    for (final MapEntry(key: index, value: strokes)
-        in strokesByPageIndex.entries) {
-      if (strokes.isEmpty) continue;
+    for (var index = 0; index < pages; index++) {
+      final strokes = strokesByPageIndex[index] ?? const <core.Stroke>[];
+      final objects = objectsByPageIndex[index] ?? const <core.PageObject>[];
+      if (strokes.isEmpty && objects.isEmpty) continue;
       final pageId = seededPageId(key, index);
       await session.openPage(pageId);
-      session.execute(
-        core.AddStrokes(
-          pageId: pageId,
-          strokes: [for (final s in strokes) s.copyWith(pageId: pageId)],
-        ),
-      );
+      if (strokes.isNotEmpty) {
+        session.execute(
+          core.AddStrokes(
+            pageId: pageId,
+            strokes: [for (final s in strokes) s.copyWith(pageId: pageId)],
+          ),
+        );
+      }
+      if (objects.isNotEmpty) {
+        session.execute(
+          core.AddObjects(
+            pageId: pageId,
+            objects: [
+              for (final o in objects)
+                o.pageId == pageId
+                    ? o
+                    : o.copyTo(
+                        id: o.id,
+                        pageId: pageId,
+                        createdAt: o.createdAt,
+                      ),
+            ],
+          ),
+        );
+      }
       session.closePage(pageId);
     }
     session.clearHistory();
@@ -202,9 +321,23 @@ class EditorTestHandles {
     required this.noteId,
     required this.seedKey,
     required this.driver,
+    this.audioRecorder,
+    this.audioPlayback,
+    this.imageImporter,
+    this.stylusExtras,
   });
 
   final core.NoteStore store;
+
+  /// (v2) With fakeAudio: CORE's fake audio ports (overridden providers).
+  final FakeAudioRecorder? audioRecorder;
+  final FakeAudioPlayback? audioPlayback;
+
+  /// (v2) The image slot fake, when pumpEditor got one.
+  final FakeImageImporter? imageImporter;
+
+  /// (v2) The Pencil source fake, when pumpEditor got one.
+  final FakeStylusExtras? stylusExtras;
   final String noteId;
 
   /// Prefix of the seeded page ids ([seededPageId]).

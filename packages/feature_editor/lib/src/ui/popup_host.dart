@@ -4,6 +4,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../di/editor_extensions.dart';
 import '../state/popup.dart';
+import 'color/color_palette_popup.dart';
+import 'color/recolor_panel.dart';
 import 'editor_strings.dart';
 import 'eraser/eraser_popup.dart';
 import 'pages/add_page_sheet.dart';
@@ -11,11 +13,17 @@ import 'pen/pen_settings_popup.dart';
 import 'pen/quick_pen_popup.dart';
 import 'presets/preset_manager_sheet.dart';
 import 'presets/save_preset_dialog.dart';
+import 'shape/shape_style_controls.dart';
+import 'text/text_style_controls.dart';
 
 /// Toolbar anchors the popups follow (CompositedTransformTarget links).
 class PopupAnchors {
   final LayerLink pen = LayerLink();
   final LayerLink eraser = LayerLink();
+
+  /// (v2, E2-13) the toolbar's shape and text buttons (6.13.1).
+  final LayerLink shape = LayerLink();
+  final LayerLink text = LayerLink();
 }
 
 /// Shows editorPopupProvider's popup with an OverlayPortal (its overlay child
@@ -121,25 +129,79 @@ class _PopupHostState extends ConsumerState<PopupHost> {
   }
 }
 
-/// The anchor (null = centred) and the panel of a popup PopupHost shows;
-/// null for the others.
-({LinkPick? link, Widget panel})? _layoutOf(
-  EditorPopup? popup,
-) => switch (popup) {
-  PenSettingsPopup() => (link: LinkPick.pen, panel: const PenSettingsPanel()),
-  QuickPenPopup() => (link: LinkPick.pen, panel: const QuickPenPanel()),
-  EraserSettingsPopup() => (
-    link: LinkPick.eraser,
-    panel: const EraserSettingsPanel(),
-  ),
-  SavePresetPopup() => (link: null, panel: const SavePresetDialog()),
-  PresetManagerPopup() => (link: null, panel: const PresetManagerSheet()),
-  final AddPagePopup popup => (link: null, panel: AddPageSheet(popup: popup)),
-  _ => null,
-};
+/// The anchor (null = centred, unless [at]), the point (v2 — global logical
+/// px: the popup opens there instead of at its anchor) and the panel of a
+/// popup PopupHost shows; null for the others.
+({LinkPick? link, Offset? at, Widget panel})? _layoutOf(EditorPopup? popup) =>
+    switch (popup) {
+      PenSettingsPopup() => (
+        link: LinkPick.pen,
+        at: null,
+        panel: const PenSettingsPanel(),
+      ),
+      QuickPenPopup(:final globalPosition) => (
+        link: LinkPick.pen,
+        at: globalPosition,
+        panel: const QuickPenPanel(),
+      ),
+      ColorPalettePopup(:final globalPosition) => (
+        link: LinkPick.pen,
+        at: globalPosition,
+        panel: const ColorPalettePanel(),
+      ),
+      // (v2, m5-7/04-editor 6.7.2) under the selection menu's '색'.
+      RecolorPopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const RecolorPanel(),
+      ),
+      // (v2, E2-09) the shape tool popup and a selected shape's '스타일'.
+      ShapeToolPopup(:final globalPosition, :final anchored) => (
+        link: anchored ? LinkPick.shape : null,
+        at: globalPosition,
+        panel: const ShapeToolPanel(),
+      ),
+      ShapeStylePopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const ShapeStylePanel(),
+      ),
+      // (v2, E2-10) the text tool popup and a selected text box's '서식'.
+      TextToolPopup(:final globalPosition, :final anchored) => (
+        link: anchored ? LinkPick.text : null,
+        at: globalPosition,
+        panel: const TextToolPanel(),
+      ),
+      TextFormatPopup(:final globalPosition) => (
+        link: null,
+        at: globalPosition,
+        panel: const TextFormatPanel(),
+      ),
+      EraserSettingsPopup() => (
+        link: LinkPick.eraser,
+        at: null,
+        panel: const EraserSettingsPanel(),
+      ),
+      SavePresetPopup() => (
+        link: null,
+        at: null,
+        panel: const SavePresetDialog(),
+      ),
+      PresetManagerPopup() => (
+        link: null,
+        at: null,
+        panel: const PresetManagerSheet(),
+      ),
+      final AddPagePopup popup => (
+        link: null,
+        at: null,
+        panel: AddPageSheet(popup: popup),
+      ),
+      _ => null,
+    };
 
-/// Which toolbar button a popup hangs from.
-enum LinkPick { pen, eraser }
+/// Which toolbar button a popup hangs from. (v2, E2-13) shape and text.
+enum LinkPick { pen, eraser, shape, text }
 
 class _PopupLayer extends ConsumerWidget {
   const _PopupLayer({required this.anchors});
@@ -150,11 +212,16 @@ class _PopupLayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final layout = _layoutOf(ref.watch(editorPopupProvider));
     if (layout == null) return const SizedBox.shrink();
-    final link = switch (layout.link) {
-      LinkPick.pen => anchors.pen,
-      LinkPick.eraser => anchors.eraser,
-      null => null,
-    };
+    final at = layout.at;
+    final link = at != null
+        ? null
+        : switch (layout.link) {
+            LinkPick.pen => anchors.pen,
+            LinkPick.eraser => anchors.eraser,
+            LinkPick.shape => anchors.shape,
+            LinkPick.text => anchors.text,
+            null => null,
+          };
     return Stack(
       children: [
         Positioned.fill(
@@ -163,7 +230,7 @@ class _PopupLayer extends ConsumerWidget {
             behavior: HitTestBehavior.opaque,
             onPointerDown: (_) =>
                 ref.read(editorPopupProvider.notifier).close(),
-            child: link == null
+            child: link == null && at == null
                 ? ColoredBox(
                     color: Theme.of(context).colorScheme.scrim
                         .withValues(alpha: 0.32),
@@ -171,7 +238,14 @@ class _PopupLayer extends ConsumerWidget {
                 : null,
           ),
         ),
-        if (link != null)
+        if (at != null)
+          Positioned.fill(
+            child: CustomSingleChildLayout(
+              delegate: _AtPointLayout(_overlayLocal(context, at)),
+              child: layout.panel,
+            ),
+          )
+        else if (link != null)
           CompositedTransformFollower(
             link: link,
             showWhenUnlinked: false,
@@ -189,6 +263,48 @@ class _PopupLayer extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// [global] in the coordinates of the overlay the popup layer sits in.
+Offset _overlayLocal(BuildContext context, Offset global) {
+  final box = Overlay.maybeOf(context)?.context.findRenderObject();
+  if (box is RenderBox && box.attached && box.hasSize) {
+    return box.globalToLocal(global);
+  }
+  return global;
+}
+
+/// A popup opened at a point (v2 — the pencil's hover point): its top-left
+/// [_gap] px right of and below the point, moved left / up so that it stays
+/// [_margin] px inside the screen.
+class _AtPointLayout extends SingleChildLayoutDelegate {
+  const _AtPointLayout(this.point);
+
+  final Offset point;
+
+  static const double _gap = 12;
+  static const double _margin = 8;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen();
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    double place(double want, double extent, double child) {
+      final max = extent - child - _margin;
+      if (max <= _margin) return _margin;
+      return want.clamp(_margin, max);
+    }
+
+    return Offset(
+      place(point.dx + _gap, size.width, childSize.width),
+      place(point.dy + _gap, size.height, childSize.height),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_AtPointLayout oldDelegate) => oldDelegate.point != point;
 }
 
 class _PopupAnchorsScope extends InheritedWidget {

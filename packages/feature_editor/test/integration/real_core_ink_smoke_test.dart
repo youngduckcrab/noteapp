@@ -207,7 +207,7 @@ void main() {
     final third = restored[2];
     await h.driver.stylusStroke(lassoAround(h, 0, _rectOf(third)));
     await tester.pump();
-    expect(h.container.read(editorSelectionProvider)?.strokeIds, {third.id});
+    expect(h.container.read(editorSelectionProvider)?.elementIds, {third.id});
     expect(controller.selection?.strokeIds, {third.id});
 
     final scale = h.viewport.camera.scale;

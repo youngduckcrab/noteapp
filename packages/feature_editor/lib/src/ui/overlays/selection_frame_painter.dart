@@ -1,4 +1,6 @@
-// lib/src/ui/overlays/selection_frame_painter.dart — 04-editor 6.6.5 (selection display).
+// lib/src/ui/overlays/selection_frame_painter.dart — 04-editor 6.6.5 (selection
+// display); (v2) m5-7/04-editor 6.6.4 (frame v2) — E2-06; (E2-08) edge
+// squares, vertex circles and a line's / an arrow's segment.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
@@ -9,12 +11,18 @@ import '../../tools/selection.dart';
 import '../../tools/selection_hit_test.dart';
 import '../../viewport/viewport_controller.dart';
 
-/// Paints the selection frame in viewport coordinates: INK's previewBounds
-/// (page pt) on screen as a dashed 1 px rectangle (colorScheme.primary, dash
-/// 6 / 4) and the 4 corner handles (12 px circles, [fill] inside, primary
-/// border). Repaints from the viewport and the selected page's INK controller
-/// (selection changes and preview transforms) — no provider state changes
-/// while dragging.
+/// Paints the selection frame in viewport coordinates (v2 — 6.6.4,
+/// selectionFrameOnScreen): a dashed 1 px quad (colorScheme.primary, dash 6 /
+/// 4) — INK's bounds for several elements (turned by a rotation preview),
+/// the object's own — possibly rotated — frame for one object — the corner
+/// handles (12 px circles, [fill] inside, primary border), (E2-08) the edge
+/// handles (10 px squares turned with the frame), the vertex handles (10 px
+/// circles) — a line / an arrow: the dashed segment between its end points,
+/// no box — and the rotate handle: a circle
+/// [SelectionHitTest.rotateHandleOffset] px outside the top edge's middle,
+/// joined to it by a line. Repaints from the viewport and
+/// the selected page's INK controller (selection changes and preview
+/// transforms) — no provider state changes while dragging.
 class SelectionFramePainter extends CustomPainter {
   SelectionFramePainter({
     required this.viewport,
@@ -38,26 +46,60 @@ class SelectionFramePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = selectionRectOnScreen(viewport, pages, selection);
-    if (rect == null) return;
+    final frame = selectionFrameOnScreen(viewport, pages, selection);
+    if (frame == null) return;
+    final quad = frame.quad;
     final line = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = lineWidth
       ..color = color;
-    _dashed(canvas, rect.topLeft, rect.topRight, line);
-    _dashed(canvas, rect.topRight, rect.bottomRight, line);
-    _dashed(canvas, rect.bottomRight, rect.bottomLeft, line);
-    _dashed(canvas, rect.bottomLeft, rect.topLeft, line);
+    _dashed(canvas, quad.topLeft, quad.topRight, line);
+    if (frame.boxed) {
+      _dashed(canvas, quad.topRight, quad.bottomRight, line);
+      _dashed(canvas, quad.bottomRight, quad.bottomLeft, line);
+      _dashed(canvas, quad.bottomLeft, quad.topLeft, line);
+    }
     final inside = Paint()..color = fill;
     final border = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = handleBorder
       ..color = color;
-    for (final handle in SelectionHitTest.cornerHandles) {
-      final c = SelectionHitTest.handlePosition(rect, handle);
+    for (final handle in frame.handles) {
+      final c = quad.handlePosition(handle);
+      if (SelectionHitTest.cornerHandles.contains(handle)) {
+        canvas
+          ..drawCircle(c, SelectionHitTest.handleVisualRadius, inside)
+          ..drawCircle(c, SelectionHitTest.handleVisualRadius, border);
+      } else {
+        // An edge handle: a square turned with the frame (6.6.4).
+        canvas
+          ..save()
+          ..translate(c.dx, c.dy)
+          ..rotate(quad.angle);
+        const half = SelectionHitTest.edgeHandleHalfSide;
+        const square = Rect.fromLTRB(-half, -half, half, half);
+        canvas
+          ..drawRect(square, inside)
+          ..drawRect(square, border)
+          ..restore();
+      }
+    }
+    for (final v in frame.vertices) {
       canvas
-        ..drawCircle(c, SelectionHitTest.handleVisualRadius, inside)
-        ..drawCircle(c, SelectionHitTest.handleVisualRadius, border);
+        ..drawCircle(v, SelectionHitTest.vertexVisualRadius, inside)
+        ..drawCircle(v, SelectionHitTest.vertexVisualRadius, border);
+    }
+    if (frame.rotatable) {
+      final knob = quad.rotateHandlePosition;
+      final toward = quad.rotateHandleBase - knob;
+      final length = toward.distance;
+      final edge = length > SelectionHitTest.handleVisualRadius
+          ? knob + toward * (SelectionHitTest.handleVisualRadius / length)
+          : knob;
+      canvas
+        ..drawLine(edge, quad.rotateHandleBase, line)
+        ..drawCircle(knob, SelectionHitTest.handleVisualRadius, inside)
+        ..drawCircle(knob, SelectionHitTest.handleVisualRadius, border);
     }
   }
 
@@ -81,8 +123,14 @@ class SelectionFramePainter extends CustomPainter {
 }
 
 /// The selection frame layer of the page area (IgnorePointer — 6.4.3).
+/// (v2) Under the painting, an empty box keyed [rotateHandleKey] sits on the
+/// rotate handle's hit area (appendix C — app smoke tests find the handle by
+/// it; the pointer still reaches the page area's Listener).
 class SelectionFrame extends ConsumerWidget {
   const SelectionFrame({super.key});
+
+  /// (v2, appendix C) The rotate handle's hit area.
+  static const rotateHandleKey = ValueKey('editor.selection.rotateHandle');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -90,18 +138,46 @@ class SelectionFrame extends ConsumerWidget {
     final viewport = ref.watch(editorViewportProvider);
     final pages = ref.watch(editorMountedPagesProvider);
     final scheme = Theme.of(context).colorScheme;
+    final repaint = selectionRepaint(viewport, pages, selection);
     return IgnorePointer(
-      child: RepaintBoundary(
-        child: CustomPaint(
-          painter: SelectionFramePainter(
-            viewport: viewport,
-            pages: pages,
-            selection: selection,
-            color: scheme.primary,
-            fill: scheme.surface,
-            repaint: selectionRepaint(viewport, pages, selection),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ListenableBuilder(
+            listenable: repaint,
+            builder: (context, _) {
+              final frame = selectionFrameOnScreen(viewport, pages, selection);
+              if (frame == null || !frame.rotatable) {
+                return const SizedBox.shrink();
+              }
+              const side = SelectionHitTest.handleHitRadius * 2;
+              final at = frame.quad.rotateHandlePosition;
+              return Stack(
+                children: [
+                  Positioned(
+                    left: at.dx - side / 2,
+                    top: at.dy - side / 2,
+                    width: side,
+                    height: side,
+                    child: const SizedBox(key: rotateHandleKey),
+                  ),
+                ],
+              );
+            },
           ),
-        ),
+          RepaintBoundary(
+            child: CustomPaint(
+              painter: SelectionFramePainter(
+                viewport: viewport,
+                pages: pages,
+                selection: selection,
+                color: scheme.primary,
+                fill: scheme.surface,
+                repaint: repaint,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

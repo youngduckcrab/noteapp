@@ -15,26 +15,31 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/dev_tools.dart' as dev;
 import 'package:note_core/note_core.dart' as core;
 
+import '../../di/stylus_extras.dart';
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
+import '../../state/settings/pre_roll.dart';
 import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
 import '../pen/pen_advanced_controls.dart';
+import '../pen/pen_extras_controls.dart';
 import '../pen/pen_type_selector.dart';
+import 'gesture_action_tile.dart';
 
 /// Keys of the section controls (tests; not exported).
 abstract final class SettingsSectionKeys {
   static const inputMode = ValueKey('editor.settings.inputMode');
   static const inputModeHint = ValueKey('editor.settings.inputMode.hint');
+  // (v2, E2-18 — m5-7/04-editor 6.5.3) auto under iPadOS '펜슬로만 그리기'.
+  static const inputModePencilOnly = ValueKey(
+    'editor.settings.inputMode.pencilOnly',
+  );
   static const penCooldown = ValueKey('editor.settings.penCooldown');
   static const hoverAsPen = ValueKey('editor.settings.hoverAsPen');
   static const maxTouchRadius = ValueKey('editor.settings.maxTouchRadius');
-  static const twoFingerTapUndo = ValueKey('editor.settings.twoFingerTapUndo');
-  static const threeFingerTapRedo = ValueKey(
-    'editor.settings.threeFingerTapRedo',
-  );
-  static const longPressMenu = ValueKey('editor.settings.longPressMenu');
+  // (v2) the gesture rows: GestureActionTiles.rowKey (appendix C)
   static const fixedGestures = ValueKey('editor.settings.fixedGestures');
+  static const resetGestures = ValueKey('editor.settings.resetGestures');
   static const resetInput = ValueKey('editor.settings.resetInput');
   static const pressureMode = ValueKey('editor.settings.pressureMode');
   static const pressureState = ValueKey('editor.settings.pressureState');
@@ -47,12 +52,21 @@ abstract final class SettingsSectionKeys {
   static const devOverlay = ValueKey('editor.settings.devOverlay');
   static const devOverlayHint = ValueKey('editor.settings.devOverlay.hint');
   static const seedSyntheticNote = ValueKey('editor.settings.seedSynthetic');
+  // (v2) 일반 › 페이지 › 필기 재생 (m5-7/04-editor 6.15.3)
+  static const playbackTapToSeek = ValueKey(
+    'editor.settings.playback.tapToSeek',
+  );
+  static const playbackPreRoll = ValueKey('editor.settings.playback.preRoll');
+  static const playbackHighlight = ValueKey(
+    'editor.settings.playback.highlight',
+  );
 }
 
 /// 입력: 입력 모드(자동/펜 전용/손가락 필기), 팜 리젝션(펜 직후 터치 무시 시간,
 /// 펜 hover 중 터치 무시, 접촉 반경 — 지원 기기 안내 문구 포함),
-/// 제스처(두 손가락 탭 되돌리기, 세 손가락 탭 다시 실행, 길게 누르기 메뉴 켜기/끄기,
-/// 나머지 제스처는 읽기 전용 표).
+/// 제스처((v2, m5-7/04-editor 6.4.4) 제스처마다 동작을 고르는 줄 — 손가락 탭·
+/// 길게 누르기·펜 버튼·지우개 끝·Apple Pencil, 바꿀 수 없는 제스처는 회색 표,
+/// [기본값으로]).
 class EditorInputSettingsSection extends ConsumerWidget {
   const EditorInputSettingsSection({super.key});
   @override
@@ -60,9 +74,12 @@ class EditorInputSettingsSection extends ConsumerWidget {
     final settings = ref.watch(editorSettingsProvider);
     final notifier = ref.read(editorSettingsProvider.notifier);
     final palm = settings.palmRejection;
-    final gestures = settings.gestures;
     final hintStyle = _hintStyle(context);
     final cooldownMs = palm.penCooldown.inMilliseconds.clamp(0, 1500);
+    // (v2, 6.5.3) auto follows iPadOS '펜슬로만 그리기' (read at app start).
+    final followsPencilOnly =
+        settings.inputMode == InputMode.auto &&
+        ref.watch(stylusExtrasProvider).capabilities.prefersPencilOnlyDrawing;
     final radius = palm.maxTouchRadius.clamp(20.0, 120.0);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -102,6 +119,14 @@ class EditorInputSettingsSection extends ConsumerWidget {
             style: hintStyle,
           ),
         ),
+        if (followsPencilOnly)
+          _Padded(
+            Text(
+              EditorStrings.pencilFollowsSystem,
+              key: SettingsSectionKeys.inputModePencilOnly,
+              style: hintStyle,
+            ),
+          ),
         const _Label(EditorStrings.palmRejection),
         _Padded(Text(EditorStrings.penCooldownLabel(cooldownMs))),
         Semantics(
@@ -143,27 +168,7 @@ class EditorInputSettingsSection extends ConsumerWidget {
         ),
         _Padded(Text(EditorStrings.maxTouchRadiusHint, style: hintStyle)),
         const _Label(EditorStrings.gestures),
-        SwitchListTile(
-          key: SettingsSectionKeys.twoFingerTapUndo,
-          title: const Text(EditorStrings.twoFingerTapUndo),
-          value: gestures.twoFingerTapUndo,
-          onChanged: (v) =>
-              notifier.setGestures(gestures.copyWith(twoFingerTapUndo: v)),
-        ),
-        SwitchListTile(
-          key: SettingsSectionKeys.threeFingerTapRedo,
-          title: const Text(EditorStrings.threeFingerTapRedo),
-          value: gestures.threeFingerTapRedo,
-          onChanged: (v) =>
-              notifier.setGestures(gestures.copyWith(threeFingerTapRedo: v)),
-        ),
-        SwitchListTile(
-          key: SettingsSectionKeys.longPressMenu,
-          title: const Text(EditorStrings.longPressMenu),
-          value: gestures.longPressMenu,
-          onChanged: (v) =>
-              notifier.setGestures(gestures.copyWith(longPressMenu: v)),
-        ),
+        const GestureActionTiles(),
         const _Label(EditorStrings.fixedGestures),
         _Padded(
           Table(
@@ -175,7 +180,7 @@ class EditorInputSettingsSection extends ConsumerWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(gesture),
+                      child: Text(gesture, style: hintStyle),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -184,6 +189,14 @@ class EditorInputSettingsSection extends ConsumerWidget {
                   ],
                 ),
             ],
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            key: SettingsSectionKeys.resetGestures,
+            onPressed: () => notifier.setGestures(GestureSettings.defaults),
+            child: const Text(EditorStrings.resetGestures),
           ),
         ),
         Align(
@@ -307,6 +320,8 @@ class _PenSectionBodyState extends ConsumerState<_PenSectionBody> {
           ),
         ),
         _Padded(PenAdvancedControls(tool: tool)),
+        // (v2, m5-7/04-editor 6.14.2) the new pens' rows.
+        _Padded(PenExtrasControls(tool: tool)),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton(
@@ -320,7 +335,10 @@ class _PenSectionBodyState extends ConsumerState<_PenSectionBody> {
   }
 }
 
-/// 일반 › 페이지 넘김: 세로 스크롤 / 좌우 넘기기.
+/// 일반 › 페이지 넘김: 세로 스크롤 / 좌우 넘기기. (v2, m5-7/04-editor 6.15.3)
+/// 필기 재생: 필기를 탭해 그 부분 재생(device), 탭한 곳보다 앞에서 재생
+/// (0~5 s, 0.5 s 단위 — 놓을 때 저장, editor.playback.preRollMs), 강조 방식
+/// (안 쓴 필기 흐리게 / 방금 쓴 필기만 강조).
 class EditorPageSettingsSection extends ConsumerWidget {
   const EditorPageSettingsSection({super.key});
   @override
@@ -353,7 +371,101 @@ class EditorPageSettingsSection extends ConsumerWidget {
           ),
         ),
         _Padded(Text(EditorStrings.pageFlipHint, style: _hintStyle(context))),
+        const _PlaybackRows(),
       ],
+    );
+  }
+}
+
+/// (v2) 필기 재생 rows of the page section.
+class _PlaybackRows extends ConsumerWidget {
+  const _PlaybackRows();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tapToSeek = ref.watch(
+      editorSettingsProvider.select((s) => s.tapToSeek),
+    );
+    final style = ref.watch(
+      editorSettingsProvider.select((s) => s.playbackHighlight),
+    );
+    final settings = ref.read(editorSettingsProvider.notifier);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Label(EditorStrings.playbackSection),
+        SwitchListTile(
+          key: SettingsSectionKeys.playbackTapToSeek,
+          title: const Text(EditorStrings.tapToSeek),
+          value: tapToSeek,
+          onChanged: settings.setTapToSeek,
+        ),
+        const _PreRollSlider(),
+        const _Label(EditorStrings.playbackHighlight),
+        _Padded(
+          SegmentedButton<ink.InkPlaybackStyle>(
+            key: SettingsSectionKeys.playbackHighlight,
+            segments: const [
+              ButtonSegment(
+                value: ink.InkPlaybackStyle.dimUnwritten,
+                label: Text(EditorStrings.playbackDimUnwritten),
+              ),
+              ButtonSegment(
+                value: ink.InkPlaybackStyle.highlightRecent,
+                label: Text(EditorStrings.playbackHighlightRecent),
+              ),
+            ],
+            selected: {style},
+            onSelectionChanged: (s) => settings.setPlaybackHighlight(s.single),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 0~5 s in 0.5 s steps; the value is stored when the thumb is let go
+/// (PreRollMsNotifier — 500 ms debounce, synced).
+class _PreRollSlider extends ConsumerStatefulWidget {
+  const _PreRollSlider();
+
+  @override
+  ConsumerState<_PreRollSlider> createState() => _PreRollSliderState();
+}
+
+class _PreRollSliderState extends ConsumerState<_PreRollSlider> {
+  static const _step = 500;
+
+  /// The value while dragging (null: the stored one).
+  double? _dragging;
+
+  @override
+  Widget build(BuildContext context) {
+    final stored = ref.watch(editorPreRollMsProvider);
+    final value = _dragging ?? stored.toDouble();
+    final shown = (value / _step).round() * _step;
+    return ListTile(
+      title: const Text(EditorStrings.playbackPreRoll),
+      subtitle: Slider(
+        key: SettingsSectionKeys.playbackPreRoll,
+        min: PreRollMsNotifier.minMs.toDouble(),
+        max: PreRollMsNotifier.maxMs.toDouble(),
+        divisions: (PreRollMsNotifier.maxMs - PreRollMsNotifier.minMs) ~/ _step,
+        value: value.clamp(
+          PreRollMsNotifier.minMs.toDouble(),
+          PreRollMsNotifier.maxMs.toDouble(),
+        ),
+        label: EditorStrings.playbackPreRollLabel(shown),
+        onChanged: (v) => setState(() => _dragging = v),
+        onChangeEnd: (v) {
+          setState(() => _dragging = null);
+          ref
+              .read(editorPreRollMsProvider.notifier)
+              .set((v / _step).round() * _step);
+        },
+      ),
+      trailing: Text(EditorStrings.playbackPreRollLabel(shown)),
     );
   }
 }
