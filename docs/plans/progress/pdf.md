@@ -297,7 +297,7 @@
 | T38 | 완료 | 64b6b2c | `unit/testing_fakes_test`(8 — T30 5 + T38 3: 실제 `mediaIoOverrides()` 서비스 녹음 → 정지 → 녹음 행 → 열기 → 재생 → `dispose` 뒤 복원·임시 디렉터리(녹음·재생 캐시 파일 포함) 지움, `micPermission: false` → `permissionDenied`·시작 거절, `importImageForNote` → 이미지 에셋) |
 | T39 | 완료 (판정은 통합 4-c) | 46f5375 | `web/media/record_playback_media_test`(V8), `web/media/draft_recovery_media_test`(V16), (고침) `web/media/visibility_pause_media_test` — 셋 다 `web/media/media_world.dart` `mediaStoreTest`로 실제 웹 저장소 변형(CORE T31 전에는 실행 중 스스로 skip) + CORE 가짜 저장소 변형(지금 돎); (더함) `web/playback_browser_test` 'preload: false — 첫 seek가 적재'(1) |
 | T40 | 완료 (판정은 통합 4-d) | 709c920 | `integration/media_real_core_test`(5 — 실제 CORE 파일 저장소, CORE T30/T31 전에는 실행 중 스스로 skip), (더함) `unit/media_fake_core_test`(같은 5 — CORE 가짜 저장소, 지금 돎) — 본문 `test/support/media_core_scenarios.dart` `mediaCoreScenarios` |
-| T41 | 완료 (실제 웹 저장소 변형은 통합 4-c) | (이 커밋) | `perf/media_perf_test`(2 — `offsetNowMs` 10만 번·4000 × 3000 JPEG isolate 정규화), `web/media_perf_browser_test`(3 — 캔버스 정규화, 실제 웹 저장소 `append` 중앙값(CORE T31 전에는 실행 중 skip), 가짜 저장소 `append` 기록), `web/media/big_recording_perf_media_test`(`media` — 86 MB 합성 초안 정지·복구 × 실제 웹 저장소(CORE T31 전 skip)·가짜 저장소, 표본 확인 1), README·THIRD_PARTY_NOTICES, `dart_test.yaml` `perf` 태그 |
+| T41 | 완료 (실제 웹 저장소 변형은 통합 4-c) | 8b6c24f | `perf/media_perf_test`(2 — `offsetNowMs` 10만 번·4000 × 3000 JPEG isolate 정규화), `web/media_perf_browser_test`(3 — 캔버스 정규화, 실제 웹 저장소 `append` 중앙값(CORE T31 전에는 실행 중 skip), 가짜 저장소 `append` 기록), `web/media/big_recording_perf_media_test`(`media` — 86 MB 합성 초안 정지·복구 × 실제 웹 저장소(CORE T31 전 skip)·가짜 저장소, 표본 확인 1), README·THIRD_PARTY_NOTICES, `dart_test.yaml` `perf` 태그 |
 
 #### 00-review '최종 승인' PDF 항목
 
@@ -624,7 +624,7 @@
 
 #### 다음 세션 메모
 
-- (세션 12 끝 — 동시 개발 마지막 세션) 완료: T29(`2890d5d`), T41(이 세션 둘째 커밋 — '작업 표'). **PDF 동시 개발 몫 T21~T41 전부 끝**. `git status` 깨끗. 통합 단계(8.3)에서 할 것:
+- (세션 12 끝 — 동시 개발 마지막 세션) 완료: T29(`2890d5d`), T41(`8b6c24f`). **PDF 동시 개발 몫 T21~T41 전부 끝**. `git status` 깨끗. 통합 단계(8.3)에서 할 것:
   - 4-a `ws test --package pdf_io --run-skipped -t integration`: V11(`export_objects_v11_test` — CORE T26/T27·INK T42가 합류하면 실행 중 skip이 풀림), V10 PDF 부분(`search_indexer_core_test` — CORE T33a/T33b), `ink_vectorizer_v2_test`(INK T42)·`math_raster_real_test`(INK T36)는 정적 `skip:`이라 `--run-skipped`에서 늘 돈다(세션 2·6 — INK 이정표 전이면 예상된 실패; 합류했으면 판정하고 `skip:` 줄을 지울 것), 1차 `integration` 4개(19). V11이 실패하면 먼저 `pdfium/page_content_probe_test`(탐침)·`V11 page ops` 출력(`debugPrint`)을 볼 것.
   - 4-b `ws test --package pdf_io --platform chrome --run-skipped -t integration`: V11 Chrome(실제 웹 저장소 + `useInkTestFonts`).
   - 4-c `ws test --package media_io --platform chrome --run-skipped -t media`: V8·V16·가려짐·86 MB(실제 웹 저장소 변형 — CORE T31), 시작·끝 시각을 진행 기록에. V8 판정식 변경 요청(위)은 아직 답 없음.
