@@ -398,7 +398,7 @@
 | T35 | 완료 | 340a7ab | `test/assets/file_blob_store_test.dart`(33 — 공유 사례 8건을 파일·메모리 IndexedDB 둘 다에 + 파일만 17), `test/storage/native_file_store_test.dart`(12), 1차 `open_errors_test`(+ 한 경로만 1건)·`asset_store_test`(+ 네이티브 다시 열기 1건)·`v1_copy_test`·`commit_latency_perf_test`(네이티브 저장소로)·`draft_append_perf_test`(PF-7 두 블롭으로) |
 | T25b | 완료 | 302bc4a | `test/migration/v1_fixture_migration_test.dart`(3 — VM 파일 DB + 파일 블롭), `test/web/v1_fixture_migration_browser_test.dart`(2 — Chrome 웹 워커), 공유 본문 `test/shared/v7_fixture_checks.dart`(①②③⑤), `test/perf/migration_perf_test.dart`(PF-8) |
 | T26 | 완료 | 3bfff8a | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
-| T27 | 완료 | 2db774e | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart`(+ objects) |
+| T27 | 완료 | 2db774e · 보완 2.1 R-8 시험(아래 '보완 2.1') | `test/session/object_session_contract_real_test.dart`(공유 본문 7 + N-7), `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`(+ 보완 2.1 R-8 — 녹음·손글씨가 히스토리 밖, 가짜·실제 각 2), `test/session/content_reader_test.dart`(+ objects) |
 | T28 | 완료 | 3d49685 | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 완료 | 3b5adfa | `test/repo/recording_contract_real_test.dart`(공유 본문 — 가짜와 같은 6건), `test/repo/recording_repository_test.dart` |
 | T31 | 완료 | 2d8dd0a | `test/media/recording_draft_contract_real_test.dart`(공유 본문 9 — 파일 DB + 메모리 IndexedDB, 다시 열기 포함), `test/media/recording_draft_store_test.dart`(12), `test/web/recording_draft_browser_test.dart`(4), `test/perf/draft_append_perf_test.dart`(PF-7), `test/testing/fake_audio_recorder_test.dart`(실제 메모리 CORE 흐름) |
@@ -910,6 +910,12 @@ HEAD에서 바로 볼 곳:
 | `flutter test --run-skipped -t perf test/perf/search_perf_test.dart` (여덟 번, load 1.5~3.9) | 'V10 as written' 여덟 번 모두 **실패**(흔한 낱말 7개 — 판정 대기라 예상한 결과). 'CP-18 as proposed' 옛 경계 다섯 번 중 한 번 통과, 고친 경계 세 번 모두 통과 | 각 13~20초 |
 | `ws check` | R1~R16 위반 0·경고 0 | 69초 |
 | 루트 `flutter analyze --fatal-infos` | 0건 | 12초 |
+
+#### 보완 2.1 — 독립 검토 미비점 5건 (2026-11-06)
+
+새 검토 글이다(앞 보완 1.1~1.4의 4건과 다름). 하나씩 확인했다.
+
+2. **R-8 시험이 없음**(계획 9.3 'R-6·R-7·R-8 → `undo_objects_test`(녹음·손글씨가 히스토리에 없음)'): 맞다 — `undo_objects_test`는 T27의 객체 undo만 보고, `recording_repository_test`·`handwriting_repository_test`·공유 본문 어디에도 열린 세션의 히스토리를 보는 사례가 없었다. `test/edit/undo_objects_test.dart`에 **가짜·실제 저장소 각 2건**을 더했다(공용 본문 `_outsideHistoryCases`): 녹음 'rec-r8'에 이어진 획 3개(`AddStrokes`)와 텍스트 상자(`AddObjects` → undo)로 undo 1·redo 1인 세션을 열어 두고 ① `createRecording`·`renameRecording` → `history`가 같고 `historyStream`·`pageChanges`에 아무것도 안 나옴, 페이지 그대로 → redo·undo·undo(녹음 중 그린 획까지 되돌림)가 모두 그 세션의 단계만 되돌림 → 녹음은 이름 '2교시'·활성 그대로, `recordingsOf`에 남음 → `deleteRecording`도 히스토리 그대로, redo로 획이 돌아와도(`recordingId` 그대로 — R-7) 녹음은 삭제된 채. ② 손글씨 `put`·`update`(확정 줄 병합 모양) → 같은 검사 → undo·redo 왕복 뒤에도 저장된 결과 그대로(획이 없어져 `stalePages`에 그 페이지 — 지우지 않고 색인기가 맞춤, 6.4.3) → `removeForPage`도 히스토리 그대로, redo가 결과를 되살리지 않음. 기존 T27 사례 5건은 `group('page objects on the real store')` 안으로 옮겼다(맨 위 `tearDown(f.close)`가 새 사례에도 걸리지 않게 — 사례 이름 앞에 그 말이 붙음).
 
 #### 계획과 다르게 한 점 (동시 개발)
 

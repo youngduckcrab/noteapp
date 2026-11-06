@@ -3,14 +3,23 @@
 // UpdateObjects undone writes {text}); strokes and objects transformed together are one
 // commit and one history step; 100 object steps undone give back the initial page in memory
 // and stored (and redone, the edited one); an object changed remotely since is skipped (6.7.3).
+// R-8 (contract 7.2.4 — 02-core 6.1, 6.4.3, 6.6, 6.9.4, 9.3), on the fake and the real store:
+// recordings and handwriting results are outside the undo history — creating, renaming and
+// deleting a recording and put / update / removeForPage of a handwriting result while a
+// session with undo and redo steps is open leave its history and its page alone, and that
+// session's undo / redo (of the strokes drawn while recording, too) leaves them as they are.
 @TestOn('vm')
 library;
+
+import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:note_core/note_core.dart';
 import 'package:note_core/src/storage/outbox_writer.dart';
 import 'package:note_core/testing.dart';
 import 'package:test/test.dart';
 
+import '../storage/storage_support.dart' show openStore;
 import 'undo_support.dart';
 
 /// [o]'s JSON without the keys an undo / redo restamps.
@@ -48,7 +57,245 @@ List<Stroke> _initialStrokes(PageId pageId) => [
   ),
 ];
 
+/// R-8 on the store [open] gives: one note, one page, a session on it with one undo step
+/// (strokes drawn while recording 'rec-r8', linked to it) and one redo step (a text box).
+void _outsideHistoryCases(String name, Future<NoteStore> Function() open) {
+  group(
+    'R-8 on the $name store: recordings and handwriting results are outside the '
+    'undo history',
+    () {
+      const recordingId = 'rec-r8';
+      late NoteStore store;
+      late NoteId noteId;
+      late PageId pageId;
+      late NoteSession session;
+      late HistoryState before;
+      late List<HistoryState> historyEvents;
+      late List<PageContentChange> pageEvents;
+      final subscriptions = <StreamSubscription<Object?>>[];
+
+      setUp(() async {
+        store = await open();
+        final note = await store.library.createNote(
+          title: 'R-8',
+          pages: const [PageDraft.blankA4],
+        );
+        noteId = note.id;
+        pageId = (await store.content.pagesOf(noteId)).single.id;
+        session = await store.openSession(noteId);
+        await session.openPage(pageId);
+        await session
+            .execute(
+              AddStrokes(
+                pageId: pageId,
+                strokes: [
+                  for (var k = 0; k < 3; k++)
+                    Stroke(
+                      id: 'ink-$k',
+                      pageId: pageId,
+                      style: StrokeStyle.defaultsFor(PenTool.ballpoint),
+                      points: StrokePoints.fromList([
+                        for (var i = 0; i < 6; i++)
+                          StrokePoint(40.0 + 30 * k + i, 60.0 + i, widthQ: 0.5),
+                      ]),
+                      recordingId: recordingId,
+                      recordingOffsetMs: 500 * k,
+                      createdAt: 1000 + k,
+                    ),
+                ],
+              ),
+            )
+            .persisted;
+        await session
+            .execute(
+              AddObjects(
+                pageId: pageId,
+                objects: [
+                  PageObjectFixtures.textBox(pageId: pageId, id: 'box'),
+                ],
+              ),
+            )
+            .persisted;
+        expect((await session.undo()).applied, isTrue);
+        await session.flush();
+        before = session.history;
+        expect(
+          (before.undoDepth, before.redoDepth, before.canUndo, before.canRedo),
+          (1, 1, true, true),
+        );
+        historyEvents = [];
+        pageEvents = [];
+        subscriptions
+          ..add(session.historyStream.listen(historyEvents.add))
+          ..add(session.pageChanges(pageId).listen(pageEvents.add));
+        await pumpEventQueue();
+        pageEvents.clear(); // the `load` change a new listener gets first
+      });
+
+      tearDown(() async {
+        for (final s in subscriptions) {
+          await s.cancel();
+        }
+        subscriptions.clear();
+        if (!session.isClosed) await session.close();
+        await store.close();
+      });
+
+      /// The session's history and page are as they were in setUp.
+      Future<void> expectSessionUntouched(String after) async {
+        await pumpEventQueue();
+        expect(session.history, before, reason: after);
+        expect(historyEvents, isEmpty, reason: '$after: historyStream');
+        expect(pageEvents, isEmpty, reason: '$after: pageChanges');
+        final page = session.pageIfLoaded(pageId)!;
+        expect(page.strokeCount, 3, reason: after);
+        expect(page.objects, isEmpty, reason: after);
+      }
+
+      Future<Recording> createRecording() async {
+        final audio = await store.assets.put(
+          Uint8List.fromList(List.filled(48, 3)),
+          type: AssetType.audio,
+          mimeType: 'audio/webm',
+        );
+        return store.recordings.createRecording(
+          id: recordingId,
+          noteId: noteId,
+          assetId: audio.id,
+          durationMs: 4000,
+          startedAt: 900,
+          title: '1교시',
+        );
+      }
+
+      HandwritingText result(String text) => HandwritingText(
+        noteId: noteId,
+        pageId: pageId,
+        engineId: 'fake/1:ko',
+        sourceRev: HandwritingText.sourceRevOf(
+          session.pageIfLoaded(pageId)!.strokes,
+        ),
+        lines: [
+          HandwritingLine(
+            text: text,
+            rect: const PageRect(40, 60, 140, 70),
+            strokeIds: const ['ink-0', 'ink-1', 'ink-2'],
+            languageTag: 'ko',
+          ),
+        ],
+        createdAt: 1,
+      );
+
+      /// Undo and redo of the session apply — each a step of the session's own commands.
+      Future<void> undoRedoRoundTrip() async {
+        final redo = await session.redo(); // the text box comes back
+        expect((redo.applied, redo.skippedEntities), (true, 0));
+        expect(session.pageIfLoaded(pageId)!.objectById('box'), isNotNull);
+        for (var i = 0; i < 2; i++) {
+          // the text box goes, then the strokes drawn while recording go
+          final undo = await session.undo();
+          expect(
+            (undo.applied, undo.skippedEntities),
+            (true, 0),
+            reason: 'undo $i',
+          );
+        }
+        await session.flush();
+        final page = session.pageIfLoaded(pageId)!;
+        expect((page.strokeCount, page.objects.length), (0, 0));
+        expect(
+          session.history,
+          isA<HistoryState>()
+              .having((h) => h.undoDepth, 'undoDepth', 0)
+              .having((h) => h.redoDepth, 'redoDepth', 2),
+        );
+      }
+
+      test('createRecording, renameRecording and deleteRecording leave the history '
+          'and the page alone; undoing the strokes drawn while recording keeps the '
+          'recording', () async {
+        final created = await createRecording();
+        await expectSessionUntouched('createRecording');
+        await store.recordings.renameRecording(recordingId, '2교시');
+        await expectSessionUntouched('renameRecording');
+
+        await undoRedoRoundTrip();
+        final kept = (await store.recordings.getRecording(recordingId))!;
+        expect((kept.title, kept.isDeleted), ('2교시', false));
+        expect(kept.createdAt, created.createdAt);
+        expect((await store.recordings.recordingsOf(noteId)).map((r) => r.id), [
+          recordingId,
+        ]);
+
+        // Delete after the round trip: the session's redo stack is not touched either, and
+        // redoing the strokes does not bring the recording back (R-7: they keep the id).
+        final now = session.history;
+        await store.recordings.deleteRecording(recordingId);
+        await pumpEventQueue();
+        expect(session.history, now, reason: 'deleteRecording');
+        expect((await session.redo()).applied, isTrue);
+        await session.flush();
+        expect(
+          session
+              .pageIfLoaded(pageId)!
+              .strokes
+              .map((s) => s.recordingId)
+              .toSet(),
+          {recordingId},
+        );
+        expect(
+          (await store.recordings.getRecording(recordingId))!.isDeleted,
+          isTrue,
+        );
+        expect(await store.recordings.recordingsOf(noteId), isEmpty);
+      });
+
+      test(
+        'handwriting put, update and removeForPage leave the history and the '
+        'page alone; undo / redo of the strokes do not touch the stored result',
+        () async {
+          await store.handwriting.put(result('회의록'));
+          await expectSessionUntouched('handwriting put');
+          final updated = await store.handwriting.update(
+            pageId,
+            (current) => current!.copyWith(
+              lines: [
+                current.lines.single.copyWith(
+                  text: '회의록 고침',
+                  userConfirmed: true,
+                ),
+              ],
+            ),
+          );
+          expect(updated!.lines.single.text, '회의록 고침');
+          await expectSessionUntouched('handwriting update');
+
+          await undoRedoRoundTrip();
+          // The result is not undone with the strokes it came from: it is stale now (6.9.3 —
+          // the recognizer catches it up), not removed.
+          expect(await store.handwriting.forPage(pageId), updated);
+          expect(await store.handwriting.stalePages(noteId), [pageId]);
+
+          final now = session.history;
+          await store.handwriting.removeForPage(pageId);
+          await pumpEventQueue();
+          expect(session.history, now, reason: 'removeForPage');
+          expect((await session.redo()).applied, isTrue);
+          await session.flush();
+          expect(await store.handwriting.forPage(pageId), isNull);
+        },
+      );
+    },
+  );
+}
+
 void main() {
+  group('page objects on the real store', _pageObjectCases);
+  _outsideHistoryCases('fake', () async => createFakeNoteStore());
+  _outsideHistoryCases('real', openStore);
+}
+
+void _pageObjectCases() {
   late UndoFixture f;
   tearDown(() => f.close());
 
