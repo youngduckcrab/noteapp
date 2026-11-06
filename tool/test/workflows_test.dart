@@ -10,9 +10,11 @@
 // signing ways, ios-compile.yml and the two TestFlight signing ways, their
 // shell steps run with fake tools; 2차 J21 (6.10.5): android-emulator.yml
 // (the emulator, the debug APK with granted permissions, the KVM step with a
-// fake sudo, the native smoke it runs). Every `ws` call in a workflow is
-// parsed by the real `ws` argument parser, and every `run` script passes
-// `bash -n`.
+// fake sudo, the native smoke it runs); 2차 J15 (6.16): ci.yml in five jobs
+// (check → vm, chrome, heavy → web), the test scope handed on as the check
+// job's outputs, heavy only on a full-run push or the manual `integration`
+// input, each job's timing table. Every `ws` call in a workflow is parsed by
+// the real `ws` argument parser, and every `run` script passes `bash -n`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -48,11 +50,20 @@ const _ignoredPaths = ['docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**'];
 const _timeouts = {
   'android-emulator.yml': 30,
   'android.yml': 30,
-  'ci.yml': 60,
   'functions.yml': 15,
   'ios-compile.yml': 45,
   'ios-testflight.yml': 45,
   'web-experiment.yml': 25,
+};
+
+/// ci.yml job time limits (2차 J15, m5-7/01-infra 6.16 — the plan's
+/// provisional values; J0 ④ sets the measured time × 1.5).
+const _ciTimeouts = {
+  'check': 15,
+  'vm': 30,
+  'chrome': 30,
+  'heavy': 30,
+  'web': 15,
 };
 
 const _hooksPath = '.dart_tool/hooks_runner';
@@ -226,8 +237,11 @@ const _sampleVariables = {
 };
 
 /// Evaluates the `||` / `&&` / `==` / `!=` expressions of [expression]
-/// (`${{ … }}` or a bare `if:`) against [context] (`github.ref`, …, `env.X`):
-/// enough for the conditions of ci.yml, not the whole GitHub grammar.
+/// (`${{ … }}` or a bare `if:`) against [context] (`github.ref`, …, `env.X`,
+/// `needs.check.outputs.x`, `inputs.x` — an input missing on a push is ''):
+/// enough for the conditions of ci.yml, not the whole GitHub grammar. A
+/// parenthesized `&&` group between `||` is read as one alternative (the
+/// grammar's precedence); `true` / `false` are the literals.
 bool _evaluate(String expression, Map<String, String> context) {
   var text = expression.trim();
   if (text.startsWith(r'${{') && text.endsWith('}}')) {
@@ -238,8 +252,20 @@ bool _evaluate(String expression, Map<String, String> context) {
     if (o.startsWith("'") && o.endsWith("'")) {
       return o.substring(1, o.length - 1);
     }
+    if (o == 'true' || o == 'false') return o;
     expect(context, contains(o), reason: 'no sample for `$o`');
     return context[o]!;
+  }
+
+  String group(String alternative) {
+    final a = alternative.trim();
+    if (a.startsWith('(') && a.endsWith(')')) {
+      final inner = a.substring(1, a.length - 1);
+      expect(inner, isNot(contains('(')), reason: 'nested in `$expression`');
+      return inner;
+    }
+    expect(a, isNot(contains('(')), reason: 'unsupported `$a`');
+    return a;
   }
 
   bool comparison(String term) {
@@ -253,7 +279,9 @@ bool _evaluate(String expression, Map<String, String> context) {
     fail('unsupported term `$term` in `$expression`');
   }
 
-  return text.split('||').any((any) => any.split('&&').every(comparison));
+  return text
+      .split('||')
+      .any((any) => group(any).split('&&').every(comparison));
 }
 
 void main() {
@@ -266,6 +294,26 @@ void main() {
       isTrue,
     );
     expect(_evaluate("env.X == 'true' && github.ref == 'x'", context), isFalse);
+    // ci.yml heavy (2차 J15): a parenthesized group and the literal `true`.
+    const heavy =
+        "(github.event_name == 'push' && needs.c.outputs.f == 'true') || "
+        'inputs.i == true';
+    for (final (event, full, input, expected) in [
+      ('push', 'true', '', true),
+      ('push', 'false', '', false),
+      ('workflow_dispatch', 'true', 'false', false),
+      ('workflow_dispatch', 'false', 'true', true),
+    ]) {
+      expect(
+        _evaluate(heavy, {
+          'github.event_name': event,
+          'needs.c.outputs.f': full,
+          'inputs.i': input,
+        }),
+        expected,
+        reason: '$event $full $input',
+      );
+    }
   });
 
   test('_shellWords splits like the shell for the forms used here', () {
@@ -311,7 +359,7 @@ void main() {
         for (final MapEntry(:key, :value) in _jobs(workflow).entries) {
           expect(
             value['timeout-minutes'],
-            _timeouts[name],
+            name == 'ci.yml' ? _ciTimeouts[key] : _timeouts[name],
             reason: '$name: job $key',
           );
           expect(
@@ -353,7 +401,8 @@ void main() {
           expect(withMap.containsKey('flutter-version'), isFalse);
         }
       }
-      expect(count, 7);
+      // ci.yml: one per job (2차 J15 — five jobs).
+      expect(count, 11);
       final rootPubspec = _load(p.join(repoRoot, 'pubspec.yaml'));
       expect((rootPubspec['environment'] as YamlMap)['flutter'], '3.47.9');
     });
@@ -370,7 +419,8 @@ void main() {
           }
         }
       }
-      expect(count, 7);
+      // ci.yml: one per job (2차 J15 — five jobs).
+      expect(count, 11);
     });
 
     test('no `if:` reads `secrets` (not allowed there — job env instead)', () {
@@ -387,6 +437,54 @@ void main() {
           }
         }
       }
+    });
+
+    test('job outputs name a step of their job; `needs.<job>.outputs.<name>` '
+        'an output of a job in `needs`', () {
+      final stepOutput = RegExp(r'steps\.([A-Za-z0-9_-]+)\.outputs\.');
+      final needsOutput = RegExp(
+        r'needs\.([A-Za-z0-9_-]+)\.outputs\.([A-Za-z0-9_]+)',
+      );
+      var outputs = 0;
+      var reads = 0;
+      for (final name in _workflowNames()) {
+        final jobs = _jobs(_workflow(name));
+        for (final MapEntry(key: id, value: job) in jobs.entries) {
+          final stepIds = {
+            for (final s in _steps(job))
+              if (s['id'] case final String stepId) stepId,
+          };
+          for (final value in (job['outputs'] as YamlMap?)?.values ?? []) {
+            outputs++;
+            final match = stepOutput.firstMatch('$value');
+            expect(match, isNotNull, reason: '$name: $id outputs $value');
+            expect(stepIds, contains(match!.group(1)), reason: '$name: $id');
+          }
+          final needs = switch (job['needs']) {
+            null => <String>[],
+            final String one => [one],
+            final YamlList many => [for (final n in many) '$n'],
+            final other => fail('$name: $id needs $other'),
+          };
+          for (final need in needs) {
+            expect(jobs, contains(need), reason: '$name: $id');
+          }
+          for (final match in needsOutput.allMatches('${job.value}')) {
+            reads++;
+            expect(needs, contains(match.group(1)), reason: '$name: $id');
+            final defined = jobs[match.group(1)]!['outputs'] as YamlMap?;
+            expect(
+              defined?.keys,
+              contains(match.group(2)),
+              reason: '$name: $id reads ${match.group(0)}',
+            );
+          }
+        }
+      }
+      // ci.yml (2차 J15): check's three outputs, read by vm, chrome, heavy
+      // and web.
+      expect(outputs, 3);
+      expect(reads, 6);
     });
 
     test('`steps.<id>` refers to an earlier step of the same job', () {
@@ -409,25 +507,31 @@ void main() {
     });
 
     test('every build-hooks cache has the same path and key (step 3)', () {
-      for (final name in [
-        'android-emulator.yml',
-        'android.yml',
-        'ci.yml',
-        'functions.yml',
-        'ios-compile.yml',
-        'web-experiment.yml',
-      ]) {
+      // ci.yml (2차 J15): one in each job that builds members — not in check.
+      const counts = {
+        'android-emulator.yml': 1,
+        'android.yml': 1,
+        'ci.yml': 4,
+        'functions.yml': 1,
+        'ios-compile.yml': 1,
+        'web-experiment.yml': 1,
+      };
+      for (final MapEntry(key: name, value: count) in counts.entries) {
         final hooks = _usesSteps(
           _workflow(name),
           'actions/cache',
         ).where((s) => _with(s)['path'] == _hooksPath).toList();
-        expect(hooks, hasLength(1), reason: name);
-        expect(_with(hooks.single)['key'], _hooksKey, reason: name);
-        expect(
-          _with(hooks.single)['restore-keys'],
-          _hooksRestoreKey,
-          reason: name,
-        );
+        expect(hooks, hasLength(count), reason: name);
+        for (final cache in hooks) {
+          expect(_with(cache)['key'], _hooksKey, reason: name);
+          expect(_with(cache)['restore-keys'], _hooksRestoreKey, reason: name);
+        }
+      }
+      for (final job in _jobs(_workflow('ci.yml')).values) {
+        expect([
+          for (final s in _steps(job))
+            if (_with(s)['path'] == _hooksPath) s,
+        ], hasLength(lessThanOrEqualTo(1)));
       }
     });
 
@@ -476,8 +580,9 @@ void main() {
         }
       }
       // + web-budget check (J17), + lock-age (J20), + the Dart emulator tests
-      // of functions.yml (J16)
-      expect(calls, hasLength(23));
+      // of functions.yml (J16), + native-reqs and the media tests of ci.yml
+      // (J15)
+      expect(calls, hasLength(25));
       for (final call in calls) {
         final args = _shellWords(call, _sampleVariables);
         final err = StringBuffer();
@@ -595,18 +700,27 @@ void main() {
     });
   });
 
+  // 2차 J15 (m5-7/01-infra 6.16): five jobs — check, then vm, chrome and
+  // heavy beside each other, then web after vm and chrome.
   group('ci.yml', () {
     late YamlMap ci;
-    late YamlMap job;
-    late List<YamlMap> steps;
+    late Map<String, YamlMap> jobs;
 
     setUp(() {
       ci = _workflow('ci.yml');
-      job = _jobs(ci).values.single;
-      steps = _steps(job);
+      jobs = _jobs(ci);
     });
 
-    YamlMap step(String name) => _named(steps, name);
+    List<YamlMap> stepsOf(String job) => _steps(jobs[job]!);
+    YamlMap step(String job, String name) => _named(stepsOf(job), name);
+    List<String> namesOf(String job) => [
+      for (final s in stepsOf(job)) '${s['name']}',
+    ];
+    Map<String, String> envOf(String job) => {
+      for (final MapEntry(:key, :value)
+          in ((jobs[job]!['env'] as YamlMap?) ?? YamlMap()).entries)
+        '$key': '$value',
+    };
 
     test('push on every branch (docs ignored) and manual dispatch with '
         'deploy, integration and full', () {
@@ -631,7 +745,7 @@ void main() {
       final concurrency = ci['concurrency'] as YamlMap;
       // Each default-branch push tests only its change since
       // github.event.before: a cancelled or replaced run would leave that
-      // change untested.
+      // change untested. One group for the whole workflow (all five jobs).
       expect(
         concurrency['group'],
         r'ci-${{ github.ref }}'
@@ -641,112 +755,259 @@ void main() {
         r"format('-{0}', github.run_id) || '' }}",
       );
       expect(concurrency['cancel-in-progress'], isTrue);
+      for (final job in jobs.values) {
+        expect(job.containsKey('concurrency'), isFalse);
+      }
     });
 
-    test('single job on ubuntu with a 60 minute limit and the env', () {
-      expect(_jobs(ci), hasLength(1));
-      expect(job['runs-on'], 'ubuntu-latest');
-      // A full run (every member, VM and Chrome) on the 2-core runner of a
-      // private repository: 30 minutes measured after the 1차 integration
-      // (VM 15, Chrome 10, web build 1), plus the integration input.
-      expect(job['timeout-minutes'], 60);
-      expect((job['env'] as YamlMap).value, {
-        'FIREBASE_SA': r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
-        'FIREBASE_PROJECT_ID': r'${{ vars.FIREBASE_PROJECT_ID }}',
+    test('five jobs on ubuntu with their limits: check first, vm / chrome / '
+        'heavy after it, web after vm and chrome (not heavy)', () {
+      expect(jobs.keys, ['check', 'vm', 'chrome', 'heavy', 'web']);
+      expect(
+        {for (final e in jobs.entries) e.key: '${e.value['name']}'},
+        {
+          'check': 'Check and analyze',
+          'vm': 'VM tests',
+          'chrome': 'Browser tests',
+          'heavy': 'Integration and media tests',
+          'web': 'Build and deploy web',
+        },
+      );
+      for (final MapEntry(:key, :value) in jobs.entries) {
+        expect(value['runs-on'], 'ubuntu-latest', reason: key);
+        // The plan's provisional values (6.16 — the single job's 60 minutes
+        // is not used for the split jobs); J0 ④ sets measured × 1.5.
+        expect(value['timeout-minutes'], _ciTimeouts[key], reason: key);
+      }
+      expect(jobs['check']!.containsKey('needs'), isFalse);
+      for (final name in ['vm', 'chrome', 'heavy']) {
+        expect(jobs[name]!['needs'], 'check', reason: name);
+      }
+      // check for its outputs; a failed vm or chrome job never deploys; the
+      // heavy job does not hold the deploy up.
+      expect((jobs['web']!['needs'] as YamlList).toList(), [
+        'check',
+        'vm',
+        'chrome',
+      ]);
+      expect(ci.containsKey('env'), isFalse, reason: 'no workflow env');
+      for (final name in ['check', 'vm', 'chrome', 'web']) {
+        expect(jobs[name]!.containsKey('if'), isFalse, reason: name);
+      }
+    });
+
+    test('job env: the scope inputs in check, its outputs in vm / chrome / '
+        'web, the deploy secret and variable in web only', () {
+      expect(envOf('check'), {
         'DEFAULT_BRANCH': _defaultBranchValue,
         'BEFORE_SHA': r'${{ github.event.before }}',
         'FULL_INPUT': r'${{ inputs.full }}',
       });
+      for (final name in ['vm', 'chrome']) {
+        expect(envOf(name), {
+          'FULL_RUN': r'${{ needs.check.outputs.full_run }}',
+          'AFFECTED_BASE': r'${{ needs.check.outputs.affected_base }}',
+        }, reason: name);
+      }
+      // A job-level `if:` cannot read `env`: heavy reads the output there.
+      expect(jobs['heavy']!.containsKey('env'), isFalse);
+      expect(envOf('web'), {
+        'FIREBASE_SA': r'${{ secrets.FIREBASE_SERVICE_ACCOUNT }}',
+        'FIREBASE_PROJECT_ID': r'${{ vars.FIREBASE_PROJECT_ID }}',
+        'TEST_SCOPE': r'${{ needs.check.outputs.test_scope }}',
+      });
+      for (final name in ['check', 'vm', 'chrome', 'heavy']) {
+        expect(
+          '${jobs[name]!.value}',
+          isNot(contains('secrets.')),
+          reason: name,
+        );
+      }
     });
 
-    test('the 6.13 steps in order', () {
-      expect(
-        [for (final s in steps) s['name']],
-        [
-          'Start clock',
-          'Test scope', // 2차 R2-B1
-          'Checkout', // 1
-          'Set up Flutter', // 2
-          'Cache build hooks', // 3
-          'Cache browser test assets', // 4
-          'Dependencies', // 5
-          'Lock age', // 2차 J20
-          'Workspace rules (strict)', // 6
-          'Workspace rules',
-          'Analyze', // 7
-          'VM tests (all members)', // 8
-          'VM tests (affected)',
-          'Tool tests', // contract 7.6 B1 v1.3, V3
-          'Browser tests (all members)', // 9
-          'Browser tests (affected)',
-          'Integration tests (VM)', // 10
-          'Integration tests (Chrome)',
-          'Channel', // 11
-          'Build info', // 12
-          'Verify web assets', // 13
-          'Web build', // 14
-          'Finalize web build', // 15
-          'Web budget', // 2차 J17
-          'Deploy to Firebase Hosting', // 16
-          'Summary', // 17
-        ],
-      );
+    test('the check outputs come from the Test scope step', () {
+      expect(step('check', 'Test scope')['id'], 'scope');
+      expect((jobs['check']!['outputs'] as YamlMap).value, {
+        'full_run': r'${{ steps.scope.outputs.full_run }}',
+        'affected_base': r'${{ steps.scope.outputs.affected_base }}',
+        'test_scope': r'${{ steps.scope.outputs.test_scope }}',
+      });
+      for (final name in ['vm', 'chrome', 'heavy', 'web']) {
+        expect(jobs[name]!.containsKey('outputs'), isFalse, reason: name);
+      }
+    });
+
+    test('the steps of each job in order', () {
+      const setup = ['Start clock', 'Checkout', 'Set up Flutter'];
+      expect(namesOf('check'), [
+        'Start clock',
+        'Test scope', // 2차 R2-B1
+        'Checkout',
+        'Set up Flutter',
+        'Dependencies',
+        'Lock age', // 2차 J20
+        'Workspace rules (strict)',
+        'Workspace rules',
+        'Analyze',
+        'Tool tests', // contract 7.6 B1 v1.3, V3
+        'Native requirements', // 2차 J1 / J15
+        'Timing',
+      ]);
+      expect(namesOf('vm'), [
+        ...setup,
+        'Cache build hooks',
+        'Dependencies',
+        'VM tests (all members)',
+        'VM tests (affected)',
+        'Timing',
+      ]);
+      expect(namesOf('chrome'), [
+        ...setup,
+        'Cache build hooks',
+        'Cache browser test assets',
+        'Dependencies',
+        'Browser tests (all members)',
+        'Browser tests (affected)',
+        'Timing',
+      ]);
+      expect(namesOf('heavy'), [
+        ...setup,
+        'Cache build hooks',
+        'Cache browser test assets',
+        'Dependencies',
+        'Integration tests (VM)',
+        'Integration tests (Chrome)',
+        'Media tests (Chrome fake mic)', // 2차 6.13
+        'Timing',
+      ]);
+      expect(namesOf('web'), [
+        ...setup,
+        'Cache build hooks',
+        'Dependencies',
+        'Channel',
+        'Build info',
+        'Verify web assets',
+        'Web build',
+        'Finalize web build',
+        'Web budget', // 2차 J17 — right after Finalize, before the deploy
+        'Deploy to Firebase Hosting',
+        'Summary',
+      ]);
     });
 
     test('commands of each step', () {
       final expected = {
-        'Dependencies': ['flutter pub get --enforce-lockfile'],
-        'Lock age': ['$_ws lock-age --since "\$LOCK_BASE"'],
-        'Workspace rules (strict)': ['$_ws check --strict'],
-        'Workspace rules': ['$_ws check'],
-        'Analyze': ['$_ws analyze'],
-        'VM tests (all members)': ['$_ws test'],
-        'VM tests (affected)': ['$_ws test $_affected'],
-        'Tool tests': ['dart test tool/test'],
-        'Browser tests (all members)': ['$_ws test --platform chrome'],
-        'Browser tests (affected)': ['$_ws test --platform chrome $_affected'],
-        'Integration tests (VM)': ['$_ws test --run-skipped -t integration'],
-        'Integration tests (Chrome)': [
+        ('check', 'Lock age'): ['$_ws lock-age --since "\$LOCK_BASE"'],
+        ('check', 'Workspace rules (strict)'): ['$_ws check --strict'],
+        ('check', 'Workspace rules'): ['$_ws check'],
+        ('check', 'Analyze'): ['$_ws analyze'],
+        ('check', 'Tool tests'): ['dart test tool/test'],
+        ('check', 'Native requirements'): ['$_ws native-reqs'],
+        ('vm', 'VM tests (all members)'): ['$_ws test'],
+        ('vm', 'VM tests (affected)'): ['$_ws test $_affected'],
+        ('chrome', 'Browser tests (all members)'): [
+          '$_ws test --platform chrome',
+        ],
+        ('chrome', 'Browser tests (affected)'): [
+          '$_ws test --platform chrome $_affected',
+        ],
+        ('heavy', 'Integration tests (VM)'): [
+          '$_ws test --run-skipped -t integration',
+        ],
+        ('heavy', 'Integration tests (Chrome)'): [
           '$_ws test --platform chrome --run-skipped -t integration',
         ],
-        'Build info': [_buildInfoFromEnv],
-        'Verify web assets': ['$_ws web-assets verify'],
-        'Web build': [_webBuild],
-        'Finalize web build': [_finalize],
-        'Web budget': ['$_ws web-budget check --build-dir app/build/web'],
+        ('heavy', 'Media tests (Chrome fake mic)'): [
+          '$_ws test --platform chrome --run-skipped -t media',
+        ],
+        ('web', 'Build info'): [_buildInfoFromEnv],
+        ('web', 'Verify web assets'): ['$_ws web-assets verify'],
+        ('web', 'Web build'): [_webBuild],
+        ('web', 'Finalize web build'): [_finalize],
+        ('web', 'Web budget'): [
+          '$_ws web-budget check --build-dir app/build/web',
+        ],
       };
-      for (final MapEntry(:key, :value) in expected.entries) {
-        expect(_commands(step(key)), value, reason: key);
+      for (final MapEntry(key: (job, name), :value) in expected.entries) {
+        expect(_commands(step(job, name)), value, reason: '$job / $name');
       }
-      expect(step('Web build')['working-directory'], 'app');
+      for (final job in jobs.keys) {
+        expect(_commands(step(job, 'Dependencies')), [
+          'flutter pub get --enforce-lockfile',
+        ], reason: job);
+      }
+      expect(step('web', 'Web build')['working-directory'], 'app');
     });
 
-    test('checkout with full history (merge base for --affected-since)', () {
-      expect(step('Checkout')['uses'], 'actions/checkout@v7');
-      expect(_with(step('Checkout'))['fetch-depth'], 0);
+    test('the setup steps are the same in every job; full history where '
+        '--affected-since or the lock diff needs it', () {
+      String text(YamlMap s) => '${s.value}';
+      for (final name in ['Start clock', 'Set up Flutter', 'Dependencies']) {
+        final forms = {for (final job in jobs.keys) text(step(job, name))};
+        expect(forms, hasLength(1), reason: name);
+      }
+      for (final job in jobs.keys) {
+        expect(stepsOf(job).first['name'], 'Start clock', reason: job);
+        final checkout = step(job, 'Checkout');
+        expect(checkout['uses'], 'actions/checkout@v7', reason: job);
+        final depth = _with(checkout)['fetch-depth'];
+        // heavy runs every member, web reads GITHUB_SHA for build-info.
+        expect(
+          depth,
+          ['check', 'vm', 'chrome'].contains(job) ? 0 : isNull,
+          reason: job,
+        );
+      }
     });
 
-    test('two caches, both keyed on pubspec.lock', () {
-      final caches = _usesSteps(ci, 'actions/cache');
-      expect(caches, hasLength(2));
-      for (final cache in caches) {
-        expect(cache['uses'], 'actions/cache@v6');
+    test('caches: build hooks in every job that builds members, browser '
+        'assets for the Chrome jobs, both before Dependencies', () {
+      bool hasCache(String job, String name) =>
+          namesOf(job).contains(name) &&
+          step(job, name)['uses'] == 'actions/cache@v6';
+      expect(
+        [
+          for (final job in jobs.keys)
+            if (hasCache(job, 'Cache build hooks')) job,
+        ],
+        ['vm', 'chrome', 'heavy', 'web'],
+      );
+      expect(
+        [
+          for (final job in jobs.keys)
+            if (hasCache(job, 'Cache browser test assets')) job,
+        ],
+        ['chrome', 'heavy'],
+      );
+      expect(_usesSteps(ci, 'actions/cache'), hasLength(6));
+      for (final cache in _usesSteps(ci, 'actions/cache')) {
         expect('${_with(cache)['key']}', contains("hashFiles('pubspec.lock'"));
       }
-      final hooks = _with(step('Cache build hooks'));
-      expect(hooks['path'], _hooksPath);
-      expect(hooks['key'], _hooksKey);
-      final prep = _with(step('Cache browser test assets'));
-      expect(prep['key'], _prepKey);
-      expect(
-        '${prep['path']}'.trim().split('\n').map((l) => l.trim()),
-        _prepPaths,
-      );
-      // Both caches are restored before the first build hook runs.
-      expect(
-        steps.indexOf(step('Cache browser test assets')),
-        lessThan(steps.indexOf(step('Dependencies'))),
-      );
+      for (final job in ['vm', 'chrome', 'heavy', 'web']) {
+        final hooks = _with(step(job, 'Cache build hooks'));
+        expect(hooks['path'], _hooksPath, reason: job);
+        expect(hooks['key'], _hooksKey, reason: job);
+        expect(
+          namesOf(job).indexOf('Cache build hooks'),
+          lessThan(namesOf(job).indexOf('Dependencies')),
+          reason: job,
+        );
+      }
+      for (final job in ['chrome', 'heavy']) {
+        final prep = _with(step(job, 'Cache browser test assets'));
+        expect(prep['key'], _prepKey, reason: job);
+        expect(
+          '${prep['path']}'.trim().split('\n').map((l) => l.trim()),
+          _prepPaths,
+          reason: job,
+        );
+        // Restored before the first build hook runs.
+        expect(
+          namesOf(job).indexOf('Cache browser test assets'),
+          lessThan(namesOf(job).indexOf('Dependencies')),
+          reason: job,
+        );
+      }
     });
 
     test('the prep cache covers the app preparation outputs', () {
@@ -765,43 +1026,56 @@ void main() {
     });
 
     test('FULL_RUN picks every member or the affected ones, STRICT_CHECK the '
-        'strict check', () {
-      expect(step('Workspace rules (strict)')['if'], _strict);
-      expect(step('Workspace rules')['if'], _notStrict);
-      for (final name in [
+        'strict check; no other step condition but the deploy and the last '
+        'steps', () {
+      expect(step('check', 'Workspace rules (strict)')['if'], _strict);
+      expect(step('check', 'Workspace rules')['if'], _notStrict);
+      for (final (job, name) in [
+        ('vm', 'VM tests (all members)'),
+        ('chrome', 'Browser tests (all members)'),
+      ]) {
+        expect(step(job, name)['if'], _fullRun, reason: name);
+      }
+      for (final (job, name) in [
+        ('vm', 'VM tests (affected)'),
+        ('chrome', 'Browser tests (affected)'),
+      ]) {
+        expect(step(job, name)['if'], _notFullRun, reason: name);
+      }
+      const conditioned = {
+        'Workspace rules (strict)',
+        'Workspace rules',
         'VM tests (all members)',
+        'VM tests (affected)',
         'Browser tests (all members)',
-      ]) {
-        expect(step(name)['if'], _fullRun, reason: name);
-      }
-      for (final name in ['VM tests (affected)', 'Browser tests (affected)']) {
-        expect(step(name)['if'], _notFullRun, reason: name);
-      }
-      for (final name in [
-        'Test scope',
-        'Dependencies',
-        'Analyze',
-        'Tool tests',
-        'Channel',
-        'Build info',
-        'Verify web assets',
-        'Web build',
-        'Finalize web build',
-        'Web budget',
-      ]) {
-        expect(step(name).containsKey('if'), isFalse, reason: name);
+        'Browser tests (affected)',
+        'Deploy to Firebase Hosting',
+        'Timing',
+        'Summary',
+      };
+      for (final job in jobs.keys) {
+        for (final s in stepsOf(job)) {
+          expect(
+            s.containsKey('if'),
+            conditioned.contains(s['name']),
+            reason: '$job / ${s['name']}',
+          );
+        }
       }
     });
 
     // m5-7/01-infra 4.2 (2차 J20, Q8): a warning step — runs ws lock-age
     // only when pubspec.lock changed since the scope's base; a violation
-    // never fails the job.
+    // never fails the job. In the check job (J15), right after Dependencies.
     test('lock age: warning step, base = AFFECTED_BASE or the previous push, '
         'only when pubspec.lock changed', () {
-      final lockAge = step('Lock age');
+      final lockAge = step('check', 'Lock age');
       expect(lockAge['continue-on-error'], isTrue);
       expect(lockAge.containsKey('if'), isFalse);
-      expect(steps.indexOf(lockAge), steps.indexOf(step('Dependencies')) + 1);
+      expect(
+        namesOf('check').indexOf('Lock age'),
+        namesOf('check').indexOf('Dependencies') + 1,
+      );
       final script = '${lockAge['run']}';
       expect(
         Process.runSync('bash', ['-n', '-c', script]).exitCode,
@@ -887,11 +1161,29 @@ void main() {
       }
     });
 
-    // m5-7/01-infra 6.16 (2차 R2-B1): main and manual full runs test every
-    // member; the default branch only what changed since its previous push
-    // (every member without one); other branches what changed since the
-    // default branch. Live stays main's.
-    test('per push: the test scope (Test scope script) and the channel', () {
+    test('native requirements: the last check step, a violation fails the '
+        'job', () {
+      final nativeReqs = step('check', 'Native requirements');
+      expect(nativeReqs.containsKey('continue-on-error'), isFalse);
+      // After the pub get that writes app/.flutter-plugins-dependencies.
+      expect(
+        namesOf('check').indexOf('Native requirements'),
+        namesOf('check').length - 2,
+      );
+      expect(
+        namesOf('check').indexOf('Dependencies'),
+        lessThan(namesOf('check').indexOf('Native requirements')),
+      );
+    });
+
+    // m5-7/01-infra 6.16 (2차 R2-B1, J15): main and manual full runs test
+    // every member; the default branch only what changed since its previous
+    // push (every member without one); other branches what changed since the
+    // default branch. The check job computes the scope once; vm and chrome
+    // read it from its outputs, heavy runs on a full-run push or the manual
+    // input `integration`, live stays main's.
+    test('per push: the test scope through the check outputs into vm, chrome, '
+        'heavy and web, and the channel', () {
       final scratch = Directory.systemTemp.createTempSync('ws_ci_channel_');
       addTearDown(() => scratch.deleteSync(recursive: true));
       final fakeDart = File(p.join(scratch.path, 'bin', 'dart'))
@@ -903,219 +1195,348 @@ void main() {
         );
       Process.runSync('chmod', ['+x', fakeDart.path]);
       const before = '1234567890abcdef1234567890abcdef12345678';
-      // (event, pushed branch, default branch, before, full input) →
-      // (full run, strict, affected base, Hosting channel)
+      const fake = 'b-fake-channel';
+      // The inputs are '' on a push (no `inputs` there).
       final scenarios = [
         // now: the development branch is the default branch
         (
-          'push',
-          _devBranch,
-          _devBranch,
-          before,
-          '',
-          false,
-          true,
-          before,
-          'b-fake-channel',
+          event: 'push',
+          branch: _devBranch,
+          defaultBranch: _devBranch,
+          before: before,
+          fullInput: '',
+          integration: '',
+          full: false,
+          strict: true,
+          base: before,
+          channel: fake,
+          heavy: false,
         ),
         (
-          'push',
-          _devBranch,
-          _devBranch,
-          _zeroSha,
-          '',
-          true,
-          true,
-          '',
-          'b-fake-channel',
+          event: 'push',
+          branch: _devBranch,
+          defaultBranch: _devBranch,
+          before: _zeroSha,
+          fullInput: '',
+          integration: '',
+          full: true,
+          strict: true,
+          base: '',
+          channel: fake,
+          heavy: true,
         ), // first push of the branch
         (
-          'workflow_dispatch',
-          _devBranch,
-          _devBranch,
-          '',
-          'false',
-          true,
-          true,
-          '',
-          'b-fake-channel',
-        ), // no previous push to compare with
+          event: 'workflow_dispatch',
+          branch: _devBranch,
+          defaultBranch: _devBranch,
+          before: '',
+          fullInput: 'false',
+          integration: 'false',
+          full: true,
+          strict: true,
+          base: '',
+          channel: fake,
+          heavy: false,
+        ), // no previous push to compare with; heavy is the input's
         (
-          'workflow_dispatch',
-          _devBranch,
-          _devBranch,
-          '',
-          'true',
-          true,
-          true,
-          '',
-          'b-fake-channel',
+          event: 'workflow_dispatch',
+          branch: _devBranch,
+          defaultBranch: _devBranch,
+          before: '',
+          fullInput: 'true',
+          integration: 'false',
+          full: true,
+          strict: true,
+          base: '',
+          channel: fake,
+          heavy: false,
         ),
         (
-          'push',
-          'area2/infra',
-          _devBranch,
-          before,
-          '',
-          false,
-          false,
-          'origin/$_devBranch',
-          'b-fake-channel',
+          event: 'workflow_dispatch',
+          branch: _devBranch,
+          defaultBranch: _devBranch,
+          before: '',
+          fullInput: 'false',
+          integration: 'true',
+          full: true,
+          strict: true,
+          base: '',
+          channel: fake,
+          heavy: true,
+        ),
+        // an area branch (even one that changed media_io: heavy reads no
+        // paths)
+        (
+          event: 'push',
+          branch: 'area2/infra',
+          defaultBranch: _devBranch,
+          before: before,
+          fullInput: '',
+          integration: '',
+          full: false,
+          strict: false,
+          base: 'origin/$_devBranch',
+          channel: fake,
+          heavy: false,
         ),
         (
-          'workflow_dispatch',
-          'area2/infra',
-          _devBranch,
-          '',
-          'false',
-          false,
-          false,
-          'origin/$_devBranch',
-          'b-fake-channel',
+          event: 'workflow_dispatch',
+          branch: 'area2/infra',
+          defaultBranch: _devBranch,
+          before: '',
+          fullInput: 'false',
+          integration: 'false',
+          full: false,
+          strict: false,
+          base: 'origin/$_devBranch',
+          channel: fake,
+          heavy: false,
         ),
         (
-          'workflow_dispatch',
-          'area2/infra',
-          _devBranch,
-          '',
-          'true',
-          true,
-          true,
-          '',
-          'b-fake-channel',
+          event: 'workflow_dispatch',
+          branch: 'area2/infra',
+          defaultBranch: _devBranch,
+          before: '',
+          fullInput: 'true',
+          integration: 'false',
+          full: true,
+          strict: true,
+          base: '',
+          channel: fake,
+          heavy: false,
         ),
-        // main: always every member, live channel
-        ('push', 'main', _devBranch, before, '', true, true, '', 'live'),
-        ('push', 'main', 'main', before, '', true, true, '', 'live'),
         (
-          'push',
-          'feature/x',
-          'main',
-          before,
-          '',
-          false,
-          false,
-          'origin/main',
-          'b-fake-channel',
+          event: 'workflow_dispatch',
+          branch: 'area2/infra',
+          defaultBranch: _devBranch,
+          before: '',
+          fullInput: 'false',
+          integration: 'true',
+          full: false,
+          strict: false,
+          base: 'origin/$_devBranch',
+          channel: fake,
+          heavy: true,
+        ),
+        // main: always every member, live channel, heavy
+        (
+          event: 'push',
+          branch: 'main',
+          defaultBranch: _devBranch,
+          before: before,
+          fullInput: '',
+          integration: '',
+          full: true,
+          strict: true,
+          base: '',
+          channel: 'live',
+          heavy: true,
+        ),
+        (
+          event: 'push',
+          branch: 'main',
+          defaultBranch: 'main',
+          before: before,
+          fullInput: '',
+          integration: '',
+          full: true,
+          strict: true,
+          base: '',
+          channel: 'live',
+          heavy: true,
+        ),
+        (
+          event: 'push',
+          branch: 'feature/x',
+          defaultBranch: 'main',
+          before: before,
+          fullInput: '',
+          integration: '',
+          full: false,
+          strict: false,
+          base: 'origin/main',
+          channel: fake,
+          heavy: false,
         ),
       ];
-      for (final (
-            event,
-            branch,
-            defaultBranch,
-            beforeSha,
-            fullInput,
-            full,
-            strict,
-            base,
-            channel,
-          )
-          in scenarios) {
+      String resolve(String expression, Map<String, String> context) {
+        final match = RegExp(r'^\$\{\{ ([A-Za-z0-9_.]+) \}\}$')
+            .firstMatch(expression);
+        if (match == null) return expression;
+        expect(context, contains(match.group(1)), reason: expression);
+        return context[match.group(1)]!;
+      }
+
+      Map<String, String> jobEnv(String job, Map<String, String> context) => {
+        for (final MapEntry(:key, :value) in envOf(job).entries)
+          'env.$key': resolve(value, context),
+      };
+
+      for (final s in scenarios) {
         final reason =
-            '$event $branch (default $defaultBranch, before '
-            '${beforeSha.isEmpty ? '-' : beforeSha.substring(0, 4)}, '
-            'full=$fullInput)';
+            '${s.event} ${s.branch} (default ${s.defaultBranch}, before '
+            '${s.before.isEmpty ? '-' : s.before.substring(0, 4)}, '
+            'full=${s.fullInput}, integration=${s.integration})';
         // The Test scope script itself.
         final githubEnv = File(p.join(scratch.path, 'github-env'))
           ..writeAsStringSync('');
+        final githubOutput = File(p.join(scratch.path, 'github-output'))
+          ..writeAsStringSync('');
         final scope = Process.runSync(
           'bash',
-          ['-e', '-c', '${step('Test scope')['run']}'],
+          ['-e', '-c', '${step('check', 'Test scope')['run']}'],
           environment: {
             'PATH': '/usr/bin:/bin',
-            'GITHUB_REF': 'refs/heads/$branch',
-            'GITHUB_REF_NAME': branch,
+            'GITHUB_REF': 'refs/heads/${s.branch}',
+            'GITHUB_REF_NAME': s.branch,
             'GITHUB_ENV': githubEnv.path,
-            'DEFAULT_BRANCH': defaultBranch,
-            'BEFORE_SHA': beforeSha,
-            'FULL_INPUT': fullInput,
+            'GITHUB_OUTPUT': githubOutput.path,
+            'DEFAULT_BRANCH': s.defaultBranch,
+            'BEFORE_SHA': s.before,
+            'FULL_INPUT': s.fullInput,
           },
         );
         expect(scope.exitCode, 0, reason: '$reason: ${scope.stderr}');
-        final values = {
-          for (final line in githubEnv.readAsLinesSync())
+        Map<String, String> pairs(File file) => {
+          for (final line in file.readAsLinesSync())
             line.substring(0, line.indexOf('=')): line.substring(
               line.indexOf('=') + 1,
             ),
         };
-        expect(values['FULL_RUN'], '$full', reason: reason);
-        expect(values['STRICT_CHECK'], '$strict', reason: reason);
-        expect(values['AFFECTED_BASE'], base, reason: reason);
+        final values = pairs(githubEnv);
+        expect(values['FULL_RUN'], '${s.full}', reason: reason);
+        expect(values['STRICT_CHECK'], '${s.strict}', reason: reason);
+        expect(values['AFFECTED_BASE'], s.base, reason: reason);
         expect(values['TEST_SCOPE'], isNotEmpty, reason: reason);
-        final env = {
+        // check job: the strict check reads the step's env values.
+        final checkEnv = {
           for (final MapEntry(:key, :value) in values.entries)
             'env.$key': value,
         };
-        for (final (all, affected) in [
-          ('VM tests (all members)', 'VM tests (affected)'),
-          ('Browser tests (all members)', 'Browser tests (affected)'),
+        expect(
+          _evaluate('${step('check', 'Workspace rules (strict)')['if']}', {
+            ...checkEnv,
+          }),
+          s.strict,
+          reason: reason,
+        );
+        expect(
+          _evaluate('${step('check', 'Workspace rules')['if']}', checkEnv),
+          !s.strict,
+          reason: reason,
+        );
+        // The step outputs → the check job outputs.
+        final stepOutputs = {
+          for (final MapEntry(:key, :value) in pairs(githubOutput).entries)
+            'steps.scope.outputs.$key': value,
+        };
+        final checkOutputs = {
+          for (final MapEntry(:key, :value)
+              in (jobs['check']!['outputs'] as YamlMap).entries)
+            'needs.check.outputs.$key': resolve('$value', stepOutputs),
+        };
+        expect(checkOutputs, {
+          'needs.check.outputs.full_run': '${s.full}',
+          'needs.check.outputs.affected_base': s.base,
+          'needs.check.outputs.test_scope': values['TEST_SCOPE'],
+        }, reason: reason);
+        // vm and chrome: every member or --affected-since <base>.
+        for (final (job, all, affected) in [
+          ('vm', 'VM tests (all members)', 'VM tests (affected)'),
+          ('chrome', 'Browser tests (all members)', 'Browser tests (affected)'),
         ]) {
-          expect(_evaluate('${step(all)['if']}', env), full, reason: reason);
+          final env = jobEnv(job, checkOutputs);
           expect(
-            _evaluate('${step(affected)['if']}', env),
-            !full,
-            reason: reason,
+            _evaluate('${step(job, all)['if']}', env),
+            s.full,
+            reason: '$reason: $job',
           );
-        }
-        expect(
-          _evaluate('${step('Workspace rules (strict)')['if']}', env),
-          strict,
-          reason: reason,
-        );
-        expect(
-          _evaluate('${step('Workspace rules')['if']}', env),
-          !strict,
-          reason: reason,
-        );
-        if (!full) {
-          for (final name in [
-            'VM tests (affected)',
-            'Browser tests (affected)',
-          ]) {
-            final args = _shellWords(_commands(step(name)).single, {
-              'AFFECTED_BASE': values['AFFECTED_BASE']!,
+          expect(
+            _evaluate('${step(job, affected)['if']}', env),
+            !s.full,
+            reason: '$reason: $job',
+          );
+          if (!s.full) {
+            final args = _shellWords(_commands(step(job, affected)).single, {
+              'AFFECTED_BASE': env['env.AFFECTED_BASE']!,
             });
             expect(args.sublist(args.indexOf('--affected-since')), [
               '--affected-since',
-              base,
+              s.base,
               '--all-if-no-base',
-            ], reason: '$reason: $name');
+            ], reason: '$reason: $job');
           }
         }
+        // heavy: a full-run push, or the manual input `integration`.
+        expect(
+          _evaluate('${jobs['heavy']!['if']}', {
+            'github.event_name': s.event,
+            ...checkOutputs,
+            'inputs.integration': s.integration,
+          }),
+          s.heavy,
+          reason: '$reason: heavy',
+        );
+        // web: the summary's test scope is the check job's.
+        expect(
+          jobEnv('web', {
+            ...checkOutputs,
+            'secrets.FIREBASE_SERVICE_ACCOUNT': '',
+            'vars.FIREBASE_PROJECT_ID': '',
+          })['env.TEST_SCOPE'],
+          values['TEST_SCOPE'],
+          reason: reason,
+        );
         // The Channel script itself, with a fake `dart` for ws channel-id.
         final output = File(p.join(scratch.path, 'output'))
           ..writeAsStringSync('');
         final result = Process.runSync(
           'bash',
-          ['-e', '-c', '${step('Channel')['run']}'],
+          ['-e', '-c', '${step('web', 'Channel')['run']}'],
           environment: {
             'PATH': '${p.dirname(fakeDart.path)}:/usr/bin:/bin',
-            'GITHUB_REF': 'refs/heads/$branch',
-            'GITHUB_REF_NAME': branch,
+            'GITHUB_REF': 'refs/heads/${s.branch}',
+            'GITHUB_REF_NAME': s.branch,
             'GITHUB_OUTPUT': output.path,
           },
         );
         expect(result.exitCode, 0, reason: '$reason: ${result.stderr}');
         expect(output.readAsLinesSync(), [
-          'id=$channel',
-          'build=${channel == 'live' ? 'live' : 'preview'}',
+          'id=${s.channel}',
+          'build=${s.channel == 'live' ? 'live' : 'preview'}',
         ], reason: reason);
-        if (channel != 'live') {
+        if (s.channel != 'live') {
           expect(
             File(p.join(scratch.path, 'dart-args')).readAsStringSync().trim(),
-            'run tool/ws.dart channel-id --branch $branch',
+            'run tool/ws.dart channel-id --branch ${s.branch}',
             reason: reason,
           );
         }
       }
     });
 
-    test('the summary reports the test scope', () {
-      expect('${step('Summary')['run']}', contains(r'${TEST_SCOPE:-'));
+    test('heavy: the 6.16 condition, word for word (no paths, no env)', () {
       expect(
-        steps.indexOf(step('Test scope')),
-        lessThan(steps.indexOf(step('Workspace rules (strict)'))),
+        jobs['heavy']!['if'],
+        "(github.event_name == 'push' && "
+        "needs.check.outputs.full_run == 'true') || "
+        'inputs.integration == true',
       );
+    });
+
+    test('--run-skipped only in the heavy job: the integration tag (VM, '
+        'Chrome) and media with Chrome', () {
+      final runSkipped = [
+        for (final MapEntry(key: job, value: value) in jobs.entries)
+          for (final s in _steps(value))
+            if ('${s['run'] ?? ''}'.contains('--run-skipped'))
+              '$job / ${s['name']}',
+      ];
+      expect(runSkipped, [
+        'heavy / Integration tests (VM)',
+        'heavy / Integration tests (Chrome)',
+        'heavy / Media tests (Chrome fake mic)',
+      ]);
     });
 
     test('no fixed main base; main is named only where live is decided', () {
@@ -1125,38 +1546,30 @@ void main() {
       }
       expect(
         [
-          for (final s in steps)
-            if ('${s.value}'.contains('refs/heads/main')) s['name'],
+          for (final MapEntry(key: job, value: value) in jobs.entries)
+            for (final s in _steps(value))
+              if ('${s.value}'.contains('refs/heads/main'))
+                '$job / ${s['name']}',
         ],
-        ['Test scope', 'Channel'],
+        ['check / Test scope', 'web / Channel'],
       );
+      for (final MapEntry(key: job, value: value) in jobs.entries) {
+        expect(
+          '${value['if'] ?? ''}${value['env'] ?? ''}',
+          isNot(contains('refs/heads/main')),
+          reason: job,
+        );
+      }
       // Deploying does not look at the branch: Channel picks live or the
       // preview channel, the secrets and the event gate the step.
       expect(
-        '${step('Deploy to Firebase Hosting')['if']}',
+        '${step('web', 'Deploy to Firebase Hosting')['if']}',
         isNot(contains('github.ref')),
       );
     });
 
-    test('integration tag tests only on manual dispatch with the input', () {
-      for (final name in [
-        'Integration tests (VM)',
-        'Integration tests (Chrome)',
-      ]) {
-        expect(step(name)['if'], 'inputs.integration == true', reason: name);
-      }
-      final runSkipped = [
-        for (final s in steps)
-          if ('${s['run'] ?? ''}'.contains('--run-skipped')) s['name'],
-      ];
-      expect(runSkipped, [
-        'Integration tests (VM)',
-        'Integration tests (Chrome)',
-      ]);
-    });
-
     test('channel: live on main, ws channel-id elsewhere', () {
-      final channel = step('Channel');
+      final channel = step('web', 'Channel');
       expect(channel['id'], 'channel');
       final run = '${channel['run']}';
       expect(run, contains(r'''if [ "$GITHUB_REF" = 'refs/heads/main' ]'''));
@@ -1171,13 +1584,13 @@ void main() {
       expect(run, contains(r'''echo "id=$channel_id" >> "$GITHUB_OUTPUT"'''));
       expect(run, contains(r'''echo 'build=preview' >> "$GITHUB_OUTPUT"'''));
       expect(
-        (step('Build info')['env'] as YamlMap)['BUILD_CHANNEL'],
+        (step('web', 'Build info')['env'] as YamlMap)['BUILD_CHANNEL'],
         r'${{ steps.channel.outputs.build }}',
       );
     });
 
     test('deploy: push or the deploy input, the branch channel, 7 days', () {
-      final deploy = step('Deploy to Firebase Hosting');
+      final deploy = step('web', 'Deploy to Firebase Hosting');
       expect(
         deploy['if'],
         "env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != '' && "
@@ -1187,8 +1600,9 @@ void main() {
       expect(_with(deploy)['channelId'], r'${{ steps.channel.outputs.id }}');
     });
 
-    test('summary always runs: label, channel, address or the guide', () {
-      final summary = step('Summary');
+    test('summary always runs: label, channel, test scope, address or the '
+        'guide', () {
+      final summary = step('web', 'Summary');
       expect(summary['if'], 'always()');
       final env = summary['env'] as YamlMap;
       expect(env['DEPLOY_URL'], r'${{ steps.deploy.outputs.details_url }}');
@@ -1199,29 +1613,99 @@ void main() {
       expect(run, contains('build/build_info.json'));
       expect(run, contains('Firebase 미설정 — docs/guides/02-github-secrets.md'));
       expect(run, contains(r'$RUNNER_TEMP/step-seconds'));
+      // TEST_SCOPE comes from the web job env (the check output).
+      expect(run, contains(r'${TEST_SCOPE:-'));
+    });
+
+    test('every job ends with its timing table (always): the same script in '
+        'check, vm, chrome and heavy, its table in the web summary', () {
+      final timing = {
+        for (final job in ['check', 'vm', 'chrome', 'heavy'])
+          '${step(job, 'Timing')['run']}',
+      };
+      expect(timing, hasLength(1));
+      for (final job in jobs.keys) {
+        final last = stepsOf(job).last;
+        expect(last['name'], job == 'web' ? 'Summary' : 'Timing', reason: job);
+        expect(last['if'], 'always()', reason: job);
+      }
+      final script = timing.single;
+      final table = script.substring(script.indexOf("echo '| 단계 | 시간 |'"));
+      final summary = '${step('web', 'Summary')['run']}';
+      expect(summary, contains(table.substring(0, table.indexOf('} >>'))));
+
+      // Run it: the per-step lines, the job total, the scope only when set.
+      final scratch = Directory.systemTemp.createTempSync('ws_ci_timing_');
+      addTearDown(() => scratch.deleteSync(recursive: true));
+      File(p.join(scratch.path, 'step-seconds'))
+          .writeAsStringSync('75 준비 (체크아웃 · Flutter · 캐시)\n12 의존성\n34 분석\n');
+      final start = DateTime.now().millisecondsSinceEpoch ~/ 1000 - 100;
+      File(p.join(scratch.path, 'ci-start')).writeAsStringSync('$start\n');
+      for (final scope in ['기본 브랜치 — 1234567 이후 바뀐 멤버', null]) {
+        final out = File(p.join(scratch.path, 'summary'))
+          ..writeAsStringSync('');
+        final result = Process.runSync(
+          'bash',
+          ['-e', '-c', script],
+          environment: {
+            'PATH': '/usr/bin:/bin',
+            'RUNNER_TEMP': scratch.path,
+            'GITHUB_STEP_SUMMARY': out.path,
+            'GITHUB_JOB': 'check',
+            'TEST_SCOPE': ?scope,
+          },
+        );
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final lines = out.readAsLinesSync();
+        expect(lines.first, '### 단계 시간 — check');
+        expect(
+          lines.where((l) => l.startsWith('- 시험 범위:')).toList(),
+          scope == null ? isEmpty : ['- 시험 범위: $scope'],
+        );
+        expect(
+          lines,
+          containsAllInOrder([
+            '| 단계 | 시간 |',
+            '|---|---|',
+            '| 준비 (체크아웃 · Flutter · 캐시) | 75초 |',
+            '| 의존성 | 12초 |',
+            '| 분석 | 34초 |',
+          ]),
+        );
+        expect(lines.last, matches(RegExp(r'^\| 잡 전체 \| \d+초 \|$')));
+      }
     });
 
     test('timed steps record their seconds for the summary', () {
       final timed = [
-        for (final s in steps)
-          if ('${s['run'] ?? ''}'.contains(r'"$SECONDS"')) s['name'],
+        for (final job in jobs.keys)
+          for (final s in stepsOf(job))
+            if ('${s['run'] ?? ''}'.contains(r'"$SECONDS"')) '${s['name']}',
       ];
       expect(
         timed,
         containsAll([
           'Dependencies',
           'Analyze',
+          'Tool tests',
+          'Native requirements',
           'VM tests (all members)',
           'VM tests (affected)',
           'Browser tests (all members)',
           'Browser tests (affected)',
+          'Integration tests (VM)',
+          'Integration tests (Chrome)',
+          'Media tests (Chrome fake mic)',
           'Web build',
         ]),
       );
-      for (final s in steps) {
-        for (final line in _runLines(s)) {
-          if (line.contains(r'"$SECONDS"')) {
-            expect(line, endsWith(r'>> "$RUNNER_TEMP/step-seconds"'));
+      expect(timed.where((n) => n == 'Dependencies'), hasLength(5));
+      for (final job in jobs.keys) {
+        for (final s in stepsOf(job)) {
+          for (final line in _runLines(s)) {
+            if (line.contains(r'"$SECONDS"')) {
+              expect(line, endsWith(r'>> "$RUNNER_TEMP/step-seconds"'));
+            }
           }
         }
       }

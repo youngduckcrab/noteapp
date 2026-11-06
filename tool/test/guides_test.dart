@@ -238,7 +238,8 @@ void main() {
   test('02: the names the CI workflow reads, the four roles', () {
     final text = _read('02-github-secrets.md');
     final ci = _workflow('ci.yml');
-    final env = ((ci['jobs'] as YamlMap).values.single as YamlMap)['env'];
+    // 2차 J15: the deploy lives in the `web` job (one of five).
+    final env = ((ci['jobs'] as YamlMap)['web'] as YamlMap)['env'];
     final secret = RegExp(r'secrets\.(\w+)')
         .firstMatch('${(env as YamlMap)['FIREBASE_SA']}')!
         .group(1)!;
@@ -280,7 +281,8 @@ void main() {
   test('02, 04: live is main only; without main the development branch '
       'deploys a preview', () {
     final ci = _workflow('ci.yml');
-    final steps = ((ci['jobs'] as YamlMap).values.single as YamlMap)['steps'];
+    // 2차 J15: Channel is a step of the `web` job (one of five).
+    final steps = ((ci['jobs'] as YamlMap)['web'] as YamlMap)['steps'];
     final channel = [
       for (final step in steps as YamlList)
         if ((step as YamlMap)['name'] == 'Channel') '${step['run']}',

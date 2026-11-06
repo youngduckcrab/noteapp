@@ -1,14 +1,28 @@
-# CI — checks, analysis, tests, web build and Firebase Hosting deploy in one
-# job (INFRA, docs/plans/01-infra.md 6.13: one job keeps the per-minute
-# rounding of the free minutes low; docs/plans/m5-7/01-infra.md 6.16 for the
-# 2차 budget). main deploys to the live channel, every other branch to its
-# own 7-day preview channel (`ws channel-id`, 6.12) — also the repository's
-# default branch while that is not main (now the development branch
-# claude/note-app-planning-bk29xb: the remote has no main yet).
+# CI — checks, analysis, tests, web build and Firebase Hosting deploy
+# (INFRA, docs/plans/01-infra.md 6.13; docs/plans/m5-7/01-infra.md 6.16 for
+# the 2차 budget and the job split, J15). main deploys to the live channel,
+# every other branch to its own 7-day preview channel (`ws channel-id`, 6.12)
+# — also the repository's default branch while that is not main (now the
+# development branch claude/note-app-planning-bk29xb: the remote has no main
+# yet).
 #
-# Test scope (step "Test scope", 2차 R2-B1 — the free 2,000 minutes a month
-# of a private repository; one full run measured 30 minutes after the 1차
-# integration):
+# Five jobs (2차 J15, 6.16 — one job used to run everything in 60 minutes):
+#   check  — test scope, rules, analysis, tool tests, native requirements
+#   vm     — VM tests            (needs check)
+#   chrome — browser tests       (needs check, beside vm)
+#   heavy  — integration-tagged tests (VM, Chrome) and the media tests with
+#            Chrome's fake microphone (needs check; only on a full-run push
+#            or a manual run with the input `integration`)
+#   web    — web build, budget, deploy and the build summary (needs vm and
+#            chrome: a failed test never deploys; heavy does not hold it up)
+# Each job sets up its own checkout, Flutter and pub get (about 2-3 minutes
+# more billed per job; the wall clock is shorter). The time limits are the
+# plan's provisional values (2-core estimate); J0 sets them to the measured
+# time x 1.5 after the first checkpoint push.
+#
+# Test scope (step "Test scope" of the check job, 2차 R2-B1 — the free 2,000
+# minutes a month of a private repository; one full run measured 30 minutes
+# after the 1차 integration):
 # - main, or a manual run with the input `full`: the strict check and every
 #   member.
 # - the default branch (not main): only the members changed since the
@@ -24,16 +38,18 @@
 #   without that base (no such remote branch, no merge base)
 #   `--all-if-no-base` tests every member.
 # The strict check (warnings fail) runs on main, the default branch and
-# manual full runs.
+# manual full runs. The check job hands the scope to the other jobs as its
+# outputs (`needs.check.outputs.*` in their job env — a job-level `if:`
+# cannot read `env`, so heavy reads the output itself).
 #
 # Without the secret FIREBASE_SERVICE_ACCOUNT or the repository variable
 # FIREBASE_PROJECT_ID the deploy step is skipped and the summary points to
 # docs/guides/02-github-secrets.md. `if:` cannot read `secrets` directly, so
-# both values come in through the job `env`.
+# both values come in through the web job's `env`.
 #
 # Each timed `run` step ends by writing "<seconds> <label>" to
 # $RUNNER_TEMP/step-seconds ($SECONDS = time spent in that step's shell); the
-# summary step prints them as the per-step timing table.
+# last step of each job prints them as that job's timing table.
 name: CI
 
 on:
@@ -49,7 +65,7 @@ on:
         type: boolean
         default: true
       integration:
-        description: '통합 태그 테스트 실행 (통합 단계 G2 이후)'
+        description: '통합 태그·media 테스트 실행 (heavy 잡 — 통합 단계 G2 이후)'
         type: boolean
         default: false
       full:
@@ -68,28 +84,30 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Check, test, build and deploy web
+  check:
+    name: Check and analyze
     runs-on: ubuntu-latest
-    # A full run (every member, VM and Chrome) on the 2-core runner of a
-    # private repository: measured 30 minutes after the 1차 integration (VM
-    # tests 15, Chrome tests 10, web build 1 — m5-7/01-infra 6.16), more with
-    # the integration input.
-    timeout-minutes: 60
+    # Provisional (6.16 — 2-core estimate); J0 sets the measured time x 1.5.
+    timeout-minutes: 15
     env:
-      FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
       # Inputs of the "Test scope" step.
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       BEFORE_SHA: ${{ github.event.before }}
       FULL_INPUT: ${{ inputs.full }}
+    outputs:
+      full_run: ${{ steps.scope.outputs.full_run }}
+      affected_base: ${{ steps.scope.outputs.affected_base }}
+      test_scope: ${{ steps.scope.outputs.test_scope }}
     steps:
       - name: Start clock
         run: date +%s > "$RUNNER_TEMP/ci-start"
 
       # Sets FULL_RUN (every member), STRICT_CHECK and AFFECTED_BASE (the
-      # --affected-since ref when FULL_RUN is false) for the later steps.
+      # --affected-since ref when FULL_RUN is false) for the later steps of
+      # this job, and the outputs full_run, affected_base and test_scope for
+      # the other jobs.
       - name: Test scope
+        id: scope
         run: |
           zero=0000000000000000000000000000000000000000
           strict=false
@@ -119,18 +137,20 @@ jobs:
             echo "AFFECTED_BASE=$base"
             echo "TEST_SCOPE=$scope"
           } >> "$GITHUB_ENV"
+          {
+            echo "full_run=$full"
+            echo "affected_base=$base"
+            echo "test_scope=$scope"
+          } >> "$GITHUB_OUTPUT"
           echo "test scope: $scope (full=$full strict=$strict base=$base)"
 
-      # 1
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Full history and every branch: `--affected-since
-          # origin/<default branch>` needs the merge base, `--affected-since
-          # <github.event.before>` the previous push.
+          # Full history and every branch: the lock age step diffs against
+          # the scope's base.
           fetch-depth: 0
 
-      # 2
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -139,30 +159,8 @@ jobs:
           flutter-version-file: pubspec.yaml
           cache: true
 
-      # 3 — native build hook outputs at the workspace root: the sqlite3
-      # prebuilt library, the PDFium binary and pdfium_dart's gate library.
-      - name: Cache build hooks
-        uses: actions/cache@v6
-        with:
-          path: .dart_tool/hooks_runner
-          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
-          restore-keys: hooks-${{ runner.os }}-
-
-      # 4 — the files each member's tool/prepare_web_test.dart copies or
-      # downloads for the Chrome tests (contract 7.4.8). A changed path only
-      # misses the cache; the scripts fetch again and nothing fails.
-      - name: Cache browser test assets
-        uses: actions/cache@v6
-        with:
-          path: |
-            packages/note_core/test/web/sqlite3.wasm
-            packages/note_core/test/web/drift_worker.js
-            packages/pdf_io/test/web/pdfium/
-            app/test/web/sqlite3.wasm
-            app/test/web/drift_worker.js
-          key: prep-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'tool/web_assets.yaml', '**/tool/prepare_web_test.dart') }}
-
-      # 5
+      # No build-hooks cache in this job: it builds no member, and its save
+      # could fill the shared key with an empty folder.
       - name: Dependencies
         run: |
           printf '%s %s\n' "$(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))" '준비 (체크아웃 · Flutter · 캐시)' >> "$RUNNER_TEMP/step-seconds"
@@ -187,7 +185,6 @@ jobs:
             dart run tool/ws.dart lock-age --since "$LOCK_BASE"
           fi
 
-      # 6
       - name: Workspace rules (strict)
         if: env.STRICT_CHECK == 'true'
         run: |
@@ -200,14 +197,92 @@ jobs:
           dart run tool/ws.dart check
           printf '%s %s\n' "$SECONDS" '규칙 (check)' >> "$RUNNER_TEMP/step-seconds"
 
-      # 7
       - name: Analyze
         run: |
           dart run tool/ws.dart analyze
           printf '%s %s\n' "$SECONDS" '분석' >> "$RUNNER_TEMP/step-seconds"
 
-      # 8 — without FULL_RUN only the members changed since AFFECTED_BASE
-      # and their dependents (PDF `pdfium` tests too — PDF-S8).
+      # Contract 7.6 B1 v1.3 / 7.7 V3: the workspace tool's own tests.
+      - name: Tool tests
+        run: |
+          dart test tool/test
+          printf '%s %s\n' "$SECONDS" '도구 테스트' >> "$RUNNER_TEMP/step-seconds"
+
+      # 2차 J1 (6.3): the plugins' native requirements against the app's
+      # native files (NR1-NR7). Reads app/.flutter-plugins-dependencies,
+      # written by the pub get above.
+      - name: Native requirements
+        run: |
+          dart run tool/ws.dart native-reqs
+          printf '%s %s\n' "$SECONDS" '네이티브 요구 사항' >> "$RUNNER_TEMP/step-seconds"
+
+      - name: Timing
+        if: always()
+        run: |
+          {
+            echo "### 단계 시간 — $GITHUB_JOB"
+            echo
+            if [ -n "${TEST_SCOPE:-}" ]; then
+              echo "- 시험 범위: $TEST_SCOPE"
+              echo
+            fi
+            echo '| 단계 | 시간 |'
+            echo '|---|---|'
+            if [ -f "$RUNNER_TEMP/step-seconds" ]; then
+              while read -r seconds label; do
+                echo "| $label | ${seconds}초 |"
+              done < "$RUNNER_TEMP/step-seconds"
+            fi
+            if [ -f "$RUNNER_TEMP/ci-start" ]; then
+              echo "| 잡 전체 | $(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))초 |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  vm:
+    name: VM tests
+    needs: check
+    runs-on: ubuntu-latest
+    # Provisional (6.16): VM tests of every member measured 15 minutes on the
+    # 2-core runner after the 1차 integration, plus the 2차 members.
+    timeout-minutes: 30
+    env:
+      FULL_RUN: ${{ needs.check.outputs.full_run }}
+      AFFECTED_BASE: ${{ needs.check.outputs.affected_base }}
+    steps:
+      - name: Start clock
+        run: date +%s > "$RUNNER_TEMP/ci-start"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Full history and every branch: `--affected-since
+          # origin/<default branch>` needs the merge base, `--affected-since
+          # <github.event.before>` the previous push.
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      # Native build hook outputs at the workspace root: the sqlite3 prebuilt
+      # library, the PDFium binary and pdfium_dart's gate library.
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      - name: Dependencies
+        run: |
+          printf '%s %s\n' "$(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))" '준비 (체크아웃 · Flutter · 캐시)' >> "$RUNNER_TEMP/step-seconds"
+          flutter pub get --enforce-lockfile
+          printf '%s %s\n' "$SECONDS" '의존성' >> "$RUNNER_TEMP/step-seconds"
+
+      # Without FULL_RUN only the members changed since AFFECTED_BASE and
+      # their dependents (PDF `pdfium` tests too — PDF-S8).
       - name: VM tests (all members)
         if: env.FULL_RUN == 'true'
         run: |
@@ -220,13 +295,83 @@ jobs:
           dart run tool/ws.dart test --affected-since "$AFFECTED_BASE" --all-if-no-base
           printf '%s %s\n' "$SECONDS" 'VM 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
 
-      # Contract 7.6 B1 v1.3 / 7.7 V3: the workspace tool's own tests.
-      - name: Tool tests
+      - name: Timing
+        if: always()
         run: |
-          dart test tool/test
-          printf '%s %s\n' "$SECONDS" '도구 테스트' >> "$RUNNER_TEMP/step-seconds"
+          {
+            echo "### 단계 시간 — $GITHUB_JOB"
+            echo
+            if [ -n "${TEST_SCOPE:-}" ]; then
+              echo "- 시험 범위: $TEST_SCOPE"
+              echo
+            fi
+            echo '| 단계 | 시간 |'
+            echo '|---|---|'
+            if [ -f "$RUNNER_TEMP/step-seconds" ]; then
+              while read -r seconds label; do
+                echo "| $label | ${seconds}초 |"
+              done < "$RUNNER_TEMP/step-seconds"
+            fi
+            if [ -f "$RUNNER_TEMP/ci-start" ]; then
+              echo "| 잡 전체 | $(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))초 |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      # 9 — `ws` runs each member's tool/prepare_web_test.dart first. Uses the
+  chrome:
+    name: Browser tests
+    needs: check
+    runs-on: ubuntu-latest
+    # Provisional (6.16): Chrome tests of every member measured 10 minutes;
+    # `ws test` keeps its --member-timeout (15 minutes) and one retry, so a
+    # stuck member cannot eat the whole job.
+    timeout-minutes: 30
+    env:
+      FULL_RUN: ${{ needs.check.outputs.full_run }}
+      AFFECTED_BASE: ${{ needs.check.outputs.affected_base }}
+    steps:
+      - name: Start clock
+        run: date +%s > "$RUNNER_TEMP/ci-start"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The same --affected-since bases as the vm job.
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      # The files each member's tool/prepare_web_test.dart copies or
+      # downloads for the Chrome tests (contract 7.4.8). A changed path only
+      # misses the cache; the scripts fetch again and nothing fails.
+      - name: Cache browser test assets
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/note_core/test/web/sqlite3.wasm
+            packages/note_core/test/web/drift_worker.js
+            packages/pdf_io/test/web/pdfium/
+            app/test/web/sqlite3.wasm
+            app/test/web/drift_worker.js
+          key: prep-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'tool/web_assets.yaml', '**/tool/prepare_web_test.dart') }}
+
+      - name: Dependencies
+        run: |
+          printf '%s %s\n' "$(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))" '준비 (체크아웃 · Flutter · 캐시)' >> "$RUNNER_TEMP/step-seconds"
+          flutter pub get --enforce-lockfile
+          printf '%s %s\n' "$SECONDS" '의존성' >> "$RUNNER_TEMP/step-seconds"
+
+      # `ws` runs each member's tool/prepare_web_test.dart first. Uses the
       # runner's google-chrome (unverified; if it is missing add
       # browser-actions/setup-chrome and CHROME_EXECUTABLE).
       - name: Browser tests (all members)
@@ -241,23 +386,159 @@ jobs:
           dart run tool/ws.dart test --platform chrome --affected-since "$AFFECTED_BASE" --all-if-no-base
           printf '%s %s\n' "$SECONDS" '브라우저 테스트 (바뀐 멤버)' >> "$RUNNER_TEMP/step-seconds"
 
-      # 10 — manual only (integration stage G2 and later). On push `inputs`
-      # is empty, so the condition is false.
+      - name: Timing
+        if: always()
+        run: |
+          {
+            echo "### 단계 시간 — $GITHUB_JOB"
+            echo
+            if [ -n "${TEST_SCOPE:-}" ]; then
+              echo "- 시험 범위: $TEST_SCOPE"
+              echo
+            fi
+            echo '| 단계 | 시간 |'
+            echo '|---|---|'
+            if [ -f "$RUNNER_TEMP/step-seconds" ]; then
+              while read -r seconds label; do
+                echo "| $label | ${seconds}초 |"
+              done < "$RUNNER_TEMP/step-seconds"
+            fi
+            if [ -f "$RUNNER_TEMP/ci-start" ]; then
+              echo "| 잡 전체 | $(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))초 |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Every member, only on a full-run push (main, or the default branch without
+  # a previous push) and on a manual run with the input `integration` (on a
+  # push `inputs` is empty). Area-branch pushes never run it, even when they
+  # change media_io (6.13 CI): that area runs the media tests in the
+  # container instead.
+  heavy:
+    name: Integration and media tests
+    needs: check
+    if: (github.event_name == 'push' && needs.check.outputs.full_run == 'true') || inputs.integration == true
+    runs-on: ubuntu-latest
+    # Provisional (6.16 — 2-core estimate); J0 sets the measured time x 1.5.
+    timeout-minutes: 30
+    steps:
+      - name: Start clock
+        run: date +%s > "$RUNNER_TEMP/ci-start"
+
+      # Every member: no --affected-since, no history needed.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      - name: Cache browser test assets
+        uses: actions/cache@v6
+        with:
+          path: |
+            packages/note_core/test/web/sqlite3.wasm
+            packages/note_core/test/web/drift_worker.js
+            packages/pdf_io/test/web/pdfium/
+            app/test/web/sqlite3.wasm
+            app/test/web/drift_worker.js
+          key: prep-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'tool/web_assets.yaml', '**/tool/prepare_web_test.dart') }}
+
+      - name: Dependencies
+        run: |
+          printf '%s %s\n' "$(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))" '준비 (체크아웃 · Flutter · 캐시)' >> "$RUNNER_TEMP/step-seconds"
+          flutter pub get --enforce-lockfile
+          printf '%s %s\n' "$SECONDS" '의존성' >> "$RUNNER_TEMP/step-seconds"
+
       - name: Integration tests (VM)
-        if: inputs.integration == true
         run: |
           dart run tool/ws.dart test --run-skipped -t integration
           printf '%s %s\n' "$SECONDS" '통합 테스트 (VM)' >> "$RUNNER_TEMP/step-seconds"
 
       - name: Integration tests (Chrome)
-        if: inputs.integration == true
         run: |
           dart run tool/ws.dart test --platform chrome --run-skipped -t integration
           printf '%s %s\n' "$SECONDS" '통합 테스트 (Chrome)' >> "$RUNNER_TEMP/step-seconds"
 
-      # 11 — Hosting channel id (`id`) and build channel (`build`). Live is
-      # main only, not "the default branch": the development branch keeps
-      # its preview channel while it is the default branch.
+      # 2차 (6.13, contract 7.4.6): for `-t media` with Chrome, `ws` runs
+      # Chrome through tool/chrome-fakemedia (fake microphone and camera).
+      - name: Media tests (Chrome fake mic)
+        run: |
+          dart run tool/ws.dart test --platform chrome --run-skipped -t media
+          printf '%s %s\n' "$SECONDS" 'media 테스트 (Chrome 가짜 마이크)' >> "$RUNNER_TEMP/step-seconds"
+
+      - name: Timing
+        if: always()
+        run: |
+          {
+            echo "### 단계 시간 — $GITHUB_JOB"
+            echo
+            if [ -n "${TEST_SCOPE:-}" ]; then
+              echo "- 시험 범위: $TEST_SCOPE"
+              echo
+            fi
+            echo '| 단계 | 시간 |'
+            echo '|---|---|'
+            if [ -f "$RUNNER_TEMP/step-seconds" ]; then
+              while read -r seconds label; do
+                echo "| $label | ${seconds}초 |"
+              done < "$RUNNER_TEMP/step-seconds"
+            fi
+            if [ -f "$RUNNER_TEMP/ci-start" ]; then
+              echo "| 잡 전체 | $(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))초 |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  web:
+    name: Build and deploy web
+    # check for its outputs; vm and chrome so that a failed test never
+    # deploys.
+    needs: [check, vm, chrome]
+    runs-on: ubuntu-latest
+    # Provisional (6.16): the web build measured 1 minute.
+    timeout-minutes: 15
+    env:
+      FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      TEST_SCOPE: ${{ needs.check.outputs.test_scope }}
+    steps:
+      - name: Start clock
+        run: date +%s > "$RUNNER_TEMP/ci-start"
+
+      # build-info reads GITHUB_SHA, not the history.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Cache build hooks
+        uses: actions/cache@v6
+        with:
+          path: .dart_tool/hooks_runner
+          key: hooks-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: hooks-${{ runner.os }}-
+
+      - name: Dependencies
+        run: |
+          printf '%s %s\n' "$(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))" '준비 (체크아웃 · Flutter · 캐시)' >> "$RUNNER_TEMP/step-seconds"
+          flutter pub get --enforce-lockfile
+          printf '%s %s\n' "$SECONDS" '의존성' >> "$RUNNER_TEMP/step-seconds"
+
+      # Hosting channel id (`id`) and build channel (`build`). Live is main
+      # only, not "the default branch": the development branch keeps its
+      # preview channel while it is the default branch.
       - name: Channel
         id: channel
         run: |
@@ -270,36 +551,34 @@ jobs:
             echo 'build=preview' >> "$GITHUB_OUTPUT"
           fi
 
-      # 12
       - name: Build info
         env:
           BUILD_CHANNEL: ${{ steps.channel.outputs.build }}
         run: dart run tool/ws.dart build-info --channel "$BUILD_CHANNEL" --out build/build_info.json
 
-      # 13 — a missing sqlite3.wasm would be answered by index.html (rewrite).
+      # A missing sqlite3.wasm would be answered by index.html (rewrite).
       - name: Verify web assets
         run: dart run tool/ws.dart web-assets verify
 
-      # 14
       - name: Web build
         working-directory: app
         run: |
           flutter build web --release --no-wasm-dry-run --dart-define-from-file=../build/build_info.json --build-number=$GITHUB_RUN_NUMBER
           printf '%s %s\n' "$SECONDS" '웹 빌드' >> "$RUNNER_TEMP/step-seconds"
 
-      # 15 — also writes the main.dart.js size to the step summary.
+      # Also writes the main.dart.js size to the step summary.
       - name: Finalize web build
         run: |
           dart run tool/ws.dart finalize-web --build-dir app/build/web --info build/build_info.json
           date +%s > "$RUNNER_TEMP/deploy-start"
 
-      # 15b (2차 J17, m5-7/01-infra 6.15) — tool/web_budget.yaml; over a limit or
-      # a forbidden font family stops the run before the deploy. The table also
-      # goes to the step summary.
+      # 2차 J17 (m5-7/01-infra 6.15) — tool/web_budget.yaml; over a limit or
+      # a forbidden font family stops the run before the deploy. The table
+      # also goes to the step summary.
       - name: Web budget
         run: dart run tool/ws.dart web-budget check --build-dir app/build/web
 
-      # 16 — `expires` applies to preview channels only.
+      # `expires` applies to preview channels only.
       - name: Deploy to Firebase Hosting
         id: deploy
         if: env.FIREBASE_SA != '' && env.FIREBASE_PROJECT_ID != '' && (github.event_name == 'push' || inputs.deploy)
@@ -314,7 +593,8 @@ jobs:
           # No repoToken: nothing is posted to GitHub.
           disableComment: true
 
-      # 17
+      # The build result (label, channel, test scope, address), then this
+      # job's timing table.
       - name: Summary
         if: always()
         env:
@@ -349,6 +629,8 @@ jobs:
               echo '- 주소: 배포 단계까지 가지 못함'
             fi
             echo
+            echo "### 단계 시간 — $GITHUB_JOB"
+            echo
             echo '| 단계 | 시간 |'
             echo '|---|---|'
             if [ -f "$RUNNER_TEMP/step-seconds" ]; then
@@ -357,6 +639,6 @@ jobs:
               done < "$RUNNER_TEMP/step-seconds"
             fi
             if [ -f "$RUNNER_TEMP/ci-start" ]; then
-              echo "| 전체 (요약 전까지) | $(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))초 |"
+              echo "| 잡 전체 | $(( $(date +%s) - $(cat "$RUNNER_TEMP/ci-start") ))초 |"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
