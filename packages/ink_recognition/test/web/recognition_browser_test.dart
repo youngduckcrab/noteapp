@@ -6,6 +6,8 @@
 // shared with the VM (shared/line_cases.dart — V9 on the same synthetic
 // pages, lineAccuracy) gives the same numbers on dart2js. L2-20 adds the
 // conversion sheet and web wording cases (with useInkTestFonts in setUpAll).
+// (L2-18) The settings section on the web: the contract 7.4.2 sentence and a
+// disabled handwriting group — even with an available engine.
 @TestOn('browser')
 library;
 
@@ -15,7 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/testing.dart';
-import 'package:material_ui/material_ui.dart' show Rect;
+import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
 
@@ -81,6 +83,45 @@ void main() {
       for (final s in strokes) HandwritingTrace.fromStroke(s),
     ]);
     expect(lines, hasLength(3)); // 6.5: the three written lines
+  });
+
+  testWidgets('the settings section on the web: the fixed sentence, the '
+      'handwriting group disabled (even with an available engine)', (
+    tester,
+  ) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          core.noteStoreProvider.overrideWithValue(store),
+          handwritingRecognizerProvider.overrideWithValue(
+            FakeHandwritingRecognizer(),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(child: RecognitionSettingsSection()),
+          ),
+        ),
+      ),
+    );
+    for (var i = 0; i < 5; i++) {
+      await tester.pump();
+    }
+    expect(
+      find.text('이 기기(웹)에서는 손글씨 인식을 쓸 수 없어요. 안드로이드 앱에서 쓸 수 있어요.'),
+      findsOneWidget,
+    );
+    final autoIndex = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('recog.settings.autoIndex')),
+    );
+    expect(autoIndex.onChanged, isNull);
+    expect(find.text('이 기기에서는 자동 인식을 쓸 수 없어요'), findsOneWidget);
+    final consent = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('recog.settings.consent')),
+    );
+    expect(consent.onChanged, isNotNull);
   });
 
   defineHandwritingTraceTests();

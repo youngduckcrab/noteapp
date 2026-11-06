@@ -766,7 +766,9 @@ void main() {
   });
 
   testWidgets('RecognitionSettingsSection is a const ConsumerWidget '
-      '(R2-B6: an empty Column)', (tester) async {
+      '(a Column body — rows: widget/settings_section_test.dart)', (
+    tester,
+  ) async {
     const section = RecognitionSettingsSection(key: ValueKey('recog'));
     expect(section, isA<ConsumerWidget>());
     expect(const RecognitionSettingsSection().key, isNull);
@@ -780,9 +782,9 @@ void main() {
     final found = find.byKey(const ValueKey('recog'));
     expect(found, findsOneWidget);
     final column = tester.widget<Column>(
-      find.descendant(of: found, matching: find.byType(Column)),
+      find.descendant(of: found, matching: find.byType(Column)).first,
     );
-    expect(column.children, isEmpty);
+    expect(column.mainAxisSize, MainAxisSize.min);
     expect(
       find.descendant(of: found, matching: find.byType(Scaffold)),
       findsNothing,

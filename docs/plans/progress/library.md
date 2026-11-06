@@ -308,7 +308,7 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-16 (P-B) | 남음 | | `unit/callable_math_recognizer_test.dart`, `unit/math_payload_test.dart` (+ `emulator/callable_emulator_test.dart` 기본 skip — L2-I6) |
 | L2-17a (P-B) | 남음 | | `widget/math_pad_engine_test.dart` |
 | L2-17b (P-B) | 남음 | | `widget/to_math_test.dart` |
-| L2-18 (P-A / P-B) | 남음 | | `widget/settings_section_test.dart` |
+| L2-18 (P-A / P-B) | 진행 중 — P-A 몫 완료 | (P-A) 이 커밋 | `widget/settings_section_test.dart`, `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart`(웹 고정 문장) (+ `unit/api_surface_test.dart` 갱신) |
 | L2-19 (P-B, A-4 실험 창) | 남음 | | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` |
 | L2-20 | 남음 | | `ink_recognition/test/web/recognition_browser_test.dart`, `feature_library/test/web/scenarios_browser_test.dart` |
 | L2-22 (P-C) | 남음 | | `unit/math_fixture_export_test.dart`, `widget/math_pad_engine_test.dart` |
@@ -373,6 +373,13 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
   - [LaTeX 복사]는 `onPressed` 안에서 `Clipboard.setData`를 동기로 시작(시험은 단추의 `onPressed`를 직접 불러 마이크로 작업 전에 채널 기록을 단언), 결과는 알림 줄('복사했어요.'/'복사하지 못했어요.'). 문구 `cancel`·`apply`·`copyLatex`·`latexField`를 `RecognitionStrings`에 더했다.
   - 시험 도우미: `RecognitionHost.pump`의 기본 저장소는 시계를 `kHostNow`(2026-11-06 10:00 UTC)로 고정한 가짜 저장소(`createFixedClockStore()` — `FakeAsync().getClock`, 실제 시간 단언 없음). `PlatformLog.reply`로 클립보드 실패를 흉내 낼 때는 `Clipboard.setData`만 실패시킬 것(탭의 `SystemSound.play`도 같은 채널).
 - L2-14 수식 패드 직접 입력(`ui/math_pad_sheet.dart`): 엔진이 쓸 수 없으면(`isAvailable == false` — `ManualOnlyMathRecognizer`) 손글씨 칸 없이 안내 줄 `manualOnly` + LaTeX 칸 `autofocus`. **쓸 수 있는 엔진이어도 L2-17a 전까지는 같은 직접 입력 배치(안내 줄만 없음)** — 손글씨 칸·1초 멈춤·제안 칩·동의 카드는 L2-17a가 `MathPadSheet`에 더한다. 미리보기는 지금 칸의 값(앞뒤 공백 자름)을 그대로 `MathPreview`에 넘기고(편집 창과 달리 디바운스·흐림 없음 — 6.14.1), 오류 글은 `MathPreview.onError`(프레임 뒤 1회)에서 받아 미리보기 아래에 둔다. [넣기] 활성 = `usableLatex(칸) != null`(동기 판정). 넣기: `buildInsertedMath(engineId: 'manual')` → `ActionRun.execute(AddObjects)` 1회 → `pop(true)` → run이 시트 Future 뒤 `run.mounted`면 `target.done()`(에디터 본문이 사라졌으면 쓰기는 하고 `done()`은 안 부름). 문구 `mathPadTitle`('수식 입력')·`insert`('넣기').
+- L2-18 P-A 설정 섹션(`settings/recognition_settings_section.dart`):
+  - 배치(6.18 구체화): 묶음 머리 '손글씨 인식'·'수식 인식'(`titleSmall`·`primary`·`Semantics(header)`), 엔진이 쓸 수 없으면(웹 `webUnsupported`, 그 밖 `unsupported`) 묶음 첫 줄에 고정 문장 + 손글씨 항목 비활성(`onChanged: null`·`enabled: false` — 1차 로딩 규칙의 불투명도 0.38과 별개). **웹에서는 엔진이 '쓸 수 있음'이어도 비활성**(G-1 — `kIsWeb` 먼저). 수식 묶음(엔진 줄·동의 스위치)은 웹·엔진 없음에서도 켜져 있다(`CallableMathRecognizer`는 웹에서도 돈다).
+  - 인식 언어는 그림의 한 줄 라디오 대신 제목 줄 + `RadioGroup` 아래 `RadioListTile` 두 개(한국어·English — 좁은 폭에서도 44×44, 1차 PDF 내보내기 시트와 같은 `RadioGroup` 방식 — `Radio.groupValue`는 3.47에서 지원 중단). 키 `recog.settings.language`(묶음)·`recog.settings.language.<tag>`(선택지).
+  - 상태 줄(6.19)은 `indexerStatusText(status)` — `off`·색인기 없음은 그 문장 그대로, 나머지는 `'상태: '` + 표의 문구(`waitingModel`이고 `lastError`에 'waiting for Wi-Fi'가 있으면 ' · 와이파이 대기'). 색인기가 있지만 아직 `start()` 전이면 `off` 문장이다(INFRA 유휴 작업이 시작).
+  - 부록 C에 없는 키 3개를 더했다(계약 아님 — INFRA에 알림): `recog.settings.mathEngine`(엔진 줄)·`recog.settings.status`(상태 줄 `Text`)·`recog.settings.unsupported`(고정 문장).
+  - iPad(`RecognizerModelAdmin.enforcesWifiOnly == false`)는 Wi-Fi 스위치 아래 '받기 전에 셀룰러 데이터 사용을 한 번 더 물어봐요.'. 값은 스냅숏(`settingsSnapshotProvider`)을 그대로 보이고 바꾸면 곧바로 `settings.set`(실패는 `reportRecognitionError`) — 섹션은 상태 없는 `const ConsumerWidget`.
+  - 남은 L2-18 몫(P-B): 모델 행(상태 5가지·[받기]·[지우기]·iOS 두 번 누르기·안드로이드 Wi-Fi 대기 5 s → [지금 셀룰러로 받기])·'자동 인식' 켬 → 안드로이드 `ensureModel` 1회 / iOS [받기] 강조. '품질 실험' 묶음의 [인식 실험 열기]는 L2-19, [수식 고정 자료 만들기]는 L2-22와 같이 넣는다(진입할 창이 그때 생김).
 - `seedContentHits`(6.1.7)는 `ContentHitsSample`(폴더 '업무'·'수학', 노트 '회의록 2026-11'·'미분 방정식'·'분기 보고', 쪽 id, 쓴 사각형)을 돌려준다. 검색어 '회의'가 텍스트 상자 2·손글씨 1·PDF 1에 걸리고, 수식은 'frac'으로 찾는다.
 
 #### 이정표 커밋

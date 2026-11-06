@@ -64,4 +64,32 @@ void main() {
     expect(RecognitionStrings.readOnly, '읽기 전용 노트라 바꿀 수 없어요.');
     expect(RecognitionStrings.runFailed, '실행하지 못했어요.');
   });
+
+  test('settings section (6.18) and status line (6.19) — L2-18', () {
+    expect(RecognitionStrings.handwritingGroup, '손글씨 인식');
+    expect(RecognitionStrings.mathGroup, '수식 인식');
+    expect(RecognitionStrings.languageTitle, '인식 언어');
+    expect(RecognitionStrings.languageLabel('ko'), '한국어');
+    expect(RecognitionStrings.languageLabel('en'), 'English');
+    expect(RecognitionStrings.wifiOnlyTitle, 'Wi-Fi에서만 모델 받기');
+    expect(
+      RecognitionStrings.wifiOnlyAskFirst,
+      '받기 전에 셀룰러 데이터 사용을 한 번 더 물어봐요.',
+    );
+    expect(RecognitionStrings.autoIndexTitle, '검색용 자동 인식');
+    expect(RecognitionStrings.mathEngineManual, '연결 안 됨 — LaTeX로 직접 입력해요');
+    expect(RecognitionStrings.mathEngineServer, '서버 엔진');
+    expect(RecognitionStrings.consentSwitch, '외부 서비스로 보내기 동의');
+    expect(RecognitionStrings.indexerOff, '이 기기에서는 자동 인식을 쓸 수 없어요');
+    expect(RecognitionStrings.indexerDisabled, '꺼져 있어요');
+    expect(RecognitionStrings.indexerWaitingModel, '인식 모델을 기다리는 중이에요');
+    expect(RecognitionStrings.indexerWaitingWifi, ' · 와이파이 대기');
+    expect(RecognitionStrings.indexerIdle(12), '대기 중 · 인식한 페이지 12');
+    expect(
+      RecognitionStrings.indexerWaitingInput(3),
+      '필기가 멈추길 기다리는 중 · 남은 페이지 3',
+    );
+    expect(RecognitionStrings.indexerRecognizing(3), '인식 중 · 남은 페이지 3');
+    expect(RecognitionStrings.indexerPaused, '앱이 뒤에 있어 멈췄어요');
+  });
 }

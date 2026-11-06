@@ -72,4 +72,35 @@ abstract final class RecognitionStrings {
 
   /// The developer overlay without an indexer (4.4.9).
   static const String noIndexerLine = '손글씨 색인 없음 (이 기기에서 인식 불가)';
+
+  // Settings section '인식' (6.18).
+  static const String handwritingGroup = '손글씨 인식';
+  static const String mathGroup = '수식 인식';
+  static const String labGroup = '품질 실험';
+  static const String languageTitle = '인식 언어';
+
+  /// The language choices and the model rows: 한국어 · English (6.18 layout).
+  static String languageLabel(String tag) => tag == 'en' ? 'English' : korean;
+  static const String modelTitle = '인식 모델';
+  static const String wifiOnlyTitle = 'Wi-Fi에서만 모델 받기';
+
+  /// Under the Wi-Fi switch on iPad (the engine does not enforce it — 6.7.4).
+  static const String wifiOnlyAskFirst = '받기 전에 셀룰러 데이터 사용을 한 번 더 물어봐요.';
+  static const String autoIndexTitle = '검색용 자동 인식';
+  static const String mathEngineTitle = '엔진';
+  static const String mathEngineManual = '연결 안 됨 — LaTeX로 직접 입력해요';
+  static const String mathEngineServer = '서버 엔진';
+  static const String consentSwitch = '외부 서비스로 보내기 동의';
+
+  // Indexer status line (6.19) — '상태: ' + the phase text (not for off).
+  static const String statusPrefix = '상태: ';
+  static const String indexerOff = '이 기기에서는 자동 인식을 쓸 수 없어요';
+  static const String indexerDisabled = '꺼져 있어요';
+  static const String indexerWaitingModel = '인식 모델을 기다리는 중이에요';
+  static const String indexerWaitingWifi = ' · 와이파이 대기';
+  static String indexerIdle(int indexed) => '대기 중 · 인식한 페이지 $indexed';
+  static String indexerWaitingInput(int queued) =>
+      '필기가 멈추길 기다리는 중 · 남은 페이지 $queued';
+  static String indexerRecognizing(int queued) => '인식 중 · 남은 페이지 $queued';
+  static const String indexerPaused = '앱이 뒤에 있어 멈췄어요';
 }
