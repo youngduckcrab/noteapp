@@ -22,7 +22,9 @@ import 'package:note_core/note_core.dart' as core;
 import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
+import '../playback/playback_highlighter.dart';
 import '../state/page_panel.dart';
+import '../state/panel.dart';
 import '../state/popup.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
@@ -257,6 +259,10 @@ final editorInteractionHostProvider = Provider<InteractionHost>(
     editorSelectionProvider,
     editorPopupProvider,
     editorTextEditProvider,
+    // (v2) tap-to-seek (6.3.5 ③)
+    editorPanelProvider,
+    editorNoteRecordingIdsProvider,
+    editorPlaybackHighlightProvider,
   ],
   name: 'editorInteractionHostProvider',
 );

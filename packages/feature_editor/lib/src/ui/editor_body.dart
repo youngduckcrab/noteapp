@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../input/editor_shortcuts.dart';
+import '../playback/playback_highlighter.dart';
 import '../scope/editor_scope.dart';
 import '../state/popup.dart';
 import '../viewport/page_viewport.dart';
@@ -19,7 +20,8 @@ import 'toolbar/editor_toolbar.dart';
 
 /// The ready editor of one note (inside its per-note scope):
 ///
-///   EditorShortcuts → PopupHost → Scaffold → SafeArea → Column
+///   EditorShortcuts → (v2) PlaybackHighlightDriver → PopupHost → Scaffold →
+///   SafeArea → Column
 ///   ├─ ReadOnlyBanner / StorageWarningBanner (height 0 when not shown)
 ///   ├─ EditorToolbar (52 px) · PresetBarView (44 px)
 ///   ├─ Expanded: PageViewport
@@ -64,26 +66,28 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
       ref.read(editorPopupProvider.notifier).close();
     });
     return EditorShortcuts(
-      child: PopupHost(
-        child: Scaffold(
-          body: SafeArea(
-            child: StorageErrorNotices(
-              child: CommandMessages(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const ReadOnlyBanner(),
-                      const StorageWarningBanner(),
-                      EditorToolbar(
-                        onBack: widget.onBack,
-                        onOpenSettings: widget.onOpenSettings,
-                      ),
-                      const PresetBarView(),
-                      const Divider(height: 1),
-                      const Expanded(child: PageViewport()),
-                      EditorPanelArea(bodyHeight: constraints.maxHeight),
-                    ],
+      child: PlaybackHighlightDriver(
+        child: PopupHost(
+          child: Scaffold(
+            body: SafeArea(
+              child: StorageErrorNotices(
+                child: CommandMessages(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const ReadOnlyBanner(),
+                        const StorageWarningBanner(),
+                        EditorToolbar(
+                          onBack: widget.onBack,
+                          onOpenSettings: widget.onOpenSettings,
+                        ),
+                        const PresetBarView(),
+                        const Divider(height: 1),
+                        const Expanded(child: PageViewport()),
+                        EditorPanelArea(bodyHeight: constraints.maxHeight),
+                      ],
+                    ),
                   ),
                 ),
               ),

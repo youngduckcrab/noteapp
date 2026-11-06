@@ -17,6 +17,7 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
+import '../../state/settings/pre_roll.dart';
 import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
 import '../pen/pen_advanced_controls.dart';
@@ -47,6 +48,14 @@ abstract final class SettingsSectionKeys {
   static const devOverlay = ValueKey('editor.settings.devOverlay');
   static const devOverlayHint = ValueKey('editor.settings.devOverlay.hint');
   static const seedSyntheticNote = ValueKey('editor.settings.seedSynthetic');
+  // (v2) 일반 › 페이지 › 필기 재생 (m5-7/04-editor 6.15.3)
+  static const playbackTapToSeek = ValueKey(
+    'editor.settings.playback.tapToSeek',
+  );
+  static const playbackPreRoll = ValueKey('editor.settings.playback.preRoll');
+  static const playbackHighlight = ValueKey(
+    'editor.settings.playback.highlight',
+  );
 }
 
 /// 입력: 입력 모드(자동/펜 전용/손가락 필기), 팜 리젝션(펜 직후 터치 무시 시간,
@@ -320,7 +329,10 @@ class _PenSectionBodyState extends ConsumerState<_PenSectionBody> {
   }
 }
 
-/// 일반 › 페이지 넘김: 세로 스크롤 / 좌우 넘기기.
+/// 일반 › 페이지 넘김: 세로 스크롤 / 좌우 넘기기. (v2, m5-7/04-editor 6.15.3)
+/// 필기 재생: 필기를 탭해 그 부분 재생(device), 탭한 곳보다 앞에서 재생
+/// (0~5 s, 0.5 s 단위 — 놓을 때 저장, editor.playback.preRollMs), 강조 방식
+/// (안 쓴 필기 흐리게 / 방금 쓴 필기만 강조).
 class EditorPageSettingsSection extends ConsumerWidget {
   const EditorPageSettingsSection({super.key});
   @override
@@ -353,7 +365,101 @@ class EditorPageSettingsSection extends ConsumerWidget {
           ),
         ),
         _Padded(Text(EditorStrings.pageFlipHint, style: _hintStyle(context))),
+        const _PlaybackRows(),
       ],
+    );
+  }
+}
+
+/// (v2) 필기 재생 rows of the page section.
+class _PlaybackRows extends ConsumerWidget {
+  const _PlaybackRows();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tapToSeek = ref.watch(
+      editorSettingsProvider.select((s) => s.tapToSeek),
+    );
+    final style = ref.watch(
+      editorSettingsProvider.select((s) => s.playbackHighlight),
+    );
+    final settings = ref.read(editorSettingsProvider.notifier);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Label(EditorStrings.playbackSection),
+        SwitchListTile(
+          key: SettingsSectionKeys.playbackTapToSeek,
+          title: const Text(EditorStrings.tapToSeek),
+          value: tapToSeek,
+          onChanged: settings.setTapToSeek,
+        ),
+        const _PreRollSlider(),
+        const _Label(EditorStrings.playbackHighlight),
+        _Padded(
+          SegmentedButton<ink.InkPlaybackStyle>(
+            key: SettingsSectionKeys.playbackHighlight,
+            segments: const [
+              ButtonSegment(
+                value: ink.InkPlaybackStyle.dimUnwritten,
+                label: Text(EditorStrings.playbackDimUnwritten),
+              ),
+              ButtonSegment(
+                value: ink.InkPlaybackStyle.highlightRecent,
+                label: Text(EditorStrings.playbackHighlightRecent),
+              ),
+            ],
+            selected: {style},
+            onSelectionChanged: (s) => settings.setPlaybackHighlight(s.single),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 0~5 s in 0.5 s steps; the value is stored when the thumb is let go
+/// (PreRollMsNotifier — 500 ms debounce, synced).
+class _PreRollSlider extends ConsumerStatefulWidget {
+  const _PreRollSlider();
+
+  @override
+  ConsumerState<_PreRollSlider> createState() => _PreRollSliderState();
+}
+
+class _PreRollSliderState extends ConsumerState<_PreRollSlider> {
+  static const _step = 500;
+
+  /// The value while dragging (null: the stored one).
+  double? _dragging;
+
+  @override
+  Widget build(BuildContext context) {
+    final stored = ref.watch(editorPreRollMsProvider);
+    final value = _dragging ?? stored.toDouble();
+    final shown = (value / _step).round() * _step;
+    return ListTile(
+      title: const Text(EditorStrings.playbackPreRoll),
+      subtitle: Slider(
+        key: SettingsSectionKeys.playbackPreRoll,
+        min: PreRollMsNotifier.minMs.toDouble(),
+        max: PreRollMsNotifier.maxMs.toDouble(),
+        divisions: (PreRollMsNotifier.maxMs - PreRollMsNotifier.minMs) ~/ _step,
+        value: value.clamp(
+          PreRollMsNotifier.minMs.toDouble(),
+          PreRollMsNotifier.maxMs.toDouble(),
+        ),
+        label: EditorStrings.playbackPreRollLabel(shown),
+        onChanged: (v) => setState(() => _dragging = v),
+        onChangeEnd: (v) {
+          setState(() => _dragging = null);
+          ref
+              .read(editorPreRollMsProvider.notifier)
+              .set((v / _step).round() * _step);
+        },
+      ),
+      trailing: Text(EditorStrings.playbackPreRollLabel(shown)),
     );
   }
 }

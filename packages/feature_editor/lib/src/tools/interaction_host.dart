@@ -9,7 +9,8 @@
 // eraser / lasso for that contact (m5-7/04-editor 6.2.3, 6.3.3, 6.3.6 4).
 // E2-04b: the text session in the input policy (6.3.4), two- / three-finger
 // taps by GestureSettings.actionFor and the pen dot hook (6.3.5). E2-16: the
-// pen stroke's recording meta at contact (6.15.1 — R-1).
+// pen stroke's recording meta at contact (6.15.1 — R-1). E2-17: tap-to-seek
+// (6.3.5 ③, 6.15.3 — R-5 (v2.1)) for one-finger taps and pen / finger dots.
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -24,12 +25,16 @@ import '../commands/editor_commands.dart';
 import '../document/mounted_pages.dart';
 import '../input/input_sample.dart';
 import '../input/input_targets.dart';
+import '../playback/playback_highlighter.dart';
 import '../playback/recording_link.dart';
+import '../playback/tap_to_seek.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
+import '../state/panel.dart';
 import '../state/popup.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
+import '../state/settings/pre_roll.dart';
 import '../text/text_edit_session.dart';
 import '../ui/dev/dev_metrics.dart';
 import '../ui/editor_strings.dart';
@@ -346,16 +351,89 @@ class InteractionHost implements InputTargets {
     _cursor.value = EraserRingCursor(position: position, diameter: diameter);
   }
 
-  /// (v2, 6.3.5) A pen dot before its stroke ends. Nothing takes dots yet:
-  /// the tape toggle (②) comes with E2-14, tap-to-seek (③) with E2-17 — so
-  /// every dot stays a dot stroke.
+  /// (v2, 6.3.5) A pen dot before its stroke ends: ③ tap-to-seek on a stroke
+  /// of the open recording (the tape toggle ② comes with E2-14). A finger in
+  /// finger drawing takes the finger condition (TapKind.finger), a pen or a
+  /// mouse the pen-dot one. Not taken → the dot stays a dot stroke.
   @override
   bool interceptPenDot(
     InputSample sample, {
     required InteractionSource source,
   }) {
     if (_disposed) return false;
-    return false;
+    return _tapToSeek(
+      sample.position,
+      source == InteractionSource.finger ? TapKind.finger : TapKind.penDot,
+    );
+  }
+
+  /// Tap-to-seek tolerance in logical px (12 / scale pt on the page — 6.15.3).
+  static const double _tapToSeekTolerancePx = 12;
+
+  /// ③ (6.15.3): in the tap-to-seek state, a stroke of the open recording
+  /// under [screen] → `seekMs(max(0, offset − preRollMs))`, markSeek, play.
+  /// Every value is read synchronously now (6.3.5).
+  bool _tapToSeek(Offset screen, TapKind kind) {
+    final playback = _ref.read(core.audioPlaybackServiceProvider);
+    final status = playback.status;
+    final active = tapToSeekActive(
+      kind: kind,
+      tapToSeekSetting: _ref.read(editorSettingsProvider).tapToSeek,
+      recorderPhase: _ref.read(core.audioRecorderServiceProvider).status.phase,
+      panelOpen: _ref.read(editorPanelProvider),
+      playback: status,
+      noteRecordingIds: _ref.read(editorNoteRecordingIdsProvider),
+    );
+    final recordingId = status.recordingId;
+    if (!active || recordingId == null) return false;
+    final hit = _viewport.hitPage(screen);
+    if (hit == null) return false;
+    final mount = _pages[hit.pageId];
+    if (mount == null || mount.isDisposed || !mount.isLoaded.value) {
+      return false;
+    }
+    final stroke = mount.controller.hitTestRecorded(
+      _viewport.screenToPage(hit.index, screen),
+      recordingId: recordingId,
+      tolerance: _tapToSeekTolerancePx / _viewport.camera.scale,
+    );
+    if (stroke == null) return false;
+    final offset =
+        _session
+            .pageIfLoaded(hit.pageId)
+            ?.strokeById(stroke.id)
+            ?.recordingOffsetMs ??
+        stroke.source.recordingOffsetMs;
+    if (offset == null) return false;
+    final position = tapToSeekPositionMs(
+      offset,
+      _ref.read(editorPreRollMsProvider),
+    );
+    unawaited(_seekAndPlay(playback, position));
+    return true;
+  }
+
+  /// R-5: seek, mark the highlight active, play. Failures are reported only
+  /// (the panel shows the player's state — 6.21).
+  Future<void> _seekAndPlay(
+    core.AudioPlaybackService playback,
+    int positionMs,
+  ) async {
+    final logic = _ref.read(editorPlaybackHighlightProvider);
+    try {
+      await playback.seekMs(positionMs);
+      logic.markSeek();
+      await playback.play();
+    } on Object catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'feature_editor',
+          context: ErrorDescription('while seeking from a tapped stroke'),
+        ),
+      );
+    }
   }
 
   /// True only if the lasso tool is active, a selection exists and [screen]
@@ -400,10 +478,10 @@ class InteractionHost implements InputTargets {
   @override
   void navigationCancel() => _viewport.cancelGesture();
 
-  /// 1 = dismiss (context menu → popup → selection), 2 / 3 = the action of
-  /// twoFingerTap / threeFingerTap (undo / redo — v2 6.3.4; the action runner
-  /// of 6.4.3 replaces this in E2-05). The router only sends 2 / 3 when the
-  /// action is not none.
+  /// 1 = dismiss (context menu → popup → (v2) tap-to-seek ③ → selection),
+  /// 2 / 3 = the action of twoFingerTap / threeFingerTap (undo / redo — v2
+  /// 6.3.4; the action runner of 6.4.3 replaces this in E2-05). The router
+  /// only sends 2 / 3 when the action is not none.
   @override
   void tapGesture(int fingerCount, Offset centroid) {
     switch (fingerCount) {
@@ -412,6 +490,8 @@ class InteractionHost implements InputTargets {
           closeContextMenu();
         } else if (_ref.read(editorPopupProvider) != null) {
           _ref.read(editorPopupProvider.notifier).close();
+        } else if (_tapToSeek(centroid, TapKind.finger)) {
+          // ③ taken: the selection stays.
         } else {
           _commands.clearSelection();
         }
