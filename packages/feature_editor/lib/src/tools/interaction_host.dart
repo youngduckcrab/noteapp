@@ -45,6 +45,7 @@ import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/panel.dart';
 import '../state/popup.dart';
+import '../state/settings/editor_device_state.dart';
 import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../state/settings/pre_roll.dart';
@@ -66,6 +67,7 @@ import 'selection_transform_interaction.dart';
 import 'shape_assist_for.dart';
 import 'shape_drafts.dart';
 import 'shape_interaction.dart';
+import 'shape_samples.dart';
 import 'text_tool_interaction.dart';
 import 'tool_controller.dart';
 import 'tool_interaction.dart';
@@ -315,6 +317,10 @@ class InteractionHost implements InputTargets {
             style.tool,
             _ref.read(ink.inkShapeFitterProvider),
           ),
+          // (v2, E2-20 — 6.20) only while '도형 표본 모으기' is on.
+          onSample: _ref.read(editorDeviceStateProvider).collectShapeSamples
+              ? _recordShapeSample
+              : null,
         );
       case EditorTool.eraser:
         _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
@@ -1020,6 +1026,25 @@ class InteractionHost implements InputTargets {
   void stylusDetected() {
     if (_disposed) return;
     _ref.read(editorSettingsProvider.notifier).markStylusSeen();
+  }
+
+  /// (v2, E2-20 — 6.20) A pen session's shape sample into the ring buffer.
+  void _recordShapeSample(
+    List<Offset> points,
+    double viewScale,
+    ink.InkEdit? edit,
+  ) {
+    if (_disposed) return;
+    _ref
+        .read(editorShapeSamplesProvider)
+        .add(
+          ShapeSample(
+            points: points,
+            viewScale: viewScale,
+            result: resultOf(edit),
+            at: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+          ),
+        );
   }
 
   /// Developer metrics: palm rejections (6.12.1, only while collecting).

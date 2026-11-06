@@ -1,6 +1,6 @@
 // lib/src/tools/pen_interaction.dart — 04-editor 6.6.3; (v2) the recording
 // meta of the stroke (m5-7/04-editor 6.15.1 — E2-16) and the auto shape
-// assist (6.10 — E2-15).
+// assist (6.10 — E2-15); (E2-20) the shape sample of the session (6.20).
 import 'package:flutter/gestures.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -33,6 +33,16 @@ ink.InkSample toInkSample(
 ///      colour) only when the command was accepted — a rejected commit has already
 ///      dropped the pending stroke (discardEdit);
 ///   4. cancel → stroke.cancel(): no command, INK removes the preview.
+/// (v2, E2-20) With [ShapeSampleSink] given (the developer toggle '도형 표본
+/// 모으기' on — 6.20), the page-pt input points from down to up, the
+/// viewScale and the end's edit go to it once the session ends (not on a
+/// cancel).
+typedef ShapeSampleSink = void Function(
+  List<Offset> points,
+  double viewScale,
+  ink.InkEdit? edit,
+);
+
 final class PenInteraction extends ToolInteraction {
   PenInteraction._({
     required super.source,
@@ -46,6 +56,8 @@ final class PenInteraction extends ToolInteraction {
     required this._session,
     required Offset start,
     required this._onCommitted,
+    this._onSample,
+    this._points,
   }) : _last = start;
 
   /// Starts the stroke at [down]. The caller has already settled the
@@ -61,10 +73,12 @@ final class PenInteraction extends ToolInteraction {
     required void Function(core.StrokeStyle style) onCommitted,
     ink.InkStrokeMeta meta = const ink.InkStrokeMeta(),
     ink.ShapeAssist shapeAssist = ink.ShapeAssist.off,
+    ShapeSampleSink? onSample,
   }) {
     final viewScale = viewport.camera.scale;
+    final first = toInkSample(viewport, pageIndex, down.event);
     final session = controller.beginStroke(
-      toInkSample(viewport, pageIndex, down.event),
+      first,
       style: style,
       viewScale: viewScale,
       meta: meta,
@@ -82,6 +96,8 @@ final class PenInteraction extends ToolInteraction {
       session: session,
       start: down.position,
       onCommitted: onCommitted,
+      onSample: onSample,
+      points: onSample == null ? null : [first.position],
     );
   }
 
@@ -98,6 +114,10 @@ final class PenInteraction extends ToolInteraction {
   final EditorCommands _commands;
   final ink.StrokeSession _session;
   final void Function(core.StrokeStyle style) _onCommitted;
+  final ShapeSampleSink? _onSample;
+
+  /// (E2-20) The session's page-pt input points (null: not collecting).
+  final List<Offset>? _points;
   Offset _last;
   double _travelled = 0;
   bool _done = false;
@@ -118,7 +138,9 @@ final class PenInteraction extends ToolInteraction {
   void move(InputSample sample) {
     if (_done) return;
     _track(sample.position);
-    _session.addSample(toInkSample(_viewport, pageIndex, sample.event));
+    final ink = toInkSample(_viewport, pageIndex, sample.event);
+    _points?.add(ink.position);
+    _session.addSample(ink);
   }
 
   @override
@@ -126,7 +148,13 @@ final class PenInteraction extends ToolInteraction {
     if (_done) return;
     _done = true;
     _track(sample.position);
-    final edit = _session.end(toInkSample(_viewport, pageIndex, sample.event));
+    final last = toInkSample(_viewport, pageIndex, sample.event);
+    final edit = _session.end(last);
+    final points = _points;
+    if (points != null) {
+      points.add(last.position);
+      _onSample?.call(List.unmodifiable(points), viewScale, edit);
+    }
     if (edit == null) return;
     if (_commands.commitInkEdit(controller, edit)) _onCommitted(style);
   }

@@ -32,6 +32,7 @@ import '../state/settings/editor_settings_notifier.dart';
 import '../text/text_edit_session.dart';
 import '../tools/interaction_host.dart';
 import '../tools/selection.dart';
+import '../tools/shape_samples.dart';
 import '../ui/overlays/focus_flash.dart';
 import '../viewport/page_layout.dart';
 import '../viewport/viewport_controller.dart';
@@ -320,6 +321,8 @@ final editorInteractionHostProvider = Provider<InteractionHost>(
     editorPlaybackHighlightProvider,
     // (v2) finger taps / long press → actions (6.4.3)
     editorActionRunnerProvider,
+    // (v2, E2-20) the shape samples (6.20)
+    editorShapeSamplesProvider,
   ],
   name: 'editorInteractionHostProvider',
 );
