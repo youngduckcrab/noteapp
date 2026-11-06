@@ -2,7 +2,9 @@
 // 1 px rectangle around INK's selection bounds and the four 12 px corner
 // handles, in viewport coordinates. Only the frame's own layer is captured
 // (SelectionFrame's RepaintBoundary) — INK's strokes and page background are
-// not in the image (9.1: EDITOR output only, no text).
+// not in the image (9.1: EDITOR output only, no text). (v2, E2-06 —
+// m5-7/04-editor 6.6.4) the frame also has its rotate handle now; both images
+// were made again (the v2 frames: selection_frame_v2_golden_test.dart).
 @Tags(['golden'])
 @TestOn('vm')
 library;

@@ -63,7 +63,8 @@ class SelectionMenu extends ConsumerWidget {
     return ListenableBuilder(
       listenable: selectionRepaint(viewport, pages, selection),
       builder: (context, child) {
-        final rect = selectionRectOnScreen(viewport, pages, selection);
+        // (v2) clear of the whole frame, the rotate handle included (6.6.4).
+        final rect = selectionFrameOnScreen(viewport, pages, selection)?.extent;
         if (rect == null) return const SizedBox.shrink();
         return CustomSingleChildLayout(
           delegate: _AboveOrBelow(rect),

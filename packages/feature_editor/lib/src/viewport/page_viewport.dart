@@ -24,6 +24,7 @@ import '../ui/overlays/context_menu.dart';
 import '../ui/overlays/cursor_painter.dart';
 import '../ui/overlays/eyedropper_banner.dart';
 import '../ui/overlays/page_indicator.dart';
+import '../ui/overlays/rotation_label.dart';
 import '../ui/overlays/selection_frame_painter.dart';
 import '../ui/overlays/selection_menu.dart';
 import '../ui/pages/page_panel.dart';
@@ -132,6 +133,8 @@ class _PageViewportState extends ConsumerState<PageViewport> {
                             builder: (context, _) => _buildPages(viewport),
                           ),
                           const SelectionFrame(),
+                          // (v2, E2-06) the angle tag of a rotate drag (6.6.6).
+                          const RotationLabel(),
                           IgnorePointer(
                             child: RepaintBoundary(
                               child: CustomPaint(

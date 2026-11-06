@@ -10,6 +10,7 @@
 // page commands (add, delete, duplicate, move), the page panel and its
 // selection mode (Esc, Delete, the menu context's selectedPageIds).
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:flutter/foundation.dart';
@@ -212,6 +213,35 @@ class EditorCommands {
   void clearSelection() {
     if (_disposed) return;
     _ref.read(editorSelectionProvider.notifier).clear();
+  }
+
+  /// (v2, m5-7/04-editor 6.6.6 — selection menu '더보기 > 90° 돌리기', the
+  /// V5 smoke's deterministic path) rotate(bounds, π/2) committed at once —
+  /// the preview transform is set and committed in the same call, so no
+  /// frame shows it: one TransformElements through commitInkEdit, then the
+  /// same ids selected again (origin kept — 6.6.3). A rejected commit has
+  /// called discardEdit (old place, selection stays). Nothing for unknown
+  /// objects only, during a drag or on a read-only note.
+  void rotateSelection90() {
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    final selection = _ref.read(editorSelectionProvider);
+    final sel = inkSelectionOf(_pages, selection);
+    if (selection == null || sel == null || selection.isDragging) return;
+    final controller = _pages[selection.pageId]!.controller;
+    final ids = sel.allIds.toSet();
+    sel.setPreviewTransform(
+      ink.SelectionGeometry.rotate(bounds: sel.bounds, radians: math.pi / 2),
+    );
+    final edit = sel.commitTransform();
+    if (edit == null) {
+      sel.setPreviewTransform(core.Affine2.identity);
+      return;
+    }
+    if (commitInkEdit(controller, edit)) {
+      _ref
+          .read(editorSelectionProvider.notifier)
+          .select(selection.pageId, ids, origin: selection.origin);
+    }
   }
 
   // ---- pages (6.11, 5.1.3 — each one undo step) ----

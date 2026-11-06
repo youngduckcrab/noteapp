@@ -1,9 +1,10 @@
 // lib/src/tools/selection.dart — 04-editor 6.6.5, 6.6.6; (v2) m5-7/04-editor
 // 6.6.1 (elementIds = strokes AND objects, origin, vertexMode) and 6.6.7
 // (revalidation by elementById) — E2-02. The selection rules that use them
-// (priority (a′), mixed lasso, vertex editing) come in E2-06 / E2-08.
+// (priority (a′), mixed lasso, vertex editing) come in E2-06 / E2-08. (v2,
+// E2-06) the frame as drawn (6.6.4): selectionFrameOnScreen.
 import 'dart:async';
-import 'dart:ui' show Rect;
+import 'dart:ui' show Offset, Rect;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../document/mounted_pages.dart';
 import '../scope/editor_scope.dart';
 import '../viewport/viewport_controller.dart';
+import 'selection_hit_test.dart';
 import 'tool_controller.dart';
 import 'tool_state.dart';
 
@@ -252,4 +254,140 @@ Rect? selectionRectOnScreen(
     viewport.pageToScreen(index, bounds.topLeft),
     viewport.pageToScreen(index, bounds.bottomRight),
   );
+}
+
+/// (v2, 6.6.1) The single object of [sel] — no strokes and exactly one
+/// object — or null.
+core.PageObject? singleObjectOf(ink.InkSelection sel) {
+  if (sel.strokeIds.isNotEmpty) return null;
+  final objects = sel.objects;
+  return objects.length == 1 ? objects.single : null;
+}
+
+/// (v2, 6.6.6) Whether [object]'s frame carries its rotation (text box,
+/// image, ellipse, math): a rotate drag sets its absolute angle about the
+/// frame centre. A polyline shape's frame is the points' box with rotation 0
+/// (contract 7.2.2) — it rotates by the relative angle like a multi
+/// selection; an unknown object does not rotate.
+bool rotatesByFrame(core.PageObject object) => switch (object) {
+  core.ShapeObject(:final geometry) => geometry is core.EllipseGeometry,
+  core.TextBoxObject() || core.ImageObject() || core.MathObject() => true,
+  core.UnknownObject() => false,
+};
+
+/// (v2) Whether nothing in [sel] can be transformed: only unknown objects
+/// (TransformElements skips them — 6.6.4: no preview either).
+bool isImmovableSelection(ink.InkSelection sel) =>
+    sel.strokeIds.isEmpty &&
+    sel.objects.isNotEmpty &&
+    sel.objects.every((o) => o is core.UnknownObject);
+
+/// (v2, 6.6.4) The selection frame as drawn on screen (viewport
+/// coordinates): [quad], the resize [handles] shown and whether the rotate
+/// handle is.
+@immutable
+final class SelectionFrameShape {
+  const SelectionFrameShape({
+    required this.quad,
+    required this.handles,
+    required this.rotatable,
+  });
+
+  final SelectionQuad quad;
+
+  /// The resize handles drawn (E2-06: the 4 corners; edges come in E2-08).
+  final List<ink.SelectionHandle> handles;
+
+  /// The rotate handle is drawn (and hit).
+  final bool rotatable;
+
+  /// The axis-aligned box of the frame and its handles (the selection menu
+  /// keeps clear of it).
+  Rect get extent {
+    var out = quad.bounds;
+    if (handles.isNotEmpty) {
+      out = out.inflate(SelectionHitTest.handleVisualRadius);
+    }
+    if (rotatable) {
+      out = out.expandToInclude(
+        Rect.fromCircle(
+          center: quad.rotateHandlePosition,
+          radius: SelectionHitTest.handleVisualRadius,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// The handle under [p] (the nearest within the hit radius), or null.
+  FrameHandle? hitHandle(Offset p) => SelectionHitTest.hitFrameHandle(
+    quad,
+    p,
+    handles: handles,
+    rotatable: rotatable,
+  );
+
+  /// [p] on the body (the frame inflated by 8 px, in its own axes).
+  bool hitBody(Offset p) => SelectionHitTest.hitQuadBody(quad, p);
+
+  @override
+  bool operator ==(Object other) =>
+      other is SelectionFrameShape &&
+      other.quad == quad &&
+      other.rotatable == rotatable &&
+      const ListEquality<ink.SelectionHandle>().equals(other.handles, handles);
+
+  @override
+  int get hashCode => Object.hash(
+    quad,
+    rotatable,
+    const ListEquality<ink.SelectionHandle>().hash(handles),
+  );
+}
+
+/// (v2, 6.6.4) The selection frame on screen. Several elements (strokes,
+/// mixed, objects): the axis-aligned `sel.bounds`, turned by the preview
+/// (SelectionGeometry.transformedCorners — a rotation preview shows a rotated
+/// rectangle), 4 corners + the rotate handle. One object: its own frame
+/// (`object.frame.corners` — rotated for text, image, ellipse, math; the
+/// points' box for a polyline) through the preview, 4 corners + the rotate
+/// handle; an unknown object: its frame, no handles, never previewed. Null
+/// when there is no selection or its page is not laid out.
+SelectionFrameShape? selectionFrameOnScreen(
+  ViewportController viewport,
+  MountedPages pages,
+  EditorSelection? selection,
+) {
+  final sel = inkSelectionOf(pages, selection);
+  if (sel == null || viewport.viewportSize.isEmpty) return null;
+  final index = viewport.pages.indexWhere((p) => p.id == selection!.pageId);
+  if (index < 0) return null;
+  final preview = sel.previewTransform;
+  final single = singleObjectOf(sel);
+  final List<Offset> pageCorners;
+  var handles = SelectionHitTest.cornerHandles;
+  var rotatable = true;
+  if (single == null) {
+    pageCorners = ink.SelectionGeometry.transformedCorners(sel.bounds, preview);
+  } else if (single is core.UnknownObject) {
+    pageCorners = [for (final c in single.frame.corners) Offset(c.x, c.y)];
+    handles = const [];
+    rotatable = false;
+  } else {
+    pageCorners = [
+      for (final c in single.frame.corners) _apply(preview, c.x, c.y),
+    ];
+  }
+  return SelectionFrameShape(
+    quad: SelectionQuad.fromCorners([
+      for (final c in pageCorners) viewport.pageToScreen(index, c),
+    ]),
+    handles: handles,
+    rotatable: rotatable,
+  );
+}
+
+Offset _apply(core.Affine2 m, double x, double y) {
+  final (x2, y2) = m.apply(x, y);
+  return Offset(x2, y2);
 }

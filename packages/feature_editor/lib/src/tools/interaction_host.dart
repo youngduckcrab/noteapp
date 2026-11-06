@@ -12,7 +12,10 @@
 // pen stroke's recording meta at contact (6.15.1 — R-1). E2-17: tap-to-seek
 // (6.3.5 ③, 6.15.3 — R-5 (v2.1)) for one-finger taps and pen / finger dots.
 // E2-05: two- / three-finger taps and the finger long press run their
-// GestureSettings action through EditorActionRunner (6.4.2, 6.4.3).
+// GestureSettings action through EditorActionRunner (6.4.2, 6.4.3). E2-06:
+// the selection priority (a′) (6.6.2), taps that select an object (6.3.5 ④)
+// and (part 2) the frame v2 hit test — rotated frames and the rotate handle
+// with its angle tag (6.6.4, 6.6.6).
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -91,6 +94,25 @@ final class ContextMenuRequest {
   int get hashCode => position.hashCode;
 }
 
+/// (v2, 6.6.6) The angle tag while the rotate handle is dragged: [radians]
+/// is the absolute angle (a single object whose frame rotates) or the
+/// relative one (several elements, a polyline shape).
+@immutable
+final class RotationLabelState {
+  const RotationLabelState(this.radians);
+  final double radians;
+
+  /// Whole degrees, as the tag shows them.
+  int get degrees => (radians * 180 / math.pi).round();
+
+  @override
+  bool operator ==(Object other) =>
+      other is RotationLabelState && other.radians == radians;
+
+  @override
+  int get hashCode => radians.hashCode;
+}
+
 /// The hover cursor hides when no hover event came for this long (6.6.9).
 const Duration kHoverCursorTimeout = Duration(milliseconds: 300);
 
@@ -113,6 +135,7 @@ class InteractionHost implements InputTargets {
   final EditorCommands _commands;
   final ValueNotifier<CursorState?> _cursor = ValueNotifier(null);
   final ValueNotifier<ContextMenuRequest?> _contextMenu = ValueNotifier(null);
+  final ValueNotifier<RotationLabelState?> _rotationLabel = ValueNotifier(null);
   Timer? _hoverTimer;
   ToolInteraction? _lastStarted;
   bool _disposed = false;
@@ -125,6 +148,9 @@ class InteractionHost implements InputTargets {
   void closeContextMenu() {
     if (!_disposed) _contextMenu.value = null;
   }
+
+  /// (v2, 6.6.6) The angle tag while the rotate handle is dragged, or null.
+  ValueListenable<RotationLabelState?> get rotationLabel => _rotationLabel;
 
   /// The interaction most recently returned by [beginInteraction] (tests,
   /// developer metrics).
@@ -316,33 +342,34 @@ class InteractionHost implements InputTargets {
     _ref.read(editorSelectionProvider.notifier).select(pageId, ids);
   }
 
-  /// (v2) Where [screen] lands on the selection frame: a handle (with it),
-  /// the body or outside; null when there is no selection on screen.
-  ({SelectionHitKind kind, ink.SelectionHandle? handle})? _selectionHitAt(
+  /// (v2) Where [screen] lands on the selection frame (6.6.4 — rotated
+  /// frames, the rotate handle): a handle (with it), the body or outside;
+  /// null when there is no selection on screen.
+  ({SelectionHitKind kind, FrameHandle? handle})? _selectionHitAt(
     Offset screen,
   ) {
-    final rect = selectionRectOnScreen(
+    final frame = selectionFrameOnScreen(
       _viewport,
       _pages,
       _ref.read(editorSelectionProvider),
     );
-    if (rect == null) return null;
-    final handle = SelectionHitTest.hitHandle(rect, screen);
+    if (frame == null) return null;
+    final handle = frame.hitHandle(screen);
     if (handle != null) return (kind: SelectionHitKind.handle, handle: handle);
-    if (SelectionHitTest.hitBody(rect, screen)) {
+    if (frame.hitBody(screen)) {
       return (kind: SelectionHitKind.body, handle: null);
     }
     return (kind: SelectionHitKind.outside, handle: null);
   }
 
-  /// ③: a handle → resize from that corner, the body → move (6.6.5) after
-  /// the move-start threshold; (v2) a body tap before it is a selection tap
-  /// (6.6.2): the text tool on a single text box starts editing it, else
-  /// nothing.
+  /// ③: a handle → resize from that corner or (v2) rotate, the body → move
+  /// (6.6.5) after the move-start threshold; (v2) a body tap before it is a
+  /// selection tap (6.6.2): the text tool on a single text box starts editing
+  /// it, else nothing.
   ToolInteraction? _beginTransform(
     InputSample sample,
     InteractionSource source, {
-    required ink.SelectionHandle? handle,
+    required FrameHandle? handle,
     required EditorTool tool,
   }) {
     final selection = _ref.read(editorSelectionProvider);
@@ -366,13 +393,21 @@ class InteractionHost implements InputTargets {
       viewport: _viewport,
       commands: _commands,
       onCommitted: (ids) {
-        // TransformElements keeps ids: select them again (6.6.5).
-        if (!_disposed) notifier.select(selection.pageId, ids);
+        // TransformElements keeps ids: select them again (6.6.5), (v2) the
+        // origin kept (6.6.3).
+        if (!_disposed) {
+          notifier.select(selection.pageId, ids, origin: selection.origin);
+        }
       },
       onFinished: () {
-        if (!_disposed) notifier.setDragging(false);
+        if (_disposed) return;
+        _rotationLabel.value = null;
+        notifier.setDragging(false);
       },
       onTap: () => _selectionTap(tool),
+      onRotate: (radians) {
+        if (!_disposed) _rotationLabel.value = RotationLabelState(radians);
+      },
     );
   }
 
@@ -546,14 +581,8 @@ class InteractionHost implements InputTargets {
   }
 
   bool _onSelection(Offset screen) {
-    final rect = selectionRectOnScreen(
-      _viewport,
-      _pages,
-      _ref.read(editorSelectionProvider),
-    );
-    if (rect == null) return false;
-    return SelectionHitTest.hitHandle(rect, screen) != null ||
-        SelectionHitTest.hitBody(rect, screen);
+    final at = _selectionHitAt(screen);
+    return at != null && at.kind != SelectionHitKind.outside;
   }
 
   @override
@@ -754,5 +783,6 @@ class InteractionHost implements InputTargets {
     _hoverTimer = null;
     _cursor.dispose();
     _contextMenu.dispose();
+    _rotationLabel.dispose();
   }
 }
