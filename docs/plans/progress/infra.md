@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 기반 단계 R2-B1**(아래 '## 2차' — 계획 docs/plans/m5-7/01-infra.md 8.1, 계약 v2.2 7.6.2) — 그 앞은 1차 통합 단계 2/2(G2·G4).
-- 다음 할 일: R2-B2i(CORE B2-α 해시 위에서 `app/test/fakes/counting_note_store.dart` 위임 4줄 — R2-B2·R2-B7a와 한 묶음), 그 뒤 동시 개발 R2-B8a → R2-B8b → J0.
+- 마지막 세션: **2차 기반 단계 R2-B2i**(아래 '## 2차' — 계획 docs/plans/m5-7/01-infra.md 8.1, 계약 v2.2 7.6.2) — 그 앞은 R2-B1.
+- 다음 할 일: 동시 개발 R2-B8a → R2-B8b → J0(동시 개발 시작 조건 = R2-B1~R2-B6이 `main`에 있음).
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -35,6 +35,7 @@
 | G4 | 완료 | 3cf0b84 | V1~V4: `ws check`(R1–R15)·`--strict` 0, 루트 analyze 0, `dart format` 변경 없음(R11), `ws test`·`ws test --platform chrome`·`dart test tool/test`, `flutter build web --release`, `ws web-assets verify` |
 | G5 | 총괄·사용자 | | 푸시·CI·미리보기 배포·iPad 체크리스트(컨테이너 밖) |
 | R2-B1 (2차) | 완료 | 3c77de3 | `tool/test/rules_test.dart`(R4 `Platform`·R16·2차 목록)·`chrome_fakemedia_test`·`heavy_lock_test`·`test_command_test`(잠금·`media` 래퍼)·`hosting_config_test`(`functions`·`emulators`)·`workflows_test`(시험 범위·`functions.yml`·수동 APK)·`repo_hygiene_test`·`workspace_test`(`functions/`)·`guides_test`(05), `packages/pencil_bridge/test/pencil_wire_contract_test.dart` |
+| R2-B2i (2차) | 완료 | 59ed567 | `app/test/fakes/counting_note_store.dart`: `recordings`·`recordingDrafts`·`handwriting`·`search` → `inner` 위임 4줄(바탕 = CORE 계약 타입 커밋 `2b2e4b0`, R2-B2·R2-B7a와 한 묶음). INFRA 기존 시험 전부 |
 
 ## 변경 요청
 
@@ -314,3 +315,19 @@
 - `app/firebase.json`의 `hosting.ignore`가 JSON 정리로 여러 줄이 됐다(값 같음).
 - `packages/media_io`·`ink_recognition` pubspec은 블록 형식으로 썼다(06-pdf 3.4·01-infra 3.3의 흐름 형식 `{sdk: flutter}`과 값 같음), `version:` 줄 없음(확정본 그대로).
 
+### R2-B2i — 기반 단계 (계약 7.6.2, 계획 8.1 — R2-B2·R2-B7a와 한 묶음)
+
+- 커밋: `59ed567`(위임 4줄), 이 기록 줄은 그 뒤 커밋. 바탕 = `c443015`(CORE B2-α `2b2e4b0`·B2-β JSON `9777fde`·T20b `c443015`, SYNC R2-B7a `99b8ead` 포함).
+- `CountingNoteStore`(명시 위임 — 계약 C2-15)에 계약 7.2.6 getter 4개를 `inner`로: `RecordingRepository get recordings`·`RecordingDraftStore get recordingDrafts`·`HandwritingRepository get handwriting`·`SearchIndex get search`. 그 밖의 변경 없음.
+- 검사는 커밋 `59ed567`의 `git archive` 사본에서 했다(작업 중에는 작업 트리에 CORE가 아직 커밋하지 않은 B2-β 진행분이 있어 그것을 섞지 않으려고 — 처음 한 번은 `5056fcb` 사본 + 이 파일로 같은 결과). 작업 트리의 `ws check`는 그때 CORE의 커밋 전 파일 `packages/note_core/test/model/object_json_test.dart` 하나를 R11(형식)로 잡았다 — 커밋된 판은 형식이 맞고 사본의 `ws check`는 0. `dart test tool/test`는 작업 트리에서.
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `flutter pub get --enforce-lockfile` | 통과(lock 변화 없음) | — |
+| `app` `flutter analyze --fatal-infos` | 0건 | 5초 |
+| `ws test --package noteapp` (VM) | 261 통과 · 1 건너뜀(V5 `integration`) | 41초 |
+| `ws test --package noteapp --platform chrome` | 준비 ok · 11 통과 · 1 건너뜀(V6) | 59초 |
+| `dart test tool/test` | 372 통과 | 47초 |
+| `ws check` (R1–R16, HEAD 사본) | 0 | — |
+
+- 전체 `ws test`(VM·Chrome, 모든 멤버) 묶음 검사는 총괄의 묶음 병합 뒤(계약 7.6.2). R2-B1 메모의 '묶음 뒤 전체 Chrome 실행'도 그때로 넘긴다 — 이 단계의 변경은 `noteapp` 시험 가짜 하나뿐이다.
