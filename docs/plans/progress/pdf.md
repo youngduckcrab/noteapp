@@ -278,7 +278,7 @@
 | T23 | 남음 | | `web/compose_objects_browser_test`, `web/compose_browser_test` |
 | T24 | 완료 | 80da665 | `unit/page_layers_test`, `unit/layers_from_ink_test`, `integration/ink_vectorizer_v2_test`(써 둠 — `skip:` INK T42 이정표, 판정은 통합 4-a) |
 | T25a | 완료 | 402f84a | `unit/image_probe_test`(14), `unit/object_resolver_image_test`(22), `unit/export_memory_test`(8), `web/object_resolver_browser_test`(5) — 고정 JPEG 표본 5개는 `testing.dart` `PdfObjectFixtures`, 큰 표본은 `test/support/object_fixtures.dart`(VM) |
-| T25b | 남음 | | `unit/raster_ports_test`, `unit/object_resolver_text_math_test`, `web/object_resolver_text_browser_test`, `integration/math_raster_real_test`(INK T36 뒤 — 통합 단계) |
+| T25b | 완료 | (세션 6 — 커밋 줄은 세션 끝 기록에) | `unit/raster_ports_test`(13 — 상한 식 6·`rasterPixelSize`·contain 3·기본 INK 포트 VM 3), `unit/object_resolver_text_math_test`(25), `web/object_resolver_text_browser_test`(4), `integration/math_raster_real_test`(써 둠 — `skip:` INK T36 이정표, 판정은 통합 4-a) — 가짜 포트 `test/support/fake_rasterizers.dart`, 큰 표본 `pageSizeTextBox`·`bigMathObject`는 `test/support/object_fixtures.dart` |
 | T26 | 남음 | | `unit/export_service_objects_test`, `widget/export_flow_test` v2, `pdfium/export_objects_e2e_test` |
 | T27 | 남음 | | `unit/search_indexer_test`, `unit/unit_builder_test`, `pdfium/search_indexer_real_test` |
 | T28 | 완료 | 76b31ce | `unit/normalizer_equivalence_test`(6), `web/normalizer_equivalence_browser_test`(같은 6 — 사례 `test/support/normalizer_equivalence_cases.dart`), 1차 `text_normalizer_test`(기대값 둘 고침)·`hangul_jamo_test`·`search_service_test`·`pdfium/search_real_test` 그대로 통과 |
@@ -374,6 +374,14 @@
 - T25a: `PdfObjectFixtures`(`testing.dart` — 4.3.1의 새 이름, `contract/api_surface_test` `testingNames`에 더함)는 고정 JPEG 표본 5개(Pillow로 한 번 만든 base64 — 64 × 48 그라데이션, q50: 기준선 4:2:0·점진·회색·EXIF 6·Adobe CMYK)와 `png({width, height, alpha})`(저장 deflate, CRC·Adler 손으로)다. `pageWithObjects`는 그것을 쓰는 T26에서 더한다. 큰 표본(`bigPng6000x4000`·`noisePng2048`(위쪽 행만 잡음, ≥ 6 MiB)·`noisePngOver`(회색 잡음 ≥ 20 MiB)·`paddedJpeg`(COM 조각으로 키운 JPEG))은 `test/support/object_fixtures.dart`(VM — `dart:io` `ZLibEncoder`). 쪽 크기 텍스트 상자·큰 수식 표본은 T25b.
 - T25a: `PdfTuning`에 4.5.1 표의 내보내기 객체 상수 10개(`mathRasterDpi`~`exportMathRasterTimeout`)를 더했다. 색인 상수 4개는 T27.
 
+- T25b: 포트·기본 구현·`cappedPixelsPerPt`는 계획 6.2.4 블록 그대로 `lib/src/export/raster_ports.dart`(src 전용). 더한 src 함수: `rasterPixelSize(sizePt, k)`(⌈w·k⌉ × ⌈h·k⌉ — INK 규칙), `rgbaOfImage(ui.Image?)`(`rawStraightRgba` → `dispose`, 4 Mpx 넘으면 `null`). `cappedPixelsPerPt`는 계획 식(min 셋) 뒤에 INK `rasterScaleFor`처럼 '⌈w·k⌉·⌈h·k⌉이 아직 4 Mpx를 넘거나 한 변이 8192를 넘으면 k × 0.999'를 되풀이한다 — 식만으로는 올림 때문에 500 × 700 pt가 4,195,944 px(> 4 Mpx)가 되어 '각 RGBA ≤ 4 Mpx'가 깨진다(결과 3.4582 px/pt — 완료 조건 '3.46' 그대로).
+- T25b: `ObjectResolver` 생성자는 `math:`·`text:`(계획 이름) 외에 `fontBytes:`(글꼴 읽기 함수 — 기본 `ink.InkFonts.noteSansBytes`, 시험은 읽기 횟수를 세는 가짜)와 `mathTimeout:`(기본 `exportMathRasterTimeout` 3 s)을 받는다. 필드 이름은 `mathRasterizer`·`textRasterizer`(파일의 `dart:math as math`와 겹치지 않게). `ResolveContext`에 `rasterizedTextPages`·`skippedFormulaPages`·`fontBytes`(`fontRegular`/`fontBold` → 바이트 — T26이 인코더 `fontBytes`로 넘김)·`failedFontIds`(이 내보내기에서 읽기가 실패한 글꼴 — 다시 읽지 않고 그 뒤 상자는 래스터)를 더했다. 경고 순서는 4.1.5·6.16 표 순서(이미지 → 텍스트 래스터 → 수식)로 정했다(옛 주석의 '6.2.9 순서'를 고침).
+- T25b: 텍스트 래스터가 `null`·예외면 그 상자의 글자는 빠지지만 **배경 채우기(①)는 남긴다**(배경은 글자와 따로인 벡터 — 6.2.4 '빼고'를 글자 래스터에만 적용). 그 쪽은 `PdfExportRasterizedText` 쪽 목록에 들어가고 `reportPdfError`는 해석기(내보내기)당 한 번이다. 래스터 길로 간 쪽은 래스터 성공·실패와 관계없이 그 경고에 든다.
+- T25b: 더한 규칙 둘 — ① `text.trim()`이 빈 상자는 배경만 내고 래스터·경고 없음(그릴 글자가 없음), ② 배경 알파가 0이면 채우기를 내지 않음. 배경 채우기는 `colorArgb` 불투명 + `opacity = 알파 / 255`('색 알파 → 불투명도' 그대로 — `alpha255`는 원래 알파). 줄 글자는 끝의 `\n`·`\r`을 떼고, 공백뿐인 줄은 뺀다.
+- T25b: 래스터는 호출 전에 ⌈w·k⌉ × ⌈h·k⌉ × 4 바이트를 장부 `rgba`로 잡고(그때 `makeRoom`이 캐시를 비움 — 6.2.10 ④), 받은 크기가 다르면 바꿔 잡는다(T25a `_decode`와 같은 모양). `null`·예외·4 Mpx 초과·바이트 수가 크기와 다름 → 놓고 실패. 수식 시간 상한은 `Future.timeout`(늦게 온 결과는 버림), 취소는 `ctx.race`가 즉시 `PdfIoException(cancelled)`.
+- T25b: `no_platform_imports_test`의 `ink_engine` 허용 파일에 계획 3.1대로 `export/object_resolver.dart`·`export/raster_ports.dart`를 더했다.
+- T25b: 기본 INK 포트 VM 시험 3개를 계획 표 밖에서 `raster_ports_test`에 더했다(`useInkTestFonts` — `InkTextRasterizer` 크기·잉크·투명 바탕·쪽 크기 상자 ≤ 4 Mpx, `InkMathRasterizer.layoutSize` 유효·무효). 기본 `InkMathRasterizer.rasterize`는 INK T36 전까지 `null`이라 `integration/math_raster_real_test`(skip)에서만 본다.
+
 - T36a: 재생 줄은 녹음기가 활성(어느 노트든 `idle`이 아님)이면 비활성이다 — 6.13.2 표의 '다른 노트에서 녹음 중 → 재생 줄 됨'과 다르다. 계약 CP-PDF-10('녹음기가 활성인 동안 `play()`는 아무것도 안 함')이라 누를 수 있어도 소리가 나지 않기 때문이다. 재생 단추 안내(tooltip)는 '녹음 중에는 재생할 수 없어요'.
 - T36a: [그 녹음 정지](다른 노트의 녹음)로 정지한 녹음은 이 패널에서 열지 않는다(정지 뒤 '열기만'은 이 노트 녹음일 때만). 동의 시트(6.13.3 ①)는 시작 흐름에 필요해 T36a에 넣었다(`ui/sheets.dart` `showConsentSheet`, 높이 ≤ 50%) — T36b `recording_sheets_test`가 이름·삭제 시트와 함께 다시 본다.
 - T36a: 상황 줄의 오류 대응(6.16 '가장 가까운 문구')은 `ui/record_controls.dart` 순수 함수 `statusLineFor`·`recordRowMode`다 — 일시정지 + `interrupted` + 오류 없음/`hiddenTab` → 이어서 가능('화면을 벗어나…' + [이어서 녹음]), `microphoneLost`·`engineFailed` → [■]만 + 마이크 끊김 문구, `storageBacklog` → [■]만 + 저장 밀림, `idle` + 패널이 부른 `start`의 오류: `permissionDenied`·`microphoneNotFound`·`microphoneBusy` 문구, `engineFailed` → '마이크를 찾지 못했어요', `UnsupportedError` → 지원 안 함; `idle` + 녹음기 `status.error`: `saveFailed`·`engineFailed`·그 밖 → 저장 실패 문구, `draftLost` → 다른 창 문구, `storageFailed` → 문구 없음(녹음 계속). `stop()`이 `MediaIoException`이 아닌 오류를 던지면 `reportError(library: 'media_io')` 뒤 저장 실패 문구. 웹 문구는 `kIsWeb`로 고른다(순수 함수 시험이 `web: true`를 본다).
@@ -437,6 +445,9 @@
 | 5 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 5 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
 | 5 (끝) | 패키지 시험 (T25a 뒤 `pdf_io` VM·Chrome, T36a 뒤 `media_io` VM·Chrome — 그 뒤 lib 변화 없음) | 위 행 그대로 |
+| 6 (T25b) | `ws test --package pdf_io` (VM) | 741 통과 + 9 skip (703 + T25b 38 — `raster_ports_test` 13·`object_resolver_text_math_test` 25, skip + `integration/math_raster_real_test`), 141 s |
+| 6 (T25b) | `ws test --package pdf_io --platform chrome` | 99 통과 + 1 skip (95 + `object_resolver_text_browser_test` 4), prepare ok, 278 s |
+| 6 (T25b) | `flutter analyze --fatal-infos`(pdf_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 

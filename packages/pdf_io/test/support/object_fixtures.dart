@@ -4,7 +4,34 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:note_core/note_core.dart' as core;
 import 'package:pdf_io/testing.dart';
+
+/// A page-size text box, 500 × 700 pt (300 dpi would be 2083 × 2917 ≈ 6.1 Mpx — capped to
+/// ≈ 249 dpi). [text] defaults to a line with a character NoteSans does not cover (U+1F600), so
+/// the resolver takes the raster path.
+core.TextBoxObject pageSizeTextBox({
+  String id = 'text-page',
+  String text = '쪽 크기 상자 \u{1F600}',
+  int? backgroundArgb,
+}) => core.TextBoxObject(
+  id: id,
+  pageId: 'p1',
+  frame: const core.ElementFrame(core.PageRect(40, 60, 540, 760)),
+  text: text,
+  style: core.TextBoxStyle(backgroundArgb: backgroundArgb),
+  createdAt: 1,
+);
+
+/// A big formula frame, 700 × 700 pt (300 dpi would be 2917² ≈ 8.5 Mpx — capped to ≈ 211 dpi).
+core.MathObject bigMathObject({String id = 'math-big'}) => core.MathObject(
+  id: id,
+  pageId: 'p1',
+  frame: const core.ElementFrame(core.PageRect(20, 20, 720, 720)),
+  latex: r'\sum_{k=1}^{n} k^2',
+  style: const core.MathStyle(),
+  createdAt: 1,
+);
 
 /// A solid 6000 × 4000 RGB PNG (a synced original — 96 MB of pixels, about 100 KB of file).
 Uint8List bigPng6000x4000() =>

@@ -9,24 +9,38 @@
 // - slow path (PNG, GIF, WebP, other JPEGs): engine decode at a target size (long side ≤ 2048,
 //   pixels ≤ max(1 Mpx, min(4 Mpx, (16 MiB − input) ÷ 4)) — 6.2.10 ③ ⑤) → straight RGBA,
 //   held as `rgba` until the part is sent; the input is held as `encoded` during the decode.
-// Text boxes and formulas (T25b) come next.
+//
+// T25b: text boxes and formulas (6.2.4 · 6.2.5). A text box background is a vector fill under
+// the text; the text is PDF text objects (one per laid-out line, NoteSans embedded on first use)
+// when the fonts are ready, INK laid out lines and NoteSans covers every character — otherwise
+// a frame-size raster from the text port. A formula is a raster from the math port, contain-
+// fitted into its frame. Rasters are ≤ 4 Mpx (cappedPixelsPerPt) and held as `rgba` (room
+// taken before the call) until the part is sent.
 import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
 import '../common/cancel_signal.dart';
+import '../common/error_report.dart';
 import '../errors.dart';
 import '../gateway/pdf_note_gateway.dart';
 import '../tuning.dart';
 import '../ui/strings_ko.dart';
+import 'compose_plan.dart';
 import 'export_memory.dart';
 import 'export_types.dart';
 import 'image_probe.dart';
 import 'object_geometry.dart';
+import 'raster_ports.dart';
 import 'vectors.dart';
+
+/// Reads one NoteSans file for embedding (default: ink.InkFonts.noteSansBytes — ≤ 5 s, then a
+/// TimeoutException).
+typedef PdfFontBytesSource = Future<Uint8List> Function({required bool bold});
 
 /// Per export: options, cancel, the page being resolved and the warnings collected so far.
 final class ResolveContext {
@@ -48,10 +62,27 @@ final class ResolveContext {
   /// Pages with an image left out (bytes missing or not decodable).
   final SplayTreeSet<int> missingImagePages = SplayTreeSet<int>();
 
-  /// Object warnings in the result order (6.2.9), pages ascending.
+  /// Pages with a text box drawn as a raster (or left out when even the raster failed).
+  final SplayTreeSet<int> rasterizedTextPages = SplayTreeSet<int>();
+
+  /// Pages with a formula left out (invalid LaTeX, raster failed or timed out).
+  final SplayTreeSet<int> skippedFormulaPages = SplayTreeSet<int>();
+
+  /// NoteSans bytes read so far (PdfComposeOpcodes.fontRegular / fontBold → TrueType bytes) —
+  /// the encoder's fontBytes (sent with the first part that uses them, 6.2.6).
+  final Map<int, Uint8List> fontBytes = {};
+
+  /// Font ids whose read failed in this export (not tried again — the boxes are rasterized).
+  final Set<int> failedFontIds = {};
+
+  /// Object warnings in the result order (4.1.5 · 6.16), pages ascending.
   List<PdfExportWarning> get warnings => [
     if (missingImagePages.isNotEmpty)
       PdfExportMissingImages(List.unmodifiable(missingImagePages)),
+    if (rasterizedTextPages.isNotEmpty)
+      PdfExportRasterizedText(List.unmodifiable(rasterizedTextPages)),
+    if (skippedFormulaPages.isNotEmpty)
+      PdfExportSkippedFormulas(List.unmodifiable(skippedFormulaPages)),
   ];
 
   Future<T> race<T>(Future<T> future) =>
@@ -59,14 +90,32 @@ final class ResolveContext {
 }
 
 final class ObjectResolver {
-  ObjectResolver({required this.gateway, ExportMemoryLedger? ledger})
-    : ledger = ledger ?? ExportMemoryLedger() {
+  ObjectResolver({
+    required this.gateway,
+    PdfMathRasterizer math = const InkMathRasterizer(),
+    PdfTextRasterizer text = const InkTextRasterizer(),
+    PdfFontBytesSource? fontBytes,
+    this.mathTimeout = PdfTuning.exportMathRasterTimeout,
+    ExportMemoryLedger? ledger,
+  }) : mathRasterizer = math,
+       textRasterizer = text,
+       fontBytes = fontBytes ?? ink.InkFonts.noteSansBytes,
+       ledger = ledger ?? ExportMemoryLedger() {
     cache = ExportJpegCache(this.ledger);
   }
 
   final PdfNoteGateway gateway;
+  final PdfMathRasterizer mathRasterizer;
+  final PdfTextRasterizer textRasterizer;
+  final PdfFontBytesSource fontBytes;
+
+  /// One formula raster at most this long (exportMathRasterTimeout) — then left out.
+  final Duration mathTimeout;
   final ExportMemoryLedger ledger;
   late final ExportJpegCache cache;
+
+  /// A failed text raster is reported once per export (6.2.4).
+  bool _reportedTextRaster = false;
 
   /// Image data handed out and not sent yet → what it holds in the ledger (identity keys).
   final Map<PdfImageData, ({ExportMemoryHandle h, core.AssetId? cacheAs})>
@@ -84,10 +133,8 @@ final class ObjectResolver {
     return switch (ref) {
       PdfDrawItem() => Future.value([ref]),
       PdfAssetImageRef() => _image(ref, ctx),
-      // T25b: text objects / raster fallback, formula rasters (6.2.4 · 6.2.5)
-      PdfTextBoxRef() || PdfMathRef() => throw UnimplementedError(
-        'Text box and formula references are resolved from PDF T25b on',
-      ),
+      PdfTextBoxRef() => _textBox(ref, ctx),
+      PdfMathRef() => _formula(ref.object, ctx),
     };
   }
 
@@ -206,6 +253,228 @@ final class ObjectResolver {
       if (!handed) ledger.release(handle);
     }
   }
+
+  /// 6.2.4 PdfTextBoxRef: ① background fill, ② text objects, ③ else the raster fallback.
+  Future<List<PdfDrawItem>> _textBox(
+    PdfTextBoxRef ref,
+    ResolveContext ctx,
+  ) async {
+    final object = ref.object;
+    final frame = object.frame;
+    final background = textBoxBackground(object);
+    final items = <PdfDrawItem>[?background];
+    if (object.text.trim().isEmpty) return items; // nothing to write
+    if (ctx.fontsReady &&
+        ref.lines.isNotEmpty &&
+        ink.InkFonts.covers(object.text)) {
+      final fontId = object.style.bold
+          ? PdfComposeOpcodes.fontBold
+          : PdfComposeOpcodes.fontRegular;
+      if (await _fontReady(fontId, ctx)) {
+        final f = PdfAffine.frame(frame);
+        for (final line in ref.lines) {
+          final lineText = _lineText(line.text);
+          if (lineText == null) continue;
+          items.add(
+            PdfTextItem(
+              text: lineText,
+              fontId: fontId,
+              fontSize: object.style.fontSizePt,
+              colorArgb: object.style.colorArgb,
+              matrix: textSpaceAt(line.x, line.baselineY).then(f),
+            ),
+          );
+        }
+        return items;
+      }
+    }
+    // ③ raster fallback (CP-PDF-8): uncovered characters, no INK lines or no font
+    ctx.rasterizedTextPages.add(ctx.notePageNumber);
+    final r = frame.rect;
+    final size = ui.Size(r.width, r.height);
+    final k = cappedPixelsPerPt(PdfTuning.textRasterDpi / 72, size);
+    final raster = await _raster(
+      size,
+      k,
+      ctx,
+      () => textRasterizer.rasterize(object, pixelsPerPt: k),
+    );
+    if (raster.data == null) {
+      if (!_reportedTextRaster) {
+        _reportedTextRaster = true;
+        reportPdfError(
+          raster.error ?? StateError('The text raster gave no image'),
+          raster.stack ?? StackTrace.current,
+          'pdf export: text box raster (${object.id})',
+        );
+      }
+      return items; // the box is left out; its background stays
+    }
+    items.add(
+      PdfImageItem(
+        image: raster.data!,
+        matrix: unitSquareToRect(ui.Rect.fromLTWH(0, 0, r.width, r.height))
+            .then(PdfAffine.frame(frame)),
+      ),
+    );
+    return items;
+  }
+
+  /// 6.2.4 PdfMathRef: layout → contain rect → raster at ⌈mathRasterDpi⌉ (capped) ≤ mathTimeout.
+  Future<List<PdfDrawItem>> _formula(
+    core.MathObject object,
+    ResolveContext ctx,
+  ) async {
+    final r = object.frame.rect;
+    ui.Size? layout;
+    try {
+      layout = mathRasterizer.layoutSize(object);
+    } on Object {
+      layout = null;
+    }
+    final contain = layout == null
+        ? null
+        : mathContainRect(layout, ui.Size(r.width, r.height));
+    if (layout == null || contain == null) {
+      ctx.skippedFormulaPages.add(ctx.notePageNumber);
+      return const [];
+    }
+    final s = contain.width / layout.width;
+    final k = cappedPixelsPerPt(s * PdfTuning.mathRasterDpi / 72, layout);
+    final raster = await _raster(
+      layout,
+      k,
+      ctx,
+      () => mathRasterizer
+          .rasterize(object, pixelsPerPt: k)
+          .timeout(mathTimeout, onTimeout: () => null),
+    );
+    if (raster.data == null) {
+      ctx.skippedFormulaPages.add(ctx.notePageNumber);
+      return const [];
+    }
+    return [
+      PdfImageItem(
+        image: raster.data!,
+        matrix: unitSquareToRect(contain).then(PdfAffine.frame(object.frame)),
+      ),
+    ];
+  }
+
+  /// One raster of [sizePt] at [pixelsPerPt]: room for ⌈w·k⌉ × ⌈h·k⌉ RGBA is taken before
+  /// [draw] runs (6.2.10 ④ — the cache gives way first), the real size replaces it after. A
+  /// raster over maxRasterPixels, null or an exception → data null (nothing held). A cancel is
+  /// rethrown.
+  Future<({PdfRgbaData? data, Object? error, StackTrace? stack})> _raster(
+    ui.Size sizePt,
+    double pixelsPerPt,
+    ResolveContext ctx,
+    Future<PdfRgbaData?> Function() draw,
+  ) async {
+    const none = (data: null, error: null, stack: null);
+    if (!(pixelsPerPt > 0)) return none;
+    final want = rasterPixelSize(sizePt, pixelsPerPt);
+    if (want.width < 1 || want.height < 1) return none;
+    var handle = ledger.hold(
+      ExportMemoryKind.rgba,
+      want.width * want.height * 4,
+    );
+    var handed = false;
+    try {
+      final PdfRgbaData? data;
+      try {
+        data = await ctx.race(draw());
+      } on PdfIoException {
+        rethrow; // cancelled
+      } on Object catch (e, s) {
+        return (data: null, error: e, stack: s);
+      }
+      if (data == null ||
+          data.width < 1 ||
+          data.height < 1 ||
+          data.width * data.height > PdfTuning.maxRasterPixels ||
+          data.rgba.length != data.width * data.height * 4) {
+        return none;
+      }
+      if (data.rgba.length != handle.bytes) {
+        ledger.release(handle);
+        handle = ledger.hold(ExportMemoryKind.rgba, data.rgba.length);
+      }
+      _held[data] = (h: handle, cacheAs: null);
+      handed = true;
+      return (data: data, error: null, stack: null);
+    } finally {
+      if (!handed) ledger.release(handle);
+    }
+  }
+
+  /// The NoteSans file for [fontId] is in ctx.fontBytes — read once per export on first need;
+  /// a failed read (TimeoutException …) is remembered and not tried again.
+  Future<bool> _fontReady(int fontId, ResolveContext ctx) async {
+    if (ctx.fontBytes.containsKey(fontId)) return true;
+    if (ctx.failedFontIds.contains(fontId)) return false;
+    try {
+      final bytes = await ctx.race(
+        fontBytes(bold: fontId == PdfComposeOpcodes.fontBold),
+      );
+      if (bytes.isEmpty) {
+        ctx.failedFontIds.add(fontId);
+        return false;
+      }
+      ctx.fontBytes[fontId] = bytes;
+      return true;
+    } on PdfIoException {
+      rethrow; // cancelled
+    } on Object {
+      ctx.failedFontIds.add(fontId);
+      return false;
+    }
+  }
+}
+
+/// A laid-out line as one text object: without its trailing line break; null for an empty or
+/// whitespace-only line (6.2.4 ②).
+String? _lineText(String line) {
+  var text = line;
+  while (text.endsWith('\n') || text.endsWith('\r')) {
+    text = text.substring(0, text.length - 1);
+  }
+  return text.trim().isEmpty ? null : text;
+}
+
+/// 6.2.4 ①: style.backgroundArgb → the frame's four corners as one fill under the text, the
+/// colour's alpha as the opacity (7.2.12 'a text box background is a vector rect under the
+/// text'). null without a background or with alpha 0.
+PdfFillItem? textBoxBackground(core.TextBoxObject object) {
+  final argb = object.style.backgroundArgb;
+  if (argb == null) return null;
+  final alpha = argbChannel(argb, 3);
+  if (alpha == 0) return null;
+  final corners = object.frame.corners;
+  final coords = Float32List(8);
+  for (var i = 0; i < 4; i++) {
+    coords[2 * i] = corners[i].x;
+    coords[2 * i + 1] = corners[i].y;
+  }
+  return PdfFillItem(
+    path: PdfVectorPath(Uint8List.fromList(const [0, 1, 1, 1, 3]), coords),
+    colorArgb: 0xFF000000 + argb % 0x1000000,
+    opacity: alpha / 255,
+  );
+}
+
+/// 6.2.3 formula contain: s = min(fw/lw, fh/lh), rect ((fw − lw·s)/2, (fh − lh·s)/2, lw·s, lh·s)
+/// in frame-local pt (03-ink 6.12.4, K-6). null when a side is not > 0.
+ui.Rect? mathContainRect(ui.Size layout, ui.Size frame) {
+  final lw = layout.width, lh = layout.height;
+  final fw = frame.width, fh = frame.height;
+  if (!(lw > 0) || !(lh > 0) || !(fw > 0) || !(fh > 0)) return null;
+  if (!lw.isFinite || !lh.isFinite || !fw.isFinite || !fh.isFinite) {
+    return null;
+  }
+  final s = math.min(fw / lw, fh / lh);
+  final w = lw * s, h = lh * s;
+  return ui.Rect.fromLTWH((fw - w) / 2, (fh - h) / 2, w, h);
 }
 
 /// The unit square of an image → note pt: an image object fills its frame (F ∘ U(frame-local
