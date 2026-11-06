@@ -470,7 +470,7 @@ final class DownloadPipeline {
     };
     bool isPurged(EntityRef ref) =>
         purged.contains(ref) || batchPurges.contains(ref);
-    final strokeNotes = await _libStrokeNotes(decoded);
+    final elementNotes = await _libElementNotes(decoded);
     final uid = backend.uid;
     final merged = <EntityRef, SyncRecord>{};
     var heldCount = 0, dropped = 0, rejected = 0;
@@ -484,9 +484,8 @@ final class DownloadPipeline {
           referenceMillis: g,
           uid: uid,
           isPurged: isPurged,
-          strokeNoteId:
-              record is UpsertRecord && record.doc.kind == EntityKind.stroke
-              ? strokeNotes[record.doc.json['pageId']]
+          elementNoteId: record is UpsertRecord && _isElement(record.doc.kind)
+              ? elementNotes[record.doc.json['pageId']]
               : null,
           limit: config.clockSkewLimit,
         );
@@ -738,9 +737,14 @@ final class DownloadPipeline {
     return groups;
   }
 
-  /// Notes of 'lib'-scope strokes (no hint, 6.3.5): the page record in the same batch, else
-  /// the local page row. Unknown pages are left out (the stroke is not dropped).
-  Future<Map<String, String>> _libStrokeNotes(
+  /// Page elements whose note comes from their page (6.3.5; 2nd round 6.2.7).
+  static bool _isElement(EntityKind kind) =>
+      kind == EntityKind.stroke || kind == EntityKind.pageObject;
+
+  /// Notes of 'lib'-scope strokes and (2nd round, 07-sync 6.2.7) page objects (no hint,
+  /// 6.3.5): the page record in the same batch, else the local page row. Unknown pages are
+  /// left out (the element is not dropped — stored as an orphan).
+  Future<Map<String, String>> _libElementNotes(
     List<(RemoteChunk, List<SyncRecord>)> decoded,
   ) async {
     final pageIds = <String>{};
@@ -753,8 +757,7 @@ final class DownloadPipeline {
           if (json['noteId'] case final String noteId) {
             pageNotes[r.doc.id] = noteId;
           }
-        } else if (r.doc.kind == EntityKind.stroke &&
-            c.scope == SyncScopes.library) {
+        } else if (_isElement(r.doc.kind) && c.scope == SyncScopes.library) {
           if (json['pageId'] case final String pageId) pageIds.add(pageId);
         }
       }

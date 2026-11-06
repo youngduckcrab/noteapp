@@ -63,19 +63,21 @@ abstract final class RecordGate {
       referenceMillis >= releaseAtMillis;
 
   /// Table 6.3.5, in this order: malformed → foreign owner → permanently
-  /// deleted (the entity, or the note of a page / recording / stroke) → K1 hold.
+  /// deleted (the entity, or the note of a page / recording / stroke — (2nd round,
+  /// 07-sync 6.2.4) page object / handwriting result) → K1 hold.
   ///
-  /// [scope] is the chunk scope (stroke's note when not 'lib'); [isPurged]
-  /// is the permanent-deletion view for folder / note refs (stored set, unsent
-  /// local purges and the purges of the current apply group); [strokeNoteId]
-  /// is the note of a 'lib'-scope stroke's page when the pipeline found it.
+  /// [scope] is the chunk scope (a stroke's or page object's note when not 'lib');
+  /// [isPurged] is the permanent-deletion view for folder / note refs (stored set, unsent
+  /// local purges and the purges of the current apply group); [elementNoteId] is the
+  /// note of a 'lib'-scope stroke's or page object's page when the pipeline found it
+  /// (6.2.7).
   static GateVerdict check(
     SyncRecord record, {
     required String scope,
     required int referenceMillis,
     required String uid,
     required bool Function(EntityRef ref) isPurged,
-    String? strokeNoteId,
+    String? elementNoteId,
     Duration limit = defaultLimit,
   }) {
     switch (record) {
@@ -118,7 +120,7 @@ abstract final class RecordGate {
             '${doc.ref}: ownerId ${doc.ownerId}',
           );
         }
-        if (_purged(record, scope, strokeNoteId, isPurged) case final why?) {
+        if (_purged(record, scope, elementNoteId, isPurged) case final why?) {
           return GateDrop(why);
         }
         final maxMillis = versions.max.millis;
@@ -132,7 +134,7 @@ abstract final class RecordGate {
   static String? _purged(
     UpsertRecord record,
     String scope,
-    String? strokeNoteId,
+    String? elementNoteId,
     bool Function(EntityRef ref) isPurged,
   ) {
     final doc = record.doc;
@@ -142,17 +144,16 @@ abstract final class RecordGate {
     switch (doc.kind) {
       case EntityKind.folder || EntityKind.note:
         return isPurged(doc.ref) ? '${doc.ref} is permanently deleted' : null;
-      case EntityKind.page || EntityKind.recording:
+      // (2nd round, 07-sync 6.2.4) a handwriting result names its note like a page.
+      case EntityKind.page || EntityKind.recording || EntityKind.handwriting:
         final n = note(doc.json['noteId']);
         return n == null ? null : '${doc.ref} of permanently deleted note $n';
-      case EntityKind.stroke:
-        final n = note(scope == SyncScopes.library ? strokeNoteId : scope);
+      // (2nd round) a page object finds its note like a stroke: the chunk scope, or for a
+      // 'lib' scope the note the pipeline found through its page (6.2.7).
+      case EntityKind.stroke || EntityKind.pageObject:
+        final n = note(scope == SyncScopes.library ? elementNoteId : scope);
         return n == null ? null : '${doc.ref} of permanently deleted note $n';
       case EntityKind.penPreset || EntityKind.setting || EntityKind.asset:
-        return null;
-      // (2nd round, R2-B7a) general records for now: never dropped here. S2-3 adds the
-      // rule for a permanently deleted note (contract 7.2.8, 07-sync 6.2.4).
-      case EntityKind.pageObject || EntityKind.handwriting:
         return null;
     }
   }

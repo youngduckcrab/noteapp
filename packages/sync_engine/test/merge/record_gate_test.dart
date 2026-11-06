@@ -32,7 +32,7 @@ GateVerdict check(
   String uid = 'local',
   Set<String> purgedNotes = const {},
   Set<String> purgedFolders = const {},
-  String? strokeNoteId,
+  String? elementNoteId,
 }) => RecordGate.check(
   r,
   scope: scope,
@@ -43,7 +43,7 @@ GateVerdict check(
     EntityKind.folder => purgedFolders.contains(ref.id),
     _ => false,
   },
-  strokeNoteId: strokeNoteId,
+  elementNoteId: elementNoteId,
 );
 
 Matcher skipped(SyncIssueCode code) =>
@@ -178,13 +178,92 @@ void main() {
         reason: 'unknown page',
       );
       expect(
-        check(s, purgedNotes: {'n1'}, strokeNoteId: 'n1'),
+        check(s, purgedNotes: {'n1'}, elementNoteId: 'n1'),
         isA<GateDrop>(),
       );
       expect(
-        check(s, purgedNotes: {'n1'}, strokeNoteId: 'n2'),
+        check(s, purgedNotes: {'n1'}, elementNoteId: 'n2'),
         isA<GateAccept>(),
       );
+    });
+
+    test('(2nd round, 6.2.4) a handwriting result by its noteId, whatever the '
+        'chunk scope; other notes pass', () {
+      final hw = rec(EntityKind.handwriting);
+      expect(hw.doc.json['noteId'], 'n1');
+      for (final scope in ['lib', 'n1', 'n2']) {
+        expect(
+          check(hw, scope: scope, purgedNotes: {'n1'}),
+          isA<GateDrop>().having(
+            (d) => d.reason,
+            'reason',
+            contains('of permanently deleted note n1'),
+          ),
+          reason: scope,
+        );
+      }
+      expect(
+        check(rec(EntityKind.handwriting, set: {'noteId': 'n2'}), scope: 'n1'),
+        isA<GateAccept>(),
+      );
+      expect(
+        check(
+          rec(EntityKind.handwriting, set: {'noteId': 'n2'}),
+          purgedNotes: {'n1'},
+        ),
+        isA<GateAccept>(),
+      );
+    });
+
+    test('(2nd round, 6.2.4) a page object (every type, an unknown one too) by '
+        'chunk scope; lib scope uses the note found through its page', () {
+      for (final type in ['shape', 'text', 'image', 'math', 'sticker']) {
+        final json = objectFixture(type).toJson();
+        final o = UpsertRecord(
+          SyncDoc(
+            kind: EntityKind.pageObject,
+            id: json['id']! as String,
+            json: json,
+          ),
+          EntityFieldVersions(Hlc.parse(json['version']! as String)),
+        );
+        expect(
+          check(o, scope: 'n1', purgedNotes: {'n1'}),
+          isA<GateDrop>(),
+          reason: type,
+        );
+        expect(
+          check(o, scope: 'n2', purgedNotes: {'n1'}),
+          isA<GateAccept>(),
+          reason: type,
+        );
+        expect(
+          check(o, purgedNotes: {'n1'}),
+          isA<GateAccept>(),
+          reason: '$type: lib scope, unknown page (kept as an orphan)',
+        );
+        expect(
+          check(o, purgedNotes: {'n1'}, elementNoteId: 'n1'),
+          isA<GateDrop>(),
+          reason: type,
+        );
+        expect(
+          check(o, purgedNotes: {'n1'}, elementNoteId: 'n2'),
+          isA<GateAccept>(),
+          reason: type,
+        );
+      }
+    });
+
+    test('(2nd round) page objects and handwriting results have no owner: '
+        'another uid passes', () {
+      for (final kind in [EntityKind.pageObject, EntityKind.handwriting]) {
+        expect(
+          check(rec(kind), uid: 'user-9'),
+          isA<GateAccept>(),
+          reason: '$kind',
+        );
+      }
     });
 
     test('purge records of a purged note still pass', () {

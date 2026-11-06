@@ -757,4 +757,140 @@ void main() {
       }, config: const SyncConfig(maxRecordsPerApply: 1));
     });
   });
+
+  group('lib-scope pageObject (S2-3 — 07-sync 6.2.4, 6.2.7)', () {
+    EntityRef objectRef(String id) => EntityRef(EntityKind.pageObject, id);
+
+    test('a lib-scope page object finds its note through the page record of '
+        'the batch, else the local page row; an unknown page keeps it as an '
+        'orphan', () {
+      withDownloadRig((r) {
+        r.b.localWrite([noteWrite('N'), pageWrite('P', 'N')]);
+        r.pushB();
+        r.connect();
+        r.catchUp();
+        // Z: an unsent local purge here, with an orphan page row P9 of Z left behind.
+        r.a.localPurge(note('Z'), group: const []);
+        r.run(
+          r.a.sync.applyRemote([
+            RemoteUpsert(
+              EntityJson.decode(EntityKind.page, {
+                ...pageWrite('P9', 'Z').json,
+                'createdAt': 1,
+                'updatedAt': 1,
+                'version': Hlc(1, 0, nodeC).toString(),
+              }),
+              EntityFieldVersions(Hlc(1, 0, nodeC)),
+            ),
+          ], policy: (l, remote, p) => const TakeRemote()),
+        );
+        expect(r.hasRow(EntityKind.page, 'P9'), isTrue);
+        r.pipeline = r.newPipeline();
+        r.connect();
+        expect(r.purged.local, {note('Z')});
+
+        final c = FakeLocalStore(nodeId: nodeC, clock: r.base, ownerId: uid)
+          ..localWrite([
+            pageWrite('P8', 'Z'),
+            objectWrite('O1', 'P8'),
+            objectWrite('O2', 'P9', type: 'sticker'),
+            strokeWrite('S1', 'P9'),
+            objectWrite('O3', 'P', type: 'text'),
+            objectWrite('O4', 'P-unknown'),
+          ]);
+        r.commit([
+          DownloadRig.recordOf(c, EntityKind.page, 'P8'),
+          DownloadRig.recordOf(c, EntityKind.pageObject, 'O1'),
+          DownloadRig.recordOf(c, EntityKind.pageObject, 'O2'),
+          DownloadRig.recordOf(c, EntityKind.stroke, 'S1'),
+          DownloadRig.recordOf(c, EntityKind.pageObject, 'O3'),
+          DownloadRig.recordOf(c, EntityKind.pageObject, 'O4'),
+        ], author: nodeC);
+        final result = r.catchUp();
+        // P8 by its noteId, O1 through P8 in the batch, O2 and S1 through the local row P9.
+        expect(result.dropped, 4);
+        expect(r.hasRow(EntityKind.page, 'P8'), isFalse);
+        expect(r.hasRow(EntityKind.pageObject, 'O1'), isFalse);
+        expect(r.hasRow(EntityKind.pageObject, 'O2'), isFalse);
+        expect(r.hasRow(EntityKind.stroke, 'S1'), isFalse);
+        expect(r.hasRow(EntityKind.pageObject, 'O3'), isTrue);
+        expect(r.hasRow(EntityKind.pageObject, 'O4'), isTrue, reason: 'orphan');
+        expect(r.a.outbox.map((e) => e.ref), [note('Z')]);
+        expect(
+          r.a.rows[objectRef('O3')]!.versions,
+          DownloadRig.recordOf(c, EntityKind.pageObject, 'O3').versions,
+        );
+      });
+    });
+
+    test('note scope: the page objects and handwriting result of a received '
+        'purge are gone, and later ones from an unaware device are dropped; '
+        'another note passes', () {
+      withDownloadRig((r) {
+        r.b.localWrite([
+          noteWrite('N'),
+          pageWrite('P', 'N'),
+          objectWrite('O0', 'P'),
+          handwritingWrite('P', 'N'),
+          noteWrite('M'),
+          pageWrite('Q', 'M'),
+        ]);
+        r.pushB();
+        r.connect();
+        r.catchUp();
+        expect(r.hasRow(EntityKind.pageObject, 'O0'), isTrue);
+        expect(r.hasRow(EntityKind.handwriting, 'hw_P'), isTrue);
+
+        r.async.elapse(const Duration(seconds: 1));
+        r.b.localWrite([
+          FakeLocalWrite(
+            EntityKind.note,
+            {
+              ...r.b.rows[note('N')]!.entity.toJson(),
+              'deletedAt': 5,
+              'trashRootId': 'N',
+            },
+            changedFields: const {'deletedAt', 'trashRootId'},
+          ),
+        ]);
+        r.b.localPurge(note('N'), group: const []);
+        r.pushB();
+        r.catchUp();
+        expect(r.hasRow(EntityKind.pageObject, 'O0'), isFalse);
+        expect(r.hasRow(EntityKind.handwriting, 'hw_P'), isFalse);
+        expect(r.purged.isStored(note('N')), isTrue);
+
+        r.async.elapse(const Duration(seconds: 1));
+        final c = FakeLocalStore(nodeId: nodeC, clock: r.base, ownerId: uid)
+          ..localWrite([
+            objectWrite('O5', 'P', type: 'math'),
+            handwritingWrite('P', 'N', text: '늦게 온 결과'),
+            handwritingWrite('Q', 'M'),
+            objectWrite('O6', 'Q'),
+          ]);
+        r.commit(
+          [
+            DownloadRig.recordOf(c, EntityKind.pageObject, 'O5'),
+            DownloadRig.recordOf(c, EntityKind.handwriting, 'hw_P'),
+          ],
+          author: nodeC,
+          scope: 'N',
+        );
+        r.commit(
+          [
+            DownloadRig.recordOf(c, EntityKind.handwriting, 'hw_Q'),
+            DownloadRig.recordOf(c, EntityKind.pageObject, 'O6'),
+          ],
+          author: nodeC,
+          scope: 'M',
+        );
+        final result = r.catchUp();
+        expect(result.dropped, 2);
+        expect(r.hasRow(EntityKind.pageObject, 'O5'), isFalse);
+        expect(r.hasRow(EntityKind.handwriting, 'hw_P'), isFalse);
+        expect(r.hasRow(EntityKind.handwriting, 'hw_Q'), isTrue);
+        expect(r.hasRow(EntityKind.pageObject, 'O6'), isTrue);
+      });
+    });
+  });
 }
