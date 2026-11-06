@@ -19,6 +19,7 @@ import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../model/asset.dart';
+import '../model/handwriting.dart';
 import '../model/page.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
@@ -439,10 +440,11 @@ final class WriteTxn {
   /// Remote write (internal path of applyRemote / commitRepairs): stores [entity] with
   /// [versions] as given (no re-stamp, no outbox), keeps local-only columns of an
   /// existing row, merges the version into the HLC unless [advanceClock] is false (the
-  /// caller receives once). A stroke whose page row is not here is an orphan: it is
-  /// stored with note_id '' and listed in the batch of the commit that brings its page
-  /// (6.10.1, 6.10.3, contract 7.2.10 v1.2). [assetChunkCount]: chunk_count of a new
-  /// asset row. Returns the routing hints (noteId null for an orphan stroke).
+  /// caller receives once). A stroke or (v2) page object whose page row is not here is
+  /// an orphan: it is stored with note_id '' and listed in the batch of the commit that
+  /// brings its page (6.10.1, 6.10.3, contract 7.2.10 v1.2; m5-7/02-core 6.13).
+  /// [assetChunkCount]: chunk_count of a new asset row. Returns the routing hints
+  /// (noteId null for an orphan).
   Future<({NoteId? noteId, PageId? pageId})> putRemote(
     SyncEntity entity,
     EntityFieldVersions versions, {
@@ -451,7 +453,8 @@ final class WriteTxn {
   }) async {
     _touched.add(entity.kind);
     final hints = await _hints(entity, null);
-    final orphan = entity is Stroke && hints.noteId == null;
+    final orphan =
+        (entity is Stroke || entity is PageObject) && hints.noteId == null;
     await writeEntityRow(
       db,
       entity,
@@ -526,40 +529,71 @@ final class WriteTxn {
         );
       case Recording(:final noteId):
         return (noteId: noteId, pageId: null);
+      // (v2, C2-13 — m5-7/02-core 6.13) Always both hints.
+      case PageObject(:final pageId):
+        return (
+          noteId: strokeNoteId ?? await noteIdOfPage(pageId),
+          pageId: pageId,
+        );
+      case HandwritingText(:final noteId, :final pageId):
+        return (noteId: noteId, pageId: pageId);
       default:
         return (noteId: null, pageId: null);
     }
   }
 
+  /// Orphan strokes and (v2) page objects of [page] (note_id '') get its note; their
+  /// outbox entries get the noteId hint and their EntityChanges join this commit.
   Future<void> _adoptOrphans(Page page) async {
     final s = db.strokes;
-    final rows =
+    final strokes =
         await (db.selectOnly(s)
               ..addColumns([s.id, s.deletedAt])
               ..where(s.pageId.equals(page.id) & s.noteId.equals('')))
             .get();
-    if (rows.isEmpty) return;
-    await (db.update(s)
-          ..where((t) => t.pageId.equals(page.id) & t.noteId.equals('')))
-        .write(StrokesCompanion(noteId: Value(page.noteId)));
-    final o = db.outbox;
-    await (db.update(o)..where(
+    final o = db.pageObjects;
+    final objects =
+        await (db.selectOnly(o)
+              ..addColumns([o.id, o.deletedAt])
+              ..where(o.pageId.equals(page.id) & o.noteId.equals('')))
+            .get();
+    if (strokes.isEmpty && objects.isEmpty) return;
+    if (strokes.isNotEmpty) {
+      await (db.update(s)
+            ..where((t) => t.pageId.equals(page.id) & t.noteId.equals('')))
+          .write(StrokesCompanion(noteId: Value(page.noteId)));
+    }
+    if (objects.isNotEmpty) {
+      await (db.update(o)
+            ..where((t) => t.pageId.equals(page.id) & t.noteId.equals('')))
+          .write(PageObjectsCompanion(noteId: Value(page.noteId)));
+    }
+    final out = db.outbox;
+    await (db.update(out)..where(
           (t) =>
-              t.entityKind.equals(EntityKind.stroke.name) &
+              t.entityKind.isIn([
+                EntityKind.stroke.name,
+                EntityKind.pageObject.name,
+              ]) &
               t.pageId.equals(page.id) &
               (t.noteId.isNull() | t.noteId.equals('')),
         ))
         .write(OutboxCompanion(noteId: Value(page.noteId)));
-    for (final r in rows) {
-      addChange(
-        EntityChange(
-          kind: EntityKind.stroke,
-          id: r.read(s.id)!,
-          noteId: page.noteId,
-          pageId: page.id,
-          deleted: r.read(s.deletedAt) != null,
-        ),
-      );
+    for (final (kind, rows, id, deletedAt) in [
+      (EntityKind.stroke, strokes, s.id, s.deletedAt),
+      (EntityKind.pageObject, objects, o.id, o.deletedAt),
+    ]) {
+      for (final r in rows) {
+        addChange(
+          EntityChange(
+            kind: kind,
+            id: r.read(id)!,
+            noteId: page.noteId,
+            pageId: page.id,
+            deleted: r.read(deletedAt) != null,
+          ),
+        );
+      }
     }
   }
 }

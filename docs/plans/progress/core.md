@@ -396,7 +396,7 @@
 | T24 | 완료 | a2b0489 | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
 | T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
-| T26 | 남음 | | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart` |
+| T26 | 완료 | (이정표 표) | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart`, 1차 `test/storage/field_version_writer_test.dart`(모든 종류 왕복) |
 | T27 | 남음 | | `test/session/object_session_contract_real_test.dart`, `test/session/note_session_objects_test.dart`, `test/edit/undo_objects_test.dart`, `test/session/content_reader_test.dart` |
 | T28 | 남음 | | `test/sync/sync_store_v2_test.dart`, `test/sync/field_lww_convergence_v2_test.dart`, `test/sync/unknown_object_roundtrip_test.dart` |
 | T30 | 남음 | | `test/repo/recording_contract_real_test.dart`, `test/repo/recording_repository_test.dart` |
@@ -454,6 +454,22 @@
 | 다른 멤버(고치지 않고 확인 — 가짜의 정규화 위임·v2 DB) | `ws test --package feature_library --platform vm` 628 통과, `sync_engine` VM 782 통과(통합 태그는 기본 skip) | 334초·154초 |
 | 세션 끝 다시 돌림(커밋 `409c4f2` 뒤) | `ws check` 0, `ws test --package note_core --platform chrome` 74 통과 | 214초 |
 
+#### T26 — 행 변환 · 쓰기 경로 (계획 6.11·6.13·8.2, C2-13)
+
+- **행 변환**(`storage/row_mappers.dart`): `page_objects` — `note_id`는 비정규화(획과 같은 `strokeNoteId` 인자 — 원격 고아는 `''`), `type` 열, `min_x…max_y` = `bounds`, `data_json` = `toJson()`에서 **열이 따로 있는 키**(`kObjectColumnKeys` = `id`·`pageId`·`type`·`createdAt`·`updatedAt`·`deletedAt`·`version`)를 뺀 것(`toJson` 순서 그대로 — `frame`·종류별 키·`UnknownObject`의 모르는 키), `asset_id` = `referencedAssets`(이미지, 최상위 `assetId`가 AssetId인 `UnknownObject`). 읽기는 열 키 + `data_json`을 `PageObject.fromJson`으로(`UnknownObject`는 키·값·순서까지 돌아온다). `handwriting` — `lines_json` = `lines[i].toJson()` 배열. `recordings.title` 쓰기·읽기(업데이트 때 NULL로 지우기 포함). `pages`의 `bg_asset_id`·`bg_pdf_index`는 **쓰기마다** 배경에서 파생(`backgroundColumns` — 업그레이드 4단계와 같은 규칙, `keepLocal`과 상관없음), `ink_rev`·`ink_rev_at`은 엔티티 쓰기가 건드리지 않는다(새 행 NULL, 업데이트는 유지 — 6.9.3 캐시는 T32가 쓴다). `deleteEntityRow`·`readVersionedRow`·`readVersionedPage`(백업 키셋 페이지)와 `DriftSyncStore._readKind`(`readVersioned`)에 두 종류.
+- **힌트**(`WriteTxn._hints`): `PageObject` → `noteId = noteIdOfPage(pageId)`, `pageId`; `HandwritingText` → 그대로 — 둘 다 항상(outbox·`EntityChange`, 로컬·원격·`commitRepairs`·`WriteMerged`).
+- **원격 고아 객체**: `putRemote`가 페이지 행이 없는 객체를 `note_id = ''`로 저장하고 그 커밋에는 내지 않는다. `_adoptOrphans`(페이지가 오는 `putRemote`)가 획과 함께 객체의 `note_id`·outbox `noteId`를 채우고 `EntityChange`를 그 커밋 batch에 넣는다(같은 `applyRemote` 호출 안에서 객체가 먼저 와도 batch 하나).
+- 남긴 것(T28): `_RemoteWriter.write`의 객체·손글씨 경우(쓰인 기존 페이지 `content_rev + 1`, 영향 노트 `refreshNoteDerived`), 색인 훅. 지금은 원격 객체가 행·힌트·고아 입양만 되고 페이지 `content_rev`는 오르지 않는다.
+
+확인 (2026-11-06, 다른 영역 시험이 함께 돎)
+
+| 검사 | 결과 | 시간 |
+|---|---|---|
+| `packages/note_core` `flutter analyze --fatal-infos` | 0건 | 3초 |
+| `dart format --set-exit-if-changed lib test tool` | 변경 없음 | 2초 |
+| `ws test --package note_core --platform vm` | **939개 통과**(915 + 새 24), 5개 건너뜀(perf) | 81초 |
+| `ws test --package note_core --platform chrome` | 준비 ok, **74개 통과**(바뀐 시험 없음 — 행 변환이 웹에서도 컴파일·동작), 1개 건너뜀(perf). 첫 시도는 부하로 시간 초과, 두 번째 시도 통과(ws 자동 재시도) | 1,026초(잠금 대기 포함) |
+
 #### 계획과 다르게 한 점 (동시 개발)
 
 - T24: 1차 `test/storage/schema_test.dart`(v1 테이블 10개)를 지우고 `schema_v2_test.dart`가 그 검사를 v2로 이어받았다(테이블 15 + FTS·그림자 4, 색인 22개, `field_versions` 10, `user_version` 2, `drift_schemas` v1·v2).
@@ -463,6 +479,9 @@
 - T24: v1 사본의 실패 기록도 같은 수명(정상 열기 5번 + 7일)으로 지운다(계획은 실패 기록의 수명을 정하지 않음). 사본 kv(`db.v1Copy`)는 기기 로컬 기록이라 쓰기 큐를 거치지 않고 DB에 바로 쓴다(열기 끝·`deleteV1DatabaseCopy` — outbox·HLC 없음, 실패해도 열기를 막지 않음).
 - T24: 시험 이음새 — `DriftNoteStore.open`의 `@visibleForTesting databaseFactory`가 `(executor, v1CopyMaker)`를 받도록 바꿨고(1차 `open_errors_test`의 3곳 고침), `@visibleForTesting v1CopyMethod`로 VM에서 웹 형식(블롭 덤프)을 돌린다. `open_errors_test`의 '새 앱' DB는 v3로 올렸다.
 - T24: `test/shared/b2_alpha_store_cases.dart`의 `tasks.v1Copy`를 null 허용으로(실제 저장소는 T24부터 사본 API가 동작 — 메모리 저장소는 사본 없음).
+- T26: `DriftSyncStore._readKind`의 새 두 종류(계획은 T28의 '종류 switch')를 T26에 했다 — 완료 조건의 `readVersioned` 행과 고아 시험(`applyRemote`로 객체 → 페이지)이 쓴다. T28에는 `_RemoteWriter`의 `content_rev`·노트 갱신과 색인 훅이 남는다.
+- T26: `data_json`은 메타 키에 더해 `type`도 뺀다(열이 따로 있음 — 계획 표의 '종류별 키 + `frame`'). `writeEntityRow`·`putLocal`의 `strokeNoteId` 인자 이름은 그대로 두고 객체 행의 `note_id`에도 쓴다(내부 이름).
+- T26: 1차 `field_version_writer_test`의 '모든 표본 왕복'이 `kSampleEntities` 전부(객체 8·손글씨·제목 있는 녹음)를 돌게 했고, v1 DB 전용 표본 `kV1RowSamples`(`test/shared/entity_samples.dart`)는 지웠다.
 - T24: V7 고정 자료로 하는 웹 시간 측정(6.12.3 Chrome·PF-8)은 T25b 몫이라, 첫날 확인은 같은 크기의 합성 v1(획 2,005개)로 했다. **웹 업그레이드 열기가 1.9~2.5초**(load 6~9)로 PF-8 예산 '사본 포함 1초'를 넘었다 — 덤프 자체는 0.3초라 나머지(블롭 1.4 MB `put`, IndexedDB VFS의 업그레이드 쓰기)를 T25b의 PF-8 시험에서 고정 자료로 다시 재고 넘으면 원인을 나눠 본다.
 
 #### 다음 세션 메모

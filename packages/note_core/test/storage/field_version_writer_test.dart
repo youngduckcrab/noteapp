@@ -49,9 +49,8 @@ void main() {
     test('every sample entity round-trips through its row', () async {
       final store = await openStore();
       addTearDown(store.close);
-      // (v2.0) The v1 database rows (kV1RowSamples — page objects, handwriting and
-      // recordings.title need DB v2, CORE T24).
-      for (final MapEntry(key: name, value: e) in kV1RowSamples.entries) {
+      // (v2) Every kind, page objects / handwriting / recordings.title included (T26).
+      for (final MapEntry(key: name, value: e) in kSampleEntities.entries) {
         final versions = EntityFieldVersions(e.version!);
         await writeEntityRow(store.db, e, versions);
         final back = await readVersionedRow(store.db, EntityRef(e.kind, e.id));

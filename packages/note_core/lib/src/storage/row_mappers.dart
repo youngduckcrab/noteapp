@@ -5,12 +5,19 @@
 // last_opened_at, pages.content_rev, assets.chunk_count / has_local_bytes) are
 // written from the entity on insert and kept on update when [keepLocal] is set
 // (remote and repair writes, 6.10.3).
+//
+// (v2 — m5-7/02-core 6.11, 6.13) Derived columns are written from the entity on every
+// write: pages.bg_asset_id / bg_pdf_index (from the background, the same rule as upgrade
+// step 4), page_objects.min_x… (= bounds) and asset_id (= referencedAssets). The page
+// cache columns pages.ink_rev / ink_rev_at (6.9.3) are never written here: a new row
+// starts with NULL and an update keeps them. page_objects.data_json is the object's JSON
+// without the keys that have their own column ([kObjectColumnKeys]).
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
 import '../common/hlc.dart';
-import '../common/pending.dart';
+import '../common/ids.dart';
 import '../common/text_normalize.dart';
 import '../model/asset.dart';
 import '../model/folder.dart';
@@ -58,8 +65,40 @@ PressureCurve _curveOf(String text) {
   return PressureCurve(x1: p[0], y1: p[1], x2: p[2], y2: p[3]);
 }
 
+/// The keys of a page object's JSON stored in their own page_objects columns (not in
+/// data_json — 6.11): the meta keys and `type`.
+const Set<String> kObjectColumnKeys = {
+  'id',
+  'pageId',
+  'type',
+  'createdAt',
+  'updatedAt',
+  'deletedAt',
+  'version',
+};
+
+/// page_objects.data_json of [o]: its JSON (7.2.7 keys, frame included) without
+/// [kObjectColumnKeys], in the toJson order.
+String objectDataJson(PageObject o) => jsonEncode({
+  for (final MapEntry(:key, :value) in o.toJson().entries)
+    if (!kObjectColumnKeys.contains(key)) key: value,
+});
+
+/// pages.bg_asset_id / bg_pdf_index derived from [b] (6.11; upgrade step 4): pdf → its
+/// asset and page index, image → its asset, others → none.
+({AssetId? assetId, int? pdfIndex}) backgroundColumns(PageBackground b) =>
+    switch (b) {
+      PdfBackground(:final assetId, :final pdfPageIndex) => (
+        assetId: assetId,
+        pdfIndex: pdfPageIndex,
+      ),
+      ImageBackground(:final assetId) => (assetId: assetId, pdfIndex: null),
+      _ => (assetId: null, pdfIndex: null),
+    };
+
 /// Inserts or updates the row of [e] with [versions] (version column = versions.max).
-/// [strokeNoteId]: the denormalized strokes.note_id ('' for a remote orphan stroke).
+/// [strokeNoteId]: the denormalized note_id of a stroke or page object row ('' for a
+/// remote orphan whose page row is not here — 6.13).
 Future<void> writeEntityRow(
   NoteDatabase db,
   SyncEntity e,
@@ -129,6 +168,7 @@ Future<void> writeEntityRow(
             ),
           );
     case Page():
+      final bg = backgroundColumns(e.background);
       final row = PagesCompanion.insert(
         id: e.id,
         noteId: e.noteId,
@@ -142,6 +182,8 @@ Future<void> writeEntityRow(
         version: version,
         fieldVersions: Value(fv),
         contentRev: e.contentRevision,
+        bgAssetId: Value(bg.assetId),
+        bgPdfIndex: Value(bg.pdfIndex),
       );
       await db
           .into(db.pages)
@@ -253,6 +295,7 @@ Future<void> writeEntityRow(
               deletedAt: Value(e.deletedAt),
               version: version,
               fieldVersions: Value(fv),
+              title: Value(e.title),
             ),
           );
     case SettingValue():
@@ -268,9 +311,48 @@ Future<void> writeEntityRow(
               fieldVersions: Value(fv),
             ),
           );
-    case PageObject() || HandwritingText():
-      // (v2.0) The page_objects / handwriting tables come with DB v2 (02-core 8.1).
-      notYet('T26', 'writeEntityRow(${e.kind.name}) needs DB v2');
+    case PageObject():
+      final b = e.bounds;
+      final assets = e.referencedAssets;
+      await db
+          .into(db.pageObjects)
+          .insertOnConflictUpdate(
+            PageObjectsCompanion.insert(
+              id: e.id,
+              pageId: e.pageId,
+              noteId: strokeNoteId ?? '',
+              type: e.type,
+              minX: b.left,
+              minY: b.top,
+              maxX: b.right,
+              maxY: b.bottom,
+              dataJson: objectDataJson(e),
+              assetId: Value(assets.isEmpty ? null : assets.first),
+              createdAt: e.createdAt,
+              updatedAt: e.updatedAt,
+              deletedAt: Value(e.deletedAt),
+              version: version,
+              fieldVersions: Value(fv),
+            ),
+          );
+    case HandwritingText():
+      await db
+          .into(db.handwriting)
+          .insertOnConflictUpdate(
+            HandwritingCompanion.insert(
+              id: e.id,
+              pageId: e.pageId,
+              noteId: e.noteId,
+              engineId: e.engineId,
+              sourceRev: e.sourceRev,
+              linesJson: jsonEncode([for (final l in e.lines) l.toJson()]),
+              createdAt: e.createdAt,
+              updatedAt: e.updatedAt,
+              deletedAt: Value(e.deletedAt),
+              version: version,
+              fieldVersions: Value(fv),
+            ),
+          );
     default:
       throw ArgumentError.value(e, 'entity', 'unknown entity type');
   }
@@ -304,11 +386,12 @@ Future<bool> deleteEntityRow(NoteDatabase db, EntityRef ref) async {
     EntityKind.setting => await (db.delete(
       db.settings,
     )..where((t) => t.key.equals(id))).go(),
-    // (v2.0) No table before DB v2 (02-core 8.1).
-    EntityKind.pageObject || EntityKind.handwriting => notYet(
-      'T26',
-      'deleteEntityRow(${ref.kind.name}) needs DB v2',
-    ),
+    EntityKind.pageObject => await (db.delete(
+      db.pageObjects,
+    )..where((t) => t.id.equals(id))).go(),
+    EntityKind.handwriting => await (db.delete(
+      db.handwriting,
+    )..where((t) => t.id.equals(id))).go(),
   };
   return n > 0;
 }
@@ -360,9 +443,16 @@ Future<VersionedEntity?> readVersionedRow(
         db.settings,
       )..where((t) => t.key.equals(id))).getSingleOrNull();
       return r == null ? null : versionedSetting(r);
-    case EntityKind.pageObject || EntityKind.handwriting:
-      // (v2.0) A v1 database has no such rows; the tables come with DB v2 (CORE T24 / T26).
-      return null;
+    case EntityKind.pageObject:
+      final r = await (db.select(
+        db.pageObjects,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      return r == null ? null : versionedObject(r);
+    case EntityKind.handwriting:
+      final r = await (db.select(
+        db.handwriting,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      return r == null ? null : versionedHandwriting(r);
   }
 }
 
@@ -423,9 +513,18 @@ Future<List<VersionedEntity>> readVersionedPage(
         ..limit(limit);
       if (after != null) q.where((t) => t.key.isBiggerThanValue(after));
       return [for (final r in await q.get()) versionedSetting(r)];
-    case EntityKind.pageObject || EntityKind.handwriting:
-      // (v2.0) A v1 database has no such rows; the tables come with DB v2 (CORE T24 / T26).
-      return const [];
+    case EntityKind.pageObject:
+      final q = db.select(db.pageObjects)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedObject(r)];
+    case EntityKind.handwriting:
+      final q = db.select(db.handwriting)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedHandwriting(r)];
   }
 }
 
@@ -454,6 +553,10 @@ VersionedEntity versionedRecording(RecordingRow r) =>
     _versioned((v) => recordingOf(r, v), r.version, r.fieldVersions);
 VersionedEntity versionedSetting(SettingRow r) =>
     _versioned((v) => settingOf(r, v), r.version, r.fieldVersions);
+VersionedEntity versionedObject(PageObjectRow r) =>
+    _versioned((v) => pageObjectOf(r, v), r.version, r.fieldVersions);
+VersionedEntity versionedHandwriting(HandwritingRow r) =>
+    _versioned((v) => handwritingOf(r, v), r.version, r.fieldVersions);
 
 Folder folderOf(FolderRow r, [Hlc? version]) => Folder(
   id: r.id,
@@ -571,6 +674,7 @@ Recording recordingOf(RecordingRow r, [Hlc? version]) => Recording(
   updatedAt: r.updatedAt,
   deletedAt: r.deletedAt,
   version: version ?? Hlc.parse(r.version),
+  title: r.title,
 );
 
 SettingValue settingOf(SettingRow r, [Hlc? version]) => SettingValue(
@@ -580,3 +684,33 @@ SettingValue settingOf(SettingRow r, [Hlc? version]) => SettingValue(
   deletedAt: r.deletedAt,
   version: version ?? Hlc.parse(r.version),
 );
+
+/// The object of a page_objects row: data_json plus the column keys, decoded by
+/// PageObject.fromJson (an UnknownObject gets back every key it was stored with — C-12).
+PageObject pageObjectOf(PageObjectRow r, [Hlc? version]) =>
+    PageObject.fromJson({
+      'id': r.id,
+      'pageId': r.pageId,
+      'type': r.type,
+      ...jsonDecode(r.dataJson) as Map<String, Object?>,
+      'createdAt': r.createdAt,
+      'updatedAt': r.updatedAt,
+      'deletedAt': r.deletedAt,
+      'version': (version ?? Hlc.parse(r.version)).toString(),
+    });
+
+HandwritingText handwritingOf(HandwritingRow r, [Hlc? version]) =>
+    HandwritingText(
+      noteId: r.noteId,
+      pageId: r.pageId,
+      engineId: r.engineId,
+      sourceRev: r.sourceRev,
+      lines: List<HandwritingLine>.unmodifiable([
+        for (final l in jsonDecode(r.linesJson) as List<Object?>)
+          HandwritingLine.fromJson(l! as Map<String, Object?>),
+      ]),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      deletedAt: r.deletedAt,
+      version: version ?? Hlc.parse(r.version),
+    );

@@ -192,7 +192,7 @@ void main() {
     );
 
     test(
-      'the sync window reads no row of the new kinds yet (DB v2, rows T26)',
+      'a new store has no row of the new kinds (DB v2; written since T26)',
       () async {
         final store = await openTestNoteStore();
         addTearDown(store.close);
