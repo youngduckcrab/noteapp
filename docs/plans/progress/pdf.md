@@ -285,7 +285,7 @@
 | T29 | 남음 | | `test/support/real_wiring.dart`, `integration/export_objects_v11_test`·`integration/search_indexer_core_test`·`web/export_objects_v11_browser_test`(통합 단계에서 실행), `perf/compose_objects_perf_test`, `web/perf_compose_objects_test` |
 | T31a | 완료 | 8dc3b6f | `unit/recording_clock_test`, `unit/draft_writer_test`, `unit/buffer_ledger_test`, `unit/recover_attempts_test` |
 | T31b | 남음 | | `unit/recorder_service_test`, `unit/stop_recover_buffers_test` |
-| T32a | 남음 | | `unit/webm_timeline_test`, `unit/mp4_duration_test` |
+| T32a | 완료 | (이 커밋) | `unit/webm_timeline_test`, `unit/mp4_duration_test`, (더함) `web/pure_logic_browser_test` — 손 표본 사례는 `test/support/webm_timeline_cases.dart`·`mp4_duration_cases.dart`(VM·Chrome 같은 단언), Chrome 표본 `test/support/fixtures/chrome_opus_*.webm` 7개 |
 | T32b | 남음 | | `unit/web_mime_test`, `web/recorder_engine_browser_test`, `web/file_download_browser_test`, `media/visibility_pause_media_test` |
 | T33 | 남음 | | `unit/native_engine_test`, `unit/foreground_service_test`, `unit/audio_session_test` |
 | T34 | 남음 | | `unit/playback_service_test`, `unit/audio_source_native_test`, `web/playback_browser_test` |
@@ -328,6 +328,12 @@
 - T31a: 4.6의 `MediaSettingKeys`(키 4개)를 계획대로 `lib/src/providers.dart`에 두었다(아직 provider는 없음 — T31b부터).
 - T31a: `DraftWriter`의 신호는 콜백 `onSignal(DraftWriterSignal, Object?)`(`storageFailed`·`storageRecovered`·`backlogFull`·`draftLost`)로 서비스에 알린다. '`unsaved`'는 한 번 이상 실패한 머리 쪽 조각들이다(순서를 지키려고 실패하면 펌프를 멈추고, 다음 조각·일시정지 중 keep-alive 틱·`drain()`이 머리부터 다시 쓴다). 같은 조각이 거듭 실패해도 `storageFailed`는 한 번만 알린다. keep-alive 빈 조각의 실패(`StateError` 밖)는 잃는 소리가 없어 오류로 올리지 않는다. `drain()`은 진행 중 쓰기를 기다린 뒤 한 번 더 쓰고 아직 남은 조각 목록을 돌려준다(정지 경로가 `readAll` 뒤에 이어 붙임 — 6.6.3).
 - T31a: `offsetNowMs` 규칙('`recording`이 아니면 `null`')은 `recording_clock.dart`의 src 함수 `offsetNowMsOf(phase, clock)`로 두고 서비스(T31b)가 쓴다.
+- T32a: `WebmTimeline.measure`·`patchedHead`와 `Mp4Duration.measure`(`int?` ms)는 src 전용(`lib/src/record/webm_timeline.dart`·`mp4_duration.dart`). 결과 레코드 typedef `WebmMeasure`·`WebmPatchedHead`도 src 전용. `measure`의 끝 탐색 창은 인자 `tailScanBytes`(기본 `MediaTuning.webmTailScanBytes`)로 받아 시험이 '처음부터 걷기'를 작은 창으로도 본다.
+- T32a: Chrome 표본은 6.1 E9의 6개 + E11의 패치 파일(`chrome_opus_r1_patched.webm` — `<audio>`가 2.04 s로 읽은 파일)을 넣어 `patchedHead` 결과를 바이트 그대로 대조한다. 이름은 실험 파일 이름 그대로(`r0`~`r4`·`rec`): `rec` = 1.5 s + 정지 1 s + 1.5 s, `r2` = 3.3 s, `r4` = 5 s, `r0`·`r1`·`r3`은 셋 다 활성 2 s(2 s · 1 + 1 + 1 · 0.7 + 0.5 + 1.3 중 어느 것인지 실험 기록에 없다). 기대값(`lastBlockStartMs`·`endMs` — 1979/2039, 1980/2040, 1979/2039, 3300/3360, 4980/5040, 2939/2999)은 계획 단계 파서 `ebml.py`(별도 Python 구현)의 블록 목록에 마지막 블록 TOC의 패킷 길이(20 ms × 3)를 더해 다시 계산했다(그 파서가 찍는 'timeline end ms' 줄은 프레임 하나(20 ms)만 더해 쓰지 않았다).
+- T32a: `patchedHead`의 SeekHead·Cues 판단은 첫 Cluster 앞 Segment 자식만 본다(Cluster 뒤 Cues는 그것을 쓰는 먹서가 SeekHead로 가리킨다 — Chrome은 둘 다 없음). 이미 있는 `Duration`은 크기 그대로(8 → float64, 4 → float32) 값만 바꾼다. `Info` 크기 vint가 한 바이트 더 필요하면(본문 127 B 경계) 늘리고, SeekHead가 있으면 그만큼 Void를 더 줄인다(남는 Void가 1바이트가 되면 `null`).
+- T32a: lacing된 블록(Chrome은 쓰지 않음)은 TOC를 읽지 않고 `DefaultDuration`(없으면 `opusDefaultPacketMs`) × 프레임 수로 잰다. 다른 트랙(Tracks의 오디오 트랙 번호와 다름)의 블록은 건너뛴다. 끝 창의 Cluster ID 후보가 구조는 맞지만 온전한 블록이 없으면(잘린 마지막 Cluster) 더 앞 후보로 간다 — 앞 후보의 걷기는 잘린 Cluster를 지나 끝까지 간다.
+- T32a: `Mp4Duration` 3단계(trun 합)는 조각 하나를 'moof가 온전하고 바로 뒤 mdat가 파일 끝에 잘리지 않았을 때'만 센다(맨 끝 moof 뒤에 mdat가 없어도 뺀다 — 복구 초안의 반쯤 쓴 조각). 오디오 트랙은 `hdlr` 'soun'인 trak(없으면 첫 trak), 다른 트랙의 traf는 건너뛴다.
+- T32a: 계획 9.2 표에 없는 Chrome 시험 `media_io/test/web/pure_logic_browser_test.dart`를 더했다 — 두 계산이 dart2js 수치(64비트 읽기 없음·비트 연산 대신 산술)에서도 같은지 VM과 같은 손 표본 사례로 본다(픽스처 파일을 읽는 Chrome 표본 묶음은 VM에서만).
 - T21: `PdfComposeJob.addPages` 문서 주석을 4.1.4대로 '한 페이지가 여러 조각으로 올 수 있고 같은 outputIndex의 조각은 z 순서대로 덧붙는다'로 바꿨다(시그니처 그대로).
 
 #### 이정표 커밋
@@ -347,6 +353,10 @@
 | 1 (T31a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 | 1 (끝) | `ws check` | R1~R16 위반 0·경고 0 |
 | 1 (끝) | 작업 트리 루트 `flutter analyze --fatal-infos` | 0건 |
+| 2 (T32a) | `ws test --package media_io` (VM) | 103 통과 (65 + T32a 38) |
+| 2 (T32a) | `ws test --package media_io --platform chrome` | 33 통과 (3 + T32a 30), prepare ok |
+| 2 (T32a) | `ws test --package media_io --platform chrome --run-skipped -t media` (PDF-F3, 05:15:21–05:16:15 UTC, 잠금 대기 0초) | `media` 시험 아직 없음 — 'no matching tests' |
+| 2 (T32a) | `flutter analyze --fatal-infos`(media_io), `dart format` | 0건, 변경 없음 |
 
 #### 다음 세션 메모
 
