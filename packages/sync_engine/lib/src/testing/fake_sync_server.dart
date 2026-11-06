@@ -89,20 +89,24 @@ final class FakeSyncServer {
   ///
   /// Chunks of another format or with an undecodable payload are left out, and
   /// so are records a device's RecordGate would skip (malformed, other owner).
-  /// A purge removes its folder / note, the pages and recordings of a purged
-  /// note and the strokes of those pages or of a purged note's scope.
+  /// (2nd round, 07-sync 6.3.6) Chunks are read with ChunkCodec.decodeTolerant:
+  /// records of a kind this app does not know are ignored, the known records of
+  /// the same chunk are merged.
+  /// A purge removes its folder / note, the pages, recordings and handwriting
+  /// results of a purged note, and the strokes and page objects of those pages
+  /// or of a purged note's scope.
   Map<EntityRef, UpsertRecord> mergedState(String uid) {
     final user = _users[uid];
     if (user == null) return {};
     final state = <EntityRef, UpsertRecord>{};
-    final strokeScopes = <String, String>{};
+    final elementScopes = <EntityRef, String>{};
     final purged = <EntityRef>{};
     for (final entry in _sorted(user.entries.values)) {
       final chunk = entry.stored.chunk;
       if (chunk.format != ChunkCodec.formatVersion) continue;
       final List<SyncRecord> records;
       try {
-        records = ChunkCodec.decode(chunk.payload);
+        records = ChunkCodec.decodeTolerant(chunk.payload).records;
       } on FormatException {
         continue;
       }
@@ -123,8 +127,9 @@ final class FakeSyncServer {
             state[ref] = old == null
                 ? record
                 : FieldMerge.mergeRecords(old, record);
-            if (ref.kind == EntityKind.stroke) {
-              strokeScopes[ref.id] = chunk.scope;
+            if (ref.kind == EntityKind.stroke ||
+                ref.kind == EntityKind.pageObject) {
+              elementScopes[ref] = chunk.scope;
             }
         }
       }
@@ -144,7 +149,7 @@ final class FakeSyncServer {
           final gone = purgedNotes.contains(json['noteId']);
           if (gone) removedPages.add(ref.id);
           return gone;
-        case EntityKind.recording:
+        case EntityKind.recording || EntityKind.handwriting:
           return purgedNotes.contains(json['noteId']);
         default:
           return false;
@@ -152,9 +157,10 @@ final class FakeSyncServer {
     });
     state.removeWhere(
       (ref, record) =>
-          ref.kind == EntityKind.stroke &&
+          (ref.kind == EntityKind.stroke ||
+              ref.kind == EntityKind.pageObject) &&
           (removedPages.contains(record.doc.json['pageId']) ||
-              purgedNotes.contains(strokeScopes[ref.id])),
+              purgedNotes.contains(elementScopes[ref])),
     );
     return state;
   }

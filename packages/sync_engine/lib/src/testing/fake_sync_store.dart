@@ -1,5 +1,8 @@
 // Internal (not exported). The in-memory state behind FakeLocalStore and its CORE
-// SyncStore view (contract 7.2.10 v1.3, table 5.1.4 C-01..C-25).
+// SyncStore view (contract 7.2.10 v1.3, table 5.1.4 C-01..C-25). 2nd round (07-sync 6.5,
+// S2-4a): page objects and handwriting results — page indexes, outbox hints (orphan objects
+// included), contentRevision, removal with a purged note and the recovery copy of CORE
+// 6.14.1 (recordings, strokes, objects, handwriting).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -34,6 +37,7 @@ final class FakeStoreState {
 
   final Map<NoteId, Set<PageId>> _pagesByNote = {};
   final Map<PageId, Set<String>> _strokesByPage = {};
+  final Map<PageId, Set<String>> _objectsByPage = {};
 
   int _nextSeq = 1;
   int _idCounter = 0;
@@ -153,6 +157,8 @@ final class FakeStoreState {
         (_pagesByNote[e.noteId] ??= {}).add(e.id);
       case Stroke():
         (_strokesByPage[e.pageId] ??= {}).add(e.id);
+      case PageObject():
+        (_objectsByPage[e.pageId] ??= {}).add(e.id);
       default:
     }
   }
@@ -163,6 +169,8 @@ final class FakeStoreState {
         _pagesByNote[e.noteId]?.remove(e.id);
       case Stroke():
         _strokesByPage[e.pageId]?.remove(e.id);
+      case PageObject():
+        _objectsByPage[e.pageId]?.remove(e.id);
       default:
     }
   }
@@ -177,6 +185,23 @@ final class FakeStoreState {
   List<Stroke> strokesOf(PageId pageId) => [
     for (final id in _strokesByPage[pageId] ?? const <String>{})
       rows[EntityRef(EntityKind.stroke, id)]!.entity as Stroke,
+  ];
+
+  /// Page object rows (soft-deleted included) whose pageId is [pageId].
+  List<PageObject> objectsOf(PageId pageId) => [
+    for (final id in _objectsByPage[pageId] ?? const <String>{})
+      rows[EntityRef(EntityKind.pageObject, id)]!.entity as PageObject,
+  ];
+
+  /// The handwriting result row of [pageId] (soft-deleted included; id `hw_<pageId>`).
+  HandwritingText? handwritingOf(PageId pageId) =>
+      entityOf(EntityKind.handwriting, HandwritingText.idFor(pageId))
+          as HandwritingText?;
+
+  /// Recording rows (soft-deleted included) whose noteId is [noteId].
+  List<Recording> recordingsOf(NoteId noteId) => [
+    for (final row in rows.values)
+      if (row.entity case final Recording r when r.noteId == noteId) r,
   ];
 
   SyncEntity? entityOf(EntityKind kind, String id) =>
@@ -279,7 +304,9 @@ final class FakeStoreState {
   }
 
   /// Routing hints of CORE 4.6: noteId for page / stroke / recording ('' for a stroke whose
-  /// page row is not here — CORE's orphan value), pageId for stroke.
+  /// page row is not here — CORE's orphan value), pageId for stroke. (2nd round, contract
+  /// 7.2.8) pageObject: noteId of its page ('' when orphan) and pageId; handwriting: its
+  /// noteId and pageId.
   (NoteId?, PageId?) hintsOf(EntityRef ref) {
     final e = rows[ref]?.entity;
     return switch (e) {
@@ -289,15 +316,25 @@ final class FakeStoreState {
         (entityOf(EntityKind.page, e.pageId) as Page?)?.noteId ?? '',
         e.pageId,
       ),
+      PageObject() => (
+        (entityOf(EntityKind.page, e.pageId) as Page?)?.noteId ?? '',
+        e.pageId,
+      ),
+      HandwritingText() => (e.noteId, e.pageId),
       _ => (null, null),
     };
   }
 
-  /// Fills the noteId hint of pending stroke entries of [page] that were queued while the
-  /// page row was missing (CORE 6.10.1 defensive rule).
+  /// Fills the noteId hint of pending stroke and object entries of [page] that were queued
+  /// while the page row was missing (CORE 6.10.1 defensive rule).
   void _fillOrphanHints(Page page) {
-    for (final strokeId in _strokesByPage[page.id] ?? const <String>{}) {
-      final ref = EntityRef(EntityKind.stroke, strokeId);
+    final refs = [
+      for (final id in _strokesByPage[page.id] ?? const <String>{})
+        EntityRef(EntityKind.stroke, id),
+      for (final id in _objectsByPage[page.id] ?? const <String>{})
+        EntityRef(EntityKind.pageObject, id),
+    ];
+    for (final ref in refs) {
       final entry = outbox[ref];
       if (entry == null || entry.noteId != '') continue;
       _putEntry(
@@ -355,7 +392,8 @@ final class FakeStoreState {
   /// (contract 7.2.10 v1.1, 5.1.2 S-12): Note.lastOpenedAt kept (new row null),
   /// Page.contentRevision bumped once per transaction (new row 0), Asset.hasLocalBytes
   /// kept (new row: whether the blob map holds the bytes). Note.pageCount / firstPageId are
-  /// recomputed by [finish]. A stroke marks its page as written.
+  /// recomputed by [finish]. A stroke, a page object or a handwriting result marks its page
+  /// as written (contentRevision, CORE C-29).
   void writeEntity(SyncEntity entity, EntityFieldVersions versions) {
     final txn = _txn!;
     final ref = EntityRef(entity.kind, entity.id);
@@ -390,6 +428,10 @@ final class FakeStoreState {
         }
       case Stroke():
         touchPage(stored.pageId);
+      case PageObject():
+        touchPage(stored.pageId);
+      case HandwritingText():
+        touchPage(stored.pageId);
       default:
     }
   }
@@ -413,12 +455,15 @@ final class FakeStoreState {
     );
   }
 
-  /// The note a written page / stroke / recording belongs to (null: none or orphan).
+  /// The note a written page / stroke / recording / page object / handwriting result
+  /// belongs to (null: none or orphan).
   NoteId? noteOf(SyncEntity e) => switch (e) {
     Note() => e.id,
     Page() => e.noteId,
     Recording() => e.noteId,
     Stroke() => (entityOf(EntityKind.page, e.pageId) as Page?)?.noteId,
+    PageObject() => (entityOf(EntityKind.page, e.pageId) as Page?)?.noteId,
+    HandwritingText() => e.noteId,
     _ => null,
   };
 
@@ -430,6 +475,8 @@ final class FakeStoreState {
     PenPreset() => e.updatedAt,
     Recording() => e.updatedAt,
     SettingValue() => e.updatedAt,
+    PageObject() => e.updatedAt,
+    HandwritingText() => e.updatedAt,
     _ => null,
   };
 
@@ -474,14 +521,16 @@ final class FakeStoreState {
   /// One local commit (CORE 6.5 / 6.10.2): one fresh HLC; '*' or a new row → all fields,
   /// otherwise the listed fields get it; 'version' (and 'updatedAt' where the kind has it)
   /// are set; outbox entries merge; the parent note's updatedAt is bumped without outbox.
+  /// [at] replaces the clock for 'updatedAt' (a caller that derived values from it).
   /// Must run inside [transaction].
   void localCommit(
     List<({EntityKind kind, Map<String, Object?> json, Set<String> fields})>
-    writes,
-  ) {
+    writes, {
+    EpochMillis? at,
+  }) {
     final txn = _txn!;
     final h = hlc.now();
-    final now = millis;
+    final now = at ?? millis;
     final written = <(EntityRef, Set<String>)>[];
     for (final w in writes) {
       if (w.fields.isEmpty) {
@@ -536,8 +585,9 @@ final class FakeStoreState {
     return group;
   }
 
-  /// Removes the rows of [group] and the pages / strokes / recordings of its notes;
-  /// returns every removed ref (group members included even when no row was there).
+  /// Removes the rows of [group] and the pages / strokes / recordings of its notes — and
+  /// (2nd round, CORE 6.14.2) their page objects and handwriting results; returns every
+  /// removed ref (group members included even when no row was there).
   Set<EntityRef> removeGroup(Set<EntityRef> group) {
     final removed = <EntityRef>{...group};
     final notes = {
@@ -549,6 +599,12 @@ final class FakeStoreState {
         for (final stroke in strokesOf(page.id)) {
           removed.add(EntityRef(EntityKind.stroke, stroke.id));
         }
+        for (final object in objectsOf(page.id)) {
+          removed.add(EntityRef(EntityKind.pageObject, object.id));
+        }
+        if (handwritingOf(page.id) case final hw?) {
+          removed.add(EntityRef(EntityKind.handwriting, hw.id));
+        }
         removed.add(EntityRef(EntityKind.page, page.id));
       }
     }
@@ -556,6 +612,9 @@ final class FakeStoreState {
       final e = row.entity;
       if (e is Recording && notes.contains(e.noteId)) {
         removed.add(EntityRef(EntityKind.recording, e.id));
+      }
+      if (e is HandwritingText && notes.contains(e.noteId)) {
+        removed.add(EntityRef(EntityKind.handwriting, e.id));
       }
     }
     for (final r in removed) {
@@ -919,6 +978,25 @@ final class FakeSyncStore implements SyncStore {
               fields: const {kAllFields},
             ),
           ];
+      // (2nd round, CORE 6.14.1 ①) recordings: new ids, the same asset / title / timing.
+      final recordingIds = <RecordingId, RecordingId>{};
+      final recordings =
+          _s.recordingsOf(noteId).where((r) => r.deletedAt == null).toList()
+            ..sort((a, b) => a.id.compareTo(b.id));
+      for (final r in recordings) {
+        final newId = _s.newId('recording');
+        recordingIds[r.id] = newId;
+        writes.add((
+          kind: EntityKind.recording,
+          json: {
+            ...r.toJson(),
+            'id': newId,
+            'noteId': newNoteId,
+            'createdAt': now,
+          },
+          fields: const {kAllFields},
+        ));
+      }
       final pages =
           _s.pagesOf(noteId).where((p) => p.deletedAt == null).toList()
             ..sort(FakeStoreState.comparePages);
@@ -940,19 +1018,70 @@ final class FakeSyncStore implements SyncStore {
                 final c = a.createdAt.compareTo(b.createdAt);
                 return c != 0 ? c : a.id.compareTo(b.id);
               });
+        // ② a copied recording's new id; otherwise as it was (R-7 'no link').
+        final strokeIds = <ElementId, ElementId>{};
+        final copiedStrokes = <Stroke>[];
         for (final stroke in strokes) {
+          final copy = stroke.copyWith(
+            id: _s.newId('stroke'),
+            pageId: newPageId,
+            recordingId: recordingIds[stroke.recordingId] ?? stroke.recordingId,
+            updatedAt: now,
+          );
+          strokeIds[stroke.id] = copy.id;
+          copiedStrokes.add(copy);
           writes.add((
             kind: EntityKind.stroke,
-            json: {
-              ...stroke.toJson(),
-              'id': _s.newId('stroke'),
-              'pageId': newPageId,
-            },
+            json: copy.toJson(),
+            fields: const {kAllFields},
+          ));
+        }
+        // ③ objects: new ids, the original createdAt.
+        final objects =
+            _s.objectsOf(page.id).where((o) => o.deletedAt == null).toList()
+              ..sort((a, b) {
+                final c = a.createdAt.compareTo(b.createdAt);
+                return c != 0 ? c : a.id.compareTo(b.id);
+              });
+        for (final object in objects) {
+          writes.add((
+            kind: EntityKind.pageObject,
+            json: object
+                .copyTo(
+                  id: _s.newId('object'),
+                  pageId: newPageId,
+                  createdAt: object.createdAt,
+                )
+                .toJson(),
+            fields: const {kAllFields},
+          ));
+        }
+        // ④ the handwriting result: the new note / page, stroke ids mapped (ids not copied
+        // are dropped), sourceRev of the copied input strokes.
+        final hw = _s.handwritingOf(page.id);
+        if (hw != null && hw.deletedAt == null) {
+          writes.add((
+            kind: EntityKind.handwriting,
+            json: HandwritingText(
+              noteId: newNoteId,
+              pageId: newPageId,
+              engineId: hw.engineId,
+              sourceRev: HandwritingText.sourceRevOf(
+                copiedStrokes.where(HandwritingText.isRecognitionInput),
+              ),
+              lines: [
+                for (final l in hw.lines)
+                  l.copyWith(
+                    strokeIds: [for (final id in l.strokeIds) ?strokeIds[id]],
+                  ),
+              ],
+              createdAt: now,
+            ).toJson(),
             fields: const {kAllFields},
           ));
         }
       }
-      _s.localCommit(writes);
+      _s.localCommit(writes, at: now);
       return newNoteId;
     });
     _s.emitPendingCount();

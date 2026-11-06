@@ -11,6 +11,7 @@ import 'package:sync_engine/testing.dart';
 
 import '../support/entity_fixtures.dart';
 import '../support/fake_time.dart';
+import '../support/raw_records.dart';
 
 final DateTime start = DateTime.utc(2026, 11, 1);
 final int startMicros = start.microsecondsSinceEpoch;
@@ -1035,6 +1036,68 @@ void main() {
       expect(n1.doc.json['folderId'], 'f2');
       expect(n1.versions.max, Hlc(kT0 + 2, 0, kNodeB));
       expect(server.mergedState('nobody'), isEmpty);
+    });
+
+    test('2nd round (6.3.6): a record of an unknown kind is ignored and the '
+        'known records of its chunk merge (decodeTolerant)', () {
+      final server = FakeSyncServer(clock: Clock.fixed(start));
+      final stroke = rec(EntityKind.stroke, 's1');
+      final object = rec(EntityKind.pageObject, 'o1');
+      final bookmark = rawUpsertRecord(
+        'bookmark',
+        const {'id': 'b1', 'noteId': 'n1'},
+        {'b': hlcText(kT0)},
+      );
+      server.commitRaw('user-1', [
+        write(
+          [stroke, object],
+          scope: 'n1',
+          payload: ChunkCodec.assemble([
+            ChunkCodec.encodeRecord(stroke),
+            bookmark,
+            ChunkCodec.encodeRecord(object),
+          ]),
+        ),
+      ]);
+      expect(server.mergedState('user-1'), {
+        const EntityRef(EntityKind.stroke, 's1'): stroke,
+        const EntityRef(EntityKind.pageObject, 'o1'): object,
+      });
+    });
+
+    test('2nd round (6.5): a purged note removes the page objects of its '
+        'pages or its scope and its handwriting results', () {
+      final server = FakeSyncServer(clock: Clock.fixed(start));
+      final page = rec(EntityKind.page, 'p2', set: {'noteId': 'n2'});
+      final onPage = rec(EntityKind.pageObject, 'o2', set: {'pageId': 'p2'});
+      final inScope = rec(EntityKind.pageObject, 'o3', set: {'pageId': 'p9'});
+      final libOnPage = rec(EntityKind.pageObject, 'o4', set: {'pageId': 'p2'});
+      final kept = rec(EntityKind.pageObject, 'o5');
+      final hwGone = rec(
+        EntityKind.handwriting,
+        'hw_p2',
+        set: {'noteId': 'n2', 'pageId': 'p2'},
+      );
+      final hwKept = rec(EntityKind.handwriting, 'hw_p1');
+      server.commitRaw('user-1', [
+        write([rec(EntityKind.note, 'n2')]),
+        write([page, onPage, inScope, hwGone], scope: 'n2'),
+        write([libOnPage]),
+        write([kept, hwKept], scope: 'n1'),
+      ]);
+      expect(server.mergedState('user-1'), hasLength(8));
+      server.commitRaw('user-1', [
+        write([
+          PurgeRecord(
+            const EntityRef(EntityKind.note, 'n2'),
+            Hlc(kT0 + 5, 0, kNodeB),
+          ),
+        ], node: kNodeB),
+      ]);
+      expect(server.mergedState('user-1').keys.toSet(), {
+        const EntityRef(EntityKind.pageObject, 'o5'),
+        const EntityRef(EntityKind.handwriting, 'hw_p1'),
+      });
     });
   });
 
