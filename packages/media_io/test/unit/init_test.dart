@@ -116,28 +116,39 @@ void main() {
   });
 
   group('other R2-B4 bodies', () {
-    test('supportedImageSources() is empty', () {
-      expect(supportedImageSources(), isEmpty);
+    // (T35b) the image import bodies are real now: unit/image_import_test.dart,
+    // unit/supported_sources_test.dart, web/image_codec_browser_test.dart.
+    test('supportedImageSources() works before initializeMediaIo (T35b)', () {
+      MediaIoRuntime.debugReset();
+      // the flutter_test default platform is android
+      expect(supportedImageSources(), {
+        core.ImageImportSource.photos,
+        core.ImageImportSource.camera,
+      });
+      expect(MediaIoRuntime.isInitialized, isFalse);
     });
 
-    testWidgets('importImageForNote → null for every source', (tester) async {
-      late BuildContext context;
-      await tester.pumpWidget(
-        Builder(
-          builder: (c) {
-            context = c;
-            return const SizedBox();
-          },
-        ),
-      );
-      for (final source in core.ImageImportSource.values) {
-        expect(
-          await importImageForNote(context, source),
-          isNull,
-          reason: '$source',
+    testWidgets(
+      'importImageForNote needs the app ProviderScope (T35b — it fails before picking)',
+      (tester) async {
+        late BuildContext context;
+        await tester.pumpWidget(
+          Builder(
+            builder: (c) {
+              context = c;
+              return const SizedBox();
+            },
+          ),
         );
-      }
-    });
+        for (final source in core.ImageImportSource.values) {
+          await expectLater(
+            importImageForNote(context, source),
+            throwsA(anything),
+            reason: '$source',
+          );
+        }
+      },
+    );
 
     test('mediaDevOverlayLinesProvider: an empty list, disposed with the container', () {
       final container = ProviderContainer(overrides: mediaIoOverrides());

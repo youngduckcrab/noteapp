@@ -3,7 +3,8 @@
 //
 // R2-B4 (T30): the placeholder strings. T36a: the recording / status / playback rows and the
 // consent sheet. T36b: the list, the name / delete sheets, the stuck-draft row and the web
-// download. T33: the native interruption line and the foreground service notification.
+// download. T33: the native interruption line and the foreground service notification. T35b:
+// image import.
 abstract final class MediaStringsKo {
   /// Recording panel title.
   static const String panelTitle = '녹음';
@@ -94,6 +95,23 @@ abstract final class MediaStringsKo {
   static const String discardDraftQuestion = '이 녹음을 지울까요? 되돌릴 수 없어요.';
   static const String downloadFile = '파일로 내려받기';
   static const String saveFile = '저장하기';
+
+  // --- (T35b) image import (6.16 — snack bars and the preparing sheet) ---
+  static const String imageUnsupportedFormat = '이 형식의 이미지는 넣을 수 없어요';
+  static const String imageTooLarge = '이미지가 너무 커서 넣을 수 없어요';
+  static const String imageDecodeFailed = '이미지를 읽지 못했어요';
+  static const String clipboardEmpty = '클립보드에 이미지가 없어요';
+  static const String clipboardDenied = '붙여넣기를 허용한 뒤 다시 눌러 주세요';
+  static const String cameraUnavailable = '카메라를 쓸 수 없어요';
+  static const String imageSaveFailed = '이미지를 저장하지 못했어요';
+  static const String imagePreparing = '이미지를 준비하고 있어요…';
+
+  /// 6.12.5: `이미지-<yyyyMMdd-HHmmss>` (+ the stored format's extension).
+  static String imageFileStem(DateTime t) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '이미지-${t.year.toString().padLeft(4, '0')}${two(t.month)}${two(t.day)}-'
+        '${two(t.hour)}${two(t.minute)}${two(t.second)}';
+  }
 
   // --- (T33) the Android microphone foreground service notification (6.9.4) ---
   static const String foregroundChannelName = '녹음';

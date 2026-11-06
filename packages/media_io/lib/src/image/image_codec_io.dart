@@ -2,14 +2,30 @@
 // package:image in a background isolate (compute): decodeImage (first frame) → bakeOrientation →
 // copyResize (long side ≤ 2048, average interpolation) → encodeJpg / encodePng with the EXIF
 // dropped. What package:image cannot read (HEIC, …) goes through the engine's platform decoder
-// (ImageDescriptor at the target size → RGBA) and the same steps. No dart:io.
+// (ImageDescriptor at the target size → RGBA) and the same steps. No dart:io; picked by
+// image_codec_factory.dart on `dart.library.io` (the default there is the stub — ws check R6).
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
+import '../errors.dart';
 import 'image_codec.dart';
+
+/// image_codec_factory.dart on the VM · native (6.18).
+ImageCodec createPlatformImageCodec() => const IoImageCodec();
+
+/// image_codec_factory.dart: no clipboard source off the web (6.12.4 — '이후').
+bool clipboardImageReadable() => false;
+
+/// image_codec_factory.dart: not offered off the web (supportedImageSources has no clipboard).
+Future<PickedImage?> readClipboardImage() => Future.error(
+  const MediaIoException(
+    MediaErrorCode.clipboardEmpty,
+    detail: 'no clipboard source here',
+  ),
+);
 
 final class IoImageCodec implements ImageCodec {
   const IoImageCodec({this.useIsolate = true});
