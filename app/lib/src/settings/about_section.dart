@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:feature_editor/feature_editor.dart'
+    show StylusExtraEvent, StylusExtrasSource, stylusExtrasProvider;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,7 @@ import '../app/strings.dart';
 import '../bootstrap/startup_report.dart';
 import '../errors/app_error_log.dart';
 import '../errors/diagnostic_report.dart';
+import '../pencil/pencil_stylus_extras.dart';
 import '../providers.dart';
 import '../update/update_checker.dart';
 import 'backup_export.dart';
@@ -29,6 +32,11 @@ import 'backup_sheet.dart';
 /// On a BackupFile → BackupReadySheet; the sheet's buttons call
 /// deliverBackup() from their own tap (fresh user activation for share /
 /// download).
+/// 2차 (6.12.3, 6.18): when stylusExtrasProvider.isSupported, an 'Apple
+/// Pencil' row — 'iOS 17.5 · 더블탭 · 호버' from the start-time capabilities,
+/// '· 스퀴즈(받음)' / '· 롤(받음)' only after this run has received one. While
+/// shown, the section listens to the stylus events itself, so a squeeze on
+/// the settings screen counts too.
 class AboutSection extends ConsumerStatefulWidget {
   const AboutSection({super.key});
 
@@ -44,10 +52,13 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
   bool _errorRebuildScheduled = false;
   BackupCancelToken? _backup;
   bool _checking = false;
+  StylusExtrasSource? _pencil;
+  StreamSubscription<StylusExtraEvent>? _pencilEvents;
 
   @override
   void dispose() {
     _errorLog?.removeListener(_onErrorsChanged);
+    unawaited(_pencilEvents?.cancel());
     // Leaving the screen ends the wait (nothing is shown afterwards).
     _backup?.cancel();
     super.dispose();
@@ -71,6 +82,17 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
     _errorLog = log..addListener(_onErrorsChanged);
   }
 
+  /// Keeps one subscription to the supported stylus source while shown: the
+  /// pencil adapter notes squeeze / roll for every listener (its `seen`).
+  void _listenToPencil(StylusExtrasSource source) {
+    if (identical(source, _pencil)) return;
+    unawaited(_pencilEvents?.cancel());
+    _pencil = source;
+    _pencilEvents = source.isSupported
+        ? source.events.listen((_) {}, onError: (Object _) {})
+        : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final build = ref.watch(buildInfoProvider);
@@ -79,6 +101,8 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
     final errorLog = ref.watch(appErrorLogProvider);
     _listenTo(errorLog);
     final update = ref.watch(updateCheckerProvider);
+    final pencil = ref.watch(stylusExtrasProvider);
+    _listenToPencil(pencil);
     // Keeps the re-queried StorageInfo alive for "진단 정보 복사" (6.8: the
     // diagnostics copy reads latestStorageInfoProvider; no await before the
     // clipboard write).
@@ -117,6 +141,20 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
           label: AppStrings.aboutStandalone,
           value: runtime.isStandalone ? AppStrings.yes : AppStrings.no,
         ),
+        if (pencil.isSupported)
+          switch (pencil) {
+            final PencilStylusExtrasSource adapter => ValueListenableBuilder(
+              valueListenable: adapter.seen,
+              builder: (context, seen, _) => _InfoRow(
+                label: AppStrings.aboutPencil,
+                value: _pencilLine(pencil, os: adapter.os, seen: seen),
+              ),
+            ),
+            _ => _InfoRow(
+              label: AppStrings.aboutPencil,
+              value: _pencilLine(pencil),
+            ),
+          },
         _InfoRow(
           label: AppStrings.aboutStartup,
           value: [
@@ -387,6 +425,28 @@ String _stepText(StartupStep step) {
 }
 
 /// `18:20:31` (local time).
+/// 'iOS 17.5 · 더블탭 · 호버 · 스퀴즈(받음)' (6.12.3): the start-time
+/// capabilities, squeeze / roll only once received (they are OS
+/// availability, not the pencil model). os '?' = the capabilities read
+/// failed (kPencilFallbackCapabilities).
+String _pencilLine(
+  StylusExtrasSource source, {
+  String os = '',
+  ({bool squeeze, bool roll}) seen = (squeeze: false, roll: false),
+}) {
+  final capabilities = source.capabilities;
+  return [
+    if (os == '?')
+      AppStrings.aboutPencilUnread
+    else if (os.isNotEmpty)
+      AppStrings.aboutPencilOs(os),
+    if (capabilities.doubleTap) AppStrings.aboutPencilDoubleTap,
+    if (capabilities.hoverPose) AppStrings.aboutPencilHover,
+    if (seen.squeeze) AppStrings.aboutPencilSqueezeSeen,
+    if (seen.roll) AppStrings.aboutPencilRollSeen,
+  ].join(' · ');
+}
+
 String _clockTime(DateTime time) {
   final t = time.toLocal();
   String two(int v) => v.toString().padLeft(2, '0');

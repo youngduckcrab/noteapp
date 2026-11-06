@@ -4,6 +4,7 @@
 library;
 
 import 'package:feature_editor/feature_editor.dart';
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:pencil_bridge/pencil_bridge.dart';
 
 /// `stylusExtrasProvider` on iOS (contract 7.3.3 row, FeatureWiringModule).
@@ -12,11 +13,9 @@ final class PencilStylusExtrasSource implements StylusExtrasSource {
   PencilStylusExtrasSource({
     required PencilCapabilities capabilities,
     required Stream<PencilEvent> events,
-  }) : capabilities = stylusCapabilitiesOf(capabilities),
-       events = events
-           .map(stylusEventOf)
-           .where((e) => e != null)
-           .cast<StylusExtraEvent>();
+  }) : os = capabilities.os,
+       capabilities = stylusCapabilitiesOf(capabilities),
+       _source = events;
 
   @override
   bool get isSupported => true;
@@ -25,10 +24,42 @@ final class PencilStylusExtrasSource implements StylusExtrasSource {
   @override
   final StylusCapabilities capabilities;
 
+  /// `UIDevice.systemVersion` of the start-time capabilities; '?' when that
+  /// read failed ([kPencilFallbackCapabilities]). For the about section's
+  /// Apple Pencil line (6.18).
+  final String os;
+
+  /// Whether this run has received a squeeze / a barrel roll yet — the about
+  /// section adds them to its Apple Pencil line only then (6.12.3: the
+  /// capabilities are OS availability, not the pencil model — CD2-24). Set
+  /// by every listener of [events]; never goes back to false.
+  ValueListenable<({bool squeeze, bool roll})> get seen => _seen;
+
+  final ValueNotifier<({bool squeeze, bool roll})> _seen = ValueNotifier((
+    squeeze: false,
+    roll: false,
+  ));
+
+  final Stream<PencilEvent> _source;
+
   /// events.map(stylusEventOf).where(non-null) — broadcast (the source is), no asBroadcastStream;
   /// every event carries timestamp: PencilEvent.timestamp (CP-E6).
   @override
-  final Stream<StylusExtraEvent> events;
+  late final Stream<StylusExtraEvent> events = _source
+      .map(_noted)
+      .where((e) => e != null)
+      .cast<StylusExtraEvent>();
+
+  StylusExtraEvent? _noted(PencilEvent event) {
+    final mapped = stylusEventOf(event);
+    final seen = _seen.value;
+    if (mapped is StylusSqueeze && !seen.squeeze) {
+      _seen.value = (squeeze: true, roll: seen.roll);
+    } else if (mapped is StylusBarrelRoll && !seen.roll) {
+      _seen.value = (squeeze: seen.squeeze, roll: true);
+    }
+    return mapped;
+  }
 }
 
 /// 6.12.3 table: doubleTap is always true on iOS (UIKit does not say whether

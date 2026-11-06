@@ -654,6 +654,9 @@ void main() {
       final extras = container.read(stylusExtrasProvider);
       expect(extras, isA<PencilStylusExtrasSource>());
       expect(extras.isSupported, isTrue);
+      // J13: the about section's line reads the start-time os (6.18).
+      expect((extras as PencilStylusExtrasSource).os, '17.5');
+      expect(extras.seen.value, (squeeze: false, roll: false));
       expect(
         extras.capabilities,
         const StylusCapabilities(
@@ -728,6 +731,7 @@ void main() {
         stylusCapabilitiesOf(kPencilFallbackCapabilities),
       );
       expect(extras.capabilities, const StylusCapabilities(doubleTap: true));
+      expect((extras as PencilStylusExtrasSource).os, '?');
       expect(log.records, hasLength(1));
       expect(log.records.single.source, AppErrorSource.module);
       expect(log.records.single.summary, contains('MissingPluginException'));

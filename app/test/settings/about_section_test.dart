@@ -5,9 +5,14 @@
 //
 // The B2 fake store's exportBackupJson is UnimplementedError (계약 7.6):
 // CountingNoteStore.exportBackupResult injects the bytes.
+//
+// 2차 J13 (docs/plans/m5-7/01-infra.md 6.12.3, 6.18): the Apple Pencil row
+// over a PencilStylusExtrasSource on a fake pencil event stream.
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:feature_editor/feature_editor.dart'
+    show NoStylusExtras, stylusExtrasProvider;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -16,12 +21,14 @@ import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/pencil/pencil_stylus_extras.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
 import 'package:noteapp/src/settings/about_section.dart';
 import 'package:noteapp/src/settings/backup_sheet.dart';
 import 'package:noteapp/src/web/web_platform.dart';
+import 'package:pencil_bridge/pencil_bridge.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_app_module.dart';
@@ -461,6 +468,140 @@ void main() {
       expect(find.byType(BackupReadySheet), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
       expect(h.errorLog.totalCount, errorsBefore);
+    });
+  });
+
+  group('Apple Pencil row (J13 — 6.12.3, 6.18)', () {
+    const t = Duration(seconds: 3);
+    late StreamController<PencilEvent> native;
+
+    setUp(() {
+      native = StreamController<PencilEvent>.broadcast();
+    });
+    tearDown(() => native.close());
+
+    Finder pencilRow() => find.text(AppStrings.aboutPencil);
+
+    /// Delivers the added events (a microtask), then builds the frame their
+    /// `seen` change scheduled.
+    Future<void> deliver(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('no row without a supported stylus source (web, Android)', (
+      tester,
+    ) async {
+      await _pump(tester);
+      expect(pencilRow(), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      await _pump(
+        tester,
+        extra: [stylusExtrasProvider.overrideWithValue(const NoStylusExtras())],
+      );
+      expect(pencilRow(), findsNothing);
+    });
+
+    testWidgets('iOS 17.5 · 더블탭 · 호버; squeeze and roll only after this '
+        'run received one — the section listens itself while shown', (
+      tester,
+    ) async {
+      final adapter = PencilStylusExtrasSource(
+        capabilities: const PencilCapabilities(
+          os: '17.5',
+          squeeze: true,
+          hover: true,
+          roll: true,
+        ),
+        events: native.stream,
+      );
+      await _pump(
+        tester,
+        extra: [stylusExtrasProvider.overrideWithValue(adapter)],
+      );
+      expect(pencilRow(), findsOneWidget);
+      expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+      // Nothing else listens in this test: the section's own subscription.
+      expect(native.hasListener, isTrue);
+
+      native.add(const PencilTap(t, preferredAction: 'switchEraser'));
+      await deliver(tester);
+      expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+
+      native.add(
+        const PencilSqueeze(t, phase: 'began', preferredAction: 'ignore'),
+      );
+      await deliver(tester);
+      expect(find.text('iOS 17.5 · 더블탭 · 호버 · 스퀴즈(받음)'), findsOneWidget);
+
+      native.add(const PencilRoll(t, angle: 0.5));
+      await deliver(tester);
+      expect(
+        find.text('iOS 17.5 · 더블탭 · 호버 · 스퀴즈(받음) · 롤(받음)'),
+        findsOneWidget,
+      );
+
+      // Leaving the section ends its subscription; what was seen stays.
+      await tester.pumpWidget(const SizedBox());
+      expect(native.hasListener, isFalse);
+      expect(adapter.seen.value, (squeeze: true, roll: true));
+    });
+
+    testWidgets('seen before the section opened (the editor listened) shows '
+        'at once', (tester) async {
+      final adapter = PencilStylusExtrasSource(
+        capabilities: const PencilCapabilities(os: '18.1', squeeze: true),
+        events: native.stream,
+      );
+      final editor = adapter.events.listen((_) {});
+      addTearDown(editor.cancel);
+      native.add(
+        const PencilSqueeze(t, phase: 'ended', preferredAction: 'ignore'),
+      );
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+
+      await _pump(
+        tester,
+        extra: [stylusExtrasProvider.overrideWithValue(adapter)],
+      );
+      expect(find.text('iOS 18.1 · 더블탭 · 스퀴즈(받음)'), findsOneWidget);
+    });
+
+    testWidgets('capabilities read failed → 능력을 읽지 못했어요 · 더블탭', (tester) async {
+      await _pump(
+        tester,
+        extra: [
+          stylusExtrasProvider.overrideWithValue(
+            PencilStylusExtrasSource(
+              capabilities: kPencilFallbackCapabilities,
+              events: native.stream,
+            ),
+          ),
+        ],
+      );
+      expect(find.text('능력을 읽지 못했어요 · 더블탭'), findsOneWidget);
+    });
+
+    testWidgets('landscape: the row fits', (tester) async {
+      final h = SettingsHarness(
+        store: CountingNoteStore(exportBackupResult: _bytes),
+      );
+      await h.pump(
+        tester,
+        sectionPage(const AboutSection()),
+        logical: ipadLandscape,
+        extra: [
+          stylusExtrasProvider.overrideWithValue(
+            PencilStylusExtrasSource(
+              capabilities: const PencilCapabilities(os: '17.5', hover: true),
+              events: native.stream,
+            ),
+          ),
+        ],
+      );
+      await tester.pump();
+      expect(find.text('iOS 17.5 · 더블탭 · 호버'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

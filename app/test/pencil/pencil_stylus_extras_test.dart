@@ -2,7 +2,8 @@
 // 01-infra.md 4.6.5, 6.12.3 and 6.12.4; contract 00-overview 7.2.10 v2.1 and
 // 7.2.13): both 6.12.3 tables row by row, the timestamp of all four event
 // kinds (CP-E6), capabilities fixed at construction, unknown phases dropped,
-// broadcast and the last cancel reaching the source.
+// broadcast and the last cancel reaching the source; J13: the os string and
+// `seen` (squeeze / roll received this run) for the about section's line.
 import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart';
@@ -319,5 +320,106 @@ void main() {
         expect(source.cancels, 2);
       },
     );
+  });
+
+  group('J13: os and seen (about section, 6.12.3 / 6.18)', () {
+    test('os is the start-time systemVersion; the fallback keeps ?', () {
+      final source = _CountingSource();
+      expect(
+        PencilStylusExtrasSource(
+          capabilities: const PencilCapabilities(os: '17.5'),
+          events: source.controller.stream,
+        ).os,
+        '17.5',
+      );
+      expect(
+        PencilStylusExtrasSource(
+          capabilities: kPencilFallbackCapabilities,
+          events: source.controller.stream,
+        ).os,
+        '?',
+      );
+    });
+
+    test('seen: squeeze / roll turn true on their first event and stay; '
+        'tap, hover and an unknown phase do not count', () async {
+      final source = _CountingSource();
+      final extras = PencilStylusExtrasSource(
+        capabilities: const PencilCapabilities(
+          os: '17.5',
+          squeeze: true,
+          roll: true,
+        ),
+        events: source.controller.stream,
+      );
+      final changes = <({bool squeeze, bool roll})>[];
+      extras.seen.addListener(() => changes.add(extras.seen.value));
+      expect(extras.seen.value, (squeeze: false, roll: false));
+
+      // Nothing is noted without a listener (no subscription to the source).
+      source.controller.add(
+        const PencilSqueeze(_t, phase: 'began', preferredAction: 'ignore'),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(extras.seen.value, (squeeze: false, roll: false));
+
+      final sub = extras.events.listen((_) {});
+      source.controller
+        ..add(const PencilTap(_t, preferredAction: 'ignore'))
+        ..add(const PencilHover(_t, position: Offset(1, 2), roll: 0.5))
+        ..add(const PencilSqueeze(_t, phase: '??', preferredAction: 'ignore'));
+      await Future<void>.delayed(Duration.zero);
+      expect(extras.seen.value, (squeeze: false, roll: false));
+      expect(changes, isEmpty);
+
+      source.controller
+        ..add(
+          const PencilSqueeze(_t, phase: 'began', preferredAction: 'ignore'),
+        )
+        ..add(
+          const PencilSqueeze(_t, phase: 'ended', preferredAction: 'ignore'),
+        );
+      await Future<void>.delayed(Duration.zero);
+      expect(extras.seen.value, (squeeze: true, roll: false));
+
+      source.controller
+        ..add(const PencilRoll(_t, angle: 0.25))
+        ..add(const PencilRoll(_t, angle: 0.5));
+      await Future<void>.delayed(Duration.zero);
+      expect(extras.seen.value, (squeeze: true, roll: true));
+      // One notification per kind, never back to false.
+      expect(changes, [
+        (squeeze: true, roll: false),
+        (squeeze: true, roll: true),
+      ]);
+      // The capabilities did not change (6.12.3 — fixed for the run).
+      expect(
+        extras.capabilities,
+        const StylusCapabilities(
+          doubleTap: true,
+          squeeze: true,
+          barrelRoll: true,
+        ),
+      );
+      await sub.cancel();
+    });
+
+    test('two listeners note the same event once', () async {
+      final source = _CountingSource();
+      final extras = PencilStylusExtrasSource(
+        capabilities: kPencilFallbackCapabilities,
+        events: source.controller.stream,
+      );
+      var notifications = 0;
+      extras.seen.addListener(() => notifications++);
+      final a = extras.events.listen((_) {});
+      final b = extras.events.listen((_) {});
+      source.controller.add(const PencilRoll(_t, angle: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(extras.seen.value.roll, isTrue);
+      expect(notifications, 1);
+      await a.cancel();
+      await b.cancel();
+    });
   });
 }

@@ -115,6 +115,16 @@ abstract final class AppStrings {
   static const String aboutErrors = '오류';
   static String aboutErrorCount(int count) => '$count건';
   static const String aboutUpdate = '새 버전';
+
+  /// The Apple Pencil line (iOS, 2차 6.12.3 / 6.18): 'iOS 17.5 · 더블탭 · 호버';
+  /// squeeze and roll only once this run has received one ('· 스퀴즈(받음)').
+  static const String aboutPencil = 'Apple Pencil';
+  static String aboutPencilOs(String os) => 'iOS $os';
+  static const String aboutPencilUnread = '능력을 읽지 못했어요';
+  static const String aboutPencilDoubleTap = '더블탭';
+  static const String aboutPencilHover = '호버';
+  static const String aboutPencilSqueezeSeen = '스퀴즈(받음)';
+  static const String aboutPencilRollSeen = '롤(받음)';
   static const String checkForUpdate = '새 버전 확인';
   static const String updateDisabled = '이 빌드에서는 새 버전을 확인하지 않아요.';
   static const String updateUnknown = '아직 확인하지 않았어요.';

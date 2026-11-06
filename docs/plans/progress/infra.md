@@ -405,7 +405,7 @@
 | J10 | 완료 | `fcf949d` — 본문은 R2-B8a `a4c9cca` | `app/test/modules/pdf_module_test.dart` v2(기록용 리더 start 1·dispose 1·PDF 실패 → 작업 없음 + 기본 리더·실행기 안 0 → 10 → 20 순서) |
 | J11 | 완료 | (이 커밋) — 본문은 R2-B8b `6e7b753` | `app/test/routing/production_screens_test.dart`(J11 +4 — `%2C`·잘못된 focus 9가지(페이지는 열림)·page 없는 focus·폴더 검색 결과 → 보고된 주소 → 새로고침 → 같은 페이지·사각형 → 닫으면 홈), `app_router_test`(R2-B8b — 자리표시 화면 7경우) |
 | J12 | 완료 | (이 커밋) | `packages/pencil_bridge/test/pencil_wire_contract_test.dart`(28 — ⓪~⑨ + 가용성 판독기 자체 11경우), `pencil_bridge_test`(+1 — Swift 빌더 모양의 squeeze 순서·자세 없는 tap) — **컴파일은 `ios-compile.yml`(U19)**, 동작은 TestFlight 뒤(C-1) |
-| J13 | 남음 | | `pencil_stylus_extras_test`·`feature_wiring_module_test`(Pencil 4경우)·`about_section_test` |
+| J13 | 완료 | (이 커밋) — 능력 조회 시간 제한·실패 처리·`timestamp`는 R2-B8b `6e7b753` | `app/test/pencil/pencil_stylus_extras_test.dart`(J13 +3 — `os`·대체 `?`·`seen` 전이(구독자 없으면 안 셈·tap·hover·모르는 단계는 안 셈·종류마다 알림 1번·되돌아가지 않음·능력 불변)·두 구독자에 알림 1번), `modules/feature_wiring_module_test.dart`(Pencil 5경우 — 지원·미지원·기본 포트·실패·500 ms 초과, J13: `os` '17.5'·'?'), `settings/about_section_test.dart`(J13 +5 — 지원 안 함 2·'iOS 17.5 · 더블탭 · 호버' → 스퀴즈 받음 → 롤 받음·섹션 자신의 구독·떠나면 구독 끊김·열기 전에 받은 것·읽기 실패 문구·가로) |
 | J14 | 남음 | | `storage_section_test` v2·`about_section_test` v2·`licenses_test`·`diagnostic_report_test` v2 |
 | J14b | 남음 | | `v1_copy_section_test`·`backup_export_test`·`settings_sections_test` |
 | J15 | 남음 | | `test_command_test` v2·`workflows_test`(잡 5개) |
@@ -651,6 +651,19 @@
 | `dart test tool/test/native_reqs_test.dart tool/test/native_config_test.dart` | 89 통과 |
 | Swift 컴파일 | 컨테이너에 Xcode 없음 — `ios-compile.yml`(U19, H6) |
 
+#### J13 — Pencil 어댑터 마무리 · 앱 정보 Apple Pencil 줄 (계획 8.2, 6.12.3·6.18)
+
+- 능력 조회 500 ms 제한·실패 → 기록 1건 + `kPencilFallbackCapabilities`, 네 종류 `timestamp` 전달은 R2-B8b ③에서 끝났다(`6e7b753`, 위 '계획과 다르게 한 점' R2-B8b).
+- `PencilStylusExtrasSource`(앱 내부)에 `os`(시작 때 능력의 `systemVersion`, 읽기 실패면 `'?'`)와 `seen`(`ValueListenable<({bool squeeze, bool roll})>` — 이번 실행에서 스퀴즈·롤을 받았는지, 어느 구독자의 `events`든 지나가면 켜지고 꺼지지 않음)을 더했다. `events`는 `late final` 한 번 만든 `map → where → cast`(브로드캐스트 그대로, `asBroadcastStream` 없음 — 기존 시험 그대로 통과).
+- `AboutSection`: `stylusExtrasProvider.isSupported`이면 '빌드·렌더러·홈 화면 앱' 아래 'Apple Pencil' 줄 — 'iOS 17.5 · 더블탭 · 호버' + 받은 뒤에만 '· 스퀴즈(받음)'·'· 롤(받음)'(6.12.3 — 능력은 OS 가용성일 뿐), 능력 읽기 실패면 '능력을 읽지 못했어요 · 더블탭'. 섹션이 보이는 동안 스스로 `events`를 구독한다(라이브러리 → 설정처럼 에디터가 없을 때도 설정 화면에서 스퀴즈하면 줄이 바뀜 — 네이티브 쪽은 구독 수로 attach/detach). 문구는 `AppStrings.aboutPencil*`.
+- 진단 정보 복사의 Pencil 줄은 넣지 않았다(진단 보고 v2는 J14).
+
+| 검사 | 결과 |
+|---|---|
+| `app` `flutter analyze --fatal-infos` / `dart format` | 0건 / 변경 0 |
+| `flutter test test/pencil test/settings/about_section_test.dart test/modules/feature_wiring_module_test.dart` | 19 · 17 · 25 통과 |
+| `ws test --package noteapp` (VM) | 526 통과 · 1 건너뜀(V5) · 111초 |
+
 #### 변경 요청
 
 - [총괄] J0 실측(계획 6.15 'J0 실측 결과')으로 시작 글꼴 묶음별 한도 제안 — KaTeX gzip 380,000 B · 아이콘 gzip 20,000 B(합계 400,000 B 유지). 대안: 합계 410,000 B + KaTeX 389,565 B(실측 + 5%). 결정되면 J17 `web_budget.yaml`에 넣는다.
@@ -721,6 +734,9 @@
 - (J12) 위치는 붙인 뷰(`registrar.viewController.view` = 이 엔진의 Flutter 뷰) 좌표 그대로 보낸다 — 계획 6.12.2 표의 '`view` 좌표 → 창 좌표' 변환은 하지 않았다. 4.4.3의 전제(Flutter 뷰가 창 전체를 덮음)에서는 같은 값이고, Flutter 전역 논리 px는 Flutter 뷰 기준이라 이쪽이 맞다(실기기 C-1에서 확인).
 - (J12) 시각 `t`는 모든 종류에서 `ProcessInfo.processInfo.systemUptime`(롤만 `UITouch.timestamp` — 같은 기준), 17.5의 `Tap`·`Squeeze` 객체 시각은 쓰지 않았다(계획 표 그대로·컴파일 확인 전 API를 줄이려고). 모르는 스퀴즈 단계(`@unknown default`)는 보내지 않는다. `actionName`의 17.5 미만 길은 `showInkAttributes`를 `#available(iOS 16.0, *)`로 따로 본다(캐시의 `apple_pencil_double_tap` 2.0.0과 같은 판). 롤 인식기는 끝·취소 때 `state = .failed`를 직접 넣는다(계획 '상태를 바꾸지 않음 → 끝에 .failed'와 같은 결과를 명시). `detachFromEngine(for:)`에서 detach(계획에 없음 — 엔진이 먼저 사라질 때 인식기를 떼려고).
 - (J12) 컴파일 위험(11절 위험 1): `UIPencilInteraction.Tap`·`.Squeeze`·`hoverPose`(`location`·`zOffset`·`rollAngle`)·`UIHoverGestureRecognizer`의 16.1~17.5 속성·`UIPencilPreferredAction` 7개 이름은 캐시의 공개 플러그인 두 개가 쓰는 이름과 SDK 기억으로 맞췄다 — 첫 `ios-compile.yml` 실행(U19)에서 확인해야 한다. 실패하면 앱 전체 iOS 빌드가 깨지므로 TestFlight 전에 반드시 한 번.
+
+- (J13) `PencilStylusExtrasSource`에 앱 내부 `os`·`seen`을 더했다(계획 4.6.5 시그니처에 없음 — 앱 정보 줄이 OS 판과 '받음'을 알아야 해서). 새 최상위 이름은 없다(`seen`은 레코드 타입). 앱 정보 섹션이 보이는 동안 스스로 이벤트를 구독하는 것도 계획에 없다 — 에디터가 없는 설정 화면에서도 '받음'이 생기게. 웹 시험 도우미 `useInkTestFonts`와 무관(VM 위젯 시험).
+- (J13) 계획 4.6.7의 줄 예시('iOS 17.5 · 스퀴즈 · 호버 · 롤')가 아니라 6.12.3(v2.1)의 규칙('스퀴즈·롤은 받은 뒤 · 스퀴즈(받음)')을 따랐고, 더블탭은 iOS면 언제나 붙는다(능력 표 그대로). 능력 읽기 실패(`os` '?')는 'iOS ?' 대신 '능력을 읽지 못했어요'.
 
 #### 다른 영역이 기반 단계에서 보낸 요청 (인수인계 메모 [INFRA])
 
