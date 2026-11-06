@@ -63,6 +63,7 @@ import 'selection.dart';
 import 'selection_hit_test.dart';
 import 'selection_priority.dart';
 import 'selection_transform_interaction.dart';
+import 'shape_assist_for.dart';
 import 'shape_drafts.dart';
 import 'shape_interaction.dart';
 import 'text_tool_interaction.dart';
@@ -307,6 +308,12 @@ class InteractionHost implements InputTargets {
             _ref.read(core.audioRecorderServiceProvider),
             _session.noteId,
             style.tool,
+          ),
+          // (v2, E2-15 — 6.10) holdToSnap / off for this pen.
+          shapeAssist: shapeAssistFor(
+            _ref.read(editorSettingsProvider),
+            style.tool,
+            _ref.read(ink.inkShapeFitterProvider),
           ),
         );
       case EditorTool.eraser:
