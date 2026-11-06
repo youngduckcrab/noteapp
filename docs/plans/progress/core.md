@@ -217,7 +217,7 @@
 | B2-α 계약 타입 커밋 | T22 | 2b2e4b0 | 2026-11-05 | 공개 선언 전부 컴파일 — R2-B7a 바탕, R2-B2i 위임, 전 영역 코드 작성 시작 | SYNC·INFRA·전 영역 |
 | B2-β JSON 골든 | T20a | 9777fde | 2026-11-06 | 객체·손글씨·녹음 JSON 키 고정 — 키 대조 시험(CP-S9) | SYNC(R2-B7a가 이 해시로 판정 — sync.md) |
 | B2-β 끝 | T23b | 0798096 | 2026-11-06 | 가짜 저장소 v2·가짜 오디오·픽스처·testing_web 동작 | 전 영역 |
-| DB v2·마이그레이션 | T24 | | | openTestNoteStore가 v2 DB, v1 사본 | SYNC·PDF·LIBRARY·INFRA |
+| DB v2·마이그레이션 | T24 | a2b0489 | 2026-11-06 | openTestNoteStore가 v2 DB, v1 사본(네이티브 파일·웹 블롭 덤프), dev_tools v1 사본 API 동작 — 새 종류의 행 쓰기는 T26부터 | SYNC·PDF·LIBRARY·INFRA |
 | 쓰기 경로 | T26 | | | 새 종류 행·힌트·고아 — SYNC 시나리오 시험 | SYNC |
 | 객체 읽기·쓰기 DB | T27 | | | 실제 저장소 객체 명령·N-7 | EDITOR·PDF |
 | 동기화 창구 v2 | T28 | | | applyRemote·readVersioned 새 종류 — T16-v2 | SYNC |
@@ -393,7 +393,7 @@
 | T25a | 기반 단계에서 완료 | b6beece | `test/migration/v1_fixture_files_test.dart` |
 | T22 | 기반 단계에서 완료 | 2b2e4b0 | `test/api_surface_test.dart` v2 외 — 위 '작업 표 (2차)' |
 | T20a·T20b·T21·T23a·T23b | 기반 단계에서 완료 | 9777fde·c443015·38f3578·12ab8c4·0798096 | 위 '작업 표 (2차)' |
-| T24 | 완료 | (이정표 표 'DB v2·마이그레이션') | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
+| T24 | 완료 | a2b0489 | `test/storage/schema_v2_test.dart`(1차 `schema_test.dart`를 대신함), `test/storage/generated_migrations/note_db/migration_test.dart`, `test/storage/migration_v2_test.dart`, `test/storage/v1_copy_test.dart`, `test/storage/canonical_dump_test.dart`, `test/web/canonical_dump_browser_test.dart`, `test/web/v1_copy_browser_test.dart`, `test/common/text_normalize_test.dart`, `test/storage/open_errors_test.dart` |
 | T35 | 남음 | | `test/assets/file_blob_store_test.dart`, `test/storage/native_file_store_test.dart` |
 | T25b | 남음 | | `test/migration/v1_fixture_migration_test.dart`, `test/web/v1_fixture_migration_browser_test.dart`, `test/perf/migration_perf_test.dart` |
 | T26 | 남음 | | `test/storage/row_mappers_v2_test.dart`, `test/storage/outbox_v2_test.dart`, `test/storage/change_bus_v2_test.dart` |
