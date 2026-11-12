@@ -3,7 +3,9 @@
 // navigator.locks, just_audio_web over a Blob URL) record 2 s with a 1 s pause in the middle →
 // stop → the asset and the Recording row (M-1) → open → play at 2× (slope 1.9–2.1) → pause →
 // seekMs(700) (±50 ms). The file's own timeline against the recording clock is asserted with the
-// approved V8 rule (contract v2.2 C22-04 — CP-PDF-12): lastBlockStartMs − 50 ≤ clock ≤ endMs + 50,
+// approved V8 rule (contract v2.2 C22-04 — CP-PDF-12, widened above by v2.6 C26-01):
+// lastBlockStartMs − 50 ≤ clock ≤ endMs + 50 + 60 × pauses (each pause makes Chrome's file about
+// one packet ≈ 60 ms shorter than the clock — T39: +35 · +46 · +52 · +65 ms with one pause),
 // asserted on the real web store only (MediaStores.judged — on a loaded machine the
 // MediaRecorder's start / stop events come late and the file and the clock drift apart); the two
 // gaps and the old rule '|endMs − clock| ≤ 50 ms' are printed for the progress log (PDF-F1), not
@@ -12,9 +14,9 @@
 //
 // Runs only with `ws test --package media_io --platform chrome --run-skipped -t media` (the media
 // tag skips it elsewhere; ws starts Chrome through tool/chrome-fakemedia). Store: mediaStoreTest
-// (media_world.dart) — the real web store variant waits for CORE T31, the fake store variant runs
-// now. The waits are for the recording itself; the assertions compare the file with the clock
-// and with the time measured here, never with fixed wall-clock numbers.
+// (media_world.dart) — the judged real web store variant and the CORE fake store variant. The
+// waits are for the recording itself; the assertions compare the file with the clock and with
+// the time measured here, never with fixed wall-clock numbers.
 //
 // Fixture refresh (06-pdf 6.1 E9): with --dart-define=MEDIA_IO_DUMP_WEBM=true the saved WebM is
 // printed as one base64 line 'media-io-webm <base64>' (a browser test cannot write files).
@@ -97,6 +99,7 @@ void main() {
       final note = await store.library.createNote(title: 'Lecture');
       final id = store.ids.newId();
       final wall = Stopwatch()..start();
+      var pauses = 0; // user pauses in this recording (C26-01's upper margin)
       await recorder.start(recordingId: id, noteId: note.id);
       expect(recorder.status.phase, core.RecorderPhase.recording);
       expect(recorder.status.mimeType, contains('webm'));
@@ -105,6 +108,7 @@ void main() {
         'recording for 1 s',
       );
       await recorder.pause();
+      pauses++;
       expect(recorder.status.phase, core.RecorderPhase.paused);
       expect(recorder.offsetNowMs(), isNull);
       final pausedAt = recorder.status.activeMs;
@@ -133,7 +137,8 @@ void main() {
       expect(asset.mimeType, contains('webm'));
       expect(await store.recordingDrafts.listDrafts(), isEmpty);
 
-      // ③ the length is the file's timeline; the clock lies in the last packet ± 50 ms (C22-04)
+      // ③ the length is the file's timeline; the clock lies in the last packet − 50 ms … the file
+      // end + 50 ms + 60 ms per pause (C22-04, C26-01)
       final bytes = (await store.assets.readBytes(recording.assetId))!;
       expect(bytes, isNotEmpty);
       final timeline = WebmTimeline.measure(bytes)!;
@@ -151,7 +156,8 @@ void main() {
         'lastBlockStart=${timeline.lastBlockStartMs} ms clock=$clock ms '
         'end−clock=${timeline.endMs - clock} ms '
         'clock−lastBlockStart=${clock - timeline.lastBlockStartMs} ms '
-        'old |end−clock|≤50: $oldRule '
+        'old |end−clock|≤50: $oldRule pauses=$pauses '
+        'upper=endMs+${50 + 60 * pauses} '
         'clock at the stop call=$atStopCall ms '
         'wall=${wall.elapsedMilliseconds} ms paused=${paused.elapsedMilliseconds} ms '
         'bytes=${bytes.length}',
@@ -161,9 +167,14 @@ void main() {
         print('media-io-webm ${base64Encode(bytes)}');
       }
       if (stores.judged) {
+        expect(pauses, 1);
         expect(
           clock,
-          inInclusiveRange(timeline.lastBlockStartMs - 50, timeline.endMs + 50),
+          inInclusiveRange(
+            timeline.lastBlockStartMs - 50,
+            timeline.endMs + 50 + 60 * pauses,
+          ),
+          reason: 'C22-04 / C26-01: lastBlockStart − 50 ≤ clock ≤ end + 50 + 60 × pauses',
         );
       }
       expect(clock, greaterThanOrEqualTo(2000));

@@ -1,18 +1,20 @@
 // PdfrxEngine on real PDFium (06-pdf 4.3, 8 T3): info, rotated sizes, render regions and
 // cancel, password retries and limit, permission-only PDFs, char rects in displayed pt,
-// re-encoding without security, '%PDF-' check.
+// re-encoding without security, '%PDF-' check; (2차, C26-04) a word hyphenated at a line end
+// comes with U+00AD where PDFium put U+0002.
 @Tags(['pdfium'])
 @TestOn('vm')
 library;
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
 
 import '../support/pdfium_env.dart';
+import '../support/pdfium_text_cases.dart';
 
 final PdfrxEngine _engine = PdfrxEngine.shared();
 var _docs = 0;
@@ -317,6 +319,28 @@ void main() {
     final rect = text.charRects[at];
     expect(rect.left, closeTo(72, 6));
     expect(rect.bottom, closeTo(100, 4));
+  });
+
+  test("(C26-04) 'IN-' / 'DEXING': U+00AD where PDFium joins the halves, one rect per code unit", () async {
+    final doc = await _open(
+      (PdfFixtureBuilder()..addPage(hyphenatedWordPage)).build(),
+    );
+    final text = await doc.loadText(0);
+    debugPrint('C26-04 loadText ${text.text.codeUnits}');
+    expect(text.text, contains('IN\u00ADDEXING'));
+    expect(text.text, isNot(contains('\u0002')));
+    expect(text.charRects, hasLength(text.text.length));
+    final at = text.text.indexOf('\u00AD');
+    final n = text.charRects[at - 1], hyphen = text.charRects[at];
+    final d = text.charRects[at + 1];
+    // the soft hyphen keeps the hyphen glyph's box: right of 'N' on line 1; 'D' is on line 2
+    expect(hyphen, isNot(ui.Rect.zero));
+    expect(hyphen.left, greaterThanOrEqualTo(n.right - 1));
+    expect(n.bottom, closeTo(100, 4));
+    expect(hyphen.top, greaterThanOrEqualTo(n.top - 1));
+    expect(hyphen.bottom, lessThanOrEqualTo(n.bottom + 1));
+    expect(d.bottom, closeTo(122, 4));
+    expect(d.left, closeTo(72, 6));
   });
 
   test('encodeWithoutSecurity: the copy opens without a password', () async {

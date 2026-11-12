@@ -14,8 +14,8 @@ library;
 // past the 10 s recent-update window for the recovery.
 //
 // `media` tag (`ws test --package media_io --platform chrome --run-skipped -t media` — the heavy
-// test lock): CORE's REAL web store (openWebTestNoteStore — skipped at run time until CORE T31)
-// and CORE's fake store (media_world.dart mediaStoreTest).
+// test lock): CORE's REAL web store (openWebTestNoteStore) and CORE's fake store (media_world.dart
+// mediaStoreTest).
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';

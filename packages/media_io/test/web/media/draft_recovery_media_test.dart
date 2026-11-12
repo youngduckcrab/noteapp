@@ -12,7 +12,7 @@
 // Runs only with `ws test --package media_io --platform chrome --run-skipped -t media` (the media
 // tag skips it elsewhere; ws starts Chrome through tool/chrome-fakemedia). Store: mediaStoreTest
 // (media_world.dart) — the real web store variant (the one V16 is judged on: IndexedDB + the drift
-// worker, a reopened store) waits for CORE T31; the fake store variant runs now. The recorder
+// worker, a reopened store) and the fake store variant. The recorder
 // clock is a FakeAsync clock moved by hand, so the recent-update window needs no real waiting.
 @TestOn('browser')
 @Tags(['media'])

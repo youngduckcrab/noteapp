@@ -112,6 +112,7 @@ const Set<String> barrelNames = {
   'PdfFillItem', 'PdfStrokeItem', 'PdfPageVectors', 'PdfInkVectorizer',
   // (2차) m5-7/06-pdf 4.1.6 — the 18 new names are listed in barrelNamesV2 below.
   ...barrelNamesV2,
+  ...barrelNamesV26,
   'PdfComposeSource',
   'PdfComposePagePlan',
   'PdfComposeSourcePage',
@@ -183,6 +184,9 @@ const Set<String> barrelNamesV2 = {
   'PdfExportSkippedFormulas',
 };
 
+/// (2차, contract v2.6 C26-02 — added only) the developer overlay lines of the export.
+const Set<String> barrelNamesV26 = {'pdfDevOverlayLinesProvider'};
+
 /// (2차) m5-7/06-pdf 4.1.1, 4.1.3, 4.1.6: src only — never in the barrel (the draft's
 /// PdfIndexerGate is not exported either, v2.1 PDF-M9).
 const Set<String> srcOnlyNamesV2 = {
@@ -199,6 +203,10 @@ const Set<String> srcOnlyNamesV2 = {
   'PdfMathRasterizer',
   'PdfTextRasterizer',
   'ExportMemoryLedger',
+  // (contract v2.6) C26-02 the ledger record behind the lines, C26-04 the adapter's text fix
+  'PdfExportDiagnostics',
+  'pdfExportDiagnosticsProvider',
+  'softenPdfiumHyphenJoins',
 };
 
 /// 06-pdf 4.14.
@@ -670,7 +678,10 @@ void main() {
       final List<PdfMenuAction> Function() add = pdfEditorAddPageSources;
       final Provider<ValueListenable<PdfRenderStats>> stats =
           pdfRenderStatsProvider;
+      // contract v2.6 C26-02
+      final Provider<List<String>> devLines = pdfDevOverlayLinesProvider;
       expect([
+        devLines,
         init,
         overrides,
         importAction,
@@ -1143,6 +1154,7 @@ void main() {
         'pdfImportJobProvider': pdfImportJobProvider,
         'pdfExportJobProvider': pdfExportJobProvider,
         'pdfBatchExportJobProvider': pdfBatchExportJobProvider,
+        'pdfDevOverlayLinesProvider': pdfDevOverlayLinesProvider, // v2.6 C26-02
       };
       providers.forEach((name, provider) {
         expect(provider.name, name);

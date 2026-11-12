@@ -33,6 +33,7 @@ import 'engine/pdf_engine.dart';
 import 'engine/pdfrx_engine.dart';
 import 'errors.dart';
 import 'export/batch_export.dart';
+import 'export/export_diagnostics.dart';
 import 'export/export_service.dart';
 import 'export/export_types.dart';
 import 'export/vectors.dart';
@@ -229,13 +230,35 @@ final pdfImportServiceProvider = Provider<PdfImportService>(
 
 /// DefaultPdfExportService(gateway: …, vectorizer: …, backend: …).
 final pdfExportServiceProvider = Provider<PdfExportService>(
-  (ref) => DefaultPdfExportService(
+  // DefaultPdfExportService(gateway:, vectorizer:, backend:) — through the src-only factory so
+  // each note's memory ledger reaches the developer lines (C26-02).
+  (ref) => createPdfExportService(
     gateway: ref.watch(pdfNoteGatewayProvider),
     vectorizer: ref.watch(pdfInkVectorizerProvider),
     backend: ref.watch(pdfComposeBackendProvider),
+    diagnostics: ref.watch(pdfExportDiagnosticsProvider),
   ),
   name: 'pdfExportServiceProvider',
 );
+
+/// (2차, contract v2.6 C26-02) src only: the export ledger numbers the developer lines show.
+final pdfExportDiagnosticsProvider = Provider<PdfExportDiagnostics>((ref) {
+  final diagnostics = PdfExportDiagnostics();
+  ref.onDispose(diagnostics.dispose);
+  return diagnostics;
+}, name: 'pdfExportDiagnosticsProvider');
+
+/// (2차, contract v2.6 C26-02 — added only) Developer overlay lines of the PDF export: the last
+/// note's memory ledger peakBytes and overBudget (C22-06 ②, 6.2.10 ⑤). Empty before the first
+/// export, and when pdfExportServiceProvider is overridden with another service. Rebuilt after
+/// each export (INFRA puts it in FeatureWiringModule's PDF DevOverlaySection).
+final pdfDevOverlayLinesProvider = Provider<List<String>>((ref) {
+  final diagnostics = ref.watch(pdfExportDiagnosticsProvider);
+  void changed() => ref.invalidateSelf();
+  diagnostics.addListener(changed);
+  ref.onDispose(() => diagnostics.removeListener(changed));
+  return diagnostics.lines;
+}, name: 'pdfDevOverlayLinesProvider');
 
 final pdfImportJobProvider =
     NotifierProvider<PdfImportJobNotifier, PdfJobState<PdfImportResult>>(

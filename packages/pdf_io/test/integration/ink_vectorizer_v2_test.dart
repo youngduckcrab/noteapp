@@ -1,9 +1,8 @@
 // InkEngineVectorizer.planPage over INK's REAL vector export v2 (m5-7/06-pdf 6.2.1, 5.2; 8.2 T24
 // ③ — PDF-M2): exportPage → layersFromInk → planFromLayers on a page with an image object, a
 // rectangle shape, a dashed stroke, a text box, a formula and tape. Integration stage only
-// (`ws test --run-skipped -t integration --package pdf_io`, 8.3 4-a) and only after INK T42
-// (03-ink 8.5 — 'T42 = PDF 객체 벡터화 시험 전환'): with INK's foundation export (strokes only,
-// empty v2 lists) these assertions fail by design.
+// (`ws test --run-skipped -t integration --package pdf_io`, 8.3 4-a); INK T42 (03-ink 8.5 — 'T42
+// = PDF 객체 벡터화 시험 전환') is merged, so the static skip of the concurrent stage is gone.
 @Tags(['integration'])
 @TestOn('vm')
 library;
@@ -128,5 +127,5 @@ void main() {
           .isEmpty,
       isTrue,
     );
-  }, skip: 'INK T42 이정표 뒤 켬 — 실제 exportPage v2 (03-ink 8.5), 통합 단계 4-a');
+  });
 }

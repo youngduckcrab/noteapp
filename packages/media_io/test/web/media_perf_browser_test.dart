@@ -6,9 +6,8 @@ library;
 // for a 4000 × 3000 JPEG through the canvas codec (BrowserImageCodec — ≤ 1 s), and the web draft
 // chunk write — RecordingDraftStore.append of 1-second WebM chunks (≈ 8 KB at 64 kbit/s), the
 // latency the DraftWriter waits for — on CORE's REAL web store (IndexedDB + the drift web
-// worker; median ≤ 30 ms — CORE 6.7.3's budget) and, printed only, on CORE's fake store. Until
-// CORE T31 (the real draft store) the real-store case skips itself at run time. perf tag,
-// skipped by default (`ws test --package media_io --platform chrome --run-skipped -t perf`).
+// worker; median ≤ 30 ms — CORE 6.7.3's budget) and, printed only, on CORE's fake store. perf
+// tag, skipped by default (`ws test --package media_io --platform chrome --run-skipped -t perf`).
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -79,10 +78,6 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('draft append latency on the real web store: median ≤ 30 ms', () async {
-    if (!await RealWebStores.draftsReady()) {
-      markTestSkipped(coreT31Pending);
-      return;
-    }
     final stores = RealWebStores('append_perf');
     final store = await stores.open();
     try {

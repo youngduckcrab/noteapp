@@ -2,8 +2,8 @@
 // (support/real_wiring.dart over note_core/testing_vm.dart openTestNoteStore) imports a PDF,
 // pdfSearchIndexerProvider indexes it and searchPages' rects match the 1차 searchNote rects
 // (support/search_indexer_core_scenarios.dart). Integration stage only (`ws test --run-skipped
-// -t integration --package pdf_io`); until CORE T33a/T33b the scenario skips itself at run time.
-// pdfium/search_indexer_fake_core_test.dart runs the same scenario on CORE's fake store.
+// -t integration --package pdf_io`). pdfium/search_indexer_fake_core_test.dart runs the same
+// scenario on CORE's fake store.
 @Tags(['integration'])
 @TestOn('vm')
 library;

@@ -5,17 +5,15 @@
 //   - the text box's Hangul line is text (extracted by PDFium),
 //   - image objects in the file = image objects + image backgrounds + one formula raster (the
 //     two JPEGs as /DCTDecode, the raster the only image with a soft mask),
-//   - the dashed stroke's page paints as many paths as INK exported dash pieces for it,
+//   - the dashed stroke's dash pieces are all in the PDF: INK exports a dashed stroke as ONE
+//     InkFillShape whose sub-paths are its dash outlines (03-ink 6.21, contract 7.2.9 'pre-split
+//     into dash segments'), so the page paints as many path objects as those shapes (one) and
+//     starts as many sub-paths (`m`) as INK's dash pieces (the moveTo verbs of those paths),
 //   - the tape page paints one path: the cover.
 // Web-safe; the callers are integration/export_objects_v11_test.dart (VM: openTestNoteStore,
 // native compose backend, dart:io zlib) and web/export_objects_v11_browser_test.dart (Chrome:
 // openWebTestNoteStore, the compose Worker, DecompressionStream; useInkTestFonts — the text box
 // sentence is inside the test font's characters).
-//
-// Until the real CORE store keeps page objects (CORE T26/T27 — DB v2; in this work tree
-// createNote with objects throws UnimplementedError) and INK exports them (INK T42 — the
-// foundation export has strokes only) the scenario skips itself at run time (a static `skip:`
-// would still run under `--run-skipped -t integration` and fail every time — T39/T40 rule).
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -29,14 +27,6 @@ import 'package:pdf_io/testing.dart';
 import 'compose_probes.dart';
 import 'pdf_page_content.dart';
 import 'real_wiring.dart';
-
-/// Why the scenario skips itself (each names the milestone it waits for).
-const String v11WaitsForCore =
-    'CORE T26/T27 milestone (DB v2 — the real store keeps page objects) — judged at '
-    'integration step 4-a / 4-b';
-const String v11WaitsForInk =
-    'INK T42 milestone (vector export v2 — image, text box, formula, dash pieces, tape '
-    'cover) — judged at integration step 4-a / 4-b';
 
 /// The text box sentence (inside the INK Chrome test font — tool/fonts/test_font_chars.txt).
 const String v11TextBoxText = '한글 텍스트 상자';
@@ -62,7 +52,7 @@ List<String> _lines(String text) => [
 ];
 
 /// Runs V11 on [app]'s store; [out] reopens the PDF with the platform's PDFium, [inflate]
-/// decodes the content streams. Skips itself (markTestSkipped) before CORE T26/T27 · INK T42.
+/// decodes the content streams.
 Future<void> runV11Scenario(
   RealWiring app, {
   required ComposeProbeContext out,
@@ -82,58 +72,49 @@ Future<void> runV11Scenario(
     fileName: 'scan.jpg',
   );
 
-  final core.Note note;
-  try {
-    note = await store.library.createNote(
-      title: 'V11',
-      pages: [
-        core.PageDraft(
-          size: core.PageSize.a4Portrait,
-          background: const core.BlankBackground(),
-          objects: [
-            core_testing.PageObjectFixtures.image(
-              pageId: 'draft',
-              assetId: photo.id,
-              pixelWidth: 64,
-              pixelHeight: 48,
-              createdAt: 1,
-            ),
-            core_testing.PageObjectFixtures.shape(
-              pageId: 'draft',
-              createdAt: 2,
-            ),
-            core_testing.PageObjectFixtures.textBox(
-              pageId: 'draft',
-              text: v11TextBoxText,
-              createdAt: 3,
-            ),
-            core_testing.PageObjectFixtures.math(
-              pageId: 'draft',
-              latex: r'\frac{a+b}{c}',
-              createdAt: 4,
-            ),
-          ],
-        ),
-        core.PageDraft(
-          size: core.PageSize.a4Portrait,
-          background: core.ImageBackground(assetId: scan.id),
-        ),
-        core.PageDraft(
-          size: core.PageSize.a4Portrait,
-          background: const core.BlankBackground(),
-          strokes: [_line(_dashedId, core.PenTool.dashed, createdAt: 5)],
-        ),
-        core.PageDraft(
-          size: core.PageSize.a4Portrait,
-          background: const core.BlankBackground(),
-          strokes: [_line(_tapeId, core.PenTool.tape, createdAt: 6)],
-        ),
-      ],
-    );
-  } on UnimplementedError catch (e) {
-    markTestSkipped('$v11WaitsForCore ($e)');
-    return;
-  }
+  final note = await store.library.createNote(
+    title: 'V11',
+    pages: [
+      core.PageDraft(
+        size: core.PageSize.a4Portrait,
+        background: const core.BlankBackground(),
+        objects: [
+          core_testing.PageObjectFixtures.image(
+            pageId: 'draft',
+            assetId: photo.id,
+            pixelWidth: 64,
+            pixelHeight: 48,
+            createdAt: 1,
+          ),
+          core_testing.PageObjectFixtures.shape(pageId: 'draft', createdAt: 2),
+          core_testing.PageObjectFixtures.textBox(
+            pageId: 'draft',
+            text: v11TextBoxText,
+            createdAt: 3,
+          ),
+          core_testing.PageObjectFixtures.math(
+            pageId: 'draft',
+            latex: r'\frac{a+b}{c}',
+            createdAt: 4,
+          ),
+        ],
+      ),
+      core.PageDraft(
+        size: core.PageSize.a4Portrait,
+        background: core.ImageBackground(assetId: scan.id),
+      ),
+      core.PageDraft(
+        size: core.PageSize.a4Portrait,
+        background: const core.BlankBackground(),
+        strokes: [_line(_dashedId, core.PenTool.dashed, createdAt: 5)],
+      ),
+      core.PageDraft(
+        size: core.PageSize.a4Portrait,
+        background: const core.BlankBackground(),
+        strokes: [_line(_tapeId, core.PenTool.tape, createdAt: 6)],
+      ),
+    ],
+  );
   await store.flush();
   final pages = await store.content.pagesOf(note.id);
   expect(pages, hasLength(4));
@@ -158,21 +139,25 @@ Future<void> runV11Scenario(
   final first = exported(contents[0]);
   final dashed = exported(contents[2]);
   final tape = exported(contents[3]);
-  if (first.annotations.isEmpty ||
-      first.underlay.isEmpty ||
-      tape.cover.isEmpty) {
-    markTestSkipped(v11WaitsForInk);
-    return;
-  }
-  final dashPieces = [
+  expect(first.underlay, isNotEmpty, reason: 'INK exports the image object');
+  expect(
+    first.annotations,
+    isNotEmpty,
+    reason: 'INK exports the text box and the formula',
+  );
+  final dashedShapes = [
     for (final s in dashed.inkShapes)
       if (s.strokeId == contents[2].strokes.single.id) s,
-  ].length;
+  ];
+  expect(dashedShapes, isNotEmpty, reason: 'the dashed stroke is exported');
+  final dashPieces = [
+    for (final s in dashedShapes)
+      s.path.verbs.where((v) => v == ink.InkPathVerb.moveTo.index).length,
+  ].fold(0, (a, b) => a + b);
   expect(
     dashPieces,
     greaterThan(1),
-    reason:
-        'INK splits a dashed stroke into dash pieces (no dash operator in PDF)',
+    reason: 'INK splits a dashed stroke into dash pieces (sub-paths — no dash operator in PDF)',
   );
   expect(tape.cover, hasLength(1));
   expect(tape.inkShapes, isEmpty, reason: 'tape is exported as its cover only');
@@ -217,8 +202,13 @@ Future<void> runV11Scenario(
   expect(ops.pages[1].xObjects, 1, reason: 'the image background');
   expect(
     ops.pages[2].paintedPaths,
+    dashedShapes.length,
+    reason: 'one painted path object per INK fill shape of the dashed stroke',
+  );
+  expect(
+    ops.pages[2].counts['m'],
     dashPieces,
-    reason: 'one path per INK dash piece',
+    reason: 'every INK dash piece starts a sub-path in the PDF',
   );
   expect(ops.pages[3].paintedPaths, 1, reason: 'the tape cover');
   expect(ops.pages[3].filledPaths, 1);

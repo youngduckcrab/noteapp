@@ -137,6 +137,7 @@ export 'src/providers.dart'
         pdfComposeBackendProvider,
         pdfImportServiceProvider,
         pdfExportServiceProvider,
+        pdfDevOverlayLinesProvider,
         pdfImportJobProvider,
         pdfExportJobProvider,
         pdfBatchExportJobProvider,

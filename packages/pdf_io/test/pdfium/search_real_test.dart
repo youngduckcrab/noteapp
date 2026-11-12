@@ -1,7 +1,8 @@
 // Search on real PDFium (06-pdf 6.10; 8 T11): DefaultPdfTextService + DefaultPdfDocumentPool
 // over PdfrxEngine and FakePdfNoteGateway. The '강의 자료' ToUnicode fixture gives a '강의'
 // rect inside the glyph boxes; a page rotated 90° gives displayed-page coordinates; a
-// 50 × 50 pt page on a 72 × 72 note page (s ≠ 1, P-1) gives NOTE pt at the glyphs.
+// 50 × 50 pt page on a 72 × 72 note page (s ≠ 1, P-1) gives NOTE pt at the glyphs; (2차,
+// contract v2.6 C26-04) a word hyphenated at a line end ('IN-' / 'DEXING') is found whole.
 @Tags(['pdfium'])
 @TestOn('vm')
 library;
@@ -15,6 +16,7 @@ import 'package:pdf_io/pdf_io.dart';
 import 'package:pdf_io/testing.dart';
 
 import '../support/pdfium_env.dart';
+import '../support/pdfium_text_cases.dart';
 
 final class _World {
   final FakePdfNoteGateway gateway = FakePdfNoteGateway();
@@ -154,4 +156,31 @@ void main() {
     expect(rect.width, closeTo(expected.width, 1e-6));
     expect(rect.height, closeTo(expected.height, 1e-6));
   });
+
+  test(
+    "(C26-04) 'IN-' / 'DEXING': 'indexing' is found, one rect on each line",
+    () async {
+      final w = _World();
+      addTearDown(w.dispose);
+      final note = await w.note(
+        (PdfFixtureBuilder()..addPage(hyphenatedWordPage)).build(),
+        core.PageSize.a4Portrait,
+      );
+      final hit = (await w.search(note.id, 'indexing')).single;
+      expect(hit.notePageNumber, 1);
+      expect(
+        hit.snippet.substring(hit.matchStart, hit.matchStart + hit.matchLength),
+        'INDEXING',
+        reason: 'the snippet shows the word whole (case kept, the soft hyphen dropped)',
+      );
+      expect(hit.rects, hasLength(2), reason: 'IN on line 1, DEXING on line 2');
+      final [line1, line2] = hit.rects;
+      expect(line1.bottom, closeTo(100, 4));
+      expect(line1.left, greaterThan(100), reason: "after 'Text '");
+      expect(line2.bottom, closeTo(122, 4));
+      expect(line2.left, closeTo(72, 6));
+      expect(line2.top, greaterThan(line1.bottom - 1));
+      expect(hit.snippet, isNot(contains('\u0002')));
+    },
+  );
 }

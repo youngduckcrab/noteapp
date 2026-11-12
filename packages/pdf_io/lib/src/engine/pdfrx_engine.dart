@@ -10,6 +10,7 @@ import '../config.dart';
 import '../errors.dart';
 import 'page_info.dart';
 import 'pdf_engine.dart';
+import 'pdfium_text.dart';
 
 /// Production engine over pdfrx 2.11.0. Process-wide singleton (init is global in pdfrx).
 final class PdfrxEngine implements PdfEngine {
@@ -236,7 +237,9 @@ final class _PdfrxDocument implements PdfEngineDocument {
         charRects: const [],
       );
     }
-    final text = raw.fullText;
+    // C26-04: a word hyphenated at a line end comes as 'IN\u0002DEXING' — hand it on with
+    // U+00AD (same length, so the boxes below stay one per code unit — pdfium_text.dart).
+    final text = softenPdfiumHyphenJoins(raw.fullText);
     final rects = <ui.Rect>[];
     // pdfrx gives one rect per PDFium char; a char outside the BMP is two UTF-16 units.
     var charIndex = 0;

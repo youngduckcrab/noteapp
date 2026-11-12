@@ -8,11 +8,8 @@
 // recovered; an empty chunk moves the draft's updatedAt (the paused keep-alive, 6.8.5); a note
 // purged before recovery → nothing recovered and nothing left; audioBytesOf.
 //
-// Until the real recording stores exist (CORE T30 recordings, T31 drafts — in this work tree
-// their writes throw UnimplementedError) the real-store group skips itself at run time (a
-// static `skip:` would still run under `--run-skipped -t integration` and fail every time). The
-// same bodies also run on CORE's fake store (an untagged file — every `ws test` run), so the
-// flow is checked now. VM only (dart:io). No wall-clock assertions: the store clock and the recording clock are one
+// The same bodies also run on CORE's fake store (an untagged file — every `ws test` run), so the
+// flow is checked outside the integration stage too. VM only (dart:io). No wall-clock assertions: the store clock and the recording clock are one
 // FakeAsync's clock, moved by hand (FakeAsync.elapse outside its zone — nothing runs in it).
 import 'dart:io';
 import 'dart:typed_data';
@@ -30,11 +27,6 @@ import 'package:note_core/testing_vm.dart' as core_vm;
 
 import 'fake_engines.dart';
 import 'fake_stopwatch.dart';
-
-/// Why the real-store group skips itself.
-const String _coreRecordingsPending =
-    'CORE T30/T31 milestone (the real recording and draft stores) — judged at integration '
-    'step 4-d';
 
 final DateTime _start = DateTime.utc(2026, 11, 6, 9);
 
@@ -75,41 +67,6 @@ final class FileCoreStores implements MediaCoreStores {
   Future<void> close(core.NoteStore store) async {
     await store.close();
     if (_dir.existsSync()) _dir.deleteSync(recursive: true);
-  }
-
-  static Future<bool>? _ready;
-
-  /// Whether the real store can write recording drafts and recordings (CORE T30/T31) — asked
-  /// once per run.
-  static Future<bool> ready() => _ready ??= _probe();
-
-  static Future<bool> _probe() async {
-    final store = await core_vm.openTestNoteStore();
-    try {
-      final note = await store.library.createNote(title: 'probe');
-      try {
-        await store.recordingDrafts.begin(
-          recordingId: store.ids.newId(),
-          noteId: note.id,
-          mimeType: 'audio/webm;codecs=opus',
-          startedAt: 0,
-        );
-        await store.recordings.createRecording(
-          id: store.ids.newId(),
-          noteId: note.id,
-          assetId: store.ids.newId(),
-          durationMs: 1000,
-          startedAt: 0,
-        );
-      } on UnimplementedError {
-        return false;
-      } on ArgumentError {
-        return true; // the missing asset — the real repository answered
-      }
-      return true;
-    } finally {
-      await store.close();
-    }
   }
 }
 
@@ -158,18 +115,13 @@ final class _World {
 
 typedef _Body = Future<void> Function(_World w);
 
-/// Runs [body] on [stores]; the real-store variant skips itself until CORE T30/T31.
+/// Runs [body] on [stores].
 void _storeTest(
   String name,
   MediaCoreStores Function(FakeAsync time) stores,
-  _Body body, {
-  bool real = false,
-}) {
+  _Body body,
+) {
   test(name, () async {
-    if (real && !await FileCoreStores.ready()) {
-      markTestSkipped(_coreRecordingsPending);
-      return;
-    }
     final time = FakeAsync(initialTime: _start);
     final s = stores(time);
     final store = await s.open();
@@ -214,15 +166,11 @@ Future<FakeRecorderEngine> _record(
   return engine;
 }
 
-/// The T40 scenarios on [stores]; [real]: skip at run time until CORE T30/T31.
-void mediaCoreScenarios(
-  MediaCoreStores Function(FakeAsync time) stores, {
-  required bool real,
-}) {
+/// The T40 scenarios on [stores].
+void mediaCoreScenarios(MediaCoreStores Function(FakeAsync time) stores) {
   _storeTest(
     'record → stop → an audio asset and a Recording row; audioBytesOf',
     stores,
-    real: real,
     (w) async {
       final engine = FakeRecorderEngine();
       final service = w.service(engine);
@@ -251,7 +199,6 @@ void mediaCoreScenarios(
   _storeTest(
     'a Recording before its asset (the order turned round) → CORE ArgumentError, no row',
     stores,
-    real: real,
     (w) async {
       await expectLater(
         w.store.recordings.createRecording(
@@ -271,7 +218,6 @@ void mediaCoreScenarios(
   _storeTest(
     'a draft survives closing and reopening the store → recovered as it was',
     stores,
-    real: real,
     (w) async {
       final engineA = FakeRecorderEngine();
       final a = w.service(engineA);
@@ -307,7 +253,6 @@ void mediaCoreScenarios(
   _storeTest(
     "an empty chunk moves the draft's updatedAt (the paused keep-alive)",
     stores,
-    real: real,
     (w) async {
       final drafts = w.store.recordingDrafts;
       final draft = await drafts.begin(
@@ -340,7 +285,6 @@ void mediaCoreScenarios(
   _storeTest(
     'the note purged before recovery → nothing recovered, no draft or attempt left',
     stores,
-    real: real,
     (w) async {
       final engineA = FakeRecorderEngine();
       final a = w.service(engineA);

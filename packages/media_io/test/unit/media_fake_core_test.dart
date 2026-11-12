@@ -12,5 +12,5 @@ import '../support/media_core_scenarios.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  mediaCoreScenarios(FakeCoreStores.new, real: false);
+  mediaCoreScenarios(FakeCoreStores.new);
 }

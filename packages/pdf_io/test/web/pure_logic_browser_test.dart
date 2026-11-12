@@ -5,7 +5,8 @@ library;
 // contract 7.4.8: dart2js number differences). Grows with the tasks that add pure logic
 // (T8 tile math, T11 normalizer, T12 encoder bytes and alpha255, T15 export chunks — 16
 // pages per addPages on the web; (2차) T21 object matrices and the v2 encoder — the same
-// cases as unit/affine_test and unit/compose_encoder_v2_test).
+// cases as unit/affine_test and unit/compose_encoder_v2_test; C26-04 PDFium hyphen joins — the
+// cases of unit/pdfium_text_test).
 import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:crypto/crypto.dart';
@@ -20,6 +21,7 @@ import '../support/compose_fixture.dart';
 import '../support/compose_v2_cases.dart';
 import '../support/export_world.dart';
 import '../support/fixture_digest.dart';
+import '../support/pdfium_text_cases.dart';
 
 void main() {
   test('title policy and jamo', () {
@@ -159,4 +161,5 @@ void main() {
 
   group('(2차) T21 object matrices', affineCases);
   group('(2차) T21 compose encoder v2', encoderV2Cases);
+  group('(2차) C26-04 PDFium hyphen joins', pdfiumTextCases);
 }

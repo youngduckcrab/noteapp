@@ -9,8 +9,8 @@ library;
 // (pdfium.wasm + pdf_io_compose_ext.js from test/web/pdfium/). setUpAll(useInkTestFonts): the text
 // box sentence is inside the test font's characters (C23-07). Content streams are inflated by
 // the browser (DecompressionStream). Integration stage only (`ws test --run-skipped -t
-// integration --platform chrome --package pdf_io`); until CORE T26/T27 and INK T42 the scenario
-// skips itself at run time. The store has a unique name and is deleted at the start and the end.
+// integration --platform chrome --package pdf_io`). The store has a unique name and is deleted
+// at the start and the end.
 import 'dart:js_interop';
 import 'dart:typed_data';
 

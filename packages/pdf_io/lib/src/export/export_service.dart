@@ -37,6 +37,7 @@ import '../ui/strings_ko.dart';
 import 'batch_export.dart';
 import 'compose_encoder.dart';
 import 'compose_plan.dart';
+import 'export_diagnostics.dart';
 import 'export_memory.dart';
 import 'export_types.dart';
 import 'object_resolver.dart';
@@ -70,7 +71,9 @@ abstract interface class PdfExportService {
 /// (2차, m5-7/06-pdf T26) src only (not in the barrel): DefaultPdfExportService with its
 /// internal ports replaced — the raster ports (6.2.4), the font wait and bytes (6.2.2 step 1),
 /// the web rules on the VM ([web]: S-12 stop, 16-part chunks, no `copy`) and a look at each
-/// export's memory ledger ([onLedger], called once per note before begin's compose loop).
+/// export's memory ledger ([onLedger], called once per note before begin's compose loop);
+/// [diagnostics] records each note's ledger after its compose loop (C26-02 — the developer
+/// lines of pdfDevOverlayLinesProvider).
 DefaultPdfExportService createPdfExportService({
   required PdfNoteGateway gateway,
   required PdfInkVectorizer vectorizer,
@@ -83,6 +86,7 @@ DefaultPdfExportService createPdfExportService({
   Duration mathTimeout = PdfTuning.exportMathRasterTimeout,
   bool web = kIsWeb,
   void Function(ExportMemoryLedger ledger)? onLedger,
+  PdfExportDiagnostics? diagnostics,
 }) => DefaultPdfExportService._ports(
   gateway: gateway,
   vectorizer: vectorizer,
@@ -95,6 +99,7 @@ DefaultPdfExportService createPdfExportService({
   mathTimeout: mathTimeout,
   web: web,
   onLedger: onLedger,
+  diagnostics: diagnostics,
 );
 
 /// T15 details:
@@ -140,6 +145,7 @@ final class DefaultPdfExportService implements PdfExportService {
     Duration mathTimeout = PdfTuning.exportMathRasterTimeout,
     bool web = kIsWeb,
     void Function(ExportMemoryLedger ledger)? onLedger,
+    PdfExportDiagnostics? diagnostics,
   }) : _gateway = gateway,
        _vectorizer = vectorizer,
        _backend = backend,
@@ -150,7 +156,8 @@ final class DefaultPdfExportService implements PdfExportService {
        _fontLoadTimeout = fontLoadTimeout,
        _mathTimeout = mathTimeout,
        _web = web,
-       _onLedger = onLedger;
+       _onLedger = onLedger,
+       _diagnostics = diagnostics;
 
   final PdfNoteGateway _gateway;
   final PdfInkVectorizer _vectorizer;
@@ -162,6 +169,7 @@ final class DefaultPdfExportService implements PdfExportService {
   final Duration _fontLoadTimeout, _mathTimeout;
   final bool _web;
   final void Function(ExportMemoryLedger ledger)? _onLedger;
+  final PdfExportDiagnostics? _diagnostics;
   bool _running = false;
 
   int get _chunkPages =>
@@ -528,10 +536,6 @@ final class DefaultPdfExportService implements PdfExportService {
       );
       finishing = true; // finish cleans the job up, whatever its outcome
       final bytes = await cancel.raceCancel(job.finish());
-      if (ledger.overBudget > 0) {
-        // M-3 outside input (CP-PDF-14 ②) — the developer's count (6.2.10 ⑤).
-        debugPrint('pdf export: over budget ${ledger.overBudget}');
-      }
       return PdfExportResult(
         bytes: bytes,
         fileName: fileName,
@@ -553,6 +557,9 @@ final class DefaultPdfExportService implements PdfExportService {
       throw _unexpected(e, s, 'pdf export: compose');
     } finally {
       resolver.dispose();
+      // The developer's count (6.2.10 ⑤ — M-3 outside input, CP-PDF-14 ②; C26-02): peak and
+      // overBudget of this note, finished or not.
+      _diagnostics?.record(ledger);
     }
   }
 

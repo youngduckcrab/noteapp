@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:pdf_io/pdf_io.dart';
+import 'package:pdf_io/src/export/export_diagnostics.dart';
 import 'package:pdf_io/src/export/export_memory.dart';
 import 'package:pdf_io/src/export/export_service.dart';
 import 'package:pdf_io/testing.dart';
@@ -48,6 +49,9 @@ final class ExportWorld {
   /// How many times the service waited for the fonts.
   int fontWaits = 0;
   final List<ExportMemoryLedger> ledgers = [];
+
+  /// What the developer lines would show (C26-02): every export's ledger after its loop.
+  final PdfExportDiagnostics diagnostics = PdfExportDiagnostics();
   final PdfInkVectorizer vectorizer;
   late final DefaultPdfExportService service = createPdfExportService(
     gateway: objects,
@@ -62,6 +66,7 @@ final class ExportWorld {
     fontBytes: fonts.call,
     web: web,
     onLedger: ledgers.add,
+    diagnostics: diagnostics,
   );
   final Map<String, Uint8List> _bytes = {};
   int _strokes = 0;

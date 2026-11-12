@@ -4,8 +4,8 @@
 // redefined + visibilitychange — a headless tab cannot really be hidden) → paused, interrupted,
 // the chunks so far are in the draft → visible → no automatic resume → the user resumes → stop →
 // the recording's length is the file's timeline (WebM blocks), which leaves the hidden time out.
-// (T39 — 06-pdf 9.4) On CORE's real web store through mediaStoreTest (media_world.dart — that
-// variant waits for CORE T31) and on CORE's fake store.
+// (T39 — 06-pdf 9.4) On CORE's real web store through mediaStoreTest (media_world.dart) and on
+// CORE's fake store.
 // Runs only with `ws test --package media_io --platform chrome --run-skipped -t media` (the
 // media tag skips it elsewhere; ws starts Chrome through tool/chrome-fakemedia). The waits are
 // for the recording itself; the assertions compare the file with the recording clock and the

@@ -3,8 +3,7 @@
 // real PDFium, the native compose backend, InkEngineVectorizer) exports a note with the four
 // object kinds, an image page, a dashed stroke and tape; the scenario and its assertions are in
 // support/v11_scenario.dart (the Chrome run, web/export_objects_v11_browser_test.dart, is the
-// same). Integration stage only (`ws test --run-skipped -t integration --package pdf_io`); until
-// CORE T26/T27 and INK T42 the scenario skips itself at run time.
+// same). Integration stage only (`ws test --run-skipped -t integration --package pdf_io`).
 @Tags(['integration'])
 @TestOn('vm')
 library;
