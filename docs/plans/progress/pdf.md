@@ -718,6 +718,16 @@ V8 값(PDF-F1 — 판정은 실제 웹 저장소 변형): 파일 1978 ms, 마지
 - `media` 시험 경로: 계획의 `test/media/`를 실제 `test/web/media/`로(ws가 `test/web`만 Chrome으로 돌림 — 세션 8 메모) 모든 곳을 고쳤다.
 - 상태 줄 '승인 · 계약 v2.6 — 통합 단계 PDF 몫 끝', 4.1.6에 C26-02 문단, 8.3 4-a(V11 점선 규칙·V10 C26-03·C26-04), 10 #4(C26-01 식).
 
+#### 받은 변경 요청 재확인 (재시도 라운드)
+
+CORE 2건(V10 탐침 키 `'probe#0'`, C26-03 'second lecture' 두 사각형)·INK 1건(V11 점선 조각 = `moveTo` 수)은 모두 `48168da`에서 이미 반영됨(위 '실제 구현 합류로 고친 시험'). 다시 돌려 확인만 했다 — 코드 변경 없음.
+
+| 검사 | 결과 |
+|---|---|
+| `ws test --run-skipped -t integration --package pdf_io` (VM) | 26 통과 0 실패 — `search_indexer_core_test`(실제 CORE): 'second lecture' v2 = 1차 `Second` + `lecture` 두 사각형(±0.5 pt), 'lecture second' 역순, 'indexing' 두 줄, 크기 바꾼 쪽 'HHHH' 같음; `export_objects_v11_test` 통과 |
+| `flutter test test/pdfium/search_indexer_fake_core_test.dart` | 1 통과(기준선 로그의 유일한 pdf_io 실패 해소) |
+| `ws with-heavy-lock -- ws test --platform chrome --package pdf_io --run-skipped` | 119 통과 0 실패(`web/export_objects_v11_browser_test` 포함), 192 s |
+
 #### 변경 요청 (보냄)
 
 - [INFRA] C26-02 연결: `app/lib/src/modules/pdf_wiring.dart`(또는 `FeatureWiringModule`)의 PDF `DevOverlaySection`에 `pdfDevOverlayLinesProvider` 줄을 붙이고 overrides 시험에 넣기. provider는 `Provider<List<String>>`(계약 표기)라 `DevOverlaySection.lines`(`ValueListenable`)에는 `ValueNotifier(ref.read(...))` + `ref.listen(pdfDevOverlayLinesProvider, (_, v) => n.value = v)` + `ref.onDispose(n.dispose)`로 옮긴다. 내보내기 전에는 빈 목록이다.
