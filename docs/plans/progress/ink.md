@@ -530,6 +530,14 @@ T24·T25·T26a·T26b는 한 커밋이다(기반 단계 한 번에 — R2-B4·B5�
 2. **[EDITOR]** 실제 INK에서 깨진 VM 시험 4개(위 2)는 시험 경로만 고치면 된다: 탭은 도형 **테두리 위**(예: lasso_mixed (300,160) 왼쪽 변·text_box (320,570)·shape_tool 삼각형 변 위 점)로 하거나 그 시험의 도형을 **채운 도형**(`ShapeStyle(fillColorArgb: …)`)으로, `erase_v2_test`의 '도형만' 경로는 테두리를 지나게(예: x 250 세로선 y 200→300 — `strokeA`를 피해서). 시험이 보는 뜻(탭 선택·몸통 끌기 = 새 도형·지우개가 도형만 지우면 `RemoveElements` 하나)은 그대로다. 빈 도형 안쪽 탭으로도 선택돼야 한다는 UX가 필요하면 그것은 계약 7.2.9 `hitTestObject` 규칙 변경(7.4.9 — 총괄)이다. 함께: (C25-02 — EDITOR 통합 단계 몫) 개발자 표시에 `InkDiagnostics.developerValues`의 `playbackPaintUs`·`annotationPaintUs`·`mathCacheBytes`(값 있는 키만) — 병합 트리 `feature_editor/lib`에 아직 쓰는 곳이 없다.
 3. **[LIBRARY]·[EDITOR]·[INFRA]** (동시 개발 변경 요청 3 다시 — T39 `edd7834`가 병합됨) 기대는 P-B 작업이 모두 병합됐으므로(INK T39·EDITOR E2-15 `6fa0a30`·LIBRARY L2-06 `54e263f`) 7.7.2 'P-B에 기대는 기준'의 셋이 **판정 대상**이다 — 각 영역이 돌린다: LIBRARY **L2-I3**(`ink_recognition/test/integration/shape_assist_flow_test.dart` — INK가 병합 트리에서 돌려 6/6 통과, LIBRARY 통합 기록에 남길 것), EDITOR **E2-21b**(`feature_editor/test/integration/shape_assist_smoke_test.dart` — 아직 없음), INFRA **V5b**(`app/test/integration/app_smoke_shape_assist_test.dart` — 아직 없음). INK 판정 규칙(03-ink 6.18): 멈춤 = `InkTuning.shapeHoldMs`(500) 동안 anchor에서 `shapeHoldRadiusPx`(8 논리 px, `viewScale`로 pt) 안 — anchor는 **마지막으로 반경 밖으로 나간 샘플**, 시간은 샘플 시각끼리; 샘플이 없으면 anchor가 바뀐 때 건 `dart:async` 타이머가 발동(위젯 시험은 포인터를 멈추고 `tester.pump`로 `shapeHoldMs` 넘게 진행 — `TestGesture` 이벤트 시각이 0이어도 타이머 경로로 발동), 펜을 뗀 샘플은 취소가 아니다. 실패 원인이 멈춤 감지·미리보기면 INK가 고친다(8.3 I-4·I-6).
 
+#### 받은 변경 요청 처리 — [INK] 웹 재생 강조 (보낸 쪽 INFRA)
+
+- 요청: 웹에서 재생 강조를 칠할 때마다 `Unsupported operation: Int64List not supported on the web.`(`PlaybackTrack.build` ← `trackOf` ← `_paintPlayback`) — INFRA V6 v2(`app/test/web/app_smoke_v2_browser_test.dart`) 재생 단계 뒤 FlutterError 4개.
+- 확인: 타당. `lib/src/render/playback_index.dart`가 오프셋을 `Int64List`(지역 변수·`_offsets` 필드)로 들었다 — dart2js/DDC에는 없다(1차 7.4.3 웹 안전 수치 위반). INK Chrome 시험에 재생 강조를 칠하는 경우가 없어 놓쳤다(`playback_focus_test`는 VM 위젯 시험).
+- 고침: 오프셋을 `List<int>.filled`로(JS 수는 2^53 아래 정수를 정확히 담음 — `Int32List`의 24일 한도도 없음). 시그니처·동작 변화 없음. `lib/` 안 다른 `Int64List`·`Uint64List` 없음(grep).
+- 시험 추가: `test/web/playback_web_test.dart`(Chrome 3 — 2^31 ms 넘는 오프셋의 정렬·`boundary`·`writing` 정확, `dimUnwritten` 안 쓴 획 흐림·쓴 획 불변·`highlightRecent` 칠하기, `InkPageView` 재생 프레임·탐색(3,000,000,000 ms 포함) 동안 예외 없음) 통과. VM `playback_index_test`·`playback_focus_test`·`api_surface_v2_test` 29 통과, `flutter analyze` 0.
+- 요청한 쪽 확인: `ws with-heavy-lock -- sh -c "cd app && flutter test --platform chrome --run-skipped -t integration test/web/app_smoke_v2_browser_test.dart"` → **통과**(+1, v2-7 playback 단계 포함, 출력에 FlutterError·Int64List 0).
+
 #### 남은 것
 
 - PDF가 변경 요청 1을, EDITOR가 2를 처리한 뒤 그 영역이 V11·EDITOR VM을 다시 돌림(INK 변경 없음). E2-21·E2-21b·V5·V5b·V6은 EDITOR·INFRA 통합 단계 — 실패 원인이 INK면 INK가 고친다.

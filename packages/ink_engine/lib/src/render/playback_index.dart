@@ -14,8 +14,10 @@
 //   unwritten  offset > p
 //   recent     p − W < offset ≤ p            (on top of written / writing)
 // Strokes of other recordings and strokes without one are not in the track.
-import 'dart:typed_data';
-
+//
+// The offsets are a plain List<int>, not Int64List: dart2js/DDC have no
+// Int64List (1차 7.4.3 web-safe numbers), and a JS number holds any ms offset
+// exactly (integers below 2^53).
 import 'package:meta/meta.dart';
 
 import '../model/ink_stroke.dart';
@@ -54,7 +56,7 @@ final class PlaybackTrack {
       return c != 0 ? c : a.compareTo(b);
     });
     final entries = <PlaybackEntry>[];
-    final offsets = Int64List(order.length);
+    final offsets = List<int>.filled(order.length, 0);
     var maxMs = 0.0;
     for (var k = 0; k < order.length; k++) {
       final s = zOrdered[order[k]];
@@ -77,7 +79,7 @@ final class PlaybackTrack {
 
   /// Offset order (ties: z order). Unmodifiable.
   final List<PlaybackEntry> entries;
-  final Int64List _offsets;
+  final List<int> _offsets;
   final double _maxMs;
 
   int get length => entries.length;
