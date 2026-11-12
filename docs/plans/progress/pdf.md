@@ -2,6 +2,7 @@
 
 ## 요약
 
+- (2차) **통합 단계 PDF 몫 끝(2026-11-12)** — 8.3 4-a~4-d 모두 통과(실제 CORE·INK·PDFium·웹 저장소, 탐침·skip 없음), v2.6 C26-01·C26-02·C26-04 반영, C26-03은 V10 기대값으로. 코드 `48168da`. 자세한 것은 맨 아래 '## 2차 › ### 통합 단계'. 남은 것: [INFRA] `pdfDevOverlayLinesProvider` 연결, 기기 확인.
 - (2차) 동시 개발 세션 1(2026-11-06): 문서 정리(C22-09 — `011774a`), T21(`4068fcd`), T31a(`8dc3b6f`) 완료. 표·다음 할 일은 맨 아래 '## 2차 › 동시 개발'.
 - (2차) 기반 단계 R2-B4 완료 — `5636d4e`(pdf_io T20 + media_io T30 한 커밋, 2026-11-06). 자세한 기록은 맨 아래 '## 2차'. 다음: 동시 개발(pdf_io T21~, media_io T31~). INFRA `pdf_module_test` 기대값이 3개 빌더로 바뀌어야 한다(변경 요청).
 - 마지막 세션: 통합 단계 1 (실제 CORE·INK 합류 뒤 — 아래 '통합 단계' 절). integration 태그 4파일 19개(기존 3파일 + 새 `real_wiring_test`) 실제 CORE·INK·PDFium으로 통과, VM 580·Chrome 54 통과, 변경 요청 없음
@@ -670,3 +671,58 @@
 - T28 사전 조사(세션 1): CORE `SearchText.normalize`/`normalizeMapped`(B2-β 구현 있음)는 ① 앞뒤 공백을 지우고(6단계) ② `İ`(U+0130)를 모든 플랫폼에서 `i`로 바꾼다. 1차 `unit/text_normalizer_test`의 두 사례('  ab \n' → ' ab ', `x\u0130y` → 플랫폼 소문자)는 위임하면 그대로 통과할 수 없다 → 계약(C2-27·7.2.5 `normalizeMapped` = `normalize`와 같은 글자) 쪽으로 그 두 기대값을 고치고 '계획과 다르게 한 점'에 적을 것. 또 1차 `normalizePdfText(…, lowerCase: false)`를 검색 조각(`text_service.dart` `_snippet`)이, `HangulJamo.compose`를 제목(`title_policy.dart`)·가져오기 시트가 쓴다 — CORE에는 소문자로 바꾸지 않는 공개 함수가 없다. 조각은 창 전체를 `normalizeMapped` 한 번으로 정규화하고 원문 범위로 대소문자를 되살려 before/match/after로 자르면 되고, 제목의 자모 합성은 검색 정규화가 아니므로 `hangul_jamo.dart`의 `compose`만 남기는 쪽이 간단하다(계획 6.4.5는 파일 삭제라 그 차이를 적을 것).
 - (세션 2에서 반영함) T32a 표본: 계획 단계 실험 파일(`/tmp/claude-0/plan57-scratch/pdf57-rev/webm/`)의 6개 + `r1_patched.webm`을 `test/support/fixtures/chrome_opus_*.webm`으로 넣었다.
 - `media_io` 커밋마다 `ws test --package media_io --platform chrome --run-skipped -t media`(PDF-F3) 결과를 '검사' 표에 적는다 — 아직 `media` 시험이 없어 'no matching tests'.
+
+### 통합 단계
+
+2026-11-12, 통합 브랜치 `claude/note-app-planning-bk29xb`(계약 v2.6, 7.7.1 4단계 — CORE `dcbb7e3`·INK `526c894` 뒤). 계획 06-pdf 8.3 4-a~4-d와 v2.6 몫(C26-01·02·04)을 했다. 코드 커밋 `48168da`.
+
+#### 실제 구현 합류로 고친 시험 (가짜·기반 단계 세부를 전제한 것만 — 계약 의미는 그대로 또는 더 강하게)
+
+- **실행 중 탐침·정적 skip 걷어냄**: `UnimplementedError` 탐침(V11 `createNote` 객체, INK 내보내기 빈 목록, V10 `searchIndexWritable`, media `FileCoreStores.ready()`·`RealWebStores.draftsReady()`)과 정적 `skip:`(`ink_vectorizer_v2_test` INK T42, `math_raster_real_test` INK T36)을 모두 지웠다. 이제 실제 저장소 변형이 늘 돈다 — 실패하면 그대로 실패한다. V10 탐침은 CORE 지적대로 소유자 키 `'probe#0'`이 CORE 검증(7.2.5 `<64 hex>#n`)에 `ArgumentError`로 걸려 시나리오 전에 죽고 있었다.
+- **V10 'second lecture'(C26-03)**: 기대값을 '첫 낱말 사각형 하나'에서 '낱말마다 첫 일치 사각형, 질의 순서'로 — 1차 `Second` 사각형 + 1차 `lecture` 사각형(±0.5 pt), 둘의 합 = 1차 구 'second lecture' 사각형, 'lecture second'는 순서가 뒤집힘. 실제·가짜 CORE 같은 값: `Second` (72.9, 106.7)–(132.0, 120.3), `lecture` (139.2, 106.7)–(191.3, 120.3) pt(1차 `lecture` 위 107.1 — 0.4 pt 안).
+- **V11 점선 조각(INK 요청)**: INK는 점선 획 하나를 하위 경로가 대시 윤곽인 `InkFillShape` 하나로 낸다(03-ink 6.21). 조각 수 = 그 모양 경로의 `moveTo` 수(> 1), PDF 3쪽 칠한 경로 객체 수 = 그 모양 수(1), `m` 수 = 조각 수. 실측(VM·Chrome 같음): 모양 1개, 조각 58, 3쪽 `m: 58, h: 58, f: 1`.
+
+#### v2.6 몫
+
+- **C26-01**: `record_playback_media_test` V8 위쪽 한계 `endMs + 50 + 60 × 일시정지 수`(이 시험은 일시정지 1번 → +110, 판정 변형에서 `pauses == 1`도 단언). 아래쪽 한계는 그대로.
+- **C26-02**: `pdfDevOverlayLinesProvider`(`Provider<List<String>>`, 추가만 — barrel 이름 하나). 안쪽은 src 전용 `PdfExportDiagnostics`·`pdfExportDiagnosticsProvider`, `pdfExportServiceProvider`가 src 전용 `createPdfExportService(…, diagnostics:)`로 만든다(공개 생성자 그대로). 노트마다 합성 고리가 끝나면(실패·취소 포함 — `finally`) 장부를 기록, 줄은 `export: peak 12.3 / 16.0 MB · copy 4.0 MB`·`export: over budget n (total N in k)`, 내보내기 전에는 빈 목록. `debugPrint('pdf export: over budget …')`는 지웠다. 시험 `unit/dev_overlay_lines_test`(5), `contract/api_surface_test`(이름·타입·`name:`), `test/support/export_world.dart`에 `diagnostics`. INFRA 연결은 변경 요청.
+- **C26-04**: `lib/src/engine/pdfium_text.dart` `softenPdfiumHyphenJoins` — 낱말 글자(`\p{L}\p{M}\p{N}`) 사이의 U+0002만 U+00AD로(같은 길이 — 상자 1:1), `PdfrxEngine.loadText`가 부른다. CORE 정규화는 그대로. 시험: `unit/pdfium_text_test`·`web/pure_logic_browser_test`(같은 사례 `test/support/pdfium_text_cases.dart` — dart2js 정규식 확인), `pdfium/pdfrx_engine_test`(실 PDFium 'IN-/DEXING' → `IN­DEXING`, 하이픈 상자 유지), `pdfium/search_real_test`(1차 `searchNote` 'indexing' — 줄마다 사각형 하나, 조각 글 'INDEXING'), V10 시나리오(v2 색인 'indexing' = 1차 사각형 2개 — 실제·가짜 CORE: (113.7, 87.1)–(135.2, 100.3)·(73.5, 108.7)–(139.7, 122.3) pt).
+
+#### 8.3 판정
+
+| 단계 | 명령 | 결과 |
+|---|---|---|
+| 4-a | `ws test --run-skipped -t integration --package pdf_io` | 26 통과 0 skip(V11·V10(C26-03·C26-04 포함)·`ink_vectorizer_v2` 실제 INK·`math_raster_real` 실제 INK(√ 글리프 기다림 포함)·1차 4개 19), 38.9 s |
+| 4-b | `ws test --platform chrome --run-skipped -t integration --package pdf_io` | 2 통과(V11 실제 웹 저장소 + 브라우저 inflate). 첫 시도는 1차부터 알려진 헤드리스 Chrome 적재 멈춤(`file_source_browser_test` 적재 중) → `ok (try 2, after a time-out)` |
+| 4-c | `ws test --platform chrome --run-skipped -t media --package media_io` (잠금 대기 0초, 00:31:49–00:35:59 UTC) | 11 통과 0 skip — V8·V16·가려짐·86 MB 각각 실제 웹 저장소 + 가짜 저장소, 표본 확인 1 |
+| 4-d | `ws test --run-skipped -t integration --package media_io` | 5 통과 0 skip(실제 CORE 파일 저장소), 16.5 s |
+
+V8 값(PDF-F1 — 판정은 실제 웹 저장소 변형): 파일 1978 ms, 마지막 블록 시작 1918 ms, 시계 2008 ms → `end − clock = −30 ms`, `clock − lastBlockStart = 90 ms`, 위쪽 한계 `endMs + 110` 안, 옛 식 `|end − clock| ≤ 50`도 참. 2배 재생 기울기 1.960, `seekMs(700)` → 700 ms. V16: 3초 녹음 중 탭 닫힘 → 다음 시작이 묻지 않고 복구 3000 ms(초안 3조각 21,190 B), 두 번째 녹음기는 쓰는 중 초안을 내지 않음. 가려짐: 파일 2515 ms·시계 2525 ms(가려진 1824 ms 빠짐). 86 MB(P-B): 실제 웹 저장소 정지 → 녹음 행 919 ms·복구 888 ms, 장부 최고 2 × 173,172,481 B(`peakCount ≤ 2`) — 가짜 저장소는 26.9 s·26.1 s(메모리 저장소의 복사 — 기록만). perf `web/media_perf_browser_test`: 실제 웹 저장소 `append` 중앙값 10 ms(≤ 30 ms).
+
+#### 검사 (`48168da` + 문서)
+
+| 검사 | 결과 |
+|---|---|
+| `ws test --package pdf_io` (VM) | 821 통과 + 12 skip, 0 실패(병합 직후 기준선 810 + 1 실패 — V10 'second lecture') |
+| `ws test --package pdf_io --platform chrome` | 115 통과 + 3 skip |
+| `ws test --package media_io` (VM) | 405 통과 + 2 skip |
+| `ws test --package media_io --platform chrome` | 75 통과 + 5 skip |
+| `ws test --package media_io --platform chrome --run-skipped -t perf` | 3 통과 |
+| `flutter analyze --fatal-infos packages/pdf_io packages/media_io`, `dart format` | 0건 |
+| `ws check` | R1~R16 위반 0·경고 0 |
+
+#### 검토 지적 정리 (계획서 06-pdf에 반영)
+
+- 개발자 표시 `fgs:` 줄(6.14 표, 9.6 A-3): 구현은 네이티브 엔진 `developerNote`를 `native: …`로 낸다(T37). 표 행과 A-3 기대('`rec: recording`이고 `native: FGS failed` 줄이 없음')를 구현에 맞췄다.
+- `platform/platform_info.dart`(3.3 트리·I-5): 만들지 않았다 — 판정 6곳이 `kIsWeb`·`defaultTargetPlatform`을 바로 쓴다(I-5 규칙과 `no_platform_imports_test`는 그대로). 트리에서 지우고 I-5에 적었다.
+- `media` 시험 경로: 계획의 `test/media/`를 실제 `test/web/media/`로(ws가 `test/web`만 Chrome으로 돌림 — 세션 8 메모) 모든 곳을 고쳤다.
+- 상태 줄 '승인 · 계약 v2.6 — 통합 단계 PDF 몫 끝', 4.1.6에 C26-02 문단, 8.3 4-a(V11 점선 규칙·V10 C26-03·C26-04), 10 #4(C26-01 식).
+
+#### 변경 요청 (보냄)
+
+- [INFRA] C26-02 연결: `app/lib/src/modules/pdf_wiring.dart`(또는 `FeatureWiringModule`)의 PDF `DevOverlaySection`에 `pdfDevOverlayLinesProvider` 줄을 붙이고 overrides 시험에 넣기. provider는 `Provider<List<String>>`(계약 표기)라 `DevOverlaySection.lines`(`ValueListenable`)에는 `ValueNotifier(ref.read(...))` + `ref.listen(pdfDevOverlayLinesProvider, (_, v) => n.value = v)` + `ref.onDispose(n.dispose)`로 옮긴다. 내보내기 전에는 빈 목록이다.
+
+#### 남은 것 (컨테이너 밖)
+
+- 사용자 iPad 확인(9.2 U1~U19, 통합 V7 ①), 안드로이드 기기 A 표(A-3 등), TestFlight 뒤 C 표. Firebase Hosting 미리보기가 생기면 iPad Safari에서 녹음(V8 실제 마이크)·내보내기.
+- THIRD_PARTY_NOTICES.md 3절 FreeType·IJG 고지 문구(2단계 출시 전 — 1차부터 열린 항목).
