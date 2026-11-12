@@ -457,7 +457,7 @@ Future<void> showPdfExportResultSheet(
   ),
 );
 
-/// One file: a button per available action (공유 / 다운로드 / 새 탭에서 열기) in
+/// One file: a button per available action (공유 / 다운로드 — natively 저장 — / 새 탭에서 열기) in
 /// [actionOrder] (the purpose of a single export, 6.12) — the first one filled, the others
 /// tonal. Several files: '모두 공유' when every file can be shared at once, and '다운로드' on
 /// each file that can be downloaded (one file per tap — Safari may block several downloads
@@ -530,10 +530,15 @@ class _PdfExportResultSheetState extends State<PdfExportResultSheet> {
       if (actions.contains(a) && !widget.actionOrder.contains(a)) a,
   ];
 
-  static String _actionLabel(PdfOutputAction action) => switch (action) {
-    PdfOutputAction.share => PdfStringsKo.share,
-    PdfOutputAction.download => PdfStringsKo.download,
-    PdfOutputAction.openInNewTab => PdfStringsKo.openInNewTab,
+  /// The sink's own label when it names its buttons (native: download → '저장'), else
+  /// the web labels.
+  String _actionLabel(PdfOutputAction action) => switch (widget.sink) {
+    final PdfOutputActionLabels labels => labels.labelOf(action),
+    _ => switch (action) {
+      PdfOutputAction.share => PdfStringsKo.share,
+      PdfOutputAction.download => PdfStringsKo.download,
+      PdfOutputAction.openInNewTab => PdfStringsKo.openInNewTab,
+    },
   };
 
   @override
@@ -564,7 +569,7 @@ class _PdfExportResultSheetState extends State<PdfExportResultSheet> {
               ? TextButton(
                   onPressed: () =>
                       _deliver([file.result], PdfOutputAction.download),
-                  child: const Text(PdfStringsKo.download),
+                  child: Text(_actionLabel(PdfOutputAction.download)),
                 )
               : null,
         ),

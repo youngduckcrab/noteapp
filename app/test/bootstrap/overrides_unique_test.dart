@@ -172,7 +172,11 @@ Set<Object> _expected({
   appFeaturesProvider,
   shellContributionsProvider,
   noteStoreProvider,
-  if (pdf) ...{ink.pageBackgroundBuildersProvider, pdfIoConfigProvider},
+  if (pdf) ...{
+    ink.pageBackgroundBuildersProvider,
+    pdfIoConfigProvider,
+    pdfShareFilesProvider,
+  },
   if (media) ...{audioRecorderServiceProvider, audioPlaybackServiceProvider},
   if (recognition) ...{
     handwritingRecognizerProvider,

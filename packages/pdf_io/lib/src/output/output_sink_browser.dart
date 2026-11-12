@@ -19,8 +19,10 @@ import 'package:web/web.dart' as web;
 import '../export/export_types.dart';
 import 'pdf_output_sink.dart';
 
-/// web: browser sink; others: unsupported
-PdfOutputSink createPlatformOutputSink() => BrowserPdfOutputSink();
+/// web: browser sink; native: save dialog + the app's share; others: unsupported.
+/// [share] is for the native sink only (the web shares through navigator.share).
+PdfOutputSink createPlatformOutputSink({PdfShareFiles? share}) =>
+    BrowserPdfOutputSink();
 
 /// Internal (not exported): the browser sink. [navigator] and [openWindow] are replaced by
 /// the browser tests only (a fake navigator records canShare / share; a fake opener stands

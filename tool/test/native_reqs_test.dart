@@ -875,7 +875,7 @@ void main() {
         'google_mlkit_digital_ink_recognition',
       ]);
       expect(rules.pluginPackages.toSet(), dependencies.dependencyGraph);
-      expect(rules.pluginPackages, hasLength(53));
+      expect(rules.pluginPackages, hasLength(54));
       expect(report.appIos, '15.5');
     }, skip: skip);
 

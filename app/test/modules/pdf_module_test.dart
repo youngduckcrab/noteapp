@@ -27,6 +27,7 @@ import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/modules/idle_indexers.dart';
 import 'package:noteapp/src/modules/media_module.dart';
 import 'package:noteapp/src/modules/pdf_module.dart';
+import 'package:noteapp/src/modules/pdf_share.dart';
 import 'package:noteapp/src/modules/recognition_module.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
@@ -90,8 +91,31 @@ void main() {
     );
     await module.start(_context());
     expect(initialized, 1);
-    expect(module.overrides(), same(list));
+    final overrides = module.overrides();
+    expect(overrides.first, same(list.single));
     expect(overridesCalls, 1);
+    // Then the native share of the result sheet (pdfShareFilesProvider).
+    expect(overrides, hasLength(2));
+    expect(overrides.last.origin, same(pdfShareFilesProvider));
+  });
+
+  test('pdfShareFilesProvider = the share given (default: platformPdfShare '
+      '— the VM / native one; null on the web)', () {
+    Future<PdfOutputOutcome> share(List<PdfExportResult> results) async =>
+        PdfOutputOutcome.done;
+    final custom = ProviderContainer.test(
+      overrides: PdfModule(pdfOverrides: () => [], share: share).overrides(),
+    );
+    expect(custom.read(pdfShareFilesProvider), same(share));
+    final none = ProviderContainer.test(
+      overrides: PdfModule(pdfOverrides: () => [], share: null).overrides(),
+    );
+    expect(none.read(pdfShareFilesProvider), isNull);
+    final defaults = ProviderContainer.test(
+      overrides: PdfModule(pdfOverrides: () => []).overrides(),
+    );
+    expect(defaults.read(pdfShareFilesProvider), same(platformPdfShare));
+    expect(platformPdfShare, isNotNull);
   });
 
   test('a failed start: startup goes on, the PDF overrides are left out, '

@@ -44,7 +44,8 @@ plugins:
 plugins_without_requirements: [android_file_picker, file_picker_darwin, pdfium_flutter, jni,
   jni_flutter, path_provider_android, path_provider_foundation, url_launcher_android,
   url_launcher_ios, shared_preferences_android, shared_preferences_foundation,
-  flutter_plugin_android_lifecycle, integration_test]
+  flutter_plugin_android_lifecycle, integration_test,
+  share_plus]   # app (native PDF 공유): its own FileProvider + receiver come from its manifest, no permission
 app_extra:
   android_permissions: [INTERNET]      # main manifest (1차 had it in debug / profile only)
   ios_plist:

@@ -826,18 +826,27 @@ void main() {
     });
   });
 
-  test('VM platform sink: nothing to deliver → unsupported', () async {
-    final sink = createPlatformOutputSink();
+  test('VM platform sink = the native sink: 저장 (download) for one file, '
+      '공유 only with the app\'s share', () {
     final result = PdfExportResult(
       bytes: Uint8List(4),
       fileName: 'n.pdf',
       pageCount: 1,
       elapsed: Duration.zero,
     );
-    expect(sink.availableActions([result]), isEmpty);
+    final sink = createPlatformOutputSink();
+    expect(sink.availableActions([result]), {PdfOutputAction.download});
+    expect(sink.availableActions([result, result]), isEmpty);
     expect(
-      await sink.deliver([result], PdfOutputAction.download),
-      PdfOutputOutcome.unsupported,
+      () => sink.deliver([result], PdfOutputAction.openInNewTab),
+      throwsArgumentError,
     );
+    final sharing = createPlatformOutputSink(
+      share: (_) async => PdfOutputOutcome.done,
+    );
+    expect(sharing.availableActions([result]), {
+      PdfOutputAction.share,
+      PdfOutputAction.download,
+    });
   });
 }

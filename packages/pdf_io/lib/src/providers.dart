@@ -180,8 +180,16 @@ final pdfIncomingFileSourceProvider = Provider<PdfIncomingFileSource>(
   name: 'pdfIncomingFileSourceProvider',
 );
 
+/// Native app: the share of the result sheet's 공유 (the app overrides it with its share
+/// plugin — pdf_io has none, contract 7.4.1 / R16). null (default, and ignored on the web):
+/// the native sink offers no share.
+final pdfShareFilesProvider = Provider<PdfShareFiles?>(
+  (ref) => null,
+  name: 'pdfShareFilesProvider',
+);
+
 final pdfOutputSinkProvider = Provider<PdfOutputSink>(
-  (ref) => createPlatformOutputSink(),
+  (ref) => createPlatformOutputSink(share: ref.watch(pdfShareFilesProvider)),
   name: 'pdfOutputSinkProvider',
 );
 

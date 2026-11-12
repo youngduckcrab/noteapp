@@ -73,6 +73,7 @@ const _contract75 = <String, String>{
   'just_audio_platform_interface': '4.6.0',
   'image_picker_platform_interface': '2.11.2',
   'path_provider': '2.1.6',
+  'share_plus': '13.3.1', // app direct: native PDF share
   'google_mlkit_digital_ink_recognition': '0.16.1',
   'http': '1.6.0',
   'flutter_math_fork': '0.7.4',
@@ -124,6 +125,7 @@ const _appPlugins = [
   'record_macos',
   'record_web',
   'record_windows',
+  'share_plus',
   'shared_preferences',
   'shared_preferences_android',
   'shared_preferences_foundation',
@@ -165,7 +167,7 @@ void main() {
   group('rules file', () {
     test('pinned_external equals the contract 7.5 table (1차 + 2차)', () {
       expect(rules.pinnedExternal, _contract75);
-      expect(rules.pinnedExternal.length, 36 + 21);
+      expect(rules.pinnedExternal.length, 36 + 21 + 1); // + share_plus (app)
     });
 
     test('allowed_dependencies equals contract 7.1 v2.1 (app without '
@@ -226,6 +228,7 @@ void main() {
         'package:google_mlkit_commons/',
         'package:flutter_foreground_task/',
         'package:path_provider/',
+        'package:share_plus/',
       ]);
       expect(rules.forbiddenIoMembers, ['Platform']);
       expect(rules.generatedFiles, contains('*.steps.dart'));
@@ -252,7 +255,7 @@ void main() {
         ],
       });
       expect(rules.pluginPackages, _appPlugins);
-      expect(rules.pluginPackages, hasLength(53));
+      expect(rules.pluginPackages, hasLength(54));
     });
 
     test('plugin_packages equals the app dependencyGraph (NR6) when the '

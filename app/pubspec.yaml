@@ -30,6 +30,9 @@ dependencies:
   # src/storage/native_storage_paths_native.dart only (native_only_imports —
   # contract 7.4.1, 7.5).
   path_provider: 2.1.6
+  # src/modules/pdf_share_native.dart only (native_only_imports): the native
+  # PDF result sheet's 공유 (pdf_io may not add a plugin — contract 7.4.1, R16).
+  share_plus: 13.3.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

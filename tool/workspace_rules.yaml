@@ -78,6 +78,7 @@ pinned_external:               # R9: must be identical wherever declared = 00-ov
   just_audio_platform_interface: 4.6.0     # media_io direct (CP-PDF-9)
   image_picker_platform_interface: 2.11.2  # media_io direct (CP-PDF-9)
   path_provider: 2.1.6
+  share_plus: 13.3.1                       # app direct: the native PDF result sheet's 공유
   google_mlkit_digital_ink_recognition: 0.16.1
   http: 1.6.0
   flutter_math_fork: 0.7.4
@@ -99,6 +100,7 @@ native_only_imports:           # R4: in lib/, only from files ending with native
   - package:google_mlkit_commons/                   # 2차
   - package:flutter_foreground_task/                # 2차
   - package:path_provider/                          # 2차
+  - package:share_plus/                             # app: native PDF share
 
 forbidden_io_members: [Platform]   # R4 (2차): dart:io identifiers banned in lib/ even in *_native.dart
 
@@ -136,7 +138,8 @@ plugin_packages:               # = every plugin the app resolves (names of app/.
    jni, jni_flutter, just_audio, just_audio_web, path_provider, path_provider_android,
    path_provider_foundation, path_provider_linux, path_provider_windows, pdfium_flutter,
    pencil_bridge, record, record_android, record_ios, record_linux, record_macos, record_web,
-   record_windows, shared_preferences, shared_preferences_android, shared_preferences_foundation,
-   shared_preferences_linux, shared_preferences_web, shared_preferences_windows, url_launcher,
-   url_launcher_android, url_launcher_ios, url_launcher_linux, url_launcher_macos, url_launcher_web,
-   url_launcher_windows, windows_file_picker]
+   record_windows, share_plus, shared_preferences, shared_preferences_android,
+   shared_preferences_foundation, shared_preferences_linux, shared_preferences_web,
+   shared_preferences_windows, url_launcher, url_launcher_android, url_launcher_ios,
+   url_launcher_linux, url_launcher_macos, url_launcher_web, url_launcher_windows,
+   windows_file_picker]

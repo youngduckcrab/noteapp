@@ -251,6 +251,9 @@ abstract final class PdfStringsKo {
   static const String shareAll = '모두 공유';
   static const String share = '공유';
   static const String download = '다운로드';
+
+  /// Native: PdfOutputAction.download opens the system save dialog.
+  static const String save = '저장';
   static const String openInNewTab = '새 탭에서 열기';
 
   /// PdfOutputOutcome.needsUserGesture (Safari: the tap's user activation expired).

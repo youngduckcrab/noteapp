@@ -116,7 +116,7 @@ export 'src/model/page_range.dart' show PdfPageRange;
 export 'src/model/page_size_policy.dart' show PdfPageSizePolicy, PdfPageFit;
 export 'src/output/output_sink_factory.dart' show createPlatformOutputSink;
 export 'src/output/pdf_output_sink.dart'
-    show PdfOutputAction, PdfOutputOutcome, PdfOutputSink;
+    show PdfOutputAction, PdfOutputOutcome, PdfOutputSink, PdfShareFiles;
 export 'src/providers.dart'
     show
         pdfIoConfigProvider,
@@ -132,6 +132,7 @@ export 'src/providers.dart'
         pdfFileSourceProvider,
         pdfIncomingFileSourceProvider,
         pdfOutputSinkProvider,
+        pdfShareFilesProvider,
         pdfInkVectorizerProvider,
         pdfSearchIndexerProvider,
         pdfComposeBackendProvider,

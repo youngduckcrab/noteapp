@@ -126,6 +126,7 @@ const Set<String> barrelNames = {
   'PdfOutputOutcome',
   'PdfOutputSink',
   'createPlatformOutputSink',
+  'PdfShareFiles', // native app share (the app's plugin — R16)
   // src/ui/
   'PdfNavigateCallback',
   'PdfExportPurpose',
@@ -149,6 +150,7 @@ const Set<String> barrelNames = {
   'pdfBackgroundLayerBuilderProvider', 'pdfFileSourceProvider',
   'pdfIncomingFileSourceProvider',
   'pdfOutputSinkProvider',
+  'pdfShareFilesProvider', // native app share
   'pdfInkVectorizerProvider',
   'pdfComposeBackendProvider',
   'pdfImportServiceProvider',
@@ -1128,7 +1130,12 @@ void main() {
       final void Function(PdfProgress) p2 = p;
       final void Function(PdfBatchProgress) b2 = b;
       final Future<String?> Function(PdfPasswordRequest) pw2 = pw;
-      expect([p2, b2, pw2], everyElement(isNotNull));
+      Future<PdfOutputOutcome> onShare(List<PdfExportResult> results) async =>
+          PdfOutputOutcome.done;
+      final PdfShareFiles share = onShare;
+      final Future<PdfOutputOutcome> Function(List<PdfExportResult>) share2 =
+          share;
+      expect([p2, b2, pw2, share2], everyElement(isNotNull));
     });
 
     test('providers: types and name: = variable name (contract 7.4.4)', () {
@@ -1146,6 +1153,7 @@ void main() {
         'pdfFileSourceProvider': pdfFileSourceProvider,
         'pdfIncomingFileSourceProvider': pdfIncomingFileSourceProvider,
         'pdfOutputSinkProvider': pdfOutputSinkProvider,
+        'pdfShareFilesProvider': pdfShareFilesProvider,
         'pdfInkVectorizerProvider': pdfInkVectorizerProvider,
         'pdfSearchIndexerProvider': pdfSearchIndexerProvider, // 2차
         'pdfComposeBackendProvider': pdfComposeBackendProvider,
@@ -1182,6 +1190,8 @@ void main() {
       final Provider<PdfIncomingFileSource> incoming =
           pdfIncomingFileSourceProvider;
       final Provider<PdfOutputSink> sink = pdfOutputSinkProvider;
+      final Provider<PdfShareFiles?> share = pdfShareFilesProvider;
+      expect(ProviderContainer.test().read(share), isNull);
       final Provider<PdfInkVectorizer> vectorizer = pdfInkVectorizerProvider;
       final Provider<PdfComposeBackend> compose = pdfComposeBackendProvider;
       final Provider<PdfImportService> importService = pdfImportServiceProvider;
