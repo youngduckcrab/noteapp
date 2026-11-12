@@ -7,6 +7,7 @@
 @TestOn('vm')
 library;
 
+import 'package:clock/clock.dart';
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart' show createFakeNoteStore;
 import 'package:note_core/testing_vm.dart';
@@ -208,12 +209,19 @@ void main() {
   test(
     'the fake and the real store give the same result for the same writes',
     () async {
-      final fake = createFakeNoteStore(seedDefaultPenPresets: false);
-      // Sequential ids on both (the fake's default): equal scores and note times are then
-      // ordered by page id the same way (creation order).
+      // One fixed clock and sequential ids (the fake's default) on both: equal scores then
+      // have equal note times too and are ordered by page id the same way (creation order).
+      // With the wall clock the order depended on whether two notes were written in the same
+      // millisecond (CI run 43157220645: the fake was, the real store was not).
+      final clock = Clock.fixed(DateTime.utc(2026, 11, 12, 9));
+      final fake = createFakeNoteStore(
+        seedDefaultPenPresets: false,
+        clock: clock,
+      );
       final real = await openTestNoteStore(
         seedDefaultPenPresets: false,
         ids: SequentialIdGenerator(),
+        clock: clock,
       );
       addTearDown(fake.close);
       addTearDown(real.close);
