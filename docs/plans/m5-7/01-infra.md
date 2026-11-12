@@ -2681,7 +2681,7 @@ dart run tool/ws.dart with-heavy-lock -- \
 
 | 측정 항목 | 1차 통합 값 (확인함 — G4) | 2차 예상 | 한도 (`web_budget.yaml`) |
 |---|---|---|---|
-| `main.dart.js` | **4,633,843 B, gzip 1,366,038 B**(1차 통합 G4 — I15 자리표시 상태보다 +1.89 MB). 초안의 '2,747,922 B · gzip 814,437 B'(I15)는 기준에서 뺐다 | + `flutter_math_fork` 해석기·위젯, media·recog 웹 코드, 객체 렌더 | 기준 대비 gzip +300,000 B 이하 = **gzip 1,666,038 B 이하**(계약 7.4.5 v2.1·00-review Q4 — J0 실측 뒤 다시 제안) |
+| `main.dart.js` | **4,633,843 B, gzip 1,366,038 B**(1차 통합 G4 — I15 자리표시 상태보다 +1.89 MB). 초안의 '2,747,922 B · gzip 814,437 B'(I15)는 기준에서 뺐다 | + `flutter_math_fork` 해석기·위젯, media·recog 웹 코드, 객체 렌더 | 기준 대비 gzip +300,000 B 이하 = gzip 1,666,038 B 이하(계약 7.4.5 v2.1·00-review Q4 — 2차 통합까지). **(v2.7, C27-01) 기준 = 2차 통합 빌드(원본 6,477,160 B · gzip 1,902,969 B), 한도 gzip 2,000,000 B**, 라운드당 증가 +300,000 B는 새 기준에서 |
 | 시작 글꼴 (`FontManifest.json` 전부) | MaterialIcons 11,060 B(트리 셰이킹) + CupertinoIcons 1,472 B (gzip 약 7 KB — I15 값, J0에서 통합 빌드로 다시 잼) | + KaTeX 20개 640,372 B(gzip 370,984 B — 확인함, pub 캐시) → 합계 gzip 약 378 KB(한도까지 약 22 KB — 검토 S-15) | 합계 gzip 400,000 B · 원본 700,000 B 이하. **묶음별(KaTeX / 아이콘) 한도는 J0 실측 뒤** 총괄에 제안(계약 7.4.5 v2.1) — 그때까지 `null`(표시만) |
 | `NoteSans` | 없음 | `FontManifest.json`에 **없어야** 함(지연 적재) | 금지 글꼴 |
 | `record_web` 워크릿 | 없음 | `assets/packages/record_web/assets/js/record.worklet.js`(빌드에 들어감, 웹 녹음에는 안 씀 — D13) | 표시만 |
@@ -2716,6 +2716,7 @@ dart run tool/ws.dart with-heavy-lock -- \
   | 원본 바이트 출처(소스 맵, 매핑된 바이트 기준 — 참고) | SDK·엔진 945 KB · flutter 862 KB · note_core 317 KB · material_ui 273 KB · feature_editor 217 KB · ink_engine 154 KB · pdf_io 112 KB · feature_library 102 KB · drift 87 KB · flutter_math_fork 85 KB · media_io 71 KB · noteapp 64 KB · ink_recognition 59 KB (매핑 안 된 39.6%는 런타임·이름표) | |
 
   `main.dart.js` 한도는 6.15 규칙대로 총괄 승인 없이 올리지 않는다(변경 요청 — 총괄). 고를 수 있는 길: ① 한도를 실측 + 여유로 다시 정함(3라운드 기준 `baseline` = 이 값) ② `deferred` import로 녹음·인식·수식(기능 끈 빌드와의 차 약 420 KB 원본)과 PDF 내보내기 경로를 첫 적재에서 뺌(영역 작업 — 계약 7.5 밖의 의존 없음) ③ ①과 ②를 함께.
+- **C27-01 반영**(2026-11-12, 계약 v2.7 — 총괄 결정 ①, `deferred` import는 3라운드 후보): `tool/web_budget.yaml`의 `baseline`을 2차 통합 빌드로 옮김 — HEAD `42b01c7`(55bf85a INK 병합 뒤)의 `flutter build web --release` `main.dart.js` **원본 6,477,160 B · gzip 1,902,969 B**(C27-01에 적힌 1,902,938 B보다 31 B 많음 — `c5c1333` 뒤 `55bf85a`의 `playback_index.dart` 몫), `main_dart_js_gzip_max: 2,000,000`, `main_dart_js_gzip_growth_max: 300,000` 그대로. `ws web-budget check` **0 위반**(크기 1,902,969 ≤ 2,000,000, 증가 +0 ≤ +300,000, 글꼴 385,521 B). 3라운드 V4는 이 기준 + 300 KB와 2,000,000 B 중 작은 쪽(지금은 2,000,000 B)에 걸린다.
 - **검색 색인 크기 기록 행**(CORE [INFRA] 요청 — 동시 개발 보충 2.1, 통합 단계 값. 출처 `docs/plans/progress/core.md` '## 2차' > '### 통합 단계' > I-6; 표시만, 한도는 CORE PF-10):
 
   | 측정 항목 | 값 | 목표 |

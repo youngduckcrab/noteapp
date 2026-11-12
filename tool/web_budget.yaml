@@ -1,14 +1,15 @@
 # Web budget of `ws web-budget check` (INFRA, docs/plans/m5-7/01-infra.md 4.3.3 and 6.15,
 # contract 00-overview 7.4.5 v2.1). Sizes in bytes; gzip = dart:io gzip of each file, summed.
-# baseline: 1차 integration G4 measurement (main.dart.js 4,633,843 B raw) — contract 7.4.5 v2.1.
-# J0 re-measures the 2차 main after R2-B8b and proposes the next limits; H5 sets the 3라운드 baseline.
+# baseline: 2차 integration build (contract 7.4.5 v2.7 C27-01 — HEAD 42b01c7, main.dart.js
+# 6,477,160 B raw / 1,902,969 B gzip; was the 1차 G4 measurement 4,633,843 / 1,366,038 B).
+# main.dart.js limit gzip 2,000,000 B (C27-01); growth rule +300 KB per round from the new baseline.
 # Do not raise a limit without the lead's approval (6.15).
 baseline:
-  main_dart_js_gzip: 1366038
-  main_dart_js_raw: 4633843
+  main_dart_js_gzip: 1902969
+  main_dart_js_raw: 6477160
 limits:
   main_dart_js_gzip_growth_max: 300000   # vs baseline (00-review Q4)
-  main_dart_js_gzip_max: 1666038         # = baseline + growth until J0
+  main_dart_js_gzip_max: 2000000         # C27-01 (lead decision, 2차 integration)
   startup_fonts_gzip_max: 400000         # all FontManifest.json fonts (KaTeX 20 files ≈ 371 KB gzip)
   startup_fonts_raw_max: 700000
   startup_font_bundles:                  # per bundle (contract 7.4.5 v2.1, v2.4 C24-01; null = report only)

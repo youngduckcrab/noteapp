@@ -1119,5 +1119,11 @@
 | `ws test --platform chrome --run-skipped -t integration --package noteapp` (V6 1차·V6 v2) | 1 통과 · 1 실패(V6 v2 — INK `Int64List`) |
 | `dart test tool/test` (CI 같은 환경 변수) | 550 통과 |
 | `native_config_test` · `native_reqs_test` | 89 통과 |
-| 웹 빌드 · `web-assets verify` · `web-budget check` | 빌드·검증 통과, 예산 2 위반(`main.dart.js` 크기·증가분) |
+| 웹 빌드 · `web-assets verify` · `web-budget check` | 빌드·검증 통과, 예산 2 위반(`main.dart.js` 크기·증가분) → C27-01 반영 뒤 0 위반(아래) |
 | Playwright (H7) | 통과, 콘솔 오류 0 |
+
+#### C27-01 반영 — V4 웹 예산 (독립 검토 지적, 2026-11-12)
+
+- 지적: HEAD `42b01c7`에서 `ws web-budget check` 2 위반(`main.dart.js` gzip 1,902,969 B > 1,666,038 B, 증가 +536,931 B > +300,000 B) — `tool/web_budget.yaml`이 1차 기준(1,366,038 / 4,633,843)과 옛 한도 그대로였다. 다음 푸시에서 CI `web` 잡 'Web budget' 단계가 실패한다.
+- 고침: `tool/web_budget.yaml` `baseline` = 2차 통합 빌드(`app/build/web`, HEAD `42b01c7` 뒤 빌드 — 원본 6,477,160 B · gzip 1,902,969 B. C27-01의 1,902,938 B보다 31 B 많은 것은 그 측정 뒤 병합된 `55bf85a`), `main_dart_js_gzip_max: 2000000`(C27-01), 증가 한도 300,000 그대로. `web_budget_test`의 커밋된 파일 사례를 새 값으로(한도 ≤ 기준 + 증가 한도 단언 추가). 계획 6.15 표·'C27-01 반영' 항목 갱신.
+- 검사: `ws web-budget check --build-dir app/build/web` **0 위반**(크기 ok·증가 +0 ok·글꼴 385,521 B ok·KaTeX 371,014·아이콘 14,507 ok·금지 글꼴 ok). `dart test tool/test/web_budget_test.dart` 16 통과. `ws check`(R1~R16) 0 위반·0 경고, `dart test tool/test` 550 통과.

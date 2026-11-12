@@ -164,14 +164,20 @@ void main() {
       }
     });
 
-    test('the committed tool/web_budget.yaml: the 4.3.3 values and the '
+    test('the committed tool/web_budget.yaml: the contract v2.7 C27-01 '
+        'baseline (2차 integration build) and main.dart.js limit, and the '
         'contract v2.4 C24-01 bundle limits (KaTeX 380,000 B, icons 20,000 B '
         'gzip; their sum stays within the 400,000 B total)', () {
       final budget = WebBudget.load(p.join(repoRoot, webBudgetPath));
-      expect(budget.baselineMainGzip, 1366038);
-      expect(budget.baselineMainRaw, 4633843);
+      expect(budget.baselineMainGzip, 1902969);
+      expect(budget.baselineMainRaw, 6477160);
       expect(budget.mainGzipGrowthMax, 300000);
-      expect(budget.mainGzipMax, 1366038 + 300000);
+      expect(budget.mainGzipMax, 2000000);
+      // C27-01: the limit leaves room below baseline + one round of growth.
+      expect(
+        budget.mainGzipMax!,
+        lessThanOrEqualTo(budget.baselineMainGzip! + budget.mainGzipGrowthMax!),
+      );
       expect(budget.startupFontsGzipMax, 400000);
       expect(budget.startupFontsRawMax, 700000);
       final bundles = {for (final b in budget.bundles) b.name: b};
