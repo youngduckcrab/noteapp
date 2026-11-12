@@ -85,9 +85,15 @@ jobs:
       # reinstalls the test build with `adb install -r`, which keeps them
       # (same package, debug key and version code). No build info: the smoke
       # does not read it.
+      # The debug build's Gradle and Kotlin daemons (up to 8 GB heap,
+      # gradle.properties) are stopped before the release build: with both
+      # alive the runner was shut down mid-build (run 43231339931).
       - name: Build debug APK
         working-directory: app
-        run: flutter build apk --debug
+        run: |
+          flutter build apk --debug
+          (cd android && ./gradlew --stop)
+          pkill -f KotlinCompileDaemon || true
 
       # The release launch check (tool/android/release_launch_check.sh): the
       # x86_64 release APK, built like android.yml's (debug key, build info),
