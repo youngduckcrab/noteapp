@@ -5,6 +5,7 @@
 - 마지막 세션: 통합 단계 1차(CORE → INK → EDITOR·LIBRARY 병합 뒤) — L21 실제 CORE로 통과('통합 단계' 절). 동시 개발 단계 몫(L0~L20)은 세션 8까지 끝(세션 1: C13-05·L0·L1·L3·L4, 세션 2: L5~L8, 세션 3: L9·L10, 세션 4: L11·L12, 세션 5: L13·L14, 세션 6: L15·L16, 세션 7: L17·L18, 세션 8: L19·L20, L2는 기반 단계 B6에서 완료)
 - 다음 할 일: INFRA·PDF 병합 뒤 남은 통합 확인('통합 단계' › 남은 것 — V5 배너 문구, 앱 웹 빌드에서 9.2 준비, 사용자 iPad 확인)
 - 기준: 계획서 `docs/plans/05-library.md` 8장(작업 분해), 통합 계약 00-overview 7장 v1.4
+- (2차, 2026-11-12 통합 5단계) **통합 몫 L2-I1·I2·I3·I6 끝, V9 다시 통과** — 실제 CORE 색인 2·도형 보정 흐름 6·실제 CORE 계약 11(+L2-I2 내용 검색 = 가짜)·에뮬레이터 9, VM 681+489·Chrome 18+32. L2-I4는 INFRA 7단계, L2-I5는 실기기. 아래 '## 2차' → '### 통합 단계'.
 - (2차) 기반 단계 R2-B6 완료 — `99cdeef`(아래 '## 2차'). 기준: 계획서 `docs/plans/m5-7/05-library.md` 8.1, 통합 계약 m5-7/00-overview 7장 v2.2(7.2.11, 7.6.2 R2-B6 행, 7.6 시험 도우미)
 
 ## 작업 표
@@ -312,12 +313,12 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 | L2-19 (P-B, A-4 실험 창) | 완료 | 5c1a6ab | `unit/char_error_rate_test.dart`, `widget/recognition_lab_test.dart` (+ `unit/strings_contract_test.dart`, `web/recognition_browser_test.dart` 웹에 실험 진입 없음) |
 | L2-20 | 완료 | e2f1a4c | `ink_recognition/test/web/recognition_browser_test.dart`(31 — `setUpAll(useInkTestFonts)`·ML Kit 채널 호출 0회·`CallableMathRecognizer`+`MockClient`·바로 복사 동기 클립보드·패드 미리보기 배치 + 앞 세션의 웹 문장·`line_cases`·`shape_cases`·`trace_cases`), `feature_library/test/web/scenarios_browser_test.dart`(L2-04 — 18 통과) |
 | L2-22 (P-C) | 완료 | e055d12 | `unit/math_fixture_export_test.dart`, `widget/math_pad_engine_test.dart`('fixture mode' 묶음 — 저장소 변경 0·인식 0·클립보드 값), `widget/settings_section_test.dart`(+ [수식 고정 자료 만들기] 엔진 없음·있음), `widget/recognition_lab_test.dart`(엔진 없음 → '품질 실험' 머리는 보임), `web/recognition_browser_test.dart`(+ 웹 설정에 진입 보임, 웹 고정 자료 패드 → `user-web-…` 한 줄) |
-| L2-I1 | 통합 단계 | (써 둠: ea48650) | `ink_recognition/test/integration/real_core_indexer_test.dart`(`integration`·`@TestOn('vm')` — 보완 1.1에서 씀. 세션 9까지는 이 칸에 '미리 써 둠'이라 적었지만 파일이 없었다 — 아래 '계획과 다르게 한 점' L2-I1) |
-| L2-I2 | 통합 단계 | | `feature_library/test/integration/core_contract_test.dart` |
-| L2-I3 | 통합 단계 | | `ink_recognition/test/integration/shape_assist_flow_test.dart`(`integration` — L2-06과 함께 써 둠, 6.17.4 경우 1~6; 동시 개발 트리의 INK는 멈춤 감지 전이라 돌리지 않음) |
-| L2-I4 | 통합 단계 | | INFRA `app_smoke_v2_test.dart`·`feature_switch_test.dart` |
-| L2-I5 | 통합 단계 | | 실기기 결과 → 진행 기록 |
-| L2-I6 | 통합 단계 | | `emulator/callable_emulator_test.dart`(`emulator` — L2-16과 함께 써 둠) |
+| L2-I1 | 완료(통합 단계) | ea48650 (써 둠), 실행만 | `ink_recognition/test/integration/real_core_indexer_test.dart`(`integration`·`@TestOn('vm')` — 보완 1.1에서 씀. 세션 9까지는 이 칸에 '미리 써 둠'이라 적었지만 파일이 없었다 — 아래 '계획과 다르게 한 점' L2-I1) |
+| L2-I2 | 완료(통합 단계) | (통합 5단계 r2-integration 커밋 — `test/integration/core_contract_test.dart` L2-I2 무리) | `feature_library/test/integration/core_contract_test.dart` |
+| L2-I3 | 완료(통합 단계) | 54e263f (써 둠), 실행만 | `ink_recognition/test/integration/shape_assist_flow_test.dart`(`integration` — L2-06과 함께 써 둠, 6.17.4 경우 1~6; 동시 개발 트리의 INK는 멈춤 감지 전이라 돌리지 않음) |
+| L2-I4 | 일부(INFRA 7단계 몫 남음) | — | INFRA `app_smoke_v2_test.dart`·`feature_switch_test.dart` |
+| L2-I5 | 기다림(실기기) | — | 실기기 결과 → 진행 기록 |
+| L2-I6 | 완료(컨테이너, CI는 푸시 뒤) | 실행만 | `emulator/callable_emulator_test.dart`(`emulator` — L2-16과 함께 써 둠) |
 
 #### 변경 요청
 
@@ -548,3 +549,43 @@ LIBRARY 패키지는 `ink_engine`을 import할 수 없어 패키지 테스트로
 - 세션 1(2026-11-06) 끝: L2-01·02·03 완료. 다음은 **L2-04**(골든 `library_search_content.png` 13" 가로 — 골든 갱신은 별도 커밋, `widget/a11y_test.dart` 내용 행 44×44·라벨, `shared/library_scenarios.dart`에 '텍스트 상자 글자 검색 → 위치로 열기' 시나리오 → `widget/scenarios_on_fake_test.dart`·`web/scenarios_browser_test.dart`). 시드는 `test/support/fixtures.dart` `seedContentHits`, 행 위젯은 `lib/src/ui/content/content_hits_view.dart`(`ContentNoteHeader`·`ContentHitRow`·`ContentMoreRow`·`SourceBadge`·`SnippetText`), 시험 도우미 패턴은 `test/widget/content_search_test.dart`.
 - 그다음 `ink_recognition` L2-05(E-L5 시제품 `/tmp/claude-0/plan57-scratch/library57/` — 없으면 6.5·6.6 명세대로)부터. `HandwritingIndexer`(L2-10a)는 가짜 저장소 v2 `update`·`stalePages`·`notesWithStalePages`가 이미 동작한다.
 - 1차 골든 4장은 검색 힌트를 '노트 검색'으로 바꿔도 그대로 통과했다(Ahem — 글자 수 같음).
+
+### 통합 단계
+
+2차 통합 5단계(계약 7.7.1 — INFRA 체크포인트 `b032244` 뒤 CORE → INK → SYNC → PDF → LIBRARY → EDITOR 병합, 통합 브랜치 `claude/note-app-planning-bk29xb`, 바탕 HEAD `e57a675` — CORE `1523f3a`·`820449d`·`dcbb7e3`, INK `526c894`, SYNC `04602cc`, PDF `48168da`·`e57a675` 통합 커밋 포함). **LIBRARY `lib/`는 바꾸지 않았다** — L2-I2 시험 한 무리(`feature_library/test/integration/core_contract_test.dart`)와 이 기록만. 다른 영역에서 받은 [LIBRARY] 변경 요청은 INK 요청 3(L2-I3을 판정 대상으로 돌리고 기록) 하나 — 아래 L2-I3. CORE·INK 결함은 찾지 못해 변경 요청을 보내지 않는다.
+
+#### 8.3 몫별 결과
+
+| # | 결과 | 실행 |
+|---|---|---|
+| L2-I1 | **통과 2/2**, 시험 고침 없음. ① 합성 페이지 → `notesWithStalePages` → `stalePages` → 색인기(가짜 엔진) → `update` → `searchPages`가 그 페이지를 `source: ink`·줄 사각형으로, 뒤에 낡은 페이지 없음 ② 한 줄 인식 중 `sync.applyRemote`로 다른 기기 결과(같은 `sourceRev`·언어) 도착 → 작업 버림·다시 돎 → 페이지가 새것이라 엔진 호출·쓰기 없음, 원격 값과 그 검색 단위 그대로(02-core 경합 사례 3). 보완 1.1에서 '기반 단계 표면이라 첫 단언에서 실패'라 했던 것이 실제 CORE T32·T33a로 통과 | `ws test --run-skipped -t integration --package ink_recognition` → 8 passed(L2-I3 6 포함), 18.9 s |
+| L2-I2 | **통과 11/11**. 1차 L21 10건 그대로 + 공유 시나리오 '텍스트 상자 글자 → 노트 내용 → 그 페이지·상자로 열기'(2차 L2-04)가 실제 CORE에서 통과. **새 시험** `(v2) L2-I2 content search on real CORE = fake`: 같은 씨앗 `seedContentHits`(텍스트 상자 2·수식 1·손글씨 2줄·PDF 단위 1)를 가짜와 `openTestNoteStore(nativeFile)`에 넣고 질의 6개('회의'·'frac'·'정리'·'예산'·'분기 회의'·'할 일')마다 `groupContentHits(searchLibrary(q).pages)`를 (노트 제목, 1부터 페이지 번호, source, snippet, matchRange, rects)로 적어 비교 — 모두 같음, 네 source(text·math·ink·pdf)가 한 번 이상 비교됨. '회의' 순서는 둘 다 `회의록 2026-11`[p1 text '회의 안건: 예산', p2 ink '지난주 회의록을 정리'] → `미분 방정식`[p1 text] → `분기 보고`[p1 pdf, 사각형 없음]. id는 저장소가 만들어 비교에서 뺐고 score도 뺐다(순서에만 쓰임 — CP-14는 순서로 확인) | `ws test --run-skipped -t integration --package feature_library` → 11 passed, 26.5 s |
+| L2-I3 | **통과 6/6**(INK가 병합 트리에서 본 6/6과 같음) — 사각형 + 501 ms → 미리보기 → `end()` → `addShape`, 원 → 정사각 틀 타원, 499 ms → 미리보기 없음·획 그대로, 미리보기 뒤 반경 밖 → 지움·다시 멈춤, 낙서 → 판정 null·획 그대로, 작은 사각형 가드(viewScale 0.25). INK T39 `edd7834`·EDITOR E2-15·LIBRARY L2-06이 모두 병합돼 7.7.2 'P-B에 기대는 기준'으로 판정 대상 | 위 L2-I1 실행에 포함 |
+| L2-I4 | **일부**. INFRA `app/test/integration/app_smoke_v2_test.dart`(1)·`feature_switch_test.dart`(2 + 순수 시험)가 병합 트리에서 통과(`flutter test --run-skipped -t integration` → 12 passed) — `recog.settings` 행·`recog.indexer` 유휴 작업이 한 번씩, 모두 끔에서도 1차 V5 흐름 통과. 다만 이 파일 머리말대로 2~8단계(선택 메뉴 다섯 자리 4.4.4가 한 번씩 열림, 자동 도형 보정 V5b `app_smoke_shape_assist_test.dart` — 아직 없음)는 INFRA 통합 7단계(H3)가 더한다. LIBRARY 쪽 준비(키 부록 C·`SyntheticShapes`)는 그대로 — 실패하면 원인 대응 | INFRA 7단계 뒤 다시 |
+| L2-I5 | 기다림 — 실기기 확인(9.4: A-4, A-L3, B-4 도형 표본 U18, B-10·B-11 웹 복사 경로)은 컨테이너 밖. 문턱 변경은 그 결과로만 | 사용자 기기 |
+| L2-I6 | **통과 9/9**(E1·E2·E3·E5·E6·E7·E8·E9·G-3 동의 거짓). Java 21 있음(functions·auth 에뮬레이터는 Node만 씀) | 계획 8.3 글자 그대로: `ws with-heavy-lock -- npx --prefix functions firebase emulators:exec --config app/firebase.json --only functions,auth --project demo-noteapp "dart run tool/ws.dart test --run-skipped -t emulator --package ink_recognition"` → 종료 0, `ink_recognition vm 9 passed`, 18.7 s(안쪽 ws가 `NOTEAPP_HEAVY_LOCK_HELD=1`로 잠금을 다시 잡지 않음). CI `functions` 잡 반복 통과(V13)는 총괄 푸시 뒤 |
+
+#### V9 (통합 뒤 다시)
+
+- `groupIntoLines`: **100.00 %**(46,171획·200쪽, 가장 나쁜 쪽 100 %, 95 % 미만 쪽 0, 줄 수 차 {0: 200}) — 문턱 ≥ 95 %.
+- 도형 판정 합성 1,400개(`unit/shape_fitter_test.dart`, 시드 세 개 — 20261105·7·42): 직선 100 %, 원 100 %, 타원 89.0~93.5 %, 삼각형 83.5~87.5 %, 사각형 95.0~96.0 %, 오각형(다각형) 97.0~99.5 %, 낙서 거부 96.0~98.5 %, 잘못 바꿈 ≤ 6.0 % — 모두 문턱(원 ≥ 98, 직선·사각형·타원 ≥ 85, 삼각형 ≥ 80, 낙서 ≥ 90, 잘못 ≤ 10) 위. 동시 개발(6.17.3 표)과 같은 수.
+
+#### 패키지 시험 (병합본)
+
+| 실행 | 결과 |
+|---|---|
+| `ws test --package ink_recognition --package feature_library` (VM) | feature_library 681 passed 0 failed 1 skipped(integration 파일), ink_recognition 489 passed 0 failed 4 skipped(integration·emulator) — 기준선 로그(`r2-merge-vm.log`)와 같은 수 |
+| `ws test --platform chrome --package ink_recognition --package feature_library` | feature_library 18 passed, ink_recognition 32 passed |
+| `ws check` | R1~R16 0 위반 |
+| 패키지 `flutter analyze` | 둘 다 문제 없음 |
+
+#### C24~C26 결정과 LIBRARY
+
+- C26-03(PDF 결과 강조 = 질의 낱말마다 첫 일치): LIBRARY는 `focusRectOf`가 `rects`의 합집합이라 사각형이 여러 개여도 구 전체를 연다 — 코드 변경 없음. L2-I2 씨앗의 PDF 단위는 글자 상자가 없어 사각형이 빈 목록(둘 다 같음).
+- C25-01(검색 예산)·C25-02·C25-03·C25-04·C24-01·C26-01·C26-02·C26-04는 LIBRARY에 닿지 않는다(C25-04는 L2-I3을 이번 라운드 판정 대상으로 만든 근거).
+
+#### 남은 것
+
+- L2-I4 나머지: INFRA 7단계(H3 — V5 2~8단계, V5b `app_smoke_shape_assist_test.dart`, V6) 뒤 다시 확인. 실패 원인이 LIBRARY면 고침.
+- L2-I5 실기기(9.4), L2-I6의 CI 반복(V13), 수식 실제 엔진(Mathpix·Claude) 비교는 사용자 계정·비용 확인 뒤(SYNC).
+

@@ -10,6 +10,11 @@
 //    close() (fake time and real event-loop turns in turn).
 //  ② the default openTestNoteStore() (memory = nativeMemory) shows the
 //    notDurable banner without any write (contract 7.2.12, 7.6 C11-12).
+//  ③ (v2, 05-library 8.3 L2-I2) the '노트 내용' group on real CORE: the same
+//    seed (seedContentHits — text boxes, math, handwriting, a pdf unit) on the
+//    fake and on openTestNoteStore() gives the same hits in the same order
+//    (source, page, snippet, match range, rects) and the same note groups
+//    (groupContentHits), for queries that reach every source.
 @Tags(['integration'])
 @TestOn('vm')
 library;
@@ -17,6 +22,7 @@ library;
 import 'dart:async';
 
 import 'package:feature_library/src/l10n/library_strings.dart';
+import 'package:feature_library/src/model/content_hits.dart';
 import 'package:feature_library/src/ui/banners/storage_warning_banner.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -25,6 +31,7 @@ import 'package:note_core/testing_vm.dart';
 
 import '../shared/library_scenarios.dart';
 import '../support/fake_library_backend.dart';
+import '../support/fixtures.dart';
 import '../support/library_test_harness.dart';
 
 /// Fake-time / real-loop turns close() may take before the test fails.
@@ -110,5 +117,73 @@ void main() {
     } finally {
       await close(tester, backend);
     }
+  });
+
+  group('(v2) L2-I2 content search on real CORE = fake', () {
+    /// Queries that together reach every source of seedContentHits.
+    const queries = ['회의', 'frac', '정리', '예산', '분기 회의', '할 일'];
+
+    /// A hit with ids replaced by note title and 1-based page index (ids are
+    /// store-generated); score is left out (it only orders — CP-14).
+    Future<List<String>> describe(NoteStore store, String query) async {
+      final result = await store.library.searchLibrary(query);
+      final titles = <NoteId, String>{};
+      final pageIndex = <PageId, int>{};
+      Future<void> know(NoteId id) async {
+        if (titles.containsKey(id)) return;
+        titles[id] = (await store.library.getNote(id))!.title;
+        for (final (i, p) in (await store.content.pagesOf(id)).indexed) {
+          pageIndex[p.id] = i + 1;
+        }
+      }
+
+      final out = <String>[];
+      for (final g in groupContentHits(result.pages)) {
+        await know(g.noteId);
+        out.add('group ${titles[g.noteId]}');
+        for (final h in g.hits) {
+          expect(h.noteId, g.noteId);
+          out.add(
+            '  p${pageIndex[h.pageId]} ${h.source.name} "${h.snippet}" '
+            '${h.matchRange} '
+            '${[for (final r in h.rects) '(${r.left},${r.top},${r.right},${r.bottom})']}',
+          );
+        }
+      }
+      return out;
+    }
+
+    test('same hits, same order, same groups', () async {
+      final fake = FakeLibraryBackend();
+      final real = await FakeLibraryBackend.overStore(
+        (clock) => openTestNoteStore(
+          clock: clock,
+          storageInfo: const StorageInfo(backend: StorageBackend.nativeFile),
+        ),
+      );
+      try {
+        await seedContentHits(fake);
+        await seedContentHits(real);
+        final sources = <SearchSource>{};
+        for (final q in queries) {
+          final want = await describe(fake.store, q);
+          final got = await describe(real.store, q);
+          expect(want, isNotEmpty, reason: q);
+          expect(got, want, reason: 'query "$q"');
+          final result = await real.store.library.searchLibrary(q);
+          sources.addAll(result.pages.map((h) => h.source));
+        }
+        // Every content source was compared at least once.
+        expect(sources, {
+          SearchSource.text,
+          SearchSource.math,
+          SearchSource.ink,
+          SearchSource.pdf,
+        });
+      } finally {
+        await fake.dispose();
+        await real.dispose();
+      }
+    });
   });
 }
