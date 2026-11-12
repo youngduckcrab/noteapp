@@ -2784,6 +2784,7 @@ exit 0
           'shell pidof dev.noteapp.noteapp',
           'logcat -d -b crash',
           'logcat -d -v brief',
+          'logcat -d -v brief --pid=4242 *:W',
           'uninstall dev.noteapp.noteapp',
         ]);
         expect(run.stdout, contains('I flutter : started'));

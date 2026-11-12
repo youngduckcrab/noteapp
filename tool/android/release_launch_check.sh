@@ -23,8 +23,15 @@ echo "::group::logcat — crash buffer"
 adb logcat -d -b crash
 echo "::endgroup::"
 echo "::group::logcat — AndroidRuntime, native crashes, flutter, $package"
-adb logcat -d -v brief | grep -E "AndroidRuntime|FATAL|DEBUG|libc|flutter|$package" | tail -n 400
+adb logcat -d -v brief | grep -E "AndroidRuntime|FATAL|DEBUG|libc|flutter|GeneratedPluginRegistrant|Caused by|$package" | tail -n 400
 echo "::endgroup::"
+if [ -n "$pid" ]; then
+  # Everything the app process logged (a plugin that failed to register
+  # logs 'Error registering plugin …' under its own tag).
+  echo "::group::logcat — the app process ($pid), warnings and errors"
+  adb logcat -d -v brief --pid="$pid" '*:W' | tail -n 400
+  echo "::endgroup::"
+fi
 
 adb uninstall "$package" > /dev/null
 if [ -z "$pid" ]; then
