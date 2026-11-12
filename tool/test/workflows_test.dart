@@ -743,7 +743,10 @@ void main() {
       expect(push.keys, ['paths-ignore'], reason: 'no branch filter');
       expect(push['paths-ignore'], _ignoredPaths);
       final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
-      expect(inputs.keys, unorderedEquals(['deploy', 'integration', 'full', 'live']));
+      expect(
+        inputs.keys,
+        unorderedEquals(['deploy', 'integration', 'full', 'live']),
+      );
       expect((inputs['deploy'] as YamlMap)['type'], 'boolean');
       expect((inputs['deploy'] as YamlMap)['default'], isTrue);
       expect((inputs['integration'] as YamlMap)['type'], 'boolean');
