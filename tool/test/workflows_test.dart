@@ -48,7 +48,7 @@ const _ignoredPaths = ['docs/**', '**/*.md', '.github/ISSUE_TEMPLATE/**'];
 
 /// Job time limits (6.13).
 const _timeouts = {
-  'android-emulator.yml': 30,
+  'android-emulator.yml': 45,
   'android.yml': 30,
   'functions.yml': 15,
   'ios-compile.yml': 45,
@@ -111,6 +111,11 @@ const _inkLabDir = 'packages/ink_engine/example';
 const _emulatorApkBuild = 'flutter build apk --debug';
 const _emulatorApk = 'build/app/outputs/flutter-apk/app-debug.apk';
 const _nativeSmoke = 'integration_test/native_smoke_test.dart';
+const _emulatorReleaseBuild =
+    'flutter build apk --release --target-platform android-x64 '
+    '$_buildNumber $_defineFile';
+const _emulatorReleaseApk = 'build/app/outputs/flutter-apk/app-release.apk';
+const _launchCheck = '../tool/android/release_launch_check.sh';
 const _kvmRule =
     'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"';
 
@@ -573,7 +578,7 @@ void main() {
           }
         }
       }
-      expect(count, 7);
+      expect(count, 8);
       expect(debug, 1);
     });
 
@@ -590,7 +595,7 @@ void main() {
       // + web-budget check (J17), + lock-age (J20), + the Dart emulator tests
       // of functions.yml (J16), + native-reqs and the media tests of ci.yml
       // (J15)
-      expect(calls, hasLength(25));
+      expect(calls, hasLength(26));
       for (final call in calls) {
         final args = _shellWords(call, _sampleVariables);
         final err = StringBuffer();
@@ -632,7 +637,7 @@ void main() {
           }
         }
       }
-      expect(count, 5);
+      expect(count, 6);
     });
 
     test('every deploy is gated on the secret and the project variable', () {
@@ -2574,10 +2579,10 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
     });
 
     test(
-      'ubuntu with a 30 minute limit, no job if, no secret, no variable',
+      'ubuntu with a 45 minute limit, no job if, no secret, no variable',
       () {
         expect(job['runs-on'], 'ubuntu-latest');
-        expect(job['timeout-minutes'], 30);
+        expect(job['timeout-minutes'], 45);
         expect(job.containsKey('if'), isFalse);
         expect(job.containsKey('env'), isFalse);
         final text = File(p.join(_workflowsDir, 'android-emulator.yml'))
@@ -2600,6 +2605,8 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
           'Build hooks (downloads sqlite3 when not cached)',
           'Dependencies',
           'Build debug APK',
+          'Build info',
+          'Build release APK (x86_64)',
           'Native smoke',
         ],
       );
@@ -2609,9 +2616,28 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
             if (s['run'] != null && _commands(s).isNotEmpty)
               _commands(s).single,
         ],
-        ['flutter pub get --enforce-lockfile', _emulatorApkBuild],
+        [
+          'flutter pub get --enforce-lockfile',
+          _emulatorApkBuild,
+          _buildInfoFromEnv,
+          _emulatorReleaseBuild,
+        ],
       );
       expect(_named(steps, 'Build debug APK')['working-directory'], 'app');
+      expect(
+        _named(steps, 'Build release APK (x86_64)')['working-directory'],
+        'app',
+      );
+      // The same channel rule as android.yml.
+      expect(
+        (_named(steps, 'Build info')['env'] as YamlMap).value,
+        (_named(
+                  _steps(_jobs(_workflow('android.yml')).values.single),
+                  'Build info',
+                )['env']
+                as YamlMap)
+            .value,
+      );
       for (final step in steps) {
         expect(step['if'], isNull, reason: '${step['name']}');
       }
@@ -2671,6 +2697,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
           if (line.trim().isNotEmpty) line.trim(),
       ];
       expect(lines, [
+        '$_launchCheck $_emulatorReleaseApk dev.noteapp.noteapp 20',
         'adb install -r -g $_emulatorApk',
         'flutter test $_nativeSmoke',
       ]);
@@ -2688,6 +2715,96 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
       // The APK the build step makes in the same directory (app/).
       expect(_emulatorApkBuild, 'flutter build apk --debug');
       expect(_emulatorApk, endsWith('/app-debug.apk'));
+    });
+
+    group('the release launch check, run with a fake adb', () {
+      late Directory dir;
+      late File calls;
+      setUp(() {
+        dir = Directory.systemTemp.createTempSync('android_launch_');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        calls = File(p.join(dir.path, 'calls'))..writeAsStringSync('');
+        final adb = File(p.join(dir.path, 'bin', 'adb'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('''
+#!/usr/bin/env bash
+printf '%s\\n' "\$*" >> "\$CALLS"
+case "\$*" in
+  install*) [ -z "\$FAKE_INSTALL_FAILS" ] || exit 1 ;;
+  "shell pidof"*) [ -n "\$FAKE_CRASH" ] || printf '4242\\r\\n' ;;
+  "logcat -d -b crash") [ -z "\$FAKE_CRASH" ] || echo "E AndroidRuntime: FATAL EXCEPTION: main" ;;
+  "logcat -d -v brief") echo "I flutter : started"; echo "W other   : noise" ;;
+esac
+exit 0
+''');
+        Process.runSync('chmod', ['+x', adb.path]);
+      });
+
+      ({int code, String stdout, String summary, List<String> calls}) launch({
+        bool crash = false,
+        bool installFails = false,
+      }) {
+        final summary = File(p.join(dir.path, 'summary'))
+          ..writeAsStringSync('');
+        final result = Process.runSync(
+          'bash',
+          [
+            p.join(repoRoot, 'tool', 'android', 'release_launch_check.sh'),
+            'app-release.apk',
+            'dev.noteapp.noteapp',
+            '0',
+          ],
+          environment: {
+            'PATH':
+                '${p.join(dir.path, 'bin')}:'
+                '${Platform.environment['PATH'] ?? '/usr/bin:/bin'}',
+            'CALLS': calls.path,
+            'GITHUB_STEP_SUMMARY': summary.path,
+            if (crash) 'FAKE_CRASH': '1',
+            if (installFails) 'FAKE_INSTALL_FAILS': '1',
+          },
+          includeParentEnvironment: false,
+        );
+        return (
+          code: result.exitCode,
+          stdout: '${result.stdout}${result.stderr}',
+          summary: summary.readAsStringSync(),
+          calls: calls.readAsLinesSync(),
+        );
+      }
+
+      test('still running → 0, the logs printed, the app uninstalled', () {
+        final run = launch();
+        expect(run.code, 0, reason: run.stdout);
+        expect(run.calls, [
+          'install -r -g app-release.apk',
+          'logcat -c',
+          'shell am start -W -n dev.noteapp.noteapp/.MainActivity',
+          'shell pidof dev.noteapp.noteapp',
+          'logcat -d -b crash',
+          'logcat -d -v brief',
+          'uninstall dev.noteapp.noteapp',
+        ]);
+        expect(run.stdout, contains('I flutter : started'));
+        expect(run.stdout, isNot(contains('noise')));
+        expect(run.stdout, contains('still running after 0 s (pid 4242)'));
+        expect(run.summary, '릴리스 실행: 0초 뒤에도 실행 중\n');
+      });
+
+      test('gone → 1 with the crash buffer in the log', () {
+        final run = launch(crash: true);
+        expect(run.code, 1);
+        expect(run.stdout, contains('FATAL EXCEPTION: main'));
+        expect(run.stdout, contains('::error::릴리스 APK가 시작한 뒤 0초 안에 꺼졌어요'));
+        expect(run.summary, '릴리스 실행: 0초 안에 꺼짐\n');
+        expect(run.calls.last, 'uninstall dev.noteapp.noteapp');
+      });
+
+      test('the install fails → 1, nothing started', () {
+        final run = launch(installFails: true);
+        expect(run.code, 1);
+        expect(run.calls, ['install -r -g app-release.apk']);
+      });
     });
 
     test('Enable KVM, run with a fake sudo: the udev rule for /dev/kvm, '

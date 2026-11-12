@@ -26,7 +26,7 @@ jobs:
   emulator:
     name: Native smoke on the Android emulator
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -80,6 +80,19 @@ jobs:
         working-directory: app
         run: flutter build apk --debug
 
+      # The release launch check (tool/android/release_launch_check.sh): the
+      # x86_64 release APK, built like android.yml's (debug key, build info),
+      # started on the emulator before the smoke. A tablet closed the arm64
+      # release APK at launch (Android APK run 7); the check prints logcat.
+      - name: Build info
+        env:
+          BUILD_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'live' || 'preview' }}
+        run: dart run tool/ws.dart build-info --channel "$BUILD_CHANNEL" --out build/build_info.json
+
+      - name: Build release APK (x86_64)
+        working-directory: app
+        run: flutter build apk --release --target-platform android-x64 --build-number=$GITHUB_RUN_NUMBER --dart-define-from-file=../build/build_info.json
+
       # The action's default emulator options without -noaudio (the recording
       # step needs the emulator microphone). Each script line runs on its own
       # in working-directory.
@@ -93,5 +106,6 @@ jobs:
           disable-animations: true
           working-directory: app
           script: |
+            ../tool/android/release_launch_check.sh build/app/outputs/flutter-apk/app-release.apk dev.noteapp.noteapp 20
             adb install -r -g build/app/outputs/flutter-apk/app-debug.apk
             flutter test integration_test/native_smoke_test.dart
