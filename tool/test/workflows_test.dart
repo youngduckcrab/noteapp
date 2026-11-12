@@ -2734,7 +2734,8 @@ case "\$*" in
   install*) [ -z "\$FAKE_INSTALL_FAILS" ] || exit 1 ;;
   "shell pidof"*) [ -n "\$FAKE_CRASH" ] || printf '4242\\r\\n' ;;
   "logcat -d -b crash") [ -z "\$FAKE_CRASH" ] || echo "E AndroidRuntime: FATAL EXCEPTION: main" ;;
-  "logcat -d -v brief") echo "I flutter : started"; echo "W other   : noise" ;;
+  "logcat -d -v brief") echo "I flutter : started"; echo "W other   : noise"
+    [ -z "\$FAKE_PLUGIN_FAILS" ] || echo "E/GeneratedPluginRegistrant( 1): Error registering plugin google_mlkit_x, com.x.Plugin" ;;
 esac
 exit 0
 ''');
@@ -2744,6 +2745,7 @@ exit 0
       ({int code, String stdout, String summary, List<String> calls}) launch({
         bool crash = false,
         bool installFails = false,
+        bool pluginFails = false,
       }) {
         final summary = File(p.join(dir.path, 'summary'))
           ..writeAsStringSync('');
@@ -2763,6 +2765,7 @@ exit 0
             'GITHUB_STEP_SUMMARY': summary.path,
             if (crash) 'FAKE_CRASH': '1',
             if (installFails) 'FAKE_INSTALL_FAILS': '1',
+            if (pluginFails) 'FAKE_PLUGIN_FAILS': '1',
           },
           includeParentEnvironment: false,
         );
@@ -2785,6 +2788,7 @@ exit 0
           'logcat -d -b crash',
           'logcat -d -v brief',
           'logcat -d -v brief --pid=4242 *:W',
+          'logcat -d -v brief',
           'uninstall dev.noteapp.noteapp',
         ]);
         expect(run.stdout, contains('I flutter : started'));
@@ -2799,6 +2803,19 @@ exit 0
         expect(run.stdout, contains('FATAL EXCEPTION: main'));
         expect(run.stdout, contains('::error::릴리스 APK가 시작한 뒤 0초 안에 꺼졌어요'));
         expect(run.summary, '릴리스 실행: 0초 안에 꺼짐\n');
+        expect(run.calls.last, 'uninstall dev.noteapp.noteapp');
+      });
+
+      test('running, but a plugin failed to register → 1 naming it', () {
+        final run = launch(pluginFails: true);
+        expect(run.code, 1);
+        expect(
+          run.stdout,
+          contains(
+            '::error::플러그인 등록 실패: Error registering plugin google_mlkit_x',
+          ),
+        );
+        expect(run.summary, contains('플러그인 등록 실패'));
         expect(run.calls.last, 'uninstall dev.noteapp.noteapp');
       });
 

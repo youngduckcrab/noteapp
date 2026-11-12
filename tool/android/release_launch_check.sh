@@ -33,7 +33,16 @@ if [ -n "$pid" ]; then
   echo "::endgroup::"
 fi
 
+broken=$(adb logcat -d -v brief | grep -o "Error registering plugin [^,]*" | sort -u)
+
 adb uninstall "$package" > /dev/null
+if [ -n "$broken" ]; then
+  # GeneratedPluginRegistrant catches the exception: the app runs, the plugin
+  # does not (R8 removed something it needs — app/android/app/proguard-rules.pro).
+  echo "::error::플러그인 등록 실패: $(echo "$broken" | tr '\n' ' ')"
+  [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "릴리스 실행: 플러그인 등록 실패 — $broken" >> "$GITHUB_STEP_SUMMARY"
+  exit 1
+fi
 if [ -z "$pid" ]; then
   echo "::error::릴리스 APK가 시작한 뒤 ${seconds}초 안에 꺼졌어요 — 위 logcat을 보세요"
   [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "릴리스 실행: ${seconds}초 안에 꺼짐" >> "$GITHUB_STEP_SUMMARY"
