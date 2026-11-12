@@ -362,6 +362,14 @@ void main() {
             name == 'ci.yml' ? _ciTimeouts[key] : _timeouts[name],
             reason: '$name: job $key',
           );
+          // The one exception: android.yml publishes the APK as a release
+          // (artifacts hit the storage quota — Android APK run 6).
+          if (name == 'android.yml' && key == 'apk') {
+            expect((value['permissions'] as YamlMap).value, {
+              'contents': 'write',
+            }, reason: '$name: job $key');
+            continue;
+          }
           expect(
             value.containsKey('permissions'),
             isFalse,
@@ -1759,7 +1767,7 @@ void main() {
           'Build info',
           'Build APK',
           'Check signature',
-          'Upload APK',
+          'Publish APK',
           'Remove signing material',
         ],
       );
@@ -1946,10 +1954,14 @@ void main() {
       });
     });
 
-    test('the artifact name tells the signing: noteapp-apk-<run> or '
+    test('the release file name tells the signing: noteapp-apk-<run> or '
         'noteapp-debug-signed-<run>', () {
-      final upload = _with(_named(steps, 'Upload APK'));
-      String nameFor(String mode) => '${upload['name']}'.replaceAllMapped(
+      final publish = _named(steps, 'Publish APK');
+      expect(publish['uses'], isNull);
+      final env = publish['env'] as YamlMap;
+      expect(env['GH_TOKEN'], r'${{ github.token }}');
+      expect(env['SIGNING_MODE'], r'${{ steps.signing.outputs.mode }}');
+      String nameFor(String mode) => '${env['APK_NAME']}'.replaceAllMapped(
         RegExp(r'\$\{\{ (.+?) \}\}'),
         (m) {
           final expression = m.group(1)!;
@@ -1966,13 +1978,134 @@ void main() {
       );
       expect(nameFor('release'), 'noteapp-apk-42');
       expect(nameFor('debug'), 'noteapp-debug-signed-42');
-      expect(
-        upload['path'],
-        'app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk',
+    });
+
+    group('the publish step, run with a fake gh', () {
+      late Directory dir;
+      late File calls;
+      setUp(() {
+        dir = Directory.systemTemp.createTempSync('android_publish_');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        calls = File(p.join(dir.path, 'calls'))..writeAsStringSync('');
+        File(
+            p.join(
+              dir.path,
+              'app/build/app/outputs/flutter-apk/'
+              'app-arm64-v8a-release.apk',
+            ),
+          )
+          ..createSync(recursive: true)
+          ..writeAsStringSync('APK');
+        Directory(p.join(dir.path, 'tmp')).createSync();
+        // `release list` answers with five APK releases, newest first after
+        // the --jq filter (the fake applies none: it prints the filtered list).
+        final gh = File(p.join(dir.path, 'bin', 'gh'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('''
+#!/usr/bin/env bash
+printf '%s\\n' "\$*" >> "\$CALLS"
+if [ "\$1 \$2" = "release create" ]; then
+  [ -f "\$4" ] || exit 7
+  cp "\$4" "\$CALLS.uploaded"
+fi
+if [ "\$1 \$2" = "release list" ]; then
+  printf 'android-4\\nandroid-3\\n'
+fi
+''');
+        Process.runSync('chmod', ['+x', gh.path]);
+      });
+
+      ({int code, String stdout, String summary, List<String> calls}) publish(
+        String mode,
+      ) {
+        final summary = File(p.join(dir.path, 'summary'))
+          ..writeAsStringSync('');
+        final name = mode == 'release'
+            ? 'noteapp-apk-7'
+            : 'noteapp-debug-signed-7';
+        final result = Process.runSync(
+          'bash',
+          [
+            '-e',
+            '-o',
+            'pipefail',
+            '-c',
+            '${_named(steps, 'Publish APK')['run']}',
+          ],
+          workingDirectory: dir.path,
+          environment: {
+            'PATH':
+                '${p.join(dir.path, 'bin')}:'
+                '${Platform.environment['PATH'] ?? '/usr/bin:/bin'}',
+            'CALLS': calls.path,
+            'GITHUB_STEP_SUMMARY': summary.path,
+            'GITHUB_RUN_NUMBER': '7',
+            'GITHUB_REPOSITORY': 'owner/noteapp',
+            'GITHUB_SERVER_URL': 'https://github.com',
+            'GITHUB_SHA': 'abc123',
+            'RUNNER_TEMP': p.join(dir.path, 'tmp'),
+            'SIGNING_MODE': mode,
+            'APK_NAME': name,
+          },
+          includeParentEnvironment: false,
+        );
+        return (
+          code: result.exitCode,
+          stdout: '${result.stdout}${result.stderr}',
+          summary: summary.readAsStringSync(),
+          calls: calls.readAsLinesSync(),
+        );
+      }
+
+      test('a pre-release android-<run> with the named .apk, then the '
+          'releases past the newest three are deleted with their tags', () {
+        for (final mode in ['release', 'debug']) {
+          calls.writeAsStringSync('');
+          final run = publish(mode);
+          expect(run.code, 0, reason: run.stdout);
+          final name = mode == 'release'
+              ? 'noteapp-apk-7'
+              : 'noteapp-debug-signed-7';
+          final create = run.calls.first;
+          expect(
+            create,
+            startsWith(
+              'release create android-7 ${p.join(dir.path, 'tmp', '$name.apk')} '
+              '--repo owner/noteapp --target abc123 --prerelease --title $name '
+              '--notes ',
+            ),
+          );
+          expect(
+            create,
+            contains(mode == 'release' ? '고정 키 판이에요' : '덮어 설치할 수 없는 시험판'),
+          );
+          expect(File('${calls.path}.uploaded').readAsStringSync(), 'APK');
+          expect(run.calls[1], startsWith('release list --repo owner/noteapp'));
+          expect(run.calls.sublist(2), [
+            'release delete android-4 --repo owner/noteapp --yes --cleanup-tag',
+            'release delete android-3 --repo owner/noteapp --yes --cleanup-tag',
+          ]);
+          expect(
+            run.summary,
+            '다운로드: https://github.com/owner/noteapp/releases/tag/android-7 — '
+            '$name.apk\n',
+          );
+        }
+      });
+
+      test(
+        'the list keeps only android-* releases, newest first, past three',
+        () {
+          final run = _runLines(_named(steps, 'Publish APK')).join('\n');
+          expect(
+            run,
+            contains(
+              "--jq '[.[] | select(.tagName | startswith(\"android-\"))] | "
+              "sort_by(.createdAt) | reverse | .[3:] | .[].tagName'",
+            ),
+          );
+        },
       );
-      expect(upload['retention-days'], 7);
-      expect(upload['compression-level'], 0);
-      expect(upload['if-no-files-found'], 'error');
     });
 
     group('the signature check, run with a fake apksigner', () {
@@ -1996,6 +2129,14 @@ void main() {
 [ "\$1 \$2 \$3" = "verify --print-certs app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" ] || exit 9
 [ -n "\$FAKE_SILENT" ] && exit 0
 [ -n "\$FAKE_FAIL" ] && { echo "DOES NOT VERIFY" >&2; exit 1; }
+if [ -n "\$FAKE_V2_SIGNER" ]; then
+  echo "Verifies"
+  echo "Verified using v2 scheme (APK Signature Scheme v2): true"
+  echo "V2 Signer: certificate DN: C=US, O=Android, CN=Android Debug"
+  echo "V2 Signer: certificate SHA-256 digest: $printed"
+  echo "V2 Signer: certificate SHA-1 digest: 36d01b7cfb7a9133669d3fb3a3cffd27fcd89d17"
+  exit 0
+fi
 if [ -n "\$FAKE_SDK_RANGE" ]; then
   echo "Signer (minSdkVersion=24, maxSdkVersion=2147483647) certificate DN: CN=Android Debug"
   echo "Signer (minSdkVersion=24, maxSdkVersion=2147483647) certificate SHA-256 digest: $printed"
@@ -2015,6 +2156,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
         String cert = '',
         bool silent = false,
         bool sdkRange = false,
+        bool v2Signer = false,
         bool fail = false,
       }) {
         final summary = File(p.join(dir.path, 'summary'))
@@ -2037,6 +2179,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
             'ANDROID_CERT_SHA256': cert,
             if (silent) 'FAKE_SILENT': '1',
             if (sdkRange) 'FAKE_SDK_RANGE': '1',
+            if (v2Signer) 'FAKE_V2_SIGNER': '1',
             if (fail) 'FAKE_FAIL': '1',
           },
           includeParentEnvironment: false,
@@ -2103,6 +2246,16 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
         expect(run.stdout, contains('certificate SHA-256 digest: $digest'));
         final debug = check('debug', sdkRange: true);
         expect(debug.code, 0, reason: debug.stdout);
+      });
+
+      test('"V2 Signer: certificate SHA-256 digest:" lines are read too '
+          '(Android APK run 6 printed only those)', () {
+        final run = check('release', cert: digest, v2Signer: true);
+        expect(run.code, 0, reason: run.stdout);
+        expect(run.summary, '서명: 고정 키 (0123456789abcdef)\n');
+        final debug = check('debug', v2Signer: true);
+        expect(debug.code, 0, reason: debug.stdout);
+        expect(debug.stdout, isNot(contains('::warning::')));
       });
 
       test(

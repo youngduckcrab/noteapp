@@ -534,14 +534,14 @@ void main() {
     final text = _read('05-android-apk.md');
     final android = _workflow('android.yml');
     expect(text, contains('**${android['name']}**'));
+    // The APK is a release file (android.yml 'Publish APK' — artifacts hit
+    // the storage quota), its name in the step's APK_NAME.
     final upload = [
       for (final step
           in ((android['jobs'] as YamlMap).values.single as YamlMap)['steps']
               as YamlList)
-        if ('${(step as YamlMap)['uses']}'.startsWith(
-          'actions/upload-artifact',
-        ))
-          step['with'] as YamlMap,
+        if ((step as YamlMap)['name'] == 'Publish APK')
+          {'name': (step['env'] as YamlMap)['APK_NAME']},
     ].single;
     // 2차 J2 (m5-7/01-infra 6.10.3): the name tells the signing —
     // noteapp-apk-<run> (fixed key) or noteapp-debug-signed-<run>. Guide v2
@@ -577,8 +577,14 @@ void main() {
     }
     // The 1차 advice to remove the app on an install error is gone.
     expect(text, isNot(contains('기존 필기노트 앱을 지운 뒤 설치해요')));
-    expect(text, contains('`${p.basename('${upload['path']}')}`'));
-    expect(text, contains('${upload['retention-days']}일 뒤 사라져요'));
+    // A release file, not a zipped artifact: the .apk name, the kept three.
+    expect(text, contains('`noteapp-apk-<번호>.apk`'));
+    expect(text, contains('가장 최근 3개만 남고'));
+    expect(
+      File(p.join(repoRoot, '.github', 'workflows', 'android.yml'))
+          .readAsStringSync(),
+      contains('.[3:] | .[].tagName'),
+    );
     for (final phrase in [
       '출처',
       '덮어 설치하지 못할 수 있어요',

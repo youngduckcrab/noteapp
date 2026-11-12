@@ -1,6 +1,10 @@
 # Android APK (INFRA, docs/plans/01-infra.md 6.13 `android.yml`, 6.14;
 # docs/plans/m5-7/01-infra.md 6.10.3 v2): release APK for arm64 tablets,
-# kept as a 7-day workflow artifact (docs/guides/05-android-apk.md).
+# published as a pre-release `android-<run>` with the APK file attached
+# (docs/guides/05-android-apk.md). Not a workflow artifact: artifacts count
+# against the account's storage quota, which Android APK run 6 hit; release
+# files do not, and a tablet downloads the .apk itself (no zip). The newest
+# three APK releases are kept, older ones are deleted with their tags.
 #
 # Manual only (2차 R2-B1 — the free Actions minutes, docs/plans/m5-7/
 # 01-infra.md 6.16): Actions → Android APK → Run workflow. GitHub offers Run
@@ -13,13 +17,13 @@
 # repository secrets (docs/guides/07-android-signing.md), so a new APK
 # installs over the previous one and keeps the notes. Three ways:
 # - the four ANDROID_* secrets are set → app/android/key.properties, the
-#   release key, artifact `noteapp-apk-<run>`; the certificate must match the
+#   release key, file `noteapp-apk-<run>.apk`; the certificate must match the
 #   ANDROID_CERT_SHA256 variable when it is set;
 # - a secret is missing but ANDROID_CERT_SHA256 is set (the repository uses
 #   the fixed key: deleted or misspelled secret, a fork) → the job fails
 #   before the build — an APK that cannot be installed over is never made;
 # - neither (before the fixed key) → the template's debug key, made fresh on
-#   every runner, artifact `noteapp-debug-signed-<run>`.
+#   every runner, file `noteapp-debug-signed-<run>.apk`.
 # The container has no Android SDK: this workflow is only checked on GitHub
 # (tool/test/workflows_test.dart runs its shell steps with fake tools).
 name: Android APK
@@ -39,6 +43,11 @@ jobs:
     name: Build release APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The one job that writes: `gh release` creates the android-<run>
+    # pre-release and deletes older APK releases (tool/test/workflows_test.dart
+    # allows only this). Manual runs only, by the repository owner.
+    permissions:
+      contents: write
     # `if:` cannot read secrets: the steps read them from here.
     env:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -128,15 +137,16 @@ jobs:
         run: |
           apk=app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
-          # The whole output goes to the log. Newer build-tools name the signer
-          # 'Signer (minSdkVersion=…, maxSdkVersion=…)' instead of 'Signer #1'.
+          # The whole output goes to the log.
           if ! out=$("$apksigner" verify --print-certs "$apk" 2>&1); then
             printf '%s\n' "$out"
             echo "::error::apksigner could not verify $apk"
             exit 1
           fi
           printf '%s\n' "$out"
-          digest=$(printf '%s\n' "$out" | sed -n 's/^Signer[^:]*certificate SHA-256 digest: *//p' | head -n 1)
+          # 'Signer #1 certificate SHA-256 digest: …', 'Signer (minSdkVersion=…)
+          # certificate …' or 'V2 Signer: certificate …' (run 6): the first one.
+          digest=$(printf '%s\n' "$out" | sed -n 's/^.*certificate SHA-256 digest: *//p' | head -n 1)
           if [ -z "$digest" ]; then
             if [ "$SIGNING_MODE" = release ]; then
               echo "::error::apksigner printed no SHA-256 digest for $apk"
@@ -156,15 +166,27 @@ jobs:
             echo "서명: debug 키 — 이전 APK 위에 덮어 설치할 수 없어요. 설치가 안 되면 앱을 지우지 말고 알려 주세요" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: noteapp-${{ steps.signing.outputs.mode == 'release' && 'apk' || 'debug-signed' }}-${{ github.run_number }}
-          path: app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          retention-days: 7
-          # An APK is already a zip.
-          compression-level: 0
-          if-no-files-found: error
+      - name: Publish APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
+          APK_NAME: noteapp-${{ steps.signing.outputs.mode == 'release' && 'apk' || 'debug-signed' }}-${{ github.run_number }}
+        run: |
+          tag="android-$GITHUB_RUN_NUMBER"
+          file="$RUNNER_TEMP/$APK_NAME.apk"
+          cp app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$file"
+          if [ "$SIGNING_MODE" = release ]; then
+            notes="고정 키 판이에요. 이전 고정 키 판 위에 덮어 설치해요(docs/guides/05-android-apk.md)."
+          else
+            notes="덮어 설치할 수 없는 시험판(debug 키)이에요. 실제 노트가 든 기기에는 설치하지 마세요(docs/guides/05-android-apk.md)."
+          fi
+          gh release create "$tag" "$file" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "$APK_NAME" --notes "$notes"
+          # Keep the newest three APK releases; older ones go with their tags.
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("android-"))] | sort_by(.createdAt) | reverse | .[3:] | .[].tagName' |
+            while read -r old; do
+              gh release delete "$old" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+            done
+          echo "다운로드: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$tag — $APK_NAME.apk" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove signing material
         if: always()
