@@ -8,3 +8,11 @@
 # implementation and its no-argument constructor.
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 -keep class androidx.work.impl.WorkDatabase_Impl { *; }
+
+# ML Kit (google_mlkit_digital_ink_recognition — handwriting recognition)
+# finds its component registrars by reflection and calls their no-argument
+# constructors. R8 removed them: 'NoSuchMethodException:
+# …DigitalInkRecognitionRegistrar.<init> []' and the plugin failed to register
+# (android-emulator.yml run 43241551603). Keep every registrar's constructor.
+-keep class * implements com.google.firebase.components.ComponentRegistrar { <init>(); }
+-keep class com.google.mlkit.**.*Registrar { <init>(); }
