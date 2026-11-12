@@ -262,6 +262,9 @@ void main() {
       'roles/firebaseauth.admin',
       'roles/run.viewer',
       'roles/serviceusage.apiKeysViewer',
+      // firebase-tools 15 reads the Hosting API state first (CI run
+      // 43224907707 failed on serviceusage.services.get).
+      'roles/serviceusage.serviceUsageConsumer',
     ]) {
       expect(text, contains('`$role`'));
     }

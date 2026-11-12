@@ -26,7 +26,7 @@ Firebase 프로젝트는 Google Cloud 프로젝트이기도 해요. 서비스 �
 2. 위쪽 **+ 서비스 계정 만들기**를 눌러요.
 3. 서비스 계정 이름에 `github-deploy`를 입력하고 **만들고 계속하기**를 눌러요.
 
-### 3단계 — 역할 4개 주기
+### 3단계 — 역할 5개 주기
 
 '역할 선택' 상자를 누르고 검색창에 역할 이름을 입력해 하나씩 추가해요(**+ 다른 역할 추가**로 줄을 늘려요).
 
@@ -36,8 +36,9 @@ Firebase 프로젝트는 Google Cloud 프로젝트이기도 해요. 서비스 �
 | Firebase 인증 관리자 | `roles/firebaseauth.admin` |
 | Cloud Run 뷰어 | `roles/run.viewer` |
 | API 키 뷰어 | `roles/serviceusage.apiKeysViewer` |
+| 서비스 사용량 소비자 | `roles/serviceusage.serviceUsageConsumer` |
 
-4개를 모두 넣었으면 **계속** → **완료**를 눌러요.
+5개를 모두 넣었으면 **계속** → **완료**를 눌러요.
 
 M4(동기화)에서 Firestore·Storage 규칙도 배포하게 되면 역할을 더 추가해야 해요. 그때 이 안내서를 고쳐서 알려 드릴게요.
 
@@ -80,7 +81,8 @@ M4(동기화)에서 Firestore·Storage 규칙도 배포하게 되면 역할을 �
 |---|---|
 | Summary에 '주소: Firebase 미설정 — docs/guides/02-github-secrets.md' | Secret 이름 `FIREBASE_SERVICE_ACCOUNT`와 Variable 이름 `FIREBASE_PROJECT_ID`의 철자를 확인해요. Secret은 **Secrets** 탭, 프로젝트 ID는 **Variables** 탭에 있어야 해요. |
 | 키를 만들 때 '서비스 계정 키 생성이 사용 중지됨' 같은 오류 | 조직 정책(`iam.disableServiceAccountKeyCreation`)이 키 만들기를 막고 있어요. 회사·학교 계정에서 생겨요. 개인 Gmail 계정이면 보통 해당 없어요. 개인 계정으로 01부터 다시 하거나 Claude에게 알려 주세요. |
-| 배포 단계(Deploy to Firebase Hosting)가 권한 오류(403, permission)로 실패 | 3단계의 역할 4개가 모두 들어갔는지 확인해요(**IAM 및 관리자** → **IAM**에서 `github-deploy` 줄). 역할을 고친 뒤 몇 분 기다렸다가 다시 실행해요. |
+| 배포 단계가 'Permission denied to get service [firebasehosting.googleapis.com]'(`serviceusage.services.get`)로 실패 | 역할 **서비스 사용량 소비자**(`roles/serviceusage.serviceUsageConsumer`)가 빠졌어요. **IAM 및 관리자** → **IAM**에서 `github-deploy` 줄의 연필 아이콘 → **+ 다른 역할 추가**로 넣고, 몇 분 뒤 다시 실행해요. |
+| 배포 단계(Deploy to Firebase Hosting)가 권한 오류(403, permission)로 실패 | 3단계의 역할 5개가 모두 들어갔는지 확인해요(**IAM 및 관리자** → **IAM**에서 `github-deploy` 줄). 역할을 고친 뒤 몇 분 기다렸다가 다시 실행해요. |
 | 배포 단계가 'project not found'로 실패 | `FIREBASE_PROJECT_ID` 값이 프로젝트 이름이 아니라 **프로젝트 ID**인지 확인해요. |
 | 실행이 빨간 X로 끝나요 | 실행 화면 왼쪽 목록에서 빨간 X가 붙은 잡(예: **Browser tests**)을 눌러, 실패한 단계 이름과 로그 마지막 몇 줄을 복사하거나 스크린샷을 보내 주세요. 앞 잡이 실패하면 뒤 잡(**Build and deploy web**)은 돌지 않아 '빌드 결과'가 보이지 않아요. |
 | 화면이 안내서와 달라요 | 스크린샷을 보내 주세요. 안내서를 고쳐 드릴게요. |
