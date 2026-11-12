@@ -1,6 +1,6 @@
 # 00 · 2차 라운드 총괄 검토 결과
 
-> 상태: **2차 통합 완료(컨테이너 V1~V16) — 실기기 확인 대기, 계약 v2.7** (2026-11-12 — 끝의 [2차 통합 결과](#2차-통합-결과) 절) · 그 앞: **최종 승인** (2026-11-05 — [최종 승인](#최종-승인) 절: 7개 계획서 승인, 통합 계약 **v2.2** 확정) · 이전: 1차 검토 완료 (2026-11-05) · 대상: `m5-7/01-infra.md`~`07-sync.md` 초안 7개 · 대리 검토 7건(`reviews/*.md`) · 확정한 공통 결정: [00-overview.md](00-overview.md) 7장 **통합 계약 v2.1**(변경 이력 7.9 — C21-01~35)
+> 상태: **2차 통합 — 컨테이너 V1~V16 중 V4만 대기(INFRA `tool/web_budget.yaml` C27-01 반영 → `ws web-budget check` 0 뒤 '2차 통합 완료'), 실기기 확인 대기, 계약 v2.7** (2026-11-12 — 끝의 [2차 통합 결과](#2차-통합-결과) 절) · 그 앞: **최종 승인** (2026-11-05 — [최종 승인](#최종-승인) 절: 7개 계획서 승인, 통합 계약 **v2.2** 확정) · 이전: 1차 검토 완료 (2026-11-05) · 대상: `m5-7/01-infra.md`~`07-sync.md` 초안 7개 · 대리 검토 7건(`reviews/*.md`) · 확정한 공통 결정: [00-overview.md](00-overview.md) 7장 **통합 계약 v2.1**(변경 이력 7.9 — C21-01~35)
 > 판정 기준(1차와 같음): ① 이 계획서들만 보고 서로 다른 개발자가 독립적으로 구현했을 때 통합이 깨지지 않는가 ② PLAN.md 요구사항(M5·M6·M7, F-03·F-10~F-16)이 빠짐없이 구현되는가 ③ 컨테이너와 iPad Safari 웹에서 검증 가능한가
 > 표기: **M** = 반드시 고칠 것(재검토 승인 조건) · **S** = 권장 · 근거의 '검토'는 `reviews/<영역>.md`, 'CP'는 그 영역 계획서 12장의 계약 변경 제안, 'C21-xx'는 계약 v2.1 변경 이력 행
 
@@ -531,7 +531,7 @@
 
 ## 2차 통합 결과
 
-> 날짜: 2026-11-12 · 총괄 관리자 · 브랜치 `claude/note-app-planning-bk29xb`(INFRA 체크포인트 `b032244` 뒤 병합 HEAD `8c2256e`, 통합 끝 `55bf85a`) · 기준: 통합 계약 **v2.7**([00-overview.md](00-overview.md) 7장 — 통합에서 바뀐 곳은 [7.9](00-overview.md#79-계약-변경-이력) 'v2.7' C27-01~07, 시그니처 변경 없음) · 판정: **2차 통합 완료(컨테이너 V1~V16) — 실기기 확인 대기**. V14의 GitHub 실행(APK·iOS 컴파일 1회)은 C27-07대로 총괄 푸시 뒤 사용자 'Run workflow'로 확인하고 2차 완료를 막지 않는다.
+> 날짜: 2026-11-12 · 총괄 관리자 · 브랜치 `claude/note-app-planning-bk29xb`(INFRA 체크포인트 `b032244` 뒤 병합 HEAD `8c2256e`, 통합 끝 `55bf85a`) · 기준: 통합 계약 **v2.7**([00-overview.md](00-overview.md) 7장 — 통합에서 바뀐 곳은 [7.9](00-overview.md#79-계약-변경-이력) 'v2.7' C27-01~07, 시그니처 변경 없음) · 판정: **V4 대기 — 나머지 컨테이너 기준(V1~V3·V5~V16) 통과, 실기기 확인 대기**. '2차 통합 완료'는 INFRA가 C27-01 값을 `tool/web_budget.yaml`에 반영해 `ws web-budget check`가 0이 된 뒤 선언한다(지금은 한도 1,666,038 B 그대로라 1 — 아래 V4·'남은 일'). V14의 GitHub 실행(APK·iOS 컴파일 1회)은 C27-07대로 총괄 푸시 뒤 사용자 'Run workflow'로 확인하고 2차 완료를 막지 않는다.
 
 ### 통합 순서 (계약 7.7.1)
 
@@ -554,7 +554,7 @@
 | V1 | 통과 | 병합마다 `pub get --enforce-lockfile`, `ws check`(R1~R16) 0 — 총괄 병합 직후·각 영역 통합 끝(INFRA H1) |
 | V2 | 통과 | 루트 `flutter analyze --fatal-infos` 0, `dart format` 바뀜 0 |
 | V3 | 통과 | 병합 직후 VM 기준선(`r2-merge-vm.log`)의 실패 3멤버(pdf_io 1 — C26-03 기대값, feature_editor 4 — 빈 도형 적중, noteapp 1 — 실제 이미지 소스)를 모두 고친 뒤 영역별 VM·Chrome·`integration` 전부 통과(위 표). `dart test tool/test` 550. Chrome은 `useInkTestFonts`로 멈춤 없음 |
-| V4 | 통과(C27-01) | 릴리스 빌드·`web-assets verify` 통과, 예산표 갱신(`main.dart.js` gzip 1,902,938 B, 시작 글꼴 385,521 B — KaTeX 371,014·아이콘 14,507). 한도 초과는 총괄 결정으로 기준을 이 빌드로 옮기고 한도 2,000,000 B — `tool/web_budget.yaml` 반영은 INFRA |
+| V4 | **대기**(C27-01 결정, INFRA 반영 전) | 릴리스 빌드·`web-assets verify` 통과, 시작 글꼴 385,521 B(KaTeX 371,014·아이콘 14,507 — C24-01 한도 안). `main.dart.js`는 통합 끝 `42b01c7`에서 gzip 1,902,969 B / 원본 6,477,160 B(INFRA 통합 실측 1,902,938 B는 INK `55bf85a` 전 빌드 — 31 B 차). 총괄 결정으로 기준을 이 빌드로 옮기고 한도 2,000,000 B로 정했지만 `tool/web_budget.yaml`은 아직 1차 기준·한도 1,666,038 B라 `ws web-budget check` = 1(위반 2: 한도·증가). INFRA 반영 뒤 check 0이면 통과 |
 | V5 | 통과 | `app_smoke_v2_test`(VM): 9.1 2~8·10단계를 실제 화면으로, override 출처·횟수, 자리 4곳(INFRA H3) |
 | V5b | 통과 | `app_smoke_shape_assist_test`(VM) — P-B 작업 모두 병합(7.7.2 v2.7 표) |
 | V6 | 통과 | `app_smoke_v2_browser_test`(Chrome) — INK `55bf85a` 뒤 재생 단계 포함 통과(FlutterError 0) |
@@ -579,7 +579,7 @@
 | PDF | T21~T41 완료 | 탐침·정적 skip 모두 제거, V10·V11 기대값을 계약 의미로, C26-01·02·04 | 결함 0. [INFRA] C26-02 연결 요청 → 처리 |
 | LIBRARY | L2-01~L2-22 완료 | L2-I1·I2·I3·I6, V9 다시, `lib/` 변경 없음 | 없음. L2-I4 나머지(V5 2~8단계 인식 자리)는 INFRA V5 v2가 덮음, L2-I5 실기기 |
 | EDITOR | E2-00~E2-22 완료, E2-11 미룸(P-C) | E2-21·E2-21b, C25-02 개발자 표시 값, 외곽선 적중 시험 4개 | 없음(CORE·INK 결함 못 찾음). E2-24는 실기기 뒤 |
-| INFRA | J1~J22 완료(J0 ④·J15 제한은 푸시 뒤) | V5 v2·V5b·V15·V12·H7, C26-02·C24-01, 유휴 작업 실행기 헛돌기 수정, CI 도구 시험 수정 | [INK] `Int64List` → 처리, [총괄] V4 → C27-01 |
+| INFRA | J1~J22 완료(J0 ④·J15 제한은 푸시 뒤) | V5 v2·V5b·V15·V12·H7, C26-02·C24-01, 유휴 작업 실행기 헛돌기 수정, CI 도구 시험 수정 | [INK] `Int64List` → 처리, [총괄] V4 → C27-01 결정, `web_budget.yaml` 반영은 대기 |
 
 ### 통합에서 나온 문제와 처리
 
@@ -594,7 +594,7 @@
 | 7 | V5 v2가 되돌리기 중 RSS 2.6 GB로 죽음, V6 v2 'did not complete' | 유휴 작업 실행기가 `scheduleTask(Priority.idle)`를 기다려 애니메이션 중 0초 타이머가 끝없이 생김 | 시작 조건을 '프레임 끝 + 애니메이션 없음'으로(계약 7.3.3 '첫 프레임 3초 뒤·보일 때' 뜻은 같음 — 01-infra 6.5.1) | — |
 | 8 | noteapp VM 실패 1·1차 `app_smoke_test` override 집합 | 기반 단계의 '이미지 소스 없음' 전제, 1차 V5 집합에 `editorImageImporterProvider` 없음 | 실제 `supportedImageSources()`로·집합에 행 추가 | — |
 | 9 | CORE 세션 쓰기와 원격 쓰기가 겹치면 변경이 한 번만 오름 | 세션 `content_rev`가 못 본 원격 커밋 | `MAX(content_rev + 1, 세션 값)`(`820449d`) | — |
-| 10 | `main.dart.js` 예산 초과(+236,900 B) | 2차 영역 코드(녹음·인식·수식·PDF 객체 내보내기) | 기준 이동 + 한도 2,000,000 B, `deferred`는 3라운드 후보 | C27-01 |
+| 10 | `main.dart.js` 예산 초과(+236,931 B) | 2차 영역 코드(녹음·인식·수식·PDF 객체 내보내기) | 기준 이동 + 한도 2,000,000 B(결정), `tool/web_budget.yaml` 반영은 INFRA 대기, `deferred`는 3라운드 후보 | C27-01 |
 | 11 | GitHub `ci.yml` 실행 11~13이 `check`에서 실패 | `workflows_test`가 러너의 `TEST_SCOPE`를 물려받음(컨테이너엔 없음) | `includeParentEnvironment: false` 6곳 — 다음 푸시에서 다섯 잡 실측 | — |
 
 알려진 한계(결함 아님): INK B12(1000점) 디버그 VM 여유가 작음(0.5 ms / 0.6 ms — 기록만), 헤드리스 Chrome 적재 멈춤은 1차처럼 `ws`가 한 번 다시 돌려 통과, 실제 저장소 작업을 fake-async 영역에서 시작한 위젯 시험은 `runAsync(store.close)`가 끝나지 않음(EDITOR 하네스 메모 — 시험 쪽에서 피함).
@@ -603,7 +603,7 @@
 
 컨테이너 몫:
 
-- INFRA: C27-01 값을 `tool/web_budget.yaml`(기준 1,902,938 / 6,476,935 B, `main_dart_js_gzip_max` 2,000,000)과 01-infra 6.15에 반영 → `ws web-budget check` 0.
+- **INFRA(V4 — 2차 통합 완료를 막음)**: C27-01 값을 `tool/web_budget.yaml`(기준 gzip 1,902,969 / 원본 6,477,160 B — 통합 끝 `42b01c7` 실측, `main_dart_js_gzip_max` 2,000,000)과 01-infra 6.15 표(지금 1,902,938 / 6,476,935 B — INK `55bf85a` 전 값)에 반영 → `ws web-budget check` 0. 그 뒤 총괄이 이 문서·00-overview·PLAN.md의 V4를 '통과'로, 상태를 '2차 통합 완료'로 바꾼다.
 - 총괄: 이 문서 커밋 뒤 7.7.1 8단계 일괄 실행(`ws test --run-skipped -t integration`, `-t media`, `firebase emulators:exec … -t emulator` — 전역 잠금으로 하나씩)과 통합 브랜치 푸시 → INFRA가 `ci.yml` 다섯 잡 실측으로 J15 잡별 제한·월 분을 정함.
 - 3라운드 후보: `deferred` import(C27-01), `Int64List` 금지의 `ws check` 규칙화(C27-06), INK T44, 실연결 미니 라운드(INFRA + SYNC — 07-sync 6.10 SC-1~SC-8).
 

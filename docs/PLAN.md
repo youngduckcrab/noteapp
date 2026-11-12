@@ -577,7 +577,7 @@ Mac과 Apple 개발자 계정이 없는 상태에서 시작하므로 두 단계�
 
 마일스톤마다 실기기에서 써볼 수 있는 결과물을 만든다. 기간보다 '써보고 합격'을 완료 기준으로 삼는다.
 
-> **진행 (2026-11-12, 2차 통합 뒤)** — 1차(M0~M4 일부)에 이어 2차(M5 편집·M6 녹음·M7 인식)도 7개 영역을 동시에 개발해 통합 브랜치 `claude/note-app-planning-bk29xb`에 합쳤고, 컨테이너 검증 V1~V16을 통과했다([plans/m5-7/00-review.md '2차 통합 결과'](plans/m5-7/00-review.md#2차-통합-결과), 계약 [plans/m5-7/00-overview.md](plans/m5-7/00-overview.md) 7장 v2.7). 1차 결과는 [plans/00-review.md '1차 통합 결과'](plans/00-review.md#1차-통합-결과).
+> **진행 (2026-11-12, 2차 통합 뒤)** — 1차(M0~M4 일부)에 이어 2차(M5 편집·M6 녹음·M7 인식)도 7개 영역을 동시에 개발해 통합 브랜치 `claude/note-app-planning-bk29xb`에 합쳤고, 컨테이너 검증 V1~V16 중 V4(웹 크기 예산)를 뺀 15개를 통과했다. V4는 한도를 계약 v2.7 C27-01로 다시 정했지만 `tool/web_budget.yaml` 반영(INFRA) 전이라 `ws web-budget check`가 아직 실패한다 — 반영 뒤 '2차 통합 완료'([plans/m5-7/00-review.md '2차 통합 결과'](plans/m5-7/00-review.md#2차-통합-결과), 계약 [plans/m5-7/00-overview.md](plans/m5-7/00-overview.md) 7장 v2.7). 1차 결과는 [plans/00-review.md '1차 통합 결과'](plans/00-review.md#1차-통합-결과).
 > - `[x]` = 코드와 자동 테스트로 끝난 항목. 괄호 안은 근거가 되는 영역 작업·테스트(1차는 [plans/](plans/) 각 계획서 8장, 2차는 [plans/m5-7/](plans/m5-7/) 각 계획서 8장, 진행 기록 [plans/progress/](plans/progress/) '## 2차').
 > - `[ ]` + **사용자 확인 대기** = 사용자가 해야 할 일(계정·프로젝트 만들기)이나 실기기 확인이 남은 항목.
 > - 각 마일스톤의 **완료 기준**(실기기 합격)은 아직 하나도 판정하지 않았다. Firebase Hosting 미리보기 뒤 iPad 체크리스트로 판정한다 — 1차는 각 계획서 9장·[안내서 04](guides/04-ipad-web-test.md), 2차는 [안내서 08 실기기 체크리스트](guides/08-device-checklist.md)(계약 7.8 A·B·C). 웹 빌드는 필기감 수치만 기록하고, 필기감 합격은 네이티브 전환에서 판정한다(9.5).
