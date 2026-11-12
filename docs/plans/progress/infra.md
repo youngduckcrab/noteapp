@@ -2,8 +2,8 @@
 
 ## 요약
 
-- 마지막 세션: **2차 동시 개발 2/11** — **R2-B8b**(라우팅 `?page=&focus=`·`pencil_bridge` Dart 표면·Pencil 어댑터), **J0 ①②③**(네이티브 설정·`native_config` 정적 시험·웹 빌드 실측; ④ CI 실측은 첫 체크포인트 푸시 뒤) — 아래 '## 2차' > '### 동시 개발'. 그 앞 1/11은 작업 표·문서 정리(C22-09·C23-01)·R2-B8a, 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
-- 다음 할 일: '### 동시 개발' 작업 표 순서 — J1 → J2~J22(J0 ④는 총괄의 첫 체크포인트 푸시 뒤 — 체크포인트 병합 Q14; R2-B8a·R2-B8b·J0 체크포인트 요청함).
+- 마지막 세션: **2차 통합 단계**(계약 7.7.1 7단계, H1~H8) — 아래 '## 2차' > '### 통합 단계'. V5 v2·V5b·V15·V12·H7 통과, V6 v2는 INK `Int64List`(변경 요청), V4는 `main.dart.js` 예산 초과(총괄 결정), CI는 도구 시험 1건(고침) 때문에 `check` 잡만 실측. 그 앞: **2차 동시 개발 2/11** — **R2-B8b**(라우팅 `?page=&focus=`·`pencil_bridge` Dart 표면·Pencil 어댑터), **J0 ①②③**(네이티브 설정·`native_config` 정적 시험·웹 빌드 실측; ④ CI 실측은 첫 체크포인트 푸시 뒤) — 아래 '## 2차' > '### 동시 개발'. 그 앞 1/11은 작업 표·문서 정리(C22-09·C23-01)·R2-B8a, 기반 단계 R2-final(`708a1c1`)·R2-B2 묶음 검사·R2-B2i·R2-B1.
+- 다음 할 일: 총괄 푸시 뒤 `ci.yml` 다섯 잡 실측(잡별 제한·6.16 표·월 분 — J15 완료 조건), V4 예산 결정 반영(6.15), INK `Int64List` 고침 뒤 V6 v2 재실행, (총괄·사용자) `android.yml` V14·`ios-compile.yml`(U19)·Hosting(U24) 뒤 H8.
 - 1차: 기반 단계 B1(0bbebf8)·B8(2cec46a, eda674f), 통합 G1~G4 완료(아래). 1차 G5(푸시·CI)는 총괄이 끝냄 — 전체 CI 1회 실측 30분.
 
 ## 작업 표
@@ -1044,3 +1044,80 @@
 - (2차 동시 개발 세션 11) 첫 체크포인트 푸시는 아직 없다(`/home/user/noteapp` HEAD = `5843ec3`, GitHub의 가장 새 `ci.yml` 실행 = 실행 10 on `5843ec3`, 단일 잡). 그 실행을 GitHub API로 읽어 **J0 ④ 예비 실측**(위 '#### J0 ④ 예비 실측' — 35분 14초, 잡 5개로 나눈 예상은 모두 지금 제한 안, 월 분 예비 재계산 약 1,594분 = 80% 경계)을 적었고, 그 기록에서 본 결함(CI 요약표의 통과·실패·건너뜀이 0 — github 보고 형식)을 `parseTestCounts`에서 고쳤다. 잡별 제한은 바꾸지 않았다.
 - J0 ④ 완료 조건을 닫는 법(통합 단계 첫 푸시 뒤 — 이제 실질적으로 H 단계와 겹친다): GitHub API `GET /repos/youngduckcrab/noteapp/actions/runs?branch=<브랜치>` → 잡 5개 `GET …/runs/<id>/jobs`의 단계 `started_at`·`completed_at`(또는 잡마다 'Timing' 단계의 요약표)로 잡 시간 → ① `ci.yml` 잡별 `timeout-minutes`·`workflows_test`의 `_ciTimeouts` = 실측 × 1.5(올림, 주석 'Provisional' 고침) ② 계획 6.16 표를 실측으로(위 예비 재계산의 잡 고정분 1분 7초·청구 올림 방식 그대로) ③ 월 분이 1,600분을 넘으면 총괄에게 ④ 작업 표 J0·J15 '완료'. `vm` 잡(예상 18분 · 제한 30분)을 먼저 볼 것 — 다른 영역 2차 시험이 합쳐지면 VM이 가장 많이 는다.
 - 다음 GitHub 실행부터 `ws test` 요약표에 통과·실패·건너뜀 수가 보인다(이 세션의 `parseTestCounts` 고침) — 예비 실측의 표는 멤버별 시간만 믿을 것(수는 `🎉 …` 끝줄에서 읽음).
+
+### 통합 단계 (계약 7.7.1 7단계 — 계획 8.3 H1~H8, 2026-11-12)
+
+바탕: 통합 브랜치 `claude/note-app-planning-bk29xb` — 체크포인트(`b032244`) 뒤 CORE → INK → SYNC → PDF → LIBRARY → EDITOR 병합과 그 영역들의 통합 단계 커밋(`1523f3a`~`311e209`). 코드 커밋 `c5c1333`, 이 기록과 계획서는 다음 커밋. 다른 영역 통합 담당과 컨테이너를 같이 썼다(무거운 실행은 전역 잠금, 두 번은 다른 프로세스가 메모리 부족으로 죽음).
+
+| H | 내용 | 결과 |
+|---|---|---|
+| H1 | 병합마다 lock·`ws check`·analyze | 총괄 병합 직후 0. 이 단계 끝: `ws check`(R1~R16) 0·analyze 0·형식 바뀜 0·`ws native-reqs` 23 플러그인 위반 0 |
+| H2 | 실제 모듈 연결 | ① `feature_wiring_module_test` 기본값 사례: PDF T35b의 실제 `supportedImageSources()`(안드로이드·iOS 사진·카메라, 그 밖 없음)로 바꿈 — 기반 단계의 '소스 없음 → override 없음' 전제가 실제와 어긋났다(머지 기준선의 noteapp 실패 1건). ② 1차 V5의 override 집합에 D2-15 `editorImageImporterProvider` 행(소스가 있는 플랫폼에서) — 1차 `app_smoke_test` 실패 원인. ③ 실제 색인기 둘(`readPdfSearchIndexer`·`readHandwritingIndexer`)을 가짜 저장소로 `start → dispose → dispose` 안전(`pdf_module_test`·`recognition_module_test` +1). ④ **C26-02**: `pdfDevOverlayLinesProvider`를 PDF `DevOverlaySection`(`pdf.render`)에 이어 붙임 — 내보내기 전 3줄, 뒤 5줄(`pdf_wiring_test` +2) |
+| H3 | V5·V6·V5b | **V5 v2(VM) 통과** — 9.1 2~8·10단계를 실제 화면으로(`test/support/smoke_v2_scenario.dart`): 획 → 텍스트 상자 '안녕 hello' → 사각형 → 이미지(자리 1) → 올가미 → 90° → 색(색상환) → 잘라내기 → 붙여넣기 → 되돌리기 8단계·다시 실행 8단계 → 닫기·다시 열기(같은 id·frame, 되돌리기 없음) → 녹음 패널(자리 2, 동의 시트) → 가짜 녹음 중 획 3개(recordingId·offset 1200/3000/5500) → 정지 → 재생 위치로 INK `playbackFocus` 바뀜 → 손가락 탭 → `seek` → `InkPageVectors`(이미지 1·텍스트 1·도형 조각의 objectId = 도형 id) → 라이브러리 검색 '안녕' → 내용 결과 → `?page=&focus=`·초점 깜빡임. 자리 3(선택 메뉴: recog.toText·copyText·toMath 보임, editMath 안 보임)·자리 4(recog.mathPad). **V5b 통과**(실제 `GeometricShapeFitter`, `SyntheticShapes.rectanglePath` + `shapeHoldMs`+200 ms 정지 → 사각형 1·획 0·되돌리기 1 → 되돌리기·다시 실행 → 다시 열기 유지). 1차 V5 통과. **V6 v2(Chrome)**: 모든 단계가 끝까지 가지만 재생 강조 칠하기에서 프레임 예외 4건 — INK `playback_index.dart` 57행 `Int64List`(웹에 없음, 아래 변경 요청 [INK]). 예외를 걷어 낸 실행에서는 나머지가 모두 통과했다. 1차 V6 통과 |
+| H4 | V12 | `dart test tool/test/native_config_test.dart tool/test/native_reqs_test.dart` 89 통과, `ws native-reqs` 0 위반(CocoaPods 전용 = ML Kit 둘) |
+| H5 | V15·V4 | V15: 통합 시험 14개가 주입 방식·`--dart-define FEATURE_*=false` 두 방식 모두 통과. 화면에서도 비교(에디터: 녹음 버튼·인식 삽입 항목·펜 팝업 '고급'의 자동 도형 토글이 모두 끔에서 사라지고 이미지 삽입은 남음 — `editorSwitchRows`, 모두 켬은 V5b). **V4 실패**: `main.dart.js` gzip 1,902,938 B(한도 1,666,038 B, +236,900 B) — 계획 6.15 '통합 단계 실측', 총괄 결정 필요. 시작 글꼴 385,521 B(KaTeX 371,014 · 아이콘 14,507 — C24-01 한도 안). 기능 끈 빌드 원본 6,056,067 B |
+| H6 | GitHub | 아래 'J0 ④'. `android.yml`(V14)·`ios-compile.yml`은 이 단계에 돌지 않음(수동 — 총괄·U19) |
+| H7 | 릴리스 웹 빌드 Playwright | **통과** — 아래 |
+| H8 | Hosting | 없음(U24) → 'iPad 확인 대기'. 안내서 08 B는 Hosting 뒤 |
+
+#### 이 단계에서 찾아 고친 INFRA 결함
+
+- **유휴 작업 실행기 헛돌기**(`app/lib/src/bootstrap/idle_tasks.dart`): 계획 6.5.1대로 `SchedulerBinding.scheduleTask(…, Priority.idle)`를 기다렸는데, 애니메이션(버튼 잉크 번짐 등)이 도는 동안 Flutter 스케줄러는 idle 항목을 위해 이벤트 루프마다 0초 타이머를 다시 건다. 기기에서는 그 동안 헛돌고, 위젯 시험의 가짜 시간 `pump` 안에서는 같은 시각의 타이머가 끝없이 생겨 끝나지 않는다 — V5 v2가 되돌리기 중 RSS 2.6 GB까지 커지다 죽은 원인(VM 서비스로 멈춰 본 스택: `SchedulerBinding._runTasks → _ensureEventLoopCallback → Timer.run`). EDITOR가 본 'V6 v2가 step done 뒤 did not complete'도 같은 원인으로 보인다. `endOfFrame`을 기다리며 `transientCallbackCount == 0`일 때 시작하게 바꿨다(같은 뜻, 헛돌기 없음). `idle_tasks_test` +1(옛 코드에서는 메모리 감시로 끊길 때까지 끝나지 않음을 확인).
+- **CI 'Tool tests' 실패**(실행 11·13, job 127904914057·130872283463): `workflows_test`의 '모든 잡이 타이밍 표로 끝남' 사례가 `Process.runSync(environment: …)`로 셸 스크립트를 돌리며 부모 환경을 물려받아, 러너가 잡 환경에 둔 `TEST_SCOPE`('기본 브랜치 — 5843ec3 이후 바뀐 멤버')가 'TEST_SCOPE 없음' 경우에도 표에 찍혔다(`Expected: empty, Actual: ['- 시험 범위: …']`). 컨테이너에는 그 변수가 없어 통과했다. 같은 파일에서 환경을 정해 주는 스크립트 실행 6곳에 `includeParentEnvironment: false`. `GITHUB_ACTIONS=true TEST_SCOPE=… FULL_RUN=false dart test tool/test` 550 통과.
+
+#### J0 ④ — GitHub CI 실측 (계획 6.16 'J0 ④ 통합 단계 실측')
+
+- 실행 11(`462bdfe`)·12(`8c2256e`)·13(`dcbb7e3`) 모두 `check` 잡에서 위 시험 하나로 실패 → `vm`·`chrome`·`heavy`·`web` 잡은 건너뜀. `check` 잡 3분 58초 / 4분 2초(Flutter 35·26초, strict 53·59초, analyze 45·53초, 도구 시험 1분 33·34초).
+- 결정: 잡별 `timeout-minutes`는 그대로(15·30·30·30·15, 'Provisional'). `check`는 실측 × 1.5 = 6분으로 15분 안. 나머지 네 잡은 값이 없어 고친 뒤 첫 푸시의 실행으로 정한다(총괄 푸시 뒤 — J15 완료 조건). 월 분 예비 재계산(약 1,594분)은 그대로.
+- `functions.yml`(V13): 실행 2·3 성공(2분 31초 · 3분 15초 — Dart 에뮬레이터 시험 1분 31초). V13 GitHub 1회 성공 조건 충족.
+
+#### H7 — 릴리스 웹 빌드 Playwright 스모크
+
+- 빌드: `ws build-info --channel preview` → `web-assets verify` → `flutter build web --release --no-wasm-dry-run`(컴파일 84.6초, 잠금 안) → `finalize-web`. 127.0.0.1 정적 서버(없는 경로 → `index.html`, `Cache-Control: no-cache`), Playwright 1.63 Chromium 1032×1376·`ko-KR`·DPR 1·가짜 마이크 플래그, CanvasKit은 빌드의 `canvaskit/`, Google Fonts는 프록시 `curl`, 그 밖 외부 요청 차단. 스크립트·스크린숏은 스크래치(`r2-integration-shots/`, 커밋 안 함).
+
+| 단계 | 결과 |
+|---|---|
+| 첫 프레임(로더 사라짐) | 1,580 ms |
+| 라이브러리 → '새 노트' → '만들기' → 에디터(`/notes/<id>`) | 통과 |
+| '도형' → 마우스 끌기 | 사각형 그려짐, 되돌리기 켜짐 |
+| '텍스트' → 탭 → '안녕 hello' 입력 → 밖 탭 | 텍스트 상자 보임, 되돌리기 켜짐 |
+| 녹음 버튼('녹음') | 보임 |
+| '뒤로' → 라이브러리 | 통과 |
+| 콘솔 오류 · 페이지 오류 · 실패한 요청 | **0 · 0 · 0** (경고는 WebGL 'GPU stall' 4줄뿐) |
+
+- 계획 H7의 나머지 흐름(이미지 `setInputFiles`, 2초 실제 녹음, 검색 → `?page=&focus=` → 새로고침)은 이번 실행에 넣지 않았다 — V6 v2(Chrome 위젯 시험)가 같은 단계를 가짜 녹음기로 덮고, 실제 웹 녹음은 PDF V8·V16(`media` 태그)이 본다. Hosting 미리보기(U24) 뒤 B 체크리스트에서 실기기로.
+
+#### 다른 영역이 보낸 [INFRA] 요청 처리
+
+- CORE: 웹 예산표 기록 행(PF-10 DB 증가 8.31/6.15/3.62 MiB, 글자 상자 블롭 5.34~5.36 MiB, PF-10w +133 ms) → 계획 6.15 '검색 색인 크기 기록 행'.
+- PDF: C26-02 연결 → H2 ④.
+- INK·LIBRARY·EDITOR: V5b 파일 → H3(통과). EDITOR의 'V6 v2 did not complete' → 유휴 작업 실행기 고침(위), 지금 V6 v2의 남은 실패는 INK `Int64List`.
+- C24-01: `tool/web_budget.yaml` KaTeX 380,000 · 아이콘 20,000(`web_budget_test`의 커밋된 파일 사례도 함께).
+
+#### 변경 요청 (이 단계)
+
+- [INK] 웹에서 재생 강조가 칠하기 중 예외: `packages/ink_engine/lib/src/render/playback_index.dart` 57행 `final offsets = Int64List(order.length);`(80행 필드 타입도) — dart2js·DDC에 `Int64List`가 없다(`Unsupported operation: Int64List not supported on the web.` during paint, `PlaybackTrack.build ← trackOf ← _paintPlayback`). 재현: `ws with-heavy-lock -- sh -c "cd app && flutter test --platform chrome --run-skipped -t integration test/web/app_smoke_v2_browser_test.dart"`(재생 단계 뒤 FlutterError 4건, 테스트가 각 예외를 스택과 함께 출력). 제안: `Int32List`(ms 오프셋 — 24일까지) 또는 `List<int>`/`Float64List`(1차 7.4.3 웹 안전 수치 규칙, `ink_recognition` `handwriting_trace.dart`가 같은 이유로 Float64List). INK 웹 시험에 재생 강조 칠하기 사례를 더하면 같은 회귀를 잡는다.
+- [총괄] V4 웹 예산: `main.dart.js` gzip 1,902,938 B > 한도 1,666,038 B(+236,900 B; 1차 기준 +536,900 B). 6.15 규칙상 INFRA가 한도를 올리지 않는다. 선택지·출처 내역은 계획 6.15 '통합 단계 실측'. 결정 전에는 CI `web` 잡의 'Web budget' 단계가 실패해 배포가 멈춘다.
+
+#### 계획과 다르게 한 점
+
+- 6.5.1 유휴 작업 시작 조건: `scheduleTask(Priority.idle)` 대신 프레임 끝 + 애니메이션 없음(위 — 뜻은 같음, 계획서 6.5.1 고침).
+- V5 v2 3단계 이미지 삽입 메뉴의 recog 삽입 항목, 4단계 ⋯ 메뉴의 recog 선택 항목을 8단계(자리 3·4 열기)와 합쳐 그 자리에서 확인했다. 색 변경은 최근 색이 펜 색 하나뿐이라 '더 많은 색' → 색상환 → 적용으로 했다(`editor.recolor.swatch.*`는 다른 색이 있을 때 씀).
+- 붙여넣기 컨텍스트 메뉴: 손가락 길게 누르기로 열리지 않으면 보조 클릭으로(04-editor 6.10) — VM에서는 길게 누르기로 열렸다.
+- 7단계 재생: `FakeAudioPlayback.open/play`는 시험이 직접 부른다(녹음 정지 뒤 패널이 연 녹음과 같은 행). 위치 이동·손가락 탭 탐색은 화면으로.
+
+#### 검사
+
+| 검사 | 결과 |
+|---|---|
+| `ws check` (R1~R16) | 0 위반 · 0 경고 |
+| `ws analyze` · `dart format` | 0건 · 바뀜 0 |
+| `ws test --package noteapp` (VM) | 582 통과 · 4 건너뜀(기준선의 실패 1 → 0) |
+| `ws test --package pencil_bridge` | 57 통과 |
+| `ws test --run-skipped -t integration --package noteapp` (VM — V5 1차·V5 v2·V5b·V15) | 14 통과 |
+| 같은 것 `--dart-define FEATURE_MEDIA/RECOGNITION/MATH_ENGINE=false` | 14 통과 |
+| `ws test --platform chrome --run-skipped -t integration --package noteapp` (V6 1차·V6 v2) | 1 통과 · 1 실패(V6 v2 — INK `Int64List`) |
+| `dart test tool/test` (CI 같은 환경 변수) | 550 통과 |
+| `native_config_test` · `native_reqs_test` | 89 통과 |
+| 웹 빌드 · `web-assets verify` · `web-budget check` | 빌드·검증 통과, 예산 2 위반(`main.dart.js` 크기·증가분) |
+| Playwright (H7) | 통과, 콘솔 오류 0 |

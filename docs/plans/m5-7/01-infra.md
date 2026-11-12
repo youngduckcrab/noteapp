@@ -2214,7 +2214,7 @@ sequenceDiagram
 
 1. `BootstrapApp`이 성공 화면을 `ProviderScope → AppLifecycleBridge → AppIdleTaskRunner → NoteApp`으로 만든다.
 2. `AppIdleTaskRunner.initState` → `addPostFrameCallback`으로 첫 프레임을 기다린다. 그 직후 `immediate` 작업(`media.leaveGuard`)을 모두 시작한다 — 대기열·생명 주기 대기·지연 없이, 서로 기다리지 않는다.
-3. 나머지 작업은 `priority` 오름차순(같으면 모듈 순서)으로 하나씩: `delay`(첫 프레임 기준 — 앞 작업이 이미 그 시간을 넘겼으면 바로) → 생명 주기가 **`resumed`·`inactive`·값 없음(`null`)**이 될 때까지 대기(`hidden`·`paused`·`detached`면 기다림 — Flutter 웹은 창 `blur`에 `inactive`를 보내고(엔진 `app_lifecycle_state.dart` 95행), iPad는 시스템 선택기·키보드 보조 창이 떠 있는 동안 `inactive`라 `resumed`만 기다리면 멈춘다 — 검토 S-2) → `SchedulerBinding.instance.scheduleTask(…, Priority.idle)`로 프레임 사이에서 시작 → `await task.run(context)`. 순서는 `media.recoverDrafts`(0) → `pdf.searchIndexer`(10) → `recognition.indexer`(20)이다 — 긴 초안 복구(3시간 녹음 — CORE 위험 8)가 색인기보다 먼저 끝나 데이터 보호가 앞선다.
+3. 나머지 작업은 `priority` 오름차순(같으면 모듈 순서)으로 하나씩: `delay`(첫 프레임 기준 — 앞 작업이 이미 그 시간을 넘겼으면 바로) → 생명 주기가 **`resumed`·`inactive`·값 없음(`null`)**이 될 때까지 대기(`hidden`·`paused`·`detached`면 기다림 — Flutter 웹은 창 `blur`에 `inactive`를 보내고(엔진 `app_lifecycle_state.dart` 95행), iPad는 시스템 선택기·키보드 보조 창이 떠 있는 동안 `inactive`라 `resumed`만 기다리면 멈춘다 — 검토 S-2) → 프레임 사이, 돌고 있는 애니메이션이 없을 때 시작(통합 단계 고침 — `scheduleTask(…, Priority.idle)` 대신 `endOfFrame`을 기다리며 `transientCallbackCount == 0`을 확인. `scheduleTask`의 idle 항목은 애니메이션이 도는 동안 이벤트 루프마다 0초 타이머를 다시 걸어 기기에서는 헛돌고, 위젯 시험의 가짜 시간 `pump` 안에서는 끝나지 않았다 — V5 v2) → `await task.run(context)`. 순서는 `media.recoverDrafts`(0) → `pdf.searchIndexer`(10) → `recognition.indexer`(20)이다 — 긴 초안 복구(3시간 녹음 — CORE 위험 8)가 색인기보다 먼저 끝나 데이터 보호가 앞선다.
 4. 작업이 던지면 `AppErrorRecord(source: module, summary: 'idle task <id> failed: …')`를 남기고 다음 작업으로 간다. 한 작업이 30초를 넘겨도 다음 작업은 기다린다(취소하지 않음 — 복구 중인 녹음을 끊지 않게). 30초 넘으면 기록 한 줄.
 5. `dispose`(루트 scope가 사라짐 — '다시 시도'·앱 종료): 대기 중인 작업은 시작하지 않고, 등록된 `onDispose` 콜백을 역순으로 각 2초 제한으로 부른다. 그 뒤 `isDisposed = true` — 진행 중이던 `run`이 나중에 `onDispose`를 등록하면 즉시 부른다. 색인기 `dispose()`는 멱등이므로(계약 v2.1) provider가 스스로 `ref.onDispose`를 걸어 두 번 불려도 안전하다.
 6. `AppIdleContext.read`는 `ProviderScope.containerOf(context, listen: false).read`다. 작업이 provider를 오래 쓰려면(`listen`) 스스로 구독하고 `onDispose`에서 끊는다.
@@ -2703,6 +2703,27 @@ dart run tool/ws.dart with-heavy-lock -- \
   | 빌드 시간 | 컴파일 260초(기본, 부하 평균 8)·136초(기능 끈 빌드) | 1차 117초 — 다른 에이전트와 CPU 공유 |
 
   **묶음별 한도 제안**(총괄 결정 — 계약 7.4.5 v2.1): 위 규칙('KaTeX는 실측 + 5%, 아이콘은 여유')을 그대로 쓰면 KaTeX 389,565 B + 아이콘 실측 11,414 B가 이미 합계 한도 400,000 B를 넘는다. 그래서 합계 400,000 B를 지키는 쪽으로 **KaTeX `gzip_max: 380,000`**(실측 + 2.4% — 글꼴 파일은 `flutter_math_fork` 판이 바뀔 때만 바뀜)·**아이콘 `gzip_max: 20,000`**(실측의 약 1.75배 — 2차 UI 아이콘 추가 여유)을 제안한다. 합계 한도를 410,000 B로 올리고 KaTeX 389,565 B(+5%)를 쓰는 안은 총괄이 고를 수 있게 함께 적는다. `main.dart.js` 한도는 그대로(기준 + 300 KB) — 다른 영역 2차 구현이 들어오는 H5에서 다시 잰다.
+- **통합 단계 실측**(H5·V4, 2026-11-12 — 2차 7개 영역 병합 뒤 `c5c1333`, `flutter build web --release`, `dart:io` gzip 합 — `ws web-budget check`):
+
+  | 측정 항목 | 값 | 한도 · 판정 |
+  |---|---|---|
+  | `main.dart.js` (기본 빌드) | 6,476,935 B, gzip **1,902,938 B** | 한도 1,666,038 B **초과**(+236,900 B). 1차 기준 대비 gzip +536,900 B(한도 +300,000 B), J0(영역 2차 구현 전) 대비 +519,950 B — 총괄 결정 대기(아래) |
+  | `main.dart.js` (기능 세 개 끔) | 6,056,067 B, gzip 약 1,762,672 B(zlib 9 — 참고값) | 기본 대비 원본 −420,868 B: 녹음·인식·수식 엔진 코드 몫 |
+  | 시작 글꼴 합계 | 원본 666,012 B, gzip 385,521 B | 400,000 B 안 |
+  | ㄴ KaTeX (C24-01) | gzip 371,014 B | 380,000 B 안 |
+  | ㄴ 아이콘 (C24-01, MaterialIcons 트리 셰이킹 24,168 B) | gzip 14,507 B | 20,000 B 안 |
+  | `NoteSans` | `FontManifest.json`에 없음 | 통과 |
+  | 원본 바이트 출처(소스 맵, 매핑된 바이트 기준 — 참고) | SDK·엔진 945 KB · flutter 862 KB · note_core 317 KB · material_ui 273 KB · feature_editor 217 KB · ink_engine 154 KB · pdf_io 112 KB · feature_library 102 KB · drift 87 KB · flutter_math_fork 85 KB · media_io 71 KB · noteapp 64 KB · ink_recognition 59 KB (매핑 안 된 39.6%는 런타임·이름표) | |
+
+  `main.dart.js` 한도는 6.15 규칙대로 총괄 승인 없이 올리지 않는다(변경 요청 — 총괄). 고를 수 있는 길: ① 한도를 실측 + 여유로 다시 정함(3라운드 기준 `baseline` = 이 값) ② `deferred` import로 녹음·인식·수식(기능 끈 빌드와의 차 약 420 KB 원본)과 PDF 내보내기 경로를 첫 적재에서 뺌(영역 작업 — 계약 7.5 밖의 의존 없음) ③ ①과 ②를 함께.
+- **검색 색인 크기 기록 행**(CORE [INFRA] 요청 — 동시 개발 보충 2.1, 통합 단계 값. 출처 `docs/plans/progress/core.md` '## 2차' > '### 통합 단계' > I-6; 표시만, 한도는 CORE PF-10):
+
+  | 측정 항목 | 값 | 목표 |
+  |---|---|---|
+  | PF-10 DB 증가 — 한국어 / 혼합 / 영어 | 8.31 / 6.15 / 3.62 MiB | 12 MB 이하 |
+  | 글자 상자 블롭 (SQLite 밖) | 5.34~5.36 MiB | 표시만 |
+  | PF-10w Chrome 다시 열기 | +133 ms (131 → 264 ms) | +300 ms 이하 |
+
 - 메모리 예산(계약 7.4.5 v2.1 — 웹 합계 296 MB, 래스터·디코드 4 Mpx 상한)은 각 영역 몫이고, INFRA는 실기기 B-13 결과(개발자 표시 '앱 캐시 합계' ≤ 300 MB)를 안내서 08 보고 양식으로 받는다.
 
 ### 6.16 GitHub Actions 사용 시간 예산 · CI 잡 분리 (1차 INFRA 6.13 이어받음 — v2.1 재계산, J0)
@@ -2719,6 +2740,24 @@ dart run tool/ws.dart with-heavy-lock -- \
 **J0 완료 조건**(R2-B8b 뒤 첫 체크포인트 푸시 — 사용자가 GitHub에 올린 뒤): `ci.yml` 단계별 시간 표(1차 I13의 'Start clock' + 단계마다 `$SECONDS` 기록 → 요약)를 실행 1회 이상 읽어, 아래 표의 '추정'을 **실측으로 바꾸고 월 분을 다시 계산**해 진행 기록과 이 절에 적는다. 실측이 표보다 크면 아래 절약 장치를 순서대로 켠다.
 
 **J0 ④ 예비 실측**(2026-11-06, 2차 동시 개발 세션 11 — 완료 조건의 실행은 아님): 첫 체크포인트 푸시 전이라, 그 전에 GitHub에 있던 실행 하나를 읽었다 — `ci.yml` 실행 10(`5843ec3` = 2차 기반 단계 끝·계약 v2.3, 개발 브랜치 푸시, **J15 전의 단일 잡**, 2코어 러너). 시험 범위는 '`a23c14f` 이후 바뀐 멤버'였지만 전역 경로가 바뀌어 11 멤버 전부(VM 11 실행·Chrome 9 실행)라 전체 실행과 같다. 단계: 준비(체크아웃·Flutter·캐시·`pub get`) 50초 · `check --strict` 53초 · analyze 44초 · VM 16분 53초 · 도구 시험 1분 18초 · Chrome 13분 3초 · 웹 빌드 1분 8초(컴파일 66초) · 그 밖 7초 · 뒷정리(캐시 저장) 17초 = **35분 14초**(청구 36분) — 위 표의 '약 35분' 추정과 같다(1차 통합 뒤 30분 대비 VM +1.9분 · Chrome +3.0분). 이 단계 시간을 J15의 잡 5개에 나눠 보면 `check` ≈ 4분 10초 · `vm` ≈ 18분 · `chrome` ≈ 14분 10초 · `web` ≈ 2분 25초(× 1.5 = 6.3 · 27 · 21 · 3.6분 — 모두 지금 제한 15 · 30 · 30 · 15분 안, `vm`이 가장 가깝다), `heavy`는 이 실행에서 건너뛰어 값이 없다. 잡마다 준비 + 뒷정리 ≈ 1분 7초가 붙어 전체 실행은 청구 약 42분(+ `heavy`)이 되고, 바뀐 멤버만 도는 푸시도 잡 4개의 고정분 때문에 약 15분(표의 12분보다 큼)으로 본다 — 이 값으로 월 분을 다시 세면 약 1,594분(80% 경계 — 아래 표는 완료 조건의 실측 뒤에 바꾼다). 자세한 표는 진행 기록 '#### J0 ④ 예비 실측'. 같은 기록에서 찾은 것: GitHub에서는 `flutter test`가 github 보고 형식을 쓰므로 `ws test` 요약표의 통과·실패·건너뜀이 모두 0이었다 → `parseTestCounts`가 그 형식의 끝줄도 읽게 고침(`test_command_test`).
+
+**J0 ④ 통합 단계 실측**(2026-11-12, GitHub API로 읽음 — 푸시·재실행 없음): 체크포인트 푸시 뒤 `ci.yml` 실행 11(`462bdfe`, id 42221650367)·12(`8c2256e`)·13(`dcbb7e3`, id 43124282658)은 모두 `check` 잡의 'Tool tests'에서 실패해(549 통과 · 1 실패 — `workflows_test`의 타이밍 표 사례가 러너의 `TEST_SCOPE` 환경 변수를 물려받음, 통합 단계에서 고침 `c5c1333`) **`vm`·`chrome`·`heavy`·`web` 잡은 한 번도 돌지 않았다**. 잰 것은 `check` 잡뿐이다:
+
+| `check` 단계 | 실행 11 | 실행 13 |
+|---|---:|---:|
+| Set up job · Test scope · 체크아웃 | 4초 | 4초 |
+| Set up Flutter (캐시 적중) | 35초 | 26초 |
+| Dependencies · Lock age | 2초 | 2초 |
+| Workspace rules (strict) | 53초 | 59초 |
+| Analyze | 45초 | 53초 |
+| Tool tests (`dart test tool/test` 550) | 1분 33초 | 1분 34초 |
+| Native requirements | (건너뜀 — 앞 단계 실패) | (건너뜀) |
+| Timing · 뒷정리 | 1초 | 1초 |
+| **잡 전체** | **3분 58초** | **4분 2초** |
+
+- `check` 잡 ≈ 4분(Native requirements 수 초 더함) × 1.5 = 6분 → 지금 제한 15분 안. 다른 잡 네 개는 값이 없어 **잡별 `timeout-minutes`는 그대로 둔다**(주석 'Provisional' 유지 — 예비 실측의 추정 `vm` 18분·`chrome` 14분·`web` 2분 25초). 고친 뒤 첫 푸시의 실행에서 다섯 잡을 읽어 제한·이 표·월 분을 정한다(J15 완료 조건 — 총괄 푸시 뒤).
+- `functions.yml`(V13): 실행 2(`462bdfe`) 2분 31초·실행 3(`8c2256e`) **3분 15초** 성공(npm ci 11초 · 단위 6초 · 에뮬레이터 19초 · Flutter 47초 · Dart 에뮬레이터 시험 1분 31초) — 표의 3분 추정과 맞다.
+- 월 분: `check` 실측이 예비 추정(5분)과 같아 예비 재계산(약 1,594분 — 80% 경계)을 바꾸지 않는다. 다섯 잡 실측 뒤 다시 본다.
 
 **잡 분리안**(J15 — J0 실측으로 확정, 같은 워크플로 안의 잡 5개, `needs`로 순서. 검토 M-6의 4묶음 중 'check·analyze·VM'을 VM이 9분이라 둘로 나눔):
 

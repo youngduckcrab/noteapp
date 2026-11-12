@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:ink_recognition/ink_recognition.dart';
+import 'package:ink_recognition/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
@@ -21,6 +22,7 @@ import 'package:noteapp/src/bootstrap/idle_tasks.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/features/app_features.dart';
+import 'package:noteapp/src/modules/idle_indexers.dart';
 import 'package:noteapp/src/modules/recognition_module.dart';
 import 'package:noteapp/src/modules/recognition_wiring.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
@@ -337,6 +339,27 @@ void main() {
       await RecognitionModule().idleTasks().single.run(context);
       expect(context.callbacks, isEmpty);
     });
+  });
+
+  test('(H2) the real indexer over the fake store with a recognizer: '
+      'start → dispose → dispose again is safe (contract 7.2.11)', () async {
+    final store = createFakeNoteStore();
+    addTearDown(store.close);
+    final container = ProviderContainer.test(
+      overrides: [
+        noteStoreProvider.overrideWithValue(store),
+        handwritingRecognizerProvider.overrideWithValue(
+          FakeHandwritingRecognizer(),
+        ),
+      ],
+    );
+    final handle = readHandwritingIndexer(
+      FakeIdleContext(container: container),
+    );
+    expect(handle, isNotNull);
+    handle!.start();
+    await handle.dispose();
+    await handle.dispose();
   });
 
   test('recog.indexer dev section: id, title 손글씨 색인, the lines of '

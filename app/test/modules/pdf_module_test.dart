@@ -188,6 +188,8 @@ void main() {
       await PdfModule().idleTasks().single.run(context);
       expect(context.callbacks, hasLength(1));
       await context.dispose();
+      // (H2) the real indexer's dispose a second time is safe (7.2.11).
+      await readPdfSearchIndexer(context)!.dispose();
       container.dispose();
     });
 
