@@ -125,9 +125,12 @@ void main() {
       extra: [EntityRef(EntityKind.page, page), hw],
     );
     for (final d in [a, b]) {
+      // getPage returns active pages only (NoteContentReader: 'active page or null'); the
+      // page row itself is kept, deleted.
+      expect(await d.store.content.getPage(page), isNull, reason: d.name);
       expect(
-        (await d.store.content.getPage(page))!.isDeleted,
-        isTrue,
+        (await d.jsonOf(EntityKind.page, page))!['deletedAt'],
+        isNotNull,
         reason: d.name,
       );
       expect(await d.pageIdsOf(note), isNot(contains(page)), reason: d.name);

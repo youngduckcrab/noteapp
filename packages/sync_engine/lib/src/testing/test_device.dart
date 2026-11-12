@@ -731,9 +731,14 @@ final class TestDevice {
   }
 
   /// RecordingRepository.renameRecording-like: [title] trimmed, empty → null. Fields
-  /// {title}; the same title writes nothing.
+  /// {title}; the same title writes nothing. Throws StateError for a deleted recording (like
+  /// CORE's EntityNotFoundException — 02-core 6.6).
   void renameRecording(String recordingId, String? title) {
-    final json = _json(EntityKind.recording, recordingId);
+    final recording = _entity(EntityKind.recording, recordingId);
+    if (recording.isDeleted) {
+      throw StateError('$name: recording "$recordingId" is deleted');
+    }
+    final json = recording.toJson();
     final trimmed = title?.trim();
     _update(EntityKind.recording, json, {
       ...json,

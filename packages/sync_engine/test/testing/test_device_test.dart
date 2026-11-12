@@ -660,6 +660,9 @@ void main() {
         expect(a.doc(k, r)!.json['title'], isNull);
         expect(changed(a, k, r, () => a.deleteRecording(r)), {'deletedAt'});
         expect(changed(a, k, r, () => a.deleteRecording(r)), isEmpty);
+        // Like CORE (02-core 6.6): a deleted recording cannot be renamed.
+        expect(() => a.renameRecording(r, '2교시'), throwsStateError);
+        expect(a.doc(k, r)!.json['title'], isNull);
       });
     });
 

@@ -2,6 +2,7 @@
 
 ## 요약
 
+- (2차, 2026-11-06 통합 3단계) **통합 몫 I-0~I-3 끝** — 실제 CORE integration 66개 통과(C-01~C-31, T16-v2 16개 — H3·R1 시험 쪽 가정과 `TestDevice.renameRecording` 가짜를 고친 뒤), V13 에뮬레이터(SYNC E1~E10 + LIBRARY Dart 9, 한 실행)·규칙 R1~R11 통과, VM 1008·Chrome 70. I-4는 총괄 8단계. 아래 '## 2차' → '### 통합 단계'.
 - (2차, 2026-11-06 세션 7) 동시 개발 몫 S2-1~S2-15 끝 — 아래 '## 2차' → '### 동시 개발'. 다음: 통합 단계 I-0~I-5(실행 판정은 CORE 이정표 뒤 — '이정표 대기 표').
 - 마지막 세션: 통합 세션 1 (통합 단계) — **T16 실행·판정 끝**: 실제 CORE로 integration 42개 통과(계약 스위트 C-01~C-25 + 실제 CORE 전용 C-15·C-21·S-20, S01·S02·S05·S15 + S-20, JSON 키 대조, `FolderTree.findCycles()` 대조). 아래 '통합 단계' 절. 이전: 8 (동시 개발 단계 개발 세션 8/8) — T17 완료, T16 동시 개발 몫 완료(integration 테스트 4개 작성 — 실행·판정은 통합 단계). **동시 개발 단계 작업 T1~T17 전부 끝남** (세션 1: 문서·T1·T2·T3, 세션 2: T5·T7·T4, 세션 3: T6·T8, 세션 4: T9·T10 일부, 세션 5: T10·T11, 세션 6: T12·T13, 세션 7: T14·T15·T17 일부·T16 일부, 세션 8: T17·T16)
 - 다음 할 일: SYNC 통합 몫 없음(T16 완료). 남은 것은 M4 연결(INFRA `SyncModule`)과 9.2 iPad 체크리스트(Firebase 프로젝트 생성 후 live 채널). CORE에 보낸 변경 요청 2건(아래 '변경 요청' — 둘 다 선택·낮음)
@@ -426,3 +427,49 @@
 
 - 기반 단계에서 다른 영역이 보낸 [SYNC] 변경 요청(CORE: B7a switch 자리, INFRA: `functions.yml` 시험 수 검사·`with-heavy-lock`)은 B7a·B7b에서 이미 처리됐다 — 새 할 일 없음.
 - SYNC-F1: S2-10a·S2-10b·S2-11(P-B)을 미루게 되면 이 절에 `미룸 — V13, 빠진 작업(<id>)`을 적는다.
+
+### 통합 단계
+
+계약 7.7.1 3단계(SYNC 병합 — 순서 CORE → INK → **SYNC** → PDF → LIBRARY → EDITOR, 2026-11-06). 바탕: 통합 브랜치 `claude/note-app-planning-bk29xb` `dcbb7e3`(INFRA 체크포인트 `b032244` 뒤 6개 영역 병합 + CORE 통합 `1523f3a`·`820449d`·`dcbb7e3` + INK 통합 `526c894`). 이 단계에서 다른 영역(PDF 통합 담당)이 같은 작업 트리에서 `pdf_io`·`media_io` 시험을 고치는 중이었다 — `sync_engine`은 둘에 의존하지 않는다.
+
+| ID (계획 8.3) | 결과 |
+|---|---|
+| I-0 | 컨테이너 몫 통과: `cd functions && npm ci && npm test` **`# tests 248` 통과**(시험 수 > 0, `tsc --strict` 오류 0 — `npm test`가 `build`를 먼저 돈다). CI `functions` 잡 1회는 총괄 푸시 뒤(컨테이너 밖) |
+| I-1 | 다시 확인: `core_json_keys_test` v2(6개)와 VM `field_units_test`가 병합된 CORE 골든으로 통과 |
+| I-2 | **통과** — `dart run tool/ws.dart test --package sync_engine --run-skipped -t integration`: 첫 실행 64 통과·2 실패(H3·R1, 아래 — 둘 다 시험 쪽 가정, CORE가 [SYNC]로 보낸 것과 같음), 고친 뒤 `flutter test --run-skipped -t integration test/integration` **66 통과·실패 0**(약 30 s, 17:00 UTC): 1차 T16 파일 4개 50개(`core_sync_store_contract_test` 34 = 계약 스위트 **C-01~C-31 전부**(새 종류 C-26~C-31 포함) + 실제 CORE 전용 C-15·C-21·S-20, `core_scenarios_test` 7, `core_json_keys_test` 6, `core_folder_cycles_test` 3) + T16-v2 5파일 16개(`core_objects_scenarios_test` O1·O2·O3 (a1)·(a2)·O4·O5 6, `core_unknown_type_test` U1·U2, `core_unknown_kind_test` K1·K2, `core_handwriting_test` H1~H4, `core_recording_title_test` R1·R2). CORE 동작(힌트·고아 입양·키 집합·`content_rev`·복사) 원인 실패 없음 — 동시 개발 때 `UnimplementedError('CORE T…')`로 멈추던 경우가 모두 단언까지 간다 |
+| I-3 | **V13 통과** — `npm run test:emulator -- --with-dart` 1회(스크립트가 `ws with-heavy-lock`으로 다시 실행, 잠금 16:55:52 → 16:56:43 UTC 50 s, 대기 0 s): 한 번의 에뮬레이터 실행 안에서 SYNC 노드 시험 E1~E10 **`# tests 10` 통과**(규칙 묶음은 `# SKIP` — 아래 `test:rules`) + LIBRARY Dart `ws test --package ink_recognition --run-skipped -t emulator` **9 통과**(E1·E2·E3·E5·E6·E7·E8·E9·G-3 — 안쪽 `ws test`는 `NOTEAPP_HEAVY_LOCK_HELD=1`로 잠금을 다시 잡지 않음). 두 언어가 가짜 엔진 값(`\frac{2}{5}`·`\sqrt{67}`·`auto` = 가짜)을 같게 단언. 함수 로그에는 크기·결과만 있고 LaTeX·좌표가 없다(6.8.10 — 로그에 보이는 LaTeX는 시험 이름뿐). Java 21이 있어 규칙 시험 `npm run test:rules`도 1회(잠금 16:57:58 → 16:58:14 UTC 16 s): R1~R11 **`# tests 11` 통과**. CI `functions.yml` 1회는 푸시 뒤 |
+| I-4 | 계약 7.7.1 8단계(총괄)에서 — `-t integration`은 위 명령 그대로, `-t emulator`는 8단계 명령에 `functions/scripts/emulator_suite.sh --with-dart`로 SYNC 노드 시험을 같은 실행에 붙일 수 있다 |
+| I-5 | 실기기 SYNC 항목 없음(계획 9.3 — A·B 표에 SYNC 없음, SC-1~SC-8은 실연결 미니 라운드 뒤). PLAN 체크리스트 재료는 아래 |
+
+#### 병합본 패키지 시험 (I-2와 함께)
+
+- VM: 기준선 로그(`r2-merge-vm.log`, 병합 직후 `ws test` 전체) `sync_engine` **1008 통과·0 실패·9 건너뜀**(`integration` 9파일). 아래 수정 뒤 `dart run tool/ws.dart test --package sync_engine` 다시: **1008 통과·0 실패·9 건너뜀**(83 s).
+- Chrome: `dart run tool/ws.dart test --package sync_engine --platform chrome`(16:58:21 → 16:59:11 UTC) **70 통과**(46 s).
+- `cd packages/sync_engine && flutter analyze --fatal-infos` 0, `dart format` 변경 없음, `ws check`(R1~R16) 0·0.
+
+#### 고친 것 (시험 쪽 — 계약 의미는 그대로)
+
+- **H3** `test/integration/core_handwriting_test.dart`: `content.getPage(page)!.isDeleted`는 계약(`NoteContentReader.getPage` — 'active page or null')과 어긋났다(CORE 가짜·실제 모두 삭제된 페이지에 null → 널 검사에서 죽음). 이제 `getPage(page)`가 null이고 **페이지 행 JSON의 `deletedAt`이 있음**(`readVersioned`)을 둘 다 단언한다 — '페이지는 삭제된 채'를 행으로 직접 본다(CORE 제안보다 둘 다 넣음). 손글씨 행(`lines ['정적분']`, `deletedAt` null)·`PageRestored` 0 단언은 그대로.
+- **R1** `test/integration/core_recording_title_test.dart`: 뒷부분이 두 기기에서 이미 **삭제된** 녹음의 이름을 바꿨다 — CORE `renameRecording`은 없거나 삭제된 녹음이면 `EntityNotFoundException`(02-core 6.6 표, CORE 가짜도 같음). 이제 처음에 두 번째 녹음 R2(다른 오디오 바이트)를 같이 만들고, '두 오프라인 이름 바꾸기 → 나중 이름' 단계를 살아 있는 R2로 돈다. 단언: R2 = 나중 이름·`deletedAt` null·`getRecording(r2).title`, R은 '1강'·삭제 그대로, 앞부분 뒤 `recordingsOf` = [R2]. 앞부분(이름 대 삭제 → 삭제됨 + 이름, 따로 단위)은 그대로.
+- **가짜를 계약 문장에 맞춤**(계획 8.3 I-2 '가짜가 틀렸으면 고침'): `TestDevice.renameRecording`(`lib/src/testing/test_device.dart`, 시험 전용 `testing.dart`)이 삭제된 녹음도 이름을 바꿨다 — 그래서 가짜 시나리오 S29 뒷부분이 실제 CORE에서는 불가능한 흐름으로 통과했다. 이제 CORE처럼 삭제된 녹음이면 `StateError`(이 클래스의 다른 CORE 예외 흉내와 같은 방식 — `FolderCycleException`·`LastPageDeletionException`). 시그니처는 그대로. `test_device_test` '녹음' 묶음에 그 단언을 더했고, S29(`test/scenarios/s29_recording_title_test.dart`)는 R1과 같은 모양(R2로 이름 대결, R은 '1강'·삭제 그대로)으로 바꿨다. 무작위 수렴 v2(`fuzz_convergence_test` 연산 22)는 원래 활성 녹음만 골라 바뀌지 않는다(시드 1..20 통과). 계획 6.7.1 S29 행을 고쳤다.
+- `test/integration/support/core_sync_device.dart` 머리 주석: 이정표가 모두 들어왔음을 적고, `UnimplementedError` 가드는 그대로 둔다(이정표 없는 저장소면 곧바로 작업 번호로 실패).
+
+#### 다시 확인 (통합 단계 재시도, 커밋 직전)
+
+- 같은 작업 트리에서 다시 돌림: `flutter analyze --fatal-infos` 0, `dart format` 0 변경, `flutter test --run-skipped -t integration test/integration` **66 통과**, `ws test --package sync_engine` VM **1008 통과·0 실패·9 건너뜀**, Chrome **70 통과**(첫 시도 시간 초과 — 다른 영역 무거운 시험과 겹친 부하, ws가 한 번 다시 돌려 통과), `functions` `npm ci && npm test` **248 통과**, `npm run test:emulator -- --with-dart` SYNC E1~E10 **10 통과** + LIBRARY Dart **9 통과**.
+
+#### 변경 요청 (통합 단계)
+
+- 받은 것: CORE 통합(`core.md` '## 2차' > '### 통합 단계' I-2, 반환 changeRequests) [SYNC] H3 `getPage` 가정·[SYNC] R1 삭제된 녹음 이름 바꾸기 — 둘 다 위에서 처리. 다른 영역 진행 기록에 그 밖의 [SYNC] 표시 없음(grep).
+- 보낸 것: 없음 — CORE·LIBRARY 원인 실패 없음. 1차 통합 세션 1의 [core] 요청 2건 중 drift 경고 소음은 이번 실행 로그에 없다(`created the database class` 0회). 커밋 실패 주입(`CoreTestStore.failCommits` — 파일 이동, 롤백 저널 전제)은 그대로 동작한다(S-20 두 시험 통과).
+
+#### 계획과 다르게 한 점 (통합 단계)
+
+- S29·R1의 '두 오프라인 이름 바꾸기'를 삭제된 R이 아니라 살아 있는 R2로 돈다(위). 계획 6.7.1 S29 행을 그에 맞게 고쳤다 — 단언하는 병합 규칙(제목 단위 LWW, 제목·`deletedAt` 따로 단위)은 같다.
+- I-3에서 규칙 에뮬레이터 시험(P-C, 계획 9.1 '미니 라운드 전 1회')도 같이 돌렸다(Java 있음). 미니 라운드 전 1회 몫을 이것으로 볼 수 있다(규칙 파일은 1차 그대로).
+
+#### PLAN 체크리스트 재료 (I-5 — 총괄에게)
+
+- M4 사전 정비(SYNC 몫): 1차 동기화 엔진이 2차 새 종류(`pageObject`·`handwriting`)·녹음 `title`을 실제 CORE v2 두 개 사이에서 수렴시킨다(T16-v2 16개, 계약 스위트 C-01~C-31 실제 CORE). 모르는 `type` 왕복·모르는 `kind` 보류(옛 앱 → 갱신)도 실제 CORE에서 확인. 실연결(로그인·Firestore)은 미니 라운드 — 앱은 아직 `sync_engine`에 의존하지 않는다(계약 7.1).
+- M7-6 서버 함수: `recognizeMath` 에뮬레이터까지(V13 — SYNC E1~E10 + LIBRARY Dart 시험 같은 실행, 소유자 검사·하루 상한·오류 변환), 실제 엔진(Mathpix·Claude)은 가짜 응답 시험까지, 배포·비밀값·엔진 설정은 사용자 계정 뒤(`functions/README.md` L5).
+- 컨테이너 밖에 남은 것: CI `functions` 잡 1회(푸시 뒤), 실연결 미니 라운드(계획 6.10, SC-1~SC-8 — Firebase 프로젝트 Blaze·로그인·두 번째 Google 계정), 수식 엔진 비교(`npm run eval:math`, U6·Q1 — 비용 확인 뒤 사용자).

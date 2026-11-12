@@ -3,7 +3,9 @@
 // own (title and deletedAt are separate units).
 //
 // R1 (S29) A renames recording R while B, offline, deletes it: deleted on both AND titled;
-// then A and B, both offline, each rename R: the later title wins. R2 A's createRecording
+// then A and B, both offline, each rename a second, live recording R2: the later title wins
+// (CORE renameRecording refuses a deleted recording — 02-core 6.6 — so the two renames run
+// on one that is still active; R keeps its title). R2 A's createRecording
 // (its audio asset first, the 1st-round asset path — the fake server's blob store) shows in
 // B's watchRecordings with the same asset and title.
 //
@@ -27,8 +29,11 @@ void main() {
     final note = (await a.store.library.createNote(title: 'R1')).id;
     final r = (await a.core.createRecording(note)).id;
     final ref = EntityRef(EntityKind.recording, r);
+    final r2 = (await a.core.createRecording(note, seed: 1)).id;
+    final ref2 = EntityRef(EntityKind.recording, r2);
     await s.converge([a, b], [note]);
     expect((await b.jsonOf(ref.kind, ref.id))!['title'], isNull);
+    expect((await b.jsonOf(ref2.kind, ref2.id))!['title'], isNull);
 
     b.goOffline();
     await a.store.recordings.renameRecording(r, '1강');
@@ -41,22 +46,34 @@ void main() {
       final json = (await d.jsonOf(ref.kind, ref.id))!;
       expect(json['title'], '1강', reason: d.name);
       expect(json['deletedAt'], isNotNull, reason: d.name);
-      expect(await d.store.recordings.recordingsOf(note), isEmpty);
+      expect(
+        [for (final x in await d.store.recordings.recordingsOf(note)) x.id],
+        [r2],
+        reason: d.name,
+      );
     }
 
     a.goOffline();
     b.goOffline();
-    await a.store.recordings.renameRecording(r, '미적분 1강');
+    await a.store.recordings.renameRecording(r2, '미적분 1강');
     await nextMillisecond();
-    await b.store.recordings.renameRecording(r, '미적분 첫 강의'); // later
+    await b.store.recordings.renameRecording(r2, '미적분 첫 강의'); // later
     b.goOnline();
     await s.settle([b]);
     a.goOnline();
     await s.converge([a, b], [note], extra: [ref]);
     for (final d in [a, b]) {
-      final json = (await d.jsonOf(ref.kind, ref.id))!;
+      final json = (await d.jsonOf(ref2.kind, ref2.id))!;
       expect(json['title'], '미적분 첫 강의', reason: d.name);
-      expect(json['deletedAt'], isNotNull, reason: d.name);
+      expect(json['deletedAt'], isNull, reason: d.name);
+      expect(
+        (await d.store.recordings.getRecording(r2))!.title,
+        '미적분 첫 강의',
+        reason: d.name,
+      );
+      final deleted = (await d.jsonOf(ref.kind, ref.id))!;
+      expect(deleted['title'], '1강', reason: d.name);
+      expect(deleted['deletedAt'], isNotNull, reason: d.name);
     }
   });
 

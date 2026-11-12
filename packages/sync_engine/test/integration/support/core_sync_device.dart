@@ -12,11 +12,11 @@
 // and restart on the same file — the engine disposed, the store closed and opened again, a
 // new engine (the app update of K2).
 //
-// Before the CORE milestones of 6.7.2's table these tests fail with CORE's own
-// UnimplementedError('CORE T…: …'): a local write throws it at once, and one that only the
-// engine sees (applyRemote of a new kind on receive) is caught from the engine's log and
-// rethrown by the next wait — so a run before the milestone fails at once with the task
-// number instead of spending the wait budget.
+// Every CORE milestone of 6.7.2's table is merged (integration stage 3, I-2). The guard for
+// a missing one stays: CORE's own UnimplementedError('CORE T…: …') from a local write throws
+// at once, and one that only the engine sees (applyRemote of a new kind on receive) is
+// caught from the engine's log and rethrown by the next wait — so a store without the
+// milestone fails at once with the task number instead of spending the wait budget.
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
