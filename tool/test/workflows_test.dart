@@ -2598,6 +2598,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
         [for (final s in steps) s['name']],
         [
           'Checkout',
+          'Free disk space',
           'Enable KVM',
           'Set up Java',
           'Cache Android NDK',

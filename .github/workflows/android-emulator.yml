@@ -31,6 +31,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Room for two APK builds and the emulator image: the debug and the
+      # release build filled the runner disk (run 43229311804). Removes
+      # toolchains this job never uses.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL /usr/local/lib/node_modules /usr/share/swift
+          df -h /
+
       # Hardware acceleration for the x86_64 emulator: /dev/kvm of the runner
       # is root-only.
       - name: Enable KVM
