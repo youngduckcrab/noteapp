@@ -196,9 +196,13 @@ void main() {
       '(the empty side is left out)', (tester) async {
     final h = await _pump(tester);
     _useEraser(h, mode: ink.EraserMode.partial);
+    // The shape has no fill, so the eraser takes it only where the path
+    // crosses its outline (03-ink 6.15, U22): a vertical path at x = 250
+    // through the top (y 220) and bottom (y 280) edges, clear of strokeA
+    // (y 150) and the text box (y 320).
     await h.driver.stylusStroke(
       pathThrough(h, 0, [
-        for (var x = 120.0; x <= 280; x += 20) Offset(x, 250),
+        for (var y = 200.0; y <= 300; y += 10) Offset(250, y),
       ]),
     );
     expect(_executes(h), ['execute:remove-elements']);

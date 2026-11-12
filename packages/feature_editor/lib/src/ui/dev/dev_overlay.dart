@@ -181,6 +181,7 @@ class _DevOverlayState extends ConsumerState<DevOverlay> {
     final status = ref.watch(core.persistenceStatusProvider).value;
     final lines = <String>[
       ...devInkLines(_diagnostics!.snapshot),
+      ?devInkValuesLine(_diagnostics!.developerValues),
       ...devEditorLines(_metrics!.snapshot),
       devRecordingLine(
         recorder: ref.read(core.audioRecorderServiceProvider).status,
@@ -260,6 +261,23 @@ List<String> devInkLines(ink.InkStatsSnapshot s) {
       '보이는 획 ${s.visibleStrokeCount}  타일 래스터 ${_ms(s.lastTileRasterMs)}ms  '
       '경고 ${s.warnings}';
   return [latency, input, pressure, cache];
+}
+
+/// (contract v2.5 C25-02, integration stage) The [INK] values outside the
+/// snapshot, from InkDiagnostics.developerValues: the layer 4′ playback paint
+/// p95 (`playbackPaintUs`), the annotation layer paint p95
+/// (`annotationPaintUs`) and the formula raster cache (`mathCacheBytes`).
+/// Only the keys INK has measured are shown; null (no line) when none is.
+String? devInkValuesLine(Map<String, num> values) {
+  final playback = values['playbackPaintUs'];
+  final annotation = values['annotationPaintUs'];
+  final mathCache = values['mathCacheBytes'];
+  final parts = [
+    if (playback != null) '재생 그리기 p95 ${playback.round()}µs',
+    if (annotation != null) '주석 그리기 p95 ${annotation.round()}µs',
+    if (mathCache != null) '수식 캐시 ${_mb(mathCache.round())}',
+  ];
+  return parts.isEmpty ? null : '       ${parts.join('  ')}';
 }
 
 /// `0x02` — [buttons] in hex, at least 2 digits.

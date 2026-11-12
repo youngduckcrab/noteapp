@@ -327,7 +327,9 @@ void main() {
     final h = await _pump(tester);
     _tool(h, EditorTool.lasso);
     await tester.pump();
-    final at = h.toGlobal(0, const Offset(360, 160));
+    // On the left edge of the unfilled shape: INK hits an unfilled shape on
+    // its outline only (03-ink 6.14), not inside.
+    final at = h.toGlobal(0, const Offset(300, 160));
     await h.driver.stylusStroke([at, at + const Offset(1, 1)]);
     await tester.pump();
     expect(_selection(h)?.elementIds, {_shape.id});

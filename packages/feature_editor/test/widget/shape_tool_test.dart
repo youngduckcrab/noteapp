@@ -236,7 +236,9 @@ void main() {
   testWidgets("a tap-selected shape's body: a drag there starts a new shape "
       '(the selection dropped), not a move', (tester) async {
     final h = await _pump(tester);
-    await _tap(tester, h, const Offset(395, 220)); // inside the triangle
+    // On the triangle's base (y 260): INK hits an unfilled shape on its
+    // outline only (03-ink 6.14).
+    await _tap(tester, h, const Offset(395, 260));
     expect(_selection(h)!.elementIds, {_triangle.id});
     final before = _ids(h);
     await _drag(tester, h, const Offset(380, 200), const Offset(440, 240));

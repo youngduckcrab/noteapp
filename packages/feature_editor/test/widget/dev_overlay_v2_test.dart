@@ -10,6 +10,7 @@ import 'package:feature_editor/src/input/stylus_contact.dart';
 import 'package:feature_editor/src/ui/dev/dev_overlay.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart';
@@ -42,6 +43,48 @@ void main() {
     expect(buttonsHex(kPrimaryStylusButton), '0x02');
     expect(buttonsHex(kPrimaryButton | kPrimaryStylusButton), '0x03');
     expect(buttonsHex(0x1ff), '0x1ff');
+  });
+
+  test('devInkValuesLine (C25-02): only the measured keys; none → no line', () {
+    expect(devInkValuesLine(const {}), isNull);
+    expect(
+      devInkValuesLine(const {'annotationPaintUs': 412.6}),
+      '       주석 그리기 p95 413µs',
+    );
+    expect(
+      devInkValuesLine(const {
+        'mathCacheBytes': 3 * 1024 * 1024,
+        'playbackPaintUs': 1200,
+        'annotationPaintUs': 80,
+      }),
+      '       재생 그리기 p95 1200µs  주석 그리기 p95 80µs  수식 캐시 3.0MB',
+    );
+    expect(devInkValuesLine(const {'mathCacheBytes': 0}), '       수식 캐시 0.0MB');
+  });
+
+  testWidgets('C25-02: InkDiagnostics.developerValues show under [INK] once '
+      'measured (a text box → the annotation layer paint)', (tester) async {
+    final h = await pumpEditor(
+      tester,
+      settings: _devOn,
+      objectsByPageIndex: {
+        0: [PageObjectFixtures.textBox(pageId: 'x', id: 'tb-1', text: '메모')],
+      },
+    );
+    await _shown(tester);
+    final values = h.container.read(ink.inkDiagnosticsProvider).developerValues;
+    // The overlay turns the diagnostics on, so the text box's annotation
+    // paint is measured; no playback ran and no formula is on the page.
+    expect(values.containsKey('annotationPaintUs'), isTrue);
+    expect(values.containsKey('playbackPaintUs'), isFalse);
+    final line = devInkValuesLine(values)!;
+    expect(line, contains('주석 그리기 p95 '));
+    expect(line, isNot(contains('재생 그리기')));
+    final text = _overlayText(tester);
+    expect(text, contains(line));
+    // Right after the INK block, before [EDITOR].
+    expect(text.indexOf(line), lessThan(text.indexOf('[EDITOR]')));
+    expect(text.indexOf(line), greaterThan(text.indexOf('[INK]')));
   });
 
   testWidgets('native: a touching pen shows its buttons and rule, no 공중; '

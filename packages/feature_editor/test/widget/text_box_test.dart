@@ -288,7 +288,10 @@ void main() {
     testWidgets('a tap on another object selects it (origin tap — no edit); '
         'its body down then starts a new box', (tester) async {
       final h = await _pump(tester);
-      await _penTap(tester, h, const Offset(400, 570));
+      // On the unfilled shape's left edge: INK hits an unfilled shape on its
+      // outline only (03-ink 6.14). The second tap is inside its frame (the
+      // selection's body).
+      await _penTap(tester, h, const Offset(320, 570));
       final selection = h.container.read(editorSelectionProvider)!;
       expect(selection.elementIds, {_shape.id});
       expect(selection.origin, SelectionOrigin.tap);

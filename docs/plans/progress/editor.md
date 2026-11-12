@@ -373,10 +373,10 @@
 | E2-19 | 완료 | 36db6d8 | `widget/initial_focus_test.dart`(11 — **페이지 30 + 사각형**(40쪽, 사각형은 페이지 위 시작 카메라 아래쪽) → 현재 페이지 30·`editorCurrentPageIndexProvider` 30·사각형 화면 안·배율 그대로(들어감), `editor.focusFlash` = 사각형 화면 좌표 + 6 px·tertiary 20 % 채움·2 px 테두리·반경 6, **0.4 s 켜짐 → 0.3 s 꺼짐(위젯은 남고 opacity 0) → 0.4 s 켜짐 → 0.5 s 사라짐(`AnimatedOpacity` 500 ms) → 1.6 s 뒤 없음**(399·401·701·1101·1599·1601 ms), 카메라를 따라감(`panBy`·`zoomBy` 뒤 다시 같은 식), **입력 → 바로 사라짐**(페이지 위 손가락 down·툴바 더보기 탭·휠·키 down), 모르는 페이지 + 사각형 → 무시(0쪽·강조 없음), `initialPageId` 없음 + 사각형 → 무시(0쪽·배율 1·강조 없음), 페이지 밖 사각형 → 그 페이지만·강조 없음, 반쯤 밖 → 페이지 안 부분만 강조, **확장 `navigateToPage(id, rect)`** → 강조(카메라 애니메이션 중에도 따라감)·rect 없음 → 강조 없음·강조 중 두 번째 → 처음부터·모르는 id → 없음), `widget/erase_v2_test.dart`(11 — `EraserSettings.eraseShapes` 기본 true·`toSpec`·`==`·JSON(빠짐 → true·`v` 1), **획 지우개가 획 + 도형 지남 → `execute:remove-elements` 1개(획·도형 id)**·텍스트·이미지·수식 그대로·되돌리기 1번, **부분 지우개가 획 + 도형 → `execute:composite` 1개 = [`SplitStrokes`(획 → 조각 2), `RemoveElements([도형])`]·`undoLabel` composite·되돌리기 1번에 획(조각 사라짐)과 도형 복구**(INK 화면 내용까지), 부분 지우개가 도형만 → `RemoveElements` 하나(빈 쪽 뺌), 획·부분 × **'도형도 지우기' 끔**(지우개 팝업 스위치) → 도형 남음·`remove-strokes`/`split-strokes`·500 ms 뒤 `editor.eraser`의 `eraseShapes: false`, **전체 지우기**(더보기): 필터 `all` → 체크 '도형·텍스트·이미지·수식도 지우기' 켬 → `ClearPage(includeObjects: true)` 1단계·되돌리기 1번에 모두 복구, 체크 끔 → `includeObjects: false`·객체 남음, 형광펜만·형광펜 제외 → 체크 없음·`includeObjects: false`, 취소 → 명령 0) + 1차 `widget/erase_test.dart`·`eraser_panel_test.dart`·`unit/tool_controller_test.dart`(JSON 기댓값에 `eraseShapes`) 그대로 통과 |
 | E2-20 (P-B) | 완료 | 727c15f (1부) · 505200f (2부) | 1부(도형 표본·개발자 메뉴): `unit/shape_samples_test.dart`(3 — 빈 시작·최근 5개 최근 순·6번째가 1번째를 밀어냄·`clear`, `resultOf` = `addShape:<kind>`(INK `addShape` 편집)·획·다른 편집·null → `stroke`, LIBRARY 형식 `{kind, points, viewScale}` 키 순서·점 소수 둘째 자리·`none`·`jsonEncode` 왕복), `widget/dev_menu_test.dart` v2(1차 5 + 5 — **도형 표본 모으기** 끔(기본) → 획에 표본 0, 메뉴 체크 → `EditorDeviceState.collectShapeSamples` → 펜 세션마다 페이지 pt 점(down + move 8 + up = 10)·`viewScale` = 카메라 배율·`stroke`, 최근 순, 8번 그리면 5개만, **도형 표본 복사** → 표본 시트(최근 순 `1. stroke`) → 기대 종류 시트(7종 + '도형 아님(글씨)') → 사각형 → 클립보드 JSON `{kind: rectangle, points: 10 × [x, y], viewScale}` + '도형 표본을 복사했어요', 도형 아님 → `none`, 표본 없음 → '모은 표본이 없어요'·복사 없음, '텍스트 상자 시험' 있음·'텍스트 입력 방식'은 웹에서만). 2부(개발자 표시 줄): `widget/dev_overlay_v2_test.dart`(6 — `buttonsHex`(2자리 이상), **native** 닿은 펜 `buttons 0x01  규칙 native`·공중 없음·펜 버튼 → `0x02`, **web** 공중 펜 + 버튼 → `buttons 0x02  규칙 web  공중`·닿으면 `0x03`·공중 없음, **호버 출처** `-` → `flutter(stylus)` → `flutter(mouse)`, **[녹음]** `idle  마지막 획 offset -  재생 idle 0ms` → 녹음 중 획 → `recording  마지막 획 offset 1200ms` → 재생 `playing 3400ms`, **객체** 3개 페이지 → `객체 3 / 2000`) |
 | E2-22 | 완료 | 32e1074 | `goldens/object_handles_golden_test.dart`(6 — `golden` 태그·VM, E2-06 `selection_frame_v2_golden_test`와 같은 틀(빈 페이지 `SolidBackgroundBuilder`·`SelectionFrame`의 `RepaintBoundary`만): **사각형**(폴리라인 — 모서리 4 + 변 4 + 회전 = 9), **30° 타원**(돌린 frame·핸들 8·회전 핸들이 같이 돎), **텍스트 상자**(모서리 4 + 왼쪽·오른쪽 폭 핸들), **이미지 비율 풀림**(모서리 4 + 변 4), **오각형 꼭짓점 모드**(꼭짓점 5·상자 핸들·회전 없음), **직선**(끝점 2·상자 없음) — 그림마다 `selectionFrameOnScreen`의 핸들 수도 단언), `unit/performance_smoke_test.dart` v2(1차 4 그대로 + 6.22 표 6줄: 펜 다운 추가 비용(접촉 규칙 둘 + 접촉 제스처 + 녹음 중 `RecordingLink.metaFor`) 1만 회 < 20 ms, 재생 강조 한 프레임(`positionMs` + `PlaybackHighlightLogic.onTick` + 마운트 8쪽 `setPlaybackFocus`) 1천 회 < 50 ms, 획 5천 + 객체 200 전부 선택 회전 미리보기(각·`snapAngle`·`setPreviewTransform`) < 2 ms + 그 프레임(`selectionFrameOnScreen` 모서리 4·회전 핸들·꼭짓점 위치), 도형 끌기 move 1천 회(실제 `ShapeInteraction` — 사각형·별) < 30 ms, 붙여넣기 `instantiate` 획 2천 + 객체 200 < 20 ms, **텍스트 편집 중 글자 입력**(3번) → `EditorPageView`·`PageViewport` 빌드 0회(`debugOnRebuildDirtyWidget` — 편집기 `TextField`는 다시 빌드됨, 대조: 확대 정착 뒤 `EditorPageView` 빌드 > 0) — 1차 여유 규칙(데우기 1 + 5회 중 최소, `fakeAsync`)), `unit/mapping_coverage_test.dart`(새 — 10 #4·9.3: `test/helpers/mapping_table.dart` 27행(1차 10 + 2차 17)이 계획 순서대로 있고 P-B·P-C 작업을 가리키지 않으며, 행마다 덮는 시험 파일이 있고 그 명령 라벨(`execute:<label>`·`undoLabel`)과 되돌리기 단계(`undoDepth`·`undoLabel`)를 단언), 패키지 VM 전체·Chrome 전체(아래 결과 보고) |
-| E2-21 | 통합 단계 | | `integration/objects_smoke_test.dart`(C15-04 순서 — EDITOR-F1), `integration/recording_link_smoke_test.dart`, `web/editor_browser_smoke_v2_test.dart` — 파일은 `integration` 태그로 미리 써 둘 수 있음 |
-| E2-21b (P-B) | 통합 단계 — INK T39·E2-15 둘 다 병합됐을 때만 | | `integration/shape_assist_smoke_test.dart` |
-| E2-23 | 통합 단계 | | INFRA V5·V6(·V5b) — 실패 단계·대응 시험·원인을 이 줄에(EDITOR-F2) |
-| E2-24 | 통합 단계(7.7 9단계 뒤) | | 진행 기록에 결과·결정 |
+| E2-21 | 완료(통합 단계) | r2-integration | `integration/objects_smoke_test.dart`(C15-04 순서 — EDITOR-F1, 실제 CORE + 실제 INK), `integration/recording_link_smoke_test.dart`(실제 CORE + 실제 INK + CORE 가짜 오디오 포트), `web/editor_browser_smoke_v2_test.dart`(Chrome, 웹 접촉 규칙) — 아래 '### 통합 단계' |
+| E2-21b (P-B) | 완료(통합 단계 — INK T39 `edd7834`·E2-15 `6fa0a30` 둘 다 병합) | r2-integration | `integration/shape_assist_smoke_test.dart` |
+| E2-23 | 대응 시험 준비 끝 · V5 통과(병합본, VM) · V6 본 흐름 단계 모두 통과(끝난 뒤 멈춤 — EDITOR 원인 아님, 아래) · V5b 파일은 INFRA 7단계 몫(아직 없음) | r2-integration | INFRA V5·V6(·V5b) — 실패 단계·대응 시험·원인을 이 줄에(EDITOR-F2). 단계별 대응 시험 2~5 = `integration/objects_smoke_test.dart`, 6~7 = `integration/recording_link_smoke_test.dart` + `widget/recording_panel_slot_test.dart`, 8 = `widget/selection_extensions_test.dart`·`widget/insert_menu_test.dart`, 9 = `widget/initial_focus_test.dart`, V6만 = `web/editor_browser_smoke_v2_test.dart`, V5b = `integration/shape_assist_smoke_test.dart`·`widget/shape_assist_test.dart` — 모두 통과 |
+| E2-24 | 대기 — 실기기(B-2·B-15·B-4·A-2) 결과가 필요해 컨테이너에서 할 수 없음(Hosting 미리보기·기기 뒤) | | 진행 기록에 결과·결정 |
 
 순서(8.2 선행): E2-00 → E2-01(첫 작업 — EDITOR-F4: Hosting이 없어 Chrome 시험과 통합 Playwright 스모크로 판정) ∥ E2-02·E2-03·E2-04a → E2-04b → E2-16 → E2-17 → E2-05 → E2-06 → E2-07a → E2-07b → E2-07c → E2-08·E2-09 → E2-10 → E2-12 → E2-14 → E2-19 → E2-13 → E2-22, P-B(E2-10b·E2-15·E2-18·E2-20)는 P-A 뒤, P-C(E2-11)는 B-2 결과에 따라.
 
@@ -657,3 +657,75 @@
 - E2-01 미리보기(B-2·B-15 앞당김 — 6.11.6 '순서')는 Hosting이 없어 하지 않았다(EDITOR-F4: Chrome 시험과 통합 Playwright 스모크로 판정). 실기기에서 볼 때는 개발자 표시 켬 → 더보기 > 개발자 메뉴 > 텍스트 상자 시험(웹이면 '텍스트 입력 방식'으로 sheet 전환).
 - 1차 `EditorCanvasFocus`는 캔버스 down마다 캔버스 포커스를 요청한다 — E2-01 오버레이에서는 캔버스 down이 `onTapOutside`(캔버스는 아직 탭 묶음 밖) 또는 `focusLost`로 세션을 끝낸다. 탭 묶음·포커스 양보·라우터 끝은 E2-10.
 - EDITOR-F3: E2-15(P-B)를 미루게 되면 이 표의 E2-15 줄을 `미룸`으로 두고 여기에 `E2-15 미룸`을 적는다(E2-21b·V5b·V15 자동 도형 판정 근거).
+
+### 통합 단계
+
+2차 통합(계약 7.7.1 6단계 'EDITOR', 2026-11-12). 바탕: 통합 브랜치 `claude/note-app-planning-bk29xb` — 2차 병합(CORE → INK → SYNC → PDF → LIBRARY → EDITOR, `8c2256e`) 뒤 CORE·INK·SYNC·PDF 통합 커밋(`1523f3a`·`820449d`·`526c894`·`dcbb7e3`·`48168da`·`04602cc`·`e57a675`) 위. `lib/` 변경은 C25-02 한 곳(`ui/dev/dev_overlay.dart`)뿐, 나머지는 시험.
+
+#### 병합 기준선에서 실패한 VM 시험 4개 — 원인과 고침 (INK 변경 요청 [EDITOR] 처리)
+
+VM 기준선 로그(`r2-merge-vm.log`)의 feature_editor 실패 4개는 모두 **기반 단계 INK의 '테두리 상자 맞힘'을 전제한 시험**이었다. 실제 INK는 03-ink 6.14(`hitTestObject`: 채우지 않은 도형은 외곽선 tol + w/2 안에서만, 안쪽은 채웠을 때만)·6.15(지우개: 외곽선 R + w/2 또는 채운 안쪽, U22)를 따른다 — EDITOR 결함이 아니다. 시험이 보는 것(선택·명령·되돌리기)은 그대로 두고 **누르는 자리만** 외곽선 위로 옮겼다:
+
+| 시험 | 바꾼 것 |
+|---|---|
+| `widget/erase_v2_test.dart` 'partial eraser over a shape only' | 가로 경로 y=250(사각형 (100,220)-(300,280) 안쪽) → 세로 경로 x=250, y 200→300(위·아래 변을 지남, strokeA y=150·텍스트 상자 y=320을 피함) |
+| `widget/lasso_mixed_test.dart` 'a stylus tap with the lasso tool selects the object under it' | (360,160) 안쪽 → (300,160) 왼쪽 변 |
+| `widget/shape_tool_test.dart` 'a tap-selected shape's body' | (395,220) 삼각형 안쪽 → (395,260) 밑변. 뒤의 '본체 끌기 → 새 도형'은 그대로 안쪽에서 |
+| `widget/text_box_test.dart` 'a tap on another object selects it' | 첫 탭 (400,570) 안쪽 → (320,570) 왼쪽 변. 두 번째 탭은 그대로 안쪽(선택 frame의 본체 → 새 상자) |
+
+UX에서 채우지 않은 도형을 안쪽 탭으로 골라야 한다면 계약 7.2.9 `hitTestObject` 변경(7.4.9, 총괄)이다 — 지금은 계약대로 둔다.
+
+#### C25-02 — 개발자 표시에 `InkDiagnostics.developerValues`
+
+`devInkValuesLine(Map<String, num>)`(`ui/dev/dev_overlay.dart`)이 [INK] 블록 바로 뒤(=[EDITOR] 앞)에 한 줄을 더한다: `재생 그리기 p95 <µs>µs`(`playbackPaintUs`)·`주석 그리기 p95 <µs>µs`(`annotationPaintUs`)·`수식 캐시 <MB>`(`mathCacheBytes`). **값이 있는 키만** 보이고, 셋 다 없으면 줄이 없다(INK가 측정한 키만 넣는다는 C25-02 규칙 그대로). 개발자 표시가 켜져 있을 때만 INK 진단이 켜지므로 값도 그때만 생긴다. 시험: `widget/dev_overlay_v2_test.dart` +2 — 순수 함수(빈 맵 → null, 한 키·세 키·0바이트), 위젯(개발자 표시 켬 + 텍스트 상자 1개 → `annotationPaintUs` 있음·`playbackPaintUs` 없음, 그 줄이 [INK]와 [EDITOR] 사이에 보임). 문구는 계획서가 정하지 않아 내가 정했다(개발자 문구 — `EditorStrings`가 아님, 6.12.2의 다른 [INK] 줄과 같은 꼴).
+
+#### E2-21 — 통합 스모크 v2 (실제 CORE `openTestNoteStore()` + 실제 INK)
+
+- `integration/objects_smoke_test.dart`(`integration` 태그·VM): 획 1 + 타원 1이 있는 노트 열기 → 펜 획 → 텍스트 도구 탭 → '회의록 abc' → 툴바 제목 탭(`tapOutside`) → 도형 도구 끌기(사각형) → [+] › 이미지 › 사진 보관함(`FakeImageImporter`가 실제 `AssetStore`에 PNG를 넣음) → 올가미로 전부(`elementIds` = 6개 전부, `origin lasso`) → ⋯ 90° 돌리기(`transform`, 사각형 bounds 가로·세로가 바뀜 — 폴리라인이라 `frame.rotation`이 아니라 점이 돈다) → 색(빨강 — 모든 획·도형 테두리·텍스트 색) → 잘라내기(`remove-elements`, 페이지 빔) → 문맥 메뉴 붙여넣기(같은 종류·개수, 새 id, `origin paste`) → **되돌리기 사슬 끝까지 8번**(C15-04 — 노트를 연 직후의 획·객체: id·종류·strokeA 스타일·타원 frame, INK 컨트롤러도 타원 하나) → **다시 실행 8번**(붙여넣은 뒤 상태) → 나가기(`pendingOps` 0, 세션 닫힘) → 다시 열기: 같은 id·종류·개수·frame·'회의록 abc', 컨트롤러 객체 id 일치, **다시 연 세션 `undoDepth == 0`**. `inkShapeFitterProvider`는 override하지 않음(P-A만).
+- `integration/recording_link_smoke_test.dart`(`integration`·VM, `fakeAudio: true`): `FakeAudioRecorder.start` → 획 3개(offset 1200·3000·5500 = 펜 다운 때 값) → `stop` → 실제 CORE `Recording` 행(`getRecording`·`recordingsOf`, 길이 ≥ 7500 ms), DB에서 다시 읽은 획도 같은 offset → `FakeAudioPlayback.open` → `ready`·모든 마운트 컨트롤러 `playbackFocus == null` → `play` + `setPositionMs(3200)`·`(6000)` → 다음 프레임에 실제 INK `InkPlaybackFocus(rec, 3200)`·`(rec, 6000)` → 재생 중 둘째 획 위 펜 점 → `calls`에 `seek:<offset − preRollMs>` 하나, 점 획 없음.
+- `web/editor_browser_smoke_v2_test.dart`(Chrome, `setUpAll(useInkTestFonts)`, 가짜 저장소 + 실제 INK): `StylusContact.platformRule == web` → 도형 도구 끌기(접촉 비트가 있는 이동) → `add-objects` 1개·INK 컨트롤러에 그 도형 → 텍스트 도구 탭 → '회의록 abc' → 제목 탭(`tapOutside`) → `add-objects` 하나 더 → 되돌리기 2번 → 상자, 그다음 도형이 사라짐·`canRedo`.
+
+**시험 하네스 메모(결함 아님)**: 화면이 fake-async 영역에서 시작한 실제 저장소 작업(이미지 에셋 `put`, 녹음기 `stop`)이 있으면 `tester.runAsync(store.close)`·`runAsync(store.assets.hasBytes)`가 끝나지 않는다(그 작업의 완료가 fake-async 쪽 마이크로태스크에 걸려 있음). 그래서 새 통합 시험은 저장소 호출을 fake-async 영역에서 시작하고 `runAsync` 짧은 대기 + `pump`를 번갈아 돌려 끝낸다(`_flush`·`_await`). 1차 `real_core_ink_smoke_test`처럼 획만 쓰는 시험은 예전 방식 그대로 통과한다.
+
+#### E2-21b — 자동 도형 통합 스모크 (P-B, 판정에 듦)
+
+INK T39(`edd7834`)·E2-15(`6fa0a30`)가 둘 다 병합돼 10 #1 규칙대로 판정에 넣었다. `integration/shape_assist_smoke_test.dart`(`integration`·VM, 실제 CORE + 실제 INK): `inkShapeFitterProvider` = `FakeInkShapeFitter(fit: 사각형 (150,200)-(350,320), score 0.95)` → 펜으로 `SyntheticInk.loopThenHold(holdMs: 0)`의 고리를 포인터로 → 포인터를 그대로 두고 fake 시간 600 ms(새 표본 없음 — INK 타이머 경로, 03-ink 6.18) → 떼기 → `content.objects` = `ShapeObject`(rectangle, 그 기하) 1개·획 0개, `undoDepth` 1(`add-objects` 한 단계), INK 컨트롤러도 같음 → 되돌리기 → 도형·획 모두 없음·`canUndo` false(원래 획은 저장된 적 없음 — 7.2.3) → 다시 실행 → 같은 id 도형 → 나가기·다시 열기 → 도형 유지·획 없음·`undoDepth` 0. 첫 실행에 통과 — INK 멈춤 감지·미리보기와 EDITOR 연결 사이에 어긋남 없음.
+
+#### E2-23 — INFRA V5·V6 지원
+
+- 대응 시험(8.3 E2-23 단계별 목록)이 모두 있고 통과한다(위 + 동시 개발 위젯 시험).
+- 병합본에서 INFRA 시험을 직접 한 번 돌려 EDITOR 원인 실패가 있는지 봤다(판정은 INFRA 7단계 몫):
+  - V5 `app/test/integration/app_smoke_v2_test.dart`(VM, `--run-skipped -t integration`): **통과**(1/1, 5 s).
+  - V6 `app/test/web/app_smoke_v2_browser_test.dart`(Chrome, `ws with-heavy-lock`): 시험이 찍는 단계가 **끝까지 모두 나온다**(step 3 서재 배너 → 4 새 노트 → 5 에디터 배너 → 6 획 → 8 되돌리기·다시 실행 → 7 닫고 다시 열기 → 에디터 나가기 → `step done`) — 그 뒤 시험 본문과 `tearDownAll`이 'did not complete'(01:51). 에디터 단계는 다 지났고 멈춤은 마지막 단계 뒤라 EDITOR 원인으로 보지 않는다. 같은 대응의 EDITOR 시험 `web/editor_browser_smoke_v2_test.dart`·1차 `web/editor_browser_smoke_test.dart`는 Chrome에서 통과. INFRA 7단계 판정 때 한 번 더 볼 것(아래 '남은 것').
+  - V5b `app/test/integration/app_smoke_shape_assist_test.dart`: 아직 없다(INFRA 7단계에서 만듦). EDITOR 대응 시험 E2-21b·`widget/shape_assist_test.dart`는 통과.
+
+#### 확인 (이 통합 커밋 기준)
+
+| 확인 | 결과 |
+|---|---|
+| `ws test --package feature_editor --platform vm` | **1497 통과**, 실패 0, 건너뜀 4(`integration` 4파일), 236 s |
+| `ws test --run-skipped -t integration --package feature_editor` | **4 통과**(1차 `real_core_ink_smoke_test` + `objects_smoke_test` + `recording_link_smoke_test` + `shape_assist_smoke_test`), 53 s |
+| `ws test --package feature_editor --platform chrome` | **4 통과**(1차 브라우저 스모크 + E2-01 텍스트 입력 2 + `editor_browser_smoke_v2_test`), 62 s |
+| `unit/performance_smoke_test.dart` 혼자 3번(1차 '5,000획 페이지 펜 획 커밋 < 5 ms' 포함 10개) | 3번 모두 통과. 전체 실행 안에서도 이번에는 통과(동시 개발 세션 4·5·6에서 부하 때 한 번씩 흔들림 — 그때마다 혼자 재실행 통과). 실제 시간 단언이라 부하 때 다시 흔들릴 수 있음 — 기록만 |
+| `ws check` | R1~R16 위반 0 |
+| 루트 `flutter analyze --fatal-infos` | 0 |
+| `dart format --set-exit-if-changed packages/feature_editor` | 바뀐 파일 0 |
+
+#### 받은 변경 요청 처리
+
+- [INK] 실제 INK에서 깨진 VM 시험 4개 → 위 표대로 고침(누르는 자리만, 단언 그대로).
+- [INK] C25-02 → 처리(위).
+- [INK] E2-21b 파일 → 만들고 통과.
+- [CORE] 병합 직후 CORE가 본 'EDITOR/INK widget failures in erase_v2, lasso_mixed, shape_tool and text_box' → 같은 4개, 처리.
+- 다른 영역 진행 기록의 `[EDITOR]` 표시는 INK 것뿐(위 셋)이고 모두 처리했다.
+
+#### 보낸 변경 요청
+
+- 없음. CORE·INK 결함은 찾지 못했다(E2-21·E2-21b 모두 실제 CORE·INK에서 통과, 1차 스모크도 통과).
+
+#### 남은 것
+
+- INFRA 7단계: V5·V6·V5b 판정(EDITOR 원인 실패가 나오면 E2-23 줄에 단계·대응 시험·원인). V6은 위 '끝난 뒤 멈춤'을 INFRA가 다시 볼 것.
+- E2-24(7.7 9단계 뒤, 컨테이너 밖): B-2·B-15(iPad Safari IME·선택 손잡이·스크롤 중 편집) 결과로 `webTextInput` 기본값 결정(`inline`/`sheet` — 둘 다 불합격이면 E2-11), B-4 자동 도형 체감 → 개발자 메뉴 '도형 표본 모으기'로 모은 표본을 LIBRARY 형식으로 LIBRARY에 전달, A-2 S펜 결과로 E-4 접촉 규칙 보정. Firebase Hosting 미리보기·기기가 있어야 한다.
+- 실기기 B 체크리스트(10 #8 — B-2·B-3·B-5·B-7·B-8·B-15 합격, 나머지 기록), A(기기가 있을 때), C(TestFlight 뒤).
+- 앱 `flutter build web --release`·Playwright 스모크는 총괄 9단계.
