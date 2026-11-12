@@ -1,6 +1,6 @@
 # 필기노트 앱 기획서 (v1.1)
 
-> 최종 수정: 2026-11-05 (10장 진행 표시 — 1차 통합 뒤) · 상태: 확정 (1단계: 개인 사용)
+> 최종 수정: 2026-11-12 (10장 진행 표시 — 2차 통합 뒤) · 상태: 확정 (1단계: 개인 사용)
 > 진행 상황은 [10장 개발 로드맵](#10-개발-로드맵)의 체크리스트로 관리한다.
 
 ---
@@ -577,16 +577,16 @@ Mac과 Apple 개발자 계정이 없는 상태에서 시작하므로 두 단계�
 
 마일스톤마다 실기기에서 써볼 수 있는 결과물을 만든다. 기간보다 '써보고 합격'을 완료 기준으로 삼는다.
 
-> **진행 (2026-11-05, 1차 통합 뒤)** — 7개 영역을 동시에 개발해 통합 브랜치 `claude/note-app-planning-bk29xb`에 합쳤고, 컨테이너 검증 V1~V6을 통과했다([plans/00-review.md '1차 통합 결과'](plans/00-review.md#1차-통합-결과)).
-> - `[x]` = 코드와 자동 테스트로 끝난 항목. 괄호 안은 근거가 되는 영역 작업·테스트([plans/](plans/) 각 계획서 8장, 진행 기록 [plans/progress/](plans/progress/)).
+> **진행 (2026-11-12, 2차 통합 뒤)** — 1차(M0~M4 일부)에 이어 2차(M5 편집·M6 녹음·M7 인식)도 7개 영역을 동시에 개발해 통합 브랜치 `claude/note-app-planning-bk29xb`에 합쳤고, 컨테이너 검증 V1~V16을 통과했다([plans/m5-7/00-review.md '2차 통합 결과'](plans/m5-7/00-review.md#2차-통합-결과), 계약 [plans/m5-7/00-overview.md](plans/m5-7/00-overview.md) 7장 v2.7). 1차 결과는 [plans/00-review.md '1차 통합 결과'](plans/00-review.md#1차-통합-결과).
+> - `[x]` = 코드와 자동 테스트로 끝난 항목. 괄호 안은 근거가 되는 영역 작업·테스트(1차는 [plans/](plans/) 각 계획서 8장, 2차는 [plans/m5-7/](plans/m5-7/) 각 계획서 8장, 진행 기록 [plans/progress/](plans/progress/) '## 2차').
 > - `[ ]` + **사용자 확인 대기** = 사용자가 해야 할 일(계정·프로젝트 만들기)이나 실기기 확인이 남은 항목.
-> - 각 마일스톤의 **완료 기준**(실기기 합격)은 아직 하나도 판정하지 않았다. 미리보기 배포 뒤 iPad 체크리스트(각 계획서 9.2·9.3, [안내서 04](guides/04-ipad-web-test.md))로 판정한다. 웹 빌드는 필기감 수치만 기록하고, 필기감 합격은 네이티브 전환에서 판정한다(9.5).
+> - 각 마일스톤의 **완료 기준**(실기기 합격)은 아직 하나도 판정하지 않았다. Firebase Hosting 미리보기 뒤 iPad 체크리스트로 판정한다 — 1차는 각 계획서 9장·[안내서 04](guides/04-ipad-web-test.md), 2차는 [안내서 08 실기기 체크리스트](guides/08-device-checklist.md)(계약 7.8 A·B·C). 웹 빌드는 필기감 수치만 기록하고, 필기감 합격은 네이티브 전환에서 판정한다(9.5).
 
 ### M0. 개발 환경 & 웹 테스트 경로
 
 - [x] Flutter 프로젝트 생성, 폴더 구조, 린트 규칙 (INFRA B1: Dart pub 워크스페이스 8개 멤버, 루트 `analysis_options.yaml`, `ws check` 규칙 R1~R15 위반 0, `flutter analyze --fatal-infos` 0)
 - [ ] Firebase 프로젝트 생성 (사용자가 웹 콘솔에서 — 단계별 안내), 요금제 확인(예산 알림은 Blaze 전환 시) — **사용자 확인 대기** (안내서 [01](guides/01-firebase-project.md) · [02](guides/02-github-secrets.md) · [03](guides/03-budget-alert.md))
-- [ ] GitHub Actions: 정적 분석 · 테스트 · 웹 빌드 → Firebase Hosting 자동 배포 · 안드로이드 APK 빌드 — 워크플로는 작성 완료(INFRA I13 `ci.yml`·`android.yml`, `tool/test/workflows_test`). 안드로이드 APK는 개발 브랜치 푸시에서 이미 녹색(아티팩트). `ci.yml`은 GitHub에서 아직 녹색이 아니고(검사·분석은 통과, 테스트 단계 수정 필요 — INFRA), Hosting 배포는 Firebase 시크릿 등록 뒤 — **사용자 확인 대기**(Firebase 프로젝트·시크릿)
+- [ ] GitHub Actions: 정적 분석 · 테스트 · 웹 빌드 → Firebase Hosting 자동 배포 · 안드로이드 APK 빌드 — 워크플로 작성 완료(INFRA I13·J15: `ci.yml` 5개 잡 `check`·`vm`·`chrome`·`heavy`·`web`, `android.yml` release APK·고정 키 분기, `functions.yml`, `ios-compile.yml`, `tool/test/workflows_test`). `functions.yml`은 GitHub에서 녹색(2회). `ci.yml`은 체크포인트 뒤 `check` 잡의 도구 시험 1건(러너 환경 변수 상속)에서 멈췄고 INFRA가 고쳤다 — 총괄 푸시 뒤 다섯 잡 실측으로 잡별 제한을 정한다. 웹 예산 한도는 계약 v2.7 C27-01로 다시 정했다. Hosting 배포는 Firebase 시크릿 등록 뒤 — **사용자 확인 대기**(Firebase 프로젝트(Spark·Hosting만으로 충분 — U24)·시크릿, `android.yml` Run workflow)
 - [x] 필압을 반영하는 펜 1종으로 빈 페이지에 필기하는 프로토타입 (INK T03~T10 필압·모의 필압·획 생성·렌더 + EDITOR E-08 `EditorScreen`, 실제 INK·CORE 통합 E-21, 앱 스모크 V5·V6) — Apple Pencil 필압 반영은 iPad 확인(완료 기준)
 - [x] 개발자 표시 (프레임 시간 · 입력 지연 · 필압) (INK T11 `InkDiagnostics` + EDITOR E-19 개발자 표시·메뉴, PDF 렌더 통계 섹션 연결 INFRA I10b)
 
@@ -620,9 +620,9 @@ Mac과 Apple 개발자 계정이 없는 상태에서 시작하므로 두 단계�
 
 - [ ] Apple 유료 개발자 계정 가입 (사용자) — **사용자 확인 대기**
 - [ ] 앱 ID · 인증서 · App Store Connect API 키 설정 (사용자가 웹에서 — 단계별 안내) — 안내서 [06](guides/06-ios-testflight.md)은 초안
-- [ ] GitHub Actions macOS 빌드 → TestFlight 자동 업로드 — 워크플로 초안만(INFRA I13 `ios-testflight.yml`, 계정 가입 뒤 검증)
+- [ ] GitHub Actions macOS 빌드 → TestFlight 자동 업로드 — 워크플로 초안만(INFRA I13 `ios-testflight.yml`, 계정 가입 뒤 검증). 계정 없이 할 수 있는 iOS 컴파일 확인 `ios-compile.yml`(Swift `pencil_bridge`·ML Kit pod)은 작성 완료, 1회 실행은 **사용자 확인 대기**(U19 — 무료 macOS 시간 약 150분)
 - [ ] iPad Pro에서 네이티브 앱으로 **필기감 판정** (불합격이면 렌더링을 네이티브 코드로 교체)
-- [ ] Apple Pencil 호버 · 스퀴즈 · 배럴 롤 연동 확인
+- [ ] Apple Pencil 호버 · 스퀴즈 · 배럴 롤 연동 확인 — 코드 완료(2차 M5-9: INFRA J12·J13 `pencil_bridge` Swift·Dart 어댑터, EDITOR E2-18 더블탭·스퀴즈·롤 소비, INK 롤 캘리그래피). 확인은 TestFlight 뒤 — **사용자 확인 대기**(7.8 C-1)
 
 **완료 기준**: TestFlight로 설치한 앱에서 필기감 합격
 
@@ -632,13 +632,16 @@ Mac과 Apple 개발자 계정이 없는 상태에서 시작하므로 두 단계�
 - [ ] 다른 앱에서 '공유'로 열기 — 이후(네이티브 전환 뒤, 지금은 `PdfIncomingFileSource` 인터페이스만)
 - [x] 대용량 PDF 지연 렌더링 · 썸네일 캐시 (PDF T7~T10, 500쪽 성능 테스트 T18)
 - [x] PDF 내보내기 (벡터 필기, 범위 선택), 공유 · 인쇄 (PDF T12~T16 + 다중 선택 일괄 내보내기 T15b, 웹: 공유 시트·다운로드) — 네이티브 공유·인쇄는 네이티브 전환 뒤
-- [x] PDF 텍스트 검색 (노트 안 검색 PDF T11) — 라이브러리 전체 PDF 텍스트 검색은 이후(plans/00-overview 7.8)
+- [x] PDF 텍스트 검색 (노트 안 검색 PDF T11) + 라이브러리 전체 PDF 텍스트 검색(2차 M7-3: PDF T27 전역 색인기, CORE T33a·T33b 색인·질의, LIBRARY L2-01~L2-04 결과 UI, V10 VM·Chrome 같은 결과)
 
-**완료 기준**: 강의자료 PDF에 필기하고 PDF로 저장 — 이 시점부터 실제로 쓰면서 피드백 시작 — **사용자 확인 대기** (06-pdf 9.2 U1~U19, 통합 V7 ①)
+- [x] 네이티브 저장(파일 DB·파일 에셋) — 안드로이드 APK 실사용의 선행 조건 (2차 공통-1: CORE T35, INFRA J4 저장 경로, V7 v1 → v2 이주 VM·Chrome). 덮어 설치 뒤 노트 유지는 고정 서명 키(U20) 뒤 **사용자 확인 대기**(7.8 A-1)
+
+**완료 기준**: 강의자료 PDF에 필기하고 PDF로 저장 — 이 시점부터 실제로 쓰면서 피드백 시작 — **사용자 확인 대기** (06-pdf 9.2 U1~U19, 1차 통합 V7 ①)
 
 ### M4. 계정 & 동기화
 
 > **지금 된 것은 동기화 엔진 · 가짜 서버 · Firebase 어댑터 골격까지다** (SYNC T1~T17: 가짜 서버 시나리오, 실제 CORE 2개로 T16 `integration` 42개, Firebase 어댑터는 가짜 Firestore·Auth로만 시험). 앱 연결(INFRA `SyncModule`, 앱의 `sync_engine` 의존)·로그인 화면·Firebase 규칙 배포·실서버 확인은 **Firebase 프로젝트를 만든 뒤** M4 연결 계획에서 한다(plans/00-overview 7.8). 그래서 아래 항목은 아직 체크하지 않는다.
+> 2차에서 더한 것(SYNC S2-1~S2-15): 새 엔티티 종류(페이지 객체·손글씨 결과·녹음 이름)의 코덱·병합, 모르는 종류 보류(S-13), 실제 CORE 2개 T16-v2(`integration` 66개 통과), 로그인 어댑터(`AuthService`) 준비. 2차 통합 뒤 '실연결 미니 라운드'(INFRA + SYNC — Firebase Blaze·로그인·두 번째 Google 계정 필요, 07-sync 6.10 SC-1~SC-8)에서 연결한다.
 
 - [ ] Google 로그인 (M0에서 만든 Firebase 프로젝트 사용) — 인증 어댑터 골격만(SYNC T17 웹 팝업·리디렉트, 가짜로 시험). 로그인 화면·앱 연결은 Firebase 프로젝트 생성 뒤
 - [ ] 변경 큐 · 업로드 · 실시간 수신 · 충돌 병합 — 엔진 완료(SYNC T4~T11, CORE T14 `SyncStore`, 실제 CORE T16). 앱 연결 대기
@@ -649,22 +652,30 @@ Mac과 Apple 개발자 계정이 없는 상태에서 시작하므로 두 단계�
 
 ### M5. 편집 강화
 
-- [ ] 올가미 고급 (회전 · 색 변경 · 잘라내기 · 붙여넣기)
-- [ ] 텍스트 상자, 이미지 삽입
-- [ ] 도형 도구 + 자동 도형 보정
-- [ ] 제스처 사용자 지정, 펜 버튼 (S펜 버튼 · Apple Pencil 더블탭/스퀴즈)
-- [ ] 추가 펜 (붓펜 · 캘리그래피 · 점선 · 레이저 포인터 · 암기 테이프)
+> 2차 범위표: [plans/m5-7/00-overview.md 3.1](plans/m5-7/00-overview.md#31-기능별-범위)(M5-1~M5-12). 앱 전체 흐름은 INFRA **V5 v2**(VM — 획 → 텍스트 상자 → 사각형 → 이미지 → 올가미 → 90° 돌리기 → 색 → 잘라내기 → 붙여넣기 → 되돌리기 사슬 → 다시 열기)·**V6 v2**(Chrome 같은 흐름)·릴리스 빌드 Playwright(H7), EDITOR **E2-21**(실제 CORE + 실제 INK)로 확인했다.
+
+- [x] 올가미 고급 (회전 · 색 변경 · 잘라내기 · 붙여넣기) (M5-1: EDITOR E2-06 혼합 선택·회전 15° 맞춤·E2-07a~c 클립보드·선택 메뉴·색 변경 + INK T37a 적중·올가미·선택·변형, V5 v2·E2-21) — 실기기 **사용자 확인 대기**(7.8 B-5)
+- [x] 텍스트 상자, 이미지 삽입 (M5-2: EDITOR E2-01·E2-10·E2-10b + INK T34 렌더·`NoteSans` 지연 적재 / M5-3·M5-4: PDF T35a·T35b 이미지 가져오기·정규화, EDITOR E2-12 삽입 메뉴·붙여넣기·이미지 페이지, INK T35 이미지 캐시, PDF 내보내기 V11) — 한글 IME·사진 보관함·카메라는 iPad **사용자 확인 대기**(7.8 B-2·B-3·B-15). 웹 대체안 `textarea`(EDITOR E2-11)는 B-2 결과에 따라 — 미룸
+- [x] 도형 도구 + 자동 도형 보정 (M5-5: EDITOR E2-08·E2-09 도형 7종·꼭짓점 편집 + INK T33 / M5-6: INK T39 멈춤 500 ms 감지·미리보기, LIBRARY L2-06 `GeometricShapeFitter` 합성 1,400개 V9, EDITOR E2-15, 통합 L2-I3 6/6·E2-21b·V5b) — 오인식 체감·문턱값은 실제 획으로 **사용자 확인 대기**(7.8 B-4, 표본은 개발자 메뉴에서 LIBRARY로)
+- [x] 제스처 사용자 지정, 펜 버튼 (S펜 버튼 · Apple Pencil 더블탭/스퀴즈) (M5-7: EDITOR E2-04a·E2-04b·E2-05 동작 매핑·설정 UI / M5-8: S펜 측면 버튼 임시 지우개 E2-04a / M5-9: INFRA J12·J13 `pencil_bridge`, EDITOR E2-18) — **사용자 확인 대기**: 웹 제스처 7.8 B-7, S펜 7.8 A-2(안드로이드 기기 — U2), Pencil 더블탭·스퀴즈 7.8 C-1(TestFlight 뒤)
+- [x] 추가 펜 (붓펜 · 캘리그래피 · 점선 · 레이저 포인터 · 암기 테이프) (M5-10~12: INK T27~T31, 골든·불변식 K-1·K-9, EDITOR E2-14 선택기 10종·테이프 탭, PDF 내보내기 점선·테이프 V11) — 필기감 **사용자 확인 대기**(7.8 B-6, 배럴 롤은 C-1)
+
+**완료 기준**: iPad에서 텍스트·이미지·도형·올가미 편집을 섞어 쓰고 다시 열어도 그대로 — 자동 테스트로 확인(V5 v2·V6 v2·E2-21). 실기기 합격은 **사용자 확인 대기**(7.8 B-2~B-7·B-15, 안내서 08)
 
 ### M6. 녹음
 
-- [ ] 녹음 · 백그라운드 녹음 · 재생 바
-- [ ] 획별 녹음 시점 기록 → 재생 시 필기 강조, 필기를 탭하면 그 시점부터 재생
+- [x] 녹음 · 백그라운드 녹음 · 재생 바 (M6-1·M6-3: PDF T31a·T31b·T32a·T32b 웹 녹음기·T34 재생·T36a·T36b 녹음 패널, `media` 태그 V8 — Chrome 가짜 마이크 2초 녹음·일시정지·2배속·탐색 / M6-5: 웹 녹음 조각 저장·탭 닫힘 복구 CORE T31 + PDF V16 / M6-2: 네이티브 녹음기·안드로이드 포그라운드 서비스·iOS 오디오 세션 PDF T33, 네이티브 설정 V12) — **사용자 확인 대기**: iPad 30분 녹음·앱 전환 자동 일시정지·탭 닫기 복구(7.8 B-8·B-9·B-14), 안드로이드 백그라운드 5분(A-3), iOS 백그라운드(C-2, TestFlight 뒤)
+- [x] 획별 녹음 시점 기록 → 재생 시 필기 강조, 필기를 탭하면 그 시점부터 재생 (M6-4: EDITOR E2-16·E2-17 녹음 연결·탭 재생, INK T40 층 4′ 재생 강조·`hitTestRecorded`(웹 안전 수 — 계약 C27-06), CORE `Recording` 저장소 T30, E2-21 녹음 연동 스모크, V5 v2·V6 v2 녹음 단계) — **사용자 확인 대기**(7.8 B-8·B-16, 시계 오차 A-5)
+
+**완료 기준**: 강의를 녹음하며 필기하고, 나중에 필기를 눌러 그 대목을 다시 들음 — 자동 테스트로 흐름 확인(V5 v2·V8·V16). 실기기 합격은 **사용자 확인 대기**(7.8 B-8·B-14·B-16). 녹음 동기화(M6-6)는 실연결 뒤
 
 ### M7. 인식
 
-- [ ] 손글씨 → 텍스트 (한국어 + 영어)
-- [ ] 손글씨 검색 색인
-- [ ] 수식 인식 엔진 비교 → 손글씨 수식 → LaTeX → 수식 렌더링
+- [x] 손글씨 → 텍스트 (한국어 + 영어) (M7-1: LIBRARY L2-07·L2-08 ML Kit 어댑터(`ko`·`en`)·L2-09 혼합 전략·L2-12·L2-15 변환 창, `groupIntoLines` 합성 정확도 100 % V9, 웹은 '이 기기에서는 쓸 수 없음' 안내) — 첫 판정은 안드로이드 APK: **사용자 확인 대기**(7.8 A-4, iPad는 TestFlight 뒤 C-3)
+- [x] 손글씨 검색 색인 (M7-2·M7-3·M7-4: CORE T32·T33a·T33b·T34 색인 테이블·FTS5·질의·`searchLibrary` v2, LIBRARY L2-10a·L2-10b 손글씨 색인기·L2-01~L2-04 '노트 내용' 결과·위치로 열기, PDF T27 전역 PDF 색인기, INFRA J11 `?page=&focus=`, V10 5,000쪽 예산 C25-01·L2-I1·L2-I2) — 손글씨 색인 생성은 안드로이드(A-4)·검색 결과 열기는 iPad **사용자 확인 대기**(7.8 B-10)
+- [ ] 수식 인식 엔진 비교 → 손글씨 수식 → LaTeX → 수식 렌더링 — **코드 완료**: 수식 객체 LaTeX 입력·렌더·LaTeX 복사·PDF 300 dpi 래스터(M7-5: INK T36, LIBRARY L2-13·L2-14, PDF T25b, V11), 엔진 포트·수식 패드·서버 함수(에뮬레이터 시험까지)·비교 도구(M7-6: LIBRARY L2-16·L2-17a·L2-17b, SYNC S2-10a~S2-13, V13). **엔진 비교·손글씨 수식 → LaTeX 실제 동작은 사용자 확인 대기**: Firebase Blaze·로그인·엔진 계정(U6)과 비용 확인 뒤 `npm run eval:math`. 수식 렌더·LaTeX 입력의 iPad 확인은 7.8 B-11
+
+**완료 기준**: 손글씨·텍스트 상자·PDF·수식 내용으로 노트를 찾아 그 위치로 감 — 자동 테스트로 확인(V10·L2-I2·V5 v2 검색 단계). 실기기 합격은 **사용자 확인 대기**(7.8 A-4·B-10·B-11)
 
 ### M8 이후. 피드백 반영
 

@@ -1,6 +1,6 @@
 # 00 · 2차 라운드 총괄 검토 결과
 
-> 상태: **최종 승인** (2026-11-05 — 끝의 [최종 승인](#최종-승인) 절: 7개 계획서 승인, 통합 계약 **v2.2** 확정) · 이전: 1차 검토 완료 (2026-11-05) · 대상: `m5-7/01-infra.md`~`07-sync.md` 초안 7개 · 대리 검토 7건(`reviews/*.md`) · 확정한 공통 결정: [00-overview.md](00-overview.md) 7장 **통합 계약 v2.1**(변경 이력 7.9 — C21-01~35)
+> 상태: **2차 통합 완료(컨테이너 V1~V16) — 실기기 확인 대기, 계약 v2.7** (2026-11-12 — 끝의 [2차 통합 결과](#2차-통합-결과) 절) · 그 앞: **최종 승인** (2026-11-05 — [최종 승인](#최종-승인) 절: 7개 계획서 승인, 통합 계약 **v2.2** 확정) · 이전: 1차 검토 완료 (2026-11-05) · 대상: `m5-7/01-infra.md`~`07-sync.md` 초안 7개 · 대리 검토 7건(`reviews/*.md`) · 확정한 공통 결정: [00-overview.md](00-overview.md) 7장 **통합 계약 v2.1**(변경 이력 7.9 — C21-01~35)
 > 판정 기준(1차와 같음): ① 이 계획서들만 보고 서로 다른 개발자가 독립적으로 구현했을 때 통합이 깨지지 않는가 ② PLAN.md 요구사항(M5·M6·M7, F-03·F-10~F-16)이 빠짐없이 구현되는가 ③ 컨테이너와 iPad Safari 웹에서 검증 가능한가
 > 표기: **M** = 반드시 고칠 것(재검토 승인 조건) · **S** = 권장 · 근거의 '검토'는 `reviews/<영역>.md`, 'CP'는 그 영역 계획서 12장의 계약 변경 제안, 'C21-xx'는 계약 v2.1 변경 이력 행
 
@@ -528,3 +528,96 @@
 2. 기반 단계 0~7(위) → 동시 개발(영역 작업 트리, 진행 기록 `docs/plans/progress/<id>.md` '2차' 절, GitHub 푸시는 체크포인트·통합 때만 — 7.4.9).
 3. 통합 1~9(위) → '2차 통합 완료' → 이 문서에 '2차 통합 결과' 절(1차와 같은 양식).
 4. 사용자: U24(Hosting)를 먼저 답해 주면 iPad 웹 확인을 동시 개발 중에 시작할 수 있다. U2·U20은 안드로이드 실사용 전에, U19는 통합 전에 필요하다.
+
+## 2차 통합 결과
+
+> 날짜: 2026-11-12 · 총괄 관리자 · 브랜치 `claude/note-app-planning-bk29xb`(INFRA 체크포인트 `b032244` 뒤 병합 HEAD `8c2256e`, 통합 끝 `55bf85a`) · 기준: 통합 계약 **v2.7**([00-overview.md](00-overview.md) 7장 — 통합에서 바뀐 곳은 [7.9](00-overview.md#79-계약-변경-이력) 'v2.7' C27-01~07, 시그니처 변경 없음) · 판정: **2차 통합 완료(컨테이너 V1~V16) — 실기기 확인 대기**. V14의 GitHub 실행(APK·iOS 컴파일 1회)은 C27-07대로 총괄 푸시 뒤 사용자 'Run workflow'로 확인하고 2차 완료를 막지 않는다.
+
+### 통합 순서 (계약 7.7.1)
+
+| 단계 | 병합 | 통합 작업(커밋) | 그 단계 확인 |
+|---|---|---|---|
+| 1 | CORE | `1523f3a`(C26-03 구 강조)·`820449d`(`content_rev` 경합)·`dcbb7e3`(기록) | `ws check` 0, VM 1203·Chrome 115, V7 VM·Chrome, V10 CORE 몫(C25-01 예산) |
+| 2 | INK | `526c894`(실제 CORE판 인계 18), 후속 `55bf85a`(웹 `Int64List` 제거) | VM 1318(골든 24장 불변)·Chrome 374, K-1·K-6~K-9, 벤치 27 중 26(B12는 기록만) |
+| 3 | SYNC | `04602cc`(H3·R1 시험 가정, `TestDevice.renameRecording`) | T16-v2 `integration` 66, VM 1008·Chrome 70, `functions` 248, V13 에뮬레이터(SYNC 10 + LIBRARY Dart 9) |
+| 4 | PDF(`pdf_io` + `media_io`) | `48168da`(탐침 제거·V10·V11·C26-01·02·04)·`e57a675`·`6a4c8ac`(재확인) | 4-a `integration` 26 · 4-b Chrome 2 · 4-c `media` 11(V8·V16) · 4-d 5, pdf_io VM 821·Chrome 119 |
+| 5 | LIBRARY(`feature_library` + `ink_recognition`) | `92ac338`(L2-I2 실제 CORE = 가짜, 기록) | L2-I1 2·L2-I2 11·L2-I3 6·L2-I6 9, V9 다시 통과, VM 681 + 489 |
+| 6 | EDITOR | `311e209`(E2-21·E2-21b, C25-02, 외곽선 적중 시험 4개) | VM 1497·`integration` 4·Chrome 4 |
+| 7 | INFRA | `c5c1333`·`e276677`(V5 v2·V5b·V15·V12·H7·유휴 실행기·C26-02·C24-01·CI 도구 시험) | `integration` 14(주입·`--dart-define` 두 방식), V6 v2는 INK 후속 뒤 통과 |
+| 8 | 통합 태그 전체 | 영역별로 실행(위), 총괄 일괄 실행은 이 문서 커밋 뒤 검증 단계 | `-t integration`·`-t media`·`-t emulator` 영역 몫 모두 통과 |
+| 9 | 릴리스 웹 빌드 Playwright(H7) | — | 통과(첫 프레임 1,580 ms, 콘솔 오류 0). 미리보기 배포·iPad·APK·iOS 컴파일은 아래 '남은 일' |
+
+### 통합 검증 기준 (계약 7.7.2 V1~V16)
+
+| # | 결과 | 근거 |
+|---|---|---|
+| V1 | 통과 | 병합마다 `pub get --enforce-lockfile`, `ws check`(R1~R16) 0 — 총괄 병합 직후·각 영역 통합 끝(INFRA H1) |
+| V2 | 통과 | 루트 `flutter analyze --fatal-infos` 0, `dart format` 바뀜 0 |
+| V3 | 통과 | 병합 직후 VM 기준선(`r2-merge-vm.log`)의 실패 3멤버(pdf_io 1 — C26-03 기대값, feature_editor 4 — 빈 도형 적중, noteapp 1 — 실제 이미지 소스)를 모두 고친 뒤 영역별 VM·Chrome·`integration` 전부 통과(위 표). `dart test tool/test` 550. Chrome은 `useInkTestFonts`로 멈춤 없음 |
+| V4 | 통과(C27-01) | 릴리스 빌드·`web-assets verify` 통과, 예산표 갱신(`main.dart.js` gzip 1,902,938 B, 시작 글꼴 385,521 B — KaTeX 371,014·아이콘 14,507). 한도 초과는 총괄 결정으로 기준을 이 빌드로 옮기고 한도 2,000,000 B — `tool/web_budget.yaml` 반영은 INFRA |
+| V5 | 통과 | `app_smoke_v2_test`(VM): 9.1 2~8·10단계를 실제 화면으로, override 출처·횟수, 자리 4곳(INFRA H3) |
+| V5b | 통과 | `app_smoke_shape_assist_test`(VM) — P-B 작업 모두 병합(7.7.2 v2.7 표) |
+| V6 | 통과 | `app_smoke_v2_browser_test`(Chrome) — INK `55bf85a` 뒤 재생 단계 포함 통과(FlutterError 0) |
+| V7 | 통과 | `v1_fixture_migration_test` VM 파일 DB·Chrome 웹 워커: 행·필드 버전·outbox 유지, v1 사본 해시 = manifest. 웹 PF-8 첫 실행(DDC 2,149 ms)은 기록만 — 1 s 예산은 VM 몫, 릴리스 웹은 iPad B-1에서 |
+| V8 | 통과 | `media`(Chrome 가짜 마이크): 파일 1,978 ms·시계 2,008 ms, C26-01 한계 안, 2배속 기울기 1.960 |
+| V9 | 통과 | `groupIntoLines` 100 %, 도형 합성 1,400개 모든 종류 문턱 위(잘못 바꿈 ≤ 6 %) |
+| V10 | 통과 | 질의 VM = Chrome, 5,000쪽 예산(C25-01), PDF 사각형 pt(C26-03 — 낱말마다 첫 일치), PF-10 DB 증가 8.31/6.15/3.62 MiB·PF-10w +133 ms |
+| V11 | 통과 | 실제 PDFium VM·Chrome: 텍스트 상자 한글 추출, 이미지·수식 래스터, 점선 = 한 모양 58 하위 경로(C27-02) |
+| V12 | 통과 | `native_config_test`·`native_reqs_test` 89, `ws native-reqs` 0, CocoaPods 전용 = ML Kit 둘 |
+| V13 | 통과 | `functions` 248, 에뮬레이터 SYNC 10 + LIBRARY Dart 9(한 실행), GitHub `functions.yml` 2회 성공 |
+| V14 | 컨테이너 몫 통과 · GitHub 실행 **사용자 확인 대기** | `workflows_test` 서명 분기·아티팩트 이름 사례 통과. `android.yml`·`ios-compile.yml`은 이 단계에 돌지 않음(수동 — C27-07) |
+| V15 | 통과 | `feature_switch_test` 주입·`--dart-define` 두 방식, 끔에서 녹음 버튼·인식 메뉴·수식 엔진·자동 도형 토글만 사라지고 이미지 삽입은 남음 |
+| V16 | 통과 | 실제 웹 저장소에서 탭 닫힘 흉내 → `pendingDrafts` 1 → 복구, `recordingId` 유지, 녹음 중 초안은 내지 않음 |
+
+### 영역별 결과
+
+| 영역 | 동시 개발 | 통합 단계에서 한 일 | 결함·변경 요청 |
+|---|---|---|---|
+| CORE | T20a~T37 완료 | C26-03 구 강조(실제·가짜 같은 내부 함수), 세션 로컬 쓰기 `content_rev` 경합 수정, V7·V10, 다른 영역 통합 시험을 실제 CORE에서 | CORE 결함 1(`content_rev` — 고침). [SYNC] 2·[PDF] 2·[INFRA] 1 보냄 → 모두 처리 |
+| INK | T24~T43 완료, T44 미룸(C25-04) | 인계 시험 18개를 실제 CORE판으로도, README v2 | 웹 `Int64List`(INFRA V6 — `55bf85a` 고침). [PDF] V11·[EDITOR] 빈 도형 적중·[LIBRARY]·[EDITOR]·[INFRA] P-B 재실행 요청 → 모두 처리 |
+| SYNC | S2-1~S2-15 완료 | T16-v2 실제 CORE 2개, V13 | 시험 가정 2(H3·R1)·가짜 1(`TestDevice`) 고침. 요청 보냄 없음 |
+| PDF | T21~T41 완료 | 탐침·정적 skip 모두 제거, V10·V11 기대값을 계약 의미로, C26-01·02·04 | 결함 0. [INFRA] C26-02 연결 요청 → 처리 |
+| LIBRARY | L2-01~L2-22 완료 | L2-I1·I2·I3·I6, V9 다시, `lib/` 변경 없음 | 없음. L2-I4 나머지(V5 2~8단계 인식 자리)는 INFRA V5 v2가 덮음, L2-I5 실기기 |
+| EDITOR | E2-00~E2-22 완료, E2-11 미룸(P-C) | E2-21·E2-21b, C25-02 개발자 표시 값, 외곽선 적중 시험 4개 | 없음(CORE·INK 결함 못 찾음). E2-24는 실기기 뒤 |
+| INFRA | J1~J22 완료(J0 ④·J15 제한은 푸시 뒤) | V5 v2·V5b·V15·V12·H7, C26-02·C24-01, 유휴 작업 실행기 헛돌기 수정, CI 도구 시험 수정 | [INK] `Int64List` → 처리, [총괄] V4 → C27-01 |
+
+### 통합에서 나온 문제와 처리
+
+| # | 문제 | 원인 | 처리 | 계약 |
+|---|---|---|---|---|
+| 1 | EDITOR VM 시험 4개 실패(빈 도형 안쪽 탭·지우개) | 기반 단계 INK의 경계 상자 적중을 전제 | 외곽선에서 탭·지우개 경로가 변을 지나게(단언은 그대로 — `311e209`) | C27-03 |
+| 2 | PDF V11 점선 조각 = 1 | 조각을 `InkFillShape` 수로 셈. INK는 한 모양의 하위 경로로 냄 | `moveTo` 수로 세고 PDF `m` 수와 맞춤(`48168da`) | C27-02 |
+| 3 | PDF V10 실제 저장소 변형이 시작 전에 죽음 | 탐침 키 `probe#0`이 CORE 키 검증(`ArgumentError`)에 걸림 | 탐침 제거 — 실제 변형이 늘 돈다 | C27-05 |
+| 4 | PDF 'second lecture' 사각형 1 → 2 | C26-03(낱말마다 첫 일치) 뒤 기대값이 옛 규칙 | 1차 낱말 사각형 둘(±0.5 pt)·합 = 1차 구 사각형·역순 질의 | C26-03 |
+| 5 | SYNC H3 널 검사·R1 삭제된 녹음 이름 바꾸기 | 시험이 계약 읽기 규칙과 다름, 시험용 가짜가 삭제된 녹음도 이름을 바꿈 | 시험·가짜를 계약 문장대로(`04602cc`) | C27-04 |
+| 6 | V6 v2 재생 단계에서 FlutterError 4 | INK `PlaybackTrack`의 `Int64List` — dart2js·DDC 미지원 | `List<int>` + Chrome 재생 칠하기 시험(`55bf85a`) | C27-06 |
+| 7 | V5 v2가 되돌리기 중 RSS 2.6 GB로 죽음, V6 v2 'did not complete' | 유휴 작업 실행기가 `scheduleTask(Priority.idle)`를 기다려 애니메이션 중 0초 타이머가 끝없이 생김 | 시작 조건을 '프레임 끝 + 애니메이션 없음'으로(계약 7.3.3 '첫 프레임 3초 뒤·보일 때' 뜻은 같음 — 01-infra 6.5.1) | — |
+| 8 | noteapp VM 실패 1·1차 `app_smoke_test` override 집합 | 기반 단계의 '이미지 소스 없음' 전제, 1차 V5 집합에 `editorImageImporterProvider` 없음 | 실제 `supportedImageSources()`로·집합에 행 추가 | — |
+| 9 | CORE 세션 쓰기와 원격 쓰기가 겹치면 변경이 한 번만 오름 | 세션 `content_rev`가 못 본 원격 커밋 | `MAX(content_rev + 1, 세션 값)`(`820449d`) | — |
+| 10 | `main.dart.js` 예산 초과(+236,900 B) | 2차 영역 코드(녹음·인식·수식·PDF 객체 내보내기) | 기준 이동 + 한도 2,000,000 B, `deferred`는 3라운드 후보 | C27-01 |
+| 11 | GitHub `ci.yml` 실행 11~13이 `check`에서 실패 | `workflows_test`가 러너의 `TEST_SCOPE`를 물려받음(컨테이너엔 없음) | `includeParentEnvironment: false` 6곳 — 다음 푸시에서 다섯 잡 실측 | — |
+
+알려진 한계(결함 아님): INK B12(1000점) 디버그 VM 여유가 작음(0.5 ms / 0.6 ms — 기록만), 헤드리스 Chrome 적재 멈춤은 1차처럼 `ws`가 한 번 다시 돌려 통과, 실제 저장소 작업을 fake-async 영역에서 시작한 위젯 시험은 `runAsync(store.close)`가 끝나지 않음(EDITOR 하네스 메모 — 시험 쪽에서 피함).
+
+### 남은 일
+
+컨테이너 몫:
+
+- INFRA: C27-01 값을 `tool/web_budget.yaml`(기준 1,902,938 / 6,476,935 B, `main_dart_js_gzip_max` 2,000,000)과 01-infra 6.15에 반영 → `ws web-budget check` 0.
+- 총괄: 이 문서 커밋 뒤 7.7.1 8단계 일괄 실행(`ws test --run-skipped -t integration`, `-t media`, `firebase emulators:exec … -t emulator` — 전역 잠금으로 하나씩)과 통합 브랜치 푸시 → INFRA가 `ci.yml` 다섯 잡 실측으로 J15 잡별 제한·월 분을 정함.
+- 3라운드 후보: `deferred` import(C27-01), `Int64List` 금지의 `ws check` 규칙화(C27-06), INK T44, 실연결 미니 라운드(INFRA + SYNC — 07-sync 6.10 SC-1~SC-8).
+
+사용자 행동(위에서부터 중요한 순서):
+
+1. **Firebase Hosting(Spark·무료)** 프로젝트 만들기 — U24, [안내서 01](../../guides/01-firebase-project.md)·[02](../../guides/02-github-secrets.md) → 총괄이 **미리보기 채널** 배포 → **iPad 웹 확인(7.8 B)**. B-1(1차 노트가 있는 live 채널)은 배포 전에 백업 내보내기.
+2. **Android APK**: 고정 서명 키 등록(U20 — [안내서 07](../../guides/07-android-signing.md)) → GitHub Actions에서 `android.yml` **Run workflow**(V14) → APK 설치([안내서 05](../../guides/05-android-apk.md)) → **7.8 A**(S펜 태블릿이 있을 때 — U2).
+3. **iOS 컴파일 1회**(U19 — `ios-compile.yml` Run workflow, 무료 macOS 시간 약 150분). 거절이면 '미확인'으로 두고 첫 TestFlight 빌드 전에 한다.
+4. **수식 엔진 계정**(U6 — Mathpix·Anthropic API 등)과 외부 전송 동의·비용 확인 → Firebase **Blaze**·함수 배포·엔진 비밀값(`functions/README.md`) → `npm run eval:math`. 실연결(동기화·로그인)도 Blaze 뒤(U3).
+5. Apple 유료 계정(TestFlight) 뒤 7.8 C.
+
+### 실기기 체크리스트 위치
+
+- **2차 통합 체크리스트**: [docs/guides/08-device-checklist.md](../../guides/08-device-checklist.md) — A(안드로이드 APK)·B(iPad 웹 — B-1~B-16)·C(TestFlight 뒤), 결과 보고 양식 포함. 원본은 [00-overview.md 7.8](00-overview.md#78-실기기-체크리스트).
+- 영역별 상세: 01-infra 9.3, 02-core 9.5(A-1·A-c1·A-c2·B-1·B-10·B-13·B-14·B-c1·B-c2·C-c1), 03-ink 9.6(I-A1·I-A2·I-B1~I-B14 — B14·B17 릴리스 빌드 실측), 04-editor 9.4(B-2·B-3·B-5·B-7·B-8·B-15 필수, A-2, E2-24), 05-library 9.4(A-4·A-L3·B-4·B-10·B-11), 06-pdf 9.6(A-3 'native: FGS failed' 줄 없음), 07-sync 9.3(실기기 항목 없음 — 실연결 뒤 SC-1~SC-8).
+- 1차 체크리스트(아직 판정 전): [안내서 04](../../guides/04-ipad-web-test.md), [plans/00-review.md '1차 통합 결과'](../00-review.md#1차-통합-결과).
+- 결과는 각 영역 진행 기록 '## 2차' > '### 통합 단계'에 적고(CORE I-7 등), 불합격 항목은 조정 작업으로 연다(INK `PenProfile`·`InkTuning`, LIBRARY 문턱, EDITOR `webTextInput`).
