@@ -106,10 +106,18 @@ GrayImage? rasterizeTraces(
   final coverage = Float32List(width * height);
   final radius = config.penWidthPx / 2;
   for (final t in traces) {
-    final n = t.xs.length;
+    // the finite points only (the same ones the bounding box counted)
+    final xs = <double>[], ys = <double>[];
+    for (var i = 0; i < t.xs.length; i++) {
+      final x = t.xs[i], y = t.ys[i];
+      if (!x.isFinite || !y.isFinite) continue;
+      xs.add(x);
+      ys.add(y);
+    }
+    final n = xs.length;
     if (n == 0) continue;
-    double px(int i) => (t.xs[i] - minX) * scale + margin;
-    double py(int i) => (t.ys[i] - minY) * scale + margin;
+    double px(int i) => (xs[i] - minX) * scale + margin;
+    double py(int i) => (ys[i] - minY) * scale + margin;
     if (n == 1) {
       _capsule(coverage, width, height, px(0), py(0), px(0), py(0), radius);
       continue;

@@ -16,7 +16,9 @@
 // → RecognizerCancelled. Failures: no ink / nothing decoded →
 // RecognizerEngineError('empty'); the model files cannot be opened →
 // RecognizerEngineError('model-load') (the next call tries again); any
-// other engine error → RecognizerEngineError('ondevice'). The runtime and
+// other error (preprocessing, the model, decoding, normalising) →
+// RecognizerEngineError('ondevice'). A run that hits the token cap without
+// the end id is returned with confidence 0. The runtime and
 // the tokenizer are opened on the first call and kept until [dispose].
 import 'dart:async';
 import 'dart:typed_data';
@@ -103,7 +105,14 @@ final class OnDeviceMathRecognizer implements MathRecognizer {
   ) async {
     if (_disposed) throw RecognizerEngineError('disposed', 'engine disposed');
     if (cancelled()) throw RecognizerCancelled();
-    final pixels = await _preprocess(input.traces);
+    final Float32List? pixels;
+    try {
+      pixels = await _preprocess(input.traces);
+    } on RecognitionFailure {
+      rethrow;
+    } on Object catch (e) {
+      throw RecognizerEngineError('ondevice', 'preprocess: $e');
+    }
     if (pixels == null) {
       throw RecognizerEngineError('empty', 'no ink to recognize');
     }
@@ -125,14 +134,23 @@ final class OnDeviceMathRecognizer implements MathRecognizer {
     } on Object catch (e) {
       throw RecognizerEngineError('ondevice', '$e');
     }
-    final raw = tokenizer.decode(decoded.ids);
-    final latex = normalizeMfrLatex(raw, validate: _validate);
+    final String latex;
+    try {
+      latex = normalizeMfrLatex(
+        tokenizer.decode(decoded.ids),
+        validate: _validate,
+      );
+    } on Object catch (e) {
+      throw RecognizerEngineError('ondevice', 'decode: $e');
+    }
     if (latex.isEmpty) {
       throw RecognizerEngineError('empty', 'the model wrote nothing');
     }
     return MathResult(
       latex: latex,
-      confidence: decoded.confidence,
+      // no end id within the cap: almost always a runaway repetition — still
+      // a suggestion the user edits (6.14.4), but marked as unreliable
+      confidence: decoded.ended ? decoded.confidence : 0.0,
       engineId: engineId,
       latency: stopwatch.elapsed,
     );

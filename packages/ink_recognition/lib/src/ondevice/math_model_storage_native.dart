@@ -1,6 +1,10 @@
 // lib/src/ondevice/math_model_storage_native.dart — (internal) the
 // on-device math model's files on Android / iOS (dart:io, path_provider —
-// native_only_imports): <application support>/models/<version>/.
+// native_only_imports): <application support>/models/<version>/ on
+// Android (the app sets allowBackup="false"), <Library/Caches>/models/
+// <version>/ on iOS — Application Support is in every iCloud backup there,
+// and a downloadable 32 MB model must not be (if iOS purges the caches, the
+// install reads as not installed and the user downloads it again).
 //
 // A file is written as '<name>.part' and renamed to '<name>' on commit (the
 // same directory → atomic); 'installed.json' (version + every file's size)
@@ -10,6 +14,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:path_provider/path_provider.dart' as path_provider;
 
 import 'math_model_manager.dart';
@@ -19,15 +25,17 @@ const String _marker = 'installed.json';
 
 final class FileMathModelStorage implements MathModelStorage {
   /// [root] = the directory that holds one directory per model version
-  /// (default: `<application support>/models`).
+  /// (default: `<application support>/models`; iOS: `<caches>/models`).
   FileMathModelStorage({Future<String> Function()? root})
     : _root = root ?? _defaultRoot;
 
   final Future<String> Function() _root;
 
   static Future<String> _defaultRoot() async {
-    final support = await path_provider.getApplicationSupportDirectory();
-    return '${support.path}/models';
+    final base = defaultTargetPlatform == TargetPlatform.iOS
+        ? await path_provider.getApplicationCacheDirectory()
+        : await path_provider.getApplicationSupportDirectory();
+    return '${base.path}/models';
   }
 
   Future<Directory> _dir(MathModelManifest manifest) async =>

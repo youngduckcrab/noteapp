@@ -24,7 +24,26 @@ const String mathModelLicenseText = '''Pix2Text-MFR-1.5 by BreezeDeus — https:
 
 MIT License
 
-Copyright (c) BreezeDeus
+Copyright (c) 2022 BreezeDeus
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.''';
+
+/// The ONNX Runtime the on-device math engine runs on (the native library
+/// comes with flutter_onnxruntime's Android AAR / iOS pod, so pub's own
+/// license collection only lists the plugin's Dart package).
+const String onnxRuntimeLicenseName = 'ONNX Runtime 1.28.0';
+
+/// ONNX Runtime's MIT license; the notices of the components it bundles are
+/// in its ThirdPartyNotices.txt (linked — about 320 KB of text).
+const String onnxRuntimeLicenseText = '''ONNX Runtime — https://github.com/microsoft/onnxruntime (com.microsoft.onnxruntime:onnxruntime-android 1.28.0, onnxruntime-objc 1.28.0). The third-party notices of the components ONNX Runtime includes: https://github.com/microsoft/onnxruntime/blob/v1.28.0/ThirdPartyNotices.txt
+
+MIT License
+
+Copyright (c) Microsoft Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -39,7 +58,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 /// The text is read only when the license page collects the entries (the
 /// registry is lazy), so start-up does not load the asset. [bundle] defaults
 /// to rootBundle. Native apps also get the on-device math model's MIT
-/// license ([mathModelLicenseName]).
+/// license ([mathModelLicenseName]) and ONNX Runtime's
+/// ([onnxRuntimeLicenseName]).
 void registerAppLicenses({AssetBundle? bundle, AppErrorLog? errorLog}) {
   var logged = false;
   LicenseRegistry.addLicense(() async* {
@@ -69,6 +89,13 @@ void registerAppLicenses({AssetBundle? bundle, AppErrorLog? errorLog}) {
         const LicenseEntryWithLineBreaks([
           mathModelLicenseName,
         ], mathModelLicenseText),
+      ),
+    );
+    LicenseRegistry.addLicense(
+      () => Stream.value(
+        const LicenseEntryWithLineBreaks([
+          onnxRuntimeLicenseName,
+        ], onnxRuntimeLicenseText),
       ),
     );
   }

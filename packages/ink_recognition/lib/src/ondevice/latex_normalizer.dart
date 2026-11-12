@@ -404,17 +404,37 @@ String _normalize(String raw, {Set<String> drop = const {}}) {
   while (s.endsWith(r'$') && !s.endsWith(r'\$')) {
     s = s.substring(0, s.length - 1);
   }
-  final nodes = _parse(_tokenize(s));
+  final nodes = _parse(_tokenize(_keepTextSpaces(s)));
   final rewritten = _Rewriter(drop).run(nodes);
   final tokens = <String>[];
   _flatten(rewritten, tokens);
   return _serialize(_tidy(tokens));
 }
 
+/// Text-mode arguments written as words (`\text { for all }` — not the
+/// corpus's letter-by-letter `\text { f o r ~ a l l }`, where a space is
+/// `~`): the spaces between words are meaningful there, so they become `~`
+/// before the tokens drop all whitespace.
+String _keepTextSpaces(String s) => s.replaceAllMapped(
+  RegExp(
+    r'(\\(?:text|textrm|textit|textbf|textsf|texttt|textup|textsc|mbox))'
+    r'\s*\{([^{}\\]*)\}',
+  ),
+  (m) {
+    final content = m.group(2)!.trim();
+    if (!RegExp('[A-Za-z]{2,}').hasMatch(content)) return m.group(0)!;
+    return '${m.group(1)}{${content.replaceAll(RegExp(r'\s+'), '~')}}';
+  },
+);
+
 final class _Rewriter {
   _Rewriter(this.drop);
 
   final Set<String> drop;
+
+  /// Per open `\begin{array}`: whether it stays an array (its column spec
+  /// aligns: l / r / |) or became a matrix (all c).
+  final List<bool> _arrays = [];
 
   List<Object> run(List<Object> nodes) {
     final out = <Object>[];
@@ -441,14 +461,30 @@ final class _Rewriter {
         continue;
       }
       if (t == r'\array' || t == r'\begin{array}') {
-        // the column spec ({ c c }, { l | r }) goes: matrix columns follow &
-        out.add(r'\begin{matrix}');
+        // a centred spec ({ c c }) → matrix (columns follow &); one that
+        // aligns ({ l r }, { c | c }) stays: KaTeX renders array
         final spec = argAt(i + 1);
-        i += spec is _Group && _isColumnSpec(spec) ? 2 : 1;
+        final hasSpec = spec is _Group && _isColumnSpec(spec);
+        final aligns =
+            hasSpec &&
+            spec.nodes.every(
+              (n) => RegExp(r'^[clr|]$').hasMatch(n as String),
+            ) &&
+            spec.nodes.any((n) => n != 'c');
+        _arrays.add(aligns);
+        if (aligns) {
+          out
+            ..add(r'\begin{array}')
+            ..add(_Group(List.of(spec.nodes)));
+        } else {
+          out.add(r'\begin{matrix}');
+        }
+        i += hasSpec ? 2 : 1;
         continue;
       }
       if (t == r'\end{array}') {
-        out.add(r'\end{matrix}');
+        final kept = _arrays.isNotEmpty && _arrays.removeLast();
+        out.add(kept ? r'\end{array}' : r'\end{matrix}');
         i++;
         continue;
       }
@@ -657,7 +693,8 @@ List<Object> _pairDelimiters(List<Object> nodes) {
             nodes[end + 1] == r'\right' &&
             nodes[end + 2] is String) {
           final target = _matrixFor(open, nodes[end + 2] as String);
-          if (target != null && (env == 'matrix' || env == 'array')) {
+          // (an array left here has an aligning spec: its delimiters stay)
+          if (target != null && env == 'matrix') {
             out
               ..add('\\begin{$target}')
               ..addAll(nodes.sublist(i + 3, end))

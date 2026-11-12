@@ -16,8 +16,9 @@
 //   never "ready". Progress = bytes received / manifest total.
 //   Failures → [MathModelFailed] (offline: no connection, a stall of
 //   [stallTimeout]; server: a status other than 200; checksum: size or hash
-//   differ; storage: the files could not be written); the temporary file is
-//   removed. [cancel] aborts the request → back to not installed.
+//   differ; storage: the files could not be written); the temporary file and
+//   every file already committed are removed. [cancel] aborts the request →
+//   back to not installed (also without leftover files).
 // - [delete]: cancels a running download, removes the files → not installed.
 import 'dart:async';
 
@@ -244,12 +245,15 @@ final class MathModelManager {
       _set(MathModelReady(install));
     } on _Cancelled {
       await sink?.abort();
+      await _discard();
       _set(const MathModelNotInstalled());
     } on http.RequestAbortedException {
       await sink?.abort();
+      await _discard();
       _set(const MathModelNotInstalled());
     } on Object catch (e) {
       await sink?.abort();
+      await _discard();
       if (abort.isCompleted) {
         _set(const MathModelNotInstalled());
       } else {
@@ -258,6 +262,17 @@ final class MathModelManager {
     } finally {
       client.close();
       if (identical(_abort, abort)) _abort = null;
+    }
+  }
+
+  /// Removes the files committed before a cancel or failure (an incomplete
+  /// set is never installed, and the not-installed tile offers no delete —
+  /// so nothing may stay behind). Never throws.
+  Future<void> _discard() async {
+    try {
+      await _storage.delete(manifest);
+    } on Object {
+      // best effort: the next download overwrites, delete retries
     }
   }
 

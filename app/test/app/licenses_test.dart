@@ -123,6 +123,20 @@ void main() {
       expect(text, contains('BreezeDeus'));
       expect(text, contains('1cef9f0bdcd6a4c63df7de1311fb0894593340cc'));
       expect(text, contains('int8'));
+      expect(text, contains('Copyright (c) 2022 BreezeDeus'));
     },
   );
+
+  test('ONNX Runtime (the native library under the math engine): its MIT '
+      'license and a link to its third-party notices (apps)', () async {
+    registerAppLicenses(bundle: _FakeBundle({noteSansLicenseAsset: _ofl}));
+    final entries = (await _entries())
+        .where((e) => e.packages.contains(onnxRuntimeLicenseName))
+        .toList();
+    expect(entries, hasLength(1));
+    final text = _text(entries.single);
+    expect(text, contains('Copyright (c) Microsoft Corporation'));
+    expect(text, contains('MIT License'));
+    expect(text, contains('v1.28.0/ThirdPartyNotices.txt'));
+  });
 }

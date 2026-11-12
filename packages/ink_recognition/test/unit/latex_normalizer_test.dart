@@ -42,6 +42,17 @@ void main() {
     // matrices with \left / \right delimiters → the delimited environment
     r'\left( \begin{array} { c c } { a } & { b } \\ { c } & { d } \end{array} \right)':
         r'\begin{pmatrix}{a}&{b}\\{c}&{d}\end{pmatrix}',
+    // an aligning column spec keeps the array (and its delimiters)
+    r'\begin{array} { l r } a & b \\ c & d \end{array}':
+        r'\begin{array}{lr}a&b\\c&d\end{array}',
+    r'\left[ \begin{array} { c | c } 1 & 2 \end{array} \right]':
+        r'\left[\begin{array}{c|c}1&2\end{array}\right]',
+    // words in text mode keep their spaces (as ~); letter by letter they
+    // join, and the corpus's own ~ stays
+    r'\text { for all } x': r'\text{for~all}x',
+    r'\textrm { such  that }': r'\mathrm{such~that}',
+    r'\text { f o r ~ a l l } x': r'\text{for~all}x',
+    r'\text { i f } x': r'\text{if}x',
     r'\left[ \begin{matrix} 1 & 0 \\ 0 & 1 \end{matrix} \right]':
         r'\begin{bmatrix}1&0\\0&1\end{bmatrix}',
     r'\left| \begin{matrix} a & b \\ c & d \end{matrix} \right|':

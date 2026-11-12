@@ -115,6 +115,20 @@ void main() {
     expect(full.reduce((a, b) => a < b ? a : b), lessThan(-0.5));
   });
 
+  test('non-finite points are skipped when drawing (as in the bounding '
+      'box), never thrown on', () {
+    final clean = rasterizeTraces(_plusOne())!;
+    final noisy = rasterizeTraces([
+      _trace([(100, 205), (double.nan, 7), (110, 205)]),
+      _trace([(105, 200), (105, double.infinity), (105, 210)]),
+      _trace([(120, 200), (120, 210)]),
+      _trace([(double.nan, double.nan)]),
+    ])!;
+    expect(noisy.width, clean.width);
+    expect(noisy.height, clean.height);
+    expect(noisy.pixels, clean.pixels);
+  });
+
   test('parity with the reference preprocessing (Pillow bicubic 384²)', () {
     final dir = mfrFixtures();
     final source = gzip.decode(
@@ -132,7 +146,8 @@ void main() {
       sum += d;
       if (d > maxDiff) maxDiff = d;
     }
-    expect(maxDiff, lessThanOrEqualTo(1), reason: 'max |Δ|');
-    expect(sum / expected.length, lessThan(0.01), reason: 'mean |Δ|');
+    // byte-exact (Pillow's fixed-point coefficients are ported as is)
+    expect(maxDiff, 0, reason: 'max |Δ|');
+    expect(sum, 0, reason: 'sum |Δ|');
   });
 }

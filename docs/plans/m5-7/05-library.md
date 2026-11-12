@@ -2021,12 +2021,12 @@ final class CallableMathRecognizer implements MathRecognizer {
 | 모델 | Pix2Text MFR 1.5(MIT, BreezeDeus, TrOCR 구조) — 인코더·디코더를 int8 채널별 동적 양자화한 ONNX + 원래 `tokenizer.json`. 앱에 넣지 않고 처음 켤 때 받는다(≈ 32 MB) |
 | 실행 | `flutter_onnxruntime 1.9.0`(`ondevice/ort_mfr_runtime_native.dart`만 — native_only_imports). 플러그인이 백그라운드 큐에서 돌려 UI 스레드를 막지 않는다. 전처리는 백그라운드 isolate |
 | 입력 | 획 → 흰 바탕 검은 획, 자연 크기(획 크기 중앙값 ≈ 48 px)에서 펜 2 px, 잉크 상자 + 16 px 여백 → 384×384로 늘림(정사각형으로 채우지 않음), Pillow bicubic과 같은 계산 → (v/255−0.5)/0.5 NCHW |
-| 디코딩 | 인코더 1번 + 탐욕 디코더(KV 캐시 없음, 매 단계 전체 열), `<s>`=1 · `</s>`=2, 새 토큰 200개까지, 단계마다 취소 확인 |
-| 결과 | 바이트 수준 BPE 복원 → LaTeX 정리(`ondevice/latex_normalizer.dart` — `\underset`/`\overset` 큰 연산자 → 첨자, `\operatorname*{lim}` → `\lim`, `\root…\of` → `\sqrt[]`, `\left( \begin{matrix}` → `pmatrix` 등, 렌더러가 모르는 명령은 지움). 그래도 렌더되지 않으면 그대로 제안(사용자가 고침). `engineId` = `pix2text-mfr/1.5-int8pc` |
-| 실패 | 획 없음·빈 결과 → `RecognizerEngineError('empty')`, 모델 파일 열기 실패 → `'model-load'`(다음 호출에 다시 엶), 그 밖 → `'ondevice'` — 시트 문구 '수식을 인식하지 못했어요. 다시 시도해 주세요.'(6.11.4 표의 기타) |
+| 디코딩 | 인코더 1번 + 탐욕 디코더(KV 캐시 없음, 매 단계 전체 열), `<s>`=1 · `</s>`=2, 새 토큰 200개까지(`</s>` 없이 한도에 닿으면 결과는 내되 `confidence` 0 — 거의 반복 폭주), 단계마다 취소 확인 |
+| 결과 | 바이트 수준 BPE 복원 → LaTeX 정리(`ondevice/latex_normalizer.dart` — `\underset`/`\overset` 큰 연산자 → 첨자, `\operatorname*{lim}` → `\lim`, `\root…\of` → `\sqrt[]`, `\left( \begin{matrix}` → `pmatrix` 등, 가운데 정렬(`{ c c }`)만인 `array` → `matrix`·`l`/`r`/`|`가 있으면 `array` 유지, `\text { for all }`처럼 낱말로 쓴 글자 칸은 띄어쓰기를 `~`로 지킴, 렌더러가 모르는 명령은 지움). 그래도 렌더되지 않으면 그대로 제안(사용자가 고침). `engineId` = `pix2text-mfr/1.5-int8pc` |
+| 실패 | 획 없음·빈 결과 → `RecognizerEngineError('empty')`, 모델 파일 열기 실패 → `'model-load'`(다음 호출에 다시 엶), 그 밖(전처리·모델·복원·정리) → `'ondevice'` — 시트 문구 '수식을 인식하지 못했어요. 다시 시도해 주세요.'(6.11.4 표의 기타) |
 | 설정 | 설정 › 인식 › 수식 인식 › '기기에서 수식 인식'(`recog.mathOnDevice`, device, 기본 false): 켜면 받기 시작(진행률·취소), 준비되면 '준비됨 · 약 32MB' [지우기], 실패하면 이유 + [다시]. 앱(안드로이드·iOS)에서만 보인다 |
 | 고르기 | `mathRecognizerProvider` = 모델 준비 + 스위치 켬 → 기기 안 엔진, 아니면 엔드포인트가 있으면 callable, 없으면 직접 입력. `recognitionOverrides()`는 여전히 정확히 3개(4.4.8) |
-| 파일 | Firebase Hosting `https://noteapp-3f44e.web.app/models/pix2text-mfr-1.5-int8pc/`(저장소 `hosting/models/…`, CI가 웹 예산 확인 뒤 배포 폴더에 복사·SHA256SUMS 검사). 앱은 크기와 SHA-256을 확인하고 임시 파일 → 이름 바꾸기로 설치, 표지 파일은 마지막 |
+| 파일 | Firebase Hosting `https://noteapp-3f44e.web.app/models/pix2text-mfr-1.5-int8pc/`(저장소 `hosting/models/…`, CI가 웹 예산 확인 뒤 배포 폴더에 복사·SHA256SUMS 검사). 앱은 크기와 SHA-256을 확인하고 임시 파일 → 이름 바꾸기로 설치, 표지 파일은 마지막. 취소·실패하면 이미 받은 파일까지 지운다(설치 안 됨 상태엔 [지우기]가 없으므로). 위치: 안드로이드 application support(`allowBackup="false"`), iOS `Library/Caches`(iCloud 백업 제외 — iOS가 비우면 설치 안 됨으로 보이고 다시 받는다) |
 
 ### 6.12 변환 UI 공통 규칙 (7.4.10 · G-1)
 

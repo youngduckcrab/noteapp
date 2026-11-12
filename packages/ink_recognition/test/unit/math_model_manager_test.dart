@@ -135,6 +135,42 @@ void main() {
     server.hold!.complete();
   });
 
+  test('cancel after a file was committed → the committed files are '
+      'removed too', () async {
+    final storage = MemoryModelStorage();
+    final server = FakeModelServer()
+      ..hold = Completer<void>()
+      ..holdFile = kMathModelDecoderFile;
+    final m = _manager(storage, server);
+    final run = m.download();
+    while (!server.requests.contains(kMathModelDecoderFile)) {
+      await pumpEventQueue();
+    }
+    await pumpEventQueue();
+    expect(storage.files.keys, [kMathModelEncoderFile]);
+    m.cancel();
+    await run;
+    expect(m.state.value, const MathModelNotInstalled());
+    expect(storage.files, isEmpty);
+    expect(storage.parts, isEmpty);
+    expect(storage.marked, isFalse);
+    server.hold!.complete();
+  });
+
+  test('a failure after a file was committed → failed, the committed files '
+      'are removed', () async {
+    final tampered = Map.of(fakeModelFiles);
+    final bytes = Uint8List.fromList(tampered[kMathModelTokenizerFile]!);
+    bytes[10] ^= 0xff;
+    tampered[kMathModelTokenizerFile] = bytes;
+    final storage = MemoryModelStorage();
+    final m = _manager(storage, FakeModelServer(files: tampered));
+    await m.download();
+    expect(m.state.value, const MathModelFailed(MathModelFailure.checksum));
+    expect(storage.files, isEmpty);
+    expect(storage.parts, isEmpty);
+  });
+
   test('two downloads join; delete during a download stops it; delete '
       'frees the files', () async {
     final storage = MemoryModelStorage();
@@ -222,10 +258,11 @@ void main() {
       expect(next.state.value, const MathModelNotInstalled());
     });
 
-    test('a failed file leaves no part and no marker', () async {
+    test('a failed file leaves no part, no marker and no earlier '
+        'committed file', () async {
       final tampered = Map.of(fakeModelFiles)
-        ..[kMathModelEncoderFile] = Uint8List(
-          fakeModelFiles[kMathModelEncoderFile]!.length,
+        ..[kMathModelTokenizerFile] = Uint8List(
+          fakeModelFiles[kMathModelTokenizerFile]!.length,
         );
       final m = MathModelManager(
         storage: storage(),
@@ -235,7 +272,7 @@ void main() {
       await m.download();
       expect(m.state.value, const MathModelFailed(MathModelFailure.checksum));
       final dir = Directory('${root.path}/${fakeManifest.version}');
-      expect(dir.listSync(), isEmpty);
+      expect(!dir.existsSync() || dir.listSync().isEmpty, isTrue);
     });
 
     test('an unreadable marker → not installed', () async {

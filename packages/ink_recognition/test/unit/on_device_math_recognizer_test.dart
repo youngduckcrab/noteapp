@@ -314,6 +314,56 @@ void main() {
       },
     );
 
+    test('a preprocessing or decoding error → RecognizerEngineError'
+        '(ondevice), not an unexpected error', () async {
+      final runtime = FakeRuntime([10, kMfrEndId]);
+      final engine = OnDeviceMathRecognizer(
+        openRuntime: () async => runtime,
+        loadTokenizer: () async => _tokenizer,
+        preprocess: (_) async => throw StateError('isolate died'),
+      );
+      await expectLater(
+        engine.recognize(_input),
+        throwsA(
+          isA<RecognizerEngineError>().having(
+            (e) => e.code,
+            'code',
+            'ondevice',
+          ),
+        ),
+      );
+      expect(runtime.encodeLengths, isEmpty);
+
+      final e2 = OnDeviceMathRecognizer(
+        openRuntime: () async => FakeRuntime([10, kMfrEndId]),
+        loadTokenizer: () async => _tokenizer,
+        preprocess: _preprocess,
+        validate: (_) => throw StateError('renderer broke'),
+      );
+      await expectLater(
+        e2.recognize(_input),
+        throwsA(
+          isA<RecognizerEngineError>().having(
+            (e) => e.code,
+            'code',
+            'ondevice',
+          ),
+        ),
+      );
+    });
+
+    test('the token cap without </s> → still a result, confidence 0', () async {
+      final engine = _engine(FakeRuntime(List.filled(50, 10)), maxNewTokens: 5);
+      final result = await engine.recognize(_input);
+      expect(result.latex, isNotEmpty);
+      expect(result.confidence, 0.0);
+      final ended = await _engine(
+        FakeRuntime([10, kMfrEndId]),
+        maxNewTokens: 5,
+      ).recognize(_input);
+      expect(ended.confidence, greaterThan(0.9));
+    });
+
     test('one call at a time: the second waits for the first', () async {
       final gate = Completer<void>();
       final runtime = FakeRuntime([
