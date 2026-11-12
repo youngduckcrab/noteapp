@@ -318,9 +318,9 @@ android {
       expect(plist['UISupportedInterfaceOrientations~ipad'], hasLength(4));
     });
 
-    test('Xcode project (6.11.1): IPHONEOS_DEPLOYMENT_TARGET = 15.5 exactly '
+    test('Xcode project (6.11.1): IPHONEOS_DEPLOYMENT_TARGET = 16.0 exactly '
         '3 times, no 15.0', () {
-      expect(config.deploymentTargets, ['15.5', '15.5', '15.5']);
+      expect(config.deploymentTargets, ['16.0', '16.0', '16.0']);
       expect(
         _read(NativeConfigPaths.pbxproj),
         isNot(contains('IPHONEOS_DEPLOYMENT_TARGET = 15.0;')),
@@ -329,8 +329,8 @@ android {
 
     test('Podfile (6.11.2): the template plus the ML Kit lines', () {
       final podfile = config.podfile;
-      expect(podfile.platformIos, '15.5');
-      expect(podfile.iosVersion, '15.5');
+      expect(podfile.platformIos, '16.0');
+      expect(podfile.iosVersion, '16.0');
       expect(podfile.excludesArmv7, isTrue);
       expect(podfile.setsPodsDeploymentTarget, isTrue);
       expect(podfile.raisesTargetDeploymentTargets, isTrue);
@@ -515,24 +515,24 @@ android {
       'one deployment target left at 15.0': (
         NativeConfigPaths.pbxproj,
         (text) => text.replaceFirst(
-          'IPHONEOS_DEPLOYMENT_TARGET = 15.5;',
+          'IPHONEOS_DEPLOYMENT_TARGET = 16.0;',
           'IPHONEOS_DEPLOYMENT_TARGET = 15.0;',
         ),
-        'IPHONEOS_DEPLOYMENT_TARGET = 15.0, expected 15.5',
+        'IPHONEOS_DEPLOYMENT_TARGET = 15.0, expected 16.0',
       ),
       'a deployment target removed': (
         NativeConfigPaths.pbxproj,
-        (text) => text.replaceFirst('IPHONEOS_DEPLOYMENT_TARGET = 15.5;', ''),
+        (text) => text.replaceFirst('IPHONEOS_DEPLOYMENT_TARGET = 16.0;', ''),
         'appears 2 times',
       ),
       'Podfile platform': (
         podfile,
-        _replace("platform :ios, '15.5'", "platform :ios, '15.0'"),
+        _replace("platform :ios, '16.0'", "platform :ios, '15.0'"),
         'platform :ios is 15.0',
       ),
       'Podfile iOSVersion': (
         podfile,
-        _replace(r"$iOSVersion = '15.5'", r"$iOSVersion = '15.0'"),
+        _replace(r"$iOSVersion = '16.0'", r"$iOSVersion = '15.0'"),
         r'$iOSVersion is 15.0',
       ),
       'Podfile armv7': (

@@ -77,6 +77,7 @@ const _contract75 = <String, String>{
   'google_mlkit_digital_ink_recognition': '0.16.1',
   'http': '1.6.0',
   'flutter_math_fork': '0.7.4',
+  'flutter_onnxruntime': '1.9.0', // ink_recognition: on-device math engine
   'flutter_svg': '2.3.0',
   'vector_graphics': '1.2.3',
   'vector_graphics_compiler': '1.3.0',
@@ -96,6 +97,7 @@ const _appPlugins = [
   'file_selector_macos',
   'file_selector_windows',
   'flutter_foreground_task',
+  'flutter_onnxruntime',
   'flutter_plugin_android_lifecycle',
   'google_mlkit_commons',
   'google_mlkit_digital_ink_recognition',
@@ -167,7 +169,8 @@ void main() {
   group('rules file', () {
     test('pinned_external equals the contract 7.5 table (1차 + 2차)', () {
       expect(rules.pinnedExternal, _contract75);
-      expect(rules.pinnedExternal.length, 36 + 21 + 1); // + share_plus (app)
+      // + share_plus (app), flutter_onnxruntime (ink_recognition)
+      expect(rules.pinnedExternal.length, 36 + 21 + 2);
     });
 
     test('allowed_dependencies equals contract 7.1 v2.1 (app without '
@@ -229,6 +232,7 @@ void main() {
         'package:flutter_foreground_task/',
         'package:path_provider/',
         'package:share_plus/',
+        'package:flutter_onnxruntime/',
       ]);
       expect(rules.forbiddenIoMembers, ['Platform']);
       expect(rules.generatedFiles, contains('*.steps.dart'));
@@ -255,7 +259,7 @@ void main() {
         ],
       });
       expect(rules.pluginPackages, _appPlugins);
-      expect(rules.pluginPackages, hasLength(54));
+      expect(rules.pluginPackages, hasLength(55));
     });
 
     test('plugin_packages equals the app dependencyGraph (NR6) when the '

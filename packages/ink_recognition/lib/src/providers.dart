@@ -9,8 +9,10 @@
 // - (L2-07) recognitionOverrides(): exactly 3 overrides (4.4.8) — the
 //   platform handwriting engine (stub on the web, native file otherwise —
 //   platform_recognizer.dart; disposed with the container), the math engine
-//   (manual without an endpoint, CallableMathRecognizer with one — its
-//   http.Client closed with the container) and GeometricShapeFitter for INK.
+//   (the on-device engine when its model is ready and recog.mathOnDevice is
+//   on — ondevice/on_device_providers.dart; else manual without an
+//   endpoint, CallableMathRecognizer with one — its http.Client closed with
+//   the container) and GeometricShapeFitter for INK.
 // - (L2-11) handwritingIndexerProvider: null on the web or without an
 //   available engine; otherwise an indexer whose `enabled` follows
 //   recog.autoIndex (store.settings.watch). Never calls start() (INFRA's
@@ -34,6 +36,7 @@ import 'indexer/indexer_status.dart';
 import 'l10n/recognition_strings.dart';
 import 'math/callable_math_recognizer.dart';
 import 'model/candidates.dart';
+import 'ondevice/on_device_providers.dart';
 import 'ports/handwriting_recognizer.dart';
 import 'ports/math_recognizer.dart';
 import 'ports/model_admin.dart';
@@ -107,6 +110,10 @@ List<Override> buildRecognitionOverrides({
     return recognizer;
   }),
   mathRecognizerProvider.overrideWith((ref) {
+    // The on-device engine first (model ready + recog.mathOnDevice on —
+    // nothing leaves the device), then the server engine when configured.
+    final onDevice = ref.watch(onDeviceMathRecognizerProvider);
+    if (onDevice != null) return onDevice;
     final endpoint = config.mathEndpoint;
     if (endpoint == null) return const ManualOnlyMathRecognizer();
     final client = createClient();

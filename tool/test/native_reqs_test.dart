@@ -875,8 +875,8 @@ void main() {
         'google_mlkit_digital_ink_recognition',
       ]);
       expect(rules.pluginPackages.toSet(), dependencies.dependencyGraph);
-      expect(rules.pluginPackages, hasLength(54));
-      expect(report.appIos, '15.5');
+      expect(rules.pluginPackages, hasLength(55));
+      expect(report.appIos, '16.0');
     }, skip: skip);
 
     test('`ws native-reqs` exits 0 with the table', () async {
@@ -890,7 +890,7 @@ void main() {
       expect(
         text,
         contains(
-          'app: ios 15.5 · minSdk 24 (flutter — FlutterExtension.kt) · '
+          'app: ios 16.0 · minSdk 24 (flutter — FlutterExtension.kt) · '
           'compileSdk 36 (flutter — FlutterExtension.kt) · CocoaPods-only: '
           'google_mlkit_commons, google_mlkit_digital_ink_recognition',
         ),

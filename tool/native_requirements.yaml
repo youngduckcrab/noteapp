@@ -12,7 +12,7 @@
 # of tool/workspace_rules.yaml (NR6). Permissions without a dot get the
 # `android.permission.` prefix; service attributes get `android:`.
 app:
-  ios_deployment_target: '15.5'        # pbxproj 3 places + Podfile platform + $iOSVersion
+  ios_deployment_target: '16.0'        # flutter_onnxruntime (ML Kit: 15.5); pbxproj 3 places + Podfile platform + $iOSVersion
   android_min_sdk: flutter              # 'flutter' = Flutter default (FlutterExtension.kt; 24 in 3.47.9)
   android_compile_sdk: flutter          # 36 in 3.47.9
   android_label: 필기노트
@@ -39,6 +39,10 @@ plugins:
   google_mlkit_digital_ink_recognition: {area: LIBRARY, android_permissions: [INTERNET]}
   google_mlkit_commons: {area: LIBRARY}
   pencil_bridge:   {area: INFRA}
+  # On-device math engine (ink_recognition): ONNX Runtime; iOS 16.0 is the
+  # app's deployment target; no permission (the model download uses
+  # INTERNET, already in app_extra). R8: app/android/app/proguard-rules.pro.
+  flutter_onnxruntime: {area: LIBRARY}
 # 1차 plugins and the dev-only integration_test (app dev — J21): no native
 # requirement.
 plugins_without_requirements: [android_file_picker, file_picker_darwin, pdfium_flutter, jni,

@@ -1,0 +1,24 @@
+Pix2Text MFR 1.5 — mathematical formula recognition model (int8 build)
+=====================================================================
+
+Model:    Pix2Text-MFR-1.5 by BreezeDeus (TrOCR architecture), MIT License
+          (see LICENSE in this directory).
+Source:   https://huggingface.co/breezedeus/pix2text-mfr-1.5
+          revision 1cef9f0bdcd6a4c63df7de1311fb0894593340cc
+          (ONNX export: encoder_model.onnx, decoder_model.onnx, tokenizer.json)
+Project:  https://github.com/breezedeus/Pix2Text
+
+Changes made by this project:
+- encoder_model.int8pc.onnx and decoder_model.int8pc.onnx are the original
+  encoder_model.onnx and decoder_model.onnx dynamically quantized to int8
+  with per-channel weights (onnxruntime.quantization.quantize_dynamic,
+  QuantType.QInt8, per_channel=True, after quant_pre_process). The
+  quantized graphs use DynamicQuantizeLinear / MatMulInteger operators and need
+  a full ONNX Runtime build.
+- tokenizer.json is unchanged.
+
+These files are not part of the app bundle. The app downloads them on
+demand (settings › 인식 › 기기에서 수식 인식) from
+https://noteapp-3f44e.web.app/models/pix2text-mfr-1.5-int8pc/ and checks
+each file's size and SHA-256 (SHA256SUMS; the app's manifest:
+packages/ink_recognition/lib/src/ondevice/math_model_manifest.dart).

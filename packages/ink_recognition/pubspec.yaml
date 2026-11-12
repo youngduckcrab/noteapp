@@ -21,6 +21,11 @@ dependencies:
   collection: 1.19.1
   google_mlkit_digital_ink_recognition: 0.16.1   # *_native.dart only, `as mlkit`
   http: 1.6.0
+  # ondevice/*_native.dart only (native_only_imports): the on-device math
+  # engine (ONNX Runtime) and its model files in the app support directory.
+  flutter_onnxruntime: 1.9.0
+  path_provider: 2.1.6
+  crypto: 3.0.8
 dev_dependencies:
   flutter_test:
     sdk: flutter

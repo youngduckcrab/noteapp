@@ -903,6 +903,8 @@ void main() {
         'Web build',
         'Finalize web build',
         'Web budget', // 2차 J17 — right after Finalize, before the deploy
+        // the on-device math model, after the budget (not part of it)
+        'Model files to the hosting directory',
         'Deploy to Firebase Hosting',
         'Summary',
       ]);
@@ -950,6 +952,55 @@ void main() {
         ], reason: job);
       }
       expect(step('web', 'Web build')['working-directory'], 'app');
+    });
+
+    test('web: the on-device math model files are copied into the '
+        'hosting directory after the web budget and checked', () {
+      final copy = step('web', 'Model files to the hosting directory');
+      expect(_runLines(copy), [
+        'mkdir -p app/build/web/models',
+        'cp -R hosting/models/. app/build/web/models/',
+        'for dir in app/build/web/models/*/; do',
+        '(cd "\$dir" && sha256sum --check --strict SHA256SUMS)',
+        'done',
+      ]);
+      expect(copy['if'], isNull);
+      expect(copy['working-directory'], isNull);
+      // every committed model directory has its checksum list
+      final models = Directory(p.join(repoRoot, 'hosting', 'models'));
+      final dirs = models.listSync().whereType<Directory>().toList();
+      expect(dirs, isNotEmpty);
+      for (final dir in dirs) {
+        final sums = File(p.join(dir.path, 'SHA256SUMS'));
+        expect(sums.existsSync(), isTrue, reason: dir.path);
+        for (final line in sums.readAsLinesSync().where((l) => l.isNotEmpty)) {
+          final name = line.split(RegExp(r'\s+')).last;
+          expect(
+            File(p.join(dir.path, name)).existsSync(),
+            isTrue,
+            reason: '${dir.path}/$name',
+          );
+        }
+        for (final legal in ['LICENSE', 'NOTICE']) {
+          expect(File(p.join(dir.path, legal)).existsSync(), isTrue);
+        }
+      }
+      // long cache for the model files (app/firebase.json)
+      final hosting =
+          (jsonDecode(
+                File(p.join(repoRoot, 'app', 'firebase.json'))
+                    .readAsStringSync(),
+              ) as Map)['hosting']
+              as Map;
+      final rule = (hosting['headers'] as List)
+          .cast<Map<String, Object?>>()
+          .singleWhere((h) => h['source'] == '/models/**');
+      expect(rule['headers'], [
+        {
+          'key': 'Cache-Control',
+          'value': 'public, max-age=31536000, immutable',
+        },
+      ]);
     });
 
     test('the setup steps are the same in every job; full history where '

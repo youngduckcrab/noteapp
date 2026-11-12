@@ -394,8 +394,9 @@ abstract final class AppNativeExpectations {
   /// App display name on both platforms.
   static const String displayName = '필기노트';
 
-  /// iOS deployment target (ML Kit minimum — contract 7.4.3).
-  static const String iosDeploymentTarget = '15.5';
+  /// iOS deployment target: flutter_onnxruntime 1.9.0's minimum (the
+  /// on-device math engine); ML Kit needs 15.5 (contract 7.4.3).
+  static const String iosDeploymentTarget = '16.0';
 
   /// How often the Xcode project sets the deployment target (project,
   /// Runner Debug / Release / Profile — 6.11.1).

@@ -34,12 +34,23 @@ abstract final class RecognitionSettingsKeys {
     scope: SettingScope.device,
   );
 
+  /// '기기에서 수식 인식' (settings › 인식): the on-device math engine —
+  /// turning it on downloads its model (ondevice/math_model_manager.dart);
+  /// the engine is used while this is on and the model is ready. Per device
+  /// (the model files are).
+  static final SettingKey<bool> mathOnDevice = SettingKey.boolean(
+    'recog.mathOnDevice',
+    false,
+    scope: SettingScope.device,
+  );
+
   /// Every recog.* key (tests, the settings section).
   static final List<SettingKey<Object>> all = [
     language,
     mathConsent,
     autoIndex,
     modelWifiOnly,
+    mathOnDevice,
   ];
 }
 

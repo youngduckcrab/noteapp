@@ -20,3 +20,7 @@ const String kManualMathEngineId = 'manual';
 
 /// CallableMathRecognizer before an answer names its engine (6.11.2).
 const String kCallableMathEngineId = 'callable';
+
+/// OnDeviceMathRecognizer: the on-device math model and its file set
+/// (ondevice/math_model_manifest.dart — bump both with a new model).
+const String kOnDeviceMathEngineId = 'pix2text-mfr/1.5-int8pc';

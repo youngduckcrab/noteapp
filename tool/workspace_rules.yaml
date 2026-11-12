@@ -82,6 +82,7 @@ pinned_external:               # R9: must be identical wherever declared = 00-ov
   google_mlkit_digital_ink_recognition: 0.16.1
   http: 1.6.0
   flutter_math_fork: 0.7.4
+  flutter_onnxruntime: 1.9.0              # ink_recognition direct: the on-device math engine
   flutter_svg: 2.3.0                       # 간접 고정
   vector_graphics: 1.2.3                   # 간접 고정
   vector_graphics_compiler: 1.3.0          # 간접 고정
@@ -101,6 +102,7 @@ native_only_imports:           # R4: in lib/, only from files ending with native
   - package:flutter_foreground_task/                # 2차
   - package:path_provider/                          # 2차
   - package:share_plus/                             # app: native PDF share
+  - package:flutter_onnxruntime/                    # ink_recognition: on-device math engine
 
 forbidden_io_members: [Platform]   # R4 (2차): dart:io identifiers banned in lib/ even in *_native.dart
 
@@ -132,7 +134,7 @@ plugin_packages:               # = every plugin the app resolves (names of app/.
                                #   `dependencyGraph`: app-facing, platform, web-only, transitive, dev) — NR6
   [android_file_picker, audio_session, file_picker, file_picker_darwin, file_picker_linux,
    file_picker_web, file_selector_linux, file_selector_macos, file_selector_windows,
-   flutter_foreground_task, flutter_plugin_android_lifecycle, google_mlkit_commons,
+   flutter_foreground_task, flutter_onnxruntime, flutter_plugin_android_lifecycle, google_mlkit_commons,
    google_mlkit_digital_ink_recognition, image_picker, image_picker_android, image_picker_for_web,
    image_picker_ios, image_picker_linux, image_picker_macos, image_picker_windows, integration_test,
    jni, jni_flutter, just_audio, just_audio_web, path_provider, path_provider_android,

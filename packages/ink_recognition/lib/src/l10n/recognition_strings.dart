@@ -132,6 +132,27 @@ abstract final class RecognitionStrings {
   static const String mathEngineServer = '서버 엔진';
   static const String consentSwitch = '외부 서비스로 보내기 동의';
 
+  // The on-device math engine (settings › 인식 › 수식 인식).
+  static const String mathEngineOnDevice = '기기 안 엔진';
+  static const String onDeviceMathTitle = '기기에서 수식 인식';
+  static const String onDeviceMathBody =
+      '손으로 쓴 수식을 이 기기 안에서 LaTeX로 바꿔요. 필기는 밖으로 보내지 않아요.';
+
+  /// [mb] = the model's size in MB.
+  static String onDeviceMathOffNote(int mb) =>
+      '켜면 인식 모델(약 ${mb}MB)을 한 번 받아요. Wi-Fi에서 받는 걸 권해요.';
+  static String onDeviceMathDownloading(int percent) => '모델 받는 중… $percent%';
+  static String onDeviceMathReady(int mb) => '준비됨 · 약 ${mb}MB';
+  static const String onDeviceMathNotInstalled = '모델을 아직 받지 않았어요.';
+  static const String onDeviceMathFailedOffline =
+      '모델을 받지 못했어요. 인터넷 연결을 확인해 주세요.';
+  static const String onDeviceMathFailedChecksum =
+      '받은 모델 파일이 올바르지 않아요. 다시 받아 주세요.';
+  static const String onDeviceMathFailedStorage =
+      '모델을 저장하지 못했어요. 저장 공간을 확인해 주세요.';
+  static const String onDeviceMathFailedOther =
+      '모델을 받지 못했어요. 잠시 뒤에 다시 시도해 주세요.';
+
   // Model rows (6.18 — also the lab, 6.20, and the conversion sheet card).
   static const String modelReady = '준비됨';
   static const String modelNotDownloaded = '받지 않음';

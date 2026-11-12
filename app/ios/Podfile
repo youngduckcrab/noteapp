@@ -1,12 +1,13 @@
 # app/ios/Podfile (INFRA, docs/plans/m5-7/01-infra.md 6.11.2). Committed: the
 # Flutter 3.47.9 template (templates/cocoapods/Podfile-ios) plus the lines the
 # ML Kit README asks for (google_mlkit_digital_ink_recognition 0.16.1 — iOS
-# 15.5, no armv7). Flutter installs only the plugins without Swift Package
+# 15.5, no armv7) and flutter_onnxruntime 1.9.0 (iOS 16.0 — the on-device
+# math engine). Flutter installs only the plugins without Swift Package
 # Manager support (the two ML Kit pods) through CocoaPods. When Flutter is
 # upgraded, compare this file with the new template.
-platform :ios, '15.5'
-# ML Kit minimum (contract 7.4.3).
-$iOSVersion = '15.5'
+platform :ios, '16.0'
+# flutter_onnxruntime minimum (ML Kit needs 15.5 — contract 7.4.3).
+$iOSVersion = '16.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -44,7 +45,8 @@ target 'Runner' do
 end
 
 post_install do |installer|
-  # ML Kit README: no armv7, the deployment target of every pod at least 15.5.
+  # ML Kit README: no armv7, the deployment target of every pod at least 15.5
+  # (16.0 here — flutter_onnxruntime).
   installer.pods_project.build_configurations.each do |config|
     config.build_settings['EXCLUDED_ARCHS[sdk=*]'] = 'armv7'
     config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = $iOSVersion

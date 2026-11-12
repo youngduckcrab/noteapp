@@ -17,6 +17,8 @@
 // automatic indexing on with the model missing starts the download on Android
 // (ensureModel once — the indexer joins it in the adapter) and emphasises the
 // row's [받기] on iPad (6.18).
+// The on-device math engine: '기기에서 수식 인식' (on_device_math_tile.dart —
+// download on demand, progress, cancel, retry, delete; apps only).
 // '품질 실험': [인식 실험 열기] (L2-19 — only with a handwriting engine, never
 // on the web) and (P-C, L2-22) [수식 고정 자료 만들기] on every platform, the
 // web included (6.14.7 — the math pad's fixture mode, no engine needed).
@@ -27,6 +29,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../common/engine_ids.dart';
 import '../common/report_error.dart';
 import '../indexer/indexer_status.dart';
 import '../l10n/recognition_strings.dart';
@@ -40,6 +43,7 @@ import '../ui/math_pad_sheet.dart' show openMathFixturePad;
 import '../ui/model_downloads.dart';
 import '../ui/model_row.dart';
 import '../ui/recognition_sheet.dart' show kSheetMinTapStyle;
+import 'on_device_math_tile.dart';
 import 'recognition_settings_keys.dart';
 
 /// Appendix C keys of the section (INFRA V5 · V6 — not contract).
@@ -234,9 +238,12 @@ class RecognitionSettingsSection extends ConsumerWidget {
               subtitle: Text(
                 manualMath
                     ? RecognitionStrings.mathEngineManual
+                    : math.engineId == kOnDeviceMathEngineId
+                    ? RecognitionStrings.mathEngineOnDevice
                     : RecognitionStrings.mathEngineServer,
               ),
             ),
+            OnDeviceMathTile(enabled: loaded),
             SwitchListTile(
               key: RecognitionSettingsUiKeys.consent,
               title: const Text(RecognitionStrings.consentSwitch),

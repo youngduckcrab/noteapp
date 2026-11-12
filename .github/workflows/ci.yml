@@ -578,6 +578,18 @@ jobs:
       - name: Web budget
         run: dart run tool/ws.dart web-budget check --build-dir app/build/web
 
+      # The on-device math model (≈ 32 MB, downloaded by the apps on demand —
+      # packages/ink_recognition/lib/src/ondevice/math_model_manifest.dart)
+      # is served from the same site: copied in AFTER the web budget (never
+      # part of the web app or its budget) and checked against SHA256SUMS.
+      - name: Model files to the hosting directory
+        run: |
+          mkdir -p app/build/web/models
+          cp -R hosting/models/. app/build/web/models/
+          for dir in app/build/web/models/*/; do
+            (cd "$dir" && sha256sum --check --strict SHA256SUMS)
+          done
+
       # `expires` applies to preview channels only.
       - name: Deploy to Firebase Hosting
         id: deploy

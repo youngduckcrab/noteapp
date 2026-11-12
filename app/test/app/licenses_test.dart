@@ -109,4 +109,20 @@ void main() {
     }
     expect(find.text(noteSansLicenseName), findsOneWidget);
   });
+
+  test(
+    'the on-device math model: its MIT license as an entry (apps)',
+    () async {
+      registerAppLicenses(bundle: _FakeBundle({noteSansLicenseAsset: _ofl}));
+      final entries = (await _entries())
+          .where((e) => e.packages.contains(mathModelLicenseName))
+          .toList();
+      expect(entries, hasLength(1));
+      final text = _text(entries.single);
+      expect(text, contains('MIT License'));
+      expect(text, contains('BreezeDeus'));
+      expect(text, contains('1cef9f0bdcd6a4c63df7de1311fb0894593340cc'));
+      expect(text, contains('int8'));
+    },
+  );
 }

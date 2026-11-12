@@ -1,5 +1,6 @@
 // RecognitionSettingsKeys (m5-7/05-library 4.4.3, 8.2 L2-07; contract 7.4.4
-// v2.1 — CP-L9): the four recog.* keys, their scopes and defaults, CORE's
+// v2.1 — CP-L9): the four contract recog.* keys + recog.mathOnDevice (the
+// on-device math engine, device scope), their scopes and defaults, CORE's
 // name rule, and the language fallback.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/src/settings/recognition_settings_keys.dart';
@@ -7,20 +8,21 @@ import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
 
 void main() {
-  test('four keys, recog. prefix, CORE name rule, no duplicates', () {
+  test('five keys, recog. prefix, CORE name rule, no duplicates', () {
     final keys = RecognitionSettingsKeys.all;
     expect(keys.map((k) => k.name), [
       'recog.language',
       'recog.mathConsent',
       'recog.autoIndex',
       'recog.modelWifiOnly',
+      'recog.mathOnDevice',
     ]);
     final rule = RegExp(r'^[a-z][a-zA-Z0-9_.]{0,63}$');
     for (final key in keys) {
       expect(rule.hasMatch(key.name), isTrue, reason: key.name);
       expect(key.name, startsWith('recog.'));
     }
-    expect(keys.map((k) => k.name).toSet(), hasLength(4));
+    expect(keys.map((k) => k.name).toSet(), hasLength(5));
   });
 
   test('scopes and defaults (contract 7.4.4)', () {
@@ -36,6 +38,9 @@ void main() {
     expect(RecognitionSettingsKeys.modelWifiOnly, isA<SettingKey<bool>>());
     expect(RecognitionSettingsKeys.modelWifiOnly.scope, SettingScope.device);
     expect(RecognitionSettingsKeys.modelWifiOnly.defaultValue, isTrue);
+    expect(RecognitionSettingsKeys.mathOnDevice, isA<SettingKey<bool>>());
+    expect(RecognitionSettingsKeys.mathOnDevice.scope, SettingScope.device);
+    expect(RecognitionSettingsKeys.mathOnDevice.defaultValue, isFalse);
   });
 
   test(

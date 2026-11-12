@@ -25,3 +25,9 @@ Podfile text eol=lf
 *.webm binary
 *.m4a binary
 *.sqlite binary
+
+# On-device math model files: byte-exact (checked by SHA-256 in the app and
+# in CI — hosting/models/*/SHA256SUMS).
+*.onnx binary
+hosting/models/** -text
+*.gz binary

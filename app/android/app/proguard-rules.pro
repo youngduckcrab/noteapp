@@ -16,3 +16,12 @@
 # (android-emulator.yml run 43241551603). Keep every registrar's constructor.
 -keep class * implements com.google.firebase.components.ComponentRegistrar { <init>(); }
 -keep class com.google.mlkit.**.*Registrar { <init>(); }
+
+# ONNX Runtime (flutter_onnxruntime — the on-device math engine): its JNI
+# library looks up the Java classes (OrtSession, OnnxTensor, OrtException …)
+# and their fields / constructors by name from native code, which R8 cannot
+# see; the ONNX Runtime docs ask Android apps minified with R8 for exactly
+# this rule (also the plugin's README). Keep the plugin's own classes too
+# (registered by name in GeneratedPluginRegistrant).
+-keep class ai.onnxruntime.** { *; }
+-keep class com.masicai.flutteronnxruntime.** { *; }

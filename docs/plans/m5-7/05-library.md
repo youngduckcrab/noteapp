@@ -2012,6 +2012,22 @@ final class CallableMathRecognizer implements MathRecognizer {
 - E4(`v: 2`)·E10(`pngBase64` 2 MB 초과)은 클라이언트가 만들지 않는 입력이라(언제나 `v: 1`, 2 MB를 넘는 PNG는 뺌 — 6.11.3) `unit/math_payload_test.dart`가 클라이언트 쪽 보장으로 시험한다.
 - 전역 잠금·실제 네트워크(루프백)·실제 시간을 쓰는 유일한 LIBRARY 시험이다(9.1).
 
+#### 6.11.8 기기 안 수식 엔진 (`OnDeviceMathRecognizer` — 2차 이후 추가)
+
+외부 서비스 없이 기기 안에서 손글씨 수식을 LaTeX로 바꾼다(안드로이드 앱, 뒤에 iPad 앱). 웹은 지금처럼 직접 입력만(`ManualOnlyMathRecognizer`).
+
+| 항목 | 내용 |
+|---|---|
+| 모델 | Pix2Text MFR 1.5(MIT, BreezeDeus, TrOCR 구조) — 인코더·디코더를 int8 채널별 동적 양자화한 ONNX + 원래 `tokenizer.json`. 앱에 넣지 않고 처음 켤 때 받는다(≈ 32 MB) |
+| 실행 | `flutter_onnxruntime 1.9.0`(`ondevice/ort_mfr_runtime_native.dart`만 — native_only_imports). 플러그인이 백그라운드 큐에서 돌려 UI 스레드를 막지 않는다. 전처리는 백그라운드 isolate |
+| 입력 | 획 → 흰 바탕 검은 획, 자연 크기(획 크기 중앙값 ≈ 48 px)에서 펜 2 px, 잉크 상자 + 16 px 여백 → 384×384로 늘림(정사각형으로 채우지 않음), Pillow bicubic과 같은 계산 → (v/255−0.5)/0.5 NCHW |
+| 디코딩 | 인코더 1번 + 탐욕 디코더(KV 캐시 없음, 매 단계 전체 열), `<s>`=1 · `</s>`=2, 새 토큰 200개까지, 단계마다 취소 확인 |
+| 결과 | 바이트 수준 BPE 복원 → LaTeX 정리(`ondevice/latex_normalizer.dart` — `\underset`/`\overset` 큰 연산자 → 첨자, `\operatorname*{lim}` → `\lim`, `\root…\of` → `\sqrt[]`, `\left( \begin{matrix}` → `pmatrix` 등, 렌더러가 모르는 명령은 지움). 그래도 렌더되지 않으면 그대로 제안(사용자가 고침). `engineId` = `pix2text-mfr/1.5-int8pc` |
+| 실패 | 획 없음·빈 결과 → `RecognizerEngineError('empty')`, 모델 파일 열기 실패 → `'model-load'`(다음 호출에 다시 엶), 그 밖 → `'ondevice'` — 시트 문구 '수식을 인식하지 못했어요. 다시 시도해 주세요.'(6.11.4 표의 기타) |
+| 설정 | 설정 › 인식 › 수식 인식 › '기기에서 수식 인식'(`recog.mathOnDevice`, device, 기본 false): 켜면 받기 시작(진행률·취소), 준비되면 '준비됨 · 약 32MB' [지우기], 실패하면 이유 + [다시]. 앱(안드로이드·iOS)에서만 보인다 |
+| 고르기 | `mathRecognizerProvider` = 모델 준비 + 스위치 켬 → 기기 안 엔진, 아니면 엔드포인트가 있으면 callable, 없으면 직접 입력. `recognitionOverrides()`는 여전히 정확히 3개(4.4.8) |
+| 파일 | Firebase Hosting `https://noteapp-3f44e.web.app/models/pix2text-mfr-1.5-int8pc/`(저장소 `hosting/models/…`, CI가 웹 예산 확인 뒤 배포 폴더에 복사·SHA256SUMS 검사). 앱은 크기와 SHA-256을 확인하고 임시 파일 → 이름 바꾸기로 설치, 표지 파일은 마지막 |
+
 ### 6.12 변환 UI 공통 규칙 (7.4.10 · G-1)
 
 | 규칙 | 내용 |
