@@ -743,7 +743,7 @@ void main() {
       expect(push.keys, ['paths-ignore'], reason: 'no branch filter');
       expect(push['paths-ignore'], _ignoredPaths);
       final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
-      expect(inputs.keys, unorderedEquals(['deploy', 'integration', 'full']));
+      expect(inputs.keys, unorderedEquals(['deploy', 'integration', 'full', 'live']));
       expect((inputs['deploy'] as YamlMap)['type'], 'boolean');
       expect((inputs['deploy'] as YamlMap)['default'], isTrue);
       expect((inputs['integration'] as YamlMap)['type'], 'boolean');
@@ -751,6 +751,8 @@ void main() {
       // 2차 R2-B1: a manual run tests only the changed members unless full.
       expect((inputs['full'] as YamlMap)['type'], 'boolean');
       expect((inputs['full'] as YamlMap)['default'], isFalse);
+      expect((inputs['live'] as YamlMap)['type'], 'boolean');
+      expect((inputs['live'] as YamlMap)['default'], isFalse);
     });
 
     test('concurrency per ref with cancel-in-progress; default-branch '
@@ -1639,7 +1641,17 @@ void main() {
       final channel = step('web', 'Channel');
       expect(channel['id'], 'channel');
       final run = '${channel['run']}';
-      expect(run, contains(r'''if [ "$GITHUB_REF" = 'refs/heads/main' ]'''));
+      expect(
+        run,
+        contains(
+          r'''if [ "$GITHUB_REF" = 'refs/heads/main' ] || '''
+          r'''[ "$LIVE_REQUESTED" = 'true' ]''',
+        ),
+      );
+      expect(
+        (channel['env'] as YamlMap)['LIVE_REQUESTED'],
+        r'${{ inputs.live || false }}',
+      );
       expect(run, contains(r'''echo 'id=live' >> "$GITHUB_OUTPUT"'''));
       expect(run, contains(r'''echo 'build=live' >> "$GITHUB_OUTPUT"'''));
       expect(

@@ -72,6 +72,10 @@ on:
         description: '전체 실행 (모든 멤버 + check --strict — 끄면 바뀐 멤버만)'
         type: boolean
         default: false
+      live:
+        description: 'live 채널에 배포 (main이 아닌 브랜치에서도 — 앱이 받는 모델 주소)'
+        type: boolean
+        default: false
 
 # Default-branch pushes (not main) test only their own change, so each gets
 # its own group (never cancelled or replaced); everything else cancels the
@@ -539,10 +543,14 @@ jobs:
       # Hosting channel id (`id`) and build channel (`build`). Live is main
       # only, not "the default branch": the development branch keeps its
       # preview channel while it is the default branch.
+      # A manual run with `live` also deploys this branch to live: the apps
+      # download the on-device models from the live address.
       - name: Channel
         id: channel
+        env:
+          LIVE_REQUESTED: ${{ inputs.live || false }}
         run: |
-          if [ "$GITHUB_REF" = 'refs/heads/main' ]; then
+          if [ "$GITHUB_REF" = 'refs/heads/main' ] || [ "$LIVE_REQUESTED" = 'true' ]; then
             echo 'id=live' >> "$GITHUB_OUTPUT"
             echo 'build=live' >> "$GITHUB_OUTPUT"
           else
