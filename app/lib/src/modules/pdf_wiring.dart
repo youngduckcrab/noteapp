@@ -54,21 +54,31 @@ EditorExtensions editorExtensionsFromPdf({
 );
 
 /// Lines over PDF render stats, recomputed at most once per [minInterval]
-/// (≤ 4 Hz as DevOverlaySection requires).
+/// (≤ 4 Hz as DevOverlaySection requires), followed by the [exportLines]
+/// (2nd round, contract v2.6 C26-02 — pdfDevOverlayLinesProvider: empty
+/// before the first export, then the last note's ledger lines).
 ///
-/// A stats change starts a [minInterval] timer; the lines are recomputed
-/// from the latest stats when it fires (changes in between are merged).
+/// A stats or export lines change starts a [minInterval] timer; the lines
+/// are recomputed from the latest values when it fires (changes in between
+/// are merged).
 final class PdfRenderStatsLines extends ChangeNotifier
     implements ValueListenable<List<String>> {
   PdfRenderStatsLines(
     ValueListenable<PdfRenderStats> stats, {
+    ValueListenable<List<String>>? exportLines,
     this._minInterval = const Duration(milliseconds: 250),
   }) : _stats = stats,
-       _value = List<String>.unmodifiable(formatPdfRenderStats(stats.value)) {
+       _exportLines = exportLines,
+       _value = List<String>.unmodifiable([
+         ...formatPdfRenderStats(stats.value),
+         ...?exportLines?.value,
+       ]) {
     _stats.addListener(_onStats);
+    _exportLines?.addListener(_onStats);
   }
 
   final ValueListenable<PdfRenderStats> _stats;
+  final ValueListenable<List<String>>? _exportLines;
   final Duration _minInterval;
   List<String> _value;
   Timer? _timer;
@@ -84,7 +94,10 @@ final class PdfRenderStatsLines extends ChangeNotifier
   void _refresh() {
     _timer = null;
     if (_disposed) return;
-    final next = formatPdfRenderStats(_stats.value);
+    final next = [
+      ...formatPdfRenderStats(_stats.value),
+      ...?_exportLines?.value,
+    ];
     if (listEquals(next, _value)) return;
     _value = List<String>.unmodifiable(next);
     notifyListeners();
@@ -95,6 +108,7 @@ final class PdfRenderStatsLines extends ChangeNotifier
   void dispose() {
     _disposed = true;
     _stats.removeListener(_onStats);
+    _exportLines?.removeListener(_onStats);
     _timer?.cancel();
     _timer = null;
     super.dispose();
@@ -121,15 +135,32 @@ String _mb(int bytes) =>
     bytes == 0 ? '0' : (bytes / (1024 * 1024)).toStringAsFixed(1);
 
 /// DevOverlaySection(id: 'pdf.render', title: 'PDF 렌더',
-///   lines: PdfRenderStatsLines(ref.watch(pdfRenderStatsProvider)))
-/// — the lines object is disposed with the provider (ref.onDispose).
-/// Reads the REAL pdfRenderStatsProvider (no injection parameter): it builds
+///   lines: PdfRenderStatsLines(ref.watch(pdfRenderStatsProvider),
+///     exportLines: `pdfDevOverlayLinesProvider` in a ValueNotifier))
+/// — the lines object and the notifier are disposed with the provider
+/// (ref.onDispose). Reads the REAL pdfRenderStatsProvider and (contract v2.6
+/// C26-02) pdfDevOverlayLinesProvider (no injection parameter): both build
 /// without exception from the module overrides alone (계약 7.6 B4 v1.2,
 /// C12-06 — B4 a zero-stats notifier, since PDF T8 the renderer's stats
-/// listenable, which needs noteStoreProvider only), so a container holding
-/// only the module overrides can build this section.
+/// listenable, which needs noteStoreProvider only; the export lines read
+/// PDF's own diagnostics provider), so a container holding only the module
+/// overrides can build this section. After each exported note the section
+/// shows two more lines ('export: peak … · copy …', 'export: over budget …').
 DevOverlaySection pdfRenderStatsSection(Ref ref) {
-  final lines = PdfRenderStatsLines(ref.watch(pdfRenderStatsProvider));
-  ref.onDispose(lines.dispose);
+  final exportLines = ValueNotifier<List<String>>(
+    ref.read(pdfDevOverlayLinesProvider),
+  );
+  ref.listen<List<String>>(
+    pdfDevOverlayLinesProvider,
+    (_, next) => exportLines.value = next,
+  );
+  final lines = PdfRenderStatsLines(
+    ref.watch(pdfRenderStatsProvider),
+    exportLines: exportLines,
+  );
+  ref.onDispose(() {
+    lines.dispose();
+    exportLines.dispose();
+  });
   return DevOverlaySection(id: 'pdf.render', title: 'PDF 렌더', lines: lines);
 }

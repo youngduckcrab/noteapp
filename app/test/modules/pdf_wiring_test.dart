@@ -6,6 +6,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:feature_editor/feature_editor.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
@@ -30,6 +31,25 @@ final _section = Provider<DevOverlaySection>(
 );
 
 /// A stats notifier that counts its listeners.
+/// Stands in for PDF's export diagnostics behind pdfDevOverlayLinesProvider
+/// (PdfExportDiagnostics is internal to pdf_io).
+final class _ExportLines extends Notifier<List<String>> {
+  @override
+  List<String> build() => const [];
+
+  void set(List<String> lines) => state = lines;
+}
+
+final _exportLines = NotifierProvider<_ExportLines, List<String>>(
+  _ExportLines.new,
+  name: '_exportLines',
+);
+
+const _twoExportLines = [
+  'export: peak 3.2 / 16.0 MB · copy 1.1 MB',
+  'export: over budget 0 (total 0 in 1)',
+];
+
 final class _Stats extends ValueNotifier<PdfRenderStats> {
   _Stats() : super(PdfRenderStats.zero);
 
@@ -266,6 +286,35 @@ void main() {
       });
     });
 
+    test(
+      '(C26-02) the export lines follow the render lines; a change of '
+      'them is throttled the same way; dispose removes that listener too',
+      () {
+        fakeAsync((async) {
+          final stats = _Stats()..value = _stats(queued: 1);
+          final export = ValueNotifier<List<String>>(const []);
+          final lines = PdfRenderStatsLines(stats, exportLines: export);
+          expect(lines.value, formatPdfRenderStats(_stats(queued: 1)));
+          var updates = 0;
+          lines.addListener(() => updates++);
+          export.value = _twoExportLines;
+          expect(updates, 0);
+          async.elapse(const Duration(milliseconds: 250));
+          expect(updates, 1);
+          expect(lines.value, [
+            ...formatPdfRenderStats(_stats(queued: 1)),
+            ..._twoExportLines,
+          ]);
+          lines.dispose();
+          export.value = const [];
+          async.elapse(const Duration(seconds: 1));
+          expect(updates, 1);
+          expect(async.pendingTimers, isEmpty);
+          export.dispose();
+        });
+      },
+    );
+
     test('dispose removes the stats listener and cancels the timer', () {
       fakeAsync((async) {
         final stats = _Stats();
@@ -283,7 +332,9 @@ void main() {
   });
 
   group('pdfRenderStatsSection on the real pdfRenderStatsProvider', () {
-    Future<ProviderContainer> moduleOnlyContainer() async {
+    Future<ProviderContainer> moduleOnlyContainer({
+      List<Override> extra = const [],
+    }) async {
       final web = FakeWebPlatform();
       final store = CountingNoteStore();
       addTearDown(store.inner.close);
@@ -305,7 +356,7 @@ void main() {
       addTearDown(bootstrapper.shutdown);
       final success = await bootstrapper.run() as BootstrapSuccess;
       // ProviderContainer (not .test): the test disposes it itself.
-      return ProviderContainer(overrides: success.overrides);
+      return ProviderContainer(overrides: [...success.overrides, ...extra]);
     }
 
     test('id, title, three lines = the B4 zero stats; the lines are '
@@ -319,6 +370,37 @@ void main() {
       expect(lines.value, formatPdfRenderStats(PdfRenderStats.zero));
       expect(lines, isA<PdfRenderStatsLines>());
 
+      container.dispose();
+      expect(
+        () => (lines as PdfRenderStatsLines).addListener(() {}),
+        throwsA(isA<FlutterError>()),
+      );
+    });
+
+    test('(contract v2.6 C26-02) pdfDevOverlayLinesProvider: empty before '
+        'the first export (three lines), its two export lines appended after '
+        'one, the notifier disposed with the container', () async {
+      // Real time: Riverpod schedules the dependents' refresh outside a
+      // fake-async zone. Polled, nothing about durations is asserted.
+      final container = await moduleOnlyContainer(
+        extra: [
+          pdfDevOverlayLinesProvider.overrideWith(
+            (ref) => ref.watch(_exportLines),
+          ),
+        ],
+      );
+      // Listened, as the developer overlay watches its sections (an
+      // unlistened provider is paused in Riverpod 3).
+      final lines = container.listen(_section, (_, _) {}).read().lines;
+      expect(lines.value, formatPdfRenderStats(PdfRenderStats.zero));
+      container.read(_exportLines.notifier).set(_twoExportLines);
+      for (var i = 0; i < 100 && lines.value.length < 5; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(lines.value, [
+        ...formatPdfRenderStats(PdfRenderStats.zero),
+        ..._twoExportLines,
+      ]);
       container.dispose();
       expect(
         () => (lines as PdfRenderStatsLines).addListener(() {}),

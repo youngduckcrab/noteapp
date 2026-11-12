@@ -29,6 +29,7 @@ import 'package:noteapp/src/modules/core_module.dart';
 import '../fakes/fake_native_paths.dart';
 import '../support/smoke_scenario.dart';
 import '../support/smoke_v2_fakes.dart';
+import '../support/smoke_v2_scenario.dart';
 
 CoreModule _memoryCore() => CoreModule(
   nativePaths: noNativePaths,
@@ -119,6 +120,17 @@ void main() {
     expectContractOverridesV2(app, fakes, features: off);
     expect(featureRows(app, fakes), expectedFeatureRows(off));
     await runSmokeScenario(tester, app, banner: findsOneWidget);
+    // H5: the same difference on the editor screen — the mic button, the
+    // recognition menu item and the auto shape toggle go; image insert stays
+    // (V5b checks the all-on screen).
+    await createNote(tester, app.store);
+    expect(await editorSwitchRows(tester), {
+      '녹음 버튼': false,
+      '이미지 삽입': true,
+      '인식 메뉴': false,
+      '자동 도형 보정': false,
+    });
+    await leaveEditor(tester, 'the switch rows');
     expect(app.errorLog.totalCount, 0, reason: '${app.errorLog}');
     await app.shutdown(tester);
   });

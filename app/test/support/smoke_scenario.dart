@@ -36,6 +36,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
+import 'package:media_io/media_io.dart'
+    show importImageForNote, supportedImageSources;
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/app/note_app.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
@@ -192,6 +194,10 @@ void expectContractOverrides(SmokeApp app) {
     // 2nd round shell rows (m5-7/01-infra 4.6.1 · 4.6.7).
     appFeaturesProvider,
     shellContributionsProvider,
+    // 2nd round D2-15: FeatureWiringModule's image importer, outside
+    // FEATURE_MEDIA — present whenever media_io offers a source on this
+    // platform (android in flutter_test, every browser).
+    if (supportedImageSources().isNotEmpty) editorImageImporterProvider,
     // The packages' own lists, added by FeatureWiringModule (4.5.9).
     for (final o in featureEditorOverrides()) o.origin,
     for (final o in featureLibraryOverrides()) o.origin,
@@ -228,6 +234,13 @@ void expectContractOverrides(SmokeApp app) {
     extensions.addPageSources.map((i) => i.id),
     pdfEditorAddPageSources().map((a) => a.id),
   );
+  final importer = c.read(editorImageImporterProvider);
+  if (supportedImageSources().isEmpty) {
+    expect(importer, isNull);
+  } else {
+    expect(importer!.sources, supportedImageSources());
+    expect(importer.pick, importImageForNote);
+  }
   final sections = c.read(devOverlaySectionsProvider);
   // 2nd round S2-4: search.index is always last.
   expect(sections.map((s) => s.id), ['pdf.render', 'search.index']);

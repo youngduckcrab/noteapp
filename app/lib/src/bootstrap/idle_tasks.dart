@@ -239,8 +239,18 @@ class _AppIdleTaskRunnerState extends State<AppIdleTaskRunner>
         await (_visible ??= Completer<void>()).future;
         if (_disposed) return;
       }
-      await SchedulerBinding.instance.scheduleTask<void>(() {}, Priority.idle);
-      if (_disposed) return;
+      // Between frames, once no animation runs (the rule of Priority.idle).
+      // Waited frame by frame rather than with SchedulerBinding.scheduleTask:
+      // while any animation runs, an idle-priority entry re-arms a zero-delay
+      // timer on every event loop turn (scheduler binding _runTasks) — a busy
+      // loop on the device, and an endless one inside a widget test's
+      // fake-async pump (the timer is due again before the frame that would
+      // end the animation; seen in the V5 v2 smoke, 2nd round integration).
+      final scheduler = SchedulerBinding.instance;
+      do {
+        await scheduler.endOfFrame;
+        if (_disposed) return;
+      } while (scheduler.transientCallbackCount > 0);
       await _run(task, context);
       if (_disposed) return;
     }

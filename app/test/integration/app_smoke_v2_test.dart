@@ -17,8 +17,13 @@ library;
 //   9  routing: the library's onOpenNoteAt → `?page=&focus=` → the editor
 //      gets the page and the rect.
 //
-// Steps 2–8 and 10 (text box, shape, image, lasso, recording, playback,
-// export counts) need the areas' merged screens: H3 adds them here.
+// H3 (integration stage, every area merged) adds steps 2–8 and 10 on a
+// second note (test/support/smoke_v2_scenario.dart — stroke, text box '안녕
+// hello', rectangle, image (slot 1), lasso → 90° → colour → cut → paste,
+// undo chain → redo → close → reopen, recording panel (slot 2) with the fake
+// recorder and 3 strokes → stop, playback focus and a finger tap seek,
+// slots 3 · 4 with the real recognition items, the export counts) and step 9
+// through the library search UI ('안녕' → the content hit → `?page=&focus=`).
 // Skipped by default (app/dart_test.yaml); run with
 // `ws test --run-skipped -t integration --package noteapp`.
 
@@ -37,6 +42,7 @@ import 'package:pdf_io/pdf_io.dart';
 import '../fakes/fake_native_paths.dart';
 import '../support/smoke_scenario.dart';
 import '../support/smoke_v2_fakes.dart';
+import '../support/smoke_v2_scenario.dart';
 
 String _location(WidgetTester tester) =>
     (tester.widget<MaterialApp>(find.byType(MaterialApp)).routerConfig!
@@ -88,7 +94,9 @@ void main() {
     // 2 — recording panel: MediaModule's contribution.
     expect(extensions.recordingPanel, same(mediaRecordingPanel));
     // 3 · 4 — the recognition actions, converted (6.7 '자리 변환'). Empty on
-    //     the R2-B6 surface; H3 (LIBRARY merged) also expects them non-empty.
+    //     the R2-B6 surface; LIBRARY's actions are merged now (H3).
+    expect(realRecognitionSelectionIds(), isNotEmpty);
+    expect(realRecognitionInsertIds(), isNotEmpty);
     expect([
       for (final i in extensions.selectionMenuItems) i.id,
     ], realRecognitionSelectionIds());
@@ -160,7 +168,43 @@ void main() {
     );
     expect(_location(tester), AppRoutes.library);
 
-    expect(app.errorLog.totalCount, 0, reason: '${app.errorLog}');
+    // H3: steps 2–8 and 10 on a second note, then step 9 through the search
+    //     UI on its text box.
+    final steps = <String>[];
+    final v2 = await runSmokeV2Scenario(
+      tester,
+      app,
+      fakes,
+      trace: (s) {
+        steps.add(s);
+        debugPrint('V5 v2 step: $s');
+      },
+    );
+    await runSearchStep(tester, app, v2.noteId, '안녕');
+    final searched = tester.widget<EditorScreen>(find.byType(EditorScreen));
+    final box = v2.page.objects.whereType<TextBoxObject>().single.bounds;
+    final flash = searched.initialFocusRectPt!;
+    expect(searched.initialPageId, v2.page.page.id);
+    expect(flash.left, greaterThanOrEqualTo(box.left - 1));
+    expect(flash.right, lessThanOrEqualTo(box.right + 1));
+    expect(flash.top, greaterThanOrEqualTo(box.top - 1));
+    expect(flash.bottom, lessThanOrEqualTo(box.bottom + 1));
+    expect(
+      _location(tester),
+      AppRoutes.note(
+        v2.noteId,
+        pageId: searched.initialPageId,
+        focus: searched.initialFocusRectPt,
+      ),
+    );
+    await tester.tap(iconButtonLabeled(SmokeLabels.back));
+    await pumpUntil(
+      tester,
+      () => find.byType(EditorScreen).evaluate().isEmpty,
+      reason: 'back in the library after the search hit',
+    );
+
+    expect(app.errorLog.totalCount, 0, reason: '${app.errorLog} $steps');
     await app.shutdown(tester);
   });
 }

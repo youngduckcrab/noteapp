@@ -1148,6 +1148,7 @@ void main() {
             'BEFORE_SHA': beforeSha,
             'FAKE_DIFF': diff,
           },
+          includeParentEnvironment: false,
         );
         final what = '($affected, $beforeSha, $diff)';
         expect(result.exitCode, 0, reason: '$what ${result.stderr}');
@@ -1395,6 +1396,7 @@ void main() {
             'BEFORE_SHA': s.before,
             'FULL_INPUT': s.fullInput,
           },
+          includeParentEnvironment: false,
         );
         expect(scope.exitCode, 0, reason: '$reason: ${scope.stderr}');
         Map<String, String> pairs(File file) => {
@@ -1499,6 +1501,7 @@ void main() {
             'GITHUB_REF_NAME': s.branch,
             'GITHUB_OUTPUT': output.path,
           },
+          includeParentEnvironment: false,
         );
         expect(result.exitCode, 0, reason: '$reason: ${result.stderr}');
         expect(output.readAsLinesSync(), [
@@ -1654,6 +1657,7 @@ void main() {
             'GITHUB_JOB': 'check',
             'TEST_SCOPE': ?scope,
           },
+          includeParentEnvironment: false,
         );
         expect(result.exitCode, 0, reason: '${result.stderr}');
         final lines = out.readAsLinesSync();
@@ -2223,6 +2227,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
             'RUNNER_TEMP': scratch.path,
             'GITHUB_STEP_SUMMARY': summary.path,
           },
+          includeParentEnvironment: false,
         ).exitCode;
       }
 
@@ -2264,6 +2269,7 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
               'RUNNER_TEMP': scratch.path,
               'GITHUB_STEP_SUMMARY': summary.path,
             },
+            includeParentEnvironment: false,
           ).exitCode;
           return (code: code, summary: summary.readAsStringSync());
         }

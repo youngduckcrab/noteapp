@@ -11,9 +11,9 @@ limits:
   main_dart_js_gzip_max: 1666038         # = baseline + growth until J0
   startup_fonts_gzip_max: 400000         # all FontManifest.json fonts (KaTeX 20 files ≈ 371 KB gzip)
   startup_fonts_raw_max: 700000
-  startup_font_bundles:                  # per bundle (contract 7.4.5 v2.1) — null = report only until decided
-    katex: {family_prefix: packages/flutter_math_fork/, gzip_max: null}
-    icons: {families: [MaterialIcons, CupertinoIcons, packages/cupertino_icons/CupertinoIcons], gzip_max: null}
+  startup_font_bundles:                  # per bundle (contract 7.4.5 v2.1, v2.4 C24-01; null = report only)
+    katex: {family_prefix: packages/flutter_math_fork/, gzip_max: 380000}   # C24-01
+    icons: {families: [MaterialIcons, CupertinoIcons, packages/cupertino_icons/CupertinoIcons], gzip_max: 20000}   # C24-01
 forbidden_font_families: [NoteSans, packages/ink_engine/NoteSans]   # lazy-loaded (contract 7.4.5)
 report_assets:
   - assets/packages/record_web/assets/js/record.worklet.js           # built in, unused on web (D13)

@@ -5,6 +5,7 @@
 // the modules stop — bootstrap_app_test).
 import 'dart:async';
 
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -174,6 +175,26 @@ void main() {
       'run:next',
       'done:next',
     ]);
+  });
+
+  testWidgets('(2nd round integration) a task due while an animation runs '
+      'starts after the frame that ends it — no endless zero-delay timer in '
+      'the pump that makes it due (the V5 v2 smoke hang)', (tester) async {
+    final rig = _Rig();
+    await rig.pump(tester, [rig.task('a', delay: const Duration(seconds: 1))]);
+    await tester.pump(const Duration(milliseconds: 900));
+    // An animation (a transient frame callback) starts just before the task
+    // is due, e.g. the ink splash of a button press.
+    final ticker = Ticker((_) {})..start();
+    addTearDown(ticker.dispose);
+    expect(tester.binding.transientCallbackCount, greaterThan(0));
+    // The pump that makes the task due returns (it used to spin forever).
+    await tester.pump(const Duration(milliseconds: 200));
+    await _settle(tester);
+    expect(rig.log, ['build'], reason: 'not while the animation runs');
+    ticker.stop();
+    await _settle(tester);
+    expect(rig.log, ['build', 'run:a', 'done:a']);
   });
 
   group('lifecycle', () {

@@ -14,12 +14,16 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
+import 'package:media_io/media_io.dart'
+    show importImageForNote, supportedImageSources;
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
@@ -600,11 +604,29 @@ void main() {
       },
     );
 
-    test('the default: mediaImageImporterOrNull() — media_io has no sources '
-        'before PDF\'s image work, so no override yet', () async {
-      expect(mediaImageImporterOrNull(), isNull);
+    test('the default: mediaImageImporterOrNull() — the real media_io '
+        'sources (PDF T35b): android / iOS photos and camera → the override; '
+        'a platform with no picker → no override', () async {
+      // flutter_test runs as android unless told otherwise.
+      expect(supportedImageSources(), {
+        ImageImportSource.photos,
+        ImageImportSource.camera,
+      });
       final (container, _) = await _boot(FeatureWiringModule());
-      expect(container.read(editorImageImporterProvider), isNull);
+      final importer = container.read(editorImageImporterProvider);
+      expect(importer, isNotNull);
+      expect(importer!.sources, supportedImageSources());
+      expect(importer.pick, importImageForNote);
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        expect(supportedImageSources(), isEmpty);
+        expect(mediaImageImporterOrNull(), isNull);
+        final (off, _) = await _boot(FeatureWiringModule());
+        expect(off.read(editorImageImporterProvider), isNull);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
 
     test(

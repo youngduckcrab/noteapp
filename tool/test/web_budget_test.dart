@@ -164,8 +164,9 @@ void main() {
       }
     });
 
-    test('the committed tool/web_budget.yaml: the 4.3.3 values (bundle '
-        'limits null until decided)', () {
+    test('the committed tool/web_budget.yaml: the 4.3.3 values and the '
+        'contract v2.4 C24-01 bundle limits (KaTeX 380,000 B, icons 20,000 B '
+        'gzip; their sum stays within the 400,000 B total)', () {
       final budget = WebBudget.load(p.join(repoRoot, webBudgetPath));
       expect(budget.baselineMainGzip, 1366038);
       expect(budget.baselineMainRaw, 4633843);
@@ -181,7 +182,12 @@ void main() {
         'CupertinoIcons',
         'packages/cupertino_icons/CupertinoIcons',
       ]);
-      expect(bundles.values.map((b) => b.gzipMax), everyElement(isNull));
+      expect(bundles['katex']!.gzipMax, 380000);
+      expect(bundles['icons']!.gzipMax, 20000);
+      expect(
+        bundles['katex']!.gzipMax! + bundles['icons']!.gzipMax!,
+        lessThanOrEqualTo(budget.startupFontsGzipMax!),
+      );
       expect(budget.forbiddenFontFamilies, [
         'NoteSans',
         'packages/ink_engine/NoteSans',
