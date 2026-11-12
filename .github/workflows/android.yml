@@ -128,10 +128,22 @@ jobs:
         run: |
           apk=app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
-          digest=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: *//p' | head -n 1)
-          if [ -z "$digest" ]; then
-            echo "::error::apksigner printed no SHA-256 digest for $apk"
+          # The whole output goes to the log. Newer build-tools name the signer
+          # 'Signer (minSdkVersion=…, maxSdkVersion=…)' instead of 'Signer #1'.
+          if ! out=$("$apksigner" verify --print-certs "$apk" 2>&1); then
+            printf '%s\n' "$out"
+            echo "::error::apksigner could not verify $apk"
             exit 1
+          fi
+          printf '%s\n' "$out"
+          digest=$(printf '%s\n' "$out" | sed -n 's/^Signer[^:]*certificate SHA-256 digest: *//p' | head -n 1)
+          if [ -z "$digest" ]; then
+            if [ "$SIGNING_MODE" = release ]; then
+              echo "::error::apksigner printed no SHA-256 digest for $apk"
+              exit 1
+            fi
+            # A debug build is never compared, so a missing line only warns.
+            echo "::warning::apksigner printed no SHA-256 digest for $apk"
           fi
           expected=$(printf '%s' "$ANDROID_CERT_SHA256" | tr -d ': ' | tr 'A-F' 'a-f')
           if [ "$SIGNING_MODE" = release ] && [ -n "$expected" ] && [ "$digest" != "$expected" ]; then

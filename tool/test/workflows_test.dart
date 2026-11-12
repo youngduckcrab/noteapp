@@ -1995,6 +1995,12 @@ void main() {
 #!/usr/bin/env bash
 [ "\$1 \$2 \$3" = "verify --print-certs app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" ] || exit 9
 [ -n "\$FAKE_SILENT" ] && exit 0
+[ -n "\$FAKE_FAIL" ] && { echo "DOES NOT VERIFY" >&2; exit 1; }
+if [ -n "\$FAKE_SDK_RANGE" ]; then
+  echo "Signer (minSdkVersion=24, maxSdkVersion=2147483647) certificate DN: CN=Android Debug"
+  echo "Signer (minSdkVersion=24, maxSdkVersion=2147483647) certificate SHA-256 digest: $printed"
+  exit 0
+fi
 echo "Signer #1 certificate DN: CN=noteapp sideload"
 echo "Signer #1 certificate SHA-256 digest: $printed"
 echo "Signer #1 certificate SHA-1 digest: 0123456789abcdef0123456789abcdef01234567"
@@ -2008,6 +2014,8 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
         String mode, {
         String cert = '',
         bool silent = false,
+        bool sdkRange = false,
+        bool fail = false,
       }) {
         final summary = File(p.join(dir.path, 'summary'))
           ..writeAsStringSync('');
@@ -2028,6 +2036,8 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
             'SIGNING_MODE': mode,
             'ANDROID_CERT_SHA256': cert,
             if (silent) 'FAKE_SILENT': '1',
+            if (sdkRange) 'FAKE_SDK_RANGE': '1',
+            if (fail) 'FAKE_FAIL': '1',
           },
           includeParentEnvironment: false,
         );
@@ -2072,11 +2082,38 @@ echo "Signer #1 certificate MD5 digest: 0123456789abcdef0123456789abcdef"
         );
       });
 
-      test('no digest printed → failure', () {
+      test('no digest printed → failure on release, a warning on debug', () {
         final run = check('release', silent: true);
         expect(run.code, 1);
         expect(run.stdout, contains('::error::apksigner printed no SHA-256'));
+        final debug = check('debug', silent: true);
+        expect(debug.code, 0, reason: debug.stdout);
+        expect(
+          debug.stdout,
+          contains('::warning::apksigner printed no SHA-256'),
+        );
+        expect(debug.summary, startsWith('서명: debug 키'));
       });
+
+      test('newer build-tools: "Signer (minSdkVersion=…)" lines are read too '
+          '(Android APK run 5 failed on them)', () {
+        final run = check('release', cert: digest, sdkRange: true);
+        expect(run.code, 0, reason: run.stdout);
+        expect(run.summary, '서명: 고정 키 (0123456789abcdef)\n');
+        expect(run.stdout, contains('certificate SHA-256 digest: $digest'));
+        final debug = check('debug', sdkRange: true);
+        expect(debug.code, 0, reason: debug.stdout);
+      });
+
+      test(
+        'apksigner fails to verify → failure with its output in the log',
+        () {
+          final run = check('debug', fail: true);
+          expect(run.code, 1);
+          expect(run.stdout, contains('DOES NOT VERIFY'));
+          expect(run.stdout, contains('::error::apksigner could not verify'));
+        },
+      );
     });
   });
 
