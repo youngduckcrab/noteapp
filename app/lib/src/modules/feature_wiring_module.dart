@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' show pageThumbnailRendererProvider;
@@ -214,6 +215,8 @@ final class FeatureWiringModule extends AppModule {
   ///   pageThumbnailRendererProvider ← ink (1차),
   ///   if (pdfAvailable) libraryPdfImportActionProvider,
   ///       libraryPdfExportActionProvider (1차),
+  ///   (handwriting search) if a contribution has libraryInkSearch,
+  ///       libraryInkSearchProvider.overrideWith(it),
   ///   if (pdfAvailable or a contribution has editor items)
   ///     editorExtensionsProvider.overrideWithValue(EditorExtensions(
   ///       moreMenuItems: pdf…, addPageSources: pdf…,
@@ -241,6 +244,8 @@ final class FeatureWiringModule extends AppModule {
         libraryPdfImportActionProvider.overrideWithValue(_importPdf),
         libraryPdfExportActionProvider.overrideWithValue(_exportPdf),
       ],
+      if (_inkSearch(contributions) case final inkSearch?)
+        libraryInkSearchProvider.overrideWith(inkSearch),
       if (_pdfAvailable || hasEditorItems)
         editorExtensionsProvider.overrideWithValue(
           _editorExtensions(contributions),
@@ -263,6 +268,16 @@ final class FeatureWiringModule extends AppModule {
           ),
         ),
     ];
+  }
+
+  /// (handwriting search) The first contribution's library ink search.
+  static LibraryInkSearch? Function(Ref ref)? _inkSearch(
+    List<ShellContribution> contributions,
+  ) {
+    for (final contribution in contributions) {
+      if (contribution.libraryInkSearch case final f?) return f;
+    }
+    return null;
   }
 
   EditorExtensions _editorExtensions(List<ShellContribution> contributions) {

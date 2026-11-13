@@ -191,6 +191,8 @@ Set<Object> _expected({
       libraryPdfImportActionProvider,
       libraryPdfExportActionProvider,
     },
+    // (handwriting search) the recognition contribution's library slot.
+    if (recognition) libraryInkSearchProvider,
     if (editorExtensions) editorExtensionsProvider,
     // Image import: outside FEATURE_MEDIA — in every scenario (D2-15).
     editorImageImporterProvider,

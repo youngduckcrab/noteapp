@@ -9,6 +9,7 @@ import 'package:feature_editor/feature_editor.dart'
         EditorMathPen,
         EditorPanelBuilder,
         EditorSelectionMenuItem;
+import 'package:feature_library/feature_library.dart' show LibraryInkSearch;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -91,6 +92,7 @@ final class ShellContribution {
     this.insertMenuItems = const [],
     this.recordingPanel,
     this.mathPen,
+    this.libraryInkSearch,
     this.devOverlaySections = const [],
     this.settingsSections = const [],
   });
@@ -102,6 +104,11 @@ final class ShellContribution {
 
   /// (math pen, phase 1) recog's 수식 펜 (RecognitionModule).
   final EditorMathPen? mathPen;
+
+  /// (handwriting search) the library search's handwriting hint
+  /// (RecognitionModule) — read in the provider that overrides
+  /// libraryInkSearchProvider.
+  final LibraryInkSearch? Function(Ref ref)? libraryInkSearch;
   // (v2.1, D2-15) no imageImporter: image import is wired by
   // FeatureWiringModule itself, outside FEATURE_MEDIA and independent of
   // MediaModule's start.
@@ -121,6 +128,7 @@ final class ShellContribution {
       '${insertMenuItems.length} insert, '
       'panel ${recordingPanel == null ? 'no' : 'yes'}, '
       'math pen ${mathPen == null ? 'no' : 'yes'}, '
+      'ink search ${libraryInkSearch == null ? 'no' : 'yes'}, '
       '${devOverlaySections.length} dev, ${settingsSections.length} settings)';
 }
 

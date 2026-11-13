@@ -74,6 +74,7 @@ final class RecognitionModule extends AppModule {
   ///   selectionMenuItems: selectionActions().map(selectionMenuItemOf),
   ///   insertMenuItems: insertActions().map(insertMenuItemOf),
   ///   mathPen: editorMathPenOf(recognitionMathPen()),
+  ///   libraryInkSearch: libraryInkSearchOf,
   ///   devOverlaySections: [recognitionIndexerSection],
   ///   settingsSections: [SettingsSectionEntry(id: 'recog.settings',
   ///       title: '인식', builder: (_) => const RecognitionSettingsSection())]))
@@ -96,6 +97,8 @@ final class RecognitionModule extends AppModule {
         ),
         // (math pen, phase 1) the 수식 펜 tool.
         mathPen: editorMathPenOf(_mathPen()),
+        // (handwriting search) the library search's handwriting hint.
+        libraryInkSearch: libraryInkSearchOf,
         devOverlaySections: const [recognitionIndexerSection],
         settingsSections: [
           SettingsSectionEntry(

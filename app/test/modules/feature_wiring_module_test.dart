@@ -15,7 +15,11 @@ import 'package:fake_async/fake_async.dart';
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugDefaultTargetPlatformOverride;
+    show
+        TargetPlatform,
+        ValueListenable,
+        ValueNotifier,
+        debugDefaultTargetPlatformOverride;
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -90,6 +94,19 @@ final _importer = EditorImageImporter(
   sources: const {ImageImportSource.files, ImageImportSource.photos},
   pick: (context, source) async => null,
 );
+
+final class _FakeInkSearch implements LibraryInkSearch {
+  @override
+  final ValueListenable<LibraryInkSearchState> state = ValueNotifier(
+    const LibraryInkSearchState(),
+  );
+  @override
+  Future<void> turnOnAutoIndex() async {}
+  @override
+  Future<void> downloadModel({bool cellular = false}) async {}
+  @override
+  void searchOpened() {}
+}
 
 FeatureWiringModule _wiring(
   FakePdfActions pdf, {
@@ -407,6 +424,27 @@ void main() {
         'recog.indexer',
         'search.index',
       ]);
+    });
+
+    test('(handwriting search) a contribution\'s libraryInkSearch fills the '
+        'library slot; without one it stays null', () async {
+      final slot = _FakeInkSearch();
+      final (withSlot, _) = await _boot(
+        _wiring(FakePdfActions()),
+        between: [
+          contributing(
+            'recognition',
+            ShellContribution(
+              moduleId: 'recognition',
+              libraryInkSearch: (ref) => slot,
+            ),
+          ),
+        ],
+      );
+      expect(withSlot.read(libraryInkSearchProvider), same(slot));
+
+      final (without, _) = await _boot(_wiring(FakePdfActions()));
+      expect(without.read(libraryInkSearchProvider), isNull);
     });
 
     group('a repeated menu item id (6.7 — merge rule)', () {

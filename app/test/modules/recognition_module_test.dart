@@ -177,6 +177,8 @@ void main() {
     expect(contribution.insertMenuItems.map((i) => i.id), ['recog.mathPad']);
     expect(contribution.recordingPanel, isNull);
     expect(contribution.devOverlaySections, [recognitionIndexerSection]);
+    // (handwriting search) the library search's handwriting hint.
+    expect(contribution.libraryInkSearch, libraryInkSearchOf);
     final section = contribution.settingsSections.single;
     expect(
       (section.id, section.title, section.group),

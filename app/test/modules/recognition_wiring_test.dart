@@ -14,8 +14,12 @@ import 'package:feature_editor/feature_editor.dart'
         EditorMathGroup,
         EditorMathPenContext,
         EditorSelectionContext;
+import 'package:feature_library/feature_library.dart'
+    show LibraryInkSearch, LibraryInkSearchPhase, LibraryInkSearchState;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
+import 'package:ink_recognition/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
@@ -348,6 +352,99 @@ void main() {
       session.dispose();
       expect(inner.calls.last, 'dispose');
     });
+  });
+
+  group('(handwriting search) libraryInkSearchOf', () {
+    test(
+      'every recog phase maps to the library phase; unavailable → ready',
+      () {
+        final expected = {
+          HandwritingSearchPhase.unavailable: LibraryInkSearchPhase.ready,
+          HandwritingSearchPhase.ready: LibraryInkSearchPhase.ready,
+          HandwritingSearchPhase.autoIndexOff:
+              LibraryInkSearchPhase.autoIndexOff,
+          HandwritingSearchPhase.modelMissing:
+              LibraryInkSearchPhase.modelMissing,
+          HandwritingSearchPhase.modelDownloading:
+              LibraryInkSearchPhase.modelDownloading,
+          HandwritingSearchPhase.waitingForWifi:
+              LibraryInkSearchPhase.waitingForWifi,
+          HandwritingSearchPhase.modelFailed: LibraryInkSearchPhase.modelFailed,
+          HandwritingSearchPhase.indexing: LibraryInkSearchPhase.indexing,
+        };
+        expect(expected.keys, unorderedEquals(HandwritingSearchPhase.values));
+        for (final MapEntry(key: from, value: to) in expected.entries) {
+          expect(
+            libraryInkSearchStateOf(HandwritingSearchStatus(phase: from)).phase,
+            to,
+            reason: '$from',
+          );
+        }
+        expect(
+          libraryInkSearchStateOf(
+            const HandwritingSearchStatus(
+              phase: HandwritingSearchPhase.indexing,
+              remainingPages: 4,
+              confirmCellularFirst: true,
+            ),
+          ),
+          const LibraryInkSearchState(
+            phase: LibraryInkSearchPhase.indexing,
+            remainingPages: 4,
+            confirmCellularFirst: true,
+          ),
+        );
+      },
+    );
+
+    test('no indexer (no engine) → null', () {
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      final container = ProviderContainer.test(
+        overrides: [noteStoreProvider.overrideWithValue(store)],
+      );
+      final slot = Provider<LibraryInkSearch?>(libraryInkSearchOf);
+      expect(container.read(slot), isNull);
+    });
+
+    testWidgets(
+      'with an engine: the state follows recog, the actions reach it',
+      (tester) async {
+        final store = createFakeNoteStore();
+        addTearDown(store.close);
+        await store.settings.set(
+          SettingKey.boolean(
+            'recog.autoIndex',
+            true,
+            scope: SettingScope.device,
+          ),
+          false,
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            noteStoreProvider.overrideWithValue(store),
+            handwritingRecognizerProvider.overrideWithValue(
+              FakeHandwritingRecognizer(),
+            ),
+          ],
+        );
+        final slot = Provider<LibraryInkSearch?>(libraryInkSearchOf);
+        container.read(handwritingIndexerProvider)!.start();
+        final ink = container.read(slot)!;
+        for (var i = 0; i < 5; i++) {
+          await tester.pump();
+        }
+        expect(ink.state.value.phase, LibraryInkSearchPhase.autoIndexOff);
+        await ink.turnOnAutoIndex();
+        for (var i = 0; i < 5; i++) {
+          await tester.pump();
+        }
+        expect(ink.state.value.phase, LibraryInkSearchPhase.ready);
+        ink.searchOpened(); // no throw
+        container.dispose();
+        await tester.pump();
+      },
+    );
   });
 }
 

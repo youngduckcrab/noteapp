@@ -14,11 +14,18 @@ import 'package:feature_editor/feature_editor.dart'
         EditorMathPenSession,
         EditorSelectionContext,
         EditorSelectionMenuItem;
+import 'package:feature_library/feature_library.dart'
+    show LibraryInkSearch, LibraryInkSearchPhase, LibraryInkSearchState;
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/widgets.dart'
     show BuildContext, Listenable, Rect, Widget;
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:ink_recognition/ink_recognition.dart'
     show
+        HandwritingSearchPhase,
+        HandwritingSearchReadiness,
+        HandwritingSearchStatus,
+        handwritingSearchReadinessProvider,
         RecognitionAction,
         RecognitionMathPen,
         RecognitionMathPenContext,
@@ -207,4 +214,65 @@ final class _MathPenSessionAdapter implements EditorMathPenSession {
 
   @override
   void dispose() => _inner.dispose();
+}
+
+/// (handwriting search — m5-7/05-library 6.19a) recog's handwriting search
+/// readiness as the library's ink search slot: the status mapped phase by
+/// phase (unavailable → ready: nothing to say), the actions passed on. null
+/// without an indexer (the web, no engine).
+LibraryInkSearch? libraryInkSearchOf(Ref ref) {
+  final readiness = ref.watch(handwritingSearchReadinessProvider);
+  if (readiness == null) return null;
+  final adapter = _InkSearchAdapter(readiness);
+  ref.onDispose(adapter.dispose);
+  return adapter;
+}
+
+LibraryInkSearchState libraryInkSearchStateOf(
+  HandwritingSearchStatus s,
+) => LibraryInkSearchState(
+  phase: switch (s.phase) {
+    HandwritingSearchPhase.unavailable ||
+    HandwritingSearchPhase.ready => LibraryInkSearchPhase.ready,
+    HandwritingSearchPhase.autoIndexOff => LibraryInkSearchPhase.autoIndexOff,
+    HandwritingSearchPhase.modelMissing => LibraryInkSearchPhase.modelMissing,
+    HandwritingSearchPhase.modelDownloading =>
+      LibraryInkSearchPhase.modelDownloading,
+    HandwritingSearchPhase.waitingForWifi =>
+      LibraryInkSearchPhase.waitingForWifi,
+    HandwritingSearchPhase.modelFailed => LibraryInkSearchPhase.modelFailed,
+    HandwritingSearchPhase.indexing => LibraryInkSearchPhase.indexing,
+  },
+  remainingPages: s.remainingPages,
+  confirmCellularFirst: s.confirmCellularFirst,
+);
+
+final class _InkSearchAdapter implements LibraryInkSearch {
+  _InkSearchAdapter(this._inner)
+    : _state = ValueNotifier(libraryInkSearchStateOf(_inner.status.value)) {
+    _inner.status.addListener(_sync);
+  }
+
+  final HandwritingSearchReadiness _inner;
+  final ValueNotifier<LibraryInkSearchState> _state;
+
+  void _sync() => _state.value = libraryInkSearchStateOf(_inner.status.value);
+
+  @override
+  ValueListenable<LibraryInkSearchState> get state => _state;
+
+  @override
+  Future<void> turnOnAutoIndex() => _inner.turnOnAutoIndex();
+
+  @override
+  Future<void> downloadModel({bool cellular = false}) =>
+      _inner.downloadModel(cellular: cellular);
+
+  @override
+  void searchOpened() => _inner.searchOpened();
+
+  void dispose() {
+    _inner.status.removeListener(_sync);
+    _state.dispose();
+  }
 }
