@@ -135,7 +135,7 @@ LIBRARY는 2차에 패키지 둘을 가진다(계약 2.1·2.3).
 | L2-D10 | '복사'(획을 남기는 경우)로 고친 줄은 `userConfirmed: true`로 쓰고, 페이지 전체를 다시 인식한 게 아니면 `sourceRev`를 낡은 값으로 둬 색인기가 나머지 줄을 채우게 한다. (v2.1) 클립보드에 먼저 넣은 뒤 `await store.flush()` → `loadPage`로 방금 쓴 획까지 보고, 쓰기는 `HandwritingRepository.update`(같은 병합 함수 — 6.9.4) | 계약 7.2.5, G-4, CORE 6.9.4 '확정 줄 규칙은 recog가 `transform` 안에서' |
 | L2-D11 | `GeometricShapeFitter` = 조사 03 시제품 + 입력 평활화 + '약한 꼭짓점' 보정(삼각형·사각형의 닫힘 갈고리). 3개 시드에서 V9 문턱 모두 통과(확인함 — 7.3 E-L3) | V9 |
 | L2-D12 | 수식 입력 패드 = INK `InkPageView` + 저장하지 않는 임시 `core.Page` + 펜을 뗀 뒤 1초 멈춤에 인식 + **손으로 고친 LaTeX가 엔진 결과보다 우선** | 계약 7.2.11 첫 글머리, F-14 '고쳐 쓰기·직접 편집' |
-| L2-D13 | 설정 키 4개: `recog.language`(synced, `'ko'`), `recog.mathConsent`(synced, false), `recog.autoIndex`(device, false), `recog.modelWifiOnly`(device, true) | 7.4.4 (v2.1 확정 — CP-L9), U16 |
+| L2-D13 | 설정 키 4개: `recog.language`(synced, `'ko'`), `recog.mathConsent`(synced, false), `recog.autoIndex`(device, ~~false~~ → **true** — 손글씨 검색 변경, 6.19a), `recog.modelWifiOnly`(device, true) | 7.4.4 (v2.1 확정 — CP-L9), U16(변경 — v2.9 C29-01) |
 | L2-D14 | (v2.1) **확정 줄 유지 규칙**: 옛 확정 줄의 획 id ≥ 80%가 새 줄에 남고 더해진 글자 상자가 모두 그 줄 글자 높이 중앙값 이하면 확정 글을 그대로(`userConfirmed` 유지), 아니면 엔진 글 + `userConfirmed: false` + 옛 확정 글을 `alternatives` 맨 앞에. 색인기·변환 창·(실연결 뒤) 원격 결과가 같은 엔티티를 쓰므로 병합은 `update`의 `transform` 안에서 저장된 최신 값에 대해 한다 | 계약 7.2.5 (v2.1) `userConfirmed` 주석('Rule owner: recog'), 검토 M-1·S-2 |
 | L2-D15 | (v2.1) 에뮬레이터 시험(`callable_emulator_test`)은 SYNC `functions/`가 병합된 뒤(통합 3단계 뒤)의 통합 몫 L2-I6이고, 완료 판정은 **컨테이너**의 `dart run tool/ws.dart with-heavy-lock -- npx --prefix functions firebase emulators:exec --config app/firebase.json --only functions,auth --project demo-noteapp "dart run tool/ws.dart test --run-skipped -t emulator --package ink_recognition"`(전역 잠금을 넘김 — (수정 2회차) `firebase`는 PATH에 없고 `functions/package.json` devDependency로만 고정되므로 `npx --prefix functions`로 그 판을 부른다, 01-infra 6.13과 같은 글자) + CI 반복. 단언은 SYNC 가짜 엔진 값(E1~E9)과 같다 | 계약 7.4.6·7.7.1 8단계·V13 (v2.1), 검토 S-6, 01-infra 6.13, 07-sync RQ-4 |
 | L2-D16 | (v2.1) 자동 도형 보정 흐름 시험은 LIBRARY가 `ink_recognition/test/integration/shape_assist_flow_test.dart`에 INK `createTestPageController(shapeFitter:)`로 쓴다(INK 패키지 시험은 `ink_recognition`을 import할 수 없음). 실기기 도형 표본의 판정·회귀도 LIBRARY, 모으기는 EDITOR 링 버퍼(12.2 Q7) | 계약 7.7.1 5단계 (v2.1), 검토 S-7 |
@@ -739,9 +739,9 @@ abstract final class RecognitionSettingsKeys {
   /// G-3 / D15: external math engine consent (contract key and default).
   static final SettingKey<bool> mathConsent =
       SettingKey.boolean('recog.mathConsent', false, scope: SettingScope.synced);
-  /// U16: automatic recognition for search (default off).
+  /// U16 (changed — handwriting search, 6.19a): automatic recognition for search, default ON.
   static final SettingKey<bool> autoIndex =
-      SettingKey.boolean('recog.autoIndex', false, scope: SettingScope.device);
+      SettingKey.boolean('recog.autoIndex', true, scope: SettingScope.device);
   /// Download models on Wi-Fi only (Android enforces; iOS asks first — 6.7.4).
   static final SettingKey<bool> modelWifiOnly =
       SettingKey.boolean('recog.modelWifiOnly', true, scope: SettingScope.device);
@@ -1839,6 +1839,8 @@ job(noteId, pageId):                                       // one page at a time
 | `RecognizerEngineError`(시간 제한·`model-check-failed` 포함)·그 밖 예외 | 그 페이지를 `failed[pageId] = rev`, `failedPages`+1, `(pageId, rev)`마다 1회 `FlutterError.reportError(library: 'ink_recognition')`, 다음 페이지로 |
 | (v2.1) 작업 중 그 페이지의 `handwriting` 변경 | 작업 버림(쓰기 없음), 대기열 맨 앞 — 오류 아님(보고 없음) |
 | CORE 쓰기 실패(`update`·`removeForPage`) | 보고 1회, 그 페이지 `failed`. `transform` 안의 예외(병합 함수 버그)도 같음 — 트랜잭션이 되돌려져 저장된 값은 그대로 |
+| (손글씨 검색) 실패한 페이지 다시 시도 | `failed`는 메모리에만 있어 다음 실행의 따라잡기가 그 페이지를 다시 넣는다. 모델이 준비되지 않았다가 준비되면(`_modelReady` false → true) `failed`를 비우고 따라잡기를 한 번 더 돈다 |
+| (손글씨 검색) 라이브러리 검색 열림(`indexDirtyPagesNow`) | 조용한 시간을 기다리던 페이지를 바로 대기열에 넣고, `download failed`면 모델을 다시 묻는다. 비활성이면 아무것도 안 한다 |
 | `dispose()` | 멱등. 타이머·구독·`foreground` 듣기를 끊고 `phase = off`. 진행 중인 엔진 호출이 끝나도 쓰지 않는다(이미 보낸 `update`는 CORE가 끝까지 처리) |
 
 #### 6.9.7 성능
@@ -2316,6 +2318,26 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 | `paused` | 앱이 뒤에 있어 멈췄어요 | `paused · …` |
 
 상태는 줄 하나가 끝날 때·대기열이 바뀔 때만 바뀐다(초당 수십 번 갱신하지 않음).
+
+### 6.19a 손글씨 검색 — 기본 켬 · 검색 안내 줄 (사용자 요청 '변환하지 않아도 적은 글씨가 검색돼야 해')
+
+- **결정 변경(U16)**: `recog.autoIndex` 기본값을 `true`로 바꾼다. 스위치를 건드린 적 없는 사용자(저장 값 없음)는 켜진 상태, 끈 사용자는 그대로 꺼짐. 배터리·저장 공간 걱정(옛 U16 근거)은 Wi-Fi에서만 모델 받기(`recog.modelWifiOnly` 기본 true)와 앞화면에서만 색인(6.9.2)으로 줄인다.
+- **처음 실행**: `handwritingIndexerProvider`가 `recog.autoIndex`의 첫 값이 켬이면 설정 스위치와 같은 `onAutoIndexTurnedOn`을 부른다 — 안드로이드는 `ModelDownloads.start(wifiOnly: recog.modelWifiOnly)`(모델 행에 와이파이 대기·[지금 셀룰러로 받기]가 그대로 보임), iPad는 [받기] 강조. 와이파이를 기다리는 동안 색인기는 `waitingModel`에 머물 뿐 다른 기능은 그대로다.
+- **검색 안내 줄**(feature_library `ui/content/ink_search_hint.dart`): 검색 결과 위와 빈 결과 화면에 한 줄 + 단추.
+
+| 상태(`LibraryInkSearchPhase`) | 문구 | 단추 |
+|---|---|---|
+| `autoIndexOff` | 손글씨도 검색하려면 '검색용 자동 인식'을 켜 주세요 | [켜기] → 켬 + 모델 요청 |
+| `modelMissing` | 손글씨를 검색하려면 인식 모델(약 20MB)을 받아야 해요 | [지금 받기] |
+| `waitingForWifi` | 와이파이에 연결되면 손글씨 인식 모델을 받아요 | [지금 받기] 두 번(첫 누름 → 셀룰러 경고 문구) → 셀룰러로 받기 |
+| `modelFailed` | 손글씨 인식 모델을 받지 못했어요 | [지금 받기] |
+| `modelDownloading` | 손글씨 인식 모델을 받는 중이에요 | 없음 |
+| `indexing` | 손글씨를 읽는 중이에요 (n쪽 남음) | 없음 |
+| `ready` | (안 보임) | |
+
+- **연결**: feature_library는 ink_recognition에 의존하지 않는다(7.1). 새 자리 `libraryInkSearchProvider`(`LibraryInkSearch?`, 기본 null → 안내 없음)를 앱 셸이 채운다: RecognitionModule이 `ShellContribution.libraryInkSearch = libraryInkSearchOf`를 내고, FeatureWiringModule이 덮어쓴다. 어댑터는 ink_recognition의 `handwritingSearchReadinessProvider`(`HandwritingSearchReadiness` — 설정·색인기 상태·`ModelDownloads`·`modelState`로 단계를 정함, 엔진 없음 → `unavailable` → 안내 없음)를 옮긴다.
+- **검색을 열면** `LibrarySectionNotifier.search`가 `searchOpened()` → `indexDirtyPagesNow`(6.9.6): 방금 쓴 페이지를 3초 기다리지 않고 읽는다.
+- **띄어쓰기**: ML Kit이 한글 낱말 안에 넣거나 뺀 공백 때문에 못 찾지 않게, CORE가 `SearchSource.ink` 단위만 CJK 사이 공백을 지운 글로도 색인·판정한다(02-core 6.10.2 '손글씨 띄어쓰기'). `회의록` ↔ `회의 록` 양쪽 다 찾는다.
 
 ### 6.20 A-4 품질 실험 준비 (`lab/`)
 

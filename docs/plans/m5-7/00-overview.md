@@ -2041,7 +2041,7 @@ override가 아닌 연결: `MediaModule`이 앱 시작 뒤 유휴 시간에 남�
 
 - ID 규칙 예외 추가: `HandwritingText.idFor(pageId) = 'hw_' + pageId`(결정적 id). 녹음 id는 녹음 시작 전에 `idGeneratorProvider`로 만든다.
 - 설정 키 접두사 추가: `media.*`(PDF 영역), `recog.*`(LIBRARY 영역), (v2.1, CP12) `app.*`(INFRA — `app.features.*`, `device`). 외부 수식 엔진 전송 동의 `recog.mathConsent`(bool, 기본 false, `synced` — D15·G-3).
-- (v2.1) 키 확정: **recog**(CP-L9) `recog.language`(synced, 'ko')·`recog.mathConsent`(synced, false)·`recog.autoIndex`(device, false)·`recog.modelWifiOnly`(device, true) — 별도 '인식 켜기' 키는 없다(기능 전체는 `FEATURE_RECOGNITION`). **EDITOR**(CP-E7) `editor.toolOptions`(synced), `editor.playback.preRollMs`(synced, 정수 키 — 1차 `jsonMap` 관례의 예외), 탭 재생 켬 = `editor.settings.device`의 `tapToSeek`(패널은 `EditorPanelContext`로만 읽고 쓴다). **media** 녹음 비트레이트(synced), 녹음 동의 안내 본 여부(device), `media.recoverAttempts`(device — 초안별 복구 시도 횟수, 7.2.12). 제스처 동작 매핑은 1차 `editor.settings.synced`의 `gestures` 안(`synced`).
+- (v2.1) 키 확정: **recog**(CP-L9) `recog.language`(synced, 'ko')·`recog.mathConsent`(synced, false)·`recog.autoIndex`(device, (v2.9) **true** — C29-01)·`recog.modelWifiOnly`(device, true) — 별도 '인식 켜기' 키는 없다(기능 전체는 `FEATURE_RECOGNITION`). **EDITOR**(CP-E7) `editor.toolOptions`(synced), `editor.playback.preRollMs`(synced, 정수 키 — 1차 `jsonMap` 관례의 예외), 탭 재생 켬 = `editor.settings.device`의 `tapToSeek`(패널은 `EditorPanelContext`로만 읽고 쓴다). **media** 녹음 비트레이트(synced), 녹음 동의 안내 본 여부(device), `media.recoverAttempts`(device — 초안별 복구 시도 횟수, 7.2.12). 제스처 동작 매핑은 1차 `editor.settings.synced`의 `gestures` 안(`synced`).
 - 녹음 동의 안내 문구(F-16, 고정): "다른 사람의 목소리를 녹음할 때는 미리 동의를 받아 주세요." — 바꿀 때 1차 7.4.12 절차.
 
 #### 7.4.5 글꼴 · 웹 예산 · 메모리 (1차 7.4.9, 1차 7.4.10)
@@ -2387,6 +2387,17 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 
 ### 7.9 계약 변경 이력
 
+#### v2.9 (2026-11-13, 손글씨 검색 — 사용자 요청 '텍스트로 변환하지 않더라도 적은 글씨를 검색하면 검색이 되어야 해')
+
+추가와 기본값 하나. 설계는 05-library 6.19a, 02-core 6.10.2 '손글씨 띄어쓰기'.
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C29-01 | 7.4.4 설정 키, 7.8 U16 | `recog.autoIndex` 기본값 false → **true**. 첫 값이 켬이면 색인기 provider가 `onAutoIndexTurnedOn`으로 모델을 요청 | 사용자 요청 | LIBRARY(처리됨) |
+| C29-02 | 7.2.11 recog 내보내기 | `HandwritingSearchPhase`·`HandwritingSearchStatus`·`HandwritingSearchReadiness`·`handwritingSearchReadinessProvider`(엔진 없음 → null) | 05-library 6.19a | LIBRARY(처리됨) |
+| C29-03 | 7.2.11 라이브러리 자리 | `LibraryInkSearch`·`LibraryInkSearchPhase`·`LibraryInkSearchState`·`libraryInkSearchProvider`(기본 null → 안내 없음). 앱 셸 `libraryInkSearchOf`가 C29-02를 옮기고 `ShellContribution.libraryInkSearch`로 FeatureWiringModule이 덮어쓴다. 새 패키지 의존 없음(R8) | 05-library 6.19a | LIBRARY·INFRA(처리됨) |
+| C29-04 | 7.2.5 검색 판정 | `SearchSource.ink` 단위만 CJK 사이 공백을 지운 글로도 색인·판정(조각 범위 포함). 옛 ink 행은 저장소 열 때 한 번 ink만 재구축(kv `search.inkTermsVersion`). 다른 출처 결과는 그대로 | 02-core 6.10.2 | CORE(처리됨) |
+
 #### v2.8 (2026-11-13, 수식 펜 1단계 — 사용자 승인 '1단계 진행해줘')
 
 추가만(옛 앱·옛 JSON 호환). 설계와 구현 결과는 [research/math-pen-phase1.md](research/math-pen-phase1.md)(0절 '구현 결과').
@@ -2566,7 +2577,7 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | U13 | '녹음 삭제'는 목록에서만 지우고 파일 용량은 나중(에셋 정리 기능)에 회수 | 저장 공간 | 그대로 |
 | U14 | 자동 도형 보정: 펜을 0.5초 멈추면 발동, 대상 직선·원·타원·삼각형·사각형·다각형(별·화살표는 도형 도구로만) | 오인식 체감 | 그대로, 설정에서 끌 수 있음 |
 | U15 | 웹 첫 로드에 수식 글꼴 약 371 KB(gzip) 추가 | 첫 화면 시간 | 받아들임(측정 뒤 초과면 지연 적재로) |
-| U16 | 손글씨 자동 인식(검색 색인용)은 설정에서 켜야 동작(기본 꺼짐), 모델(약 20 MB/언어)은 Wi-Fi에서 | 배터리·저장 공간 | 그대로 |
+| U16 | ~~손글씨 자동 인식(검색 색인용)은 설정에서 켜야 동작(기본 꺼짐)~~ → (v2.9, C29-01) 기본 켬 — 처음 실행에 모델을 Wi-Fi에서 받고, 끄면 검색 안내 줄이 [켜기]를 보인다. 모델(약 20 MB/언어)은 Wi-Fi에서 | 배터리·저장 공간 | 변경(사용자 요청 '변환하지 않아도 적은 글씨가 검색돼야 해') |
 | U17 | PDF로 내보낼 때 수식은 300 dpi 이미지(벡터 아님) | F-15 '벡터 출력'은 필기 기준 | 그대로 |
 | U18 | 실기기 도형·수식 획 표본을 시험 자료로 저장소에 넣어도 되는가(손글씨 문장은 넣지 않음) | 문턱값 회귀 시험 | 도형·수식만 넣음 |
 | U19 | macOS 러너(10배 과금)로 iOS 컴파일 확인을 2차에 1~2회 해도 되는가, 저장소 공개 여부 | Actions 무료 시간 | 1회(통합 뒤, 무료 시간 약 150분), 비공개 유지. (v2.1) 승인되면 V14의 완료 조건 — Swift 컴파일 오류는 iOS 빌드 전체를 깨기 때문 |
