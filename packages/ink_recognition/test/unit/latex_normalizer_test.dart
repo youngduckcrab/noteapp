@@ -61,6 +61,29 @@ void main() {
         r'\begin{cases}x+y=2\\x-y=0\end{cases}',
     r'\left( \begin{matrix} a b \\ e \\ \end{matrix} \right)':
         r'\begin{pmatrix}ab\\e\end{pmatrix}',
+    // the model's matrices: an empty last column, fonts on the entries,
+    // an aligning spec and bare or display-math brackets around it
+    r'\left[ \begin{array} { c c } { \mathbf { a } } & { } \\ { \mathbf { b } } & { } \\ \end{array} \right]':
+        r'\begin{bmatrix}{a}\\{b}\end{bmatrix}',
+    r'\left( \begin{array} { l l } { \mathtt { a } } & { } \\ { \mathtt { b } } & { } \\ \end{array} \right)':
+        r'\begin{pmatrix}{a}\\{b}\end{pmatrix}',
+    r'\left[ \begin{array} { l l l } { 1 } & { 2 } & { } \\ { 3 } & { 4 } & { } \\ \end{array} \right]':
+        r'\begin{bmatrix}{1}&{2}\\{3}&{4}\end{bmatrix}',
+    r'[ \begin{array} { c } { a } \\ { b } \end{array} \]':
+        r'\begin{bmatrix}{a}\\{b}\end{bmatrix}',
+    r'\lbrack \begin{matrix} a \\ b \end{matrix} \rbrack + 1':
+        r'\begin{bmatrix}a\\b\end{bmatrix}+1',
+    r'\left\{ \begin{array} { l } x = 1 \\ y = 2 \end{array} \right.':
+        r'\begin{cases}x=1\\y=2\end{cases}',
+    r'\left[ \begin{matrix} { } & { \mathbf { a } } & { } & { } \\ { } & { \mathbf { b } } & { } & { } \\ \end{matrix} \right]':
+        r'\begin{bmatrix}{a}\\{b}\end{bmatrix}',
+    r'\left[ \begin{array} { c c } { \ } & { a } \\ { \ } & { b } \\ \end{array} \right]':
+        r'\begin{bmatrix}{a}\\{b}\end{bmatrix}',
+    r'[ \begin{matrix} a \\ b \\ \end{matrix} ]':
+        r'\begin{bmatrix}a\\b\end{bmatrix}',
+    // a spec that is longer than the columns follows them
+    r'\begin{array} { l l l } a & b & { } \\ c & d & { } \end{array}':
+        r'\begin{array}{ll}a&b\\c&d\end{array}',
     // capital-only alphabets
     r'\mathcal { 1 } + \mathcal { N } + \mathcal { d A }': r'1+\mathcal{N}+dA',
     // synonyms, old font switches, sizes, spacing at a group end

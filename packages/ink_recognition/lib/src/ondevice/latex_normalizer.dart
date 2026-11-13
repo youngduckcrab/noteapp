@@ -217,6 +217,9 @@ const Map<String, String> _replace = {
   r'\omicron': 'o',
   r'\bigtriangledown': r'\nabla',
   r'\textbackslash': r'\backslash',
+  // display-math brackets the model writes around a matrix: plain brackets
+  r'\[': '[',
+  r'\]': ']',
 };
 
 /// Function names the model spells out letter by letter.
@@ -408,7 +411,7 @@ String _normalize(String raw, {Set<String> drop = const {}}) {
   final rewritten = _Rewriter(drop).run(nodes);
   final tokens = <String>[];
   _flatten(rewritten, tokens);
-  return _serialize(_tidy(tokens));
+  return _serialize(_cleanMatrices(_tidy(tokens)));
 }
 
 /// Text-mode arguments written as words (`\text { for all }` — not the
@@ -849,4 +852,199 @@ String _serialize(List<String> tokens) {
     b.write(tok);
   }
   return b.toString();
+}
+
+// --- matrices -----------------------------------------------------------------
+
+/// Font commands the model puts on every matrix entry (`{ \mathbf { a } }`):
+/// handwriting has no bold or typewriter letters, so inside a matrix they go.
+const Set<String> _matrixFonts = {
+  r'\mathbf',
+  r'\mathtt',
+  r'\mathsf',
+  r'\boldsymbol',
+  r'\mathit',
+};
+
+/// Bare delimiters that make a delimited matrix (`[ \begin{matrix} … ]`).
+const Set<String> _bareOpen = {'(', '[', '|', r'\|', r'\{'};
+
+/// Matrix environments, token level (inner ones first):
+/// - a trailing column that is empty in every row goes (the model often adds
+///   `& { }`, sometimes in front), and an array's column spec follows the
+///   remaining columns;
+/// - font commands on the entries go;
+/// - delimiters around it (`\left[ … \right]`, or bare `[ … ]`) make the
+///   delimited environment (bmatrix, pmatrix, …) — for an array too, unless
+///   its spec draws lines (`c|c`).
+List<String> _cleanMatrices(List<String> t) {
+  final out = <String>[];
+  var i = 0;
+  while (i < t.length) {
+    final tok = t[i];
+    final env = tok.startsWith(r'\begin{')
+        ? tok.substring(7, tok.length - 1)
+        : null;
+    final end = env == null ? -1 : _matchingEnd(t, i);
+    if (env == null || end < 0 || !_matrixLike.contains(env)) {
+      out.add(tok);
+      i++;
+      continue;
+    }
+    var bodyStart = i + 1;
+    List<String>? spec;
+    if (env == 'array' && bodyStart < end && t[bodyStart] == '{') {
+      final specEnd = _argEnd(t, bodyStart);
+      spec = t.sublist(bodyStart + 1, specEnd - 1);
+      bodyStart = specEnd;
+    }
+    final grid = env == 'aligned' || env == 'gathered' || env == 'split';
+    final rows = [
+      for (final row in _splitTop(
+        _cleanMatrices(t.sublist(bodyStart, end)),
+        r'\\',
+      ))
+        [
+          for (final cell in _splitTop(row, '&'))
+            grid ? cell : _dropFonts(cell),
+        ],
+    ];
+    if (!grid) _dropEmptyColumns(rows);
+    final columns = rows.fold<int>(0, (m, r) => r.length > m ? r.length : m);
+
+    // delimiters around it
+    String? open, close;
+    var before = 0, after = 0;
+    if (out.length >= 2 && out[out.length - 2] == r'\left') {
+      open = out.last;
+      before = 2;
+      if (end + 2 < t.length && t[end + 1] == r'\right') {
+        close = t[end + 2];
+        after = 2;
+      }
+    } else if (out.isNotEmpty && _bareOpen.contains(out.last)) {
+      open = out.last;
+      before = 1;
+      if (end + 1 < t.length) {
+        close = t[end + 1];
+        after = 1;
+      }
+    }
+    final lines = spec != null && spec.contains('|');
+    final target = open != null && close != null && !lines
+        ? (env == 'matrix' || env == 'array' ? _matrixFor(open, close) : null)
+        : null;
+
+    final body = <String>[];
+    for (var r = 0; r < rows.length; r++) {
+      if (r > 0) body.add(r'\\');
+      for (var c = 0; c < rows[r].length; c++) {
+        if (c > 0) body.add('&');
+        body.addAll(rows[r][c]);
+      }
+    }
+    if (target != null) {
+      out
+        ..removeRange(out.length - before, out.length)
+        ..add('\\begin{$target}')
+        ..addAll(body)
+        ..add('\\end{$target}');
+      i = end + 1 + after;
+      continue;
+    }
+    out.add(tok);
+    if (spec != null) {
+      out
+        ..add('{')
+        ..addAll(lines ? spec : _fitSpec(spec, columns))
+        ..add('}');
+    }
+    out
+      ..addAll(body)
+      ..add(t[end]);
+    i = end + 1;
+  }
+  return out;
+}
+
+/// The index of the `\end{…}` closing the `\begin{…}` at [i]; -1 if none.
+int _matchingEnd(List<String> t, int i) {
+  var depth = 0;
+  for (var j = i; j < t.length; j++) {
+    if (t[j].startsWith(r'\begin{')) depth++;
+    if (t[j].startsWith(r'\end{')) {
+      depth--;
+      if (depth == 0) return j;
+    }
+  }
+  return -1;
+}
+
+/// [t] split at [sep] outside braces and inner environments.
+List<List<String>> _splitTop(List<String> t, String sep) {
+  final parts = <List<String>>[[]];
+  var depth = 0;
+  for (final tok in t) {
+    if (tok == '{' || tok.startsWith(r'\begin{')) depth++;
+    if (tok == '}' || tok.startsWith(r'\end{')) depth--;
+    if (tok == sep && depth == 0) {
+      parts.add([]);
+    } else {
+      parts.last.add(tok);
+    }
+  }
+  return parts;
+}
+
+/// [cell] without font commands, and without the braces they leave
+/// doubled (`{ \mathbf { a } }` → `{a}`).
+List<String> _dropFonts(List<String> cell) {
+  var out = [
+    for (var k = 0; k < cell.length; k++)
+      if (!(_matrixFonts.contains(cell[k]) &&
+          k + 1 < cell.length &&
+          cell[k + 1] == '{'))
+        cell[k],
+  ];
+  while (out.length >= 4 &&
+      out[0] == '{' &&
+      out[1] == '{' &&
+      _argEnd(out, 0) == out.length &&
+      _argEnd(out, 1) == out.length - 1) {
+    out = out.sublist(1, out.length - 1);
+  }
+  return out;
+}
+
+bool _emptyCell(List<String> cell) =>
+    cell.every((t) => t == '{' || t == '}' || _spacing.contains(t));
+
+/// Columns empty in every row at either edge go (the model pads a matrix
+/// with `{ } &` and `& { }`, or `{ \ }`); a matrix with nothing in it stays.
+void _dropEmptyColumns(List<List<List<String>>> rows) {
+  int width() => rows.fold<int>(0, (m, r) => r.length > m ? r.length : m);
+  bool allEmpty() => rows.every((r) => r.every(_emptyCell));
+  if (allEmpty()) return;
+  while (width() >= 2) {
+    final full = rows.where((r) => r.length == width()).toList();
+    if (!full.every((r) => _emptyCell(r.last))) break;
+    for (final r in full) {
+      r.removeLast();
+    }
+  }
+  while (width() >= 2 &&
+      rows.every((r) => r.length == width() && _emptyCell(r.first))) {
+    for (final r in rows) {
+      r.removeAt(0);
+    }
+  }
+}
+
+/// An array spec with one letter per column (extra letters go, `c` fills).
+List<String> _fitSpec(List<String> spec, int columns) {
+  final letters = spec.where((s) => RegExp('^[clr]\$').hasMatch(s)).toList();
+  if (letters.length == columns || columns == 0) return spec;
+  return [
+    for (var k = 0; k < columns; k++) k < letters.length ? letters[k] : 'c',
+  ];
 }
