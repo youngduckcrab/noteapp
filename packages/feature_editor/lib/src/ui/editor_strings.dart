@@ -508,6 +508,10 @@ abstract final class EditorStrings {
   static const mathFix = '고치기';
   static const mathReopen = '손글씨로 열기';
 
+  /// A reopened formula that could not be converted again stays
+  /// handwriting (undo brings the formula back).
+  static const mathKeptHandwriting = '수식으로 바꾸지 못해 손글씨로 남겼어요.';
+
   /// Insert menu submenu and the add-page sheet row (6.12.1, 6.12.3).
   static const image = '이미지';
 

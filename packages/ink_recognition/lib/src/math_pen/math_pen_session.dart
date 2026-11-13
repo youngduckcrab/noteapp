@@ -17,9 +17,14 @@
 // - convert: a usable answer (InkMathRenderer validates it) → buildMathFromPen
 //   → ONE CompositeCommand([RemoveElements(group), AddObjects([math with the
 //   group as ink])], 'recog-math-pen'), after checking the strokes are still
-//   the ones recognized. The bubble tap waits for an answer in flight and
-//   opens the LaTeX editor when there is none to use (no engine, consent,
-//   failure, unusable answer); background conversions never open anything.
+//   the ones recognized. The bubble tap waits for the answer in flight (the
+//   same request — it is not started again) and opens the LaTeX editor when
+//   there is none to use (no engine, consent, failure, unusable answer) —
+//   not when the request was cancelled because the user went on writing or
+//   switched tools. Background conversions never open anything, never
+//   convert strokes over the ink limits (the formula would lose its
+//   handwriting) and ask the editor's stillWanted right before the execute;
+//   the bubble tap asks the user before converting strokes over the limits.
 import 'dart:async';
 import 'dart:collection';
 
@@ -43,6 +48,7 @@ import '../providers.dart';
 import '../settings/recognition_settings_keys.dart';
 import '../ui/latex_editor_sheet.dart';
 import '../ui/math_pad_canvas.dart' show kMathPadPagePrefix;
+import '../ui/recognition_sheet.dart' show kSheetMinTapStyle;
 import 'math_pen.dart';
 import 'math_pen_bubble.dart';
 
@@ -94,6 +100,11 @@ final class MathPenNeedsConsent extends MathPenView {
   const MathPenNeedsConsent();
 }
 
+/// The answer of the shown request: [result] null on a failure (the bubble
+/// shows it) or when [cancelled] (a newer contact / update / clear, or a
+/// newer request took over).
+typedef _Shown = ({MathResult? result, bool cancelled});
+
 /// The strokes' identity for the cache and the staleness check.
 String mathPenSignature(Iterable<core.Stroke> strokes) =>
     [for (final s in strokes) '${s.id}:${s.updatedAt}'].join(',');
@@ -114,6 +125,8 @@ final class MathPenSession implements RecognitionMathPenSession {
   RecognitionTarget? _group;
   Timer? _timer;
   Completer<void>? _cancel;
+  Future<_Shown>? _inflight;
+  String? _inflightSignature;
   int _generation = 0;
   String? _lastUsable;
   bool _disposed = false;
@@ -159,6 +172,8 @@ final class MathPenSession implements RecognitionMathPenSession {
     _timer?.cancel();
     _timer = null;
     _generation++;
+    _inflight = null;
+    _inflightSignature = null;
     final cancel = _cancel;
     _cancel = null;
     if (cancel != null && !cancel.isCompleted) cancel.complete();
@@ -215,26 +230,43 @@ final class MathPenSession implements RecognitionMathPenSession {
     _show(MathPenAnswer(result, usable));
   }
 
-  /// The request whose answer the bubble shows.
-  Future<MathResult?> _recognizeShown(
+  /// The request whose answer the bubble shows (kept in [_inflight] so a
+  /// bubble tap waits for it instead of starting again).
+  Future<_Shown> _recognizeShown(
     RecognitionTarget group,
     String signature,
     MathRecognizer engine,
-  ) async {
+  ) {
     _timer = null;
     final generation = ++_generation;
     final cancel = Completer<void>();
     _cancel = cancel;
+    final future = _runShown(group, signature, engine, generation, cancel);
+    if (generation == _generation) {
+      _inflight = future;
+      _inflightSignature = signature;
+    }
+    return future;
+  }
+
+  Future<_Shown> _runShown(
+    RecognitionTarget group,
+    String signature,
+    MathRecognizer engine,
+    int generation,
+    Completer<void> cancel,
+  ) async {
     bool current() =>
         !_disposed && generation == _generation && identical(_group, group);
     try {
       final result = await _recognize(group, engine, cancel.future);
-      if (!current()) return null;
+      if (!current()) return (result: null, cancelled: true);
       _remember(signature, result);
       _showAnswer(result);
-      return result;
+      return (result: result, cancelled: false);
     } on RecognizerCancelled {
-      return null; // a newer request follows (or none is wanted)
+      // a newer request follows (or none is wanted)
+      return (result: null, cancelled: true);
     } on RecognizerConsentRequired {
       if (current()) _show(const MathPenNeedsConsent());
     } on RecognizerUnsupported {
@@ -253,8 +285,12 @@ final class MathPenSession implements RecognitionMathPenSession {
       if (current()) _show(const MathPenFailed(RecognitionStrings.mathFailed));
     } finally {
       if (identical(_cancel, cancel)) _cancel = null;
+      if (generation == _generation) {
+        _inflight = null;
+        _inflightSignature = null;
+      }
     }
-    return null;
+    return (result: null, cancelled: !current());
   }
 
   /// One engine call for [group] (the image only for the server engine).
@@ -320,21 +356,30 @@ final class MathPenSession implements RecognitionMathPenSession {
   Future<bool> convert(
     RecognitionTarget group, {
     required bool interactive,
+    bool Function()? stillWanted,
   }) async {
     if (_disposed) return false;
     final signature = mathPenSignature(group.strokes);
     final engine = _engine(); // before any await
     var result = _cache[signature];
     if (!interactive) {
+      // Over the ink limits the formula could not keep the handwriting:
+      // it stays handwriting (only the bubble tap may drop it, asking).
+      if (!mathInkFits(group.strokes)) return false;
       if (result == null && engine != null && engine.isAvailable) {
         result = await _recognizeAlone(group, engine);
         if (result != null) _remember(signature, result);
       }
       final usable = result == null ? null : usableLatex(result.latex);
       if (usable == null || result == null) return false;
+      if (stillWanted != null && !stillWanted()) return false;
       return _execute(group, usable, result.engineId);
     }
-    // The bubble tap.
+    // The bubble tap. Over the ink limits: ask first.
+    if (!mathInkFits(group.strokes) && !await _confirmWithoutInk()) {
+      return false;
+    }
+    if (_disposed) return false;
     var needsConsent = _view.value is MathPenNeedsConsent;
     var failed = _view.value is MathPenFailed;
     if (result == null &&
@@ -342,10 +387,21 @@ final class MathPenSession implements RecognitionMathPenSession {
         engine.isAvailable &&
         !needsConsent &&
         !failed) {
-      _stop();
-      _group = group;
-      _show(MathPenWaiting(previous: _lastUsable));
-      result = await _recognizeShown(group, signature, engine);
+      final _Shown shown;
+      final inflight = _inflight;
+      if (inflight != null &&
+          _inflightSignature == signature &&
+          identical(_group, group)) {
+        shown = await inflight; // the same request: no new one
+      } else {
+        _stop();
+        _group = group;
+        _show(MathPenWaiting(previous: _lastUsable));
+        shown = await _recognizeShown(group, signature, engine);
+      }
+      // The user went on (a new contact, a tool switch …): nothing opens.
+      if (shown.cancelled) return false;
+      result = shown.result;
       needsConsent = _view.value is MathPenNeedsConsent;
       failed = _view.value is MathPenFailed;
     }
@@ -360,6 +416,36 @@ final class MathPenSession implements RecognitionMathPenSession {
       initialLatex: result?.latex ?? '',
       recognize: result == null,
     );
+  }
+
+  /// Asks before a bubble-tap conversion of strokes over the ink limits
+  /// (the formula keeps no handwriting then). True = convert.
+  Future<bool> _confirmWithoutInk() async {
+    final context = _context.bodyContext();
+    if (context == null || !context.mounted) return false;
+    final answer = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: MathPenBubbleKeys.inkTooLargeDialog,
+        title: const Text(RecognitionStrings.mathPenInkTooLargeTitle),
+        content: const Text(RecognitionStrings.mathPenInkTooLarge),
+        actions: [
+          TextButton(
+            key: MathPenBubbleKeys.inkTooLargeCancel,
+            style: kSheetMinTapStyle,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(RecognitionStrings.cancel),
+          ),
+          TextButton(
+            key: MathPenBubbleKeys.inkTooLargeConvert,
+            style: kSheetMinTapStyle,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(RecognitionStrings.mathPenConvertAnyway),
+          ),
+        ],
+      ),
+    );
+    return answer ?? false;
   }
 
   /// A request of its own (a background conversion — the shown request may
@@ -448,11 +534,6 @@ final class MathPenSession implements RecognitionMathPenSession {
       );
       return false;
     }
-    if (math.ink.isEmpty) {
-      messenger?.showSnackBar(
-        const SnackBar(content: Text(RecognitionStrings.mathPenInkTooLarge)),
-      );
-    }
     return true;
   }
 
@@ -510,9 +591,6 @@ final class MathPenSession implements RecognitionMathPenSession {
           final math = _build(scope, group, live, latex, engineId);
           if (math == null) return RecognitionStrings.runFailed;
           run.execute(_command(group, live, math));
-          if (math.ink.isEmpty) {
-            run.showSnackBar(RecognitionStrings.mathPenInkTooLarge);
-          }
           return null;
         },
       );

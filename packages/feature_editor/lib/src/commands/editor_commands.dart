@@ -164,6 +164,9 @@ class EditorCommands {
     return (committed: commitInkEdit(controller, edit), withBefore: false);
   }
 
+  /// (math pen) A short message to the user (the editor's snackbar).
+  void showMessage(String text) => _message(text);
+
   /// (math pen) ONE command through the rejection rules of the other
   /// commands (notice, read-only refresh); true when it ran.
   bool runCommand(core.EditCommand command) =>

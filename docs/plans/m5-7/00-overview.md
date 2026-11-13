@@ -2396,7 +2396,7 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C28-01 | 7.2.2 `MathObject`·`PageObjectLimits` | `MathObject.ink: List<Stroke>`(변환한 손글씨 — 다시 열기용, 기본 빈 목록, `copyWith(ink:)`, `transformed`가 함께 변형, `copyTo`가 페이지를 바꿈, `==`·`estimatedBytes`에 포함). `PageObjectLimits.maxMathInkStrokes = 400`·`maxMathInkPoints = 40000`(로컬 명령 해석 때 `ArgumentError`) | 수식 펜 설계 5 | CORE(처리됨) |
 | C28-02 | 7.2.7 JSON 키 표 `math` 행 | 키 `ink` 추가 — 언제나 쓴다(빈 목록이면 `null`). 읽기: 키 없음(옛 JSON)·`null`·깨진 항목 → 빈 목록(수식은 살림). 옛 앱은 알려진 종류의 모르는 키를 무시한다(CORE 6.2.6) | 수식 펜 설계 5.3 | CORE(골든 `math_ink.json` 등 — 처리됨) |
 | C28-03 | 7.2.8 SYNC 키 | `keysOf(pageObject)`에 `ink`. `wholeUnitExcept`는 그대로 → `ink`는 frame·latex·style과 한 병합 단위 | 수식 펜 설계 5.3 | SYNC(처리됨) |
-| C28-04 | 7.2.10 EDITOR 확장 지점 | `EditorExtensions.mathPen: EditorMathPen?`와 새 타입 `EditorMathPen`·`EditorMathPenContext`·`EditorMathGroup`·`EditorMathConvertTrigger`·`EditorMathPenSession`. `EditorTool.math`(편집기 내부, `mathPen == null`이면 펜처럼) | 수식 펜 설계 11.1 | EDITOR(처리됨) |
+| C28-04 | 7.2.10 EDITOR 확장 지점 | `EditorExtensions.mathPen: EditorMathPen?`와 새 타입 `EditorMathPen`·`EditorMathPenContext`·`EditorMathGroup`·`EditorMathConvertTrigger`·`EditorMathPenSession`. `EditorTool.math`(편집기 내부, `mathPen == null`이면 펜처럼). (1단계 검토 반영) `EditorMathPenSession.convert`·`RecognitionMathPenSession.convert`에 선택 인자 `stillWanted`(배경 변환이 execute 직전에 묻는 편집기 기록 확인 — 호출자 불변) | 수식 펜 설계 11.1 | EDITOR(처리됨) |
 | C28-05 | 7.2.11 recog 내보내기 | `RecognitionMathPen`·`RecognitionMathPenContext`·`RecognitionMathPenSession`·`recognitionMathPen()`. 앱 셸 `editorMathPenOf`가 편집기 자리로 바꾼다(`ShellContribution.mathPen`). 패키지 사이 새 의존 없음(R8), 이름 겹침 없음(R14) | 수식 펜 설계 11.1 | LIBRARY·INFRA(처리됨) |
 
 #### v2.7 (2026-11-12, 2차 통합 — 총괄)

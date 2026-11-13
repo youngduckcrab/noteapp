@@ -355,7 +355,10 @@ double mathFontSizeFor({
 }
 
 /// 6.15.1: [m] with [latex] laid out again at its own font size — centre and
-/// rotation kept, engineId 'manual', updatedAt [nowMs]. null when [latex]
+/// rotation kept, engineId 'manual', updatedAt [nowMs]. (math pen) A formula
+/// written with the math pen (it keeps its ink) and not rotated keeps its
+/// LEFT edge and vertical centre instead — it starts where the handwriting
+/// did, so a longer formula grows to the right only. null when [latex]
 /// cannot be laid out.
 core.MathObject? relayoutMath(
   core.MathObject m, {
@@ -367,10 +370,11 @@ core.MathObject? relayoutMath(
   final laid = ink.InkMathRenderer.layout(tex, fontSizePt: m.style.fontSizePt);
   if (laid == null) return null;
   final c = m.frame.center;
+  final keepLeft = m.ink.isNotEmpty && m.frame.rotation == 0;
   return m.copyWith(
     frame: core.ElementFrame(
       core.PageRect.fromLTWH(
-        c.x - laid.sizePt.width / 2,
+        keepLeft ? m.frame.rect.left : c.x - laid.sizePt.width / 2,
         c.y - laid.sizePt.height / 2,
         laid.sizePt.width,
         laid.sizePt.height,

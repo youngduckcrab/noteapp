@@ -58,7 +58,15 @@ abstract interface class RecognitionMathPenSession {
   /// [interactive] (the bubble tap) may wait for the answer and open the
   /// LaTeX editor; otherwise only a usable answer converts (waiting at most
   /// kMathPenBackgroundTimeout for one in flight) and nothing opens.
-  Future<bool> convert(RecognitionTarget group, {required bool interactive});
+  /// [stillWanted] (background only) is asked right before the execute:
+  /// false → nothing converts. A background conversion never converts
+  /// strokes over the ink limits (the formula would lose its handwriting);
+  /// the bubble tap asks first.
+  Future<bool> convert(
+    RecognitionTarget group, {
+    required bool interactive,
+    bool Function()? stillWanted,
+  });
 
   /// '고치기': the LaTeX editor (with the symbol row) on the one MathObject
   /// of [formula] — one UpdateObjects, its handwriting kept.

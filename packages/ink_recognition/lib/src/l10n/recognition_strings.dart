@@ -117,7 +117,10 @@ abstract final class RecognitionStrings {
   static const String mathPenEnableOnDevice = '기기에서 수식 인식 켜기';
   static const String mathPenTypeLatex = 'LaTeX로 입력';
   static const String mathPenConsent = '외부 수식 인식 동의가 필요해요. 눌러서 확인해요.';
-  static const String mathPenInkTooLarge = '원래 손글씨가 너무 커서 다시 열 수 없게 바꿨어요.';
+  static const String mathPenInkTooLargeTitle = '손글씨가 너무 많아요';
+  static const String mathPenInkTooLarge =
+      '수식으로 바꾸면 손글씨는 남지 않아 손글씨로 다시 열 수 없어요. 그래도 바꿀까요?';
+  static const String mathPenConvertAnyway = '바꾸기';
   static const String symbolFraction = '분수';
   static const String symbolPower = '지수';
   static const String symbolSubscript = '아래첨자';

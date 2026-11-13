@@ -346,6 +346,34 @@ void main() {
       expect(relayoutMath(original, latex: r'\frac{', nowMs: 1), isNull);
     });
 
+    test('(review L1) a math pen formula (it keeps its ink), not rotated, '
+        'keeps its LEFT edge and vertical centre: x^2 → x^2+1 grows to the '
+        'right only; a rotated one keeps its centre', () {
+      final ink0 = glyphStroke('i', 200, 300, 20);
+      final pen = core.MathObject(
+        id: 'mp',
+        pageId: kPageId,
+        frame: const core.ElementFrame(core.PageRect(200, 300, 230, 320)),
+        latex: 'x^{2}',
+        style: const core.MathStyle(fontSizePt: 24),
+        ink: [ink0],
+        createdAt: 10,
+      );
+      final edited = relayoutMath(pen, latex: 'x^{2}+1', nowMs: 99)!;
+      expect(edited.frame.rect.left, 200);
+      expect(edited.frame.center.y, closeTo(310, 1e-9));
+      expect(edited.frame.rect.width, greaterThan(30));
+      expect(edited.ink, [ink0]);
+      final turned = pen.copyWith(
+        frame: const core.ElementFrame(
+          core.PageRect(200, 300, 230, 320),
+          rotation: 0.5,
+        ),
+      );
+      final edited2 = relayoutMath(turned, latex: 'x^{2}+1', nowMs: 99)!;
+      expect(edited2.frame.center.x, closeTo(215, 1e-9));
+    });
+
     test('6.14.6 insert: default style, centred in the area, moved inside '
         'the page, rotation 0', () {
       const latex = r'E=mc^2';

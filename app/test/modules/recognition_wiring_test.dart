@@ -326,9 +326,16 @@ void main() {
       expect(inner.reopenedIds.single, {stroke.id});
 
       await session.convert(group, EditorMathConvertTrigger.bubbleTap);
-      await session.convert(group, EditorMathConvertTrigger.toolSwitch);
+      bool wanted() => true;
+      await session.convert(
+        group,
+        EditorMathConvertTrigger.toolSwitch,
+        stillWanted: wanted,
+      );
       await session.convert(group, EditorMathConvertTrigger.newGroup);
       expect(inner.interactive, [true, false, false]);
+      // The editor's history guard goes through unchanged.
+      expect(inner.stillWanted, [null, wanted, null]);
 
       session
         ..interrupt()
@@ -349,6 +356,7 @@ final class _RecordingMathPenSession implements RecognitionMathPenSession {
   final List<MathObject?> reopened = [];
   final List<Set<String>> reopenedIds = [];
   final List<bool> interactive = [];
+  final List<bool Function()?> stillWanted = [];
   final List<RecognitionTarget> fixed = [];
   final List<String> calls = [];
   final ValueNotifier<int> _changes = ValueNotifier(0);
@@ -374,8 +382,10 @@ final class _RecordingMathPenSession implements RecognitionMathPenSession {
   Future<bool> convert(
     RecognitionTarget group, {
     required bool interactive,
+    bool Function()? stillWanted,
   }) async {
     this.interactive.add(interactive);
+    this.stillWanted.add(stillWanted);
     return false;
   }
 

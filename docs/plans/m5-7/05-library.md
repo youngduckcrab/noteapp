@@ -2752,7 +2752,7 @@ C. **TestFlight 뒤** — 2차 완료 조건 아님: C-3(ML Kit iOS — A-4와 �
 
 ## 14. 수식 펜 1단계 (2026-11-13, 계약 v2.8 C28-05)
 
-recog가 편집기 수식 펜의 인식을 맡는다: `src/math_pen/`(`MathPenSession` — 펜을 뗀 뒤 500 ms 디바운스, 새 접촉이면 진행 중 요청 취소·세대 번호로 최신 답만, 획 서명 캐시 8개, 서버 엔진에만 PNG, 배경 변환은 쓸 수 있는 답만·최대 10 s, 말풍선 탭은 답을 기다리거나 LaTeX 편집 창), 말풍선 내용 `MathPenBubble`(INK `MathPreview`, '인식 중…', '수식 인식이 꺼져 있어요.' + [기기에서 수식 인식 켜기](기존 `OnDeviceMathTile` 시트) + [LaTeX로 입력]). 변환 = `buildMathFromPen`(잉크 높이만 한 글자 크기, 잉크 왼쪽 맞춤·세로 가운데, 손글씨를 `ink`로) → `CompositeCommand([RemoveElements, AddObjects])` `recog-math-pen` 한 단계. LaTeX 편집 창(세 흐름 모두)에 기호 줄(`ui/latex_symbols.dart` — 분수·지수·아래첨자·√·∫·∑·lim·π·∞·±·×·÷·≤·≥·≠·θ·α·β·( ), 커서는 중괄호 안). 내보내기 4개 `RecognitionMathPen`·`RecognitionMathPenContext`·`RecognitionMathPenSession`·`recognitionMathPen`. 4.4.4 동작 순서는 그대로. 설계: [research/math-pen-phase1.md](research/math-pen-phase1.md).
+recog가 편집기 수식 펜의 인식을 맡는다: `src/math_pen/`(`MathPenSession` — 펜을 뗀 뒤 500 ms 디바운스, 새 접촉이면 진행 중 요청 취소·세대 번호로 최신 답만, 획 서명 캐시 8개, 서버 엔진에만 PNG, 배경 변환은 쓸 수 있는 답만·최대 10 s·잉크 한도 안만·편집기 `stillWanted` 확인 뒤, 말풍선 탭은 진행 중 답을 그대로 기다리거나(취소되면 아무것도 열지 않음) LaTeX 편집 창, 한도를 넘으면 먼저 묻는다), 말풍선 내용 `MathPenBubble`(INK `MathPreview`, '인식 중…', '수식 인식이 꺼져 있어요.' + [기기에서 수식 인식 켜기](기존 `OnDeviceMathTile` 시트) + [LaTeX로 입력]). 변환 = `buildMathFromPen`(잉크 높이만 한 글자 크기, 잉크 왼쪽 맞춤·세로 가운데, 손글씨를 `ink`로) → `CompositeCommand([RemoveElements, AddObjects])` `recog-math-pen` 한 단계. LaTeX 편집 창(세 흐름 모두)에 기호 줄(`ui/latex_symbols.dart` — 분수·지수·아래첨자·√·∫·∑·lim·π·∞·±·×·÷·≤·≥·≠·θ·α·β·( ), 커서는 중괄호 안). 내보내기 4개 `RecognitionMathPen`·`RecognitionMathPenContext`·`RecognitionMathPenSession`·`recognitionMathPen`. 4.4.4 동작 순서는 그대로. 설계: [research/math-pen-phase1.md](research/math-pen-phase1.md).
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

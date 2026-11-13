@@ -3,7 +3,7 @@
 // way recog does — ONE CompositeCommand([RemoveElements(group),
 // AddObjects([math with the group as ink])]) through the context's execute
 // — with the LaTeX of [FakeMathPen.latexFor] (null → no usable result:
-// nothing converts).
+// nothing converts), asking stillWanted right before the execute like recog.
 import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart';
@@ -39,14 +39,19 @@ final class FakeMathPenSession implements EditorMathPenSession {
   @override
   Future<bool> convert(
     EditorMathGroup group,
-    EditorMathConvertTrigger trigger,
-  ) async {
+    EditorMathConvertTrigger trigger, {
+    bool Function()? stillWanted,
+  }) async {
     calls.add('convert ${trigger.name}');
     converts.add((group, trigger));
     final hold = pen.holdConvert;
     if (hold != null) await hold.future;
     final latex = pen.latexFor(group);
     if (latex == null) return false;
+    if (stillWanted != null && !stillWanted()) {
+      calls.add('not wanted');
+      return false;
+    }
     final live = context.liveStrokes(group.pageId, [
       for (final s in group.strokes) s.id,
     ]);

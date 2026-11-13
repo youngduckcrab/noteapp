@@ -14,15 +14,29 @@
 // - Continue writing: a stroke near a converted formula reopens it in ONE
 //   step (one undo brings the formula back); x^2 → x^2+1.
 // - The eraser in an open group: the group stays open, pieces stay in it.
-// - The formula menu: a finger tap / a pen dot on a formula; 고치기 → fix;
-//   손글씨로 열기 → one reopen step.
+// - The formula menu: a finger tap / a mouse click on a formula (a pen dot
+//   is written: it reopens the formula); 고치기 → fix; 손글씨로 열기 → one
+//   reopen step.
+// - Review fixes: undo order after a far stroke (the stroke first), a late
+//   background answer after other work is dropped (redo kept), the undone
+//   group comes back once and only under the math pen / eraser, an erased
+//   restored group stays handwriting, a tap that waited keeps strokes that
+//   joined meanwhile, no reopen over the ink limits, eraser pieces of a copy
+//   stay out, a palm on the bubble does not convert, the bubble hides off
+//   screen, the iPad pose hover dot, a reopened group that does not convert
+//   says so.
+import 'dart:async';
+
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/tools/interaction_host.dart';
 import 'package:feature_editor/src/tools/math_pen/math_pen_controller.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
+import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/math_pen_layer.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -344,8 +358,10 @@ void main() {
     expect(pen.session.fixes.single.id, 'math-1');
     expect(find.byKey(MathPenLayer.formulaMenuKey), findsNothing);
 
-    // A pen dot inside the frame opens it too (no dot stroke).
-    await h.driver.stylusStroke([h.toGlobal(0, const Offset(230, 311))]);
+    // A mouse click inside the frame opens it too (no dot stroke).
+    await h.driver.stylusStroke([
+      h.toGlobal(0, const Offset(230, 311)),
+    ], kind: PointerDeviceKind.mouse);
     await tester.pump();
     expect(find.byKey(MathPenLayer.formulaMenuKey), findsOneWidget);
     expect(_strokes(h), isEmpty);
@@ -409,5 +425,306 @@ void main() {
       tester.element(find.byType(EditorToolbar)),
     );
     expect(container.read(editorToolProvider).activeTool, EditorTool.math);
+  });
+
+  // ---- review fixes ----
+
+  testWidgets('review: one undo after a far stroke takes back that stroke, '
+      'not the conversion of the old group (it converts first)', (
+    tester,
+  ) async {
+    final (h, _) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    final depth = h.session.history.undoDepth;
+    await _line(h, const Offset(300, 500), const Offset(340, 500));
+    await tester.pump();
+    expect(_maths(h), hasLength(1));
+    expect(h.session.history.undoDepth, depth + 2);
+    expect(h.session.history.undoLabel, isNot('recog-math-pen'));
+    await _undo(tester, h);
+    expect(_maths(h), hasLength(1), reason: 'the formula stays');
+    expect(_strokes(h), isEmpty, reason: 'the far stroke is undone');
+    expect(_controller(h).group, isNull);
+  });
+
+  testWidgets('review: a late background answer after other work is dropped '
+      '(the handwriting stays, redo is kept)', (tester) async {
+    final (h, pen) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    pen.holdConvert = Completer<void>();
+    await _selectTool(tester, h, EditorTool.pen);
+    await _line(h, const Offset(300, 500), const Offset(340, 500));
+    await _undo(tester, h);
+    expect(h.session.history.redoDepth, 1);
+    pen.holdConvert!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(pen.session.calls, contains('not wanted'));
+    expect(_maths(h), isEmpty);
+    expect(_strokes(h), hasLength(2));
+    expect(h.session.history.redoDepth, 1, reason: 'redo kept');
+    await _redo(tester, h);
+    expect(_strokes(h), hasLength(3));
+  });
+
+  testWidgets('review: a late background answer with nothing done meanwhile '
+      'still converts', (tester) async {
+    final (h, pen) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    pen.holdConvert = Completer<void>();
+    await _selectTool(tester, h, EditorTool.lasso);
+    expect(_maths(h), isEmpty);
+    pen.holdConvert!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(_maths(h), hasLength(1));
+    expect(_strokes(h), isEmpty);
+  });
+
+  testWidgets('review: the undone group comes back once — closed by a tool '
+      'switch, a later pen stroke never reopens it (no bubble under the '
+      'pen)', (tester) async {
+    final (h, pen) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    await tester.pump();
+    await tester.tap(find.byKey(MathPenLayer.bubbleKey));
+    await tester.pump();
+    await tester.pump();
+    await _undo(tester, h);
+    expect(_controller(h).groupIds, hasLength(2));
+    await _selectTool(tester, h, EditorTool.pen);
+    expect(_controller(h).group, isNull);
+    await _line(h, const Offset(300, 500), const Offset(340, 500));
+    await tester.pump();
+    expect(_controller(h).group, isNull);
+    expect(find.byKey(MathPenLayer.bubbleKey), findsNothing);
+    // Back to the math pen: still nothing reopens by itself.
+    await _selectTool(tester, h, EditorTool.math);
+    await _line(h, const Offset(500, 700), const Offset(540, 700));
+    expect(_controller(h).groupIds, hasLength(1));
+    expect(_triggers(pen), [EditorMathConvertTrigger.bubbleTap]);
+  });
+
+  testWidgets('review: an undo of a conversion under another tool does not '
+      'open the group', (tester) async {
+    final (h, _) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    await _selectTool(tester, h, EditorTool.lasso); // converts
+    expect(_maths(h), hasLength(1));
+    await _undo(tester, h);
+    expect(_strokes(h), hasLength(2));
+    expect(_controller(h).group, isNull);
+    expect(find.byKey(MathPenLayer.bubbleKey), findsNothing);
+  });
+
+  testWidgets('review: erasing a part of a restored group keeps the user\'s '
+      'choice — leaving the eraser does not convert it', (tester) async {
+    final (h, pen) = await _pump(tester);
+    await _line(h, const Offset(100, 110), const Offset(160, 110));
+    await _line(h, const Offset(130, 100), const Offset(130, 120));
+    await tester.pump();
+    await tester.tap(find.byKey(MathPenLayer.bubbleKey));
+    await tester.pump();
+    await tester.pump();
+    await _undo(tester, h);
+    expect(_controller(h).groupIds, hasLength(2));
+    await _selectTool(tester, h, EditorTool.eraser);
+    await h.driver.stylusStroke(
+      pathThrough(h, 0, [const Offset(115, 102), const Offset(115, 118)]),
+    );
+    await tester.pump();
+    expect(_controller(h).groupIds.length, greaterThanOrEqualTo(3));
+    await _selectTool(tester, h, EditorTool.pen);
+    expect(_triggers(pen), [EditorMathConvertTrigger.bubbleTap]);
+    expect(_maths(h), isEmpty);
+  });
+
+  testWidgets('review: strokes that joined while a bubble tap waited stay '
+      'the open group', (tester) async {
+    final (h, pen) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    await tester.pump();
+    pen.holdConvert = Completer<void>();
+    await tester.tap(find.byKey(MathPenLayer.bubbleKey));
+    await tester.pump();
+    await _line(h, const Offset(120, 92), const Offset(126, 84)); // joins
+    expect(_controller(h).groupIds, hasLength(3));
+    pen.holdConvert!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(_maths(h).single.ink, hasLength(2));
+    final left = _strokes(h).single;
+    expect(_controller(h).groupIds, [left.id]);
+    expect(_controller(h).phase, MathPenPhase.open);
+  });
+
+  testWidgets('review: a stroke on a formula whose ink plus the stroke would '
+      'go over the limits does not reopen it (a new group)', (tester) async {
+    final ink = [
+      for (var i = 0; i < core.PageObjectLimits.maxMathInkStrokes; i++)
+        lineStroke(
+          id: 'ink-$i',
+          x0: 200,
+          y0: 300,
+          x1: 240,
+          y1: 320,
+          pointCount: 2,
+          createdAt: i,
+        ),
+    ];
+    final math = core.MathObject(
+      id: 'big',
+      pageId: 'x',
+      frame: const core.ElementFrame(core.PageRect(200, 300, 260, 322)),
+      latex: 'y',
+      style: const core.MathStyle(),
+      ink: ink,
+      createdAt: 5,
+    );
+    final (h, _) = await _pump(
+      tester,
+      objects: {
+        0: [math],
+      },
+    );
+    await _line(h, const Offset(264, 310), const Offset(274, 310));
+    expect(_maths(h).single.id, 'big', reason: 'not reopened');
+    expect(_strokes(h), hasLength(1));
+    expect(_controller(h).groupIds, [_strokes(h).single.id]);
+    expect(_controller(h).group!.reopenedFrom, isNull);
+  });
+
+  testWidgets('review: eraser pieces of a pasted copy (same createdAt and '
+      'style, elsewhere) do not join the open group', (tester) async {
+    final (h, _) = await _pump(tester);
+    await _line(h, const Offset(100, 110), const Offset(160, 110));
+    final member = _strokes(h).single;
+    // A copy of the same ink 20 pt lower (paste keeps createdAt).
+    final copy = member
+        .transformed(core.Affine2.translation(0, 20))
+        .copyWith(id: 'copy');
+    h.session.execute(core.AddStrokes(pageId: h.pageId(0), strokes: [copy]));
+    await tester.pump();
+    expect(_controller(h).groupIds, [member.id]);
+    await _selectTool(tester, h, EditorTool.eraser);
+    await h.driver.stylusStroke(
+      pathThrough(h, 0, [const Offset(130, 100), const Offset(130, 140)]),
+    );
+    await tester.pump();
+    final ids = _controller(h).groupIds;
+    final strokes = {for (final s in _strokes(h)) s.id: s};
+    expect(ids, hasLength(2), reason: 'the two pieces of the member');
+    for (final id in ids) {
+      expect(strokes[id]!.points.pointBounds.top, closeTo(110, 1));
+    }
+  });
+
+  testWidgets('review: a pen dot inside a formula is written (it reopens '
+      'the formula with the dot, one step); no menu', (tester) async {
+    final ink = lineStroke(id: 'ink-1', x0: 200, y0: 300, x1: 240, y1: 320);
+    final math = core.MathObject(
+      id: 'math-1',
+      pageId: 'x',
+      frame: const core.ElementFrame(core.PageRect(200, 300, 260, 322)),
+      latex: 'y',
+      style: const core.MathStyle(),
+      ink: [ink],
+      createdAt: 5,
+    );
+    final (h, _) = await _pump(
+      tester,
+      objects: {
+        0: [math],
+      },
+    );
+    final depth = h.session.history.undoDepth;
+    await h.driver.stylusStroke([h.toGlobal(0, const Offset(250, 311))]);
+    await tester.pump();
+    expect(find.byKey(MathPenLayer.formulaMenuKey), findsNothing);
+    expect(_maths(h), isEmpty);
+    expect(_strokes(h), hasLength(2)); // the handwriting + the dot
+    expect(h.session.history.undoDepth, depth + 1);
+    expect(_controller(h).group!.reopenedFrom!.id, 'math-1');
+  });
+
+  testWidgets('review: a finger the router takes for a palm (right after a '
+      'stroke) does not convert on the bubble; a later finger tap does', (
+    tester,
+  ) async {
+    final (h, pen) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    await tester.pump();
+    final at = tester.getCenter(find.byKey(MathPenLayer.bubbleKey));
+    await h.driver.down(7, at);
+    await h.driver.wait(const Duration(milliseconds: 40));
+    await h.driver.up(7);
+    await tester.pump();
+    expect(_triggers(pen), isEmpty, reason: 'the writing hand');
+    await h.driver.wait(const Duration(seconds: 3));
+    await h.driver.down(7, at);
+    await h.driver.wait(const Duration(milliseconds: 40));
+    await h.driver.up(7);
+    await tester.pump();
+    await tester.pump();
+    expect(_triggers(pen), [EditorMathConvertTrigger.bubbleTap]);
+  });
+
+  testWidgets('review: the bubble hides while the group is scrolled off '
+      'screen', (tester) async {
+    final (h, _) = await _pump(tester);
+    await _writeX(h, const Offset(100, 100));
+    await tester.pump();
+    expect(find.byKey(MathPenLayer.bubbleKey), findsOneWidget);
+    await h.viewport.jumpToPage(2, animate: false);
+    await tester.pump();
+    expect(_controller(h).group, isNotNull);
+    expect(find.byKey(MathPenLayer.bubbleKey), findsNothing);
+    await h.viewport.jumpToPage(0, animate: false);
+    await tester.pump();
+    expect(find.byKey(MathPenLayer.bubbleKey), findsOneWidget);
+  });
+
+  testWidgets('review: the iPad pose hover shows the math pen\'s ballpoint '
+      'dot', (tester) async {
+    final (h, _) = await _pump(tester);
+    final host = h.container.read(editorInteractionHostProvider);
+    host.poseHover(const Offset(200, 200));
+    final cursor = host.cursor.value;
+    expect(cursor, isA<PenDotCursor>());
+    final ballpoint = h.container
+        .read(editorToolProvider)
+        .penStyles[core.PenTool.ballpoint]!;
+    expect(
+      (cursor! as PenDotCursor).color,
+      Color(ballpoint.colorArgb).withValues(alpha: 0.5),
+    );
+    await tester.pump(const Duration(seconds: 1)); // the hide timer
+  });
+
+  testWidgets('review: a reopened formula that cannot convert again says it '
+      'stayed handwriting', (tester) async {
+    final ink = lineStroke(id: 'ink-1', x0: 200, y0: 300, x1: 240, y1: 320);
+    final math = core.MathObject(
+      id: 'math-1',
+      pageId: 'x',
+      frame: const core.ElementFrame(core.PageRect(200, 300, 260, 322)),
+      latex: 'y',
+      style: const core.MathStyle(),
+      ink: [ink],
+      createdAt: 5,
+    );
+    final (h, pen) = await _pump(
+      tester,
+      objects: {
+        0: [math],
+      },
+    );
+    pen.latexFor = (_) => null; // no engine answer
+    await _line(h, const Offset(264, 310), const Offset(274, 310));
+    expect(_controller(h).group!.reopenedFrom, isNotNull);
+    await _selectTool(tester, h, EditorTool.lasso);
+    await tester.pump();
+    expect(_maths(h), isEmpty);
+    expect(find.text(EditorStrings.mathKeptHandwriting), findsOneWidget);
   });
 }

@@ -4,19 +4,23 @@
 //
 // A sibling of the page Listener (page_viewport.dart): a tap on the bubble or
 // the menu never reaches the input router, so it is never a stroke. The
-// editor owns the frame — the place (8 px above the group's bounds grown by
-// one line height H, so the zone where an exponent or a fraction still joins
-// stays free; below when there is no room; kept 8 px inside the page area),
-// the shadow and
-// the tap target; recog builds the content (EditorMathPenSession
-// .buildBubble — the live result rendered with INK's MathPreview, '인식
-// 중…', the no-engine notice).
+// editor owns the frame — the place ([mathPenBubbleOffset]: 8 px above the
+// group's bounds grown by bubbleClearanceFactor × H, so the zone where an
+// exponent, a fraction or the next stroke starts stays free; below when
+// there is no room; beside the group, then the viewport corner away from it
+// when zoomed in so far that neither fits; kept 8 px inside the area;
+// hidden while the group is off screen), the shadow and the tap target (a
+// finger the input router would take for a palm — the writing hand right
+// after a stroke — does not convert: InputRouter.rejectsAsPalm); recog
+// builds the content (EditorMathPenSession.buildBubble — the live result
+// rendered with INK's MathPreview, '인식 중…', the no-engine notice).
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../input/input_router.dart';
 import '../../scope/editor_scope.dart';
 import '../../text/text_edit_session.dart';
 import '../../tools/math_pen/math_pen_controller.dart';
@@ -80,36 +84,45 @@ class MathPenLayer extends ConsumerWidget {
     final zone = controller.bubbleAnchorPt;
     if (group == null || recognition == null || zone == null) return null;
     final anchor = _screenRect(viewport, group.pageId, zone);
-    if (anchor == null) return null;
+    final ink = _screenRect(viewport, group.pageId, group.boundsPt);
+    if (anchor == null || ink == null) return null;
     void convert() => unawaited(controller.convertOpenGroup());
     return Positioned.fill(
-      child: CustomSingleChildLayout(
-        delegate: _AboveDelegate(anchor),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: maxWidth,
-            minHeight: minHeight,
-          ),
-          child: Material(
-            key: bubbleKey,
-            elevation: 2,
-            borderRadius: BorderRadius.circular(12),
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: controller.phase == MathPenPhase.converting
-                  ? null
-                  : convert,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Off screen (scrolled away): no bubble — a tap there would
+          // convert a group the user cannot see.
+          if (!ink.inflate(1).overlaps(Offset.zero & constraints.biggest)) {
+            return const SizedBox.shrink();
+          }
+          return CustomSingleChildLayout(
+            delegate: _BubbleDelegate(anchor),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: maxWidth,
+                minHeight: minHeight,
+              ),
+              child: Material(
+                key: bubbleKey,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(12),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: _PalmAwareTap(
+                  onTap: controller.phase == MathPenPhase.converting
+                      ? null
+                      : convert,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    child: recognition.buildBubble(context, group, convert),
+                  ),
                 ),
-                child: recognition.buildBubble(context, group, convert),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -131,7 +144,7 @@ class MathPenLayer extends ConsumerWidget {
     final buttonStyle = TextButton.styleFrom(minimumSize: const Size(64, 44));
     return Positioned.fill(
       child: CustomSingleChildLayout(
-        delegate: _AboveDelegate(anchor),
+        delegate: _BubbleDelegate(anchor),
         child: Material(
           key: formulaMenuKey,
           elevation: 3,
@@ -164,11 +177,104 @@ class MathPenLayer extends ConsumerWidget {
   }
 }
 
-/// Puts the child [MathPenLayer.gap] above [anchor] (left-aligned to it),
-/// below it when there is no room above, inside the area with an 8 px
-/// margin.
-final class _AboveDelegate extends SingleChildLayoutDelegate {
-  const _AboveDelegate(this.anchor);
+/// The bubble's tap: a finger down the input router would reject as a palm
+/// (InputRouter.rejectsAsPalm — P1–P3, P5) does not convert.
+class _PalmAwareTap extends ConsumerStatefulWidget {
+  const _PalmAwareTap({required this.onTap, required this.child});
+
+  final VoidCallback? onTap;
+  final Widget child;
+
+  @override
+  ConsumerState<_PalmAwareTap> createState() => _PalmAwareTapState();
+}
+
+class _PalmAwareTapState extends ConsumerState<_PalmAwareTap> {
+  bool _palm = false;
+
+  void _down(PointerDownEvent e) {
+    InputRouter? router;
+    try {
+      router = ref.read(editorInputRouterProvider);
+    } on Object {
+      router = null; // no viewport (a test of the layer alone)
+    }
+    _palm = router?.rejectsAsPalm(e) ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onTap = widget.onTap;
+    return Listener(
+      onPointerDown: _down,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap == null
+            ? null
+            : () {
+                if (_palm) return; // the writing hand
+                onTap();
+              },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Where a child of [child] size goes in an [area] for a group whose keep-
+/// away zone is [anchor] (all logical px, the area's coordinates):
+/// [MathPenLayer.gap] above it, left-aligned; below when there is no room
+/// above; right of it, then left of it (top-aligned) when neither fits —
+/// zoomed in so far that the zone fills the height; else the corner of the
+/// area farthest from the zone. Always [margin] inside the area.
+@visibleForTesting
+Offset mathPenBubbleOffset(
+  Size area,
+  Size child,
+  Rect anchor, {
+  double margin = 8,
+}) {
+  const gap = MathPenLayer.gap;
+  final maxX = math.max(margin, area.width - child.width - margin);
+  final maxY = math.max(margin, area.height - child.height - margin);
+  double clampX(double x) => x.clamp(margin, maxX).toDouble();
+  double clampY(double y) => y.clamp(margin, maxY).toDouble();
+  final above = anchor.top - gap - child.height;
+  if (above >= margin) return Offset(clampX(anchor.left), above);
+  final below = anchor.bottom + gap;
+  if (below + child.height <= area.height - margin) {
+    return Offset(clampX(anchor.left), below);
+  }
+  final right = anchor.right + gap;
+  if (right + child.width <= area.width - margin) {
+    return Offset(right, clampY(anchor.top));
+  }
+  final left = anchor.left - gap - child.width;
+  if (left >= margin) return Offset(left, clampY(anchor.top));
+  final corners = [
+    Offset(margin, margin),
+    Offset(maxX, margin),
+    Offset(margin, maxY),
+    Offset(maxX, maxY),
+  ];
+  Offset best = corners.first;
+  var bestScore = double.negativeInfinity;
+  for (final c in corners) {
+    final rect = c & child;
+    final overlap = rect.intersect(anchor);
+    final covered = overlap.width > 0 && overlap.height > 0
+        ? overlap.width * overlap.height
+        : 0.0;
+    // Least overlap first, then the farthest from the zone's centre.
+    final score = -covered * 1e6 + (rect.center - anchor.center).distance;
+    if (score > bestScore) (best, bestScore) = (c, score);
+  }
+  return best;
+}
+
+/// Lays the bubble (or the formula menu) out by [mathPenBubbleOffset].
+final class _BubbleDelegate extends SingleChildLayoutDelegate {
+  const _BubbleDelegate(this.anchor);
 
   final Rect anchor;
 
@@ -184,18 +290,10 @@ final class _AboveDelegate extends SingleChildLayoutDelegate {
       );
 
   @override
-  Offset getPositionForChild(Size size, Size childSize) {
-    final above = anchor.top - MathPenLayer.gap - childSize.height;
-    final y = above >= _margin ? above : anchor.bottom + MathPenLayer.gap;
-    final maxX = math.max(_margin, size.width - childSize.width - _margin);
-    final maxY = math.max(_margin, size.height - childSize.height - _margin);
-    return Offset(
-      anchor.left.clamp(_margin, maxX).toDouble(),
-      y.clamp(_margin, maxY).toDouble(),
-    );
-  }
+  Offset getPositionForChild(Size size, Size childSize) =>
+      mathPenBubbleOffset(size, childSize, anchor, margin: _margin);
 
   @override
-  bool shouldRelayout(_AboveDelegate oldDelegate) =>
+  bool shouldRelayout(_BubbleDelegate oldDelegate) =>
       oldDelegate.anchor != anchor;
 }

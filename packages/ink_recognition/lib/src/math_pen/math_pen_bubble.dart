@@ -9,7 +9,10 @@
 //   consent  → '외부 수식 인식 동의가 필요해요. …' (the tap opens the card)
 //   no engine→ '수식 인식이 꺼져 있어요.' + [기기에서 수식 인식 켜기] (where
 //              the platform has a model manager — settings' tile in a sheet)
-//              + [LaTeX로 입력]
+//              + [LaTeX로 입력]; when that sheet closes the group is
+//              recognized again (the engine may be on now)
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
@@ -31,6 +34,18 @@ abstract final class MathPenBubbleKeys {
   static const ValueKey<String> typeLatex = ValueKey('recog.mathPen.typeLatex');
   static const ValueKey<String> onDeviceSheet = ValueKey(
     'recog.mathPen.onDeviceSheet',
+  );
+
+  /// The bubble tap's question before converting strokes over the ink
+  /// limits (the formula keeps no handwriting then).
+  static const ValueKey<String> inkTooLargeDialog = ValueKey(
+    'recog.mathPen.inkTooLarge',
+  );
+  static const ValueKey<String> inkTooLargeCancel = ValueKey(
+    'recog.mathPen.inkTooLarge.cancel',
+  );
+  static const ValueKey<String> inkTooLargeConvert = ValueKey(
+    'recog.mathPen.inkTooLarge.convert',
   );
 }
 
@@ -133,7 +148,7 @@ class MathPenBubble extends ConsumerWidget {
                 TextButton(
                   key: MathPenBubbleKeys.enableOnDevice,
                   style: kSheetMinTapStyle,
-                  onPressed: () => _showOnDeviceTile(context),
+                  onPressed: () => unawaited(_showOnDeviceTile(context)),
                   child: const Text(RecognitionStrings.mathPenEnableOnDevice),
                 ),
               TextButton(
@@ -150,9 +165,10 @@ class MathPenBubble extends ConsumerWidget {
   }
 
   /// Settings' '기기에서 수식 인식' tile in a sheet — the same tile, no new
-  /// road to the settings screen.
-  void _showOnDeviceTile(BuildContext context) {
-    showRecognitionSheet<void>(
+  /// road to the settings screen. When it closes the group is recognized
+  /// again ([onRetry]): the engine may be on now.
+  Future<void> _showOnDeviceTile(BuildContext context) async {
+    await showRecognitionSheet<void>(
       context,
       sheetKey: MathPenBubbleKeys.onDeviceSheet,
       builder: (_) => const SafeArea(
@@ -162,5 +178,6 @@ class MathPenBubble extends ConsumerWidget {
         ),
       ),
     );
+    onRetry();
   }
 }

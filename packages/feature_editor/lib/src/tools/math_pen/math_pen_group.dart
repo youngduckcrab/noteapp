@@ -17,9 +17,19 @@ abstract final class MathPenTuning {
   static const double gapXFactor = 1.5;
 
   /// … and its vertical gap ≤ this × H — fraction bars, sub/superscripts and
-  /// the inside of a root; the next line (≥ 1.2 H line spacing plus its own
-  /// height) stays out.
-  static const double gapYFactor = 1.0;
+  /// the inside of a root (usually 0–0.5 H). Both gaps are measured to the
+  /// NEAREST member stroke (not to the group's union bounds), so a group
+  /// that already spans a fraction does not reach further down. The next
+  /// line of ruled paper (8 mm ≈ 23 pt pitch, H ≈ 12–15 pt) is 0.5–0.9 H
+  /// below the letters of this one: 0.6 keeps most of it out (a tight hand
+  /// on narrow rules still joins — nothing is lost, it is one formula).
+  static const double gapYFactor = 0.6;
+
+  /// The bubble keeps this × H clear above and below the group (more than
+  /// [gapYFactor]: a stroke of the next symbol — the bar of a "+" — often
+  /// starts above the group's bounds, and a stroke that starts on the bubble
+  /// is not drawn).
+  static const double bubbleClearanceFactor = 1.0;
 
   /// Strokes lower than this (pt) are dots: left out of H.
   static const double dotHeightPt = 2;
@@ -29,15 +39,26 @@ abstract final class MathPenTuning {
   static const double minLineHeightPt = 8;
   static const double maxLineHeightPt = 72;
 
-  /// A group holds at most this many strokes (= the ink a formula may keep).
+  /// A group holds at most this many strokes and points (= the ink a
+  /// formula may keep): a stroke that would go over starts a new group, and
+  /// a formula is not reopened by a stroke that would take it over.
   static const int maxGroupStrokes = core.PageObjectLimits.maxMathInkStrokes;
+  static const int maxGroupPoints = core.PageObjectLimits.maxMathInkPoints;
 
-  /// A math pen stroke starting within frame + clamp(this × frame height,
-  /// [minReopenMarginPt], [maxReopenMarginPt]) of a formula with ink reopens
-  /// it.
+  /// A math pen stroke starting within the frame grown by clamp(this ×
+  /// frame height, [minReopenMarginPt], [maxReopenMarginPt]) left and right
+  /// (the next symbol, "+1" after x²) …
   static const double reopenMarginFactor = 0.5;
   static const double minReopenMarginPt = 8;
   static const double maxReopenMarginPt = 40;
+
+  /// … and clamp(this × frame height, [minReopenMarginYPt],
+  /// [maxReopenMarginYPt]) up and down (an exponent, a denominator) of a
+  /// formula with ink reopens it — less than sideways, so the next line
+  /// started under a formula does not reopen it.
+  static const double reopenMarginYFactor = 0.3;
+  static const double minReopenMarginYPt = 4;
+  static const double maxReopenMarginYPt = 16;
 
   /// Pen-up → recognition (design note 11.2, the brief's 0.4–0.6 s).
   static const Duration recognizeDelay = Duration(milliseconds: 500);
@@ -79,47 +100,97 @@ double mathPenLineHeight(Iterable<double> heights, {double fallback = 0}) {
       .toDouble();
 }
 
-/// Whether a stroke with point bounds [stroke] joins a group with bounds
-/// [group] whose strokes have point-bounds [heights] (design note 3.2):
-/// gapX ≤ 1.5 H and gapY ≤ 1.0 H, and the group is below its stroke limit.
+/// Whether a stroke with point bounds [stroke] ([strokePoints] points) joins
+/// a group whose member strokes have point bounds [members] and
+/// [groupPoints] points in all (design note 3.2): gapX ≤ 1.5 H and gapY ≤
+/// 0.6 H to the nearest member (H from the members' heights), and the group
+/// stays within its stroke and point limits.
 bool mathPenJoins({
-  required Rect group,
-  required List<double> heights,
+  required List<Rect> members,
   required Rect stroke,
+  int groupPoints = 0,
+  int strokePoints = 0,
 }) {
-  if (heights.length >= MathPenTuning.maxGroupStrokes) return false;
-  final h = mathPenLineHeight(heights, fallback: stroke.height);
-  final gapX = math.max(
-    0.0,
-    math.max(stroke.left - group.right, group.left - stroke.right),
-  );
-  final gapY = math.max(
-    0.0,
-    math.max(stroke.top - group.bottom, group.top - stroke.bottom),
-  );
-  return gapX <= MathPenTuning.gapXFactor * h &&
-      gapY <= MathPenTuning.gapYFactor * h;
+  if (members.isEmpty) return false;
+  if (members.length + 1 > MathPenTuning.maxGroupStrokes) return false;
+  if (groupPoints + strokePoints > MathPenTuning.maxGroupPoints) return false;
+  final h = mathPenLineHeight([
+    for (final m in members) m.height,
+  ], fallback: stroke.height);
+  final maxX = MathPenTuning.gapXFactor * h;
+  final maxY = MathPenTuning.gapYFactor * h;
+  for (final m in members) {
+    final gapX = math.max(
+      0.0,
+      math.max(stroke.left - m.right, m.left - stroke.right),
+    );
+    final gapY = math.max(
+      0.0,
+      math.max(stroke.top - m.bottom, m.top - stroke.bottom),
+    );
+    if (gapX <= maxX && gapY <= maxY) return true;
+  }
+  return false;
 }
 
-/// The reopen margin of [math] (pt).
+/// Whether [strokes] plus [extra] stay within the ink a formula may keep
+/// (PageObjectLimits.maxMathInkStrokes / maxMathInkPoints).
+bool mathInkWithin(Iterable<core.Stroke> strokes, {core.Stroke? extra}) {
+  var n = 0;
+  var points = 0;
+  for (final s in [...strokes, ?extra]) {
+    n++;
+    points += s.points.length;
+  }
+  return n <= MathPenTuning.maxGroupStrokes &&
+      points <= MathPenTuning.maxGroupPoints;
+}
+
+/// The reopen margin of [math] left and right (pt).
 double mathReopenMargin(core.MathObject math) =>
     (MathPenTuning.reopenMarginFactor * math.frame.rect.height)
         .clamp(MathPenTuning.minReopenMarginPt, MathPenTuning.maxReopenMarginPt)
         .toDouble();
 
+/// The reopen margin of [math] up and down (pt).
+double mathReopenMarginY(core.MathObject math) =>
+    (MathPenTuning.reopenMarginYFactor * math.frame.rect.height)
+        .clamp(
+          MathPenTuning.minReopenMarginYPt,
+          MathPenTuning.maxReopenMarginYPt,
+        )
+        .toDouble();
+
+/// Whether [p] (page pt), turned back by −rotation about the frame centre
+/// (as ElementFrame.contains), lies in [frame] grown by [mx] / [my].
+bool _inFrame(core.ElementFrame frame, Offset p, double mx, double my) {
+  final r = frame.rect;
+  final c = frame.center;
+  final cos = math.cos(frame.rotation), sin = math.sin(frame.rotation);
+  final dx = p.dx - c.x, dy = p.dy - c.y;
+  final x = frame.rotation == 0 ? p.dx : c.x + cos * dx + sin * dy;
+  final y = frame.rotation == 0 ? p.dy : c.y - sin * dx + cos * dy;
+  return x >= r.left - mx &&
+      x <= r.right + mx &&
+      y >= r.top - my &&
+      y <= r.bottom + my;
+}
+
 /// The formula a math pen stroke starting at [p] (page pt) reopens: a
-/// MathObject of [objects] with ink whose frame + [mathReopenMargin] holds
-/// [p]; several → the nearest frame centre, then the top one (z).
+/// MathObject of [objects] with ink whose frame grown by [mathReopenMargin]
+/// sideways and [mathReopenMarginY] up and down holds [p]; several → the
+/// nearest frame centre, then the top one (z).
 core.MathObject? reopenCandidateAt(
   Iterable<core.PageObject> objects,
   Offset p,
 ) {
-  final point = core.PagePoint(p.dx, p.dy);
   core.MathObject? best;
   var bestDistance = double.infinity;
   for (final o in objects) {
     if (o is! core.MathObject || o.ink.isEmpty || o.isDeleted) continue;
-    if (!o.frame.contains(point, tolerance: mathReopenMargin(o))) continue;
+    if (!_inFrame(o.frame, p, mathReopenMargin(o), mathReopenMarginY(o))) {
+      continue;
+    }
     final c = o.frame.center;
     final d = (Offset(c.x, c.y) - p).distance;
     // Later objects are on top: they win a tie.
@@ -146,15 +217,16 @@ core.MathObject? mathAt(Iterable<core.PageObject> objects, Offset p) {
 /// The handwriting [math] gives back when it is reopened (design note 7.2):
 /// its ink with new ids ([newId]), its page, createdAt kept (z order),
 /// updatedAt [now], no version or deletedAt; when the formula was recoloured
-/// (its colour differs from the ink's most common colour) every stroke takes
-/// the formula's colour.
+/// (its colour differs from the ink's most common colour, both compared
+/// opaque — recog's dominantColorOf rule) every stroke takes the formula's
+/// colour.
 List<core.Stroke> reopenedStrokes(
   core.MathObject math, {
   required String Function() newId,
   required core.EpochMillis now,
 }) {
   final dominant = _dominantColor(math.ink);
-  final recolor = dominant != null && dominant != math.style.colorArgb;
+  final recolor = dominant != null && dominant != _opaque(math.style.colorArgb);
   return [
     for (final s in math.ink)
       core.Stroke(
@@ -172,10 +244,15 @@ List<core.Stroke> reopenedStrokes(
   ];
 }
 
+int _opaque(int argb) => 0xFF000000 + argb % 0x1000000;
+
+/// The colour most of [strokes] use, compared opaque; a tie → the first in
+/// z order (the same rule as recog's dominantColorOf).
 int? _dominantColor(List<core.Stroke> strokes) {
-  final counts = <int, int>{};
-  for (final s in strokes) {
-    counts[s.style.colorArgb] = (counts[s.style.colorArgb] ?? 0) + 1;
+  final counts = <int, int>{}; // insertion order = first use in z order
+  for (final s in [...strokes]..sort(core.Stroke.compareOrder)) {
+    final c = _opaque(s.style.colorArgb);
+    counts[c] = (counts[c] ?? 0) + 1;
   }
   int? best;
   var n = 0;

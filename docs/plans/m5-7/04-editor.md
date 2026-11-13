@@ -2979,7 +2979,7 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 ## 14. 수식 펜 1단계 (2026-11-13, 계약 v2.8 C28-04)
 
-`EditorTool.math`('수식 펜' — `EditorExtensions.mathPen`이 있을 때만 툴바·'도구 더보기'에 보임, 없으면 저장값 `"math"`는 펜처럼 동작). 획은 볼펜 스타일의 보통 획(한 단계씩, 저장됨), 묶음 소속은 편집기 메모리(`tools/math_pen/math_pen_controller.dart`)에만. 묶음 판정 `mathPenJoins`(gapX ≤ 1.5 H, gapY ≤ 1.0 H, H = 점 획을 뺀 높이 중앙값 8~72 pt, 400획), 변환 계기(말풍선 탭·도구 전환(지우개 제외)·먼 곳에 새 묶음), 노트를 떠나면 변환하지 않음, 수식 근처 획 = 다시 열기 한 명령(`EditorCommands.commitInkEditWith`), 수식 탭 메뉴 [고치기][손글씨로 열기], 말풍선 층 `ui/overlays/math_pen_layer.dart`(Listener 바깥 형제). 설계·결정·이번에 하지 않은 것: [research/math-pen-phase1.md](research/math-pen-phase1.md). 부록 C 키(계약 아님): `editor.toolbar.math`, `editor.mathPen.bubble`, `editor.mathPen.formulaMenu`, `editor.mathPen.fix`, `editor.mathPen.reopen`.
+`EditorTool.math`('수식 펜' — `EditorExtensions.mathPen`이 있을 때만 툴바·'도구 더보기'에 보임, 없으면 저장값 `"math"`는 펜처럼 동작). 획은 볼펜 스타일의 보통 획(한 단계씩, 저장됨), 묶음 소속은 편집기 메모리(`tools/math_pen/math_pen_controller.dart`)에만. 묶음 판정 `mathPenJoins`(가장 가까운 소속 획까지 gapX ≤ 1.5 H, gapY ≤ 0.6 H, H = 점 획을 뺀 높이 중앙값 8~72 pt, 400획·40 000점), 변환 계기(말풍선 탭·도구 전환(지우개 제외)·먼 곳에 새 묶음), 노트를 떠나면 변환하지 않음, 수식 근처 획 = 다시 열기 한 명령(`EditorCommands.commitInkEditWith`), 수식 탭 메뉴 [고치기][손글씨로 열기](손가락 탭·마우스 클릭 — 스타일러스 점은 쓴다), 말풍선 층 `ui/overlays/math_pen_layer.dart`(Listener 바깥 형제, 손바닥 탭 무시 `InputRouter.rejectsAsPalm`, 화면 밖이면 숨김). (1단계 검토 반영) 배경 변환은 노트 기록이 계기 때와 같을 때만(`stillWanted`), 새 묶음의 옛 묶음 변환은 새 획보다 먼저, 되돌린 변환은 그 되돌리기에서 한 번만 수식 펜·지우개일 때 다시 열린다. 설계·결정·이번에 하지 않은 것: [research/math-pen-phase1.md](research/math-pen-phase1.md). 부록 C 키(계약 아님): `editor.toolbar.math`, `editor.mathPen.bubble`, `editor.mathPen.formulaMenu`, `editor.mathPen.fix`, `editor.mathPen.reopen`.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

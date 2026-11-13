@@ -156,6 +156,14 @@ class InputRouter {
     }
   }
 
+  /// (math pen) Whether a finger [down] that does not reach the router (the
+  /// math pen bubble, a sibling of the page Listener) would be rejected as
+  /// a palm now — P1–P3 and P5, the same rules as a finger on the page.
+  /// Pen and mouse downs never are. Changes nothing.
+  bool rejectsAsPalm(PointerDownEvent down) =>
+      _kindOf(down) == _Kind.finger &&
+      _isPalm(down, InputSample.fromEvent(down));
+
   /// Finger pointers down that are not rejected or consumed.
   int get activeTouchCount => _pointers.values
       .where(

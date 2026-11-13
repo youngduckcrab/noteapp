@@ -8,21 +8,29 @@
 //   the strokes. An unconverted group is never converted when the note or
 //   the page is left: it simply stays as handwriting.
 // - A stroke joins the open group by mathPenJoins (same page, gaps within
-//   1.5 H / 1.0 H); otherwise it starts a new group and the old one is
-//   converted in the background (EditorMathConvertTrigger.newGroup).
+//   1.5 H / 0.6 H of the nearest member, the ink limits); otherwise it
+//   starts a new group and the old one is converted in the background
+//   (EditorMathConvertTrigger.newGroup) BEFORE the new stroke is committed,
+//   so one undo takes back the stroke just written, not the conversion.
 // - A stroke whose start is on / near a formula that kept its handwriting
 //   reopens it: ONE command removes the formula and adds its handwriting
-//   (new ids) and the new stroke; that becomes the open group.
+//   (new ids) and the new stroke; that becomes the open group. Not when
+//   the handwriting plus the stroke would go over the ink limits.
 // - Conversions: the bubble tap (a sheet may open), a switch to another tool
 //   (not the eraser: erasing a part of the group keeps it open; leaving the
 //   eraser for a tool other than the math pen converts), a new group far
 //   away. Background conversions only use a usable recognition result —
-//   else the group stays handwriting.
+//   else the group stays handwriting — and only while the note's history
+//   is as it was when they were triggered (for newGroup: right after the
+//   new stroke): an answer that arrives after the user did something else
+//   is dropped, so a late step never lands on top of later work or clears
+//   redo. A reopened group that does not convert says so (a snackbar).
 // - The page's change stream keeps the group true to the page: undo / redo /
 //   remote changes / the eraser (a partial-eraser piece keeps its stroke's
-//   createdAt — Stroke.fragment — so it stays in the group). An undone
-//   conversion (its strokes back, no group open) makes that group the open
-//   one again.
+//   createdAt, style and recording — Stroke.fragment — and lies inside the
+//   erased stroke's bounds, so it stays in the group). The undo of the last
+//   conversion (exactly its strokes back, no group open, the math pen or
+//   the eraser active) makes that group the open one again — once.
 import 'dart:async';
 import 'dart:ui' show Offset, Rect;
 
@@ -36,6 +44,7 @@ import '../../commands/editor_commands.dart';
 import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
 import '../../scope/editor_scope.dart';
+import '../../ui/editor_strings.dart';
 import '../tool_controller.dart';
 import '../tool_state.dart';
 import 'math_pen_group.dart';
@@ -72,6 +81,41 @@ final class MathFormulaMenu {
   int get hashCode => Object.hash(pageId, mathId);
 }
 
+/// What a partial-eraser piece of a member keeps (Stroke.fragment): the
+/// piece belongs to the group when it matches the erased member.
+final class _Origin {
+  _Origin(core.Stroke s)
+    : createdAt = s.createdAt,
+      style = s.style,
+      recordingId = s.recordingId,
+      recordingOffsetMs = s.recordingOffsetMs,
+      bounds = strokePointBounds(s).inflate(0.5);
+
+  final int createdAt;
+  final core.StrokeStyle style;
+  final String? recordingId;
+  final int? recordingOffsetMs;
+  final Rect bounds;
+
+  bool isPieceOf(core.Stroke piece) {
+    if (piece.createdAt != createdAt ||
+        piece.style != style ||
+        piece.recordingId != recordingId ||
+        piece.recordingOffsetMs != recordingOffsetMs) {
+      return false;
+    }
+    final b = strokePointBounds(piece);
+    return bounds.contains(b.topLeft) && bounds.contains(b.bottomRight);
+  }
+}
+
+/// The history as a background conversion found it (see
+/// [MathPenController._convertInBackground]).
+final class _HistoryMark {
+  _HistoryMark(this.state);
+  core.HistoryState state;
+}
+
 final class _Group {
   _Group(
     this.pageId,
@@ -86,19 +130,20 @@ final class _Group {
   final String pageId;
   final List<String> ids = [];
   final Set<String> known = {};
-  final Map<String, int> createdAtOf = {};
+  final Map<String, _Origin> originOf = {};
   final core.MathObject? reopenedFrom;
   final Set<String> reopenedIds;
 
   /// Brought back by undoing its conversion: the user chose the handwriting,
   /// so a tool switch or a new group leaves it handwriting (only the bubble
-  /// converts it) until it is written on or erased again.
+  /// converts it) until it is written on with the math pen again (erasing
+  /// a part keeps the choice).
   bool restored;
 
   void add(core.Stroke s) {
     if (!ids.contains(s.id)) ids.add(s.id);
     known.add(s.id);
-    createdAtOf[s.id] = s.createdAt;
+    originOf[s.id] = _Origin(s);
   }
 }
 
@@ -130,6 +175,7 @@ class MathPenController extends ChangeNotifier {
   EditorMathGroup? _value;
   int _valueRevision = -1;
   final Map<String, StreamSubscription<core.PageContentChange>> _watched = {};
+  EditorTool? _tool;
   bool _disposed = false;
 
   /// Whether the 수식 펜 is offered (EditorExtensions.mathPen is set).
@@ -273,17 +319,23 @@ class MathPenController extends ChangeNotifier {
   bool _joins(_Group g, core.Stroke stroke) {
     final strokes = _strokesOf(g);
     if (strokes.isEmpty) return false;
+    var points = 0;
+    for (final s in strokes) {
+      points += s.points.length;
+    }
     return mathPenJoins(
-      group: unionPointBounds(strokes),
-      heights: [for (final s in strokes) strokePointBounds(s).height],
+      members: [for (final s in strokes) strokePointBounds(s)],
       stroke: strokePointBounds(stroke),
+      groupPoints: points,
+      strokePoints: stroke.points.length,
     );
   }
 
   /// Commits the stroke of a math pen contact (PenInteraction.commit):
   /// joins the open group, reopens [reopen] with it (one command), or starts
-  /// a new group (the old one converts in the background). Returns whether
-  /// the stroke is committed.
+  /// a new group — the old one converts in the background first, so the
+  /// stroke lands after it in the history. Returns whether the stroke is
+  /// committed.
   bool commitStroke(
     ink.InkPageController controller,
     ink.InkEdit edit, {
@@ -299,61 +351,69 @@ class MathPenController extends ChangeNotifier {
     final stroke = edit.added.single;
     final old = _group;
     final joins = old != null && old.pageId == pageId && _joins(old, stroke);
+    core.MathObject? target;
     if (!joins && reopen != null) {
       final live = _session.pageIfLoaded(pageId)?.objectById(reopen.id);
-      if (live is core.MathObject && live.ink.isNotEmpty) {
-        final strokes = reopenedStrokes(live, newId: _newId, now: _now());
-        final result = _commands.commitInkEditWith(
-          controller,
-          edit,
-          before: [
-            core.RemoveElements(pageId: pageId, elementIds: [live.id]),
-            core.AddStrokes(pageId: pageId, strokes: strokes),
-          ],
-          label: 'editor-math-reopen-write',
-        );
-        if (!result.committed) return false;
-        if (result.withBefore) {
-          if (old != null) {
-            _convertInBackground(EditorMathConvertTrigger.newGroup);
-          }
-          _setGroup(
-            _Group(
-              pageId,
-              [...strokes, stroke],
-              reopenedFrom: live,
-              reopenedIds: {for (final s in strokes) s.id},
-            ),
-          );
-          return true;
-        }
-        _startOrJoin(pageId, stroke, joins: false);
-        return true;
+      // Not over the ink limits with the new stroke: the next conversion
+      // would have to drop the handwriting.
+      if (live is core.MathObject &&
+          live.ink.isNotEmpty &&
+          mathInkWithin(live.ink, extra: stroke)) {
+        target = live;
       }
     }
+    final mark = !joins && old != null
+        ? _convertInBackground(EditorMathConvertTrigger.newGroup)
+        : null;
+    if (target != null) {
+      final strokes = reopenedStrokes(target, newId: _newId, now: _now());
+      final result = _commands.commitInkEditWith(
+        controller,
+        edit,
+        before: [
+          core.RemoveElements(pageId: pageId, elementIds: [target.id]),
+          core.AddStrokes(pageId: pageId, strokes: strokes),
+        ],
+        label: 'editor-math-reopen-write',
+      );
+      if (!result.committed) return false;
+      mark?.state = _session.history;
+      _setGroup(
+        result.withBefore
+            ? _Group(
+                pageId,
+                [...strokes, stroke],
+                reopenedFrom: target,
+                reopenedIds: {for (final s in strokes) s.id},
+              )
+            : _Group(pageId, [stroke]),
+      );
+      return true;
+    }
     if (!_commands.commitInkEdit(controller, edit)) return false;
-    _startOrJoin(pageId, stroke, joins: joins);
-    return true;
-  }
-
-  void _startOrJoin(String pageId, core.Stroke stroke, {required bool joins}) {
-    final g = _group;
-    if (joins && g != null) {
-      g
+    // The late answer of the old group may still land right after this
+    // stroke, but not after anything else.
+    mark?.state = _session.history;
+    if (joins) {
+      old
         ..add(stroke)
         ..restored = false;
-      _setGroup(g);
-      return;
+      _setGroup(old);
+    } else {
+      _setGroup(_Group(pageId, [stroke]));
     }
-    if (g != null) _convertInBackground(EditorMathConvertTrigger.newGroup);
-    _setGroup(_Group(pageId, [stroke]));
+    return true;
   }
 
   // ---- conversion ----
 
   /// Hands the open group to the session ([trigger] never opens a sheet)
-  /// and closes it at once; a failed conversion leaves it handwriting.
-  void _convertInBackground(EditorMathConvertTrigger trigger) {
+  /// and closes it at once; a failed conversion leaves it handwriting. The
+  /// session converts only while the history is still [_HistoryMark.state]
+  /// (the caller may move the mark past its own next step). A ready answer
+  /// converts synchronously, before this returns.
+  _HistoryMark _convertInBackground(EditorMathConvertTrigger trigger) {
+    final mark = _HistoryMark(_session.history);
     final g = _group;
     final value = group;
     _group = null;
@@ -361,24 +421,34 @@ class MathPenController extends ChangeNotifier {
     _watch();
     _changed();
     final session = _recognition;
-    if (session == null) return;
+    if (session == null) return mark;
     if (g != null && value != null && !g.restored) {
       // convert reads a ready result before its first await; then the
       // display state goes.
-      unawaited(_convert(session, g, value, trigger));
+      unawaited(
+        _convert(
+          session,
+          g,
+          value,
+          trigger,
+          stillWanted: () => !_disposed && _session.history == mark.state,
+        ),
+      );
     }
     session.clear();
+    return mark;
   }
 
   Future<bool> _convert(
     EditorMathPenSession session,
     _Group g,
     EditorMathGroup value,
-    EditorMathConvertTrigger trigger,
-  ) async {
+    EditorMathConvertTrigger trigger, {
+    bool Function()? stillWanted,
+  }) async {
     bool ok;
     try {
-      ok = await session.convert(value, trigger);
+      ok = await session.convert(value, trigger, stillWanted: stillWanted);
     } on Object catch (error, stack) {
       FlutterError.reportError(
         FlutterErrorDetails(
@@ -392,7 +462,8 @@ class MathPenController extends ChangeNotifier {
     }
     if (_disposed) return ok;
     if (ok) {
-      // The strokes are gone now; an undo brings them back as this group.
+      // The strokes are gone now; the undo of this step brings them back as
+      // this group.
       _lastConverted = _Group(
         g.pageId,
         value.strokes,
@@ -400,6 +471,11 @@ class MathPenController extends ChangeNotifier {
         reopenedIds: value.reopenedStrokeIds,
       );
       _watch();
+    } else if (trigger != EditorMathConvertTrigger.bubbleTap &&
+        value.reopenedFrom != null) {
+      // A reopened formula that stays handwriting: say so (undo brings the
+      // formula back).
+      _commands.showMessage(EditorStrings.mathKeptHandwriting);
     }
     return ok;
   }
@@ -424,7 +500,15 @@ class MathPenController extends ChangeNotifier {
     );
     if (_disposed) return ok;
     if (identical(_group, g)) {
-      if (ok) {
+      final converted = {for (final s in value.strokes) s.id};
+      final left = [
+        for (final s in _strokesOf(g))
+          if (!converted.contains(s.id)) s,
+      ];
+      if (ok && left.isNotEmpty) {
+        // Strokes joined while the tap waited: they stay the open group.
+        _setGroup(_Group(g.pageId, left));
+      } else if (ok) {
         _group = null;
         _phase = MathPenPhase.idle;
         _watch();
@@ -444,6 +528,7 @@ class MathPenController extends ChangeNotifier {
   /// other than the math pen and the eraser converts the open group in the
   /// background (design note 4.2, 9); a formula menu closes.
   void toolChanged(EditorTool? previous, EditorTool next) {
+    _tool = next;
     if (!enabled || _disposed) return;
     if (next != EditorTool.math && _menu != null) {
       _menu = null;
@@ -471,18 +556,25 @@ class MathPenController extends ChangeNotifier {
     final pageId = content.page.id;
     final g = _group;
     if (g != null && g.pageId == pageId) {
+      // A member moved / recoloured in place: its pieces follow the new one.
+      for (final id in change.updated) {
+        final s = g.known.contains(id) ? content.strokeById(id) : null;
+        if (s != null) g.originOf[id] = _Origin(s);
+      }
       final gone = [
         for (final id in g.ids)
           if (content.strokeById(id) == null) id,
       ];
       if (gone.isNotEmpty && change.added.isNotEmpty) {
-        // Partial-eraser pieces keep their stroke's createdAt and style.
-        final origins = {for (final id in gone) g.createdAtOf[id]};
+        // Partial-eraser pieces: the erased member's createdAt, style and
+        // recording, inside its bounds (a pasted copy of the same ink is
+        // elsewhere).
+        final origins = [for (final id in gone) ?g.originOf[id]];
         for (final id in change.added) {
           final s = content.strokeById(id);
           if (s != null &&
               !g.known.contains(id) &&
-              origins.contains(s.createdAt)) {
+              origins.any((o) => o.isPieceOf(s))) {
             g.add(s);
           }
         }
@@ -495,12 +587,7 @@ class MathPenController extends ChangeNotifier {
         g.ids
           ..clear()
           ..addAll(ids);
-        if (ids.isEmpty) {
-          _setGroup(null);
-        } else {
-          g.restored = false;
-          _setGroup(g);
-        }
+        _setGroup(ids.isEmpty ? null : g);
         return;
       }
       if (change.updated.any(g.known.contains)) {
@@ -509,21 +596,31 @@ class MathPenController extends ChangeNotifier {
       }
     }
     final last = _lastConverted;
-    if (_group == null &&
-        last != null &&
+    if (last != null &&
         last.pageId == pageId &&
         last.ids.isNotEmpty &&
+        last.ids.any(
+          (id) => change.added.contains(id) || change.updated.contains(id),
+        ) &&
         last.ids.every((id) => content.strokeById(id) != null)) {
-      // An undone conversion: that handwriting is the open group again.
-      _setGroup(
-        _Group(
-          pageId,
-          [for (final id in last.ids) content.strokeById(id)!],
-          reopenedFrom: last.reopenedFrom,
-          reopenedIds: last.reopenedIds,
-          restored: true,
-        ),
-      );
+      // The undo of the last conversion — once: the next changes of the
+      // page never bring it back again.
+      _lastConverted = null;
+      if (_group == null &&
+          (_tool == EditorTool.math || _tool == EditorTool.eraser)) {
+        // That handwriting is the open group again.
+        _setGroup(
+          _Group(
+            pageId,
+            [for (final id in last.ids) content.strokeById(id)!],
+            reopenedFrom: last.reopenedFrom,
+            reopenedIds: last.reopenedIds,
+            restored: true,
+          ),
+        );
+      } else {
+        _watch();
+      }
     }
   }
 
@@ -569,10 +666,12 @@ class MathPenController extends ChangeNotifier {
     final live = _session.pageIfLoaded(math.pageId)?.objectById(math.id);
     if (live is! core.MathObject || live.ink.isEmpty) return false;
     final strokes = reopenedStrokes(live, newId: _newId, now: _now());
+    // The open group converts first: the reopen is the newest step.
+    final mark = _group != null
+        ? _convertInBackground(EditorMathConvertTrigger.newGroup)
+        : null;
     if (!_commands.runCommand(reopenCommand(live, strokes))) return false;
-    if (_group != null) {
-      _convertInBackground(EditorMathConvertTrigger.newGroup);
-    }
+    mark?.state = _session.history;
     _ensureRecognition();
     _setGroup(
       _Group(
@@ -586,8 +685,9 @@ class MathPenController extends ChangeNotifier {
   }
 
   /// Where the bubble keeps away from (page pt): the group's bounds grown
-  /// by one H up and down — the zone where an exponent, a fraction or a
-  /// subscript still joins the group, so the bubble never sits on it.
+  /// by bubbleClearanceFactor × H up and down — the zone where an exponent,
+  /// a fraction or the next stroke of a symbol starts, so the bubble (which
+  /// takes the pointer) never sits on it.
   Rect? get bubbleAnchorPt {
     final value = group;
     if (value == null) return null;
@@ -597,9 +697,9 @@ class MathPenController extends ChangeNotifier {
     final b = value.boundsPt;
     return Rect.fromLTRB(
       b.left,
-      b.top - MathPenTuning.gapYFactor * h,
+      b.top - MathPenTuning.bubbleClearanceFactor * h,
       b.right,
-      b.bottom + MathPenTuning.gapYFactor * h,
+      b.bottom + MathPenTuning.bubbleClearanceFactor * h,
     );
   }
 
@@ -632,6 +732,7 @@ final editorMathPenProvider = Provider<MathPenController>(
       newId: () => ref.read(core.idGeneratorProvider).newId(),
       now: () => ref.read(core.clockProvider).now().millisecondsSinceEpoch,
     );
+    controller.toolChanged(null, ref.read(editorToolProvider).activeTool);
     ref.listen(
       editorToolProvider.select((s) => s.activeTool),
       controller.toolChanged,

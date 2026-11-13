@@ -174,10 +174,12 @@ final class _MathPenSessionAdapter implements EditorMathPenSession {
   @override
   Future<bool> convert(
     EditorMathGroup group,
-    EditorMathConvertTrigger trigger,
-  ) => _inner.convert(
+    EditorMathConvertTrigger trigger, {
+    bool Function()? stillWanted,
+  }) => _inner.convert(
     _target(group),
     interactive: trigger == EditorMathConvertTrigger.bubbleTap,
+    stillWanted: stillWanted,
   );
 
   @override

@@ -455,8 +455,8 @@ class InteractionHost implements InputTargets {
       : tool;
 
   /// (math pen, design note 8) With the math pen, a formula under [screen]
-  /// opens its menu (a finger tap, or a pen dot inside its frame). Not on a
-  /// read-only note.
+  /// opens its menu (a finger tap, or a finger / mouse dot inside its frame
+  /// — a stylus dot is written). Not on a read-only note.
   bool _openFormulaMenuAt(Offset screen) {
     if (_ref.read(editorToolProvider).activeTool != EditorTool.math ||
         _ref.read(editorReadOnlyProvider)) {
@@ -809,8 +809,14 @@ class InteractionHost implements InputTargets {
   }) {
     if (_disposed) return false;
     if (_toggleTapeAt(sample.position)) return true;
-    // (math pen) ④m a dot inside a formula's frame → its menu.
-    if (_openFormulaMenuAt(sample.position)) return true;
+    // (math pen) ④m a finger (finger drawing) or mouse dot inside a
+    // formula's frame → its menu. A STYLUS dot there is written (a decimal
+    // point, a multiplication dot, the dot of an i — design note 7: it
+    // reopens the formula); a pen user opens the menu with a finger tap.
+    if (source != InteractionSource.stylus &&
+        _openFormulaMenuAt(sample.position)) {
+      return true;
+    }
     return _tapToSeek(
       sample.position,
       source == InteractionSource.finger ? TapKind.finger : TapKind.penDot,
@@ -1061,7 +1067,7 @@ class InteractionHost implements InputTargets {
         // (v2, E2-18 — 6.5.3) on the native iPad the pencil hover is a mouse
         // hover; the pen dot comes from the hover pose there, so a mouse
         // hover leaves it alone.
-        case EditorTool.pen
+        case EditorTool.pen || EditorTool.math
             when _ref.read(stylusExtrasProvider).capabilities.hoverPose:
           return;
         case EditorTool.eraser:
@@ -1106,11 +1112,18 @@ class InteractionHost implements InputTargets {
   void poseHover(Offset position, {double? height}) {
     if (_disposed) return;
     final tools = _ref.read(editorToolProvider);
-    if (tools.eyedropperActive || tools.activeTool != EditorTool.pen) return;
+    final tool = _effective(tools.activeTool);
+    // (math pen) the math pen's ballpoint dot too.
+    if (tools.eyedropperActive ||
+        (tool != EditorTool.pen && tool != EditorTool.math)) {
+      return;
+    }
     if (_commands.interactionActive) return; // touching: no hover cursor
     final h = (height ?? 0).clamp(0.0, 1.0);
     _cursor.value = _penDot(
-      tools.currentPen,
+      tool == EditorTool.math
+          ? tools.penStyles[core.PenTool.ballpoint]!
+          : tools.currentPen,
       position,
       _viewport.camera.scale,
       sizeFactor: 1 + 0.5 * h,

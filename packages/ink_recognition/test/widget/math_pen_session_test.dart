@@ -12,6 +12,11 @@
 // - no engine: the bubble says so, the tap opens the LaTeX editor (typed by
 //   hand → the same command); 고치기 opens the editor with the symbol row;
 // - the bubble's states.
+// - review fixes: background conversions never drop the handwriting (over
+//   the ink limits → no command) and ask stillWanted last; the bubble tap
+//   over the limits asks first; the tap waits for the request in flight
+//   (no second request); a tap whose request a new contact cancelled opens
+//   nothing; the on-device sheet closing recognizes again.
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -456,6 +461,7 @@ void main() {
     tester,
   ) async {
     var converted = 0;
+    var retried = 0;
     Future<void> show({required bool manager}) => tester.pumpWidget(
       ProviderScope(
         key: ValueKey(manager),
@@ -468,7 +474,7 @@ void main() {
             body: MathPenBubble(
               view: const MathPenNoEngine(),
               onConvert: () => converted++,
-              onRetry: () {},
+              onRetry: () => retried++,
             ),
           ),
         ),
@@ -485,6 +491,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(MathPenBubbleKeys.onDeviceSheet), findsOneWidget);
     expect(find.text('기기에서 수식 인식'), findsOneWidget);
+    // Review L4: closing the sheet recognizes the group again (the engine
+    // may be on now) — the bubble does not keep saying it is off.
+    expect(retried, 0);
+    Navigator.of(tester.element(find.byKey(MathPenBubbleKeys.onDeviceSheet)))
+        .pop();
+    await tester.pumpAndSettle();
+    expect(retried, 1);
   });
 
   testWidgets('고치기: the LaTeX editor on the formula with the symbol row; '
@@ -528,5 +541,102 @@ void main() {
     final edited = update.objects.single as core.MathObject;
     expect(edited.latex, 'x^{2}');
     expect(edited.ink, ink);
+  });
+
+  testWidgets('review: a background conversion over the ink limits never '
+      'converts (the formula would lose its handwriting); stillWanted false '
+      '→ no command', (tester) async {
+    final engine = _Engine()..answer = (_) => 'y';
+    final (_, session, page) = await _pump(tester, engine);
+    final many = [
+      for (var i = 0; i <= core.PageObjectLimits.maxMathInkStrokes; i++)
+        _glyph('s$i', 100.0 + i),
+    ];
+    final big = _group(page, many);
+    expect(mathInkFits(big.strokes), isFalse);
+    expect(await session.convert(big, interactive: false), isFalse);
+    expect(page.commands, isEmpty);
+    expect(engine.calls, isEmpty, reason: 'not even asked');
+
+    final g = _group(page, _three());
+    var asked = 0;
+    final late = session.convert(
+      g,
+      interactive: false,
+      stillWanted: () {
+        asked++;
+        return false; // the user did something else meanwhile
+      },
+    );
+    await tester.pump();
+    expect(await late, isFalse);
+    expect(asked, 1);
+    expect(page.commands, isEmpty);
+    expect(page.strokes, hasLength(many.length + 3), reason: 'all kept');
+  });
+
+  testWidgets('review: the bubble tap over the ink limits asks first — 취소 '
+      '→ nothing; 바꾸기 → the formula without ink', (tester) async {
+    final engine = _Engine()..answer = (_) => 'y';
+    final (_, session, page) = await _pump(tester, engine);
+    final many = [
+      for (var i = 0; i <= core.PageObjectLimits.maxMathInkStrokes; i++)
+        _glyph('s$i', 100.0 + i),
+    ];
+    final big = _group(page, many);
+    var tap = session.convert(big, interactive: true);
+    await tester.pumpAndSettle();
+    expect(find.byKey(MathPenBubbleKeys.inkTooLargeDialog), findsOneWidget);
+    expect(find.text('손글씨가 너무 많아요'), findsOneWidget);
+    await tester.tap(find.byKey(MathPenBubbleKeys.inkTooLargeCancel));
+    await tester.pumpAndSettle();
+    expect(await tap, isFalse);
+    expect(page.commands, isEmpty);
+    expect(engine.calls, isEmpty);
+
+    tap = session.convert(big, interactive: true);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(MathPenBubbleKeys.inkTooLargeConvert));
+    await tester.pumpAndSettle();
+    expect(await tap, isTrue);
+    final c = page.commands.single as core.CompositeCommand;
+    final math =
+        (c.commands[1] as core.AddObjects).objects.single as core.MathObject;
+    expect(math.latex, 'y');
+    expect(math.ink, isEmpty);
+  });
+
+  testWidgets('review: the bubble tap waits for the request in flight (no '
+      'second request)', (tester) async {
+    final engine = _Engine()..hold = Completer<void>();
+    final held = engine.hold!;
+    final (_, session, page) = await _pump(tester, engine);
+    final g = _group(page, _three());
+    session.update(g);
+    await tester.pump(kMathPenRecognizeDelay);
+    expect(engine.calls, [3]);
+    final tap = session.convert(g, interactive: true);
+    await tester.pump();
+    expect(engine.cancelled, 0);
+    held.complete();
+    await tester.pump();
+    expect(await tap, isTrue);
+    expect(engine.calls, [3], reason: 'the same request answered the tap');
+    expect(page.commands, hasLength(1));
+  });
+
+  testWidgets('review: a bubble tap whose request a new contact cancelled '
+      'opens nothing (no LaTeX editor for an old snapshot)', (tester) async {
+    final engine = _Engine()..hold = Completer<void>();
+    final (_, session, page) = await _pump(tester, engine);
+    final g = _group(page, _three());
+    final tap = session.convert(g, interactive: true);
+    await tester.pump();
+    expect(engine.calls, [3]);
+    session.interrupt(); // the pen touches down again
+    await tester.pumpAndSettle();
+    expect(await tap, isFalse);
+    expect(find.byKey(kLatexSheetKey), findsNothing);
+    expect(page.commands, isEmpty);
   });
 }

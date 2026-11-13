@@ -395,8 +395,16 @@ abstract interface class EditorMathPenSession {
 
   /// Converts [group] with ONE execute (one undo step); completes true when
   /// the formula was added. Only [EditorMathConvertTrigger.bubbleTap] may
-  /// open a sheet.
-  Future<bool> convert(EditorMathGroup group, EditorMathConvertTrigger trigger);
+  /// open a sheet. A background conversion (toolSwitch / newGroup) keeps the
+  /// handwriting in the formula or does not convert, and asks [stillWanted]
+  /// right before its execute (after any wait for an answer): false → it
+  /// does not convert (the editor's history moved on meanwhile — a late step
+  /// would land on top of the user's later work and clear redo).
+  Future<bool> convert(
+    EditorMathGroup group,
+    EditorMathConvertTrigger trigger, {
+    bool Function()? stillWanted,
+  });
 
   /// '고치기': the LaTeX editor on [math] (one UpdateObjects).
   Future<void> fix(core.MathObject math);

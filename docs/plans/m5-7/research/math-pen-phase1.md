@@ -14,18 +14,25 @@
 | 수식 펜 스타일 | `ToolOptions.mathPenStyle`, JSON `"math"`, `MathPenPopup` | **볼펜 스타일을 함께 쓴다**(`ToolState.penStyles[ballpoint]`). `editor.toolOptions`·`editor.toolSelection` 형식 불변(저장값 `"math"`만 새로 나올 수 있음 — 옛 앱은 6.2.2 규칙으로 `pen`) | 열린 질문 1을 '공유'로 — 저장 형식·팝업을 늘리지 않음. 색·굵기는 볼펜 팝업에서 |
 | recog 공개 이름 | `RecognitionMathPen`·`recognitionMathPen()` 2개 | 4개: + `RecognitionMathPenContext`·`RecognitionMathPenSession`. 묶음은 기존 **`RecognitionTarget`**(strokes·areaPt = 점 경계·execute)으로 넘긴다 | recog는 편집기 타입을 볼 수 없다(R8) — 세션 인터페이스가 recog 쪽에 있어야 앱 셸이 바꿔 끼운다(`app/lib/src/modules/recognition_wiring.dart` `editorMathPenOf`) |
 | 다시 열기 커밋 | `commitInkEdit(before:)` 선택 인자 | 새 메서드 `EditorCommands.commitInkEditWith(controller, edit, before:, label:)` + `PenInteraction`의 선택 인자 `commit`·`onFinished` | 기존 호출·시험 불변. 읽기 전용이면 편집 버림, 그 밖의 거부면 획만 다시 커밋(필기 손실 없음) |
-| 지우개 조각 | `EraseInteraction.onCommittedEdit` | 묶음 페이지의 `pageChanges`만으로 맞춘다: 사라진 소속 획과 `createdAt`이 같은 새 획(= `Stroke.fragment`)을 묶음에 넣음 | 지우개 코드 불변, 되돌리기·원격 변경과 같은 길 |
-| 말풍선 위치 | 묶음 경계 위 8 px | **묶음 경계를 위아래로 1 H씩 넓힌 영역** 위 8 px(자리가 없으면 아래) | 위 8 px이면 지수(묶음 위 ≤ 1 H — 합류 영역)를 쓰려는 펜이 말풍선에 닿아 획이 되지 않았다(위젯 시험에서 발견) |
-| 되돌린 변환 | 다시 활성 묶음 | 활성 묶음이 되지만 **`restored`**: 도구 전환·새 묶음으로는 변환하지 않는다(말풍선 탭만). 그 묶음에 쓰거나 지우면 풀린다 | 사용자가 손글씨를 고른 것 — 펜으로 바꿀 때마다 같은 결과로 다시 바뀌면 되돌리기가 무의미 |
-| 배경 변환 대기 중 다시 건드림 | 기다림 취소 + 묶음 다시 열기 | 넘긴 묶음은 즉시 닫히고, 변환 직전 `liveStrokes`로 획이 그대로인지 확인해 바뀌었으면 포기(잉크로 남음) | 단순·안전(한 명령, 되돌리기 한 번) |
-| 선택 메뉴 '⋯ 손글씨로 열기' | 다른 도구의 선택 메뉴에 추가 | **이번에 안 함.** 수식 펜 도구에서 수식을 탭(손가락) 또는 펜 점 → [고치기][손글씨로 열기] | 4.4.4 순서·선택 메뉴 시험을 건드리지 않음. 다른 도구에서는 기존 '수식 편집'(기호 줄 포함) |
-| 수식 탭 메뉴의 펜 점 | 펜만 | 손가락 그리기의 손가락 점도 같은 규칙(`interceptPenDot` ④m) | 손가락으로 쓰는 사용자도 같은 동작 |
+| 지우개 조각 | `EraseInteraction.onCommittedEdit` | 묶음 페이지의 `pageChanges`만으로 맞춘다: 사라진 소속 획과 `createdAt`·스타일·녹음(`recordingId`·`recordingOffsetMs`)이 같고 점 경계가 그 획 경계(+0.5 pt) 안에 드는 새 획(= `Stroke.fragment`)을 묶음에 넣음 | 지우개 코드 불변, 되돌리기·원격 변경과 같은 길. 경계 조건은 같은 잉크를 붙여 넣은 사본의 조각을 빼려고(검토 A-7) |
+| 말풍선 위치 | 묶음 경계 위 8 px | **묶음 경계를 위아래로 `bubbleClearanceFactor`(1.0) H씩 넓힌 영역** 위 8 px. 자리가 없으면 아래, 그것도 없으면(크게 확대) 영역 오른쪽·왼쪽, 그것도 없으면 영역을 가장 덜 가리는 화면 모서리(`mathPenBubbleOffset`). 묶음이 화면 밖이면 말풍선을 숨긴다 | 위 8 px이면 지수·다음 기호의 첫 획('+'의 세로획)을 쓰려는 펜이 말풍선에 닿아 획이 되지 않았다(위젯 시험에서 발견). 화면 밖 말풍선 탭은 보이지 않는 묶음을 바꾼다(검토 B-M2) |
+| 되돌린 변환 | 다시 활성 묶음 | **마지막 변환을 되돌린 바로 그 변경**(그 획들이 `added`/`updated`로 돌아옴)에서 **한 번만**, 그리고 수식 펜·지우개일 때만 활성 묶음이 된다. **`restored`**: 도구 전환·새 묶음으로는 변환하지 않는다(말풍선 탭만). 수식 펜으로 그 묶음에 쓰면 풀린다(지우개로 일부를 지워도 유지) | 사용자가 손글씨를 고른 것. 예전엔 `_lastConverted`가 남아 그 페이지의 다음 변경(다른 도구의 획 포함)마다 묶음·말풍선이 되살아났다(검토 A-4·B-H1) |
+| 배경 변환 대기 중 다시 건드림 | 기다림 취소 + 묶음 다시 열기 | 넘긴 묶음은 즉시 닫히고, 변환 직전 ① `liveStrokes`로 획이 그대로인지 ② 편집기 `stillWanted` — 노트 기록(`NoteSession.history`, `HistoryState`)이 계기 때와 같은지(새 묶음이면 새 획 커밋 직후 상태) 확인해, 다르면 포기(잉크로 남음). 준비된 답이 있으면 **새 획보다 먼저** 동기로 변환한다 | 늦은 변환이 사용자의 다음 작업 위에 쌓이거나 다시 실행을 지우지 않게(검토 A-1·A-2·B-M1). 되돌리기 한 번 = 방금 쓴 획 |
+| 잉크 한도 | 초과 시 ink 없이 변환 + 알림 | **배경 변환은 한도를 넘는 묶음을 변환하지 않는다**(잉크로 남음). 말풍선 탭은 먼저 묻는다('손글씨가 너무 많아요' — [취소][바꾸기]). 합류는 획 수와 **점 수**를 함께 세고(`mathPenJoins` `groupPoints`·`strokePoints`), 손글씨 + 새 획이 한도를 넘는 수식은 다시 열지 않는다(`mathInkWithin`) | 요구 3(원래 획을 간직)을 사용자 모르게 어기지 않게(검토 A-3) |
+| 선택 메뉴 '⋯ 손글씨로 열기' | 다른 도구의 선택 메뉴에 추가 | **이번에 안 함.** 수식 펜 도구에서 수식을 손가락 탭(또는 손가락 그리기의 손가락 점·마우스 클릭) → [고치기][손글씨로 열기]. 손글씨로 다시 여는 길은 수식 펜뿐이다(검토 B-L3 — 1단계 제약) | 4.4.4 순서·선택 메뉴 시험을 건드리지 않음. 다른 도구에서는 기존 '수식 편집'(기호 줄 포함) |
+| 수식 안의 펜 점 | frame 안 펜 점 → 메뉴 | **스타일러스 점은 쓴다**(소수점·곱셈점·i의 점 — 다시 열기 + 점). 메뉴는 손가락 탭, 손가락 그리기의 손가락 점, 마우스 클릭 | 이어 쓰기(요구 4)를 흔한 기호에서 깨지 않게(검토 B-M4) |
+| 말풍선의 손바닥 | (언급 없음) | 라우터가 손바닥으로 거를 손가락(방금 펜 활동 — P1~P3, 큰 접촉 P5)의 탭은 변환하지 않는다(`InputRouter.rejectsAsPalm`) | 쓰는 손이 말풍선 아래에 닿아 변환되지 않게(검토 B-M3) |
+| 고치기 위치 | 6.15.1 가운데 유지 | `ink`가 있고 돌지 않은 수식은 **왼쪽 끝과 세로 가운데**를 유지(`relayoutMath`) | 손글씨가 시작한 곳에서 시작, 길어지면 오른쪽으로만(검토 B-L1) |
+| 다시 연 수식이 다시 안 바뀜 | (언급 없음) | 배경 변환이 실패하면 '수식으로 바꾸지 못해 손글씨로 남겼어요.'(편집기 알림, 되돌리기로 수식 복구) | 엔진 없음·실패에서 수식이 조용히 사라진 것처럼 보이지 않게(검토 B-L2) |
+| 말풍선 탭 대기 | 진행 중 답을 기다림 | 같은 묶음의 진행 중 요청을 **그대로 기다린다**(새 요청 없음). 새 접촉·도구 전환으로 요청이 취소되면 아무것도 열지 않는다(LaTeX 창 없음). 기다리는 사이 합류한 획은 열린 묶음으로 남는다 | 검토 B-L7·A-5 |
+| 엔진 켜기 뒤 | (언급 없음) | '기기에서 수식 인식' 창이 닫히면 다시 인식한다(`onRetry`) | 검토 B-L4 |
+| 호버 점 | 펜만 | iPad 포즈 호버도 수식 펜의 볼펜 점을 보인다 | 검토 B-L5 |
 | 인식 캐시 | 4개 | 8개(`kMathPenCacheSize`) | 되돌리기 몇 번에도 재인식 없이 |
 | PNG | 서버 엔진만 | 같음 — `engine is CallableMathRecognizer`일 때만 `renderMathPng` | — |
 | `recog.toMath`(선택 → 수식) | (언급 없음) | 바뀌지 않음 — 그 수식은 `ink`를 갖지 않아 다시 열 수 없다 | 범위 밖. 후속 후보 |
 | INK | 바뀌는 곳 없음 | 같음 — `MathObject.ink`는 그리지 않는다(렌더·PDF·검색 색인 불변) | — |
 
-나머지는 아래 설계 그대로다(묶음 상수 3.2, JSON 5.3, 변환 명령 11.3, 기호 표 12, 엔진 없음 10). 시험: note_core `test/model/math_ink_test.dart`·골든 `math_ink.json`, sync_engine `field_merge_test` ink 두 사례·`field_units_test`·`core_json_keys_test`, feature_editor `test/unit/math_pen_group_test.dart`·`test/widget/math_pen_test.dart`(가짜 세션 `test/helpers/fake_math_pen.dart`), ink_recognition `test/unit/latex_symbols_test.dart`·`test/unit/math_pen_builders_test.dart`·`test/widget/math_pen_session_test.dart`, app `test/modules/recognition_wiring_test.dart`(editorMathPenOf).
+나머지는 아래 설계 그대로다(묶음 상수 3.2, JSON 5.3, 변환 명령 11.3, 기호 표 12, 엔진 없음 10). 시험: note_core `test/model/math_ink_test.dart`·골든 `math_ink.json`, sync_engine `field_merge_test` ink 두 사례·`field_units_test`·`core_json_keys_test`, feature_editor `test/unit/math_pen_group_test.dart`·`test/unit/math_pen_bubble_place_test.dart`·`test/widget/math_pen_test.dart`('review:' 시험들)(가짜 세션 `test/helpers/fake_math_pen.dart`), ink_recognition `test/unit/latex_symbols_test.dart`·`test/unit/math_pen_builders_test.dart`·`test/widget/math_pen_session_test.dart`, app `test/modules/recognition_wiring_test.dart`(editorMathPenOf).
 
 ## 0. 한눈에 보는 결정
 
@@ -142,24 +149,26 @@ final class MathPenGroup {
 ```
 H      = clamp(median(height of pointBounds of G's strokes, 높이 < 2 pt 인 점 획 제외), 8, 72) pt
          (G가 비면 s 자신의 높이, 같은 clamp)
-gapX   = max(0, max(s.left − G.right, G.left − s.right))
-gapY   = max(0, max(s.top − G.bottom, G.top − s.bottom))
-합류    ⇔ gapX ≤ 1.5·H  ∧  gapY ≤ 1.0·H   (경계 = 획 pointBounds의 합, 굵기 부풀림 없음)
-상한    G의 획 수 < PageObjectLimits.maxMathInkStrokes(400) — 넘으면 합류하지 않고 새 묶음
+gapX(m) = max(0, max(s.left − m.right, m.left − s.right))      m = G의 소속 획 하나(pointBounds)
+gapY(m) = max(0, max(s.top − m.bottom, m.top − s.bottom))
+합류    ⇔ ∃ m ∈ G: gapX(m) ≤ 1.5·H  ∧  gapY(m) ≤ 0.6·H   (가장 가까운 소속 획 기준 — 합 경계 아님, 굵기 부풀림 없음)
+상한    G의 획 수 + 1 ≤ maxMathInkStrokes(400) ∧ G의 점 수 + s의 점 수 ≤ maxMathInkPoints(40 000) — 넘으면 새 묶음
 ```
 
 | 상수 | 값 | 이유 |
 |---|---|---|
 | `kMathPenGapX` | 1.5·H | 'x²' 다음 '+1'처럼 기호 사이 간격(보통 0.3~1.0 H)과 지수를 넉넉히 넣고, 다음 식(보통 ≥ 2 H 띄움)은 뗀다 |
-| `kMathPenGapY` | 1.0·H | 분수 분자·분모, 첨자, 근호 안 줄을 넣고 다음 줄(줄 간격 ≥ 1.2 H)은 뗀다 |
+| `kMathPenGapY` | 0.6·H (검토 B-6으로 1.0에서 내림) | 분수 분자·분모, 첨자, 근호 안 줄(보통 0~0.5 H)을 넣는다. 줄 노트(8 mm ≈ 23 pt, H ≈ 12~15 pt)의 다음 줄은 이 줄 글자 아래 0.5~0.9 H라 대부분 뗀다 — 좁은 줄에 크게 쓰면 여전히 붙는다(잃는 것은 없음, 한 수식이 됨). 실기기 확인 항목 |
+| 다시 열기 여백 | 옆 clamp(0.5·h, 8, 40) pt, 위아래 clamp(0.3·h, 4, 16) pt (h = frame 높이) | 옆('+1')은 넉넉히, 위아래는 좁게 — 수식 바로 아래에서 시작한 다음 줄이 그 수식을 다시 열지 않게(검토 B-6) |
+| 말풍선 비움 | 위아래 1.0·H (`bubbleClearanceFactor`) | 합류 영역보다 넓게 — 다음 기호의 첫 획이 묶음 위에서 시작하는 일이 잦다 |
 | H 범위 | 8~72 pt | 점·짧은 선이 H를 0으로 끌어내리지 않게, 큰 기호(∫, 큰 괄호)가 부풀리지 않게 중앙값 |
 
-순수 함수 `mathPenJoins(groupBounds, groupHeights, strokeBounds)`로 두고 단위 시험(§12)한다. 다른 페이지의 획은 언제나 3(새 묶음).
+순수 함수 `mathPenJoins(members:, stroke:, groupPoints:, strokePoints:)`로 두고 단위 시험(§12)한다. 다른 페이지의 획은 언제나 3(새 묶음).
 
 ### 3.3 소속 맞추기 (되돌리기·원격·지우개)
 
 - `MathPenController`는 활성 묶음 페이지의 `session.pageChanges(pageId)`를 구독한다. 변경마다 `strokeIds = knownIds ∩ 살아 있는 획`(z 순서). 비면 묶음 닫힘(변환 없음).
-- 지우개 조각: `EraseInteraction`이 커밋한 `InkEdit`을 호스트가 `MathPenController.onErased(edit)`로 넘긴다. `edit.removedIds ∩ strokeIds ≠ ∅`이면 `edit.added` 중 `createdAt`이 지워진 소속 획의 `createdAt`과 같은 획(`Stroke.fragment`는 `createdAt` 유지 — stroke.dart:75)을 `knownIds`·`strokeIds`에 더한다. 되돌리기로 원본이 돌아오면 `knownIds`라서 다시 소속, 조각은 사라져 빠진다.
+- 지우개 조각: (구현) 묶음 페이지의 변경에서, 사라진 소속 획과 `createdAt`·스타일·녹음이 같고 점 경계가 그 획 경계 안에 드는 새 획(`Stroke.fragment` — stroke.dart:75)을 `knownIds`·`strokeIds`에 더한다. 되돌리기로 원본이 돌아오면 `knownIds`라서 다시 소속, 조각은 사라져 빠진다.
 - 소속이 바뀌면 `revision++` → `session.update(group)`(인식 다시 예약).
 
 ---
@@ -399,7 +408,8 @@ abstract interface class EditorMathPenSession {
   void interrupt();                       // a new contact: stop the timer, cancel in flight
   void clear();                           // the group is gone, no conversion
   /// Converts [group] with ONE execute; completes true when it ran. bubbleTap may open a sheet.
-  Future<bool> convert(EditorMathGroup group, EditorMathConvertTrigger trigger);
+  Future<bool> convert(EditorMathGroup group, EditorMathConvertTrigger trigger,
+      {bool Function()? stillWanted}); // (검토 반영) 배경 변환은 execute 직전에 묻는다
   Future<void> fix(core.MathObject math); // '고치기'
   ValueListenable<Object?> get bubbleState; // repaint signal for the layer
   Widget buildBubble(BuildContext context, EditorMathGroup group, VoidCallback onTap);
@@ -532,15 +542,17 @@ TextEditingValue insertLatexSymbol(TextEditingValue value, LatexSymbol symbol);
 | R1 | 계약 변경(7.2.2·7.2.7·7.2.8·7.2.10·7.2.11) — 승인 전 구현 금지 규칙(04-editor 12.1) | 이 노트로 CP 한 묶음을 올리고, 1단계 구현 첫 커밋 전에 00-overview 변경 행 반영 |
 | R2 | 옛 앱이 수식을 고치면 `ink` 소실(단위 병합에서 옛 스냅샷 승리) | 수식은 남음, 다시 열기만 불가. 배포된 옛 앱 없음(00-overview:1191). 병합 시험으로 결정성 확인 |
 | R3 | 깨진 `ink` 항목을 `[]`로 읽음 → 다시 쓰면 `null`(원본 사라짐) | 선택 키라 수식 보존을 우선. 단위 시험에 명시. 대안(기록 버림)은 사용자 내용 손실이 더 큼 |
-| R4 | 데이터 크기: 획 400개·점 40,000개 한도 ≈ base64 수백 KB/수식, 기록 메모리(`estimatedBytes`) | 한도 초과 시 ink 없이 변환 + 알림. 보통 수식은 수 KB |
-| R5 | 펜 점 vs 점 기호: 수식 frame 안의 점은 메뉴가 된다 | 수식 **안**만(여백 0). 근처 점(소수점·곱셈점)은 다시 열기 획. 실기기 확인 항목 |
+| R4 | 데이터 크기: 획 400개·점 40,000개 한도 ≈ JSON 370 KB/수식(검토 A 측정 — 기록 하나 1,000,000 B 한도 안), 기록 메모리(`estimatedBytes`) | (검토 반영) 배경 변환은 한도 초과면 변환하지 않음, 말풍선 탭은 묻고 ink 없이. 합류·다시 열기가 점 수도 센다. 보통 수식은 수 KB |
+| R5 | 펜 점 vs 점 기호 | (검토 반영) 스타일러스 점은 언제나 쓴다(수식 안이면 다시 열기 + 점). 메뉴는 손가락 탭·마우스 클릭 |
 | R6 | 지우개 예외로 "도구 전환 = 변환" 규칙이 비대칭 | 요구 5a를 위해 필요. 말풍선이 지우개 중에도 남아 상태가 보인다 |
-| R7 | 배경 변환이 사용자가 다른 일을 할 때 일어남(최대 10 s 뒤) | 한 명령·되돌리기 한 번. 획이 바뀌었으면 포기(`liveStrokes`) |
+| R7 | 배경 변환이 사용자가 다른 일을 할 때 일어남(최대 10 s 뒤) | (검토 반영) 노트 기록이 계기 때와 다르면 포기(`stillWanted`) — 늦은 단계가 다음 작업 위에 쌓이거나 다시 실행을 지우지 않음. 새 묶음 계기에서 답이 늦으면 그 새 획 **하나** 뒤에만 들어갈 수 있다(그 경우 되돌리기 순서는 변환 → 획). 획이 바뀌었으면 포기(`liveStrokes`) |
 | R8 | 동의가 필요한 서버 엔진: 말풍선만으로는 동의 못 받음 | 탭 → 기존 동의 카드가 있는 LaTeX 창(G-3 규칙 그대로) |
 | R9 | `EditorTool` 값 추가 — exhaustive switch(호스트 `case`, 호버, 툴바) | 컴파일러가 모두 찾음. feature_editor 내부 enum이라 다른 패키지 영향 없음 |
 | R10 | R14: 편집기·recog 공개 이름 충돌 | `EditorMathPen*` vs `RecognitionMathPen`/`recognitionMathPen` |
 | R11 | 다시 열기+새 획 한 명령은 `commitInkEdit` 시그니처 변경(내부) | 선택 인자, 기존 호출 불변. 실패 시 획만 다시 커밋(필기 손실 없음) |
 | R12 | 검색: 변환된 손글씨는 `HandwritingText` 입력에서 빠짐(수식 latex는 색인 대상 아님) | 이번 범위 밖, 기록만 |
+| R13 | (검토 A-8) 두 기기가 같은 수식을 동시에 다시 열면 각자 새 id로 손글씨를 더해 동기화 뒤 손글씨가 두 벌. 다시 열기와 원격 '고치기'가 겹치면 수식은 지워지고(`deletedAt`은 따로 병합) LaTeX 고침은 사라진다 | 기존 '수식으로 바꾸기'와 같은 모양 — 잃는 획은 없음(남는 쪽은 손글씨). 기록만 |
+| R14 | (검토 B-L6) 글꼴 크기는 손글씨 높이만으로 정한다 — 조판 폭이 손글씨 폭과 많이 다르면 옆 손글씨와 겹칠 수 있다 | 시험 글꼴(KaTeX 대체)로는 x^{2}가 손글씨 폭의 약 2배였지만 실제 글꼴 측정 전에는 폭 제한을 넣지 않는다. 실기기 확인 항목 |
 
 ## 16. 열린 질문 (기본 진행)
 
