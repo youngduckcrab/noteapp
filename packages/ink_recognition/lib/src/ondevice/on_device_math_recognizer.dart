@@ -24,6 +24,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+
 import 'package:ink_engine/ink_engine.dart' show InkMathRenderer;
 
 import '../common/engine_ids.dart';
@@ -60,6 +62,11 @@ final class OnDeviceMathRecognizer implements MathRecognizer {
   Future<MfrTokenizer>? _tokenizer;
   Future<void> _queue = Future<void>.value();
   bool _disposed = false;
+  final ValueNotifier<OnDeviceMathRun?> _lastRun = ValueNotifier(null);
+
+  /// The newest finished run — for the developer overlay ('math raw' /
+  /// 'math out' lines): what the model wrote before the clean-up.
+  ValueListenable<OnDeviceMathRun?> get lastRun => _lastRun;
 
   @override
   String get engineId => kOnDeviceMathEngineId;
@@ -138,11 +145,20 @@ final class OnDeviceMathRecognizer implements MathRecognizer {
     }
     final String latex;
     try {
+      final raw = tokenizer.decode(decoded.ids);
+      final gutters = matrixColumnGutters(input.traces);
       latex = normalizeMfrLatex(
-        tokenizer.decode(decoded.ids),
+        raw,
         validate: _validate,
-        matrixColumnGutters: matrixColumnGutters(input.traces),
+        matrixColumnGutters: gutters,
       );
+      if (!_disposed) {
+        _lastRun.value = OnDeviceMathRun(
+          raw: raw,
+          latex: latex,
+          gutters: gutters,
+        );
+      }
     } on Object catch (e) {
       throw RecognizerEngineError('ondevice', 'decode: $e');
     }
@@ -192,4 +208,22 @@ final class OnDeviceMathRecognizer implements MathRecognizer {
       // a runtime that failed to open has nothing to close
     }
   }
+}
+
+/// One on-device recognition as the developer overlay shows it.
+final class OnDeviceMathRun {
+  const OnDeviceMathRun({
+    required this.raw,
+    required this.latex,
+    required this.gutters,
+  });
+
+  /// The model's LaTeX as decoded.
+  final String raw;
+
+  /// After normalizeMfrLatex.
+  final String latex;
+
+  /// matrixColumnGutters of the ink (null = no bracketed interior).
+  final int? gutters;
 }

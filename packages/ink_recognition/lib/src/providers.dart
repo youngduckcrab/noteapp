@@ -36,6 +36,7 @@ import 'indexer/indexer_status.dart';
 import 'l10n/recognition_strings.dart';
 import 'math/callable_math_recognizer.dart';
 import 'model/candidates.dart';
+import 'ondevice/on_device_math_recognizer.dart';
 import 'ondevice/on_device_providers.dart';
 import 'ports/handwriting_recognizer.dart';
 import 'ports/math_recognizer.dart';
@@ -209,7 +210,16 @@ final recognitionDevOverlayLinesProvider =
             'math: callable(consent ${consent ?? false ? 'on' : 'off'})',
           _ => math.isAvailable ? 'math: ${math.engineId}' : 'math: manual',
         };
-        return [status.toString(), jobLine, modelLine, mathLine];
+        // the on-device engine's newest run: the model's LaTeX before and
+        // after the clean-up, and the ink's matrix gutters
+        final run = math is OnDeviceMathRecognizer ? math.lastRun.value : null;
+        final runLines = math is OnDeviceMathRecognizer
+            ? [
+                'math raw: ${run?.raw ?? '—'}',
+                'math out: ${run?.latex ?? '—'} · gutters ${run?.gutters ?? '—'}',
+              ]
+            : const <String>[];
+        return [status.toString(), jobLine, modelLine, mathLine, ...runLines];
       }
 
       final lines = ValueNotifier<List<String>>(build());
@@ -233,6 +243,8 @@ final recognitionDevOverlayLinesProvider =
 
       indexer.status.addListener(update);
       metrics.lastJob.addListener(update);
+      final onDeviceRun = math is OnDeviceMathRecognizer ? math.lastRun : null;
+      onDeviceRun?.addListener(update);
       final subscriptions = <StreamSubscription<Object?>>[
         settings.watch(RecognitionSettingsKeys.language).listen((value) {
           lang = recognitionLanguageOf(value);
@@ -253,6 +265,7 @@ final recognitionDevOverlayLinesProvider =
         disposed = true;
         indexer.status.removeListener(update);
         metrics.lastJob.removeListener(update);
+        onDeviceRun?.removeListener(update);
         for (final s in subscriptions) {
           unawaited(s.cancel());
         }

@@ -435,15 +435,21 @@ void main() {
           stroke([close - 5, 40, close, 40]),
         ],
       );
+      OnDeviceMathRecognizer? last;
       Future<String> latex(MathInput input) async =>
-          (await OnDeviceMathRecognizer(
+          (await (last = OnDeviceMathRecognizer(
             openRuntime: () async => FakeRuntime(script),
             loadTokenizer: () async => tokenizer,
             preprocess: _preprocess,
-          ).recognize(input)).latex;
+          )).recognize(input)).latex;
 
       // a gap of half the glyph height: two columns
       expect(await latex(ink(23, 41)), r'\begin{bmatrix}1&2\\3&4\end{bmatrix}');
+      // the developer overlay's record of the run: raw, cleaned, gutters
+      final run = last!.lastRun.value!;
+      expect(run.raw, contains(r'\begin{matrix}'));
+      expect(run.latex, r'\begin{bmatrix}1&2\\3&4\end{bmatrix}');
+      expect(run.gutters, 1);
       // digits written close: two-digit numbers
       expect(
         await latex(ink(19, 37)),
