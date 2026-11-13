@@ -8,6 +8,13 @@ library;
 export 'src/appearance/cover_palette.dart'
     show CoverPalette, coverForegroundFor;
 export 'src/appearance/folder_appearance.dart' show FolderIcons, FolderPalette;
+// (handwriting search, m5-7/05-library 6.19a) the search hint's slot.
+export 'src/integration/ink_search_slot.dart'
+    show
+        LibraryInkSearch,
+        LibraryInkSearchPhase,
+        LibraryInkSearchState,
+        libraryInkSearchProvider;
 export 'src/integration/overrides.dart' show featureLibraryOverrides;
 export 'src/integration/pdf_slots.dart'
     show

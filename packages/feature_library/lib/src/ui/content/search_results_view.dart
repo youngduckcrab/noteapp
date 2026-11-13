@@ -25,6 +25,7 @@ import '../layout/grid_metrics.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
 import 'content_hits_view.dart';
+import 'ink_search_hint.dart';
 import 'item_list.dart';
 import 'note_meta.dart';
 import 'note_tile.dart';
@@ -135,6 +136,12 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
           child: CustomScrollView(
             controller: _controller,
             slivers: [
+              // (handwriting search, 6.19a) why handwriting may be missing.
+              SliverToBoxAdapter(
+                child: InkSearchHint(
+                  padding: EdgeInsets.fromLTRB(side, 12, side, 0),
+                ),
+              ),
               if (folders.isNotEmpty) ...[
                 SliverToBoxAdapter(
                   child: SearchGroupHeader(

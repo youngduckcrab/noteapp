@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
 import '../dialogs/create_flows.dart';
+import 'ink_search_hint.dart';
 import 'new_note_trigger.dart';
 
 /// Icon 64 + text (+ buttons) in the middle.
@@ -54,6 +55,11 @@ class EmptyState extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              // (handwriting search, 6.19a) why handwriting may be missing.
+              if (section is SearchSection) ...[
+                const SizedBox(height: 16),
+                const InkSearchHint(),
+              ],
               if (section is FolderSection) ...[
                 const SizedBox(height: 24),
                 Wrap(

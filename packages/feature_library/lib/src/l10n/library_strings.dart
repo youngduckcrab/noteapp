@@ -158,6 +158,21 @@ abstract final class LibraryStrings {
       '즐겨찾기한 노트가 없어요. 노트 메뉴에서 ☆ 즐겨찾기를 눌러 추가하세요.';
   static String emptySearch(String query) => '"$query"에 대한 결과가 없어요';
 
+  // (handwriting search, 6.19a) why handwriting is not found yet — one line
+  // under the search results or in the empty state.
+  static const String inkAutoIndexOff = "손글씨도 검색하려면 '검색용 자동 인식'을 켜 주세요";
+  static const String inkTurnOn = '켜기';
+  static const String inkModelMissing = '손글씨를 검색하려면 인식 모델(약 20MB)을 받아야 해요';
+  static const String inkModelDownloading = '손글씨 인식 모델을 받는 중이에요';
+  static const String inkWaitingForWifi = '와이파이에 연결되면 손글씨 인식 모델을 받아요';
+  static const String inkModelFailed = '손글씨 인식 모델을 받지 못했어요';
+  static const String inkDownloadNow = '지금 받기';
+
+  /// After the first [지금 받기] when it would use cellular data.
+  static const String inkCellularConfirm =
+      '셀룰러 데이터로 받아요(약 20MB). 한 번 더 누르면 받아요.';
+  static String inkIndexing(int pages) => '손글씨를 읽는 중이에요 ($pages쪽 남음)';
+
   /// Listing stream error (6.7 / 6.19).
   static const String listLoadFailed = '목록을 불러오지 못했어요';
 

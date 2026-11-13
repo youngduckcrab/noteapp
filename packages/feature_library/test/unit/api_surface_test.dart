@@ -3,7 +3,8 @@
 // m5-7/05-library 4.1 and 8.1 B6-a).
 //
 // Imports only the entry point and uses all 12 exported names (the 11 of the
-// 1st round + LibraryOpenNoteAt) in the call shapes of the contract block, so
+// 1st round + LibraryOpenNoteAt) — and (handwriting search) the 4 names of
+// the ink search slot — in the call shapes of the contract block, so
 // a renamed / re-typed / missing name breaks the build. Names leaking beyond
 // these 12 are checked by INFRA's R14.
 import 'package:feature_library/feature_library.dart';
@@ -127,6 +128,29 @@ void main() {
     );
     expect(container.read(libraryPdfImportActionProvider), importAction);
     expect(container.read(libraryPdfExportActionProvider), exportAction);
+  });
+
+  test('(handwriting search) the ink search slot defaults to null and takes '
+      'a LibraryInkSearch', () {
+    final container = ProviderContainer.test();
+    final LibraryInkSearch? none = container.read(libraryInkSearchProvider);
+    expect(none, isNull);
+    expect(libraryInkSearchProvider.name, 'libraryInkSearchProvider');
+    const state = LibraryInkSearchState(
+      phase: LibraryInkSearchPhase.indexing,
+      remainingPages: 2,
+    );
+    expect(state.phase, LibraryInkSearchPhase.indexing);
+    expect(state.remainingPages, 2);
+    expect(state.confirmCellularFirst, isFalse);
+    expect(
+      state,
+      const LibraryInkSearchState(
+        phase: LibraryInkSearchPhase.indexing,
+        remainingPages: 2,
+      ),
+    );
+    expect(LibraryInkSearchPhase.values, hasLength(7));
   });
 
   test('LibrarySettingsSection is a const ConsumerWidget', () {

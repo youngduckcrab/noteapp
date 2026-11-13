@@ -5,6 +5,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:note_core/note_core.dart' show FolderId;
 
+import '../integration/ink_search_slot.dart';
 import '../model/section.dart';
 
 class LibrarySectionNotifier extends Notifier<LibrarySection> {
@@ -35,6 +36,9 @@ class LibrarySectionNotifier extends Notifier<LibrarySection> {
     final current = state;
     final returnTo = current is SearchSection ? current.returnTo : current;
     state = SearchSection(q, returnTo: returnTo);
+    // (handwriting search, 6.19a) pages waiting for their quiet time are
+    // recognized now, so fresh handwriting is found sooner.
+    ref.read(libraryInkSearchProvider)?.searchOpened();
   }
 
   /// Back to returnTo (no-op otherwise).
