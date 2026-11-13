@@ -5,7 +5,9 @@
 // shows the new page; below the threshold, after a fling, with the stylus
 // and on a read-only note nothing is added. Vertical scroll and horizontal
 // paged mode. Finger input goes PointerDriver → InputRouter →
-// InteractionHost → ViewportController (pen-only mode, so fingers navigate).
+// InteractionHost → ViewportController (pen-only mode, so fingers navigate;
+// finger-drawing mode: two fingers). A flick or a page-flip swipe that runs
+// past the end (released fast) adds nothing.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/pull_to_add_page_indicator.dart';
@@ -14,7 +16,7 @@ import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:feature_editor/src/viewport/viewport_camera.dart';
 import 'package:feature_editor/src/viewport/viewport_constants.dart';
 import 'package:feature_editor/src/viewport/viewport_controller.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, Velocity;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -22,6 +24,7 @@ import 'package:note_core/note_core.dart' as core;
 import '../helpers/pump_editor.dart';
 
 const _penOnly = EditorSettings(inputMode: InputMode.penOnly);
+const _fingerDrawing = EditorSettings(inputMode: InputMode.fingerDrawing);
 const _paged = EditorSettings(
   inputMode: InputMode.penOnly,
   pageFlipMode: PageFlipMode.horizontalPaged,
@@ -149,7 +152,8 @@ void main() {
           lessThanOrEqualTo(area.bottom),
         );
         expect(tester.getRect(indicator).top, greaterThan(area.center.dy));
-        expect(haptics, isEmpty);
+        // A tick when the threshold was reached; the impact on release.
+        expect(haptics, ['HapticFeedbackType.selectionClick']);
       },
     );
     semantics.dispose();
@@ -157,7 +161,10 @@ void main() {
     await _settle(tester);
 
     expect(_commandCalls(h), ['executeAsync:insert-pages']);
-    expect(haptics, ['HapticFeedbackType.lightImpact']);
+    expect(haptics, [
+      'HapticFeedbackType.selectionClick',
+      'HapticFeedbackType.lightImpact',
+    ]);
     final pages = h.session.pages;
     expect(pages, hasLength(3));
     expect(pages.last.size, pages[1].size);
@@ -303,7 +310,10 @@ void main() {
     await tester.pump();
     await _settle(tester);
     expect(_commandCalls(h), ['executeAsync:insert-pages']);
-    expect(haptics, ['HapticFeedbackType.lightImpact']);
+    expect(haptics, [
+      'HapticFeedbackType.selectionClick',
+      'HapticFeedbackType.lightImpact',
+    ]);
     expect(h.session.pages, hasLength(3));
     expect(h.viewport.currentPageIndex.value, 2);
     final rect = h.viewport.pageRectOnScreen(2);
@@ -326,5 +336,168 @@ void main() {
     await _settle(tester);
     expect(h.session.pages, hasLength(3));
     expect(h.viewport.pageRectOnScreen(2).center.dx, closeTo(centre.dx, 0.5));
+  });
+
+  testWidgets('finger-drawing mode: a two-finger pull (with jitter) adds a '
+      'page; a one-finger drag draws and never pulls', (tester) async {
+    final h = await pumpEditor(tester, pages: 2, settings: _fingerDrawing);
+    await _toEnd(tester, h);
+    final end = h.viewport.camera;
+    h.recorder!.clearCalls();
+    final d = h.driver;
+    final a = _areaCentre(h) - const Offset(60, 0);
+    final b = _areaCentre(h) + const Offset(60, 0);
+    await d.down(11, a);
+    await d.down(12, b);
+    final travel = _travelFor(ViewportConstants.pullToAddThreshold + 30);
+    const steps = 24;
+    for (var i = 1; i <= steps; i++) {
+      await d.wait(const Duration(milliseconds: 16));
+      final dy = -travel * i / steps;
+      // Each finger moves on its own event; the spread wobbles by ±1.5 px.
+      await d.move(11, a + Offset(i.isEven ? 1.5 : -1.5, dy));
+      await d.move(12, b + Offset(i.isEven ? -1 : 1, dy));
+    }
+    await d.wait(const Duration(milliseconds: 120)); // held still
+    expect(h.viewport.pullPhase.value, PullToAddPhase.armed);
+    await d.up(11);
+    await d.up(12);
+    await tester.pump();
+    await _settle(tester);
+    expect(_commandCalls(h), contains('executeAsync:insert-pages'));
+    expect(h.session.pages, hasLength(3));
+
+    // One finger draws here: the camera never pulls.
+    await _toEnd(tester, h);
+    final end2 = h.viewport.camera;
+    expect(end2.origin.dy, greaterThan(end.origin.dy));
+    await _pull(
+      tester,
+      h,
+      Offset(0, -_travelFor(ViewportConstants.pullToAddThreshold + 30)),
+      check: () async {
+        expect(h.viewport.pullPhase.value, PullToAddPhase.idle);
+      },
+    );
+    await _settle(tester);
+    expect(h.session.pages, hasLength(3));
+    expect(h.viewport.camera, end2);
+  });
+
+  testWidgets('a fast swipe from just before the end, lifted without a hold, '
+      'adds nothing', (tester) async {
+    final h = await pumpEditor(tester, pages: 3, settings: _penOnly);
+    await _toEnd(tester, h);
+    final end = h.viewport.camera;
+    h.viewport.panBy(const Offset(0, -150)); // 150 px before the end
+    await _settle(tester);
+    h.recorder!.clearCalls();
+    final from = _areaCentre(h);
+    await h.driver.fingerDrag(
+      from,
+      from - const Offset(0, 500),
+      steps: 8,
+      interval: const Duration(milliseconds: 15),
+    );
+    await tester.pump();
+    await _settle(tester);
+    expect(h.session.pages, hasLength(3));
+    expect(_commandCalls(h), isEmpty);
+    expect(h.viewport.camera, end);
+    expect(h.viewport.pullPhase.value, PullToAddPhase.idle);
+  });
+
+  testWidgets('paged mode: a page-flip swipe on the last page adds nothing', (
+    tester,
+  ) async {
+    final h = await pumpEditor(tester, pages: 2, settings: _paged);
+    await h.viewport.jumpToPage(1, animate: false);
+    await _settle(tester);
+    final centred = h.viewport.camera;
+    h.recorder!.clearCalls();
+    final from = _areaCentre(h) + const Offset(200, 0);
+    await h.driver.fingerDrag(
+      from,
+      from - const Offset(600, 0),
+      steps: 8,
+      interval: const Duration(milliseconds: 15),
+    );
+    await tester.pump();
+    await _settle(tester);
+    expect(h.session.pages, hasLength(2));
+    expect(_commandCalls(h), isEmpty);
+    expect(h.viewport.camera, centred);
+  });
+
+  testWidgets('horizontal: the armed label fits the strip it is in', (
+    tester,
+  ) async {
+    final h = await pumpEditor(tester, pages: 2, settings: _paged);
+    await h.viewport.jumpToPage(1, animate: false);
+    h.viewport.panBy(const Offset(100000, 0));
+    await _settle(tester);
+    await _pull(
+      tester,
+      h,
+      Offset(-_travelFor(ViewportConstants.pullToAddThreshold + 20), 0),
+      check: () async {
+        expect(h.viewport.pullPhase.value, PullToAddPhase.armed);
+        final strip = h.viewport.pullExtent;
+        final label = tester.getRect(find.text(EditorStrings.releaseToAddPage));
+        expect(label.width, lessThanOrEqualTo(strip));
+        final area = tester.getRect(find.byType(PageViewport));
+        expect(label.left, greaterThanOrEqualTo(area.right - strip - 0.5));
+        expect(label.right, lessThanOrEqualTo(area.right + 0.5));
+      },
+    );
+    await tester.pump();
+    await _settle(tester);
+  });
+
+  testWidgets('a short document: the strip sits right after the document '
+      'end, not at the viewport edge', (tester) async {
+    final h = await pumpEditor(tester, pages: 1, settings: _penOnly);
+    final v = h.viewport;
+    v
+      ..beginGesture()
+      ..updateGesture(
+        baselineFocal: v.viewportSize.center(Offset.zero),
+        focal: v.viewportSize.center(Offset.zero),
+        scaleRatio: 0.5,
+        rebased: false,
+      )
+      ..endGesture(Velocity.zero);
+    await _settle(tester);
+    final pageBottom = h.viewportOrigin.dy + v.pageRectOnScreen(0).bottom;
+    final area = tester.getRect(find.byType(PageViewport));
+    expect(pageBottom, lessThan(area.bottom - 100), reason: 'centred, short');
+    await _pull(
+      tester,
+      h,
+      Offset(0, -_travelFor(ViewportConstants.pullToAddThreshold + 30)),
+      check: () async {
+        final strip = tester.getRect(
+          find.byKey(PullToAddPageIndicator.indicatorKey),
+        );
+        // The document end (after the '+ 페이지' room below the page).
+        final docEnd =
+            h.viewportOrigin.dy +
+            (v.layout.contentSize.height - v.camera.origin.dy) * v.camera.scale;
+        expect(
+          docEnd,
+          greaterThan(h.viewportOrigin.dy + v.pageRectOnScreen(0).bottom),
+        );
+        expect(strip.top, greaterThanOrEqualTo(docEnd - 0.5));
+        expect(strip.bottom, lessThanOrEqualTo(docEnd + v.pullExtent + 0.5));
+        expect(
+          strip.bottom,
+          lessThan(area.bottom - 50),
+          reason: 'not at the viewport edge, far from the page',
+        );
+      },
+    );
+    await tester.pump();
+    await _settle(tester);
+    expect(h.session.pages, hasLength(2));
   });
 }

@@ -1816,6 +1816,7 @@ class EditorActionRunner {
 - 동작 이름 문구(해요체 아님 — 명사형 메뉴 문구): 없음 · 되돌리기 · 다시 실행 · 메뉴 열기 · 누르는 동안 지우개 · 누르는 동안 올가미 · 지우개 켜고 끄기 · 이전 도구 · 도구 팔레트 · 색 팔레트 · iPad 설정 따르기.
 - 바꾸면 `editorSettingsProvider.notifier.setGestures(gestures.withAction(g, a))`(1차 setter — 500 ms 디바운스, synced).
 - 시트는 `material_ui` `showModalBottomSheet`(7.4.10). 위젯 키는 부록 C.
+- (고정 제스처에 더함) **당겨서 페이지 추가**: 문서 끝에서 탐색 끌기(펜 전용 = 한 손가락·두 손가락, 손가락 그리기·`auto` = 두 손가락, 트랙패드)를 더 당겨 잠깐 멈췄다 놓으면 '+ 페이지'와 같은 명령으로 페이지를 더한다. 바꿀 수 없고 설정 시트에도 없다. 설계는 1차 계획서 [04-editor 6.11.7](../04-editor.md#6117-당겨서-페이지-추가)(이 문서의 6.11.7과는 다른 절).
 
 ### 6.5 Apple Pencil 부가 이벤트 소비 (M5-9 — P-B)
 

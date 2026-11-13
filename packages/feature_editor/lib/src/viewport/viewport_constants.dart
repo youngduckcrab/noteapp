@@ -17,7 +17,7 @@ abstract final class ViewportConstants {
   static const Duration pageSnapDuration = Duration(milliseconds: 280);
   static const double pageSnapVelocity = 300; // px/s, horizontal paged mode
 
-  // Pull to add a page (6.11.7): a navigation drag held past the document
+  // Pull to add a page (04-editor 6.11.7): a navigation drag held past the document
   // end overscrolls with resistance; released at or past the threshold it
   // adds a page like the last one.
   /// Shown pull = finger travel past the end × this (rubber band).
@@ -29,5 +29,15 @@ abstract final class ViewportConstants {
   /// Shown pull (logical px) from which a release adds a page — about
   /// 2 × 96 = 192 px of finger travel past the end.
   static const double pullToAddThreshold = 96;
+
+  /// A two-finger pan still pulls while its spread changes by at most this
+  /// ratio (|scaleRatio − 1|; finger jitter). Past it the gesture is a pinch
+  /// and stops pulling for the rest of the gesture.
+  static const double pullToAddScaleTolerance = 0.1;
+
+  /// A release adds a page only when the finger moves toward the end at most
+  /// this fast (px/s along the main axis): a held pull, not a flick or a
+  /// page-flip swipe that runs past the end.
+  static const double pullToAddMaxReleaseVelocity = 500;
   static const Duration pullSpringBackDuration = Duration(milliseconds: 220);
 }

@@ -187,7 +187,7 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               const SelectionMenu(),
               const EditorContextMenu(),
               const AddPageButton(),
-              // (6.11.7) the strip a pull past the document end reveals.
+              // (04-editor 6.11.7) the strip a pull past the document end reveals.
               const PullToAddPageIndicator(),
               const PageIndicator(),
               const EyedropperBanner(),

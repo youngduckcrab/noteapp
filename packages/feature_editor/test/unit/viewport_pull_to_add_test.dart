@@ -1,8 +1,10 @@
 // Pull to add a page (04-editor 6.11.7): the rubber band past the document
 // end (CameraMath.pullExtent) and ViewportController's pull state —
 // overscroll only for a gesture that allows it, only past the end on the
-// main axis, never for a pinch or a fling; the release past the threshold
-// is reported once and springs back. Fake time through testWidgets.
+// main axis, never for a pinch or a fling; a held release past the
+// threshold is reported once and holds until the page arrives (or
+// endHeldPull springs it back); a fast release springs back. Fake time
+// through testWidgets.
 import 'dart:async';
 import 'dart:ui' show Offset, Size;
 
@@ -167,20 +169,174 @@ void main() {
       await _settle(tester, c);
     });
 
-    _test('release past the threshold: true once, springs back to the end', (
-      tester,
-    ) async {
+    _test('release past the threshold: true once, holds; endHeldPull '
+        'springs back to the end', (tester) async {
+      final c = _controller();
+      await _toEnd(tester, c);
+      final end = c.camera;
+      _pan(c, Offset(0, -(_threshold / _k + 20)));
+      final held = c.camera;
+      expect(c.endGesture(Velocity.zero), isTrue);
+      expect(c.endGesture(Velocity.zero), isFalse, reason: 'reported once');
+      expect(c.pullPhase.value, PullToAddPhase.released);
+      expect(c.isAnimating, isFalse);
+      await _settle(tester, c);
+      expect(c.camera, held, reason: 'waits for the page');
+      c.endHeldPull(); // the add failed
+      expect(c.pullPhase.value, PullToAddPhase.pulling);
+      await _settle(tester, c);
+      expect(c.camera.origin.dy, closeTo(end.origin.dy, 1e-9));
+      expect(c.pullPhase.value, PullToAddPhase.idle);
+      expect(c.pullExtent, 0);
+      c.endHeldPull(); // no-op now
+      expect(c.isAnimating, isFalse);
+    });
+
+    _test('the page arriving during the hold: the camera stays, the jump to '
+        'the new page goes on forward', (tester) async {
+      final c = _controller();
+      await _toEnd(tester, c);
+      _pan(c, Offset(0, -(_threshold / _k + 20)));
+      expect(c.endGesture(Velocity.zero), isTrue);
+      final held = c.camera;
+      c.updatePages(_pages(4));
+      expect(c.pullPhase.value, PullToAddPhase.idle);
+      expect(c.camera, held, reason: 'inside the longer document now');
+      unawaited(c.jumpToPage(3));
+      var last = c.camera.origin.dy;
+      while (c.isAnimating) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(c.camera.origin.dy, greaterThanOrEqualTo(last - 1e-9));
+        last = c.camera.origin.dy;
+      }
+      expect(c.camera.origin.dy, greaterThan(held.origin.dy));
+      expect(c.currentPageIndex.value, 3);
+      c.endHeldPull(); // the command's completion: no-op
+      expect(c.isAnimating, isFalse);
+      await _settle(tester, c);
+    });
+
+    _test('a fast release past the threshold (a flick, not a hold) springs '
+        'back and adds nothing', (tester) async {
+      final c = _controller();
+      await _toEnd(tester, c);
+      final end = c.camera;
+      _pan(c, Offset(0, -(_threshold / _k + 20)));
+      expect(c.pullPhase.value, PullToAddPhase.armed);
+      expect(
+        c.endGesture(const Velocity(pixelsPerSecond: Offset(0, -3000))),
+        isFalse,
+      );
+      await _settle(tester, c);
+      expect(c.camera, end);
+      expect(c.pullPhase.value, PullToAddPhase.idle);
+      // Slow toward the end, or moving back: still a held release.
+      _pan(c, Offset(0, -(_threshold / _k + 20)));
+      expect(
+        c.endGesture(
+          const Velocity(
+            pixelsPerSecond: Offset(
+              0,
+              -ViewportConstants.pullToAddMaxReleaseVelocity,
+            ),
+          ),
+        ),
+        isTrue,
+      );
+      c.endHeldPull();
+      await _settle(tester, c);
+      _pan(c, Offset(0, -(_threshold / _k + 20)));
+      expect(
+        c.endGesture(const Velocity(pixelsPerSecond: Offset(0, 2000))),
+        isTrue,
+      );
+      c.endHeldPull();
+      await _settle(tester, c);
+    });
+
+    _test('grabbed again while a page add is in flight: no second pull, the '
+        'camera back in bounds', (tester) async {
       final c = _controller();
       await _toEnd(tester, c);
       final end = c.camera;
       _pan(c, Offset(0, -(_threshold / _k + 20)));
       expect(c.endGesture(Velocity.zero), isTrue);
-      expect(c.pullPhase.value, PullToAddPhase.released);
-      expect(c.isAnimating, isTrue);
-      await _settle(tester, c);
-      expect(c.camera.origin.dy, closeTo(end.origin.dy, 1e-9));
+      c.beginGesture(allowPullToAdd: true);
+      expect(c.camera, end);
       expect(c.pullPhase.value, PullToAddPhase.idle);
-      expect(c.pullExtent, 0);
+      c.updateGesture(
+        baselineFocal: _centre,
+        focal: _centre - Offset(0, _threshold / _k + 40),
+        scaleRatio: 1,
+        rebased: false,
+      );
+      expect(c.pullPhase.value, PullToAddPhase.idle);
+      expect(c.camera, end);
+      c.endHeldPull(); // the add's completion mid-drag: no-op
+      expect(c.isAnimating, isFalse);
+      expect(c.endGesture(Velocity.zero), isFalse);
+      await _settle(tester, c);
+    });
+
+    _test('a gesture that may not pull, begun past the end, puts the camera '
+        'back in bounds', (tester) async {
+      final c = _controller();
+      await _toEnd(tester, c);
+      final end = c.camera;
+      _pan(c, const Offset(0, -150));
+      expect(c.endGesture(Velocity.zero), isFalse);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(c.pullExtent, greaterThan(0));
+      c.beginGesture(); // e.g. the note became read-only
+      expect(c.camera, end);
+      expect(c.pullPhase.value, PullToAddPhase.idle);
+      expect(c.endGesture(Velocity.zero), isFalse);
+      await _settle(tester, c);
+      expect(c.camera, end);
+    });
+
+    _test('a programmatic move never fights a held drag', (tester) async {
+      final c = _controller();
+      _pan(c, const Offset(0, -100));
+      final dragged = c.camera;
+      unawaited(c.jumpToPage(2));
+      expect(c.isAnimating, isFalse);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(c.camera, dragged);
+      expect(c.endGesture(Velocity.zero), isFalse);
+      await _settle(tester, c);
+    });
+
+    _test('pullEdge: the document end on screen (short document: above '
+        'the viewport edge)', (tester) async {
+      final c = _controller();
+      await _toEnd(tester, c);
+      expect(c.pullEdge, closeTo(_portrait.height, 1e-6));
+      _pan(c, const Offset(0, -100));
+      expect(c.pullEdge, closeTo(_portrait.height - c.pullExtent, 1e-6));
+      c.cancelGesture();
+      await _settle(tester, c);
+
+      final short = _controller(pages: 1);
+      short
+        ..beginGesture()
+        ..updateGesture(
+          baselineFocal: _centre,
+          focal: _centre,
+          scaleRatio: 0.5,
+          rebased: false,
+        )
+        ..endGesture(Velocity.zero);
+      await _settle(tester, short);
+      final pageBottom =
+          (short.layout.contentSize.height - short.camera.origin.dy) *
+          short.camera.scale;
+      expect(pageBottom, lessThan(_portrait.height - 100));
+      _pan(short, const Offset(0, -300));
+      expect(short.pullPhase.value, isNot(PullToAddPhase.idle));
+      expect(short.pullEdge, closeTo(pageBottom - short.pullExtent, 1e-6));
+      short.cancelGesture();
+      await _settle(tester, short);
     });
 
     _test('release below the threshold: false, springs back', (tester) async {
@@ -267,6 +423,51 @@ void main() {
           scaleRatio: 1.2,
           rebased: false,
         );
+      expect(c.pullPhase.value, PullToAddPhase.idle);
+      expect(c.endGesture(Velocity.zero), isFalse);
+      await _settle(tester, c);
+    });
+
+    _test('two-finger jitter (spread within the tolerance) still pulls; a '
+        'real pinch mid-pull stops it for the gesture', (tester) async {
+      final c = _controller();
+      await _toEnd(tester, c);
+      const tol = ViewportConstants.pullToAddScaleTolerance;
+      c.beginGesture(allowPullToAdd: true);
+      for (final ratio in [1.002, 0.997, 1.0005]) {
+        c.updateGesture(
+          baselineFocal: _centre,
+          focal: _centre - Offset(0, _threshold / _k + 20),
+          scaleRatio: ratio,
+          rebased: false,
+        );
+        expect(c.pullPhase.value, PullToAddPhase.armed, reason: '$ratio');
+      }
+      // Up to the tolerance it is still a pull (the spread moves the
+      // camera a little, as for any two-finger pan).
+      for (final ratio in [1 + tol * 0.9, 1 - tol * 0.9]) {
+        c.updateGesture(
+          baselineFocal: _centre,
+          focal: _centre - Offset(0, _threshold / _k + 20),
+          scaleRatio: ratio,
+          rebased: false,
+        );
+        expect(c.pullPhase.value, isNot(PullToAddPhase.idle), reason: '$ratio');
+      }
+      c.updateGesture(
+        baselineFocal: _centre,
+        focal: _centre - Offset(0, _threshold / _k + 20),
+        scaleRatio: 1 + tol * 2,
+        rebased: false,
+      );
+      expect(c.pullPhase.value, PullToAddPhase.idle);
+      // Back to the old spread: still a pinch gesture, no pull.
+      c.updateGesture(
+        baselineFocal: _centre,
+        focal: _centre - Offset(0, _threshold / _k + 20),
+        scaleRatio: 1,
+        rebased: false,
+      );
       expect(c.pullPhase.value, PullToAddPhase.idle);
       expect(c.endGesture(Velocity.zero), isFalse);
       await _settle(tester, c);
@@ -400,9 +601,20 @@ void main() {
         closeTo(bound.origin.dx + c.pullExtent / end.scale, 1e-9),
       );
       expect(c.endGesture(Velocity.zero), isTrue);
+      c.endHeldPull();
       await _settle(tester, c);
       expect(c.camera, end, reason: 'back to the last page centred');
       expect(c.pullPhase.value, PullToAddPhase.idle);
+
+      // A page-flip swipe on the last page (released fast) adds nothing.
+      _pan(c, Offset(-(slack + _threshold / _k + 60), 0));
+      expect(c.pullPhase.value, PullToAddPhase.armed);
+      expect(
+        c.endGesture(const Velocity(pixelsPerSecond: Offset(-3000, 0))),
+        isFalse,
+      );
+      await _settle(tester, c);
+      expect(c.camera, end);
 
       // The first page: dragging right never pulls.
       await c.jumpToPage(0, animate: false);

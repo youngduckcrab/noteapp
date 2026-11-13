@@ -71,7 +71,7 @@ class ViewportAnchor {
       'ViewportAnchor($pageId, offset: $offsetInPage, zoom: $zoom)';
 }
 
-/// Pull to add a page (6.11.7) — what the trailing indicator shows.
+/// Pull to add a page (04-editor 6.11.7) — what the trailing indicator shows.
 enum PullToAddPhase {
   /// No pull (the camera is within its bounds).
   idle,
@@ -83,7 +83,8 @@ enum PullToAddPhase {
   /// Held at or past the threshold: a release adds a page.
   armed,
 
-  /// Released past the threshold: springing back while the page is added.
+  /// Released past the threshold: the camera holds there while the page is
+  /// added, then moves on to the new page ([updatePages], [endHeldPull]).
   released,
 }
 
@@ -132,10 +133,11 @@ class ViewportController extends ChangeNotifier {
   bool _gestureActive = false;
   ViewportCamera? _gestureBase;
   bool _gestureScaled = false;
+  bool _pullScaled = false; // spread changed past pullToAddScaleTolerance
   Offset? _lastFocal;
   int _gestureStartPage = 0;
 
-  // Pull to add a page (6.11.7).
+  // Pull to add a page (04-editor 6.11.7).
   bool _pullAllowed = false; // this gesture may overscroll past the end
   double _pullRaw = 0; // finger travel past the end (screen px, undamped)
   final ValueNotifier<PullToAddPhase> _pullPhase = ValueNotifier(
@@ -167,7 +169,7 @@ class ViewportController extends ChangeNotifier {
   /// Page containing the viewport centre (nearest if in a gap).
   ValueListenable<int> get currentPageIndex => _currentPageIndex;
 
-  /// Pull to add a page (6.11.7): idle unless a navigation drag is held past
+  /// Pull to add a page (04-editor 6.11.7): idle unless a navigation drag is held past
   /// the document end, or springs back from there.
   ValueListenable<PullToAddPhase> get pullPhase => _pullPhase;
 
@@ -176,6 +178,17 @@ class ViewportController extends ChangeNotifier {
   double get pullExtent {
     if (_pullPhase.value == PullToAddPhase.idle || !_valid) return 0;
     return math.max(0, _overscroll(_camera));
+  }
+
+  /// Screen position (logical px along the main axis, from the viewport's
+  /// top / left) of the document end — where the strip a pull reveals
+  /// starts (after the trailing '+ 페이지' room; above the viewport edge
+  /// when a short document sits centred).
+  double get pullEdge {
+    if (!_valid) return 0;
+    return (_mainOf(_layout.contentSize.bottomRight(Offset.zero)) -
+            _mainOf(_camera.origin)) *
+        _camera.scale;
   }
 
   /// True while a fling, snap or programmatic animation runs.
@@ -250,7 +263,27 @@ class ViewportController extends ChangeNotifier {
     _pages = List.unmodifiable(pages);
     if (sameShape) return;
     _stopAnimation(scheduleSettle: false);
+    // (6.11.7) a held pull ends here: the camera stays where the pull left
+    // it (inside the longer document) so the jump to the new page goes on
+    // forward from there.
+    final held = !_gestureActive && _pullPhase.value == PullToAddPhase.released;
+    if (!_gestureActive && _pullPhase.value != PullToAddPhase.idle) {
+      _pullToken++;
+      _pullRaw = 0;
+      _pullPhase.value = PullToAddPhase.idle;
+    }
     _layout = _computeLayout();
+    if (held && _placed && _valid) {
+      final next = _clamp(_camera);
+      if (next == _camera) {
+        _updateCurrentPage();
+        notifyListeners(); // the layout itself changed
+      } else {
+        _setCamera(next);
+      }
+      _scheduleSettle();
+      return;
+    }
     _relayout(anchor);
   }
 
@@ -329,16 +362,23 @@ class ViewportController extends ChangeNotifier {
     _settleTimer?.cancel();
     _settleTimer = null;
     _gestureActive = true;
-    _pullAllowed = allowPullToAdd;
+    // A page add in flight (released): no second pull until it lands.
+    _pullAllowed =
+        allowPullToAdd && _pullPhase.value != PullToAddPhase.released;
     _pullToken++;
     // Caught during a spring-back: carry on from the shown pull.
     final shown = _valid ? _overscroll(_camera) : 0.0;
-    _pullRaw = allowPullToAdd && shown > 0
+    _pullRaw = _pullAllowed && shown > 0
         ? shown / ViewportConstants.pullToAddResistance
         : 0;
-    if (_pullRaw == 0) _pullPhase.value = PullToAddPhase.idle;
+    if (_pullRaw == 0) {
+      _pullPhase.value = PullToAddPhase.idle;
+      // Not carried on: never left past the end.
+      if (shown > 0) _setCamera(_clamp(_camera));
+    }
     _gestureBase = _baseCamera();
     _gestureScaled = false;
+    _pullScaled = false;
     _lastFocal = null;
     _gestureStartPage = _currentPageIndex.value;
     _isInteracting.value = true;
@@ -365,15 +405,19 @@ class ViewportController extends ChangeNotifier {
       fitScale: _fitScale,
     );
     if (next.scale != base.scale) _gestureScaled = true;
+    // Two fingers never keep an exact spread: only a real pinch stops a pull.
+    if ((scaleRatio - 1).abs() > ViewportConstants.pullToAddScaleTolerance) {
+      _pullScaled = true;
+    }
     _setCamera(
       _pulled(next, base.screenToDoc(baselineFocal) - focal / next.scale),
     );
   }
 
-  /// Pull to add a page (6.11.7): [clamped] moved past the document end by
+  /// Pull to add a page (04-editor 6.11.7): [clamped] moved past the document end by
   /// the rubber-banded travel of [unclamped] beyond it (a pinch never pulls).
   ViewportCamera _pulled(ViewportCamera clamped, Offset unclamped) {
-    final excess = _pullAllowed && !_gestureScaled
+    final excess = _pullAllowed && !_pullScaled
         ? (_mainOf(unclamped) - _mainOf(clamped.origin)) * clamped.scale
         : 0.0;
     if (!(excess > 0)) {
@@ -410,14 +454,11 @@ class ViewportController extends ChangeNotifier {
       (_mainOf(c.origin) - _mainOf(_clamp(c).origin)) * c.scale;
 
   /// Ends a pull: springs back to the bounds (paged mode at fit: the last
-  /// page centred); [released] keeps the armed
-  /// look until the spring-back ends or is interrupted.
-  void _endPull({required bool released}) {
+  /// page centred).
+  void _springBack() {
     _pullRaw = 0;
     _pullAllowed = false;
-    _pullPhase.value = released
-        ? PullToAddPhase.released
-        : PullToAddPhase.pulling;
+    _pullPhase.value = PullToAddPhase.pulling;
     final token = ++_pullToken;
     // Paged mode at fit: back to the last page centred (as a page snap).
     final ViewportCamera target;
@@ -442,16 +483,24 @@ class ViewportController extends ChangeNotifier {
 
   /// Fling / zoom snap / page snap.
   ///
-  /// Held past the document end (6.11.7): springs back instead, and returns
-  /// true when the pull was at or past [ViewportConstants.pullToAddThreshold]
-  /// — the caller then adds the page. A fling never pulls (it stops at the
-  /// bound), so momentum alone never returns true.
+  /// Held past the document end (6.11.7): returns true when the pull was at
+  /// or past [ViewportConstants.pullToAddThreshold] and the finger was held
+  /// (moving toward the end at most
+  /// [ViewportConstants.pullToAddMaxReleaseVelocity]) — the camera then
+  /// holds there ([PullToAddPhase.released]) and the caller adds the page
+  /// and calls [endHeldPull] when done. Otherwise a pull springs back. A
+  /// fling never pulls (it stops at the bound), so momentum alone never
+  /// returns true.
   bool endGesture(Velocity velocity) {
     if (_disposed || !_gestureActive) return false;
     _gestureActive = false;
     _gestureBase = null;
     final pulling = _pullRaw > 0;
-    final armed = pulling && _pullPhase.value == PullToAddPhase.armed;
+    final towardEnd = -_mainOf(velocity.pixelsPerSecond);
+    final armed =
+        pulling &&
+        _pullPhase.value == PullToAddPhase.armed &&
+        towardEnd <= ViewportConstants.pullToAddMaxReleaseVelocity;
     _pullAllowed = false;
     if (!_valid) {
       _pullRaw = 0;
@@ -459,9 +508,16 @@ class ViewportController extends ChangeNotifier {
       _scheduleSettle();
       return false;
     }
+    if (armed) {
+      _pullRaw = 0;
+      _pullToken++;
+      _pullPhase.value = PullToAddPhase.released;
+      _scheduleSettle();
+      return true;
+    }
     if (pulling) {
-      _endPull(released: armed);
-      return armed;
+      _springBack();
+      return false;
     }
     if (_axis == LayoutAxis.horizontal && zoom <= _pagedSnapMaxZoom) {
       _pageSnap(velocity);
@@ -495,7 +551,7 @@ class ViewportController extends ChangeNotifier {
     _gestureActive = false;
     _gestureBase = null;
     if (_pullRaw > 0 && _valid) {
-      _endPull(released: false);
+      _springBack();
       return;
     }
     _pullRaw = 0;
@@ -505,6 +561,19 @@ class ViewportController extends ChangeNotifier {
       return;
     }
     _scheduleSettle();
+  }
+
+  /// After a release that [endGesture] reported (6.11.7): springs back if
+  /// the camera still holds past the end — the add failed or never ran.
+  /// No-op once the new page arrived ([updatePages]) or a gesture took over.
+  void endHeldPull() {
+    if (_disposed || _gestureActive) return;
+    if (_pullPhase.value != PullToAddPhase.released) return;
+    if (!_valid) {
+      _pullPhase.value = PullToAddPhase.idle;
+      return;
+    }
+    _springBack();
   }
 
   /// Scrolls by [screenDelta] in the direction of a wheel delta
@@ -560,7 +629,9 @@ class ViewportController extends ChangeNotifier {
     Duration duration = ViewportConstants.jumpDuration,
     Curve curve = Curves.easeOutCubic,
   }) {
-    if (_disposed || !_valid) return Future<void>.value();
+    // A held navigation drag wins over a programmatic move (e.g. the jump
+    // after a page add landing mid-drag).
+    if (_disposed || !_valid || _gestureActive) return Future<void>.value();
     _stopAnimation(scheduleSettle: false);
     final to = _clamp(target);
     if (to == _camera) {

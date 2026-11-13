@@ -937,25 +937,45 @@ class InteractionHost implements InputTargets {
   @override
   void navigationStart() {
     closeContextMenu();
-    // (6.11.7) a pan held past the document end may pull to add a page.
+    // (04-editor 6.11.7) a pan held past the document end may pull to add a page.
     _viewport.beginGesture(allowPullToAdd: !_ref.read(editorReadOnlyProvider));
   }
 
   @override
-  void navigationUpdate(NavigationUpdate update) => _viewport.updateGesture(
-    baselineFocal: update.baselineFocal,
-    focal: update.focal,
-    scaleRatio: update.scaleRatio,
-    rebased: update.rebased,
-  );
+  void navigationUpdate(NavigationUpdate update) {
+    final before = _viewport.pullPhase.value;
+    _viewport.updateGesture(
+      baselineFocal: update.baselineFocal,
+      focal: update.focal,
+      scaleRatio: update.scaleRatio,
+      rebased: update.rebased,
+    );
+    // (6.11.7) a tick when the pull reaches the threshold.
+    if (before != PullToAddPhase.armed &&
+        _viewport.pullPhase.value == PullToAddPhase.armed) {
+      unawaited(HapticFeedback.selectionClick());
+    }
+  }
 
   @override
   void navigationEnd(Velocity velocity) {
     // (6.11.7) released past the threshold: the '+ 페이지' command.
     if (!_viewport.endGesture(velocity)) return;
-    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    if (_disposed || _ref.read(editorReadOnlyProvider)) {
+      _viewport.endHeldPull();
+      return;
+    }
     unawaited(HapticFeedback.lightImpact());
-    unawaited(_commands.addPageAtEndLikeLast());
+    unawaited(_addPulledPage());
+  }
+
+  Future<void> _addPulledPage() async {
+    try {
+      await _commands.addPageAtEndLikeLast();
+    } finally {
+      // Springs back unless the new page arrived (then a no-op).
+      if (!_disposed) _viewport.endHeldPull();
+    }
   }
 
   @override

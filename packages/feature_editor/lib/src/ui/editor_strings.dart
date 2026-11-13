@@ -449,7 +449,7 @@ abstract final class EditorStrings {
   /// The document-end button.
   static const addPageAtEnd = '+ 페이지';
 
-  /// Pull to add a page (6.11.7): shown while a pull past the document end
+  /// Pull to add a page (04-editor 6.11.7): shown while a pull past the document end
   /// is short of the threshold / from the threshold on.
   static const pullToAddPage = '당겨서 페이지 추가';
   static const releaseToAddPage = '놓으면 페이지 추가';

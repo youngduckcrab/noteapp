@@ -138,7 +138,7 @@ abstract final class CameraMath {
     );
   }
 
-  /// Pull to add a page (6.11.7): the shown overscroll (logical px) for a
+  /// Pull to add a page (04-editor 6.11.7): the shown overscroll (logical px) for a
   /// finger travel of [excess] px past the document end — damped by
   /// [ViewportConstants.pullToAddResistance], capped at
   /// [ViewportConstants.pullToAddMaxExtent]; 0 for no travel past the end.

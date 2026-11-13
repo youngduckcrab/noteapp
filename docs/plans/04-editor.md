@@ -1182,6 +1182,8 @@ abstract final class ViewportConstants {
   static const double pullToAddResistance = 0.5; // 보이는 당김 = 끝 너머 손가락 이동 × 0.5
   static const double pullToAddMaxExtent = 160; // logical px, 보이는 당김 상한
   static const double pullToAddThreshold = 96; // logical px, 이만큼 당긴 채 놓으면 추가(손가락 약 192 px)
+  static const double pullToAddScaleTolerance = 0.1; // |scaleRatio − 1| 이하면 두 손가락 이동(흔들림)으로 보고 계속 당김
+  static const double pullToAddMaxReleaseVelocity = 500; // px/s, 놓는 순간 끝 쪽 속도가 이 이하일 때만 추가(멈춰 잡은 당김)
   static const Duration pullSpringBackDuration = Duration(milliseconds: 220);
 }
 ```
@@ -2650,29 +2652,42 @@ Future<void> revealPageRect(int index, {Rect? focusRectPt, bool animate = true})
 
 #### 6.11.7 당겨서 페이지 추가
 
-문서 끝에서 '+ 페이지' 버튼(6.11.4)을 누르지 않고 계속 끌어도 페이지를 더한다(사용자 요청 — "아래로 드래그해도 생겨야 해").
+문서 끝에서 '+ 페이지' 버튼(6.11.4)을 누르지 않고 계속 끌어도 페이지를 더한다(사용자 요청 — "아래로 드래그해도 생겨야 해"). 번호는 이 문서(04-editor) 기준이다 — m5-7/04-editor의 6.11.7(키보드 · 되돌리기와의 관계)과는 다른 절이다.
 
 ```dart
 // src/viewport/viewport_controller.dart (addition to 6.3.4)
 enum PullToAddPhase { idle, pulling, armed, released }
 ValueListenable<PullToAddPhase> get pullPhase;
 double get pullExtent; // 끝 너머로 보이는 당김(logical px), idle이면 0
+double get pullEdge;   // 문서 끝의 화면 위치(주축, 띠가 시작하는 곳)
 /// allowPullToAdd: 이 제스처가 끝 너머로 당길 수 있음(편집 가능한 노트의 탐색 끌기만).
 void beginGesture({bool allowPullToAdd = false});
-/// 끝 너머로 당긴 채 끝나면 되튐; 문턱 이상이었으면 true(호출자가 페이지 추가).
+/// 문턱 이상에서 '멈춰 잡은 채' 놓으면 true(카메라는 released로 그 자리에 머묾 — 호출자가 페이지 추가 뒤 endHeldPull).
 bool endGesture(Velocity velocity);
+/// released로 머문 카메라를 되튀게 함(추가 실패·미실행). 새 페이지가 이미 들어왔거나 제스처 중이면 아무것도 안 함.
+void endHeldPull();
 // src/viewport/viewport_camera.dart
 static double pullExtent(double excess); // min(excess × 0.5, 160), excess ≤ 0 → 0
 ```
 
-- **누가 당기나**: 탐색 제스처(손가락 끌기, 두 손가락 이동, 트랙패드 이동 — `InputRouter` → `navigationStart/Update/End`)만. 스타일러스 획·올가미·선택 이동은 탐색이 아니라서 당기지 않는다. 마우스 휠(`panBy`)도 '놓기'가 없으므로 당기지 않는다. `InteractionHost.navigationStart`가 `beginGesture(allowPullToAdd: !readOnly)`로 부르므로 읽기 전용 노트는 1차와 같이 끝에서 멈춘다.
-- **언제**: 제스처의 '자르지 않은 카메라'(`base.screenToDoc(baselineFocal) − focal / scale`)가 주축에서 자른 카메라(`CameraMath.clamp`)보다 끝 쪽으로 넘칠 때만. 세로 = 마지막 페이지 아래 여백 끝, 가로(넘기기 모드) = 내용 오른쪽 끝(가운데 놓인 마지막 페이지 뒤 '+ 페이지' 자리를 지나서). 확대 상태도 같은 규칙이라 주축 끝에 실제로 닿았을 때만 당겨진다(가로로만 움직이면 안 당겨짐). 문서 앞쪽(위·왼쪽)은 당기지 않는다. 핀치로 배율이 한 번이라도 바뀐 제스처는 그 뒤 당기지 않는다(`_gestureScaled`).
-- **고무줄**: 넘친 손가락 이동 `excess`(화면 px)에 대해 보이는 당김 = `min(excess × 0.5, 160)`. 카메라를 그만큼 끝 너머로 둔다. 두 번째 손가락이 들어와 기준이 바뀌어도(rebased) 덜 감쇠된 원래 이동을 기준 카메라에 실어 끊기지 않는다. 되튀는 중에 다시 잡으면 보이는 당김에서 이어 간다.
-- **표시** `PullToAddPageIndicator`(`ui/overlays/pull_to_add_page_indicator.dart`, 키 `editor.pullToAddPage`): 당겨서 드러난 띠(세로 = 페이지 영역 아래, 가로 = 오른쪽, 두께 = `pullExtent`)에 진행 원 + 아이콘 + 글자. 96 px 미만 `pulling` = "당겨서 페이지 추가"(`onSurfaceVariant`, ↑/←), 이상 `armed` = "놓으면 페이지 추가"(`primary`, +). 불투명도 = `pullExtent / 96`. `Semantics(liveRegion, label)`로 읽어 준다. 읽기 전용이면 만들지 않는다.
-- **놓기**: `armed`에서 놓으면 `endGesture`가 true → 호스트가 `HapticFeedback.lightImpact()` + `commands.addPageAtEndLikeLast()`(버튼과 같은 명령 — 마지막 페이지와 같은 크기·배경, 되돌리기 1단계, 추가 뒤 `jumpToPage(새 페이지)` = 세로는 새 페이지 위쪽, 가로는 새 페이지 가운데). 카메라는 그동안 220 ms 동안 끝으로 되튀고(`released` — 글자는 "놓으면 …" 유지), 페이지가 들어오면 `updatePages`가 되튐을 멈추고 새 레이아웃으로 자른 뒤 `jumpToPage`가 이어 간다. 문턱 미만이거나 제스처가 취소되면 추가 없이 되튀기만 한다(가로 넘기기 모드 fit 상태는 마지막 페이지 가운데로).
-- **관성**: 끝 너머 당김 중에 손을 떼면 놓은 속도와 상관없이 관성 스크롤 없이 되튄다. 관성 스크롤(`_FlingAnimation`)은 1차대로 경계에서 멈추므로 관성만으로는 절대 당겨지지 않는다 — 끝까지 끌어 문턱 너머에서 놓아야만 추가.
-- `settleNow`(도구 상호작용 시작)가 되튐을 끊으면 카메라를 바로 경계 안으로 되돌린다.
-- 테스트: `unit/viewport_pull_to_add_test.dart`(감쇠·상한, 문턱 판정, 끝 아님·시작·핀치·관성·`allowPullToAdd: false`는 안 당김, 확대 상태, 기준 변경·되튐 중 다시 잡기, 가로), `widget/pull_to_add_page_test.dart`(문턱 너머 → 1장·같은 배경·햅틱·새 페이지 보임·되돌리기 1번, 문턱 미만 → 되튐, 끝에서 끝나는 관성 → 없음, 스타일러스 → 없음, 읽기 전용 → 없음, 가로 넘기기 모드).
+- **누가 당기나**: 탐색 제스처(`InputRouter` → `navigationStart/Update/End`)만. 입력 모드(6.5.3)별로:
+
+  | 입력 모드 | 당기는 손 |
+  |---|---|
+  | `penOnly` | 한 손가락 끌기, 두 손가락 이동, 트랙패드 이동 |
+  | `fingerDrawing`, `auto`(스타일러스를 아직 못 봄) | 두 손가락 이동, 트랙패드 이동 — 한 손가락은 그리기라 당기지 않는다 |
+  | 스타일러스 | 당기지 않음(획·올가미·선택 이동은 탐색이 아님) |
+
+  마우스 휠(`panBy`)도 '놓기'가 없으므로 당기지 않는다. `InteractionHost.navigationStart`가 `beginGesture(allowPullToAdd: !readOnly)`로 부르므로 읽기 전용 노트는 1차와 같이 끝에서 멈춘다. 어느 모드든 '+ 페이지' 버튼은 그대로 있다.
+- **언제**: 제스처의 '자르지 않은 카메라'(`base.screenToDoc(baselineFocal) − focal / scale`)가 주축에서 자른 카메라(`CameraMath.clamp`)보다 끝 쪽으로 넘칠 때만. 세로 = 마지막 페이지 아래 여백('+ 페이지' 자리) 끝, 가로(넘기기 모드) = 내용 오른쪽 끝(가운데 놓인 마지막 페이지 뒤 '+ 페이지' 자리를 지나서). 확대 상태도 같은 규칙이라 주축 끝에 실제로 닿았을 때만 당겨진다(가로로만 움직이면 안 당겨짐). 문서 앞쪽(위·왼쪽)은 당기지 않는다.
+- **두 손가락과 핀치**: 두 손가락은 간격이 늘 조금씩 흔들리므로 `|scaleRatio − 1| ≤ 0.1`(`pullToAddScaleTolerance`)이면 이동으로 보고 계속 당긴다. 그보다 벌리거나 오므린 제스처는 핀치라 그 제스처가 끝날 때까지 당기지 않는다(`_pullScaled`).
+- **고무줄**: 넘친 손가락 이동 `excess`(화면 px)에 대해 보이는 당김 = `min(excess × 0.5, 160)`. 카메라를 그만큼 끝 너머로 둔다. 두 번째 손가락이 들어와 기준이 바뀌어도(rebased) 덜 감쇠된 원래 이동을 기준 카메라에 실어 끊기지 않는다. 되튀는 중에 다시 잡으면 보이는 당김에서 이어 간다. 당길 수 없는 제스처가 끝 너머에서 시작되면 카메라를 바로 경계 안으로 둔다.
+- **표시** `PullToAddPageIndicator`(`ui/overlays/pull_to_add_page_indicator.dart`, 키 `editor.pullToAddPage`): 당겨서 드러난 띠(문서 끝 `pullEdge`부터 두께 `pullExtent` — 보통은 페이지 영역 아래/오른쪽 가장자리, 짧은 문서는 가운데 놓인 문서 바로 뒤)에 진행 원 + 아이콘 + 글자. 96 px 미만 `pulling` = "당겨서 페이지 추가"(`onSurfaceVariant`, ↑/←), 이상 `armed` = "놓으면 페이지 추가"(`primary`, +). 가로에서는 글자를 띠 너비에 맞춰 줄바꿈한다(잘리지 않음). 불투명도 = `pullExtent / 96`. `Semantics(liveRegion, label)`로 읽어 준다. 문턱에 닿는 순간 `HapticFeedback.selectionClick()`. 읽기 전용이면 만들지 않는다.
+- **놓기**: `armed`에서 손을 멈춘 채 놓으면(놓는 순간 끝 쪽 속도 ≤ 500 px/s, `pullToAddMaxReleaseVelocity`) `endGesture`가 true → 호스트가 `HapticFeedback.lightImpact()` + `commands.addPageAtEndLikeLast()`(버튼과 같은 명령 — 마지막 페이지와 같은 크기·배경, 되돌리기 1단계, 추가 뒤 `jumpToPage(새 페이지)` = 세로는 새 페이지 위쪽, 가로는 새 페이지 가운데). 그동안 카메라는 되튀지 않고 당긴 자리에 머문다(`released` — 글자는 "놓으면 …" 유지). 페이지가 들어오면 `updatePages`가 그 자리(이제 더 길어진 문서 안)를 그대로 두고, `jumpToPage`가 거기서 앞으로 새 페이지까지 이어 간다(뒤로 되튀었다 다시 나아가지 않음). 명령이 끝났는데 페이지가 안 들어왔으면(실패) 호스트가 `endHeldPull()`로 되튀게 한다. 문턱 미만, 빠르게 튕기며 놓음, 취소는 추가 없이 220 ms 동안 되튀기만 한다(가로 넘기기 모드 fit 상태는 마지막 페이지 가운데로).
+- **관성·빠른 쓸기**: 끝 너머 당김 중에 손을 떼면 관성 스크롤 없이 되튄다. 관성 스크롤(`_FlingAnimation`)은 1차대로 경계에서 멈추므로 관성만으로는 절대 당겨지지 않는다. 끝 근처에서 시작한 빠른 쓸기나, 넘기기 모드 마지막 페이지에서 '다음 페이지' 쓸기처럼 손가락이 움직이는 채로 떼면 문턱을 넘었어도 추가하지 않는다 — 끝까지 끌어 문턱 너머에서 잠깐 멈췄다 놓아야만 추가.
+- **겹침 방지**: 추가가 진행 중(`released`)일 때 다시 잡으면 그 제스처는 당기지 않고 카메라를 경계 안으로 둔다(두 번째 페이지가 생기지 않음). 탐색 제스처 중에는 `animateTo`(추가 뒤 `jumpToPage` 포함)가 아무것도 하지 않는다 — 손가락이 이긴다.
+- `settleNow`(도구 상호작용 시작)가 되튐·머묾을 끊으면 카메라를 바로 경계 안으로 되돌린다.
+- 테스트: `unit/viewport_pull_to_add_test.dart`(감쇠·상한, 문턱 판정, 놓은 뒤 머묾·`endHeldPull`·페이지 도착 뒤 앞으로 이동, 빠른 놓음, 끝 아님·시작·핀치·관성·`allowPullToAdd: false`는 안 당김, 두 손가락 흔들림 허용, 확대 상태, 기준 변경·되튐 중 다시 잡기, 추가 중 다시 잡기, 끝 너머에서 시작한 당길 수 없는 제스처, 제스처 중 `jumpToPage`, `pullEdge`, 가로·넘기기 쓸기), `widget/pull_to_add_page_test.dart`(문턱 너머 → 1장·같은 배경·햅틱 2번·새 페이지 보임·되돌리기 1번, 문턱 미만 → 되튐, 끝에서 끝나는 관성 → 없음, 끝 앞에서 시작한 빠른 쓸기 → 없음, 스타일러스 → 없음, 읽기 전용 → 없음, `fingerDrawing` 두 손가락 → 추가·한 손가락 → 안 당김, 가로 넘기기 모드·넘기기 쓸기 → 없음, 가로 글자 안 잘림, 짧은 문서 띠 위치).
 
 ### 6.12 개발자 표시
 

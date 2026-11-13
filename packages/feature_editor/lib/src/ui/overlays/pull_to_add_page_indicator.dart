@@ -1,5 +1,7 @@
 // lib/src/ui/overlays/pull_to_add_page_indicator.dart — 04-editor 6.11.7
 // (당겨서 페이지 추가).
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -12,8 +14,10 @@ import '../editor_strings.dart';
 /// The strip a pull past the document end reveals (bottom edge of the page
 /// area; right edge in the horizontal layout): '당겨서 페이지 추가' while
 /// short of the threshold, '놓으면 페이지 추가' from it on (and while it
-/// springs back after such a release). Fades in with the pull. Never takes
-/// input; hidden on a read-only note (no pull happens there either).
+/// holds after such a release while the page is added). Starts at the
+/// document end (a short document: not the viewport edge). Fades in with
+/// the pull. Never takes input; hidden on a read-only note (no pull happens
+/// there either).
 class PullToAddPageIndicator extends ConsumerWidget {
   const PullToAddPageIndicator({super.key});
 
@@ -40,6 +44,8 @@ class PullToAddPageIndicator extends ConsumerWidget {
             armed: armed,
             vertical: vertical,
             progress: progress,
+            // Horizontal: the label wraps to the strip so it is not clipped.
+            width: math.max(extent - 8, _minContentWidth),
           );
           final strip = ClipRect(
             child: OverflowBox(
@@ -50,13 +56,16 @@ class PullToAddPageIndicator extends ConsumerWidget {
               ),
             ),
           );
+          // Starts at the document end (the viewport edge unless a short
+          // document sits centred).
+          final edge = viewport.pullEdge;
           return Stack(
             children: [
               if (vertical)
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: 0,
+                  top: edge,
                   height: extent,
                   child: strip,
                 )
@@ -64,7 +73,7 @@ class PullToAddPageIndicator extends ConsumerWidget {
                 Positioned(
                   top: 0,
                   bottom: 0,
-                  right: 0,
+                  left: edge,
                   width: extent,
                   child: strip,
                 ),
@@ -76,16 +85,21 @@ class PullToAddPageIndicator extends ConsumerWidget {
   }
 }
 
+/// Narrowest horizontal content (a short pull shows the icon, faded).
+const double _minContentWidth = 56;
+
 class _Content extends StatelessWidget {
   const _Content({
     required this.armed,
     required this.vertical,
     required this.progress,
+    required this.width,
   });
 
   final bool armed;
   final bool vertical;
   final double progress;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +147,7 @@ class _Content extends StatelessWidget {
                 children: [icon, const SizedBox(width: 8), text],
               )
             : SizedBox(
-                width: ViewportConstants.pullToAddMaxExtent - 16,
+                width: width,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [icon, const SizedBox(height: 8), text],
