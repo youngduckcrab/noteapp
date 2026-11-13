@@ -64,6 +64,7 @@ import '../viewport/viewport_controller.dart';
 import 'erase_interaction.dart';
 import 'eyedropper_interaction.dart';
 import 'lasso_interaction.dart';
+import 'math_pen/math_pen_controller.dart';
 import 'object_edit_interaction.dart';
 import 'pen_interaction.dart';
 import 'selection.dart';
@@ -259,7 +260,9 @@ class InteractionHost implements InputTargets {
     // (v2, 6.3.6 4) a pen button / eraser tip at contact → a temporary tool
     // for this contact only; ToolState does not change (6.2.3).
     final temporary = _temporaryToolFor(gesture);
-    final tool = temporary ?? tools.activeTool;
+    // (math pen) without EditorExtensions.mathPen a stored math tool acts as
+    // the pen.
+    final tool = _effective(temporary ?? tools.activeTool);
     // ③ (v2 6.3.6 5 — selection priority (a′), 6.6.2) a handle → the
     // selection's handle drag whatever the tool; the body → a move with the
     // lasso tool or a lasso / paste / insert selection, else the selection
@@ -343,6 +346,36 @@ class InteractionHost implements InputTargets {
               ? _recordShapeSample
               : null,
         );
+      case EditorTool.math:
+        // (math pen, phase 1 — design note 3, 7) a ballpoint stroke in the
+        // ballpoint style; the controller commits it (join / reopen / new
+        // group). No shape assist, no recording meta change.
+        _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
+        final mathPen = _ref.read(editorMathPenProvider)..contactStarted();
+        final reopen = mathPen.reopenTargetAt(hit.pageId, hit.pagePoint);
+        final style = tools.penStyles[core.PenTool.ballpoint]!;
+        interaction = PenInteraction.start(
+          down: sample,
+          source: source,
+          controller: mount.controller,
+          pageIndex: hit.index,
+          viewport: _viewport,
+          style: style,
+          commands: _commands,
+          onCommitted: _onStrokeCommitted,
+          meta: RecordingLink.metaFor(
+            _ref.read(core.audioRecorderServiceProvider),
+            _session.noteId,
+            style.tool,
+          ),
+          commit: (controller, edit) => mathPen.commitStroke(
+            controller,
+            edit,
+            pageId: hit.pageId,
+            reopen: reopen,
+          ),
+          onFinished: mathPen.contactEnded,
+        );
       case EditorTool.eraser:
         _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
         final eraser = tools.eraser;
@@ -412,6 +445,32 @@ class InteractionHost implements InputTargets {
     }
     _lastStarted = interaction;
     return interaction;
+  }
+
+  /// (math pen) [tool], or the pen for the math tool without
+  /// EditorExtensions.mathPen.
+  EditorTool _effective(EditorTool tool) =>
+      tool == EditorTool.math && !_ref.read(editorMathPenProvider).enabled
+      ? EditorTool.pen
+      : tool;
+
+  /// (math pen, design note 8) With the math pen, a formula under [screen]
+  /// opens its menu (a finger tap, or a pen dot inside its frame). Not on a
+  /// read-only note.
+  bool _openFormulaMenuAt(Offset screen) {
+    if (_ref.read(editorToolProvider).activeTool != EditorTool.math ||
+        _ref.read(editorReadOnlyProvider)) {
+      return false;
+    }
+    final mathPen = _ref.read(editorMathPenProvider);
+    if (!mathPen.enabled) return false;
+    final hit = _viewport.hitPage(screen);
+    if (hit == null) return false;
+    final math = mathPen.mathAtPoint(hit.pageId, hit.pagePoint);
+    if (math == null) return false;
+    _ref.read(editorSelectionProvider.notifier).clear();
+    mathPen.openFormulaMenu(math);
+    return true;
   }
 
   /// The temporary tool of a gesture at contact (6.3.3): eraserWhileHeld →
@@ -750,6 +809,8 @@ class InteractionHost implements InputTargets {
   }) {
     if (_disposed) return false;
     if (_toggleTapeAt(sample.position)) return true;
+    // (math pen) ④m a dot inside a formula's frame → its menu.
+    if (_openFormulaMenuAt(sample.position)) return true;
     return _tapToSeek(
       sample.position,
       source == InteractionSource.finger ? TapKind.finger : TapKind.penDot,
@@ -907,10 +968,15 @@ class InteractionHost implements InputTargets {
           closeContextMenu();
         } else if (_ref.read(editorPopupProvider) != null) {
           _ref.read(editorPopupProvider.notifier).close();
+        } else if (_ref.read(editorMathPenProvider).formulaMenu != null) {
+          // (math pen) an open formula menu closes.
+          _ref.read(editorMathPenProvider).closeFormulaMenu();
         } else if (_toggleTapeAt(centroid)) {
           // ② (v2, E2-14) a memorization tape revealed / covered.
         } else if (_tapToSeek(centroid, TapKind.finger)) {
           // ③ taken: the selection stays.
+        } else if (_openFormulaMenuAt(centroid)) {
+          // ④m (math pen) the formula's menu.
         } else if (_tapSelectObject(centroid)) {
           // ④ (v2) the object under the tap is the selection now.
         } else if (_editTextBoxAt(centroid)) {
@@ -983,9 +1049,15 @@ class InteractionHost implements InputTargets {
     if (tools.eyedropperActive) {
       next = null;
     } else {
-      switch (tools.activeTool) {
+      switch (_effective(tools.activeTool)) {
         case EditorTool.pen when sample.kind != PointerDeviceKind.mouse:
           next = _penDot(tools.currentPen, sample.position, scale);
+        case EditorTool.math when sample.kind != PointerDeviceKind.mouse:
+          next = _penDot(
+            tools.penStyles[core.PenTool.ballpoint]!,
+            sample.position,
+            scale,
+          );
         // (v2, E2-18 — 6.5.3) on the native iPad the pencil hover is a mouse
         // hover; the pen dot comes from the hover pose there, so a mouse
         // hover leaves it alone.
@@ -998,6 +1070,7 @@ class InteractionHost implements InputTargets {
             diameter: tools.eraser.diameter * scale,
           );
         case EditorTool.pen:
+        case EditorTool.math:
         case EditorTool.lasso:
         case EditorTool.shape:
         case EditorTool.text:

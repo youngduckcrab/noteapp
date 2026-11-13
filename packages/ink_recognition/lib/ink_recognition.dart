@@ -17,6 +17,13 @@ export 'src/indexer/handwriting_indexer.dart' show HandwritingIndexer;
 export 'src/indexer/indexer_status.dart'
     show HandwritingIndexerStatus, HandwritingIndexerPhase;
 export 'src/lines/group_into_lines.dart' show groupIntoLines;
+// (math pen, phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 11.1)
+export 'src/math_pen/math_pen.dart'
+    show
+        RecognitionMathPen,
+        RecognitionMathPenContext,
+        RecognitionMathPenSession,
+        recognitionMathPen;
 export 'src/model/candidates.dart' show TextCandidate, RecognitionModelState;
 export 'src/model/failures.dart'
     show

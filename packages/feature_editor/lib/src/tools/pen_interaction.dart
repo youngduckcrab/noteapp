@@ -58,6 +58,8 @@ final class PenInteraction extends ToolInteraction {
     required this._onCommitted,
     this._onSample,
     this._points,
+    this._commit,
+    this._onFinished,
   }) : _last = start;
 
   /// Starts the stroke at [down]. The caller has already settled the
@@ -74,6 +76,11 @@ final class PenInteraction extends ToolInteraction {
     ink.InkStrokeMeta meta = const ink.InkStrokeMeta(),
     ink.ShapeAssist shapeAssist = ink.ShapeAssist.off,
     ShapeSampleSink? onSample,
+    // (math pen) commits the edit instead of EditorCommands.commitInkEdit;
+    // returns whether it was committed.
+    bool Function(ink.InkPageController controller, ink.InkEdit edit)? commit,
+    // (math pen) after the end (committed or not) and after a cancel.
+    void Function()? onFinished,
   }) {
     final viewScale = viewport.camera.scale;
     final first = toInkSample(viewport, pageIndex, down.event);
@@ -98,6 +105,8 @@ final class PenInteraction extends ToolInteraction {
       onCommitted: onCommitted,
       onSample: onSample,
       points: onSample == null ? null : [first.position],
+      commit: commit,
+      onFinished: onFinished,
     );
   }
 
@@ -115,6 +124,9 @@ final class PenInteraction extends ToolInteraction {
   final ink.StrokeSession _session;
   final void Function(core.StrokeStyle style) _onCommitted;
   final ShapeSampleSink? _onSample;
+  final bool Function(ink.InkPageController controller, ink.InkEdit edit)?
+  _commit;
+  final void Function()? _onFinished;
 
   /// (E2-20) The session's page-pt input points (null: not collecting).
   final List<Offset>? _points;
@@ -155,8 +167,14 @@ final class PenInteraction extends ToolInteraction {
       points.add(last.position);
       _onSample?.call(List.unmodifiable(points), viewScale, edit);
     }
-    if (edit == null) return;
-    if (_commands.commitInkEdit(controller, edit)) _onCommitted(style);
+    if (edit != null) {
+      final commit = _commit;
+      final committed = commit != null
+          ? commit(controller, edit)
+          : _commands.commitInkEdit(controller, edit);
+      if (committed) _onCommitted(style);
+    }
+    _onFinished?.call();
   }
 
   @override
@@ -164,5 +182,6 @@ final class PenInteraction extends ToolInteraction {
     if (_done) return;
     _done = true;
     _session.cancel();
+    _onFinished?.call();
   }
 }

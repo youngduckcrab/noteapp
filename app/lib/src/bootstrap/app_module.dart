@@ -6,6 +6,7 @@ import 'package:feature_editor/feature_editor.dart'
     show
         DevOverlaySection,
         EditorInsertMenuItem,
+        EditorMathPen,
         EditorPanelBuilder,
         EditorSelectionMenuItem;
 import 'package:flutter/foundation.dart';
@@ -89,6 +90,7 @@ final class ShellContribution {
     this.selectionMenuItems = const [],
     this.insertMenuItems = const [],
     this.recordingPanel,
+    this.mathPen,
     this.devOverlaySections = const [],
     this.settingsSections = const [],
   });
@@ -97,6 +99,9 @@ final class ShellContribution {
   final List<EditorSelectionMenuItem> selectionMenuItems;
   final List<EditorInsertMenuItem> insertMenuItems;
   final EditorPanelBuilder? recordingPanel;
+
+  /// (math pen, phase 1) recog's 수식 펜 (RecognitionModule).
+  final EditorMathPen? mathPen;
   // (v2.1, D2-15) no imageImporter: image import is wired by
   // FeatureWiringModule itself, outside FEATURE_MEDIA and independent of
   // MediaModule's start.
@@ -107,13 +112,15 @@ final class ShellContribution {
   bool get hasEditorItems =>
       selectionMenuItems.isNotEmpty ||
       insertMenuItems.isNotEmpty ||
-      recordingPanel != null;
+      recordingPanel != null ||
+      mathPen != null;
 
   @override
   String toString() =>
       'ShellContribution($moduleId: ${selectionMenuItems.length} selection, '
       '${insertMenuItems.length} insert, '
       'panel ${recordingPanel == null ? 'no' : 'yes'}, '
+      'math pen ${mathPen == null ? 'no' : 'yes'}, '
       '${devOverlaySections.length} dev, ${settingsSections.length} settings)';
 }
 

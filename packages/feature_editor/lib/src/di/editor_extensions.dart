@@ -12,7 +12,7 @@
 // editor shows the new slots from the concurrent stage on (selection items
 // E2-07c, insert items E2-12, recording panel E2-16).
 import 'package:collection/collection.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show Listenable, ValueListenable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -94,6 +94,7 @@ class EditorExtensions {
     this.selectionMenuItems = const [],
     this.insertMenuItems = const [],
     this.recordingPanel,
+    this.mathPen,
   });
   final List<EditorMenuItem> moreMenuItems; // PDF: export, share, print, search
   final List<EditorMenuItem> addPageSources; // PDF: insert pages from PDF
@@ -103,6 +104,9 @@ class EditorExtensions {
   final List<EditorInsertMenuItem> insertMenuItems; // recog: mathPad
   final EditorPanelBuilder?
   recordingPanel; // media_io RecordingPanel; null → mic button hidden
+  /// (math pen, phase 1) recog's recognition for the 수식 펜 tool; null → no
+  /// math pen tool (a stored "math" tool acts as the pen).
+  final EditorMathPen? mathPen;
 
   static const _items = ListEquality<EditorMenuItem>();
   static const _selectionItems = ListEquality<EditorSelectionMenuItem>();
@@ -122,7 +126,8 @@ class EditorExtensions {
             selectionMenuItems,
           ) &&
           _insertItems.equals(other.insertMenuItems, insertMenuItems) &&
-          other.recordingPanel == recordingPanel;
+          other.recordingPanel == recordingPanel &&
+          other.mathPen == mathPen;
 
   @override
   int get hashCode => Object.hash(
@@ -132,13 +137,15 @@ class EditorExtensions {
     _selectionItems.hash(selectionMenuItems),
     _insertItems.hash(insertMenuItems),
     recordingPanel,
+    mathPen,
   );
 
   @override
   String toString() =>
       'EditorExtensions(more: $moreMenuItems, addPage: $addPageSources, '
       'selection: $selectionMenuItems, insert: $insertMenuItems, '
-      'recordingPanel: ${recordingPanel != null})';
+      'recordingPanel: ${recordingPanel != null}, '
+      'mathPen: ${mathPen != null})';
 }
 
 final editorExtensionsProvider = Provider<EditorExtensions>(
@@ -288,4 +295,122 @@ class EditorPanelContext {
   tapToSeek; // EDITOR owns the flag (finger tap on a recorded stroke → seek)
   final ValueChanged<bool> setTapToSeek;
   final VoidCallback close;
+}
+
+// --- (math pen, phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 11.1) ---
+
+/// The math pen slot: recog's recognition behind the editor's 수식 펜 tool.
+/// The editor owns the tool, the strokes, the grouping, the bubble's place
+/// and the commands host; [open] gives the per-note recognition session
+/// (once per note screen, disposed with it). Compares by [open].
+@immutable
+class EditorMathPen {
+  const EditorMathPen({required this.open});
+  final EditorMathPenSession Function(EditorMathPenContext context) open;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is EditorMathPen && other.open == open;
+
+  @override
+  int get hashCode => open.hashCode;
+}
+
+/// What [EditorMathPen.open] gets — built by the editor per note screen (no
+/// `==`).
+@immutable
+class EditorMathPenContext {
+  const EditorMathPenContext({
+    required this.noteId,
+    required this.pageSizeOf,
+    required this.execute,
+    required this.liveStrokes,
+    required this.bodyContext,
+  });
+  final String noteId;
+
+  /// The size of page [pageId], or null when it is not in the note.
+  final core.PageSize? Function(String pageId) pageSizeOf;
+
+  /// Runs ONE command (one undo step); throws like NoteSession.execute.
+  final void Function(core.EditCommand command) execute;
+
+  /// The current strokes [ids] of [pageId] (in that order), or null when
+  /// the page is not loaded or any of them is gone.
+  final List<core.Stroke>? Function(String pageId, List<String> ids)
+  liveStrokes;
+
+  /// The editor body's context while it is mounted (sheets, providers).
+  final BuildContext? Function() bodyContext;
+}
+
+/// The open handwriting group of the math pen — a value copy made by the
+/// editor whenever the group changes.
+@immutable
+class EditorMathGroup {
+  const EditorMathGroup({
+    required this.pageId,
+    required this.strokes,
+    required this.boundsPt,
+    this.reopenedFrom,
+    this.reopenedStrokeIds = const {},
+  });
+  final String pageId;
+
+  /// The group's strokes, z order.
+  final List<core.Stroke> strokes;
+
+  /// The union of the strokes' point bounds (page pt).
+  final Rect boundsPt;
+
+  /// The formula this group was reopened from (its handwriting), if any.
+  final core.MathObject? reopenedFrom;
+
+  /// The ids the reopened handwriting got (a subset of [strokes]).
+  final Set<String> reopenedStrokeIds;
+}
+
+/// Why the editor converts a group.
+enum EditorMathConvertTrigger {
+  /// The user tapped the bubble (a sheet may open).
+  bubbleTap,
+
+  /// The user switched to another tool (never opens a sheet).
+  toolSwitch,
+
+  /// The user started a new group away from this one (never opens a sheet).
+  newGroup,
+}
+
+/// recog's per-note recognition session behind the math pen.
+abstract interface class EditorMathPenSession {
+  /// The group's strokes changed: recognize them again (debounced).
+  void update(EditorMathGroup group);
+
+  /// A new contact: stop the timer and cancel the request in flight.
+  void interrupt();
+
+  /// The group is gone (no conversion).
+  void clear();
+
+  /// Converts [group] with ONE execute (one undo step); completes true when
+  /// the formula was added. Only [EditorMathConvertTrigger.bubbleTap] may
+  /// open a sheet.
+  Future<bool> convert(EditorMathGroup group, EditorMathConvertTrigger trigger);
+
+  /// '고치기': the LaTeX editor on [math] (one UpdateObjects).
+  Future<void> fix(core.MathObject math);
+
+  /// Fires when what [buildBubble] shows changes.
+  Listenable get changes;
+
+  /// The bubble's content for [group]; [onConvert] converts it (a button
+  /// inside the content may call it).
+  Widget buildBubble(
+    BuildContext context,
+    EditorMathGroup group,
+    VoidCallback onConvert,
+  );
+
+  void dispose();
 }

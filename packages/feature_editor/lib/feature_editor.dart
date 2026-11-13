@@ -21,7 +21,12 @@ export 'src/di/editor_extensions.dart'
         EditorInsertContext,
         EditorInsertMenuItem,
         EditorPanelBuilder,
-        EditorPanelContext;
+        EditorPanelContext,
+        EditorMathPen, // (math pen, phase 1)
+        EditorMathPenContext,
+        EditorMathGroup,
+        EditorMathConvertTrigger,
+        EditorMathPenSession;
 export 'src/di/editor_image_importer.dart'
     show EditorImageImporter, editorImageImporterProvider; // (v2.0)
 export 'src/di/stylus_extras.dart'

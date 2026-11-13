@@ -47,6 +47,9 @@ class OverflowToolsMenu extends ConsumerStatefulWidget {
   static const shapeKey = ValueKey('editor.toolbar.shape');
   static const textKey = ValueKey('editor.toolbar.text');
 
+  /// (math pen, phase 1) the 수식 펜 row (EditorExtensions.mathPen only).
+  static const mathKey = ValueKey('editor.toolbar.math');
+
   /// Whether the [+] rows are offered (InsertMenu.hasItems).
   final bool hasInsert;
 
@@ -109,7 +112,12 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
             (item) => item.id,
           )
         : const <EditorInsertMenuItem>[];
-    final folded = active == EditorTool.shape || active == EditorTool.text;
+    final hasMathPen = ref.watch(
+      editorExtensionsProvider.select((e) => e.mathPen != null),
+    );
+    final mathActive = hasMathPen && active == EditorTool.math;
+    final folded =
+        active == EditorTool.shape || active == EditorTool.text || mathActive;
     return ValueListenableBuilder<Set<String>>(
       valueListenable: runner.runningIds,
       builder: (context, running, _) => MenuAnchor(
@@ -139,6 +147,21 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
                     (at) => TextToolPopup(globalPosition: at),
                   ),
           ),
+          if (hasMathPen)
+            InsertMenuRow(
+              key: OverflowToolsMenu.mathKey,
+              icon: Icons.functions,
+              label: EditorStrings.mathPenTool,
+              selected: mathActive,
+              onPressed: readOnly
+                  ? null
+                  : () {
+                      ref
+                          .read(editorCommandsProvider)
+                          .selectTool(EditorTool.math);
+                      _close();
+                    },
+            ),
           if (widget.hasInsert)
             ...insertMenuRows(
               ref,
@@ -166,6 +189,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           icon: switch (active) {
             EditorTool.shape => Icons.interests,
             EditorTool.text => Icons.text_fields,
+            EditorTool.math when mathActive => Icons.functions,
             _ => Icons.widgets_outlined,
           },
           label: EditorStrings.moreTools,

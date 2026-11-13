@@ -7,12 +7,22 @@ import 'package:feature_editor/feature_editor.dart'
         DevOverlaySection,
         EditorInsertContext,
         EditorInsertMenuItem,
+        EditorMathConvertTrigger,
+        EditorMathGroup,
+        EditorMathPen,
+        EditorMathPenContext,
+        EditorMathPenSession,
         EditorSelectionContext,
         EditorSelectionMenuItem;
+import 'package:flutter/widgets.dart'
+    show BuildContext, Listenable, Rect, Widget;
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:ink_recognition/ink_recognition.dart'
     show
         RecognitionAction,
+        RecognitionMathPen,
+        RecognitionMathPenContext,
+        RecognitionMathPenSession,
         RecognitionTarget,
         recognitionDevOverlayLinesProvider;
 import 'package:note_core/note_core.dart' as core;
@@ -100,3 +110,99 @@ DevOverlaySection recognitionIndexerSection(Ref ref) => DevOverlaySection(
   title: '손글씨 색인',
   lines: ref.watch(recognitionDevOverlayLinesProvider),
 );
+
+/// (math pen, phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 11.1)
+/// recog's math pen as the editor's slot: the editor's context becomes
+/// recog's, every EditorMathGroup a RecognitionTarget (strokes, areaPt =
+/// boundsPt, execute = the editor's, done does nothing), the triggers
+/// interactive = bubbleTap. The same shape as [selectionMenuItemOf].
+EditorMathPen editorMathPenOf(RecognitionMathPen pen) => EditorMathPen(
+  open: (context) => _MathPenSessionAdapter(
+    context,
+    pen.open(
+      RecognitionMathPenContext(
+        noteId: context.noteId,
+        execute: context.execute,
+        liveStrokes: context.liveStrokes,
+        bodyContext: context.bodyContext,
+      ),
+    ),
+  ),
+);
+
+/// The RecognitionTarget of [group] (the page size from the editor).
+RecognitionTarget recognitionTargetOfMathGroup(
+  EditorMathPenContext context,
+  EditorMathGroup group,
+) => RecognitionTarget(
+  noteId: context.noteId,
+  pageId: group.pageId,
+  pageSize: context.pageSizeOf(group.pageId) ?? core.PageSize.a4Portrait,
+  strokes: group.strokes,
+  areaPt: group.boundsPt,
+  execute: context.execute,
+  done: _nothing,
+);
+
+void _nothing() {}
+
+Rect _rectOf(core.PageRect r) =>
+    Rect.fromLTRB(r.left, r.top, r.right, r.bottom);
+
+final class _MathPenSessionAdapter implements EditorMathPenSession {
+  _MathPenSessionAdapter(this._context, this._inner);
+
+  final EditorMathPenContext _context;
+  final RecognitionMathPenSession _inner;
+
+  RecognitionTarget _target(EditorMathGroup group) =>
+      recognitionTargetOfMathGroup(_context, group);
+
+  @override
+  void update(EditorMathGroup group) => _inner.update(
+    _target(group),
+    reopenedFrom: group.reopenedFrom,
+    reopenedStrokeIds: group.reopenedStrokeIds,
+  );
+
+  @override
+  void interrupt() => _inner.interrupt();
+
+  @override
+  void clear() => _inner.clear();
+
+  @override
+  Future<bool> convert(
+    EditorMathGroup group,
+    EditorMathConvertTrigger trigger,
+  ) => _inner.convert(
+    _target(group),
+    interactive: trigger == EditorMathConvertTrigger.bubbleTap,
+  );
+
+  @override
+  Future<void> fix(core.MathObject math) => _inner.fix(
+    RecognitionTarget(
+      noteId: _context.noteId,
+      pageId: math.pageId,
+      pageSize: _context.pageSizeOf(math.pageId) ?? core.PageSize.a4Portrait,
+      objects: [math],
+      areaPt: _rectOf(math.frame.bounds),
+      execute: _context.execute,
+      done: _nothing,
+    ),
+  );
+
+  @override
+  Listenable get changes => _inner.changes;
+
+  @override
+  Widget buildBubble(
+    BuildContext context,
+    EditorMathGroup group,
+    void Function() onConvert,
+  ) => _inner.buildBubble(context, _target(group), onConvert);
+
+  @override
+  void dispose() => _inner.dispose();
+}

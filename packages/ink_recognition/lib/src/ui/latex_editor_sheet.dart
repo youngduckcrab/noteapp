@@ -42,6 +42,7 @@ import '../model/handwriting_trace.dart';
 import '../model/math_types.dart';
 import '../ports/math_recognizer.dart';
 import '../settings/recognition_settings_keys.dart';
+import 'latex_symbols.dart';
 import 'math_pad_canvas.dart';
 import 'math_pad_sheet.dart' show kMathPadMaxAlternatives;
 import 'recognition_sheet.dart';
@@ -53,6 +54,13 @@ const ValueKey<String> kLatexPreviewKey = ValueKey('recog.sheet.latexPreview');
 
 /// recog.toMath's status line (not appendix C).
 const ValueKey<String> kLatexStatusKey = ValueKey('recog.sheet.status');
+
+/// (math pen) the symbol row's button [id] (latex_symbols.dart).
+ValueKey<String> latexSymbolKey(String id) =>
+    ValueKey('recog.sheet.symbol.$id');
+
+/// (math pen) the symbol row.
+const ValueKey<String> kLatexSymbolRowKey = ValueKey('recog.sheet.symbols');
 
 /// recog.toMath's suggestion chip [i] (not appendix C).
 ValueKey<String> latexChipKey(int i) => ValueKey('recog.sheet.latexChip.$i');
@@ -180,6 +188,32 @@ String? _replaceWithMath(
     ),
   );
   return null;
+}
+
+/// (math pen, phase 1 — design note 10, 11.3) The LaTeX editor that
+/// converts the math pen group [strokes] by hand: [initialLatex] in the
+/// field (an unusable answer to fix, or empty), [recognition] the engine
+/// part (consent card, '다시' on a failure, the no-engine notice and the
+/// strokes view) or null. The primary runs [onConvert] (null → close, a
+/// string → the notice). Completes true when the formula was added.
+Future<bool> openMathPenEditor(
+  ActionRun run, {
+  required String initialLatex,
+  LatexRecognition? recognition,
+  required String? Function(String latex, String engineId) onConvert,
+}) async {
+  final converted = await showRecognitionSheet<bool>(
+    run.context,
+    sheetKey: kLatexSheetKey,
+    builder: (_) => LatexEditorSheet(
+      title: RecognitionStrings.toMath,
+      primaryLabel: RecognitionStrings.toMathPrimary,
+      initialLatex: initialLatex,
+      recognition: recognition,
+      onPrimary: onConvert,
+    ),
+  );
+  return converted == true;
 }
 
 /// What recog.toMath adds to the LaTeX editor (6.15.3).
@@ -505,6 +539,7 @@ class _LatexEditorSheetState extends State<LatexEditorSheet> {
                     border: const OutlineInputBorder(),
                   ),
                 ),
+                _symbolRow(),
                 if (_chips.isNotEmpty) _chipRow(scheme),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -593,6 +628,40 @@ class _LatexEditorSheetState extends State<LatexEditorSheet> {
         const SizedBox(height: 8),
       ],
     ];
+  }
+
+  /// (math pen, phase 1 — design note 12) The symbol buttons: each puts
+  /// its snippet at the cursor, the cursor inside its braces (a selection
+  /// goes inside). A user edit (engineId 'manual'); the field keeps focus —
+  /// the row counts as inside the field (TextFieldTapRegion).
+  Widget _symbolRow() => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: TextFieldTapRegion(
+      child: SizedBox(
+        height: 44,
+        child: ListView(
+          key: kLatexSymbolRowKey,
+          scrollDirection: Axis.horizontal,
+          children: [
+            for (final symbol in kLatexSymbols)
+              TextButton(
+                key: latexSymbolKey(symbol.id),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(44, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: () => _insertSymbol(symbol),
+                child: Text(symbol.label),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  void _insertSymbol(LatexSymbol symbol) {
+    _controller.value = insertLatexSymbol(_controller.value, symbol);
+    _focus.requestFocus();
   }
 
   Widget _chipRow(ColorScheme scheme) => Padding(

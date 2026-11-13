@@ -10,7 +10,7 @@
 // Pure except buildTextBox (awaits INK's text measure) and the math layouts
 // (InkMathRenderer.layout — synchronous, never inside a frame phase).
 import 'dart:math' as math;
-import 'dart:ui' show Rect;
+import 'dart:ui' show Rect, Size;
 
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -21,6 +21,9 @@ import '../model/handwriting_trace.dart';
 /// CompositeCommand labels (6.13.4, 6.15.3).
 const String kToTextLabel = 'recog-to-text';
 const String kToMathLabel = 'recog-to-math';
+
+/// (math pen, phase 1) the math pen's conversion (design note 11.3).
+const String kMathPenLabel = 'recog-math-pen';
 
 /// engineId of a formula the user typed or fixed by hand (6.14.6, 6.15.1).
 const String kManualMathEngineId = 'manual';
@@ -255,6 +258,85 @@ core.MathObject? buildMathFromStrokes({
     updatedAt: nowMs,
   );
 }
+
+/// (math pen, phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 11.3)
+/// The formula a math pen group becomes: f = mathFontSizeFor(the ink's
+/// point-bounds height) — about as tall as the handwriting — the frame
+/// LEFT-aligned to the ink and vertically centred on it, colour = the
+/// strokes' dominant colour, and [strokes] kept as its ink (z order, version
+/// null) so it can be reopened; ink [] when they are over
+/// PageObjectLimits.maxMathInkStrokes / maxMathInkPoints (the caller tells
+/// the user). null when [latex] cannot be laid out or there is no stroke.
+core.MathObject? buildMathFromPen({
+  required String id,
+  required String pageId,
+  required core.EpochMillis nowMs,
+  required String latex,
+  required String engineId,
+  required List<core.Stroke> strokes,
+}) {
+  if (strokes.isEmpty) return null;
+  final tex = usableLatex(latex);
+  if (tex == null) return null;
+  Rect? area;
+  for (final s in strokes) {
+    final b = s.points.pointBounds;
+    final r = Rect.fromLTRB(b.left, b.top, b.right, b.bottom);
+    area = area == null ? r : area.expandToInclude(r);
+  }
+  final bounds = area!;
+  final base = _mathSizeOf(tex, ObjectBuilderTuning.mathBaseSizePt);
+  if (base == null) return null;
+  final fontSize = mathFontSizeFor(
+    boundsHeightPt: bounds.height,
+    baseHeightPt: base.height,
+  );
+  final laid = fontSize == ObjectBuilderTuning.mathBaseSizePt
+      ? base
+      : _mathSizeOf(tex, fontSize);
+  if (laid == null) return null;
+  final keep = mathInkFits(strokes);
+  return core.MathObject(
+    id: id,
+    pageId: pageId,
+    frame: core.ElementFrame(
+      core.PageRect.fromLTWH(
+        bounds.left,
+        bounds.center.dy - laid.height / 2,
+        laid.width,
+        laid.height,
+      ),
+    ),
+    latex: tex,
+    style: core.MathStyle(
+      colorArgb: dominantColorOf(strokes) ?? const core.MathStyle().colorArgb,
+      fontSizePt: fontSize,
+    ).normalized(),
+    engineId: engineId,
+    ink: keep
+        ? [
+            for (final s in [...strokes]..sort(core.Stroke.compareOrder))
+              s.copyWith(pageId: pageId),
+          ]
+        : const [],
+    createdAt: nowMs,
+    updatedAt: nowMs,
+  );
+}
+
+/// Whether [strokes] fit in a formula's ink (PageObjectLimits).
+bool mathInkFits(List<core.Stroke> strokes) {
+  if (strokes.length > core.PageObjectLimits.maxMathInkStrokes) return false;
+  var points = 0;
+  for (final s in strokes) {
+    points += s.points.length;
+  }
+  return points <= core.PageObjectLimits.maxMathInkPoints;
+}
+
+/// INK's layout size of [tex] at [fontSizePt] (pt), or null.
+Size? _mathSizeOf(String tex, double fontSizePt) =>
+    ink.InkMathRenderer.layout(tex, fontSizePt: fontSizePt)?.sizePt;
 
 /// 6.15.3: clamp(18 × [boundsHeightPt] ÷ [baseHeightPt], 6, 144) to 0.5
 /// (18 when the base layout has no height).

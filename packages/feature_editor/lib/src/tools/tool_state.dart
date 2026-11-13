@@ -7,9 +7,12 @@ import 'package:flutter/foundation.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
-/// (v2) Image insertion and math are actions of the insert menu, not modal
-/// tools.
-enum EditorTool { pen, eraser, lasso, shape, text }
+/// (v2) Image insertion and the math pad are actions of the insert menu, not
+/// modal tools. (math pen, phase 1) [math] is the 수식 펜: offered only when
+/// EditorExtensions.mathPen is set; without it a stored "math" acts as the
+/// pen (the stored value is kept). Its strokes are ballpoint strokes in the
+/// ballpoint pen's style.
+enum EditorTool { pen, eraser, lasso, shape, text, math }
 
 @immutable
 class EraserSettings {

@@ -66,6 +66,12 @@ const _expectedExports = <String>{
   'StylusCapabilities',
   'EditorGesture',
   'EditorAction',
+  // (math pen, phase 1) docs/plans/m5-7/research/math-pen-phase1.md 11.1.
+  'EditorMathPen',
+  'EditorMathPenContext',
+  'EditorMathGroup',
+  'EditorMathConvertTrigger',
+  'EditorMathPenSession',
 };
 
 /// The 1st-round names (04-editor 4.1, v1.4): the v2 list keeps all of them.
@@ -161,7 +167,8 @@ void main() {
       }
       expect(names.toSet(), hasLength(names.length), reason: 'duplicates');
       expect(names.toSet(), _expectedExports);
-      expect(_expectedExports, hasLength(_v14ExportCount + 14));
+      // (math pen, phase 1) + 5.
+      expect(_expectedExports, hasLength(_v14ExportCount + 14 + 5));
       // m5-7/04-editor 4.1 (수정 1회차): both stay internal / out.
       expect(names, isNot(contains('PlaybackHighlightStyle')));
       expect(names, isNot(contains('WebTextInputMode')));

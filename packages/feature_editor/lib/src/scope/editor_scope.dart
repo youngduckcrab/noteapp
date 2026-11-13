@@ -31,6 +31,7 @@ import '../state/settings/editor_settings.dart';
 import '../state/settings/editor_settings_notifier.dart';
 import '../text/text_edit_session.dart';
 import '../tools/interaction_host.dart';
+import '../tools/math_pen/math_pen_controller.dart';
 import '../tools/selection.dart';
 import '../tools/shape_samples.dart';
 import '../ui/overlays/focus_flash.dart';
@@ -323,6 +324,8 @@ final editorInteractionHostProvider = Provider<InteractionHost>(
     editorActionRunnerProvider,
     // (v2, E2-20) the shape samples (6.20)
     editorShapeSamplesProvider,
+    // (math pen, phase 1) the math pen tool
+    editorMathPenProvider,
   ],
   name: 'editorInteractionHostProvider',
 );

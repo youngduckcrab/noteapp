@@ -82,6 +82,9 @@ class EditorToolbar extends ConsumerWidget {
   /// (v2) Appendix C.
   static const shapeKey = OverflowToolsMenu.shapeKey;
   static const textKey = OverflowToolsMenu.textKey;
+
+  /// (math pen, phase 1) the 수식 펜 (only with EditorExtensions.mathPen).
+  static const mathKey = OverflowToolsMenu.mathKey;
   static const overflowToolsKey = OverflowToolsMenu.buttonKey;
 
   /// (v2) The sideways scroll below [scrollWidth].
@@ -192,7 +195,13 @@ class _ToolButtons extends ConsumerWidget {
     final commands = ref.watch(editorCommandsProvider);
     final popups = ref.read(editorPopupProvider.notifier);
     final anchors = PopupHost.anchorsOf(context);
-    final active = tools.activeTool;
+    final hasMathPen = ref.watch(
+      editorExtensionsProvider.select((e) => e.mathPen != null),
+    );
+    // (math pen) without the slot a stored math tool shows as the pen.
+    final active = tools.activeTool == EditorTool.math && !hasMathPen
+        ? EditorTool.pen
+        : tools.activeTool;
 
     VoidCallback? tap(EditorTool tool, EditorPopup? settings) {
       if (readOnly) return null;
@@ -268,6 +277,18 @@ class _ToolButtons extends ConsumerWidget {
                   popups.open(const TextToolPopup(anchored: true)),
             ),
           ),
+          // (math pen, phase 1) only with EditorExtensions.mathPen.
+          if (hasMathPen)
+            ToolButton(
+              key: EditorToolbar.mathKey,
+              icon: Icons.functions,
+              label: EditorStrings.mathPenTool,
+              active: active == EditorTool.math,
+              dotColor: Color(
+                tools.penStyles[core.PenTool.ballpoint]!.colorArgb,
+              ),
+              onTap: tap(EditorTool.math, null),
+            ),
         ],
       ],
     );

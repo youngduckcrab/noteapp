@@ -31,6 +31,7 @@ import '../ui/overlays/context_menu.dart';
 import '../ui/overlays/cursor_painter.dart';
 import '../ui/overlays/eyedropper_banner.dart';
 import '../ui/overlays/focus_flash.dart';
+import '../ui/overlays/math_pen_layer.dart';
 import '../ui/overlays/new_text_box_outline.dart';
 import '../ui/overlays/page_indicator.dart';
 import '../ui/overlays/rotation_label.dart';
@@ -180,6 +181,8 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               // Siblings of the Listener: their taps never reach the router.
               // (v2, E2-01) The text editor over its box (6.11.3).
               const TextBoxEditorLayer(),
+              // (math pen, phase 1) the bubble and the formula menu.
+              const MathPenLayer(),
               const SelectionMenu(),
               const EditorContextMenu(),
               const AddPageButton(),

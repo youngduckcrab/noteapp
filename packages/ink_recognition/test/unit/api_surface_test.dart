@@ -47,6 +47,11 @@ const List<String> kExportedNames = [
   'MathRecognizer',
   'ManualOnlyMathRecognizer',
   'groupIntoLines',
+  // (math pen, phase 1)
+  'RecognitionMathPen',
+  'RecognitionMathPenContext',
+  'RecognitionMathPenSession',
+  'recognitionMathPen',
   'GeometricShapeFitter',
   'ShapeFitTuning',
   'handwritingRecognizerProvider',
@@ -131,8 +136,9 @@ String _failureName(RecognitionFailure f) => switch (f) {
 };
 
 void main() {
-  test('the export list has the 35 contract names, no duplicates', () {
-    expect(kExportedNames, hasLength(35));
+  test('the export list has the 35 contract names + 4 math pen names, no '
+      'duplicates', () {
+    expect(kExportedNames, hasLength(39)); // (math pen) 35 + 4
     expect(kExportedNames.toSet(), hasLength(kExportedNames.length));
   });
 

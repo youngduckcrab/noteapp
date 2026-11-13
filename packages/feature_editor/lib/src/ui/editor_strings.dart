@@ -503,6 +503,11 @@ abstract final class EditorStrings {
   /// [⋯도구]: the folded shape / text / insert / mic buttons (< 720 px).
   static const moreTools = '도구 더보기';
 
+  // (math pen, phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 2.3, 8)
+  static const mathPenTool = '수식 펜';
+  static const mathFix = '고치기';
+  static const mathReopen = '손글씨로 열기';
+
   /// Insert menu submenu and the add-page sheet row (6.12.1, 6.12.3).
   static const image = '이미지';
 

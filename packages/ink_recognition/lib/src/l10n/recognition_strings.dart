@@ -110,6 +110,18 @@ abstract final class RecognitionStrings {
   static const String editMath = '수식 편집';
   static const String mathPad = '수식';
 
+  // The math pen (phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 6.2,
+  // 10, 12).
+  static const String mathPenUnusable = '그릴 수 없는 결과예요. 눌러서 고쳐요.';
+  static const String mathPenOff = '수식 인식이 꺼져 있어요.';
+  static const String mathPenEnableOnDevice = '기기에서 수식 인식 켜기';
+  static const String mathPenTypeLatex = 'LaTeX로 입력';
+  static const String mathPenConsent = '외부 수식 인식 동의가 필요해요. 눌러서 확인해요.';
+  static const String mathPenInkTooLarge = '원래 손글씨가 너무 커서 다시 열 수 없게 바꿨어요.';
+  static const String symbolFraction = '분수';
+  static const String symbolPower = '지수';
+  static const String symbolSubscript = '아래첨자';
+
   /// The developer overlay without an indexer (4.4.9).
   static const String noIndexerLine = '손글씨 색인 없음 (이 기기에서 인식 불가)';
 

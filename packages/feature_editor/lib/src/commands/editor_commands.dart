@@ -126,6 +126,49 @@ class EditorCommands {
     return committed;
   }
 
+  /// (math pen, phase 1 — design note 7.2) [edit] and the commands [before]
+  /// it in ONE CompositeCommand [label] (one undo step — a formula reopened
+  /// and the stroke written on it). A read-only refusal drops the edit as
+  /// [commitInkEdit] does; any other refusal of the composite (the formula
+  /// went away meanwhile …) commits [edit] alone, so the writing is never
+  /// lost. Returns whether the edit is committed and whether [before] went
+  /// with it.
+  ({bool committed, bool withBefore}) commitInkEditWith(
+    ink.InkPageController controller,
+    ink.InkEdit edit, {
+    required List<core.EditCommand> before,
+    required String label,
+  }) {
+    if (edit.isEmpty) return (committed: false, withBefore: false);
+    if (before.isNotEmpty && !_disposed) {
+      try {
+        _session.execute(
+          core.CompositeCommand([...before, edit.toCommand()], label: label),
+        );
+        return (committed: true, withBefore: true);
+      } on core.ReadOnlyNoteException catch (error, stack) {
+        _rejected(
+          error,
+          stack,
+          () => controller.discardEdit(edit),
+          'while running $label',
+        );
+        return (committed: false, withBefore: false);
+      } on core.SessionClosedException {
+        controller.discardEdit(edit);
+        return (committed: false, withBefore: false);
+      } on Object {
+        // The stroke alone below.
+      }
+    }
+    return (committed: commitInkEdit(controller, edit), withBefore: false);
+  }
+
+  /// (math pen) ONE command through the rejection rules of the other
+  /// commands (notice, read-only refresh); true when it ran.
+  bool runCommand(core.EditCommand command) =>
+      !_disposed && _run(command) != null;
+
   /// After the confirmation dialog (6.6.4 #5, E-09):
   /// core.ClearPage(pageId: current page, filter: eraser filter,
   /// includeObjects: [includeObjects] — v2.1, m5-7/04-editor 6.17) through

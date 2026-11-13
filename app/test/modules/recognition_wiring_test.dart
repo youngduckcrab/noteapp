@@ -8,7 +8,12 @@
 import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart'
-    show EditorInsertContext, EditorSelectionContext;
+    show
+        EditorInsertContext,
+        EditorMathConvertTrigger,
+        EditorMathGroup,
+        EditorMathPenContext,
+        EditorSelectionContext;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:material_ui/material_ui.dart';
@@ -265,4 +270,128 @@ void main() {
       await pending;
     });
   });
+
+  // (math pen, phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 11.1)
+  group('editorMathPenOf — recog\'s math pen as the editor slot', () {
+    test('context, groups as targets, triggers → interactive, fix → the '
+        'formula target', () async {
+      final editor = _Editor();
+      final inner = _RecordingMathPenSession();
+      RecognitionMathPenContext? got;
+      final slot = editorMathPenOf(
+        RecognitionMathPen(
+          open: (context) {
+            got = context;
+            return inner;
+          },
+        ),
+      );
+      List<Stroke>? live(String pageId, List<String> ids) => const [];
+      BuildContext? body() => null;
+      final session = slot.open(
+        EditorMathPenContext(
+          noteId: 'n1',
+          pageSizeOf: (id) => id == 'p1' ? _page : null,
+          execute: editor.execute,
+          liveStrokes: live,
+          bodyContext: body,
+        ),
+      );
+      expect(got!.noteId, 'n1');
+      expect(got!.liveStrokes, same(live));
+      expect(got!.bodyContext, same(body));
+      got!.execute(RemoveElements(pageId: 'p1', elementIds: const ['x']));
+      expect(editor.executed, hasLength(1));
+
+      final stroke = StrokeFixtures.synthetic(
+        pageId: 'p1',
+        ids: SequentialIdGenerator(prefix: 's'),
+      );
+      final formula = _math('m1') as MathObject;
+      final group = EditorMathGroup(
+        pageId: 'p1',
+        strokes: [stroke],
+        boundsPt: const Rect.fromLTWH(1, 2, 3, 4),
+        reopenedFrom: formula,
+        reopenedStrokeIds: {stroke.id},
+      );
+      session.update(group);
+      final target = inner.updates.single;
+      expect(target.noteId, 'n1');
+      expect(target.pageId, 'p1');
+      expect(target.pageSize, _page);
+      expect(target.strokes, [stroke]);
+      expect(target.areaPt, const Rect.fromLTWH(1, 2, 3, 4));
+      expect(inner.reopened, [formula]);
+      expect(inner.reopenedIds.single, {stroke.id});
+
+      await session.convert(group, EditorMathConvertTrigger.bubbleTap);
+      await session.convert(group, EditorMathConvertTrigger.toolSwitch);
+      await session.convert(group, EditorMathConvertTrigger.newGroup);
+      expect(inner.interactive, [true, false, false]);
+
+      session
+        ..interrupt()
+        ..clear();
+      expect(inner.calls, ['interrupt', 'clear']);
+      await session.fix(formula);
+      expect(inner.fixed.single.objects, [formula]);
+      expect(inner.fixed.single.strokes, isEmpty);
+      expect(session.changes, same(inner.changes));
+      session.dispose();
+      expect(inner.calls.last, 'dispose');
+    });
+  });
+}
+
+final class _RecordingMathPenSession implements RecognitionMathPenSession {
+  final List<RecognitionTarget> updates = [];
+  final List<MathObject?> reopened = [];
+  final List<Set<String>> reopenedIds = [];
+  final List<bool> interactive = [];
+  final List<RecognitionTarget> fixed = [];
+  final List<String> calls = [];
+  final ValueNotifier<int> _changes = ValueNotifier(0);
+
+  @override
+  void update(
+    RecognitionTarget group, {
+    MathObject? reopenedFrom,
+    Set<String> reopenedStrokeIds = const {},
+  }) {
+    updates.add(group);
+    reopened.add(reopenedFrom);
+    reopenedIds.add(reopenedStrokeIds);
+  }
+
+  @override
+  void interrupt() => calls.add('interrupt');
+
+  @override
+  void clear() => calls.add('clear');
+
+  @override
+  Future<bool> convert(
+    RecognitionTarget group, {
+    required bool interactive,
+  }) async {
+    this.interactive.add(interactive);
+    return false;
+  }
+
+  @override
+  Future<void> fix(RecognitionTarget formula) async => fixed.add(formula);
+
+  @override
+  Listenable get changes => _changes;
+
+  @override
+  Widget buildBubble(
+    BuildContext context,
+    RecognitionTarget group,
+    VoidCallback onConvert,
+  ) => const SizedBox();
+
+  @override
+  void dispose() => calls.add('dispose');
 }

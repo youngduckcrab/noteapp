@@ -8,7 +8,9 @@ import 'package:ink_recognition/ink_recognition.dart'
         RecognitionAction,
         RecognitionConfig,
         RecognitionSettingsSection,
+        RecognitionMathPen,
         recognitionInsertActions,
+        recognitionMathPen,
         recognitionOverrides,
         recognitionSelectionActions;
 
@@ -28,6 +30,7 @@ final class RecognitionModule extends AppModule {
     this._overridesFor = recognitionOverrides,
     this._selectionActions = recognitionSelectionActions,
     this._insertActions = recognitionInsertActions,
+    this._mathPen = recognitionMathPen,
     this._indexer = readHandwritingIndexer,
     this._mathEndpoint = kMathEndpoint,
   });
@@ -37,6 +40,7 @@ final class RecognitionModule extends AppModule {
   final List<Override> Function({RecognitionConfig config}) _overridesFor;
   final List<RecognitionAction> Function() _selectionActions;
   final List<RecognitionAction> Function() _insertActions;
+  final RecognitionMathPen Function() _mathPen;
   final IndexerHandleReader _indexer;
   final String _mathEndpoint;
 
@@ -69,6 +73,7 @@ final class RecognitionModule extends AppModule {
   /// context.contribute(ShellContribution(moduleId: 'recognition',
   ///   selectionMenuItems: selectionActions().map(selectionMenuItemOf),
   ///   insertMenuItems: insertActions().map(insertMenuItemOf),
+  ///   mathPen: editorMathPenOf(recognitionMathPen()),
   ///   devOverlaySections: [recognitionIndexerSection],
   ///   settingsSections: [SettingsSectionEntry(id: 'recog.settings',
   ///       title: '인식', builder: (_) => const RecognitionSettingsSection())]))
@@ -89,6 +94,8 @@ final class RecognitionModule extends AppModule {
         insertMenuItems: List.unmodifiable(
           _insertActions().map(insertMenuItemOf),
         ),
+        // (math pen, phase 1) the 수식 펜 tool.
+        mathPen: editorMathPenOf(_mathPen()),
         devOverlaySections: const [recognitionIndexerSection],
         settingsSections: [
           SettingsSectionEntry(
