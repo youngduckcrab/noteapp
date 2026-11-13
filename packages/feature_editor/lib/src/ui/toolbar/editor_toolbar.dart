@@ -85,6 +85,9 @@ class EditorToolbar extends ConsumerWidget {
 
   /// (math pen, phase 1) the 수식 펜 (only with EditorExtensions.mathPen).
   static const mathKey = OverflowToolsMenu.mathKey;
+
+  /// (text pen, phase 1) the 텍스트 펜 (only with EditorExtensions.textPen).
+  static const textPenKey = OverflowToolsMenu.textPenKey;
   static const overflowToolsKey = OverflowToolsMenu.buttonKey;
 
   /// (v2) The sideways scroll below [scrollWidth].
@@ -100,6 +103,9 @@ class EditorToolbar extends ConsumerWidget {
     final hasInsert = InsertMenu.hasItems(
       ref.watch(editorImageImporterProvider),
       ref.watch(editorExtensionsProvider.select((e) => e.insertMenuItems)),
+      textPen: ref.watch(
+        editorExtensionsProvider.select((e) => e.textPen != null),
+      ),
     );
     return Material(
       color: scheme.surface,
@@ -198,10 +204,16 @@ class _ToolButtons extends ConsumerWidget {
     final hasMathPen = ref.watch(
       editorExtensionsProvider.select((e) => e.mathPen != null),
     );
-    // (math pen) without the slot a stored math tool shows as the pen.
-    final active = tools.activeTool == EditorTool.math && !hasMathPen
-        ? EditorTool.pen
-        : tools.activeTool;
+    final hasTextPen = ref.watch(
+      editorExtensionsProvider.select((e) => e.textPen != null),
+    );
+    // (math pen) without the slot a stored math tool shows as the pen (the
+    // text pen likewise).
+    final active = switch (tools.activeTool) {
+      EditorTool.math when !hasMathPen => EditorTool.pen,
+      EditorTool.textPen when !hasTextPen => EditorTool.pen,
+      final tool => tool,
+    };
 
     VoidCallback? tap(EditorTool tool, EditorPopup? settings) {
       if (readOnly) return null;
@@ -288,6 +300,18 @@ class _ToolButtons extends ConsumerWidget {
                 tools.penStyles[core.PenTool.ballpoint]!.colorArgb,
               ),
               onTap: tap(EditorTool.math, null),
+            ),
+          // (text pen, phase 1) only with EditorExtensions.textPen.
+          if (hasTextPen)
+            ToolButton(
+              key: EditorToolbar.textPenKey,
+              icon: Icons.edit_note,
+              label: EditorStrings.textPenTool,
+              active: active == EditorTool.textPen,
+              dotColor: Color(
+                tools.penStyles[core.PenTool.ballpoint]!.colorArgb,
+              ),
+              onTap: tap(EditorTool.textPen, null),
             ),
         ],
       ],

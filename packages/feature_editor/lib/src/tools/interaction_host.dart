@@ -75,6 +75,7 @@ import 'shape_assist_for.dart';
 import 'shape_drafts.dart';
 import 'shape_interaction.dart';
 import 'shape_samples.dart';
+import 'text_pen/text_pen_controller.dart';
 import 'text_tool_interaction.dart';
 import 'tool_controller.dart';
 import 'tool_interaction.dart';
@@ -376,6 +377,30 @@ class InteractionHost implements InputTargets {
           ),
           onFinished: mathPen.contactEnded,
         );
+      case EditorTool.textPen:
+        // (text pen, phase 1 — m5-7/04-editor 6.21) a ballpoint stroke in
+        // the ballpoint style; the controller commits it (join / new group).
+        _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
+        final textPen = _ref.read(editorTextPenProvider)..contactStarted();
+        final style = tools.penStyles[core.PenTool.ballpoint]!;
+        interaction = PenInteraction.start(
+          down: sample,
+          source: source,
+          controller: mount.controller,
+          pageIndex: hit.index,
+          viewport: _viewport,
+          style: style,
+          commands: _commands,
+          onCommitted: _onStrokeCommitted,
+          meta: RecordingLink.metaFor(
+            _ref.read(core.audioRecorderServiceProvider),
+            _session.noteId,
+            style.tool,
+          ),
+          commit: (controller, edit) =>
+              textPen.commitStroke(controller, edit, pageId: hit.pageId),
+          onFinished: textPen.contactEnded,
+        );
       case EditorTool.eraser:
         _viewport.settleNow(); // viewScale = layout scale (6.3.4, 7.2.15 v1.1)
         final eraser = tools.eraser;
@@ -448,11 +473,15 @@ class InteractionHost implements InputTargets {
   }
 
   /// (math pen) [tool], or the pen for the math tool without
-  /// EditorExtensions.mathPen.
-  EditorTool _effective(EditorTool tool) =>
-      tool == EditorTool.math && !_ref.read(editorMathPenProvider).enabled
-      ? EditorTool.pen
-      : tool;
+  /// EditorExtensions.mathPen (the text pen likewise without
+  /// EditorExtensions.textPen).
+  EditorTool _effective(EditorTool tool) => switch (tool) {
+    EditorTool.math when !_ref.read(editorMathPenProvider).enabled =>
+      EditorTool.pen,
+    EditorTool.textPen when !_ref.read(editorTextPenProvider).enabled =>
+      EditorTool.pen,
+    _ => tool,
+  };
 
   /// (math pen, design note 8) With the math pen, a formula under [screen]
   /// opens its menu (a finger tap, or a finger / mouse dot inside its frame
@@ -1085,7 +1114,8 @@ class InteractionHost implements InputTargets {
       switch (_effective(tools.activeTool)) {
         case EditorTool.pen when sample.kind != PointerDeviceKind.mouse:
           next = _penDot(tools.currentPen, sample.position, scale);
-        case EditorTool.math when sample.kind != PointerDeviceKind.mouse:
+        case EditorTool.math || EditorTool.textPen
+            when sample.kind != PointerDeviceKind.mouse:
           next = _penDot(
             tools.penStyles[core.PenTool.ballpoint]!,
             sample.position,
@@ -1094,7 +1124,7 @@ class InteractionHost implements InputTargets {
         // (v2, E2-18 — 6.5.3) on the native iPad the pencil hover is a mouse
         // hover; the pen dot comes from the hover pose there, so a mouse
         // hover leaves it alone.
-        case EditorTool.pen || EditorTool.math
+        case EditorTool.pen || EditorTool.math || EditorTool.textPen
             when _ref.read(stylusExtrasProvider).capabilities.hoverPose:
           return;
         case EditorTool.eraser:
@@ -1104,6 +1134,7 @@ class InteractionHost implements InputTargets {
           );
         case EditorTool.pen:
         case EditorTool.math:
+        case EditorTool.textPen:
         case EditorTool.lasso:
         case EditorTool.shape:
         case EditorTool.text:
@@ -1142,13 +1173,15 @@ class InteractionHost implements InputTargets {
     final tool = _effective(tools.activeTool);
     // (math pen) the math pen's ballpoint dot too.
     if (tools.eyedropperActive ||
-        (tool != EditorTool.pen && tool != EditorTool.math)) {
+        (tool != EditorTool.pen &&
+            tool != EditorTool.math &&
+            tool != EditorTool.textPen)) {
       return;
     }
     if (_commands.interactionActive) return; // touching: no hover cursor
     final h = (height ?? 0).clamp(0.0, 1.0);
     _cursor.value = _penDot(
-      tool == EditorTool.math
+      tool == EditorTool.math || tool == EditorTool.textPen
           ? tools.penStyles[core.PenTool.ballpoint]!
           : tools.currentPen,
       position,

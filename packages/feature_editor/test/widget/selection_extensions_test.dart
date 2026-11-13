@@ -405,4 +405,45 @@ void main() {
     }
     expect(find.text('겹친 항목'), findsNothing);
   });
+
+  testWidgets('(text pen track) a pinned item is always on the bar before '
+      '⋯ — after two others in the list', (tester) async {
+    final a = RecordingSelectionItem(id: 'test.a', label: '가');
+    final b = RecordingSelectionItem(id: 'test.b', label: '나');
+    final p = RecordingSelectionItem(
+      id: 'test.pinned',
+      label: '텍스트로 변환',
+      pinned: true,
+    );
+    final h = await _pump(tester, [a, b, p]);
+    await _select(tester, h, {strokeA.id});
+    // Pinned + one more fill the two places; the list order stays.
+    expect(_ext('test.pinned'), findsOneWidget);
+    expect(_ext('test.a'), findsOneWidget);
+    expect(_ext('test.b'), findsNothing);
+    expect(
+      tester.getTopLeft(_ext('test.pinned')).dx,
+      lessThan(tester.getTopLeft(find.byKey(SelectionMenu.moreKey)).dx),
+    );
+    await tester.tap(find.byKey(SelectionMenu.moreKey));
+    await tester.pump();
+    expect(_ext('test.b'), findsOneWidget);
+    expect(_ext('test.pinned'), findsOneWidget); // not repeated in ⋯
+  });
+
+  testWidgets('(text pen track) a pinned item stays on the bar on a page '
+      'area too narrow for any other extension item', (tester) async {
+    const long = '아주 긴 이름의 확장 항목 하나 둘 셋';
+    final l1 = RecordingSelectionItem(id: 'test.long1', label: long);
+    final pin = RecordingSelectionItem(
+      id: 'test.pin2',
+      label: '텍스트로 변환',
+      pinned: true,
+    );
+    final h = await _pump(tester, [l1, pin], logicalSize: const Size(690, 900));
+    await _select(tester, h, {strokeA.id});
+    expect(tester.takeException(), isNull); // scaled down, no overflow
+    expect(_ext('test.pin2'), findsOneWidget);
+    expect(_ext('test.long1'), findsNothing);
+  });
 }

@@ -38,6 +38,7 @@ import '../ui/overlays/pull_to_add_page_indicator.dart';
 import '../ui/overlays/rotation_label.dart';
 import '../ui/overlays/selection_frame_painter.dart';
 import '../ui/overlays/selection_menu.dart';
+import '../ui/overlays/text_pen_layer.dart';
 import '../ui/pages/page_panel.dart';
 import 'editor_page_view.dart';
 import 'viewport_controller.dart';
@@ -184,6 +185,8 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               const TextBoxEditorLayer(),
               // (math pen, phase 1) the bubble and the formula menu.
               const MathPenLayer(),
+              // (text pen, phase 1) its bubble.
+              const TextPenLayer(),
               const SelectionMenu(),
               const EditorContextMenu(),
               const AddPageButton(),

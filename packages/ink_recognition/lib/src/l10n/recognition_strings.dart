@@ -121,6 +121,10 @@ abstract final class RecognitionStrings {
   static const String mathPenInkTooLarge =
       '수식으로 바꾸면 손글씨는 남지 않아 손글씨로 다시 열 수 없어요. 그래도 바꿀까요?';
   static const String mathPenConvertAnyway = '바꾸기';
+  // The text pen (phase 1 — m5-7/05-library 6.24).
+  static const String textPenHint = '누르면 텍스트로 바꿔요';
+  static const String textPenFix = '고치기';
+  static const String textPenNothing = '글씨를 알아보지 못했어요. 눌러서 고쳐요.';
   static const String symbolFraction = '분수';
   static const String symbolPower = '지수';
   static const String symbolSubscript = '아래첨자';

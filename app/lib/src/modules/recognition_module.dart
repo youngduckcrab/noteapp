@@ -9,8 +9,10 @@ import 'package:ink_recognition/ink_recognition.dart'
         RecognitionConfig,
         RecognitionSettingsSection,
         RecognitionMathPen,
+        RecognitionTextPen,
         recognitionInsertActions,
         recognitionMathPen,
+        recognitionTextPen,
         recognitionOverrides,
         recognitionSelectionActions;
 
@@ -31,6 +33,7 @@ final class RecognitionModule extends AppModule {
     this._selectionActions = recognitionSelectionActions,
     this._insertActions = recognitionInsertActions,
     this._mathPen = recognitionMathPen,
+    this._textPen = recognitionTextPen,
     this._indexer = readHandwritingIndexer,
     this._mathEndpoint = kMathEndpoint,
   });
@@ -41,6 +44,7 @@ final class RecognitionModule extends AppModule {
   final List<RecognitionAction> Function() _selectionActions;
   final List<RecognitionAction> Function() _insertActions;
   final RecognitionMathPen Function() _mathPen;
+  final RecognitionTextPen Function() _textPen;
   final IndexerHandleReader _indexer;
   final String _mathEndpoint;
 
@@ -75,6 +79,7 @@ final class RecognitionModule extends AppModule {
   ///   insertMenuItems: insertActions().map(insertMenuItemOf),
   ///   mathPen: editorMathPenOf(recognitionMathPen()),
   ///   libraryInkSearch: libraryInkSearchOf,
+  ///   textPen: editorTextPenOf(recognitionTextPen()),
   ///   devOverlaySections: [recognitionIndexerSection],
   ///   settingsSections: [SettingsSectionEntry(id: 'recog.settings',
   ///       title: '인식', builder: (_) => const RecognitionSettingsSection())]))
@@ -99,6 +104,8 @@ final class RecognitionModule extends AppModule {
         mathPen: editorMathPenOf(_mathPen()),
         // (handwriting search) the library search's handwriting hint.
         libraryInkSearch: libraryInkSearchOf,
+        // (text pen, phase 1) the 텍스트 펜 tool and '손글씨를 텍스트로'.
+        textPen: editorTextPenOf(_textPen()),
         devOverlaySections: const [recognitionIndexerSection],
         settingsSections: [
           SettingsSectionEntry(

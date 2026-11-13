@@ -48,6 +48,7 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../actions/action_scope.dart';
 import '../actions/object_builders.dart';
+import '../common/recognition_priority.dart';
 import '../common/report_error.dart';
 import '../indexer/handwriting_indexer.dart' show IndexerTuning, textTail;
 import '../indexer/line_reuse.dart';
@@ -126,6 +127,37 @@ List<ConversionLineInput> conversionLinesOf(List<core.Stroke> inputs) {
   ];
 }
 
+/// The engine input of [line] (the sheet's rule, shared with the text pen):
+/// preContext = the last 20 characters of [previousText] (the line before),
+/// writing area = the page width × max(line height × 1.5, the minimum).
+HandwritingLineInput conversionLineInput(
+  ConversionLineInput line, {
+  required String previousText,
+  required double pageWidth,
+}) => HandwritingLineInput(
+  line.traces,
+  preContext: textTail(previousText, IndexerTuning.preContextChars),
+  writingAreaPt: Size(
+    pageWidth,
+    math.max(
+      line.rect.height * IndexerTuning.writingAreaLineFactor,
+      IndexerTuning.minWritingAreaHeight,
+    ),
+  ),
+);
+
+/// The candidate texts of a line: trimmed, distinct, not blank, at most
+/// kMaxLineAlternatives (engine order).
+List<String> conversionCandidateTexts(List<TextCandidate> candidates) {
+  final out = <String>[];
+  for (final c in candidates) {
+    if (out.length == kMaxLineAlternatives) break;
+    final t = c.text.trim();
+    if (t.isNotEmpty && !out.contains(t)) out.add(t);
+  }
+  return List.unmodifiable(out);
+}
+
 /// recog.toText ([copy] false) / recog.copyText with strokes ([copy] true):
 /// opens the conversion sheet before the first await; completes when it
 /// closes (text box → target.done(); copied → '복사했어요').
@@ -151,19 +183,27 @@ Future<void> openConversion(
             if (shownIds.contains(s.id)) s,
         ]
       : inputs;
-  final outcome = await showRecognitionSheet<ConversionOutcome>(
-    run.context,
-    sheetKey: kConversionSheetKey,
-    builder: (_) => ConversionSheet(
-      run: run,
-      engine: engine,
-      downloads: downloads,
-      lines: lines,
-      moreLines: all.length - lines.length,
-      replaced: replaced,
-      copy: copy,
-    ),
-  );
+  // (text pen track) while the sheet is open the indexer yields: its lines
+  // go to the shared engine before any queued indexer line.
+  final release = scope.container.read(recognitionPriorityProvider).hold();
+  final ConversionOutcome? outcome;
+  try {
+    outcome = await showRecognitionSheet<ConversionOutcome>(
+      run.context,
+      sheetKey: kConversionSheetKey,
+      builder: (_) => ConversionSheet(
+        run: run,
+        engine: engine,
+        downloads: downloads,
+        lines: lines,
+        moreLines: all.length - lines.length,
+        replaced: replaced,
+        copy: copy,
+      ),
+    );
+  } finally {
+    release();
+  }
   switch (outcome) {
     case ConversionOutcome.textBox:
       if (run.mounted) run.target.done();
@@ -401,31 +441,14 @@ class _ConversionSheetState extends State<ConversionSheet> {
     }
   }
 
-  HandwritingLineInput _inputOf(int i) {
-    final line = _lines[i].input;
-    final previous = i == 0 ? '' : _lines[i - 1].text;
-    return HandwritingLineInput(
-      line.traces,
-      preContext: textTail(previous, IndexerTuning.preContextChars),
-      writingAreaPt: Size(
-        widget.run.target.pageSize.width,
-        math.max(
-          line.rect.height * IndexerTuning.writingAreaLineFactor,
-          IndexerTuning.minWritingAreaHeight,
-        ),
-      ),
-    );
-  }
+  HandwritingLineInput _inputOf(int i) => conversionLineInput(
+    _lines[i].input,
+    previousText: i == 0 ? '' : _lines[i - 1].text,
+    pageWidth: widget.run.target.pageSize.width,
+  );
 
-  static List<String> _textsOf(List<TextCandidate> candidates) {
-    final out = <String>[];
-    for (final c in candidates) {
-      if (out.length == kMaxLineAlternatives) break;
-      final t = c.text.trim();
-      if (t.isNotEmpty && !out.contains(t)) out.add(t);
-    }
-    return List.unmodifiable(out);
-  }
+  static List<String> _textsOf(List<TextCandidate> candidates) =>
+      conversionCandidateTexts(candidates);
 
   /// A download ended / the engine's model changed: go on once it is ready.
   void _onModelEvent() {

@@ -11,8 +11,11 @@ import 'package:note_core/note_core.dart' as core;
 /// modal tools. (math pen, phase 1) [math] is the 수식 펜: offered only when
 /// EditorExtensions.mathPen is set; without it a stored "math" acts as the
 /// pen (the stored value is kept). Its strokes are ballpoint strokes in the
-/// ballpoint pen's style.
-enum EditorTool { pen, eraser, lasso, shape, text, math }
+/// ballpoint pen's style. (text pen, phase 1) [textPen] is the 텍스트 펜:
+/// offered only when EditorExtensions.textPen is set (else it acts as the
+/// pen); its strokes are ballpoint strokes too, and they stay handwriting
+/// until the user taps the bubble.
+enum EditorTool { pen, eraser, lasso, shape, text, math, textPen }
 
 @immutable
 class EraserSettings {

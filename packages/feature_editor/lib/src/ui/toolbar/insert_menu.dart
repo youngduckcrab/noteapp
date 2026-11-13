@@ -24,6 +24,8 @@ import '../../di/editor_extensions.dart';
 import '../../di/editor_image_importer.dart';
 import '../../objects/image_flows.dart';
 import '../../scope/editor_scope.dart';
+import '../../tools/text_pen/text_pen_controller.dart';
+import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
 
 /// Icon of an image source (6.12.1 table).
@@ -43,11 +45,18 @@ class InsertMenu extends ConsumerStatefulWidget {
       ValueKey('editor.insert.image.${source.name}');
   static ValueKey<String> extensionKey(String id) => ValueKey('editor.ext.$id');
 
+  /// (text pen, phase 1) '손글씨를 텍스트로' (EditorExtensions.textPen only).
+  static const handwritingToTextKey = ValueKey(
+    'editor.insert.handwritingToText',
+  );
+
   /// Whether [+] has anything to offer (else it is hidden — E-7).
   static bool hasItems(
     EditorImageImporter? importer,
-    List<EditorInsertMenuItem> items,
-  ) => items.isNotEmpty || ImageFlows.sourcesOf(importer).isNotEmpty;
+    List<EditorInsertMenuItem> items, {
+    bool textPen = false,
+  }) =>
+      textPen || items.isNotEmpty || ImageFlows.sourcesOf(importer).isNotEmpty;
 
   @override
   ConsumerState<InsertMenu> createState() => InsertMenuState();
@@ -78,7 +87,12 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
       ref.watch(editorExtensionsProvider.select((e) => e.insertMenuItems)),
       (item) => item.id,
     );
-    if (items.isEmpty && sources.isEmpty) return const SizedBox.shrink();
+    final textPen = ref.watch(
+      editorExtensionsProvider.select((e) => e.textPen != null),
+    );
+    if (items.isEmpty && sources.isEmpty && !textPen) {
+      return const SizedBox.shrink();
+    }
     return ValueListenableBuilder<Set<String>>(
       valueListenable: runner.runningIds,
       builder: (context, running, _) => MenuAnchor(
@@ -89,6 +103,7 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
           items: items,
           running: running,
           close: _close,
+          textPen: textPen,
         ),
         child: IconButton(
           key: InsertMenu.buttonKey,
@@ -105,7 +120,10 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
 /// folded toolbar's [⋯도구] (E2-13). A press starts the source's picker /
 /// the item's onSelected synchronously inside the press (4.3.1), then
 /// [close] closes the menu the rows are in. Rows whose id is [running] — or
-/// all of them when not [enabled] — are disabled.
+/// all of them when not [enabled] — are disabled. (text pen, phase 1) With
+/// [textPen] (EditorExtensions.textPen) the '손글씨를 텍스트로' row comes
+/// first after the image rows: with handwriting selected it opens the
+/// conversion sheet on it, otherwise it picks the 텍스트 펜.
 List<Widget> insertMenuRows(
   WidgetRef ref, {
   required List<core.ImageImportSource> sources,
@@ -113,6 +131,7 @@ List<Widget> insertMenuRows(
   required Set<String> running,
   required VoidCallback close,
   bool enabled = true,
+  bool textPen = false,
 }) {
   void pickImage(core.ImageImportSource source) => unawaited(
     ref.read(editorImageFlowsProvider).insert(source, close: close),
@@ -134,6 +153,26 @@ List<Widget> insertMenuRows(
     );
   }
 
+  void handwritingToText() {
+    close();
+    final selection = ref.read(editorCommandsProvider).selectionContext();
+    final ink = [
+      ...?selection?.strokes.where(core.HandwritingText.isRecognitionInput),
+    ];
+    if (selection == null || ink.isEmpty) {
+      ref.read(editorCommandsProvider).selectTool(EditorTool.textPen);
+      return;
+    }
+    final converting = ref
+        .read(editorTextPenProvider)
+        .convertStrokes(selection.pageId, ink);
+    unawaited(
+      converting.then((ok) {
+        if (ok) selection.clearSelection();
+      }),
+    );
+  }
+
   return [
     if (sources.isNotEmpty)
       SubmenuButton(
@@ -151,6 +190,13 @@ List<Widget> insertMenuRows(
             ),
         ],
         child: const Text(EditorStrings.image),
+      ),
+    if (textPen)
+      InsertMenuRow(
+        key: InsertMenu.handwritingToTextKey,
+        icon: Icons.edit_note,
+        label: EditorStrings.handwritingToText,
+        onPressed: enabled ? handwritingToText : null,
       ),
     for (final item in items)
       InsertMenuRow(

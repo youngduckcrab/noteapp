@@ -1,6 +1,6 @@
 // m5-7/04-editor 8.2 E2-06, 6.6.2: selectionPriority — every row of the
-// table (6 tools — (math pen) + math — × 5 origins × handle / body /
-// outside = 90 cases), written
+// table (7 tools — (math pen) + math, (text pen) + textPen — × 5 origins ×
+// handle / body / outside = 105 cases), written
 // out row by row and compared with the function.
 import 'package:feature_editor/src/tools/selection.dart';
 import 'package:feature_editor/src/tools/selection_priority.dart';
@@ -21,6 +21,8 @@ const Map<EditorTool, List<SelectionPriority>> _body = {
   EditorTool.text: [_m, _m, _m, _d, _d],
   // (math pen, phase 1) a drawing tool like the pen.
   EditorTool.math: [_m, _m, _m, _d, _d],
+  // (text pen, phase 1) a drawing tool like the pen.
+  EditorTool.textPen: [_m, _m, _m, _d, _d],
 };
 
 const List<SelectionOrigin> _origins = [

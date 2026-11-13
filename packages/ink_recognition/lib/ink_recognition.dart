@@ -61,3 +61,10 @@ export 'src/settings/recognition_settings_section.dart'
     show RecognitionSettingsSection;
 export 'src/shapes/geometric_shape_fitter.dart' show GeometricShapeFitter;
 export 'src/shapes/shape_fit_tuning.dart' show ShapeFitTuning;
+// (text pen, phase 1 — m5-7/05-library 6.24)
+export 'src/text_pen/text_pen.dart'
+    show
+        RecognitionTextPen,
+        RecognitionPenContext,
+        RecognitionTextPenSession,
+        recognitionTextPen;

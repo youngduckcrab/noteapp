@@ -25,6 +25,9 @@ const String kToMathLabel = 'recog-to-math';
 /// (math pen, phase 1) the math pen's conversion (design note 11.3).
 const String kMathPenLabel = 'recog-math-pen';
 
+/// (text pen, phase 1) the text pen's conversion (m5-7/05-library 6.24).
+const String kTextPenLabel = 'recog-text-pen';
+
 /// engineId of a formula the user typed or fixed by hand (6.14.6, 6.15.1).
 const String kManualMathEngineId = 'manual';
 

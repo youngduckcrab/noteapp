@@ -13,6 +13,8 @@ import 'package:feature_editor/feature_editor.dart'
         EditorMathConvertTrigger,
         EditorMathGroup,
         EditorMathPenContext,
+        EditorPenContext,
+        EditorPenGroup,
         EditorSelectionContext;
 import 'package:feature_library/feature_library.dart'
     show LibraryInkSearch, LibraryInkSearchPhase, LibraryInkSearchState;
@@ -218,6 +220,11 @@ void main() {
         ('recog.toText', '라벨 recog.toText', Icons.functions),
       );
       expect(item.isVisible, isNull);
+      expect(item.pinned, isFalse);
+      // (text pen track) pinned passes through (recog.toText's).
+      final pinned = recognitionSelectionActions().first;
+      expect(pinned.pinned, isTrue);
+      expect(selectionMenuItemOf(pinned).pinned, isTrue);
 
       var finished = false;
       final selection = editor.selection(objects: [_text('t1')]);
@@ -447,6 +454,130 @@ void main() {
       },
     );
   });
+
+  // (text pen, phase 1 — m5-7/05-library 6.24, contract C29)
+  group('editorTextPenOf — recog\'s text pen as the editor slot', () {
+    test(
+      'context, groups as targets, convert / fix / bubble pass through',
+      () async {
+        final editor = _Editor();
+        final inner = _RecordingTextPenSession();
+        RecognitionPenContext? got;
+        final slot = editorTextPenOf(
+          RecognitionTextPen(
+            open: (context) {
+              got = context;
+              return inner;
+            },
+          ),
+        );
+        List<Stroke>? live(String pageId, List<String> ids) => const [];
+        BuildContext? body() => null;
+        final session = slot.open(
+          EditorPenContext(
+            noteId: 'n1',
+            pageSizeOf: (id) => id == 'p1' ? _page : null,
+            execute: editor.execute,
+            liveStrokes: live,
+            bodyContext: body,
+          ),
+        );
+        expect(got!.noteId, 'n1');
+        expect(got!.liveStrokes, same(live));
+        expect(got!.bodyContext, same(body));
+        got!.execute(RemoveElements(pageId: 'p1', elementIds: const ['x']));
+        expect(editor.executed, hasLength(1));
+
+        final stroke = StrokeFixtures.synthetic(
+          pageId: 'p1',
+          ids: SequentialIdGenerator(prefix: 's'),
+        );
+        final group = EditorPenGroup(
+          pageId: 'p1',
+          strokes: [stroke],
+          boundsPt: const Rect.fromLTWH(1, 2, 3, 4),
+        );
+        session.update(group);
+        final target = inner.updates.single;
+        expect(target.noteId, 'n1');
+        expect(target.pageId, 'p1');
+        expect(target.pageSize, _page);
+        expect(target.strokes, [stroke]);
+        expect(target.areaPt, const Rect.fromLTWH(1, 2, 3, 4));
+
+        expect(await session.convert(group), isTrue);
+        expect(await session.fix(group), isFalse);
+        expect(inner.converted.single.strokes, [stroke]);
+        expect(inner.fixed.single.strokes, [stroke]);
+        var converts = 0, fixes = 0;
+        session.buildBubble(
+          _FakeBuildContext(),
+          group,
+          () => converts++,
+          () => fixes++,
+        );
+        inner.onConvert!();
+        inner.onFix!();
+        expect((converts, fixes), (1, 1));
+
+        session
+          ..interrupt()
+          ..clear();
+        expect(inner.calls, ['interrupt', 'clear']);
+        expect(session.changes, same(inner.changes));
+        session.dispose();
+        expect(inner.calls.last, 'dispose');
+      },
+    );
+  });
+}
+
+final class _RecordingTextPenSession implements RecognitionTextPenSession {
+  final List<RecognitionTarget> updates = [];
+  final List<RecognitionTarget> converted = [];
+  final List<RecognitionTarget> fixed = [];
+  final List<String> calls = [];
+  final ValueNotifier<int> _changes = ValueNotifier(0);
+  VoidCallback? onConvert, onFix;
+
+  @override
+  void update(RecognitionTarget group) => updates.add(group);
+
+  @override
+  void interrupt() => calls.add('interrupt');
+
+  @override
+  void clear() => calls.add('clear');
+
+  @override
+  Future<bool> convert(RecognitionTarget group) async {
+    converted.add(group);
+    return true;
+  }
+
+  @override
+  Future<bool> fix(RecognitionTarget group) async {
+    fixed.add(group);
+    return false;
+  }
+
+  @override
+  Listenable get changes => _changes;
+
+  @override
+  Widget buildBubble(
+    BuildContext context,
+    RecognitionTarget group,
+    VoidCallback onConvert,
+    VoidCallback onFix,
+  ) {
+    this.onConvert = onConvert;
+    this.onFix = onFix;
+    return const SizedBox();
+  }
+
+  @override
+  void dispose() => calls.add('dispose');
 }
 
 final class _RecordingMathPenSession implements RecognitionMathPenSession {

@@ -72,6 +72,11 @@ const _expectedExports = <String>{
   'EditorMathGroup',
   'EditorMathConvertTrigger',
   'EditorMathPenSession',
+  // (text pen, phase 1) m5-7/04-editor 6.21, contract C29.
+  'EditorTextPen',
+  'EditorTextPenSession',
+  'EditorPenContext',
+  'EditorPenGroup',
 };
 
 /// The 1st-round names (04-editor 4.1, v1.4): the v2 list keeps all of them.
@@ -168,7 +173,8 @@ void main() {
       expect(names.toSet(), hasLength(names.length), reason: 'duplicates');
       expect(names.toSet(), _expectedExports);
       // (math pen, phase 1) + 5.
-      expect(_expectedExports, hasLength(_v14ExportCount + 14 + 5));
+      // + 5 math pen, + 4 text pen names.
+      expect(_expectedExports, hasLength(_v14ExportCount + 14 + 5 + 4));
       // m5-7/04-editor 4.1 (수정 1회차): both stay internal / out.
       expect(names, isNot(contains('PlaybackHighlightStyle')));
       expect(names, isNot(contains('WebTextInputMode')));

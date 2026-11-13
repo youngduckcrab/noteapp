@@ -26,7 +26,8 @@ final class IndexerHarness {
     bool start = true,
   }) : recognizer = recognizer ?? FakeHandwritingRecognizer(),
        enabled = ValueNotifier<bool>(enabled),
-       foreground = ValueNotifier<bool>(foreground) {
+       foreground = ValueNotifier<bool>(foreground),
+       yieldTo = ValueNotifier<bool>(false) {
     store = RecordingNoteStore(
       core_testing.createFakeNoteStore(clock: async.getClock(kHarnessStart)),
     );
@@ -45,6 +46,7 @@ final class IndexerHarness {
       recognizer: this.recognizer,
       enabled: this.enabled,
       foreground: this.foreground,
+      yieldTo: yieldTo,
     );
     indexer.status.addListener(() => statuses.add(indexer.status.value));
     store.calls.clear();
@@ -58,6 +60,9 @@ final class IndexerHarness {
   final FakeHandwritingRecognizer recognizer;
   final ValueNotifier<bool> enabled;
   final ValueNotifier<bool> foreground;
+
+  /// (text pen track) RecognitionPriority.interactive.
+  final ValueNotifier<bool> yieldTo;
   late final RecordingNoteStore store;
   late final core.Note note;
   late final List<core.PageId> pageIds;

@@ -96,7 +96,7 @@ class MathPenLayer extends ConsumerWidget {
             return const SizedBox.shrink();
           }
           return CustomSingleChildLayout(
-            delegate: _BubbleDelegate(anchor),
+            delegate: PenBubbleLayout(anchor),
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: maxWidth,
@@ -107,7 +107,7 @@ class MathPenLayer extends ConsumerWidget {
                 elevation: 2,
                 borderRadius: BorderRadius.circular(12),
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: _PalmAwareTap(
+                child: PenBubbleTap(
                   onTap: controller.phase == MathPenPhase.converting
                       ? null
                       : convert,
@@ -144,7 +144,7 @@ class MathPenLayer extends ConsumerWidget {
     final buttonStyle = TextButton.styleFrom(minimumSize: const Size(64, 44));
     return Positioned.fill(
       child: CustomSingleChildLayout(
-        delegate: _BubbleDelegate(anchor),
+        delegate: PenBubbleLayout(anchor),
         child: Material(
           key: formulaMenuKey,
           elevation: 3,
@@ -177,19 +177,26 @@ class MathPenLayer extends ConsumerWidget {
   }
 }
 
-/// The bubble's tap: a finger down the input router would reject as a palm
-/// (InputRouter.rejectsAsPalm — P1–P3, P5) does not convert.
-class _PalmAwareTap extends ConsumerStatefulWidget {
-  const _PalmAwareTap({required this.onTap, required this.child});
+/// The bubble's tap (the math pen's and the text pen's): a finger down the
+/// input router would reject as a palm (InputRouter.rejectsAsPalm — P1–P3,
+/// P5) does not convert; nor does it long-press.
+class PenBubbleTap extends ConsumerStatefulWidget {
+  const PenBubbleTap({
+    super.key,
+    required this.onTap,
+    required this.child,
+    this.onLongPress,
+  });
 
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final Widget child;
 
   @override
-  ConsumerState<_PalmAwareTap> createState() => _PalmAwareTapState();
+  ConsumerState<PenBubbleTap> createState() => PenBubbleTapState();
 }
 
-class _PalmAwareTapState extends ConsumerState<_PalmAwareTap> {
+class PenBubbleTapState extends ConsumerState<PenBubbleTap> {
   bool _palm = false;
 
   void _down(PointerDownEvent e) {
@@ -205,6 +212,7 @@ class _PalmAwareTapState extends ConsumerState<_PalmAwareTap> {
   @override
   Widget build(BuildContext context) {
     final onTap = widget.onTap;
+    final onLongPress = widget.onLongPress;
     return Listener(
       onPointerDown: _down,
       child: InkWell(
@@ -214,6 +222,12 @@ class _PalmAwareTapState extends ConsumerState<_PalmAwareTap> {
             : () {
                 if (_palm) return; // the writing hand
                 onTap();
+              },
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                if (_palm) return;
+                onLongPress();
               },
         child: widget.child,
       ),
@@ -272,9 +286,10 @@ Offset mathPenBubbleOffset(
   return best;
 }
 
-/// Lays the bubble (or the formula menu) out by [mathPenBubbleOffset].
-final class _BubbleDelegate extends SingleChildLayoutDelegate {
-  const _BubbleDelegate(this.anchor);
+/// Lays the bubble (or the formula menu; the text pen's bubble too) out by
+/// [mathPenBubbleOffset].
+final class PenBubbleLayout extends SingleChildLayoutDelegate {
+  const PenBubbleLayout(this.anchor);
 
   final Rect anchor;
 
@@ -294,6 +309,6 @@ final class _BubbleDelegate extends SingleChildLayoutDelegate {
       mathPenBubbleOffset(size, childSize, anchor, margin: _margin);
 
   @override
-  bool shouldRelayout(_BubbleDelegate oldDelegate) =>
+  bool shouldRelayout(PenBubbleLayout oldDelegate) =>
       oldDelegate.anchor != anchor;
 }

@@ -879,6 +879,29 @@ void main() {
       h.dispose();
     });
 
+    indexerTest('(text pen track) an interactive request holds the engine '
+        '(yieldTo true) → no next line; released → it goes on', (async) {
+      final h = IndexerHarness(
+        async,
+        recognizer: FakeHandwritingRecognizer(
+          latency: const Duration(milliseconds: 100),
+        ),
+      );
+      h.addStrokes(h.lines());
+      h.elapse(IndexerTuning.localQuiet);
+      h.elapseMs(50); // line 1 in flight
+      h.yieldTo.value = true;
+      h.elapse(const Duration(minutes: 1));
+      expect(h.recognizer.calls, hasLength(1));
+      expect(h.store.handwritingWrites, 0);
+      h.yieldTo.value = false;
+      h.elapseMs(200);
+      expect(h.recognizer.calls, hasLength(3));
+      expect(h.store.count('update:'), 1);
+
+      h.dispose();
+    });
+
     indexerTest('in the background no job starts', (async) {
       final h = IndexerHarness(async, foreground: false);
       expect(h.phase, HandwritingIndexerPhase.paused);

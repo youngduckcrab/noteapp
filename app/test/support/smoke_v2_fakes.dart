@@ -183,8 +183,9 @@ Future<SmokeApp> bootSmokeV2App(
 
 /// The editor menu ids the real recognition actions give (slots 3 · 4):
 /// whatever ink_recognition's recognitionSelectionActions() /
-/// recognitionInsertActions() return — empty on the R2-B6 surface, the recog
-/// actions after the LIBRARY merge (H3 then expects them non-empty).
+/// recognitionInsertActions() return — recog.toText, recog.copyText,
+/// recog.toMath, recog.editMath / recog.mathPad (H3 expects them
+/// non-empty).
 List<String> realRecognitionSelectionIds() => [
   for (final a in recognitionSelectionActions()) a.id,
 ];

@@ -191,7 +191,8 @@ void main() {
     expect(success.overrides, contains(same(rig.override)));
   });
 
-  test('default arguments: the R2-B6 actions (none yet) and the real '
+  test('default arguments: recog\'s real selection / insert actions '
+      '(toText pinned), the math and text pens, and the real '
       'recognitionOverrides() — the shape fitter override', () async {
     final store = createFakeNoteStore();
     addTearDown(store.close);
@@ -218,6 +219,16 @@ void main() {
       contribution.insertMenuItems.map((i) => i.id),
       recognitionInsertActions().map((a) => a.id),
     );
+    expect(contribution.selectionMenuItems, isNotEmpty);
+    expect(
+      [
+        for (final i in contribution.selectionMenuItems)
+          if (i.pinned) i.id,
+      ],
+      ['recog.toText'],
+    );
+    expect(contribution.mathPen, isNotNull);
+    expect(contribution.textPen, isNotNull);
     expect(
       success.overrides.map((o) => o.origin),
       contains(ink.inkShapeFitterProvider),

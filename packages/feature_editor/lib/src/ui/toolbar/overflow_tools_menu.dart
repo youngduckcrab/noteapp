@@ -50,6 +50,9 @@ class OverflowToolsMenu extends ConsumerStatefulWidget {
   /// (math pen, phase 1) the 수식 펜 row (EditorExtensions.mathPen only).
   static const mathKey = ValueKey('editor.toolbar.math');
 
+  /// (text pen, phase 1) the 텍스트 펜 row (EditorExtensions.textPen only).
+  static const textPenKey = ValueKey('editor.toolbar.textPen');
+
   /// Whether the [+] rows are offered (InsertMenu.hasItems).
   final bool hasInsert;
 
@@ -116,8 +119,15 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
       editorExtensionsProvider.select((e) => e.mathPen != null),
     );
     final mathActive = hasMathPen && active == EditorTool.math;
+    final hasTextPen = ref.watch(
+      editorExtensionsProvider.select((e) => e.textPen != null),
+    );
+    final textPenActive = hasTextPen && active == EditorTool.textPen;
     final folded =
-        active == EditorTool.shape || active == EditorTool.text || mathActive;
+        active == EditorTool.shape ||
+        active == EditorTool.text ||
+        mathActive ||
+        textPenActive;
     return ValueListenableBuilder<Set<String>>(
       valueListenable: runner.runningIds,
       builder: (context, running, _) => MenuAnchor(
@@ -162,6 +172,21 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
                       _close();
                     },
             ),
+          if (hasTextPen)
+            InsertMenuRow(
+              key: OverflowToolsMenu.textPenKey,
+              icon: Icons.edit_note,
+              label: EditorStrings.textPenTool,
+              selected: textPenActive,
+              onPressed: readOnly
+                  ? null
+                  : () {
+                      ref
+                          .read(editorCommandsProvider)
+                          .selectTool(EditorTool.textPen);
+                      _close();
+                    },
+            ),
           if (widget.hasInsert)
             ...insertMenuRows(
               ref,
@@ -170,6 +195,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
               running: running,
               close: _close,
               enabled: !readOnly,
+              textPen: hasTextPen,
             ),
           if (widget.hasPanel)
             InsertMenuRow(
@@ -190,6 +216,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
             EditorTool.shape => Icons.interests,
             EditorTool.text => Icons.text_fields,
             EditorTool.math when mathActive => Icons.functions,
+            EditorTool.textPen when textPenActive => Icons.edit_note,
             _ => Icons.widgets_outlined,
           },
           label: EditorStrings.moreTools,

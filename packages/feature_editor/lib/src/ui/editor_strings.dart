@@ -517,6 +517,13 @@ abstract final class EditorStrings {
   /// handwriting (undo brings the formula back).
   static const mathKeptHandwriting = '수식으로 바꾸지 못해 손글씨로 남겼어요.';
 
+  // (text pen, phase 1 — m5-7/04-editor 6.21)
+  static const textPenTool = '텍스트 펜';
+
+  /// The insert menu's row: the text pen, or the conversion sheet on the
+  /// selected handwriting.
+  static const handwritingToText = '손글씨를 텍스트로';
+
   /// Insert menu submenu and the add-page sheet row (6.12.1, 6.12.3).
   static const image = '이미지';
 

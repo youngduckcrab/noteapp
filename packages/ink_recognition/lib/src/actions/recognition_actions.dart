@@ -62,6 +62,7 @@ final class RecognitionAction {
     required this.icon,
     required this.run,
     this.isVisible,
+    this.pinned = false,
   });
 
   final String id;
@@ -73,6 +74,10 @@ final class RecognitionAction {
   /// (v2.1, CP-L5) Called on every menu build: cheap, reads no provider; never hides just because
   /// no engine is available (7.4.2 '보이되 안내').
   final bool Function(RecognitionTarget target)? isVisible;
+
+  /// (text pen track) Always on the selection bar, before '⋯' (recog.toText:
+  /// the way to turn handwriting into text must not hide behind ⋯).
+  final bool pinned;
 }
 
 /// (v2.1, CP-L6) recog.copyText: strokes → recognized text (copy button in the sheet); no strokes
@@ -103,6 +108,7 @@ List<RecognitionAction> buildSelectionActions({
     label: RecognitionStrings.toText,
     icon: Icons.short_text,
     isVisible: hasRecognitionInk,
+    pinned: true,
     run: (context, target) => runRecognitionAction(
       RecognitionActionIds.toText,
       context,

@@ -60,7 +60,8 @@ class SelectionMenu extends ConsumerWidget {
   /// (v2, appendix C) An extension item (bar or '⋯'): `editor.ext.<id>`.
   static ValueKey<String> extensionKey(String id) => ValueKey('editor.ext.$id');
 
-  /// (v2, 6.7.1) Extension items on the bar at most; the rest go to '⋯'.
+  /// (v2, 6.7.1) Extension items on the bar at most; the rest go to '⋯'
+  /// (a pinned item — EditorSelectionMenuItem.pinned — is always on it).
   static const int maxBarItems = 2;
 
   /// Distance between the frame and the bar (px).
@@ -279,12 +280,17 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
             ],
             colourDot: model.canRecolor,
             extensions: [
-              for (final item in extensions.take(SelectionMenu.maxBarItems))
-                item.label,
+              for (final item in extensions) (item.label, pinned: item.pinned),
             ],
           );
-          final barItems = extensions.take(onBar).toList();
-          final overflow = extensions.skip(onBar).toList();
+          final barItems = [
+            for (final (i, item) in extensions.indexed)
+              if (onBar.contains(i)) item,
+          ];
+          final overflow = [
+            for (final (i, item) in extensions.indexed)
+              if (!onBar.contains(i)) item,
+          ];
           final row = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -481,28 +487,41 @@ abstract final class _BarWidth {
 
   static double _textButton(double label) => math.max(64, label + 24);
 
-  /// How many of [extensions] (labels, at most SelectionMenu.maxBarItems)
-  /// fit on the bar within [maxWidth].
-  static int fit(
+  /// The indexes of [extensions] (labels) on the bar: every pinned one
+  /// (whatever the width — the bar scales down), then the others in list
+  /// order while the bar holds fewer than SelectionMenu.maxBarItems and
+  /// they fit within [maxWidth] (the first that does not fit ends it).
+  static Set<int> fit(
     BuildContext context, {
     required double maxWidth,
     required List<String> builtIn,
     required bool colourDot,
-    required List<String> extensions,
+    required List<(String, {bool pinned})> extensions,
   }) {
-    if (extensions.isEmpty || !maxWidth.isFinite) return extensions.length;
+    final out = <int>{
+      for (final (i, e) in extensions.indexed)
+        if (e.pinned) i,
+    };
     var width = 2 * padding + _iconButton;
     for (final label in builtIn) {
       width += _textButton(_label(context, label));
     }
     if (colourDot) width += dot + dotGap;
-    var count = 0;
-    for (final label in extensions) {
-      width += math.max(64, _label(context, label) + 18 + 8 + 12 + 16);
-      if (width > maxWidth) break;
-      count++;
+    double itemWidth(String label) =>
+        math.max(64, _label(context, label) + 18 + 8 + 12 + 16);
+    for (final i in out) {
+      width += itemWidth(extensions[i].$1);
     }
-    return count;
+    for (final (i, e) in extensions.indexed) {
+      if (e.pinned) continue;
+      if (out.length >= SelectionMenu.maxBarItems) break;
+      if (maxWidth.isFinite) {
+        width += itemWidth(e.$1);
+        if (width > maxWidth) break;
+      }
+      out.add(i);
+    }
+    return out;
   }
 }
 

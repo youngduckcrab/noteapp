@@ -289,9 +289,11 @@ final class FeatureWiringModule extends AppModule {
         : const EditorExtensions();
     EditorPanelBuilder? recordingPanel;
     EditorMathPen? mathPen;
+    EditorTextPen? textPen;
     for (final contribution in contributions) {
       recordingPanel ??= contribution.recordingPanel;
       mathPen ??= contribution.mathPen;
+      textPen ??= contribution.textPen;
     }
     return EditorExtensions(
       moreMenuItems: pdf.moreMenuItems,
@@ -300,6 +302,7 @@ final class FeatureWiringModule extends AppModule {
       insertMenuItems: _insertItems,
       recordingPanel: recordingPanel,
       mathPen: mathPen,
+      textPen: textPen,
     );
   }
 }

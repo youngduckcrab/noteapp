@@ -95,6 +95,7 @@ class EditorExtensions {
     this.insertMenuItems = const [],
     this.recordingPanel,
     this.mathPen,
+    this.textPen,
   });
   final List<EditorMenuItem> moreMenuItems; // PDF: export, share, print, search
   final List<EditorMenuItem> addPageSources; // PDF: insert pages from PDF
@@ -107,6 +108,11 @@ class EditorExtensions {
   /// (math pen, phase 1) recog's recognition for the 수식 펜 tool; null → no
   /// math pen tool (a stored "math" tool acts as the pen).
   final EditorMathPen? mathPen;
+
+  /// (text pen, phase 1) recog's recognition for the 텍스트 펜 tool and the
+  /// insert menu's '손글씨를 텍스트로'; null → neither (a stored "textPen"
+  /// tool acts as the pen).
+  final EditorTextPen? textPen;
 
   static const _items = ListEquality<EditorMenuItem>();
   static const _selectionItems = ListEquality<EditorSelectionMenuItem>();
@@ -127,7 +133,8 @@ class EditorExtensions {
           ) &&
           _insertItems.equals(other.insertMenuItems, insertMenuItems) &&
           other.recordingPanel == recordingPanel &&
-          other.mathPen == mathPen;
+          other.mathPen == mathPen &&
+          other.textPen == textPen;
 
   @override
   int get hashCode => Object.hash(
@@ -138,6 +145,7 @@ class EditorExtensions {
     _insertItems.hash(insertMenuItems),
     recordingPanel,
     mathPen,
+    textPen,
   );
 
   @override
@@ -145,7 +153,7 @@ class EditorExtensions {
       'EditorExtensions(more: $moreMenuItems, addPage: $addPageSources, '
       'selection: $selectionMenuItems, insert: $insertMenuItems, '
       'recordingPanel: ${recordingPanel != null}, '
-      'mathPen: ${mathPen != null})';
+      'mathPen: ${mathPen != null}, textPen: ${textPen != null})';
 }
 
 final editorExtensionsProvider = Provider<EditorExtensions>(
@@ -193,6 +201,7 @@ class EditorSelectionMenuItem {
     required this.icon,
     required this.onSelected,
     this.isVisible,
+    this.pinned = false,
   });
   final String id;
   final String label;
@@ -204,6 +213,11 @@ class EditorSelectionMenuItem {
   onSelected;
   final bool Function(EditorSelectionContext selection)? isVisible;
 
+  /// (text pen track) Always on the bar, before '⋯', whatever the width
+  /// (recog: '텍스트로 변환'); the others fill the rest of the bar's
+  /// places (SelectionMenu.maxBarItems) by width.
+  final bool pinned;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -212,10 +226,12 @@ class EditorSelectionMenuItem {
           other.label == label &&
           other.icon == icon &&
           other.onSelected == onSelected &&
-          other.isVisible == isVisible;
+          other.isVisible == isVisible &&
+          other.pinned == pinned;
 
   @override
-  int get hashCode => Object.hash(id, label, icon, onSelected, isVisible);
+  int get hashCode =>
+      Object.hash(id, label, icon, onSelected, isVisible, pinned);
 
   @override
   String toString() => 'EditorSelectionMenuItem($id, "$label")';
@@ -418,6 +434,71 @@ abstract interface class EditorMathPenSession {
     BuildContext context,
     EditorMathGroup group,
     VoidCallback onConvert,
+  );
+
+  void dispose();
+}
+
+// --- (text pen, phase 1 — m5-7/04-editor 6.21, contract C29) ---
+
+/// What a pen session gets (the math pen's context, shared).
+typedef EditorPenContext = EditorMathPenContext;
+
+/// An open pen group (the math pen's value, shared; reopenedFrom is always
+/// null for the text pen).
+typedef EditorPenGroup = EditorMathGroup;
+
+/// The text pen slot: recog's recognition behind the editor's 텍스트 펜. The
+/// editor owns the tool, the strokes, the grouping and the bubble's frame;
+/// [open] gives the per-note session (once per note screen, disposed with
+/// it). Compares by [open].
+@immutable
+class EditorTextPen {
+  const EditorTextPen({required this.open});
+  final EditorTextPenSession Function(EditorPenContext context) open;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is EditorTextPen && other.open == open;
+
+  @override
+  int get hashCode => open.hashCode;
+}
+
+/// recog's per-note recognition session behind the text pen. Unlike the
+/// math pen nothing converts in the background: a group stays handwriting
+/// until [convert] (the bubble tap) or [fix] (the sheet) runs.
+abstract interface class EditorTextPenSession {
+  /// The group's strokes changed: recognize them again (debounced).
+  void update(EditorPenGroup group);
+
+  /// A new contact: stop the timer; only a newer answer counts.
+  void interrupt();
+
+  /// The group is gone (no conversion).
+  void clear();
+
+  /// The bubble tap: converts [group] into a text box with ONE execute (one
+  /// undo step); completes true when the box was added. With no usable
+  /// answer it may open the conversion sheet.
+  Future<bool> convert(EditorPenGroup group);
+
+  /// '고치기' / a long press on the bubble, and the insert menu's
+  /// '손글씨를 텍스트로' with an ink selection: the conversion sheet on
+  /// [group]'s strokes (per-line editing, candidates); true when it
+  /// converted.
+  Future<bool> fix(EditorPenGroup group);
+
+  /// Fires when what [buildBubble] shows changes.
+  Listenable get changes;
+
+  /// The bubble's content for [group]; [onConvert] converts it, [onFix]
+  /// opens the sheet (buttons inside the content may call them).
+  Widget buildBubble(
+    BuildContext context,
+    EditorPenGroup group,
+    VoidCallback onConvert,
+    VoidCallback onFix,
   );
 
   void dispose();

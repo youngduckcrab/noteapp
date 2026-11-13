@@ -8,7 +8,8 @@ import 'package:feature_editor/feature_editor.dart'
         EditorInsertMenuItem,
         EditorMathPen,
         EditorPanelBuilder,
-        EditorSelectionMenuItem;
+        EditorSelectionMenuItem,
+        EditorTextPen;
 import 'package:feature_library/feature_library.dart' show LibraryInkSearch;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
@@ -93,6 +94,7 @@ final class ShellContribution {
     this.recordingPanel,
     this.mathPen,
     this.libraryInkSearch,
+    this.textPen,
     this.devOverlaySections = const [],
     this.settingsSections = const [],
   });
@@ -109,6 +111,9 @@ final class ShellContribution {
   /// (RecognitionModule) — read in the provider that overrides
   /// libraryInkSearchProvider.
   final LibraryInkSearch? Function(Ref ref)? libraryInkSearch;
+
+  /// (text pen, phase 1) recog's 텍스트 펜 (RecognitionModule).
+  final EditorTextPen? textPen;
   // (v2.1, D2-15) no imageImporter: image import is wired by
   // FeatureWiringModule itself, outside FEATURE_MEDIA and independent of
   // MediaModule's start.
@@ -120,7 +125,8 @@ final class ShellContribution {
       selectionMenuItems.isNotEmpty ||
       insertMenuItems.isNotEmpty ||
       recordingPanel != null ||
-      mathPen != null;
+      mathPen != null ||
+      textPen != null;
 
   @override
   String toString() =>
@@ -129,6 +135,7 @@ final class ShellContribution {
       'panel ${recordingPanel == null ? 'no' : 'yes'}, '
       'math pen ${mathPen == null ? 'no' : 'yes'}, '
       'ink search ${libraryInkSearch == null ? 'no' : 'yes'}, '
+      'text pen ${textPen == null ? 'no' : 'yes'}, '
       '${devOverlaySections.length} dev, ${settingsSections.length} settings)';
 }
 

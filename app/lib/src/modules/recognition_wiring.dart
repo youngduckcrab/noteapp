@@ -12,13 +12,17 @@ import 'package:feature_editor/feature_editor.dart'
         EditorMathPen,
         EditorMathPenContext,
         EditorMathPenSession,
+        EditorPenContext,
+        EditorPenGroup,
         EditorSelectionContext,
-        EditorSelectionMenuItem;
+        EditorSelectionMenuItem,
+        EditorTextPen,
+        EditorTextPenSession;
 import 'package:feature_library/feature_library.dart'
     show LibraryInkSearch, LibraryInkSearchPhase, LibraryInkSearchState;
 import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/widgets.dart'
-    show BuildContext, Listenable, Rect, Widget;
+    show BuildContext, Listenable, Rect, VoidCallback, Widget;
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:ink_recognition/ink_recognition.dart'
     show
@@ -30,7 +34,10 @@ import 'package:ink_recognition/ink_recognition.dart'
         RecognitionMathPen,
         RecognitionMathPenContext,
         RecognitionMathPenSession,
+        RecognitionPenContext,
         RecognitionTarget,
+        RecognitionTextPen,
+        RecognitionTextPenSession,
         recognitionDevOverlayLinesProvider;
 import 'package:note_core/note_core.dart' as core;
 
@@ -95,6 +102,7 @@ EditorSelectionMenuItem selectionMenuItemOf(RecognitionAction action) {
     isVisible: isVisible == null
         ? null
         : (selection) => isVisible(recognitionTargetOfSelection(selection)),
+    pinned: action.pinned,
   );
 }
 
@@ -276,4 +284,61 @@ final class _InkSearchAdapter implements LibraryInkSearch {
     _inner.status.removeListener(_sync);
     _state.dispose();
   }
+}
+
+/// (text pen, phase 1 — m5-7/05-library 6.24, contract C29) recog's text
+/// pen as the editor's slot: the editor's context becomes recog's, every
+/// EditorPenGroup a RecognitionTarget (strokes, areaPt = boundsPt, execute
+/// = the editor's, done does nothing) — the math pen's road.
+EditorTextPen editorTextPenOf(RecognitionTextPen pen) => EditorTextPen(
+  open: (context) => _TextPenSessionAdapter(
+    context,
+    pen.open(
+      RecognitionPenContext(
+        noteId: context.noteId,
+        execute: context.execute,
+        liveStrokes: context.liveStrokes,
+        bodyContext: context.bodyContext,
+      ),
+    ),
+  ),
+);
+
+final class _TextPenSessionAdapter implements EditorTextPenSession {
+  _TextPenSessionAdapter(this._context, this._inner);
+
+  final EditorPenContext _context;
+  final RecognitionTextPenSession _inner;
+
+  RecognitionTarget _target(EditorPenGroup group) =>
+      recognitionTargetOfMathGroup(_context, group);
+
+  @override
+  void update(EditorPenGroup group) => _inner.update(_target(group));
+
+  @override
+  void interrupt() => _inner.interrupt();
+
+  @override
+  void clear() => _inner.clear();
+
+  @override
+  Future<bool> convert(EditorPenGroup group) => _inner.convert(_target(group));
+
+  @override
+  Future<bool> fix(EditorPenGroup group) => _inner.fix(_target(group));
+
+  @override
+  Listenable get changes => _inner.changes;
+
+  @override
+  Widget buildBubble(
+    BuildContext context,
+    EditorPenGroup group,
+    VoidCallback onConvert,
+    VoidCallback onFix,
+  ) => _inner.buildBubble(context, _target(group), onConvert, onFix);
+
+  @override
+  void dispose() => _inner.dispose();
 }

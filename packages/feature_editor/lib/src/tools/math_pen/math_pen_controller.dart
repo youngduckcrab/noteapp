@@ -45,6 +45,7 @@ import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
 import '../../scope/editor_scope.dart';
 import '../../ui/editor_strings.dart';
+import '../pen_group/pen_group_members.dart';
 import '../tool_controller.dart';
 import '../tool_state.dart';
 import 'math_pen_group.dart';
@@ -81,34 +82,6 @@ final class MathFormulaMenu {
   int get hashCode => Object.hash(pageId, mathId);
 }
 
-/// What a partial-eraser piece of a member keeps (Stroke.fragment): the
-/// piece belongs to the group when it matches the erased member.
-final class _Origin {
-  _Origin(core.Stroke s)
-    : createdAt = s.createdAt,
-      style = s.style,
-      recordingId = s.recordingId,
-      recordingOffsetMs = s.recordingOffsetMs,
-      bounds = strokePointBounds(s).inflate(0.5);
-
-  final int createdAt;
-  final core.StrokeStyle style;
-  final String? recordingId;
-  final int? recordingOffsetMs;
-  final Rect bounds;
-
-  bool isPieceOf(core.Stroke piece) {
-    if (piece.createdAt != createdAt ||
-        piece.style != style ||
-        piece.recordingId != recordingId ||
-        piece.recordingOffsetMs != recordingOffsetMs) {
-      return false;
-    }
-    final b = strokePointBounds(piece);
-    return bounds.contains(b.topLeft) && bounds.contains(b.bottomRight);
-  }
-}
-
 /// The history as a background conversion found it (see
 /// [MathPenController._convertInBackground]).
 final class _HistoryMark {
@@ -116,21 +89,15 @@ final class _HistoryMark {
   core.HistoryState state;
 }
 
-final class _Group {
+final class _Group extends PenGroupMembers {
   _Group(
-    this.pageId,
-    List<core.Stroke> strokes, {
+    super.pageId,
+    super.strokes, {
     this.reopenedFrom,
     this.reopenedIds = const {},
     this.restored = false,
-  }) {
-    strokes.forEach(add);
-  }
+  });
 
-  final String pageId;
-  final List<String> ids = [];
-  final Set<String> known = {};
-  final Map<String, _Origin> originOf = {};
   final core.MathObject? reopenedFrom;
   final Set<String> reopenedIds;
 
@@ -139,12 +106,6 @@ final class _Group {
   /// converts it) until it is written on with the math pen again (erasing
   /// a part keeps the choice).
   bool restored;
-
-  void add(core.Stroke s) {
-    if (!ids.contains(s.id)) ids.add(s.id);
-    known.add(s.id);
-    originOf[s.id] = _Origin(s);
-  }
 }
 
 /// One per note screen ([editorMathPenProvider]).
@@ -556,53 +517,19 @@ class MathPenController extends ChangeNotifier {
     final pageId = content.page.id;
     final g = _group;
     if (g != null && g.pageId == pageId) {
-      // A member moved / recoloured in place: its pieces follow the new one.
-      for (final id in change.updated) {
-        final s = g.known.contains(id) ? content.strokeById(id) : null;
-        if (s != null) g.originOf[id] = _Origin(s);
-      }
-      final gone = [
-        for (final id in g.ids)
-          if (content.strokeById(id) == null) id,
-      ];
-      if (gone.isNotEmpty && change.added.isNotEmpty) {
-        // Partial-eraser pieces: the erased member's createdAt, style and
-        // recording, inside its bounds (a pasted copy of the same ink is
-        // elsewhere).
-        final origins = [for (final id in gone) ?g.originOf[id]];
-        for (final id in change.added) {
-          final s = content.strokeById(id);
-          if (s != null &&
-              !g.known.contains(id) &&
-              origins.any((o) => o.isPieceOf(s))) {
-            g.add(s);
-          }
-        }
-      }
-      final ids = [
-        for (final s in content.strokes)
-          if (g.known.contains(s.id)) s.id,
-      ];
-      if (!listEquals(ids, g.ids)) {
-        g.ids
-          ..clear()
-          ..addAll(ids);
-        _setGroup(ids.isEmpty ? null : g);
-        return;
-      }
-      if (change.updated.any(g.known.contains)) {
-        _setGroup(g); // a member changed in place (a remote edit, a recolour)
-        return;
+      switch (g.sync(change)) {
+        case PenGroupSync.members:
+          _setGroup(g.ids.isEmpty ? null : g);
+          return;
+        case PenGroupSync.updatedInPlace:
+          _setGroup(g); // a member changed in place (a remote edit, a recolour)
+          return;
+        case PenGroupSync.none:
+          break;
       }
     }
     final last = _lastConverted;
-    if (last != null &&
-        last.pageId == pageId &&
-        last.ids.isNotEmpty &&
-        last.ids.any(
-          (id) => change.added.contains(id) || change.updated.contains(id),
-        ) &&
-        last.ids.every((id) => content.strokeById(id) != null)) {
+    if (last != null && last.cameBackIn(change)) {
       // The undo of the last conversion — once: the next changes of the
       // page never bring it back again.
       _lastConverted = null;

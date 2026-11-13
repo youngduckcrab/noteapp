@@ -100,11 +100,15 @@ class RecordingSelectionItem extends _RecordingItem<EditorSelectionContext> {
     super.icon,
     core.EditCommand? Function(EditorSelectionContext selection)? command,
     this._isVisible,
+    this.pinned = false,
   }) {
     _command = command;
   }
 
   final bool Function(EditorSelectionContext selection)? _isVisible;
+
+  /// (text pen track) EditorSelectionMenuItem.pinned.
+  final bool pinned;
 
   /// How often isVisible ran.
   int visibleCalls = 0;
@@ -120,6 +124,7 @@ class RecordingSelectionItem extends _RecordingItem<EditorSelectionContext> {
     icon: icon,
     onSelected: _run,
     isVisible: _isVisible == null ? null : _visible,
+    pinned: pinned,
   );
 
   bool _visible(EditorSelectionContext selection) {

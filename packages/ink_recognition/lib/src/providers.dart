@@ -31,6 +31,7 @@ import 'package:http/http.dart' as http;
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
 
+import 'common/recognition_priority.dart';
 import 'common/report_error.dart';
 import 'engines/platform_recognizer.dart';
 import 'indexer/handwriting_indexer.dart';
@@ -177,6 +178,8 @@ final handwritingIndexerProvider = Provider<HandwritingIndexer?>((ref) {
     store: store,
     recognizer: recognizer,
     enabled: enabled,
+    // (text pen track) the text pen / the conversion sheet go first.
+    yieldTo: ref.watch(recognitionPriorityProvider).interactive,
   ); // foreground: default AppLifecycleListener (CP-L10)
   ref.onDispose(() {
     disposed = true;

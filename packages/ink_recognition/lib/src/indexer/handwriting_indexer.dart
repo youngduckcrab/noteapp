@@ -14,7 +14,9 @@
 //  - yields: every 200 converted strokes and after every line; > 1,500
 //    strokes → the line grouping runs in compute (the indexer never runs on
 //    the web);
-//  - foreground false → no next line (the line in flight finishes);
+//  - foreground false → no next line (the line in flight finishes); the
+//    same while `yieldTo` is true (an interactive request — the text pen,
+//    the conversion sheet — wants the shared engine; RecognitionPriority);
 //  - model: modelState when enabled / on a language change; not ready →
 //    waitingModel: Android (and engines without RecognizerModelAdmin)
 //    ensureModel(lang, wifiOnly: recog.modelWifiOnly) once, iOS
@@ -159,12 +161,14 @@ final class HandwritingIndexer {
     required this._enabled, // enabled:
     ValueListenable<bool>?
     foreground, // (v2.1, CP-L10) default: AppLifecycleListener
+    this._yieldTo, // yieldTo: (text pen) true → no next line
   }) : _givenForeground = foreground;
 
   final core.NoteStore _store;
   final HandwritingRecognizer _recognizer;
   final ValueListenable<bool> _enabled;
   final ValueListenable<bool>? _givenForeground;
+  final ValueListenable<bool>? _yieldTo;
 
   final ValueNotifier<HandwritingIndexerStatus> _status =
       ValueNotifier<HandwritingIndexerStatus>(const HandwritingIndexerStatus());
@@ -239,6 +243,7 @@ final class HandwritingIndexer {
     final foreground = _givenForeground ?? _createOwnForeground();
     _foreground = foreground;
     foreground.addListener(_onForegroundChanged);
+    _yieldTo?.addListener(_onForegroundChanged);
     _enabled.addListener(_onEnabledChanged);
     final settings = _store.settings;
     _subscriptions
@@ -272,6 +277,7 @@ final class HandwritingIndexer {
     _catchUpEpoch++;
     _dropJob();
     _clearWork();
+    if (_foreground != null) _yieldTo?.removeListener(_onForegroundChanged);
     _foreground?.removeListener(_onForegroundChanged);
     if (_foreground != null) _enabled.removeListener(_onEnabledChanged);
     final subscriptions = List.of(_subscriptions);
@@ -299,7 +305,9 @@ final class HandwritingIndexer {
   /// Started, not disposed, the engine usable and recog.autoIndex on.
   bool get _active => _started && !_disposed && !_unsupported && _enabled.value;
 
-  bool get _inForeground => _foreground?.value ?? true;
+  /// In the foreground and no interactive request waits for the engine.
+  bool get _inForeground =>
+      (_foreground?.value ?? true) && !(_yieldTo?.value ?? false);
 
   bool get _canStartJob =>
       _active && _inForeground && _modelReady && _lang != null && _job == null;
