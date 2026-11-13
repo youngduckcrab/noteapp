@@ -777,6 +777,51 @@ void main() {
       expect(await snapshot(store), before);
     });
 
+    test('(ink spacing) ink rows without the compact terms are rebuilt once at open', () async {
+      final dir = await Directory.systemTemp.createTemp('core_ink_terms_');
+      addTearDown(() => dir.delete(recursive: true));
+      final path = '${dir.path}/notes.sqlite';
+      final idb = newIdbFactoryMemory();
+      var s = await openDraftStore(path, idb);
+      final note = await s.library.createNote(title: 'ink');
+      final page = (await s.content.pagesOf(note.id)).single.id;
+      await s.handwriting.put(
+        HandwritingText(
+          noteId: note.id,
+          pageId: page,
+          engineId: 'fake/1:ko',
+          sourceRev: '0000000000000000',
+          lines: const [
+            HandwritingLine(
+              text: '회의 록',
+              rect: PageRect(10, 10, 200, 30),
+              strokeIds: ['s1'],
+            ),
+          ],
+          createdAt: 1,
+        ),
+      );
+      expect(await s.search.searchPages('회의록'), hasLength(1));
+      // As an older build wrote it: plain terms, no kv value.
+      await s.db.customStatement("UPDATE search_fts SET g = '회의 록'");
+      await (s.db.delete(
+        s.db.kv,
+      )..where((t) => t.key.equals(KvKeys.searchInkTermsVersion))).go();
+      expect(await s.search.searchPages('회의록'), isEmpty);
+      await s.close();
+
+      s = await openDraftStore(path, idb);
+      addTearDown(s.close);
+      await s.search.status.firstWhere(
+        (st) => !st.rebuilding && st.lastRebuildAt != null,
+      );
+      expect(await s.search.searchPages('회의록'), hasLength(1));
+      final kv = await (s.db.select(
+        s.db.kv,
+      )..where((t) => t.key.equals(KvKeys.searchInkTermsVersion))).getSingle();
+      expect(kv.value, '1');
+    });
+
     test(
       'a changed normalizer version rebuilds at open, without blocking it',
       () async {

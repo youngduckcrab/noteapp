@@ -23,6 +23,11 @@ abstract final class KvKeys {
   /// by the v1 → v2 upgrade and by a new database; another value → rebuild.
   static const String searchNormalizerVersion = 'search.normalizerVersion';
 
+  /// (ink spacing) kInkTermsVersion the ink FTS terms were built with (search_spacing.dart):
+  /// written with [searchNormalizerVersion] and by every rebuild of the ink source; another
+  /// value (or none) → the ink source is rebuilt once at open.
+  static const String searchInkTermsVersion = 'search.inkTermsVersion';
+
   /// (v2) Time of the last SearchIndex.rebuild (6.10.5).
   static const String searchLastRebuildAt = 'search.lastRebuildAt';
 

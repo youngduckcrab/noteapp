@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:meta/meta.dart';
 
 import '../../model/sync_entity.dart' show kDatabaseSchemaVersion;
+import '../../search/search_spacing.dart' show kInkTermsVersion;
 import '../../search/search_text.dart';
 import '../kv_keys.dart';
 import 'migrations.dart';
@@ -75,6 +76,12 @@ class NoteDatabase extends _$NoteDatabase {
         KvCompanion.insert(
           key: KvKeys.searchNormalizerVersion,
           value: '${SearchText.normalizerVersion}',
+        ),
+      );
+      await into(kv).insertOnConflictUpdate(
+        KvCompanion.insert(
+          key: KvKeys.searchInkTermsVersion,
+          value: '$kInkTermsVersion',
         ),
       );
     },

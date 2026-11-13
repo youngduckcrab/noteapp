@@ -25,6 +25,7 @@ import '../common/ids.dart';
 import '../model/handwriting.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
+import '../search/search_spacing.dart';
 import '../search/search_text.dart';
 import '../search/search_types.dart';
 import 'db/note_database.dart';
@@ -428,7 +429,7 @@ final class SearchIndexer implements TxnIndexHooks {
           );
       await db.customStatement(
         'INSERT INTO search_fts (rowid, g) VALUES (?, ?)',
-        [id, SearchText.indexTerms(norm)],
+        [id, unitIndexTerms(source, norm)],
       );
     }
     await db

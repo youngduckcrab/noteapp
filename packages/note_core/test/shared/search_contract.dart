@@ -177,6 +177,65 @@ void defineSearchContract(FutureOr<NoteStore> Function() open) {
   });
 
   test(
+    'ink: a space added or dropped inside Korean still matches (ink only)',
+    () async {
+      final note = await store.library.createNote(title: 'ink spacing');
+      final page = (await store.content.pagesOf(note.id)).single.id;
+      await store.handwriting.put(
+        HandwritingText(
+          noteId: note.id,
+          pageId: page,
+          engineId: 'fake/1:ko',
+          sourceRev: '0000000000000000',
+          lines: const [
+            HandwritingLine(
+              text: '오늘 회의 록 정리',
+              rect: PageRect(10, 10, 200, 30),
+              strokeIds: ['s1'],
+            ),
+            HandwritingLine(
+              text: '주간보고서 meeting',
+              rect: PageRect(10, 40, 200, 60),
+              strokeIds: ['s2'],
+            ),
+          ],
+          createdAt: 1,
+        ),
+      );
+      // The same words in a text box keep the exact rule.
+      final (_, textPages) = await textNote('text', const ['회의 록 텍스트']);
+
+      // Stored with a space, typed without.
+      final dropped = await store.search.searchPages('회의록');
+      expect(dropped.map((h) => h.pageId), [page]);
+      final hit = dropped.single;
+      expect(hit.source, SearchSource.ink);
+      expect(hit.rects, const [PageRect(10, 10, 200, 30)]);
+      final (start, end) = hit.matchRange;
+      expect(hit.snippet.substring(start, end), '회의 록');
+      expect((await store.search.searchPages('회의록정리')).single.pageId, page);
+
+      // Stored without a space, typed with one (or two).
+      for (final q in ['주간 보고서', '주간보 고서', '주 간 보고서', '보고 서 meeting']) {
+        expect((await store.search.searchPages(q)).map((h) => h.pageId), [
+          page,
+        ], reason: q);
+      }
+      // Not across a space next to a Latin word, and not for other sources.
+      expect(await store.search.searchPages('서meeting'), isEmpty);
+      expect([
+        for (final h in await store.search.searchPages('록텍스트'))
+          if (textPages.contains(h.pageId)) h,
+      ], isEmpty);
+      // Plain matches are unchanged.
+      expect(
+        (await store.search.searchPages('회의')).map((h) => h.pageId).toSet(),
+        {page, textPages.single},
+      );
+    },
+  );
+
+  test(
     'pdf: boxes merged per line, PageRect.zero skipped, the aspect fit',
     () async {
       final (_, page) = await pdfNote('pdf');

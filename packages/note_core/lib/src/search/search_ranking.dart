@@ -7,6 +7,7 @@ import 'dart:math' as math;
 
 import 'search_match.dart';
 import 'search_runs.dart';
+import 'search_spacing.dart';
 import 'search_text.dart';
 import 'search_types.dart';
 
@@ -55,7 +56,38 @@ double unitScoreRuns(
 /// and its score features. Skipping the overlapping occurrences does not change the judgement:
 /// one that overlaps a counted occurrence lies in the same run, so its run is CJK exactly when
 /// that one's is, and it never starts the run.
-double? matchScore(SearchSource source, String unitNorm, List<SearchRun> runs) {
+///
+/// (ink spacing) An ink unit that does not match is judged again on the compact texts
+/// ([cjkCompact] of [unitNorm], [inkRuns] = the runs of the compact query — search_spacing.dart);
+/// other sources, or a null [inkRuns], keep the plain rule.
+double? matchScore(
+  SearchSource source,
+  String unitNorm,
+  List<SearchRun> runs, {
+  List<SearchRun>? inkRuns,
+}) {
+  final plain = _matchScore(source, unitNorm, runs);
+  if (plain != null || source != SearchSource.ink || inkRuns == null) {
+    return plain;
+  }
+  final compact = cjkCompact(unitNorm);
+  if (compact == unitNorm && _sameRuns(runs, inkRuns)) return null;
+  return _matchScore(source, compact, inkRuns);
+}
+
+bool _sameRuns(List<SearchRun> a, List<SearchRun> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i].text != b[i].text) return false;
+  }
+  return true;
+}
+
+double? _matchScore(
+  SearchSource source,
+  String unitNorm,
+  List<SearchRun> runs,
+) {
   if (runs.isEmpty) return null;
   final head = runs.first;
   final q = head.text;
@@ -108,14 +140,27 @@ int comparePageHits(
 ///
 /// [bodyNorm] (= SearchText.normalize(body), the unit's norm) lets the mapping stop at the
 /// match (CORE T33b, PF-3) — the same answer.
+///
+/// [inkSpacing] (an ink unit): when the first query run does not occur in the body, the range
+/// is the first compact query run's match on the compact texts (search_spacing.dart).
 ({String snippet, (int, int) range, (int, int) bodyRange}) snippetOf(
   String body,
   String queryNorm, {
   String? bodyNorm,
+  bool inkSpacing = false,
 }) {
   final runs = searchRunsOf(queryNorm);
   var srcStart = 0, srcEnd = 0;
-  if (runs.isNotEmpty) {
+  (int, int)? spaced;
+  if (inkSpacing && runs.isNotEmpty) {
+    final norm = bodyNorm ?? SearchText.normalize(body);
+    if (!norm.contains(runs.first.text)) {
+      spaced = inkSpacingBodyRange(body, norm, queryNorm);
+    }
+  }
+  if (spaced != null) {
+    (srcStart, srcEnd) = spaced;
+  } else if (runs.isNotEmpty) {
     final q = runs.first.text;
     final hint = bodyNorm?.indexOf(q);
     final mapping = hint == null

@@ -10,6 +10,7 @@ import '../common/ids.dart';
 import 'search_ranking.dart';
 import 'search_rects.dart';
 import 'search_runs.dart';
+import 'search_spacing.dart';
 import 'search_text.dart';
 import 'search_types.dart';
 
@@ -72,10 +73,11 @@ final class RankedSearchPage {
   required int limit,
 }) {
   final runs = searchRunsOf(queryNorm);
+  final inkRuns = inkCompactRuns(queryNorm);
   // Keyed by page id (a page belongs to one note); the note id is kept on the page.
   final byPage = <PageId, RankedSearchPage>{};
   for (final c in candidates) {
-    final score = matchScore(c.source, c.norm, runs);
+    final score = matchScore(c.source, c.norm, runs, inkRuns: inkRuns);
     if (score == null) continue;
     if (c.source == SearchSource.pdf) {
       for (final t in pdfPages(c)) {
@@ -150,7 +152,12 @@ PageSearchHit searchHitOf(
 }) {
   final best = page.best;
   final d = detail(best);
-  final s = snippetOf(d.body, queryNorm, bodyNorm: best.norm);
+  final s = snippetOf(
+    d.body,
+    queryNorm,
+    bodyNorm: best.norm,
+    inkSpacing: best.source == SearchSource.ink,
+  );
   final List<PageRect> rects;
   if (best.source == SearchSource.pdf) {
     rects = [

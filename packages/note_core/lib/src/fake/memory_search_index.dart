@@ -15,6 +15,7 @@ import '../model/stroke.dart';
 import '../search/search_match.dart';
 import '../search/search_pipeline.dart';
 import '../search/search_rects.dart';
+import '../search/search_spacing.dart';
 import '../search/search_text.dart';
 import '../search/search_types.dart';
 import '../search/search_writer_checks.dart';
@@ -35,7 +36,7 @@ final class _Unit {
     this.assetId,
     this.pdfIndex,
   }) : norm = SearchText.normalize(body) {
-    terms = SearchText.indexTerms(norm);
+    terms = unitIndexTerms(source, norm);
   }
   final int id;
   final SearchSource source;

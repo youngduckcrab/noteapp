@@ -32,6 +32,7 @@ import '../common/ids.dart';
 import '../search/search_pipeline.dart';
 import '../search/search_rects.dart';
 import '../search/search_runs.dart';
+import '../search/search_spacing.dart';
 import '../search/search_text.dart';
 import '../search/search_types.dart';
 import '../search/search_writer_checks.dart';
@@ -89,6 +90,7 @@ final class DriftSearchIndex implements SearchIndex {
         await (_db.select(_db.kv)..where(
               (t) => t.key.isIn([
                 KvKeys.searchNormalizerVersion,
+                KvKeys.searchInkTermsVersion,
                 KvKeys.searchLastRebuildAt,
               ]),
             ))
@@ -99,11 +101,30 @@ final class DriftSearchIndex implements SearchIndex {
     if (kv[KvKeys.searchNormalizerVersion] !=
         '${SearchText.normalizerVersion}') {
       unawaited(rebuild().then<void>((_) {}, onError: (Object _) {}));
+    } else if (kv[KvKeys.searchInkTermsVersion] != '$kInkTermsVersion' &&
+        await _hasInkOwners()) {
+      // (ink spacing) ink rows written before the compact terms: once, ink only. Without
+      // ink rows nothing is done (every new ink row gets the terms).
+      unawaited(
+        rebuild(sources: const {SearchSource.ink})
+            .then<void>((_) {}, onError: (Object _) {}),
+      );
     } else if (indexer.pendingOwners > 0) {
       unawaited(
         s.queue.run((_) async {}).then<void>((_) {}, onError: (Object _) {}),
       );
     }
+  }
+
+  Future<bool> _hasInkOwners() async {
+    final o = _db.searchOwners;
+    final row =
+        await (_db.selectOnly(o)
+              ..addColumns([o.ownerKey])
+              ..where(o.source.equals(SearchSource.ink.name))
+              ..limit(1))
+            .getSingleOrNull();
+    return row != null;
   }
 
   // ---- status ---------------------------------------------------------------------------
@@ -301,6 +322,9 @@ final class DriftSearchIndex implements SearchIndex {
             KvKeys.searchNormalizerVersion,
             '${SearchText.normalizerVersion}',
           );
+        }
+        if (which.contains(SearchSource.ink)) {
+          await _putKv(KvKeys.searchInkTermsVersion, '$kInkTermsVersion');
         }
       });
       _lastRebuildAt = at;
