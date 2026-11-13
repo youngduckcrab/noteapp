@@ -100,7 +100,12 @@ Clock v7Clock() {
 }
 
 /// The new kv keys an upgraded fixture has (6.12.1 step 6, 6.12.4).
-const Set<String> kV7NewKvKeys = {'search.normalizerVersion', 'db.v1Copy'};
+// search.inkTermsVersion: recorded at the first open (no ink rows to rebuild).
+const Set<String> kV7NewKvKeys = {
+  'search.normalizerVersion',
+  'db.v1Copy',
+  'search.inkTermsVersion',
+};
 
 /// The tables v2 adds (6.11).
 const List<String> kV7NewTables = [

@@ -5,13 +5,20 @@
 //
 // Phase, first match wins:
 //   recog.autoIndex off                       → autoIndexOff
-//   ModelDownloads of the language: waiting for Wi-Fi / running / failed
-//                                             → waitingForWifi / modelDownloading / modelFailed
+//   the engine or the model is unsupported (RecognizerUnsupported from the
+//     indexer or modelState, modelState unsupported)
+//                                             → unsupported
+//   ModelDownloads of the language: waiting for Wi-Fi / running
+//                                             → waitingForWifi / modelDownloading
+//   ModelDownloads failed, unless the indexer asks again (its waitingModel
+//     reads 'waiting for Wi-Fi' / 'downloading') → modelFailed
 //   indexer waitingModel: 'waiting for Wi-Fi' / 'downloading' /
 //     'download failed' / 'not downloaded' / 'unsupported'
 //                                             → waitingForWifi / modelDownloading /
-//                                               modelFailed / modelMissing / unavailable
+//                                               modelFailed / modelMissing / unsupported
 //   indexer recognizing / waitingInput        → indexing (remainingPages = queue, + 1 in flight)
+//   indexer idle / waitingInput(0) while its catch-up still looks for stale
+//     pages                                   → indexing (remainingPages 0: still counting)
 //   indexer off (not started yet): modelState notDownloaded / downloading
 //                                             → modelMissing / modelDownloading, else unavailable
 //   otherwise                                 → ready
@@ -23,6 +30,7 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../common/report_error.dart';
 import '../model/candidates.dart';
+import '../model/failures.dart';
 import '../ports/handwriting_recognizer.dart';
 import '../ports/model_admin.dart';
 import '../providers.dart';
@@ -55,8 +63,13 @@ enum HandwritingSearchPhase {
   /// The last download failed.
   modelFailed,
 
-  /// Pages are waiting to be recognized ([HandwritingSearchStatus.remainingPages]).
+  /// Pages are waiting to be recognized ([HandwritingSearchStatus.remainingPages];
+  /// 0 while the catch-up is still counting them).
   indexing,
+
+  /// The engine or the model of the language is not supported on this device:
+  /// handwriting is never found (said once, nothing to do).
+  unsupported,
 }
 
 @immutable
@@ -115,12 +128,14 @@ final class HandwritingSearchReadiness {
   String _lang = 'ko';
   bool _wifiOnly = true;
   RecognitionModelState? _model;
+  bool _modelUnsupported = false;
   int _modelAsk = 0;
 
   ValueListenable<HandwritingSearchStatus> get status => _status;
 
   void _start() {
     _indexer.status.addListener(_update);
+    catchUpRunningOf(_indexer).addListener(_update);
     _downloads.addListener(_onDownloads);
     _subscriptions
       ..add(
@@ -166,13 +181,19 @@ final class HandwritingSearchReadiness {
   Future<void> _askModel() async {
     final ask = ++_modelAsk;
     RecognitionModelState? state;
+    var unsupported = false;
     try {
       state = await _recognizer.modelState(_lang);
+    } on RecognizerUnsupported {
+      state = null;
+      unsupported = true;
     } on Object {
       state = null;
     }
     if (_disposed || ask != _modelAsk) return;
     _model = state;
+    _modelUnsupported =
+        unsupported || state == RecognitionModelState.unsupported;
     _update();
   }
 
@@ -196,23 +217,32 @@ final class HandwritingSearchReadiness {
     final auto = _autoIndex;
     if (auto == null) return of(HandwritingSearchPhase.unavailable);
     if (!auto) return of(HandwritingSearchPhase.autoIndexOff);
+    if (_modelUnsupported || isUnsupportedOn(_indexer)) {
+      return of(HandwritingSearchPhase.unsupported);
+    }
+    final s = _indexer.status.value;
+    final why = s.phase == HandwritingIndexerPhase.waitingModel
+        ? s.lastError ?? ''
+        : '';
+    final indexerAsks =
+        why.endsWith('waiting for Wi-Fi') || why.endsWith('downloading');
     switch (_downloads.stateOf(_lang)) {
       case ModelDownloadState.waitingForWifi:
         return of(HandwritingSearchPhase.waitingForWifi);
       case ModelDownloadState.downloading:
         return of(HandwritingSearchPhase.modelDownloading);
       case ModelDownloadState.failed:
-        if (_model != RecognitionModelState.ready) {
+        // A retry of the indexer (the search opened) runs: its state, not
+        // the old failure.
+        if (_model != RecognitionModelState.ready && !indexerAsks) {
           return of(HandwritingSearchPhase.modelFailed);
         }
       case ModelDownloadState.none:
     }
-    final s = _indexer.status.value;
     switch (s.phase) {
       case HandwritingIndexerPhase.disabled:
         return of(HandwritingSearchPhase.autoIndexOff);
       case HandwritingIndexerPhase.waitingModel:
-        final why = s.lastError ?? '';
         if (why.endsWith('waiting for Wi-Fi')) {
           return of(HandwritingSearchPhase.waitingForWifi);
         }
@@ -223,14 +253,17 @@ final class HandwritingSearchReadiness {
           return of(HandwritingSearchPhase.modelFailed);
         }
         if (why.endsWith('unsupported')) {
-          return of(HandwritingSearchPhase.unavailable);
+          return of(HandwritingSearchPhase.unsupported);
         }
         return of(HandwritingSearchPhase.modelMissing);
       case HandwritingIndexerPhase.recognizing:
         return of(HandwritingSearchPhase.indexing, s.queuedPages + 1);
       case HandwritingIndexerPhase.waitingInput:
-        return s.queuedPages > 0
-            ? of(HandwritingSearchPhase.indexing, s.queuedPages)
+        if (s.queuedPages > 0) {
+          return of(HandwritingSearchPhase.indexing, s.queuedPages);
+        }
+        return catchUpRunningOf(_indexer).value
+            ? of(HandwritingSearchPhase.indexing)
             : of(HandwritingSearchPhase.ready);
       case HandwritingIndexerPhase.off:
         return switch (_model) {
@@ -243,6 +276,9 @@ final class HandwritingSearchReadiness {
           _ => of(HandwritingSearchPhase.unavailable),
         };
       case HandwritingIndexerPhase.idle:
+        return catchUpRunningOf(_indexer).value
+            ? of(HandwritingSearchPhase.indexing)
+            : of(HandwritingSearchPhase.ready);
       case HandwritingIndexerPhase.paused:
         return of(HandwritingSearchPhase.ready);
     }
@@ -276,8 +312,9 @@ final class HandwritingSearchReadiness {
         : _downloads.start(_lang, wifiOnly: _wifiOnly);
   }
 
-  /// The library search was opened: pages waiting for their quiet time are
-  /// recognized now (indexDirtyPagesNow).
+  /// The library search field got focus or a query was applied: pages
+  /// waiting for their quiet time are recognized now (indexDirtyPagesNow; a
+  /// failed download is asked again at most once per kModelRetryGap).
   void searchOpened() {
     if (_disposed) return;
     indexDirtyPagesNow(_indexer);
@@ -287,6 +324,7 @@ final class HandwritingSearchReadiness {
     _disposed = true;
     _modelAsk++;
     _indexer.status.removeListener(_update);
+    catchUpRunningOf(_indexer).removeListener(_update);
     _downloads.removeListener(_onDownloads);
     for (final s in _subscriptions) {
       unawaited(s.cancel());

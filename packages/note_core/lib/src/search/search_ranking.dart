@@ -58,8 +58,8 @@ double unitScoreRuns(
 /// that one's is, and it never starts the run.
 ///
 /// (ink spacing) An ink unit that does not match is judged again on the compact texts
-/// ([cjkCompact] of [unitNorm], [inkRuns] = the runs of the compact query — search_spacing.dart);
-/// other sources, or a null [inkRuns], keep the plain rule.
+/// ([cjkCompact] of [unitNorm], [inkRuns] = the runs of the compact query — search_spacing.dart),
+/// its score less kInkSpacingPenalty; other sources, or a null [inkRuns], keep the plain rule.
 double? matchScore(
   SearchSource source,
   String unitNorm,
@@ -72,7 +72,8 @@ double? matchScore(
   }
   final compact = cjkCompact(unitNorm);
   if (compact == unitNorm && _sameRuns(runs, inkRuns)) return null;
-  return _matchScore(source, compact, inkRuns);
+  final spaced = _matchScore(source, compact, inkRuns);
+  return spaced == null ? null : spaced - kInkSpacingPenalty;
 }
 
 bool _sameRuns(List<SearchRun> a, List<SearchRun> b) {
@@ -141,8 +142,9 @@ int comparePageHits(
 /// [bodyNorm] (= SearchText.normalize(body), the unit's norm) lets the mapping stop at the
 /// match (CORE T33b, PF-3) — the same answer.
 ///
-/// [inkSpacing] (an ink unit): when the first query run does not occur in the body, the range
-/// is the first compact query run's match on the compact texts (search_spacing.dart).
+/// [inkSpacing] (an ink unit): the range is the first compact query run's match on the compact
+/// texts (search_spacing.dart) when the first query run does not occur in the body, or when
+/// that range holds the plain one and is longer (a phrase split by the engine's spacing).
 ({String snippet, (int, int) range, (int, int) bodyRange}) snippetOf(
   String body,
   String queryNorm, {
@@ -152,17 +154,14 @@ int comparePageHits(
   final runs = searchRunsOf(queryNorm);
   var srcStart = 0, srcEnd = 0;
   (int, int)? spaced;
+  var norm = bodyNorm;
   if (inkSpacing && runs.isNotEmpty) {
-    final norm = bodyNorm ?? SearchText.normalize(body);
-    if (!norm.contains(runs.first.text)) {
-      spaced = inkSpacingBodyRange(body, norm, queryNorm);
-    }
+    norm ??= SearchText.normalize(body);
+    spaced = inkSpacingBodyRange(body, norm, queryNorm);
   }
-  if (spaced != null) {
-    (srcStart, srcEnd) = spaced;
-  } else if (runs.isNotEmpty) {
+  if (runs.isNotEmpty) {
     final q = runs.first.text;
-    final hint = bodyNorm?.indexOf(q);
+    final hint = norm?.indexOf(q);
     final mapping = hint == null
         ? SearchText.normalizeMapped(body)
         : normalizeMappedPrefix(body, hint < 0 ? 0 : hint + q.length);
@@ -170,6 +169,15 @@ int comparePageHits(
     if (at >= 0 && q.isNotEmpty) {
       srcStart = mapping.sourceStart[at];
       srcEnd = mapping.sourceEnd[at + q.length - 1];
+    }
+  }
+  if (spaced != null) {
+    // The compact range when the plain one is missing, or when it holds the plain one and
+    // is longer ('주간 회의록' on '주간 회의 록' → the whole phrase, not only '주간').
+    final (a, b) = spaced;
+    if (srcEnd <= srcStart ||
+        (a <= srcStart && b >= srcEnd && b - a > srcEnd - srcStart)) {
+      (srcStart, srcEnd) = spaced;
     }
   }
   var from = math.max(0, srcStart - 30);

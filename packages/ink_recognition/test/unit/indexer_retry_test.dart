@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/src/indexer/handwriting_indexer.dart'
-    show IndexerTuning, indexDirtyPagesNow;
+    show IndexerTuning, catchUpRunningOf, indexDirtyPagesNow;
 import 'package:ink_recognition/testing.dart';
 
 import '../support/indexer_harness.dart';
@@ -109,6 +109,29 @@ void main() {
     h.elapse(IndexerTuning.localQuiet);
     expect(h.recognizer.calls, isEmpty);
     expect(h.phase, HandwritingIndexerPhase.disabled);
+    h.dispose();
+  });
+
+  indexerTest('catchUpRunningOf is true while the start-up catch-up looks '
+      'for stale pages', (async) {
+    final h = IndexerHarness(async);
+    h.wait(h.indexer.dispose());
+    final enabled = ValueNotifier<bool>(true);
+    final foreground = ValueNotifier<bool>(true);
+    final next = HandwritingIndexer(
+      store: h.store,
+      recognizer: h.recognizer,
+      enabled: enabled,
+      foreground: foreground,
+    );
+    expect(catchUpRunningOf(next).value, isFalse);
+    next.start();
+    expect(catchUpRunningOf(next).value, isTrue);
+    h.settle();
+    expect(catchUpRunningOf(next).value, isFalse);
+    h.wait(next.dispose());
+    enabled.dispose();
+    foreground.dispose();
     h.dispose();
   });
 }

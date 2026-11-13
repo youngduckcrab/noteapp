@@ -78,4 +78,53 @@ void main() {
     expect(s.snippet.substring(a, b), '회의  록');
     expect(inkSpacingBodyRange('abc', 'abc', '회의록'), isNull);
   });
+
+  group('review fixes', () {
+    List<SearchRun> runs(String q) => searchRunsOf(q);
+    double? ink(String unit, String q) =>
+        matchScore(SearchSource.ink, unit, runs(q), inkRuns: inkCompactRuns(q));
+
+    test('a two-syllable query does not join two neighbouring words', () {
+      expect(inkCompactRuns('사과'), isNull);
+      expect(ink('이사 과장', '사과'), isNull);
+      expect(ink('회의 록', '의록'), isNull);
+      // Three syllables still cross the engine's space.
+      expect(ink('회의 록', '회의록'), isNotNull);
+    });
+
+    test('a compact-only match ranks below a plain one', () {
+      final plain = ink('회의록', '회의록')!;
+      final spaced = ink('회의 록', '회의록')!;
+      expect(spaced, lessThan(plain));
+      expect(plain - spaced, closeTo(kInkSpacingPenalty, 1e-9));
+    });
+
+    test('Hangul next to a digit, and supplementary Han, are joined', () {
+      expect(cjkCompact('회의 3분기'), '회의3분기');
+      expect(cjkCompact('3 월 10 시'), '3월10시');
+      expect(cjkCompact('2024 3'), '2024 3');
+      expect(cjkCompact('a 3'), 'a 3');
+      expect(cjkCompact('\u{20000} \u{20001}'), '\u{20000}\u{20001}');
+      expect(ink('회의 3분기', '회의3분기'), isNotNull);
+      expect(ink('3 월', '3월'), isNotNull);
+      expect(
+        ink('\u{20000} \u{20001}\u{20002}', '\u{20000}\u{20001}\u{20002}'),
+        isNotNull,
+      );
+      final match = SearchText.matchQuery('3월')!;
+      expect(
+        ftsCandidateMatches(unitIndexTerms(SearchSource.ink, '3 월'), match),
+        isTrue,
+      );
+    });
+
+    test('the snippet highlights the whole phrase across the spaces', () {
+      final s = snippetOf('주간 회의 록', '주간 회의록', inkSpacing: true);
+      final (a, b) = s.range;
+      expect(s.snippet.substring(a, b), '주간 회의 록');
+      // Text units keep the first-run range.
+      final t = snippetOf('주간 회의 록', '주간 회의록');
+      expect(t.snippet.substring(t.range.$1, t.range.$2), '주간');
+    });
+  });
 }

@@ -98,6 +98,20 @@ IndexerMetrics metricsOf(HandwritingIndexer indexer) => indexer._metrics;
 /// is asked again. Cheap — no page is read here.
 void indexDirtyPagesNow(HandwritingIndexer indexer) => indexer._indexNow();
 
+/// (internal, handwriting search) true while a catch-up is still looking for
+/// stale pages (the queue may read 0 although pages are to be read).
+ValueListenable<bool> catchUpRunningOf(HandwritingIndexer indexer) =>
+    indexer._catchUpRunning;
+
+/// (internal, handwriting search) The engine reported itself unsupported on
+/// this device (RecognizerUnsupported): off for good.
+bool isUnsupportedOn(HandwritingIndexer indexer) => indexer._unsupported;
+
+/// (handwriting search) A failed model download is asked again by
+/// [indexDirtyPagesNow] at most once per this gap (the search field may call
+/// it on every query).
+const Duration kModelRetryGap = Duration(minutes: 1);
+
 /// (internal) groupTraceIndices in another isolate (pages above
 /// IndexerTuning.computeAboveStrokes — 6.9.2). The indexer never runs on the
 /// web, where compute would run inline anyway.
@@ -198,6 +212,11 @@ final class HandwritingIndexer {
 
   /// Bumped to stop a running catch-up (disable, dispose, off, a new one).
   int _catchUpEpoch = 0;
+  int _catchUpsRunning = 0;
+  final ValueNotifier<bool> _catchUpRunning = ValueNotifier(false);
+
+  /// Set while [indexDirtyPagesNow] may not ask a failed download again.
+  Timer? _modelRetryGate;
 
   /// Completed when a paused job may look again (foreground / drop /
   /// dispose).
@@ -263,6 +282,9 @@ final class HandwritingIndexer {
     _ownForeground = null;
     _foreground = null;
     _status.value = const HandwritingIndexerStatus();
+    _modelRetryGate?.cancel();
+    _modelRetryGate = null;
+    _catchUpRunning.value = false;
     // Not awaited: a cancel may answer with a future of the root zone
     // (fake_async tests would never see it), and nothing waits on it.
     for (final s in subscriptions) {
@@ -441,7 +463,9 @@ final class HandwritingIndexer {
       final noteId = _quietNotes.remove(pageId);
       if (noteId != null) _queue.add(noteId, pageId, QueueLane.ready);
     }
-    if (_modelWait?.endsWith('download failed') ?? false) {
+    if ((_modelWait?.endsWith('download failed') ?? false) &&
+        _modelRetryGate == null) {
+      _modelRetryGate = Timer(kModelRetryGap, () => _modelRetryGate = null);
       unawaited(_checkModel());
     }
     _publish();
@@ -549,25 +573,34 @@ final class HandwritingIndexer {
   void _startCatchUp() {
     final epoch = ++_catchUpEpoch;
     bool alive() => epoch == _catchUpEpoch && _active;
+    _catchUpsRunning++;
+    _catchUpRunning.value = true;
     unawaited(
       runCatchUp(
-        repo: _store.handwriting,
-        alive: alive,
-        enqueue: (noteId, pages) {
-          for (final pageId in pages) {
-            if (_quiet.containsKey(pageId) ||
-                _deferred.containsKey(pageId) ||
-                _job?.pageId == pageId) {
-              continue;
+            repo: _store.handwriting,
+            alive: alive,
+            enqueue: (noteId, pages) {
+              for (final pageId in pages) {
+                if (_quiet.containsKey(pageId) ||
+                    _deferred.containsKey(pageId) ||
+                    _job?.pageId == pageId) {
+                  continue;
+                }
+                _queue.add(noteId, pageId, QueueLane.catchUp);
+              }
+              _publish();
+              _pump();
+            },
+          )
+          .catchError((Object e, StackTrace s) {
+            if (alive()) {
+              _reportOnce('catch-up:${e.runtimeType}', e, s, 'catch-up');
             }
-            _queue.add(noteId, pageId, QueueLane.catchUp);
-          }
-          _publish();
-          _pump();
-        },
-      ).catchError((Object e, StackTrace s) {
-        if (alive()) _reportOnce('catch-up:${e.runtimeType}', e, s, 'catch-up');
-      }),
+          })
+          .whenComplete(() {
+            _catchUpsRunning--;
+            if (!_disposed) _catchUpRunning.value = _catchUpsRunning > 0;
+          }),
     );
   }
 

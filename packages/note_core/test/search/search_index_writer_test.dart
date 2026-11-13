@@ -18,6 +18,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:idb_shim/idb_client_memory.dart';
 import 'package:note_core/note_core.dart';
 import 'package:note_core/src/search/search_rects.dart';
+import 'package:note_core/src/search/search_spacing.dart' show kInkTermsVersion;
 import 'package:note_core/src/storage/db/note_database.dart';
 import 'package:note_core/src/storage/drift_note_store.dart';
 import 'package:note_core/src/storage/drift_search_index.dart';
@@ -819,7 +820,52 @@ void main() {
       final kv = await (s.db.select(
         s.db.kv,
       )..where((t) => t.key.equals(KvKeys.searchInkTermsVersion))).getSingle();
-      expect(kv.value, '1');
+      expect(kv.value, '$kInkTermsVersion');
+    });
+
+    test('(ink spacing) without ink rows the ink terms version is recorded at open', () async {
+      final dir = await Directory.systemTemp.createTemp('core_ink_terms0_');
+      addTearDown(() => dir.delete(recursive: true));
+      final path = '${dir.path}/notes.sqlite';
+      final idb = newIdbFactoryMemory();
+      var s = await openDraftStore(path, idb);
+      await (s.db.delete(
+        s.db.kv,
+      )..where((t) => t.key.equals(KvKeys.searchInkTermsVersion))).go();
+      await s.close();
+
+      s = await openDraftStore(path, idb);
+      final kv = await (s.db.select(
+        s.db.kv,
+      )..where((t) => t.key.equals(KvKeys.searchInkTermsVersion))).getSingle();
+      expect(kv.value, '$kInkTermsVersion');
+      // Ink written now already has the terms: the next open rebuilds nothing.
+      final note = await s.library.createNote(title: 'ink');
+      final page = (await s.content.pagesOf(note.id)).single.id;
+      await s.handwriting.put(
+        HandwritingText(
+          noteId: note.id,
+          pageId: page,
+          engineId: 'fake/1:ko',
+          sourceRev: '0000000000000000',
+          lines: const [
+            HandwritingLine(
+              text: '회의 록',
+              rect: PageRect(10, 10, 200, 30),
+              strokeIds: ['s1'],
+            ),
+          ],
+          createdAt: 1,
+        ),
+      );
+      await s.close();
+
+      s = await openDraftStore(path, idb);
+      addTearDown(s.close);
+      final st = await s.search.status.first;
+      expect(st.rebuilding, isFalse);
+      expect(st.lastRebuildAt, isNull);
+      expect(await s.search.searchPages('회의록'), hasLength(1));
     });
 
     test(

@@ -8,9 +8,12 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
+import 'package:ink_recognition/src/indexer/handwriting_indexer.dart'
+    show kModelRetryGap;
 import 'package:ink_recognition/src/ports/model_admin.dart';
 import 'package:ink_recognition/src/settings/recognition_settings_keys.dart';
 import 'package:ink_recognition/src/ui/model_downloads.dart';
@@ -23,6 +26,9 @@ import 'package:note_core/testing.dart' as core_testing;
 final class _Engine implements HandwritingRecognizer, RecognizerModelAdmin {
   final Completer<void> wifi = Completer<void>();
   final List<bool> ensured = [];
+
+  /// ensureModel fails while set (a download that did not work).
+  bool failing = false;
   final StreamController<String> _changes = StreamController.broadcast();
   bool ready = false;
 
@@ -43,6 +49,7 @@ final class _Engine implements HandwritingRecognizer, RecognizerModelAdmin {
   @override
   Future<void> ensureModel(String languageTag, {bool wifiOnly = true}) async {
     ensured.add(wifiOnly);
+    if (failing) throw StateError('download failed');
     if (wifiOnly) await wifi.future;
     ready = true;
     _changes.add(languageTag);
@@ -212,5 +219,65 @@ void main() {
     expect(await store.handwriting.forPage(pages.last), isNotNull);
     container.dispose();
     await _settle(tester);
+  });
+
+  testWidgets('the engine or the model unsupported → unsupported', (
+    tester,
+  ) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final engine = FakeHandwritingRecognizer()
+      ..modelStates['ko'] = RecognitionModelState.unsupported;
+    final container = _container(store, engine);
+    final r = await _open(tester, container);
+    expect(_phase(r), HandwritingSearchPhase.unsupported);
+    container.dispose();
+    await _settle(tester);
+  });
+
+  testWidgets('a failed download asked again by the search shows the retry, '
+      'not the old failure; asked at most once per kModelRetryGap', (
+    tester,
+  ) async {
+    final reports = <FlutterErrorDetails>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = reports.add;
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final engine = _Engine()..failing = true;
+    final container = _container(store, engine);
+    final r = await _open(tester, container);
+    expect(
+      container.read(modelDownloadsProvider).stateOf('ko'),
+      ModelDownloadState.failed,
+    );
+    expect(_phase(r), HandwritingSearchPhase.modelFailed);
+    final asked = engine.ensured.length;
+
+    engine.failing = false;
+    r.searchOpened();
+    await _settle(tester);
+    expect(engine.ensured.length, asked + 1);
+    // ModelDownloads still says failed; the indexer's retry wins.
+    expect(_phase(r), HandwritingSearchPhase.waitingForWifi);
+
+    // Typing more does not ask again while the retry gap runs.
+    engine.failing = true;
+    engine.wifi.completeError(StateError('no Wi-Fi'));
+    await _settle(tester);
+    expect(_phase(r), HandwritingSearchPhase.modelFailed);
+    r
+      ..searchOpened()
+      ..searchOpened();
+    await _settle(tester);
+    expect(engine.ensured.length, asked + 1);
+    await tester.pump(kModelRetryGap);
+    r.searchOpened();
+    await _settle(tester);
+    expect(engine.ensured.length, asked + 2);
+    container.dispose();
+    await _settle(tester);
+    FlutterError.onError = previous;
+    expect(reports, isNotEmpty);
   });
 }

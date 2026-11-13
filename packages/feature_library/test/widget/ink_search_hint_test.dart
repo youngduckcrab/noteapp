@@ -162,4 +162,48 @@ void main() {
     expect(hintText(LibraryStrings.inkModelDownloading), findsOneWidget);
     expect(find.byKey(InkSearchHintKeys.action), findsNothing);
   });
+
+  testWidgets('waiting for Wi-Fi does not claim there is no Wi-Fi', (
+    tester,
+  ) async {
+    expect(LibraryStrings.inkWaitingForWifi, isNot(contains('연결되면')));
+    expect(LibraryStrings.inkWaitingForWifi, contains('받는 중'));
+    expect(LibraryStrings.inkWaitingForWifi, isNot(contains('와이파이')));
+  });
+
+  testWidgets('unsupported: the reason, no action', (tester) async {
+    final slot = _FakeInkSearch(
+      const LibraryInkSearchState(phase: LibraryInkSearchPhase.unsupported),
+    );
+    await pumpSearch(tester, '없는검색어', slot: slot);
+    expect(hintText(LibraryStrings.inkUnsupported), findsOneWidget);
+    expect(find.byKey(InkSearchHintKeys.action), findsNothing);
+  });
+
+  testWidgets('indexing with the pages still being counted: no count', (
+    tester,
+  ) async {
+    final slot = _FakeInkSearch(
+      const LibraryInkSearchState(phase: LibraryInkSearchPhase.indexing),
+    );
+    await pumpSearch(tester, '없는검색어', slot: slot);
+    expect(hintText('손글씨를 읽는 중이에요'), findsOneWidget);
+  });
+
+  testWidgets('focusing the search field tells the slot before any query', (
+    tester,
+  ) async {
+    await tester.runAsync(() => seedSampleLibrary(backend));
+    final slot = _FakeInkSearch(const LibraryInkSearchState());
+    final h = LibraryTestHarness(
+      backend,
+      extraOverrides: [libraryInkSearchProvider.overrideWithValue(slot)],
+    );
+    await h.pump(tester);
+    await tester.pumpAndSettle();
+    expect(slot.calls, isEmpty);
+    await tester.tap(_searchInput);
+    await tester.pump();
+    expect(slot.calls, ['opened']);
+  });
 }

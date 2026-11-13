@@ -27,8 +27,13 @@ enum LibraryInkSearchPhase {
   /// The last download failed.
   modelFailed,
 
-  /// Pages are still being recognized ([LibraryInkSearchState.remainingPages]).
+  /// Pages are still being recognized ([LibraryInkSearchState.remainingPages];
+  /// 0 while the pages to read are still being counted).
   indexing,
+
+  /// Handwriting cannot be recognized on this device (the engine or the
+  /// model of the language is not supported) — said once, no action.
+  unsupported,
 }
 
 @immutable
@@ -73,7 +78,8 @@ abstract interface class LibraryInkSearch {
   /// [cellular] at once — only after the user confirmed it.
   Future<void> downloadModel({bool cellular = false});
 
-  /// The search was opened: recognize the pages waiting for it now.
+  /// The search field got focus or a query was applied: recognize the
+  /// pages waiting for it now (cheap; may be called often).
   void searchOpened();
 }
 

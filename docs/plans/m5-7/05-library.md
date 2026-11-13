@@ -1840,7 +1840,7 @@ job(noteId, pageId):                                       // one page at a time
 | (v2.1) 작업 중 그 페이지의 `handwriting` 변경 | 작업 버림(쓰기 없음), 대기열 맨 앞 — 오류 아님(보고 없음) |
 | CORE 쓰기 실패(`update`·`removeForPage`) | 보고 1회, 그 페이지 `failed`. `transform` 안의 예외(병합 함수 버그)도 같음 — 트랜잭션이 되돌려져 저장된 값은 그대로 |
 | (손글씨 검색) 실패한 페이지 다시 시도 | `failed`는 메모리에만 있어 다음 실행의 따라잡기가 그 페이지를 다시 넣는다. 모델이 준비되지 않았다가 준비되면(`_modelReady` false → true) `failed`를 비우고 따라잡기를 한 번 더 돈다 |
-| (손글씨 검색) 라이브러리 검색 열림(`indexDirtyPagesNow`) | 조용한 시간을 기다리던 페이지를 바로 대기열에 넣고, `download failed`면 모델을 다시 묻는다. 비활성이면 아무것도 안 한다 |
+| (손글씨 검색) 라이브러리 검색 열림(`indexDirtyPagesNow`) | 조용한 시간을 기다리던 페이지를 바로 대기열에 넣고, `download failed`면 모델을 다시 묻는다(1분에 한 번 — `kModelRetryGap`). 비활성이면 아무것도 안 한다 |
 | `dispose()` | 멱등. 타이머·구독·`foreground` 듣기를 끊고 `phase = off`. 진행 중인 엔진 호출이 끝나도 쓰지 않는다(이미 보낸 `update`는 CORE가 끝까지 처리) |
 
 #### 6.9.7 성능
@@ -2329,14 +2329,16 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 |---|---|---|
 | `autoIndexOff` | 손글씨도 검색하려면 '검색용 자동 인식'을 켜 주세요 | [켜기] → 켬 + 모델 요청 |
 | `modelMissing` | 손글씨를 검색하려면 인식 모델(약 20MB)을 받아야 해요 | [지금 받기] |
-| `waitingForWifi` | 와이파이에 연결되면 손글씨 인식 모델을 받아요 | [지금 받기] 두 번(첫 누름 → 셀룰러 경고 문구) → 셀룰러로 받기 |
-| `modelFailed` | 손글씨 인식 모델을 받지 못했어요 | [지금 받기] |
+| `waitingForWifi` | 손글씨 인식 모델을 받는 중이에요 (Wi-Fi에서만 받아요) — 연결을 확인하지 않으므로(5초 타이머) Wi-Fi에 있어도 틀린 말이 되지 않게 쓴다 | [지금 받기] 두 번(첫 누름 → 셀룰러 경고 문구) → 셀룰러로 받기 |
+| `modelFailed` | 손글씨 인식 모델을 받지 못했어요(색인기가 다시 받는 중이면 그 상태를 보인다) | [지금 받기] |
 | `modelDownloading` | 손글씨 인식 모델을 받는 중이에요 | 없음 |
-| `indexing` | 손글씨를 읽는 중이에요 (n쪽 남음) | 없음 |
+| `indexing` | 손글씨를 읽는 중이에요 (n쪽 남음) — 따라잡기가 아직 페이지를 세는 동안은 쪽수 없이 | 없음 |
+| `unsupported` | 이 기기에서는 손글씨 검색을 쓸 수 없어요(엔진·모델 미지원 — `RecognizerUnsupported`, `modelState` unsupported) | 없음 |
 | `ready` | (안 보임) | |
 
 - **연결**: feature_library는 ink_recognition에 의존하지 않는다(7.1). 새 자리 `libraryInkSearchProvider`(`LibraryInkSearch?`, 기본 null → 안내 없음)를 앱 셸이 채운다: RecognitionModule이 `ShellContribution.libraryInkSearch = libraryInkSearchOf`를 내고, FeatureWiringModule이 덮어쓴다. 어댑터는 ink_recognition의 `handwritingSearchReadinessProvider`(`HandwritingSearchReadiness` — 설정·색인기 상태·`ModelDownloads`·`modelState`로 단계를 정함, 엔진 없음 → `unavailable` → 안내 없음)를 옮긴다.
-- **검색을 열면** `LibrarySectionNotifier.search`가 `searchOpened()` → `indexDirtyPagesNow`(6.9.6): 방금 쓴 페이지를 3초 기다리지 않고 읽는다.
+- **검색을 열면** 검색 칸이 포커스를 받을 때와 `LibrarySectionNotifier.search`가 `searchOpened()` → `indexDirtyPagesNow`(6.9.6): 방금 쓴 페이지를 3초 기다리지 않고 읽는다. 실패한 모델 받기는 여기서 **1분에 한 번만** 다시 묻는다(`kModelRetryGap` — 입력할 때마다 다시 받지 않게).
+- **고치지 않은 것(검토 반영)**: 대화형 인식(올가미 변환·텍스트 펜)보다 따라잡기를 늦추는 우선순위는 이 트랙 밖(엔진 FIFO — 후속 과제). 노트 안 검색 화면은 없다(라이브러리 검색만). 변환된 텍스트 상자는 정확 규칙 그대로(사용자가 고칠 수 있는 글). 꺼 둔 사용자에게 보이는 [켜기] 줄은 숨기지 않는다(한 줄).
 - **띄어쓰기**: ML Kit이 한글 낱말 안에 넣거나 뺀 공백 때문에 못 찾지 않게, CORE가 `SearchSource.ink` 단위만 CJK 사이 공백을 지운 글로도 색인·판정한다(02-core 6.10.2 '손글씨 띄어쓰기'). `회의록` ↔ `회의 록` 양쪽 다 찾는다.
 
 ### 6.20 A-4 품질 실험 준비 (`lab/`)

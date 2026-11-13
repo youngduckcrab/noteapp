@@ -4,10 +4,13 @@
 //   auto indexing off  → "손글씨도 검색하려면 '검색용 자동 인식'을 켜 주세요" [켜기]
 //   model missing      → "… 인식 모델(약 20MB)을 받아야 해요" [지금 받기]
 //   downloading        → "손글씨 인식 모델을 받는 중이에요"
-//   waiting for Wi-Fi  → "와이파이에 연결되면 …" [지금 받기] — two presses
-//                        (the cellular warning first, like the model rows)
+//   waiting for Wi-Fi  → "… 받는 중이에요 (Wi-Fi에서만 받아요)" [지금 받기] —
+//                        two presses (the cellular warning first, like the
+//                        model rows); worded so it is not wrong on Wi-Fi
+//   unsupported        → "이 기기에서는 손글씨 검색을 쓸 수 없어요"
 //   failed             → "… 받지 못했어요" [지금 받기]
-//   indexing           → "손글씨를 읽는 중이에요 (n쪽 남음)"
+//   indexing           → "손글씨를 읽는 중이에요 (n쪽 남음)" (no count while
+//                        the pages are still being counted)
 // Nothing without the slot (libraryInkSearchProvider null) or when ready.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -124,6 +127,11 @@ class _HintLineState extends State<_HintLine> {
       ),
       LibraryInkSearchPhase.indexing => (
         LibraryStrings.inkIndexing(state.remainingPages),
+        null,
+        null,
+      ),
+      LibraryInkSearchPhase.unsupported => (
+        LibraryStrings.inkUnsupported,
         null,
         null,
       ),

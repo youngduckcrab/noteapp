@@ -150,7 +150,7 @@ void main() {
         remainingPages: 2,
       ),
     );
-    expect(LibraryInkSearchPhase.values, hasLength(7));
+    expect(LibraryInkSearchPhase.values, hasLength(8));
   });
 
   test('LibrarySettingsSection is a const ConsumerWidget', () {

@@ -371,6 +371,7 @@ void main() {
               LibraryInkSearchPhase.waitingForWifi,
           HandwritingSearchPhase.modelFailed: LibraryInkSearchPhase.modelFailed,
           HandwritingSearchPhase.indexing: LibraryInkSearchPhase.indexing,
+          HandwritingSearchPhase.unsupported: LibraryInkSearchPhase.unsupported,
         };
         expect(expected.keys, unorderedEquals(HandwritingSearchPhase.values));
         for (final MapEntry(key: from, value: to) in expected.entries) {

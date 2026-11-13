@@ -164,14 +164,18 @@ abstract final class LibraryStrings {
   static const String inkTurnOn = '켜기';
   static const String inkModelMissing = '손글씨를 검색하려면 인식 모델(약 20MB)을 받아야 해요';
   static const String inkModelDownloading = '손글씨 인식 모델을 받는 중이에요';
-  static const String inkWaitingForWifi = '와이파이에 연결되면 손글씨 인식 모델을 받아요';
+  // No connectivity check: a Wi-Fi-only download that runs long reads the
+  // same on Wi-Fi as off it, so the line does not claim there is no Wi-Fi.
+  static const String inkWaitingForWifi = '손글씨 인식 모델을 받는 중이에요 (Wi-Fi에서만 받아요)';
   static const String inkModelFailed = '손글씨 인식 모델을 받지 못했어요';
   static const String inkDownloadNow = '지금 받기';
 
   /// After the first [지금 받기] when it would use cellular data.
   static const String inkCellularConfirm =
       '셀룰러 데이터로 받아요(약 20MB). 한 번 더 누르면 받아요.';
-  static String inkIndexing(int pages) => '손글씨를 읽는 중이에요 ($pages쪽 남음)';
+  static String inkIndexing(int pages) =>
+      pages > 0 ? '손글씨를 읽는 중이에요 ($pages쪽 남음)' : '손글씨를 읽는 중이에요';
+  static const String inkUnsupported = '이 기기에서는 손글씨 검색을 쓸 수 없어요';
 
   /// Listing stream error (6.7 / 6.19).
   static const String listLoadFailed = '목록을 불러오지 못했어요';

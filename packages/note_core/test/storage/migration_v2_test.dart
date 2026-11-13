@@ -189,6 +189,8 @@ void main() {
       ...kvBefore.keys,
       'search.normalizerVersion',
       'db.v1Copy',
+      // Recorded at the first open: no ink rows to rebuild (ink spacing).
+      'search.inkTermsVersion',
     });
     for (final k in kvBefore.keys) {
       expect(kvAfter[k], kvBefore[k], reason: '$k');

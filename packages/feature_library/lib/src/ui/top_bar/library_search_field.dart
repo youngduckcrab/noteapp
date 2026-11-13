@@ -4,12 +4,15 @@
 // at once; the clear button goes back at once. Text being composed by an IME
 // (Hangul) counts as typed. When the section becomes something other than a
 // search (sidebar, a folder result opening, …) the text is cleared.
+// (handwriting search, 6.19a) the field getting focus tells the ink search
+// slot, so pages written just before are recognized while the user types.
 import 'dart:async' show Timer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId;
 
+import '../../integration/ink_search_slot.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
 import '../../state/providers.dart';
@@ -35,11 +38,13 @@ class LibrarySearchField extends ConsumerStatefulWidget {
 
 class _LibrarySearchFieldState extends ConsumerState<LibrarySearchField> {
   late final TextEditingController _controller;
+  final FocusNode _focus = FocusNode();
   Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _focus.addListener(_focusChanged);
     // A field built while a search is shown (the compact search bar, a size
     // class change, the end of selection mode) starts with its query.
     final section = ref.read(librarySectionProvider(widget.routeFolderId));
@@ -51,8 +56,16 @@ class _LibrarySearchFieldState extends ConsumerState<LibrarySearchField> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _focus
+      ..removeListener(_focusChanged)
+      ..dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _focusChanged() {
+    if (!mounted || !_focus.hasFocus) return;
+    ref.read(libraryInkSearchProvider)?.searchOpened();
   }
 
   void _cancelDebounce() {
@@ -94,6 +107,7 @@ class _LibrarySearchFieldState extends ConsumerState<LibrarySearchField> {
       valueListenable: _controller,
       builder: (context, value, _) => TextField(
         controller: _controller,
+        focusNode: _focus,
         autofocus: widget.autofocus,
         onChanged: _changed,
         onSubmitted: (_) => _apply(),

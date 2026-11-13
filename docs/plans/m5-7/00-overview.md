@@ -2396,7 +2396,8 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C29-01 | 7.4.4 설정 키, 7.8 U16 | `recog.autoIndex` 기본값 false → **true**. 첫 값이 켬이면 색인기 provider가 `onAutoIndexTurnedOn`으로 모델을 요청 | 사용자 요청 | LIBRARY(처리됨) |
 | C29-02 | 7.2.11 recog 내보내기 | `HandwritingSearchPhase`·`HandwritingSearchStatus`·`HandwritingSearchReadiness`·`handwritingSearchReadinessProvider`(엔진 없음 → null) | 05-library 6.19a | LIBRARY(처리됨) |
 | C29-03 | 7.2.11 라이브러리 자리 | `LibraryInkSearch`·`LibraryInkSearchPhase`·`LibraryInkSearchState`·`libraryInkSearchProvider`(기본 null → 안내 없음). 앱 셸 `libraryInkSearchOf`가 C29-02를 옮기고 `ShellContribution.libraryInkSearch`로 FeatureWiringModule이 덮어쓴다. 새 패키지 의존 없음(R8) | 05-library 6.19a | LIBRARY·INFRA(처리됨) |
-| C29-04 | 7.2.5 검색 판정 | `SearchSource.ink` 단위만 CJK 사이 공백을 지운 글로도 색인·판정(조각 범위 포함). 옛 ink 행은 저장소 열 때 한 번 ink만 재구축(kv `search.inkTermsVersion`). 다른 출처 결과는 그대로 | 02-core 6.10.2 | CORE(처리됨) |
+| C29-04 | 7.2.5 검색 판정 | `SearchSource.ink` 단위만 CJK 사이 공백(검토 반영: 한글–숫자 사이 포함)을 지운 글로도 색인·판정(조각 범위 포함, 줄인 글로만 맞으면 점수 −0.1, 두 글자 이하 CJK 질의는 제외). 옛 ink 행은 저장소 열 때 한 번 ink만 재구축(kv `search.inkTermsVersion` = 2, ink 행이 없으면 바로 기록). 다른 출처 결과는 그대로 | 02-core 6.10.2 | CORE(처리됨) |
+| C29-05 | 7.2.11 recog·라이브러리 자리 | (검토 반영) `HandwritingSearchPhase.unsupported`·`LibraryInkSearchPhase.unsupported`(이 기기에서 쓸 수 없음 안내) 추가 | 05-library 6.19a | LIBRARY·INFRA(처리됨) |
 
 #### v2.8 (2026-11-13, 수식 펜 1단계 — 사용자 승인 '1단계 진행해줘')
 

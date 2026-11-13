@@ -103,16 +103,24 @@ final class DriftSearchIndex implements SearchIndex {
       unawaited(rebuild().then<void>((_) {}, onError: (Object _) {}));
     } else if (kv[KvKeys.searchInkTermsVersion] != '$kInkTermsVersion' &&
         await _hasInkOwners()) {
-      // (ink spacing) ink rows written before the compact terms: once, ink only. Without
-      // ink rows nothing is done (every new ink row gets the terms).
+      // (ink spacing) ink rows written before the compact terms: once, ink only.
       unawaited(
         rebuild(sources: const {SearchSource.ink})
             .then<void>((_) {}, onError: (Object _) {}),
       );
-    } else if (indexer.pendingOwners > 0) {
-      unawaited(
-        s.queue.run((_) async {}).then<void>((_) {}, onError: (Object _) {}),
-      );
+    } else {
+      if (kv[KvKeys.searchInkTermsVersion] != '$kInkTermsVersion') {
+        // Without ink rows there is nothing to rebuild: every new ink row gets the
+        // current terms, so the version is recorded now (no later needless rebuild).
+        await s.queue.run(
+          (tx) => _putKv(KvKeys.searchInkTermsVersion, '$kInkTermsVersion'),
+        );
+      }
+      if (indexer.pendingOwners > 0) {
+        unawaited(
+          s.queue.run((_) async {}).then<void>((_) {}, onError: (Object _) {}),
+        );
+      }
     }
   }
 

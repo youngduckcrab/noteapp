@@ -242,6 +242,7 @@ LibraryInkSearchState libraryInkSearchStateOf(
       LibraryInkSearchPhase.waitingForWifi,
     HandwritingSearchPhase.modelFailed => LibraryInkSearchPhase.modelFailed,
     HandwritingSearchPhase.indexing => LibraryInkSearchPhase.indexing,
+    HandwritingSearchPhase.unsupported => LibraryInkSearchPhase.unsupported,
   },
   remainingPages: s.remainingPages,
   confirmCellularFirst: s.confirmCellularFirst,
