@@ -2779,6 +2779,12 @@ C. **TestFlight 뒤** — 2차 완료 조건 아님: C-3(ML Kit iOS — A-4와 �
 
 recog가 편집기 수식 펜의 인식을 맡는다: `src/math_pen/`(`MathPenSession` — 펜을 뗀 뒤 500 ms 디바운스, 새 접촉이면 진행 중 요청 취소·세대 번호로 최신 답만, 획 서명 캐시 8개, 서버 엔진에만 PNG, 배경 변환은 쓸 수 있는 답만·최대 10 s·잉크 한도 안만·편집기 `stillWanted` 확인 뒤, 말풍선 탭은 진행 중 답을 그대로 기다리거나(취소되면 아무것도 열지 않음) LaTeX 편집 창, 한도를 넘으면 먼저 묻는다), 말풍선 내용 `MathPenBubble`(INK `MathPreview`, '인식 중…', '수식 인식이 꺼져 있어요.' + [기기에서 수식 인식 켜기](기존 `OnDeviceMathTile` 시트) + [LaTeX로 입력]). 변환 = `buildMathFromPen`(잉크 높이만 한 글자 크기, 잉크 왼쪽 맞춤·세로 가운데, 손글씨를 `ink`로) → `CompositeCommand([RemoveElements, AddObjects])` `recog-math-pen` 한 단계. LaTeX 편집 창(세 흐름 모두)에 기호 줄(`ui/latex_symbols.dart` — 분수·지수·아래첨자·√·∫·∑·lim·π·∞·±·×·÷·≤·≥·≠·θ·α·β·( ), 커서는 중괄호 안). 내보내기 4개 `RecognitionMathPen`·`RecognitionMathPenContext`·`RecognitionMathPenSession`·`recognitionMathPen`. 4.4.4 동작 순서는 그대로. 설계: [research/math-pen-phase1.md](research/math-pen-phase1.md).
 
+## 15. 텍스트 펜 1단계 (2026-11-13, 계약 v2.9 C29-02)
+
+recog가 편집기 텍스트 펜의 인식을 맡는다: `src/text_pen/`(`TextPenSession` — 펜을 뗀 뒤 500 ms 디바운스, 묶음의 인식 입력 획을 변환 창과 같은 줄 나누기(`conversionLinesOf`)로 나누되 한 줄이 넓은 띄어쓰기로 갈라진 조각은 다시 한 줄로 합치고(20줄까지), 줄마다 변환 창 규칙(`conversionLineInput` — preContext·쓰기 영역, `conversionCandidateTexts` — 후보 5개)으로 `recog.language`에서 차례로 인식, 새 접촉이면 세대 번호로 묵은 답을 버림, 획 서명 캐시 8개). 말풍선 상태: 인식 중 / 답('누르면 텍스트로 바꿔요' + [고치기]) / 실패 [다시] / 엔진 없음 / 모델 없음(설정의 모델 줄 그대로 — [받기]·Wi-Fi 대기·[지금 셀룰러로 받기], 모델이 오면 저절로 다시 인식). 변환은 말풍선 탭에서만: 진행 중 답을 그대로 기다린 뒤 `buildTextBox`(변환 창과 같은 크기·색) → `replaceStrokesCommand('recog-text-pen')` 한 단계. `buildTextBox`가 글꼴을 기다린 뒤에도 묶음이 여전히 원하는지(clear·dispose 없음)와 획이 그대로인지 다시 확인한다. 쓸 답이 없으면 변환 창(`openConversion`)을 연다. 배경 변환은 없다. 내보내기 4개 `RecognitionTextPen`·`RecognitionPenContext`(수식 펜 문맥과 같은 타입)·`RecognitionTextPenSession`·`recognitionTextPen`. `RecognitionAction.pinned`(`recog.toText`만 true — 선택 막대에서 ⋯ 뒤로 숨지 않음).
+
+대화형 우선(`common/recognition_priority.dart`): 네이티브 ML Kit 인식기는 한 번에 하나씩 FIFO로 돌고 배경 색인기와 같이 쓴다. 텍스트 펜(요청이 기다리는 동안)과 변환 창(열려 있는 동안)이 `RecognitionPriority`를 잡으면 색인기는 다음 줄을 시작하지 않는다(`HandwritingIndexer(yieldTo:)` — 진행 중인 한 줄만 마치고, 상태는 `paused`). 그래서 펜의 줄이 색인기 대기열 뒤에 서지 않는다. 바꾸기 전 텍스트 펜 손글씨는 보통 잉크이므로 '검색용 자동 인식'(6.18)이 켜져 있으면 다른 손글씨처럼 색인된다.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 ### A.1 LIBRARY가 여는 자리

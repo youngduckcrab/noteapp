@@ -2982,6 +2982,12 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 `EditorTool.math`('수식 펜' — `EditorExtensions.mathPen`이 있을 때만 툴바·'도구 더보기'에 보임, 없으면 저장값 `"math"`는 펜처럼 동작). 획은 볼펜 스타일의 보통 획(한 단계씩, 저장됨), 묶음 소속은 편집기 메모리(`tools/math_pen/math_pen_controller.dart`)에만. 묶음 판정 `mathPenJoins`(가장 가까운 소속 획까지 gapX ≤ 1.5 H, gapY ≤ 0.6 H, H = 점 획을 뺀 높이 중앙값 8~72 pt, 400획·40 000점), 변환 계기(말풍선 탭·도구 전환(지우개 제외)·먼 곳에 새 묶음), 노트를 떠나면 변환하지 않음, 수식 근처 획 = 다시 열기 한 명령(`EditorCommands.commitInkEditWith`), 수식 탭 메뉴 [고치기][손글씨로 열기](손가락 탭·마우스 클릭 — 스타일러스 점은 쓴다), 말풍선 층 `ui/overlays/math_pen_layer.dart`(Listener 바깥 형제, 손바닥 탭 무시 `InputRouter.rejectsAsPalm`, 화면 밖이면 숨김). (1단계 검토 반영) 배경 변환은 노트 기록이 계기 때와 같을 때만(`stillWanted`), 새 묶음의 옛 묶음 변환은 새 획보다 먼저, 되돌린 변환은 그 되돌리기에서 한 번만 수식 펜·지우개일 때 다시 열린다. 설계·결정·이번에 하지 않은 것: [research/math-pen-phase1.md](research/math-pen-phase1.md). 부록 C 키(계약 아님): `editor.toolbar.math`, `editor.mathPen.bubble`, `editor.mathPen.formulaMenu`, `editor.mathPen.fix`, `editor.mathPen.reopen`.
 
+## 15. 텍스트 펜 1단계 (2026-11-13, 계약 v2.9 C29-01)
+
+`EditorTool.textPen`('텍스트 펜', 아이콘 `edit_note` — `EditorExtensions.textPen`이 있을 때만 툴바·'도구 더보기'의 '수식 펜' 옆에 보임, 없으면 저장값 `"textPen"`은 펜처럼). 획은 볼펜 스타일의 보통 획(한 단계씩, 저장됨)이고 묶음 소속은 편집기 메모리(`tools/text_pen/text_pen_controller.dart`)에만 있다. 묶음 판정 `textPenJoins`(`tools/text_pen/text_pen_group.dart`): 같은 줄은 가장 가까운 소속 획까지 gapX ≤ 2.5 H(낱말 사이 띄어쓰기)·gapY ≤ 0.6 H, 다음 줄은 묶음 아래 ≤ 1.2 H이고 옆으로 겹칠 때, 20줄·400획·40 000점까지(H는 수식 펜과 같은 규칙). 펜을 뗀 뒤 약 500 ms에 말풍선이 인식한 글을 보여 주고, **말풍선을 탭할 때만** 텍스트 상자로 바꾼다(한 단계, `recog-text-pen`). 수식 펜과 달리 도구 전환·먼 곳의 새 묶음·노트 떠나기에서는 배경 변환을 하지 않는다 — 잘못 읽은 글이 손글씨를 몰래 바꾸면 안 되기 때문이다(도구를 바꾸면 묶음은 손글씨로 남은 채 닫힘, 지우개는 묶음을 유지). 말풍선 길게 누르기나 '고치기'는 기존 변환 창(줄마다 고치기·후보)을 연다. 변환을 되돌리면 같은 획이 그대로 돌아오고, 텍스트 펜·지우개일 때 한 번 다시 열린 묶음이 된다. 묶음 동기화(되돌리기·원격·지우개 조각)는 수식 펜과 공유하는 `tools/pen_group/pen_group_members.dart`, 말풍선 틀(자리·손바닥 무시)은 `PenBubbleLayout`·`PenBubbleTap`(`math_pen_layer.dart`)을 같이 쓴다 — 수식 펜 동작은 그대로. 바꾸기 전 손글씨는 보통 잉크라 '검색용 자동 인식'이 켜져 있으면 다른 손글씨처럼 색인된다.
+
+찾기 쉽게: [+] 메뉴 첫 줄(이미지 다음) '손글씨를 텍스트로' — 손글씨를 선택해 두었으면 그 손글씨의 변환 창, 아니면 텍스트 펜을 고른다. 선택 막대에서는 `EditorSelectionMenuItem.pinned` 항목(recog '텍스트로 변환')이 폭과 상관없이 언제나 ⋯ 앞에 있다(나머지가 남은 자리를 채움). 키보드 텍스트 도구는 그대로. 부록 C 키(계약 아님): `editor.toolbar.textPen`, `editor.textPen.bubble`, `editor.insert.handwritingToText`.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)

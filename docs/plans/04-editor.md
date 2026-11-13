@@ -3449,3 +3449,5 @@ testWidgets('rejected erase → discardEdit, erased strokes visible again', (tes
 | C15-01·02·03·05·06·07·08 | 계약 v1.5 | EDITOR 할 일 없음(계약 7.9 표의 '영향' 열 — C15-01 퇴화 올가미 = 탭 처리 그대로) |
 
 개발 진행 기록: [progress/editor.md](progress/editor.md).
+
+2차 추가(2026-11-13): 손글씨를 쓰면 텍스트로 바꾸는 '텍스트 펜'과 [+] '손글씨를 텍스트로'는 [m5-7/04-editor.md 15절](m5-7/04-editor.md#15-텍스트-펜-1단계-2026-11-13-계약-v29-c29-01)에 있다. 1차의 키보드 텍스트 도구는 바뀌지 않았다.
