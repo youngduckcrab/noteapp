@@ -455,7 +455,7 @@ void main() {
     );
   });
 
-  // (text pen, phase 1 — m5-7/05-library 6.24, contract C29)
+  // (text pen, phase 1 — m5-7/05-library 6.24, contract C210)
   group('editorTextPenOf — recog\'s text pen as the editor slot', () {
     test(
       'context, groups as targets, convert / fix / bubble pass through',

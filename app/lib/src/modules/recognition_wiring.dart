@@ -286,7 +286,7 @@ final class _InkSearchAdapter implements LibraryInkSearch {
   }
 }
 
-/// (text pen, phase 1 — m5-7/05-library 6.24, contract C29) recog's text
+/// (text pen, phase 1 — m5-7/05-library 6.24, contract C210) recog's text
 /// pen as the editor's slot: the editor's context becomes recog's, every
 /// EditorPenGroup a RecognitionTarget (strokes, areaPt = boundsPt, execute
 /// = the editor's, done does nothing) — the math pen's road.

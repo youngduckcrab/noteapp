@@ -439,7 +439,7 @@ abstract interface class EditorMathPenSession {
   void dispose();
 }
 
-// --- (text pen, phase 1 — m5-7/04-editor 6.21, contract C29) ---
+// --- (text pen, phase 1 — m5-7/04-editor 6.21, contract C210) ---
 
 /// What a pen session gets (the math pen's context, shared).
 typedef EditorPenContext = EditorMathPenContext;

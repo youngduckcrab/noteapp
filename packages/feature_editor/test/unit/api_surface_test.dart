@@ -72,7 +72,7 @@ const _expectedExports = <String>{
   'EditorMathGroup',
   'EditorMathConvertTrigger',
   'EditorMathPenSession',
-  // (text pen, phase 1) m5-7/04-editor 6.21, contract C29.
+  // (text pen, phase 1) m5-7/04-editor 6.21, contract C210.
   'EditorTextPen',
   'EditorTextPenSession',
   'EditorPenContext',
