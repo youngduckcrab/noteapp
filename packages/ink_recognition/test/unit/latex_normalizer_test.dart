@@ -113,6 +113,73 @@ void main() {
         r'\begin{bmatrix}{12}\\{34}\end{bmatrix}',
     r'\left[ \begin{matrix} 1 2 \\ 3 4 \end{matrix} \right]':
         r'\begin{bmatrix}12\\34\end{bmatrix}',
+    // with spacing between the entries, digits run together are one number
+    r'\left[ \begin{array} { c } { 1 0 \, 2 0 } \\ { 3 0 \, 4 0 } \\ \end{array} \right]':
+        r'\begin{bmatrix}10&20\\30&40\end{bmatrix}',
+    r'\left[ \begin{array} { c } { 1 2 \; 3 4 } \\ { 5 6 \; 7 8 } \\ \end{array} \right]':
+        r'\begin{bmatrix}12&34\\56&78\end{bmatrix}',
+    r'\left[ \begin{array} { c } { - 1 0 \, 2 } \\ { 3 \, - 4 0 } \end{array} \right]':
+        r'\begin{bmatrix}-10&2\\3&-40\end{bmatrix}',
+    // a math font around a row is how the model writes plain handwriting
+    // too: not a signal (a text font is)
+    r'\left[ \begin{array} { c } { \mathbf { 1 2 } } \\ { \mathbf { 3 4 } } \end{array} \right]':
+        r'\begin{bmatrix}{12}\\{34}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \textbf { 1 2 } } \\ { \textbf { 3 4 } } \end{array} \right]':
+        r'\begin{bmatrix}1&2\\3&4\end{bmatrix}',
+    // a common factor in every row is a column vector, not a column
+    // (the model's real [kx; ky], [ax; ay], [xt; yt])
+    r'\left[ \begin{array} { l } { \mathsf { k x } } \\ { \mathsf { k y } } \\ \end{array} \right]':
+        r'\begin{bmatrix}{kx}\\{ky}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \mathrm { a x } } \\ { \mathrm { a y } } \\ \end{array} \right]':
+        r'\begin{bmatrix}{\mathrm{ax}}\\{\mathrm{ay}}\end{bmatrix}',
+    r'\left[ \begin{matrix} { x t } \\ { y t } \end{matrix} \right]':
+        r'\begin{bmatrix}{xt}\\{yt}\end{bmatrix}',
+    r'\left[ \begin{array} { c c } { \boldsymbol { k } \boldsymbol { x } } & { \boldsymbol { } } \\ { \boldsymbol { k } \boldsymbol { y } } & { \boldsymbol { } } \\ \end{array} \right]':
+        r'\begin{bmatrix}{{k}{x}}\\{{k}{y}}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \lambda x } \\ { \lambda y } \end{array} \right]':
+        r'\begin{bmatrix}{\lambda x}\\{\lambda y}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \mathrm { d } x } \\ { \mathrm { d } y } \end{array} \right]':
+        r'\begin{bmatrix}{\mathrm{d}x}\\{\mathrm{d}y}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \mathrm { k m } } \\ { \mathrm { c m } } \end{array} \right]':
+        r'\begin{bmatrix}{\mathrm{km}}\\{\mathrm{cm}}\end{bmatrix}',
+    // spacing is evidence enough; an upright d stays upright
+    r'\left[ \begin{array} { c } { \mathrm { d } \, x } \\ { \mathrm { d } \, y } \end{array} \right]':
+        r'\begin{bmatrix}\mathrm{d}&x\\\mathrm{d}&y\end{bmatrix}',
+    r'\left[ \begin{array} { c } { d x } \\ { d y } \end{array} \right]':
+        r'\begin{bmatrix}{dx}\\{dy}\end{bmatrix}',
+    // …but a 2×2 or 3×3 of letters still splits
+    r'\left[ \begin{array} { c } { a b c } \\ { d e f } \\ { g h i } \end{array} \right]':
+        r'\begin{bmatrix}a&b&c\\d&e&f\\g&h&i\end{bmatrix}',
+    // a math font on every entry is a signal; around the whole row, or a
+    // text font around a number, is not
+    r'\left[ \begin{array} { c } { \mathbf { 1 } \mathbf { 2 } } \\ { \mathbf { 3 } \mathbf { 4 } } \end{array} \right]':
+        r'\begin{bmatrix}1&2\\3&4\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \mathrm { 1 2 } } \\ { \mathrm { 3 4 } } \end{array} \right]':
+        r'\begin{bmatrix}{\mathrm{12}}\\{\mathrm{34}}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \textrm { 12 } } \\ { \textrm { 34 } } \end{array} \right]':
+        r'\begin{bmatrix}{\mathrm{12}}\\{\mathrm{34}}\end{bmatrix}',
+    // with spacing, only the spacing separates: a group of letters, or rows
+    // that split differently, stay joined
+    r'\left[ \begin{array} { c } { a b \, c } \\ { d e \, f } \end{array} \right]':
+        r'\begin{bmatrix}{ab\,c}\\{de\,f}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { 1 0 \, 2 0 } \\ { 3 4 } \end{array} \right]':
+        r'\begin{bmatrix}{10\,20}\\{34}\end{bmatrix}',
+    // words in a text font are text
+    r'\left[ \begin{array} { c } { \text { if } } \\ { \text { or } } \end{array} \right]':
+        r'\begin{bmatrix}{\text{if}}\\{\text{or}}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \text { ab } } \\ { \text { cd } } \end{array} \right]':
+        r'\begin{bmatrix}{\text{ab}}\\{\text{cd}}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \text { on } } \\ { \text { up } } \end{array} \right]':
+        r'\begin{bmatrix}{\text{on}}\\{\text{up}}\end{bmatrix}',
+    // …but a word outside the matrix says nothing about it
+    r'\left[ \begin{array} { c } { a b } \\ { c d } \end{array} \right] \text { if }':
+        r'\begin{bmatrix}a&b\\c&d\end{bmatrix}\text{if}',
+    // letters alone split only a matrix with delimiters (a bare stack, a
+    // sum's limits, may be products)
+    r'\begin{array} { c } { a b } \\ { c d } \end{array}':
+        r'\begin{matrix}{ab}\\{cd}\end{matrix}',
+    r'\sum _ { \begin{array} { c } { i j } \\ { k l } \end{array} } x':
+        r'\sum_{\begin{matrix}{ij}\\{kl}\end{matrix}}x',
     // one entry per row, an operator, a point: nothing to split
     r'\left[ \begin{array} { c } { a + b } \\ { c + d } \end{array} \right]':
         r'\begin{bmatrix}{a+b}\\{c+d}\end{bmatrix}',
@@ -139,6 +206,14 @@ void main() {
         r'\begin{array}{lr}a&b\\c&d\end{array}',
     r'\left[ \begin{matrix} a & { } & b \\ c \end{matrix} \right]':
         r'\begin{bmatrix}a&b\\c\end{bmatrix}',
+    // a ruled spec with a letter per column keeps its columns (the rules
+    // would move); an extra padding column still goes
+    r'\left[ \begin{array} { c c | c } { 1 } & { } & { 2 } \\ { 3 } & { } & { 4 } \end{array} \right]':
+        r'\left[\begin{array}{cc|c}{1}&{}&{2}\\{3}&{}&{4}\end{array}\right]',
+    r'\left[ \begin{array} { c | c | c } { a } & { } & { b } \\ { c } & { } & { d } \end{array} \right]':
+        r'\left[\begin{array}{c|c|c}{a}&{}&{b}\\{c}&{}&{d}\end{array}\right]',
+    r'\left[ \begin{array} { c c | c } { 1 } & { 2 } & { 3 } & { } \\ { 4 } & { 5 } & { 6 } & { } \end{array} \right]':
+        r'\left[\begin{array}{cc|c}{1}&{2}&{3}\\{4}&{5}&{6}\end{array}\right]',
     // capital-only alphabets
     r'\mathcal { 1 } + \mathcal { N } + \mathcal { d A }': r'1+\mathcal{N}+dA',
     // synonyms, old font switches, sizes, spacing at a group end

@@ -3,8 +3,8 @@
 // shape, the encoder once, the decoder fed the whole sequence each step,
 // argmax of the last position, </s> ends, the 200-token cap, shape errors,
 // cancellation (before and between steps), the encoder output always
-// released, the tokenizer + normaliser on the result, one call at a time,
-// model-load failures retried, dispose.
+// released, the tokenizer + normaliser on the result (with the matrix ink
+// gutters), one call at a time, model-load failures retried, dispose.
 @TestOn('vm')
 library;
 
@@ -380,6 +380,75 @@ void main() {
       expect((await second).latex, 'x');
       expect(runtime.encodeLengths, hasLength(2));
       expect(runtime.releases, 2);
+    });
+
+    test('the ink gutters reach the normaliser: a one-column matrix of '
+        'digits splits only when the ink shows its columns', () async {
+      // ids 20.. → `\left[ \begin{matrix} { 1 2 } \\ { 3 4 } \end{matrix}
+      // \right]`
+      const pieces = [
+        r'\left', 'Ġ[', r'Ġ\begin{matrix}', 'Ġ{', 'Ġ1', 'Ġ2', 'Ġ}', //
+        r'Ġ\\', 'Ġ3', 'Ġ4', r'Ġ\end{matrix}', r'Ġ\right', 'Ġ]',
+      ];
+      final tokenizer = MfrTokenizer.fromJson(
+        jsonEncode({
+          'added_tokens': [
+            for (final (i, t) in ['<pad>', '<s>', '</s>'].indexed)
+              {'id': i, 'content': t, 'special': true},
+          ],
+          'model': {
+            'vocab': {
+              '<pad>': 0,
+              '<s>': 1,
+              '</s>': 2,
+              for (final (i, t) in pieces.indexed) t: 20 + i,
+            },
+          },
+        }),
+      );
+      final script = [
+        20, 21, 22, 23, 24, 25, 26, 27, 23, 28, 29, 26, 30, 31, 32, //
+        kMfrEndId,
+      ];
+      HandwritingTrace stroke(List<double> xy) => HandwritingTrace(
+        xs: Float32List.fromList([
+          for (var i = 0; i < xy.length; i += 2) xy[i],
+        ]),
+        ys: Float32List.fromList([
+          for (var i = 1; i < xy.length; i += 2) xy[i],
+        ]),
+        ts: Float64List.fromList([
+          for (var i = 0; i < xy.length ~/ 2; i++) i * 10.0,
+        ]),
+      );
+      // `[`, two rows of 8 × 10 glyphs at the x positions, `]`
+      MathInput ink(double second, double close) => MathInput(
+        traces: [
+          stroke([0, 0, 0, 40]),
+          stroke([0, 0, 5, 0]),
+          stroke([0, 40, 5, 40]),
+          for (final y in [5.0, 25.0])
+            for (final x in [10.0, second])
+              stroke([x, y, x + 8, y, x + 8, y + 10, x, y + 10, x, y + 2]),
+          stroke([close, 0, close, 40]),
+          stroke([close - 5, 0, close, 0]),
+          stroke([close - 5, 40, close, 40]),
+        ],
+      );
+      Future<String> latex(MathInput input) async =>
+          (await OnDeviceMathRecognizer(
+            openRuntime: () async => FakeRuntime(script),
+            loadTokenizer: () async => tokenizer,
+            preprocess: _preprocess,
+          ).recognize(input)).latex;
+
+      // a gap of half the glyph height: two columns
+      expect(await latex(ink(23, 41)), r'\begin{bmatrix}1&2\\3&4\end{bmatrix}');
+      // digits written close: two-digit numbers
+      expect(
+        await latex(ink(19, 37)),
+        r'\begin{bmatrix}{12}\\{34}\end{bmatrix}',
+      );
     });
 
     test('dispose closes the runtime; later calls fail', () async {

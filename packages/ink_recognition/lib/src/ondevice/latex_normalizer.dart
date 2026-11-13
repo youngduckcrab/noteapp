@@ -427,9 +427,43 @@ String _normalize(String raw, {Set<String> drop = const {}, int? gutters}) {
             _matrixLike.contains(t.substring(7, t.length - 1)),
       )
       .length;
+  final text = _textRows(s);
   return _serialize(
-    _cleanMatrices(tidy, gutters: matrices == 1 ? gutters : null),
+    _cleanMatrices(
+      tidy,
+      gutters: matrices == 1 ? gutters : null,
+      text: matrices == 1 ? text : (signal: false, words: text.words),
+    ),
   );
+}
+
+/// What the model's text-mode wrappers say about a one-column matrix (the
+/// rewrite turns `\textrm` into `\mathrm`, so this reads the raw LaTeX):
+/// [signal] — `\textrm` / `\textsf` / `\texttt` / `\textbf` around single
+/// letters or digits written apart (`\textrm { a b }`, `\textbf { a }
+/// \textbf { b }`), how the model writes a row of entries it has run
+/// together; [words] — a text font around a word (`\text { if }`,
+/// `\textrm { ab }`): text, never entries.
+typedef _TextRows = ({bool signal, bool words});
+
+_TextRows _textRows(String raw) {
+  // only the matrices' text: `[ab; cd] \text { if } …` is still a matrix
+  final from = raw.indexOf(r'\begin'), to = raw.lastIndexOf(r'\end');
+  final region = from >= 0 && to > from ? raw.substring(from, to) : raw;
+  var signal = false, words = false;
+  for (final m in RegExp(
+    r'\\(?:text(?:rm|sf|tt|bf|it|up|sc|normal)?|mbox)(?![A-Za-z])\s*'
+    r'\{([^{}]*)\}',
+  ).allMatches(region)) {
+    final content = m.group(1)!.trim();
+    if (RegExp('[A-Za-z]{2}').hasMatch(content)) {
+      words = true;
+    } else if (RegExp(r'^\\text(?:rm|sf|tt|bf)').hasMatch(m.group(0)!) &&
+        RegExp(r'^[A-Za-z0-9](?:\s+[A-Za-z0-9])*$').hasMatch(content)) {
+      signal = true;
+    }
+  }
+  return (signal: signal, words: words);
 }
 
 /// Text-mode arguments written as words (`\text { for all }` — not the
@@ -884,15 +918,24 @@ const Set<String> _matrixFonts = {
   r'\mathit',
 };
 
+/// Matrix environments with their own delimiters.
+const Set<String> _delimitedMatrices = {
+  'pmatrix',
+  'bmatrix',
+  'vmatrix',
+  'Vmatrix',
+  'Bmatrix',
+};
+
 /// Bare delimiters that make a delimited matrix (`[ \begin{matrix} … ]`).
 const Set<String> _bareOpen = {'(', '[', '|', r'\|', r'\{'};
 
 /// Matrix environments, token level (inner ones first):
 /// - in a matrix (not aligned / gathered / split) every column that is empty
 ///   in every row goes, at the edges or inside (the model pads a matrix with
-///   `{ } &` and `& { }`, and writes a wide gap as an empty column), and so
-///   does every empty row; an array's column spec follows the remaining
-///   columns;
+///   `{ } &` and `& { }`, and writes a wide gap as an empty column; an
+///   array whose spec draws lines keeps the ones inside), and so does every
+///   empty row; an array's column spec follows the remaining columns;
 /// - a matrix the model wrote as one column whose cells hold whole rows
 ///   (`{ a b } \\ { c d }` — a tight column gap) is split into columns
 ///   ([_splitColumn]);
@@ -900,7 +943,11 @@ const Set<String> _bareOpen = {'(', '[', '|', r'\|', r'\{'};
 /// - delimiters around it (`\left[ … \right]`, or bare `[ … ]`) make the
 ///   delimited environment (bmatrix, pmatrix, …) — for an array too, unless
 ///   its spec draws lines (`c|c`).
-List<String> _cleanMatrices(List<String> t, {int? gutters}) {
+List<String> _cleanMatrices(
+  List<String> t, {
+  int? gutters,
+  _TextRows text = (signal: false, words: false),
+}) {
   final out = <String>[];
   var i = 0;
   while (i < t.length) {
@@ -948,16 +995,24 @@ List<String> _cleanMatrices(List<String> t, {int? gutters}) {
     final grid = env == 'aligned' || env == 'gathered' || env == 'split';
     final rows = [
       for (final row in _splitTop(
-        _cleanMatrices(t.sublist(bodyStart, end)),
+        _cleanMatrices(t.sublist(bodyStart, end), text: text),
         r'\\',
       ))
         _splitTop(row, '&'),
     ];
     final width = _width(rows);
-    final kept = grid ? null : _dropEmpty(rows);
-    final split = grid || lines || env == 'cases' || target == 'cases'
+    // a ruled spec keeps its empty columns inside: dropping one would move
+    // the rules (only padding at the edges goes, as before)
+    final kept = grid ? null : _dropEmpty(rows, inside: !lines);
+    final split =
+        grid || lines || text.words || env == 'cases' || target == 'cases'
         ? null
-        : _splitColumn(rows, gutters);
+        : _splitColumn(
+            rows,
+            gutters,
+            textSignal: text.signal,
+            delimited: target != null || _delimitedMatrices.contains(env),
+          );
     if (split != null) {
       rows
         ..clear()
@@ -1064,15 +1119,20 @@ int _width(List<List<List<String>>> rows) =>
 
 /// Every column empty in all rows goes (a row shorter than the widest has
 /// empty cells at its end), and every empty row; a matrix with nothing in
-/// it stays. The indices of the columns kept; null when nothing changed.
-List<int>? _dropEmpty(List<List<List<String>>> rows) {
+/// it stays ([inside] false: only the columns at the edges). The indices
+/// of the columns kept; null when no column went.
+List<int>? _dropEmpty(List<List<List<String>>> rows, {bool inside = true}) {
   if (rows.every((r) => r.every(_emptyCell))) return null;
   rows.removeWhere((r) => r.every(_emptyCell));
   final width = _width(rows);
-  final kept = [
+  bool used(int c) => rows.any((r) => c < r.length && !_emptyCell(r[c]));
+  final usedColumns = [
     for (var c = 0; c < width; c++)
-      if (rows.any((r) => c < r.length && !_emptyCell(r[c]))) c,
+      if (used(c)) c,
   ];
+  final kept = inside
+      ? usedColumns
+      : [for (var c = usedColumns.first; c <= usedColumns.last; c++) c];
   if (kept.length == width) return null;
   for (var r = 0; r < rows.length; r++) {
     final row = rows[r];
@@ -1112,7 +1172,9 @@ List<String> _fitSpec(
 
 /// Font and text wrappers the model puts around a whole row or around each
 /// entry (`{ \textrm { a b } }` arrives as `\mathrm`, `\textbf { a }` as
-/// `\mathbf`, `\bf` is already gone).
+/// `\mathbf`, `\bf` is already gone). Only a text font in the raw LaTeX
+/// makes one a split signal ([_textRows]): the model puts math fonts on
+/// plain handwriting too (`\mathsf { k x }` for kx).
 const Set<String> _rowWrappers = {
   r'\mathrm',
   r'\mathsf',
@@ -1189,22 +1251,44 @@ const Set<String> _symbolCommands = {
 };
 
 final class _Atom {
-  _Atom(this.tokens, {required this.letter});
+  _Atom(
+    this.tokens, {
+    required this.letter,
+    required this.digit,
+    required this.spaced,
+  });
 
   final List<String> tokens;
 
   /// A letter or a letter-like command (with its scripts), not a digit.
   final bool letter;
+
+  /// Bare digits, maybe signed, no scripts: a number a digit right after
+  /// it may continue.
+  final bool digit;
+
+  /// A spacing token separates it from the entry before.
+  final bool spaced;
 }
 
 final class _RowAtoms {
-  _RowAtoms(this.atoms, {required this.signal});
+  _RowAtoms(
+    this.atoms, {
+    required this.spaced,
+    required this.rowWrapped,
+    required this.eachWrapped,
+  });
 
   final List<_Atom> atoms;
 
-  /// The model marked the entries apart: spacing between them, or a text /
-  /// font wrapper around the whole row or around every entry.
-  final bool signal;
+  /// Spacing between two of the entries.
+  final bool spaced;
+
+  /// A font / text wrapper around the whole row (`\mathrm { a b }`).
+  final bool rowWrapped;
+
+  /// A font / text wrapper around every entry (`\mathbf { a } \mathbf { b }`).
+  final bool eachWrapped;
 }
 
 final RegExp _letterRe = RegExp(r'^[a-zA-Z]$');
@@ -1231,7 +1315,7 @@ _RowAtoms? _rowAtoms(List<String> cell) {
     }
   }
   final atoms = <_Atom>[];
-  var spaced = false, pendingSeparator = false, afterSeparator = true;
+  var pendingSeparator = false, afterSeparator = true;
   var wrappedAtoms = 0;
   var i = 0;
   while (i < c.length) {
@@ -1250,13 +1334,14 @@ _RowAtoms? _rowAtoms(List<String> cell) {
       if (i >= c.length) return null;
     }
     final core = c[i];
-    bool letter;
+    bool letter, digit = false;
     if (_letterRe.hasMatch(core) || _letterCommands.contains(core)) {
       letter = true;
       tokens.add(core);
       i++;
     } else if (_digitRe.hasMatch(core) || _symbolCommands.contains(core)) {
       letter = false;
+      digit = _digitRe.hasMatch(core);
       tokens.add(core);
       i++;
     } else if (core == '{' ||
@@ -1272,10 +1357,15 @@ _RowAtoms? _rowAtoms(List<String> cell) {
       letter = one && single.atoms.single.letter;
       i = close;
       final scripted = i < c.length && (c[i] == '_' || c[i] == '^');
+      // `{ a }`, `\mathbf { a }` → a; a font the entries keep outside a
+      // matrix too stays (`\mathrm { d }`)
+      final keep = wrapper && !_matrixFonts.contains(core);
       if (one && (!scripted || single.atoms.single.tokens.length == 1)) {
-        // `{ a }`, `\mathbf { a }` → a
+        if (keep) tokens.addAll([core, '{']);
         tokens.addAll(single.atoms.single.tokens);
+        if (keep) tokens.add('}');
       } else {
+        if (keep) tokens.add(core);
         tokens
           ..add('{')
           ..addAll(inner)
@@ -1284,35 +1374,90 @@ _RowAtoms? _rowAtoms(List<String> cell) {
     } else {
       return null;
     }
+    var scripts = false;
     while (i < c.length && (c[i] == '_' || c[i] == '^')) {
       if (i + 1 >= c.length) return null;
       final argEnd = _argEnd(c, i + 1);
       tokens.addAll(c.sublist(i, argEnd));
       i = argEnd;
+      scripts = true;
     }
-    if (pendingSeparator) spaced = true;
+    atoms.add(
+      _Atom(
+        tokens,
+        letter: letter,
+        digit: digit && !scripts,
+        spaced: pendingSeparator,
+      ),
+    );
     pendingSeparator = false;
     afterSeparator = false;
-    atoms.add(_Atom(tokens, letter: letter));
   }
   final n = atoms.length;
   return _RowAtoms(
     atoms,
-    signal: n >= 2 && (spaced || wrapped || wrappedAtoms == n),
+    spaced: n >= 2 && atoms.any((a) => a.spaced),
+    rowWrapped: n >= 2 && wrapped,
+    eachWrapped: n >= 2 && wrappedAtoms == n,
   );
+}
+
+/// A spaced row's entries: the [atoms] between two spacing separators make
+/// one entry — one atom, or digits run together (`1 0 \, 2 0` is 10 and
+/// 20); null when a group holds anything else (`a b \, c`).
+List<_Atom>? _spacedEntries(List<_Atom> atoms) {
+  final groups = <List<_Atom>>[];
+  for (final a in atoms) {
+    if (groups.isEmpty || a.spaced) {
+      groups.add([a]);
+    } else {
+      groups.last.add(a);
+    }
+  }
+  final entries = <_Atom>[];
+  for (final g in groups) {
+    if (g.length == 1) {
+      entries.add(g.single);
+    } else if (g.every((a) => a.digit) &&
+        g.skip(1).every((a) => a.tokens.length == 1)) {
+      entries.add(
+        _Atom(
+          [for (final a in g) ...a.tokens],
+          letter: false,
+          digit: true,
+          spaced: g.first.spaced,
+        ),
+      );
+    } else {
+      return null;
+    }
+  }
+  return entries;
 }
 
 /// A matrix the model wrote as one column whose cells hold whole rows →
 /// its columns, or null to leave it. Every row must be the same number n
-/// (2…8) of entries ([_rowAtoms]), and one of: the model marked them apart
-/// in some row (spacing, a text / font wrapper); every entry is a letter
-/// (`[ab; cd]` — a column of products is rarer in notes than a 2×2 matrix;
-/// at least two rows); or the ink shows n − 1 clear [gutters] between the
-/// brackets. Digits alone stay joined (`[12; 34]` may be numbers).
+/// (2…8) of entries ([_rowAtoms]); when some row has spacing between
+/// entries, only the spacing separates them, in every row
+/// ([_spacedEntries]). And one of:
+/// - spacing between the entries in some row;
+/// - (two rows or more) a font wrapper around every entry, or around the
+///   whole row when the raw LaTeX had a text font there ([textSignal]) —
+///   the model puts math fonts on plain handwriting too (`\mathsf { k x }`
+///   for kx);
+/// - every entry is a letter and the matrix has delimiters (`[ab; cd]` — a
+///   column of products is rarer in notes than a 2×2 matrix; an undelimited
+///   stack, `\sum_{…}`, may be products);
+/// - the ink shows n − 1 clear [gutters] between the brackets.
+/// Digits alone stay joined (`[12; 34]` may be numbers). Without spacing
+/// or ink, a column that would hold the same entry in every row is a
+/// common factor (`[kx; ky]`, `[dx; dy]`), not a matrix: no split.
 List<List<List<String>>>? _splitColumn(
   List<List<List<String>>> rows,
-  int? gutters,
-) {
+  int? gutters, {
+  bool textSignal = false,
+  bool delimited = false,
+}) {
   if (rows.isEmpty || rows.any((r) => r.length != 1)) return null;
   final parsed = <_RowAtoms>[];
   for (final r in rows) {
@@ -1320,14 +1465,31 @@ List<List<List<String>>>? _splitColumn(
     if (atoms == null) return null;
     parsed.add(atoms);
   }
-  final n = parsed.first.atoms.length;
-  if (n < 2 || n > 8 || parsed.any((p) => p.atoms.length != n)) return null;
-  final signal = parsed.any((p) => p.signal);
+  final spaced = parsed.any((p) => p.spaced);
+  final entries = <List<_Atom>>[];
+  for (final p in parsed) {
+    final e = spaced ? _spacedEntries(p.atoms) : p.atoms;
+    if (e == null) return null;
+    entries.add(e);
+  }
+  final n = entries.first.length;
+  if (n < 2 || n > 8 || entries.any((e) => e.length != n)) return null;
+  final font =
+      rows.length >= 2 &&
+      parsed.any((p) => p.eachWrapped || (textSignal && p.rowWrapped));
   final letters =
-      rows.length >= 2 && parsed.every((p) => p.atoms.every((a) => a.letter));
+      delimited &&
+      rows.length >= 2 &&
+      entries.every((e) => e.every((a) => a.letter));
   final ink = gutters != null && gutters == n - 1;
-  if (!signal && !letters && !ink) return null;
+  if (!spaced && !font && !letters && !ink) return null;
+  if (!spaced && !ink) {
+    for (var k = 0; k < n; k++) {
+      final first = entries.first[k].tokens.join(' ');
+      if (entries.every((e) => e[k].tokens.join(' ') == first)) return null;
+    }
+  }
   return [
-    for (final p in parsed) [for (final a in p.atoms) a.tokens],
+    for (final e in entries) [for (final a in e) a.tokens],
   ];
 }

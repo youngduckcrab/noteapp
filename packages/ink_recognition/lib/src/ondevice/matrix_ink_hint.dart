@@ -12,8 +12,12 @@
 //   strokes between them is the matrix (ink before it, `A =`, is fine);
 // - short strokes that touch a delimiter's x-range (the serifs of `[`)
 //   belong to it;
-// - the interior strokes' x-ranges are merged; every gap wider than 0.2 ×
-//   their median height is a gutter.
+// - the interior strokes' x-ranges are merged; every gap wider than 0.35 ×
+//   the median glyph height (strokes at least 0.3 × the tallest inside, so
+//   dots and minus signs do not count) is a gutter. Handwriting leaves 0.1
+//   to 0.3 × the height between the digits of one number (`[10; 20]`), so
+//   a smaller threshold would split numbers; a tighter matrix gap than this
+//   is hard to tell from a number even by eye.
 // No two delimiters or fewer than two interior strokes → null.
 import 'dart:math' as math;
 
@@ -62,9 +66,14 @@ int? matrixColumnGutters(List<HandwritingTrace> traces) {
   }
   if (interior.length < 2) return null;
 
-  final heights = interior.map((b) => b.height).toList()..sort();
+  // glyph height: dots, minus signs and fraction bars left out
+  final tallest = interior.map((b) => b.height).reduce(math.max);
+  final heights = [
+    for (final b in interior)
+      if (b.height >= 0.3 * tallest) b.height,
+  ]..sort();
   final median = heights[heights.length ~/ 2];
-  final tau = math.max(0.2 * median, 1e-3 * height);
+  final tau = math.max(_gutter * median, 1e-3 * height);
   final spans = interior.toList()..sort((a, b) => a.left.compareTo(b.left));
   var gutters = 0;
   var reach = spans.first.right;
@@ -74,6 +83,9 @@ int? matrixColumnGutters(List<HandwritingTrace> traces) {
   }
   return gutters;
 }
+
+/// A gutter is wider than this × the median glyph height.
+const double _gutter = 0.35;
 
 final class _Box {
   _Box(this.left, this.top, this.right, this.bottom);

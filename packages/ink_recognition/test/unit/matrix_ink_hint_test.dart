@@ -41,11 +41,11 @@ List<HandwritingTrace> _grid(List<double> columns) => [
 ];
 
 void main() {
-  test('a 2×2 matrix with tight but visible gaps: one gutter', () {
+  test('a tight 2×2 matrix (gap 0.5 × the height): one gutter', () {
     final traces = [
       ..._open(0),
-      ..._grid([10, 22]),
-      ..._close(40),
+      ..._grid([10, 23]),
+      ..._close(41),
     ];
     expect(matrixColumnGutters(traces), 1);
   });
@@ -53,18 +53,51 @@ void main() {
   test('three columns: two gutters', () {
     final traces = [
       ..._open(0),
-      ..._grid([10, 22, 34]),
-      ..._close(52),
+      ..._grid([10, 23, 36]),
+      ..._close(54),
     ];
     expect(matrixColumnGutters(traces), 2);
   });
 
   test('digits written close (12 / 34): no gutter', () {
-    // gap 1 pt < 0.2 × 10 pt
+    // gap 1 pt, far below 0.35 × 10 pt
     final traces = [
       ..._open(0),
       ..._grid([10, 19]),
       ..._close(37),
+    ];
+    expect(matrixColumnGutters(traces), 0);
+  });
+
+  test('three two-digit numbers (10 / 20 / 30, gaps 0.2 to 0.3 × the '
+      'height): no gutter', () {
+    final traces = [
+      ..._open(0),
+      for (final (y, gap) in [(2.0, 2.0), (15.0, 2.5), (28.0, 3.0)]) ...[
+        _glyph(10, y),
+        _glyph(18 + gap, y),
+      ],
+      ..._close(39),
+    ];
+    expect(matrixColumnGutters(traces), 0);
+  });
+
+  test('the space inside a number (12 / 34, 0.3 × the height): no gutter', () {
+    final traces = [
+      ..._open(0),
+      ..._grid([10, 21]),
+      ..._close(39),
+    ];
+    expect(matrixColumnGutters(traces), 0);
+  });
+
+  test('dots and minus signs do not shrink the threshold', () {
+    // more flat strokes than glyphs, over the glyphs (no gaps of their own)
+    final traces = [
+      ..._open(0),
+      ..._grid([10, 21]),
+      for (final x in [11.0, 13.0, 22.0, 24.0, 26.0]) _stroke([x, 3, x + 1, 3]),
+      ..._close(39),
     ];
     expect(matrixColumnGutters(traces), 0);
   });
@@ -77,8 +110,8 @@ void main() {
       _stroke([-22, 18, -14, 18]),
       _stroke([-22, 22, -14, 22]),
       ..._open(0),
-      ..._grid([10, 22]),
-      ..._close(40),
+      ..._grid([10, 23]),
+      ..._close(41),
     ];
     expect(matrixColumnGutters(traces), 1);
   });
@@ -89,8 +122,8 @@ void main() {
       _stroke([0, 20, 0, 40]),
       _stroke([0, 0, 5, 0]),
       _stroke([0, 40, 5, 40]),
-      ..._grid([10, 22]),
-      ..._close(40),
+      ..._grid([10, 23]),
+      ..._close(41),
     ];
     expect(matrixColumnGutters(traces), 1);
   });
