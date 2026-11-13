@@ -2707,6 +2707,10 @@ v2.0 초안의 CP-1~CP-15는 총괄 검토(00-review 2.2)에서 모두 받아들
 
 ---
 
+## 14. 수식 펜 1단계 — `MathObject.ink` (2026-11-13, 계약 v2.8 C28-01·C28-02)
+
+변환한 수식이 원래 손글씨를 품는다: `MathObject.ink: List<Stroke>`, JSON 키 `ink`(빈 목록이면 `null`, 옛 JSON·`null`·깨진 항목 → 빈 목록, 수식은 살림), `transformed`가 잉크도 함께 변형, `copyTo`가 잉크의 페이지를 바꿈, `estimatedBytes` = 4.3 식 + 잉크 획의 `Stroke.estimatedBytes`. 한도 `PageObjectLimits.maxMathInkStrokes = 400`·`maxMathInkPoints = 40000`(`checkObjectLimits`). 골든 `math_ink.json`(21개째), 시험 `test/model/math_ink_test.dart`. 설계·결정: [research/math-pen-phase1.md](research/math-pen-phase1.md) 5절.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 CORE가 **여는** 자리:

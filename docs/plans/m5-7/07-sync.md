@@ -2273,6 +2273,10 @@ v2.0 초안의 제안 9개는 총괄 검토에서 모두 받아들여졌다(00-r
 
 ---
 
+## 14. 수식 펜 1단계 — 객체 키 `ink` (2026-11-13, 계약 v2.8 C28-03)
+
+`FieldUnits.keysOf(pageObject)`와 `kPageObjectTypeKeys['math']`에 `ink`. `wholeUnitExcept`는 그대로라 `ink`는 frame·latex·style과 한 병합 단위다 — 수식과 그 손글씨가 언제나 함께 이긴다. 옛 앱의 스냅샷(키 없음)이 이기면 `ink`는 빠지고 수식은 남는다(다시 열 수만 없음 — `field_merge_test` 두 사례). 설계: [research/math-pen-phase1.md](research/math-pen-phase1.md) 5.3.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 | 구분 | 이름 | 제공 / 소비 | 비고 |
