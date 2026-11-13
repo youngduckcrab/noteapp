@@ -138,6 +138,18 @@ abstract final class CameraMath {
     );
   }
 
+  /// Pull to add a page (6.11.7): the shown overscroll (logical px) for a
+  /// finger travel of [excess] px past the document end — damped by
+  /// [ViewportConstants.pullToAddResistance], capped at
+  /// [ViewportConstants.pullToAddMaxExtent]; 0 for no travel past the end.
+  static double pullExtent(double excess) {
+    if (!(excess > 0)) return 0;
+    return math.min(
+      excess * ViewportConstants.pullToAddResistance,
+      ViewportConstants.pullToAddMaxExtent,
+    );
+  }
+
   /// Camera after a navigation gesture, computed from the baseline (no drift):
   /// newScale = clampScale(base.scale * scaleRatio);
   /// newOrigin = base.screenToDoc(baselineFocal) - focal / newScale.

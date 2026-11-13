@@ -29,7 +29,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart' show Color, Rect, Size;
-import 'package:flutter/services.dart' show HardwareKeyboard;
+import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -937,7 +937,8 @@ class InteractionHost implements InputTargets {
   @override
   void navigationStart() {
     closeContextMenu();
-    _viewport.beginGesture();
+    // (6.11.7) a pan held past the document end may pull to add a page.
+    _viewport.beginGesture(allowPullToAdd: !_ref.read(editorReadOnlyProvider));
   }
 
   @override
@@ -949,7 +950,13 @@ class InteractionHost implements InputTargets {
   );
 
   @override
-  void navigationEnd(Velocity velocity) => _viewport.endGesture(velocity);
+  void navigationEnd(Velocity velocity) {
+    // (6.11.7) released past the threshold: the '+ 페이지' command.
+    if (!_viewport.endGesture(velocity)) return;
+    if (_disposed || _ref.read(editorReadOnlyProvider)) return;
+    unawaited(HapticFeedback.lightImpact());
+    unawaited(_commands.addPageAtEndLikeLast());
+  }
 
   @override
   void navigationCancel() => _viewport.cancelGesture();

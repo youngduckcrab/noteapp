@@ -34,6 +34,7 @@ import '../ui/overlays/focus_flash.dart';
 import '../ui/overlays/math_pen_layer.dart';
 import '../ui/overlays/new_text_box_outline.dart';
 import '../ui/overlays/page_indicator.dart';
+import '../ui/overlays/pull_to_add_page_indicator.dart';
 import '../ui/overlays/rotation_label.dart';
 import '../ui/overlays/selection_frame_painter.dart';
 import '../ui/overlays/selection_menu.dart';
@@ -186,6 +187,8 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               const SelectionMenu(),
               const EditorContextMenu(),
               const AddPageButton(),
+              // (6.11.7) the strip a pull past the document end reveals.
+              const PullToAddPageIndicator(),
               const PageIndicator(),
               const EyedropperBanner(),
               const PagePanel(),

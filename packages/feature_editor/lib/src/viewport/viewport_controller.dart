@@ -71,6 +71,22 @@ class ViewportAnchor {
       'ViewportAnchor($pageId, offset: $offsetInPage, zoom: $zoom)';
 }
 
+/// Pull to add a page (6.11.7) — what the trailing indicator shows.
+enum PullToAddPhase {
+  /// No pull (the camera is within its bounds).
+  idle,
+
+  /// Held past the end, short of [ViewportConstants.pullToAddThreshold]
+  /// (also while it springs back after such a release).
+  pulling,
+
+  /// Held at or past the threshold: a release adds a page.
+  armed,
+
+  /// Released past the threshold: springing back while the page is added.
+  released,
+}
+
 /// Minimum fling speed (6.3.4 '제스처 끝' ①).
 const double _flingMinVelocity = 50; // px/s
 /// Paged mode snaps only near fit (6.3.4 '제스처 끝' ③).
@@ -119,6 +135,14 @@ class ViewportController extends ChangeNotifier {
   Offset? _lastFocal;
   int _gestureStartPage = 0;
 
+  // Pull to add a page (6.11.7).
+  bool _pullAllowed = false; // this gesture may overscroll past the end
+  double _pullRaw = 0; // finger travel past the end (screen px, undamped)
+  final ValueNotifier<PullToAddPhase> _pullPhase = ValueNotifier(
+    PullToAddPhase.idle,
+  );
+  int _pullToken = 0; // invalidates an older spring-back's completion
+
   // Animation state.
   _CameraAnimation? _animation;
   Completer<void>? _animationDone;
@@ -142,6 +166,17 @@ class ViewportController extends ChangeNotifier {
 
   /// Page containing the viewport centre (nearest if in a gap).
   ValueListenable<int> get currentPageIndex => _currentPageIndex;
+
+  /// Pull to add a page (6.11.7): idle unless a navigation drag is held past
+  /// the document end, or springs back from there.
+  ValueListenable<PullToAddPhase> get pullPhase => _pullPhase;
+
+  /// The shown pull past the document end along the main axis (logical
+  /// px), 0 when [pullPhase] is idle.
+  double get pullExtent {
+    if (_pullPhase.value == PullToAddPhase.idle || !_valid) return 0;
+    return math.max(0, _overscroll(_camera));
+  }
 
   /// True while a fling, snap or programmatic animation runs.
   bool get isAnimating => _animation != null;
@@ -225,6 +260,9 @@ class ViewportController extends ChangeNotifier {
     if (_disposed || axis == _axis) return;
     final index = _placed ? _computeCurrentPage() : 0;
     _stopAnimation(scheduleSettle: false);
+    _pullRaw = 0;
+    _pullToken++;
+    _pullPhase.value = PullToAddPhase.idle;
     _axis = axis;
     _layout = _computeLayout();
     if (!_valid || !_placed) {
@@ -266,6 +304,10 @@ class ViewportController extends ChangeNotifier {
     _stopAnimation(scheduleSettle: false);
     _gestureActive = false;
     _gestureBase = null;
+    _pullRaw = 0;
+    _pullAllowed = false;
+    _pullToken++;
+    _pullPhase.value = PullToAddPhase.idle;
     _placed = true;
     _place(_restoreCamera(anchor, initialPageId, focusRectPt), settle: true);
   }
@@ -277,13 +319,25 @@ class ViewportController extends ChangeNotifier {
   // ---- navigation (called by InteractionHost) ----
 
   /// Captures base camera, stops animations.
-  void beginGesture() {
+  ///
+  /// [allowPullToAdd] (6.11.7): a pan held past the document end may
+  /// overscroll (rubber band) and [endGesture] reports a release past the
+  /// threshold. Only for a navigation drag on an editable note.
+  void beginGesture({bool allowPullToAdd = false}) {
     if (_disposed) return;
     _stopAnimation(scheduleSettle: false);
     _settleTimer?.cancel();
     _settleTimer = null;
     _gestureActive = true;
-    _gestureBase = _camera;
+    _pullAllowed = allowPullToAdd;
+    _pullToken++;
+    // Caught during a spring-back: carry on from the shown pull.
+    final shown = _valid ? _overscroll(_camera) : 0.0;
+    _pullRaw = allowPullToAdd && shown > 0
+        ? shown / ViewportConstants.pullToAddResistance
+        : 0;
+    if (_pullRaw == 0) _pullPhase.value = PullToAddPhase.idle;
+    _gestureBase = _baseCamera();
     _gestureScaled = false;
     _lastFocal = null;
     _gestureStartPage = _currentPageIndex.value;
@@ -298,7 +352,7 @@ class ViewportController extends ChangeNotifier {
   }) {
     if (_disposed || !_valid) return;
     if (!_gestureActive) beginGesture();
-    if (rebased || _gestureBase == null) _gestureBase = _camera;
+    if (rebased || _gestureBase == null) _gestureBase = _baseCamera();
     final base = _gestureBase!;
     _lastFocal = focal;
     final next = CameraMath.applyGesture(
@@ -311,21 +365,107 @@ class ViewportController extends ChangeNotifier {
       fitScale: _fitScale,
     );
     if (next.scale != base.scale) _gestureScaled = true;
-    _setCamera(next);
+    _setCamera(
+      _pulled(next, base.screenToDoc(baselineFocal) - focal / next.scale),
+    );
+  }
+
+  /// Pull to add a page (6.11.7): [clamped] moved past the document end by
+  /// the rubber-banded travel of [unclamped] beyond it (a pinch never pulls).
+  ViewportCamera _pulled(ViewportCamera clamped, Offset unclamped) {
+    final excess = _pullAllowed && !_gestureScaled
+        ? (_mainOf(unclamped) - _mainOf(clamped.origin)) * clamped.scale
+        : 0.0;
+    if (!(excess > 0)) {
+      _pullRaw = 0;
+      _pullPhase.value = PullToAddPhase.idle;
+      return clamped;
+    }
+    _pullRaw = excess;
+    final shown = CameraMath.pullExtent(excess);
+    _pullPhase.value = shown >= ViewportConstants.pullToAddThreshold
+        ? PullToAddPhase.armed
+        : PullToAddPhase.pulling;
+    return _withMain(clamped, _mainOf(clamped.origin) + shown / clamped.scale);
+  }
+
+  /// Gesture base: the camera, with the undamped pull past the end while
+  /// pulling (a rebase keeps the rubber band continuous).
+  ViewportCamera _baseCamera() {
+    if (_pullRaw <= 0 || !_valid) return _camera;
+    final clamped = _clamp(_camera);
+    return _withMain(
+      _camera,
+      _mainOf(clamped.origin) + _pullRaw / _camera.scale,
+    );
+  }
+
+  ViewportCamera _withMain(ViewportCamera c, double main) => c.copyWith(
+    origin: _vertical ? Offset(c.origin.dx, main) : Offset(main, c.origin.dy),
+  );
+
+  /// Screen px the camera is past the document end on the main axis
+  /// (negative / 0 within the bounds).
+  double _overscroll(ViewportCamera c) =>
+      (_mainOf(c.origin) - _mainOf(_clamp(c).origin)) * c.scale;
+
+  /// Ends a pull: springs back to the bounds (paged mode at fit: the last
+  /// page centred); [released] keeps the armed
+  /// look until the spring-back ends or is interrupted.
+  void _endPull({required bool released}) {
+    _pullRaw = 0;
+    _pullAllowed = false;
+    _pullPhase.value = released
+        ? PullToAddPhase.released
+        : PullToAddPhase.pulling;
+    final token = ++_pullToken;
+    // Paged mode at fit: back to the last page centred (as a page snap).
+    final ViewportCamera target;
+    if (!_vertical && zoom <= _pagedSnapMaxZoom) {
+      final last = _layout.length - 1;
+      _fitScale = _fitFor(last);
+      target = _pageCamera(last);
+    } else {
+      target = _clamp(_camera);
+    }
+    unawaited(
+      animateTo(
+        target,
+        duration: ViewportConstants.pullSpringBackDuration,
+      ).whenComplete(() {
+        if (!_disposed && token == _pullToken) {
+          _pullPhase.value = PullToAddPhase.idle;
+        }
+      }),
+    );
   }
 
   /// Fling / zoom snap / page snap.
-  void endGesture(Velocity velocity) {
-    if (_disposed || !_gestureActive) return;
+  ///
+  /// Held past the document end (6.11.7): springs back instead, and returns
+  /// true when the pull was at or past [ViewportConstants.pullToAddThreshold]
+  /// — the caller then adds the page. A fling never pulls (it stops at the
+  /// bound), so momentum alone never returns true.
+  bool endGesture(Velocity velocity) {
+    if (_disposed || !_gestureActive) return false;
     _gestureActive = false;
     _gestureBase = null;
+    final pulling = _pullRaw > 0;
+    final armed = pulling && _pullPhase.value == PullToAddPhase.armed;
+    _pullAllowed = false;
     if (!_valid) {
+      _pullRaw = 0;
+      _pullPhase.value = PullToAddPhase.idle;
       _scheduleSettle();
-      return;
+      return false;
+    }
+    if (pulling) {
+      _endPull(released: armed);
+      return armed;
     }
     if (_axis == LayoutAxis.horizontal && zoom <= _pagedSnapMaxZoom) {
       _pageSnap(velocity);
-      return;
+      return false;
     }
     final z = zoom;
     if (_gestureScaled &&
@@ -338,20 +478,28 @@ class ViewportController extends ChangeNotifier {
           duration: ViewportConstants.snapDuration,
         ),
       );
-      return;
+      return false;
     }
     if (velocity.pixelsPerSecond.distance >= _flingMinVelocity) {
       _startFling(velocity.pixelsPerSecond);
-      return;
+      return false;
     }
     _scheduleSettle();
+    return false;
   }
 
-  /// No fling (paged mode still snaps to the nearest page).
+  /// No fling (paged mode still snaps to the nearest page); a pull springs
+  /// back without adding a page.
   void cancelGesture() {
     if (_disposed || !_gestureActive) return;
     _gestureActive = false;
     _gestureBase = null;
+    if (_pullRaw > 0 && _valid) {
+      _endPull(released: false);
+      return;
+    }
+    _pullRaw = 0;
+    _pullAllowed = false;
     if (_valid && _axis == LayoutAxis.horizontal && zoom <= _pagedSnapMaxZoom) {
       _pageSnap(Velocity.zero);
       return;
@@ -386,8 +534,23 @@ class ViewportController extends ChangeNotifier {
     _stopAnimation(scheduleSettle: false);
     _settleTimer?.cancel();
     _settleTimer = null;
+    _dropPull();
     _settledScale.value = _camera.scale;
     _isInteracting.value = false;
+  }
+
+  /// A stopped spring-back (6.11.7) must not leave the camera past the end.
+  void _dropPull() {
+    if (_pullPhase.value == PullToAddPhase.idle || _gestureActive) return;
+    _pullToken++;
+    _pullRaw = 0;
+    _pullPhase.value = PullToAddPhase.idle;
+    if (!_valid) return;
+    final clamped = _clamp(_camera);
+    if (clamped == _camera) return;
+    _camera = clamped;
+    _updateCurrentPage();
+    notifyListeners();
   }
 
   // ---- programmatic ----
@@ -587,6 +750,7 @@ class ViewportController extends ChangeNotifier {
     _settledScale.dispose();
     _isInteracting.dispose();
     _currentPageIndex.dispose();
+    _pullPhase.dispose();
     super.dispose();
   }
 

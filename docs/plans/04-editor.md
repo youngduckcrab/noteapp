@@ -1178,6 +1178,11 @@ abstract final class ViewportConstants {
   static const Duration snapDuration = Duration(milliseconds: 150);
   static const Duration pageSnapDuration = Duration(milliseconds: 280);
   static const double pageSnapVelocity = 300; // px/s, horizontal paged mode
+  // 당겨서 페이지 추가 (6.11.7)
+  static const double pullToAddResistance = 0.5; // 보이는 당김 = 끝 너머 손가락 이동 × 0.5
+  static const double pullToAddMaxExtent = 160; // logical px, 보이는 당김 상한
+  static const double pullToAddThreshold = 96; // logical px, 이만큼 당긴 채 놓으면 추가(손가락 약 192 px)
+  static const Duration pullSpringBackDuration = Duration(milliseconds: 220);
 }
 ```
 
@@ -1457,6 +1462,7 @@ EditorBody (Column)
       │              └─ IgnorePointer: CursorLayer (지우개 원 / hover 펜 점)
       ├─ SelectionMenu         ← Listener 바깥 형제: 버튼 탭이 캔버스로 가지 않음
       ├─ AddPageButton (문서 끝 '+ 페이지', 카메라 따라 이동, 읽기 전용이면 숨김)
+      ├─ PullToAddPageIndicator (IgnorePointer, 끝 너머로 당긴 띠의 '당겨서/놓으면 페이지 추가', 6.11.7)
       ├─ PageIndicator (IgnorePointer, "3 / 12")
       ├─ EyedropperBanner
       ├─ PagePanel (왼쪽 겹침, 6.11)
@@ -2641,6 +2647,32 @@ Future<void> revealPageRect(int index, {Rect? focusRectPt, bool animate = true})
 - `commands.navigateToPage`: `index = session.pages.indexWhere((p) => p.id == pageId)`, `-1`이면 무시(삭제된 페이지) → 선택 모드는 그대로 두고 `viewport.revealPageRect(index, focusRectPt: focusRectPt)`. 사각형은 페이지 범위(`Rect.fromLTWH(0, 0, page.size.width, page.size.height)`)로 자른다. 가로 넘기기 모드에서는 그 페이지로 넘긴 뒤 같은 규칙.
 - 좌표 해석은 계약 7.2.17 v1.1(C11-21, CP-E1 승인): "focusRectPt is in displayed page coordinates: pt of the note's Page.size, origin top-left, y down — same as core.Stroke points (PDF converts its search hits)". EDITOR는 y 뒤집기·PDF 크기 변환을 하지 않는다(P-1로 노트 페이지 크기가 PDF 원본과 달라도 PDF가 변환해 넘김). `navigate_to_page_test`는 노트 `Page.size` 기준 사각형을 넘겨 그 사각형이 화면 안에 들어오는지 확인한다.
 - 쓰임: PDF '찾기' 결과 탭(사각형 = 찾은 글자 상자), PDF 페이지 삽입 후 첫 삽입 페이지(사각형 없음).
+
+#### 6.11.7 당겨서 페이지 추가
+
+문서 끝에서 '+ 페이지' 버튼(6.11.4)을 누르지 않고 계속 끌어도 페이지를 더한다(사용자 요청 — "아래로 드래그해도 생겨야 해").
+
+```dart
+// src/viewport/viewport_controller.dart (addition to 6.3.4)
+enum PullToAddPhase { idle, pulling, armed, released }
+ValueListenable<PullToAddPhase> get pullPhase;
+double get pullExtent; // 끝 너머로 보이는 당김(logical px), idle이면 0
+/// allowPullToAdd: 이 제스처가 끝 너머로 당길 수 있음(편집 가능한 노트의 탐색 끌기만).
+void beginGesture({bool allowPullToAdd = false});
+/// 끝 너머로 당긴 채 끝나면 되튐; 문턱 이상이었으면 true(호출자가 페이지 추가).
+bool endGesture(Velocity velocity);
+// src/viewport/viewport_camera.dart
+static double pullExtent(double excess); // min(excess × 0.5, 160), excess ≤ 0 → 0
+```
+
+- **누가 당기나**: 탐색 제스처(손가락 끌기, 두 손가락 이동, 트랙패드 이동 — `InputRouter` → `navigationStart/Update/End`)만. 스타일러스 획·올가미·선택 이동은 탐색이 아니라서 당기지 않는다. 마우스 휠(`panBy`)도 '놓기'가 없으므로 당기지 않는다. `InteractionHost.navigationStart`가 `beginGesture(allowPullToAdd: !readOnly)`로 부르므로 읽기 전용 노트는 1차와 같이 끝에서 멈춘다.
+- **언제**: 제스처의 '자르지 않은 카메라'(`base.screenToDoc(baselineFocal) − focal / scale`)가 주축에서 자른 카메라(`CameraMath.clamp`)보다 끝 쪽으로 넘칠 때만. 세로 = 마지막 페이지 아래 여백 끝, 가로(넘기기 모드) = 내용 오른쪽 끝(가운데 놓인 마지막 페이지 뒤 '+ 페이지' 자리를 지나서). 확대 상태도 같은 규칙이라 주축 끝에 실제로 닿았을 때만 당겨진다(가로로만 움직이면 안 당겨짐). 문서 앞쪽(위·왼쪽)은 당기지 않는다. 핀치로 배율이 한 번이라도 바뀐 제스처는 그 뒤 당기지 않는다(`_gestureScaled`).
+- **고무줄**: 넘친 손가락 이동 `excess`(화면 px)에 대해 보이는 당김 = `min(excess × 0.5, 160)`. 카메라를 그만큼 끝 너머로 둔다. 두 번째 손가락이 들어와 기준이 바뀌어도(rebased) 덜 감쇠된 원래 이동을 기준 카메라에 실어 끊기지 않는다. 되튀는 중에 다시 잡으면 보이는 당김에서 이어 간다.
+- **표시** `PullToAddPageIndicator`(`ui/overlays/pull_to_add_page_indicator.dart`, 키 `editor.pullToAddPage`): 당겨서 드러난 띠(세로 = 페이지 영역 아래, 가로 = 오른쪽, 두께 = `pullExtent`)에 진행 원 + 아이콘 + 글자. 96 px 미만 `pulling` = "당겨서 페이지 추가"(`onSurfaceVariant`, ↑/←), 이상 `armed` = "놓으면 페이지 추가"(`primary`, +). 불투명도 = `pullExtent / 96`. `Semantics(liveRegion, label)`로 읽어 준다. 읽기 전용이면 만들지 않는다.
+- **놓기**: `armed`에서 놓으면 `endGesture`가 true → 호스트가 `HapticFeedback.lightImpact()` + `commands.addPageAtEndLikeLast()`(버튼과 같은 명령 — 마지막 페이지와 같은 크기·배경, 되돌리기 1단계, 추가 뒤 `jumpToPage(새 페이지)` = 세로는 새 페이지 위쪽, 가로는 새 페이지 가운데). 카메라는 그동안 220 ms 동안 끝으로 되튀고(`released` — 글자는 "놓으면 …" 유지), 페이지가 들어오면 `updatePages`가 되튐을 멈추고 새 레이아웃으로 자른 뒤 `jumpToPage`가 이어 간다. 문턱 미만이거나 제스처가 취소되면 추가 없이 되튀기만 한다(가로 넘기기 모드 fit 상태는 마지막 페이지 가운데로).
+- **관성**: 끝 너머 당김 중에 손을 떼면 놓은 속도와 상관없이 관성 스크롤 없이 되튄다. 관성 스크롤(`_FlingAnimation`)은 1차대로 경계에서 멈추므로 관성만으로는 절대 당겨지지 않는다 — 끝까지 끌어 문턱 너머에서 놓아야만 추가.
+- `settleNow`(도구 상호작용 시작)가 되튐을 끊으면 카메라를 바로 경계 안으로 되돌린다.
+- 테스트: `unit/viewport_pull_to_add_test.dart`(감쇠·상한, 문턱 판정, 끝 아님·시작·핀치·관성·`allowPullToAdd: false`는 안 당김, 확대 상태, 기준 변경·되튐 중 다시 잡기, 가로), `widget/pull_to_add_page_test.dart`(문턱 너머 → 1장·같은 배경·햅틱·새 페이지 보임·되돌리기 1번, 문턱 미만 → 되튐, 끝에서 끝나는 관성 → 없음, 스타일러스 → 없음, 읽기 전용 → 없음, 가로 넘기기 모드).
 
 ### 6.12 개발자 표시
 

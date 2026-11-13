@@ -16,4 +16,18 @@ abstract final class ViewportConstants {
   static const Duration snapDuration = Duration(milliseconds: 150);
   static const Duration pageSnapDuration = Duration(milliseconds: 280);
   static const double pageSnapVelocity = 300; // px/s, horizontal paged mode
+
+  // Pull to add a page (6.11.7): a navigation drag held past the document
+  // end overscrolls with resistance; released at or past the threshold it
+  // adds a page like the last one.
+  /// Shown pull = finger travel past the end × this (rubber band).
+  static const double pullToAddResistance = 0.5;
+
+  /// Cap of the shown pull (logical px).
+  static const double pullToAddMaxExtent = 160;
+
+  /// Shown pull (logical px) from which a release adds a page — about
+  /// 2 × 96 = 192 px of finger travel past the end.
+  static const double pullToAddThreshold = 96;
+  static const Duration pullSpringBackDuration = Duration(milliseconds: 220);
 }
