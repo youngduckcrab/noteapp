@@ -11,9 +11,15 @@
 //   built → no command; no usable answer → the conversion sheet;
 // - one undo (a real fake-store session) gives the exact strokes back;
 // - the model not downloaded → the model card ([받기] → ensureModel → the
-//   session goes on by itself); no engine; a failure → [다시];
-// - '고치기' opens the conversion sheet on the group's strokes;
-// - the interactive priority is held while a request waits, released after.
+//   session goes on by itself; a model event before it is ready keeps the
+//   card); no engine (the tap does nothing); a failure → [다시];
+// - '고치기' opens the conversion sheet on the group's strokes, split like
+//   the bubble;
+// - the interactive priority is held while a request waits and while the pen
+//   is down on an open group, released after;
+// - (review fixes) a tap with an equal (not identical) target joins the
+//   request in flight; a changed recog.language misses the cache; a pause
+//   re-asks only changed lines; past 20 lines the rest stays handwriting.
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -427,8 +433,8 @@ void main() {
     await tester.pump(const Duration(seconds: 6)); // the Wi-Fi wait timer
   });
 
-  testWidgets('no engine: the bubble says so; the tap opens the sheet (it '
-      'says the same)', (tester) async {
+  testWidgets('no engine: the bubble says so; the tap does nothing (no '
+      'sheet that would say the same)', (tester) async {
     final engine = FakeHandwritingRecognizer(isAvailable: false);
     final (_, session, page) = await _pump(tester, engine);
     final g = _group(_row(0), page: page);
@@ -439,11 +445,36 @@ void main() {
     final pending = session.convert(g);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byKey(kConversionSheetKey), findsOneWidget);
-    await tester.tap(find.byKey(kSheetCancelKey));
-    await tester.pumpAndSettle();
+    expect(find.byKey(kConversionSheetKey), findsNothing);
     expect(await pending, isFalse);
     expect(page.commands, isEmpty);
+  });
+
+  testWidgets('the model card: a tap does nothing; a model event while the '
+      'model is still missing keeps the card (no 인식 중… flicker)', (
+    tester,
+  ) async {
+    final engine = _engine()
+      ..modelStates['ko'] = RecognitionModelState.notDownloaded;
+    final (_, session, page) = await _pump(tester, engine);
+    final g = _group(_row(0), page: page);
+    session.update(g);
+    await tester.pump(kTextPenRecognizeDelay);
+    await tester.pump();
+    await tester.pump();
+    final card = session.view.value;
+    expect(card, isA<TextPenNeedsModel>());
+    // A model change that is not "ready" (here: a delete).
+    await engine.deleteModel('ko');
+    await tester.pump();
+    await tester.pump();
+    expect(session.view.value, same(card));
+    await tester.pump(kTextPenRecognizeDelay);
+    expect(session.view.value, same(card));
+    expect(await session.convert(g), isFalse);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(kConversionSheetKey), findsNothing);
+    expect(engine.calls, isEmpty);
   });
 
   testWidgets('an engine failure: [다시] recognizes again', (tester) async {
@@ -492,15 +523,19 @@ void main() {
   });
 
   testWidgets('the interactive priority: held from the update until the '
-      'answer, released by interrupt / clear', (tester) async {
+      'answer and while the pen is down on the group, released by clear', (
+    tester,
+  ) async {
     final engine = _engine(latency: const Duration(milliseconds: 100));
     final (host, session, page) = await _pump(tester, engine);
     final g = _group(_row(0), page: page);
     expect(_held(host), isFalse);
+    session.interrupt(); // no group yet: nothing to hold for
+    expect(_held(host), isFalse);
     session.update(g);
     expect(_held(host), isTrue);
-    session.interrupt();
-    expect(_held(host), isFalse);
+    session.interrupt(); // the pen went down again: still held
+    expect(_held(host), isTrue);
     session.update(g);
     await tester.pump(kTextPenRecognizeDelay);
     await tester.pump(const Duration(milliseconds: 50));
@@ -509,9 +544,144 @@ void main() {
     await tester.pump();
     expect(session.view.value, isA<TextPenAnswer>());
     expect(_held(host), isFalse);
+    // The pen goes down on the answered group: the indexer yields until the
+    // pen-up's answer (here the cache).
+    session.interrupt();
+    expect(_held(host), isTrue);
+    session.update(g);
+    expect(_held(host), isFalse);
     session.update(_group([..._row(0), ..._row(1)], page: page));
     expect(_held(host), isTrue);
     session.clear();
     expect(_held(host), isFalse);
+  });
+
+  testWidgets('the bubble tap with an equal (not identical) target — the '
+      'app\'s adapter makes one per call — joins the request in flight', (
+    tester,
+  ) async {
+    final engine = _engine(latency: const Duration(milliseconds: 100));
+    final (_, session, page) = await _pump(tester, engine);
+    final strokes = [..._row(0), ..._row(1)];
+    session.update(_group(strokes, page: page));
+    await tester.pump(kTextPenRecognizeDelay);
+    await tester.pump(const Duration(milliseconds: 10)); // line 1 in flight
+    var done = false;
+    bool? ok;
+    unawaited(
+      session.convert(_group(strokes, page: page)).then((v) {
+        ok = v;
+        done = true;
+      }),
+    );
+    for (var i = 0; i < 20 && !done; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(ok, isTrue);
+    expect(engine.calls, hasLength(2), reason: 'no second request');
+  });
+
+  testWidgets('a changed recog.language misses the cache (update and the '
+      'tap)', (tester) async {
+    final engine = _engine();
+    final (host, session, page) = await _pump(tester, engine);
+    final g = _group(_row(0), page: page);
+    session.update(g);
+    await tester.pump(kTextPenRecognizeDelay);
+    await tester.pump();
+    await tester.pump();
+    expect((session.view.value as TextPenAnswer).result.languageTag, 'ko');
+    await settle(
+      tester,
+      host.store.settings.set(RecognitionSettingsKeys.language, 'en'),
+    );
+    session.update(g); // the cached answer shows, then is checked
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(kTextPenRecognizeDelay);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.calls.map((c) => c.$2), ['ko', 'en']);
+    expect((session.view.value as TextPenAnswer).result.languageTag, 'en');
+
+    // Back to ko, tapped right away: the tap does not convert the 'en'
+    // answer.
+    await settle(
+      tester,
+      host.store.settings.set(RecognitionSettingsKeys.language, 'ko'),
+    );
+    final converting = session.convert(g);
+    await settle(tester, converting);
+    expect(await converting, isTrue);
+    final c = page.commands.single as core.CompositeCommand;
+    final box =
+        (c.commands[1] as core.AddObjects).objects.single as core.TextBoxObject;
+    expect(box.text, 'ko:r0g0');
+  });
+
+  testWidgets('a pause re-asks only the lines that changed (line cache)', (
+    tester,
+  ) async {
+    final engine = _engine();
+    final (_, session, page) = await _pump(tester, engine);
+    session.update(_group([..._row(0), ..._row(1)], page: page));
+    await tester.pump(kTextPenRecognizeDelay);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.calls, hasLength(2));
+    session.update(_group([..._row(0), ..._row(1), ..._row(2)], page: page));
+    await tester.pump(kTextPenRecognizeDelay);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.calls, hasLength(3), reason: 'only the new row');
+    expect(engine.calls.last.$1.preContext, 'ko:r1g0');
+    expect(
+      (session.view.value as TextPenAnswer).result.text,
+      'ko:r0g0\nko:r1g0\nko:r2g0',
+    );
+  });
+
+  testWidgets('more than 20 lines: the tap converts the first 20; the rest '
+      'stays handwriting (never deleted without its text)', (tester) async {
+    final engine = _engine();
+    final (_, session, page) = await _pump(tester, engine);
+    final strokes = [for (var r = 0; r < 21; r++) ..._row(r)];
+    final g = _group(strokes, page: page);
+    session.update(g);
+    await tester.pump(kTextPenRecognizeDelay);
+    for (var i = 0; i < 30; i++) {
+      await tester.pump();
+    }
+    expect(engine.calls, hasLength(20));
+    final converting = session.convert(g);
+    await settle(tester, converting);
+    expect(await converting, isTrue);
+    final c = page.commands.single as core.CompositeCommand;
+    expect((c.commands[0] as core.RemoveElements).elementIds, [
+      for (final s in strokes.take(60)) s.id,
+    ]);
+    expect(page.strokes.keys, [for (final s in _row(20)) s.id]);
+  });
+
+  testWidgets('고치기 splits like the bubble: a row with a wide word gap is '
+      'one line in the sheet', (tester) async {
+    final engine = _engine();
+    final (_, session, page) = await _pump(tester, engine);
+    final g = _group([
+      ..._row(0),
+      ..._row(0, x: 400, prefix: 'far'),
+    ], page: page);
+    // The plain sheet split would make two lines of it.
+    expect(conversionLinesOf(g.strokes), hasLength(2));
+    final pending = session.fix(g);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(find.byKey(kConversionSheetKey), findsOneWidget);
+    expect(find.byKey(conversionLineKey(0)), findsOneWidget);
+    expect(find.byKey(conversionLineKey(1)), findsNothing);
+    await tester.tap(find.byKey(kSheetCancelKey));
+    await tester.pumpAndSettle();
+    expect(await pending, isFalse);
   });
 }

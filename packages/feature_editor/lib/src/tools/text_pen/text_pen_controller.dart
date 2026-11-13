@@ -31,6 +31,7 @@ import '../../commands/editor_commands.dart';
 import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
 import '../../scope/editor_scope.dart';
+import '../../ui/editor_strings.dart';
 import '../math_pen/math_pen_group.dart'
     show mathPenLineHeight, strokePointBounds, unionPointBounds;
 import '../pen_group/pen_group_members.dart';
@@ -71,18 +72,26 @@ class TextPenController extends ChangeNotifier {
   PenGroupMembers? _group;
   PenGroupMembers? _lastConverted;
   TextPenPhase _phase = TextPenPhase.idle;
+
+  /// A conversion (the bubble tap or the sheet) is running — its own flag,
+  /// so strokes joining meanwhile (which set [_phase]) do not clear it.
+  bool _converting = false;
   int _revision = 0;
   int _revisionAtContact = -1;
   EditorPenGroup? _value;
   int _valueRevision = -1;
   final Map<String, StreamSubscription<core.PageContentChange>> _watched = {};
   EditorTool? _tool;
+
+  /// The first switch to the text pen on this note screen showed the how-to
+  /// message.
+  bool _hinted = false;
   bool _disposed = false;
 
   /// Whether the 텍스트 펜 is offered (EditorExtensions.textPen is set).
   bool get enabled => _textPen != null;
 
-  TextPenPhase get phase => _phase;
+  TextPenPhase get phase => _converting ? TextPenPhase.converting : _phase;
 
   /// The recognition session (opened with the first group), or null.
   EditorTextPenSession? get recognition => _recognition;
@@ -257,8 +266,8 @@ class TextPenController extends ChangeNotifier {
     if (session == null || g == null || value == null || _disposed) {
       return false;
     }
-    if (_phase == TextPenPhase.converting) return false;
-    _phase = TextPenPhase.converting;
+    if (_converting) return false;
+    _converting = true;
     notifyListeners();
     bool ok;
     try {
@@ -273,16 +282,27 @@ class TextPenController extends ChangeNotifier {
         ),
       );
       ok = false;
+    } finally {
+      _converting = false;
     }
     if (_disposed) return ok;
-    if (ok) {
-      // The strokes are gone now; the undo of this step brings them back as
-      // this group.
-      _lastConverted = PenGroupMembers(g.pageId, value.strokes);
+    // The strokes the conversion took off the page (past 20 lines some stay
+    // handwriting).
+    final content = _session.pageIfLoaded(g.pageId);
+    final gone = [
+      for (final s in value.strokes)
+        if (content?.strokeById(s.id) == null) s,
+    ];
+    if (ok && gone.isNotEmpty) {
+      // The undo of this step brings them back as this group.
+      _lastConverted = PenGroupMembers(g.pageId, gone);
       _watch();
     }
     if (identical(_group, g)) {
-      final converted = {for (final s in value.strokes) s.id};
+      final converted = {
+        if (ok)
+          for (final s in gone) s.id,
+      };
       final left = [
         for (final s in _strokesOf(g))
           if (!converted.contains(s.id)) s,
@@ -297,13 +317,14 @@ class TextPenController extends ChangeNotifier {
         _changed();
         session.clear();
       } else {
-        _phase = TextPenPhase.open;
+        if (_phase != TextPenPhase.writing) _phase = TextPenPhase.open;
         notifyListeners();
         final again = group;
-        if (again != null) session.update(again);
+        if (again != null && _phase != TextPenPhase.writing) {
+          session.update(again);
+        }
       }
-    } else if (_phase == TextPenPhase.converting) {
-      _phase = _group == null ? TextPenPhase.idle : TextPenPhase.open;
+    } else {
       notifyListeners();
     }
     return ok;
@@ -343,9 +364,19 @@ class TextPenController extends ChangeNotifier {
   /// (never a background conversion).
   void toolChanged(EditorTool? previous, EditorTool next) {
     _tool = next;
+    if (enabled &&
+        !_disposed &&
+        !_hinted &&
+        previous != null &&
+        previous != EditorTool.textPen &&
+        next == EditorTool.textPen) {
+      // Once per note screen: how the pen works (not on a restored tool).
+      _hinted = true;
+      _commands.showMessage(EditorStrings.textPenFirstHint);
+    }
     if (!enabled || _disposed || _group == null) return;
     if (next == EditorTool.textPen || next == EditorTool.eraser) return;
-    if (_phase == TextPenPhase.converting) return; // the sheet decides
+    if (_converting) return; // the sheet decides
     _setGroup(null);
   }
 

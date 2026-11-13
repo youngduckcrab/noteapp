@@ -10,23 +10,28 @@
 // - The engine (handwritingRecognizerProvider, read from the editor body's
 //   container synchronously) is ML Kit's on Android / iOS: one native call
 //   at a time, shared with the background indexer. From the update until
-//   the answer the session holds RecognitionPriority, so the indexer starts
-//   no next line — the pen's lines go next.
+//   the answer, and while the pen is down on an open group (interrupt), the
+//   session holds RecognitionPriority, so the indexer starts no next line —
+//   the pen's lines go next.
 // - Every new contact, update, clear and dispose stops the timer and bumps a
 //   generation: an answer counts only while its generation is current and
 //   the group is the same (the engine call itself cannot be cancelled).
-//   Answers are cached by the strokes' signature (the last 8).
+//   Answers are cached by the strokes' signature (the last 8; a changed
+//   recog.language drops one), single lines by language, page width,
+//   preContext and their strokes (the last 64) — a pause asks only for the
+//   lines that changed.
 // - The model of the language not ready → the bubble's model card (the
 //   settings' model row: [받기], Wi-Fi wait, cellular); the session goes on
 //   when the model arrives. No engine (web, desktop) → '이 기기에서는 …'.
-// - convert (the bubble tap) waits for the answer in flight (not started
-//   again), then buildTextBox (the sheet's size and colour rule) → ONE
+// - convert (the bubble tap) waits for the answer in flight (same page and
+//   signature — not started again), then buildTextBox (the sheet's size and colour rule) → ONE
 //   CompositeCommand([RemoveElements(group), AddObjects([box])],
 //   'recog-text-pen') — after checking, AFTER buildTextBox's await (it may
 //   wait for the font), that the session still wants it (no clear / dispose
 //   meanwhile) and that the strokes are still the ones recognized. No usable
-//   answer → the conversion sheet (fix). Nothing ever converts in the
-//   background.
+//   answer → the conversion sheet (fix; split like the bubble); no engine
+//   or the model card → nothing. Past 20 lines only the shown lines' strokes
+//   go (the sheet's rule). Nothing ever converts in the background.
 import 'dart:async';
 import 'dart:collection';
 
@@ -40,6 +45,7 @@ import '../actions/object_builders.dart';
 import '../actions/recognition_actions.dart';
 import '../common/recognition_priority.dart';
 import '../common/report_error.dart';
+import '../indexer/handwriting_indexer.dart' show IndexerTuning, textTail;
 import '../l10n/recognition_strings.dart';
 import '../math_pen/math_pen_session.dart' show mathPenSignature;
 import '../model/candidates.dart';
@@ -118,11 +124,19 @@ final class TextPenNeedsModel extends TextPenView {
 /// shows it) or when [cancelled] (a newer contact / update / clear).
 typedef _Shown = ({TextPenResult? result, bool cancelled});
 
-/// The group's lines for the engine: the recognition input strokes split
-/// by conversionLinesOf, pieces of one written row merged back (their
-/// vertical bands overlap by at least half the smaller height), at most
+/// How many line answers the session remembers (all groups together).
+const int kTextPenLineCacheSize = 64;
+
+/// The group's lines for the engine: [textPenRowsOf], at most
 /// kMaxConversionLines.
-List<ConversionLineInput> textPenLinesOf(List<core.Stroke> strokes) {
+List<ConversionLineInput> textPenLinesOf(List<core.Stroke> strokes) =>
+    textPenRowsOf(strokes).take(kMaxConversionLines).toList();
+
+/// Every line of [strokes]: the recognition input strokes split by
+/// conversionLinesOf, pieces of one written row merged back (their vertical
+/// bands overlap by at least half the smaller height). The bubble and the
+/// sheet opened by '고치기' both split this way.
+List<ConversionLineInput> textPenRowsOf(List<core.Stroke> strokes) {
   final lines = <ConversionLineInput>[];
   for (final line in conversionLinesOf(recognitionInputsOf(strokes))) {
     final i = lines.indexWhere((l) => _sameRow(l.rect, line.rect));
@@ -137,7 +151,24 @@ List<ConversionLineInput> textPenLinesOf(List<core.Stroke> strokes) {
       ]);
     }
   }
-  return lines.take(kMaxConversionLines).toList();
+  return lines;
+}
+
+/// The strokes a conversion of [strokes] (the group) replaces — the sheet's
+/// rule: every stroke when no line was cut, otherwise only the strokes of
+/// the first kMaxConversionLines lines (the rest stays handwriting rather
+/// than going without its text).
+List<core.Stroke> textPenReplacedOf(List<core.Stroke> strokes) {
+  final all = textPenRowsOf(strokes);
+  if (all.length <= kMaxConversionLines) return strokes;
+  final shown = {
+    for (final l in all.take(kMaxConversionLines))
+      for (final s in l.strokes) s.id,
+  };
+  return [
+    for (final s in strokes)
+      if (shown.contains(s.id)) s,
+  ];
 }
 
 bool _sameRow(core.PageRect a, core.PageRect b) {
@@ -156,6 +187,10 @@ final class TextPenSession implements RecognitionTextPenSession {
 
   final ValueNotifier<TextPenView> _view = ValueNotifier(const TextPenIdle());
   final LinkedHashMap<String, TextPenResult> _cache = LinkedHashMap();
+
+  /// Line answers by language, page width, preContext and the line's
+  /// strokes: a pause re-asks only the lines that changed.
+  final LinkedHashMap<String, List<String>> _lineCache = LinkedHashMap();
   RecognitionTarget? _group;
   Timer? _timer;
   Future<_Shown>? _inflight;
@@ -167,6 +202,7 @@ final class TextPenSession implements RecognitionTextPenSession {
   String? _lastUsable;
   VoidCallback? _release;
   ModelDownloads? _downloads;
+  HandwritingRecognizer? _modelEngine;
   StreamSubscription<String>? _modelChanges;
   bool _disposed = false;
 
@@ -203,6 +239,14 @@ final class TextPenSession implements RecognitionTextPenSession {
     }
   }
 
+  void _rememberLine(String key, List<String> texts) {
+    _lineCache.remove(key);
+    _lineCache[key] = texts;
+    while (_lineCache.length > kTextPenLineCacheSize) {
+      _lineCache.remove(_lineCache.keys.first);
+    }
+  }
+
   void _hold(ProviderContainer container) {
     if (_release != null) return;
     try {
@@ -218,13 +262,15 @@ final class TextPenSession implements RecognitionTextPenSession {
     release?.call();
   }
 
+  /// Stops the timer and drops the request in flight. The priority stays
+  /// held: whoever stops hands the engine to the next request (update) or
+  /// lets go itself (clear, dispose, a cached answer).
   void _stop() {
     _timer?.cancel();
     _timer = null;
     _generation++;
     _inflight = null;
     _inflightSignature = null;
-    _letGo();
   }
 
   /// Watches the model downloads and the engine's model changes once the
@@ -239,14 +285,48 @@ final class TextPenSession implements RecognitionTextPenSession {
     } catch (e, s) {
       reportRecognitionError(e, s, 'watching the model downloads');
     }
+    _modelEngine = engine;
     if (engine case final RecognizerModelAdmin admin) {
       _modelChanges = admin.modelChanges.listen((_) => _onModelEvent());
     }
   }
 
+  /// A download notified (started, the Wi-Fi wait, ended) or the engine's
+  /// model changed: like the sheet, recognize again only once the model is
+  /// ready — the model card stays (and shows the download) until then.
   void _onModelEvent() {
-    if (_disposed || _view.value is! TextPenNeedsModel) return;
-    retry();
+    final view = _view.value;
+    final engine = _modelEngine;
+    if (_disposed || view is! TextPenNeedsModel || engine == null) return;
+    unawaited(_checkModel(view, engine));
+  }
+
+  Future<void> _checkModel(
+    TextPenNeedsModel view,
+    HandwritingRecognizer engine,
+  ) async {
+    final RecognitionModelState state;
+    try {
+      state = await engine.modelState(view.languageTag);
+    } catch (e, s) {
+      reportRecognitionError(e, s, 'handwriting model state');
+      return;
+    }
+    if (_disposed || !identical(_view.value, view)) return;
+    if (state == RecognitionModelState.ready) retry();
+  }
+
+  Future<String> _languageOf(ProviderContainer container) async {
+    try {
+      return recognitionLanguageOf(
+        await container
+            .read(core.settingsRepositoryProvider)
+            .get(RecognitionSettingsKeys.language),
+      );
+    } catch (e, s) {
+      reportRecognitionError(e, s, 'reading recog.language');
+      return kRecognitionLanguages.first;
+    }
   }
 
   @override
@@ -256,13 +336,18 @@ final class TextPenSession implements RecognitionTextPenSession {
     _group = group;
     final signature = mathPenSignature(group.strokes);
     final cached = _cache[signature];
+    final container = _container();
     if (cached != null) {
       _showAnswer(cached);
+      _letGo();
+      if (container != null) {
+        unawaited(_checkCachedLanguage(group, signature, cached, container));
+      }
       return;
     }
-    final container = _container();
     final engine = _engineOf(container);
     if (container == null || engine == null || !engine.isAvailable) {
+      _letGo();
       _show(const TextPenNoEngine());
       return;
     }
@@ -273,6 +358,24 @@ final class TextPenSession implements RecognitionTextPenSession {
       if (generation != _generation || _disposed) return;
       unawaited(_recognizeShown(group, signature, container, engine));
     });
+  }
+
+  /// A cached answer is shown at once; when recog.language changed since,
+  /// it is dropped and the group recognized again.
+  Future<void> _checkCachedLanguage(
+    RecognitionTarget group,
+    String signature,
+    TextPenResult cached,
+    ProviderContainer container,
+  ) async {
+    final generation = _generation;
+    final lang = await _languageOf(container);
+    if (_disposed || generation != _generation || !identical(_group, group)) {
+      return;
+    }
+    if (lang == cached.languageTag) return;
+    _cache.remove(signature);
+    update(group);
   }
 
   HandwritingRecognizer? _engineOf(ProviderContainer? container) {
@@ -321,15 +424,7 @@ final class TextPenSession implements RecognitionTextPenSession {
     const cancelled = (result: null, cancelled: true);
     var lang = kRecognitionLanguages.first;
     try {
-      try {
-        lang = recognitionLanguageOf(
-          await container
-              .read(core.settingsRepositoryProvider)
-              .get(RecognitionSettingsKeys.language),
-        );
-      } catch (e, s) {
-        reportRecognitionError(e, s, 'reading recog.language');
-      }
+      lang = await _languageOf(container);
       if (!current()) return cancelled;
       final state = await engine.modelState(lang);
       if (!current()) return cancelled;
@@ -351,18 +446,30 @@ final class TextPenSession implements RecognitionTextPenSession {
         final previous = i == 0 || texts[i - 1].isEmpty
             ? ''
             : texts[i - 1].first;
+        final pageWidth = group.pageSize.width;
+        final key =
+            '$lang|$pageWidth|${textTail(previous, IndexerTuning.preContextChars)}'
+            '|${mathPenSignature(line.strokes)}';
+        final known = _lineCache[key];
+        if (known != null) {
+          _rememberLine(key, known);
+          texts.add(known);
+          continue;
+        }
         requests++;
         final List<TextCandidate> candidates = await engine.recognizeLine(
           conversionLineInput(
             line,
             previousText: previous,
-            pageWidth: group.pageSize.width,
+            pageWidth: pageWidth,
           ),
           languageTag: lang,
         );
         // Stale: the later lines are not asked for.
+        final lineTexts = conversionCandidateTexts(candidates);
+        _rememberLine(key, lineTexts);
         if (!current()) return cancelled;
-        texts.add(conversionCandidateTexts(candidates));
+        texts.add(lineTexts);
       }
       final result = TextPenResult(lang, List.unmodifiable(texts));
       _remember(signature, result);
@@ -404,6 +511,12 @@ final class TextPenSession implements RecognitionTextPenSession {
     if (_disposed) return;
     final wasWaiting = _timer != null || _inflight != null;
     _stop();
+    // The pen is down on an open group: the indexer keeps yielding until the
+    // pen-up's answer (no indexer line slips in between strokes).
+    if (_group != null) {
+      final container = _container();
+      if (container != null) _hold(container);
+    }
     // The next update schedules again; until then the bubble says '인식 중…'.
     if (wasWaiting) _show(TextPenWaiting(previous: _lastUsable));
   }
@@ -412,6 +525,7 @@ final class TextPenSession implements RecognitionTextPenSession {
   void clear() {
     if (_disposed) return;
     _stop();
+    _letGo();
     _epoch++;
     _group = null;
     _show(const TextPenIdle());
@@ -422,15 +536,25 @@ final class TextPenSession implements RecognitionTextPenSession {
   @override
   Future<bool> convert(RecognitionTarget group) async {
     if (_disposed) return false;
+    final epoch = _epoch; // a clear / dispose from here on: nothing happens
     final signature = mathPenSignature(group.strokes);
     final container = _container(); // before any await
     final engine = _engineOf(container);
     var result = _cache[signature];
     final view = _view.value;
-    final blocked =
-        view is TextPenNeedsModel ||
-        view is TextPenNoEngine ||
-        view is TextPenFailed;
+    // No engine, or the model card: the bubble says what to do — a tap on
+    // it converts nothing and opens no sheet (it would say the same).
+    if (view is TextPenNoEngine || view is TextPenNeedsModel) return false;
+    final blocked = view is TextPenFailed;
+    if (result != null && container != null) {
+      // recog.language changed since the answer was cached: ask again.
+      final lang = await _languageOf(container);
+      if (_disposed || epoch != _epoch) return false;
+      if (lang != result.languageTag) {
+        _cache.remove(signature);
+        result = null;
+      }
+    }
     if (result == null &&
         container != null &&
         engine != null &&
@@ -438,9 +562,11 @@ final class TextPenSession implements RecognitionTextPenSession {
         !blocked) {
       final _Shown shown;
       final inflight = _inflight;
+      // The same strokes as the request in flight (compared by value: the
+      // app's adapter makes a new target for every call).
       if (inflight != null &&
           _inflightSignature == signature &&
-          identical(_group, group)) {
+          _group?.pageId == group.pageId) {
         shown = await inflight; // the same request: no new one
       } else {
         _stop();
@@ -452,8 +578,10 @@ final class TextPenSession implements RecognitionTextPenSession {
       if (shown.cancelled) return false;
       result = shown.result;
     }
-    if (_disposed) return false;
-    if (result != null && result.usable) return _execute(group, result.text);
+    if (_disposed || epoch != _epoch) return false;
+    if (result != null && result.usable) {
+      return _execute(group, result.text, epoch);
+    }
     return fix(group);
   }
 
@@ -470,7 +598,7 @@ final class TextPenSession implements RecognitionTextPenSession {
     return live;
   }
 
-  Future<bool> _execute(RecognitionTarget group, String text) async {
+  Future<bool> _execute(RecognitionTarget group, String text, int epoch) async {
     final context = _context.bodyContext();
     if (context == null || !context.mounted || _disposed) return false;
     final live = _liveOf(group);
@@ -483,7 +611,6 @@ final class TextPenSession implements RecognitionTextPenSession {
       return false;
     }
     final messenger = ScaffoldMessenger.maybeOf(context);
-    final epoch = _epoch;
     try {
       final box = await buildTextBox(
         id: scope.newId(),
@@ -502,7 +629,7 @@ final class TextPenSession implements RecognitionTextPenSession {
       _context.execute(
         replaceStrokesCommand(
           pageId: group.pageId,
-          strokes: again,
+          strokes: textPenReplacedOf(again),
           object: box,
           label: kTextPenLabel,
         ),
@@ -537,7 +664,13 @@ final class TextPenSession implements RecognitionTextPenSession {
       return false;
     }
     try {
-      await openConversion(run, inputs: inputs, copy: false);
+      // The bubble's lines (a row with a wide word gap stays one line).
+      await openConversion(
+        run,
+        inputs: inputs,
+        copy: false,
+        linesOf: textPenRowsOf,
+      );
     } catch (e, s) {
       reportRecognitionError(e, s, 'in the text pen sheet');
       return false;
@@ -563,8 +696,10 @@ final class TextPenSession implements RecognitionTextPenSession {
     _stop();
     _epoch++;
     _disposed = true;
+    _letGo();
     _downloads?.removeListener(_onModelEvent);
     _downloads = null;
+    _modelEngine = null;
     unawaited(_modelChanges?.cancel()); // never awaited (fake_async)
     _modelChanges = null;
     _view.dispose();

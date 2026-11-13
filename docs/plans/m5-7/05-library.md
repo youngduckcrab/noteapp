@@ -2779,11 +2779,20 @@ C. **TestFlight 뒤** — 2차 완료 조건 아님: C-3(ML Kit iOS — A-4와 �
 
 recog가 편집기 수식 펜의 인식을 맡는다: `src/math_pen/`(`MathPenSession` — 펜을 뗀 뒤 500 ms 디바운스, 새 접촉이면 진행 중 요청 취소·세대 번호로 최신 답만, 획 서명 캐시 8개, 서버 엔진에만 PNG, 배경 변환은 쓸 수 있는 답만·최대 10 s·잉크 한도 안만·편집기 `stillWanted` 확인 뒤, 말풍선 탭은 진행 중 답을 그대로 기다리거나(취소되면 아무것도 열지 않음) LaTeX 편집 창, 한도를 넘으면 먼저 묻는다), 말풍선 내용 `MathPenBubble`(INK `MathPreview`, '인식 중…', '수식 인식이 꺼져 있어요.' + [기기에서 수식 인식 켜기](기존 `OnDeviceMathTile` 시트) + [LaTeX로 입력]). 변환 = `buildMathFromPen`(잉크 높이만 한 글자 크기, 잉크 왼쪽 맞춤·세로 가운데, 손글씨를 `ink`로) → `CompositeCommand([RemoveElements, AddObjects])` `recog-math-pen` 한 단계. LaTeX 편집 창(세 흐름 모두)에 기호 줄(`ui/latex_symbols.dart` — 분수·지수·아래첨자·√·∫·∑·lim·π·∞·±·×·÷·≤·≥·≠·θ·α·β·( ), 커서는 중괄호 안). 내보내기 4개 `RecognitionMathPen`·`RecognitionMathPenContext`·`RecognitionMathPenSession`·`recognitionMathPen`. 4.4.4 동작 순서는 그대로. 설계: [research/math-pen-phase1.md](research/math-pen-phase1.md).
 
-## 15. 텍스트 펜 1단계 (2026-11-13, 계약 v2.9 C29-02)
+## 15. 텍스트 펜 1단계 (2026-11-13, 계약 v2.10 C210-02)
 
 recog가 편집기 텍스트 펜의 인식을 맡는다: `src/text_pen/`(`TextPenSession` — 펜을 뗀 뒤 500 ms 디바운스, 묶음의 인식 입력 획을 변환 창과 같은 줄 나누기(`conversionLinesOf`)로 나누되 한 줄이 넓은 띄어쓰기로 갈라진 조각은 다시 한 줄로 합치고(20줄까지), 줄마다 변환 창 규칙(`conversionLineInput` — preContext·쓰기 영역, `conversionCandidateTexts` — 후보 5개)으로 `recog.language`에서 차례로 인식, 새 접촉이면 세대 번호로 묵은 답을 버림, 획 서명 캐시 8개). 말풍선 상태: 인식 중 / 답('누르면 텍스트로 바꿔요' + [고치기]) / 실패 [다시] / 엔진 없음 / 모델 없음(설정의 모델 줄 그대로 — [받기]·Wi-Fi 대기·[지금 셀룰러로 받기], 모델이 오면 저절로 다시 인식). 변환은 말풍선 탭에서만: 진행 중 답을 그대로 기다린 뒤 `buildTextBox`(변환 창과 같은 크기·색) → `replaceStrokesCommand('recog-text-pen')` 한 단계. `buildTextBox`가 글꼴을 기다린 뒤에도 묶음이 여전히 원하는지(clear·dispose 없음)와 획이 그대로인지 다시 확인한다. 쓸 답이 없으면 변환 창(`openConversion`)을 연다. 배경 변환은 없다. 내보내기 4개 `RecognitionTextPen`·`RecognitionPenContext`(수식 펜 문맥과 같은 타입)·`RecognitionTextPenSession`·`recognitionTextPen`. `RecognitionAction.pinned`(`recog.toText`만 true — 선택 막대에서 ⋯ 뒤로 숨지 않음).
 
-대화형 우선(`common/recognition_priority.dart`): 네이티브 ML Kit 인식기는 한 번에 하나씩 FIFO로 돌고 배경 색인기와 같이 쓴다. 텍스트 펜(요청이 기다리는 동안)과 변환 창(열려 있는 동안)이 `RecognitionPriority`를 잡으면 색인기는 다음 줄을 시작하지 않는다(`HandwritingIndexer(yieldTo:)` — 진행 중인 한 줄만 마치고, 상태는 `paused`). 그래서 펜의 줄이 색인기 대기열 뒤에 서지 않는다. 바꾸기 전 텍스트 펜 손글씨는 보통 잉크이므로 '검색용 자동 인식'(6.18)이 켜져 있으면 다른 손글씨처럼 색인된다.
+대화형 우선(`common/recognition_priority.dart`): 네이티브 ML Kit 인식기는 한 번에 하나씩 FIFO로 돌고 배경 색인기와 같이 쓴다. 텍스트 펜(요청이 기다리는 동안)과 변환 창(열려 있는 동안)이 `RecognitionPriority`를 잡으면 색인기는 다음 줄을 시작하지 않는다(`HandwritingIndexer(yieldTo:)` — 진행 중인 한 줄만 마치고, 상태는 `paused`). 그래서 펜의 줄이 색인기 대기열 뒤에 서지 않는다. 바꾸기 전 텍스트 펜 손글씨는 보통 잉크이므로 '검색용 자동 인식'(6.18)이 켜져 있으면 다른 손글씨처럼 색인된다(새 설치에서 켜져 있으려면 손글씨 검색 트랙 v2.9 C29-01이 필요).
+
+검토 반영(2026-11-13):
+- 진행 중 요청 재사용은 객체가 같은지가 아니라 쪽 id와 획 서명으로 본다(앱 어댑터는 부를 때마다 새 `RecognitionTarget`을 만든다) — 인식 중에 탭해도 두 번째 요청이 없다.
+- 묶음 캐시는 `recog.language`를 확인한다: 캐시 답은 바로 보이되 언어가 바뀌었으면 버리고 다시 인식하고, 탭도 바뀐 언어의 답을 변환하지 않는다.
+- 줄 캐시(64개, 언어·쪽 너비·preContext·줄의 획 서명): 멈출 때마다 묶음 전체가 아니라 바뀌거나 새로 쓴 줄만 엔진에 묻는다.
+- 줄 나누기는 `textPenRowsOf` 하나: 말풍선과 '고치기'의 변환 창(`openConversion(linesOf:)`)이 같게 나눈다. 20줄을 넘으면 변환 창 규칙처럼 앞 20줄의 획만 바꾸고 나머지는 손글씨로 남긴다(글 없이 지우지 않음).
+- 모델 카드: 내려받기 알림(시작·Wi-Fi 대기)마다 다시 인식하지 않고, 변환 창처럼 `modelState`가 ready일 때만 다시 인식한다 — 카드가 '인식 중…'으로 깜박이지 않는다. 모델 카드·엔진 없음 말풍선의 탭은 아무것도 하지 않는다(같은 말만 하는 변환 창을 열지 않음). 실패 말풍선의 탭은 그대로 변환 창.
+- 대화형 우선은 갱신부터 답까지에 더해, 열린 묶음 위에 펜이 내려가 있는 동안(interrupt → 다음 갱신)도 잡는다 — 획 사이에 색인기 줄이 끼지 않는다. 답이 오거나 clear·dispose면 놓는다.
+- 남긴 것: 세션 뼈대(타이머·세대·캐시)는 수식 펜과 나누지 않았다(수식 펜 동작 보호), 변환 창 경로의 획 변경 확인은 예전 그대로 없다.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

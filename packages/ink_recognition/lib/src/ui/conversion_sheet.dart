@@ -161,15 +161,20 @@ List<String> conversionCandidateTexts(List<TextCandidate> candidates) {
 /// recog.toText ([copy] false) / recog.copyText with strokes ([copy] true):
 /// opens the conversion sheet before the first await; completes when it
 /// closes (text box → target.done(); copied → '복사했어요').
+///
+/// [linesOf] splits the inputs into lines (conversionLinesOf; the text pen
+/// passes its own split so the sheet shows the bubble's lines).
 Future<void> openConversion(
   ActionRun run, {
   required List<core.Stroke> inputs,
   required bool copy,
+  List<ConversionLineInput> Function(List<core.Stroke> inputs) linesOf =
+      conversionLinesOf,
 }) async {
   final scope = run.scope;
   final engine = scope.handwriting;
   final downloads = scope.container.read(modelDownloadsProvider);
-  final all = conversionLinesOf(inputs);
+  final all = linesOf(inputs);
   final lines = all.take(kMaxConversionLines).toList();
   final shownIds = {
     for (final l in lines)

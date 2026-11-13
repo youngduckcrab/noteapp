@@ -195,7 +195,10 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
               running: running,
               close: _close,
               enabled: !readOnly,
-              textPen: hasTextPen,
+              // The 텍스트 펜 row is right above: no second row doing the
+              // same ('텍스트로 변환' on the selection bar converts a
+              // selection).
+              textPen: false,
             ),
           if (widget.hasPanel)
             InsertMenuRow(

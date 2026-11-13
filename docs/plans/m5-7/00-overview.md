@@ -2399,14 +2399,16 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C29-04 | 7.2.5 검색 판정 | `SearchSource.ink` 단위만 CJK 사이 공백(검토 반영: 한글–숫자 사이 포함)을 지운 글로도 색인·판정(조각 범위 포함, 줄인 글로만 맞으면 점수 −0.1, 두 글자 이하 CJK 질의는 제외). 옛 ink 행은 저장소 열 때 한 번 ink만 재구축(kv `search.inkTermsVersion` = 2, ink 행이 없으면 바로 기록). 다른 출처 결과는 그대로 | 02-core 6.10.2 | CORE(처리됨) |
 | C29-05 | 7.2.11 recog·라이브러리 자리 | (검토 반영) `HandwritingSearchPhase.unsupported`·`LibraryInkSearchPhase.unsupported`(이 기기에서 쓸 수 없음 안내) 추가 | 05-library 6.19a | LIBRARY·INFRA(처리됨) |
 
-#### v2.9 (2026-11-13, 텍스트 펜 1단계 — 사용자 요청 '글씨를 쓰면 글씨로 변환')
+#### v2.10 (2026-11-13, 텍스트 펜 1단계 — 사용자 요청 '글씨를 쓰면 글씨로 변환')
 
-추가만(옛 앱·옛 JSON 호환, 저장 형식 변경 없음 — 텍스트 상자는 기존 `TextBoxObject`). 편집기 설명은 [04-editor.md 15절](04-editor.md#15-텍스트-펜-1단계-2026-11-13-계약-v29-c29-01), recog 설명은 [05-library.md 15절](05-library.md#15-텍스트-펜-1단계-2026-11-13-계약-v29-c29-02).
+(번호: v2.9·C29-xx는 같은 날의 손글씨 검색 트랙이 쓴다 — 겹치지 않게 v2.10·C210-xx.)
+
+추가만(옛 앱·옛 JSON 호환, 저장 형식 변경 없음 — 텍스트 상자는 기존 `TextBoxObject`). 편집기 설명은 [04-editor.md 15절](04-editor.md#15-텍스트-펜-1단계-2026-11-13-계약-v210-c210-01), recog 설명은 [05-library.md 15절](05-library.md#15-텍스트-펜-1단계-2026-11-13-계약-v210-c210-02).
 
 | # | 절 | 변경 | 출처 | 반영할 영역 |
 |---|---|---|---|---|
-| C29-01 | 7.2.10 EDITOR 확장 지점 | `EditorExtensions.textPen: EditorTextPen?`와 새 타입 `EditorTextPen`·`EditorTextPenSession`(update·interrupt·clear·`convert(group)`·`fix(group)`·changes·`buildBubble(…, onConvert, onFix)`·dispose), 별칭 `EditorPenContext`(= `EditorMathPenContext`)·`EditorPenGroup`(= `EditorMathGroup`). `EditorTool.textPen`(편집기 내부, `textPen == null`이면 펜처럼). `EditorSelectionMenuItem.pinned`(기본 false — true면 선택 막대에서 언제나 ⋯ 앞). 변환은 말풍선 탭(또는 변환 창)에서만 — 배경 변환 없음 | 사용자 요청 | EDITOR(처리됨) |
-| C29-02 | 7.2.11 recog 내보내기 | `RecognitionTextPen`·`RecognitionPenContext`(= `RecognitionMathPenContext`)·`RecognitionTextPenSession`·`recognitionTextPen()`, `RecognitionAction.pinned`(`recog.toText` true). 앱 셸 `editorTextPenOf`가 편집기 자리로 바꾸고(`ShellContribution.textPen`) `selectionMenuItemOf`가 `pinned`를 넘긴다. 패키지 사이 새 의존 없음(R8), 이름 겹침 없음(R14) | 사용자 요청 | LIBRARY·INFRA(처리됨) |
+| C210-01 | 7.2.10 EDITOR 확장 지점 | `EditorExtensions.textPen: EditorTextPen?`와 새 타입 `EditorTextPen`·`EditorTextPenSession`(update·interrupt·clear·`convert(group)`·`fix(group)`·changes·`buildBubble(…, onConvert, onFix)`·dispose), 별칭 `EditorPenContext`(= `EditorMathPenContext`)·`EditorPenGroup`(= `EditorMathGroup`). `EditorTool.textPen`(편집기 내부, `textPen == null`이면 펜처럼). `EditorSelectionMenuItem.pinned`(기본 false — true면 선택 막대에서 언제나 ⋯ 앞). 변환은 말풍선 탭(또는 변환 창)에서만 — 배경 변환 없음 | 사용자 요청 | EDITOR(처리됨) |
+| C210-02 | 7.2.11 recog 내보내기 | `RecognitionTextPen`·`RecognitionPenContext`(= `RecognitionMathPenContext`)·`RecognitionTextPenSession`·`recognitionTextPen()`, `RecognitionAction.pinned`(`recog.toText` true). 앱 셸 `editorTextPenOf`가 편집기 자리로 바꾸고(`ShellContribution.textPen`) `selectionMenuItemOf`가 `pinned`를 넘긴다. 패키지 사이 새 의존 없음(R8), 이름 겹침 없음(R14) | 사용자 요청 | LIBRARY·INFRA(처리됨) |
 
 #### v2.8 (2026-11-13, 수식 펜 1단계 — 사용자 승인 '1단계 진행해줘')
 

@@ -186,11 +186,17 @@ class PenBubbleTap extends ConsumerStatefulWidget {
     required this.onTap,
     required this.child,
     this.onLongPress,
+    this.maxMove,
   });
 
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final Widget child;
+
+  /// (text pen) A contact that moved farther than this (logical px) is a
+  /// stroke written onto the bubble, not a tap: it does not convert. null
+  /// (the math pen) → the InkWell's own slop.
+  final double? maxMove;
 
   @override
   ConsumerState<PenBubbleTap> createState() => PenBubbleTapState();
@@ -198,8 +204,19 @@ class PenBubbleTap extends ConsumerStatefulWidget {
 
 class PenBubbleTapState extends ConsumerState<PenBubbleTap> {
   bool _palm = false;
+  Offset? _start;
+  bool _moved = false;
+
+  void _move(PointerEvent e) {
+    final start = _start;
+    final max = widget.maxMove;
+    if (start == null || max == null || _moved) return;
+    if ((e.position - start).distance > max) _moved = true;
+  }
 
   void _down(PointerDownEvent e) {
+    _start = e.position;
+    _moved = false;
     InputRouter? router;
     try {
       router = ref.read(editorInputRouterProvider);
@@ -215,12 +232,15 @@ class PenBubbleTapState extends ConsumerState<PenBubbleTap> {
     final onLongPress = widget.onLongPress;
     return Listener(
       onPointerDown: _down,
+      onPointerMove: _move,
+      onPointerUp: _move,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap == null
             ? null
             : () {
                 if (_palm) return; // the writing hand
+                if (_moved) return; // a short stroke written onto it
                 onTap();
               },
         onLongPress: onLongPress == null

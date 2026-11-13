@@ -520,6 +520,9 @@ abstract final class EditorStrings {
   // (text pen, phase 1 — m5-7/04-editor 6.21)
   static const textPenTool = '텍스트 펜';
 
+  /// The first switch to the text pen on a note screen.
+  static const textPenFirstHint = '글씨를 쓰고 말풍선을 누르면 텍스트로 바뀌어요.';
+
   /// The insert menu's row: the text pen, or the conversion sheet on the
   /// selected handwriting.
   static const handwritingToText = '손글씨를 텍스트로';

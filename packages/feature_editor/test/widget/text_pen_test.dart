@@ -24,9 +24,11 @@ import 'package:feature_editor/src/tools/selection.dart';
 import 'package:feature_editor/src/tools/text_pen/text_pen_controller.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
+import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/text_pen_layer.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -277,6 +279,67 @@ void main() {
     expect(_controller(h).groupIds, [for (final s in _strokes(h)) s.id]);
   });
 
+  testWidgets('(review) a stroke joining while the tap waits keeps the '
+      'conversion running: a second tap starts no second conversion', (
+    tester,
+  ) async {
+    final (h, pen) = await _pump(tester);
+    await _letter(h, const Offset(100, 100));
+    await tester.pump();
+    pen.holdConvert = Completer<void>();
+    await tester.tap(find.byKey(TextPenLayer.bubbleKey));
+    await tester.pump();
+    await _letter(h, const Offset(112, 100));
+    await tester.pump();
+    expect(_controller(h).phase, TextPenPhase.converting);
+    await tester.tap(find.byKey(TextPenLayer.bubbleKey));
+    await tester.pump();
+    expect(pen.session.converts, hasLength(1));
+    pen.holdConvert!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(_controller(h).phase, TextPenPhase.open);
+    expect(_boxes(h), hasLength(1));
+  });
+
+  testWidgets('(review) a short stroke written onto the bubble (it moved) '
+      'does not convert; a tap does', (tester) async {
+    final (h, pen) = await _pump(tester);
+    await _letter(h, const Offset(100, 100));
+    await tester.pump();
+    final at = tester.getCenter(find.byKey(TextPenLayer.bubbleKey));
+    final gesture = await tester.startGesture(
+      at,
+      kind: PointerDeviceKind.stylus,
+    );
+    await gesture.moveBy(const Offset(6, 0));
+    await gesture.moveBy(const Offset(6, 0)); // 12 px: inside the InkWell slop
+    await gesture.up();
+    await tester.pump();
+    expect(pen.session.converts, isEmpty);
+    await tester.tap(
+      find.byKey(TextPenLayer.bubbleKey),
+      kind: PointerDeviceKind.stylus,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(pen.session.converts, hasLength(1));
+  });
+
+  testWidgets('(review) the first switch to the text pen says how it works — '
+      'once per note screen', (tester) async {
+    final (h, _) = await _pump(tester);
+    await tester.pump();
+    expect(find.text(EditorStrings.textPenFirstHint), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1)); // the enter animation
+    await tester.pump(const Duration(seconds: 5)); // its display time
+    await tester.pumpAndSettle();
+    expect(find.text(EditorStrings.textPenFirstHint), findsNothing);
+    await _selectTool(tester, h, EditorTool.pen);
+    await _selectTool(tester, h, EditorTool.textPen);
+    expect(find.text(EditorStrings.textPenFirstHint), findsNothing);
+  });
+
   testWidgets('the folded toolbar: the 텍스트 펜 row in 도구 더보기, next to '
       'the 수식 펜', (tester) async {
     final math = FakeMathPen();
@@ -290,6 +353,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(EditorToolbar.mathKey), findsOneWidget);
     expect(find.byKey(EditorToolbar.textPenKey), findsOneWidget);
+    // (review) no second row doing the same as the 텍스트 펜 row.
+    expect(find.byKey(InsertMenu.handwritingToTextKey), findsNothing);
     expect(
       tester.getTopLeft(find.byKey(EditorToolbar.mathKey)).dy,
       lessThan(tester.getTopLeft(find.byKey(EditorToolbar.textPenKey)).dy),

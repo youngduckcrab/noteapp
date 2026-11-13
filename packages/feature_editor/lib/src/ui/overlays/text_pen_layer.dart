@@ -6,7 +6,9 @@
 // and PenBubbleTap — a palm does not convert), around recog's content
 // (EditorTextPenSession.buildBubble — the recognized text, '인식 중…', the
 // model card, [다시]). A tap converts the group into a text box (one undo
-// step); a long press, or the content's '고치기', opens the conversion sheet.
+// step) — a contact that moved more than [TextPenLayer.maxTapMove] does not
+// (a short stroke written onto the bubble); a long press, or the content's
+// '고치기', opens the conversion sheet.
 // Hidden while the group is off screen and while a text box is edited.
 import 'dart:async';
 
@@ -23,6 +25,10 @@ class TextPenLayer extends ConsumerWidget {
   const TextPenLayer({super.key});
 
   static const bubbleKey = ValueKey('editor.textPen.bubble');
+
+  /// A contact on the bubble that moves farther than this (logical px) is a
+  /// stroke (a short 'ㅡ' written where the bubble sits), not a tap.
+  static const double maxTapMove = 8;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -92,6 +98,7 @@ class TextPenLayer extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(12),
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: PenBubbleTap(
+                  maxMove: maxTapMove,
                   onTap: busy ? null : convert,
                   onLongPress: busy ? null : fix,
                   child: Padding(
