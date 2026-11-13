@@ -7,7 +7,8 @@
 // in the app, mfr_raster.dart) → encoder once + greedy decoder
 // (mfr_runtime.dart; the runtime runs the model off the UI thread) → ids →
 // text (mfr_tokenizer.dart) → normalised LaTeX (latex_normalizer.dart, with
-// InkMathRenderer.validate). A result that still does not render is
+// InkMathRenderer.validate and the matrix column gutters the ink shows —
+// matrix_ink_hint.dart). A result that still does not render is
 // returned all the same: the sheets put it in the field for the user to
 // edit (6.14.4).
 //
@@ -31,6 +32,7 @@ import '../model/handwriting_trace.dart';
 import '../model/math_types.dart';
 import '../ports/math_recognizer.dart';
 import 'latex_normalizer.dart';
+import 'matrix_ink_hint.dart';
 import 'mfr_runtime.dart';
 import 'mfr_tokenizer.dart';
 
@@ -139,6 +141,7 @@ final class OnDeviceMathRecognizer implements MathRecognizer {
       latex = normalizeMfrLatex(
         tokenizer.decode(decoded.ids),
         validate: _validate,
+        matrixColumnGutters: matrixColumnGutters(input.traces),
       );
     } on Object catch (e) {
       throw RecognizerEngineError('ondevice', 'decode: $e');

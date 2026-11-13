@@ -84,6 +84,61 @@ void main() {
     // a spec that is longer than the columns follows them
     r'\begin{array} { l l l } a & b & { } \\ c & d & { } \end{array}':
         r'\begin{array}{ll}a&b\\c&d\end{array}',
+    // a matrix the model wrote as one column (a tight column gap): the
+    // cells hold whole rows → split when every row is the same number of
+    // entries and the model marked them apart (spacing, a text / font
+    // wrapper) or they are all letters
+    r'\left[ \begin{array} { r } { a b } \\ { c d } \\ \end{array} \right]':
+        r'\begin{bmatrix}a&b\\c&d\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \textrm { a b } } \\ { \textrm { c d } } \\ \end{array} \right]':
+        r'\begin{bmatrix}a&b\\c&d\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \textsf { x y } } \\ { \textsf { z w } } \\ \end{array} \right]':
+        r'\begin{bmatrix}x&y\\z&w\end{bmatrix}',
+    r'\left[ \begin{array} { c } { \textbf { a } \textbf { b } } \\ { \textbf { c } \textbf { d } } \\ \end{array} \right]':
+        r'\begin{bmatrix}a&b\\c&d\end{bmatrix}',
+    r'\left[ \begin{array} { c } { a \ b } \\ { c \ d } \\ \end{array} \right]':
+        r'\begin{bmatrix}a&b\\c&d\end{bmatrix}',
+    r'\left[ \begin{array} { c } { x y } \\ { z w } \\ \end{array} \right]':
+        r'\begin{bmatrix}x&y\\z&w\end{bmatrix}',
+    r'\left[ \begin{array} { c } { x _ { 1 } y _ { 1 } } \\ { x _ { 2 } y _ { 2 } } \end{array} \right]':
+        r'\begin{bmatrix}x_{1}&y_{1}\\x_{2}&y_{2}\end{bmatrix}',
+    // digits split only with a signal (else they may be numbers)
+    r'\left[ \begin{array} { r } { 1 \, 2 } \\ { 3 \, 4 } \\ \end{array} \right]':
+        r'\begin{bmatrix}1&2\\3&4\end{bmatrix}',
+    r'\left[ \begin{array} { c } { 1 ~ 2 } \\ { 3 ~ 4 } \\ \end{array} \right]':
+        r'\begin{bmatrix}1&2\\3&4\end{bmatrix}',
+    r'\left[ \begin{array} { c } { - 1 \, 2 } \\ { 3 \, - 4 } \end{array} \right]':
+        r'\begin{bmatrix}-1&2\\3&-4\end{bmatrix}',
+    r'\left[ \begin{array} { r } { 1 2 } \\ { 3 4 } \\ \end{array} \right]':
+        r'\begin{bmatrix}{12}\\{34}\end{bmatrix}',
+    r'\left[ \begin{matrix} 1 2 \\ 3 4 \end{matrix} \right]':
+        r'\begin{bmatrix}12\\34\end{bmatrix}',
+    // one entry per row, an operator, a point: nothing to split
+    r'\left[ \begin{array} { c } { a + b } \\ { c + d } \end{array} \right]':
+        r'\begin{bmatrix}{a+b}\\{c+d}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { 1 . 5 } \\ { 2 . 5 } \end{array} \right]':
+        r'\begin{bmatrix}{1.5}\\{2.5}\end{bmatrix}',
+    r'\left[ \begin{array} { c } { x ^ { 2 } } \\ { y ^ { 2 } } \end{array} \right]':
+        r'\begin{bmatrix}{x^{2}}\\{y^{2}}\end{bmatrix}',
+    // cases and aligned are never split
+    r'\left\{ \begin{array} { l } { a b } \\ { c d } \end{array} \right.':
+        r'\begin{cases}{ab}\\{cd}\end{cases}',
+    r'\begin{aligned} a b \\ c d \end{aligned}':
+        r'\begin{aligned}ab\\cd\end{aligned}',
+    // a split array keeps its column's alignment
+    r'\begin{array} { r } a \, b \\ c \, d \end{array}':
+        r'\begin{array}{rr}a&b\\c&d\end{array}',
+    // a wide column gap: empty columns inside go, and empty rows
+    r'\left[ \begin{array} { c c c } { a } & { } & { b } \\ { c } & { } & { d } \\ \end{array} \right]':
+        r'\begin{bmatrix}{a}&{b}\\{c}&{d}\end{bmatrix}',
+    r'\left[ \begin{array} { c c c } { a } & { } & { b } \\ { } & { } & { } \\ { c } & { } & { d } \\ \end{array} \right]':
+        r'\begin{bmatrix}{a}&{b}\\{c}&{d}\end{bmatrix}',
+    r'\left[ \begin{array} { c c c } { { \bf a } } & { } & { } & { \textsf { b } } \\ { { \bf c } } & { } & { } & { \textsf { d } } \\ \end{array} \right]':
+        r'\begin{bmatrix}{a}&{b}\\{c}&{d}\end{bmatrix}',
+    r'\begin{array} { l c r } a & { } & b \\ c & { } & d \end{array}':
+        r'\begin{array}{lr}a&b\\c&d\end{array}',
+    r'\left[ \begin{matrix} a & { } & b \\ c \end{matrix} \right]':
+        r'\begin{bmatrix}a&b\\c\end{bmatrix}',
     // capital-only alphabets
     r'\mathcal { 1 } + \mathcal { N } + \mathcal { d A }': r'1+\mathcal{N}+dA',
     // synonyms, old font switches, sizes, spacing at a group end
@@ -111,6 +166,52 @@ void main() {
       expect(out, expected, reason: raw);
       expect(InkMathRenderer.validate(out), isNull, reason: '$raw → $out');
     }
+  });
+
+  test('ink gutters split a one-column matrix of digits', () {
+    String norm(String raw, int? gutters) => normalizeMfrLatex(
+      raw,
+      validate: InkMathRenderer.validate,
+      matrixColumnGutters: gutters,
+    );
+    const digits =
+        r'\left[ \begin{array} { r } { 1 2 } \\ { 3 4 } \\ \end{array} \right]';
+    expect(norm(digits, 1), r'\begin{bmatrix}1&2\\3&4\end{bmatrix}');
+    // a count that does not fit, or none: the digits stay numbers
+    expect(norm(digits, 0), r'\begin{bmatrix}{12}\\{34}\end{bmatrix}');
+    expect(norm(digits, 2), r'\begin{bmatrix}{12}\\{34}\end{bmatrix}');
+    expect(norm(digits, null), r'\begin{bmatrix}{12}\\{34}\end{bmatrix}');
+    // three entries a row, two gutters; one row is enough with ink
+    expect(
+      norm(r'\left[ \begin{matrix} 1 2 3 \end{matrix} \right]', 2),
+      r'\begin{bmatrix}1&2&3\end{bmatrix}',
+    );
+    // the hint never blocks a split the LaTeX itself shows
+    expect(
+      norm(
+        r'\left[ \begin{array} { c } { 1 \, 2 } \\ { 3 \, 4 } \end{array} \right]',
+        0,
+      ),
+      r'\begin{bmatrix}1&2\\3&4\end{bmatrix}',
+    );
+    // with two matrices the hint says nothing
+    expect(
+      norm(
+        r'\left[ \begin{matrix} 1 2 \\ 3 4 \end{matrix} \right] \left[ \begin{matrix} 5 6 \\ 7 8 \end{matrix} \right]',
+        1,
+      ),
+      r'\begin{bmatrix}12\\34\end{bmatrix}\begin{bmatrix}56\\78\end{bmatrix}',
+    );
+    // never in cases
+    expect(
+      norm(r'\left\{ \begin{matrix} 1 2 \\ 3 4 \end{matrix} \right.', 1),
+      r'\begin{cases}12\\34\end{cases}',
+    );
+    // a matrix with nothing in it stays
+    expect(
+      norm(r'\begin{matrix} { } & { } \\ { } & { } \end{matrix}', null),
+      r'\begin{matrix}{}&{}\\{}&{}\end{matrix}',
+    );
   });
 
   test('every reference decode of the fixtures renders after normalising', () {

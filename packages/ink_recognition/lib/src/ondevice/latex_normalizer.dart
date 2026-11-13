@@ -17,13 +17,20 @@
 // renders; else the renderer's error) it also removes commands the renderer
 // reports as undefined, a few times; whatever is left is returned — a
 // suggestion the user edits.
+//
+// [matrixColumnGutters] is ink evidence for a matrix the model wrote as one
+// column (matrix_ink_hint.dart): the number of clear vertical gutters
+// between the brackets. It only ever helps split such a matrix; it is used
+// only when the output has exactly one matrix environment.
 
 /// The model's LaTeX as compact, renderable KaTeX (see the file comment).
 String normalizeMfrLatex(
   String raw, {
   String? Function(String latex)? validate,
+  int? matrixColumnGutters,
 }) {
-  var latex = _normalize(raw);
+  final gutters = matrixColumnGutters;
+  var latex = _normalize(raw, gutters: gutters);
   if (validate == null || latex.isEmpty) return latex;
   final drop = <String>{};
   for (var attempt = 0; attempt < 6; attempt++) {
@@ -31,7 +38,7 @@ String normalizeMfrLatex(
     if (error == null) return latex;
     final cmd = _undefinedCommand(error);
     if (cmd == null || !drop.add(cmd)) break;
-    final stripped = _normalize(raw, drop: drop);
+    final stripped = _normalize(raw, drop: drop, gutters: gutters);
     if (stripped == latex) break;
     latex = stripped;
   }
@@ -399,7 +406,7 @@ const Set<String> _matrixLike = {
 
 // --- the rewrite --------------------------------------------------------------
 
-String _normalize(String raw, {Set<String> drop = const {}}) {
+String _normalize(String raw, {Set<String> drop = const {}, int? gutters}) {
   var s = raw.trim();
   while (s.startsWith(r'$')) {
     s = s.substring(1);
@@ -411,7 +418,18 @@ String _normalize(String raw, {Set<String> drop = const {}}) {
   final rewritten = _Rewriter(drop).run(nodes);
   final tokens = <String>[];
   _flatten(rewritten, tokens);
-  return _serialize(_cleanMatrices(_tidy(tokens)));
+  final tidy = _tidy(tokens);
+  // the ink hint describes one matrix: with more than one it says nothing
+  final matrices = tidy
+      .where(
+        (t) =>
+            t.startsWith(r'\begin{') &&
+            _matrixLike.contains(t.substring(7, t.length - 1)),
+      )
+      .length;
+  return _serialize(
+    _cleanMatrices(tidy, gutters: matrices == 1 ? gutters : null),
+  );
 }
 
 /// Text-mode arguments written as words (`\text { for all }` — not the
@@ -870,14 +888,19 @@ const Set<String> _matrixFonts = {
 const Set<String> _bareOpen = {'(', '[', '|', r'\|', r'\{'};
 
 /// Matrix environments, token level (inner ones first):
-/// - a trailing column that is empty in every row goes (the model often adds
-///   `& { }`, sometimes in front), and an array's column spec follows the
-///   remaining columns;
+/// - in a matrix (not aligned / gathered / split) every column that is empty
+///   in every row goes, at the edges or inside (the model pads a matrix with
+///   `{ } &` and `& { }`, and writes a wide gap as an empty column), and so
+///   does every empty row; an array's column spec follows the remaining
+///   columns;
+/// - a matrix the model wrote as one column whose cells hold whole rows
+///   (`{ a b } \\ { c d }` — a tight column gap) is split into columns
+///   ([_splitColumn]);
 /// - font commands on the entries go;
 /// - delimiters around it (`\left[ … \right]`, or bare `[ … ]`) make the
 ///   delimited environment (bmatrix, pmatrix, …) — for an array too, unless
 ///   its spec draws lines (`c|c`).
-List<String> _cleanMatrices(List<String> t) {
+List<String> _cleanMatrices(List<String> t, {int? gutters}) {
   final out = <String>[];
   var i = 0;
   while (i < t.length) {
@@ -898,19 +921,6 @@ List<String> _cleanMatrices(List<String> t) {
       spec = t.sublist(bodyStart + 1, specEnd - 1);
       bodyStart = specEnd;
     }
-    final grid = env == 'aligned' || env == 'gathered' || env == 'split';
-    final rows = [
-      for (final row in _splitTop(
-        _cleanMatrices(t.sublist(bodyStart, end)),
-        r'\\',
-      ))
-        [
-          for (final cell in _splitTop(row, '&'))
-            grid ? cell : _dropFonts(cell),
-        ],
-    ];
-    if (!grid) _dropEmptyColumns(rows);
-    final columns = rows.fold<int>(0, (m, r) => r.length > m ? r.length : m);
 
     // delimiters around it
     String? open, close;
@@ -935,6 +945,32 @@ List<String> _cleanMatrices(List<String> t) {
         ? (env == 'matrix' || env == 'array' ? _matrixFor(open, close) : null)
         : null;
 
+    final grid = env == 'aligned' || env == 'gathered' || env == 'split';
+    final rows = [
+      for (final row in _splitTop(
+        _cleanMatrices(t.sublist(bodyStart, end)),
+        r'\\',
+      ))
+        _splitTop(row, '&'),
+    ];
+    final width = _width(rows);
+    final kept = grid ? null : _dropEmpty(rows);
+    final split = grid || lines || env == 'cases' || target == 'cases'
+        ? null
+        : _splitColumn(rows, gutters);
+    if (split != null) {
+      rows
+        ..clear()
+        ..addAll(split);
+    } else if (!grid) {
+      for (final r in rows) {
+        for (var c = 0; c < r.length; c++) {
+          r[c] = _dropFonts(r[c]);
+        }
+      }
+    }
+    final columns = _width(rows);
+
     final body = <String>[];
     for (var r = 0; r < rows.length; r++) {
       if (r > 0) body.add(r'\\');
@@ -956,7 +992,11 @@ List<String> _cleanMatrices(List<String> t) {
     if (spec != null) {
       out
         ..add('{')
-        ..addAll(lines ? spec : _fitSpec(spec, columns))
+        ..addAll(
+          lines
+              ? spec
+              : _fitSpec(spec, columns, width: width, kept: kept, split: split),
+        )
         ..add('}');
     }
     out
@@ -1019,32 +1059,275 @@ List<String> _dropFonts(List<String> cell) {
 bool _emptyCell(List<String> cell) =>
     cell.every((t) => t == '{' || t == '}' || _spacing.contains(t));
 
-/// Columns empty in every row at either edge go (the model pads a matrix
-/// with `{ } &` and `& { }`, or `{ \ }`); a matrix with nothing in it stays.
-void _dropEmptyColumns(List<List<List<String>>> rows) {
-  int width() => rows.fold<int>(0, (m, r) => r.length > m ? r.length : m);
-  bool allEmpty() => rows.every((r) => r.every(_emptyCell));
-  if (allEmpty()) return;
-  while (width() >= 2) {
-    final full = rows.where((r) => r.length == width()).toList();
-    if (!full.every((r) => _emptyCell(r.last))) break;
-    for (final r in full) {
-      r.removeLast();
-    }
+int _width(List<List<List<String>>> rows) =>
+    rows.fold<int>(0, (m, r) => r.length > m ? r.length : m);
+
+/// Every column empty in all rows goes (a row shorter than the widest has
+/// empty cells at its end), and every empty row; a matrix with nothing in
+/// it stays. The indices of the columns kept; null when nothing changed.
+List<int>? _dropEmpty(List<List<List<String>>> rows) {
+  if (rows.every((r) => r.every(_emptyCell))) return null;
+  rows.removeWhere((r) => r.every(_emptyCell));
+  final width = _width(rows);
+  final kept = [
+    for (var c = 0; c < width; c++)
+      if (rows.any((r) => c < r.length && !_emptyCell(r[c]))) c,
+  ];
+  if (kept.length == width) return null;
+  for (var r = 0; r < rows.length; r++) {
+    final row = rows[r];
+    rows[r] = [
+      for (final c in kept)
+        if (c < row.length) row[c],
+    ];
   }
-  while (width() >= 2 &&
-      rows.every((r) => r.length == width() && _emptyCell(r.first))) {
-    for (final r in rows) {
-      r.removeAt(0);
-    }
-  }
+  return kept;
 }
 
-/// An array spec with one letter per column (extra letters go, `c` fills).
-List<String> _fitSpec(List<String> spec, int columns) {
-  final letters = spec.where((s) => RegExp('^[clr]\$').hasMatch(s)).toList();
-  if (letters.length == columns || columns == 0) return spec;
+/// An array spec with one letter per column: the letters of the columns
+/// [kept] (when the spec had one per column), one column's letter for
+/// every column it was [split] into; otherwise extra letters go and `c`
+/// fills.
+List<String> _fitSpec(
+  List<String> spec,
+  int columns, {
+  int width = 0,
+  List<int>? kept,
+  List<List<List<String>>>? split,
+}) {
+  var letters = spec.where((s) => RegExp('^[clr]\$').hasMatch(s)).toList();
+  if (kept != null && letters.length == width) {
+    letters = [for (final c in kept) letters[c]];
+  }
+  if (split != null && letters.length == 1) {
+    letters = List.filled(columns, letters.single);
+  }
+  if (letters.length == columns || columns == 0) return letters;
   return [
     for (var k = 0; k < columns; k++) k < letters.length ? letters[k] : 'c',
+  ];
+}
+
+// --- one-column matrices ------------------------------------------------------
+
+/// Font and text wrappers the model puts around a whole row or around each
+/// entry (`{ \textrm { a b } }` arrives as `\mathrm`, `\textbf { a }` as
+/// `\mathbf`, `\bf` is already gone).
+const Set<String> _rowWrappers = {
+  r'\mathrm',
+  r'\mathsf',
+  r'\mathtt',
+  r'\mathbf',
+  r'\mathit',
+  r'\boldsymbol',
+  r'\text',
+  r'\textrm',
+  r'\textsf',
+  r'\texttt',
+  r'\textbf',
+  r'\textit',
+  r'\textup',
+  r'\mbox',
+};
+
+/// Letter-like commands an entry may be (a letter for rule (b)).
+const Set<String> _letterCommands = {
+  r'\alpha',
+  r'\beta',
+  r'\gamma',
+  r'\delta',
+  r'\epsilon',
+  r'\varepsilon',
+  r'\zeta',
+  r'\eta',
+  r'\theta',
+  r'\vartheta',
+  r'\iota',
+  r'\kappa',
+  r'\lambda',
+  r'\mu',
+  r'\nu',
+  r'\xi',
+  r'\pi',
+  r'\varpi',
+  r'\rho',
+  r'\varrho',
+  r'\sigma',
+  r'\varsigma',
+  r'\tau',
+  r'\upsilon',
+  r'\phi',
+  r'\varphi',
+  r'\chi',
+  r'\psi',
+  r'\omega',
+  r'\Gamma',
+  r'\Delta',
+  r'\Theta',
+  r'\Lambda',
+  r'\Xi',
+  r'\Pi',
+  r'\Sigma',
+  r'\Upsilon',
+  r'\Phi',
+  r'\Psi',
+  r'\Omega',
+  r'\ell',
+  r'\hbar',
+  r'\imath',
+  r'\jmath',
+  r'\aleph',
+};
+
+/// Symbol commands an entry may be (not letters).
+const Set<String> _symbolCommands = {
+  r'\infty',
+  r'\partial',
+  r'\nabla',
+  r'\emptyset',
+  r'\varnothing',
+};
+
+final class _Atom {
+  _Atom(this.tokens, {required this.letter});
+
+  final List<String> tokens;
+
+  /// A letter or a letter-like command (with its scripts), not a digit.
+  final bool letter;
+}
+
+final class _RowAtoms {
+  _RowAtoms(this.atoms, {required this.signal});
+
+  final List<_Atom> atoms;
+
+  /// The model marked the entries apart: spacing between them, or a text /
+  /// font wrapper around the whole row or around every entry.
+  final bool signal;
+}
+
+final RegExp _letterRe = RegExp(r'^[a-zA-Z]$');
+final RegExp _digitRe = RegExp(r'^[0-9]$');
+
+/// The entries of one cell that holds a whole row (`a b`, `1 \, 2`,
+/// `\mathrm { a b }`, `\mathbf { a } \mathbf { b }`, `x _ { 1 } y _ { 1 }`,
+/// `- 1 \, 2`); null when anything else is in it (an operator, a
+/// relation, `.`, `,`, `\frac` …).
+_RowAtoms? _rowAtoms(List<String> cell) {
+  var c = cell;
+  var wrapped = false;
+  while (true) {
+    if (c.length >= 2 && c.first == '{' && _argEnd(c, 0) == c.length) {
+      c = c.sublist(1, c.length - 1);
+    } else if (c.length >= 3 &&
+        _rowWrappers.contains(c.first) &&
+        c[1] == '{' &&
+        _argEnd(c, 1) == c.length) {
+      c = c.sublist(2, c.length - 1);
+      wrapped = true;
+    } else {
+      break;
+    }
+  }
+  final atoms = <_Atom>[];
+  var spaced = false, pendingSeparator = false, afterSeparator = true;
+  var wrappedAtoms = 0;
+  var i = 0;
+  while (i < c.length) {
+    final tok = c[i];
+    if (_spacing.contains(tok)) {
+      if (atoms.isNotEmpty) pendingSeparator = true;
+      afterSeparator = true;
+      i++;
+      continue;
+    }
+    final tokens = <String>[];
+    // a unary sign only at the start or right after a separator
+    if ((tok == '-' || tok == '+') && afterSeparator) {
+      tokens.add(tok);
+      i++;
+      if (i >= c.length) return null;
+    }
+    final core = c[i];
+    bool letter;
+    if (_letterRe.hasMatch(core) || _letterCommands.contains(core)) {
+      letter = true;
+      tokens.add(core);
+      i++;
+    } else if (_digitRe.hasMatch(core) || _symbolCommands.contains(core)) {
+      letter = false;
+      tokens.add(core);
+      i++;
+    } else if (core == '{' ||
+        (_rowWrappers.contains(core) && i + 1 < c.length && c[i + 1] == '{')) {
+      final wrapper = core != '{';
+      if (wrapper) wrappedAtoms++;
+      final open = wrapper ? i + 1 : i;
+      final close = _argEnd(c, open);
+      final inner = c.sublist(open + 1, close - 1);
+      if (inner.isEmpty || _emptyCell(inner)) return null;
+      final single = _rowAtoms(inner);
+      final one = single != null && single.atoms.length == 1;
+      letter = one && single.atoms.single.letter;
+      i = close;
+      final scripted = i < c.length && (c[i] == '_' || c[i] == '^');
+      if (one && (!scripted || single.atoms.single.tokens.length == 1)) {
+        // `{ a }`, `\mathbf { a }` → a
+        tokens.addAll(single.atoms.single.tokens);
+      } else {
+        tokens
+          ..add('{')
+          ..addAll(inner)
+          ..add('}');
+      }
+    } else {
+      return null;
+    }
+    while (i < c.length && (c[i] == '_' || c[i] == '^')) {
+      if (i + 1 >= c.length) return null;
+      final argEnd = _argEnd(c, i + 1);
+      tokens.addAll(c.sublist(i, argEnd));
+      i = argEnd;
+    }
+    if (pendingSeparator) spaced = true;
+    pendingSeparator = false;
+    afterSeparator = false;
+    atoms.add(_Atom(tokens, letter: letter));
+  }
+  final n = atoms.length;
+  return _RowAtoms(
+    atoms,
+    signal: n >= 2 && (spaced || wrapped || wrappedAtoms == n),
+  );
+}
+
+/// A matrix the model wrote as one column whose cells hold whole rows →
+/// its columns, or null to leave it. Every row must be the same number n
+/// (2…8) of entries ([_rowAtoms]), and one of: the model marked them apart
+/// in some row (spacing, a text / font wrapper); every entry is a letter
+/// (`[ab; cd]` — a column of products is rarer in notes than a 2×2 matrix;
+/// at least two rows); or the ink shows n − 1 clear [gutters] between the
+/// brackets. Digits alone stay joined (`[12; 34]` may be numbers).
+List<List<List<String>>>? _splitColumn(
+  List<List<List<String>>> rows,
+  int? gutters,
+) {
+  if (rows.isEmpty || rows.any((r) => r.length != 1)) return null;
+  final parsed = <_RowAtoms>[];
+  for (final r in rows) {
+    final atoms = _rowAtoms(r.single);
+    if (atoms == null) return null;
+    parsed.add(atoms);
+  }
+  final n = parsed.first.atoms.length;
+  if (n < 2 || n > 8 || parsed.any((p) => p.atoms.length != n)) return null;
+  final signal = parsed.any((p) => p.signal);
+  final letters =
+      rows.length >= 2 && parsed.every((p) => p.atoms.every((a) => a.letter));
+  final ink = gutters != null && gutters == n - 1;
+  if (!signal && !letters && !ink) return null;
+  return [
+    for (final p in parsed) [for (final a in p.atoms) a.tokens],
   ];
 }
