@@ -248,6 +248,45 @@ final Map<String, PageObject> kSampleObjects = {
     deletedAt: kT + 9000,
     version: kV,
   ),
+  // (math pen) a formula converted from two handwriting strokes (MathObject.ink).
+  'math_ink': MathObject(
+    id: '0193f1d2-7c4b-7000-8000-0000000000b9',
+    pageId: kSamplePageId,
+    frame: const ElementFrame(PageRect(10, 14, 52.5, 30)),
+    latex: 'x^{2}',
+    style: const MathStyle(fontSizePt: 14),
+    engineId: 'ondevice/test',
+    ink: [
+      Stroke(
+        id: '0193f1d2-7c41-7000-8000-0000000000c1',
+        pageId: kSamplePageId,
+        style: const StrokeStyle(
+          tool: PenTool.ballpoint,
+          colorArgb: 0xFF1A1A1A,
+          width: 1.5,
+        ),
+        points: kG1Points,
+        createdAt: kT + 10,
+      ),
+      Stroke(
+        id: '0193f1d2-7c41-7000-8000-0000000000c2',
+        pageId: kSamplePageId,
+        style: const StrokeStyle(
+          tool: PenTool.ballpoint,
+          colorArgb: 0xFF1A1A1A,
+          width: 1.5,
+        ),
+        points: StrokePoints.fromList(const [
+          StrokePoint(14, 16, widthQ: 0.25, t: 0),
+          StrokePoint(15, 14, widthQ: 0.25, t: 6),
+        ]),
+        createdAt: kT + 11,
+        updatedAt: kT + 12,
+      ),
+    ],
+    createdAt: kT + 13,
+    version: kV,
+  ),
   // A type this app does not know: nested maps / arrays and unknown keys survive (C-12).
   'unknown': UnknownObject(const {
     'id': '0193f1d2-7c4b-7000-8000-0000000000b8',

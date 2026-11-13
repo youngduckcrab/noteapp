@@ -528,6 +528,54 @@ void main() {
       },
       versions: {'latex': 3, 'engine': 3},
     ),
+    // (math pen) ink rides in the one object unit: a formula and its handwriting win
+    // together. An older app's snapshot has no ink key at all.
+    Case(
+      'math ink: a later conversion with ink beats an older app\'s earlier '
+      'move (no ink key) — frame and ink together',
+      rec(
+        object,
+        from: mathJson,
+        set: {
+          'latex': 'x^{2}',
+          'ink': [fixtureJson(stroke)],
+        },
+        fv: {'latex': 3, 'ink': 3},
+      ),
+      rec(
+        object,
+        from: Map.of(mathJson)..remove('ink'),
+        set: {'frame': moved},
+        fv: {'frame': 2},
+      ),
+      values: {
+        'latex': 'x^{2}',
+        'frame': mathJson['frame'],
+        'ink': [fixtureJson(stroke)],
+      },
+      versions: {'latex': 3, 'ink': 3},
+    ),
+    Case(
+      'math ink: an older app\'s later move (no ink key) takes the object '
+      'unit — the ink goes with it, the formula stays',
+      rec(
+        object,
+        from: mathJson,
+        set: {
+          'ink': [fixtureJson(stroke)],
+        },
+        fv: {'ink': 1},
+      ),
+      rec(
+        object,
+        from: Map.of(mathJson)..remove('ink'),
+        set: {'frame': moved},
+        fv: {'frame': 2},
+      ),
+      values: {'frame': moved, 'latex': mathJson['latex']},
+      absent: {'ink'},
+      versions: {'frame': 2},
+    ),
     Case(
       'unknown object type: a later change of an unknown key takes the whole '
       'object',

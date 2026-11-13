@@ -52,8 +52,8 @@ const Map<EntityKind, Set<String>> kCoreJsonKeys = {
   // The union of [kPageObjectTypeKeys] (07-sync 6.2.1).
   EntityKind.pageObject: {
     'id', 'pageId', 'type', 'frame', 'shape', 'geometry', 'style', 'text', //
-    'assetId', 'px', 'latex', 'engine', 'createdAt', 'updatedAt', 'deletedAt',
-    'version',
+    'assetId', 'px', 'latex', 'engine', 'ink', 'createdAt', 'updatedAt',
+    'deletedAt', 'version',
   },
   EntityKind.handwriting: {
     'id', 'noteId', 'pageId', 'engineId', 'sourceRev', 'lines', 'createdAt', //
@@ -74,7 +74,8 @@ const Map<String, Set<String>> kPageObjectTypeKeys = {
   'shape': {..._kObjectCommonKeys, 'shape', 'geometry', 'style'},
   'text': {..._kObjectCommonKeys, 'text', 'style'},
   'image': {..._kObjectCommonKeys, 'assetId', 'px'},
-  'math': {..._kObjectCommonKeys, 'latex', 'style', 'engine'},
+  // (math pen) `ink`: always written, null when the formula has no handwriting.
+  'math': {..._kObjectCommonKeys, 'latex', 'style', 'engine', 'ink'},
 };
 
 /// The asset of the image object fixture (64 lowercase hex).

@@ -22,9 +22,10 @@ void main() {
     'field_versions': kSampleFieldVersions.toJson(),
   };
 
-  // (v2.0, m5-7/02-core 6.3) 11 v1.4 files + 9 new (8 page objects, handwriting).
-  test('20 golden files', () {
-    expect(docs.length, 20);
+  // (v2.0, m5-7/02-core 6.3) 11 v1.4 files + 9 new (8 page objects, handwriting);
+  // (math pen) + math_ink.
+  test('21 golden files', () {
+    expect(docs.length, 21);
   });
 
   for (final e in docs.entries) {

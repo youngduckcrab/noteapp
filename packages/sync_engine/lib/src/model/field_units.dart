@@ -54,10 +54,12 @@ abstract final class FieldUnits {
       'key', 'valueJson', 'updatedAt', 'deletedAt', 'version', //
     },
     // (2nd round, contract 7.2.8) the union of the four known object types (07-sync
-    // 6.2.1); the keys of each type are a subset of it.
+    // 6.2.1); the keys of each type are a subset of it. (math pen) `ink` of math: in the
+    // one object unit with frame / latex / style (wholeUnitExcept), so a formula and the
+    // handwriting it came from always win together.
     EntityKind.pageObject => const {
       'id', 'pageId', 'type', 'frame', 'shape', 'geometry', 'style', 'text', //
-      'assetId', 'px', 'latex', 'engine', 'createdAt', 'updatedAt',
+      'assetId', 'px', 'latex', 'engine', 'ink', 'createdAt', 'updatedAt',
       'deletedAt', 'version',
     },
     EntityKind.handwriting => const {

@@ -19,12 +19,12 @@ void main() {
     }
   });
 
-  test('every kind is covered by the samples (19 entity shapes)', () {
+  test('every kind is covered by the samples (20 entity shapes)', () {
     expect(
       kSampleEntities.values.map((e) => e.kind).toSet(),
       EntityKind.values.toSet(),
     );
-    expect(kSampleEntities.length, 19);
+    expect(kSampleEntities.length, 20);
   });
 
   test('local-only fields are not serialized and get fixed values', () {

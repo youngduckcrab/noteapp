@@ -49,6 +49,12 @@ void main() {
     expect(union, FieldUnits.keysOf(EntityKind.pageObject));
     // C21-11: math always writes engine, also when it is null.
     expect(kPageObjectTypeKeys['math'], contains('engine'));
+    // (math pen) ink: in the one object unit (not excepted).
+    expect(kPageObjectTypeKeys['math'], contains('ink'));
+    expect(
+      FieldUnits.wholeUnitExcept(EntityKind.pageObject),
+      isNot(contains('ink')),
+    );
   });
 
   // --- (2nd round, S2-1) one object / result unit (contract 7.2.8, 07-sync 6.2.2) ---
@@ -89,6 +95,7 @@ void main() {
           'assetId',
           'frame',
           'geometry',
+          'ink',
           'latex',
           'px',
           'shape',

@@ -133,6 +133,21 @@ void checkObjectLimits(PageObject o) {
         'latex.length',
         'object ${o.id}: at most ${PageObjectLimits.maxLatexLength}',
       );
+    case MathObject(:final ink)
+        when ink.length > PageObjectLimits.maxMathInkStrokes:
+      throw ArgumentError.value(
+        ink.length,
+        'ink.length',
+        'object ${o.id}: at most ${PageObjectLimits.maxMathInkStrokes} strokes',
+      );
+    case MathObject(:final ink)
+        when ink.fold<int>(0, (n, s) => n + s.points.length) >
+            PageObjectLimits.maxMathInkPoints:
+      throw ArgumentError.value(
+        ink.fold<int>(0, (n, s) => n + s.points.length),
+        'ink points',
+        'object ${o.id}: at most ${PageObjectLimits.maxMathInkPoints} points',
+      );
     case ShapeObject(geometry: PolylineGeometry(:final points))
         when points.length < 2 ||
             points.length > PageObjectLimits.maxPolylinePoints:

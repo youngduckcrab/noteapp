@@ -103,4 +103,10 @@ abstract final class PageObjectLimits {
   static const int maxTextLength = 10000; // TextBoxObject.text, String.length
   static const int maxLatexLength = 4000;
   static const int maxPolylinePoints = 64;
+
+  /// (math pen) MathObject.ink: at most this many strokes …
+  static const int maxMathInkStrokes = 400;
+
+  /// … and this many points over all of them.
+  static const int maxMathInkPoints = 40000;
 }

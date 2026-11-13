@@ -422,9 +422,17 @@ void main() {
           'deletedAt',
           'version',
         };
+        // (math pen) MathObject.ink strokes move to the new page (checked below).
         Map<String, Object?> body(PageObject x) =>
-            Map.of(x.toJson())..removeWhere((k, _) => strip.contains(k));
+            Map.of(x.toJson())
+              ..removeWhere((k, _) => strip.contains(k) || k == 'ink');
         expect(jsonEncode(body(c)), jsonEncode(body(o)), reason: o.id);
+        if (c is MathObject) {
+          expect(c.ink.map((s) => s.pageId).toSet(), {
+            if (c.ink.isNotEmpty) 'p9',
+          });
+          expect(c.ink.length, (o as MathObject).ink.length);
+        }
       }
       final u = kSampleObjects['unknown']!.copyTo(
         id: 'u2',

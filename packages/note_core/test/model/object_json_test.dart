@@ -36,6 +36,7 @@ void main() {
         'image': ImageObject,
         'math': MathObject,
         'math_no_engine': MathObject,
+        'math_ink': MathObject,
         'unknown': UnknownObject,
       };
       for (final MapEntry(key: name, value: type) in types.entries) {
@@ -277,14 +278,19 @@ void main() {
         'shape_rect': {'shape', 'geometry', 'style'},
         'text_box': {'text', 'style'},
         'image': {'assetId', 'px'},
-        'math': {'latex', 'style', 'engine'},
-        'math_no_engine': {'latex', 'style', 'engine'},
+        'math': {'latex', 'style', 'engine', 'ink'},
+        'math_no_engine': {'latex', 'style', 'engine', 'ink'},
+        'math_ink': {'latex', 'style', 'engine', 'ink'},
       };
       for (final MapEntry(key: name, value: keys) in perType.entries) {
         expect(_json(name).keys.toSet(), {...common, ...keys}, reason: name);
       }
       expect(_json('math_no_engine')['engine'], isNull);
       expect(_json('math_no_engine').containsKey('engine'), isTrue);
+      // (math pen) ink: always written, null when the formula has none.
+      expect(_json('math').containsKey('ink'), isTrue);
+      expect(_json('math')['ink'], isNull);
+      expect(_json('math_ink')['ink'], hasLength(2));
       final shapeStyle = _json('shape_rect')['style']! as Map<String, Object?>;
       expect(shapeStyle.keys.toSet(), {
         'strokeColorArgb',

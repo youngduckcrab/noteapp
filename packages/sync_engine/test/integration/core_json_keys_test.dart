@@ -42,6 +42,7 @@ EntityKind? _kindOf(String name) => switch (name) {
   'image' ||
   'math' ||
   'math_no_engine' ||
+  'math_ink' ||
   'unknown' => EntityKind.pageObject,
   'handwriting' => EntityKind.handwriting,
   _ => null,

@@ -1724,8 +1724,10 @@ void main() {
         PageObjectLimits.maxTextLength,
         PageObjectLimits.maxLatexLength,
         PageObjectLimits.maxPolylinePoints,
+        PageObjectLimits.maxMathInkStrokes,
+        PageObjectLimits.maxMathInkPoints,
       ],
-      [2000, 10000, 4000, 64],
+      [2000, 10000, 4000, 64, 400, 40000],
     );
 
     const shapeStyle = ShapeStyle(
@@ -1897,6 +1899,7 @@ void main() {
       latex: r'\frac{a}{b}',
       style: mathStyle,
       engineId: 'manual',
+      ink: const [],
       createdAt: 1,
       updatedAt: null,
       deletedAt: null,
@@ -1907,12 +1910,14 @@ void main() {
       math.latex,
       math.style,
       math.engineId,
+      math.ink,
     ];
     final MathObject Function({
       ElementFrame? frame,
       String? latex,
       MathStyle? style,
       String? engineId,
+      List<Stroke>? ink,
       EpochMillis? updatedAt,
     })
     copyMath = math.copyWith;

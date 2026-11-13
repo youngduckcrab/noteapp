@@ -10,11 +10,13 @@ final class MathObject extends PageObject {
     required this.latex,
     required this.style,
     this.engineId,
+    List<Stroke> ink = const [],
     required this.createdAt,
     int? updatedAt,
     this.deletedAt,
     this.version,
-  }) : updatedAt = updatedAt ?? createdAt;
+  }) : ink = List.unmodifiable(ink),
+       updatedAt = updatedAt ?? createdAt;
   @override
   String get type => 'math';
 
@@ -25,6 +27,16 @@ final class MathObject extends PageObject {
   final String latex; // ≤ maxLatexLength; INK validate() == null before insert
   final MathStyle style;
   final String? engineId; // provenance: 'manual', 'mathpix/…', 'claude/…'
+
+  /// (math pen, phase 1 — m5-7/research/math-pen-phase1.md 5) The handwriting this formula was
+  /// converted from, so it can be reopened as strokes. Each stroke has pageId == [pageId] and
+  /// version == null; its id is informational only (reopening gives new ids). Page coordinates:
+  /// moved / scaled / rotated with the formula ([transformed]); a LaTeX edit keeps it. Empty for
+  /// a formula made another way (math pad, typed LaTeX) or read from JSON without the key.
+  /// At most [PageObjectLimits.maxMathInkStrokes] strokes and
+  /// [PageObjectLimits.maxMathInkPoints] points in all (checked when a local command is
+  /// resolved).
+  final List<Stroke> ink;
   @override
   PageRect get bounds => frame.bounds;
   MathObject copyWith({
@@ -32,6 +44,7 @@ final class MathObject extends PageObject {
     String? latex,
     MathStyle? style,
     String? engineId,
+    List<Stroke>? ink,
     EpochMillis? updatedAt,
   }) => MathObject(
     id: id,
@@ -40,6 +53,7 @@ final class MathObject extends PageObject {
     latex: latex ?? this.latex,
     style: style ?? this.style,
     engineId: engineId ?? this.engineId,
+    ink: ink ?? this.ink,
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt,
@@ -63,10 +77,12 @@ final class MathObject extends PageObject {
   @override
   Set<AssetId> get referencedAssets => const {};
 
-  /// (CORE 6.2.5) frame.transformed(m) + fontSizePt × s clamped [6, 144].
+  /// (CORE 6.2.5) frame.transformed(m) + fontSizePt × s clamped [6, 144]; (math pen) every
+  /// [ink] stroke through Stroke.transformed with the same m and [scaleWidth].
   @override
   PageObject transformed(Affine2 m, {bool scaleWidth = true}) => copyWith(
     frame: frame.transformed(m),
+    ink: [for (final s in ink) s.transformed(m, scaleWidth: scaleWidth)],
     style: style.copyWith(
       fontSizePt: _scaled(
         style.fontSizePt,
@@ -89,6 +105,7 @@ final class MathObject extends PageObject {
     latex: latex,
     style: style,
     engineId: engineId,
+    ink: [for (final s in ink) s.copyWith(pageId: pageId)],
     createdAt: createdAt,
   );
 
@@ -105,21 +122,31 @@ final class MathObject extends PageObject {
     latex: latex,
     style: style,
     engineId: engineId,
+    ink: ink,
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
     version: version ?? this.version,
   );
 
+  /// 02-core 4.3 formula + (math pen) the [ink] strokes' Stroke.estimatedBytes.
   @override
-  int get estimatedBytes => 160 + 2 * latex.length;
+  int get estimatedBytes {
+    var bytes = 160 + 2 * latex.length;
+    for (final s in ink) {
+      bytes += s.estimatedBytes;
+    }
+    return bytes;
+  }
 
-  /// `engine` is always written (null when [engineId] is unset — 7.2.7 v2.1).
+  /// `engine` is always written (null when [engineId] is unset — 7.2.7 v2.1). (math pen) `ink`
+  /// is always written too: the Stroke JSON list, or null when [ink] is empty.
   @override
   Map<String, Object?> toJson() => _objectJson(this, {
     'latex': latex,
     'style': style.toJson(),
     'engine': engineId,
+    'ink': ink.isEmpty ? null : [for (final s in ink) s.toJson()],
   });
 
   factory MathObject._fromJson(Map<String, Object?> json) => MathObject(
@@ -129,11 +156,31 @@ final class MathObject extends PageObject {
     latex: readString(json, 'latex'),
     style: MathStyle.fromJson(readMap(json, 'style')),
     engineId: readStringOrNull(json, 'engine'),
+    ink: _readInk(json),
     createdAt: readInt(json, 'createdAt'),
     updatedAt: readInt(json, 'updatedAt'),
     deletedAt: readIntOrNull(json, 'deletedAt'),
     version: readVersion(json),
   );
+
+  /// (math pen) `ink` is optional: a missing key (JSON of an older app) or null → empty; a
+  /// list with any unreadable entry also reads as empty, so the formula itself is kept (the
+  /// broken handwriting is lost — design note 5.3, risk R3).
+  static List<Stroke> _readInk(Map<String, Object?> json) {
+    final raw = json['ink'];
+    if (raw is! List) return const [];
+    try {
+      return [for (final e in raw) Stroke.fromJson(asMap(e, 'ink'))];
+    } on FormatException {
+      return const [];
+    } on ArgumentError {
+      return const []; // RangeError included
+    } on TypeError {
+      return const [];
+    }
+  }
+
+  static const ListEquality<Stroke> _inkEquality = ListEquality<Stroke>();
 
   // CORE 4.3: ==, hashCode over every field
   @override
@@ -145,6 +192,7 @@ final class MathObject extends PageObject {
       other.latex == latex &&
       other.style == style &&
       other.engineId == engineId &&
+      _inkEquality.equals(other.ink, ink) &&
       other.createdAt == createdAt &&
       other.updatedAt == updatedAt &&
       other.deletedAt == deletedAt &&
@@ -158,6 +206,7 @@ final class MathObject extends PageObject {
     latex,
     style,
     engineId,
+    _inkEquality.hash(ink),
     createdAt,
     updatedAt,
     deletedAt,
@@ -167,5 +216,6 @@ final class MathObject extends PageObject {
   @override
   String toString() =>
       'MathObject($id, page: $pageId, ${latex.length} chars'
+      '${ink.isEmpty ? '' : ', ${ink.length} ink strokes'}'
       '${isDeleted ? ', deleted' : ''})';
 }
