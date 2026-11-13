@@ -16,6 +16,13 @@ export 'src/actions/recognition_actions.dart'
 export 'src/indexer/handwriting_indexer.dart' show HandwritingIndexer;
 export 'src/indexer/indexer_status.dart'
     show HandwritingIndexerStatus, HandwritingIndexerPhase;
+// (handwriting search — m5-7/05-library 6.19a) for the library's search hint.
+export 'src/indexer/search_readiness.dart'
+    show
+        HandwritingSearchPhase,
+        HandwritingSearchStatus,
+        HandwritingSearchReadiness,
+        handwritingSearchReadinessProvider;
 export 'src/lines/group_into_lines.dart' show groupIntoLines;
 // (math pen, phase 1 — docs/plans/m5-7/research/math-pen-phase1.md 11.1)
 export 'src/math_pen/math_pen.dart'

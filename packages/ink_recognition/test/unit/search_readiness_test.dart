@@ -1,0 +1,216 @@
+// handwritingSearchReadinessProvider (handwriting search — m5-7/05-library
+// 6.19a): the phase the library's search hint shows (autoIndexOff, the model
+// states, indexing with the pages left, ready), [켜기] = recog.autoIndex on
+// and the model asked for, [지금 받기] (Wi-Fi only / cellular), and the search
+// opening → dirty pages recognized now.
+@TestOn('vm')
+library;
+
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ink_recognition/ink_recognition.dart';
+import 'package:ink_recognition/src/ports/model_admin.dart';
+import 'package:ink_recognition/src/settings/recognition_settings_keys.dart';
+import 'package:ink_recognition/src/ui/model_downloads.dart';
+import 'package:ink_recognition/testing.dart';
+import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart' as core_testing;
+
+/// Android-like: model missing; a Wi-Fi-only download waits until [wifi]
+/// completes, a cellular one ends at once.
+final class _Engine implements HandwritingRecognizer, RecognizerModelAdmin {
+  final Completer<void> wifi = Completer<void>();
+  final List<bool> ensured = [];
+  final StreamController<String> _changes = StreamController.broadcast();
+  bool ready = false;
+
+  @override
+  bool get enforcesWifiOnly => true;
+  @override
+  Stream<String> get modelChanges => _changes.stream;
+  @override
+  Future<void> deleteModel(String languageTag) async {}
+
+  @override
+  String get engineId => 'android-like';
+  @override
+  bool get isAvailable => true;
+  @override
+  Future<RecognitionModelState> modelState(String languageTag) async =>
+      ready ? RecognitionModelState.ready : RecognitionModelState.notDownloaded;
+  @override
+  Future<void> ensureModel(String languageTag, {bool wifiOnly = true}) async {
+    ensured.add(wifiOnly);
+    if (wifiOnly) await wifi.future;
+    ready = true;
+    _changes.add(languageTag);
+  }
+
+  @override
+  Future<List<TextCandidate>> recognizeLine(
+    HandwritingLineInput line, {
+    required String languageTag,
+  }) async => [TextCandidate('글', languageTag: languageTag)];
+  @override
+  Future<void> dispose() async => _changes.close();
+}
+
+ProviderContainer _container(
+  core.NoteStore store,
+  HandwritingRecognizer recognizer,
+) => ProviderContainer(
+  overrides: [
+    core.noteStoreProvider.overrideWithValue(store),
+    ...recognitionOverrides().where(
+      (o) => o.origin != handwritingRecognizerProvider,
+    ),
+    handwritingRecognizerProvider.overrideWithValue(recognizer),
+  ],
+);
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) {
+    await tester.pump();
+  }
+}
+
+/// The indexer started (INFRA's idle task) and the readiness read.
+Future<HandwritingSearchReadiness> _open(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  container.read(handwritingIndexerProvider)!.start();
+  final r = container.read(handwritingSearchReadinessProvider)!;
+  await _settle(tester);
+  return r;
+}
+
+HandwritingSearchPhase _phase(HandwritingSearchReadiness r) =>
+    r.status.value.phase;
+
+void main() {
+  test('no available engine → null', () {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final container = _container(
+      store,
+      FakeHandwritingRecognizer(isAvailable: false),
+    );
+    addTearDown(container.dispose);
+    expect(container.read(handwritingSearchReadinessProvider), isNull);
+  });
+
+  testWidgets('autoIndex off → autoIndexOff; [켜기] → on and ready', (
+    tester,
+  ) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    await store.settings.set(RecognitionSettingsKeys.autoIndex, false);
+    final container = _container(store, FakeHandwritingRecognizer());
+    final r = await _open(tester, container);
+    expect(_phase(r), HandwritingSearchPhase.autoIndexOff);
+
+    await r.turnOnAutoIndex();
+    await _settle(tester);
+    expect(await store.settings.get(RecognitionSettingsKeys.autoIndex), isTrue);
+    expect(_phase(r), HandwritingSearchPhase.ready);
+    container.dispose();
+    await _settle(tester);
+  });
+
+  testWidgets('model missing on Android: downloading → waiting for Wi-Fi '
+      'after 5 s → [지금 받기] over cellular → ready', (tester) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final engine = _Engine();
+    final container = _container(store, engine);
+    final r = await _open(tester, container);
+    // On by default: the start asked for the model (Wi-Fi only).
+    expect(engine.ensured, contains(true));
+    expect(_phase(r), HandwritingSearchPhase.modelDownloading);
+    expect(r.status.value.confirmCellularFirst, isFalse);
+
+    await tester.pump(kWifiWaitBeforeCellular);
+    await _settle(tester);
+    expect(_phase(r), HandwritingSearchPhase.waitingForWifi);
+
+    await r.downloadModel(cellular: true);
+    await _settle(tester);
+    expect(engine.ensured, contains(false));
+    expect(
+      container.read(modelDownloadsProvider).stateOf('ko'),
+      ModelDownloadState.none,
+    );
+    // modelChanges → the indexer sees the model and resumes.
+    expect(_phase(r), HandwritingSearchPhase.ready);
+    container.dispose();
+    await _settle(tester);
+  });
+
+  testWidgets('iPad: model missing → modelMissing, confirm cellular first '
+      'with Wi-Fi only; [지금 받기] → ready', (tester) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final engine = FakeHandwritingRecognizer()
+      ..enforcesWifiOnly = false
+      ..modelStates['ko'] = RecognitionModelState.notDownloaded;
+    final container = _container(store, engine);
+    final r = await _open(tester, container);
+    expect(_phase(r), HandwritingSearchPhase.modelMissing);
+    expect(r.status.value.confirmCellularFirst, isTrue);
+    expect(engine.ensureModelCalls, 0);
+
+    await r.downloadModel();
+    await _settle(tester);
+    expect(engine.ensureModelCalls, 1);
+    expect(_phase(r), HandwritingSearchPhase.ready);
+    container.dispose();
+    await _settle(tester);
+  });
+
+  testWidgets('pages waiting → indexing (n pages left); the search opening '
+      'recognizes them now → ready', (tester) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final engine = FakeHandwritingRecognizer();
+    final container = _container(store, engine);
+    final r = await _open(tester, container);
+    expect(_phase(r), HandwritingSearchPhase.ready);
+
+    final note = await store.library.createNote(
+      title: 'n',
+      pages: [core.PageDraft.blankA4, core.PageDraft.blankA4],
+    );
+    final pages = [for (final p in await store.content.pagesOf(note.id)) p.id];
+    final session = await store.openSession(note.id);
+    for (final page in pages) {
+      await session.openPage(page);
+      await session
+          .execute(
+            core.AddStrokes(
+              pageId: page,
+              strokes: SyntheticHandwriting.lines(pageId: page, lineCount: 2),
+            ),
+          )
+          .persisted;
+    }
+    await session.close();
+    await _settle(tester);
+    expect(_phase(r), HandwritingSearchPhase.indexing);
+    expect(r.status.value.remainingPages, 2);
+    expect(engine.calls, isEmpty);
+
+    r.searchOpened();
+    await _settle(tester);
+    expect(engine.calls, isNotEmpty);
+    for (var i = 0; i < 50 && _phase(r) != HandwritingSearchPhase.ready; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    expect(_phase(r), HandwritingSearchPhase.ready);
+    expect(await store.handwriting.forPage(pages.last), isNotNull);
+    container.dispose();
+    await _settle(tester);
+  });
+}

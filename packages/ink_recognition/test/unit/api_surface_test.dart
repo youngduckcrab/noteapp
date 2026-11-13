@@ -67,6 +67,11 @@ const List<String> kExportedNames = [
   'HandwritingIndexer',
   'HandwritingIndexerStatus',
   'HandwritingIndexerPhase',
+  // (handwriting search — the library's search hint)
+  'HandwritingSearchPhase',
+  'HandwritingSearchStatus',
+  'HandwritingSearchReadiness',
+  'handwritingSearchReadinessProvider',
   'RecognitionSettingsSection',
 ];
 
@@ -136,9 +141,9 @@ String _failureName(RecognitionFailure f) => switch (f) {
 };
 
 void main() {
-  test('the export list has the 35 contract names + 4 math pen names, no '
-      'duplicates', () {
-    expect(kExportedNames, hasLength(39)); // (math pen) 35 + 4
+  test('the export list has the 35 contract names + 4 math pen names + 4 '
+      'search hint names, no duplicates', () {
+    expect(kExportedNames, hasLength(43)); // 35 + 4 (math pen) + 4 (search)
     expect(kExportedNames.toSet(), hasLength(kExportedNames.length));
   });
 

@@ -17,7 +17,9 @@
 //   available engine; otherwise an indexer whose `enabled` follows
 //   recog.autoIndex (store.settings.watch). Never calls start() (INFRA's
 //   idle task 'recognition.indexer' does — 7.3.3); disposed with the
-//   container (dispose() is idempotent — INFRA may call it too).
+//   container (dispose() is idempotent — INFRA may call it too). (handwriting
+//   search) recog.autoIndex on at the first value (the default) → the model
+//   is asked for as the settings switch does (onAutoIndexTurnedOn).
 // - (L2-11) recognitionDevOverlayLinesProvider: the 4.4.9 lines (status,
 //   last job, model state, math engine); no indexer → the fixed line.
 import 'dart:async';
@@ -42,7 +44,9 @@ import 'ports/handwriting_recognizer.dart';
 import 'ports/math_recognizer.dart';
 import 'ports/model_admin.dart';
 import 'settings/recognition_settings_keys.dart';
+import 'settings/recognition_settings_section.dart' show onAutoIndexTurnedOn;
 import 'shapes/geometric_shape_fitter.dart';
+import 'ui/model_downloads.dart';
 
 // --- providers: overridden ONLY through recognitionOverrides() ---
 final handwritingRecognizerProvider = Provider<HandwritingRecognizer>(
@@ -143,11 +147,28 @@ final handwritingIndexerProvider = Provider<HandwritingIndexer?>((ref) {
   // Riverpod 3 — the setting must reach the indexer anyway.
   final enabled = ValueNotifier<bool>(false);
   var disposed = false;
+  var first = true;
   final autoIndex = store.settings
       .watch(RecognitionSettingsKeys.autoIndex)
       .listen(
         (value) {
-          if (!disposed) enabled.value = value;
+          if (disposed) return;
+          enabled.value = value;
+          // (handwriting search) on at start — the default since U16
+          // changed: the model is asked for as the settings switch does
+          // (Android downloads it, Wi-Fi only per recog.modelWifiOnly; iPad
+          // emphasises [받기]). A later change comes from a switch that
+          // asks itself.
+          if (first && value) {
+            unawaited(
+              _askModelAtStart(
+                store.settings,
+                recognizer,
+                ref.read(modelDownloadsProvider),
+              ),
+            );
+          }
+          first = false;
         },
         onError: (Object e, StackTrace s) =>
             reportRecognitionError(e, s, 'recog.autoIndex'),
@@ -165,6 +186,30 @@ final handwritingIndexerProvider = Provider<HandwritingIndexer?>((ref) {
   });
   return indexer;
 }, name: 'handwritingIndexerProvider');
+
+Future<void> _askModelAtStart(
+  core.SettingsRepository settings,
+  HandwritingRecognizer recognizer,
+  ModelDownloads downloads,
+) async {
+  final String language;
+  final bool wifiOnly;
+  try {
+    language = recognitionLanguageOf(
+      await settings.get(RecognitionSettingsKeys.language),
+    );
+    wifiOnly = await settings.get(RecognitionSettingsKeys.modelWifiOnly);
+  } on Object catch (e, s) {
+    reportRecognitionError(e, s, 'recog settings at start');
+    return;
+  }
+  await onAutoIndexTurnedOn(
+    recognizer: recognizer,
+    downloads: downloads,
+    language: language,
+    wifiOnly: wifiOnly,
+  );
+}
 
 /// (v2.1, CP-L2 = INFRA CP4) Developer overlay lines; same shape as mediaDevOverlayLinesProvider.
 // 4.4.9: 'phase · lang · queue n · done n · failed n' (status.toString()),

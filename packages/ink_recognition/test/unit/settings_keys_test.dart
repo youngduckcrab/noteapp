@@ -34,7 +34,8 @@ void main() {
     expect(RecognitionSettingsKeys.mathConsent.defaultValue, isFalse);
     expect(RecognitionSettingsKeys.autoIndex, isA<SettingKey<bool>>());
     expect(RecognitionSettingsKeys.autoIndex.scope, SettingScope.device);
-    expect(RecognitionSettingsKeys.autoIndex.defaultValue, isFalse);
+    // U16 changed (handwriting search): on by default.
+    expect(RecognitionSettingsKeys.autoIndex.defaultValue, isTrue);
     expect(RecognitionSettingsKeys.modelWifiOnly, isA<SettingKey<bool>>());
     expect(RecognitionSettingsKeys.modelWifiOnly.scope, SettingScope.device);
     expect(RecognitionSettingsKeys.modelWifiOnly.defaultValue, isTrue);

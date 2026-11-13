@@ -25,6 +25,11 @@
 //    (pageId, rev); CORE write errors → one report, failed;
 //    EntityNotFoundException → skipped silently;
 //  - IndexerMetrics: our part of each job (Stopwatch — never a decision).
+//  - (handwriting search) retries: failed[] lives in memory, so the next
+//    launch's catch-up tries those pages again; the model turning ready
+//    clears it once more; indexDirtyPagesNow (the library search opened)
+//    queues the pages waiting for their quiet time and asks a failed
+//    download again.
 // L2-10b — ②: line reuse (a stored line with the same stroke set → no engine
 // call), the confirmed-line merge inside update (line_reuse.dart) and the
 // catch-up (catch_up.dart: notesWithStalePages at start() and whenever
@@ -87,6 +92,11 @@ abstract final class IndexerTuning {
 /// (internal) The developer-overlay timings of [indexer] (4.4.9 — read by
 /// recognitionDevOverlayLinesProvider; not a public member).
 IndexerMetrics metricsOf(HandwritingIndexer indexer) => indexer._metrics;
+
+/// (internal, handwriting search) The library search was opened: pages
+/// waiting for their quiet time are queued now, and a failed model download
+/// is asked again. Cheap — no page is read here.
+void indexDirtyPagesNow(HandwritingIndexer indexer) => indexer._indexNow();
 
 /// (internal) groupTraceIndices in another isolate (pages above
 /// IndexerTuning.computeAboveStrokes — 6.9.2). The indexer never runs on the
@@ -422,6 +432,22 @@ final class HandwritingIndexer {
     }
   }
 
+  /// [indexDirtyPagesNow]: every quiet timer fires now (the user is in the
+  /// library, not writing); a failed download is asked again.
+  void _indexNow() {
+    if (!_active) return;
+    for (final pageId in List.of(_quiet.keys)) {
+      _quiet.remove(pageId)?.cancel();
+      final noteId = _quietNotes.remove(pageId);
+      if (noteId != null) _queue.add(noteId, pageId, QueueLane.ready);
+    }
+    if (_modelWait?.endsWith('download failed') ?? false) {
+      unawaited(_checkModel());
+    }
+    _publish();
+    _pump();
+  }
+
   void _onQuiet(core.PageId pageId) {
     _quiet.remove(pageId);
     final noteId = _quietNotes.remove(pageId);
@@ -565,10 +591,7 @@ final class HandwritingIndexer {
     if (epoch != _modelEpoch || !_active) return;
     switch (state) {
       case RecognitionModelState.ready:
-        _modelReady = true;
-        _modelWait = null;
-        _publish();
-        _pump();
+        _modelBecameReady();
       case RecognitionModelState.unsupported:
         _modelReady = false;
         _modelWait = 'model $lang: unsupported';
@@ -607,8 +630,20 @@ final class HandwritingIndexer {
       return; // modelChanges / a language, Wi-Fi or enabled change retries
     }
     if (epoch != _modelEpoch || !_active) return;
+    _modelBecameReady();
+  }
+
+  /// The model is ready. When it was not before, the pages that failed
+  /// (engine errors) get one more try: their rev is forgotten and the
+  /// catch-up queues them again (a later launch starts with none failed).
+  void _modelBecameReady() {
+    final was = _modelReady;
     _modelReady = true;
     _modelWait = null;
+    if (!was && _failed.isNotEmpty) {
+      _failed.clear();
+      _startCatchUp();
+    }
     _publish();
     _pump();
   }

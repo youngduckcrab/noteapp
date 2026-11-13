@@ -5,7 +5,7 @@
 // exception, the settings section builds, and an available engine gives an
 // indexer that the container disposes. (L2-07) recognitionOverrides() gives
 // GeometricShapeFitter to INK. (L2-10a) start() runs the indexer; the
-// provider's `enabled` stays false until L2-11 (recog.autoIndex) → disabled.
+// provider's `enabled` follows recog.autoIndex — on by default (U16 changed).
 // (L2-08) The VM is Android in tests, so recognitionOverrides() gives the ML
 // Kit adapter (6.7.1, 3.4): an indexer is built (not started); no plugin
 // channel is faked here (contract 7.4.6 — only native/mlkit_adapter_test).
@@ -92,7 +92,8 @@ void main() {
       // binding — testWidgets has it.
       indexer!.start();
       await tester.pump();
-      expect(indexer.status.value.phase, HandwritingIndexerPhase.disabled);
+      // recog.autoIndex is on by default (U16 changed — handwriting search).
+      expect(indexer.status.value.phase, HandwritingIndexerPhase.idle);
       expect(recognizer.calls, isEmpty);
 
       container.dispose(); // onDispose → indexer.dispose(); idempotent

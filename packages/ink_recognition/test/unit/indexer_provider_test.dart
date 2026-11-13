@@ -17,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/src/l10n/recognition_strings.dart';
 import 'package:ink_recognition/src/settings/recognition_settings_keys.dart';
+import 'package:ink_recognition/src/ui/model_downloads.dart';
 import 'package:ink_recognition/testing.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
@@ -32,9 +33,14 @@ final class _WaitingForWifi implements HandwritingRecognizer {
   @override
   Future<RecognitionModelState> modelState(String languageTag) async =>
       RecognitionModelState.notDownloaded;
+  final List<(String, bool)> ensured = [];
+
   @override
-  Future<void> ensureModel(String languageTag, {bool wifiOnly = true}) =>
-      download.future;
+  Future<void> ensureModel(String languageTag, {bool wifiOnly = true}) {
+    ensured.add((languageTag, wifiOnly));
+    return download.future;
+  }
+
   @override
   Future<List<TextCandidate>> recognizeLine(
     HandwritingLineInput line, {
@@ -102,15 +108,57 @@ void main() {
     final indexer = container.read(handwritingIndexerProvider)!;
     indexer.start(); // INFRA's idle task
     await settle(tester);
-    expect(indexer.status.value.phase, HandwritingIndexerPhase.disabled);
-
-    await store.settings.set(RecognitionSettingsKeys.autoIndex, true);
-    await settle(tester);
+    // Unset → the default, on (U16 changed — handwriting search).
     expect(indexer.status.value.phase, HandwritingIndexerPhase.idle);
 
     await store.settings.set(RecognitionSettingsKeys.autoIndex, false);
     await settle(tester);
     expect(indexer.status.value.phase, HandwritingIndexerPhase.disabled);
+
+    await store.settings.set(RecognitionSettingsKeys.autoIndex, true);
+    await settle(tester);
+    expect(indexer.status.value.phase, HandwritingIndexerPhase.idle);
+  });
+
+  testWidgets('on at start with the model missing (Android) → the download '
+      'starts as the switch does: one user download, Wi-Fi only', (
+    tester,
+  ) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final engine = _WaitingForWifi();
+    final container = containerFor(store, engine);
+    container.read(handwritingIndexerProvider)!.start();
+    await settle(tester);
+    final downloads = container.read(modelDownloadsProvider);
+    expect(downloads.stateOf('ko'), ModelDownloadState.downloading);
+    expect(engine.ensured, contains(('ko', true)));
+    await tester.pump(kWifiWaitBeforeCellular);
+    expect(downloads.stateOf('ko'), ModelDownloadState.waitingForWifi);
+    // Waiting breaks nothing: the indexer just waits for the model.
+    expect(
+      container.read(handwritingIndexerProvider)!.status.value.phase,
+      HandwritingIndexerPhase.waitingModel,
+    );
+    container.dispose();
+    await settle(tester);
+  });
+
+  testWidgets('off at start → no download is asked for', (tester) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    await store.settings.set(RecognitionSettingsKeys.autoIndex, false);
+    final engine = _WaitingForWifi();
+    final container = containerFor(store, engine);
+    container.read(handwritingIndexerProvider)!.start();
+    await settle(tester);
+    expect(
+      container.read(modelDownloadsProvider).stateOf('ko'),
+      ModelDownloadState.none,
+    );
+    expect(engine.ensured, isEmpty);
+    container.dispose();
+    await settle(tester);
   });
 
   testWidgets('the container disposes the indexer; INFRA disposing it too is '
@@ -197,6 +245,9 @@ void main() {
     await settle(tester);
     expect(lines.value[0], 'waitingModel · ko · model ko: waiting for Wi-Fi');
     expect(lines.value[2], 'model ko: notDownloaded · waiting for Wi-Fi');
+    // The start-up download's Wi-Fi timer (ModelDownloads) ends with it.
+    container.dispose();
+    await settle(tester);
   });
 
   test('math line: callable with consent off / on; another engine', () async {

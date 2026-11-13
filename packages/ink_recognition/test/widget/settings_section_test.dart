@@ -35,16 +35,23 @@ import '../support/model_engine.dart';
 import '../support/recognition_test_scope.dart';
 
 /// The section as INFRA mounts it: Scaffold → scroll → at most 720 wide.
+/// [autoIndex] is stored first (default false: these cases start from '자동
+/// 인식' off, as a user who turned it off; null leaves it unset — the
+/// default, on).
 Future<core.NoteStore> _pump(
   WidgetTester tester, {
   List<Override> overrides = const [],
   Size size = kIpadPortrait,
+  bool? autoIndex = false,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final store = createFixedClockStore();
   addTearDown(store.close);
+  if (autoIndex != null) {
+    await store.settings.set(RecognitionSettingsKeys.autoIndex, autoIndex);
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -253,9 +260,17 @@ void main() {
     final store = await _pump(
       tester,
       overrides: [_engine(FakeHandwritingRecognizer())],
+      autoIndex: null,
     );
     expect(_language(tester), 'ko');
     expect(_switchOn(tester, RecognitionSettingsUiKeys.wifiOnly), isTrue);
+    // (handwriting search) U16 changed: on by default, nothing stored.
+    expect(_switchOn(tester, RecognitionSettingsUiKeys.autoIndex), isTrue);
+    await _tap(tester, find.byKey(RecognitionSettingsUiKeys.autoIndex));
+    expect(
+      await store.settings.get(RecognitionSettingsKeys.autoIndex),
+      isFalse,
+    );
     expect(_switchOn(tester, RecognitionSettingsUiKeys.autoIndex), isFalse);
     expect(_switchOn(tester, RecognitionSettingsUiKeys.consent), isFalse);
 

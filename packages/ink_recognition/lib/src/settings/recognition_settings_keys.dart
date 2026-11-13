@@ -20,10 +20,13 @@ abstract final class RecognitionSettingsKeys {
     scope: SettingScope.synced,
   );
 
-  /// U16: automatic recognition for search (default off).
+  /// U16 (changed — handwriting search): automatic recognition for search,
+  /// default ON, so handwriting is searchable without visiting settings. A
+  /// user who never touched the switch gets the default (nothing is stored
+  /// until they do); one who turned it off keeps it off.
   static final SettingKey<bool> autoIndex = SettingKey.boolean(
     'recog.autoIndex',
-    false,
+    true,
     scope: SettingScope.device,
   );
 
