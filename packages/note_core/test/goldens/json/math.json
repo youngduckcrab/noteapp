@@ -15,6 +15,7 @@
     "fontSizePt": 18.0
   },
   "engine": "manual",
+  "ink": null,
   "createdAt": 1793750400005,
   "updatedAt": 1793750400005,
   "deletedAt": null,
