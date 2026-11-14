@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 
 import '../tuning.dart';
+import 'pens/texture/texture_tiles.dart';
 
 /// Deterministic tileable grain texture for the pencil (6.11). Generated asynchronously once.
 final class PencilGrain extends ValueNotifier<ui.Image?> {
@@ -18,6 +19,7 @@ final class PencilGrain extends ValueNotifier<ui.Image?> {
   final Completer<ui.Image> _ready = Completer<ui.Image>();
   bool _started = false;
   bool _disposed = false;
+  TextureTiles? _tiles;
 
   Future<ui.Image> get ready {
     _ensureStarted();
@@ -42,15 +44,23 @@ final class PencilGrain extends ValueNotifier<ui.Image?> {
     const size = InkTuning.grainSize;
     final pixels = generatePixels();
     try {
-      ui.decodeImageFromPixels(pixels, size, size, ui.PixelFormat.rgba8888, (
-        image,
-      ) {
-        if (_disposed) {
-          image.dispose();
-          return;
-        }
-        value = image;
-        if (!_ready.isCompleted) _ready.complete(image);
+      // (v2.11, C211-01) the texture pens' tiles are decoded first and
+      // registered for the grain image before it is published: a painter that
+      // has the grain has the tiles (render/pens/texture/texture_tiles.dart).
+      TextureTiles.decode((tiles) {
+        ui.decodeImageFromPixels(pixels, size, size, ui.PixelFormat.rgba8888, (
+          image,
+        ) {
+          if (_disposed) {
+            image.dispose();
+            tiles?.dispose();
+            return;
+          }
+          _tiles = tiles;
+          if (tiles != null) TextureTiles.register(image, tiles);
+          value = image;
+          if (!_ready.isCompleted) _ready.complete(image);
+        });
       });
     } on Object catch (error, stack) {
       // Painters draw without grain until it is ready (6.11); report and go on.
@@ -119,6 +129,7 @@ final class PencilGrain extends ValueNotifier<ui.Image?> {
   void dispose() {
     _disposed = true;
     super.value?.dispose();
+    _tiles?.dispose();
     super.dispose();
   }
 }

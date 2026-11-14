@@ -22,7 +22,7 @@ abstract final class TexturePenProfiles {
     tiltOpacityLoss: 0,
     cap: InkCap.round,
     renderMethod: InkRenderMethod.filledOutline,
-    textured: false,
+    textured: true,
     groupComposite: false,
   );
 
@@ -39,7 +39,7 @@ abstract final class TexturePenProfiles {
     tiltOpacityLoss: 0,
     cap: InkCap.round,
     renderMethod: InkRenderMethod.filledOutline,
-    textured: false,
+    textured: true,
     groupComposite: false,
   );
 
@@ -56,7 +56,7 @@ abstract final class TexturePenProfiles {
     tiltOpacityLoss: 0,
     cap: InkCap.round,
     renderMethod: InkRenderMethod.filledOutline,
-    textured: false,
+    textured: true,
     groupComposite: false,
   );
 

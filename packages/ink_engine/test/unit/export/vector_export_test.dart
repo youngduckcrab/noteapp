@@ -11,6 +11,7 @@ import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/geometry/outline_generator.dart';
 import 'package:ink_engine/src/render/highlighter_compositor.dart';
 import 'package:ink_engine/src/render/layer_painters.dart';
+import 'package:ink_engine/src/render/pens/texture/pencil_pen.dart';
 import 'package:ink_engine/src/render/stroke_painter.dart';
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -483,8 +484,13 @@ void main() {
         createdAt: tools.length,
       );
       final v = InkVectorExport.exportStrokes([...strokes, tape]);
-      expect(v.inkShapes.map((s) => s.tool), tools);
-      expect(v.inkShapes.map((s) => s.strokeId), tools.map((t) => t.name));
+      // (v2.11, C211-01) a texture pen may export several pieces per stroke
+      // (same strokeId and tool, consecutive): one entry per stroke here
+      final perStroke = <String, core.PenTool>{
+        for (final s in v.inkShapes) s.strokeId: s.tool,
+      };
+      expect(perStroke.values, tools);
+      expect(perStroke.keys, tools.map((t) => t.name));
       for (final s in v.inkShapes) {
         expect(s.tool, isA<core.PenTool>());
       }
@@ -538,7 +544,9 @@ void main() {
       );
       final v = InkVectorExport.exportStrokes([flat, tilted]);
       expect(v.inkShapes[0].tool, core.PenTool.pencil);
-      expect(v.inkShapes[0].colorArgb, 0xFF3C3C3C);
+      // (v2.11, C211-01) dark pencil colors move toward graphite gray
+      expect(v.inkShapes[0].colorArgb, pencilColour(0xFF3C3C3C));
+      expect(v.inkShapes[0].colorArgb, isNot(0xFF3C3C3C));
       expect(v.inkShapes[0].opacity, closeTo(0.9 * 0.85, 1e-9));
       // The tilt lowers the screen opacity (6.11); export keeps that factor.
       expect(strokeOpacity(tilted), lessThan(0.8));

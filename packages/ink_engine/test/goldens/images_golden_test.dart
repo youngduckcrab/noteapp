@@ -28,6 +28,10 @@ const Set<String> _roundTwo = {
   'pens_p1_tape.png',
   'shapes_lines.png',
   'shapes_fill_arrows.png',
+  // (v2.11, C211-01) the texture pens
+  'texture_pens_white.png',
+  'texture_pens_black.png',
+  'texture_pens_vectors.png',
 };
 
 List<File> _pngs(String dir) =>
