@@ -54,6 +54,45 @@ void main() {
     );
   });
 
+  // (v2.11, C211-01) B3t: the texture pens. The pencil and the brush on the B3
+  // page itself; the new pens on a dense page of 1000 strokes × 40 points
+  // (≈ 110 pt each — every texture stroke is several bands, so a page of them
+  // costs several times a ballpoint page; review of the texture track).
+  for (final (tool, count, points, limit) in [
+    (core.PenTool.pencil, 2000, 150, 500.0),
+    (core.PenTool.brush, 2000, 150, 1500.0),
+    (core.PenTool.crayon, 1000, 40, 1000.0),
+    (core.PenTool.chalk, 1000, 40, 1000.0),
+    (core.PenTool.watercolor, 1000, 40, 1000.0),
+    (core.PenTool.spray, 1000, 40, 1200.0),
+  ]) {
+    test('B3t page acceptance: ${tool.name}, $count strokes × $points '
+        'points', () {
+      final source = handwriting(count: count, points: points, tool: tool);
+      late InkPageContent content;
+      late InkPageController c;
+      final stats = measure(
+        () {
+          c.updateContent(content);
+          _paintInkBase(c);
+        },
+        setUp: () {
+          content = pageOf(freshCopies(source));
+          c = createTestPageController();
+        },
+        warmup: 1,
+        runs: 5,
+      );
+      c.dispose();
+      report(
+        'B3t',
+        '${tool.name} $count × $points pt',
+        stats,
+        criteria: {'median_ms': limit},
+      );
+    });
+  }
+
   test('B8 chunk re-record: one chunk of 1000 strokes', () {
     // Synthetic strokes on a 240 pt square: all of them in chunk (0, 0).
     final strokes = synthetic(1000, pageSize: const core.PageSize(240, 240));

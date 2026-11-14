@@ -795,10 +795,12 @@ List<InkStroke> _zOrdered(List<InkStroke> strokes) {
 int _opaque(int argb) => 0xFF000000 + argb % 0x1000000;
 
 /// The screen opacity (style.opacity × pencil tilt factor) × [pencilFactor]
-/// for the textured pencil; clamped to [0, 1].
+/// for the textured pencil; clamped to [0, 1]. (v2.11, C211-01) Only the
+/// pencil: the texture pens (crayon, chalk, watercolor) calibrate their own
+/// flat PDF layers to the textured screen, so the grain factor would count twice.
 double _fillOpacity(InkStroke s, double pencilFactor) {
   var o = strokeOpacity(s);
-  if (s.profile.textured) {
+  if (s.profile.textured && s.style.tool == core.PenTool.pencil) {
     o *= pencilFactor.isNaN
         ? InkTuning.exportPencilOpacityFactor
         : pencilFactor;

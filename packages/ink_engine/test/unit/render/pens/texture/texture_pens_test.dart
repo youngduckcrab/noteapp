@@ -10,6 +10,8 @@
 //     colors and opacity in (0, 1], inside the bounds;
 //   * the live paint works with and without the tiles;
 //   * the tiles: channels equalized, fixed checksum, generated once with the grain;
+//   (the review regressions — cost, cache, PDF tone, live look, short strokes —
+//   are in texture_review_test.dart)
 //   * the texture files use no bit operators (7.4.3, web = VM).
 import 'dart:io';
 import 'dart:math' as math;
@@ -135,7 +137,8 @@ void main() {
   group('K-1 and determinism with the tiles', () {
     for (final tool in _tools) {
       test(tool.name, () async {
-        for (final width in [1.0, 4.0, 12.0]) {
+        // (review) also a hairline and a very wide stroke
+        for (final width in [0.3, 1.0, 4.0, 12.0, 30.0]) {
           for (final source in _strokes(tool, width)) {
             final s = InkStroke.of(source);
             final b = s.bounds;
@@ -242,18 +245,19 @@ void main() {
         expect(again[i].path.coords, page.inkShapes[i].path.coords);
       }
     }
-    // several layers where the screen has several (pencil stays one piece)
+    // several layers where the screen has several (the pencil and the brush —
+    // its dry-brush gaps cut out of the one piece — stay one piece)
     int count(core.PenTool t) =>
         InkVectorExport.exportStrokes([InkStroke.of(_real(t, 5, id: 'n'))])
             .inkShapes
             .length;
     expect(count(core.PenTool.pencil), 1);
+    expect(count(core.PenTool.brush), 1);
     for (final t in [
       core.PenTool.crayon,
       core.PenTool.chalk,
       core.PenTool.watercolor,
       core.PenTool.spray,
-      core.PenTool.brush,
     ]) {
       expect(count(t), greaterThan(1), reason: t.name);
     }

@@ -8,7 +8,8 @@
 // outside of bends. The specks sit at arc-length cells hashed from the stroke's
 // createdAt (static, the same on screen and in the PDF). Everything stays
 // within the K-1 reach (Spine.limit), so the haze and dust are narrow on thin
-// chalk. Flat look / PDF: haze, film, three coverage bands, the same specks.
+// chalk. Four coverage levels on screen; flat look / PDF: haze, film, two
+// coverage bands (calibrated to the textured coverage), the same specks.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -23,15 +24,19 @@ import 'texture_tiles.dart';
 const PenRenderer chalkPen = _ChalkPen();
 
 const double _angle = -18;
-const List<double> _levels = [0.1, 0.24, 0.38, 0.52, 0.64, 0.75];
-const List<double> _flatLevels = [0.24, 0.52, 0.75];
+const List<double> _levels = [0.12, 0.3, 0.5, 0.7];
+const List<double> _flatLevels = [0.3, 0.7];
 const double _powder = 0.22;
 
-/// haze: (pt outside the edge, alpha)
-const List<(double, double)> _halo = [(1.7, 0.04), (0.7, 0.05)];
+/// flat (PDF) alphas of the coverage bands × this: the flat bands match the
+/// textured coverage
+const double _flatGain = 1.25;
 
-/// dust specks: (diameter pt at width 4, alpha)
-const List<(double, double)> _dust = [(0.75, 0.3), (1.0, 0.22), (1.3, 0.15)];
+/// haze: (pt outside the edge, alpha)
+const List<(double, double)> _halo = [(1.2, 0.05)];
+
+/// dust specks: (diameter pt at width 4, alpha) — one disc each
+const List<(double, double)> _dust = [(0.8, 0.3), (1.1, 0.22), (1.5, 0.15)];
 
 /// at most this many speck candidates per stroke (longer strokes thin out)
 const int _maxCandidates = 3000;
@@ -43,13 +48,19 @@ final class _Geom {
   final List<StrokeOutline?> levels;
   final List<StrokeOutline?> flat;
 
-  /// per size class: (soft ring, core)
-  final List<(StrokeOutline?, StrokeOutline?)> dust;
+  /// per size class
+  final List<StrokeOutline?> dust;
 }
 
-final Expando<_Geom> _cache = Expando<_Geom>('chalk');
-
-_Geom _geom(InkStroke stroke) => _cache[stroke] ??= _build(Spine.of(stroke));
+_Geom _geom(InkStroke stroke) => textureGeometry(
+  stroke,
+  _build,
+  (g) =>
+      outlinesBytes(g.halo) +
+      outlineBytes(g.powder) +
+      outlinesBytes(g.levels) +
+      outlinesBytes(g.dust),
+);
 
 _Geom _build(Spine sp) {
   final (rl, rr) = sp.ragged(
@@ -81,15 +92,10 @@ _Geom _build(Spine sp) {
   return _Geom(halo, powder, levels, flat, _specks(sp, rl, rr));
 }
 
-List<(StrokeOutline?, StrokeOutline?)> _specks(
-  Spine sp,
-  Float64List rl,
-  Float64List rr,
-) {
+List<StrokeOutline?> _specks(Spine sp, Float64List rl, Float64List rr) {
   final w = sp.width;
   final k = (w / 4).clamp(0.5, 1.5);
-  final soft = [for (final _ in _dust) <Float32List>[]];
-  final core = [for (final _ in _dust) <Float32List>[]];
+  final discs = [for (final _ in _dust) <Float32List>[]];
   if (!sp.isDot) {
     var cell = 0.5 * w;
     final cells = sp.length / cell;
@@ -113,18 +119,17 @@ List<(StrokeOutline?, StrokeOutline?)> _specks(
         final dr = _dust[cls].$1 * k / 2;
         // behind the moving chalk
         final back = (0.3 + 0.9 * noise01(salt, 7 * q + 4)) * w * 0.5;
-        final j = sp.sampleAt(math.max(0, at - back));
+        final at2 = sp.locate(math.max(0, at - back));
         final u = noise01(salt, 7 * q + 2);
-        final rad = (side > 0 ? rl : rr)[j];
+        final rad = Spine.lerp(side > 0 ? rl : rr, at2.i, at2.t);
         final d = math.min(
           rad * (1 + (0.45 + 0.8 * bend) * u * u) + 0.55,
-          sp.limit - 1.4 * dr,
+          sp.limit - dr,
         );
         if (d <= 0) continue;
-        final x = sp.x[j] + sp.nx[j] * d * side;
-        final y = sp.y[j] + sp.ny[j] * d * side;
-        soft[cls].add(circlePolygon(x, y, 1.4 * dr, segments: 10));
-        core[cls].add(circlePolygon(x, y, dr, segments: 8));
+        final x = at2.x + at2.nx * d * side;
+        final y = at2.y + at2.ny * d * side;
+        discs[cls].add(circlePolygon(x, y, dr, segments: 8));
       }
     }
   }
@@ -146,7 +151,7 @@ List<(StrokeOutline?, StrokeOutline?)> _specks(
     );
   }
 
-  return [for (var c = 0; c < _dust.length; c++) (of(soft[c]), of(core[c]))];
+  return [for (var c = 0; c < _dust.length; c++) of(discs[c])];
 }
 
 final class _ChalkPen extends TexturePen {
@@ -157,7 +162,6 @@ final class _ChalkPen extends TexturePen {
     Canvas canvas,
     InkStroke stroke,
     StrokeOutline outline,
-    Spine sp,
     int argb,
     TextureTiles tiles,
   ) {
@@ -194,19 +198,9 @@ final class _ChalkPen extends TexturePen {
         ),
       );
     }
-    _paintDust(canvas, g, argb);
-  }
-
-  void _paintDust(Canvas canvas, _Geom g, int argb) {
     for (var c = 0; c < _dust.length; c++) {
-      final (soft, core) = g.dust[c];
-      final a = _dust[c].$2;
-      if (soft != null) {
-        canvas.drawPath(soft.toPath(), solidPaint(argb, a * 0.45));
-      }
-      if (core != null) {
-        canvas.drawPath(core.toPath(), solidPaint(argb, a));
-      }
+      final d = g.dust[c];
+      if (d != null) canvas.drawPath(d.toPath(), solidPaint(argb, _dust[c].$2));
     }
   }
 
@@ -214,7 +208,7 @@ final class _ChalkPen extends TexturePen {
   List<FlatLayer> flatLayers(
     InkStroke stroke,
     StrokeOutline outline,
-    Spine sp,
+    int argb,
   ) {
     final g = _geom(stroke);
     final alphas = stackedAlphas(_flatLevels, under: _powder);
@@ -222,16 +216,18 @@ final class _ChalkPen extends TexturePen {
       for (var h = 0; h < _halo.length; h++)
         if (g.halo[h] != null)
           (outline: g.halo[h]!, alpha: _halo[h].$2, argb: null),
-      if (g.powder != null) (outline: g.powder!, alpha: _powder, argb: null),
+      if (g.powder != null)
+        (outline: g.powder!, alpha: _powder * 1.55, argb: null),
       for (var j = 0; j < g.flat.length; j++)
         if (g.flat[j] != null && alphas[j] > 0)
-          (outline: g.flat[j]!, alpha: alphas[j] * 0.92, argb: null),
-      for (var c = 0; c < _dust.length; c++) ...[
-        if (g.dust[c].$1 != null)
-          (outline: g.dust[c].$1!, alpha: _dust[c].$2 * 0.45, argb: null),
-        if (g.dust[c].$2 != null)
-          (outline: g.dust[c].$2!, alpha: _dust[c].$2, argb: null),
-      ],
+          (
+            outline: g.flat[j]!,
+            alpha: (alphas[j] * 0.92 * _flatGain).clamp(0.0, 1.0),
+            argb: null,
+          ),
+      for (var c = 0; c < _dust.length; c++)
+        if (g.dust[c] != null)
+          (outline: g.dust[c]!, alpha: _dust[c].$2, argb: null),
     ];
   }
 
@@ -245,7 +241,7 @@ final class _ChalkPen extends TexturePen {
         tiles.tooth,
         argb,
         TileChannel.chalk,
-        1 - 0.6,
+        1 - 0.48,
         0.12,
         amount: 0.92,
         angleDeg: _angle,

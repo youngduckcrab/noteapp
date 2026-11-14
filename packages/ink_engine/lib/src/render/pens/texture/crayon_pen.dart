@@ -6,8 +6,9 @@
 // break up and fade over ~0.8 pt, a faint wax film in the holes, a few grooves
 // along the stroke and wax building up at the start, the end and bends.
 // Coverage levels follow the pressure (the lock app used the hand speed).
-// Flat look / PDF: the film plus four coverage bands with stepped alpha and the
-// build-up bands. See pen_renderer.dart for the rules.
+// Six coverage levels on screen; flat look / PDF: the film plus three coverage
+// bands with stepped alpha (× _flatGain, calibrated to the textured coverage)
+// and the build-up band. See pen_renderer.dart for the rules.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -22,8 +23,11 @@ import 'texture_tiles.dart';
 const PenRenderer crayonPen = _CrayonPen();
 
 const double _angle = 20;
-const List<double> _levels = [0.12, 0.27, 0.42, 0.57, 0.7, 0.81, 0.89, 0.95];
-const List<double> _flatLevels = [0.27, 0.57, 0.81, 0.95];
+const List<double> _levels = [0.14, 0.34, 0.54, 0.72, 0.86, 0.95];
+const List<double> _flatLevels = [0.34, 0.72, 0.95];
+
+/// flat (PDF) alphas × this: the flat bands match the textured coverage
+const double _flatGain = 1.15;
 const double _film = 0.1;
 const int _grooves = 4;
 
@@ -36,9 +40,15 @@ final class _Geom {
   final List<StrokeOutline?> build;
 }
 
-final Expando<_Geom> _cache = Expando<_Geom>('crayon');
-
-_Geom _geom(InkStroke stroke) => _cache[stroke] ??= _build(Spine.of(stroke));
+_Geom _geom(InkStroke stroke) => textureGeometry(
+  stroke,
+  _build,
+  (g) =>
+      outlineBytes(g.film) +
+      outlinesBytes(g.levels) +
+      polygonsBytes(g.grooves) +
+      outlinesBytes(g.build),
+);
 
 _Geom _build(Spine sp) {
   final w = sp.width;
@@ -111,16 +121,7 @@ _Geom _build(Spine sp) {
   );
   final il = times(rl, 0.85), ir = times(rr, 0.85);
   final builds = [
-    for (var lv = 0; lv < 2; lv++)
-      levelShape(
-        sp,
-        il,
-        ir,
-        build,
-        level: lv == 0 ? 0.3 : 0.65,
-        soft: 0.2,
-        salt: 71 * lv,
-      ),
+    levelShape(sp, il, ir, build, level: 0.45, soft: 0.3, salt: 71),
   ];
   return _Geom(film, levels, flat, grooves, builds);
 }
@@ -133,7 +134,6 @@ final class _CrayonPen extends TexturePen {
     Canvas canvas,
     InkStroke stroke,
     StrokeOutline outline,
-    Spine sp,
     int argb,
     TextureTiles tiles,
   ) {
@@ -176,7 +176,8 @@ final class _CrayonPen extends TexturePen {
           0.3,
           amount: 0.85,
           angleDeg: _angle,
-        )..blendMode = BlendMode.dstOut,
+          blendMode: BlendMode.dstOut,
+        ),
       );
     }
     for (final b in g.build) {
@@ -206,7 +207,7 @@ final class _CrayonPen extends TexturePen {
   List<FlatLayer> flatLayers(
     InkStroke stroke,
     StrokeOutline outline,
-    Spine sp,
+    int argb,
   ) {
     final g = _geom(stroke);
     final alphas = stackedAlphas(_flatLevels, under: _film);
@@ -214,7 +215,7 @@ final class _CrayonPen extends TexturePen {
       if (g.film != null) (outline: g.film!, alpha: _film, argb: null),
       for (var j = 0; j < g.flat.length; j++)
         if (g.flat[j] != null && alphas[j] > 0)
-          (outline: g.flat[j]!, alpha: alphas[j], argb: null),
+          (outline: g.flat[j]!, alpha: alphas[j] * _flatGain, argb: null),
       for (final b in g.build)
         if (b != null) (outline: b, alpha: 0.25, argb: null),
     ];
@@ -237,7 +238,7 @@ final class _CrayonPen extends TexturePen {
         tiles.tooth,
         argb,
         TileChannel.wax,
-        1 - 0.85,
+        1 - 0.76,
         0.07,
         angleDeg: _angle,
       ),

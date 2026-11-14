@@ -45,13 +45,16 @@ abstract final class TexturePenProfiles {
 
   static const PenProfile watercolor = PenProfile(
     layer: InkLayer.ink,
-    pressureGain: 0.50,
-    minFactor: 0.50,
-    maxFactor: 1.60,
+    pressureGain: 0.40,
+    minFactor: 0.60,
+    maxFactor: 1.45,
     velocityThinning: 0.20,
-    taperStart: 1.2,
-    taperEnd: 2.0,
-    taperMinFactor: 0.4,
+    // no stored taper: the renderer tapers each end over at most a quarter of
+    // the stroke (watercolor_pen.dart) — the stored tapers (up to 40 % of the
+    // length per end) turned short bars (ㅏ, the dot of ㅎ) into diamonds
+    taperStart: 0,
+    taperEnd: 0,
+    taperMinFactor: 1,
     tiltWidthGain: 0,
     tiltOpacityLoss: 0,
     cap: InkCap.round,
@@ -73,7 +76,9 @@ abstract final class TexturePenProfiles {
     tiltOpacityLoss: 0,
     cap: InkCap.round,
     renderMethod: InkRenderMethod.filledOutline,
-    textured: false,
+    // textured: the mist layers are dithered with the paper tiles on screen
+    // (render/pens/texture/spray_pen.dart); the PDF keeps the flat layers
+    textured: true,
     groupComposite: false,
   );
 }

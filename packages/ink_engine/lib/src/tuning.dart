@@ -176,4 +176,13 @@ abstract final class InkTuning {
 
   // 6.20 thumbnails v2
   static const int thumbnailObjectWaitMs = 2000;
+
+  // (v2.11, C211-01) texture pens (render/pens/texture/)
+  /// One texel of the texture tiles (pt): half the pencil grain's, so the
+  /// grain stays 1–2 px at zoom 1 and turns into crisp lumps, not smears, when
+  /// zoomed in.
+  static const double textureTexelPt = 0.25;
+
+  /// The texture pens' shared geometry cache (least recently used out first).
+  static const int textureGeometryBudgetBytes = 24 * 1024 * 1024;
 }

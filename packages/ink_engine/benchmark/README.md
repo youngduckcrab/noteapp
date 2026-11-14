@@ -38,6 +38,7 @@ flutter test benchmark/ --concurrency=1 --platform chrome   # 참고용(기준 �
 | B1 | `OutlineGenerator.outline` | 만년필 필기선 200점 / 1000점(고리 모양, widthQ 0.2–0.3) | ≤ 0.15 / ≤ 0.5 ms | 중앙값(40회 평균 × 30) |
 | B2 | 라이브 샘플 1개: `StrokeSession.addSample` + `live.frozenPath`·`tailPath` | 만년필 2000샘플 한 획(240Hz, 필압 변화), 워밍업 2획 + 측정 5획 | 평균 ≤ 0.3, 최대 ≤ 1.0 ms | 평균(1만 샘플) / 최대 = 샘플 위치별 5획 중 최솟값의 최대 |
 | B3 | 페이지 수용: `updateContent` + inkBase 첫 paint(외곽선 + 청크 기록) | 획 2000개 × 150점, 새 컨트롤러·새 CORE 객체 | ≤ 500 ms | 중앙값 |
+| B3t | (v2.11) B3과 같은 측정, 질감 펜 | 연필·붓펜: B3 작업량 / 크레파스·분필·수채·스프레이: 획 1000개 × 40점(획당 약 110pt) | 연필 ≤ 500, 붓펜 ≤ 1500, 크레파스·분필·수채 ≤ 1000, 스프레이 ≤ 1200 ms | 중앙값 |
 | B4 | 지우개 이동 1회(`EraserSession.addSample` — 색인 질의 + 정밀 판정) | 혼합 획 1만 개 A4, 반지름 8pt, 2–4pt 간격 문지름 400샘플 × 4회 | ≤ 0.3 ms | 평균 |
 | B5 | 부분 지우개: 닿은 획 50개의 구간(P2–P4) + 조각(P5/P6) + CORE 조각(`fromInterleaved`) | 150점 가로선 50개, 세로 한 번 | ≤ 2 ms | 중앙값 |
 | B5 (참고) | 같은 작업을 컨트롤러 제스처로(begin + 이동 + end, P8 미리보기 조각 포함) | 같음 | — | — |

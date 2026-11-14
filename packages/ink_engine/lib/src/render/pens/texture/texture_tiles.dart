@@ -5,13 +5,14 @@
 // two 256² tiles, each channel a deterministic noise field equalized by rank,
 // so a threshold t on a channel leaves exactly the fraction t of the paper
 // uncovered. The pens paint their shapes with an ImageShader of a tile
-// (page-anchored, one texel = InkTuning.grainTexelPt pt, optionally rotated)
+// (page-anchored, one texel = InkTuning.textureTexelPt pt, optionally rotated)
 // and a ColorFilter.matrix that turns one channel into alpha
 // (alpha = gain · channel + offset, clamped — the lock app's `tilePaint`).
 //
 //   tooth tile  R wax   (crayon: 2–4 texel lumps, long horizontal ridges)
 //               G chalk (chalk: coarser, longer streaks)
-//               B graph (pencil: fine, slightly stretched)
+//               B graph (fine, slightly stretched — spare since the pencil
+//                 went back to its own grain)
 //   wash tile   R flow  (watercolor bloom / brush bleed: medium blobs)
 //               G dust  (fine powder)
 //               B mottle (slow puddles)
@@ -69,31 +70,88 @@ final class TextureTiles {
   static void register(ui.Image grain, TextureTiles tiles) =>
       _byGrain[grain] = tiles;
 
-  /// Decodes both tiles (the RGBA bytes of [toothPixels] and [washPixels]).
-  /// [onDone] is called once with the tiles, or with null on an error.
+  /// Generates and decodes both tiles (the RGBA bytes of [toothPixels] and
+  /// [washPixels]). The six channels are computed one per engine round trip
+  /// (a 1 × 1 decodeImageFromPixels between them — not a Timer, which would
+  /// never fire in a fake-async widget test that waits for the grain), so the
+  /// UI isolate never stalls for the whole generation.
+  /// [onDone] is called once with the tiles, or with null on an error (the
+  /// grain is then published without tiles and the pens paint their flat look).
   static void decode(void Function(TextureTiles? tiles) onDone) {
     const size = kTextureTileSize;
-    final Uint8List toothBytes, washBytes;
-    try {
-      toothBytes = toothPixels();
-      washBytes = washPixels();
-    } on Object {
-      onDone(null);
+    var done = false;
+    void finish(TextureTiles? tiles) {
+      if (done) {
+        tiles?.dispose();
+        return;
+      }
+      done = true;
+      onDone(tiles);
+    }
+
+    final channels = <Float64List>[];
+    void decodeBoth() {
+      final Uint8List toothBytes, washBytes;
+      try {
+        toothBytes = _tooth ??= _pack(channels[0], channels[1], channels[2]);
+        washBytes = _wash ??= _pack(channels[3], channels[4], channels[5]);
+        ui.decodeImageFromPixels(
+          toothBytes,
+          size,
+          size,
+          ui.PixelFormat.rgba8888,
+          (tooth) => ui.decodeImageFromPixels(
+            washBytes,
+            size,
+            size,
+            ui.PixelFormat.rgba8888,
+            (wash) => finish(TextureTiles._(tooth, wash)),
+          ),
+        );
+      } on Object {
+        finish(null);
+      }
+    }
+
+    if (_tooth != null && _wash != null) {
+      decodeBoth();
       return;
     }
-    ui.decodeImageFromPixels(
-      toothBytes,
-      size,
-      size,
-      ui.PixelFormat.rgba8888,
-      (tooth) => ui.decodeImageFromPixels(
-        washBytes,
-        size,
-        size,
-        ui.PixelFormat.rgba8888,
-        (wash) => onDone(TextureTiles._(tooth, wash)),
-      ),
-    );
+    void step() {
+      try {
+        channels.add(_channel(channels.length));
+      } on Object {
+        finish(null);
+        return;
+      }
+      if (channels.length < 6) {
+        _yieldThen(step, finish);
+      } else {
+        decodeBoth();
+      }
+    }
+
+    _yieldThen(step, finish);
+  }
+
+  static final Uint8List _onePixel = Uint8List(4);
+
+  /// Runs [next] after one engine round trip (a 1 × 1 image decode); [fail]
+  /// with null when the engine throws.
+  static void _yieldThen(
+    void Function() next,
+    void Function(TextureTiles?) fail,
+  ) {
+    try {
+      ui.decodeImageFromPixels(_onePixel, 1, 1, ui.PixelFormat.rgba8888, (
+        image,
+      ) {
+        image.dispose();
+        next();
+      });
+    } on Object {
+      fail(null);
+    }
   }
 
   void dispose() {
@@ -108,18 +166,22 @@ final class TextureTiles {
   /// Each channel: noise layers (seed, box radius x, passes x, radius y,
   /// passes y) with weights — fewer layers than the lock app's recipes (the
   /// generation runs once on the UI isolate).
-  static Uint8List toothPixels() => _tooth ??= _pack(
-    _layered(_waxLayers, const [0.55, 0.6, 0.35]),
-    _layered(_chalkLayers, const [0.5, 0.55, 0.45]),
-    _layered(_graphLayers, const [0.6, 0.5]),
-  );
+  static Uint8List toothPixels() =>
+      _tooth ??= _pack(_channel(0), _channel(1), _channel(2));
 
   /// RGBA bytes of the wash tile (R flow, G dust, B mottle, A 255). Cached.
-  static Uint8List washPixels() => _wash ??= _pack(
-    _layered(_flowLayers, const [0.6, 0.4]),
-    _layered(_dustLayers, const [1]),
-    _layered(_mottleLayers, const [1]),
-  );
+  static Uint8List washPixels() =>
+      _wash ??= _pack(_channel(3), _channel(4), _channel(5));
+
+  /// Channel [k]: tooth R, G, B, then wash R, G, B.
+  static Float64List _channel(int k) => switch (k) {
+    0 => _layered(_waxLayers, const [0.55, 0.6, 0.35]),
+    1 => _layered(_chalkLayers, const [0.35, 0.45, 0.8]),
+    2 => _layered(_graphLayers, const [0.6, 0.5]),
+    3 => _layered(_flowLayers, const [0.6, 0.4]),
+    4 => _layered(_dustLayers, const [1]),
+    _ => _layered(_mottleLayers, const [1]),
+  };
 }
 
 // wax: horizontal ridges + 2–4 texel lumps; chalk: coarser, longer streaks
@@ -144,15 +206,15 @@ const List<int> _waxLayers = [
 ];
 const List<int> _chalkLayers = [
   141,
-  4,
+  2,
   3,
   1,
   1,
   142,
   1,
-  3,
+  2,
   1,
-  3,
+  2,
   143,
   1,
   1,
@@ -162,7 +224,7 @@ const List<int> _chalkLayers = [
 const List<int> _graphLayers = [151, 1, 2, 0, 0, 152, 1, 1, 1, 1];
 const List<int> _flowLayers = [162, 2, 3, 2, 3, 163, 4, 3, 4, 3];
 const List<int> _dustLayers = [171, 1, 1, 1, 1];
-const List<int> _mottleLayers = [181, 12, 3, 12, 3];
+const List<int> _mottleLayers = [181, 24, 3, 24, 3];
 
 const int _m = 2147483647; // 2^31 - 1
 
@@ -310,11 +372,11 @@ Uint8List _pack(Float64List r, Float64List g, Float64List b) {
 
 final Map<double, Float64List> _matrices = {};
 
-/// Texel → page pt (one texel = InkTuning.grainTexelPt pt, page-anchored),
+/// Texel → page pt (one texel = InkTuning.textureTexelPt pt, page-anchored),
 /// rotated by [angleDeg] (the lock app's slanted ridges).
 Float64List _tileMatrix(double angleDeg) {
   return _matrices[angleDeg] ??= () {
-    const s = InkTuning.grainTexelPt;
+    const s = InkTuning.textureTexelPt;
     final a = angleDeg * math.pi / 180;
     final c = math.cos(a) * s, n = math.sin(a) * s;
     return Float64List.fromList([
@@ -326,8 +388,17 @@ Float64List _tileMatrix(double angleDeg) {
   }();
 }
 
+typedef _PaintKey = (ui.Image, int, int, double, double, double, ui.BlendMode);
+
+/// The tile paints made so far (a shader and a filter each — recording a page
+/// of texture strokes reuses them instead of making thousands). Never mutated
+/// after they are made; cleared when it grows past [_maxPaints].
+final Map<_PaintKey, ui.Paint> _paints = {};
+const int _maxPaints = 512;
+
 /// alpha = gains · (tile R, G, B) + offset (0..1 units, clamped by the
-/// filter); the color is [argb]'s RGB. The lock app's `tilePaint`.
+/// filter); the color is [argb]'s RGB. The lock app's `tilePaint`. The paint
+/// is shared: callers must not change it.
 ui.Paint tilePaint(
   ui.Image tile,
   int argb,
@@ -335,12 +406,46 @@ ui.Paint tilePaint(
   double gain,
   double offset, {
   double angleDeg = 0,
+  ui.BlendMode blendMode = ui.BlendMode.srcOver,
 }) {
+  final key = (
+    tile,
+    argb % 0x1000000,
+    channel.index3,
+    gain,
+    offset,
+    angleDeg,
+    blendMode,
+  );
+  final hit = _paints[key];
+  if (hit != null) return hit;
+  if (_paints.length >= _maxPaints) _paints.clear();
+  return _paints[key] = _newTilePaint(
+    tile,
+    argb,
+    channel,
+    gain,
+    offset,
+    angleDeg,
+    blendMode,
+  );
+}
+
+ui.Paint _newTilePaint(
+  ui.Image tile,
+  int argb,
+  TileChannel channel,
+  double gain,
+  double offset,
+  double angleDeg,
+  ui.BlendMode blendMode,
+) {
   final r = (argb ~/ 0x10000) % 256, g = (argb ~/ 0x100) % 256, b = argb % 256;
   final gains = [0.0, 0.0, 0.0];
   gains[channel.index3] = gain;
   return ui.Paint()
     ..isAntiAlias = true
+    ..blendMode = blendMode
     ..style = ui.PaintingStyle.fill
     ..shader = ui.ImageShader(
       tile,
@@ -368,9 +473,18 @@ ui.Paint abovePaint(
   double soft, {
   double amount = 1,
   double angleDeg = 0,
+  ui.BlendMode blendMode = ui.BlendMode.srcOver,
 }) {
   final k = amount / soft;
-  return tilePaint(tile, argb, channel, k, -k * threshold, angleDeg: angleDeg);
+  return tilePaint(
+    tile,
+    argb,
+    channel,
+    k,
+    -k * threshold,
+    angleDeg: angleDeg,
+    blendMode: blendMode,
+  );
 }
 
 /// Paints where the channel is below [threshold] (paper pits).
@@ -382,9 +496,18 @@ ui.Paint belowPaint(
   double soft, {
   double amount = 1,
   double angleDeg = 0,
+  ui.BlendMode blendMode = ui.BlendMode.srcOver,
 }) {
   final k = amount / soft;
-  return tilePaint(tile, argb, channel, -k, k * threshold, angleDeg: angleDeg);
+  return tilePaint(
+    tile,
+    argb,
+    channel,
+    -k,
+    k * threshold,
+    angleDeg: angleDeg,
+    blendMode: blendMode,
+  );
 }
 
 /// alpha = [mean] + [contrast] · (v − 0.5): an even, low-contrast grain.

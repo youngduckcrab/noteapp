@@ -1,20 +1,22 @@
 // lib/src/render/pens/texture/spray_pen.dart — INTERNAL (v2.11, C211-01).
 //
 // OWNED BY THE TEXTURE TRACK. 스프레이 — the lock app's `spray` (airbrush): a
-// gaussian mist built from stacked outlines of decreasing width (each layer's
+// gaussian mist built from stacked bands of decreasing width (each layer's
 // alpha chosen so the stack is peak · exp(−x² / 2σ²) across the stroke; the
-// widths follow the pressure because every layer is the stroke's own outline
-// at a scaled width), plus round droplets with power-law sizes (many small, few
+// widths follow the pressure because every layer is the stroke's own radius
+// scaled, and each layer's edge wanders a little along the stroke so the
+// steps read as mist, not as contour rings when zoomed in), plus round droplets with power-law sizes (many small, few
 // large) scattered with a wider gaussian, more where the pen pressed and on the
 // outside of bends. Droplet positions are hashed from arc-length cells and the
 // stroke's createdAt. The mist ends at the K-1 reach (Spine.limit), so it never
-// leaves core.Stroke.bounds. No paper texture (profile not textured): the
-// screen, thumbnails and the PDF draw the very same vector pieces.
+// leaves core.Stroke.bounds. On screen (tiles ready) each mist layer is
+// dithered with the fine dust channel — alpha a ± 0.8 a, mean a — so the layer
+// edges break up into spray speckle instead of contour rings; the PDF (and the
+// screen before the tiles) draws the same layers flat at the mean alpha.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
-import '../../../geometry/outline_generator.dart';
 import '../../../geometry/stroke_outline.dart';
 import '../../../model/ink_stroke.dart';
 import '../../../tuning.dart';
@@ -26,12 +28,16 @@ import 'texture_tiles.dart';
 
 const PenRenderer sprayPen = _SprayPen();
 
-/// mist layers: one per ~0.7 pt of reach, within these bounds
-const int _minSteps = 10;
-const int _maxSteps = 24;
+/// mist layers: one per ~0.7 pt of reach, within these bounds (each layer is
+/// a band to build, record and export — the wandering edges hide the steps)
+const int _minSteps = 8;
+const int _maxSteps = 16;
 
 int _stepsFor(double reachPt) =>
     (reachPt / 0.7).ceil().clamp(_minSteps, _maxSteps);
+
+/// how far a mist layer's edge wanders along the stroke (fraction of its radius)
+const double _wander = 0.07;
 const double _peak = 0.85;
 
 /// the mist ends at this many standard deviations
@@ -81,7 +87,10 @@ final List<double> _classV = [
 ];
 
 final class _Geom {
-  _Geom(this.mist, this.drops);
+  _Geom(this.mist, this.drops, this.reach);
+
+  /// the mist's K-1 reach (pt)
+  final double reach;
 
   /// (outline, alpha), outermost first
   final List<(StrokeOutline, double)> mist;
@@ -90,38 +99,47 @@ final class _Geom {
   final List<StrokeOutline?> drops;
 }
 
-final Expando<_Geom> _cache = Expando<_Geom>('spray');
+_Geom _geom(InkStroke stroke) => textureGeometry(
+  stroke,
+  (sp) => _build(stroke, sp),
+  (g) =>
+      outlinesBytes([for (final (o, _) in g.mist) o]) + outlinesBytes(g.drops),
+);
 
-_Geom _geom(InkStroke stroke) => _cache[stroke] ??= _build(stroke);
-
-_Geom _build(InkStroke stroke) {
-  final sp = Spine.of(stroke);
-  final w = stroke.style.width;
+_Geom _build(InkStroke stroke, Spine sp) {
   final maxR = math.max(InkTuning.minRadiusPt, stroke.maxRadius);
   // the outermost layer: radius kMax · r(i), never beyond the K-1 reach
   final kMax = sp.limit / maxR;
-  final spec = OutlineSpec.ofStyle(stroke.style);
   final mist = <(StrokeOutline, double)>[];
-  for (final (x, a) in _mist(_stepsFor(sp.limit))) {
-    if (a <= 0.002) continue;
-    final o = OutlineGenerator.outlineFor(
-      stroke.points,
-      width: w * kMax * x,
-      spec: spec,
-    );
-    if (o.polygons.isEmpty && !o.isDot) continue;
-    mist.add((o.isDot ? _dotOutline(o) : o, a));
+  final rl = Float64List(sp.n), rr = Float64List(sp.n);
+  // a hairline spray (reach under 1 pt) is one solid band at the reach, not a
+  // sub-pixel gaussian that would vanish
+  if (sp.limit < 1) {
+    for (var i = 0; i < sp.n; i++) {
+      rl[i] = math.max(InkTuning.minRadiusPt, kMax * sp.r[i]);
+    }
+    final o = band(sp, rl, rl);
+    return _Geom([if (o != null) (o, _peak)], _droplets(sp, kMax), sp.limit);
   }
-  return _Geom(mist, _droplets(sp, kMax));
-}
-
-/// A dot outline as one polygon (so every layer is plain polygons).
-StrokeOutline _dotOutline(StrokeOutline o) {
-  final c = o.dotCenter!;
-  return StrokeOutline(
-    polygons: [circlePolygon(c.dx, c.dy, o.dotRadius)],
-    bounds: o.bounds,
-  );
+  const floor = InkTuning.minRadiusPt;
+  var j = 0;
+  for (final (x, a) in _mist(_stepsFor(sp.limit))) {
+    j++;
+    if (a <= 0.002) continue;
+    // the outermost layer keeps its edge (it is the K-1 reach)
+    final wander = j == 1 ? 0.0 : _wander;
+    for (var i = 0; i < sp.n; i++) {
+      final k =
+          kMax *
+          x *
+          (1 + wander * wobble(sp.s[i] / sp.width, sp.seed + 13 * j));
+      rl[i] = math.min(sp.limit, math.max(floor, k * sp.r[i]));
+      rr[i] = rl[i];
+    }
+    final o = band(sp, rl, rr);
+    if (o != null) mist.add((o, a));
+  }
+  return _Geom(mist, _droplets(sp, kMax), sp.limit);
 }
 
 List<StrokeOutline?> _droplets(Spine sp, double kMax) {
@@ -152,7 +170,8 @@ List<StrokeOutline?> _droplets(Spine sp, double kMax) {
         math.sqrt(3);
     final outer = bendAt[i] > 0 ? -1.0 : 1.0;
     if (g * outer < 0 && noise01(salt, 9 * q + 8) < 0.6 * bend) g = -g;
-    final sigma = kMax * sp.r[i] / _reach;
+    final here = sp.locate(math.min(at, sp.length));
+    final sigma = kMax * Spine.lerp(sp.r, here.i, here.t) / _reach;
     final d0 = g * sigma * _spread * (1 + (g * outer > 0 ? 0.35 * bend : 0));
     // the center is the mist's
     if (d0.abs() < sigma * _spread * 0.55) continue;
@@ -178,8 +197,8 @@ List<StrokeOutline?> _droplets(Spine sp, double kMax) {
     } else {
       polys[cls].add(
         circlePolygon(
-          sp.x[i] + sp.nx[i] * d,
-          sp.y[i] + sp.ny[i] * d,
+          here.x + here.nx * d,
+          here.y + here.ny * d,
           dr,
           segments: 8,
         ),
@@ -219,12 +238,26 @@ final class _SprayPen extends TexturePen {
     Canvas canvas,
     InkStroke stroke,
     StrokeOutline outline,
-    Spine sp,
     int argb,
     TextureTiles tiles,
   ) {
-    for (final l in flatLayers(stroke, outline, sp)) {
-      canvas.drawPath(l.outline.toPath(), solidPaint(argb, l.alpha));
+    final g = _geom(stroke);
+    // hairline mist (under ~1 pt) stays flat: dithering a sub-pixel layer
+    // would leave it empty
+    final dither = g.reach >= 1;
+    for (final (o, a) in g.mist) {
+      canvas.drawPath(
+        o.toPath(),
+        dither
+            ? aroundPaint(tiles.wash, argb, TileChannel.dust, a, 1.6 * a)
+            : solidPaint(argb, a),
+      );
+    }
+    for (var c = 0; c < _sizes.length; c++) {
+      final d = g.drops[c];
+      if (d != null) {
+        canvas.drawPath(d.toPath(), solidPaint(argb, _sizes[c].$2));
+      }
     }
   }
 
@@ -232,7 +265,7 @@ final class _SprayPen extends TexturePen {
   List<FlatLayer> flatLayers(
     InkStroke stroke,
     StrokeOutline outline,
-    Spine sp,
+    int argb,
   ) {
     final g = _geom(stroke);
     return [
@@ -262,12 +295,8 @@ final class _SprayPen extends TexturePen {
     }
     if (pts.length == 1) path.lineTo(pts.first.dx + 0.01, pts.first.dy);
     final steps = _stepsFor(reach);
-    final mist = _mist(steps);
-    for (var j = 0; j < mist.length; j += 2) {
-      final (x, _) = mist[j];
-      // two layers in one: 1 − (1 − a)(1 − b)
-      final a = mist[j].$2;
-      final b = j + 1 < mist.length ? mist[j + 1].$2 : 0.0;
+    for (final (x, a) in _mist(steps)) {
+      if (a <= 0.002) continue;
       canvas.drawPath(
         path,
         Paint()
@@ -275,8 +304,8 @@ final class _SprayPen extends TexturePen {
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
-          ..strokeWidth = 2 * reach * (x - 0.5 / steps)
-          ..color = inkColor(frame.style.colorArgb, 1 - (1 - a) * (1 - b)),
+          ..strokeWidth = 2 * reach * x
+          ..color = inkColor(frame.style.colorArgb, a),
       );
     }
     canvas.restore();
