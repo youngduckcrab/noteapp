@@ -2713,6 +2713,10 @@ v2.0 초안의 CP-1~CP-15는 총괄 검토(00-review 2.2)에서 모두 받아들
 
 변환한 수식이 원래 손글씨를 품는다: `MathObject.ink: List<Stroke>`, JSON 키 `ink`(빈 목록이면 `null`, 옛 JSON·`null`·깨진 항목 → 빈 목록, 수식은 살림), `transformed`가 잉크도 함께 변형, `copyTo`가 잉크의 페이지를 바꿈, `estimatedBytes` = 4.3 식 + 잉크 획의 `Stroke.estimatedBytes`. 한도 `PageObjectLimits.maxMathInkStrokes = 400`·`maxMathInkPoints = 40000`(`checkObjectLimits`). 골든 `math_ink.json`(21개째), 시험 `test/model/math_ink_test.dart`. 설계·결정: [research/math-pen-phase1.md](research/math-pen-phase1.md) 5절.
 
+## 15. 펜 종류 늘리기 — `PenTool` 8개와 모르는 펜 이름 (2026-11-14, 계약 v2.11 C211-01·C211-02)
+
+`PenTool`에 `crayon`·`chalk`·`watercolor`·`spray`·`neon`·`jelly`·`rainbow`·`glitter`를 `tape` 뒤에 붙였다(옛 인덱스·`isP0` 그대로, 기본값은 계약 C211-01 표). 앞으로의 호환: `StrokeStyle.fromJson`과 획 행 읽기(`strokeOf`)가 `StrokeStyle.decodeTool`을 쓴다 — 모르는 이름은 `ballpoint` + `extras['unknownTool']`, 쓰기(`toJson`·`strokes.tool` 열)는 `wireToolName`. 그래서 더 새 앱이 만든 펜의 획을 이 앱이 옮기거나 색만 바꿔도 이름이 살아남는다. `fromWireName`은 그대로 던진다(이름 검사가 필요한 곳용). 시험: `pen_style_test`(앞으로의 호환 3개), `row_mappers_v2_test`(행 왕복).
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 CORE가 **여는** 자리:

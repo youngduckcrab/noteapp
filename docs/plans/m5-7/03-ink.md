@@ -2405,6 +2405,16 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
 
 ---
 
+## 14. 펜 종류 늘리기 (2026-11-14, 계약 v2.11 C211-01~C211-03)
+
+사용자 요청('잠금화면 앱을 만들 때 구현했던 펜들을 참고해서')으로 펜 8개를 더한다. 질감 — 크레파스·분필·수채·스프레이, 꾸미기 — 네온·젤리·무지개·반짝이. 연필·붓펜은 잠금화면 앱의 종이 결 방식이 더 나은 곳만 다듬는다. 움직이는 펜(잠금화면 앱의 반짝이·무지개 애니메이션)은 **멈춘 그림**으로 옮긴다: 무지개 = 획 길이를 따라 색상이 바뀜, 반짝이 = 씨앗으로 정한 별빛.
+
+- **프로필**: `PenProfile.of`가 새 펜을 `pen/profiles/texture_profiles.dart`(질감 트랙)·`decor_profiles.dart`(꾸미기 트랙)의 상수로 보낸다. 기반 값은 마커·볼펜에 가깝다(잉크 층, 채운 외곽선, 질감 없음).
+- **그리기 표**: `render/pens/pen_renderer.dart`의 `penRendererOf(tool)` → `PenRenderer`(`paintCommitted`·`paintLive`·`vectorPieces`). 기본 `PenRenderer.fill` = 1차 채우기(연필은 결 셰이더 포함)라 펜별 파일이 비어 있어도 화면·썸네일·PDF가 볼펜처럼 그려지고 멈추지 않는다. 펜마다 파일 하나(`render/pens/texture/*_pen.dart` 6개 — 연필·붓펜 포함, `render/pens/decor/*_pen.dart` 4개).
+- **길목**: 확정 획은 `paintFillStroke` 하나로 모인다(페이지 조각 그림·덮어 그리기·미리보기·선택 미리보기·썸네일 `layer_painters`·`page_composite`·펜 미리보기). 그리는 중은 `ink_page_controller`가 `PenLiveFrame`(외곽선 경로, 중심선 `livePoints`, 경계, 불투명도, 씨앗 = 펜 내린 ms = 확정 획의 `createdAt`, 결)을 넘긴다. PDF는 `vector_export`의 `_stroke`가 조각마다 `InkFillShape`를 만든다(같은 `strokeId`·`tool`, 색 알파 0xFF, 불투명도 0~1) — `pdf_io`는 그대로.
+- **규칙**: 결정적(무작위는 `pens/pen_random.dart`의 `penSeed`·`PenRandom`만 — MINSTD, 산술만, 웹 = VM), K-1(그림은 `core.Stroke.bounds` 안 = 중심선에서 2 · width · maxWidthQ 안 — 외곽선 반지름의 약 4배), 확정 획은 조각 그림에 한 번 기록되므로 몇 ms 걸려도 되지만 `paintLive`는 매 프레임이라 점 수에 비례하는 작은 비용으로.
+- **시험**: `test/unit/render/pens/pen_renderer_test.dart`(기반 — 모든 잉크 층 펜의 픽셀·PDF 조각이 경계 안, 두 번 그려도 같은 바이트, 씨앗 수열 고정). 펜별 골든·결정성 시험은 트랙이 더한다.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 INK가 **여는** 자리:

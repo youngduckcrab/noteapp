@@ -2399,6 +2399,17 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C29-04 | 7.2.5 검색 판정 | `SearchSource.ink` 단위만 CJK 사이 공백(검토 반영: 한글–숫자 사이 포함)을 지운 글로도 색인·판정(조각 범위 포함, 줄인 글로만 맞으면 점수 −0.1, 두 글자 이하 CJK 질의는 제외). 옛 ink 행은 저장소 열 때 한 번 ink만 재구축(kv `search.inkTermsVersion` = 2, ink 행이 없으면 바로 기록). 다른 출처 결과는 그대로 | 02-core 6.10.2 | CORE(처리됨) |
 | C29-05 | 7.2.11 recog·라이브러리 자리 | (검토 반영) `HandwritingSearchPhase.unsupported`·`LibraryInkSearchPhase.unsupported`(이 기기에서 쓸 수 없음 안내) 추가 | 05-library 6.19a | LIBRARY·INFRA(처리됨) |
 
+#### v2.11 (2026-11-14, 펜 종류 늘리기 — 사용자 요청 '잠금화면 앱을 만들 때 구현했던 펜들을 참고해서 구현해 볼래?')
+
+추가만(인덱스·옛 JSON 호환). 새 펜은 **움직이지 않고 결정적**이다(같은 획 → 화면·썸네일·PDF가 같은 그림, 무작위는 획(createdAt·점)에서 뽑은 씨앗으로만 — 시각·`String.hashCode` 금지). 설계는 [03-ink.md 14절](03-ink.md#14-펜-종류-늘리기-2026-11-14-계약-v211-c211-01c211-03), [04-editor.md 16절](04-editor.md#16-펜-종류-늘리기-2026-11-14-계약-v211-c211-04).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C211-01 | 1차 7.2.4 `PenTool`, `StrokeStyle.defaultsFor` | `PenTool`에 값 8개를 `tape` **뒤에** 붙인다: 질감 `crayon`·`chalk`·`watercolor`·`spray`, 꾸미기 `neon`·`jelly`·`rainbow`·`glitter`(옛 인덱스·`isP0` 그대로). 기본값(색·굵기 pt): crayon 0xFFE5533D·4, chalk 0xFF4A6FA5·4, watercolor 0xFF2F80ED·8, spray 0xFF1F1F1F·10(smoothing 0.3), neon 0xFFFF2D95·3, jelly 0xFF7C4DFF·5, rainbow 0xFFFF3B30·4, glitter 0xFFFFB300·4. 기본 프리셋 5개는 그대로. 손글씨 인식 입력(`isRecognitionInput`)에 포함, 도형 보정(편집기 `shapeAssistPen`)에서는 제외(맞춘 도형이 펜 모양을 잃는다) | 사용자 요청 | CORE·INK·EDITOR(기반 처리됨) |
+| C211-02 | 1차 7.2.7 JSON `style.tool`, 저장소 `strokes.tool` | **앞으로의 호환**: 모르는 펜 이름 → `ballpoint`로 읽고 원래 이름을 `extras['unknownTool']`(`kUnknownPenToolKey`)에 둔다. `StrokeStyle.wireToolName`이 그 이름을 다시 쓰므로 옮기기·색 바꾸기만 한 획은 새 앱에서 원래 펜으로 돌아온다. 아는 이름이면 그 키를 버린다. 새 이름: `PenTool.tryFromWireName`(null), `StrokeStyle.decodeTool`, `StrokeStyle.wireToolName`, `kUnknownPenToolKey`. `fromWireName`은 그대로 던진다. **이 규칙이 없는 이미 배포된 옛 앱**은 새 펜 획을 읽으면 여전히 `FormatException` — 아직 배포 전이라 받아들인다 | 기반 설계 | CORE(처리됨) |
+| C211-03 | 7.2.9 INK 그리기(내부) | 펜마다 그리기 표 `penRendererOf(tool)`(`render/pens/pen_renderer.dart`, 내부): 확정 획(`paintFillStroke` — 페이지 조각·미리보기·선택 미리보기·썸네일·펜 미리보기), 그리는 중(`paintLive`), PDF(`vectorPieces` → `InkFillShape` 여러 개, 같은 `strokeId`·`tool`). 기본은 1차 채우기 그대로. 모든 그림은 `core.Stroke.bounds` 안(K-1). PDF 쪽 시그니처 변경 없음(`pdfInkLayer`가 조각마다 `PdfFillItem`) | 기반 설계 | INK(기반 처리됨 — 펜별 그림은 질감·꾸미기 트랙) |
+| C211-04 | 7.2.10 EDITOR 펜 고르기 | 펜 고르기를 묶음으로: **기본**(1차 두 줄) · **질감**(크레파스·분필·수채·스프레이) · **꾸미기**(네온·젤리·무지개·반짝이). `PenTypeSelector.groups`·`groupKeyOf`·`PenTypeGroup`, 이름은 `EditorStrings.penTypeName`, 묶음 이름 `penGroupName` | 사용자 요청 | EDITOR(처리됨) |
+
 #### v2.10 (2026-11-13, 텍스트 펜 1단계 — 사용자 요청 '글씨를 쓰면 글씨로 변환')
 
 (번호: v2.9·C29-xx는 같은 날의 손글씨 검색 트랙이 쓴다 — 겹치지 않게 v2.10·C210-xx.)

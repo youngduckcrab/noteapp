@@ -2990,6 +2990,10 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 찾기 쉽게: [+] 메뉴 첫 줄(이미지 다음) '손글씨를 텍스트로' — 손글씨를 선택해 두었으면 그 손글씨의 변환 창, 아니면 텍스트 펜을 고른다. 선택 막대에서는 `EditorSelectionMenuItem.pinned` 항목(recog '텍스트로 변환')이 폭과 상관없이 언제나 ⋯ 앞에 있다(나머지가 남은 자리를 채움). 키보드 텍스트 도구는 그대로. 부록 C 키(계약 아님): `editor.toolbar.textPen`, `editor.textPen.bubble`, `editor.insert.handwritingToText`.
 
+## 16. 펜 종류 늘리기 (2026-11-14, 계약 v2.11 C211-04)
+
+펜 고르기(`PenTypeSelector`)를 묶음으로 나눈다: **기본**(1차 두 줄 — 볼펜·만년필·형광펜·연필·마커 / 붓펜·캘리그래피·점선·레이저·암기 테이프), **질감**(크레파스·분필·수채·스프레이), **꾸미기**(네온·젤리·무지개·반짝이). 묶음마다 작은 제목(`penGroupName`, 키 `editor.pen.group.<basic|texture|decor>`), 줄은 언제나 5칸(짧은 줄도 칸 너비 유지). 이름은 잠금화면 앱의 펜 이름을 따른다. 아이콘: 크레파스 `mode_edit_outline`, 분필 `school`, 수채 `water_drop`, 스프레이 `blur_on`, 네온 `lightbulb`, 젤리 `bubble_chart`, 무지개 `looks`, 반짝이 `auto_awesome`. 새 펜은 자동 도형 보정 대상이 아니다(`shapeAssistPen` — 맞춘 도형은 평범한 외곽선이라 펜 모양을 잃는다). 펜별 설정 줄(`PenExtrasControls`)은 아직 없다. 기본 프리셋 5개는 그대로.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)
