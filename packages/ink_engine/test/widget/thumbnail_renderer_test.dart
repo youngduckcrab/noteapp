@@ -8,6 +8,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/dev_tools.dart';
 import 'package:ink_engine/ink_engine.dart';
@@ -204,6 +205,11 @@ void main() {
   test('a pencil stroke waits for the grain (textured pixels)', () async {
     final grain = PencilGrain();
     addTearDown(grain.dispose);
+    // (v2.11, C211-01) the grain step also makes the texture tiles: about
+    // 0.12 s on the VM and 0.19 s in Chrome (wasm), but 1.3 s under the debug
+    // web compiler — past the renderer's 1 s wait. There the test waits for
+    // the grain first (the textured pixels are still checked).
+    if (kIsWeb && kDebugMode) await grain.ready;
     final withGrain = InkPageThumbnailRenderer(
       backgroundBuilders: const [TemplateBackgroundLayerBuilder()],
       pencilGrain: grain,

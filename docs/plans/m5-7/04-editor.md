@@ -2992,7 +2992,7 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 ## 16. 펜 종류 늘리기 (2026-11-14, 계약 v2.11 C211-04)
 
-펜 고르기(`PenTypeSelector`)를 묶음으로 나눈다: **기본**(1차 두 줄 — 볼펜·만년필·형광펜·연필·마커 / 붓펜·캘리그래피·점선·레이저·암기 테이프), **질감**(크레파스·분필·수채·스프레이), **꾸미기**(네온·젤리·무지개·반짝이). 묶음마다 작은 제목(`penGroupName`, 키 `editor.pen.group.<basic|texture|decor>`), 줄은 언제나 5칸(짧은 줄도 칸 너비 유지). 이름은 잠금화면 앱의 펜 이름을 따른다. 아이콘: 크레파스 `mode_edit_outline`, 분필 `school`, 수채 `water_drop`, 스프레이 `blur_on`, 네온 `lightbulb`, 젤리 `bubble_chart`, 무지개 `looks`, 반짝이 `auto_awesome`. 새 펜은 자동 도형 보정 대상이 아니다(`shapeAssistPen` — 맞춘 도형은 평범한 외곽선이라 펜 모양을 잃는다). 펜별 설정 줄(`PenExtrasControls`)은 아직 없다. 기본 프리셋 5개는 그대로.
+펜 고르기(`PenTypeSelector`)를 묶음으로 나눈다: **기본**(1차 두 줄 — 볼펜·만년필·형광펜·연필·마커 / 붓펜·캘리그래피·점선·레이저·암기 테이프), **질감**(크레파스·분필·수채·스프레이), **꾸미기**(네온·젤리·무지개·반짝이). 묶음마다 작은 제목(`penGroupName`, 키 `editor.pen.group.<basic|texture|decor>`), 줄은 언제나 5칸(짧은 줄도 칸 너비 유지). 이름은 잠금화면 앱의 펜 이름을 따른다. 아이콘: 크레파스 `format_paint`(볼펜 `edit`과 헷갈리지 않게 — 통합에서 바꿈), 분필 `school`, 수채 `water_drop`, 스프레이 `blur_on`, 네온 `lightbulb`, 젤리 `bubble_chart`, 무지개 `looks`, 반짝이 `auto_awesome`. 새 펜은 자동 도형 보정 대상이 아니다(`shapeAssistPen` — 맞춘 도형은 평범한 외곽선이라 펜 모양을 잃는다). 펜별 설정 줄(`PenExtrasControls`)은 아직 없다. 기본 프리셋 5개는 그대로.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

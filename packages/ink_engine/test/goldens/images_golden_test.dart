@@ -28,14 +28,12 @@ const Set<String> _roundTwo = {
   'pens_p1_tape.png',
   'shapes_lines.png',
   'shapes_fill_arrows.png',
-  // (v2.11, C211-01) the texture pens
-  'texture_pens_white.png',
-  'texture_pens_black.png',
-  'texture_pens_vectors.png',
 };
 
 /// (v2.11, C211-01) the new pens' images: `decor_*.png` (decor track,
 /// pens_decor_golden_test.dart) and `texture_*.png` (texture track).
+/// (`texture_pens_white/black/vectors.png`, decor_*.png) — counted apart from
+/// the 17 round-1 images and [_roundTwo].
 bool _newPenImage(String name) =>
     name.startsWith('decor_') || name.startsWith('texture_');
 
@@ -59,6 +57,20 @@ void main() {
     };
     expect(names.difference(_roundTwo), hasLength(17), reason: 'round 1');
     expect(names.containsAll(_roundTwo), isTrue);
+    final newPens = {
+      for (final f in _pngs(_dir))
+        if (_newPenImage(f.uri.pathSegments.last)) f.uri.pathSegments.last,
+    };
+    expect(newPens, {
+      'decor_glitter.png',
+      'decor_jelly.png',
+      'decor_neon.png',
+      'decor_preview.png',
+      'decor_rainbow.png',
+      'texture_pens_black.png',
+      'texture_pens_vectors.png',
+      'texture_pens_white.png',
+    });
   });
 
   for (final file in _pngs(_dir)) {

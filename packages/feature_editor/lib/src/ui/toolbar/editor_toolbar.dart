@@ -41,7 +41,7 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   core.PenTool.laser => Icons.flare,
   core.PenTool.tape => Icons.visibility_off,
   // (v2.11, C211-01) texture and decoration pens
-  core.PenTool.crayon => Icons.mode_edit_outline,
+  core.PenTool.crayon => Icons.format_paint,
   core.PenTool.chalk => Icons.school,
   core.PenTool.watercolor => Icons.water_drop,
   core.PenTool.spray => Icons.blur_on,

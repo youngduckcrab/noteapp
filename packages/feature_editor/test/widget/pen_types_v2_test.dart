@@ -104,7 +104,7 @@ void main() {
         for (final t in [..._texture, ..._decor]) penTypeIcon(t),
       ],
       [
-        Icons.mode_edit_outline,
+        Icons.format_paint,
         Icons.school,
         Icons.water_drop,
         Icons.blur_on,
