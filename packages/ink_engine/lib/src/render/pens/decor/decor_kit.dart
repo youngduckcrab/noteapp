@@ -18,9 +18,22 @@
 // visible tube thinner than the outline (the outline stays the hit area).
 //
 // Arithmetic only (7.4.3): colors are split with ~/ and %, never bit ops.
+//
+// Memory: the layer geometry of a committed stroke is kept in one LRU for all
+// decoration pens ([decorGeometry], [kDecorGeometryBudgetBytes]) — never in an
+// Expando that lives as long as the stroke (a page of 5,000 glitter strokes
+// would hold its whole geometry). Evicted geometry is rebuilt on demand: it
+// is deterministic, so a rebuild gives the same pieces.
+//
+// Live: the live stroke grows; the parts that depend only on points that did
+// not change since the last frame are kept ([LiveSpineCache]), so a frame
+// builds only the new end (a frame stays bounded on a long stroke).
+import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+
+import 'package:meta/meta.dart';
 
 import '../../../geometry/outline_generator.dart';
 import '../../../geometry/stroke_outline.dart';
@@ -28,6 +41,7 @@ import '../../../geometry/vector_path.dart';
 import '../../../model/ink_points.dart';
 import '../../../model/ink_stroke.dart';
 import '../../../pen/pen_profile.dart';
+import '../../../tuning.dart';
 import '../../stroke_painter.dart';
 import '../pen_renderer.dart';
 
@@ -325,7 +339,10 @@ const OutlineSpec _roundSpec = OutlineSpec(
 
 /// The outline of the centerline part [t0, t1] (whole line when null) shifted
 /// by [shift] along the normal, radius [radius](q) at every point (round caps,
-/// OutlineGenerator O1–O8).
+/// OutlineGenerator O1–O8). [within]: the farthest the tube may reach from
+/// the centerline (K-1) — OutlineGenerator never draws a radius under
+/// InkTuning.minRadiusPt, so on the thinnest pens a shifted tube is left out
+/// (empty) rather than drawn past it.
 StrokeOutline tubeOutline(
   DecorSpine sp,
   double width, {
@@ -333,9 +350,18 @@ StrokeOutline tubeOutline(
   double t0 = 0,
   double? t1,
   double shift = 0,
+  double? within,
 }) {
-  if (sp.isEmpty) {
-    return StrokeOutline(polygons: const [], bounds: ui.Rect.zero);
+  final empty = StrokeOutline(polygons: const [], bounds: ui.Rect.zero);
+  if (sp.isEmpty) return empty;
+  if (within != null) {
+    var widest = 0.0;
+    for (var i = 0; i < sp.n; i++) {
+      widest = math.max(widest, radius(sp.qs[i]));
+    }
+    if (math.max(widest, InkTuning.minRadiusPt) + shift.abs() > within) {
+      return empty;
+    }
   }
   final rows = sp.range(t0, t1 ?? sp.length);
   final m = rows.length ~/ 5;
@@ -469,6 +495,82 @@ final class VecBuilder {
     close();
   }
 
+  /// An ellipse of radii [rx], [ry] turned by [degrees], as a 32-gon (its
+  /// path bounds are the shape's — cubic control points would reach past it).
+  void ellipse(double cx, double cy, double rx, double ry, double degrees) {
+    if (!(rx > 0) || !(ry > 0)) return;
+    final a = degrees * math.pi / 180;
+    final cs = math.cos(a), sn = math.sin(a);
+    const n = 32;
+    for (var k = 0; k < n; k++) {
+      final t = 2 * math.pi * k / n;
+      final x = rx * math.cos(t), y = ry * math.sin(t);
+      final px = cx + x * cs - y * sn, py = cy + x * sn + y * cs;
+      if (k == 0) {
+        moveTo(px, py);
+      } else {
+        lineTo(px, py);
+      }
+    }
+    close();
+  }
+
+  /// A circle turning the other way (a hole in a nonzero ring).
+  void circleReversed(double cx, double cy, double r) {
+    if (!(r > 0)) return;
+    final k = 0.5523 * r;
+    moveTo(cx + r, cy);
+    cubicTo(cx + r, cy - k, cx + k, cy - r, cx, cy - r);
+    cubicTo(cx - k, cy - r, cx - r, cy - k, cx - r, cy);
+    cubicTo(cx - r, cy + k, cx - k, cy + r, cx, cy + r);
+    cubicTo(cx + k, cy + r, cx + r, cy + k, cx + r, cy);
+    close();
+  }
+
+  /// A small round grain: an octagon below 0.5 pt radius (round enough at
+  /// every zoom a grain that small is seen at, fewer coordinates), else a circle.
+  void grain(double cx, double cy, double r) {
+    if (!(r > 0)) return;
+    if (r >= 0.5) {
+      circle(cx, cy, r);
+      return;
+    }
+    // angles 0, 45, … 315° (cos / sin as constants: no trig per grain)
+    const h = 0.70710678;
+    const c = [1.0, h, 0.0, -h, -1.0, -h, 0.0, h];
+    const sn = [0.0, h, 1.0, h, 0.0, -h, -1.0, -h];
+    moveTo(cx + r, cy);
+    for (var k = 1; k < 8; k++) {
+      lineTo(cx + r * c[k], cy + r * sn[k]);
+    }
+    close();
+  }
+
+  /// A closed polygon of [xy] (x, y pairs) turning clockwise on the screen
+  /// (positive shoelace area in y-down coordinates) — every polygon of a piece
+  /// turns the same way, so overlapping ones add up under nonzero.
+  void polygon(List<double> xy) {
+    final m = xy.length ~/ 2;
+    if (m < 3) return;
+    var a = 0.0;
+    for (var i = 0; i < m; i++) {
+      final j = (i + 1) % m;
+      a += xy[2 * i] * xy[2 * j + 1] - xy[2 * j] * xy[2 * i + 1];
+    }
+    if (a >= 0) {
+      moveTo(xy[0], xy[1]);
+      for (var i = 1; i < m; i++) {
+        lineTo(xy[2 * i], xy[2 * i + 1]);
+      }
+    } else {
+      moveTo(xy[2 * (m - 1)], xy[2 * (m - 1) + 1]);
+      for (var i = m - 2; i >= 0; i--) {
+        lineTo(xy[2 * i], xy[2 * i + 1]);
+      }
+    }
+    close();
+  }
+
   /// The lock app's four-armed sparkle (`sparkle`): a cross with a thin waist
   /// and a smaller diagonal cross on top. Arm tips at [size] (the diagonal at
   /// 0.48 · size); [slim]: both control points at the waist (thin arms).
@@ -535,6 +637,147 @@ final class DecorShape {
 
   InkVectorPath vectorPath({required bool smooth}) =>
       _outline?.toVectorPath(smooth: smooth) ?? _vector!;
+
+  /// The bytes this shape keeps (coordinates + the ui.Path made from them).
+  int get approximateBytes {
+    final o = _outline;
+    if (o != null) return o.approximateBytes;
+    final v = _vector!;
+    return 96 + 2 * (v.verbs.length + 4 * v.coords.length);
+  }
+}
+
+/// The bytes of [shapes] (null entries count nothing).
+int shapesBytes(Iterable<DecorShape?> shapes) {
+  var n = 64;
+  for (final s in shapes) {
+    if (s != null) n += s.approximateBytes;
+  }
+  return n;
+}
+
+// --- geometry cache ------------------------------------------------------------
+
+/// The decoration geometry budget (all four pens together): least recently
+/// used strokes are dropped past it and rebuilt when painted again.
+const int kDecorGeometryBudgetBytes = 40 * 1024 * 1024;
+
+final class _GeomEntry {
+  _GeomEntry(this.stroke, this.geometry, this.bytes);
+  final InkStroke stroke;
+  final Object geometry;
+  final int bytes;
+}
+
+final LinkedHashMap<String, _GeomEntry> _geomCache = LinkedHashMap();
+int _geomBytes = 0;
+
+/// The cached geometry of [stroke] for the pen [tag] (valid while the stroke
+/// instance is identical, like the L1 outline cache), built by [build] and
+/// accounted as [bytes] of it.
+T decorGeometry<T extends Object>(
+  String tag,
+  InkStroke stroke,
+  T Function() build,
+  int Function(T) bytes,
+) {
+  final key = '$tag\u0000${stroke.id}';
+  final hit = _geomCache.remove(key);
+  if (hit != null && identical(hit.stroke, stroke) && hit.geometry is T) {
+    _geomCache[key] = hit; // most recently used
+    return hit.geometry as T;
+  }
+  if (hit != null) _geomBytes -= hit.bytes;
+  final g = build();
+  final n = bytes(g);
+  _geomCache[key] = _GeomEntry(stroke, g, n);
+  _geomBytes += n;
+  while (_geomBytes > kDecorGeometryBudgetBytes && _geomCache.length > 1) {
+    final first = _geomCache.keys.first;
+    _geomBytes -= _geomCache.remove(first)!.bytes;
+  }
+  return g;
+}
+
+/// (tests) the bytes and entries the geometry cache holds now.
+@visibleForTesting
+({int bytes, int entries}) get decorGeometryStats =>
+    (bytes: _geomBytes, entries: _geomCache.length);
+
+/// (tests) empties the geometry cache.
+@visibleForTesting
+void clearDecorGeometry() {
+  _geomCache.clear();
+  _geomBytes = 0;
+}
+
+// --- live cache -----------------------------------------------------------------
+
+/// What a live renderer keeps between frames of one live stroke: the spine
+/// points the kept parts were built from ([depends] points), and the spine of
+/// the last frame (to guess which points have settled).
+base class LiveSpineCache {
+  LiveSpineCache(this.key);
+
+  /// seed, width, color … — another key starts over
+  final Object key;
+
+  Float64List _xs = Float64List(0), _ys = Float64List(0);
+  int _n = 0;
+
+  /// the kept parts depend on the spine points [0, depends)
+  int depends = 0;
+
+  /// Compares [sp] with the last frame: false when a point the kept parts
+  /// depend on moved (the caller starts over); otherwise remembers [sp] and
+  /// returns true. [settled] = the points shared with the last frame.
+  bool update(DecorSpine sp, void Function(int settled) onSettled) {
+    final n = sp.n;
+    if (n < depends) return false;
+    var common = 0;
+    final m = math.min(n, _n);
+    while (common < m &&
+        sp.xs[common] == _xs[common] &&
+        sp.ys[common] == _ys[common]) {
+      common++;
+    }
+    if (common < depends) return false;
+    if (_xs.length < n) {
+      final cap = math.max(n, 2 * _xs.length);
+      _xs = Float64List(cap)..setRange(0, _n, _xs);
+      _ys = Float64List(cap)..setRange(0, _n, _ys);
+    }
+    _xs.setRange(common, n, sp.xs, common);
+    _ys.setRange(common, n, sp.ys, common);
+    _n = n;
+    onSettled(common);
+    return true;
+  }
+}
+
+/// The arc length up to which the samples of [sp] (position and normal) use
+/// only the first [settled] points: the normal at point i uses point i + 1.
+double settledLength(DecorSpine sp, int settled) =>
+    settled >= 3 ? sp.s[settled - 2] : -1;
+
+/// A small per-pen table of live caches by key (a few live strokes at once).
+final class LiveCaches<C extends LiveSpineCache> {
+  final List<C> _items = [];
+
+  C of(Object key, C Function() make) {
+    for (final c in _items) {
+      if (c.key == key) return c;
+    }
+    final c = make();
+    _items.add(c);
+    if (_items.length > 4) _items.removeAt(0);
+    return c;
+  }
+
+  void reset(C old, C fresh) {
+    final i = _items.indexOf(old);
+    if (i >= 0) _items[i] = fresh;
+  }
 }
 
 /// One layer: [shape] filled with [argb] (opaque) at [alpha] × the stroke opacity.
@@ -545,9 +788,13 @@ typedef DecorLayer = ({DecorShape shape, int argb, double alpha});
 abstract base class DecorPen extends PenRenderer {
   const DecorPen();
 
-  /// The layers of [stroke] drawn in [colorArgb] (the recolor preview passes
-  /// another color than the style's).
-  List<DecorLayer> layers(InkStroke stroke, int colorArgb);
+  /// The layers of [stroke] (its L1 [outline]) drawn in [colorArgb] (the
+  /// recolor preview passes another color than the style's).
+  List<DecorLayer> layers(
+    InkStroke stroke,
+    StrokeOutline outline,
+    int colorArgb,
+  );
 
   @override
   void paintCommitted(
@@ -558,7 +805,7 @@ abstract base class DecorPen extends PenRenderer {
     required double opacity,
     ui.Image? grain,
   }) {
-    for (final l in layers(stroke, colorArgb)) {
+    for (final l in layers(stroke, outline, colorArgb)) {
       if (l.alpha <= 0 || l.shape.isEmpty) continue;
       canvas.drawPath(l.shape.path, fillPaint(l.argb, l.alpha * opacity));
     }
@@ -571,7 +818,7 @@ abstract base class DecorPen extends PenRenderer {
     required double opacity,
     required bool smooth,
   }) => [
-    for (final l in layers(stroke, stroke.style.colorArgb))
+    for (final l in layers(stroke, outline, stroke.style.colorArgb))
       if (l.alpha > 0 && !l.shape.isEmpty)
         (
           path: l.shape.vectorPath(smooth: smooth),

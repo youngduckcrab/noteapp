@@ -21,8 +21,10 @@
 //     (pen_random.dart) seeded from the stroke (createdAt, points) — never
 //     time, never String.hashCode, never dart:math Random;
 //   * K-1: every pixel inside core.Stroke.bounds = point bounds inflated by
-//     width · max(2 · maxWidthQ, 0.75) — i.e. within 2 · width · maxWidthQ of
-//     the centerline (≈ 4× the outline radius); bounds_invariant_test checks it;
+//     width · max(2 · maxWidthQ, 0.75). widthQ = factor / 4, so that is the
+//     outline radius at the widest point (factor / 2 · width), but never less
+//     than 0.75 · width — a pen of factor 1 (outline radius 0.5 · width) has
+//     0.75 · width for its glow, dust or stars; bounds_invariant_test checks it;
 //   * arithmetic only on numbers that reach pixels (7.4.3, web = VM);
 //   * no per-frame allocation storms: committed strokes are recorded once into
 //     chunk pictures, so paintCommitted may be a few ms for a long stroke, but

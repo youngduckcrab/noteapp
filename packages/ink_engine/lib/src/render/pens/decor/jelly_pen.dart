@@ -3,7 +3,8 @@
 // OWNED BY THE DECOR TRACK. The lock app's jelly (BrushRender JELLY): a plump
 // body in the pen color with a thin white gloss line (0.3 · base wide, alpha
 // 0.45) laid 0.22 · base towards the light. Added here for a rounder, jelly-like
-// tube: a soft lighter band between the center and the gloss, and for pale inks
+// tube: a narrow, faint lighter sheen between the center and the gloss (the
+// gloss line carries the look; a wide band made outlined bubble letters), and for pale inks
 // (white, yellow) a faint rim outside and a faint shade on the far side, so a
 // pale jelly still shows on light paper (lock app: the tap's pale-ink shade).
 //
@@ -18,7 +19,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import '../../../geometry/outline_generator.dart';
+import '../../../geometry/stroke_outline.dart';
 import '../../../model/ink_stroke.dart';
 import '../../stroke_painter.dart';
 import '../pen_renderer.dart';
@@ -28,12 +29,16 @@ const PenRenderer jellyPen = _JellyPen();
 
 // sizes in multiples of the width
 const double _rimOut = 0.07;
-const double _bandShift = 0.08, _bandRadius = 0.26, _bandTrim = 0.25;
+const double _bandShift = 0.15, _bandRadius = 0.2, _bandTrim = 0.25;
+
+/// how much lighter the band is than the ink (a soft sheen, not a second
+/// tube: a wide light band read as hollow bubble letters)
+const double _bandLight = 0.22;
 const double _glossShift = 0.22, _glossRadius = 0.15, _glossTrim = 0.35;
 const double _shadeShift = 0.24, _shadeRadius = 0.12;
 
 // alphas
-const double _rimAlpha = 0.45, _bandAlpha = 0.5, _glossAlpha = 0.45;
+const double _rimAlpha = 0.45, _bandAlpha = 0.2, _glossAlpha = 0.45;
 const double _shadeAlpha = 0.10;
 
 // the dot (lock app tap): radius, gloss arc radius and angles (deg, screen)
@@ -43,10 +48,14 @@ const double _arcFrom = 195, _arcTo = 265;
 final class _Geom {
   _Geom(this.rim, this.body, this.band, this.shade, this.gloss);
   final DecorShape? rim;
-  final DecorShape body, band, shade, gloss;
-}
 
-final Expando<_Geom> _geometry = Expando<_Geom>('jelly');
+  /// a dot's drop; null for a line (its body is the L1 outline itself — the
+  /// geometry cache keeps no second copy of it)
+  final DecorShape? body;
+  final DecorShape band, shade, gloss;
+
+  int get bytes => shapesBytes([rim, body, band, shade, gloss]);
+}
 
 _Geom _build(InkStroke stroke) {
   final w = stroke.style.width;
@@ -75,6 +84,7 @@ _Geom _build(InkStroke stroke) {
           arc,
           w,
           radius: (_) => _glossRadius * w * r / (_dotRadius * w),
+          within: reach - _dotArc * w * r / (_dotRadius * w),
         ),
       ),
     );
@@ -90,7 +100,7 @@ _Geom _build(InkStroke stroke) {
         radius: (q) => math.min(reach, 2 * w * q + _rimOut * w),
       ),
     ),
-    DecorShape.outline(OutlineGenerator.outline(stroke)),
+    null,
     DecorShape.outline(
       tubeOutline(
         sp,
@@ -99,6 +109,7 @@ _Geom _build(InkStroke stroke) {
         t0: b0,
         t1: b1,
         shift: side * _bandShift * w,
+        within: reach,
       ),
     ),
     DecorShape.outline(
@@ -109,6 +120,7 @@ _Geom _build(InkStroke stroke) {
         t0: b0,
         t1: b1,
         shift: -side * _shadeShift * w,
+        within: reach,
       ),
     ),
     DecorShape.outline(
@@ -119,6 +131,7 @@ _Geom _build(InkStroke stroke) {
         t0: g0,
         t1: g1,
         shift: side * _glossShift * w,
+        within: reach,
       ),
     ),
   );
@@ -128,13 +141,22 @@ final class _JellyPen extends DecorPen {
   const _JellyPen();
 
   @override
-  List<DecorLayer> layers(InkStroke stroke, int colorArgb) {
-    final g = _geometry[stroke] ??= _build(stroke);
+  List<DecorLayer> layers(
+    InkStroke stroke,
+    StrokeOutline outline,
+    int colorArgb,
+  ) {
+    final g = decorGeometry(
+      'jelly',
+      stroke,
+      () => _build(stroke),
+      (g) => g.bytes,
+    );
     final pale = lightInk(colorArgb);
     return [
       if (pale > 0.01) (shape: g.rim!, argb: kRimArgb, alpha: _rimAlpha * pale),
-      (shape: g.body, argb: colorArgb, alpha: 1),
-      (shape: g.band, argb: lighten(colorArgb, 0.28), alpha: _bandAlpha),
+      (shape: g.body ?? DecorShape.outline(outline), argb: colorArgb, alpha: 1),
+      (shape: g.band, argb: lighten(colorArgb, _bandLight), alpha: _bandAlpha),
       if (pale > 0.01)
         (shape: g.shade, argb: kBlack, alpha: _shadeAlpha * pale),
       (shape: g.gloss, argb: kWhite, alpha: _glossAlpha),
@@ -175,7 +197,7 @@ final class _JellyPen extends DecorPen {
     final (g0, g1) = trimmed(sp.length, _glossTrim * w);
     canvas.drawPath(
       tubePolyline(sp, t0: b0, t1: b1, shift: side * _bandShift * w),
-      tubePaint(_bandRadius * w, lighten(color, 0.28), _bandAlpha * o),
+      tubePaint(_bandRadius * w, lighten(color, _bandLight), _bandAlpha * o),
     );
     if (pale > 0.01) {
       canvas.drawPath(

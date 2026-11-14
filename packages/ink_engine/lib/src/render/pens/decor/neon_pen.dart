@@ -19,6 +19,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import '../../../geometry/stroke_outline.dart';
 import '../../../model/ink_stroke.dart';
 import '../pen_renderer.dart';
 import 'decor_kit.dart';
@@ -59,26 +60,29 @@ int _layerColor(int k, int color) {
   return pale > 0.01 ? mixArgb(color, kRimArgb, 0.6 * pale) : color;
 }
 
-final Expando<List<DecorShape>> _geometry = Expando<List<DecorShape>>('neon');
-
 final class _NeonPen extends DecorPen {
   const _NeonPen();
 
-  List<DecorShape> _shapes(InkStroke stroke) => _geometry[stroke] ??= () {
-    final w = stroke.style.width;
-    final b = _unit(w);
-    final sp = DecorSpine.of(stroke.points);
-    final dot = sp.isDot;
-    return [
-      for (var k = 0; k < _layers.length; k++)
-        DecorShape.outline(
-          tubeOutline(sp, w, radius: (_) => _radius(k, b, dot: dot)),
-        ),
-    ];
-  }();
+  List<DecorShape> _shapes(InkStroke stroke) =>
+      decorGeometry('neon', stroke, () {
+        final w = stroke.style.width;
+        final b = _unit(w);
+        final sp = DecorSpine.of(stroke.points);
+        final dot = sp.isDot;
+        return [
+          for (var k = 0; k < _layers.length; k++)
+            DecorShape.outline(
+              tubeOutline(sp, w, radius: (_) => _radius(k, b, dot: dot)),
+            ),
+        ];
+      }, shapesBytes);
 
   @override
-  List<DecorLayer> layers(InkStroke stroke, int colorArgb) {
+  List<DecorLayer> layers(
+    InkStroke stroke,
+    StrokeOutline outline,
+    int colorArgb,
+  ) {
     final shapes = _shapes(stroke);
     return [
       for (var k = 0; k < _layers.length; k++)
@@ -101,7 +105,7 @@ final class _NeonPen extends DecorPen {
       for (var k = 0; k < _layers.length; k++) {
         canvas.drawCircle(
           ui.Offset(sp.xs[0], sp.ys[0]),
-          _radius(k, b, dot: false),
+          _radius(k, b, dot: true),
           fillPaint(_layerColor(k, color), _layers[k].$3 * frame.opacity),
         );
       }

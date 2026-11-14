@@ -7,12 +7,16 @@
 // brightness each), and white four-armed stars with a halo in the pen color at
 // seeded places along the line. No time animation and no moving light band.
 //
-// Determinism: grain k sits at arc length (k + u) · Δ (Δ fixed by the width;
-// widened only past 1,500 grains) and star j follows star j − 1 by a seeded
-// gap — both from PenRandom(penSeed([createdAt, stream])) streams consumed in
-// order, so the live stroke (same createdAt = PenLiveFrame.seed) grows the same
-// grains and stars as the stored one, and the screen, thumbnails and the PDF
-// get the same ones. A partial erase restarts the arc length of the pieces
+// Determinism: grain k sits at arc length (k + u) · Δ (Δ fixed by the width,
+// ≥ 0.08 pt; every 2,500 grains the spacing doubles from there on) and star j
+// follows star j − 1 by a seeded gap (≥ 3 pt; doubling every 160 places) —
+// both from PenRandom(penSeed([createdAt, stream])) streams consumed in arc-
+// length order and never moved once made (_Gen), so the live stroke (same
+// createdAt = PenLiveFrame.seed) grows the same grains and stars as the stored
+// one, and the screen, thumbnails and the PDF get the same ones. The cost per
+// length is bounded at every width (a thin long stroke thins out at its end).
+// Live: the grains and stars over settled points are kept between frames
+// (LiveSpineCache) — a frame generates only the new end. A partial erase restarts the arc length of the pieces
 // (the glitter of the remaining pieces reshuffles — accepted).
 //
 // Size: the profile has no pressure response (an even gel line). The unit is
@@ -24,11 +28,13 @@
 //
 // Committed / PDF: rim (light inks), body, 4 grain tones, 3 bright grain
 // classes, 4 halo layers, stars, star centers — at most 14 pieces, every grain
-// a circle. Live: body as a round stroke, grains as round points, the same stars.
+// an octagon (a circle from 0.5 pt radius). Live: body as a round stroke,
+// grains as round points, the same stars (kept between frames).
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import '../../../geometry/stroke_outline.dart';
 import '../../../model/ink_stroke.dart';
 import '../pen_random.dart';
 import '../pen_renderer.dart';
@@ -38,21 +44,26 @@ const PenRenderer glitterPen = _GlitterPen();
 
 const double _unitOfWidth = 0.6;
 const double _bodyR = 0.5; // × b
-const double _grainSpacing = 0.05; // × b of arc length per grain
-const int _maxGrains = 1500;
+// × b of arc length per grain (lock app 0.05; a little sparser with grains
+// 12 % larger — the same cover, a quarter fewer shapes in the PDF)
+const double _grainSpacing = 0.065;
+const double _grainMinStep = 0.08; // pt: thin pens get fewer, not more grains
+const int _grainBlock = 2500; // grains per block (then half as dense)
 const double _across = 0.88; // × body radius
 const double _starGap = 3.4; // × b
 const double _starShow = 0.5; // share of star places that shine
+const double _starMinGap = 3; // pt
+const int _starBlock = 160; // star places per block (then half as many)
 
 /// grain radius (× b) and alpha of the four tones, then low / mid / high
 const List<(double, double)> _grainLooks = [
-  (0.075, 0.8),
-  (0.075, 0.9),
-  (0.0675, 0.9),
-  (0.075, 0.9),
-  (0.075, 0.9), // low: tint 1
-  (0.095, 0.95), // mid: glint
-  (0.125, 1.0), // high: white
+  (0.084, 0.8),
+  (0.084, 0.9),
+  (0.0756, 0.9),
+  (0.084, 0.9),
+  (0.084, 0.9), // low: tint 1
+  (0.106, 0.95), // mid: glint
+  (0.14, 1.0), // high: white
 ];
 
 /// halo layers (lock GLINT_GLOW_K / GLINT_GLOW_A)
@@ -70,7 +81,10 @@ const double _extent = 1.95 * 0.8;
 // the dot (lock app glitterTapGeom)
 const double _tapR = 0.55; // × b (lock 0.72 — smaller, so its stars fit K-1)
 const int _tapSpill = 7;
-const List<double> _tapStarA = [0.12, 0.52, 0.92, 0.32, 0.72];
+
+/// two stars on a dot (the lock app's five made periods and i-dots read as
+/// star clusters bigger than the letters)
+const List<double> _tapStarA = [0.12, 0.62];
 
 /// Pen-color tones (lock app `glitterTones`): body, four grain tints, glint.
 final class _Tones {
@@ -117,22 +131,12 @@ final class _Tones {
 }
 
 /// Grains (x, y per class) and stars (x, y, size, degrees, grow) of one stroke.
-final class _Sparkles {
-  _Sparkles(this.grains, this.stars);
-  final List<Float64List> grains; // 7 classes
-  final Float64List stars; // rows of 5
-}
-
-final class _Builder {
+final class _Sink {
   final List<List<double>> g = List.generate(7, (_) => <double>[]);
   final List<double> st = [];
 
   void star(double x, double y, double size, double deg, double grow) =>
       st.addAll([x, y, size, deg, grow]);
-
-  _Sparkles done() => _Sparkles([
-    for (final l in g) Float64List.fromList(l),
-  ], Float64List.fromList(st));
 }
 
 /// The class of a grain from u: 84 % in the four tones (lock app shares
@@ -146,84 +150,176 @@ int _classOf(double u, double v) {
   return 3;
 }
 
-_Sparkles _sparkles(DecorSpine sp, double w, int seed) {
+/// 2^m (m ≥ 0) without dart:math pow.
+double _pow2(int m) {
+  var p = 1.0;
+  for (var i = 0; i < m; i++) {
+    p *= 2;
+  }
+  return p;
+}
+
+/// The grains and stars of a line, generated in arc-length order and only
+/// ever appended: [run] adds every grain and star up to an arc length. The
+/// live stroke keeps one generator for its settled part and runs a [copy]
+/// for the rest of the frame.
+///
+/// Spacing: grain k of block m = k ~/ [_grainBlock] sits in block m's stretch
+/// at (k mod block + u) · Δ · 2^m (Δ fixed by the width, at least
+/// [_grainMinStep]); stars likewise with [_starBlock] places per block — so a
+/// very long or very thin stroke thins out towards its end instead of moving
+/// the grains it already has, and its cost stays bounded per length.
+final class _Gen {
+  _Gen(int seed, double w)
+    : _b = _unitOfWidth * w,
+      _reach = minReach(w),
+      _step = math.max(_grainSpacing * _unitOfWidth * w, _grainMinStep),
+      _gap = math.max(_starGap * _unitOfWidth * w, _starMinGap),
+      _gr = PenRandom(penSeed([seed, 1])),
+      _sr = PenRandom(penSeed([seed, 2])) {
+    _nextStar = _gap * (0.3 + 0.4 * _sr.next());
+    _pullGrain();
+  }
+
+  _Gen._copy(_Gen o)
+    : _b = o._b,
+      _reach = o._reach,
+      _step = o._step,
+      _gap = o._gap,
+      _gr = o._gr.copy(),
+      _sr = o._sr.copy(),
+      _k = o._k,
+      _gs = o._gs,
+      _gu1 = o._gu1,
+      _gu2 = o._gu2,
+      _gu3 = o._gu3,
+      _place = o._place,
+      _nextStar = o._nextStar;
+
+  final double _b, _reach, _step, _gap;
+  final PenRandom _gr, _sr;
+
+  /// the next grain: index, arc length and its other draws
+  int _k = 0;
+  double _gs = 0, _gu1 = 0, _gu2 = 0, _gu3 = 0;
+
+  /// the next star place: index and arc length
+  int _place = 0;
+  double _nextStar = 0;
+
+  _Gen copy() => _Gen._copy(this);
+
+  void _pullGrain() {
+    final u0 = _gr.next();
+    _gu1 = _gr.next();
+    _gu2 = _gr.next();
+    _gu3 = _gr.next();
+    final m = _k ~/ _grainBlock, i = _k - m * _grainBlock;
+    final scale = _pow2(m);
+    _gs = _step * _grainBlock * (scale - 1) + (i + u0) * _step * scale;
+  }
+
+  /// Adds the grains and stars at arc length ≤ [upTo] to [out].
+  void run(DecorSpine sp, double upTo, _Sink out) {
+    final row = Float64List(5);
+    final rb = _bodyR * _b;
+    while (_gs <= upTo) {
+      sp.sampleInto(_gs, row, 0);
+      final across = (2 * _gu1 - 1) * rb * _across;
+      out.g[_classOf(_gu2, _gu3)]
+        ..add(row[0] + row[2] * across)
+        ..add(row[1] + row[3] * across);
+      _k++;
+      _pullGrain();
+    }
+    while (_nextStar <= upTo) {
+      final uA = _sr.next(), uShow = _sr.next(), uSize = _sr.next();
+      final uRot = _sr.next(), uGap = _sr.next();
+      if (uShow < _starShow) {
+        sp.sampleInto(_nextStar, row, 0);
+        final across = (uA - 0.5) * 0.24 * _b;
+        final room = (_reach - across.abs()) / _extent;
+        final env = 0.5 + 0.5 * uSize;
+        out.star(
+          row[0] + row[2] * across,
+          row[1] + row[3] * across,
+          room * env,
+          (uRot - 0.5) * 40,
+          math.min(1, env * 1.6),
+        );
+      }
+      _nextStar += _gap * _pow2(_place ~/ _starBlock) * (0.75 + 0.5 * uGap);
+      _place++;
+    }
+  }
+}
+
+/// The grains and stars of a dot (the lock app's glitter tap).
+void _dotSparkles(DecorSpine sp, double w, int seed, _Sink out) {
   final b = _unitOfWidth * w;
   final reach = minReach(w);
-  final out = _Builder();
-  final row = Float64List(5);
-  if (sp.isDot) {
-    final cx = sp.xs[0], cy = sp.ys[0];
-    final r = _tapR * b;
-    final gr = PenRandom(penSeed([seed, 11]));
-    final n = math.max(8, (math.pi * r * r / (b * b * 0.044)).floor());
-    for (var k = 0; k < n + _tapSpill; k++) {
-      final spill = k >= n;
-      final u0 = gr.next(), u1 = gr.next(), u2 = gr.next(), u3 = gr.next();
-      final d = spill
-          ? math.min(r * (1.1 + 0.6 * u0), reach - _grainLooks[6].$1 * b)
-          : r * _across * math.sqrt(u0);
-      final a = 2 * math.pi * u1;
-      final cls = spill ? (u3 < 0.5 ? 5 : 6) : _classOf(u2, u3);
-      out.g[cls]
-        ..add(cx + math.cos(a) * d)
-        ..add(cy + math.sin(a) * d);
-    }
-    final sr = PenRandom(penSeed([seed, 12]));
-    final turn = sr.next();
-    for (final a0 in _tapStarA) {
-      final a = 2 * math.pi * (turn + a0 + (sr.next() - 0.5) * 0.1);
-      final d = r * 1.2;
-      final room = (reach - d) / _extent;
-      final size = math.min(0.45 * 1.25 * b * (0.85 + 0.4 * sr.next()), room);
-      out.star(
-        cx + math.cos(a) * d,
-        cy + math.sin(a) * d,
-        size,
-        (sr.next() - 0.5) * 30,
-        1,
-      );
-    }
-    return out.done();
-  }
-  final length = sp.length;
-  final rb = _bodyR * b;
-  // grains
-  var step = _grainSpacing * b;
-  if (length / step > _maxGrains) step = length / _maxGrains;
-  final gr = PenRandom(penSeed([seed, 1]));
-  for (var k = 0; ; k++) {
+  final cx = sp.xs[0], cy = sp.ys[0];
+  final r = _tapR * b;
+  final gr = PenRandom(penSeed([seed, 11]));
+  final n = math.max(8, (math.pi * r * r / (b * b * 0.044)).floor());
+  for (var k = 0; k < n + _tapSpill; k++) {
+    final spill = k >= n;
     final u0 = gr.next(), u1 = gr.next(), u2 = gr.next(), u3 = gr.next();
-    final s = (k + u0) * step;
-    if (s > length) break;
-    sp.sampleInto(s, row, 0);
-    final across = (2 * u1 - 1) * rb * _across;
-    out.g[_classOf(u2, u3)]
-      ..add(row[0] + row[2] * across)
-      ..add(row[1] + row[3] * across);
+    final d = spill
+        ? math.min(r * (1.1 + 0.6 * u0), reach - _grainLooks[6].$1 * b)
+        : r * _across * math.sqrt(u0);
+    final a = 2 * math.pi * u1;
+    final cls = spill ? (u3 < 0.5 ? 5 : 6) : _classOf(u2, u3);
+    out.g[cls]
+      ..add(cx + math.cos(a) * d)
+      ..add(cy + math.sin(a) * d);
   }
-  // stars
-  final gap = _starGap * b;
-  final sr = PenRandom(penSeed([seed, 2]));
-  var s = gap * (0.3 + 0.4 * sr.next());
-  while (s < length) {
-    final uA = sr.next(), uShow = sr.next(), uSize = sr.next();
-    final uRot = sr.next(), uGap = sr.next();
-    if (uShow < _starShow) {
-      sp.sampleInto(s, row, 0);
-      final across = (uA - 0.5) * 0.24 * b;
-      final room = (reach - across.abs()) / _extent;
-      final env = 0.5 + 0.5 * uSize;
-      out.star(
-        row[0] + row[2] * across,
-        row[1] + row[3] * across,
-        room * env,
-        (uRot - 0.5) * 40,
-        math.min(1, env * 1.6),
-      );
+  final sr = PenRandom(penSeed([seed, 12]));
+  final turn = sr.next();
+  for (final a0 in _tapStarA) {
+    final a = 2 * math.pi * (turn + a0 + (sr.next() - 0.5) * 0.1);
+    final d = r * 1.2;
+    final room = (reach - d) / _extent;
+    final size = math.min(0.45 * 1.25 * b * (0.85 + 0.4 * sr.next()), room);
+    out.star(
+      cx + math.cos(a) * d,
+      cy + math.sin(a) * d,
+      size,
+      (sr.next() - 0.5) * 30,
+      1,
+    );
+  }
+}
+
+/// The grains of [xy] (from coordinate [from]) of radius [r].
+VecBuilder _grainPath(List<double> xy, double r, [int from = 0]) {
+  final v = VecBuilder();
+  for (var i = from; i + 1 < xy.length; i += 2) {
+    v.grain(xy[i], xy[i + 1], r);
+  }
+  return v;
+}
+
+/// Star paths from the star rows [from, …): halo layers, edge, stars, centers.
+(List<VecBuilder>, VecBuilder, VecBuilder, VecBuilder) _starPaths(
+  List<double> st, [
+  int from = 0,
+]) {
+  final halos = [for (var k = 0; k < _haloK.length; k++) VecBuilder()];
+  final edge = VecBuilder(), star = VecBuilder(), center = VecBuilder();
+  for (var i = from; i + 4 < st.length; i += 5) {
+    final x = st[i], y = st[i + 1], size = st[i + 2];
+    final deg = st[i + 3], grow = st[i + 4];
+    star.sparkle(x, y, size * _starLen, deg, _starWaist, slim: true);
+    edge.sparkle(x, y, size * _starLen * 1.12, deg, _edgeWaist, slim: true);
+    for (var k = 0; k < _haloK.length; k++) {
+      halos[k]
+        ..sparkle(x, y, size * _haloK[k] * 0.8, deg, _haloWaist)
+        ..circle(x, y, size * 0.29 * _haloK[k] * grow);
     }
-    s += gap * (0.75 + 0.5 * uGap);
+    center.circle(x, y, size * 0.14 * grow);
   }
-  return out.done();
+  return (halos, edge, star, center);
 }
 
 final class _Geom {
@@ -239,49 +335,30 @@ final class _Geom {
   final DecorShape rim, body;
   final List<DecorShape> grains, halos;
   final DecorShape edge, star, center;
-}
 
-/// Star paths from the star rows: halo layers, white stars, white centers.
-(List<VecBuilder>, VecBuilder, VecBuilder, VecBuilder) _starPaths(
-  Float64List st,
-) {
-  final halos = [for (var k = 0; k < _haloK.length; k++) VecBuilder()];
-  final edge = VecBuilder(), star = VecBuilder(), center = VecBuilder();
-  for (var i = 0; i + 4 < st.length; i += 5) {
-    final x = st[i], y = st[i + 1], size = st[i + 2];
-    final deg = st[i + 3], grow = st[i + 4];
-    star.sparkle(x, y, size * _starLen, deg, _starWaist, slim: true);
-    edge.sparkle(x, y, size * _starLen * 1.12, deg, _edgeWaist, slim: true);
-    for (var k = 0; k < _haloK.length; k++) {
-      halos[k]
-        ..sparkle(x, y, size * _haloK[k] * 0.8, deg, _haloWaist)
-        ..circle(x, y, size * 0.29 * _haloK[k] * grow);
-    }
-    center.circle(x, y, size * 0.14 * grow);
-  }
-  return (halos, edge, star, center);
+  int get bytes =>
+      shapesBytes([rim, body, ...grains, ...halos, edge, star, center]);
 }
-
-final Expando<_Geom> _geometry = Expando<_Geom>('glitter');
 
 _Geom _build(InkStroke stroke) {
   final w = stroke.style.width;
   final b = _unitOfWidth * w;
   final sp = DecorSpine.of(stroke.points);
-  final sparkles = _sparkles(sp, w, stroke.source.createdAt);
+  final sparkles = _Sink();
+  if (sp.isDot) {
+    _dotSparkles(sp, w, stroke.source.createdAt, sparkles);
+  } else {
+    _Gen(stroke.source.createdAt, w).run(sp, sp.length, sparkles);
+  }
   final rb = sp.isDot ? _tapR * b : _bodyR * b;
   final rim = 0.08 * b;
-  final grains = <DecorShape>[];
-  for (var c = 0; c < sparkles.grains.length; c++) {
-    final v = VecBuilder();
-    final r = _grainLooks[c].$1 * b;
-    final xy = sparkles.grains[c];
-    for (var i = 0; i + 1 < xy.length; i += 2) {
-      v.circle(xy[i], xy[i + 1], r);
-    }
-    grains.add(DecorShape.vector(v.build()));
-  }
-  final (halos, edge, star, center) = _starPaths(sparkles.stars);
+  final grains = [
+    for (var c = 0; c < sparkles.g.length; c++)
+      DecorShape.vector(
+        _grainPath(sparkles.g[c], _grainLooks[c].$1 * b).build(),
+      ),
+  ];
+  final (halos, edge, star, center) = _starPaths(sparkles.st);
   DecorShape tube(double radius) => sp.isDot
       ? DecorShape.vector(
           (VecBuilder()..circle(sp.xs[0], sp.ys[0], radius)).build(),
@@ -302,8 +379,17 @@ final class _GlitterPen extends DecorPen {
   const _GlitterPen();
 
   @override
-  List<DecorLayer> layers(InkStroke stroke, int colorArgb) {
-    final g = _geometry[stroke] ??= _build(stroke);
+  List<DecorLayer> layers(
+    InkStroke stroke,
+    StrokeOutline outline,
+    int colorArgb,
+  ) {
+    final g = decorGeometry(
+      'glitter',
+      stroke,
+      () => _build(stroke),
+      (g) => g.bytes,
+    );
     final t = _Tones(colorArgb);
     final pale = lightInk(colorArgb);
     return [
@@ -340,37 +426,95 @@ final class _GlitterPen extends DecorPen {
     }
     canvas.drawPath(line, tubePaint(rb, t.deep, o));
     if (sp.isDot) return;
-    final sparkles = _sparkles(sp, w, frame.seed);
-    for (var c = 0; c < sparkles.grains.length; c++) {
-      final xy = sparkles.grains[c];
-      if (xy.isEmpty) continue;
+    final key = (frame.seed, w);
+    var live = _lives.of(key, () => _Live(key, frame.seed, w));
+    var settled = 0;
+    if (!live.update(sp, (c) => settled = c)) {
+      final fresh = _Live(key, frame.seed, w);
+      _lives.reset(live, fresh);
+      live = fresh..update(sp, (c) => settled = c);
+    }
+    // the sparkles over settled points are final: keep them
+    final safe = settledLength(sp, settled);
+    if (safe > 0) {
+      final before = live.sink.st.length;
+      live.gen.run(sp, safe, live.sink);
+      live.depends = settled;
+      if (live.sink.st.length > before) {
+        final (halos, edge, star, center) = _starPaths(live.sink.st, before);
+        for (var k = 0; k < halos.length; k++) {
+          live.halos[k].addPath(halos[k].build().toUiPath(), ui.Offset.zero);
+        }
+        live.edge.addPath(edge.build().toUiPath(), ui.Offset.zero);
+        live.star.addPath(star.build().toUiPath(), ui.Offset.zero);
+        live.center.addPath(center.build().toUiPath(), ui.Offset.zero);
+      }
+    }
+    final tail = _Sink();
+    live.gen.copy().run(sp, sp.length, tail);
+    // grains as round points (the stored ones are octagons of the same
+    // radius — the same at any zoom a grain is seen at; points keep a frame
+    // cheap: a path of thousands of grains would be filled anew every frame)
+    for (var c = 0; c < tail.g.length; c++) {
       final (r, alpha) = _grainLooks[c];
-      canvas.drawRawPoints(
-        ui.PointMode.points,
-        Float32List.fromList(xy),
-        ui.Paint()
-          ..isAntiAlias = true
-          ..strokeCap = ui.StrokeCap.round
-          ..strokeWidth = 2 * r * b
-          ..color = fillPaint(t.grain(c), alpha * o).color,
-      );
+      final paint = ui.Paint()
+        ..isAntiAlias = true
+        ..strokeCap = ui.StrokeCap.round
+        ..strokeWidth = 2 * r * b
+        ..color = fillPaint(t.grain(c), alpha * o).color;
+      final kept = live.points(c);
+      if (kept.isNotEmpty) {
+        canvas.drawRawPoints(ui.PointMode.points, kept, paint);
+      }
+      final xy = tail.g[c];
+      if (xy.isNotEmpty) {
+        canvas.drawRawPoints(
+          ui.PointMode.points,
+          Float32List.fromList(xy),
+          paint,
+        );
+      }
     }
-    final (halos, edge, star, center) = _starPaths(sparkles.stars);
+    final (halos, edge, star, center) = _starPaths(tail.st);
     for (var k = 0; k < halos.length; k++) {
-      if (halos[k].isEmpty) continue;
-      canvas.drawPath(
-        halos[k].build().toUiPath(),
-        fillPaint(t.halo, _haloA[k] * t.glowA * o),
-      );
+      final paint = fillPaint(t.halo, _haloA[k] * t.glowA * o);
+      canvas.drawPath(live.halos[k], paint);
+      if (!halos[k].isEmpty) {
+        canvas.drawPath(halos[k].build().toUiPath(), paint);
+      }
     }
+    final edgePaint = fillPaint(darken(t.halo, 0.25), _edgeAlpha * o);
+    final starPaint = fillPaint(kWhite, o);
+    final centerPaint = fillPaint(kWhite, 0.9 * o);
+    canvas
+      ..drawPath(live.edge, edgePaint)
+      ..drawPath(live.star, starPaint)
+      ..drawPath(live.center, centerPaint);
     if (!star.isEmpty) {
       canvas
-        ..drawPath(
-          edge.build().toUiPath(),
-          fillPaint(darken(t.halo, 0.25), _edgeAlpha * o),
-        )
-        ..drawPath(star.build().toUiPath(), fillPaint(kWhite, o))
-        ..drawPath(center.build().toUiPath(), fillPaint(kWhite, 0.9 * o));
+        ..drawPath(edge.build().toUiPath(), edgePaint)
+        ..drawPath(star.build().toUiPath(), starPaint)
+        ..drawPath(center.build().toUiPath(), centerPaint);
     }
   }
 }
+
+/// The kept part of a live glitter stroke.
+final class _Live extends LiveSpineCache {
+  _Live(super.key, int seed, double w) : gen = _Gen(seed, w);
+
+  final _Gen gen;
+  final _Sink sink = _Sink();
+  final List<ui.Path> halos = [for (final _ in _haloK) ui.Path()];
+  final ui.Path edge = ui.Path(), star = ui.Path(), center = ui.Path();
+  final List<Float32List> _points = List.filled(7, Float32List(0));
+
+  /// the kept grains of class [c] as raw points (rebuilt when they grow)
+  Float32List points(int c) {
+    final xy = sink.g[c];
+    if (_points[c].length != xy.length) _points[c] = Float32List.fromList(xy);
+    return _points[c];
+  }
+}
+
+final LiveCaches<_Live> _lives = LiveCaches<_Live>();

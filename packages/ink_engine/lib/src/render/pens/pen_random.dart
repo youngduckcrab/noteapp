@@ -23,7 +23,13 @@ int penSeed(Iterable<num> values) {
 final class PenRandom {
   PenRandom(int seed) : _s = _start(seed);
 
+  PenRandom._at(this._s);
+
   int _s;
+
+  /// A copy that continues from the same state (the live stroke tries ahead
+  /// on a copy and keeps the original for the part that is final).
+  PenRandom copy() => PenRandom._at(_s);
 
   static int _start(int seed) {
     final s = seed % _m;
