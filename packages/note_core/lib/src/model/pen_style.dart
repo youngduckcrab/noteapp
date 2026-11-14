@@ -158,7 +158,7 @@ final class StrokeStyle {
     PenTool.neon => const StrokeStyle(
       tool: PenTool.neon,
       colorArgb: 0xFFFF2D95,
-      width: 3.0,
+      width: 6.0,
     ),
     PenTool.jelly => const StrokeStyle(
       tool: PenTool.jelly,
@@ -173,7 +173,7 @@ final class StrokeStyle {
     PenTool.glitter => const StrokeStyle(
       tool: PenTool.glitter,
       colorArgb: 0xFFFFB300,
-      width: 4.0,
+      width: 6.0,
     ),
   };
 

@@ -34,6 +34,11 @@ const Set<String> _roundTwo = {
   'texture_pens_vectors.png',
 };
 
+/// (v2.11, C211-01) the new pens' images: `decor_*.png` (decor track,
+/// pens_decor_golden_test.dart) and `texture_*.png` (texture track).
+bool _newPenImage(String name) =>
+    name.startsWith('decor_') || name.startsWith('texture_');
+
 List<File> _pngs(String dir) =>
     Directory(dir)
         .listSync()
@@ -48,7 +53,10 @@ void main() {
   });
 
   test('the 9.2 golden list (17 images) + the 2nd-round images', () {
-    final names = {for (final f in _pngs(_dir)) f.uri.pathSegments.last};
+    final names = {
+      for (final f in _pngs(_dir))
+        if (!_newPenImage(f.uri.pathSegments.last)) f.uri.pathSegments.last,
+    };
     expect(names.difference(_roundTwo), hasLength(17), reason: 'round 1');
     expect(names.containsAll(_roundTwo), isTrue);
   });

@@ -484,13 +484,18 @@ void main() {
         createdAt: tools.length,
       );
       final v = InkVectorExport.exportStrokes([...strokes, tape]);
-      // (v2.11, C211-01) a texture pen may export several pieces per stroke
-      // (same strokeId and tool, consecutive): one entry per stroke here
-      final perStroke = <String, core.PenTool>{
-        for (final s in v.inkShapes) s.strokeId: s.tool,
-      };
-      expect(perStroke.values, tools);
-      expect(perStroke.keys, tools.map((t) => t.name));
+      // (v2.11, C211-01) a pen may export several pieces (decoration layers):
+      // they follow each other with the stroke's id and tool
+      final firsts = [
+        for (var i = 0; i < v.inkShapes.length; i++)
+          if (i == 0 || v.inkShapes[i].strokeId != v.inkShapes[i - 1].strokeId)
+            v.inkShapes[i],
+      ];
+      expect(firsts.map((s) => s.tool), tools);
+      expect(firsts.map((s) => s.strokeId), tools.map((t) => t.name));
+      for (final s in v.inkShapes) {
+        expect(s.tool.name, s.strokeId);
+      }
       for (final s in v.inkShapes) {
         expect(s.tool, isA<core.PenTool>());
       }

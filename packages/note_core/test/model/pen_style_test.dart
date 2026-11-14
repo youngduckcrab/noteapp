@@ -112,10 +112,10 @@ void main() {
           PenTool.chalk: (0xFF4A6FA5, 4.0, 1.0, 0.4, {}),
           PenTool.watercolor: (0xFF2F80ED, 8.0, 1.0, 0.5, {}),
           PenTool.spray: (0xFF1F1F1F, 10.0, 1.0, 0.3, {}),
-          PenTool.neon: (0xFFFF2D95, 3.0, 1.0, 0.5, {}),
+          PenTool.neon: (0xFFFF2D95, 6.0, 1.0, 0.5, {}),
           PenTool.jelly: (0xFF7C4DFF, 5.0, 1.0, 0.5, {}),
           PenTool.rainbow: (0xFFFF3B30, 4.0, 1.0, 0.5, {}),
-          PenTool.glitter: (0xFFFFB300, 4.0, 1.0, 0.5, {}),
+          PenTool.glitter: (0xFFFFB300, 6.0, 1.0, 0.5, {}),
         };
     for (final MapEntry(key: tool, value: v) in table.entries) {
       test(tool.name, () {
