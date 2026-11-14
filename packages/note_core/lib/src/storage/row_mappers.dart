@@ -205,7 +205,7 @@ Future<void> writeEntityRow(
               id: e.id,
               pageId: e.pageId,
               noteId: strokeNoteId ?? '',
-              tool: s.tool.wireName,
+              tool: s.wireToolName,
               colorArgb: s.colorArgb,
               width: s.width,
               opacity: s.opacity,
@@ -610,22 +610,36 @@ Page pageOf(PageRow r, [Hlc? version]) => Page(
   contentRevision: r.contentRev,
 );
 
-Stroke strokeOf(StrokeRow r, [Hlc? version]) => Stroke(
+Stroke strokeOf(StrokeRow r, [Hlc? version]) {
+  // (v2.11, C211-01) an unknown tool name → ballpoint, name kept in extras
+  final (tool, extras) = StrokeStyle.decodeTool(
+    r.tool,
+    r.styleExtrasJson == null
+        ? const {}
+        : Map.unmodifiable(
+            jsonDecode(r.styleExtrasJson!) as Map<String, Object?>,
+          ),
+  );
+  return _strokeOf(r, tool, extras, version);
+}
+
+Stroke _strokeOf(
+  StrokeRow r,
+  PenTool tool,
+  Map<String, Object?> extras,
+  Hlc? version,
+) => Stroke(
   id: r.id,
   pageId: r.pageId,
   style: StrokeStyle(
-    tool: PenTool.fromWireName(r.tool),
+    tool: tool,
     colorArgb: r.colorArgb,
     width: r.width,
     opacity: r.opacity,
     pressureSensitivity: r.pressureSensitivity,
     pressureCurve: _curveOf(r.pressureCurve),
     smoothing: r.smoothing,
-    extras: r.styleExtrasJson == null
-        ? const {}
-        : Map.unmodifiable(
-            jsonDecode(r.styleExtrasJson!) as Map<String, Object?>,
-          ),
+    extras: extras,
   ),
   points: StrokePointsCodec.decode(r.points),
   recordingId: r.recordingId,

@@ -17,6 +17,7 @@ import '../model/ink_stroke.dart';
 import '../pen/pen_profile.dart';
 import '../stroke/width_factor.dart' show tiltK;
 import '../tuning.dart';
+import 'pens/pen_renderer.dart';
 
 /// Stroke color with alpha = opacity (arithmetic only, 7.4.3; K-5: the stored alpha is
 /// always 0xFF, transparency comes from opacity).
@@ -87,7 +88,8 @@ Paint inkFillPaint(PenProfile profile, Color color, {Image? grain}) {
 }
 
 /// Paints one committed fill-pen stroke from its [outline] (6.8). [colorArgb]
-/// replaces the color (recolor preview).
+/// replaces the color (recolor preview). (v2.11, C211-01) Through the pen's
+/// renderer (pens/pen_renderer.dart).
 void paintFillStroke(
   Canvas canvas,
   InkStroke stroke,
@@ -97,12 +99,15 @@ void paintFillStroke(
 }) {
   final opacity = strokeOpacity(stroke);
   if (opacity <= 0) return;
-  final paint = inkFillPaint(
-    stroke.profile,
-    inkColor(colorArgb ?? stroke.style.colorArgb, opacity),
+  // (v2.11, C211-01) the pen's renderer (plain fill for every pen without its own)
+  penRendererOf(stroke.style.tool).paintCommitted(
+    canvas,
+    stroke,
+    outline,
+    colorArgb: colorArgb ?? stroke.style.colorArgb,
+    opacity: opacity,
     grain: grain,
   );
-  canvas.drawPath(outline.toPath(), paint);
 }
 
 /// Paints fill paths that belong to one stroke (live chunks, R5): with

@@ -9,7 +9,9 @@ import 'package:note_core/note_core.dart' as core;
 import '../state/settings/editor_settings.dart';
 
 /// The pens that get the shape assist: not the highlighter (it has the
-/// 1st-round straightening), the laser (never stored) or the tape (12.2 Q4).
+/// 1st-round straightening), the laser (never stored) or the tape (12.2 Q4);
+/// (v2.11, C211-01) not the texture / decoration pens either — the snapped
+/// ShapeObject is drawn with a plain outline and would lose the pen's look.
 const Set<core.PenTool> _assistPens = {
   core.PenTool.ballpoint,
   core.PenTool.fountain,

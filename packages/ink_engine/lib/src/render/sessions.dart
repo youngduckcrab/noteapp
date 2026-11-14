@@ -568,6 +568,11 @@ HoldDetector? strokeSessionHoldOf(StrokeSession s) => s._hold;
 core.ShapeObject? strokeSessionPreviewShape(StrokeSession s) =>
     s._active ? s._previewShape : null;
 
+/// (v2.11, C211-01) The pen-down ms of the session (= the committed stroke's
+/// createdAt): PenLiveFrame.seed.
+@internal
+int strokeSessionPenDownMillis(StrokeSession s) => s._penDownMillis;
+
 /// Shape assist applies to this tool (not highlighter, laser or tape — 03-ink 4.10).
 @internal
 bool shapeAssistAllowed(core.PenTool tool) =>

@@ -1,4 +1,5 @@
 // m5-7/04-editor 8.2 E2-14, 6.14.1, 6.14.3: the pen picker v2 — ten cells in
+// (v2.11, C211-01: + the 질감 and 꾸미기 rows, eighteen cells in three groups)
 // two rows (P0 row, extra row) with the 6.14.1 names, icons and keys; a P1
 // pen picked → penType, the pen active, the tool state stored; the laser has
 // no colour rows in the pen settings popup.
@@ -67,11 +68,52 @@ const _extra = [
   core.PenTool.laser,
   core.PenTool.tape,
 ];
+// (C211-01) 질감 / 꾸미기 rows
+const _texture = [
+  core.PenTool.crayon,
+  core.PenTool.chalk,
+  core.PenTool.watercolor,
+  core.PenTool.spray,
+];
+const _decor = [
+  core.PenTool.neon,
+  core.PenTool.jelly,
+  core.PenTool.rainbow,
+  core.PenTool.glitter,
+];
+const _rows = [_p0, _extra, _texture, _decor];
 
 void main() {
   test('names and icons of the ten types (6.14.1)', () {
-    expect(PenTypeSelector.rows, [_p0, _extra]);
-    expect(PenTypeSelector.types, [..._p0, ..._extra]);
+    expect(PenTypeSelector.rows, _rows);
+    expect(PenTypeSelector.types, [for (final r in _rows) ...r]);
+    expect(PenTypeSelector.types.toSet(), core.PenTool.values.toSet());
+    expect(PenTypeSelector.groups.keys, PenTypeGroup.values);
+    expect(
+      [for (final g in PenTypeGroup.values) EditorStrings.penGroupName(g.name)],
+      ['기본', '질감', '꾸미기'],
+    );
+    expect(
+      [
+        for (final t in [..._texture, ..._decor]) EditorStrings.penTypeName(t),
+      ],
+      ['크레파스', '분필', '수채', '스프레이', '네온', '젤리', '무지개', '반짝이'],
+    );
+    expect(
+      [
+        for (final t in [..._texture, ..._decor]) penTypeIcon(t),
+      ],
+      [
+        Icons.mode_edit_outline,
+        Icons.school,
+        Icons.water_drop,
+        Icons.blur_on,
+        Icons.lightbulb,
+        Icons.bubble_chart,
+        Icons.looks,
+        Icons.auto_awesome,
+      ],
+    );
     expect(
       [for (final t in _extra) EditorStrings.penTypeName(t)],
       ['붓펜', '캘리그래피', '점선', '레이저', '암기 테이프'],
@@ -99,10 +141,13 @@ void main() {
     );
   });
 
-  testWidgets('ten cells in two rows, in order, each with its name, icon and '
+  testWidgets('every cell in its row (기본 two rows, 질감, 꾸미기), in order, '
+      'each with its name, icon and '
       'key; at least 44 px', (tester) async {
     await _open(tester);
-    for (final row in [_p0, _extra]) {
+    for (final row in _rows) {
+      await tester.ensureVisible(_cell(row.first));
+      await tester.pump();
       final y = tester.getCenter(_cell(row.first)).dy;
       for (var i = 0; i < row.length; i++) {
         final cell = _cell(row[i]);
@@ -133,6 +178,23 @@ void main() {
     expect(
       tester.getCenter(_cell(_extra.first)).dy,
       greaterThan(tester.getCenter(_cell(_p0.first)).dy),
+    );
+    // (C211-01) one header per group, above its first row
+    for (final (g, first) in [
+      (PenTypeGroup.basic, _p0.first),
+      (PenTypeGroup.texture, _texture.first),
+      (PenTypeGroup.decor, _decor.first),
+    ]) {
+      final header = find.byKey(PenTypeSelector.groupKeyOf(g));
+      expect(header, findsOneWidget);
+      expect(
+        tester.getCenter(header).dy,
+        lessThan(tester.getCenter(_cell(first)).dy),
+      );
+    }
+    expect(
+      tester.getCenter(_cell(_decor.first)).dy,
+      greaterThan(tester.getCenter(_cell(_texture.first)).dy),
     );
     expect(tester.takeException(), isNull);
   });

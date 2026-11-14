@@ -146,6 +146,15 @@ void main() {
           PenTool.dashed: true,
           PenTool.laser: false,
           PenTool.tape: false,
+          // (C211-01) the texture and decoration pens write: recognition input
+          PenTool.crayon: true,
+          PenTool.chalk: true,
+          PenTool.watercolor: true,
+          PenTool.spray: true,
+          PenTool.neon: true,
+          PenTool.jelly: true,
+          PenTool.rainbow: true,
+          PenTool.glitter: true,
         },
       );
     });

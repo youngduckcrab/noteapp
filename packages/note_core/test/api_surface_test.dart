@@ -807,7 +807,14 @@ void main() {
     ], hasLength(5));
     expect(Stroke.fromJson(stroke.toJson()), stroke);
 
-    expect(PenTool.values, hasLength(10));
+    expect(PenTool.values, hasLength(18));
+    final PenTool? Function(String) tryWire = PenTool.tryFromWireName;
+    expect(tryWire('stamp'), isNull);
+    expect(kUnknownPenToolKey, 'unknownTool');
+    final (PenTool, Map<String, Object?>) Function(String, Map<String, Object?>)
+    decodeTool = StrokeStyle.decodeTool;
+    expect(decodeTool('stamp', const {}).$1, PenTool.ballpoint);
+    expect(StrokeStyle.defaultsFor(PenTool.glitter).wireToolName, 'glitter');
     final PenTool Function(String) wire = PenTool.fromWireName;
     expect(wire('pencil'), PenTool.pencil);
     expect([

@@ -40,6 +40,15 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   core.PenTool.dashed => Icons.line_style,
   core.PenTool.laser => Icons.flare,
   core.PenTool.tape => Icons.visibility_off,
+  // (v2.11, C211-01) texture and decoration pens
+  core.PenTool.crayon => Icons.mode_edit_outline,
+  core.PenTool.chalk => Icons.school,
+  core.PenTool.watercolor => Icons.water_drop,
+  core.PenTool.spray => Icons.blur_on,
+  core.PenTool.neon => Icons.lightbulb,
+  core.PenTool.jelly => Icons.bubble_chart,
+  core.PenTool.rainbow => Icons.looks,
+  core.PenTool.glitter => Icons.auto_awesome,
 };
 
 /// [←] title [▤] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+] [🎤] │ [↶] [↷] │

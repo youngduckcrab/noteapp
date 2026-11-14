@@ -17,19 +17,41 @@ enum PenTool {
   calligraphy,
   dashed,
   laser,
-  tape; // P1 reserved (INK renders as ballpoint)
+  tape, // P1 reserved (INK renders as ballpoint)
+  // (v2.11, C211-01) texture pens — appended after tape so every older index stays put
+  crayon,
+  chalk,
+  watercolor,
+  spray,
+  // (v2.11, C211-01) decoration pens: static and deterministic (no time animation)
+  neon,
+  jelly,
+  rainbow,
+  glitter;
 
   bool get isP0 => index <= PenTool.marker.index;
   String get wireName => name; // == name
 
   /// Throws FormatException.
-  static PenTool fromWireName(String name) {
+  static PenTool fromWireName(String name) =>
+      tryFromWireName(name) ??
+      (throw FormatException('Unknown pen tool', name));
+
+  /// (v2.11, C211-01) null for a name this version does not know.
+  static PenTool? tryFromWireName(String name) {
     for (final t in PenTool.values) {
       if (t.name == name) return t;
     }
-    throw FormatException('Unknown pen tool', name);
+    return null;
   }
 }
+
+/// (v2.11, C211-01) Forward compatibility: a stored style whose tool name this version does
+/// not know (a pen from a newer app) decodes as [PenTool.ballpoint] and keeps the original
+/// name in extras under this key; [StrokeStyle.wireToolName] writes it back, so a stroke an
+/// older version merely moves or recolors keeps its pen for the newer one. A known name
+/// drops the key on decode.
+const String kUnknownPenToolKey = 'unknownTool';
 
 @immutable
 final class StrokeStyle {
@@ -107,6 +129,52 @@ final class StrokeStyle {
       width: 14.0,
       smoothing: 0.3,
     ),
+    // (v2.11, C211-01) texture pens
+    PenTool.crayon => const StrokeStyle(
+      tool: PenTool.crayon,
+      colorArgb: 0xFFE5533D,
+      width: 4.0,
+      smoothing: 0.4,
+    ),
+    PenTool.chalk => const StrokeStyle(
+      tool: PenTool.chalk,
+      colorArgb: 0xFF4A6FA5,
+      width: 4.0,
+      smoothing: 0.4,
+    ),
+    PenTool.watercolor => const StrokeStyle(
+      tool: PenTool.watercolor,
+      colorArgb: 0xFF2F80ED,
+      width: 8.0,
+      smoothing: 0.5,
+    ),
+    PenTool.spray => const StrokeStyle(
+      tool: PenTool.spray,
+      colorArgb: 0xFF1F1F1F,
+      width: 10.0,
+      smoothing: 0.3,
+    ),
+    // (v2.11, C211-01) decoration pens
+    PenTool.neon => const StrokeStyle(
+      tool: PenTool.neon,
+      colorArgb: 0xFFFF2D95,
+      width: 3.0,
+    ),
+    PenTool.jelly => const StrokeStyle(
+      tool: PenTool.jelly,
+      colorArgb: 0xFF7C4DFF,
+      width: 5.0,
+    ),
+    PenTool.rainbow => const StrokeStyle(
+      tool: PenTool.rainbow,
+      colorArgb: 0xFFFF3B30,
+      width: 4.0,
+    ),
+    PenTool.glitter => const StrokeStyle(
+      tool: PenTool.glitter,
+      colorArgb: 0xFFFFB300,
+      width: 4.0,
+    ),
   };
 
   static const double minWidth = 0.1, maxWidth = 30.0; // pt
@@ -123,6 +191,31 @@ final class StrokeStyle {
   final double smoothing; // [0, 1]; INK 1-euro filter strength, input time
   // JSON-safe; keys owned by INK (InkStyleExtras)
   final Map<String, Object?> extras;
+
+  /// (v2.11, C211-01) The tool name stored on the wire and in the database: the original
+  /// unknown name kept in extras[kUnknownPenToolKey] (see there), else tool.wireName.
+  String get wireToolName => switch (extras[kUnknownPenToolKey]) {
+    final String name when tool == PenTool.ballpoint => name,
+    _ => tool.wireName,
+  };
+
+  /// (v2.11, C211-01) The decode rule of [StrokeStyle.fromJson] and the stroke row: a known
+  /// [name] → its tool, [extras] without kUnknownPenToolKey; an unknown one → ballpoint,
+  /// extras + {kUnknownPenToolKey: name}.
+  static (PenTool, Map<String, Object?>) decodeTool(
+    String name,
+    Map<String, Object?> extras,
+  ) {
+    final tool = PenTool.tryFromWireName(name);
+    if (tool != null) {
+      if (!extras.containsKey(kUnknownPenToolKey)) return (tool, extras);
+      return (tool, Map.unmodifiable({...extras}..remove(kUnknownPenToolKey)));
+    }
+    return (
+      PenTool.ballpoint,
+      Map.unmodifiable({...extras, kUnknownPenToolKey: name}),
+    );
+  }
 
   /// == opacity once normalized
   double get effectiveAlpha => (colorArgb ~/ 0x1000000 % 256) / 255 * opacity;
@@ -168,7 +261,7 @@ final class StrokeStyle {
   );
 
   Map<String, Object?> toJson() => {
-    'tool': tool.wireName,
+    'tool': wireToolName,
     'color': colorArgb,
     'width': width,
     'opacity': opacity,
@@ -180,8 +273,12 @@ final class StrokeStyle {
 
   factory StrokeStyle.fromJson(Map<String, Object?> json) {
     final curve = json['pressureCurve'];
+    final (tool, extras) = decodeTool(
+      readString(json, 'tool'),
+      readExtras(json, 'extras'),
+    );
     return StrokeStyle(
-      tool: PenTool.fromWireName(readString(json, 'tool')),
+      tool: tool,
       colorArgb: readInt(json, 'color'),
       width: readDouble(json, 'width'),
       opacity: readDoubleOr(json, 'opacity', 1.0),
@@ -190,7 +287,7 @@ final class StrokeStyle {
           ? PressureCurve.linear
           : PressureCurve.fromJson(asList(curve, 'pressureCurve')),
       smoothing: readDoubleOr(json, 'smoothing', 0.5),
-      extras: readExtras(json, 'extras'),
+      extras: extras,
     );
   }
 

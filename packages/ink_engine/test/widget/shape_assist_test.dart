@@ -466,7 +466,7 @@ void main() {
               t != core.PenTool.tape)
             t,
       ];
-      expect(tools, hasLength(7));
+      expect(tools, hasLength(15)); // (C211-01) + 8 texture / decoration pens
       for (final tool in tools) {
         final style = core.StrokeStyle.defaultsFor(tool)
             .copyWith(colorArgb: 0xFF336699, width: 3.5, opacity: 0.6);

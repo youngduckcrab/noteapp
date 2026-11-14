@@ -339,4 +339,27 @@ void main() {
       expect((row.sortKey, row.contentRev), ('c0', 3));
     });
   });
+
+  group('(C211-01) strokes with a pen this version does not know', () {
+    test('the row keeps the original name and decodes as ballpoint', () async {
+      final sample = kSampleEntities['stroke']! as Stroke;
+      final stroke = sample.copyWith(
+        version: _h1,
+        style: StrokeStyle.fromJson({
+          ...sample.style.toJson(),
+          'tool': 'stamp',
+        }),
+      );
+      expect(stroke.style.tool, PenTool.ballpoint);
+      final versions = EntityFieldVersions(_h1);
+      await writeEntityRow(db(), stroke, versions, strokeNoteId: 'n1');
+      final row = await (db().select(
+        db().strokes,
+      )..where((t) => t.id.equals(stroke.id))).getSingle();
+      expect(row.tool, 'stamp');
+      final back = await read(EntityKind.stroke, stroke.id);
+      expect(back!.entity, stroke);
+      expect((back.entity as Stroke).style.wireToolName, 'stamp');
+    });
+  });
 }

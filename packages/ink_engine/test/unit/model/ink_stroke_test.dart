@@ -83,7 +83,7 @@ void main() {
     for (final tool in core.PenTool.values) {
       final s = InkStroke.of(_stroke(tool: tool));
       expect(s.profile, PenProfile.of(tool));
-      if (!tool.isP0) {
+      if (!tool.isP0 && tool.index <= core.PenTool.tape.index) {
         expect(
           s.profile,
           same(switch (tool) {

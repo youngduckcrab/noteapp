@@ -8,11 +8,16 @@ import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
 import '../toolbar/editor_toolbar.dart' show penTypeIcon;
 
-/// The pen types as icon + name in two rows (v2, 6.14.1): the P0 row
-/// (볼펜 · 만년필 · 형광펜 · 연필 · 마커) and the extra row (붓펜 · 캘리그래피 ·
-/// 점선 · 레이저 · 암기 테이프). [selected] is drawn on primaryContainer; a
-/// tap calls [onSelected] (default: selectPenType — that type's last style,
-/// pen active).
+/// Pen type groups of the picker (v2.11, C211-01).
+enum PenTypeGroup { basic, texture, decor }
+
+/// The pen types as icon + name, grouped (v2, 6.14.1; v2.11, C211-01): 기본 —
+/// the P0 row (볼펜 · 만년필 · 형광펜 · 연필 · 마커) and the extra row (붓펜 ·
+/// 캘리그래피 · 점선 · 레이저 · 암기 테이프); 질감 (크레파스 · 분필 · 수채 ·
+/// 스프레이); 꾸미기 (네온 · 젤리 · 무지개 · 반짝이). Every row has five
+/// columns (a shorter row keeps the cell width). [selected] is drawn on
+/// primaryContainer; a tap calls [onSelected] (default: selectPenType — that
+/// type's last style, pen active).
 class PenTypeSelector extends ConsumerWidget {
   const PenTypeSelector({super.key, this.selected, this.onSelected});
 
@@ -23,16 +28,45 @@ class PenTypeSelector extends ConsumerWidget {
   static ValueKey<String> keyOf(core.PenTool tool) =>
       ValueKey('editor.pen.type.${tool.name}');
 
-  /// The two rows (6.14.1), in core.PenTool order.
+  static ValueKey<String> groupKeyOf(PenTypeGroup group) =>
+      ValueKey('editor.pen.group.${group.name}');
+
+  /// Cells per row.
+  static const int columns = 5;
+
+  /// The rows of each group, in core.PenTool order inside a row.
+  static Map<PenTypeGroup, List<List<core.PenTool>>> get groups => {
+    PenTypeGroup.basic: [
+      [
+        for (final t in core.PenTool.values)
+          if (t.isP0) t,
+      ],
+      [
+        for (final t in core.PenTool.values)
+          if (!t.isP0 && t.index <= core.PenTool.tape.index) t,
+      ],
+    ],
+    PenTypeGroup.texture: const [
+      [
+        core.PenTool.crayon,
+        core.PenTool.chalk,
+        core.PenTool.watercolor,
+        core.PenTool.spray,
+      ],
+    ],
+    PenTypeGroup.decor: const [
+      [
+        core.PenTool.neon,
+        core.PenTool.jelly,
+        core.PenTool.rainbow,
+        core.PenTool.glitter,
+      ],
+    ],
+  };
+
+  /// Every row, group by group.
   static List<List<core.PenTool>> get rows => [
-    [
-      for (final t in core.PenTool.values)
-        if (t.isP0) t,
-    ],
-    [
-      for (final t in core.PenTool.values)
-        if (!t.isP0) t,
-    ],
+    for (final g in groups.values) ...g,
   ];
 
   /// Every type, row by row.
@@ -86,10 +120,34 @@ class PenTypeSelector extends ConsumerWidget {
       ),
     );
 
+    Widget header(PenTypeGroup group) => Padding(
+      key: groupKeyOf(group),
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          EditorStrings.penGroupName(group.name),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final row in rows) Row(children: [for (final t in row) cell(t)]),
+        for (final MapEntry(key: group, value: rows) in groups.entries) ...[
+          header(group),
+          for (final row in rows)
+            Row(
+              children: [
+                for (final t in row) cell(t),
+                for (var i = row.length; i < columns; i++)
+                  const Expanded(child: SizedBox()),
+              ],
+            ),
+        ],
       ],
     );
   }

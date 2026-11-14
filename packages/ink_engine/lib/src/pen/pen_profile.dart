@@ -3,6 +3,8 @@ import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import '../model/ink_layer.dart';
+import 'profiles/decor_profiles.dart';
+import 'profiles/texture_profiles.dart';
 
 enum InkCap { round, square }
 
@@ -88,6 +90,15 @@ final class PenProfile {
     core.PenTool.dashed => dashed,
     core.PenTool.laser => laser,
     core.PenTool.tape => tape,
+    // (v2.11, C211-01) texture / decoration pens: profiles/*.dart (one file per track)
+    core.PenTool.crayon => TexturePenProfiles.crayon,
+    core.PenTool.chalk => TexturePenProfiles.chalk,
+    core.PenTool.watercolor => TexturePenProfiles.watercolor,
+    core.PenTool.spray => TexturePenProfiles.spray,
+    core.PenTool.neon => DecorPenProfiles.neon,
+    core.PenTool.jelly => DecorPenProfiles.jelly,
+    core.PenTool.rainbow => DecorPenProfiles.rainbow,
+    core.PenTool.glitter => DecorPenProfiles.glitter,
   };
 
   // values: 6.9 table

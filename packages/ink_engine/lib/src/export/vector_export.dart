@@ -59,6 +59,7 @@ import '../object/shape_path.dart'
 import '../pen/pen_profile.dart';
 import '../render/highlighter_compositor.dart';
 import '../render/ink_page_content.dart';
+import '../render/pens/pen_renderer.dart' show penRendererOf;
 import '../render/stroke_painter.dart' show strokeOpacity;
 import '../text/fonts.dart';
 import '../tuning.dart';
@@ -466,22 +467,31 @@ final class _PageExport {
     }
   }
 
+  /// (v2.11, C211-01) Through the pen's renderer: one InkFillShape per vector
+  /// piece (the plain fill = one piece, the screen's L1 outline).
   void _stroke(InkStroke s) {
     final opacity = _fillOpacity(s, options.pencilOpacityFactor);
     if (opacity <= 0) return;
     final outline = OutlineGenerator.outline(s);
-    final path = outline.toVectorPath(smooth: options.smooth);
-    if (path.verbs.isEmpty) return;
-    _shapes.add(
-      InkFillShape._(
-        strokeId: s.id,
-        tool: s.style.tool,
-        path: path,
-        colorArgb: _opaque(s.style.colorArgb),
-        opacity: opacity,
-      ),
-    );
-    _include(outline.bounds);
+    final pieces = penRendererOf(s.style.tool)
+        .vectorPieces(s, outline, opacity: opacity, smooth: options.smooth);
+    var any = false;
+    for (final piece in pieces) {
+      if (piece.path.verbs.isEmpty || !(piece.opacity > 0)) continue;
+      any = true;
+      _shapes.add(
+        InkFillShape._(
+          strokeId: s.id,
+          tool: s.style.tool,
+          path: piece.path,
+          colorArgb: _opaque(piece.colorArgb),
+          opacity: piece.opacity.clamp(0.0, 1.0).toDouble(),
+        ),
+      );
+      // the plain fill's piece lies inside outline.bounds (control points in the hull)
+      _include(piece.path.bounds);
+    }
+    if (any) _include(outline.bounds);
   }
 
   /// 6.9.5 / 6.21: the fill piece (fillColorArgb on a closed polyline or an ellipse —

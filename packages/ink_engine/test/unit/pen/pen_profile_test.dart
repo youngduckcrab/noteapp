@@ -248,6 +248,34 @@ void main() {
     );
   });
 
+  test('(C211-01) texture / decoration pens: an ink-layer filled outline, '
+      'factors below the K6 saturation', () {
+    const newTools = [
+      core.PenTool.crayon,
+      core.PenTool.chalk,
+      core.PenTool.watercolor,
+      core.PenTool.spray,
+      core.PenTool.neon,
+      core.PenTool.jelly,
+      core.PenTool.rainbow,
+      core.PenTool.glitter,
+    ];
+    expect([
+      for (final t in core.PenTool.values)
+        if (t.index > core.PenTool.tape.index) t,
+    ], newTools);
+    for (final t in newTools) {
+      final p = PenProfile.of(t);
+      expect(p.layer, InkLayer.ink, reason: t.name);
+      expect(p.renderMethod, InkRenderMethod.filledOutline, reason: t.name);
+      expect(p.groupComposite, isFalse, reason: t.name);
+      expect(p.minFactor, greaterThan(0), reason: t.name);
+      expect(p.minFactor, lessThanOrEqualTo(p.maxFactor), reason: t.name);
+      expect(p.maxFactor, lessThan(core.kMaxWidthFactor), reason: t.name);
+      expect(core.StrokeStyle.defaultsFor(t).profile, same(p), reason: t.name);
+    }
+  });
+
   test(
     'factor ranges: 0 < min ≤ max; pencil full pressure + tilt = 4.48 (K4)',
     () {
@@ -327,7 +355,7 @@ void main() {
           };
       expect(table.keys.toSet(), {
         for (final t in core.PenTool.values)
-          if (!t.isP0) t,
+          if (!t.isP0 && t.index <= core.PenTool.tape.index) t,
       });
       for (final MapEntry(key: tool, value: row) in table.entries) {
         final s = core.StrokeStyle.defaultsFor(tool);

@@ -15,7 +15,68 @@ void main() {
         expect(t.wireName, t.name);
         expect(PenTool.fromWireName(t.wireName), t);
       }
-      expect(() => PenTool.fromWireName('crayon'), throwsFormatException);
+      expect(() => PenTool.fromWireName('stamp'), throwsFormatException);
+      expect(PenTool.tryFromWireName('stamp'), isNull);
+      expect(PenTool.tryFromWireName('crayon'), PenTool.crayon);
+    });
+
+    test('(C211-01) new pens are appended after tape: old indices stay', () {
+      expect(PenTool.values.map((t) => t.name), [
+        'ballpoint',
+        'fountain',
+        'highlighter',
+        'pencil',
+        'marker',
+        'brush',
+        'calligraphy',
+        'dashed',
+        'laser',
+        'tape',
+        'crayon',
+        'chalk',
+        'watercolor',
+        'spray',
+        'neon',
+        'jelly',
+        'rainbow',
+        'glitter',
+      ]);
+    });
+  });
+
+  group('(C211-01) unknown tool names (forward compatibility)', () {
+    Map<String, Object?> json(String tool, [Map<String, Object?>? extras]) => {
+      ...StrokeStyle.defaultsFor(PenTool.ballpoint).toJson(),
+      'tool': tool,
+      'extras': ?extras,
+    };
+
+    test('decode as ballpoint, keep the name, write it back', () {
+      final s = StrokeStyle.fromJson(json('stamp', {'a': 1}));
+      expect(s.tool, PenTool.ballpoint);
+      expect(s.extras, {'a': 1, kUnknownPenToolKey: 'stamp'});
+      expect(s.wireToolName, 'stamp');
+      expect(s.toJson()['tool'], 'stamp');
+      expect(StrokeStyle.fromJson(s.toJson()), s);
+      // a restyle (lasso color change) keeps the pen for the newer app
+      final recolored = const StrokeStylePatch(colorArgb: 0xFF00FF00)
+          .applyTo(s);
+      expect(recolored.toJson()['tool'], 'stamp');
+    });
+
+    test('a known name drops a stale key', () {
+      final s = StrokeStyle.fromJson(
+        json('crayon', {kUnknownPenToolKey: 'crayon', 'b': 2}),
+      );
+      expect(s.tool, PenTool.crayon);
+      expect(s.extras, {'b': 2});
+      expect(s.wireToolName, 'crayon');
+    });
+
+    test('Stroke.fromJson does not throw on an unknown pen', () {
+      final style = StrokeStyle.fromJson(json('stamp'));
+      expect(style.tool, PenTool.ballpoint);
+      expect(style.extras, {kUnknownPenToolKey: 'stamp'});
     });
   });
 
@@ -47,6 +108,14 @@ void main() {
           ),
           PenTool.laser: (0xFFFF3B30, 3.0, 1.0, 0.5, {}),
           PenTool.tape: (0xFF7E57C2, 14.0, 1.0, 0.3, {}),
+          PenTool.crayon: (0xFFE5533D, 4.0, 1.0, 0.4, {}),
+          PenTool.chalk: (0xFF4A6FA5, 4.0, 1.0, 0.4, {}),
+          PenTool.watercolor: (0xFF2F80ED, 8.0, 1.0, 0.5, {}),
+          PenTool.spray: (0xFF1F1F1F, 10.0, 1.0, 0.3, {}),
+          PenTool.neon: (0xFFFF2D95, 3.0, 1.0, 0.5, {}),
+          PenTool.jelly: (0xFF7C4DFF, 5.0, 1.0, 0.5, {}),
+          PenTool.rainbow: (0xFFFF3B30, 4.0, 1.0, 0.5, {}),
+          PenTool.glitter: (0xFFFFB300, 4.0, 1.0, 0.5, {}),
         };
     for (final MapEntry(key: tool, value: v) in table.entries) {
       test(tool.name, () {

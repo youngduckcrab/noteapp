@@ -79,6 +79,7 @@ import 'laser_trail.dart';
 import 'lasso_overlay.dart';
 import 'page_host.dart';
 import 'pencil_grain.dart';
+import 'pens/pen_renderer.dart';
 import 'playback.dart' show InkPlaybackFocus, normalizedPlaybackFocus;
 import 'playback_index.dart';
 import 'playback_painter.dart';
@@ -2147,17 +2148,24 @@ final class InkPageController extends ChangeNotifier {
       final live = active.live;
       final style = active.style;
       if (!live.isEmpty) {
-        paintFillPaths(
-          canvas,
-          [live.frozenPath, live.tailPath],
-          profile: style.profile,
-          colorArgb: style.colorArgb,
-          opacity:
-              style.opacity *
-              tiltOpacityFactor(style.profile, liveMeanTiltK(live)),
-          bounds: live.bounds.inflate(margin),
-          grain: style.profile.textured ? _grain() : null,
-        );
+        final opacity =
+            style.opacity *
+            tiltOpacityFactor(style.profile, liveMeanTiltK(live));
+        // (v2.11, C211-01) the pen's renderer (plain fill for most pens)
+        if (opacity > 0) {
+          penRendererOf(style.tool).paintLive(
+            canvas,
+            PenLiveFrame(
+              style: style,
+              paths: [live.frozenPath, live.tailPath],
+              centerline: livePoints(live),
+              bounds: live.bounds.inflate(margin),
+              opacity: opacity,
+              seed: strokeSessionPenDownMillis(active),
+              grain: style.profile.textured ? _grain() : null,
+            ),
+          );
+        }
       }
       final end = clock.nowUs();
       diagnostics.onActivePaint(paintUs: end, updateMs: (end - start) / 1000);

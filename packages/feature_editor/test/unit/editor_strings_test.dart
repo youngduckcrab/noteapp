@@ -52,6 +52,15 @@ void main() {
           core.PenTool.dashed: '점선',
           core.PenTool.laser: '레이저',
           core.PenTool.tape: '암기 테이프',
+          // (C211-01) texture and decoration pens
+          core.PenTool.crayon: '크레파스',
+          core.PenTool.chalk: '분필',
+          core.PenTool.watercolor: '수채',
+          core.PenTool.spray: '스프레이',
+          core.PenTool.neon: '네온',
+          core.PenTool.jelly: '젤리',
+          core.PenTool.rainbow: '무지개',
+          core.PenTool.glitter: '반짝이',
         },
       );
     });

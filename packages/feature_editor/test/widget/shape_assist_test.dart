@@ -113,6 +113,8 @@ void main() {
         core.PenTool.highlighter ||
         core.PenTool.laser ||
         core.PenTool.tape => ink.ShapeAssist.off,
+        // (C211-01) the texture / decoration pens keep their look: no snap
+        _ when pen.index > core.PenTool.tape.index => ink.ShapeAssist.off,
         _ => ink.ShapeAssist.holdToSnap,
       };
       expect(await _assistAtDown(tester, h, pen), expected, reason: '$pen');

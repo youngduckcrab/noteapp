@@ -263,8 +263,8 @@ void main() {
       final strokes = [
         for (final (k, tool) in core.PenTool.values.indexed)
           _line(
-            ui.Offset(120, 105.0 + 10 * k),
-            ui.Offset(180, 105.0 + 10 * k),
+            ui.Offset(120, 105.0 + 5 * k),
+            ui.Offset(180, 105.0 + 5 * k),
             id: tool.name,
             style: core.StrokeStyle.defaultsFor(tool),
           ),

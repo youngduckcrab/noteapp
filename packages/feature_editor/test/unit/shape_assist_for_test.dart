@@ -18,6 +18,7 @@ const _assist = {
   core.PenTool.brush,
   core.PenTool.calligraphy,
   core.PenTool.dashed,
+  // (C211-01) not the texture / decoration pens: a snapped shape would lose their look
 };
 
 void main() {
@@ -26,9 +27,9 @@ void main() {
     'FakeInkShapeFitter': ink_testing.FakeInkShapeFitter(),
   };
 
-  test('10 pens × setting × fitter: holdToSnap only with the setting on, a '
+  test('18 pens × setting × fitter: holdToSnap only with the setting on, a '
       'fitter wired and an assist pen', () {
-    expect(core.PenTool.values, hasLength(10));
+    expect(core.PenTool.values, hasLength(18));
     var rows = 0;
     var snapping = 0;
     for (final pen in core.PenTool.values) {
@@ -48,7 +49,7 @@ void main() {
         }
       }
     }
-    expect(rows, 40);
+    expect(rows, 72);
     expect(snapping, 7); // the 7 assist pens, setting on, a fitter
   });
 
