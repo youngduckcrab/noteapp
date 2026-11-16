@@ -3386,6 +3386,18 @@ INFRA는 승인 상태다. EDITOR 12.2 Q16(V5의 자동 도형 단계가 P-B 작
 - 하드코딩 색 감시: `tool/test/ui_colors_test.dart` — UI 패키지 `lib/`의 `Color(0x…)`·`Colors.<이름>`(투명 제외)은 허용 목록(녹음 빨간 점, 검색 노란 강조, 표지 글자색·책등, 스타일 미리보기의 잉크 선)과 그 개수까지만. (검토 반영) 줄 단위가 아니라 파일 전체에 정규식을 돌린다: 주석만 지우고(문자열 안의 `://`는 그대로) `Color(` 다음 줄로 넘어간 `0xFF…`, 숫자로 시작하는 `Color.fromARGB`·`Color.fromRGBO`·`Color.from(alpha: …)`도 잡는다.
 - (검토 반영) 오류 글자색은 본문 글자라 모든 면에서 4.5:1, `tertiary` 쌍 4.5:1, 어두운 판의 `popover`는 모든 카드·컨테이너 면보다 밝음, `paperBadge`는 흰 종이와 4.5:1. 시작 때 읽기: `app_module_context_test`(`resolveAppearance` 저장값·저장소 없음·실패), `note_app_test`(스냅샷이 오기 전 첫 프레임 = 시작 때 값).
 
+## 15. UI 정리 1단계 — 설정과 개발자 모드 (2026-11-16, v2.14-ui)
+
+UI 전면 개선 제안서 1단계 '정리만'의 설정 몫. 화면 배치(2단 분류 등)는 8단계에서 한다.
+
+- **개발자 모드** (`app/lib/src/settings/developer_mode.dart`): 기기 설정 `app.developerMode`(device, 기본 끔) ∨ 개발자 표시 켜짐(`EditorSettings.showDevOverlay` — ⌘⇧D / Ctrl+Shift+D가 그대로 통한다) ∨ 주소의 `?dev=1`. 셸이 CORE의 `developerModeProvider`를 이 값으로 덮어쓴다(셸 덮어쓰기 9개 — `developerModeOverride()`); 패키지는 읽기만 한다(계약 v2.14-ui C214UC-01).
+- **켜고 끄기**: 설정 › 앱 정보의 '빌드' 줄(`app.about.build`)을 2초 안에 이어서 7번 누르면 저장값이 바뀌고 '개발자 모드를 켰어요' / '개발자 모드를 껐어요'(`DeveloperModeTapCounter`).
+- **개발자 모드에서만 보이는 것**: 섹션 '개발자 표시'(`editor.developer` — 합성 노트 만들기 포함)·'기능 켜고 끄기'(`app.features`)·'이전 판 DB 사본'(`app.v1Copy`), 저장 공간 진단표(저장 방식·영구성·여러 탭·영구 보관·빠진 기능·대기 쓰기·마지막 저장·연속 실패·마지막 오류 — 사용량·첨부 파일·검색 색인 줄과 버튼, 저장 실패 경고는 늘), 앱 정보의 렌더러·홈 화면 앱·시작 시간 줄과 '진단 정보 복사', 인식 › '품질 실험'(인식 실험 열기·수식 고정 자료 만들기 — recog가 `developerModeProvider`를 읽음), 편집기 ⋯ '개발자 표시'.
+- **설정 ✕ → ← 뒤로**(`AppStrings.back`).
+- 안내서 04·08에 개발자 모드 켜는 법 한 줄씩.
+- 시험: `test/settings/developer_mode_test.dart`(처음엔 숨김 · 6번은 그대로 · 7번째에 켜짐 · 7번 더 꺼짐 · 개발자 표시도 개발자 모드 · `?dev=1` · 탭 세기 시간 창), `settings_sections_test`(두 목록), `settings_screen_test`(← 뒤로). 진단표를 읽는 기존 설정 시험은 `SettingsHarness(developerMode: true)`(기본값)로 그대로 돈다.
+
+
 ## 부록 A. 확장 지점 · 자리 사용표 (초안의 13절)
 
 ### A.1 INFRA가 여는 자리

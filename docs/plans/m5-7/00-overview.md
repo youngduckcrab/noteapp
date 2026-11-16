@@ -2402,6 +2402,19 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C214U-03 | 7.4.11 색 규칙 | 화면 틀 색은 `Theme.of(context).colorScheme` 또는 `StyleTokens.of(context)`(토큰 없는 테마 = 예전 스킴 역할 값)만. 종이와 잉크 색은 문서 데이터라 테마를 따르지 않는다: 잉크 미리보기는 `inkSwatch`, 종이 위 편집 표시는 `paperAccent`·`paperInk`·`paperHighlight`. UI 패키지 `lib/`의 `Color(0x…)`·`Colors.<이름>`은 허용 목록만(`tool/test/ui_colors_test.dart`) | 사용자 결정 | EDITOR·LIBRARY(처리됨), PDF·LIBRARY recog(스킴만 써서 변경 없음) |
 | C214U-04 | 7.4.11 색 규칙 · 7.3.3 | (검토 반영) `StyleTokens`에 계산 값 넷: `paperBadge`·`onPaperBadge`(종이 **위에** 뜨는 작은 표시 — 쪽 번호, 회전 각도, 스포이트 안내 — 는 밝기와 상관없이 종이용 어두운 바탕), `popover`·`popoverSide`(팝업 메뉴·메뉴: 어두운 판에서는 카드보다 한 단계 밝은 면 + 옅은 테두리). `tertiary`는 스타일마다 자기 색(크래프트 갈색 · 미니멀 청록 · 스튜디오 보라). 앱 셸 루트 override에 `initialAppearanceProvider`(시작 때 '화면' 설정 두 키를 한 번 읽은 값 — 첫 프레임부터 고른 스타일) | 검토 | INFRA·EDITOR·LIBRARY(처리됨) |
 
+#### v2.14-ui · 정리 트랙 (2026-11-16, UI 전면 개선 1단계 '정리만' — 사용자 결정 '추천안 3개 모두 구현해서 스타일을 선택할 수 있게')
+
+추가만(저장 형식·동기화 키 변경 없음). 화면 스타일·어두운 화면은 같은 판의 다른 트랙이 쓴다 — 번호가 겹치지 않게 이 트랙은 C214UC-xx. 설계는 [04-editor.md 20절](04-editor.md), [05-library.md 18절](05-library.md), [01-infra.md 14절](01-infra.md).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C214UC-01 | 7.2.14 CORE providers | `developerModeProvider`(`Provider<bool>`, 기본 false, `name:` 같음) — 개발자용 항목을 보일지. 앱 셸이 덮어쓴다(셸 덮어쓰기에 하나 더). 패키지는 읽기만 | 제안서 1-4 설정 | CORE·INFRA(처리됨) |
+| C214UC-02 | 7.4.4 설정 키 | `app.developerMode`(bool, device, 기본 false) — INFRA 소유. 설정 › 앱 정보 '빌드' 줄 7번. 개발자 표시 켜짐·`?dev=1`도 개발자 모드로 셈 | 제안서 1-4 설정 | INFRA(처리됨) |
+| C214UC-03 | 7.2.10 EDITOR (공개 이름 그대로) | ⋯ 구성: '노트에서 찾기'·'페이지 넘김'·'현재 페이지 지우기' 빠짐(툴바 🔍·페이지 패널·지우개 창), '노트 정보'는 제목이 숨은 폭에서만(제목 누르기), '개발자 표시'는 C214UC-01 또는 표시 켜짐일 때만, 테이프 두 줄 → 한 줄(테이프 있을 때만), '손가락으로 그리기' 추가(툴바 [✋] 없앰). `addPageSources`·`moreMenuItems` 뜻 그대로 | 제안서 1-4 편집기 | EDITOR(처리됨) |
+| C214UC-04 | 7.2.11 recog 설정 (공개 이름 그대로) | '품질 실험' 묶음은 C214UC-01일 때만 | 제안서 1-4 설정 | LIBRARY(recog, 처리됨) |
+| C214UC-05 | 7.4.11 설정 섹션 | `editor.developer`·`app.features`·`app.v1Copy`는 개발자 모드일 때만 목록에 있다(`defaultSettingsSections(developerMode:)`). 순서는 그대로 | 제안서 1-4 설정 | INFRA(처리됨) |
+
+
 #### v2.13-rec (2026-11-16, 녹음 재생에 개체 참여 — 사용자 보고 '녹음기능을 키고 난 후 필기는 잘 표시해주는데 도형이나 수식은 그냥 그려진체로 나와')
 
 추가만(옛 JSON 호환 — 키가 없으면 연결 없음, 연결 없는 개체는 키를 쓰지 않아 기존 키 집합·골든 그대로). 설계는 03-ink 6.19 '페이지 개체', 04-editor 6.15.3a.
