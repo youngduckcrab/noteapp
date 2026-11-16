@@ -22,6 +22,10 @@
 //   indexer off (not started yet): modelState notDownloaded / downloading
 //                                             → modelMissing / modelDownloading, else unavailable
 //   otherwise                                 → ready
+//
+// (in-note search — 6.19b) statusOfNote(noteId): the same, except that
+// 'indexing' counts only that note's pages (ready when none is left), and
+// searchOpenedInNote(noteId) puts that note's pages first (indexNoteNow).
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -133,6 +137,62 @@ final class HandwritingSearchReadiness {
 
   ValueListenable<HandwritingSearchStatus> get status => _status;
 
+  /// (in-note search) Fires whenever [status] is computed again (also when
+  /// only one note's count changed) and when a note lookup of
+  /// [searchOpenedInNote] ends.
+  Listenable get changes => _changes;
+  final ValueNotifier<int> _changes = ValueNotifier(0);
+
+  /// Notes whose stale pages [searchOpenedInNote] is still looking up.
+  final Map<core.NoteId, int> _noteLookups = {};
+
+  /// (in-note search — 6.19b) [status] for the search inside note [noteId]:
+  /// 'indexing' counts that note's pages only (0 while its stale pages are
+  /// still being looked up); ready when none of them is left.
+  HandwritingSearchStatus statusOfNote(core.NoteId noteId) {
+    final s = _status.value;
+    if (_disposed || s.phase != HandwritingSearchPhase.indexing) return s;
+    final pending = pendingPagesOfNote(_indexer, noteId);
+    if (pending > 0) {
+      return HandwritingSearchStatus(
+        phase: HandwritingSearchPhase.indexing,
+        remainingPages: pending,
+        confirmCellularFirst: s.confirmCellularFirst,
+      );
+    }
+    if ((_noteLookups[noteId] ?? 0) > 0) {
+      return HandwritingSearchStatus(
+        phase: HandwritingSearchPhase.indexing,
+        confirmCellularFirst: s.confirmCellularFirst,
+      );
+    }
+    return HandwritingSearchStatus(
+      phase: HandwritingSearchPhase.ready,
+      confirmCellularFirst: s.confirmCellularFirst,
+    );
+  }
+
+  /// (in-note search — 6.19b) The search of note [noteId] opened in the
+  /// editor, or a query was applied there: as [searchOpened], and that
+  /// note's pages are recognized first.
+  void searchOpenedInNote(core.NoteId noteId) {
+    if (_disposed) return;
+    _noteLookups[noteId] = (_noteLookups[noteId] ?? 0) + 1;
+    _update();
+    unawaited(
+      indexNoteNow(_indexer, noteId).whenComplete(() {
+        if (_disposed) return;
+        final n = (_noteLookups[noteId] ?? 1) - 1;
+        if (n <= 0) {
+          _noteLookups.remove(noteId);
+        } else {
+          _noteLookups[noteId] = n;
+        }
+        _update();
+      }),
+    );
+  }
+
   void _start() {
     _indexer.status.addListener(_update);
     catchUpRunningOf(_indexer).addListener(_update);
@@ -200,6 +260,7 @@ final class HandwritingSearchReadiness {
   void _update() {
     if (_disposed) return;
     _status.value = _compute();
+    _changes.value++;
   }
 
   bool get _confirmCellularFirst => switch (_recognizer) {
@@ -331,6 +392,7 @@ final class HandwritingSearchReadiness {
     }
     _subscriptions.clear();
     _status.dispose();
+    _changes.dispose();
   }
 }
 

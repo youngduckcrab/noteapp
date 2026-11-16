@@ -33,6 +33,12 @@ export 'src/di/editor_extensions.dart'
         EditorPenGroup;
 export 'src/di/editor_image_importer.dart'
     show EditorImageImporter, editorImageImporterProvider; // (v2.0)
+export 'src/di/editor_ink_search.dart'
+    show
+        EditorInkSearch, // (v2.13-search)
+        EditorInkSearchState,
+        EditorInkSearchPhase,
+        editorInkSearchProvider;
 export 'src/di/stylus_extras.dart'
     show
         StylusExtrasSource,

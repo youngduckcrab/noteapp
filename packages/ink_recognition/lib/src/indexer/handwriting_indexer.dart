@@ -100,6 +100,20 @@ IndexerMetrics metricsOf(HandwritingIndexer indexer) => indexer._metrics;
 /// is asked again. Cheap — no page is read here.
 void indexDirtyPagesNow(HandwritingIndexer indexer) => indexer._indexNow();
 
+/// (internal, in-note search — m5-7/05-library 6.19b) The search of note
+/// [noteId] was opened in the editor: as [indexDirtyPagesNow], then the
+/// pages of that note go first — its queued and quiet pages, and its stale
+/// pages (HandwritingRepository.stalePages, asked here) the catch-up has not
+/// queued yet. Completes when its stale pages are queued (never with an
+/// error — a failed lookup is reported once).
+Future<void> indexNoteNow(HandwritingIndexer indexer, core.NoteId noteId) =>
+    indexer._indexNoteNow(noteId);
+
+/// (internal, in-note search) Pages of [noteId] still to recognize: queued,
+/// waiting for their quiet time, or in the running job.
+int pendingPagesOfNote(HandwritingIndexer indexer, core.NoteId noteId) =>
+    indexer._pendingOf(noteId);
+
 /// (internal, handwriting search) true while a catch-up is still looking for
 /// stale pages (the queue may read 0 although pages are to be read).
 ValueListenable<bool> catchUpRunningOf(HandwritingIndexer indexer) =>
@@ -466,6 +480,14 @@ final class HandwritingIndexer {
   /// library, not writing); a failed download is asked again.
   void _indexNow() {
     if (!_active) return;
+    _fireQuietTimers();
+    _publish();
+    _pump();
+  }
+
+  /// Every quiet timer fires now (its page joins the ready lane); a failed
+  /// download is asked again (at most once per kModelRetryGap). No pump.
+  void _fireQuietTimers() {
     for (final pageId in List.of(_quiet.keys)) {
       _quiet.remove(pageId)?.cancel();
       final noteId = _quietNotes.remove(pageId);
@@ -476,8 +498,45 @@ final class HandwritingIndexer {
       _modelRetryGate = Timer(kModelRetryGap, () => _modelRetryGate = null);
       unawaited(_checkModel());
     }
+  }
+
+  Future<void> _indexNoteNow(core.NoteId noteId) async {
+    if (!_active) return;
+    // The quiet pages join the queue and this note's go first BEFORE a job
+    // is picked (indexDirtyPagesNow would start another note's page).
+    _fireQuietTimers();
+    _queue.promoteNote(noteId);
     _publish();
     _pump();
+    final List<core.PageId> stale;
+    try {
+      stale = await _store.handwriting.stalePages(noteId);
+    } on Object catch (e, s) {
+      _reportOnce('note lookup:${e.runtimeType}', e, s, 'in-note search');
+      return;
+    }
+    if (!_active) return;
+    for (final pageId in stale) {
+      if (_quiet.containsKey(pageId) ||
+          _deferred.containsKey(pageId) ||
+          _job?.pageId == pageId ||
+          _failed.containsKey(pageId)) {
+        continue;
+      }
+      _queue.add(noteId, pageId, QueueLane.ready);
+    }
+    _queue.promoteNote(noteId);
+    _publish();
+    _pump();
+  }
+
+  int _pendingOf(core.NoteId noteId) {
+    var n = _queue.countOf(noteId);
+    for (final id in _quietNotes.values) {
+      if (id == noteId) n++;
+    }
+    if (_job?.noteId == noteId) n++;
+    return n;
   }
 
   void _onQuiet(core.PageId pageId) {

@@ -5,6 +5,9 @@ library;
 import 'package:feature_editor/feature_editor.dart'
     show
         DevOverlaySection,
+        EditorInkSearch,
+        EditorInkSearchPhase,
+        EditorInkSearchState,
         EditorInsertContext,
         EditorInsertMenuItem,
         EditorMathConvertTrigger,
@@ -284,6 +287,60 @@ final class _InkSearchAdapter implements LibraryInkSearch {
     _inner.status.removeListener(_sync);
     _state.dispose();
   }
+}
+
+/// (v2.13-search — m5-7/04-editor 17, 05-library 6.19b) the same
+/// readiness as the editor's in-note search slot: the note's status
+/// (HandwritingSearchReadiness.statusOfNote — 'indexing' counts that note's
+/// pages) mapped phase by phase like the library's; searchOpened puts that
+/// note's pages first. null without an indexer.
+EditorInkSearch? editorInkSearchOf(Ref ref) {
+  final readiness = ref.watch(handwritingSearchReadinessProvider);
+  if (readiness == null) return null;
+  return _NoteInkSearchAdapter(readiness);
+}
+
+EditorInkSearchState editorInkSearchStateOf(
+  HandwritingSearchStatus s,
+) => EditorInkSearchState(
+  phase: switch (s.phase) {
+    HandwritingSearchPhase.unavailable ||
+    HandwritingSearchPhase.ready => EditorInkSearchPhase.ready,
+    HandwritingSearchPhase.autoIndexOff => EditorInkSearchPhase.autoIndexOff,
+    HandwritingSearchPhase.modelMissing => EditorInkSearchPhase.modelMissing,
+    HandwritingSearchPhase.modelDownloading =>
+      EditorInkSearchPhase.modelDownloading,
+    HandwritingSearchPhase.waitingForWifi =>
+      EditorInkSearchPhase.waitingForWifi,
+    HandwritingSearchPhase.modelFailed => EditorInkSearchPhase.modelFailed,
+    HandwritingSearchPhase.indexing => EditorInkSearchPhase.indexing,
+    HandwritingSearchPhase.unsupported => EditorInkSearchPhase.unsupported,
+  },
+  remainingPages: s.remainingPages,
+  confirmCellularFirst: s.confirmCellularFirst,
+);
+
+final class _NoteInkSearchAdapter implements EditorInkSearch {
+  _NoteInkSearchAdapter(this._inner);
+
+  final HandwritingSearchReadiness _inner;
+
+  @override
+  Listenable get changes => _inner.changes;
+
+  @override
+  EditorInkSearchState stateOf(String noteId) =>
+      editorInkSearchStateOf(_inner.statusOfNote(noteId));
+
+  @override
+  Future<void> turnOnAutoIndex() => _inner.turnOnAutoIndex();
+
+  @override
+  Future<void> downloadModel({bool cellular = false}) =>
+      _inner.downloadModel(cellular: cellular);
+
+  @override
+  void searchOpened(String noteId) => _inner.searchOpenedInNote(noteId);
 }
 
 /// (text pen, phase 1 — m5-7/05-library 6.24, contract C210) recog's text

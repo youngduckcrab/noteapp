@@ -3016,6 +3016,19 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 증상: 페이지 패널(E-17)에서 사진·도형(텍스트 상자·수식도)이 사라지고 손글씨만 보였다. 원인: `ui/pages/page_panel_thumbnail.dart`가 경로 1(세션에 올라온 페이지)·경로 3(`loadPage`)에서 `ink.InkPageThumbnail`에 줄 `InkPageContent.fromCore(...)`를 `page`·`strokes`·`revision`만으로 만들어 `objects`를 빠뜨렸다(INK 위젯은 v2.0부터 객체를 L-1 순서로 그린다 — K-8). 경로 2(썸네일 캐시 PNG)는 INK 렌더러가 객체까지 그리므로 맞았다. 고침: `objects: content.objects`를 넘긴다. 객체 편집은 `PageContent.revision`(세션)과 `Page.contentRevision`(캐시 판단)을 둘 다 올리므로 기존 500 ms 새로 그림·`isStaleFor`가 그대로 객체 변경도 반영한다. 시험: `widget/page_panel_thumbnail_test.dart` 묶음 '(v2.13-thumbs)' — 세션 페이지의 채운 도형·이미지 객체가 썸네일 래스터 픽셀에 보이고, 도형을 옮기면 500 ms 뒤 새 자리에 보이며 옛 자리에는 없음, 경로 3에도 도형·텍스트 상자·수식이 넘어감.
 
+## 18. 노트에서 찾기 (2026-11-16, v2.13-search)
+
+사용자 보고: "홈 화면에서는 노트의 필기를 검색할 수 있는데, 노트 안에서는 필기를 검색하는 기능이 안 보여요. PDF만 검색하는 것 같아요." 원인: 편집기에는 자체 검색이 없었고, 노트 안의 유일한 검색은 pdf_io가 더보기 메뉴에 넣는 'PDF에서 찾기'(`pdf.search`, `pdf_io/lib/src/ui/menu_actions.dart` — PDF 글자 층만 읽음)였다. 손글씨·텍스트 상자·변환한 텍스트·수식은 CORE 색인(`SearchIndex.searchPages`)에 이미 있었지만 라이브러리 검색만 그 색인을 읽었다.
+
+- **찾는 곳**: CORE 색인을 `searchPages(query, withinNote: noteId)`로 읽는다 — 라이브러리 검색과 같은 판정(인식한 손글씨의 한국어 띄어쓰기 허용 포함, 텍스트 상자, 변환한 텍스트 상자, 수식 LaTeX, PDF 글자). 쪽마다 결과 하나, **쪽 순서**로 보여 준다(`state/note_search.dart`, 쪽 300개까지). 입력 250 ms 뒤 묻고, 열린 동안 이 노트의 쪽·개체·손글씨 변경이나 색인 상태 이벤트 1 s 뒤 다시 묻는다(새로 인식된 손글씨가 바로 나타남).
+- **들어가는 곳**: 더보기 [⋯]의 첫 줄 '노트에서 찾기'(키 `editor.more.noteSearch`), 툴바 폭 ≥ `EditorToolbar.titleMinWidth`(1000)에서는 페이지 패널 단추 앞의 🔍(`editor.toolbar.noteSearch`, 다시 누르면 닫힘). 'PDF에서 찾기'는 그대로 둔다(아직 색인되지 않은 PDF도 PDF 글자 층에서 바로 찾음).
+- **패널**: 쪽 보기 오른쪽 겹침(폭 min(360, 60 %), 쪽 보기 크기·확대 유지 — 페이지 패널처럼 Listener 바깥 형제). 열면 입력 칸에 초점. 결과 줄 "n쪽 · 손글씨/텍스트/수식/PDF" + 일치 부분이 굵은 미리보기. 없으면 '찾는 내용이 없어요', 실패 '검색하지 못했어요'.
+- **이동·강조**: 결과를 누르면 `EditorCommands.navigateToPage(pageId, 일치 rect들의 합)` — 그 쪽으로 가서 위치 깜빡임(6.16). 패널이 열린 동안 결과들의 rect(`PageSearchHit.rects`, 쪽 pt)를 쪽 위에 칠하고(`ui/overlays/note_search_highlight.dart`, 호박색 45 %), 고른 결과는 테두리. 닫으면 강조도 사라진다(검색어는 남음).
+- **손글씨 안내 줄**: 라이브러리 검색과 같은 문장(자동 인식 꺼짐 [켜기] / 모델 없음 [지금 받기] — 셀룰러는 두 번 / 받는 중 / Wi-Fi 대기 / 실패 / 기기 미지원 / 읽는 중). 읽는 중의 남은 쪽은 **이 노트의 쪽 수**. 새 자리 `editorInkSearchProvider`(`EditorInkSearch` · `EditorInkSearchState` · `EditorInkSearchPhase` — feature_editor는 feature_library·ink_recognition을 import하지 않으므로 같은 모양을 따로 둔다, 7.1 규칙 1). INFRA가 recog의 `HandwritingSearchReadiness`로 채운다(`editorInkSearchOf`, 05-library 6.19b). 자리가 없으면(웹, 엔진 없음) 줄 없음.
+- **이 노트 먼저 인식**: 패널을 열 때와 검색어를 적용할 때마다 `EditorInkSearch.searchOpened(noteId)` → recog가 이 노트의 대기 쪽을 대기열 맨 앞으로 옮기고 아직 대기열에 없는 낡은 쪽도 찾아 넣는다(05-library 6.19b).
+- 시험: `test/widget/note_search_test.dart`(15개 — 메뉴·툴바 진입, 손글씨·텍스트·수식 결과와 쪽 순서, 띄어쓰기 허용, 결과 없음, 이동·강조 rect 위치·닫으면 사라짐, 열린 동안 새 손글씨 반영, 안내 줄 단계·동작).
+- 하지 않은 것: 한 쪽 안의 여러 위치를 결과 여러 개로 나누기(CORE가 쪽마다 대표 결과 하나 + 같은 출처 rect 최대 8개를 줌), ⌘F 단축키, 'PDF에서 찾기'와의 합치기(색인되지 않은 PDF 쪽을 바로 찾는 길이 그것뿐).
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)

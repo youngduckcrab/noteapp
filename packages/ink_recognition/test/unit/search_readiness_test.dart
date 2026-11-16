@@ -280,4 +280,64 @@ void main() {
     FlutterError.onError = previous;
     expect(reports, isNotEmpty);
   });
+
+  testWidgets('(in-note search) statusOfNote counts that note\'s pages; '
+      'searchOpenedInNote recognizes them first and fires changes', (
+    tester,
+  ) async {
+    final store = core_testing.createFakeNoteStore();
+    addTearDown(store.close);
+    final engine = FakeHandwritingRecognizer(
+      latency: const Duration(milliseconds: 100),
+    );
+    final container = _container(store, engine);
+    final r = await _open(tester, container);
+    Future<(core.NoteId, core.PageId)> noteWithInk(String title) async {
+      final note = await store.library.createNote(
+        title: title,
+        pages: const [core.PageDraft.blankA4],
+      );
+      final pageId = (await store.content.pagesOf(note.id)).single.id;
+      final session = await store.openSession(note.id);
+      await session.openPage(pageId);
+      await session
+          .execute(
+            core.AddStrokes(
+              pageId: pageId,
+              strokes: SyntheticHandwriting.lines(pageId: pageId),
+            ),
+          )
+          .persisted;
+      await session.close();
+      return (note.id, pageId);
+    }
+
+    final (other, _) = await noteWithInk('other');
+    final (mine, minePage) = await noteWithInk('mine');
+    await _settle(tester);
+    expect(_phase(r), HandwritingSearchPhase.indexing);
+    expect(r.statusOfNote(mine).phase, HandwritingSearchPhase.indexing);
+    expect(r.statusOfNote(mine).remainingPages, 1);
+    expect(r.statusOfNote(other).remainingPages, 1);
+    expect(r.statusOfNote('no-such-note').phase, HandwritingSearchPhase.ready);
+
+    var changes = 0;
+    r.changes.addListener(() => changes++);
+    r.searchOpenedInNote(mine);
+    await _settle(tester);
+    expect(changes, greaterThan(0));
+    // This note's page first (although written last): 5 lines × 100 ms.
+    final indexer = container.read(handwritingIndexerProvider)!;
+    expect(indexer.status.value.currentPageId, minePage);
+    await tester.pump(const Duration(milliseconds: 550));
+    await _settle(tester);
+    expect(r.statusOfNote(mine).phase, HandwritingSearchPhase.ready);
+    expect(r.statusOfNote(other).phase, HandwritingSearchPhase.indexing);
+    expect(_phase(r), HandwritingSearchPhase.indexing);
+    await tester.pump(const Duration(seconds: 3));
+    await _settle(tester);
+    expect(r.statusOfNote(other).phase, HandwritingSearchPhase.ready);
+    container.dispose();
+    await _settle(tester);
+  });
 }

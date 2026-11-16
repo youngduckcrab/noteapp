@@ -179,6 +179,8 @@ void main() {
     expect(contribution.devOverlaySections, [recognitionIndexerSection]);
     // (handwriting search) the library search's handwriting hint.
     expect(contribution.libraryInkSearch, libraryInkSearchOf);
+    // (v2.13-search) the in-note search's handwriting hint.
+    expect(contribution.editorInkSearch, editorInkSearchOf);
     final section = contribution.settingsSections.single;
     expect(
       (section.id, section.title, section.group),

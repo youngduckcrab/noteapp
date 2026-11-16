@@ -77,6 +77,11 @@ const _expectedExports = <String>{
   'EditorTextPenSession',
   'EditorPenContext',
   'EditorPenGroup',
+  // (v2.13-search) m5-7/04-editor 17 — the in-note search's handwriting slot.
+  'EditorInkSearch',
+  'EditorInkSearchState',
+  'EditorInkSearchPhase',
+  'editorInkSearchProvider',
 };
 
 /// The 1st-round names (04-editor 4.1, v1.4): the v2 list keeps all of them.
@@ -174,7 +179,7 @@ void main() {
       expect(names.toSet(), _expectedExports);
       // (math pen, phase 1) + 5.
       // + 5 math pen, + 4 text pen names.
-      expect(_expectedExports, hasLength(_v14ExportCount + 14 + 5 + 4));
+      expect(_expectedExports, hasLength(_v14ExportCount + 14 + 5 + 4 + 4));
       // m5-7/04-editor 4.1 (수정 1회차): both stay internal / out.
       expect(names, isNot(contains('PlaybackHighlightStyle')));
       expect(names, isNot(contains('WebTextInputMode')));

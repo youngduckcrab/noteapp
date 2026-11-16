@@ -79,6 +79,7 @@ final class RecognitionModule extends AppModule {
   ///   insertMenuItems: insertActions().map(insertMenuItemOf),
   ///   mathPen: editorMathPenOf(recognitionMathPen()),
   ///   libraryInkSearch: libraryInkSearchOf,
+  ///   editorInkSearch: editorInkSearchOf,
   ///   textPen: editorTextPenOf(recognitionTextPen()),
   ///   devOverlaySections: [recognitionIndexerSection],
   ///   settingsSections: [SettingsSectionEntry(id: 'recog.settings',
@@ -104,6 +105,8 @@ final class RecognitionModule extends AppModule {
         mathPen: editorMathPenOf(_mathPen()),
         // (handwriting search) the library search's handwriting hint.
         libraryInkSearch: libraryInkSearchOf,
+        // (v2.13-search) the in-note search's handwriting hint.
+        editorInkSearch: editorInkSearchOf,
         // (text pen, phase 1) the 텍스트 펜 tool and '손글씨를 텍스트로'.
         textPen: editorTextPenOf(_textPen()),
         devOverlaySections: const [recognitionIndexerSection],

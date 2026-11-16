@@ -11,6 +11,7 @@ import '../../di/editor_extensions.dart';
 import '../../di/editor_image_importer.dart';
 import '../../di/stylus_extras.dart';
 import '../../scope/editor_scope.dart';
+import '../../state/note_search.dart';
 import '../../state/page_panel.dart';
 import '../../state/popup.dart';
 import '../../state/settings/editor_settings_notifier.dart';
@@ -88,6 +89,10 @@ class EditorToolbar extends ConsumerWidget {
   static const titleKey = ValueKey('editor.toolbar.title');
   static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
+  /// (v2.13-search) [🔍] '노트에서 찾기' — from [titleMinWidth] (narrower: the
+  /// more menu's first item).
+  static const noteSearchKey = ValueKey('editor.toolbar.noteSearch');
+
   /// (v2) Appendix C.
   static const shapeKey = OverflowToolsMenu.shapeKey;
   static const textKey = OverflowToolsMenu.textKey;
@@ -146,6 +151,8 @@ class EditorToolbar extends ConsumerWidget {
                   )
                 else if (!scroll)
                   const Spacer(),
+                if (constraints.maxWidth >= titleMinWidth)
+                  const _NoteSearchButton(),
                 const _PagePanelButton(),
                 const _Divider(),
                 _ToolButtons(withObjectTools: !fold),
@@ -176,6 +183,22 @@ class EditorToolbar extends ConsumerWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// (v2.13-search) Toggles the in-note search panel (17).
+class _NoteSearchButton extends ConsumerWidget {
+  const _NoteSearchButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open = ref.watch(editorNoteSearchProvider.select((s) => s.isOpen));
+    return IconButton(
+      key: EditorToolbar.noteSearchKey,
+      isSelected: open,
+      onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
+      icon: const Icon(Icons.search, semanticLabel: EditorStrings.noteSearch),
     );
   }
 }

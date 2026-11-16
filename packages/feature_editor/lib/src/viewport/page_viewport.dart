@@ -10,7 +10,8 @@
 // canvas joins the editor's tap group while a text session is open
 // (TextFieldTapRegion — a canvas down is not the editor's onTapOutside; the
 // router decides, 6.11.5) and the new text box outline (6.11.1). (E2-19) The
-// position flash (6.16). (E2-18) The Apple Pencil events while the viewport
+// position flash (6.16). (v2.13-search) The in-note search panel and its
+// highlight (17). (E2-18) The Apple Pencil events while the viewport
 // is on screen (StylusExtrasListener — 6.5.1).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
@@ -33,6 +34,7 @@ import '../ui/overlays/eyedropper_banner.dart';
 import '../ui/overlays/focus_flash.dart';
 import '../ui/overlays/math_pen_layer.dart';
 import '../ui/overlays/new_text_box_outline.dart';
+import '../ui/overlays/note_search_highlight.dart';
 import '../ui/overlays/page_indicator.dart';
 import '../ui/overlays/pull_to_add_page_indicator.dart';
 import '../ui/overlays/rotation_label.dart';
@@ -40,6 +42,7 @@ import '../ui/overlays/selection_frame_painter.dart';
 import '../ui/overlays/selection_menu.dart';
 import '../ui/overlays/text_pen_layer.dart';
 import '../ui/pages/page_panel.dart';
+import '../ui/search/note_search_panel.dart';
 import 'editor_page_view.dart';
 import 'viewport_controller.dart';
 
@@ -158,6 +161,9 @@ class _PageViewportState extends ConsumerState<PageViewport> {
                               const RotationLabel(),
                               // (v2, E2-10) the text tool's new box (6.11.1).
                               const NewTextBoxOutline(),
+                              // (v2.13-search) the in-note search's
+                              // matched rects (17).
+                              const NoteSearchHighlight(),
                               // (v2, E2-19) the position flash (6.16).
                               const FocusFlash(),
                               IgnorePointer(
@@ -195,6 +201,8 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               const PageIndicator(),
               const EyedropperBanner(),
               const PagePanel(),
+              // (v2.13-search) '노트에서 찾기' (17).
+              const NoteSearchPanel(),
               // (v2, E2-01) Sheet-mode text input at the top (6.11.6 A).
               const TextInputSheet(),
               const DevOverlay(),

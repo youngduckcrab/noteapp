@@ -193,6 +193,8 @@ Set<Object> _expected({
     },
     // (handwriting search) the recognition contribution's library slot.
     if (recognition) libraryInkSearchProvider,
+    // (v2.13-search) … and the editor's in-note search slot.
+    if (recognition) editorInkSearchProvider,
     if (editorExtensions) editorExtensionsProvider,
     // Image import: outside FEATURE_MEDIA — in every scenario (D2-15).
     editorImageImporterProvider,

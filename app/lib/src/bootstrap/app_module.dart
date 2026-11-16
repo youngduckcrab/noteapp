@@ -5,6 +5,7 @@ library;
 import 'package:feature_editor/feature_editor.dart'
     show
         DevOverlaySection,
+        EditorInkSearch,
         EditorInsertMenuItem,
         EditorMathPen,
         EditorPanelBuilder,
@@ -94,6 +95,7 @@ final class ShellContribution {
     this.recordingPanel,
     this.mathPen,
     this.libraryInkSearch,
+    this.editorInkSearch,
     this.textPen,
     this.devOverlaySections = const [],
     this.settingsSections = const [],
@@ -111,6 +113,10 @@ final class ShellContribution {
   /// (RecognitionModule) — read in the provider that overrides
   /// libraryInkSearchProvider.
   final LibraryInkSearch? Function(Ref ref)? libraryInkSearch;
+
+  /// (v2.13-search) the in-note search's handwriting hint (RecognitionModule)
+  /// — read in the provider that overrides editorInkSearchProvider.
+  final EditorInkSearch? Function(Ref ref)? editorInkSearch;
 
   /// (text pen, phase 1) recog's 텍스트 펜 (RecognitionModule).
   final EditorTextPen? textPen;
@@ -135,6 +141,7 @@ final class ShellContribution {
       'panel ${recordingPanel == null ? 'no' : 'yes'}, '
       'math pen ${mathPen == null ? 'no' : 'yes'}, '
       'ink search ${libraryInkSearch == null ? 'no' : 'yes'}, '
+      'note ink search ${editorInkSearch == null ? 'no' : 'yes'}, '
       'text pen ${textPen == null ? 'no' : 'yes'}, '
       '${devOverlaySections.length} dev, ${settingsSections.length} settings)';
 }

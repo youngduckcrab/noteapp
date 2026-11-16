@@ -217,6 +217,8 @@ final class FeatureWiringModule extends AppModule {
   ///       libraryPdfExportActionProvider (1차),
   ///   (handwriting search) if a contribution has libraryInkSearch,
   ///       libraryInkSearchProvider.overrideWith(it),
+  ///   (v2.13-search) if a contribution has editorInkSearch,
+  ///       editorInkSearchProvider.overrideWith(it),
   ///   if (pdfAvailable or a contribution has editor items)
   ///     editorExtensionsProvider.overrideWithValue(EditorExtensions(
   ///       moreMenuItems: pdf…, addPageSources: pdf…,
@@ -246,6 +248,8 @@ final class FeatureWiringModule extends AppModule {
       ],
       if (_inkSearch(contributions) case final inkSearch?)
         libraryInkSearchProvider.overrideWith(inkSearch),
+      if (_noteInkSearch(contributions) case final inkSearch?)
+        editorInkSearchProvider.overrideWith(inkSearch),
       if (_pdfAvailable || hasEditorItems)
         editorExtensionsProvider.overrideWithValue(
           _editorExtensions(contributions),
@@ -276,6 +280,16 @@ final class FeatureWiringModule extends AppModule {
   ) {
     for (final contribution in contributions) {
       if (contribution.libraryInkSearch case final f?) return f;
+    }
+    return null;
+  }
+
+  /// (v2.13-search) The first contribution's in-note ink search.
+  static EditorInkSearch? Function(Ref ref)? _noteInkSearch(
+    List<ShellContribution> contributions,
+  ) {
+    for (final contribution in contributions) {
+      if (contribution.editorInkSearch case final f?) return f;
     }
     return null;
   }

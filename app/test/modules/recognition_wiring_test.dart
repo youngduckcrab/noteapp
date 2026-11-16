@@ -9,6 +9,9 @@ import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart'
     show
+        EditorInkSearch,
+        EditorInkSearchPhase,
+        EditorInkSearchState,
         EditorInsertContext,
         EditorMathConvertTrigger,
         EditorMathGroup,
@@ -453,6 +456,79 @@ void main() {
         await tester.pump();
       },
     );
+  });
+
+  group('(v2.13-search) editorInkSearchOf — the in-note search slot', () {
+    test('every recog phase maps like the library\'s; unavailable → ready', () {
+      for (final from in HandwritingSearchPhase.values) {
+        final status = HandwritingSearchStatus(
+          phase: from,
+          remainingPages: 2,
+          confirmCellularFirst: true,
+        );
+        final lib = libraryInkSearchStateOf(status);
+        final editor = editorInkSearchStateOf(status);
+        expect(editor.phase.name, lib.phase.name, reason: '$from');
+        expect(editor.remainingPages, 2);
+        expect(editor.confirmCellularFirst, isTrue);
+      }
+      expect(
+        editorInkSearchStateOf(
+          const HandwritingSearchStatus(phase: HandwritingSearchPhase.ready),
+        ),
+        const EditorInkSearchState(),
+      );
+    });
+
+    test('no indexer (no engine) → null', () {
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      final container = ProviderContainer.test(
+        overrides: [noteStoreProvider.overrideWithValue(store)],
+      );
+      final slot = Provider<EditorInkSearch?>(editorInkSearchOf);
+      expect(container.read(slot), isNull);
+    });
+
+    testWidgets('with an engine: per-note state, changes, actions and the '
+        'note-first search reach recog', (tester) async {
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      await store.settings.set(
+        SettingKey.boolean('recog.autoIndex', true, scope: SettingScope.device),
+        false,
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          noteStoreProvider.overrideWithValue(store),
+          handwritingRecognizerProvider.overrideWithValue(
+            FakeHandwritingRecognizer(),
+          ),
+        ],
+      );
+      final slot = Provider<EditorInkSearch?>(editorInkSearchOf);
+      container.read(handwritingIndexerProvider)!.start();
+      final ink = container.read(slot)!;
+      var changes = 0;
+      ink.changes.addListener(() => changes++);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      expect(ink.stateOf('n1').phase, EditorInkSearchPhase.autoIndexOff);
+      await ink.turnOnAutoIndex();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      expect(ink.stateOf('n1').phase, EditorInkSearchPhase.ready);
+      expect(changes, greaterThan(0));
+      ink.searchOpened('n1'); // no throw
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      expect(ink.stateOf('n1').phase, EditorInkSearchPhase.ready);
+      container.dispose();
+      await tester.pump();
+    });
   });
 
   // (text pen, phase 1 — m5-7/05-library 6.24, contract C210)

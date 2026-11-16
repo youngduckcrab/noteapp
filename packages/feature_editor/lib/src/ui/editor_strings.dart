@@ -735,6 +735,37 @@ abstract final class EditorStrings {
   static const devShapeSampleCopied = '도형 표본을 복사했어요';
   static const devNoShapeSamples = '모은 표본이 없어요';
 
+  // ---- (v2.13-search) In-note search '노트에서 찾기' (m5-7/04-editor 17) --
+
+  static const noteSearch = '노트에서 찾기';
+  static const noteSearchHint = '필기·텍스트·수식·PDF에서 찾기';
+  static const noteSearchClose = '찾기 닫기';
+  static const noteSearchEmptyQuery = '이 노트의 손글씨, 텍스트 상자, 수식, PDF 글자를 찾아요';
+  static const noteSearchNoResults = '찾는 내용이 없어요';
+  static const noteSearchFailed = '검색하지 못했어요';
+  static String noteSearchCount(int pages) => '$pages쪽에서 찾았어요';
+  static String noteSearchPage(int pageNumber) => '$pageNumber쪽';
+  static String noteSearchSource(core.SearchSource source) => switch (source) {
+    core.SearchSource.ink => '손글씨',
+    core.SearchSource.text => '텍스트',
+    core.SearchSource.math => '수식',
+    core.SearchSource.pdf => 'PDF',
+  };
+
+  // The handwriting hint — the same sentences as the library search's hint
+  // (feature_library LibraryStrings.ink*, 05-library 6.19a).
+  static const inkAutoIndexOff = "손글씨도 검색하려면 '검색용 자동 인식'을 켜 주세요";
+  static const inkTurnOn = '켜기';
+  static const inkModelMissing = '손글씨를 검색하려면 인식 모델(약 20MB)을 받아야 해요';
+  static const inkModelDownloading = '손글씨 인식 모델을 받는 중이에요';
+  static const inkWaitingForWifi = '손글씨 인식 모델을 받는 중이에요 (Wi-Fi에서만 받아요)';
+  static const inkModelFailed = '손글씨 인식 모델을 받지 못했어요';
+  static const inkDownloadNow = '지금 받기';
+  static const inkCellularConfirm = '셀룰러 데이터로 받아요(약 20MB). 한 번 더 누르면 받아요.';
+  static String inkIndexing(int pages) =>
+      pages > 0 ? '이 노트의 손글씨를 읽는 중이에요 ($pages쪽 남음)' : '이 노트의 손글씨를 읽는 중이에요';
+  static const inkUnsupported = '이 기기에서는 손글씨 검색을 쓸 수 없어요';
+
   /// 1 234 567 → "1,234,567" (no intl — contract 7.4.5).
   static String _grouped(int n) {
     final digits = n.abs().toString();

@@ -108,6 +108,19 @@ final class _FakeInkSearch implements LibraryInkSearch {
   void searchOpened() {}
 }
 
+final class _FakeNoteInkSearch implements EditorInkSearch {
+  @override
+  final Listenable changes = ValueNotifier(0);
+  @override
+  EditorInkSearchState stateOf(String noteId) => const EditorInkSearchState();
+  @override
+  Future<void> turnOnAutoIndex() async {}
+  @override
+  Future<void> downloadModel({bool cellular = false}) async {}
+  @override
+  void searchOpened(String noteId) {}
+}
+
 FeatureWiringModule _wiring(
   FakePdfActions pdf, {
   EditorImageImporter? importer,
@@ -445,6 +458,27 @@ void main() {
 
       final (without, _) = await _boot(_wiring(FakePdfActions()));
       expect(without.read(libraryInkSearchProvider), isNull);
+    });
+
+    test('(v2.13-search) a contribution\'s editorInkSearch fills the '
+        'editor slot; without one it stays null', () async {
+      final slot = _FakeNoteInkSearch();
+      final (withSlot, _) = await _boot(
+        _wiring(FakePdfActions()),
+        between: [
+          contributing(
+            'recognition',
+            ShellContribution(
+              moduleId: 'recognition',
+              editorInkSearch: (ref) => slot,
+            ),
+          ),
+        ],
+      );
+      expect(withSlot.read(editorInkSearchProvider), same(slot));
+
+      final (without, _) = await _boot(_wiring(FakePdfActions()));
+      expect(without.read(editorInkSearchProvider), isNull);
     });
 
     group('a repeated menu item id (6.7 — merge rule)', () {

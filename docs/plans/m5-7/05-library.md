@@ -2384,6 +2384,16 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 - **고치지 않은 것(검토 반영)**: 대화형 인식(올가미 변환·텍스트 펜)보다 따라잡기를 늦추는 우선순위는 이 트랙 밖(엔진 FIFO — 후속 과제). 노트 안 검색 화면은 없다(라이브러리 검색만). 변환된 텍스트 상자는 정확 규칙 그대로(사용자가 고칠 수 있는 글). 꺼 둔 사용자에게 보이는 [켜기] 줄은 숨기지 않는다(한 줄).
 - **띄어쓰기**: ML Kit이 한글 낱말 안에 넣거나 뺀 공백 때문에 못 찾지 않게, CORE가 `SearchSource.ink` 단위만 CJK 사이 공백을 지운 글로도 색인·판정한다(02-core 6.10.2 '손글씨 띄어쓰기'). `회의록` ↔ `회의 록` 양쪽 다 찾는다.
 
+### 6.19b 노트 안 검색의 손글씨 안내 · 이 노트 먼저 인식 (2026-11-16, v2.13-search)
+
+편집기의 '노트에서 찾기'(04-editor 17)도 6.19a의 같은 준비 상태를 쓴다. `HandwritingSearchReadiness`에 더한 것(공개 이름은 늘지 않음):
+
+- `statusOfNote(noteId)`: `status`와 같되, '읽는 중'이면 **그 노트의** 남은 쪽(대기열 + 조용한 시간 대기 + 진행 중인 일)만 센다. 0쪽이면 준비됨, 그 노트의 낡은 쪽을 찾는 중이면 '읽는 중'(개수 없음).
+- `searchOpenedInNote(noteId)`: `indexNoteNow` — 조용한 시간을 기다리는 쪽을 모두 대기열에 넣되 **일을 고르기 전에** 그 노트의 쪽을 맨 앞으로 옮기고(`PageQueue.promoteNote`, 따라잡기 쪽은 ready 줄로), `HandwritingRepository.stalePages(noteId)`로 따라잡기가 아직 넣지 않은 낡은 쪽도 넣는다(엔진이 실패한 쪽은 빼고). `indexDirtyPagesNow`를 먼저 부르면 다른 노트의 쪽이 먼저 시작되는 것을 시험이 잡아서 순서를 고쳤다.
+- `changes`: 상태를 다시 계산할 때마다 울림(전체 상태가 같아도 한 노트의 개수가 바뀔 수 있음).
+- INFRA 어댑터 `editorInkSearchOf`(`app/lib/src/modules/recognition_wiring.dart`), `ShellContribution.editorInkSearch` → `editorInkSearchProvider`.
+- 시험: `indexer_retry_test.dart`(이 노트 먼저, 따라잡기가 넣지 않은 낡은 쪽), `search_readiness_test.dart`(노트별 개수·`changes`).
+
 ### 6.20 A-4 품질 실험 준비 (`lab/`)
 
 계약 7.8 A-4: 'ML Kit `ko` 모델 받기(크기 기록), (v2.1) `en` 모델도 받기(크기 기록), 한국어 문장·혼용 문장 30줄 문자 오류율(`ko` 단독 vs `ko`+`en`), 줄당 인식 시간'. 사용자가 안드로이드 APK에서 바로 할 수 있게 실험 창을 만든다.

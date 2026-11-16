@@ -10,8 +10,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/src/indexer/handwriting_indexer.dart'
-    show IndexerTuning, catchUpRunningOf, indexDirtyPagesNow;
+    show
+        IndexerTuning,
+        catchUpRunningOf,
+        indexDirtyPagesNow,
+        indexNoteNow,
+        pendingPagesOfNote;
 import 'package:ink_recognition/testing.dart';
+import 'package:note_core/note_core.dart' as core;
 
 import '../support/indexer_harness.dart';
 
@@ -132,6 +138,78 @@ void main() {
     h.wait(next.dispose());
     enabled.dispose();
     foreground.dispose();
+    h.dispose();
+  });
+
+  indexerTest('(in-note search) indexNoteNow: that note\'s pages are '
+      'recognized before the other notes\' pages', (async) {
+    final h = IndexerHarness(
+      async,
+      recognizer: FakeHandwritingRecognizer(
+        latency: const Duration(milliseconds: 100),
+      ),
+    );
+    final (other, otherPages) = h.newNote('other', pages: 2);
+    // The other note's pages were written first, then this note's page.
+    for (final p in otherPages) {
+      h.addStrokes(
+        h.lines(pageId: p),
+        pageId: p,
+        noteId: other.id,
+      );
+    }
+    h.addStrokes(h.lines());
+    expect(pendingPagesOfNote(h.indexer, h.note.id), 1);
+    expect(pendingPagesOfNote(h.indexer, other.id), 2);
+    h.wait(indexNoteNow(h.indexer, h.note.id));
+    // The first job is this note's page, although it was written last.
+    expect(h.status.currentPageId, h.pageId);
+    expect(pendingPagesOfNote(h.indexer, h.note.id), 1);
+    // 3 lines × 100 ms: this page is done, the other note's are not.
+    h.elapse(const Duration(milliseconds: 350));
+    expect(h.stored()?.lines, hasLength(3));
+    expect(pendingPagesOfNote(h.indexer, h.note.id), 0);
+    expect(pendingPagesOfNote(h.indexer, other.id), greaterThan(0));
+    h.elapse(const Duration(seconds: 3));
+    expect(pendingPagesOfNote(h.indexer, other.id), 0);
+    h.dispose();
+  });
+
+  indexerTest('(in-note search) indexNoteNow queues a stale page of the note '
+      'that nothing else would queue', (async) {
+    final h = IndexerHarness(
+      async,
+      recognizer: FakeHandwritingRecognizer(
+        latency: const Duration(milliseconds: 100),
+      ),
+    );
+    h.addStrokes(h.lines());
+    h.elapse(IndexerTuning.localQuiet + const Duration(seconds: 1));
+    final done = h.stored()!;
+    expect(done.sourceRev, h.revOf());
+    // Another device wrote an old result: the page is stale, but no stroke
+    // changed, so the indexer does not queue it.
+    h.put(
+      core.HandwritingText(
+        noteId: h.note.id,
+        pageId: h.pageId,
+        engineId: done.engineId,
+        sourceRev: 'old',
+        lines: done.lines,
+        createdAt: done.createdAt,
+        updatedAt: done.updatedAt + 1,
+      ),
+    );
+    h.elapse(IndexerTuning.localQuiet);
+    expect(h.stored()?.sourceRev, 'old');
+    expect(pendingPagesOfNote(h.indexer, h.note.id), 0);
+    final indexed = h.status.indexedPages;
+    h.wait(indexNoteNow(h.indexer, h.note.id));
+    // (the stored lines are reused: no engine call, no latency)
+    h.elapse(const Duration(seconds: 1));
+    expect(h.status.indexedPages, indexed + 1);
+    expect(pendingPagesOfNote(h.indexer, h.note.id), 0);
+    expect(h.stored()?.sourceRev, h.revOf());
     h.dispose();
   });
 }

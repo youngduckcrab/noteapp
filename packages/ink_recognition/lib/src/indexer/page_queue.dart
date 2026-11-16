@@ -55,6 +55,29 @@ final class PageQueue {
     return true;
   }
 
+  /// (in-note search) Moves the pages of [noteId] ahead of every other page,
+  /// keeping their order; a [QueueLane.catchUp] page of it becomes
+  /// [QueueLane.ready] (the user is looking for it now).
+  void promoteNote(core.NoteId noteId) {
+    final mine = [
+      for (final e in _items)
+        if (e.noteId == noteId)
+          (
+            noteId: e.noteId,
+            pageId: e.pageId,
+            lane: e.lane == QueueLane.catchUp ? QueueLane.ready : e.lane,
+          ),
+    ];
+    if (mine.isEmpty) return;
+    _items
+      ..removeWhere((e) => e.noteId == noteId)
+      ..insertAll(0, mine);
+  }
+
+  /// Pages of [noteId] in the queue.
+  int countOf(core.NoteId noteId) =>
+      _items.where((e) => e.noteId == noteId).length;
+
   QueuedPage? takeFirst() => _items.isEmpty ? null : _items.removeAt(0);
 
   void clear() => _items.clear();

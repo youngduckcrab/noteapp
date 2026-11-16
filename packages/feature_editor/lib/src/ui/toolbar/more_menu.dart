@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../di/editor_extensions.dart';
 import '../../scope/editor_scope.dart';
+import '../../state/note_search.dart';
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
 import '../../state/tape_state.dart';
@@ -18,7 +19,7 @@ import '../eraser/eraser_popup.dart';
 import 'dev_menu.dart';
 import 'note_info_dialog.dart';
 
-/// 페이지 넘김 (세로 스크롤 / 좌우 넘기기) · 현재 페이지 지우기 · (v2) 테이프 모두
+/// (v2.13-search) 노트에서 찾기 · 페이지 넘김 (세로 스크롤 / 좌우 넘기기) · 현재 페이지 지우기 · (v2) 테이프 모두
 /// 보이기 · 테이프 모두 가리기 (always shown — whether the note has a tape is not
 /// known; allowed on a read-only note, nothing is stored) · 개발자 표시 (check) ·
 /// 노트 정보 · 설정 (only with onOpenSettings) · 개발자 메뉴 (only while the
@@ -42,6 +43,9 @@ class EditorMoreMenu extends ConsumerStatefulWidget {
   static const tapesHideAllKey = ValueKey('editor.more.tapesHideAll');
   static const devOverlayKey = ValueKey('editor.more.devOverlay');
   static const noteInfoKey = ValueKey('editor.more.noteInfo');
+
+  /// (v2.13-search) '노트에서 찾기' (m5-7/04-editor 17) — first item.
+  static const noteSearchKey = ValueKey('editor.more.noteSearch');
   static const settingsKey = ValueKey('editor.more.settings');
 
   /// Key of the item for an EditorMenuItem.id.
@@ -115,6 +119,12 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
     return MenuAnchor(
       controller: _controller,
       menuChildren: [
+        MenuItemButton(
+          key: EditorMoreMenu.noteSearchKey,
+          leadingIcon: const Icon(Icons.search),
+          onPressed: ref.read(editorNoteSearchProvider.notifier).open,
+          child: const Text(EditorStrings.noteSearch),
+        ),
         SubmenuButton(
           key: EditorMoreMenu.pageFlipKey,
           menuChildren: [
