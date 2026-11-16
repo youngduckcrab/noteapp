@@ -20,6 +20,7 @@ import 'package:note_core/note_core.dart' as core;
 
 import 'scope/editor_scope.dart';
 import 'state/note_search.dart';
+import 'state/settings/editor_device_state.dart';
 import 'text/text_edit_session.dart';
 import 'ui/editor_body.dart';
 import 'ui/editor_strings.dart';
@@ -179,6 +180,12 @@ class _EditorRootState extends ConsumerState<EditorRoot> {
         // open search does on Android; the next back leaves the note.
         if (ref.read(editorNoteSearchProvider).isOpen) {
           ref.read(editorNoteSearchProvider.notifier).close();
+          return;
+        }
+        // (04-editor 19) back then brings a hidden top menu back.
+        if (ref.read(editorSessionProvider).value != null &&
+            ref.read(editorDeviceStateProvider).toolbarHidden) {
+          ref.read(editorDeviceStateProvider.notifier).setToolbarHidden(false);
           return;
         }
         unawaited(_close());

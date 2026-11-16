@@ -4,10 +4,14 @@
 // EDITOR-internal per-device values, NOT exported: the web text input mode
 // (developer menu), the shape-sample toggle (developer menu, P-B) and whether
 // this device has seen a Pencil squeeze / barrel roll (the settings rows show
-// only after that — contract 7.2.10 (v2.1), CD2-24). Stored under the device
+// only after that — contract 7.2.10 (v2.1), CD2-24), and (v2 — 04-editor 17)
+// the editor chrome: the hidden top menu, the detached pen palette and where
+// their floating buttons sit. Stored under the device
 // key editor.deviceState, written 500 ms after a change like
 // EditorSettingsNotifier.
 import 'dart:async';
+
+import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,7 +30,19 @@ class EditorDeviceState {
     this.collectShapeSamples = false,
     this.seenSqueeze = false,
     this.seenBarrelRoll = false,
+    this.toolbarHidden = false,
+    this.seenToolbarHideHint = false,
+    this.paletteDetached = false,
+    this.palettePosition = defaultPalettePosition,
+    this.restorePillX = defaultRestorePillX,
   });
+
+  /// (04-editor 17) Where the palette button starts: left edge, a quarter
+  /// down (fractions of the free room — see [palettePosition]).
+  static const Offset defaultPalettePosition = Offset(0, 0.25);
+
+  /// (04-editor 17) The restore pill starts centred.
+  static const double defaultRestorePillX = 0.5;
 
   /// Developer menu, web only (6.11.6).
   final WebTextInputMode webTextInput;
@@ -37,26 +53,61 @@ class EditorDeviceState {
   /// A squeeze / barrel roll event arrived on this device (6.5.1, CD2-24).
   final bool seenSqueeze, seenBarrelRoll;
 
+  /// (04-editor 17) '메뉴 숨기기': the toolbar and the preset row are hidden.
+  final bool toolbarHidden;
+
+  /// (04-editor 17) The first-hide hint snack bar has been shown.
+  final bool seenToolbarHideHint;
+
+  /// (04-editor 17) '팔레트로 떼어내기': the preset row is a floating palette.
+  final bool paletteDetached;
+
+  /// (04-editor 17) The palette button's top-left as fractions (0–1) of the
+  /// room it can move in, so it stays inside after a rotation or resize.
+  final Offset palettePosition;
+
+  /// (04-editor 17) The restore pill's left as a fraction (0–1) of the room
+  /// along the top edge.
+  final double restorePillX;
+
   EditorDeviceState copyWith({
     WebTextInputMode? webTextInput,
     bool? collectShapeSamples,
     bool? seenSqueeze,
     bool? seenBarrelRoll,
+    bool? toolbarHidden,
+    bool? seenToolbarHideHint,
+    bool? paletteDetached,
+    Offset? palettePosition,
+    double? restorePillX,
   }) => EditorDeviceState(
     webTextInput: webTextInput ?? this.webTextInput,
     collectShapeSamples: collectShapeSamples ?? this.collectShapeSamples,
     seenSqueeze: seenSqueeze ?? this.seenSqueeze,
     seenBarrelRoll: seenBarrelRoll ?? this.seenBarrelRoll,
+    toolbarHidden: toolbarHidden ?? this.toolbarHidden,
+    seenToolbarHideHint: seenToolbarHideHint ?? this.seenToolbarHideHint,
+    paletteDetached: paletteDetached ?? this.paletteDetached,
+    palettePosition: palettePosition ?? this.palettePosition,
+    restorePillX: restorePillX ?? this.restorePillX,
   );
 
-  /// {"v":1,"webTextInput":"inline","collectShapeSamples":false,
-  ///  "seenSqueeze":false,"seenBarrelRoll":false}
+  /// {"v":2,"webTextInput":"inline","collectShapeSamples":false,
+  ///  "seenSqueeze":false,"seenBarrelRoll":false,"toolbarHidden":false,
+  ///  "seenToolbarHideHint":false,"paletteDetached":false,
+  ///  "palettePosition":{"x":0.0,"y":0.25},"restorePillX":0.5}
+  /// (v1 had no chrome fields — they decode as the defaults.)
   Map<String, Object?> toJson() => {
-    'v': 1,
+    'v': 2,
     'webTextInput': webTextInput.name,
     'collectShapeSamples': collectShapeSamples,
     'seenSqueeze': seenSqueeze,
     'seenBarrelRoll': seenBarrelRoll,
+    'toolbarHidden': toolbarHidden,
+    'seenToolbarHideHint': seenToolbarHideHint,
+    'paletteDetached': paletteDetached,
+    'palettePosition': {'x': palettePosition.dx, 'y': palettePosition.dy},
+    'restorePillX': restorePillX,
   };
 
   /// Unknown / wrong-typed values → defaults, no report (values a newer app
@@ -67,6 +118,17 @@ class EditorDeviceState {
       final bool b => b,
       _ => fallback,
     };
+    // A fraction 0–1 (finite); anything else → the fallback.
+    double? fraction(Object? v) => switch (v) {
+      final num n when n.isFinite => n.toDouble().clamp(0.0, 1.0),
+      _ => null,
+    };
+    final position = switch (json['palettePosition']) {
+      final Map<Object?, Object?> m
+          when fraction(m['x']) != null && fraction(m['y']) != null =>
+        Offset(fraction(m['x'])!, fraction(m['y'])!),
+      _ => d.palettePosition,
+    };
     final mode = json['webTextInput'];
     return EditorDeviceState(
       webTextInput: WebTextInputMode.values.firstWhere(
@@ -76,6 +138,11 @@ class EditorDeviceState {
       collectShapeSamples: flag('collectShapeSamples', d.collectShapeSamples),
       seenSqueeze: flag('seenSqueeze', d.seenSqueeze),
       seenBarrelRoll: flag('seenBarrelRoll', d.seenBarrelRoll),
+      toolbarHidden: flag('toolbarHidden', d.toolbarHidden),
+      seenToolbarHideHint: flag('seenToolbarHideHint', d.seenToolbarHideHint),
+      paletteDetached: flag('paletteDetached', d.paletteDetached),
+      palettePosition: position,
+      restorePillX: fraction(json['restorePillX']) ?? d.restorePillX,
     );
   }
 
@@ -86,7 +153,12 @@ class EditorDeviceState {
           other.webTextInput == webTextInput &&
           other.collectShapeSamples == collectShapeSamples &&
           other.seenSqueeze == seenSqueeze &&
-          other.seenBarrelRoll == seenBarrelRoll;
+          other.seenBarrelRoll == seenBarrelRoll &&
+          other.toolbarHidden == toolbarHidden &&
+          other.seenToolbarHideHint == seenToolbarHideHint &&
+          other.paletteDetached == paletteDetached &&
+          other.palettePosition == palettePosition &&
+          other.restorePillX == restorePillX;
 
   @override
   int get hashCode => Object.hash(
@@ -94,12 +166,20 @@ class EditorDeviceState {
     collectShapeSamples,
     seenSqueeze,
     seenBarrelRoll,
+    toolbarHidden,
+    seenToolbarHideHint,
+    paletteDetached,
+    palettePosition,
+    restorePillX,
   );
 
   @override
   String toString() =>
       'EditorDeviceState(${webTextInput.name}, samples: $collectShapeSamples, '
-      'squeeze: $seenSqueeze, roll: $seenBarrelRoll)';
+      'squeeze: $seenSqueeze, roll: $seenBarrelRoll, '
+      'toolbarHidden: $toolbarHidden, palette: '
+      '${paletteDetached ? 'detached at $palettePosition' : 'docked'}, '
+      'pill: $restorePillX)';
 }
 
 /// Debounce of editor.deviceState (same as the settings keys — 6.18).
@@ -171,6 +251,32 @@ class EditorDeviceStateNotifier extends Notifier<EditorDeviceState> {
 
   /// The first barrel roll on this device (6.5.1).
   void markSeenBarrelRoll() => _update(state.copyWith(seenBarrelRoll: true));
+
+  /// (04-editor 17) '메뉴 숨기기' / show the menu again.
+  void setToolbarHidden(bool hidden) =>
+      _update(state.copyWith(toolbarHidden: hidden));
+
+  /// (04-editor 17) The first-hide hint has been shown.
+  void markSeenToolbarHideHint() =>
+      _update(state.copyWith(seenToolbarHideHint: true));
+
+  /// (04-editor 17) Detach the preset row as a palette / dock it again.
+  void setPaletteDetached(bool detached) =>
+      _update(state.copyWith(paletteDetached: detached));
+
+  /// (04-editor 17) Fractions 0–1 (clamped).
+  void setPalettePosition(Offset fractions) => _update(
+    state.copyWith(
+      palettePosition: Offset(
+        fractions.dx.clamp(0.0, 1.0),
+        fractions.dy.clamp(0.0, 1.0),
+      ),
+    ),
+  );
+
+  /// (04-editor 17) A fraction 0–1 (clamped).
+  void setRestorePillX(double fraction) =>
+      _update(state.copyWith(restorePillX: fraction.clamp(0.0, 1.0)));
 
   /// Writes a pending change now (tests, leaving the screen).
   Future<void> flush() => _writer.flush();

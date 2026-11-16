@@ -18,12 +18,24 @@ import '../editor_strings.dart';
 /// text session ends first — the button's down already ended it
 /// (tapOutside); the undo waits for its command, so the whole session goes
 /// back as one step. [↶] is enabled during a session too (its command may
-/// be the step to undo).
+/// be the step to undo). (04-editor 17) [compact]: the restore pill's
+/// smaller buttons (own keys), one [part] each.
 class UndoRedoButtons extends ConsumerWidget {
-  const UndoRedoButtons({super.key});
+  const UndoRedoButtons({
+    super.key,
+    this.compact = false,
+    this.part = UndoRedoPart.both,
+  });
+
+  final bool compact;
+  final UndoRedoPart part;
 
   static const undoKey = ValueKey('editor.toolbar.undo');
   static const redoKey = ValueKey('editor.toolbar.redo');
+
+  /// (04-editor 17) The restore pill's [↶] [↷].
+  static const pillUndoKey = ValueKey('editor.restorePill.undo');
+  static const pillRedoKey = ValueKey('editor.restorePill.redo');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,24 +53,35 @@ class UndoRedoButtons extends ConsumerWidget {
       await step();
     }
 
+    final density = compact ? VisualDensity.compact : null;
+    final iconSize = compact ? 20.0 : null;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          key: undoKey,
-          onPressed: !readOnly && (history.canUndo || editing)
-              ? () => unawaited(afterSession(commands.undo))
-              : null,
-          icon: const Icon(Icons.undo, semanticLabel: EditorStrings.undo),
-        ),
-        IconButton(
-          key: redoKey,
-          onPressed: !readOnly && history.canRedo
-              ? () => unawaited(afterSession(commands.redo))
-              : null,
-          icon: const Icon(Icons.redo, semanticLabel: EditorStrings.redo),
-        ),
+        if (part != UndoRedoPart.redo)
+          IconButton(
+            key: compact ? pillUndoKey : undoKey,
+            visualDensity: density,
+            iconSize: iconSize,
+            onPressed: !readOnly && (history.canUndo || editing)
+                ? () => unawaited(afterSession(commands.undo))
+                : null,
+            icon: const Icon(Icons.undo, semanticLabel: EditorStrings.undo),
+          ),
+        if (part != UndoRedoPart.undo)
+          IconButton(
+            key: compact ? pillRedoKey : redoKey,
+            visualDensity: density,
+            iconSize: iconSize,
+            onPressed: !readOnly && history.canRedo
+                ? () => unawaited(afterSession(commands.redo))
+                : null,
+            icon: const Icon(Icons.redo, semanticLabel: EditorStrings.redo),
+          ),
       ],
     );
   }
 }
+
+/// (04-editor 17) Which of [↶] [↷] an [UndoRedoButtons] shows.
+enum UndoRedoPart { both, undo, redo }

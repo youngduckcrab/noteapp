@@ -16,10 +16,11 @@ import '../viewport/page_viewport.dart';
 import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
 import 'banners/text_draft_banner.dart';
+import 'chrome/editor_chrome.dart';
+import 'chrome/floating_layer.dart';
 import 'editor_strings.dart';
 import 'panels/editor_panel_slot.dart';
 import 'popup_host.dart';
-import 'presets/preset_bar_view.dart';
 import 'toolbar/editor_toolbar.dart';
 
 /// The ready editor of one note (inside its per-note scope):
@@ -28,8 +29,10 @@ import 'toolbar/editor_toolbar.dart';
 ///   SafeArea → Column
 ///   ├─ ReadOnlyBanner / StorageWarningBanner / (v2) TextDraftBanner
 ///   │  (height 0 when not shown)
-///   ├─ EditorToolbar (52 px) · PresetBarView (44 px)
-///   ├─ Expanded: PageViewport
+///   ├─ EditorTopMenu: EditorToolbar (52 px) · PresetBarView (44 px) — (04-
+///   │  editor 17) hidden / the row detached as a palette
+///   ├─ Expanded: EditorFloatingLayer (restore pill, palette) over
+///   │  PageViewport
 ///   └─ (v2) EditorPanelArea: the bottom panel slot while open (≤ 40 % of
 ///      the Column height — 6.15.4)
 ///
@@ -107,13 +110,15 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
                         const ReadOnlyBanner(),
                         const StorageWarningBanner(),
                         const TextDraftBanner(),
-                        EditorToolbar(
-                          onBack: widget.onBack,
-                          onOpenSettings: widget.onOpenSettings,
+                        EditorTopMenu(
+                          toolbar: EditorToolbar(
+                            onBack: widget.onBack,
+                            onOpenSettings: widget.onOpenSettings,
+                          ),
                         ),
-                        const PresetBarView(),
-                        const Divider(height: 1),
-                        const Expanded(child: PageViewport()),
+                        const Expanded(
+                          child: EditorFloatingLayer(child: PageViewport()),
+                        ),
                         EditorPanelArea(bodyHeight: constraints.maxHeight),
                       ],
                     ),

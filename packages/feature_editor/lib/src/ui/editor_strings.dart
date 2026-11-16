@@ -233,6 +233,32 @@ abstract final class EditorStrings {
   /// Semantics label of the bar's [⚙] and the manager sheet's title.
   static const presetManage = '프리셋 관리';
 
+  // ---------------------------------------------------------------------------
+  // (04-editor 17) Hiding the top menu, the floating pen palette.
+  // ---------------------------------------------------------------------------
+
+  /// The toolbar button / ⋯ item that hides both top rows.
+  static const hideMenu = '메뉴 숨기기';
+
+  /// The restore pill (semantics label) and its tooltip-free action.
+  static const showMenu = '메뉴 보이기';
+
+  /// Snack bar the first time the menu is hidden on a device.
+  static const menuHiddenHint = '메뉴를 숨겼어요. 위의 버튼을 누르면 다시 보여요';
+
+  /// The preset row's / ⋯ item that turns the row into a floating palette.
+  static const detachPalette = '팔레트로 떼어내기';
+
+  /// The palette's / ⋯ item that puts the row back under the toolbar.
+  static const dockPalette = '메뉴에 다시 붙이기';
+
+  /// Semantics label of the floating palette button.
+  static String paletteButton(String pen, {required bool expanded}) =>
+      '펜 팔레트, 지금 $pen${expanded ? ', 펼쳐짐' : ''}';
+
+  /// Title of the expanded palette.
+  static const palette = '팔레트';
+
   /// Pen settings #8 and the save dialog's title.
   static const saveAsPreset = '프리셋으로 저장';
 

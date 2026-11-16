@@ -9,6 +9,7 @@ import '../../state/popup.dart';
 import '../../state/preset_bar.dart';
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
+import '../chrome/editor_chrome.dart' show PaletteDetachButton;
 import '../editor_strings.dart';
 import 'preset_chip.dart';
 import 'save_preset_dialog.dart';
@@ -111,6 +112,8 @@ class _PresetBarViewState extends ConsumerState<PresetBarView> {
             semanticLabel: EditorStrings.presetManage,
           ),
         ),
+        // (04-editor 17) 팔레트로 떼어내기.
+        const PaletteDetachButton(),
         const SizedBox(width: 4),
       ],
     );

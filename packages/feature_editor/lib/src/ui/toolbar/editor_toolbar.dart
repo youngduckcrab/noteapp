@@ -18,6 +18,7 @@ import '../../state/settings/editor_settings_notifier.dart';
 import '../../stylus/stylus_extras_listener.dart' show penOnlyEffectiveWith;
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
+import '../chrome/editor_chrome.dart' show MenuHideButton, MenuHideSlot;
 import '../editor_strings.dart';
 import '../popup_host.dart';
 import 'insert_menu.dart';
@@ -146,6 +147,9 @@ class EditorToolbar extends ConsumerWidget {
                     semanticLabel: EditorStrings.back,
                   ),
                 ),
+                // (04-editor 17) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
+                if (scroll || constraints.maxWidth >= titleMinWidth)
+                  const MenuHideButton(),
                 if (constraints.maxWidth >= titleMinWidth)
                   Expanded(
                     child: Text(
@@ -156,7 +160,7 @@ class EditorToolbar extends ConsumerWidget {
                     ),
                   )
                 else if (!scroll)
-                  const Spacer(),
+                  const MenuHideSlot(), // the Spacer, [⌃] when it fits
                 if (constraints.maxWidth >= titleMinWidth ||
                     (fold && constraints.maxWidth >= foldedSearchMinWidth))
                   const _NoteSearchButton(),

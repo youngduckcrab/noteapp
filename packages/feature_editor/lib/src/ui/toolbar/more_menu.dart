@@ -13,6 +13,7 @@ import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
 import '../../state/tape_state.dart';
 import '../../tools/tool_controller.dart';
+import '../chrome/editor_chrome.dart';
 import '../dev/dev_metrics.dart';
 import '../editor_strings.dart';
 import '../eraser/eraser_popup.dart';
@@ -193,6 +194,8 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
             onPressed: openSettings,
             child: const Text(EditorStrings.settings),
           ),
+        // (04-editor 17) 메뉴 숨기기 · 팔레트로 떼어내기 / 메뉴에 다시 붙이기.
+        ...EditorChrome.moreMenuItems(context, ref),
         if (devVisible) const EditorDevMenu(),
         if (extensions.moreMenuItems.isNotEmpty && menu != null) ...[
           const Divider(height: 1),

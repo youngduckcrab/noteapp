@@ -1,4 +1,4 @@
-// E2-01 (m5-7/04-editor 4.3.3, 6.18): EditorDeviceState — JSON round trip,
+// E2-01 (m5-7/04-editor 4.3.3, 6.18; 17): EditorDeviceState — JSON round trip,
 // unknown / wrong values → defaults, and the notifier: load, 500 ms write
 // of editor.deviceState, a setter before the load wins, markSeenSqueeze /
 // markSeenBarrelRoll record the first event once.
@@ -12,18 +12,24 @@ import '../helpers/settings_env.dart';
 
 void main() {
   group('EditorDeviceState JSON', () {
-    test('defaults and the stored form of 4.3.3', () {
+    test('defaults and the stored form of 4.3.3 (v2 — 04-editor 17 adds '
+        'the chrome fields)', () {
       const d = EditorDeviceState();
       expect(d.webTextInput, WebTextInputMode.inline);
       expect(d.collectShapeSamples, isFalse);
       expect(d.seenSqueeze, isFalse);
       expect(d.seenBarrelRoll, isFalse);
       expect(d.toJson(), {
-        'v': 1,
+        'v': 2,
         'webTextInput': 'inline',
         'collectShapeSamples': false,
         'seenSqueeze': false,
         'seenBarrelRoll': false,
+        'toolbarHidden': false,
+        'seenToolbarHideHint': false,
+        'paletteDetached': false,
+        'palettePosition': {'x': 0.0, 'y': 0.25},
+        'restorePillX': 0.5,
       });
     });
 
