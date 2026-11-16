@@ -178,9 +178,8 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
       );
   }
 
-  Widget _checkBox(bool on) => Icon(
-    on ? Icons.check_box : Icons.check_box_outline_blank,
-  );
+  Widget _checkBox(bool on) =>
+      Icon(on ? Icons.check_box : Icons.check_box_outline_blank);
 
   @override
   Widget build(BuildContext context) {

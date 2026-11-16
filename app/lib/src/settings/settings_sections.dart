@@ -56,6 +56,7 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 /// | app.homeStyle | 화면 | 홈 화면 스타일 |
 /// | app.editorStyle | 화면 | 필기 화면 스타일 |
 /// | app.brightness | 화면 | 밝기 |
+/// | app.hoverNames | 화면 | 도구 이름 (UI stage 2) |
 /// | app.storage | — | 저장 공간 |
 /// | editor.input | — | 입력 |
 /// | editor.pen | — | 펜 |
@@ -104,6 +105,12 @@ List<SettingsSectionEntry> _sections(
     group: AppStrings.groupScreen,
     title: AppStrings.sectionBrightness,
     builder: (context) => const AppBrightnessSection(),
+  ),
+  SettingsSectionEntry(
+    id: 'app.hoverNames',
+    group: AppStrings.groupScreen,
+    title: AppStrings.sectionHoverNames,
+    builder: (context) => const AppHoverNamesSection(),
   ),
   SettingsSectionEntry(
     id: 'app.storage',

@@ -732,3 +732,55 @@ class _AppBrightnessSectionState extends ConsumerState<AppBrightnessSection> {
     );
   }
 }
+
+/// (UI stage 2) '도구 이름': '펜을 띄우면 이름 보기' (AppearanceKeys.hoverNames,
+/// default on) — a stylus held over an icon-only button shows its name.
+class AppHoverNamesSection extends ConsumerStatefulWidget {
+  const AppHoverNamesSection({super.key});
+
+  static const ValueKey<String> switchKey = ValueKey<String>(
+    'app.appearance.hoverNames',
+  );
+
+  @override
+  ConsumerState<AppHoverNamesSection> createState() =>
+      _AppHoverNamesSectionState();
+}
+
+class _AppHoverNamesSectionState extends ConsumerState<AppHoverNamesSection> {
+  bool _failed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = ref.watch(appAppearanceProvider).hoverNames;
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          key: AppHoverNamesSection.switchKey,
+          contentPadding: EdgeInsets.zero,
+          title: const Text(AppStrings.hoverNamesTitle),
+          subtitle: const Text(AppStrings.hoverNamesSubtitle),
+          value: on,
+          onChanged: (value) {
+            setState(() => _failed = false);
+            unawaited(
+              _write(ref, AppearanceKeys.hoverNames, value, () {
+                if (mounted) setState(() => _failed = true);
+              }),
+            );
+          },
+        ),
+        if (_failed)
+          Text(
+            AppStrings.featureSaveFailed,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+      ],
+    );
+  }
+}

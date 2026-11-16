@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../providers.dart';
 import '../update/update_banner.dart';
@@ -30,7 +31,12 @@ class NoteApp extends ConsumerWidget {
       themeMode: appearance.themeMode,
       locale: const Locale('ko'),
       routerConfig: ref.watch(appRouterProvider),
-      builder: (context, child) => UpdateBanner(child: child!),
+      // (UI stage 2) '펜을 띄우면 이름 보기' for every route (ui_kit
+      // HoverName).
+      builder: (context, child) => HoverNames(
+        enabled: appearance.hoverNames,
+        child: UpdateBanner(child: child!),
+      ),
     );
   }
 }

@@ -12,6 +12,7 @@ import 'package:noteapp/src/settings/about_section.dart';
 import 'package:noteapp/src/settings/settings_screen.dart';
 import 'package:noteapp/src/settings/settings_sections.dart';
 import 'package:noteapp/src/settings/storage_section.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/settings_harness.dart';
 
@@ -88,7 +89,10 @@ void main() {
 
     // (v2.14-ui) ← 뒤로 (was ✕).
     expect(find.byIcon(Icons.close), findsNothing);
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is AppIcon && w.kind == AppIconKind.back),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip(AppStrings.back));
     await tester.pump();
     expect(closed, 1);
@@ -185,6 +189,6 @@ void main() {
       tester.element(find.byType(SettingsScreen)),
     );
     // v2.14-ui: + 홈 화면 스타일, 필기 화면 스타일, 밝기.
-    expect(container.read(settingsSectionsProvider), hasLength(12));
+    expect(container.read(settingsSectionsProvider), hasLength(13));
   });
 }

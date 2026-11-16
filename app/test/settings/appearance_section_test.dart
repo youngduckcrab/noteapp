@@ -11,6 +11,7 @@ import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/settings/appearance_section.dart';
 import 'package:noteapp/src/settings/settings_screen.dart';
+import 'package:noteapp/src/settings/settings_sections.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../support/settings_harness.dart';
@@ -401,5 +402,53 @@ void main() {
     });
     await tester.pumpAndSettle();
     expect(container.read(appAppearanceProvider), const AppAppearance());
+  });
+
+  // (UI stage 2) 도구 이름 · 펜을 띄우면 이름 보기, and the category icons.
+  test('hoverNames: a device key, default on, read into AppAppearance', () {
+    expect(AppearanceKeys.hoverNames.name, 'app.appearance.hoverNames');
+    expect(AppearanceKeys.hoverNames.scope, SettingScope.device);
+    expect(AppearanceKeys.hoverNames.defaultValue, isTrue);
+    expect(const AppAppearance().hoverNames, isTrue);
+    expect(
+      AppAppearance.fromSnapshot(
+        SettingsSnapshot({'app.appearance.hoverNames': false}),
+      ).hoverNames,
+      isFalse,
+    );
+    expect(
+      const AppAppearance(hoverNames: false),
+      isNot(const AppAppearance()),
+    );
+  });
+
+  testWidgets("'펜을 띄우면 이름 보기' is on by default; turning it off stores "
+      'false', (tester) async {
+    final harness = await pumpSettings(tester);
+    final tile = find.byKey(AppHoverNamesSection.switchKey);
+    await tester.scrollUntilVisible(tile, 200);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    expect(find.text(AppStrings.hoverNamesTitle), findsOneWidget);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    final raw = await tester.runAsync(
+      () => harness.store.settings.watchAll().first,
+    );
+    expect(raw!.raw['app.appearance.hoverNames'], isFalse);
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+  });
+
+  testWidgets('every production section header has its line icon', (
+    tester,
+  ) async {
+    await pumpSettings(tester);
+    for (final id in ['app.homeStyle', 'app.brightness', 'app.hoverNames']) {
+      final icon = find.byKey(ValueKey<String>('settings-icon-$id'));
+      expect(icon, findsOneWidget, reason: id);
+      expect(tester.widget<AppIcon>(icon).kind, settingsSectionIcons[id]);
+    }
+    for (final entry in defaultSettingsSections(developerMode: true)) {
+      expect(settingsSectionIcons, contains(entry.id), reason: entry.id);
+    }
   });
 }

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../app/strings.dart';
 import 'settings_sections.dart';
@@ -27,7 +28,7 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const AppIcon(AppIconKind.back),
           tooltip: AppStrings.back,
           onPressed: onClose,
         ),
@@ -84,6 +85,25 @@ class _GroupHeader extends StatelessWidget {
   );
 }
 
+/// (UI stage 2) The line icon of each settings category (section id →
+/// ui_kit AppIconKind); a section without one shows its title alone.
+const Map<String, AppIconKind> settingsSectionIcons = {
+  'app.homeStyle': AppIconKind.style,
+  'app.editorStyle': AppIconKind.style,
+  'app.brightness': AppIconKind.brightness,
+  'app.hoverNames': AppIconKind.hoverName,
+  'app.storage': AppIconKind.storage,
+  'editor.input': AppIconKind.input,
+  'editor.pen': AppIconKind.pen,
+  'editor.page': AppIconKind.pages,
+  'library.newNote': AppIconKind.notebook,
+  'recog.settings': AppIconKind.recognition,
+  'editor.developer': AppIconKind.developer,
+  'app.features': AppIconKind.features,
+  'app.v1Copy': AppIconKind.history,
+  'app.about': AppIconKind.info,
+};
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.id, required this.title});
 
@@ -93,12 +113,27 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final icon = settingsSectionIcons[id];
+    final text = Text(title, style: theme.textTheme.titleMedium);
     return Padding(
       key: ValueKey<String>('settings-header-$id'),
       padding: const EdgeInsets.only(top: 20, bottom: 8),
       child: Semantics(
         header: true,
-        child: Text(title, style: theme.textTheme.titleMedium),
+        child: icon == null
+            ? text
+            : Row(
+                children: [
+                  AppIcon(
+                    icon,
+                    key: ValueKey<String>('settings-icon-$id'),
+                    size: 22,
+                    color: StyleTokens.of(context).textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: text),
+                ],
+              ),
       ),
     );
   }

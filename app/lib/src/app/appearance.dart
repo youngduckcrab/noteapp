@@ -43,6 +43,14 @@ abstract final class AppearanceKeys {
     scope: SettingScope.device,
   );
 
+  /// (UI stage 2) '펜을 띄우면 이름 보기': a stylus (or mouse) held over an
+  /// icon-only button shows its name (ui_kit HoverName). Default on.
+  static final SettingKey<bool> hoverNames = SettingKey.boolean(
+    'app.appearance.hoverNames',
+    true,
+    scope: SettingScope.device,
+  );
+
   static final SettingKey<String> brightness = SettingKey.string(
     'app.appearance.brightness',
     AppBrightnessMode.fallback.wireName,
@@ -69,6 +77,7 @@ final class AppAppearance {
     this.homeStyle = AppStyle.fallback,
     this.editorStyle = AppStyle.fallback,
     this.brightness = AppBrightnessMode.fallback,
+    this.hoverNames = true,
   });
 
   /// From the stored wire names; unknown values → the defaults. A missing
@@ -79,10 +88,12 @@ final class AppAppearance {
     String? editorStyle,
     String? legacyStyle,
     String? brightness,
+    bool hoverNames = true,
   }) => AppAppearance(
     homeStyle: AppStyle.fromWire(homeStyle ?? legacyStyle),
     editorStyle: AppStyle.fromWire(editorStyle ?? legacyStyle),
     brightness: AppBrightnessMode.fromWire(brightness),
+    hoverNames: hoverNames,
   );
 
   /// From a settings snapshot (see [AppAppearance.fromWire]).
@@ -98,11 +109,15 @@ final class AppAppearance {
           AppearanceKeys.storedOrNull(AppearanceKeys.legacyStyle),
         ),
         brightness: snapshot.get(AppearanceKeys.brightness),
+        hoverNames: snapshot.get(AppearanceKeys.hoverNames),
       );
 
   final AppStyle homeStyle;
   final AppStyle editorStyle;
   final AppBrightnessMode brightness;
+
+  /// (UI stage 2) '펜을 띄우면 이름 보기' ([AppearanceKeys.hoverNames]).
+  final bool hoverNames;
 
   /// MaterialApp.themeMode for [brightness].
   ThemeMode get themeMode => switch (brightness) {
@@ -124,15 +139,18 @@ final class AppAppearance {
       other is AppAppearance &&
       other.homeStyle == homeStyle &&
       other.editorStyle == editorStyle &&
-      other.brightness == brightness;
+      other.brightness == brightness &&
+      other.hoverNames == hoverNames;
 
   @override
-  int get hashCode => Object.hash(homeStyle, editorStyle, brightness);
+  int get hashCode =>
+      Object.hash(homeStyle, editorStyle, brightness, hoverNames);
 
   @override
   String toString() =>
       'AppAppearance(home: ${homeStyle.wireName}, '
-      'editor: ${editorStyle.wireName}, ${brightness.wireName})';
+      'editor: ${editorStyle.wireName}, ${brightness.wireName}'
+      '${hoverNames ? '' : ', no hover names'})';
 }
 
 /// The appearance read once during start-up (AppModuleContext

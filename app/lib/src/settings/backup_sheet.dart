@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../app/strings.dart';
 import '../errors/app_error_log.dart';
@@ -111,7 +112,7 @@ class _SheetButtonsState extends State<_SheetButtons> {
           FilledButton.icon(
             key: const Key('backup-share'),
             onPressed: _busy ? null : () => _deliver(BackupDelivery.share),
-            icon: const Icon(Icons.ios_share),
+            icon: Icon(AppIconKind.share.material),
             label: const Text(AppStrings.backupShare),
           ),
         OutlinedButton.icon(

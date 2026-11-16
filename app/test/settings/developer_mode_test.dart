@@ -14,6 +14,7 @@ import 'package:noteapp/src/settings/developer_mode.dart';
 import 'package:noteapp/src/settings/settings_screen.dart';
 import 'package:noteapp/src/settings/settings_sections.dart';
 import 'package:noteapp/src/settings/storage_section.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/settings_harness.dart';
 
@@ -123,7 +124,10 @@ void main() {
     expect(container.read(appDeveloperModeProvider), isTrue);
     expect(container.read(developerModeProvider), isTrue);
     expect(_ids(container), containsAll(_devIds));
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget); // ← 뒤로
+    expect(
+      find.byWidgetPredicate((w) => w is AppIcon && w.kind == AppIconKind.back),
+      findsOneWidget,
+    ); // ← 뒤로
     container.read(editorSettingsProvider.notifier).setShowDevOverlay(false);
     await tester.pumpAndSettle();
     expect(container.read(developerModeProvider), isFalse);

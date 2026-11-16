@@ -80,6 +80,11 @@ abstract final class AppStrings {
   static const String homeStyleNote = '서재, 폴더, 휴지통, 검색, 설정 화면에 적용돼요.';
   static const String editorStyleNote = '노트를 열었을 때의 도구 막대, 펜, 메뉴에 적용돼요.';
   static const String sectionBrightness = '밝기';
+
+  /// (UI stage 2) '화면' › 도구 이름.
+  static const String sectionHoverNames = '도구 이름';
+  static const String hoverNamesTitle = '펜을 띄우면 이름 보기';
+  static const String hoverNamesSubtitle = '아이콘만 있는 버튼 위에 펜이나 마우스를 띄우면 이름이 떠요.';
   static const String styleCraft = '크래프트';
   static const String styleCraftHint = '따뜻한 종이 느낌, 부드러운 그림자';
   static const String styleCalm = '미니멀';
