@@ -3085,6 +3085,10 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 시험: `test/widget/style_theme_test.dart`(3 스타일 × 2 밝기 화소 검사 + 검토 반영: 쪽 번호 알약이 흰 종이 위 3:1·글자 4.5:1, 프리셋 굵기 점이 밝은 판과 같은 쪽, 검색 낱말 4.5:1). `pumpEditor(theme:)` 인자 추가.
 
+### 20.1 필기 화면 스타일 따로 (2026-11-16, v2.14-ui)
+
+편집기는 홈 화면과 다른 스타일을 가질 수 있다(설정 › 화면 › 필기 화면 스타일, [01-infra.md 14.6](01-infra.md)). 앱 셸이 노트 경로를 `EditorStyleScope`(필기 스타일의 `Theme`, 밝기는 앱과 같음)로 감싸므로 EDITOR 코드는 그대로 `StyleTokens.of(context)`·`Theme.of(context)`를 읽는다. 편집기에서 여는 팝업은 모두 `showDialog`·`showModalBottomSheet`·`showMenu`·`MenuAnchor`·`OverlayPortal`이라 같은 테마를 받는다 — 새 팝업을 손으로 만든 라우트로 띄우면 `themes: InheritedTheme.capture(...)`를 넘길 것. 720 px 미만의 '노트에서 찾기'는 ⋯ 맨 위에 있다(21 검토 반영, 다시 확인함).
+
 ## 21. UI 정리 1단계 (2026-11-16, v2.14-ui — UI 전면 개선 제안서 1단계 '정리만')
 
 배치는 그대로 두고 겹치거나 필요 없는 것만 뺐다. 뺀 동작은 모두 다른 곳에 남는다. 화면 스타일(크래프트·미니멀·스튜디오)·어두운 화면은 다른 트랙이다.

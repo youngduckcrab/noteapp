@@ -2044,7 +2044,7 @@ override가 아닌 연결: `MediaModule`이 앱 시작 뒤 유휴 시간에 남�
 #### 7.4.4 ID · 설정 키 · 문구 (1차 7.4.6, 1차 7.4.5)
 
 - ID 규칙 예외 추가: `HandwritingText.idFor(pageId) = 'hw_' + pageId`(결정적 id). 녹음 id는 녹음 시작 전에 `idGeneratorProvider`로 만든다.
-- 설정 키 접두사 추가: `media.*`(PDF 영역), `recog.*`(LIBRARY 영역), (v2.1, CP12) `app.*`(INFRA — `app.features.*`, `device`; v2.14-ui `app.appearance.style`·`app.appearance.brightness`, `device`). 외부 수식 엔진 전송 동의 `recog.mathConsent`(bool, 기본 false, `synced` — D15·G-3).
+- 설정 키 접두사 추가: `media.*`(PDF 영역), `recog.*`(LIBRARY 영역), (v2.1, CP12) `app.*`(INFRA — `app.features.*`, `device`; v2.14-ui `app.appearance.homeStyle`·`app.appearance.editorStyle`·`app.appearance.brightness`, `device` — 1단계의 `app.appearance.style`은 새 키가 없을 때만 읽는다). 외부 수식 엔진 전송 동의 `recog.mathConsent`(bool, 기본 false, `synced` — D15·G-3).
 - (v2.1) 키 확정: **recog**(CP-L9) `recog.language`(synced, 'ko')·`recog.mathConsent`(synced, false)·`recog.autoIndex`(device, (v2.9) **true** — C29-01)·`recog.modelWifiOnly`(device, true) — 별도 '인식 켜기' 키는 없다(기능 전체는 `FEATURE_RECOGNITION`). **EDITOR**(CP-E7) `editor.toolOptions`(synced), `editor.playback.preRollMs`(synced, 정수 키 — 1차 `jsonMap` 관례의 예외), 탭 재생 켬 = `editor.settings.device`의 `tapToSeek`(패널은 `EditorPanelContext`로만 읽고 쓴다). **media** 녹음 비트레이트(synced), 녹음 동의 안내 본 여부(device), `media.recoverAttempts`(device — 초안별 복구 시도 횟수, 7.2.12). 제스처 동작 매핑은 1차 `editor.settings.synced`의 `gestures` 안(`synced`).
 - 녹음 동의 안내 문구(F-16, 고정): "다른 사람의 목소리를 녹음할 때는 미리 동의를 받아 주세요." — 바꿀 때 1차 7.4.12 절차.
 
@@ -2401,6 +2401,7 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C214U-02 | 7.4.4 설정 키 | `app.appearance.style`(문자열, 기본 `craft`, `device`), `app.appearance.brightness`(문자열 `system`·`light`·`dark`, 기본 `system`, `device`). 모르는 값 → 기본값 | 사용자 결정 | INFRA(처리됨 — 설정 '화면' 묶음, 바로 적용) |
 | C214U-03 | 7.4.11 색 규칙 | 화면 틀 색은 `Theme.of(context).colorScheme` 또는 `StyleTokens.of(context)`(토큰 없는 테마 = 예전 스킴 역할 값)만. 종이와 잉크 색은 문서 데이터라 테마를 따르지 않는다: 잉크 미리보기는 `inkSwatch`, 종이 위 편집 표시는 `paperAccent`·`paperInk`·`paperHighlight`. UI 패키지 `lib/`의 `Color(0x…)`·`Colors.<이름>`은 허용 목록만(`tool/test/ui_colors_test.dart`) | 사용자 결정 | EDITOR·LIBRARY(처리됨), PDF·LIBRARY recog(스킴만 써서 변경 없음) |
 | C214U-04 | 7.4.11 색 규칙 · 7.3.3 | (검토 반영) `StyleTokens`에 계산 값 넷: `paperBadge`·`onPaperBadge`(종이 **위에** 뜨는 작은 표시 — 쪽 번호, 회전 각도, 스포이트 안내 — 는 밝기와 상관없이 종이용 어두운 바탕), `popover`·`popoverSide`(팝업 메뉴·메뉴: 어두운 판에서는 카드보다 한 단계 밝은 면 + 옅은 테두리). `tertiary`는 스타일마다 자기 색(크래프트 갈색 · 미니멀 청록 · 스튜디오 보라). 앱 셸 루트 override에 `initialAppearanceProvider`(시작 때 '화면' 설정 두 키를 한 번 읽은 값 — 첫 프레임부터 고른 스타일) | 검토 | INFRA·EDITOR·LIBRARY(처리됨) |
+| C214U-05 | 7.4.4 설정 키 · 7.4.11 | (스타일 분리) `app.appearance.style` 대신 `app.appearance.homeStyle`·`app.appearance.editorStyle`(문자열, 기본 `craft`, `device`). 새 키가 저장돼 있지 않으면 옛 `app.appearance.style` 값을 읽는다(옮기기, 쓰지 않음). 밝기는 하나. 앱 테마 = 홈 스타일, 노트 경로 = 필기 스타일(앱 셸 `EditorStyleScope`); 패키지가 손으로 만든 라우트(`DialogRoute` 등)는 `themes: InheritedTheme.capture(from: context, to: navigator.context)`를 넘긴다 | 사용자 결정 | INFRA·PDF(처리됨 — pdf_io 진행 창 셋), EDITOR·LIBRARY(변경 없음) |
 
 #### v2.14-ui · 정리 트랙 (2026-11-16, UI 전면 개선 1단계 '정리만' — 사용자 결정 '추천안 3개 모두 구현해서 스타일을 선택할 수 있게')
 

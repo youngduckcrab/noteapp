@@ -3364,7 +3364,7 @@ INFRA는 승인 상태다. EDITOR 12.2 Q16(V5의 자동 도형 단계가 P-B 작
 
 - `buildStyleTheme(style, brightness)`: 토큰에서 만든 Material 3 `ColorScheme` + 구성 요소 테마(앱 막대, 팝업 메뉴, 메뉴, 바닥 시트, 대화상자, 서랍, 카드, 구분선, 슬라이더, 구분 버튼, 칩, 스위치, 목록 줄, 스낵바, 툴팁) + 토큰. `surfaceTint`는 투명(톤 섞임 없음).
 - 앱: `buildAppTheme({style, brightness})` → `MaterialApp.theme`/`darkTheme`/`themeMode`. 시작 화면(스플래시·시작 오류)은 설정을 읽기 전이라 기본 스타일 + 시스템 밝기.
-- 설정 키(기기 설정 `SettingScope.device`, 동기화 안 함 — 밤에 쓰는 태블릿과 낮에 쓰는 폰을 따로 정할 수 있게): `app.appearance.style`(기본 `craft`), `app.appearance.brightness`(기본 `system`). `appAppearanceProvider`가 설정 스냅샷을 읽고 `NoteApp`이 지켜봐서 고르는 즉시 바뀐다(다시 시작 없음).
+- 설정 키(기기 설정 `SettingScope.device`, 동기화 안 함 — 밤에 쓰는 태블릿과 낮에 쓰는 폰을 따로 정할 수 있게): `app.appearance.style`(기본 `craft` — 14.6에서 홈·필기 두 키로 나눔, 이 키는 옮기기용으로 읽기만), `app.appearance.brightness`(기본 `system`). `appAppearanceProvider`가 설정 스냅샷을 읽고 `NoteApp`이 지켜봐서 고르는 즉시 바뀐다(다시 시작 없음).
 - 설정 화면 맨 위 '화면' 묶음: '화면 스타일'(작은 미리보기 그림이 있는 카드 3개 — 지금 밝기를 따름), '밝기'(시스템 따라 / 밝게 / 어둡게) + "어두운 화면에서도 노트 종이와 잉크 색은 그대로예요" 안내.
 - (검토 반영) 시작 때 깜빡임 없음: 부트스트랩이 CoreModule 다음에 `AppModuleContext.resolveAppearance()`로 두 키를 한 번 읽어(≤ 500 ms, 실패·시간 초과 → 기본값 + 기록 1건) `initialAppearanceProvider`로 넘긴다. `appAppearanceProvider`는 스냅샷이 오기 전에는 이 값을 쓰므로, `NoteApp`의 첫 프레임부터 고른 스타일·밝기다(예전에는 기본 스타일로 그린 뒤 약 200 ms 테마 애니메이션으로 바뀌었다). 스플래시·시작 오류 화면은 저장소를 열기 전이라 여전히 기본 스타일 + 시스템 밝기다.
 - (검토 반영) 안내 문구: 스타일 카드 아래 "지금은 색과 모양이 바뀌어요. 도구 막대 배치는 다음 업데이트에서 스타일에 맞게 바뀌어요."(미리보기 그림은 각 스타일이 갈 방향 — 떠 있는 막대·왼쪽 레일 — 을 보여 주지만 배치는 2단계), 크래프트 설명 '따뜻한 종이 느낌, 부드러운 그림자', 미니멀 설명 '군더더기 없이 차분하게, 강조색 하나'(어두운 미리보기와 어긋나지 않게), 밝기 안내 "… 종이 바깥 화면만 어두워져요."
@@ -3386,6 +3386,17 @@ INFRA는 승인 상태다. EDITOR 12.2 Q16(V5의 자동 도형 단계가 P-B 작
 - 하드코딩 색 감시: `tool/test/ui_colors_test.dart` — UI 패키지 `lib/`의 `Color(0x…)`·`Colors.<이름>`(투명 제외)은 허용 목록(녹음 빨간 점, 검색 노란 강조, 표지 글자색·책등, 스타일 미리보기의 잉크 선)과 그 개수까지만. (검토 반영) 줄 단위가 아니라 파일 전체에 정규식을 돌린다: 주석만 지우고(문자열 안의 `://`는 그대로) `Color(` 다음 줄로 넘어간 `0xFF…`, 숫자로 시작하는 `Color.fromARGB`·`Color.fromRGBO`·`Color.from(alpha: …)`도 잡는다.
 - (검토 반영) 오류 글자색은 본문 글자라 모든 면에서 4.5:1, `tertiary` 쌍 4.5:1, 어두운 판의 `popover`는 모든 카드·컨테이너 면보다 밝음, `paperBadge`는 흰 종이와 4.5:1. 시작 때 읽기: `app_module_context_test`(`resolveAppearance` 저장값·저장소 없음·실패), `note_app_test`(스냅샷이 오기 전 첫 프레임 = 시작 때 값).
 
+### 14.6 홈 화면 · 필기 화면 스타일 따로 (2026-11-16, v2.14-ui)
+
+사용자 결정: 홈 화면과 노트 쓰는 화면의 스타일을 따로 고른다(예: 홈은 크래프트, 필기는 스튜디오). 밝기는 앱 전체에 하나.
+
+- 설정 키(둘 다 `device`, 기본 `craft`): `app.appearance.homeStyle`(홈 화면 스타일), `app.appearance.editorStyle`(필기 화면 스타일). 밝기는 그대로 `app.appearance.brightness` 하나.
+- 옮기기(읽을 때): 새 키가 저장돼 있지 않으면 1단계의 `app.appearance.style` 값을 쓴다(`AppearanceKeys.legacyStyle`, 읽기만). 저장 여부는 기본값 `null`인 같은 이름의 키(`AppearanceKeys.storedOrNull`)로 가린다 — 저장된 `craft`도 고른 값이라 옛 키가 덮지 않는다. 한쪽만 새로 고르면 다른 쪽은 옛 값을 계속 쓴다. `resolveAppearance()`는 네 키를 읽는다.
+- 적용: `NoteApp`의 `theme`/`darkTheme` = 홈 스타일(서재·폴더·휴지통·검색·설정과 거기서 여는 대화상자). 노트 경로는 `appRouterProvider`가 `createAppRouter(wrapEditor:)`로 편집기 화면을 `EditorStyleScope`로 감싼다: `Theme(buildAppTheme(editorStyle, 밝기))`, 밝기 = 같은 '밝기' 설정을 플랫폼 밝기로 푼 값(`AppAppearance.effectiveBrightness`, MaterialApp의 themeMode와 같은 규칙). 편집기 안에서 연 시트·대화상자·메뉴는 `showDialog`·`showModalBottomSheet`·`showMenu`가 연 곳의 테마를 잡아 가고(`InheritedTheme.capture`), `MenuAnchor`·`OverlayPortal`은 앵커 자리에서 그려서 필기 스타일이다. 손으로 만든 `DialogRoute`(pdf_io 진행 창 셋)는 `themes: InheritedTheme.capture(from: context, to: null)`을 넘기게 고쳤다. 편집기에서 연 설정은 별도 경로라 홈 스타일. 어느 설정을 바꿔도 바로 바뀐다(편집기 State 그대로).
+- `buildAppTheme`은 (스타일, 밝기)마다 한 번 만들어 같은 객체를 돌려준다.
+- 설정 '화면' 묶음: '홈 화면 스타일'(작은 서재 그림 카드 3개 + "서재, 폴더, 휴지통, 검색, 설정 화면에 적용돼요.") → '필기 화면 스타일'(도구 막대 + 종이 그림 카드 3개 + "노트를 열었을 때의 도구 막대, 펜, 메뉴에 적용돼요." + 배치 안내) → '밝기'. 섹션 id `app.homeStyle`·`app.editorStyle`·`app.brightness`. 폭 480 px 미만(폰)에서는 카드 셋이 한 줄에 그림 + 이름만, 고른 스타일의 설명은 줄 아래 한 줄.
+- 시험: `appearance_section_test`(키·옮기기·두 묶음·저장·폰 폭), `app_module_context_test`(네 키, 옛 키만 → 둘 다), `test/app/editor_style_test.dart`(서재 = 홈, 편집기 = 필기 토큰, 밝게·어둡게·시스템, 옛 키만, ⋯ 메뉴·노트 정보 대화상자 = 필기, showDialog·showModalBottomSheet·showMenu·`DialogRoute(themes:)`, 바로 바뀜).
+
 ## 15. UI 정리 1단계 — 설정과 개발자 모드 (2026-11-16, v2.14-ui)
 
 UI 전면 개선 제안서 1단계 '정리만'의 설정 몫. 화면 배치(2단 분류 등)는 8단계에서 한다.
@@ -3403,7 +3414,7 @@ UI 전면 개선 제안서 1단계 '정리만'의 설정 몫. 화면 배치(2단
 - 저장된 스위치를 껐는데 개발자 표시(⌘⇧D)나 `?dev=1` 때문에 개발자 모드가 그대로면 '껐어요' 대신 '개발자 모드 설정을 껐어요. 개발자 표시나 주소의 ?dev=1 때문에 아직 켜져 있어요'.
 - '진단 정보 복사'·'기능 켜고 끄기'·'이전 판 DB 사본'은 개발자 모드 항목 그대로 두고, 이를 가리키는 안내(`.github/ISSUE_TEMPLATE/feedback.yml`, `docs/guides/04`·`08`)에 '빌드 줄 7번' 안내를 붙였다(`workflows_test`가 '7번'을 확인).
 - (통합) 스낵바는 `removeCurrentSnackBar` 뒤에 띄운다 — `hide…`는 나가는 애니메이션 뒤에 줄을 세워, 빨리 누르면 지난 숫자가 늦게 나왔다.
-- (통합) 설정 목록은 '화면' 묶음(14.3) → 저장 공간 … → 개발자 모드 항목 → 앱 정보. 개발자 모드가 아니어도 '화면' 두 섹션은 늘 있다.
+- (통합) 설정 목록은 '화면' 묶음(14.3, 14.6) → 저장 공간 … → 개발자 모드 항목 → 앱 정보. 개발자 모드가 아니어도 '화면' 두 섹션은 늘 있다.
 - 받지 않은 것: 설정에서 저장 공간을 아래로 옮기는 것(섹션 순서는 8단계 설정 정리, 계약 C214UC-05 '순서는 그대로'), '빌드' 줄 이름을 '버전'으로 바꾸는 것(안내서·시험이 '빌드'를 씀).
 
 ## 부록 A. 확장 지점 · 자리 사용표 (초안의 13절)
