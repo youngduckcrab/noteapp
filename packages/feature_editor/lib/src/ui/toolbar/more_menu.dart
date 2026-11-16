@@ -194,7 +194,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
             onPressed: openSettings,
             child: const Text(EditorStrings.settings),
           ),
-        // (04-editor 17) 메뉴 숨기기 · 팔레트로 떼어내기 / 메뉴에 다시 붙이기.
+        // (04-editor 19) 메뉴 숨기기 · 팔레트로 떼어내기 / 메뉴에 다시 붙이기.
         ...EditorChrome.moreMenuItems(context, ref),
         if (devVisible) const EditorDevMenu(),
         if (extensions.moreMenuItems.isNotEmpty && menu != null) ...[

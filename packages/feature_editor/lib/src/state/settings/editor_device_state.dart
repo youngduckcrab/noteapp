@@ -4,7 +4,7 @@
 // EDITOR-internal per-device values, NOT exported: the web text input mode
 // (developer menu), the shape-sample toggle (developer menu, P-B) and whether
 // this device has seen a Pencil squeeze / barrel roll (the settings rows show
-// only after that — contract 7.2.10 (v2.1), CD2-24), and (v2 — 04-editor 17)
+// only after that — contract 7.2.10 (v2.1), CD2-24), and (v2 — 04-editor 19)
 // the editor chrome: the hidden top menu, the detached pen palette and where
 // their floating buttons sit. Stored under the device
 // key editor.deviceState, written 500 ms after a change like
@@ -37,13 +37,13 @@ class EditorDeviceState {
     this.restorePillX = defaultRestorePillX,
   });
 
-  /// (04-editor 17) Where the palette button starts: the bottom-left
+  /// (04-editor 19) Where the palette button starts: the bottom-left
   /// corner — off the place where writing starts and off the page indicator
   /// (bottom right); fractions of the free room, see [palettePosition]. At
   /// the bottom it also stays put when the menu hides or shows.
   static const Offset defaultPalettePosition = Offset(0, 1);
 
-  /// (04-editor 17) The restore pill starts centred.
+  /// (04-editor 19) The restore pill starts centred.
   static const double defaultRestorePillX = 0.5;
 
   /// Developer menu, web only (6.11.6).
@@ -55,22 +55,22 @@ class EditorDeviceState {
   /// A squeeze / barrel roll event arrived on this device (6.5.1, CD2-24).
   final bool seenSqueeze, seenBarrelRoll;
 
-  /// (04-editor 17) '메뉴 숨기기': the toolbar and the preset row are hidden.
+  /// (04-editor 19) '메뉴 숨기기': the toolbar and the preset row are hidden.
   final bool toolbarHidden;
 
-  /// (04-editor 17) The first-hide hint snack bar has been shown.
+  /// (04-editor 19) The first-hide hint snack bar has been shown.
   final bool seenToolbarHideHint;
 
-  /// (04-editor 17) '팔레트로 떼어내기': the preset row is a floating palette.
+  /// (04-editor 19) '팔레트로 떼어내기': the preset row is a floating palette.
   final bool paletteDetached;
 
-  /// (04-editor 17) The palette button's top-left as fractions (0–1) of the
+  /// (04-editor 19) The palette button's top-left as fractions (0–1) of the
   /// room it can move in (the page area less the button and margins — the
   /// restore pill's strip only clamps it, it does not scale it), so it stays
   /// inside after a rotation or resize.
   final Offset palettePosition;
 
-  /// (04-editor 17) The restore pill's left as a fraction (0–1) of the room
+  /// (04-editor 19) The restore pill's left as a fraction (0–1) of the room
   /// along the top edge.
   final double restorePillX;
 
@@ -256,19 +256,19 @@ class EditorDeviceStateNotifier extends Notifier<EditorDeviceState> {
   /// The first barrel roll on this device (6.5.1).
   void markSeenBarrelRoll() => _update(state.copyWith(seenBarrelRoll: true));
 
-  /// (04-editor 17) '메뉴 숨기기' / show the menu again.
+  /// (04-editor 19) '메뉴 숨기기' / show the menu again.
   void setToolbarHidden(bool hidden) =>
       _update(state.copyWith(toolbarHidden: hidden));
 
-  /// (04-editor 17) The first-hide hint has been shown.
+  /// (04-editor 19) The first-hide hint has been shown.
   void markSeenToolbarHideHint() =>
       _update(state.copyWith(seenToolbarHideHint: true));
 
-  /// (04-editor 17) Detach the preset row as a palette / dock it again.
+  /// (04-editor 19) Detach the preset row as a palette / dock it again.
   void setPaletteDetached(bool detached) =>
       _update(state.copyWith(paletteDetached: detached));
 
-  /// (04-editor 17) Fractions 0–1 (clamped).
+  /// (04-editor 19) Fractions 0–1 (clamped).
   void setPalettePosition(Offset fractions) => _update(
     state.copyWith(
       palettePosition: Offset(
@@ -278,7 +278,7 @@ class EditorDeviceStateNotifier extends Notifier<EditorDeviceState> {
     ),
   );
 
-  /// (04-editor 17) A fraction 0–1 (clamped).
+  /// (04-editor 19) A fraction 0–1 (clamped).
   void setRestorePillX(double fraction) =>
       _update(state.copyWith(restorePillX: fraction.clamp(0.0, 1.0)));
 

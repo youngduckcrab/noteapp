@@ -1,9 +1,10 @@
-// lib/src/ui/chrome/floating_layer.dart — 04-editor 17: the floating buttons
+// lib/src/ui/chrome/floating_layer.dart — 04-editor 19: the floating buttons
 // over the page area — the restore pill while the top menu is hidden, the pen
 // palette while it is detached.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../state/note_search.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../editor_strings.dart';
 import '../toolbar/undo_redo_buttons.dart';
@@ -48,12 +49,13 @@ class EditorFloatingLayer extends ConsumerWidget {
   }
 }
 
-/// [↶] [⌄ 메뉴 보이기] [↷] at the top edge while the menu is hidden,
+/// [↶] [⌄ 메뉴 보이기] [🔍] [↷] at the top edge while the menu is hidden,
 /// semi-transparent, 48 dp targets. It covers that strip of the page (a
 /// stroke starting on it reaches the pill, not the page — drag the pill
 /// aside to write there). Tap the middle → the menu comes back; drag it sideways
 /// → it moves along the top edge (remembered — restorePillX). Undo / redo
-/// stay reachable without the toolbar.
+/// and '노트에서 찾기' (04-editor 19.1 — the toolbar [🔍] and [⋯] are hidden
+/// too) stay reachable without the toolbar.
 class MenuRestorePill extends ConsumerStatefulWidget {
   const MenuRestorePill({super.key, required this.area});
 
@@ -63,10 +65,13 @@ class MenuRestorePill extends ConsumerStatefulWidget {
   static const pillKey = ValueKey('editor.restorePill');
   static const showKey = ValueKey('editor.restorePill.show');
 
+  /// (19.1) [🔍] '노트에서 찾기' (toggles, like the toolbar button).
+  static const searchKey = ValueKey('editor.restorePill.search');
+
   /// 48 dp touch targets: it is the only way back to the menu and the only
   /// undo / redo while the menu is hidden.
   static const double height = 48;
-  static const double width = 48 + 56 + 48 + 8;
+  static const double width = 48 + 56 + 48 + 48 + 8;
 
   /// Semi-transparent so the top of the page shows through.
   static const double opacity = 0.7;
@@ -141,6 +146,7 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
                     ),
                   ),
                 ),
+                const _PillSearchButton(),
                 const UndoRedoButtons(compact: true, part: UndoRedoPart.redo),
               ],
             ),
@@ -155,5 +161,23 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
     if (x == null) return;
     ref.read(editorDeviceStateProvider.notifier).setRestorePillX(x);
     setState(() => _dragX = null);
+  }
+}
+
+/// (19.1) The pill's [🔍]: the in-note search stays reachable while the
+/// menu is hidden (selected while the panel is open).
+class _PillSearchButton extends ConsumerWidget {
+  const _PillSearchButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open = ref.watch(editorNoteSearchProvider.select((s) => s.isOpen));
+    return IconButton(
+      key: MenuRestorePill.searchKey,
+      isSelected: open,
+      iconSize: 20, // like the pill's [↶] [↷]
+      onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
+      icon: const Icon(Icons.search, semanticLabel: EditorStrings.noteSearch),
+    );
   }
 }

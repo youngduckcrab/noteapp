@@ -74,16 +74,20 @@ class EditorToolbar extends ConsumerWidget {
   static const double titleMinWidth = 1000;
 
   /// (v2) Below this width [도형] [텍스트] [+] [🎤] fold into [⋯도구]. The
-  /// plan's 720 px is the floor; every button unfolded with [+], [🎤] and
-  /// the sync badge takes 805 px (title hidden), so the fold starts at 820.
-  static const double foldWidth = 820;
+  /// plan's 720 px is the floor. (04-editor 19.1) Measured with every
+  /// optional button on (image insert, [🎤], 수식 펜, 텍스트 펜, sync badge):
+  /// the unfolded row takes 900 px, + the 48 px [🔍] 948 px (title hidden) —
+  /// the earlier 820 overflowed between 820 and 900. From 952 the unfolded
+  /// row always has room for [🔍] (test/widget/toolbar_width_test.dart).
+  static const double foldWidth = 952;
 
   /// (v2) Below this width the folded toolbar (≈ 660 px with the sync
   /// badge) scrolls sideways instead of overflowing.
   static const double scrollWidth = 680;
 
   /// (v2.13-search) The folded toolbar (≈ 660 px with the sync badge) + the
-  /// 48 px [🔍] + slack: from here it shows [🔍] without scrolling.
+  /// 48 px [🔍] + slack: from here it shows [🔍] without scrolling. Above
+  /// [foldWidth] the unfolded row has it too (19.1).
   static const double foldedSearchMinWidth = 720;
 
   static const backKey = ValueKey('editor.toolbar.back');
@@ -94,10 +98,10 @@ class EditorToolbar extends ConsumerWidget {
   static const titleKey = ValueKey('editor.toolbar.title');
   static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
-  /// (v2.13-search) [🔍] '노트에서 찾기' — from [titleMinWidth], and in the
-  /// folded toolbar from [foldedSearchMinWidth] (review: Android tablets in
-  /// portrait are about 800 wide). Between foldWidth and titleMinWidth the
-  /// unfolded buttons leave no room: the more menu's first item has it.
+  /// (v2.13-search) [🔍] '노트에서 찾기' — at every width from
+  /// [foldedSearchMinWidth] (review: Android tablets in portrait are about
+  /// 800 wide; (19.1) [foldWidth] leaves the unfolded row room for it). The
+  /// more menu's first item has it too.
   static const noteSearchKey = ValueKey('editor.toolbar.noteSearch');
 
   /// (v2) Appendix C.
@@ -147,7 +151,7 @@ class EditorToolbar extends ConsumerWidget {
                     semanticLabel: EditorStrings.back,
                   ),
                 ),
-                // (04-editor 17) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
+                // (04-editor 19) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
                 if (scroll || constraints.maxWidth >= titleMinWidth)
                   const MenuHideButton(),
                 if (constraints.maxWidth >= titleMinWidth)
@@ -161,8 +165,7 @@ class EditorToolbar extends ConsumerWidget {
                   )
                 else if (!scroll)
                   const MenuHideSlot(), // the Spacer, [⌃] when it fits
-                if (constraints.maxWidth >= titleMinWidth ||
-                    (fold && constraints.maxWidth >= foldedSearchMinWidth))
+                if (constraints.maxWidth >= foldedSearchMinWidth)
                   const _NoteSearchButton(),
                 const _PagePanelButton(),
                 const _Divider(),

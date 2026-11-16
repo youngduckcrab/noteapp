@@ -18,7 +18,7 @@ import '../editor_strings.dart';
 /// text session ends first — the button's down already ended it
 /// (tapOutside); the undo waits for its command, so the whole session goes
 /// back as one step. [↶] is enabled during a session too (its command may
-/// be the step to undo). (04-editor 17) [compact]: the restore pill's
+/// be the step to undo). (04-editor 19) [compact]: the restore pill's
 /// buttons (own keys, smaller icons, still 48 dp targets), one [part] each.
 class UndoRedoButtons extends ConsumerWidget {
   const UndoRedoButtons({
@@ -33,7 +33,7 @@ class UndoRedoButtons extends ConsumerWidget {
   static const undoKey = ValueKey('editor.toolbar.undo');
   static const redoKey = ValueKey('editor.toolbar.redo');
 
-  /// (04-editor 17) The restore pill's [↶] [↷].
+  /// (04-editor 19) The restore pill's [↶] [↷].
   static const pillUndoKey = ValueKey('editor.restorePill.undo');
   static const pillRedoKey = ValueKey('editor.restorePill.redo');
 
@@ -80,5 +80,5 @@ class UndoRedoButtons extends ConsumerWidget {
   }
 }
 
-/// (04-editor 17) Which of [↶] [↷] an [UndoRedoButtons] shows.
+/// (04-editor 19) Which of [↶] [↷] an [UndoRedoButtons] shows.
 enum UndoRedoPart { both, undo, redo }

@@ -1,4 +1,4 @@
-// 04-editor 17: hiding the top menu (toolbar button, ⋯, restore pill, system
+// 04-editor 19: hiding the top menu (toolbar button, ⋯, restore pill, system
 // back, undo / redo while hidden, the first-hide hint, the stored choice) and
 // the floating pen palette (detach / re-dock, expand / select / collapse,
 // drag and clamp, a pen stroke while it is open), the device-state fields'
@@ -524,12 +524,12 @@ void main() {
     }
 
     // [⌃] after [←] where it fits (else in ⋯ only), with every optional
-    // button on (insert, mic, math pen, text pen).
+    // button on (insert, mic, math pen, text pen, sync badge; 19.1 [🔍]).
     for (final (width, shown) in const [
       (360.0, true), // the row scrolls: right after [←]
-      (700.0, true), // folded
-      (900.0, false), // unfolded, crowded: ⋯ only
-      (960.0, true), // unfolded, spare room
+      (800.0, true), // folded (Android portrait, with [🔍])
+      (900.0, true), // folded (19.1: foldWidth 952)
+      (960.0, false), // unfolded with [🔍], crowded: ⋯ only
       (1032.0, true), // with the title
     ]) {
       testWidgets('[⌃] at $width px: ${shown ? 'in the row' : 'in ⋯ only'}, '
@@ -538,6 +538,13 @@ void main() {
           tester,
           logicalSize: Size(width, 1000),
           imageImporter: (s) => FakeImageImporter(store: s),
+          overrides: [
+            core.syncBadgeProvider.overrideWith(
+              (ref) => Stream.value(
+                const core.SyncBadge(display: core.SyncDisplayState.done),
+              ),
+            ),
+          ],
           extensions: EditorExtensions(
             recordingPanel: TestRecordingPanelBuilder().builder,
             mathPen: FakeMathPen().slot,
@@ -562,7 +569,16 @@ void main() {
       await pumpEditor(
         tester,
         logicalSize: const Size(EditorToolbar.foldWidth, 1000),
+        imageImporter: (s) => FakeImageImporter(store: s),
+        overrides: [
+          core.syncBadgeProvider.overrideWith(
+            (ref) => Stream.value(
+              const core.SyncBadge(display: core.SyncDisplayState.done),
+            ),
+          ),
+        ],
         extensions: EditorExtensions(
+          recordingPanel: TestRecordingPanelBuilder().builder,
           mathPen: FakeMathPen().slot,
           textPen: FakeTextPen().slot,
         ),
@@ -692,12 +708,13 @@ void main() {
       expect(h.closeCount, 0);
     });
 
-    testWidgets('the pill\'s three targets are at least 48 dp', (tester) async {
+    testWidgets('the pill\'s four targets are at least 48 dp', (tester) async {
       await pumpEditor(tester);
       await _hideWithButton(tester);
       for (final key in const [
         UndoRedoButtons.pillUndoKey,
         MenuRestorePill.showKey,
+        MenuRestorePill.searchKey,
         UndoRedoButtons.pillRedoKey,
       ]) {
         final size = tester.getSize(find.byKey(key));

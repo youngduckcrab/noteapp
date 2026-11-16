@@ -214,7 +214,7 @@ class _PopupLayer extends ConsumerWidget {
     final layout = _layoutOf(ref.watch(editorPopupProvider));
     if (layout == null) return const SizedBox.shrink();
     final at = layout.at;
-    // (04-editor 17) With the top menu hidden the toolbar buttons are not in
+    // (04-editor 19) With the top menu hidden the toolbar buttons are not in
     // the tree: a popup that would hang from one (the pencil's quick pen /
     // colour palette without a hover point) opens in the middle instead of
     // following a missing anchor (it would be invisible behind the barrier).

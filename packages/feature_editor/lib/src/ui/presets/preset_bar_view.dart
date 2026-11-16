@@ -112,7 +112,7 @@ class _PresetBarViewState extends ConsumerState<PresetBarView> {
             semanticLabel: EditorStrings.presetManage,
           ),
         ),
-        // (04-editor 17) 팔레트로 떼어내기.
+        // (04-editor 19) 팔레트로 떼어내기.
         const PaletteDetachButton(),
         const SizedBox(width: 4),
       ],

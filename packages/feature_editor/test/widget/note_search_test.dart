@@ -194,10 +194,12 @@ void main() {
     expect(find.byKey(NoteSearchPanel.panelKey), findsNothing);
   });
 
-  testWidgets('narrower than the title width (834, iPad 11" portrait): no '
-      'toolbar button (the menu has it)', (tester) async {
+  testWidgets('narrower than the title width (834, iPad 11" portrait): the '
+      'toolbar button too (04-editor 19.1 — the row folds there now)', (
+    tester,
+  ) async {
     await _open(tester, logicalSize: const Size(834, 1194));
-    expect(find.byKey(EditorToolbar.noteSearchKey), findsNothing);
+    expect(find.byKey(EditorToolbar.noteSearchKey), findsOneWidget);
   });
 
   testWidgets('finds recognised handwriting and text boxes of this note, in '

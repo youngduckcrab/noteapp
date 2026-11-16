@@ -393,7 +393,12 @@ void main() {
       expect(overflow(tester).isOpen, isTrue);
     }
 
-    for (final width in const [819.0, 719.0, 690.0]) {
+    for (final width in const [
+      EditorToolbar.foldWidth - 1,
+      819.0,
+      719.0,
+      690.0,
+    ]) {
       testWidgets('$width px: shape, text, [+] and [🎤] fold into [⋯도구]; '
           'no overflow', (tester) async {
         await pumpV2(tester, size: Size(width, 1000));
@@ -425,8 +430,10 @@ void main() {
       });
     }
 
-    testWidgets('820 px: not folded', (tester) async {
-      await pumpV2(tester, size: const Size(820, 1000));
+    testWidgets('foldWidth (952 px — 04-editor 19.1): not folded', (
+      tester,
+    ) async {
+      await pumpV2(tester, size: const Size(EditorToolbar.foldWidth, 1000));
       expect(tester.takeException(), isNull);
       expect(find.byKey(EditorToolbar.overflowToolsKey), findsNothing);
       expect(find.byKey(EditorToolbar.shapeKey), findsOneWidget);

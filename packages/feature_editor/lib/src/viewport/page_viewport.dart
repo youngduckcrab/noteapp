@@ -11,8 +11,9 @@
 // (TextFieldTapRegion — a canvas down is not the editor's onTapOutside; the
 // router decides, 6.11.5) and the new text box outline (6.11.1). (E2-19) The
 // position flash (6.16). (v2.13-search) The in-note search panel and its
-// highlight (18). (E2-18) The Apple Pencil events while the viewport
-// is on screen (StylusExtrasListener — 6.5.1).
+// highlight (18). (19) The floating layer (restore pill, pen palette) over
+// the page area, beside the search panel. (E2-18) The Apple Pencil events
+// while the viewport is on screen (StylusExtrasListener — 6.5.1).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +28,7 @@ import '../text/text_box_editor.dart';
 import '../text/text_edit_session.dart';
 import '../text/text_input_sheet.dart';
 import '../tools/interaction_host.dart';
+import '../ui/chrome/floating_layer.dart';
 import '../ui/dev/dev_overlay.dart';
 import '../ui/overlays/add_page_button.dart';
 import '../ui/overlays/context_menu.dart';
@@ -136,15 +138,20 @@ class _PageViewportState extends ConsumerState<PageViewport> {
       builder: (context, outer) => Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // (04-editor 19) The floating buttons (restore pill, pen palette)
+          // sit over the page area only — never over the search panel — and
+          // the palette clamps inside the narrowed area while it is open.
           Expanded(
-            child: _buildViewport(
-              context,
-              viewport,
-              router,
-              host,
-              camera,
-              scheme,
-              editing,
+            child: EditorFloatingLayer(
+              child: _buildViewport(
+                context,
+                viewport,
+                router,
+                host,
+                camera,
+                scheme,
+                editing,
+              ),
             ),
           ),
           NoteSearchPanel(width: NoteSearchPanel.widthFor(outer.maxWidth)),

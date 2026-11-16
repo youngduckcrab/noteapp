@@ -1,4 +1,4 @@
-// lib/src/ui/chrome/editor_chrome.dart — 04-editor 17 (hiding the top menu,
+// lib/src/ui/chrome/editor_chrome.dart — 04-editor 19 (hiding the top menu,
 // detaching the preset row as a floating palette).
 //
 // The two top rows (EditorToolbar + PresetBarView) live in [EditorTopMenu],

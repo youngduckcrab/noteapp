@@ -17,7 +17,6 @@ import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
 import 'banners/text_draft_banner.dart';
 import 'chrome/editor_chrome.dart';
-import 'chrome/floating_layer.dart';
 import 'editor_strings.dart';
 import 'panels/editor_panel_slot.dart';
 import 'popup_host.dart';
@@ -30,9 +29,9 @@ import 'toolbar/editor_toolbar.dart';
 ///   ├─ ReadOnlyBanner / StorageWarningBanner / (v2) TextDraftBanner
 ///   │  (height 0 when not shown)
 ///   ├─ EditorTopMenu: EditorToolbar (52 px) · PresetBarView (44 px) — (04-
-///   │  editor 17) hidden / the row detached as a palette
-///   ├─ Expanded: EditorFloatingLayer (restore pill, palette) over
-///   │  PageViewport
+///   │  editor 19) hidden / the row detached as a palette
+///   ├─ Expanded: PageViewport — Row[EditorFloatingLayer (restore pill,
+///   │  palette) over the pages, NoteSearchPanel]
 ///   └─ (v2) EditorPanelArea: the bottom panel slot while open (≤ 40 % of
 ///      the Column height — 6.15.4)
 ///
@@ -116,9 +115,7 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
                             onOpenSettings: widget.onOpenSettings,
                           ),
                         ),
-                        const Expanded(
-                          child: EditorFloatingLayer(child: PageViewport()),
-                        ),
+                        const Expanded(child: PageViewport()),
                         EditorPanelArea(bodyHeight: constraints.maxHeight),
                       ],
                     ),

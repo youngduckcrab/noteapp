@@ -1,4 +1,4 @@
-// lib/src/ui/chrome/pen_palette.dart — 04-editor 17: the detached preset row
+// lib/src/ui/chrome/pen_palette.dart — 04-editor 19: the detached preset row
 // as a floating palette.
 import 'dart:math' as math;
 

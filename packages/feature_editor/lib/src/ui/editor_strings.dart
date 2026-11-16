@@ -234,7 +234,7 @@ abstract final class EditorStrings {
   static const presetManage = '프리셋 관리';
 
   // ---------------------------------------------------------------------------
-  // (04-editor 17) Hiding the top menu, the floating pen palette.
+  // (04-editor 19) Hiding the top menu, the floating pen palette.
   // ---------------------------------------------------------------------------
 
   /// The toolbar button / ⋯ item that hides both top rows.

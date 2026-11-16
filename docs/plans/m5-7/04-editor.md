@@ -3034,7 +3034,7 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 - **패널은 쪽 옆에**(겹침 → 나란히): 겹침일 때 세로 태블릿 맞춤 폭에서 쪽 오른쪽 약 40 %가 패널 밑이었고, `revealPageRect`는 전체 뷰포트 기준이라 그 자리의 결과를 눌러도 카메라가 움직이지 않았다(강조·깜빡임이 패널 밑). 이제 `PageViewport`가 `Row[쪽 보기, 패널]`로 놓고, 열린 동안 쪽 보기가 좁아진다(확대 배율은 맞춤 폭 기준으로 유지). 패널 폭 `NoteSearchPanel.widthFor` = min(360, 45 %).
 - **입력 칸 초점**: `autofocus`는 같은 범위에서 캔버스(`EditorCanvasFocus`)가 초점을 잡고 있어 아무것도 하지 않았다(키보드가 안 올라옴). 칸에 자기 `FocusNode`를 주고 첫 프레임 뒤 `requestFocus`. 결과를 누르면 초점을 풀어 키보드를 내린다.
 - **뒤로**: 찾기가 열려 있으면 시스템 뒤로가 먼저 찾기를 닫고, 다음 뒤로가 노트를 나간다(`EditorRoot`의 PopScope).
-- **툴바 🔍**: 접힌 툴바에서도 폭 ≥ `EditorToolbar.foldedSearchMinWidth`(720)이면 보인다(안드로이드 태블릿 세로 ≈ 800). 820~1000은 펼친 단추가 자리를 다 써서 더보기 메뉴로만.
+- **툴바 🔍**: 접힌 툴바에서도 폭 ≥ `EditorToolbar.foldedSearchMinWidth`(720)이면 보인다(안드로이드 태블릿 세로 ≈ 800). 820~1000은 펼친 단추가 자리를 다 써서 더보기 메뉴로만(→ 19.1: `foldWidth` 952로 올려 모든 폭에서 줄에 있음).
 - **결과 300쪽 넘음**: `limit + 1`개를 물어 넘으면 '결과가 많아서 가장 잘 맞는 n쪽만 보여요' 줄(`truncated`).
 - **색인 상태로 다시 묻기**: 구독 때 다시 오는 현재 값과 늘어나기만 하는 대기 수는 무시하고, 대기 수가 줄거나 다시 만들기가 끝날 때만 다시 묻는다.
 - **PDF 노트에서 결과 없음**: 'PDF에서 찾기'로도 찾아 보라는 한 줄(방금 가져온 PDF는 아직 색인 전일 수 있음).
@@ -3046,9 +3046,18 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 **펜 팔레트.** 프리셋 줄 끝 [🎨](`palette_outlined`)과 [⋯]의 '팔레트로 떼어내기'가 프리셋 줄을 메뉴에서 떼어 48 dp 둥근 단추(`ui/chrome/pen_palette.dart`)로 만든다 — 지금 펜의 색 위에 펜 종류 아이콘, 펜 도구일 때 테두리. 페이지 영역 어디로든 끌 수 있고(손가락·펜 모두, 슬롭 아래 움직임은 탭), 자리는 남는 공간에 대한 비율로 저장해 회전·크기 변화 뒤에도 안쪽에 있다. 누르면 넓은 쪽으로 팔레트가 펼쳐진다: 프리셋 줄과 같은 목록(고정·그룹 필터·순서, `PresetChip`, 지금 펜 테두리), [+] 현재 펜 저장, [⚙] 프리셋 관리, [⤒] '메뉴에 다시 붙이기'. 프리셋을 누르면 줄의 칩과 똑같이 적용(펜 도구로 바뀜)하고 접힌다. 바깥을 누르면 접히는데(TapRegion), 페이지에 펜을 대면 접히면서 획도 그대로 그려진다. 길게 누르기는 줄에도 빠른 편집이 없어 아무 일도 하지 않는다(줄의 길게 끌어 순서 바꾸기·그룹 메뉴는 줄에만). 읽기 전용 노트에서는 칩·[+]·[⚙]가 꺼진다. 메뉴 숨기기와 따로 동작한다: 떼어 낸 팔레트는 메뉴를 숨겨도 남고 알약 띠 아래에만 놓인다, 붙어 있는 프리셋 줄은 메뉴와 함께 숨고 알약이 둘 다 되돌린다.
 
-**저장.** 기기별 `editor.deviceState` v2(`EditorDeviceState`): `toolbarHidden`, `seenToolbarHideHint`, `paletteDetached`, `palettePosition {x,y}`(0–1), `restorePillX`(0–1). v1 값은 기본값으로 읽힌다. 다음 노트도 같은 모습으로 열린다(저장값이 늦게 오면 밀어 올리기 없이 바로). 부록 C 키(계약 아님): `editor.toolbar.hideMenu`, `editor.restorePill(.show/.undo/.redo)`, `editor.presetBar.detach`, `editor.palette.button`, `editor.palette.panel`, `editor.palette.chip.<id>`, `editor.palette.add/manage/dock`, `editor.more.hideMenu/detachPalette/dockPalette`.
+**저장.** 기기별 `editor.deviceState` v2(`EditorDeviceState`): `toolbarHidden`, `seenToolbarHideHint`, `paletteDetached`, `palettePosition {x,y}`(0–1), `restorePillX`(0–1). v1 값은 기본값으로 읽힌다. 다음 노트도 같은 모습으로 열린다(저장값이 늦게 오면 밀어 올리기 없이 바로). 부록 C 키(계약 아님): `editor.toolbar.hideMenu`, `editor.restorePill(.show/.undo/.redo/.search — 19.1)`, `editor.presetBar.detach`, `editor.palette.button`, `editor.palette.panel`, `editor.palette.chip.<id>`, `editor.palette.add/manage/dock`, `editor.more.hideMenu/detachPalette/dockPalette`.
 
 **검토 반영(2026-11-16).** ① 메뉴를 숨긴 동안 툴바 단추에 매달리는 팝업(펜슬 두 번 탭·쥐기로 여는 빠른 펜·색 팔레트, 호버 점이 없을 때)은 가운데에 연다(`PopupHost` — 없는 단추를 따라가 보이지 않는 채 장벽만 남아 다음 획을 삼키던 문제). ② 시스템 뒤로 가기는 편집 화면(페이지가 있는 노트)일 때만 먼저 쓰인다: 펼친 팔레트를 접고 → 숨긴 메뉴를 보이고 → 그다음에 나간다(`EditorChrome.handleBack`, 열림 상태는 노트별 `editorPaletteExpandedProvider`). '페이지가 없어요' 화면에서는 바로 나간다. ③ 알약은 높이 48 dp, 세 칸 모두 48 dp 이상 누름 영역, 불투명도 0.7. 알약은 페이지 위쪽 띠를 가린다 — 거기서 시작한 획은 알약이 받으니 알약을 옆으로 끌어 두면 된다. ④ 팔레트의 '메뉴에 다시 붙이기'는 글자가 있는 단추다(툴팁은 6.9.1대로 쓰지 않는다 — [⌃]·[+]·[⚙]도 의미 라벨만). ⑤ 팔레트 단추의 처음 자리는 왼쪽 아래(글을 쓰기 시작하는 왼쪽 위와 오른쪽 아래 쪽 번호를 가리지 않게), 알약 띠는 비율을 늘이지 않고 아래로 밀기만 해서 화면 아래쪽에 둔 단추는 메뉴를 숨기거나 보여도 그 자리에 있다(가운데쯤이면 메뉴 높이의 비율만큼 움직인다). ⑥ 펜 점 테두리는 `outline` 1 px(어두운 테마에서 검은 펜도 보이게). 남긴 것: 메뉴를 숨기거나 보일 때 페이지 내용이 메뉴 높이만큼 올라가고 내려가는 것(맨 위에서는 스크롤로 메울 수 없어 그대로 둔다), 팔레트에는 그룹 메뉴가 없고 프리셋 줄에서 고른 그룹 필터를 그대로 따른다(그룹을 바꾸려면 다시 붙인다), 위쪽 가장자리 끌어내리기는 위의 이유로 하지 않는다.
+
+### 19.1 노트에서 찾기(18)와 합치기 (2026-11-16)
+
+메뉴 숨기기·펜 팔레트(19)와 노트에서 찾기(18)는 따로 만들어져 통합에서 맞췄다(처음 이 절은 '17'이었으나 페이지 패널 썸네일 17·찾기 18과 겹쳐 19로 옮김 — 코드 주석도 `04-editor 19`).
+
+- **시스템 뒤로 — 한 순서**: `EditorChrome.handleBack`(편집기 본문이 보일 때만, `EditorRoot`의 PopScope) = ① 열린 찾기 닫기 ② 펼친 팔레트 접기 ③ 숨긴 메뉴 보이기 ④ 노트 나가기. 쪽이 없는 화면은 바로 나간다. 시험: `test/widget/editor_chrome_search_test.dart` '한 순서'(넷을 다 켜고 뒤로 네 번).
+- **떠 있는 층의 자리**: `EditorFloatingLayer`(알약·팔레트)를 `PageViewport`의 `Row[쪽 보기, NoteSearchPanel]` 중 쪽 보기 쪽에 둔다 — 찾기 패널 위에는 아무것도 뜨지 않는다. 찾기가 열려 쪽 영역이 좁아지면 팔레트 단추(저장 비율)와 펼친 패널, 알약 모두 그 안으로 맞춰진다. 시험: 오른쪽 끝에 둔 팔레트 단추·펼친 패널·`restorePillX: 1` 알약이 찾기 패널 왼쪽에 있음, 패널의 [닫기]가 눌림.
+- **메뉴를 숨긴 동안 찾기**: 툴바 🔍와 [⋯]도 같이 숨으므로 알약에 [🔍](`editor.restorePill.search`, 누르면 열고 다시 누르면 닫음, 열린 동안 선택 표시)를 더했다 — [↶][⌄][🔍][↷], 폭 208, 칸마다 48 dp. 찾기 패널은 메뉴와 상관없이 그대로 쓸 수 있다.
+- **툴바 폭**: 선택 단추를 다 켠 줄(사진 넣기 [+], [🎤], 수식 펜, 텍스트 펜, 동기화 표시)을 재 보니 펼친 줄이 900 px, 🔍까지 948 px였다 — 예전 `foldWidth` 820에서는 820~900 px에서 넘쳤다(18.1의 '820~1000은 더보기로만'도 그 때문). 이제 `foldWidth` = 952: 그 아래는 접힌 줄(🔍 포함, ≥ 720), 그 위는 펼친 줄 + 🔍. 🔍는 `foldedSearchMinWidth`(720)부터 모든 폭에서 줄에 있다. [⌃]는 남는 자리(`MenuHideSlot`)에 따라 줄 또는 [⋯]. 시험: `test/widget/toolbar_width_test.dart` — 720·800·820·852·900·951·952·960·999·1000·1032·1280에서 넘침·옆 스크롤 없음, 고정 단추 폭 합 ≤ 폭, 🔍 누를 수 있음, 접힘 여부.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
