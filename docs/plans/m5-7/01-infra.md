@@ -3421,16 +3421,18 @@ UI 전면 개선 제안서 1단계 '정리만'의 설정 몫. 화면 배치(2단
 
 ### 16.1 `ui_kit`의 아이콘 표 (14.1에 더함)
 
-- `AppIconKind`: 화면에 아이콘으로 나오는 뜻 하나에 값 하나("한 가지 뜻 = 한 가지 아이콘"). 값마다 `material`(Material Rounded 글리프 — 메뉴·대화상자·목록 줄; 둥근 글리프가 꽉 찬 모양이면 외곽선 글리프)이 있고, 자주 보는 화면(편집기 도구 막대, 서재 위 막대·사이드바, 설정 분류)의 약 45개는 직접 그린 선 아이콘(`hasLineArt`)이 있다.
-- `AppIcon(kind, size, color, semanticLabel)`: 선 아이콘을 `AppIconPainter`(24칸 격자, 둥근 끝·이음, 굵기 = `StyleTokens.iconStrokeWidth` 1.7/1.5/1.6을 22 px 기준으로 크기에 비례)로 그린다. 크기·색 기본값은 둘레의 `IconTheme`(그래서 `IconButton`의 못 누름·고름 색이 그대로 적용), 선 아이콘이 없는 값은 `Icon(material)`. 강제로 큰 칸(입력칸 앞 아이콘)에서도 제 크기로 가운데.
+- `AppIconKind`: 화면에 아이콘으로 나오는 뜻 하나에 값 하나("한 가지 뜻 = 한 가지 아이콘"). 값마다 `material`(Material Rounded 글리프; 둥근 글리프가 꽉 찬 모양이면 외곽선 글리프 — 선 그림 있는 값도 모두 외곽선 쪽)이 있고, 자주 보는 화면(편집기 도구 막대, 서재 위 막대·사이드바, 설정 분류)의 약 45개는 직접 그린 선 아이콘(`hasLineArt`)이 있다.
+- **어디서나 `AppIcon(kind)`**(메뉴·대화상자·빈 화면·카드 자리 그림 포함): 선 그림 있는 뜻은 막대에서도 메뉴에서도 같은 선 그림이다(접힌 ⋯도구의 도형이 막대의 도형과 같은 모양). `kind.material`은 `IconData`만 받는 API에, 그것도 선 그림 없는 뜻에만 쓴다 — `tool/test/ui_icons_test.dart`가 UI 패키지 lib에서 선 그림 있는 뜻의 `.material`을 막는다.
+- `AppIcon(kind, size, color, semanticLabel)`: 선 아이콘을 `AppIconPainter`(24칸 격자, 둥근 끝·이음, 굵기 = `StyleTokens.iconStrokeWidth` 1.7/1.5/1.6을 22 px 기준으로 크기에 비례)로 그린다. 크기·색 기본값은 둘레의 `IconTheme`(그래서 `IconButton`의 못 누름·고름 색이 그대로 적용, `IconTheme.opacity`도 `Icon`처럼 곱함), 선 아이콘이 없는 값은 `Icon(material)`. `strokeWidth`로 큰 그림(빈 화면 64 px)의 선을 가늘게 할 수 있다. 강제로 큰 칸(입력칸 앞 아이콘)에서도 제 크기로 가운데.
 - 공유는 안드로이드 기호(세 점 연결, `share_rounded`). iOS 상자 기호(`ios_share`)는 PDF 메뉴·백업 창에서 뺐다.
 - 이미지·글꼴 파일을 더하지 않는다(경로 그림). 뜻이 겹치지 않는지는 `ui_kit/test/app_icons_test.dart`(같은 글리프 두 번 금지, 선 아이콘 모두 그려짐).
 
 ### 16.2 이름 보기
 
-- `HoverName(name, child)`: 마우스나 화면 위에 띄운 펜이 단추 위에 머물면(350 ms) 이름이 뜬다. `Tooltip(triggerMode: manual)`이라 손가락 누르기·길게 누르기에는 뜨지 않고(편집기 도구는 길게 누르기를 쓴다), 의미 정보에는 더하지 않는다(단추가 제 이름을 가짐).
-- `HoverNames(enabled)`: `NoteApp`의 `builder`가 모든 경로 위에 둔다. 값은 설정 키 `app.appearance.hoverNames`(`device`, 기본 켬, `AppAppearance.hoverNames`), 설정 '화면 › 도구 이름'의 스위치 '펜을 띄우면 이름 보기'.
-- 미니멀의 도구 이름(`ToolLabelMode.onHover`)은 이 설정과 상관없이 올렸을 때 나온다.
+- `HoverName(name, child, enabled)`: 마우스나 화면 위에 띄운 펜이 단추 위에 머물면(350 ms) 이름이 뜬다. `Tooltip(triggerMode: manual)`이라 손가락 누르기·길게 누르기에는 뜨지 않고(편집기 도구는 길게 누르기를 쓴다), 의미 정보에는 더하지 않는다(단추가 제 이름을 가짐). `enabled: false`는 잠깐 끔(단추의 메뉴가 열려 있을 때 — 이름이 메뉴를 가리지 않게).
+- `HoverNames(enabled)`: `NoteApp`의 `builder`가 모든 경로 위에 둔다. 값은 설정 키 `app.appearance.hoverNames`(`device`, 기본 켬, `AppAppearance.hoverNames`), 설정 '화면 › 도구 이름'의 스위치 '펜을 띄우면 이름 보기'. `AppModule.resolveAppearance()`도 이 키를 읽어 첫 화면부터 맞다.
+- **앱 전체에 한 규칙**: `HoverNames`가 아래의 `TooltipTheme`도 정한다 — 보통 `IconButton(tooltip: …)`(서재, 설정)도 호버로만 이름이 뜨고 길게 누르기(손가락)에는 뜨지 않으며, 설정을 끄면 아예 뜨지 않는다(기다림 1일). 툴팁 문자열은 의미 정보에 그대로 남아 TalkBack이 읽는다. 이름이 아니라 상태를 알리는 툴팁(동기화 표시, 못 누르는 이유, '다른 노트에서 녹음 중이에요')은 `triggerMode: longPress`를 직접 줘서 길게 누르면 뜬다.
+- 미니멀의 도구 이름(`ToolLabelMode.onHover`)도 이 설정을 따른다(끄면 호버 이름이 어디에도 없다).
 
 ### 16.3 설정 분류 아이콘
 
