@@ -262,7 +262,12 @@ final class CoverThumbnailScheduler {
     if (thumb == null) {
       // Cannot render now (e.g. PDF bytes missing — contract 7.2.16 v1.1):
       // nothing is cached; try again when a background asset arrives.
-      final assets = content.page.background.referencedAssets;
+      // (v2.13-thumbs) Or an image object's asset: INK returns null too while
+      // a photo on the page has no bytes on this device (6.20).
+      final assets = <AssetId>{
+        ...content.page.background.referencedAssets,
+        for (final o in content.objects) ...o.referencedAssets,
+      };
       if (assets.any(_arrivedDuringJob.contains)) {
         _rerun[note.id] = _visible[note.id] ?? note;
         return;

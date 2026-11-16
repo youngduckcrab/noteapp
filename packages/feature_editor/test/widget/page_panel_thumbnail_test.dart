@@ -4,11 +4,16 @@
 // change; a fresh cache entry → Image.memory; a stale one → loadPage once;
 // never openPage; the INK widget gets ink.pageBackgroundBuildersProvider and
 // ink.pencilGrainProvider values (the EDITOR never overrides them).
+// (v2.13-thumbs) The page objects (shapes, images, text, formulas) are part of
+// the thumbnail on paths 1 and 3 (K-8 screen = thumbnail) and an object edit
+// refreshes it: the thumbnail raster shows a filled shape and an image object.
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:feature_editor/src/ui/pages/page_panel.dart';
 import 'package:feature_editor/src/ui/pages/page_panel_thumbnail.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:ink_engine/testing.dart' as ink_testing;
@@ -69,6 +74,83 @@ ink.InkPageThumbnail _inkThumbOf(WidgetTester tester, String pageId) =>
         matching: find.byType(ink.InkPageThumbnail),
       ),
     );
+
+const _shapeFill = 0xFF0050DC;
+const _imageColor = 0xFFDC1E1E;
+
+/// A [w]×[h] PNG of one colour.
+Future<Uint8List> _solidPng(int argb, int w, int h) async {
+  final recorder = ui.PictureRecorder();
+  ui.Canvas(recorder).drawRect(
+    ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+    ui.Paint()..color = ui.Color(argb),
+  );
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(w, h);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  picture.dispose();
+  return data!.buffer.asUint8List();
+}
+
+core.ShapeObject _filledShape(String pageId, core.PageRect rect) {
+  final s = PageObjectFixtures.shape(pageId: pageId, rect: rect, id: 'shape-1');
+  return s.copyWith(style: s.style.copyWith(fillColorArgb: _shapeFill));
+}
+
+/// The RGBA bytes of the thumbnail raster of [pageId] (null = no raster yet).
+Future<({int width, int height, ByteData bytes})?> _rasterOf(
+  WidgetTester tester,
+  String pageId,
+) async {
+  final raw = find.descendant(
+    of: _thumbOf(pageId),
+    matching: find.byType(RawImage),
+  );
+  if (raw.evaluate().isEmpty) return null;
+  final image = tester.widget<RawImage>(raw).image;
+  if (image == null) return null;
+  final bytes = await tester.runAsync(
+    () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+  );
+  return (width: image.width, height: image.height, bytes: bytes!);
+}
+
+/// The colour at page point ([xPt], [yPt]) of [raster] for a page [pageWidthPt] wide.
+int _argbAt(
+  ({int width, int height, ByteData bytes}) raster,
+  double pageWidthPt,
+  double xPt,
+  double yPt,
+) {
+  final scale = raster.width / pageWidthPt;
+  final x = (xPt * scale).round(), y = (yPt * scale).round();
+  final i = (y * raster.width + x) * 4;
+  final b = raster.bytes;
+  return (b.getUint8(i + 3) << 24) |
+      (b.getUint8(i) << 16) |
+      (b.getUint8(i + 1) << 8) |
+      b.getUint8(i + 2);
+}
+
+bool _near(int a, int b, {int tol = 12}) {
+  for (final shift in [16, 8, 0]) {
+    if ((((a >> shift) & 0xFF) - ((b >> shift) & 0xFF)).abs() > tol) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/// Lets the thumbnail rasters (Picture.toImage, image decodes) finish.
+Future<void> _settleRasters(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+  }
+}
 
 void main() {
   testWidgets('a loaded page → InkPageThumbnail of the session content, '
@@ -232,5 +314,121 @@ void main() {
       PagePanelThumbnail.heightFor(const core.PageSize(300, 3000), 120),
       200,
     );
+  });
+
+  group('(v2.13-thumbs) page objects in the thumbnail', () {
+    const shapeRect = core.PageRect(60, 60, 300, 260);
+    const imageRect = core.PageRect(60, 420, 360, 720);
+
+    testWidgets('a loaded page: shape and image objects are passed and '
+        'drawn; an object edit refreshes the thumbnail', (tester) async {
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      final png = (await tester.runAsync(
+        () => _solidPng(_imageColor, 40, 40),
+      ))!;
+      final asset = await store.assets.put(
+        png,
+        type: core.AssetType.image,
+        mimeType: 'image/png',
+      );
+      const seeded = 'seeded';
+      final h = await pumpEditor(
+        tester,
+        store: store,
+        pages: 2,
+        objectsByPageIndex: {
+          0: [
+            _filledShape(seeded, shapeRect),
+            PageObjectFixtures.image(
+              pageId: seeded,
+              assetId: asset.id,
+              rect: imageRect,
+              pixelWidth: 40,
+              pixelHeight: 40,
+              id: 'image-1',
+            ),
+          ],
+        },
+      );
+      final id = h.pageId(0);
+      expect(h.session.pageIfLoaded(id), isNotNull);
+      await _openPanel(tester);
+      final thumb = _inkThumbOf(tester, id);
+      expect(
+        thumb.content.objects.map((o) => o.id),
+        containsAll(<String>['shape-1', 'image-1']),
+      );
+      await _settleRasters(tester);
+      final pageWidth = core.PageSize.a4Portrait.width;
+      var raster = (await _rasterOf(tester, id))!;
+      expect(
+        _near(_argbAt(raster, pageWidth, 180, 160), _shapeFill),
+        isTrue,
+        reason: 'the shape fill is drawn',
+      );
+      expect(
+        _near(_argbAt(raster, pageWidth, 210, 570), _imageColor),
+        isTrue,
+        reason: 'the image object is drawn',
+      );
+
+      // Moving the shape: the thumbnail follows 500 ms later.
+      final shape =
+          h.session.pageIfLoaded(id)!.objectById('shape-1')!
+              as core.ShapeObject;
+      h.session.execute(
+        core.UpdateObjects(
+          pageId: id,
+          objects: [
+            shape.copyWith(
+              geometry: core.ShapeGeometry.rectangle(
+                const core.PageRect(300, 60, 540, 260),
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pump(PagePanelThumbnail.refreshDelay);
+      await tester.pump(const Duration(milliseconds: 1));
+      await _settleRasters(tester);
+      raster = (await _rasterOf(tester, id))!;
+      expect(
+        _near(_argbAt(raster, pageWidth, 420, 160), _shapeFill),
+        isTrue,
+        reason: 'the moved shape is drawn at its new place',
+      );
+      expect(
+        _near(_argbAt(raster, pageWidth, 100, 160), _shapeFill),
+        isFalse,
+        reason: 'not at the old place',
+      );
+    });
+
+    testWidgets('a page not loaded (path 3): the committed objects are '
+        'passed', (tester) async {
+      const seeded = 'seeded';
+      final h = await pumpEditor(
+        tester,
+        pages: 12,
+        objectsByPageIndex: {
+          5: [
+            _filledShape(seeded, shapeRect),
+            PageObjectFixtures.textBox(pageId: seeded, id: 'text-1'),
+            PageObjectFixtures.math(pageId: seeded, id: 'math-1'),
+          ],
+        },
+      );
+      final id = h.pageId(5);
+      expect(h.session.pageIfLoaded(id), isNull);
+      await _openPanel(tester);
+      for (var i = 0; i < 3; i++) {
+        await tester.pump();
+      }
+      expect(
+        _inkThumbOf(tester, id).content.objects.map((o) => o.id),
+        containsAll(<String>['shape-1', 'text-1', 'math-1']),
+      );
+    });
   });
 }

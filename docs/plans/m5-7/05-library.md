@@ -2855,6 +2855,10 @@ recog가 편집기 텍스트 펜의 인식을 맡는다: `src/text_pen/`(`TextPe
 
 시험 7개 추가(고치기 전 모두 실패) — 예측 뒤로가기 경로(`SystemNavigator.setFrameworkHandlesBack`)를 안드로이드로 직접 본다.
 
+## 17. 표지 썸네일 재시도 — 이미지 객체 (2026-11-16, v2.13-thumbs — 계약 표 바뀜 없음)
+
+페이지 패널의 '사진·도형 사라짐'(04-editor 17절)을 표지에서도 확인했다. 표지는 INK 렌더러(`InkPageThumbnailRenderer`)가 `loadPage`의 객체까지 그리므로 같은 원인은 없다. 다만 첫 페이지의 이미지 객체 바이트가 이 기기에 아직 없으면 INK가 `null`을 주는데, `CoverThumbnailScheduler`는 배경 자산(`page.background.referencedAssets`)만 기다려서 사진이 내려받아진 뒤에도 노트가 다시 바뀌기 전까지 표지가 다시 그려지지 않았다. 고침: 기다릴 자산에 첫 페이지 객체의 `referencedAssets`(이미지 객체 자산)를 더한다(6.15.3 3단계). 시험: `unit/cover_scheduler_test.dart` '(v2.13-thumbs) an image object without bytes → null; its asset arrives → rendered again'.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 ### A.1 LIBRARY가 여는 자리

@@ -13,7 +13,7 @@ import '../../scope/editor_scope.dart';
 /// Page-panel thumbnail (renamed from the draft's PageThumbnail — core.PageThumbnail is
 /// the CORE data type). Never pins the page (contract E-2): it reads, in this order,
 ///   1. session.pageIfLoaded(page.id) != null → ink.InkPageThumbnail(content:
-///      InkPageContent.fromCore(...), width:, backgroundBuilders:, pencilGrain:) and
+///      InkPageContent.fromCore(page, strokes, objects, revision), width:, backgroundBuilders:, pencilGrain:) and
 ///      rebuilds 500 ms after the last pageChanges event of that page (listened only
 ///      while visible);
 ///   2. else core.pageThumbnailProvider(page.id) when its value isStaleFor(committed) is
@@ -226,6 +226,10 @@ class _PagePanelThumbnailState extends ConsumerState<PagePanelThumbnail> {
         content: ink.InkPageContent.fromCore(
           page: content.page,
           strokes: content.strokes,
+          // (v2.13-thumbs) the page objects too — shapes, images, text boxes and
+          // formulas are part of the thumbnail (K-8 screen = thumbnail); without
+          // them the panel showed the ink only.
+          objects: content.objects,
           revision: content.revision,
         ),
         width: width,

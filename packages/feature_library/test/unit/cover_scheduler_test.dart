@@ -468,6 +468,33 @@ void main() {
       expect(r.renderer.rendered, [p, p]);
       expect(r.cache.writes, ['write $p rev:0']);
     });
+
+    _testRig('(v2.13-thumbs) an image object without bytes → null; its '
+        'asset arrives → rendered again', (r) {
+      final n = r.note('n');
+      final p = n.firstPageId!;
+      r.run(() async {
+        final session = await r.backend.store.openSession(n.id);
+        await session.executeAsync(
+          AddObjects(
+            pageId: p,
+            objects: [PageObjectFixtures.image(pageId: p, assetId: _assetA)],
+          ),
+        );
+        await session.close();
+        await r.backend.store.flush();
+      }());
+      r.renderer.nullFor = {p}; // INK: the image bytes are not on this device
+      r.scheduler.request(n);
+      r.drain();
+      expect(r.renderer.rendered, [p]);
+      expect(r.cache.writes, isEmpty);
+      r.renderer.nullFor = {}; // the photo is downloaded
+      r.arrivals.add(_assetA);
+      r.drain();
+      expect(r.renderer.rendered, [p, p]);
+      expect(r.cache.writes, hasLength(1));
+    });
   });
 
   group('remote batches (LIBRARY-2-2, contract 7.2.10 v1.1)', () {
