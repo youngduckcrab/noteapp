@@ -2468,6 +2468,17 @@ final class PlaybackHighlightLogic {
 - `preRollMs` = `editorPreRollMsProvider`(키 `editor.playback.preRollMs` — 정수, synced, 기본 1500, 0~5000으로 클램프, 6.19). 설정 > 페이지 섹션 '필기 재생'에 슬라이더(0~5 s, 0.5 s 단위 — 놓을 때 `set`, 500 ms 디바운스)와 강조 방식(안 쓴 필기 흐리게 / 방금 쓴 필기만 강조)을 둔다.
 - 복구된 녹음(M6-5)도 원래 `recordingId`를 지키므로(V16) 같은 경로로 동작한다 — `widget/tap_to_seek_test.dart`에 '복구된 녹음' 경우를 둔다(`FakeAudioRecorder`로 만든 녹음 행에 제목 '복구된 녹음').
 
+#### 6.15.3a 개체의 녹음 연결 (v2.13-rec)
+
+사용자 보고 '녹음 후 필기는 잘 표시해주는데 도형이나 수식은 그냥 그려진 채로 나와'의 원인은 개체에 녹음 연결이 없던 것(획만 `RecordingLink.metaFor`로 연결). 이제 녹음 중 만든 개체도 획처럼 연결한다 — 재생 흐림은 INK(03-ink 6.19 '페이지 개체').
+
+- 지금 만드는 개체(도형 도구, 새 텍스트 상자 — 놓은 때, 이미지 넣기): `RecordingLink.linkObject` — 펜 다운과 같은 동기 읽기(R-1), 이 노트 녹음 중이 아니면 연결 없음.
+- 길게 눌러 맞춘 도형(`InkEdit addShape`): INK가 연결 없이 만들므로 `PenInteraction`이 펜 다운 메타를 `commitInkEdit(…, recording:)`로 넘기고, 명령만 연결된 도형으로 바꾼다(대기 넘김은 id 기준이라 그대로 풀린다). 시간 = 펜 다운.
+- 변환(수식 펜·텍스트 펜·변환 창·LaTeX 창): `ink_recognition` 빌더가 **가장 먼저 쓴 녹음 연결 원본 획**의 녹음·그 녹음의 가장 이른 offset을 붙인다(`linkToEarliestRecording`). `createdAt`은 변환 시각 그대로(z 순서).
+- 붙여넣기·복제는 원본의 연결을 지킨다(획과 같음).
+- 탭 재생: 녹음 획이 없으면 `hitTestObject`로 가장 위 개체를 보고, 열린 녹음에 연결돼 있으면 그 offset으로 같은 규칙(`max(0, offset − preRollMs)`)으로 이동한다.
+- 시험: `widget/recording_objects_test.dart`(도형 도구·맞춘 도형·텍스트 상자 연결, 도형 탭 재생).
+
 #### 6.15.4 녹음 패널 자리 (`EditorPanelSlot`)
 
 - `EditorExtensions.recordingPanel == null`이면 마이크 단추를 숨긴다(계약 주석).

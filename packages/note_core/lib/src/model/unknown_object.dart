@@ -102,6 +102,20 @@ final class UnknownObject extends PageObject {
     'version': version?.toString(),
   };
 
+  /// (v2.13-rec) rawJson['recordingId'] when it is a string, else null.
+  @override
+  RecordingId? get recordingId => switch (rawJson['recordingId']) {
+    final String id => id,
+    _ => null,
+  };
+
+  /// (v2.13-rec) rawJson['recordingOffsetMs'] when it is an int, else null.
+  @override
+  int? get recordingOffsetMs => switch (rawJson['recordingOffsetMs']) {
+    final int ms => ms,
+    _ => null,
+  };
+
   // Meta values read from rawJson (02-core 6.2.6).
   @override
   final ElementId id;

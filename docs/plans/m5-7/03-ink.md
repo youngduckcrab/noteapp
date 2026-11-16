@@ -1838,6 +1838,14 @@ end(last): 조절 모드면 last도 끌기로 먼저 반영
 
 `hitTestRecorded(p, recordingId:, tolerance: 8)`: 공간 색인 후보 → 녹음 id 거르기(4.10) → 1차 정밀 거리 ≤ 허용 → 가장 위. 대기 삭제 제외.
 
+**페이지 개체 (v2.13-rec, 사용자 보고 '녹음 후 필기는 잘 표시해주는데 도형이나 수식은 그냥 그려진 채로 나와')** — 원인: 재생 색인이 획(`Stroke.recordingId`)만 보고 개체에는 녹음 연결 필드 자체가 없었다. 이제 `PageObject.recordingId`·`recordingOffsetMs`(00-overview v2.13-rec)가 있는 개체도 재생에 참여한다(`render/playback_objects.dart`).
+
+- 상태: `offset > p` → 안 쓴 개체(흐림), `offset ≤ p` → 그대로(개체는 점이 없어 한 번에 나타난다). `highlightRecent`·다른 녹음·연결 없음 → 그대로. 최근 창 강조 외곽은 개체에 긋지 않는다.
+- 흐림 = 획과 같은 원리: 개체를 한 레이어에 다시 그리고(색 필터 `srcIn` 종이 색) 그 레이어를 `1 − playbackDimOpacity`로 합성 — 개체 자신의 픽셀(도형 선·채움, 글자, 수식 래스터)만 옅어진다. 이미지는 틀 전체.
+- 위치: 도형(ink 층)·이미지(underlay)는 층 4′의 획 베일과 함께, 텍스트 상자·수식·모르는 개체는 **annotation 층 끝**(층 4′보다 위에 그려지므로). K-9의 '텍스트·수식은 재생이 바꾸지 않는다'는 **연결 없는** 개체에 그대로 적용된다.
+- 비용: 층 4′는 원래 매 프레임. annotation 층은 흐릴 annotation 개체 집합이 바뀔 때만 다시 그린다(`setPlaybackFocus`가 집합 키를 비교) — 같은 집합이면 조각 그림·타일 재기록 없음.
+- 시험: `test/widget/playback_objects_test.dart`(도형 앞·뒤 시각, 다른 녹음·연결 없음·highlightRecent 그대로, 텍스트 상자 annotation 흐림과 다시 그리기 횟수).
+
 ### 6.20 썸네일 v2 (1차 6.17 확장)
 
 `InkPageThumbnailRenderer.render(core.PageContent)`와 `InkPageThumbnail` 위젯이 같은 순서(K-8)로 합성한다.

@@ -13,6 +13,8 @@ final class ShapeObject extends PageObject {
     int? updatedAt,
     this.deletedAt,
     this.version,
+    this.recordingId,
+    this.recordingOffsetMs,
   }) : updatedAt = updatedAt ?? createdAt;
   @override
   String get type => 'shape';
@@ -49,6 +51,8 @@ final class ShapeObject extends PageObject {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt,
     version: version,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   // id, pageId, createdAt, updatedAt, deletedAt, version — as Stroke
@@ -64,6 +68,10 @@ final class ShapeObject extends PageObject {
   final EpochMillis? deletedAt;
   @override
   final Hlc? version;
+  @override
+  final RecordingId? recordingId;
+  @override
+  final int? recordingOffsetMs;
 
   @override
   Set<AssetId> get referencedAssets => const {};
@@ -96,6 +104,8 @@ final class ShapeObject extends PageObject {
     geometry: geometry,
     style: style,
     createdAt: createdAt,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   @override
@@ -114,6 +124,8 @@ final class ShapeObject extends PageObject {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
     version: version ?? this.version,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   @override
@@ -140,6 +152,8 @@ final class ShapeObject extends PageObject {
     updatedAt: readInt(json, 'updatedAt'),
     deletedAt: readIntOrNull(json, 'deletedAt'),
     version: readVersion(json),
+    recordingId: readStringOrNull(json, 'recordingId'),
+    recordingOffsetMs: readIntOrNull(json, 'recordingOffsetMs'),
   );
 
   // CORE 4.3: ==, hashCode over every field
@@ -154,7 +168,9 @@ final class ShapeObject extends PageObject {
       other.createdAt == createdAt &&
       other.updatedAt == updatedAt &&
       other.deletedAt == deletedAt &&
-      other.version == version;
+      other.version == version &&
+      other.recordingId == recordingId &&
+      other.recordingOffsetMs == recordingOffsetMs;
 
   @override
   int get hashCode => Object.hash(
@@ -167,6 +183,8 @@ final class ShapeObject extends PageObject {
     updatedAt,
     deletedAt,
     version,
+    recordingId,
+    recordingOffsetMs,
   );
 
   @override

@@ -160,16 +160,19 @@ Future<core.TextBoxObject> buildTextBox({
     style,
     widthPt: place.width,
   );
-  return core.TextBoxObject(
-    id: id,
-    pageId: pageId,
-    frame: core.ElementFrame(
-      core.PageRect.fromLTWH(place.left, place.top, place.width, size.height),
+  return linkToEarliestRecording(
+    core.TextBoxObject(
+      id: id,
+      pageId: pageId,
+      frame: core.ElementFrame(
+        core.PageRect.fromLTWH(place.left, place.top, place.width, size.height),
+      ),
+      text: text,
+      style: style,
+      createdAt: nowMs,
+      updatedAt: nowMs,
     ),
-    text: text,
-    style: style,
-    createdAt: nowMs,
-    updatedAt: nowMs,
+    inputStrokes,
   );
 }
 
@@ -239,26 +242,29 @@ core.MathObject? buildMathFromStrokes({
       : ink.InkMathRenderer.layout(tex, fontSizePt: fontSize);
   if (laid == null) return null;
   final center = boundsPt.center;
-  return core.MathObject(
-    id: id,
-    pageId: pageId,
-    frame: core.ElementFrame(
-      core.PageRect.fromLTWH(
-        center.dx - laid.sizePt.width / 2,
-        center.dy - laid.sizePt.height / 2,
-        laid.sizePt.width,
-        laid.sizePt.height,
+  return linkToEarliestRecording(
+    core.MathObject(
+      id: id,
+      pageId: pageId,
+      frame: core.ElementFrame(
+        core.PageRect.fromLTWH(
+          center.dx - laid.sizePt.width / 2,
+          center.dy - laid.sizePt.height / 2,
+          laid.sizePt.width,
+          laid.sizePt.height,
+        ),
       ),
+      latex: tex,
+      style: core.MathStyle(
+        colorArgb:
+            dominantColorOf(inputStrokes) ?? const core.MathStyle().colorArgb,
+        fontSizePt: fontSize,
+      ).normalized(),
+      engineId: engineId,
+      createdAt: nowMs,
+      updatedAt: nowMs,
     ),
-    latex: tex,
-    style: core.MathStyle(
-      colorArgb:
-          dominantColorOf(inputStrokes) ?? const core.MathStyle().colorArgb,
-      fontSizePt: fontSize,
-    ).normalized(),
-    engineId: engineId,
-    createdAt: nowMs,
-    updatedAt: nowMs,
+    inputStrokes,
   );
 }
 
@@ -299,32 +305,62 @@ core.MathObject? buildMathFromPen({
       : _mathSizeOf(tex, fontSize);
   if (laid == null) return null;
   final keep = mathInkFits(strokes);
-  return core.MathObject(
-    id: id,
-    pageId: pageId,
-    frame: core.ElementFrame(
-      core.PageRect.fromLTWH(
-        bounds.left,
-        bounds.center.dy - laid.height / 2,
-        laid.width,
-        laid.height,
+  return linkToEarliestRecording(
+    core.MathObject(
+      id: id,
+      pageId: pageId,
+      frame: core.ElementFrame(
+        core.PageRect.fromLTWH(
+          bounds.left,
+          bounds.center.dy - laid.height / 2,
+          laid.width,
+          laid.height,
+        ),
       ),
+      latex: tex,
+      style: core.MathStyle(
+        colorArgb: dominantColorOf(strokes) ?? const core.MathStyle().colorArgb,
+        fontSizePt: fontSize,
+      ).normalized(),
+      engineId: engineId,
+      ink: keep
+          ? [
+              for (final s in [...strokes]..sort(core.Stroke.compareOrder))
+                s.copyWith(pageId: pageId),
+            ]
+          : const [],
+      createdAt: nowMs,
+      updatedAt: nowMs,
     ),
-    latex: tex,
-    style: core.MathStyle(
-      colorArgb: dominantColorOf(strokes) ?? const core.MathStyle().colorArgb,
-      fontSizePt: fontSize,
-    ).normalized(),
-    engineId: engineId,
-    ink: keep
-        ? [
-            for (final s in [...strokes]..sort(core.Stroke.compareOrder))
-              s.copyWith(pageId: pageId),
-          ]
-        : const [],
-    createdAt: nowMs,
-    updatedAt: nowMs,
+    strokes,
   );
+}
+
+/// (v2.13-rec) [object] — converted from [sources] — linked to the recording of its
+/// earliest recorded source stroke (Stroke.compareOrder: createdAt, then id) at that
+/// recording's earliest source offset, so playback shows the object from the time its
+/// handwriting began (not from the conversion). [object] itself when no source stroke
+/// is linked to a recording. createdAt stays the conversion time (it orders the z).
+T linkToEarliestRecording<T extends core.PageObject>(
+  T object,
+  Iterable<core.Stroke> sources,
+) {
+  core.Stroke? first;
+  for (final s in sources) {
+    if (s.recordingId == null || s.recordingOffsetMs == null) continue;
+    if (first == null || core.Stroke.compareOrder(s, first) < 0) first = s;
+  }
+  if (first == null) return object;
+  final recordingId = first.recordingId!;
+  var offset = first.recordingOffsetMs!;
+  for (final s in sources) {
+    final o = s.recordingOffsetMs;
+    if (s.recordingId == recordingId && o != null && o < offset) offset = o;
+  }
+  return object.withRecording(
+    recordingId: recordingId,
+    recordingOffsetMs: offset,
+  ) as T;
 }
 
 /// Whether [strokes] fit in a formula's ink (PageObjectLimits).

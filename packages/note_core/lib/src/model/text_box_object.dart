@@ -13,6 +13,8 @@ final class TextBoxObject extends PageObject {
     int? updatedAt,
     this.deletedAt,
     this.version,
+    this.recordingId,
+    this.recordingOffsetMs,
   }) : updatedAt = updatedAt ?? createdAt;
   @override
   String get type => 'text';
@@ -40,6 +42,8 @@ final class TextBoxObject extends PageObject {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt,
     version: version,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   // CORE 4.3: same member set as ShapeObject
@@ -55,6 +59,10 @@ final class TextBoxObject extends PageObject {
   final EpochMillis? deletedAt;
   @override
   final Hlc? version;
+  @override
+  final RecordingId? recordingId;
+  @override
+  final int? recordingOffsetMs;
 
   @override
   Set<AssetId> get referencedAssets => const {};
@@ -86,6 +94,8 @@ final class TextBoxObject extends PageObject {
     text: text,
     style: style,
     createdAt: createdAt,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   @override
@@ -104,6 +114,8 @@ final class TextBoxObject extends PageObject {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
     version: version ?? this.version,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   @override
@@ -123,6 +135,8 @@ final class TextBoxObject extends PageObject {
     updatedAt: readInt(json, 'updatedAt'),
     deletedAt: readIntOrNull(json, 'deletedAt'),
     version: readVersion(json),
+    recordingId: readStringOrNull(json, 'recordingId'),
+    recordingOffsetMs: readIntOrNull(json, 'recordingOffsetMs'),
   );
 
   // CORE 4.3: ==, hashCode over every field
@@ -137,7 +151,9 @@ final class TextBoxObject extends PageObject {
       other.createdAt == createdAt &&
       other.updatedAt == updatedAt &&
       other.deletedAt == deletedAt &&
-      other.version == version;
+      other.version == version &&
+      other.recordingId == recordingId &&
+      other.recordingOffsetMs == recordingOffsetMs;
 
   @override
   int get hashCode => Object.hash(
@@ -150,6 +166,8 @@ final class TextBoxObject extends PageObject {
     updatedAt,
     deletedAt,
     version,
+    recordingId,
+    recordingOffsetMs,
   );
 
   @override

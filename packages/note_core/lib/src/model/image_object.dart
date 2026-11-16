@@ -14,6 +14,8 @@ final class ImageObject extends PageObject {
     int? updatedAt,
     this.deletedAt,
     this.version,
+    this.recordingId,
+    this.recordingOffsetMs,
   }) : updatedAt = updatedAt ?? createdAt;
   @override
   String get type => 'image';
@@ -37,6 +39,8 @@ final class ImageObject extends PageObject {
         updatedAt: updatedAt ?? this.updatedAt,
         deletedAt: deletedAt,
         version: version,
+        recordingId: recordingId,
+        recordingOffsetMs: recordingOffsetMs,
       );
 
   // CORE 4.3: same member set as ShapeObject
@@ -52,6 +56,10 @@ final class ImageObject extends PageObject {
   final EpochMillis? deletedAt;
   @override
   final Hlc? version;
+  @override
+  final RecordingId? recordingId;
+  @override
+  final int? recordingOffsetMs;
 
   /// (CORE 6.2.5) frame only.
   @override
@@ -71,6 +79,8 @@ final class ImageObject extends PageObject {
     pixelWidth: pixelWidth,
     pixelHeight: pixelHeight,
     createdAt: createdAt,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   @override
@@ -90,6 +100,8 @@ final class ImageObject extends PageObject {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
     version: version ?? this.version,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   /// The image bytes are an asset, not history (CORE 6.4.4).
@@ -118,6 +130,8 @@ final class ImageObject extends PageObject {
       updatedAt: readInt(json, 'updatedAt'),
       deletedAt: readIntOrNull(json, 'deletedAt'),
       version: readVersion(json),
+      recordingId: readStringOrNull(json, 'recordingId'),
+      recordingOffsetMs: readIntOrNull(json, 'recordingOffsetMs'),
     );
   }
 
@@ -134,7 +148,9 @@ final class ImageObject extends PageObject {
       other.createdAt == createdAt &&
       other.updatedAt == updatedAt &&
       other.deletedAt == deletedAt &&
-      other.version == version;
+      other.version == version &&
+      other.recordingId == recordingId &&
+      other.recordingOffsetMs == recordingOffsetMs;
 
   @override
   int get hashCode => Object.hash(
@@ -148,6 +164,8 @@ final class ImageObject extends PageObject {
     updatedAt,
     deletedAt,
     version,
+    recordingId,
+    recordingOffsetMs,
   );
 
   @override

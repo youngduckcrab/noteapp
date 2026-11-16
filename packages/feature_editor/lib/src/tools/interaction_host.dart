@@ -550,13 +550,18 @@ class InteractionHost implements InputTargets {
     core.ShapeStyle style,
   ) {
     if (_disposed) return;
-    final shape = ObjectFactory.shape(
-      pageId: pageId,
-      kind: kind,
-      geometry: geometry,
-      style: style,
-      newId: _ref.read(core.idGeneratorProvider).newId,
-      createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+    // (v2.13-rec) linked to this note's recording while it is being recorded
+    final shape = RecordingLink.linkObject(
+      _ref.read(core.audioRecorderServiceProvider),
+      _session.noteId,
+      ObjectFactory.shape(
+        pageId: pageId,
+        kind: kind,
+        geometry: geometry,
+        style: style,
+        newId: _ref.read(core.idGeneratorProvider).newId,
+        createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+      ),
     );
     if (!_commands.addObjects(pageId, [shape])) return;
     _ref.read(editorSelectionProvider.notifier).select(pageId, {
@@ -615,7 +620,14 @@ class InteractionHost implements InputTargets {
 
   /// A new box's session — not when the page is full (the notice instead:
   /// its AddObjects would go over the limit — 5.1.1).
-  void _startNewTextBox(String pageId, core.TextBoxObject box) {
+  /// (v2.13-rec) The box is linked to this note's recording while it is being
+  /// recorded (the time it was placed).
+  void _startNewTextBox(String pageId, core.TextBoxObject placed) {
+    final box = RecordingLink.linkObject(
+      _ref.read(core.audioRecorderServiceProvider),
+      _session.noteId,
+      placed,
+    );
     final content = _session.pageIfLoaded(pageId);
     if (content != null && ObjectFactory.exceedsLimit(content, 1)) {
       _commands.notify(
@@ -876,6 +888,9 @@ class InteractionHost implements InputTargets {
 
   /// ③ (6.15.3): in the tap-to-seek state, a stroke of the open recording
   /// under [screen] → `seekMs(max(0, offset − preRollMs))`, markSeek, play.
+  /// (v2.13-rec) No such stroke: the topmost object there, when it is linked to
+  /// the open recording (a shape, formula, text box or image made while
+  /// recording), seeks to its offset the same way.
   /// Every value is read synchronously now (6.3.5).
   bool _tapToSeek(Offset screen, TapKind kind) {
     final playback = _ref.read(core.audioPlaybackServiceProvider);
@@ -896,18 +911,29 @@ class InteractionHost implements InputTargets {
     if (mount == null || mount.isDisposed || !mount.isLoaded.value) {
       return false;
     }
+    final pagePoint = _viewport.screenToPage(hit.index, screen);
+    final tolerance = _tapToSeekTolerancePx / _viewport.camera.scale;
     final stroke = mount.controller.hitTestRecorded(
-      _viewport.screenToPage(hit.index, screen),
+      pagePoint,
       recordingId: recordingId,
-      tolerance: _tapToSeekTolerancePx / _viewport.camera.scale,
+      tolerance: tolerance,
     );
-    if (stroke == null) return false;
-    final offset =
-        _session
-            .pageIfLoaded(hit.pageId)
-            ?.strokeById(stroke.id)
-            ?.recordingOffsetMs ??
-        stroke.source.recordingOffsetMs;
+    final int? offset;
+    if (stroke != null) {
+      offset =
+          _session
+              .pageIfLoaded(hit.pageId)
+              ?.strokeById(stroke.id)
+              ?.recordingOffsetMs ??
+          stroke.source.recordingOffsetMs;
+    } else {
+      final object = mount.controller.hitTestObject(
+        pagePoint,
+        tolerance: tolerance,
+      );
+      if (object == null || object.recordingId != recordingId) return false;
+      offset = object.recordingOffsetMs;
+    }
     if (offset == null) return false;
     final position = tapToSeekPositionMs(
       offset,

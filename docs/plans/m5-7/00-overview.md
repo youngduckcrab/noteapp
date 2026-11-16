@@ -2388,6 +2388,16 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 
 ### 7.9 계약 변경 이력
 
+#### v2.13-rec (2026-11-16, 녹음 재생에 개체 참여 — 사용자 보고 '녹음기능을 키고 난 후 필기는 잘 표시해주는데 도형이나 수식은 그냥 그려진체로 나와')
+
+추가만(옛 JSON 호환 — 키가 없으면 연결 없음, 연결 없는 개체는 키를 쓰지 않아 기존 키 집합·골든 그대로). 설계는 03-ink 6.19 '페이지 개체', 04-editor 6.15.3a.
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C213R-01 | 7.2.2 `PageObject` | `recordingId`·`recordingOffsetMs`(Stroke와 같은 뜻·눈금, 네 알려진 타입의 생성자 인자, `copyWith`·`transformed`·`copyWithMeta`·`copyTo`가 지킴, `==`에 포함), `withRecording(recordingId:, recordingOffsetMs:)`. JSON `recordingId`·`recordingOffsetMs`는 **연결됐을 때만** 쓴다. `UnknownObject`는 rawJson에서 읽는다. SYNC: pageObject는 한 단위 병합이라 새 키는 'loose' 키로 같은 단위에 들어간다(`FieldUnits` 변경 없음) | 사용자 보고 | CORE(처리됨) |
+| C213R-02 | 7.2.9 INK 재생 강조 | `dimUnwritten`이 연결된 개체도 `offset > p`인 동안 흐린다(도형·이미지 층 4′, 텍스트·수식 annotation 층 끝). 공개 API 변경 없음 | 사용자 보고 | INK(처리됨) |
+| C213R-03 | 7.2.10 EDITOR | 녹음 중 만든 개체 연결, 맞춘 도형 = 펜 다운 메타(`commitInkEdit(recording:)`), 개체 탭 재생. recog 변환 빌더는 가장 이른 원본 획의 녹음 시각 | 사용자 보고 | EDITOR·LIBRARY(처리됨) |
+
 #### v2.9 (2026-11-13, 손글씨 검색 — 사용자 요청 '텍스트로 변환하지 않더라도 적은 글씨를 검색하면 검색이 되어야 해')
 
 추가와 기본값 하나. 설계는 05-library 6.19a, 02-core 6.10.2 '손글씨 띄어쓰기'.

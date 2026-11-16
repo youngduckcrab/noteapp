@@ -56,6 +56,7 @@ final class PenInteraction extends ToolInteraction {
     required this._session,
     required Offset start,
     required this._onCommitted,
+    required this._meta,
     this._onSample,
     this._points,
     this._commit,
@@ -103,6 +104,7 @@ final class PenInteraction extends ToolInteraction {
       session: session,
       start: down.position,
       onCommitted: onCommitted,
+      meta: meta,
       onSample: onSample,
       points: onSample == null ? null : [first.position],
       commit: commit,
@@ -123,6 +125,9 @@ final class PenInteraction extends ToolInteraction {
   final EditorCommands _commands;
   final ink.StrokeSession _session;
   final void Function(core.StrokeStyle style) _onCommitted;
+
+  /// (v2.13-rec) The recording meta of the pen-down: a snapped shape gets it too.
+  final ink.InkStrokeMeta _meta;
   final ShapeSampleSink? _onSample;
   final bool Function(ink.InkPageController controller, ink.InkEdit edit)?
   _commit;
@@ -171,7 +176,7 @@ final class PenInteraction extends ToolInteraction {
       final commit = _commit;
       final committed = commit != null
           ? commit(controller, edit)
-          : _commands.commitInkEdit(controller, edit);
+          : _commands.commitInkEdit(controller, edit, recording: _meta);
       if (committed) _onCommitted(style);
     }
     _onFinished?.call();

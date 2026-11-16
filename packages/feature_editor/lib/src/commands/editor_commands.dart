@@ -26,6 +26,7 @@ import '../document/mounted_pages.dart';
 import '../input/input_router.dart';
 import '../objects/object_factory.dart';
 import '../objects/object_placement.dart';
+import '../playback/recording_link.dart';
 import '../scope/editor_scope.dart';
 import '../state/color_palette.dart';
 import '../state/page_panel.dart';
@@ -104,14 +105,29 @@ class EditorCommands {
   /// etc.), _run calls onRejected → controller.discardEdit(edit), which drops the pending
   /// display of every id of the edit (added, removedIds, targetIds) — erased / split /
   /// moved strokes show their committed state again at once. Returns true when committed.
-  bool commitInkEdit(ink.InkPageController controller, ink.InkEdit edit) {
+  ///
+  /// (v2.13-rec) [recording]: the recording meta of the pen-down. A shape snapped
+  /// from the held stroke (addShape) is linked to it like the stroke would have been
+  /// (INK builds the shape without it); the pending hand-off goes by id, so INK's
+  /// pending shape is the one stored.
+  bool commitInkEdit(
+    ink.InkPageController controller,
+    ink.InkEdit edit, {
+    ink.InkStrokeMeta recording = const ink.InkStrokeMeta(),
+  }) {
     if (edit.isEmpty) return false; // nothing pending (INK 4.6)
+    final command =
+        edit.kind == ink.InkEditKind.addShape && recording.recordingId != null
+        ? core.AddObjects(
+            pageId: edit.pageId,
+            objects: [
+              for (final o in edit.addedObjects)
+                RecordingLink.linkObjectTo(o, recording),
+            ],
+          )
+        : edit.toCommand();
     final committed =
-        _run(
-          edit.toCommand(),
-          onRejected: () => controller.discardEdit(edit),
-        ) !=
-        null;
+        _run(command, onRejected: () => controller.discardEdit(edit)) != null;
     if (committed &&
         edit.kind == ink.InkEditKind.addStroke &&
         edit.added.length == 1) {
@@ -553,12 +569,17 @@ class EditorCommands {
       );
       return false;
     }
-    final image = ObjectFactory.image(
-      pageId: page.id,
-      rectPt: rect,
-      imported: imported,
-      newId: _ref.read(core.idGeneratorProvider).newId,
-      createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+    // (v2.13-rec) linked to this note's recording while it is being recorded
+    final image = RecordingLink.linkObject(
+      _ref.read(core.audioRecorderServiceProvider),
+      _session.noteId,
+      ObjectFactory.image(
+        pageId: page.id,
+        rectPt: rect,
+        imported: imported,
+        newId: _ref.read(core.idGeneratorProvider).newId,
+        createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
+      ),
     );
     final receipt = await _runAsync(
       core.AddObjects(pageId: page.id, objects: [image]),

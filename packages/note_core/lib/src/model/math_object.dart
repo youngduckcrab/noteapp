@@ -15,6 +15,8 @@ final class MathObject extends PageObject {
     int? updatedAt,
     this.deletedAt,
     this.version,
+    this.recordingId,
+    this.recordingOffsetMs,
   }) : ink = List.unmodifiable(ink),
        updatedAt = updatedAt ?? createdAt;
   @override
@@ -58,6 +60,8 @@ final class MathObject extends PageObject {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt,
     version: version,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   // CORE 4.3: same member set as ShapeObject
@@ -73,6 +77,10 @@ final class MathObject extends PageObject {
   final EpochMillis? deletedAt;
   @override
   final Hlc? version;
+  @override
+  final RecordingId? recordingId;
+  @override
+  final int? recordingOffsetMs;
 
   @override
   Set<AssetId> get referencedAssets => const {};
@@ -107,6 +115,8 @@ final class MathObject extends PageObject {
     engineId: engineId,
     ink: [for (final s in ink) s.copyWith(pageId: pageId)],
     createdAt: createdAt,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   @override
@@ -127,6 +137,8 @@ final class MathObject extends PageObject {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: clearDeletedAt ? null : deletedAt ?? this.deletedAt,
     version: version ?? this.version,
+    recordingId: recordingId,
+    recordingOffsetMs: recordingOffsetMs,
   );
 
   /// 02-core 4.3 formula + (math pen) the [ink] strokes' Stroke.estimatedBytes.
@@ -161,6 +173,8 @@ final class MathObject extends PageObject {
     updatedAt: readInt(json, 'updatedAt'),
     deletedAt: readIntOrNull(json, 'deletedAt'),
     version: readVersion(json),
+    recordingId: readStringOrNull(json, 'recordingId'),
+    recordingOffsetMs: readIntOrNull(json, 'recordingOffsetMs'),
   );
 
   /// (math pen) `ink` is optional: a missing key (JSON of an older app) or null → empty; a
@@ -196,7 +210,9 @@ final class MathObject extends PageObject {
       other.createdAt == createdAt &&
       other.updatedAt == updatedAt &&
       other.deletedAt == deletedAt &&
-      other.version == version;
+      other.version == version &&
+      other.recordingId == recordingId &&
+      other.recordingOffsetMs == recordingOffsetMs;
 
   @override
   int get hashCode => Object.hash(
@@ -211,6 +227,8 @@ final class MathObject extends PageObject {
     updatedAt,
     deletedAt,
     version,
+    recordingId,
+    recordingOffsetMs,
   );
 
   @override

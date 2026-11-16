@@ -20,6 +20,31 @@ sealed class PageObject extends PageElement {
   /// Assets this object references (ImageObject: {assetId}); others empty.
   Set<AssetId> get referencedAssets;
 
+  /// (v2.13-rec) The recording this object was made during (as Stroke.recordingId): set by
+  /// EDITOR when the object is created while this note is being recorded, or — for an object
+  /// converted from strokes (shape snap, math pen, text pen, conversion) — taken from its
+  /// earliest recorded source stroke. Playback dims the object until [recordingOffsetMs]
+  /// and tap-to-seek on it seeks there. null: not linked (the object is drawn as usual).
+  /// JSON: 'recordingId' / 'recordingOffsetMs', written only when set (older JSON reads as
+  /// null). Kept by copyWith / transformed / copyTo (paste, duplicate — as a stroke's).
+  /// UnknownObject: read from rawJson when it carries the keys.
+  RecordingId? get recordingId;
+
+  /// (v2.13-rec) Audio-timeline ms of the object's creation in [recordingId] (the same scale
+  /// as Stroke.recordingOffsetMs); null when not linked.
+  int? get recordingOffsetMs;
+
+  /// (v2.13-rec) This object linked to [recordingId] at [recordingOffsetMs] (every other
+  /// value unchanged — the same rule for every type, through the JSON).
+  PageObject withRecording({
+    required RecordingId recordingId,
+    required int recordingOffsetMs,
+  }) => PageObject.fromJson({
+    ...toJson(),
+    'recordingId': recordingId,
+    'recordingOffsetMs': recordingOffsetMs,
+  });
+
   /// (v2.1) THE object transform rule. CORE's resolver (TransformElements) and every preview
   /// (INK selection / pending display, EDITOR) call this same function (INK review M-2):
   ///   frame / geometry transformed by m; s = m.uniformScale;
@@ -85,6 +110,11 @@ Map<String, Object?> _objectJson(PageObject o, Map<String, Object?> body) => {
   'type': o.type,
   'frame': o.frame.toJson(),
   ...body,
+  // (v2.13-rec) only when linked: older JSON (and every unlinked object) keeps its key set
+  if (o.recordingId != null) ...{
+    'recordingId': o.recordingId,
+    'recordingOffsetMs': o.recordingOffsetMs,
+  },
   'createdAt': o.createdAt,
   'updatedAt': o.updatedAt,
   'deletedAt': o.deletedAt,
