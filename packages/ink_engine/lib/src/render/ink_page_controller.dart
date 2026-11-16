@@ -1365,7 +1365,7 @@ final class InkPageController extends ChangeNotifier {
   /// pool's cache at this view's bucket (a missing one is queued; the chunks that drew
   /// the formula are recorded again when it arrives — _onMathChange). A formula that does
   /// not parse warns mathInvalid once per object (6.24).
-  MathRaster? _mathRasterFor(core.MathObject o) {
+  MathRaster? _mathRasterFor(core.MathObject o, {bool live = false}) {
     if (_disposed) return null;
     if (!isRenderableMath(o)) {
       if (_mathInvalidWarned.add(o.id)) diagnostics.onWarning('mathInvalid');
@@ -1378,13 +1378,15 @@ final class InkPageController extends ChangeNotifier {
       deviceScale: _deviceScale,
       framePt: ui.Size(r.width, r.height),
       nowUs: clock.nowUs(),
+      live: live,
     );
   }
 
   /// [_mathRasterFor] for the live part (pending, selection preview, previews): the
-  /// formula is remembered so its arrival repaints the layer.
+  /// formula is remembered so its arrival repaints the layer; (math resize fix) asked as
+  /// live, so a resize drag's sizes may be marked stale (MathRasterCache.peek).
   MathRaster? _liveMathRasterFor(core.MathObject o) {
-    final raster = _mathRasterFor(o);
+    final raster = _mathRasterFor(o, live: true);
     if (isRenderableMath(o)) _liveMath.add(mathFormulaOf(o));
     return raster;
   }

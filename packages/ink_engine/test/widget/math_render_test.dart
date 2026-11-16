@@ -16,6 +16,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/math/math_raster_cache.dart';
@@ -616,6 +617,46 @@ void main() {
     /// The page painted now — before any queued raster can arrive.
     Future<Pixels> now(InkPageController c) => _pixels(c, w: 600, h: 600);
 
+    test('a long formula made as big as it goes is laid out whole — not '
+        'clipped at 4000 pt — and its raster reaches both ends', () async {
+      expect(OffscreenMathHost.maxExtent, core.ElementFrame.maxSide);
+      final latex =
+          '${[for (var i = 1; i <= 14; i++) 'a_{$i}'].join('+')}'
+          r'=\frac{n(n+1)}{2}';
+      final errors = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = errors.add;
+      try {
+        final small = InkMathRenderer.layout(latex, fontSizePt: 18)!.sizePt;
+        final big = InkMathRenderer.layout(latex, fontSizePt: 144)!.sizePt;
+        expect(small.width, greaterThan(500), reason: 'over 4000 pt at 144');
+        expect(big.width, closeTo(small.width * 8, small.width * 8 * 0.02));
+        expect(big.height, closeTo(small.height * 8, small.height * 8 * 0.05));
+        final image = (await InkMathRenderer.rasterize(
+          latex,
+          colorArgb: _black,
+          fontSizePt: 144,
+          pixelsPerPt: 2,
+        ))!;
+        final p = await imagePixels(image);
+        final w = image.width.toDouble(), h = image.height.toDouble();
+        image.dispose();
+        expect(w / h, closeTo(big.width / big.height, 0.05));
+        // the formula ends with the fraction: ink in the last and first 5 %
+        expect(
+          inkIn(p, region: ui.Rect.fromLTWH(w * 0.95, 0, w * 0.05, h)),
+          greaterThan(50),
+        );
+        expect(
+          inkIn(p, region: ui.Rect.fromLTWH(0, 0, w * 0.05, h)),
+          greaterThan(50),
+        );
+      } finally {
+        FlutterError.onError = previous;
+      }
+      expect(errors, isEmpty, reason: 'no RenderLine overflow');
+    });
+
     for (final s in [0.3, 0.6, 1.7, 3.0]) {
       test('× $s: the formula is drawn on every move of the drag and right '
           'after the commit — never the empty box; one raster at a time; '
@@ -700,6 +741,31 @@ void main() {
       );
       c.dispose();
     });
+
+    test(
+      'a formula stretched before the fix (frame 2× its 144 pt layout) is '
+      'drawn from the bucket of device scale × 2 — sharp, like the PDF',
+      () async {
+        final m = _math(
+          'm',
+          const core.PagePoint(20, 20),
+          latex: 'x^2',
+          fontSizePt: 144,
+          widthScale: 2,
+          heightScale: 2,
+        );
+        final c = createTestPageController()..updateContent(_content([m]));
+        final cache = mathRasterCacheOf(c.cachePool);
+        await _settle(c);
+        final f = mathFormulaOf(m);
+        expect(
+          cache.isPinned((formula: f, bucket: 4)),
+          isTrue,
+          reason: 'device scale 2 × contain scale 2',
+        );
+        c.dispose();
+      },
+    );
 
     test(
       'zoomed in after the resize: the bigger bucket of the new size',

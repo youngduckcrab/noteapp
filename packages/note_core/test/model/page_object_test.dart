@@ -284,6 +284,30 @@ void main() {
       expect(ink.bottom, closeTo(grown.frame.rect.bottom, 1e-3));
     });
 
+    test('(math resize fix) math: a font size already outside [6, 144] (JSON '
+        'is not normalized) is kept by a move and never moves further out; '
+        'the frame does not change size because of it', () {
+      final odd = _math(fontSizePt: 200);
+      final moved = odd.transformed(move) as MathObject;
+      expect(moved.style.fontSizePt, 200);
+      expect(moved.frame.rect.width, closeTo(odd.frame.rect.width, 1e-9));
+      expect(moved.frame.rect.height, closeTo(odd.frame.rect.height, 1e-9));
+      // enlarged (e.g. in a group): stays 200, the frame stays its size
+      final grown = odd.transformed(double2) as MathObject;
+      expect(grown.style.fontSizePt, 200);
+      expect(grown.frame.rect.width, closeTo(odd.frame.rect.width, 1e-9));
+      // shrunk: moves in, with the frame
+      final shrunk = odd.transformed(half) as MathObject;
+      expect(shrunk.style.fontSizePt, 100);
+      expect(shrunk.frame.rect.width, closeTo(odd.frame.rect.width / 2, 1e-9));
+      // under 6: kept by a move, not shrunk further
+      final tiny = _math(fontSizePt: 4);
+      expect((tiny.transformed(move) as MathObject).style.fontSizePt, 4);
+      final tinyHalf = tiny.transformed(half) as MathObject;
+      expect(tinyHalf.style.fontSizePt, 4);
+      expect(tinyHalf.frame.rect.width, closeTo(tiny.frame.rect.width, 1e-9));
+    });
+
     test('image: frame only', () {
       final i = _image();
       final t = i.transformed(double2) as ImageObject;

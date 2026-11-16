@@ -6,7 +6,7 @@
 // re-measure withMeasuredHeight) — ObjectEditInteraction previews and
 // commits them (UpdateObjects).
 import 'dart:math' as math;
-import 'dart:ui' show Offset;
+import 'dart:ui' show Offset, Rect;
 
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -45,6 +45,61 @@ abstract final class ObjectResize {
       min: math.min(1.0, core.MathStyle.minFontSize / f),
       max: math.max(1.0, core.MathStyle.maxFontSize / f),
     );
+  }
+
+  /// (math resize fix) [scaleRangeOf] of every object of a selection: the
+  /// tightest range (each contains 1, so the result does).
+  static ({double min, double max}) scaleRangeOfAll(
+    Iterable<core.PageObject> objects,
+  ) {
+    var lo = 0.0, hi = double.infinity;
+    for (final o in objects) {
+      final r = scaleRangeOf(o);
+      lo = math.max(lo, r.min);
+      hi = math.min(hi, r.max);
+    }
+    return (min: lo, max: hi);
+  }
+
+  /// (math resize fix) A selection resize [t] (SelectionGeometry.resize from
+  /// [handle] of [bounds] — a scale about the opposite corner / edge) with its
+  /// uniform scale (Affine2.uniformScale, what CORE scales a formula's font
+  /// by) clamped into [range] ([scaleRangeOfAll]), about the same anchor: the
+  /// whole selection stops where its first formula's font size stops, so the
+  /// formula does not stop about its own centre while the rest grows on.
+  static core.Affine2 clampGroupResize(
+    core.Affine2 t, {
+    required Rect bounds,
+    required ink.SelectionHandle handle,
+    required ({double min, double max}) range,
+  }) {
+    final u = t.uniformScale;
+    if (!(u > 0) || !u.isFinite) return t;
+    final clamped = u.clamp(range.min, range.max).toDouble();
+    if (clamped == u) return t;
+    final (hx, hy) = switch (handle) {
+      ink.SelectionHandle.topLeft => (-1, -1),
+      ink.SelectionHandle.top => (0, -1),
+      ink.SelectionHandle.topRight => (1, -1),
+      ink.SelectionHandle.right => (1, 0),
+      ink.SelectionHandle.bottomRight => (1, 1),
+      ink.SelectionHandle.bottom => (0, 1),
+      ink.SelectionHandle.bottomLeft => (-1, 1),
+      ink.SelectionHandle.left => (-1, 0),
+    };
+    final ax = hx < 0 ? bounds.right : bounds.left;
+    final ay = hy < 0 ? bounds.bottom : bounds.top;
+    // u = sqrt(sx · sy): a corner scales both (sx = sy), an edge one axis
+    final k = clamped / u;
+    final double sx, sy;
+    if (hx != 0 && hy != 0) {
+      (sx, sy) = (t.a * k, t.d * k);
+    } else if (hx != 0) {
+      (sx, sy) = (t.a * k * k, t.d);
+    } else {
+      (sx, sy) = (t.a, t.d * k * k);
+    }
+    return core.Affine2.scaling(sx, sy, originX: ax, originY: ay);
   }
 
   /// (수정 1회차, 검토 S-2 → EDITOR-M5) Corner handle (keep aspect) of a

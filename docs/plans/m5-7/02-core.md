@@ -390,7 +390,8 @@ sealed class PageObject extends PageElement {
   ///   ShapeObject: style.strokeWidth × s clamped [0.1, 30] when [scaleWidth];
   ///   TextBoxObject: style.fontSizePt × s clamped [6, 144] (CP-2 — wrap width and text scale
   ///   together, so the frame height still fits; K-6);
-  ///   MathObject: style.fontSizePt × s clamped [6, 144]; ImageObject: frame only;
+  ///   MathObject: style.fontSizePt × s clamped [6, 144] — (v2.15-math) the frame and ink
+  ///   stop with it; a size already outside stays (never further out); ImageObject: frame only;
   ///   UnknownObject: returns itself unchanged.
   PageObject transformed(Affine2 m, {bool scaleWidth = true});
   /// Paste / duplicate / page copy: new id, page and createdAt; version and deletedAt cleared.
@@ -1609,10 +1610,10 @@ LIBRARY ──▶ LibraryRepository.searchLibrary / SearchIndex.searchPages ─�
 |---|---|
 | `copyTo(id:, pageId:, createdAt:)` | 새 id·페이지·`createdAt`, `version`·`deletedAt` 비움, `updatedAt = createdAt`(저장 때 CORE가 지금 시각으로 바꿈). 나머지 필드는 그대로. `UnknownObject`는 `rawJson`의 메타 키만 바꾼 새 객체 |
 | `copyWithMeta(...)` | `updatedAt`·`deletedAt`·`version`만 바꿈(해석기·원격 적용 경로) |
-| `transformed(m, {scaleWidth = true})` — (v2.1) **객체 변형의 단일 규칙**(CD2-07) | `s = m.uniformScale`. 도형: `geometry.transformed(m)`, `scaleWidth`면 `style.strokeWidth × s`를 [0.1, 30]으로 자름(아니면 굵기 그대로). 텍스트 상자: `frame.transformed(m)` + `style.fontSizePt × s`를 [6, 144]로 자름(CP-2 — 줄바꿈 폭과 글자를 같은 배율로, `scaleWidth`와 무관). 수식: `frame.transformed(m)` + `style.fontSizePt × s`를 [6, 144]로. 이미지: `frame.transformed(m)`만. `UnknownObject`: 같은 인스턴스(변형 불가 — 해석기가 건너뜀) |
+| `transformed(m, {scaleWidth = true})` — (v2.1) **객체 변형의 단일 규칙**(CD2-07) | `s = m.uniformScale`. 도형: `geometry.transformed(m)`, `scaleWidth`면 `style.strokeWidth × s`를 [0.1, 30]으로 자름(아니면 굵기 그대로). 텍스트 상자: `frame.transformed(m)` + `style.fontSizePt × s`를 [6, 144]로 자름(CP-2 — 줄바꿈 폭과 글자를 같은 배율로, `scaleWidth`와 무관). 수식: `frame.transformed(m)` + `style.fontSizePt × s`를 [6, 144]로 — (v2.15-math, C215M-01·07) 잘리면 m 다음에 잘린 ÷ (fontSizePt × s) 균일 배율을 변환된 틀 가운데로 더해 **틀과 `ink`도 함께 멈춘다**(틀 ÷ 글자 크기 유지). 이미 [6, 144] 밖인 글자 크기(JSON은 정규화하지 않음)는 범위를 그 값까지 넓혀 자른다 — 이동·회전·묶음 확대가 그 때문에 틀 크기를 바꾸지 않고, 더 밖으로도 가지 않는다. 이미지: `frame.transformed(m)`만. `UnknownObject`: 같은 인스턴스(변형 불가 — 해석기가 건너뜀) |
 
 - (v2.1, CP-2·CD2-07) CORE 해석기의 `TransformElements`(6.4.1)와 INK 선택·대기 표시 미리보기, EDITOR 핸들 미리보기가 **이 함수 하나**를 부른다. 그래서 화면에 보인 변형 결과와 저장된 값이 같다(INK 검토 M-2). 글자 크기가 [6, 144]에 걸려 잘리면 frame 높이와 내용이 조금 어긋날 수 있고, 그때는 INK가 frame으로 자른다(K-6) — EDITOR가 변형 뒤 높이를 다시 재 `UpdateObjects`로 맞출지는 EDITOR 몫이다.
-- 시험(`test/model/page_object_test.dart`): 종류마다 이동·균등 배율 2·0.5·회전 90°, `scaleWidth: false`, 자름 경계(굵기 30·글자 144·6), `UnknownObject` 동일 인스턴스, 미리보기 경로와 해석기 경로가 같은 값(해석기 결과 객체 == `transformed` 결과에 `updatedAt`·`version`만 다름).
+- 시험(`test/model/page_object_test.dart`): 종류마다 이동·균등 배율 2·0.5·회전 90°, `scaleWidth: false`, 자름 경계(굵기 30·글자 144·6 — (v2.15-math) 수식은 틀·`ink`도 멈춤, 200 pt·4 pt 수식은 이동해도 그대로), `UnknownObject` 동일 인스턴스, 미리보기 경로와 해석기 경로가 같은 값(해석기 결과 객체 == `transformed` 결과에 `updatedAt`·`version`만 다름).
 
 #### 6.2.6 JSON 읽기 규칙 (C-12, 모르는 것)
 

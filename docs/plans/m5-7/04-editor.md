@@ -659,7 +659,8 @@ sealed class PageObject extends PageElement {
   ///   ShapeObject: style.strokeWidth × s clamped [0.1, 30] when [scaleWidth];
   ///   TextBoxObject: style.fontSizePt × s clamped [6, 144] (CP-2 — wrap width and text scale
   ///   together, so the frame height still fits; K-6);
-  ///   MathObject: style.fontSizePt × s clamped [6, 144]; ImageObject: frame only;
+  ///   MathObject: style.fontSizePt × s clamped [6, 144] — (v2.15-math) the frame and ink
+  ///   stop with it; a size already outside stays (never further out); ImageObject: frame only;
   ///   UnknownObject: returns itself unchanged.
   PageObject transformed(Affine2 m, {bool scaleWidth = true});
   /// Paste / duplicate / page copy: new id, page and createdAt; version and deletedAt cleared.
@@ -3227,10 +3228,12 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 1. **끄는 동안·놓은 뒤 빈 회색 상자**(INK, 03-ink 15절): 크기가 바뀌면 글자 크기(`fontSizePt × s`)가 바뀌고, 수식 래스터 캐시 키가 (LaTeX, 색, 글자 크기, 배율 칸)이라 움직일 때마다 새 키 → 캐시 없음 → 빈 자리표시 상자가 그려졌다. 래스터 호스트는 한 번에 하나만 만들어서, 끄는 동안 쌓인 중간 크기 요청 뒤에 마지막 크기가 줄을 서 펜을 뗀 뒤에도 한참 회색이었고, 줄 선 요청의 예약 바이트 때문에 마지막 크기가 낮은 배율 칸으로 내려가 **흐린 채로 남기도** 했다. → 같은 LaTeX·색의 다른 크기 래스터(가장 선명한 것)를 틀에 맞춰 그리고, 같은 수식은 요청을 한 번에 하나만 보낸다(마지막에 물은 크기가 다음 차례).
 2. **144 pt / 6 pt에서 틀만 계속 커짐·작아짐**(CORE `MathObject.transformed`, EDITOR `ObjectResize`): 글자 크기는 [6, 144]에서 멈추는데 틀은 계속 따라가, 144 pt로 만든 래스터가 더 큰 틀로 늘어나(흐림) 보였다. → 모서리 끌기는 글자 크기가 멈추는 곳에서 멈추고(`ObjectResize.scaleRangeOf` → `cornerScale(minScale:, maxScale:)` — 미리보기와 저장이 같은 값, 반대 모서리 고정), CORE도 글자 크기가 잘리면 틀(과 `ink` 손글씨)을 같은 비율로 맞춘다(여러 개를 함께 늘릴 때). 틀 ÷ 글자 크기 = 처음 배치한 크기 비율이 늘 유지된다.
 3. **아주 크게 늘린 수식이 흐림**(INK 예산): 수식 래스터 예산 8 MiB에 큰 수식 래스터 하나(배율 3에서 10 MiB 넘음)가 들지 않았고, 끄는 동안 지나간 중간 크기 래스터(라이브 층만 그려 '아직 안 그린 새 항목'으로 남음)가 예산을 잡아, 마지막 크기가 배율 1까지 내려가 흐렸다 → 네이티브 기본 24 MiB(웹 8 MiB 그대로), 같은 수식의 새 래스터가 오면 한 번도 그려지지 않은 다른 크기는 밀려날 수 있게.
-4. 확인했지만 원인이 아니었던 것: 비율 — 수식은 모서리만(가로세로 비율 고정, `ElementFrame.transformed`는 균일 배율)이라 글자가 일그러지지 않는다. 기준선·위치 — 틀 안 가운데 맞춤(contain fit)이라 틀 밖으로 나가지 않는다(시험). 되돌리기 — 이전 값 그대로 돌아온다(시험). 미리보기 썸네일·PDF — 객체의 글자 크기로 다시 배치·래스터하고(PDF는 contain 배율 × 300 dpi), 위 2번으로 틀과 글자 크기가 맞아 늘어나지 않는다. 확대(줌) — 새 크기의 큰 배율 칸을 다시 받는다(시험).
+4. (검토 반영) **긴 수식 오른쪽 잘림**(INK, C215M-05): 화면 밖 배치 제약이 4000 pt라 18 pt에서 500 pt 넘는 수식을 크게 하면 잘렸다 → 14400 pt. **고치기 전에 늘어난 수식이 흐림**(INK, C215M-06): 틀이 배치 크기보다 크면 화면 칸에 contain 배율을 곱한다(PDF와 같은 선명도). **범위 밖 글자 크기가 이동에 틀을 줄임**(CORE, C215M-07): 이미 밖인 값은 그대로. **여러 개 함께 늘릴 때 수식만 제 가운데로 멈춤**(EDITOR, C215M-08): 묶음 배율을 모든 수식의 범위로 잘라 묶음 전체가 함께 멈춘다(`ObjectResize.scaleRangeOfAll`·`clampGroupResize`).
+5. 확인했지만 원인이 아니었던 것: 비율 — 수식은 모서리만(가로세로 비율 고정, `ElementFrame.transformed`는 균일 배율)이라 글자가 일그러지지 않는다. 기준선·위치 — 틀 안 가운데 맞춤(contain fit)이라 틀 밖으로 나가지 않는다(시험). 되돌리기 — 이전 값 그대로 돌아온다(시험). 미리보기 썸네일·PDF — 객체의 글자 크기로 다시 배치·래스터하고(PDF는 contain 배율 × 300 dpi), 위 2번으로 틀과 글자 크기가 맞아 늘어나지 않는다. 확대(줌) — 새 크기의 큰 배율 칸을 다시 받는다(시험).
 
 - **시험**: `ink_engine` `math_raster_cache_test`('(math resize fix)' 묶음 — 옛 크기로 그림, 한 번에 하나·마지막 크기, 가장 선명한 래스터, 다른 수식·색은 빌리지 않음, 지나간 크기가 예산을 잡지 않음), `math_render_test`('(math resize fix)' — × 0.3 · 0.6 · 1.7 · 3.0 끄는 동안 8걸음마다 수식이 그려지고 틀 밖으로 안 나감, 놓은 직후에도 그려짐, 끝에는 새 글자 크기·원래 배율 칸·낮춤 없음, 확대 뒤 배율 4, 144 pt 수식이 배율 3 그대로), `note_core` `page_object_test`(144/6 pt에서 틀·손글씨도 멈춤), `undo_objects_test`(144 pt 넘게 늘리고 되돌리기·다시 하기 정확), `feature_editor` `object_resize_test`(모든 끌기 방향에서 비율·틀 ÷ 글자 크기 유지, 144/6 pt에서 멈춤, 미리보기 변환 = 저장 결과), `object_handles_test`(편집기에서 모서리를 멀리 끌어 크게/작게 → 명령 하나, 144/6 pt, 반대 모서리 고정, 되돌리기·다시 하기). 고치기 전 INK 위젯 시험 넷(끄는 동안 수식 0 픽셀)과 CORE·EDITOR 멈춤 시험이 실패.
-- **남은 것**: 배율 칸은 여전히 최대 4(03-ink 6.12.3) — 기기 배율 × 확대가 4를 넘으면(예: 태블릿 2 × 확대 300 %) 수식 래스터가 조금 확대돼 보인다. 여러 개를 함께 늘리다 수식이 144 pt에 닿으면 수식은 제 가운데로 멈추고 선택 틀은 계속 커진다(놓으면 맞음).
+- **시험(검토 반영)**: `object_resize_test`('a group resize with a formula' — 교집합 범위, 같은 기준점으로 자름, 모서리·변), `object_handles_test`(사각형 + 수식을 멀리 끌기 → 명령 하나, 수식 144 pt, 사각형과의 상대 위치 × 8, 미리보기 틀 = 저장 틀 — 고치기 전 실패).
+- **남은 것**: 기기 배율 × 확대가 4를 넘을 때 배율 칸은 여전히 최대 4(03-ink 6.12.3) — 틀이 배치보다 큰 경우에만 8·16 칸을 쓴다. 수식 래스터는 4 Mpx 상한이라 페이지 폭 144 pt 수식은 칸 3 정도다.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

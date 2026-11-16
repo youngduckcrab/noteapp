@@ -88,26 +88,33 @@ final class MathObject extends PageObject {
   /// (CORE 6.2.5) frame.transformed(m) + fontSizePt × s clamped [6, 144]; (math pen) every
   /// [ink] stroke through Stroke.transformed with the same m and [scaleWidth].
   ///
-  /// (math resize fix) When the font size stops at 6 or 144 pt the frame (and [ink]) stops
+  /// (v2.15-math) When the font size stops at 6 or 144 pt the frame (and [ink]) stops
   /// with it: m is followed by a uniform scale of clamped ÷ (fontSizePt × s) about the
   /// transformed frame's centre, so the frame stays the formula's laid-out size. Before,
   /// the frame kept growing past 144 pt and the formula raster, laid out at 144 pt, was
   /// stretched over it (blurry), or the frame shrank under 6 pt around a formula that
-  /// could not.
+  /// could not. A font size already outside [6, 144] (JSON is not normalized) does not
+  /// move further out and is not pulled in by the transform itself: the range is
+  /// widened to include it, so a move, a rotation or a group resize never changes the
+  /// frame's size because of it.
   @override
   PageObject transformed(Affine2 m, {bool scaleWidth = true}) {
-    final font = _scaled(
-      style.fontSizePt,
-      m,
-      MathStyle.minFontSize,
-      MathStyle.maxFontSize,
-    );
-    final wanted = style.fontSizePt * m.uniformScale;
+    final f = style.fontSizePt;
+    final wanted = f * m.uniformScale;
+    var font = _scaled(f, m, MathStyle.minFontSize, MathStyle.maxFontSize);
     var t = m;
-    if (wanted > 0 && wanted.isFinite && font != wanted) {
-      final c = frame.center.transformed(m);
-      final k = font / wanted;
-      t = m.then(Affine2.scaling(k, k, originX: c.x, originY: c.y));
+    if (f > 0 && f.isFinite && wanted > 0 && wanted.isFinite) {
+      font = wanted
+          .clamp(
+            math.min(MathStyle.minFontSize, f),
+            math.max(MathStyle.maxFontSize, f),
+          )
+          .toDouble();
+      if (font != wanted) {
+        final c = frame.center.transformed(m);
+        final k = font / wanted;
+        t = m.then(Affine2.scaling(k, k, originX: c.x, originY: c.y));
+      }
     }
     return copyWith(
       frame: frame.transformed(t),
