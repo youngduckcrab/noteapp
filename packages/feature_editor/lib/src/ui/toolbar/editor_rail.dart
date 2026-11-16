@@ -287,10 +287,11 @@ class _RailColors extends ConsumerWidget {
   }
 }
 
-/// The current pen's 가늘게 · 보통 · 굵게: (review) light rows on the rail —
-/// no tile, the chosen one in the accent's soft well with its outline; the
-/// line drawn in the ink (the text colour where the ink would vanish on the
-/// rail), at least 1.5 px so 가늘게 still reads.
+/// The current pen's 가늘게 · 보통 · 굵게: (owner review) each width drawn in
+/// the pen's real ink on a paper-light strip (like the tray's ink strips),
+/// so a 형광펜's yellow or a black pen on the dark rail still reads; the
+/// chosen one in the accent's soft well with its outline. At least 1.5 px
+/// so 가늘게 still shows.
 class _RailWidths extends ConsumerWidget {
   const _RailWidths();
 
@@ -299,13 +300,7 @@ class _RailWidths extends ConsumerWidget {
     final pen = ref.watch(editorToolProvider.select((s) => s.currentPen));
     final pick = _pickPen(ref);
     final controller = ref.read(editorToolProvider.notifier);
-    final tokens = StyleTokens.of(context);
     final choices = penWidthChoices(pen.tool);
-    final ink = Color(pen.colorArgb | 0xFF000000);
-    final shown =
-        (ink.computeLuminance() - tokens.rail.computeLuminance()).abs() < .2
-        ? tokens.textPrimary
-        : ink;
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
       child: Column(
@@ -317,10 +312,7 @@ class _RailWidths extends ConsumerWidget {
                 name: EditorStrings.railWidthNames[i],
                 child: _RailWidth(
                   key: EditorRail.widthKey(i),
-                  style: pen.copyWith(
-                    width: math.max(1.5, choices[w]),
-                    colorArgb: shown.toARGB32(),
-                  ),
+                  style: pen.copyWith(width: math.max(1.5, choices[w])),
                   realWidth: choices[w],
                   selected: (pen.width - choices[w]).abs() < 0.01,
                   onTap: () {
@@ -372,10 +364,25 @@ class _RailWidth extends StatelessWidget {
           child: SizedBox(
             height: EditorRail._cell - 2,
             child: Center(
-              child: InkStroke(
-                style: style.copyWith(width: style.width.clamp(1.5, 14.0)),
-                size: const Size(46, 18),
-                shape: ink.PenPreviewShape.line,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: tokens.inkSwatch,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: tokens.hairline),
+                ),
+                child: SizedBox(
+                  width: 62,
+                  height: 26,
+                  child: Center(
+                    child: InkStroke(
+                      style: style.copyWith(
+                        width: style.width.clamp(1.5, 14.0),
+                      ),
+                      size: const Size(48, 18),
+                      shape: ink.PenPreviewShape.line,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

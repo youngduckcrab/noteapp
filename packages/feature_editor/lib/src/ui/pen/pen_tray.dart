@@ -88,8 +88,8 @@ class TrayPen {
 /// the bar.
 ///
 /// (v2.16-ui — 04-editor 24) With [axis] vertical (스튜디오's left rail) the
-/// slots stack top to bottom, the drawings lie pointing right (their backs
-/// in the rail's left wall), the lifted pen slides out to the right, the
+/// slots stack top to bottom, the whole drawings lie pointing right over
+/// their ink strips, the lifted pen slides to the right, the
 /// hover label and the popups open to the right of it.
 class PenTray extends ConsumerWidget {
   const PenTray({
@@ -170,11 +170,15 @@ class PenTray extends ConsumerWidget {
   /// (v2.16-ui review) The ink strip under a vertical slot's drawing.
   static const double railInkHeight = 12;
 
-  /// (v2.16-ui) How much of a lying drawing shows right of the rail's wall,
-  /// resting / lifted (the tip; the back stays in the wall).
-  static const double _railShown = 48;
+  /// (owner review) A vertical slot shows the whole pen, as the 스튜디오
+  /// mockup draws it: [railArtSize] lying pointing right, its back [_railRest]
+  /// from the wall; the pen in the hand slides [_railLift] to the right (a
+  /// clear "this one", its tip still inside the slot).
+  static const Size railArtSize = Size(20, 62);
+  static const double _railRest = 4;
+  static const double _railLift = 7;
   static double railLeftOf({required bool lifted}) =>
-      (lifted ? _railShown + _lift : _railShown) - artSize.height;
+      lifted ? _railRest + _railLift : _railRest;
 
   /// The drawing's size.
   static const Size artSize = Size(26, 80);
@@ -252,8 +256,8 @@ class PenTray extends ConsumerWidget {
             ? lying(
                 EraserArt(
                   key: artKey,
-                  width: artSize.width,
-                  height: artSize.height,
+                  width: _vertical ? railArtSize.width : artSize.width,
+                  height: _vertical ? railArtSize.height : artSize.height,
                 ),
               )
             : _FlatEraser(active: eraserActive, look: look),
@@ -381,8 +385,8 @@ class PenTray extends ConsumerWidget {
                     child: PenArt.of(
                       pen.style,
                       key: artKey,
-                      width: artSize.width,
-                      height: artSize.height,
+                      width: railArtSize.width,
+                      height: railArtSize.height,
                       rimLight: look.rimLight,
                     ),
                   )
@@ -710,13 +714,16 @@ class _TraySlotState extends State<_TraySlot> {
                 duration: const Duration(milliseconds: 160),
                 opacity: up ? 1 : 0,
                 child: Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: Alignment.topLeft,
                   child: Container(
                     margin: EdgeInsets.only(
-                      left: PenTray.railSlotWidth - PenTray._railShown - 26,
+                      left: PenTray.railLeftOf(lifted: true) + 4,
+                      top: widget.inkStyle != null
+                          ? 7
+                          : (widget.slotHeight - 12) / 2,
                     ),
-                    width: PenTray._railShown + 6,
-                    height: 16,
+                    width: PenTray.railArtSize.height - 8,
+                    height: 12,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
@@ -743,8 +750,8 @@ class _TraySlotState extends State<_TraySlot> {
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeOutCubic,
                 top: widget.inkStyle != null
-                    ? 1
-                    : (widget.slotHeight - PenTray.artSize.width) / 2,
+                    ? 3
+                    : (widget.slotHeight - PenTray.railArtSize.width) / 2,
                 left: PenTray.railLeftOf(lifted: up),
                 child: widget.child,
               ),
