@@ -3129,6 +3129,66 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 받지 않은 것: 빠른 펜 미리보기 선(#1A1A1A)이 어두운 미리보기 칸에서 안 보이는 것은 이번 가지 이전부터이고 종이색 토큰은 스타일 트랙 몫. 시험: `test/widget/ui_cleanup_review_test.dart`.
 
+## 22. 펜 그림 · 펜 고르기 창 · 펜 트레이 (2026-11-16, v2.15-ui — UI 전면 개선 제안서 3·4·5단계)
+
+사용자 말 '왜 펜 모양이랑 이런거 하나도 안바뀐거야?'에 답하는 단계. 툴바의 펜 버튼·지우개 버튼과 툴바 아래 프리셋 줄(44 px)을 없애고, 그 자리를 **툴바 한 줄 가운데의 펜 트레이**로 바꿨다. 펜은 아이콘이 아니라 그 펜의 그림(몸통 = 잉크 색)과 실제 잉크 획(`ink.PenPreviewPainter`)으로 보인다. 저장 형식·동기화 키는 그대로(프리셋 = 트레이 펜, 고정 표시 `pinned` 그대로 — 옮길 것 없음). 설계 그림: 제안서 `final_01_editor.png`·`final_01b_editor_quick_pen.png`·`final_02_pen_picker.png`·`final_05_pen_tray_closeup_2x.png`·`final_07_editor_portrait.png`.
+
+### 22.1 펜 그림 (3단계)
+
+| 무엇 | 어디 |
+|---|---|
+| 펜 18종 그림 — 몸통은 잉크 색, 펜촉은 펜마다(볼펜 강철 끝·만년필 금 펜촉·연필 나무·형광펜 빗각·붓·캘리그래피 납작 펜촉·크레파스 종이 띠·분필 점·네온 빛·젤리 투명·무지개 띠·반짝이 점·레이저 빨간 점·암기 테이프 줄무늬) | `ui_kit` `PenArtPainter`(`PenArtKind` — `PenTool`과 같은 이름·순서, 22 너비 설계 공간을 캔버스 폭에 맞춰 늘림), 이미지 파일 없음 |
+| 지우개 그림(흰 고무 + 파란 띠) | `ui_kit` `EraserArtPainter` |
+| 금속·나무·고무 같은 그림 고유 색 | `ui_kit` `PenArtColors`(ui_kit은 색 규칙 검사 밖 — 문서처럼 테마를 따르지 않는 그림 색) |
+| 위젯 | `ui/pen/pen_art_view.dart`: `PenArt`(그림), `EraserArt`, `InkStroke`(실제 획, PencilGrain 객체 그대로), `penArtColorOf`(레이저는 `InkTuning.laserArgb`), `penWidthChoices`(굵기 5개 = 기본 굵기 × 0.55·0.8·1·1.4·1.9, `WidthMapping.snap`), `inkColorName`·`penLabelOf`('만년필 · 남색 2.2pt', 기본 색이 아니면 HEX) |
+| 설정 › 펜의 펜 종류 격자 | 아이콘 대신 그림 윗부분 + 이름, 묶음 필기·질감·꾸미기·발표·공부 도구(`PenTypeSelector`, 키 그대로) |
+
+`penTypeIcon`(아이콘 표)은 쓰는 곳이 없어져 없앴다.
+
+### 22.2 펜 고르기 창 · 빠른 펜 (4단계)
+
+**펜 고르기 창**(`PenSettingsPanel`, `PenSettingsPopup` 그대로): 화면 폭 900 px 이상이면 두 칸(860 px), 아니면 '펜 / 색·굵기' 두 탭(최대 520 px). 1280×800 가로에서 '고급'을 접은 상태로 스크롤 없이 다 보인다(창 높이 약 610 px).
+
+| 왼쪽 '무슨 펜' | 오른쪽 '어떻게 쓸지' |
+|---|---|
+| 카드(그림 + 종이빛 칸 위 실제 획 + 이름, 한 줄 4개) — 필기 8(볼펜·만년필·연필·마커·형광펜·붓펜·캘리그래피·점선) / 질감 4 / 꾸미기 4. 아래 '발표·공부 도구' 칩 둘(레이저 포인터·암기 테이프). 누르면 `selectPenType`(그 종류의 마지막 스타일) | 펜 이름 · 굵기 pt / 큰 미리보기(`PenPreview`, 확대 반영) / '색' 기본 12색(`kBasicColors`, 키 `editor.color.basic.<n>` 그대로) / [스포이드]·[다른 색…](색상환·HEX·내 팔레트가 오른쪽 칸을 바꿔 차지, [← 돌아가기]) / '최근' 한 줄(최대 8) / '굵기' 실제 굵기 획 5개 / 투명도(형광펜·수채·네온·젤리·무지개·반짝이만) / '고급' 접힘(굵기 세밀하게, 필압, 손떨림 보정, 펜촉 각도 등 펜별 줄) / [트레이에 꽂기] |
+
+- **필압 하나로 합침**: 감도 슬라이더 + 곡선 선택 → '필압' 한 줄 `끔 · 약하게 · 보통 · 강하게`(`PressureFeel`: 0 / 0.5 선형 / 1 선형 / 1 firm). 다른 판에서 만든 값(예: 감도 0.7)은 아무 칸도 선택되지 않은 채 그대로 둔다. 설정 › 펜도 같은 위젯(`PenAdvancedControls`). `PressureCurveSelector` 없앰.
+- **[트레이에 꽂기]**: 지금 펜을 고정 프리셋으로 만든다(`createPreset`, 이름 '{펜} {굵기}pt'). 이미 트레이에 있으면 '트레이에 꽂혀 있어요'(꺼짐). 고정 프리셋이 8개면 '트레이에는 8자루까지 꽂을 수 있어요…' 스낵바. 이름·그룹을 고르는 저장 창(`SavePresetDialog`)과 관리 창은 그대로 남는다(관리 창은 빠른 펜 '순서 바꾸기'에서). '툴바에 고정' 글자는 '트레이에 꽂기'.
+- 창은 트레이 아래 가운데에 붙고 화면 안쪽 8 px로 밀린다(`PopupAnchors.penBox` — 트레이의 GlobalKey — 와 `_BelowAnchorLayout`). 빠른 펜·색 팔레트(위치 없이 열 때)도 같다.
+
+**빠른 펜**(`QuickPenPanel`, 400 px): 트레이 펜을 길게 누르면 그 펜으로 바꾸고 바로 아래에 뜬다(`QuickPenPopup.presetId`). 펜 이름 + 실제 획, 색 8개, 굵기 획 5개, 아래 줄 [순서 바꾸기](관리 창) · [트레이에서 빼기](그 프리셋 `pinned: false`, 길게 누른 펜이 프리셋일 때만) · [펜 고르기 ›]. 색·굵기는 지금 펜을 바꾼다(프리셋은 그대로 — 22.3 '지금 펜').
+
+### 22.3 펜 트레이 (5단계)
+
+`ui/pen/pen_tray.dart` `PenTray`. 툴바 높이 52 안에 46 px 받침(1 px 테두리 + 44 px 칸), 칸 44 × 44(누르는 자리 기준 44 — 계약 7.4.8).
+
+- **펜**: 고정 프리셋을 CORE 순서로 최대 8자루(`editorTrayPresetsProvider` — 예전 줄의 그룹 거르기 `editor.presetBar`는 트레이에 메뉴가 없어 적용하지 않는다. 저장 값은 그대로). 지금 펜이 보이는 프리셋과 같으면(`StrokeStyle ==`) 그 펜이, 아니면 맨 끝의 **'지금 펜'**(`editor.tray.current`)이 지금 펜을 보여 준다 — 꽂힌 펜들은 자리가 바뀌지 않는다(칸이 모자라면 마지막 프리셋이 잠깐 빠짐).
+- **들림**: 펜 도구일 때 지금 펜이 위로 들리고(160 ms) 그림자가 진다. 지우개가 도구이면 지우개가 들린다.
+- **누르기**: 펜 → 그 펜(`applyStyle`) / 들린 펜 → 펜 고르기 창 / '지금 펜' → 펜 도구 / 길게 → 빠른 펜 / 지우개 → 지우개, 한 번 더 또는 길게 → 지우개 창.
+- **띄우기**: 스타일러스·마우스를 350 ms 올려 두면 아래에 '만년필 · 남색 2.2pt' 이름표(들린 펜은 '— 한 번 더 누르면 펜 고르기'), `paperBadge` 바탕.
+- **읽기 전용 노트**: 흐리게(0.38), 반응 없음.
+- **스타일마다**(`ui_kit` `PenTrayStyle.of(StyleTokens)` — 새 토큰 없이 스타일·밝기로 정함): 크래프트 = 따뜻한 오목 받침(밝게 #D9D0C1→#E9E2D6, 어둡게 짙은 나무색) + 펜 그림 / 미니멀 = 받침 없이 납작한 잉크 획 칩(그림 없음, 들린 칩은 종이빛 칸 + 강조색 막대, 어두운 판에서는 모든 칩이 종이빛 칸) / 스튜디오 = 밝기와 상관없이 어둡고 차가운 띠(레일 느낌) + 펜 그림.
+- 키: 지금 펜 칸 `editor.toolbar.pen`(그대로 — 그 칸을 감쌈), 지우개 `editor.toolbar.eraser`(그대로), 트레이 `editor.tray`, 프리셋 칸 `editor.tray.pen.<id>`, 이름표 `editor.tray.hoverLabel`.
+
+### 22.4 툴바 한 줄
+
+[←] (제목 [100%] [☁]) [🔍] [▤] **[트레이: 펜들 │ 지우개]** [올가미] [도형] [텍스트] │ [+] ([🎤]) │ [↶] [↷] │ [⋯]
+
+- **수식 펜·텍스트 펜·녹음은 [+]로**: '수식 쓰기'(`editor.insert.math`, 수식 펜 도구), '손글씨를 텍스트로'(그대로 — 선택이 없으면 텍스트 펜 도구), '녹음'(`editor.insert.recording`, 녹음 칸 열고 닫기). [+]는 수식 펜·텍스트 펜이 도구일 때 눌린 모양. [🎤]는 이 노트가 녹음 중이거나 녹음 칸이 열려 있을 때만 줄에 나온다(빨간 점 그대로). `InsertMenu.hasItems(mathPen:, recording:)`.
+- **폭에 따라 빠지는 순서**(`EditorToolbar.planFor` → `ToolbarPlan`): 펜 8 + 🔍 + 제목(≥ 160) → 펜 5 + 🔍 + 제목 → 펜 5 + 🔍 → 펜 5 → 펜 3 → (그래도 모자라면, 약 720 px 미만 분할 화면) [도형][텍스트][+]가 [⋯도구]로 → 옆 스크롤. 1280: 8자루·제목·🔍, 1032: 5자루·제목, 800(안드로이드 세로): 5자루, 제목과 🔍는 ⋯로. 올가미·도형·텍스트·삽입은 720 px 이상에서 접히지 않는다. 제목이 없을 때도 유연한 칸은 36 px를 남겨 ☁(좁으면 36 px 폭)가 늘 보인다. [100%]·[⌃]는 남는 자리가 있을 때만(☁ → [100%] → [⌃] 순) — 넘침이 없다. 예전 `foldWidth`·`titleMinWidth`·`foldedSearchMinWidth`·`EditorToolbar.mathKey`·`.textPenKey` 없앰(⋯도구 안의 `editor.toolbar.math`·`.textPen` 줄은 그대로).
+- 다른 트랙(아이콘)이 도구 단추 모양·이름을 바꾸면 `fixedWidth`의 48 px 가정을 그 폭으로 맞춘다.
+
+### 22.5 떠 있는 팔레트 · 메뉴 숨기기
+
+'팔레트로 떼어내기'(⋯에만)는 이제 **트레이**를 툴바에서 떼어 낸다: 툴바에서 트레이가 빠지고, 둥근 단추(지금 펜 그림, 펜 도구면 강조색 테두리)를 누르면 같은 `PenTray`(남는 폭만큼 3~8자루)와 [메뉴에 다시 붙이기]가 뜬다. 펜을 바꾸면 닫힌다. 프리셋 줄의 [+]·[⚙]·[🎨]와 `PaletteDetachButton`·`PenPalette.addKey`·`.manageKey`·`.chipKey`·`.emptyKey`는 없앴다. `EditorChrome.handleBack`(찾기 → 팔레트 → 숨긴 메뉴 순)·메뉴 숨기기·알약은 그대로 — 숨기면 툴바 한 줄만 올라간다.
+
+### 22.6 시험 · 그림
+
+- `test/widget/pen_tray_test.dart`(예전 `preset_bar_test`): 기본 5자루 그림·색·순서, 지우개 오른쪽 끝, 누르기·들림·'지금 펜'·들린 펜 → 창, 길게 → 빠른 펜(색·굵기·트레이에서 빼기·펜 고르기), [트레이에 꽂기]·8자루 한도, 그룹 거르기 무시, 빈 트레이, 저장 창·관리 창(그대로), 읽기 전용, 쓰기 실패, 창 위치.
+- `toolbar_width_test`(`planFor` 표 + 720~1280 넘침 없음), `pen_types_v2_test`(카드 묶음·그림·획), `pen_settings_panel_test`(필압 한 줄, 고급 안의 굵기 슬라이더, 투명도 펜), `style_theme_test`(스타일마다 트레이 모양), `editor_chrome_test`(떼어낸 트레이), `math_pen_test`·`text_pen_test`([+] 줄), `toolbar_test`·`note_search_test`·`ui_cleanup_review_test`(폭 표).
+- 부록 C 키: 없앤 키 `editor.presetBar*`, `editor.palette.add/manage/empty/chip.*`, `editor.pen.sensitivity`, `editor.pen.curve*`, `editor.popup.penSettings.saveAsPreset`; 새 키 `editor.tray`, `editor.tray.current`, `editor.tray.pen.<id>`, `editor.tray.hoverLabel`, `editor.insert.math`, `editor.insert.recording`, `editor.popup.penSettings.pin`, `.otherColor`, `.tab.pen`/`.tab.style`, `editor.pen.widthChoice.<n>`, `editor.pen.pressure(.<feel>)`, `editor.quickPen.reorder/unpin/picker/color.<n>/width.<n>`. 앱 시나리오(`smoke_v2_scenario`)의 녹음은 [+] › 녹음으로.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)
