@@ -110,7 +110,8 @@ Future<void> indexNoteNow(HandwritingIndexer indexer, core.NoteId noteId) =>
     indexer._indexNoteNow(noteId);
 
 /// (internal, in-note search) Pages of [noteId] still to recognize: queued,
-/// waiting for their quiet time, or in the running job.
+/// waiting for their quiet time, parked after too many drops in a row, or in
+/// the running job.
 int pendingPagesOfNote(HandwritingIndexer indexer, core.NoteId noteId) =>
     indexer._pendingOf(noteId);
 
@@ -218,6 +219,9 @@ final class HandwritingIndexer {
   final Map<core.PageId, Timer> _quiet = {};
   final Map<core.PageId, core.NoteId> _quietNotes = {};
   final Map<core.PageId, Timer> _deferred = {};
+
+  /// The note of each [_deferred] page (pendingPagesOfNote counts them).
+  final Map<core.PageId, core.NoteId> _deferredNotes = {};
   final Map<core.PageId, int> _dropsInRow = {};
 
   /// pageId → sourceRev that failed in the engine or in the CORE write.
@@ -465,7 +469,7 @@ final class HandwritingIndexer {
   /// a job of that page is dropped (it waits again).
   void _markDirty(core.NoteId noteId, core.PageId pageId, Duration quiet) {
     _queue.remove(pageId);
-    _deferred.remove(pageId)?.cancel();
+    _cancelDeferred(pageId);
     _quiet.remove(pageId)?.cancel();
     _quietNotes[pageId] = noteId;
     _quiet[pageId] = Timer(quiet, () => _onQuiet(pageId));
@@ -535,6 +539,10 @@ final class HandwritingIndexer {
     for (final id in _quietNotes.values) {
       if (id == noteId) n++;
     }
+    // A page parked after too many drops in a row is still to be read.
+    for (final id in _deferredNotes.values) {
+      if (id == noteId) n++;
+    }
     if (_job?.noteId == noteId) n++;
     return n;
   }
@@ -553,7 +561,7 @@ final class HandwritingIndexer {
     _queue.remove(pageId);
     _quiet.remove(pageId)?.cancel();
     _quietNotes.remove(pageId);
-    _deferred.remove(pageId)?.cancel();
+    _cancelDeferred(pageId);
     _dropsInRow.remove(pageId);
     _failed.remove(pageId);
     final job = _job;
@@ -578,9 +586,11 @@ final class HandwritingIndexer {
     if (drops >= IndexerTuning.maxDropsInRow) {
       _dropsInRow.remove(pageId);
       final noteId = job.noteId;
-      _deferred.remove(pageId)?.cancel();
+      _cancelDeferred(pageId);
+      _deferredNotes[pageId] = noteId;
       _deferred[pageId] = Timer(IndexerTuning.dropDeferral, () {
         _deferred.remove(pageId);
+        _deferredNotes.remove(pageId);
         if (!_active) return;
         _queue.add(noteId, pageId, QueueLane.ready);
         _publish();
@@ -591,6 +601,11 @@ final class HandwritingIndexer {
       _queue.add(job.noteId, pageId, QueueLane.front);
     }
     return true;
+  }
+
+  void _cancelDeferred(core.PageId pageId) {
+    _deferred.remove(pageId)?.cancel();
+    _deferredNotes.remove(pageId);
   }
 
   void _dropJob() {
@@ -615,6 +630,7 @@ final class HandwritingIndexer {
     _quiet.clear();
     _quietNotes.clear();
     _deferred.clear();
+    _deferredNotes.clear();
     _queue.clear();
     _dropsInRow.clear();
   }

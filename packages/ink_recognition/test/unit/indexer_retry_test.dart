@@ -175,6 +175,38 @@ void main() {
     h.dispose();
   });
 
+  indexerTest('(in-note search) a page parked after 5 drops in a row still '
+      'counts as pending for its note', (async) {
+    final h = IndexerHarness(
+      async,
+      recognizer: FakeHandwritingRecognizer(
+        latency: const Duration(milliseconds: 100),
+      ),
+    );
+    h.addStrokes(h.lines());
+    h.elapse(IndexerTuning.localQuiet);
+    for (var i = 0; i < IndexerTuning.maxDropsInRow; i++) {
+      h.elapseMs(50); // a line in flight
+      h.put(
+        core.HandwritingText(
+          noteId: h.note.id,
+          pageId: h.pageId,
+          engineId: 'sheet:ko',
+          sourceRev: 'drop$i',
+          lines: const [],
+          createdAt: 1,
+        ),
+      );
+      h.elapseMs(50); // dropped
+    }
+    // Parked for dropDeferral: not in the queue, not quiet, no job.
+    expect(h.status.queuedPages, 1);
+    expect(pendingPagesOfNote(h.indexer, h.note.id), 1);
+    h.elapse(IndexerTuning.dropDeferral + const Duration(seconds: 1));
+    expect(pendingPagesOfNote(h.indexer, h.note.id), 0);
+    h.dispose();
+  });
+
   indexerTest('(in-note search) indexNoteNow queues a stale page of the note '
       'that nothing else would queue', (async) {
     final h = IndexerHarness(

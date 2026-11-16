@@ -26,6 +26,7 @@ import '../stylus/stylus_extras_listener.dart';
 import '../text/text_box_editor.dart';
 import '../text/text_edit_session.dart';
 import '../text/text_input_sheet.dart';
+import '../tools/interaction_host.dart';
 import '../ui/dev/dev_overlay.dart';
 import '../ui/overlays/add_page_button.dart';
 import '../ui/overlays/context_menu.dart';
@@ -128,6 +129,39 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     // (v2, 6.11.3 '탭 묶음') only while a session is open — else the 1st
     // round (other text fields' onTapOutside on a canvas down).
     final editing = ref.watch(editorTextEditProvider.select((s) => s != null));
+    // (v2.13-search, review) '노트에서 찾기' sits BESIDE the pages, not over
+    // them: the viewport narrows while it is open (zoom kept relative to fit
+    // width), so a hit on the right half of a page is never under the panel.
+    return LayoutBuilder(
+      builder: (context, outer) => Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _buildViewport(
+              context,
+              viewport,
+              router,
+              host,
+              camera,
+              scheme,
+              editing,
+            ),
+          ),
+          NoteSearchPanel(width: NoteSearchPanel.widthFor(outer.maxWidth)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewport(
+    BuildContext context,
+    ViewportController viewport,
+    InputRouter router,
+    InteractionHost host,
+    Listenable camera,
+    ColorScheme scheme,
+    bool editing,
+  ) {
     return ColoredBox(
       color: scheme.surfaceContainer,
       child: LayoutBuilder(
@@ -201,8 +235,6 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               const PageIndicator(),
               const EyedropperBanner(),
               const PagePanel(),
-              // (v2.13-search) '노트에서 찾기' (17).
-              const NoteSearchPanel(),
               // (v2, E2-01) Sheet-mode text input at the top (6.11.6 A).
               const TextInputSheet(),
               const DevOverlay(),

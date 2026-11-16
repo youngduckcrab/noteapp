@@ -19,6 +19,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import 'scope/editor_scope.dart';
+import 'state/note_search.dart';
 import 'text/text_edit_session.dart';
 import 'ui/editor_body.dart';
 import 'ui/editor_strings.dart';
@@ -173,7 +174,14 @@ class _EditorRootState extends ConsumerState<EditorRoot> {
     return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) unawaited(_close());
+        if (didPop) return;
+        // (v2.13-search, review) An open '노트에서 찾기' closes first, as an
+        // open search does on Android; the next back leaves the note.
+        if (ref.read(editorNoteSearchProvider).isOpen) {
+          ref.read(editorNoteSearchProvider.notifier).close();
+          return;
+        }
+        unawaited(_close());
       },
       child: Stack(
         fit: StackFit.expand,

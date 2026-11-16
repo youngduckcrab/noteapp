@@ -1,9 +1,12 @@
 // lib/src/ui/search/note_search_panel.dart — (v2.13-search) m5-7/04-editor
 // 17: the in-note search panel ('노트에서 찾기').
 //
-// A right overlay over the page viewport (the viewport keeps its size and
-// zoom, like the page panel on the left): the query field (focused when the
-// panel opens), the handwriting hint (NoteSearchInkHint — the library's
+// A right column BESIDE the page viewport (review: as an overlay it hid
+// every hit on the right ~40 % of a portrait page — the viewport now narrows
+// while it is open, so the camera can show any hit): the query field
+// (focused when the panel opens — its own FocusNode, asked after the frame,
+// since the canvas holds focus in the same scope and autofocus alone did
+// nothing), the handwriting hint (NoteSearchInkHint — the library's
 // sentences), and one result per page in page order: "n쪽 · 손글씨" + the
 // snippet with the match in bold. A tap goes to the page with the matched
 // rects in view (EditorCommands.navigateToPage → position flash) and keeps
@@ -20,9 +23,17 @@ import '../../state/note_search.dart';
 import '../editor_strings.dart';
 
 class NoteSearchPanel extends ConsumerWidget {
-  const NoteSearchPanel({super.key});
+  const NoteSearchPanel({super.key, required this.width});
+
+  /// Its width while open (nothing while closed).
+  final double width;
 
   static const double maxWidth = 360;
+
+  /// The panel's width beside a viewport area [total] wide: at most
+  /// [maxWidth], and at most 45 % so the pages keep the larger part.
+  static double widthFor(double total) =>
+      total.isFinite ? math.min(maxWidth, total * 0.45) : maxWidth;
 
   static const panelKey = ValueKey('editor.noteSearch');
   static const fieldKey = ValueKey('editor.noteSearch.field');
@@ -30,6 +41,8 @@ class NoteSearchPanel extends ConsumerWidget {
   static const listKey = ValueKey('editor.noteSearch.list');
   static const emptyKey = ValueKey('editor.noteSearch.empty');
   static const countKey = ValueKey('editor.noteSearch.count');
+  static const truncatedKey = ValueKey('editor.noteSearch.truncated');
+  static const pdfTipKey = ValueKey('editor.noteSearch.pdfTip');
 
   static ValueKey<String> resultKey(String pageId) =>
       ValueKey('editor.noteSearch.result.$pageId');
@@ -38,22 +51,15 @@ class NoteSearchPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final open = ref.watch(editorNoteSearchProvider.select((s) => s.isOpen));
     if (!open) return const SizedBox.shrink();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = math.min(maxWidth, constraints.maxWidth * 0.6);
-        return Align(
-          alignment: Alignment.centerRight,
-          child: SizedBox(
-            width: width,
-            height: constraints.maxHeight,
-            child: const Material(
-              key: panelKey,
-              elevation: 2,
-              child: _PanelBody(),
-            ),
-          ),
-        );
-      },
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: scheme.outlineVariant)),
+        ),
+        child: const Material(key: panelKey, child: _PanelBody()),
+      ),
     );
   }
 }
@@ -69,14 +75,29 @@ class _PanelBodyState extends ConsumerState<_PanelBody> {
   late final TextEditingController _field = TextEditingController(
     text: ref.read(editorNoteSearchProvider).query,
   );
+  final FocusNode _focus = FocusNode(debugLabel: 'editor.noteSearch.field');
+
+  @override
+  void initState() {
+    super.initState();
+    // After the frame: the more menu closing gives focus back to the canvas
+    // (EditorCanvasFocus) first — TextField.autofocus does nothing then.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _field.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
   void _go(NoteSearchResult result) {
+    // The keyboard goes down so the page can be seen (a finger tap on the
+    // list does not unfocus the field by itself on Android).
+    _focus.unfocus();
     ref.read(editorNoteSearchProvider.notifier).select(result.pageId);
     ref
         .read(editorCommandsProvider)
@@ -103,7 +124,7 @@ class _PanelBodyState extends ConsumerState<_PanelBody> {
                 child: TextField(
                   key: NoteSearchPanel.fieldKey,
                   controller: _field,
-                  autofocus: true,
+                  focusNode: _focus,
                   textInputAction: TextInputAction.search,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
@@ -143,13 +164,19 @@ class _PanelBodyState extends ConsumerState<_PanelBody> {
             padding: const EdgeInsets.all(16),
             child: Text(EditorStrings.noteSearchFailed, style: muted),
           )
-        else if (search.results.isEmpty && !search.searching)
+        else if (search.results.isEmpty && !search.searching) ...[
           Padding(
             key: NoteSearchPanel.emptyKey,
             padding: const EdgeInsets.all(16),
             child: Text(EditorStrings.noteSearchNoResults, style: muted),
-          )
-        else ...[
+          ),
+          if (_hasPdfPage(ref))
+            Padding(
+              key: NoteSearchPanel.pdfTipKey,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Text(EditorStrings.noteSearchPdfTip, style: muted),
+            ),
+        ] else ...[
           if (search.results.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -157,6 +184,17 @@ class _PanelBodyState extends ConsumerState<_PanelBody> {
                 EditorStrings.noteSearchCount(search.results.length),
                 key: NoteSearchPanel.countKey,
                 style: theme.textTheme.labelMedium,
+              ),
+            ),
+          if (search.truncated)
+            Padding(
+              key: NoteSearchPanel.truncatedKey,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text(
+                EditorStrings.noteSearchTruncated(search.results.length),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           Expanded(
@@ -179,6 +217,13 @@ class _PanelBodyState extends ConsumerState<_PanelBody> {
     );
   }
 }
+
+/// A page of the note shows a PDF: its text is found here only once the
+/// PDF indexer has read it — 'PDF에서 찾기' reads it live.
+bool _hasPdfPage(WidgetRef ref) => ref
+    .read(editorSessionValueProvider)
+    .pages
+    .any((p) => p.background is core.PdfBackground);
 
 IconData _sourceIcon(core.SearchSource source) => switch (source) {
   core.SearchSource.ink => Icons.draw_outlined,

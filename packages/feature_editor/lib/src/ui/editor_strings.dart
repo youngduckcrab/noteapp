@@ -742,6 +742,10 @@ abstract final class EditorStrings {
   static const noteSearchClose = '찾기 닫기';
   static const noteSearchEmptyQuery = '이 노트의 손글씨, 텍스트 상자, 수식, PDF 글자를 찾아요';
   static const noteSearchNoResults = '찾는 내용이 없어요';
+  static const noteSearchPdfTip =
+      '방금 가져온 PDF라면 글자를 아직 읽는 중일 수 있어요. 더보기의 \'PDF에서 찾기\'로도 찾아 보세요';
+  static String noteSearchTruncated(int pages) =>
+      '결과가 많아서 가장 잘 맞는 $pages쪽만 보여요';
   static const noteSearchFailed = '검색하지 못했어요';
   static String noteSearchCount(int pages) => '$pages쪽에서 찾았어요';
   static String noteSearchPage(int pageNumber) => '$pageNumber쪽';

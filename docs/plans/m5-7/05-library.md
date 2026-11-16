@@ -2393,6 +2393,7 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 - `changes`: 상태를 다시 계산할 때마다 울림(전체 상태가 같아도 한 노트의 개수가 바뀔 수 있음).
 - INFRA 어댑터 `editorInkSearchOf`(`app/lib/src/modules/recognition_wiring.dart`), `ShellContribution.editorInkSearch` → `editorInkSearchProvider`.
 - 시험: `indexer_retry_test.dart`(이 노트 먼저, 따라잡기가 넣지 않은 낡은 쪽), `search_readiness_test.dart`(노트별 개수·`changes`).
+- (검토 반영) 연달아 5번 버려져 `dropDeferral`(30 s) 동안 쉬는 쪽도 그 노트의 남은 쪽으로 센다(쉬는 쪽의 노트를 따로 기억 — 전에는 '준비됨'으로 보여 안내 줄이 사라졌다). 한 번이라도 찾기를 마친 노트는 검색어마다 다시 찾는 동안 '읽는 중(0쪽)'으로 깜빡이지 않고 마지막 답을 유지한다. 시험 각 1개.
 
 ### 6.20 A-4 품질 실험 준비 (`lab/`)
 

@@ -334,6 +334,12 @@ void main() {
     expect(r.statusOfNote(mine).phase, HandwritingSearchPhase.ready);
     expect(r.statusOfNote(other).phase, HandwritingSearchPhase.indexing);
     expect(_phase(r), HandwritingSearchPhase.indexing);
+    // A new query asks again: while that lookup runs the answer stays ready
+    // (the hint does not flash 'indexing' on every query).
+    r.searchOpenedInNote(mine);
+    expect(r.statusOfNote(mine).phase, HandwritingSearchPhase.ready);
+    await _settle(tester);
+    expect(r.statusOfNote(mine).phase, HandwritingSearchPhase.ready);
     await tester.pump(const Duration(seconds: 3));
     await _settle(tester);
     expect(r.statusOfNote(other).phase, HandwritingSearchPhase.ready);

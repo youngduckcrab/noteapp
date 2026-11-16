@@ -146,9 +146,14 @@ final class HandwritingSearchReadiness {
   /// Notes whose stale pages [searchOpenedInNote] is still looking up.
   final Map<core.NoteId, int> _noteLookups = {};
 
+  /// Notes with at least one finished lookup: a later lookup (every applied
+  /// query asks again) keeps their last answer instead of 'indexing'
+  /// (no flicker of the hint while the library indexes other notes).
+  final Set<core.NoteId> _notesLookedUp = {};
+
   /// (in-note search — 6.19b) [status] for the search inside note [noteId]:
   /// 'indexing' counts that note's pages only (0 while its stale pages are
-  /// still being looked up); ready when none of them is left.
+  /// looked up for the first time); ready when none of them is left.
   HandwritingSearchStatus statusOfNote(core.NoteId noteId) {
     final s = _status.value;
     if (_disposed || s.phase != HandwritingSearchPhase.indexing) return s;
@@ -160,7 +165,7 @@ final class HandwritingSearchReadiness {
         confirmCellularFirst: s.confirmCellularFirst,
       );
     }
-    if ((_noteLookups[noteId] ?? 0) > 0) {
+    if ((_noteLookups[noteId] ?? 0) > 0 && !_notesLookedUp.contains(noteId)) {
       return HandwritingSearchStatus(
         phase: HandwritingSearchPhase.indexing,
         confirmCellularFirst: s.confirmCellularFirst,
@@ -182,6 +187,7 @@ final class HandwritingSearchReadiness {
     unawaited(
       indexNoteNow(_indexer, noteId).whenComplete(() {
         if (_disposed) return;
+        _notesLookedUp.add(noteId);
         final n = (_noteLookups[noteId] ?? 1) - 1;
         if (n <= 0) {
           _noteLookups.remove(noteId);

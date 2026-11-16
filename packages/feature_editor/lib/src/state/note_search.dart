@@ -33,7 +33,8 @@ const Duration kNoteSearchDebounce = Duration(milliseconds: 250);
 /// After the last content change of the note while the search is open.
 const Duration kNoteSearchRequeryQuiet = Duration(seconds: 1);
 
-/// At most this many pages are listed.
+/// At most this many pages are listed (CORE keeps the best-scoring ones;
+/// NoteSearchState.truncated says when more matched).
 const int kNoteSearchLimit = 300;
 
 /// One page's hit, in this note's page order.
@@ -103,6 +104,7 @@ final class NoteSearchState {
     this.searching = false,
     this.failed = false,
     this.selectedPageId,
+    this.truncated = false,
   });
 
   final bool isOpen;
@@ -120,6 +122,10 @@ final class NoteSearchState {
   /// The result the user went to (highlighted strongest), or null.
   final String? selectedPageId;
 
+  /// More pages matched than the limit: [results] are the best-scoring ones
+  /// (in page order — pages between them may be missing).
+  final bool truncated;
+
   NoteSearchResult? get selected =>
       results.firstWhereOrNull((r) => r.pageId == selectedPageId);
 
@@ -130,6 +136,7 @@ final class NoteSearchState {
     bool? searching,
     bool? failed,
     String? Function()? selectedPageId,
+    bool? truncated,
   }) => NoteSearchState(
     isOpen: isOpen ?? this.isOpen,
     query: query ?? this.query,
@@ -139,6 +146,7 @@ final class NoteSearchState {
     selectedPageId: selectedPageId != null
         ? selectedPageId()
         : this.selectedPageId,
+    truncated: truncated ?? this.truncated,
   );
 
   static const _results = ListEquality<NoteSearchResult>();
@@ -151,7 +159,8 @@ final class NoteSearchState {
       _results.equals(other.results, results) &&
       other.searching == searching &&
       other.failed == failed &&
-      other.selectedPageId == selectedPageId;
+      other.selectedPageId == selectedPageId &&
+      other.truncated == truncated;
 
   @override
   int get hashCode => Object.hash(
@@ -161,6 +170,7 @@ final class NoteSearchState {
     searching,
     failed,
     selectedPageId,
+    truncated,
   );
 
   @override
@@ -176,6 +186,11 @@ class NoteSearchNotifier extends Notifier<NoteSearchState> {
   int _generation = 0;
   StreamSubscription<core.ChangeBatch>? _changes;
   StreamSubscription<core.SearchIndexStatus>? _status;
+  core.SearchIndexStatus? _lastStatus;
+
+  /// The page limit of a query ([kNoteSearchLimit]; tests lower it).
+  @visibleForTesting
+  static int limit = kNoteSearchLimit;
 
   @override
   NoteSearchState build() {
@@ -196,6 +211,7 @@ class NoteSearchNotifier extends Notifier<NoteSearchState> {
     unawaited(_status?.cancel());
     _changes = null;
     _status = null;
+    _lastStatus = null;
   }
 
   /// Opens the search (the query and its results are kept from the last
@@ -209,7 +225,7 @@ class NoteSearchNotifier extends Notifier<NoteSearchState> {
     _status = ref
         .read(core.searchIndexProvider)
         .status
-        .listen((_) => _scheduleRequery(), onError: (Object _) {});
+        .listen(_onStatus, onError: (Object _) {});
     if (state.query.trim().isNotEmpty) _run();
   }
 
@@ -237,6 +253,7 @@ class NoteSearchNotifier extends Notifier<NoteSearchState> {
         results: const [],
         searching: false,
         failed: false,
+        truncated: false,
         selectedPageId: () => null,
       );
       return;
@@ -273,6 +290,20 @@ class NoteSearchNotifier extends Notifier<NoteSearchState> {
     if (touches) _scheduleRequery();
   }
 
+  /// (review) Only a status that can mean new rows asks again: fewer owners
+  /// waiting (something was written) or a rebuild that ended — not the
+  /// value the stream replays on listen, nor every count change of a
+  /// library catch-up that only grows.
+  void _onStatus(core.SearchIndexStatus status) {
+    final last = _lastStatus;
+    _lastStatus = status;
+    if (last == null) return;
+    if (status.pendingOwners < last.pendingOwners ||
+        (last.rebuilding && !status.rebuilding)) {
+      _scheduleRequery();
+    }
+  }
+
   void _scheduleRequery() {
     if (!state.isOpen || state.query.trim().isEmpty) return;
     _requery?.cancel();
@@ -291,16 +322,21 @@ class NoteSearchNotifier extends Notifier<NoteSearchState> {
     final index = ref.read(core.searchIndexProvider);
     unawaited(
       index
-          .searchPages(query, limit: kNoteSearchLimit, withinNote: noteId)
+          .searchPages(query, limit: limit + 1, withinNote: noteId)
           .then(
             (hits) {
               if (generation != _generation) return;
-              final results = _resultsOf(hits);
+              // Best score first: one more than the limit says "more".
+              final truncated = hits.length > limit;
+              final results = _resultsOf(
+                truncated ? hits.sublist(0, limit) : hits,
+              );
               final selected = state.selectedPageId;
               state = state.copyWith(
                 results: results,
                 searching: false,
                 failed: false,
+                truncated: truncated,
                 selectedPageId: () =>
                     results.any((r) => r.pageId == selected) ? selected : null,
               );

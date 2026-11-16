@@ -81,6 +81,10 @@ class EditorToolbar extends ConsumerWidget {
   /// badge) scrolls sideways instead of overflowing.
   static const double scrollWidth = 680;
 
+  /// (v2.13-search) The folded toolbar (≈ 660 px with the sync badge) + the
+  /// 48 px [🔍] + slack: from here it shows [🔍] without scrolling.
+  static const double foldedSearchMinWidth = 720;
+
   static const backKey = ValueKey('editor.toolbar.back');
   static const penKey = ValueKey('editor.toolbar.pen');
   static const eraserKey = ValueKey('editor.toolbar.eraser');
@@ -89,8 +93,10 @@ class EditorToolbar extends ConsumerWidget {
   static const titleKey = ValueKey('editor.toolbar.title');
   static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
-  /// (v2.13-search) [🔍] '노트에서 찾기' — from [titleMinWidth] (narrower: the
-  /// more menu's first item).
+  /// (v2.13-search) [🔍] '노트에서 찾기' — from [titleMinWidth], and in the
+  /// folded toolbar from [foldedSearchMinWidth] (review: Android tablets in
+  /// portrait are about 800 wide). Between foldWidth and titleMinWidth the
+  /// unfolded buttons leave no room: the more menu's first item has it.
   static const noteSearchKey = ValueKey('editor.toolbar.noteSearch');
 
   /// (v2) Appendix C.
@@ -151,7 +157,8 @@ class EditorToolbar extends ConsumerWidget {
                   )
                 else if (!scroll)
                   const Spacer(),
-                if (constraints.maxWidth >= titleMinWidth)
+                if (constraints.maxWidth >= titleMinWidth ||
+                    (fold && constraints.maxWidth >= foldedSearchMinWidth))
                   const _NoteSearchButton(),
                 const _PagePanelButton(),
                 const _Divider(),
