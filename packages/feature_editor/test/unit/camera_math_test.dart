@@ -407,16 +407,34 @@ void main() {
       expect((roomTop + roomBottom) / 2, closeTo(content / 2, 1e-6));
     });
 
-    test('a horizontal layout ignores it', () {
+    test('a horizontal layout fits the page under it and centres it in '
+        'the room below (review)', () {
       final paged = PageLayout.compute(
         pageSizes: List.filled(3, a4),
         axis: LayoutAxis.horizontal,
       );
-      final pfit = CameraMath.fitScale(paged, viewport);
+      const inset = 80.0;
+      final plain = CameraMath.fitScale(paged, viewport);
+      final pfit = CameraMath.fitScale(paged, viewport, leadingInset: inset);
+      expect(pfit, lessThan(plain));
       final cam = ViewportCamera(scale: pfit, origin: const Offset(100, -40));
+      final c = CameraMath.clamp(
+        cam,
+        paged,
+        viewport,
+        pfit,
+        leadingInset: inset,
+      );
+      final page = paged.rectOf(0);
+      final top = c.docToScreen(page.topLeft).dy;
+      final bottom = c.docToScreen(page.bottomLeft).dy;
+      expect(top, greaterThanOrEqualTo(inset));
+      expect(bottom, lessThanOrEqualTo(viewport.height));
+      expect(top - inset, closeTo(viewport.height - bottom, 0.5));
+      // Without an inset nothing changes.
       expect(
-        CameraMath.clamp(cam, paged, viewport, pfit, leadingInset: 80),
-        CameraMath.clamp(cam, paged, viewport, pfit),
+        CameraMath.clamp(cam, paged, viewport, plain, leadingInset: 0),
+        CameraMath.clamp(cam, paged, viewport, plain),
       );
     });
   });

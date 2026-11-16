@@ -48,7 +48,7 @@ class EditorFloatingLayer extends ConsumerWidget {
     final detached = ref.watch(
       editorDeviceStateProvider.select((s) => s.paletteDetached),
     );
-    final bar = EditorShellScope.maybeOf(context)?.floatingBar;
+    final bar = EditorShellScope.floatingBarOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final area = constraints.biggest;

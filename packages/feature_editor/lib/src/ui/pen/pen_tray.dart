@@ -167,6 +167,9 @@ class PenTray extends ConsumerWidget {
   static double heightFor(int pens) =>
       2 * _padding + 2 + pens * height + _divider + height;
 
+  /// (v2.16-ui review) The ink strip under a vertical slot's drawing.
+  static const double railInkHeight = 12;
+
   /// (v2.16-ui) How much of a lying drawing shows right of the rail's wall,
   /// resting / lifted (the tip; the back stays in the wall).
   static const double _railShown = 48;
@@ -187,9 +190,6 @@ class PenTray extends ConsumerWidget {
     final anchors = PopupHost.maybeAnchorsOf(context);
     // An open popup of the tray places itself again after this build.
     anchors?.scheduleTrayMoved();
-    // (v2.16-ui) Its popups open beside a vertical tray (only one tray is
-    // mounted at a time).
-    anchors?.trayAxis = axis;
     final tokens = StyleTokens.of(context);
     final look = PenTrayStyle.of(tokens);
     // (v2.15-ui review) A stored 수식 펜 / 텍스트 펜 without its slot draws
@@ -324,12 +324,13 @@ class PenTray extends ConsumerWidget {
       container: true,
       explicitChildNodes: true,
       label: EditorStrings.penTray,
-      child: KeyedSubtree(
-        key: anchors?.penBox,
-        child: CompositedTransformTarget(
+      child: _anchorBox(
+        anchors?.penBox,
+        CompositedTransformTarget(
           link: anchors?.pen ?? LayerLink(),
           child: tray,
         ),
+        beside: _vertical,
       ),
     );
   }
@@ -372,6 +373,7 @@ class PenTray extends ConsumerWidget {
         if (!pen.isLoose && !isCurrent) controller.applyStyle(pen.style);
         popups.open(QuickPenPopup(globalPosition: at, presetId: pen.presetId));
       },
+      inkStyle: _vertical && look.hasWell ? pen.style : null,
       child: look.hasWell
           ? (_vertical
                 ? RotatedBox(
@@ -484,15 +486,26 @@ class _StrokeChip extends StatelessWidget {
             width: 40,
             height: 32,
             decoration: BoxDecoration(
-              color: plate
-                  ? look.chipPlate
-                  : active
-                  ? look.chipActiveFill
-                  : look.chipFill,
+              color: active ? look.chipActiveFill : look.chipFill,
               borderRadius: BorderRadius.circular(9),
             ),
             alignment: Alignment.center,
-            child: !multiplies && look.needsEdge(inkColor)
+            // (v2.16-ui review) A dark ink's plate is a soft capsule just
+            // behind the stroke, not a bright tile (five of them shouted on
+            // the dark pill).
+            child: plate
+                ? DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: look.chipPlate,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: SizedBox(
+                      width: 36,
+                      height: 22,
+                      child: Center(child: stroke),
+                    ),
+                  )
+                : !multiplies && look.needsEdge(inkColor)
                 ? Stack(
                     alignment: Alignment.center,
                     children: [
@@ -595,7 +608,12 @@ class _TraySlot extends StatefulWidget {
     required this.onTap,
     required this.onLongPress,
     required this.child,
+    this.inkStyle,
   });
+
+  /// (v2.16-ui review) A vertical slot's pen: its ink strip under the
+  /// drawing (the real colour and width — what tells the pens apart).
+  final core.StrokeStyle? inkStyle;
 
   /// A GlobalKey on the slot's box (the eraser popup is placed by it).
   final GlobalKey? boxKey;
@@ -712,10 +730,21 @@ class _TraySlotState extends State<_TraySlot> {
                   ),
                 ),
               ),
+              // (review) The ink strip: the stroke this pen writes.
+              if (widget.inkStyle case final ink?)
+                Positioned(
+                  left: 10,
+                  right: 6,
+                  bottom: 3,
+                  height: PenTray.railInkHeight,
+                  child: _RailInkStrip(style: ink),
+                ),
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeOutCubic,
-                top: (widget.slotHeight - PenTray.artSize.width) / 2,
+                top: widget.inkStyle != null
+                    ? 1
+                    : (widget.slotHeight - PenTray.artSize.width) / 2,
                 left: PenTray.railLeftOf(lifted: up),
                 child: widget.child,
               ),
@@ -830,11 +859,14 @@ class _TraySlotState extends State<_TraySlot> {
                 ),
               ),
             ),
-            child: SizedBox(
-              key: widget.boxKey,
-              width: vertical ? PenTray.railSlotWidth : PenTray.slotWidth,
-              height: widget.slotHeight,
-              child: art,
+            child: _anchorBox(
+              widget.boxKey,
+              SizedBox(
+                width: vertical ? PenTray.railSlotWidth : PenTray.slotWidth,
+                height: widget.slotHeight,
+                child: art,
+              ),
+              beside: vertical,
             ),
           ),
         ),
@@ -892,4 +924,38 @@ class _HoverLabelLayout extends SingleChildLayoutDelegate {
   @override
   bool shouldRelayout(_HoverLabelLayout old) =>
       old.slot != slot || old.beside != beside;
+}
+
+/// (v2.16-ui review) [child] under [key] as a PopupAnchorBox (its popups open
+/// [beside] it — a vertical tray), or [child] alone without a key.
+Widget _anchorBox(GlobalKey? key, Widget child, {bool beside = false}) =>
+    key == null
+    ? child
+    : PopupAnchorBox(key: key, beside: beside, child: child);
+
+/// (v2.16-ui review) A vertical tray slot's ink strip: the pen's stroke (its
+/// colour, its width up to 5 px) on a paper-light strip, as the 스튜디오
+/// mockup shows under each pen.
+class _RailInkStrip extends StatelessWidget {
+  const _RailInkStrip({required this.style});
+
+  final core.StrokeStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = StyleTokens.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.inkSwatch,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Center(
+        child: InkStroke(
+          style: style.copyWith(width: style.width.clamp(1.2, 5.0)),
+          size: const Size(48, 8),
+          shape: ink.PenPreviewShape.line,
+        ),
+      ),
+    );
+  }
 }

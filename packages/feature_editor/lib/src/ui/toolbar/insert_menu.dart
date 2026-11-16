@@ -41,7 +41,12 @@ IconData imageSourceIcon(core.ImageImportSource source) => switch (source) {
 };
 
 class InsertMenu extends ConsumerStatefulWidget {
-  const InsertMenu({super.key});
+  const InsertMenu({super.key, this.besideGap});
+
+  /// (v2.16-ui review) 스튜디오's rail: the menu opens to the right of the
+  /// button, this far past its right edge (clear of the rail); null = under
+  /// it.
+  final double? besideGap;
 
   static const buttonKey = ValueKey('editor.toolbar.insert');
   static const imageKey = ValueKey('editor.insert.image');
@@ -128,6 +133,10 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
       valueListenable: runner.runningIds,
       builder: (context, running, _) => MenuAnchor(
         controller: _menu,
+        style: widget.besideGap == null
+            ? null
+            : const MenuStyle(alignment: AlignmentDirectional.topEnd),
+        alignmentOffset: Offset(widget.besideGap ?? 0, 0),
         menuChildren: insertMenuRows(
           ref,
           sources: sources,

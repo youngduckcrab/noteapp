@@ -153,7 +153,9 @@ class ViewportController extends ChangeNotifier {
   /// (v2.16-ui) The top strip (logical px) a floating bar covers over the
   /// page area (미니멀's pill; 0 elsewhere): the document can scroll down
   /// past it and a page jump puts the page top under it — the first line
-  /// is never hidden behind the bar. Vertical layout only.
+  /// is never hidden behind the bar. (review) Paged layout: pages fit and
+  /// centre in the height under it. Reveals, page checks, zoom steps and
+  /// page-down use the area under it.
   double _topInset = 0;
   double get topInset => _topInset;
 
@@ -164,17 +166,27 @@ class ViewportController extends ChangeNotifier {
     final value = px.isFinite ? math.max(0.0, px) : 0.0;
     if (_disposed || value == _topInset) return;
     final was = _topInset;
+    // (review) Paged: the fit scale depends on the inset — placed again
+    // like after a resize (a page at fit stays centred under the bar).
+    final anchor = !_vertical && _placed && _valid ? _captureInternal() : null;
     _topInset = value;
     if (!_placed || !_valid) return;
-    // At the top before: stay at the top (the page moves under / out from
-    // under the bar with it).
+    if (anchor != null) {
+      _relayout(anchor);
+      return;
+    }
+    // At (or above) the first page's start before: stay there (the page
+    // moves under / out from under the bar with it).
+    const half = ViewportConstants.pageGap / 2;
+    final start = _layout.rectOf(0).top - half;
     final atTop =
-        _vertical && (_camera.origin.dy + was / _camera.scale).abs() < 0.5;
+        _vertical &&
+        _camera.origin.dy <= start - was / _camera.scale + 0.5 / _camera.scale;
     var next = _camera;
     if (atTop) {
       next = ViewportCamera(
         scale: _camera.scale,
-        origin: Offset(_camera.origin.dx, -value / _camera.scale),
+        origin: Offset(_camera.origin.dx, start - value / _camera.scale),
       );
     }
     final clamped = _clamp(next);
@@ -292,13 +304,24 @@ class ViewportController extends ChangeNotifier {
   // ---- inputs from the widget tree / settings ----
 
   /// Keeps anchor + zoom: new fit → scale = zoom × fit → anchor restored.
-  void updateViewportSize(Size size) {
-    if (_disposed || size == _viewportSize) return;
+  ///
+  /// (v2.16-ui review) [fitReserve]: logical px of the width the fit zoom
+  /// leaves out (스튜디오 with the rail folded away: the page keeps the zoom
+  /// it had beside the rail and is centred in the wider room — no jump
+  /// under the pen on 집중 모드).
+  void updateViewportSize(Size size, {double fitReserve = 0}) {
+    final reserve = fitReserve.isFinite ? math.max(0.0, fitReserve) : 0.0;
+    if (_disposed || (size == _viewportSize && reserve == _fitReserve)) return;
     final anchor = _captureInternal();
     _stopAnimation(scheduleSettle: false);
     _viewportSize = size;
+    _fitReserve = reserve;
     _relayout(anchor);
   }
+
+  /// (v2.16-ui review) The width the fit zoom leaves out (updateViewportSize).
+  double get fitReserve => _fitReserve;
+  double _fitReserve = 0;
 
   /// Keeps anchor (by page id); sizes from page.size. Always stores the new Page values,
   /// but does no relayout and sends no notification when the id order and sizes are
@@ -742,11 +765,11 @@ class ViewportController extends ChangeNotifier {
   /// [revealPageRect]).
   ViewportCamera _revealCamera(ViewportCamera base, int i, Rect focusRectPt) {
     final docRect = focusRectPt.shift(_layout.rectOf(i).topLeft);
-    final visible = base.visibleDocRect(_viewportSize);
+    final visible = _uncoveredDocRect(base);
     if (_containsRect(visible, docRect)) return base;
     var scale = base.scale;
     final availW = _viewportSize.width - 2 * _revealMargin;
-    final availH = _viewportSize.height - 2 * _revealMargin;
+    final availH = _viewportSize.height - _inset - 2 * _revealMargin;
     if (docRect.width * scale > availW || docRect.height * scale > availH) {
       final fitW = docRect.width > 0 ? availW / docRect.width : scale;
       final fitH = docRect.height > 0 ? availH / docRect.height : scale;
@@ -755,17 +778,31 @@ class ViewportController extends ChangeNotifier {
         _fitScale * ViewportConstants.minZoom,
       );
     }
-    final origin =
-        docRect.center -
-        Offset(_viewportSize.width, _viewportSize.height) / (2 * scale);
+    // Centred in the area under the floating bar (the whole viewport
+    // without one).
+    final origin = docRect.center - _uncoveredCentre / scale;
     return ViewportCamera(scale: scale, origin: origin);
   }
+
+  /// (v2.16-ui review) [topInset] limited to the viewport.
+  double get _inset => math.min(_topInset, _viewportSize.height);
+
+  /// (v2.16-ui review) The doc rect [c] shows outside the strip a floating
+  /// bar covers ([topInset]).
+  Rect _uncoveredDocRect(ViewportCamera c) {
+    final r = c.visibleDocRect(_viewportSize);
+    return Rect.fromLTRB(r.left, r.top + _inset / c.scale, r.right, r.bottom);
+  }
+
+  /// (v2.16-ui review) The screen centre of the area under the floating bar.
+  Offset get _uncoveredCentre =>
+      Offset(_viewportSize.width / 2, (_viewportSize.height + _inset) / 2);
 
   /// No-op if any part of the page is on screen; else [jumpToPage].
   Future<void> ensurePageVisible(int index) {
     if (_disposed || !_valid) return Future<void>.value();
     final i = index.clamp(0, _layout.length - 1);
-    final visible = _camera.visibleDocRect(_viewportSize);
+    final visible = _uncoveredDocRect(_camera);
     if (visible.overlaps(_layout.rectOf(i))) return Future<void>.value();
     return jumpToPage(i);
   }
@@ -778,9 +815,7 @@ class ViewportController extends ChangeNotifier {
       _fitScale = _fitFor(i);
       return animateTo(_pageCamera(i));
     }
-    return animateTo(
-      _camera.zoomedAround(_viewportSize.center(Offset.zero), _fitScale),
-    );
+    return animateTo(_camera.zoomedAround(_uncoveredCentre, _fitScale));
   }
 
   /// ×/÷ 1.25 about centre (a result within the snap tolerance of 1 becomes 1).
@@ -794,9 +829,7 @@ class ViewportController extends ChangeNotifier {
     if ((scale / _fitScale - 1).abs() <= ViewportConstants.zoomSnapTolerance) {
       scale = _fitScale;
     }
-    return animateTo(
-      _camera.zoomedAround(_viewportSize.center(Offset.zero), scale),
-    );
+    return animateTo(_camera.zoomedAround(_uncoveredCentre, scale));
   }
 
   /// ±0.9 viewport along the main axis / next page in paged mode.
@@ -807,7 +840,11 @@ class ViewportController extends ChangeNotifier {
       return jumpToPage(_computeCurrentPage() + dir);
     }
     final vertical = _axis == LayoutAxis.vertical;
-    final extent = vertical ? _viewportSize.height : _viewportSize.width;
+    // (review) Vertical: the height under a floating bar (a line hidden
+    // behind it is not skipped).
+    final extent = vertical
+        ? _viewportSize.height - _inset
+        : _viewportSize.width;
     final delta = dir * extent * _scrollViewportFraction;
     return animateTo(
       _camera.pannedBy(vertical ? Offset(0, -delta) : Offset(-delta, 0)),
@@ -895,8 +932,17 @@ class ViewportController extends ChangeNotifier {
     axis: _axis,
   );
 
-  double _fitFor(int index) =>
-      CameraMath.fitScale(_layout, _viewportSize, pageIndex: index);
+  double _fitFor(int index) => CameraMath.fitScale(
+    _layout,
+    _fitReserve > 0
+        ? Size(
+            math.max(1.0, _viewportSize.width - _fitReserve),
+            _viewportSize.height,
+          )
+        : _viewportSize,
+    pageIndex: index,
+    leadingInset: _topInset,
+  );
 
   ViewportCamera _clamp(ViewportCamera c) => CameraMath.clamp(
     c,
@@ -1016,14 +1062,13 @@ class ViewportController extends ChangeNotifier {
   ViewportCamera _pageCamera(int index) {
     final scale = _fitFor(index);
     final centre = _layout.rectOf(index).center;
-    final origin =
-        centre -
-        Offset(_viewportSize.width, _viewportSize.height) / (2 * scale);
+    final origin = centre - _uncoveredCentre / scale;
     return CameraMath.clamp(
       ViewportCamera(scale: scale, origin: origin),
       _layout,
       _viewportSize,
       scale,
+      leadingInset: _topInset,
     );
   }
 

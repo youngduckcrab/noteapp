@@ -151,6 +151,8 @@ extension on _EditorBodyState {
       EditorLayout.rail => Expanded(
         child: EditorShellScope(
           layout: layout,
+          // The pages' room beside the shown rail (and its divider).
+          fitWidth: constraints.maxWidth - EditorRail.width - 1,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

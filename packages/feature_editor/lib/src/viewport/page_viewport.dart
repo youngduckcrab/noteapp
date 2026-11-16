@@ -14,6 +14,8 @@
 // highlight (18). (19) The floating layer (restore pill, pen palette) over
 // the page area, beside the search panel. (E2-18) The Apple Pencil events
 // while the viewport is on screen (StylusExtrasListener — 6.5.1).
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -111,11 +113,20 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     });
   }
 
-  void _reportSize(ViewportController viewport, Size size) {
-    if (!size.isFinite || size == viewport.viewportSize) {
+  /// (v2.16-ui review) The fit reserve going with [_pendingSize].
+  double _pendingReserve = 0;
+
+  void _reportSize(
+    ViewportController viewport,
+    Size size, {
+    double fitReserve = 0,
+  }) {
+    if (!size.isFinite ||
+        (size == viewport.viewportSize && fitReserve == viewport.fitReserve)) {
       _pendingSize = null;
       return;
     }
+    _pendingReserve = fitReserve;
     if (_pendingSize != null) {
       _pendingSize = size; // a callback is already scheduled
       return;
@@ -130,7 +141,7 @@ class _PageViewportState extends ConsumerState<PageViewport> {
       final inset = _pendingInset;
       _pendingInset = null;
       if (inset != null) viewport.setTopInset(inset);
-      viewport.updateViewportSize(pending);
+      viewport.updateViewportSize(pending, fitReserve: _pendingReserve);
     });
   }
 
@@ -200,13 +211,23 @@ class _PageViewportState extends ConsumerState<PageViewport> {
   ) {
     final tokens = StyleTokens.of(context);
     final inset = EditorShellScope.topInsetOf(context);
+    final fitWidth = EditorShellScope.fitWidthOf(context);
     return ColoredBox(
       // (v2.14-ui) the style's desk; the pages keep their paper colour.
       color: tokens.canvas,
       child: LayoutBuilder(
         builder: (context, constraints) {
           _reportInset(viewport, inset);
-          _reportSize(viewport, constraints.biggest);
+          // (v2.16-ui review) 스튜디오: wider than the room beside the rail
+          // (the rail folding away in 집중 모드) keeps that room's zoom.
+          final size = constraints.biggest;
+          _reportSize(
+            viewport,
+            size,
+            fitReserve: fitWidth == null || !size.width.isFinite
+                ? 0
+                : math.max(0.0, size.width - fitWidth),
+          );
           return Stack(
             fit: StackFit.expand,
             children: [

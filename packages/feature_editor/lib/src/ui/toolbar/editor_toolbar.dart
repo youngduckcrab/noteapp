@@ -69,8 +69,9 @@ enum EditorToolbarVariant {
   /// [EditorToolbar.planFor] like the docked one.
   floating,
 
-  /// 스튜디오 with its rail: ←, title, [+], [🎤], undo / redo, [📄 2 / 4],
-  /// [🔍], [⋯] — the pens and tools are in the rail (EditorRail).
+  /// 스튜디오 with its rail: ←, title, [🎤], undo / redo, [📄 2 / 4],
+  /// [🔍], [⋯] — the pens and tools (and [삽입]) are in the rail
+  /// (EditorRail).
   slim,
 }
 
@@ -228,6 +229,10 @@ class EditorToolbar extends ConsumerWidget {
   /// [shownFor] is how many slots the tray takes at a capacity (trayPensOf:
   /// fewer pinned pens, or one more for '지금 펜' when the current pen is none
   /// of them); null = the capacity.
+  ///
+  /// (v2.16-ui review) [flexRoom]: what the flexible slot keeps without the
+  /// title ([flexLeast]; 미니멀's pill passes 0 while there is no [☁] to
+  /// show — no blank stretch after [←], the room goes to the pens).
   static ToolbarPlan planFor(
     double width, {
     required bool hasInsert,
@@ -235,6 +240,7 @@ class EditorToolbar extends ConsumerWidget {
     bool detached = false,
     int Function(int capacity)? shownFor,
     int maxPens = 8,
+    double flexRoom = flexLeast,
   }) {
     double tray(int pens) =>
         detached ? 0 : PenTray.widthFor(shownFor?.call(pens) ?? pens);
@@ -262,7 +268,7 @@ class EditorToolbar extends ConsumerWidget {
       final need =
           tray(pens) +
           (search ? _button : 0) +
-          (title ? titleMinRoom : flexLeast) +
+          (title ? titleMinRoom : flexRoom) +
           (count ? pageCountExtra : 0);
       if (room >= need) {
         return ToolbarPlan(
@@ -283,7 +289,7 @@ class EditorToolbar extends ConsumerWidget {
       fold: true,
       // (v2.15-ui review) Room for a narrow [☁] too, or the row scrolls
       // (where [☁] and [100%] follow [←]).
-      scroll: width < folded + tray(3) + flexLeast,
+      scroll: width < folded + tray(3) + flexRoom,
       pageCount: false,
     );
   }
@@ -395,9 +401,16 @@ class EditorToolbar extends ConsumerWidget {
         trayPensOf(presets, current, capacity).pens.length;
     final tokens = StyleTokens.of(context);
     if (variant == EditorToolbarVariant.slim) {
-      return _buildSlim(context, ref, tokens, title, hasInsert, mic);
+      return _buildSlim(context, ref, tokens, title, mic);
     }
     final floating = variant == EditorToolbarVariant.floating;
+    // (v2.16-ui review) The pill keeps room after [←] only for a [☁] that
+    // has something to say.
+    final flexRoom = !floating
+        ? flexLeast
+        : _syncBadgeShown(ref.watch(core.syncBadgeProvider).value)
+        ? flexLeast
+        : 0.0;
     return Material(
       type: floating ? MaterialType.transparency : MaterialType.canvas,
       color: floating ? null : tokens.toolbar,
@@ -430,6 +443,7 @@ class EditorToolbar extends ConsumerWidget {
                 detached: detached,
                 shownFor: shownFor,
                 maxPens: floating ? pillMaxPens : 8,
+                flexRoom: flexRoom,
               );
               // (v2.16-ui) Without the title the pill hugs its buttons (no
               // blank stretch after [←]).
@@ -442,7 +456,7 @@ class EditorToolbar extends ConsumerWidget {
                           : 0) +
                       (plan.search ? _button : 0) +
                       (plan.pageCount ? pageCountExtra : 0) +
-                      flexLeast +
+                      flexRoom +
                       2 * pillPadding,
                 );
               }
@@ -525,7 +539,7 @@ class EditorToolbar extends ConsumerWidget {
 }
 
 extension on EditorToolbar {
-  /// (v2.16-ui) 스튜디오's slim bar: [←] title │ [+] [🎤] │ [↶] [↷] │
+  /// (v2.16-ui) 스튜디오's slim bar: [←] title │ [🎤] │ [↶] [↷] │
   /// [📄 2 / 4] [🔍] [⋯]; the title (and its folder · date line) only when
   /// it gets [EditorToolbar.titleMinRoom], else the flexible slot keeps
   /// [☁] / [100%].
@@ -534,7 +548,6 @@ extension on EditorToolbar {
     WidgetRef ref,
     StyleTokens tokens,
     String title,
-    bool hasInsert,
     bool mic,
   ) {
     return Material(
@@ -548,11 +561,10 @@ extension on EditorToolbar {
             builder: (context, constraints) {
               const b = EditorToolbar._button;
               const d = EditorToolbar._divider;
+              // (review) [삽입] stands in the rail with the other tools.
               final fixed =
                   b /* ← */ +
-                  (hasInsert ? b : 0) +
-                  (mic ? b : 0) +
-                  (hasInsert || mic ? d : 0) +
+                  (mic ? b + d : 0) +
                   2 * b +
                   d /* ↶ ↷ │ */ +
                   b +
@@ -587,10 +599,7 @@ extension on EditorToolbar {
                           )
                         : const _FlexSlot(title: null),
                   ),
-                  if (hasInsert)
-                    const InsertMenu(key: EditorToolbar.insertSlotKey),
-                  if (mic) const MicButton(),
-                  if (hasInsert || mic) const _Divider(),
+                  if (mic) ...[const MicButton(), const _Divider()],
                   const UndoRedoButtons(),
                   const _Divider(),
                   _PagePanelButton(showCount: count),
@@ -670,6 +679,12 @@ ButtonStyle toolbarIconButtonStyle(StyleTokens tokens) => ButtonStyle(
 /// (v2.15-ui) The flexible slot after [←]: the title (when [title] is set),
 /// [100%] and [☁] — each only when it fits, in the order [☁] (a sync
 /// problem must show), [100%], the title; never an overflow.
+/// Whether [badge] has something to say ([☁] shows: not off, not done).
+bool _syncBadgeShown(core.SyncBadge? badge) =>
+    badge != null &&
+    badge.display != core.SyncDisplayState.off &&
+    badge.display != core.SyncDisplayState.done;
+
 class _FlexSlot extends ConsumerWidget {
   const _FlexSlot({required this.title});
 
@@ -884,8 +899,9 @@ class _Divider extends StatelessWidget {
 /// button (v2, 6.13.1). (v2.15-ui) The pen and the eraser are in the pen
 /// tray; 수식 펜 and 텍스트 펜 in [+].
 ///
-/// (v2.16-ui) With [axis] vertical (스튜디오's rail) they stand in a column
-/// and their popups open to the right of them (PopupAnchors.toolsBeside).
+/// (v2.16-ui) With [axis] vertical (스튜디오's rail) they stand two a row
+/// (with [insert]) and their popups open to the right of the rail
+/// (PopupAnchorBox).
 class ToolbarToolButtons extends ConsumerWidget {
   const ToolbarToolButtons({
     super.key,
@@ -893,14 +909,18 @@ class ToolbarToolButtons extends ConsumerWidget {
     this.axis = Axis.horizontal,
     this.gap = 0,
     this.crossExtent,
+    this.insert,
   });
 
   final bool withObjectTools;
   final Axis axis;
 
-  /// (v2.16-ui) In a column: each button centred in a box this wide (the
-  /// rail's width), so a popup placed beside it clears the rail.
+  /// (v2.16-ui) In the rail: the rows are this wide (the rail's width), so
+  /// a popup placed beside them clears the rail.
   final double? crossExtent;
+
+  /// (v2.16-ui review) In the rail: [삽입] beside [올가미].
+  final Widget? insert;
 
   /// Space between the buttons.
   final double gap;
@@ -913,16 +933,6 @@ class ToolbarToolButtons extends ConsumerWidget {
     final popups = ref.read(editorPopupProvider.notifier);
     final anchors = PopupHost.anchorsOf(context);
     final vertical = axis == Axis.vertical;
-    anchors.toolsBeside = vertical;
-    final cross = crossExtent;
-    Widget box(GlobalKey key, Widget child) => vertical
-        ? SizedBox(
-            key: key,
-            width: cross,
-            child: Center(child: child),
-          )
-        : child;
-
     VoidCallback? tap(EditorTool tool, EditorPopup? settings) {
       if (readOnly) return null;
       return () {
@@ -934,63 +944,78 @@ class ToolbarToolButtons extends ConsumerWidget {
       };
     }
 
-    final buttons = <Widget>[
-      ToolButton(
-        key: EditorToolbar.lassoKey,
-        glyph: AppIconKind.lasso,
-        caption: EditorStrings.lasso,
-        label: EditorStrings.lasso,
-        active: active == EditorTool.lasso,
-        onTap: tap(EditorTool.lasso, null),
-      ),
-      if (withObjectTools) ...[
-        CompositedTransformTarget(
-          link: anchors.shape,
-          child: box(
-            anchors.shapeBox,
-            ToolButton(
-              key: EditorToolbar.shapeKey,
-              glyph: AppIconKind.shape,
-              caption: EditorStrings.shapeTool,
-              label: EditorStrings.shapeTool,
-              active: active == EditorTool.shape,
-              onTap: tap(
-                EditorTool.shape,
-                const ShapeToolPopup(anchored: true),
+    final lasso = ToolButton(
+      key: EditorToolbar.lassoKey,
+      glyph: AppIconKind.lasso,
+      caption: EditorStrings.lasso,
+      label: EditorStrings.lasso,
+      active: active == EditorTool.lasso,
+      onTap: tap(EditorTool.lasso, null),
+    );
+    final shape = ToolButton(
+      key: EditorToolbar.shapeKey,
+      glyph: AppIconKind.shape,
+      caption: EditorStrings.shapeTool,
+      label: EditorStrings.shapeTool,
+      active: active == EditorTool.shape,
+      onTap: tap(EditorTool.shape, const ShapeToolPopup(anchored: true)),
+      onLongPress: () => popups.open(const ShapeToolPopup(anchored: true)),
+    );
+    final text = ToolButton(
+      key: EditorToolbar.textKey,
+      glyph: AppIconKind.text,
+      caption: EditorStrings.textTool,
+      label: EditorStrings.textTool,
+      active: active == EditorTool.text,
+      onTap: tap(EditorTool.text, const TextToolPopup(anchored: true)),
+      onLongPress: () => popups.open(const TextToolPopup(anchored: true)),
+    );
+
+    if (vertical) {
+      // (v2.16-ui review) The rail: two tools a row (올가미 [삽입] /
+      // 도형 텍스트), [crossExtent] wide. The 도형 · 텍스트 row is the anchor
+      // of both their popups (PopupAnchorBox under shapeBox and textBox),
+      // so a popup beside it clears the whole rail.
+      final width = crossExtent;
+      Widget pair(List<Widget> two) => SizedBox(
+        width: width,
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: two),
+      );
+      final ins = insert;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          pair([lasso, if (ins != null) ins else const SizedBox(width: 48)]),
+          if (withObjectTools) ...[
+            if (gap > 0) SizedBox(height: gap),
+            PopupAnchorBox(
+              key: anchors.shapeBox,
+              beside: true,
+              child: PopupAnchorBox(
+                key: anchors.textBox,
+                beside: true,
+                child: pair([shape, text]),
               ),
-              onLongPress: () =>
-                  popups.open(const ShapeToolPopup(anchored: true)),
             ),
-          ),
-        ),
-        CompositedTransformTarget(
-          link: anchors.text,
-          child: box(
-            anchors.textBox,
-            ToolButton(
-              key: EditorToolbar.textKey,
-              glyph: AppIconKind.text,
-              caption: EditorStrings.textTool,
-              label: EditorStrings.textTool,
-              active: active == EditorTool.text,
-              onTap: tap(EditorTool.text, const TextToolPopup(anchored: true)),
-              onLongPress: () =>
-                  popups.open(const TextToolPopup(anchored: true)),
-            ),
-          ),
-        ),
+          ],
+        ],
+      );
+    }
+
+    final buttons = <Widget>[
+      lasso,
+      if (withObjectTools) ...[
+        CompositedTransformTarget(link: anchors.shape, child: shape),
+        CompositedTransformTarget(link: anchors.text, child: text),
       ],
     ];
     final spaced = <Widget>[
       for (final (i, b) in buttons.indexed) ...[
-        if (i > 0 && gap > 0)
-          SizedBox(width: vertical ? 0 : gap, height: vertical ? gap : 0),
+        if (i > 0 && gap > 0) SizedBox(width: gap),
         b,
       ],
     ];
-    return vertical
-        ? Column(mainAxisSize: MainAxisSize.min, children: spaced)
-        : Row(mainAxisSize: MainAxisSize.min, children: spaced);
+    return Row(mainAxisSize: MainAxisSize.min, children: spaced);
   }
 }
 

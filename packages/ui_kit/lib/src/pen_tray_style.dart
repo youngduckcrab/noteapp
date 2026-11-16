@@ -107,8 +107,9 @@ final class PenTrayStyle {
               : tokens.accentSoft.withValues(alpha: .55),
           chipActiveBorder: _transparent,
           activeMark: tokens.accent,
+          // (v2.16-ui review) Soft: a capsule just behind the stroke.
           chipPlate: dark
-              ? tokens.inkSwatch.withValues(alpha: .86)
+              ? tokens.inkSwatch.withValues(alpha: .62)
               : _transparent,
         );
       case AppStyle.studio:

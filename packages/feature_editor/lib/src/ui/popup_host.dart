@@ -36,15 +36,9 @@ class PopupAnchors {
   final LayerLink shape = LayerLink();
   final LayerLink text = LayerLink();
 
-  /// (v2.16-ui — 04-editor 24) The axis of the mounted pen tray (set by it
-  /// while it builds): its popups open to the right of a vertical tray (스
-  /// 튜디오's rail) instead of under it.
-  Axis trayAxis = Axis.horizontal;
-
-  /// (v2.16-ui) Whether the shape and text buttons stand in the rail (set
-  /// by them while they build): their popups open to the right of them, by
-  /// the rects of [shapeBox] / [textBox].
-  bool toolsBeside = false;
+  /// (v2.16-ui) The rail's shape and text buttons (mounted only in 스튜디오's
+  /// rail, each in a [PopupAnchorBox] with `beside`): their popups open to
+  /// the right of them, by these rects.
   final GlobalKey shapeBox = GlobalKey(debugLabel: 'editor.railShape');
   final GlobalKey textBox = GlobalKey(debugLabel: 'editor.railText');
 
@@ -84,6 +78,33 @@ class PopupAnchors {
   }
 
   void dispose() => trayMoved.dispose();
+
+  /// (v2.16-ui review) Whether the popups of [box] open beside it: read from
+  /// the [PopupAnchorBox] mounted under that key right now (no flag a
+  /// widget that left the tree could leave stale — a resize across the rail
+  /// width with the picker open).
+  static bool besideOf(GlobalKey box) {
+    final widget = box.currentWidget;
+    return widget is PopupAnchorBox && widget.beside;
+  }
+}
+
+/// (v2.16-ui review) The box a popup is placed by (the pen tray, its eraser,
+/// the rail's shape / text buttons) under its [GlobalKey], telling the
+/// popup layer whether its popups open [beside] it (to the right — a
+/// vertical tray, the rail) or under it.
+class PopupAnchorBox extends StatelessWidget {
+  const PopupAnchorBox({
+    required GlobalKey super.key,
+    required this.beside,
+    required this.child,
+  });
+
+  final bool beside;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
 }
 
 /// Shows editorPopupProvider's popup with an OverlayPortal (its overlay child
@@ -299,15 +320,13 @@ class _PopupLayer extends ConsumerWidget {
     final trayBox = switch (layout.link) {
       LinkPick.pen => anchors.penBox,
       LinkPick.eraser => anchors.eraserBox,
-      // (v2.16-ui) The rail's shape and text buttons: beside them.
-      LinkPick.shape when anchors.toolsBeside => anchors.shapeBox,
-      LinkPick.text when anchors.toolsBeside => anchors.textBox,
+      // (v2.16-ui) The rail's shape and text buttons: beside them (their
+      // boxes are mounted only in the rail).
+      LinkPick.shape when anchors.shapeBox.currentContext != null =>
+        anchors.shapeBox,
+      LinkPick.text when anchors.textBox.currentContext != null =>
+        anchors.textBox,
       _ => null,
-    };
-    final beside = switch (layout.link) {
-      LinkPick.pen || LinkPick.eraser => anchors.trayAxis == Axis.vertical,
-      LinkPick.shape || LinkPick.text => anchors.toolsBeside,
-      null => false,
     };
     final link = at != null || menuHidden || trayBox != null
         ? null
@@ -353,7 +372,8 @@ class _PopupLayer extends ConsumerWidget {
                 delegate: _BelowAnchorLayout(
                   anchors._placeBy(_boxRect(context, trayBox!)),
                   centred: layout.link == LinkPick.pen,
-                  beside: beside,
+                  // Read with the rect, from the box mounted now.
+                  beside: PopupAnchors.besideOf(trayBox),
                 ),
                 child: panel,
               ),
@@ -411,7 +431,9 @@ Rect? _boxRect(BuildContext context, GlobalKey box) {
 ///
 /// (v2.16-ui) With [beside]: right of the anchor (a vertical tray, the
 /// rail's tools), its top at the anchor's top, moved up to stay inside the
-/// screen.
+/// screen. (review) Under the anchor as usual when less than
+/// [_besideMinWidth] is left right of it (the narrow pen picker overflowed
+/// when squeezed below that).
 class _BelowAnchorLayout extends SingleChildLayoutDelegate {
   const _BelowAnchorLayout(
     this.anchor, {
@@ -430,6 +452,20 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
   /// Below the anchor while at least this much room is there.
   static const double _comfortable = 480;
 
+  /// (v2.16-ui review) Beside the anchor only with this much room right of
+  /// it: the narrow pen picker ([centred]) needs about 470 px, the eraser,
+  /// shape and text popups 300.
+  static const double _besideMinWidth = 520;
+  static const double _besideMinWidthSmall = 320;
+
+  bool _beside(Size size) {
+    final a = anchor;
+    return beside &&
+        a != null &&
+        size.width - a.right - _gap - _margin >=
+            (centred ? _besideMinWidth : _besideMinWidthSmall);
+  }
+
   bool _above(Size size) {
     final a = anchor;
     if (a == null) return false;
@@ -442,10 +478,10 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     final a = anchor;
     final size = constraints.biggest;
-    if (beside && a != null) {
+    if (a != null && _beside(size)) {
       return BoxConstraints.loose(
         Size(
-          math.max(0, size.width - a.right - _gap - _margin),
+          size.width - a.right - _gap - _margin,
           math.max(0, size.height - 2 * _margin),
         ),
       );
@@ -472,10 +508,12 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
         (size.height - child.height) / 2,
       );
     }
-    if (beside) {
+    if (_beside(size)) {
       final maxY = size.height - child.height - _margin;
       final y = maxY <= _margin ? _margin : a.top.clamp(_margin, maxY);
-      return Offset(a.right + _gap, y.toDouble());
+      final maxX = size.width - child.width - _margin;
+      final x = maxX <= _margin ? _margin : math.min(a.right + _gap, maxX);
+      return Offset(x, y.toDouble());
     }
     final maxX = size.width - child.width - _margin;
     final want = centred ? a.center.dx - child.width / 2 : a.left;

@@ -18,6 +18,7 @@ import '../../state/popup.dart';
 import '../../text/text_edit_session.dart';
 import '../../tools/selection.dart';
 import '../../tools/selection_menu_model.dart';
+import '../chrome/editor_layout.dart';
 import '../editor_strings.dart';
 import '../shape/shape_style_controls.dart';
 import 'selection_frame_painter.dart' show selectionRepaint;
@@ -76,6 +77,8 @@ class SelectionMenu extends ConsumerWidget {
     }
     final viewport = ref.watch(editorViewportProvider);
     final pages = ref.watch(editorMountedPagesProvider);
+    // (v2.16-ui review) Kept below 미니멀's floating pill.
+    final inset = EditorShellScope.topInsetOf(context);
     return ListenableBuilder(
       listenable: selectionRepaint(viewport, pages, selection),
       builder: (context, child) {
@@ -83,7 +86,7 @@ class SelectionMenu extends ConsumerWidget {
         final rect = selectionFrameOnScreen(viewport, pages, selection)?.extent;
         if (rect == null) return const SizedBox.shrink();
         return CustomSingleChildLayout(
-          delegate: _AboveOrBelow(rect),
+          delegate: _AboveOrBelow(rect, minTop: inset),
           child: child,
         );
       },
@@ -570,11 +573,14 @@ class _MoreItem extends StatelessWidget {
 }
 
 /// Centres the bar over [frame], [SelectionMenu.gap] above it, or below it
-/// when it does not fit above; kept inside the page area.
+/// when it does not fit above; kept inside the page area. (v2.16-ui review)
+/// "Above" ends at [minTop] (the strip 미니멀's floating pill covers): the
+/// bar never goes under the pill.
 class _AboveOrBelow extends SingleChildLayoutDelegate {
-  const _AboveOrBelow(this.frame);
+  const _AboveOrBelow(this.frame, {this.minTop = 0});
 
   final Rect frame;
+  final double minTop;
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
@@ -583,16 +589,17 @@ class _AboveOrBelow extends SingleChildLayoutDelegate {
   @override
   Offset getPositionForChild(Size size, Size childSize) {
     var top = frame.top - SelectionMenu.gap - childSize.height;
-    if (top < 0) top = frame.bottom + SelectionMenu.gap;
+    if (top < minTop) top = frame.bottom + SelectionMenu.gap;
     final maxTop = size.height - childSize.height;
     final maxLeft = size.width - childSize.width;
     final left = frame.center.dx - childSize.width / 2;
     return Offset(
       maxLeft <= 0 ? 0 : left.clamp(0.0, maxLeft).toDouble(),
-      maxTop <= 0 ? 0 : top.clamp(0.0, maxTop).toDouble(),
+      maxTop <= minTop ? 0 : top.clamp(minTop, maxTop).toDouble(),
     );
   }
 
   @override
-  bool shouldRelayout(_AboveOrBelow oldDelegate) => oldDelegate.frame != frame;
+  bool shouldRelayout(_AboveOrBelow oldDelegate) =>
+      oldDelegate.frame != frame || oldDelegate.minTop != minTop;
 }
