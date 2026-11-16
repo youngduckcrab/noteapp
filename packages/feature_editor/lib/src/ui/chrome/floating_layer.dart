@@ -73,6 +73,16 @@ class MenuRestorePill extends ConsumerStatefulWidget {
   static const double height = 48;
   static const double width = 48 + 56 + 48 + 48 + 8;
 
+  /// (19.1) Without [🔍]: the width in a page area narrower than [width]
+  /// (the search panel open on a narrow screen — Slide Over 320 px leaves
+  /// the pages about 176 px). The panel's own close and back still close
+  /// the search there.
+  static const double compactWidth = width - 48;
+
+  /// The pill's width in a page area [areaWidth] wide.
+  static double widthFor(double areaWidth) =>
+      areaWidth >= width ? width : compactWidth;
+
   /// Semi-transparent so the top of the page shows through.
   static const double opacity = 0.7;
   static const double top = 6;
@@ -88,8 +98,9 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
   /// The fraction while a drag runs (stored when it ends).
   double? _dragX;
 
-  double get _room =>
-      (widget.area.width - MenuRestorePill.width).clamp(0.0, double.infinity);
+  double get _width => MenuRestorePill.widthFor(widget.area.width);
+
+  double get _room => (widget.area.width - _width).clamp(0.0, double.infinity);
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +113,7 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
       key: MenuRestorePill.pillKey,
       left: x * _room,
       top: MenuRestorePill.top,
-      width: MenuRestorePill.width,
+      width: _width,
       height: MenuRestorePill.height,
       child: Semantics(
         container: true,
@@ -146,7 +157,7 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
                     ),
                   ),
                 ),
-                const _PillSearchButton(),
+                if (_width == MenuRestorePill.width) const _PillSearchButton(),
                 const UndoRedoButtons(compact: true, part: UndoRedoPart.redo),
               ],
             ),

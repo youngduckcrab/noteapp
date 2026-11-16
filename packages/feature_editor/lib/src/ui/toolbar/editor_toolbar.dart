@@ -73,6 +73,12 @@ class EditorToolbar extends ConsumerWidget {
   /// (v2) The title shows when the toolbar is at least this wide.
   static const double titleMinWidth = 1000;
 
+  /// (04-editor 19.1) The least the title keeps: beside it [⌃] shows only
+  /// while the title still gets this much (else [⌃] is in [⋯] only). [⌃]
+  /// (19) and [🔍] (18) together left the title 3.6 px at 1000 with every
+  /// optional button on (test/widget/toolbar_width_test.dart).
+  static const double titleLeastWidth = 48;
+
   /// (v2) Below this width [도형] [텍스트] [+] [🎤] fold into [⋯도구]. The
   /// plan's 720 px is the floor. (04-editor 19.1) Measured with every
   /// optional button on (image insert, [🎤], 수식 펜, 텍스트 펜, sync badge):
@@ -152,17 +158,11 @@ class EditorToolbar extends ConsumerWidget {
                   ),
                 ),
                 // (04-editor 19) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
-                if (scroll || constraints.maxWidth >= titleMinWidth)
-                  const MenuHideButton(),
+                // With the title [⌃] only while the title keeps
+                // titleLeastWidth (19.1).
+                if (scroll) const MenuHideButton(),
                 if (constraints.maxWidth >= titleMinWidth)
-                  Expanded(
-                    child: Text(
-                      title,
-                      key: titleKey,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  )
+                  Expanded(child: _TitleSlot(title: title))
                 else if (!scroll)
                   const MenuHideSlot(), // the Spacer, [⌃] when it fits
                 if (constraints.maxWidth >= foldedSearchMinWidth)
@@ -197,6 +197,36 @@ class EditorToolbar extends ConsumerWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// (19.1) The title, with [⌃] before it while the title keeps
+/// [EditorToolbar.titleLeastWidth].
+class _TitleSlot extends StatelessWidget {
+  const _TitleSlot({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      title,
+      key: EditorToolbar.titleKey,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleMedium,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          constraints.maxWidth >=
+              MenuHideButton.width + EditorToolbar.titleLeastWidth
+          ? Row(
+              children: [
+                const MenuHideButton(),
+                Expanded(child: text),
+              ],
+            )
+          : text,
     );
   }
 }

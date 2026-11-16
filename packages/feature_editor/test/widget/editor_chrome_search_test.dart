@@ -36,9 +36,10 @@ bool _searchOpen(EditorTestHandles h) =>
 Future<EditorTestHandles> _pump(
   WidgetTester tester, {
   EditorDeviceState device = const EditorDeviceState(),
+  Size size = _landscape,
 }) => pumpEditor(
   tester,
-  logicalSize: _landscape,
+  logicalSize: size,
   beforePump: (store, _, _) =>
       store.settings.set(EditorSettingKeys.deviceState, device.toJson()),
 );
@@ -148,4 +149,59 @@ void main() {
     expect(h.container.read(editorDeviceStateProvider).toolbarHidden, isFalse);
     expect(EditorChrome.slide, const Duration(milliseconds: 200));
   });
+
+  // (19.1 review) Narrow screens (Slide Over 320, 360 phones): the search
+  // panel leaves the pages 176 / 198 px — the pill (208 with [🔍]) and the
+  // 3-column palette panel (184) ran past the page area and were clipped.
+  for (final width in const [320.0, 360.0, 400.0]) {
+    testWidgets('$width px, menu hidden, search open, palette expanded at '
+        'the right edge: the pill and the panel stay inside the page area, '
+        'every pill target reachable', (tester) async {
+      final h = await _pump(
+        tester,
+        size: Size(width, 780),
+        device: const EditorDeviceState(
+          toolbarHidden: true,
+          restorePillX: 1,
+          paletteDetached: true,
+          palettePosition: Offset(1, 0.5),
+        ),
+      );
+      expect(find.byKey(MenuRestorePill.searchKey), findsOneWidget);
+      await tester.tap(find.byKey(MenuRestorePill.searchKey));
+      await _settle(tester);
+      expect(_searchOpen(h), isTrue);
+      await tester.tap(_paletteButton);
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      final area = tester.getRect(find.byType(EditorFloatingLayer));
+      final search = tester.getRect(_searchPanel);
+      expect(area.right, lessThanOrEqualTo(search.left + 0.01));
+      final pill = tester.getRect(_pill);
+      expect(pill.left, greaterThanOrEqualTo(area.left - 0.01));
+      expect(pill.right, lessThanOrEqualTo(area.right + 0.01));
+      final panel = tester.getRect(_palettePanel);
+      expect(panel.left, greaterThanOrEqualTo(area.left - 0.01));
+      expect(panel.right, lessThanOrEqualTo(area.right + 0.01));
+      final button = tester.getRect(_paletteButton);
+      expect(button.right, lessThanOrEqualTo(area.right + 0.01));
+      expect(find.byKey(MenuRestorePill.showKey).hitTestable(), findsOneWidget);
+      final widePill = area.width >= MenuRestorePill.width;
+      expect(
+        find.byKey(MenuRestorePill.searchKey),
+        widePill ? findsOneWidget : findsNothing,
+      );
+      expect(
+        pill.width,
+        widePill ? MenuRestorePill.width : MenuRestorePill.compactWidth,
+      );
+      // The search still closes (panel close / back), the pill gets [🔍]
+      // back in the full page area.
+      await tester.tap(find.byKey(NoteSearchPanel.closeKey));
+      await _settle(tester);
+      expect(_searchOpen(h), isFalse);
+      expect(find.byKey(MenuRestorePill.searchKey), findsOneWidget);
+      expect(tester.getRect(_pill).right, lessThanOrEqualTo(width + 0.01));
+    });
+  }
 }

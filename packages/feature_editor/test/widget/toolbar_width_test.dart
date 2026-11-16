@@ -74,7 +74,11 @@ void main() {
     960.0,
     999.0,
     EditorToolbar.titleMinWidth,
+    1024.0,
     1032.0,
+    1044.0,
+    1048.0,
+    1080.0,
     1280.0,
   ]) {
     testWidgets('$width px, every optional button on: no overflow, no '
@@ -108,8 +112,23 @@ void main() {
         );
       }
       // [⌃] in the row where it fits, else in ⋯ (never an overflow).
-      if (width >= EditorToolbar.titleMinWidth) {
+      // With the title (19.1): [⌃] only while the title keeps
+      // titleLeastWidth — the fixed row is 948.4 px, so from 1044.4.
+      if (width >= 1048) {
         expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
+      } else if (width >= EditorToolbar.titleMinWidth) {
+        expect(find.byKey(MenuHideButton.buttonKey), findsNothing);
+      }
+      // (19.1 review) From titleMinWidth the title keeps real room: [⌃] and
+      // [🔍] together squeezed it to 3.6 px at 1000, 27.6 at 1024.
+      final title = find.byKey(EditorToolbar.titleKey);
+      if (width >= EditorToolbar.titleMinWidth) {
+        expect(
+          tester.getSize(title).width,
+          greaterThanOrEqualTo(EditorToolbar.titleLeastWidth),
+        );
+      } else {
+        expect(title, findsNothing);
       }
     });
   }

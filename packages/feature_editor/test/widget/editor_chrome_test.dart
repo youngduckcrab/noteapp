@@ -530,7 +530,12 @@ void main() {
       (800.0, true), // folded (Android portrait, with [🔍])
       (900.0, true), // folded (19.1: foldWidth 952)
       (960.0, false), // unfolded with [🔍], crowded: ⋯ only
-      (1032.0, true), // with the title
+      // With the title: ⋯ only while [⌃] would leave the title less than
+      // titleLeastWidth (19.1 — 51.6 px at 1000, 99.6 at 1048).
+      (1000.0, false),
+      (1024.0, false),
+      (1048.0, true),
+      (1080.0, true),
     ]) {
       testWidgets('[⌃] at $width px: ${shown ? 'in the row' : 'in ⋯ only'}, '
           'no overflow', (tester) async {

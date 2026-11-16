@@ -170,6 +170,7 @@ class _PenPaletteState extends ConsumerState<PenPalette> {
                   groupId: _group,
                   onTapOutside: (_) => _collapse(),
                   child: _PalettePanel(
+                    maxWidth: widget.area.width - 2 * PenPalette.margin,
                     maxHeight: math.max(
                       PenPalette.size,
                       widget.area.height -
@@ -276,13 +277,30 @@ class _PaletteButton extends ConsumerWidget {
 }
 
 class _PalettePanel extends ConsumerWidget {
-  const _PalettePanel({required this.maxHeight, required this.onDone});
+  const _PalettePanel({
+    required this.maxWidth,
+    required this.maxHeight,
+    required this.onDone,
+  });
 
+  /// (19.1) The room across: the page area narrowed by the search panel can
+  /// be narrower than the 3 / 4 columns.
+  final double maxWidth;
   final double maxHeight;
   final VoidCallback onDone;
 
   /// Columns of chips: 3 up to 6 presets, then 4.
   static int columnsFor(int count) => count <= 6 ? 3 : 4;
+
+  /// The panel's padding on each side.
+  static const double padding = 8;
+
+  /// (19.1) [columnsFor], fewer when [maxWidth] is narrower — never fewer
+  /// than 2 (the [+] [⚙] row needs 96 px).
+  static int columnsIn(int count, double maxWidth) {
+    final fit = ((maxWidth - 2 * padding) / PresetChip.width).floor();
+    return math.max(2, math.min(columnsFor(count), fit));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -295,7 +313,7 @@ class _PalettePanel extends ConsumerWidget {
     final popups = ref.read(editorPopupProvider.notifier);
     final list = ref.watch(editorVisiblePresetsProvider).value;
     final presets = list ?? const <core.PenPreset>[];
-    final columns = columnsFor(presets.length);
+    final columns = columnsIn(presets.length, maxWidth);
     final width = columns * PresetChip.width;
 
     void open(EditorPopup popup) {
@@ -316,7 +334,7 @@ class _PalettePanel extends ConsumerWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(padding),
             child: SizedBox(
               width: width,
               child: Column(
