@@ -26,8 +26,15 @@ class EndOfDocumentHint extends ConsumerWidget {
 
   static const hintKey = ValueKey('editor.endOfDocumentHint');
 
-  /// Distance (pt) from the last page's end to the hint's centre.
+  /// Distance (pt) from the last page's end to the hint's centre while the
+  /// trailing padding has room for the box (else [minGap]).
   static const double offsetPt = ViewportConstants.trailingPadding / 2;
+
+  /// (v2.14-ui review) The least room (logical px) between the last page's
+  /// edge and the box: zoomed out, the box (fixed logical px) is no longer
+  /// centred in the (zoomed) padding but starts this far from the page, so
+  /// it never touches or overlaps the page.
+  static const double minGap = 12;
 
   /// The text box (logical px) around the centre: one line in the vertical
   /// layout, a narrow wrapped block beside the last page in the horizontal.
@@ -51,15 +58,9 @@ class EndOfDocumentHint extends ConsumerWidget {
       child: ListenableBuilder(
         listenable: Listenable.merge([viewport, viewport.pullPhase]),
         builder: (context, _) {
-          final centre = centreOf(viewport);
-          if (centre == null) return const SizedBox.shrink();
+          final rect = rectOf(viewport);
+          if (rect == null) return const SizedBox.shrink();
           final vertical = viewport.axis == LayoutAxis.vertical;
-          final box = vertical ? size : sizeHorizontal;
-          final rect = Rect.fromCenter(
-            center: centre,
-            width: box.width,
-            height: box.height,
-          );
           final screen = Offset.zero & viewport.viewportSize;
           if (!screen.overlaps(rect)) return const SizedBox.shrink();
           final pulling = viewport.pullPhase.value != PullToAddPhase.idle;
@@ -98,15 +99,35 @@ class EndOfDocumentHint extends ConsumerWidget {
     );
   }
 
-  /// Screen centre of the hint, or null without a camera.
-  static Offset? centreOf(ViewportController viewport) {
+  /// Screen rect of the hint, or null without a camera: centred [offsetPt]
+  /// past the last page, moved out to [minGap] from the page edge when the
+  /// zoomed padding is too small for the box.
+  static Rect? rectOf(ViewportController viewport) {
     final layout = viewport.layout;
     if (viewport.viewportSize.isEmpty || layout.length == 0) return null;
     if (viewport.pages.length != layout.length) return null;
     final last = layout.rectOf(layout.length - 1);
-    final doc = viewport.axis == LayoutAxis.vertical
-        ? Offset(last.center.dx, last.bottom + offsetPt)
-        : Offset(last.right + offsetPt, last.center.dy);
-    return viewport.camera.docToScreen(doc);
+    final camera = viewport.camera;
+    final offsetPx = offsetPt * camera.scale;
+    if (viewport.axis == LayoutAxis.vertical) {
+      final edge = camera.docToScreen(Offset(last.center.dx, last.bottom));
+      final dy = offsetPx < minGap + size.height / 2
+          ? minGap + size.height / 2
+          : offsetPx;
+      return Rect.fromCenter(
+        center: edge.translate(0, dy),
+        width: size.width,
+        height: size.height,
+      );
+    }
+    final edge = camera.docToScreen(Offset(last.right, last.center.dy));
+    final dx = offsetPx < minGap + sizeHorizontal.width / 2
+        ? minGap + sizeHorizontal.width / 2
+        : offsetPx;
+    return Rect.fromCenter(
+      center: edge.translate(dx, 0),
+      width: sizeHorizontal.width,
+      height: sizeHorizontal.height,
+    );
   }
 }

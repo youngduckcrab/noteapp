@@ -267,6 +267,26 @@ final editorReadOnlyProvider = NotifierProvider<ReadOnlyNotifier, bool>(
   name: 'editorReadOnlyProvider',
 );
 
+/// (v2.14-ui review) The note's title: session.note.title at open, then each
+/// noteStream value (a rename from 노트 정보 or elsewhere while open).
+class NoteTitleNotifier extends Notifier<String> {
+  @override
+  String build() {
+    final session = ref.watch(editorSessionValueProvider);
+    final sub = session.noteStream.listen((note) {
+      if (note.title != state) state = note.title;
+    });
+    ref.onDispose(sub.cancel);
+    return session.note.title;
+  }
+}
+
+final editorNoteTitleProvider = NotifierProvider<NoteTitleNotifier, String>(
+  NoteTitleNotifier.new,
+  dependencies: [editorSessionValueProvider],
+  name: 'editorNoteTitleProvider',
+);
+
 /// Actions shared by toolbar, gestures, shortcuts and menus; the only place
 /// that runs CORE commands (6.8, 5.1.3).
 final editorCommandsProvider = Provider<EditorCommands>(

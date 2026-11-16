@@ -130,6 +130,50 @@ void main() {
     await tester.pump(const Duration(seconds: 2)); // debounced writes
   });
 
+  testWidgets('(review) from the 4th tap the 빌드 row counts the taps left',
+      (tester) async {
+    final harness = SettingsHarness(developerMode: false);
+    await harness.pump(tester, _sections);
+    await tester.pumpAndSettle();
+    await _tapBuildRow(tester, 3);
+    expect(find.textContaining('번 남았어요'), findsNothing);
+    await _tapBuildRow(tester, 1);
+    expect(find.text(AppStrings.developerModeTapsLeft(3)), findsOneWidget);
+    await _tapBuildRow(tester, 2);
+    expect(find.text(AppStrings.developerModeTapsLeft(1)), findsOneWidget);
+    expect(AppStrings.developerModeTapsLeft(1), '개발자 모드까지 1번 남았어요');
+    await _tapBuildRow(tester, 1);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.developerModeOn), findsOneWidget);
+  });
+
+  testWidgets('(review) turning the stored switch off while the developer '
+      'overlay keeps developer mode on says so, not 껐어요', (tester) async {
+    final harness = SettingsHarness(developerMode: false);
+    final container = await harness.pump(tester, _sections);
+    await tester.pumpAndSettle();
+    await _tapBuildRow(tester, 7); // stored on
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    container.read(editorSettingsProvider.notifier).setShowDevOverlay(true);
+    await tester.pumpAndSettle();
+    await _tapBuildRow(tester, 7); // stored off, overlay still on
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.developerModeOff), findsNothing);
+    expect(find.text(AppStrings.developerModeStillOn), findsOneWidget);
+    expect(container.read(developerModeProvider), isTrue);
+    expect(
+      await tester.runAsync(
+        () => harness.store.settings.get(AppDeveloperModeKeys.enabled),
+      ),
+      isFalse,
+    );
+    container.read(editorSettingsProvider.notifier).setShowDevOverlay(false);
+    await tester.pump(const Duration(seconds: 2)); // debounced writes
+  });
+
   test('?dev=1 counts too; the stored switch is a device setting', () {
     final container = ProviderContainer.test(
       overrides: [

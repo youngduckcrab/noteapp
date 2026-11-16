@@ -167,7 +167,7 @@ void main() {
       for (final c in kBasicColors) {
         expect(ColorPaletteState.opaque(c), c);
       }
-      expect(kBasicColors.first, 0xFF000000);
+      expect(kBasicColors.first, 0xFF1A1A1A);
     });
 
     testWidgets('in the pen settings and the quick pen from the first run; a '

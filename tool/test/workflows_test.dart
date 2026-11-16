@@ -3545,6 +3545,9 @@ SPEC CHECKSUMS:
         '${attributes('diagnostics')['description']}',
         contains('진단 정보 복사'),
       );
+      // (v2.14-ui) 진단 정보 복사 is a developer-mode item: the template
+      // says how to turn developer mode on.
+      expect('${attributes('diagnostics')['description']}', contains('7번'));
     });
 
     test('config keeps blank issues', () {

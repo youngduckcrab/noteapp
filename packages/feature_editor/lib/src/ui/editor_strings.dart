@@ -48,13 +48,21 @@ abstract final class EditorStrings {
   static const eraser = '지우개';
   static const lasso = '올가미';
 
-  /// [✋] on (InputMode.fingerDrawing) / off (InputMode.penOnly).
-  static const fingerDrawingOn = '손가락 필기 켜짐';
-  static const fingerDrawingOff = '손가락 필기 꺼짐';
-
   /// (v2.14-ui, UI stage 1) The ⋯ check item that replaced the toolbar [✋]
-  /// (settings › 입력 › 입력 방식 has the three modes).
+  /// (settings › 입력 › 입력 방식 has the three modes; its third mode reads
+  /// the same — [inputModeFingerDrawing]).
   static const fingerDrawingMenu = '손가락으로 그리기';
+
+  /// (v2.14-ui review) Trailing word of [fingerDrawingMenu] while the input
+  /// mode is 자동 (the check follows what auto does now).
+  static const fingerDrawingAuto = '자동';
+
+  /// (v2.14-ui review) The snackbar after [fingerDrawingMenu]: on
+  /// (InputMode.fingerDrawing) / off (InputMode.penOnly), and the line added
+  /// when the tap left 자동.
+  static const fingerDrawingOn = '손가락으로 그리기를 켰어요';
+  static const fingerDrawingOff = '손가락으로 그리기를 껐어요. 펜으로만 그려요';
+  static const fingerDrawingLeftAuto = '자동 전환은 설정 › 입력에서 다시 고를 수 있어요';
 
   /// Semantics hint of the zoom chip (tap = fit width).
   static const zoomToFit = '너비 맞춤';
@@ -107,11 +115,15 @@ abstract final class EditorStrings {
   static const noteInfo = '노트 정보';
 
   /// (v2.14-ui) Semantics hint of the tappable toolbar title.
-  static const titleOpensNoteInfo = '눌러서 노트 정보 보기';
+  static const titleOpensNoteInfo = '눌러서 노트 정보 보기·이름 바꾸기';
   static const noteInfoTitle = '제목';
   static const noteInfoPages = '페이지 수';
   static const noteInfoCreated = '만든 날짜';
   static const noteInfoUpdated = '고친 날짜';
+
+  /// (v2.14-ui review) 노트 정보 [이름 바꾸기] and its dialog.
+  static const renameNote = '이름 바꾸기';
+  static const renameSave = '바꾸기';
   static const close = '닫기';
 
   // ---------------------------------------------------------------------------
@@ -197,6 +209,22 @@ abstract final class EditorStrings {
 
   /// (v2.14-ui) The 12 built-in colours above the recent ones.
   static const basicColors = '기본 색';
+
+  /// (v2.14-ui review) The spoken names of kBasicColors, in its order.
+  static const basicColorNames = [
+    '검정',
+    '진회색',
+    '남색',
+    '파랑',
+    '청록',
+    '초록',
+    '빨강',
+    '주황',
+    '노랑',
+    '보라',
+    '분홍',
+    '갈색',
+  ];
 
   /// Shown instead of the recent colours before the first committed stroke.
   static const noRecentColors = '획을 그리면 그 색이 여기에 모여요';
@@ -310,7 +338,7 @@ abstract final class EditorStrings {
   static const inputMode = '입력 모드';
   static const inputModeAuto = '자동';
   static const inputModePenOnly = '펜 전용';
-  static const inputModeFingerDrawing = '손가락 필기';
+  static const inputModeFingerDrawing = '손가락으로 그리기';
   static const inputModeAutoHint = '펜을 한 번 쓰면 그다음부터는 펜으로만 그리고 손가락으로는 화면을 움직여요';
   static const inputModePenOnlyHint = '펜으로만 그려요. 손가락으로는 화면을 움직이고 확대해요';
   static const inputModeFingerDrawingHint = '한 손가락으로 그리고 두 손가락으로 화면을 움직여요';

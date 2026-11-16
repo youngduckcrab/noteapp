@@ -1,7 +1,11 @@
 import 'dart:async';
 
 import 'package:feature_editor/feature_editor.dart'
-    show StylusExtraEvent, StylusExtrasSource, stylusExtrasProvider;
+    show
+        StylusExtraEvent,
+        StylusExtrasSource,
+        editorSettingsProvider,
+        stylusExtrasProvider;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -305,21 +309,35 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
   );
 
   /// (v2.14-ui) The 7th quick tap on the 빌드 row flips the stored switch.
+  /// (review) From the [DeveloperModeTapCounter.hintFrom]th tap a snackbar
+  /// counts the taps left; after the flip it says the effective state — still
+  /// on while the developer overlay or `?dev=1` keeps it on.
   Future<void> _onBuildRowTap() async {
-    if (!_devTaps.tap()) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
+    void show(String text) => messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+    if (!_devTaps.tap()) {
+      final left = DeveloperModeTapCounter.tapsToToggle - _devTaps.count;
+      if (_devTaps.count >= DeveloperModeTapCounter.hintFrom) {
+        show(AppStrings.developerModeTapsLeft(left));
+      }
+      return;
+    }
     final on = await toggleStoredDeveloperMode(
       ref.read(settingsRepositoryProvider),
     );
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            on ? AppStrings.developerModeOn : AppStrings.developerModeOff,
-          ),
-        ),
-      );
+    if (!mounted) return;
+    final keptOn =
+        ref.read(editorSettingsProvider.select((s) => s.showDevOverlay)) ||
+        ref.read(appDevUrlFlagProvider);
+    show(
+      on
+          ? AppStrings.developerModeOn
+          : keptOn
+          ? AppStrings.developerModeStillOn
+          : AppStrings.developerModeOff,
+    );
   }
 
   Future<void> _copyDiagnostics() async {

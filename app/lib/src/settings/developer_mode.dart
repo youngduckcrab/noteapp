@@ -76,6 +76,9 @@ final class DeveloperModeTapCounter {
     : _now = now ?? DateTime.now;
 
   static const int tapsToToggle = 7;
+
+  /// (v2.14-ui review) From this tap on, the 빌드 row says how many are left.
+  static const int hintFrom = 4;
   static const Duration window = Duration(seconds: 2);
 
   final DateTime Function() _now;

@@ -160,6 +160,14 @@ abstract final class AppStrings {
   /// (v2.14-ui) Developer mode (7 taps on the 빌드 row).
   static const String developerModeOn = '개발자 모드를 켰어요';
   static const String developerModeOff = '개발자 모드를 껐어요';
+
+  /// (v2.14-ui review) The stored switch is off but the developer overlay
+  /// (⌘⇧D) or `?dev=1` keeps developer mode on.
+  static const String developerModeStillOn =
+      '개발자 모드 설정을 껐어요. 개발자 표시나 주소의 ?dev=1 때문에 아직 켜져 있어요';
+
+  /// (v2.14-ui review) Taps left on the 빌드 row.
+  static String developerModeTapsLeft(int left) => '개발자 모드까지 $left번 남았어요';
   static const String aboutRenderer = '렌더러';
   static const String aboutStandalone = '홈 화면 앱';
   static const String aboutStartup = '시작 시간';

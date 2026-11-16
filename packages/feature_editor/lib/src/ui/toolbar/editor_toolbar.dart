@@ -52,11 +52,12 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   core.PenTool.glitter => Icons.auto_awesome,
 };
 
-/// [←] title [▤] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+] [🎤] │ [↶] [↷] │
-/// [100%] [☁] [⋯] — 52 px (v2, m5-7/04-editor 6.13.1). (v2.14-ui, UI stage
-/// 1) No [✋] (⋯ '손가락으로 그리기' and settings › 입력 instead); [100%] only
+/// [←] title [100%] [☁] [🔍] [▤] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+]
+/// [🎤] │ [↶] [↷] │ [⋯] — 52 px (v2, m5-7/04-editor 6.13.1). (v2.14-ui, UI
+/// stage 1) No [✋] (⋯ '손가락으로 그리기' and settings › 입력 instead); [100%] only
 /// while the zoom is not 100 % and [☁] only while sync is not done
-/// (ZoomChip, EditorSyncBadgeIcon); a tap on the title opens 노트 정보 (⋯ has
+/// (ZoomChip, EditorSyncBadgeIcon — after the title, whose slot absorbs
+/// their width, so the tools never shift when they appear); a tap on the title opens 노트 정보 (⋯ has
 /// it while the title is hidden). The title shows
 /// from [titleMinWidth] (1st round 700 — more buttons now). Below
 /// [foldWidth] (split screen — A-6) [도형] [텍스트] [+] [🎤] fold into
@@ -105,6 +106,9 @@ class EditorToolbar extends ConsumerWidget {
   static const lassoKey = ValueKey('editor.toolbar.lasso');
   static const titleKey = ValueKey('editor.toolbar.title');
 
+  /// (v2.14-ui review) The ▾ after the title (it opens 노트 정보).
+  static const titleAffordanceKey = ValueKey('editor.toolbar.titleAffordance');
+
   /// (v2.14-ui) The whole title slot (the title's [titleKey] is the tappable
   /// part; the rest of the slot is blank toolbar).
   static const titleSlotKey = ValueKey('editor.toolbar.titleSlot');
@@ -112,8 +116,8 @@ class EditorToolbar extends ConsumerWidget {
 
   /// (v2.13-search) [🔍] '노트에서 찾기' — at every width from
   /// [foldedSearchMinWidth] (review: Android tablets in portrait are about
-  /// 800 wide; (19.1) [foldWidth] leaves the unfolded row room for it). The
-  /// more menu's first item has it too.
+  /// 800 wide; (19.1) [foldWidth] leaves the unfolded row room for it).
+  /// (v2.14-ui review) Below that width it is the more menu's first item.
   static const noteSearchKey = ValueKey('editor.toolbar.noteSearch');
 
   /// (v2) Appendix C.
@@ -132,7 +136,7 @@ class EditorToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final title = ref.watch(editorSessionValueProvider).note.title;
+    final title = ref.watch(editorNoteTitleProvider);
     final hasPanel = ref.watch(
       editorExtensionsProvider.select((e) => e.recordingPanel != null),
     );
@@ -173,6 +177,11 @@ class EditorToolbar extends ConsumerWidget {
                   )
                 else if (!scroll)
                   const MenuHideSlot(), // the Spacer, [⌃] when it fits
+                // (v2.14-ui review) [100%] and [☁] come and go, so they sit
+                // on the title side: the title / Spacer absorbs their width
+                // and the tools after them never move.
+                const ZoomChip(),
+                const EditorSyncBadgeIcon(),
                 if (constraints.maxWidth >= foldedSearchMinWidth)
                   const _NoteSearchButton(),
                 const _PagePanelButton(),
@@ -189,11 +198,10 @@ class EditorToolbar extends ConsumerWidget {
                 ],
                 const UndoRedoButtons(),
                 const _Divider(),
-                const ZoomChip(),
-                const EditorSyncBadgeIcon(),
                 EditorMoreMenu(
                   onOpenSettings: onOpenSettings,
                   showNoteInfo: constraints.maxWidth < titleMinWidth,
+                  showNoteSearch: constraints.maxWidth < foldedSearchMinWidth,
                 ),
                 const SizedBox(width: 4),
               ],
@@ -234,14 +242,25 @@ class _TitleSlot extends ConsumerWidget {
             constraints: const BoxConstraints(minHeight: 44),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Align(
-                widthFactor: 1,
-                child: Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+              // (v2.14-ui review) ▾ after the title: it can be tapped.
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    key: EditorToolbar.titleAffordanceKey,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ],
               ),
             ),
           ),

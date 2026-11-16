@@ -8,9 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../../commands/editor_commands.dart';
 import '../../di/editor_extensions.dart';
 import '../../di/stylus_extras.dart';
 import '../../scope/editor_scope.dart';
+import '../../state/note_search.dart';
+import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
 import '../../state/tape_state.dart';
 import '../../stylus/stylus_extras_listener.dart' show penOnlyEffectiveWith;
@@ -23,7 +26,7 @@ import 'dev_menu.dart';
 import 'note_info_dialog.dart';
 
 /// (v2.14-ui, UI stage 1) 테이프 모두 보이기 / 테이프 모두 가리기 — one item,
-/// only when a loaded page of the note has a tape (or the tape pen is the
+/// only when a page of the note seen in this session had a tape (or the tape pen is the
 /// current pen) when the menu opens; it shows the action that is not in effect
 /// (가리기 while every tape is revealed, else 보이기; allowed on a read-only
 /// note, nothing is stored) · 손가락으로 그리기 (check — EditorCommands
@@ -35,7 +38,8 @@ import 'note_info_dialog.dart';
 /// overlay is visible — EditorDevMenu) · divider · extension items.
 ///
 /// Gone from here (v2.14-ui), each still reachable: 노트에서 찾기 (toolbar [🔍],
-/// the hidden menu's pill), 페이지 넘김 (the page panel's header and settings ›
+/// the hidden menu's pill; still first here with [showNoteSearch], below the
+/// width that has [🔍]), 페이지 넘김 (the page panel's header and settings ›
 /// 페이지 넘김), 현재 페이지 지우기 (the eraser popup), 노트 정보 (tap the title).
 ///
 /// The EditorMenuContext is built when the menu opens (6.11.5); extension
@@ -47,6 +51,7 @@ class EditorMoreMenu extends ConsumerStatefulWidget {
     super.key,
     this.onOpenSettings,
     this.showNoteInfo = false,
+    this.showNoteSearch = false,
   });
 
   final VoidCallback? onOpenSettings;
@@ -54,6 +59,10 @@ class EditorMoreMenu extends ConsumerStatefulWidget {
   /// (v2.14-ui) '노트 정보' is listed (the toolbar is too narrow for the
   /// tappable title).
   final bool showNoteInfo;
+
+  /// (v2.14-ui review) '노트에서 찾기' is listed first (the toolbar is too
+  /// narrow for its [🔍] — below EditorToolbar.foldedSearchMinWidth).
+  final bool showNoteSearch;
 
   static const buttonKey = ValueKey('editor.toolbar.more');
 
@@ -66,6 +75,9 @@ class EditorMoreMenu extends ConsumerStatefulWidget {
   static const fingerDrawingKey = ValueKey('editor.more.fingerDrawing');
   static const devOverlayKey = ValueKey('editor.more.devOverlay');
   static const noteInfoKey = ValueKey('editor.more.noteInfo');
+
+  /// (v2.14-ui review) Only with [showNoteSearch].
+  static const noteSearchKey = ValueKey('editor.more.noteSearch');
   static const settingsKey = ValueKey('editor.more.settings');
 
   /// Key of the item for an EditorMenuItem.id.
@@ -93,9 +105,11 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
     _controller.open();
   }
 
-  /// A loaded page has a tape stroke, or the tape pen is the current pen
-  /// (the pages not loaded are not read for this).
+  /// A page seen in this session had a tape (editorNoteHadTapeProvider), a
+  /// loaded page has one, or the tape pen is the current pen (pages never
+  /// shown in this session are not read for this).
   bool _noteHasTape() {
+    if (ref.read(editorNoteHadTapeProvider)) return true;
     final tools = ref.read(editorToolProvider);
     if (tools.activeTool == EditorTool.pen &&
         tools.penType == core.PenTool.tape) {
@@ -139,6 +153,29 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
 
   Future<void> _showNoteInfo() => showNoteInfoDialog(context, ref);
 
+  /// (v2.14-ui review) The toggle, then a snackbar that says the new state
+  /// (the toolbar has no [✋] to show it) and, when the tap left 자동, where
+  /// 자동 is chosen again.
+  void _toggleFingerDrawing(EditorCommands commands) {
+    final wasAuto =
+        ref.read(editorSettingsProvider).inputMode == InputMode.auto;
+    commands.toggleFingerDrawing();
+    final on =
+        ref.read(editorSettingsProvider).inputMode == InputMode.fingerDrawing;
+    final text = on
+        ? EditorStrings.fingerDrawingOn
+        : EditorStrings.fingerDrawingOff;
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            wasAuto ? '$text\n${EditorStrings.fingerDrawingLeftAuto}' : text,
+          ),
+        ),
+      );
+  }
+
   Widget _checkBox(bool on) =>
       Icon(on ? Icons.check_box : Icons.check_box_outline_blank);
 
@@ -157,6 +194,13 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
     return MenuAnchor(
       controller: _controller,
       menuChildren: [
+        if (widget.showNoteSearch)
+          MenuItemButton(
+            key: EditorMoreMenu.noteSearchKey,
+            leadingIcon: const Icon(Icons.search),
+            onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
+            child: const Text(EditorStrings.noteSearch),
+          ),
         if (_hasTape)
           if (tapesRevealed)
             MenuItemButton(
@@ -179,7 +223,13 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
         MenuItemButton(
           key: EditorMoreMenu.fingerDrawingKey,
           leadingIcon: _checkBox(!penOnly),
-          onPressed: commands.toggleFingerDrawing,
+          trailingIcon: settings.inputMode == InputMode.auto
+              ? Text(
+                  EditorStrings.fingerDrawingAuto,
+                  style: Theme.of(context).textTheme.labelMedium,
+                )
+              : null,
+          onPressed: () => _toggleFingerDrawing(commands),
           child: const Text(EditorStrings.fingerDrawingMenu),
         ),
         if (developerMode || settings.showDevOverlay || devVisible)
@@ -192,12 +242,14 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
         if (widget.showNoteInfo)
           MenuItemButton(
             key: EditorMoreMenu.noteInfoKey,
+            leadingIcon: const Icon(Icons.info_outline),
             onPressed: () => unawaited(_showNoteInfo()),
             child: const Text(EditorStrings.noteInfo),
           ),
         if (openSettings != null)
           MenuItemButton(
             key: EditorMoreMenu.settingsKey,
+            leadingIcon: const Icon(Icons.settings_outlined),
             onPressed: openSettings,
             child: const Text(EditorStrings.settings),
           ),

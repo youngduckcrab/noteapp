@@ -12,8 +12,10 @@ import 'color_swatch.dart';
 
 /// The 12 built-in colours (opaque ARGB), in this order: black, dark grey,
 /// navy, blue, teal, green, red, orange, yellow, purple, pink, brown.
+/// 검정 is the default ink (#1A1A1A — core.PenStyle defaults, the shape and
+/// text colour rows), so the first-run pen shows it selected.
 const List<int> kBasicColors = [
-  0xFF000000, // black
+  0xFF1A1A1A, // black (the default ink)
   0xFF5F6368, // dark grey
   0xFF1A237E, // navy
   0xFF1E88E5, // blue
@@ -52,7 +54,9 @@ class BasicColorsRow extends ConsumerWidget {
               ColorSwatchButton(
                 key: swatchKey(i),
                 argb: kBasicColors[i],
-                selected: kBasicColors[i] == current,
+                label: EditorStrings.basicColorNames[i],
+                // RGB only: setColor keeps the pen's opacity.
+                selected: kBasicColors[i] & 0xFFFFFF == current & 0xFFFFFF,
                 onTap: () => ref
                     .read(editorToolProvider.notifier)
                     .setColor(kBasicColors[i]),

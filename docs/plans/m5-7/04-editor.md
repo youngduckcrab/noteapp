@@ -3109,6 +3109,22 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 툴바가 [✋]·[100%]·완료 ☁만큼(약 112 px) 짧아져 [⌃]가 960~1044 px에서도 줄에 들어간다(`toolbar_width_test`·`editor_chrome_test` 표 갱신). 시험: `test/widget/ui_cleanup_test.dart`(테이프 한 줄, '전체 N쪽'·넘김 줄, 알약 순서, 기본 색, 제목 → 노트 정보), `end_of_document_hint_test.dart`(옛 `add_page_button_test`의 명령 범위 포함), `toolbar_test.dart`(⋯ 구성·옮긴 곳·손가락 체크·확대 칩·개발자 모드). 다른 시험이 '부작용 없는 툴바 누르기'로 쓰던 제목 누르기는 `tapToolbarBlank`(제목 칸의 빈 끝)로 바꿨다. 부록 C 키: 없앤 키 `editor.toolbar.finger`, `editor.more.noteSearch`·`.pageFlip(.vertical/.horizontal)`·`.clearPage`, `editor.addPageButton`; 새 키 `editor.more.fingerDrawing`, `editor.pagePanel.pageFlip(.vertical/.horizontal)`, `editor.endOfDocumentHint`, `editor.toolbar.titleSlot`, `editor.color.basic.<n>`.
 
 
+### 20.1 검토 반영 (2026-11-16)
+
+| 지적 | 고친 것 |
+|---|---|
+| [100%]·☁가 나타났다 사라질 때 펜·지우개·올가미가 옆으로 밀림(펜으로 누르는 자리가 바뀜) | 둘을 제목 쪽(제목·빈칸이 폭을 받는 자리, 🔍 앞)으로 옮김 — 도구 묶음과 ⋯는 늘 같은 자리. 시험: 1280·900 px에서 동기화 중→완료, 확대 100→125 %일 때 펜·⋯ 위치 그대로 |
+| 720 px 미만(분할 화면·세로 폰)에서 '노트에서 찾기'가 메뉴 숨기기 뒤에만 | 그 폭에서는 ⋯ 맨 위에 '노트에서 찾기'(`editor.more.noteSearch`, `EditorMoreMenu.showNoteSearch`) |
+| ⋯ 테이프 줄이 불러온 쪽(최대 8쪽)만 봄 | 이번 편집에서 화면에 올라온 쪽에 테이프가 한 번이라도 있었으면(`editorNoteHadTapeProvider` — 쪽 내용이 올 때마다 첫 테이프까지만 확인) 그 쪽이 캐시에서 빠져도 줄이 남는다. 한 번도 보지 않은 쪽은 읽지 않는다(CORE에 노트 단위 테이프 표시가 없음 — 남은 한계) |
+| 펜 창 기본 색이 800 px 높이에서 스크롤 아래 | 펜 종류 바로 아래(맨 위)로. 검정을 기본 잉크 `#1A1A1A`로 바꿔 첫 실행에 검정이 선택돼 보인다(비교는 RGB만). 색 칸 읽는 이름은 한국어(검정·진회색…, `EditorStrings.basicColorNames`). 어두운 화면에서 선택 안 된 칸 테두리는 `outline`(검정·남색이 보이게) |
+| 가로 배치 끝 안내가 마지막 쪽 오른쪽 끝에 닿음(축소 때 세로도) | 상자를 쪽 끝에서 적어도 `minGap` 12 px 떨어뜨림(`EndOfDocumentHint.rectOf`) |
+| ✋가 없어 손가락 그리기 상태가 안 보이고, 자동에서 눌러도 말이 없음 | ⋯ '손가락으로 그리기' 옆에 자동일 때 '자동', 누르면 스낵바 '손가락으로 그리기를 켰어요' / '…껐어요. 펜으로만 그려요'(자동에서 나왔으면 '자동 전환은 설정 › 입력에서 다시 고를 수 있어요' 한 줄 더). 설정의 셋째 방식도 같은 말 '손가락으로 그리기'. 툴바 표시는 다시 넣지 않음(✋를 빼는 것이 1단계 목표) |
+| 제목이 눌리는지 모르고, 눌러도 이름을 못 바꿈 | 제목 뒤에 ▾(`editor.toolbar.titleAffordance`). 노트 정보에 [이름 바꾸기](`editor.noteInfo.rename`, 읽기 전용 노트에는 없음) → 이름 창(`editor.noteRename`, 빈·200자 넘음·그대로면 [바꾸기] 꺼짐) → CORE `LibraryRepository.renameNote`. 툴바 제목은 `editorNoteTitleProvider`(noteStream)로 따라 바뀜 |
+| 세로 화면 ⋯ '노트 정보'만 아이콘이 없어 글자가 어긋남 | '노트 정보'(info)·'설정'(settings)에 아이콘 |
+| 골든 실패 그림이 커밋됨 | 지우고 `packages/feature_editor/.gitignore`에 `test/goldens/failures/` |
+
+받지 않은 것: 빠른 펜 미리보기 선(#1A1A1A)이 어두운 미리보기 칸에서 안 보이는 것은 이번 가지 이전부터이고 종이색 토큰은 스타일 트랙 몫. 시험: `test/widget/ui_cleanup_review_test.dart`.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)

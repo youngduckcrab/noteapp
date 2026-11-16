@@ -92,6 +92,10 @@ class _EditorPageViewState extends ConsumerState<EditorPageView> {
   /// (this runs inside a session stream listener, N-2 v1.1).
   void _onContentChanged(core.PageContentChange change) {
     if (!mounted) return;
+    // (v2.14-ui review) the more menu's tape item remembers seen tapes.
+    ref
+        .read(editorNoteHadTapeProvider.notifier)
+        .noteStrokes(change.content.strokes);
     ref
         .read(editorSelectionProvider.notifier)
         .revalidate(change.content.page.id, change.content);

@@ -44,6 +44,9 @@ class PenSettingsPanel extends ConsumerWidget {
       title: EditorStrings.penSettings,
       children: [
         const PenTypeSelector(),
+        // (v2.14-ui) 기본 색 12개 at the top, in view without scrolling
+        // (review: below the opacity they were past the fold at 800 px).
+        if (colours) ...const [SizedBox(height: 8), BasicColorsRow()],
         const SizedBox(height: 8),
         const WidthSlider(),
         PenPreview(style: pen),
@@ -51,9 +54,6 @@ class PenSettingsPanel extends ConsumerWidget {
           SizedBox(height: 12),
           OpacitySlider(),
           SizedBox(height: 12),
-          // (v2.14-ui) 기본 색 12개 first.
-          BasicColorsRow(),
-          SizedBox(height: 8),
           ColorPickerPanel(),
           SizedBox(height: 12),
           RecentColorsRow(),

@@ -6,7 +6,10 @@ import 'package:ui_kit/ui_kit.dart';
 import 'color_math.dart';
 
 /// A [diameter] colour circle in a 44 × 44 touch target (contract 7.4.8);
-/// [selected] draws a primary ring. Semantics label = the HEX value.
+/// [selected] draws a primary ring. Semantics label = [label], else the HEX
+/// value. (v2.14-ui review) In dark mode the ring of an unselected swatch is
+/// `outline`, not `outlineVariant`, so dark inks (검정, 남색) stay visible on
+/// the dark popup.
 class ColorSwatchButton extends StatelessWidget {
   const ColorSwatchButton({
     super.key,
@@ -15,6 +18,7 @@ class ColorSwatchButton extends StatelessWidget {
     this.onLongPress,
     this.selected = false,
     this.diameter = 28,
+    this.label,
   });
 
   static const double cellSize = 44;
@@ -25,13 +29,16 @@ class ColorSwatchButton extends StatelessWidget {
   final bool selected;
   final double diameter;
 
+  /// The spoken name (the basic colours' Korean names); null → HEX.
+  final String? label;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
       selected: selected,
-      label: ColorMath.toHex(argb),
+      label: label ?? ColorMath.toHex(argb),
       excludeSemantics: true,
       child: SizedBox.square(
         dimension: cellSize,
