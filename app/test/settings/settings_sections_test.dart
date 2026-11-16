@@ -67,6 +67,8 @@ void main() {
   test('(v2.14-ui) outside developer mode: no 개발자 표시 · 기능 켜고 끄기 · '
       '이전 판 DB 사본', () {
     expect(defaultSettingsSections().map((e) => e.id), [
+      'app.style',
+      'app.brightness',
       'app.storage',
       'editor.input',
       'editor.pen',

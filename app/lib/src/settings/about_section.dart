@@ -314,8 +314,10 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
   /// on while the developer overlay or `?dev=1` keeps it on.
   Future<void> _onBuildRowTap() async {
     final messenger = ScaffoldMessenger.maybeOf(context);
+    // remove (not hide): quick taps replace the snack bar at once instead of
+    // queueing behind the one sliding out.
     void show(String text) => messenger
-      ?..hideCurrentSnackBar()
+      ?..removeCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(text)));
     if (!_devTaps.tap()) {
       final left = DeveloperModeTapCounter.tapsToToggle - _devTaps.count;

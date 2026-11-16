@@ -130,8 +130,9 @@ void main() {
     await tester.pump(const Duration(seconds: 2)); // debounced writes
   });
 
-  testWidgets('(review) from the 4th tap the 빌드 row counts the taps left',
-      (tester) async {
+  testWidgets('(review) from the 4th tap the 빌드 row counts the taps left', (
+    tester,
+  ) async {
     final harness = SettingsHarness(developerMode: false);
     await harness.pump(tester, _sections);
     await tester.pumpAndSettle();

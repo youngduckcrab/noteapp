@@ -3109,7 +3109,7 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 툴바가 [✋]·[100%]·완료 ☁만큼(약 112 px) 짧아져 [⌃]가 960~1044 px에서도 줄에 들어간다(`toolbar_width_test`·`editor_chrome_test` 표 갱신). 시험: `test/widget/ui_cleanup_test.dart`(테이프 한 줄, '전체 N쪽'·넘김 줄, 알약 순서, 기본 색, 제목 → 노트 정보), `end_of_document_hint_test.dart`(옛 `add_page_button_test`의 명령 범위 포함), `toolbar_test.dart`(⋯ 구성·옮긴 곳·손가락 체크·확대 칩·개발자 모드). 다른 시험이 '부작용 없는 툴바 누르기'로 쓰던 제목 누르기는 `tapToolbarBlank`(제목 칸의 빈 끝)로 바꿨다. 부록 C 키: 없앤 키 `editor.toolbar.finger`, `editor.more.noteSearch`·`.pageFlip(.vertical/.horizontal)`·`.clearPage`, `editor.addPageButton`; 새 키 `editor.more.fingerDrawing`, `editor.pagePanel.pageFlip(.vertical/.horizontal)`, `editor.endOfDocumentHint`, `editor.toolbar.titleSlot`, `editor.color.basic.<n>`.
 
 
-### 20.1 검토 반영 (2026-11-16)
+### 21.1 검토 반영 (2026-11-16)
 
 | 지적 | 고친 것 |
 |---|---|

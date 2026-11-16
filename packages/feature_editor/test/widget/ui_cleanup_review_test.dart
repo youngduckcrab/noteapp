@@ -176,7 +176,7 @@ void main() {
     }
     expect(
       tester.getSemantics(find.byKey(BasicColorsRow.swatchKey(0))),
-      containsSemantics(label: '검정', isButton: true, isSelected: true),
+      isSemantics(label: '검정', isButton: true, isSelected: true),
     );
     expect(EditorStrings.basicColorNames, hasLength(kBasicColors.length));
     await tester.pump(const Duration(seconds: 1));
