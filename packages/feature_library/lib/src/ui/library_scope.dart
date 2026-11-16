@@ -17,6 +17,7 @@ class LibraryScope extends InheritedWidget {
     required this.openSettings,
     required this.openDrawer,
     required this.closeDrawer,
+    required this.compactSearchOpen,
     required this.screenContext,
     required super.child,
   });
@@ -47,6 +48,11 @@ class LibraryScope extends InheritedWidget {
   /// Closes the drawer if it is open (sidebar 최근 / 즐겨찾기 / 휴지통).
   final VoidCallback closeDrawer;
 
+  /// (v2.13-nav) The compact class's search bar is open (the search icon
+  /// was pressed). Owned by the screen: system back closes the bar first,
+  /// and a route change closes it.
+  final ValueNotifier<bool> compactSearchOpen;
+
   /// The LibraryScreen State's context: the PDF slots get it (4.3 — the
   /// selection bar or a menu may be gone while the PDF flow runs).
   final BuildContext screenContext;
@@ -74,5 +80,6 @@ class LibraryScope extends InheritedWidget {
       openSettings != oldWidget.openSettings ||
       openDrawer != oldWidget.openDrawer ||
       closeDrawer != oldWidget.closeDrawer ||
+      compactSearchOpen != oldWidget.compactSearchOpen ||
       screenContext != oldWidget.screenContext;
 }

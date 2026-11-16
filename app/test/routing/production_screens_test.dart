@@ -401,6 +401,56 @@ void main() {
       expect(find.byType(LibraryScreen), findsOneWidget);
     });
 
+    // (v2.13-nav, m5-7/05-library 16) Android system back on the library
+    // route: a folder → its parent → 홈 → the app exits (SystemNavigator.pop).
+    // Folder changes are `go` (one route), so without the library's PopScope
+    // the first back left the app.
+    testWidgets('system back in a nested folder goes up, then home, then '
+        'exits', (tester) async {
+      final store = createFakeNoteStore();
+      final top = await store.library.createFolder(name: '수학');
+      final child = await store.library.createFolder(
+        name: '미적분',
+        parentId: top.id,
+      );
+      await _pumpShell(tester, store: store);
+      final exits = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'SystemNavigator.pop') exits.add(call.method);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      _library(tester).onOpenFolder(top.id);
+      await tester.pumpAndSettle();
+      _library(tester).onOpenFolder(child.id);
+      await tester.pumpAndSettle();
+      expect(_location(tester), AppRoutes.folder(child.id));
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(_location(tester), AppRoutes.folder(top.id));
+      expect(exits, isEmpty);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(_location(tester), '/');
+      expect(find.byType(LibraryScreen), findsOneWidget);
+      expect(exits, isEmpty);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(exits, hasLength(1));
+    });
+
     testWidgets('deep links to a folder and to settings', (tester) async {
       await _pumpShell(tester, initialLocation: '/folders/f9');
       expect(_library(tester).folderId, 'f9');

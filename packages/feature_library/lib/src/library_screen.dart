@@ -12,6 +12,7 @@ import 'package:note_core/note_core.dart'
     show FolderId, FolderTree, NoteId, PageId, folderTreeProvider;
 
 import 'dnd/library_drag_scope.dart';
+import 'model/section.dart';
 import 'state/providers.dart';
 import 'ui/content/content_pane.dart';
 import 'ui/layout/library_layout.dart';
@@ -56,7 +57,8 @@ class LibraryScreen extends ConsumerStatefulWidget {
   /// Opens the settings screen (sidebar settings button, sync status).
   final VoidCallback onOpenSettings;
 
-  /// Content search hit → page + rect (page pt). null → onOpenNote(noteId) (page ignored).
+  /// Content search hit → page + rect (page pt). null → onOpenNote(noteId)
+  /// (page ignored).
   // (v2.0) 2차 foundation step R2-B6: stored only; the '노트 내용' search
   // results (L2-02, L2-03) call it.
   final LibraryOpenNoteAt? onOpenNoteAt;
@@ -71,6 +73,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// Waits for the first folder tree when the reveal ran before it loaded.
   ProviderSubscription<AsyncValue<FolderTree>>? _revealWait;
 
+  /// (v2.13-nav) The compact search bar is open (LibraryScope).
+  final ValueNotifier<bool> _compactSearchOpen = ValueNotifier<bool>(false);
+
   @override
   void initState() {
     super.initState();
@@ -80,7 +85,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   void didUpdateWidget(LibraryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.folderId != widget.folderId) _scheduleReveal();
+    if (oldWidget.folderId != widget.folderId) {
+      _compactSearchOpen.value = false;
+      _scheduleReveal();
+    }
+  }
+
+  @override
+  void dispose() {
+    _revealWait?.close();
+    _compactSearchOpen.dispose();
+    super.dispose();
   }
 
   /// 6.4 현재 폴더 드러내기: after the frame (never while building), expands
@@ -116,9 +131,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     ]);
   }
 
+  /// Every move to another place (a folder, a section, a note, settings)
+  /// closes the drawer and lets go of the keyboard focus (m5-7/05-library 16).
   void _closeDrawer() {
+    _releaseFocus();
     final scaffold = _scaffoldKey.currentState;
     if (scaffold != null && scaffold.isDrawerOpen) scaffold.closeDrawer();
+  }
+
+  /// (v2.13-nav, m5-7/05-library 16) Unfocuses the primary focus when it is
+  /// inside this screen (the search field, the drawer's focus scope).
+  /// [FocusNode.unfocus] with [UnfocusDisposition.scope] also clears the route
+  /// scope's focus history, so nothing hands the focus back to the search field
+  /// later — the drawer closing, the editor or settings route popping — which
+  /// would bring the soft keyboard up without a tap. On Android the system back
+  /// that hides the keyboard leaves the field focused, which is how the field
+  /// still held the focus when the user moved on.
+  void _releaseFocus() {
+    final focused = FocusManager.instance.primaryFocus;
+    final focusedContext = focused?.context;
+    if (focused == null || focusedContext == null) return;
+    if (focusedContext.findAncestorStateOfType<_LibraryScreenState>() != this) {
+      return;
+    }
+    focused.unfocus();
   }
 
   // The three below may run after an await in a part that is gone by then;
@@ -170,6 +206,56 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (scaffold != null && !scaffold.isDrawerOpen) scaffold.openDrawer();
   }
 
+  /// (v2.13-nav, m5-7/05-library 16) System back exits the app only from 홈
+  /// itself: the home route showing its folder, no selection, no search.
+  bool _backExits(LibrarySection section, bool selecting, bool searchOpen) =>
+      widget.folderId == null &&
+      section == const FolderSection(null) &&
+      !selecting &&
+      !searchOpen;
+
+  /// (v2.13-nav, m5-7/05-library 16) System back (Android button or gesture)
+  /// when it does not exit, one step at a time: the drawer closes → selection
+  /// mode ends → the search closes (back to where it started) → 최근 / 즐겨찾기 / 휴지통
+  /// → 홈 → a folder → its parent folder (a top-level folder → 홈; a folder not
+  /// in the tree → 홈).
+  void _back() {
+    if (!mounted) return;
+    final scaffold = _scaffoldKey.currentState;
+    if (scaffold != null && scaffold.isDrawerOpen) {
+      scaffold.closeDrawer();
+      return;
+    }
+    final route = widget.folderId;
+    final selection = ref.read(librarySelectionProvider(route).notifier);
+    if (ref.read(librarySelectionProvider(route)).active) {
+      selection.end();
+      return;
+    }
+    final sectionNotifier = ref.read(librarySectionProvider(route).notifier);
+    final section = ref.read(librarySectionProvider(route));
+    if (section is SearchSection || _compactSearchOpen.value) {
+      _releaseFocus();
+      _compactSearchOpen.value = false;
+      sectionNotifier.exitSearch();
+      return;
+    }
+    switch (section) {
+      case FolderSection(folderId: final id?):
+        final path = ref.read(folderTreeProvider).value?.pathTo(id);
+        final parent = path != null && path.length >= 2
+            ? path[path.length - 2].id
+            : null;
+        _openFolder(parent);
+      case FolderSection():
+        if (route != null) _openFolder(null);
+      case RecentSection() || FavoritesSection() || TrashSection():
+        _openFolder(null);
+      case SearchSection():
+        break; // handled above
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sizeClass = librarySizeClassFor(MediaQuery.sizeOf(context).width);
@@ -177,8 +263,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final sidebarVisible = ref.watch(
       libraryPrefsProvider.select((p) => p.sidebarVisible),
     );
+    final selecting = ref.watch(
+      librarySelectionProvider(widget.folderId).select((s) => s.active),
+    );
     final expanded = sizeClass == LibrarySizeClass.expanded;
-    return LibraryScope(
+    final screen = LibraryScope(
       routeFolderId: widget.folderId,
       sizeClass: sizeClass,
       openFolder: _openFolder,
@@ -187,11 +276,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       openSettings: _openSettings,
       openDrawer: _openDrawer,
       closeDrawer: _closeDrawer,
+      compactSearchOpen: _compactSearchOpen,
       screenContext: context,
       child: LibraryDragScope(
         onDrawerEdgeHold: expanded ? null : _openDrawer,
         child: Scaffold(
           key: _scaffoldKey,
+          // (m5-7/05-library 16) A drawer opening (☰, edge swipe, a drag at the
+          // edge) takes the focus and its closing hands it back to the route's
+          // last focused node — the search field. Let go of it both times (an
+          // edge swipe reports 'open' before the drawer's focus request is
+          // applied, so the close matters too).
+          onDrawerChanged: (_) => _releaseFocus(),
           drawer: expanded
               ? null
               : const Drawer(
@@ -208,6 +304,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ),
       ),
+    );
+    // (v2.13-nav, m5-7/05-library 16) PopScope(canPop: false) also tells
+    // Android 14+ (predictive back) that the app handles back itself.
+    return ValueListenableBuilder<bool>(
+      valueListenable: _compactSearchOpen,
+      builder: (context, searchOpen, child) => PopScope<Object?>(
+        canPop: _backExits(section, selecting, searchOpen),
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _back();
+        },
+        child: child!,
+      ),
+      child: screen,
     );
   }
 }

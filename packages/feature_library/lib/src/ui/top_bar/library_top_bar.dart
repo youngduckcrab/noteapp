@@ -30,40 +30,46 @@ class LibraryTopBar extends ConsumerStatefulWidget {
 }
 
 class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
-  /// Compact class: the search icon was pressed (the bar is the search
-  /// field). The bar is also the field whenever the section is a search.
-  bool _compactSearchOpen = false;
-  FolderId? _route;
-
-  void _closeCompactSearch(FolderId? route) {
-    setState(() => _compactSearchOpen = false);
-    ref.read(librarySectionProvider(route).notifier).exitSearch();
+  void _closeCompactSearch(LibraryScope scope) {
+    scope.compactSearchOpen.value = false;
+    ref.read(librarySectionProvider(scope.routeFolderId).notifier).exitSearch();
   }
 
   @override
   Widget build(BuildContext context) {
-    final section = widget.section;
     final scope = LibraryScope.of(context);
     final route = scope.routeFolderId;
-    if (route != _route) {
-      _route = route;
-      _compactSearchOpen = false;
-    }
     // Leaving the search for another place (not the field going back to
     // where the search started) closes the compact search bar.
     ref.listen(librarySectionProvider(route), (previous, next) {
-      if (next is SearchSection || !_compactSearchOpen) return;
+      if (next is SearchSection || !scope.compactSearchOpen.value) return;
       if (previous is SearchSection && previous.returnTo == next) return;
-      setState(() => _compactSearchOpen = false);
+      scope.compactSearchOpen.value = false;
     });
+    // Compact class: the search icon was pressed (the bar is the search
+    // field). The bar is also the field whenever the section is a search.
+    // The screen owns the flag (system back closes the bar, m5-7/05-library
+    // 16).
+    return ValueListenableBuilder<bool>(
+      valueListenable: scope.compactSearchOpen,
+      builder: (context, compactSearchOpen, _) =>
+          _bar(context, scope, compactSearchOpen),
+    );
+  }
+
+  Widget _bar(BuildContext context, LibraryScope scope, bool compactOpen) {
+    final section = widget.section;
+    final route = scope.routeFolderId;
     final theme = Theme.of(context);
     final compact = scope.sizeClass == LibrarySizeClass.compact;
     final searchField = LibrarySearchField(
       key: ValueKey<FolderId?>(route),
       routeFolderId: route,
-      autofocus: compact && _compactSearchOpen,
+      // Only right after the user pressed the search icon (never on a
+      // route or section change, 6.14).
+      autofocus: compact && compactOpen,
     );
-    if (compact && (_compactSearchOpen || section is SearchSection)) {
+    if (compact && (compactOpen || section is SearchSection)) {
       return Material(
         color: theme.colorScheme.surface,
         child: SizedBox(
@@ -74,7 +80,7 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
               IconButton(
                 icon: const Icon(Icons.arrow_back),
                 tooltip: LibraryStrings.closeSearch,
-                onPressed: () => _closeCompactSearch(route),
+                onPressed: () => _closeCompactSearch(scope),
               ),
               const SizedBox(width: 8),
               Expanded(child: searchField),
@@ -118,7 +124,7 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
               IconButton(
                 icon: const Icon(Icons.search),
                 tooltip: LibraryStrings.search,
-                onPressed: () => setState(() => _compactSearchOpen = true),
+                onPressed: () => scope.compactSearchOpen.value = true,
               ),
               CompactListingMenu(
                 sortEnabled: sortEnabled,
