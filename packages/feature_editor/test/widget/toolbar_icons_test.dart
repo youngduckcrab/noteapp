@@ -1,4 +1,4 @@
-// (UI stage 2, 04-editor 20.2) The toolbar's ui_kit line icons: the small
+// (UI stage 2, 04-editor 22) The toolbar's ui_kit line icons: the small
 // names under 올가미 · 도형 · 텍스트 · 삽입 (always in 크래프트 / 스튜디오, on
 // hover in 미니멀), the page button's '2 / 4', and the names on stylus hover
 // over the icon-only buttons.

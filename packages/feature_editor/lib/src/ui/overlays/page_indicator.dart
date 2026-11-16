@@ -8,7 +8,7 @@ import '../../state/settings/editor_device_state.dart';
 import '../editor_strings.dart';
 
 /// "current / count" at the bottom right of the page area; never takes
-/// input (IgnorePointer). (UI stage 2, 04-editor 20.2) Only while the top
+/// input (IgnorePointer). (UI stage 2, 04-editor 22) Only while the top
 /// menu is hidden: otherwise the toolbar's page button shows the count.
 class PageIndicator extends ConsumerWidget {
   const PageIndicator({super.key});

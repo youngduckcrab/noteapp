@@ -47,7 +47,7 @@ class ToolButton extends StatelessWidget {
         ? tokens.textPrimary.withValues(alpha: 0.38)
         : active
         ? tokens.onAccentSoft
-        : tokens.textSecondary;
+        : tokens.textPrimary;
     final dot = dotColor;
     final kind = glyph;
     final iconWidget = kind != null

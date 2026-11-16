@@ -3417,6 +3417,26 @@ UI 전면 개선 제안서 1단계 '정리만'의 설정 몫. 화면 배치(2단
 - (통합) 설정 목록은 '화면' 묶음(14.3, 14.6) → 저장 공간 … → 개발자 모드 항목 → 앱 정보. 개발자 모드가 아니어도 '화면' 세 섹션(홈 화면 스타일·필기 화면 스타일·밝기)은 늘 있다.
 - 받지 않은 것: 설정에서 저장 공간을 아래로 옮기는 것(섹션 순서는 8단계 설정 정리, 계약 C214UC-05 '순서는 그대로'), '빌드' 줄 이름을 '버전'으로 바꾸는 것(안내서·시험이 '빌드'를 씀).
 
+## 16. UI 2단계 — 아이콘 표와 '펜을 띄우면 이름 보기' (2026-11-16)
+
+### 16.1 `ui_kit`의 아이콘 표 (14.1에 더함)
+
+- `AppIconKind`: 화면에 아이콘으로 나오는 뜻 하나에 값 하나("한 가지 뜻 = 한 가지 아이콘"). 값마다 `material`(Material Rounded 글리프 — 메뉴·대화상자·목록 줄; 둥근 글리프가 꽉 찬 모양이면 외곽선 글리프)이 있고, 자주 보는 화면(편집기 도구 막대, 서재 위 막대·사이드바, 설정 분류)의 약 45개는 직접 그린 선 아이콘(`hasLineArt`)이 있다.
+- `AppIcon(kind, size, color, semanticLabel)`: 선 아이콘을 `AppIconPainter`(24칸 격자, 둥근 끝·이음, 굵기 = `StyleTokens.iconStrokeWidth` 1.7/1.5/1.6을 22 px 기준으로 크기에 비례)로 그린다. 크기·색 기본값은 둘레의 `IconTheme`(그래서 `IconButton`의 못 누름·고름 색이 그대로 적용), 선 아이콘이 없는 값은 `Icon(material)`. 강제로 큰 칸(입력칸 앞 아이콘)에서도 제 크기로 가운데.
+- 공유는 안드로이드 기호(세 점 연결, `share_rounded`). iOS 상자 기호(`ios_share`)는 PDF 메뉴·백업 창에서 뺐다.
+- 이미지·글꼴 파일을 더하지 않는다(경로 그림). 뜻이 겹치지 않는지는 `ui_kit/test/app_icons_test.dart`(같은 글리프 두 번 금지, 선 아이콘 모두 그려짐).
+
+### 16.2 이름 보기
+
+- `HoverName(name, child)`: 마우스나 화면 위에 띄운 펜이 단추 위에 머물면(350 ms) 이름이 뜬다. `Tooltip(triggerMode: manual)`이라 손가락 누르기·길게 누르기에는 뜨지 않고(편집기 도구는 길게 누르기를 쓴다), 의미 정보에는 더하지 않는다(단추가 제 이름을 가짐).
+- `HoverNames(enabled)`: `NoteApp`의 `builder`가 모든 경로 위에 둔다. 값은 설정 키 `app.appearance.hoverNames`(`device`, 기본 켬, `AppAppearance.hoverNames`), 설정 '화면 › 도구 이름'의 스위치 '펜을 띄우면 이름 보기'.
+- 미니멀의 도구 이름(`ToolLabelMode.onHover`)은 이 설정과 상관없이 올렸을 때 나온다.
+
+### 16.3 설정 분류 아이콘
+
+- 각 설정 머리 앞에 선 아이콘(`settingsSectionIcons`, 섹션 id → `AppIconKind`): 화면 스타일 `style` · 밝기 `brightness` · 도구 이름 `hoverName` · 저장 공간 `storage` · 입력 `input` · 펜 `pen` · 페이지 넘김 `pages` · 새 노트 `notebook` · 인식 `recognition` · 개발자 `developer` · 기능 `features` · 이전 판 `history` · 앱 정보 `info`. ← 뒤로도 선 아이콘.
+- 시험: `appearance_section_test`(키, 스위치 저장, 머리 아이콘), `settings_sections_test`(새 'app.hoverNames' — 화면 묶음 밝기 다음).
+
 ## 부록 A. 확장 지점 · 자리 사용표 (초안의 13절)
 
 ### A.1 INFRA가 여는 자리

@@ -141,4 +141,22 @@ void main() {
       expect(find.text('올가미'), findsNothing);
     });
   });
+
+  testWidgets('AppIcon keeps its size in a box forced larger', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          child: SizedBox.square(
+            dimension: 48,
+            child: AppIcon(AppIconKind.search, size: 20),
+          ),
+        ),
+      ),
+    );
+    final paint = find.descendant(
+      of: find.byType(AppIcon),
+      matching: find.byType(CustomPaint),
+    );
+    expect(tester.getSize(paint), const Size(20, 20));
+  });
 }

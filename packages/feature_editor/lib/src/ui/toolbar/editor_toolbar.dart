@@ -55,7 +55,7 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
 
 /// [←] title [100%] [☁] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+]
 /// [🎤] │ [↶] [↷] │ [📄 2 / 4] [🔍] [⋯] — 52 px (v2, m5-7/04-editor 6.13.1;
-/// (UI stage 2, 04-editor 20.2) ui_kit line icons, the small names under
+/// (UI stage 2, 04-editor 22) ui_kit line icons, the small names under
 /// 올가미 · 도형 · 텍스트 · 삽입 (StyleTokens.toolLabels), the page button with
 /// the page count, [📄] [🔍] [⋯] together at the right end). (v2.14-ui, UI
 /// stage 1) No [✋] (⋯ '손가락으로 그리기' and settings › 입력 instead); [100%] only
@@ -158,82 +158,101 @@ class EditorToolbar extends ConsumerWidget {
         editorExtensionsProvider.select((e) => e.textPen != null),
       ),
     );
+    final tokens = StyleTokens.of(context);
     return Material(
-      color: StyleTokens.of(context).toolbar,
-      child: SizedBox(
-        height: height,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final fold = constraints.maxWidth < foldWidth;
-            final scroll = constraints.maxWidth < scrollWidth;
-            final row = Row(
-              mainAxisSize: scroll ? MainAxisSize.min : MainAxisSize.max,
-              children: [
-                HoverName(
-                  name: EditorStrings.back,
-                  child: IconButton(
-                    key: backKey,
-                    onPressed: onBack,
-                    icon: const ToolGlyph(
-                      AppIconKind.back,
-                      semanticLabel: EditorStrings.back,
+      color: tokens.toolbar,
+      // (UI stage 2) The line icons in the text colour (the mockups' ink),
+      // the accent while selected, dimmed while disabled.
+      child: IconButtonTheme(
+        data: IconButtonThemeData(style: toolbarIconButtonStyle(tokens)),
+        child: SizedBox(
+          height: height,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final fold = constraints.maxWidth < foldWidth;
+              final scroll = constraints.maxWidth < scrollWidth;
+              final row = Row(
+                mainAxisSize: scroll ? MainAxisSize.min : MainAxisSize.max,
+                children: [
+                  HoverName(
+                    name: EditorStrings.back,
+                    child: IconButton(
+                      key: backKey,
+                      onPressed: onBack,
+                      icon: const ToolGlyph(
+                        AppIconKind.back,
+                        semanticLabel: EditorStrings.back,
+                      ),
                     ),
                   ),
-                ),
-                // (04-editor 19) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
-                // With the title [⌃] only while the title keeps
-                // titleLeastWidth (19.1).
-                if (scroll) const MenuHideButton(),
-                if (constraints.maxWidth >= titleMinWidth)
-                  Expanded(
-                    key: titleSlotKey,
-                    child: _TitleSlot(title: title),
-                  )
-                else if (!scroll)
-                  const MenuHideSlot(), // the Spacer, [⌃] when it fits
-                // (v2.14-ui review) [100%] and [☁] come and go, so they sit
-                // on the title side: the title / Spacer absorbs their width
-                // and the tools after them never move.
-                const ZoomChip(),
-                const EditorSyncBadgeIcon(),
-                const _Divider(),
-                _ToolButtons(withObjectTools: !fold),
-                const _Divider(),
-                if (fold) ...[
-                  OverflowToolsMenu(hasInsert: hasInsert, hasPanel: hasPanel),
+                  // (04-editor 19) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
+                  // With the title [⌃] only while the title keeps
+                  // titleLeastWidth (19.1).
+                  if (scroll) const MenuHideButton(),
+                  if (constraints.maxWidth >= titleMinWidth)
+                    Expanded(
+                      key: titleSlotKey,
+                      child: _TitleSlot(title: title),
+                    )
+                  else if (!scroll)
+                    const MenuHideSlot(), // the Spacer, [⌃] when it fits
+                  // (v2.14-ui review) [100%] and [☁] come and go, so they sit
+                  // on the title side: the title / Spacer absorbs their width
+                  // and the tools after them never move.
+                  const ZoomChip(),
+                  const EditorSyncBadgeIcon(),
                   const _Divider(),
-                ] else ...[
-                  if (hasInsert) const InsertMenu(),
-                  if (hasPanel) const MicButton(),
-                  if (hasInsert || hasPanel) const _Divider(),
+                  _ToolButtons(withObjectTools: !fold),
+                  const _Divider(),
+                  if (fold) ...[
+                    OverflowToolsMenu(hasInsert: hasInsert, hasPanel: hasPanel),
+                    const _Divider(),
+                  ] else ...[
+                    if (hasInsert) const InsertMenu(),
+                    if (hasPanel) const MicButton(),
+                    if (hasInsert || hasPanel) const _Divider(),
+                  ],
+                  const UndoRedoButtons(),
+                  const _Divider(),
+                  _PagePanelButton(
+                    showCount: constraints.maxWidth >= pageCountMinWidth,
+                  ),
+                  if (constraints.maxWidth >= foldedSearchMinWidth)
+                    const _NoteSearchButton(),
+                  EditorMoreMenu(
+                    onOpenSettings: onOpenSettings,
+                    showNoteInfo: constraints.maxWidth < titleMinWidth,
+                    showNoteSearch: constraints.maxWidth < foldedSearchMinWidth,
+                  ),
+                  const SizedBox(width: 4),
                 ],
-                const UndoRedoButtons(),
-                const _Divider(),
-                _PagePanelButton(
-                  showCount: constraints.maxWidth >= pageCountMinWidth,
-                ),
-                if (constraints.maxWidth >= foldedSearchMinWidth)
-                  const _NoteSearchButton(),
-                EditorMoreMenu(
-                  onOpenSettings: onOpenSettings,
-                  showNoteInfo: constraints.maxWidth < titleMinWidth,
-                  showNoteSearch: constraints.maxWidth < foldedSearchMinWidth,
-                ),
-                const SizedBox(width: 4),
-              ],
-            );
-            if (!scroll) return row;
-            return SingleChildScrollView(
-              key: scrollKey,
-              scrollDirection: Axis.horizontal,
-              child: row,
-            );
-          },
+              );
+              if (!scroll) return row;
+              return SingleChildScrollView(
+                key: scrollKey,
+                scrollDirection: Axis.horizontal,
+                child: row,
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
+
+/// (UI stage 2) The toolbar's icon buttons: [StyleTokens.textPrimary]
+/// (the mockups' ink), [StyleTokens.accent] while selected (the open page
+/// panel or search), 38 % while disabled.
+ButtonStyle toolbarIconButtonStyle(StyleTokens tokens) => ButtonStyle(
+  foregroundColor: WidgetStateProperty.resolveWith(
+    (states) => states.contains(WidgetState.disabled)
+        ? tokens.textPrimary.withValues(alpha: 0.38)
+        : states.contains(WidgetState.selected)
+        ? tokens.accent
+        : tokens.textPrimary,
+  ),
+);
 
 /// (19.1) The title, with [⌃] before it while the title keeps
 /// [EditorToolbar.titleLeastWidth]. (v2.14-ui) A tap on it opens 노트 정보
@@ -470,7 +489,7 @@ class _ToolButtons extends ConsumerWidget {
 }
 
 /// [📄 2 / 4] (UI stage 2 — the page panel button and the page count in
-/// one, 04-editor 20.2): opens / closes the page panel (selected while
+/// one, 04-editor 22): opens / closes the page panel (selected while
 /// open); the count is the current page / all pages.
 class _PagePanelButton extends ConsumerWidget {
   const _PagePanelButton({required this.showCount});

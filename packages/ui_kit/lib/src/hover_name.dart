@@ -1,4 +1,4 @@
-/// Names on hover (UI stage 2, 01-infra 14.7): a stylus held over the screen
+/// Names on hover (UI stage 2, 01-infra 16): a stylus held over the screen
 /// (or a mouse) over an icon-only button shows its name — '펜을 띄우면 이름
 /// 보기' (settings › 화면, default on).
 library;

@@ -1,4 +1,4 @@
-/// The app's one icon table (UI stage 2, 01-infra 14.7): one meaning = one
+/// The app's one icon table (UI stage 2, 01-infra 16): one meaning = one
 /// icon.
 ///
 /// Every meaning the screens show as an icon is an [AppIconKind]. Each kind
@@ -82,7 +82,7 @@ enum AppIconKind {
   note(Icons.description_rounded, lineArt: true),
   newNote(Icons.note_add_outlined),
   newFolder(Icons.create_new_folder_outlined),
-  rename(Icons.drive_file_rename_outline_rounded),
+  rename(Icons.edit_outlined),
   duplicate(Icons.content_copy_rounded),
   move(Icons.drive_file_move_outline),
   exportPdf(Icons.picture_as_pdf_outlined),
@@ -95,7 +95,7 @@ enum AppIconKind {
 
   // --- settings categories --------------------------------------------------
   /// 화면 스타일 (home / editor style).
-  style(Icons.palette_rounded, lineArt: true),
+  style(Icons.palette_outlined, lineArt: true),
   brightness(Icons.contrast_rounded, lineArt: true),
   storage(Icons.inventory_2_rounded, lineArt: true),
 
@@ -192,10 +192,16 @@ class AppIcon extends StatelessWidget {
     return Semantics(
       label: semanticLabel,
       child: ExcludeSemantics(
-        child: SizedBox.square(
-          dimension: size,
-          child: CustomPaint(
-            painter: AppIconPainter(kind, color: color, strokeWidth: stroke),
+        // Like Icon: in a box forced larger (an input's prefix, a tight
+        // slot) the icon keeps its size, centred.
+        child: Align(
+          widthFactor: 1,
+          heightFactor: 1,
+          child: SizedBox.square(
+            dimension: size,
+            child: CustomPaint(
+              painter: AppIconPainter(kind, color: color, strokeWidth: stroke),
+            ),
           ),
         ),
       ),

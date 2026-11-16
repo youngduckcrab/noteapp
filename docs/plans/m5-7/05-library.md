@@ -2900,6 +2900,15 @@ recog가 편집기 텍스트 펜의 인식을 맡는다: `src/text_pen/`(`TextPe
 시험: `test/widget/ui_cleanup_test.dart`(위 표 한 줄씩, 옮긴 곳이 동작하는지까지), 기존 시험은 새 경로로 바꿨다(`listing_test`·`new_note_dialog_test`·`new_folder_dialog_test`·`trash_view_test`·`multi_select_test`·`back_and_focus_test`·`sidebar_test`·`integration_slots_test`·`a11y_test`), 골든 5장 갱신.
 
 
+## 20. UI 2단계 — 아이콘 (2026-11-16, UI 전면 개선 제안서 2단계)
+
+아이콘 표는 [01-infra.md 16](01-infra.md)(`ui_kit` `AppIconKind`).
+
+- 위 막대(사이드바 열기·닫기, 검색, 정렬, 보기 전환, 새로 만들기, 뒤로)와 사이드바(홈 · 최근 · 즐겨찾기 · 휴지통 · 설정, 폴더 펼침 ▸ ▾)는 `ui_kit` 선 아이콘(`AppIcon`). `SidebarNavRow.icon`은 이제 `AppIconKind`. '선택'에 ✓ 아이콘.
+- 노트·폴더 ⋯ 메뉴, 휴지통 줄 메뉴, 선택 막대, 새로 만들기 메뉴, 빈 화면은 같은 표의 Material Rounded 글리프: 복사(`duplicate`) · 이동(`move`) · 이름 변경(`rename`) · 휴지통으로(`trash`) · 즐겨찾기(`favorite` / `favoriteOn`)가 어디서나 한 모양. 더보기는 가로 ⋯ 하나(세로 ⋮ 없음).
+- 폴더 아이콘 고르기(`FolderIcons`)와 표지 그림은 폴더·노트의 데이터라 그대로.
+- 시험: `test/widget/line_icons_test.dart`(사이드바·위 막대가 선 아이콘), 아이콘을 찾던 시험(breadcrumb, 정렬, ★)은 표의 값으로.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 ### A.1 LIBRARY가 여는 자리

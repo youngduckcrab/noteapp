@@ -1,4 +1,4 @@
-// (UI stage 2, 05-library 18.2) The library's top bar and sidebar draw the
+// (UI stage 2, 05-library 20) The library's top bar and sidebar draw the
 // ui_kit line icons; menus take their glyph from the same table.
 import 'package:feature_library/src/ui/sidebar/library_sidebar.dart';
 import 'package:feature_library/src/ui/top_bar/library_top_bar.dart';

@@ -222,7 +222,7 @@ class _LibrarySearchFieldState extends ConsumerState<LibrarySearchField>
         maxLines: 1,
         decoration: InputDecoration(
           hintText: LibraryStrings.searchHint,
-          prefixIcon: const AppIcon(AppIconKind.search),
+          prefixIcon: const AppIcon(AppIconKind.search, size: 20),
           suffixIcon: value.text.isEmpty
               ? null
               : IconButton(

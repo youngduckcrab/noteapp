@@ -1,4 +1,4 @@
-// lib/src/ui/toolbar/tool_glyph.dart — (UI stage 2, 04-editor 20.2) the
+// lib/src/ui/toolbar/tool_glyph.dart — (UI stage 2, 04-editor 22) the
 // toolbar's line icons and the small tool names under 올가미 · 도형 · 텍스트 ·
 // 삽입.
 import 'package:material_ui/material_ui.dart';
