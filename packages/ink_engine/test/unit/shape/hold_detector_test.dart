@@ -480,7 +480,11 @@ void main() {
         // (C212-01) moving again no longer drops the preview: the detector
         // stopped at the fit and the move drags the shape (notified again)
         expect(strokeSessionHoldOf(session)!.timerArmed, isFalse);
-        session.addSample(_sample(const ui.Offset(200, 200), 2000000));
+        // (review) the first sample out of the dead zone re-anchors (no jump),
+        // the next one moves the shape
+        session
+          ..addSample(_sample(const ui.Offset(200, 200), 2000000))
+          ..addSample(_sample(const ui.Offset(210, 215), 2008000));
         expect(session.shapePreview.value, isNotNull);
         expect(session.shapePreview.value!.kind, _fit.kind);
         expect(notified, hasLength(2));

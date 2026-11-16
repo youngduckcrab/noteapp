@@ -1,16 +1,21 @@
 // m5-7/03-ink 6.18 '맞춘 뒤 조절' (contract v2.12 C212-01): adjustShape, the pure
 // drag of a snapped shape — every ShapeGeometry kind the fitter makes:
-// - line / arrow: the far end stays, the held end follows the pen; 45° snap
-//   within 3°; a minimum length; open polylines of 3+ points turn and scale
-//   about the fixed end;
+// - line / arrow: the far end stays, the held end follows the pen; 15° snap
+//   within 3° (the fitter's step); a minimum length; open polylines of 3+
+//   points turn and scale about the fixed end; (review) adjustLeavesOpenShape:
+//   turned more than 30° about the fixed end → the stroke goes on;
 // - circle: center fixed, radius follows the pen's distance 1:1;
 // - ellipse: center and rotation fixed, both axes × the distance ratio;
 // - rectangle / quad (closed 4 points): the corner nearest the anchor follows,
 //   the opposite one stays; axis-aligned stays axis-aligned, rotated stays a
 //   rectangle in its own frame; sides clamp at the minimum, never flip;
+//   (review) held nearer an edge's midpoint: only that edge moves; a concave
+//   quad scales uniformly;
 // - triangle / polygon / star: uniform scale about the vertex mean, no turn;
 // - pen == anchor → the same geometry; a non-finite pen → the snapped one;
-//   nothing grows past ElementFrame.maxSide.
+//   nothing grows past ElementFrame.maxSide; (review) a drag overflowing to
+//   infinity or a NaN minimum never gives NaN / zero-length geometry; the
+//   minimum holds for the smaller side of a uniform scale.
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -49,10 +54,11 @@ void main() {
     );
 
     test('the start stays, the held end moves by (pen − anchor)', () {
-      final g = _adjust(line, const Offset(110, 30), const Offset(130, 80));
+      // (130, 90) from (10, 10): 33.7°, not near a multiple of 15°
+      final g = _adjust(line, const Offset(110, 30), const Offset(130, 90));
       final p = _pts(g);
       expect(p[0], const Offset(10, 10));
-      expect(p[1], _near(const Offset(130, 80)));
+      expect(p[1], _near(const Offset(130, 90)));
       expect((g as core.PolylineGeometry).closed, isFalse);
     });
 
@@ -63,7 +69,7 @@ void main() {
       expect(p[0], _near(const Offset(-22, 39)));
     });
 
-    test('within 3° of a multiple of 45° it lies on it, length kept; 5° '
+    test('within 3° of a multiple of 15° it lies on it, length kept; 5° '
         'off it does not', () {
       // from (10, 10): (110, 15) is 2.86° below 0°
       final g = _adjust(line, const Offset(110, 30), const Offset(110, 15));
@@ -75,6 +81,19 @@ void main() {
         _adjust(line, const Offset(110, 30), const Offset(80, 77)),
       )[1];
       expect((d - const Offset(10, 10)).direction, closeTo(math.pi / 4, 1e-9));
+      // (review) 30° like the fitter: 31.5° from (10, 10) lies on 30°
+      final at30 = _pts(
+        _adjust(
+          line,
+          const Offset(110, 30),
+          const Offset(10, 10) + Offset.fromDirection(31.5 * math.pi / 180, 90),
+        ),
+      )[1];
+      expect(
+        (at30 - const Offset(10, 10)).direction,
+        closeTo(math.pi / 6, 1e-9),
+      );
+      expect((at30 - const Offset(10, 10)).distance, closeTo(90, 1e-9));
       // 5°: kept as is
       final off = Offset(
         10 + 100 * math.cos(0.0873),
@@ -125,6 +144,66 @@ void main() {
       expect(p[0], _near(Offset.zero));
       expect(p[1], _near(const Offset(-20, 20)));
       expect(p[2], _near(const Offset(0, 40)));
+    });
+
+    test('(review) adjustLeavesOpenShape: turned past 30° about the fixed '
+        'end (or through it) → true; closed shapes never', () {
+      bool leaves(InkShapeFit f, Offset pen) =>
+          adjustLeavesOpenShape(f, anchor: const Offset(110, 30), pen: pen);
+      // the line points at 11.3°; the held end along it or turned 15°: adjust
+      expect(leaves(line, const Offset(150, 40)), isFalse);
+      expect(
+        leaves(
+          line,
+          const Offset(10, 10) + Offset.fromDirection(26 * math.pi / 180, 100),
+        ),
+        isFalse,
+      );
+      // a triangle's next edge (back up-left) or ㄱ's down stroke: drawing on
+      expect(leaves(line, const Offset(60, -60)), isTrue);
+      expect(leaves(line, const Offset(110, 120)), isTrue);
+      // through the fixed end
+      expect(leaves(line, const Offset(-40, 0)), isTrue);
+      expect(leaves(line, const Offset(10, 10)), isTrue);
+      final arrow = _fit(core.ShapeKind.arrow, line.geometry);
+      expect(leaves(arrow, const Offset(110, 120)), isTrue);
+      final rect = _fit(
+        core.ShapeKind.rectangle,
+        core.ShapeGeometry.rectangle(const core.PageRect(0, 0, 110, 30)),
+      );
+      expect(leaves(rect, const Offset(-200, 300)), isFalse);
+      expect(leaves(line, const Offset(double.nan, 0)), isFalse);
+    });
+
+    test('(review) a drag overflowing to infinity or a NaN minimum never '
+        'gives NaN or a zero-length line', () {
+      final l = _fit(
+        core.ShapeKind.line,
+        core.ShapeGeometry.line(
+          const core.PagePoint(0, 0),
+          const core.PagePoint(100, 0),
+        ),
+      );
+      final huge = _pts(
+        adjustShape(
+          l,
+          anchor: const Offset(100, 0),
+          pen: const Offset(1e308, 1e308),
+          minSizePt: 8,
+        ),
+      );
+      for (final q in huge) {
+        expect(q.isFinite, isTrue);
+      }
+      final z = _pts(
+        adjustShape(
+          l,
+          anchor: const Offset(100, 0),
+          pen: Offset.zero,
+          minSizePt: double.nan,
+        ),
+      );
+      expect((z[1] - z[0]).distance, greaterThan(0));
     });
   });
 
@@ -183,10 +262,22 @@ void main() {
       expect(f.center.y, closeTo(100, 1e-9));
       expect(f.rect.width, closeTo(300, 1e-9));
       expect(f.rect.height, closeTo(180, 1e-9));
-      // shrinking toward the center: the larger side clamps at 8, no flip
+      // shrinking toward the center: (review) the SMALLER side clamps at 8 —
+      // a thin ellipse never becomes a hairline — no flip
       final tiny = _adjust(e, anchor, c) as core.EllipseGeometry;
-      expect(tiny.ellipseFrame.rect.width, closeTo(8, 1e-9));
-      expect(tiny.ellipseFrame.rect.height, closeTo(8 * 120 / 200, 1e-9));
+      expect(tiny.ellipseFrame.rect.height, closeTo(8, 1e-9));
+      expect(tiny.ellipseFrame.rect.width, closeTo(8 * 200 / 120, 1e-9));
+      final thin = _fit(
+        core.ShapeKind.ellipse,
+        core.ShapeGeometry.ellipse(const core.PageRect(0, 95, 100, 105)),
+      );
+      final t = _adjust(
+        thin,
+        const Offset(100, 100),
+        const Offset(51, 100),
+      ) as core.EllipseGeometry;
+      expect(t.ellipseFrame.rect.height, closeTo(8, 1e-9));
+      expect(t.ellipseFrame.rect.width, closeTo(80, 1e-9));
     });
   });
 
@@ -260,6 +351,66 @@ void main() {
       expect(p[0], _near(Offset.zero));
       expect(p[2], _near(const Offset(120, 100)));
     });
+
+    test('(review) held nearer an edge midpoint than a corner: only that edge '
+        'moves, along its own direction', () {
+      // mid-top (150, 50), dragged right and up: only the top edge moves up
+      final g = _adjust(rect, const Offset(150, 50), const Offset(190, 30));
+      expect(_pts(g), [
+        _near(const Offset(60, 30)),
+        _near(const Offset(240, 30)),
+        _near(const Offset(240, 250)),
+        _near(const Offset(60, 250)),
+      ]);
+      // mid-right (240, 150) dragged inward past the left edge: clamps at 8
+      final r = _adjust(rect, const Offset(240, 150), const Offset(0, 170));
+      expect(_pts(r), [
+        _near(const Offset(60, 50)),
+        _near(const Offset(68, 50)),
+        _near(const Offset(68, 250)),
+        _near(const Offset(60, 250)),
+      ]);
+      // a rotated rectangle: the edge moves along its normal, still a rectangle
+      final rot = _fit(
+        core.ShapeKind.rectangle,
+        core.ShapeGeometry.rectangle(
+          const core.PageRect(0, 0, 100, 60),
+          rotation: 0.5,
+        ),
+      );
+      final b = _pts(rot.geometry);
+      final mid = (b[1] + b[2]) / 2;
+      final p = _pts(_adjust(rot, mid, mid + const Offset(30, 5)));
+      expect(p[0], _near(b[0]));
+      expect(p[3], _near(b[3]));
+      expect(_dot(p[1] - p[0], p[3] - p[0]), closeTo(0, 1e-6));
+      expect(_dot(p[2] - p[1], p[1] - p[0]), closeTo(0, 1e-6));
+    });
+
+    test('(review) a concave quad scales uniformly about its vertex mean '
+        '(no affine stretch)', () {
+      final q = _fit(
+        core.ShapeKind.polygon,
+        const core.PolylineGeometry([
+          core.PagePoint(0, 0),
+          core.PagePoint(100, 50),
+          core.PagePoint(0, 100),
+          core.PagePoint(30, 50),
+        ], closed: true),
+      );
+      final before = _pts(q.geometry);
+      var c = Offset.zero;
+      for (final o in before) {
+        c += o;
+      }
+      c /= 4;
+      final p = _pts(_adjust(q, const Offset(100, 50), const Offset(150, 50)));
+      final s = (p[1] - c).distance / (before[1] - c).distance;
+      expect(s, greaterThan(1));
+      for (var i = 0; i < 4; i++) {
+        expect(p[i], _near(c + (before[i] - c) * s));
+      }
+    });
   });
 
   group('triangle / polygon / star', () {
@@ -280,8 +431,8 @@ void main() {
       }
     });
 
-    test('star and pentagon: the same; the larger side clamps at the '
-        'minimum', () {
+    test('star and pentagon: the same; (review) the smaller side clamps at '
+        'the minimum', () {
       for (final g in [
         core.ShapeGeometry.star(const core.PageRect(0, 0, 100, 100)),
         core.ShapeGeometry.regularPolygon(
@@ -303,7 +454,7 @@ void main() {
         }
         final tiny = _adjust(fit, top, c) as core.PolylineGeometry;
         final r = tiny.frame.rect;
-        expect(math.max(r.width, r.height), closeTo(8, 1e-6));
+        expect(math.min(r.width, r.height), closeTo(8, 1e-6));
       }
     });
   });

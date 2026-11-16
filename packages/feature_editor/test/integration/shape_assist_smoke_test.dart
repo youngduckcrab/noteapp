@@ -12,9 +12,9 @@
 //   never stored — 7.2.3) → redo → the shape → leave, open again → the
 //   shape is kept.
 // (v2.12, C212-01) After the snap the pen stays down and drags: the loop
-// ends at the top middle, so the top-left corner follows the pen and the
-// bottom-right one stays → lift → ONE ShapeObject with the adjusted rectangle,
-// one undo step → undo → nothing.
+// ends at the top middle, so only the top edge follows the pen (from where it
+// left the dead zone) and the bottom edge stays → lift → ONE ShapeObject with
+// the adjusted rectangle, one undo step → undo → nothing.
 //
 // Skipped by default (dart_test.yaml `integration` skip); runs with
 // `ws test --run-skipped -t integration --package feature_editor`.
@@ -218,11 +218,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(fitter.calls, 1);
-    // drag 40 × 30 pt in steps, then lift
+    // out of the dead zone 40 pt up (the shape starts following there), then
+    // 40 pt down in steps, then lift
     final end = samples.last.position;
+    await h.driver.wait(const Duration(milliseconds: 8));
+    await h.driver.move(1, h.toGlobal(0, end + const Offset(0, -40)));
     for (var k = 1; k <= 8; k++) {
       await h.driver.wait(const Duration(milliseconds: 8));
-      await h.driver.move(1, h.toGlobal(0, end + Offset(5.0 * k, 3.75 * k)));
+      await h.driver.move(1, h.toGlobal(0, end + Offset(0, -40 + 5.0 * k)));
     }
     await h.driver.up(1);
     await _flush(tester, 2);
@@ -232,7 +235,7 @@ void main() {
     final shape = _page(h).objects.single as core.ShapeObject;
     expect(shape.shapeKind, core.ShapeKind.rectangle);
     final expected = core.ShapeGeometry.rectangle(
-      core.PageRect(_box.left + 40, _box.top + 30, _box.right, _box.bottom),
+      core.PageRect(_box.left, _box.top + 40, _box.right, _box.bottom),
     ).points;
     final got = (shape.geometry as core.PolylineGeometry).points;
     expect(got, hasLength(4));

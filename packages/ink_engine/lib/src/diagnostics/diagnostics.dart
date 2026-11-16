@@ -462,7 +462,8 @@ class InkDiagnostics extends ChangeNotifier {
   }
 
   /// (m5-7 T39, 6.18) A shape assist preview ended: committed by end() ([accepted]) or
-  /// dropped (moving again, cancel). A statistic, not a warning.
+  /// dropped (cancel, or (v2.12) a line drag turning into drawing on). A statistic,
+  /// not a warning.
   @meta.internal
   void onShapeFit(String kind, double score, {required bool accepted}) {
     if (!_enabled) return;

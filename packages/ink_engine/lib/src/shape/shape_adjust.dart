@@ -9,29 +9,39 @@
 //
 //  * line / arrow (and any open polyline): the end farther from the anchor
 //    stays; the other end moves by (pen − anchor). Two-point lines snap to a
-//    multiple of 45° within InkTuning.shapeAdjustAngleSnapDeg (length kept).
+//    multiple of 15° within InkTuning.shapeAdjustAngleSnapDeg (length kept) —
+//    the same step as the fitter's beautify (SelectionGeometry.snapAngle).
 //    Longer open polylines turn and scale about the fixed end (a similarity).
+//    [adjustLeavesOpenShape]: a drag that turns the moving end more than
+//    InkTuning.shapeAdjustEscapeDeg about the fixed end is the stroke going on
+//    (a corner pause of a triangle, ㄱ) — the session drops back to ink.
 //  * circle (EllipseGeometry with a square frame): center fixed, radius +=
 //    |pen − c| − |anchor − c| — the radius follows the pen's distance 1:1.
 //  * ellipse: center and rotation fixed, both axes × s (proportions kept).
-//  * a closed 4-point polyline (rectangle, quad): the corner nearest the
-//    anchor follows the pen, the opposite corner stays; the shape scales along
-//    its own two edge directions at that corner (an axis-aligned rectangle
-//    stays axis-aligned, a rotated one resizes in its own frame).
+//  * a closed 4-point parallelogram (rectangle, rotated rectangle): the corner
+//    nearest the anchor follows the pen, the opposite corner stays; the shape
+//    scales along its own two edge directions at that corner (an axis-aligned
+//    rectangle stays axis-aligned, a rotated one resizes in its own frame).
+//    An anchor nearer an edge's midpoint than any corner moves only that edge
+//    along its own direction (the opposite edge stays). A 4-point shape that
+//    is not a parallelogram (a concave quad) scales uniformly instead.
 //  * other closed polylines (triangle, polygon, star): × s about the vertex
 //    mean, no rotation (predictable: the shape never turns under the pen).
 // Uniform s = 1 + (|pen − c| − |anchor − c|) / max(|anchor − c|, extent / 8):
 // = |pen − c| / |anchor − c| when the anchor is not near the center, and
 // continuous (s = 1 at the anchor) when it is.
-// Guard rails: nothing shrinks below min(its snapped size, [minSizePt]) and
-// nothing flips inside out (scales stay positive); nothing grows past
-// ElementFrame.maxSide. A non-finite pen gives the snapped geometry.
+// Guard rails: nothing shrinks below min(its snapped size, [minSizePt]) — for a
+// uniform scale its SMALLER side, so a thin ellipse never becomes a hairline —
+// and nothing flips inside out (scales stay positive); nothing grows past
+// ElementFrame.maxSide. A non-finite pen (or a drag overflowing to infinity)
+// gives the snapped geometry.
 import 'dart:math' as math;
 import 'dart:ui' show Offset;
 
 import 'package:meta/meta.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../edit/selection_geometry.dart';
 import '../tuning.dart';
 import 'shape_assist.dart';
 
@@ -61,10 +71,56 @@ core.ShapeGeometry adjustShape(
           ? angleSnapDeg * math.pi / 180
           : 0,
     ),
-    core.PolylineGeometry(points: final p) when p.length == 4 =>
+    core.PolylineGeometry(points: final p)
+        when p.length == 4 && _isParallelogram(p) =>
       _corner(g, anchor, pen, minSize) ?? _uniform(g, anchor, pen, minSize),
     core.PolylineGeometry() => _uniform(g, anchor, pen, minSize),
   };
+}
+
+/// (C212-01 review) True when [fit] is open (line, arrow, open polyline) and the
+/// drag from [anchor] to [pen] turns its moving end more than [escapeDeg] about
+/// the fixed end (or through it): the stroke is going on, not the line being
+/// adjusted. Closed shapes never escape.
+@internal
+bool adjustLeavesOpenShape(
+  InkShapeFit fit, {
+  required Offset anchor,
+  required Offset pen,
+  double escapeDeg = InkTuning.shapeAdjustEscapeDeg,
+}) {
+  final g = fit.geometry;
+  if (g is! core.PolylineGeometry || g.closed || g.points.length < 2) {
+    return false;
+  }
+  if (!pen.isFinite || !anchor.isFinite) return false;
+  final (fixed, moving, _) = _ends(g, anchor);
+  final before = moving - fixed;
+  final after = moving + (pen - anchor) - fixed;
+  final l0 = before.distance, l1 = after.distance;
+  if (!(l0 > 0) || !l1.isFinite) return false;
+  if (!(l1 > 0)) return true;
+  final cos = (before.dx * after.dx + before.dy * after.dy) / (l0 * l1);
+  return cos < math.cos(escapeDeg * math.pi / 180);
+}
+
+/// The fixed end, the moving end (the one nearer [anchor]) and whether it is the last.
+(Offset, Offset, bool) _ends(core.PolylineGeometry g, Offset anchor) {
+  final first = _o(g.points.first), last = _o(g.points.last);
+  final movingLast = (last - anchor).distance <= (first - anchor).distance;
+  return movingLast ? (first, last, true) : (last, first, false);
+}
+
+/// The 4 points form a parallelogram (diagonals bisect each other) within 1 %.
+bool _isParallelogram(List<core.PagePoint> p) {
+  final xs = [for (final q in p) q.x], ys = [for (final q in p) q.y];
+  final extent = math.max(
+    xs.reduce(math.max) - xs.reduce(math.min),
+    ys.reduce(math.max) - ys.reduce(math.min),
+  );
+  final dx = p[0].x + p[2].x - p[1].x - p[3].x;
+  final dy = p[0].y + p[2].y - p[1].y - p[3].y;
+  return math.sqrt(dx * dx + dy * dy) <= 0.01 * extent;
 }
 
 const double _maxSide = core.ElementFrame.maxSide;
@@ -73,19 +129,22 @@ Offset _o(core.PagePoint p) => Offset(p.x, p.y);
 core.PagePoint _p(Offset o) => core.PagePoint(o.dx, o.dy);
 double _cross(Offset a, Offset b) => a.dx * b.dy - a.dy * b.dx;
 
-/// The uniform scale of a shape of [extent] (its larger side) centered at [c].
+/// The uniform scale of a shape of [extent] (its larger side) and [minor] (its
+/// smaller side) centered at [c]; the minimum size holds for the smaller side.
 double _uniformScale(
   Offset c,
   Offset anchor,
   Offset pen,
   double extent,
+  double minor,
   double minSize,
 ) {
   final dA = (anchor - c).distance, dP = (pen - c).distance;
   final denom = math.max(dA, extent / 8);
-  if (!(denom > 0) || !(extent > 0)) return 1;
+  if (!(denom > 0) || !(extent > 0) || !dP.isFinite) return 1;
   final s = 1 + (dP - dA) / denom;
-  final lo = math.min(1.0, minSize / extent);
+  final small = minor > 0 ? minor : extent;
+  final lo = math.min(1.0, minSize / small);
   final hi = math.max(1.0, _maxSide / extent);
   return s.clamp(lo, hi).toDouble();
 }
@@ -110,7 +169,7 @@ core.ShapeGeometry _ellipse(
     final nr = (r + dr).clamp(lo, hi).toDouble();
     nw = nh = 2 * nr;
   } else {
-    final s = _uniformScale(c, anchor, pen, extent, minSize);
+    final s = _uniformScale(c, anchor, pen, extent, math.min(w, h), minSize);
     nw = w * s;
     nh = h * s;
   }
@@ -131,23 +190,22 @@ core.ShapeGeometry _open(
 }) {
   final pts = g.points;
   if (pts.length < 2) return g;
-  final first = _o(pts.first), last = _o(pts.last);
   // the end the user was holding at moves; the farther one stays
-  final movingLast = (last - anchor).distance <= (first - anchor).distance;
-  final fixed = movingLast ? first : last;
-  final moving = movingLast ? last : first;
+  final (fixed, moving, movingLast) = _ends(g, anchor);
   final before = moving - fixed;
   var v = moving + (pen - anchor) - fixed;
+  if (!v.distance.isFinite) return g;
   if (snapRad > 0 && pts.length == 2 && v.distance > 0) {
-    const step = math.pi / 4;
-    final a = v.direction;
-    final snapped = (a / step).roundToDouble() * step;
-    if ((a - snapped).abs() <= snapRad) {
-      v = Offset.fromDirection(snapped, v.distance);
-    }
+    // the fitter's step (shape_beautify: 15° within 3°)
+    final snapped = SelectionGeometry.snapAngle(
+      v.direction,
+      threshold: snapRad,
+    );
+    v = Offset.fromDirection(snapped, v.distance);
   }
   final len0 = before.distance;
-  final lo = math.min(len0, minSize);
+  // never zero long (a NaN / zero minSize still keeps 0.1 % of the length)
+  final lo = math.max(math.min(len0, minSize), len0 * 1e-3);
   final len = v.distance;
   if (len < lo || len == 0) {
     final dir = len > 0 ? v / len : (len0 > 0 ? before / len0 : null);
@@ -180,8 +238,10 @@ core.ShapeGeometry _open(
   );
 }
 
-/// The corner nearest the anchor follows the pen, the opposite one stays; null when
-/// the corner's edges are degenerate (the caller falls back to [_uniform]).
+/// The corner nearest the anchor follows the pen, the opposite one stays — or, when
+/// the anchor is nearer an edge's midpoint than any corner, only that edge moves
+/// (along its own direction, the opposite edge stays); null when the edges are
+/// degenerate (the caller falls back to [_uniform]).
 core.ShapeGeometry? _corner(
   core.PolylineGeometry g,
   Offset anchor,
@@ -193,6 +253,15 @@ core.ShapeGeometry? _corner(
   for (var i = 1; i < 4; i++) {
     if ((p[i] - anchor).distance < (p[k] - anchor).distance) k = i;
   }
+  // the edge (m, m + 1) whose midpoint is nearest; it wins over a farther corner
+  var m = 0;
+  Offset mid(int i) => (p[i] + p[(i + 1) % 4]) / 2;
+  for (var i = 1; i < 4; i++) {
+    if ((mid(i) - anchor).distance < (mid(m) - anchor).distance) m = i;
+  }
+  final edgeOnly = (mid(m) - anchor).distance < (p[k] - anchor).distance;
+  // edge grab: corner k = m, its edge to m + 1 runs along e2 (see below)
+  if (edgeOnly) k = m;
   final oi = (k + 2) % 4;
   final o = p[oi];
   final e1 = p[(oi + 1) % 4] - o;
@@ -210,7 +279,9 @@ core.ShapeGeometry? _corner(
   double clampScale(double s, double l) => s
       .clamp(math.min(1.0, minSize / l), math.max(1.0, _maxSide / l))
       .toDouble();
-  final sx = clampScale(a2 / a, l1);
+  // p[k + 1] = o + e2: the edge (k, k + 1) is the one at v = b, so an edge grab
+  // scales along e2 only
+  final sx = edgeOnly ? 1.0 : clampScale(a2 / a, l1);
   final sy = clampScale(b2 / b, l2);
   return core.PolylineGeometry(
     List.unmodifiable([
@@ -239,7 +310,14 @@ core.ShapeGeometry _uniform(
   }
   final c = Offset(sx / pts.length, sy / pts.length);
   final r = g.frame.rect;
-  final s = _uniformScale(c, anchor, pen, math.max(r.width, r.height), minSize);
+  final s = _uniformScale(
+    c,
+    anchor,
+    pen,
+    math.max(r.width, r.height),
+    math.min(r.width, r.height),
+    minSize,
+  );
   return core.PolylineGeometry(
     List.unmodifiable([for (final q in pts) _p(c + (_o(q) - c) * s)]),
     closed: g.closed,

@@ -23,7 +23,10 @@
 //    of the live stroke). (v2.12, C212-01) The fit puts the session in ADJUST
 //    mode: the hold detector stops, later samples no longer extend the stroke
 //    but drag the preview (shape/shape_adjust.dart — past a dead zone around
-//    the pen at snap time); end() with a preview yields InkEdit(addShape) with
+//    the hold anchor, from where the pen left it: no lurch); a line / arrow
+//    turned past InkTuning.shapeAdjustEscapeDeg drops back to ink (the
+//    samples since the snap extend the stroke, a new hold may snap again);
+//    end() with a preview yields InkEdit(addShape) with
 //    one ShapeObject (the adjusted geometry) in the pen's style and no stroke;
 //    a throwing fitter keeps the stroke (warning shapeFitterThrew). A laser
 //    stroke end() returns null — no
@@ -286,17 +289,19 @@ final class StrokeSession implements InkGestureSession {
     }
     if (_fitter != null) {
       // (m5-7 T39, 6.18) the hold starts at the pen-down sample
-      _hold = HoldDetector(
-        start: first.position,
-        startUs: first.timeUs,
-        viewScale: _builder.viewScale,
-        onHold: _onHold,
-        // (C212-01) the detector stops at a fit, so moving after a fired hold
-        // only re-arms it (a hold without a fit) — nothing to drop
-        onMove: _noop,
-      );
+      _hold = _newHold(first);
     }
   }
+
+  /// (T39) A hold detector from [first]. (C212-01) It stops at a fit, so moving
+  /// after a fired hold only re-arms it (a hold without a fit) — nothing to drop.
+  HoldDetector _newHold(InkSample first) => HoldDetector(
+    start: first.position,
+    startUs: first.timeUs,
+    viewScale: _builder.viewScale,
+    onHold: _onHold,
+    onMove: _noop,
+  );
 
   final InkPageHost _host;
   final StrokeBuilder _builder;
@@ -316,15 +321,24 @@ final class StrokeSession implements InkGestureSession {
   core.ShapeObject? _previewShape;
 
   /// (v2.12, C212-01) ADJUST mode: the fit at snap time (null = not adjusting) and
-  /// where the pen was then (page pt). Samples drag the preview from there.
+  /// where the pen was held then (page pt: the hold anchor). Samples drag the
+  /// preview from there.
   InkShapeFit? _snapFit;
   ui.Offset _snapPen = ui.Offset.zero;
 
   /// The pen left the dead zone around [_snapPen] once (from then on it is followed).
   bool _adjustArmed = false;
 
-  /// The last finite sample position (page pt): where the pen is at snap time.
-  ui.Offset? _lastPen;
+  /// (review) Where the pen left the dead zone minus [_snapPen]: subtracted from
+  /// the pen, so the shape starts following there without a jump.
+  ui.Offset _adjustShift = ui.Offset.zero;
+
+  /// (review) The last sample position used while adjusting (lift skid check).
+  ui.Offset? _adjustPen;
+
+  /// (review) The samples since the snap: replayed into the stroke when a line
+  /// drag turns into drawing on (escape to ink).
+  final List<InkSample> _sinceSnap = [];
 
   /// (m5-7 T39) A throwing fitter is reported once per session.
   bool _fitterThrewReported = false;
@@ -393,30 +407,55 @@ final class StrokeSession implements InkGestureSession {
   /// the stroke (builder, then the hold detector — T39 order).
   void _take(InkSample s) {
     if (_snapFit != null) {
+      _sinceSnap.add(s);
       _adjustTo(s.position);
+      if (_snapFit != null) return;
+      // (review) escaped to ink: the samples since the snap extend the stroke
+      final replay = List<InkSample>.of(_sinceSnap);
+      _sinceSnap.clear();
+      _hold = _newHold(replay.first);
+      for (var i = 0; i < replay.length; i++) {
+        _builder.add(replay[i]);
+        _hold?.add(replay[i].position, replay[i].timeUs);
+        if (_snapFit != null) {
+          // a new hold inside the replay snapped again: the rest drags it
+          replay.skip(i + 1).forEach(_take);
+          return;
+        }
+      }
       return;
     }
     _builder.add(s);
-    if (s.position.isFinite) _lastPen = s.position;
     _hold?.add(s.position, s.timeUs);
   }
 
   /// (v2.12, C212-01) The pen at [pen] (page pt) while adjusting: inside the dead
-  /// zone (InkTuning.shapeAdjustDeadZonePx around [_snapPen]) until it leaves once,
-  /// then the preview is [adjustShape] of the snap fit. Pressure plays no part.
+  /// zone (InkTuning.shapeAdjustDeadZonePx around the hold anchor [_snapPen] — wider
+  /// than the hold radius, so whatever the hold counted as still stays still) until
+  /// it leaves once; from there (review: re-anchored, no jump) the preview is
+  /// [adjustShape] of the snap fit. A line / arrow turned past
+  /// InkTuning.shapeAdjustEscapeDeg drops back to ink ([_snapFit] null after).
+  /// Pressure plays no part.
   void _adjustTo(ui.Offset pen) {
     final fit = _snapFit;
     if (fit == null || !pen.isFinite) return;
+    _adjustPen = pen;
     final scale = _builder.viewScale;
     if (!_adjustArmed) {
       final r = InkTuning.shapeAdjustDeadZonePx / scale;
       if ((pen - _snapPen).distance <= r) return;
       _adjustArmed = true;
+      _adjustShift = pen - _snapPen;
+    }
+    final at = pen - _adjustShift;
+    if (adjustLeavesOpenShape(fit, anchor: _snapPen, pen: at)) {
+      _dropPreview();
+      return;
     }
     final geometry = adjustShape(
       fit,
       anchor: _snapPen,
-      pen: pen,
+      pen: at,
       minSizePt: InkTuning.shapeAdjustMinSizePx / scale,
     );
     final current = _shapePreview.value;
@@ -458,17 +497,24 @@ final class StrokeSession implements InkGestureSession {
     }
     if (fit == null) return;
     // (C212-01) ADJUST mode: no more holds, the next samples drag the shape
-    _hold?.stop();
+    final hold = _hold;
+    hold?.stop();
     _snapFit = fit;
-    _snapPen = _lastPen ?? _hold?.anchor ?? ui.Offset.zero;
+    // (review) the hold anchor, not the last sample: the hold radius is measured
+    // from it, so the dead zone covers every sample the hold counted as still
+    _snapPen = hold?.anchor ?? ui.Offset.zero;
     _adjustArmed = false;
+    _adjustShift = ui.Offset.zero;
+    _adjustPen = null;
+    _sinceSnap.clear();
     _previewShape = _shapeOf(fit, id: _previewShapeId);
     _shapePreview.value = fit;
     _host.repaint(InkRenderLayer.inkActive);
   }
 
-  /// (m5-7 T39) cancel(): the preview goes (counted as not accepted). (C212-01)
-  /// Moving no longer drops it — a fitted shape is adjusted until the lift.
+  /// (m5-7 T39) cancel(), or (review) a line drag escaping to ink: the preview goes
+  /// (counted as not accepted). (C212-01) Moving otherwise no longer drops it — a
+  /// fitted shape is adjusted until the lift.
   void _dropPreview() {
     final fit = _shapePreview.value;
     _snapFit = null;
@@ -526,10 +572,21 @@ final class StrokeSession implements InkGestureSession {
   /// (m5-7 T39) With a shape preview: InkEdit(addShape) with ONE ShapeObject (id =
   /// services.newStrokeId(), the pen's style, createdAt = pen-down nowMillis) and no
   /// stroke; [last] (the lift) does not drop the preview. (v2.12, C212-01) The
-  /// shape is the adjusted one; [last] drags it like any other sample first.
+  /// shape is the adjusted one; [last] drags it like any other sample first —
+  /// (review) unless it is within InkTuning.shapeAdjustLiftSkidPx of the previous
+  /// sample (the skid of a lifting stylus is not committed). A [last] that turns a
+  /// line into drawing on drops back to ink: the stroke is committed.
   InkEdit? end([InkSample? last]) {
     _checkActive();
-    if (_snapFit != null && last != null) _adjustTo(last.position);
+    if (_snapFit != null && last != null) {
+      final prev = _adjustPen ?? _snapPen;
+      final skid = InkTuning.shapeAdjustLiftSkidPx / _builder.viewScale;
+      if (!last.position.isFinite || (last.position - prev).distance > skid) {
+        _take(last);
+        // consumed while adjusting, or replayed into the stroke on an escape
+        last = null;
+      }
+    }
     _active = false;
     _hold?.stop();
     _snapFit = null;

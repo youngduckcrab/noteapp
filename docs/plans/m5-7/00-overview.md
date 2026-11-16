@@ -2414,7 +2414,7 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 
 | # | 절 | 변경 | 출처 | 반영할 영역 |
 |---|---|---|---|---|
-| C212-01 | 7.2.9 자동 도형 보정 | 멈춤으로 도형이 뜬 뒤 **다시 움직여도 미리보기가 없어지지 않는다**. 펜을 떼지 않고 움직이면 도형을 조절한다(직선: 잡은 끝, 원: 반지름, 타원: 비율 유지 배율, 사각형: 가까운 꼭짓점, 삼각형·다각형·별: 중심 배율). 그동안 `StrokeSession.shapePreview` 값이 샘플마다 바뀌고(같은 kind·score), `end()`는 조절된 도형 하나로 `addShape`. 새 상수 `InkTuning.shapeAdjustDeadZonePx`(8)·`shapeAdjustMinSizePx`(8)·`shapeAdjustAngleSnapDeg`(3). EDITOR `shapeAssistHint` 문구 | 사용자 요청 | INK·EDITOR(처리됨) |
+| C212-01 | 7.2.9 자동 도형 보정 | 멈춤으로 도형이 뜬 뒤 **다시 움직여도 미리보기가 없어지지 않는다**. 펜을 떼지 않고 움직이면 도형을 조절한다(직선: 잡은 끝, 원: 반지름, 타원: 비율 유지 배율, 사각형: 가까운 꼭짓점, 삼각형·다각형·별: 중심 배율). 그동안 `StrokeSession.shapePreview` 값이 샘플마다 바뀌고(같은 kind·score), `end()`는 조절된 도형 하나로 `addShape`. 새 상수 `InkTuning.shapeAdjustDeadZonePx`(12, 멈춤 기준점 둘레)·`shapeAdjustMinSizePx`(8)·`shapeAdjustAngleSnapDeg`(3, 15° 배수)·`shapeAdjustEscapeDeg`(30 — 직선을 이보다 꺾으면 잉크로 돌아가 이어 쓰기)·`shapeAdjustLiftSkidPx`(3). EDITOR `shapeAssistHint` 문구 | 사용자 요청 | INK·EDITOR(처리됨) |
 
 #### v2.11 (2026-11-14, 펜 종류 늘리기 — 사용자 요청 '잠금화면 앱을 만들 때 구현했던 펜들을 참고해서 구현해 볼래?')
 

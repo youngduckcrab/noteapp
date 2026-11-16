@@ -2149,7 +2149,7 @@ ink.ShapeAssist shapeAssistFor(EditorSettings settings, core.PenTool penType, in
 - `ref.read(ink.inkShapeFitterProvider) is ink.NoShapeFitter`(인식 기능이 꺼진 빌드 — (v2.1, CD2-16) `FEATURE_RECOGNITION=false`가 `recognitionOverrides()`를 빼면 이렇게 된다)이면 토글 줄을 숨기고 `off`로 보낸다(INFRA CP14·V15와 맞음).
 - 오인식 표본: 개발자 토글 '도형 표본 모으기'가 켜져 있을 때만 `PenInteraction`이 세션 표본을 링 버퍼에 넣는다(6.20 — 검토 S-5).
 - 녹음 메타: `addShape`로 바뀐 도형은 `ShapeObject`에 녹음 필드가 없어 녹음 연결을 잃는다(받아들임 — 12.2 Q9).
-- (v2.12, C212-01 — 사용자 요청 '도형으로 바뀐 뒤 펜을 움직여 고치기') 도형으로 바뀐 뒤 펜을 떼지 않고 움직이면 INK가 도형을 조절한다(03-ink 6.18 '맞춘 뒤 조절'). EDITOR 코드 변경은 없고 안내 문구만 `EditorStrings.shapeAssistHint` = '선을 긋고 잠시 멈추면 도형으로 바꿔요. 떼기 전에 움직이면 크기를 바꿀 수 있어요'로 바꿨다. 시험: `integration/shape_assist_smoke_test.dart` 두 번째 케이스(멈춘 뒤 끌기 → 조절된 사각형 하나, 되돌리기 한 단계).
+- (v2.12, C212-01 — 사용자 요청 '도형으로 바뀐 뒤 펜을 움직여 고치기') 도형으로 바뀐 뒤 펜을 떼지 않고 움직이면 INK가 도형을 조절한다(03-ink 6.18 '맞춘 뒤 조절'). EDITOR 코드 변경은 없고 안내 문구만 `EditorStrings.shapeAssistHint` = '선을 긋고 잠시 멈추면 도형으로 바꿔요. 펜을 떼기 전에 움직이면 크기와 방향을 다듬을 수 있어요'로 바꿨다(검토 반영 — 목적어 '펜을', 직선은 방향도 바뀜). 시험: `integration/shape_assist_smoke_test.dart` 두 번째 케이스(멈춘 뒤 끌기 → 조절된 사각형 하나, 되돌리기 한 단계).
 
 ### 6.11 텍스트 상자 (M5-2)
 

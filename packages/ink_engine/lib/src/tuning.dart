@@ -187,14 +187,26 @@ abstract final class InkTuning {
   static const int textureGeometryBudgetBytes = 24 * 1024 * 1024;
 
   // (v2.12, C212-01) 6.18 adjusting a snapped shape (shape/shape_adjust.dart)
-  /// The pen must leave this radius (logical px) around where it was at snap
-  /// time before the shape follows it — the tail of the hold does not move it.
-  static const double shapeAdjustDeadZonePx = 8;
+  /// The pen must leave this radius (logical px) around the hold anchor before
+  /// the shape follows it — the tail of the hold does not move it. (review) Wider
+  /// than shapeHoldRadiusPx, so every sample the hold counted as still stays
+  /// inside; the shape follows from where the pen left it (no jump).
+  static const double shapeAdjustDeadZonePx = 12;
 
   /// A drag never shrinks a side, diameter or line below this (logical px), nor
   /// below the snapped size when that is smaller.
   static const double shapeAdjustMinSizePx = 8;
 
-  /// A dragged line within this of a multiple of 45° lies on it.
+  /// A dragged line within this of a multiple of 15° lies on it (the fitter's
+  /// step, SelectionGeometry.snapAngle).
   static const double shapeAdjustAngleSnapDeg = 3;
+
+  /// (review) A line / arrow whose held end is turned more than this about its
+  /// fixed end is the stroke going on (a corner pause of a triangle, ㄱ): the
+  /// preview drops and the stroke continues as ink.
+  static const double shapeAdjustEscapeDeg = 30;
+
+  /// (review) A lift sample within this (logical px) of the previous one is not
+  /// applied — the skid of a lifting stylus is not committed.
+  static const double shapeAdjustLiftSkidPx = 3;
 }

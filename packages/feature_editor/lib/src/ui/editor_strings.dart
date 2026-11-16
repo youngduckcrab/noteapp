@@ -622,7 +622,7 @@ abstract final class EditorStrings {
 
   static const shapeAssist = '자동 도형 보정';
   static const shapeAssistHint =
-      '선을 긋고 잠시 멈추면 도형으로 바꿔요. 떼기 전에 움직이면 크기를 바꿀 수 있어요';
+      '선을 긋고 잠시 멈추면 도형으로 바꿔요. 펜을 떼기 전에 움직이면 크기와 방향을 다듬을 수 있어요';
 
   // ---- Text box (6.11) -------------------------------------------------------
 
