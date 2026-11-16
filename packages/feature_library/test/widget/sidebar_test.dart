@@ -209,7 +209,7 @@ void main() {
           .getTopLeft(
             find.descendant(
               of: treeRow('d$depth'),
-              matching: find.byIcon(Icons.folder),
+              matching: find.byKey(SidebarTreeRow.folderArtKey),
             ),
           )
           .dx;

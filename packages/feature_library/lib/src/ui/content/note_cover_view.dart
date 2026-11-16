@@ -209,13 +209,12 @@ class ColorCoverCard extends StatelessWidget {
   }
 }
 
-/// surfaceContainerHigh + the 노트 line icon (AppIconKind.note,
-/// onSurfaceVariant 60%),
-/// 40 px (smaller boxes scale it down). (v2.14-ui review) In a dark style
-/// it is paper-coloured instead (the paper swatch with a 6 % ink tint, the
-/// icon in paper ink 35 %): real first-page thumbnails stay paper-white, so
-/// a dark grey placeholder would mix with them and flash grey → white while
-/// a thumbnail loads.
+/// A faintly ruled paper sheet (the paper swatch with a 2.5 % ink tint, 6 %
+/// in a dark style) + the 노트 line icon (AppIconKind.note, paper ink 35 %),
+/// 40 px (smaller boxes scale it down, without the rules). (v2.14-ui review,
+/// owner review) Real first-page thumbnails stay paper-white, so a grey
+/// placeholder would mix with them and flash grey → white while a thumbnail
+/// loads.
 class CoverPlaceholder extends StatelessWidget {
   const CoverPlaceholder({
     super.key,
@@ -227,31 +226,59 @@ class CoverPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final tokens = StyleTokens.of(context);
     final shortest = width < height ? width : height;
     final dark = tokens.isDark;
+    // (owner review) Paper in every brightness, faintly ruled: a sheet
+    // waiting for its thumbnail (which is paper-white too), not a grey box.
     return SizedBox(
       width: width,
       height: height,
       child: ColoredBox(
-        color: dark
-            ? Color.alphaBlend(
-                tokens.paperInk.withValues(alpha: 0.06),
-                tokens.inkSwatch,
-              )
-            : scheme.surfaceContainerHigh,
-        child: Center(
-          child: AppIcon(
-            AppIconKind.note,
-            size: shortest < 64 ? shortest * 0.6 : 40,
-            strokeWidth: 1.2,
-            color: dark
-                ? tokens.paperInk.withValues(alpha: 0.35)
-                : scheme.onSurfaceVariant.withValues(alpha: 0.6),
+        color: Color.alphaBlend(
+          tokens.paperInk.withValues(alpha: dark ? 0.06 : 0.025),
+          tokens.inkSwatch,
+        ),
+        child: CustomPaint(
+          painter: shortest < 64
+              ? null
+              : _RuledPaperPainter(tokens.paperInk.withValues(alpha: 0.07)),
+          child: Center(
+            child: AppIcon(
+              AppIconKind.note,
+              size: shortest < 64 ? shortest * 0.6 : 40,
+              strokeWidth: 1.2,
+              color: tokens.paperInk.withValues(alpha: 0.35),
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Faint rules across a placeholder sheet (behind the icon).
+class _RuledPaperPainter extends CustomPainter {
+  const _RuledPaperPainter(this.line);
+
+  final Color line;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = line
+      ..strokeWidth = 1;
+    final step = math.max(10.0, size.height / 14);
+    for (var y = step * 2; y < size.height - step / 2; y += step) {
+      canvas.drawLine(
+        Offset(size.width * .1, y),
+        Offset(size.width * .9, y),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RuledPaperPainter oldDelegate) =>
+      oldDelegate.line != line;
 }

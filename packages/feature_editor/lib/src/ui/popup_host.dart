@@ -393,7 +393,8 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
   final Rect? anchor;
   final bool centred;
 
-  static const double _gap = 6;
+  /// (owner review) Clear of the toolbar's edge, not glued to it.
+  static const double _gap = 12;
   static const double _margin = 8;
 
   /// Below the anchor while at least this much room is there.

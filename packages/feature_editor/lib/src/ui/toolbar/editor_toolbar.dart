@@ -254,6 +254,9 @@ class EditorToolbar extends ConsumerWidget {
   /// (v2.14-ui review) The ▾ after the title (it opens 노트 정보).
   static const titleAffordanceKey = ValueKey('editor.toolbar.titleAffordance');
 
+  /// (owner review) The folder · last-edit line under the title.
+  static const titleSubtitleKey = ValueKey('editor.toolbar.titleSubtitle');
+
   /// (v2.14-ui) The whole title slot (the title's [titleKey] is the tappable
   /// part; the rest of the slot is blank toolbar).
   static const titleSlotKey = ValueKey('editor.toolbar.titleSlot');
@@ -518,8 +521,37 @@ class _TitleSlot extends ConsumerWidget {
 
   final String title;
 
+  /// The folder and the day of the last edit, under the title (크래프트 /
+  /// 스튜디오 — the 미니멀 bar is one line); null while unknown.
+  static String? _subtitleOf(WidgetRef ref) {
+    final session = ref.watch(editorSessionValueProvider);
+    final note =
+        ref.watch(core.noteProvider(session.noteId)).value ?? session.note;
+    final folderId = note.folderId;
+    final folder = folderId == null
+        ? null
+        : ref.watch(core.folderTreeProvider).value?.byId(folderId);
+    final at = DateTime.fromMillisecondsSinceEpoch(note.updatedAt);
+    return [
+      if (folder != null) folder.name,
+      EditorStrings.titleEditedOn(at.month, at.day),
+    ].join(' · ');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = StyleTokens.of(context);
+    final theme = Theme.of(context);
+    final subtitle = tokens.style == AppStyle.calm ? null : _subtitleOf(ref);
+    final titleText = Text(
+      title,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        height: 1.2,
+      ),
+    );
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Semantics(
@@ -534,24 +566,36 @@ class _TitleSlot extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               // (v2.14-ui review) ▾ after the title: it can be tapped.
-              child: Row(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Flexible(
-                    child: Text(
-                      title,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(child: titleText),
+                      const SizedBox(width: 2),
+                      AppIcon(
+                        AppIconKind.chevronDown,
+                        key: EditorToolbar.titleAffordanceKey,
+                        size: 18,
+                        color: tokens.textSecondary,
+                      ),
+                    ],
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle,
+                      key: EditorToolbar.titleSubtitleKey,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      textScaler: MediaQuery.textScalerOf(context)
+                          .clamp(maxScaleFactor: 1.2),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: tokens.textSecondary,
+                        height: 1.25,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 2),
-                  AppIcon(
-                    AppIconKind.chevronDown,
-                    key: EditorToolbar.titleAffordanceKey,
-                    size: 18,
-                    color: StyleTokens.of(context).textSecondary,
-                  ),
                 ],
               ),
             ),

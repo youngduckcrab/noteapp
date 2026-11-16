@@ -718,7 +718,7 @@ void main() {
       await tester.pump();
       final tray = _rect(tester, find.byKey(PenTray.trayKey));
       final shown = _rect(tester, find.byKey(QuickPenPanel.panelKey));
-      expect(shown.top, closeTo(tray.bottom + 6, 1));
+      expect(shown.top, closeTo(tray.bottom + 12, 1));
       expect(shown.center.dx, closeTo(tray.center.dx, 1));
     });
 

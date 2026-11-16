@@ -11,7 +11,7 @@ import 'package:ui_kit/ui_kit.dart';
 /// (HoverNames) is on: off means no names on hover anywhere. The hover is
 /// the whole button's when a [ToolHover] wraps it (else the glyph's own).
 /// The icon follows the ambient [IconTheme] (the button's active / disabled
-/// colour); the name is [StyleTokens.textSecondary], the icon's colour while
+/// colour); the name is a softened [StyleTokens.textPrimary], the icon's colour while
 /// [selected]. The box is [size] wide and high in both modes, so a name that
 /// comes and goes never moves the row.
 class ToolGlyph extends StatefulWidget {
@@ -77,10 +77,12 @@ class _ToolGlyphState extends State<ToolGlyph> {
     final shown = always || hovered;
     final iconColor = IconTheme.of(context).color ?? tokens.textPrimary;
     // Dimmed with the icon (a disabled button).
+    // (owner review) The name reads like the mockups': the ink colour a
+    // little softened and semi-bold, not a faint grey hairline.
     final color = widget.selected
         ? iconColor
-        : tokens.textSecondary.withValues(
-            alpha: tokens.textSecondary.a * iconColor.a,
+        : tokens.textPrimary.withValues(
+            alpha: 0.78 * tokens.textPrimary.a * iconColor.a,
           );
     final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final duration = reduce ? Duration.zero : const Duration(milliseconds: 140);
@@ -98,7 +100,7 @@ class _ToolGlyphState extends State<ToolGlyph> {
               padding: EdgeInsets.only(top: shown ? 1 : 0),
               child: AppIcon(
                 widget.kind,
-                size: shown ? 20 : widget.size,
+                size: shown ? 22 : widget.size,
                 semanticLabel: widget.semanticLabel,
               ),
             ),
@@ -121,7 +123,7 @@ class _ToolGlyphState extends State<ToolGlyph> {
                 style: TextStyle(
                   fontSize: 11,
                   height: 1.1,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: -0.2,
                   color: color,
                 ),

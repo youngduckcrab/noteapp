@@ -1,5 +1,7 @@
 // lib/src/ui/content/tile_parts.dart — 05-library 6.8: pieces shared by the
 // grid tiles and list rows.
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, FolderId, Note;
@@ -163,8 +165,8 @@ LibrarySelectionNotifier _selectionNotifier(BuildContext context) =>
 Color folderColorOr(int? colorArgb, ColorScheme scheme) =>
     colorArgb != null ? Color(colorArgb) : scheme.onSurfaceVariant;
 
-/// The folder picture of a tile or row: background = folder color 15 % or
-/// surfaceContainerHigh, the folder icon in the middle.
+/// The folder picture of a tile or row: in a cover box a drawn folder
+/// ([FolderArt]) on a 10 % folder-colour wash; in a row the folder icon.
 class FolderPicture extends StatelessWidget {
   const FolderPicture({
     super.key,
@@ -215,25 +217,54 @@ class FolderGlyph extends StatelessWidget {
   /// primaryContainer background (a drop target, 6.8).
   final bool dropInto;
 
+  /// The drawn folder in a cover box (tests).
+  static const artKey = ValueKey('library.folderArt');
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final argb = colorArgb;
-    final glyph = Center(
-      child: Icon(
-        FolderIcons.iconFor(icon),
-        size: iconSize,
-        color: folderColorOr(argb, scheme),
-      ),
-    );
-    if (!background) return glyph;
+    if (!background) {
+      return Center(
+        child: Icon(
+          FolderIcons.iconFor(icon),
+          size: iconSize,
+          color: folderColorOr(argb, scheme),
+        ),
+      );
+    }
+    // (owner review — proposal §2) In a cover box the folder is drawn as an
+    // object (FolderArt: tab, paper peeking out, the folder's colour; no
+    // colour → the style's softened accent), its chosen icon on the flap.
+    final tokens = StyleTokens.of(context);
+    final colour = argb != null
+        ? Color(argb)
+        : FolderArt.defaultColorFor(tokens.accent, dark: tokens.isDark);
+    final key = icon ?? FolderIcons.defaultKey;
+    final emblem =
+        FolderIcons.keys.contains(key) && key != FolderIcons.defaultKey
+        ? FolderIcons.iconFor(key)
+        : null;
     return ColoredBox(
       color: dropInto
           ? scheme.primaryContainer
-          : argb != null
-          ? Color(argb).withValues(alpha: 0.15)
-          : scheme.surfaceContainerHigh,
-      child: glyph,
+          : Color.alphaBlend(colour.withValues(alpha: 0.10), tokens.card),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final width = math.min(
+            box.maxWidth * 0.62,
+            box.maxHeight * 0.66 / FolderArt.heightFor(1),
+          );
+          return Center(
+            child: FolderArt(
+              key: FolderGlyph.artKey,
+              color: colour,
+              width: width,
+              emblem: emblem,
+            ),
+          );
+        },
+      ),
     );
   }
 }

@@ -107,21 +107,18 @@ void main() {
             matching: find.byType(ColoredBox),
           ),
         );
-        if (brightness == Brightness.dark) {
-          expect(box.color.computeLuminance(), greaterThan(0.7));
-          // (UI stage 2) the 노트 line icon.
-          final icon = tester.widget<AppIcon>(
-            find.byWidgetPredicate(
-              (w) => w is AppIcon && w.kind == AppIconKind.note,
-            ),
-          );
-          expect(
-            contrastRatio(Color.alphaBlend(icon.color!, box.color), box.color),
-            greaterThanOrEqualTo(1.8),
-          );
-        } else {
-          expect(box.color, theme.colorScheme.surfaceContainerHigh);
-        }
+        // (owner review) Paper in every brightness (thumbnails are paper
+        // too), with the 노트 line icon readable on it.
+        expect(box.color.computeLuminance(), greaterThan(0.7));
+        final icon = tester.widget<AppIcon>(
+          find.byWidgetPredicate(
+            (w) => w is AppIcon && w.kind == AppIconKind.note,
+          ),
+        );
+        expect(
+          contrastRatio(Color.alphaBlend(icon.color!, box.color), box.color),
+          greaterThanOrEqualTo(1.8),
+        );
         expect(tokens.brightness, brightness);
       });
     }

@@ -153,16 +153,22 @@ class _PenSettingsPanelState extends ConsumerState<PenSettingsPanel> {
               if (_tab == 0) const _PenCards(columns: 4) else style,
             ],
           );
-    return Material(
-      key: PenSettingsPanel.panelKey,
-      color: tokens.popover,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(tokens.radiusLarge + 4),
-        side: tokens.popoverSide,
+    final radius = BorderRadius.circular(tokens.radiusLarge + 4);
+    // The shadow is cast OUTSIDE the panel: inside the clipped Material it
+    // tinted the whole panel grey.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: tokens.shadows(3),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: DecoratedBox(
-        decoration: BoxDecoration(boxShadow: tokens.shadows(3)),
+      child: Material(
+        key: PenSettingsPanel.panelKey,
+        color: tokens.popover,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: tokens.popoverSide,
+        ),
+        clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minWidth: width,
@@ -702,13 +708,21 @@ class _PinButton extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FilledButton(
+        // (owner review) Already in the tray reads as a done state (a soft
+        // accent pill with a check), not as a dead grey button.
+        FilledButton.icon(
           key: PenSettingsPanel.pinKey,
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(44),
+            disabledBackgroundColor: inTray ? tokens.accentSoft : null,
+            disabledForegroundColor: inTray ? tokens.onAccentSoft : null,
+            disabledIconColor: inTray ? tokens.onAccentSoft : null,
+          ),
           onPressed: inTray || readOnly || presets == null
               ? null
               : () => _pin(context, ref, pen),
-          child: Text(
+          icon: inTray ? const Icon(Icons.check_rounded, size: 18) : null,
+          label: Text(
             inTray ? EditorStrings.pinnedInTray : EditorStrings.pinToTray,
           ),
         ),

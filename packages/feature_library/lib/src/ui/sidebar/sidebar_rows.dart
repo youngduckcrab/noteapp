@@ -183,6 +183,9 @@ class SidebarTreeRow extends StatelessWidget {
   /// ▸ / ▾ tap → expand / collapse.
   final VoidCallback onToggle;
 
+  /// The drawn folder of a plain folder's row (tests).
+  static const folderArtKey = ValueKey('library.sidebar.folderArt');
+
   /// Indent of a row at [depth]: deeper rows stay at 8 × 16.
   static double indentFor(int depth) =>
       math.min(depth, LibraryMetrics.treeMaxIndentLevels) *
@@ -228,7 +231,34 @@ class SidebarTreeRow extends StatelessWidget {
             else
               const SizedBox(width: LibraryMetrics.minTapTarget),
             SizedBox(width: indentFor(row.depth)),
-            Icon(FolderIcons.iconFor(folder.icon), size: 24, color: iconColor),
+            // (owner review) The plain folder is a small drawn folder in
+            // its colour (the style's accent when it has none), like the
+            // grid's; a chosen icon stays an icon.
+            if ((folder.icon ?? FolderIcons.defaultKey) ==
+                    FolderIcons.defaultKey ||
+                !FolderIcons.keys.contains(folder.icon))
+              SizedBox.square(
+                key: SidebarTreeRow.folderArtKey,
+                dimension: 24,
+                child: Center(
+                  child: FolderArt(
+                    color: argb != null
+                        ? Color(argb)
+                        : FolderArt.defaultColorFor(
+                            StyleTokens.of(context).accent,
+                            dark: StyleTokens.of(context).isDark,
+                          ),
+                    width: 22,
+                    shadow: false,
+                  ),
+                ),
+              )
+            else
+              Icon(
+                FolderIcons.iconFor(folder.icon),
+                size: 24,
+                color: iconColor,
+              ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

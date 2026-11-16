@@ -966,7 +966,7 @@ void main() {
     await tester.pump();
     final tray = tester.getRect(find.byKey(PenTray.trayKey));
     final panel = tester.getRect(find.byKey(PenSettingsPanel.panelKey));
-    expect(panel.top, closeTo(tray.bottom + 6, 1));
+    expect(panel.top, closeTo(tray.bottom + 12, 1));
     expect(panel.left, greaterThanOrEqualTo(8));
     expect(panel.right, lessThanOrEqualTo(1032 - 8));
     h.container.read(editorPopupProvider.notifier).close();

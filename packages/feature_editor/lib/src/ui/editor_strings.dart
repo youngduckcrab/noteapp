@@ -194,6 +194,9 @@ abstract final class EditorStrings {
 
   /// (v2.14-ui) Semantics hint of the tappable toolbar title.
   static const titleOpensNoteInfo = '눌러서 노트 정보 보기·이름 바꾸기';
+
+  /// (owner review) The line under the toolbar title: '수학 · 11월 16일 수정'.
+  static String titleEditedOn(int month, int day) => '$month월 $day일 수정';
   static const noteInfoTitle = '제목';
   static const noteInfoPages = '페이지 수';
   static const noteInfoCreated = '만든 날짜';

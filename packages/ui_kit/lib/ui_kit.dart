@@ -12,6 +12,7 @@ export 'src/app_style.dart' show AppBrightnessMode, AppStyle;
 export 'src/build_theme.dart'
     show buildStyleTheme, buildThemeFromTokens, styleColorScheme;
 export 'src/contrast.dart' show contrastRatio;
+export 'src/folder_art.dart' show FolderArt, FolderArtColors, FolderArtPainter;
 export 'src/hover_name.dart' show HoverName, HoverNames;
 export 'src/pen_art.dart'
     show

@@ -62,20 +62,23 @@ class QuickPenPanel extends ConsumerWidget {
     final widths = penWidthChoices(pen.tool);
     final ringed = nearestBasicColorIndex(pen.colorArgb);
     final shown = quickColorsFor(ringed);
-    return Material(
-      key: panelKey,
-      color: tokens.popover,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(tokens.radiusLarge),
-        side: tokens.popoverSide,
+    final radius = BorderRadius.circular(tokens.radiusLarge);
+    // The shadow is cast OUTSIDE the panel: inside the clipped Material it
+    // tinted the whole panel grey.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: tokens.shadows(2),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(tokens.radiusLarge),
-          boxShadow: tokens.shadows(2),
+      child: Material(
+        key: panelKey,
+        color: tokens.popover,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: tokens.popoverSide,
         ),
+        clipBehavior: Clip.antiAlias,
         child: SizedBox(
           width: width,
           child: Padding(

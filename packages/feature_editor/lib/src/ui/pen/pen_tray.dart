@@ -125,14 +125,17 @@ class PenTray extends ConsumerWidget {
   static double slotHeightOf(StyleTokens tokens) => outerHeightOf(tokens) - 2;
 
   /// How much of a resting drawing shows above the well's bottom.
-  static const double _shown = 42;
+  /// (owner review) The lifted pen rises up to 16 px, its tip out of the
+  /// well — a clear "this one is in my hand", not a nudge.
+  static const double _shown = 40;
+  static const double _lift = 16;
 
   /// The drawing's top in its slot, resting / lifted (≥ -1: a lifted pen
   /// stays 4 px inside a bar 4 px taller than the tray on each side).
   static double downTopOf(double slotHeight) =>
       math.max(4, slotHeight - _shown);
   static double upTopOf(double slotHeight) =>
-      math.max(-1, downTopOf(slotHeight) - 11);
+      math.max(-1, downTopOf(slotHeight) - _lift);
 
   /// The tray's width with [pens] pens and the eraser.
   static double widthFor(int pens) =>
@@ -571,9 +574,10 @@ class _TraySlotState extends State<_TraySlot> {
   Offset _popupPoint() {
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return Offset.zero;
-    // _AtPointLayout adds 12 px right and below.
+    // _AtPointLayout adds 12 px right and below: the popup's top is 12 px
+    // under the slot, clear of the toolbar's edge.
     return box.localToGlobal(box.size.bottomLeft(Offset.zero)) +
-        const Offset(-12, -6);
+        const Offset(-12, 0);
   }
 
   @override

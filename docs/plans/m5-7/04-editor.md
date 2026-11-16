@@ -3209,6 +3209,17 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 - `toolbar_width_test`(`planFor` 표 + 720~1280 넘침 없음), `pen_types_v2_test`(카드 묶음·그림·획), `pen_settings_panel_test`(필압 한 줄, 고급 안의 굵기 슬라이더, 투명도 펜), `style_theme_test`(스타일마다 트레이 모양), `editor_chrome_test`(떼어낸 트레이), `math_pen_test`·`text_pen_test`([+] 줄), `toolbar_test`·`note_search_test`·`ui_cleanup_review_test`(폭 표).
 - 부록 C 키: 없앤 키 `editor.presetBar*`, `editor.palette.add/manage/empty/chip.*`, `editor.pen.sensitivity`, `editor.pen.curve*`, `editor.popup.penSettings.saveAsPreset`; 새 키 `editor.tray`, `editor.tray.current`, `editor.tray.pen.<id>`, `editor.tray.hoverLabel`, `editor.insert.math`, `editor.insert.recording`, `editor.popup.penSettings.pin`, `.otherColor`, `.tab.pen`/`.tab.style`, `editor.pen.widthChoice.<n>`, `editor.pen.pressure(.<feel>)`, `editor.quickPen.reorder/unpin/picker/color.<n>/width.<n>`. 앱 시나리오(`smoke_v2_scenario`)의 녹음은 [+] › 녹음으로.
 
+### 23.7 오너 검토 다듬기 (2026-11-16)
+
+시안과 나란히 놓고 고친 것:
+- **창이 회색으로 탁하던 문제**: 펜 고르기 창·빠른 펜 창의 그림자가 잘린 `Material` *안*에 그려져 판 전체를 회색으로 덮었다. 그림자를 판 바깥으로 옮겨 판이 시안처럼 밝은 종이색(`tokens.popover`)으로 보인다.
+- **들린 펜**: 쉬는 펜은 받침 위로 40 px 보이고(예전 42), 지금 펜은 최대 16 px 들린다(예전 11; 크래프트 15 px — 툴바 안 4 px 규칙은 그대로).
+- **창 위치**: 트레이 아래 창(펜 고르기·지우개)은 트레이에서 12 px(예전 6), 빠른 펜은 칸 아래 12 px — 툴바 가장자리에 붙지 않는다.
+- **도구 이름**: 올가미·도형·텍스트·삽입 아이콘 22 px, 이름은 semi-bold, 잉크색 78 %(예전 회색 500).
+- **제목**: 굵게(w700), 크래프트·스튜디오는 아래에 '폴더 · M월 D일 수정'(`noteProvider` 실시간, `editor.toolbar.titleSubtitle`). 미니멀은 한 줄.
+- **[트레이에 꽂혀 있어요]**: 꺼진 회색 단추 대신 ✓ + `accentSoft` 알약(끝난 상태).
+- 서재 쪽(05-library): 폴더 그림(`FolderArt`), 종이 자리표시.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)
