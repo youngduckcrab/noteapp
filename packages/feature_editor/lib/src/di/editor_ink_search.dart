@@ -1,4 +1,4 @@
-// lib/src/di/editor_ink_search.dart — (v2.13-search, m5-7/04-editor 17)
+// lib/src/di/editor_ink_search.dart — (v2.13-search, m5-7/04-editor 18)
 // whether handwriting can be found by the in-note search ('노트에서 찾기')
 // yet. The app shell overrides the slot with an adapter over
 // ink_recognition's handwriting search readiness (FeatureWiringModule, from

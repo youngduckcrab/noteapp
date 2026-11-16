@@ -77,7 +77,7 @@ const _expectedExports = <String>{
   'EditorTextPenSession',
   'EditorPenContext',
   'EditorPenGroup',
-  // (v2.13-search) m5-7/04-editor 17 — the in-note search's handwriting slot.
+  // (v2.13-search) m5-7/04-editor 18 — the in-note search's handwriting slot.
   'EditorInkSearch',
   'EditorInkSearchState',
   'EditorInkSearchPhase',

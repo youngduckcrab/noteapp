@@ -194,7 +194,7 @@ class EditorToolbar extends ConsumerWidget {
   }
 }
 
-/// (v2.13-search) Toggles the in-note search panel (17).
+/// (v2.13-search) Toggles the in-note search panel (18).
 class _NoteSearchButton extends ConsumerWidget {
   const _NoteSearchButton();
 

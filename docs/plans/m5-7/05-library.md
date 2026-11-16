@@ -2386,7 +2386,7 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 
 ### 6.19b 노트 안 검색의 손글씨 안내 · 이 노트 먼저 인식 (2026-11-16, v2.13-search)
 
-편집기의 '노트에서 찾기'(04-editor 17)도 6.19a의 같은 준비 상태를 쓴다. `HandwritingSearchReadiness`에 더한 것(공개 이름은 늘지 않음):
+편집기의 '노트에서 찾기'(04-editor 18)도 6.19a의 같은 준비 상태를 쓴다. `HandwritingSearchReadiness`에 더한 것(공개 이름은 늘지 않음):
 
 - `statusOfNote(noteId)`: `status`와 같되, '읽는 중'이면 **그 노트의** 남은 쪽(대기열 + 조용한 시간 대기 + 진행 중인 일)만 센다. 0쪽이면 준비됨, 그 노트의 낡은 쪽을 찾는 중이면 '읽는 중'(개수 없음).
 - `searchOpenedInNote(noteId)`: `indexNoteNow` — 조용한 시간을 기다리는 쪽을 모두 대기열에 넣되 **일을 고르기 전에** 그 노트의 쪽을 맨 앞으로 옮기고(`PageQueue.promoteNote`, 따라잡기 쪽은 ready 줄로), `HandwritingRepository.stalePages(noteId)`로 따라잡기가 아직 넣지 않은 낡은 쪽도 넣는다(엔진이 실패한 쪽은 빼고). `indexDirtyPagesNow`를 먼저 부르면 다른 노트의 쪽이 먼저 시작되는 것을 시험이 잡아서 순서를 고쳤다.

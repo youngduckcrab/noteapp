@@ -11,7 +11,7 @@
 // (TextFieldTapRegion — a canvas down is not the editor's onTapOutside; the
 // router decides, 6.11.5) and the new text box outline (6.11.1). (E2-19) The
 // position flash (6.16). (v2.13-search) The in-note search panel and its
-// highlight (17). (E2-18) The Apple Pencil events while the viewport
+// highlight (18). (E2-18) The Apple Pencil events while the viewport
 // is on screen (StylusExtrasListener — 6.5.1).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
@@ -196,7 +196,7 @@ class _PageViewportState extends ConsumerState<PageViewport> {
                               // (v2, E2-10) the text tool's new box (6.11.1).
                               const NewTextBoxOutline(),
                               // (v2.13-search) the in-note search's
-                              // matched rects (17).
+                              // matched rects (18).
                               const NoteSearchHighlight(),
                               // (v2, E2-19) the position flash (6.16).
                               const FocusFlash(),

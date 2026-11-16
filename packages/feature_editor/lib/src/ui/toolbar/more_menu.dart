@@ -44,7 +44,7 @@ class EditorMoreMenu extends ConsumerStatefulWidget {
   static const devOverlayKey = ValueKey('editor.more.devOverlay');
   static const noteInfoKey = ValueKey('editor.more.noteInfo');
 
-  /// (v2.13-search) '노트에서 찾기' (m5-7/04-editor 17) — first item.
+  /// (v2.13-search) '노트에서 찾기' (m5-7/04-editor 18) — first item.
   static const noteSearchKey = ValueKey('editor.more.noteSearch');
   static const settingsKey = ValueKey('editor.more.settings');
 

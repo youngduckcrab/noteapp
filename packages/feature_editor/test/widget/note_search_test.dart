@@ -1,4 +1,4 @@
-// (v2.13-search) m5-7/04-editor 17: '노트에서 찾기' — the in-note search.
+// (v2.13-search) m5-7/04-editor 18: '노트에서 찾기' — the in-note search.
 //
 // The user: "노트에서 검색기능 … 정작 노트안에서 필기를 검색하는 기능이 안보여.
 // pdf 만 검색하는 기능만 있는거로 보임." Before this, the only search inside a

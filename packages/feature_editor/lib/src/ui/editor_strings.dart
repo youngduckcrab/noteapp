@@ -735,7 +735,7 @@ abstract final class EditorStrings {
   static const devShapeSampleCopied = '도형 표본을 복사했어요';
   static const devNoShapeSamples = '모은 표본이 없어요';
 
-  // ---- (v2.13-search) In-note search '노트에서 찾기' (m5-7/04-editor 17) --
+  // ---- (v2.13-search) In-note search '노트에서 찾기' (m5-7/04-editor 18) --
 
   static const noteSearch = '노트에서 찾기';
   static const noteSearchHint = '필기·텍스트·수식·PDF에서 찾기';

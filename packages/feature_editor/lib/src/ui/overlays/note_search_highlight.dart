@@ -1,5 +1,5 @@
 // lib/src/ui/overlays/note_search_highlight.dart — (v2.13-search)
-// m5-7/04-editor 17: the matched rects of the in-note search over the
+// m5-7/04-editor 18: the matched rects of the in-note search over the
 // pages, while the search panel is open.
 //
 // Every result's rects on the mounted pages are filled (amber 45 %); the

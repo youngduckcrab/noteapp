@@ -2404,7 +2404,7 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 
 | # | 절 | 변경 | 출처 | 반영할 영역 |
 |---|---|---|---|---|
-| C213S-01 | 7.2.10 EDITOR 자리 | `EditorInkSearch`(`changes`·`stateOf(noteId)`·`turnOnAutoIndex`·`downloadModel({cellular})`·`searchOpened(noteId)`)·`EditorInkSearchState`·`EditorInkSearchPhase`(C29-03·C29-05와 같은 단계)·`editorInkSearchProvider`(기본 null → 안내 없음). 앱 셸 `editorInkSearchOf`가 `HandwritingSearchReadiness`를 옮기고 `ShellContribution.editorInkSearch`로 FeatureWiringModule이 덮어쓴다. 새 패키지 의존 없음(R8) | 04-editor 17 | EDITOR·INFRA(처리됨) |
+| C213S-01 | 7.2.10 EDITOR 자리 | `EditorInkSearch`(`changes`·`stateOf(noteId)`·`turnOnAutoIndex`·`downloadModel({cellular})`·`searchOpened(noteId)`)·`EditorInkSearchState`·`EditorInkSearchPhase`(C29-03·C29-05와 같은 단계)·`editorInkSearchProvider`(기본 null → 안내 없음). 앱 셸 `editorInkSearchOf`가 `HandwritingSearchReadiness`를 옮기고 `ShellContribution.editorInkSearch`로 FeatureWiringModule이 덮어쓴다. 새 패키지 의존 없음(R8) | 04-editor 18 | EDITOR·INFRA(처리됨) |
 | C213S-02 | 7.2.11 recog (공개 이름 그대로) | `HandwritingSearchReadiness`에 `statusOfNote(noteId)`(그 노트의 남은 쪽만 셈)·`searchOpenedInNote(noteId)`(그 노트의 쪽 먼저 인식, 낡은 쪽도 찾아 넣음)·`changes` 추가 | 05-library 6.19b | LIBRARY(처리됨) |
 
 #### v2.9 (2026-11-13, 손글씨 검색 — 사용자 요청 '텍스트로 변환하지 않더라도 적은 글씨를 검색하면 검색이 되어야 해')

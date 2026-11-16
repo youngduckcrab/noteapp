@@ -1,4 +1,4 @@
-// lib/src/state/note_search.dart — (v2.13-search) m5-7/04-editor 17: the
+// lib/src/state/note_search.dart — (v2.13-search) m5-7/04-editor 18: the
 // in-note search ('노트에서 찾기'), per note.
 //
 // Before this, the editor had no search of its own: the only search inside a

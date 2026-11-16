@@ -289,7 +289,7 @@ final class _InkSearchAdapter implements LibraryInkSearch {
   }
 }
 
-/// (v2.13-search — m5-7/04-editor 17, 05-library 6.19b) the same
+/// (v2.13-search — m5-7/04-editor 18, 05-library 6.19b) the same
 /// readiness as the editor's in-note search slot: the note's status
 /// (HandwritingSearchReadiness.statusOfNote — 'indexing' counts that note's
 /// pages) mapped phase by phase like the library's; searchOpened puts that
