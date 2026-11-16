@@ -20,6 +20,7 @@ import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/eraser/eraser_popup.dart';
 import 'package:feature_editor/src/ui/pages/page_panel.dart';
 import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
+import 'package:feature_editor/src/ui/pen/pen_tray.dart';
 import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/popup_host.dart';
 import 'package:feature_editor/src/ui/shape/shape_style_controls.dart';
@@ -87,14 +88,15 @@ void main() {
     await tester.pump();
     expect(_popup(h), const PenSettingsPopup());
     expect(find.byKey(PenSettingsPanel.panelKey), findsOneWidget);
-    // Below the pen button.
-    final button = tester.getRect(find.byKey(EditorToolbar.penKey));
+    // (v2.15-ui) Under the pen tray, centred on it, inside the screen.
+    final tray = tester.getRect(find.byKey(PenTray.trayKey));
     final panel = tester.getRect(find.byKey(PenSettingsPanel.panelKey));
-    expect(panel.top, greaterThanOrEqualTo(button.bottom));
-    expect(panel.left, closeTo(button.left, 1));
+    expect(panel.top, greaterThanOrEqualTo(tray.bottom));
+    expect(panel.left, greaterThanOrEqualTo(8));
+    expect(panel.right, lessThanOrEqualTo(1032 - 8));
 
     await h.driver.stylusStroke(
-      pathThrough(h, 0, const [Offset(100, 300), Offset(200, 320)]),
+      pathThrough(h, 0, const [Offset(20, 300), Offset(60, 320)]),
     );
     await tester.pump();
     expect(_popup(h), isNull);
@@ -109,7 +111,7 @@ void main() {
     await tester.pump();
     await tester.longPress(find.byKey(EditorToolbar.penKey));
     await tester.pump();
-    expect(_popup(h), const QuickPenPopup());
+    expect(_popup(h), isA<QuickPenPopup>());
     expect(find.byKey(QuickPenPanel.panelKey), findsOneWidget);
     expect(_active(h), EditorTool.lasso);
 
@@ -192,9 +194,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  // (v2, 6.13.1) 1st round 700 → 1000.
-  for (final (width, shown) in const [(999.0, false), (1000.0, true)]) {
-    testWidgets('(v2) the title shows from 1000 px: $width → $shown', (
+  // (v2, 6.13.1) 1st round 700 → 1000; (v2.15-ui) EditorToolbar.planFor —
+  // here (no [+]) from about 910 px.
+  for (final (width, shown) in const [(800.0, false), (1000.0, true)]) {
+    testWidgets('(v2.15-ui) the title as planFor says: $width → $shown', (
       tester,
     ) async {
       await pumpEditor(tester, title: '긴 제목', logicalSize: Size(width, 1000));
@@ -351,10 +354,11 @@ void main() {
 
     for (final size in const [Size(1032, 1376), Size(1376, 1032)]) {
       testWidgets('order on ${size.width.toInt()}×${size.height.toInt()}: '
-          '[▤] pen eraser lasso shape text [+] [🎤] [↶] [↷] [⋯]; '
-          'no overflow', (tester) async {
+          '[▤] pen eraser lasso shape text [+] [↶] [↷] [⋯] (v2.15-ui: '
+          '[🎤] only while recording); no overflow', (tester) async {
         await pumpV2(tester, size: size);
         expect(tester.takeException(), isNull);
+        expect(find.byKey(MicButton.micKey), findsNothing);
         final keys = <Key>[
           EditorToolbar.pagePanelKey,
           EditorToolbar.penKey,
@@ -363,7 +367,6 @@ void main() {
           EditorToolbar.shapeKey,
           EditorToolbar.textKey,
           InsertMenu.buttonKey,
-          MicButton.micKey,
           UndoRedoButtons.undoKey,
           UndoRedoButtons.redoKey,
           EditorMoreMenu.buttonKey,
@@ -458,12 +461,9 @@ void main() {
       expect(overflow(tester).isOpen, isTrue);
     }
 
-    for (final width in const [
-      EditorToolbar.foldWidth - 1,
-      819.0,
-      719.0,
-      690.0,
-    ]) {
+    // (v2.15-ui) The tray gives way first (22.4): the tools fold only
+    // below about 720 px (split screen).
+    for (final width in const [700.0, 690.0, 640.0, 600.0]) {
       testWidgets('$width px: shape, text, [+] and [🎤] fold into [⋯도구]; '
           'no overflow', (tester) async {
         await pumpV2(tester, size: Size(width, 1000));
@@ -495,14 +495,13 @@ void main() {
       });
     }
 
-    testWidgets('foldWidth (952 px — 04-editor 19.1): not folded', (
-      tester,
-    ) async {
-      await pumpV2(tester, size: const Size(EditorToolbar.foldWidth, 1000));
+    testWidgets('(v2.15-ui) 800 px (Android portrait): not folded; [🎤] '
+        'only in [+] while not recording', (tester) async {
+      await pumpV2(tester, size: const Size(800, 1000));
       expect(tester.takeException(), isNull);
       expect(find.byKey(EditorToolbar.overflowToolsKey), findsNothing);
       expect(find.byKey(EditorToolbar.shapeKey), findsOneWidget);
-      expect(find.byKey(MicButton.micKey), findsOneWidget);
+      expect(find.byKey(MicButton.micKey), findsNothing);
     });
 
     testWidgets('[⋯도구] shape / text: inactive → the tool (menu closes, the '

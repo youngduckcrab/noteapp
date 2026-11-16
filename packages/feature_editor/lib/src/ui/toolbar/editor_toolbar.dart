@@ -1,8 +1,9 @@
 // lib/src/ui/toolbar/editor_toolbar.dart — 04-editor 6.9.1; (v2) the mic
 // button in front of the undo button (m5-7/04-editor 6.13.1, 6.15.4 — E2-16),
 // the insert menu [+] in front of it (6.13.1 — E2-12). (E2-13) Toolbar v2
-// (6.13.1): the shape and text buttons after the lasso, [⋯도구] below
-// [EditorToolbar.foldWidth], the title from [EditorToolbar.titleMinWidth].
+// (6.13.1): the shape and text buttons after the lasso, [⋯도구] on narrow
+// screens. (v2.15-ui — 22.4) The pen tray instead of the pen and eraser
+// buttons; what gives way at each width is [EditorToolbar.planFor].
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -13,11 +14,14 @@ import '../../di/editor_image_importer.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/note_search.dart';
 import '../../state/page_panel.dart';
+import '../../state/panel.dart';
 import '../../state/popup.dart';
+import '../../state/settings/editor_device_state.dart';
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
-import '../chrome/editor_chrome.dart' show MenuHideButton, MenuHideSlot;
+import '../chrome/editor_chrome.dart' show MenuHideButton;
 import '../editor_strings.dart';
+import '../pen/pen_tray.dart';
 import '../popup_host.dart';
 import 'insert_menu.dart';
 import 'mic_button.dart';
@@ -29,43 +33,53 @@ import 'tool_button.dart';
 import 'undo_redo_buttons.dart';
 import 'zoom_chip.dart';
 
-/// Icon of a pen type (6.9.1; (v2, m5-7/04-editor 6.14.1) the P1 types).
-IconData penTypeIcon(core.PenTool tool) => switch (tool) {
-  core.PenTool.ballpoint => Icons.edit,
-  core.PenTool.fountain => Icons.history_edu,
-  core.PenTool.highlighter => Icons.border_color,
-  core.PenTool.pencil => Icons.create,
-  core.PenTool.marker => Icons.brush,
-  core.PenTool.brush => Icons.draw,
-  core.PenTool.calligraphy => Icons.gesture,
-  core.PenTool.dashed => Icons.line_style,
-  core.PenTool.laser => Icons.flare,
-  core.PenTool.tape => Icons.visibility_off,
-  // (v2.11, C211-01) texture and decoration pens
-  core.PenTool.crayon => Icons.format_paint,
-  core.PenTool.chalk => Icons.school,
-  core.PenTool.watercolor => Icons.water_drop,
-  core.PenTool.spray => Icons.blur_on,
-  core.PenTool.neon => Icons.lightbulb,
-  core.PenTool.jelly => Icons.bubble_chart,
-  core.PenTool.rainbow => Icons.looks,
-  core.PenTool.glitter => Icons.auto_awesome,
-};
+/// The toolbar's layout at one width (v2.15-ui, m5-7/04-editor 22.4).
+@immutable
+class ToolbarPlan {
+  const ToolbarPlan({
+    required this.trayPens,
+    required this.title,
+    required this.search,
+    required this.fold,
+    required this.scroll,
+  });
 
-/// [←] title [100%] [☁] [🔍] [▤] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+]
-/// [🎤] │ [↶] [↷] │ [⋯] — 52 px (v2, m5-7/04-editor 6.13.1). (v2.14-ui, UI
-/// stage 1) No [✋] (⋯ '손가락으로 그리기' and settings › 입력 instead); [100%] only
-/// while the zoom is not 100 % and [☁] only while sync is not done
-/// (ZoomChip, EditorSyncBadgeIcon — after the title, whose slot absorbs
-/// their width, so the tools never shift when they appear); a tap on the title opens 노트 정보 (⋯ has
-/// it while the title is hidden). The title shows
-/// from [titleMinWidth] (1st round 700 — more buttons now). Below
-/// [foldWidth] (split screen — A-6) [도형] [텍스트] [+] [🎤] fold into
-/// [⋯도구] (OverflowToolsMenu); below [scrollWidth] the buttons scroll
-/// sideways instead of overflowing. [▤] toggles the page panel (E-17). On a
-/// read-only note the tool buttons are disabled (6.9.1). [🎤] only when
-/// EditorExtensions.recordingPanel is set; [+] only when the image slot or
-/// EditorExtensions.insertMenuItems offers something (InsertMenu.hasItems).
+  /// Pens the tray shows (0: the tray is in the floating palette).
+  final int trayPens;
+  final bool title;
+  final bool search;
+
+  /// [도형] [텍스트] [+] (and a recording [🎤]) are in [⋯도구].
+  final bool fold;
+
+  /// The row scrolls sideways.
+  final bool scroll;
+
+  @override
+  String toString() =>
+      'ToolbarPlan(pens: $trayPens, title: $title, search: $search, '
+      'fold: $fold, scroll: $scroll)';
+}
+
+/// [←] title [100%] [☁] [🔍] [▤] [pen tray: pens · eraser] [올가미] [도형]
+/// [텍스트] │ [+] [🎤] │ [↶] [↷] │ [⋯] — 52 px.
+///
+/// (v2.15-ui, UI stages 3–5 — m5-7/04-editor 22) The pen tray (PenTray) takes
+/// the place of the pen and eraser buttons and of the preset row under the
+/// toolbar. 수식 펜 · 텍스트 펜 are in [+] ('수식 쓰기', '손글씨를 텍스트로') and
+/// so is 녹음; [🎤] shows in the row only while this note records or the
+/// recording panel is open. What gives way as the toolbar narrows
+/// ([planFor]): the tray 8 → 5 pens, then the title, then [🔍] (into ⋯),
+/// then the tray 5 → 3; [올가미] [도형] [텍스트] [+] fold into [⋯도구] only
+/// below that (split screen), and the row scrolls only past that.
+///
+/// (v2.14-ui, UI stage 1) No [✋]; [100%] only while the zoom is not 100 %
+/// and [☁] only while sync is not done — in the flexible slot with the
+/// title, shown when they fit, so the tools never shift and never overflow
+/// when they appear. A tap on the title opens 노트 정보 (⋯ has it while the
+/// title is hidden). [▤] toggles the page panel (E-17). On a read-only note
+/// the tools are disabled (6.9.1). [+] only when the image slot or
+/// EditorExtensions offer something (InsertMenu.hasItems).
 class EditorToolbar extends ConsumerWidget {
   const EditorToolbar({super.key, required this.onBack, this.onOpenSettings});
 
@@ -74,33 +88,87 @@ class EditorToolbar extends ConsumerWidget {
 
   static const double height = 52;
 
-  /// (v2) The title shows when the toolbar is at least this wide.
-  static const double titleMinWidth = 1000;
-
   /// (04-editor 19.1) The least the title keeps: beside it [⌃] shows only
-  /// while the title still gets this much (else [⌃] is in [⋯] only). [⌃]
-  /// (19) and [🔍] (18) together left the title 3.6 px at 1000 with every
-  /// optional button on (test/widget/toolbar_width_test.dart).
+  /// while the title still gets this much (else [⌃] is in [⋯] only).
   static const double titleLeastWidth = 48;
 
-  /// (v2) Below this width [도형] [텍스트] [+] [🎤] fold into [⋯도구]. The
-  /// plan's 720 px is the floor. (04-editor 19.1) Measured with every
-  /// optional button on (image insert, [🎤], 수식 펜, 텍스트 펜, sync badge):
-  /// the unfolded row takes 900 px, + the 48 px [🔍] 948 px (title hidden) —
-  /// the earlier 820 overflowed between 820 and 900. From 952 the unfolded
-  /// row always has room for [🔍] (test/widget/toolbar_width_test.dart).
-  static const double foldWidth = 952;
+  /// (v2.15-ui) The title shows only when it gets at least this much.
+  static const double titleMinRoom = 160;
 
-  /// (v2) Below this width the folded toolbar (≈ 660 px with the sync
-  /// badge) scrolls sideways instead of overflowing.
-  static const double scrollWidth = 680;
+  /// (v2.15-ui) The least the flexible slot keeps without the title: room
+  /// for a narrow [☁] (a sync problem must stay visible).
+  static const double flexLeast = 36;
 
-  /// (v2.13-search) The folded toolbar (≈ 660 px with the sync badge) + the
-  /// 48 px [🔍] + slack: from here it shows [🔍] without scrolling. Above
-  /// [foldWidth] the unfolded row has it too (19.1).
-  static const double foldedSearchMinWidth = 720;
+  /// Widths of the fixed parts (IconButton / ToolButton 48, divider 12).
+  static const double _button = 48;
+  static const double _divider = 12;
+
+  /// The width of the row without the tray, the title slot and [🔍].
+  static double fixedWidth({
+    required bool hasInsert,
+    required bool mic,
+    required bool fold,
+  }) {
+    var w = _button /* ← */ + _button /* ▤ */ + 4 /* end */;
+    w += fold ? 2 * _button : 3 * _button; // 올가미 (+ 도형 텍스트 | ⋯도구)
+    w += _divider;
+    if (!fold && (hasInsert || mic)) {
+      w += (hasInsert ? _button : 0) + (mic ? _button : 0) + _divider;
+    }
+    w += 2 * _button + _divider; // ↶ ↷
+    w += _button; // ⋯
+    return w;
+  }
+
+  /// (v2.15-ui) The layout at [width]: the first that fits of — 8 pens +
+  /// [🔍] + title, 5 pens + [🔍] + title, 5 + [🔍], 5, 3, then folded with 3,
+  /// then scrolling. With [detached] the tray is in the floating palette.
+  static ToolbarPlan planFor(
+    double width, {
+    required bool hasInsert,
+    required bool mic,
+    bool detached = false,
+  }) {
+    double tray(int pens) => detached ? 0 : PenTray.widthFor(pens);
+    final pensAt = detached ? 0 : 1; // 0 pens when detached
+    final fixed = fixedWidth(hasInsert: hasInsert, mic: mic, fold: false);
+    final room = width - fixed;
+    final options = <(int, bool, bool)>[
+      (8, true, true),
+      (5, true, true),
+      (5, true, false),
+      (5, false, false),
+      (3, false, false),
+    ];
+    for (final (pens, search, title) in options) {
+      // The flexible slot keeps at least [flexLeast] (a narrow [☁]).
+      final need =
+          tray(pens) +
+          (search ? _button : 0) +
+          (title ? titleMinRoom : flexLeast);
+      if (room >= need) {
+        return ToolbarPlan(
+          trayPens: pens * pensAt,
+          title: title,
+          search: search,
+          fold: false,
+          scroll: false,
+        );
+      }
+    }
+    final folded = fixedWidth(hasInsert: hasInsert, mic: mic, fold: true);
+    return ToolbarPlan(
+      trayPens: 3 * pensAt,
+      title: false,
+      search: false,
+      fold: true,
+      scroll: width < folded + tray(3),
+    );
+  }
 
   static const backKey = ValueKey('editor.toolbar.back');
+
+  /// The tray's current pen (the lifted one while the pen is the tool).
   static const penKey = ValueKey('editor.toolbar.pen');
   static const eraserKey = ValueKey('editor.toolbar.eraser');
   static const lassoKey = ValueKey('editor.toolbar.lasso');
@@ -114,24 +182,16 @@ class EditorToolbar extends ConsumerWidget {
   static const titleSlotKey = ValueKey('editor.toolbar.titleSlot');
   static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
-  /// (v2.13-search) [🔍] '노트에서 찾기' — at every width from
-  /// [foldedSearchMinWidth] (review: Android tablets in portrait are about
-  /// 800 wide; (19.1) [foldWidth] leaves the unfolded row room for it).
-  /// (v2.14-ui review) Below that width it is the more menu's first item.
+  /// (v2.13-search) [🔍] '노트에서 찾기' (where [planFor] keeps it; else the
+  /// more menu's first item).
   static const noteSearchKey = ValueKey('editor.toolbar.noteSearch');
 
   /// (v2) Appendix C.
   static const shapeKey = OverflowToolsMenu.shapeKey;
   static const textKey = OverflowToolsMenu.textKey;
-
-  /// (math pen, phase 1) the 수식 펜 (only with EditorExtensions.mathPen).
-  static const mathKey = OverflowToolsMenu.mathKey;
-
-  /// (text pen, phase 1) the 텍스트 펜 (only with EditorExtensions.textPen).
-  static const textPenKey = OverflowToolsMenu.textPenKey;
   static const overflowToolsKey = OverflowToolsMenu.buttonKey;
 
-  /// (v2) The sideways scroll below [scrollWidth].
+  /// (v2) The sideways scroll.
   static const scrollKey = ValueKey('editor.toolbar.scroll');
 
   @override
@@ -140,12 +200,28 @@ class EditorToolbar extends ConsumerWidget {
     final hasPanel = ref.watch(
       editorExtensionsProvider.select((e) => e.recordingPanel != null),
     );
+    final noteId = ref.watch(editorNoteIdProvider);
+    final recording =
+        hasPanel &&
+        (ref.watch(editorPanelProvider) ||
+            micIndicatorOf(
+                  ref.watch(editorRecorderStatusProvider).value,
+                  noteId,
+                ) ==
+                MicIndicator.thisNote);
     final hasInsert = InsertMenu.hasItems(
       ref.watch(editorImageImporterProvider),
       ref.watch(editorExtensionsProvider.select((e) => e.insertMenuItems)),
       textPen: ref.watch(
         editorExtensionsProvider.select((e) => e.textPen != null),
       ),
+      mathPen: ref.watch(
+        editorExtensionsProvider.select((e) => e.mathPen != null),
+      ),
+      recording: hasPanel,
+    );
+    final detached = ref.watch(
+      editorDeviceStateProvider.select((s) => s.paletteDetached),
     );
     return Material(
       color: StyleTokens.of(context).toolbar,
@@ -153,10 +229,14 @@ class EditorToolbar extends ConsumerWidget {
         height: height,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final fold = constraints.maxWidth < foldWidth;
-            final scroll = constraints.maxWidth < scrollWidth;
+            final plan = planFor(
+              constraints.maxWidth,
+              hasInsert: hasInsert,
+              mic: recording,
+              detached: detached,
+            );
             final row = Row(
-              mainAxisSize: scroll ? MainAxisSize.min : MainAxisSize.max,
+              mainAxisSize: plan.scroll ? MainAxisSize.min : MainAxisSize.max,
               children: [
                 IconButton(
                   key: backKey,
@@ -166,47 +246,37 @@ class EditorToolbar extends ConsumerWidget {
                     semanticLabel: EditorStrings.back,
                   ),
                 ),
-                // (04-editor 19) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
-                // With the title [⌃] only while the title keeps
-                // titleLeastWidth (19.1).
-                if (scroll) const MenuHideButton(),
-                if (constraints.maxWidth >= titleMinWidth)
+                if (plan.scroll)
+                  const MenuHideButton()
+                else
                   Expanded(
-                    key: titleSlotKey,
-                    child: _TitleSlot(title: title),
-                  )
-                else if (!scroll)
-                  const MenuHideSlot(), // the Spacer, [⌃] when it fits
-                // (v2.14-ui review) [100%] and [☁] come and go, so they sit
-                // on the title side: the title / Spacer absorbs their width
-                // and the tools after them never move.
-                const ZoomChip(),
-                const EditorSyncBadgeIcon(),
-                if (constraints.maxWidth >= foldedSearchMinWidth)
-                  const _NoteSearchButton(),
+                    key: plan.title ? titleSlotKey : null,
+                    child: _FlexSlot(title: plan.title ? title : null),
+                  ),
+                if (plan.search) const _NoteSearchButton(),
                 const _PagePanelButton(),
+                if (plan.trayPens > 0) PenTray(capacity: plan.trayPens),
+                _ToolButtons(withObjectTools: !plan.fold),
                 const _Divider(),
-                _ToolButtons(withObjectTools: !fold),
-                const _Divider(),
-                if (fold) ...[
+                if (plan.fold) ...[
                   OverflowToolsMenu(hasInsert: hasInsert, hasPanel: hasPanel),
                   const _Divider(),
                 ] else ...[
                   if (hasInsert) const InsertMenu(),
-                  if (hasPanel) const MicButton(),
-                  if (hasInsert || hasPanel) const _Divider(),
+                  if (recording) const MicButton(),
+                  if (hasInsert || recording) const _Divider(),
                 ],
                 const UndoRedoButtons(),
                 const _Divider(),
                 EditorMoreMenu(
                   onOpenSettings: onOpenSettings,
-                  showNoteInfo: constraints.maxWidth < titleMinWidth,
-                  showNoteSearch: constraints.maxWidth < foldedSearchMinWidth,
+                  showNoteInfo: !plan.title,
+                  showNoteSearch: !plan.search,
                 ),
                 const SizedBox(width: 4),
               ],
             );
-            if (!scroll) return row;
+            if (!plan.scroll) return row;
             return SingleChildScrollView(
               key: scrollKey,
               scrollDirection: Axis.horizontal,
@@ -214,6 +284,60 @@ class EditorToolbar extends ConsumerWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// (v2.15-ui) The flexible slot after [←]: [⌃], the title (when [title] is
+/// set), [100%] and [☁] — each only when it fits, in the order [☁] (a sync
+/// problem must show), [100%], [⌃], the title; never an overflow.
+class _FlexSlot extends ConsumerWidget {
+  const _FlexSlot({required this.title});
+
+  final String? title;
+
+  static const double _zoomWidth = 72;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final badge = ref.watch(core.syncBadgeProvider).value;
+    final badgeShown =
+        badge != null &&
+        badge.display != core.SyncDisplayState.off &&
+        badge.display != core.SyncDisplayState.done;
+    final viewport = ref.watch(editorViewportProvider);
+    return ListenableBuilder(
+      listenable: viewport,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          var room = constraints.maxWidth;
+          // [☁] must show: 36 px wide where the full 48 does not fit.
+          final badgeWidth = room >= 48 ? 48.0 : 36.0;
+          final showBadge = badgeShown && room >= badgeWidth;
+          if (showBadge) room -= badgeWidth;
+          final showZoom = !ZoomChip.isFit(viewport.zoom) && room >= _zoomWidth;
+          if (showZoom) room -= _zoomWidth;
+          final t = title;
+          final children = <Widget>[
+            if (t != null)
+              Expanded(child: _TitleSlot(title: t))
+            else ...[
+              if (room >= MenuHideButton.width) const MenuHideButton(),
+              const Spacer(),
+            ],
+            if (showZoom) const ZoomChip(),
+            if (showBadge)
+              SizedBox(
+                width: badgeWidth,
+                child: OverflowBox(
+                  maxWidth: 48,
+                  child: const EditorSyncBadgeIcon(),
+                ),
+              ),
+          ];
+          return Row(children: children);
+        },
       ),
     );
   }
@@ -311,11 +435,11 @@ class _Divider extends StatelessWidget {
   );
 }
 
-/// Tap: inactive tool → select it; the active pen / eraser again → its
-/// settings popup. Long press: pen → quick popup (active or not), eraser →
-/// eraser popup. (v2, 6.13.1) With [withObjectTools], [도형] (`interests`)
-/// and [텍스트] (`text_fields`) like the others: the active one again or a
-/// long press (active or not) → its tool popup under the button.
+/// [올가미] and, with [withObjectTools], [도형] (`interests`) and [텍스트]
+/// (`text_fields`). Tap: inactive tool → select it; the active shape / text
+/// tool again or a long press (active or not) → its tool popup under the
+/// button (v2, 6.13.1). (v2.15-ui) The pen and the eraser are in the pen
+/// tray; 수식 펜 and 텍스트 펜 in [+].
 class _ToolButtons extends ConsumerWidget {
   const _ToolButtons({required this.withObjectTools});
 
@@ -323,24 +447,11 @@ class _ToolButtons extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tools = ref.watch(editorToolProvider);
+    final active = ref.watch(editorToolProvider.select((s) => s.activeTool));
     final readOnly = ref.watch(editorReadOnlyProvider);
     final commands = ref.watch(editorCommandsProvider);
     final popups = ref.read(editorPopupProvider.notifier);
     final anchors = PopupHost.anchorsOf(context);
-    final hasMathPen = ref.watch(
-      editorExtensionsProvider.select((e) => e.mathPen != null),
-    );
-    final hasTextPen = ref.watch(
-      editorExtensionsProvider.select((e) => e.textPen != null),
-    );
-    // (math pen) without the slot a stored math tool shows as the pen (the
-    // text pen likewise).
-    final active = switch (tools.activeTool) {
-      EditorTool.math when !hasMathPen => EditorTool.pen,
-      EditorTool.textPen when !hasTextPen => EditorTool.pen,
-      final tool => tool,
-    };
 
     VoidCallback? tap(EditorTool tool, EditorPopup? settings) {
       if (readOnly) return null;
@@ -356,31 +467,6 @@ class _ToolButtons extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CompositedTransformTarget(
-          link: anchors.pen,
-          child: ToolButton(
-            key: EditorToolbar.penKey,
-            icon: penTypeIcon(tools.penType),
-            label:
-                '${EditorStrings.pen} '
-                '(${EditorStrings.penTypeName(tools.penType)})',
-            active: active == EditorTool.pen,
-            dotColor: Color(tools.currentPen.colorArgb),
-            onTap: tap(EditorTool.pen, const PenSettingsPopup()),
-            onLongPress: () => popups.open(const QuickPenPopup()),
-          ),
-        ),
-        CompositedTransformTarget(
-          link: anchors.eraser,
-          child: ToolButton(
-            key: EditorToolbar.eraserKey,
-            icon: Icons.auto_fix_normal,
-            label: EditorStrings.eraser,
-            active: active == EditorTool.eraser,
-            onTap: tap(EditorTool.eraser, const EraserSettingsPopup()),
-            onLongPress: () => popups.open(const EraserSettingsPopup()),
-          ),
-        ),
         ToolButton(
           key: EditorToolbar.lassoKey,
           icon: Icons.highlight_alt,
@@ -416,30 +502,6 @@ class _ToolButtons extends ConsumerWidget {
                   popups.open(const TextToolPopup(anchored: true)),
             ),
           ),
-          // (math pen, phase 1) only with EditorExtensions.mathPen.
-          if (hasMathPen)
-            ToolButton(
-              key: EditorToolbar.mathKey,
-              icon: Icons.functions,
-              label: EditorStrings.mathPenTool,
-              active: active == EditorTool.math,
-              dotColor: Color(
-                tools.penStyles[core.PenTool.ballpoint]!.colorArgb,
-              ),
-              onTap: tap(EditorTool.math, null),
-            ),
-          // (text pen, phase 1) only with EditorExtensions.textPen.
-          if (hasTextPen)
-            ToolButton(
-              key: EditorToolbar.textPenKey,
-              icon: Icons.edit_note,
-              label: EditorStrings.textPenTool,
-              active: active == EditorTool.textPen,
-              dotColor: Color(
-                tools.penStyles[core.PenTool.ballpoint]!.colorArgb,
-              ),
-              onTap: tap(EditorTool.textPen, null),
-            ),
         ],
       ],
     );

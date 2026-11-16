@@ -297,7 +297,12 @@ void main() {
       );
       final disabled = mode == ink.PressureMode.alwaysSimulated;
       expect(
-        _slider(tester, PenAdvancedControls.sensitivityKey).onChanged == null,
+        tester
+                .widget<SegmentedButton<PressureFeel>>(
+                  find.byKey(PenAdvancedControls.pressureKey),
+                )
+                .onSelectionChanged ==
+            null,
         disabled,
       );
       expect(
@@ -348,11 +353,19 @@ void main() {
     expect(_slider(tester, PenAdvancedControls.smoothingKey).value, 0.3);
     // A change here is the pen popup's value.
     _slider(tester, PenAdvancedControls.smoothingKey).onChanged!(0.81);
-    _slider(tester, PenAdvancedControls.sensitivityKey).onChanged!(0.42);
     await tester.pump();
     expect(_tools(env).currentPen.smoothing, 0.8);
-    expect(_tools(env).currentPen.pressureSensitivity, 0.4);
-    await _tap(tester, find.text(EditorStrings.curveFirm));
+    // (v2.15-ui) one pressure control: 약하게 → 0.5 linear, 강하게 → 1 firm.
+    await _tap(
+      tester,
+      find.byKey(PenAdvancedControls.pressureFeelKey(PressureFeel.light)),
+    );
+    expect(_tools(env).currentPen.pressureSensitivity, 0.5);
+    await _tap(
+      tester,
+      find.byKey(PenAdvancedControls.pressureFeelKey(PressureFeel.strong)),
+    );
+    expect(_tools(env).currentPen.pressureSensitivity, 1);
     expect(_tools(env).currentPen.pressureCurve, core.PressureCurve.firm);
     expect(find.text(EditorStrings.straightening), findsNothing);
 

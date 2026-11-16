@@ -28,6 +28,7 @@ import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/text_pen_layer.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
+import 'package:feature_editor/src/ui/toolbar/overflow_tools_menu.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -114,7 +115,8 @@ void main() {
   testWidgets('without EditorExtensions.textPen: no tool button, and a '
       'stored textPen tool draws like the pen (no group)', (tester) async {
     final (h, _) = await _pump(tester, withTextPen: false);
-    expect(find.byKey(EditorToolbar.textPenKey), findsNothing);
+    expect(find.byKey(OverflowToolsMenu.textPenKey), findsNothing);
+    expect(find.byKey(InsertMenu.handwritingToTextKey), findsNothing);
     expect(h.container.read(editorToolProvider).activeTool, EditorTool.textPen);
     await _letter(h, const Offset(100, 100));
     expect(_strokes(h), hasLength(2));
@@ -128,8 +130,11 @@ void main() {
       'bubble shows the session content above the group', (tester) async {
     final (h, pen) = await _pump(tester);
     await _selectTool(tester, h, EditorTool.pen);
-    await tester.tap(find.byKey(EditorToolbar.textPenKey));
-    await tester.pump();
+    // (v2.15-ui) [+] › 손글씨를 텍스트로 (no selection: picks the text pen).
+    await tester.tap(find.byKey(InsertMenu.buttonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(InsertMenu.handwritingToTextKey));
+    await tester.pumpAndSettle();
     expect(h.container.read(editorToolProvider).activeTool, EditorTool.textPen);
 
     await _letter(h, const Offset(100, 100));
@@ -351,30 +356,30 @@ void main() {
     await _selectTool(tester, h, EditorTool.pen);
     await tester.tap(find.byKey(EditorToolbar.overflowToolsKey));
     await tester.pumpAndSettle();
-    expect(find.byKey(EditorToolbar.mathKey), findsOneWidget);
-    expect(find.byKey(EditorToolbar.textPenKey), findsOneWidget);
+    expect(find.byKey(OverflowToolsMenu.mathKey), findsOneWidget);
+    expect(find.byKey(OverflowToolsMenu.textPenKey), findsOneWidget);
     // (review) no second row doing the same as the 텍스트 펜 row.
     expect(find.byKey(InsertMenu.handwritingToTextKey), findsNothing);
     expect(
-      tester.getTopLeft(find.byKey(EditorToolbar.mathKey)).dy,
-      lessThan(tester.getTopLeft(find.byKey(EditorToolbar.textPenKey)).dy),
+      tester.getTopLeft(find.byKey(OverflowToolsMenu.mathKey)).dy,
+      lessThan(tester.getTopLeft(find.byKey(OverflowToolsMenu.textPenKey)).dy),
     );
-    await tester.tap(find.byKey(EditorToolbar.textPenKey));
+    await tester.tap(find.byKey(OverflowToolsMenu.textPenKey));
     await tester.pumpAndSettle();
     expect(h.container.read(editorToolProvider).activeTool, EditorTool.textPen);
   });
 
-  testWidgets('the unfolded toolbar at its narrowest (foldWidth) fits both '
-      'pens without an overflow', (tester) async {
+  testWidgets('(v2.15-ui) unfolded, both pens are in [+] (수식 쓰기, 손글씨를 '
+      '텍스트로), not in the row', (tester) async {
     final math = FakeMathPen();
-    await _pump(
-      tester,
-      mathPen: math,
-      logicalSize: const Size(EditorToolbar.foldWidth, 1000),
-    );
+    await _pump(tester, mathPen: math, logicalSize: const Size(1280, 1000));
     expect(tester.takeException(), isNull);
-    expect(find.byKey(EditorToolbar.mathKey), findsOneWidget);
-    expect(find.byKey(EditorToolbar.textPenKey), findsOneWidget);
+    expect(find.byKey(OverflowToolsMenu.mathKey), findsNothing);
+    expect(find.byKey(OverflowToolsMenu.textPenKey), findsNothing);
+    await tester.tap(find.byKey(InsertMenu.buttonKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(InsertMenu.mathKey), findsOneWidget);
+    expect(find.byKey(InsertMenu.handwritingToTextKey), findsOneWidget);
   });
 
   testWidgets('[+] 손글씨를 텍스트로: without a selection it picks the text '

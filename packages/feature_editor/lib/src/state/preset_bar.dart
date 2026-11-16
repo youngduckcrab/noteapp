@@ -235,3 +235,29 @@ abstract final class PresetOrdering {
     ]);
   }
 }
+
+/// (v2.15-ui, m5-7/04-editor 22) Most pens the tray holds.
+const int kTrayMaxPens = 8;
+
+/// (v2.15-ui) The pen tray's pens: the pinned presets (the same stored
+/// presets and pinned flag the preset row showed — nothing migrates) in CORE
+/// order, at most [kTrayMaxPens]. The tray has no group menu, so the stored
+/// group filter (editor.presetBar) does not apply: a filter set on the old
+/// row must not hide pens with no way to bring them back.
+final editorTrayPresetsProvider = Provider<AsyncValue<List<core.PenPreset>>>((
+  ref,
+) {
+  final presets = ref.watch(core.penPresetsProvider);
+  return presets.whenData(
+    (all) => List<core.PenPreset>.unmodifiable(
+      all.where((p) => p.pinned).take(kTrayMaxPens),
+    ),
+  );
+}, name: 'editorTrayPresetsProvider');
+
+/// (v2.15-ui) The number of pinned presets (the tray's limit counts them
+/// all, also those past [kTrayMaxPens] from the old row).
+final editorPinnedCountProvider = Provider<int>((ref) {
+  final all = ref.watch(core.penPresetsProvider).value ?? const [];
+  return all.where((p) => p.pinned).length;
+}, name: 'editorPinnedCountProvider');

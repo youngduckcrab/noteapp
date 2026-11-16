@@ -13,7 +13,6 @@ import 'package:feature_editor/src/ui/pen/pen_advanced_controls.dart';
 import 'package:feature_editor/src/ui/pen/pen_preview.dart';
 import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
 import 'package:feature_editor/src/ui/pen/pen_type_selector.dart';
-import 'package:feature_editor/src/ui/pen/pressure_curve_selector.dart';
 import 'package:feature_editor/src/ui/pen/width_mapping.dart';
 import 'package:feature_editor/src/ui/pen/width_slider.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
@@ -31,15 +30,19 @@ core.StrokeStyle _pen(EditorTestHandles h) =>
 ToolController _tools(EditorTestHandles h) =>
     h.container.read(editorToolProvider.notifier);
 
+/// Opens the pen picker; (v2.15-ui) with [advanced] also '고급' (the width
+/// slider, pressure, smoothing … are in it now).
 Future<EditorTestHandles> _open(
   WidgetTester tester, {
   EditorSettings? settings,
   List<Override> overrides = const [],
+  bool advanced = true,
 }) async {
   final h = await pumpEditor(tester, settings: settings, overrides: overrides);
   await tester.tap(find.byKey(EditorToolbar.penKey)); // the active pen
   await tester.pump();
   expect(find.byKey(PenSettingsPanel.panelKey), findsOneWidget);
+  if (advanced) await _expandAdvanced(tester);
   return h;
 }
 
@@ -196,7 +199,7 @@ void main() {
 
   testWidgets('preview: ink.PenPreviewPainter with the current style and the '
       'pencilGrainProvider object itself; "확대 n%" when cut', (tester) async {
-    final h = await _open(tester);
+    final h = await _open(tester, advanced: false);
     CustomPaint paint() =>
         tester.widget<CustomPaint>(find.byKey(PenPreview.paintKey));
     final painter = paint().painter;
@@ -231,10 +234,14 @@ void main() {
     );
   });
 
-  testWidgets('opacity: 5% at the left end, 100% at the right end', (
+  testWidgets('opacity: (v2.15-ui) only for the highlighter, watercolour and '
+      'the decoration pens; 5% at the left end, 100% at the right end', (
     tester,
   ) async {
-    final h = await _open(tester);
+    final h = await _open(tester, advanced: false);
+    expect(find.byKey(OpacitySlider.sliderKey), findsNothing);
+    _tools(h).selectPenType(core.PenTool.highlighter);
+    await tester.pump();
     final slider = find.byKey(OpacitySlider.sliderKey);
     await _scrollTo(tester, slider);
     final rect = tester.getRect(slider);
@@ -250,45 +257,38 @@ void main() {
     expect(_pen(h).opacity, 1);
   });
 
-  testWidgets('advanced: curve segments set soft / linear / firm; a custom '
-      'curve selects none; sensitivity and smoothing step 0.05', (
-    tester,
-  ) async {
+  testWidgets('advanced: (v2.15-ui) one pressure control — 끔 / 약하게 / 보통 '
+      '/ 강하게 set sensitivity and curve together; a pair made elsewhere '
+      'selects none; smoothing steps 0.05', (tester) async {
     final h = await _open(tester);
-    await _expandAdvanced(tester);
-    Set<core.PressureCurve> selected() => tester
-        .widget<SegmentedButton<core.PressureCurve>>(
-          find.byKey(PressureCurveSelector.buttonKey),
+    Set<PressureFeel> selected() => tester
+        .widget<SegmentedButton<PressureFeel>>(
+          find.byKey(PenAdvancedControls.pressureKey),
         )
         .selected;
-    expect(selected(), {core.PressureCurve.linear});
-    for (final curve in PressureCurveSelector.presets.reversed) {
-      final segment = find.byKey(PressureCurveSelector.segmentKey(curve));
+    expect(selected(), {PressureFeel.normal});
+    for (final feel in PressureFeel.values.reversed) {
+      final segment = find.byKey(PenAdvancedControls.pressureFeelKey(feel));
       await _scrollTo(tester, segment);
       await tester.tap(segment);
       await tester.pump();
-      expect(_pen(h).pressureCurve, curve);
-      expect(selected(), {curve});
+      expect(_pen(h).pressureSensitivity, feel.sensitivity);
+      expect(_pen(h).pressureCurve, feel.curve);
+      expect(selected(), {feel});
     }
 
     const custom = core.PressureCurve(x1: 0.3, y1: 0.1, x2: 0.7, y2: 0.9);
     _tools(h).updateStyleOf(
       core.PenTool.ballpoint,
-      (s) => s.copyWith(pressureCurve: custom),
+      (s) => s.copyWith(pressureCurve: custom, pressureSensitivity: 0.7),
     );
     await tester.pump();
     expect(selected(), isEmpty);
-    expect(find.byKey(PressureCurveSelector.customKey), findsOneWidget);
-    expect(find.text(EditorStrings.customCurve), findsOneWidget);
 
-    tester
-        .widget<Slider>(find.byKey(PenAdvancedControls.sensitivityKey))
-        .onChanged!(0.43);
     tester
         .widget<Slider>(find.byKey(PenAdvancedControls.smoothingKey))
         .onChanged!(0.12);
     await tester.pump();
-    expect(_pen(h).pressureSensitivity, 0.45);
     expect(_pen(h).smoothing, 0.1);
     expect(_pen(h).pressureCurve, custom); // untouched
   });
@@ -296,7 +296,6 @@ void main() {
   testWidgets('straightening: only for the highlighter, stored in the '
       'style extras through INK\'s accessor', (tester) async {
     final h = await _open(tester);
-    await _expandAdvanced(tester);
     expect(
       find.byKey(HighlighterStraighteningSelector.buttonKey),
       findsNothing,
@@ -346,16 +345,12 @@ void main() {
     );
   });
 
-  group('sensitivity and curve without pressure (6.5.7)', () {
+  group('the pressure control without pressure (6.5.7)', () {
     Future<void> expectEnabled(WidgetTester tester, bool enabled) async {
-      final slider = tester.widget<Slider>(
-        find.byKey(PenAdvancedControls.sensitivityKey),
+      final pressure = tester.widget<SegmentedButton<PressureFeel>>(
+        find.byKey(PenAdvancedControls.pressureKey),
       );
-      final curve = tester.widget<SegmentedButton<core.PressureCurve>>(
-        find.byKey(PressureCurveSelector.buttonKey),
-      );
-      expect(slider.onChanged != null, enabled);
-      expect(curve.onSelectionChanged != null, enabled);
+      expect(pressure.onSelectionChanged != null, enabled);
       expect(
         find.text(EditorStrings.noPressureHint),
         enabled ? findsNothing : findsOneWidget,
@@ -374,7 +369,6 @@ void main() {
         tester,
         overrides: [_capability(ink.PressureCapability.unsupported)],
       );
-      await _expandAdvanced(tester);
       await expectEnabled(tester, false);
     });
 
@@ -388,7 +382,6 @@ void main() {
         ),
         overrides: [_capability(ink.PressureCapability.supported)],
       );
-      await _expandAdvanced(tester);
       await expectEnabled(tester, false);
     });
 
@@ -398,13 +391,11 @@ void main() {
         tester,
         overrides: [_capability(ink.PressureCapability.supported)],
       );
-      await _expandAdvanced(tester);
       await expectEnabled(tester, true);
     });
 
     testWidgets('auto + unknown → enabled', (tester) async {
       await _open(tester);
-      await _expandAdvanced(tester);
       await expectEnabled(tester, true);
     });
 
@@ -416,7 +407,6 @@ void main() {
         ),
         overrides: [_capability(ink.PressureCapability.unsupported)],
       );
-      await _expandAdvanced(tester);
       await expectEnabled(tester, true);
     });
 

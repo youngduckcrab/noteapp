@@ -1,15 +1,14 @@
-// 04-editor 19.1: the toolbar row at every width with every optional button
-// on (image insert, insert items, mic, math pen, text pen, sync badge) plus
-// the [⌃] slot (19) and the [🔍] (18) — no overflow, no sideways scroll above
-// EditorToolbar.scrollWidth.
+// 04-editor 19.1, (v2.15-ui) 22.4: the toolbar row at every width with every
+// optional button on (image insert, insert items, the recording slot, math
+// pen, text pen, sync badge, zoom chip) — no overflow, no sideways scroll;
+// what gives way follows EditorToolbar.planFor.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
-import 'package:feature_editor/src/ui/chrome/editor_chrome.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
 import 'package:feature_editor/src/ui/toolbar/mic_button.dart';
+import 'package:feature_editor/src/ui/toolbar/overflow_tools_menu.dart';
 import 'package:feature_editor/src/ui/toolbar/sync_badge_icon.dart';
-import 'package:feature_editor/src/ui/toolbar/zoom_chip.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -65,89 +64,95 @@ double _needed(WidgetTester tester) {
 }
 
 void main() {
+  test('planFor: the tray 8 → 5, then the title, then [🔍], then 3 pens, '
+      'then the fold', () {
+    ToolbarPlan plan(double w, {bool mic = false}) =>
+        EditorToolbar.planFor(w, hasInsert: true, mic: mic);
+    expect(plan(1280).trayPens, 8);
+    expect(plan(1280).title, isTrue);
+    expect(plan(1280).search, isTrue);
+    expect(plan(1032).trayPens, 5);
+    expect(plan(1032).title, isTrue);
+    // Android portrait ≈ 800: 5 pens, no title, [🔍] in ⋯, nothing folds.
+    expect(plan(800).trayPens, 5);
+    expect(plan(800).title, isFalse);
+    expect(plan(800).search, isFalse);
+    expect(plan(800).fold, isFalse);
+    expect(plan(720).trayPens, 3);
+    expect(plan(720).fold, isFalse);
+    expect(plan(560).fold, isTrue);
+    expect(plan(400).scroll, isTrue);
+    // Detached: no tray in the row.
+    expect(
+      EditorToolbar.planFor(
+        800,
+        hasInsert: true,
+        mic: false,
+        detached: true,
+      ).trayPens,
+      0,
+    );
+  });
+
   // The widths the toolbar meets (split screen, Android portrait ≈ 800,
-  // iPad portrait 820 / 834, landscape 1032 / 1280 …) and the edges of
-  // foldWidth / titleMinWidth.
+  // iPad portrait 820 / 834, landscape 1032 / 1280 …).
   for (final width in const [
     720.0,
     800.0,
     820.0,
     852.0,
     900.0,
-    EditorToolbar.foldWidth - 1,
-    EditorToolbar.foldWidth,
     960.0,
     999.0,
-    EditorToolbar.titleMinWidth,
     1024.0,
     1032.0,
     1044.0,
-    1048.0,
     1080.0,
+    1180.0,
     1280.0,
   ]) {
     testWidgets('$width px, every optional button on: no overflow, no '
-        'scroll, [🔍] in the row, the tools reachable', (tester) async {
+        'scroll, the tools reachable', (tester) async {
       final h = await _pumpAll(tester, width);
       // (v2.14-ui) The zoom chip shows only off 100 %: zoom in so it is on.
       h.container.read(editorCommandsProvider).zoomIn();
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
-      expect(find.byKey(ZoomChip.chipKey), findsOneWidget);
-      expect(find.byKey(EditorSyncBadgeIcon.iconKey), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(find.byKey(EditorToolbar.scrollKey), findsNothing);
       expect(_needed(tester), lessThanOrEqualTo(width));
-      expect(
-        find.byKey(EditorToolbar.noteSearchKey).hitTestable(),
-        findsOneWidget,
-      );
-      final folded = width < EditorToolbar.foldWidth;
-      expect(
-        find.byKey(EditorToolbar.overflowToolsKey),
-        folded ? findsOneWidget : findsNothing,
-      );
+      final plan = EditorToolbar.planFor(width, hasInsert: true, mic: false);
+      expect(find.byKey(EditorToolbar.overflowToolsKey), findsNothing);
       for (final key in [
+        EditorToolbar.penKey,
+        EditorToolbar.eraserKey,
+        EditorToolbar.lassoKey,
         EditorToolbar.shapeKey,
         EditorToolbar.textKey,
-        EditorToolbar.mathKey,
-        EditorToolbar.textPenKey,
         InsertMenu.buttonKey,
-        MicButton.micKey,
       ]) {
-        expect(
-          find.byKey(key),
-          folded ? findsNothing : findsOneWidget,
-          reason: '$key',
-        );
+        expect(find.byKey(key).hitTestable(), findsOneWidget, reason: '$key');
       }
-      // [⌃] in the row where it fits, else in ⋯ (never an overflow).
-      // With the title (19.1): [⌃] only while the title keeps
-      // titleLeastWidth. (v2.14-ui) Without [✋] the fixed row is 48 px
-      // shorter (≈ 900 px), so [⌃] fits from about 1000.
-      if (width >= 1048) {
-        expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
-      } else if (width >= EditorToolbar.titleMinWidth) {
-        final slot = tester.getSize(find.byKey(EditorToolbar.titleSlotKey));
-        expect(
-          find.byKey(MenuHideButton.buttonKey),
-          slot.width >= MenuHideButton.width + EditorToolbar.titleLeastWidth
-              ? findsOneWidget
-              : findsNothing,
-        );
-      }
-      // (19.1 review) From titleMinWidth the title keeps real room: [⌃] and
-      // [🔍] together squeezed it to 3.6 px at 1000, 27.6 at 1024.
+      // (v2.15-ui) 수식 펜 · 텍스트 펜 · 🎤 are in [+], not in the row.
+      expect(find.byKey(OverflowToolsMenu.mathKey), findsNothing);
+      expect(find.byKey(OverflowToolsMenu.textPenKey), findsNothing);
+      expect(find.byKey(MicButton.micKey), findsNothing);
+      expect(
+        find.byKey(EditorToolbar.noteSearchKey),
+        plan.search ? findsOneWidget : findsNothing,
+      );
       final title = find.byKey(EditorToolbar.titleKey);
-      if (width >= EditorToolbar.titleMinWidth) {
+      if (plan.title) {
         expect(
-          tester.getSize(title).width,
-          greaterThanOrEqualTo(EditorToolbar.titleLeastWidth),
+          tester.getSize(find.byKey(EditorToolbar.titleSlotKey)).width,
+          greaterThanOrEqualTo(EditorToolbar.titleMinRoom),
         );
       } else {
         expect(title, findsNothing);
       }
+      // The sync badge shows where it fits (it always does from 800).
+      expect(find.byKey(EditorSyncBadgeIcon.iconKey), findsOneWidget);
     });
   }
 }

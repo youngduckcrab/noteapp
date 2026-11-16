@@ -96,11 +96,10 @@ void main() {
       expect(h.container.read(editorNoteSearchProvider).isOpen, isTrue);
     });
 
-    testWidgets('from 720 px: the toolbar [🔍], not in ⋯', (tester) async {
-      await pumpEditor(
-        tester,
-        logicalSize: const Size(EditorToolbar.foldedSearchMinWidth, 1000),
-      );
+    testWidgets('(v2.15-ui) from 852 px: the toolbar [🔍], not in ⋯', (
+      tester,
+    ) async {
+      await pumpEditor(tester, logicalSize: const Size(852, 1000));
       expect(find.byKey(EditorToolbar.noteSearchKey), findsOneWidget);
       await _openMore(tester);
       expect(find.byKey(EditorMoreMenu.noteSearchKey), findsNothing);

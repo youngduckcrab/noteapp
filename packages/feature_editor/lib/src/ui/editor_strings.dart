@@ -92,11 +92,80 @@ abstract final class EditorStrings {
   };
 
   /// (v2.11, C211-01) Group headers of the pen picker (PenTypeGroup names).
+  /// (v2.15-ui) 기본 → 필기; the laser and the tape are 발표·공부 도구.
   static String penGroupName(String group) => switch (group) {
     'texture' => '질감',
     'decor' => '꾸미기',
-    _ => '기본',
+    'tools' => '발표·공부 도구',
+    _ => '필기',
   };
+
+  // ---------------------------------------------------------------------------
+  // (v2.15-ui, UI stages 3–5 — m5-7/04-editor 22) Pen tray, pen picker, quick
+  // pen.
+  // ---------------------------------------------------------------------------
+
+  /// "만년필 · 남색 2.2pt" ([color] null: "레이저 · 3.0pt").
+  static String penLabel(String pen, String? color, double width) =>
+      color == null
+      ? '$pen · ${width.toStringAsFixed(1)}pt'
+      : '$pen · $color ${width.toStringAsFixed(1)}pt';
+
+  /// Spoken name of the tray.
+  static const penTray = '펜 트레이';
+
+  /// The tray's current pen that is not one of the pinned pens.
+  static const trayCurrentPen = '지금 펜';
+
+  /// Semantics hint of a tray pen / the lifted one.
+  static const trayPenHint = '누르면 이 펜으로 바꿔요. 길게 누르면 빠른 펜';
+  static const trayActiveHint = '한 번 더 누르면 펜 고르기. 길게 누르면 빠른 펜';
+
+  /// The hover label's tail on the lifted pen.
+  static const trayTapAgain = '한 번 더 누르면 펜 고르기';
+
+  /// Picker: the two sides and the narrow tabs.
+  static const pickerWhichPen = '무슨 펜';
+  static const laserPointer = '레이저 포인터';
+  static const pickerHowToWrite = '어떻게 쓸지';
+  static const pickerTabPen = '펜';
+  static const pickerTabStyle = '색·굵기';
+  static const pickerColor = '색';
+  static const pickerWidth = '굵기';
+  static const pickerOpacity = '투명도';
+  static const pickerRecent = '최근';
+  static const pickerOtherColor = '다른 색…';
+  static const pickerOtherColorTitle = '다른 색';
+  static const pickerBack = '돌아가기';
+  static const pickerAdvancedSummary = '필압 · 손떨림 보정 · 펜촉 각도';
+  static const pickerFineWidth = '굵기 세밀하게';
+  static const pinToTray = '트레이에 꽂기';
+  static const pinnedInTray = '트레이에 꽂혀 있어요';
+  static const pinToTrayHint = '트레이의 펜을 길게 누르면 순서 바꾸기 · 빼기';
+  static const pinnedToTray = '트레이에 꽂았어요';
+  static String trayFull(int max) =>
+      '트레이에는 $max자루까지 꽂을 수 있어요. 하나를 빼고 다시 꽂아 주세요';
+
+  /// Spoken name of a width choice: "굵기 2.2pt".
+  static String widthChoice(double width) => '굵기 ${width.toStringAsFixed(1)}pt';
+
+  /// Quick pen.
+  static const quickPenHint = '길게 눌러 빠르게 바꾸기';
+  static const quickPenReorder = '순서 바꾸기';
+  static const quickPenUnpin = '트레이에서 빼기';
+  static const quickPenOpenPicker = '펜 고르기';
+  static const unpinnedFromTray = '트레이에서 뺐어요';
+
+  /// (v2.15-ui) The one pressure control (sensitivity + curve together).
+  static const pressure = '필압';
+  static const pressureOff = '끔';
+  static const pressureLight = '약하게';
+  static const pressureNormal = '보통';
+  static const pressureStrong = '강하게';
+
+  /// (v2.15-ui) Insert menu rows for the tools that left the toolbar.
+  static const insertMath = '수식 쓰기';
+  static const insertRecording = '녹음';
 
   /// Sync icon semantics (6.9.1 — same words as LIBRARY 6.16).
   static const syncDone = '동기화됨';
@@ -312,7 +381,7 @@ abstract final class EditorStrings {
   static const presetNoGroup = '그룹 없음';
   static const presetNewGroup = '새 그룹';
   static const presetNewGroupName = '그룹 이름';
-  static const presetPinned = '툴바에 고정';
+  static const presetPinned = '트레이에 꽂기';
   static const save = '저장';
 
   /// Manager row menu (⋯).

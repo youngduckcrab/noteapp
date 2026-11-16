@@ -25,8 +25,22 @@ const List<Offset> _points = [
   Offset(190, 185),
 ];
 
-bool _toolEnabled(WidgetTester tester, Key key) =>
-    tester.widget<ToolButton>(find.byKey(key)).onTap != null;
+/// (v2.15-ui) The pen and the eraser are pen tray slots: the tray ignores
+/// pointers on a read-only note.
+bool _toolEnabled(WidgetTester tester, Key key) {
+  if (key == EditorToolbar.penKey || key == EditorToolbar.eraserKey) {
+    return find
+        .ancestor(
+          of: find.byKey(key),
+          matching: find.byWidgetPredicate(
+            (w) => w is IgnorePointer && w.ignoring,
+          ),
+        )
+        .evaluate()
+        .isEmpty;
+  }
+  return tester.widget<ToolButton>(find.byKey(key)).onTap != null;
+}
 
 void _expectReadOnlyUi(WidgetTester tester) {
   expect(find.byKey(ReadOnlyBanner.bannerKey), findsOneWidget);

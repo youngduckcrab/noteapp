@@ -179,7 +179,8 @@ void main() {
       await tester.tap(find.byKey(EditorToolbar.penKey)); // active pen again
       await tester.pumpAndSettle();
       expect(find.byKey(PenSettingsPanel.panelKey), findsOneWidget);
-      expect(find.text(EditorStrings.basicColors), findsOneWidget);
+      // (v2.15-ui) the picker's '색' row: the 12 basic colours first.
+      expect(find.text(EditorStrings.pickerColor), findsOneWidget);
       for (var i = 0; i < kBasicColors.length; i++) {
         expect(find.byKey(BasicColorsRow.swatchKey(i)), findsOneWidget);
       }
@@ -200,7 +201,7 @@ void main() {
       await tester.longPress(find.byKey(EditorToolbar.penKey));
       await tester.pumpAndSettle();
       expect(find.byKey(QuickPenPanel.panelKey), findsOneWidget);
-      expect(find.byKey(BasicColorsRow.swatchKey(0)), findsOneWidget);
+      expect(find.byKey(QuickPenPanel.colorKey(0)), findsOneWidget);
       await tester.pump(const Duration(seconds: 2)); // debounced writes
     });
   });

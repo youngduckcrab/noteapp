@@ -1,24 +1,24 @@
 // lib/src/ui/chrome/pen_palette.dart — 04-editor 19: the detached preset row
-// as a floating palette.
+// as a floating palette. (v2.15-ui — 22.5) The preset row is the toolbar's
+// pen tray now: the palette is that tray, floating.
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
-import '../../scope/editor_scope.dart';
-import '../../state/popup.dart';
 import '../../state/preset_bar.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
-import '../presets/preset_chip.dart';
-import '../toolbar/editor_toolbar.dart' show penTypeIcon;
+import '../pen/pen_art_view.dart';
+import '../pen/pen_tray.dart';
 import 'editor_chrome.dart';
 
-/// A round 48 dp button showing the current pen (its colour with the pen
-/// type's icon; a primary ring while the pen tool is active) that can be
+/// A round 48 dp button showing the current pen (its drawing in its ink
+/// colour on the tray's well; an accent ring while the pen tool is active)
+/// that can be
 /// dragged anywhere in the page area (finger, stylus or mouse — a move past
 /// the touch slop is a drag, otherwise a tap). Its place is stored as
 /// fractions of the room (EditorDeviceState.palettePosition) and clamped
@@ -27,14 +27,13 @@ import 'editor_chrome.dart';
 /// the menu hides or shows).
 ///
 /// Tap → the palette opens beside it, toward the side with more room: the
-/// same presets as the preset row (editorVisiblePresetsProvider — pinned,
-/// group filter, CORE order) as PresetChips (the current one bordered), then
-/// [+] save the current pen (SavePresetDialog), [⚙] the manager sheet and
-/// '메뉴에 다시 붙이기' (a labelled button — 6.9.1 keeps tooltips off). A chip → ToolController.applyStyle (also switches to
-/// the pen tool), the palette closes. A pointer down anywhere else (TapRegion
-/// outside — the page still gets it, so a pen stroke draws) or system back
-/// closes it (open / closed is editorPaletteExpandedProvider).
-/// Read-only note: chips, [+] and [⚙] are disabled (like the row).
+/// pen tray (PenTray — the same pens, eraser, taps and long presses as in
+/// the toolbar; as many pens as the room takes, up to 8) and '메뉴에 다시
+/// 붙이기' (a labelled button — 6.9.1 keeps tooltips off). Switching pens
+/// closes the palette. A pointer down anywhere else (TapRegion outside — the
+/// page still gets it, so a pen stroke draws) or system back closes it (open
+/// / closed is editorPaletteExpandedProvider). Read-only note: the tray is
+/// disabled (like in the toolbar).
 class PenPalette extends ConsumerStatefulWidget {
   const PenPalette({super.key, required this.area, this.topInset = 0});
 
@@ -49,12 +48,7 @@ class PenPalette extends ConsumerStatefulWidget {
 
   static const buttonKey = ValueKey('editor.palette.button');
   static const panelKey = ValueKey('editor.palette.panel');
-  static const addKey = ValueKey('editor.palette.add');
-  static const manageKey = ValueKey('editor.palette.manage');
   static const dockKey = ValueKey('editor.palette.dock');
-  static const emptyKey = ValueKey('editor.palette.empty');
-  static ValueKey<String> chipKey(String id) =>
-      ValueKey('editor.palette.chip.$id');
 
   /// The button's top-left in the area for the stored [fractions], kept
   /// below [topInset].
@@ -230,46 +224,44 @@ class _PaletteButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
+    final tokens = StyleTokens.of(context);
+    final look = PenTrayStyle.of(tokens);
     final tools = ref.watch(editorToolProvider);
     final pen = tools.currentPen;
-    final color = Color(pen.colorArgb).withValues(alpha: pen.opacity);
-    final shown = Color.alphaBlend(color, scheme.surface);
     final penActive = tools.activeTool == EditorTool.pen;
     return Semantics(
       container: true,
       button: true,
       expanded: expanded,
-      label: EditorStrings.paletteButton(
-        EditorStrings.penTypeName(tools.penType),
-        expanded: expanded,
-      ),
+      label: EditorStrings.paletteButton(penLabelOf(pen), expanded: expanded),
       child: Material(
-        color: scheme.surfaceContainerHigh.withValues(alpha: 0.95),
+        color: look.hasWell ? look.wellBottom : tokens.popover,
         elevation: expanded ? 6 : 3,
         shape: CircleBorder(
           side: penActive
-              ? BorderSide(color: scheme.primary, width: 2)
-              : BorderSide(color: scheme.outlineVariant),
+              ? BorderSide(color: tokens.accent, width: 2)
+              : BorderSide(
+                  color: look.hasWell ? look.wellBorder : tokens.hairline,
+                ),
         ),
-        child: Center(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              // A full outline ring: a dark pen on a dark theme's surface
-              // still shows its edge.
-              border: Border.all(color: scheme.outline),
-            ),
-            child: SizedBox.square(
-              dimension: 30,
-              child: Icon(
-                penTypeIcon(tools.penType),
-                size: 18,
-                color: PresetChip.dotColorOn(shown, scheme),
-              ),
-            ),
-          ),
+        clipBehavior: Clip.antiAlias,
+        child: ExcludeSemantics(
+          child: look.hasWell
+              ? Stack(
+                  children: [
+                    Positioned(
+                      left: (PenPalette.size - 20) / 2,
+                      top: 6,
+                      child: PenArt.of(pen, width: 20, height: 62),
+                    ),
+                  ],
+                )
+              : Center(
+                  child: InkStroke(
+                    style: swatchStyleOf(pen, max: 3.2),
+                    size: const Size(28, 16),
+                  ),
+                ),
         ),
       ),
     );
@@ -284,43 +276,26 @@ class _PalettePanel extends ConsumerWidget {
   });
 
   /// (19.1) The room across: the page area narrowed by the search panel can
-  /// be narrower than the 3 / 4 columns.
+  /// be narrower than the whole tray.
   final double maxWidth;
   final double maxHeight;
   final VoidCallback onDone;
 
-  /// Columns of chips: 3 up to 6 presets, then 4.
-  static int columnsFor(int count) => count <= 6 ? 3 : 4;
-
   /// The panel's padding on each side.
   static const double padding = 8;
 
-  /// (19.1) [columnsFor], fewer when [maxWidth] is narrower — never fewer
-  /// than 2 (the [+] [⚙] row needs 96 px).
-  static int columnsIn(int count, double maxWidth) {
-    final fit = ((maxWidth - 2 * padding) / PresetChip.width).floor();
-    return math.max(2, math.min(columnsFor(count), fit));
+  /// (v2.15-ui) The tray's pens that fit [maxWidth] (1–8).
+  static int pensIn(double maxWidth) {
+    var pens = kTrayMaxPens;
+    while (pens > 1 && PenTray.widthFor(pens) + 2 * padding > maxWidth) {
+      pens--;
+    }
+    return pens;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final readOnly = ref.watch(editorReadOnlyProvider);
-    final tools = ref.watch(editorToolProvider);
-    final pen = tools.activeTool == EditorTool.pen ? tools.currentPen : null;
-    final controller = ref.read(editorToolProvider.notifier);
-    final popups = ref.read(editorPopupProvider.notifier);
-    final list = ref.watch(editorVisiblePresetsProvider).value;
-    final presets = list ?? const <core.PenPreset>[];
-    final columns = columnsIn(presets.length, maxWidth);
-    final width = columns * PresetChip.width;
-
-    void open(EditorPopup popup) {
-      onDone();
-      popups.open(popup);
-    }
-
+    final tokens = StyleTokens.of(context);
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -328,98 +303,34 @@ class _PalettePanel extends ConsumerWidget {
       child: Material(
         key: PenPalette.panelKey,
         elevation: 6,
-        color: scheme.surfaceContainerHigh,
+        color: tokens.popover,
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxHeight),
+          constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(padding),
-            child: SizedBox(
-              width: width,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
-                    child: Text(
-                      EditorStrings.palette,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
+            padding: const EdgeInsets.fromLTRB(padding, 12, padding, 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                PenTray(capacity: pensIn(maxWidth), onPicked: onDone),
+                const SizedBox(height: 4),
+                // Labelled (no tooltips — 6.9.1): putting the tray back
+                // has to read as such from the palette itself.
+                TextButton.icon(
+                  key: PenPalette.dockKey,
+                  onPressed: () {
+                    onDone();
+                    EditorChrome.dockPalette(ref);
+                  },
+                  icon: const Icon(Icons.vertical_align_top, size: 18),
+                  label: const Text(
+                    EditorStrings.dockPalette,
+                    textAlign: TextAlign.center,
                   ),
-                  if (list != null && presets.isEmpty)
-                    Padding(
-                      key: PenPalette.emptyKey,
-                      padding: const EdgeInsets.all(4),
-                      child: Text(
-                        EditorStrings.presetEmpty,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    )
-                  else
-                    Wrap(
-                      children: [
-                        for (final p in presets)
-                          PresetChip(
-                            key: PenPalette.chipKey(p.id),
-                            preset: p,
-                            active: pen != null && p.style == pen,
-                            onTap: readOnly
-                                ? null
-                                : () {
-                                    controller.applyStyle(p.style);
-                                    onDone();
-                                  },
-                          ),
-                      ],
-                    ),
-                  const Divider(height: 9),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      IconButton(
-                        key: PenPalette.addKey,
-                        onPressed: readOnly
-                            ? null
-                            : () => open(const SavePresetPopup()),
-                        icon: const Icon(
-                          Icons.add,
-                          semanticLabel: EditorStrings.presetAdd,
-                        ),
-                      ),
-                      IconButton(
-                        key: PenPalette.manageKey,
-                        onPressed: readOnly
-                            ? null
-                            : () => open(const PresetManagerPopup()),
-                        icon: const Icon(
-                          Icons.tune,
-                          semanticLabel: EditorStrings.presetManage,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Labelled (no tooltips — 6.9.1): putting the row back
-                  // has to read as such from the palette itself.
-                  TextButton.icon(
-                    key: PenPalette.dockKey,
-                    onPressed: () {
-                      onDone();
-                      EditorChrome.dockPalette(ref);
-                    },
-                    icon: const Icon(Icons.vertical_align_top, size: 18),
-                    label: const Text(
-                      EditorStrings.dockPalette,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

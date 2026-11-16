@@ -17,11 +17,9 @@ import 'package:feature_editor/src/ui/chrome/editor_chrome.dart';
 import 'package:feature_editor/src/ui/chrome/floating_layer.dart';
 import 'package:feature_editor/src/ui/chrome/pen_palette.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
+import 'package:feature_editor/src/ui/pen/pen_tray.dart';
 import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/popup_host.dart';
-import 'package:feature_editor/src/ui/presets/preset_bar_view.dart';
-import 'package:feature_editor/src/ui/presets/preset_chip.dart';
-import 'package:feature_editor/src/ui/presets/save_preset_dialog.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/more_menu.dart';
 import 'package:feature_editor/src/ui/toolbar/undo_redo_buttons.dart';
@@ -75,10 +73,17 @@ Future<void> _hideWithButton(WidgetTester tester) async {
   await _slide(tester);
 }
 
+/// (v2.15-ui) '팔레트로 떼어내기' is in ⋯ only (the preset row is gone).
 Future<void> _detach(WidgetTester tester) async {
-  await tester.tap(find.byKey(PaletteDetachButton.buttonKey));
-  await tester.pump();
+  await _openMore(tester);
+  await _pickMore(tester, EditorChrome.moreDetachKey);
 }
+
+/// The pen tray in the toolbar (it leaves when the palette is detached).
+Finder get _toolbarTray => find.descendant(
+  of: find.byType(EditorToolbar),
+  matching: find.byKey(PenTray.trayKey),
+);
 
 Future<void> _openMore(WidgetTester tester) async {
   await tester.ensureVisible(find.byKey(EditorMoreMenu.buttonKey));
@@ -98,24 +103,24 @@ Rect _rect(WidgetTester tester, Finder f) => tester.getRect(f);
 
 void main() {
   group('hiding the top menu', () {
-    testWidgets('[⌃] hides both rows (the page gets the room), the pill '
+    testWidgets('[⌃] hides the toolbar (the page gets the room), the pill '
         'shows; the first time a hint; the pill brings them back', (
       tester,
     ) async {
       final h = await pumpEditor(tester);
       final topBefore = tester.getTopLeft(find.byType(PageViewport)).dy;
       expect(_toolbar, findsOneWidget);
-      expect(find.byKey(PresetBarView.barKey), findsOneWidget);
+      expect(_toolbarTray, findsOneWidget);
       expect(_pill, findsNothing);
 
       await _hideWithButton(tester);
       expect(_toolbar, findsNothing);
-      expect(find.byKey(PresetBarView.barKey), findsNothing);
+      expect(_toolbarTray, findsNothing);
       expect(_pill, findsOneWidget);
       expect(_device(h).toolbarHidden, isTrue);
       expect(
         tester.getTopLeft(find.byType(PageViewport)).dy,
-        lessThan(topBefore - EditorToolbar.height - PresetBarView.height + 1),
+        lessThan(topBefore - EditorToolbar.height + 1),
       );
       expect(find.text(EditorStrings.menuHiddenHint), findsOneWidget);
       await _settleSnackBar(tester);
@@ -123,7 +128,7 @@ void main() {
       await tester.tap(find.byKey(MenuRestorePill.showKey));
       await _slide(tester);
       expect(_toolbar, findsOneWidget);
-      expect(find.byKey(PresetBarView.barKey), findsOneWidget);
+      expect(_toolbarTray, findsOneWidget);
       expect(_pill, findsNothing);
       expect(tester.getTopLeft(find.byType(PageViewport)).dy, topBefore);
 
@@ -134,7 +139,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the slide: half way the rows are clipped, not removed', (
+    testWidgets('the slide: half way the toolbar is clipped, not removed', (
       tester,
     ) async {
       await pumpEditor(tester);
@@ -144,10 +149,7 @@ void main() {
       expect(_toolbar, findsOneWidget);
       final menu = tester.getSize(find.byType(EditorTopMenu));
       expect(menu.height, greaterThan(0));
-      expect(
-        menu.height,
-        lessThan(EditorToolbar.height + PresetBarView.height),
-      );
+      expect(menu.height, lessThan(EditorToolbar.height));
       await tester.pump(const Duration(milliseconds: 200));
       expect(_toolbar, findsNothing);
     });
@@ -290,14 +292,14 @@ void main() {
   });
 
   group('the pen palette', () {
-    testWidgets('detach from the preset row: the row leaves, the button '
-        'shows; tap → the presets; a preset → selected, pen tool, closed', (
+    testWidgets('detach (⋯): the tray leaves the toolbar, the button '
+        'shows; tap → the tray; a pen → selected, pen tool, closed', (
       tester,
     ) async {
       final h = await pumpEditor(tester);
       h.container.read(editorCommandsProvider).selectTool(EditorTool.eraser);
       await _detach(tester);
-      expect(find.byKey(PresetBarView.barKey), findsNothing);
+      expect(_toolbarTray, findsNothing);
       expect(_paletteButton, findsOneWidget);
       expect(_device(h).paletteDetached, isTrue);
       expect(_toolbar, findsOneWidget);
@@ -308,12 +310,12 @@ void main() {
       final presets = await h.store.penPresets.getPresets();
       expect(presets, isNotEmpty);
       for (final p in presets.where((p) => p.pinned)) {
-        expect(find.byKey(PenPalette.chipKey(p.id)), findsOneWidget);
+        expect(find.byKey(PenTray.slotKey(p.id)), findsOneWidget);
       }
       final highlighter = presets.firstWhere(
         (p) => p.style.tool == core.PenTool.highlighter,
       );
-      await tester.tap(find.byKey(PenPalette.chipKey(highlighter.id)));
+      await tester.tap(find.byKey(PenTray.slotKey(highlighter.id)));
       await tester.pump();
       final tools = h.container.read(editorToolProvider);
       expect(tools.activeTool, EditorTool.pen);
@@ -322,7 +324,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the current preset is bordered in the palette', (
+    testWidgets("the current pen is lifted in the palette's tray", (
       tester,
     ) async {
       final h = await pumpEditor(tester);
@@ -333,15 +335,15 @@ void main() {
           .applyStyle(presets[1].style);
       await tester.tap(_paletteButton);
       await tester.pump();
-      final chips = tester.widgetList<PresetChip>(
-        find.descendant(of: _panel, matching: find.byType(PresetChip)),
-      );
       expect(
-        [
-          for (final c in chips)
-            if (c.active) c.preset.id,
-        ],
-        [presets[1].id],
+        find.descendant(
+          of: find.descendant(
+            of: _panel,
+            matching: find.byKey(EditorToolbar.penKey),
+          ),
+          matching: find.byKey(PenTray.slotKey(presets[1].id)),
+        ),
+        findsOneWidget,
       );
     });
 
@@ -352,11 +354,11 @@ void main() {
       await _openMore(tester);
       await _pickMore(tester, EditorChrome.moreDetachKey);
       expect(_device(h).paletteDetached, isTrue);
-      expect(find.byKey(PresetBarView.barKey), findsNothing);
+      expect(_toolbarTray, findsNothing);
       await _openMore(tester);
       await _pickMore(tester, EditorChrome.moreDockKey);
       expect(_device(h).paletteDetached, isFalse);
-      expect(find.byKey(PresetBarView.barKey), findsOneWidget);
+      expect(_toolbarTray, findsOneWidget);
       expect(_paletteButton, findsNothing);
 
       await _detach(tester);
@@ -364,22 +366,9 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(PenPalette.dockKey));
       await tester.pump();
-      expect(find.byKey(PresetBarView.barKey), findsOneWidget);
+      expect(_toolbarTray, findsOneWidget);
       expect(_paletteButton, findsNothing);
       expect((await _stored(h))['paletteDetached'], isFalse);
-    });
-
-    testWidgets('[+] opens the save dialog, the palette closes', (
-      tester,
-    ) async {
-      await pumpEditor(tester);
-      await _detach(tester);
-      await tester.tap(_paletteButton);
-      await tester.pump();
-      await tester.tap(find.byKey(PenPalette.addKey));
-      await tester.pump();
-      expect(find.byKey(SavePresetDialog.panelKey), findsOneWidget);
-      expect(_panel, findsNothing);
     });
 
     testWidgets('a pen stroke on the page while open: the palette closes and '
@@ -474,10 +463,10 @@ void main() {
       await tester.tap(find.byKey(PenPalette.dockKey));
       await tester.pump();
       expect(_paletteButton, findsNothing);
-      expect(find.byKey(PresetBarView.barKey), findsNothing); // with the menu
+      expect(_toolbarTray, findsNothing); // with the menu
       await tester.tap(find.byKey(MenuRestorePill.showKey));
       await _slide(tester);
-      expect(find.byKey(PresetBarView.barKey), findsOneWidget);
+      expect(_toolbarTray, findsOneWidget);
     });
 
     testWidgets('semantics: the button names the pen and its state', (
@@ -529,8 +518,10 @@ void main() {
     // 112 px shorter, so [⌃] now fits at every width here.
     for (final (width, shown) in const [
       (360.0, true), // the row scrolls: right after [←]
-      (800.0, true), // folded (Android portrait, with [🔍])
-      (900.0, true), // folded (19.1: foldWidth 952)
+      // (v2.15-ui) The tray takes the room: at 800 / 900 the slot keeps
+      // [☁] (on here) and [⌃] is in ⋯ only.
+      (800.0, false),
+      (900.0, false),
       (960.0, true), // unfolded with [🔍]
       // With the title: [⌃] while the title keeps titleLeastWidth.
       (1000.0, true),
@@ -576,7 +567,7 @@ void main() {
         'fits beside the tools)', (tester) async {
       final h = await pumpEditor(
         tester,
-        logicalSize: const Size(EditorToolbar.foldWidth, 1000),
+        logicalSize: const Size(952, 1000),
         imageImporter: (s) => FakeImageImporter(store: s),
         overrides: [
           core.syncBadgeProvider.overrideWith(
@@ -596,7 +587,6 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(tester.takeException(), isNull);
-      expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
       await _openMore(tester);
       expect(find.byKey(EditorChrome.moreHideKey), findsOneWidget);
     });
@@ -644,7 +634,7 @@ void main() {
         targets,
         isNot(contains(tester.renderObject(find.byKey(PopupHost.barrierKey)))),
       );
-      // With the menu shown it hangs from the pen button again.
+      // With the menu shown it hangs under the pen tray again (v2.15-ui).
       h.container.read(editorPopupProvider.notifier).close();
       await tester.pump();
       await tester.tap(find.byKey(MenuRestorePill.showKey));
@@ -654,13 +644,10 @@ void main() {
           .run(EditorAction.toolPalette, const GestureSource(Offset(100, 100)));
       await tester.pump();
       await tester.pump();
-      expect(
-        find.ancestor(
-          of: find.byKey(QuickPenPanel.panelKey),
-          matching: find.byType(CompositedTransformFollower),
-        ),
-        findsOneWidget,
-      );
+      final tray = _rect(tester, find.byKey(PenTray.trayKey));
+      final shown = _rect(tester, find.byKey(QuickPenPanel.panelKey));
+      expect(shown.top, closeTo(tray.bottom + 6, 1));
+      expect(shown.center.dx, closeTo(tray.center.dx, 1));
     });
 
     testWidgets('a stored hidden menu on a note without pages: back leaves '
@@ -759,7 +746,7 @@ void main() {
       await tester.tap(dock);
       await tester.pump();
       expect(_device(h).paletteDetached, isFalse);
-      expect(find.byKey(PresetBarView.barKey), findsOneWidget);
+      expect(_toolbarTray, findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

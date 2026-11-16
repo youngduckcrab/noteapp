@@ -15,7 +15,6 @@ import '../../tools/shape_assist_for.dart';
 import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
 import 'highlighter_straightening_selector.dart';
-import 'pressure_curve_selector.dart';
 
 /// True when the pen has no usable pressure (6.5.7): pressure mode
 /// alwaysSimulated, or auto while INK detected no stylus pressure.
@@ -27,12 +26,47 @@ bool pressureUnavailable(
     (mode == ink.PressureMode.auto &&
         stylus == ink.PressureCapability.unsupported);
 
-/// Pressure sensitivity (0–1, 0.05), pressure curve (soft / linear / firm),
-/// smoothing (0–1, 0.05) and — for the highlighter only — straightening of
-/// [tool] (null = the current pen type). Sensitivity and curve are disabled
-/// with "이 펜은 필압이 없어 속도로 흉내 내요" when [pressureUnavailable].
-/// (v2, 6.10) '자동 도형 보정' (EditorSettings.shapeAssist — one synced
-/// setting for every pen) under them, for the pens that get it
+/// (v2.15-ui) The one pressure control: sensitivity and curve together.
+enum PressureFeel {
+  off(0, core.PressureCurve.linear),
+  light(0.5, core.PressureCurve.linear),
+  normal(1, core.PressureCurve.linear),
+  strong(1, core.PressureCurve.firm);
+
+  const PressureFeel(this.sensitivity, this.curve);
+  final double sensitivity;
+  final core.PressureCurve curve;
+
+  /// The feel of [style] (sensitivity 0 is [off] whatever the curve), null
+  /// for a pair made elsewhere (an older version's slider) — no segment is
+  /// shown selected then.
+  static PressureFeel? of(core.StrokeStyle style) {
+    if (style.pressureSensitivity == 0) return off;
+    for (final f in values) {
+      if (f != off &&
+          f.sensitivity == style.pressureSensitivity &&
+          f.curve == style.pressureCurve) {
+        return f;
+      }
+    }
+    return null;
+  }
+
+  String get label => switch (this) {
+    off => EditorStrings.pressureOff,
+    light => EditorStrings.pressureLight,
+    normal => EditorStrings.pressureNormal,
+    strong => EditorStrings.pressureStrong,
+  };
+}
+
+/// (v2.15-ui) '필압' — one control for the pressure sensitivity and curve
+/// ([PressureFeel]: 끔 · 약하게 · 보통 · 강하게; it was a slider and a curve
+/// selector), smoothing (0–1, 0.05) and — for the highlighter only —
+/// straightening of [tool] (null = the current pen type). The pressure
+/// control is disabled with "이 펜은 필압이 없어 속도로 흉내 내요" when
+/// [pressureUnavailable]. (v2, 6.10) '자동 도형 보정' (EditorSettings.shapeAssist
+/// — one synced setting for every pen) under them, for the pens that get it
 /// ([shapeAssistPen]) and only while a shape fitter is wired (hidden with
 /// INK's NoShapeFitter — a build without recognition).
 class PenAdvancedControls extends ConsumerWidget {
@@ -40,7 +74,10 @@ class PenAdvancedControls extends ConsumerWidget {
 
   final core.PenTool? tool;
 
-  static const sensitivityKey = ValueKey('editor.pen.sensitivity');
+  /// (v2.15-ui) The pressure segments.
+  static const pressureKey = ValueKey('editor.pen.pressure');
+  static ValueKey<String> pressureFeelKey(PressureFeel feel) =>
+      ValueKey('editor.pen.pressure.${feel.name}');
   static const smoothingKey = ValueKey('editor.pen.smoothing');
   static const noPressureKey = ValueKey('editor.pen.noPressure');
 
@@ -73,33 +110,38 @@ class PenAdvancedControls extends ConsumerWidget {
     void edit(core.StrokeStyle Function(core.StrokeStyle) f) =>
         tools.updateStyleOf(type, f);
     final text = Theme.of(context).textTheme;
-    final sensitivity = (style.pressureSensitivity * 100).round();
     final smoothing = (style.smoothing * 100).round();
+    final feel = PressureFeel.of(style);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          EditorStrings.pressureSensitivityLabel(sensitivity),
-          style: text.labelLarge,
-        ),
-        Semantics(
-          label: EditorStrings.pressureSensitivity,
-          child: Slider(
-            key: sensitivityKey,
-            value: style.pressureSensitivity.clamp(0.0, 1.0),
-            divisions: 20,
-            onChanged: noPressure
-                ? null
-                : (v) => edit((s) => s.copyWith(pressureSensitivity: _step(v))),
-          ),
-        ),
-        Text(EditorStrings.pressureCurve, style: text.labelLarge),
+        Text(EditorStrings.pressure, style: text.labelLarge),
         const SizedBox(height: 4),
-        PressureCurveSelector(
-          curve: style.pressureCurve,
-          enabled: !noPressure,
-          onChanged: (c) => edit((s) => s.copyWith(pressureCurve: c)),
+        SegmentedButton<PressureFeel>(
+          key: pressureKey,
+          segments: [
+            for (final f in PressureFeel.values)
+              ButtonSegment(
+                value: f,
+                label: Text(f.label, key: pressureFeelKey(f)),
+              ),
+          ],
+          selected: {?feel},
+          emptySelectionAllowed: true,
+          showSelectedIcon: false,
+          onSelectionChanged: noPressure
+              ? null
+              : (s) {
+                  if (s.isEmpty) return;
+                  final f = s.single;
+                  edit(
+                    (st) => st.copyWith(
+                      pressureSensitivity: f.sensitivity,
+                      pressureCurve: f.curve,
+                    ),
+                  );
+                },
         ),
         if (noPressure)
           Padding(

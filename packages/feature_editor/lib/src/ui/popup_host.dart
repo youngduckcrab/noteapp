@@ -21,6 +21,9 @@ import 'text/text_style_controls.dart';
 /// Toolbar anchors the popups follow (CompositedTransformTarget links).
 class PopupAnchors {
   final LayerLink pen = LayerLink();
+
+  /// (v2.15-ui) The pen tray (its popups are placed under its rect).
+  final GlobalKey penBox = GlobalKey(debugLabel: 'editor.penTray');
   final LayerLink eraser = LayerLink();
 
   /// (v2, E2-13) the toolbar's shape and text buttons (6.13.1).
@@ -53,6 +56,11 @@ class PopupHost extends ConsumerStatefulWidget {
     assert(scope != null, 'No PopupHost above this context');
     return scope!.anchors;
   }
+
+  /// (v2.15-ui) The anchors of the enclosing PopupHost, null without one (a
+  /// pen tray shown outside the editor, e.g. in a test).
+  static PopupAnchors? maybeAnchorsOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PopupAnchorsScope>()?.anchors;
 
   /// Runs an extension item picked inside a popup (the add-page sheet's
   /// '다른 소스' row, 4.5) with the PopupHost's own context, which stays
@@ -141,10 +149,10 @@ class _PopupHostState extends ConsumerState<PopupHost> {
         at: null,
         panel: const PenSettingsPanel(),
       ),
-      QuickPenPopup(:final globalPosition) => (
+      QuickPenPopup(:final globalPosition, :final presetId) => (
         link: LinkPick.pen,
         at: globalPosition,
-        panel: const QuickPenPanel(),
+        panel: QuickPenPanel(presetId: presetId),
       ),
       ColorPalettePopup(:final globalPosition) => (
         link: LinkPick.pen,
@@ -254,6 +262,15 @@ class _PopupLayer extends ConsumerWidget {
               child: layout.panel,
             ),
           )
+        else if (link != null && identical(link, anchors.pen))
+          // (v2.15-ui) The pen tray is the pen anchor: its popups (the wide
+          // pen picker) hang centred under it, kept inside the screen.
+          Positioned.fill(
+            child: CustomSingleChildLayout(
+              delegate: _BelowAnchorLayout(_anchorRect(context, anchors)),
+              child: layout.panel,
+            ),
+          )
         else if (link != null)
           CompositedTransformFollower(
             link: link,
@@ -281,6 +298,63 @@ Offset _overlayLocal(BuildContext context, Offset global) {
     return box.globalToLocal(global);
   }
   return global;
+}
+
+/// (v2.15-ui) The pen tray's rect in the overlay (null when it is not laid
+/// out).
+Rect? _anchorRect(BuildContext context, PopupAnchors anchors) {
+  final target = anchors.penBox.currentContext?.findRenderObject();
+  if (target is! RenderBox || !target.attached || !target.hasSize) {
+    return null;
+  }
+  final overlay = Overlay.maybeOf(context)?.context.findRenderObject();
+  if (overlay is! RenderBox || !overlay.attached) return null;
+  final topLeft = overlay.globalToLocal(target.localToGlobal(Offset.zero));
+  return topLeft & target.size;
+}
+
+/// (v2.15-ui) A pen-tray popup: centred under the tray, [_gap] below it,
+/// moved sideways to stay [_margin] inside the screen; centred on the
+/// screen when the tray is not laid out.
+class _BelowAnchorLayout extends SingleChildLayoutDelegate {
+  const _BelowAnchorLayout(this.anchor);
+
+  final Rect? anchor;
+
+  static const double _gap = 6;
+  static const double _margin = 8;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final a = anchor;
+    final top = a == null ? 0.0 : a.bottom + _gap;
+    return BoxConstraints.loose(
+      Size(
+        constraints.maxWidth - 2 * _margin,
+        (constraints.maxHeight - top - _margin).clamp(0, constraints.maxHeight),
+      ),
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size child) {
+    final a = anchor;
+    if (a == null) {
+      return Offset(
+        (size.width - child.width) / 2,
+        (size.height - child.height) / 2,
+      );
+    }
+    final maxX = size.width - child.width - _margin;
+    final x = maxX <= _margin
+        ? _margin
+        : (a.center.dx - child.width / 2).clamp(_margin, maxX);
+    return Offset(x.toDouble(), a.bottom + _gap);
+  }
+
+  @override
+  bool shouldRelayout(_BelowAnchorLayout oldDelegate) =>
+      oldDelegate.anchor != anchor;
 }
 
 /// A popup opened at a point (v2 — the pencil's hover point): its top-left

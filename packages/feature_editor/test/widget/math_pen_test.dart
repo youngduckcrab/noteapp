@@ -36,6 +36,8 @@ import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/math_pen_layer.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
+import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
+import 'package:feature_editor/src/ui/toolbar/overflow_tools_menu.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -125,7 +127,10 @@ void main() {
   testWidgets('the tool button only with EditorExtensions.mathPen; without '
       'it a stored math tool draws like the pen (no group)', (tester) async {
     final (h, _) = await _pump(tester, withMathPen: false);
-    expect(find.byKey(EditorToolbar.mathKey), findsNothing);
+    // (v2.15-ui) 수식 펜 is '수식 쓰기' in [+]; without the slot (and nothing
+    // else to insert here) there is no [+] at all.
+    expect(find.byKey(InsertMenu.buttonKey), findsNothing);
+    expect(find.byKey(InsertMenu.mathKey), findsNothing);
     expect(h.container.read(editorToolProvider).activeTool, EditorTool.math);
     await _writeX(h, const Offset(100, 100));
     expect(_strokes(h), hasLength(2));
@@ -139,8 +144,11 @@ void main() {
       'session content above the group', (tester) async {
     final (h, pen) = await _pump(tester);
     await _selectTool(tester, h, EditorTool.pen);
-    await tester.tap(find.byKey(EditorToolbar.mathKey));
-    await tester.pump();
+    // (v2.15-ui) [+] › 수식 쓰기.
+    await tester.tap(find.byKey(InsertMenu.buttonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(InsertMenu.mathKey));
+    await tester.pumpAndSettle();
     expect(h.container.read(editorToolProvider).activeTool, EditorTool.math);
 
     await _writeX(h, const Offset(100, 100));
@@ -418,8 +426,8 @@ void main() {
     );
     await tester.tap(find.byKey(EditorToolbar.overflowToolsKey));
     await tester.pumpAndSettle();
-    expect(find.byKey(EditorToolbar.mathKey), findsOneWidget);
-    await tester.tap(find.byKey(EditorToolbar.mathKey));
+    expect(find.byKey(OverflowToolsMenu.mathKey), findsOneWidget);
+    await tester.tap(find.byKey(OverflowToolsMenu.mathKey));
     await tester.pumpAndSettle();
     final container = ProviderScope.containerOf(
       tester.element(find.byType(EditorToolbar)),

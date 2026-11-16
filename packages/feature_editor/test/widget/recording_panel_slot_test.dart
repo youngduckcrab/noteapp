@@ -9,6 +9,7 @@ import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
 import 'package:feature_editor/src/ui/editor_body.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/panels/editor_panel_slot.dart';
+import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
 import 'package:feature_editor/src/ui/toolbar/mic_button.dart';
 import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,8 +29,17 @@ Future<EditorTestHandles> _pump(
   extensions: EditorExtensions(recordingPanel: builder ?? panel.builder),
 );
 
+/// (v2.15-ui) The toolbar [🎤] shows only while recording or with the panel
+/// open; otherwise 녹음 is in [+].
 Future<void> _tapMic(WidgetTester tester) async {
-  await tester.tap(find.byKey(MicButton.micKey));
+  if (find.byKey(MicButton.micKey).evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(MicButton.micKey));
+    await tester.pump();
+    return;
+  }
+  await tester.tap(find.byKey(InsertMenu.buttonKey));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(InsertMenu.recordingKey));
   await tester.pump();
 }
 
@@ -65,11 +75,12 @@ Future<Map<String, Object?>?> _storedDevice(
 }
 
 void main() {
-  testWidgets('recordingPanel == null → no mic button, no slot', (
+  testWidgets('recordingPanel == null → no mic button, no 녹음 row, no slot', (
     tester,
   ) async {
     await pumpEditor(tester, fakeAudio: true);
     expect(find.byKey(MicButton.micKey), findsNothing);
+    expect(find.byKey(InsertMenu.recordingKey), findsNothing);
     expect(find.byKey(EditorPanelSlot.slotKey), findsNothing);
   });
 
@@ -77,7 +88,8 @@ void main() {
       'context; ≤ 40 % of the body height; mic again → closed', (tester) async {
     final panel = TestRecordingPanelBuilder();
     final h = await _pump(tester, panel);
-    expect(find.byKey(MicButton.micKey), findsOneWidget);
+    // (v2.15-ui) not recording, panel closed: [🎤] is in [+] only.
+    expect(find.byKey(MicButton.micKey), findsNothing);
     expect(find.byKey(EditorPanelSlot.slotKey), findsNothing);
     final viewportBefore = tester.getSize(find.byType(PageViewport)).height;
 
@@ -199,6 +211,8 @@ void main() {
   ) async {
     final panel = TestRecordingPanelBuilder();
     final h = await _pump(tester, panel);
+    // (v2.15-ui) [🎤] is in the row while the panel is open.
+    await _tapMic(tester);
     final recorder = h.audioRecorder!;
     final mic = find.byKey(MicButton.micKey);
     Finder icon(IconData data) =>
