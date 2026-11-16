@@ -17,6 +17,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
@@ -135,7 +136,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
         menuChildren: [
           InsertMenuRow(
             key: OverflowToolsMenu.shapeKey,
-            icon: Icons.interests,
+            icon: AppIconKind.shape.material,
             label: EditorStrings.shapeTool,
             selected: active == EditorTool.shape,
             onPressed: readOnly
@@ -147,7 +148,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           ),
           InsertMenuRow(
             key: OverflowToolsMenu.textKey,
-            icon: Icons.text_fields,
+            icon: AppIconKind.text.material,
             label: EditorStrings.textTool,
             selected: active == EditorTool.text,
             onPressed: readOnly
@@ -160,7 +161,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           if (hasMathPen)
             InsertMenuRow(
               key: OverflowToolsMenu.mathKey,
-              icon: Icons.functions,
+              icon: AppIconKind.math.material,
               label: EditorStrings.mathPenTool,
               selected: mathActive,
               onPressed: readOnly
@@ -175,7 +176,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           if (hasTextPen)
             InsertMenuRow(
               key: OverflowToolsMenu.textPenKey,
-              icon: Icons.edit_note,
+              icon: AppIconKind.textPen.material,
               label: EditorStrings.textPenTool,
               selected: textPenActive,
               onPressed: readOnly
@@ -204,8 +205,8 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
             InsertMenuRow(
               key: MicButton.micKey,
               icon: indicator == MicIndicator.thisNote
-                  ? Icons.mic
-                  : Icons.mic_none,
+                  ? AppIconKind.micOn.material
+                  : AppIconKind.mic.material,
               label: EditorStrings.recording,
               selected: panelOpen,
               onPressed: () {
@@ -215,12 +216,12 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
             ),
         ],
         child: ToolButton(
-          icon: switch (active) {
-            EditorTool.shape => Icons.interests,
-            EditorTool.text => Icons.text_fields,
-            EditorTool.math when mathActive => Icons.functions,
-            EditorTool.textPen when textPenActive => Icons.edit_note,
-            _ => Icons.widgets_outlined,
+          glyph: switch (active) {
+            EditorTool.shape => AppIconKind.shape,
+            EditorTool.text => AppIconKind.text,
+            EditorTool.math when mathActive => AppIconKind.math,
+            EditorTool.textPen when textPenActive => AppIconKind.textPen,
+            _ => AppIconKind.moreTools,
           },
           label: EditorStrings.moreTools,
           active: folded,

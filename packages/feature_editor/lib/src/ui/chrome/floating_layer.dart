@@ -3,6 +3,7 @@
 // palette while it is detached.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../state/note_search.dart';
 import '../../state/settings/editor_device_state.dart';
@@ -214,7 +215,11 @@ class _PillSearchButton extends ConsumerWidget {
       isSelected: open,
       iconSize: 20, // like the pill's [↶] [↷]
       onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
-      icon: const Icon(Icons.search, semanticLabel: EditorStrings.noteSearch),
+      icon: const AppIcon(
+        AppIconKind.search,
+        size: 20,
+        semanticLabel: EditorStrings.noteSearch,
+      ),
     );
   }
 }

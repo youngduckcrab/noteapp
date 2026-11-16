@@ -37,6 +37,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers/fake_extensions.dart';
 import '../helpers/fake_image_importer.dart';
@@ -351,12 +352,11 @@ void main() {
 
     for (final size in const [Size(1032, 1376), Size(1376, 1032)]) {
       testWidgets('order on ${size.width.toInt()}×${size.height.toInt()}: '
-          '[▤] pen eraser lasso shape text [+] [🎤] [↶] [↷] [⋯]; '
+          'pen eraser lasso shape text [+] [🎤] [↶] [↷] [📄 n / m] [🔍] [⋯]; '
           'no overflow', (tester) async {
         await pumpV2(tester, size: size);
         expect(tester.takeException(), isNull);
         final keys = <Key>[
-          EditorToolbar.pagePanelKey,
           EditorToolbar.penKey,
           EditorToolbar.eraserKey,
           EditorToolbar.lassoKey,
@@ -366,6 +366,9 @@ void main() {
           MicButton.micKey,
           UndoRedoButtons.undoKey,
           UndoRedoButtons.redoKey,
+          // (UI stage 2) [📄 2 / 4] [🔍] [⋯] together at the right end.
+          EditorToolbar.pagePanelKey,
+          EditorToolbar.noteSearchKey,
           EditorMoreMenu.buttonKey,
         ];
         final xs = [for (final k in keys) centreX(tester, k)];
@@ -519,7 +522,7 @@ void main() {
         matching: find.byType(ToolButton),
       );
       expect(tester.widget<ToolButton>(toolButton).active, isTrue);
-      expect(tester.widget<ToolButton>(toolButton).icon, Icons.interests);
+      expect(tester.widget<ToolButton>(toolButton).glyph, AppIconKind.shape);
 
       await openOverflow(tester);
       await tester.tap(find.byKey(EditorToolbar.shapeKey));
@@ -539,7 +542,7 @@ void main() {
       await tester.tap(find.byKey(EditorToolbar.textKey));
       await tester.pump();
       expect(_active(h), EditorTool.text);
-      expect(tester.widget<ToolButton>(toolButton).icon, Icons.text_fields);
+      expect(tester.widget<ToolButton>(toolButton).glyph, AppIconKind.text);
       await openOverflow(tester);
       await tester.tap(find.byKey(EditorToolbar.textKey));
       await tester.pump();

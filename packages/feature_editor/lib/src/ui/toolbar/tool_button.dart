@@ -2,22 +2,37 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import 'tool_glyph.dart';
+
 /// A toolbar tool button: 48×48 touch area (≥ 44 — contract 7.4.8), active =
-/// `primaryContainer` background, optional 8 px colour dot under the icon
-/// (pen). Tap and long press; no tooltip (long press is taken) — a semantics
-/// label only.
+/// the style's `accentSoft` well, optional 8 px colour dot under the icon
+/// (pen). Tap and long press; no long-press tooltip (long press is taken) —
+/// a semantics label, and (UI stage 2) the [label] as a [HoverName] while a
+/// stylus hovers over an icon-only button.
+///
+/// (UI stage 2) [glyph] draws the ui_kit line icon instead of [icon]; with
+/// [caption] the small name shows under it ([ToolGlyph], StyleTokens
+/// .toolLabels).
 class ToolButton extends StatelessWidget {
   const ToolButton({
     super.key,
-    required this.icon,
+    this.icon,
+    this.glyph,
+    this.caption,
     required this.label,
     required this.active,
     this.onTap,
     this.onLongPress,
     this.dotColor,
-  });
+  }) : assert(icon != null || glyph != null, 'an icon or a glyph');
 
-  final IconData icon;
+  final IconData? icon;
+
+  /// (UI stage 2) The line icon (wins over [icon]).
+  final AppIconKind? glyph;
+
+  /// (UI stage 2) The small name under [glyph].
+  final String? caption;
   final String label;
   final bool active;
   final VoidCallback? onTap;
@@ -26,15 +41,22 @@ class ToolButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final tokens = StyleTokens.of(context);
     final enabled = onTap != null;
     final foreground = !enabled
-        ? scheme.onSurface.withValues(alpha: 0.38)
+        ? tokens.textPrimary.withValues(alpha: 0.38)
         : active
-        ? scheme.onPrimaryContainer
-        : scheme.onSurfaceVariant;
+        ? tokens.onAccentSoft
+        : tokens.textSecondary;
     final dot = dotColor;
-    return Semantics(
+    final kind = glyph;
+    final iconWidget = kind != null
+        ? IconTheme.merge(
+            data: IconThemeData(color: foreground),
+            child: ToolGlyph(kind, caption: caption),
+          )
+        : Icon(icon, size: 22, color: foreground);
+    final button = Semantics(
       container: true,
       button: true,
       selected: active,
@@ -44,9 +66,9 @@ class ToolButton extends StatelessWidget {
         width: 48,
         height: 48,
         child: Material(
-          color: active ? scheme.primaryContainer : Colors.transparent,
+          color: active ? tokens.accentSoft : Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(tokens.radiusSmall + 2),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -57,7 +79,7 @@ class ToolButton extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 22, color: foreground),
+                  iconWidget,
                   if (dot != null) ...[
                     const SizedBox(height: 2),
                     DecoratedBox(
@@ -67,8 +89,7 @@ class ToolButton extends StatelessWidget {
                         // (v2.14-ui) a stronger ring when the ink would
                         // vanish on the toolbar.
                         border: Border.all(
-                          color: StyleTokens.of(context)
-                              .swatchRing(dot, StyleTokens.of(context).toolbar),
+                          color: tokens.swatchRing(dot, tokens.toolbar),
                           width: 0.5,
                         ),
                       ),
@@ -82,5 +103,7 @@ class ToolButton extends StatelessWidget {
         ),
       ),
     );
+    if (caption != null && kind != null) return button;
+    return HoverName(name: label, child: button);
   }
 }

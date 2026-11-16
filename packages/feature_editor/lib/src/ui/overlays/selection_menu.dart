@@ -442,8 +442,8 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
                     return IconButton(
                       key: SelectionMenu.moreKey,
                       onPressed: _toggleMore,
-                      icon: const Icon(
-                        Icons.more_horiz,
+                      icon: const AppIcon(
+                        AppIconKind.more,
                         semanticLabel: EditorStrings.selectionMore,
                       ),
                     );

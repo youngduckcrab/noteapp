@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../state/page_panel.dart';
@@ -65,8 +66,8 @@ class PagePanelSelectionBar extends ConsumerWidget {
               IconButton(
                 key: selectAllKey,
                 onPressed: () => notifier.selectAll(ids),
-                icon: const Icon(
-                  Icons.select_all,
+                icon: Icon(
+                  AppIconKind.selectAll.material,
                   semanticLabel: EditorStrings.selectAll,
                 ),
               ),
@@ -75,8 +76,8 @@ class PagePanelSelectionBar extends ConsumerWidget {
                 onPressed: canAct
                     ? () => unawaited(commands.duplicatePages(selected))
                     : null,
-                icon: const Icon(
-                  Icons.copy,
+                icon: Icon(
+                  AppIconKind.duplicate.material,
                   semanticLabel: EditorStrings.duplicatePage,
                 ),
               ),
@@ -85,8 +86,8 @@ class PagePanelSelectionBar extends ConsumerWidget {
                 onPressed: canDelete
                     ? () => commands.deletePages(selected)
                     : null,
-                icon: const Icon(
-                  Icons.delete_outline,
+                icon: Icon(
+                  AppIconKind.trash.material,
                   semanticLabel: EditorStrings.deletePage,
                 ),
               ),

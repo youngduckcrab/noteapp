@@ -6,6 +6,7 @@
 // floating buttons (restore pill, palette) are in floating_layer.dart.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../state/note_search.dart';
@@ -84,21 +85,21 @@ abstract final class EditorChrome {
     return [
       MenuItemButton(
         key: moreHideKey,
-        leadingIcon: const Icon(Icons.expand_less),
+        leadingIcon: Icon(AppIconKind.hideMenu.material),
         onPressed: () => hideMenu(context, ref),
         child: const Text(EditorStrings.hideMenu),
       ),
       if (detached)
         MenuItemButton(
           key: moreDockKey,
-          leadingIcon: const Icon(Icons.vertical_align_top),
+          leadingIcon: Icon(AppIconKind.dock.material),
           onPressed: () => dockPalette(ref),
           child: const Text(EditorStrings.dockPalette),
         )
       else
         MenuItemButton(
           key: moreDetachKey,
-          leadingIcon: const Icon(Icons.palette_outlined),
+          leadingIcon: Icon(AppIconKind.detach.material),
           onPressed: () => detachPalette(ref),
           child: const Text(EditorStrings.detachPalette),
         ),
@@ -216,10 +217,17 @@ class MenuHideButton extends ConsumerWidget {
   static const double width = 48;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => IconButton(
-    key: buttonKey,
-    onPressed: () => EditorChrome.hideMenu(context, ref),
-    icon: const Icon(Icons.expand_less, semanticLabel: EditorStrings.hideMenu),
+  Widget build(BuildContext context, WidgetRef ref) => HoverName(
+    name: EditorStrings.hideMenu,
+    child: IconButton(
+      key: buttonKey,
+      onPressed: () => EditorChrome.hideMenu(context, ref),
+      icon: const AppIcon(
+        AppIconKind.hideMenu,
+        size: 22,
+        semanticLabel: EditorStrings.hideMenu,
+      ),
+    ),
   );
 }
 

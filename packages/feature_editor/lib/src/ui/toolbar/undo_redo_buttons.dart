@@ -4,17 +4,20 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../text/text_edit_session.dart';
 import '../editor_strings.dart';
+import 'tool_glyph.dart';
 
 /// [↶] [↷] of the toolbar. Enabled from `core.historyStateProvider(noteId)`
 /// (canUndo / canRedo; HistoryState.empty while loading — EDITOR keeps no
 /// history provider of its own, contract 7.2.0); both disabled on a
 /// read-only note. Taps run EditorCommands.undo / redo (ignored during a tool
 /// interaction; a racing ReadOnlyNoteException is caught there — N-4 v1.1).
-/// No tooltips (6.9.1): semantics labels only. (v2, E2-10 — 6.11.7) an open
+/// No long-press tooltips (6.9.1): semantics labels, and (UI stage 2) the
+/// names on stylus hover (HoverName). (v2, E2-10 — 6.11.7) an open
 /// text session ends first — the button's down already ended it
 /// (tapOutside); the undo waits for its command, so the whole session goes
 /// back as one step. [↶] is enabled during a session too (its command may
@@ -53,27 +56,39 @@ class UndoRedoButtons extends ConsumerWidget {
       await step();
     }
 
-    final iconSize = compact ? 20.0 : null;
+    final iconSize = compact ? 20.0 : ToolGlyph.toolbarIconSize;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (part != UndoRedoPart.redo)
-          IconButton(
-            key: compact ? pillUndoKey : undoKey,
-            iconSize: iconSize,
-            onPressed: !readOnly && (history.canUndo || editing)
-                ? () => unawaited(afterSession(commands.undo))
-                : null,
-            icon: const Icon(Icons.undo, semanticLabel: EditorStrings.undo),
+          HoverName(
+            name: EditorStrings.undo,
+            child: IconButton(
+              key: compact ? pillUndoKey : undoKey,
+              onPressed: !readOnly && (history.canUndo || editing)
+                  ? () => unawaited(afterSession(commands.undo))
+                  : null,
+              icon: ToolGlyph(
+                AppIconKind.undo,
+                size: iconSize,
+                semanticLabel: EditorStrings.undo,
+              ),
+            ),
           ),
         if (part != UndoRedoPart.undo)
-          IconButton(
-            key: compact ? pillRedoKey : redoKey,
-            iconSize: iconSize,
-            onPressed: !readOnly && history.canRedo
-                ? () => unawaited(afterSession(commands.redo))
-                : null,
-            icon: const Icon(Icons.redo, semanticLabel: EditorStrings.redo),
+          HoverName(
+            name: EditorStrings.redo,
+            child: IconButton(
+              key: compact ? pillRedoKey : redoKey,
+              onPressed: !readOnly && history.canRedo
+                  ? () => unawaited(afterSession(commands.redo))
+                  : null,
+              icon: ToolGlyph(
+                AppIconKind.redo,
+                size: iconSize,
+                semanticLabel: EditorStrings.redo,
+              ),
+            ),
           ),
       ],
     );

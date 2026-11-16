@@ -111,6 +111,9 @@ enum AppIconKind {
   developer(Icons.code_rounded, lineArt: true),
   features(Icons.toggle_on_rounded, lineArt: true),
 
+  /// 도구 이름 (names on hover — '펜을 띄우면 이름 보기').
+  hoverName(Icons.chat_bubble_outline_rounded, lineArt: true),
+
   /// 이전 판 DB 사본 (a copy of past data).
   history(Icons.history_rounded, lineArt: true),
 
@@ -604,6 +607,26 @@ class AppIconPainter extends CustomPainter {
         poly([8.5, 7, 3.5, 12, 8.5, 17]);
         poly([15.5, 7, 20.5, 12, 15.5, 17]);
         l(13.5, 5, 10.5, 19);
+      case AppIconKind.hoverName:
+        canvas.drawPath(
+          Path()
+            ..moveTo(6, 4.5)
+            ..lineTo(18, 4.5)
+            ..quadraticBezierTo(20.5, 4.5, 20.5, 7)
+            ..lineTo(20.5, 13)
+            ..quadraticBezierTo(20.5, 15.5, 18, 15.5)
+            ..lineTo(12, 15.5)
+            ..lineTo(8, 19.5)
+            ..lineTo(8, 15.5)
+            ..lineTo(6, 15.5)
+            ..quadraticBezierTo(3.5, 15.5, 3.5, 13)
+            ..lineTo(3.5, 7)
+            ..quadraticBezierTo(3.5, 4.5, 6, 4.5)
+            ..close(),
+          p,
+        );
+        l(7.5, 8.5, 16.5, 8.5);
+        l(7.5, 11.5, 13, 11.5);
       case AppIconKind.features:
         rr(3, 7, 21, 17, 5);
         canvas.drawCircle(const Offset(16, 12), 2.6, fill);

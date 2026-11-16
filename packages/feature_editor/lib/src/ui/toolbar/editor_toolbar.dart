@@ -26,6 +26,7 @@ import 'note_info_dialog.dart';
 import 'overflow_tools_menu.dart';
 import 'sync_badge_icon.dart';
 import 'tool_button.dart';
+import 'tool_glyph.dart';
 import 'undo_redo_buttons.dart';
 import 'zoom_chip.dart';
 
@@ -52,8 +53,11 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
   core.PenTool.glitter => Icons.auto_awesome,
 };
 
-/// [←] title [100%] [☁] [🔍] [▤] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+]
-/// [🎤] │ [↶] [↷] │ [⋯] — 52 px (v2, m5-7/04-editor 6.13.1). (v2.14-ui, UI
+/// [←] title [100%] [☁] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+]
+/// [🎤] │ [↶] [↷] │ [📄 2 / 4] [🔍] [⋯] — 52 px (v2, m5-7/04-editor 6.13.1;
+/// (UI stage 2, 04-editor 20.2) ui_kit line icons, the small names under
+/// 올가미 · 도형 · 텍스트 · 삽입 (StyleTokens.toolLabels), the page button with
+/// the page count, [📄] [🔍] [⋯] together at the right end). (v2.14-ui, UI
 /// stage 1) No [✋] (⋯ '손가락으로 그리기' and settings › 입력 instead); [100%] only
 /// while the zoom is not 100 % and [☁] only while sync is not done
 /// (ZoomChip, EditorSyncBadgeIcon — after the title, whose slot absorbs
@@ -114,6 +118,9 @@ class EditorToolbar extends ConsumerWidget {
   static const titleSlotKey = ValueKey('editor.toolbar.titleSlot');
   static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
+  /// (UI stage 2) The '2 / 4' on [pagePanelKey].
+  static const pageCountKey = ValueKey('editor.toolbar.pageCount');
+
   /// (v2.13-search) [🔍] '노트에서 찾기' — at every width from
   /// [foldedSearchMinWidth] (review: Android tablets in portrait are about
   /// 800 wide; (19.1) [foldWidth] leaves the unfolded row room for it).
@@ -130,6 +137,10 @@ class EditorToolbar extends ConsumerWidget {
   /// (text pen, phase 1) the 텍스트 펜 (only with EditorExtensions.textPen).
   static const textPenKey = OverflowToolsMenu.textPenKey;
   static const overflowToolsKey = OverflowToolsMenu.buttonKey;
+
+  /// (UI stage 2) From this width the page button shows '2 / 4' after its
+  /// icon (below it the icon alone; the folded row has no room to spare).
+  static const double pageCountMinWidth = 760;
 
   /// (v2) The sideways scroll below [scrollWidth].
   static const scrollKey = ValueKey('editor.toolbar.scroll');
@@ -158,12 +169,15 @@ class EditorToolbar extends ConsumerWidget {
             final row = Row(
               mainAxisSize: scroll ? MainAxisSize.min : MainAxisSize.max,
               children: [
-                IconButton(
-                  key: backKey,
-                  onPressed: onBack,
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    semanticLabel: EditorStrings.back,
+                HoverName(
+                  name: EditorStrings.back,
+                  child: IconButton(
+                    key: backKey,
+                    onPressed: onBack,
+                    icon: const ToolGlyph(
+                      AppIconKind.back,
+                      semanticLabel: EditorStrings.back,
+                    ),
                   ),
                 ),
                 // (04-editor 19) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
@@ -182,9 +196,6 @@ class EditorToolbar extends ConsumerWidget {
                 // and the tools after them never move.
                 const ZoomChip(),
                 const EditorSyncBadgeIcon(),
-                if (constraints.maxWidth >= foldedSearchMinWidth)
-                  const _NoteSearchButton(),
-                const _PagePanelButton(),
                 const _Divider(),
                 _ToolButtons(withObjectTools: !fold),
                 const _Divider(),
@@ -198,6 +209,11 @@ class EditorToolbar extends ConsumerWidget {
                 ],
                 const UndoRedoButtons(),
                 const _Divider(),
+                _PagePanelButton(
+                  showCount: constraints.maxWidth >= pageCountMinWidth,
+                ),
+                if (constraints.maxWidth >= foldedSearchMinWidth)
+                  const _NoteSearchButton(),
                 EditorMoreMenu(
                   onOpenSettings: onOpenSettings,
                   showNoteInfo: constraints.maxWidth < titleMinWidth,
@@ -254,11 +270,12 @@ class _TitleSlot extends ConsumerWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  Icon(
-                    Icons.arrow_drop_down,
+                  const SizedBox(width: 2),
+                  AppIcon(
+                    AppIconKind.chevronDown,
                     key: EditorToolbar.titleAffordanceKey,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 18,
+                    color: StyleTokens.of(context).textSecondary,
                   ),
                 ],
               ),
@@ -289,11 +306,17 @@ class _NoteSearchButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final open = ref.watch(editorNoteSearchProvider.select((s) => s.isOpen));
-    return IconButton(
-      key: EditorToolbar.noteSearchKey,
-      isSelected: open,
-      onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
-      icon: const Icon(Icons.search, semanticLabel: EditorStrings.noteSearch),
+    return HoverName(
+      name: EditorStrings.noteSearch,
+      child: IconButton(
+        key: EditorToolbar.noteSearchKey,
+        isSelected: open,
+        onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
+        icon: const ToolGlyph(
+          AppIconKind.search,
+          semanticLabel: EditorStrings.noteSearch,
+        ),
+      ),
     );
   }
 }
@@ -304,10 +327,7 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 28,
-    child: VerticalDivider(
-      width: 12,
-      color: Theme.of(context).colorScheme.outlineVariant,
-    ),
+    child: VerticalDivider(width: 12, color: StyleTokens.of(context).hairline),
   );
 }
 
@@ -383,7 +403,8 @@ class _ToolButtons extends ConsumerWidget {
         ),
         ToolButton(
           key: EditorToolbar.lassoKey,
-          icon: Icons.highlight_alt,
+          glyph: AppIconKind.lasso,
+          caption: EditorStrings.lasso,
           label: EditorStrings.lasso,
           active: active == EditorTool.lasso,
           onTap: tap(EditorTool.lasso, null),
@@ -393,7 +414,8 @@ class _ToolButtons extends ConsumerWidget {
             link: anchors.shape,
             child: ToolButton(
               key: EditorToolbar.shapeKey,
-              icon: Icons.interests,
+              glyph: AppIconKind.shape,
+              caption: EditorStrings.shapeTool,
               label: EditorStrings.shapeTool,
               active: active == EditorTool.shape,
               onTap: tap(
@@ -408,7 +430,8 @@ class _ToolButtons extends ConsumerWidget {
             link: anchors.text,
             child: ToolButton(
               key: EditorToolbar.textKey,
-              icon: Icons.text_fields,
+              glyph: AppIconKind.text,
+              caption: EditorStrings.textTool,
               label: EditorStrings.textTool,
               active: active == EditorTool.text,
               onTap: tap(EditorTool.text, const TextToolPopup(anchored: true)),
@@ -420,7 +443,7 @@ class _ToolButtons extends ConsumerWidget {
           if (hasMathPen)
             ToolButton(
               key: EditorToolbar.mathKey,
-              icon: Icons.functions,
+              glyph: AppIconKind.math,
               label: EditorStrings.mathPenTool,
               active: active == EditorTool.math,
               dotColor: Color(
@@ -432,7 +455,7 @@ class _ToolButtons extends ConsumerWidget {
           if (hasTextPen)
             ToolButton(
               key: EditorToolbar.textPenKey,
-              icon: Icons.edit_note,
+              icon: AppIconKind.textPen.material,
               label: EditorStrings.textPenTool,
               active: active == EditorTool.textPen,
               dotColor: Color(
@@ -446,21 +469,82 @@ class _ToolButtons extends ConsumerWidget {
   }
 }
 
-/// [▤]: opens / closes the page panel (selected while open).
+/// [📄 2 / 4] (UI stage 2 — the page panel button and the page count in
+/// one, 04-editor 20.2): opens / closes the page panel (selected while
+/// open); the count is the current page / all pages.
 class _PagePanelButton extends ConsumerWidget {
-  const _PagePanelButton();
+  const _PagePanelButton({required this.showCount});
+
+  /// Whether the '2 / 4' shows (EditorToolbar.pageCountMinWidth).
+  final bool showCount;
+
+  /// The widest the count gets; a longer one ('128 / 256') scales down.
+  static const double countMaxWidth = 40;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final open = ref.watch(editorPagePanelProvider.select((p) => p.isOpen));
     final commands = ref.watch(editorCommandsProvider);
-    return IconButton(
-      key: EditorToolbar.pagePanelKey,
-      isSelected: open,
-      onPressed: commands.togglePagePanel,
-      icon: const Icon(
-        Icons.view_sidebar,
-        semanticLabel: EditorStrings.pagePanel,
+    final index = ref.watch(editorCurrentPageIndexProvider);
+    final viewport = ref.watch(editorViewportProvider);
+    return HoverName(
+      name: EditorStrings.pagePanel,
+      child: ListenableBuilder(
+        listenable: viewport,
+        builder: (context, _) {
+          final count = viewport.pages.length;
+          final label = count == 0 || !showCount
+              ? null
+              : EditorStrings.pageIndicator(
+                  index.clamp(0, count - 1) + 1,
+                  count,
+                );
+          return IconButton(
+            key: EditorToolbar.pagePanelKey,
+            isSelected: open,
+            onPressed: commands.togglePagePanel,
+            style: label == null
+                ? null
+                : IconButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+            icon: Semantics(
+              label: EditorStrings.pagePanel,
+              value: label,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const ToolGlyph(AppIconKind.pages),
+                  if (label != null) ...[
+                    const SizedBox(width: 4),
+                    ExcludeSemantics(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: countMaxWidth,
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            label,
+                            key: EditorToolbar.pageCountKey,
+                            maxLines: 1,
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                  color: IconTheme.of(context).color,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

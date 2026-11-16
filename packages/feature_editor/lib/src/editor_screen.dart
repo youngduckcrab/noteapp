@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import 'scope/editor_scope.dart';
 import 'text/text_edit_session.dart';
@@ -326,7 +327,7 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IconButton(
     onPressed: onPressed,
-    icon: const Icon(Icons.arrow_back, semanticLabel: EditorStrings.back),
+    icon: const AppIcon(AppIconKind.back, semanticLabel: EditorStrings.back),
   );
 }
 

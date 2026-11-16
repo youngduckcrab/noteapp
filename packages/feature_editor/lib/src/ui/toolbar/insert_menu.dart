@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
@@ -27,13 +28,14 @@ import '../../scope/editor_scope.dart';
 import '../../tools/text_pen/text_pen_controller.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
+import 'tool_glyph.dart';
 
 /// Icon of an image source (6.12.1 table).
 IconData imageSourceIcon(core.ImageImportSource source) => switch (source) {
-  core.ImageImportSource.photos => Icons.photo_library,
-  core.ImageImportSource.camera => Icons.photo_camera,
-  core.ImageImportSource.files => Icons.folder_open,
-  core.ImageImportSource.clipboard => Icons.content_paste,
+  core.ImageImportSource.photos => AppIconKind.photos.material,
+  core.ImageImportSource.camera => AppIconKind.camera.material,
+  core.ImageImportSource.files => AppIconKind.files.material,
+  core.ImageImportSource.clipboard => AppIconKind.paste.material,
 };
 
 class InsertMenu extends ConsumerStatefulWidget {
@@ -105,10 +107,17 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
           close: _close,
           textPen: textPen,
         ),
+        // (UI stage 2) the line icon with its name under it
+        // (StyleTokens.toolLabels).
         child: IconButton(
           key: InsertMenu.buttonKey,
           onPressed: readOnly ? null : _toggle,
-          icon: const Icon(Icons.add, semanticLabel: EditorStrings.insert),
+          padding: EdgeInsets.zero,
+          icon: const ToolGlyph(
+            AppIconKind.insert,
+            caption: EditorStrings.insert,
+            semanticLabel: EditorStrings.insert,
+          ),
         ),
       ),
     );
@@ -177,7 +186,7 @@ List<Widget> insertMenuRows(
     if (sources.isNotEmpty)
       SubmenuButton(
         key: InsertMenu.imageKey,
-        leadingIcon: const Icon(Icons.image),
+        leadingIcon: Icon(AppIconKind.image.material),
         menuChildren: [
           for (final source in sources)
             InsertMenuRow(
@@ -194,7 +203,7 @@ List<Widget> insertMenuRows(
     if (textPen)
       InsertMenuRow(
         key: InsertMenu.handwritingToTextKey,
-        icon: Icons.edit_note,
+        icon: AppIconKind.textPen.material,
         label: EditorStrings.handwritingToText,
         onPressed: enabled ? handwritingToText : null,
       ),
@@ -231,7 +240,7 @@ class InsertMenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final tokens = StyleTokens.of(context);
     return TextButton.icon(
       onPressed: onPressed,
       style: TextButton.styleFrom(
@@ -239,8 +248,8 @@ class InsertMenuRow extends StatelessWidget {
         minimumSize: const Size(180, 44),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         shape: const RoundedRectangleBorder(),
-        backgroundColor: selected ? scheme.primaryContainer : null,
-        foregroundColor: selected ? scheme.onPrimaryContainer : null,
+        backgroundColor: selected ? tokens.accentSoft : null,
+        foregroundColor: selected ? tokens.onAccentSoft : null,
       ),
       icon: Icon(icon),
       label: Text(label),

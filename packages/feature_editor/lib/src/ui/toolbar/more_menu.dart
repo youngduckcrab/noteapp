@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../commands/editor_commands.dart';
 import '../../di/editor_extensions.dart';
@@ -24,6 +25,7 @@ import '../dev/dev_metrics.dart';
 import '../editor_strings.dart';
 import 'dev_menu.dart';
 import 'note_info_dialog.dart';
+import 'tool_glyph.dart';
 
 /// (v2.14-ui, UI stage 1) 테이프 모두 보이기 / 테이프 모두 가리기 — one item,
 /// only when a page of the note seen in this session had a tape (or the tape pen is the
@@ -176,8 +178,9 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
       );
   }
 
-  Widget _checkBox(bool on) =>
-      Icon(on ? Icons.check_box : Icons.check_box_outline_blank);
+  Widget _checkBox(bool on) => Icon(
+    on ? Icons.check_box : Icons.check_box_outline_blank,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +200,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
         if (widget.showNoteSearch)
           MenuItemButton(
             key: EditorMoreMenu.noteSearchKey,
-            leadingIcon: const Icon(Icons.search),
+            leadingIcon: Icon(AppIconKind.search.material),
             onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
             child: const Text(EditorStrings.noteSearch),
           ),
@@ -205,7 +208,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
           if (tapesRevealed)
             MenuItemButton(
               key: EditorMoreMenu.tapesHideAllKey,
-              leadingIcon: const Icon(Icons.visibility_off),
+              leadingIcon: Icon(AppIconKind.conceal.material),
               onPressed: () => ref
                   .read(editorTapesRevealedAllProvider.notifier)
                   .setAll(false),
@@ -214,7 +217,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
           else
             MenuItemButton(
               key: EditorMoreMenu.tapesRevealAllKey,
-              leadingIcon: const Icon(Icons.visibility),
+              leadingIcon: Icon(AppIconKind.reveal.material),
               onPressed: () => ref
                   .read(editorTapesRevealedAllProvider.notifier)
                   .setAll(true),
@@ -242,14 +245,14 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
         if (widget.showNoteInfo)
           MenuItemButton(
             key: EditorMoreMenu.noteInfoKey,
-            leadingIcon: const Icon(Icons.info_outline),
+            leadingIcon: Icon(AppIconKind.info.material),
             onPressed: () => unawaited(_showNoteInfo()),
             child: const Text(EditorStrings.noteInfo),
           ),
         if (openSettings != null)
           MenuItemButton(
             key: EditorMoreMenu.settingsKey,
-            leadingIcon: const Icon(Icons.settings_outlined),
+            leadingIcon: Icon(AppIconKind.settings.material),
             onPressed: openSettings,
             child: const Text(EditorStrings.settings),
           ),
@@ -269,10 +272,16 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
             ),
         ],
       ],
-      child: IconButton(
-        key: EditorMoreMenu.buttonKey,
-        onPressed: _toggle,
-        icon: const Icon(Icons.more_horiz, semanticLabel: EditorStrings.more),
+      child: HoverName(
+        name: EditorStrings.more,
+        child: IconButton(
+          key: EditorMoreMenu.buttonKey,
+          onPressed: _toggle,
+          icon: const ToolGlyph(
+            AppIconKind.more,
+            semanticLabel: EditorStrings.more,
+          ),
+        ),
       ),
     );
   }

@@ -11,6 +11,7 @@ import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/end_of_document_hint.dart';
 import 'package:feature_editor/src/ui/overlays/page_indicator.dart';
+import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/viewport/viewport_constants.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -151,8 +152,11 @@ void main() {
         expect(pages.last.size, pages[1].size);
         expect(pages.last.background, template);
         expect(h.viewport.currentPageIndex.value, 2);
-        expect(find.text('3 / 3'), findsOneWidget, reason: 'page indicator');
-        expect(find.byKey(PageIndicator.indicatorKey), findsOneWidget);
+        // (UI stage 2) the toolbar's page button has the count; the page
+        // indicator shows only while the menu is hidden.
+        expect(find.text('3 / 3'), findsOneWidget, reason: 'page count');
+        expect(find.byKey(EditorToolbar.pageCountKey), findsOneWidget);
+        expect(find.byKey(PageIndicator.indicatorKey), findsNothing);
       });
 
       testWidgets('after a PDF page: a blank page of its paper colour', (

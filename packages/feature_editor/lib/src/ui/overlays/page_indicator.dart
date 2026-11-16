@@ -4,10 +4,12 @@ import 'package:material_ui/material_ui.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
+import '../../state/settings/editor_device_state.dart';
 import '../editor_strings.dart';
 
 /// "current / count" at the bottom right of the page area; never takes
-/// input (IgnorePointer).
+/// input (IgnorePointer). (UI stage 2, 04-editor 20.2) Only while the top
+/// menu is hidden: otherwise the toolbar's page button shows the count.
 class PageIndicator extends ConsumerWidget {
   const PageIndicator({super.key});
 
@@ -15,6 +17,10 @@ class PageIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(
+      editorDeviceStateProvider.select((s) => s.toolbarHidden),
+    );
+    if (!hidden) return const SizedBox.shrink();
     final index = ref.watch(editorCurrentPageIndexProvider);
     final viewport = ref.watch(editorViewportProvider);
     return ListenableBuilder(

@@ -65,7 +65,7 @@ List<PdfMenuAction> pdfEditorMoreMenuActions() => [
   _exportAction(
     'pdf.share',
     PdfStringsKo.shareTitle,
-    Icons.ios_share,
+    Icons.share_rounded, // Android share (ui_kit AppIconKind.share)
     PdfExportPurpose.share,
   ),
   _exportAction(

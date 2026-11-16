@@ -572,8 +572,8 @@ void main() {
     }
 
     testWidgets('the fullest unfolded row (zoom chip and sync badge on) '
-        'does not overflow; [⌃] stays in ⋯ either way (v2.14-ui: it now '
-        'fits beside the tools)', (tester) async {
+        'does not overflow; [⌃] stays in ⋯ either way (UI stage 2: the page '
+        'count takes its room in the row)', (tester) async {
       final h = await pumpEditor(
         tester,
         logicalSize: const Size(EditorToolbar.foldWidth, 1000),
@@ -596,7 +596,9 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(tester.takeException(), isNull);
-      expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
+      // (UI stage 2) The page button's '2 / 4' takes the room [⌃] had in
+      // this fullest row: here [⌃] is in ⋯ only (never an overflow).
+      expect(find.byKey(MenuHideButton.buttonKey), findsNothing);
       await _openMore(tester);
       expect(find.byKey(EditorChrome.moreHideKey), findsOneWidget);
     });

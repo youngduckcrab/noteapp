@@ -182,8 +182,8 @@ class _PagePanelState extends ConsumerState<PagePanel> {
                       isSelected: panel.isSelecting,
                       onPressed: () =>
                           notifier.setSelecting(!panel.isSelecting),
-                      icon: const Icon(
-                        Icons.checklist,
+                      icon: const AppIcon(
+                        AppIconKind.select,
                         semanticLabel: EditorStrings.selectPages,
                       ),
                     ),
@@ -194,8 +194,8 @@ class _PagePanelState extends ConsumerState<PagePanel> {
                           : () => ref
                                 .read(editorPopupProvider.notifier)
                                 .open(const AddPagePopup()),
-                      icon: const Icon(
-                        Icons.add,
+                      icon: const AppIcon(
+                        AppIconKind.add,
                         semanticLabel: EditorStrings.addPageEllipsis,
                       ),
                     ),
@@ -445,8 +445,8 @@ class _PageMenu extends ConsumerWidget {
         padding: EdgeInsets.zero,
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
-        icon: Icon(
-          Icons.more_horiz,
+        icon: AppIcon(
+          AppIconKind.more,
           semanticLabel: EditorStrings.pageMenu(number),
         ),
       ),
@@ -496,7 +496,7 @@ class _PageFlipRow extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
             iconAlignment: IconAlignment.end,
-            icon: const Icon(Icons.arrow_drop_down),
+            icon: const AppIcon(AppIconKind.chevronDown, size: 18),
             onPressed: () =>
                 controller.isOpen ? controller.close() : controller.open(),
             label: Text(

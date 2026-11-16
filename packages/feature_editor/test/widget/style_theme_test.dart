@@ -5,6 +5,7 @@
 // layer plus the widget colours.
 import 'dart:ui' as ui;
 
+import 'package:feature_editor/src/state/settings/editor_device_state.dart';
 import 'package:feature_editor/src/ui/overlays/page_indicator.dart';
 import 'package:feature_editor/src/ui/pen/pen_preview.dart';
 import 'package:feature_editor/src/ui/presets/preset_chip.dart';
@@ -120,7 +121,7 @@ void main() {
         tester,
       ) async {
         final tokens = styleTokensFor(style, brightness);
-        await pumpEditor(
+        final h = await pumpEditor(
           tester,
           logicalSize: const Size(1280, 800),
           theme: buildStyleTheme(style, brightness),
@@ -128,6 +129,11 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
 
         // The page counter pill sits over the paper: a fixed dark badge.
+        // (UI stage 2) It shows while the menu is hidden (the toolbar's
+        // page button has the count otherwise).
+        final device = h.container.read(editorDeviceStateProvider.notifier);
+        device.setToolbarHidden(true);
+        await tester.pump(const Duration(milliseconds: 300));
         final label = find.byKey(PageIndicator.indicatorKey);
         expect(label, findsOneWidget);
         final pill = tester.widget<DecoratedBox>(
@@ -144,6 +150,9 @@ void main() {
           contrastRatio(tester.widget<Text>(label).style!.color!, onPaper),
           greaterThanOrEqualTo(4.5),
         );
+
+        device.setToolbarHidden(false);
+        await tester.pump(const Duration(milliseconds: 300));
 
         // Preset chips: the ink disc on a paper-light backing; the width
         // dot is judged on paper, so it is the same in both brightnesses.

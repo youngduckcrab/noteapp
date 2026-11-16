@@ -9,10 +9,12 @@
 // tooltip '다른 노트에서 녹음 중이에요'.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../state/panel.dart';
 import '../editor_strings.dart';
+import 'tool_glyph.dart';
 
 class MicButton extends ConsumerWidget {
   const MicButton({super.key = micKey});
@@ -54,15 +56,19 @@ class MicButton extends ConsumerWidget {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(
-            indicator == MicIndicator.thisNote ? Icons.mic : Icons.mic_none,
+          ToolGlyph(
+            indicator == MicIndicator.thisNote
+                ? AppIconKind.micOn
+                : AppIconKind.mic,
             semanticLabel: EditorStrings.recording,
           ),
           if (dot != null) Positioned(right: -2, top: -2, child: dot),
         ],
       ),
     );
-    if (indicator != MicIndicator.otherNote) return button;
+    if (indicator != MicIndicator.otherNote) {
+      return HoverName(name: EditorStrings.recording, child: button);
+    }
     return Tooltip(message: EditorStrings.recordingInOtherNote, child: button);
   }
 }

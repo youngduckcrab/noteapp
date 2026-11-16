@@ -14,6 +14,7 @@ import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers/fake_extensions.dart';
 import '../helpers/pump_editor.dart';
@@ -201,16 +202,19 @@ void main() {
     final h = await _pump(tester, panel);
     final recorder = h.audioRecorder!;
     final mic = find.byKey(MicButton.micKey);
-    Finder icon(IconData data) =>
-        find.descendant(of: mic, matching: find.byIcon(data));
+    // (UI stage 2) the ui_kit line icons.
+    Finder icon(AppIconKind kind) => find.descendant(
+      of: mic,
+      matching: find.byWidgetPredicate((w) => w is AppIcon && w.kind == kind),
+    );
 
-    expect(icon(Icons.mic_none), findsOneWidget);
+    expect(icon(AppIconKind.mic), findsOneWidget);
     expect(find.byKey(MicButton.recordingDotKey), findsNothing);
     expect(find.byKey(MicButton.otherNoteDotKey), findsNothing);
 
     await recorder.start(recordingId: 'rec-1', noteId: h.noteId);
     await tester.pump();
-    expect(icon(Icons.mic), findsOneWidget);
+    expect(icon(AppIconKind.micOn), findsOneWidget);
     final dot = find.byKey(MicButton.recordingDotKey);
     expect(dot, findsOneWidget);
     final box = tester.widget<DecoratedBox>(
@@ -229,7 +233,7 @@ void main() {
     await recorder.cancel();
     await tester.pump();
     expect(find.byKey(MicButton.recordingDotKey), findsNothing);
-    expect(icon(Icons.mic_none), findsOneWidget);
+    expect(icon(AppIconKind.mic), findsOneWidget);
 
     await recorder.start(recordingId: 'rec-2', noteId: 'another-note');
     await tester.pump();
@@ -241,7 +245,7 @@ void main() {
     );
     final scheme = Theme.of(tester.element(mic)).colorScheme;
     expect((greyBox.decoration as BoxDecoration).color, scheme.outline);
-    expect(icon(Icons.mic_none), findsOneWidget);
+    expect(icon(AppIconKind.mic), findsOneWidget);
     expect(
       find.descendant(
         of: mic,

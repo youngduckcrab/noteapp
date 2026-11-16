@@ -128,7 +128,7 @@ class _PanelBodyState extends ConsumerState<_PanelBody> {
                   focusNode: _focus,
                   textInputAction: TextInputAction.search,
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
+                    prefixIcon: AppIcon(AppIconKind.search, size: 20),
                     hintText: EditorStrings.noteSearchHint,
                     isDense: true,
                     border: OutlineInputBorder(),
@@ -140,8 +140,8 @@ class _PanelBodyState extends ConsumerState<_PanelBody> {
               IconButton(
                 key: NoteSearchPanel.closeKey,
                 onPressed: notifier.close,
-                icon: const Icon(
-                  Icons.close,
+                icon: const AppIcon(
+                  AppIconKind.close,
                   semanticLabel: EditorStrings.noteSearchClose,
                 ),
               ),
