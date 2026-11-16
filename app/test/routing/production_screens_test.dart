@@ -213,7 +213,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(_location(tester), AppRoutes.settings);
 
-      await tester.tap(find.byTooltip(AppStrings.close));
+      // (v2.14-ui) ← 뒤로 (was ✕).
+      await tester.tap(find.byTooltip(AppStrings.back));
       await tester.pumpAndSettle();
       expect(_location(tester), '/notes/n1');
       expect(tester.state(find.byType(EditorScreen)), same(editorState));

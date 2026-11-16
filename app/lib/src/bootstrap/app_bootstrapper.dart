@@ -17,6 +17,7 @@ import '../features/app_features.dart';
 import '../providers.dart';
 import '../runtime/build_info.dart';
 import '../runtime/runtime_info.dart';
+import '../settings/developer_mode.dart' show developerModeOverride;
 import '../settings/settings_sections.dart' show shellContributionsProvider;
 import '../web/web_platform.dart';
 import 'app_module.dart';
@@ -242,6 +243,8 @@ final class AppBootstrapper {
         appFeaturesProvider.overrideWithValue(resolved),
         initialAppearanceProvider.overrideWithValue(appearance),
         shellContributionsProvider.overrideWithValue(contributions),
+        // (v2.14-ui) CORE's developerModeProvider ← the shell's switch.
+        developerModeOverride(),
         ...moduleOverrides,
       ],
       startedModules: List<AppModule>.unmodifiable(_started),

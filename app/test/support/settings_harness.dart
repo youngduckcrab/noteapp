@@ -15,6 +15,7 @@ import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/providers.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
+import 'package:noteapp/src/settings/developer_mode.dart';
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_web_platform.dart';
@@ -72,6 +73,7 @@ final class SettingsHarness {
     this.build = testBuild,
     this.runtime = testRuntime,
     this.report = testReport,
+    this.developerMode = true,
   }) : store = store ?? CountingNoteStore(),
        web = web ?? FakeWebPlatform(),
        errorLog = errorLog ?? AppErrorLog();
@@ -82,6 +84,11 @@ final class SettingsHarness {
   final BuildInfo build;
   final RuntimeInfo runtime;
   final StartupReport report;
+
+  /// (v2.14-ui) true: developer mode forced on (the diagnostics these tests
+  /// read are developer-only now); false: the real switch
+  /// (developerModeOverride — off until the 빌드 row is tapped 7 times).
+  final bool developerMode;
 
   /// The root overrides the settings sections read (contract 7.3.3:
   /// noteStoreProvider + the shell providers + the feature packages' lists).
@@ -96,6 +103,11 @@ final class SettingsHarness {
     startupReportProvider.overrideWithValue(report),
     ...featureEditorOverrides(),
     ...featureLibraryOverrides(),
+    // (v2.14-ui) As in the root overrides (app_bootstrapper), or forced on.
+    if (developerMode)
+      developerModeProvider.overrideWithValue(true)
+    else
+      developerModeOverride(),
   ];
 
   /// Pumps [child] in a material_ui MaterialApp (app theme, locale ko) under

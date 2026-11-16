@@ -62,8 +62,8 @@ BootstrapFailure _failure(BootstrapResult? result) =>
     result! as BootstrapFailure;
 
 // 1차 six + appFeaturesProvider + initialAppearanceProvider (v2.14-ui) +
-// shellContributionsProvider (2nd round).
-const _shellOverrideCount = 9;
+// developerModeOverride (v2.14-ui) + shellContributionsProvider (2nd round).
+const _shellOverrideCount = 10;
 
 void main() {
   group('AppModuleContext', () {

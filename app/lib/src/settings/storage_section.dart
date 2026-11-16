@@ -21,7 +21,10 @@ import '../providers.dart';
 ///   to NoteStore.persistenceStatus).
 /// Shows backend, durable, multi-tab safety, persistGranted, usage / quota,
 /// missing browser features, pending writes, last commit time + latency,
-/// consecutive failures.
+/// consecutive failures. (v2.14-ui, UI stage 1) Outside developer mode
+/// (core.developerModeProvider) only usage / quota, 첨부 파일 and the search
+/// index row (+ the failing-writes warning and the buttons); the rest is the
+/// developer diagnostics table.
 /// 2차 (docs/plans/m5-7/01-infra.md 6.18):
 /// - '첨부 파일 n개 · x MB (녹음 a MB · 이미지 b MB · PDF c MB)' from
 ///   AssetStore.usage() (bytesByType; a missing type is 0) — queried when the
@@ -128,38 +131,41 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
     final latency = status.lastCommitLatency;
     final lastError = status.lastError;
     final failing = status.consecutiveFailures >= 3;
+    final developer = ref.watch(developerModeProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _InfoRow(
-          label: AppStrings.storageBackend,
-          value: '${_backendLabel(info.backend)} (${info.backend.name})',
-        ),
-        _InfoRow(
-          label: AppStrings.storageDurability,
-          value: info.isDurable
-              ? AppStrings.storageDurable
-              : AppStrings.storageNotDurable,
-          warn: !info.isDurable,
-        ),
-        _InfoRow(
-          label: AppStrings.storageMultiTab,
-          value: info.isMultiTabSafe
-              ? AppStrings.storageMultiTabSafe
-              : AppStrings.storageMultiTabUnsafe,
-          warn: !info.isMultiTabSafe,
-        ),
-        _InfoRow(
-          label: AppStrings.storagePersist,
-          value: switch (info.persistGranted) {
-            true => AppStrings.storagePersistGranted,
-            false => AppStrings.storagePersistDenied,
-            null => AppStrings.unknown,
-          },
-          warn: info.persistGranted == false,
-        ),
+        if (developer) ...[
+          _InfoRow(
+            label: AppStrings.storageBackend,
+            value: '${_backendLabel(info.backend)} (${info.backend.name})',
+          ),
+          _InfoRow(
+            label: AppStrings.storageDurability,
+            value: info.isDurable
+                ? AppStrings.storageDurable
+                : AppStrings.storageNotDurable,
+            warn: !info.isDurable,
+          ),
+          _InfoRow(
+            label: AppStrings.storageMultiTab,
+            value: info.isMultiTabSafe
+                ? AppStrings.storageMultiTabSafe
+                : AppStrings.storageMultiTabUnsafe,
+            warn: !info.isMultiTabSafe,
+          ),
+          _InfoRow(
+            label: AppStrings.storagePersist,
+            value: switch (info.persistGranted) {
+              true => AppStrings.storagePersistGranted,
+              false => AppStrings.storagePersistDenied,
+              null => AppStrings.unknown,
+            },
+            warn: info.persistGranted == false,
+          ),
+        ],
         _InfoRow(
           label: AppStrings.storageUsage,
           value: usage == null && quota == null
@@ -186,41 +192,43 @@ class _StorageSectionState extends ConsumerState<StorageSection> {
             warn: snapshot.hasError,
           ),
         ),
-        _InfoRow(
-          label: AppStrings.storageMissingFeatures,
-          value: info.missingBrowserFeatures.isEmpty
-              ? AppStrings.none
-              : info.missingBrowserFeatures.join(', '),
-        ),
-        _InfoRow(
-          label: AppStrings.storagePending,
-          value: AppStrings.storagePendingOps(
-            status.pendingOps,
-            writing: status.isWriting,
-          ),
-        ),
-        _InfoRow(
-          label: AppStrings.storageLastCommit,
-          value: committedAt == null
-              ? AppStrings.storageNoCommit
-              : '${_clockTime(DateTime.fromMillisecondsSinceEpoch(committedAt))}'
-                    '${latency == null ? '' : ' (${AppStrings.groupDigits(latency.inMilliseconds)}ms)'}',
-        ),
-        _InfoRow(
-          label: AppStrings.storageFailures,
-          value: AppStrings.storageFailureCount(status.consecutiveFailures),
-          warn: failing,
-        ),
-        if (lastError != null)
+        if (developer) ...[
           _InfoRow(
-            label: AppStrings.storageLastError,
-            value: [
-              if (status.lastErrorAt case final at?)
-                _clockTime(DateTime.fromMillisecondsSinceEpoch(at)),
-              _shorten('$lastError', 200),
-            ].join(' '),
+            label: AppStrings.storageMissingFeatures,
+            value: info.missingBrowserFeatures.isEmpty
+                ? AppStrings.none
+                : info.missingBrowserFeatures.join(', '),
+          ),
+          _InfoRow(
+            label: AppStrings.storagePending,
+            value: AppStrings.storagePendingOps(
+              status.pendingOps,
+              writing: status.isWriting,
+            ),
+          ),
+          _InfoRow(
+            label: AppStrings.storageLastCommit,
+            value: committedAt == null
+                ? AppStrings.storageNoCommit
+                : '${_clockTime(DateTime.fromMillisecondsSinceEpoch(committedAt))}'
+                      '${latency == null ? '' : ' (${AppStrings.groupDigits(latency.inMilliseconds)}ms)'}',
+          ),
+          _InfoRow(
+            label: AppStrings.storageFailures,
+            value: AppStrings.storageFailureCount(status.consecutiveFailures),
             warn: failing,
           ),
+          if (lastError != null)
+            _InfoRow(
+              label: AppStrings.storageLastError,
+              value: [
+                if (status.lastErrorAt case final at?)
+                  _clockTime(DateTime.fromMillisecondsSinceEpoch(at)),
+                _shorten('$lastError', 200),
+              ].join(' '),
+              warn: failing,
+            ),
+        ],
         if (failing)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),

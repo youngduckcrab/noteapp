@@ -6,7 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import '../app/strings.dart';
 import 'settings_sections.dart';
 
-/// Scaffold + AppBar('설정', close button → onClose) + ListView of
+/// Scaffold + AppBar('설정', (v2.14-ui) ← back button → onClose; it was ✕) +
+/// ListView of
 /// [group header] + section header + section body; content width ≤ 720,
 /// centered (iPad landscape).
 ///
@@ -26,8 +27,8 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
-          tooltip: AppStrings.close,
+          icon: const Icon(Icons.arrow_back),
+          tooltip: AppStrings.back,
           onPressed: onClose,
         ),
         title: const Text(AppStrings.settings),

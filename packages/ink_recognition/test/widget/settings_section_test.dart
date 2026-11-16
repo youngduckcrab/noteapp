@@ -43,6 +43,7 @@ Future<core.NoteStore> _pump(
   List<Override> overrides = const [],
   Size size = kIpadPortrait,
   bool? autoIndex = false,
+  bool developerMode = true,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -56,6 +57,8 @@ Future<core.NoteStore> _pump(
     ProviderScope(
       overrides: [
         core.noteStoreProvider.overrideWithValue(store),
+        // (v2.14-ui) 품질 실험 shows only in developer mode.
+        core.developerModeProvider.overrideWithValue(developerMode),
         ...overrides,
       ],
       child: const MaterialApp(
@@ -364,6 +367,21 @@ void main() {
       await store.settings.get(RecognitionSettingsKeys.mathConsent),
       isTrue,
     );
+  });
+
+  testWidgets('(v2.14-ui) outside developer mode: no 품질 실험 group', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      overrides: [_engine(FakeHandwritingRecognizer())],
+      developerMode: false,
+    );
+    expect(find.text(RecognitionStrings.labGroup), findsNothing);
+    expect(find.byKey(RecognitionSettingsUiKeys.lab), findsNothing);
+    expect(find.byKey(RecognitionSettingsUiKeys.mathFixture), findsNothing);
+    // The rest of the section is still there.
+    expect(find.byKey(RecognitionSettingsUiKeys.consent), findsOneWidget);
   });
 
   for (final (name, overrides) in [

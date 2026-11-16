@@ -254,19 +254,24 @@ class RecognitionSettingsSection extends ConsumerWidget {
             ),
             // 6.18 '품질 실험': the A-4 lab only with a handwriting engine
             // (the apps — never the web, Q9); the math fixture pad everywhere
-            // (6.14.7 — iPad Safari with the Pencil included).
-            const _GroupHeader(RecognitionStrings.labGroup),
-            if (available)
+            // (6.14.7 — iPad Safari with the Pencil included). (v2.14-ui, UI
+            // stage 1) Developer-only: shown in developer mode
+            // (core.developerModeProvider — the app's settings › 정보 › 빌드
+            // ×7, the developer overlay or ?dev=1).
+            if (ref.watch(core.developerModeProvider)) ...[
+              const _GroupHeader(RecognitionStrings.labGroup),
+              if (available)
+                _labButton(
+                  RecognitionSettingsUiKeys.lab,
+                  RecognitionStrings.labEntry,
+                  () => unawaited(openRecognitionLab(context)),
+                ),
               _labButton(
-                RecognitionSettingsUiKeys.lab,
-                RecognitionStrings.labEntry,
-                () => unawaited(openRecognitionLab(context)),
+                RecognitionSettingsUiKeys.mathFixture,
+                RecognitionStrings.mathFixtureEntry,
+                () => unawaited(openMathFixturePad(context)),
               ),
-            _labButton(
-              RecognitionSettingsUiKeys.mathFixture,
-              RecognitionStrings.mathFixtureEntry,
-              () => unawaited(openMathFixturePad(context)),
-            ),
+            ],
           ],
         ),
       ),

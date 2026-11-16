@@ -103,6 +103,16 @@ final syncBadgeProvider = StreamProvider<SyncBadge>(
   name: 'syncBadgeProvider',
 );
 
+/// (v2.14-ui, UI stage 1) Developer mode: whether the developer-only items
+/// (settings diagnostics, 품질 실험, 개발자 표시, 기능 켜고 끄기, …) are shown.
+/// Default: off. The app shell overrides it (settings › 정보 › the version
+/// row tapped 7 times, or the developer overlay's own switches — contract
+/// m5-7/00-overview 'v2.14-ui'). Packages only read it.
+final developerModeProvider = Provider<bool>(
+  (ref) => false,
+  name: 'developerModeProvider',
+);
+
 // Library (LIBRARY)
 final folderTreeProvider = StreamProvider<FolderTree>(
   (ref) => ref.watch(libraryRepositoryProvider).watchFolderTree(),

@@ -119,12 +119,15 @@ void main() {
       ['pdf.render', 'media', 'recog.indexer', 'search.index'],
     );
     // Settings: the recognition section sits with the contributed ones,
-    // before the developer sections (S2-9).
+    // before the developer sections (S2-9) — (v2.14-ui) which show only in
+    // developer mode (off at the start).
     final settings = [for (final s in c.read(settingsSectionsProvider)) s.id];
     expect(settings, contains('recog.settings'));
+    expect(c.read(developerModeProvider), isFalse);
+    expect(settings, isNot(contains('editor.developer')));
     expect(
       settings.indexOf('recog.settings'),
-      lessThan(settings.indexOf('editor.developer')),
+      lessThan(settings.indexOf('app.about')),
     );
     // The V15 rows of the all-on start (feature_switch_test compares the
     // other seven combinations against these).

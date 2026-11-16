@@ -115,6 +115,8 @@ Future<void> _pumpSettings(
     ProviderScope(
       overrides: [
         core.noteStoreProvider.overrideWithValue(store),
+        // (v2.14-ui) 품질 실험 is developer-only.
+        core.developerModeProvider.overrideWithValue(true),
         ...overrides,
       ],
       child: const MaterialApp(

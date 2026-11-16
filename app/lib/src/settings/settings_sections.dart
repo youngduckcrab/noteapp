@@ -6,6 +6,7 @@ import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' show developerModeProvider;
 
 import '../app/strings.dart';
 import '../bootstrap/app_module.dart' show ShellContribution;
@@ -64,10 +65,15 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 /// | app.features | — | 기능 켜고 끄기 |
 /// | app.v1Copy | — | 이전 판 DB 사본 |
 /// | app.about | — | 앱 정보 |
+///
+/// (v2.14-ui, UI stage 1) 'editor.developer', 'app.features' and 'app.v1Copy'
+/// are developer-only: left out unless [developerMode] (settings › 정보 ›
+/// the 빌드 row 7 times, the developer overlay, `?dev=1` — developer_mode.dart).
 List<SettingsSectionEntry> defaultSettingsSections({
   List<SettingsSectionEntry> contributed = const [],
+  bool developerMode = false,
 }) {
-  final sections = _sections(contributed);
+  final sections = _sections(contributed, developerMode: developerMode);
   assert(
     sections.map((s) => s.id).toSet().length == sections.length,
     'settings section ids are not unique: ${sections.map((s) => s.id)}',
@@ -75,70 +81,74 @@ List<SettingsSectionEntry> defaultSettingsSections({
   return sections;
 }
 
-List<SettingsSectionEntry> _sections(List<SettingsSectionEntry> contributed) =>
-    [
-      // v2.14-ui (01-infra 14.3): the '화면' group comes first.
-      SettingsSectionEntry(
-        id: 'app.style',
-        group: AppStrings.groupScreen,
-        title: AppStrings.sectionStyle,
-        builder: (context) => const AppStyleSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'app.brightness',
-        group: AppStrings.groupScreen,
-        title: AppStrings.sectionBrightness,
-        builder: (context) => const AppBrightnessSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'app.storage',
-        title: AppStrings.sectionStorage,
-        builder: (context) => const StorageSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'editor.input',
-        title: AppStrings.sectionInput,
-        builder: (context) => const EditorInputSettingsSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'editor.pen',
-        title: AppStrings.sectionPen,
-        builder: (context) => const EditorPenSettingsSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'editor.page',
-        group: AppStrings.groupGeneral,
-        title: AppStrings.sectionPageFlip,
-        builder: (context) => const EditorPageSettingsSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'library.newNote',
-        group: AppStrings.groupGeneral,
-        title: AppStrings.sectionNewNote,
-        builder: (context) => const LibrarySettingsSection(),
-      ),
-      ...contributed,
-      SettingsSectionEntry(
-        id: 'editor.developer',
-        title: AppStrings.sectionDeveloper,
-        builder: (context) => const EditorDeveloperSettingsSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'app.features',
-        title: AppStrings.sectionFeatures,
-        builder: (context) => const FeatureSwitchSection(),
-      ),
-      SettingsSectionEntry(
-        id: 'app.v1Copy',
-        title: AppStrings.sectionV1Copy,
-        builder: (context) => const V1CopySection(),
-      ),
-      SettingsSectionEntry(
-        id: 'app.about',
-        title: AppStrings.sectionAbout,
-        builder: (context) => const AboutSection(),
-      ),
-    ];
+List<SettingsSectionEntry> _sections(
+  List<SettingsSectionEntry> contributed, {
+  required bool developerMode,
+}) => [
+  // v2.14-ui (01-infra 14.3): the '화면' group comes first.
+  SettingsSectionEntry(
+    id: 'app.style',
+    group: AppStrings.groupScreen,
+    title: AppStrings.sectionStyle,
+    builder: (context) => const AppStyleSection(),
+  ),
+  SettingsSectionEntry(
+    id: 'app.brightness',
+    group: AppStrings.groupScreen,
+    title: AppStrings.sectionBrightness,
+    builder: (context) => const AppBrightnessSection(),
+  ),
+  SettingsSectionEntry(
+    id: 'app.storage',
+    title: AppStrings.sectionStorage,
+    builder: (context) => const StorageSection(),
+  ),
+  SettingsSectionEntry(
+    id: 'editor.input',
+    title: AppStrings.sectionInput,
+    builder: (context) => const EditorInputSettingsSection(),
+  ),
+  SettingsSectionEntry(
+    id: 'editor.pen',
+    title: AppStrings.sectionPen,
+    builder: (context) => const EditorPenSettingsSection(),
+  ),
+  SettingsSectionEntry(
+    id: 'editor.page',
+    group: AppStrings.groupGeneral,
+    title: AppStrings.sectionPageFlip,
+    builder: (context) => const EditorPageSettingsSection(),
+  ),
+  SettingsSectionEntry(
+    id: 'library.newNote',
+    group: AppStrings.groupGeneral,
+    title: AppStrings.sectionNewNote,
+    builder: (context) => const LibrarySettingsSection(),
+  ),
+  ...contributed,
+  if (developerMode) ...[
+    SettingsSectionEntry(
+      id: 'editor.developer',
+      title: AppStrings.sectionDeveloper,
+      builder: (context) => const EditorDeveloperSettingsSection(),
+    ),
+    SettingsSectionEntry(
+      id: 'app.features',
+      title: AppStrings.sectionFeatures,
+      builder: (context) => const FeatureSwitchSection(),
+    ),
+    SettingsSectionEntry(
+      id: 'app.v1Copy',
+      title: AppStrings.sectionV1Copy,
+      builder: (context) => const V1CopySection(),
+    ),
+  ],
+  SettingsSectionEntry(
+    id: 'app.about',
+    title: AppStrings.sectionAbout,
+    builder: (context) => const AboutSection(),
+  ),
+];
 
 final settingsSectionsProvider = Provider<List<SettingsSectionEntry>>(
   (ref) => defaultSettingsSections(
@@ -146,6 +156,7 @@ final settingsSectionsProvider = Provider<List<SettingsSectionEntry>>(
       for (final contribution in ref.watch(shellContributionsProvider))
         ...contribution.settingsSections,
     ],
+    developerMode: ref.watch(developerModeProvider),
   ),
   name: 'settingsSectionsProvider',
 );

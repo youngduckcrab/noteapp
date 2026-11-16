@@ -9,6 +9,7 @@ import 'package:feature_library/feature_library.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' show developerModeProvider;
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/features/feature_switch_section.dart';
 import 'package:noteapp/src/settings/about_section.dart';
@@ -17,8 +18,8 @@ import 'package:noteapp/src/settings/storage_section.dart';
 import 'package:noteapp/src/settings/v1_copy_section.dart';
 
 void main() {
-  test('production order and ids', () {
-    expect(defaultSettingsSections().map((e) => e.id), [
+  test('production order and ids (developer mode)', () {
+    expect(defaultSettingsSections(developerMode: true).map((e) => e.id), [
       // v2.14-ui: the '화면' group first.
       'app.style',
       'app.brightness',
@@ -35,7 +36,9 @@ void main() {
   });
 
   test('titles, the 화면 and 일반 groups (4.5.8 table, v2.14-ui)', () {
-    final byId = {for (final e in defaultSettingsSections()) e.id: e};
+    final byId = {
+      for (final e in defaultSettingsSections(developerMode: true)) e.id: e,
+    };
     expect(
       {for (final e in byId.values) e.id: (e.group, e.title)},
       {
@@ -61,11 +64,31 @@ void main() {
     );
   });
 
-  test('settingsSectionsProvider defaults to defaultSettingsSections()', () {
+  test('(v2.14-ui) outside developer mode: no 개발자 표시 · 기능 켜고 끄기 · '
+      '이전 판 DB 사본', () {
+    expect(defaultSettingsSections().map((e) => e.id), [
+      'app.storage',
+      'editor.input',
+      'editor.pen',
+      'editor.page',
+      'library.newNote',
+      'app.about',
+    ]);
+  });
+
+  test('settingsSectionsProvider defaults to defaultSettingsSections() and '
+      'follows developerModeProvider', () {
     final container = ProviderContainer.test();
     expect(
       container.read(settingsSectionsProvider).map((e) => e.id),
       defaultSettingsSections().map((e) => e.id),
+    );
+    final dev = ProviderContainer.test(
+      overrides: [developerModeProvider.overrideWithValue(true)],
+    );
+    expect(
+      dev.read(settingsSectionsProvider).map((e) => e.id),
+      defaultSettingsSections(developerMode: true).map((e) => e.id),
     );
   });
 
@@ -79,6 +102,7 @@ void main() {
     );
     final container = ProviderContainer.test(
       overrides: [
+        developerModeProvider.overrideWithValue(true),
         shellContributionsProvider.overrideWithValue([
           const ShellContribution(moduleId: 'media'),
           ShellContribution(
@@ -113,7 +137,8 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     final context = tester.element(find.byType(SizedBox));
     final built = {
-      for (final e in defaultSettingsSections()) e.id: e.builder(context),
+      for (final e in defaultSettingsSections(developerMode: true))
+        e.id: e.builder(context),
     };
     expect(built['app.storage'], isA<StorageSection>());
     expect(built['editor.input'], isA<EditorInputSettingsSection>());

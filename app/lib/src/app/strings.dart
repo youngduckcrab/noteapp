@@ -156,6 +156,10 @@ abstract final class AppStrings {
 
   /// AboutSection ('앱 정보').
   static const String aboutBuild = '빌드';
+
+  /// (v2.14-ui) Developer mode (7 taps on the 빌드 row).
+  static const String developerModeOn = '개발자 모드를 켰어요';
+  static const String developerModeOff = '개발자 모드를 껐어요';
   static const String aboutRenderer = '렌더러';
   static const String aboutStandalone = '홈 화면 앱';
   static const String aboutStartup = '시작 시간';

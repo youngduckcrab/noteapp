@@ -19,10 +19,14 @@ import '../providers.dart';
 import '../update/update_checker.dart';
 import 'backup_export.dart';
 import 'backup_sheet.dart';
+import 'developer_mode.dart';
 
 /// '앱 정보': build label, renderer, standalone, startup times, error count
 /// + list, "진단 정보 복사", "새 버전 확인", "백업 내보내기",
-/// "오픈소스 라이선스" (showLicensePage).
+/// "오픈소스 라이선스" (showLicensePage). (v2.14-ui, UI stage 1) The 빌드 row
+/// tapped [DeveloperModeTapCounter.tapsToToggle] times toggles developer mode
+/// (snack bar '개발자 모드를 켰어요' / '껐어요'); the renderer, standalone and
+/// startup-time rows and "진단 정보 복사" show only in developer mode.
 /// "백업 내보내기": prepareBackup() with a progress row (button disabled):
 /// spinner + '백업을 만드는 중…' + [취소]. [취소] calls
 /// BackupCancelToken.cancel() → prepareBackup returns null at once, the
@@ -50,6 +54,9 @@ class AboutSection extends ConsumerStatefulWidget {
   /// The FEATURE_* build values (tests pass other builds).
   final AppFeatures compileTime;
 
+  /// (v2.14-ui) The 빌드 row (7 taps → developer mode).
+  static const buildRowKey = ValueKey<String>('app.about.build');
+
   @override
   ConsumerState<AboutSection> createState() => _AboutSectionState();
 }
@@ -58,6 +65,8 @@ class AboutSection extends ConsumerStatefulWidget {
 const int _shownErrors = 5;
 
 class _AboutSectionState extends ConsumerState<AboutSection> {
+  final DeveloperModeTapCounter _devTaps = DeveloperModeTapCounter();
+
   AppErrorLog? _errorLog;
   bool _errorRebuildScheduled = false;
   BackupCancelToken? _backup;
@@ -130,6 +139,7 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
     }
 
     final theme = Theme.of(context);
+    final developer = ref.watch(developerModeProvider);
     final records = errorLog.records;
     final shown = records.length <= _shownErrors
         ? records
@@ -147,12 +157,24 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _InfoRow(label: AppStrings.aboutBuild, value: build.displayLabel),
-        _InfoRow(label: AppStrings.aboutRenderer, value: runtime.rendererLabel),
-        _InfoRow(
-          label: AppStrings.aboutStandalone,
-          value: runtime.isStandalone ? AppStrings.yes : AppStrings.no,
+        InkWell(
+          key: AboutSection.buildRowKey,
+          onTap: _onBuildRowTap,
+          child: _InfoRow(
+            label: AppStrings.aboutBuild,
+            value: build.displayLabel,
+          ),
         ),
+        if (developer) ...[
+          _InfoRow(
+            label: AppStrings.aboutRenderer,
+            value: runtime.rendererLabel,
+          ),
+          _InfoRow(
+            label: AppStrings.aboutStandalone,
+            value: runtime.isStandalone ? AppStrings.yes : AppStrings.no,
+          ),
+        ],
         if (pencil.isSupported)
           switch (pencil) {
             final PencilStylusExtrasSource adapter => ValueListenableBuilder(
@@ -175,16 +197,17 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
           value: appFeatureStatusLine(features),
           warn: featuresOff,
         ),
-        _InfoRow(
-          label: AppStrings.aboutStartup,
-          value: [
-            AppStrings.aboutStartupTimes(
-              report.sinceNavigationStart?.inMilliseconds,
-              report.bootstrapElapsed.inMilliseconds,
-            ),
-            if (steps.isNotEmpty) steps.join(' · '),
-          ].join('\n'),
-        ),
+        if (developer)
+          _InfoRow(
+            label: AppStrings.aboutStartup,
+            value: [
+              AppStrings.aboutStartupTimes(
+                report.sinceNavigationStart?.inMilliseconds,
+                report.bootstrapElapsed.inMilliseconds,
+              ),
+              if (steps.isNotEmpty) steps.join(' · '),
+            ].join('\n'),
+          ),
         _InfoRow(
           label: AppStrings.aboutErrors,
           value: errorLog.totalCount == 0
@@ -221,12 +244,13 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            OutlinedButton.icon(
-              key: const Key('about-copy-diagnostics'),
-              onPressed: _copyDiagnostics,
-              icon: const Icon(Icons.copy),
-              label: const Text(AppStrings.copyDiagnostics),
-            ),
+            if (developer)
+              OutlinedButton.icon(
+                key: const Key('about-copy-diagnostics'),
+                onPressed: _copyDiagnostics,
+                icon: const Icon(Icons.copy),
+                label: const Text(AppStrings.copyDiagnostics),
+              ),
             OutlinedButton.icon(
               key: const Key('about-check-update'),
               onPressed: update is UpdateDisabled || _checking
@@ -279,6 +303,24 @@ class _AboutSectionState extends ConsumerState<AboutSection> {
     started: started,
     steps: report.steps,
   );
+
+  /// (v2.14-ui) The 7th quick tap on the 빌드 row flips the stored switch.
+  Future<void> _onBuildRowTap() async {
+    if (!_devTaps.tap()) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final on = await toggleStoredDeveloperMode(
+      ref.read(settingsRepositoryProvider),
+    );
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            on ? AppStrings.developerModeOn : AppStrings.developerModeOff,
+          ),
+        ),
+      );
+  }
 
   Future<void> _copyDiagnostics() async {
     final messenger = ScaffoldMessenger.of(context);

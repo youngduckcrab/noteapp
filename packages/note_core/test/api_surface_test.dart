@@ -28,7 +28,8 @@ import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart' as testing;
 import 'package:note_core/testing_vm.dart' as testing_vm;
 import 'package:riverpod/misc.dart' show ProviderListenable, ProviderOrFamily;
-import 'package:riverpod/riverpod.dart' show AsyncValue, Provider;
+import 'package:riverpod/riverpod.dart'
+    show AsyncValue, Provider, ProviderContainer;
 import 'package:test/test.dart';
 
 import 'support/absent_names.dart';
@@ -1530,6 +1531,7 @@ void main() {
       'pageThumbnailRendererProvider': pageThumbnailRendererProvider,
       'remoteAssetFetcherProvider': remoteAssetFetcherProvider,
       'syncBadgeProvider': syncBadgeProvider,
+      'developerModeProvider': developerModeProvider, // (v2.14-ui)
       'folderTreeProvider': folderTreeProvider,
       'libraryListingProvider': libraryListingProvider,
       'noteProvider': noteProvider,
@@ -1548,7 +1550,8 @@ void main() {
       'storageInfoProvider': storageInfoProvider,
       'syncPendingCountProvider': syncPendingCountProvider,
     };
-    expect(providers, hasLength(31));
+    expect(providers, hasLength(32));
+    expect(ProviderContainer().read(developerModeProvider), isFalse);
     for (final e in providers.entries) {
       expect(
         e.value.name,

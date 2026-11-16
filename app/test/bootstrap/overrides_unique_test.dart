@@ -173,6 +173,7 @@ Set<Object> _expected({
   appFeaturesProvider,
   initialAppearanceProvider, // (v2.14-ui review)
   shellContributionsProvider,
+  developerModeProvider, // (v2.14-ui) the shell's developer mode
   noteStoreProvider,
   if (pdf) ...{
     ink.pageBackgroundBuildersProvider,

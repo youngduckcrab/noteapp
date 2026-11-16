@@ -86,7 +86,10 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.byTooltip(AppStrings.close));
+    // (v2.14-ui) ← 뒤로 (was ✕).
+    expect(find.byIcon(Icons.close), findsNothing);
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    await tester.tap(find.byTooltip(AppStrings.back));
     await tester.pump();
     expect(closed, 1);
   });
