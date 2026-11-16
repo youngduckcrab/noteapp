@@ -774,7 +774,7 @@ final class ShapeFitTuning {
     this.resampleCount = 64, this.smoothRadius = 2, this.minDiagonalLogicalPx = 24,
     this.lineMinStraightness = 0.85, this.lineMaxDeviation = 0.065,
     this.closedMaxGap = 0.2, this.minTurnDeg = 270, this.maxTurnDeg = 540,
-    this.ellipseMaxError = 0.075, this.circleMinAxisRatio = 0.86,
+    this.ellipseMaxError = 0.075, this.circleMinAxisRatio = 0.82,
     this.rdpEpsilon = 0.055, this.cornerMinTurnDeg = 28, this.minEdgeFraction = 0.08,
     this.rightAngleToleranceDeg = 16, this.polygonMaxError = 0.03,
     this.ellipseOverPolygonFactor = 0.8, this.weakCornerTriangleDeg = 55,
@@ -782,19 +782,23 @@ final class ShapeFitTuning {
     this.axisSnapDeg = 8, this.minScore = 0.0,
     // (6.17.5) 멈춤 꼬리·닫힌 고리의 회전 합·둥근 꼭짓점
     this.holdTailLogicalPx = 6, this.holdTailMaxFraction = 0.1,
-    this.maxAbsTurnDeg = 660, this.roundedCornerMaxEdge = 0.15});
+    // (6.17.5 검토 반영) 느슨한 멈춤의 두 번째 자르기·가는 상자
+    this.holdTailRetryLogicalPx = 10, this.holdTailRetryMaxFraction = 0.2,
+    this.maxAbsTurnDeg = 660, this.roundedCornerMaxEdge = 0.15,
+    this.thinBoxMaxAspect = 0.3, this.thinBoxMinEndCover = 0.6});
   final int resampleCount, smoothRadius;
   final double minDiagonalLogicalPx;        // diag(pt) × viewScale below this → null (dots, ticks)
   final double lineMinStraightness, lineMaxDeviation, closedMaxGap, minTurnDeg, maxTurnDeg,
       ellipseMaxError, circleMinAxisRatio, rdpEpsilon, cornerMinTurnDeg, minEdgeFraction,
       rightAngleToleranceDeg, polygonMaxError, ellipseOverPolygonFactor, weakCornerTriangleDeg,
       weakCornerQuadDeg, weakCornerErrorFactor, axisSnapDeg, minScore,
-      holdTailLogicalPx, holdTailMaxFraction, maxAbsTurnDeg, roundedCornerMaxEdge;
+      holdTailLogicalPx, holdTailMaxFraction, holdTailRetryLogicalPx, holdTailRetryMaxFraction,
+      maxAbsTurnDeg, roundedCornerMaxEdge, thinBoxMaxAspect, thinBoxMinEndCover;
   // ==, hashCode, copyWith
 }
 ```
 
-값의 근거와 의미는 6.17. 실기기 표본(U18)으로 다시 맞출 때 이 기본값만 바꾼다. (6.17.5) 필드 4개 추가·`circleMinAxisRatio` 0.82 → 0.86·`ellipseOverPolygonFactor` 0.35 → 0.8 — 계약 7.2.11은 필드를 적지 않으므로(`/* every threshold in one place */`) 계약 판 올림 없음.
+값의 근거와 의미는 6.17. 실기기 표본(U18)으로 다시 맞출 때 이 기본값만 바꾼다. (6.17.5) 필드 4개 추가·`circleMinAxisRatio` 0.82 → 0.86·`ellipseOverPolygonFactor` 0.35 → 0.8 — 계약 7.2.11은 필드를 적지 않으므로(`/* every threshold in one place */`) 계약 판 올림 없음. (6.17.5 검토 반영) 필드 4개 더·`circleMinAxisRatio` 0.86 → **0.82** — 공개 타입의 생성자가 바뀌므로 계약 이력 v2.13 C213-01에 적는다.
 
 #### 4.4.6 `groupIntoLines` · `HandwritingTrace` 의미
 
@@ -2225,11 +2229,11 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 
 #### 6.17.1 알고리즘 (조사 03 4.3 시제품 + 개선 — `shape_classifier.dart`)
 
-1. 점이 4개 미만이거나, 경계 대각선(pt) × `viewScale` < `minDiagonalLogicalPx`(24 logical px)면 `null`(글자·점 보호). (6.17.5) **멈춤 꼬리 자르기**: 끝의 8점 평균에서 `holdTailLogicalPx`(6 logical px ÷ `viewScale`, 대각선 × 0.1 이하) 안에 드는 뒤쪽 점들을 그 평균 한 점으로 바꾼다.
+1. 점이 4개 미만이거나, 경계 대각선(pt) × `viewScale` < `minDiagonalLogicalPx`(24 logical px)면 `null`(글자·점 보호). (6.17.5) **멈춤 꼬리 자르기**: 끝의 8점 평균에서 `holdTailLogicalPx`(6 logical px ÷ `viewScale`, 대각선 × 0.1 이하) 안에 드는 뒤쪽 점들을 그 평균 한 점으로 바꾼다. (검토 반영) 그 결과가 `null`이면 **한 번 더** `holdTailRetryLogicalPx`(10 logical px, 대각선 × 0.2 이하 — INK 멈춤 반지름 8 px + 떨림)로 잘라 판정한다(처음부터 넓게 자르면 끝 근처 윤곽까지 먹어 작은 사각형의 꼭짓점이 잘려 오각형이 됨).
 2. **평활화(개선)**: 경로 길이 기준 128점으로 재표본 → 반경 2의 이동 평균(끝점 유지) → 64점 재표본.
 3. **직선**: 현/경로 ≥ 0.85, 최대 수직 편차/현 ≤ 0.065.
 4. **닫힘**: (6.17.5) 열린 경로 회전각 ≤ 540°(두 바퀴 → `null`). 평활화한 128점에서 **닫히는 곳을 찾아 자른다** — 앞 15 %의 점 i와 뒤 40 %의 점 j 중 가장 가까운 쌍, 잘린 점이 모두 남은 고리에서 대각선 × 0.12 안일 때만(겹쳐 그림·교차 갈고리·시작 갈고리는 잘리고, 6·9의 줄기는 안 잘림). 남은 고리의 틈/경로 ≤ 0.2, **닫힌 고리**(닫는 점의 회전까지 셈)의 총 회전각 270°~540°, 회전 절댓값 합 ≤ `maxAbsTurnDeg`(660°). 고리를 64점으로 다시 재표본.
-5. **타원**: 점 공분산(PCA) → 중심·축 방향. (6.17.5) 그 축 좌표계에서 `A·u² + B·v² + D·u + E·v = 1` 최소제곱으로 반지름·중심 이동. 오차 = 점–타원 거리(`|F| ÷ |∇F|`) 평균 ÷ 반지름 평균(원이면 `|r − 1|` 평균과 같음). 축비 ≥ 0.86이면 원.
+5. **타원**: 점 공분산(PCA) → 중심·축 방향. (6.17.5) 그 축 좌표계에서 `A·u² + B·v² + D·u + E·v = 1` 최소제곱으로 반지름·중심 이동. 오차 = 점–타원 거리(`|F| ÷ |∇F|`) 평균 ÷ 반지름 평균(원이면 `|r − 1|` 평균과 같음). 축비 ≥ 0.82이면 원(검토 반영 — 0.86이면 축비 0.80~0.86의 엉성한 원이 타원이 됨).
 6. **꼭짓점**: 시작점에서 가장 먼 점으로 나눠 두 반쪽에 RDP(ε = 대각선 × 0.055) → 회전 28° 미만 꼭짓점 제거 → 둘레 8%보다 가까운 꼭짓점 병합. 다각형 오차 = 점–변 거리 평균/대각선.
 7. 타원 오차 ≤ 0.075이고 (꼭짓점 < 3 또는 > 6 또는 타원 오차 × 0.8 < 다각형 오차)면 타원(원).
 8. **약한 꼭짓점 보정(개선)**: 꼭짓점 4개 중 가장 약한 회전 < 55°이고 그것을 뺀 삼각형 오차 ≤ 사각 오차 × 1.6 → 삼각형. (6.17.5) **둥근 꼭짓점**: 직사각형이 아닌(다시 앉혀도 아닌) 꼭짓점 4개에서 둘레 × 0.15 이하인 변의 두 끝을 이웃 두 변의 연장선 교점 하나로 합친 삼각형 오차 ≤ 사각 오차 × 1.6 → 삼각형. 꼭짓점 5개 중 가장 약한 회전 < 45°이고 나머지 넷이 모두 90° ± 16°, 사각 오차 ≤ 1.6배 → 사각형(닫을 때 생긴 갈고리).
@@ -2243,8 +2247,8 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 | 원 | `ShapeKind.ellipse` | 가운데 = 중심, 반지름 = (a+b)/2, 회전 0 → `ShapeGeometry.ellipse(정사각 PageRect)` |
 | 타원 | `ShapeKind.ellipse` | 중심·a·b·각, 각이 축에서 ±8° 이내면 축에 맞춤 → `ShapeGeometry.ellipse(rect, rotation:)` |
 | 사각형 | `ShapeKind.rectangle` | 방향 = 가장 긴 변의 각(축 ±8° 이내면 축에 맞춤). (수정 2회차) **네 변의 위치 = 변 다듬기**: 그 방향으로 돌린 **원래 획 점**(재표본·평활화 전)을 꼭짓점 4개가 이루는 사각의 가장 가까운 변에 나눠 맡기고, 변마다 가운데 70 %(양 끝 15 %씩 뺌 — 모서리 둥글림·닫힘 갈고리 제외)에 드는 점의 수직 좌표 **중앙값**. 그 점이 2개 미만인 변만 꼭짓점 경계 값을 쓴다 → `ShapeGeometry.rectangle(rect, rotation:)`. 꼭짓점 경계만 쓰면 꼭짓점이 64점 재표본 위에서 찾아지고 평활화가 모서리를 깎아 사각형이 최대 재표본 간격만큼 작아진다(합성 240 × 160 pt 경로에서 9.1 pt, 흔들림·닫힘 갈고리를 넣은 손 흉내 사각형 193개에서 '네 변 중 가장 큰 오차 ÷ 짧은 변'의 중앙값 3.4 % → 변 다듬기 0.3 % — 확인함, 7.3 E-L8) |
-| 삼각형 | `ShapeKind.triangle` | 찾은 꼭짓점 3개 그대로 `PolylineGeometry(points, closed: true)`(시계 방향으로 정렬) |
-| 사각형 아닌 사각형·다각형 5~8 | `ShapeKind.polygon` | 꼭짓점 그대로 `PolylineGeometry(closed: true)` |
+| 삼각형 | `ShapeKind.triangle` | 꼭짓점 3개 → `PolylineGeometry(points, closed: true)`(시계 방향으로 정렬). (검토 반영) **꼭짓점 다듬기**(`refinePolygonCorners`): 원래 획 점을 가장 가까운 변에 나눠 맡기고 변마다 가운데 70 % 점의 최소제곱 직선을 구해, 이웃 두 변 직선의 교점을 꼭짓점으로 한다(점 2개 미만·거의 평행·짧은 변 × 0.25보다 멀리 움직이면 그대로). 64점 평활화가 꼭짓점을 깎아 삼각형이 그린 것보다 약 4 % 작게(중앙값 8 pt) 맞춰지던 것 |
+| 사각형 아닌 사각형·다각형 5~8 | `ShapeKind.polygon` | 꼭짓점 → `PolylineGeometry(closed: true)`, 삼각형과 같은 꼭짓점 다듬기 |
 
 `score` = `clamp(1 − 오차 ÷ 그 판정의 문턱, 0, 1)`. 별·화살표는 판정하지 않는다(계약 3.6). `fit`은 예외를 던지지 않는다(NaN·무한 좌표는 `null`).
 
@@ -2300,6 +2304,17 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 | 둥근 꼭짓점 합치기 | RDP가 둥근 꼭짓점을 둘로 찾아 사각 → 다각형 | 삼각형 98.9 % → 99.6 % |
 
 - **혼동 행렬 요약**(같은 모음, 앞 → 뒤): 삼각형 67.0 %(`null` 305·다각형 91) → **99.6 %**, 타원 65.2 %(원 93·`null` 126·다각형 55·삼각형 18) → **99.8 %**, 원 66.7 % → 100 %, 사각형 83.3 % → 98.8 %, 사각 아닌 사각형 81.7 % → 100 %, 다각형 73.3 %(원 63) → 99.6 %, 직선 100 % → 100 %, 글씨·낙서 그대로 96.4 %(다각형 110 — a·d·톱니 고리) → **100 %**. 시드 11~20(조정에 쓰지 않음)도 같다: 삼각형 66.8 → 99.5 %, 타원 64.0 → 99.8 %, 글씨 그대로 96.8 → 100 %.
+
+- **검토 반영**(정확성·사용자 검토, 모음에 변형 13개를 **뒤에** 더함 — 앞 변형의 획은 그대로): 엉성한 원(축비 0.83~0.9), 떨리는 고리(반지름 ±2~5 %), 가는 타원(0.1~0.3), 가는 상자(짧은 변 ÷ 긴 변 0.08~0.25, 긴 변 휨 ±1.2 %), 느슨한 멈춤(밀림 3~7 pt, 떨림 ~2 pt — INK 멈춤 반지름 8 px 안) 직선·원·타원·삼각형·사각형과 작은 것. 타원 변형의 축비 위쪽 끝은 0.85 → 0.78(0.78~0.83은 엉성한 원인지 둥근 타원인지 아무도 모르는 구간 — 묻지 않음). 시드 1~3:
+
+| 바꾼 것 | 원인 | 효과(앞 → 뒤) |
+|---|---|---|
+| `circleMinAxisRatio` 0.86 → 0.82 | 축비 0.80~0.86 손 원이 타원으로 바뀜(사용자: 원은 잘 됨) | 엉성한 원 50.0 % → 98.3 %, 타원 변형은 그대로 |
+| 가는 상자(`thinBox`) | 64점에서 짧은 변에 점 ~3개 — 평활화가 둥근 끝으로 만들어 타원·삼각형 | 가는 상자 11.7 % → 91.7 %(가는 타원 100 % 그대로, 글씨 0건) |
+| 멈춤 꼬리 두 번째 자르기 | 6 px가 멈춤 반지름 8 px보다 작아 느슨한 멈춤의 꼬리가 남음 | 느슨한 멈춤 85.8~96.7 % → 97.5~100 %, 작은 것 33.3~48.3 % → 91.7~96.7 % |
+| 삼각형·다각형 꼭짓점 다듬기 | 꼭짓점이 평활화한 고리에서 나와 안쪽으로 들어감 | 330 pt 삼각형의 꼭짓점 오차 14 pt → 2.5 pt 미만 |
+
+  종류별(앞 → 뒤): 직선 95.3 → 99.2 %, 원 81.3 → 98.5 %, 타원 93.0 → 99.5 %, 삼각형 93.3 → 99.2 %, 사각형 78.6 → 96.7 %, 사각 아닌 사각형 100 %, 다각형 99.6 %, 글씨·낙서 그대로 100 %. 받아들이지 않은 것: 떨리는 고리(±5 %)는 이 모델에서 앞·뒤 모두 100 %라 재현 안 됨(회귀 시험만 둠), 짧은 변 하나인 연·좁은 윗변 사다리꼴 → 삼각형은 의도(그 변은 둥근 꼭짓점과 구별 안 됨), 닫힌 낙서(ㅁ·집·화살촉)가 도형이 되는 것은 멈춤으로 도형을 청한 것이라 맞음. 맞춘 뒤 펜으로 조절하는 기능은 INK 트랙(계약 v2.12) — 조절은 맞춘 기하를 직접 바꾸고 `fit()`을 다시 부르지 않는다.
 
 ### 6.18 `RecognitionSettingsSection` (설정 '인식' 섹션 — `recog.settings`)
 

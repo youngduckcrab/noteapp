@@ -2399,6 +2399,14 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C29-04 | 7.2.5 검색 판정 | `SearchSource.ink` 단위만 CJK 사이 공백(검토 반영: 한글–숫자 사이 포함)을 지운 글로도 색인·판정(조각 범위 포함, 줄인 글로만 맞으면 점수 −0.1, 두 글자 이하 CJK 질의는 제외). 옛 ink 행은 저장소 열 때 한 번 ink만 재구축(kv `search.inkTermsVersion` = 2, ink 행이 없으면 바로 기록). 다른 출처 결과는 그대로 | 02-core 6.10.2 | CORE(처리됨) |
 | C29-05 | 7.2.11 recog·라이브러리 자리 | (검토 반영) `HandwritingSearchPhase.unsupported`·`LibraryInkSearchPhase.unsupported`(이 기기에서 쓸 수 없음 안내) 추가 | 05-library 6.19a | LIBRARY·INFRA(처리됨) |
 
+#### v2.13 (2026-11-16, 도형 판정 검토 반영 — 사용자 의견 '직선, 사각형과 원은 잘 되는데 삼각형, 타원은 잘 안됨')
+
+(번호: v2.12·C212-xx는 같은 날의 도형 조절 트랙이 쓴다 — 겹치지 않게 v2.13·C213-xx.) 판정만 바뀜(저장 형식·포트 변경 없음). 설계는 [05-library.md 6.17.5](05-library.md#6175-손-그림-모음과-삼각형타원-개선-사용자-의견-직선-사각형과-원은-잘-되는데-삼각형-타원은-잘-안됨).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C213-01 | 7.2.11 recog 내보내기 `ShapeFitTuning` | 선택 인자 8개 추가(기본값으로 옛 호출 그대로): `holdTailLogicalPx`(6)·`holdTailMaxFraction`(0.1)·`holdTailRetryLogicalPx`(10)·`holdTailRetryMaxFraction`(0.2)·`maxAbsTurnDeg`(660)·`roundedCornerMaxEdge`(0.15)·`thinBoxMaxAspect`(0.3)·`thinBoxMinEndCover`(0.6). 기본값 `circleMinAxisRatio` 0.82(0.86에서 되돌림)·`ellipseOverPolygonFactor` 0.8. `GeometricShapeFitter.fit`이 멈춤 꼬리를 스스로 자른다(INK 변경 없음) | 05-library 6.17.5 | LIBRARY(처리됨) |
+
 #### v2.11 (2026-11-14, 펜 종류 늘리기 — 사용자 요청 '잠금화면 앱을 만들 때 구현했던 펜들을 참고해서 구현해 볼래?')
 
 추가만(인덱스·옛 JSON 호환). 새 펜은 **움직이지 않고 결정적**이다(같은 획 → 화면·썸네일·PDF가 같은 그림, 무작위는 획(createdAt·점)에서 뽑은 씨앗으로만 — 시각·`String.hashCode` 금지). 설계는 [03-ink.md 14절](03-ink.md#14-펜-종류-늘리기-2026-11-14-계약-v211-c211-01c211-03), [04-editor.md 16절](04-editor.md#16-펜-종류-늘리기-2026-11-14-계약-v211-c211-04).

@@ -20,7 +20,7 @@ final class ShapeFitTuning {
     this.minTurnDeg = 270,
     this.maxTurnDeg = 540,
     this.ellipseMaxError = 0.075,
-    this.circleMinAxisRatio = 0.86,
+    this.circleMinAxisRatio = 0.82,
     this.rdpEpsilon = 0.055,
     this.cornerMinTurnDeg = 28,
     this.minEdgeFraction = 0.08,
@@ -34,8 +34,12 @@ final class ShapeFitTuning {
     this.minScore = 0.0,
     this.holdTailLogicalPx = 6,
     this.holdTailMaxFraction = 0.1,
+    this.holdTailRetryLogicalPx = 10,
+    this.holdTailRetryMaxFraction = 0.2,
     this.maxAbsTurnDeg = 660,
     this.roundedCornerMaxEdge = 0.15,
+    this.thinBoxMaxAspect = 0.3,
+    this.thinBoxMinEndCover = 0.6,
   });
 
   final int resampleCount, smoothRadius;
@@ -66,6 +70,13 @@ final class ShapeFitTuning {
   /// holdTailMaxFraction × the bounds diagonal)
   final double holdTailLogicalPx, holdTailMaxFraction;
 
+  /// (6.17.5, review fixes) no shape with that cut → once more with this
+  /// wider one (at most holdTailRetryMaxFraction × the diagonal): a rest as
+  /// loose as INK's hold allows (InkTuning.shapeHoldRadiusPx 8 px plus
+  /// tremor). Not the first try: a wide cut also eats outline next to the
+  /// end and can cut a corner off (a small rectangle became a pentagon)
+  final double holdTailRetryLogicalPx, holdTailRetryMaxFraction;
+
   /// (6.17.5) the closed loop's Σ|turn| above this → no shape (a scribble
   /// that happens to wind once)
   final double maxAbsTurnDeg;
@@ -73,6 +84,13 @@ final class ShapeFitTuning {
   /// (6.17.5) a 4-corner outline whose edge is at most this share of the
   /// perimeter may be a triangle with that corner rounded
   final double roundedCornerMaxEdge;
+
+  /// (review fixes) a closed outline that is no rectangle and whose box
+  /// (PCA frame, 2nd–98th percentiles) has short ÷ long ≤ thinBoxMaxAspect
+  /// is a rectangle when both ends are flat — the points near each end span
+  /// ≥ thinBoxMinEndCover of the short side — and the long sides straight
+  /// (shape_classifier.dart thinBox): a box round a heading
+  final double thinBoxMaxAspect, thinBoxMinEndCover;
 
   ShapeFitTuning copyWith({
     int? resampleCount,
@@ -98,8 +116,12 @@ final class ShapeFitTuning {
     double? minScore,
     double? holdTailLogicalPx,
     double? holdTailMaxFraction,
+    double? holdTailRetryLogicalPx,
+    double? holdTailRetryMaxFraction,
     double? maxAbsTurnDeg,
     double? roundedCornerMaxEdge,
+    double? thinBoxMaxAspect,
+    double? thinBoxMinEndCover,
   }) => ShapeFitTuning(
     resampleCount: resampleCount ?? this.resampleCount,
     smoothRadius: smoothRadius ?? this.smoothRadius,
@@ -126,8 +148,14 @@ final class ShapeFitTuning {
     minScore: minScore ?? this.minScore,
     holdTailLogicalPx: holdTailLogicalPx ?? this.holdTailLogicalPx,
     holdTailMaxFraction: holdTailMaxFraction ?? this.holdTailMaxFraction,
+    holdTailRetryLogicalPx:
+        holdTailRetryLogicalPx ?? this.holdTailRetryLogicalPx,
+    holdTailRetryMaxFraction:
+        holdTailRetryMaxFraction ?? this.holdTailRetryMaxFraction,
     maxAbsTurnDeg: maxAbsTurnDeg ?? this.maxAbsTurnDeg,
     roundedCornerMaxEdge: roundedCornerMaxEdge ?? this.roundedCornerMaxEdge,
+    thinBoxMaxAspect: thinBoxMaxAspect ?? this.thinBoxMaxAspect,
+    thinBoxMinEndCover: thinBoxMinEndCover ?? this.thinBoxMinEndCover,
   );
 
   List<Object> get _fields => [
@@ -154,8 +182,12 @@ final class ShapeFitTuning {
     minScore,
     holdTailLogicalPx,
     holdTailMaxFraction,
+    holdTailRetryLogicalPx,
+    holdTailRetryMaxFraction,
     maxAbsTurnDeg,
     roundedCornerMaxEdge,
+    thinBoxMaxAspect,
+    thinBoxMinEndCover,
   ];
 
   @override

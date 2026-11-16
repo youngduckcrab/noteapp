@@ -24,7 +24,12 @@ const List<String> _verdicts = [
 /// Measured on seeds 1–3 (6.17.5): line / circle / quad / negative 100 %,
 /// ellipse 99.8 %, triangle 99.6 %, polygon 99.6 %, rectangle 98.8 % (before
 /// the 6.17.5 changes: triangle 67.0 %, ellipse 65.2 %, circle 66.7 %,
-/// handwriting and scribbles kept 96.4 %).
+/// handwriting and scribbles kept 96.4 %). With the review-fix variants
+/// (sloppy and unsteady circles, thin ellipses and boxes, loose rests —
+/// 6.17.5 '검토 반영'): line 99.2 %, circle 98.5 %, ellipse 99.5 %, triangle
+/// 99.2 %, rectangle 96.7 %, quad 100 %, polygon 99.6 %, negative 100 %
+/// (before those fixes: 95.3 / 81.3 / 93.0 / 93.3 / 78.6 / 100 / 99.6 /
+/// 100 %).
 const Map<CorpusClass, double> kCorpusMinRecall = {
   CorpusClass.line: 0.98,
   CorpusClass.circle: 0.97,

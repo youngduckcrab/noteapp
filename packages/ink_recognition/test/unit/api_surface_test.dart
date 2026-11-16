@@ -432,8 +432,12 @@ void main() {
         t.minScore,
         t.holdTailLogicalPx,
         t.holdTailMaxFraction,
+        t.holdTailRetryLogicalPx,
+        t.holdTailRetryMaxFraction,
         t.maxAbsTurnDeg,
         t.roundedCornerMaxEdge,
+        t.thinBoxMaxAspect,
+        t.thinBoxMinEndCover,
       ];
       expect(doubles, [
         0.85,
@@ -442,7 +446,7 @@ void main() {
         270,
         540,
         0.075,
-        0.86,
+        0.82,
         0.055,
         28,
         0.08,
@@ -456,8 +460,12 @@ void main() {
         0.0,
         6,
         0.1,
+        10,
+        0.2,
         660,
         0.15,
+        0.3,
+        0.6,
       ]);
       expect(t, const ShapeFitTuning());
       expect(t.hashCode, const ShapeFitTuning().hashCode);

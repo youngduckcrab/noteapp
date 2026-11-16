@@ -5,7 +5,8 @@
 //
 //  1. (in GeometricShapeFitter) fewer than 4 points / a non-finite point /
 //     bounds diagonal × viewScale < minDiagonalLogicalPx → no shape; (6.17.5)
-//     the hold tail cut (trimHoldTail — holdTailLogicalPx);
+//     the hold tail cut (trimHoldTail — holdTailLogicalPx; no shape → once
+//     more with holdTailRetryLogicalPx);
 //  2. smoothing: 128 samples by path length → moving average of radius
 //     smoothRadius (end points kept) → resampleCount samples;
 //  3. line: chord / path ≥ lineMinStraightness and the largest distance to
@@ -35,7 +36,10 @@
 //     hook);
 //  9. 3 corners → triangle; 4 → rectangle when every angle is 90° ± the
 //     tolerance, else a quadrilateral; 5–8 → a polygon when its error ≤
-//     polygonMaxError; otherwise the ellipse when it fits, else nothing.
+//     polygonMaxError; otherwise the ellipse when it fits, else nothing;
+// 10. (review fixes) a closed outline that is not a rectangle and whose
+//     box is thin (short ÷ long ≤ thinBoxMaxAspect) with two flat ends and
+//     straight long sides on the raw points → a rectangle (thinBox).
 // Everything is deterministic; no exception for finite input.
 import 'dart:math' as math;
 import 'dart:ui' show Offset;
@@ -212,6 +216,90 @@ List<Offset> _corners(List<Offset> loop, double eps, ShapeFitTuning tuning) {
   }
   return v;
 }
+
+/// (review fixes) [raw] as a thin box, or null. In the PCA frame of [raw]
+/// resampled to kThinBoxSamples by length (no smoothing), with the 2nd and
+/// 98th percentiles as the box (a closing flick or the hold do not stretch
+/// it): short ÷ long ≤ thinBoxMaxAspect; at each end the points within
+/// 0.2 × the short side of it span ≥ thinBoxMinEndCover of the short side
+/// (a flat end — an ellipse's round end spans ≲ 0.45); and every point in
+/// the middle 70 % of the long side lies within 0.25 × the short side of the
+/// top or the bottom (two straight sides, not a lens or a zigzag). The
+/// corners are the box's.
+ShapeClassification? thinBox(List<Offset> raw, ShapeFitTuning tuning) {
+  final pts = resamplePath(raw, kThinBoxSamples);
+  var cx = 0.0, cy = 0.0;
+  for (final p in pts) {
+    cx += p.dx / pts.length;
+    cy += p.dy / pts.length;
+  }
+  var sxx = 0.0, syy = 0.0, sxy = 0.0;
+  for (final p in pts) {
+    final dx = p.dx - cx, dy = p.dy - cy;
+    sxx += dx * dx;
+    syy += dy * dy;
+    sxy += dx * dy;
+  }
+  final ang = 0.5 * math.atan2(2 * sxy, sxx - syy);
+  final c = math.cos(ang), s = math.sin(ang);
+  final us = <double>[], vs = <double>[];
+  for (final p in pts) {
+    final dx = p.dx - cx, dy = p.dy - cy;
+    us.add(dx * c + dy * s);
+    vs.add(-dx * s + dy * c);
+  }
+  // Most outlines are far from thin: out before any sorting.
+  var uMin = double.infinity, uMax = -double.infinity;
+  var vMin = double.infinity, vMax = -double.infinity;
+  for (var i = 0; i < us.length; i++) {
+    uMin = math.min(uMin, us[i]);
+    uMax = math.max(uMax, us[i]);
+    vMin = math.min(vMin, vs[i]);
+    vMax = math.max(vMax, vs[i]);
+  }
+  if (!(uMax > uMin) ||
+      (vMax - vMin) / (uMax - uMin) > 2 * tuning.thinBoxMaxAspect) {
+    return null;
+  }
+  final su = [...us]..sort(), sv = [...vs]..sort();
+  double pct(List<double> sorted, double q) =>
+      sorted[((sorted.length - 1) * q).round()];
+
+  final u0 = pct(su, 0.02), u1 = pct(su, 0.98);
+  final v0 = pct(sv, 0.02), v1 = pct(sv, 0.98);
+  final long = u1 - u0, short = v1 - v0;
+  if (!(short > 0) || !(long > 0) || short / long > tuning.thinBoxMaxAspect) {
+    return null;
+  }
+  for (final end in [u0, u1]) {
+    var lo = double.infinity, hi = -double.infinity;
+    for (var i = 0; i < pts.length; i++) {
+      if ((us[i] - end).abs() <= 0.2 * short) {
+        lo = math.min(lo, vs[i]);
+        hi = math.max(hi, vs[i]);
+      }
+    }
+    if (!((hi - lo) / short >= tuning.thinBoxMinEndCover)) return null;
+  }
+  final mid = (u0 + u1) / 2;
+  for (var i = 0; i < pts.length; i++) {
+    if ((us[i] - mid).abs() > 0.35 * long) continue;
+    final d = math.min((vs[i] - v0).abs(), (vs[i] - v1).abs());
+    if (d > 0.25 * short) return null;
+  }
+  Offset at(double u, double v) =>
+      Offset(cx + u * c - v * s, cy + u * s + v * c);
+  final corners = [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)];
+  final diag = (corners[2] - corners[0]).distance;
+  return ShapeClassification(
+    ShapeClass.rectangle,
+    vertices: corners,
+    error: _polygonError(pts, corners, diag),
+  );
+}
+
+/// thinBox: samples along the raw stroke.
+const int kThinBoxSamples = 400;
 
 double _polygonError(List<Offset> pts, List<Offset> poly, double diag) {
   var s = 0.0;
@@ -528,11 +616,22 @@ List<Offset> trimHoldTail(List<Offset> raw, double radius) {
 
 /// 6.17.1 steps 2–9 for [raw] (≥ 4 finite points, the hold tail already
 /// trimmed — trimHoldTail); null = stays ink.
+///
+/// (review fixes) A closed outline that is no rectangle is also tried as a
+/// thin box (thinBox): at 64 samples a box round a heading (short side
+/// ~ 0.1 of the long one) has ~3 samples per short side and the smoothing
+/// rounds them into a cap, so it came out an ellipse or a triangle.
 ShapeClassification? classifyShape(
   List<Offset> raw, {
   ShapeFitTuning tuning = const ShapeFitTuning(),
 }) {
   if (raw.length < 4) return null;
+  final first = _classifyPass(raw, tuning);
+  if (first == null || first.kind == ShapeClass.rectangle) return first;
+  return thinBox(raw, tuning) ?? first;
+}
+
+ShapeClassification? _classifyPass(List<Offset> raw, ShapeFitTuning tuning) {
   final smooth = _smooth(
     resamplePath(raw, kShapePreResample),
     tuning.smoothRadius,

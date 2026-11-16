@@ -11,7 +11,8 @@
 //  * edges: bowed (±4 % of the edge), a low-frequency wobble;
 //  * closing: an overshoot past the start, a crossing hook that leaves the
 //    outline, or a small gap; a start at a corner or in the middle of an edge;
-//  * ellipses: axis ratio 0.3–0.85, any rotation, egg-shaped asymmetry, a
+//  * ellipses: axis ratio 0.3–0.78 (thin ones 0.1–0.3), any rotation,
+//    egg-shaped asymmetry, a
 //    second lap a little inside / outside the first;
 //  * the hold tail: 0.5 s of samples within a pt or two of the last point
 //    (jitter and a slow drift), samples closer than 0.15 pt dropped like INK's
@@ -96,27 +97,27 @@ final class HandDrawnCorpus {
     _Variant(
       CorpusClass.ellipse,
       'ellipse/round',
-      (g) => g._ellipse(0.7, 0.85),
+      (g) => g._ellipse(0.7, 0.78),
     ),
     _Variant(
       CorpusClass.ellipse,
       'ellipse/overlap',
-      (g) => g._ellipse(0.3, 0.85, overlap: true),
+      (g) => g._ellipse(0.3, 0.78, overlap: true),
     ),
     _Variant(
       CorpusClass.ellipse,
       'ellipse/egg',
-      (g) => g._ellipse(0.35, 0.8, egg: true),
+      (g) => g._ellipse(0.35, 0.78, egg: true),
     ),
     _Variant(
       CorpusClass.ellipse,
       'ellipse/fast',
-      (g) => g._ellipse(0.3, 0.85, speed: _Speed.fast),
+      (g) => g._ellipse(0.3, 0.78, speed: _Speed.fast),
     ),
     _Variant(
       CorpusClass.ellipse,
       'ellipse/small',
-      (g) => g._ellipse(0.35, 0.8, aMin: 18, aMax: 35),
+      (g) => g._ellipse(0.35, 0.78, aMin: 18, aMax: 35),
     ),
     // ---- triangles
     for (final kind in _TriangleKind.values)
@@ -211,7 +212,81 @@ final class HandDrawnCorpus {
         'negative/${h.name}',
         (g) => g._handwriting(h),
       ),
+    // ---- (review fixes) appended so the strokes above stay the same.
+    // Circles are 0.83–1.0 and ellipses ≤ 0.78: the band in between is a
+    // sloppy circle or a round ellipse — no one can tell, so no variant
+    // asks (circleMinAxisRatio 0.82 sits in it). Loose rests drift 3–7 pt
+    // with up to 2 pt of tremor (InkTuning.shapeHoldRadiusPx is 8 px).
+    _Variant(CorpusClass.circle, 'circle/sloppy', (g) => g._ellipse(0.83, 0.9)),
+    _Variant(
+      CorpusClass.circle,
+      'circle/shaky',
+      (g) => g._ellipse(0.9, 1.0, ringJitter: g._u(0.02, 0.05)),
+    ),
+    _Variant(
+      CorpusClass.ellipse,
+      'ellipse/thin',
+      (g) => g._ellipse(0.1, 0.3, aMin: 80, aMax: 200),
+    ),
+    _Variant(
+      CorpusClass.rectangle,
+      'rectangle/thin',
+      // A box round a heading: its long edges bow ±1.2 % (≤ 4 pt), not the
+      // ±4 % of the other outlines (12 pt on a 30 pt high box is a lens).
+      (g) => g._polygon(
+        g._rect(rotated: g._p(0.5), aspectMin: 0.08, aspectMax: 0.25),
+        bowMax: 0.012,
+      ),
+    ),
+    for (final c in [
+      CorpusClass.line,
+      CorpusClass.circle,
+      CorpusClass.ellipse,
+      CorpusClass.triangle,
+      CorpusClass.rectangle,
+    ])
+      _Variant(c, '${c.name}/shakyHold', (g) {
+        g._shakyHold = true;
+        try {
+          return switch (c) {
+            CorpusClass.line => g._line(),
+            CorpusClass.circle => g._ellipse(0.9, 1.0),
+            CorpusClass.ellipse => g._ellipse(0.3, 0.75),
+            CorpusClass.triangle => g._polygon(
+              g._triangle(g._pick(_TriangleKind.values)),
+            ),
+            _ => g._polygon(g._rect(rotated: g._p(0.5))),
+          };
+        } finally {
+          g._shakyHold = false;
+        }
+      }),
+    for (final c in [
+      CorpusClass.circle,
+      CorpusClass.ellipse,
+      CorpusClass.triangle,
+      CorpusClass.rectangle,
+    ])
+      _Variant(c, '${c.name}/smallShakyHold', (g) {
+        g._shakyHold = true;
+        try {
+          return switch (c) {
+            CorpusClass.circle => g._ellipse(0.9, 1.0, aMin: 18, aMax: 30),
+            CorpusClass.ellipse => g._ellipse(0.35, 0.7, aMin: 22, aMax: 35),
+            CorpusClass.triangle => g._polygon(
+              g._small(g._triangle(g._pick(_TriangleKind.values)), 40, 70),
+            ),
+            _ => g._polygon(g._small(g._rect(rotated: false), 40, 70)),
+          };
+        } finally {
+          g._shakyHold = false;
+        }
+      }),
   ];
+
+  /// (review fixes) the hold as loose as InkTuning.shapeHoldRadiusPx (8 px)
+  /// lets it: a drift of 3–7 pt and a tremor of up to 2 pt.
+  bool _shakyHold = false;
 
   // ---------------------------------------------------------------- outlines
 
@@ -240,8 +315,12 @@ final class HandDrawnCorpus {
     return _place(v, _u(0, 2 * math.pi));
   }
 
-  List<Offset> _rect({required bool rotated}) {
-    final w = _u(80, 320), h = w * _u(0.3, 1.0);
+  List<Offset> _rect({
+    required bool rotated,
+    double aspectMin = 0.3,
+    double aspectMax = 1.0,
+  }) {
+    final w = _u(80, 320), h = w * _u(aspectMin, aspectMax);
     final v = _p(0.5)
         ? [Offset.zero, Offset(w, 0), Offset(w, h), Offset(0, h)]
         : [Offset.zero, Offset(h, 0), Offset(h, w), Offset(0, w)];
@@ -355,6 +434,7 @@ final class HandDrawnCorpus {
     _Speed? speed,
     double aMin = 45,
     double aMax = 170,
+    double ringJitter = 0,
   }) {
     final a = _u(aMin, aMax), b = a * _u(rMin, rMax);
     final rot = _u(0, math.pi);
@@ -365,13 +445,25 @@ final class HandDrawnCorpus {
     final spiral = _u(-0.04, 0.04); // the second lap inside / outside
     final eggK = egg ? _u(0.08, 0.18) : _u(0, 0.04);
     final c = math.cos(rot), s = math.sin(rot);
+    // An unsteady hand: the radius off by ±ringJitter at 40 points round
+    // the lap, straight between them.
+    final jitter = ringJitter > 0
+        ? [for (var k = 0; k < 40; k++) _u(-ringJitter, ringJitter)]
+        : const <double>[];
+    double ring(double t) {
+      if (jitter.isEmpty) return 1;
+      final x = (t % 1) * 40, k = x.floor() % 40, f = x - x.floor();
+      final w = f;
+      return 1 + jitter[k] * (1 - w) + jitter[(k + 1) % 40] * w;
+    }
+
     const n = 400;
     final path = <Offset>[
       for (var i = 0; i <= n; i++)
         () {
           final t = laps * i / n;
           final th = start + dir * 2 * math.pi * t;
-          final grow = 1 + spiral * t;
+          final grow = (1 + spiral * t) * ring(t);
           final x = a * math.cos(th) * grow;
           final y = b * math.sin(th) * grow * (1 + eggK * math.cos(th));
           return Offset(500 + x * c - y * s, 500 + x * s + y * c);
@@ -392,6 +484,7 @@ final class HandDrawnCorpus {
     List<Offset> v, {
     double roundMin = 0,
     double roundMax = 0.14,
+    double bowMax = 0.04,
     _Start? start,
     _Closing? closing,
     _Speed? speed,
@@ -413,7 +506,7 @@ final class HandDrawnCorpus {
               (v[(i + 1) % n] - v[i]).distance,
             ),
     ];
-    final bows = [for (var i = 0; i < n; i++) _u(-0.04, 0.04)];
+    final bows = [for (var i = 0; i < n; i++) _u(-bowMax, bowMax)];
     final loop = <Offset>[];
     final cornerIdx = <int>[];
     for (var i = 0; i < n; i++) {
@@ -896,8 +989,11 @@ final class HandDrawnCorpus {
     }
     // The hold: 0.5 s of the pen resting (tremor + a slow drift).
     final holdN = (0.5 * hz).round();
-    final drift = Offset.fromDirection(_u(0, 2 * math.pi), _u(0, 2));
-    final tremor = _u(0.15, 0.8);
+    final drift = Offset.fromDirection(
+      _u(0, 2 * math.pi),
+      _shakyHold ? _u(3, 7) : _u(0, 2),
+    );
+    final tremor = _shakyHold ? _u(0.8, 2) : _u(0.15, 0.8);
     final end = out.last;
     for (var k = 1; k <= holdN; k++) {
       out.add(end + drift * (k / holdN) + Offset(_gauss(), _gauss()) * tremor);

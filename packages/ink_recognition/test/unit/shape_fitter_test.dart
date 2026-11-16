@@ -155,6 +155,173 @@ void main() {
     });
   });
 
+  group('6.17.5 review fixes', () {
+    /// An ellipse a × b turned by [rot], [n] samples over [laps], then a
+    /// rest of [hold] samples drifting by [drift] with ±[tremor] pt.
+    List<Offset> ellipse(
+      double a,
+      double b, {
+      double rot = 0.4,
+      int n = 240,
+      double laps = 1.04,
+      double Function(double t)? radius,
+      int hold = 0,
+      Offset drift = Offset.zero,
+      double tremor = 0,
+    }) {
+      final c = math.cos(rot), s = math.sin(rot);
+      final pts = <Offset>[
+        for (var i = 0; i <= n; i++)
+          () {
+            final t = laps * i / n;
+            final k = radius?.call(t) ?? 1;
+            final x = a * k * math.cos(2 * math.pi * t);
+            final y = b * k * math.sin(2 * math.pi * t);
+            return Offset(400 + x * c - y * s, 400 + x * s + y * c);
+          }(),
+      ];
+      return _rest(pts, hold, drift, tremor);
+    }
+
+    test('a sloppy circle (axis ratio 0.85) stays a circle; 0.75 is an '
+        'ellipse (circleMinAxisRatio 0.82)', () {
+      expect(verdictOf(fitter.fit(ellipse(120, 102), viewScale: 1)), 'circle');
+      expect(verdictOf(fitter.fit(ellipse(120, 90), viewScale: 1)), 'ellipse');
+    });
+
+    test('a thin box (aspect 0.1–0.2, any turn) is a rectangle; a thin '
+        'ellipse stays an ellipse', () {
+      for (final (w, h, rot) in [
+        (300.0, 30.0, 0.0),
+        (300.0, 20.0, 0.0),
+        (260.0, 40.0, 0.5),
+        (320.0, 36.0, -0.3),
+      ]) {
+        final c = math.cos(rot), s = math.sin(rot);
+        final v = [
+          for (final p in [
+            Offset(-w / 2, -h / 2),
+            Offset(w / 2, -h / 2),
+            Offset(w / 2, h / 2),
+            Offset(-w / 2, h / 2),
+          ])
+            Offset(400 + p.dx * c - p.dy * s, 400 + p.dx * s + p.dy * c),
+        ];
+        // Start in the middle of the top edge, 30 samples per 100 pt.
+        final pts = <Offset>[];
+        final path = [(v[0] + v[1]) / 2, v[1], v[2], v[3], v[0]];
+        path.add(path.first);
+        for (var i = 1; i < path.length; i++) {
+          final m = ((path[i] - path[i - 1]).distance * 0.3).ceil();
+          for (var k = 0; k < m; k++) {
+            pts.add(Offset.lerp(path[i - 1], path[i], k / m)!);
+          }
+        }
+        pts.add(path.last);
+        final fit = fitter.fit(pts, viewScale: 1);
+        expect(fit?.kind, core.ShapeKind.rectangle, reason: '$w×$h@$rot');
+        final q = (fit!.geometry as core.PolylineGeometry).points;
+        final sides = [
+          for (var i = 0; i < 4; i++)
+            (Offset(q[i].x, q[i].y) -
+                    Offset(q[(i + 1) % 4].x, q[(i + 1) % 4].y))
+                .distance,
+        ]..sort();
+        expect(sides.last, closeTo(w, 3), reason: '$w×$h@$rot');
+        expect(sides.first, closeTo(h, 3), reason: '$w×$h@$rot');
+      }
+      for (final r in [0.1, 0.15, 0.25]) {
+        expect(
+          verdictOf(fitter.fit(ellipse(150, 150 * r), viewScale: 1)),
+          'ellipse',
+          reason: 'ratio $r',
+        );
+      }
+    });
+
+    test('a loose rest (a 6 pt drift, ±1.5 pt tremor — inside the 8 px '
+        'hold radius) does not stop small or large shapes', () {
+      const tri = [Offset(400, 370), Offset(430, 420), Offset(370, 420)];
+      List<Offset> closed(List<Offset> v, int per) => [
+        for (var i = 0; i < v.length; i++)
+          for (var k = 0; k < per; k++)
+            Offset.lerp(v[i], v[(i + 1) % v.length], k / per)!,
+        v.first,
+      ];
+      for (final d in [
+        const Offset(6, 0),
+        const Offset(-4, 4),
+        const Offset(0, -6),
+      ]) {
+        expect(
+          fitter.fit(_rest(closed(tri, 30), 120, d, 1.5), viewScale: 1)?.kind,
+          core.ShapeKind.triangle,
+          reason: 'small triangle, drift $d',
+        );
+        expect(
+          verdictOf(
+            fitter.fit(
+              ellipse(18, 12, hold: 120, drift: d, tremor: 1.5),
+              viewScale: 1,
+            ),
+          ),
+          'ellipse',
+          reason: 'small ellipse, drift $d',
+        );
+        expect(
+          fitter
+              .fit(
+                _rest(
+                  [for (var i = 0; i <= 200; i++) Offset(100 + i * 1.5, 300)],
+                  120,
+                  d,
+                  1.5,
+                ),
+                viewScale: 1,
+              )
+              ?.kind,
+          core.ShapeKind.line,
+          reason: 'line, drift $d',
+        );
+      }
+    });
+
+    test('triangle corners stay under the pen (not ~4 % inside)', () {
+      const v = [Offset(400, 150), Offset(560, 430), Offset(230, 410)];
+      final pts = <Offset>[
+        for (var i = 0; i < 3; i++)
+          for (var k = 0; k < 80; k++)
+            Offset.lerp(v[i], v[(i + 1) % 3], k / 80)! +
+                Offset(math.sin(i * 80 + k) * 0.8, math.cos(k * 1.7) * 0.8),
+        v.first,
+      ];
+      final fit = fitter.fit(pts, viewScale: 1)!;
+      expect(fit.kind, core.ShapeKind.triangle);
+      final corners = (fit.geometry as core.PolylineGeometry).points;
+      for (final c in v) {
+        final nearest = corners
+            .map((p) => (Offset(p.x, p.y) - c).distance)
+            .reduce(math.min);
+        // Before: the first corner sat 14 pt inside.
+        expect(nearest, lessThan(2.5), reason: '$c');
+      }
+    });
+
+    test('an unsteady ring (radius off by ±5 % at 40 points) is a circle', () {
+      final rng = math.Random(5);
+      final j = [for (var k = 0; k < 40; k++) rng.nextDouble() * 0.1 - 0.05];
+      double radius(double t) {
+        final x = (t % 1) * 40, k = x.floor() % 40, f = x - x.floor();
+        return 1 + j[k] * (1 - f) + j[(k + 1) % 40] * f;
+      }
+
+      expect(
+        verdictOf(fitter.fit(ellipse(110, 110, radius: radius), viewScale: 1)),
+        'circle',
+      );
+    });
+  });
+
   test('one fit ≤ 0.5 ms (6.24 — VM median, recorded)', () {
     final gen = SyntheticShapeGenerator(20261105);
     final strokes = [
@@ -179,4 +346,17 @@ void main() {
     print('fit median $median µs, max ${times.last} µs (${times.length})');
     expect(median, lessThan(1500)); // 3× the 0.5 ms target (shared machine)
   });
+}
+
+/// [pts] then [hold] samples resting at its end: a drift of [drift] over the
+/// rest and a deterministic tremor of ±[tremor] pt.
+List<Offset> _rest(List<Offset> pts, int hold, Offset drift, double tremor) {
+  final end = pts.last;
+  return [
+    ...pts,
+    for (var k = 1; k <= hold; k++)
+      end +
+          drift * (k / hold) +
+          Offset(math.sin(k * 2.3) * tremor, math.cos(k * 1.9) * tremor),
+  ];
 }

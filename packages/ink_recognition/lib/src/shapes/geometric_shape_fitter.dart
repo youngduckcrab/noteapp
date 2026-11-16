@@ -44,15 +44,29 @@ final class GeometricShapeFitter implements ink.InkShapeFitter {
     final diagonal = Offset(maxX - minX, maxY - minY).distance;
     if (diagonal * viewScale < tuning.minDiagonalLogicalPx) return null;
     try {
-      // 6.17.5: the ~500 ms the pen rested before INK asked.
-      final stroke = trimHoldTail(
+      // 6.17.5: the ~500 ms the pen rested before INK asked — a tight cut
+      // first, then (review fixes) a wider one for a loose rest.
+      var stroke = trimHoldTail(
         points,
         math.min(
           tuning.holdTailLogicalPx / viewScale,
           tuning.holdTailMaxFraction * diagonal,
         ),
       );
-      final c = classifyShape(stroke, tuning: tuning);
+      var c = classifyShape(stroke, tuning: tuning);
+      if (c == null) {
+        final wide = trimHoldTail(
+          points,
+          math.min(
+            tuning.holdTailRetryLogicalPx / viewScale,
+            tuning.holdTailRetryMaxFraction * diagonal,
+          ),
+        );
+        if (wide.length < stroke.length) {
+          stroke = wide;
+          c = classifyShape(stroke, tuning: tuning);
+        }
+      }
       if (c == null) return null;
       final fit = beautifyShape(c, stroke, tuning);
       return fit.score < tuning.minScore ? null : fit;
