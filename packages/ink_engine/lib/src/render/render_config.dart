@@ -18,7 +18,7 @@ final class InkRenderConfig {
     this.maxAppendedPictures = 16,
     this.pendingCommitTimeoutMs = 3000,
     this.imageCacheBytes,
-    this.mathRasterCacheBytes = 8 * 1024 * 1024,
+    this.mathRasterCacheBytes = 24 * 1024 * 1024,
   });
 
   /// Native (iPad / Android app): chunk 256 pt → tiles ≤ 1024 px, outline 64 MB, raster 128 MB.
@@ -29,6 +29,7 @@ final class InkRenderConfig {
     chunkSizePt: 128,
     rasterBudgetBytes: 96 * 1024 * 1024,
     outlineBudgetBytes: 32 * 1024 * 1024,
+    mathRasterCacheBytes: 8 * 1024 * 1024,
   );
 
   /// webDefaults when bool.fromEnvironment('dart.library.js_interop'), else nativeDefaults.
@@ -57,7 +58,9 @@ final class InkRenderConfig {
   /// A value → an own ledger of that size (tests, or a native override).
   final int? imageCacheBytes;
 
-  /// 8 MiB on both platforms (7.4.5)
+  /// (v2.15-math) 24 MiB native (one formula raster can be 4 Mpx = 16 MiB — a big
+  /// formula did not fit in 8 MiB and was drawn from a lower bucket, blurry), 8 MiB on
+  /// the web ([webDefaults], 7.4.5 — the iPad Safari total stays 136 MiB).
   final int mathRasterCacheBytes;
 
   /// (v2.1) copyWith cannot clear [imageCacheBytes] back to null; pass

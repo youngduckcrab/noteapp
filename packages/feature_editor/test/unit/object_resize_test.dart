@@ -420,6 +420,71 @@ void main() {
     });
   });
 
+  group('(math resize fix) a formula corner drag', () {
+    final m0 = PageObjectFixtures.math(pageId: 'p'); // 100 × 50 pt, 18 pt
+    core.MathObject drag(ink.SelectionHandle h, Offset d) =>
+        ObjectResize.resize(m0, h, d, keepAspect: true)! as core.MathObject;
+
+    test('keeps the aspect for any drag direction; the font size scales with '
+        'the frame (frame ÷ font size unchanged)', () {
+      for (final (h, d) in const [
+        (ink.SelectionHandle.bottomRight, Offset(300, 10)), // wide
+        (ink.SelectionHandle.bottomRight, Offset(5, 200)), // tall
+        (ink.SelectionHandle.topLeft, Offset(30, 30)), // smaller
+        (ink.SelectionHandle.topRight, Offset(80, -20)),
+        (ink.SelectionHandle.bottomLeft, Offset(-40, 0)),
+      ]) {
+        final m = drag(h, d);
+        final r = m.frame.rect;
+        expect(r.width / r.height, closeTo(2, 1e-9), reason: '$h $d');
+        expect(
+          r.width / m.style.fontSizePt,
+          closeTo(100 / 18, 1e-9),
+          reason: '$h $d',
+        );
+      }
+    });
+
+    test('stops where the font size stops (144 / 6 pt) — the opposite '
+        'corner stays put', () {
+      final big = drag(
+        ink.SelectionHandle.bottomRight,
+        const Offset(5000, 5000),
+      );
+      expect(big.style.fontSizePt, closeTo(144, 1e-9));
+      expect(big.frame.rect.width, closeTo(800, 1e-6), reason: '× 8');
+      expect(big.frame.rect.left, closeTo(100, 1e-9));
+      expect(big.frame.rect.top, closeTo(600, 1e-9));
+      final small = drag(ink.SelectionHandle.topLeft, const Offset(95, 45));
+      expect(small.style.fontSizePt, closeTo(6, 1e-9));
+      expect(small.frame.rect.width, closeTo(100 / 3, 1e-6), reason: '× ⅓');
+      expect(small.frame.rect.right, closeTo(200, 1e-9));
+      expect(small.frame.rect.bottom, closeTo(650, 1e-9));
+      expect(ObjectResize.scaleRangeOf(m0), (min: 1 / 3, max: 8.0));
+      expect(
+        ObjectResize.scaleRangeOf(PageObjectFixtures.textBox(pageId: 'p')),
+        (min: 0.0, max: double.infinity),
+      );
+    });
+
+    test('the preview transform is the same clamped scale (cornerScale with '
+        'scaleRangeOf)', () {
+      final range = ObjectResize.scaleRangeOf(m0);
+      final t = ObjectResize.cornerScale(
+        m0.frame,
+        ink.SelectionHandle.bottomRight,
+        const Offset(5000, 5000),
+        minScale: range.min,
+        maxScale: range.max,
+      );
+      expect(t.uniformScale, closeTo(8, 1e-9));
+      expect(
+        (m0.transformed(t) as core.MathObject).frame,
+        drag(ink.SelectionHandle.bottomRight, const Offset(5000, 5000)).frame,
+      );
+    });
+  });
+
   group('resizeTextWidth · withMeasuredHeight (E2-08)', () {
     test('the width follows the side, at least 40 pt; the other side, the '
         'height and the text stay', () {

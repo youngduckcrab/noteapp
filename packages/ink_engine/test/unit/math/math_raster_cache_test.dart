@@ -236,4 +236,91 @@ void main() {
     expect(rasterizer.calls, hasLength(1));
     expect(cache.stats.rasters, 0);
   });
+
+  group('(math resize fix) a resized formula', () {
+    MathFormula sized(double pt) =>
+        (latex: 'x^2', colorArgb: 0xFF000000, fontSizePt: pt);
+    MathRaster? peekAt(double pt, {double scale = 2}) =>
+        cache.peek(sized(pt), deviceScale: scale, framePt: _frame, nowUs: 0);
+
+    test('draws the raster of its old font size until its own arrives — '
+        'never the empty placeholder', () async {
+      cache = make(1 << 20);
+      peekAt(18);
+      await settle();
+      final old = peekAt(18)!;
+      final bigger = peekAt(36);
+      expect(identical(bigger, old), isTrue, reason: 'the 18 pt raster');
+      expect(rasterizer.calls, hasLength(2), reason: '36 pt is asked');
+      await settle();
+      final own = peekAt(36)!;
+      expect(own.key.formula.fontSizePt, 36);
+    });
+
+    test('a resize drag rasterizes one size at a time and the last size '
+        'asked next — not every intermediate one', () async {
+      final asked = <double>[];
+      cache = MathRasterCache(
+        budgetBytes: 1 << 20,
+        rasterizer: (f, k) {
+          asked.add(f.fontSizePt);
+          return rasterizer.call(f, k);
+        },
+      );
+      sub = cache.changes.listen(changes.add);
+      peekAt(18);
+      await settle();
+      // the drag: a new font size on every move, all while 20 is in flight
+      for (final pt in [20.0, 22.0, 24.0, 26.0, 28.0, 30.0]) {
+        expect(peekAt(pt), isNotNull, reason: 'the 18 pt raster meanwhile');
+      }
+      expect(asked, [18, 20], reason: 'one request in flight per formula');
+      expect(cache.stats.queued, 1);
+      await settle();
+      expect(asked, [18, 20, 30], reason: 'the latest size is asked next');
+      await settle();
+      expect(peekAt(30)!.key.formula.fontSizePt, 30);
+      // the sizes nobody asked again were told to ask again, not rasterized
+      final told = {for (final c in changes) c.formula.fontSizePt};
+      expect(told, containsAll(<double>[22, 24, 26, 28]));
+      expect(asked, [18, 20, 30]);
+      expect(cache.stats.downgraded, 0, reason: 'no queue of reservations');
+    });
+
+    test('the sizes a drag went past (drawn by no chunk) stop holding the '
+        'budget, so the final size keeps its bucket', () async {
+      cache = make(50000); // 20,000 B per raster at bucket 2
+      for (final pt in [20.0, 22.0, 24.0, 26.0]) {
+        peekAt(pt); // only the live layer draws them: never pinned
+        await settle();
+      }
+      peekAt(30);
+      await settle();
+      final last = peekAt(30)!;
+      expect(last.key.formula.fontSizePt, 30);
+      expect(last.bucket, 2, reason: 'not lowered by the fresh drag sizes');
+      expect(cache.stats.downgraded, 0);
+      expect(cache.stats.bytes, lessThanOrEqualTo(50000));
+    });
+
+    test('the sharpest raster of the family is drawn meanwhile', () async {
+      cache = make(1 << 20);
+      peekAt(18);
+      await settle();
+      peekAt(36);
+      await settle();
+      // 30 pt at bucket 2: 18 pt gives 1.2 px per pt, 36 pt gives 2.4
+      expect(peekAt(30)!.key.formula.fontSizePt, 36);
+      // another formula or another color is never borrowed
+      expect(
+        cache.peek(
+          (latex: 'x^2', colorArgb: 0xFFFF0000, fontSizePt: 30),
+          deviceScale: 2,
+          framePt: _frame,
+          nowUs: 0,
+        ),
+        isNull,
+      );
+    });
+  });
 }

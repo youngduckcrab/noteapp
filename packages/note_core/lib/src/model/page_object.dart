@@ -51,7 +51,8 @@ sealed class PageObject extends PageElement {
   ///   ShapeObject: style.strokeWidth × s clamped [0.1, 30] when [scaleWidth];
   ///   TextBoxObject: style.fontSizePt × s clamped [6, 144] (CP-2 — wrap width and text scale
   ///   together, so the frame height still fits; K-6);
-  ///   MathObject: style.fontSizePt × s clamped [6, 144]; ImageObject: frame only;
+  ///   MathObject: style.fontSizePt × s clamped [6, 144] — (v2.15-math) the frame and ink
+  ///   stop with it when it is clamped (MathObject.transformed); ImageObject: frame only;
   ///   UnknownObject: returns itself unchanged.
   PageObject transformed(Affine2 m, {bool scaleWidth = true});
 

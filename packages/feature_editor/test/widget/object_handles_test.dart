@@ -439,6 +439,48 @@ void main() {
     expect(o2.y, closeTo(o.y, 1e-6));
   });
 
+  for (final (label, by, font) in const [
+    ('bigger', Offset(2000, 2000), 144.0),
+    ('smaller', Offset(-2000, -2000), 6.0),
+  ]) {
+    testWidgets('(math resize fix) a formula corner dragged far $label: ONE '
+        'TransformElements, the font size stops at $font pt and the frame '
+        'with it (aspect kept, opposite corner kept); undo / redo exact', (
+      tester,
+    ) async {
+      final h = await _pump(tester, objects: [_math]);
+      await _select(tester, h, {_math.id});
+      final from = _at(h, ink.SelectionHandle.bottomRight);
+      await _drag(tester, h, from, by);
+      await h.driver.up(1);
+      await tester.pump();
+
+      expect(_edits(h), ['execute:transform']);
+      final m = _page(h).objectById(_math.id)! as core.MathObject;
+      expect(m.style.fontSizePt, closeTo(font, 1e-6));
+      final r = m.frame.rect, r0 = _math.frame.rect;
+      expect(r.width / r.height, closeTo(r0.width / r0.height, 1e-6));
+      expect(
+        r.width / m.style.fontSizePt,
+        closeTo(r0.width / _math.style.fontSizePt, 1e-6),
+        reason: 'the frame is the laid-out size at the new font size',
+      );
+      expect(r.left, closeTo(r0.left, 1e-6));
+      expect(r.top, closeTo(r0.top, 1e-6));
+
+      await h.session.undo();
+      await tester.pump();
+      final back = _page(h).objectById(_math.id)! as core.MathObject;
+      expect(back.frame, _math.frame);
+      expect(back.style, _math.style);
+      await h.session.redo();
+      await tester.pump();
+      final again = _page(h).objectById(_math.id)! as core.MathObject;
+      expect(again.frame, m.frame);
+      expect(again.style, m.style);
+    });
+  }
+
   testWidgets('the object deleted elsewhere during an edge drag: the end '
       'sends no command, no snackbar, no FlutterError report, the preview '
       'cleared, the selection dropped (review S-1)', (tester) async {

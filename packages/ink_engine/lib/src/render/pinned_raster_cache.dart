@@ -175,6 +175,16 @@ final class PinnedRasterCache<K extends Object, V extends Object>
     });
   }
 
+  /// (math resize fix) [key] arrived but nobody will draw it (a size a resize drag went
+  /// past): it stops being 'fresh' and may be evicted like an entry drawn before. No-op
+  /// for an entry drawn already or not there.
+  void markStale(K key) {
+    final e = _entries[key];
+    if (e == null || e.drawn) return;
+    e.drawn = true;
+    _freshBytes -= e.bytes;
+  }
+
   /// Removes and disposes [key] when it is not pinned; true when it was removed.
   bool remove(K key) {
     final e = _entries[key];

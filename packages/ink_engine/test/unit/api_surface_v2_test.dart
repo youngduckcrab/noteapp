@@ -336,10 +336,12 @@ void main() {
     final int mathBytes = config.mathRasterCacheBytes;
     expect([imageBytes, mathBytes], [7, 9]);
     expect(InkRenderConfig.nativeDefaults.imageCacheBytes, isNull);
+    // (v2.15-math) 24 MiB native — a 4 Mpx formula raster fits whole; web 8 MiB
     expect(
       InkRenderConfig.nativeDefaults.mathRasterCacheBytes,
-      8 * 1024 * 1024,
+      24 * 1024 * 1024,
     );
+    expect(InkRenderConfig.webDefaults.mathRasterCacheBytes, 8 * 1024 * 1024);
   });
 
   test('7.2.9 vector export v2', () {

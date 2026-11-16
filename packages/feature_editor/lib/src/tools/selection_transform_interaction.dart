@@ -186,12 +186,15 @@ final class SelectionTransformInteraction extends ToolInteraction {
       final single = _single;
       if (single != null) {
         final min = ObjectResize.minimumOf(single);
+        final range = ObjectResize.scaleRangeOf(single);
         t = ObjectResize.cornerScale(
           single.frame,
           h.resize!,
           delta,
           minWidth: min.width,
           minHeight: min.height,
+          minScale: range.min,
+          maxScale: range.max,
         );
       } else {
         t = ink.SelectionGeometry.resize(
