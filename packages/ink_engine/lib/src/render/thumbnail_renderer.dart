@@ -266,8 +266,9 @@ final class _ThumbnailObjects {
 
   MathRaster? mathRasterOf(core.MathObject o) => _maths[o.id];
 
-  /// The decode of [o] at its thumbnail size; false when its bytes are missing or do not
-  /// decode.
+  /// The decode of [o] at its thumbnail size; false when its bytes are missing
+  /// (they may still arrive). (v2.13-thumbs) Bytes that do not decode or no
+  /// store are never tried again: true — the placeholder, like the screen.
   Future<bool> loadImage(
     InkImageCache cache,
     core.ImageObject o,
@@ -281,7 +282,13 @@ final class _ThumbnailObjects {
       pixelWidth: o.pixelWidth,
       pixelHeight: o.pixelHeight,
     );
-    if (entry == null) return false;
+    if (entry == null) {
+      if (cache.isDisposed) return false;
+      return switch (cache.statusOf(o.assetId)) {
+        InkImageStatus.failed || InkImageStatus.storeUnavailable => true,
+        InkImageStatus.ok || InkImageStatus.missing => false,
+      };
+    }
     if (_released || cache.isDisposed) return true;
     _images[o.id]?.pin.release();
     _images[o.id] = (

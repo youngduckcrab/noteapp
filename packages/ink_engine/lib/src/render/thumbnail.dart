@@ -322,8 +322,11 @@ class _InkPageThumbnailState extends State<InkPageThumbnail> {
             images[o.id] = image;
             pins.add(cache.pin(o.assetId, found.bucket));
           }
+          // (v2.13-thumbs) `missing` (no bytes on the device yet) is watched
+          // too: the cache reports their arrival (bytesArrived) as a change
           if ((image == null || found.bucket != found.want) &&
-              found.status == InkImageStatus.ok) {
+              (found.status == InkImageStatus.ok ||
+                  found.status == InkImageStatus.missing)) {
             missingAssets.add(o.assetId);
           }
         case core.TextBoxObject():

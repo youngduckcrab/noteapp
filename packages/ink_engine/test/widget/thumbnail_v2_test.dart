@@ -358,6 +358,37 @@ void main() {
       expect(await renderer.render(content), isNotNull);
     });
 
+    test(
+      '(v2.13-thumbs) an image whose bytes do not decode (failed, never '
+      'tried again) → the placeholder, not null: the ink is still drawn',
+      () async {
+        store.bytes['bad'] = Uint8List.fromList(List.filled(64, 7));
+        final content = _content(
+          strokes: [
+            _line('s', const ui.Offset(300, 600), const ui.Offset(500, 600), 1),
+          ],
+          objects: [
+            PageObjectFixtures.image(
+              pageId: _pageId,
+              assetId: 'bad',
+              pixelWidth: 64,
+              pixelHeight: 64,
+            ),
+          ],
+        );
+        final thumb = await renderer.render(content, maxSidePx: _onePxPerPt);
+        expect(cache.statusOf('bad'), InkImageStatus.failed);
+        expect(thumb, isNotNull);
+        final p = await _decode(thumb!.bytes);
+        expect(
+          _is(p.at(400, 600), _blue),
+          isTrue,
+          reason: _hex(p.at(400, 600)),
+        );
+        expect(cache.stats.pinnedBytes, 0);
+      },
+    );
+
     test('the preparation longer than thumbnailObjectWaitMs → null (fake '
         'time; nothing drawn)', () {
       final slow = _SlowStore(redPng);
@@ -601,6 +632,41 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await settleThumbnails(tester);
       expect(inkThumbnailRasterCount - before, 2, reason: 'no more');
+    });
+
+    testWidgets('(v2.13-thumbs) an image whose bytes are not on the device: '
+        'the placeholder, then the image once its bytes arrive (sync)', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final content = ink([
+        PageObjectFixtures.image(
+          pageId: _pageId,
+          assetId: 'late',
+          rect: const core.PageRect(50, 50, 250, 250),
+          pixelWidth: 64,
+          pixelHeight: 64,
+        ),
+      ]);
+      Future<void> drain() async {
+        for (var i = 0; i < 10; i++) {
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+          await tester.pump();
+        }
+        await settleThumbnails(tester);
+      }
+
+      await tester.pumpWidget(thumb(content));
+      await drain();
+      expect(cache.statusOf('late'), InkImageStatus.missing);
+      var p = await shown(tester);
+      expect(_is(p.at(100, 120), _red), isFalse, reason: 'the placeholder');
+      // the bytes arrive later (another device's sync)
+      store.arrive('late', redPng);
+      await drain();
+      p = await shown(tester);
+      expect(_is(p.at(100, 120), _red), isTrue, reason: _hex(p.at(100, 120)));
     });
 
     testWidgets('text: the system font first, ONE raster again once NoteSans '
