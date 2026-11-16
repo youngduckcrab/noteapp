@@ -45,6 +45,9 @@ class SyncBadgeIndicator extends ConsumerWidget {
     };
     return Tooltip(
       message: look.tooltip,
+      // The sync state, not a name: also on a long press (HoverNames makes
+      // plain tooltips hover-only).
+      triggerMode: TooltipTriggerMode.longPress,
       child: MergeSemantics(
         child: Semantics(
           button: true,

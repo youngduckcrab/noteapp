@@ -59,7 +59,7 @@ class NoteTile extends ConsumerWidget {
     final main = ContentItemDraggable(
       itemKey: key,
       parentId: note.folderId,
-      icon: AppIconKind.note.material,
+      kind: AppIconKind.note,
       label: note.title,
       child: Semantics(
         container: true,
@@ -92,7 +92,7 @@ class NoteTile extends ConsumerWidget {
                         top: 6,
                         right: 6,
                         child: CoverCornerBadge(
-                          icon: AppIconKind.favoriteOn.material,
+                          icon: AppIconKind.favoriteOn,
                           color: scheme.tertiary,
                         ),
                       ),

@@ -24,13 +24,11 @@ List<Widget> _sortMenuItems(WidgetRef ref, LibrarySort sort) => [
   for (final (field, label) in _sortChoices)
     MenuItemButton(
       leadingIcon: sort.field == field
-          ? Icon(AppIconKind.check.material)
+          ? AppIcon(AppIconKind.check)
           : const SizedBox(width: 24),
       trailingIcon: sort.field == field && field != LibrarySortField.custom
-          ? Icon(
-              sort.descending
-                  ? AppIconKind.sortDown.material
-                  : AppIconKind.sortUp.material,
+          ? AppIcon(
+              sort.descending ? AppIconKind.sortDown : AppIconKind.sortUp,
               size: 18,
             )
           : null,
@@ -113,16 +111,14 @@ class CompactListingMenu extends ConsumerWidget {
       menuChildren: [
         if (sortEnabled)
           SubmenuButton(
-            leadingIcon: Icon(AppIconKind.sort.material),
+            leadingIcon: AppIcon(AppIconKind.sort),
             menuChildren: _sortMenuItems(ref, sort),
             child: const Text(LibraryStrings.sort),
           ),
         if (showViewToggle)
           MenuItemButton(
-            leadingIcon: Icon(
-              toList
-                  ? AppIconKind.viewList.material
-                  : AppIconKind.viewGrid.material,
+            leadingIcon: AppIcon(
+              toList ? AppIconKind.viewList : AppIconKind.viewGrid,
             ),
             onPressed: () => ref
                 .read(libraryPrefsProvider.notifier)
@@ -134,7 +130,7 @@ class CompactListingMenu extends ConsumerWidget {
             ),
           ),
         MenuItemButton(
-          leadingIcon: Icon(AppIconKind.select.material),
+          leadingIcon: AppIcon(AppIconKind.select),
           onPressed: onSelect,
           child: const Text(LibraryStrings.select),
         ),

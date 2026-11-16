@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, FolderId, Note;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../appearance/folder_appearance.dart';
 import '../../dnd/drag_payload.dart';
@@ -64,11 +65,12 @@ class ContentItemDraggable extends StatelessWidget {
     super.key,
     required this.itemKey,
     required this.parentId,
-    required this.icon,
+    this.icon,
+    this.kind,
     required this.label,
     required this.child,
     this.iconColor,
-  });
+  }) : assert(icon != null || kind != null, 'an icon or a kind');
 
   final LibraryItemKey itemKey;
 
@@ -76,7 +78,10 @@ class ContentItemDraggable extends StatelessWidget {
   final FolderId? parentId;
 
   /// Of the drag card when only this item is dragged.
-  final IconData icon;
+  final IconData? icon;
+
+  /// A meaning of the ui_kit icon table (a note) instead of [icon].
+  final AppIconKind? kind;
   final Color? iconColor;
   final String label;
   final Widget child;
@@ -98,6 +103,7 @@ class ContentItemDraggable extends StatelessWidget {
       feedbackBuilder: (payload) => LibraryDragFeedback(
         payload: payload,
         icon: icon,
+        kind: kind,
         iconColor: iconColor,
         label: label,
       ),
@@ -332,7 +338,7 @@ class TileFooterText extends StatelessWidget {
 class CoverCornerBadge extends StatelessWidget {
   const CoverCornerBadge({super.key, required this.icon, required this.color});
 
-  final IconData icon;
+  final AppIconKind icon;
   final Color color;
 
   @override
@@ -346,7 +352,7 @@ class CoverCornerBadge extends StatelessWidget {
             shape: BoxShape.circle,
             color: Theme.of(context).colorScheme.surfaceContainerLowest,
           ),
-          child: Icon(icon, size: 18, color: color),
+          child: Center(child: AppIcon(icon, size: 18, color: color)),
         ),
       ),
     );

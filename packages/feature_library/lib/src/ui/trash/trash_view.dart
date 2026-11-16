@@ -72,7 +72,7 @@ class _TrashNotice extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(
           children: [
-            Icon(AppIconKind.info.material, size: 20, color: muted),
+            AppIcon(AppIconKind.info, size: 20, color: muted),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

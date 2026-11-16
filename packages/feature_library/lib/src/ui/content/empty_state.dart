@@ -24,29 +24,20 @@ class EmptyState extends StatelessWidget {
     final section = this.section;
     final (icon, text) = switch (section) {
       FolderSection(folderId: null) => (
-        AppIconKind.note.material,
+        AppIconKind.note,
         LibraryStrings.emptyHome,
       ),
-      FolderSection() => (
-        AppIconKind.folder.material,
-        LibraryStrings.emptyFolder,
-      ),
-      RecentSection() => (
-        AppIconKind.recent.material,
-        LibraryStrings.emptyRecent,
-      ),
+      FolderSection() => (AppIconKind.folder, LibraryStrings.emptyFolder),
+      RecentSection() => (AppIconKind.recent, LibraryStrings.emptyRecent),
       FavoritesSection() => (
-        AppIconKind.favorite.material,
+        AppIconKind.favorite,
         LibraryStrings.emptyFavorites,
       ),
       SearchSection(:final query) => (
-        Icons.search_off,
+        AppIconKind.search,
         LibraryStrings.emptySearch(query),
       ),
-      TrashSection() => (
-        AppIconKind.trash.material,
-        LibraryStrings.emptyTrashView,
-      ),
+      TrashSection() => (AppIconKind.trash, LibraryStrings.emptyTrashView),
     };
     return Center(
       child: SingleChildScrollView(
@@ -56,7 +47,14 @@ class EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 64, color: theme.colorScheme.onSurfaceVariant),
+              // The sidebar's line icon, large: a lighter stroke so it
+              // does not turn heavy at 64 px.
+              AppIcon(
+                icon,
+                size: 64,
+                strokeWidth: 0.9,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(height: 16),
               Text(
                 text,
@@ -80,13 +78,13 @@ class EmptyState extends StatelessWidget {
                     NewNoteTrigger(
                       folderId: section.folderId,
                       builder: (context, onPressed) => FilledButton.icon(
-                        icon: Icon(AppIconKind.newNote.material),
+                        icon: AppIcon(AppIconKind.newNote),
                         label: const Text(LibraryStrings.newNote),
                         onPressed: onPressed,
                       ),
                     ),
                     OutlinedButton.icon(
-                      icon: Icon(AppIconKind.newFolder.material),
+                      icon: AppIcon(AppIconKind.newFolder),
                       label: const Text(LibraryStrings.newFolder),
                       onPressed: () =>
                           runNewFolderFlow(context, parentId: section.folderId),
@@ -152,8 +150,8 @@ class ListLoadError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              AppIconKind.error.material,
+            AppIcon(
+              AppIconKind.error,
               size: 64,
               color: theme.colorScheme.onSurfaceVariant,
             ),

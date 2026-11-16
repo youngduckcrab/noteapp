@@ -193,7 +193,7 @@ class _FolderPickerDialogState extends ConsumerState<FolderPickerDialog> {
                       return FolderPickerRow(
                         key: const ValueKey<String>('picker-home'),
                         label: LibraryStrings.home,
-                        icon: AppIconKind.home.material,
+                        kind: AppIconKind.home,
                         iconColor: theme.colorScheme.onSurfaceVariant,
                         depth: 0,
                         selected: selected == null,
@@ -229,7 +229,7 @@ class _FolderPickerDialogState extends ConsumerState<FolderPickerDialog> {
           child: Row(
             children: [
               TextButton.icon(
-                icon: Icon(AppIconKind.newFolder.material),
+                icon: AppIcon(AppIconKind.newFolder),
                 label: const Text(LibraryStrings.newFolder),
                 onPressed: canCreate ? () => _newFolder(tree) : null,
               ),
@@ -272,7 +272,8 @@ class FolderPickerRow extends StatelessWidget {
   const FolderPickerRow({
     super.key,
     required this.label,
-    required this.icon,
+    this.icon,
+    this.kind,
     required this.iconColor,
     required this.depth,
     required this.selected,
@@ -284,7 +285,12 @@ class FolderPickerRow extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
+
+  /// A folder's own icon (data, FolderIcons) …
+  final IconData? icon;
+
+  /// … or a meaning of the ui_kit icon table (the 홈 row).
+  final AppIconKind? kind;
   final Color iconColor;
 
   /// 0 = the 홈 row; top-level folders are 1.
@@ -322,10 +328,10 @@ class FolderPickerRow extends StatelessWidget {
               children: [
                 if (hasChildren && enabled)
                   IconButton(
-                    icon: Icon(
+                    icon: AppIcon(
                       isExpanded
-                          ? AppIconKind.chevronDown.material
-                          : AppIconKind.chevronRight.material,
+                          ? AppIconKind.chevronDown
+                          : AppIconKind.chevronRight,
                     ),
                     iconSize: 20,
                     padding: EdgeInsets.zero,
@@ -344,7 +350,10 @@ class FolderPickerRow extends StatelessWidget {
                 else
                   const SizedBox(width: LibraryMetrics.minTapTarget),
                 SizedBox(width: SidebarTreeRow.indentFor(depth)),
-                Icon(icon, size: 24, color: iconColor),
+                if (kind case final kind?)
+                  AppIcon(kind, size: 24, color: iconColor)
+                else
+                  Icon(icon, size: 24, color: iconColor),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

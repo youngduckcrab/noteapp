@@ -41,21 +41,19 @@ List<Widget> itemMenuEntries(
     final key = noteKey(note.id);
     return [
       MenuItemButton(
-        leadingIcon: Icon(AppIconKind.rename.material),
+        leadingIcon: AppIcon(AppIconKind.rename),
         onPressed: () =>
             runRenameFlow(context, item: key, currentName: note.title),
         child: const Text(LibraryStrings.rename),
       ),
       MenuItemButton(
-        leadingIcon: Icon(AppIconKind.cover.material),
+        leadingIcon: AppIcon(AppIconKind.cover),
         onPressed: () => runCoverFlow(context, note),
         child: const Text(LibraryStrings.changeCover),
       ),
       MenuItemButton(
-        leadingIcon: Icon(
-          note.isFavorite
-              ? AppIconKind.favoriteOn.material
-              : AppIconKind.favorite.material,
+        leadingIcon: AppIcon(
+          note.isFavorite ? AppIconKind.favoriteOn : AppIconKind.favorite,
         ),
         onPressed: () => runFavoriteFlow(
           context,
@@ -69,13 +67,13 @@ List<Widget> itemMenuEntries(
         ),
       ),
       MenuItemButton(
-        leadingIcon: Icon(AppIconKind.duplicate.material),
+        leadingIcon: AppIcon(AppIconKind.duplicate),
         onPressed: () =>
             runCopyHereFlow(context, item: key, parentId: note.folderId),
         child: const Text(LibraryStrings.copy),
       ),
       MenuItemButton(
-        leadingIcon: Icon(AppIconKind.move.material),
+        leadingIcon: AppIcon(AppIconKind.move),
         onPressed: () =>
             runMoveFlow(context, items: [key], parents: {key: note.folderId}),
         child: const Text(LibraryStrings.moveTo),
@@ -96,7 +94,7 @@ List<Widget> itemMenuEntries(
           ),
         ),
       MenuItemButton(
-        leadingIcon: Icon(AppIconKind.trash.material),
+        leadingIcon: AppIcon(AppIconKind.trash),
         onPressed: () =>
             runTrashFlow(context, items: [key], singleName: note.title),
         child: const Text(LibraryStrings.moveToTrash),
@@ -107,36 +105,36 @@ List<Widget> itemMenuEntries(
   final key = folderKey(f.id);
   return [
     MenuItemButton(
-      leadingIcon: Icon(AppIconKind.rename.material),
+      leadingIcon: AppIcon(AppIconKind.rename),
       onPressed: () => runRenameFlow(context, item: key, currentName: f.name),
       child: const Text(LibraryStrings.rename),
     ),
     MenuItemButton(
-      leadingIcon: Icon(AppIconKind.style.material),
+      leadingIcon: AppIcon(AppIconKind.style),
       onPressed: () => runFolderAppearanceFlow(context, f),
       child: const Text(LibraryStrings.customize),
     ),
     if (sidebar)
       MenuItemButton(
-        leadingIcon: Icon(AppIconKind.newFolder.material),
+        leadingIcon: AppIcon(AppIconKind.newFolder),
         onPressed: () => runNewFolderFlow(context, parentId: f.id),
         child: const Text(LibraryStrings.newSubfolder),
       )
     else
       MenuItemButton(
-        leadingIcon: Icon(AppIconKind.duplicate.material),
+        leadingIcon: AppIcon(AppIconKind.duplicate),
         onPressed: () =>
             runCopyHereFlow(context, item: key, parentId: f.parentId),
         child: const Text(LibraryStrings.copy),
       ),
     MenuItemButton(
-      leadingIcon: Icon(AppIconKind.move.material),
+      leadingIcon: AppIcon(AppIconKind.move),
       onPressed: () =>
           runMoveFlow(context, items: [key], parents: {key: f.parentId}),
       child: const Text(LibraryStrings.moveTo),
     ),
     MenuItemButton(
-      leadingIcon: Icon(AppIconKind.trash.material),
+      leadingIcon: AppIcon(AppIconKind.trash),
       onPressed: () => runTrashFlow(context, items: [key], singleName: f.name),
       child: const Text(LibraryStrings.moveToTrash),
     ),
@@ -164,7 +162,7 @@ class ItemMenuButton extends ConsumerWidget {
         exportPdf: exportPdf,
       ),
       builder: (context, controller, _) => IconButton(
-        icon: Icon(AppIconKind.more.material),
+        icon: AppIcon(AppIconKind.more),
         tooltip: LibraryStrings.itemMenu(note?.title ?? folder!.name),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints.tightFor(

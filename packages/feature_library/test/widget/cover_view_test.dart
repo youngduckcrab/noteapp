@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart' hide Page;
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/fake_library_backend.dart';
 import '../support/fake_thumbnail_renderer.dart';
@@ -97,7 +98,11 @@ void main() {
     await tester.pump();
     expect(find.byType(CoverPlaceholder), findsOneWidget);
     expect(find.byType(Image), findsNothing);
-    expect(find.byIcon(Icons.description_outlined), findsOneWidget);
+    // (UI stage 2) the 노트 line icon.
+    expect(
+      find.byWidgetPredicate((w) => w is AppIcon && w.kind == AppIconKind.note),
+      findsOneWidget,
+    );
     // No first page at all → placeholder too.
     final noPage = n.copyWith(clearFirstPageId: true);
     final shown = await pumpCover(tester, noPage);

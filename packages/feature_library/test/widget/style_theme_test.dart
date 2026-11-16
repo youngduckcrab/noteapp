@@ -109,8 +109,11 @@ void main() {
         );
         if (brightness == Brightness.dark) {
           expect(box.color.computeLuminance(), greaterThan(0.7));
-          final icon = tester.widget<Icon>(
-            find.byIcon(Icons.description_outlined),
+          // (UI stage 2) the 노트 line icon.
+          final icon = tester.widget<AppIcon>(
+            find.byWidgetPredicate(
+              (w) => w is AppIcon && w.kind == AppIconKind.note,
+            ),
           );
           expect(
             contrastRatio(Color.alphaBlend(icon.color!, box.color), box.color),

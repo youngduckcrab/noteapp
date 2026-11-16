@@ -29,6 +29,10 @@ import '../support/fixtures.dart';
 import '../support/library_test_harness.dart';
 import '../support/test_sizes.dart';
 
+/// (UI stage 2) An AppIcon of [kind] (line art, not an Icon).
+Finder _appIcon(AppIconKind kind) =>
+    find.byWidgetPredicate((w) => w is AppIcon && w.kind == kind);
+
 void main() {
   late FakeLibraryBackend backend;
 
@@ -190,17 +194,11 @@ void main() {
     final rows = find.byType(NoteListRow);
     expect(rows, findsWidgets);
     expect(
-      find.descendant(
-        of: rows,
-        matching: find.byIcon(AppIconKind.favorite.material),
-      ),
+      find.descendant(of: rows, matching: _appIcon(AppIconKind.favorite)),
       findsNothing,
     );
     expect(
-      find.descendant(
-        of: rows,
-        matching: find.byIcon(AppIconKind.favoriteOn.material),
-      ),
+      find.descendant(of: rows, matching: _appIcon(AppIconKind.favoriteOn)),
       findsOneWidget,
     );
   });

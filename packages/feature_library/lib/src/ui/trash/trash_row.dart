@@ -80,13 +80,13 @@ class _TrashRowState extends ConsumerState<TrashRow> {
       controller: _menu,
       menuChildren: [
         MenuItemButton(
-          leadingIcon: Icon(AppIconKind.restore.material),
+          leadingIcon: AppIcon(AppIconKind.restore),
           onPressed: () =>
               runRestoreFlow(context, items: [key], singleName: item.name),
           child: const Text(LibraryStrings.restore),
         ),
         MenuItemButton(
-          leadingIcon: Icon(AppIconKind.deleteForever.material),
+          leadingIcon: AppIcon(AppIconKind.deleteForever),
           onPressed: () =>
               runPurgeFlow(context, items: [key], singleName: item.name),
           child: const Text(LibraryStrings.purge),
@@ -171,7 +171,7 @@ class _TrashRowState extends ConsumerState<TrashRow> {
                 const SizedBox(width: LibraryMetrics.minTapTarget)
               else
                 IconButton(
-                  icon: Icon(AppIconKind.more.material),
+                  icon: AppIcon(AppIconKind.more),
                   tooltip: LibraryStrings.itemMenu(item.name),
                   onPressed: _toggleMenu,
                 ),

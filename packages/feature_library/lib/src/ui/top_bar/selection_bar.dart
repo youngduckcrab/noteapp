@@ -32,7 +32,7 @@ import '../menus/item_action_flows.dart';
 
 /// One button of the bar, drawn per width (label / icon / menu entry).
 typedef _BarAction = ({
-  IconData icon,
+  AppIconKind icon,
   String label,
 
   /// Shown instead of the label as the tooltip while disabled.
@@ -122,9 +122,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     final any = items.isNotEmpty;
 
     final _BarAction selectAll = (
-      icon: allSelected
-          ? AppIconKind.deselect.material
-          : AppIconKind.selectAll.material,
+      icon: allSelected ? AppIconKind.deselect : AppIconKind.selectAll,
       label: allSelected
           ? LibraryStrings.deselectAll
           : LibraryStrings.selectAll,
@@ -140,9 +138,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     final allFavorite =
         selectedNotes.isNotEmpty && selectedNotes.every((n) => n.isFavorite);
     final _BarAction favorite = (
-      icon: allFavorite
-          ? AppIconKind.favoriteOn.material
-          : AppIconKind.favorite.material,
+      icon: allFavorite ? AppIconKind.favoriteOn : AppIconKind.favorite,
       label: allFavorite
           ? LibraryStrings.favoriteRemove
           : LibraryStrings.favoriteAdd,
@@ -157,7 +153,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             ),
     );
     final _BarAction copy = (
-      icon: AppIconKind.duplicate.material,
+      icon: AppIconKind.duplicate,
       label: LibraryStrings.copy,
       disabledHint: null,
       onPressed: !any
@@ -174,7 +170,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             ),
     );
     final _BarAction move = (
-      icon: AppIconKind.move.material,
+      icon: AppIconKind.move,
       label: LibraryStrings.move,
       disabledHint: null,
       onPressed: !any
@@ -189,7 +185,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     final _BarAction? export = exportAction == null
         ? null
         : (
-            icon: Icons.picture_as_pdf_outlined,
+            icon: AppIconKind.exportPdf,
             label: LibraryStrings.exportPdfBulk,
             disabledHint: LibraryStrings.exportNeedsNote,
             onPressed: selectedNotes.isEmpty || _exporting
@@ -199,7 +195,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
                   ], end),
           );
     final _BarAction trash = (
-      icon: AppIconKind.trash.material,
+      icon: AppIconKind.trash,
       label: LibraryStrings.trash,
       disabledHint: null,
       onPressed: !any
@@ -213,7 +209,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     );
     final singleName = items.length == 1 ? nameOf(items.single) : null;
     final _BarAction restore = (
-      icon: AppIconKind.restore.material,
+      icon: AppIconKind.restore,
       label: LibraryStrings.restore,
       disabledHint: null,
       onPressed: !any
@@ -226,7 +222,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             ),
     );
     final _BarAction purge = (
-      icon: AppIconKind.deleteForever.material,
+      icon: AppIconKind.deleteForever,
       label: LibraryStrings.purge,
       disabledHint: null,
       onPressed: !any
@@ -313,13 +309,19 @@ class _LabeledButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final button = TextButton.icon(
-      icon: Icon(action.icon),
+      icon: AppIcon(action.icon),
       label: Text(action.label),
       onPressed: action.onPressed,
     );
     final hint = action.disabledHint;
     final child = action.onPressed == null && hint != null
-        ? Tooltip(message: hint, child: button)
+        // Why it is disabled: also on a long press (HoverNames makes plain
+        // tooltips hover-only).
+        ? Tooltip(
+            message: hint,
+            triggerMode: TooltipTriggerMode.longPress,
+            child: button,
+          )
         : button;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -337,7 +339,7 @@ class _IconAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final hint = action.disabledHint;
     return IconButton(
-      icon: Icon(action.icon),
+      icon: AppIcon(action.icon),
       tooltip: action.onPressed == null && hint != null ? hint : action.label,
       onPressed: action.onPressed,
     );
@@ -355,7 +357,7 @@ class _OverflowMenu extends StatelessWidget {
       menuChildren: [
         for (final action in actions)
           MenuItemButton(
-            leadingIcon: Icon(action.icon),
+            leadingIcon: AppIcon(action.icon),
             onPressed: action.onPressed,
             child: Text(action.label),
           ),

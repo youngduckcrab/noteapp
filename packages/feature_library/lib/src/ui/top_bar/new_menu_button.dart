@@ -39,12 +39,12 @@ class NewMenuButton extends ConsumerWidget {
     return MenuAnchor(
       menuChildren: [
         MenuItemButton(
-          leadingIcon: Icon(AppIconKind.newNote.material),
+          leadingIcon: AppIcon(AppIconKind.newNote),
           onPressed: () => runNewNoteFlow(context, folderId: target),
           child: const Text(LibraryStrings.newNote),
         ),
         MenuItemButton(
-          leadingIcon: Icon(AppIconKind.newFolder.material),
+          leadingIcon: AppIcon(AppIconKind.newFolder),
           onPressed: () => runNewFolderFlow(context, parentId: target),
           child: const Text(LibraryStrings.newFolder),
         ),

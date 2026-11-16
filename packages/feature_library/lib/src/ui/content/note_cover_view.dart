@@ -209,7 +209,8 @@ class ColorCoverCard extends StatelessWidget {
   }
 }
 
-/// surfaceContainerHigh + Icons.description_outlined (onSurfaceVariant 60%),
+/// surfaceContainerHigh + the 노트 line icon (AppIconKind.note,
+/// onSurfaceVariant 60%),
 /// 40 px (smaller boxes scale it down). (v2.14-ui review) In a dark style
 /// it is paper-coloured instead (the paper swatch with a 6 % ink tint, the
 /// icon in paper ink 35 %): real first-page thumbnails stay paper-white, so
@@ -241,9 +242,10 @@ class CoverPlaceholder extends StatelessWidget {
               )
             : scheme.surfaceContainerHigh,
         child: Center(
-          child: Icon(
-            Icons.description_outlined,
+          child: AppIcon(
+            AppIconKind.note,
             size: shortest < 64 ? shortest * 0.6 : 40,
+            strokeWidth: 1.2,
             color: dark
                 ? tokens.paperInk.withValues(alpha: 0.35)
                 : scheme.onSurfaceVariant.withValues(alpha: 0.6),

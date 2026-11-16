@@ -231,7 +231,7 @@ class NoteListRow extends ConsumerWidget {
     final main = ContentItemDraggable(
       itemKey: key,
       parentId: note.folderId,
-      icon: AppIconKind.note.material,
+      kind: AppIconKind.note,
       label: note.title,
       child: _RowMain(
         itemKey: key,
@@ -264,10 +264,7 @@ class NoteListRow extends ConsumerWidget {
             // added from the row's ⋯ or the selection bar.
             if (note.isFavorite)
               IconButton(
-                icon: Icon(
-                  AppIconKind.favoriteOn.material,
-                  color: scheme.tertiary,
-                ),
+                icon: AppIcon(AppIconKind.favoriteOn, color: scheme.tertiary),
                 tooltip: LibraryStrings.favoriteRemove,
                 onPressed: () =>
                     runFavoriteFlow(context, ids: [note.id], favorite: false),

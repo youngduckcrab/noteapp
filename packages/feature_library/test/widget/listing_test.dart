@@ -61,6 +61,10 @@ Future<List<FlutterErrorDetails>> collectReports(
   return reports;
 }
 
+/// (UI stage 2) An AppIcon of [kind] (line art, not an Icon).
+Finder _appIcon(AppIconKind kind) =>
+    find.byWidgetPredicate((w) => w is AppIcon && w.kind == kind);
+
 void main() {
   late FakeLibraryBackend backend;
 
@@ -181,7 +185,7 @@ void main() {
             find.widgetWithText(MenuItemButton, LibraryStrings.sortCustom),
           )
           .leadingIcon,
-      isA<Icon>().having((i) => i.icon, 'icon', AppIconKind.check.material),
+      isA<AppIcon>().having((i) => i.kind, 'kind', AppIconKind.check),
     );
     expect(
       await tester.runAsync(
@@ -468,14 +472,14 @@ void main() {
     expect(
       find.descendant(
         of: noteTile('독서 기록'),
-        matching: find.byIcon(AppIconKind.favoriteOn.material),
+        matching: _appIcon(AppIconKind.favoriteOn),
       ),
       findsOneWidget,
     );
     expect(
       find.descendant(
         of: noteTile('회의록'),
-        matching: find.byIcon(AppIconKind.favoriteOn.material),
+        matching: _appIcon(AppIconKind.favoriteOn),
       ),
       findsNothing,
     );
@@ -486,17 +490,11 @@ void main() {
     final row = find.widgetWithText(NoteListRow, '회의록');
     // Not a favourite: no ☆ on the row.
     expect(
-      find.descendant(
-        of: row,
-        matching: find.byIcon(AppIconKind.favorite.material),
-      ),
+      find.descendant(of: row, matching: _appIcon(AppIconKind.favorite)),
       findsNothing,
     );
     expect(
-      find.descendant(
-        of: row,
-        matching: find.byIcon(AppIconKind.favoriteOn.material),
-      ),
+      find.descendant(of: row, matching: _appIcon(AppIconKind.favoriteOn)),
       findsNothing,
     );
     expect(
@@ -523,10 +521,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(backend.calls, ['setFavorite [n:${sample.homeNotes[0].id}] false']);
     expect(
-      find.descendant(
-        of: row,
-        matching: find.byIcon(AppIconKind.favoriteOn.material),
-      ),
+      find.descendant(of: row, matching: _appIcon(AppIconKind.favoriteOn)),
       findsNothing,
     );
   });

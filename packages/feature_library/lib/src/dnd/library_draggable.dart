@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/library_strings.dart';
 import '../ui/layout/library_metrics.dart';
@@ -164,15 +165,20 @@ class LibraryDragFeedback extends StatelessWidget {
   const LibraryDragFeedback({
     super.key,
     required this.payload,
-    required this.icon,
+    this.icon,
+    this.kind,
     required this.label,
     this.iconColor,
-  });
+  }) : assert(icon != null || kind != null, 'an icon or a kind');
 
   final LibraryDragPayload payload;
 
-  /// Of the pressed item (a one-item payload is always the pressed item).
-  final IconData icon;
+  /// Of the pressed item (a one-item payload is always the pressed item): a
+  /// folder's own icon (data, FolderIcons) …
+  final IconData? icon;
+
+  /// … or a meaning of the ui_kit icon table (a note).
+  final AppIconKind? kind;
   final String label;
   final Color? iconColor;
 
@@ -184,9 +190,15 @@ class LibraryDragFeedback extends StatelessWidget {
     const h = LibraryMetrics.dragFeedbackHeight;
     const shift = LibraryMetrics.dragFeedbackStackShift;
     final behind = many ? 2 : 0;
+    final scheme = Theme.of(context).colorScheme;
+    final color = many ? scheme.onSurface : iconColor ?? scheme.onSurface;
+    final kind = this.kind;
     final front = _FeedbackCard(
-      icon: many ? Icons.content_copy : icon,
-      iconColor: many ? null : iconColor,
+      glyph: many
+          ? Icon(Icons.content_copy, size: 24, color: color)
+          : kind != null
+          ? AppIcon(kind, size: 24, color: color)
+          : Icon(icon, size: 24, color: color),
       label: many ? LibraryStrings.itemCount(count) : label,
     );
     return Transform.translate(
@@ -219,29 +231,28 @@ class LibraryDragFeedback extends StatelessWidget {
 }
 
 class _FeedbackCard extends StatelessWidget {
-  const _FeedbackCard({this.icon, this.iconColor, this.label});
+  const _FeedbackCard({this.glyph, this.label});
 
   /// Both null: a card behind the front one.
-  final IconData? icon;
-  final Color? iconColor;
+  final Widget? glyph;
   final String? label;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final icon = this.icon, label = this.label;
+    final glyph = this.glyph, label = this.label;
     return Material(
       elevation: LibraryMetrics.dragFeedbackElevation,
       color: scheme.surfaceContainerHigh,
       borderRadius: const BorderRadius.all(Radius.circular(12)),
-      child: icon == null || label == null
+      child: glyph == null || label == null
           ? const SizedBox.expand()
           : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Icon(icon, size: 24, color: iconColor ?? scheme.onSurface),
+                  glyph,
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
