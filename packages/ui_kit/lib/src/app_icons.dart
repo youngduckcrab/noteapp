@@ -4,15 +4,21 @@
 /// Every meaning the screens show as an icon is an [AppIconKind]. Each kind
 /// has
 ///
-/// * a Material Rounded glyph ([AppIconKind.material]) — what menus, dialogs
-///   and list rows use (`Icon(kind.material)`); where the rounded glyph is a
-///   solid shape the outlined one is taken, so menu rows keep the line
-///   weight of the line icons, and
+/// * a Material Rounded glyph ([AppIconKind.material]) — what [AppIcon]
+///   shows for a kind without line art (menu-only meanings: rename, move,
+///   export …); where the rounded glyph is a solid shape the outlined one is
+///   taken, so menu rows keep the line weight of the line icons, and
 /// * for the ~40 kinds on the often-seen screens (editor toolbar, library top
 ///   bar and sidebar, settings categories) a hand-drawn line icon
 ///   ([AppIconKind.hasLineArt]) that [AppIcon] paints: 24-unit grid, round
 ///   caps and joins, stroke weight from [StyleTokens.iconStrokeWidth]
 ///   (크래프트 1.7, 미니멀 1.5, 스튜디오 1.6 at 22 px).
+///
+/// Every screen shows a kind through [AppIcon] — menus and dialogs too — so
+/// a tool looks the same in the toolbar and in a menu row (the folded
+/// [⋯도구] shows the same 도형 as the toolbar). `kind.material` is only for an
+/// API that takes [IconData], and never for a kind with line art
+/// (tool/test/ui_icons_test.dart).
 ///
 /// No image or font files: the line icons are [CustomPainter] paths.
 library;
@@ -32,62 +38,62 @@ enum AppIconKind {
   back(Icons.arrow_back_rounded, lineArt: true),
   close(Icons.close_rounded, lineArt: true),
   more(Icons.more_horiz_rounded, lineArt: true),
-  sidebar(Icons.menu_rounded, lineArt: true),
+  sidebar(Icons.view_sidebar_outlined, lineArt: true),
   chevronRight(Icons.chevron_right_rounded, lineArt: true),
   chevronDown(Icons.expand_more_rounded, lineArt: true),
 
   /// ⌃ 메뉴 숨기기 (the toolbar slides up).
   hideMenu(Icons.expand_less_rounded, lineArt: true),
   search(Icons.search_rounded, lineArt: true),
-  settings(Icons.settings_rounded, lineArt: true),
+  settings(Icons.settings_outlined, lineArt: true),
   info(Icons.info_outline_rounded, lineArt: true),
   share(Icons.share_rounded, lineArt: true),
 
   // --- editor tools ---------------------------------------------------------
   undo(Icons.undo_rounded, lineArt: true),
   redo(Icons.redo_rounded, lineArt: true),
-  lasso(Icons.gesture_rounded, lineArt: true),
-  shape(Icons.category_rounded, lineArt: true),
+  lasso(Icons.highlight_alt_rounded, lineArt: true),
+  shape(Icons.category_outlined, lineArt: true),
   text(Icons.title_rounded, lineArt: true),
-  insert(Icons.add_box_rounded, lineArt: true),
+  insert(Icons.add_box_outlined, lineArt: true),
 
   /// The folded toolbar's [⋯도구] (shape, text, insert, recording).
-  moreTools(Icons.widgets_rounded, lineArt: true),
+  moreTools(Icons.widgets_outlined, lineArt: true),
 
   /// Pages of the note (page panel, the '2 / 4' button).
-  pages(Icons.auto_stories_rounded, lineArt: true),
+  pages(Icons.file_copy_outlined, lineArt: true),
   mic(Icons.mic_none_rounded, lineArt: true),
 
   /// The mic while this note records.
   micOn(Icons.mic_rounded, lineArt: true),
   math(Icons.functions_rounded, lineArt: true),
   textPen(Icons.edit_note_rounded),
-  image(Icons.image_rounded, lineArt: true),
+  image(Icons.image_outlined, lineArt: true),
 
   // --- library --------------------------------------------------------------
   /// 모든 노트 (the library home).
-  home(Icons.home_rounded, lineArt: true),
+  home(Icons.home_outlined, lineArt: true),
   recent(Icons.schedule_rounded, lineArt: true),
   favorite(Icons.star_outline_rounded, lineArt: true),
   favoriteOn(Icons.star_rounded, lineArt: true),
 
   /// 휴지통 and '삭제' (to the trash).
   trash(Icons.delete_outline_rounded, lineArt: true),
-  folder(Icons.folder_rounded, lineArt: true),
+  folder(Icons.folder_outlined, lineArt: true),
   add(Icons.add_rounded, lineArt: true),
   select(Icons.check_circle_outline_rounded, lineArt: true),
   sort(Icons.sort_rounded, lineArt: true),
-  viewGrid(Icons.grid_view_rounded, lineArt: true),
-  viewList(Icons.view_list_rounded, lineArt: true),
-  note(Icons.description_rounded, lineArt: true),
+  viewGrid(Icons.grid_view_outlined, lineArt: true),
+  viewList(Icons.view_list_outlined, lineArt: true),
+  note(Icons.description_outlined, lineArt: true),
   newNote(Icons.note_add_outlined),
   newFolder(Icons.create_new_folder_outlined),
-  rename(Icons.edit_outlined),
+  rename(Icons.drive_file_rename_outline_rounded),
   duplicate(Icons.content_copy_rounded),
   move(Icons.drive_file_move_outline),
   exportPdf(Icons.picture_as_pdf_outlined),
   importPdf(Icons.upload_file_outlined),
-  cover(Icons.image_outlined),
+  cover(Icons.auto_stories_outlined),
   restore(Icons.restore_from_trash_outlined),
   deleteForever(Icons.delete_forever_outlined),
   selectAll(Icons.select_all_rounded),
@@ -97,19 +103,19 @@ enum AppIconKind {
   /// 화면 스타일 (home / editor style).
   style(Icons.palette_outlined, lineArt: true),
   brightness(Icons.contrast_rounded, lineArt: true),
-  storage(Icons.inventory_2_rounded, lineArt: true),
+  storage(Icons.inventory_2_outlined, lineArt: true),
 
   /// 입력 (fingers, palm, gestures).
-  input(Icons.touch_app_rounded, lineArt: true),
+  input(Icons.touch_app_outlined, lineArt: true),
 
   /// 펜 (pen settings, 펜과 입력).
-  pen(Icons.edit_rounded, lineArt: true),
+  pen(Icons.edit_outlined, lineArt: true),
 
   /// 새 노트 기본값.
-  notebook(Icons.menu_book_rounded, lineArt: true),
-  recognition(Icons.document_scanner_rounded, lineArt: true),
+  notebook(Icons.menu_book_outlined, lineArt: true),
+  recognition(Icons.document_scanner_outlined, lineArt: true),
   developer(Icons.code_rounded, lineArt: true),
-  features(Icons.toggle_on_rounded, lineArt: true),
+  features(Icons.toggle_on_outlined, lineArt: true),
 
   /// 도구 이름 (names on hover — '펜을 띄우면 이름 보기').
   hoverName(Icons.chat_bubble_outline_rounded, lineArt: true),
@@ -178,15 +184,20 @@ class AppIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconTheme = IconTheme.of(context);
     final size = this.size ?? iconTheme.size ?? 24;
-    final color =
+    var color =
         this.color ?? iconTheme.color ?? StyleTokens.of(context).textPrimary;
     if (!kind.hasLineArt) {
       return Icon(
         kind.material,
         size: size,
-        color: color,
+        color: color, // Icon applies the IconTheme opacity itself
         semanticLabel: semanticLabel,
       );
+    }
+    // Like Icon: an IconTheme opacity dims the glyph.
+    final opacity = iconTheme.opacity;
+    if (opacity != null && opacity < 1) {
+      color = color.withValues(alpha: color.a * opacity);
     }
     final stroke = strokeWidth ?? StyleTokens.of(context).iconStrokeWidth;
     return Semantics(

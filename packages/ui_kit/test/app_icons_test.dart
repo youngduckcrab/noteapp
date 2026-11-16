@@ -132,6 +132,29 @@ void main() {
       expect(find.text('올가미'), findsNothing);
     });
 
+    testWidgets('enabled: false (its menu is open): no name', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Center(
+            child: HoverName(
+              name: '더보기',
+              enabled: false,
+              child: SizedBox.square(dimension: 48),
+            ),
+          ),
+        ),
+      );
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.stylus,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byType(HoverName)));
+      await tester.pump(HoverName.wait + const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('더보기'), findsNothing);
+    });
+
     testWidgets('a long press shows no name (the tools use it)', (
       tester,
     ) async {
@@ -158,5 +181,77 @@ void main() {
       matching: find.byType(CustomPaint),
     );
     expect(tester.getSize(paint), const Size(20, 20));
+  });
+
+  group('HoverNames: a plain IconButton tooltip follows the setting', () {
+    Future<void> pump(WidgetTester tester, {required bool enabled}) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: HoverNames(
+              enabled: enabled,
+              child: Center(
+                child: IconButton(
+                  tooltip: '정렬',
+                  onPressed: () {},
+                  icon: const AppIcon(AppIconKind.sort),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    Future<void> hover(WidgetTester tester) async {
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.stylus,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byType(IconButton)));
+      await tester.pump(HoverName.wait + const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    testWidgets('on: shows on hover, not on a long press', (tester) async {
+      await pump(tester, enabled: true);
+      await tester.longPress(find.byType(IconButton));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('정렬'), findsNothing);
+      await hover(tester);
+      expect(find.text('정렬'), findsOneWidget);
+    });
+
+    testWidgets('off: never shows; TalkBack still reads it', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pump(tester, enabled: false);
+      await hover(tester);
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('정렬'), findsNothing);
+      expect(tester.getSemantics(find.byType(IconButton)).tooltip, '정렬');
+      semantics.dispose();
+    });
+  });
+
+  testWidgets('AppIcon follows the IconTheme opacity, like Icon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: IconTheme(
+          data: IconThemeData(color: Color(0xFF000000), opacity: 0.5),
+          child: Center(child: AppIcon(AppIconKind.search)),
+        ),
+      ),
+    );
+    final painter =
+        tester
+                .widget<CustomPaint>(
+                  find.descendant(
+                    of: find.byType(AppIcon),
+                    matching: find.byType(CustomPaint),
+                  ),
+                )
+                .painter!
+            as AppIconPainter;
+    expect(painter.color.a, closeTo(0.5, 0.01));
   });
 }
