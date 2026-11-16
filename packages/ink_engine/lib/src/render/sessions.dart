@@ -20,8 +20,11 @@
 //    beginStroke got) and reads the shape fitter then; (m5-7 T39, 6.18) with a
 //    fitter a HoldDetector watches the samples: a hold asks the fitter for the
 //    centerline so far, a fit becomes shapePreview (drawn at layer 4′ instead
-//    of the live stroke), moving again drops it, end() with a preview yields
-//    InkEdit(addShape) with one ShapeObject in the pen's style and no stroke;
+//    of the live stroke). (v2.12, C212-01) The fit puts the session in ADJUST
+//    mode: the hold detector stops, later samples no longer extend the stroke
+//    but drag the preview (shape/shape_adjust.dart — past a dead zone around
+//    the pen at snap time); end() with a preview yields InkEdit(addShape) with
+//    one ShapeObject (the adjusted geometry) in the pen's style and no stroke;
 //    a throwing fitter keeps the stroke (warning shapeFitterThrew). A laser
 //    stroke end() returns null — no
 //    InkEdit, nothing pending (K-9); (m5-7 T30, 6.6) it is a fading trail on
@@ -64,8 +67,10 @@ import '../object/object_hit.dart';
 import '../pen/pen_profile.dart';
 import '../pen/style_ink.dart';
 import '../shape/hold_detector.dart';
+import '../shape/shape_adjust.dart';
 import '../shape/shape_assist.dart';
 import '../stroke/stroke_builder.dart';
+import '../tuning.dart';
 import 'ink_page_content.dart';
 import 'ink_page_controller.dart';
 import 'laser_trail.dart';
@@ -286,7 +291,9 @@ final class StrokeSession implements InkGestureSession {
         startUs: first.timeUs,
         viewScale: _builder.viewScale,
         onHold: _onHold,
-        onMove: _dropPreview,
+        // (C212-01) the detector stops at a fit, so moving after a fired hold
+        // only re-arms it (a hold without a fit) — nothing to drop
+        onMove: _noop,
       );
     }
   }
@@ -308,6 +315,17 @@ final class StrokeSession implements InkGestureSession {
   /// ShapeObject end() would commit, with a placeholder id.
   core.ShapeObject? _previewShape;
 
+  /// (v2.12, C212-01) ADJUST mode: the fit at snap time (null = not adjusting) and
+  /// where the pen was then (page pt). Samples drag the preview from there.
+  InkShapeFit? _snapFit;
+  ui.Offset _snapPen = ui.Offset.zero;
+
+  /// The pen left the dead zone around [_snapPen] once (from then on it is followed).
+  bool _adjustArmed = false;
+
+  /// The last finite sample position (page pt): where the pen is at snap time.
+  ui.Offset? _lastPen;
+
   /// (m5-7 T39) A throwing fitter is reported once per session.
   bool _fitterThrewReported = false;
 
@@ -323,10 +341,12 @@ final class StrokeSession implements InkGestureSession {
     _host.laserTrails.update(t, l._stable, l._tail, _host.clock.nowUs());
   }
 
-  /// (v2.0) The shape fitted after a hold, shown in layer 4′; null otherwise (moving
-  /// again, end, cancel). (m5-7 T39, 6.18) Set when the pen held still ≥
-  /// InkTuning.shapeHoldMs within InkTuning.shapeHoldRadiusPx and the fitter found a
-  /// shape in the centerline so far; the live stroke is not drawn meanwhile.
+  /// (v2.0) The shape fitted after a hold, shown in layer 4′; null otherwise (before
+  /// a fit, after end and cancel). (v2.12, C212-01) Moving after the fit changes it
+  /// to the adjusted shape (same kind and score) instead of dropping it. (m5-7 T39,
+  /// 6.18) Set when the pen held still ≥ InkTuning.shapeHoldMs within
+  /// InkTuning.shapeHoldRadiusPx and the fitter found a shape in the centerline so
+  /// far; the live stroke is not drawn meanwhile.
   ValueListenable<InkShapeFit?> get shapePreview => _shapePreview;
 
   /// (v2.1) what beginStroke received
@@ -349,8 +369,7 @@ final class StrokeSession implements InkGestureSession {
 
   void addSample(InkSample sample) {
     _checkActive();
-    _builder.add(sample);
-    _hold?.add(sample.position, sample.timeUs);
+    _take(sample);
     _syncTrail();
     _host.diagnostics.onSamples([sample], receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
@@ -361,16 +380,55 @@ final class StrokeSession implements InkGestureSession {
     _checkActive();
     final list = samples.toList(growable: false);
     if (list.isEmpty) return;
-    final hold = _hold;
-    for (final s in list) {
-      _builder.add(s);
-      // (T39) sample by sample: a hold inside the batch sees the points up to it
-      hold?.add(s.position, s.timeUs);
-    }
+    // (T39) sample by sample: a hold inside the batch sees the points up to it,
+    // (C212-01) the samples after it drag the shape
+    list.forEach(_take);
     _syncTrail();
     _host.diagnostics.onSamples(list, receiveUs: _host.clock.nowUs());
     _reportWidthFactor();
     _host.repaint(_layer);
+  }
+
+  /// One sample: (C212-01) while adjusting it drags the preview; else it extends
+  /// the stroke (builder, then the hold detector — T39 order).
+  void _take(InkSample s) {
+    if (_snapFit != null) {
+      _adjustTo(s.position);
+      return;
+    }
+    _builder.add(s);
+    if (s.position.isFinite) _lastPen = s.position;
+    _hold?.add(s.position, s.timeUs);
+  }
+
+  /// (v2.12, C212-01) The pen at [pen] (page pt) while adjusting: inside the dead
+  /// zone (InkTuning.shapeAdjustDeadZonePx around [_snapPen]) until it leaves once,
+  /// then the preview is [adjustShape] of the snap fit. Pressure plays no part.
+  void _adjustTo(ui.Offset pen) {
+    final fit = _snapFit;
+    if (fit == null || !pen.isFinite) return;
+    final scale = _builder.viewScale;
+    if (!_adjustArmed) {
+      final r = InkTuning.shapeAdjustDeadZonePx / scale;
+      if ((pen - _snapPen).distance <= r) return;
+      _adjustArmed = true;
+    }
+    final geometry = adjustShape(
+      fit,
+      anchor: _snapPen,
+      pen: pen,
+      minSizePt: InkTuning.shapeAdjustMinSizePx / scale,
+    );
+    final current = _shapePreview.value;
+    if (current != null && current.geometry == geometry) return;
+    final next = InkShapeFit(
+      kind: fit.kind,
+      geometry: geometry,
+      score: fit.score,
+    );
+    _previewShape = _shapeOf(next, id: _previewShapeId);
+    _shapePreview.value = next;
+    _host.repaint(InkRenderLayer.inkActive);
   }
 
   /// (m5-7 T39, 6.18 fire()) The pen held still: the fitter gets the centerline so
@@ -399,20 +457,29 @@ final class StrokeSession implements InkGestureSession {
       }
     }
     if (fit == null) return;
+    // (C212-01) ADJUST mode: no more holds, the next samples drag the shape
+    _hold?.stop();
+    _snapFit = fit;
+    _snapPen = _lastPen ?? _hold?.anchor ?? ui.Offset.zero;
+    _adjustArmed = false;
     _previewShape = _shapeOf(fit, id: _previewShapeId);
     _shapePreview.value = fit;
     _host.repaint(InkRenderLayer.inkActive);
   }
 
-  /// (m5-7 T39) Moving again (or cancel): the preview goes, the live stroke is back.
+  /// (m5-7 T39) cancel(): the preview goes (counted as not accepted). (C212-01)
+  /// Moving no longer drops it — a fitted shape is adjusted until the lift.
   void _dropPreview() {
     final fit = _shapePreview.value;
+    _snapFit = null;
     if (fit == null) return;
     _host.diagnostics.onShapeFit(fit.kind.name, fit.score, accepted: false);
     _previewShape = null;
     _shapePreview.value = null;
     _host.repaint(InkRenderLayer.inkActive);
   }
+
+  static void _noop() {}
 
   /// The id of the layer 4′ preview shape (never committed).
   static const String _previewShapeId = 'shape-preview';
@@ -458,11 +525,14 @@ final class StrokeSession implements InkGestureSession {
   /// (m5-7 T30) The trail stays and fades out over laserFadeMs from now (6.6-2).
   /// (m5-7 T39) With a shape preview: InkEdit(addShape) with ONE ShapeObject (id =
   /// services.newStrokeId(), the pen's style, createdAt = pen-down nowMillis) and no
-  /// stroke; [last] (the lift) does not drop the preview.
+  /// stroke; [last] (the lift) does not drop the preview. (v2.12, C212-01) The
+  /// shape is the adjusted one; [last] drags it like any other sample first.
   InkEdit? end([InkSample? last]) {
     _checkActive();
+    if (_snapFit != null && last != null) _adjustTo(last.position);
     _active = false;
     _hold?.stop();
+    _snapFit = null;
     final fit = _shapePreview.value;
     _previewShape = null;
     _shapePreview.value = null;

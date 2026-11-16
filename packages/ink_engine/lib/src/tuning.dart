@@ -185,4 +185,16 @@ abstract final class InkTuning {
 
   /// The texture pens' shared geometry cache (least recently used out first).
   static const int textureGeometryBudgetBytes = 24 * 1024 * 1024;
+
+  // (v2.12, C212-01) 6.18 adjusting a snapped shape (shape/shape_adjust.dart)
+  /// The pen must leave this radius (logical px) around where it was at snap
+  /// time before the shape follows it — the tail of the hold does not move it.
+  static const double shapeAdjustDeadZonePx = 8;
+
+  /// A drag never shrinks a side, diameter or line below this (logical px), nor
+  /// below the snapped size when that is smaller.
+  static const double shapeAdjustMinSizePx = 8;
+
+  /// A dragged line within this of a multiple of 45° lies on it.
+  static const double shapeAdjustAngleSnapDeg = 3;
 }

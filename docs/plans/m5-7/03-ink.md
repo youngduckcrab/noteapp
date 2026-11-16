@@ -505,7 +505,8 @@ StrokeSession beginStroke(InkSample first, {required core.StrokeStyle style,
 enum ShapeAssist { off, holdToSnap }
 // StrokeSession — 추가: after the pen holds still ≥ InkTuning.shapeHoldMs (500) within
 // InkTuning.shapeHoldRadiusPx (8 logical px) the session asks inkShapeFitterProvider; a fit
-// shows in layer 4′ (v2.1); moving again cancels it; end() then yields InkEdit(addShape).
+// shows in layer 4′ (v2.1); (v2.12, C212-01) moving again adjusts it (no cancel); end() then
+// yields InkEdit(addShape) with the adjusted shape.
 final class StrokeSession implements InkGestureSession {   // (v2.1 정정) final as in v1.4 — no outside implementations
   /* v1.4 */
   ValueListenable<InkShapeFit?> get shapePreview;
@@ -763,7 +764,7 @@ class MathPreview extends StatelessWidget {
 | 테이프 API | `toggleTape`·`isTapeRevealed`에 테이프가 아닌 id → 무시·false. `setAllTapesRevealed(true)`는 **지금 있는** 테이프만 드러냄(뒤에 들어온 테이프는 가린 채 시작 — v2.1 계약 문장). 노트 단위 '모두 보이기'는 EDITOR가 들고 `updateContent` 뒤마다 다시 부른다(검토 X-6 (a) — 그때 방금 그린 테이프도 드러나는 것이 '모두 보이기'의 뜻). 테이프가 지워지면 그 id는 집합에서 빠짐. 상태 수명 = 컨트롤러 수명(6.7, 12.2 Q2 — 수용) | U10, C21-13 |
 | `ShapeAssist.holdToSnap` | 형광펜·레이저·테이프에서는 무시(항상 off) | 6.18 |
 | `StrokeSession` | (v2.1) **`final class` 유지**(1차 `render/sessions.dart` 195 `final class StrokeSession implements InkGestureSession` — 계약 문구 정정 C21-13). 밖에서 구현·상속하지 않는다(EDITOR 시험도 실제 세션을 씀). `shapeAssist` getter = `beginStroke`가 받은 값 그대로(형광펜 등에서 무시하더라도 받은 값 — 실제로 맞췄는지는 `shapePreview`로 본다) | C21-13, EDITOR C-2 |
-| `StrokeSession.shapePreview` | 맞춘 도형이 보일 때만 값, 다시 움직이면·`end`·`cancel` 뒤 `null` | 7.2.9 |
+| `StrokeSession.shapePreview` | 맞춘 도형이 보일 때만 값, `end`·`cancel` 뒤 `null`. (v2.12, C212-01) 다시 움직이면 `null`이 아니라 조절된 도형으로 바뀜 | 7.2.9 |
 | `InkShapeFitter.fit` 예외 | 잡아서 `null`로 다룸 + 경고 `shapeFitterThrew` | 4.0 렌더 경로 규칙 |
 | `InkEdit` v2.1 | `removedObjectIds`는 공개 생성자의 선택 이름 인자(기본 `const {}`), `removedIds`의 부분 집합(`const` 생성자 `assert` + `toCommand`가 아니면 `ArgumentError`), `==`·`hashCode`에 포함. INK 세션·선택은 지운 객체 id를 여기에 넣는다(초안의 비공개 `_objectIds`는 없앰 — 6.16). 색 변경의 획/객체 구분은 `updatedObjects`의 id(나머지 `targetIds` = 획). `toCommand`: 7.2.9 v2.1 표 + 4.6 글머리(이름 있는 인자 명령, 빈 쪽을 뺀 뒤 하나면 그 명령만). `isEmpty`(6.16)이면 1차처럼 `StateError`. (S-14) `InkSelection.recolor`가 바꿀 것이 없으면(이미지·모르는 객체만 선택) 1차처럼 `InkEdit`을 돌려주되 `isEmpty == true` — EDITOR는 실행하지 않는다(EDITOR는 그 경우 '색'을 숨김 — 04-editor E2-07) | C21-07·13, CP-INK-2 |
 | `InkMathRenderer.validate` 문구 | 빈 문자열 `'Empty formula'`, 길이 초과 `'Formula is too long'`, 해석기 `ParseException.message`(예 `"Expected '}', got 'EOF'"`, `'Undefined control sequence: \foo'` [확인]), 배치 실패 `BuildException.message`, 그 밖 `'Unsupported formula'` | 조사 03 8.1 |
@@ -1778,13 +1779,14 @@ beginStroke(shapeAssist: holdToSnap)   (형광펜·레이저·테이프면 off�
   샘플마다:
     if |p − anchor| > shapeHoldRadiusPx / viewScale (pt):
         anchor = p; anchorTimeUs = 샘플 시각; fired = false
-        if shapePreview != null: shapePreview = null      // 다시 움직임 → 취소, 획이 이어짐
     if !fired && 샘플 시각 − anchorTimeUs ≥ shapeHoldMs: fire()
+  (v2.12) 조절 모드(fit 뒤): 샘플은 획을 늘리지 않고 도형을 끈다 — 아래 '맞춘 뒤 조절'
   타이머: anchor가 바뀔 때마다 shapeHoldMs 뒤 확인(펜을 멈추면 샘플이 오지 않는 플랫폼 대비)
   fire(): fired = true; points = 지금까지의 중심선(안정 점 + 원시 꼬리, page pt)
           fit = try fitter.fit(points, viewScale: viewScale) catch → null(경고)
-          if fit != null: shapePreview = fit
-end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...)]) — 획은 저장 안 함
+          if fit != null: shapePreview = fit; 감지 멈춤; 조절 모드(snapFit = fit, snapPen = 지금 펜 위치)
+end(last): 조절 모드면 last도 끌기로 먼저 반영
+       shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(조절된 geometry)]) — 획은 저장 안 함
        아니면 1차 addStroke
 ```
 
@@ -1794,6 +1796,14 @@ end(): shapePreview != null → InkEdit(addShape, addedObjects: [ShapeObject(...
 - 판정 비용은 포트 쪽(시제품 66 µs). INK 쪽 멈춤 확인 비용은 샘플당 거리 계산 하나(B20 ≤ 0.02 ms).
 - 진단: `onShapeFit(kind, score, accepted)`를 개발자 표시 카운터로(경고 키가 아닌 통계 — 내부).
 - (T39 구현 확정 — INK 결정, 계약 표면 불변) ① 멈춤 감지는 내부 `shape/hold_detector.dart` `HoldDetector`(세션이 `holdToSnap` + 허용 도구 + fitter일 때만 만듦 — 그 밖에는 타이머도 없음). 반경 경계는 포함(정확히 반경이면 그대로), 거꾸로 가는 샘플 시각은 직전 값(1차 6.3 (1)과 같음), 유한하지 않은 위치는 무시. 타이머는 anchor가 바뀔 때마다 새로 걸고 발동·`end`·`cancel`에서 끈다(테스트 위젯이 '남은 타이머'에 걸리지 않음). (보완 2.1, B20) 다시 걸 때는 **새 타이머를 먼저 만들고 옛 타이머를 끈다** — 거꾸로 하면 VM 타이머 힙이 anchor 이동마다 이벤트 핸들러에 메시지를 두 번 보내 빠른 직선 최악 경우가 0.02 ms 기준을 넘나들었다(`benchmark/README.md` '보완 2.1'). 걸리는 타이머·발동 시각·S-8은 같다. ② `addSamples`는 샘플마다 빌더 → 감지 순서로 넣는다(묶음 중간의 멈춤은 그 샘플까지의 중심선으로 판정). ③ 펜을 뗀 샘플(`end(last)`)은 '다시 움직임'으로 보지 않는다 — 미리보기가 있으면 그대로 확정. ④ fitter 예외는 멈출 때마다 경고 `shapeFitterThrew`, `FlutterError.reportError`는 세션마다 한 번(6.24 '한 번' 규칙). ⑤ 층 4′ 안 순서는 재생 강조 → 도형 미리보기(가장 새 요소라 위) → 시험 훅. 미리보기 도형은 `end()`가 만들 `ShapeObject`와 같은 값(자리 id만 다름)이라 **미리보기 = 대기 표시 = 커밋 픽셀**(시험 `widget/shape_assist_test.dart`). ⑥ `onShapeFit`은 미리보기가 끝날 때 한 번(`end` 확정 = accepted, 다시 움직임·`cancel` = 아님) 세는 내부 통계(`InkDiagnostics.shapeFitStats`, `@internal`)이고 `developerValues` 키가 아니다(키 셋은 C25-02로 고정). ⑦ 롤오버(펜을 500초 넘게 댐, 6.7 F8)로 끝난 앞부분도 도형이 대신한다(그런 획에 멈춤 미리보기가 뜰 일은 없다고 보고 단순화).
+- (v2.12, C212-01 — 사용자 요청 '도형으로 바뀐 뒤 펜을 움직여 직선 끝·원 반지름·사각형 크기를 바꾸기') **맞춘 뒤 조절**. 멈춤이 도형을 내면 세션은 조절 모드가 된다: 멈춤 감지를 멈추고(다시 멈춰도 다시 맞추지 않음), 그 뒤 샘플은 빌더에 넣지 않으며(쓰는 중 획은 계속 숨김), 미리보기 도형을 끈다. **다시 움직여도 획으로 돌아가지 않는다**(예전 '다시 움직임 → 취소'를 바꿈). 떼면 조절된 `ShapeObject` 하나를 `InkEdit(addShape)`로(되돌리기 한 단계, 되돌리면 아무것도 없음 — 그대로). 원래 획으로 돌아가는 길은 따로 두지 않는다(되돌리고 다시 쓰면 됨 — 단순하게). `cancel()`은 전부 버린다. 미리보기는 샘플마다 층 4′에 다시 그리고 `shapePreview` 값(같은 kind·score, 조절된 geometry)도 바뀐다. 진단 `onShapeFit`은 그대로(확정 = accepted).
+  - 계산은 순수 함수 `shape/shape_adjust.dart` `adjustShape(fit, anchor: 맞춘 때 펜 위치, pen: 지금 펜)`(시험 `unit/shape/shape_adjust_test.dart`). 늘 맞춘 때의 fit·anchor로 계산하므로 펜을 제자리로 가져가면 처음 도형 그대로다.
+  - 직선·화살표: 먼 끝은 그대로, 잡고 있던 끝이 (펜 − anchor)만큼 따라간다. 0·45·90°(45° 배수)에서 `shapeAdjustAngleSnapDeg`(3°) 안이면 그 각으로 붙는다(길이 유지 — 살짝만).
+  - 원(정사각형 틀): 중심 고정, 반지름이 펜의 중심 거리 변화만큼 1:1로 바뀐다. 타원: 중심·회전 고정, 두 축에 같은 배율 s(비율 유지).
+  - 닫힌 4점(사각형·사각형 다각형): 맞춘 때 펜에 가장 가까운 꼭짓점이 펜을 따라가고 맞은편 꼭짓점은 그대로. 그 꼭짓점의 두 변 방향으로 늘이므로 축 정렬 사각형은 축 정렬, 돌아간 사각형은 자기 틀 안에서 크기만 바뀐다.
+  - 삼각형·다각형·별: 꼭짓점 평균을 중심으로 같은 배율 s. **돌리지 않는다**(예측 가능하게 — 펜 각도를 따라 돌면 끄는 동안 도형이 흔들림).
+  - 배율 s = 1 + (|펜 − c| − |anchor − c|) ÷ max(|anchor − c|, 큰 변 ÷ 8) — anchor가 중심에서 멀면 거리 비율 그대로, 가까워도 끊김 없음.
+  - 안전장치: 맞춘 때 펜에서 `shapeAdjustDeadZonePx`(8 논리 px) 안의 흔들림은 무시(멈춤 꼬리가 도형을 옮기지 않게 — 한 번 벗어나면 그 뒤로는 계속 따라감), 변·지름·길이는 `shapeAdjustMinSizePx`(8 논리 px)와 맞춘 때 크기 중 작은 값 밑으로 줄지 않고 뒤집히지 않음(배율은 늘 양수), `ElementFrame.maxSide`보다 커지지 않음, 필압은 아무 영향 없음, 유한하지 않은 위치는 무시.
 
 ### 6.19 재생 강조 (새, K-7)
 
@@ -2157,7 +2167,7 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
 | I-B2 | 레이저 | 원·밑줄을 그리고 떼기, 연속으로 여러 번 | 1.5초 안에 부드럽게 사라짐, 저장되지 않음(다시 열면 없음), 프레임 끊김 없음 | B-6 |
 | I-B3 | 테이프 | 글씨 위 테이프 → 탭 → 다시 탭, 줄무늬 | 가림/드러냄 즉시, 썸네일·PDF는 가림, 다시 열면 가림 | B-6 |
 | I-B4 | 도형 | 7종 × 실선·파선·점선·채우기·화살표, 400% 확대 | 선명, 화살표 끝이 뾰족(선 캡이 튀어나오지 않음) | B-4 |
-| I-B5 | 자동 도형 | 원·사각형·삼각형을 그리고 0.5초 멈춤 | 미리보기가 바로 보이고 떼면 도형, 다시 움직이면 취소, 오인식 체감 기록 | B-4 |
+| I-B5 | 자동 도형 | 원·사각형·삼각형을 그리고 0.5초 멈춤 | 미리보기가 바로 보이고 떼면 도형, (v2.12) 떼기 전에 움직이면 직선 끝·원 반지름·사각형 꼭짓점이 따라옴, 오인식 체감 기록 | B-4 |
 | I-B6 | 텍스트 상자 렌더 | 한글·영문·굵게·정렬·회전, 400% 확대, 첫 상자 표시 지연, (v2.1) 텍스트 상자가 든 노트가 있는 라이브러리를 앱을 새로 연 뒤 처음 열기 | 글자 선명, frame 밖으로 안 나감, 첫 적재 지연 기록(목표 ≤ 1초, Wi-Fi), **라이브러리 첫 표시 지연 기록**(썸네일이 `NoteSans`를 받음 — 7.4.5 v2.1, 검토 S-15), 편집 끝에 글자가 튀지 않음(B-15와 함께) | B-2·B-15 |
 | I-B7 | 이미지 | 사진 객체 확대·축소·회전, 이미지 페이지 contain·cover | 확대하면 곧 선명(더 큰 버킷), 탭 재로드 없음 | B-3 |
 | I-B8 | 수식 | 분수·적분·행렬·연립, (v2.1) **루트(`\sqrt{x}`·`\sqrt[3]{x}`)·벡터 화살표(`\vec{v}`)·늘어나는 화살표(`\xrightarrow{f}`)·연립방정식(`\left\{ … \right.`)**, 크기·색 바꿈, 400% 확대, PDF 내보내기 | 렌더 정확(루트·괄호 기호가 빠지지 않음 — 화면·썸네일·PDF 모두), 확대 후 잠시 뒤 선명, frame 안 | B-11 |

@@ -11,6 +11,10 @@
 //   +1 (one step) → undo → no shape and no stroke (the original stroke is
 //   never stored — 7.2.3) → redo → the shape → leave, open again → the
 //   shape is kept.
+// (v2.12, C212-01) After the snap the pen stays down and drags: the loop
+// ends at the top middle, so the top-left corner follows the pen and the
+// bottom-right one stays → lift → ONE ShapeObject with the adjusted rectangle,
+// one undo step → undo → nothing.
 //
 // Skipped by default (dart_test.yaml `integration` skip); runs with
 // `ws test --run-skipped -t integration --package feature_editor`.
@@ -169,6 +173,80 @@ void main() {
     );
 
     await _leave(tester, () => closedAgain > 0);
+    await tester.pumpWidget(const SizedBox());
+    var closed = false;
+    unawaited(store.close().then((_) => closed = true));
+    for (var i = 0; i < 50 && !closed; i++) {
+      await _flush(tester, 1);
+    }
+    expect(closed, isTrue);
+  });
+
+  testWidgets('(C212-01) real CORE + real INK: loop + hold, then drag '
+      'before the lift → ONE adjusted rectangle, one undo step', (
+    tester,
+  ) async {
+    final store = (await tester.runAsync(openTestNoteStore))!;
+    final fitter = ink_testing.FakeInkShapeFitter(
+      fit: ink.InkShapeFit(
+        kind: core.ShapeKind.rectangle,
+        geometry: core.ShapeGeometry.rectangle(
+          core.PageRect(_box.left, _box.top, _box.right, _box.bottom),
+        ),
+        score: 0.95,
+      ),
+    );
+    final h = await pumpEditor(
+      tester,
+      store: store,
+      title: '도형 조절 스모크',
+      overrides: [ink.inkShapeFitterProvider.overrideWithValue(fitter)],
+      recordSession: false,
+    );
+    await _flush(tester, 2);
+    final samples = ink_testing.SyntheticInk.loopThenHold(
+      bounds: _box,
+      holdMs: 0,
+    );
+    final points = [for (final s in samples) h.toGlobal(0, s.position)];
+    await h.driver.down(1, points.first, kind: PointerDeviceKind.stylus);
+    for (final p in points.skip(1)) {
+      await h.driver.wait(const Duration(milliseconds: 8));
+      await h.driver.move(1, p);
+    }
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(fitter.calls, 1);
+    // drag 40 × 30 pt in steps, then lift
+    final end = samples.last.position;
+    for (var k = 1; k <= 8; k++) {
+      await h.driver.wait(const Duration(milliseconds: 8));
+      await h.driver.move(1, h.toGlobal(0, end + Offset(5.0 * k, 3.75 * k)));
+    }
+    await h.driver.up(1);
+    await _flush(tester, 2);
+
+    expect(fitter.calls, 1, reason: 'no refit while adjusting');
+    expect(_page(h).strokes, isEmpty);
+    final shape = _page(h).objects.single as core.ShapeObject;
+    expect(shape.shapeKind, core.ShapeKind.rectangle);
+    final expected = core.ShapeGeometry.rectangle(
+      core.PageRect(_box.left + 40, _box.top + 30, _box.right, _box.bottom),
+    ).points;
+    final got = (shape.geometry as core.PolylineGeometry).points;
+    expect(got, hasLength(4));
+    for (var i = 0; i < 4; i++) {
+      expect(got[i].x, closeTo(expected[i].x, 0.01), reason: 'x$i');
+      expect(got[i].y, closeTo(expected[i].y, 0.01), reason: 'y$i');
+    }
+    expect(h.session.history.undoDepth, 1);
+    await tester.tap(find.byKey(UndoRedoButtons.undoKey));
+    await _flush(tester, 2);
+    expect(_page(h).objects, isEmpty);
+    expect(_page(h).strokes, isEmpty);
+
+    await _leave(tester, () => h.closeCount > 0);
     await tester.pumpWidget(const SizedBox());
     var closed = false;
     unawaited(store.close().then((_) => closed = true));

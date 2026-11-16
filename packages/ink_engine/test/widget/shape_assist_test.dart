@@ -5,8 +5,11 @@
 //   change) and under the cover layer (a covered tape's pixels do not change); the
 //   committed result (pending, then in the content) is drawn at the same height —
 //   the same pixels.
-// - While the preview shows the live stroke is not drawn; moving again brings it
-//   back (and drops the preview).
+// - While the preview shows the live stroke is not drawn; (v2.12, C212-01) moving
+//   again no longer brings it back: the drag adjusts the shape (the corner nearest
+//   the pen follows), the samples no longer extend the stroke, a jitter inside the
+//   dead zone does not move it, sides clamp at the minimum, end() commits the
+//   adjusted geometry (one addShape), cancel() leaves nothing.
 // - end() with a preview → InkEdit(addShape) → one AddObjects, no stroke; a null fit
 //   → addStroke; highlighter, tape and laser never ask the fitter; a throwing fitter
 //   keeps the stroke and warns shapeFitterThrew; the pen style maps to ShapeStyle
@@ -21,7 +24,7 @@ import 'package:ink_engine/ink_engine.dart';
 import 'package:ink_engine/src/render/ink_page_controller.dart'
     show inkPageRenderOf, liveObjectsOf;
 import 'package:ink_engine/src/render/sessions.dart'
-    show strokeSessionHoldOf, strokeSessionPreviewShape;
+    show livePoints, strokeSessionHoldOf, strokeSessionPreviewShape;
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
 
@@ -114,6 +117,23 @@ List<int> _rgba(int argb) => [
   argb & 0xFF,
   255,
 ];
+
+/// The rectangle template of [r] within 1e-6 pt (the loop's end is not exact).
+Matcher _rectNear(core.PageRect r) => isA<core.PolylineGeometry>()
+    .having((g) => g.closed, 'closed', isTrue)
+    .having(
+      (g) => [
+        for (final p in g.points) ...[p.x, p.y],
+      ],
+      'points',
+      pairwiseCompare(
+        [
+          for (final p in core.ShapeGeometry.rectangle(r).points) ...[p.x, p.y],
+        ],
+        (double a, double b) => (a - b).abs() <= 1e-6,
+        'within 1e-6 of',
+      ),
+    );
 
 bool _isPaper(List<int> p) => samePixel(p, _rgba(_white), tol: 2);
 
@@ -225,7 +245,7 @@ void main() {
     });
 
     testWidgets('the live stroke is not drawn while the preview shows; '
-        'moving again drops the preview and the stroke is back', (
+        '(C212-01) moving again drags the shape, the stroke stays hidden', (
       tester,
     ) async {
       final fitter = FakeInkShapeFitter(fit: _fitOf(_rect));
@@ -258,7 +278,9 @@ void main() {
         }
       }
 
-      // moving again (out of the 8 pt radius)
+      // moving again (out of the 8 pt dead zone): the loop ended at the top
+      // middle (150, 50) — the top-left corner (first of the tie) follows the
+      // pen, the bottom-right one stays
       final last = hold.last;
       session.addSample(
         last.copyWith(
@@ -266,14 +288,20 @@ void main() {
           timeUs: last.timeUs + 8000,
         ),
       );
-      expect(session.shapePreview.value, isNull);
-      expect(strokeSessionPreviewShape(session), isNull);
-      final back = await _pixels(tester, c, layers: active);
-      expect(_isPaper(back.at(lx, ly)), isFalse, reason: 'the stroke again');
-      expect(_isPaper(back.at(cx, cy)), isTrue, reason: 'no shape');
+      const moved = core.PageRect(90, 70, 240, 250);
+      expect(session.shapePreview.value, isNotNull);
+      expect(strokeSessionPreviewShape(session)!.geometry, _rectNear(moved));
+      final dragged = await _pixels(tester, c, layers: active);
+      expect(_isPaper(dragged.at(lx, ly)), isTrue, reason: 'stroke hidden');
+      expect(_isPaper(dragged.at(cx, cy)), isTrue, reason: 'the old corner');
+      expect(samePixel(dragged.at(91, 71), _rgba(_blue), tol: 24), isTrue);
       final edit = session.end()!;
-      expect(edit.kind, InkEditKind.addStroke);
-      expect(edit.addedObjects, isEmpty);
+      expect(edit.kind, InkEditKind.addShape);
+      expect(edit.added, isEmpty);
+      expect(
+        (edit.addedObjects.single as core.ShapeObject).geometry,
+        _rectNear(moved),
+      );
       c.dispose();
     });
   });
@@ -419,8 +447,8 @@ void main() {
       expect(edit.added, hasLength(1));
     });
 
-    test('moving again drops the preview, a new hold shows it again; cancel '
-        'drops it with no edit', () {
+    test('(C212-01) moving again drags the preview — no second hold, no '
+        'refit; cancel drops it with no edit', () {
       final fitter = FakeInkShapeFitter(fit: _fitOf(_rect));
       final c = createTestPageController(shapeFitter: fitter)
         ..updateContent(_content());
@@ -433,21 +461,170 @@ void main() {
       final t = samples.last.timeUs;
       InkSample at(Offset p, int dtMs) =>
           samples.last.copyWith(position: p, timeUs: t + dtMs * 1000);
-      session.addSample(at(const Offset(260, 260), 8));
-      expect(session.shapePreview.value, isNull);
-      fitter.result = _fitOf(const core.PageRect(60, 50, 260, 260));
-      session.addSample(at(const Offset(261, 261), 508));
-      expect(fitter.calls, 2);
+      // the loop ended at (150, 50): the top-left corner follows
+      session.addSample(at(const Offset(160, 60), 8));
+      expect(session.shapePreview.value!.kind, core.ShapeKind.rectangle);
+      expect(session.shapePreview.value!.score, 0.8);
       expect(
-        session.shapePreview.value,
-        _fitOf(const core.PageRect(60, 50, 260, 260)),
+        session.shapePreview.value!.geometry,
+        _rectNear(const core.PageRect(70, 60, 240, 250)),
+      );
+      fitter.result = _fitOf(const core.PageRect(0, 0, 10, 10));
+      session.addSample(at(const Offset(161, 61), 508));
+      expect(fitter.calls, 1, reason: 'no hold while adjusting');
+      expect(
+        session.shapePreview.value!.geometry,
+        _rectNear(const core.PageRect(71, 61, 240, 250)),
       );
       session.cancel();
       expect(session.shapePreview.value, isNull);
+      expect(strokeSessionPreviewShape(session), isNull);
       expect(strokeSessionHoldOf(session)!.timerArmed, isFalse);
       expect(c.pendingIds, isEmpty);
       final stats = c.diagnostics.shapeFitStats;
-      expect((stats.fits, stats.accepted), (2, 0));
+      expect((stats.fits, stats.accepted), (1, 0));
+    });
+  });
+
+  group('adjusting after the snap (C212-01)', () {
+    InkPageController controller(InkShapeFit fit) {
+      final c = createTestPageController(
+        shapeFitter: FakeInkShapeFitter(fit: fit),
+        services: InkCoreServices(
+          newStrokeId: () => 'shape-1',
+          nowMillis: () => 7,
+        ),
+      )..updateContent(_content());
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    /// The loop and its hold drawn (the preview shows); [at] makes a sample after it.
+    (StrokeSession, InkSample Function(Offset, int, {double pressure})) snapped(
+      InkPageController c, {
+      double viewScale = 1,
+    }) {
+      final samples = SyntheticInk.loopThenHold(bounds: _loopBounds);
+      final session = c.beginStroke(
+        samples.first,
+        style: _pen(),
+        viewScale: viewScale,
+        shapeAssist: ShapeAssist.holdToSnap,
+      )..addSamples(samples.skip(1));
+      expect(session.shapePreview.value, isNotNull);
+      final t = samples.last.timeUs;
+      InkSample at(Offset p, int dtMs, {double pressure = 0.5}) => samples.last
+          .copyWith(position: p, timeUs: t + dtMs * 1000, pressure: pressure);
+      return (session, at);
+    }
+
+    test('hold → move → end: one addShape with the adjusted geometry; the '
+        'samples after the snap do not extend the stroke; accepted', () {
+      final c = controller(_fitOf(_rect, score: 0.7));
+      c.diagnostics.enabled = true;
+      addTearDown(() => c.diagnostics.enabled = false);
+      final (session, at) = snapped(c);
+      final points = livePoints(session.live).length;
+      session.addSamples([
+        for (var i = 1; i <= 10; i++)
+          at(Offset(150 - 5.0 * i, 50 - 3.0 * i), 8 * i),
+      ]);
+      expect(livePoints(session.live).length, points, reason: 'not extended');
+      final edit = session.end(at(const Offset(100, 20), 100))!;
+      expect(edit.kind, InkEditKind.addShape);
+      expect(edit.added, isEmpty);
+      final shape = edit.addedObjects.single as core.ShapeObject;
+      expect(shape.id, 'shape-1');
+      expect(shape.shapeKind, core.ShapeKind.rectangle);
+      // the lift sample drags too: top-left (60, 50) + (−50, −30)
+      expect(shape.geometry, _rectNear(const core.PageRect(10, 20, 240, 250)));
+      expect(c.pendingIds, {'shape-1'});
+      final stats = c.diagnostics.shapeFitStats;
+      expect(
+        (stats.fits, stats.accepted, stats.lastKind, stats.lastScore),
+        (1, 1, 'rectangle', 0.7),
+      );
+    });
+
+    test('the hold tail jitter inside the dead zone does not move it; '
+        'pressure plays no part', () {
+      final c = controller(_fitOf(_rect));
+      final (session, at) = snapped(c);
+      final notified = <InkShapeFit?>[];
+      session.shapePreview.addListener(
+        () => notified.add(session.shapePreview.value),
+      );
+      session.addSamples([
+        at(const Offset(155, 53), 8, pressure: 0.1),
+        at(const Offset(144, 47), 16, pressure: 1),
+        at(const Offset(150, 58), 24),
+      ]);
+      expect(notified, isEmpty);
+      expect(session.shapePreview.value, _fitOf(_rect));
+      // out of it: the same positions with other pressures give the same shape
+      session.addSample(at(const Offset(170, 70), 32, pressure: 0.05));
+      final a = session.shapePreview.value!.geometry;
+      session
+        ..addSample(at(const Offset(150, 50), 40, pressure: 1))
+        ..addSample(at(const Offset(170, 70), 48, pressure: 1));
+      expect(session.shapePreview.value!.geometry, a);
+      expect(
+        (session.end()!.addedObjects.single as core.ShapeObject).geometry,
+        a,
+      );
+    });
+
+    test('back inside the dead zone after leaving it follows the pen (no '
+        'snap back); viewScale 2 halves the zone', () {
+      final c = controller(_fitOf(_rect));
+      final (session, at) = snapped(c, viewScale: 2);
+      // 5 pt = 10 px: out of the 8 px zone at viewScale 2
+      session.addSample(at(const Offset(155, 50), 8));
+      expect(
+        session.shapePreview.value!.geometry,
+        _rectNear(const core.PageRect(65, 50, 240, 250)),
+      );
+      session.addSample(at(const Offset(152, 50), 16));
+      expect(
+        session.shapePreview.value!.geometry,
+        _rectNear(const core.PageRect(62, 50, 240, 250)),
+      );
+      session.cancel();
+    });
+
+    test('dragging past the fixed corner clamps the sides at the minimum '
+        '(8 px), never inside out', () {
+      final c = controller(_fitOf(_rect));
+      final (session, at) = snapped(c);
+      session.addSample(at(const Offset(400, 400), 8));
+      final shape = session.end()!.addedObjects.single as core.ShapeObject;
+      expect(
+        shape.geometry,
+        _rectNear(const core.PageRect(232, 242, 240, 250)),
+      );
+    });
+
+    test('a circle: the radius follows the pen; cancel() drops everything '
+        '(no edit, nothing pending, preview gone)', () {
+      final circle = InkShapeFit(
+        kind: core.ShapeKind.ellipse,
+        geometry: core.ShapeGeometry.ellipse(
+          const core.PageRect(50, 50, 250, 250),
+        ),
+        score: 0.9,
+      );
+      final c = controller(circle);
+      final (session, at) = snapped(c);
+      // the pen at (150, 50) = the top of the circle (r 100); 40 pt farther
+      session.addSample(at(const Offset(150, 10), 8));
+      final g = session.shapePreview.value!.geometry as core.EllipseGeometry;
+      expect(g.ellipseFrame.rect, const core.PageRect(10, 10, 290, 290));
+      session.cancel();
+      expect(session.isActive, isFalse);
+      expect(session.shapePreview.value, isNull);
+      expect(strokeSessionPreviewShape(session), isNull);
+      expect(c.pendingIds, isEmpty);
+      expect(liveObjectsOf(c), isEmpty);
     });
   });
 

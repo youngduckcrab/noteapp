@@ -2,7 +2,8 @@
 // - within shapeHoldRadiusPx (8 logical px) for shapeHoldMs (500): one fire — by
 //   the sample times, or by the timer when no sample comes; 499 ms → none;
 // - leaving the radius moves the anchor (the hold starts again from that sample and
-//   that moment) and, after a fire, is 'moving again'; holding again fires again;
+//   that moment) and, after a fire, is 'moving again'; holding again fires again
+//   (the detector alone — (C212-01) a StrokeSession stops it once a fit shows);
 // - viewScale 2 → the radius in page pt is halved;
 // - the clock rule: sample times are compared with sample times only and the timer
 //   measures its own elapsed time — event times far from (or behind) the InkClock
@@ -476,11 +477,17 @@ void main() {
         expect(got.first.dx, closeTo(loop.first.position.dx, 1));
         expect(got.first.dy, closeTo(loop.first.position.dy, 1));
         expect(got.last, loop.last.position);
-        // moving again → preview null (notified), the stroke goes on
+        // (C212-01) moving again no longer drops the preview: the detector
+        // stopped at the fit and the move drags the shape (notified again)
+        expect(strokeSessionHoldOf(session)!.timerArmed, isFalse);
         session.addSample(_sample(const ui.Offset(200, 200), 2000000));
-        expect(session.shapePreview.value, isNull);
-        expect(notified, [_fit, null]);
-        expect(strokeSessionPreviewShape(session), isNull);
+        expect(session.shapePreview.value, isNotNull);
+        expect(session.shapePreview.value!.kind, _fit.kind);
+        expect(notified, hasLength(2));
+        expect(strokeSessionPreviewShape(session), isNotNull);
+        // no new hold however long the pen stays
+        async.elapse(const Duration(seconds: 2));
+        expect(fitter.calls, 1);
         session.cancel();
         c.dispose();
         expect(async.pendingTimers, isEmpty);

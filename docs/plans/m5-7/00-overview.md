@@ -1340,7 +1340,8 @@ StrokeSession beginStroke(InkSample first, {required core.StrokeStyle style,
 enum ShapeAssist { off, holdToSnap }
 // StrokeSession — 추가: after the pen holds still ≥ InkTuning.shapeHoldMs (500) within
 // InkTuning.shapeHoldRadiusPx (8 logical px) the session asks inkShapeFitterProvider; a fit
-// shows in layer 4′ (v2.1); moving again cancels it; end() then yields InkEdit(addShape).
+// shows in layer 4′ (v2.1); (v2.12, C212-01) moving again adjusts it (no cancel); end() then
+// yields InkEdit(addShape) with the adjusted shape.
 final class StrokeSession implements InkGestureSession {   // (v2.1 정정) final as in v1.4 — no outside implementations
   /* v1.4 */
   ValueListenable<InkShapeFit?> get shapePreview;
@@ -2406,6 +2407,14 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | # | 절 | 변경 | 출처 | 반영할 영역 |
 |---|---|---|---|---|
 | C213-01 | 7.2.11 recog 내보내기 `ShapeFitTuning` | 선택 인자 8개 추가(기본값으로 옛 호출 그대로): `holdTailLogicalPx`(6)·`holdTailMaxFraction`(0.1)·`holdTailRetryLogicalPx`(10)·`holdTailRetryMaxFraction`(0.2)·`maxAbsTurnDeg`(660)·`roundedCornerMaxEdge`(0.15)·`thinBoxMaxAspect`(0.3)·`thinBoxMinEndCover`(0.6). 기본값 `circleMinAxisRatio` 0.82(0.86에서 되돌림)·`ellipseOverPolygonFactor` 0.8. `GeometricShapeFitter.fit`이 멈춤 꼬리를 스스로 자른다(INK 변경 없음) | 05-library 6.17.5 | LIBRARY(처리됨) |
+
+#### v2.12 (2026-11-16, 도형 보정 뒤 조절 — 사용자 요청 '도형을 그리고 난 후 보정하는 기능이 있으면 좋겠어')
+
+동작 변경 하나(공개 API·저장 형식 변경 없음). 설계는 [03-ink.md 6.18 '맞춘 뒤 조절'](03-ink.md#618-자동-도형-보정--멈춤-감지--미리보기-새-p-b), 안내 문구는 04-editor 6.10.
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C212-01 | 7.2.9 자동 도형 보정 | 멈춤으로 도형이 뜬 뒤 **다시 움직여도 미리보기가 없어지지 않는다**. 펜을 떼지 않고 움직이면 도형을 조절한다(직선: 잡은 끝, 원: 반지름, 타원: 비율 유지 배율, 사각형: 가까운 꼭짓점, 삼각형·다각형·별: 중심 배율). 그동안 `StrokeSession.shapePreview` 값이 샘플마다 바뀌고(같은 kind·score), `end()`는 조절된 도형 하나로 `addShape`. 새 상수 `InkTuning.shapeAdjustDeadZonePx`(8)·`shapeAdjustMinSizePx`(8)·`shapeAdjustAngleSnapDeg`(3). EDITOR `shapeAssistHint` 문구 | 사용자 요청 | INK·EDITOR(처리됨) |
 
 #### v2.11 (2026-11-14, 펜 종류 늘리기 — 사용자 요청 '잠금화면 앱을 만들 때 구현했던 펜들을 참고해서 구현해 볼래?')
 

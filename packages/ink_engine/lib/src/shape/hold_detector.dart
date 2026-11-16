@@ -5,7 +5,9 @@
 // of an anchor for InkTuning.shapeHoldMs.
 //  * anchor = the first sample; a sample farther than the radius from it moves
 //    the anchor there (its time becomes the anchor time) and re-arms the hold —
-//    after a fired hold that is 'moving again' (onMove: the preview is dropped);
+//    after a fired hold that is 'moving again' (onMove — (v2.12, C212-01) the
+//    session stops the detector once a hold gives a fit, so it never drops a
+//    preview: moving then adjusts the shape, shape/shape_adjust.dart);
 //  * a sample within the radius whose time is ≥ shapeHoldMs after the anchor
 //    time fires the hold (once per anchor);
 //  * a dart:async Timer of shapeHoldMs, started at every anchor change, fires it
@@ -53,7 +55,7 @@ final class HoldDetector {
 
   final void Function() _onHold;
 
-  /// The pen left the radius after a fired hold (the preview, if any, is dropped).
+  /// The pen left the radius after a fired hold (a hold without a fit — C212-01).
   final void Function() _onMove;
   final int _holdUs;
   final Duration _holdDuration;
