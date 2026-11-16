@@ -6,7 +6,9 @@ import 'package:note_core/note_core.dart' as core;
 import '../editor_strings.dart';
 
 /// `core.syncBadgeProvider` (contract 7.2.13): hidden — no space either —
-/// while off, loading or failed. 20 px icon in a 48 px touch area, no tap
+/// while off, loading or failed, and (v2.14-ui, UI stage 1) while done: an
+/// always-there 'done' cloud was noise, so it shows only while syncing,
+/// offline or with an error. 20 px icon in a 48 px touch area, no tap
 /// action (account and sync settings live on INFRA's settings screen).
 class EditorSyncBadgeIcon extends ConsumerWidget {
   const EditorSyncBadgeIcon({super.key});
@@ -16,7 +18,9 @@ class EditorSyncBadgeIcon extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final badge = ref.watch(core.syncBadgeProvider).value;
-    if (badge == null || badge.display == core.SyncDisplayState.off) {
+    if (badge == null ||
+        badge.display == core.SyncDisplayState.off ||
+        badge.display == core.SyncDisplayState.done) {
       return const SizedBox.shrink();
     }
     final scheme = Theme.of(context).colorScheme;

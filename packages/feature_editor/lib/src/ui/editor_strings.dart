@@ -52,6 +52,10 @@ abstract final class EditorStrings {
   static const fingerDrawingOn = '손가락 필기 켜짐';
   static const fingerDrawingOff = '손가락 필기 꺼짐';
 
+  /// (v2.14-ui, UI stage 1) The ⋯ check item that replaced the toolbar [✋]
+  /// (settings › 입력 › 입력 방식 has the three modes).
+  static const fingerDrawingMenu = '손가락으로 그리기';
+
   /// Semantics hint of the zoom chip (tap = fit width).
   static const zoomToFit = '너비 맞춤';
 
@@ -101,6 +105,9 @@ abstract final class EditorStrings {
   static const pageFlipHorizontal = '좌우 넘기기';
   static const devOverlay = '개발자 표시';
   static const noteInfo = '노트 정보';
+
+  /// (v2.14-ui) Semantics hint of the tappable toolbar title.
+  static const titleOpensNoteInfo = '눌러서 노트 정보 보기';
   static const noteInfoTitle = '제목';
   static const noteInfoPages = '페이지 수';
   static const noteInfoCreated = '만든 날짜';
@@ -187,6 +194,9 @@ abstract final class EditorStrings {
   static const colorBlue = 'B';
 
   static const recentColors = '최근 색';
+
+  /// (v2.14-ui) The 12 built-in colours above the recent ones.
+  static const basicColors = '기본 색';
 
   /// Shown instead of the recent colours before the first committed stroke.
   static const noRecentColors = '획을 그리면 그 색이 여기에 모여요';
@@ -457,8 +467,12 @@ abstract final class EditorStrings {
   /// Toolbar [▤] (semantics label).
   static const pagePanel = '페이지 패널';
 
-  /// Panel header: "페이지 12".
-  static String pageCount(int count) => '페이지 $count';
+  /// Panel header: "전체 12쪽" ((v2.14-ui) was "페이지 12", read as "the
+  /// 12th page").
+  static String pageCount(int count) => '전체 $count쪽';
+
+  /// (v2.14-ui) The panel's 페이지 넘김 row (was in ⋯): "넘김: 세로 스크롤".
+  static String pageFlipCurrent(String mode) => '넘김: $mode';
 
   /// Header [선택] (semantics label) — the page selection mode.
   static const selectPages = '페이지 선택';
@@ -488,8 +502,10 @@ abstract final class EditorStrings {
   /// Page indicator "3 / 12".
   static String pageIndicator(int current, int count) => '$current / $count';
 
-  /// The document-end button.
-  static const addPageAtEnd = '+ 페이지';
+  /// (v2.14-ui, UI stage 1) The faint hint after the last page (it replaced
+  /// the document-end '+ 페이지' button; never a button).
+  static const pullForNewPageVertical = '↓ 아래로 당겨서 새 페이지';
+  static const pullForNewPageHorizontal = '→ 옆으로 당겨서 새 페이지';
 
   /// Pull to add a page (04-editor 6.11.7): shown while a pull past the document end
   /// is short of the threshold / from the threshold on.

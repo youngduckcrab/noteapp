@@ -189,7 +189,7 @@ void main() {
     await tester.enterText(find.byKey(textEditorKey), '회의록 abc');
     await tester.pump();
     // The toolbar title is outside the editor's tap group → tapOutside.
-    await tester.tap(find.byKey(EditorToolbar.titleKey));
+    await tapToolbarBlank(tester);
     await tester.pump();
     await tester.runAsync(
       () => h.container.read(editorTextEditProvider.notifier).ending,

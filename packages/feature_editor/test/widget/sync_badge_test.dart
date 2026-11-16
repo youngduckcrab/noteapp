@@ -40,13 +40,15 @@ void main() {
     }
   });
 
-  testWidgets('done', (tester) async {
+  testWidgets('(v2.14-ui) done → hidden, no space either (only syncing, '
+      'offline and errors show)', (tester) async {
     await _pumpWith(
       tester,
       const core.SyncBadge(display: core.SyncDisplayState.done),
     );
-    expect(_icon(tester).icon, Icons.cloud_done);
-    expect(find.bySemanticsLabel(EditorStrings.syncDone), findsOneWidget);
+    expect(find.byKey(EditorSyncBadgeIcon.iconKey), findsNothing);
+    expect(find.byIcon(Icons.cloud_done), findsNothing);
+    expect(find.bySemanticsLabel(EditorStrings.syncDone), findsNothing);
   });
 
   testWidgets('inProgress with 3 pending changes → a 3 badge', (tester) async {

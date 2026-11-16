@@ -1,9 +1,10 @@
 // E-13: the toolbar (04-editor 6.9.1, 6.9.2): tool switching, the active pen
 // / eraser tapped again → settings popup, long press → quick / eraser popup,
-// the barrier closes and consumes, Esc closes, the finger toggle, the zoom
-// chip, the title below 700 px and the more menu items.
+// the barrier closes and consumes, Esc closes, the zoom chip, the title below
+// 700 px and the more menu items. (v2.14-ui, UI stage 1) No [✋] (⋯
+// '손가락으로 그리기'); [100%] only when not at fit; the title opens 노트 정보.
 // (v2, E2-13 — m5-7/04-editor 6.13.1) toolbar v2: the button order
-// [▤] │ pen eraser lasso shape text │ [+] [🎤] │ [↶] [↷] │ [✋] [100%] [⋯],
+// [▤] │ pen eraser lasso shape text │ [+] [🎤] │ [↶] [↷] │ [100%] [⋯],
 // the shape / text buttons (active again or long press → their tool popup
 // under the button), the title from 1000 px, [⋯도구] below the fold width
 // (shape, text, the [+] rows started inside the press, 녹음), no overflow on
@@ -17,6 +18,7 @@ import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/eraser/eraser_popup.dart';
+import 'package:feature_editor/src/ui/pages/page_panel.dart';
 import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
 import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/popup_host.dart';
@@ -141,29 +143,36 @@ void main() {
     expect(find.byKey(PopupHost.barrierKey), findsNothing);
   });
 
-  testWidgets('[✋] toggles finger drawing (penOnly ↔ fingerDrawing)', (
-    tester,
-  ) async {
+  testWidgets("(v2.14-ui) no [✋]; ⋯ '손가락으로 그리기' toggles finger "
+      'drawing (penOnly ↔ fingerDrawing) with a check', (tester) async {
     final h = await pumpEditor(tester);
     InputMode mode() => h.container.read(editorSettingsProvider).inputMode;
     expect(mode(), InputMode.auto);
-    expect(find.bySemanticsLabel(EditorStrings.fingerDrawingOn), findsOne);
+    expect(find.bySemanticsLabel(EditorStrings.fingerDrawingOn), findsNothing);
+    expect(find.byIcon(Icons.touch_app), findsNothing);
+    final item = find.byKey(EditorMoreMenu.fingerDrawingKey);
+    Finder check(IconData icon) =>
+        find.descendant(of: item, matching: find.byIcon(icon));
 
-    await tester.tap(find.byKey(EditorToolbar.fingerKey));
-    await tester.pump();
+    await _openMore(tester);
+    expect(check(Icons.check_box), findsOneWidget); // auto, no stylus: on
+    await tester.tap(item);
+    await tester.pumpAndSettle();
     expect(mode(), InputMode.penOnly);
-    expect(find.bySemanticsLabel(EditorStrings.fingerDrawingOff), findsOne);
 
-    await tester.tap(find.byKey(EditorToolbar.fingerKey));
-    await tester.pump();
+    await _openMore(tester);
+    expect(check(Icons.check_box_outline_blank), findsOneWidget);
+    await tester.tap(item);
+    await tester.pumpAndSettle();
     expect(mode(), InputMode.fingerDrawing);
-    expect(find.bySemanticsLabel(EditorStrings.fingerDrawingOn), findsOne);
     await tester.pump(const Duration(seconds: 1)); // debounced write
   });
 
-  testWidgets('the zoom chip shows the zoom; tap → fit width', (tester) async {
+  testWidgets('(v2.14-ui) the zoom chip only off 100 %; tap → fit width, '
+      'and it goes', (tester) async {
     final h = await pumpEditor(tester);
-    expect(find.text('100%'), findsOneWidget);
+    expect(find.byKey(ZoomChip.chipKey), findsNothing);
+    expect(find.text('100%'), findsNothing);
     h.container.read(editorCommandsProvider).zoomIn();
     await _frames(tester);
     expect(find.text(ZoomChip.labelFor(1.25)), findsOneWidget);
@@ -171,7 +180,9 @@ void main() {
     await tester.tap(find.byKey(ZoomChip.chipKey));
     await _frames(tester);
     expect(h.viewport.zoom, closeTo(1, 1e-9));
-    expect(find.text('100%'), findsOneWidget);
+    expect(find.byKey(ZoomChip.chipKey), findsNothing);
+    expect(ZoomChip.isFit(1.004), isTrue);
+    expect(ZoomChip.isFit(0.99), isFalse);
   });
 
   testWidgets('the title is hidden below 700 px', (tester) async {
@@ -204,8 +215,9 @@ void main() {
     expect(opened, 1);
   });
 
-  testWidgets('more menu: page flip, developer overlay, note info, clear '
-      'page', (tester) async {
+  testWidgets('(v2.14-ui) more menu: no 노트에서 찾기 · 페이지 넘김 · 현재 '
+      '페이지 지우기 · 노트 정보 (with the title) · 개발자 표시 (outside '
+      'developer mode) — each reachable elsewhere', (tester) async {
     final h = await pumpEditor(
       tester,
       title: '정보 노트',
@@ -217,9 +229,31 @@ void main() {
 
     await _openMore(tester);
     expect(find.byKey(EditorMoreMenu.settingsKey), findsNothing);
-    await tester.tap(find.byKey(EditorMoreMenu.pageFlipKey));
+    for (final text in [
+      EditorStrings.noteSearch,
+      EditorStrings.pageFlip,
+      EditorStrings.clearPage,
+      EditorStrings.noteInfo,
+      EditorStrings.devOverlay,
+      EditorStrings.tapesRevealAll,
+      EditorStrings.tapesHideAll,
+    ]) {
+      expect(find.text(text), findsNothing, reason: text);
+    }
+    expect(find.byKey(EditorMoreMenu.fingerDrawingKey), findsOneWidget);
+    await tester.tap(find.byKey(EditorMoreMenu.buttonKey)); // closes it
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(EditorMoreMenu.horizontalKey));
+
+    // 페이지 넘김 → the page panel's header row.
+    await tester.tap(find.byKey(EditorToolbar.pagePanelKey));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(EditorStrings.pageFlipCurrent(EditorStrings.pageFlipVertical)),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(PagePanel.pageFlipKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(PagePanel.horizontalKey));
     await tester.pumpAndSettle();
     expect(
       h.container.read(editorSettingsProvider).pageFlipMode,
@@ -228,15 +262,11 @@ void main() {
     h.container
         .read(editorCommandsProvider)
         .setPageFlipMode(PageFlipMode.verticalScroll);
-    await tester.pump();
-
-    await _openMore(tester);
-    await tester.tap(find.byKey(EditorMoreMenu.devOverlayKey));
+    await tester.tap(find.byKey(EditorToolbar.pagePanelKey));
     await tester.pumpAndSettle();
-    expect(h.container.read(editorSettingsProvider).showDevOverlay, isTrue);
 
-    await _openMore(tester);
-    await tester.tap(find.byKey(EditorMoreMenu.noteInfoKey));
+    // 노트 정보 → a tap on the title.
+    await tester.tap(find.byKey(EditorToolbar.titleKey));
     await tester.pumpAndSettle();
     expect(find.byKey(NoteInfoDialog.dialogKey), findsOneWidget);
     expect(
@@ -250,14 +280,51 @@ void main() {
     await tester.tap(find.text(EditorStrings.close));
     await tester.pumpAndSettle();
 
-    await _openMore(tester);
-    await tester.tap(find.byKey(EditorMoreMenu.clearPageKey));
+    // 현재 페이지 지우기 → the eraser popup.
+    await tester.longPress(find.byKey(EditorToolbar.eraserKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(EraserSettingsPanel.clearPageKey));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(ClearPageDialog.confirmKey));
     await tester.pumpAndSettle();
     expect(h.recorder!.countOf('executeAsync:clear-page'), 1);
     expect(h.session.pageIfLoaded(h.pageId(0))!.strokes, isEmpty);
     await tester.pump(const Duration(seconds: 1)); // debounced writes
+  });
+
+  testWidgets('(v2.14-ui) 개발자 표시 in ⋯ only in developer mode (or while '
+      'the overlay is on)', (tester) async {
+    final h = await pumpEditor(
+      tester,
+      overrides: [core.developerModeProvider.overrideWithValue(true)],
+    );
+    await _openMore(tester);
+    await tester.tap(find.byKey(EditorMoreMenu.devOverlayKey));
+    await tester.pumpAndSettle();
+    expect(h.container.read(editorSettingsProvider).showDevOverlay, isTrue);
+    await tester.pump(const Duration(seconds: 1)); // debounced write
+  });
+
+  testWidgets('(v2.14-ui) the overlay turned on elsewhere (⌘⇧D) keeps its ⋯ '
+      'item so it can be turned off there', (tester) async {
+    final h = await pumpEditor(tester);
+    h.container.read(editorCommandsProvider).toggleDevOverlay();
+    await tester.pump();
+    await _openMore(tester);
+    await tester.tap(find.byKey(EditorMoreMenu.devOverlayKey));
+    await tester.pumpAndSettle();
+    expect(h.container.read(editorSettingsProvider).showDevOverlay, isFalse);
+    await tester.pump(const Duration(seconds: 1)); // debounced write
+  });
+
+  testWidgets('(v2.14-ui) 노트 정보 stays in ⋯ while the toolbar hides the '
+      'title', (tester) async {
+    await pumpEditor(tester, logicalSize: const Size(800, 1280));
+    expect(find.byKey(EditorToolbar.titleKey), findsNothing);
+    await _openMore(tester);
+    await tester.tap(find.byKey(EditorMoreMenu.noteInfoKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(NoteInfoDialog.dialogKey), findsOneWidget);
   });
 
   group('(v2) toolbar v2', () {
@@ -284,7 +351,7 @@ void main() {
 
     for (final size in const [Size(1032, 1376), Size(1376, 1032)]) {
       testWidgets('order on ${size.width.toInt()}×${size.height.toInt()}: '
-          '[▤] pen eraser lasso shape text [+] [🎤] [↶] [↷] [✋] [100%] [⋯]; '
+          '[▤] pen eraser lasso shape text [+] [🎤] [↶] [↷] [⋯]; '
           'no overflow', (tester) async {
         await pumpV2(tester, size: size);
         expect(tester.takeException(), isNull);
@@ -299,8 +366,6 @@ void main() {
           MicButton.micKey,
           UndoRedoButtons.undoKey,
           UndoRedoButtons.redoKey,
-          EditorToolbar.fingerKey,
-          ZoomChip.chipKey,
           EditorMoreMenu.buttonKey,
         ];
         final xs = [for (final k in keys) centreX(tester, k)];
@@ -606,7 +671,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
       await tester.pumpAndSettle();
-      expect(find.byKey(EditorMoreMenu.clearPageKey), findsOneWidget);
+      expect(find.byKey(EditorMoreMenu.fingerDrawingKey), findsOneWidget);
     });
   });
 

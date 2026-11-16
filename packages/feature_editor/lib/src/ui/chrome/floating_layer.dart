@@ -49,7 +49,9 @@ class EditorFloatingLayer extends ConsumerWidget {
   }
 }
 
-/// [↶] [⌄ 메뉴 보이기] [🔍] [↷] at the top edge while the menu is hidden,
+/// [↶] [↷] │ [🔍] │ [⌄ 메뉴 보이기] ((v2.14-ui, UI stage 1) undo and redo
+/// side by side, the way back to the menu last) at the top edge while the
+/// menu is hidden,
 /// semi-transparent, 48 dp targets. It covers that strip of the page (a
 /// stroke starting on it reaches the pill, not the page — drag the pill
 /// aside to write there). Tap the middle → the menu comes back; drag it sideways
@@ -71,13 +73,17 @@ class MenuRestorePill extends ConsumerStatefulWidget {
   /// 48 dp touch targets: it is the only way back to the menu and the only
   /// undo / redo while the menu is hidden.
   static const double height = 48;
-  static const double width = 48 + 56 + 48 + 48 + 8;
+
+  /// (v2.14-ui) The │ between the groups.
+  static const double dividerWidth = 9;
+  static const double width =
+      48 + 48 + dividerWidth + 48 + dividerWidth + 56 + 8;
 
   /// (19.1) Without [🔍]: the width in a page area narrower than [width]
   /// (the search panel open on a narrow screen — Slide Over 320 px leaves
   /// the pages about 176 px). The panel's own close and back still close
   /// the search there.
-  static const double compactWidth = width - 48;
+  static const double compactWidth = width - 48 - dividerWidth;
 
   /// The pill's width in a page area [areaWidth] wide.
   static double widthFor(double areaWidth) =>
@@ -131,6 +137,12 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const UndoRedoButtons(compact: true, part: UndoRedoPart.undo),
+                const UndoRedoButtons(compact: true, part: UndoRedoPart.redo),
+                const _PillDivider(),
+                if (_width == MenuRestorePill.width) ...const [
+                  _PillSearchButton(),
+                  _PillDivider(),
+                ],
                 Expanded(
                   child: Semantics(
                     container: true,
@@ -157,8 +169,6 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
                     ),
                   ),
                 ),
-                if (_width == MenuRestorePill.width) const _PillSearchButton(),
-                const UndoRedoButtons(compact: true, part: UndoRedoPart.redo),
               ],
             ),
           ),
@@ -173,6 +183,22 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
     ref.read(editorDeviceStateProvider.notifier).setRestorePillX(x);
     setState(() => _dragX = null);
   }
+}
+
+/// (v2.14-ui) The pill's │.
+class _PillDivider extends StatelessWidget {
+  const _PillDivider();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: SizedBox(
+      height: 24,
+      child: VerticalDivider(
+        width: MenuRestorePill.dividerWidth,
+        color: Theme.of(context).colorScheme.outlineVariant,
+      ),
+    ),
+  );
 }
 
 /// (19.1) The pill's [🔍]: the in-note search stays reachable while the

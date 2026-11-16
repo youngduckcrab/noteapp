@@ -22,7 +22,6 @@ import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/eraser/eraser_popup.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
-import 'package:feature_editor/src/ui/toolbar/more_menu.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
@@ -253,11 +252,12 @@ void main() {
   }
 
   group('clear the current page', () {
-    /// The more menu's '현재 페이지 지우기'.
+    /// The eraser popup's '현재 페이지 지우기' ((v2.14-ui) the more menu's copy
+    /// is gone).
     Future<void> openDialog(WidgetTester tester, EditorTestHandles h) async {
-      await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
+      await tester.longPress(find.byKey(EditorToolbar.eraserKey));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(EditorMoreMenu.clearPageKey));
+      await tester.tap(find.byKey(EraserSettingsPanel.clearPageKey));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(ClearPageDialog), findsOneWidget);

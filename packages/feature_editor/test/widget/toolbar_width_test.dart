@@ -3,10 +3,13 @@
 // the [⌃] slot (19) and the [🔍] (18) — no overflow, no sideways scroll above
 // EditorToolbar.scrollWidth.
 import 'package:feature_editor/feature_editor.dart';
+import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/ui/chrome/editor_chrome.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
 import 'package:feature_editor/src/ui/toolbar/mic_button.dart';
+import 'package:feature_editor/src/ui/toolbar/sync_badge_icon.dart';
+import 'package:feature_editor/src/ui/toolbar/zoom_chip.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -17,31 +20,33 @@ import '../helpers/fake_math_pen.dart';
 import '../helpers/fake_text_pen.dart';
 import '../helpers/pump_editor.dart';
 
-Future<void> _pumpAll(WidgetTester tester, double width) => pumpEditor(
-  tester,
-  logicalSize: Size(width, 800),
-  imageImporter: (s) => FakeImageImporter(store: s),
-  overrides: [
-    core.syncBadgeProvider.overrideWith(
-      (ref) => Stream.value(
-        const core.SyncBadge(display: core.SyncDisplayState.done),
+Future<EditorTestHandles> _pumpAll(WidgetTester tester, double width) =>
+    pumpEditor(
+      tester,
+      logicalSize: Size(width, 800),
+      imageImporter: (s) => FakeImageImporter(store: s),
+      overrides: [
+        core.syncBadgeProvider.overrideWith(
+          (ref) => Stream.value(
+            // (v2.14-ui) 'done' is hidden now: syncing keeps the badge shown.
+            const core.SyncBadge(display: core.SyncDisplayState.inProgress),
+          ),
+        ),
+      ],
+      extensions: EditorExtensions(
+        textPen: FakeTextPen().slot,
+        mathPen: FakeMathPen().slot,
+        recordingPanel: (context, panel) => const SizedBox(),
+        insertMenuItems: [
+          EditorInsertMenuItem(
+            id: 'x',
+            label: 'x',
+            icon: Icons.add,
+            onSelected: (context, insert) async {},
+          ),
+        ],
       ),
-    ),
-  ],
-  extensions: EditorExtensions(
-    textPen: FakeTextPen().slot,
-    mathPen: FakeMathPen().slot,
-    recordingPanel: (context, panel) => const SizedBox(),
-    insertMenuItems: [
-      EditorInsertMenuItem(
-        id: 'x',
-        label: 'x',
-        icon: Icons.add,
-        onSelected: (context, insert) async {},
-      ),
-    ],
-  ),
-);
+    );
 
 /// The width the toolbar row's fixed children need.
 double _needed(WidgetTester tester) {
@@ -83,8 +88,14 @@ void main() {
   ]) {
     testWidgets('$width px, every optional button on: no overflow, no '
         'scroll, [🔍] in the row, the tools reachable', (tester) async {
-      await _pumpAll(tester, width);
-      await tester.pump();
+      final h = await _pumpAll(tester, width);
+      // (v2.14-ui) The zoom chip shows only off 100 %: zoom in so it is on.
+      h.container.read(editorCommandsProvider).zoomIn();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.byKey(ZoomChip.chipKey), findsOneWidget);
+      expect(find.byKey(EditorSyncBadgeIcon.iconKey), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(find.byKey(EditorToolbar.scrollKey), findsNothing);
       expect(_needed(tester), lessThanOrEqualTo(width));
@@ -113,11 +124,18 @@ void main() {
       }
       // [⌃] in the row where it fits, else in ⋯ (never an overflow).
       // With the title (19.1): [⌃] only while the title keeps
-      // titleLeastWidth — the fixed row is 948.4 px, so from 1044.4.
+      // titleLeastWidth. (v2.14-ui) Without [✋] the fixed row is 48 px
+      // shorter (≈ 900 px), so [⌃] fits from about 1000.
       if (width >= 1048) {
         expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
       } else if (width >= EditorToolbar.titleMinWidth) {
-        expect(find.byKey(MenuHideButton.buttonKey), findsNothing);
+        final slot = tester.getSize(find.byKey(EditorToolbar.titleSlotKey));
+        expect(
+          find.byKey(MenuHideButton.buttonKey),
+          slot.width >= MenuHideButton.width + EditorToolbar.titleLeastWidth
+              ? findsOneWidget
+              : findsNothing,
+        );
       }
       // (19.1 review) From titleMinWidth the title keeps real room: [⌃] and
       // [🔍] together squeezed it to 3.6 px at 1000, 27.6 at 1024.

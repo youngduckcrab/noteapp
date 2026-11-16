@@ -8,7 +8,8 @@ abstract final class ViewportConstants {
   static const double sideMargin = 16; // logical px, used by fit
   static const double pageGap = 24; // pt
   static const double leadingPadding = 24; // pt
-  static const double trailingPadding = 120; // pt, room for "+ page" button
+  static const double trailingPadding =
+      120; // pt, room for the end hint (v2.14-ui)
   static const int maxMountedPages =
       8; // = core NoteSessionOptions.maxCachedPages (E-2)
   static const Duration settleDelay = Duration(milliseconds: 150);

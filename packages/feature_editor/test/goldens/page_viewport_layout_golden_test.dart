@@ -1,7 +1,7 @@
 // E-22: the page area as EDITOR lays it out (04-editor 6.3, 6.4.3): page
 // rectangles at their layout positions (24 pt gaps and margins, fit width,
 // trailing space for '+ 페이지'), the page area background, the page
-// indicator and the add-page button. INK's output is fixed to a flat white
+// indicator and (v2.14-ui) the end-of-document hint. INK's output is fixed to a flat white
 // page (SolidBackgroundBuilder, empty pages — 9.1), so only EDITOR's
 // placement is compared. The image is the PageViewport rectangle cut from its
 // nearest repaint boundary (the toolbar and preset bar above it are left out).
@@ -73,7 +73,7 @@ void main() {
     );
   });
 
-  testWidgets('portrait, end of the note: last page and the add-page button', (
+  testWidgets('portrait, end of the note: last page and the end hint', (
     tester,
   ) async {
     final h = await _open(tester);

@@ -10,13 +10,10 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../di/editor_extensions.dart';
 import '../../di/editor_image_importer.dart';
-import '../../di/stylus_extras.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/note_search.dart';
 import '../../state/page_panel.dart';
 import '../../state/popup.dart';
-import '../../state/settings/editor_settings_notifier.dart';
-import '../../stylus/stylus_extras_listener.dart' show penOnlyEffectiveWith;
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
 import '../chrome/editor_chrome.dart' show MenuHideButton, MenuHideSlot;
@@ -25,6 +22,7 @@ import '../popup_host.dart';
 import 'insert_menu.dart';
 import 'mic_button.dart';
 import 'more_menu.dart';
+import 'note_info_dialog.dart';
 import 'overflow_tools_menu.dart';
 import 'sync_badge_icon.dart';
 import 'tool_button.dart';
@@ -55,7 +53,11 @@ IconData penTypeIcon(core.PenTool tool) => switch (tool) {
 };
 
 /// [←] title [▤] │ [펜●] [지우개] [올가미] [도형] [텍스트] │ [+] [🎤] │ [↶] [↷] │
-/// [✋] [100%] [☁] [⋯] — 52 px (v2, m5-7/04-editor 6.13.1). The title shows
+/// [100%] [☁] [⋯] — 52 px (v2, m5-7/04-editor 6.13.1). (v2.14-ui, UI stage
+/// 1) No [✋] (⋯ '손가락으로 그리기' and settings › 입력 instead); [100%] only
+/// while the zoom is not 100 % and [☁] only while sync is not done
+/// (ZoomChip, EditorSyncBadgeIcon); a tap on the title opens 노트 정보 (⋯ has
+/// it while the title is hidden). The title shows
 /// from [titleMinWidth] (1st round 700 — more buttons now). Below
 /// [foldWidth] (split screen — A-6) [도형] [텍스트] [+] [🎤] fold into
 /// [⋯도구] (OverflowToolsMenu); below [scrollWidth] the buttons scroll
@@ -101,8 +103,11 @@ class EditorToolbar extends ConsumerWidget {
   static const penKey = ValueKey('editor.toolbar.pen');
   static const eraserKey = ValueKey('editor.toolbar.eraser');
   static const lassoKey = ValueKey('editor.toolbar.lasso');
-  static const fingerKey = ValueKey('editor.toolbar.finger');
   static const titleKey = ValueKey('editor.toolbar.title');
+
+  /// (v2.14-ui) The whole title slot (the title's [titleKey] is the tappable
+  /// part; the rest of the slot is blank toolbar).
+  static const titleSlotKey = ValueKey('editor.toolbar.titleSlot');
   static const pagePanelKey = ValueKey('editor.toolbar.pagePanel');
 
   /// (v2.13-search) [🔍] '노트에서 찾기' — at every width from
@@ -162,7 +167,10 @@ class EditorToolbar extends ConsumerWidget {
                 // titleLeastWidth (19.1).
                 if (scroll) const MenuHideButton(),
                 if (constraints.maxWidth >= titleMinWidth)
-                  Expanded(child: _TitleSlot(title: title))
+                  Expanded(
+                    key: titleSlotKey,
+                    child: _TitleSlot(title: title),
+                  )
                 else if (!scroll)
                   const MenuHideSlot(), // the Spacer, [⌃] when it fits
                 if (constraints.maxWidth >= foldedSearchMinWidth)
@@ -181,10 +189,12 @@ class EditorToolbar extends ConsumerWidget {
                 ],
                 const UndoRedoButtons(),
                 const _Divider(),
-                const _FingerToggle(),
                 const ZoomChip(),
                 const EditorSyncBadgeIcon(),
-                EditorMoreMenu(onOpenSettings: onOpenSettings),
+                EditorMoreMenu(
+                  onOpenSettings: onOpenSettings,
+                  showNoteInfo: constraints.maxWidth < titleMinWidth,
+                ),
                 const SizedBox(width: 4),
               ],
             );
@@ -202,19 +212,41 @@ class EditorToolbar extends ConsumerWidget {
 }
 
 /// (19.1) The title, with [⌃] before it while the title keeps
-/// [EditorToolbar.titleLeastWidth].
-class _TitleSlot extends StatelessWidget {
+/// [EditorToolbar.titleLeastWidth]. (v2.14-ui) A tap on it opens 노트 정보
+/// (NoteInfoDialog); the ink area is the text's width, at most the slot.
+class _TitleSlot extends ConsumerWidget {
   const _TitleSlot({required this.title});
 
   final String title;
 
   @override
-  Widget build(BuildContext context) {
-    final text = Text(
-      title,
-      key: EditorToolbar.titleKey,
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.titleMedium,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Semantics(
+        button: true,
+        hint: EditorStrings.titleOpensNoteInfo,
+        child: InkWell(
+          key: EditorToolbar.titleKey,
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => showNoteInfoDialog(context, ref),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Align(
+                widthFactor: 1,
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
     return LayoutBuilder(
       builder: (context, constraints) =>
@@ -410,34 +442,6 @@ class _PagePanelButton extends ConsumerWidget {
       icon: const Icon(
         Icons.view_sidebar,
         semanticLabel: EditorStrings.pagePanel,
-      ),
-    );
-  }
-}
-
-/// [✋]: on = finger drawing, off = pen only (auto shows what it does now).
-class _FingerToggle extends ConsumerWidget {
-  const _FingerToggle();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // (v2, E2-18 — 6.5.3) with iPadOS '펜슬로만 그리기' auto is pen only.
-    final capabilities = ref.watch(stylusExtrasProvider).capabilities;
-    final penOnly = ref.watch(
-      editorSettingsProvider.select(
-        (s) => penOnlyEffectiveWith(s, capabilities),
-      ),
-    );
-    final commands = ref.watch(editorCommandsProvider);
-    return IconButton(
-      key: EditorToolbar.fingerKey,
-      isSelected: !penOnly,
-      onPressed: commands.toggleFingerDrawing,
-      icon: Icon(
-        penOnly ? Icons.do_not_touch : Icons.touch_app,
-        semanticLabel: penOnly
-            ? EditorStrings.fingerDrawingOff
-            : EditorStrings.fingerDrawingOn,
       ),
     );
   }

@@ -525,15 +525,16 @@ void main() {
 
     // [⌃] after [←] where it fits (else in ⋯ only), with every optional
     // button on (insert, mic, math pen, text pen, sync badge; 19.1 [🔍]).
+    // (v2.14-ui) Without [✋] (and the [100%] chip at fit) the row is about
+    // 112 px shorter, so [⌃] now fits at every width here.
     for (final (width, shown) in const [
       (360.0, true), // the row scrolls: right after [←]
       (800.0, true), // folded (Android portrait, with [🔍])
       (900.0, true), // folded (19.1: foldWidth 952)
-      (960.0, false), // unfolded with [🔍], crowded: ⋯ only
-      // With the title: ⋯ only while [⌃] would leave the title less than
-      // titleLeastWidth (19.1 — 51.6 px at 1000, 99.6 at 1048).
-      (1000.0, false),
-      (1024.0, false),
+      (960.0, true), // unfolded with [🔍]
+      // With the title: [⌃] while the title keeps titleLeastWidth.
+      (1000.0, true),
+      (1024.0, true),
       (1048.0, true),
       (1080.0, true),
     ]) {
@@ -546,7 +547,8 @@ void main() {
           overrides: [
             core.syncBadgeProvider.overrideWith(
               (ref) => Stream.value(
-                const core.SyncBadge(display: core.SyncDisplayState.done),
+                // (v2.14-ui) 'done' is hidden: syncing keeps it shown.
+                const core.SyncBadge(display: core.SyncDisplayState.inProgress),
               ),
             ),
           ],
@@ -569,16 +571,17 @@ void main() {
       });
     }
 
-    testWidgets('a crowded unfolded row leaves [⌃] to ⋯ instead of '
-        'overflowing', (tester) async {
-      await pumpEditor(
+    testWidgets('the fullest unfolded row (zoom chip and sync badge on) '
+        'does not overflow; [⌃] stays in ⋯ either way (v2.14-ui: it now '
+        'fits beside the tools)', (tester) async {
+      final h = await pumpEditor(
         tester,
         logicalSize: const Size(EditorToolbar.foldWidth, 1000),
         imageImporter: (s) => FakeImageImporter(store: s),
         overrides: [
           core.syncBadgeProvider.overrideWith(
             (ref) => Stream.value(
-              const core.SyncBadge(display: core.SyncDisplayState.done),
+              const core.SyncBadge(display: core.SyncDisplayState.error),
             ),
           ),
         ],
@@ -588,8 +591,14 @@ void main() {
           textPen: FakeTextPen().slot,
         ),
       );
+      h.container.read(editorCommandsProvider).zoomIn();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       expect(tester.takeException(), isNull);
-      expect(find.byKey(MenuHideButton.buttonKey), findsNothing);
+      expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
+      await _openMore(tester);
+      expect(find.byKey(EditorChrome.moreHideKey), findsOneWidget);
     });
   });
 

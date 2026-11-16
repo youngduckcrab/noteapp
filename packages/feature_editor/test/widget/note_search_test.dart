@@ -76,10 +76,9 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+/// (v2.14-ui) The toolbar [🔍] (the more menu's copy is gone).
 Future<void> _openFromMenu(WidgetTester tester) async {
-  await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(EditorMoreMenu.noteSearchKey));
+  await tester.tap(find.byKey(EditorToolbar.noteSearchKey));
   await tester.pump();
   await tester.pump();
 }
@@ -154,17 +153,16 @@ final class _CountingIndex implements core.SearchIndex {
 }
 
 void main() {
-  testWidgets('the more menu offers 노트에서 찾기 first; it opens the panel '
-      'with the field focused', (tester) async {
+  testWidgets('the toolbar [🔍] opens the panel with the field focused; '
+      '(v2.14-ui) the more menu has no 노트에서 찾기 any more', (tester) async {
     final h = await _open(tester);
     await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
     await tester.pumpAndSettle();
-    final item = find.byKey(EditorMoreMenu.noteSearchKey);
+    expect(find.text('노트에서 찾기'), findsNothing);
+    await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
+    await tester.pumpAndSettle();
+    final item = find.byKey(EditorToolbar.noteSearchKey);
     expect(item, findsOneWidget);
-    expect(
-      find.descendant(of: item, matching: find.text('노트에서 찾기')),
-      findsOneWidget,
-    );
     await tester.tap(item);
     await tester.pump();
     await tester.pump();

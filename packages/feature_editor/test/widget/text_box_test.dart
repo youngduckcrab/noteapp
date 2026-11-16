@@ -24,7 +24,6 @@ import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/new_text_box_outline.dart';
 import 'package:feature_editor/src/ui/text/text_style_controls.dart';
-import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/undo_redo_buttons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -570,7 +569,7 @@ void main() {
     testWidgets('a tap on the toolbar → tapOutside', (tester) async {
       final h = await _pump(tester, tool: EditorTool.pen);
       await _editBox(tester, h);
-      await tester.tap(find.byKey(EditorToolbar.titleKey));
+      await tapToolbarBlank(tester);
       await tester.pump();
       expect(_notifier(h).lastEndReason, TextEditEndReason.tapOutside);
     });

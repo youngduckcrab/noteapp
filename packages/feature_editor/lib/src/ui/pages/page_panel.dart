@@ -10,6 +10,8 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/page_panel.dart';
 import '../../state/popup.dart';
+import '../../state/settings/editor_settings.dart';
+import '../../state/settings/editor_settings_notifier.dart';
 import '../editor_strings.dart';
 import 'page_panel_selection_bar.dart';
 import 'page_panel_thumbnail.dart';
@@ -18,7 +20,10 @@ import 'page_panel_thumbnail.dart';
 /// preset bar to the bottom, elevation 2) over the page viewport, so the
 /// viewport keeps its size and zoom. Toggled by the toolbar [▤].
 ///
-/// Header "페이지 12" + [선택] (selection mode) + [+] (AddPagePopup). The
+/// Header "전체 12쪽" + [선택] (selection mode) + [+] (AddPagePopup);
+/// (v2.14-ui, UI stage 1) under it the 페이지 넘김 row (moved from ⋯): a
+/// text button "넘김: 세로 스크롤 ▾" whose menu has 세로 스크롤 · 좌우 넘기기
+/// (EditorCommands.setPageFlipMode; settings › 페이지 넘김 too). The
 /// list is core.notePagesProvider(noteId) (note order; session.pages while
 /// it loads), a ReorderableListView.builder: items keep ValueKey(page.id), a
 /// long press (500 ms) starts a drag → EditorCommands.movePage(id, final
@@ -46,6 +51,11 @@ class PagePanel extends ConsumerStatefulWidget {
   static const selectModeKey = ValueKey('editor.pagePanel.selectMode');
   static const addKey = ValueKey('editor.pagePanel.add');
   static const countKey = ValueKey('editor.pagePanel.count');
+
+  /// (v2.14-ui) The 페이지 넘김 row and its two choices.
+  static const pageFlipKey = ValueKey('editor.pagePanel.pageFlip');
+  static const verticalKey = ValueKey('editor.pagePanel.pageFlip.vertical');
+  static const horizontalKey = ValueKey('editor.pagePanel.pageFlip.horizontal');
 
   static ValueKey<String> itemKey(String pageId) =>
       ValueKey('editor.pagePanel.item.$pageId');
@@ -192,6 +202,7 @@ class _PagePanelState extends ConsumerState<PagePanel> {
                   ],
                 ),
               ),
+              const _PageFlipRow(),
               if (panel.isSelecting) PagePanelSelectionBar(pages: pages),
               const Divider(height: 1),
               Expanded(
@@ -437,6 +448,62 @@ class _PageMenu extends ConsumerWidget {
         icon: Icon(
           Icons.more_horiz,
           semanticLabel: EditorStrings.pageMenu(number),
+        ),
+      ),
+    );
+  }
+}
+
+/// (v2.14-ui) "넘김: 세로 스크롤 ▾" — the 페이지 넘김 choice that was in ⋯.
+/// Allowed on a read-only note (a device setting, nothing in the note).
+class _PageFlipRow extends ConsumerWidget {
+  const _PageFlipRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final flip = ref.watch(
+      editorSettingsProvider.select((s) => s.pageFlipMode),
+    );
+    final commands = ref.watch(editorCommandsProvider);
+    String name(PageFlipMode mode) => switch (mode) {
+      PageFlipMode.verticalScroll => EditorStrings.pageFlipVertical,
+      PageFlipMode.horizontalPaged => EditorStrings.pageFlipHorizontal,
+    };
+    Widget check(bool on) =>
+        Icon(on ? Icons.radio_button_checked : Icons.radio_button_unchecked);
+    return MenuAnchor(
+      menuChildren: [
+        for (final (mode, key) in const [
+          (PageFlipMode.verticalScroll, PagePanel.verticalKey),
+          (PageFlipMode.horizontalPaged, PagePanel.horizontalKey),
+        ])
+          MenuItemButton(
+            key: key,
+            leadingIcon: check(flip == mode),
+            onPressed: () => commands.setPageFlipMode(mode),
+            child: Text(name(mode)),
+          ),
+      ],
+      builder: (context, controller, _) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Semantics(
+          label: EditorStrings.pageFlip,
+          child: TextButton.icon(
+            key: PagePanel.pageFlipKey,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              alignment: AlignmentDirectional.centerStart,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            iconAlignment: IconAlignment.end,
+            icon: const Icon(Icons.arrow_drop_down),
+            onPressed: () =>
+                controller.isOpen ? controller.close() : controller.open(),
+            label: Text(
+              EditorStrings.pageFlipCurrent(name(flip)),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ),
       ),
     );

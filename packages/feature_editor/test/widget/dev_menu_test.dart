@@ -47,7 +47,11 @@ Future<void> _pick(WidgetTester tester, Key key) async {
 
 void main() {
   testWidgets('shown only while the overlay is visible', (tester) async {
-    await pumpEditor(tester);
+    // (v2.14-ui) ⋯ '개발자 표시' needs developer mode.
+    await pumpEditor(
+      tester,
+      overrides: [core.developerModeProvider.overrideWithValue(true)],
+    );
     await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
     await tester.pumpAndSettle();
     expect(find.byKey(EditorDevMenu.menuKey), findsNothing);

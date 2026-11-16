@@ -31,9 +31,9 @@ import '../text/text_input_sheet.dart';
 import '../tools/interaction_host.dart';
 import '../ui/chrome/floating_layer.dart';
 import '../ui/dev/dev_overlay.dart';
-import '../ui/overlays/add_page_button.dart';
 import '../ui/overlays/context_menu.dart';
 import '../ui/overlays/cursor_painter.dart';
+import '../ui/overlays/end_of_document_hint.dart';
 import '../ui/overlays/eyedropper_banner.dart';
 import '../ui/overlays/focus_flash.dart';
 import '../ui/overlays/math_pen_layer.dart';
@@ -239,7 +239,9 @@ class _PageViewportState extends ConsumerState<PageViewport> {
               const TextPenLayer(),
               const SelectionMenu(),
               const EditorContextMenu(),
-              const AddPageButton(),
+              // (v2.14-ui) the faint '↓ 아래로 당겨서 새 페이지' after the last
+              // page (was the '+ 페이지' button).
+              const EndOfDocumentHint(),
               // (04-editor 6.11.7) the strip a pull past the document end reveals.
               const PullToAddPageIndicator(),
               const PageIndicator(),

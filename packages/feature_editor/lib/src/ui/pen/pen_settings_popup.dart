@@ -12,6 +12,7 @@ import 'package:note_core/note_core.dart' as core;
 
 import '../../state/popup.dart';
 import '../../tools/tool_controller.dart';
+import '../color/basic_colors_row.dart';
 import '../color/color_picker_panel.dart';
 import '../color/opacity_slider.dart';
 import '../color/recent_colors_row.dart';
@@ -50,6 +51,9 @@ class PenSettingsPanel extends ConsumerWidget {
           SizedBox(height: 12),
           OpacitySlider(),
           SizedBox(height: 12),
+          // (v2.14-ui) 기본 색 12개 first.
+          BasicColorsRow(),
+          SizedBox(height: 8),
           ColorPickerPanel(),
           SizedBox(height: 12),
           RecentColorsRow(),

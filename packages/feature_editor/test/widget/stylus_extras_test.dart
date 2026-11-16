@@ -31,7 +31,7 @@ import 'package:feature_editor/src/ui/pen/pen_extras_controls.dart';
 import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/settings/editor_settings_sections.dart';
 import 'package:feature_editor/src/ui/settings/gesture_action_tile.dart';
-import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
+import 'package:feature_editor/src/ui/toolbar/more_menu.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -587,7 +587,8 @@ void main() {
 
   group("iPadOS '펜슬로만 그리기' (6.5.3)", () {
     testWidgets('prefersPencilOnlyDrawing → auto is pen only before any '
-        'stylus: a finger does not draw, [✋] shows pen only, the input '
+        'stylus: a finger does not draw, ⋯ 손가락으로 그리기 is unchecked, the '
+        'input '
         'mode hint says it follows the iPad', (tester) async {
       final stylus = FakeStylusExtras(
         capabilities: const StylusCapabilities(prefersPencilOnlyDrawing: true),
@@ -598,12 +599,17 @@ void main() {
       expect(settings.stylusSeen, isFalse);
       expect(settings.isPenOnlyEffective, isFalse); // settings-only getter
       expect(_host(h).policy.penOnly, isTrue);
+      await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
+      await tester.pumpAndSettle();
       expect(
-        tester
-            .widget<IconButton>(find.byKey(EditorToolbar.fingerKey))
-            .isSelected,
-        isFalse,
+        find.descendant(
+          of: find.byKey(EditorMoreMenu.fingerDrawingKey),
+          matching: find.byIcon(Icons.check_box_outline_blank),
+        ),
+        findsOneWidget,
       );
+      await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
+      await tester.pumpAndSettle();
       await _fingerStroke(h);
       expect(_strokes(h), isEmpty);
 

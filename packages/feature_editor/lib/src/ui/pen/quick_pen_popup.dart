@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../tools/tool_controller.dart';
+import '../color/basic_colors_row.dart';
 import '../color/opacity_slider.dart';
 import '../color/recent_colors_row.dart';
 import '../color/user_palette_grid.dart';
@@ -36,6 +37,9 @@ class QuickPenPanel extends ConsumerWidget {
         const SizedBox(height: 12),
         const OpacitySlider(),
         const SizedBox(height: 12),
+        // (v2.14-ui) 기본 색 12개 above the recent colours.
+        const BasicColorsRow(),
+        const SizedBox(height: 8),
         const RecentColorsRow(),
         const SizedBox(height: 8),
         const UserPaletteGrid(limit: paletteShown, editable: false),

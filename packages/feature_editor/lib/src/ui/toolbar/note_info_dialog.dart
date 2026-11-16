@@ -1,8 +1,21 @@
 // lib/src/ui/toolbar/note_info_dialog.dart — 04-editor 6.17.4 (노트 정보).
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
+import '../../scope/editor_scope.dart';
 import '../editor_strings.dart';
+
+/// Shows [NoteInfoDialog] for the open note ((v2.14-ui) from a tap on the
+/// toolbar title, or ⋯ '노트 정보' while the title is hidden).
+Future<void> showNoteInfoDialog(BuildContext context, WidgetRef ref) {
+  final session = ref.read(editorSessionValueProvider);
+  return showDialog<void>(
+    context: context,
+    builder: (_) =>
+        NoteInfoDialog(note: session.note, pageCount: session.pages.length),
+  );
+}
 
 /// Local `yyyy-MM-dd HH:mm` (no intl — contract 7.4.5).
 String formatLocalDateTime(core.EpochMillis at) {

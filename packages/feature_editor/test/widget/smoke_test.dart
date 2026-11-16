@@ -285,7 +285,9 @@ void main() {
     // E-13: the more menu is always there; '설정' only with onOpenSettings.
     await tester.tap(find.bySemanticsLabel(EditorStrings.more));
     await tester.pumpAndSettle();
-    expect(find.text(EditorStrings.noteInfo), findsOneWidget);
+    // (v2.14-ui) 노트 정보 is the title's tap while the title shows.
+    expect(find.text(EditorStrings.fingerDrawingMenu), findsOneWidget);
+    expect(find.text(EditorStrings.noteInfo), findsNothing);
     expect(find.text(EditorStrings.settings), findsNothing);
     await tester.tap(find.bySemanticsLabel(EditorStrings.more)); // closes it
     await tester.pumpAndSettle();

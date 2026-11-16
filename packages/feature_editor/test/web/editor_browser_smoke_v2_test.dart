@@ -77,7 +77,7 @@ void main() {
     expect(s.isNew, isTrue);
     await tester.enterText(find.byKey(textEditorKey), '회의록 abc');
     await tester.pump();
-    await tester.tap(find.byKey(EditorToolbar.titleKey));
+    await tapToolbarBlank(tester);
     await tester.pump();
     final notifier = h.container.read(editorTextEditProvider.notifier);
     await notifier.ending;

@@ -13,6 +13,7 @@ import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/document/mounted_pages.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
+import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:feature_editor/src/viewport/viewport_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -435,4 +436,12 @@ class EditorTestHandles {
       await _tester.pump();
     }
   }
+}
+
+/// (v2.14-ui) A tap on the toolbar with no side effect — outside the editor's
+/// tap groups: the blank end of the title slot (the title itself opens
+/// 노트 정보 now).
+Future<void> tapToolbarBlank(WidgetTester tester) async {
+  final rect = tester.getRect(find.byKey(EditorToolbar.titleSlotKey));
+  await tester.tapAt(Offset(rect.right - 8, rect.center.dy));
 }

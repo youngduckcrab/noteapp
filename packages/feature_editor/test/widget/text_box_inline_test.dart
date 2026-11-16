@@ -18,7 +18,6 @@ import 'package:feature_editor/src/text/text_box_editor.dart';
 import 'package:feature_editor/src/text/text_box_placement.dart';
 import 'package:feature_editor/src/text/text_edit_session.dart';
 import 'package:feature_editor/src/ui/toolbar/dev_menu.dart';
-import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/more_menu.dart';
 import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:flutter/services.dart';
@@ -64,7 +63,7 @@ void _composeKorean(WidgetTester tester, String text) {
 
 /// A tap outside the editor's tap group with no side effect: the note title.
 Future<void> _tapToolbar(WidgetTester tester) async {
-  await tester.tap(find.byKey(EditorToolbar.titleKey));
+  await tapToolbarBlank(tester);
   await tester.pump();
   await tester.pump();
 }

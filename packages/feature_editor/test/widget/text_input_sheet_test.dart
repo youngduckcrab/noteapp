@@ -233,7 +233,7 @@ void main() {
     await tester.pump();
     expect(h.container.read(editorTextEditProvider), isNotNull);
 
-    await tester.tap(find.byKey(EditorToolbar.titleKey));
+    await tapToolbarBlank(tester);
     await tester.pump();
     final notifier = h.container.read(editorTextEditProvider.notifier);
     await notifier.ending;

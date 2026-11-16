@@ -16,7 +16,6 @@ import 'package:feature_editor/src/text/text_box_editor.dart';
 import 'package:feature_editor/src/text/text_edit_session.dart';
 import 'package:feature_editor/src/text/text_input_sheet.dart';
 import 'package:feature_editor/src/ui/toolbar/dev_menu.dart';
-import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/more_menu.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_test/flutter_test.dart';
@@ -66,7 +65,7 @@ void main() {
     await tester.enterText(_editor, '안녕 hello');
     await tester.pump();
     expect(h.container.read(editorTextEditProvider)!.draft.text, '안녕 hello');
-    await tester.tap(find.byKey(EditorToolbar.titleKey));
+    await tapToolbarBlank(tester);
     await tester.pump();
     final notifier = h.container.read(editorTextEditProvider.notifier);
     await notifier.ending;

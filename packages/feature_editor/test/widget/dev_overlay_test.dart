@@ -81,7 +81,11 @@ void _expectOn(WidgetTester tester, EditorTestHandles h, bool on) {
 void main() {
   testWidgets('off by default; the setting, the more menu and Ctrl+Shift+D '
       'turn it on and off', (tester) async {
-    final h = await pumpEditor(tester);
+    // (v2.14-ui) ⋯ '개발자 표시' needs developer mode.
+    final h = await pumpEditor(
+      tester,
+      overrides: [core.developerModeProvider.overrideWithValue(true)],
+    );
     _expectOn(tester, h, false);
 
     // The more menu item.
