@@ -16,7 +16,6 @@ import '../../state/page_panel.dart';
 import '../../state/popup.dart';
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
-import '../chrome/editor_chrome.dart' show MenuHideButton, MenuHideSlot;
 import '../editor_strings.dart';
 import '../popup_host.dart';
 import 'insert_menu.dart';
@@ -81,10 +80,10 @@ class EditorToolbar extends ConsumerWidget {
   /// (v2) The title shows when the toolbar is at least this wide.
   static const double titleMinWidth = 1000;
 
-  /// (04-editor 19.1) The least the title keeps: beside it [⌃] shows only
-  /// while the title still gets this much (else [⌃] is in [⋯] only). [⌃]
-  /// (19) and [🔍] (18) together left the title 3.6 px at 1000 with every
-  /// optional button on (test/widget/toolbar_width_test.dart).
+  /// (04-editor 19.1) The least the title keeps at [titleMinWidth] with
+  /// every optional button on (test/widget/toolbar_width_test.dart).
+  /// (UI stage 2) [⌃] left the row ('집중 모드' in [⋯]), so the '2 / 4' of
+  /// the page button fits there too.
   static const double titleLeastWidth = 48;
 
   /// (v2) Below this width [도형] [텍스트] [+] [🎤] fold into [⋯도구]. The
@@ -185,17 +184,16 @@ class EditorToolbar extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  // (04-editor 19) [⌃] 메뉴 숨기기 next to [←] (also in [⋯]).
-                  // With the title [⌃] only while the title keeps
-                  // titleLeastWidth (19.1).
-                  if (scroll) const MenuHideButton(),
+                  // (UI stage 2, proposal 1) No [⌃] here any more: '집중
+                  // 모드' is in [⋯] only (a [⌃] next to [←] read as "fold the
+                  // title", and it took 48 px from the tools).
                   if (constraints.maxWidth >= titleMinWidth)
                     Expanded(
                       key: titleSlotKey,
                       child: _TitleSlot(title: title),
                     )
                   else if (!scroll)
-                    const MenuHideSlot(), // the Spacer, [⌃] when it fits
+                    const Spacer(),
                   // (v2.14-ui review) [100%] and [☁] come and go, so they sit
                   // on the title side: the title / Spacer absorbs their width
                   // and the tools after them never move.
@@ -254,8 +252,7 @@ ButtonStyle toolbarIconButtonStyle(StyleTokens tokens) => ButtonStyle(
   ),
 );
 
-/// (19.1) The title, with [⌃] before it while the title keeps
-/// [EditorToolbar.titleLeastWidth]. (v2.14-ui) A tap on it opens 노트 정보
+/// The title. (v2.14-ui) A tap on it opens 노트 정보
 /// (NoteInfoDialog); the ink area is the text's width, at most the slot.
 class _TitleSlot extends ConsumerWidget {
   const _TitleSlot({required this.title});
@@ -264,7 +261,7 @@ class _TitleSlot extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final text = Align(
+    return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Semantics(
         button: true,
@@ -302,18 +299,6 @@ class _TitleSlot extends ConsumerWidget {
           ),
         ),
       ),
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) =>
-          constraints.maxWidth >=
-              MenuHideButton.width + EditorToolbar.titleLeastWidth
-          ? Row(
-              children: [
-                const MenuHideButton(),
-                Expanded(child: text),
-              ],
-            )
-          : text,
     );
   }
 }
@@ -504,66 +489,62 @@ class _PagePanelButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final open = ref.watch(editorPagePanelProvider.select((p) => p.isOpen));
     final commands = ref.watch(editorCommandsProvider);
-    final index = ref.watch(editorCurrentPageIndexProvider);
-    final viewport = ref.watch(editorViewportProvider);
+    // Only with the count: the current page and the page count (not the
+    // viewport, which notifies on every scroll frame).
+    String? label;
+    if (showCount) {
+      final count = ref.watch(editorPageCountProvider);
+      final index = ref.watch(editorCurrentPageIndexProvider);
+      if (count > 0) {
+        label = EditorStrings.pageIndicator(
+          index.clamp(0, count - 1) + 1,
+          count,
+        );
+      }
+    }
+    // The title's face (titleSmall of the app font), tabular digits.
+    final countStyle = Theme.of(context).textTheme.titleSmall?.copyWith(
+      fontFeatures: const [FontFeature.tabularFigures()],
+      color: IconTheme.of(context).color,
+    );
     return HoverName(
       name: EditorStrings.pagePanel,
-      child: ListenableBuilder(
-        listenable: viewport,
-        builder: (context, _) {
-          final count = viewport.pages.length;
-          final label = count == 0 || !showCount
-              ? null
-              : EditorStrings.pageIndicator(
-                  index.clamp(0, count - 1) + 1,
-                  count,
-                );
-          return IconButton(
-            key: EditorToolbar.pagePanelKey,
-            isSelected: open,
-            onPressed: commands.togglePagePanel,
-            style: label == null
-                ? null
-                : IconButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                  ),
-            icon: Semantics(
-              label: EditorStrings.pagePanel,
-              value: label,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const ToolGlyph(AppIconKind.pages),
-                  if (label != null) ...[
-                    const SizedBox(width: 4),
-                    ExcludeSemantics(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: countMaxWidth,
-                        ),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            label,
-                            key: EditorToolbar.pageCountKey,
-                            maxLines: 1,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                  color: IconTheme.of(context).color,
-                                ),
-                          ),
-                        ),
+      child: IconButton(
+        key: EditorToolbar.pagePanelKey,
+        isSelected: open,
+        onPressed: commands.togglePagePanel,
+        style: label == null
+            ? null
+            : IconButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+              ),
+        icon: Semantics(
+          label: EditorStrings.pagePanel,
+          value: label,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ToolGlyph(AppIconKind.pages),
+              if (label != null) ...[
+                const SizedBox(width: 4),
+                ExcludeSemantics(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: countMaxWidth),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        key: EditorToolbar.pageCountKey,
+                        maxLines: 1,
+                        style: countStyle,
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
-          );
-        },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

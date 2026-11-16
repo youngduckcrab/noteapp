@@ -136,7 +136,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
         menuChildren: [
           InsertMenuRow(
             key: OverflowToolsMenu.shapeKey,
-            icon: AppIconKind.shape.material,
+            kind: AppIconKind.shape,
             label: EditorStrings.shapeTool,
             selected: active == EditorTool.shape,
             onPressed: readOnly
@@ -148,7 +148,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           ),
           InsertMenuRow(
             key: OverflowToolsMenu.textKey,
-            icon: AppIconKind.text.material,
+            kind: AppIconKind.text,
             label: EditorStrings.textTool,
             selected: active == EditorTool.text,
             onPressed: readOnly
@@ -161,7 +161,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           if (hasMathPen)
             InsertMenuRow(
               key: OverflowToolsMenu.mathKey,
-              icon: AppIconKind.math.material,
+              kind: AppIconKind.math,
               label: EditorStrings.mathPenTool,
               selected: mathActive,
               onPressed: readOnly
@@ -176,7 +176,7 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           if (hasTextPen)
             InsertMenuRow(
               key: OverflowToolsMenu.textPenKey,
-              icon: AppIconKind.textPen.material,
+              kind: AppIconKind.textPen,
               label: EditorStrings.textPenTool,
               selected: textPenActive,
               onPressed: readOnly
@@ -204,9 +204,9 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
           if (widget.hasPanel)
             InsertMenuRow(
               key: MicButton.micKey,
-              icon: indicator == MicIndicator.thisNote
-                  ? AppIconKind.micOn.material
-                  : AppIconKind.mic.material,
+              kind: indicator == MicIndicator.thisNote
+                  ? AppIconKind.micOn
+                  : AppIconKind.mic,
               label: EditorStrings.recording,
               selected: panelOpen,
               onPressed: () {
@@ -215,7 +215,9 @@ class OverflowToolsMenuState extends ConsumerState<OverflowToolsMenu> {
               },
             ),
         ],
-        child: ToolButton(
+        // No name while the menu is open: it would sit on top of it.
+        builder: (context, controller, _) => ToolButton(
+          showHoverName: !controller.isOpen,
           glyph: switch (active) {
             EditorTool.shape => AppIconKind.shape,
             EditorTool.text => AppIconKind.text,

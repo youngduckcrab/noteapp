@@ -70,10 +70,15 @@ Finder get _pill => find.byKey(MenuRestorePill.pillKey);
 Finder get _paletteButton => find.byKey(PenPalette.buttonKey);
 Finder get _panel => find.byKey(PenPalette.panelKey);
 
+/// (UI stage 2) '집중 모드' is in ⋯ only (no [⌃] in the toolbar row).
 Future<void> _hideWithButton(WidgetTester tester) async {
-  await tester.tap(find.byKey(MenuHideButton.buttonKey));
+  await _openMore(tester);
+  await _pickMore(tester, EditorChrome.moreHideKey);
   await _slide(tester);
 }
+
+/// The former [⌃] of the toolbar row (UI stage 2: gone).
+const _rowHideKey = ValueKey('editor.toolbar.hideMenu');
 
 Future<void> _detach(WidgetTester tester) async {
   await tester.tap(find.byKey(PaletteDetachButton.buttonKey));
@@ -138,7 +143,9 @@ void main() {
       tester,
     ) async {
       await pumpEditor(tester);
-      await tester.tap(find.byKey(MenuHideButton.buttonKey));
+      await _openMore(tester);
+      await tester.tap(find.byKey(EditorChrome.moreHideKey));
+      await tester.pump();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(_toolbar, findsOneWidget);
@@ -152,7 +159,7 @@ void main() {
       expect(_toolbar, findsNothing);
     });
 
-    testWidgets("⋯ '메뉴 숨기기' hides the menu", (tester) async {
+    testWidgets("⋯ '집중 모드' hides the menu", (tester) async {
       final h = await pumpEditor(tester);
       await _openMore(tester);
       await _pickMore(tester, EditorChrome.moreHideKey);
@@ -505,7 +512,7 @@ void main() {
           'hidden, palette open — no overflow', (tester) async {
         await pumpEditor(tester, logicalSize: size);
         expect(tester.takeException(), isNull);
-        expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
+        expect(find.byKey(_rowHideKey), findsNothing);
         await _detach(tester);
         await tester.tap(_paletteButton);
         await tester.pump();
@@ -516,30 +523,28 @@ void main() {
         expect(panel.bottom, lessThanOrEqualTo(area.bottom + 0.01));
         expect(panel.left, greaterThanOrEqualTo(area.left));
         expect(panel.right, lessThanOrEqualTo(area.right + 0.01));
-        await tester.tap(find.byKey(MenuHideButton.buttonKey));
-        await _slide(tester);
+        // Close the palette panel, then ⋯ '집중 모드'.
+        await tester.tap(_paletteButton);
+        await tester.pump();
+        await _hideWithButton(tester);
         expect(tester.takeException(), isNull);
         expect(_pill, findsOneWidget);
       });
     }
 
-    // [⌃] after [←] where it fits (else in ⋯ only), with every optional
-    // button on (insert, mic, math pen, text pen, sync badge; 19.1 [🔍]).
-    // (v2.14-ui) Without [✋] (and the [100%] chip at fit) the row is about
-    // 112 px shorter, so [⌃] now fits at every width here.
-    for (final (width, shown) in const [
-      (360.0, true), // the row scrolls: right after [←]
-      (800.0, true), // folded (Android portrait, with [🔍])
-      (900.0, true), // folded (19.1: foldWidth 952)
-      (960.0, true), // unfolded with [🔍]
-      // With the title: [⌃] while the title keeps titleLeastWidth.
-      (1000.0, true),
-      (1024.0, true),
-      (1048.0, true),
-      (1080.0, true),
+    // (UI stage 2, proposal 1) No [⌃] in the row at any width: '집중 모드'
+    // is in ⋯ only. With every optional button on (insert, mic, math pen,
+    // text pen, sync badge; 19.1 [🔍]).
+    for (final width in const [
+      360.0, // the row scrolls
+      800.0, // folded (Android portrait, with [🔍])
+      900.0, // folded (19.1: foldWidth 952)
+      960.0, // unfolded with [🔍]
+      1000.0, // with the title
+      1080.0,
     ]) {
-      testWidgets('[⌃] at $width px: ${shown ? 'in the row' : 'in ⋯ only'}, '
-          'no overflow', (tester) async {
+      testWidgets("$width px: no [⌃] in the row, ⋯ has '집중 모드', no "
+          'overflow', (tester) async {
         await pumpEditor(
           tester,
           logicalSize: Size(width, 1000),
@@ -559,21 +564,15 @@ void main() {
           ),
         );
         expect(tester.takeException(), isNull);
-        final button = find.byKey(MenuHideButton.buttonKey).hitTestable();
-        expect(button, shown ? findsOneWidget : findsNothing);
-        if (shown) {
-          // Right after [←].
-          final back = tester.getRect(find.byKey(EditorToolbar.backKey));
-          expect(tester.getRect(button).left, closeTo(back.right, 1));
-        }
+        expect(find.byKey(_rowHideKey), findsNothing);
         await _openMore(tester);
         expect(find.byKey(EditorChrome.moreHideKey), findsOneWidget);
+        expect(find.text(EditorStrings.hideMenu), findsOneWidget);
       });
     }
 
     testWidgets('the fullest unfolded row (zoom chip and sync badge on) '
-        'does not overflow; [⌃] stays in ⋯ either way (UI stage 2: the page '
-        'count takes its room in the row)', (tester) async {
+        "does not overflow; '집중 모드' is in ⋯ (UI stage 2)", (tester) async {
       final h = await pumpEditor(
         tester,
         logicalSize: const Size(EditorToolbar.foldWidth, 1000),
@@ -596,9 +595,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(tester.takeException(), isNull);
-      // (UI stage 2) The page button's '2 / 4' takes the room [⌃] had in
-      // this fullest row: here [⌃] is in ⋯ only (never an overflow).
-      expect(find.byKey(MenuHideButton.buttonKey), findsNothing);
+      expect(find.byKey(_rowHideKey), findsNothing);
       await _openMore(tester);
       expect(find.byKey(EditorChrome.moreHideKey), findsOneWidget);
     });

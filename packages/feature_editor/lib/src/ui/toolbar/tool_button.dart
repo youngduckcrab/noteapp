@@ -24,6 +24,7 @@ class ToolButton extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.dotColor,
+    this.showHoverName = true,
   }) : assert(icon != null || glyph != null, 'an icon or a glyph');
 
   final IconData? icon;
@@ -39,6 +40,10 @@ class ToolButton extends StatelessWidget {
   final VoidCallback? onLongPress;
   final Color? dotColor;
 
+  /// False: no [HoverName] for now (the button's menu is open — the name
+  /// would sit on top of it).
+  final bool showHoverName;
+
   @override
   Widget build(BuildContext context) {
     final tokens = StyleTokens.of(context);
@@ -53,7 +58,7 @@ class ToolButton extends StatelessWidget {
     final iconWidget = kind != null
         ? IconTheme.merge(
             data: IconThemeData(color: foreground),
-            child: ToolGlyph(kind, caption: caption),
+            child: ToolGlyph(kind, caption: caption, selected: active),
           )
         : Icon(icon, size: 22, color: foreground);
     final button = Semantics(
@@ -103,7 +108,9 @@ class ToolButton extends StatelessWidget {
         ),
       ),
     );
-    if (caption != null && kind != null) return button;
-    return HoverName(name: label, child: button);
+    // A captioned button shows its name under the icon (in 미니멀 on hover,
+    // anywhere on the 48 px button); the others get it as a HoverName.
+    if (caption != null && kind != null) return ToolHover(child: button);
+    return HoverName(name: label, enabled: showHoverName, child: button);
   }
 }

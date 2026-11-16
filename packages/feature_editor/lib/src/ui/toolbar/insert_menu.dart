@@ -109,14 +109,22 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
         ),
         // (UI stage 2) the line icon with its name under it
         // (StyleTokens.toolLabels).
-        child: IconButton(
-          key: InsertMenu.buttonKey,
-          onPressed: readOnly ? null : _toggle,
-          padding: EdgeInsets.zero,
-          icon: const ToolGlyph(
-            AppIconKind.insert,
-            caption: EditorStrings.insert,
-            semanticLabel: EditorStrings.insert,
+        // 48×48 like the ToolButtons beside it (contract 7.4.8 also where
+        // the tap target shrink-wraps — desktop, web); the 미니멀 name on
+        // hover anywhere on it (ToolHover).
+        child: ToolHover(
+          child: IconButton(
+            key: InsertMenu.buttonKey,
+            onPressed: readOnly ? null : _toggle,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              padding: EdgeInsets.zero,
+            ),
+            icon: const ToolGlyph(
+              AppIconKind.insert,
+              caption: EditorStrings.insert,
+              semanticLabel: EditorStrings.insert,
+            ),
           ),
         ),
       ),
@@ -186,7 +194,7 @@ List<Widget> insertMenuRows(
     if (sources.isNotEmpty)
       SubmenuButton(
         key: InsertMenu.imageKey,
-        leadingIcon: Icon(AppIconKind.image.material),
+        leadingIcon: const AppIcon(AppIconKind.image),
         menuChildren: [
           for (final source in sources)
             InsertMenuRow(
@@ -203,7 +211,7 @@ List<Widget> insertMenuRows(
     if (textPen)
       InsertMenuRow(
         key: InsertMenu.handwritingToTextKey,
-        icon: AppIconKind.textPen.material,
+        kind: AppIconKind.textPen,
         label: EditorStrings.handwritingToText,
         onPressed: enabled ? handwritingToText : null,
       ),
@@ -227,13 +235,18 @@ List<Widget> insertMenuRows(
 class InsertMenuRow extends StatelessWidget {
   const InsertMenuRow({
     super.key,
-    required this.icon,
+    this.kind,
+    this.icon,
     required this.label,
     required this.onPressed,
     this.selected = false,
-  });
+  }) : assert(kind != null || icon != null, 'a kind or an icon');
 
-  final IconData icon;
+  /// The meaning (ui_kit icon table): the same icon as the toolbar's.
+  final AppIconKind? kind;
+
+  /// A glyph not in the table (an extension's insert item).
+  final IconData? icon;
   final String label;
   final VoidCallback? onPressed;
   final bool selected;
@@ -251,7 +264,7 @@ class InsertMenuRow extends StatelessWidget {
         backgroundColor: selected ? tokens.accentSoft : null,
         foregroundColor: selected ? tokens.onAccentSoft : null,
       ),
-      icon: Icon(icon),
+      icon: kind != null ? AppIcon(kind!) : Icon(icon),
       label: Text(label),
     );
   }

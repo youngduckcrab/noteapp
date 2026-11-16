@@ -275,8 +275,9 @@ abstract final class EditorStrings {
   // (04-editor 19) Hiding the top menu, the floating pen palette.
   // ---------------------------------------------------------------------------
 
-  /// The toolbar button / ⋯ item that hides both top rows.
-  static const hideMenu = '메뉴 숨기기';
+  /// The ⋯ item that hides both top rows. (UI stage 2, proposal 1) '집중
+  /// 모드' and only in ⋯: a [⌃] next to [←] read as "fold the title".
+  static const hideMenu = '집중 모드';
 
   /// The restore pill (semantics label) and its tooltip-free action.
   static const showMenu = '메뉴 보이기';

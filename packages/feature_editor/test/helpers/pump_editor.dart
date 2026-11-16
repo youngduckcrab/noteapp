@@ -113,6 +113,9 @@ Future<EditorTestHandles> pumpEditor(
   // the default Material theme.
   ThemeData? theme,
   bool recordSession = true, // wrap the CORE session in RecordingNoteSession
+  // (UI stage 2) wraps the app's routes (MaterialApp.builder), e.g. in
+  // ui_kit HoverNames.
+  Widget Function(Widget child)? wrap,
 }) async {
   if (pages < 1) throw ArgumentError.value(pages, 'pages', 'must be >= 1');
   tester.view.devicePixelRatio = 2;
@@ -218,6 +221,7 @@ Future<EditorTestHandles> pumpEditor(
       ],
       child: MaterialApp(
         theme: theme,
+        builder: wrap == null ? null : (context, child) => wrap(child!),
         home: EditorScreen(
           key: ValueKey(noteId),
           noteId: noteId,

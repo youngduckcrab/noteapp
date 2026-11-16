@@ -243,6 +243,31 @@ final editorCurrentPageIndexProvider = NotifierProvider<CurrentPageBridge, int>(
   name: 'editorCurrentPageIndexProvider',
 );
 
+/// (UI stage 2) How many pages the note has — the '2 / 4' of the toolbar's
+/// page button and of [PageIndicator]. The viewport notifies on every
+/// scroll and zoom frame; this changes only when the page count does, so
+/// its readers do not rebuild while scrolling.
+class PageCountBridge extends Notifier<int> {
+  @override
+  int build() {
+    final viewport = ref.watch(editorViewportProvider);
+    void changed() {
+      final count = viewport.pages.length;
+      if (count != state) state = count;
+    }
+
+    viewport.addListener(changed);
+    ref.onDispose(() => viewport.removeListener(changed));
+    return viewport.pages.length;
+  }
+}
+
+final editorPageCountProvider = NotifierProvider<PageCountBridge, int>(
+  PageCountBridge.new,
+  dependencies: [editorViewportProvider],
+  name: 'editorPageCountProvider',
+);
+
 /// Read-only state of the note (N-4, 6.17.2): session.isReadOnly at open,
 /// re-read on every noteStream change (trashed / restored while open).
 class ReadOnlyNotifier extends Notifier<bool> {

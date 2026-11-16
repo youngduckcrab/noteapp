@@ -69,7 +69,13 @@ class MicButton extends ConsumerWidget {
     if (indicator != MicIndicator.otherNote) {
       return HoverName(name: EditorStrings.recording, child: button);
     }
-    return Tooltip(message: EditorStrings.recordingInOtherNote, child: button);
+    // A state, not a name: also on a long press (HoverNames makes plain
+    // tooltips hover-only).
+    return Tooltip(
+      message: EditorStrings.recordingInOtherNote,
+      triggerMode: TooltipTriggerMode.longPress,
+      child: button,
+    );
   }
 }
 

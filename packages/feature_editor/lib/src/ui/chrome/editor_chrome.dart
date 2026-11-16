@@ -21,7 +21,7 @@ abstract final class EditorChrome {
   /// Slide of the top menu.
   static const Duration slide = Duration(milliseconds: 200);
 
-  /// '메뉴 숨기기': closes a popup (the toolbar ones hang from buttons that
+  /// '집중 모드' (was '메뉴 숨기기'; UI stage 2: only in ⋯): closes a popup (the toolbar ones hang from buttons that
   /// go away), hides both rows; the first time on this device a snack bar
   /// says how to get them back.
   static void hideMenu(BuildContext context, WidgetRef ref) {
@@ -77,7 +77,7 @@ abstract final class EditorChrome {
   static const moreDetachKey = ValueKey('editor.more.detachPalette');
   static const moreDockKey = ValueKey('editor.more.dockPalette');
 
-  /// The ⋯ items: 메뉴 숨기기 · 팔레트로 떼어내기 / 메뉴에 다시 붙이기.
+  /// The ⋯ items: 집중 모드 · 팔레트로 떼어내기 / 메뉴에 다시 붙이기.
   static List<Widget> moreMenuItems(BuildContext context, WidgetRef ref) {
     final detached = ref.watch(
       editorDeviceStateProvider.select((s) => s.paletteDetached),
@@ -85,21 +85,21 @@ abstract final class EditorChrome {
     return [
       MenuItemButton(
         key: moreHideKey,
-        leadingIcon: Icon(AppIconKind.hideMenu.material),
+        leadingIcon: AppIcon(AppIconKind.hideMenu),
         onPressed: () => hideMenu(context, ref),
         child: const Text(EditorStrings.hideMenu),
       ),
       if (detached)
         MenuItemButton(
           key: moreDockKey,
-          leadingIcon: Icon(AppIconKind.dock.material),
+          leadingIcon: AppIcon(AppIconKind.dock),
           onPressed: () => dockPalette(ref),
           child: const Text(EditorStrings.dockPalette),
         )
       else
         MenuItemButton(
           key: moreDetachKey,
-          leadingIcon: Icon(AppIconKind.detach.material),
+          leadingIcon: AppIcon(AppIconKind.detach),
           onPressed: () => detachPalette(ref),
           child: const Text(EditorStrings.detachPalette),
         ),
@@ -203,52 +203,6 @@ class _EditorTopMenuState extends ConsumerState<EditorTopMenu>
       ),
     );
   }
-}
-
-/// [⌃] of the toolbar, right after [←]: '메뉴 숨기기' (the same item is in
-/// [⋯]). In a row that scrolls or shows the title it is a plain button; in
-/// the others [MenuHideSlot] shows it only when the row has room to spare.
-class MenuHideButton extends ConsumerWidget {
-  const MenuHideButton({super.key});
-
-  static const buttonKey = ValueKey('editor.toolbar.hideMenu');
-
-  /// Its width in the toolbar row.
-  static const double width = 48;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => HoverName(
-    name: EditorStrings.hideMenu,
-    child: IconButton(
-      key: buttonKey,
-      onPressed: () => EditorChrome.hideMenu(context, ref),
-      icon: const AppIcon(
-        AppIconKind.hideMenu,
-        size: 22,
-        semanticLabel: EditorStrings.hideMenu,
-      ),
-    ),
-  );
-}
-
-/// The toolbar's Spacer (between [←] and [▤]) holding [MenuHideButton] at
-/// its left when it is at least [MenuHideButton.width] wide — so a crowded
-/// row (folded or not, any optional buttons) never overflows because of it.
-class MenuHideSlot extends StatelessWidget {
-  const MenuHideSlot({super.key});
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-    child: LayoutBuilder(
-      builder: (context, constraints) =>
-          constraints.maxWidth >= MenuHideButton.width
-          ? const Align(
-              alignment: Alignment.centerLeft,
-              child: MenuHideButton(),
-            )
-          : const SizedBox.shrink(),
-    ),
-  );
 }
 
 /// [🎨] of the preset row: '팔레트로 떼어내기'.

@@ -13,6 +13,7 @@ library;
 
 import 'dart:ui' as ui;
 
+import 'package:feature_editor/src/state/settings/editor_device_state.dart';
 import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -127,6 +128,18 @@ void main() {
     await expectLater(
       await _pageArea(tester),
       matchesGoldenFile('page_viewport_mixed_sizes.png'),
+    );
+  });
+
+  testWidgets('(UI stage 2) menu hidden: the page indicator over the page '
+      "(the toolbar's '1 / 3' is gone with it)", (tester) async {
+    final h = await _open(tester);
+    h.container.read(editorDeviceStateProvider.notifier).setToolbarHidden(true);
+    await tester.pump(const Duration(milliseconds: 300));
+    await _settle(tester, h);
+    await expectLater(
+      await _pageArea(tester),
+      matchesGoldenFile('page_viewport_menu_hidden.png'),
     );
   });
 }

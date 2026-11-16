@@ -4,7 +4,6 @@
 // EditorToolbar.scrollWidth.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
-import 'package:feature_editor/src/ui/chrome/editor_chrome.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
 import 'package:feature_editor/src/ui/toolbar/mic_button.dart';
@@ -122,21 +121,11 @@ void main() {
           reason: '$key',
         );
       }
-      // [⌃] in the row where it fits, else in ⋯ (never an overflow).
-      // With the title (19.1): [⌃] only while the title keeps
-      // titleLeastWidth. (v2.14-ui) Without [✋] the fixed row is 48 px
-      // shorter (≈ 900 px), so [⌃] fits from about 1000.
-      if (width >= 1048) {
-        expect(find.byKey(MenuHideButton.buttonKey), findsOneWidget);
-      } else if (width >= EditorToolbar.titleMinWidth) {
-        final slot = tester.getSize(find.byKey(EditorToolbar.titleSlotKey));
-        expect(
-          find.byKey(MenuHideButton.buttonKey),
-          slot.width >= MenuHideButton.width + EditorToolbar.titleLeastWidth
-              ? findsOneWidget
-              : findsNothing,
-        );
-      }
+      // (UI stage 2, proposal 1) No [⌃] in the row: '집중 모드' is in ⋯.
+      expect(
+        find.byKey(const ValueKey('editor.toolbar.hideMenu')),
+        findsNothing,
+      );
       // (19.1 review) From titleMinWidth the title keeps real room: [⌃] and
       // [🔍] together squeezed it to 3.6 px at 1000, 27.6 at 1024.
       final title = find.byKey(EditorToolbar.titleKey);

@@ -114,12 +114,46 @@ void main() {
     expect(find.byKey(PageIndicator.indicatorKey), findsOneWidget);
   });
 
-  testWidgets('below pageCountMinWidth the page button is the icon alone', (
+  testWidgets('below pageCountMinWidth the page button is the icon alone '
+      'and the page indicator shows the count (review: never no count)', (
     tester,
   ) async {
     await pumpEditor(tester, logicalSize: const Size(740, 1000));
     expect(find.byKey(EditorToolbar.pagePanelKey), findsOneWidget);
     expect(find.byKey(EditorToolbar.pageCountKey), findsNothing);
+    final indicator = find.byKey(PageIndicator.indicatorKey);
+    expect(indicator, findsOneWidget);
+    expect(tester.widget<Text>(indicator).data, '1 / 3');
+  });
+
+  testWidgets('calm: the name shows anywhere on the 48 px button, not only '
+      'on the glyph; off with 펜을 띄우면 이름 보기 off', (tester) async {
+    Future<void> pump({required bool names}) => pumpEditor(
+      tester,
+      logicalSize: const Size(1280, 800),
+      imageImporter: (s) => FakeImageImporter(store: s),
+      theme: buildStyleTheme(AppStyle.calm, Brightness.light),
+      wrap: (child) => HoverNames(enabled: names, child: child),
+    );
+    await pump(names: true);
+    // The button's corner: outside the 46×38 glyph, inside the 48×48 button.
+    final lasso = tester.getRect(find.byKey(EditorToolbar.lassoKey));
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.stylus);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(lasso.bottomLeft + const Offset(2, -2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(_opacityOf(tester, EditorStrings.lasso), 1);
+    await gesture.moveTo(const Offset(640, 600));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(_opacityOf(tester, EditorStrings.lasso), 0);
+
+    await pump(names: false);
+    await gesture.moveTo(tester.getCenter(find.byKey(EditorToolbar.lassoKey)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(_opacityOf(tester, EditorStrings.lasso), 0);
   });
 
   testWidgets('a hovering stylus shows the name of [↶]; it goes when the '

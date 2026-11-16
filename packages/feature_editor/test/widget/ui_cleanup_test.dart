@@ -138,7 +138,11 @@ void main() {
     tester,
   ) async {
     await pumpEditor(tester, logicalSize: const Size(1280, 800));
-    await tester.tap(find.byKey(MenuHideButton.buttonKey).first);
+    // (UI stage 2) ⋯ '집중 모드' (no [⌃] in the row any more).
+    await tester.tap(find.byKey(EditorMoreMenu.buttonKey));
+    await tester.pump();
+    await tester.tap(find.byKey(EditorChrome.moreHideKey));
+    await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     final pill = find.byKey(MenuRestorePill.pillKey);
     expect(pill, findsOneWidget);

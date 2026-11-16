@@ -66,8 +66,8 @@ class PagePanelSelectionBar extends ConsumerWidget {
               IconButton(
                 key: selectAllKey,
                 onPressed: () => notifier.selectAll(ids),
-                icon: Icon(
-                  AppIconKind.selectAll.material,
+                icon: AppIcon(
+                  AppIconKind.selectAll,
                   semanticLabel: EditorStrings.selectAll,
                 ),
               ),
@@ -76,8 +76,8 @@ class PagePanelSelectionBar extends ConsumerWidget {
                 onPressed: canAct
                     ? () => unawaited(commands.duplicatePages(selected))
                     : null,
-                icon: Icon(
-                  AppIconKind.duplicate.material,
+                icon: AppIcon(
+                  AppIconKind.duplicate,
                   semanticLabel: EditorStrings.duplicatePage,
                 ),
               ),
@@ -86,8 +86,8 @@ class PagePanelSelectionBar extends ConsumerWidget {
                 onPressed: canDelete
                     ? () => commands.deletePages(selected)
                     : null,
-                icon: Icon(
-                  AppIconKind.trash.material,
+                icon: AppIcon(
+                  AppIconKind.trash,
                   semanticLabel: EditorStrings.deletePage,
                 ),
               ),

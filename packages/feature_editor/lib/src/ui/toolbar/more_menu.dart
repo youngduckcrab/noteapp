@@ -199,7 +199,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
         if (widget.showNoteSearch)
           MenuItemButton(
             key: EditorMoreMenu.noteSearchKey,
-            leadingIcon: Icon(AppIconKind.search.material),
+            leadingIcon: AppIcon(AppIconKind.search),
             onPressed: ref.read(editorNoteSearchProvider.notifier).toggle,
             child: const Text(EditorStrings.noteSearch),
           ),
@@ -207,7 +207,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
           if (tapesRevealed)
             MenuItemButton(
               key: EditorMoreMenu.tapesHideAllKey,
-              leadingIcon: Icon(AppIconKind.conceal.material),
+              leadingIcon: AppIcon(AppIconKind.conceal),
               onPressed: () => ref
                   .read(editorTapesRevealedAllProvider.notifier)
                   .setAll(false),
@@ -216,7 +216,7 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
           else
             MenuItemButton(
               key: EditorMoreMenu.tapesRevealAllKey,
-              leadingIcon: Icon(AppIconKind.reveal.material),
+              leadingIcon: AppIcon(AppIconKind.reveal),
               onPressed: () => ref
                   .read(editorTapesRevealedAllProvider.notifier)
                   .setAll(true),
@@ -244,14 +244,14 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
         if (widget.showNoteInfo)
           MenuItemButton(
             key: EditorMoreMenu.noteInfoKey,
-            leadingIcon: Icon(AppIconKind.info.material),
+            leadingIcon: AppIcon(AppIconKind.info),
             onPressed: () => unawaited(_showNoteInfo()),
             child: const Text(EditorStrings.noteInfo),
           ),
         if (openSettings != null)
           MenuItemButton(
             key: EditorMoreMenu.settingsKey,
-            leadingIcon: Icon(AppIconKind.settings.material),
+            leadingIcon: AppIcon(AppIconKind.settings),
             onPressed: openSettings,
             child: const Text(EditorStrings.settings),
           ),
@@ -271,8 +271,10 @@ class _EditorMoreMenuState extends ConsumerState<EditorMoreMenu> {
             ),
         ],
       ],
-      child: HoverName(
+      // No name while the menu is open: it would sit on top of the menu.
+      builder: (context, controller, _) => HoverName(
         name: EditorStrings.more,
+        enabled: !controller.isOpen,
         child: IconButton(
           key: EditorMoreMenu.buttonKey,
           onPressed: _toggle,
