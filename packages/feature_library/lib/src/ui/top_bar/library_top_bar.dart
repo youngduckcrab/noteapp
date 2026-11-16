@@ -12,6 +12,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
@@ -86,7 +87,7 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
             children: [
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const AppIcon(AppIconKind.back),
                 tooltip: LibraryStrings.closeSearch,
                 onPressed: () => _closeCompactSearch(scope),
               ),
@@ -115,7 +116,7 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
               const _SidebarToggle()
             else
               IconButton(
-                icon: const Icon(Icons.menu),
+                icon: const AppIcon(AppIconKind.sidebar),
                 tooltip: LibraryStrings.openMenu,
                 onPressed: scope.openDrawer,
               ),
@@ -132,7 +133,7 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
             if (compact) ...[
               if (!inTrash) ...[
                 IconButton(
-                  icon: const Icon(Icons.search),
+                  icon: const AppIcon(AppIconKind.search),
                   tooltip: LibraryStrings.search,
                   onPressed: () => _openCompactSearch(scope),
                 ),
@@ -157,9 +158,11 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
               if (showViewToggle) const ViewModeButton(),
               if (!inTrash) ...[
                 const SizedBox(width: 4),
-                TextButton(
+                // (UI stage 2) ✓ 선택 (the line icon + its name).
+                TextButton.icon(
                   onPressed: beginSelection,
-                  child: const Text(LibraryStrings.select),
+                  icon: const AppIcon(AppIconKind.select, size: 19),
+                  label: const Text(LibraryStrings.select),
                 ),
               ],
             ],
@@ -186,7 +189,7 @@ class _SidebarToggle extends ConsumerWidget {
       libraryPrefsProvider.select((p) => p.sidebarVisible),
     );
     return IconButton(
-      icon: const Icon(Icons.menu),
+      icon: const AppIcon(AppIconKind.sidebar),
       tooltip: visible
           ? LibraryStrings.hideSidebar
           : LibraryStrings.showSidebar,

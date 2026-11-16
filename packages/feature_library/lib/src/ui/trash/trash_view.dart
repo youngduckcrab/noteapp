@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show TrashItem, trashItemsProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../common/report_error.dart';
 import '../../l10n/library_strings.dart';
@@ -71,7 +72,7 @@ class _TrashNotice extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(
           children: [
-            Icon(Icons.info_outline, size: 20, color: muted),
+            Icon(AppIconKind.info.material, size: 20, color: muted),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

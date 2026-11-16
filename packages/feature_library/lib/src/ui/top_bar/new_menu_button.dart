@@ -7,6 +7,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../integration/pdf_flows.dart';
 import '../../integration/pdf_slots.dart';
@@ -38,12 +39,12 @@ class NewMenuButton extends ConsumerWidget {
     return MenuAnchor(
       menuChildren: [
         MenuItemButton(
-          leadingIcon: const Icon(Icons.note_add_outlined),
+          leadingIcon: Icon(AppIconKind.newNote.material),
           onPressed: () => runNewNoteFlow(context, folderId: target),
           child: const Text(LibraryStrings.newNote),
         ),
         MenuItemButton(
-          leadingIcon: const Icon(Icons.create_new_folder_outlined),
+          leadingIcon: Icon(AppIconKind.newFolder.material),
           onPressed: () => runNewFolderFlow(context, parentId: target),
           child: const Text(LibraryStrings.newFolder),
         ),
@@ -68,13 +69,13 @@ class NewMenuButton extends ConsumerWidget {
             controller.isOpen ? controller.close() : controller.open();
         if (sizeClass == LibrarySizeClass.compact) {
           return IconButton(
-            icon: const Icon(Icons.add),
+            icon: const AppIcon(AppIconKind.add),
             tooltip: LibraryStrings.newMenu,
             onPressed: toggle,
           );
         }
         return FilledButton.tonalIcon(
-          icon: const Icon(Icons.add),
+          icon: const AppIcon(AppIconKind.add),
           label: const Text(LibraryStrings.newMenu),
           onPressed: toggle,
         );

@@ -60,7 +60,7 @@ class LibrarySidebar extends ConsumerWidget {
         LibraryDropZone(
           target: const FolderDropTarget(null),
           builder: (context, decision) => SidebarNavRow(
-            icon: Icons.home_outlined,
+            icon: AppIconKind.home,
             label: LibraryStrings.home,
             selected: section == const FolderSection(null),
             drop: decision != null
@@ -70,13 +70,13 @@ class LibrarySidebar extends ConsumerWidget {
           ),
         ),
         SidebarNavRow(
-          icon: Icons.schedule,
+          icon: AppIconKind.recent,
           label: LibraryStrings.recent,
           selected: section is RecentSection,
           onTap: () => show((s) => s.showRecent()),
         ),
         SidebarNavRow(
-          icon: Icons.star_outline,
+          icon: AppIconKind.favorite,
           label: LibraryStrings.favorites,
           selected: section is FavoritesSection,
           onTap: () => show((s) => s.showFavorites()),
@@ -106,7 +106,7 @@ class LibrarySidebar extends ConsumerWidget {
         LibraryDropZone(
           target: const TrashDropTarget(),
           builder: (context, decision) => SidebarNavRow(
-            icon: Icons.delete_outline,
+            icon: AppIconKind.trash,
             label: LibraryStrings.trash,
             selected: section is TrashSection,
             count: trashCount,
@@ -128,7 +128,7 @@ class LibrarySidebar extends ConsumerWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.settings_outlined),
+                icon: const AppIcon(AppIconKind.settings),
                 tooltip: LibraryStrings.settings,
                 onPressed: scope.openSettings,
               ),

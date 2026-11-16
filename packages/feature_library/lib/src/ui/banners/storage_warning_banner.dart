@@ -10,6 +10,7 @@ import 'package:note_core/note_core.dart'
         persistenceStatusProvider,
         storageInfoProvider,
         storageWarningOf;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/library_strings.dart';
 
@@ -48,7 +49,7 @@ class _StorageWarningBannerState extends ConsumerState<StorageWarningBanner> {
         return _BannerBody(
           background: scheme.errorContainer,
           foreground: scheme.onErrorContainer,
-          icon: Icons.error_outline,
+          icon: AppIconKind.error.material,
           message: LibraryStrings.storageWriteFailing,
         );
       case StorageWarning.notDurable:
@@ -56,7 +57,7 @@ class _StorageWarningBannerState extends ConsumerState<StorageWarningBanner> {
         return _BannerBody(
           background: scheme.tertiaryContainer,
           foreground: scheme.onTertiaryContainer,
-          icon: Icons.warning_amber_outlined,
+          icon: AppIconKind.warning.material,
           message: LibraryStrings.storageNotDurable,
           onClose: () => setState(() => _notDurableDismissed = true),
         );

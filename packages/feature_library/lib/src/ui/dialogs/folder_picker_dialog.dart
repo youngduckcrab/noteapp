@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
     show FolderId, FolderTree, folderTreeProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../appearance/folder_appearance.dart';
 import '../../l10n/library_strings.dart';
@@ -192,7 +193,7 @@ class _FolderPickerDialogState extends ConsumerState<FolderPickerDialog> {
                       return FolderPickerRow(
                         key: const ValueKey<String>('picker-home'),
                         label: LibraryStrings.home,
-                        icon: Icons.home_outlined,
+                        icon: AppIconKind.home.material,
                         iconColor: theme.colorScheme.onSurfaceVariant,
                         depth: 0,
                         selected: selected == null,
@@ -228,7 +229,7 @@ class _FolderPickerDialogState extends ConsumerState<FolderPickerDialog> {
           child: Row(
             children: [
               TextButton.icon(
-                icon: const Icon(Icons.create_new_folder_outlined),
+                icon: Icon(AppIconKind.newFolder.material),
                 label: const Text(LibraryStrings.newFolder),
                 onPressed: canCreate ? () => _newFolder(tree) : null,
               ),
@@ -322,7 +323,9 @@ class FolderPickerRow extends StatelessWidget {
                 if (hasChildren && enabled)
                   IconButton(
                     icon: Icon(
-                      isExpanded ? Icons.expand_more : Icons.chevron_right,
+                      isExpanded
+                          ? AppIconKind.chevronDown.material
+                          : AppIconKind.chevronRight.material,
                     ),
                     iconSize: 20,
                     padding: EdgeInsets.zero,

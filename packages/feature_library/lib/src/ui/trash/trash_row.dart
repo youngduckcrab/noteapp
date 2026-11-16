@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
     show TrashItem, TrashedFolder, TrashedNote, clockProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/library_date_format.dart';
 import '../../l10n/library_strings.dart';
@@ -79,13 +80,13 @@ class _TrashRowState extends ConsumerState<TrashRow> {
       controller: _menu,
       menuChildren: [
         MenuItemButton(
-          leadingIcon: const Icon(Icons.restore_from_trash_outlined),
+          leadingIcon: Icon(AppIconKind.restore.material),
           onPressed: () =>
               runRestoreFlow(context, items: [key], singleName: item.name),
           child: const Text(LibraryStrings.restore),
         ),
         MenuItemButton(
-          leadingIcon: const Icon(Icons.delete_forever_outlined),
+          leadingIcon: Icon(AppIconKind.deleteForever.material),
           onPressed: () =>
               runPurgeFlow(context, items: [key], singleName: item.name),
           child: const Text(LibraryStrings.purge),
@@ -170,7 +171,7 @@ class _TrashRowState extends ConsumerState<TrashRow> {
                 const SizedBox(width: LibraryMetrics.minTapTarget)
               else
                 IconButton(
-                  icon: const Icon(Icons.more_horiz),
+                  icon: Icon(AppIconKind.more.material),
                   tooltip: LibraryStrings.itemMenu(item.name),
                   onPressed: _toggleMenu,
                 ),

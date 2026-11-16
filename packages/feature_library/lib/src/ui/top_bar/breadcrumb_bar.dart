@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId, folderTreeProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../dnd/drop_decision.dart';
 import '../../dnd/library_drop_zone.dart';
@@ -43,7 +44,11 @@ class BreadcrumbBar extends ConsumerWidget {
         for (var i = 0; i < slots.length; i++) ...[
           if (i > 0)
             ExcludeSemantics(
-              child: Icon(Icons.chevron_right, size: 18, color: separatorColor),
+              child: AppIcon(
+                AppIconKind.chevronRight,
+                size: 18,
+                color: separatorColor,
+              ),
             ),
           switch (slots[i]) {
             BreadcrumbCrumb(:final item, isCurrent: true) => Flexible(
@@ -196,7 +201,7 @@ class _HiddenPathButtonState extends State<_HiddenPathButton> {
           if (!_controller.isOpen) _controller.open();
         },
         builder: (context, _) => IconButton(
-          icon: const Icon(Icons.more_horiz),
+          icon: const AppIcon(AppIconKind.more),
           tooltip: LibraryStrings.hiddenPath,
           onPressed: () =>
               _controller.isOpen ? _controller.close() : _controller.open(),

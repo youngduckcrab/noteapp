@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/fake_library_backend.dart';
 import '../support/fixtures.dart';
@@ -180,7 +181,7 @@ void main() {
             find.widgetWithText(MenuItemButton, LibraryStrings.sortCustom),
           )
           .leadingIcon,
-      isA<Icon>().having((i) => i.icon, 'icon', Icons.check),
+      isA<Icon>().having((i) => i.icon, 'icon', AppIconKind.check.material),
     );
     expect(
       await tester.runAsync(
@@ -197,7 +198,12 @@ void main() {
         .showRecent();
     await tester.pumpAndSettle();
     final button = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.sort),
+      find.ancestor(
+        of: find.byWidgetPredicate(
+          (w) => w is AppIcon && w.kind == AppIconKind.sort,
+        ),
+        matching: find.byType(IconButton),
+      ),
     );
     expect(button.onPressed, isNull);
     expect(button.tooltip, LibraryStrings.sortFixed);
@@ -460,11 +466,17 @@ void main() {
     );
     await pumpAt(tester);
     expect(
-      find.descendant(of: noteTile('독서 기록'), matching: find.byIcon(Icons.star)),
+      find.descendant(
+        of: noteTile('독서 기록'),
+        matching: find.byIcon(AppIconKind.favoriteOn.material),
+      ),
       findsOneWidget,
     );
     expect(
-      find.descendant(of: noteTile('회의록'), matching: find.byIcon(Icons.star)),
+      find.descendant(
+        of: noteTile('회의록'),
+        matching: find.byIcon(AppIconKind.favoriteOn.material),
+      ),
       findsNothing,
     );
 
@@ -474,11 +486,17 @@ void main() {
     final row = find.widgetWithText(NoteListRow, '회의록');
     // Not a favourite: no ☆ on the row.
     expect(
-      find.descendant(of: row, matching: find.byIcon(Icons.star_outline)),
+      find.descendant(
+        of: row,
+        matching: find.byIcon(AppIconKind.favorite.material),
+      ),
       findsNothing,
     );
     expect(
-      find.descendant(of: row, matching: find.byIcon(Icons.star)),
+      find.descendant(
+        of: row,
+        matching: find.byIcon(AppIconKind.favoriteOn.material),
+      ),
       findsNothing,
     );
     expect(
@@ -505,7 +523,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(backend.calls, ['setFavorite [n:${sample.homeNotes[0].id}] false']);
     expect(
-      find.descendant(of: row, matching: find.byIcon(Icons.star)),
+      find.descendant(
+        of: row,
+        matching: find.byIcon(AppIconKind.favoriteOn.material),
+      ),
       findsNothing,
     );
   });

@@ -9,6 +9,7 @@ import 'package:feature_library/src/ui/top_bar/library_top_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/fake_library_backend.dart';
 import '../support/fixtures.dart';
@@ -24,7 +25,7 @@ List<String> crumbs(WidgetTester tester) {
           .descendant(
             of: bar,
             matching: find.byWidgetPredicate(
-              (w) => w is Text || (w is Icon && w.icon == Icons.more_horiz),
+              (w) => w is Text || (w is AppIcon && w.kind == AppIconKind.more),
             ),
           )
           .evaluate()) {

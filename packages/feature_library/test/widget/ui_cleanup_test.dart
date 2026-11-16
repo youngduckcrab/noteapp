@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/fake_library_backend.dart';
 import '../support/fixtures.dart';
@@ -189,11 +190,17 @@ void main() {
     final rows = find.byType(NoteListRow);
     expect(rows, findsWidgets);
     expect(
-      find.descendant(of: rows, matching: find.byIcon(Icons.star_outline)),
+      find.descendant(
+        of: rows,
+        matching: find.byIcon(AppIconKind.favorite.material),
+      ),
       findsNothing,
     );
     expect(
-      find.descendant(of: rows, matching: find.byIcon(Icons.star)),
+      find.descendant(
+        of: rows,
+        matching: find.byIcon(AppIconKind.favoriteOn.material),
+      ),
       findsOneWidget,
     );
   });

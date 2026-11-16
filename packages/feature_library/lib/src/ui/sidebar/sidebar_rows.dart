@@ -7,6 +7,7 @@
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../appearance/folder_appearance.dart';
 import '../../l10n/library_strings.dart';
@@ -100,7 +101,8 @@ class SidebarNavRow extends StatelessWidget {
     this.drop = SidebarDropLook.none,
   });
 
-  final IconData icon;
+  /// (UI stage 2) The line icon of the row.
+  final AppIconKind icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -126,7 +128,7 @@ class SidebarNavRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16 - _rowInset),
           child: Row(
             children: [
-              Icon(icon, size: 24, color: foreground),
+              AppIcon(icon, size: 24, color: foreground),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -204,8 +206,10 @@ class SidebarTreeRow extends StatelessWidget {
           children: [
             if (row.hasChildren)
               IconButton(
-                icon: Icon(
-                  row.isExpanded ? Icons.expand_more : Icons.chevron_right,
+                icon: AppIcon(
+                  row.isExpanded
+                      ? AppIconKind.chevronDown
+                      : AppIconKind.chevronRight,
                 ),
                 iconSize: 20,
                 padding: EdgeInsets.zero,

@@ -18,6 +18,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../integration/ink_search_slot.dart';
 import '../../l10n/library_strings.dart';
@@ -221,11 +222,11 @@ class _LibrarySearchFieldState extends ConsumerState<LibrarySearchField>
         maxLines: 1,
         decoration: InputDecoration(
           hintText: LibraryStrings.searchHint,
-          prefixIcon: const Icon(Icons.search),
+          prefixIcon: const AppIcon(AppIconKind.search),
           suffixIcon: value.text.isEmpty
               ? null
               : IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const AppIcon(AppIconKind.close),
                   tooltip: LibraryStrings.clearSearch,
                   onPressed: _clear,
                 ),

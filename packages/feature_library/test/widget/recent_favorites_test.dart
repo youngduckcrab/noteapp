@@ -14,6 +14,7 @@ import 'package:feature_library/src/ui/sidebar/sidebar_rows.dart';
 import 'package:feature_library/src/ui/top_bar/selection_bar.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/fake_library_backend.dart';
 import '../support/fixtures.dart';
@@ -128,7 +129,12 @@ void main() {
       await seedOpened(tester);
       await pumpSection(tester, LibraryStrings.recent);
       final sort = tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, Icons.sort),
+        find.ancestor(
+          of: find.byWidgetPredicate(
+            (w) => w is AppIcon && w.kind == AppIconKind.sort,
+          ),
+          matching: find.byType(IconButton),
+        ),
       );
       expect(sort.onPressed, isNull);
       expect(find.byTooltip(LibraryStrings.sortFixed), findsOneWidget);

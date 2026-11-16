@@ -15,6 +15,7 @@ import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../integration/pdf_flows.dart';
 import '../../integration/pdf_slots.dart';
@@ -40,18 +41,22 @@ List<Widget> itemMenuEntries(
     final key = noteKey(note.id);
     return [
       MenuItemButton(
-        leadingIcon: const Icon(Icons.drive_file_rename_outline),
+        leadingIcon: Icon(AppIconKind.rename.material),
         onPressed: () =>
             runRenameFlow(context, item: key, currentName: note.title),
         child: const Text(LibraryStrings.rename),
       ),
       MenuItemButton(
-        leadingIcon: const Icon(Icons.image_outlined),
+        leadingIcon: Icon(AppIconKind.cover.material),
         onPressed: () => runCoverFlow(context, note),
         child: const Text(LibraryStrings.changeCover),
       ),
       MenuItemButton(
-        leadingIcon: Icon(note.isFavorite ? Icons.star : Icons.star_outline),
+        leadingIcon: Icon(
+          note.isFavorite
+              ? AppIconKind.favoriteOn.material
+              : AppIconKind.favorite.material,
+        ),
         onPressed: () => runFavoriteFlow(
           context,
           ids: [note.id],
@@ -64,13 +69,13 @@ List<Widget> itemMenuEntries(
         ),
       ),
       MenuItemButton(
-        leadingIcon: const Icon(Icons.content_copy_outlined),
+        leadingIcon: Icon(AppIconKind.duplicate.material),
         onPressed: () =>
             runCopyHereFlow(context, item: key, parentId: note.folderId),
         child: const Text(LibraryStrings.copy),
       ),
       MenuItemButton(
-        leadingIcon: const Icon(Icons.drive_file_move_outline),
+        leadingIcon: Icon(AppIconKind.move.material),
         onPressed: () =>
             runMoveFlow(context, items: [key], parents: {key: note.folderId}),
         child: const Text(LibraryStrings.moveTo),
@@ -91,7 +96,7 @@ List<Widget> itemMenuEntries(
           ),
         ),
       MenuItemButton(
-        leadingIcon: const Icon(Icons.delete_outline),
+        leadingIcon: Icon(AppIconKind.trash.material),
         onPressed: () =>
             runTrashFlow(context, items: [key], singleName: note.title),
         child: const Text(LibraryStrings.moveToTrash),
@@ -102,36 +107,36 @@ List<Widget> itemMenuEntries(
   final key = folderKey(f.id);
   return [
     MenuItemButton(
-      leadingIcon: const Icon(Icons.drive_file_rename_outline),
+      leadingIcon: Icon(AppIconKind.rename.material),
       onPressed: () => runRenameFlow(context, item: key, currentName: f.name),
       child: const Text(LibraryStrings.rename),
     ),
     MenuItemButton(
-      leadingIcon: const Icon(Icons.palette_outlined),
+      leadingIcon: Icon(AppIconKind.style.material),
       onPressed: () => runFolderAppearanceFlow(context, f),
       child: const Text(LibraryStrings.customize),
     ),
     if (sidebar)
       MenuItemButton(
-        leadingIcon: const Icon(Icons.create_new_folder_outlined),
+        leadingIcon: Icon(AppIconKind.newFolder.material),
         onPressed: () => runNewFolderFlow(context, parentId: f.id),
         child: const Text(LibraryStrings.newSubfolder),
       )
     else
       MenuItemButton(
-        leadingIcon: const Icon(Icons.content_copy_outlined),
+        leadingIcon: Icon(AppIconKind.duplicate.material),
         onPressed: () =>
             runCopyHereFlow(context, item: key, parentId: f.parentId),
         child: const Text(LibraryStrings.copy),
       ),
     MenuItemButton(
-      leadingIcon: const Icon(Icons.drive_file_move_outline),
+      leadingIcon: Icon(AppIconKind.move.material),
       onPressed: () =>
           runMoveFlow(context, items: [key], parents: {key: f.parentId}),
       child: const Text(LibraryStrings.moveTo),
     ),
     MenuItemButton(
-      leadingIcon: const Icon(Icons.delete_outline),
+      leadingIcon: Icon(AppIconKind.trash.material),
       onPressed: () => runTrashFlow(context, items: [key], singleName: f.name),
       child: const Text(LibraryStrings.moveToTrash),
     ),
@@ -159,7 +164,7 @@ class ItemMenuButton extends ConsumerWidget {
         exportPdf: exportPdf,
       ),
       builder: (context, controller, _) => IconButton(
-        icon: const Icon(Icons.more_horiz),
+        icon: Icon(AppIconKind.more.material),
         tooltip: LibraryStrings.itemMenu(note?.title ?? folder!.name),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints.tightFor(

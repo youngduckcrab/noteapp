@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
     show Folder, FolderId, Note, NoteId, TrashItem, trashItemsProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../integration/pdf_flows.dart';
 import '../../integration/pdf_slots.dart';
@@ -121,7 +122,9 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     final any = items.isNotEmpty;
 
     final _BarAction selectAll = (
-      icon: allSelected ? Icons.deselect : Icons.select_all,
+      icon: allSelected
+          ? AppIconKind.deselect.material
+          : AppIconKind.selectAll.material,
       label: allSelected
           ? LibraryStrings.deselectAll
           : LibraryStrings.selectAll,
@@ -137,7 +140,9 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     final allFavorite =
         selectedNotes.isNotEmpty && selectedNotes.every((n) => n.isFavorite);
     final _BarAction favorite = (
-      icon: allFavorite ? Icons.star : Icons.star_outline,
+      icon: allFavorite
+          ? AppIconKind.favoriteOn.material
+          : AppIconKind.favorite.material,
       label: allFavorite
           ? LibraryStrings.favoriteRemove
           : LibraryStrings.favoriteAdd,
@@ -152,7 +157,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             ),
     );
     final _BarAction copy = (
-      icon: Icons.content_copy_outlined,
+      icon: AppIconKind.duplicate.material,
       label: LibraryStrings.copy,
       disabledHint: null,
       onPressed: !any
@@ -169,7 +174,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             ),
     );
     final _BarAction move = (
-      icon: Icons.drive_file_move_outline,
+      icon: AppIconKind.move.material,
       label: LibraryStrings.move,
       disabledHint: null,
       onPressed: !any
@@ -194,7 +199,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
                   ], end),
           );
     final _BarAction trash = (
-      icon: Icons.delete_outline,
+      icon: AppIconKind.trash.material,
       label: LibraryStrings.trash,
       disabledHint: null,
       onPressed: !any
@@ -208,7 +213,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     );
     final singleName = items.length == 1 ? nameOf(items.single) : null;
     final _BarAction restore = (
-      icon: Icons.restore_from_trash_outlined,
+      icon: AppIconKind.restore.material,
       label: LibraryStrings.restore,
       disabledHint: null,
       onPressed: !any
@@ -221,7 +226,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
             ),
     );
     final _BarAction purge = (
-      icon: Icons.delete_forever_outlined,
+      icon: AppIconKind.deleteForever.material,
       label: LibraryStrings.purge,
       disabledHint: null,
       onPressed: !any
@@ -263,7 +268,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
               children: [
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const AppIcon(AppIconKind.close),
                   tooltip: LibraryStrings.done,
                   onPressed: end,
                 ),
@@ -356,7 +361,7 @@ class _OverflowMenu extends StatelessWidget {
           ),
       ],
       builder: (context, controller, _) => IconButton(
-        icon: const Icon(Icons.more_vert),
+        icon: const AppIcon(AppIconKind.more),
         tooltip: LibraryStrings.moreActions,
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),

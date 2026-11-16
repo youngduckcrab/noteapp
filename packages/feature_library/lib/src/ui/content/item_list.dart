@@ -7,6 +7,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Folder, Note, clockProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../appearance/folder_appearance.dart';
 import '../../dnd/drop_decision.dart';
@@ -230,7 +231,7 @@ class NoteListRow extends ConsumerWidget {
     final main = ContentItemDraggable(
       itemKey: key,
       parentId: note.folderId,
-      icon: Icons.description_outlined,
+      icon: AppIconKind.note.material,
       label: note.title,
       child: _RowMain(
         itemKey: key,
@@ -263,7 +264,10 @@ class NoteListRow extends ConsumerWidget {
             // added from the row's ⋯ or the selection bar.
             if (note.isFavorite)
               IconButton(
-                icon: Icon(Icons.star, color: scheme.tertiary),
+                icon: Icon(
+                  AppIconKind.favoriteOn.material,
+                  color: scheme.tertiary,
+                ),
                 tooltip: LibraryStrings.favoriteRemove,
                 onPressed: () =>
                     runFavoriteFlow(context, ids: [note.id], favorite: false),

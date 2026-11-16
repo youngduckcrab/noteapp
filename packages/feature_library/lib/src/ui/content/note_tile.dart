@@ -8,6 +8,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show Note, clockProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../dnd/drop_decision.dart';
 import '../../dnd/library_drop_zone.dart';
@@ -58,7 +59,7 @@ class NoteTile extends ConsumerWidget {
     final main = ContentItemDraggable(
       itemKey: key,
       parentId: note.folderId,
-      icon: Icons.description_outlined,
+      icon: AppIconKind.note.material,
       label: note.title,
       child: Semantics(
         container: true,
@@ -91,7 +92,7 @@ class NoteTile extends ConsumerWidget {
                         top: 6,
                         right: 6,
                         child: CoverCornerBadge(
-                          icon: Icons.star,
+                          icon: AppIconKind.favoriteOn.material,
                           color: scheme.tertiary,
                         ),
                       ),

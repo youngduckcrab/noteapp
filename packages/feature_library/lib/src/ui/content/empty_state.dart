@@ -4,6 +4,7 @@
 import 'dart:async' show Timer;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
@@ -23,20 +24,29 @@ class EmptyState extends StatelessWidget {
     final section = this.section;
     final (icon, text) = switch (section) {
       FolderSection(folderId: null) => (
-        Icons.note_outlined,
+        AppIconKind.note.material,
         LibraryStrings.emptyHome,
       ),
       FolderSection() => (
-        Icons.folder_open_outlined,
+        AppIconKind.folder.material,
         LibraryStrings.emptyFolder,
       ),
-      RecentSection() => (Icons.schedule, LibraryStrings.emptyRecent),
-      FavoritesSection() => (Icons.star_outline, LibraryStrings.emptyFavorites),
+      RecentSection() => (
+        AppIconKind.recent.material,
+        LibraryStrings.emptyRecent,
+      ),
+      FavoritesSection() => (
+        AppIconKind.favorite.material,
+        LibraryStrings.emptyFavorites,
+      ),
       SearchSection(:final query) => (
         Icons.search_off,
         LibraryStrings.emptySearch(query),
       ),
-      TrashSection() => (Icons.delete_outline, LibraryStrings.emptyTrashView),
+      TrashSection() => (
+        AppIconKind.trash.material,
+        LibraryStrings.emptyTrashView,
+      ),
     };
     return Center(
       child: SingleChildScrollView(
@@ -70,13 +80,13 @@ class EmptyState extends StatelessWidget {
                     NewNoteTrigger(
                       folderId: section.folderId,
                       builder: (context, onPressed) => FilledButton.icon(
-                        icon: const Icon(Icons.note_add_outlined),
+                        icon: Icon(AppIconKind.newNote.material),
                         label: const Text(LibraryStrings.newNote),
                         onPressed: onPressed,
                       ),
                     ),
                     OutlinedButton.icon(
-                      icon: const Icon(Icons.create_new_folder_outlined),
+                      icon: Icon(AppIconKind.newFolder.material),
                       label: const Text(LibraryStrings.newFolder),
                       onPressed: () =>
                           runNewFolderFlow(context, parentId: section.folderId),
@@ -143,7 +153,7 @@ class ListLoadError extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
+              AppIconKind.error.material,
               size: 64,
               color: theme.colorScheme.onSurfaceVariant,
             ),

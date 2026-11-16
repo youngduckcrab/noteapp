@@ -4,6 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show LibrarySortField;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/library_strings.dart';
 import '../../model/view_prefs.dart';
@@ -23,11 +24,13 @@ List<Widget> _sortMenuItems(WidgetRef ref, LibrarySort sort) => [
   for (final (field, label) in _sortChoices)
     MenuItemButton(
       leadingIcon: sort.field == field
-          ? const Icon(Icons.check)
+          ? Icon(AppIconKind.check.material)
           : const SizedBox(width: 24),
       trailingIcon: sort.field == field && field != LibrarySortField.custom
           ? Icon(
-              sort.descending ? Icons.arrow_downward : Icons.arrow_upward,
+              sort.descending
+                  ? AppIconKind.sortDown.material
+                  : AppIconKind.sortUp.material,
               size: 18,
             )
           : null,
@@ -47,7 +50,7 @@ class SortMenuButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!enabled) {
       return const IconButton(
-        icon: Icon(Icons.sort),
+        icon: AppIcon(AppIconKind.sort),
         tooltip: LibraryStrings.sortFixed,
         onPressed: null,
       );
@@ -56,7 +59,7 @@ class SortMenuButton extends ConsumerWidget {
     return MenuAnchor(
       menuChildren: _sortMenuItems(ref, sort),
       builder: (context, controller, _) => IconButton(
-        icon: const Icon(Icons.sort),
+        icon: const AppIcon(AppIconKind.sort),
         tooltip: LibraryStrings.sort,
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
@@ -66,7 +69,7 @@ class SortMenuButton extends ConsumerWidget {
 }
 
 /// Grid ↔ list; the icon shows the mode it switches to (in the grid:
-/// Icons.view_list).
+/// the list icon).
 class ViewModeButton extends ConsumerWidget {
   const ViewModeButton({super.key});
 
@@ -75,7 +78,7 @@ class ViewModeButton extends ConsumerWidget {
     final mode = ref.watch(libraryPrefsProvider.select((p) => p.viewMode));
     final toList = mode == LibraryViewMode.grid;
     return IconButton(
-      icon: Icon(toList ? Icons.view_list : Icons.grid_view),
+      icon: AppIcon(toList ? AppIconKind.viewList : AppIconKind.viewGrid),
       tooltip: toList ? LibraryStrings.viewAsList : LibraryStrings.viewAsGrid,
       onPressed: () => ref
           .read(libraryPrefsProvider.notifier)
@@ -110,13 +113,17 @@ class CompactListingMenu extends ConsumerWidget {
       menuChildren: [
         if (sortEnabled)
           SubmenuButton(
-            leadingIcon: const Icon(Icons.sort),
+            leadingIcon: Icon(AppIconKind.sort.material),
             menuChildren: _sortMenuItems(ref, sort),
             child: const Text(LibraryStrings.sort),
           ),
         if (showViewToggle)
           MenuItemButton(
-            leadingIcon: Icon(toList ? Icons.view_list : Icons.grid_view),
+            leadingIcon: Icon(
+              toList
+                  ? AppIconKind.viewList.material
+                  : AppIconKind.viewGrid.material,
+            ),
             onPressed: () => ref
                 .read(libraryPrefsProvider.notifier)
                 .setViewMode(
@@ -127,13 +134,13 @@ class CompactListingMenu extends ConsumerWidget {
             ),
           ),
         MenuItemButton(
-          leadingIcon: const Icon(Icons.check_circle_outline),
+          leadingIcon: Icon(AppIconKind.select.material),
           onPressed: onSelect,
           child: const Text(LibraryStrings.select),
         ),
       ],
       builder: (context, controller, _) => IconButton(
-        icon: const Icon(Icons.more_vert),
+        icon: const AppIcon(AppIconKind.more),
         tooltip: LibraryStrings.moreActions,
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
