@@ -3,10 +3,12 @@
 // switches at once (a running stroke is cancelled).
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/state/panel.dart';
 import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/ui/banners/read_only_banner.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
+import 'package:feature_editor/src/ui/toolbar/mic_button.dart';
 import 'package:feature_editor/src/ui/toolbar/tool_button.dart';
 import 'package:feature_editor/src/ui/toolbar/undo_redo_buttons.dart';
 import 'package:flutter/gestures.dart';
@@ -25,8 +27,22 @@ const List<Offset> _points = [
   Offset(190, 185),
 ];
 
-bool _toolEnabled(WidgetTester tester, Key key) =>
-    tester.widget<ToolButton>(find.byKey(key)).onTap != null;
+/// (v2.15-ui) The pen and the eraser are pen tray slots: the tray ignores
+/// pointers on a read-only note.
+bool _toolEnabled(WidgetTester tester, Key key) {
+  if (key == EditorToolbar.penKey || key == EditorToolbar.eraserKey) {
+    return find
+        .ancestor(
+          of: find.byKey(key),
+          matching: find.byWidgetPredicate(
+            (w) => w is IgnorePointer && w.ignoring,
+          ),
+        )
+        .evaluate()
+        .isEmpty;
+  }
+  return tester.widget<ToolButton>(find.byKey(key)).onTap != null;
+}
 
 void _expectReadOnlyUi(WidgetTester tester) {
   expect(find.byKey(ReadOnlyBanner.bannerKey), findsOneWidget);
@@ -122,5 +138,25 @@ void main() {
     await tester.pump();
     expect(find.byKey(ReadOnlyBanner.bannerKey), findsNothing);
     expect(_toolEnabled(tester, EditorToolbar.penKey), isTrue);
+  });
+
+  testWidgets('(v2.15-ui review) a read-only note keeps [🎤]: its '
+      'recordings can be played ([+] is disabled there)', (tester) async {
+    final h = await pumpEditor(
+      tester,
+      extensions: EditorExtensions(
+        recordingPanel: (context, panel) => const SizedBox(),
+      ),
+    );
+    expect(find.byKey(MicButton.micKey), findsNothing, reason: 'in [+]');
+    await h.store.library.trashItems([core.NoteRef(h.noteId)]);
+    for (var i = 0; i < 5; i++) {
+      await tester.pump();
+    }
+    expect(h.container.read(editorReadOnlyProvider), isTrue);
+    expect(find.byKey(MicButton.micKey).hitTestable(), findsOneWidget);
+    await tester.tap(find.byKey(MicButton.micKey));
+    await tester.pump();
+    expect(h.container.read(editorPanelProvider), isTrue);
   });
 }

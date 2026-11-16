@@ -25,16 +25,22 @@ final class PenSettingsPopup extends EditorPopup {
 /// The quick pen popup: below the pen button, or (v2, EditorAction
 /// toolPalette — m5-7/04-editor 6.4.1) at [globalPosition] (the pencil's
 /// hover point, global logical px).
+///
+/// (v2.15-ui) [presetId]: the tray pen it was long-pressed on (its
+/// '트레이에서 빼기' row); null from the toolbar-less paths.
 final class QuickPenPopup extends EditorPopup {
-  const QuickPenPopup({this.globalPosition});
+  const QuickPenPopup({this.globalPosition, this.presetId});
   final Offset? globalPosition;
+  final String? presetId;
 
   @override
   bool operator ==(Object other) =>
-      other is QuickPenPopup && other.globalPosition == globalPosition;
+      other is QuickPenPopup &&
+      other.globalPosition == globalPosition &&
+      other.presetId == presetId;
 
   @override
-  int get hashCode => Object.hash(QuickPenPopup, globalPosition);
+  int get hashCode => Object.hash(QuickPenPopup, globalPosition, presetId);
 }
 
 /// (v2, EditorAction colorPalette — m5-7/04-editor 6.4.1) the recent colours

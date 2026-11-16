@@ -41,7 +41,10 @@ Future<void> _frames(WidgetTester tester, [int n = 5]) async {
 }
 
 void main() {
-  for (final width in [1280.0, 900.0]) {
+  // (UI stages 2 + 5) 960, not 900: at 900 the '2 / 4' of the page button
+  // leaves the slot room for [☁] but not also for [100%] (each shows only
+  // where it fits).
+  for (final width in [1280.0, 960.0]) {
     testWidgets('$width px: the tools do not move when [100%] and [☁] '
         'appear or go', (tester) async {
       final sync = StreamController<core.SyncBadge>.broadcast();
@@ -96,11 +99,10 @@ void main() {
       expect(h.container.read(editorNoteSearchProvider).isOpen, isTrue);
     });
 
-    testWidgets('from 720 px: the toolbar [🔍], not in ⋯', (tester) async {
-      await pumpEditor(
-        tester,
-        logicalSize: const Size(EditorToolbar.foldedSearchMinWidth, 1000),
-      );
+    testWidgets('(v2.15-ui) from 852 px: the toolbar [🔍], not in ⋯', (
+      tester,
+    ) async {
+      await pumpEditor(tester, logicalSize: const Size(852, 1000));
       expect(find.byKey(EditorToolbar.noteSearchKey), findsOneWidget);
       await _openMore(tester);
       expect(find.byKey(EditorMoreMenu.noteSearchKey), findsNothing);

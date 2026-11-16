@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../state/popup.dart';
 import '../../state/preset_bar.dart';
@@ -36,16 +37,22 @@ String? presetNameOf(String raw) {
 /// stays pending while CORE retries a failed commit (contract 7.2.9 v1.2), so
 /// nothing waits for it. An error (an argument error, a preset deleted on
 /// another device …) is reported (library 'feature_editor') and shows
-/// '실행하지 못했어요'.
+/// '실행하지 못했어요'. (v2.15-ui review) [onDone] runs after the write
+/// succeeded (a success message shows only then), with the messenger of
+/// [context] taken now.
 void runPresetWrite(
   BuildContext context,
   String what,
-  Future<Object?> Function() write,
-) {
+  Future<Object?> Function() write, {
+  void Function(ScaffoldMessengerState? messenger)? onDone,
+}) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   unawaited(() async {
     try {
       await write();
+      if (onDone != null) {
+        onDone(messenger != null && messenger.mounted ? messenger : null);
+      }
     } on Object catch (error, stack) {
       FlutterError.reportError(
         FlutterErrorDetails(
@@ -212,7 +219,7 @@ class _PresetGroupPickerState extends State<PresetGroupPicker> {
               ),
             ChoiceChip(
               key: PresetGroupPicker.newGroupKey,
-              avatar: const Icon(Icons.add, size: 18),
+              avatar: const AppIcon(AppIconKind.add, size: 18),
               label: const Text(EditorStrings.presetNewGroup),
               selected: choice is _NewGroup,
               onSelected: (_) => _select(const _NewGroup()),

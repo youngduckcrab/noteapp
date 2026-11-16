@@ -1,9 +1,11 @@
 // lib/src/ui/chrome/editor_chrome.dart — 04-editor 19 (hiding the top menu,
 // detaching the preset row as a floating palette).
 //
-// The two top rows (EditorToolbar + PresetBarView) live in [EditorTopMenu],
-// which slides them up when EditorDeviceState.toolbarHidden is set; the
-// floating buttons (restore pill, palette) are in floating_layer.dart.
+// The toolbar lives in [EditorTopMenu], which slides it up when
+// EditorDeviceState.toolbarHidden is set; the floating buttons (restore pill,
+// palette) are in floating_layer.dart. (v2.15-ui — 22) The preset row under
+// the toolbar is gone: its pens are the toolbar's pen tray, which is what
+// '팔레트로 떼어내기' now detaches.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -13,7 +15,6 @@ import '../../state/note_search.dart';
 import '../../state/popup.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../editor_strings.dart';
-import '../presets/preset_bar_view.dart';
 
 /// The chrome actions (toolbar button, ⋯ items, restore pill, palette,
 /// system back).
@@ -21,8 +22,9 @@ abstract final class EditorChrome {
   /// Slide of the top menu.
   static const Duration slide = Duration(milliseconds: 200);
 
-  /// '집중 모드' (was '메뉴 숨기기'; UI stage 2: only in ⋯): closes a popup (the toolbar ones hang from buttons that
-  /// go away), hides both rows; the first time on this device a snack bar
+  /// '집중 모드' (was '메뉴 숨기기'; UI stage 2: only in ⋯): closes a popup
+  /// (the toolbar ones hang from buttons that go away), hides the toolbar;
+  /// the first time on this device a snack bar
   /// says how to get them back.
   static void hideMenu(BuildContext context, WidgetRef ref) {
     ref.read(editorPopupProvider.notifier).close();
@@ -37,11 +39,11 @@ abstract final class EditorChrome {
       );
   }
 
-  /// The restore pill / system back: both rows come back.
+  /// The restore pill / system back: the toolbar comes back.
   static void showMenu(WidgetRef ref) =>
       ref.read(editorDeviceStateProvider.notifier).setToolbarHidden(false);
 
-  /// '팔레트로 떼어내기' (the preset row leaves the top menu).
+  /// '팔레트로 떼어내기' (the pen tray leaves the toolbar).
   static void detachPalette(WidgetRef ref) =>
       ref.read(editorDeviceStateProvider.notifier).setPaletteDetached(true);
 
@@ -128,8 +130,8 @@ final editorPaletteExpandedProvider =
       name: 'editorPaletteExpandedProvider',
     );
 
-/// Toolbar (52 px) · PresetBarView (44 px, not while the palette is
-/// detached) · divider. Hidden ([EditorDeviceState.toolbarHidden]): slides
+/// Toolbar (52 px, the pen tray in it unless the palette is detached) ·
+/// divider. Hidden ([EditorDeviceState.toolbarHidden]): slides
 /// up in [EditorChrome.slide] and leaves the tree, so the page gets the room
 /// and nothing anchors to a button that is not on screen. The stored value
 /// arriving after the screen opened applies without the slide.
@@ -175,9 +177,6 @@ class _EditorTopMenuState extends ConsumerState<EditorTopMenu>
       }
     });
     _loaded = ref.read(editorDeviceStateProvider.notifier).isLoaded;
-    final detached = ref.watch(
-      editorDeviceStateProvider.select((s) => s.paletteDetached),
-    );
     return AnimatedBuilder(
       animation: _slide,
       builder: (context, child) {
@@ -195,29 +194,8 @@ class _EditorTopMenuState extends ConsumerState<EditorTopMenu>
         key: EditorTopMenu.menuKey,
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          widget.toolbar,
-          if (!detached) const PresetBarView(),
-          const Divider(height: 1),
-        ],
+        children: [widget.toolbar, const Divider(height: 1)],
       ),
     );
   }
-}
-
-/// [🎨] of the preset row: '팔레트로 떼어내기'.
-class PaletteDetachButton extends ConsumerWidget {
-  const PaletteDetachButton({super.key});
-
-  static const buttonKey = ValueKey('editor.presetBar.detach');
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => IconButton(
-    key: buttonKey,
-    onPressed: () => EditorChrome.detachPalette(ref),
-    icon: const Icon(
-      Icons.palette_outlined,
-      semanticLabel: EditorStrings.detachPalette,
-    ),
-  );
 }

@@ -6,13 +6,15 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../scope/editor_scope.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../editor_strings.dart';
-import '../toolbar/editor_toolbar.dart' show EditorToolbar;
+import '../toolbar/editor_toolbar.dart'
+    show EditorToolbar, editorToolbarPageCountProvider;
 
 /// "current / count" at the bottom right of the page area; never takes
 /// input (IgnorePointer). (UI stage 2, 04-editor 22) Only where the toolbar
-/// does not show the count itself: while the top menu is hidden, and on a
-/// window narrower than [EditorToolbar.pageCountMinWidth] (phones, split
-/// screen — the page button is the icon alone there).
+/// does not show the count itself: while the top menu is hidden, and where
+/// the toolbar's plan leaves the count out (narrower than
+/// [EditorToolbar.pageCountMinWidth], or no room after the pen tray —
+/// editorToolbarPageCountProvider).
 class PageIndicator extends ConsumerWidget {
   const PageIndicator({super.key});
 
@@ -23,10 +25,8 @@ class PageIndicator extends ConsumerWidget {
     final hidden = ref.watch(
       editorDeviceStateProvider.select((s) => s.toolbarHidden),
     );
-    // The toolbar spans the window (EditorChrome).
-    final narrow =
-        MediaQuery.sizeOf(context).width < EditorToolbar.pageCountMinWidth;
-    if (!hidden && !narrow) return const SizedBox.shrink();
+    final inToolbar = ref.watch(editorToolbarPageCountProvider);
+    if (!hidden && inToolbar) return const SizedBox.shrink();
     final index = ref.watch(editorCurrentPageIndexProvider);
     final count = ref.watch(editorPageCountProvider);
     if (count == 0) return const SizedBox.shrink();

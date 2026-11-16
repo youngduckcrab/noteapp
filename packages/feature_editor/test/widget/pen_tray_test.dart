@@ -1,25 +1,26 @@
-// E-16: the preset bar, the save dialog and the manager sheet (04-editor
-// 6.10, 5.1.5) on the fake store's preset repository (wrapped to record the
-// calls): the 5 default presets, the group filter (editor.presetBar), tap →
-// applyStyle, the active border (core.StrokeStyle ==), drag → one
-// reorderPresets with the full order, the save dialog (default name, 1–20
-// characters, group, pinned → createPreset), the manager sheet (name, group,
-// pinned, update with the current pen, delete, order → CORE), the empty bar,
-// a read-only note and a failed write.
+// (v2.15-ui, m5-7/04-editor 23.3) The pen tray (it replaced E-16's preset
+// row — the same stored presets and pinned flag), the save dialog and the
+// manager sheet (04-editor 6.10, 5.1.5) on the fake store's preset repository
+// (wrapped to record the calls): the 5 default presets as pen drawings in
+// CORE order, tap → applyStyle, the lifted pen (core.StrokeStyle ==), '지금
+// 펜', the lifted pen → the picker, long press → the quick pen (트레이에서
+// 빼기, 순서 바꾸기), [트레이에 꽂기] (and the 8-pen limit), the group filter no
+// longer hiding pens, the save dialog, the manager sheet, the empty tray, a
+// read-only note and a failed write.
 import 'dart:async';
 
-import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/state/preset_bar.dart';
-import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
+import 'package:feature_editor/src/ui/color/basic_colors_row.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
+import 'package:feature_editor/src/ui/pen/pen_art_view.dart';
 import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
+import 'package:feature_editor/src/ui/pen/pen_tray.dart';
+import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/popup_host.dart';
-import 'package:feature_editor/src/ui/presets/preset_bar_view.dart';
-import 'package:feature_editor/src/ui/presets/preset_chip.dart';
 import 'package:feature_editor/src/ui/presets/preset_manager_sheet.dart';
 import 'package:feature_editor/src/ui/presets/save_preset_dialog.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
@@ -29,6 +30,7 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers/pump_editor.dart';
 
@@ -108,13 +110,22 @@ final class _RecordingPresets implements core.PenPresetRepository {
 
 typedef _Env = ({EditorTestHandles h, _RecordingPresets presets});
 
-Future<_Env> _pump(WidgetTester tester, {bool seedPresets = true}) async {
+Future<_Env> _pump(
+  WidgetTester tester, {
+  bool seedPresets = true,
+  Size size = const Size(1032, 1376),
+  AppStyle? appStyle,
+}) async {
   final store = createFakeNoteStore(seedDefaultPenPresets: seedPresets);
   addTearDown(store.close);
   final presets = _RecordingPresets(store.penPresets);
   final h = await pumpEditor(
     tester,
     store: store,
+    logicalSize: size,
+    theme: appStyle == null
+        ? null
+        : buildStyleTheme(appStyle, Brightness.light),
     overrides: [core.penPresetRepositoryProvider.overrideWithValue(presets)],
   );
   await _settle(tester);
@@ -134,19 +145,45 @@ Future<void> _settleSnackBar(WidgetTester tester) async {
   }
 }
 
-/// The names on the bar, left to right.
-List<String> _bar(WidgetTester tester) => [
-  for (final c in tester.widgetList<PresetChip>(find.byType(PresetChip)))
-    c.preset.name,
-];
+/// The names of the tray's pinned pens, left to right.
+List<String> _bar(WidgetTester tester) {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(PenTray)),
+  );
+  final all = container.read(core.penPresetsProvider).value ?? const [];
+  final shown =
+      [
+        for (final p in all)
+          if (find.byKey(PenTray.slotKey(p.id)).evaluate().isNotEmpty) p,
+      ]..sort(
+        (x, y) => tester
+            .getCenter(find.byKey(PenTray.slotKey(x.id)))
+            .dx
+            .compareTo(tester.getCenter(find.byKey(PenTray.slotKey(y.id))).dx),
+      );
+  return [for (final p in shown) p.name];
+}
+
+Finder get _toolbar => find.byType(EditorToolbar);
 
 Future<List<core.PenPreset>> _core(_Env env) => env.presets.inner.getPresets();
 
 Future<core.PenPreset> _named(_Env env, String name) async =>
     (await _core(env)).singleWhere((p) => p.name == name);
 
-PresetChip _chip(WidgetTester tester, String id) =>
-    tester.widget<PresetChip>(find.byKey(PresetBarView.chipKey(id)));
+/// Whether tray pen [id] is the lifted one (the pen tool, its style).
+bool _lifted(WidgetTester tester, String id) =>
+    find
+        .descendant(
+          of: find.byKey(EditorToolbar.penKey),
+          matching: find.byKey(PenTray.slotKey(id)),
+        )
+        .evaluate()
+        .isNotEmpty &&
+    ProviderScope.containerOf(tester.element(find.byType(PenTray)))
+            .read(editorToolProvider)
+            .activeTool ==
+        EditorTool.pen;
 
 ToolState _tools(EditorTestHandles h) => h.container.read(editorToolProvider);
 
@@ -166,7 +203,9 @@ Future<void> _group(WidgetTester tester, _Env env) async {
 }
 
 Future<void> _openSaveDialog(WidgetTester tester) async {
-  await tester.tap(find.byKey(PresetBarView.addKey));
+  ProviderScope.containerOf(tester.element(find.byType(PenTray)))
+      .read(editorPopupProvider.notifier)
+      .open(const SavePresetPopup());
   await tester.pump();
   expect(find.byKey(SavePresetDialog.panelKey), findsOneWidget);
 }
@@ -188,19 +227,11 @@ bool _saveEnabled(WidgetTester tester) =>
     null;
 
 Future<void> _openManager(WidgetTester tester) async {
-  await tester.tap(find.byKey(PresetBarView.manageKey));
+  await tester.longPress(find.byKey(EditorToolbar.penKey));
+  await tester.pump();
+  await tester.tap(find.byKey(QuickPenPanel.reorderKey));
   await tester.pump();
   expect(find.byKey(PresetManagerSheet.panelKey), findsOneWidget);
-}
-
-/// Opens the bar's group menu and picks [item] (onPressed runs after the
-/// next frame, the bar rebuilds in the one after).
-Future<void> _pickGroup(WidgetTester tester, Key item) async {
-  await tester.tap(find.byKey(PresetBarView.groupMenuKey));
-  await tester.pump();
-  await tester.tap(find.byKey(item));
-  await tester.pump();
-  await tester.pump();
 }
 
 /// Opens the ⋯ menu of row [id] and picks [item]. MenuItemButton calls
@@ -216,207 +247,383 @@ Future<void> _rowMenu(WidgetTester tester, String id, Key item) async {
 }
 
 void main() {
-  testWidgets('the 5 default presets of the fake store, 44 px under the '
-      'toolbar, in CORE order', (tester) async {
+  testWidgets('the 5 default presets stand in the tray as pen drawings in '
+      'their ink colour, CORE order, the eraser at the right end; no row '
+      'under the toolbar', (tester) async {
     final env = await _pump(tester);
+    final all = await _core(env);
     expect(_bar(tester), ['볼펜', '만년필', '형광펜', '연필', '마커']);
-    final bar = tester.getRect(find.byKey(PresetBarView.barKey));
+    final tray = tester.getRect(find.byKey(PenTray.trayKey));
     final toolbar = tester.getRect(find.byType(EditorToolbar));
-    expect(bar.height, PresetBarView.height);
-    expect(bar.top, toolbar.bottom);
-    final chip = tester.getSize(find.byType(PresetChip).first);
-    expect(chip, const Size(PresetChip.width, PresetChip.touchHeight));
-    // The chips show the CORE values: colour + opacity in the circle, the
-    // width dot 4 + 16·sqrt(width / 30).
-    for (final p in await _core(env)) {
-      final chipFinder = find.byKey(PresetBarView.chipKey(p.id));
-      final circle = tester.widget<DecoratedBox>(
+    final tokens = StyleTokens.of(tester.element(find.byType(PenTray)));
+    final slotHeight = PenTray.slotHeightOf(tokens);
+    expect(tray.height, slotHeight + 2);
+    // (v2.15-ui review) The bar is the style's height and the pens stand
+    // tall in it.
+    expect(toolbar.height, EditorToolbar.heightOf(tester.element(_toolbar)));
+    expect(slotHeight, greaterThanOrEqualTo(PenTray.height));
+    expect(tray.top, greaterThan(toolbar.top));
+    expect(tray.bottom, lessThan(toolbar.bottom));
+    for (final p in all) {
+      final art = tester.widget<PenArt>(
         find.descendant(
-          of: chipFinder,
-          matching: find.byKey(PresetChip.circleKey),
+          of: find.byKey(PenTray.slotKey(p.id)),
+          matching: find.byType(PenArt),
         ),
       );
+      expect(art.tool, p.style.tool);
+      expect(art.color, penArtColorOf(p.style));
       expect(
-        (circle.decoration as BoxDecoration).color,
-        Color(p.style.colorArgb).withValues(alpha: p.style.opacity),
+        tester.getSize(find.byKey(PenTray.slotKey(p.id))),
+        Size(PenTray.slotWidth, slotHeight),
       );
-      final dot = tester.getSize(
-        find.descendant(
-          of: chipFinder,
-          matching: find.byKey(PresetChip.dotKey),
-        ),
-      );
-      expect(dot.width, closeTo(PresetChip.dotDiameter(p.style.width), 1e-9));
     }
-    expect(PresetChip.dotDiameter(30), 20);
-    expect(PresetChip.dotDiameter(7.5), 12);
-    // No group yet → no group menu.
-    expect(find.byKey(PresetBarView.groupMenuKey), findsNothing);
+    final eraser = tester.getRect(find.byKey(EditorToolbar.eraserKey));
+    expect(
+      eraser.left,
+      greaterThan(
+        tester.getRect(find.byKey(PenTray.slotKey(all.last.id))).right,
+      ),
+    );
+    expect(find.byKey(PenTray.looseKey), findsNothing);
     expect(env.presets.calls, isEmpty, reason: 'EDITOR only reads');
   });
 
-  testWidgets('tap → applyStyle; the active border follows the pen style '
-      '(StrokeStyle ==) while the pen is active', (tester) async {
-    final env = await _pump(tester);
+  testWidgets('tap → applyStyle and the pen lifts; a pen in no tray slot is '
+      '지금 펜 at the end; the lifted pen again → the pen picker', (tester) async {
+    // 1280 wide: the tray takes 8 pens, so 지금 펜 hides none.
+    final env = await _pump(tester, size: const Size(1280, 800));
     final h = env.h;
     final all = await _core(env);
-    // Default pen = StrokeStyle.defaultsFor(ballpoint) = the 볼펜 preset.
     expect(_tools(h).currentPen, all[0].style);
-    expect(_chip(tester, all[0].id).active, isTrue);
-    expect([
-      for (final p in all.skip(1)) _chip(tester, p.id).active,
-    ], everyElement(isFalse));
+    expect(_lifted(tester, all[0].id), isTrue);
+    final down = tester.getTopLeft(
+      find.descendant(
+        of: find.byKey(PenTray.slotKey(all[2].id)),
+        matching: find.byType(PenArt),
+      ),
+    );
+    final up = tester.getTopLeft(
+      find.descendant(
+        of: find.byKey(PenTray.slotKey(all[0].id)),
+        matching: find.byType(PenArt),
+      ),
+    );
+    expect(up.dy, lessThan(down.dy), reason: 'the current pen is lifted');
 
-    await tester.tap(find.byKey(PresetBarView.chipKey(all[2].id))); // 형광펜
+    await tester.tap(find.byKey(PenTray.slotKey(all[2].id))); // 형광펜
     await tester.pump();
     expect(_tools(h).activeTool, EditorTool.pen);
-    expect(_tools(h).penType, core.PenTool.highlighter);
     expect(_tools(h).currentPen, all[2].style);
-    expect(_chip(tester, all[2].id).active, isTrue);
-    expect(_chip(tester, all[0].id).active, isFalse);
+    expect(_lifted(tester, all[2].id), isTrue);
+    expect(_lifted(tester, all[0].id), isFalse);
+    expect(_popup(h), isNull);
 
-    // A changed width → no preset matches.
+    // A changed width → no preset matches: 지금 펜 stands last, lifted.
     h.container.read(editorToolProvider.notifier).setWidth(20);
     await tester.pump();
-    expect([
-      for (final p in all) _chip(tester, p.id).active,
-    ], everyElement(isFalse));
+    expect(find.byKey(PenTray.looseKey), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(EditorToolbar.penKey),
+        matching: find.byKey(PenTray.looseKey),
+      ),
+      findsOneWidget,
+    );
+    expect(_bar(tester), ['볼펜', '만년필', '형광펜', '연필', '마커']);
+    expect(
+      tester.getCenter(find.byKey(PenTray.looseKey)).dx,
+      greaterThan(tester.getCenter(find.byKey(PenTray.slotKey(all[4].id))).dx),
+    );
 
-    // Tapping 마커 from the eraser selects the pen with the preset style.
-    h.container.read(editorToolProvider.notifier).selectTool(EditorTool.eraser);
+    // The lifted pen again → the picker.
+    await tester.tap(find.byKey(EditorToolbar.penKey));
     await tester.pump();
-    await tester.tap(find.byKey(PresetBarView.chipKey(all[4].id)));
+    expect(_popup(h), const PenSettingsPopup());
+    h.container.read(editorPopupProvider.notifier).close();
+    await tester.pump();
+
+    // The eraser: tap → the eraser (it lifts, no pen does); again → its popup.
+    await tester.tap(find.byKey(EditorToolbar.eraserKey));
+    await tester.pump();
+    expect(_tools(h).activeTool, EditorTool.eraser);
+    expect([for (final p in all) _lifted(tester, p.id)], everyElement(isFalse));
+    await tester.tap(find.byKey(EditorToolbar.eraserKey));
+    await tester.pump();
+    expect(_popup(h), const EraserSettingsPopup());
+    h.container.read(editorPopupProvider.notifier).close();
+    await tester.pump();
+
+    // 지금 펜 from the eraser → the pen tool with that pen.
+    await tester.tap(find.byKey(PenTray.looseKey));
     await tester.pump();
     expect(_tools(h).activeTool, EditorTool.pen);
-    expect(_tools(h).currentPen, all[4].style);
-    expect(_chip(tester, all[4].id).active, isTrue);
-
-    // The eraser active → no border, even with the same pen style.
-    h.container.read(editorToolProvider.notifier).selectTool(EditorTool.eraser);
-    await tester.pump();
-    expect(_chip(tester, all[4].id).active, isFalse);
+    expect(_tools(h).currentPen.width, 20);
     expect(env.presets.calls, isEmpty);
   });
 
-  testWidgets('group filter: pinned presets of the group, 모든 그룹, stored in '
-      'editor.presetBar (device) and restored', (tester) async {
+  testWidgets('long press → the quick pen for that pen (switched to it): a '
+      'colour and a width change the pen; 트레이에서 빼기 unpins it', (tester) async {
     final env = await _pump(tester);
     final h = env.h;
-    await _group(tester, env);
-    // Unpinned 연필 is never on the bar.
-    expect(_bar(tester), ['볼펜', '만년필', '형광펜', '마커']);
-    expect(find.byKey(PresetBarView.groupMenuKey), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byKey(PresetBarView.groupMenuKey),
-        matching: find.text(EditorStrings.presetAllGroups),
-      ),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.byKey(PresetBarView.groupMenuKey));
+    final all = await _core(env);
+    await tester.longPress(find.byKey(PenTray.slotKey(all[1].id))); // 만년필
     await tester.pump();
-    expect(find.byKey(PresetBarView.groupItemKey('수업용')), findsOneWidget);
-    expect(find.byKey(PresetBarView.groupItemKey('필기')), findsOneWidget);
-    await tester.tap(find.byKey(PresetBarView.groupItemKey('수업용')));
+    expect(_tools(h).currentPen, all[1].style);
+    expect(_popup(h), isA<QuickPenPopup>());
+    expect((_popup(h)! as QuickPenPopup).presetId, all[1].id);
+    expect(find.byKey(QuickPenPanel.panelKey), findsOneWidget);
+    // Under the pressed pen, inside the screen.
+    final panel = tester.getRect(find.byKey(QuickPenPanel.panelKey));
+    final slot = tester.getRect(find.byKey(PenTray.slotKey(all[1].id)));
+    expect(panel.top, greaterThan(slot.bottom));
+    expect(panel.right, lessThanOrEqualTo(1032));
+
+    await tester.tap(find.byKey(QuickPenPanel.colorKey(6))); // 빨강
     await tester.pump();
+    expect(_tools(h).currentPen.colorArgb & 0xFFFFFF, 0xE53935);
+    final widths = penWidthChoices(core.PenTool.fountain);
+    await tester.tap(find.byKey(QuickPenPanel.widthKey(4)));
     await tester.pump();
-    expect(_bar(tester), ['형광펜', '마커']);
-    expect(h.container.read(editorPresetBarProvider).groupFilter, '수업용');
+    expect(_tools(h).currentPen.width, widths[4]);
+    expect(env.presets.calls, isEmpty, reason: 'the preset stays as it was');
+
+    await tester.tap(find.byKey(QuickPenPanel.unpinKey));
+    await _settle(tester);
+    expect(_popup(h), isNull);
+    expect(env.presets.updates.single.id, all[1].id);
+    expect(env.presets.updates.single.pinned, isFalse);
+    expect(_bar(tester), ['볼펜', '형광펜', '연필', '마커']);
+    await _settleSnackBar(tester);
+
+    // 펜 고르기 › opens the picker.
+    await tester.longPress(find.byKey(EditorToolbar.penKey));
+    await tester.pump();
     expect(
-      find.descendant(
-        of: find.byKey(PresetBarView.groupMenuKey),
-        matching: find.text('수업용'),
-      ),
-      findsOneWidget,
+      find.byKey(QuickPenPanel.unpinKey),
+      findsNothing,
+      reason: '지금 펜 is not in the tray',
     );
-
-    // editor.presetBar is written 500 ms later.
-    await tester.pump(const Duration(milliseconds: 499));
-    expect(
-      await h.store.settings.get(EditorSettingKeys.presetBar),
-      isNot(containsPair('group', '수업용')),
-    );
-    await tester.pump(const Duration(milliseconds: 1));
-    expect(await h.store.settings.get(EditorSettingKeys.presetBar), {
-      'v': 1,
-      'group': '수업용',
-    });
-
-    await _pickGroup(tester, PresetBarView.groupItemKey('필기'));
-    expect(_bar(tester), ['볼펜']);
-
-    await _pickGroup(tester, PresetBarView.allGroupsKey);
-    expect(_bar(tester), ['볼펜', '만년필', '형광펜', '마커']);
-    expect(h.container.read(editorPresetBarProvider).groupFilter, isNull);
-
-    // The filter is restored by a new container (another app start).
-    await _pickGroup(tester, PresetBarView.groupItemKey('수업용'));
-    await tester.pump(const Duration(milliseconds: 600));
-    expect(await h.store.settings.get(EditorSettingKeys.presetBar), {
-      'v': 1,
-      'group': '수업용',
-    });
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [core.noteStoreProvider.overrideWithValue(h.store)],
-        child: MaterialApp(
-          home: EditorScreen(noteId: h.noteId, onClose: () {}),
-        ),
-      ),
-    );
-    for (var i = 0; i < 6; i++) {
-      await tester.pump();
-    }
-    expect(_bar(tester), ['형광펜', '마커']);
+    await tester.tap(find.byKey(QuickPenPanel.pickerKey));
+    await tester.pump();
+    expect(_popup(h), const PenSettingsPopup());
   });
 
-  testWidgets('long press + drag → one reorderPresets with the full order '
-      '(the hidden presets keep their slots); CORE order shown', (
+  testWidgets('[트레이에 꽂기] pins the current pen (disabled while it is in '
+      'the tray; at 8 pinned pens the tray is full)', (tester) async {
+    final env = await _pump(tester, size: const Size(1280, 800));
+    final h = env.h;
+    await tester.tap(find.byKey(EditorToolbar.penKey));
+    await tester.pump();
+    FilledButton pin() =>
+        tester.widget<FilledButton>(find.byKey(PenSettingsPanel.pinKey));
+    expect(pin().onPressed, isNull, reason: '볼펜 is in the tray');
+    expect(find.text(EditorStrings.pinnedInTray), findsOneWidget);
+
+    h.container.read(editorToolProvider.notifier).setWidth(3);
+    await tester.pump();
+    expect(pin().onPressed, isNotNull);
+    await tester.tap(find.byKey(PenSettingsPanel.pinKey));
+    await _settle(tester);
+    expect(env.presets.created.single.pinned, isTrue);
+    expect(env.presets.created.single.style, _tools(h).currentPen);
+    expect(env.presets.created.single.name, '볼펜 3.0pt');
+    expect(_bar(tester).last, '볼펜 3.0pt');
+    expect(pin().onPressed, isNull);
+    await _settleSnackBar(tester);
+
+    // Fill the tray to 8, then try a 9th.
+    for (var i = 0; i < 2; i++) {
+      await env.presets.inner.createPreset(
+        name: 'p$i',
+        style: core.StrokeStyle.defaultsFor(core.PenTool.marker)
+            .copyWith(width: 6.0 + i),
+      );
+    }
+    await _settle(tester);
+    expect(_bar(tester), hasLength(kTrayMaxPens));
+    h.container.read(editorToolProvider.notifier).setWidth(9);
+    await tester.pump();
+    await tester.tap(find.byKey(PenSettingsPanel.pinKey));
+    await tester.pump();
+    expect(find.text(EditorStrings.trayFull(kTrayMaxPens)), findsOneWidget);
+    expect(env.presets.created, hasLength(1));
+    await _settleSnackBar(tester);
+  });
+
+  // (v2.15-ui review) Findings: bigger pens that stay in the bar, no pen
+  // pushed out by an edit, colour names, pins past the tray.
+  for (final style in AppStyle.values) {
+    testWidgets('(review) ${style.name}: a resting pen shows ≥ 40 px (well '
+        'styles), the lifted pen and the lifted eraser stay ≥ 4 px inside '
+        'the toolbar', (tester) async {
+      final env = await _pump(
+        tester,
+        size: const Size(1280, 800),
+        appStyle: style,
+      );
+      final all = await _core(env);
+      final toolbar = tester.getRect(_toolbar);
+      Rect art(Key slot) => tester.getRect(
+        find.descendant(
+          of: find.byKey(slot),
+          matching: find.byKey(PenTray.artKey),
+        ),
+      );
+      final tray = tester.getRect(find.byKey(PenTray.trayKey));
+      final tokens = StyleTokens.of(tester.element(find.byType(PenTray)));
+      if (PenTrayStyle.of(tokens).hasWell) {
+        final resting = art(PenTray.slotKey(all[2].id));
+        expect(tray.bottom - resting.top, greaterThanOrEqualTo(40));
+        expect(resting.width, greaterThanOrEqualTo(26));
+      }
+      final lifted = art(PenTray.slotKey(all[0].id));
+      expect(lifted.top, greaterThanOrEqualTo(toolbar.top + 4));
+      env.h.container
+          .read(editorCommandsProvider)
+          .selectTool(EditorTool.eraser);
+      await tester.pump(const Duration(milliseconds: 300));
+      final eraser = art(EditorToolbar.eraserKey);
+      expect(eraser.top, greaterThanOrEqualTo(toolbar.top + 4));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('(review) 8 pinned pens: a quick-pen edit or another pen type '
+      'adds 지금 펜 and pushes no pinned pen out', (tester) async {
+    final env = await _pump(tester, size: const Size(1280, 800));
+    final h = env.h;
+    for (var i = 0; i < 3; i++) {
+      await env.presets.inner.createPreset(
+        name: 'p$i',
+        style: core.StrokeStyle.defaultsFor(core.PenTool.marker)
+            .copyWith(width: 6.0 + i),
+      );
+    }
+    await _settle(tester);
+    final all = await _core(env);
+    expect(_bar(tester), hasLength(kTrayMaxPens));
+    await tester.longPress(find.byKey(PenTray.slotKey(all[1].id)));
+    await tester.pump();
+    await tester.tap(find.byKey(QuickPenPanel.colorKey(6))); // 빨강
+    await tester.pump();
+    h.container.read(editorPopupProvider.notifier).close();
+    await tester.pump();
+    for (final p in all) {
+      expect(find.byKey(PenTray.slotKey(p.id)), findsOneWidget, reason: p.name);
+    }
+    expect(find.byKey(PenTray.looseKey), findsOneWidget);
+    h.container
+        .read(editorToolProvider.notifier)
+        .selectPenType(core.PenTool.crayon);
+    await tester.pump();
+    for (final p in all) {
+      expect(find.byKey(PenTray.slotKey(p.id)), findsOneWidget, reason: p.name);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('(review) the stock pens are named by colour (not HEX) and '
+      'their colour is ringed in the quick pen and the picker', (tester) async {
+    final env = await _pump(tester, size: const Size(1280, 800));
+    final all = await _core(env);
+    final fountain = all.firstWhere(
+      (p) => p.style.tool == core.PenTool.fountain,
+    );
+    expect(penLabelOf(fountain.style), startsWith('만년필 · 남색'));
+    await tester.longPress(find.byKey(PenTray.slotKey(fountain.id)));
+    await tester.pump();
+    InkDot dot(Key key) => tester.widget<InkDot>(find.byKey(key));
+    expect(dot(QuickPenPanel.colorKey(2)).selected, isTrue, reason: '남색');
+    expect(
+      [for (var i = 0; i < QuickPenPanel.colorsShown; i++) i]
+          .where((i) => dot(QuickPenPanel.colorKey(i)).selected),
+      [2],
+    );
+    // A yellow highlighter: 노랑 takes the last place, ringed.
+    final hl = all.firstWhere((p) => p.style.tool == core.PenTool.highlighter);
+    env.h.container.read(editorPopupProvider.notifier).close();
+    await tester.pump();
+    await tester.longPress(find.byKey(PenTray.slotKey(hl.id)));
+    await tester.pump();
+    final last = dot(QuickPenPanel.colorKey(QuickPenPanel.colorsShown - 1));
+    expect(last.label, '노랑');
+    expect(last.selected, isTrue);
+  });
+
+  testWidgets('(review) a 9th pinned preset is not "in the tray"; the '
+      'manager says the tray shows the first 8', (tester) async {
+    final env = await _pump(tester, size: const Size(1280, 800));
+    final h = env.h;
+    late core.StrokeStyle ninth;
+    for (var i = 0; i < 4; i++) {
+      ninth = core.StrokeStyle.defaultsFor(core.PenTool.marker)
+          .copyWith(width: 6.0 + i);
+      await env.presets.inner.createPreset(name: 'p$i', style: ninth);
+    }
+    await _settle(tester);
+    h.container.read(editorToolProvider.notifier).applyStyle(ninth);
+    await tester.pump();
+    await tester.tap(find.byKey(EditorToolbar.penKey));
+    await tester.pump();
+    expect(find.text(EditorStrings.pinnedInTray), findsNothing);
+    h.container
+        .read(editorPopupProvider.notifier)
+        .open(const PresetManagerPopup());
+    await tester.pump();
+    expect(find.byKey(PresetManagerSheet.trayLimitKey), findsOneWidget);
+  });
+
+  test('(review) every stock pen colour has a built-in colour name', () {
+    for (final tool in core.PenTool.values) {
+      final argb = core.StrokeStyle.defaultsFor(tool).colorArgb;
+      final i = nearestBasicColorIndex(argb);
+      expect(i, isNotNull, reason: '$tool #${argb.toRadixString(16)}');
+      expect(inkColorName(argb), EditorStrings.basicColorNames[i!]);
+    }
+    expect(inkColorName(0xFF1B2A6B), '남색');
+    expect(inkColorName(0xFFFFE600), '노랑');
+    expect(inkColorName(0xFF3C3C3C), '진회색');
+    expect(inkColorName(0xFFFFFFFF), '흰색');
+  });
+
+  test('(review) a stored 수식 펜 / 텍스트 펜 without its slot is the pen', () {
+    expect(
+      penToolActive(EditorTool.math, hasMathPen: false, hasTextPen: true),
+      isTrue,
+    );
+    expect(
+      penToolActive(EditorTool.math, hasMathPen: true, hasTextPen: true),
+      isFalse,
+    );
+    expect(
+      penToolActive(EditorTool.textPen, hasMathPen: true, hasTextPen: false),
+      isTrue,
+    );
+    expect(
+      penToolActive(EditorTool.eraser, hasMathPen: false, hasTextPen: false),
+      isFalse,
+    );
+  });
+
+  testWidgets('a group filter stored by the old preset row hides no tray pen', (
     tester,
   ) async {
     final env = await _pump(tester);
     final all = await _core(env);
-    // Hide 만년필: the bar is 볼펜 형광펜 연필 마커.
-    await env.presets.inner.updatePreset(all[1].copyWith(pinned: false));
+    await env.presets.inner.updatePreset(all[0].copyWith(group: '필기'));
     await _settle(tester);
-    expect(_bar(tester), ['볼펜', '형광펜', '연필', '마커']);
+    env.h.container.read(editorPresetBarProvider.notifier).setGroupFilter('필기');
+    await tester.pump();
+    expect(_bar(tester), ['볼펜', '만년필', '형광펜', '연필', '마커']);
+    await tester.pump(const Duration(seconds: 1));
+  });
 
-    // 볼펜 → after 연필 (index 2 of the bar).
-    final start = tester.getCenter(
-      find.byKey(PresetBarView.chipKey(all[0].id)),
-    );
-    final g = await tester.startGesture(start);
-    await tester.pump(const Duration(milliseconds: 600)); // long press 500 ms
-    for (var i = 0; i < 10; i++) {
-      await g.moveBy(const Offset(14, 0));
-      await tester.pump(const Duration(milliseconds: 16));
-    }
-    await g.up();
-    for (var i = 0; i < 30; i++) {
-      await tester.pump(const Duration(milliseconds: 16));
-    }
-
-    expect(env.presets.calls, ['reorderPresets']);
-    final ids = {for (final p in all) p.name: p.id};
-    expect(env.presets.reorders.single, [
-      ids['형광펜'],
-      ids['만년필'], // not on the bar: its slot is kept
-      ids['연필'],
-      ids['볼펜'],
-      ids['마커'],
-    ]);
-    expect((await _core(env)).map((p) => p.name), [
-      '형광펜',
-      '만년필',
-      '연필',
-      '볼펜',
-      '마커',
-    ]);
-    expect(_bar(tester), ['형광펜', '연필', '볼펜', '마커']);
-    // A tap is not a drag.
-    expect(_tools(env.h).penType, core.PenTool.ballpoint);
+  testWidgets('empty tray: 지금 펜 and the eraser', (tester) async {
+    await _pump(tester, seedPresets: false);
+    expect(_bar(tester), isEmpty);
+    expect(find.byKey(PenTray.looseKey), findsOneWidget);
+    expect(find.byKey(EditorToolbar.eraserKey), findsOneWidget);
   });
 
   testWidgets('save dialog: default name, 1–20 characters, group, pinned → '
@@ -481,7 +688,7 @@ void main() {
     expect(saved.style, pen);
     expect(saved.group, '수업용');
     expect(_bar(tester).last, '수업 펜');
-    expect(_chip(tester, saved.id).active, isTrue);
+    expect(_lifted(tester, saved.id), isTrue);
 
     // A new group, not pinned: in CORE, not on the bar.
     await _openSaveDialog(tester);
@@ -520,44 +727,6 @@ void main() {
     expect(_popup(h), isNull);
     expect(env.presets.created, hasLength(2));
     await tester.pump(const Duration(seconds: 1));
-  });
-
-  testWidgets('[프리셋으로 저장] in the pen settings panel opens the save dialog', (
-    tester,
-  ) async {
-    final env = await _pump(tester);
-    await tester.tap(find.byKey(EditorToolbar.penKey)); // the active pen
-    await tester.pump();
-    expect(find.byKey(PenSettingsPanel.panelKey), findsOneWidget);
-    await tester.ensureVisible(find.byKey(PenSettingsPanel.saveAsPresetKey));
-    await tester.pump();
-    await tester.tap(find.byKey(PenSettingsPanel.saveAsPresetKey));
-    await tester.pump();
-    expect(find.byKey(PenSettingsPanel.panelKey), findsNothing);
-    expect(find.byKey(SavePresetDialog.panelKey), findsOneWidget);
-    await tester.tap(find.byKey(SavePresetDialog.saveKey));
-    await _settle(tester);
-    expect(env.presets.created.single.name, '볼펜 1.6pt');
-    // A tap on the scrim closes the dialog without saving.
-    await _openSaveDialog(tester);
-    await tester.tapAt(const Offset(40, 1300));
-    await tester.pump();
-    expect(find.byKey(SavePresetDialog.panelKey), findsNothing);
-    expect(env.presets.created, hasLength(1));
-  });
-
-  testWidgets('empty bar: the hint and [현재 펜 저장]', (tester) async {
-    final env = await _pump(tester, seedPresets: false);
-    expect(find.byType(PresetChip), findsNothing);
-    expect(find.text(EditorStrings.presetEmpty), findsOneWidget);
-    await tester.tap(find.byKey(PresetBarView.emptySaveKey));
-    await tester.pump();
-    expect(find.byKey(SavePresetDialog.panelKey), findsOneWidget);
-    await tester.tap(find.byKey(SavePresetDialog.saveKey));
-    await _settle(tester);
-    expect(_bar(tester), ['볼펜 1.6pt']);
-    expect(find.text(EditorStrings.presetEmpty), findsNothing);
-    expect((await _core(env)).single.style, _tools(env.h).currentPen);
   });
 
   testWidgets('manager sheet: every preset with its INK preview; pinned, '
@@ -734,7 +903,9 @@ void main() {
     expect(rowTops, orderedEquals([...rowTops]..sort()));
   });
 
-  testWidgets('a read-only note: the bar is disabled', (tester) async {
+  testWidgets('a read-only note: the tray is shown dimmed and does nothing', (
+    tester,
+  ) async {
     final env = await _pump(tester);
     final h = env.h;
     final all = await _core(env);
@@ -743,11 +914,13 @@ void main() {
     expect(h.container.read(editorReadOnlyProvider), isTrue);
     expect(_bar(tester), hasLength(5), reason: 'still shown');
     await tester.tap(
-      find.byKey(PresetBarView.chipKey(all[2].id)),
+      find.byKey(PenTray.slotKey(all[2].id)),
       warnIfMissed: false,
     );
-    await tester.tap(find.byKey(PresetBarView.addKey), warnIfMissed: false);
-    await tester.tap(find.byKey(PresetBarView.manageKey), warnIfMissed: false);
+    await tester.longPress(
+      find.byKey(PenTray.slotKey(all[3].id)),
+      warnIfMissed: false,
+    );
     await tester.pump();
     expect(_tools(h).penType, core.PenTool.ballpoint);
     expect(_popup(h), isNull);
@@ -774,7 +947,9 @@ void main() {
   });
 
   testWidgets('the popup host centres the preset dialogs (no anchor) and '
-      'keeps the toolbar popups on their buttons', (tester) async {
+      'hangs the pen picker centred under the tray, inside the screen', (
+    tester,
+  ) async {
     final env = await _pump(tester);
     final h = env.h;
     h.container
@@ -789,10 +964,11 @@ void main() {
         .read(editorPopupProvider.notifier)
         .open(const PenSettingsPopup());
     await tester.pump();
-    final pen = tester.getRect(find.byKey(EditorToolbar.penKey));
+    final tray = tester.getRect(find.byKey(PenTray.trayKey));
     final panel = tester.getRect(find.byKey(PenSettingsPanel.panelKey));
-    expect(panel.left, closeTo(pen.left, 1));
-    expect(panel.top, closeTo(pen.bottom + 6, 1));
+    expect(panel.top, closeTo(tray.bottom + 6, 1));
+    expect(panel.left, greaterThanOrEqualTo(8));
+    expect(panel.right, lessThanOrEqualTo(1032 - 8));
     h.container.read(editorPopupProvider.notifier).close();
     await tester.pump();
     expect(find.byKey(PopupHost.barrierKey), findsNothing);

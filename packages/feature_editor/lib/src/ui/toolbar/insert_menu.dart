@@ -25,7 +25,9 @@ import '../../di/editor_extensions.dart';
 import '../../di/editor_image_importer.dart';
 import '../../objects/image_flows.dart';
 import '../../scope/editor_scope.dart';
+import '../../state/panel.dart';
 import '../../tools/text_pen/text_pen_controller.dart';
+import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
 import '../editor_strings.dart';
 import 'tool_glyph.dart';
@@ -52,13 +54,26 @@ class InsertMenu extends ConsumerStatefulWidget {
     'editor.insert.handwritingToText',
   );
 
+  /// (v2.15-ui) '수식 쓰기' (EditorExtensions.mathPen only).
+  static const mathKey = ValueKey('editor.insert.math');
+
+  /// (v2.15-ui) '녹음' (EditorExtensions.recordingPanel only): opens / closes
+  /// the recording panel.
+  static const recordingKey = ValueKey('editor.insert.recording');
+
   /// Whether [+] has anything to offer (else it is hidden — E-7).
   static bool hasItems(
     EditorImageImporter? importer,
     List<EditorInsertMenuItem> items, {
     bool textPen = false,
+    bool mathPen = false,
+    bool recording = false,
   }) =>
-      textPen || items.isNotEmpty || ImageFlows.sourcesOf(importer).isNotEmpty;
+      textPen ||
+      mathPen ||
+      recording ||
+      items.isNotEmpty ||
+      ImageFlows.sourcesOf(importer).isNotEmpty;
 
   @override
   ConsumerState<InsertMenu> createState() => InsertMenuState();
@@ -92,9 +107,23 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
     final textPen = ref.watch(
       editorExtensionsProvider.select((e) => e.textPen != null),
     );
-    if (items.isEmpty && sources.isEmpty && !textPen) {
+    final mathPen = ref.watch(
+      editorExtensionsProvider.select((e) => e.mathPen != null),
+    );
+    final recording = ref.watch(
+      editorExtensionsProvider.select((e) => e.recordingPanel != null),
+    );
+    if (items.isEmpty &&
+        sources.isEmpty &&
+        !textPen &&
+        !mathPen &&
+        !recording) {
       return const SizedBox.shrink();
     }
+    final active = ref.watch(editorToolProvider.select((s) => s.activeTool));
+    final inserting =
+        (mathPen && active == EditorTool.math) ||
+        (textPen && active == EditorTool.textPen);
     return ValueListenableBuilder<Set<String>>(
       valueListenable: runner.runningIds,
       builder: (context, running, _) => MenuAnchor(
@@ -106,6 +135,8 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
           running: running,
           close: _close,
           textPen: textPen,
+          mathPen: mathPen,
+          recording: recording,
         ),
         // (UI stage 2) the line icon with its name under it
         // (StyleTokens.toolLabels).
@@ -115,15 +146,19 @@ class InsertMenuState extends ConsumerState<InsertMenu> {
         child: ToolHover(
           child: IconButton(
             key: InsertMenu.buttonKey,
+            // (v2.15-ui) selected while 수식 펜 / 텍스트 펜 (now here) is the
+            // tool.
+            isSelected: inserting,
             onPressed: readOnly ? null : _toggle,
             style: IconButton.styleFrom(
               minimumSize: const Size(48, 48),
               padding: EdgeInsets.zero,
             ),
-            icon: const ToolGlyph(
+            icon: ToolGlyph(
               AppIconKind.insert,
               caption: EditorStrings.insert,
               semanticLabel: EditorStrings.insert,
+              selected: inserting,
             ),
           ),
         ),
@@ -149,6 +184,8 @@ List<Widget> insertMenuRows(
   required VoidCallback close,
   bool enabled = true,
   bool textPen = false,
+  bool mathPen = false,
+  bool recording = false,
 }) {
   void pickImage(core.ImageImportSource source) => unawaited(
     ref.read(editorImageFlowsProvider).insert(source, close: close),
@@ -215,6 +252,20 @@ List<Widget> insertMenuRows(
         label: EditorStrings.handwritingToText,
         onPressed: enabled ? handwritingToText : null,
       ),
+    // (v2.15-ui) 수식 펜 left the toolbar: '수식 쓰기' picks it.
+    if (mathPen)
+      InsertMenuRow(
+        key: InsertMenu.mathKey,
+        kind: AppIconKind.math,
+        label: EditorStrings.insertMath,
+        selected: ref.read(editorToolProvider).activeTool == EditorTool.math,
+        onPressed: enabled
+            ? () {
+                close();
+                ref.read(editorCommandsProvider).selectTool(EditorTool.math);
+              }
+            : null,
+      ),
     for (final item in items)
       InsertMenuRow(
         key: InsertMenu.extensionKey(item.id),
@@ -223,6 +274,19 @@ List<Widget> insertMenuRows(
         onPressed: !enabled || running.contains(item.id)
             ? null
             : () => runExtension(item),
+      ),
+    // (v2.15-ui) [🎤] left the toolbar (it shows there only while recording
+    // or with the panel open): '녹음' opens / closes the recording panel.
+    if (recording)
+      InsertMenuRow(
+        key: InsertMenu.recordingKey,
+        kind: AppIconKind.mic,
+        label: EditorStrings.insertRecording,
+        selected: ref.read(editorPanelProvider),
+        onPressed: () {
+          close();
+          ref.read(editorPanelProvider.notifier).toggle();
+        },
       ),
   ];
 }

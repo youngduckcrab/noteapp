@@ -28,8 +28,8 @@ import 'toolbar/editor_toolbar.dart';
 ///   SafeArea → Column
 ///   ├─ ReadOnlyBanner / StorageWarningBanner / (v2) TextDraftBanner
 ///   │  (height 0 when not shown)
-///   ├─ EditorTopMenu: EditorToolbar (52 px) · PresetBarView (44 px) — (04-
-///   │  editor 19) hidden / the row detached as a palette
+///   ├─ EditorTopMenu: EditorToolbar (52 px, the pen tray in its middle —
+///   │  v2.15-ui) — (04-editor 19) hidden / the tray detached as a palette
 ///   ├─ Expanded: PageViewport — Row[EditorFloatingLayer (restore pill,
 ///   │  palette) over the pages, NoteSearchPanel]
 ///   └─ (v2) EditorPanelArea: the bottom panel slot while open (≤ 40 % of

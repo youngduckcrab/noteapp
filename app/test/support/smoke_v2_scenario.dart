@@ -43,6 +43,9 @@ abstract final class EditorKeys {
   static ValueKey<String> insertImageSource(ImageImportSource s) =>
       ValueKey('editor.insert.image.${s.name}');
   static const mic = ValueKey('editor.toolbar.mic');
+
+  /// (v2.15-ui) [+] › 녹음 (the toolbar [🎤] shows only while recording).
+  static const insertRecording = ValueKey('editor.insert.recording');
   static const panelSlot = ValueKey('editor.panelSlot');
   static const textEditor = ValueKey('editor.textEditor');
   static ValueKey<String> shapeKind(ShapeKind kind) =>
@@ -695,7 +698,14 @@ Future<SmokeV2Result> runSmokeV2Scenario(
   // --- 6. the recording panel (slot 2) → record (fake) → 3 strokes → stop --
   log('v2-6 recording panel');
   await selectPen(tester);
-  await tester.tap(find.byKey(EditorKeys.mic));
+  // (v2.15-ui) 녹음 is in [+].
+  await tester.tap(find.byKey(EditorKeys.insert));
+  await pumpUntil(
+    tester,
+    () => find.byKey(EditorKeys.insertRecording).evaluate().isNotEmpty,
+    reason: 'the insert menu',
+  );
+  await tester.tap(find.byKey(EditorKeys.insertRecording));
   await pumpUntil(
     tester,
     () => find.byKey(EditorKeys.panelSlot).evaluate().isNotEmpty,
@@ -999,15 +1009,15 @@ Future<void> runShapeAssistScenario(
 /// auto shape toggle of the pen popup (FEATURE_RECOGNITION), and the image
 /// rows of the insert menu (never switched off — D17).
 Future<Map<String, bool>> editorSwitchRows(WidgetTester tester) async {
-  final rows = <String, bool>{
-    '녹음 버튼': find.byKey(EditorKeys.mic).evaluate().isNotEmpty,
-  };
+  final rows = <String, bool>{};
   await tester.tap(find.byKey(EditorKeys.insert));
   await pumpUntil(
     tester,
     () => find.byKey(EditorKeys.insertImage).evaluate().isNotEmpty,
     reason: 'the insert menu',
   );
+  // (v2.15-ui) the recording row of [+] (FEATURE_MEDIA).
+  rows['녹음 버튼'] = find.byKey(EditorKeys.insertRecording).evaluate().isNotEmpty;
   rows['이미지 삽입'] = find.byKey(EditorKeys.insertImage).evaluate().isNotEmpty;
   rows['인식 메뉴'] = find
       .byKey(EditorKeys.extension('recog.mathPad'))

@@ -18,7 +18,9 @@ import 'package:feature_editor/src/ui/color/recent_colors_row.dart';
 import 'package:feature_editor/src/ui/color/user_palette_grid.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/eyedropper_banner.dart';
+import 'package:feature_editor/src/ui/pen/pen_art_view.dart';
 import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
+import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -41,10 +43,19 @@ core.StrokeStyle _pen(EditorTestHandles h) =>
 ColorPaletteState _palette(EditorTestHandles h) =>
     h.container.read(editorColorPaletteProvider);
 
-Future<void> _openPenSettings(WidgetTester tester) async {
+/// Opens the pen picker; (v2.15-ui) with [otherColor] also '다른 색…' (the
+/// wheel, HEX / RGB and 내 팔레트 are there now).
+Future<void> _openPenSettings(
+  WidgetTester tester, {
+  bool otherColor = true,
+}) async {
   await tester.tap(find.byKey(EditorToolbar.penKey)); // the active pen
   await tester.pump();
   expect(find.byKey(PenSettingsPanel.panelKey), findsOneWidget);
+  if (otherColor) {
+    await tester.tap(find.byKey(PenSettingsPanel.otherColorKey));
+    await tester.pump();
+  }
 }
 
 Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
@@ -265,10 +276,15 @@ void main() {
     final palette = h.container.read(editorColorPaletteProvider.notifier);
     palette.pushRecent(0xFF00AA00);
     palette.pushRecent(0xFF0000AA);
-    await _openPenSettings(tester);
+    await _openPenSettings(tester, otherColor: false);
     await _scrollTo(tester, find.byKey(RecentColorsRow.swatchKey(1)));
     expect(find.byKey(RecentColorsRow.swatchKey(2)), findsNothing);
-    expect(find.bySemanticsLabel('#0000AA'), findsOneWidget);
+    // (v2.15-ui review) Named by the nearest built-in colour, never HEX.
+    expect(
+      tester.widget<InkDot>(find.byKey(RecentColorsRow.swatchKey(0))).label,
+      inkColorName(0xFF0000AA),
+    );
+    expect(find.bySemanticsLabel('#0000AA'), findsNothing);
 
     await tester.tap(find.byKey(RecentColorsRow.swatchKey(1)));
     await tester.pump();

@@ -6,10 +6,10 @@
 // not, and the pen buttons stay disabled.
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/state/color_palette.dart';
+import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
-import 'package:feature_editor/src/ui/toolbar/tool_button.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -79,10 +79,10 @@ void main() {
     await h.store.library.trashItems([core.NoteRef(h.noteId)]);
     await tester.pump();
     expect(h.container.read(editorReadOnlyProvider), isTrue);
-    expect(
-      tester.widget<ToolButton>(find.byKey(EditorToolbar.penKey)).onTap,
-      isNull,
-    );
+    // (v2.15-ui) The tray ignores taps on a read-only note.
+    await tester.tap(find.byKey(EditorToolbar.penKey), warnIfMissed: false);
+    await tester.pump();
+    expect(h.container.read(editorPopupProvider), isNull);
 
     final points = _line(h, const Offset(100, 200), const Offset(400, 260));
     await h.driver.down(1, points.first, kind: PointerDeviceKind.stylus);

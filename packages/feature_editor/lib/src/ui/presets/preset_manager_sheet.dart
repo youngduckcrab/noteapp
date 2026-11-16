@@ -33,6 +33,10 @@ class PresetManagerSheet extends ConsumerStatefulWidget {
       ValueKey('editor.presetManager.handle.$id');
   static ValueKey<String> previewKey(String id) =>
       ValueKey('editor.presetManager.preview.$id');
+
+  /// (v2.15-ui review) The note shown while more than kTrayMaxPens presets
+  /// are pinned.
+  static const trayLimitKey = ValueKey('editor.presetManager.trayLimit');
   static ValueKey<String> pinnedKey(String id) =>
       ValueKey('editor.presetManager.pinned.$id');
   static ValueKey<String> menuKey(String id) =>
@@ -100,14 +104,27 @@ class _PresetManagerSheetState extends ConsumerState<PresetManagerSheet> {
                     key: PresetManagerSheet.closeKey,
                     onPressed: () =>
                         ref.read(editorPopupProvider.notifier).close(),
-                    icon: const Icon(
-                      Icons.close,
+                    icon: const AppIcon(
+                      AppIconKind.close,
                       semanticLabel: EditorStrings.close,
                     ),
                   ),
                 ],
               ),
             ),
+            // (v2.15-ui review) More pinned pens than the tray holds (from
+            // the old preset row): say which ones it shows.
+            if (presets.where((p) => p.pinned).length > kTrayMaxPens)
+              Padding(
+                key: PresetManagerSheet.trayLimitKey,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                  EditorStrings.trayShowsFirst(kTrayMaxPens),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             Flexible(
               child: ReorderableListView.builder(
                 shrinkWrap: true,
@@ -345,7 +362,10 @@ class _RowMenuState extends ConsumerState<_RowMenu> {
         key: PresetManagerSheet.menuKey(id),
         onPressed: () =>
             _controller.isOpen ? _controller.close() : _controller.open(),
-        icon: const Icon(Icons.more_horiz, semanticLabel: EditorStrings.more),
+        icon: const AppIcon(
+          AppIconKind.more,
+          semanticLabel: EditorStrings.more,
+        ),
       ),
     );
   }

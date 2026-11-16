@@ -498,13 +498,13 @@ void main() {
       expect(closed, 1);
     });
 
-    testWidgets('an Android tablet in portrait (800 wide, folded toolbar) '
-        'has the 🔍 without an overflow, every slot set', (tester) async {
-      for (final width in [
-        EditorToolbar.foldedSearchMinWidth,
-        800.0,
-        EditorToolbar.foldWidth - 1,
-      ]) {
+    // (v2.15-ui, 04-editor 23.4) The pen tray takes the room first: from
+    // about 850 px the row keeps [🔍]; at 800 (Android portrait) it is the
+    // first item of ⋯.
+    testWidgets('852–951 px has the 🔍 without an overflow, every slot set', (
+      tester,
+    ) async {
+      for (final width in [852.0, 900.0, 951.0]) {
         await pumpEditor(
           tester,
           logicalSize: Size(width, 1280),

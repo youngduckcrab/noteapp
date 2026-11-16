@@ -7,8 +7,9 @@ import 'dart:ui' as ui;
 
 import 'package:feature_editor/src/state/settings/editor_device_state.dart';
 import 'package:feature_editor/src/ui/overlays/page_indicator.dart';
+import 'package:feature_editor/src/ui/pen/pen_art_view.dart';
 import 'package:feature_editor/src/ui/pen/pen_preview.dart';
-import 'package:feature_editor/src/ui/presets/preset_chip.dart';
+import 'package:feature_editor/src/ui/pen/pen_tray.dart';
 import 'package:feature_editor/src/ui/search/note_search_panel.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/viewport/page_viewport.dart';
@@ -154,32 +155,45 @@ void main() {
         device.setToolbarHidden(false);
         await tester.pump(const Duration(milliseconds: 300));
 
-        // Preset chips: the ink disc on a paper-light backing; the width
-        // dot is judged on paper, so it is the same in both brightnesses.
-        final light = styleTokensFor(style, Brightness.light);
-        for (final chip in tester.widgetList<PresetChip>(
-          find.byType(PresetChip),
-        )) {
-          final at = find.byWidget(chip);
-          final paper = tester.widget<DecoratedBox>(
-            find.descendant(of: at, matching: find.byKey(PresetChip.paperKey)),
-          );
-          expect((paper.decoration as BoxDecoration).color, tokens.inkSwatch);
-          final dot = tester.widget<DecoratedBox>(
-            find.descendant(of: at, matching: find.byKey(PresetChip.dotKey)),
-          );
-          final c = Color(chip.preset.style.colorArgb)
-              .withValues(alpha: chip.preset.style.opacity);
-          final dotColor = (dot.decoration as BoxDecoration).color!;
-          final lightDot = PresetChip.dotColorOnPaper(
-            Color.alphaBlend(c, light.inkSwatch),
-            light,
-          );
-          // Same choice (paper or ink) as in the light variant.
+        // (v2.15-ui) The pen tray follows the style: a recessed well with
+        // the pen drawings (크래프트, 스튜디오) or flat ink-stroke chips
+        // (미니멀); the chip ink sits on a paper-light swatch in dark.
+        final look = PenTrayStyle.of(tokens);
+        final tray = find.byKey(PenTray.trayKey);
+        expect(tray, findsOneWidget);
+        final decoration =
+            tester.widget<Container>(tray).decoration as BoxDecoration?;
+        if (style == AppStyle.calm) {
+          expect(look.look, PenTrayLook.strokes);
+          expect(decoration, isNull);
           expect(
-            dotColor.computeLuminance() > 0.5,
-            lightDot.computeLuminance() > 0.5,
-            reason: '${chip.preset.name} width dot',
+            find.descendant(of: tray, matching: find.byType(PenArt)),
+            findsNothing,
+          );
+          expect(
+            find.descendant(of: tray, matching: find.byType(InkStroke)),
+            findsWidgets,
+          );
+          // (v2.15-ui review) No plates; in dark only a dark ink gets the
+          // small paper-light plate.
+          expect(look.chipFill.a, 0);
+          if (brightness == Brightness.dark) {
+            expect(look.chipPlate.a, greaterThan(0.5));
+            expect(look.needsPlate(const Color(0xFF1A1A1A)), isTrue);
+            expect(look.needsPlate(const Color(0xFFFFD526)), isFalse);
+          } else {
+            expect(look.chipPlate.a, 0);
+            expect(look.needsEdge(const Color(0xFFFFE600)), isTrue);
+          }
+        } else {
+          expect(look.look, PenTrayLook.drawings);
+          expect((decoration!.gradient! as LinearGradient).colors, [
+            look.wellTop,
+            look.wellBottom,
+          ]);
+          expect(
+            find.descendant(of: tray, matching: find.byType(PenArt)),
+            findsNWidgets(5),
           );
         }
       });
