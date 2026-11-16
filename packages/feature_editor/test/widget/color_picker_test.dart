@@ -18,7 +18,9 @@ import 'package:feature_editor/src/ui/color/recent_colors_row.dart';
 import 'package:feature_editor/src/ui/color/user_palette_grid.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/overlays/eyedropper_banner.dart';
+import 'package:feature_editor/src/ui/pen/pen_art_view.dart';
 import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
+import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -277,7 +279,12 @@ void main() {
     await _openPenSettings(tester, otherColor: false);
     await _scrollTo(tester, find.byKey(RecentColorsRow.swatchKey(1)));
     expect(find.byKey(RecentColorsRow.swatchKey(2)), findsNothing);
-    expect(find.bySemanticsLabel('#0000AA'), findsOneWidget);
+    // (v2.15-ui review) Named by the nearest built-in colour, never HEX.
+    expect(
+      tester.widget<InkDot>(find.byKey(RecentColorsRow.swatchKey(0))).label,
+      inkColorName(0xFF0000AA),
+    );
+    expect(find.bySemanticsLabel('#0000AA'), findsNothing);
 
     await tester.tap(find.byKey(RecentColorsRow.swatchKey(1)));
     await tester.pump();

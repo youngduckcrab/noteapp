@@ -284,6 +284,8 @@ void main() {
     );
     await tester.pump();
     expect(selected(), isEmpty);
+    // (v2.15-ui review) …and says so.
+    expect(find.byKey(PenAdvancedControls.customPressureKey), findsOneWidget);
 
     tester
         .widget<Slider>(find.byKey(PenAdvancedControls.smoothingKey))

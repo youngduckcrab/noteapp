@@ -14,6 +14,7 @@ import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/state/preset_bar.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
+import 'package:feature_editor/src/ui/color/basic_colors_row.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
 import 'package:feature_editor/src/ui/pen/pen_art_view.dart';
 import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
@@ -29,6 +30,7 @@ import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers/pump_editor.dart';
 
@@ -112,6 +114,7 @@ Future<_Env> _pump(
   WidgetTester tester, {
   bool seedPresets = true,
   Size size = const Size(1032, 1376),
+  AppStyle? appStyle,
 }) async {
   final store = createFakeNoteStore(seedDefaultPenPresets: seedPresets);
   addTearDown(store.close);
@@ -120,6 +123,9 @@ Future<_Env> _pump(
     tester,
     store: store,
     logicalSize: size,
+    theme: appStyle == null
+        ? null
+        : buildStyleTheme(appStyle, Brightness.light),
     overrides: [core.penPresetRepositoryProvider.overrideWithValue(presets)],
   );
   await _settle(tester);
@@ -157,6 +163,8 @@ List<String> _bar(WidgetTester tester) {
       );
   return [for (final p in shown) p.name];
 }
+
+Finder get _toolbar => find.byType(EditorToolbar);
 
 Future<List<core.PenPreset>> _core(_Env env) => env.presets.inner.getPresets();
 
@@ -247,7 +255,13 @@ void main() {
     expect(_bar(tester), ['볼펜', '만년필', '형광펜', '연필', '마커']);
     final tray = tester.getRect(find.byKey(PenTray.trayKey));
     final toolbar = tester.getRect(find.byType(EditorToolbar));
-    expect(tray.height, PenTray.height + 2);
+    final tokens = StyleTokens.of(tester.element(find.byType(PenTray)));
+    final slotHeight = PenTray.slotHeightOf(tokens);
+    expect(tray.height, slotHeight + 2);
+    // (v2.15-ui review) The bar is the style's height and the pens stand
+    // tall in it.
+    expect(toolbar.height, EditorToolbar.heightOf(tester.element(_toolbar)));
+    expect(slotHeight, greaterThanOrEqualTo(PenTray.height));
     expect(tray.top, greaterThan(toolbar.top));
     expect(tray.bottom, lessThan(toolbar.bottom));
     for (final p in all) {
@@ -261,7 +275,7 @@ void main() {
       expect(art.color, penArtColorOf(p.style));
       expect(
         tester.getSize(find.byKey(PenTray.slotKey(p.id))),
-        const Size(PenTray.slotWidth, PenTray.height),
+        Size(PenTray.slotWidth, slotHeight),
       );
     }
     final eraser = tester.getRect(find.byKey(EditorToolbar.eraserKey));
@@ -435,6 +449,161 @@ void main() {
     expect(find.text(EditorStrings.trayFull(kTrayMaxPens)), findsOneWidget);
     expect(env.presets.created, hasLength(1));
     await _settleSnackBar(tester);
+  });
+
+  // (v2.15-ui review) Findings: bigger pens that stay in the bar, no pen
+  // pushed out by an edit, colour names, pins past the tray.
+  for (final style in AppStyle.values) {
+    testWidgets('(review) ${style.name}: a resting pen shows ≥ 40 px (well '
+        'styles), the lifted pen and the lifted eraser stay ≥ 4 px inside '
+        'the toolbar', (tester) async {
+      final env = await _pump(
+        tester,
+        size: const Size(1280, 800),
+        appStyle: style,
+      );
+      final all = await _core(env);
+      final toolbar = tester.getRect(_toolbar);
+      Rect art(Key slot) => tester.getRect(
+        find.descendant(
+          of: find.byKey(slot),
+          matching: find.byKey(PenTray.artKey),
+        ),
+      );
+      final tray = tester.getRect(find.byKey(PenTray.trayKey));
+      final tokens = StyleTokens.of(tester.element(find.byType(PenTray)));
+      if (PenTrayStyle.of(tokens).hasWell) {
+        final resting = art(PenTray.slotKey(all[2].id));
+        expect(tray.bottom - resting.top, greaterThanOrEqualTo(40));
+        expect(resting.width, greaterThanOrEqualTo(26));
+      }
+      final lifted = art(PenTray.slotKey(all[0].id));
+      expect(lifted.top, greaterThanOrEqualTo(toolbar.top + 4));
+      env.h.container
+          .read(editorCommandsProvider)
+          .selectTool(EditorTool.eraser);
+      await tester.pump(const Duration(milliseconds: 300));
+      final eraser = art(EditorToolbar.eraserKey);
+      expect(eraser.top, greaterThanOrEqualTo(toolbar.top + 4));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('(review) 8 pinned pens: a quick-pen edit or another pen type '
+      'adds 지금 펜 and pushes no pinned pen out', (tester) async {
+    final env = await _pump(tester, size: const Size(1280, 800));
+    final h = env.h;
+    for (var i = 0; i < 3; i++) {
+      await env.presets.inner.createPreset(
+        name: 'p$i',
+        style: core.StrokeStyle.defaultsFor(core.PenTool.marker)
+            .copyWith(width: 6.0 + i),
+      );
+    }
+    await _settle(tester);
+    final all = await _core(env);
+    expect(_bar(tester), hasLength(kTrayMaxPens));
+    await tester.longPress(find.byKey(PenTray.slotKey(all[1].id)));
+    await tester.pump();
+    await tester.tap(find.byKey(QuickPenPanel.colorKey(6))); // 빨강
+    await tester.pump();
+    h.container.read(editorPopupProvider.notifier).close();
+    await tester.pump();
+    for (final p in all) {
+      expect(find.byKey(PenTray.slotKey(p.id)), findsOneWidget, reason: p.name);
+    }
+    expect(find.byKey(PenTray.looseKey), findsOneWidget);
+    h.container
+        .read(editorToolProvider.notifier)
+        .selectPenType(core.PenTool.crayon);
+    await tester.pump();
+    for (final p in all) {
+      expect(find.byKey(PenTray.slotKey(p.id)), findsOneWidget, reason: p.name);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('(review) the stock pens are named by colour (not HEX) and '
+      'their colour is ringed in the quick pen and the picker', (tester) async {
+    final env = await _pump(tester, size: const Size(1280, 800));
+    final all = await _core(env);
+    final fountain = all.firstWhere(
+      (p) => p.style.tool == core.PenTool.fountain,
+    );
+    expect(penLabelOf(fountain.style), startsWith('만년필 · 남색'));
+    await tester.longPress(find.byKey(PenTray.slotKey(fountain.id)));
+    await tester.pump();
+    InkDot dot(Key key) => tester.widget<InkDot>(find.byKey(key));
+    expect(dot(QuickPenPanel.colorKey(2)).selected, isTrue, reason: '남색');
+    expect(
+      [for (var i = 0; i < QuickPenPanel.colorsShown; i++) i]
+          .where((i) => dot(QuickPenPanel.colorKey(i)).selected),
+      [2],
+    );
+    // A yellow highlighter: 노랑 takes the last place, ringed.
+    final hl = all.firstWhere((p) => p.style.tool == core.PenTool.highlighter);
+    env.h.container.read(editorPopupProvider.notifier).close();
+    await tester.pump();
+    await tester.longPress(find.byKey(PenTray.slotKey(hl.id)));
+    await tester.pump();
+    final last = dot(QuickPenPanel.colorKey(QuickPenPanel.colorsShown - 1));
+    expect(last.label, '노랑');
+    expect(last.selected, isTrue);
+  });
+
+  testWidgets('(review) a 9th pinned preset is not "in the tray"; the '
+      'manager says the tray shows the first 8', (tester) async {
+    final env = await _pump(tester, size: const Size(1280, 800));
+    final h = env.h;
+    late core.StrokeStyle ninth;
+    for (var i = 0; i < 4; i++) {
+      ninth = core.StrokeStyle.defaultsFor(core.PenTool.marker)
+          .copyWith(width: 6.0 + i);
+      await env.presets.inner.createPreset(name: 'p$i', style: ninth);
+    }
+    await _settle(tester);
+    h.container.read(editorToolProvider.notifier).applyStyle(ninth);
+    await tester.pump();
+    await tester.tap(find.byKey(EditorToolbar.penKey));
+    await tester.pump();
+    expect(find.text(EditorStrings.pinnedInTray), findsNothing);
+    h.container
+        .read(editorPopupProvider.notifier)
+        .open(const PresetManagerPopup());
+    await tester.pump();
+    expect(find.byKey(PresetManagerSheet.trayLimitKey), findsOneWidget);
+  });
+
+  test('(review) every stock pen colour has a built-in colour name', () {
+    for (final tool in core.PenTool.values) {
+      final argb = core.StrokeStyle.defaultsFor(tool).colorArgb;
+      final i = nearestBasicColorIndex(argb);
+      expect(i, isNotNull, reason: '$tool #${argb.toRadixString(16)}');
+      expect(inkColorName(argb), EditorStrings.basicColorNames[i!]);
+    }
+    expect(inkColorName(0xFF1B2A6B), '남색');
+    expect(inkColorName(0xFFFFE600), '노랑');
+    expect(inkColorName(0xFF3C3C3C), '진회색');
+    expect(inkColorName(0xFFFFFFFF), '흰색');
+  });
+
+  test('(review) a stored 수식 펜 / 텍스트 펜 without its slot is the pen', () {
+    expect(
+      penToolActive(EditorTool.math, hasMathPen: false, hasTextPen: true),
+      isTrue,
+    );
+    expect(
+      penToolActive(EditorTool.math, hasMathPen: true, hasTextPen: true),
+      isFalse,
+    );
+    expect(
+      penToolActive(EditorTool.textPen, hasMathPen: true, hasTextPen: false),
+      isTrue,
+    );
+    expect(
+      penToolActive(EditorTool.eraser, hasMathPen: false, hasTextPen: false),
+      isFalse,
+    );
   });
 
   testWidgets('a group filter stored by the old preset row hides no tray pen', (

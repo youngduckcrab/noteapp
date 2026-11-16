@@ -51,7 +51,7 @@ const _craftLight = StyleTokens(
   radiusMedium: 12,
   radiusLarge: 16,
   elevation: StyleElevation.soft,
-  toolbarHeight: 52,
+  toolbarHeight: 64,
   toolLabels: ToolLabelMode.always,
   iconStrokeWidth: 1.7,
 );
@@ -82,7 +82,7 @@ const _craftDark = StyleTokens(
   radiusMedium: 12,
   radiusLarge: 16,
   elevation: StyleElevation.soft,
-  toolbarHeight: 52,
+  toolbarHeight: 64,
   toolLabels: ToolLabelMode.always,
   iconStrokeWidth: 1.7,
 );
@@ -115,7 +115,7 @@ const _calmLight = StyleTokens(
   radiusMedium: 14,
   radiusLarge: 20,
   elevation: StyleElevation.floating,
-  toolbarHeight: 44,
+  toolbarHeight: 52,
   toolLabels: ToolLabelMode.onHover,
   iconStrokeWidth: 1.5,
 );
@@ -146,7 +146,7 @@ const _calmDark = StyleTokens(
   radiusMedium: 14,
   radiusLarge: 20,
   elevation: StyleElevation.floating,
-  toolbarHeight: 44,
+  toolbarHeight: 52,
   toolLabels: ToolLabelMode.onHover,
   iconStrokeWidth: 1.5,
 );
@@ -179,7 +179,7 @@ const _studioLight = StyleTokens(
   radiusMedium: 8,
   radiusLarge: 12,
   elevation: StyleElevation.flat,
-  toolbarHeight: 48,
+  toolbarHeight: 60,
   toolLabels: ToolLabelMode.always,
   iconStrokeWidth: 1.6,
 );
@@ -210,7 +210,7 @@ const _studioDark = StyleTokens(
   radiusMedium: 8,
   radiusLarge: 12,
   elevation: StyleElevation.flat,
-  toolbarHeight: 48,
+  toolbarHeight: 60,
   toolLabels: ToolLabelMode.always,
   iconStrokeWidth: 1.6,
 );

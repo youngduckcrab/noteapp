@@ -4,6 +4,7 @@
 // what gives way follows EditorToolbar.planFor.
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/ui/pen/pen_tray.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/ui/toolbar/insert_menu.dart';
 import 'package:feature_editor/src/ui/toolbar/mic_button.dart';
@@ -153,6 +154,79 @@ void main() {
       }
       // The sync badge shows where it fits (it always does from 800).
       expect(find.byKey(EditorSyncBadgeIcon.iconKey), findsOneWidget);
+    });
+  }
+
+  test('(review) planFor: the folded row counts its third │; a tray slot '
+      'for 지금 펜 is planned for', () {
+    // Folded: ← ▤ end + 올가미 ⋯도구 │ … │ ↶ ↷ │ ⋯ — three dividers.
+    expect(
+      EditorToolbar.fixedWidth(hasInsert: false, mic: false, fold: true) -
+          EditorToolbar.fixedWidth(hasInsert: false, mic: false, fold: false),
+      -48 + 12,
+      reason: '⋯도구 replaces 도형 + 텍스트 (−48) and adds │ (+12)',
+    );
+    // One more slot for '지금 펜' takes room: at the 8-pen edge it gives 5.
+    const edge = 1280.0;
+    expect(
+      EditorToolbar.planFor(edge, hasInsert: true, mic: false).trayPens,
+      8,
+    );
+    final tight = EditorToolbar.planFor(
+      EditorToolbar.fixedWidth(hasInsert: true, mic: false, fold: false) +
+          PenTray.widthFor(8) +
+          48 +
+          EditorToolbar.titleMinRoom,
+      hasInsert: true,
+      mic: false,
+      shownFor: (c) => c + 1,
+    );
+    expect(tight.trayPens, 5);
+  });
+
+  // (v2.15-ui review) Every width from the scrolling row up to a wide
+  // tablet, one px apart around the fold and scroll thresholds: no overflow,
+  // and [☁] stays in the row (also when it scrolls).
+  for (final all in const [false, true]) {
+    testWidgets('(review) width sweep 480–1300, '
+        '${all ? 'every optional button' : 'the default editor'}: no '
+        'overflow, [☁] always shown', (tester) async {
+      final h = all
+          ? await _pumpAll(tester, 1300)
+          : await pumpEditor(
+              tester,
+              logicalSize: const Size(1300, 800),
+              overrides: [
+                core.syncBadgeProvider.overrideWith(
+                  (ref) => Stream.value(
+                    const core.SyncBadge(
+                      display: core.SyncDisplayState.inProgress,
+                    ),
+                  ),
+                ),
+              ],
+            );
+      h.container.read(editorCommandsProvider).zoomIn();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final widths = [
+        for (var w = 480; w <= 760; w++) w.toDouble(),
+        for (var w = 764; w <= 1300; w += 4) w.toDouble(),
+      ];
+      for (final w in widths) {
+        tester.view.physicalSize = Size(w, 800) * 2;
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: '$w px');
+        expect(
+          find.byKey(EditorSyncBadgeIcon.iconKey),
+          findsOneWidget,
+          reason: '[☁] at $w px',
+        );
+        if (find.byKey(EditorToolbar.scrollKey).evaluate().isEmpty) {
+          expect(_needed(tester), lessThanOrEqualTo(w), reason: '$w px');
+        }
+      }
     });
   }
 }

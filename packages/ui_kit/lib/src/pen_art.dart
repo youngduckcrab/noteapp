@@ -87,11 +87,18 @@ Color _darken(Color c, double t) => Color.lerp(c, PenArtColors.black, t)!;
 /// that colour, the nib is the pen's own). Drawn in a 22-wide design space
 /// scaled to the canvas width; the height is whatever the canvas gives (a
 /// tray clips the bottom).
+///
+/// With [rimLight] (a dark tray — PenTrayStyle.rimLight) the pen's outline
+/// gets a thin light edge on its right and top, so a black pen still reads
+/// on a near-black strip.
 class PenArtPainter extends CustomPainter {
-  PenArtPainter({required this.kind, required this.color});
+  PenArtPainter({required this.kind, required this.color, this.rimLight});
 
   final PenArtKind kind;
   final Color color;
+
+  /// The rim colour, or null for none.
+  final Color? rimLight;
 
   /// Width of the design space.
   static const double designWidth = 22;
@@ -145,6 +152,19 @@ class PenArtPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
     final s = size.width / designWidth;
+    final rim = rimLight;
+    if (rim != null) {
+      // The silhouette in the rim colour, 1 px right and up, under the pen.
+      canvas.saveLayer(
+        (Offset.zero & size).inflate(2),
+        Paint()..colorFilter = ColorFilter.mode(rim, BlendMode.srcIn),
+      );
+      canvas.translate(1, -.8);
+      canvas.scale(s);
+      _c = canvas;
+      _paint(canvas, designWidth, size.height / s);
+      canvas.restore();
+    }
     canvas.save();
     canvas.scale(s);
     _c = canvas;
@@ -535,7 +555,9 @@ class PenArtPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(PenArtPainter oldDelegate) =>
-      oldDelegate.kind != kind || oldDelegate.color != color;
+      oldDelegate.kind != kind ||
+      oldDelegate.color != color ||
+      oldDelegate.rimLight != rimLight;
 }
 
 /// The eraser standing up: white rubber over a blue sleeve. Drawn in a
@@ -591,4 +613,47 @@ class EraserArtPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// (v2.15-ui) The eraser as a line glyph in [color], [strokeWidth] wide
+/// (StyleTokens.iconStrokeWidth): the flat 미니멀 tray shows it beside its
+/// ink chips instead of the standing [EraserArtPainter]. Drawn in a 24 × 24
+/// box scaled to the canvas.
+class EraserGlyphPainter extends CustomPainter {
+  const EraserGlyphPainter({required this.color, this.strokeWidth = 1.5});
+
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+    final s = math.min(size.width, size.height) / 24;
+    canvas.save();
+    canvas.translate((size.width - 24 * s) / 2, (size.height - 24 * s) / 2);
+    canvas.scale(s);
+    final line = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth / s
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // A block tilted 45°: its rubber end (bottom left) and the band.
+    final body = Path()
+      ..moveTo(13.6, 3.6)
+      ..lineTo(20.4, 10.4)
+      ..lineTo(10.8, 20)
+      ..lineTo(7.2, 20)
+      ..lineTo(3.6, 16.4)
+      ..lineTo(3.6, 13.6)
+      ..close();
+    canvas.drawPath(body, line);
+    canvas.drawLine(const Offset(8.4, 8.8), const Offset(15.2, 15.6), line);
+    canvas.drawLine(const Offset(10.8, 20), const Offset(20.4, 20), line);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(EraserGlyphPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
 }

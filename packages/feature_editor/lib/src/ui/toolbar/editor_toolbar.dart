@@ -4,6 +4,8 @@
 // (6.13.1): the shape and text buttons after the lasso, [⋯도구] on narrow
 // screens. (v2.15-ui — 22.4) The pen tray instead of the pen and eraser
 // buttons; what gives way at each width is [EditorToolbar.planFor].
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
@@ -16,6 +18,7 @@ import '../../state/note_search.dart';
 import '../../state/page_panel.dart';
 import '../../state/panel.dart';
 import '../../state/popup.dart';
+import '../../state/preset_bar.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../../tools/tool_controller.dart';
 import '../../tools/tool_state.dart';
@@ -62,7 +65,8 @@ class ToolbarPlan {
 }
 
 /// [←] title [100%] [☁] [🔍] [▤] [pen tray: pens · eraser] [올가미] [도형]
-/// [텍스트] │ [+] [🎤] │ [↶] [↷] │ [⋯] — 52 px.
+/// [텍스트] │ [+] [🎤] │ [↶] [↷] │ [⋯] — [heightOf] (StyleTokens.toolbarHeight:
+/// 64 크래프트, 52 미니멀, 60 스튜디오; at least [minHeight]).
 ///
 /// (v2.15-ui, UI stages 3–5 — m5-7/04-editor 22) The pen tray (PenTray) takes
 /// the place of the pen and eraser buttons and of the preset row under the
@@ -86,7 +90,14 @@ class EditorToolbar extends ConsumerWidget {
   final VoidCallback onBack;
   final VoidCallback? onOpenSettings;
 
-  static const double height = 52;
+  /// (v2.15-ui review) The least toolbar height (the 52 px of v1).
+  static const double minHeight = 52;
+
+  /// (v2.15-ui review) The toolbar's height in [context]'s style: the
+  /// style's toolbarHeight hint, so the pen tray's pens stand tall (about
+  /// 42 px of each drawing shows) and a lifted pen stays inside the bar.
+  static double heightOf(BuildContext context) =>
+      math.max(minHeight, StyleTokens.of(context).toolbarHeight);
 
   /// (04-editor 19.1) The least the title keeps: beside it [⌃] shows only
   /// while the title still gets this much (else [⌃] is in [⋯] only).
@@ -112,6 +123,8 @@ class EditorToolbar extends ConsumerWidget {
     var w = _button /* ← */ + _button /* ▤ */ + 4 /* end */;
     w += fold ? 2 * _button : 3 * _button; // 올가미 (+ 도형 텍스트 | ⋯도구)
     w += _divider;
+    // (v2.15-ui review) Folded: │ after [⋯도구] too.
+    if (fold) w += _divider;
     if (!fold && (hasInsert || mic)) {
       w += (hasInsert ? _button : 0) + (mic ? _button : 0) + _divider;
     }
@@ -123,13 +136,19 @@ class EditorToolbar extends ConsumerWidget {
   /// (v2.15-ui) The layout at [width]: the first that fits of — 8 pens +
   /// [🔍] + title, 5 pens + [🔍] + title, 5 + [🔍], 5, 3, then folded with 3,
   /// then scrolling. With [detached] the tray is in the floating palette.
+  ///
+  /// [shownFor] is how many slots the tray takes at a capacity (trayPensOf:
+  /// fewer pinned pens, or one more for '지금 펜' when the current pen is none
+  /// of them); null = the capacity.
   static ToolbarPlan planFor(
     double width, {
     required bool hasInsert,
     required bool mic,
     bool detached = false,
+    int Function(int capacity)? shownFor,
   }) {
-    double tray(int pens) => detached ? 0 : PenTray.widthFor(pens);
+    double tray(int pens) =>
+        detached ? 0 : PenTray.widthFor(shownFor?.call(pens) ?? pens);
     final pensAt = detached ? 0 : 1; // 0 pens when detached
     final fixed = fixedWidth(hasInsert: hasInsert, mic: mic, fold: false);
     final room = width - fixed;
@@ -162,7 +181,9 @@ class EditorToolbar extends ConsumerWidget {
       title: false,
       search: false,
       fold: true,
-      scroll: width < folded + tray(3),
+      // (v2.15-ui review) Room for a narrow [☁] too, or the row scrolls
+      // (where [☁] and [100%] follow [⌃]).
+      scroll: width < folded + tray(3) + flexLeast,
     );
   }
 
@@ -223,17 +244,26 @@ class EditorToolbar extends ConsumerWidget {
     final detached = ref.watch(
       editorDeviceStateProvider.select((s) => s.paletteDetached),
     );
+    // (v2.15-ui review) A read-only note (in the trash, a v1 copy) keeps
+    // [🎤]: [+] is disabled there, and its recordings must stay playable.
+    final readOnly = ref.watch(editorReadOnlyProvider);
+    final mic = recording || (readOnly && hasPanel);
+    final presets = ref.watch(editorTrayPresetsProvider).value ?? const [];
+    final current = ref.watch(editorToolProvider.select((s) => s.currentPen));
+    int shownFor(int capacity) =>
+        trayPensOf(presets, current, capacity).pens.length;
     return Material(
       color: StyleTokens.of(context).toolbar,
       child: SizedBox(
-        height: height,
+        height: heightOf(context),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final plan = planFor(
               constraints.maxWidth,
               hasInsert: hasInsert,
-              mic: recording,
+              mic: mic,
               detached: detached,
+              shownFor: shownFor,
             );
             final row = Row(
               mainAxisSize: plan.scroll ? MainAxisSize.min : MainAxisSize.max,
@@ -246,9 +276,12 @@ class EditorToolbar extends ConsumerWidget {
                     semanticLabel: EditorStrings.back,
                   ),
                 ),
-                if (plan.scroll)
-                  const MenuHideButton()
-                else
+                if (plan.scroll) ...[
+                  const MenuHideButton(),
+                  // (v2.15-ui review) The row scrolls: [100%] and [☁] stay
+                  // in it (a sync problem must show).
+                  const _ScrollFlexItems(),
+                ] else
                   Expanded(
                     key: plan.title ? titleSlotKey : null,
                     child: _FlexSlot(title: plan.title ? title : null),
@@ -263,8 +296,8 @@ class EditorToolbar extends ConsumerWidget {
                   const _Divider(),
                 ] else ...[
                   if (hasInsert) const InsertMenu(),
-                  if (recording) const MicButton(),
-                  if (hasInsert || recording) const _Divider(),
+                  if (mic) const MicButton(),
+                  if (hasInsert || mic) const _Divider(),
                 ],
                 const UndoRedoButtons(),
                 const _Divider(),
@@ -297,7 +330,9 @@ class _FlexSlot extends ConsumerWidget {
 
   final String? title;
 
-  static const double _zoomWidth = 72;
+  /// (v2.15-ui review) The most [100%] takes ('110%' measures ~80 px; it
+  /// was planned as 72 and overflowed next to [☁]); it is clipped to this.
+  static const double _zoomWidth = 88;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -326,7 +361,11 @@ class _FlexSlot extends ConsumerWidget {
               if (room >= MenuHideButton.width) const MenuHideButton(),
               const Spacer(),
             ],
-            if (showZoom) const ZoomChip(),
+            if (showZoom)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _zoomWidth),
+                child: const ClipRect(child: ZoomChip()),
+              ),
             if (showBadge)
               SizedBox(
                 width: badgeWidth,
@@ -338,6 +377,32 @@ class _FlexSlot extends ConsumerWidget {
           ];
           return Row(children: children);
         },
+      ),
+    );
+  }
+}
+
+/// (v2.15-ui review) [100%] and [☁] in a scrolling row (each only while it
+/// has something to say, like in [_FlexSlot]).
+class _ScrollFlexItems extends ConsumerWidget {
+  const _ScrollFlexItems();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final badge = ref.watch(core.syncBadgeProvider).value;
+    final badgeShown =
+        badge != null &&
+        badge.display != core.SyncDisplayState.off &&
+        badge.display != core.SyncDisplayState.done;
+    final viewport = ref.watch(editorViewportProvider);
+    return ListenableBuilder(
+      listenable: viewport,
+      builder: (context, _) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!ZoomChip.isFit(viewport.zoom)) const ZoomChip(),
+          if (badgeShown) const EditorSyncBadgeIcon(),
+        ],
       ),
     );
   }

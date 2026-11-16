@@ -33,6 +33,8 @@ final class PenTrayStyle {
     required this.chipActiveFill,
     required this.chipActiveBorder,
     required this.activeMark,
+    this.rimLight,
+    this.chipPlate = _transparent,
   });
 
   /// [look] of the tray.
@@ -64,6 +66,23 @@ final class PenTrayStyle {
   /// The small bar under the active chip / the hover ring.
   final Color activeMark;
 
+  /// (v2.15-ui review) A thin light edge on the pen drawings (PenArtPainter
+  /// rimLight) where the well is dark enough to swallow a black pen; null
+  /// on a light well.
+  final Color? rimLight;
+
+  /// (v2.15-ui review) The paper-light plate a flat chip gets behind an ink
+  /// that would vanish on the bar ([needsPlate]); transparent = never.
+  final Color chipPlate;
+
+  /// Whether a flat chip of [ink] needs [chipPlate] behind it: a dark ink
+  /// (relative luminance below .15) on a dark bar.
+  bool needsPlate(Color ink) => chipPlate.a > 0 && ink.computeLuminance() < .15;
+
+  /// Whether an ink this light needs a hairline edge on a light bar (a pale
+  /// highlighter on white).
+  bool needsEdge(Color ink) => chipPlate.a == 0 && ink.computeLuminance() > .6;
+
   static const _transparent = Color(0x00000000);
 
   /// The tray style of [tokens].
@@ -79,13 +98,18 @@ final class PenTrayStyle {
           divider: tokens.hairline,
           innerShadow: _transparent,
           liftShadow: tokens.shadow.withValues(alpha: dark ? .5 : .12),
-          // Ink is document data: a dark style shows it on paper-light chips.
-          chipFill: dark
-              ? tokens.inkSwatch.withValues(alpha: .92)
-              : _transparent,
-          chipActiveFill: tokens.inkSwatch,
-          chipActiveBorder: dark ? tokens.accent : tokens.hairline,
+          // No plates (the calm mockup): only the active chip gets a soft
+          // box and the underline. Ink is document data: in a dark style a
+          // dark ink stands on a small paper-light plate ([needsPlate]).
+          chipFill: _transparent,
+          chipActiveFill: dark
+              ? const Color(0x1FFFFFFF)
+              : tokens.accentSoft.withValues(alpha: .55),
+          chipActiveBorder: _transparent,
           activeMark: tokens.accent,
+          chipPlate: dark
+              ? tokens.inkSwatch.withValues(alpha: .86)
+              : _transparent,
         );
       case AppStyle.studio:
         // A cool dark strip like the studio rail, in both brightnesses.
@@ -101,6 +125,7 @@ final class PenTrayStyle {
           chipActiveFill: tokens.inkSwatch,
           chipActiveBorder: tokens.accent,
           activeMark: tokens.accent,
+          rimLight: const Color(0x2EFFFFFF),
         );
       case AppStyle.craft:
         return PenTrayStyle(
@@ -116,9 +141,15 @@ final class PenTrayStyle {
           chipActiveFill: tokens.inkSwatch,
           chipActiveBorder: tokens.accent,
           activeMark: tokens.accent,
+          rimLight: dark ? const Color(0x24FFFFFF) : null,
         );
     }
   }
+
+  /// The rim light for pen drawings on a card or panel of [tokens] (the
+  /// picker's pen cards): a dark style's cards are dark too.
+  static Color? cardRimLightOf(StyleTokens tokens) =>
+      tokens.isDark ? const Color(0x2EFFFFFF) : null;
 
   /// Whether the well is drawn (a [PenTrayLook.strokes] tray is flat).
   bool get hasWell => look == PenTrayLook.drawings;

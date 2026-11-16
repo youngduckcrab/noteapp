@@ -122,7 +122,7 @@ abstract final class EditorStrings {
   static const trayActiveHint = '한 번 더 누르면 펜 고르기. 길게 누르면 빠른 펜';
 
   /// The hover label's tail on the lifted pen.
-  static const trayTapAgain = '한 번 더 누르면 펜 고르기';
+  static const trayTapAgain = '다시 누르면 펜 고르기';
 
   /// Picker: the two sides and the narrow tabs.
   static const pickerWhichPen = '무슨 펜';
@@ -143,6 +143,11 @@ abstract final class EditorStrings {
   static const pinnedInTray = '트레이에 꽂혀 있어요';
   static const pinToTrayHint = '트레이의 펜을 길게 누르면 순서 바꾸기 · 빼기';
   static const pinnedToTray = '트레이에 꽂았어요';
+
+  /// (v2.15-ui review) The preset manager, more pinned pens than the tray
+  /// holds.
+  static String trayShowsFirst(int max) => '트레이에는 꽂은 펜 중 위에서 $max개만 보여요';
+
   static String trayFull(int max) =>
       '트레이에는 $max자루까지 꽂을 수 있어요. 하나를 빼고 다시 꽂아 주세요';
 
@@ -158,6 +163,10 @@ abstract final class EditorStrings {
 
   /// (v2.15-ui) The one pressure control (sensitivity + curve together).
   static const pressure = '필압';
+
+  /// (v2.15-ui review) The stored pressure is none of the four.
+  static const pressureCustom = '지금은 예전에 맞춘 필압이에요. 하나를 고르면 바뀌어요';
+
   static const pressureOff = '끔';
   static const pressureLight = '약하게';
   static const pressureNormal = '보통';
@@ -294,6 +303,10 @@ abstract final class EditorStrings {
     '분홍',
     '갈색',
   ];
+
+  /// (v2.15-ui review) Names for inks near no built-in colour.
+  static const colorGrey = '회색';
+  static const colorWhite = '흰색';
 
   /// Shown instead of the recent colours before the first committed stroke.
   static const noRecentColors = '획을 그리면 그 색이 여기에 모여요';

@@ -36,16 +36,22 @@ String? presetNameOf(String raw) {
 /// stays pending while CORE retries a failed commit (contract 7.2.9 v1.2), so
 /// nothing waits for it. An error (an argument error, a preset deleted on
 /// another device …) is reported (library 'feature_editor') and shows
-/// '실행하지 못했어요'.
+/// '실행하지 못했어요'. (v2.15-ui review) [onDone] runs after the write
+/// succeeded (a success message shows only then), with the messenger of
+/// [context] taken now.
 void runPresetWrite(
   BuildContext context,
   String what,
-  Future<Object?> Function() write,
-) {
+  Future<Object?> Function() write, {
+  void Function(ScaffoldMessengerState? messenger)? onDone,
+}) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   unawaited(() async {
     try {
       await write();
+      if (onDone != null) {
+        onDone(messenger != null && messenger.mounted ? messenger : null);
+      }
     } on Object catch (error, stack) {
       FlutterError.reportError(
         FlutterErrorDetails(

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import '../../state/popup.dart';
 import '../../state/preset_bar.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../../tools/tool_controller.dart';
@@ -32,7 +33,9 @@ import 'editor_chrome.dart';
 /// 붙이기' (a labelled button — 6.9.1 keeps tooltips off). Switching pens
 /// closes the palette. A pointer down anywhere else (TapRegion outside — the
 /// page still gets it, so a pen stroke draws) or system back closes it (open
-/// / closed is editorPaletteExpandedProvider). Read-only note: the tray is
+/// / closed is editorPaletteExpandedProvider); while a popup opened from it
+/// (the picker, the quick pen, the eraser's) shows, it stays open and closes
+/// with that popup. Read-only note: the tray is
 /// disabled (like in the toolbar).
 class PenPalette extends ConsumerStatefulWidget {
   const PenPalette({super.key, required this.area, this.topInset = 0});
@@ -105,6 +108,15 @@ class _PenPaletteState extends ConsumerState<PenPalette> {
 
   void _collapse() => _expanded.set(false);
 
+  /// (v2.15-ui review) A pointer down outside the palette: it stays open
+  /// while a popup it opened is showing (the pointer is on that popup or
+  /// its barrier — collapsing would unmount the tray the popup hangs
+  /// from); it closes with that popup instead.
+  void _outside(PointerDownEvent _) {
+    if (ref.read(editorPopupProvider) != null) return;
+    _collapse();
+  }
+
   void _dragBy(Offset delta, Offset from) {
     final area = widget.area;
     final at = PenPalette.buttonOffset(area, widget.topInset, _drag ?? from);
@@ -125,6 +137,13 @@ class _PenPaletteState extends ConsumerState<PenPalette> {
       editorDeviceStateProvider.select((s) => s.palettePosition),
     );
     final expanded = ref.watch(editorPaletteExpandedProvider);
+    ref.listen(editorPopupProvider, (before, now) {
+      if (before != null &&
+          now == null &&
+          ref.read(editorPaletteExpandedProvider)) {
+        _collapse();
+      }
+    });
     final fractions = _drag ?? stored;
     final at = PenPalette.buttonOffset(widget.area, widget.topInset, fractions);
     final button = Rect.fromLTWH(
@@ -140,7 +159,7 @@ class _PenPaletteState extends ConsumerState<PenPalette> {
             rect: button,
             child: TapRegion(
               groupId: _group,
-              onTapOutside: (_) => _collapse(),
+              onTapOutside: _outside,
               child: GestureDetector(
                 key: PenPalette.buttonKey,
                 behavior: HitTestBehavior.opaque,
@@ -162,7 +181,7 @@ class _PenPaletteState extends ConsumerState<PenPalette> {
                 ),
                 child: TapRegion(
                   groupId: _group,
-                  onTapOutside: (_) => _collapse(),
+                  onTapOutside: _outside,
                   child: _PalettePanel(
                     maxWidth: widget.area.width - 2 * PenPalette.margin,
                     maxHeight: math.max(
@@ -252,7 +271,12 @@ class _PaletteButton extends ConsumerWidget {
                     Positioned(
                       left: (PenPalette.size - 20) / 2,
                       top: 6,
-                      child: PenArt.of(pen, width: 20, height: 62),
+                      child: PenArt.of(
+                        pen,
+                        width: 20,
+                        height: 62,
+                        rimLight: look.rimLight,
+                      ),
                     ),
                   ],
                 )
@@ -284,10 +308,13 @@ class _PalettePanel extends ConsumerWidget {
   /// The panel's padding on each side.
   static const double padding = 8;
 
-  /// (v2.15-ui) The tray's pens that fit [maxWidth] (1–8).
-  static int pensIn(double maxWidth) {
+  /// (v2.15-ui) The tray's pens that fit [maxWidth] (1–8). [shownFor] is
+  /// the slots a capacity takes (one more for '지금 펜' — trayPensOf).
+  static int pensIn(double maxWidth, {int Function(int capacity)? shownFor}) {
     var pens = kTrayMaxPens;
-    while (pens > 1 && PenTray.widthFor(pens) + 2 * padding > maxWidth) {
+    while (pens > 1 &&
+        PenTray.widthFor(shownFor?.call(pens) ?? pens) + 2 * padding >
+            maxWidth) {
       pens--;
     }
     return pens;
@@ -296,6 +323,8 @@ class _PalettePanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = StyleTokens.of(context);
+    final presets = ref.watch(editorTrayPresetsProvider).value ?? const [];
+    final current = ref.watch(editorToolProvider.select((s) => s.currentPen));
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -314,7 +343,14 @@ class _PalettePanel extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                PenTray(capacity: pensIn(maxWidth), onPicked: onDone),
+                PenTray(
+                  capacity: pensIn(
+                    maxWidth,
+                    shownFor: (c) =>
+                        trayPensOf(presets, current, c).pens.length,
+                  ),
+                  onPicked: onDone,
+                ),
                 const SizedBox(height: 4),
                 // Labelled (no tooltips — 6.9.1): putting the tray back
                 // has to read as such from the palette itself.

@@ -105,7 +105,7 @@ final class StyleTokens extends ThemeExtension<StyleTokens>
     radiusMedium: 12,
     radiusLarge: 16,
     elevation: StyleElevation.soft,
-    toolbarHeight: 52,
+    toolbarHeight: 64,
     toolLabels: ToolLabelMode.always,
     iconStrokeWidth: 1.7,
   );
@@ -208,7 +208,9 @@ final class StyleTokens extends ThemeExtension<StyleTokens>
 
   // --- layout hints for later stages (stage 1 does not change layouts) ------
 
-  /// Toolbar height the style is drawn for.
+  /// Toolbar height the style is drawn for. (v2.15-ui) The editor toolbar
+  /// uses it: 64 크래프트 (the pen tray's pens stand tall in it), 52 미니멀
+  /// (flat ink chips), 60 스튜디오.
   final double toolbarHeight;
 
   /// When tool names show under the toolbar icons.

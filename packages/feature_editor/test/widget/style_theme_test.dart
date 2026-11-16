@@ -165,8 +165,16 @@ void main() {
             find.descendant(of: tray, matching: find.byType(InkStroke)),
             findsWidgets,
           );
+          // (v2.15-ui review) No plates; in dark only a dark ink gets the
+          // small paper-light plate.
+          expect(look.chipFill.a, 0);
           if (brightness == Brightness.dark) {
-            expect(look.chipFill.a, greaterThan(0.5));
+            expect(look.chipPlate.a, greaterThan(0.5));
+            expect(look.needsPlate(const Color(0xFF1A1A1A)), isTrue);
+            expect(look.needsPlate(const Color(0xFFFFD526)), isFalse);
+          } else {
+            expect(look.chipPlate.a, 0);
+            expect(look.needsEdge(const Color(0xFFFFE600)), isTrue);
           }
         } else {
           expect(look.look, PenTrayLook.drawings);

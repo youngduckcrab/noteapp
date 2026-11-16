@@ -33,6 +33,10 @@ class PresetManagerSheet extends ConsumerStatefulWidget {
       ValueKey('editor.presetManager.handle.$id');
   static ValueKey<String> previewKey(String id) =>
       ValueKey('editor.presetManager.preview.$id');
+
+  /// (v2.15-ui review) The note shown while more than kTrayMaxPens presets
+  /// are pinned.
+  static const trayLimitKey = ValueKey('editor.presetManager.trayLimit');
   static ValueKey<String> pinnedKey(String id) =>
       ValueKey('editor.presetManager.pinned.$id');
   static ValueKey<String> menuKey(String id) =>
@@ -108,6 +112,19 @@ class _PresetManagerSheetState extends ConsumerState<PresetManagerSheet> {
                 ],
               ),
             ),
+            // (v2.15-ui review) More pinned pens than the tray holds (from
+            // the old preset row): say which ones it shows.
+            if (presets.where((p) => p.pinned).length > kTrayMaxPens)
+              Padding(
+                key: PresetManagerSheet.trayLimitKey,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                  EditorStrings.trayShowsFirst(kTrayMaxPens),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             Flexible(
               child: ReorderableListView.builder(
                 shrinkWrap: true,

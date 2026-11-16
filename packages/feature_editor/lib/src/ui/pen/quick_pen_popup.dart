@@ -39,6 +39,18 @@ class QuickPenPanel extends ConsumerWidget {
   static const double width = 400;
   static const int colorsShown = 8;
 
+  /// The [kBasicColors] indexes the quick pen shows: the first
+  /// [colorsShown]; when the pen's colour reads as a later one (a yellow
+  /// highlighter, a pink pen) that one takes the last place, so the current
+  /// colour is always there and ringed.
+  static List<int> quickColorsFor(int? ringed) => [
+    for (var i = 0; i < colorsShown - 1; i++) i,
+    if (ringed != null && ringed >= colorsShown - 1)
+      ringed
+    else
+      colorsShown - 1,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pen = ref.watch(editorToolProvider.select((s) => s.currentPen));
@@ -48,6 +60,8 @@ class QuickPenPanel extends ConsumerWidget {
     final theme = Theme.of(context);
     final colours = pen.tool != core.PenTool.laser;
     final widths = penWidthChoices(pen.tool);
+    final ringed = nearestBasicColorIndex(pen.colorArgb);
+    final shown = quickColorsFor(ringed);
     return Material(
       key: panelKey,
       color: tokens.popover,
@@ -103,15 +117,13 @@ class QuickPenPanel extends ConsumerWidget {
                     spacing: 2,
                     runSpacing: 2,
                     children: [
-                      for (var i = 0; i < colorsShown; i++)
+                      for (final (i, c) in shown.indexed)
                         InkDot(
                           key: colorKey(i),
-                          argb: kBasicColors[i],
-                          label: EditorStrings.basicColorNames[i],
-                          selected:
-                              kBasicColors[i] & 0xFFFFFF ==
-                              pen.colorArgb & 0xFFFFFF,
-                          onTap: () => controller.setColor(kBasicColors[i]),
+                          argb: kBasicColors[c],
+                          label: EditorStrings.basicColorNames[c],
+                          selected: c == ringed,
+                          onTap: () => controller.setColor(kBasicColors[c]),
                         ),
                     ],
                   ),
@@ -173,19 +185,22 @@ class QuickPenPanel extends ConsumerWidget {
     final id = presetId;
     final all = ref.read(core.penPresetsProvider).value ?? const [];
     final preset = all.where((p) => p.id == id).firstOrNull;
-    ref.read(editorPopupProvider.notifier).close();
-    if (preset == null) return;
     final repo = ref.read(core.penPresetRepositoryProvider);
-    runPresetWrite(
-      context,
-      'unpinning a preset',
-      () => repo.updatePreset(preset.copyWith(pinned: false)),
-    );
-    ScaffoldMessenger.maybeOf(context)
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text(EditorStrings.unpinnedFromTray)),
+    if (preset != null) {
+      // Started (and its messenger taken) before the popup closes; '뺐어요'
+      // shows once the write is done.
+      runPresetWrite(
+        context,
+        'unpinning a preset',
+        () => repo.updatePreset(preset.copyWith(pinned: false)),
+        onDone: (messenger) => messenger
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(content: Text(EditorStrings.unpinnedFromTray)),
+          ),
       );
+    }
+    ref.read(editorPopupProvider.notifier).close();
   }
 }
 

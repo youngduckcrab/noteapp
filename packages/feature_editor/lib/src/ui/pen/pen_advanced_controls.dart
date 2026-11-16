@@ -81,6 +81,10 @@ class PenAdvancedControls extends ConsumerWidget {
   static const smoothingKey = ValueKey('editor.pen.smoothing');
   static const noPressureKey = ValueKey('editor.pen.noPressure');
 
+  /// (v2.15-ui review) Shown while the stored pressure is none of the
+  /// segments ([PressureFeel.of] null).
+  static const customPressureKey = ValueKey('editor.pen.pressure.custom');
+
   /// (v2, E2-15) The '자동 도형 보정' switch.
   static const shapeAssistKey = ValueKey('editor.pen.shapeAssist');
 
@@ -143,6 +147,17 @@ class PenAdvancedControls extends ConsumerWidget {
                   );
                 },
         ),
+        // (v2.15-ui review) A pair no segment stands for (an older
+        // version's slider, the 'soft' curve) is said, not hidden.
+        if (feel == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              EditorStrings.pressureCustom,
+              key: customPressureKey,
+              style: text.bodySmall,
+            ),
+          ),
         if (noPressure)
           Padding(
             padding: const EdgeInsets.only(top: 4),

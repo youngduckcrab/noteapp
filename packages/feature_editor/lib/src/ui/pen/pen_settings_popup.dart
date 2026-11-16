@@ -95,7 +95,9 @@ class _PenSettingsPanelState extends ConsumerState<PenSettingsPanel> {
     final wide = screen.width >= PenSettingsPanel.wideMinWidth;
     final width = wide
         ? PenSettingsPanel.wideWidth
-        : math.min(520.0, screen.width - 16);
+        // (v2.15-ui review) Narrow: the content width less 32 (it was at
+        // most 520 and left 200 px empty at 800 portrait).
+        : math.max(280.0, math.min(760.0, screen.width - 32));
     final style = _StyleSide(
       otherColor: _otherColor,
       onOtherColor: (open) => setState(() => _otherColor = open),
@@ -314,7 +316,12 @@ class _ToolChip extends StatelessWidget {
                       child: OverflowBox(
                         alignment: Alignment.topCenter,
                         maxHeight: 60,
-                        child: PenArt.of(style, width: 12, height: 60),
+                        child: PenArt.of(
+                          style,
+                          width: 12,
+                          height: 60,
+                          rimLight: PenTrayStyle.cardRimLightOf(tokens),
+                        ),
                       ),
                     ),
                   ),
@@ -356,11 +363,20 @@ class _PenCard extends StatelessWidget {
 
   static const double height = 82;
 
+  /// (v2.15-ui review) The drawing stands 10 px in from the rounded edge.
+  static const double _artLeft = 10;
+  static const double _textLeft = 32;
+
   @override
   Widget build(BuildContext context) {
     final tokens = StyleTokens.of(context);
     final theme = Theme.of(context);
     final name = EditorStrings.penTypeName(style.tool);
+    // (v2.15-ui review) A dark style: the stroke on a tinted inset (not a
+    // white patch on a dark card), the drawing with a rim light.
+    final inset = tokens.isDark
+        ? Color.lerp(tokens.inkSwatch, tokens.card, .12)!
+        : tokens.inkSwatch;
     return Semantics(
       button: true,
       selected: selected,
@@ -384,18 +400,23 @@ class _PenCard extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned(
-                  left: 7,
+                  left: _artLeft,
                   top: 10,
-                  child: PenArt.of(style, width: 16, height: 96),
+                  child: PenArt.of(
+                    style,
+                    width: 16,
+                    height: 96,
+                    rimLight: PenTrayStyle.cardRimLightOf(tokens),
+                  ),
                 ),
                 Positioned(
-                  left: 28,
+                  left: _textLeft,
                   right: 6,
                   top: 7,
                   height: 44,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: tokens.inkSwatch,
+                      color: inset,
                       borderRadius: BorderRadius.circular(tokens.radiusSmall),
                     ),
                     child: LayoutBuilder(
@@ -407,7 +428,7 @@ class _PenCard extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  left: 28,
+                  left: _textLeft,
                   right: 4,
                   bottom: 7,
                   child: Text(
@@ -490,6 +511,9 @@ class _StyleSide extends ConsumerWidget {
       );
     }
     final widths = penWidthChoices(pen.tool);
+    // The built-in colour the pen's ink reads as (the stock navy is ringed
+    // on 남색 though it is not exactly #1A237E).
+    final ringed = nearestBasicColorIndex(pen.colorArgb);
     final recent = ref.watch(
       editorColorPaletteProvider.select((s) => s.recent),
     );
@@ -530,8 +554,7 @@ class _StyleSide extends ConsumerWidget {
                   key: BasicColorsRow.swatchKey(i),
                   argb: kBasicColors[i],
                   label: EditorStrings.basicColorNames[i],
-                  selected:
-                      kBasicColors[i] & 0xFFFFFF == pen.colorArgb & 0xFFFFFF,
+                  selected: i == ringed,
                   onTap: () => controller.setColor(kBasicColors[i]),
                 ),
             ],
@@ -660,8 +683,9 @@ class _StyleSide extends ConsumerWidget {
 }
 
 /// [트레이에 꽂기]: the current pen as a new pinned preset (CORE
-/// createPreset, named "{펜} {굵기}pt"); disabled while it is in the tray
+/// createPreset, named "{펜} {굵기}pt"); disabled while the tray shows it
 /// already; at [kTrayMaxPens] pinned pens it says the tray is full.
+/// '꽂았어요' shows once the write is done.
 class _PinButton extends ConsumerWidget {
   const _PinButton();
 
@@ -669,9 +693,10 @@ class _PinButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = StyleTokens.of(context);
     final pen = ref.watch(editorToolProvider.select((s) => s.currentPen));
-    final presets = ref.watch(core.penPresetsProvider).value;
-    final inTray =
-        presets?.any((p) => p.pinned && p.style == pen.normalized()) ?? false;
+    // (v2.15-ui review) The pens the tray shows (the first kTrayMaxPens
+    // pinned): a pinned preset past them is not "in the tray".
+    final presets = ref.watch(editorTrayPresetsProvider).value;
+    final inTray = presets?.any((p) => p.style == pen.normalized()) ?? false;
     final readOnly = ref.watch(editorReadOnlyProvider);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -716,9 +741,11 @@ class _PinButton extends ConsumerWidget {
         name: EditorStrings.presetDefaultName(pen.tool, pen.width),
         style: pen.normalized(),
       ),
+      onDone: (messenger) => messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text(EditorStrings.pinnedToTray)),
+        ),
     );
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text(EditorStrings.pinnedToTray)));
   }
 }

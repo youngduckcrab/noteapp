@@ -1,4 +1,6 @@
 // lib/src/ui/popup_host.dart — 04-editor 6.9.2 (PopupHost).
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -26,9 +28,50 @@ class PopupAnchors {
   final GlobalKey penBox = GlobalKey(debugLabel: 'editor.penTray');
   final LayerLink eraser = LayerLink();
 
+  /// (v2.15-ui review) The tray's eraser slot (its popup is placed by its
+  /// rect, kept inside the screen).
+  final GlobalKey eraserBox = GlobalKey(debugLabel: 'editor.trayEraser');
+
   /// (v2, E2-13) the toolbar's shape and text buttons (6.13.1).
   final LayerLink shape = LayerLink();
   final LayerLink text = LayerLink();
+
+  /// (v2.15-ui review) Bumped after the pen tray was built again (another
+  /// width, capacity, rotation, the palette moved): an open tray popup
+  /// places itself again by the new rect.
+  final ValueNotifier<int> trayMoved = ValueNotifier(0);
+  bool _movePending = false;
+
+  /// Called by the tray while it builds: bumps [trayMoved] after the frame
+  /// (once per frame).
+  void scheduleTrayMoved() {
+    if (_movePending) return;
+    _movePending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _movePending = false;
+      trayMoved.value++;
+    });
+  }
+
+  /// The tray rect an open tray popup was placed by. A new rect with the
+  /// same right edge and top (a '지금 펜' slot came or went — the tray grew
+  /// to the left) keeps it, so the open picker does not jump sideways while
+  /// its colour or width changes; anything else (another width, a rotation,
+  /// the palette moved) places it again. Cleared when the popup closes.
+  Rect? _placedBy;
+
+  Rect? _placeBy(Rect? now) {
+    final was = _placedBy;
+    if (was != null &&
+        now != null &&
+        (was.right - now.right).abs() < .5 &&
+        (was.top - now.top).abs() < .5) {
+      return was;
+    }
+    return _placedBy = now;
+  }
+
+  void dispose() => trayMoved.dispose();
 }
 
 /// Shows editorPopupProvider's popup with an OverlayPortal (its overlay child
@@ -112,6 +155,7 @@ class _PopupHostState extends ConsumerState<PopupHost> {
 
   void _sync(EditorPopup? popup) {
     final show = _layoutOf(popup) != null;
+    if (!show) _anchors._placedBy = null;
     if (show && !_portal.isShowing) _portal.show();
     if (!show && _portal.isShowing) _portal.hide();
   }
@@ -122,6 +166,12 @@ class _PopupHostState extends ConsumerState<PopupHost> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _sync(ref.read(editorPopupProvider));
     });
+  }
+
+  @override
+  void dispose() {
+    _anchors.dispose();
+    super.dispose();
   }
 
   @override
@@ -227,18 +277,27 @@ class _PopupLayer extends ConsumerWidget {
     // the tree: a popup that would hang from one (the pencil's quick pen /
     // colour palette without a hover point) opens in the middle instead of
     // following a missing anchor (it would be invisible behind the barrier).
+    // (v2.15-ui review) The tray's popups hang from the tray wherever it is
+    // mounted (the toolbar or the floating palette — also with the menu
+    // hidden), by its rect, read again after it moved ([trayMoved]) and on
+    // a new screen size.
     final menuHidden = ref.watch(
       editorDeviceStateProvider.select((s) => s.toolbarHidden),
     );
-    final link = at != null || menuHidden
+    final trayBox = switch (layout.link) {
+      LinkPick.pen => anchors.penBox,
+      LinkPick.eraser => anchors.eraserBox,
+      _ => null,
+    };
+    final link = at != null || menuHidden || trayBox != null
         ? null
         : switch (layout.link) {
-            LinkPick.pen => anchors.pen,
-            LinkPick.eraser => anchors.eraser,
             LinkPick.shape => anchors.shape,
             LinkPick.text => anchors.text,
-            null => null,
+            _ => null,
           };
+    final placed = at == null && trayBox?.currentContext != null;
+    MediaQuery.sizeOf(context); // placed again on a new screen size
     return Stack(
       children: [
         Positioned.fill(
@@ -247,7 +306,7 @@ class _PopupLayer extends ConsumerWidget {
             behavior: HitTestBehavior.opaque,
             onPointerDown: (_) =>
                 ref.read(editorPopupProvider.notifier).close(),
-            child: link == null && at == null
+            child: link == null && at == null && !placed
                 ? ColoredBox(
                     color: Theme.of(context).colorScheme.scrim
                         .withValues(alpha: 0.32),
@@ -262,12 +321,21 @@ class _PopupLayer extends ConsumerWidget {
               child: layout.panel,
             ),
           )
-        else if (link != null && identical(link, anchors.pen))
+        else if (placed)
           // (v2.15-ui) The pen tray is the pen anchor: its popups (the wide
-          // pen picker) hang centred under it, kept inside the screen.
+          // pen picker) hang centred under it, the eraser's under the
+          // eraser — kept inside the screen, above the anchor when there is
+          // more room there (a palette low on the screen).
           Positioned.fill(
-            child: CustomSingleChildLayout(
-              delegate: _BelowAnchorLayout(_anchorRect(context, anchors)),
+            child: ValueListenableBuilder<int>(
+              valueListenable: anchors.trayMoved,
+              builder: (context, _, panel) => CustomSingleChildLayout(
+                delegate: _BelowAnchorLayout(
+                  anchors._placeBy(_boxRect(context, trayBox!)),
+                  centred: layout.link == LinkPick.pen,
+                ),
+                child: panel,
+              ),
               child: layout.panel,
             ),
           )
@@ -300,10 +368,10 @@ Offset _overlayLocal(BuildContext context, Offset global) {
   return global;
 }
 
-/// (v2.15-ui) The pen tray's rect in the overlay (null when it is not laid
-/// out).
-Rect? _anchorRect(BuildContext context, PopupAnchors anchors) {
-  final target = anchors.penBox.currentContext?.findRenderObject();
+/// (v2.15-ui) The rect of [box] (the pen tray, its eraser) in the overlay
+/// (null when it is not laid out).
+Rect? _boxRect(BuildContext context, GlobalKey box) {
+  final target = box.currentContext?.findRenderObject();
   if (target is! RenderBox || !target.attached || !target.hasSize) {
     return null;
   }
@@ -313,25 +381,45 @@ Rect? _anchorRect(BuildContext context, PopupAnchors anchors) {
   return topLeft & target.size;
 }
 
-/// (v2.15-ui) A pen-tray popup: centred under the tray, [_gap] below it,
-/// moved sideways to stay [_margin] inside the screen; centred on the
-/// screen when the tray is not laid out.
+/// (v2.15-ui) A pen-tray popup: under the [anchor] (centred on it when
+/// [centred], else its left edge at the anchor's), [_gap] below it, moved
+/// sideways to stay [_margin] inside the screen. (v2.15-ui review) Above the
+/// anchor instead when there is more room above and too little below for
+/// [_comfortable] (the floating palette low on the screen); centred on the
+/// screen when the anchor is not laid out.
 class _BelowAnchorLayout extends SingleChildLayoutDelegate {
-  const _BelowAnchorLayout(this.anchor);
+  const _BelowAnchorLayout(this.anchor, {this.centred = true});
 
   final Rect? anchor;
+  final bool centred;
 
   static const double _gap = 6;
   static const double _margin = 8;
 
+  /// Below the anchor while at least this much room is there.
+  static const double _comfortable = 480;
+
+  bool _above(Size size) {
+    final a = anchor;
+    if (a == null) return false;
+    final below = size.height - a.bottom - _gap - _margin;
+    final above = a.top - _gap - _margin;
+    return below < _comfortable && above > below;
+  }
+
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     final a = anchor;
-    final top = a == null ? 0.0 : a.bottom + _gap;
+    final size = constraints.biggest;
+    final room = a == null
+        ? size.height - 2 * _margin
+        : _above(size)
+        ? a.top - _gap - _margin
+        : size.height - a.bottom - _gap - _margin;
     return BoxConstraints.loose(
       Size(
-        constraints.maxWidth - 2 * _margin,
-        (constraints.maxHeight - top - _margin).clamp(0, constraints.maxHeight),
+        math.max(0, size.width - 2 * _margin),
+        room.clamp(0, size.height).toDouble(),
       ),
     );
   }
@@ -346,15 +434,15 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
       );
     }
     final maxX = size.width - child.width - _margin;
-    final x = maxX <= _margin
-        ? _margin
-        : (a.center.dx - child.width / 2).clamp(_margin, maxX);
-    return Offset(x.toDouble(), a.bottom + _gap);
+    final want = centred ? a.center.dx - child.width / 2 : a.left;
+    final x = maxX <= _margin ? _margin : want.clamp(_margin, maxX);
+    final y = _above(size) ? a.top - _gap - child.height : a.bottom + _gap;
+    return Offset(x.toDouble(), y);
   }
 
   @override
   bool shouldRelayout(_BelowAnchorLayout oldDelegate) =>
-      oldDelegate.anchor != anchor;
+      oldDelegate.anchor != anchor || oldDelegate.centred != centred;
 }
 
 /// A popup opened at a point (v2 — the pencil's hover point): its top-left

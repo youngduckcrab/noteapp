@@ -31,6 +31,7 @@ class PenArt extends StatelessWidget {
     required this.color,
     this.width = 24,
     this.height = 72,
+    this.rimLight,
   });
 
   PenArt.of(
@@ -38,12 +39,14 @@ class PenArt extends StatelessWidget {
     Key? key,
     double width = 24,
     double height = 72,
+    Color? rimLight,
   }) : this(
          key: key,
          tool: style.tool,
          color: penArtColorOf(style),
          width: width,
          height: height,
+         rimLight: rimLight,
        );
 
   final core.PenTool tool;
@@ -51,10 +54,17 @@ class PenArt extends StatelessWidget {
   final double width;
   final double height;
 
+  /// A light edge for a dark background (PenTrayStyle.rimLight).
+  final Color? rimLight;
+
   @override
   Widget build(BuildContext context) => CustomPaint(
     size: Size(width, height),
-    painter: PenArtPainter(kind: penArtKindOf(tool), color: color),
+    painter: PenArtPainter(
+      kind: penArtKindOf(tool),
+      color: color,
+      rimLight: rimLight,
+    ),
   );
 }
 
@@ -68,6 +78,24 @@ class EraserArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       CustomPaint(size: Size(width, height), painter: const EraserArtPainter());
+}
+
+/// (v2.15-ui review) The eraser as a line glyph ([EraserGlyphPainter]) in
+/// the style's icon weight — the flat 미니멀 tray.
+class EraserGlyph extends StatelessWidget {
+  const EraserGlyph({super.key, this.size = 24, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size.square(size),
+    painter: EraserGlyphPainter(
+      color: color,
+      strokeWidth: StyleTokens.of(context).iconStrokeWidth,
+    ),
+  );
 }
 
 /// The real stroke of [style] (ink.PenPreviewPainter with the PencilGrain
@@ -114,16 +142,13 @@ List<double> penWidthChoices(core.PenTool tool) {
   ];
 }
 
-/// The name of an ink colour: the built-in colour's name when [argb] is one
-/// of [kBasicColors] (RGB), else its HEX (#RRGGBB).
+/// The name of an ink colour (also spoken — never a HEX code): the name of
+/// its [nearestBasicColorIndex] colour, else '회색' / '흰색'.
 String inkColorName(int argb) {
-  for (var i = 0; i < kBasicColors.length; i++) {
-    if (kBasicColors[i] & 0xFFFFFF == argb & 0xFFFFFF) {
-      return EditorStrings.basicColorNames[i];
-    }
-  }
-  final hex = (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
-  return '#${hex.toUpperCase()}';
+  final i = nearestBasicColorIndex(argb);
+  if (i != null) return EditorStrings.basicColorNames[i];
+  final l = HSLColor.fromColor(Color(argb | 0xFF000000)).lightness;
+  return l > .9 ? EditorStrings.colorWhite : EditorStrings.colorGrey;
 }
 
 /// "만년필 · 남색 2.2pt" — the tray's hover label and the pen's spoken name.

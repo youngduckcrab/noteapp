@@ -17,6 +17,8 @@ import 'package:feature_editor/src/ui/chrome/editor_chrome.dart';
 import 'package:feature_editor/src/ui/chrome/floating_layer.dart';
 import 'package:feature_editor/src/ui/chrome/pen_palette.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
+import 'package:feature_editor/src/ui/eraser/eraser_popup.dart';
+import 'package:feature_editor/src/ui/pen/pen_settings_popup.dart';
 import 'package:feature_editor/src/ui/pen/pen_tray.dart';
 import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
 import 'package:feature_editor/src/ui/popup_host.dart';
@@ -120,7 +122,13 @@ void main() {
       expect(_device(h).toolbarHidden, isTrue);
       expect(
         tester.getTopLeft(find.byType(PageViewport)).dy,
-        lessThan(topBefore - EditorToolbar.height + 1),
+        lessThan(
+          topBefore -
+              EditorToolbar.heightOf(
+                tester.element(find.byType(PageViewport)),
+              ) +
+              1,
+        ),
       );
       expect(find.text(EditorStrings.menuHiddenHint), findsOneWidget);
       await _settleSnackBar(tester);
@@ -149,7 +157,10 @@ void main() {
       expect(_toolbar, findsOneWidget);
       final menu = tester.getSize(find.byType(EditorTopMenu));
       expect(menu.height, greaterThan(0));
-      expect(menu.height, lessThan(EditorToolbar.height));
+      expect(
+        menu.height,
+        lessThan(EditorToolbar.heightOf(tester.element(_toolbar))),
+      );
       await tester.pump(const Duration(milliseconds: 200));
       expect(_toolbar, findsNothing);
     });
@@ -321,6 +332,69 @@ void main() {
       expect(tools.activeTool, EditorTool.pen);
       expect(tools.currentPen, highlighter.style.normalized());
       expect(_panel, findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    // (v2.15-ui review) The palette at its default place (bottom left): the
+    // popups it opens are on screen with a usable height, and a tap inside
+    // one keeps it (the palette stays open while it shows).
+    testWidgets('(review) popups from the palette at the bottom left: on '
+        'screen, usable, and a tap inside keeps them', (tester) async {
+      final h = await pumpEditor(tester);
+      await _detach(tester);
+      expect(_device(h).palettePosition, const Offset(0, 1));
+      final screen = Offset.zero & const Size(1032, 1376);
+      Future<void> open() async {
+        if (_panel.evaluate().isEmpty) {
+          await tester.tap(_paletteButton);
+          await tester.pump();
+        }
+        expect(_panel, findsOneWidget);
+      }
+
+      // The eraser popup: tap the eraser (select), open again, tap again.
+      await open();
+      await tester.tap(find.byKey(EditorToolbar.eraserKey));
+      await tester.pump();
+      await open();
+      await tester.tap(find.byKey(EditorToolbar.eraserKey));
+      await tester.pump();
+      await tester.pump();
+      expect(h.container.read(editorPopupProvider), isA<EraserSettingsPopup>());
+      final eraserPanel = find.byKey(EraserSettingsPanel.panelKey);
+      expect(eraserPanel, findsOneWidget);
+      final er = tester.getRect(eraserPanel);
+      expect(
+        screen.contains(er.topLeft) && screen.contains(er.bottomRight),
+        isTrue,
+        reason: '$er',
+      );
+      // A tap inside it: the palette stays, the popup stays and is hit.
+      await tester.tapAt(er.topLeft + const Offset(40, 12));
+      await tester.pump();
+      expect(_panel, findsOneWidget);
+      expect(h.container.read(editorPopupProvider), isA<EraserSettingsPopup>());
+      expect(eraserPanel.hitTestable(), findsOneWidget);
+      // Closing the popup closes the palette with it.
+      h.container.read(editorPopupProvider.notifier).close();
+      await tester.pump();
+      await tester.pump();
+      expect(_panel, findsNothing);
+
+      // The pen picker from the palette's lifted pen.
+      await open();
+      h.container.read(editorCommandsProvider).selectTool(EditorTool.pen);
+      await tester.pump();
+      await tester.tap(
+        find.descendant(of: _panel, matching: find.byKey(EditorToolbar.penKey)),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(h.container.read(editorPopupProvider), const PenSettingsPopup());
+      final picker = tester.getRect(find.byKey(PenSettingsPanel.panelKey));
+      expect(screen.contains(picker.topLeft), isTrue, reason: '$picker');
+      expect(picker.bottom, lessThanOrEqualTo(screen.bottom));
+      expect(picker.height, greaterThan(300), reason: '$picker');
       expect(tester.takeException(), isNull);
     });
 
