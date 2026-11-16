@@ -2398,6 +2398,15 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C213R-02 | 7.2.9 INK 재생 강조 | `dimUnwritten`이 연결된 개체도 `offset > p`인 동안 흐린다(도형·이미지 층 4′, 텍스트·수식 annotation 층 끝). 공개 API 변경 없음 | 사용자 보고 | INK(처리됨) |
 | C213R-03 | 7.2.10 EDITOR | 녹음 중 만든 개체 연결, 맞춘 도형·도형 도구 = 펜 다운 메타(`commitInkEdit(recording:)`), 넣기 메뉴 `EditorInsertContext.execute`는 실행 순간 연결, 개체 탭 재생(도형만 ③, 틀 개체는 다른 단계가 안 받은 손가락 탭만). recog 변환 빌더는 가장 이른 원본 획의 녹음 시각(연결 없는 원본이 있으면 연결 없음) | 사용자 보고 | EDITOR·LIBRARY(처리됨) |
 
+#### v2.13-search (2026-11-16, 노트에서 찾기 — 사용자 보고 '노트 안에서 필기를 검색하는 기능이 안 보여요. PDF만 검색하는 것 같아요')
+
+추가만. 설계는 [04-editor.md 18절](04-editor.md), [05-library.md 6.19b](05-library.md).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C213S-01 | 7.2.10 EDITOR 자리 | `EditorInkSearch`(`changes`·`stateOf(noteId)`·`turnOnAutoIndex`·`downloadModel({cellular})`·`searchOpened(noteId)`)·`EditorInkSearchState`·`EditorInkSearchPhase`(C29-03·C29-05와 같은 단계)·`editorInkSearchProvider`(기본 null → 안내 없음). 앱 셸 `editorInkSearchOf`가 `HandwritingSearchReadiness`를 옮기고 `ShellContribution.editorInkSearch`로 FeatureWiringModule이 덮어쓴다. 새 패키지 의존 없음(R8) | 04-editor 17 | EDITOR·INFRA(처리됨) |
+| C213S-02 | 7.2.11 recog (공개 이름 그대로) | `HandwritingSearchReadiness`에 `statusOfNote(noteId)`(그 노트의 남은 쪽만 셈)·`searchOpenedInNote(noteId)`(그 노트의 쪽 먼저 인식, 낡은 쪽도 찾아 넣음)·`changes` 추가 | 05-library 6.19b | LIBRARY(처리됨) |
+
 #### v2.9 (2026-11-13, 손글씨 검색 — 사용자 요청 '텍스트로 변환하지 않더라도 적은 글씨를 검색하면 검색이 되어야 해')
 
 추가와 기본값 하나. 설계는 05-library 6.19a, 02-core 6.10.2 '손글씨 띄어쓰기'.
