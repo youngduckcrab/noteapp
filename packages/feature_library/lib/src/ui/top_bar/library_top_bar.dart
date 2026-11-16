@@ -3,8 +3,12 @@
 // on the right the search field (240 / 200, L17), the sort menu, the view
 // toggle (L10) and '선택' (L14) — in the compact class a search icon (the
 // whole bar becomes the search field, 6.2) and ⋯ with the other three — and
-// '새로 만들기' (L12; not in the trash). Still to come: 'PDF 가져오기' in the
-// new menu (L18). In selection mode the selection bar replaces this bar.
+// '새로 만들기' (L12; not in the trash). In selection mode the selection bar
+// replaces this bar. (v2.14-ui, UI stage 1) The trash has no search field
+// (search icon in the compact class), no greyed-out sort and no '선택' (⋯ in
+// the compact class):
+// a search leaves the trash, and a long press on an entry still starts
+// selection mode there.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId;
@@ -95,7 +99,8 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
       );
     }
     final sortEnabled = section is FolderSection;
-    final showViewToggle = section is! TrashSection;
+    final inTrash = section is TrashSection;
+    final showViewToggle = !inTrash;
     // '선택' (6.9): selection mode with nothing selected yet.
     void beginSelection() =>
         ref.read(librarySelectionProvider(route).notifier).begin();
@@ -125,33 +130,40 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
             ),
             const SizedBox(width: 8),
             if (compact) ...[
-              IconButton(
-                icon: const Icon(Icons.search),
-                tooltip: LibraryStrings.search,
-                onPressed: () => _openCompactSearch(scope),
-              ),
-              CompactListingMenu(
-                sortEnabled: sortEnabled,
-                showViewToggle: showViewToggle,
-                onSelect: beginSelection,
-              ),
+              if (!inTrash) ...[
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: LibraryStrings.search,
+                  onPressed: () => _openCompactSearch(scope),
+                ),
+                CompactListingMenu(
+                  sortEnabled: sortEnabled,
+                  showViewToggle: showViewToggle,
+                  onSelect: beginSelection,
+                ),
+              ],
             ] else ...[
-              SizedBox(
-                width: scope.sizeClass == LibrarySizeClass.expanded
-                    ? LibraryMetrics.searchFieldWidthExpanded
-                    : LibraryMetrics.searchFieldWidthMedium,
-                child: searchField,
-              ),
-              const SizedBox(width: 8),
-              SortMenuButton(enabled: sortEnabled),
+              if (!inTrash) ...[
+                SizedBox(
+                  width: scope.sizeClass == LibrarySizeClass.expanded
+                      ? LibraryMetrics.searchFieldWidthExpanded
+                      : LibraryMetrics.searchFieldWidthMedium,
+                  child: searchField,
+                ),
+                const SizedBox(width: 8),
+              ],
+              // (v2.14-ui) no greyed-out sort in the trash either.
+              if (!inTrash) SortMenuButton(enabled: sortEnabled),
               if (showViewToggle) const ViewModeButton(),
-              const SizedBox(width: 4),
-              TextButton(
-                onPressed: beginSelection,
-                child: const Text(LibraryStrings.select),
-              ),
+              if (!inTrash) ...[
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: beginSelection,
+                  child: const Text(LibraryStrings.select),
+                ),
+              ],
             ],
-            if (section is! TrashSection) ...[
+            if (!inTrash) ...[
               const SizedBox(width: 8),
               NewMenuButton(section: section, sizeClass: scope.sizeClass),
             ],

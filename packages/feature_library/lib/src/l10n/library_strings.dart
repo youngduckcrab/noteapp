@@ -110,7 +110,6 @@ abstract final class LibraryStrings {
   static const String newNote = '새 노트';
   static const String newFolder = '새 폴더';
   static const String importPdf = 'PDF 가져오기';
-  static const String comingSoon = '준비 중';
 
   // Sort
   static const String sortName = '이름';
@@ -149,6 +148,9 @@ abstract final class LibraryStrings {
 
   /// Badge / meta / snack bar for a note made by a newer app version.
   static const String requiresNewerApp = '새 버전 앱에서 열 수 있어요';
+
+  /// (v2.14-ui) The cover label of such a note (was an 'upgrade' arrow).
+  static const String requiresNewerAppBadge = '새 버전 필요';
 
   // Empty states (6.7)
   static const String emptyHome = '노트가 없어요';

@@ -1,5 +1,5 @@
 // lib/src/ui/sidebar/library_sidebar.dart — 05-library 6.5. Top → bottom:
-// app name row (56) · 홈 · 최근 · 즐겨찾기 · '폴더' header · folder tree (the
+// app name row (56) · 홈 · 최근 · 즐겨찾기 · '폴더' header (no '+') · folder tree (the
 // height left, scrolls) · divider · 휴지통 (count) · sync status + settings
 // button row (56). The same widget is pinned (expanded class) or lives in the
 // drawer. 홈 and 휴지통 are drop targets (6.10.2).
@@ -13,7 +13,6 @@ import '../../l10n/library_strings.dart';
 import '../../model/section.dart';
 import '../../state/providers.dart';
 import '../../state/section_notifier.dart';
-import '../dialogs/create_flows.dart';
 import '../layout/library_metrics.dart';
 import '../library_scope.dart';
 import 'sidebar_folder_tree.dart';
@@ -82,36 +81,24 @@ class LibrarySidebar extends ConsumerWidget {
           selected: section is FavoritesSection,
           onTap: () => show((s) => s.showFavorites()),
         ),
-        // '폴더' header + '+' (new folder): into the current folder section's
-        // folder, else 홈 (6.5).
+        // '폴더' header. (v2.14-ui, UI stage 1) Its '+' is gone: a new folder
+        // is made with '새로 만들기 › 새 폴더' (the current folder section's
+        // folder, else 홈) or a folder's ⋯ '새 하위 폴더'.
         SizedBox(
           height: LibraryMetrics.navRowHeight,
-          child: Row(
-            children: [
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  LibraryStrings.folders,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                LibraryStrings.folders,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: LibraryStrings.newFolder,
-                onPressed: () => runNewFolderFlow(
-                  context,
-                  parentId: switch (section) {
-                    FolderSection(:final folderId) => folderId,
-                    _ => null,
-                  },
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
+            ),
           ),
         ),
         const Expanded(child: SidebarFolderTree()),

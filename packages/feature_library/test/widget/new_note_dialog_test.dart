@@ -9,7 +9,6 @@ import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:feature_library/src/model/new_note_spec.dart';
 import 'package:feature_library/src/model/page_size_mm.dart';
 import 'package:feature_library/src/settings/library_settings_keys.dart';
-import 'package:feature_library/src/ui/content/new_note_tile.dart';
 import 'package:feature_library/src/ui/dialogs/new_note_dialog.dart';
 import 'package:feature_library/src/ui/pickers/template_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,14 +39,19 @@ void main() {
     return h;
   }
 
-  /// The grid's 새 노트 tile, or the empty state's [새 노트].
+  /// 새로 만들기 › 새 노트 (v2.14-ui: the grid's 새 노트 tile is gone), or
+  /// the empty state's [새 노트].
   Future<void> openDialog(WidgetTester tester) async {
-    final tile = find.byType(NewNoteTile);
-    await tester.tap(
-      tile.evaluate().isNotEmpty
-          ? tile
-          : find.widgetWithText(FilledButton, LibraryStrings.newNote),
-    );
+    final empty = find.widgetWithText(FilledButton, LibraryStrings.newNote);
+    if (empty.evaluate().isNotEmpty) {
+      await tester.tap(empty);
+    } else {
+      await tester.tap(find.text(LibraryStrings.newMenu));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(MenuItemButton, LibraryStrings.newNote),
+      );
+    }
     await tester.pumpAndSettle();
     expect(find.byType(NewNoteDialog), findsOneWidget);
   }

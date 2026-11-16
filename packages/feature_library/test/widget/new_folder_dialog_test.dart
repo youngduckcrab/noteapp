@@ -41,9 +41,13 @@ void main() {
   ProviderContainer containerOf(WidgetTester tester) =>
       ProviderScope.containerOf(tester.element(find.byType(LibraryTopBar)));
 
-  /// The sidebar '폴더' header '+'.
-  Future<void> openFromSidebar(WidgetTester tester) async {
-    await tester.tap(find.byTooltip(LibraryStrings.newFolder));
+  /// 새로 만들기 › 새 폴더 (v2.14-ui: where the sidebar '폴더 +' went).
+  Future<void> openFromNewMenu(WidgetTester tester) async {
+    await tester.tap(find.text(LibraryStrings.newMenu));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(MenuItemButton, LibraryStrings.newFolder),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(NewFolderDialog), findsOneWidget);
   }
@@ -76,7 +80,7 @@ void main() {
     final h = await pumpAt(tester, folderId: math.id);
     // The route shows 수학 but it has no children yet: collapsed.
     expect(containerOf(tester).read(folderExpansionProvider), isEmpty);
-    await openFromSidebar(tester);
+    await openFromNewMenu(tester);
     expect(nameController(tester).text, LibraryStrings.defaultFolderName);
     expect(find.text('홈 › 수학'), findsOneWidget);
     await tapVisible(tester, find.byTooltip(FolderPalette.names[1])); // 초록
@@ -104,7 +108,7 @@ void main() {
     tester,
   ) async {
     await pumpAt(tester);
-    await openFromSidebar(tester);
+    await openFromNewMenu(tester);
     // Pick a color and an icon, then go back to 없음 and the folder icon.
     await tapVisible(tester, find.byTooltip(FolderPalette.names[0]));
     await tapVisible(tester, find.byTooltip(FolderIcons.labelFor('music')));
@@ -130,7 +134,7 @@ void main() {
     final container = containerOf(tester);
     // Showing 미적분 reveals it (its parent 수학 opens).
     expect(container.read(folderExpansionProvider), {math.id});
-    await openFromSidebar(tester);
+    await openFromNewMenu(tester);
     expect(nameController(tester).text, '새 폴더 2');
     expect(find.text('홈 › 수학 › 미적분'), findsOneWidget);
     await tester.enterText(
@@ -144,7 +148,7 @@ void main() {
 
   testWidgets('[취소] creates nothing', (tester) async {
     final h = await pumpAt(tester);
-    await openFromSidebar(tester);
+    await openFromNewMenu(tester);
     await tester.tap(find.text(LibraryStrings.cancel));
     await tester.pumpAndSettle();
     expect(find.byType(NewFolderDialog), findsNothing);
@@ -157,7 +161,7 @@ void main() {
     await pumpAt(tester, folderId: math.id);
     await tester.tap(find.text(LibraryStrings.favorites));
     await tester.pumpAndSettle();
-    await openFromSidebar(tester);
+    await openFromNewMenu(tester);
     expect(find.text(LibraryStrings.home), findsWidgets);
     await create(tester);
     expect(backend.calls, ["createFolder home '새 폴더'"]);
@@ -188,7 +192,7 @@ void main() {
 
   testWidgets('a failed createFolder shows the generic error', (tester) async {
     await pumpAt(tester);
-    await openFromSidebar(tester);
+    await openFromNewMenu(tester);
     backend.failNextMutation = StateError('x');
     await create(tester);
     expect(tester.takeException(), isA<StateError>());

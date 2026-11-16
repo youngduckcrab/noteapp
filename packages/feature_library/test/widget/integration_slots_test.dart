@@ -70,12 +70,14 @@ void main() {
       );
 
   group('PDF 가져오기', () {
-    testWidgets('no slot: disabled with 준비 중', (tester) async {
+    testWidgets('no slot: no item (v2.14-ui — was disabled with 준비 중)', (
+      tester,
+    ) async {
       await seed(tester);
       await pumpAt(tester);
       await openNewMenu(tester);
-      expect(importItem(tester).onPressed, isNull);
-      expect(find.text(LibraryStrings.comingSoon), findsOneWidget);
+      expect(find.text(LibraryStrings.newNote), findsWidgets);
+      expect(find.text(LibraryStrings.importPdf), findsNothing);
     });
 
     testWidgets('a folder section passes its folder; the id opens the note', (
@@ -97,7 +99,7 @@ void main() {
         ],
       );
       await openNewMenu(tester);
-      expect(find.text(LibraryStrings.comingSoon), findsNothing);
+      expect(importItem(tester).onPressed, isNotNull);
       await tester.tap(menuItem(LibraryStrings.importPdf));
       await tester.pumpAndSettle();
       expect(calls, hasLength(1));

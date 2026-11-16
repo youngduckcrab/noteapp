@@ -9,7 +9,6 @@ import 'package:feature_library/src/l10n/library_strings.dart';
 import 'package:feature_library/src/settings/library_settings_keys.dart';
 import 'package:feature_library/src/ui/content/folder_tile.dart';
 import 'package:feature_library/src/ui/content/item_list.dart';
-import 'package:feature_library/src/ui/content/new_note_tile.dart';
 import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:feature_library/src/ui/sidebar/sidebar_rows.dart';
 import 'package:feature_library/src/ui/top_bar/selection_bar.dart';
@@ -87,7 +86,6 @@ void main() {
       await pumpSection(tester, LibraryStrings.recent);
       expect(tileTitles(tester), ['극한 정리', '회의록']);
       expect(find.byType(FolderTile), findsNothing);
-      expect(find.byType(NewNoteTile), findsNothing);
       expect(
         find.descendant(
           of: noteTile('극한 정리'),
@@ -214,7 +212,6 @@ void main() {
       await pumpSection(tester, LibraryStrings.favorites);
       expect(tileTitles(tester), ['극한 정리', '독서 기록']);
       expect(find.byType(FolderTile), findsNothing);
-      expect(find.byType(NewNoteTile), findsNothing);
       expect(
         find.descendant(
           of: noteTile('독서 기록'),

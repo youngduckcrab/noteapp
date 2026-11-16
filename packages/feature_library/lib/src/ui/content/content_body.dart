@@ -16,7 +16,6 @@ import 'package:note_core/note_core.dart'
         trashItemsProvider;
 
 import '../../common/report_error.dart';
-import '../../dnd/library_drag_scope.dart';
 import '../../model/content.dart';
 import '../../model/section.dart';
 import '../../model/view_prefs.dart';
@@ -136,18 +135,6 @@ class _ContentListingState extends ConsumerState<ContentListing> {
     }
     final mode = ref.watch(libraryPrefsProvider.select((p) => p.viewMode));
     if (mode == LibraryViewMode.list) return ItemList(content: content);
-    final selecting = ref.watch(
-      librarySelectionProvider(routeFolderId).select((s) => s.active),
-    );
-    // The '새 노트' tile stays while a drag that started selection mode runs
-    // (the tiles do not shift under the pointer).
-    return ValueListenableBuilder<bool>(
-      valueListenable: LibraryDragScope.draggingOf(context),
-      builder: (context, dragging, _) => ItemGrid(
-        content: content,
-        newNoteFolder: section is FolderSection ? section.folderId : null,
-        showNewNoteTile: section is FolderSection && (!selecting || dragging),
-      ),
-    );
+    return ItemGrid(content: content);
   }
 }

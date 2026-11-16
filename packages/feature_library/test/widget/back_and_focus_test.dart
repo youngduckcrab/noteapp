@@ -338,12 +338,12 @@ void main() {
         await go(navRow(LibraryStrings.home), 'home again');
 
         // After the field had the focus (keyboard hidden by back).
+        // (v2.14-ui) The trash has no search field: it comes last.
         for (final (row, reason) in [
-          (navRow(LibraryStrings.trash), 'trash after typing'),
-          (navRow(LibraryStrings.home), 'home after typing'),
           (treeRow('수학'), 'folder after typing'),
           (navRow(LibraryStrings.favorites), 'favorites after typing'),
-          (navRow(LibraryStrings.home), 'home after typing 2'),
+          (navRow(LibraryStrings.home), 'home after typing'),
+          (navRow(LibraryStrings.trash), 'trash after typing'),
         ]) {
           await focusThenHideKeyboard(tester);
           await go(row, reason);
@@ -544,7 +544,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(sectionOf(tester, h), const TrashSection());
       expect(find.byType(LibrarySearchField), findsNothing);
-      expect(find.byTooltip(LibraryStrings.search), findsOneWidget);
+      // (v2.14-ui) The trash has no search icon either.
+      expect(find.byTooltip(LibraryStrings.search), findsNothing);
     });
 
     testWidgets('back before the folder tree loads waits for it, then goes '

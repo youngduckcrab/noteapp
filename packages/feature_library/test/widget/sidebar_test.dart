@@ -387,14 +387,17 @@ void main() {
       matching: find.text(text),
     );
 
-    testWidgets('without an override: 이 기기에 저장', (tester) async {
+    testWidgets('without an override (sync off): nothing (v2.14-ui — the '
+        'floppy 이 기기에 저장 is gone)', (tester) async {
       await pumpAt(tester);
-      expect(indicatorText(LibraryStrings.syncOff), findsOneWidget);
-      expect(find.byTooltip(LibraryStrings.syncOffTooltip), findsOneWidget);
+      expect(indicatorText(LibraryStrings.syncOff), findsNothing);
+      expect(find.byTooltip(LibraryStrings.syncOffTooltip), findsNothing);
+      expect(find.byIcon(Icons.save_outlined), findsNothing);
+      // The settings button stays in that row.
+      expect(find.byTooltip(LibraryStrings.settings), findsOneWidget);
     });
 
     final cases = <(SyncBadge, String, String)>[
-      (SyncBadge.off, '이 기기에 저장', '노트는 이 기기에만 저장돼요'),
       (
         SyncBadge(
           display: SyncDisplayState.done,
@@ -453,15 +456,14 @@ void main() {
         tester,
         overrides: [syncBadgeProvider.overrideWith((ref) => badges.stream)],
       );
-      expect(indicatorText(LibraryStrings.syncOff), findsOneWidget); // loading
+      expect(indicatorText(LibraryStrings.syncOff), findsNothing); // loading
       badges.add(const SyncBadge(display: SyncDisplayState.offline));
       await tester.pumpAndSettle();
       expect(indicatorText(LibraryStrings.syncOffline), findsOneWidget);
     });
 
-    testWidgets('a provider error is drawn as off and reported once', (
-      tester,
-    ) async {
+    testWidgets('a provider error is treated as off (nothing) and reported '
+        'once', (tester) async {
       final reports = await collectReports(() async {
         await pumpAt(
           tester,
@@ -476,7 +478,7 @@ void main() {
         for (var i = 0; i < 2; i++) {
           await tester.tap(find.byTooltip(LibraryStrings.openMenu));
           await tester.pumpAndSettle();
-          expect(indicatorText(LibraryStrings.syncOff), findsOneWidget);
+          expect(indicatorText(LibraryStrings.syncOff), findsNothing);
           await tester.tap(navRow(LibraryStrings.recent));
           await tester.pumpAndSettle();
           expect(drawerSidebar, findsNothing);
@@ -488,7 +490,16 @@ void main() {
     });
 
     testWidgets('tapping the status row calls onOpenSettings', (tester) async {
-      final h = await pumpAt(tester);
+      final h = await pumpAt(
+        tester,
+        overrides: [
+          syncBadgeProvider.overrideWith(
+            (ref) => Stream.value(
+              const SyncBadge(display: SyncDisplayState.offline),
+            ),
+          ),
+        ],
+      );
       await tester.tap(find.byType(SyncBadgeIndicator));
       await tester.pump();
       expect(h.log.entries, ['settings']);

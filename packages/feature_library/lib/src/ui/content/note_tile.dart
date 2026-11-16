@@ -95,13 +95,13 @@ class NoteTile extends ConsumerWidget {
                           color: scheme.tertiary,
                         ),
                       ),
+                    // (v2.14-ui, UI stage 1) words, not the 'upgrade' arrow.
                     if (newer)
-                      Positioned(
+                      const Positioned(
                         left: 6,
                         bottom: 6,
-                        child: CoverCornerBadge(
-                          icon: Icons.upgrade,
-                          color: scheme.primary,
+                        child: CoverCornerLabel(
+                          LibraryStrings.requiresNewerAppBadge,
                         ),
                       ),
                     if (active)

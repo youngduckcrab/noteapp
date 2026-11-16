@@ -12,7 +12,10 @@ import '../../l10n/library_strings.dart';
 import '../layout/library_metrics.dart';
 
 /// Watches core.syncBadgeProvider (contract 7.2.13). Tap → onTap (LibraryScreen.onOpenSettings).
-/// Loading or provider error → drawn as SyncBadge.off (an error is reported once).
+/// Loading or provider error → treated as SyncBadge.off (an error is reported once).
+/// (v2.14-ui, UI stage 1) Nothing is drawn while sync is off (the floppy
+/// '이 기기에 저장' was noise): it shows only while sync is on (done /
+/// in progress) or has a problem (offline / error).
 class SyncBadgeIndicator extends ConsumerWidget {
   const SyncBadgeIndicator({super.key, required this.onTap});
   final VoidCallback onTap;
@@ -32,6 +35,7 @@ class SyncBadgeIndicator extends ConsumerWidget {
     } else {
       badge = async.value ?? SyncBadge.off;
     }
+    if (badge.display == SyncDisplayState.off) return const SizedBox.shrink();
     final look = SyncBadgeLook.of(badge, now: ref.watch(clockProvider).now());
     final theme = Theme.of(context);
     final color = switch (look.role) {

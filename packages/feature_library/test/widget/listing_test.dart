@@ -10,7 +10,6 @@ import 'package:feature_library/src/settings/library_settings_keys.dart';
 import 'package:feature_library/src/state/providers.dart';
 import 'package:feature_library/src/ui/content/folder_tile.dart';
 import 'package:feature_library/src/ui/content/item_list.dart';
-import 'package:feature_library/src/ui/content/new_note_tile.dart';
 import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -26,15 +25,12 @@ import '../support/test_sizes.dart';
 ProviderContainer containerOf(WidgetTester tester) =>
     ProviderScope.containerOf(tester.element(find.byType(LibraryScreen)));
 
-/// Grid cells in display order: `'new'`, `'f:<name>'`, `'n:<title>'`.
+/// Grid cells in display order: `'f:<name>'`, `'n:<title>'`.
 List<String> gridCells(WidgetTester tester) => [
   for (final w in tester.widgetList(
-    find.byWidgetPredicate(
-      (w) => w is NewNoteTile || w is FolderTile || w is NoteTile,
-    ),
+    find.byWidgetPredicate((w) => w is FolderTile || w is NoteTile),
   ))
     switch (w) {
-      NewNoteTile() => 'new',
       FolderTile(:final folder) => 'f:${folder.name}',
       NoteTile(:final note) => 'n:${note.title}',
       _ => '?',
@@ -97,14 +93,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('folders first, then notes; the 새 노트 tile leads the grid', (
+  testWidgets('folders first, then notes (no 새 노트 tile — v2.14-ui)', (
     tester,
   ) async {
     await seed(tester);
     await pumpAt(tester);
     // Default sort: modified, newest first (folders and notes each).
     expect(gridCells(tester), [
-      'new',
       'f:과학',
       'f:영어',
       'f:수학',
@@ -129,9 +124,10 @@ void main() {
     final xs = {
       for (final e in find.byType(FolderTile).evaluate())
         tester.getTopLeft(find.byWidget(e.widget)).dx.roundToDouble(),
-      tester.getTopLeft(find.byType(NewNoteTile)).dx.roundToDouble(),
+      for (final e in find.byType(NoteTile).evaluate().take(2))
+        tester.getTopLeft(find.byWidget(e.widget)).dx.roundToDouble(),
     };
-    expect(xs, hasLength(4)); // new + 3 folders on the first row
+    expect(xs, hasLength(5)); // 3 folders + 2 notes on the first row
   });
 
   testWidgets('each sort choice reaches CORE as a LibraryQuery', (
@@ -146,7 +142,7 @@ void main() {
       'watchListing LibraryQuery(folder: null, name, asc)',
     );
     expect(noteTitles(tester), ['독서 기록', '아이디어', '일기', '회의록']);
-    expect(gridCells(tester).sublist(1, 4), ['f:과학', 'f:수학', 'f:영어']);
+    expect(gridCells(tester).sublist(0, 3), ['f:과학', 'f:수학', 'f:영어']);
 
     await chooseSort(tester, LibraryStrings.sortCreated);
     expect(
@@ -222,7 +218,6 @@ void main() {
     await tester.tap(find.byTooltip(LibraryStrings.viewAsList));
     await tester.pumpAndSettle();
     expect(find.byType(NoteTile), findsNothing);
-    expect(find.byType(NewNoteTile), findsNothing); // the list has none
     expect(find.byType(NoteListRow), findsNWidgets(4));
     expect(find.byType(FolderListRow), findsNWidgets(3));
     expect(find.byTooltip(LibraryStrings.viewAsGrid), findsOneWidget);
@@ -270,7 +265,7 @@ void main() {
     await tester.tap(folderTile('수학'));
     await tester.pumpAndSettle();
     expect(h.log.entries, ['folder:${sample.math.id}']);
-    expect(gridCells(tester), ['new', 'f:미적분']);
+    expect(gridCells(tester), ['f:미적분']);
 
     await tester.tap(find.byTooltip(LibraryStrings.viewAsList));
     await tester.pumpAndSettle();
@@ -279,12 +274,15 @@ void main() {
     expect(h.log.entries.last, 'folder:${sample.nested[0].id}');
   });
 
-  testWidgets('the 새 노트 tile creates a note in the folder and opens it', (
-    tester,
-  ) async {
+  testWidgets('새로 만들기 › 새 노트 creates a note in the folder and opens it '
+      '(v2.14-ui: was the grid\'s 새 노트 tile)', (tester) async {
     final sample = await seed(tester);
     final h = await pumpAt(tester, folderId: sample.math.id);
-    await tester.tap(find.byType(NewNoteTile));
+    await tester.tap(find.text(LibraryStrings.newMenu));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(MenuItemButton, LibraryStrings.newNote),
+    );
     await tester.pumpAndSettle(); // the new note dialog (L12)
     await tester.tap(find.text(LibraryStrings.create));
     await tester.pumpAndSettle();
@@ -417,10 +415,15 @@ void main() {
         ),
       ],
     );
+    // (v2.14-ui) a '새 버전 필요' label on the cover, no 'upgrade' arrow.
     expect(
-      find.descendant(of: noteTile('일기'), matching: find.byIcon(Icons.upgrade)),
+      find.descendant(
+        of: noteTile('일기'),
+        matching: find.text(LibraryStrings.requiresNewerAppBadge),
+      ),
       findsOneWidget,
     );
+    expect(find.byIcon(Icons.upgrade), findsNothing);
     expect(
       find.descendant(
         of: noteTile('일기'),
@@ -431,7 +434,7 @@ void main() {
     expect(
       find.descendant(
         of: noteTile('회의록'),
-        matching: find.byIcon(Icons.upgrade),
+        matching: find.text(LibraryStrings.requiresNewerAppBadge),
       ),
       findsNothing,
     );
@@ -449,9 +452,8 @@ void main() {
     );
   });
 
-  testWidgets('favorites: ★ on the grid tile, ☆/★ toggles in the list', (
-    tester,
-  ) async {
+  testWidgets('favorites: ★ on the grid tile; in the list ★ only on a '
+      'favourite (v2.14-ui), added from ⋯ and removed with ★', (tester) async {
     final sample = await seed(tester);
     await tester.runAsync(
       () => backend.store.library.setFavorite([sample.homeNotes[1].id], true),
@@ -470,20 +472,41 @@ void main() {
     await tester.pumpAndSettle();
     backend.calls.clear();
     final row = find.widgetWithText(NoteListRow, '회의록');
-    await tester.tap(
-      find.descendant(
-        of: row,
-        matching: find.byTooltip(LibraryStrings.favoriteAdd),
-      ),
+    // Not a favourite: no ☆ on the row.
+    expect(
+      find.descendant(of: row, matching: find.byIcon(Icons.star_outline)),
+      findsNothing,
     );
-    await tester.pumpAndSettle();
-    expect(backend.calls, ['setFavorite [n:${sample.homeNotes[0].id}] true']);
+    expect(
+      find.descendant(of: row, matching: find.byIcon(Icons.star)),
+      findsNothing,
+    );
     expect(
       find.descendant(
-        of: row,
+        of: find.widgetWithText(NoteListRow, '독서 기록'),
         matching: find.byTooltip(LibraryStrings.favoriteRemove),
       ),
       findsOneWidget,
+    );
+    await tester.tap(find.byTooltip(LibraryStrings.itemMenu('회의록')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(MenuItemButton, LibraryStrings.favoriteAdd),
+    );
+    await tester.pumpAndSettle();
+    expect(backend.calls, ['setFavorite [n:${sample.homeNotes[0].id}] true']);
+    final star = find.descendant(
+      of: row,
+      matching: find.byTooltip(LibraryStrings.favoriteRemove),
+    );
+    expect(star, findsOneWidget);
+    backend.calls.clear();
+    await tester.tap(star);
+    await tester.pumpAndSettle();
+    expect(backend.calls, ['setFavorite [n:${sample.homeNotes[0].id}] false']);
+    expect(
+      find.descendant(of: row, matching: find.byIcon(Icons.star)),
+      findsNothing,
     );
   });
 

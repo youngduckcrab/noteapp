@@ -16,6 +16,7 @@ import 'package:feature_library/src/ui/content/tile_parts.dart';
 import 'package:feature_library/src/ui/dialogs/folder_picker_dialog.dart';
 import 'package:feature_library/src/ui/top_bar/library_top_bar.dart';
 import 'package:feature_library/src/ui/top_bar/selection_bar.dart';
+import 'package:feature_library/src/ui/trash/trash_row.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -474,11 +475,16 @@ void main() {
     });
 
     testWidgets('no export in the trash section', (tester) async {
-      await seed(tester);
+      final sample = await seed(tester);
+      await tester.runAsync(
+        () =>
+            backend.store.library.trashItems([NoteRef(sample.homeNotes[0].id)]),
+      );
       await pumpAt(tester, overrides: slot());
       await tester.tap(find.text(LibraryStrings.trash));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, LibraryStrings.select));
+      // (v2.14-ui) no '선택' in the trash: a long press starts it.
+      await tester.longPress(find.byType(TrashRow).first);
       await tester.pumpAndSettle();
       expect(selecting(tester), isTrue);
       expect(inBar(LibraryStrings.exportPdfBulk), findsNothing);

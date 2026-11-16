@@ -353,6 +353,38 @@ class CoverCornerBadge extends StatelessWidget {
   }
 }
 
+/// (v2.14-ui, UI stage 1) A short word on a cover corner ('새 버전 필요'):
+/// a small rounded label on surfaceContainerLowest in primary. Decorative
+/// (the tile's meta line says it in full).
+class CoverCornerLabel extends StatelessWidget {
+  const CoverCornerLabel(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ExcludeSemantics(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: theme.colorScheme.surfaceContainerLowest,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          child: Text(
+            text,
+            maxLines: 1,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Selection mode mark on a grid tile's cover (top left, in a 44 × 44
 /// area): an empty circle, or check_circle in primary when selected. Not
 /// tappable itself (the whole tile toggles) and decorative (the tile's

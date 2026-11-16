@@ -223,13 +223,17 @@ void main() {
     final sample = await seedTrash(tester);
     await pumpTrash(tester);
     backend.calls.clear();
-    await tester.tap(find.widgetWithText(TextButton, LibraryStrings.select));
+    // (v2.14-ui) The trash has no '선택' button: a long press starts
+    // selection mode with that entry.
+    expect(
+      find.widgetWithText(TextButton, LibraryStrings.select),
+      findsNothing,
+    );
+    await tester.longPress(trashRow('아이디어'));
     await tester.pumpAndSettle();
     final bar = find.byType(SelectionBar);
     expect(bar, findsOneWidget);
     // A tap toggles (no menu) in selection mode.
-    await tester.tap(trashRow('아이디어'));
-    await tester.pump();
     await tester.tap(trashRow('회의록'));
     await tester.pump();
     expect(find.byType(MenuItemButton), findsNothing);
@@ -251,7 +255,7 @@ void main() {
     expect(bar, findsNothing);
 
     // 모두 선택 → 영구 삭제 (confirm).
-    await tester.tap(find.widgetWithText(TextButton, LibraryStrings.select));
+    await tester.longPress(find.byType(TrashRow).first);
     await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(of: bar, matching: find.text(LibraryStrings.selectAll)),

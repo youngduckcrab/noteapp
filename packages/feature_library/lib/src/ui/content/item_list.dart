@@ -258,22 +258,18 @@ class NoteListRow extends ConsumerWidget {
         child: Row(
           children: [
             Expanded(child: main),
-            IconButton(
-              icon: Icon(
-                note.isFavorite ? Icons.star : Icons.star_outline,
-                color: note.isFavorite
-                    ? scheme.tertiary
-                    : scheme.onSurfaceVariant,
-              ),
-              tooltip: note.isFavorite
-                  ? LibraryStrings.favoriteRemove
-                  : LibraryStrings.favoriteAdd,
-              onPressed: () => runFavoriteFlow(
-                context,
-                ids: [note.id],
-                favorite: !note.isFavorite,
-              ),
-            ),
+            // (v2.14-ui, UI stage 1) ★ only on a favourite (tap → remove);
+            // the other rows keep its place empty (alignment) — 즐겨찾기 is
+            // added from the row's ⋯ or the selection bar.
+            if (note.isFavorite)
+              IconButton(
+                icon: Icon(Icons.star, color: scheme.tertiary),
+                tooltip: LibraryStrings.favoriteRemove,
+                onPressed: () =>
+                    runFavoriteFlow(context, ids: [note.id], favorite: false),
+              )
+            else
+              const SizedBox(width: LibraryMetrics.minTapTarget),
             // No ⋯ in selection mode (6.9); the place stays (alignment).
             if (active)
               const SizedBox(width: LibraryMetrics.minTapTarget)

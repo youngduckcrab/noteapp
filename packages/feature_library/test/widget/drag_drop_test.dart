@@ -12,7 +12,6 @@ import 'package:feature_library/src/model/item_key.dart';
 import 'package:feature_library/src/model/section.dart';
 import 'package:feature_library/src/state/providers.dart';
 import 'package:feature_library/src/ui/content/folder_tile.dart';
-import 'package:feature_library/src/ui/content/new_note_tile.dart';
 import 'package:feature_library/src/ui/content/note_tile.dart';
 import 'package:feature_library/src/ui/content/tile_parts.dart';
 import 'package:feature_library/src/ui/sidebar/library_sidebar.dart';
@@ -110,14 +109,13 @@ void main() {
         final note = sample.homeNotes[0]; // 회의록
         final g = await startDrag(tester, tile('회의록'));
         // The drag started selection mode with the note; the top bar (its
-        // breadcrumb takes drops) and the '새 노트' tile stay while it runs.
+        // breadcrumb takes drops) stays while it runs.
         expect(containerOf(tester).read(librarySelectionProvider(null)).keys, [
           noteKey(note.id),
         ]);
         expect(find.byType(SelectionCheckBadge), findsNWidgets(7));
         expect(find.byType(SelectionBar), findsNothing);
         expect(find.byType(LibraryTopBar), findsOneWidget);
-        expect(find.byType(NewNoteTile), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(LibraryDragFeedback),

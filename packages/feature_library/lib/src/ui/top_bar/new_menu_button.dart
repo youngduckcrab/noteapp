@@ -1,8 +1,9 @@
 // lib/src/ui/top_bar/new_menu_button.dart — 05-library 6.2 top bar table:
 // '새로 만들기' (FilledButton.tonal; a + icon button in the compact class)
-// with 새 노트 · 새 폴더 · PDF 가져오기 (4.3: without the import slot it is
-// disabled with '준비 중'; disabled while an import runs). The target is the
-// folder of a folder section, 홈 for every other section.
+// with 새 노트 · 새 폴더 · PDF 가져오기 (4.3: disabled while an import runs;
+// (v2.14-ui, UI stage 1) hidden without the import slot — it was a disabled
+// 'PDF 가져오기 · 준비 중'). The target is the folder of a folder section, 홈
+// for every other section. 새 폴더 is also where the sidebar's '폴더 +' went.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId;
@@ -34,7 +35,6 @@ class NewMenuButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final target = targetOf(section);
     final importPdf = ref.watch(libraryPdfImportActionProvider);
-    final theme = Theme.of(context);
     return MenuAnchor(
       menuChildren: [
         MenuItemButton(
@@ -47,32 +47,21 @@ class NewMenuButton extends ConsumerWidget {
           onPressed: () => runNewFolderFlow(context, parentId: target),
           child: const Text(LibraryStrings.newFolder),
         ),
-        ValueListenableBuilder<bool>(
-          valueListenable: libraryPdfImportRunning(context),
-          builder: (_, running, _) => MenuItemButton(
-            leadingIcon: const Icon(Icons.picture_as_pdf_outlined),
-            onPressed: importPdf == null || running
-                ? null
-                : () => runLibraryPdfImport(
-                    context,
-                    action: importPdf,
-                    folderId: target,
-                  ),
-            child: importPdf == null
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(LibraryStrings.importPdf),
-                      Text(
-                        LibraryStrings.comingSoon,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  )
-                : const Text(LibraryStrings.importPdf),
+        if (importPdf != null)
+          ValueListenableBuilder<bool>(
+            valueListenable: libraryPdfImportRunning(context),
+            builder: (_, running, _) => MenuItemButton(
+              leadingIcon: const Icon(Icons.picture_as_pdf_outlined),
+              onPressed: running
+                  ? null
+                  : () => runLibraryPdfImport(
+                      context,
+                      action: importPdf,
+                      folderId: target,
+                    ),
+              child: const Text(LibraryStrings.importPdf),
+            ),
           ),
-        ),
       ],
       builder: (context, controller, _) {
         void toggle() =>

@@ -207,12 +207,12 @@ void main() {
         );
       });
 
-      check("the 새로 만들기 menu ('PDF 가져오기' 준비 중)", (tester) async {
+      check('the 새로 만들기 menu (no PDF slot: no PDF 가져오기)', (tester) async {
         await seed(tester);
         await pumpAt(tester);
         await tapAndSettle(tester, find.text(LibraryStrings.newMenu));
-        expect(find.text(LibraryStrings.importPdf), findsOneWidget);
-        expect(find.text(LibraryStrings.comingSoon), findsOneWidget);
+        expect(find.text(LibraryStrings.newFolder), findsOneWidget);
+        expect(find.text(LibraryStrings.importPdf), findsNothing);
       });
 
       check('an item menu', (tester) async {
