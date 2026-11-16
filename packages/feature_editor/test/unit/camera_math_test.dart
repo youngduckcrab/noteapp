@@ -364,4 +364,60 @@ void main() {
       expect(c.scale, fit * ViewportConstants.maxZoom);
     });
   });
+
+  // (v2.16-ui, 04-editor 24.2) 미니멀's floating bar covers the top strip.
+  group('clamp with a leading inset', () {
+    final layout = verticalA4(5);
+    final fit = CameraMath.fitScale(layout, viewport);
+
+    test('the top may scroll the inset further down, no further', () {
+      const inset = 68.0;
+      final c = CameraMath.clamp(
+        ViewportCamera(scale: fit, origin: const Offset(0, -500)),
+        layout,
+        viewport,
+        fit,
+        leadingInset: inset,
+      );
+      expect(c.origin.dy, closeTo(-inset / fit, 1e-9));
+      final none = CameraMath.clamp(
+        ViewportCamera(scale: fit, origin: const Offset(0, -500)),
+        layout,
+        viewport,
+        fit,
+      );
+      expect(none.origin.dy, 0);
+    });
+
+    test('a short document is centred in the room under the inset', () {
+      final one = verticalA4(1);
+      final small = fit * 0.5;
+      const inset = 60.0;
+      final c = CameraMath.clamp(
+        ViewportCamera(scale: small, origin: Offset.zero),
+        one,
+        viewport,
+        fit,
+        leadingInset: inset,
+      );
+      final visible = viewport.height / small;
+      final content = one.contentSize.height;
+      final roomTop = c.origin.dy + inset / small;
+      final roomBottom = c.origin.dy + visible;
+      expect((roomTop + roomBottom) / 2, closeTo(content / 2, 1e-6));
+    });
+
+    test('a horizontal layout ignores it', () {
+      final paged = PageLayout.compute(
+        pageSizes: List.filled(3, a4),
+        axis: LayoutAxis.horizontal,
+      );
+      final pfit = CameraMath.fitScale(paged, viewport);
+      final cam = ViewportCamera(scale: pfit, origin: const Offset(100, -40));
+      expect(
+        CameraMath.clamp(cam, paged, viewport, pfit, leadingInset: 80),
+        CameraMath.clamp(cam, paged, viewport, pfit),
+      );
+    });
+  });
 }

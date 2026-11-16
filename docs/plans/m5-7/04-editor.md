@@ -3220,6 +3220,46 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 - **[트레이에 꽂혀 있어요]**: 꺼진 회색 단추 대신 ✓ + `accentSoft` 알약(끝난 상태).
 - 서재 쪽(05-library): 폴더 그림(`FolderArt`), 종이 자리표시.
 
+## 24. 편집기 스타일마다 다른 배치 — 미니멀 떠 있는 막대 · 스튜디오 세로 막대 (2026-11-16, v2.16-ui)
+
+사용자 요청 '미니멀 떠있는 막대랑 스튜디오 세로 막대도 만들어줘'. 편집기 화면 스타일(`EditorStyleScope` → `StyleTokens.style`)마다 도구가 서는 자리가 다르다. 동작·키·저장 형식은 그대로이고 배치만 바뀐다. 시안: `design-calm/calm_01_editor`·`calm_05_toolbar_tray_closeup`, `design-pro/pro_01_editor`·`pro_05_pen_tray_closeup`.
+
+### 24.1 배치 고르기
+
+`EditorLayouts.resolve(style, 본문 크기)` → `EditorLayout`:
+
+| 스타일 | 배치 | 내용 |
+|---|---|---|
+| 크래프트 (토큰 없는 테마 포함) | `topBar` | 지금 그대로 — 전체 폭 툴바(22·23절) |
+| 미니멀 | `floatingBar` | 페이지 위에 뜬 얇은 둥근 막대(알약) |
+| 스튜디오, 본문 폭 ≥ 600 (`railMinWidth`) | `rail` | 얇은 위 막대 + 왼쪽 세로 막대(레일) |
+| 스튜디오, 600 미만 | `topBar` | 분할 화면·폰은 위 툴바로(접기·스크롤이 이미 넘침 없이 동작) |
+
+`EditorBody`가 배치를 고르고, `EditorShellScope`(배치, 떠 있는 막대, 덮는 윗 띠 높이)를 페이지 영역에 내려 준다. `PageViewport`는 배치가 바뀌어도(창 크기가 600을 넘나들 때) 같은 `GlobalKey`로 상태를 지킨다.
+
+### 24.2 미니멀 — 떠 있는 막대
+
+- `EditorToolbar(variant: floating)`: 같은 줄을 `tokens.toolbar` 색 둥근 알약(모서리 18, 스타일의 떠 있는 그림자 2단, 어두운 화면은 옅은 테두리)에 담는다. 알약은 필요한 만큼만 넓다(`pillIdealWidth` — 펜 최대 5(`pillMaxPens`, 시안의 획 5개) + 🔍 + 쪽수 + 제목 200 px), 화면보다 넓으면 화면 폭(좌우 12 px 여백)에서 `planFor`가 지금처럼 펜 5 → 제목 → 🔍 → 펜 3 → 접기 순으로 줄인다 — 넘침 없음. 제목이 빠지면 알약이 단추에 맞게 줄어든다(긴 빈칸 없음). 높이는 `EditorToolbar.heightOf`(52).
+- 놓는 곳: `EditorFloatingLayer`가 페이지 영역 위 8 px(`barTop`), 가운데. 찾기 칸이 열려도 페이지 영역 안에만 있다(찾기 칸을 덮지 않음). 떠 있는 팔레트는 알약 띠 아래에서만 움직인다.
+- **페이지가 알약 밑까지**: `ViewportController.topInset`(= `barZoneHeight`, 8 + 52 + 8 = 68 px). 세로 배치에서 문서 위쪽 한계가 그만큼 더 내려가고(`CameraMath.clamp(leadingInset:)`), 처음 자리·페이지 이동(`_pageStartCamera`)은 페이지 위 끝을 알약 아래에 둔다 — 첫 줄이 가려지지 않는다. 스크롤하면 글씨가 알약 밑으로 지나간다(쓸 자리가 넓어짐). 짧은 문서는 알약 아래 공간 가운데. 가로(쪽 넘김) 배치는 영향 없음. 값은 크기처럼 프레임 뒤에 컨트롤러로 간다(첫 카메라 전에). 스포이드 배너·시트 방식 텍스트 칸도 그 띠 아래에 놓인다.
+- 숨기기: 알약이 위로 사라지며 흐려진다(`EditorMenuMode.floating`), 복원 알약은 그대로.
+
+### 24.3 스튜디오 — 위 막대 + 세로 레일
+
+- 위 막대 `EditorToolbar(variant: slim)` 52 px: [←] 제목(+ '폴더 · M월 D일 수정') │ [+ 삽입] ([🎤]) │ [↶] [↷] │ [📄 2 / 4] [🔍] [⋯]. 제목은 160 px 이상 남을 때만(아니면 유연한 칸에 ☁·[100%]), ⋯에 노트 정보.
+- 왼쪽 레일 `EditorRail` 88 px, `tokens.rail` 색, 오른쪽 가는 선: **펜 트레이 세로**(`PenTray(axis: vertical)`) ─ [올가미] [도형] [텍스트](이름 아래) ─ **색 6개**(검정·남색·파랑·빨강·초록·주황, 2 × 3, 지금 펜 색에 고리) ─ **굵기 3개**(가늘게·보통·굵게 = `penWidthChoices` 0·2·4, 실제 획). 색·굵기는 지금 펜에(빠른 펜과 같은 `setColor`·`setWidth`), 레이저는 색이 흐려짐. 읽기 전용이면 모두 꺼짐.
+- 세로 트레이: 칸 74 × 44, 펜 그림이 오른쪽을 향해 눕고 뒤끝은 레일 벽에 잘린다(쉬는 펜 48 px 보임), 지금 펜은 오른쪽으로 16 px 빠져나오고 벽에 강조색 막대 + 옅은 강조색 바탕. 지우개는 구분선 아래. 누르기·다시 누르기(펜 고르기)·길게(빠른 펜)·호버 이름·'지금 펜' 칸·키(`editor.toolbar.pen`·`.eraser`·`editor.tray.*`)는 가로 트레이와 같다. 호버 이름은 칸 오른쪽.
+- 자루 수는 높이로(`EditorRail.capacityFor`, '지금 펜' 칸까지 셈): 8(세로 1280) → 5(가로 800) → 4 → 3, 그래도 모자라면 레일이 스크롤된다(`editor.rail.scroll`).
+- **창 위치**: 트레이가 세로면(`PopupAnchors.trayAxis`) 펜 고르기 창은 트레이 오른쪽 12 px·트레이 위 끝에 맞춰, 지우개 창은 지우개 칸 오른쪽, 빠른 펜은 누른 칸 오른쪽 위. 레일의 도형·텍스트 단추(`PopupAnchors.toolsBeside`, 레일 폭 상자 `shapeBox`·`textBox`)의 창도 레일 오른쪽. 모두 화면 안으로 올려 맞춘다.
+- 숨기기: 위 막대는 위로, 레일은 왼쪽으로 접힌다(`EditorMenuMode.rail`); 복원 알약·`EditorChrome.handleBack` 순서(찾기 → 팔레트 → 숨긴 메뉴)는 그대로. 팔레트를 떼면 레일에 트레이가 없고 도구·색·굵기는 남는다(팔레트 트레이는 가로 — 창은 그 아래).
+- 오른쪽 선택 속성 칸(`pro_01b`)은 하지 않았다: 선택 메뉴(6.7)와 겹치고 페이지 폭을 줄여, 깔끔하게 넣으려면 선택 상태를 따로 다뤄야 한다. 다음 단계 후보.
+
+### 24.4 시험 · 그림
+
+- `test/widget/editor_layout_shells_test.dart`: `resolve` 표, 레일 자루 수, 스타일 3 × 폭 5(1280×800·800×1280·1032×1376·600×960·420×900)에서 제 배치·넘침 없음·펜/지우개/올가미 키, 미니멀 `topInset`·첫 페이지가 알약 아래·펜 고르기 창이 알약 아래, 스튜디오 펜 고르기·빠른 펜·지우개·도형 창이 레일 오른쪽·화면 안, 레일 색·굵기, 미니멀·스튜디오 집중 모드 → 복원 알약 → 시스템 뒤로, 떼어낸 팔레트, 어두운 스타일.
+- 그림(커밋 안 함): `ui-s6-shots/layout_*.png` — 스타일 3 × 밝음/어두움 × 가로·세로(+ 600 폭), 미니멀·스튜디오 펜 고르기·빠른 펜·숨김, 스튜디오 도형·지우개 창.
+- 부록 C 키: `editor.toolbar.pill`, `editor.toolbar.slim`, `editor.floatingBar`, `editor.railMenu`, `editor.rail`, `editor.rail.scroll`, `editor.rail.color.<n>`, `editor.rail.width.<n>`.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)
@@ -3272,3 +3312,4 @@ EDITOR는 플러그인을 쓰지 않으므로 **네이티브 요구가 없다**(
 | `editor.pen.type.<PenTool.name>` | 펜 종류 칸(1차 규칙 그대로 — 10종) |
 | `editor.addPage.image.<source>` | 페이지 추가 시트 이미지 출처 |
 | `editor.settings.gesture.<EditorGesture.name>` | 설정 제스처 줄 |
+| `editor.toolbar.pill` · `editor.toolbar.slim` · `editor.floatingBar` · `editor.railMenu` · `editor.rail` · `editor.rail.scroll` · `editor.rail.color.<n>` · `editor.rail.width.<n>` | (v2.16-ui, 24절) 미니멀 알약·스튜디오 위 막대·레일 |

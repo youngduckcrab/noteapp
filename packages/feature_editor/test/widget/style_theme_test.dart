@@ -57,11 +57,19 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 100));
 
-        // The toolbar's Material and the viewport's desk.
-        final toolbar = find.byType(EditorToolbar);
-        final material = tester.widget<Material>(
-          find.descendant(of: toolbar, matching: find.byType(Material)).first,
-        );
+        // The toolbar's Material and the viewport's desk. (v2.16-ui) In
+        // 미니멀 the bar is the floating pill.
+        final floating = style == AppStyle.calm;
+        final toolbar = floating
+            ? find.byKey(EditorToolbar.pillKey)
+            : find.byType(EditorToolbar);
+        final material = floating
+            ? tester.widget<Material>(toolbar)
+            : tester.widget<Material>(
+                find
+                    .descendant(of: toolbar, matching: find.byType(Material))
+                    .first,
+              );
         expect(material.color, tokens.toolbar);
         final viewport = find.byType(PageViewport);
         final desk = tester.widget<ColoredBox>(
@@ -76,7 +84,7 @@ void main() {
         final bar = tester.getRect(toolbar);
         final barPixel = await _pixelAt(
           tester,
-          Offset(bar.width * 0.5, bar.top + 2),
+          Offset(bar.center.dx, bar.top + 2),
         );
         expect(_near(barPixel, tokens.toolbar), isTrue, reason: '$barPixel');
         final area = tester.getRect(viewport);

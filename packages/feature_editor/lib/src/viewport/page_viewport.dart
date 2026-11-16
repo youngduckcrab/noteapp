@@ -29,6 +29,7 @@ import '../text/text_box_editor.dart';
 import '../text/text_edit_session.dart';
 import '../text/text_input_sheet.dart';
 import '../tools/interaction_host.dart';
+import '../ui/chrome/editor_layout.dart';
 import '../ui/chrome/floating_layer.dart';
 import '../ui/dev/dev_overlay.dart';
 import '../ui/overlays/context_menu.dart';
@@ -86,6 +87,30 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     return _camera!;
   }
 
+  /// (v2.16-ui) The top inset waiting for the post-frame callback.
+  double? _pendingInset;
+
+  /// (v2.16-ui) The strip a floating bar covers (EditorShellScope) reaches
+  /// the controller like the size does: after the frame, before the size
+  /// (the first camera is placed with it).
+  void _reportInset(ViewportController viewport, double inset) {
+    if (inset == viewport.topInset) {
+      _pendingInset = null;
+      return;
+    }
+    final scheduled = _pendingInset != null || _pendingSize != null;
+    _pendingInset = inset;
+    if (scheduled) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final pending = _pendingInset;
+      _pendingInset = null;
+      if (!mounted || pending == null || !identical(_viewport, viewport)) {
+        return;
+      }
+      viewport.setTopInset(pending);
+    });
+  }
+
   void _reportSize(ViewportController viewport, Size size) {
     if (!size.isFinite || size == viewport.viewportSize) {
       _pendingSize = null;
@@ -102,6 +127,9 @@ class _PageViewportState extends ConsumerState<PageViewport> {
       if (!mounted || pending == null || !identical(_viewport, viewport)) {
         return;
       }
+      final inset = _pendingInset;
+      _pendingInset = null;
+      if (inset != null) viewport.setTopInset(inset);
       viewport.updateViewportSize(pending);
     });
   }
@@ -171,11 +199,13 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     bool editing,
   ) {
     final tokens = StyleTokens.of(context);
+    final inset = EditorShellScope.topInsetOf(context);
     return ColoredBox(
       // (v2.14-ui) the style's desk; the pages keep their paper colour.
       color: tokens.canvas,
       child: LayoutBuilder(
         builder: (context, constraints) {
+          _reportInset(viewport, inset);
           _reportSize(viewport, constraints.biggest);
           return Stack(
             fit: StackFit.expand,

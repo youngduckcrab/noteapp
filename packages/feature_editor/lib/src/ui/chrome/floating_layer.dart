@@ -8,18 +8,37 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../state/note_search.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../editor_strings.dart';
+import '../toolbar/editor_toolbar.dart';
 import '../toolbar/undo_redo_buttons.dart';
 import 'editor_chrome.dart';
+import 'editor_layout.dart';
 import 'pen_palette.dart';
 
 /// Stack over [child] (the PageViewport): only the floating buttons take
 /// pointers, everything else reaches the page. Positions are stored as
 /// fractions of the room they move in (EditorDeviceState), so a rotation or
 /// resize keeps them inside this box (inside the SafeArea).
+///
+/// (v2.16-ui — 04-editor 24.2) In 미니멀 also the floating toolbar pill
+/// (EditorShellScope.floatingBar), [barTop] under the top edge, centred,
+/// at most the area's width less [barSideMargin] on each side; the palette
+/// stays below its strip ([barZoneHeight]) as it does below the restore
+/// pill's.
 class EditorFloatingLayer extends ConsumerWidget {
   const EditorFloatingLayer({super.key, required this.child});
 
   final Widget child;
+
+  static const barKey = ValueKey('editor.floatingBar');
+
+  /// The pill's gap to the top edge and to the sides of the page area.
+  static const double barTop = 8;
+  static const double barSideMargin = 12;
+
+  /// The strip the floating pill covers (its gap, its height, a gap under
+  /// it): ViewportController.topInset in 미니멀.
+  static double barZoneHeight(BuildContext context) =>
+      barTop + EditorToolbar.heightOf(context) + 8;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,6 +48,7 @@ class EditorFloatingLayer extends ConsumerWidget {
     final detached = ref.watch(
       editorDeviceStateProvider.select((s) => s.paletteDetached),
     );
+    final bar = EditorShellScope.maybeOf(context)?.floatingBar;
     return LayoutBuilder(
       builder: (context, constraints) {
         final area = constraints.biggest;
@@ -39,8 +59,21 @@ class EditorFloatingLayer extends ConsumerWidget {
             if (detached)
               PenPalette(
                 area: area,
-                // The palette never covers the restore pill.
-                topInset: hidden ? MenuRestorePill.zoneHeight : 0,
+                // The palette never covers the restore pill (nor the
+                // floating bar).
+                topInset: hidden
+                    ? MenuRestorePill.zoneHeight
+                    : bar != null
+                    ? barZoneHeight(context)
+                    : 0,
+              ),
+            if (bar != null)
+              Positioned(
+                key: barKey,
+                top: barTop,
+                left: barSideMargin,
+                right: barSideMargin,
+                child: bar,
               ),
             if (hidden) MenuRestorePill(area: area),
           ],

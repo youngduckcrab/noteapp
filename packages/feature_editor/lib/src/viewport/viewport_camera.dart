@@ -87,12 +87,18 @@ abstract final class CameraMath {
   /// Horizontal (paged) layout: the main-axis range also reaches the first
   /// and the last page centred, so every page can be shown centred at its
   /// fit scale (the leading padding alone is narrower than that margin).
+  ///
+  /// (v2.16-ui) [leadingInset] (logical px, vertical layout only): the top
+  /// strip of the viewport a floating bar covers (미니멀). The document may
+  /// scroll that much further down, so its top can sit just under the bar,
+  /// and a short document is centred in the room under it.
   static ViewportCamera clamp(
     ViewportCamera camera,
     PageLayout layout,
     Size viewport,
-    double fitScale,
-  ) {
+    double fitScale, {
+    double leadingInset = 0,
+  }) {
     const m = ViewportConstants.sideMargin;
     final scale = clampScale(camera.scale, fitScale);
     final vertical = layout.axis == LayoutAxis.vertical;
@@ -116,7 +122,8 @@ abstract final class CameraMath {
     final content = vertical
         ? layout.contentSize.height
         : layout.contentSize.width;
-    var low = 0.0;
+    final inset = vertical ? math.max(0.0, leadingInset) / scale : 0.0;
+    var low = -inset;
     var high = content - visMain;
     if (!vertical && layout.length > 0) {
       low = math.min(low, layout.rectOf(0).center.dx - visMain / 2);
@@ -124,8 +131,8 @@ abstract final class CameraMath {
       high = math.max(high, last);
     }
     final double main;
-    if (vertical && content <= visMain) {
-      main = (content - visMain) / 2;
+    if (vertical && content <= visMain - inset) {
+      main = (content - visMain - inset) / 2;
     } else if (high <= low) {
       main = (low + high) / 2;
     } else {
@@ -161,6 +168,7 @@ abstract final class CameraMath {
     required PageLayout layout,
     required Size viewport,
     required double fitScale,
+    double leadingInset = 0,
   }) {
     final newScale = clampScale(base.scale * scaleRatio, fitScale);
     final anchor = base.screenToDoc(baselineFocal);
@@ -169,6 +177,7 @@ abstract final class CameraMath {
       layout,
       viewport,
       fitScale,
+      leadingInset: leadingInset,
     );
   }
 }

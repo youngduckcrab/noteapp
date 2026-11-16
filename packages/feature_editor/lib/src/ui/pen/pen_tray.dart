@@ -86,11 +86,27 @@ class TrayPen {
 /// ([outerHeightOf]): in a 64 px 크래프트 bar the well is 56 px and about
 /// 42 px of each drawing shows; a lifted pen rises ~11 px and stays inside
 /// the bar.
+///
+/// (v2.16-ui — 04-editor 24) With [axis] vertical (스튜디오's left rail) the
+/// slots stack top to bottom, the drawings lie pointing right (their backs
+/// in the rail's left wall), the lifted pen slides out to the right, the
+/// hover label and the popups open to the right of it.
 class PenTray extends ConsumerWidget {
-  const PenTray({super.key, required this.capacity, this.onPicked});
+  const PenTray({
+    super.key,
+    required this.capacity,
+    this.onPicked,
+    this.axis = Axis.horizontal,
+  });
 
   /// Most pens shown (the toolbar gives 8, 5 or 3 by its width).
   final int capacity;
+
+  /// (v2.16-ui) Horizontal in a top bar or the palette; vertical in the
+  /// rail.
+  final Axis axis;
+
+  bool get _vertical => axis == Axis.vertical;
 
   /// Called after a tap switched pens (the floating palette closes).
   final VoidCallback? onPicked;
@@ -141,6 +157,22 @@ class PenTray extends ConsumerWidget {
   static double widthFor(int pens) =>
       2 * _padding + 2 + pens * slotWidth + _divider + slotWidth;
 
+  /// (v2.16-ui) A vertical tray's slot: [railSlotWidth] × [height].
+  static const double railSlotWidth = 74;
+
+  /// (v2.16-ui) The vertical tray's outer width (the slot and the rim).
+  static const double railWidth = railSlotWidth + 2;
+
+  /// (v2.16-ui) The vertical tray's height with [pens] pens and the eraser.
+  static double heightFor(int pens) =>
+      2 * _padding + 2 + pens * height + _divider + height;
+
+  /// (v2.16-ui) How much of a lying drawing shows right of the rail's wall,
+  /// resting / lifted (the tip; the back stays in the wall).
+  static const double _railShown = 48;
+  static double railLeftOf({required bool lifted}) =>
+      (lifted ? _railShown + _lift : _railShown) - artSize.height;
+
   /// The drawing's size.
   static const Size artSize = Size(26, 80);
 
@@ -155,6 +187,9 @@ class PenTray extends ConsumerWidget {
     final anchors = PopupHost.maybeAnchorsOf(context);
     // An open popup of the tray places itself again after this build.
     anchors?.scheduleTrayMoved();
+    // (v2.16-ui) Its popups open beside a vertical tray (only one tray is
+    // mounted at a time).
+    anchors?.trayAxis = axis;
     final tokens = StyleTokens.of(context);
     final look = PenTrayStyle.of(tokens);
     // (v2.15-ui review) A stored 수식 펜 / 텍스트 펜 without its slot draws
@@ -173,7 +208,7 @@ class PenTray extends ConsumerWidget {
     final eraserActive = tools.activeTool == EditorTool.eraser;
     final (:pens, :current) = trayPensOf(presets, tools.currentPen, capacity);
 
-    final slotHeight = slotHeightOf(tokens);
+    final slotHeight = _vertical ? height : slotHeightOf(tokens);
     final slots = <Widget>[
       for (var i = 0; i < pens.length; i++)
         _penSlot(
@@ -186,12 +221,15 @@ class PenTray extends ConsumerWidget {
           slotHeight,
         ),
     ];
+    Widget lying(Widget art) =>
+        _vertical ? RotatedBox(quarterTurns: 1, child: art) : art;
     final eraser = CompositedTransformTarget(
       link: anchors?.eraser ?? LayerLink(),
       child: _TraySlot(
         boxKey: anchors?.eraserBox,
         slotHeight: slotHeight,
         key: EditorToolbar.eraserKey,
+        axis: axis,
         lifted: eraserActive,
         look: look,
         label: EditorStrings.eraser,
@@ -211,26 +249,44 @@ class PenTray extends ConsumerWidget {
             .read(editorPopupProvider.notifier)
             .open(const EraserSettingsPopup()),
         child: look.hasWell
-            ? EraserArt(
-                key: artKey,
-                width: artSize.width,
-                height: artSize.height,
+            ? lying(
+                EraserArt(
+                  key: artKey,
+                  width: artSize.width,
+                  height: artSize.height,
+                ),
               )
             : _FlatEraser(active: eraserActive, look: look),
       ),
     );
 
+    // (v2.16-ui) A vertical well opens to the right: its recess shadow
+    // runs down the right edge, the drawings' backs are clipped at the left.
+    final wellBegin = _vertical ? Alignment.centerRight : Alignment.topCenter;
+    final wellEnd = _vertical ? Alignment.centerLeft : Alignment.bottomCenter;
+    final divider = Container(
+      width: _vertical ? railSlotWidth - 14 : 1,
+      height: _vertical ? 1 : slotHeight - 14,
+      margin: _vertical
+          ? const EdgeInsets.symmetric(vertical: 6)
+          : const EdgeInsets.symmetric(horizontal: 6),
+      color: look.divider,
+    );
+    final children = [...slots, divider, eraser];
     Widget tray = Container(
       key: trayKey,
       // The 1 px rim around the slots.
-      height: slotHeight + 2,
-      padding: const EdgeInsets.symmetric(horizontal: _padding),
+      height: _vertical ? null : slotHeight + 2,
+      width: _vertical ? railWidth : null,
+      padding: _vertical
+          ? const EdgeInsets.symmetric(vertical: _padding)
+          : const EdgeInsets.symmetric(horizontal: _padding),
       decoration: look.hasWell
           ? BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: wellBegin,
+                end: wellEnd,
                 colors: [look.wellTop, look.wellBottom],
               ),
               border: Border.all(color: look.wellBorder),
@@ -240,8 +296,8 @@ class PenTray extends ConsumerWidget {
           ? BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: wellBegin,
+                end: wellEnd,
                 colors: [
                   look.innerShadow,
                   look.innerShadow.withValues(alpha: 0),
@@ -251,20 +307,12 @@ class PenTray extends ConsumerWidget {
             )
           : null,
       child: ClipRect(
-        clipper: const _OpenTopClipper(),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ...slots,
-            Container(
-              width: 1,
-              height: slotHeight - 14,
-              margin: const EdgeInsets.symmetric(horizontal: 6),
-              color: look.divider,
-            ),
-            eraser,
-          ],
-        ),
+        clipper: _vertical
+            ? const _OpenRightClipper()
+            : const _OpenTopClipper(),
+        child: _vertical
+            ? Column(mainAxisSize: MainAxisSize.min, children: children)
+            : Row(mainAxisSize: MainAxisSize.min, children: children),
       ),
     );
     if (readOnly) {
@@ -301,6 +349,7 @@ class PenTray extends ConsumerWidget {
     final label = penLabelOf(pen.style);
     final slot = _TraySlot(
       key: pen.isLoose ? looseKey : slotKey(pen.presetId!),
+      axis: axis,
       slotHeight: slotHeight,
       lifted: lifted,
       look: look,
@@ -324,13 +373,24 @@ class PenTray extends ConsumerWidget {
         popups.open(QuickPenPopup(globalPosition: at, presetId: pen.presetId));
       },
       child: look.hasWell
-          ? PenArt.of(
-              pen.style,
-              key: artKey,
-              width: artSize.width,
-              height: artSize.height,
-              rimLight: look.rimLight,
-            )
+          ? (_vertical
+                ? RotatedBox(
+                    quarterTurns: 1,
+                    child: PenArt.of(
+                      pen.style,
+                      key: artKey,
+                      width: artSize.width,
+                      height: artSize.height,
+                      rimLight: look.rimLight,
+                    ),
+                  )
+                : PenArt.of(
+                    pen.style,
+                    key: artKey,
+                    width: artSize.width,
+                    height: artSize.height,
+                    rimLight: look.rimLight,
+                  ))
           : _StrokeChip(style: pen.style, active: lifted, look: look),
     );
     return isCurrent
@@ -346,6 +406,19 @@ class _OpenTopClipper extends CustomClipper<Rect> {
   @override
   Rect getClip(Size size) =>
       Rect.fromLTRB(-40, -40, size.width + 40, size.height);
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
+}
+
+/// (v2.16-ui) The vertical tray's: the lifted pen's tip stands out to the
+/// right; the drawings' backs are clipped at the rail's wall.
+class _OpenRightClipper extends CustomClipper<Rect> {
+  const _OpenRightClipper();
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, -40, size.width + 40, size.height + 40);
 
   @override
   bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
@@ -512,6 +585,7 @@ class _TraySlot extends StatefulWidget {
   const _TraySlot({
     super.key,
     this.boxKey,
+    this.axis = Axis.horizontal,
     required this.slotHeight,
     required this.lifted,
     required this.look,
@@ -525,6 +599,10 @@ class _TraySlot extends StatefulWidget {
 
   /// A GlobalKey on the slot's box (the eraser popup is placed by it).
   final GlobalKey? boxKey;
+
+  /// (v2.16-ui) The tray's axis: vertical slots are [PenTray.railSlotWidth]
+  /// wide, their drawing lies pointing right.
+  final Axis axis;
   final double slotHeight;
   final bool lifted;
   final PenTrayStyle look;
@@ -571,9 +649,14 @@ class _TraySlotState extends State<_TraySlot> {
   }
 
   /// Under the slot, left-aligned (the quick pen / popups open there).
+  /// (v2.16-ui) Right of a vertical slot, top-aligned.
   Offset _popupPoint() {
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return Offset.zero;
+    if (widget.axis == Axis.vertical) {
+      return box.localToGlobal(box.size.topRight(Offset.zero)) +
+          const Offset(0, -12);
+    }
     // _AtPointLayout adds 12 px right and below: the popup's top is 12 px
     // under the slot, clear of the toolbar's edge.
     return box.localToGlobal(box.size.bottomLeft(Offset.zero)) +
@@ -585,7 +668,77 @@ class _TraySlotState extends State<_TraySlot> {
     final look = widget.look;
     final up = widget.lifted;
     final tokens = StyleTokens.of(context);
-    final art = look.hasWell
+    final vertical = widget.axis == Axis.vertical;
+    final art = look.hasWell && vertical
+        ? Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // (v2.16-ui) A soft light behind the pen in the hand.
+              Positioned.fill(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 160),
+                  opacity: up ? 1 : 0,
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(2, 3, 2, 3),
+                    decoration: BoxDecoration(
+                      color: tokens.accent.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+              // The shadow under the lifted pen (it lies to the right).
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 160),
+                opacity: up ? 1 : 0,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    margin: EdgeInsets.only(
+                      left: PenTray.railSlotWidth - PenTray._railShown - 26,
+                    ),
+                    width: PenTray._railShown + 6,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: look.liftShadow,
+                          blurRadius: 8,
+                          offset: const Offset(5, 3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                top: (widget.slotHeight - PenTray.artSize.width) / 2,
+                left: PenTray.railLeftOf(lifted: up),
+                child: widget.child,
+              ),
+              // The mark at the wall: this one is in the hand.
+              Positioned(
+                left: 0,
+                top: (widget.slotHeight - 26) / 2,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 160),
+                  opacity: up ? 1 : 0,
+                  child: Container(
+                    width: 3,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: look.activeMark,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          )
+        : look.hasWell
         ? Stack(
             clipBehavior: Clip.none,
             children: [
@@ -653,7 +806,10 @@ class _TraySlotState extends State<_TraySlot> {
             overlayChildBuilder: (context) => Positioned.fill(
               child: IgnorePointer(
                 child: CustomSingleChildLayout(
-                  delegate: _HoverLabelLayout(_slotRectIn(context)),
+                  delegate: _HoverLabelLayout(
+                    _slotRectIn(context),
+                    beside: vertical,
+                  ),
                   child: Container(
                     key: PenTray.hoverLabelKey,
                     padding: const EdgeInsets.symmetric(
@@ -676,7 +832,7 @@ class _TraySlotState extends State<_TraySlot> {
             ),
             child: SizedBox(
               key: widget.boxKey,
-              width: PenTray.slotWidth,
+              width: vertical ? PenTray.railSlotWidth : PenTray.slotWidth,
               height: widget.slotHeight,
               child: art,
             ),
@@ -701,9 +857,12 @@ class _TraySlotState extends State<_TraySlot> {
 /// The hover label: centred [_gap] under the slot, moved sideways to stay
 /// [_margin] inside the screen (a tray left of centre in portrait).
 class _HoverLabelLayout extends SingleChildLayoutDelegate {
-  const _HoverLabelLayout(this.slot);
+  const _HoverLabelLayout(this.slot, {this.beside = false});
 
   final Rect? slot;
+
+  /// (v2.16-ui) Right of the slot, centred on it (a vertical tray).
+  final bool beside;
 
   static const double _gap = 6;
   static const double _margin = 8;
@@ -716,6 +875,13 @@ class _HoverLabelLayout extends SingleChildLayoutDelegate {
   Offset getPositionForChild(Size size, Size child) {
     final r = slot;
     if (r == null) return Offset.zero;
+    if (beside) {
+      final maxY = size.height - child.height - _margin;
+      final y = maxY <= _margin
+          ? _margin
+          : (r.center.dy - child.height / 2).clamp(_margin, maxY);
+      return Offset(r.right + _gap, y.toDouble());
+    }
     final maxX = size.width - child.width - _margin;
     final x = maxX <= _margin
         ? _margin
@@ -724,5 +890,6 @@ class _HoverLabelLayout extends SingleChildLayoutDelegate {
   }
 
   @override
-  bool shouldRelayout(_HoverLabelLayout old) => old.slot != slot;
+  bool shouldRelayout(_HoverLabelLayout old) =>
+      old.slot != slot || old.beside != beside;
 }

@@ -156,6 +156,14 @@ abstract final class EditorStrings {
 
   /// Quick pen.
   static const quickPenHint = '길게 눌러 빠르게 바꾸기';
+
+  // (v2.16-ui — 04-editor 24) 스튜디오's rail.
+  static const railPens = '펜';
+  static const railTools = '도구';
+  static const railColors = '색';
+  static const railWidths = '굵기';
+  static const railWidthNames = ['가늘게', '보통', '굵게'];
+  static const railToolbar = '도구 레일';
   static const quickPenReorder = '순서 바꾸기';
   static const quickPenUnpin = '트레이에서 빼기';
   static const quickPenOpenPicker = '펜 고르기';

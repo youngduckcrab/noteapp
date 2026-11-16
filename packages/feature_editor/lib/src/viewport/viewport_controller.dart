@@ -150,6 +150,42 @@ class ViewportController extends ChangeNotifier {
   Completer<void>? _animationDone;
   bool _disposed = false;
 
+  /// (v2.16-ui) The top strip (logical px) a floating bar covers over the
+  /// page area (미니멀's pill; 0 elsewhere): the document can scroll down
+  /// past it and a page jump puts the page top under it — the first line
+  /// is never hidden behind the bar. Vertical layout only.
+  double _topInset = 0;
+  double get topInset => _topInset;
+
+  /// Sets [topInset]. Before the first camera it only takes the value (the
+  /// first placement uses it); later it keeps the camera inside the new
+  /// bounds and notifies.
+  void setTopInset(double px) {
+    final value = px.isFinite ? math.max(0.0, px) : 0.0;
+    if (_disposed || value == _topInset) return;
+    final was = _topInset;
+    _topInset = value;
+    if (!_placed || !_valid) return;
+    // At the top before: stay at the top (the page moves under / out from
+    // under the bar with it).
+    final atTop =
+        _vertical && (_camera.origin.dy + was / _camera.scale).abs() < 0.5;
+    var next = _camera;
+    if (atTop) {
+      next = ViewportCamera(
+        scale: _camera.scale,
+        origin: Offset(_camera.origin.dx, -value / _camera.scale),
+      );
+    }
+    final clamped = _clamp(next);
+    if (clamped == _camera) {
+      notifyListeners();
+    } else {
+      _setCamera(clamped);
+      _scheduleSettle();
+    }
+  }
+
   ViewportCamera get camera => _camera;
   PageLayout get layout => _layout;
   Size get viewportSize => _viewportSize;
@@ -415,6 +451,7 @@ class ViewportController extends ChangeNotifier {
       layout: _layout,
       viewport: _viewportSize,
       fitScale: _fitScale,
+      leadingInset: _topInset,
     );
     if (next.scale != base.scale) _gestureScaled = true;
     // Two fingers never keep an exact spread: only a real pinch stops a pull.
@@ -861,8 +898,13 @@ class ViewportController extends ChangeNotifier {
   double _fitFor(int index) =>
       CameraMath.fitScale(_layout, _viewportSize, pageIndex: index);
 
-  ViewportCamera _clamp(ViewportCamera c) =>
-      CameraMath.clamp(c, _layout, _viewportSize, _fitScale);
+  ViewportCamera _clamp(ViewportCamera c) => CameraMath.clamp(
+    c,
+    _layout,
+    _viewportSize,
+    _fitScale,
+    leadingInset: _topInset,
+  );
 
   int _computeCurrentPage() {
     if (_layout.length == 0) return 0;
@@ -965,7 +1007,7 @@ class ViewportController extends ChangeNotifier {
     final r = _layout.rectOf(index);
     const half = ViewportConstants.pageGap / 2;
     final origin = _vertical
-        ? Offset(_camera.origin.dx, r.top - half)
+        ? Offset(_camera.origin.dx, r.top - half - _topInset / scale)
         : Offset(r.left - half, _camera.origin.dy);
     return _clamp(ViewportCamera(scale: scale, origin: origin));
   }

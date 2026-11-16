@@ -36,6 +36,18 @@ class PopupAnchors {
   final LayerLink shape = LayerLink();
   final LayerLink text = LayerLink();
 
+  /// (v2.16-ui — 04-editor 24) The axis of the mounted pen tray (set by it
+  /// while it builds): its popups open to the right of a vertical tray (스
+  /// 튜디오's rail) instead of under it.
+  Axis trayAxis = Axis.horizontal;
+
+  /// (v2.16-ui) Whether the shape and text buttons stand in the rail (set
+  /// by them while they build): their popups open to the right of them, by
+  /// the rects of [shapeBox] / [textBox].
+  bool toolsBeside = false;
+  final GlobalKey shapeBox = GlobalKey(debugLabel: 'editor.railShape');
+  final GlobalKey textBox = GlobalKey(debugLabel: 'editor.railText');
+
   /// (v2.15-ui review) Bumped after the pen tray was built again (another
   /// width, capacity, rotation, the palette moved): an open tray popup
   /// places itself again by the new rect.
@@ -287,7 +299,15 @@ class _PopupLayer extends ConsumerWidget {
     final trayBox = switch (layout.link) {
       LinkPick.pen => anchors.penBox,
       LinkPick.eraser => anchors.eraserBox,
+      // (v2.16-ui) The rail's shape and text buttons: beside them.
+      LinkPick.shape when anchors.toolsBeside => anchors.shapeBox,
+      LinkPick.text when anchors.toolsBeside => anchors.textBox,
       _ => null,
+    };
+    final beside = switch (layout.link) {
+      LinkPick.pen || LinkPick.eraser => anchors.trayAxis == Axis.vertical,
+      LinkPick.shape || LinkPick.text => anchors.toolsBeside,
+      null => false,
     };
     final link = at != null || menuHidden || trayBox != null
         ? null
@@ -333,6 +353,7 @@ class _PopupLayer extends ConsumerWidget {
                 delegate: _BelowAnchorLayout(
                   anchors._placeBy(_boxRect(context, trayBox!)),
                   centred: layout.link == LinkPick.pen,
+                  beside: beside,
                 ),
                 child: panel,
               ),
@@ -387,11 +408,20 @@ Rect? _boxRect(BuildContext context, GlobalKey box) {
 /// anchor instead when there is more room above and too little below for
 /// [_comfortable] (the floating palette low on the screen); centred on the
 /// screen when the anchor is not laid out.
+///
+/// (v2.16-ui) With [beside]: right of the anchor (a vertical tray, the
+/// rail's tools), its top at the anchor's top, moved up to stay inside the
+/// screen.
 class _BelowAnchorLayout extends SingleChildLayoutDelegate {
-  const _BelowAnchorLayout(this.anchor, {this.centred = true});
+  const _BelowAnchorLayout(
+    this.anchor, {
+    this.centred = true,
+    this.beside = false,
+  });
 
   final Rect? anchor;
   final bool centred;
+  final bool beside;
 
   /// (owner review) Clear of the toolbar's edge, not glued to it.
   static const double _gap = 12;
@@ -412,6 +442,14 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     final a = anchor;
     final size = constraints.biggest;
+    if (beside && a != null) {
+      return BoxConstraints.loose(
+        Size(
+          math.max(0, size.width - a.right - _gap - _margin),
+          math.max(0, size.height - 2 * _margin),
+        ),
+      );
+    }
     final room = a == null
         ? size.height - 2 * _margin
         : _above(size)
@@ -434,6 +472,11 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
         (size.height - child.height) / 2,
       );
     }
+    if (beside) {
+      final maxY = size.height - child.height - _margin;
+      final y = maxY <= _margin ? _margin : a.top.clamp(_margin, maxY);
+      return Offset(a.right + _gap, y.toDouble());
+    }
     final maxX = size.width - child.width - _margin;
     final want = centred ? a.center.dx - child.width / 2 : a.left;
     final x = maxX <= _margin ? _margin : want.clamp(_margin, maxX);
@@ -443,7 +486,9 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_BelowAnchorLayout oldDelegate) =>
-      oldDelegate.anchor != anchor || oldDelegate.centred != centred;
+      oldDelegate.anchor != anchor ||
+      oldDelegate.centred != centred ||
+      oldDelegate.beside != beside;
 }
 
 /// A popup opened at a point (v2 — the pencil's hover point): its top-left
