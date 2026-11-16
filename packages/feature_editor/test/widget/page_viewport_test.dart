@@ -287,6 +287,56 @@ void main() {
     );
   });
 
+  testWidgets('(v2.13-perf) pan and fling at the same scale: interacting, '
+      'but InkPageView.isScaling stays false', (tester) async {
+    final h = await pumpEditor(tester);
+    final viewport = h.viewport;
+    String id() => h.pageId(viewport.currentPageIndex.value);
+    final centre = viewport.viewportSize.center(Offset.zero);
+
+    viewport.beginGesture();
+    for (var k = 1; k <= 10; k++) {
+      viewport.updateGesture(
+        baselineFocal: centre,
+        focal: centre - Offset(0, 8.0 * k),
+        scaleRatio: 1,
+        rebased: false,
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(viewport.isInteracting.value, isTrue);
+      expect(
+        _inkViewOf(tester, id()).isScaling,
+        isFalse,
+        reason: 'pan frame $k: tiles keep being made',
+      );
+      expect(_inkViewOf(tester, id()).ancestorScale, 1);
+    }
+    viewport.endGesture(const Velocity(pixelsPerSecond: Offset(0, -1500)));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(viewport.isInteracting.value, isTrue, reason: 'flinging');
+    expect(_inkViewOf(tester, id()).isScaling, isFalse, reason: 'fling');
+    await tester.pumpAndSettle();
+    expect(_inkViewOf(tester, id()).isScaling, isFalse);
+
+    // a pinch still is scaling, from its first scaled frame
+    viewport
+      ..beginGesture()
+      ..updateGesture(
+        baselineFocal: centre,
+        focal: centre,
+        scaleRatio: 1.2,
+        rebased: false,
+      );
+    await tester.pump();
+    expect(_inkViewOf(tester, id()).isScaling, isTrue);
+    viewport.endGesture(Velocity.zero);
+    await tester.pumpAndSettle();
+    await tester.pump(ViewportConstants.settleDelay * 2);
+    await tester.pump();
+    expect(_inkViewOf(tester, id()).isScaling, isFalse);
+  });
+
   testWidgets('visiblePageRect: the on-screen part in page pt', (tester) async {
     final h = await pumpEditor(tester);
     final viewport = h.viewport;

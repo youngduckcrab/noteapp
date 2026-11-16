@@ -196,52 +196,32 @@ void main() {
     }
   });
 
-  testWidgets('tiles of chunks outside the visible rect + 1 chunk go 2 s '
-      'after the viewport changed', (tester) async {
+  testWidgets('(v2.13-perf) tiles of chunks outside the visible rect + 1 '
+      'chunk stay after 2 s: a mounted page keeps its whole page (the budget '
+      'LRU frees them, raster_scroll_test)', (tester) async {
     final c = _controller();
     addTearDown(c.dispose);
     await pumpPageView(tester, c);
     await rasterAllTiles(tester, c);
     final all = c.renderStats.rasterTiles;
-    // scrolled to the top left corner: keep = (−256, −256, 456, 456)
     const visible = ui.Rect.fromLTWH(0, 0, 200, 200);
     await tester.pumpWidget(pageViewApp(c, visiblePageRect: visible));
-    await tester.pump(const Duration(milliseconds: 1999));
-    expect(c.renderStats.rasterTiles, all, reason: 'not before 2 s');
-    await tester.pump(const Duration(milliseconds: 2));
-    final chunks = inkChunkCacheOf(c);
-    final kept = [
-      for (final i in _inkedChunks(c))
-        if (chunks.cellRectOf(i).overlaps(visible.inflate(256))) i,
-    ];
-    expect(kept.length, lessThan(all));
-    expect(c.renderStats.rasterTiles, kept.length);
-    expect(c.cachePool.stats.rasterTiles, kept.length);
-    for (final i in kept) {
-      expect(inkRasterTilesOf(c).has(i, 1.5), isTrue);
-    }
-    // scrolling on restarts the wait
+    await tester.pump(const Duration(milliseconds: 2001));
+    expect(
+      c.renderStats.rasterTiles,
+      all,
+      reason: 'scrolled back: no re-raster',
+    );
+    expect(c.cachePool.stats.rasterTiles, all);
+    // scrolling on: nothing to make again, nothing released
     await tester.pumpWidget(
       pageViewApp(c, visiblePageRect: const ui.Rect.fromLTWH(0, 600, 200, 200)),
     );
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pumpWidget(
-      pageViewApp(c, visiblePageRect: const ui.Rect.fromLTWH(0, 620, 200, 200)),
-    );
-    // the newly visible chunks get tiles once settled (150 ms)
+    final made = tilesMade(c);
     await rasterAllTiles(tester, c);
-    final keep2 = const ui.Rect.fromLTWH(0, 620, 200, 200).inflate(256);
-    for (final i in _inkedChunks(c)) {
-      if (chunks.cellRectOf(i).overlaps(keep2)) {
-        expect(inkRasterTilesOf(c).has(i, 1.5), isTrue, reason: 'chunk $i');
-      }
-    }
     await tester.pump(const Duration(milliseconds: 2001));
-    for (var i = 0; i < chunks.chunkCount; i++) {
-      if (!chunks.cellRectOf(i).overlaps(keep2)) {
-        expect(inkRasterTilesOf(c).has(i, 1.5), isFalse, reason: 'chunk $i');
-      }
-    }
+    expect(tilesMade(c), made);
+    expect(c.renderStats.rasterTiles, all);
   });
 
   testWidgets('every tile records its toImageSync time (tileRaster)', (

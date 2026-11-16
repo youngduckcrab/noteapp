@@ -198,7 +198,7 @@ class _InkLayerState extends State<_InkLayer> {
       return ink.InkPageView(
         controller: widget.controller,
         ancestorScale: settled > 0 ? v.camera.scale / settled : 1,
-        isScaling: v.isInteracting.value,
+        isScaling: v.isScaling,
         visiblePageRect: _visiblePageRect(v),
       );
     },

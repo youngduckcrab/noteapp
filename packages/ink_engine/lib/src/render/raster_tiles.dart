@@ -87,6 +87,19 @@ final class RasterTile {
   void dispose() => image.dispose();
 }
 
+/// The image size of a [chunkRect] tile at [bucket] (device px).
+(int, int) _tilePixels(ui.Rect chunkRect, double bucket) => (
+  (chunkRect.width * bucket - 1e-6).ceil().clamp(1, 16384),
+  (chunkRect.height * bucket - 1e-6).ceil().clamp(1, 16384),
+);
+
+/// (v2.13-perf) The bytes [rasterizeChunk] would take for [chunkRect] at
+/// [bucket] (RGBA).
+int rasterTileBytes(ui.Rect chunkRect, double bucket) {
+  final (w, h) = _tilePixels(chunkRect, bucket);
+  return w * h * 4;
+}
+
 /// 6.13-4: [picture] + [appended] (page pt) cut to [chunkRect] at [bucket]
 /// device px per pt, via Picture.toImageSync.
 RasterTile rasterizeChunk({
@@ -96,8 +109,7 @@ RasterTile rasterizeChunk({
   required double bucket,
   required int generation,
 }) {
-  final w = (chunkRect.width * bucket - 1e-6).ceil().clamp(1, 16384);
-  final h = (chunkRect.height * bucket - 1e-6).ceil().clamp(1, 16384);
+  final (w, h) = _tilePixels(chunkRect, bucket);
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder)
     ..scale(bucket)
@@ -153,6 +165,31 @@ final class RasterTileLru implements RasterLedgerMember {
 
   /// (T35) The shared ledger (web), or null.
   InkRasterLedger? get ledger => _ledger;
+
+  /// (v2.13-perf) Bytes that can still be stored without evicting anything
+  /// (the shared ledger's total on the web).
+  int get freeBytes => budgetBytes - (_ledger?.bytes ?? _bytes);
+
+  /// (v2.13-perf) Tiles made in the current frame by every page sharing this
+  /// LRU ([countFrameTile]); [resetFrameTiles] at the end of the frame.
+  int get frameTiles => _frameTiles;
+  int _frameTiles = 0;
+
+  /// One more tile made this frame; true when it is the first one (the
+  /// caller then arranges [resetFrameTiles] after the frame).
+  bool countFrameTile() => _frameTiles++ == 0;
+
+  void resetFrameTiles() => _frameTiles = 0;
+
+  /// (v2.13-perf) Makes the tiles [test] accepts the most recently used, in
+  /// their order (the visible ones: the budget evicts the others first).
+  void touchWhere(bool Function(RasterTileKey key) test) {
+    final keys = [
+      for (final k in _tiles.keys)
+        if (test(k)) k,
+    ];
+    keys.forEach(use);
+  }
 
   /// The tile of [key], now the most recently used.
   RasterTile? use(RasterTileKey key) {
@@ -317,6 +354,22 @@ final class PageRasterTiles implements RasterTileOwner {
   bool has(int chunk, double bucket) => _lru.peek(_key(chunk, bucket)) != null;
 
   bool wasEvicted(int chunk) => _evicted.contains(chunk);
+
+  /// (v2.13-perf) [bytes] fit in the budget without evicting a tile.
+  bool fitsFree(int bytes) => _lru.freeBytes >= bytes;
+
+  /// (v2.13-perf) Tiles made this frame by every page of the LRU.
+  int get frameTiles => _lru.frameTiles;
+
+  /// (v2.13-perf) Counts a tile made this frame; true for the frame's first.
+  bool countFrameTile() => _lru.countFrameTile();
+
+  void resetFrameTiles() => _lru.resetFrameTiles();
+
+  /// (v2.13-perf) The tiles of the chunks [test] accepts become the most
+  /// recently used.
+  void touchWhere(bool Function(int chunk) test) =>
+      _lru.touchWhere((key) => identical(key.owner, this) && test(key.chunk));
 
   /// The tile to draw for [chunk] (6.13-5): the [bucket] tile, else the
   /// nearest finer one, else the nearest coarser one (stretched); null →

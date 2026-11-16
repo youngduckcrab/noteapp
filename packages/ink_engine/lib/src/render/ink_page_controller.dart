@@ -39,6 +39,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:meta/meta.dart' as meta;
 import 'package:note_core/note_core.dart' as core;
 
@@ -880,6 +881,14 @@ final class InkPageController extends ChangeNotifier {
       _rasterSchedule.viewportChanged(isScaling: isScaling);
     }
     if (visibleChanged) {
+      // (v2.13-perf) the visible tiles become the most recently used: tiles
+      // made for a neighbour page or for a new visible chunk evict the others
+      // first (a page that only moves is not repainted, so drawing alone
+      // does not keep them in front).
+      final near = _nearRect();
+      if (near != null) {
+        _tiles.touchWhere((i) => _chunks.cellRectOf(i).overlaps(near));
+      }
       _rasterSchedule.scheduleRelease();
       _rasterQuiet();
     }
@@ -1825,11 +1834,21 @@ final class InkPageController extends ChangeNotifier {
     var tiles = 0;
     final bucket = config.rasterTiles ? _bucket : null;
     if (bucket != null && _rasterAllowed) {
-      while (tiles < config.maxTileRastersPerFrame && !outOfTime()) {
+      // (v2.13-perf) maxTileRastersPerFrame counts the tiles of every page of
+      // the pool in this frame: the visible page and its mounted neighbours
+      // never make their tiles in the same raster frame.
+      while (_tiles.frameTiles < config.maxTileRastersPerFrame &&
+          !outOfTime()) {
         final next = _nextTileChunk(bucket, order);
         if (next == null) break;
         _rasterTile(next, bucket);
         tiles++;
+        if (_tiles.countFrameTile()) {
+          final tilesOfPool = _tiles;
+          SchedulerBinding.instance.addPostFrameCallback(
+            (_) => tilesOfPool.resetFrameTiles(),
+          );
+        }
       }
       more |= _nextTileChunk(bucket, order) != null;
     }
@@ -1863,35 +1882,47 @@ final class InkPageController extends ChangeNotifier {
       _rasterSchedule.quiet &&
       activeSession == null;
 
-  /// 6.13-3: the first chunk of [order] (visible, nearest the centre) within
-  /// the visible rect + 1 chunk that has strokes and no [bucket] tile.
+  /// 6.13-3: the first chunk of [order] (visible, nearest the centre) that
+  /// has strokes and no [bucket] tile. (v2.13-perf) Every chunk of a mounted
+  /// page may get one — the rest of a partly visible page (scrolled into view
+  /// next) and the whole of an off-screen neighbour (EDITOR: visible ±1,
+  /// visible rect empty) — but a chunk outside [_nearRect] only into free
+  /// budget: it never evicts a tile, so the visible ones keep theirs.
   int? _nextTileChunk(double bucket, List<int> order) {
-    final keep = _keepRect();
+    final near = _nearRect();
     for (final i in order) {
       if (_chunks.pictureOf(i) == null) continue;
       if (_chunks.strokeCountOf(i) == 0) continue;
-      if (!_chunks.cellRectOf(i).overlaps(keep)) continue;
       if (_tiles.wasEvicted(i) || _tiles.has(i, bucket)) continue;
+      if (near == null || !_chunks.cellRectOf(i).overlaps(near)) {
+        final bytes = rasterTileBytes(_chunks.pageRectOf(i), bucket);
+        if (!_tiles.fitsFree(bytes)) continue;
+      }
       return i;
     }
     return null;
   }
 
   /// The visible rect (whole page when null) + one chunk on every side
-  /// (6.13-7). (v2.13-perf) An empty visible rect is a page that is mounted
-  /// but off screen (EDITOR: visible ±1) — the next one to come into view, or
-  /// the one just left: the whole page, so its tiles are ready before it is
-  /// dragged in and kept while it is out.
+  /// (6.13-7): its chunks get tiles even when that evicts older ones. Null
+  /// for an empty visible rect (a mounted page off screen).
+  ui.Rect? _nearRect() {
+    final visible = _visiblePageRect;
+    if (visible == null) return _keepRect();
+    if (visible.isEmpty) return null;
+    return visible.inflate(config.chunkSizePt);
+  }
+
+  /// (v2.13-perf) The whole page + one chunk: a mounted page keeps every
+  /// tile it has (the next part to be scrolled in, the page just left); the
+  /// budget LRU frees the least recently used — not the visible ones,
+  /// [setViewport] touches those.
   ui.Rect _keepRect() {
     final content = _content;
     final page = content == null
         ? ui.Rect.zero
         : ui.Offset.zero & content.pageSize;
-    final visible = _visiblePageRect;
-    if (visible == null || visible.isEmpty) {
-      return page.inflate(config.chunkSizePt);
-    }
-    return visible.inflate(config.chunkSizePt);
+    return page.inflate(config.chunkSizePt);
   }
 
   /// 6.13-4: the chunk picture + appended pictures → toImageSync at
@@ -1949,8 +1980,10 @@ final class InkPageController extends ChangeNotifier {
     }
   }
 
-  /// 6.13-7: the tiles of chunks outside the visible rect + 1 chunk go
-  /// (releaseInvisibleAfterMs after the last viewport change).
+  /// 6.13-7: the tiles of chunks outside [_keepRect] go
+  /// (releaseInvisibleAfterMs after the last viewport change). (v2.13-perf)
+  /// That is the whole page now: what is not visible is freed by the budget
+  /// LRU (least recently used first) instead of by time.
   void _releaseInvisibleTiles() {
     if (_disposed) return;
     final keep = _keepRect();

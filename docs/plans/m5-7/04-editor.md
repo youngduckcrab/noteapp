@@ -2995,6 +2995,10 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 펜 고르기(`PenTypeSelector`)를 묶음으로 나눈다: **기본**(1차 두 줄 — 볼펜·만년필·형광펜·연필·마커 / 붓펜·캘리그래피·점선·레이저·암기 테이프), **질감**(크레파스·분필·수채·스프레이), **꾸미기**(네온·젤리·무지개·반짝이). 묶음마다 작은 제목(`penGroupName`, 키 `editor.pen.group.<basic|texture|decor>`), 줄은 언제나 5칸(짧은 줄도 칸 너비 유지). 이름은 잠금화면 앱의 펜 이름을 따른다. 아이콘: 크레파스 `format_paint`(볼펜 `edit`과 헷갈리지 않게 — 통합에서 바꿈), 분필 `school`, 수채 `water_drop`, 스프레이 `blur_on`, 네온 `lightbulb`, 젤리 `bubble_chart`, 무지개 `looks`, 반짝이 `auto_awesome`. 새 펜은 자동 도형 보정 대상이 아니다(`shapeAssistPen` — 맞춘 도형은 평범한 외곽선이라 펜 모양을 잃는다). 펜별 설정 줄(`PenExtrasControls`)은 아직 없다. 기본 프리셋 5개는 그대로.
 
+### 16.1 페이지 이동 중 `isScaling` (2026-11-16, v2.13-perf)
+
+질감 펜 페이지 넘김 버벅임(03-ink 14.1)의 편집기 쪽 원인: `_InkLayer`가 `InkPageView.isScaling`에 `isInteracting`을 넘겼는데, 이 값은 손가락 이동·플링·페이지 맞춤에서도 참이라 INK가 드래그 내내 래스터 타일을 만들지 않았다. 이제 `ViewportController.isScaling`(= `isInteracting`이면서 핀치로 배율이 바뀌었거나 `camera.scale ≠ settledScale`)을 넘긴다 — 같은 배율의 이동·플링·페이지 맞춤은 거짓, 핀치·확대 애니메이션·그 뒤 안정 대기는 참. 계약(`InkPageView.isScaling` = 확대가 움직이는 동안)은 그대로. 시험: `test/widget/page_viewport_test.dart` '이동·플링은 isScaling 거짓'(고치기 전 실패).
+
 ## 17. 페이지 패널 썸네일의 객체 (2026-11-16, v2.13-thumbs — 계약 표 바뀜 없음)
 
 증상: 페이지 패널(E-17)에서 사진·도형(텍스트 상자·수식도)이 사라지고 손글씨만 보였다. 원인: `ui/pages/page_panel_thumbnail.dart`가 경로 1(세션에 올라온 페이지)·경로 3(`loadPage`)에서 `ink.InkPageThumbnail`에 줄 `InkPageContent.fromCore(...)`를 `page`·`strokes`·`revision`만으로 만들어 `objects`를 빠뜨렸다(INK 위젯은 v2.0부터 객체를 L-1 순서로 그린다 — K-8). 경로 2(썸네일 캐시 PNG)는 INK 렌더러가 객체까지 그리므로 맞았다. 고침: `objects: content.objects`를 넘긴다. 객체 편집은 `PageContent.revision`(세션)과 `Page.contentRevision`(캐시 판단)을 둘 다 올리므로 기존 500 ms 새로 그림·`isStaleFor`가 그대로 객체 변경도 반영한다. 시험: `widget/page_panel_thumbnail_test.dart` 묶음 '(v2.13-thumbs)' — 세션 페이지의 채운 도형·이미지 객체가 썸네일 래스터 픽셀에 보이고, 도형을 옮기면 500 ms 뒤 새 자리에 보이며 옛 자리에는 없음, 경로 3에도 도형·텍스트 상자·수식이 넘어감.

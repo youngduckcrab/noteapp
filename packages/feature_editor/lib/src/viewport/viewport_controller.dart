@@ -166,6 +166,18 @@ class ViewportController extends ChangeNotifier {
   /// True during pinch/pan/fling/animation and for settleDelay after.
   ValueListenable<bool> get isInteracting => _isInteracting;
 
+  /// (v2.13-perf) True while the scale is changing: a pinch, a zoom
+  /// animation, or the settle wait after either (camera.scale ≠
+  /// settledScale). A pan, fling or page snap at the same scale is
+  /// [isInteracting] but not scaling — InkPageView.isScaling ("no re-raster
+  /// while zoom animates") gets this, so INK keeps making raster tiles for
+  /// the chunks scrolled into view. Read with [isInteracting] / the camera
+  /// (it changes only when one of them notifies).
+  bool get isScaling =>
+      _isInteracting.value &&
+      ((_gestureActive && _gestureScaled) ||
+          !_sameScale(_settledScale.value, _camera.scale));
+
   /// Page containing the viewport centre (nearest if in a gap).
   ValueListenable<int> get currentPageIndex => _currentPageIndex;
 
