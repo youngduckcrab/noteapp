@@ -30,26 +30,30 @@ class LibraryTopBar extends ConsumerStatefulWidget {
 }
 
 class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
+  /// The search icon was just pressed: the compact bar's field autofocuses
+  /// on the frame it mounts, and only then (m5-7/05-library 16 — a field
+  /// mounted again later, e.g. when selection mode ends, never takes the
+  /// focus by itself).
+  bool _focusOnOpen = false;
+
   void _closeCompactSearch(LibraryScope scope) {
     scope.compactSearchOpen.value = false;
     ref.read(librarySectionProvider(scope.routeFolderId).notifier).exitSearch();
   }
 
+  void _openCompactSearch(LibraryScope scope) {
+    _focusOnOpen = true;
+    scope.compactSearchOpen.value = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusOnOpen = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scope = LibraryScope.of(context);
-    final route = scope.routeFolderId;
-    // Leaving the search for another place (not the field going back to
-    // where the search started) closes the compact search bar.
-    ref.listen(librarySectionProvider(route), (previous, next) {
-      if (next is SearchSection || !scope.compactSearchOpen.value) return;
-      if (previous is SearchSection && previous.returnTo == next) return;
-      scope.compactSearchOpen.value = false;
-    });
     // Compact class: the search icon was pressed (the bar is the search
     // field). The bar is also the field whenever the section is a search.
-    // The screen owns the flag (system back closes the bar, m5-7/05-library
-    // 16).
+    // The screen owns the flag and closes it when the search is left
+    // (system back too, m5-7/05-library 16).
     return ValueListenableBuilder<bool>(
       valueListenable: scope.compactSearchOpen,
       builder: (context, compactSearchOpen, _) =>
@@ -66,8 +70,8 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
       key: ValueKey<FolderId?>(route),
       routeFolderId: route,
       // Only right after the user pressed the search icon (never on a
-      // route or section change, 6.14).
-      autofocus: compact && compactOpen,
+      // route or section change or a remount, 6.14).
+      autofocus: compact && compactOpen && _focusOnOpen,
     );
     if (compact && (compactOpen || section is SearchSection)) {
       return Material(
@@ -124,7 +128,7 @@ class _LibraryTopBarState extends ConsumerState<LibraryTopBar> {
               IconButton(
                 icon: const Icon(Icons.search),
                 tooltip: LibraryStrings.search,
-                onPressed: () => scope.compactSearchOpen.value = true,
+                onPressed: () => _openCompactSearch(scope),
               ),
               CompactListingMenu(
                 sortEnabled: sortEnabled,

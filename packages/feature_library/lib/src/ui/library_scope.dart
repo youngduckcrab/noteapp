@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId, NoteId, PageId;
 
 import 'layout/size_class.dart';
+import 'top_bar/library_search_field.dart' show LibrarySearchHandle;
 
 class LibraryScope extends InheritedWidget {
   const LibraryScope({
@@ -18,6 +19,7 @@ class LibraryScope extends InheritedWidget {
     required this.openDrawer,
     required this.closeDrawer,
     required this.compactSearchOpen,
+    required this.searchHandle,
     required this.screenContext,
     required super.child,
   });
@@ -53,6 +55,10 @@ class LibraryScope extends InheritedWidget {
   /// and a route change closes it.
   final ValueNotifier<bool> compactSearchOpen;
 
+  /// (v2.13-nav) The top bar's search field reports here whether it is in
+  /// use, and system back closes it through it. Owned by the screen.
+  final LibrarySearchHandle searchHandle;
+
   /// The LibraryScreen State's context: the PDF slots get it (4.3 — the
   /// selection bar or a menu may be gone while the PDF flow runs).
   final BuildContext screenContext;
@@ -81,5 +87,6 @@ class LibraryScope extends InheritedWidget {
       openDrawer != oldWidget.openDrawer ||
       closeDrawer != oldWidget.closeDrawer ||
       compactSearchOpen != oldWidget.compactSearchOpen ||
+      searchHandle != oldWidget.searchHandle ||
       screenContext != oldWidget.screenContext;
 }
