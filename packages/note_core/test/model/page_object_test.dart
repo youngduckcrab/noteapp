@@ -236,6 +236,78 @@ void main() {
       expect((m.transformed(move) as MathObject).engineId, 'manual');
     });
 
+    test('(math resize fix) math: the frame stops with the font size at 6 / '
+        '144 pt — scaled about its transformed centre, ink with it', () {
+      // 100 pt × 2 → 144 pt: the frame 100 × 50 grows by 1.44, not by 2
+      final big = _math(fontSizePt: 100).transformed(double2) as MathObject;
+      expect(big.style.fontSizePt, 144);
+      expect(big.frame.rect.width, closeTo(144, 1e-9));
+      expect(big.frame.rect.height, closeTo(72, 1e-9));
+      final c2 = _math().frame.center.transformed(double2);
+      expect(big.frame.center.x, closeTo(c2.x, 1e-9));
+      expect(big.frame.center.y, closeTo(c2.y, 1e-9));
+      // 10 pt × ½ → 6 pt: 0.6, not 0.5
+      final small = _math(fontSizePt: 10).transformed(half) as MathObject;
+      expect(small.style.fontSizePt, 6);
+      expect(small.frame.rect.width, closeTo(60, 1e-9));
+      // the frame ÷ font size stays what it was (the laid-out size)
+      for (final (o, before) in [(big, 100.0), (small, 10.0)]) {
+        expect(
+          o.frame.rect.width / o.style.fontSizePt,
+          closeTo(100 / before, 1e-9),
+        );
+      }
+      // inside the limits nothing changes
+      expect(
+        (_math().transformed(double2) as MathObject).frame.rect,
+        const PageRect(0, 0, 200, 100),
+      );
+      // the handwriting follows the same transform
+      final withInk = _math(fontSizePt: 100).copyWith(
+        ink: [
+          Stroke(
+            id: 's',
+            pageId: 'p1',
+            style: StrokeStyle.defaultsFor(PenTool.ballpoint),
+            points: StrokePoints.fromList(const [
+              StrokePoint(0, 0),
+              StrokePoint(100, 50, t: 10),
+            ]),
+            createdAt: 1,
+          ),
+        ],
+      );
+      final grown = withInk.transformed(double2) as MathObject;
+      final ink = grown.ink.single.points.pointBounds;
+      expect(ink.left, closeTo(grown.frame.rect.left, 1e-3));
+      expect(ink.right, closeTo(grown.frame.rect.right, 1e-3));
+      expect(ink.bottom, closeTo(grown.frame.rect.bottom, 1e-3));
+    });
+
+    test('(math resize fix) math: a font size already outside [6, 144] (JSON '
+        'is not normalized) is kept by a move and never moves further out; '
+        'the frame does not change size because of it', () {
+      final odd = _math(fontSizePt: 200);
+      final moved = odd.transformed(move) as MathObject;
+      expect(moved.style.fontSizePt, 200);
+      expect(moved.frame.rect.width, closeTo(odd.frame.rect.width, 1e-9));
+      expect(moved.frame.rect.height, closeTo(odd.frame.rect.height, 1e-9));
+      // enlarged (e.g. in a group): stays 200, the frame stays its size
+      final grown = odd.transformed(double2) as MathObject;
+      expect(grown.style.fontSizePt, 200);
+      expect(grown.frame.rect.width, closeTo(odd.frame.rect.width, 1e-9));
+      // shrunk: moves in, with the frame
+      final shrunk = odd.transformed(half) as MathObject;
+      expect(shrunk.style.fontSizePt, 100);
+      expect(shrunk.frame.rect.width, closeTo(odd.frame.rect.width / 2, 1e-9));
+      // under 6: kept by a move, not shrunk further
+      final tiny = _math(fontSizePt: 4);
+      expect((tiny.transformed(move) as MathObject).style.fontSizePt, 4);
+      final tinyHalf = tiny.transformed(half) as MathObject;
+      expect(tinyHalf.style.fontSizePt, 4);
+      expect(tinyHalf.frame.rect.width, closeTo(tiny.frame.rect.width, 1e-9));
+    });
+
     test('image: frame only', () {
       final i = _image();
       final t = i.transformed(double2) as ImageObject;

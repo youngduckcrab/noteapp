@@ -522,7 +522,8 @@ sealed class PageObject extends PageElement {
   ///   ShapeObject: style.strokeWidth × s clamped [0.1, 30] when [scaleWidth];
   ///   TextBoxObject: style.fontSizePt × s clamped [6, 144] (CP-2 — wrap width and text scale
   ///   together, so the frame height still fits; K-6);
-  ///   MathObject: style.fontSizePt × s clamped [6, 144]; ImageObject: frame only;
+  ///   MathObject: style.fontSizePt × s clamped [6, 144] — (v2.15-math) the frame and ink
+  ///   stop with it; a size already outside stays (never further out); ImageObject: frame only;
   ///   UnknownObject: returns itself unchanged.
   PageObject transformed(Affine2 m, {bool scaleWidth = true});
   /// Paste / duplicate / page copy: new id, page and createdAt; version and deletedAt cleared.
@@ -2061,7 +2062,7 @@ override가 아닌 연결: `MediaModule`이 앱 시작 뒤 유휴 시간에 남�
 |---|---|---|---|
 | INK | 외곽선 캐시 | 32 MB (1차) | 1차 |
 | INK | **래스터 공유 장부**: 타일 + 이미지 객체·이미지 배경 디코드(한 LRU. 넘치면 이미지는 한 단계 낮은 버킷, 그리는 중인 항목은 쫓아내지 않음) | 96 MB (1차 타일 96 + 2차 이미지 48을 합침) | 타일 1차 · 이미지 128 MB |
-| INK | 수식 래스터 캐시 | 8 MB | 8 MB |
+| INK | 수식 래스터 캐시 | 8 MB | **24 MB** (v2.15-math, C215M-04) |
 | PDF | 미리보기 / 타일 / 썸네일 | **24** (1차 32에서 줄임) / 64 / 16 MB | 1차 |
 | PDF | 내보내기 중 이미지·래스터 임시 | 16 MB | 16 MB |
 | CORE | 되돌리기 히스토리 | 32 MiB (1차) | 1차 |
@@ -2401,6 +2402,22 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C216U-02 | 7.2.10 EDITOR 창 위치 | 세로 트레이·레일 도구의 창(펜 고르기·빠른 펜·지우개·도형·텍스트·[삽입] 메뉴)은 그 오른쪽에, 화면 안으로(오른쪽에 펜 고르기 520 / 그 밖 320 px가 안 남으면 아래). '옆에 열기'는 지금 붙어 있는 기준 상자(`PopupAnchorBox`)에서 읽음. 가로 트레이(위 툴바·알약·팔레트)는 그대로 아래(좁으면 위). 미니멀에서 선택 메뉴·길게 누름 메뉴는 알약 띠 아래로 | 사용자 요청 | EDITOR(처리됨) |
 | C216U-03 | 6.4 EDITOR 보기 영역 | `ViewportController.topInset`(미니멀 알약이 덮는 윗 띠, 68 px): 세로 배치에서 문서가 그만큼 더 내려가고 첫 자리·페이지 이동은 페이지 위 끝을 알약 아래에 — 첫 줄이 가려지지 않음. 가로 넘기기는 페이지를 띠 아래 높이에 맞추고 그 가운데에. 드러내기·페이지 보임 검사·확대 중심·페이지 넘김((높이 − 띠) × 0.9)은 띠 아래 공간 기준. 집중 모드에서도 띠 그대로(화면이 뛰지 않게). 다른 배치는 0(바뀜 없음). 스튜디오: `updateViewportSize(fitReserve:)` — 레일이 접혀 넓어진 폭은 맞춤 배율에 넣지 않음(집중 모드에서 배율 그대로) | 사용자 요청 | EDITOR(처리됨) |
 | C216U-04 | 7.2.10 EDITOR 메뉴 숨기기 | 집중 모드에서 알약은 위로 흐려지며, 레일은 왼쪽으로 접혀 사라진다. 복원 알약·시스템 뒤로 순서 그대로. 스튜디오에서 팔레트를 떼면 레일에 트레이만 없다 | 사용자 요청 | EDITOR(처리됨) |
+
+#### v2.15-math (2026-11-16, 변환된 수식 크기 바꾸기 고침 — 오너 말 '변환된 수식의 크기를 바꾸면 깨지는 현상이 있어. 수정해줘.')
+
+규칙 고침과 기본값 하나(C215M-04). 저장 형식·동기화 키·포트·공개 이름 변경 없음(`ObjectResize`는 EDITOR 내부). 설계는 [04-editor.md 25절](04-editor.md#25-변환된-수식-크기-바꾸기-고침-2026-11-16-계약-v215-math), [03-ink.md 15절](03-ink.md).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C215M-01 | 6.2.5(02-core) 변환 규칙 | `MathObject.transformed`: 글자 크기가 [6, 144]에서 잘리면 m 다음에 잘린 ÷ (fontSizePt × s) 균일 배율을 변환된 틀 가운데로 더해 **틀과 `ink`도 함께 멈춘다**(틀 = 그 글자 크기의 배치 크기 유지). 잘리지 않으면 예전과 같다. 다른 객체 종류는 그대로 | 오너 버그 | CORE·EDITOR·INK(처리됨 — 미리보기도 같은 함수) |
+| C215M-02 | 6.6.5(04-editor) 모서리 핸들 | 수식 하나의 모서리 끌기는 글자 크기가 6·144 pt에 닿으면 멈춘다(`ObjectResize.scaleRangeOf`·`cornerScale(minScale:, maxScale:)`), 반대 모서리 고정 | 오너 버그 | EDITOR(처리됨) |
+| C215M-03 | 6.12.3(03-ink) 수식 래스터 캐시 | 아직 없는 글자 크기는 같은 LaTeX·색의 다른 글자 크기 래스터로 그림(빈 상자 대신), 같은 LaTeX·색은 요청 하나만 진행·마지막에 물은 크기가 다음, 한 번도 그려지지 않은 다른 크기는 도착 때 fresh를 벗음(예산을 잡지 않음) | 오너 버그 | INK(처리됨) |
+| C215M-04 | 4.10(03-ink) `InkRenderConfig.mathRasterCacheBytes` 기본값 | 8 MiB → **네이티브 24 MiB**, 웹(`webDefaults`) 8 MiB 그대로(웹 합계 136 MiB 유지, 네이티브 INK 합계 328 → 344 MB — 7.4.5 표). 크게 늘린 수식 하나의 래스터(최대 4 Mpx = 16 MiB)가 8 MiB에 들지 않아 낮은 배율 칸으로 그려져 흐렸다 | 오너 버그(그림 확인) | INK(처리됨) |
+| C215M-05 | 6.12.2(03-ink) 화면 밖 배치 제약 | `OffscreenMathHost.maxExtent` 4000 → **14400**(= `ElementFrame.maxSide`). 긴 수식을 크게 하면(18 pt에서 650 pt 폭 → 144 pt에서 5000 pt 넘음) 4000에서 잘려 배치·래스터·PDF·새 수식 틀이 모두 오른쪽이 잘렸다. 픽셀은 그대로 4 Mpx·8192 px 상한(px/pt만 낮아짐) | 검토(재현) | INK(처리됨) |
+| C215M-06 | 6.12.3(03-ink) 화면 배율 칸 × contain | 1718행 규칙('버킷 × contain 배율')을 실제로 적용: 틀이 배치 크기보다 1.25배 넘게 크면(고치기 전 앱이 늘린 수식, 다른 기기 글꼴 — K-6) 기기 배율 × contain 배율 이상의 칸(4 위로 8·16까지, 4 Mpx 상한)을 받는다 — 화면이 PDF만큼 선명. 배치 크기는 그 수식(없으면 같은 LaTeX·색의 가장 가까운 글자 크기를 비례)의 래스터가 잰 값, 아직 없으면 보통 칸 → 도착 뒤 다시 | 검토 | INK(처리됨) |
+| C215M-07 | 6.2.5(02-core) C215M-01 보완 | 이미 [6, 144] 밖인 글자 크기는 범위를 그 값까지 넓혀 자른다 — 이동·회전에 틀이 0.72배로 줄던 일(200 pt → 144 pt) 없음, 더 밖으로도 가지 않음(`ObjectResize.scaleRangeOf`와 같은 규칙) | 검토 | CORE(처리됨) |
+| C215M-08 | 6.6.5(04-editor) 여러 개 함께 크기 바꾸기 | 선택에 수식이 있으면 묶음 배율(`uniformScale`)을 모든 수식의 `scaleRangeOf` 교집합으로 자른다(`ObjectResize.scaleRangeOfAll`·`clampGroupResize`, 같은 기준점) — 수식이 제 가운데로 멈추고 틀만 커지던 일 없음, 미리보기 = 저장 | 검토 | EDITOR(처리됨) |
+| C215M-09 | 6.12.3(03-ink) 기다리는 요청 | 기다리는 동안은 낮추지 않고(앞 요청의 예약을 풀고 물을 때 맞춤 검사), 같은 수식의 다른 배율 칸이 기다렸어도 알림, 요청이 `InkTuning.mathRasterTimeoutMs`(20 s) 넘게 안 끝나면 그 수식 자리를 놓음(실패로 셈 — 늦은 도착은 받음), fresh를 벗기는 건 **라이브 층만 물은 크기**(조각이 물은 크기 — 같은 수식의 다른 객체 — 는 그대로) | 검토 | INK(처리됨) |
 
 #### v2.15-ui (2026-11-16, 펜 그림 · 펜 고르기 창 · 펜 트레이 — 사용자 말 '왜 펜 모양이랑 이런거 하나도 안바뀐거야?', 제안서 3·4·5단계)
 

@@ -1,8 +1,8 @@
 // lib/src/math/math_raster_cache.dart — INTERNAL (m5-7/03-ink 6.12.3, 6.11.3 rules, 6.22).
 //
 // (T36) The formula rasters the annotation layer draws: key (latex, color,
-// font size, bucket), budget InkRenderConfig.mathRasterCacheBytes (8 MiB), one
-// per InkCachePool (app wide). The same rules as the image cache (M-4):
+// font size, bucket), budget InkRenderConfig.mathRasterCacheBytes (24 MiB
+// native, 8 MiB web), one per InkCachePool (app wide). The same rules as the image cache (M-4):
 // - an entry a chunk Picture drew is pinned (MathRasterHold — an InkDrawHold
 //   draw key) until that picture is dropped; pinned bytes count, pinned
 //   entries are never evicted (PinnedRasterCache);
@@ -16,10 +16,36 @@
 //   InkDrawKeys.math) are recorded again;
 // - a failed raster (glyph pictures not settled, 6.12.2) is not asked again for
 //   InkTuning.mathRasterRetryMs; the placeholder stays.
+// - (math resize fix) a formula at a font size that has no raster yet — a resize
+//   gives the formula a new font size, so a new key — draws a raster of the same
+//   LaTeX and color at another font size (contain-fitted, so the same shape; the
+//   sharpest one there is) instead of the empty placeholder box;
+// - (math resize fix) one request in flight per LaTeX and color: a resize drag
+//   asks a new font size on every move, and the raster host works one job at a
+//   time, so without this the final size waited behind every intermediate one
+//   (the formula stayed a grey box long after the pen was lifted) and the
+//   reservations of the queue pushed it to a lower bucket (blurry for good).
+//   Asks meanwhile wait (not lowered yet: the fit check runs when they are
+//   asked, after the request ahead released its reservation); when the request
+//   settles the latest one is asked and the others get a change event (their
+//   drawers ask again if still drawn). A request unsettled after
+//   InkTuning.mathRasterTimeoutMs no longer holds the slot (the next ask of the
+//   family treats it as failed; a late arrival is still kept);
+// - (math resize fix) when a raster of the family arrived, its sizes that only
+//   the live layer asked (a resize drag's intermediate sizes) stop holding the
+//   budget as fresh (PinnedRasterCache.markStale); sizes a chunk asked keep it.
 // Bucket = the smallest scale bucket ≥ deviceScale (at most 4; 2 before the
 // first viewport report). The raster is captured at pixelsPerPt = bucket; the
 // contain fit (6.12.4, s ≈ 1) scales it into the frame when drawn.
+// (math resize fix) A frame bigger than the formula's laid-out size (contain
+// scale s > [MathRasterCache.containLift] — a formula stretched by an app
+// before the fix, or laid out with other font metrics, K-6) asks the bucket of
+// deviceScale × s (up to [MathRasterCache.maxContainBucket]), so the formula is
+// as sharp on screen as in the PDF (which already multiplies by s). The laid-out
+// size is the one a raster of the formula (or of the family, scaled by font
+// size) was captured from; none yet → the plain bucket, then again on arrival.
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:meta/meta.dart';
@@ -36,11 +62,19 @@ import 'offscreen_host.dart' show OffscreenRaster;
 @internal
 typedef MathFormula = ({String latex, int colorArgb, double fontSizePt});
 
+/// INTERNAL: the rasters of one formula at every font size (a resize changes only that).
+@internal
+typedef MathFamily = ({String latex, int colorArgb});
+
+MathFamily _familyOf(MathFormula f) => (latex: f.latex, colorArgb: f.colorArgb);
+
 /// INTERNAL: one cached raster.
 @internal
 typedef MathRasterKey = ({MathFormula formula, double bucket});
 
-/// INTERNAL: a raster arrived (failed: false) or failed (failed: true) for [formula].
+/// INTERNAL: a raster arrived (failed: false) or failed (failed: true) for [formula]. (math
+/// resize fix) failed: false also when an ask of [formula] waited for another request of
+/// its LaTeX and color: whoever draws it asks again.
 @internal
 typedef MathRasterChange = ({MathFormula formula, bool failed});
 
@@ -136,6 +170,7 @@ final class MathRasterCache {
     List<double> scaleBuckets = const [0.5, 1.0, 1.5, 2.0, 3.0, 4.0],
     MathRasterizer? rasterizer,
   }) : _buckets = _bucketsOf(scaleBuckets),
+       _ladder = _ladderOf(_bucketsOf(scaleBuckets)),
        _rasterizer = rasterizer ?? _rasterize {
     _ledger = PinnedRasterCache<MathRasterKey, MathRaster>(
       budgetBytes: budgetBytes,
@@ -151,13 +186,38 @@ final class MathRasterCache {
   /// Before the first viewport report (6.11.2: 'otherwise 2').
   static const double defaultDeviceScale = 2;
 
+  /// (math resize fix) A contain scale up to this is drawn at the plain bucket (layouts
+  /// differ a little between font sizes and devices; no bigger raster for that).
+  static const double containLift = 1.25;
+
+  /// (math resize fix) The largest bucket a frame bigger than its formula asks for
+  /// (device scale × contain scale); the 4 Mpx / 8192 px cap still applies.
+  static const double maxContainBucket = 16;
+
   late final PinnedRasterCache<MathRasterKey, MathRaster> _ledger;
   final List<double> _buckets;
+
+  /// [_buckets] and the contain buckets above them (8, 16): the ladder caps and lowering
+  /// walk. A formula whose frame fits its layout never asks above [_buckets].
+  final List<double> _ladder;
   final MathRasterizer _rasterizer;
   final Map<MathFormula, Set<double>> _present = {};
+
+  /// The laid-out size (pt) a raster of the formula was captured from.
+  final Map<MathFormula, ui.Size> _layoutPt = {};
+  final Map<MathFamily, Set<MathFormula>> _family = {};
+  final Map<MathFamily, int> _familyInFlight = {};
+
+  /// Formulas a chunk (not only the live layer) asked: never marked stale.
+  final Set<MathFormula> _chunkAsked = {};
+
+  /// Asks that waited for their family's request in flight, oldest first, with the size
+  /// (pt) their bytes are estimated from.
+  final Map<MathFamily, Map<MathRasterKey, ui.Size>> _waiting = {};
   final Map<MathFormula, double> _caps = {};
-  final Map<MathRasterKey, int> _inFlight = {};
+  final Map<MathRasterKey, _Request> _inFlight = {};
   final Map<MathRasterKey, int> _failedAtUs = {};
+  int _requestIds = 0;
   final StreamController<MathRasterChange> _changes =
       StreamController.broadcast();
   int _failures = 0;
@@ -207,42 +267,44 @@ final class MathRasterCache {
 
   /// The raster to draw now for [formula] in a frame of [framePt] at [deviceScale]: the
   /// entry of the bucket it should have (capped, lowered to fit), else the best other
-  /// bucket of the formula there is; null = none yet. A missing bucket is requested
-  /// (not again within InkTuning.mathRasterRetryMs of a failure). Synchronous, never
-  /// throws; asking twice without anything arriving gives the same answer.
+  /// bucket of the formula there is, else (math resize fix) the sharpest raster of the
+  /// same LaTeX and color at another font size; null = none yet. While a raster of the
+  /// same LaTeX and color is in flight the request waits (see the file header). A
+  /// missing bucket is requested (not again within InkTuning.mathRasterRetryMs of a
+  /// failure). [live]: only the live layer draws it (a resize drag's preview), so its
+  /// raster may be marked stale once another size of the family arrives. Synchronous,
+  /// never throws; asking twice without anything arriving gives the same answer.
   MathRaster? peek(
     MathFormula formula, {
     required double? deviceScale,
     required ui.Size framePt,
     required int nowUs,
+    bool live = false,
   }) {
     if (_disposed) return null;
-    final desired = wantedBucket(deviceScale);
-    var bucket = _cappedBucket(formula, desired, framePt);
-    final hit = _ledger.use((formula: formula, bucket: bucket));
-    if (hit != null) return hit;
+    if (!live) _chunkAsked.add(formula);
+    final layout = _layoutOf(formula);
+    final sizePt = layout ?? framePt;
+    final desired = _desiredBucket(deviceScale, framePt, layout);
+    var bucket = _cappedBucket(formula, desired, sizePt);
     final key = (formula: formula, bucket: bucket);
+    final hit = _ledger.use(key);
+    if (hit != null) return hit;
     if (!_inFlight.containsKey(key)) {
-      // lower until it fits (the smallest bucket is taken anyway — 6.11.3)
-      var chosen = bucket;
-      while (!_ledger.fits(_estimate(framePt, chosen)) &&
-          chosen > _buckets.first) {
-        chosen = _lower(chosen);
+      final family = _familyOf(formula);
+      _expireHung(family, nowUs);
+      if ((_familyInFlight[family] ?? 0) > 0) {
+        // not lowered now: the request ahead still holds its reservation
+        final waiting = _waiting[family] ??= {};
+        waiting.remove(key); // most recently asked last
+        waiting[key] = sizePt;
+      } else {
+        final asked = _fitAndRequest(key, sizePt, nowUs);
+        if (asked.hit != null) return asked.hit;
+        bucket = asked.bucket;
       }
-      if (chosen != bucket) {
-        _caps[formula] = chosen;
-        _downgraded++;
-        bucket = chosen;
-        final lowered = _ledger.use((formula: formula, bucket: bucket));
-        if (lowered != null) return lowered;
-      }
-      _request(
-        (formula: formula, bucket: bucket),
-        _estimate(framePt, bucket),
-        nowUs,
-      );
     }
-    return _bestOther(formula, bucket);
+    return _bestOther(formula, bucket) ?? _bestOfFamily(formula, bucket);
   }
 
   /// The draw key that pins [raster] while a chunk picture drew it.
@@ -263,6 +325,11 @@ final class MathRasterCache {
     _disposed = true;
     _ledger.dispose();
     _present.clear();
+    _layoutPt.clear();
+    _family.clear();
+    _familyInFlight.clear();
+    _chunkAsked.clear();
+    _waiting.clear();
     _caps.clear();
     _inFlight.clear();
     unawaited(_changes.close());
@@ -288,19 +355,129 @@ final class MathRasterCache {
     return List.unmodifiable(list.isEmpty ? const [1.0, 2.0, 4.0] : list);
   }
 
+  static List<double> _ladderOf(List<double> buckets) => List.unmodifiable([
+    ...buckets,
+    for (var b = maxBucket * 2; b <= maxContainBucket; b *= 2)
+      if (b > buckets.last) b,
+  ]);
+
+  /// (math resize fix) The laid-out size of [f]: a raster of it was captured from, else
+  /// the one of the family's closest font size scaled to [f]'s. null = none yet.
+  ui.Size? _layoutOf(MathFormula f) {
+    final own = _layoutPt[f];
+    if (own != null) return own;
+    final formulas = _family[_familyOf(f)];
+    if (formulas == null || !(f.fontSizePt > 0)) return null;
+    MathFormula? closest;
+    var gap = double.infinity;
+    for (final g in formulas) {
+      if (_layoutPt[g] == null || !(g.fontSizePt > 0)) continue;
+      final d = math.log(g.fontSizePt / f.fontSizePt).abs();
+      if (d < gap) (closest, gap) = (g, d);
+    }
+    if (closest == null) return null;
+    return _layoutPt[closest]! * (f.fontSizePt / closest.fontSizePt);
+  }
+
+  /// (math resize fix) [wantedBucket] of [deviceScale], or — the frame bigger than the
+  /// layout by more than [containLift] — the ladder bucket ≥ device scale × contain scale.
+  double _desiredBucket(double? deviceScale, ui.Size framePt, ui.Size? layout) {
+    final plain = wantedBucket(deviceScale);
+    if (layout == null || !(layout.width > 0) || !(layout.height > 0)) {
+      return plain;
+    }
+    final contain = math.min(
+      framePt.width / layout.width,
+      framePt.height / layout.height,
+    );
+    if (!(contain > containLift) || !contain.isFinite) return plain;
+    final ds = deviceScale != null && deviceScale > 0 && deviceScale.isFinite
+        ? deviceScale
+        : defaultDeviceScale;
+    final e = ds * contain;
+    for (final b in _ladder) {
+      if (b + 1e-9 >= e) return math.max(b, plain);
+    }
+    return _ladder.last;
+  }
+
+  /// The fit check (lower until it fits — the smallest bucket is taken anyway, 6.11.3),
+  /// then the request: hit = a lowered bucket already cached (nothing asked).
+  ({MathRaster? hit, double bucket}) _fitAndRequest(
+    MathRasterKey key,
+    ui.Size sizePt,
+    int nowUs,
+  ) {
+    final formula = key.formula;
+    var bucket = key.bucket;
+    var chosen = bucket;
+    while (!_ledger.fits(_estimate(sizePt, chosen)) && chosen > _ladder.first) {
+      chosen = _lower(chosen);
+    }
+    if (chosen != bucket) {
+      _caps[formula] = chosen;
+      _downgraded++;
+      bucket = chosen;
+      final lowered = _ledger.use((formula: formula, bucket: bucket));
+      if (lowered != null) return (hit: lowered, bucket: bucket);
+    }
+    final want = (formula: formula, bucket: bucket);
+    if (!_inFlight.containsKey(want)) {
+      _request(want, _estimate(sizePt, bucket), nowUs);
+    }
+    return (hit: null, bucket: bucket);
+  }
+
+  /// (math resize fix) The family's requests unsettled for InkTuning.mathRasterTimeoutMs
+  /// (a raster host that never finishes the job) stop holding the slot: failed.
+  void _expireHung(MathFamily family, int nowUs) {
+    if ((_familyInFlight[family] ?? 0) == 0) return;
+    final limitUs = InkTuning.mathRasterTimeoutMs * 1000;
+    final hung = [
+      for (final e in _inFlight.entries)
+        if (_familyOf(e.key.formula) == family &&
+            nowUs - e.value.sinceUs >= limitUs)
+          e.key,
+    ];
+    for (final key in hung) {
+      final r = _inFlight.remove(key)!;
+      _ledger.unreserve(r.bytes);
+      _releaseSlot(family);
+      _failedAtUs[key] = nowUs;
+      _failures++;
+      _changes.add((formula: key.formula, failed: true));
+    }
+    if (hung.isNotEmpty && (_familyInFlight[family] ?? 0) == 0) {
+      // the waiting asks: the latest is asked by the caller's own ask, or below
+      final waiting = _waiting[family];
+      if (waiting != null && waiting.isNotEmpty) _askWaiting(family, nowUs);
+    }
+  }
+
+  /// One request of [family] less in flight; the count left.
+  int _releaseSlot(MathFamily family) {
+    final left = (_familyInFlight[family] ?? 1) - 1;
+    if (left > 0) {
+      _familyInFlight[family] = left;
+    } else {
+      _familyInFlight.remove(family);
+    }
+    return left;
+  }
+
   /// [desired] under the formula's cap; the cap goes up (straight to the highest bucket
   /// ≤ [desired] that fits whole now) or away when [desired] fits.
-  double _cappedBucket(MathFormula f, double desired, ui.Size framePt) {
+  double _cappedBucket(MathFormula f, double desired, ui.Size sizePt) {
     final cap = _caps[f];
     if (cap == null) return desired;
     if (cap >= desired) return desired;
     double? raised;
-    for (final b in _buckets) {
+    for (final b in _ladder) {
       if (b <= cap || b > desired) continue;
       final key = (formula: f, bucket: b);
       if (_ledger.containsKey(key) ||
           _inFlight.containsKey(key) ||
-          _ledger.fits(_estimate(framePt, b))) {
+          _ledger.fits(_estimate(sizePt, b))) {
         raised = b;
       }
     }
@@ -314,16 +491,17 @@ final class MathRasterCache {
   }
 
   double _lower(double bucket) {
-    var lower = _buckets.first;
-    for (final b in _buckets) {
+    var lower = _ladder.first;
+    for (final b in _ladder) {
       if (b < bucket) lower = b;
     }
     return lower;
   }
 
-  /// RGBA bytes of a [framePt] raster at [bucket] px per pt (4 Mpx cap — 7.4.5).
-  static int _estimate(ui.Size framePt, double bucket) {
-    final w = framePt.width, h = framePt.height;
+  /// RGBA bytes of a [sizePt] raster (the laid-out size, else the frame) at [bucket] px
+  /// per pt (4 Mpx cap — 7.4.5).
+  static int _estimate(ui.Size sizePt, double bucket) {
+    final w = sizePt.width, h = sizePt.height;
     if (!(w > 0) || !(h > 0) || !w.isFinite || !h.isFinite) return 0;
     final k = rasterScaleFor(w, h, bucket);
     return (w * k).ceil() * (h * k).ceil() * 4;
@@ -344,6 +522,29 @@ final class MathRasterCache {
     return b == null ? null : _ledger.use((formula: f, bucket: b));
   }
 
+  /// (math resize fix) The raster of [f]'s LaTeX and color at another font size that is
+  /// sharpest for [f] at [bucket]: its px per pt of [f]'s size (bucket × its font size ÷
+  /// [f]'s) — the smallest one ≥ [bucket], else the biggest. null = none.
+  MathRaster? _bestOfFamily(MathFormula f, double bucket) {
+    final formulas = _family[_familyOf(f)];
+    if (formulas == null || !(f.fontSizePt > 0)) return null;
+    MathRasterKey? atLeast, below;
+    double atLeastK = double.infinity, belowK = 0;
+    for (final g in formulas) {
+      if (g == f) continue;
+      for (final b in _present[g] ?? const <double>{}) {
+        final k = b * g.fontSizePt / f.fontSizePt;
+        if (k + 1e-9 >= bucket) {
+          if (k < atLeastK) (atLeast, atLeastK) = ((formula: g, bucket: b), k);
+        } else if (k > belowK) {
+          (below, belowK) = ((formula: g, bucket: b), k);
+        }
+      }
+    }
+    final key = atLeast ?? below;
+    return key == null ? null : _ledger.use(key);
+  }
+
   void _request(MathRasterKey key, int bytes, int nowUs) {
     final failedAt = _failedAtUs[key];
     if (failedAt != null &&
@@ -351,26 +552,42 @@ final class MathRasterCache {
       return;
     }
     _failedAtUs.remove(key);
-    _inFlight[key] = bytes;
+    if (_failedAtUs.length > 64) {
+      _failedAtUs.removeWhere(
+        (_, at) => nowUs - at >= InkTuning.mathRasterRetryMs * 1000,
+      );
+    }
+    final request = _Request(++_requestIds, bytes, nowUs);
+    _inFlight[key] = request;
     _ledger.reserve(bytes);
+    final family = _familyOf(key.formula);
+    _familyInFlight[family] = (_familyInFlight[family] ?? 0) + 1;
     void settle(OffscreenRaster? r) {
-      final reserved = _inFlight.remove(key);
-      if (reserved != null) _ledger.unreserve(reserved);
       if (_disposed) {
         r?.image.dispose();
         return;
       }
+      if (!identical(_inFlight[key], request)) {
+        // (math resize fix) it timed out (_expireHung): a late raster is still kept
+        if (r == null) return;
+        if (_ledger.containsKey(key)) {
+          r.image.dispose();
+          return;
+        }
+        _keep(key, family, r);
+        return;
+      }
+      _inFlight.remove(key);
+      _ledger.unreserve(request.bytes);
+      final left = _releaseSlot(family);
       if (r == null) {
         _failedAtUs[key] = nowUs;
         _failures++;
         _changes.add((formula: key.formula, failed: true));
-        return;
+      } else {
+        _keep(key, family, r);
       }
-      if (_ledger.put(key, MathRaster._(key, r.image, r.size))) {
-        (_present[key.formula] ??= {}).add(key.bucket);
-        _rasterized++;
-      }
-      _changes.add((formula: key.formula, failed: false));
+      if (left <= 0) _askWaiting(family, nowUs);
     }
 
     Future<OffscreenRaster?> future;
@@ -382,10 +599,72 @@ final class MathRasterCache {
     unawaited(future.then(settle, onError: (Object _) => settle(null)));
   }
 
+  void _keep(MathRasterKey key, MathFamily family, OffscreenRaster r) {
+    if (_ledger.put(key, MathRaster._(key, r.image, r.size))) {
+      _staleSiblings(key);
+      (_present[key.formula] ??= {}).add(key.bucket);
+      _layoutPt[key.formula] = r.size;
+      (_family[family] ??= {}).add(key.formula);
+      _rasterized++;
+    }
+    _changes.add((formula: key.formula, failed: false));
+  }
+
+  /// (math resize fix) A raster of [key]'s LaTeX and color arrived: the family's other
+  /// font sizes that only the live layer asked (a resize drag's intermediate sizes — no
+  /// chunk asked them) stop holding the budget as 'fresh', so they do not push the final
+  /// size to a lower bucket. Sizes a chunk asked (another object with the same formula
+  /// at another size, not recorded yet) keep it.
+  void _staleSiblings(MathRasterKey key) {
+    final formulas = _family[_familyOf(key.formula)];
+    if (formulas == null) return;
+    for (final g in formulas) {
+      if (g == key.formula || _chunkAsked.contains(g)) continue;
+      for (final b in _present[g] ?? const <double>{}) {
+        _ledger.markStale((formula: g, bucket: b));
+      }
+    }
+  }
+
+  /// (math resize fix) The family's request settled: the latest ask that waited is asked
+  /// now (fit-checked now, after the request ahead released its reservation); every
+  /// other waiting ask — another font size, or the same one at another bucket — gets a
+  /// change event so whoever still draws it asks again (a resize drag leaves many sizes
+  /// nobody draws any more — they are not rasterized).
+  void _askWaiting(MathFamily family, int nowUs) {
+    final waiting = _waiting.remove(family);
+    if (waiting == null || waiting.isEmpty) return;
+    final latest = waiting.keys.last;
+    final sizePt = waiting.remove(latest)!;
+    if (!_ledger.containsKey(latest) && !_inFlight.containsKey(latest)) {
+      _fitAndRequest(latest, sizePt, nowUs);
+    }
+    for (final f in {for (final k in waiting.keys) k.formula}) {
+      _changes.add((formula: f, failed: false));
+    }
+  }
+
   void _evicted(MathRasterKey key) {
     final set = _present[key.formula];
     if (set == null) return;
     set.remove(key.bucket);
-    if (set.isEmpty) _present.remove(key.formula);
+    if (set.isEmpty) {
+      _present.remove(key.formula);
+      _layoutPt.remove(key.formula);
+      _chunkAsked.remove(key.formula);
+      _caps.remove(key.formula);
+      final family = _familyOf(key.formula);
+      final formulas = _family[family];
+      formulas?.remove(key.formula);
+      if (formulas != null && formulas.isEmpty) _family.remove(family);
+    }
   }
+}
+
+/// One request in flight: its reserved bytes and when it was asked (µs).
+final class _Request {
+  _Request(this.id, this.bytes, this.sinceUs);
+  final int id;
+  final int bytes;
+  final int sinceUs;
 }

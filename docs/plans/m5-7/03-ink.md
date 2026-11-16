@@ -199,7 +199,7 @@ packages/ink_engine/
 │     ├─ math/math_renderer.dart         [새] InkMathRenderer, InkMathLayout
 │     ├─ math/math_preview.dart          [새] MathPreview
 │     ├─ math/offscreen_host.dart        [새] 내부: 화면 밖 RenderView 파이프라인 — 배치 호스트(동기)·래스터 호스트(큐, 비동기 SVG 적재 대기) (6.12.2)
-│     ├─ math/math_raster_cache.dart     [새] 내부: 8 MB LRU(그리는 중 참조 수·버킷 낮추기 — 6.12.3)
+│     ├─ math/math_raster_cache.dart     [새] 내부: 네이티브 24 MB / 웹 8 MB LRU(그리는 중 참조 수·버킷 낮추기 — 6.12.3, v2.15-math)
 │     ├─ text/fonts.dart                 [새] InkFonts
 │     ├─ text/text_layout.dart           [새] InkTextLayout(measure·measureSync·textStyleOf·strutStyleOf·rasterize) + 내부 문단 빌더
 │     ├─ text/note_sans_coverage.dart    [새] 생성 파일: 부분 집합 코드 포인트 범위표
@@ -704,12 +704,12 @@ abstract final class InkTextLayout {
 // render/render_config.dart — (v2.1, CP-INK-5 승인) two optional budget fields
 final class InkRenderConfig {
   // const InkRenderConfig({/* v1.4 fields */, this.imageCacheBytes,
-  //     this.mathRasterCacheBytes = 8 * 1024 * 1024});
+  //     this.mathRasterCacheBytes = 24 * 1024 * 1024}); // webDefaults: 8 MiB
   /// Decoded-image budget. null = platform rule: native → own ledger of 128 MiB; web → the
   /// SAME ledger as the raster tiles (rasterBudgetBytes, 96 MiB in webDefaults — 7.4.5).
   /// A value → an own ledger of that size (tests, or a native override).
   final int? imageCacheBytes;
-  final int mathRasterCacheBytes;              // 8 MiB on both platforms (7.4.5)
+  final int mathRasterCacheBytes;              // (v2.15-math) native 24 MiB, web 8 MiB (7.4.5)
 }
 
 // image/image_cache.dart
@@ -977,7 +977,8 @@ sealed class PageObject extends PageElement {
   ///   ShapeObject: style.strokeWidth × s clamped [0.1, 30] when [scaleWidth];
   ///   TextBoxObject: style.fontSizePt × s clamped [6, 144] (CP-2 — wrap width and text scale
   ///   together, so the frame height still fits; K-6);
-  ///   MathObject: style.fontSizePt × s clamped [6, 144]; ImageObject: frame only;
+  ///   MathObject: style.fontSizePt × s clamped [6, 144] — (v2.15-math) the frame and ink
+  ///   stop with it; a size already outside stays (never further out); ImageObject: frame only;
   ///   UnknownObject: returns itself unchanged.
   PageObject transformed(Affine2 m, {bool scaleWidth = true});
   /// Paste / duplicate / page copy: new id, page and createdAt; version and deletedAt cleared.
@@ -1715,7 +1716,7 @@ flushCompositingBits → flushPaint → boundary.toImage(pixelRatio: k)   ⇒ ra
 
 #### 6.12.3 화면 그리기 · 캐시
 
-- annotation 층에서 수식은 **래스터 이미지**로 그린다(글자마다 `RichText`인 위젯 트리를 매 프레임 그리지 않음). 캐시 키 `(latex, colorArgb, fontSizePt, 버킷)`, 버킷 = `InkRenderConfig.scaleBuckets`에서 `deviceScale` 이상인 가장 작은 값(최대 4) × contain 배율. 항목은 이미지와 **배치 크기**(pt — 래스터 작업이 함께 잰 값, contain 계산용)를 갖는다. 예산 `InkRenderConfig.mathRasterCacheBytes`(8 MiB — CP-INK-5 승인).
+- annotation 층에서 수식은 **래스터 이미지**로 그린다(글자마다 `RichText`인 위젯 트리를 매 프레임 그리지 않음). 캐시 키 `(latex, colorArgb, fontSizePt, 버킷)`, 버킷 = `InkRenderConfig.scaleBuckets`에서 `deviceScale` 이상인 가장 작은 값(최대 4) × contain 배율. 항목은 이미지와 **배치 크기**(pt — 래스터 작업이 함께 잰 값, contain 계산용)를 갖는다. 예산 `InkRenderConfig.mathRasterCacheBytes`(네이티브 24 MiB · 웹 8 MiB — CP-INK-5 승인, v2.15-math C215M-04). (v2.15-math, C215M-06) contain 배율은 틀이 배치 크기보다 1.25배 넘게 클 때만 곱한다(15절).
 - (v2.1, 검토 M-4) 이미지 캐시와 **같은 규칙**: 청크 그림이 그린 항목은 고정(참조 수)해 예산에 세고 쫓아내지 않으며, 들어가지 않는 요청은 한 단계 낮은 배율 버킷으로(최소 버킷은 넘쳐도 받음), 상한을 기억해 다시 요청하지 않고, 바뀜 알림은 그 수식 키를 그리는 annotation 청크만 다시 기록하게 한다(초안의 '8 MiB LRU'만으로는 200×50 pt 수식 13개(버킷 4 — 약 640 KB씩)에서 넘쳐 다시 래스터 ↔ 쫓아내기가 돌았다).
 - 래스터가 아직 없으면 frame 안에 연한 자리표시(6.11.5 색 규칙)를 그리고 래스터를 요청(큐) → 준비되면 그 수식을 그리는 annotation 청크 dirty. `null`(SVG 적재 시간 초과)이면 자리표시를 두고 다음 내용 갱신·배율 변화 때 다시 요청한다(같은 키는 `mathRasterRetryMs` 5,000 ms 안에 다시 요청하지 않음 — 반복 실패가 큐를 막지 않게).
 - `\text{한글}`: KaTeX_Main에 한글이 없어 대체 글꼴로 그려진다(웹은 온라인일 때 gstatic — 조사 03 8.2-4). 이번에는 받아들인다(12.2 Q4 — 총괄 답 수용).
@@ -1897,12 +1898,12 @@ end(last): 조절 모드면 last도 끌기로 먼저 반영
 | L3 래스터 타일 (1차) | inkBase만 | 네이티브 128 MB(1차) / **웹: 아래 공유 장부** |
 | 이미지 디코드 (새) | (assetId, 버킷), 전역(`inkImageCacheProvider`), 그리는 중 고정 | 네이티브 **128 MB** / 웹: 아래 공유 장부 |
 | (v2.1) **웹 래스터 공유 장부** | 타일 + 이미지 객체·이미지 배경 디코드가 한 LRU(`InkRasterLedger` — 고정 항목은 쫓아내지 않고, 넘치면 이미지는 한 단계 낮은 버킷, 쫓겨난 타일은 벡터로 그림) | 웹 **96 MB** (1차 타일 96 + 초안 이미지 48을 합침 — 7.4.5 D22) |
-| 수식 래스터 (새) | (latex, 색, 크기, 버킷), 전역, 그리는 중 고정 | **8 / 8 MB** |
+| 수식 래스터 (새) | (latex, 색, 크기, 버킷), 전역, 그리는 중 고정 | 네이티브 **24** / 웹 **8 MB** (v2.15-math) |
 | 문단·도형 경로 (새) | 객체 인스턴스(Expando — 객체가 사라지면 같이) | 작음(측정만) |
 | 재생 베일 블록 (새) | 컨트롤러 + 녹음 id, `setPlaybackFocus(null)`이면 해제 | 벡터(웹 대체 경로를 켜면 공유 장부에 셈 — 6.19-6) |
 
 - 예산 값은 `InkRenderConfig`(1차 `rasterBudgetBytes`·`outlineBudgetBytes` + v2.1 `imageCacheBytes`·`mathRasterCacheBytes` — CP-INK-5 승인, 4.10)에 있다. 시험은 작은 값을 넘겨 장부 규칙을 본다(T35·T36).
-- INK 앱 관리 캐시 최대 합계(v2.1): **웹 32 + 96 + 8 = 136 MB**, 네이티브 64 + 128 + 128 + 8 = 328 MB(네이티브에는 300 MB 탭 상한이 없다 — 1차 7.4.10).
+- INK 앱 관리 캐시 최대 합계(v2.1): **웹 32 + 96 + 8 = 136 MB**, 네이티브 64 + 128 + 128 + 24 = 344 MB(v2.15-math — 수식 8 → 24; 네이티브에는 300 MB 탭 상한이 없다 — 1차 7.4.10).
 - (v2.1, CD2-10 — 검토 M-5) 웹 **앱 캐시 합계 296 MB ≤ 300 MB**(7.4.5 표): INK 136 + PDF 미리보기 24·타일 64·썸네일 16 + PDF 내보내기 임시 16 + CORE 되돌리기 32 + 웹 녹음 조각 8. 초안의 'INK 184 MB — 나머지는 PDF·CORE·녹음, 300 MB 안' 문장은 틀렸다(초안 예산을 더하면 328~352 MB). DB 메모리 사본·CanvasKit·wasm 힙·재생 `Blob`은 이 합계 밖이다(7.4.5).
 - 개발자 표시: `InkImageCache.stats`(고정 바이트·버킷 낮춤 횟수 포함), 수식 캐시 바이트(내부 → `InkDiagnostics` 경고 없이 통계 — (v2.5, C25-02) 공개 `InkDiagnostics.developerValues['mathCacheBytes']`: 진단이 켜진 동안 페이지 paint(inkBase 층, 객체를 그린 annotation 층)가 그 풀의 수식 래스터 캐시 바이트를 알림, 풀이 아직 캐시를 만들지 않았으면 키 없음), 1차 `InkCacheStats`(웹은 공유 장부의 타일·이미지 몫을 나눠 보임). 이 값들이 INFRA 개발자 표시의 **'앱 캐시 합계'**(7.4.5 v2.1 — B-13·I-B11의 같은 기준)에 들어간다.
 
@@ -1986,7 +1987,7 @@ end(last): 조절 모드면 last도 끌기로 먼저 반영
 | `fontRetryAfterMs` | 30000 | 4.10(암묵 호출의 재시도 간격) |
 | `thumbnailObjectWaitMs` | 2000 | 7.2.9 |
 
-(v2.1, CP-INK-5 승인) 예산은 `InkTuning` 상수가 아니라 1차 규칙('예산·시간은 `InkRenderConfig`')대로 `InkRenderConfig` 필드다 — `imageCacheBytes`(null = 네이티브 128 MiB 자기 장부 / 웹 타일과 공유 96 MiB), `mathRasterCacheBytes`(8 MiB). 초안의 `imageCacheBytesNative`·`imageCacheBytesWeb`·`mathRasterCacheBytes` 상수는 만들지 않는다. `tuning_test` v2가 색 상수 세 개가 계약 이름 그대로 있는지, `shapeHoldMs`·`shapeHoldRadiusPx`·`fontLoadTimeoutMs`가 7.2.9 값인지 확인한다.
+(v2.1, CP-INK-5 승인) 예산은 `InkTuning` 상수가 아니라 1차 규칙('예산·시간은 `InkRenderConfig`')대로 `InkRenderConfig` 필드다 — `imageCacheBytes`(null = 네이티브 128 MiB 자기 장부 / 웹 타일과 공유 96 MiB), `mathRasterCacheBytes`(네이티브 24 MiB · 웹 8 MiB — v2.15-math). 초안의 `imageCacheBytesNative`·`imageCacheBytesWeb`·`mathRasterCacheBytes` 상수는 만들지 않는다. `tuning_test` v2가 색 상수 세 개가 계약 이름 그대로 있는지, `shapeHoldMs`·`shapeHoldRadiusPx`·`fontLoadTimeoutMs`가 7.2.9 값인지 확인한다.
 
 ---
 ## 7. 외부 패키지
@@ -2482,6 +2483,20 @@ flutter test benchmark/ --concurrency=1        # 벤치 (부하가 CPU 4보다 �
   - `maxTileRastersPerFrame`은 이제 한 풀(`InkCachePool`)의 모든 페이지를 합쳐 센다 — 안정된 직후 보이는 페이지와 이웃 2장이 같은 래스터 프레임에 무거운 타일을 셋 만들지 않는다.
 - **시험**: `test/widget/raster_scroll_test.dart`(이웃 페이지 전체 타일, 나갔다 돌아온 페이지는 타일을 다시 만들지 않음, 같은 배율 드래그 중 타일(예산이 보이는 곳만큼일 때), 확대 중에는 여전히 멈춤, 조금만 보이는 페이지도 전체 타일, 이웃은 남은 예산만 씀, 풀 전체 프레임당 타일 1개) — 처음 고치기 전 앞의 셋, 검토 뒤 고치기 전 뒤의 셋이 실패. 편집기 `page_viewport_test`의 '이동·플링은 isScaling 거짓'은 편집기 고치기 전 실패. 그림은 바뀌지 않는다(골든 그대로).
 - **남은 것**: 획마다 saveLayer는 그대로(겹침·블렌드 모양이 바뀜). 예산보다 보이는 타일이 많으면 드래그 중 프레임마다 타일 하나를 다시 만들 수 있다(풀 전체 프레임당 하나로 묶임). 올린 범위(±1) 밖에서 들어오는 페이지는 여전히 올린 뒤 300 ms(입력 없음)부터 타일을 만들고 — 이제 드래그 중에도 — 그 전에는 벡터로 그린다. 타일 하나 만들기(질감 조각의 `toImageSync`)도 래스터 스레드 일이라 기기(Impeller, 태블릿 GPU)에서 프레임 시간을 프로필 빌드로 재 봐야 한다 — VM 숫자만 있다. 올린 페이지 3~4장이 예산(128 MiB)을 거의 다 쓸 수 있다(배율 4의 A4 한 장 약 32 MB).
+
+## 15. 크기가 바뀐 수식의 래스터 (2026-11-16, 계약 v2.15-math)
+
+6.12.3 수식 래스터 캐시에 두 규칙을 더한다(04-editor 25절 — 오너 '변환된 수식의 크기를 바꾸면 깨지는 현상').
+
+- **다른 글자 크기 빌려 그리기**: (LaTeX, 색, 글자 크기)의 래스터가 아직 없으면(크기를 바꾸면 글자 크기가 바뀌어 새 키) 그 칸의 다른 배율도 없을 때 같은 LaTeX·색의 다른 글자 크기 래스터를 그린다 — contain fit이라 모양은 같다. 고르는 법: 그 래스터의 이 크기 기준 px/pt = 배율 칸 × 그 글자 크기 ÷ 이 글자 크기가 원하는 배율 칸 이상인 것 중 가장 작은 것, 없으면 가장 큰 것. 다른 수식·다른 색은 빌리지 않는다. 빈 회색 상자는 같은 수식이 하나도 없을 때만.
+- **수식 하나에 요청 하나**: 같은 LaTeX·색의 요청이 만드는 중이면 새 요청은 기다린다(가장 최근에 물은 것이 마지막). 그 요청이 끝나면(성공·실패) 기다리던 것 중 **마지막에 물은 것**을 바로 요청하고, 나머지에는 변화 알림(`failed: false`)만 보낸다 — 아직 그리는 조각·라이브 층은 다시 묻고, 끄는 동안 지나간 중간 크기는 아무도 묻지 않아 만들지 않는다. 그래서 끄는 동안 래스터는 많아야 한 번에 하나, 놓은 뒤 마지막 크기가 바로 다음 차례이고, 줄 선 요청의 예약 바이트로 배율 칸이 낮아지지 않는다.
+- **지나간 크기는 예산을 잡지 않음**: 같은 LaTeX·색의 래스터가 도착하면, 그 수식의 다른 글자 크기 중 도착만 하고 조각이 한 번도 그리지 않은 것('fresh' — 끄는 동안 라이브 층만 그린 중간 크기)은 fresh를 벗어 여느 지난 항목처럼 밀려날 수 있다(`PinnedRasterCache.markStale`). 전에는 이것들이 예산의 fresh 몫을 잡고 있어 마지막 크기가 낮은 배율 칸으로 내려갔다(배율 1까지 — 그림 탐침).
+- **예산**: `InkRenderConfig.mathRasterCacheBytes` 기본값을 네이티브 24 MiB로(웹 `webDefaults`는 8 MiB 그대로 — 7.4.10 웹 합계). 144 pt 가까이 늘린 수식은 래스터 하나가 10 MiB를 넘어(배율 3에서 약 2.7 Mpx), 8 MiB에서는 늘 낮은 배율 칸으로 내려가 흐렸다(그림 탐침에서 `downgraded` 4).
+- (검토 반영, C215M-05) **긴 수식 잘림**: 화면 밖 배치·래스터 제약이 4000 × 4000 pt라, 18 pt에서 500 pt 넘는 수식을 144 pt로 늘리면 폭이 4000에서 잘려(flutter_math 'RenderLine overflowed') 오른쪽이 화면·PDF·새 수식 틀에서 없어졌다 → `OffscreenMathHost.maxExtent` = 14400(`ElementFrame.maxSide`). 픽셀은 `rasterScaleFor`(4 Mpx·8192 px)가 그대로 묶는다.
+- (검토 반영, C215M-06) **contain 배율**: 6.12.3의 '버킷 × contain 배율'을 실제로 적용한다. 틀 ÷ 배치 크기(contain s)가 `MathRasterCache.containLift`(1.25)를 넘으면 기기 배율 × s 이상의 칸(사다리 0.5…4, 8, 16 — `maxContainBucket`)을 원한다. 고치기 전 앱이 144 pt 위로 늘린 수식(저장된 노트·동기화)과 다른 기기 글꼴로 배치된 틀이 화면에서 늘 흐리던 것이 PDF(이미 s를 곱함)만큼 선명해진다. 배치 크기는 그 수식 래스터가 잰 값, 없으면 같은 LaTeX·색의 가장 가까운 글자 크기 값을 비례 — 그리기 중에는 배치 호스트를 부를 수 없어서(S-9). 아무 래스터도 없으면 보통 칸, 도착 뒤 다시 묻는다. 바이트 추정도 배치 크기로(틀 크기가 아니라).
+- (검토 반영, C215M-09) 기다리는 요청은 **기다리는 동안 낮추지 않는다**(앞 요청의 예약 때문에 마지막 크기가 낮아지던 일) — 맞춤 검사는 물을 때(`_askWaiting` 안, 예약을 푼 뒤). 기다리던 것 중 마지막 말고는 같은 글자 크기의 다른 칸이어도 알림을 받는다. 요청이 `InkTuning.mathRasterTimeoutMs`(20 s) 넘게 안 끝나면 다음에 그 수식을 물을 때 실패로 세고 자리를 놓는다(타이머 없이 `nowUs`로 — 늦게 온 래스터는 받는다). fresh를 벗기는 건 **라이브 층만 물은 크기**뿐(`peek(live: true)`) — 조각이 물은 크기(같은 수식의 다른 객체)는 그대로.
+- 공개 API 변경 없음(`MathRasterCache`는 INTERNAL). 화면 조각의 그리기 키(`InkDrawKeys.math`)·고정(hold)은 그대로 — 빌린 래스터는 그 래스터의 키로 고정된다.
+- **시험**: `test/unit/math/math_raster_cache_test.dart`·`test/widget/math_render_test.dart`의 '(math resize fix)' 묶음(144 pt 수식이 배율 3 그대로·낮춤 없음 — 8 MiB에서 실패), `render_config_test`·`api_surface_v2_test`(네이티브 24 MiB, 웹 8 MiB). 검토 반영: 긴 수식 144 pt 배치 폭 = 18 pt의 8배·FlutterError 없음·래스터 양 끝 잉크(고치기 전 4000에서 실패), 틀 2배로 늘어난 144 pt 수식 → 배율 4 고정, contain 1.1 · 2 · 3 → 칸 2 · 4 · 8, 기다리는 동안 낮추지 않음, 같은 크기 다른 칸 알림, 멈춘 요청 20 s 뒤 자리 놓음·늦은 도착 받음, 조각이 물은 형제 크기는 fresh 유지.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

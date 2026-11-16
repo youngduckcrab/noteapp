@@ -439,6 +439,85 @@ void main() {
     expect(o2.y, closeTo(o.y, 1e-6));
   });
 
+  for (final (label, by, font) in const [
+    ('bigger', Offset(2000, 2000), 144.0),
+    ('smaller', Offset(-2000, -2000), 6.0),
+  ]) {
+    testWidgets('(math resize fix) a formula corner dragged far $label: ONE '
+        'TransformElements, the font size stops at $font pt and the frame '
+        'with it (aspect kept, opposite corner kept); undo / redo exact', (
+      tester,
+    ) async {
+      final h = await _pump(tester, objects: [_math]);
+      await _select(tester, h, {_math.id});
+      final from = _at(h, ink.SelectionHandle.bottomRight);
+      await _drag(tester, h, from, by);
+      await h.driver.up(1);
+      await tester.pump();
+
+      expect(_edits(h), ['execute:transform']);
+      final m = _page(h).objectById(_math.id)! as core.MathObject;
+      expect(m.style.fontSizePt, closeTo(font, 1e-6));
+      final r = m.frame.rect, r0 = _math.frame.rect;
+      expect(r.width / r.height, closeTo(r0.width / r0.height, 1e-6));
+      expect(
+        r.width / m.style.fontSizePt,
+        closeTo(r0.width / _math.style.fontSizePt, 1e-6),
+        reason: 'the frame is the laid-out size at the new font size',
+      );
+      expect(r.left, closeTo(r0.left, 1e-6));
+      expect(r.top, closeTo(r0.top, 1e-6));
+
+      await h.session.undo();
+      await tester.pump();
+      final back = _page(h).objectById(_math.id)! as core.MathObject;
+      expect(back.frame, _math.frame);
+      expect(back.style, _math.style);
+      await h.session.redo();
+      await tester.pump();
+      final again = _page(h).objectById(_math.id)! as core.MathObject;
+      expect(again.frame, m.frame);
+      expect(again.style, m.style);
+    });
+  }
+
+  testWidgets('(math resize fix) a group with a formula dragged far: the '
+      'whole group stops where the formula stops (144 pt) — the formula keeps '
+      'its place in the group, the preview is the commit', (tester) async {
+    final h = await _pump(tester, objects: [_rectangle, _math]);
+    await _select(tester, h, {_rectangle.id, _math.id});
+    final from = _at(h, ink.SelectionHandle.bottomRight);
+    await _drag(tester, h, from, const Offset(12000, 12000));
+    // the preview's frame (the bounds × 8 about the top left)
+    final quad = _frame(h).quad;
+    await h.driver.up(1);
+    await tester.pump();
+
+    expect(_edits(h), ['execute:transform']);
+    final m = _page(h).objectById(_math.id)! as core.MathObject;
+    final r = _page(h).objectById(_rectangle.id)! as core.ShapeObject;
+    expect(m.style.fontSizePt, closeTo(144, 1e-6));
+    // the group scaled by 8 about one anchor: the formula keeps its place
+    // relative to the rectangle (centre offset × 8)
+    final cm = m.frame.center, cr = r.geometry.frame.center;
+    final cm0 = _math.frame.center, cr0 = _rectangle.geometry.frame.center;
+    expect(cm.x - cr.x, closeTo((cm0.x - cr0.x) * 8, 1e-3));
+    expect(cm.y - cr.y, closeTo((cm0.y - cr0.y) * 8, 1e-3));
+    expect(m.frame.rect.width, closeTo(_math.frame.rect.width * 8, 1e-3));
+    expect(
+      r.geometry.frame.rect.width,
+      closeTo(_rectangle.geometry.frame.rect.width * 8, 1e-3),
+    );
+    expect(
+      _frame(h).quad.handlePosition(ink.SelectionHandle.bottomRight),
+      offsetMoreOrLessEquals(
+        quad.handlePosition(ink.SelectionHandle.bottomRight),
+        epsilon: 1,
+      ),
+      reason: 'the committed frame is the previewed one',
+    );
+  });
+
   testWidgets('the object deleted elsewhere during an edge drag: the end '
       'sends no command, no snackbar, no FlutterError report, the preview '
       'cleared, the selection dropped (review S-1)', (tester) async {

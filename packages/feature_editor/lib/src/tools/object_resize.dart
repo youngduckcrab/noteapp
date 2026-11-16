@@ -6,7 +6,7 @@
 // re-measure withMeasuredHeight) — ObjectEditInteraction previews and
 // commits them (UpdateObjects).
 import 'dart:math' as math;
-import 'dart:ui' show Offset;
+import 'dart:ui' show Offset, Rect;
 
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:note_core/note_core.dart' as core;
@@ -30,13 +30,86 @@ abstract final class ObjectResize {
         _ => (width: minSidePt, height: minSidePt),
       };
 
+  /// (math resize fix) The uniform scale range a corner drag of [object] may
+  /// take: a formula's font size stays in [MathStyle.minFontSize,
+  /// MathStyle.maxFontSize] (6–144 pt — CORE clamps it there, so a bigger
+  /// frame would only stretch the formula's raster); a size already outside
+  /// does not move further out. Everything else: unbounded.
+  static ({double min, double max}) scaleRangeOf(core.PageObject object) {
+    if (object is! core.MathObject) {
+      return (min: 0, max: double.infinity);
+    }
+    final f = object.style.fontSizePt;
+    if (!(f > 0) || !f.isFinite) return (min: 1, max: 1);
+    return (
+      min: math.min(1.0, core.MathStyle.minFontSize / f),
+      max: math.max(1.0, core.MathStyle.maxFontSize / f),
+    );
+  }
+
+  /// (math resize fix) [scaleRangeOf] of every object of a selection: the
+  /// tightest range (each contains 1, so the result does).
+  static ({double min, double max}) scaleRangeOfAll(
+    Iterable<core.PageObject> objects,
+  ) {
+    var lo = 0.0, hi = double.infinity;
+    for (final o in objects) {
+      final r = scaleRangeOf(o);
+      lo = math.max(lo, r.min);
+      hi = math.min(hi, r.max);
+    }
+    return (min: lo, max: hi);
+  }
+
+  /// (math resize fix) A selection resize [t] (SelectionGeometry.resize from
+  /// [handle] of [bounds] — a scale about the opposite corner / edge) with its
+  /// uniform scale (Affine2.uniformScale, what CORE scales a formula's font
+  /// by) clamped into [range] ([scaleRangeOfAll]), about the same anchor: the
+  /// whole selection stops where its first formula's font size stops, so the
+  /// formula does not stop about its own centre while the rest grows on.
+  static core.Affine2 clampGroupResize(
+    core.Affine2 t, {
+    required Rect bounds,
+    required ink.SelectionHandle handle,
+    required ({double min, double max}) range,
+  }) {
+    final u = t.uniformScale;
+    if (!(u > 0) || !u.isFinite) return t;
+    final clamped = u.clamp(range.min, range.max).toDouble();
+    if (clamped == u) return t;
+    final (hx, hy) = switch (handle) {
+      ink.SelectionHandle.topLeft => (-1, -1),
+      ink.SelectionHandle.top => (0, -1),
+      ink.SelectionHandle.topRight => (1, -1),
+      ink.SelectionHandle.right => (1, 0),
+      ink.SelectionHandle.bottomRight => (1, 1),
+      ink.SelectionHandle.bottom => (0, 1),
+      ink.SelectionHandle.bottomLeft => (-1, 1),
+      ink.SelectionHandle.left => (-1, 0),
+    };
+    final ax = hx < 0 ? bounds.right : bounds.left;
+    final ay = hy < 0 ? bounds.bottom : bounds.top;
+    // u = sqrt(sx · sy): a corner scales both (sx = sy), an edge one axis
+    final k = clamped / u;
+    final double sx, sy;
+    if (hx != 0 && hy != 0) {
+      (sx, sy) = (t.a * k, t.d * k);
+    } else if (hx != 0) {
+      (sx, sy) = (t.a * k * k, t.d);
+    } else {
+      (sx, sy) = (t.a, t.d * k * k);
+    }
+    return core.Affine2.scaling(sx, sy, originX: ax, originY: ay);
+  }
+
   /// (수정 1회차, 검토 S-2 → EDITOR-M5) Corner handle (keep aspect) of a
   /// single — possibly rotated — object. delta is projected on the diagonal
   /// from the opposite corner o to the dragged corner c (a dot product, so
   /// the frame's rotation needs no undoing): s = (|c − o| + proj) / |c − o|,
   /// clamped so no side goes below the minimum ([minWidth] × [minHeight] pt
   /// — [minimumOf]; a side already shorter does not shrink) or above
-  /// ElementFrame.maxSide. Returns T(o) · S(s) · T(−o) — a uniform scale
+  /// ElementFrame.maxSide, and (math resize fix) into [minScale, maxScale]
+  /// ([scaleRangeOf]). Returns T(o) · S(s) · T(−o) — a uniform scale
   /// about the ROTATED opposite corner (frame.corners[(i + 2) % 4]), so the
   /// rotation is unchanged and o stays put. Fed to
   /// InkSelection.setPreviewTransform → commitTransform → TransformElements
@@ -47,6 +120,8 @@ abstract final class ObjectResize {
     Offset deltaPagePt, {
     double minWidth = minSidePt,
     double minHeight = minSidePt,
+    double minScale = 0,
+    double maxScale = double.infinity,
   }) {
     final i = switch (corner) {
       ink.SelectionHandle.topLeft => 0,
@@ -70,9 +145,11 @@ abstract final class ObjectResize {
     if (w > 0) lower = math.max(lower, math.min(1.0, minWidth / w));
     if (h > 0) lower = math.max(lower, math.min(1.0, minHeight / h));
     final longest = math.max(w, h);
-    final upper = longest > 0
+    var upper = longest > 0
         ? math.max(1.0, core.ElementFrame.maxSide / longest)
         : 1.0;
+    lower = math.max(lower, math.min(1.0, minScale));
+    upper = math.min(upper, math.max(1.0, maxScale));
     s = s.clamp(lower, upper).toDouble();
     if (s == 1) return core.Affine2.identity;
     return core.Affine2.scaling(s, s, originX: o.x, originY: o.y);
@@ -106,6 +183,7 @@ abstract final class ObjectResize {
         return null;
       case core.MathObject():
         if (!corner) return null;
+        final range = scaleRangeOf(object);
         return object.transformed(
           cornerScale(
             object.frame,
@@ -113,6 +191,8 @@ abstract final class ObjectResize {
             deltaPagePt,
             minWidth: min.width,
             minHeight: min.height,
+            minScale: range.min,
+            maxScale: range.max,
           ),
         );
       case core.TextBoxObject():

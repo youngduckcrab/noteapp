@@ -239,10 +239,14 @@ void main() {
     expect(edge[0], greaterThan(180));
     expect(edge[1], lessThan(90));
     expect(_isPaper(px.at(150, 205)), isTrue, reason: 'no fill in R2-B3');
-    // formula: a light box; unknown object: hatched box; text: glyphs
-    final m = px.at(350, 325);
-    expect(_isPaper(m), isFalse);
-    expect(m[0], greaterThan(img[0]), reason: 'lighter than the image box');
+    // formula: drawn in its frame (its raster — the light box before it
+    // arrives; (math resize fix) a pixel probe at the fraction bar is not
+    // stable across raster buckets, so count the frame's ink);
+    // unknown object: hatched box; text: glyphs
+    expect(
+      _inkedIn(px, const Rect.fromLTWH(301, 301, 98, 48)),
+      greaterThan(20),
+    );
     expect(
       _inkedIn(px, const Rect.fromLTWH(401, 101, 48, 48)),
       greaterThan(100),

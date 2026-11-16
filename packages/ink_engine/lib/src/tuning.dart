@@ -170,6 +170,11 @@ abstract final class InkTuning {
   static const int mathSvgSettleMs = 1000;
   static const int mathRasterRetryMs = 5000;
 
+  /// (math resize fix) A formula raster request still unsettled after this long no longer
+  /// holds its LaTeX and color's single request slot (math_raster_cache.dart): the next
+  /// ask of that family treats it as failed and goes ahead. A late arrival is still kept.
+  static const int mathRasterTimeoutMs = 20000;
+
   // 6.10 fonts (contract 7.2.9 value: 5 s)
   static const int fontLoadTimeoutMs = 5000;
   static const int fontRetryAfterMs = 30000;

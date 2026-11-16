@@ -410,6 +410,46 @@ void _pageObjectCases() {
     },
   );
 
+  test('(math resize fix) a formula scaled past 144 pt and back: undo gives '
+      'the exact formula back, redo the clamped one', () async {
+    f = await UndoFixture.open(
+      initial: _initialStrokes,
+      objects: _initialObjects,
+    );
+    await ack();
+    final before =
+        f.session.pageIfLoaded(f.pageId)!.objectById('math')! as MathObject;
+    final o = before.frame.rect;
+    await f.run(
+      TransformElements(
+        pageId: f.pageId,
+        elementIds: const ['math'],
+        transform: Affine2.scaling(20, 20, originX: o.left, originY: o.top),
+      ),
+    );
+    final grown =
+        f.session.pageIfLoaded(f.pageId)!.objectById('math')! as MathObject;
+    expect(grown.style.fontSizePt, MathStyle.maxFontSize);
+    expect(
+      grown.frame.rect.width / grown.style.fontSizePt,
+      closeTo(o.width / before.style.fontSizePt, 1e-9),
+      reason: 'the frame stopped with the font size',
+    );
+    await ack();
+    await f.session.undo();
+    await f.session.flush();
+    final back =
+        f.session.pageIfLoaded(f.pageId)!.objectById('math')! as MathObject;
+    expect(back.frame, before.frame);
+    expect(back.style, before.style);
+    await f.session.redo();
+    await f.session.flush();
+    final again =
+        f.session.pageIfLoaded(f.pageId)!.objectById('math')! as MathObject;
+    expect(again.frame, grown.frame);
+    expect(again.style, grown.style);
+  });
+
   test('100 object steps undone give back the initial page, in memory and '
       'stored; redone, the edited page', () async {
     f = await UndoFixture.open(

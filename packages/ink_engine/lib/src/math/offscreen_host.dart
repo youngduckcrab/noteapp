@@ -67,8 +67,12 @@ final class OffscreenMathHost {
   /// (T36) The raster host (rasterize only — queued, waits for the glyph pictures).
   static final OffscreenMathHost rasterHost = OffscreenMathHost._(raster: true);
 
-  /// Off-screen constraints (6.12.2): at most 4000 × 4000 logical px.
-  static const double maxExtent = 4000;
+  /// Off-screen constraints (6.12.2): at most ElementFrame.maxSide (14400) logical px a
+  /// side. (math resize fix) 4000 before: a long formula made big (a 650 pt wide one at
+  /// 144 pt is over 5000 pt) was laid out clipped — its right end cut off on screen, in
+  /// the PDF and in the frame a new formula got. The raster's pixels stay capped by
+  /// rasterScaleFor (4 Mpx, 8192 px a side), so only k drops.
+  static const double maxExtent = 14400;
 
   /// (T36, test seam — 총괄 답 Q5) A loader the raster host draws in one more
   /// VectorGraphic (8 × 8 px at the top left, over the formula): a delayed loader

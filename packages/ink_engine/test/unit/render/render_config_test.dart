@@ -26,15 +26,17 @@ void main() {
     expect(c.rasterBudgetBytes, 96 * _mb);
     // 7.4.10: INK's managed caches on the web stay at 128 MB together
     expect(c.outlineBudgetBytes + c.rasterBudgetBytes, 128 * _mb);
-    // the rest as native
+    // the rest as native — (v2.15-math) but formula rasters 8 MiB (native 24)
     expect(
       c,
       InkRenderConfig.nativeDefaults.copyWith(
         chunkSizePt: 128,
         outlineBudgetBytes: 32 * _mb,
         rasterBudgetBytes: 96 * _mb,
+        mathRasterCacheBytes: 8 * _mb,
       ),
     );
+    expect(InkRenderConfig.nativeDefaults.mathRasterCacheBytes, 24 * _mb);
   });
 
   test(

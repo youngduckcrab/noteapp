@@ -420,6 +420,152 @@ void main() {
     });
   });
 
+  group('(math resize fix) a formula corner drag', () {
+    final m0 = PageObjectFixtures.math(pageId: 'p'); // 100 × 50 pt, 18 pt
+    core.MathObject drag(ink.SelectionHandle h, Offset d) =>
+        ObjectResize.resize(m0, h, d, keepAspect: true)! as core.MathObject;
+
+    test('keeps the aspect for any drag direction; the font size scales with '
+        'the frame (frame ÷ font size unchanged)', () {
+      for (final (h, d) in const [
+        (ink.SelectionHandle.bottomRight, Offset(300, 10)), // wide
+        (ink.SelectionHandle.bottomRight, Offset(5, 200)), // tall
+        (ink.SelectionHandle.topLeft, Offset(30, 30)), // smaller
+        (ink.SelectionHandle.topRight, Offset(80, -20)),
+        (ink.SelectionHandle.bottomLeft, Offset(-40, 0)),
+      ]) {
+        final m = drag(h, d);
+        final r = m.frame.rect;
+        expect(r.width / r.height, closeTo(2, 1e-9), reason: '$h $d');
+        expect(
+          r.width / m.style.fontSizePt,
+          closeTo(100 / 18, 1e-9),
+          reason: '$h $d',
+        );
+      }
+    });
+
+    test('stops where the font size stops (144 / 6 pt) — the opposite '
+        'corner stays put', () {
+      final big = drag(
+        ink.SelectionHandle.bottomRight,
+        const Offset(5000, 5000),
+      );
+      expect(big.style.fontSizePt, closeTo(144, 1e-9));
+      expect(big.frame.rect.width, closeTo(800, 1e-6), reason: '× 8');
+      expect(big.frame.rect.left, closeTo(100, 1e-9));
+      expect(big.frame.rect.top, closeTo(600, 1e-9));
+      final small = drag(ink.SelectionHandle.topLeft, const Offset(95, 45));
+      expect(small.style.fontSizePt, closeTo(6, 1e-9));
+      expect(small.frame.rect.width, closeTo(100 / 3, 1e-6), reason: '× ⅓');
+      expect(small.frame.rect.right, closeTo(200, 1e-9));
+      expect(small.frame.rect.bottom, closeTo(650, 1e-9));
+      expect(ObjectResize.scaleRangeOf(m0), (min: 1 / 3, max: 8.0));
+      expect(
+        ObjectResize.scaleRangeOf(PageObjectFixtures.textBox(pageId: 'p')),
+        (min: 0.0, max: double.infinity),
+      );
+    });
+
+    test('the preview transform is the same clamped scale (cornerScale with '
+        'scaleRangeOf)', () {
+      final range = ObjectResize.scaleRangeOf(m0);
+      final t = ObjectResize.cornerScale(
+        m0.frame,
+        ink.SelectionHandle.bottomRight,
+        const Offset(5000, 5000),
+        minScale: range.min,
+        maxScale: range.max,
+      );
+      expect(t.uniformScale, closeTo(8, 1e-9));
+      expect(
+        (m0.transformed(t) as core.MathObject).frame,
+        drag(ink.SelectionHandle.bottomRight, const Offset(5000, 5000)).frame,
+      );
+    });
+  });
+
+  group('(math resize fix) a group resize with a formula', () {
+    const bounds = Rect.fromLTRB(100, 100, 300, 200);
+    final m18 = PageObjectFixtures.math(pageId: 'p'); // 18 pt: × ⅓ … × 8
+    final shape = PageObjectFixtures.shape(pageId: 'p');
+
+    test('scaleRangeOfAll: the tightest range of the objects', () {
+      expect(ObjectResize.scaleRangeOfAll([shape]), (
+        min: 0.0,
+        max: double.infinity,
+      ));
+      final m72 = PageObjectFixtures.math(pageId: 'p')
+          .copyWith(style: const core.MathStyle(fontSizePt: 72));
+      expect(ObjectResize.scaleRangeOfAll([shape, m18, m72]), (
+        min: 1 / 3,
+        max: 2.0,
+      ));
+    });
+
+    test('clampGroupResize: the uniform scale into the range about the same '
+        'anchor; inside the range unchanged', () {
+      final range = ObjectResize.scaleRangeOfAll([shape, m18]);
+      final far = ink.SelectionGeometry.resize(
+        bounds: bounds,
+        handle: ink.SelectionHandle.bottomRight,
+        delta: const Offset(5000, 2500),
+      );
+      final t = ObjectResize.clampGroupResize(
+        far,
+        bounds: bounds,
+        handle: ink.SelectionHandle.bottomRight,
+        range: range,
+      );
+      expect(t.uniformScale, closeTo(8, 1e-9));
+      final o = const core.PagePoint(100, 100).transformed(t);
+      expect((o.x, o.y), (100.0, 100.0), reason: 'the top left stays');
+      final near = ink.SelectionGeometry.resize(
+        bounds: bounds,
+        handle: ink.SelectionHandle.topLeft,
+        delta: const Offset(20, 10),
+      );
+      expect(
+        ObjectResize.clampGroupResize(
+          near,
+          bounds: bounds,
+          handle: ink.SelectionHandle.topLeft,
+          range: range,
+        ),
+        near,
+      );
+      final small = ObjectResize.clampGroupResize(
+        ink.SelectionGeometry.resize(
+          bounds: bounds,
+          handle: ink.SelectionHandle.topLeft,
+          delta: const Offset(190, 95),
+        ),
+        bounds: bounds,
+        handle: ink.SelectionHandle.topLeft,
+        range: range,
+      );
+      expect(small.uniformScale, closeTo(1 / 3, 1e-9));
+      final c = const core.PagePoint(300, 200).transformed(small);
+      expect(c.x, closeTo(300, 1e-9), reason: 'the bottom right stays');
+      expect(c.y, closeTo(200, 1e-9));
+      // an edge: one axis, so u = √sx (a 72 pt formula: at most × 2)
+      final edge = ObjectResize.clampGroupResize(
+        ink.SelectionGeometry.resize(
+          bounds: bounds,
+          handle: ink.SelectionHandle.right,
+          delta: const Offset(5000, 0),
+          keepAspect: false,
+        ),
+        bounds: bounds,
+        handle: ink.SelectionHandle.right,
+        range: (min: 0.25, max: 2.0),
+      );
+      expect(edge.uniformScale, closeTo(2, 1e-9));
+      expect(edge.a, closeTo(4, 1e-9));
+      expect(edge.d, 1);
+    });
+  });
+
   group('resizeTextWidth · withMeasuredHeight (E2-08)', () {
     test('the width follows the side, at least 40 pt; the other side, the '
         'height and the text stay', () {

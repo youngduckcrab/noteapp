@@ -57,6 +57,7 @@ final class SelectionTransformInteraction extends ToolInteraction {
     required this.handle,
     required this._selection,
     required this._single,
+    required this._groupRange,
     required this._immovable,
     required this._bounds,
     required this._rotateCentre,
@@ -102,6 +103,7 @@ final class SelectionTransformInteraction extends ToolInteraction {
       handle: handle,
       selection: selection,
       single: single,
+      groupRange: ObjectResize.scaleRangeOfAll(selection.objects),
       immovable: isImmovableSelection(selection),
       bounds: bounds,
       rotateCentre: centre,
@@ -131,6 +133,10 @@ final class SelectionTransformInteraction extends ToolInteraction {
 
   /// (v2) The selection's single object (no strokes), or null.
   final core.PageObject? _single;
+
+  /// (math resize fix) The uniform scale range of a multi-selection resize:
+  /// ObjectResize.scaleRangeOfAll of its objects (its formulas' font sizes).
+  final ({double min, double max}) _groupRange;
 
   /// (v2) Only unknown objects: nothing previews, nothing commits (6.6.4).
   final bool _immovable;
@@ -186,19 +192,28 @@ final class SelectionTransformInteraction extends ToolInteraction {
       final single = _single;
       if (single != null) {
         final min = ObjectResize.minimumOf(single);
+        final range = ObjectResize.scaleRangeOf(single);
         t = ObjectResize.cornerScale(
           single.frame,
           h.resize!,
           delta,
           minWidth: min.width,
           minHeight: min.height,
+          minScale: range.min,
+          maxScale: range.max,
         );
       } else {
-        t = ink.SelectionGeometry.resize(
+        // (math resize fix) the group stops where a formula's font size stops
+        t = ObjectResize.clampGroupResize(
+          ink.SelectionGeometry.resize(
+            bounds: _bounds,
+            handle: h.resize!,
+            delta: delta,
+            keepAspect: true,
+          ),
           bounds: _bounds,
           handle: h.resize!,
-          delta: delta,
-          keepAspect: true,
+          range: _groupRange,
         );
       }
     }
