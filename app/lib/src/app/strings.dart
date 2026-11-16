@@ -71,9 +71,14 @@ abstract final class AppStrings {
   static const String sectionAbout = '앱 정보';
   static const String groupGeneral = '일반';
 
-  /// '화면' group (AppStyleSection, AppBrightnessSection — 01-infra 14.3).
+  /// '화면' group (AppStyleSection ×2, AppBrightnessSection — 01-infra
+  /// 14.3). (v2.14-ui split) the home screen and the note editor each have
+  /// a style; brightness is one for both.
   static const String groupScreen = '화면';
-  static const String sectionStyle = '화면 스타일';
+  static const String sectionHomeStyle = '홈 화면 스타일';
+  static const String sectionEditorStyle = '필기 화면 스타일';
+  static const String homeStyleNote = '서재, 폴더, 휴지통, 검색, 설정 화면에 적용돼요.';
+  static const String editorStyleNote = '노트를 열었을 때의 도구 막대, 펜, 메뉴에 적용돼요.';
   static const String sectionBrightness = '밝기';
   static const String styleCraft = '크래프트';
   static const String styleCraftHint = '따뜻한 종이 느낌, 부드러운 그림자';

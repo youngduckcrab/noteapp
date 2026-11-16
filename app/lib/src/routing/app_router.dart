@@ -20,6 +20,9 @@ const String _noteIdParam = 'noteId';
 ///   LibraryScreen keeps its State (scroll, selection, sidebar).
 /// - The editor has no transition and so no edge-swipe back gesture that
 ///   would catch pen strokes (INFRA-M7).
+/// - (v2.14-ui split) The editor page's child goes through [wrapEditor]
+///   (appRouterProvider: EditorStyleScope — the editor subtree has the
+///   필기 화면 스타일, the other routes the app's home-style theme).
 /// - No redirects (M4 adds the login redirect); ids are percent-encoded by
 ///   [AppRoutes] and decoded by go_router.
 /// - `/notes/:noteId?page=<pageId>&focus=<l>,<t>,<r>,<b>` (2차 6.8, S2-6):
@@ -39,6 +42,7 @@ GoRouter createAppRouter({
   required AppScreenBuilders screens,
   String initialLocation = AppRoutes.library,
   List<NavigatorObserver>? observers,
+  Widget Function(Widget editor) wrapEditor = _unwrapped,
 }) {
   GoRouter.optionURLReflectsImperativeAPIs = true;
   late final GoRouter router;
@@ -83,7 +87,9 @@ GoRouter createAppRouter({
         pageBuilder: (context, state) => NoTransitionPage<void>(
           key: state.pageKey,
           name: state.name,
-          child: screens.editor(context, _editorArgs(state), navigator),
+          child: wrapEditor(
+            screens.editor(context, _editorArgs(state), navigator),
+          ),
         ),
       ),
       GoRoute(
@@ -95,6 +101,8 @@ GoRouter createAppRouter({
   );
   return router;
 }
+
+Widget _unwrapped(Widget editor) => editor;
 
 EditorRouteArgs _editorArgs(GoRouterState state) {
   final query = state.uri.queryParameters;

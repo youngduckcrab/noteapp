@@ -53,7 +53,8 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 ///
 /// | id | group | title |
 /// |---|---|---|
-/// | app.style | 화면 | 화면 스타일 |
+/// | app.homeStyle | 화면 | 홈 화면 스타일 |
+/// | app.editorStyle | 화면 | 필기 화면 스타일 |
 /// | app.brightness | 화면 | 밝기 |
 /// | app.storage | — | 저장 공간 |
 /// | editor.input | — | 입력 |
@@ -87,10 +88,16 @@ List<SettingsSectionEntry> _sections(
 }) => [
   // v2.14-ui (01-infra 14.3): the '화면' group comes first.
   SettingsSectionEntry(
-    id: 'app.style',
+    id: 'app.homeStyle',
     group: AppStrings.groupScreen,
-    title: AppStrings.sectionStyle,
-    builder: (context) => const AppStyleSection(),
+    title: AppStrings.sectionHomeStyle,
+    builder: (context) => const AppStyleSection(target: StyleTarget.home),
+  ),
+  SettingsSectionEntry(
+    id: 'app.editorStyle',
+    group: AppStrings.groupScreen,
+    title: AppStrings.sectionEditorStyle,
+    builder: (context) => const AppStyleSection(target: StyleTarget.editor),
   ),
   SettingsSectionEntry(
     id: 'app.brightness',

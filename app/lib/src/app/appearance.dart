@@ -1,49 +1,107 @@
-/// '화면' settings: screen style and brightness (01-infra 14.3, contract
-/// 7.4.4 v2.14-ui).
+/// '화면' settings: 홈 화면 스타일, 필기 화면 스타일 and brightness (01-infra
+/// 14.3, contract 7.4.4 v2.14-ui).
 ///
-/// Both are device settings (SettingScope.device): how the screen looks is a
+/// All are device settings (SettingScope.device): how the screen looks is a
 /// matter of the device (a dark tablet at night, a bright phone), and a
 /// device key never syncs. NoteApp watches [appAppearanceProvider], so a
 /// change applies at once, without a restart.
+///
+/// (v2.14-ui split) The home style themes the app (library, folders, trash,
+/// search, settings and the dialogs opened from them); the editor style
+/// themes the note-editor route (EditorStyleScope). Brightness stays one
+/// app-wide setting.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
-    show SettingKey, SettingScope, settingsSnapshotProvider;
+    show SettingKey, SettingScope, SettingsSnapshot, settingsSnapshotProvider;
 import 'package:ui_kit/ui_kit.dart';
 
 /// Setting keys of the '화면' group (prefix `app.` — contract 7.4.4). The
 /// stored values are the wire names of [AppStyle] / [AppBrightnessMode].
 abstract final class AppearanceKeys {
-  static final SettingKey<String> style = SettingKey.string(
+  /// 홈 화면 스타일 (default 크래프트).
+  static final SettingKey<String> homeStyle = SettingKey.string(
+    'app.appearance.homeStyle',
+    AppStyle.fallback.wireName,
+    scope: SettingScope.device,
+  );
+
+  /// 필기 화면 스타일 (default 크래프트).
+  static final SettingKey<String> editorStyle = SettingKey.string(
+    'app.appearance.editorStyle',
+    AppStyle.fallback.wireName,
+    scope: SettingScope.device,
+  );
+
+  /// The one '화면 스타일' of stage 1 (read only): while a new key is not
+  /// stored, it takes this value, so the earlier choice is kept for both.
+  static final SettingKey<String> legacyStyle = SettingKey.string(
     'app.appearance.style',
     AppStyle.fallback.wireName,
     scope: SettingScope.device,
   );
+
   static final SettingKey<String> brightness = SettingKey.string(
     'app.appearance.brightness',
     AppBrightnessMode.fallback.wireName,
     scope: SettingScope.device,
   );
+
+  /// [homeStyle] / [editorStyle] / [legacyStyle] read as null while not
+  /// stored (or undecodable) — the migration needs to tell "not stored"
+  /// from "stored craft".
+  static SettingKey<String?> storedOrNull(SettingKey<String> key) =>
+      SettingKey<String?>(
+        key.name,
+        defaultValue: null,
+        encode: (value) => value,
+        decode: (json) => json! as String,
+        scope: key.scope,
+      );
 }
 
-/// The chosen style and brightness.
+/// The chosen styles and brightness.
 @immutable
 final class AppAppearance {
   const AppAppearance({
-    this.style = AppStyle.fallback,
+    this.homeStyle = AppStyle.fallback,
+    this.editorStyle = AppStyle.fallback,
     this.brightness = AppBrightnessMode.fallback,
   });
 
-  /// From the stored wire names; unknown values → the defaults.
-  factory AppAppearance.fromWire(String style, String brightness) =>
-      AppAppearance(
-        style: AppStyle.fromWire(style),
-        brightness: AppBrightnessMode.fromWire(brightness),
+  /// From the stored wire names; unknown values → the defaults. A missing
+  /// (null) [homeStyle] / [editorStyle] takes [legacyStyle] (stage 1's one
+  /// style setting), then the default.
+  factory AppAppearance.fromWire({
+    String? homeStyle,
+    String? editorStyle,
+    String? legacyStyle,
+    String? brightness,
+  }) => AppAppearance(
+    homeStyle: AppStyle.fromWire(homeStyle ?? legacyStyle),
+    editorStyle: AppStyle.fromWire(editorStyle ?? legacyStyle),
+    brightness: AppBrightnessMode.fromWire(brightness),
+  );
+
+  /// From a settings snapshot (see [AppAppearance.fromWire]).
+  factory AppAppearance.fromSnapshot(SettingsSnapshot snapshot) =>
+      AppAppearance.fromWire(
+        homeStyle: snapshot.get(
+          AppearanceKeys.storedOrNull(AppearanceKeys.homeStyle),
+        ),
+        editorStyle: snapshot.get(
+          AppearanceKeys.storedOrNull(AppearanceKeys.editorStyle),
+        ),
+        legacyStyle: snapshot.get(
+          AppearanceKeys.storedOrNull(AppearanceKeys.legacyStyle),
+        ),
+        brightness: snapshot.get(AppearanceKeys.brightness),
       );
 
-  final AppStyle style;
+  final AppStyle homeStyle;
+  final AppStyle editorStyle;
   final AppBrightnessMode brightness;
 
   /// MaterialApp.themeMode for [brightness].
@@ -53,18 +111,28 @@ final class AppAppearance {
     AppBrightnessMode.dark => ThemeMode.dark,
   };
 
+  /// The brightness shown for [brightness] when the platform is
+  /// [platform] — what MaterialApp resolves [themeMode] to.
+  Brightness effectiveBrightness(Brightness platform) => switch (brightness) {
+    AppBrightnessMode.system => platform,
+    AppBrightnessMode.light => Brightness.light,
+    AppBrightnessMode.dark => Brightness.dark,
+  };
+
   @override
   bool operator ==(Object other) =>
       other is AppAppearance &&
-      other.style == style &&
+      other.homeStyle == homeStyle &&
+      other.editorStyle == editorStyle &&
       other.brightness == brightness;
 
   @override
-  int get hashCode => Object.hash(style, brightness);
+  int get hashCode => Object.hash(homeStyle, editorStyle, brightness);
 
   @override
   String toString() =>
-      'AppAppearance(${style.wireName}, ${brightness.wireName})';
+      'AppAppearance(home: ${homeStyle.wireName}, '
+      'editor: ${editorStyle.wireName}, ${brightness.wireName})';
 }
 
 /// The appearance read once during start-up (AppModuleContext
@@ -82,8 +150,5 @@ final initialAppearanceProvider = Provider<AppAppearance>(
 final appAppearanceProvider = Provider<AppAppearance>((ref) {
   final snapshot = ref.watch(settingsSnapshotProvider).value;
   if (snapshot == null) return ref.watch(initialAppearanceProvider);
-  return AppAppearance.fromWire(
-    snapshot.get(AppearanceKeys.style),
-    snapshot.get(AppearanceKeys.brightness),
-  );
+  return AppAppearance.fromSnapshot(snapshot);
 }, name: 'appAppearanceProvider');

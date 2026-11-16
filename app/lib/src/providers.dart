@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:note_core/note_core.dart';
 
+import 'app/editor_style_scope.dart';
 import 'bootstrap/app_bootstrapper.dart';
 import 'bootstrap/startup_report.dart';
 import 'errors/app_error_log.dart';
@@ -55,7 +56,11 @@ final appScreenBuildersProvider = Provider<AppScreenBuilders>(
   name: 'appScreenBuildersProvider',
 );
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final router = createAppRouter(screens: ref.watch(appScreenBuildersProvider));
+  final router = createAppRouter(
+    screens: ref.watch(appScreenBuildersProvider),
+    // (v2.14-ui split) The editor route takes the 필기 화면 스타일.
+    wrapEditor: (editor) => EditorStyleScope(child: editor),
+  );
   ref.onDispose(router.dispose);
   return router;
 }, name: 'appRouterProvider');

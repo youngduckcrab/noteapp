@@ -184,7 +184,7 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
     );
-    // v2.14-ui: + 화면 스타일, 밝기.
-    expect(container.read(settingsSectionsProvider), hasLength(11));
+    // v2.14-ui: + 홈 화면 스타일, 필기 화면 스타일, 밝기.
+    expect(container.read(settingsSectionsProvider), hasLength(12));
   });
 }

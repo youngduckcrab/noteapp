@@ -184,22 +184,49 @@ void main() {
 
   group('(v2.14-ui) resolveAppearance: the 화면 settings before the first '
       'frame', () {
-    test('reads the stored style and brightness', () async {
+    test('reads the stored styles and brightness', () async {
       final (store, settings) = _store();
       addTearDown(store.inner.close);
-      await store.settings.set(AppearanceKeys.style, 'studio');
+      await store.settings.set(AppearanceKeys.homeStyle, 'studio');
+      await store.settings.set(AppearanceKeys.editorStyle, 'calm');
       await store.settings.set(AppearanceKeys.brightness, 'dark');
       final context = _context()..publish<NoteStore>(store);
       expect(
         await context.resolveAppearance(),
         const AppAppearance(
-          style: AppStyle.studio,
+          homeStyle: AppStyle.studio,
+          editorStyle: AppStyle.calm,
           brightness: AppBrightnessMode.dark,
         ),
       );
       expect(
         settings.reads,
-        unorderedEquals(['app.appearance.style', 'app.appearance.brightness']),
+        unorderedEquals([
+          'app.appearance.homeStyle',
+          'app.appearance.editorStyle',
+          'app.appearance.style',
+          'app.appearance.brightness',
+        ]),
+      );
+    });
+
+    test('(split) only the stage-1 style stored → both styles take it; a '
+        'stored new key wins over it', () async {
+      final (store, _) = _store();
+      addTearDown(store.inner.close);
+      await store.settings.set(AppearanceKeys.legacyStyle, 'studio');
+      final context = _context()..publish<NoteStore>(store);
+      expect(
+        await context.resolveAppearance(),
+        const AppAppearance(
+          homeStyle: AppStyle.studio,
+          editorStyle: AppStyle.studio,
+        ),
+      );
+      await store.settings.set(AppearanceKeys.editorStyle, 'craft');
+      expect(
+        await context.resolveAppearance(),
+        const AppAppearance(homeStyle: AppStyle.studio),
       );
     });
 

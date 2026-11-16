@@ -8,10 +8,11 @@ import 'strings.dart';
 import 'theme.dart';
 
 /// MaterialApp.router (material_ui) with routerConfig = appRouterProvider,
-/// theme / darkTheme = buildAppTheme(style, light / dark) and themeMode from
-/// appAppearanceProvider ('화면' settings — a change applies live, 01-infra
-/// 18.3), locale ko, builder: (context, child) => UpdateBanner(child:
-/// child!). No MaterialUiCompatibilityBridge (D2).
+/// theme / darkTheme = buildAppTheme(homeStyle, light / dark) and themeMode
+/// from appAppearanceProvider ('화면' settings — a change applies live,
+/// 01-infra 18.3; the editor route takes the editor style,
+/// EditorStyleScope), locale ko, builder: (context, child) =>
+/// UpdateBanner(child: child!). No MaterialUiCompatibilityBridge (D2).
 class NoteApp extends ConsumerWidget {
   const NoteApp({super.key});
 
@@ -21,9 +22,9 @@ class NoteApp extends ConsumerWidget {
     return MaterialApp.router(
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(style: appearance.style),
+      theme: buildAppTheme(style: appearance.homeStyle),
       darkTheme: buildAppTheme(
-        style: appearance.style,
+        style: appearance.homeStyle,
         brightness: Brightness.dark,
       ),
       themeMode: appearance.themeMode,

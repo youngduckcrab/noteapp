@@ -6,7 +6,16 @@ import 'package:ui_kit/ui_kit.dart';
 /// component themes and the [StyleTokens] extension. Packages read
 /// `Theme.of(context).colorScheme` and [StyleTokens.of] (계약 7.4.11,
 /// v2.14-ui); the app holds no colour constant of its own.
+///
+/// Built once per (style, brightness): NoteApp and EditorStyleScope get the
+/// same instance on every rebuild, so a Theme whose data did not change
+/// does not compare two fresh ThemeData objects.
 ThemeData buildAppTheme({
   AppStyle style = AppStyle.fallback,
   Brightness brightness = Brightness.light,
-}) => buildStyleTheme(style, brightness);
+}) => _themes.putIfAbsent((
+  style,
+  brightness,
+), () => buildStyleTheme(style, brightness));
+
+final Map<(AppStyle, Brightness), ThemeData> _themes = {};

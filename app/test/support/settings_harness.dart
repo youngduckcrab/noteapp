@@ -132,9 +132,9 @@ final class SettingsHarness {
                 builder: (context, ref, _) {
                   final appearance = ref.watch(appAppearanceProvider);
                   return MaterialApp(
-                    theme: buildAppTheme(style: appearance.style),
+                    theme: buildAppTheme(style: appearance.homeStyle),
                     darkTheme: buildAppTheme(
-                      style: appearance.style,
+                      style: appearance.homeStyle,
                       brightness: Brightness.dark,
                     ),
                     themeMode: appearance.themeMode,

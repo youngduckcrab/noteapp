@@ -95,6 +95,9 @@ Future<PdfImportResult?> runPdfImportFlow(
   final closed = Completer<void>();
   final dialog = DialogRoute<void>(
     context: context,
+    // (v2.14-ui split) The dialog takes the theme of the screen it opens
+    // from — the editor's style inside a note (showDialog does the same).
+    themes: InheritedTheme.capture(from: context, to: null),
     barrierDismissible: false,
     builder: (_) => PdfImportProgressDialog(
       onCancel: job.cancel,
@@ -242,6 +245,9 @@ Future<PdfExportResult?> runPdfExportFlow(
   final cancelled = Completer<bool>();
   final dialog = DialogRoute<void>(
     context: context,
+    // (v2.14-ui split) The dialog takes the theme of the screen it opens
+    // from — the editor's style inside a note (showDialog does the same).
+    themes: InheritedTheme.capture(from: context, to: null),
     barrierDismissible: false,
     builder: (_) => PdfExportProgressDialog(
       batch: false,
@@ -396,6 +402,9 @@ Future<void> exportNotesAsPdf(
   final navigator = Navigator.of(context, rootNavigator: true);
   final dialog = DialogRoute<void>(
     context: context,
+    // (v2.14-ui split) The dialog takes the theme of the screen it opens
+    // from — the editor's style inside a note (showDialog does the same).
+    themes: InheritedTheme.capture(from: context, to: null),
     barrierDismissible: false,
     builder: (_) => PdfExportProgressDialog(batch: true, onCancel: job.cancel),
   );

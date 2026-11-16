@@ -1,7 +1,9 @@
-/// '화면' group of the settings screen: 화면 스타일 and 밝기 (01-infra 14.3).
+/// '화면' group of the settings screen: 홈 화면 스타일, 필기 화면 스타일 and
+/// 밝기 (01-infra 14.3).
 ///
-/// Both write device settings (AppearanceKeys); NoteApp rebuilds its theme
-/// from appAppearanceProvider, so a choice shows at once.
+/// All write device settings (AppearanceKeys); NoteApp and EditorStyleScope
+/// rebuild their themes from appAppearanceProvider, so a choice shows at
+/// once. The settings screen itself has the home style.
 library;
 
 import 'dart:async';
@@ -17,16 +19,46 @@ import '../app/strings.dart';
 import '../errors/app_error_log.dart';
 import '../providers.dart';
 
+/// Which style setting an [AppStyleSection] edits.
+enum StyleTarget {
+  /// 홈 화면 스타일: the app theme (library, settings, their dialogs).
+  home,
+
+  /// 필기 화면 스타일: the note-editor route (EditorStyleScope).
+  editor;
+
+  SettingKey<String> get key => switch (this) {
+    StyleTarget.home => AppearanceKeys.homeStyle,
+    StyleTarget.editor => AppearanceKeys.editorStyle,
+  };
+
+  AppStyle of(AppAppearance appearance) => switch (this) {
+    StyleTarget.home => appearance.homeStyle,
+    StyleTarget.editor => appearance.editorStyle,
+  };
+}
+
 /// Widget keys of the '화면' sections (tests, V5 smoke).
 abstract final class AppearanceSectionKeys {
-  static ValueKey<String> styleOf(AppStyle style) =>
-      ValueKey<String>('app.appearance.style.${style.wireName}');
+  /// The card of [style] in the [target] block.
+  static ValueKey<String> styleOf(StyleTarget target, AppStyle style) =>
+      ValueKey<String>('app.appearance.${target.name}Style.${style.wireName}');
   static const ValueKey<String> brightness = ValueKey<String>(
     'app.appearance.brightness',
   );
+
+  /// The save-failed line of the [target] block.
+  static ValueKey<String> messageOf(StyleTarget target) =>
+      ValueKey<String>('app.appearance.${target.name}Style.message');
+
+  /// The brightness block's save-failed line.
   static const ValueKey<String> message = ValueKey<String>(
     'app.appearance.message',
   );
+
+  /// The note under the [target] block's cards.
+  static ValueKey<String> noteOf(StyleTarget target) =>
+      ValueKey<String>('app.appearance.${target.name}Style.note');
   static const ValueKey<String> layoutNote = ValueKey<String>(
     'app.appearance.layoutNote',
   );
@@ -55,10 +87,21 @@ Future<void> _write<T>(
   }
 }
 
-/// '화면 스타일': three cards (preview swatch + name + one line), the chosen
-/// one marked. The swatches follow the current brightness.
+/// '홈 화면 스타일' / '필기 화면 스타일' ([target]): three cards (preview
+/// swatch + name + one line), the chosen one marked, and a note on where
+/// the style shows. The swatches follow the current brightness; the home
+/// swatch is a small library, the editor swatch a toolbar over a page.
+///
+/// From [compactWidth] down (phones) the three cards stay in one row with
+/// the swatch and the name only; the chosen style's line shows under the
+/// row, so the two blocks stay short.
 class AppStyleSection extends ConsumerStatefulWidget {
-  const AppStyleSection({super.key});
+  const AppStyleSection({super.key, required this.target});
+
+  final StyleTarget target;
+
+  /// Below this the cards drop their one-line hints.
+  static const double compactWidth = 480;
 
   @override
   ConsumerState<AppStyleSection> createState() => _AppStyleSectionState();
@@ -69,110 +112,131 @@ class _AppStyleSectionState extends ConsumerState<AppStyleSection> {
 
   @override
   Widget build(BuildContext context) {
-    final current = ref.watch(appAppearanceProvider).style;
+    final target = widget.target;
+    final current = target.of(ref.watch(appAppearanceProvider));
     final brightness = Theme.of(context).brightness;
     final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final cards = [
-              for (final style in AppStyle.values)
-                _StyleCard(
-                  key: AppearanceSectionKeys.styleOf(style),
-                  style: style,
-                  brightness: brightness,
-                  selected: style == current,
-                  onTap: () {
-                    setState(() => _failed = false);
-                    unawaited(
-                      _write(ref, AppearanceKeys.style, style.wireName, () {
-                        if (mounted) setState(() => _failed = true);
-                      }),
-                    );
-                  },
-                ),
-            ];
-            if (constraints.maxWidth < 420) {
-              return Column(
-                children: [
-                  for (final card in cards)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: card,
-                    ),
-                ],
-              );
-            }
-            return Row(
+    final noteStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < AppStyleSection.compactWidth;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (var i = 0; i < cards.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 12),
-                  Expanded(child: cards[i]),
+                for (final (i, style) in AppStyle.values.indexed) ...[
+                  if (i > 0) SizedBox(width: compact ? 8 : 12),
+                  Expanded(
+                    child: _StyleCard(
+                      key: AppearanceSectionKeys.styleOf(target, style),
+                      style: style,
+                      target: target,
+                      brightness: brightness,
+                      selected: style == current,
+                      compact: compact,
+                      onTap: () {
+                        setState(() => _failed = false);
+                        unawaited(
+                          _write(ref, target.key, style.wireName, () {
+                            if (mounted) setState(() => _failed = true);
+                          }),
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ],
-            );
-          },
-        ),
-        // (review) the previews show where each style is heading; the
-        // per-style toolbar layouts arrive in a later stage.
-        Padding(
-          key: AppearanceSectionKeys.layoutNote,
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            AppStrings.styleLayoutNote,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
             ),
-          ),
-        ),
-        if (_failed)
-          Padding(
-            key: AppearanceSectionKeys.message,
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              AppStrings.featureSaveFailed,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.error,
+            if (compact)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  '${_styleName(current)} · ${_styleHint(current)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: StyleTokens.of(context).textPrimary,
+                  ),
+                ),
               ),
+            Padding(
+              key: AppearanceSectionKeys.noteOf(target),
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(switch (target) {
+                StyleTarget.home => AppStrings.homeStyleNote,
+                StyleTarget.editor => AppStrings.editorStyleNote,
+              }, style: noteStyle),
             ),
-          ),
-      ],
+            // (review) the previews show where each style is heading; the
+            // per-style toolbar layouts arrive in a later stage.
+            if (target == StyleTarget.editor)
+              Padding(
+                key: AppearanceSectionKeys.layoutNote,
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(AppStrings.styleLayoutNote, style: noteStyle),
+              ),
+            if (_failed)
+              Padding(
+                key: AppearanceSectionKeys.messageOf(target),
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  AppStrings.featureSaveFailed,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
+
+String _styleName(AppStyle style) => switch (style) {
+  AppStyle.craft => AppStrings.styleCraft,
+  AppStyle.calm => AppStrings.styleCalm,
+  AppStyle.studio => AppStrings.styleStudio,
+};
+
+String _styleHint(AppStyle style) => switch (style) {
+  AppStyle.craft => AppStrings.styleCraftHint,
+  AppStyle.calm => AppStrings.styleCalmHint,
+  AppStyle.studio => AppStrings.styleStudioHint,
+};
 
 class _StyleCard extends StatelessWidget {
   const _StyleCard({
     super.key,
     required this.style,
+    required this.target,
     required this.brightness,
     required this.selected,
+    required this.compact,
     required this.onTap,
   });
 
   final AppStyle style;
+  final StyleTarget target;
   final Brightness brightness;
   final bool selected;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = StyleTokens.of(context);
-    final (name, hint) = switch (style) {
-      AppStyle.craft => (AppStrings.styleCraft, AppStrings.styleCraftHint),
-      AppStyle.calm => (AppStrings.styleCalm, AppStrings.styleCalmHint),
-      AppStyle.studio => (AppStrings.styleStudio, AppStrings.styleStudioHint),
-    };
+    final name = _styleName(style);
     final radius = BorderRadius.circular(tokens.radiusMedium);
     return Semantics(
       selected: selected,
       button: true,
       label: name,
+      hint: compact ? _styleHint(style) : null,
       child: Material(
         color: selected ? tokens.accentSoft : tokens.card,
         shape: RoundedRectangleBorder(
@@ -186,7 +250,7 @@ class _StyleCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(compact ? 6 : 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -195,14 +259,17 @@ class _StyleCard extends StatelessWidget {
                   aspectRatio: 16 / 10,
                   child: StylePreviewSwatch(
                     tokens: styleTokensFor(style, brightness),
+                    home: target == StyleTarget.home,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: compact ? 6 : 8),
                 Row(
                   children: [
                     Expanded(
                       child: Text(
                         name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: selected
                               ? tokens.onAccentSoft
@@ -211,18 +278,24 @@ class _StyleCard extends StatelessWidget {
                       ),
                     ),
                     if (selected)
-                      Icon(Icons.check_circle, size: 18, color: tokens.accent),
+                      Icon(
+                        Icons.check_circle,
+                        size: compact ? 16 : 18,
+                        color: tokens.accent,
+                      ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  hint,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: selected
-                        ? tokens.onAccentSoft
-                        : tokens.textSecondary,
+                if (!compact) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _styleHint(style),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: selected
+                          ? tokens.onAccentSoft
+                          : tokens.textSecondary,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -233,14 +306,24 @@ class _StyleCard extends StatelessWidget {
 }
 
 /// A small picture of a style: its canvas, a toolbar strip (studio: a left
-/// rail), a page of paper with two ink lines and the accent dot.
+/// rail), a page of paper with two ink lines and the accent dot. With
+/// [home]: a small library instead — a sidebar with the chosen folder in the
+/// accent, a header strip and a grid of note covers.
 class StylePreviewSwatch extends StatelessWidget {
-  const StylePreviewSwatch({super.key, required this.tokens});
+  const StylePreviewSwatch({
+    super.key,
+    required this.tokens,
+    this.home = false,
+  });
 
   final StyleTokens tokens;
 
+  /// The library picture (홈 화면 스타일).
+  final bool home;
+
   @override
   Widget build(BuildContext context) {
+    if (home) return _homeSwatch();
     final t = tokens;
     final small = Radius.circular(t.radiusSmall / 2);
     final rail = t.style == AppStyle.studio;
@@ -360,6 +443,122 @@ class StylePreviewSwatch extends StatelessWidget {
                   Expanded(child: page),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+extension on StylePreviewSwatch {
+  Widget _homeSwatch() {
+    final t = tokens;
+    final small = Radius.circular(t.radiusSmall / 2);
+    Widget line(double width, Color color) => Container(
+      width: width,
+      height: 3,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+    final sidebar = Container(
+      width: 30,
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+      decoration: BoxDecoration(
+        color: t.style == AppStyle.studio ? t.rail : t.panel,
+        border: Border(right: BorderSide(color: t.hairline)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 7,
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            alignment: AlignmentDirectional.centerStart,
+            decoration: BoxDecoration(
+              color: t.accentSoft,
+              borderRadius: BorderRadius.all(small),
+            ),
+            child: line(12, t.accent),
+          ),
+          const SizedBox(height: 5),
+          for (final w in const [16.0, 12.0, 14.0]) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: line(w, t.textSecondary),
+            ),
+            const SizedBox(height: 5),
+          ],
+        ],
+      ),
+    );
+    final header = Container(
+      height: 12,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: t.toolbar,
+        border: Border(bottom: BorderSide(color: t.hairline)),
+      ),
+      child: Row(
+        children: [
+          line(14, t.textPrimary),
+          const Spacer(),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: t.accent, shape: BoxShape.circle),
+          ),
+        ],
+      ),
+    );
+    Widget cover(int i) => DecoratedBox(
+      decoration: BoxDecoration(
+        color: i == 1 ? t.accentSoft : t.inkSwatch,
+        borderRadius: BorderRadius.all(small),
+        border: t.elevation == StyleElevation.flat
+            ? Border.all(color: t.hairline)
+            : null,
+        boxShadow: t.shadows(),
+      ),
+    );
+    final grid = Padding(
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      child: Column(
+        children: [
+          for (final row in const [0, 3]) ...[
+            if (row > 0) const SizedBox(height: 5),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final col in const [0, 1, 2]) ...[
+                    if (col > 0) const SizedBox(width: 5),
+                    Expanded(child: cover(row + col)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(t.radiusSmall),
+      child: ColoredBox(
+        color: t.canvas,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sidebar,
+            Expanded(
+              child: Column(
+                children: [
+                  header,
+                  Expanded(child: grid),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

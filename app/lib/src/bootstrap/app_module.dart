@@ -242,19 +242,33 @@ final class AppModuleContext {
     }
   }
 
-  /// The '화면' settings (style, brightness) of the published NoteStore, read
-  /// once at start-up (≤ [featureReadTimeout]) so NoteApp's first frame
-  /// already has the chosen style (01-infra 14.3). No store / read failure →
-  /// the defaults (failure logged, source module).
+  /// The '화면' settings (home style, editor style, brightness — and stage
+  /// 1's one style, which a style not yet stored takes) of the published
+  /// NoteStore, read once at start-up (≤ [featureReadTimeout]) so NoteApp's
+  /// first frame already has the chosen styles (01-infra 14.3). No store /
+  /// read failure → the defaults (failure logged, source module).
   Future<AppAppearance> resolveAppearance() async {
     final store = maybe<NoteStore>();
     if (store == null) return const AppAppearance();
     try {
-      final values = await Future.wait([
-        store.settings.get(AppearanceKeys.style),
+      final values = await Future.wait<String?>([
+        store.settings.get(
+          AppearanceKeys.storedOrNull(AppearanceKeys.homeStyle),
+        ),
+        store.settings.get(
+          AppearanceKeys.storedOrNull(AppearanceKeys.editorStyle),
+        ),
+        store.settings.get(
+          AppearanceKeys.storedOrNull(AppearanceKeys.legacyStyle),
+        ),
         store.settings.get(AppearanceKeys.brightness),
       ]).timeout(featureReadTimeout);
-      return AppAppearance.fromWire(values[0], values[1]);
+      return AppAppearance.fromWire(
+        homeStyle: values[0],
+        editorStyle: values[1],
+        legacyStyle: values[2],
+        brightness: values[3],
+      );
     } on Object catch (error, stackTrace) {
       _log(error, stackTrace, 'appearance not read — the defaults are used');
       return const AppAppearance();

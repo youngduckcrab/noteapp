@@ -21,7 +21,8 @@ void main() {
   test('production order and ids (developer mode)', () {
     expect(defaultSettingsSections(developerMode: true).map((e) => e.id), [
       // v2.14-ui: the '화면' group first.
-      'app.style',
+      'app.homeStyle',
+      'app.editorStyle',
       'app.brightness',
       'app.storage',
       'editor.input',
@@ -42,7 +43,8 @@ void main() {
     expect(
       {for (final e in byId.values) e.id: (e.group, e.title)},
       {
-        'app.style': ('화면', '화면 스타일'),
+        'app.homeStyle': ('화면', '홈 화면 스타일'),
+        'app.editorStyle': ('화면', '필기 화면 스타일'),
         'app.brightness': ('화면', '밝기'),
         'app.storage': (null, '저장 공간'),
         'editor.input': (null, '입력'),
@@ -67,7 +69,8 @@ void main() {
   test('(v2.14-ui) outside developer mode: no 개발자 표시 · 기능 켜고 끄기 · '
       '이전 판 DB 사본', () {
     expect(defaultSettingsSections().map((e) => e.id), [
-      'app.style',
+      'app.homeStyle',
+      'app.editorStyle',
       'app.brightness',
       'app.storage',
       'editor.input',
@@ -115,7 +118,8 @@ void main() {
       ],
     );
     expect(container.read(settingsSectionsProvider).map((e) => e.id), [
-      'app.style',
+      'app.homeStyle',
+      'app.editorStyle',
       'app.brightness',
       'app.storage',
       'editor.input',

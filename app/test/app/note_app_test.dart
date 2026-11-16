@@ -118,7 +118,10 @@ void main() {
     expect(app().themeMode, ThemeMode.system);
 
     await tester.runAsync(() async {
-      await store.settings.set(AppearanceKeys.style, AppStyle.studio.wireName);
+      await store.settings.set(
+        AppearanceKeys.homeStyle,
+        AppStyle.studio.wireName,
+      );
       await store.settings.set(
         AppearanceKeys.brightness,
         AppBrightnessMode.dark.wireName,
@@ -155,7 +158,7 @@ void main() {
     tester,
   ) async {
     const startup = AppAppearance(
-      style: AppStyle.studio,
+      homeStyle: AppStyle.studio,
       brightness: AppBrightnessMode.dark,
     );
     await tester.pumpWidget(
