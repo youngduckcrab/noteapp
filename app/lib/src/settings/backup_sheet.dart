@@ -112,7 +112,7 @@ class _SheetButtonsState extends State<_SheetButtons> {
           FilledButton.icon(
             key: const Key('backup-share'),
             onPressed: _busy ? null : () => _deliver(BackupDelivery.share),
-            icon: Icon(AppIconKind.share.material),
+            icon: AppIcon(AppIconKind.share),
             label: const Text(AppStrings.backupShare),
           ),
         OutlinedButton.icon(

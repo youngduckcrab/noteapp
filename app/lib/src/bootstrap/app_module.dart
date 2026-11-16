@@ -242,7 +242,8 @@ final class AppModuleContext {
     }
   }
 
-  /// The '화면' settings (home style, editor style, brightness — and stage
+  /// The '화면' settings (home style, editor style, brightness, (UI stage 2)
+  /// names on hover — and stage
   /// 1's one style, which a style not yet stored takes) of the published
   /// NoteStore, read once at start-up (≤ [featureReadTimeout]) so NoteApp's
   /// first frame already has the chosen styles (01-infra 14.3). No store /
@@ -251,23 +252,29 @@ final class AppModuleContext {
     final store = maybe<NoteStore>();
     if (store == null) return const AppAppearance();
     try {
-      final values = await Future.wait<String?>([
-        store.settings.get(
-          AppearanceKeys.storedOrNull(AppearanceKeys.homeStyle),
-        ),
-        store.settings.get(
-          AppearanceKeys.storedOrNull(AppearanceKeys.editorStyle),
-        ),
-        store.settings.get(
-          AppearanceKeys.storedOrNull(AppearanceKeys.legacyStyle),
-        ),
-        store.settings.get(AppearanceKeys.brightness),
-      ]).timeout(featureReadTimeout);
+      // (UI stage 2) '펜을 띄우면 이름 보기' too, so names do not show in the
+      // first frames when it is off.
+      final (values, hoverNames) = await (
+        Future.wait<String?>([
+          store.settings.get(
+            AppearanceKeys.storedOrNull(AppearanceKeys.homeStyle),
+          ),
+          store.settings.get(
+            AppearanceKeys.storedOrNull(AppearanceKeys.editorStyle),
+          ),
+          store.settings.get(
+            AppearanceKeys.storedOrNull(AppearanceKeys.legacyStyle),
+          ),
+          store.settings.get(AppearanceKeys.brightness),
+        ]),
+        store.settings.get(AppearanceKeys.hoverNames),
+      ).wait.timeout(featureReadTimeout);
       return AppAppearance.fromWire(
         homeStyle: values[0],
         editorStyle: values[1],
         legacyStyle: values[2],
         brightness: values[3],
+        hoverNames: hoverNames,
       );
     } on Object catch (error, stackTrace) {
       _log(error, stackTrace, 'appearance not read — the defaults are used');

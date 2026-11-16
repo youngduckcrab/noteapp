@@ -190,6 +190,7 @@ void main() {
       await store.settings.set(AppearanceKeys.homeStyle, 'studio');
       await store.settings.set(AppearanceKeys.editorStyle, 'calm');
       await store.settings.set(AppearanceKeys.brightness, 'dark');
+      await store.settings.set(AppearanceKeys.hoverNames, false);
       final context = _context()..publish<NoteStore>(store);
       expect(
         await context.resolveAppearance(),
@@ -197,6 +198,7 @@ void main() {
           homeStyle: AppStyle.studio,
           editorStyle: AppStyle.calm,
           brightness: AppBrightnessMode.dark,
+          hoverNames: false,
         ),
       );
       expect(
@@ -206,6 +208,7 @@ void main() {
           'app.appearance.editorStyle',
           'app.appearance.style',
           'app.appearance.brightness',
+          'app.appearance.hoverNames',
         ]),
       );
     });
