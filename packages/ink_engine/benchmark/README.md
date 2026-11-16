@@ -48,6 +48,7 @@ flutter test benchmark/ --concurrency=1 --platform chrome   # 참고용(기준 �
 | B9 | `InkVectorExport.exportStrokes` | 혼합 획 2000개(볼펜 80%·만년필 10%·형광펜 10%) | ≤ 300 ms | 중앙값 |
 | B10 | `InkPageThumbnailRenderer.render` (512px PNG, 4ms마다 양보 포함) | 혼합 획 3000개 + 줄 노트 속지 | ≤ 600 ms | 중앙값 |
 | B11 | `InkPageContent.fromCore` (정렬된 입력, `InkStroke.of`) | 획 1만 개(매번 새 CORE 객체) | ≤ 5 ms | 중앙값 |
+| B21 | (v2.13-perf) 질감 페이지 넘김: 올리기(새/따뜻한 캐시) UI 시간 + inkBase 한 프레임 래스터(벡터 vs 타일, `toImage` 2배) | 질감 300획(6종 × 50) + 볼펜 200획, 공용 `InkCachePool`, 결 준비됨 | — (참고) | 중앙값 |
 
 혼합 획 = `InkDevTools.syntheticStrokes`(점 40–160개, 평균 100). B2의 최대는 GC 멈춤이나
 다른 프로세스의 선점이 무작위로 한 획에만 걸리는 것을 빼려고 샘플 위치마다 5획 중 가장 빠른

@@ -871,10 +871,18 @@ final class InkPageController extends ChangeNotifier {
     _syncImageScale();
     if (!config.rasterTiles) return;
     if (visibleChanged || scaleChanged) _tiles.clearEvicted();
-    if (visibleChanged || scaleChanged || scalingChanged) {
+    // (v2.13-perf) only the scale or isScaling waits for the zoom to settle: a
+    // drag at the same scale (only the visible rect moves, the bucket stays)
+    // keeps making the tiles of the chunks that come into view — else they
+    // replay their vector pictures (texture strokes: a saveLayer and tile
+    // shaders each) every frame of the drag.
+    if (scaleChanged || scalingChanged) {
       _rasterSchedule.viewportChanged(isScaling: isScaling);
     }
-    if (visibleChanged) _rasterSchedule.scheduleRelease();
+    if (visibleChanged) {
+      _rasterSchedule.scheduleRelease();
+      _rasterQuiet();
+    }
     // 6.13-5: another bucket keeps drawing the tiles there are (stretched);
     // only crossing the vector-only line changes the picture now.
     if ((oldBucket == null) != (_bucket == null) && _tiles.count > 0) {
@@ -1870,13 +1878,20 @@ final class InkPageController extends ChangeNotifier {
   }
 
   /// The visible rect (whole page when null) + one chunk on every side
-  /// (6.13-7).
+  /// (6.13-7). (v2.13-perf) An empty visible rect is a page that is mounted
+  /// but off screen (EDITOR: visible ±1) — the next one to come into view, or
+  /// the one just left: the whole page, so its tiles are ready before it is
+  /// dragged in and kept while it is out.
   ui.Rect _keepRect() {
     final content = _content;
     final page = content == null
         ? ui.Rect.zero
         : ui.Offset.zero & content.pageSize;
-    return (_visiblePageRect ?? page).inflate(config.chunkSizePt);
+    final visible = _visiblePageRect;
+    if (visible == null || visible.isEmpty) {
+      return page.inflate(config.chunkSizePt);
+    }
+    return visible.inflate(config.chunkSizePt);
   }
 
   /// 6.13-4: the chunk picture + appended pictures → toImageSync at
