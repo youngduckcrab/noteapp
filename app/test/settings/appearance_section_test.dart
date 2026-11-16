@@ -297,6 +297,18 @@ void main() {
       find.text('${AppStrings.styleCraft} · ${AppStrings.styleCraftHint}'),
       findsNWidgets(2),
     );
+    // (review) The editor block's two notes run as one paragraph on phones;
+    // the owner's line stays in it.
+    expect(
+      find.text('${AppStrings.editorStyleNote} ${AppStrings.styleLayoutNote}'),
+      findsOneWidget,
+    );
+    expect(find.text(AppStrings.styleLayoutNote), findsNothing);
+    expect(find.byKey(AppearanceSectionKeys.layoutNote), findsOneWidget);
+    expect(
+      find.byKey(AppearanceSectionKeys.noteOf(StyleTarget.editor)),
+      findsOneWidget,
+    );
   });
 
   testWidgets('어둡게 / 밝게 / 시스템 따라 switch the brightness live and are '

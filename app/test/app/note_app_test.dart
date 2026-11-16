@@ -1,4 +1,6 @@
 // NoteApp and buildAppTheme (docs/plans/01-infra.md 4.5.6, 6.3, 9.1).
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override, ProviderBase;
 import 'package:flutter_test/flutter_test.dart';
@@ -65,6 +67,22 @@ void main() {
       dark.extension<StyleTokens>(),
       styleTokensFor(AppStyle.studio, Brightness.dark),
     );
+  });
+
+  test('buildAppTheme: one instance per style and brightness, rebuilt for '
+      'another target platform', () {
+    expect(identical(buildAppTheme(), buildAppTheme()), isTrue);
+    final here = buildAppTheme().platform;
+    final other = here == TargetPlatform.iOS
+        ? TargetPlatform.android
+        : TargetPlatform.iOS;
+    debugDefaultTargetPlatformOverride = other;
+    try {
+      expect(buildAppTheme().platform, other);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+    expect(buildAppTheme().platform, here);
   });
 
   testWidgets('material_ui MaterialApp.router: title, locale ko, theme, the '

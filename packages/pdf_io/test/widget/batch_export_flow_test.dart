@@ -15,6 +15,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
+import 'package:pdf_io/src/ui/export_sheets.dart';
 import 'package:pdf_io/testing.dart';
 
 import '../support/export_world.dart';
@@ -67,19 +68,21 @@ final class _World {
     return ids;
   }
 
-  Widget app() => UncontrolledProviderScope(
-    container: container,
-    child: MaterialApp(
-      home: Scaffold(
-        body: Builder(
-          builder: (context) {
-            this.context = context;
-            return const SizedBox.expand();
-          },
-        ),
-      ),
-    ),
-  );
+  /// [screenTheme]: a Theme around the calling screen only (v2.14-ui split: the
+  /// editor's style inside a note) — the progress dialog must take it, not the app's.
+  Widget app({ThemeData? screenTheme}) {
+    Widget screen = Builder(
+      builder: (context) {
+        this.context = context;
+        return const SizedBox.expand();
+      },
+    );
+    if (screenTheme != null) screen = Theme(data: screenTheme, child: screen);
+    return UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(home: Scaffold(body: screen)),
+    );
+  }
 
   Future<void> dispose() async {
     container.dispose();
@@ -435,4 +438,35 @@ void main() {
     await _settle(tester);
     await flow;
   });
+
+  testWidgets(
+    '(v2.14-ui) the progress dialog takes the calling screen\'s theme',
+    (tester) async {
+      final w = _World();
+      addTearDown(w.dispose);
+      await pumpOnIpad(tester, w.app(screenTheme: _screenTheme));
+      final ids = await w.notes(['a', 'b']);
+      final hold = Completer<void>();
+      w.backend.beforeAddPages = () => hold.future;
+      final (flow,) = await _start(tester, w, ids);
+      expect(find.byType(PdfExportProgressDialog), findsOneWidget);
+      expect(
+        _dialogScheme(tester, PdfExportProgressDialog).primary,
+        _screenTheme.colorScheme.primary,
+      );
+      await tester.tap(_inDialog(find.text('취소')));
+      await _settle(tester);
+      await flow;
+      hold.complete();
+    },
+  );
 }
+
+/// (v2.14-ui split) A screen theme unlike the app's default one.
+final ThemeData _screenTheme = ThemeData(
+  colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00897B)),
+);
+
+/// The colour scheme the progress dialog [type] is drawn with.
+ColorScheme _dialogScheme(WidgetTester tester, Type type) =>
+    Theme.of(tester.element(find.byType(type))).colorScheme;

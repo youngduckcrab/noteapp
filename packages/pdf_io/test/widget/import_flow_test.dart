@@ -14,6 +14,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 import 'package:note_core/testing.dart' as core_testing;
 import 'package:pdf_io/pdf_io.dart';
+import 'package:pdf_io/src/ui/import_progress_dialog.dart';
 import 'package:pdf_io/testing.dart';
 
 import '../support/ipad.dart';
@@ -64,19 +65,21 @@ final class _World {
 
   PdfJobState<PdfImportResult> get job => container.read(pdfImportJobProvider);
 
-  Widget app() => UncontrolledProviderScope(
-    container: container,
-    child: MaterialApp(
-      home: Scaffold(
-        body: Builder(
-          builder: (context) {
-            this.context = context;
-            return const SizedBox.expand();
-          },
-        ),
-      ),
-    ),
-  );
+  /// [screenTheme]: a Theme around the calling screen only (v2.14-ui split: the
+  /// editor's style inside a note) — the progress dialog must take it, not the app's.
+  Widget app({ThemeData? screenTheme}) {
+    Widget screen = Builder(
+      builder: (context) {
+        this.context = context;
+        return const SizedBox.expand();
+      },
+    );
+    if (screenTheme != null) screen = Theme(data: screenTheme, child: screen);
+    return UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(home: Scaffold(body: screen)),
+    );
+  }
 
   Future<void> dispose() async {
     container.dispose();
@@ -478,4 +481,37 @@ void main() {
       await _settle(tester);
     },
   );
+
+  testWidgets(
+    '(v2.14-ui) the progress dialog takes the calling screen\'s theme',
+    (tester) async {
+      final w = _World(files: [PickedPdfFile.fromBytes('a.pdf', _pdf())]);
+      addTearDown(w.dispose);
+      await pumpOnIpad(tester, w.app(screenTheme: _screenTheme));
+      final flow = runPdfImportFlow(w.context, const PdfImportAsNewNote());
+      await _pick(tester);
+      w.fakeGateway.holdWrites(); // putPdf stays pending
+      await tester.tap(find.text('가져오기'));
+      await _settle(tester);
+      expect(find.byType(PdfImportProgressDialog), findsOneWidget);
+      expect(
+        _dialogScheme(tester, PdfImportProgressDialog).primary,
+        _screenTheme.colorScheme.primary,
+      );
+      await tester.tap(_inDialog(find.text('취소')));
+      await _settle(tester);
+      expect(await flow, isNull);
+      w.fakeGateway.releaseWrites();
+      await _settle(tester);
+    },
+  );
 }
+
+/// (v2.14-ui split) A screen theme unlike the app's default one.
+final ThemeData _screenTheme = ThemeData(
+  colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00897B)),
+);
+
+/// The colour scheme the progress dialog [type] is drawn with.
+ColorScheme _dialogScheme(WidgetTester tester, Type type) =>
+    Theme.of(tester.element(find.byType(type))).colorScheme;

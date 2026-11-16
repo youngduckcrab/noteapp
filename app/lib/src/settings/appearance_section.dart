@@ -162,17 +162,33 @@ class _AppStyleSectionState extends ConsumerState<AppStyleSection> {
                   ),
                 ),
               ),
-            Padding(
-              key: AppearanceSectionKeys.noteOf(target),
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(switch (target) {
-                StyleTarget.home => AppStrings.homeStyleNote,
-                StyleTarget.editor => AppStrings.editorStyleNote,
-              }, style: noteStyle),
-            ),
+            // On phones the editor block's two notes run as one paragraph,
+            // so the grey text between the cards and 밝기 stays short.
+            if (compact && target == StyleTarget.editor)
+              KeyedSubtree(
+                key: AppearanceSectionKeys.layoutNote,
+                child: Padding(
+                  key: AppearanceSectionKeys.noteOf(target),
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '${AppStrings.editorStyleNote} '
+                    '${AppStrings.styleLayoutNote}',
+                    style: noteStyle,
+                  ),
+                ),
+              )
+            else
+              Padding(
+                key: AppearanceSectionKeys.noteOf(target),
+                padding: EdgeInsets.only(top: compact ? 6 : 8),
+                child: Text(switch (target) {
+                  StyleTarget.home => AppStrings.homeStyleNote,
+                  StyleTarget.editor => AppStrings.editorStyleNote,
+                }, style: noteStyle),
+              ),
             // (review) the previews show where each style is heading; the
             // per-style toolbar layouts arrive in a later stage.
-            if (target == StyleTarget.editor)
+            if (target == StyleTarget.editor && !compact)
               Padding(
                 key: AppearanceSectionKeys.layoutNote,
                 padding: const EdgeInsets.only(top: 4),
@@ -449,8 +465,19 @@ class StylePreviewSwatch extends StatelessWidget {
 }
 
 extension on StylePreviewSwatch {
+  /// The library picture. Each style gets its own signature so the three
+  /// cards read apart even at phone width (review):
+  /// - 크래프트: paper sidebar, notebook covers with a coloured spine, a
+  ///   soft shadow and the larger radius;
+  /// - 미니멀: no sidebar border, a floating header pill, flat covers with
+  ///   hairline borders only and more air between them;
+  /// - 스튜디오: a full-height darker rail, a flat header bar and a dense
+  ///   grid of small square-cornered covers.
   Widget _homeSwatch() {
     final t = tokens;
+    final craft = t.style == AppStyle.craft;
+    final calm = t.style == AppStyle.calm;
+    final studio = t.style == AppStyle.studio;
     final small = Radius.circular(t.radiusSmall / 2);
     Widget line(double width, Color color) => Container(
       width: width,
@@ -460,12 +487,17 @@ extension on StylePreviewSwatch {
         borderRadius: BorderRadius.circular(2),
       ),
     );
+    final railColor = studio
+        ? Color.lerp(t.rail, t.textPrimary, 0.14)!
+        : calm
+        ? t.canvas
+        : t.panel;
     final sidebar = Container(
-      width: 30,
-      padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+      width: studio ? 22 : 30,
+      padding: EdgeInsets.fromLTRB(studio ? 3 : 4, 6, studio ? 3 : 4, 0),
       decoration: BoxDecoration(
-        color: t.style == AppStyle.studio ? t.rail : t.panel,
-        border: Border(right: BorderSide(color: t.hairline)),
+        color: railColor,
+        border: calm ? null : Border(right: BorderSide(color: t.hairline)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,64 +507,121 @@ extension on StylePreviewSwatch {
             padding: const EdgeInsets.symmetric(horizontal: 2),
             alignment: AlignmentDirectional.centerStart,
             decoration: BoxDecoration(
-              color: t.accentSoft,
+              color: studio ? t.accent : t.accentSoft,
               borderRadius: BorderRadius.all(small),
             ),
-            child: line(12, t.accent),
+            child: line(studio ? 8 : 12, studio ? t.onAccent : t.accent),
           ),
-          const SizedBox(height: 5),
-          for (final w in const [16.0, 12.0, 14.0]) ...[
+          SizedBox(height: studio ? 4 : 5),
+          for (final w
+              in studio
+                  ? const [12.0, 9.0, 11.0, 8.0]
+                  : const [16.0, 12.0, 14.0]) ...[
             Padding(
               padding: const EdgeInsets.only(left: 2),
               child: line(w, t.textSecondary),
             ),
-            const SizedBox(height: 5),
+            SizedBox(height: studio ? 4 : 5),
           ],
         ],
       ),
     );
-    final header = Container(
-      height: 12,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: t.toolbar,
-        border: Border(bottom: BorderSide(color: t.hairline)),
-      ),
-      child: Row(
-        children: [
-          line(14, t.textPrimary),
-          const Spacer(),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: t.accent, shape: BoxShape.circle),
-          ),
-        ],
-      ),
+    final headerRow = Row(
+      children: [
+        line(14, t.textPrimary),
+        const Spacer(),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: t.accent, shape: BoxShape.circle),
+        ),
+      ],
     );
-    Widget cover(int i) => DecoratedBox(
-      decoration: BoxDecoration(
-        color: i == 1 ? t.accentSoft : t.inkSwatch,
-        borderRadius: BorderRadius.all(small),
-        border: t.elevation == StyleElevation.flat
-            ? Border.all(color: t.hairline)
+    final header = calm
+        ? Container(
+            height: 10,
+            margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            decoration: BoxDecoration(
+              color: t.toolbar,
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(color: t.hairline),
+            ),
+            child: headerRow,
+          )
+        : Container(
+            height: studio ? 10 : 12,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: BoxDecoration(
+              color: t.toolbar,
+              border: Border(bottom: BorderSide(color: t.hairline)),
+            ),
+            child: headerRow,
+          );
+    final coverRadius = BorderRadius.all(
+      craft
+          ? Radius.circular(t.radiusSmall * 0.6)
+          : studio
+          ? const Radius.circular(1.5)
+          : small,
+    );
+    Widget cover(int i) {
+      final highlighted = i == 1;
+      final box = DecoratedBox(
+        decoration: BoxDecoration(
+          color: highlighted ? t.accentSoft : t.inkSwatch,
+          borderRadius: coverRadius,
+          border: craft
+              ? null
+              : Border.all(color: highlighted ? t.accent : t.hairline),
+          boxShadow: craft ? t.shadows() : null,
+        ),
+        child: craft
+            ? Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: FractionallySizedBox(
+                  heightFactor: 1,
+                  widthFactor: 0.16,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: highlighted ? t.accent : t.paperHighlight,
+                      borderRadius: BorderRadiusDirectional.horizontal(
+                        start: coverRadius.topLeft,
+                      ),
+                    ),
+                  ),
+                ),
+              )
             : null,
-        boxShadow: t.shadows(),
-      ),
-    );
+      );
+      return box;
+    }
+
+    final columns = studio ? 4 : 3;
+    final gap = studio
+        ? 3.0
+        : calm
+        ? 7.0
+        : 5.0;
     final grid = Padding(
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      padding: EdgeInsets.all(
+        calm
+            ? 8
+            : studio
+            ? 5
+            : 6,
+      ),
       child: Column(
         children: [
-          for (final row in const [0, 3]) ...[
-            if (row > 0) const SizedBox(height: 5),
+          for (final row in const [0, 1]) ...[
+            if (row > 0) SizedBox(height: gap),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final col in const [0, 1, 2]) ...[
-                    if (col > 0) const SizedBox(width: 5),
-                    Expanded(child: cover(row + col)),
+                  for (var col = 0; col < columns; col++) ...[
+                    if (col > 0) SizedBox(width: gap),
+                    Expanded(child: cover(row * columns + col)),
                   ],
                 ],
               ),
