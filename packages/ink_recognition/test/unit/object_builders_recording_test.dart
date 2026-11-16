@@ -78,8 +78,8 @@ void main() {
     },
   );
 
-  test('no recorded source stroke → no link; mixed → the earliest recorded '
-      'stroke\'s recording', () async {
+  test('no recorded source stroke → no link; mixed recordings → the earliest '
+      'recorded stroke\'s recording', () async {
     final none = buildMathFromPen(
       id: 'm',
       pageId: kPageId,
@@ -96,7 +96,6 @@ void main() {
       nowMs: 5,
       text: 'xy',
       inputStrokes: [
-        ...plain,
         _g('late', 200, 50, rec: 'r2', at: 100),
         _g('early', 220, 40, rec: 'r1', at: 9000),
         _g('early2', 240, 60, rec: 'r1', at: 8000),
@@ -105,5 +104,41 @@ void main() {
       pageSize: core.PageSize.a4Portrait,
     );
     expect((box.recordingId, box.recordingOffsetMs), ('r1', 8000));
+  });
+
+  test('a source stroke written before the recording (or while paused) → no '
+      'link: that part was always shown, so the object is too', () async {
+    // "x+" before recording, "1" at 4 s, converted with the math pen
+    final mixed = [_g('x', 100, 10), _g('+', 140, 20), ...recorded];
+    final m = buildMathFromPen(
+      id: 'm',
+      pageId: kPageId,
+      nowMs: 99999,
+      latex: 'x+1',
+      engineId: 'e/1',
+      strokes: mixed,
+    )!;
+    expect(m.recordingId, isNull);
+    expect(m.recordingOffsetMs, isNull);
+    final f = buildMathFromStrokes(
+      id: 'm2',
+      pageId: kPageId,
+      nowMs: 99999,
+      latex: 'x+1',
+      engineId: 'e/1',
+      inputStrokes: mixed,
+      boundsPt: bounds,
+    )!;
+    expect(f.recordingId, isNull);
+    final box = await buildTextBox(
+      id: 't',
+      pageId: kPageId,
+      nowMs: 99999,
+      text: 'x+1',
+      inputStrokes: mixed,
+      boundsPt: bounds,
+      pageSize: core.PageSize.a4Portrait,
+    );
+    expect(box.recordingId, isNull);
   });
 }

@@ -2103,7 +2103,7 @@ run(context, target)
 | id · 시각 | `scope.newId()`, `createdAt = updatedAt = scope.nowMs()` |
 | 명령 | (v2.1, C21-07) `CompositeCommand([RemoveElements(pageId: pageId, elementIds: [...입력 획 id]), AddObjects(pageId: pageId, objects: [box])], label: 'recog-to-text')` — `execute` **한 번**(되돌리기 1단계 — 계약 7.2.3 표 '손글씨 → 텍스트 상자'). 선택 안의 형광펜·테이프 획·객체는 지우지 않는다 |
 
-- (v2.13-rec) 녹음 연결: `buildTextBox`·`buildMathFromStrokes`·`buildMathFromPen`은 만든 개체에 **가장 먼저 쓴 녹음 연결 원본 획**(`Stroke.compareOrder`)의 녹음과 그 녹음 원본 획들의 가장 이른 offset을 붙인다(`linkToEarliestRecording`) — 재생에서 손글씨를 쓰기 시작한 때 나타난다(변환한 때가 아님). 연결된 원본이 없으면 연결 없음. `createdAt`은 그대로 변환 시각. 시험 `unit/object_builders_recording_test.dart`.
+- (v2.13-rec) 녹음 연결: `buildTextBox`·`buildMathFromStrokes`·`buildMathFromPen`은 만든 개체에 **가장 먼저 쓴 녹음 연결 원본 획**(`Stroke.compareOrder`)의 녹음과 그 녹음 원본 획들의 가장 이른 offset을 붙인다(`linkToEarliestRecording`) — 재생에서 손글씨를 쓰기 시작한 때 나타난다(변환한 때가 아님). 연결된 원본이 없거나 **연결 없는 원본이 하나라도 있으면**(녹음 전·일시정지 중 쓴 부분 — 재생에서 늘 보였으므로) 연결 없음. `createdAt`은 그대로 변환 시각. 시험 `unit/object_builders_recording_test.dart`.
 
 #### 6.13.5 복사 · 확정 줄 (`userConfirmed`)
 

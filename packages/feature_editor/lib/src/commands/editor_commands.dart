@@ -504,6 +504,9 @@ class EditorCommands {
   /// part (ObjectPlacement.visibleRectPt), [executeForExtension] and
   /// selectObject (the object selected with origin insert — 6.6.3; ignored
   /// when the page holds no such object). Null before the note has pages.
+  /// (v2.13-rec) What an insert item adds (the 수식 패드's formula) is new
+  /// now: an AddObjects' objects without a recording link are linked to this
+  /// note's recording, read when it executes, while it is being recorded.
   EditorInsertContext? insertContext() {
     if (_disposed) return null;
     final pages = _session.pages;
@@ -515,7 +518,7 @@ class EditorCommands {
       pageId: page.id,
       pageSize: page.size,
       visibleRectPt: ObjectPlacement.visibleRectPt(_viewport, index),
-      execute: executeForExtension,
+      execute: (command) => executeForExtension(_linkInserted(command)),
       selectObject: (id) {
         if (_disposed) return;
         if (_session.pageIfLoaded(page.id)?.objectById(id) == null) return;
@@ -523,6 +526,25 @@ class EditorCommands {
           id,
         }, origin: SelectionOrigin.insert);
       },
+    );
+  }
+
+  /// (v2.13-rec) [command] with the unlinked objects of an AddObjects linked
+  /// to this note's recording now (RecordingLink.metaFor); else as is.
+  core.EditCommand _linkInserted(core.EditCommand command) {
+    if (command is! core.AddObjects || _disposed) return command;
+    final meta = RecordingLink.metaFor(
+      _ref.read(core.audioRecorderServiceProvider),
+      _session.noteId,
+      core.PenTool.ballpoint,
+    );
+    if (meta.recordingId == null) return command;
+    return core.AddObjects(
+      pageId: command.pageId,
+      objects: [
+        for (final o in command.objects)
+          o.recordingId == null ? RecordingLink.linkObjectTo(o, meta) : o,
+      ],
     );
   }
 

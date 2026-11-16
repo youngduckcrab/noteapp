@@ -38,6 +38,7 @@ import '../actions/editor_action_runner.dart';
 import '../commands/editor_commands.dart';
 import '../di/stylus_extras.dart';
 import '../document/mounted_pages.dart';
+import '../document/page_mount.dart';
 import '../input/input_sample.dart';
 import '../input/input_targets.dart';
 import '../input/stylus_contact.dart';
@@ -436,6 +437,12 @@ class InteractionHost implements InputTargets {
         );
       case EditorTool.shape:
         selections.clear();
+        // (v2.13-rec) the recording time of the shape is its pen-down's
+        final shapeMeta = RecordingLink.metaFor(
+          _ref.read(core.audioRecorderServiceProvider),
+          _session.noteId,
+          core.PenTool.ballpoint,
+        );
         interaction = ShapeInteraction.start(
           down: sample,
           source: source,
@@ -446,7 +453,7 @@ class InteractionHost implements InputTargets {
           viewport: _viewport,
           snap: _shapeSnap,
           onCommit: (kind, geometry, style) =>
-              _onShapeDrawn(hit.pageId, kind, geometry, style),
+              _onShapeDrawn(hit.pageId, kind, geometry, style, shapeMeta),
           onTap: _onShapeTap,
         );
       case EditorTool.text:
@@ -548,12 +555,12 @@ class InteractionHost implements InputTargets {
     core.ShapeKind kind,
     core.ShapeGeometry geometry,
     core.ShapeStyle style,
+    ink.InkStrokeMeta recording,
   ) {
     if (_disposed) return;
-    // (v2.13-rec) linked to this note's recording while it is being recorded
-    final shape = RecordingLink.linkObject(
-      _ref.read(core.audioRecorderServiceProvider),
-      _session.noteId,
+    // (v2.13-rec) linked to this note's recording at the drag's pen-down
+    // ([recording] was read then) while it was being recorded
+    final shape = RecordingLink.linkObjectTo(
       ObjectFactory.shape(
         pageId: pageId,
         kind: kind,
@@ -562,6 +569,7 @@ class InteractionHost implements InputTargets {
         newId: _ref.read(core.idGeneratorProvider).newId,
         createdAt: _ref.read(core.clockProvider).now().millisecondsSinceEpoch,
       ),
+      recording,
     );
     if (!_commands.addObjects(pageId, [shape])) return;
     _ref.read(editorSelectionProvider.notifier).select(pageId, {
@@ -888,11 +896,70 @@ class InteractionHost implements InputTargets {
 
   /// ③ (6.15.3): in the tap-to-seek state, a stroke of the open recording
   /// under [screen] → `seekMs(max(0, offset − preRollMs))`, markSeek, play.
-  /// (v2.13-rec) No such stroke: the topmost object there, when it is linked to
-  /// the open recording (a shape, formula, text box or image made while
-  /// recording), seeks to its offset the same way.
+  /// (v2.13-rec) No such stroke: a shape linked to the open recording whose
+  /// outline (or fill) is under [screen] — the same precise hit as a stroke —
+  /// seeks to its offset the same way. Images, text boxes and formulas are hit
+  /// by their whole frame, so they never take a pen dot or this step (a dot
+  /// written on an image or a formula stays a dot, a tap still opens the
+  /// formula menu, selects or edits): [_tapToSeekFrame] takes a finger tap
+  /// no other step used.
   /// Every value is read synchronously now (6.3.5).
   bool _tapToSeek(Offset screen, TapKind kind) {
+    final at = _tapToSeekAt(screen, kind);
+    if (at == null) return false;
+    final stroke = at.mount.controller.hitTestRecorded(
+      at.pagePoint,
+      recordingId: at.recordingId,
+      tolerance: at.tolerance,
+    );
+    final int? offset;
+    if (stroke != null) {
+      offset =
+          _session
+              .pageIfLoaded(at.pageId)
+              ?.strokeById(stroke.id)
+              ?.recordingOffsetMs ??
+          stroke.source.recordingOffsetMs;
+    } else {
+      final object = at.mount.controller.hitTestObject(
+        at.pagePoint,
+        tolerance: at.tolerance,
+      );
+      if (object is! core.ShapeObject || object.recordingId != at.recordingId) {
+        return false;
+      }
+      offset = object.recordingOffsetMs;
+    }
+    return _seekToOffset(at.playback, offset);
+  }
+
+  /// (v2.13-rec) ③′ a finger tap that no earlier step took (not the formula
+  /// menu, a selection or a text box edit) on an image, text box or formula
+  /// linked to the open recording → seek to its offset like ③. Never a pen
+  /// dot (interceptPenDot does not call it).
+  bool _tapToSeekFrame(Offset screen) {
+    final at = _tapToSeekAt(screen, TapKind.finger);
+    if (at == null) return false;
+    final object = at.mount.controller.hitTestObject(at.pagePoint);
+    if (object == null ||
+        object is core.ShapeObject ||
+        object.recordingId != at.recordingId) {
+      return false;
+    }
+    return _seekToOffset(at.playback, object.recordingOffsetMs);
+  }
+
+  /// The tap-to-seek state at [screen] (null: off, no open recording, no
+  /// loaded page there).
+  ({
+    core.AudioPlaybackService playback,
+    String recordingId,
+    String pageId,
+    PageMount mount,
+    Offset pagePoint,
+    double tolerance,
+  })?
+  _tapToSeekAt(Offset screen, TapKind kind) {
     final playback = _ref.read(core.audioPlaybackServiceProvider);
     final status = playback.status;
     final active = tapToSeekActive(
@@ -904,36 +971,24 @@ class InteractionHost implements InputTargets {
       noteRecordingIds: _ref.read(editorNoteRecordingIdsProvider),
     );
     final recordingId = status.recordingId;
-    if (!active || recordingId == null) return false;
+    if (!active || recordingId == null) return null;
     final hit = _viewport.hitPage(screen);
-    if (hit == null) return false;
+    if (hit == null) return null;
     final mount = _pages[hit.pageId];
     if (mount == null || mount.isDisposed || !mount.isLoaded.value) {
-      return false;
+      return null;
     }
-    final pagePoint = _viewport.screenToPage(hit.index, screen);
-    final tolerance = _tapToSeekTolerancePx / _viewport.camera.scale;
-    final stroke = mount.controller.hitTestRecorded(
-      pagePoint,
+    return (
+      playback: playback,
       recordingId: recordingId,
-      tolerance: tolerance,
+      pageId: hit.pageId,
+      mount: mount,
+      pagePoint: _viewport.screenToPage(hit.index, screen),
+      tolerance: _tapToSeekTolerancePx / _viewport.camera.scale,
     );
-    final int? offset;
-    if (stroke != null) {
-      offset =
-          _session
-              .pageIfLoaded(hit.pageId)
-              ?.strokeById(stroke.id)
-              ?.recordingOffsetMs ??
-          stroke.source.recordingOffsetMs;
-    } else {
-      final object = mount.controller.hitTestObject(
-        pagePoint,
-        tolerance: tolerance,
-      );
-      if (object == null || object.recordingId != recordingId) return false;
-      offset = object.recordingOffsetMs;
-    }
+  }
+
+  bool _seekToOffset(core.AudioPlaybackService playback, int? offset) {
     if (offset == null) return false;
     final position = tapToSeekPositionMs(
       offset,
@@ -1069,6 +1124,8 @@ class InteractionHost implements InputTargets {
           // ④ (v2) the object under the tap is the selection now.
         } else if (_editTextBoxAt(centroid)) {
           // ⑤ (v2) the text tool edits the text box under the tap.
+        } else if (_tapToSeekFrame(centroid)) {
+          // ③′ (v2.13-rec) a linked image / text box / formula: seek.
         } else {
           _commands.clearSelection();
         }

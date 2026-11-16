@@ -6,6 +6,7 @@
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
 import 'package:feature_editor/src/state/settings/pre_roll.dart';
+import 'package:feature_editor/src/tools/selection.dart';
 import 'package:feature_editor/src/tools/tool_state.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart' show EditableText;
@@ -193,6 +194,154 @@ void main() {
       h.session.pageIfLoaded(h.pageId(0))!.strokes,
       hasLength(strokes + 1),
     );
+    await playback.close();
+    await tester.pump();
+  });
+
+  testWidgets('the shape tool takes the recorder offset of its pen-down, not '
+      'of the end of the drag', (tester) async {
+    final h = await pumpEditor(tester, fakeAudio: true);
+    h.container.read(editorCommandsProvider).selectTool(EditorTool.shape);
+    await tester.pump();
+    final recorder = await _record(tester, h);
+    recorder.advance(const Duration(milliseconds: 1200));
+    final from = h.toGlobal(0, const Offset(100, 100));
+    final to = h.toGlobal(0, const Offset(200, 180));
+    await h.driver.down(1, from, kind: PointerDeviceKind.stylus);
+    for (var i = 1; i <= 6; i++) {
+      // a slow drag: 3 s pass while it is drawn
+      recorder.advance(const Duration(milliseconds: 500));
+      await h.driver.move(1, Offset.lerp(from, to, i / 6)!);
+    }
+    await h.driver.up(1);
+    await tester.pump();
+    final shape = _objects(h).single;
+    expect(shape, isA<core.ShapeObject>());
+    expect(shape.recordingId, _rec);
+    expect(shape.recordingOffsetMs, 1200);
+    await recorder.cancel();
+    await tester.pump();
+  });
+
+  testWidgets('an insert menu item (the 수식 패드) while recording: its new '
+      'formula is linked at the time it is inserted; not recording → none', (
+    tester,
+  ) async {
+    final h = await pumpEditor(tester, fakeAudio: true);
+    final commands = h.container.read(editorCommandsProvider);
+    core.MathObject formula(String id) =>
+        PageObjectFixtures.math(pageId: h.pageId(0), id: id, createdAt: 7);
+
+    commands.insertContext()!.execute(
+      core.AddObjects(pageId: h.pageId(0), objects: [formula('a')]),
+    );
+    await tester.pump();
+    expect(_objects(h).single.recordingId, isNull);
+
+    final recorder = await _record(tester, h);
+    recorder.advance(const Duration(milliseconds: 8000));
+    // the context is made at the press; the pad inserts later
+    final insert = commands.insertContext()!;
+    recorder.advance(const Duration(milliseconds: 400));
+    insert.execute(
+      core.AddObjects(pageId: h.pageId(0), objects: [formula('b')]),
+    );
+    await tester.pump();
+    final linked = _objects(h).firstWhere((o) => o.id == 'b');
+    expect(linked.recordingId, _rec);
+    expect(linked.recordingOffsetMs, 8400);
+    await recorder.cancel();
+    await tester.pump();
+  });
+
+  testWidgets('tap-to-seek on linked images, formulas and text boxes: a pen '
+      'dot inside the frame is written (no seek); a finger tap no other step '
+      'takes seeks; with the lasso a finger tap selects instead', (
+    tester,
+  ) async {
+    core.PageObject linked(core.PageObject o) =>
+        o.withRecording(recordingId: _rec, recordingOffsetMs: 6000);
+    final image = linked(
+      PageObjectFixtures.image(
+        pageId: 'x',
+        assetId: 'a1',
+        id: 'im',
+        rect: const core.PageRect(100, 100, 260, 200),
+        createdAt: 3,
+      ),
+    );
+    final math = linked(
+      PageObjectFixtures.math(
+        pageId: 'x',
+        id: 'm',
+        rect: const core.PageRect(100, 300, 220, 350),
+        createdAt: 4,
+      ),
+    );
+    final box = linked(
+      core.TextBoxObject(
+        id: 't',
+        pageId: 'x',
+        frame: const core.ElementFrame(core.PageRect(100, 450, 260, 500)),
+        text: '메모',
+        style: const core.TextBoxStyle(),
+        createdAt: 5,
+      ),
+    );
+    final panel = TestRecordingPanelBuilder();
+    final h = await pumpEditor(
+      tester,
+      objectsByPageIndex: {
+        0: [image, math, box],
+      },
+      fakeAudio: true,
+      recordings: [const RecordingSeed(id: _rec)],
+      extensions: EditorExtensions(recordingPanel: panel.builder),
+      settings: const EditorSettings(inputMode: InputMode.penOnly),
+    );
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(); // the note's recordings load
+    }
+    core.Recording? recording;
+    await h.store.recordings.getRecording(_rec).then((r) => recording = r);
+    final playback = h.audioPlayback!;
+    await playback.open(recording!);
+    await playback.play();
+    await tester.pump();
+    List<String> seeks() => [
+      for (final c in playback.calls)
+        if (c.startsWith('seek:')) c,
+    ];
+    int strokes() => h.session.pageIfLoaded(h.pageId(0))!.strokes.length;
+
+    final before = strokes();
+    for (final at in const [
+      Offset(180, 150), // inside the image
+      Offset(160, 325), // inside the formula
+      Offset(180, 475), // inside the text box
+    ]) {
+      final p = h.toGlobal(0, at);
+      await h.driver.stylusStroke([p, p + const Offset(3, 0)]);
+      await tester.pump();
+    }
+    expect(seeks(), isEmpty, reason: 'a pen dot never seeks on a frame');
+    expect(strokes(), before + 3, reason: 'every dot was written');
+
+    Future<void> fingerTap(Offset at) async {
+      await h.driver.wait(const Duration(seconds: 1));
+      await h.driver.multiTap([h.toGlobal(0, at)]);
+      await tester.pump();
+    }
+
+    final preRoll = h.container.read(editorPreRollMsProvider);
+    await fingerTap(const Offset(240, 190)); // the image, no stroke there
+    expect(seeks(), ['seek:${6000 - preRoll}']);
+
+    h.container.read(editorCommandsProvider).selectTool(EditorTool.lasso);
+    await tester.pump();
+    await fingerTap(const Offset(240, 190));
+    expect(seeks(), hasLength(1), reason: 'the lasso tap selects');
+    expect(h.container.read(editorSelectionProvider)?.elementIds, {'im'});
     await playback.close();
     await tester.pump();
   });

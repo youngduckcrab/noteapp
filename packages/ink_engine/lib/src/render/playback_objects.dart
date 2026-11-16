@@ -15,10 +15,12 @@
 // around them. An image is veiled over its whole frame. highlightRecent dims no
 // object. Objects of other recordings and objects without one: unchanged.
 //
-// Where: shapes (ink layer) and images (underlay) at layer 4′ with the stroke
-// veils; text boxes, formulas and unknown objects at the end of the annotation
-// layer (they are drawn above layer 4′). The annotation layer repaints only
-// when the set of veiled annotation objects changes ([annotationKey]).
+// Where: shapes (ink layer) at layer 4′ with the stroke veils; images at the end
+// of the underlay layer (below every stroke: handwriting written on an image is
+// never veiled with it); text boxes, formulas and unknown objects at the end of
+// the annotation layer (they are drawn above layer 4′). The underlay and
+// annotation layers repaint only when the set of their veiled objects changes
+// ([veilKey] — a binary search per position tick, no list is built).
 import 'dart:ui' as ui;
 
 import 'package:note_core/note_core.dart' as core;
@@ -41,12 +43,14 @@ final class PlaybackObjectEntry {
 final class PlaybackObjectIndex {
   InkPageContent? _content;
   final Map<String, List<PlaybackObjectEntry>> _tracks = {};
+  final Map<(String, InkObjectLayer), List<int>> _offsets = {};
 
   /// Drops the tracks when [content] is another content.
   void update(InkPageContent content) {
     if (identical(content, _content)) return;
     _content = content;
     _tracks.clear();
+    _offsets.clear();
   }
 
   /// The objects of [recordingId] (empty when none).
@@ -97,15 +101,29 @@ final class PlaybackObjectIndex {
     ];
   }
 
-  /// What the annotation layer's veil depends on: the recording and the ids of its
-  /// veiled annotation objects (null: none veiled).
-  String? annotationKey(InkPlaybackFocus? focus) {
+  /// What the veil of [layer] depends on: the recording and how many of its linked
+  /// objects in [layer] are unwritten at the position (they are the last ones of the
+  /// offset-ordered track, so the count names the set); null: none veiled.
+  String? veilKey(InkPlaybackFocus? focus, InkObjectLayer layer) {
     if (focus == null) return null;
-    final veiled = unwritten(normalizedPlaybackFocus(focus), const {
-      InkObjectLayer.annotation,
-    }, const {});
-    if (veiled.isEmpty) return null;
-    return '${focus.recordingId}:${veiled.map((o) => o.id).join(',')}';
+    final f = normalizedPlaybackFocus(focus);
+    if (f.style != InkPlaybackStyle.dimUnwritten) return null;
+    final offsets = _offsets[(f.recordingId, layer)] ??= List.unmodifiable([
+      for (final e in trackOf(f.recordingId))
+        if (e.layer == layer) e.offsetMs,
+    ]);
+    // the first offset > positionMs (offsets ascend)
+    var lo = 0, hi = offsets.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (offsets[mid] <= f.positionMs) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    final n = offsets.length - lo;
+    return n == 0 ? null : '${f.recordingId}:$n';
   }
 }
 

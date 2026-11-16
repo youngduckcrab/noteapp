@@ -12,6 +12,7 @@ import 'package:ink_engine/src/render/ink_page_controller.dart'
     show inkPageRenderOf;
 import 'package:ink_engine/testing.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:note_core/testing.dart';
 
 import '../support/pixels.dart';
 
@@ -54,16 +55,18 @@ core.TextBoxObject _text(String id, {String? recording = 'r'}) {
             as core.TextBoxObject;
 }
 
-InkPageContent _content(List<core.PageObject> objects) =>
-    InkPageContent.fromCore(
-      page: SyntheticInk.page(
-        pageId: _pageId,
-        background: const core.BlankBackground(paperColorArgb: _white),
-      ),
-      strokes: const [],
-      objects: objects,
-      revision: 1,
-    );
+InkPageContent _content(
+  List<core.PageObject> objects, {
+  List<core.Stroke> strokes = const [],
+}) => InkPageContent.fromCore(
+  page: SyntheticInk.page(
+    pageId: _pageId,
+    background: const core.BlankBackground(paperColorArgb: _white),
+  ),
+  strokes: strokes,
+  objects: objects,
+  revision: 1,
+);
 
 Future<Pixels> _pixelsOf(InkPageController c) =>
     renderPixels(300, 200, (canvas) {
@@ -217,4 +220,62 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'a linked image is veiled below the ink: handwriting already written '
+    'on it stays as it is, the image itself is dimmed until its time',
+    () async {
+      const frame = core.PageRect(20, 20, 200, 160);
+      final image = PageObjectFixtures.image(
+        pageId: _pageId,
+        assetId: 'a1',
+        id: 'im',
+        rect: frame,
+        createdAt: 1,
+      ).withRecording(recordingId: 'r', recordingOffsetMs: 10000);
+      // written at 5 s, before the image was inserted (10 s) and moved under it
+      final stroke = strokeThrough(
+        segment(const Offset(60, 100), const Offset(160, 100)),
+        core.StrokeStyle.defaultsFor(core.PenTool.ballpoint)
+            .copyWith(colorArgb: _blue, width: 8),
+        id: 's',
+      ).copyWith(createdAt: 2, recordingId: 'r', recordingOffsetMs: 5000);
+      final c = createTestPageController()
+        ..updateContent(_content([image], strokes: [stroke]));
+      addTearDown(c.dispose);
+      final off = await _pixelsOf(c);
+      final ink = off.at(110, 100);
+      final placeholder = off.at(40, 40);
+      expect(ink[2], greaterThan(200), reason: 'the stroke is drawn');
+      expect(placeholder[0], lessThan(250), reason: 'the image is drawn');
+
+      var underlayRepaints = 0;
+      c
+          .layerRepaint(InkRenderLayer.underlay)
+          .addListener(() => underlayRepaints++);
+      c.setPlaybackFocus(_focus(7000));
+      expect(underlayRepaints, 1, reason: 'the dimmed set changed');
+      final before = await _pixelsOf(c);
+      expect(
+        samePixel(before.at(110, 100), ink, tol: 1),
+        isTrue,
+        reason: 'the written stroke: got ${before.at(110, 100)}, want $ink',
+      );
+      expect(
+        samePixel(before.at(40, 40), _veiled(placeholder), tol: 3),
+        isTrue,
+        reason:
+            'the image: got ${before.at(40, 40)}, want '
+            '${_veiled(placeholder)}',
+      );
+      c.setPlaybackFocus(_focus(7500));
+      expect(underlayRepaints, 1, reason: 'the same set: no repaint');
+
+      c.setPlaybackFocus(_focus(10000));
+      expect(underlayRepaints, 2);
+      final after = await _pixelsOf(c);
+      expect(samePixel(after.at(40, 40), placeholder, tol: 1), isTrue);
+      expect(samePixel(after.at(110, 100), ink, tol: 1), isTrue);
+    },
+  );
 }

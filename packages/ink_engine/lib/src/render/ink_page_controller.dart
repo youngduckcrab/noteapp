@@ -327,10 +327,11 @@ final class InkPageController extends ChangeNotifier {
   final PlaybackIndex _playbackIndex = PlaybackIndex();
   final PlaybackPainter _playbackPainter = PlaybackPainter();
 
-  /// (v2.13-rec) The page objects linked to a recording, and what the annotation
-  /// layer's object veil was last asked for (it repaints only when that changes).
+  /// (v2.13-rec) The page objects linked to a recording, and what the underlay and
+  /// annotation layers' object veils were last asked for (each repaints only when its
+  /// key changes).
   final PlaybackObjectIndex _playbackObjects = PlaybackObjectIndex();
-  String? _annotationVeilKey;
+  final Map<InkObjectLayer, String?> _veilKeys = {};
 
   /// (T34) An implicit NoteSans load this controller started or joined is running.
   bool _fontsWaiting = false;
@@ -678,14 +679,22 @@ final class InkPageController extends ChangeNotifier {
     _playbackFocus = focus;
     if (focus == null) _playbackPainter.clear();
     _repaints[InkRenderLayer.inkActive]!.fire();
-    // (v2.13-rec) text boxes / formulas linked to the recording are veiled at the end
-    // of the annotation layer: it repaints when the set of veiled ones changes only
+    // (v2.13-rec) images / text boxes / formulas linked to the recording are veiled at
+    // the end of the underlay / annotation layer: each repaints when the set of its
+    // veiled objects changes only
     final content = _content;
     if (content != null) _playbackObjects.update(content);
-    final key = content == null ? null : _playbackObjects.annotationKey(focus);
-    if (key != _annotationVeilKey) {
-      _annotationVeilKey = key;
-      _repaints[InkRenderLayer.annotation]!.fire();
+    for (final (objectLayer, renderLayer) in const [
+      (InkObjectLayer.underlay, InkRenderLayer.underlay),
+      (InkObjectLayer.annotation, InkRenderLayer.annotation),
+    ]) {
+      final key = content == null
+          ? null
+          : _playbackObjects.veilKey(focus, objectLayer);
+      if (key != _veilKeys[objectLayer]) {
+        _veilKeys[objectLayer] = key;
+        _repaints[renderLayer]!.fire();
+      }
     }
   }
 
@@ -1768,6 +1777,14 @@ final class InkPageController extends ChangeNotifier {
         return;
       case InkRenderLayer.underlay:
         _paintObjects(canvas, content, display, InkObjectLayer.underlay, paper);
+        // (v2.13-rec) linked images not created yet at the position — below the ink
+        _paintObjectVeils(
+          canvas,
+          content,
+          display,
+          InkObjectLayer.underlay,
+          paper,
+        );
       case InkRenderLayer.annotation:
         // (6.8.3, I-B12) the paint time of a paint that drew objects → annotationPaintUs
         final measure = diagnostics.enabled;
@@ -1780,9 +1797,13 @@ final class InkPageController extends ChangeNotifier {
           paper,
         );
         // (v2.13-rec) linked text boxes / formulas not created yet at the position
-        _paintObjectVeils(canvas, content, display, const {
+        _paintObjectVeils(
+          canvas,
+          content,
+          display,
           InkObjectLayer.annotation,
-        }, paper);
+          paper,
+        );
         if (measure && drew) {
           diagnostics.onAnnotationPaint(clock.nowUs() - start);
           _reportMathCacheBytes();
@@ -2282,11 +2303,8 @@ final class InkPageController extends ChangeNotifier {
     final focus = _playbackFocus;
     final content = _content;
     if (focus == null || content == null) return;
-    // (v2.13-rec) linked shapes and images not created yet at the position
-    _paintObjectVeils(canvas, content, display, const {
-      InkObjectLayer.underlay,
-      InkObjectLayer.ink,
-    }, paper);
+    // (v2.13-rec) linked shapes not created yet at the position
+    _paintObjectVeils(canvas, content, display, InkObjectLayer.ink, paper);
     _playbackIndex.update(content);
     final f = normalizedPlaybackFocus(focus);
     final track = _playbackIndex.trackOf(f.recordingId);
@@ -2308,27 +2326,27 @@ final class InkPageController extends ChangeNotifier {
     if (measure) diagnostics.onPlaybackPaint(clock.nowUs() - start);
   }
 
-  /// (v2.13-rec) The veils of the objects in [layers] linked to the playback focus and
+  /// (v2.13-rec) The veils of the objects in [layer] linked to the playback focus and
   /// not created yet at its position (playback_objects.dart); hidden and live objects
   /// (pending, selection preview, previews) are left alone.
   void _paintObjectVeils(
     ui.Canvas canvas,
     InkPageContent? content,
     _Display display,
-    Set<InkObjectLayer> layers,
+    InkObjectLayer layer,
     int paper,
   ) {
     final focus = _playbackFocus;
-    if (focus == null || content == null || content.objects.isEmpty) return;
-    _playbackObjects.update(content);
-    final veiled = _playbackObjects.unwritten(
-      normalizedPlaybackFocus(focus),
-      layers,
-      display.objectsHidden,
-    );
-    if (layers.contains(InkObjectLayer.annotation)) {
-      _annotationVeilKey = _playbackObjects.annotationKey(focus);
+    if (focus == null || content == null || content.objects.isEmpty) {
+      _veilKeys[layer] = null;
+      return;
     }
+    _playbackObjects.update(content);
+    _veilKeys[layer] = _playbackObjects.veilKey(focus, layer);
+    if (_veilKeys[layer] == null) return;
+    final veiled = _playbackObjects.unwritten(normalizedPlaybackFocus(focus), {
+      layer,
+    }, display.objectsHidden);
     paintObjectVeils(
       canvas,
       veiled,

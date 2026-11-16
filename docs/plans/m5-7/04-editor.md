@@ -2472,12 +2472,14 @@ final class PlaybackHighlightLogic {
 
 사용자 보고 '녹음 후 필기는 잘 표시해주는데 도형이나 수식은 그냥 그려진 채로 나와'의 원인은 개체에 녹음 연결이 없던 것(획만 `RecordingLink.metaFor`로 연결). 이제 녹음 중 만든 개체도 획처럼 연결한다 — 재생 흐림은 INK(03-ink 6.19 '페이지 개체').
 
-- 지금 만드는 개체(도형 도구, 새 텍스트 상자 — 놓은 때, 이미지 넣기): `RecordingLink.linkObject` — 펜 다운과 같은 동기 읽기(R-1), 이 노트 녹음 중이 아니면 연결 없음.
+- 지금 만드는 개체(도형 도구 — 끌기의 펜 다운 때 읽은 메타, 새 텍스트 상자 — 놓은 때, 이미지 넣기): `RecordingLink.linkObject`/`linkObjectTo` — 펜 다운과 같은 동기 읽기(R-1), 이 노트 녹음 중이 아니면 연결 없음. 녹음 전(또는 일시정지 중) 놓은 상자는 녹음 중 입력해도 연결 없음.
+- 넣기 메뉴 항목(수식 패드): `insertContext().execute`가 AddObjects의 연결 없는 개체를 **실행 순간** 이 노트 녹음에 연결한다(recog 쪽 변경 없음).
 - 길게 눌러 맞춘 도형(`InkEdit addShape`): INK가 연결 없이 만들므로 `PenInteraction`이 펜 다운 메타를 `commitInkEdit(…, recording:)`로 넘기고, 명령만 연결된 도형으로 바꾼다(대기 넘김은 id 기준이라 그대로 풀린다). 시간 = 펜 다운.
 - 변환(수식 펜·텍스트 펜·변환 창·LaTeX 창): `ink_recognition` 빌더가 **가장 먼저 쓴 녹음 연결 원본 획**의 녹음·그 녹음의 가장 이른 offset을 붙인다(`linkToEarliestRecording`). `createdAt`은 변환 시각 그대로(z 순서).
 - 붙여넣기·복제는 원본의 연결을 지킨다(획과 같음).
-- 탭 재생: 녹음 획이 없으면 `hitTestObject`로 가장 위 개체를 보고, 열린 녹음에 연결돼 있으면 그 offset으로 같은 규칙(`max(0, offset − preRollMs)`)으로 이동한다.
-- 시험: `widget/recording_objects_test.dart`(도형 도구·맞춘 도형·텍스트 상자 연결, 도형 탭 재생).
+- 탭 재생: ③ 녹음 획이 없으면 그 자리의 **도형**(선·채움 정밀 판정, 획과 같은 12 px)이 열린 녹음에 연결돼 있을 때 그 offset으로 같은 규칙(`max(0, offset − preRollMs)`)으로 이동한다. 이미지·텍스트 상자·수식은 틀 전체로 맞으므로 ③에 참여하지 않는다 — 펜 점(마침표·i 점·소수점)은 그대로 써지고, 손가락 탭은 수식 메뉴 ④m·선택 ④·텍스트 편집 ⑤가 먼저다. 그 어느 것도 받지 않은 손가락 탭만 ③′(`_tapToSeekFrame`)로 연결된 틀 개체의 offset으로 이동한다.
+- 옛 노트(이 수정 전에 녹음한 노트)의 개체는 연결이 없어 그대로 보인다 — 되채우기는 하지 않는다(`createdAt − startedAt`은 일시정지·변환 시각 때문에 틀릴 수 있음).
+- 시험: `widget/recording_objects_test.dart`(도형 도구·맞춘 도형·텍스트 상자 연결, 도형 도구 = 펜 다운 시각, 넣기 메뉴 수식 연결, 도형 탭 재생, 틀 개체 위 펜 점은 써지고 손가락 탭은 재생·올가미는 선택).
 
 #### 6.15.4 녹음 패널 자리 (`EditorPanelSlot`)
 

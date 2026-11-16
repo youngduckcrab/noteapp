@@ -340,14 +340,17 @@ core.MathObject? buildMathFromPen({
 /// earliest recorded source stroke (Stroke.compareOrder: createdAt, then id) at that
 /// recording's earliest source offset, so playback shows the object from the time its
 /// handwriting began (not from the conversion). [object] itself when no source stroke
-/// is linked to a recording. createdAt stays the conversion time (it orders the z).
+/// is linked to a recording, or when ANY source stroke is not (written before the
+/// recording or while it was paused: that part was never dimmed in playback, so the
+/// object made from it is not either). createdAt stays the conversion time (it orders
+/// the z).
 T linkToEarliestRecording<T extends core.PageObject>(
   T object,
   Iterable<core.Stroke> sources,
 ) {
   core.Stroke? first;
   for (final s in sources) {
-    if (s.recordingId == null || s.recordingOffsetMs == null) continue;
+    if (s.recordingId == null || s.recordingOffsetMs == null) return object;
     if (first == null || core.Stroke.compareOrder(s, first) < 0) first = s;
   }
   if (first == null) return object;
