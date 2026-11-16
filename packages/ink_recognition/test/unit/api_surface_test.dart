@@ -430,6 +430,10 @@ void main() {
         t.weakCornerErrorFactor,
         t.axisSnapDeg,
         t.minScore,
+        t.holdTailLogicalPx,
+        t.holdTailMaxFraction,
+        t.maxAbsTurnDeg,
+        t.roundedCornerMaxEdge,
       ];
       expect(doubles, [
         0.85,
@@ -438,18 +442,22 @@ void main() {
         270,
         540,
         0.075,
-        0.82,
+        0.86,
         0.055,
         28,
         0.08,
         16,
         0.03,
-        0.35,
+        0.8,
         55,
         45,
         1.6,
         8,
         0.0,
+        6,
+        0.1,
+        660,
+        0.15,
       ]);
       expect(t, const ShapeFitTuning());
       expect(t.hashCode, const ShapeFitTuning().hashCode);

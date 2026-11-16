@@ -6,10 +6,9 @@
 //   circle     → ShapeKind.ellipse, a square frame (radius (a + b) / 2),
 //                rotation 0
 //   ellipse    → ShapeKind.ellipse, centre · a · b · angle; within ±axisSnapDeg
-//                of an axis → that axis. a and b: a least-squares fit of the
-//                raw points along the classifier's axes (its √(2λ) values
-//                assume points spread by angle — a 2:1 ellipse came out 9 %
-//                narrow); the classifier's values when that fit degenerates
+//                of an axis → that axis. Centre, a and b: the classifier's
+//                least-squares fit (6.17.1 step 5 — on the closed loop, so a
+//                closing overlap or the hold tail does not pull them)
 //   rectangle  → ShapeKind.rectangle, the direction of the longest edge
 //                (within ±axisSnapDeg of an axis → the axis); each side =
 //                the median perpendicular coordinate of the RAW points in the
@@ -43,7 +42,7 @@ ink.InkShapeFit beautifyShape(
   ),
   ShapeClass.circle || ShapeClass.ellipse => ink.InkShapeFit(
     kind: core.ShapeKind.ellipse,
-    geometry: _ellipse(c, raw, tuning),
+    geometry: _ellipse(c, tuning),
     score: _score(c.error, tuning.ellipseMaxError),
   ),
   ShapeClass.rectangle => ink.InkShapeFit(
@@ -100,46 +99,10 @@ core.ShapeGeometry _line(List<Offset> raw) {
   return core.ShapeGeometry.line(_pagePoint(mid - d), _pagePoint(mid + d));
 }
 
-/// The semi-axes along [angle] about [center] that fit [raw] best:
-/// least squares of A·u² + B·v² = 1 (A = 1/a², B = 1/b²) — the curve, not
-/// the point spread (the classifier's √(2λ) assumes points evenly spread by
-/// angle; points spread by path length make a 2:1 ellipse ~9 % too narrow).
-/// null when the fit is degenerate.
-(double, double)? _leastSquaresAxes(
-  List<Offset> raw,
-  Offset center,
-  double angle,
-) {
-  final c = math.cos(angle), s = math.sin(angle);
-  var suu = 0.0, svv = 0.0, su4 = 0.0, sv4 = 0.0, su2v2 = 0.0;
-  for (final p in raw) {
-    final dx = p.dx - center.dx, dy = p.dy - center.dy;
-    final u2 = math.pow(dx * c + dy * s, 2).toDouble();
-    final v2 = math.pow(-dx * s + dy * c, 2).toDouble();
-    suu += u2;
-    svv += v2;
-    su4 += u2 * u2;
-    sv4 += v2 * v2;
-    su2v2 += u2 * v2;
-  }
-  final det = su4 * sv4 - su2v2 * su2v2;
-  if (!(det.abs() > 0)) return null;
-  final a = (suu * sv4 - svv * su2v2) / det;
-  final b = (svv * su4 - suu * su2v2) / det;
-  if (!(a > 0) || !(b > 0)) return null;
-  final rx = 1 / math.sqrt(a), ry = 1 / math.sqrt(b);
-  return rx.isFinite && ry.isFinite ? (rx, ry) : null;
-}
-
-core.ShapeGeometry _ellipse(
-  ShapeClassification c,
-  List<Offset> raw,
-  ShapeFitTuning tuning,
-) {
+core.ShapeGeometry _ellipse(ShapeClassification c, ShapeFitTuning tuning) {
   final center = c.center;
-  final axes = _leastSquaresAxes(raw, center, c.angle);
   if (c.kind == ShapeClass.circle) {
-    final r = axes == null ? c.rx : (axes.$1 + axes.$2) / 2;
+    final r = c.rx;
     return core.ShapeGeometry.ellipse(
       core.PageRect(center.dx - r, center.dy - r, center.dx + r, center.dy + r),
     );
@@ -147,8 +110,7 @@ core.ShapeGeometry _ellipse(
   // The a axis turned into (−45°, 45°]: an odd number of quarter turns
   // puts the b axis along the frame's width.
   final (normalized, quarters) = _quarterNormalized(c.angle);
-  final (a, b) = axes ?? (c.rx, c.ry);
-  final (rx, ry) = quarters.isOdd ? (b, a) : (a, b);
+  final (rx, ry) = quarters.isOdd ? (c.ry, c.rx) : (c.rx, c.ry);
   final angle = _snapToAxis(normalized, tuning.axisSnapDeg);
   return core.ShapeGeometry.ellipse(
     core.PageRect(

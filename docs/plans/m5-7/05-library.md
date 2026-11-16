@@ -774,23 +774,27 @@ final class ShapeFitTuning {
     this.resampleCount = 64, this.smoothRadius = 2, this.minDiagonalLogicalPx = 24,
     this.lineMinStraightness = 0.85, this.lineMaxDeviation = 0.065,
     this.closedMaxGap = 0.2, this.minTurnDeg = 270, this.maxTurnDeg = 540,
-    this.ellipseMaxError = 0.075, this.circleMinAxisRatio = 0.82,
+    this.ellipseMaxError = 0.075, this.circleMinAxisRatio = 0.86,
     this.rdpEpsilon = 0.055, this.cornerMinTurnDeg = 28, this.minEdgeFraction = 0.08,
     this.rightAngleToleranceDeg = 16, this.polygonMaxError = 0.03,
-    this.ellipseOverPolygonFactor = 0.35, this.weakCornerTriangleDeg = 55,
+    this.ellipseOverPolygonFactor = 0.8, this.weakCornerTriangleDeg = 55,
     this.weakCornerQuadDeg = 45, this.weakCornerErrorFactor = 1.6,
-    this.axisSnapDeg = 8, this.minScore = 0.0});
+    this.axisSnapDeg = 8, this.minScore = 0.0,
+    // (6.17.5) 멈춤 꼬리·닫힌 고리의 회전 합·둥근 꼭짓점
+    this.holdTailLogicalPx = 6, this.holdTailMaxFraction = 0.1,
+    this.maxAbsTurnDeg = 660, this.roundedCornerMaxEdge = 0.15});
   final int resampleCount, smoothRadius;
   final double minDiagonalLogicalPx;        // diag(pt) × viewScale below this → null (dots, ticks)
   final double lineMinStraightness, lineMaxDeviation, closedMaxGap, minTurnDeg, maxTurnDeg,
       ellipseMaxError, circleMinAxisRatio, rdpEpsilon, cornerMinTurnDeg, minEdgeFraction,
       rightAngleToleranceDeg, polygonMaxError, ellipseOverPolygonFactor, weakCornerTriangleDeg,
-      weakCornerQuadDeg, weakCornerErrorFactor, axisSnapDeg, minScore;
+      weakCornerQuadDeg, weakCornerErrorFactor, axisSnapDeg, minScore,
+      holdTailLogicalPx, holdTailMaxFraction, maxAbsTurnDeg, roundedCornerMaxEdge;
   // ==, hashCode, copyWith
 }
 ```
 
-값의 근거와 의미는 6.17. 실기기 표본(U18)으로 다시 맞출 때 이 기본값만 바꾼다.
+값의 근거와 의미는 6.17. 실기기 표본(U18)으로 다시 맞출 때 이 기본값만 바꾼다. (6.17.5) 필드 4개 추가·`circleMinAxisRatio` 0.82 → 0.86·`ellipseOverPolygonFactor` 0.35 → 0.8 — 계약 7.2.11은 필드를 적지 않으므로(`/* every threshold in one place */`) 계약 판 올림 없음.
 
 #### 4.4.6 `groupIntoLines` · `HandwritingTrace` 의미
 
@@ -2221,14 +2225,14 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 
 #### 6.17.1 알고리즘 (조사 03 4.3 시제품 + 개선 — `shape_classifier.dart`)
 
-1. 점이 4개 미만이거나, 경계 대각선(pt) × `viewScale` < `minDiagonalLogicalPx`(24 logical px)면 `null`(글자·점 보호).
+1. 점이 4개 미만이거나, 경계 대각선(pt) × `viewScale` < `minDiagonalLogicalPx`(24 logical px)면 `null`(글자·점 보호). (6.17.5) **멈춤 꼬리 자르기**: 끝의 8점 평균에서 `holdTailLogicalPx`(6 logical px ÷ `viewScale`, 대각선 × 0.1 이하) 안에 드는 뒤쪽 점들을 그 평균 한 점으로 바꾼다.
 2. **평활화(개선)**: 경로 길이 기준 128점으로 재표본 → 반경 2의 이동 평균(끝점 유지) → 64점 재표본.
 3. **직선**: 현/경로 ≥ 0.85, 최대 수직 편차/현 ≤ 0.065.
-4. **닫힘**: 끝점 틈/경로 ≤ 0.2, 총 회전각 270°~540°(아니면 낙서·두 바퀴 → `null`).
-5. **타원**: 점 공분산(PCA) → 축 `a = √(2λ₁)`, `b = √(2λ₂)`, 각. 오차 = 정규화 반경 `|r − 1|` 평균. 축비 ≥ 0.82면 원.
+4. **닫힘**: (6.17.5) 열린 경로 회전각 ≤ 540°(두 바퀴 → `null`). 평활화한 128점에서 **닫히는 곳을 찾아 자른다** — 앞 15 %의 점 i와 뒤 40 %의 점 j 중 가장 가까운 쌍, 잘린 점이 모두 남은 고리에서 대각선 × 0.12 안일 때만(겹쳐 그림·교차 갈고리·시작 갈고리는 잘리고, 6·9의 줄기는 안 잘림). 남은 고리의 틈/경로 ≤ 0.2, **닫힌 고리**(닫는 점의 회전까지 셈)의 총 회전각 270°~540°, 회전 절댓값 합 ≤ `maxAbsTurnDeg`(660°). 고리를 64점으로 다시 재표본.
+5. **타원**: 점 공분산(PCA) → 중심·축 방향. (6.17.5) 그 축 좌표계에서 `A·u² + B·v² + D·u + E·v = 1` 최소제곱으로 반지름·중심 이동. 오차 = 점–타원 거리(`|F| ÷ |∇F|`) 평균 ÷ 반지름 평균(원이면 `|r − 1|` 평균과 같음). 축비 ≥ 0.86이면 원.
 6. **꼭짓점**: 시작점에서 가장 먼 점으로 나눠 두 반쪽에 RDP(ε = 대각선 × 0.055) → 회전 28° 미만 꼭짓점 제거 → 둘레 8%보다 가까운 꼭짓점 병합. 다각형 오차 = 점–변 거리 평균/대각선.
-7. 타원 오차 ≤ 0.075이고 (꼭짓점 < 3 또는 > 6 또는 타원 오차 × 0.35 < 다각형 오차)면 타원(원).
-8. **약한 꼭짓점 보정(개선)**: 꼭짓점 4개 중 가장 약한 회전 < 55°이고 그것을 뺀 삼각형 오차 ≤ 사각 오차 × 1.6 → 삼각형. 꼭짓점 5개 중 가장 약한 회전 < 45°이고 나머지 넷이 모두 90° ± 16°, 사각 오차 ≤ 1.6배 → 사각형(닫을 때 생긴 갈고리).
+7. 타원 오차 ≤ 0.075이고 (꼭짓점 < 3 또는 > 6 또는 타원 오차 × 0.8 < 다각형 오차)면 타원(원).
+8. **약한 꼭짓점 보정(개선)**: 꼭짓점 4개 중 가장 약한 회전 < 55°이고 그것을 뺀 삼각형 오차 ≤ 사각 오차 × 1.6 → 삼각형. (6.17.5) **둥근 꼭짓점**: 직사각형이 아닌(다시 앉혀도 아닌) 꼭짓점 4개에서 둘레 × 0.15 이하인 변의 두 끝을 이웃 두 변의 연장선 교점 하나로 합친 삼각형 오차 ≤ 사각 오차 × 1.6 → 삼각형. 꼭짓점 5개 중 가장 약한 회전 < 45°이고 나머지 넷이 모두 90° ± 16°, 사각 오차 ≤ 1.6배 → 사각형(닫을 때 생긴 갈고리).
 9. 꼭짓점 3 → 삼각형, 4 → 모든 각 90° ± 16°면 사각형 아니면 사각형 아닌 사각형(다각형), 5~8 → 다각형 오차 ≤ 0.03이면 다각형, 그 밖 → 타원이 되면 타원 아니면 `null`.
 
 #### 6.17.2 반듯하게 다듬기 → CORE 기하 (`shape_beautify.dart`)
@@ -2262,6 +2266,8 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
 - '모서리 집중도'(꼭짓점 근처에 회전이 몰린 비율)로 타원/다각형을 가르는 시도는 타원 41.5%로 나빠져 버렸다(E-L2 기록).
 - 합성 자료는 실제 Pencil·S펜 획과 다르다 → 실기기 표본으로 `ShapeFitTuning` 기본값만 다시 맞춘다. (v2.1, 12.2 Q7 답·00-review 2.3) **모으기는 EDITOR, 판정·회귀는 LIBRARY**: EDITOR 개발자 토글 '도형 표본 모으기'(기본 끔)가 켜져 있을 때만 링 버퍼(최근 5개)에 쌓고 개발자 메뉴가 기대 종류를 고르게 한 뒤 LIBRARY 형식 `{kind, points: [[x, y], …], viewScale}`(`kind` = 사용자가 고른 기대 종류 `ShapeKind.name` 또는 `'none'`)으로 클립보드에 복사한다(04-editor 6.20·E2-20). 사용자가 그것을 `test/fixtures/real/<기기>-<날짜>-<n>.json`으로 옮긴다(U18 동의 범위). 표본 회귀 시험 `unit/shape_real_samples_test.dart`(**`@TestOn('vm')`** — 파일을 읽음)는 폴더의 표본마다 `fit(points, viewScale:)?.kind ?? 'none'` == `kind`를 단언하고(폴더가 비면 건너뜀), 문턱을 바꾸는 커밋은 합성 1,400개(V9)·`synthetic_shapes_test`·표본 회귀를 함께 돌린다.
 
+- (6.17.5) 아래 손 그림 모음 개선 뒤 V9 1,400개는 세 시드 모두 **모든 종류 100 %, 잘못 바꿈 0 %**다(획당 중앙값 45 µs).
+
 #### 6.17.4 INK 멈춤 감지와의 흐름 시험 (`test/integration/shape_assist_flow_test.dart` — (v2.1) 검토 S-7, 계약 7.7.1 5단계)
 
 `ink_recognition` → `ink_engine` 의존이라 INK 패키지 시험은 `GeometricShapeFitter`를 import할 수 없다(계약 7.1·INFRA R8). 그래서 실제 판정기 + 실제 INK 멈춤 감지의 흐름은 LIBRARY가 시험한다(03-ink 8.3 I-4가 이 위치를 가리킴).
@@ -2275,6 +2281,25 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
   5. 낙서(시드 고정) → `fit == null` → 획 유지.
   6. (수정 2회차 — 4.3 pt 기준에 맞춤) **작은 사각형 보호**: `SyntheticShapes.rectanglePath(Rect.fromLTWH(100, 100, 64, 48))`(짧은 변 48 pt — 함수의 pt 하한이라 viewScale 1에서는 사각형이 보장되는 경로)를 `beginStroke(…, viewScale: 0.25)`로 그림 → 대각선 80 pt × 0.25 = 20 < 24(`minDiagonalLogicalPx`) → `shapePreview == null` → `end()` → 획 추가(글자 보호). 대조로 같은 경로를 `viewScale: 1`로 → `ShapeKind.rectangle`(두 경우의 차이는 viewScale뿐). 0.25에서 '판정됨'을 보는 경우는 4.3 호출 쪽 규칙대로 rect를 키운 것(짧은 변 ≥ 192 pt)이고 `synthetic_shapes_test`가 맡는다. 48 pt보다 작은 rect는 `rectanglePath`가 `ArgumentError`를 던지므로 이 시험에 쓰지 않는다.
 - 실패하면 원인을 나눈다: 판정(합성 1,400개 V9 통과 여부) ↔ INK 멈춤 감지·미리보기(03-ink T39 `hold_detector_test`). 통합 5단계에서 `ws test --run-skipped -t integration`으로 돈다(8.3 L2-I3).
+
+#### 6.17.5 손 그림 모음과 삼각형·타원 개선 (사용자 의견: '직선, 사각형과 원은 잘 되는데 삼각형, 타원은 잘 안됨')
+
+- **모음** `test/shared/hand_drawn_corpus.dart`(시드 고정): 태블릿 펜처럼 그린 획 — 꼭짓점·양 끝에서 느려지는 속도, 빠르게(25~60점)·천천히(300~700점), 둥근 꼭짓점, 휜 변, 흔들림, 시작이 꼭짓점·변 가운데, 겹쳐 닫기·교차 갈고리·작은 틈, **끝에 0.5 s 멈춤 꼬리**(떨림·느린 밀림, 0.15 pt 미만 간격 점 버림 — INK와 같음). 삼각형(정·직각·둔각·높은·납작·둥근·꼭짓점 시작·빠름·느림·작음), 타원(축비 0.3~0.85, 0~180° 회전, 겹침, 달걀꼴, 빠름, 작음), 회귀용 직선·원·사각형·사각형 아닌 사각형·오~육각형, 그대로 둬야 하는 낙서·한 획 글씨(필기체 e·l, 2·3·6·8·9, S, z, ㄹ, a, d, g, B, &, ∞, 체크, 지그재그, 나선, 별, 화살표, 물결, 열린 호, 톱니 고리, 두 바퀴). `unit/shape_corpus_test.dart`가 시드 1~3(변형마다 40개, 7,200획)의 혼동 행렬을 기록하고 종류별 재현율 문턱(직선 0.98·원 0.97·타원 0.96·삼각형 0.96·사각형 0.95·사각 아닌 사각형 0.92·다각형 0.92·글씨 그대로 0.995)과 변형별 0.9를 단언한다. 실기기 표본 폴더(`test/fixtures/real/`)는 아직 비어 있다.
+- **원인과 효과**(시드 1~3, 재현율):
+
+| 바꾼 것 | 원인 | 효과 |
+|---|---|---|
+| 닫힌 고리의 회전각(닫는 점의 회전까지) | 열린 경로만 세어 꼭짓점에서 시작한 삼각형이 240°로 270° 문턱 아래 → `null` | 삼각형 `null` 305 → 3 |
+| 닫히는 곳에서 자르기 | 겹쳐 그린 부분이 틈/경로(0.14~0.19)와 타원 중심·오차를 키움 | 겹친 원 33 % → 100 %, 겹친 타원 30 % → 100 % |
+| 타원 최소제곱 축·거리 오차 | √(2λ)는 각도로 고른 점을 가정 — 납작한 타원의 오차 0.08~0.1 → 다각형 | 납작한 타원 70 % → 100 % |
+| `circleMinAxisRatio` 0.82 → 0.86 | 축비 0.82~0.85 타원이 원이 됨(새 축비는 원 ≥ 0.88, 타원 ≤ 0.85로 갈림) | 0.82로 두면 타원 96.0 % → 0.86에서 99.8 % |
+| `ellipseOverPolygonFactor` 0.35 → 0.8 | 새 타원 오차 척도에서 다각형 오차 ÷ 타원 오차가 다각형 ≤ 0.55, 타원 ≥ 1.27(하위 5 %)로 갈림 | 0.35로 두면 사각형 91.3 %·다각형 60.8 % → 98.8 %·99.6 % |
+| 멈춤 꼬리 자르기 | 떨림 점이 재표본 뒤 지그재그 → 회전 잡음·가짜 꼭짓점 | 빼면 타원 93.7 %·삼각형 94.9 %·사각형 93.1 % |
+| 회전 절댓값 합 ≤ 660° | 닫는 점을 세니 a·d·B의 고리+줄기가 한 바퀴로 통과 | 빼면 글씨 그대로 93.2 % |
+| 열린 경로 ≤ 540° | 자르기 때문에 두 바퀴 원이 원으로 통과 | 두 바퀴 그대로 100 % |
+| 둥근 꼭짓점 합치기 | RDP가 둥근 꼭짓점을 둘로 찾아 사각 → 다각형 | 삼각형 98.9 % → 99.6 % |
+
+- **혼동 행렬 요약**(같은 모음, 앞 → 뒤): 삼각형 67.0 %(`null` 305·다각형 91) → **99.6 %**, 타원 65.2 %(원 93·`null` 126·다각형 55·삼각형 18) → **99.8 %**, 원 66.7 % → 100 %, 사각형 83.3 % → 98.8 %, 사각 아닌 사각형 81.7 % → 100 %, 다각형 73.3 %(원 63) → 99.6 %, 직선 100 % → 100 %, 글씨·낙서 그대로 96.4 %(다각형 110 — a·d·톱니 고리) → **100 %**. 시드 11~20(조정에 쓰지 않음)도 같다: 삼각형 66.8 → 99.5 %, 타원 64.0 → 99.8 %, 글씨 그대로 96.8 → 100 %.
 
 ### 6.18 `RecognitionSettingsSection` (설정 '인식' 섹션 — `recog.settings`)
 

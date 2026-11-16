@@ -4,16 +4,21 @@
 // ShapeFitTuning (4.4.5).
 //
 //  1. (in GeometricShapeFitter) fewer than 4 points / a non-finite point /
-//     bounds diagonal × viewScale < minDiagonalLogicalPx → no shape;
+//     bounds diagonal × viewScale < minDiagonalLogicalPx → no shape; (6.17.5)
+//     the hold tail cut (trimHoldTail — holdTailLogicalPx);
 //  2. smoothing: 128 samples by path length → moving average of radius
 //     smoothRadius (end points kept) → resampleCount samples;
 //  3. line: chord / path ≥ lineMinStraightness and the largest distance to
 //     the chord / chord ≤ lineMaxDeviation;
-//  4. closed: end gap / path ≤ closedMaxGap and total turning within
-//     [minTurnDeg, maxTurnDeg] (a scribble or two turns → no shape);
-//  5. ellipse: PCA of the points — a = √(2λ₁), b = √(2λ₂), the angle; error =
-//     mean |r − 1| of the normalised radius; b / a ≥ circleMinAxisRatio → a
-//     circle;
+//  4. closed: the open path turns at most maxTurnDeg (two laps → no shape);
+//     (6.17.5) the outline cut where it closes (_closure: an overshoot, a
+//     crossing hook, a start hook), then gap / kept path ≤ closedMaxGap, the
+//     CLOSED loop's total turning within [minTurnDeg, maxTurnDeg] and its
+//     Σ|turn| ≤ maxAbsTurnDeg (a scribble, a letter's bowl with its stem);
+//     the loop resampled to resampleCount points;
+//  5. ellipse: PCA centre and axis, then (6.17.5) a least-squares fit of the
+//     axes and a centre shift; error = mean point–ellipse distance ÷ mean
+//     semi-axis; b / a ≥ circleMinAxisRatio → a circle;
 //  6. corners: RDP (ε = diagonal × rdpEpsilon) on the two halves split at
 //     the point farthest from the start, corners turning < cornerMinTurnDeg
 //     dropped, corners nearer than minEdgeFraction × perimeter merged;
@@ -22,9 +27,12 @@
 //     > 6, or ellipse error × ellipseOverPolygonFactor < polygon error);
 //  8. weak corners: 4 corners whose weakest turns < weakCornerTriangleDeg and
 //     whose triangle without it fits within weakCornerErrorFactor × → a
-//     triangle; 5 corners whose weakest turns < weakCornerQuadDeg, the other
-//     four 90° ± rightAngleToleranceDeg, within the factor → a rectangle (a
-//     closing hook);
+//     triangle; (6.17.5) 4 corners, not a rectangle, one edge ≤
+//     roundedCornerMaxEdge × perimeter whose ends merged into one corner fit
+//     within the factor → a triangle (a rounded corner found twice); 5
+//     corners whose weakest turns < weakCornerQuadDeg, the other four 90° ±
+//     rightAngleToleranceDeg, within the factor → a rectangle (a closing
+//     hook);
 //  9. 3 corners → triangle; 4 → rectangle when every angle is 90° ± the
 //     tolerance, else a quadrilateral; 5–8 → a polygon when its error ≤
 //     polygonMaxError; otherwise the ellipse when it fits, else nothing.
@@ -66,7 +74,7 @@ final class ShapeClassification {
   final double rx, ry, angle;
 
   /// The kind's error measure (line: deviation / chord; ellipse: mean
-  /// |r − 1|; polygons: mean distance / diagonal).
+  /// distance / mean semi-axis; polygons: mean distance / diagonal).
   final double error;
 
   @override
@@ -220,6 +228,13 @@ double _polygonError(List<Offset> pts, List<Offset> poly, double diag) {
   return s / pts.length / diag;
 }
 
+/// 6.17.1 step 5: the ellipse of the closed [pts]. PCA gives the centre and
+/// the axis direction; the axes (and a centre shift along them) are then a
+/// least-squares fit of A·u² + B·v² + D·u + E·v = 1 in that frame — the
+/// curve, not the point spread (√(2λ) assumes points evenly spread by angle,
+/// and a hand's points are spread by path length: a 0.3 ellipse came out
+/// with a 0.1 error and as a polygon). error = mean distance of the points to
+/// the ellipse (|F| ÷ |∇F|) ÷ the mean semi-axis (for a circle: mean |r − 1|).
 ShapeClassification _fitEllipse(List<Offset> pts, ShapeFitTuning tuning) {
   var cx = 0.0, cy = 0.0;
   for (final p in pts) {
@@ -242,17 +257,33 @@ ShapeClassification _fitEllipse(List<Offset> pts, ShapeFitTuning tuning) {
   final det = sxx * syy - sxy * sxy;
   final disc = math.sqrt(math.max(0, tr * tr / 4 - det));
   final l1 = tr / 2 + disc, l2 = math.max(1e-9, tr / 2 - disc);
-  final ang = 0.5 * math.atan2(2 * sxy, sxx - syy);
-  // Points spread evenly along an ellipse: variance ≈ a² / 2.
-  final a = math.sqrt(2 * l1), b = math.sqrt(2 * l2);
+  var ang = 0.5 * math.atan2(2 * sxy, sxx - syy);
+  // Points spread evenly along an ellipse: variance ≈ a² / 2 (the fallback).
+  var a = math.sqrt(2 * l1), b = math.sqrt(2 * l2);
   final c = math.cos(ang), s = math.sin(ang);
+  final ls = _axisFit(pts, Offset(cx, cy), c, s, a);
+  if (ls != null) {
+    final (du, dv, la, lb) = ls;
+    cx += du * c - dv * s;
+    cy += du * s + dv * c;
+    a = la;
+    b = lb;
+    if (b > a) {
+      (a, b) = (b, a);
+      ang += math.pi / 2;
+    }
+  }
+  final ca = math.cos(ang), sa = math.sin(ang);
   var err = 0.0;
   for (final p in pts) {
     final dx = p.dx - cx, dy = p.dy - cy;
-    final u = dx * c + dy * s, v = -dx * s + dy * c;
-    err += (math.sqrt((u / a) * (u / a) + (v / b) * (v / b)) - 1).abs();
+    final u = dx * ca + dy * sa, v = -dx * sa + dy * ca;
+    final f = (u * u) / (a * a) + (v * v) / (b * b) - 1;
+    final gx = 2 * u / (a * a), gy = 2 * v / (b * b);
+    final g = math.sqrt(gx * gx + gy * gy);
+    err += g > 1e-12 ? math.min(f.abs() / g, a) : b;
   }
-  err /= pts.length;
+  err /= pts.length * (a + b) / 2;
   final circle = b / a >= tuning.circleMinAxisRatio;
   return ShapeClassification(
     circle ? ShapeClass.circle : ShapeClass.ellipse,
@@ -262,6 +293,78 @@ ShapeClassification _fitEllipse(List<Offset> pts, ShapeFitTuning tuning) {
     angle: ang,
     error: err,
   );
+}
+
+/// Least squares of A·u² + B·v² + D·u + E·v = 1 for [pts] in the frame at
+/// [center] with axis (c, s); coordinates scaled by [scale] for conditioning.
+/// (centre shift u, centre shift v, a, b) or null when degenerate.
+(double, double, double, double)? _axisFit(
+  List<Offset> pts,
+  Offset center,
+  double c,
+  double s,
+  double scale,
+) {
+  if (!(scale > 0)) return null;
+  // Normal equations M·x = r for x = (A, B, D, E).
+  final m = List.generate(4, (_) => List.filled(4, 0.0));
+  final r = List.filled(4, 0.0);
+  for (final p in pts) {
+    final dx = p.dx - center.dx, dy = p.dy - center.dy;
+    final u = (dx * c + dy * s) / scale, v = (-dx * s + dy * c) / scale;
+    final row = [u * u, v * v, u, v];
+    for (var i = 0; i < 4; i++) {
+      r[i] += row[i];
+      for (var j = 0; j < 4; j++) {
+        m[i][j] += row[i] * row[j];
+      }
+    }
+  }
+  final x = _solve4(m, r);
+  if (x == null) return null;
+  final [aa, bb, dd, ee] = x;
+  if (!(aa > 0) || !(bb > 0)) return null;
+  final u0 = -dd / (2 * aa), v0 = -ee / (2 * bb);
+  final g = 1 + aa * u0 * u0 + bb * v0 * v0;
+  if (!(g > 0)) return null;
+  final a = math.sqrt(g / aa) * scale, b = math.sqrt(g / bb) * scale;
+  if (!a.isFinite || !b.isFinite || !(b > 0)) return null;
+  return (u0 * scale, v0 * scale, a, b);
+}
+
+/// Gaussian elimination with partial pivoting; null when singular.
+List<double>? _solve4(List<List<double>> m, List<double> r) {
+  const n = 4;
+  for (var k = 0; k < n; k++) {
+    var piv = k;
+    for (var i = k + 1; i < n; i++) {
+      if (m[i][k].abs() > m[piv][k].abs()) piv = i;
+    }
+    if (!(m[piv][k].abs() > 1e-12)) return null;
+    if (piv != k) {
+      final row = m[k], rk = r[k];
+      m[k] = m[piv];
+      m[piv] = row;
+      r[k] = r[piv];
+      r[piv] = rk;
+    }
+    for (var i = k + 1; i < n; i++) {
+      final f = m[i][k] / m[k][k];
+      for (var j = k; j < n; j++) {
+        m[i][j] -= f * m[k][j];
+      }
+      r[i] -= f * r[k];
+    }
+  }
+  final x = List.filled(n, 0.0);
+  for (var i = n - 1; i >= 0; i--) {
+    var v = r[i];
+    for (var j = i + 1; j < n; j++) {
+      v -= m[i][j] * x[j];
+    }
+    x[i] = v / m[i][i];
+  }
+  return x.every((v) => v.isFinite) ? x : null;
 }
 
 List<Offset> _smooth(List<Offset> p, int k) {
@@ -312,6 +415,49 @@ List<Offset>? _reseatCorners(List<Offset> loop, List<Offset> corners) {
   return [for (final i in idx) loop[i]];
 }
 
+/// (6.17.5) The 4 [corners] as a triangle with one short edge (≤
+/// roundedCornerMaxEdge × perimeter) collapsed to the point where the lines
+/// of its two neighbouring edges meet — that point within one short-edge
+/// length of the edge's middle. The best such triangle and its error, or
+/// null.
+(List<Offset>, double)? _mergeRoundedCorner(
+  List<Offset> loop,
+  List<Offset> corners,
+  double diag,
+  ShapeFitTuning tuning,
+) {
+  var per = 0.0;
+  for (var i = 0; i < 4; i++) {
+    per += _dist(corners[i], corners[(i + 1) % 4]);
+  }
+  (List<Offset>, double)? best;
+  for (var k = 0; k < 4; k++) {
+    final a = corners[k], b = corners[(k + 1) % 4];
+    final edge = _dist(a, b);
+    if (edge > tuning.roundedCornerMaxEdge * per) continue;
+    final p = corners[(k + 3) % 4], q = corners[(k + 2) % 4];
+    final x = _lineIntersection(p, a, q, b);
+    if (x == null || _dist(x, (a + b) / 2) > edge) continue;
+    final tri = [
+      for (var i = 0; i < 4; i++)
+        if (i == k) x else if (i != (k + 1) % 4) corners[i],
+    ];
+    final err = _polygonError(loop, tri, diag);
+    if (best == null || err < best.$2) best = (tri, err);
+  }
+  return best;
+}
+
+/// Where the line through [p0]–[p1] meets the line through [q0]–[q1]; null
+/// when (nearly) parallel.
+Offset? _lineIntersection(Offset p0, Offset p1, Offset q0, Offset q1) {
+  final r = p1 - p0, s = q1 - q0;
+  final den = r.dx * s.dy - r.dy * s.dx;
+  if (den.abs() < 1e-9 * r.distance * s.distance || den == 0) return null;
+  final t = ((q0.dx - p0.dx) * s.dy - (q0.dy - p0.dy) * s.dx) / den;
+  return p0 + r * t;
+}
+
 bool _rightAngles(List<Offset> quad, ShapeFitTuning tuning) {
   for (var i = 0; i < 4; i++) {
     final t = turnDegrees(quad[(i + 3) % 4], quad[i], quad[(i + 1) % 4]);
@@ -320,16 +466,78 @@ bool _rightAngles(List<Offset> quad, ShapeFitTuning tuning) {
   return true;
 }
 
-/// 6.17.1 steps 2–9 for [raw] (≥ 4 finite points); null = stays ink.
+/// 6.17.1 step 1b: the hold tail. INK asks for a fit after the pen has
+/// rested ~500 ms, so the stroke ends in a cluster of tremor samples; after
+/// resampling by length they zigzag (turning noise, a fake corner). The
+/// trailing samples within [radius] (pt) of the mean of the last 8 become
+/// that mean. [raw] unchanged when nothing is trimmed.
+List<Offset> trimHoldTail(List<Offset> raw, double radius) {
+  if (raw.length < 8 || !(radius > 0)) return raw;
+  var ax = 0.0, ay = 0.0;
+  for (var i = raw.length - 8; i < raw.length; i++) {
+    ax += raw[i].dx / 8;
+    ay += raw[i].dy / 8;
+  }
+  final anchor = Offset(ax, ay);
+  var i = raw.length - 1;
+  while (i > 0 && _dist(raw[i], anchor) <= radius) {
+    i--;
+  }
+  if (i >= raw.length - 2) return raw;
+  return [...raw.sublist(0, i + 1), anchor];
+}
+
+/// 6.17.1 step 4: where the outline closes on the smoothed path [p] — the
+/// pair (start i in the first 15 %, end j in the last 40 %) nearest to each
+/// other, so an overshoot past the start, a crossing hook or a hook at the
+/// start are cut off. Every cut-off point must stay within 12 % of the
+/// diagonal [diag] of the kept part (an overshoot runs along the outline; the
+/// stem of a 6 or a 9 does not) — else the whole path (0, last).
+(int, int) _closure(List<Offset> p, double diag) {
+  final n = p.length;
+  var bi = 0, bj = n - 1;
+  var best = _dist(p.first, p.last);
+  final iMax = (n * 0.15).floor(), jMin = (n * 0.6).ceil();
+  for (var i = 0; i <= iMax; i++) {
+    for (var j = jMin; j < n; j++) {
+      final d = _dist(p[i], p[j]);
+      if (d < best) {
+        best = d;
+        bi = i;
+        bj = j;
+      }
+    }
+  }
+  if (bi == 0 && bj == n - 1) return (bi, bj);
+  final keep = p.sublist(bi, bj + 1);
+  bool near(Offset q) {
+    for (var k = 1; k < keep.length; k++) {
+      if (segmentDistance(q, keep[k - 1], keep[k]) <= 0.12 * diag) return true;
+    }
+    return false;
+  }
+
+  for (var k = 0; k < bi; k++) {
+    if (!near(p[k])) return (0, n - 1);
+  }
+  for (var k = bj + 1; k < n; k++) {
+    if (!near(p[k])) return (0, n - 1);
+  }
+  return (bi, bj);
+}
+
+/// 6.17.1 steps 2–9 for [raw] (≥ 4 finite points, the hold tail already
+/// trimmed — trimHoldTail); null = stays ink.
 ShapeClassification? classifyShape(
   List<Offset> raw, {
   ShapeFitTuning tuning = const ShapeFitTuning(),
 }) {
   if (raw.length < 4) return null;
-  final pts = resamplePath(
-    _smooth(resamplePath(raw, kShapePreResample), tuning.smoothRadius),
-    tuning.resampleCount,
+  final smooth = _smooth(
+    resamplePath(raw, kShapePreResample),
+    tuning.smoothRadius,
   );
+  final pts = resamplePath(smooth, tuning.resampleCount);
   final len = _pathLength(pts);
   var minX = double.infinity, minY = double.infinity;
   var maxX = -double.infinity, maxY = -double.infinity;
@@ -358,16 +566,44 @@ ShapeClassification? classifyShape(
     }
   }
 
-  // 4. Closed outlines only: total turning near ±360°.
-  if (chord / len > tuning.closedMaxGap) return null;
-  final loop = pts.sublist(0, pts.length - 1);
-  var turning = 0.0;
-  for (var i = 1; i < loop.length - 1; i++) {
-    final u = loop[i] - loop[i - 1], w = loop[i + 1] - loop[i];
-    turning += math.atan2(u.dx * w.dy - u.dy * w.dx, u.dx * w.dx + u.dy * w.dy);
+  // 4. Closed outlines only: the overshoot / hooks cut off where the
+  // outline closes, then the gap and the total turning of the CLOSED loop
+  // (the turn at the closing point counts — a triangle started at a corner
+  // turned only 240° on the open path).
+  // Two laps (shading a dot, a spiral) stay ink even when the second lap
+  // runs along the first: the open path's own turning is capped too.
+  var openTurning = 0.0;
+  for (var i = 1; i < pts.length - 1; i++) {
+    final u = pts[i] - pts[i - 1], w = pts[i + 1] - pts[i];
+    openTurning += math.atan2(
+      u.dx * w.dy - u.dy * w.dx,
+      u.dx * w.dx + u.dy * w.dy,
+    );
+  }
+  if ((openTurning * 180 / math.pi).abs() > tuning.maxTurnDeg) return null;
+  final (ci, cj) = _closure(smooth, diag);
+  final kept = smooth.sublist(ci, cj + 1);
+  final keptLen = _pathLength(kept);
+  if (!(keptLen > 0) ||
+      _dist(kept.first, kept.last) / keptLen > tuning.closedMaxGap) {
+    return null;
+  }
+  final loop = resamplePath([
+    ...kept,
+    kept.first,
+  ], tuning.resampleCount + 1).sublist(0, tuning.resampleCount);
+  var turning = 0.0, absTurning = 0.0;
+  for (var i = 0; i < loop.length; i++) {
+    final a = loop[(i - 1 + loop.length) % loop.length];
+    final b = loop[i], c = loop[(i + 1) % loop.length];
+    final u = b - a, w = c - b;
+    final t = math.atan2(u.dx * w.dy - u.dy * w.dx, u.dx * w.dx + u.dy * w.dy);
+    turning += t;
+    absTurning += t.abs();
   }
   final turnDeg = (turning * 180 / math.pi).abs();
   if (turnDeg < tuning.minTurnDeg || turnDeg > tuning.maxTurnDeg) return null;
+  if (absTurning * 180 / math.pi > tuning.maxAbsTurnDeg) return null;
 
   // 5–7. Ellipse against the corner outline.
   final ellipse = _fitEllipse(loop, tuning);
@@ -410,6 +646,22 @@ ShapeClassification? classifyShape(
         vertices: tri,
         error: triErr,
       );
+    }
+  }
+  // (6.17.5) … or a rounded corner that RDP found as two: the ends of a
+  // short edge merged where the edges beside it meet (never on a quad that
+  // is, or reseats to, a rectangle).
+  if (corners.length == 4 && !_rightAngles(corners, tuning)) {
+    final reseated = _reseatCorners(loop, corners);
+    if (reseated == null || !_rightAngles(reseated, tuning)) {
+      final tri = _mergeRoundedCorner(loop, corners, diag, tuning);
+      if (tri != null && tri.$2 <= polyErr * tuning.weakCornerErrorFactor) {
+        return ShapeClassification(
+          ShapeClass.triangle,
+          vertices: tri.$1,
+          error: tri.$2,
+        );
+      }
     }
   }
   // … and a quadrilateral with a closing hook.

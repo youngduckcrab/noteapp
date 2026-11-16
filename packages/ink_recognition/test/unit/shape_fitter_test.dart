@@ -4,6 +4,8 @@
 // its viewScale, NaN / infinity → null, never throws), score and minScore,
 // and the time of one fit (6.24: ≤ 0.5 ms VM median — recorded, the assert
 // is loose because six other agents share the machine).
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_recognition/ink_recognition.dart';
 import 'package:ink_recognition/testing.dart';
@@ -94,6 +96,62 @@ void main() {
         }
       }
       expect(none, greaterThanOrEqualTo(16));
+    });
+  });
+
+  group('6.17.5 (hand-drawn corpus findings)', () {
+    /// [v] closed, 40 samples per edge, starting at v.first, then [hold]
+    /// samples of tremor (±0.6 pt) round the last point.
+    List<Offset> outline(List<Offset> v, {int hold = 0}) {
+      final pts = <Offset>[
+        for (var i = 0; i < v.length; i++)
+          for (var k = 0; k < 40; k++)
+            Offset.lerp(v[i], v[(i + 1) % v.length], k / 40)!,
+        v.first,
+      ];
+      for (var k = 0; k < hold; k++) {
+        pts.add(
+          v.first + Offset(k.isEven ? 0.6 : -0.6, k % 3 == 0 ? 0.5 : -0.4),
+        );
+      }
+      return pts;
+    }
+
+    const tri = [Offset(300, 100), Offset(420, 320), Offset(180, 320)];
+
+    test('a triangle started at a corner (the closing turn counts) → a '
+        'triangle, also with a 60-sample hold tail', () {
+      expect(
+        fitter.fit(outline(tri), viewScale: 1)?.kind,
+        core.ShapeKind.triangle,
+      );
+      expect(
+        fitter.fit(outline(tri, hold: 60), viewScale: 1)?.kind,
+        core.ShapeKind.triangle,
+      );
+    });
+
+    test('an ellipse of axis ratio 0.75 stays an ellipse (not a circle); a '
+        'drawn-over close does not matter', () {
+      final e = [
+        for (var i = 0; i <= 140; i++)
+          Offset(
+            400 + 120 * math.cos(2 * math.pi * i / 120 + 0.3),
+            400 + 90 * math.sin(2 * math.pi * i / 120 + 0.3),
+          ),
+      ];
+      expect(verdictOf(fitter.fit(e, viewScale: 1)), 'ellipse');
+    });
+
+    test('two laps of a circle stay ink', () {
+      final twice = [
+        for (var i = 0; i <= 240; i++)
+          Offset(
+            400 + 100 * math.cos(2 * math.pi * i / 120),
+            400 + 100 * math.sin(2 * math.pi * i / 120),
+          ),
+      ];
+      expect(fitter.fit(twice, viewScale: 1), isNull);
     });
   });
 

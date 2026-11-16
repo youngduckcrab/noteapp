@@ -20,18 +20,22 @@ final class ShapeFitTuning {
     this.minTurnDeg = 270,
     this.maxTurnDeg = 540,
     this.ellipseMaxError = 0.075,
-    this.circleMinAxisRatio = 0.82,
+    this.circleMinAxisRatio = 0.86,
     this.rdpEpsilon = 0.055,
     this.cornerMinTurnDeg = 28,
     this.minEdgeFraction = 0.08,
     this.rightAngleToleranceDeg = 16,
     this.polygonMaxError = 0.03,
-    this.ellipseOverPolygonFactor = 0.35,
+    this.ellipseOverPolygonFactor = 0.8,
     this.weakCornerTriangleDeg = 55,
     this.weakCornerQuadDeg = 45,
     this.weakCornerErrorFactor = 1.6,
     this.axisSnapDeg = 8,
     this.minScore = 0.0,
+    this.holdTailLogicalPx = 6,
+    this.holdTailMaxFraction = 0.1,
+    this.maxAbsTurnDeg = 660,
+    this.roundedCornerMaxEdge = 0.15,
   });
 
   final int resampleCount, smoothRadius;
@@ -57,6 +61,19 @@ final class ShapeFitTuning {
       axisSnapDeg,
       minScore;
 
+  /// (6.17.5) the hold tail: trailing samples within this many logical px
+  /// (÷ viewScale → pt) of where the pen rests are cut (at most
+  /// holdTailMaxFraction × the bounds diagonal)
+  final double holdTailLogicalPx, holdTailMaxFraction;
+
+  /// (6.17.5) the closed loop's Σ|turn| above this → no shape (a scribble
+  /// that happens to wind once)
+  final double maxAbsTurnDeg;
+
+  /// (6.17.5) a 4-corner outline whose edge is at most this share of the
+  /// perimeter may be a triangle with that corner rounded
+  final double roundedCornerMaxEdge;
+
   ShapeFitTuning copyWith({
     int? resampleCount,
     int? smoothRadius,
@@ -79,6 +96,10 @@ final class ShapeFitTuning {
     double? weakCornerErrorFactor,
     double? axisSnapDeg,
     double? minScore,
+    double? holdTailLogicalPx,
+    double? holdTailMaxFraction,
+    double? maxAbsTurnDeg,
+    double? roundedCornerMaxEdge,
   }) => ShapeFitTuning(
     resampleCount: resampleCount ?? this.resampleCount,
     smoothRadius: smoothRadius ?? this.smoothRadius,
@@ -103,6 +124,10 @@ final class ShapeFitTuning {
     weakCornerErrorFactor: weakCornerErrorFactor ?? this.weakCornerErrorFactor,
     axisSnapDeg: axisSnapDeg ?? this.axisSnapDeg,
     minScore: minScore ?? this.minScore,
+    holdTailLogicalPx: holdTailLogicalPx ?? this.holdTailLogicalPx,
+    holdTailMaxFraction: holdTailMaxFraction ?? this.holdTailMaxFraction,
+    maxAbsTurnDeg: maxAbsTurnDeg ?? this.maxAbsTurnDeg,
+    roundedCornerMaxEdge: roundedCornerMaxEdge ?? this.roundedCornerMaxEdge,
   );
 
   List<Object> get _fields => [
@@ -127,6 +152,10 @@ final class ShapeFitTuning {
     weakCornerErrorFactor,
     axisSnapDeg,
     minScore,
+    holdTailLogicalPx,
+    holdTailMaxFraction,
+    maxAbsTurnDeg,
+    roundedCornerMaxEdge,
   ];
 
   @override
