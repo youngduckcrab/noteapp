@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/misc.dart' show Override, ProviderBase;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:note_core/note_core.dart' show noteStoreProvider;
+import 'package:note_core/note_core.dart'
+    show SettingsSnapshot, noteStoreProvider, settingsSnapshotProvider;
 import 'package:note_core/testing.dart' show createFakeNoteStore;
 import 'package:noteapp/src/app/appearance.dart';
 import 'package:noteapp/src/app/note_app.dart';
@@ -147,6 +148,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(app().themeMode, ThemeMode.light);
     expect(Theme.of(tester.element(library)).brightness, Brightness.light);
+  });
+
+  testWidgets('(v2.14-ui) the first frame uses the start-up appearance while '
+      'the settings snapshot loads — no flash of the default style', (
+    tester,
+  ) async {
+    const startup = AppAppearance(
+      style: AppStyle.studio,
+      brightness: AppBrightnessMode.dark,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appScreenBuildersProvider.overrideWithValue(
+            AppScreenBuilders.placeholders(),
+          ),
+          initialAppearanceProvider.overrideWithValue(startup),
+          // A snapshot that never arrives (a slow first drift query).
+          settingsSnapshotProvider.overrideWith(
+            (ref) => const Stream<SettingsSnapshot>.empty(),
+          ),
+        ],
+        child: const NoteApp(),
+      ),
+    );
+    // The very first frame, before any animation or snapshot.
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.themeMode, ThemeMode.dark);
+    expect(
+      app.darkTheme!.extension<StyleTokens>(),
+      styleTokensFor(AppStyle.studio, Brightness.dark),
+    );
   });
 
   testWidgets('builder wraps the router (Navigator) in UpdateBanner; the '

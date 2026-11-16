@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:note_core/note_core.dart'
     show NoteStore, NoteStoreOpenException, NoteStoreOpenFailure, OwnerId;
 
+import '../app/appearance.dart';
 import '../app/strings.dart';
 import '../errors/app_error_log.dart';
 import '../features/app_features.dart';
@@ -226,6 +227,7 @@ final class AppBootstrapper {
     }
 
     final resolved = await context.resolveFeatures();
+    final appearance = await context.resolveAppearance();
     final contributions = context.contributions;
     final report = _report(stopwatch, steps, context);
     return BootstrapSuccess(
@@ -238,6 +240,7 @@ final class AppBootstrapper {
         startupReportProvider.overrideWithValue(report),
         appBootstrapperProvider.overrideWithValue(this),
         appFeaturesProvider.overrideWithValue(resolved),
+        initialAppearanceProvider.overrideWithValue(appearance),
         shellContributionsProvider.overrideWithValue(contributions),
         ...moduleOverrides,
       ],

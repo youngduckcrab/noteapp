@@ -210,7 +210,11 @@ class ColorCoverCard extends StatelessWidget {
 }
 
 /// surfaceContainerHigh + Icons.description_outlined (onSurfaceVariant 60%),
-/// 40 px (smaller boxes scale it down).
+/// 40 px (smaller boxes scale it down). (v2.14-ui review) In a dark style
+/// it is paper-coloured instead (the paper swatch with a 6 % ink tint, the
+/// icon in paper ink 35 %): real first-page thumbnails stay paper-white, so
+/// a dark grey placeholder would mix with them and flash grey → white while
+/// a thumbnail loads.
 class CoverPlaceholder extends StatelessWidget {
   const CoverPlaceholder({
     super.key,
@@ -223,17 +227,26 @@ class CoverPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final tokens = StyleTokens.of(context);
     final shortest = width < height ? width : height;
+    final dark = tokens.isDark;
     return SizedBox(
       width: width,
       height: height,
       child: ColoredBox(
-        color: scheme.surfaceContainerHigh,
+        color: dark
+            ? Color.alphaBlend(
+                tokens.paperInk.withValues(alpha: 0.06),
+                tokens.inkSwatch,
+              )
+            : scheme.surfaceContainerHigh,
         child: Center(
           child: Icon(
             Icons.description_outlined,
             size: shortest < 64 ? shortest * 0.6 : 40,
-            color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+            color: dark
+                ? tokens.paperInk.withValues(alpha: 0.35)
+                : scheme.onSurfaceVariant.withValues(alpha: 0.6),
           ),
         ),
       ),

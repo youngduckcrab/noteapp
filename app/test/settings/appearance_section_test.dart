@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:noteapp/src/app/appearance.dart';
+import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/settings/appearance_section.dart';
 import 'package:noteapp/src/settings/settings_screen.dart';
@@ -70,6 +71,28 @@ void main() {
     // Default: 크래프트 light (the test view's platform brightness is light).
     expect(shownTheme(tester).extension<StyleTokens>()!.style, AppStyle.craft);
     expect(shownTheme(tester).brightness, Brightness.light);
+  });
+
+  testWidgets('(review) the notes say what changes now: the toolbar layout '
+      'comes later, only the screen outside the paper darkens; the hints do '
+      'not depend on brightness', (tester) async {
+    await pumpSettings(tester);
+    expect(find.byKey(AppearanceSectionKeys.layoutNote), findsOneWidget);
+    expect(find.text(AppStrings.styleLayoutNote), findsOneWidget);
+    expect(AppStrings.styleLayoutNote, contains('도구 막대 배치는 다음 업데이트'));
+    expect(find.text(AppStrings.brightnessPaperNote), findsOneWidget);
+    expect(AppStrings.brightnessPaperNote, contains('종이 바깥 화면만'));
+    expect(AppStrings.brightnessPaperNote, isNot(contains('페이지 둘레만')));
+    for (final hint in [
+      AppStrings.styleCraftHint,
+      AppStrings.styleCalmHint,
+      AppStrings.styleStudioHint,
+    ]) {
+      // No promise of a layout this stage does not have, and nothing that
+      // contradicts a dark preview.
+      expect(hint, isNot(contains('도구 막대')));
+      expect(hint, isNot(contains('하얗')));
+    }
   });
 
   testWidgets('choosing a style stores its wire name and the theme changes '

@@ -220,6 +220,30 @@ final class StyleTokens extends ThemeExtension<StyleTokens>
   /// Whether this is a dark variant.
   bool get isDark => brightness == Brightness.dark;
 
+  /// Fill of a small badge or banner drawn OVER the page paper (page
+  /// counter, rotation label, eyedropper banner): fixed dark-on-paper in
+  /// every brightness. A role that flips with the theme (inverseSurface)
+  /// would turn near-white on white paper in dark mode.
+  Color get paperBadge => paperInk;
+
+  /// Text and icons on [paperBadge].
+  Color get onPaperBadge => inkSwatch;
+
+  /// Menus and popovers that open OVER other content (popup menus, menu
+  /// anchors). Light: [panel] plus the shadow. Dark: a step above every
+  /// card and container surface (14 % [textPrimary] over [toolbar]; the
+  /// highest container is 11 %), since a dark shadow barely shows and a
+  /// menu darker than the cards it covers reads as sunk below them.
+  Color get popover => isDark
+      ? Color.alphaBlend(textPrimary.withValues(alpha: 0.14), toolbar)
+      : panel;
+
+  /// Outline of a [popover]: none in light (the shadow separates it), a
+  /// soft [outline] edge in dark.
+  BorderSide get popoverSide => isDark
+      ? BorderSide(color: outline.withValues(alpha: 0.45))
+      : BorderSide.none;
+
   /// Shadows for a raised surface at [level] (1 = toolbar / card,
   /// 2 = popover, 3 = dialog) in this style.
   List<BoxShadow> shadows([int level = 1]) {

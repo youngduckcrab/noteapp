@@ -36,6 +36,13 @@ final class AppAppearance {
     this.brightness = AppBrightnessMode.fallback,
   });
 
+  /// From the stored wire names; unknown values → the defaults.
+  factory AppAppearance.fromWire(String style, String brightness) =>
+      AppAppearance(
+        style: AppStyle.fromWire(style),
+        brightness: AppBrightnessMode.fromWire(brightness),
+      );
+
   final AppStyle style;
   final AppBrightnessMode brightness;
 
@@ -60,15 +67,23 @@ final class AppAppearance {
       'AppAppearance(${style.wireName}, ${brightness.wireName})';
 }
 
-/// The appearance from the settings snapshot; the defaults (크래프트, 시스템
-/// 따라) while the snapshot loads, when it failed, or without a store.
+/// The appearance read once during start-up (AppModuleContext
+/// .resolveAppearance, overridden in BootstrapSuccess.overrides): NoteApp's
+/// first frames use it while the settings snapshot is still loading, so a
+/// non-default style does not flash the default one at every cold start.
+/// Without an override: the defaults.
+final initialAppearanceProvider = Provider<AppAppearance>(
+  (ref) => const AppAppearance(),
+  name: 'initialAppearanceProvider',
+);
+
+/// The appearance from the settings snapshot; [initialAppearanceProvider]
+/// while the snapshot loads, when it failed, or without a store.
 final appAppearanceProvider = Provider<AppAppearance>((ref) {
   final snapshot = ref.watch(settingsSnapshotProvider).value;
-  if (snapshot == null) return const AppAppearance();
-  return AppAppearance(
-    style: AppStyle.fromWire(snapshot.get(AppearanceKeys.style)),
-    brightness: AppBrightnessMode.fromWire(
-      snapshot.get(AppearanceKeys.brightness),
-    ),
+  if (snapshot == null) return ref.watch(initialAppearanceProvider);
+  return AppAppearance.fromWire(
+    snapshot.get(AppearanceKeys.style),
+    snapshot.get(AppearanceKeys.brightness),
   );
 }, name: 'appAppearanceProvider');

@@ -1,6 +1,7 @@
 // lib/src/ui/overlays/page_indicator.dart — 04-editor 6.4.3 ("3 / 12").
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../editor_strings.dart';
@@ -21,7 +22,8 @@ class PageIndicator extends ConsumerWidget {
       builder: (context, _) {
         final count = viewport.pages.length;
         if (count == 0) return const SizedBox.shrink();
-        final scheme = Theme.of(context).colorScheme;
+        // (v2.14-ui) over the paper: a fixed dark-on-paper badge.
+        final tokens = StyleTokens.of(context);
         return IgnorePointer(
           child: Align(
             alignment: Alignment.bottomRight,
@@ -29,7 +31,7 @@ class PageIndicator extends ConsumerWidget {
               padding: const EdgeInsets.all(12),
               child: DecoratedBox(
                 decoration: ShapeDecoration(
-                  color: scheme.inverseSurface.withValues(alpha: 0.7),
+                  color: tokens.paperBadge.withValues(alpha: 0.7),
                   shape: const StadiumBorder(),
                 ),
                 child: Padding(
@@ -44,7 +46,7 @@ class PageIndicator extends ConsumerWidget {
                     ),
                     key: indicatorKey,
                     style: Theme.of(context).textTheme.labelMedium
-                        ?.copyWith(color: scheme.onInverseSurface),
+                        ?.copyWith(color: tokens.onPaperBadge),
                   ),
                 ),
               ),

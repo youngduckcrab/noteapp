@@ -1359,7 +1359,7 @@ dev_dependencies:
 
 #### 7.4.11 UX 공통
 
-- 테마: `buildAppTheme()`(Material 3, seed `0xFF3949AB`). 패키지는 `Theme.of(context).colorScheme`만 쓰고 자체 `MaterialApp`·`ProviderScope`를 만들지 않는다(테스트 제외). 색 하드코딩 금지(폴더·표지·종이 팔레트 제외). v1.2: PDF 검색 하이라이트(종이 위에 겹쳐 그리는 표시 색 — UI 테마가 아니라 종이와의 대비가 기준)도 예외이며, 상수는 `pdf_io`의 튜닝 상수 한 곳(`PdfTuning`)에만 둔다. v1.3: INK 올가미 경로 오버레이(선 `lassoPathArgb`·내부 `lassoFillArgb` — 같은 이유이고, INK는 Material 비의존(7.1)이라 `colorScheme`을 읽을 수 없음)도 예외이며, 상수는 `ink_engine`의 `InkTuning` 한 곳에만 둔다. 예외 색은 어느 패키지든 painter·위젯에 리터럴로 쓰지 않고 그 상수를 참조한다.
+- 테마: (v2.14-ui에서 바뀜 — [m5-7/00-overview.md 7.9 v2.14-ui](m5-7/00-overview.md) C214U-03·C214U-04: 스타일 토큰 테마, 패키지는 `colorScheme`·`StyleTokens.of`) 1차: `buildAppTheme()`(Material 3, seed `0xFF3949AB`). 패키지는 `Theme.of(context).colorScheme`만 쓰고 자체 `MaterialApp`·`ProviderScope`를 만들지 않는다(테스트 제외). 색 하드코딩 금지(폴더·표지·종이 팔레트 제외). v1.2: PDF 검색 하이라이트(종이 위에 겹쳐 그리는 표시 색 — UI 테마가 아니라 종이와의 대비가 기준)도 예외이며, 상수는 `pdf_io`의 튜닝 상수 한 곳(`PdfTuning`)에만 둔다. v1.3: INK 올가미 경로 오버레이(선 `lassoPathArgb`·내부 `lassoFillArgb` — 같은 이유이고, INK는 Material 비의존(7.1)이라 `colorScheme`을 읽을 수 없음)도 예외이며, 상수는 `ink_engine`의 `InkTuning` 한 곳에만 둔다. 예외 색은 어느 패키지든 painter·위젯에 리터럴로 쓰지 않고 그 상수를 참조한다.
 - 펜·손가락: 라이브러리는 펜·손가락 동일 조작, 펜 전용 모드는 에디터 필기에만 적용.
 - 설정 화면(`/settings`)은 INFRA 틀 + 섹션 조립: 계정·동기화(M4, INFRA가 SYNC API로) · 입력 · 펜 · 페이지 넘김 · 개발자 표시(EDITOR 4종) · 일반 › 새 노트 기본값/기본 속지(LIBRARY) · 저장 공간·앱 정보(INFRA, CORE `StorageInfo`). 로그인 화면(`/login`, M4)도 INFRA.
 

@@ -61,8 +61,9 @@ BootstrapSuccess _success(BootstrapResult? result) =>
 BootstrapFailure _failure(BootstrapResult? result) =>
     result! as BootstrapFailure;
 
-// 1차 six + appFeaturesProvider + shellContributionsProvider (2nd round).
-const _shellOverrideCount = 8;
+// 1차 six + appFeaturesProvider + initialAppearanceProvider (v2.14-ui) +
+// shellContributionsProvider (2nd round).
+const _shellOverrideCount = 9;
 
 void main() {
   group('AppModuleContext', () {

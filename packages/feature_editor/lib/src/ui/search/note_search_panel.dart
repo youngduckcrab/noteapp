@@ -16,6 +16,7 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../di/editor_ink_search.dart';
 import '../../scope/editor_scope.dart';
@@ -247,6 +248,7 @@ class _ResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = StyleTokens.of(context);
     final snippet = result.snippet;
     final (start, end) = result.matchRange;
     final a = start.clamp(0, snippet.length);
@@ -272,7 +274,8 @@ class _ResultTile extends StatelessWidget {
               text: snippet.substring(a, b),
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                backgroundColor: NoteSearchColors.fill(theme.colorScheme),
+                color: NoteSearchColors.listMatchText(tokens),
+                backgroundColor: NoteSearchColors.listMatchFill(tokens),
               ),
             ),
             TextSpan(text: snippet.substring(b)),
@@ -288,9 +291,18 @@ class _ResultTile extends StatelessWidget {
 
 /// The highlight colours of the search (list and pages).
 abstract final class NoteSearchColors {
+  /// The marker fill over the pages (amber 45 %, drawn on paper).
   static Color fill(ColorScheme scheme) =>
       const Color(0xFFFFD54F).withValues(alpha: 0.45);
-  static Color border(ColorScheme scheme) => scheme.tertiary;
+
+  /// (v2.14-ui) The matched word in the result list: the same marker
+  /// flattened on the paper-light swatch, so it looks alike in light and
+  /// dark styles…
+  static Color listMatchFill(StyleTokens tokens) =>
+      Color.alphaBlend(fill(const ColorScheme.light()), tokens.inkSwatch);
+
+  /// …with dark on-paper text (≥ 4.5:1 on [listMatchFill] in every style).
+  static Color listMatchText(StyleTokens tokens) => tokens.paperInk;
 }
 
 /// One short line on why this note's handwriting is not found yet, with its

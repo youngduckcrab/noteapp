@@ -23,6 +23,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:media_io/media_io.dart' show MediaIoConfig;
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
+import 'package:noteapp/src/app/appearance.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
@@ -170,6 +171,7 @@ Set<Object> _expected({
   startupReportProvider,
   appBootstrapperProvider,
   appFeaturesProvider,
+  initialAppearanceProvider, // (v2.14-ui review)
   shellContributionsProvider,
   noteStoreProvider,
   if (pdf) ...{

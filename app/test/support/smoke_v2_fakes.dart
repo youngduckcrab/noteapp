@@ -33,6 +33,7 @@ import 'package:ink_recognition/testing.dart';
 import 'package:media_io/media_io.dart' show MediaIoConfig;
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
+import 'package:noteapp/src/app/appearance.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
@@ -273,6 +274,7 @@ void expectContractOverridesV2(
     startupReportProvider,
     appBootstrapperProvider,
     appFeaturesProvider,
+    initialAppearanceProvider, // (v2.14-ui review)
     shellContributionsProvider,
     // The packages' own lists, added by FeatureWiringModule (4.5.9).
     for (final o in featureEditorOverrides()) o.origin,

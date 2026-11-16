@@ -3077,7 +3077,13 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 | 위치 강조(`FocusFlash`), 페이지 위 검색 강조 테두리 | `paperHighlight` |
 | 프리셋 칩 · 도구 버튼의 잉크 점, 선택 막대 '색' 점, 색 견본, 페이지 추가 창의 종이 색 | `swatchRing` — 막대·패널과 대비가 낮을 때만 진한 테두리 |
 
-시험: `test/widget/style_theme_test.dart`(3 스타일 × 2 밝기 화소 검사). `pumpEditor(theme:)` 인자 추가.
+| (검토 반영) 쪽 번호 알약, 회전 각도 표시, 스포이트 안내 | `paperBadge`·`onPaperBadge` — 종이 위에 뜨므로 밝기와 상관없이 어두운 바탕 + 밝은 글자(예전 `inverseSurface`는 어두운 화면에서 흰 종이 위에 거의 흰색) |
+| (검토 반영) 검색 결과 목록의 찾은 낱말 | 바탕 = 노란 강조를 `inkSwatch`에 겹친 색, 글자 = `paperInk` — 어두운 패널에서도 4.5:1 이상(예전에는 크래프트 어둡게에서 약 2.1:1) |
+| (검토 반영) 프리셋 칩의 잉크 원 | 종이색(`inkSwatch`) 받침 위에 그리고, 어두운 판에서는 1.5 px 종이색 테두리. 굵기 점은 종이 위 색으로 판단(`dotColorOnPaper` — `inkSwatch`·`paperInk` 중 대비 큰 쪽)해서 밝게·어둡게에서 같다. 검은 볼펜·마커가 어두운 막대에서 '속 빈 흰 펜'처럼 보이던 문제, 형광펜 점이 밝기에 따라 뒤집히던 문제를 고침 |
+
+`NoteSearchColors.border`(쓰는 곳 없음)는 지웠다.
+
+시험: `test/widget/style_theme_test.dart`(3 스타일 × 2 밝기 화소 검사 + 검토 반영: 쪽 번호 알약이 흰 종이 위 3:1·글자 4.5:1, 프리셋 굵기 점이 밝은 판과 같은 쪽, 검색 낱말 4.5:1). `pumpEditor(theme:)` 인자 추가.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

@@ -76,16 +76,18 @@ abstract final class AppStrings {
   static const String sectionStyle = '화면 스타일';
   static const String sectionBrightness = '밝기';
   static const String styleCraft = '크래프트';
-  static const String styleCraftHint = '따뜻한 종이 느낌, 위쪽 도구 막대';
+  static const String styleCraftHint = '따뜻한 종이 느낌, 부드러운 그림자';
   static const String styleCalm = '미니멀';
-  static const String styleCalmHint = '하얗고 차분하게, 강조색 하나';
+  static const String styleCalmHint = '군더더기 없이 차분하게, 강조색 하나';
   static const String styleStudio = '스튜디오';
   static const String styleStudioHint = '차가운 회색 작업대, 또렷한 대비';
   static const String brightnessSystem = '시스템 따라';
   static const String brightnessLight = '밝게';
   static const String brightnessDark = '어둡게';
+  static const String styleLayoutNote =
+      '지금은 색과 모양이 바뀌어요. 도구 막대 배치는 다음 업데이트에서 스타일에 맞게 바뀌어요.';
   static const String brightnessPaperNote =
-      '어두운 화면에서도 노트 종이와 잉크 색은 그대로예요. 페이지 둘레만 어두워져요.';
+      '어두운 화면에서도 노트 종이와 잉크 색은 그대로예요. 종이 바깥 화면만 어두워져요.';
 
   /// Common values.
   static const String yes = '예';

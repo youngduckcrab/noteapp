@@ -24,6 +24,7 @@ ThemeData buildThemeFromTokens(StyleTokens t) {
       ? BorderSide(color: t.hairline)
       : BorderSide.none;
   final inverseText = t.toolbar;
+  final popoverSide = t.isDark ? t.popoverSide : flatSide;
 
   return ThemeData(
     useMaterial3: true,
@@ -41,19 +42,19 @@ ThemeData buildThemeFromTokens(StyleTokens t) {
       shadowColor: t.shadow,
     ),
     popupMenuTheme: PopupMenuThemeData(
-      color: t.panel,
+      color: t.popover,
       surfaceTintColor: Colors.transparent,
       elevation: t.materialElevation(2),
       shadowColor: t.shadow,
-      shape: RoundedRectangleBorder(borderRadius: medium, side: flatSide),
+      shape: RoundedRectangleBorder(borderRadius: medium, side: popoverSide),
     ),
     menuTheme: MenuThemeData(
       style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(t.panel),
+        backgroundColor: WidgetStatePropertyAll(t.popover),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         elevation: WidgetStatePropertyAll(t.materialElevation(2)),
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: medium, side: flatSide),
+          RoundedRectangleBorder(borderRadius: medium, side: popoverSide),
         ),
       ),
     ),
@@ -182,6 +183,7 @@ ColorScheme styleColorScheme(StyleTokens t) {
   Color mix(double amount) =>
       Color.alphaBlend(t.textPrimary.withValues(alpha: amount), t.toolbar);
   final dark = t.isDark;
+  final tertiary = _tertiary(t.style, dark);
   final opposite = styleTokensFor(
     t.style,
     dark ? Brightness.light : Brightness.dark,
@@ -196,12 +198,10 @@ ColorScheme styleColorScheme(StyleTokens t) {
     onSecondary: t.onAccent,
     secondaryContainer: t.accentSoft,
     onSecondaryContainer: t.onAccentSoft,
-    tertiary: dark ? const Color(0xFFE6B98A) : const Color(0xFF8A5A2B),
-    onTertiary: dark ? const Color(0xFF3A2410) : const Color(0xFFFFFFFF),
-    tertiaryContainer: dark ? const Color(0xFF4D3824) : const Color(0xFFF6E3CF),
-    onTertiaryContainer: dark
-        ? const Color(0xFFF6E3CF)
-        : const Color(0xFF3A2410),
+    tertiary: tertiary.$1,
+    onTertiary: tertiary.$2,
+    tertiaryContainer: tertiary.$3,
+    onTertiaryContainer: tertiary.$4,
     error: dark ? const Color(0xFFF2B8B5) : const Color(0xFFB3261E),
     onError: dark ? const Color(0xFF601410) : const Color(0xFFFFFFFF),
     errorContainer: dark ? const Color(0xFF8C1D18) : const Color(0xFFF9DEDC),
@@ -226,3 +226,46 @@ ColorScheme styleColorScheme(StyleTokens t) {
     surfaceTint: Colors.transparent,
   );
 }
+
+/// (tertiary, onTertiary, tertiaryContainer, onTertiaryContainer) of
+/// [style]: a second hue that suits each style — craft warm brown, calm
+/// muted teal, studio violet.
+(Color, Color, Color, Color) _tertiary(AppStyle style, bool dark) =>
+    switch ((style, dark)) {
+      (AppStyle.craft, false) => const (
+        Color(0xFF8A5A2B),
+        Color(0xFFFFFFFF),
+        Color(0xFFF6E3CF),
+        Color(0xFF3A2410),
+      ),
+      (AppStyle.craft, true) => const (
+        Color(0xFFE6B98A),
+        Color(0xFF3A2410),
+        Color(0xFF4D3824),
+        Color(0xFFF6E3CF),
+      ),
+      (AppStyle.calm, false) => const (
+        Color(0xFF2F6F6A),
+        Color(0xFFFFFFFF),
+        Color(0xFFDDF0EC),
+        Color(0xFF0F2E2B),
+      ),
+      (AppStyle.calm, true) => const (
+        Color(0xFF8FCFC7),
+        Color(0xFF0F2E2B),
+        Color(0xFF23403D),
+        Color(0xFFD5EEEA),
+      ),
+      (AppStyle.studio, false) => const (
+        Color(0xFF6B4FBB),
+        Color(0xFFFFFFFF),
+        Color(0xFFECE6FB),
+        Color(0xFF25184D),
+      ),
+      (AppStyle.studio, true) => const (
+        Color(0xFFC3B2FF),
+        Color(0xFF25184D),
+        Color(0xFF3A3157),
+        Color(0xFFE6DEFF),
+      ),
+    };

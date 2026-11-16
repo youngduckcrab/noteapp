@@ -39,6 +39,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:media_io/media_io.dart'
     show importImageForNote, supportedImageSources;
 import 'package:note_core/note_core.dart';
+import 'package:noteapp/src/app/appearance.dart';
 import 'package:noteapp/src/app/note_app.dart';
 import 'package:noteapp/src/bootstrap/app_bootstrapper.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
@@ -193,6 +194,7 @@ void expectContractOverrides(SmokeApp app) {
     appBootstrapperProvider,
     // 2nd round shell rows (m5-7/01-infra 4.6.1 · 4.6.7).
     appFeaturesProvider,
+    initialAppearanceProvider, // (v2.14-ui review)
     shellContributionsProvider,
     // 2nd round D2-15: FeatureWiringModule's image importer, outside
     // FEATURE_MEDIA — present whenever media_io offers a source on this

@@ -5,7 +5,10 @@
 // layer plus the widget colours.
 import 'dart:ui' as ui;
 
+import 'package:feature_editor/src/ui/overlays/page_indicator.dart';
 import 'package:feature_editor/src/ui/pen/pen_preview.dart';
+import 'package:feature_editor/src/ui/presets/preset_chip.dart';
+import 'package:feature_editor/src/ui/search/note_search_panel.dart';
 import 'package:feature_editor/src/ui/toolbar/editor_toolbar.dart';
 import 'package:feature_editor/src/viewport/page_viewport.dart';
 import 'package:flutter/rendering.dart';
@@ -108,4 +111,86 @@ void main() {
       });
     }
   }
+
+  // (v2.14-ui review fixes)
+  for (final style in AppStyle.values) {
+    for (final brightness in [Brightness.light, Brightness.dark]) {
+      testWidgets('${style.wireName} ${brightness.name}: the page counter is '
+          'dark-on-paper; preset chips look the same in light and dark', (
+        tester,
+      ) async {
+        final tokens = styleTokensFor(style, brightness);
+        await pumpEditor(
+          tester,
+          logicalSize: const Size(1280, 800),
+          theme: buildStyleTheme(style, brightness),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // The page counter pill sits over the paper: a fixed dark badge.
+        final label = find.byKey(PageIndicator.indicatorKey);
+        expect(label, findsOneWidget);
+        final pill = tester.widget<DecoratedBox>(
+          find.ancestor(of: label, matching: find.byType(DecoratedBox)).first,
+        );
+        final fill = (pill.decoration as ShapeDecoration).color!;
+        final onPaper = Color.alphaBlend(fill, const Color(0xFFFFFFFF));
+        expect(
+          contrastRatio(onPaper, const Color(0xFFFFFFFF)),
+          greaterThanOrEqualTo(3),
+          reason: 'pill edge on white paper',
+        );
+        expect(
+          contrastRatio(tester.widget<Text>(label).style!.color!, onPaper),
+          greaterThanOrEqualTo(4.5),
+        );
+
+        // Preset chips: the ink disc on a paper-light backing; the width
+        // dot is judged on paper, so it is the same in both brightnesses.
+        final light = styleTokensFor(style, Brightness.light);
+        for (final chip in tester.widgetList<PresetChip>(
+          find.byType(PresetChip),
+        )) {
+          final at = find.byWidget(chip);
+          final paper = tester.widget<DecoratedBox>(
+            find.descendant(of: at, matching: find.byKey(PresetChip.paperKey)),
+          );
+          expect((paper.decoration as BoxDecoration).color, tokens.inkSwatch);
+          final dot = tester.widget<DecoratedBox>(
+            find.descendant(of: at, matching: find.byKey(PresetChip.dotKey)),
+          );
+          final c = Color(chip.preset.style.colorArgb)
+              .withValues(alpha: chip.preset.style.opacity);
+          final dotColor = (dot.decoration as BoxDecoration).color!;
+          final lightDot = PresetChip.dotColorOnPaper(
+            Color.alphaBlend(c, light.inkSwatch),
+            light,
+          );
+          // Same choice (paper or ink) as in the light variant.
+          expect(
+            dotColor.computeLuminance() > 0.5,
+            lightDot.computeLuminance() > 0.5,
+            reason: '${chip.preset.name} width dot',
+          );
+        }
+      });
+    }
+  }
+
+  test('(review) the matched word in the search list reads ≥ 4.5:1 in every '
+      'style and brightness', () {
+    for (final style in AppStyle.values) {
+      for (final brightness in [Brightness.light, Brightness.dark]) {
+        final t = styleTokensFor(style, brightness);
+        expect(
+          contrastRatio(
+            NoteSearchColors.listMatchText(t),
+            NoteSearchColors.listMatchFill(t),
+          ),
+          greaterThanOrEqualTo(4.5),
+          reason: '${style.wireName} ${brightness.name}',
+        );
+      }
+    }
+  });
 }

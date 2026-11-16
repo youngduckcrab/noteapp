@@ -2879,7 +2879,9 @@ recog가 편집기 텍스트 펜의 인식을 맡는다: `src/text_pen/`(`TextPe
 - 사이드바 바탕 = `rail`, 내용 화면 = 테마의 `scaffoldBackgroundColor`(= `toolbar`).
 - 표지의 첫 페이지 썸네일 바탕과 속지 그림(`TemplatePictogram`)의 종이 = `inkSwatch`, 속지 선 = `paperInk` 40 % — 어두운 화면에서도 종이는 종이처럼 보인다.
 - 색 견본(`SwatchButton` — 종이 색·표지 색)의 테두리 = `swatchRing`(검정 종이가 어두운 시트에서도 보이게).
-- 시험: `test/widget/style_theme_test.dart`(3 스타일 × 2 밝기 화소 검사). `pumpLibrary(theme:)`·`LibraryTestHarness.pump(theme:)` 인자 추가.
+- (검토 반영) 표지 자리표시(`CoverPlaceholder`)는 어두운 판에서 종이색(`inkSwatch`에 `paperInk` 6 %, 아이콘 `paperInk` 35 %)이다. 실제 첫 페이지 썸네일이 종이 흰색이라, 어두운 회색 자리표시는 썸네일과 섞여 보이고 썸네일을 읽는 동안 회색 → 흰색으로 깜빡였다. 밝은 판은 예전 그대로(`surfaceContainerHigh`, 골든 그대로).
+- (검토 반영) '새로 만들기' 같은 팝업 메뉴는 어두운 판에서 카드보다 밝은 `popover` 면 + 옅은 테두리([01-infra.md 14.4](01-infra.md)).
+- 시험: `test/widget/style_theme_test.dart`(3 스타일 × 2 밝기 화소 검사, 검토 반영: 자리표시 색). `pumpLibrary(theme:)`·`LibraryTestHarness.pump(theme:)` 인자 추가.
 
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 

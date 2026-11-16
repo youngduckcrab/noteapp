@@ -44,9 +44,81 @@ const Map<String, (int, String)> _allowed = {
   ),
 };
 
+/// Over the whole file (comments stripped by [_code]), so a literal that
+/// dart format wrapped (`Color(` / `0xFF…` on the next line) is caught too,
+/// as are `Color.fromARGB` / `Color.fromRGBO` / `Color.from` with number
+/// literals.
 final RegExp _pattern = RegExp(
-  r'Color\(0x[0-9A-Fa-f]+\)|\bColors\.(?!transparent\b)[a-z]\w*',
+  r'\bColor\(\s*0x[0-9A-Fa-f]+\s*,?\s*\)'
+  r'|\bColor\.from(?:ARGB|RGBO)\(\s*[\d.]'
+  r'|\bColor\.from\(\s*alpha:\s*[\d.]'
+  r'|\bColors\.(?!transparent\b)[a-z]\w*',
 );
+
+/// [source] without `//` and `/* */` comments; string literals are kept
+/// (a `://` inside a string does not hide the rest of the line). Newlines
+/// are kept, so offsets map to the same line numbers.
+String _code(String source) {
+  final out = StringBuffer();
+  var i = 0;
+  final n = source.length;
+  while (i < n) {
+    final c = source[i];
+    final next = i + 1 < n ? source[i + 1] : '';
+    if (c == '/' && next == '/') {
+      while (i < n && source[i] != '\n') {
+        i++;
+      }
+      continue;
+    }
+    if (c == '/' && next == '*') {
+      i += 2;
+      while (i < n &&
+          !(source[i] == '*' && i + 1 < n && source[i + 1] == '/')) {
+        if (source[i] == '\n') out.write('\n');
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (c == "'" || c == '"') {
+      final triple = source.startsWith(c * 3, i);
+      final quote = triple ? c * 3 : c;
+      final raw = i > 0 && source[i - 1] == 'r';
+      out.write(quote);
+      i += quote.length;
+      while (i < n && !source.startsWith(quote, i)) {
+        if (!raw && source[i] == '\\' && i + 1 < n) {
+          out.write(source.substring(i, i + 2));
+          i += 2;
+          continue;
+        }
+        if (!triple && source[i] == '\n') break;
+        out.write(source[i]);
+        i++;
+      }
+      if (i < n && source.startsWith(quote, i)) {
+        out.write(quote);
+        i += quote.length;
+      }
+      continue;
+    }
+    out.write(c);
+    i++;
+  }
+  return out.toString();
+}
+
+/// "line: match" for every hit in [source].
+List<String> _hits(String source) {
+  final code = _code(source);
+  String at(Match m) {
+    final line = '\n'.allMatches(code.substring(0, m.start)).length + 1;
+    return '$line: ${m.group(0)!.replaceAll(RegExp(r'\s+'), ' ')}';
+  }
+
+  return [for (final m in _pattern.allMatches(code)) at(m)];
+}
 
 bool _skipped(String path) =>
     path.endsWith('.g.dart') || path.endsWith('.freezed.dart');
@@ -63,16 +135,8 @@ void main() {
             .relative(entity.path, from: repoRoot)
             .replaceAll(r'\', '/');
         if (_skipped(rel)) continue;
-        final lines = entity.readAsLinesSync();
-        for (var i = 0; i < lines.length; i++) {
-          final line = lines[i];
-          final code = line.contains('//')
-              ? line.substring(0, line.indexOf('//'))
-              : line;
-          for (final m in _pattern.allMatches(code)) {
-            (found[rel] ??= []).add('${i + 1}: ${m.group(0)}');
-          }
-        }
+        final hits = _hits(entity.readAsStringSync());
+        if (hits.isNotEmpty) found[rel] = hits;
       }
     }
     final problems = <String>[
@@ -93,12 +157,8 @@ void main() {
     for (final MapEntry(key: file, value: (count, _)) in _allowed.entries) {
       final f = File(p.join(repoRoot, file));
       expect(f.existsSync(), isTrue, reason: '$file is gone');
-      final code = [
-        for (final line in f.readAsLinesSync())
-          line.contains('//') ? line.substring(0, line.indexOf('//')) : line,
-      ].join('\n');
       expect(
-        _pattern.allMatches(code).length,
+        _hits(f.readAsStringSync()).length,
         count,
         reason: '$file: lower the allowed count',
       );
@@ -111,5 +171,31 @@ void main() {
     expect(_pattern.hasMatch('color: Colors.black54,'), isTrue);
     expect(_pattern.hasMatch('color: Colors.transparent,'), isFalse);
     expect(_pattern.hasMatch('Color(style.colorArgb)'), isFalse);
+  });
+
+  test('(review) wrapped literals, fromARGB / fromRGBO / from, and code '
+      'after a `://` string are caught; comments are not', () {
+    expect(_hits('final c = Color(\n  0xFF112233,\n);'), [
+      '1: Color( 0xFF112233, )',
+    ]);
+    expect(_hits('final c = Color.fromARGB(255, 1, 2, 3);'), hasLength(1));
+    expect(_hits('final c = Color.fromRGBO(1, 2, 3, 1);'), hasLength(1));
+    expect(
+      _hits('final c = Color.from(alpha: 1, red: 0, green: 0, blue: 0);'),
+      hasLength(1),
+    );
+    expect(_hits('final c = Color.fromARGB(a, r, g, b);'), isEmpty);
+    expect(_hits("const url = 'https://x'; final c = Colors.white;"), [
+      '1: Colors.white',
+    ]);
+    expect(
+      _hits('// Color(0xFF000000)\n/* Colors.red */\nfinal a = 1;'),
+      isEmpty,
+    );
+    expect(
+      _hits("final s = '// not a comment'; final c = Colors.black;"),
+      hasLength(1),
+    );
+    expect(_hits('a;\nb;\nColor(0xFF000000);'), ['3: Color(0xFF000000)']);
   });
 }

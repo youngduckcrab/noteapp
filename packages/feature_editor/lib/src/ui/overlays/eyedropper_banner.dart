@@ -1,6 +1,7 @@
 // lib/src/ui/overlays/eyedropper_banner.dart — 04-editor 6.6.8, 6.4.3.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
@@ -20,7 +21,8 @@ class EyedropperBanner extends ConsumerWidget {
       editorToolProvider.select((s) => s.eyedropperActive),
     );
     if (!active) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
+    // (v2.14-ui) over the paper: a fixed dark-on-paper banner.
+    final tokens = StyleTokens.of(context);
     final text = Theme.of(context).textTheme;
     return Align(
       alignment: Alignment.topCenter,
@@ -28,7 +30,7 @@ class EyedropperBanner extends ConsumerWidget {
         padding: const EdgeInsets.only(top: 12),
         child: Material(
           key: bannerKey,
-          color: scheme.inverseSurface,
+          color: tokens.paperBadge,
           elevation: 2,
           shape: const StadiumBorder(),
           child: Padding(
@@ -36,19 +38,17 @@ class EyedropperBanner extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.colorize, size: 20, color: scheme.onInverseSurface),
+                Icon(Icons.colorize, size: 20, color: tokens.onPaperBadge),
                 const SizedBox(width: 8),
                 Text(
                   EditorStrings.eyedropperBanner,
-                  style: text.bodyMedium?.copyWith(
-                    color: scheme.onInverseSurface,
-                  ),
+                  style: text.bodyMedium?.copyWith(color: tokens.onPaperBadge),
                 ),
                 const SizedBox(width: 4),
                 TextButton(
                   key: cancelKey,
                   style: TextButton.styleFrom(
-                    foregroundColor: scheme.inversePrimary,
+                    foregroundColor: tokens.onPaperBadge,
                     minimumSize: const Size(44, 44),
                   ),
                   onPressed: () => ref

@@ -27,6 +27,9 @@ abstract final class AppearanceSectionKeys {
   static const ValueKey<String> message = ValueKey<String>(
     'app.appearance.message',
   );
+  static const ValueKey<String> layoutNote = ValueKey<String>(
+    'app.appearance.layoutNote',
+  );
 }
 
 /// Writes one '화면' key; logs and reports a failure through [onFailed].
@@ -113,6 +116,18 @@ class _AppStyleSectionState extends ConsumerState<AppStyleSection> {
               ],
             );
           },
+        ),
+        // (review) the previews show where each style is heading; the
+        // per-style toolbar layouts arrive in a later stage.
+        Padding(
+          key: AppearanceSectionKeys.layoutNote,
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            AppStrings.styleLayoutNote,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
         if (_failed)
           Padding(

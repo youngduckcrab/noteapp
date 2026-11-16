@@ -542,7 +542,7 @@ assets:
 |---|---|
 | 위젯 트리 | 루트 `ProviderScope` 1개(overrides = 계약 7.3.3 표) → `AppLifecycleBridge` → `MaterialApp.router`(material_ui) → `builder:` `UpdateBanner` → 라우트 화면. `ScaffoldMessenger`, `Overlay`, `Navigator` 사용 가능. **`MaterialUiCompatibilityBridge`는 트리에 없다**(D2) |
 | 지역화 | `locale: Locale('ko')`, `supportedLocales: [ko, en]`, `localizationsDelegates: GlobalMaterialLocalizations.delegates` (material_ui 버전, 확인함) |
-| 테마 | `buildAppTheme()` (Material 3, seed `0xFF3949AB`). 패키지는 `Theme.of(context).colorScheme`만 사용, 자체 `MaterialApp`·`ProviderScope` 금지 (테스트·패키지 내부 하위 scope 제외, 계약 7.4.4·7.4.11) |
+| 테마 | (v2.14-ui에서 바뀜 — [m5-7/01-infra.md 14](m5-7/01-infra.md), 계약 C214U-03: 스타일 토큰 테마, 패키지는 `colorScheme`·`StyleTokens.of`) 1차: `buildAppTheme()` (Material 3, seed `0xFF3949AB`). 패키지는 `Theme.of(context).colorScheme`만 사용, 자체 `MaterialApp`·`ProviderScope` 금지 (테스트·패키지 내부 하위 scope 제외, 계약 7.4.4·7.4.11) |
 | provider 주입 | 앱 시작 시 한 번, 루트 `ProviderScope.overrides`로. 주체·값은 계약 7.3.3(`CoreModule`·`PdfModule`·`FeatureWiringModule`·`BootstrapApp`). 실행 중 교체 없음 (재시작 = 부트스트랩 재실행). `ink.pressureModeProvider`는 override가 아니라 EDITOR가 `notifier.set()` |
 | 화면 이동 | 피처 화면은 생성자 콜백만 호출. URL 경로·페이지 종류는 6.6 (`/notes/:noteId?page=`, 무전환) |
 | 수명주기 | 앱이 숨겨지면(웹 `visibilitychange: hidden`·`pagehide`, 네이티브 `AppLifecycleState.hidden/paused/detached`) 시작된 모듈의 `onAppHidden()` 호출 → CORE `store.flush()`(500ms 제한). 최소 간격 1초. 종료·재시도 때 `stop()` → `store.close()` |

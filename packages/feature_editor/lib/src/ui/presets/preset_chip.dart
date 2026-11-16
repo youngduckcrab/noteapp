@@ -32,6 +32,9 @@ class PresetChip extends StatelessWidget {
   /// Key of the coloured circle (its decoration carries the preset colour).
   static const circleKey = ValueKey('editor.presetChip.circle');
 
+  /// Key of the paper-light backing under the circle (v2.14-ui).
+  static const paperKey = ValueKey('editor.presetChip.paper');
+
   /// Key of the width dot inside the circle.
   static const dotKey = ValueKey('editor.presetChip.dot');
 
@@ -48,14 +51,29 @@ class PresetChip extends StatelessWidget {
     return (l - a).abs() >= (l - b).abs() ? scheme.surface : scheme.onSurface;
   }
 
+  /// (v2.14-ui review) The width dot on an ink disc shown on paper: the one
+  /// of [StyleTokens.inkSwatch] / [StyleTokens.paperInk] that stands out
+  /// more on [shownOnPaper] — the same in light and dark styles, as ink is
+  /// document data.
+  static Color dotColorOnPaper(Color shownOnPaper, StyleTokens tokens) {
+    final l = shownOnPaper.computeLuminance();
+    final a = tokens.inkSwatch.computeLuminance();
+    final b = tokens.paperInk.computeLuminance();
+    return (l - a).abs() >= (l - b).abs() ? tokens.inkSwatch : tokens.paperInk;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final style = preset.style;
+    final tokens = StyleTokens.of(context);
     final color = Color(style.colorArgb).withValues(alpha: style.opacity);
-    // The dot is judged against the colour as it shows on the bar.
-    final shown = Color.alphaBlend(color, scheme.surface);
+    // (v2.14-ui review) The ink disc sits on a paper-light backing, so a
+    // preset looks the same in light and dark styles (a translucent
+    // highlighter shows as on paper, a black pen stays a solid black disc
+    // with a paper rim in dark styles); the width dot is judged on paper.
+    final shown = Color.alphaBlend(color, tokens.inkSwatch);
     final dot = dotDiameter(style.width);
     return Semantics(
       container: true,
@@ -93,26 +111,38 @@ class PresetChip extends StatelessWidget {
                           alignment: Alignment.center,
                           children: [
                             DecoratedBox(
-                              key: circleKey,
+                              key: paperKey,
                               decoration: BoxDecoration(
-                                color: color,
+                                color: tokens.inkSwatch,
                                 shape: BoxShape.circle,
-                                // (v2.14-ui) a stronger ring when the ink
-                                // would vanish on the bar.
-                                border: Border.all(
-                                  color: StyleTokens.of(context)
-                                      .swatchRing(color, scheme.surface),
-                                  width: 0.5,
-                                ),
                               ),
-                              child: const SizedBox.square(
-                                dimension: circleDiameter,
+                              child: DecoratedBox(
+                                key: circleKey,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  shape: BoxShape.circle,
+                                  border: tokens.isDark
+                                      ? Border.all(
+                                          color: tokens.inkSwatch,
+                                          width: 1.5,
+                                        )
+                                      : Border.all(
+                                          color: tokens.swatchRing(
+                                            shown,
+                                            scheme.surface,
+                                          ),
+                                          width: 0.5,
+                                        ),
+                                ),
+                                child: const SizedBox.square(
+                                  dimension: circleDiameter,
+                                ),
                               ),
                             ),
                             DecoratedBox(
                               key: dotKey,
                               decoration: BoxDecoration(
-                                color: dotColorOn(shown, scheme),
+                                color: dotColorOnPaper(shown, tokens),
                                 shape: BoxShape.circle,
                               ),
                               child: SizedBox.square(dimension: dot),

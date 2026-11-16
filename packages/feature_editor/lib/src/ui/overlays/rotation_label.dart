@@ -2,6 +2,7 @@
 // while the rotate handle is dragged) — E2-06.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../tools/selection.dart';
@@ -27,7 +28,8 @@ class RotationLabel extends ConsumerWidget {
     final selection = ref.watch(editorSelectionProvider);
     final viewport = ref.watch(editorViewportProvider);
     final pages = ref.watch(editorMountedPagesProvider);
-    final scheme = Theme.of(context).colorScheme;
+    // (v2.14-ui) over the paper: a fixed dark-on-paper badge.
+    final tokens = StyleTokens.of(context);
     return IgnorePointer(
       child: ListenableBuilder(
         listenable: Listenable.merge([
@@ -49,7 +51,7 @@ class RotationLabel extends ConsumerWidget {
                 child: DecoratedBox(
                   key: labelKey,
                   decoration: BoxDecoration(
-                    color: scheme.inverseSurface,
+                    color: tokens.paperBadge,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Padding(
@@ -60,7 +62,7 @@ class RotationLabel extends ConsumerWidget {
                     child: Text(
                       EditorStrings.rotationLabel(label.degrees),
                       style: Theme.of(context).textTheme.labelSmall
-                          ?.copyWith(color: scheme.onInverseSurface),
+                          ?.copyWith(color: tokens.onPaperBadge),
                     ),
                   ),
                 ),

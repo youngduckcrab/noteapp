@@ -9,11 +9,13 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_core/note_core.dart';
+import 'package:noteapp/src/app/appearance.dart';
 import 'package:noteapp/src/bootstrap/app_module.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
 import 'package:noteapp/src/features/app_features.dart';
 import 'package:noteapp/src/runtime/build_info.dart';
 import 'package:noteapp/src/runtime/runtime_info.dart';
+import 'package:ui_kit/ui_kit.dart' show AppBrightnessMode, AppStyle;
 
 import '../fakes/counting_note_store.dart';
 import '../fakes/fake_settings_repository.dart';
@@ -178,5 +180,43 @@ void main() {
     expect(log.records, hasLength(1));
     expect(log.records.single.source, AppErrorSource.module);
     expect(log.records.single.summary, contains('settings table locked'));
+  });
+
+  group('(v2.14-ui) resolveAppearance: the 화면 settings before the first '
+      'frame', () {
+    test('reads the stored style and brightness', () async {
+      final (store, settings) = _store();
+      addTearDown(store.inner.close);
+      await store.settings.set(AppearanceKeys.style, 'studio');
+      await store.settings.set(AppearanceKeys.brightness, 'dark');
+      final context = _context()..publish<NoteStore>(store);
+      expect(
+        await context.resolveAppearance(),
+        const AppAppearance(
+          style: AppStyle.studio,
+          brightness: AppBrightnessMode.dark,
+        ),
+      );
+      expect(
+        settings.reads,
+        unorderedEquals(['app.appearance.style', 'app.appearance.brightness']),
+      );
+    });
+
+    test('no store → the defaults, no read', () async {
+      final context = _context();
+      expect(await context.resolveAppearance(), const AppAppearance());
+    });
+
+    test('a failing read → the defaults + one record', () async {
+      final (store, settings) = _store();
+      addTearDown(store.inner.close);
+      settings.getError = StateError('settings table locked');
+      final log = AppErrorLog();
+      final context = _context(errorLog: log)..publish<NoteStore>(store);
+      expect(await context.resolveAppearance(), const AppAppearance());
+      expect(log.records, hasLength(1));
+      expect(log.records.single.source, AppErrorSource.module);
+    });
   });
 }

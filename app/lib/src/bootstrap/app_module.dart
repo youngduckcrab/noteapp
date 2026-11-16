@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:note_core/note_core.dart' show NoteStore, OwnerId;
 
+import '../app/appearance.dart';
 import '../errors/app_error_log.dart';
 import '../features/app_features.dart';
 import '../runtime/build_info.dart';
@@ -238,6 +239,25 @@ final class AppModuleContext {
         'feature switches not read — the build values are used',
       );
       return compileTimeFeatures;
+    }
+  }
+
+  /// The '화면' settings (style, brightness) of the published NoteStore, read
+  /// once at start-up (≤ [featureReadTimeout]) so NoteApp's first frame
+  /// already has the chosen style (01-infra 14.3). No store / read failure →
+  /// the defaults (failure logged, source module).
+  Future<AppAppearance> resolveAppearance() async {
+    final store = maybe<NoteStore>();
+    if (store == null) return const AppAppearance();
+    try {
+      final values = await Future.wait([
+        store.settings.get(AppearanceKeys.style),
+        store.settings.get(AppearanceKeys.brightness),
+      ]).timeout(featureReadTimeout);
+      return AppAppearance.fromWire(values[0], values[1]);
+    } on Object catch (error, stackTrace) {
+      _log(error, stackTrace, 'appearance not read — the defaults are used');
+      return const AppAppearance();
     }
   }
 

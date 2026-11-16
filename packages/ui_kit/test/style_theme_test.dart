@@ -34,9 +34,20 @@ void main() {
           'panel': t.panel,
           'rail': t.rail,
           'card': t.card,
+          'popover': t.popover,
           'surfaceContainerHigh': scheme.surfaceContainerHigh,
           'surfaceContainerHighest': scheme.surfaceContainerHighest,
         };
+
+        test('(review) tertiary is each style\'s own, not craft brown', () {
+          if (style == AppStyle.craft) return;
+          expect(
+            scheme.tertiary,
+            isNot(
+              buildStyleTheme(AppStyle.craft, brightness).colorScheme.tertiary,
+            ),
+          );
+        });
 
         test('tokens, brightness and scheme agree', () {
           expect(t.style, style);
@@ -49,7 +60,7 @@ void main() {
           expect(scheme.onSurfaceVariant, t.textSecondary);
           expect(scheme.outlineVariant, t.hairline);
           expect(theme.scaffoldBackgroundColor, t.toolbar);
-          expect(theme.popupMenuTheme.color, t.panel);
+          expect(theme.popupMenuTheme.color, t.popover);
           expect(theme.bottomSheetTheme.backgroundColor, t.panel);
           expect(theme.dialogTheme.backgroundColor, t.panel);
           expect(theme.sliderTheme.activeTrackColor, t.accent);
@@ -107,7 +118,27 @@ void main() {
             contrastRatio(scheme.onError, scheme.error),
             greaterThanOrEqualTo(4.5),
           );
-          expect(contrastRatio(scheme.error, t.panel), greaterThanOrEqualTo(3));
+          // (review) error messages are body text: 4.5:1 on every surface.
+          for (final MapEntry(:key, :value) in surfaces.entries) {
+            expect(
+              contrastRatio(scheme.error, value),
+              greaterThanOrEqualTo(4.5),
+              reason: 'error text on $key',
+            );
+          }
+          // Tertiary is a style's own second hue, usable as text / icons.
+          expect(
+            contrastRatio(scheme.onTertiary, scheme.tertiary),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            contrastRatio(scheme.onTertiaryContainer, scheme.tertiaryContainer),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            contrastRatio(scheme.tertiary, t.toolbar),
+            greaterThanOrEqualTo(3),
+          );
           // Snack bars and tooltips are inverse.
           expect(
             contrastRatio(scheme.onInverseSurface, scheme.inverseSurface),
@@ -116,6 +147,41 @@ void main() {
           expect(
             contrastRatio(scheme.inversePrimary, scheme.inverseSurface),
             greaterThanOrEqualTo(3),
+          );
+        });
+
+        test('(review) dark popovers sit above the cards they cover', () {
+          if (brightness == Brightness.light) {
+            expect(t.popover, t.panel);
+            return;
+          }
+          final popover = t.popover.computeLuminance();
+          for (final MapEntry(:key, :value) in surfaces.entries) {
+            if (key == 'popover') continue;
+            expect(
+              popover,
+              greaterThan(value.computeLuminance()),
+              reason: 'popover above $key',
+            );
+          }
+          final shape = theme.popupMenuTheme.shape! as RoundedRectangleBorder;
+          expect(shape.side.style, BorderStyle.solid);
+          expect(
+            contrastRatio(shape.side.color.withValues(alpha: 1), t.popover),
+            greaterThan(1.5),
+          );
+        });
+
+        test('(review) badges over the paper stay dark-on-paper', () {
+          // Page counter, rotation label, eyedropper banner: in dark mode a
+          // role like inverseSurface turns near-white on white paper.
+          expect(
+            contrastRatio(t.paperBadge, const Color(0xFFFFFFFF)),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            contrastRatio(t.onPaperBadge, t.paperBadge),
+            greaterThanOrEqualTo(4.5),
           );
         });
 

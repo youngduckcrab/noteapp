@@ -3,6 +3,7 @@
 // surface, in light and dark. Pixel probe on the rendered layer.
 import 'dart:ui' as ui;
 
+import 'package:feature_library/src/ui/content/note_cover_view.dart';
 import 'package:feature_library/src/ui/sidebar/library_sidebar.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,6 +80,46 @@ void main() {
               (contentPixel.computeLuminance() < 0.2),
           brightness == Brightness.dark,
         );
+      });
+    }
+  }
+
+  // (v2.14-ui review) A note placeholder is paper-coloured in dark styles,
+  // like the real first-page thumbnails it stands in for.
+  for (final style in AppStyle.values) {
+    for (final brightness in [Brightness.light, Brightness.dark]) {
+      testWidgets('${style.wireName} ${brightness.name}: cover placeholder', (
+        tester,
+      ) async {
+        final tokens = styleTokensFor(style, brightness);
+        final theme = buildStyleTheme(style, brightness);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: const Center(
+              child: CoverPlaceholder(width: 120, height: 160),
+            ),
+          ),
+        );
+        final box = tester.widget<ColoredBox>(
+          find.descendant(
+            of: find.byType(CoverPlaceholder),
+            matching: find.byType(ColoredBox),
+          ),
+        );
+        if (brightness == Brightness.dark) {
+          expect(box.color.computeLuminance(), greaterThan(0.7));
+          final icon = tester.widget<Icon>(
+            find.byIcon(Icons.description_outlined),
+          );
+          expect(
+            contrastRatio(Color.alphaBlend(icon.color!, box.color), box.color),
+            greaterThanOrEqualTo(1.8),
+          );
+        } else {
+          expect(box.color, theme.colorScheme.surfaceContainerHigh);
+        }
+        expect(tokens.brightness, brightness);
       });
     }
   }
