@@ -52,8 +52,12 @@
 # last step of each job prints them as that job's timing table.
 name: CI
 
+# Automatic runs only on main (2026-11, the user's request: the development
+# branch is checked locally before each push; run this workflow by hand with
+# workflow_dispatch when a CI run or a web deploy is wanted).
 on:
   push:
+    branches: [main]
     paths-ignore:
       - 'docs/**'
       - '**/*.md'

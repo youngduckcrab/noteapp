@@ -735,12 +735,13 @@ void main() {
         '$key': '$value',
     };
 
-    test('push on every branch (docs ignored) and manual dispatch with '
+    test('push on main only (docs ignored) and manual dispatch with '
         'deploy, integration and full', () {
       final on = ci['on'] as YamlMap;
       expect(on.keys, unorderedEquals(['push', 'workflow_dispatch']));
       final push = on['push'] as YamlMap;
-      expect(push.keys, ['paths-ignore'], reason: 'no branch filter');
+      expect(push.keys, ['branches', 'paths-ignore']);
+      expect(push['branches'], ['main'], reason: 'the dev branch runs by hand');
       expect(push['paths-ignore'], _ignoredPaths);
       final inputs = (on['workflow_dispatch'] as YamlMap)['inputs'] as YamlMap;
       expect(
