@@ -7,6 +7,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../scope/editor_scope.dart';
+import '../../state/note_search.dart';
 import '../../state/popup.dart';
 import '../../state/settings/editor_device_state.dart';
 import '../editor_strings.dart';
@@ -43,8 +45,31 @@ abstract final class EditorChrome {
       ref.read(editorDeviceStateProvider.notifier).setPaletteDetached(true);
 
   /// '메뉴에 다시 붙이기'.
-  static void dockPalette(WidgetRef ref) =>
-      ref.read(editorDeviceStateProvider.notifier).setPaletteDetached(false);
+  static void dockPalette(WidgetRef ref) {
+    ref.read(editorPaletteExpandedProvider.notifier).set(false);
+    ref.read(editorDeviceStateProvider.notifier).setPaletteDetached(false);
+  }
+
+  /// System back on the open note (EditorRoot's PopScope, only while the
+  /// editor body is on screen), in this order: an open '노트에서 찾기'
+  /// closes (04-editor 18.1), then an open palette, then a hidden menu comes
+  /// back; true when back was used up that way (the note stays).
+  static bool handleBack(WidgetRef ref) {
+    if (ref.read(editorNoteSearchProvider).isOpen) {
+      ref.read(editorNoteSearchProvider.notifier).close();
+      return true;
+    }
+    final expanded = ref.read(editorPaletteExpandedProvider.notifier);
+    if (ref.read(editorPaletteExpandedProvider)) {
+      expanded.set(false);
+      return true;
+    }
+    if (ref.read(editorDeviceStateProvider).toolbarHidden) {
+      showMenu(ref);
+      return true;
+    }
+    return false;
+  }
 
   /// Keys of the ⋯ items.
   static const moreHideKey = ValueKey('editor.more.hideMenu');
@@ -80,6 +105,27 @@ abstract final class EditorChrome {
     ];
   }
 }
+
+/// Per note: whether the floating pen palette is open (PenPalette; system
+/// back closes it first — [EditorChrome.handleBack]).
+class EditorPaletteExpandedNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    ref.watch(editorNoteIdProvider);
+    return false;
+  }
+
+  void set(bool expanded) {
+    if (state != expanded) state = expanded;
+  }
+}
+
+final editorPaletteExpandedProvider =
+    NotifierProvider<EditorPaletteExpandedNotifier, bool>(
+      EditorPaletteExpandedNotifier.new,
+      dependencies: [editorNoteIdProvider],
+      name: 'editorPaletteExpandedProvider',
+    );
 
 /// Toolbar (52 px) · PresetBarView (44 px, not while the palette is
 /// detached) · divider. Hidden ([EditorDeviceState.toolbarHidden]): slides

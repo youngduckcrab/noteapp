@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../di/editor_extensions.dart';
 import '../state/popup.dart';
+import '../state/settings/editor_device_state.dart';
 import 'color/color_palette_popup.dart';
 import 'color/recolor_panel.dart';
 import 'editor_strings.dart';
@@ -213,7 +214,14 @@ class _PopupLayer extends ConsumerWidget {
     final layout = _layoutOf(ref.watch(editorPopupProvider));
     if (layout == null) return const SizedBox.shrink();
     final at = layout.at;
-    final link = at != null
+    // (04-editor 17) With the top menu hidden the toolbar buttons are not in
+    // the tree: a popup that would hang from one (the pencil's quick pen /
+    // colour palette without a hover point) opens in the middle instead of
+    // following a missing anchor (it would be invisible behind the barrier).
+    final menuHidden = ref.watch(
+      editorDeviceStateProvider.select((s) => s.toolbarHidden),
+    );
+    final link = at != null || menuHidden
         ? null
         : switch (layout.link) {
             LinkPick.pen => anchors.pen,

@@ -19,7 +19,7 @@ import '../editor_strings.dart';
 /// (tapOutside); the undo waits for its command, so the whole session goes
 /// back as one step. [↶] is enabled during a session too (its command may
 /// be the step to undo). (04-editor 17) [compact]: the restore pill's
-/// smaller buttons (own keys), one [part] each.
+/// buttons (own keys, smaller icons, still 48 dp targets), one [part] each.
 class UndoRedoButtons extends ConsumerWidget {
   const UndoRedoButtons({
     super.key,
@@ -53,7 +53,6 @@ class UndoRedoButtons extends ConsumerWidget {
       await step();
     }
 
-    final density = compact ? VisualDensity.compact : null;
     final iconSize = compact ? 20.0 : null;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -61,7 +60,6 @@ class UndoRedoButtons extends ConsumerWidget {
         if (part != UndoRedoPart.redo)
           IconButton(
             key: compact ? pillUndoKey : undoKey,
-            visualDensity: density,
             iconSize: iconSize,
             onPressed: !readOnly && (history.canUndo || editing)
                 ? () => unawaited(afterSession(commands.undo))
@@ -71,7 +69,6 @@ class UndoRedoButtons extends ConsumerWidget {
         if (part != UndoRedoPart.undo)
           IconButton(
             key: compact ? pillRedoKey : redoKey,
-            visualDensity: density,
             iconSize: iconSize,
             onPressed: !readOnly && history.canRedo
                 ? () => unawaited(afterSession(commands.redo))

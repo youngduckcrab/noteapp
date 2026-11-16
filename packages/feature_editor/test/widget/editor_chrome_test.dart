@@ -6,7 +6,9 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:feature_editor/feature_editor.dart';
+import 'package:feature_editor/src/actions/editor_action_runner.dart';
 import 'package:feature_editor/src/scope/editor_scope.dart';
+import 'package:feature_editor/src/state/popup.dart';
 import 'package:feature_editor/src/state/settings/editor_device_state.dart';
 import 'package:feature_editor/src/state/settings/editor_setting_keys.dart';
 import 'package:feature_editor/src/tools/tool_controller.dart';
@@ -15,6 +17,8 @@ import 'package:feature_editor/src/ui/chrome/editor_chrome.dart';
 import 'package:feature_editor/src/ui/chrome/floating_layer.dart';
 import 'package:feature_editor/src/ui/chrome/pen_palette.dart';
 import 'package:feature_editor/src/ui/editor_strings.dart';
+import 'package:feature_editor/src/ui/pen/quick_pen_popup.dart';
+import 'package:feature_editor/src/ui/popup_host.dart';
 import 'package:feature_editor/src/ui/presets/preset_bar_view.dart';
 import 'package:feature_editor/src/ui/presets/preset_chip.dart';
 import 'package:feature_editor/src/ui/presets/save_preset_dialog.dart';
@@ -566,5 +570,185 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byKey(MenuHideButton.buttonKey), findsNothing);
     });
+  });
+
+  group('review fixes', () {
+    testWidgets('menu hidden: a pen-anchored popup (pencil quick pen with no '
+        'hover point) opens in the middle, visible and hit-testable', (
+      tester,
+    ) async {
+      final h = await pumpEditor(tester);
+      h.container.read(editorCommandsProvider).selectTool(EditorTool.pen);
+      await _hideWithButton(tester);
+      await _settleSnackBar(tester);
+      h.container
+          .read(editorActionRunnerProvider)
+          .run(EditorAction.toolPalette, const GestureSource(Offset(100, 100)));
+      await tester.pump();
+      await tester.pump();
+      expect(h.container.read(editorPopupProvider), isA<QuickPenPopup>());
+      final panel = find.byKey(QuickPenPanel.panelKey);
+      expect(panel, findsOneWidget);
+      // Not a follower of the (missing) pen button: centred on screen.
+      expect(
+        find.ancestor(
+          of: panel,
+          matching: find.byType(CompositedTransformFollower),
+        ),
+        findsNothing,
+      );
+      final screen =
+          Offset.zero & tester.view.physicalSize / tester.view.devicePixelRatio;
+      final rect = _rect(tester, panel);
+      expect(screen.contains(rect.center), isTrue);
+      expect(rect.center.dx, closeTo(screen.center.dx, 1));
+      // A tap on it reaches the panel, not the barrier.
+      final panelBox = tester.renderObject(panel);
+      final targets = tester
+          .hitTestOnBinding(rect.center)
+          .path
+          .map((e) => e.target)
+          .toList();
+      expect(targets, contains(panelBox));
+      expect(
+        targets,
+        isNot(contains(tester.renderObject(find.byKey(PopupHost.barrierKey)))),
+      );
+      // With the menu shown it hangs from the pen button again.
+      h.container.read(editorPopupProvider.notifier).close();
+      await tester.pump();
+      await tester.tap(find.byKey(MenuRestorePill.showKey));
+      await _slide(tester);
+      h.container
+          .read(editorActionRunnerProvider)
+          .run(EditorAction.toolPalette, const GestureSource(Offset(100, 100)));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.ancestor(
+          of: find.byKey(QuickPenPanel.panelKey),
+          matching: find.byType(CompositedTransformFollower),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a stored hidden menu on a note without pages: back leaves '
+        'at once (no menu to bring back)', (tester) async {
+      final h = await pumpEditor(
+        tester,
+        // A note whose page list comes back empty (6.17.1 guard).
+        overrides: [
+          core.notePagesProvider.overrideWith(
+            (ref, id) => Stream.value(const <core.Page>[]),
+          ),
+        ],
+        beforePump: (store, _, _) => store.settings.set(
+          EditorSettingKeys.deviceState,
+          const EditorDeviceState(toolbarHidden: true).toJson(),
+        ),
+      );
+      expect(find.text(EditorStrings.noPages), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(h.closeCount, 1);
+    });
+
+    testWidgets('system back closes an open palette first (menu shown), '
+        'then leaves', (tester) async {
+      final h = await pumpEditor(tester);
+      await _detach(tester);
+      await tester.tap(_paletteButton);
+      await tester.pump();
+      expect(_panel, findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(_panel, findsNothing);
+      expect(h.closeCount, 0);
+      await tester.binding.handlePopRoute();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(h.closeCount, 1);
+    });
+
+    testWidgets('menu hidden + palette open: back closes the palette, then '
+        'shows the menu, then leaves', (tester) async {
+      final h = await pumpEditor(tester);
+      await _detach(tester);
+      await _hideWithButton(tester);
+      await _settleSnackBar(tester);
+      await tester.tap(_paletteButton);
+      await tester.pump();
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(_panel, findsNothing);
+      expect(_device(h).toolbarHidden, isTrue);
+      await tester.binding.handlePopRoute();
+      await _slide(tester);
+      expect(_device(h).toolbarHidden, isFalse);
+      expect(h.closeCount, 0);
+    });
+
+    testWidgets('the pill\'s three targets are at least 48 dp', (tester) async {
+      await pumpEditor(tester);
+      await _hideWithButton(tester);
+      for (final key in const [
+        UndoRedoButtons.pillUndoKey,
+        MenuRestorePill.showKey,
+        UndoRedoButtons.pillRedoKey,
+      ]) {
+        final size = tester.getSize(find.byKey(key));
+        expect(size.width, greaterThanOrEqualTo(48), reason: '$key');
+        expect(size.height, greaterThanOrEqualTo(48), reason: '$key');
+      }
+    });
+
+    testWidgets("the palette's re-dock action is a labelled button", (
+      tester,
+    ) async {
+      final h = await pumpEditor(tester);
+      await _detach(tester);
+      await tester.tap(_paletteButton);
+      await tester.pump();
+      final dock = find.byKey(PenPalette.dockKey);
+      expect(
+        find.descendant(
+          of: dock,
+          matching: find.text(EditorStrings.dockPalette),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        _rect(tester, _panel).contains(_rect(tester, dock).center),
+        isTrue,
+      );
+      await tester.tap(dock);
+      await tester.pump();
+      expect(_device(h).paletteDetached, isFalse);
+      expect(find.byKey(PresetBarView.barKey), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'the palette button starts at the bottom-left (off the '
+      'writing start and the page indicator) and stays put on screen when the menu hides / shows',
+      (tester) async {
+        await pumpEditor(tester);
+        await _detach(tester);
+        final area = _rect(tester, find.byType(EditorFloatingLayer));
+        final at = _rect(tester, _paletteButton);
+        expect(at.left, closeTo(area.left + PenPalette.margin, 0.5));
+        expect(at.bottom, closeTo(area.bottom - PenPalette.margin, 0.5));
+        await _hideWithButton(tester);
+        expect(_rect(tester, _paletteButton), at);
+        await _settleSnackBar(tester);
+        await tester.tap(find.byKey(MenuRestorePill.showKey));
+        await _slide(tester);
+        expect(_rect(tester, _paletteButton), at);
+      },
+    );
   });
 }

@@ -19,9 +19,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
 
 import 'scope/editor_scope.dart';
-import 'state/note_search.dart';
-import 'state/settings/editor_device_state.dart';
 import 'text/text_edit_session.dart';
+import 'ui/chrome/editor_chrome.dart';
 import 'ui/editor_body.dart';
 import 'ui/editor_strings.dart';
 
@@ -160,6 +159,15 @@ class _EditorRootState extends ConsumerState<EditorRoot> {
     widget.onClose();
   }
 
+  /// The note is open with pages: EditorBody (not a message screen).
+  bool _bodyShown() {
+    final session = ref.read(editorSessionProvider).value;
+    if (session == null) return false;
+    final pages =
+        ref.read(core.notePagesProvider(session.noteId)).value ?? session.pages;
+    return pages.isNotEmpty;
+  }
+
   void _retry() {
     ref.invalidate(core.noteSessionProvider(ref.read(editorNoteIdProvider)));
   }
@@ -176,18 +184,11 @@ class _EditorRootState extends ConsumerState<EditorRoot> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        // (v2.13-search, review) An open '노트에서 찾기' closes first, as an
-        // open search does on Android; the next back leaves the note.
-        if (ref.read(editorNoteSearchProvider).isOpen) {
-          ref.read(editorNoteSearchProvider.notifier).close();
-          return;
-        }
-        // (04-editor 19) back then brings a hidden top menu back.
-        if (ref.read(editorSessionProvider).value != null &&
-            ref.read(editorDeviceStateProvider).toolbarHidden) {
-          ref.read(editorDeviceStateProvider.notifier).setToolbarHidden(false);
-          return;
-        }
+        // (04-editor 19) One ordered handler, only while the editor body
+        // (with its menu) shows: an open '노트에서 찾기' closes first
+        // (v2.13-search), then an open palette, then a hidden menu comes
+        // back; otherwise the note closes (the no-pages screen at once).
+        if (_bodyShown() && EditorChrome.handleBack(ref)) return;
         unawaited(_close());
       },
       child: Stack(

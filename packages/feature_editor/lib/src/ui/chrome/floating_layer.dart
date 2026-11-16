@@ -49,7 +49,9 @@ class EditorFloatingLayer extends ConsumerWidget {
 }
 
 /// [↶] [⌄ 메뉴 보이기] [↷] at the top edge while the menu is hidden,
-/// semi-transparent. Tap the middle → the menu comes back; drag it sideways
+/// semi-transparent, 48 dp targets. It covers that strip of the page (a
+/// stroke starting on it reaches the pill, not the page — drag the pill
+/// aside to write there). Tap the middle → the menu comes back; drag it sideways
 /// → it moves along the top edge (remembered — restorePillX). Undo / redo
 /// stay reachable without the toolbar.
 class MenuRestorePill extends ConsumerStatefulWidget {
@@ -61,8 +63,13 @@ class MenuRestorePill extends ConsumerStatefulWidget {
   static const pillKey = ValueKey('editor.restorePill');
   static const showKey = ValueKey('editor.restorePill.show');
 
-  static const double height = 40;
-  static const double width = 40 + 56 + 40 + 8;
+  /// 48 dp touch targets: it is the only way back to the menu and the only
+  /// undo / redo while the menu is hidden.
+  static const double height = 48;
+  static const double width = 48 + 56 + 48 + 8;
+
+  /// Semi-transparent so the top of the page shows through.
+  static const double opacity = 0.7;
   static const double top = 6;
 
   /// The strip the pill can be in (the palette stays below it).
@@ -96,13 +103,16 @@ class _MenuRestorePillState extends ConsumerState<MenuRestorePill> {
         container: true,
         explicitChildNodes: true,
         child: Material(
-          color: scheme.surfaceContainerHigh.withValues(alpha: 0.85),
+          color: scheme.surfaceContainerHigh.withValues(
+            alpha: MenuRestorePill.opacity,
+          ),
           elevation: 2,
           shape: const StadiumBorder(),
           clipBehavior: Clip.antiAlias,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const UndoRedoButtons(compact: true, part: UndoRedoPart.undo),
                 Expanded(

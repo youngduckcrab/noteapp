@@ -28,7 +28,7 @@ void main() {
         'toolbarHidden': false,
         'seenToolbarHideHint': false,
         'paletteDetached': false,
-        'palettePosition': {'x': 0.0, 'y': 0.25},
+        'palettePosition': {'x': 0.0, 'y': 1.0},
         'restorePillX': 0.5,
       });
     });

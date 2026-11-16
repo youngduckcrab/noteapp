@@ -22,15 +22,18 @@ import 'editor_chrome.dart';
 /// dragged anywhere in the page area (finger, stylus or mouse — a move past
 /// the touch slop is a drag, otherwise a tap). Its place is stored as
 /// fractions of the room (EditorDeviceState.palettePosition) and clamped
-/// [margin] inside the area and below [topInset].
+/// [margin] inside the area and below [topInset] (the inset clamps, it does
+/// not scale the fractions — so a button low on the screen stays put when
+/// the menu hides or shows).
 ///
 /// Tap → the palette opens beside it, toward the side with more room: the
 /// same presets as the preset row (editorVisiblePresetsProvider — pinned,
 /// group filter, CORE order) as PresetChips (the current one bordered), then
 /// [+] save the current pen (SavePresetDialog), [⚙] the manager sheet and
-/// '메뉴에 다시 붙이기'. A chip → ToolController.applyStyle (also switches to
+/// '메뉴에 다시 붙이기' (a labelled button — 6.9.1 keeps tooltips off). A chip → ToolController.applyStyle (also switches to
 /// the pen tool), the palette closes. A pointer down anywhere else (TapRegion
-/// outside — the page still gets it, so a pen stroke draws) closes it.
+/// outside — the page still gets it, so a pen stroke draws) or system back
+/// closes it (open / closed is editorPaletteExpandedProvider).
 /// Read-only note: chips, [+] and [⚙] are disabled (like the row).
 class PenPalette extends ConsumerStatefulWidget {
   const PenPalette({super.key, required this.area, this.topInset = 0});
@@ -53,19 +56,44 @@ class PenPalette extends ConsumerStatefulWidget {
   static ValueKey<String> chipKey(String id) =>
       ValueKey('editor.palette.chip.$id');
 
-  /// The button's top-left in the area for the stored [fractions].
+  /// The button's top-left in the area for the stored [fractions], kept
+  /// below [topInset].
   static Offset buttonOffset(Size area, double topInset, Offset fractions) {
-    final room = roomOf(area, topInset);
+    final room = roomOf(area);
+    return clampOffset(
+      area,
+      topInset,
+      Offset(
+        margin + fractions.dx.clamp(0.0, 1.0) * room.width,
+        margin + fractions.dy.clamp(0.0, 1.0) * room.height,
+      ),
+    );
+  }
+
+  /// [at] (a top-left) moved [margin] inside the area and below [topInset].
+  static Offset clampOffset(Size area, double topInset, Offset at) {
+    final room = roomOf(area);
+    final minY = topInset + margin;
+    final maxY = math.max(minY, margin + room.height);
     return Offset(
-      margin + fractions.dx.clamp(0.0, 1.0) * room.width,
-      topInset + margin + fractions.dy.clamp(0.0, 1.0) * room.height,
+      at.dx.clamp(margin, margin + room.width),
+      at.dy.clamp(minY, maxY),
+    );
+  }
+
+  /// The fractions of the room for the top-left [at].
+  static Offset fractionsOf(Size area, Offset at) {
+    final room = roomOf(area);
+    return Offset(
+      room.width <= 0 ? 0 : ((at.dx - margin) / room.width).clamp(0.0, 1.0),
+      room.height <= 0 ? 0 : ((at.dy - margin) / room.height).clamp(0.0, 1.0),
     );
   }
 
   /// The room the button's top-left can move in (never negative).
-  static Size roomOf(Size area, double topInset) => Size(
+  static Size roomOf(Size area) => Size(
     math.max(0, area.width - size - 2 * margin),
-    math.max(0, area.height - topInset - size - 2 * margin),
+    math.max(0, area.height - size - 2 * margin),
   );
 
   @override
@@ -74,24 +102,20 @@ class PenPalette extends ConsumerStatefulWidget {
 
 class _PenPaletteState extends ConsumerState<PenPalette> {
   final Object _group = Object();
-  bool _expanded = false;
 
   /// The fractions while a drag runs (stored when it ends).
   Offset? _drag;
 
-  void _collapse() {
-    if (_expanded) setState(() => _expanded = false);
-  }
+  EditorPaletteExpandedNotifier get _expanded =>
+      ref.read(editorPaletteExpandedProvider.notifier);
+
+  void _collapse() => _expanded.set(false);
 
   void _dragBy(Offset delta, Offset from) {
-    final room = PenPalette.roomOf(widget.area, widget.topInset);
-    final f = _drag ?? from;
-    setState(
-      () => _drag = Offset(
-        room.width <= 0 ? f.dx : (f.dx + delta.dx / room.width).clamp(0, 1),
-        room.height <= 0 ? f.dy : (f.dy + delta.dy / room.height).clamp(0, 1),
-      ),
-    );
+    final area = widget.area;
+    final at = PenPalette.buttonOffset(area, widget.topInset, _drag ?? from);
+    final moved = PenPalette.clampOffset(area, widget.topInset, at + delta);
+    setState(() => _drag = PenPalette.fractionsOf(area, moved));
   }
 
   void _endDrag() {
@@ -106,6 +130,7 @@ class _PenPaletteState extends ConsumerState<PenPalette> {
     final stored = ref.watch(
       editorDeviceStateProvider.select((s) => s.palettePosition),
     );
+    final expanded = ref.watch(editorPaletteExpandedProvider);
     final fractions = _drag ?? stored;
     final at = PenPalette.buttonOffset(widget.area, widget.topInset, fractions);
     final button = Rect.fromLTWH(
@@ -125,16 +150,16 @@ class _PenPaletteState extends ConsumerState<PenPalette> {
               child: GestureDetector(
                 key: PenPalette.buttonKey,
                 behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _expanded = !_expanded),
+                onTap: () => _expanded.set(!expanded),
                 onPanStart: (_) => setState(() => _drag = fractions),
                 onPanUpdate: (d) => _dragBy(d.delta, fractions),
                 onPanEnd: (_) => _endDrag(),
                 onPanCancel: _endDrag,
-                child: _PaletteButton(expanded: _expanded),
+                child: _PaletteButton(expanded: expanded),
               ),
             ),
           ),
-          if (_expanded)
+          if (expanded)
             Positioned.fill(
               child: CustomSingleChildLayout(
                 delegate: _PanelLayout(
@@ -231,7 +256,9 @@ class _PaletteButton extends ConsumerWidget {
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
-              border: Border.all(color: scheme.outlineVariant, width: 0.5),
+              // A full outline ring: a dark pen on a dark theme's surface
+              // still shows its edge.
+              border: Border.all(color: scheme.outline),
             ),
             child: SizedBox.square(
               dimension: 30,
@@ -335,7 +362,7 @@ class _PalettePanel extends ConsumerWidget {
                     ),
                   const Divider(height: 9),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       IconButton(
                         key: PenPalette.addKey,
@@ -357,18 +384,21 @@ class _PalettePanel extends ConsumerWidget {
                           semanticLabel: EditorStrings.presetManage,
                         ),
                       ),
-                      IconButton(
-                        key: PenPalette.dockKey,
-                        onPressed: () {
-                          onDone();
-                          EditorChrome.dockPalette(ref);
-                        },
-                        icon: const Icon(
-                          Icons.vertical_align_top,
-                          semanticLabel: EditorStrings.dockPalette,
-                        ),
-                      ),
                     ],
+                  ),
+                  // Labelled (no tooltips — 6.9.1): putting the row back
+                  // has to read as such from the palette itself.
+                  TextButton.icon(
+                    key: PenPalette.dockKey,
+                    onPressed: () {
+                      onDone();
+                      EditorChrome.dockPalette(ref);
+                    },
+                    icon: const Icon(Icons.vertical_align_top, size: 18),
+                    label: const Text(
+                      EditorStrings.dockPalette,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ],
               ),

@@ -3048,6 +3048,8 @@ C. TestFlight 뒤 — 2차 완료 조건 아님
 
 **저장.** 기기별 `editor.deviceState` v2(`EditorDeviceState`): `toolbarHidden`, `seenToolbarHideHint`, `paletteDetached`, `palettePosition {x,y}`(0–1), `restorePillX`(0–1). v1 값은 기본값으로 읽힌다. 다음 노트도 같은 모습으로 열린다(저장값이 늦게 오면 밀어 올리기 없이 바로). 부록 C 키(계약 아님): `editor.toolbar.hideMenu`, `editor.restorePill(.show/.undo/.redo)`, `editor.presetBar.detach`, `editor.palette.button`, `editor.palette.panel`, `editor.palette.chip.<id>`, `editor.palette.add/manage/dock`, `editor.more.hideMenu/detachPalette/dockPalette`.
 
+**검토 반영(2026-11-16).** ① 메뉴를 숨긴 동안 툴바 단추에 매달리는 팝업(펜슬 두 번 탭·쥐기로 여는 빠른 펜·색 팔레트, 호버 점이 없을 때)은 가운데에 연다(`PopupHost` — 없는 단추를 따라가 보이지 않는 채 장벽만 남아 다음 획을 삼키던 문제). ② 시스템 뒤로 가기는 편집 화면(페이지가 있는 노트)일 때만 먼저 쓰인다: 펼친 팔레트를 접고 → 숨긴 메뉴를 보이고 → 그다음에 나간다(`EditorChrome.handleBack`, 열림 상태는 노트별 `editorPaletteExpandedProvider`). '페이지가 없어요' 화면에서는 바로 나간다. ③ 알약은 높이 48 dp, 세 칸 모두 48 dp 이상 누름 영역, 불투명도 0.7. 알약은 페이지 위쪽 띠를 가린다 — 거기서 시작한 획은 알약이 받으니 알약을 옆으로 끌어 두면 된다. ④ 팔레트의 '메뉴에 다시 붙이기'는 글자가 있는 단추다(툴팁은 6.9.1대로 쓰지 않는다 — [⌃]·[+]·[⚙]도 의미 라벨만). ⑤ 팔레트 단추의 처음 자리는 왼쪽 아래(글을 쓰기 시작하는 왼쪽 위와 오른쪽 아래 쪽 번호를 가리지 않게), 알약 띠는 비율을 늘이지 않고 아래로 밀기만 해서 화면 아래쪽에 둔 단추는 메뉴를 숨기거나 보여도 그 자리에 있다(가운데쯤이면 메뉴 높이의 비율만큼 움직인다). ⑥ 펜 점 테두리는 `outline` 1 px(어두운 테마에서 검은 펜도 보이게). 남긴 것: 메뉴를 숨기거나 보일 때 페이지 내용이 메뉴 높이만큼 올라가고 내려가는 것(맨 위에서는 스크롤로 메울 수 없어 그대로 둔다), 팔레트에는 그룹 메뉴가 없고 프리셋 줄에서 고른 그룹 필터를 그대로 따른다(그룹을 바꾸려면 다시 붙인다), 위쪽 가장자리 끌어내리기는 위의 이유로 하지 않는다.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 EDITOR가 **여는 자리**(다른 영역이 채움)

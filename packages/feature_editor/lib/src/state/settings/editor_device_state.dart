@@ -37,9 +37,11 @@ class EditorDeviceState {
     this.restorePillX = defaultRestorePillX,
   });
 
-  /// (04-editor 17) Where the palette button starts: left edge, a quarter
-  /// down (fractions of the free room — see [palettePosition]).
-  static const Offset defaultPalettePosition = Offset(0, 0.25);
+  /// (04-editor 17) Where the palette button starts: the bottom-left
+  /// corner — off the place where writing starts and off the page indicator
+  /// (bottom right); fractions of the free room, see [palettePosition]. At
+  /// the bottom it also stays put when the menu hides or shows.
+  static const Offset defaultPalettePosition = Offset(0, 1);
 
   /// (04-editor 17) The restore pill starts centred.
   static const double defaultRestorePillX = 0.5;
@@ -63,7 +65,9 @@ class EditorDeviceState {
   final bool paletteDetached;
 
   /// (04-editor 17) The palette button's top-left as fractions (0–1) of the
-  /// room it can move in, so it stays inside after a rotation or resize.
+  /// room it can move in (the page area less the button and margins — the
+  /// restore pill's strip only clamps it, it does not scale it), so it stays
+  /// inside after a rotation or resize.
   final Offset palettePosition;
 
   /// (04-editor 17) The restore pill's left as a fraction (0–1) of the room
@@ -95,7 +99,7 @@ class EditorDeviceState {
   /// {"v":2,"webTextInput":"inline","collectShapeSamples":false,
   ///  "seenSqueeze":false,"seenBarrelRoll":false,"toolbarHidden":false,
   ///  "seenToolbarHideHint":false,"paletteDetached":false,
-  ///  "palettePosition":{"x":0.0,"y":0.25},"restorePillX":0.5}
+  ///  "palettePosition":{"x":0.0,"y":1.0},"restorePillX":0.5}
   /// (v1 had no chrome fields — they decode as the defaults.)
   Map<String, Object?> toJson() => {
     'v': 2,
