@@ -2281,9 +2281,10 @@ INK가 '펜이 500 ms 멈춤'을 감지해 `fit(points, viewScale:)`을 부르�
   1. `SyntheticShapes.rectanglePath(Rect.fromLTWH(100, 100, 240, 160))`의 점을 8 ms 간격 샘플로 `addSample` → 마지막 점에서 `InkTuning.shapeHoldMs`(500) + 1 ms 동안 반경 안 샘플만 → `session.shapePreview.value?.kind == ShapeKind.rectangle` → `end()` → `InkEdit`이 도형 추가(`InkEdit(addShape)` — 03-ink 4.6 `toCommand` → `AddObjects` 한 개, 획 없음)이고 그 `ShapeObject`의 `kind`가 사각형·`bounds`가 경로 상자와 ≤ 2 pt.
   2. 합성 원(조사 03 4.2 생성기의 원 하나, 시드 고정) → `ShapeKind.ellipse`(원은 정사각 frame).
   3. 499 ms만 멈춤 → `shapePreview == null` → `end()` → 획 추가(도형 아님).
-  4. 미리보기 뒤 반경 밖으로 움직임 → 미리보기 사라짐 → 다시 500 ms 멈춤 → 다시 판정.
+  4. ~~미리보기 뒤 반경 밖으로 움직임 → 미리보기 사라짐 → 다시 500 ms 멈춤 → 다시 판정.~~ (v2.12, C212-01 통합 때 바뀜) 미리보기 뒤 중심에서 먼 쪽으로 움직임 → 미리보기가 **남고** 사각형이 펜을 따라 커짐 → `end()` → 커진 사각형 하나(`addShape`).
   5. 낙서(시드 고정) → `fit == null` → 획 유지.
   6. (수정 2회차 — 4.3 pt 기준에 맞춤) **작은 사각형 보호**: `SyntheticShapes.rectanglePath(Rect.fromLTWH(100, 100, 64, 48))`(짧은 변 48 pt — 함수의 pt 하한이라 viewScale 1에서는 사각형이 보장되는 경로)를 `beginStroke(…, viewScale: 0.25)`로 그림 → 대각선 80 pt × 0.25 = 20 < 24(`minDiagonalLogicalPx`) → `shapePreview == null` → `end()` → 획 추가(글자 보호). 대조로 같은 경로를 `viewScale: 1`로 → `ShapeKind.rectangle`(두 경우의 차이는 viewScale뿐). 0.25에서 '판정됨'을 보는 경우는 4.3 호출 쪽 규칙대로 rect를 키운 것(짧은 변 ≥ 192 pt)이고 `synthetic_shapes_test`가 맡는다. 48 pt보다 작은 rect는 `rectanglePath`가 `ArgumentError`를 던지므로 이 시험에 쓰지 않는다.
+  7. (2026-11-16 두 트랙 통합 — C212-01 조절 + C213-01 판정) **손 그림 삼각형·타원 → 멈춤 → 끌어서 크기 조절**: 6.17.5 손 그림 모음(시드 1, 변형마다 4개, small·thin 제외)의 삼각형·타원을 실제 판정기 + 실제 INK 멈춤으로 그린다. 90 % 이상이 같은 종류로 맞춰져야 하고, 맞춘 것마다 펜을 떼지 않고 중심에서 먼 쪽(또는 가까운 쪽)으로 50 pt 끌면 종류는 그대로, 중심(타원은 frame 가운데, 삼각형은 꼭짓점 평균)은 1 pt 안, 가로·세로가 함께 5 % 넘게 커지고(작아지고) 비율은 2 % 안 → `end()` → `addShape` 하나.
 - 실패하면 원인을 나눈다: 판정(합성 1,400개 V9 통과 여부) ↔ INK 멈춤 감지·미리보기(03-ink T39 `hold_detector_test`). 통합 5단계에서 `ws test --run-skipped -t integration`으로 돈다(8.3 L2-I3).
 
 #### 6.17.5 손 그림 모음과 삼각형·타원 개선 (사용자 의견: '직선, 사각형과 원은 잘 되는데 삼각형, 타원은 잘 안됨')

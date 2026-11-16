@@ -24,6 +24,7 @@ import 'package:ink_recognition/testing.dart';
 import 'package:material_ui/material_ui.dart' show Offset, Rect;
 import 'package:note_core/note_core.dart' as core;
 
+import '../shared/hand_drawn_corpus.dart';
 import '../shared/shape_cases.dart';
 
 /// One pen stroke through [points] (8 ms apart), then [holdMs] at the last
@@ -74,6 +75,21 @@ final class _Pen {
       session.addSample(_sample(at));
     }
   }
+}
+
+/// The point a uniform drag scales about (03-ink 6.18): the frame centre
+/// for an ellipse, the vertex mean for a polygon.
+Offset _centre(core.ShapeGeometry g) {
+  if (g is core.PolylineGeometry) {
+    var x = 0.0, y = 0.0;
+    for (final p in g.points) {
+      x += p.x;
+      y += p.y;
+    }
+    return Offset(x / g.points.length, y / g.points.length);
+  }
+  final r = g.frame.rect;
+  return Offset((r.left + r.right) / 2, (r.top + r.bottom) / 2);
 }
 
 void main() {
@@ -131,25 +147,34 @@ void main() {
     });
   });
 
-  test('4. moving out of the radius after the preview clears it; another '
-      '500 ms hold judges again', () {
+  test('4. (v2.12, C212-01) moving after the preview no longer clears it: '
+      'the rectangle follows the pen and end() commits the adjusted shape', () {
     fakeAsync((async) {
       const rect = Rect.fromLTWH(100, 100, 240, 160);
       final pen = _Pen(async);
       final path = SyntheticShapes.rectanglePath(rect);
       final s = pen.draw(path);
-      expect(s.shapePreview.value, isNotNull);
-      pen._step(8);
-      s.addSample(pen._sample(path.last + const Offset(60, 0)));
-      expect(s.shapePreview.value, isNull);
-      pen.hold(
-        s,
-        path.last + const Offset(60, 0),
-        ink.InkTuning.shapeHoldMs + 1,
+      final snapped = s.shapePreview.value!;
+      final out = path.last - rect.center;
+      final dir = out / out.distance;
+      for (var k = 1; k <= 12; k++) {
+        pen._step(8);
+        s.addSample(pen._sample(path.last + dir * (5.0 * k)));
+        expect(s.shapePreview.value, isNotNull, reason: 'step $k');
+      }
+      final edit = s.end()!;
+      expect(edit.kind, ink.InkEditKind.addShape);
+      final shape =
+          (edit.toCommand() as core.AddObjects).objects.single
+              as core.ShapeObject;
+      expect(shape.shapeKind, core.ShapeKind.rectangle);
+      final r0 = snapped.geometry.frame.rect;
+      final r1 = shape.geometry.frame.rect;
+      expect(
+        r1.width * r1.height,
+        greaterThan(r0.width * r0.height * 1.1),
+        reason: 'dragging away from the centre grows it',
       );
-      // the stroke now has a tail: whatever the verdict, it was asked again
-      expect(() => s.shapePreview.value, returnsNormally);
-      s.end();
     });
   });
 
@@ -181,4 +206,83 @@ void main() {
       big.end();
     });
   });
+
+  // Integration of the two 2026-11-16 tracks (C212-01 adjust, C213-01
+  // recognition): a HAND-DRAWN triangle / ellipse (6.17.5 corpus, its own
+  // ~0.5 s hold tail included) snaps through INK's real hold with the real
+  // fitter, then the pen — still down — drags straight away from the shape's
+  // centre: the preview stays the same kind and grows about a fixed centre
+  // (uniform scale); dragging toward the centre shrinks it. end() commits ONE
+  // addShape with the adjusted geometry.
+  for (final kind in ['triangle', 'ellipse']) {
+    for (final grow in [true, false]) {
+      test('7. hand-drawn $kind + hold snaps, then dragging '
+          '${grow ? 'outward grows' : 'inward shrinks'} it', () {
+        final strokes = [
+          for (final c in HandDrawnCorpus(1).build(perVariant: 4))
+            if (c.variant.startsWith('$kind/') &&
+                !c.variant.contains('small') &&
+                !c.variant.contains('thin'))
+              c,
+        ];
+        expect(strokes.length, greaterThanOrEqualTo(20));
+        var snappedCount = 0;
+        for (final c in strokes) {
+          fakeAsync((async) {
+            final pen = _Pen(async);
+            final s = pen.draw(c.points);
+            final before = s.shapePreview.value;
+            if (verdictOf(before) != kind) return;
+            snappedCount++;
+            final r0 = before!.geometry.frame.rect;
+            final centre = _centre(before.geometry);
+            final last = c.points.last;
+            var dir = last - centre;
+            dir = dir / dir.distance;
+            // straight out of / into the dead zone, then 30 pt more
+            for (var k = 1; k <= 10; k++) {
+              pen._step(8);
+              s.addSample(pen._sample(last + dir * ((grow ? 5.0 : -5.0) * k)));
+            }
+            final during = s.shapePreview.value;
+            expect(verdictOf(during), kind, reason: c.variant);
+            final edit = s.end()!;
+            expect(edit.kind, ink.InkEditKind.addShape, reason: c.variant);
+            final shape =
+                (edit.toCommand() as core.AddObjects).objects.single
+                    as core.ShapeObject;
+            expect(shape.shapeKind, before.kind, reason: c.variant);
+            final r1 = shape.geometry.frame.rect;
+            expect(
+              (_centre(shape.geometry) - centre).distance,
+              lessThan(1),
+              reason: '${c.variant}: the centre stays',
+            );
+            if (grow) {
+              expect(r1.width, greaterThan(r0.width * 1.05), reason: c.variant);
+              expect(
+                r1.height,
+                greaterThan(r0.height * 1.05),
+                reason: c.variant,
+              );
+            } else {
+              expect(r1.width, lessThan(r0.width * 0.95), reason: c.variant);
+              expect(r1.height, lessThan(r0.height * 0.95), reason: c.variant);
+            }
+            expect(
+              r1.width / r1.height,
+              closeTo(r0.width / r0.height, 0.02 * r0.width / r0.height),
+              reason: '${c.variant}: uniform scale keeps the proportions',
+            );
+          });
+        }
+        // the corpus recall is ≥ 99 % (unit/shape_corpus_test.dart); here
+        // nearly every stroke must snap through the real session too
+        expect(
+          snappedCount,
+          greaterThanOrEqualTo((strokes.length * 0.9).ceil()),
+        );
+      });
+    }
+  }
 }
