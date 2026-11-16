@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../toolbar/editor_toolbar.dart' show penTypeIcon;
 
@@ -96,8 +97,11 @@ class PresetChip extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: color,
                                 shape: BoxShape.circle,
+                                // (v2.14-ui) a stronger ring when the ink
+                                // would vanish on the bar.
                                 border: Border.all(
-                                  color: scheme.outlineVariant,
+                                  color: StyleTokens.of(context)
+                                      .swatchRing(color, scheme.surface),
                                   width: 0.5,
                                 ),
                               ),

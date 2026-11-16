@@ -4,6 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../document/mounted_pages.dart';
 import '../../scope/editor_scope.dart';
@@ -137,7 +138,6 @@ class SelectionFrame extends ConsumerWidget {
     final selection = ref.watch(editorSelectionProvider);
     final viewport = ref.watch(editorViewportProvider);
     final pages = ref.watch(editorMountedPagesProvider);
-    final scheme = Theme.of(context).colorScheme;
     final repaint = selectionRepaint(viewport, pages, selection);
     return IgnorePointer(
       child: Stack(
@@ -171,8 +171,9 @@ class SelectionFrame extends ConsumerWidget {
                 viewport: viewport,
                 pages: pages,
                 selection: selection,
-                color: scheme.primary,
-                fill: scheme.surface,
+                // (v2.14-ui) drawn on paper: the paper tokens.
+                color: StyleTokens.of(context).paperAccent,
+                fill: StyleTokens.of(context).inkSwatch,
                 repaint: repaint,
               ),
             ),

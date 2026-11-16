@@ -5,6 +5,7 @@
 // five-line staves, planner = seven rows. Lines in onSurfaceVariant 50 %.
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show PageTemplateKind;
+import 'package:ui_kit/ui_kit.dart';
 
 class TemplatePictogram extends StatelessWidget {
   const TemplatePictogram({super.key, required this.kind});
@@ -21,9 +22,10 @@ class TemplatePictogram extends StatelessWidget {
       size: size,
       painter: TemplatePictogramPainter(
         kind: kind,
-        paper: scheme.surfaceContainerLowest,
+        // (v2.14-ui) a picture of paper: paper-light in every style.
+        paper: StyleTokens.of(context).inkSwatch,
         edge: scheme.outlineVariant,
-        line: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+        line: StyleTokens.of(context).paperInk.withValues(alpha: 0.4),
       ),
     );
   }

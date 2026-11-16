@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
@@ -308,7 +309,10 @@ class _AddPageSheetState extends ConsumerState<AddPageSheet> {
                           border: Border.all(
                             color: argb == _color
                                 ? scheme.primary
-                                : scheme.outlineVariant,
+                                : StyleTokens.of(context).swatchRing(
+                                    Color(argb),
+                                    StyleTokens.of(context).panel,
+                                  ),
                             width: argb == _color ? 3 : 1,
                           ),
                         ),

@@ -9,6 +9,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../commands/extension_runner.dart';
 import '../../di/editor_extensions.dart';
@@ -328,7 +329,14 @@ class _SelectionBarState extends ConsumerState<_SelectionBar> {
                           decoration: BoxDecoration(
                             color: Color(model.colorArgb ?? 0xFF000000),
                             shape: BoxShape.circle,
-                            border: Border.all(color: scheme.outlineVariant),
+                            // (v2.14-ui) a dark ink still shows its edge
+                            // on a dark bar.
+                            border: Border.all(
+                              color: StyleTokens.of(context).swatchRing(
+                                Color(model.colorArgb ?? 0xFF000000),
+                                scheme.surfaceContainerHigh,
+                              ),
+                            ),
                           ),
                         ),
                       ],

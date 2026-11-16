@@ -13,6 +13,7 @@ import '../app/licenses.dart';
 import '../app/lifecycle_bridge.dart';
 import '../app/note_app.dart';
 import '../app/strings.dart';
+import '../app/theme.dart';
 import '../errors/app_error_log.dart';
 import '../errors/app_provider_observer.dart';
 import '../errors/diagnostic_report.dart';
@@ -232,6 +233,9 @@ class _ShellFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: AppStrings.appName,
+      // System brightness, default style: the settings are not read yet.
+      theme: buildAppTheme(),
+      darkTheme: buildAppTheme(brightness: Brightness.dark),
       locale: const Locale('ko'),
       debugShowCheckedModeBanner: false,
       builder: (context, _) => Navigator(

@@ -27,6 +27,7 @@ void main() {
     ];
     expect(names, [
       'note_core',
+      'ui_kit',
       'ink_engine',
       'feature_editor',
       'feature_library',

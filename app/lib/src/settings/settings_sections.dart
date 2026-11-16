@@ -11,6 +11,7 @@ import '../app/strings.dart';
 import '../bootstrap/app_module.dart' show ShellContribution;
 import '../features/feature_switch_section.dart';
 import 'about_section.dart';
+import 'appearance_section.dart';
 import 'storage_section.dart';
 import 'v1_copy_section.dart';
 
@@ -51,6 +52,8 @@ final shellContributionsProvider = Provider<List<ShellContribution>>(
 ///
 /// | id | group | title |
 /// |---|---|---|
+/// | app.style | 화면 | 화면 스타일 |
+/// | app.brightness | 화면 | 밝기 |
 /// | app.storage | — | 저장 공간 |
 /// | editor.input | — | 입력 |
 /// | editor.pen | — | 펜 |
@@ -74,6 +77,19 @@ List<SettingsSectionEntry> defaultSettingsSections({
 
 List<SettingsSectionEntry> _sections(List<SettingsSectionEntry> contributed) =>
     [
+      // v2.14-ui (01-infra 14.3): the '화면' group comes first.
+      SettingsSectionEntry(
+        id: 'app.style',
+        group: AppStrings.groupScreen,
+        title: AppStrings.sectionStyle,
+        builder: (context) => const AppStyleSection(),
+      ),
+      SettingsSectionEntry(
+        id: 'app.brightness',
+        group: AppStrings.groupScreen,
+        title: AppStrings.sectionBrightness,
+        builder: (context) => const AppBrightnessSection(),
+      ),
       SettingsSectionEntry(
         id: 'app.storage',
         title: AppStrings.sectionStorage,

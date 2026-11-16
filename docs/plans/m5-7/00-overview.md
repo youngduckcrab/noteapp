@@ -416,10 +416,13 @@ R2-B2 CORE 계약 타입 ─┬→ R2-B3 INK 공개 표면 ─┬→ EDITOR (객
 | **`media_io`** (새) | PDF | Flutter 패키지(플러그인 사용) | `note_core` | `media_io.dart`, `testing.dart`(테스트 전용) |
 | **`ink_recognition`** (새) | LIBRARY | Flutter 패키지(플러그인 사용) | `note_core`, `ink_engine` | `ink_recognition.dart`, `testing.dart`(테스트 전용) |
 | **`pencil_bridge`** (새) | INFRA | Flutter 플러그인(iOS만 구현, 그 밖은 지원 안 함) | — | `pencil_bridge.dart`(웹 안전) |
+| **`ui_kit`** (v2.14-ui, 새) | INFRA | Flutter 패키지(플러그인 없음) | — | `ui_kit.dart`(화면 스타일 · 토큰 · 테마 — 01-infra 14) |
 | `noteapp` (`app/`) | INFRA | Flutter 앱 | 위 전부(`sync_engine` 제외 — 3.3) | — |
 | `functions/` | SYNC | Node 22 + TypeScript (워크스페이스 멤버 아님) | — | Firebase callable 함수(7.2.13) |
 
 `tool/workspace_rules.yaml` `allowed_dependencies`(R8)에 새 세 패키지와 `noteapp: [..., media_io, ink_recognition, pencil_bridge]`를 더한다. `ws check`는 `functions/`를 검사 대상에서 뺀다(R1~R15는 Dart 멤버만).
+
+(v2.14-ui) `ui_kit`은 **디자인 층**이다: 형제 의존이 없고, `feature_editor`·`feature_library`·`pdf_io`·`media_io`·`ink_recognition`·`noteapp`이 의존할 수 있다(`allowed_dependencies`; 피처 ↔ 서비스 패키지 금지 규칙 4는 그대로). `plugin_free_members`에 든다.
 
 규칙(1차 7.1 규칙 1~3에 더함)
 
@@ -2041,7 +2044,7 @@ override가 아닌 연결: `MediaModule`이 앱 시작 뒤 유휴 시간에 남�
 #### 7.4.4 ID · 설정 키 · 문구 (1차 7.4.6, 1차 7.4.5)
 
 - ID 규칙 예외 추가: `HandwritingText.idFor(pageId) = 'hw_' + pageId`(결정적 id). 녹음 id는 녹음 시작 전에 `idGeneratorProvider`로 만든다.
-- 설정 키 접두사 추가: `media.*`(PDF 영역), `recog.*`(LIBRARY 영역), (v2.1, CP12) `app.*`(INFRA — `app.features.*`, `device`). 외부 수식 엔진 전송 동의 `recog.mathConsent`(bool, 기본 false, `synced` — D15·G-3).
+- 설정 키 접두사 추가: `media.*`(PDF 영역), `recog.*`(LIBRARY 영역), (v2.1, CP12) `app.*`(INFRA — `app.features.*`, `device`; v2.14-ui `app.appearance.style`·`app.appearance.brightness`, `device`). 외부 수식 엔진 전송 동의 `recog.mathConsent`(bool, 기본 false, `synced` — D15·G-3).
 - (v2.1) 키 확정: **recog**(CP-L9) `recog.language`(synced, 'ko')·`recog.mathConsent`(synced, false)·`recog.autoIndex`(device, (v2.9) **true** — C29-01)·`recog.modelWifiOnly`(device, true) — 별도 '인식 켜기' 키는 없다(기능 전체는 `FEATURE_RECOGNITION`). **EDITOR**(CP-E7) `editor.toolOptions`(synced), `editor.playback.preRollMs`(synced, 정수 키 — 1차 `jsonMap` 관례의 예외), 탭 재생 켬 = `editor.settings.device`의 `tapToSeek`(패널은 `EditorPanelContext`로만 읽고 쓴다). **media** 녹음 비트레이트(synced), 녹음 동의 안내 본 여부(device), `media.recoverAttempts`(device — 초안별 복구 시도 횟수, 7.2.12). 제스처 동작 매핑은 1차 `editor.settings.synced`의 `gestures` 안(`synced`).
 - 녹음 동의 안내 문구(F-16, 고정): "다른 사람의 목소리를 녹음할 때는 미리 동의를 받아 주세요." — 바꿀 때 1차 7.4.12 절차.
 
@@ -2387,6 +2390,16 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 | C-4 | 네이티브 필기 지연(PLAN 5.4 20 ms) — 1차부터 미뤄진 판정 |
 
 ### 7.9 계약 변경 이력
+
+#### v2.14-ui (2026-11-16, 화면 스타일 · 어두운 화면 1단계 — 사용자 결정 '추천안 3개 모두 구현해서 스타일을 선택할 수 있게', '시스템의 다크모드 적용 모든 안에 대해서')
+
+추가와 규칙 하나. 저장 형식·포트 변경 없음. 설계는 [01-infra.md 14](01-infra.md), [04-editor.md 20](04-editor.md), [05-library.md 18](05-library.md).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C214U-01 | 7.1 | 새 패키지 `ui_kit`(INFRA, 형제 의존 없음, 플러그인 없음). `feature_editor`·`feature_library`·`pdf_io`·`media_io`·`ink_recognition`·`noteapp`의 허용 의존에 추가, 워크스페이스 목록 `note_core` 다음, `plugin_free_members`에 추가. 공개 이름 `AppStyle`·`AppBrightnessMode`·`StyleTokens`·`StyleElevation`·`ToolLabelMode`·`styleTokensFor`·`buildStyleTheme`·`buildThemeFromTokens`·`styleColorScheme`·`contrastRatio`(R14) | 사용자 결정 | INFRA(처리됨) |
+| C214U-02 | 7.4.4 설정 키 | `app.appearance.style`(문자열, 기본 `craft`, `device`), `app.appearance.brightness`(문자열 `system`·`light`·`dark`, 기본 `system`, `device`). 모르는 값 → 기본값 | 사용자 결정 | INFRA(처리됨 — 설정 '화면' 묶음, 바로 적용) |
+| C214U-03 | 7.4.11 색 규칙 | 화면 틀 색은 `Theme.of(context).colorScheme` 또는 `StyleTokens.of(context)`(토큰 없는 테마 = 예전 스킴 역할 값)만. 종이와 잉크 색은 문서 데이터라 테마를 따르지 않는다: 잉크 미리보기는 `inkSwatch`, 종이 위 편집 표시는 `paperAccent`·`paperInk`·`paperHighlight`. UI 패키지 `lib/`의 `Color(0x…)`·`Colors.<이름>`은 허용 목록만(`tool/test/ui_colors_test.dart`) | 사용자 결정 | EDITOR·LIBRARY(처리됨), PDF·LIBRARY recog(스킴만 써서 변경 없음) |
 
 #### v2.13-rec (2026-11-16, 녹음 재생에 개체 참여 — 사용자 보고 '녹음기능을 키고 난 후 필기는 잘 표시해주는데 도형이나 수식은 그냥 그려진체로 나와')
 

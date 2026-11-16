@@ -1,6 +1,7 @@
 // lib/src/ui/color/color_swatch.dart — 04-editor 6.9.3 #5–#6 (one colour
 // circle of the recent colours and the palette).
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import 'color_math.dart';
 
@@ -46,7 +47,12 @@ class ColorSwatchButton extends StatelessWidget {
                 color: Color(ColorMath.opaque(argb)),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected ? scheme.primary : scheme.outlineVariant,
+                  color: selected
+                      ? scheme.primary
+                      : StyleTokens.of(context).swatchRing(
+                          Color(ColorMath.opaque(argb)),
+                          StyleTokens.of(context).panel,
+                        ),
                   width: selected ? 3 : 1,
                 ),
               ),

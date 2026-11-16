@@ -108,6 +108,9 @@ Future<EditorTestHandles> pumpEditor(
   Rect? initialFocusRectPt,
   VoidCallback? onClose,
   VoidCallback? onOpenSettings,
+  // (v2.14-ui) the MaterialApp theme (e.g. ui_kit buildStyleTheme); null =
+  // the default Material theme.
+  ThemeData? theme,
   bool recordSession = true, // wrap the CORE session in RecordingNoteSession
 }) async {
   if (pages < 1) throw ArgumentError.value(pages, 'pages', 'must be >= 1');
@@ -213,6 +216,7 @@ Future<EditorTestHandles> pumpEditor(
         ...overrides,
       ],
       child: MaterialApp(
+        theme: theme,
         home: EditorScreen(
           key: ValueKey(noteId),
           noteId: noteId,

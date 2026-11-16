@@ -13,6 +13,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 
@@ -161,7 +162,7 @@ class FocusFlash extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final flash = ref.watch(editorFocusFlashProvider);
     final viewport = ref.watch(editorViewportProvider);
-    final color = Theme.of(context).colorScheme.tertiary;
+    final color = StyleTokens.of(context).paperHighlight;
     return IgnorePointer(
       child: ListenableBuilder(
         listenable: Listenable.merge([flash, viewport]),

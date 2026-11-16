@@ -3343,6 +3343,44 @@ INFRA는 승인 상태다. EDITOR 12.2 Q16(V5의 자동 도형 단계가 P-B 작
 
 00-review '최종 승인'의 INFRA 항목: INFRA-F1(V5에 자동 도형 없음 — J19·H3·H5에서 지킴), INFRA-F2(위 1), INFRA-F3(B8a·B8b·J0 체크포인트 병합 요청 — 진행 기록 '### 동시 개발'·결과 보고), INFRA-F4(H1 — 통합 단계).
 
+## 14. 화면 스타일 · 어두운 화면 1단계 (2026-11-16, 계약 v2.14-ui)
+
+사용자 결정: 제안서의 세 방향(A 크래프트 · B 미니멀 · C 스튜디오)을 모두 '화면 스타일'로 골라 쓸 수 있게 하고, 세 스타일 모두 시스템의 어두운 화면을 따른다(스타일마다 밝게 · 어둡게 두 벌). 이 절은 1단계(바탕)만 다룬다. 배치(B 떠 있는 막대, C 왼쪽 레일)·아이콘·펜 그림·펜 고르기 창·트레이·서재·설정 2단 화면은 다음 단계이고, 이번에는 배치를 바꾸지 않는다.
+
+### 14.1 공용 디자인 패키지 `ui_kit`
+
+- 새 Flutter 패키지 `packages/ui_kit`(INFRA). 형제 의존 없음(`flutter`·`material_ui`만), 플러그인 없음(`plugin_free_members`). `feature_editor`·`feature_library`·`pdf_io`·`media_io`·`ink_recognition`·앱이 의존할 수 있다(`allowed_dependencies`, 계약 7.1). 이번에 실제로 의존하는 것은 `feature_editor`·`feature_library`·앱뿐이다(`pdf_io`·`media_io`·`ink_recognition` 화면은 `colorScheme`만 써서 그대로 따라온다).
+- 워크스페이스 목록에서 `note_core` 바로 다음에 둬서, 기존 멤버의 위상 순서가 그대로다(`ws list`·`affected` 시험 목록에 `ui_kit` 한 줄만 더함).
+- 공개 이름(R14): `AppStyle`, `AppBrightnessMode`, `StyleTokens`, `StyleElevation`, `ToolLabelMode`, `styleTokensFor`, `buildStyleTheme`, `buildThemeFromTokens`, `styleColorScheme`, `contrastRatio`.
+
+### 14.2 스타일 토큰
+
+- `AppStyle` = `craft`(기본) · `calm` · `studio`, `AppBrightnessMode` = `system`(기본) · `light` · `dark`. 저장 이름(`wireName`)은 바뀌지 않고, 모르는 값은 기본값으로 읽는다.
+- `StyleTokens`(ThemeExtension): 페이지 둘레 `canvas`, `toolbar`(도구 막대·전체 화면), `panel`(팝업·시트·대화상자), `rail`(옆 레일·서재 사이드바), `card`, 잉크 미리보기 바탕 `inkSwatch`, 종이 위 표시 `paperAccent`·`paperInk`·`paperHighlight`, 글자 3단계, 강조색 하나(`accent`·`onAccent`·`accentSoft`·`onAccentSoft`), 선(`outline`·`hairline`), 그림자 색, 모서리 3단계, `elevation`(soft · floating · flat), 다음 단계용 `toolbarHeight`·`toolLabels`(크래프트·스튜디오 = 늘 보임, 미니멀 = 펜을 띄웠을 때만)·`iconStrokeWidth`.
+- 값: 밝은 값은 시안(design-craft · design-calm · design-pro)의 색, 어두운 값은 크래프트 = 따뜻한 숯색, 미니멀 = 중립 회색 + 같은 강조색, 스튜디오 = 시안의 어두운 틀(밝은 판은 차가운 회색 작업대로 새로 만듦).
+- `StyleTokens.of(context)`: 테마에 토큰이 없으면 `fromScheme` — 각 토큰을 예전에 쓰던 `ColorScheme` 역할로 옮긴 값이라, 토큰 없는 시험 테마의 화면은 예전과 같다(기존 골든 그대로).
+
+### 14.3 테마와 '화면' 설정
+
+- `buildStyleTheme(style, brightness)`: 토큰에서 만든 Material 3 `ColorScheme` + 구성 요소 테마(앱 막대, 팝업 메뉴, 메뉴, 바닥 시트, 대화상자, 서랍, 카드, 구분선, 슬라이더, 구분 버튼, 칩, 스위치, 목록 줄, 스낵바, 툴팁) + 토큰. `surfaceTint`는 투명(톤 섞임 없음).
+- 앱: `buildAppTheme({style, brightness})` → `MaterialApp.theme`/`darkTheme`/`themeMode`. 시작 화면(스플래시·시작 오류)은 설정을 읽기 전이라 기본 스타일 + 시스템 밝기.
+- 설정 키(기기 설정 `SettingScope.device`, 동기화 안 함 — 밤에 쓰는 태블릿과 낮에 쓰는 폰을 따로 정할 수 있게): `app.appearance.style`(기본 `craft`), `app.appearance.brightness`(기본 `system`). `appAppearanceProvider`가 설정 스냅샷을 읽고 `NoteApp`이 지켜봐서 고르는 즉시 바뀐다(다시 시작 없음).
+- 설정 화면 맨 위 '화면' 묶음: '화면 스타일'(작은 미리보기 그림이 있는 카드 3개 — 지금 밝기를 따름), '밝기'(시스템 따라 / 밝게 / 어둡게) + "어두운 화면에서도 노트 종이와 잉크 색은 그대로예요" 안내.
+- 남은 점: 앱을 켤 때 설정 스냅샷이 올 때까지 한 프레임 기본 스타일로 보일 수 있다(설정 저장소가 바로 내보내서 실제로는 거의 안 보임).
+
+### 14.4 어두운 화면의 원칙
+
+- 페이지는 문서다: 어두운 화면에서는 **페이지 둘레(canvas)와 화면 틀만** 어두워지고, 종이는 노트에 저장된 색 그대로 밝게 보인다. '어두운 종이' 선택은 이번 범위가 아니다.
+- 잉크 색은 문서 데이터라 테마와 상관없다. 그래서 잉크를 보여 주는 곳(펜 미리보기, 투명도 막대, 프리셋 관리의 미리보기, 표지 첫 페이지 썸네일, 속지 그림)은 늘 `inkSwatch`(종이처럼 밝은 바탕) 위에 그린다. 막대·팔레트 위의 잉크 점은 `swatchRing`으로 안 보일 만큼 대비가 낮을 때만 진한 테두리를 둔다(검은 펜 + 어두운 막대, 흰 펜 + 밝은 막대).
+- 종이 위에 그리는 편집 표시(선택 틀·손잡이, 새 글상자 테두리, 글자 커서, 지우개 고리, 검색·위치 강조)는 화면 틀의 강조색이 아니라 종이용 토큰(`paperAccent`·`paperInk`·`paperHighlight`)을 쓴다.
+
+### 14.5 시험
+
+- `ui_kit/test/style_theme_test.dart`: 3 스타일 × 2 밝기 — 토큰·스킴·구성 요소 테마가 맞는지, 어두운 판의 면은 어둡고 밝은 판은 밝은지, 대비(글자 ≥ 4.5:1, 아이콘·강조색·테두리 ≥ 3:1, 종이 위 표시 ≥ 3:1), `copyWith`·`lerp`, `StyleTokens.of`의 대체값, `swatchRing`.
+- 앱: `appearance_section_test`(기본값·저장·바로 바뀜·모르는 값), `note_app_test`(설정을 바꾸면 `themeMode`·`darkTheme`이 바로 바뀜).
+- 화소 검사: `feature_editor/test/widget/style_theme_test.dart`(도구 막대·페이지 둘레 = 토큰, 종이는 흰색, 펜 미리보기 바탕 = `inkSwatch`), `feature_library/test/widget/style_theme_test.dart`(사이드바 = rail, 내용 = 화면 면).
+- 하드코딩 색 감시: `tool/test/ui_colors_test.dart` — UI 패키지 `lib/`의 `Color(0x…)`·`Colors.<이름>`(투명 제외)은 허용 목록(녹음 빨간 점, 검색 노란 강조, 표지 글자색·책등, 스타일 미리보기의 잉크 선)과 그 개수까지만.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (초안의 13절)
 
 ### A.1 INFRA가 여는 자리

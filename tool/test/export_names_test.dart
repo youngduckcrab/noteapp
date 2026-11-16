@@ -193,7 +193,7 @@ void main() {
       );
     });
 
-    test('the real workspace: the nine packages of contract 7.1 v2.1 (the '
+    test('the real workspace: the ten packages of contract 7.1 v2.14-ui (the '
         '2차 service packages included), not the app nor the ink lab', () {
       final entries = exportEntryPoints(Workspace.load(repoRoot), rules);
       expect(
@@ -208,6 +208,8 @@ void main() {
           'media_io',
           'ink_recognition',
           'pencil_bridge',
+          // v2.14-ui: the shared design layer.
+          'ui_kit',
         },
       );
       expect(

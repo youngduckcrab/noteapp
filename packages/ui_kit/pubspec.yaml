@@ -1,0 +1,20 @@
+# packages/ui_kit/pubspec.yaml (INFRA, docs/plans/m5-7/01-infra.md 14,
+# contract 00-overview 7.1 v2.14-ui). The shared design layer: screen styles
+# (craft / calm / studio), their light and dark tokens and the ThemeData built
+# from them. Depends on no other workspace member, so every UI package may
+# read it.
+name: ui_kit
+description: Screen styles, style tokens and the app theme (light and dark) shared by the UI packages.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.9
+dependencies:
+  flutter:
+    sdk: flutter
+  material_ui: 1.10.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

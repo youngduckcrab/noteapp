@@ -3,6 +3,7 @@
 // value (PaperColors, CoverPalette, FolderPalette — the palette exceptions of
 // contract 7.4.11); everything else comes from the color scheme.
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../layout/library_metrics.dart';
 
@@ -79,7 +80,15 @@ class SwatchButton extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: ShapeDecoration(
                       color: color,
-                      shape: shape(0, BorderSide(color: scheme.outlineVariant)),
+                      // (v2.14-ui) a black paper / cover still shows its
+                      // edge on a dark sheet.
+                      shape: shape(
+                        0,
+                        BorderSide(
+                          color: StyleTokens.of(context)
+                              .swatchRing(color, StyleTokens.of(context).panel),
+                        ),
+                      ),
                     ),
                   ),
                 ),

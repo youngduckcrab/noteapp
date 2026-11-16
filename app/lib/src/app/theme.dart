@@ -1,18 +1,12 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
-/// Seed of the app's Material 3 color scheme (docs/plans/01-infra.md 4.4).
-/// The one shell color constant; everything else reads `colorScheme`
-/// (계약 7.4.11).
-const Color _seedColor = Color(0xFF3949AB);
-
-/// Material 3 theme from [_seedColor]. Packages only read
-/// `Theme.of(context).colorScheme`. [brightness] is there for dark mode later
-/// (PLAN 5.2); the app uses light only for now.
-ThemeData buildAppTheme({Brightness brightness = Brightness.light}) =>
-    ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: _seedColor,
-        brightness: brightness,
-      ),
-    );
+/// The app theme of [style] in [brightness] (01-infra 14.3): ui_kit's
+/// [buildStyleTheme] — a Material 3 scheme from the style tokens, the
+/// component themes and the [StyleTokens] extension. Packages read
+/// `Theme.of(context).colorScheme` and [StyleTokens.of] (계약 7.4.11,
+/// v2.14-ui); the app holds no colour constant of its own.
+ThemeData buildAppTheme({
+  AppStyle style = AppStyle.fallback,
+  Brightness brightness = Brightness.light,
+}) => buildStyleTheme(style, brightness);

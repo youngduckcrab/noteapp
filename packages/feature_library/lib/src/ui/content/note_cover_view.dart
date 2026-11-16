@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
     show AssetCover, ColorCover, FirstPageCover, Note, pageThumbnailProvider;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../appearance/cover_palette.dart';
 import '../../state/providers.dart';
@@ -82,7 +83,8 @@ class _NoteCoverViewState extends ConsumerState<NoteCoverView> {
           width: width,
           height: height,
           child: ColoredBox(
-            color: Theme.of(context).colorScheme.surfaceContainerLowest,
+            // (v2.14-ui) a page thumbnail sits on paper in every style.
+            color: StyleTokens.of(context).inkSwatch,
             child: _CoverImage(
               bytes: thumb.bytes,
               width: width,

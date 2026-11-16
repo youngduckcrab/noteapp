@@ -8,6 +8,7 @@
 // FocusFlash). Display only.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../state/note_search.dart';
@@ -31,7 +32,8 @@ class NoteSearchHighlight extends ConsumerWidget {
     final viewport = ref.watch(editorViewportProvider);
     final scheme = Theme.of(context).colorScheme;
     final fill = NoteSearchColors.fill(scheme);
-    final border = NoteSearchColors.border(scheme);
+    // (v2.14-ui) drawn on paper: the paper highlight, not the chrome's.
+    final border = StyleTokens.of(context).paperHighlight;
     return IgnorePointer(
       child: ListenableBuilder(
         listenable: viewport,

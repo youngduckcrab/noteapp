@@ -76,11 +76,12 @@ dev_dependencies:
   });
 
   test('the real workspace lists the 7 members of contract 7.1, the ink lab '
-      '(7.1 optional row, INFRA-O1) and the 3 service packages of 2차 7.1 '
-      'v2.1', () {
+      '(7.1 optional row, INFRA-O1), the 3 service packages of 2차 7.1 '
+      'v2.1 and the design layer ui_kit (v2.14-ui)', () {
     final ws = Workspace.load(repoRoot);
     expect(ws.topologicalOrder().map((m) => m.name), [
       'note_core',
+      'ui_kit',
       'ink_engine',
       'feature_editor',
       'feature_library',

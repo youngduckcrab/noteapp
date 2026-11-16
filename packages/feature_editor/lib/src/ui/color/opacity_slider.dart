@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../tools/tool_controller.dart';
 import '../editor_strings.dart';
@@ -45,8 +46,12 @@ class OpacitySlider extends ConsumerWidget {
             color,
           ],
           background: CheckerboardPainter(
-            light: scheme.surface,
-            dark: scheme.surfaceContainerHighest,
+            // (v2.14-ui) ink on a paper-light checker in every style.
+            light: StyleTokens.of(context).inkSwatch,
+            dark: Color.alphaBlend(
+              scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              StyleTokens.of(context).inkSwatch,
+            ),
           ),
           semanticLabel: EditorStrings.opacity,
           semanticValue: '$percent%',

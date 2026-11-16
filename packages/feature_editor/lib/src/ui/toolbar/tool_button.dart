@@ -1,5 +1,6 @@
 // lib/src/ui/toolbar/tool_button.dart — 04-editor 6.9.1 (tool buttons).
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 /// A toolbar tool button: 48×48 touch area (≥ 44 — contract 7.4.8), active =
 /// `primaryContainer` background, optional 8 px colour dot under the icon
@@ -63,8 +64,11 @@ class ToolButton extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: dot,
                         shape: BoxShape.circle,
+                        // (v2.14-ui) a stronger ring when the ink would
+                        // vanish on the toolbar.
                         border: Border.all(
-                          color: scheme.outlineVariant,
+                          color: StyleTokens.of(context)
+                              .swatchRing(dot, StyleTokens.of(context).toolbar),
                           width: 0.5,
                         ),
                       ),

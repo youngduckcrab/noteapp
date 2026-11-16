@@ -5,6 +5,7 @@
 // drawer. 홈 and 휴지통 are drop targets (6.10.2).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../dnd/drop_decision.dart';
 import '../../dnd/library_drop_zone.dart';
@@ -151,7 +152,8 @@ class LibrarySidebar extends ConsumerWidget {
       ],
     );
     return Material(
-      color: theme.colorScheme.surfaceContainerLow,
+      // (v2.14-ui) the style's rail surface.
+      color: StyleTokens.of(context).rail,
       child: inDrawer
           ? SafeArea(child: body)
           : SizedBox(width: LibraryMetrics.sidebarWidth, child: body),

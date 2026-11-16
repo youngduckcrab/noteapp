@@ -31,6 +31,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../scope/editor_scope.dart';
 import '../state/settings/editor_device_state.dart';
@@ -155,7 +156,6 @@ class _TextSessionFieldState extends ConsumerState<TextSessionField> {
   @override
   Widget build(BuildContext context) {
     final notifier = ref.read(editorTextEditProvider.notifier);
-    final scheme = Theme.of(context).colorScheme;
     return Focus(
       canRequestFocus: false,
       skipTraversal: true,
@@ -175,7 +175,7 @@ class _TextSessionFieldState extends ConsumerState<TextSessionField> {
         strutStyle: widget.strutStyle,
         textAlign: widget.textAlign,
         textAlignVertical: widget.expands ? TextAlignVertical.top : null,
-        cursorColor: scheme.primary,
+        cursorColor: StyleTokens.of(context).paperAccent,
         // No outer Scrollable; keeps a second scroll from happening (6.11.3).
         scrollPadding: EdgeInsets.zero,
         // 10,000 characters (6.11.5); cut text → '글자는 10,000자까지…'.

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
+import 'package:noteapp/src/app/appearance.dart';
 import 'package:noteapp/src/app/theme.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
@@ -99,21 +100,42 @@ final class SettingsHarness {
 
   /// Pumps [child] in a material_ui MaterialApp (app theme, locale ko) under
   /// a ProviderScope with [overrides] + [extra]. Returns the container.
+  ///
+  /// (v2.14-ui) [followAppearance]: the MaterialApp takes theme / darkTheme
+  /// / themeMode from appAppearanceProvider, as NoteApp does, so a '화면'
+  /// change shows live.
   Future<ProviderContainer> pump(
     WidgetTester tester,
     Widget child, {
     List<Override> extra = const [],
     Size logical = ipadPortrait,
+    bool followAppearance = false,
   }) async {
     useIpadView(tester, logical: logical);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [...overrides(), ...extra],
-        child: MaterialApp(
-          theme: buildAppTheme(),
-          locale: const Locale('ko'),
-          home: child,
-        ),
+        child: followAppearance
+            ? Consumer(
+                builder: (context, ref, _) {
+                  final appearance = ref.watch(appAppearanceProvider);
+                  return MaterialApp(
+                    theme: buildAppTheme(style: appearance.style),
+                    darkTheme: buildAppTheme(
+                      style: appearance.style,
+                      brightness: Brightness.dark,
+                    ),
+                    themeMode: appearance.themeMode,
+                    locale: const Locale('ko'),
+                    home: child,
+                  );
+                },
+              )
+            : MaterialApp(
+                theme: buildAppTheme(),
+                locale: const Locale('ko'),
+                home: child,
+              ),
       ),
     );
     return ProviderScope.containerOf(tester.element(find.byWidget(child)));

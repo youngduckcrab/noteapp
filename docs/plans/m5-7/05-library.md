@@ -2872,6 +2872,15 @@ recog가 편집기 텍스트 펜의 인식을 맡는다: `src/text_pen/`(`TextPe
 
 페이지 패널의 '사진·도형 사라짐'(04-editor 17절)을 표지에서도 확인했다. 표지는 INK 렌더러(`InkPageThumbnailRenderer`)가 `loadPage`의 객체까지 그리므로 같은 원인은 없다. 다만 첫 페이지의 이미지 객체 바이트가 이 기기에 아직 없으면 INK가 `null`을 주는데, `CoverThumbnailScheduler`는 배경 자산(`page.background.referencedAssets`)만 기다려서 사진이 내려받아진 뒤에도 노트가 다시 바뀌기 전까지 표지가 다시 그려지지 않았다. 고침: 기다릴 자산에 첫 페이지 객체의 `referencedAssets`(이미지 객체 자산)를 더한다(6.15.3 3단계). 시험: `unit/cover_scheduler_test.dart` '(v2.13-thumbs) an image object without bytes → null; its asset arrives → rendered again'.
 
+## 18. 화면 스타일 · 어두운 화면 1단계 (2026-11-16, 계약 v2.14-ui)
+
+설계는 [01-infra.md 14](01-infra.md). 배치는 그대로, 색을 읽는 곳만 `ui_kit`의 `StyleTokens.of(context)`로 바꿨다(토큰 없는 테마에서는 예전 값 — 골든 그대로).
+
+- 사이드바 바탕 = `rail`, 내용 화면 = 테마의 `scaffoldBackgroundColor`(= `toolbar`).
+- 표지의 첫 페이지 썸네일 바탕과 속지 그림(`TemplatePictogram`)의 종이 = `inkSwatch`, 속지 선 = `paperInk` 40 % — 어두운 화면에서도 종이는 종이처럼 보인다.
+- 색 견본(`SwatchButton` — 종이 색·표지 색)의 테두리 = `swatchRing`(검정 종이가 어두운 시트에서도 보이게).
+- 시험: `test/widget/style_theme_test.dart`(3 스타일 × 2 밝기 화소 검사). `pumpLibrary(theme:)`·`LibraryTestHarness.pump(theme:)` 인자 추가.
+
 ## 부록 A. 확장 지점 · 자리 사용표 (개요 6장 13절)
 
 ### A.1 LIBRARY가 여는 자리

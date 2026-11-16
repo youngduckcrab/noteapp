@@ -47,12 +47,18 @@ final class LibraryTestHarness {
   /// pumpLibrary: size + DPR 2, ProviderScope(overrides: backend.overrides +
   /// extraOverrides), material_ui MaterialApp, LibraryScreen(folderId:
   /// folderId, callbacks → log / route).
-  Future<void> pump(WidgetTester tester, {FolderId? folderId}) async {
+  /// (v2.14-ui) [theme] goes to the MaterialApp.
+  Future<void> pump(
+    WidgetTester tester, {
+    FolderId? folderId,
+    ThemeData? theme,
+  }) async {
     _folderId = folderId;
     await pumpLibrary(
       tester,
       overrides: [...backend.overrides, ...extraOverrides],
       size: size,
+      theme: theme,
       home: _RouterStandIn(key: _routerKey, harness: this),
     );
   }

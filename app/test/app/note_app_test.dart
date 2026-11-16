@@ -1,9 +1,12 @@
 // NoteApp and buildAppTheme (docs/plans/01-infra.md 4.5.6, 6.3, 9.1).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show ProviderBase;
+import 'package:flutter_riverpod/misc.dart' show Override, ProviderBase;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:note_core/note_core.dart' show noteStoreProvider;
+import 'package:note_core/testing.dart' show createFakeNoteStore;
+import 'package:noteapp/src/app/appearance.dart';
 import 'package:noteapp/src/app/note_app.dart';
 import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/app/theme.dart';
@@ -12,11 +15,12 @@ import 'package:noteapp/src/routing/app_navigator.dart';
 import 'package:noteapp/src/routing/screen_builders.dart';
 import 'package:noteapp/src/update/update_banner.dart';
 import 'package:noteapp/src/update/update_checker.dart';
+import 'package:ui_kit/ui_kit.dart';
 
-/// The app's seed color (4.4: Material 3, seed 0xFF3949AB).
-const Color _seed = Color(0xFF3949AB);
-
-Future<ProviderContainer> _pump(WidgetTester tester) async {
+Future<ProviderContainer> _pump(
+  WidgetTester tester, {
+  List<Override> overrides = const [],
+}) async {
   tester.view
     ..physicalSize = const Size(2064, 2752)
     ..devicePixelRatio = 2;
@@ -27,6 +31,7 @@ Future<ProviderContainer> _pump(WidgetTester tester) async {
         appScreenBuildersProvider.overrideWithValue(
           AppScreenBuilders.placeholders(),
         ),
+        ...overrides,
       ],
       child: const NoteApp(),
     ),
@@ -36,16 +41,28 @@ Future<ProviderContainer> _pump(WidgetTester tester) async {
 }
 
 void main() {
-  test('buildAppTheme: Material 3 from the seed, light by default', () {
+  test('buildAppTheme: Material 3 from ui_kit, 크래프트 light by default '
+      '(v2.14-ui)', () {
     final light = buildAppTheme();
     expect(light.useMaterial3, isTrue);
-    expect(light.colorScheme, ColorScheme.fromSeed(seedColor: _seed));
-    expect(light.colorScheme.brightness, Brightness.light);
-
-    final dark = buildAppTheme(brightness: Brightness.dark);
     expect(
-      dark.colorScheme,
-      ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark),
+      light.colorScheme,
+      buildStyleTheme(AppStyle.craft, Brightness.light).colorScheme,
+    );
+    expect(light.colorScheme.brightness, Brightness.light);
+    expect(
+      light.extension<StyleTokens>(),
+      styleTokensFor(AppStyle.craft, Brightness.light),
+    );
+
+    final dark = buildAppTheme(
+      style: AppStyle.studio,
+      brightness: Brightness.dark,
+    );
+    expect(dark.colorScheme.brightness, Brightness.dark);
+    expect(
+      dark.extension<StyleTokens>(),
+      styleTokensFor(AppStyle.studio, Brightness.dark),
     );
   });
 
@@ -57,7 +74,13 @@ void main() {
     expect(app.title, AppStrings.appName);
     expect(AppStrings.appName, '필기노트');
     expect(app.locale, const Locale('ko'));
-    expect(app.theme!.colorScheme, ColorScheme.fromSeed(seedColor: _seed));
+    expect(app.theme!.colorScheme, buildAppTheme().colorScheme);
+    // (v2.14-ui) without a settings store: 크래프트, 시스템 따라.
+    expect(
+      app.darkTheme!.colorScheme,
+      buildAppTheme(brightness: Brightness.dark).colorScheme,
+    );
+    expect(app.themeMode, ThemeMode.system);
     final router = container.read(appRouterProvider);
     expect(app.routerConfig, same(router));
 
@@ -66,7 +89,7 @@ void main() {
     expect(library, findsOneWidget);
     expect(
       Theme.of(tester.element(library)).colorScheme.primary,
-      ColorScheme.fromSeed(seedColor: _seed).primary,
+      buildAppTheme().colorScheme.primary,
     );
     expect(
       Localizations.localeOf(tester.element(library)).languageCode,
@@ -80,6 +103,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.toString(), '/notes/n1');
     expect(find.text('noteId: n1'), findsOneWidget);
+  });
+
+  testWidgets('(v2.14-ui) theme, darkTheme and themeMode follow the 화면 '
+      'settings live, without a restart', (tester) async {
+    final store = createFakeNoteStore();
+    addTearDown(store.close);
+    await _pump(
+      tester,
+      overrides: [noteStoreProvider.overrideWithValue(store)],
+    );
+    MaterialApp app() => tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app().themeMode, ThemeMode.system);
+
+    await tester.runAsync(() async {
+      await store.settings.set(AppearanceKeys.style, AppStyle.studio.wireName);
+      await store.settings.set(
+        AppearanceKeys.brightness,
+        AppBrightnessMode.dark.wireName,
+      );
+    });
+    await tester.pumpAndSettle();
+    expect(app().themeMode, ThemeMode.dark);
+    expect(
+      app().darkTheme!.extension<StyleTokens>(),
+      styleTokensFor(AppStyle.studio, Brightness.dark),
+    );
+    expect(
+      app().theme!.extension<StyleTokens>(),
+      styleTokensFor(AppStyle.studio, Brightness.light),
+    );
+    final library = find.textContaining('library #');
+    final shown = Theme.of(tester.element(library));
+    expect(shown.brightness, Brightness.dark);
+    expect(shown.extension<StyleTokens>()!.style, AppStyle.studio);
+
+    await tester.runAsync(
+      () => store.settings.set(
+        AppearanceKeys.brightness,
+        AppBrightnessMode.light.wireName,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(app().themeMode, ThemeMode.light);
+    expect(Theme.of(tester.element(library)).brightness, Brightness.light);
   });
 
   testWidgets('builder wraps the router (Navigator) in UpdateBanner; the '

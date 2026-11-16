@@ -19,6 +19,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../input/editor_shortcuts.dart';
 import '../input/input_router.dart';
@@ -169,8 +170,10 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     ColorScheme scheme,
     bool editing,
   ) {
+    final tokens = StyleTokens.of(context);
     return ColoredBox(
-      color: scheme.surfaceContainer,
+      // (v2.14-ui) the style's desk; the pages keep their paper colour.
+      color: tokens.canvas,
       child: LayoutBuilder(
         builder: (context, constraints) {
           _reportSize(viewport, constraints.biggest);
@@ -212,7 +215,7 @@ class _PageViewportState extends ConsumerState<PageViewport> {
                                   child: CustomPaint(
                                     painter: CursorPainter(
                                       cursor: host.cursor,
-                                      ringColor: scheme.onSurface.withValues(
+                                      ringColor: tokens.paperInk.withValues(
                                         alpha: 0.6,
                                       ),
                                     ),

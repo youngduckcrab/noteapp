@@ -22,6 +22,8 @@ dependencies:
   media_io: any
   ink_recognition: any
   pencil_bridge: any
+  # shared design layer (contract 7.1 v2.14-ui).
+  ui_kit: any
   flutter_riverpod: 3.4.3
   material_ui: 1.10.0
   go_router: 18.1.2

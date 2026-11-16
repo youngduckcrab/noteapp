@@ -1,6 +1,7 @@
 // lib/src/ui/popup_host.dart — 04-editor 6.9.2 (PopupHost).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../di/editor_extensions.dart';
 import '../state/popup.dart';
@@ -354,7 +355,7 @@ class PopupPanelFrame extends StatelessWidget {
     final maxHeight = MediaQuery.sizeOf(context).height - 120;
     return Material(
       elevation: 3,
-      color: theme.colorScheme.surfaceContainerLow,
+      color: StyleTokens.of(context).panel,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(

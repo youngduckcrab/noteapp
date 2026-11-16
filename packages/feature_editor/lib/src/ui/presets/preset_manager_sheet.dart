@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../state/popup.dart';
 import '../../state/preset_bar.dart';
@@ -180,7 +181,8 @@ class _PresetRow extends ConsumerWidget {
               width: 72,
               height: 32,
               decoration: BoxDecoration(
-                color: scheme.surface,
+                // (v2.14-ui) ink previews sit on a paper-light swatch.
+                color: StyleTokens.of(context).inkSwatch,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: scheme.outlineVariant),
               ),

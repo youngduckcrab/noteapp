@@ -178,13 +178,15 @@ void main() {
       expect(rules.allowedDependencies, {
         'note_core': <String>[],
         'ink_engine': ['note_core'],
-        'feature_editor': ['note_core', 'ink_engine'],
-        'feature_library': ['note_core'],
-        'pdf_io': ['note_core', 'ink_engine'],
+        'feature_editor': ['note_core', 'ink_engine', 'ui_kit'],
+        'feature_library': ['note_core', 'ui_kit'],
+        'pdf_io': ['note_core', 'ink_engine', 'ui_kit'],
         'sync_engine': ['note_core'],
-        'media_io': ['note_core'],
-        'ink_recognition': ['note_core', 'ink_engine'],
+        'media_io': ['note_core', 'ui_kit'],
+        'ink_recognition': ['note_core', 'ink_engine', 'ui_kit'],
         'pencil_bridge': <String>[],
+        // v2.14-ui: the shared design layer.
+        'ui_kit': <String>[],
         'noteapp': [
           'note_core',
           'ink_engine',
@@ -194,6 +196,7 @@ void main() {
           'media_io',
           'ink_recognition',
           'pencil_bridge',
+          'ui_kit',
         ],
         'ink_lab': ['note_core', 'ink_engine'],
       });
@@ -247,6 +250,7 @@ void main() {
         'feature_library',
         'ink_engine',
         'note_core',
+        'ui_kit',
       ]);
       expect(rules.pluginExceptions, {
         'pdf_io': ['file_picker'],
@@ -1009,9 +1013,9 @@ dependencies:
           )
           .replaceFirst(
             'plugin_free_members: [feature_editor, feature_library, '
-                'ink_engine, note_core]',
+                'ink_engine, note_core, ui_kit]',
             'plugin_free_members: [feature_editor, feature_library, '
-                'note_core]',
+                'note_core, ui_kit]',
           );
       final custom = WorkspaceRules.parse(text);
       expect(custom.pluginExceptions['pdf_io'], [

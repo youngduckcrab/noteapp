@@ -1,0 +1,4 @@
+# Test tags of ui_kit (INFRA, docs/plans/m5-7/01-infra.md 14). VM tests
+# only, no tags yet. Declare a tag here before the first test uses it
+# (ws check R15).
+tags: {}

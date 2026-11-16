@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../state/page_panel.dart';
@@ -149,7 +150,7 @@ class _PagePanelState extends ConsumerState<PagePanel> {
         child: Material(
           key: PagePanel.panelKey,
           elevation: 2,
-          color: theme.colorScheme.surfaceContainerLow,
+          color: StyleTokens.of(context).panel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

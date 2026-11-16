@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../di/editor_extensions.dart';
 import '../../di/editor_image_importer.dart';
@@ -126,7 +127,6 @@ class EditorToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
     final title = ref.watch(editorSessionValueProvider).note.title;
     final hasPanel = ref.watch(
       editorExtensionsProvider.select((e) => e.recordingPanel != null),
@@ -139,7 +139,7 @@ class EditorToolbar extends ConsumerWidget {
       ),
     );
     return Material(
-      color: scheme.surface,
+      color: StyleTokens.of(context).toolbar,
       child: SizedBox(
         height: height,
         child: LayoutBuilder(

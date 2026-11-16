@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../../state/popup.dart';
@@ -79,7 +80,6 @@ class _PresetBarViewState extends ConsumerState<PresetBarView> {
     ref.listen(core.penPresetsProvider, (previous, next) {
       if (_order != null && next.hasValue) setState(() => _order = null);
     });
-    final scheme = Theme.of(context).colorScheme;
     final readOnly = ref.watch(editorReadOnlyProvider);
     final visible = ref.watch(editorVisiblePresetsProvider);
     final groups = ref.watch(editorPresetGroupsProvider);
@@ -119,7 +119,7 @@ class _PresetBarViewState extends ConsumerState<PresetBarView> {
     );
     return Material(
       key: PresetBarView.barKey,
-      color: scheme.surface,
+      color: StyleTokens.of(context).toolbar,
       child: SizedBox(
         height: PresetBarView.height,
         child: readOnly

@@ -12,6 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
   note_core: any
+  ui_kit: any
   flutter_riverpod: 3.4.3
   material_ui: 1.10.0
   collection: 1.19.1

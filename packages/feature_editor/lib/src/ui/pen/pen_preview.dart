@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' as core;
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 import '../editor_strings.dart';
@@ -66,7 +67,8 @@ class PenPreview extends ConsumerWidget {
         width: box.width,
         height: box.height,
         decoration: BoxDecoration(
-          color: scheme.surface,
+          // (v2.14-ui) ink is document data: always on a paper-light swatch.
+          color: StyleTokens.of(context).inkSwatch,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: scheme.outlineVariant),
         ),

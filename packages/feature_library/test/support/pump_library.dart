@@ -21,12 +21,19 @@ Future<void> pumpLibrary(
   required List<Override> overrides,
   required Widget home,
   Size size = TestSizes.ipad13Landscape,
+  // (v2.14-ui) the MaterialApp theme (e.g. ui_kit buildStyleTheme); null =
+  // the default Material theme.
+  ThemeData? theme,
 }) async {
   setTestSize(tester, size);
   await tester.pumpWidget(
     ProviderScope(
       overrides: overrides,
-      child: MaterialApp(debugShowCheckedModeBanner: false, home: home),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        home: home,
+      ),
     ),
   );
 }

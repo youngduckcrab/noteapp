@@ -19,6 +19,9 @@ import 'package:noteapp/src/settings/v1_copy_section.dart';
 void main() {
   test('production order and ids', () {
     expect(defaultSettingsSections().map((e) => e.id), [
+      // v2.14-ui: the '화면' group first.
+      'app.style',
+      'app.brightness',
       'app.storage',
       'editor.input',
       'editor.pen',
@@ -31,11 +34,13 @@ void main() {
     ]);
   });
 
-  test('titles and the 일반 group (4.5.8 table)', () {
+  test('titles, the 화면 and 일반 groups (4.5.8 table, v2.14-ui)', () {
     final byId = {for (final e in defaultSettingsSections()) e.id: e};
     expect(
       {for (final e in byId.values) e.id: (e.group, e.title)},
       {
+        'app.style': ('화면', '화면 스타일'),
+        'app.brightness': ('화면', '밝기'),
         'app.storage': (null, '저장 공간'),
         'editor.input': (null, '입력'),
         'editor.pen': (null, '펜'),
@@ -84,6 +89,8 @@ void main() {
       ],
     );
     expect(container.read(settingsSectionsProvider).map((e) => e.id), [
+      'app.style',
+      'app.brightness',
       'app.storage',
       'editor.input',
       'editor.pen',

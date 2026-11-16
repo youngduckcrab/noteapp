@@ -10,6 +10,9 @@ environment:
 workspace:
   - app
   - packages/note_core
+  # shared design layer (contract 7.1 v2.14-ui): styles, tokens, theme. No
+  # sibling deps; listed second so the members that read it keep their order.
+  - packages/ui_kit
   - packages/ink_engine
   - packages/feature_editor
   - packages/feature_library

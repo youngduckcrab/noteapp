@@ -4,6 +4,7 @@
 // 00-review 2.3 INK X-5).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../scope/editor_scope.dart';
 
@@ -19,7 +20,7 @@ class NewTextBoxOutline extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final host = ref.watch(editorInteractionHostProvider);
     final viewport = ref.watch(editorViewportProvider);
-    final color = Theme.of(context).colorScheme.primary;
+    final color = StyleTokens.of(context).paperAccent;
     return IgnorePointer(
       child: ListenableBuilder(
         listenable: Listenable.merge([host.newTextBoxOutline, viewport]),
