@@ -57,7 +57,8 @@ void main() {
         expect(find.byKey(ToolGlyph.captionKey(caption)), findsOneWidget);
         expect(_opacityOf(tester, caption), 1, reason: caption);
       }
-      // The line icons are the ui_kit ones.
+      // The line icons are the ui_kit ones (스튜디오: the tools are in the
+      // rail — v2.16-ui).
       for (final kind in [
         AppIconKind.lasso,
         AppIconKind.shape,
@@ -71,12 +72,7 @@ void main() {
         AppIconKind.back,
       ]) {
         expect(
-          find.descendant(
-            of: find.byType(EditorToolbar),
-            matching: find.byWidgetPredicate(
-              (w) => w is AppIcon && w.kind == kind,
-            ),
-          ),
+          find.byWidgetPredicate((w) => w is AppIcon && w.kind == kind),
           findsWidgets,
           reason: kind.name,
         );

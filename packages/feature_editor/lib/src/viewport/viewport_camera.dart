@@ -52,10 +52,15 @@ abstract final class CameraMath {
   /// Vertical: (vw - 2*sideMargin) / crossExtent.
   /// Horizontal: min((vw - 2m)/w_i, (vh - 2m)/h_i) of [pageIndex].
   /// An empty layout (or an empty viewport) gives 1.
+  ///
+  /// (v2.16-ui review) [leadingInset]: the covered top strip (logical px —
+  /// 미니멀's pill). Horizontal: the page fits into the height under it.
+  /// Vertical fits by the width and ignores it.
   static double fitScale(
     PageLayout layout,
     Size viewport, {
     int pageIndex = 0,
+    double leadingInset = 0,
   }) {
     const m = ViewportConstants.sideMargin;
     final double fit;
@@ -68,7 +73,7 @@ abstract final class CameraMath {
       if (page.width <= 0 || page.height <= 0) return 1;
       fit = math.min(
         (viewport.width - 2 * m) / page.width,
-        (viewport.height - 2 * m) / page.height,
+        (viewport.height - 2 * m - math.max(0.0, leadingInset)) / page.height,
       );
     }
     return fit > 0 && fit.isFinite ? fit : 1;
@@ -87,12 +92,20 @@ abstract final class CameraMath {
   /// Horizontal (paged) layout: the main-axis range also reaches the first
   /// and the last page centred, so every page can be shown centred at its
   /// fit scale (the leading padding alone is narrower than that margin).
+  ///
+  /// (v2.16-ui) [leadingInset] (logical px): the top strip of the viewport
+  /// a floating bar covers (미니멀). Vertical: the document may scroll that
+  /// much further down, so its top can sit just under the bar, and a short
+  /// document is centred in the room under it. (review) Horizontal (paged):
+  /// the top is the cross axis — a page that fits is centred in the room
+  /// under the bar, a taller one can scroll its top down to just under it.
   static ViewportCamera clamp(
     ViewportCamera camera,
     PageLayout layout,
     Size viewport,
-    double fitScale,
-  ) {
+    double fitScale, {
+    double leadingInset = 0,
+  }) {
     const m = ViewportConstants.sideMargin;
     final scale = clampScale(camera.scale, fitScale);
     final vertical = layout.axis == LayoutAxis.vertical;
@@ -101,13 +114,15 @@ abstract final class CameraMath {
     final crossOrigin = vertical ? camera.origin.dx : camera.origin.dy;
     final mainOrigin = vertical ? camera.origin.dy : camera.origin.dx;
 
+    final topPx = math.max(0.0, leadingInset);
+    final crossInset = vertical ? 0.0 : topPx;
     final visCross = crossViewport / scale;
     final double cross;
-    if (layout.crossExtent * scale <= crossViewport - 2 * m + 0.5) {
-      cross = (layout.crossExtent - visCross) / 2;
+    if (layout.crossExtent * scale <= crossViewport - crossInset - 2 * m + .5) {
+      cross = (layout.crossExtent - visCross - crossInset / scale) / 2;
     } else {
       cross = crossOrigin.clamp(
-        -m / scale,
+        -m / scale - crossInset / scale,
         layout.crossExtent - visCross + m / scale,
       );
     }
@@ -116,7 +131,8 @@ abstract final class CameraMath {
     final content = vertical
         ? layout.contentSize.height
         : layout.contentSize.width;
-    var low = 0.0;
+    final inset = vertical ? topPx / scale : 0.0;
+    var low = -inset;
     var high = content - visMain;
     if (!vertical && layout.length > 0) {
       low = math.min(low, layout.rectOf(0).center.dx - visMain / 2);
@@ -124,8 +140,8 @@ abstract final class CameraMath {
       high = math.max(high, last);
     }
     final double main;
-    if (vertical && content <= visMain) {
-      main = (content - visMain) / 2;
+    if (vertical && content <= visMain - inset) {
+      main = (content - visMain - inset) / 2;
     } else if (high <= low) {
       main = (low + high) / 2;
     } else {
@@ -161,6 +177,7 @@ abstract final class CameraMath {
     required PageLayout layout,
     required Size viewport,
     required double fitScale,
+    double leadingInset = 0,
   }) {
     final newScale = clampScale(base.scale * scaleRatio, fitScale);
     final anchor = base.screenToDoc(baselineFocal);
@@ -169,6 +186,7 @@ abstract final class CameraMath {
       layout,
       viewport,
       fitScale,
+      leadingInset: leadingInset,
     );
   }
 }

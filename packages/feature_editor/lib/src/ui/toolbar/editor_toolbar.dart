@@ -59,6 +59,22 @@ final editorToolbarPageCountProvider =
       name: 'editorToolbarPageCountProvider',
     );
 
+/// (v2.16-ui — 04-editor 24) Which bar [EditorToolbar] draws.
+enum EditorToolbarVariant {
+  /// 크래프트: the full-width toolbar (04-editor 22–23).
+  docked,
+
+  /// 미니멀: the same row in a rounded pill as wide as it needs (at most 5
+  /// pens), floating over the page; narrower screens drop parts by
+  /// [EditorToolbar.planFor] like the docked one.
+  floating,
+
+  /// 스튜디오 with its rail: ←, title, [🎤], undo / redo, [📄 2 / 4],
+  /// [🔍], [⋯] — the pens and tools (and [삽입]) are in the rail
+  /// (EditorRail).
+  slim,
+}
+
 /// The toolbar's layout at one width (v2.15-ui, m5-7/04-editor 23.4).
 @immutable
 class ToolbarPlan {
@@ -117,11 +133,39 @@ class ToolbarPlan {
 /// title is hidden). [📄] toggles the page panel (E-17). On a read-only note
 /// the tools are disabled (6.9.1). [+] only when the image slot or
 /// EditorExtensions offer something (InsertMenu.hasItems).
+///
+/// (v2.16-ui — 04-editor 24) [variant]: the docked bar, 미니멀's floating
+/// pill, or 스튜디오's slim bar beside its rail.
 class EditorToolbar extends ConsumerWidget {
-  const EditorToolbar({super.key, required this.onBack, this.onOpenSettings});
+  const EditorToolbar({
+    super.key,
+    required this.onBack,
+    this.onOpenSettings,
+    this.variant = EditorToolbarVariant.docked,
+  });
 
   final VoidCallback onBack;
   final VoidCallback? onOpenSettings;
+
+  /// (v2.16-ui) Which bar.
+  final EditorToolbarVariant variant;
+
+  /// (v2.16-ui) The floating pill and its slim-bar row.
+  static const pillKey = ValueKey('editor.toolbar.pill');
+  static const slimKey = ValueKey('editor.toolbar.slim');
+
+  /// (v2.16-ui) The pill's inner padding at each end.
+  static const double pillPadding = 6;
+
+  /// (v2.16-ui) The most pens the floating pill shows (the 미니멀 mockup's
+  /// five strokes; the docked bar goes to 8).
+  static const int pillMaxPens = 5;
+
+  /// (v2.16-ui) The room the pill gives the title when it can grow.
+  static const double pillTitleRoom = 200;
+
+  /// (v2.16-ui) The slim bar's height (the 52 px of v1).
+  static const double slimHeight = minHeight;
 
   /// (v2.15-ui review) The least toolbar height (the 52 px of v1).
   static const double minHeight = 52;
@@ -185,12 +229,18 @@ class EditorToolbar extends ConsumerWidget {
   /// [shownFor] is how many slots the tray takes at a capacity (trayPensOf:
   /// fewer pinned pens, or one more for '지금 펜' when the current pen is none
   /// of them); null = the capacity.
+  ///
+  /// (v2.16-ui review) [flexRoom]: what the flexible slot keeps without the
+  /// title ([flexLeast]; 미니멀's pill passes 0 while there is no [☁] to
+  /// show — no blank stretch after [←], the room goes to the pens).
   static ToolbarPlan planFor(
     double width, {
     required bool hasInsert,
     required bool mic,
     bool detached = false,
     int Function(int capacity)? shownFor,
+    int maxPens = 8,
+    double flexRoom = flexLeast,
   }) {
     double tray(int pens) =>
         detached ? 0 : PenTray.widthFor(shownFor?.call(pens) ?? pens);
@@ -213,11 +263,12 @@ class EditorToolbar extends ConsumerWidget {
     ];
     for (final (pens, search, title, count) in options) {
       if (count && !countFits) continue;
+      if (pens > maxPens) continue;
       // The flexible slot keeps at least [flexLeast] (a narrow [☁]).
       final need =
           tray(pens) +
           (search ? _button : 0) +
-          (title ? titleMinRoom : flexLeast) +
+          (title ? titleMinRoom : flexRoom) +
           (count ? pageCountExtra : 0);
       if (room >= need) {
         return ToolbarPlan(
@@ -238,7 +289,7 @@ class EditorToolbar extends ConsumerWidget {
       fold: true,
       // (v2.15-ui review) Room for a narrow [☁] too, or the row scrolls
       // (where [☁] and [100%] follow [←]).
-      scroll: width < folded + tray(3) + flexLeast,
+      scroll: width < folded + tray(3) + flexRoom,
       pageCount: false,
     );
   }
@@ -282,6 +333,35 @@ class EditorToolbar extends ConsumerWidget {
   /// (v2) The sideways scroll.
   static const scrollKey = ValueKey('editor.toolbar.scroll');
 
+  /// (v2.16-ui) The pill's width when it has all the room it wants: every
+  /// part, [pillMaxPens] pens, [🔍], the page count and [pillTitleRoom].
+  static double pillIdealWidth({
+    required bool hasInsert,
+    required bool mic,
+    required double tray,
+  }) =>
+      fixedWidth(hasInsert: hasInsert, mic: mic, fold: false) +
+      tray +
+      _button +
+      pageCountExtra +
+      pillTitleRoom +
+      2 * pillPadding;
+
+  /// (v2.16-ui) Writes whether this bar shows '2 / 4' (PageIndicator shows
+  /// the count over the page when it does not).
+  static void _reportPageCount(
+    BuildContext context,
+    WidgetRef ref,
+    bool shown,
+  ) {
+    if (ref.read(editorToolbarPageCountProvider) == shown) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) {
+        ref.read(editorToolbarPageCountProvider.notifier).set(shown);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final title = ref.watch(editorNoteTitleProvider);
@@ -320,8 +400,20 @@ class EditorToolbar extends ConsumerWidget {
     int shownFor(int capacity) =>
         trayPensOf(presets, current, capacity).pens.length;
     final tokens = StyleTokens.of(context);
+    if (variant == EditorToolbarVariant.slim) {
+      return _buildSlim(context, ref, tokens, title, mic);
+    }
+    final floating = variant == EditorToolbarVariant.floating;
+    // (v2.16-ui review) The pill keeps room after [←] only for a [☁] that
+    // has something to say.
+    final flexRoom = !floating
+        ? flexLeast
+        : _syncBadgeShown(ref.watch(core.syncBadgeProvider).value)
+        ? flexLeast
+        : 0.0;
     return Material(
-      color: tokens.toolbar,
+      type: floating ? MaterialType.transparency : MaterialType.canvas,
+      color: floating ? null : tokens.toolbar,
       // (UI stage 2) The line icons in the text colour (the mockups' ink),
       // the accent while selected, dimmed while disabled.
       child: IconButtonTheme(
@@ -330,23 +422,46 @@ class EditorToolbar extends ConsumerWidget {
           height: heightOf(context),
           child: LayoutBuilder(
             builder: (context, constraints) {
+              // (v2.16-ui) The pill is as wide as it needs, at most the
+              // room; the row inside it plans for its inner width.
+              var pillWidth = floating
+                  ? math.min(
+                      constraints.maxWidth,
+                      pillIdealWidth(
+                        hasInsert: hasInsert,
+                        mic: mic,
+                        tray: detached
+                            ? 0
+                            : PenTray.widthFor(shownFor(pillMaxPens)),
+                      ),
+                    )
+                  : constraints.maxWidth;
               final plan = planFor(
-                constraints.maxWidth,
+                floating ? pillWidth - 2 * pillPadding : constraints.maxWidth,
                 hasInsert: hasInsert,
                 mic: mic,
                 detached: detached,
                 shownFor: shownFor,
+                maxPens: floating ? pillMaxPens : 8,
+                flexRoom: flexRoom,
               );
-              // PageIndicator shows the count where this row does not.
-              if (ref.read(editorToolbarPageCountProvider) != plan.pageCount) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (context.mounted) {
-                    ref
-                        .read(editorToolbarPageCountProvider.notifier)
-                        .set(plan.pageCount);
-                  }
-                });
+              // (v2.16-ui) Without the title the pill hugs its buttons (no
+              // blank stretch after [←]).
+              if (floating && !plan.title && !plan.scroll) {
+                pillWidth = math.min(
+                  pillWidth,
+                  fixedWidth(hasInsert: hasInsert, mic: mic, fold: plan.fold) +
+                      (plan.trayPens > 0
+                          ? PenTray.widthFor(shownFor(plan.trayPens))
+                          : 0) +
+                      (plan.search ? _button : 0) +
+                      (plan.pageCount ? pageCountExtra : 0) +
+                      flexRoom +
+                      2 * pillPadding,
+                );
               }
+              // PageIndicator shows the count where this row does not.
+              _reportPageCount(context, ref, plan.pageCount);
               final row = Row(
                 mainAxisSize: plan.scroll ? MainAxisSize.min : MainAxisSize.max,
                 children: [
@@ -381,7 +496,7 @@ class EditorToolbar extends ConsumerWidget {
                           : const _FlexSlot(title: null),
                     ),
                   if (plan.trayPens > 0) PenTray(capacity: plan.trayPens),
-                  _ToolButtons(withObjectTools: !plan.fold),
+                  ToolbarToolButtons(withObjectTools: !plan.fold),
                   const _Divider(),
                   if (plan.fold) ...[
                     OverflowToolsMenu(hasInsert: hasInsert, hasPanel: hasPanel),
@@ -400,16 +515,147 @@ class EditorToolbar extends ConsumerWidget {
                     showNoteInfo: !plan.title,
                     showNoteSearch: !plan.search,
                   ),
+                  if (!floating) const SizedBox(width: 4),
+                ],
+              );
+              final Widget content = !plan.scroll
+                  ? row
+                  : SingleChildScrollView(
+                      key: scrollKey,
+                      scrollDirection: Axis.horizontal,
+                      child: row,
+                    );
+              if (!floating) return content;
+              return Align(
+                alignment: Alignment.topCenter,
+                child: _Pill(width: pillWidth, child: content),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+extension on EditorToolbar {
+  /// (v2.16-ui) 스튜디오's slim bar: [←] title │ [🎤] │ [↶] [↷] │
+  /// [📄 2 / 4] [🔍] [⋯]; the title (and its folder · date line) only when
+  /// it gets [EditorToolbar.titleMinRoom], else the flexible slot keeps
+  /// [☁] / [100%].
+  Widget _buildSlim(
+    BuildContext context,
+    WidgetRef ref,
+    StyleTokens tokens,
+    String title,
+    bool mic,
+  ) {
+    return Material(
+      key: EditorToolbar.slimKey,
+      color: tokens.toolbar,
+      child: IconButtonTheme(
+        data: IconButtonThemeData(style: toolbarIconButtonStyle(tokens)),
+        child: SizedBox(
+          height: EditorToolbar.slimHeight,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const b = EditorToolbar._button;
+              const d = EditorToolbar._divider;
+              // (review) [삽입] stands in the rail with the other tools.
+              final fixed =
+                  b /* ← */ +
+                  (mic ? b + d : 0) +
+                  2 * b +
+                  d /* ↶ ↷ │ */ +
+                  b +
+                  EditorToolbar.pageCountExtra /* 📄 2 / 4 */ +
+                  b /* 🔍 */ +
+                  b /* ⋯ */ +
+                  4;
+              final room = constraints.maxWidth - fixed;
+              final showTitle = room >= EditorToolbar.titleMinRoom;
+              final search = room >= EditorToolbar.flexLeast;
+              final count = room >= EditorToolbar.flexLeast + b;
+              EditorToolbar._reportPageCount(context, ref, count);
+              return Row(
+                children: [
+                  HoverName(
+                    name: EditorStrings.back,
+                    child: IconButton(
+                      key: EditorToolbar.backKey,
+                      onPressed: onBack,
+                      icon: const ToolGlyph(
+                        AppIconKind.back,
+                        semanticLabel: EditorStrings.back,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    key: EditorToolbar.flexSlotKey,
+                    child: showTitle
+                        ? KeyedSubtree(
+                            key: EditorToolbar.titleSlotKey,
+                            child: _FlexSlot(title: title),
+                          )
+                        : const _FlexSlot(title: null),
+                  ),
+                  if (mic) ...[const MicButton(), const _Divider()],
+                  const UndoRedoButtons(),
+                  const _Divider(),
+                  _PagePanelButton(showCount: count),
+                  if (search) const _NoteSearchButton(),
+                  EditorMoreMenu(
+                    onOpenSettings: onOpenSettings,
+                    showNoteInfo: !showTitle,
+                    showNoteSearch: !search,
+                  ),
                   const SizedBox(width: 4),
                 ],
               );
-              if (!plan.scroll) return row;
-              return SingleChildScrollView(
-                key: scrollKey,
-                scrollDirection: Axis.horizontal,
-                child: row,
-              );
             },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// (v2.16-ui) 미니멀's floating pill: the toolbar colour, rounded, the
+/// style's floating shadow (a soft outline in dark, where a shadow barely
+/// shows).
+class _Pill extends StatelessWidget {
+  const _Pill({required this.width, required this.child});
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = StyleTokens.of(context);
+    final radius = BorderRadius.circular(18);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: tokens.shadows(2),
+      ),
+      child: Material(
+        key: EditorToolbar.pillKey,
+        color: tokens.toolbar,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: tokens.isDark
+              ? BorderSide(color: tokens.outline.withValues(alpha: 0.35))
+              : BorderSide(color: tokens.hairline.withValues(alpha: 0.6)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: width,
+          height: EditorToolbar.heightOf(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: EditorToolbar.pillPadding,
+            ),
+            child: child,
           ),
         ),
       ),
@@ -433,6 +679,12 @@ ButtonStyle toolbarIconButtonStyle(StyleTokens tokens) => ButtonStyle(
 /// (v2.15-ui) The flexible slot after [←]: the title (when [title] is set),
 /// [100%] and [☁] — each only when it fits, in the order [☁] (a sync
 /// problem must show), [100%], the title; never an overflow.
+/// Whether [badge] has something to say ([☁] shows: not off, not done).
+bool _syncBadgeShown(core.SyncBadge? badge) =>
+    badge != null &&
+    badge.display != core.SyncDisplayState.off &&
+    badge.display != core.SyncDisplayState.done;
+
 class _FlexSlot extends ConsumerWidget {
   const _FlexSlot({required this.title});
 
@@ -568,6 +820,9 @@ class _TitleSlot extends ConsumerWidget {
               // (v2.14-ui review) ▾ after the title: it can be tapped.
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                // (v2.16-ui) A one-line title (미니멀) stays centred in its
+                // 44 px.
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
@@ -643,10 +898,32 @@ class _Divider extends StatelessWidget {
 /// tool again or a long press (active or not) → its tool popup under the
 /// button (v2, 6.13.1). (v2.15-ui) The pen and the eraser are in the pen
 /// tray; 수식 펜 and 텍스트 펜 in [+].
-class _ToolButtons extends ConsumerWidget {
-  const _ToolButtons({required this.withObjectTools});
+///
+/// (v2.16-ui) With [axis] vertical (스튜디오's rail) they stand two a row
+/// (with [insert]) and their popups open to the right of the rail
+/// (PopupAnchorBox).
+class ToolbarToolButtons extends ConsumerWidget {
+  const ToolbarToolButtons({
+    super.key,
+    required this.withObjectTools,
+    this.axis = Axis.horizontal,
+    this.gap = 0,
+    this.crossExtent,
+    this.insert,
+  });
 
   final bool withObjectTools;
+  final Axis axis;
+
+  /// (v2.16-ui) In the rail: the rows are this wide (the rail's width), so
+  /// a popup placed beside them clears the rail.
+  final double? crossExtent;
+
+  /// (v2.16-ui review) In the rail: [삽입] beside [올가미].
+  final Widget? insert;
+
+  /// Space between the buttons.
+  final double gap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -655,7 +932,7 @@ class _ToolButtons extends ConsumerWidget {
     final commands = ref.watch(editorCommandsProvider);
     final popups = ref.read(editorPopupProvider.notifier);
     final anchors = PopupHost.anchorsOf(context);
-
+    final vertical = axis == Axis.vertical;
     VoidCallback? tap(EditorTool tool, EditorPopup? settings) {
       if (readOnly) return null;
       return () {
@@ -667,50 +944,78 @@ class _ToolButtons extends ConsumerWidget {
       };
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ToolButton(
-          key: EditorToolbar.lassoKey,
-          glyph: AppIconKind.lasso,
-          caption: EditorStrings.lasso,
-          label: EditorStrings.lasso,
-          active: active == EditorTool.lasso,
-          onTap: tap(EditorTool.lasso, null),
-        ),
-        if (withObjectTools) ...[
-          CompositedTransformTarget(
-            link: anchors.shape,
-            child: ToolButton(
-              key: EditorToolbar.shapeKey,
-              glyph: AppIconKind.shape,
-              caption: EditorStrings.shapeTool,
-              label: EditorStrings.shapeTool,
-              active: active == EditorTool.shape,
-              onTap: tap(
-                EditorTool.shape,
-                const ShapeToolPopup(anchored: true),
-              ),
-              onLongPress: () =>
-                  popups.open(const ShapeToolPopup(anchored: true)),
-            ),
-          ),
-          CompositedTransformTarget(
-            link: anchors.text,
-            child: ToolButton(
-              key: EditorToolbar.textKey,
-              glyph: AppIconKind.text,
-              caption: EditorStrings.textTool,
-              label: EditorStrings.textTool,
-              active: active == EditorTool.text,
-              onTap: tap(EditorTool.text, const TextToolPopup(anchored: true)),
-              onLongPress: () =>
-                  popups.open(const TextToolPopup(anchored: true)),
-            ),
-          ),
-        ],
-      ],
+    final lasso = ToolButton(
+      key: EditorToolbar.lassoKey,
+      glyph: AppIconKind.lasso,
+      caption: EditorStrings.lasso,
+      label: EditorStrings.lasso,
+      active: active == EditorTool.lasso,
+      onTap: tap(EditorTool.lasso, null),
     );
+    final shape = ToolButton(
+      key: EditorToolbar.shapeKey,
+      glyph: AppIconKind.shape,
+      caption: EditorStrings.shapeTool,
+      label: EditorStrings.shapeTool,
+      active: active == EditorTool.shape,
+      onTap: tap(EditorTool.shape, const ShapeToolPopup(anchored: true)),
+      onLongPress: () => popups.open(const ShapeToolPopup(anchored: true)),
+    );
+    final text = ToolButton(
+      key: EditorToolbar.textKey,
+      glyph: AppIconKind.text,
+      caption: EditorStrings.textTool,
+      label: EditorStrings.textTool,
+      active: active == EditorTool.text,
+      onTap: tap(EditorTool.text, const TextToolPopup(anchored: true)),
+      onLongPress: () => popups.open(const TextToolPopup(anchored: true)),
+    );
+
+    if (vertical) {
+      // (v2.16-ui review) The rail: two tools a row (올가미 [삽입] /
+      // 도형 텍스트), [crossExtent] wide. The 도형 · 텍스트 row is the anchor
+      // of both their popups (PopupAnchorBox under shapeBox and textBox),
+      // so a popup beside it clears the whole rail.
+      final width = crossExtent;
+      Widget pair(List<Widget> two) => SizedBox(
+        width: width,
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: two),
+      );
+      final ins = insert;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          pair([lasso, if (ins != null) ins else const SizedBox(width: 48)]),
+          if (withObjectTools) ...[
+            if (gap > 0) SizedBox(height: gap),
+            PopupAnchorBox(
+              key: anchors.shapeBox,
+              beside: true,
+              child: PopupAnchorBox(
+                key: anchors.textBox,
+                beside: true,
+                child: pair([shape, text]),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    final buttons = <Widget>[
+      lasso,
+      if (withObjectTools) ...[
+        CompositedTransformTarget(link: anchors.shape, child: shape),
+        CompositedTransformTarget(link: anchors.text, child: text),
+      ],
+    ];
+    final spaced = <Widget>[
+      for (final (i, b) in buttons.indexed) ...[
+        if (i > 0 && gap > 0) SizedBox(width: gap),
+        b,
+      ],
+    ];
+    return Row(mainAxisSize: MainAxisSize.min, children: spaced);
   }
 }
 

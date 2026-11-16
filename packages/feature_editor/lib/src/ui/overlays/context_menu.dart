@@ -10,6 +10,7 @@ import '../../scope/editor_scope.dart';
 import '../../tools/element_clipboard.dart';
 import '../../tools/interaction_host.dart';
 import '../../tools/tool_state.dart';
+import '../chrome/editor_layout.dart';
 import '../editor_strings.dart';
 
 /// The context menu opened by a long press or a secondary click away from the
@@ -31,12 +32,14 @@ class EditorContextMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final host = ref.watch(editorInteractionHostProvider);
+    // (v2.16-ui review) Kept below 미니멀's floating pill.
+    final inset = EditorShellScope.topInsetOf(context);
     return ValueListenableBuilder<ContextMenuRequest?>(
       valueListenable: host.contextMenu,
       builder: (context, request, _) {
         if (request == null) return const SizedBox.shrink();
         return CustomSingleChildLayout(
-          delegate: _AtPoint(request.position),
+          delegate: _AtPoint(request.position, minTop: inset),
           child: _MenuItems(host: host, request: request),
         );
       },
@@ -127,11 +130,13 @@ class _Item extends StatelessWidget {
   );
 }
 
-/// Top-left at [point], shifted to stay inside the page area.
+/// Top-left at [point], shifted to stay inside the page area (and below
+/// [minTop] — (v2.16-ui review) the strip 미니멀's floating pill covers).
 class _AtPoint extends SingleChildLayoutDelegate {
-  const _AtPoint(this.point);
+  const _AtPoint(this.point, {this.minTop = 0});
 
   final Offset point;
+  final double minTop;
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
@@ -143,10 +148,11 @@ class _AtPoint extends SingleChildLayoutDelegate {
     final maxTop = size.height - childSize.height;
     return Offset(
       maxLeft <= 0 ? 0 : point.dx.clamp(0.0, maxLeft).toDouble(),
-      maxTop <= 0 ? 0 : point.dy.clamp(0.0, maxTop).toDouble(),
+      maxTop <= minTop ? 0 : point.dy.clamp(minTop, maxTop).toDouble(),
     );
   }
 
   @override
-  bool shouldRelayout(_AtPoint oldDelegate) => oldDelegate.point != point;
+  bool shouldRelayout(_AtPoint oldDelegate) =>
+      oldDelegate.point != point || oldDelegate.minTop != minTop;
 }

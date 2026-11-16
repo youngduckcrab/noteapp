@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../tools/tool_controller.dart';
+import '../chrome/editor_layout.dart';
 import '../editor_strings.dart';
 
 /// While the eyedropper waits for a tap: "획을 탭하면 그 색을 가져와요 [취소]"
@@ -27,7 +28,10 @@ class EyedropperBanner extends ConsumerWidget {
     return Align(
       alignment: Alignment.topCenter,
       child: Padding(
-        padding: const EdgeInsets.only(top: 12),
+        // (v2.16-ui) under 미니멀's floating bar.
+        padding: EdgeInsets.only(
+          top: 12 + EditorShellScope.topInsetOf(context),
+        ),
         child: Material(
           key: bannerKey,
           color: tokens.paperBadge,

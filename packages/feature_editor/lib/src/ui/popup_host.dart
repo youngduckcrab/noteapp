@@ -36,6 +36,12 @@ class PopupAnchors {
   final LayerLink shape = LayerLink();
   final LayerLink text = LayerLink();
 
+  /// (v2.16-ui) The rail's shape and text buttons (mounted only in 스튜디오's
+  /// rail, each in a [PopupAnchorBox] with `beside`): their popups open to
+  /// the right of them, by these rects.
+  final GlobalKey shapeBox = GlobalKey(debugLabel: 'editor.railShape');
+  final GlobalKey textBox = GlobalKey(debugLabel: 'editor.railText');
+
   /// (v2.15-ui review) Bumped after the pen tray was built again (another
   /// width, capacity, rotation, the palette moved): an open tray popup
   /// places itself again by the new rect.
@@ -72,6 +78,33 @@ class PopupAnchors {
   }
 
   void dispose() => trayMoved.dispose();
+
+  /// (v2.16-ui review) Whether the popups of [box] open beside it: read from
+  /// the [PopupAnchorBox] mounted under that key right now (no flag a
+  /// widget that left the tree could leave stale — a resize across the rail
+  /// width with the picker open).
+  static bool besideOf(GlobalKey box) {
+    final widget = box.currentWidget;
+    return widget is PopupAnchorBox && widget.beside;
+  }
+}
+
+/// (v2.16-ui review) The box a popup is placed by (the pen tray, its eraser,
+/// the rail's shape / text buttons) under its [GlobalKey], telling the
+/// popup layer whether its popups open [beside] it (to the right — a
+/// vertical tray, the rail) or under it.
+class PopupAnchorBox extends StatelessWidget {
+  const PopupAnchorBox({
+    required GlobalKey super.key,
+    required this.beside,
+    required this.child,
+  });
+
+  final bool beside;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
 }
 
 /// Shows editorPopupProvider's popup with an OverlayPortal (its overlay child
@@ -287,6 +320,12 @@ class _PopupLayer extends ConsumerWidget {
     final trayBox = switch (layout.link) {
       LinkPick.pen => anchors.penBox,
       LinkPick.eraser => anchors.eraserBox,
+      // (v2.16-ui) The rail's shape and text buttons: beside them (their
+      // boxes are mounted only in the rail).
+      LinkPick.shape when anchors.shapeBox.currentContext != null =>
+        anchors.shapeBox,
+      LinkPick.text when anchors.textBox.currentContext != null =>
+        anchors.textBox,
       _ => null,
     };
     final link = at != null || menuHidden || trayBox != null
@@ -333,6 +372,8 @@ class _PopupLayer extends ConsumerWidget {
                 delegate: _BelowAnchorLayout(
                   anchors._placeBy(_boxRect(context, trayBox!)),
                   centred: layout.link == LinkPick.pen,
+                  // Read with the rect, from the box mounted now.
+                  beside: PopupAnchors.besideOf(trayBox),
                 ),
                 child: panel,
               ),
@@ -387,11 +428,22 @@ Rect? _boxRect(BuildContext context, GlobalKey box) {
 /// anchor instead when there is more room above and too little below for
 /// [_comfortable] (the floating palette low on the screen); centred on the
 /// screen when the anchor is not laid out.
+///
+/// (v2.16-ui) With [beside]: right of the anchor (a vertical tray, the
+/// rail's tools), its top at the anchor's top, moved up to stay inside the
+/// screen. (review) Under the anchor as usual when less than
+/// [_besideMinWidth] is left right of it (the narrow pen picker overflowed
+/// when squeezed below that).
 class _BelowAnchorLayout extends SingleChildLayoutDelegate {
-  const _BelowAnchorLayout(this.anchor, {this.centred = true});
+  const _BelowAnchorLayout(
+    this.anchor, {
+    this.centred = true,
+    this.beside = false,
+  });
 
   final Rect? anchor;
   final bool centred;
+  final bool beside;
 
   /// (owner review) Clear of the toolbar's edge, not glued to it.
   static const double _gap = 12;
@@ -399,6 +451,20 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
 
   /// Below the anchor while at least this much room is there.
   static const double _comfortable = 480;
+
+  /// (v2.16-ui review) Beside the anchor only with this much room right of
+  /// it: the narrow pen picker ([centred]) needs about 470 px, the eraser,
+  /// shape and text popups 300.
+  static const double _besideMinWidth = 520;
+  static const double _besideMinWidthSmall = 320;
+
+  bool _beside(Size size) {
+    final a = anchor;
+    return beside &&
+        a != null &&
+        size.width - a.right - _gap - _margin >=
+            (centred ? _besideMinWidth : _besideMinWidthSmall);
+  }
 
   bool _above(Size size) {
     final a = anchor;
@@ -412,6 +478,14 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     final a = anchor;
     final size = constraints.biggest;
+    if (a != null && _beside(size)) {
+      return BoxConstraints.loose(
+        Size(
+          size.width - a.right - _gap - _margin,
+          math.max(0, size.height - 2 * _margin),
+        ),
+      );
+    }
     final room = a == null
         ? size.height - 2 * _margin
         : _above(size)
@@ -434,6 +508,13 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
         (size.height - child.height) / 2,
       );
     }
+    if (_beside(size)) {
+      final maxY = size.height - child.height - _margin;
+      final y = maxY <= _margin ? _margin : a.top.clamp(_margin, maxY);
+      final maxX = size.width - child.width - _margin;
+      final x = maxX <= _margin ? _margin : math.min(a.right + _gap, maxX);
+      return Offset(x, y.toDouble());
+    }
     final maxX = size.width - child.width - _margin;
     final want = centred ? a.center.dx - child.width / 2 : a.left;
     final x = maxX <= _margin ? _margin : want.clamp(_margin, maxX);
@@ -443,7 +524,9 @@ class _BelowAnchorLayout extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_BelowAnchorLayout oldDelegate) =>
-      oldDelegate.anchor != anchor || oldDelegate.centred != centred;
+      oldDelegate.anchor != anchor ||
+      oldDelegate.centred != centred ||
+      oldDelegate.beside != beside;
 }
 
 /// A popup opened at a point (v2 — the pencil's hover point): its top-left

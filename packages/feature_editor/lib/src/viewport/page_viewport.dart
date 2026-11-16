@@ -14,6 +14,8 @@
 // highlight (18). (19) The floating layer (restore pill, pen palette) over
 // the page area, beside the search panel. (E2-18) The Apple Pencil events
 // while the viewport is on screen (StylusExtrasListener — 6.5.1).
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +31,7 @@ import '../text/text_box_editor.dart';
 import '../text/text_edit_session.dart';
 import '../text/text_input_sheet.dart';
 import '../tools/interaction_host.dart';
+import '../ui/chrome/editor_layout.dart';
 import '../ui/chrome/floating_layer.dart';
 import '../ui/dev/dev_overlay.dart';
 import '../ui/overlays/context_menu.dart';
@@ -86,11 +89,44 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     return _camera!;
   }
 
-  void _reportSize(ViewportController viewport, Size size) {
-    if (!size.isFinite || size == viewport.viewportSize) {
+  /// (v2.16-ui) The top inset waiting for the post-frame callback.
+  double? _pendingInset;
+
+  /// (v2.16-ui) The strip a floating bar covers (EditorShellScope) reaches
+  /// the controller like the size does: after the frame, before the size
+  /// (the first camera is placed with it).
+  void _reportInset(ViewportController viewport, double inset) {
+    if (inset == viewport.topInset) {
+      _pendingInset = null;
+      return;
+    }
+    final scheduled = _pendingInset != null || _pendingSize != null;
+    _pendingInset = inset;
+    if (scheduled) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final pending = _pendingInset;
+      _pendingInset = null;
+      if (!mounted || pending == null || !identical(_viewport, viewport)) {
+        return;
+      }
+      viewport.setTopInset(pending);
+    });
+  }
+
+  /// (v2.16-ui review) The fit reserve going with [_pendingSize].
+  double _pendingReserve = 0;
+
+  void _reportSize(
+    ViewportController viewport,
+    Size size, {
+    double fitReserve = 0,
+  }) {
+    if (!size.isFinite ||
+        (size == viewport.viewportSize && fitReserve == viewport.fitReserve)) {
       _pendingSize = null;
       return;
     }
+    _pendingReserve = fitReserve;
     if (_pendingSize != null) {
       _pendingSize = size; // a callback is already scheduled
       return;
@@ -102,7 +138,10 @@ class _PageViewportState extends ConsumerState<PageViewport> {
       if (!mounted || pending == null || !identical(_viewport, viewport)) {
         return;
       }
-      viewport.updateViewportSize(pending);
+      final inset = _pendingInset;
+      _pendingInset = null;
+      if (inset != null) viewport.setTopInset(inset);
+      viewport.updateViewportSize(pending, fitReserve: _pendingReserve);
     });
   }
 
@@ -171,12 +210,24 @@ class _PageViewportState extends ConsumerState<PageViewport> {
     bool editing,
   ) {
     final tokens = StyleTokens.of(context);
+    final inset = EditorShellScope.topInsetOf(context);
+    final fitWidth = EditorShellScope.fitWidthOf(context);
     return ColoredBox(
       // (v2.14-ui) the style's desk; the pages keep their paper colour.
       color: tokens.canvas,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          _reportSize(viewport, constraints.biggest);
+          _reportInset(viewport, inset);
+          // (v2.16-ui review) 스튜디오: wider than the room beside the rail
+          // (the rail folding away in 집중 모드) keeps that room's zoom.
+          final size = constraints.biggest;
+          _reportSize(
+            viewport,
+            size,
+            fitReserve: fitWidth == null || !size.width.isFinite
+                ? 0
+                : math.max(0.0, size.width - fitWidth),
+          );
           return Stack(
             fit: StackFit.expand,
             children: [

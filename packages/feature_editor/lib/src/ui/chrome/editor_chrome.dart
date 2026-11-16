@@ -130,17 +130,34 @@ final editorPaletteExpandedProvider =
       name: 'editorPaletteExpandedProvider',
     );
 
+/// (v2.16-ui — 04-editor 24) How [EditorTopMenu] stands: docked under
+/// the banners (a divider under it), floating over the page (미니멀's pill:
+/// no divider, it fades and slides up), or the rail at the left (스튜디오:
+/// a divider at its right, it slides out to the left).
+enum EditorMenuMode { docked, floating, rail }
+
 /// Toolbar (52 px, the pen tray in it unless the palette is detached) ·
 /// divider. Hidden ([EditorDeviceState.toolbarHidden]): slides
 /// up in [EditorChrome.slide] and leaves the tree, so the page gets the room
 /// and nothing anchors to a button that is not on screen. The stored value
 /// arriving after the screen opened applies without the slide.
 class EditorTopMenu extends ConsumerStatefulWidget {
-  const EditorTopMenu({super.key, required this.toolbar});
+  const EditorTopMenu({
+    super.key,
+    required this.toolbar,
+    this.mode = EditorMenuMode.docked,
+  });
 
   final Widget toolbar;
 
+  /// (v2.16-ui) Where it stands.
+  final EditorMenuMode mode;
+
+  /// The top bar (docked or floating).
   static const menuKey = ValueKey('editor.topMenu');
+
+  /// (v2.16-ui) 스튜디오's rail.
+  static const railKey = ValueKey('editor.railMenu');
 
   @override
   ConsumerState<EditorTopMenu> createState() => _EditorTopMenuState();
@@ -177,25 +194,62 @@ class _EditorTopMenuState extends ConsumerState<EditorTopMenu>
       }
     });
     _loaded = ref.read(editorDeviceStateProvider.notifier).isLoaded;
+    final mode = widget.mode;
     return AnimatedBuilder(
       animation: _slide,
       builder: (context, child) {
         if (_slide.value == 0) return const SizedBox.shrink();
         if (_slide.value == 1) return child!;
-        return ClipRect(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            heightFactor: _slide.value,
-            child: child,
+        return switch (mode) {
+          // The pill rises and fades (the page under it stays put).
+          EditorMenuMode.floating => Opacity(
+            opacity: _slide.value,
+            child: FractionalTranslation(
+              translation: Offset(0, (_slide.value - 1) * 1.2),
+              child: child,
+            ),
           ),
-        );
+          EditorMenuMode.rail => ClipRect(
+            child: Align(
+              alignment: Alignment.centerRight,
+              widthFactor: _slide.value,
+              child: child,
+            ),
+          ),
+          EditorMenuMode.docked => ClipRect(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              heightFactor: _slide.value,
+              child: child,
+            ),
+          ),
+        };
       },
-      child: Column(
-        key: EditorTopMenu.menuKey,
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [widget.toolbar, const Divider(height: 1)],
-      ),
+      child: switch (mode) {
+        EditorMenuMode.docked => Column(
+          key: EditorTopMenu.menuKey,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [widget.toolbar, const Divider(height: 1)],
+        ),
+        EditorMenuMode.floating => KeyedSubtree(
+          key: EditorTopMenu.menuKey,
+          child: widget.toolbar,
+        ),
+        EditorMenuMode.rail => Row(
+          key: EditorTopMenu.railKey,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            widget.toolbar,
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: StyleTokens.of(context).hairline,
+            ),
+          ],
+        ),
+      },
     );
   }
 }

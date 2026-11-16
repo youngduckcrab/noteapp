@@ -364,4 +364,78 @@ void main() {
       expect(c.scale, fit * ViewportConstants.maxZoom);
     });
   });
+
+  // (v2.16-ui, 04-editor 24.2) 미니멀's floating bar covers the top strip.
+  group('clamp with a leading inset', () {
+    final layout = verticalA4(5);
+    final fit = CameraMath.fitScale(layout, viewport);
+
+    test('the top may scroll the inset further down, no further', () {
+      const inset = 68.0;
+      final c = CameraMath.clamp(
+        ViewportCamera(scale: fit, origin: const Offset(0, -500)),
+        layout,
+        viewport,
+        fit,
+        leadingInset: inset,
+      );
+      expect(c.origin.dy, closeTo(-inset / fit, 1e-9));
+      final none = CameraMath.clamp(
+        ViewportCamera(scale: fit, origin: const Offset(0, -500)),
+        layout,
+        viewport,
+        fit,
+      );
+      expect(none.origin.dy, 0);
+    });
+
+    test('a short document is centred in the room under the inset', () {
+      final one = verticalA4(1);
+      final small = fit * 0.5;
+      const inset = 60.0;
+      final c = CameraMath.clamp(
+        ViewportCamera(scale: small, origin: Offset.zero),
+        one,
+        viewport,
+        fit,
+        leadingInset: inset,
+      );
+      final visible = viewport.height / small;
+      final content = one.contentSize.height;
+      final roomTop = c.origin.dy + inset / small;
+      final roomBottom = c.origin.dy + visible;
+      expect((roomTop + roomBottom) / 2, closeTo(content / 2, 1e-6));
+    });
+
+    test('a horizontal layout fits the page under it and centres it in '
+        'the room below (review)', () {
+      final paged = PageLayout.compute(
+        pageSizes: List.filled(3, a4),
+        axis: LayoutAxis.horizontal,
+      );
+      const inset = 80.0;
+      final plain = CameraMath.fitScale(paged, viewport);
+      final pfit = CameraMath.fitScale(paged, viewport, leadingInset: inset);
+      expect(pfit, lessThan(plain));
+      final cam = ViewportCamera(scale: pfit, origin: const Offset(100, -40));
+      final c = CameraMath.clamp(
+        cam,
+        paged,
+        viewport,
+        pfit,
+        leadingInset: inset,
+      );
+      final page = paged.rectOf(0);
+      final top = c.docToScreen(page.topLeft).dy;
+      final bottom = c.docToScreen(page.bottomLeft).dy;
+      expect(top, greaterThanOrEqualTo(inset));
+      expect(bottom, lessThanOrEqualTo(viewport.height));
+      expect(top - inset, closeTo(viewport.height - bottom, 0.5));
+      // Without an inset nothing changes.
+      expect(
+        CameraMath.clamp(cam, paged, viewport, plain, leadingInset: 0),
+        CameraMath.clamp(cam, paged, viewport, plain),
+      );
+    });
+  });
 }

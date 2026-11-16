@@ -12,6 +12,7 @@ import '../../state/page_panel.dart';
 import '../../state/popup.dart';
 import '../../state/settings/editor_settings.dart';
 import '../../state/settings/editor_settings_notifier.dart';
+import '../chrome/editor_layout.dart';
 import '../editor_strings.dart';
 import 'page_panel_selection_bar.dart';
 import 'page_panel_thumbnail.dart';
@@ -164,6 +165,8 @@ class _PagePanelState extends ConsumerState<PagePanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // (v2.16-ui) Under 미니멀's floating bar.
+              SizedBox(height: EditorShellScope.topInsetOf(context)),
               SizedBox(
                 height: 48,
                 child: Row(

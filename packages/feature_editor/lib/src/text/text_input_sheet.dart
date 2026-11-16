@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../state/settings/editor_device_state.dart';
+import '../ui/chrome/editor_layout.dart';
 import '../ui/editor_strings.dart';
 import '../ui/text/text_style_controls.dart';
 import 'text_box_editor.dart';
@@ -66,58 +67,63 @@ class TextInputSheet extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final screenHeight = MediaQuery.sizeOf(context).height;
     final insetBottom = MediaQuery.viewInsetsOf(context).bottom;
+    // (v2.16-ui) under 미니멀's floating bar.
+    final top = EditorShellScope.topInsetOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final height = heightFor(
           screenHeight: screenHeight,
-          areaHeight: constraints.maxHeight,
+          areaHeight: math.max(0, constraints.maxHeight - top),
           insetBottom: insetBottom,
         );
         return Align(
           alignment: Alignment.topCenter,
-          child: SizedBox(
-            height: height,
-            width: constraints.maxWidth,
-            child: TextFieldTapRegion(
-              child: Material(
-                key: panelKey,
-                color: scheme.surfaceContainerHigh,
-                elevation: 3,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              EditorStrings.textInputSheetTitle,
-                              style: Theme.of(context).textTheme.titleSmall,
+          child: Padding(
+            padding: EdgeInsets.only(top: top),
+            child: SizedBox(
+              height: height,
+              width: constraints.maxWidth,
+              child: TextFieldTapRegion(
+                child: Material(
+                  key: panelKey,
+                  color: scheme.surfaceContainerHigh,
+                  elevation: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                EditorStrings.textInputSheetTitle,
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
                             ),
-                          ),
-                          TextButton(
-                            key: doneKey,
-                            onPressed: () => unawaited(
-                              notifier.end(reason: TextEditEndReason.done),
+                            TextButton(
+                              key: doneKey,
+                              onPressed: () => unawaited(
+                                notifier.end(reason: TextEditEndReason.done),
+                              ),
+                              child: const Text(EditorStrings.done),
                             ),
-                            child: const Text(EditorStrings.done),
-                          ),
-                        ],
-                      ),
-                      TextFormatBar(
-                        style: session.draft.style,
-                        elevation: 0,
-                        onChanged: (style) => applySessionStyle(ref, style),
-                      ),
-                      Expanded(
-                        child: TextSessionField(
-                          key: ValueKey('editor.textSheet.${session.boxId}'),
-                          initialText: session.draft.text,
-                          expands: true,
+                          ],
                         ),
-                      ),
-                    ],
+                        TextFormatBar(
+                          style: session.draft.style,
+                          elevation: 0,
+                          onChanged: (style) => applySessionStyle(ref, style),
+                        ),
+                        Expanded(
+                          child: TextSessionField(
+                            key: ValueKey('editor.textSheet.${session.boxId}'),
+                            initialText: session.draft.text,
+                            expands: true,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

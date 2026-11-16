@@ -17,9 +17,12 @@ import 'banners/read_only_banner.dart';
 import 'banners/storage_warning_banner.dart';
 import 'banners/text_draft_banner.dart';
 import 'chrome/editor_chrome.dart';
+import 'chrome/editor_layout.dart';
+import 'chrome/floating_layer.dart';
 import 'editor_strings.dart';
 import 'panels/editor_panel_slot.dart';
 import 'popup_host.dart';
+import 'toolbar/editor_rail.dart';
 import 'toolbar/editor_toolbar.dart';
 
 /// The ready editor of one note (inside its per-note scope):
@@ -34,6 +37,16 @@ import 'toolbar/editor_toolbar.dart';
 ///   │  palette) over the pages, NoteSearchPanel]
 ///   └─ (v2) EditorPanelArea: the bottom panel slot while open (≤ 40 % of
 ///      the Column height — 6.15.4)
+///
+/// (v2.16-ui — 04-editor 24) That is 크래프트's shell ([EditorLayout.topBar]).
+/// 미니멀 ([EditorLayout.floatingBar]): no toolbar row — the floating pill
+/// (EditorToolbarVariant.floating in an EditorTopMenu) goes to the page
+/// area through EditorShellScope and EditorFloatingLayer puts it over the
+/// top centre of the pages; the pages scroll on under it
+/// (ViewportController.topInset). 스튜디오 ([EditorLayout.rail], from
+/// EditorLayouts.railMinWidth): the slim bar on top, then Row[EditorRail
+/// (in a rail EditorTopMenu), the pages]. The PageViewport keeps one
+/// GlobalKey across the shells (a resize across the rail width keeps it).
 ///
 /// Also: command and storage-error snack bars, flushAll when the app is
 /// hidden or paused (AppLifecycleListener — 6.17.4), and turning read only
@@ -50,6 +63,7 @@ class EditorBody extends ConsumerStatefulWidget {
 
 class _EditorBodyState extends ConsumerState<EditorBody> {
   late final AppLifecycleListener _lifecycle;
+  final GlobalKey _pagesKey = GlobalKey(debugLabel: 'editor.pages');
   ExtensionRunner? _runner;
 
   @override
@@ -101,31 +115,70 @@ class _EditorBodyState extends ConsumerState<EditorBody> {
           child: Scaffold(
             body: SafeArea(
               child: StorageErrorNotices(
-                child: CommandMessages(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const ReadOnlyBanner(),
-                        const StorageWarningBanner(),
-                        const TextDraftBanner(),
-                        EditorTopMenu(
-                          toolbar: EditorToolbar(
-                            onBack: widget.onBack,
-                            onOpenSettings: widget.onOpenSettings,
-                          ),
-                        ),
-                        const Expanded(child: PageViewport()),
-                        EditorPanelArea(bodyHeight: constraints.maxHeight),
-                      ],
-                    ),
-                  ),
-                ),
+                child: CommandMessages(child: LayoutBuilder(builder: _shell)),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+extension on _EditorBodyState {
+  /// (v2.16-ui) The banners, the shell of the editor style, the panel slot.
+  Widget _shell(BuildContext context, BoxConstraints constraints) {
+    final layout = EditorLayouts.of(context, constraints.biggest);
+    EditorToolbar toolbar(EditorToolbarVariant variant) => EditorToolbar(
+      onBack: widget.onBack,
+      onOpenSettings: widget.onOpenSettings,
+      variant: variant,
+    );
+    final pages = PageViewport(key: _pagesKey);
+    final Widget middle = switch (layout) {
+      EditorLayout.topBar => Expanded(child: pages),
+      EditorLayout.floatingBar => Expanded(
+        child: EditorShellScope(
+          layout: layout,
+          topInset: EditorFloatingLayer.barZoneHeight(context),
+          floatingBar: EditorTopMenu(
+            mode: EditorMenuMode.floating,
+            toolbar: toolbar(EditorToolbarVariant.floating),
+          ),
+          child: pages,
+        ),
+      ),
+      EditorLayout.rail => Expanded(
+        child: EditorShellScope(
+          layout: layout,
+          // The pages' room beside the shown rail (and its divider).
+          fitWidth: constraints.maxWidth - EditorRail.width - 1,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const EditorTopMenu(
+                mode: EditorMenuMode.rail,
+                toolbar: EditorRail(),
+              ),
+              Expanded(child: pages),
+            ],
+          ),
+        ),
+      ),
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ReadOnlyBanner(),
+        const StorageWarningBanner(),
+        const TextDraftBanner(),
+        if (layout == EditorLayout.topBar)
+          EditorTopMenu(toolbar: toolbar(EditorToolbarVariant.docked))
+        else if (layout == EditorLayout.rail)
+          EditorTopMenu(toolbar: toolbar(EditorToolbarVariant.slim)),
+        middle,
+        EditorPanelArea(bodyHeight: constraints.maxHeight),
+      ],
     );
   }
 }
