@@ -82,6 +82,45 @@ abstract final class MarkdownKeys {
   /// The task-toggle undo snack bar ('할 일을 바꿨어요 [되돌리기]').
   static const ValueKey<String> taskUndo = ValueKey('md.taskUndo');
 
+  // --- added by the screen (Track B) --------------------------------------------
+  /// The folded YAML front matter box.
+  static const ValueKey<String> frontMatter = ValueKey('md.frontMatter');
+
+  /// 나란히 mode's preview pane.
+  static const ValueKey<String> splitPreview = ValueKey('md.split.preview');
+
+  /// '저장하지 못한 글이 있어요' (text kept on this device after a failed save on pause).
+  static const ValueKey<String> bannerUnsaved = ValueKey('md.banner.unsaved');
+  static const ValueKey<String> bannerUnsavedRestore = ValueKey(
+    'md.banner.unsaved.restore',
+  );
+  static const ValueKey<String> bannerUnsavedDiscard = ValueKey(
+    'md.banner.unsaved.discard',
+  );
+
+  /// Closes the conflict-copy banner.
+  static const ValueKey<String> bannerDismiss = ValueKey('md.banner.dismiss');
+
+  /// The rename dialog's field and its confirm button.
+  static const ValueKey<String> renameField = ValueKey('md.rename.field');
+  static const ValueKey<String> renameOk = ValueKey('md.rename.ok');
+
+  /// The accessory row's buttons: `md.accessory.<symbol name>`.
+  static ValueKey<String> accessoryButton(String name) =>
+      ValueKey('md.accessory.$name');
+
+  /// The fade at the 'start' / 'end' of the symbol row while more of it is hidden there.
+  static ValueKey<String> accessoryFade(String side) =>
+      ValueKey('md.accessory.fade.$side');
+
+  /// [사본 열기] on the conflict-copy banner (shown when the app gives onOpenMarkdown).
+  static const ValueKey<String> bannerOpenCopy = ValueKey(
+    'md.banner.conflictCopy.open',
+  );
+
+  /// The table's [더 보기] (a long table shows its rows in parts).
+  static ValueKey<String> tableMore(int i) => ValueKey('md.table.$i.more');
+
   // --- per element ----------------------------------------------------------------
   static ValueKey<String> block(int i) => ValueKey('md.block.$i');
   static ValueKey<String> task(int i) => ValueKey('md.task.$i');
