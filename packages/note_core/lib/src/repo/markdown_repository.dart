@@ -223,6 +223,13 @@ abstract final class MarkdownPreviewText {
   static final RegExp _tag = RegExp(r'<\/?[A-Za-z][^<>]*>');
   static final RegExp _marks = RegExp(r'(\*{1,3}|_{2,3}|~~|`+)');
   static final RegExp _spaces = RegExp(r'[ \t]+');
+  static final RegExp _footnoteDef = RegExp(r'^\s{0,3}\[\^[^\]\s]+\]:\s*');
+  static final RegExp _footnoteRef = RegExp(r'\[\^[^\]\s]+\]');
+  // Inline math `$…$` (pandoc's rule: no space inside the dollars, no digit right after
+  // the closing one, so '$5 and $6' stays): the dollars go, the TeX stays.
+  static final RegExp _inlineMath = RegExp(
+    r'\$(?![\s$])([^$\n]*?[^\s$\\])\$(?!\d)',
+  );
 
   /// Lines of [text] (front matter skipped, block markers and inline marks removed, empty
   /// lines dropped) joined with '\n', at most [maxChars] characters.
@@ -245,6 +252,7 @@ abstract final class MarkdownPreviewText {
     var length = 0;
     for (var line in lines) {
       if (_fence.hasMatch(line) || _rule.hasMatch(line)) continue;
+      if (line.trim() == r'$$') continue;
       if (_tableRule.hasMatch(line) && line.contains('-')) continue;
       line = line.replaceFirst(_heading, '');
       while (_quote.hasMatch(line)) {
@@ -252,7 +260,10 @@ abstract final class MarkdownPreviewText {
       }
       line = line.replaceFirst(_list, '');
       line = line.replaceFirst(_task, '');
+      line = line.replaceFirst(_footnoteDef, '');
       line = line
+          .replaceAll(_footnoteRef, '')
+          .replaceAllMapped(_inlineMath, (m) => m.group(1)!)
           .replaceAllMapped(_image, (m) => m.group(1)!)
           .replaceAllMapped(_link, (m) => m.group(1)!)
           .replaceAll(_tag, '')

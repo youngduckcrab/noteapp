@@ -335,6 +335,16 @@ class MarkdownCoverCard extends ConsumerWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // An empty MD 문서 shows the MD 문서 mark like an empty note shows its own,
+            // not a blank page (owner review).
+            if (preview != null && preview.isEmpty)
+              Center(
+                child: AppIcon(
+                  AppIconKind.markdownDoc,
+                  size: small ? 22 : 40,
+                  color: tokens.paperInk.withValues(alpha: 0.35),
+                ),
+              ),
             Padding(
               padding: EdgeInsets.all(small ? 8 : 12),
               child: Text.rich(

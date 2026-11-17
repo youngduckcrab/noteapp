@@ -26,6 +26,9 @@ abstract final class MarkdownKeys {
   /// The rendered view's scrollable.
   static const ValueKey<String> view = ValueKey('md.view');
 
+  /// [편집하기] of an empty document's 보기.
+  static const ValueKey<String> emptyEdit = ValueKey('md.emptyEdit');
+
   /// The source editor's TextField.
   static const ValueKey<String> editor = ValueKey('md.editor');
 

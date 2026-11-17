@@ -74,7 +74,8 @@ abstract final class MdStrings {
   static const String notMarkdown = '이 문서는 MD 문서가 아니에요';
   static const String openAsNote = '노트로 열기';
   static const String loadFailed = '문서를 열지 못했어요';
-  static const String emptyDoc = '아직 내용이 없어요 — 편집에서 글을 써 보세요';
+  static const String emptyDoc = '아직 내용이 없어요';
+  static const String emptyEdit = '편집하기';
   static const String editorHint = '마크다운으로 글을 써 보세요';
   static const String frontMatter = '문서 정보 (머리말)';
   static const String footnotes = '각주';

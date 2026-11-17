@@ -421,4 +421,89 @@ void main() {
     await _autosave(tester);
     expect(await h.stored(tester, id), '하나');
   });
+
+  // --- owner review (final pass) ------------------------------------------------
+
+  testWidgets('phone: the 보기 ↔ 편집 button keeps its label (owner review)', (
+    tester,
+  ) async {
+    final h = await MdHarness.create(tester);
+    final id = await h.doc(tester, '# 제목\n\n글');
+    await h.pump(tester, id, size: const Size(390, 844));
+    await settleMd(tester);
+    final mode = find.byKey(MarkdownKeys.mode);
+    expect(
+      find.descendant(of: mode, matching: find.text('편집')),
+      findsOneWidget,
+    );
+    expect(tester.getSize(mode).height, greaterThanOrEqualTo(48));
+    await tester.tap(mode);
+    await settleMd(tester);
+    expect(
+      find.descendant(of: mode, matching: find.text('보기')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('tablet reads at 17 px, phone at 16 px (owner review)', (
+    tester,
+  ) async {
+    final h = await MdHarness.create(tester);
+    final id = await h.doc(tester, '본문 한 줄');
+    double bodySize() {
+      final rich = tester.widget<RichText>(
+        find.byWidgetPredicate(
+          (w) => w is RichText && w.text.toPlainText() == '본문 한 줄',
+        ),
+      );
+      // The innermost size given on the way down to the text.
+      double? size;
+      rich.text.visitChildren((span) {
+        size = span.style?.fontSize ?? size;
+        return true;
+      });
+      return size!;
+    }
+
+    await h.pump(tester, id);
+    await settleMd(tester);
+    expect(bodySize(), 17);
+    await h.pump(tester, id, size: const Size(390, 844));
+    await settleMd(tester);
+    expect(bodySize(), 16);
+  });
+
+  testWidgets('code without a language has no empty header line '
+      '(owner review)', (tester) async {
+    final h = await MdHarness.create(tester);
+    final id = await h.doc(tester, '```\nplain\n```\n\n```dart\nx\n```');
+    await h.pump(tester, id);
+    await settleMd(tester);
+    final plain = find.byKey(MarkdownKeys.code(0));
+    final dart = find.byKey(MarkdownKeys.code(1));
+    expect(find.descendant(of: dart, matching: find.text('dart')), findsOne);
+    // [복사] beside the code: the block is one button high plus padding, not a header
+    // row plus the code.
+    expect(tester.getSize(plain).height, lessThan(tester.getSize(dart).height));
+    expect(
+      find.descendant(
+        of: plain,
+        matching: find.byKey(MarkdownKeys.codeCopy(0)),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('an empty document offers [편집하기] in 보기 (owner review)', (
+    tester,
+  ) async {
+    final h = await MdHarness.create(tester);
+    final id = await h.doc(tester, '');
+    await h.pump(tester, id);
+    await settleMd(tester);
+    expect(find.text('아직 내용이 없어요'), findsOneWidget);
+    await tester.tap(find.byKey(MarkdownKeys.emptyEdit));
+    await settleMd(tester);
+    expect(find.byKey(MarkdownKeys.editor), findsOneWidget);
+  });
 }

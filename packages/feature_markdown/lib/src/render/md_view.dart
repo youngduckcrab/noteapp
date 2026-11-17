@@ -9,6 +9,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:ui_kit/ui_kit.dart';
+
 import '../markdown_keys.dart';
 import '../parse/md_model.dart';
 import '../strings_ko.dart';
@@ -239,6 +241,7 @@ class MdView extends StatefulWidget {
     required this.canToggleTask,
     this.highlightBlock,
     this.listKey = MarkdownKeys.view,
+    this.onStartEditing,
   });
 
   final MdDocument document;
@@ -251,6 +254,9 @@ class MdView extends StatefulWidget {
   /// The block drawn highlighted (search landing); null for none.
   final int? highlightBlock;
   final Key listKey;
+
+  /// An empty document shows [편집하기] calling this (null: the text alone).
+  final VoidCallback? onStartEditing;
 
   @override
   State<MdView> createState() => _MdViewState();
@@ -304,10 +310,32 @@ class _MdViewState extends State<MdView> {
               key: widget.listKey,
               child: Padding(
                 padding: EdgeInsets.all(pad),
-                child: Text(
-                  MdStrings.emptyDoc,
-                  textAlign: TextAlign.center,
-                  style: style.small,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppIcon(
+                      AppIconKind.markdownDoc,
+                      size: 40,
+                      color: style.tokens.textSecondary,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      MdStrings.emptyDoc,
+                      textAlign: TextAlign.center,
+                      style: style.body.copyWith(
+                        color: style.tokens.textSecondary,
+                      ),
+                    ),
+                    if (widget.onStartEditing != null) ...[
+                      const SizedBox(height: 16),
+                      FilledButton.tonalIcon(
+                        key: MarkdownKeys.emptyEdit,
+                        onPressed: widget.onStartEditing,
+                        icon: const AppIcon(AppIconKind.editSource, size: 20),
+                        label: const Text(MdStrings.emptyEdit),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             );

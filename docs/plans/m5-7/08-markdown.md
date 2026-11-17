@@ -1,6 +1,6 @@
 # 08 · MARKDOWN — MD 문서 v1 (선택안 ①: 파일 그대로 앱 안에서 보기 · 고치기)
 
-> 상태: **기반 구현됨 · 검토 반영 · 트랙 A(데이터 · 동기화 · 검색 · 라이브러리 · 경로) 구현됨 · 트랙 A 검토 반영(`track/md-data`, 20 · 21절 · progress/markdown.md) · 트랙 B(화면) 구현됨 · 트랙 B 코드 검토 반영(8.12 · 19.1) · 통합(22절)** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋 `31e7ef2`(트랙 B의 `658f361`과 트리 같음) · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
+> 상태: **기반 구현됨 · 검토 반영 · 트랙 A(데이터 · 동기화 · 검색 · 라이브러리 · 경로) 구현됨 · 트랙 A 검토 반영(`track/md-data`, 20 · 21절 · progress/markdown.md) · 트랙 B(화면) 구현됨 · 트랙 B 코드 검토 반영(8.12 · 19.1) · 통합(22절) · 오너 시각 검토(23절)** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋 `31e7ef2`(트랙 B의 `658f361`과 트리 같음) · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
 >
 > 오너 요청: 'PDF뿐만 아니라 md파일도 읽을 수 있으면 좋겠다' → 오너 선택: **md 파일 자체를 앱 안에서 쓴다(필기 노트로 바꾸지 않음)**, 범위 **①**. ②(블록마다 펜 필기)와 ③(원본 파일과 살아 있는 연결)은 뒤 라운드다.
 >
@@ -351,12 +351,12 @@ packages/feature_markdown/lib/
 
 | 요소 | 그리는 법 |
 |---|---|
-| 바탕 | 화면 전체 `toolbar`(토큰 뜻 '전체 화면' — 검토 U14, `canvas`는 쓰지 않음), 본문 열 최대 720 px 가운데 |
+| 바탕 | 화면 전체 `toolbar`(토큰 뜻 '전체 화면' — 검토 U14, `canvas`는 쓰지 않음), 본문 열 최대 720 px 가운데, 본문 글자 16 px(태블릿 — 짧은 변 ≥ 600 — 은 17 px, 제목도 같은 비율 — 23절) |
 | 제목 h1~h6 | `TextTheme` headline/title, h1·h2 아래 `hairline` 선 |
 | 문단 | `bodyLarge`, 줄 높이 1.6, `textPrimary` |
 | 강조 · 취소선 | w700 · italic · lineThrough |
 | 인라인 코드 | 고정폭, `accentSoft` 바탕 + **`onAccentSoft` 글자**, `radiusSmall` |
-| 펜스 코드 | `card` 바탕 + `hairline` 테두리, 고정폭, **가로 스크롤**(줄 바꿈 안 함), 언어 이름, [복사](`AppIconKind.copyText`). 문법 색칠 없음 |
+| 펜스 코드 | `card` 바탕 + `hairline` 테두리, 고정폭, **가로 스크롤**(줄 바꿈 안 함), 언어 이름(없으면 머리 줄 없이 [복사]가 코드 옆 — 23절), [복사](`AppIconKind.copyText`). 문법 색칠 없음 |
 | 표 | **가로 스크롤**, 머리줄 w600 + `card` 바탕, 정렬 지킴, 칸 폭 48~320 px. **100행 넘는 표는 앞 100행 + [더 보기](100행씩, 키 `md.table.<i>.more`), 칸 폭은 머리줄 + 앞 40행 표본으로 한 번 재서 고정**(8.11 · 19.1 A7) |
 | 목록 | 중첩 24 px씩, 글머리 깊이마다 ● ○ ■, 번호 시작 지킴 |
 | 할 일 | 체크 상자(누를 곳 48 dp 이상 — 8.5), 끝난 항목 `textSecondary` |
@@ -374,7 +374,7 @@ packages/feature_markdown/lib/
 ### 8.4 위 막대 · 메뉴 · 뒤로
 
 - 넓을 때(본문 폭 ≥ 600): [←] 제목(누르면 이름 바꾸기 — `libraryRepository.renameNote`) · **[보기|편집] 단추 하나**(아이콘 `viewRendered`/`editSource` + 글) · (≥ 1,100 가로) [나란히] · 편집 중 [↶][↷] · 저장 상태 글('저장됨' / '저장 중…' / '저장하지 못했어요') · [⋯].
-- **좁을 때(< 600 — 폰, 검토 U12)**: 모드 단추는 아이콘만(툴팁), 저장 상태는 아이콘(툴팁 · 의미 이름), [↶][↷]는 기호 줄로 옮김. 390 px · 글자 배율 1.3에서 넘침 없음(골든).
+- **좁을 때(< 600 — 폰, 검토 U12)**: 모드 단추도 글을 단다(아이콘 + '보기'/'편집', 좌우 여백만 줄임 — 오너 시각 검토 23절, 아이콘만이면 못 찾음), 저장 상태는 아이콘(툴팁 · 의미 이름), [↶][↷]는 기호 줄로 옮김. 390 px · 글자 배율 1.3에서 넘침 없음(골든).
 - [⋯]: '.md로 내보내기'(자리가 있을 때) · '이름 바꾸기' · '정보'(글자 수 · 바이트 · 수정 시각).
 - 나란히 모드에서 모드 단추 = '나란히 끄기'(편집으로 돌아감)(검토 U22).
 - **뒤로 순서**(검토 U22, 편집기 `editor_screen.dart`의 순서와 같음): ① 열린 시트 · 메뉴 닫기 ② 편집/나란히 모드면 보기로(저장 비우기) ③ 화면 닫기. 저장이 실패한 채면 ③ 대신 8.7의 떠나기 대화. **위 막대 [←]도 시스템 뒤로와 같은 순서**다(19.1 B8).
@@ -560,7 +560,7 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 
 ### 12.3 ui_kit (AppIconKind 더함, Material 글리프만 — 구현됨)
 
-`markdownDoc`(article), `newMarkdown`(post_add), `importMarkdown`(file_open), `exportMarkdown`(file_download), `editSource`(edit_document), `viewRendered`(chrome_reader_mode), `splitView`(vertical_split), `link`(link), `openExternal`(open_in_browser), `copyText`(copy_all), `imageBlocked`(image_not_supported), `indent` · `outdent`(format_indent_increase/decrease). 글리프가 겹치지 않음(`app_icons_test`).
+`markdownDoc`(article), `newMarkdown`(post_add), `importMarkdown`(file_open), `exportMarkdown`(file_download), `editSource`(edit_document), `viewRendered`(menu_book — 23절, 옆 패널처럼 보이던 chrome_reader_mode 대신), `splitView`(vertical_split), `link`(link), `openExternal`(open_in_browser), `copyText`(copy_all), `imageBlocked`(image_not_supported), `indent` · `outdent`(format_indent_increase/decrease). 글리프가 겹치지 않음(`app_icons_test`).
 
 ### 12.4 트랙 A가 더하는 공개 표면
 
@@ -572,7 +572,7 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 
 ## 13. 키 이름
 
-화면(`MarkdownKeys`, 기반에서 고정 — B는 더하기만): `md.screen` · `md.back` · `md.title` · `md.mode` · `md.split` · `md.undo` · `md.redo` · `md.saveState` · `md.more` · `md.menu.export` · `md.menu.rename` · `md.menu.info` · `md.view` · `md.editor` · `md.accessory` · `md.highlight` · `md.notMarkdown` · `md.notMarkdown.open` · `md.banner.trashed` · `md.banner.newerApp` · `md.banner.receiving` · `md.banner.tooLarge` · `md.banner.tooLargeToEdit` · `md.banner.saveFailed` · `md.banner.retry` · `md.banner.conflictCopy` · `md.leave` · `md.leave.stay` · `md.leave.copy` · `md.leave.discard` · `md.linkSheet` · `md.linkSheet.copy` · `md.linkSheet.open` · `md.linkSheet.cancel` · `md.taskUndo` · `md.block.<i>` · `md.task.<i>` · `md.link.<i>` · `md.code.<i>` · `md.code.<i>.copy` · `md.table.<i>` · `md.math.<i>` · `md.image.<i>`. B가 더함: `md.frontMatter` · `md.split.preview` · `md.banner.unsaved` · `md.banner.unsaved.restore` · `md.banner.unsaved.discard` · `md.banner.dismiss` · `md.banner.conflictCopy.open` · `md.rename.field` · `md.rename.ok` · `md.accessory.<기호>` · `md.accessory.fade.start|end` · `md.table.<i>.more`.
+화면(`MarkdownKeys`, 기반에서 고정 — B는 더하기만): `md.screen` · `md.back` · `md.title` · `md.mode` · `md.split` · `md.undo` · `md.redo` · `md.saveState` · `md.more` · `md.menu.export` · `md.menu.rename` · `md.menu.info` · `md.view` · `md.emptyEdit`(23절) · `md.editor` · `md.accessory` · `md.highlight` · `md.notMarkdown` · `md.notMarkdown.open` · `md.banner.trashed` · `md.banner.newerApp` · `md.banner.receiving` · `md.banner.tooLarge` · `md.banner.tooLargeToEdit` · `md.banner.saveFailed` · `md.banner.retry` · `md.banner.conflictCopy` · `md.leave` · `md.leave.stay` · `md.leave.copy` · `md.leave.discard` · `md.linkSheet` · `md.linkSheet.copy` · `md.linkSheet.open` · `md.linkSheet.cancel` · `md.taskUndo` · `md.block.<i>` · `md.task.<i>` · `md.link.<i>` · `md.code.<i>` · `md.code.<i>.copy` · `md.table.<i>` · `md.math.<i>` · `md.image.<i>`. B가 더함: `md.frontMatter` · `md.split.preview` · `md.banner.unsaved` · `md.banner.unsaved.restore` · `md.banner.unsaved.discard` · `md.banner.dismiss` · `md.banner.conflictCopy.open` · `md.rename.field` · `md.rename.ok` · `md.accessory.<기호>` · `md.accessory.fade.start|end` · `md.table.<i>.more`.
 
 라이브러리(트랙 A): `library.new.markdown` · `library.new.importMarkdown` · `library.tile.mdBadge` · `library.tile.mdPreview` · `library.menu.exportMarkdown` · `library.hit.markdown.<noteId>`.
 
@@ -813,3 +813,23 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 - 앱 끝까지 시험(MD-T11 확장): `app/test/support/markdown_e2e_scenario.dart` — 실제 모듈 · 라우터 · 라이브러리 · MD 화면으로 새로 만들기 › MD 가져오기 → 보기(제목 · 할 일 상자 · 수식) → 편집 → [←] 두 번 → 저장 확인 · 카드 → 라이브러리 검색 → 결과 → `/md/<id>?q=` · 강조 → ⋯ › .md로 내보내기 › 저장(바이트 같음, 이름 `<제목>.md`) → 새 MD 문서(편집으로 열림) → 휴지통으로 이동 → 휴지통 › 복원 → 홈 · 최근에 다시 보임. 가짜 CORE로 기본 실행(`app/test/app/markdown_end_to_end_test.dart`), 실제 CORE(메모리)로 integration 단계(`app/test/integration/markdown_real_core_test.dart`) — 둘 다 통과.
 - 남은 것: 실기기 체크리스트 12항목(15.4), APK 빌드, `app_smoke_v2_test`(integration)의 MD와 무관한 override 표 4줄(21절 · progress).
 - 웹 예산(병합 뒤 `flutter build web --release`, `ws web-budget check`): main.dart.js **6,971,472 raw / 2,056,242 gzip** — 트랙 A 검토 반영 뒤(2,045,178) 대비 **+11,064 gzip**, MD 이전 바탕(2,026,031) 대비 **+30,211 gzip**. MD 화면 deferred part `main.dart.js_1.part.js` 258,031 raw / 87,485 gzip(첫 화면에 안 실림). 상한 2,000,000은 바탕부터 over — 총괄 판단(17절). 글꼴 · 성장 상한은 통과.
+
+## 23. 오너 시각 검토 (2026-11-17, 통합 뒤)
+
+통합된 앱에서 MD 화면을 다시 그려 봄(크래프트 · 미니멀 · 스튜디오 × 밝게 · 어둡게, 1280×800 가로 · 800×1280 세로 · 390×844 폰, 한국어 예시 + 경계 사례: 140행 넓은 표, 아주 긴 코드 줄, 수식 · 잘못된 수식, 3단 할 일, 원격 · 상대 경로 이미지, 빈 문서, 5,000줄 문서 스크롤 · 편집 전환). 고친 것:
+
+| 본 것 | 고침 |
+|---|---|
+| 폰에서 [보기/편집] 단추가 아이콘만이고 '보기' 아이콘이 옆 패널처럼 보여 못 찾음 | 폰도 글 단 단추(48 dp), `viewRendered` 글리프 menu_book(책 = 읽기) |
+| 태블릿 본문 16 px — 팔 길이에서 읽기 작음 | 짧은 변 ≥ 600이면 본문 17 px · 제목 같은 비율 · 코드 14.5 px(폰은 그대로). 720 px 열에서 한 줄 약 42자 |
+| 언어 없는 코드 블록 위에 빈 머리 줄(복사 단추만) | 언어 없으면 머리 줄 없이 [복사]가 코드 옆 |
+| 빈 문서의 보기가 작은 회색 글 한 줄뿐 | MD 문서 표시 + '아직 내용이 없어요' + [편집하기](`md.emptyEdit`, 고칠 수 있을 때만) |
+| 라이브러리 MD 카드 미리보기에 `$E = mc^2$` · `[^1]` · `$$` 줄이 날것으로 | `MarkdownPreviewText`가 인라인 수식 달러(pandoc 규칙 — '$5 and $6'은 그대로) · 각주 표시 · 각주 정의 머리 · `$$` 줄을 지움 |
+| 빈 MD 문서 카드가 흰 종이뿐 | 빈 노트 카드처럼 가운데 MD 문서 표시(종이 잉크 35 %) |
+
+그대로 둔 것(이유):
+- 할 일 줄 높이 48 dp — 19.1 B12 판정 유지(누를 곳 = 줄 높이, 펜 · 손가락 실수 막기). 17 px 본문으로 글머리 줄과의 차이는 조금 줆.
+- 뒤로 순서(편집 → 보기 → 나가기, 8.4) — 시스템 뒤로와 [←]가 같은 순서라 헷갈리지 않음. 앱 끝까지 시험이 이 순서를 지킴.
+- 저장 상태: 편집 중 '저장 중…' → '저장됨'(폰은 아이콘), 보기에서는 저장됨이면 숨김 — 그대로 충분.
+- 취소선이 한글에서 조금 낮게 그어짐 — 글꼴 지표 탓, 기기 글꼴로 실기기 확인(15.4).
+

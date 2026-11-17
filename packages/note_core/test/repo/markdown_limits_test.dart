@@ -136,5 +136,18 @@ void main() {
         expect(MarkdownPreviewText.of(''), '');
       },
     );
+
+    test('math dollars, footnote marks and \$\$ lines removed (cards read as text)', () {
+      expect(
+        MarkdownPreviewText.of(
+          r'수식 $E = mc^2$ 도 있어요.[^1]'
+          '\n\$\$\n\\int_0^1 x\\,dx\n\$\$\n[^1]: 각주예요.',
+        ),
+        '수식 E = mc^2 도 있어요.\n\\int_0^1 x\\,dx\n각주예요.',
+      );
+      // Prices are not math.
+      expect(MarkdownPreviewText.of(r'$5 and $6'), r'$5 and $6');
+      expect(MarkdownPreviewText.of(r'가격 $5$9'), r'가격 $5$9');
+    });
   });
 }

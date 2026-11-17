@@ -756,19 +756,19 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
         _Mode.edit => () => unawaited(_toView()),
         _Mode.split => () => _setSplit(false),
       };
-      if (narrow) {
-        return IconButton(
-          key: MarkdownKeys.mode,
-          tooltip: tip,
-          onPressed: onPressed,
-          icon: AppIcon(icon),
-        );
-      }
+      // Labelled on a phone too: the one 보기 ↔ 편집 button is the screen's main action
+      // and an icon alone was not found (owner review).
       return Tooltip(
         message: tip,
         child: TextButton.icon(
           key: MarkdownKeys.mode,
           onPressed: onPressed,
+          style: narrow
+              ? TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(48, 48),
+                )
+              : null,
           icon: AppIcon(icon, size: 20),
           label: Text(label),
         ),
@@ -1065,7 +1065,13 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
           children: [
             if (editor != null)
               Offstage(child: TickerMode(enabled: false, child: editor)),
-            Positioned.fill(child: _mdView(_view, MarkdownKeys.view)),
+            Positioned.fill(
+              child: _mdView(
+                _view,
+                MarkdownKeys.view,
+                onStartEditing: _c.canEdit ? _toEdit : null,
+              ),
+            ),
           ],
         );
       case _Mode.edit:
@@ -1088,8 +1094,13 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     }
   }
 
-  Widget _mdView(MdViewController controller, Key key) => MdView(
+  Widget _mdView(
+    MdViewController controller,
+    Key key, {
+    VoidCallback? onStartEditing,
+  }) => MdView(
     document: _parsed,
+    onStartEditing: onStartEditing,
     controller: controller,
     listKey: key,
     highlightBlock: _highlight,

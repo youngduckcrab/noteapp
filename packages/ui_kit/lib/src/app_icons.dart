@@ -159,7 +159,7 @@ enum AppIconKind {
   editSource(Icons.edit_document),
 
   /// 보기 (rendered view) of the 보기 ↔ 편집 button.
-  viewRendered(Icons.chrome_reader_mode_outlined),
+  viewRendered(Icons.menu_book_rounded),
 
   /// 나란히 (editor + preview side by side).
   splitView(Icons.vertical_split_outlined),

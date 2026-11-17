@@ -18,6 +18,29 @@ class MdCodeBlockView extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = MdRenderScope.of(context).style;
     final t = s.tokens;
+    final hasLanguage = (block.language ?? '').isNotEmpty;
+    final copy = IconButton(
+      key: MarkdownKeys.codeCopy(block.index),
+      tooltip: MdStrings.codeCopy,
+      visualDensity: VisualDensity.compact,
+      icon: AppIcon(AppIconKind.copyText, size: 18, color: t.textSecondary),
+      onPressed: () async {
+        await Clipboard.setData(ClipboardData(text: block.code));
+        if (!context.mounted) return;
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text(MdStrings.copied)));
+      },
+    );
+    Widget code(EdgeInsets padding) => SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: padding,
+      child: Text(
+        block.code,
+        softWrap: false,
+        style: s.codeBlock.copyWith(color: t.textPrimary),
+      ),
+    );
     return Container(
       key: MarkdownKeys.code(block.index),
       decoration: BoxDecoration(
@@ -25,54 +48,40 @@ class MdCodeBlockView extends StatelessWidget {
         borderRadius: BorderRadius.circular(t.radiusMedium),
         border: Border.all(color: t.hairline),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 14, right: 2, top: 2),
-            child: Row(
+      child: hasLanguage
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text(
-                    block.language ?? '',
-                    style: s.small.copyWith(fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, right: 2, top: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          block.language!,
+                          style: s.small.copyWith(fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      copy,
+                    ],
                   ),
                 ),
-                IconButton(
-                  key: MarkdownKeys.codeCopy(block.index),
-                  tooltip: MdStrings.codeCopy,
-                  visualDensity: VisualDensity.compact,
-                  icon: AppIcon(
-                    AppIconKind.copyText,
-                    size: 18,
-                    color: t.textSecondary,
-                  ),
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: block.code));
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.maybeOf(context)
-                      ?..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(content: Text(MdStrings.copied)),
-                      );
-                  },
+                code(const EdgeInsets.fromLTRB(14, 0, 14, 14)),
+              ],
+            )
+          // No language: no empty header line — [복사] sits beside the code.
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: code(const EdgeInsets.fromLTRB(14, 12, 8, 14))),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, right: 2),
+                  child: copy,
                 ),
               ],
             ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            child: Text(
-              block.code,
-              softWrap: false,
-              style: s.codeBlock.copyWith(color: t.textPrimary),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

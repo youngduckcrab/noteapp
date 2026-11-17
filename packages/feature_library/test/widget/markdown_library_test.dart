@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../support/fake_library_backend.dart';
 import '../support/library_test_harness.dart';
@@ -178,6 +179,27 @@ void main() {
     await tester.tap(find.widgetWithText(NoteTile, '회의'));
     await tester.pumpAndSettle();
     expect(h.log.entries.last, 'md:${note.id}');
+  });
+
+  testWidgets('an empty MD card shows the MD 문서 mark, not a blank page '
+      '(owner review)', (tester) async {
+    await createMd(tester, '빈 문서', '');
+    await createMd(tester, '글 있음', '본문');
+    await pumpAt(tester);
+    await real(tester, () => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    Finder mark(String title) => find.descendant(
+      of: find.descendant(
+        of: find.widgetWithText(NoteTile, title),
+        matching: find.byType(MarkdownCoverCard),
+      ),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is AppIcon && w.kind == AppIconKind.markdownDoc && w.size == 40,
+      ),
+    );
+    expect(mark('빈 문서'), findsOneWidget);
+    expect(mark('글 있음'), findsNothing);
   });
 
   testWidgets('without onOpenMarkdown an MD card goes through onOpenNote', (

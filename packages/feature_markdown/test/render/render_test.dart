@@ -288,6 +288,6 @@ void main() {
     final h = await MdHarness.create(tester);
     final id = await h.doc(tester, '');
     await h.pump(tester, id);
-    expect(find.text('아직 내용이 없어요 — 편집에서 글을 써 보세요'), findsOneWidget);
+    expect(find.text('아직 내용이 없어요'), findsOneWidget);
   });
 }

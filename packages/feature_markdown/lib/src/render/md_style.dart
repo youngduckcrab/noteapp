@@ -38,14 +38,17 @@ final class MdStyle {
   factory MdStyle.of(BuildContext context) {
     final theme = Theme.of(context);
     final t = StyleTokens.of(context);
+    // A tablet is read at arm's length (stylus in hand): 17 px body there, 16 on a phone.
+    final tablet = (MediaQuery.maybeSizeOf(context)?.shortestSide ?? 0) >= 600;
+    final k = tablet ? 17 / 16 : 1.0;
     final base = (theme.textTheme.bodyLarge ?? const TextStyle()).copyWith(
-      fontSize: 16,
+      fontSize: 16 * k,
       height: 1.6,
       color: t.textPrimary,
       fontWeight: FontWeight.w400,
     );
     TextStyle h(double size, FontWeight w, {Color? color}) => base.copyWith(
-      fontSize: size,
+      fontSize: (size * k).roundToDouble(),
       fontWeight: w,
       height: 1.35,
       color: color ?? t.textPrimary,
@@ -53,7 +56,7 @@ final class MdStyle {
     final mono = base.copyWith(
       fontFamily: kMonoFamily,
       fontFamilyFallback: kMonoFallback,
-      fontSize: 14,
+      fontSize: tablet ? 14.5 : 14,
       height: 1.5,
     );
     return MdStyle(
@@ -69,7 +72,7 @@ final class MdStyle {
         h(15, FontWeight.w600, color: t.textSecondary),
       ],
       inlineCode: mono.copyWith(
-        fontSize: 14.5,
+        fontSize: tablet ? 15 : 14.5,
         color: t.onAccentSoft,
         backgroundColor: t.accentSoft,
       ),
@@ -81,7 +84,7 @@ final class MdStyle {
   final StyleTokens tokens;
   final ColorScheme scheme;
 
-  /// Paragraphs: 16 px, line height 1.6, textPrimary.
+  /// Paragraphs: 16 px (17 on a tablet), line height 1.6, textPrimary.
   final TextStyle body;
 
   /// h1 … h6.
