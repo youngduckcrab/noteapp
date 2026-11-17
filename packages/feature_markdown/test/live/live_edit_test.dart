@@ -142,6 +142,19 @@ void main() {
       expect(toggleLinePrefix(_at('# a'), LinePrefix.h2).text, '## a');
       expect(toggleLinePrefix(_at('## a'), LinePrefix.h2).text, 'a');
       expect(toggleLinePrefix(_at('a'), LinePrefix.quote).text, '> a');
+      // An empty field (a fresh block) takes the marker; the caret follows it.
+      for (final (p, m) in [
+        (LinePrefix.h1, '# '),
+        (LinePrefix.bullet, '- '),
+        (LinePrefix.task, '- [ ] '),
+        (LinePrefix.numbered, '1. '),
+        (LinePrefix.quote, '> '),
+      ]) {
+        final v = toggleLinePrefix(_at(''), p);
+        expect(v.text, m);
+        expect(v.selection.baseOffset, m.length);
+        expect(toggleLinePrefix(v, p).text, '');
+      }
       // Headings take the caret's line only.
       expect(toggleLinePrefix(sel('a\nb', 0, 3), LinePrefix.h1).text, '# a\nb');
     });

@@ -560,7 +560,11 @@ TextEditingValue toggleLinePrefix(TextEditingValue v, LinePrefix p) {
   final from = lineAt(text, sel.start).$1;
   final to = heading ? lineAt(text, sel.start).$2 : lineAt(text, sel.end).$2;
   final lines = text.substring(from, to).split('\n');
-  final all = lines.every((l) => l.trim().isEmpty || _kindOf(l) == p.name);
+  // 'Already marked' needs a marked line: an empty line (a fresh block's first
+  // tap of H1 / list / task) gets the marker, it is not 'all marked'.
+  final all =
+      lines.any((l) => l.trim().isNotEmpty) &&
+      lines.every((l) => l.trim().isEmpty || _kindOf(l) == p.name);
   final out = <String>[];
   var n = 1;
   for (final l in lines) {

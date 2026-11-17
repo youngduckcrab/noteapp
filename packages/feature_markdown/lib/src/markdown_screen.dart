@@ -211,17 +211,31 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     unawaited(
       _settings.set(kMarkdownLiveHintSetting, true).catchError((Object _) {}),
     );
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(
-        key: MarkdownKeys.liveHint,
-        duration: Duration(seconds: 5),
-        content: Text(MdStrings.liveHint),
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    _track(
+      messenger.showSnackBar(
+        const SnackBar(
+          key: MarkdownKeys.liveHint,
+          duration: Duration(seconds: 5),
+          content: Text(MdStrings.liveHint),
+        ),
       ),
     );
   }
 
   @override
   void dispose() {
+    // This screen's snack bar does not outlive it: its [되돌리기] would act on a closed
+    // document (and cover the next screen's toolbar). Hidden after this frame — the
+    // messenger cannot change while the tree is being torn down.
+    final messenger = _messenger;
+    if (_snack != null && messenger != null) {
+      _snack = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (messenger.mounted) messenger.hideCurrentSnackBar();
+      });
+    }
     _life.dispose();
     _parseTimer?.cancel();
     _highlightTimer?.cancel();
@@ -312,7 +326,34 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
   int _chrome = 0;
 
   void _onLive() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // A block opened: this screen's snack bar (the hint, a box's [되돌리기]) would sit
+    // over the format toolbar at the bottom — the user has moved on, it goes.
+    if (_live.isOpen && _snack != null) {
+      _snack = null;
+      ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+    }
+    setState(() {});
+  }
+
+  /// The snack bar this screen shows last (the hint or a box's [되돌리기]) while it is
+  /// up; [_messenger] is where it shows, kept for [dispose].
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _snack;
+  ScaffoldMessengerState? _messenger;
+
+  void _track(ScaffoldFeatureController<SnackBar, SnackBarClosedReason> c) {
+    _snack = c;
+    unawaited(
+      c.closed.then((_) {
+        if (identical(_snack, c)) _snack = null;
+      }),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.maybeOf(context);
   }
 
   void _checkUnsaved() {
@@ -1039,7 +1080,8 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
     if (!await changed && _c.text.text == before) return;
     if (!mounted || after == before) return;
     final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
-    messenger.showSnackBar(
+    _snack = null;
+    final shown = messenger.showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 4),
         content: const Text(MdStrings.taskChanged),
@@ -1047,13 +1089,14 @@ class _MarkdownScreenState extends ConsumerState<MarkdownScreen> {
           key: MarkdownKeys.taskUndo,
           label: MdStrings.undo,
           onPressed: () {
-            if (_c.text.text != after) return;
+            if (!mounted || _c.text.text != after) return;
             unawaited(_c.toggleTaskAt(offset));
             _ensureParsed(immediate: true);
           },
         ),
       ),
     );
+    _track(shown);
   }
 
   /// [사본 열기]: saves first (like back), then lets the app open the copy.

@@ -146,11 +146,12 @@ class LiveBlockField extends StatelessWidget {
         : session.doc.blocks[unit.block].nodes;
     // A table or a math block is hard to read as source: it is drawn under the field
     // while it is edited (24.17 L′10).
-    final preview =
-        unit != null &&
-        unit.item == null &&
+    // A block that becomes one here (the toolbar's Σ / table into a new block, or
+    // typed `$$` / `|`) is drawn too, from its first line on.
+    final drawn =
         nodes.length == 1 &&
         (nodes.single is MdTable || nodes.single is MdMathBlock);
+    final canPreview = unit == null || unit.item == null;
     return KeyedSubtree(
       key: MarkdownKeys.liveField,
       child: Container(
@@ -180,8 +181,17 @@ class LiveBlockField extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _textField(context, base, prose, session),
-              if (preview)
-                _LivePreview(key: MarkdownKeys.livePreview, editor: editor),
+              if (canPreview)
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: editor.field,
+                  builder: (context, v, _) =>
+                      drawn || (prose && _startsTableOrMath(v.text))
+                      ? _LivePreview(
+                          key: MarkdownKeys.livePreview,
+                          editor: editor,
+                        )
+                      : const SizedBox.shrink(),
+                ),
             ],
           ),
         ),
@@ -240,6 +250,12 @@ class LiveBlockField extends StatelessWidget {
 }
 
 /// The open table / math block drawn from the field's text, a moment after typing stops.
+/// The field's text opens a math block or a table (cheap: the first characters only).
+bool _startsTableOrMath(String text) {
+  final head = text.trimLeft();
+  return head.startsWith(r'$$') || head.startsWith('|');
+}
+
 class _LivePreview extends StatefulWidget {
   const _LivePreview({super.key, required this.editor});
 
@@ -295,7 +311,10 @@ class _LivePreviewState extends State<_LivePreview> {
   @override
   Widget build(BuildContext context) {
     final t = MdStyle.of(context).tokens;
-    if (_nodes.isEmpty) return const SizedBox.shrink();
+    // Only a table or a math block is drawn (prose reads fine as it is typed).
+    if (!_nodes.any((n) => n is MdTable || n is MdMathBlock)) {
+      return const SizedBox.shrink();
+    }
     return IgnorePointer(
       child: Container(
         margin: const EdgeInsets.only(top: 6, bottom: 4),

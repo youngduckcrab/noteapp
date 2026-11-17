@@ -320,4 +320,91 @@ void main() {
     await settleMd(tester);
     expect(_field, findsNothing);
   });
+
+  testWidgets(
+    'a fresh empty block takes H1 / list / task from the toolbar, and a math '
+    'block made there is drawn under the field (final walk, 24.18)',
+    (tester) async {
+      final h = await MdHarness.create(tester);
+      final id = await h.doc(tester, '');
+      await h.pump(tester, id, initialEdit: true);
+      expect(_field, findsOneWidget);
+      Future<void> tool(String name) async {
+        final f = find.byKey(MarkdownKeys.liveToolbarButton(name));
+        await tester.ensureVisible(f);
+        await tester.pump();
+        await tester.tap(f);
+        await settleMd(tester, 2);
+      }
+
+      await tool('h1');
+      expect(_fieldText(tester), '# ');
+      await _typeAtCaret(tester, 'Plan');
+      await _typeAtCaret(tester, '\n');
+      expect(_fieldText(tester), '');
+      await tool('bullet');
+      expect(_fieldText(tester), '- ');
+      await _typeAtCaret(tester, 'milk');
+      await _typeAtCaret(tester, '\n');
+      await _typeAtCaret(tester, '\n'); // leaves the list
+      await tool('task');
+      expect(_fieldText(tester), '- [ ] ');
+      await _typeAtCaret(tester, 'receipts');
+      await _typeAtCaret(tester, '\n');
+      await _typeAtCaret(tester, '\n');
+      expect(find.byKey(MarkdownKeys.livePreview), findsNothing);
+      await tool('mathBlock');
+      await _typeAtCaret(tester, r'x^2');
+      await tester.pump(const Duration(milliseconds: 300));
+      await settleMd(tester, 2);
+      expect(find.byKey(MarkdownKeys.livePreview), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(MarkdownKeys.livePreview)).height,
+        greaterThan(12),
+        reason: 'the formula is drawn, not an empty box',
+      );
+      await _done(tester);
+      await _autosave(tester);
+      expect(
+        await h.stored(tester, id),
+        '# Plan\n\n- milk\n\n- [ ] receipts\n\n\$\$\nx^2\n\$\$',
+      );
+    },
+  );
+
+  testWidgets('a box\'s [되돌리기] goes when a block opens and does not outlive the '
+      'screen (final walk, 24.18)', (tester) async {
+    final h = await MdHarness.create(tester);
+    final id = await h.doc(tester, '- [ ] a\n\nbody');
+    await h.pump(tester, id);
+    await tester.tap(find.byKey(MarkdownKeys.task(0)));
+    await settleMd(tester);
+    expect(find.byKey(MarkdownKeys.taskUndo), findsOneWidget);
+    // Opening a block: the snack bar would cover the format toolbar — it goes.
+    await tester.tap(find.text('body'));
+    await settleMd(tester, 12);
+    expect(_field, findsOneWidget);
+    expect(find.byKey(MarkdownKeys.taskUndo), findsNothing);
+    expect(
+      tester.getRect(find.byKey(MarkdownKeys.liveToolbarButton('done'))).bottom,
+      lessThanOrEqualTo(834),
+    );
+    await _done(tester);
+
+    // Toggle again, then the screen goes while the snack bar is up: it is hidden and
+    // its undo cannot reach the closed document.
+    await tester.tap(find.byKey(MarkdownKeys.task(0)));
+    await settleMd(tester);
+    expect(find.byKey(MarkdownKeys.taskUndo), findsOneWidget);
+    await _autosave(tester);
+    final before = await h.stored(tester, id);
+    expect(before, '- [ ] a\n\nbody');
+    await tester.pumpWidget(
+      MaterialApp(home: Scaffold(body: const SizedBox())),
+    );
+    await _real(tester, 50);
+    await settleMd(tester, 12);
+    expect(find.byKey(MarkdownKeys.taskUndo), findsNothing);
+    expect(await h.stored(tester, id), before);
+  });
 }
