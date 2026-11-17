@@ -4,7 +4,7 @@
 // 1. Entry points: exactly feature_markdown.dart and slots.dart; each shows exactly its names;
 //    slots.dart reaches no parser code (it is imported eagerly while the screen is deferred).
 // 2. Compile-time shape of every public member.
-// 3. The stub screen builds on the fake store (back, title, text, not-an-MD-문서).
+// 3. The screen builds on the fake store (back, title, rendered text, not-an-MD-문서).
 @TestOn('vm')
 library;
 
@@ -132,48 +132,49 @@ void main() {
     expect(MarkdownKeys.image(0).value, 'md.image.0');
   });
 
-  testWidgets('stub screen: title and text of an MD 문서, back calls onClose', (
-    tester,
-  ) async {
-    final store = createFakeNoteStore();
-    addTearDown(store.close);
-    final note = await tester.runAsync(
-      () => store.markdown.create(title: '문서', text: '# 안녕'),
-    );
-    final ink = await tester.runAsync(
-      () => store.library.createNote(title: '필기'),
-    );
-    var closed = 0;
-    var asNote = 0;
-    Future<void> show(NoteId id) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [noteStoreProvider.overrideWithValue(store)],
-          child: MaterialApp(
-            home: MarkdownScreen(
-              key: ValueKey(id),
-              noteId: id,
-              onClose: () => closed++,
-              onOpenAsNote: () => asNote++,
+  testWidgets(
+    'screen: title and rendered text of an MD 문서, back calls onClose',
+    (tester) async {
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      final note = await tester.runAsync(
+        () => store.markdown.create(title: '문서', text: '# 안녕'),
+      );
+      final ink = await tester.runAsync(
+        () => store.library.createNote(title: '필기'),
+      );
+      var closed = 0;
+      var asNote = 0;
+      Future<void> show(NoteId id) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [noteStoreProvider.overrideWithValue(store)],
+            child: MaterialApp(
+              home: MarkdownScreen(
+                key: ValueKey(id),
+                noteId: id,
+                onClose: () => closed++,
+                onOpenAsNote: () => asNote++,
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-    }
+        );
+        await tester.pumpAndSettle();
+      }
 
-    await show(note!.id);
-    expect(find.byKey(MarkdownKeys.screen), findsOneWidget);
-    expect(find.text('문서'), findsOneWidget);
-    expect(find.text('# 안녕'), findsOneWidget);
-    await tester.tap(find.byKey(MarkdownKeys.back));
-    expect(closed, 1);
+      await show(note!.id);
+      expect(find.byKey(MarkdownKeys.screen), findsOneWidget);
+      expect(find.text('문서'), findsOneWidget);
+      expect(find.text('안녕', findRichText: true), findsOneWidget);
+      await tester.tap(find.byKey(MarkdownKeys.back));
+      expect(closed, 1);
 
-    await show(ink!.id);
-    expect(find.byKey(MarkdownKeys.notMarkdown), findsOneWidget);
-    await tester.tap(find.byKey(MarkdownKeys.openAsNote));
-    expect(asNote, 1);
-  });
+      await show(ink!.id);
+      expect(find.byKey(MarkdownKeys.notMarkdown), findsOneWidget);
+      await tester.tap(find.byKey(MarkdownKeys.openAsNote));
+      expect(asNote, 1);
+    },
+  );
 }
 
 void _noop() {}
