@@ -119,7 +119,7 @@ void main() {
     // (2nd round, S2-2, contract 7.2.8) … stroke, pageObject, handwriting.
     test('kind order is the contract 7.2.8 list', () {
       // folder, note, page, penPreset, setting, asset, recording, stroke, pageObject,
-      // handwriting.
+      // handwriting, (v2.17-md) markdown.
       expect(ChunkPacker.kindOrder, const [
         EntityKind.folder,
         EntityKind.note,
@@ -131,6 +131,7 @@ void main() {
         EntityKind.stroke,
         EntityKind.pageObject,
         EntityKind.handwriting,
+        EntityKind.markdown,
       ]);
       expect(ChunkPacker.kindOrder.toSet(), EntityKind.values.toSet());
     });

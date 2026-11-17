@@ -34,6 +34,27 @@ const _tables = {
   'recording_drafts',
   'search_owners',
   'search_units',
+  // (v3, v2.17-md)
+  'md_docs',
+};
+
+/// The v2 tables (drift_schema_v2.json).
+const _v2Tables = {
+  'kv',
+  'folders',
+  'notes',
+  'pages',
+  'strokes',
+  'pen_presets',
+  'assets',
+  'recordings',
+  'settings',
+  'outbox',
+  'page_objects',
+  'handwriting',
+  'recording_drafts',
+  'search_owners',
+  'search_units',
 };
 
 const _entityTables = {
@@ -48,6 +69,8 @@ const _entityTables = {
   // (v2)
   'page_objects',
   'handwriting',
+  // (v3)
+  'md_docs',
 };
 
 /// The FTS5 table and the shadow tables of a contentless (content='') table.
@@ -83,6 +106,8 @@ const _indexes = {
   'idx_search_owners_pending': ['pending'],
   'idx_search_units_note': ['note_id'],
   'idx_search_units_pdf': ['asset_id', 'pdf_index'],
+  // (v3, v2.17-md)
+  'idx_md_note': ['note_id'],
 };
 
 Future<List<String>> _names(NoteDatabase db, String type) async {
@@ -132,19 +157,14 @@ void main() {
   });
   tearDown(() => store.close());
 
-  test(
-    'the fifteen tables exist, and the FTS5 table with its shadow tables',
-    () async {
-      final tables = (await _names(db, 'table')).toSet();
-      expect(tables, {..._tables, ..._ftsTables});
-      final fts = await db
-          .customSelect(
-            "SELECT sql FROM sqlite_master WHERE name = 'search_fts'",
-          )
-          .getSingle();
-      expect(fts.read<String>('sql'), kSearchFtsCreateSql);
-    },
-  );
+  test('the sixteen tables exist (v3: md_docs), and the FTS5 table with its shadow tables', () async {
+    final tables = (await _names(db, 'table')).toSet();
+    expect(tables, {..._tables, ..._ftsTables});
+    final fts = await db
+        .customSelect("SELECT sql FROM sqlite_master WHERE name = 'search_fts'")
+        .getSingle();
+    expect(fts.read<String>('sql'), kSearchFtsCreateSql);
+  });
 
   test('every index exists with its columns', () async {
     expect((await _names(db, 'index')).toSet(), _indexes.keys.toSet());
@@ -180,7 +200,7 @@ void main() {
   });
 
   test(
-    'field_versions is a nullable TEXT column of the 10 entity tables',
+    'field_versions is a nullable TEXT column of the 11 entity tables',
     () async {
       var count = 0;
       for (final table in _tables) {
@@ -197,7 +217,7 @@ void main() {
           expect(fv, isEmpty, reason: table);
         }
       }
-      expect(count, 10);
+      expect(count, 11);
     },
   );
 
@@ -240,10 +260,10 @@ void main() {
     expect((id.read<String>('type'), id.read<int>('pk')), ('INTEGER', 1));
   });
 
-  test('user_version is the schema version (2); a new database records the normalizer', () async {
+  test('user_version is the schema version (3); a new database records the normalizer', () async {
     final row = await db.customSelect('PRAGMA user_version').getSingle();
     expect(row.read<int>('user_version'), kDatabaseSchemaVersion);
-    expect(kDatabaseSchemaVersion, 2);
+    expect(kDatabaseSchemaVersion, 3);
     expect(NoteDatabase.currentSchemaVersion, kDatabaseSchemaVersion);
     final kv = await db
         .customSelect(
@@ -254,7 +274,7 @@ void main() {
   });
 
   test(
-    'a new v2 database = a v1 database upgraded to v2 (sqlite_master)',
+    'a new v3 database = a v1 database upgraded to v3 (sqlite_master)',
     () async {
       final dir = Directory.systemTemp.createTempSync('note_core_schema_');
       addTearDown(() => dir.deleteSync(recursive: true));
@@ -268,12 +288,12 @@ void main() {
       final row = await upgraded.db
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(row.read<int>('user_version'), 2);
+      expect(row.read<int>('user_version'), 3);
       expect(await _master(upgraded.db), await _master(db));
     },
   );
 
-  test('drift_schemas/ v1 and v2 match the tables (make-migrations output is current)', () {
+  test('drift_schemas/ v1, v2 and v3 match the tables (make-migrations output is current)', () {
     Set<String> namesOf(String file, String type) {
       final json =
           jsonDecode(File(file).readAsStringSync()) as Map<String, Object?>;
@@ -288,9 +308,12 @@ void main() {
 
     const v1 = 'drift_schemas/note_db/drift_schema_v1.json';
     const v2 = 'drift_schemas/note_db/drift_schema_v2.json';
+    const v3 = 'drift_schemas/note_db/drift_schema_v3.json';
     expect(namesOf(v1, 'table'), kV1Tables.toSet());
-    expect(namesOf(v2, 'table'), _tables);
-    expect(namesOf(v2, 'index'), _indexes.keys.toSet());
+    expect(namesOf(v2, 'table'), _v2Tables);
+    expect(namesOf(v2, 'index'), {..._indexes.keys}..remove('idx_md_note'));
+    expect(namesOf(v3, 'table'), _tables);
+    expect(namesOf(v3, 'index'), _indexes.keys.toSet());
     expect(
       File('lib/src/storage/db/note_database.steps.dart').existsSync(),
       isTrue,

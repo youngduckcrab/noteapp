@@ -15,6 +15,8 @@ enum EntityKind {
   // (v2.0, C2-05) wire name = enum name
   pageObject,
   handwriting,
+  // (v2.17-md, C217M-02) the body of an MD 문서 — MarkdownText
+  markdown,
 }
 
 /// Everything that is stored, versioned and synced.
@@ -28,7 +30,7 @@ abstract interface class SyncEntity {
 }
 
 const int kNoteSchemaVersion = 1; // note content format the app can edit
-const int kDatabaseSchemaVersion = 2; // drift schema
+const int kDatabaseSchemaVersion = 3; // drift schema ((v2.17-md) v3: md_docs)
 const int kStrokePointsFormatVersion = 1;
 
 /// Reads the optional `version` key (HLC text) of an entity JSON object.

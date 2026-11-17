@@ -105,10 +105,13 @@ final class PurgeGuard {
       for (final e in page) {
         if (e.op != OutboxOp.upsert) continue;
         switch (e.kind) {
+          // (v2.17-md, C217M-06 — review D2) an unsent MD 문서 text is an edit: the
+          // recovery copy (duplicateNoteForRecovery) copies the body.
           case EntityKind.page ||
               EntityKind.stroke ||
               EntityKind.recording ||
-              EntityKind.pageObject:
+              EntityKind.pageObject ||
+              EntityKind.markdown:
             if (e.noteId case final n? when notes.contains(n)) found.add(n);
           case EntityKind.note when notes.contains(e.entityId):
             if (e.changedFields.any((f) => !kNoteTrashFields.contains(f))) {

@@ -3,6 +3,7 @@
 import 'asset.dart';
 import 'folder.dart';
 import 'handwriting.dart';
+import 'markdown_text.dart';
 import 'note.dart';
 import 'page.dart';
 import 'pen_preset.dart';
@@ -24,5 +25,7 @@ abstract final class EntityJson {
         // (v2.0, 02-core 6.3)
         EntityKind.pageObject => PageObject.fromJson(json),
         EntityKind.handwriting => HandwritingText.fromJson(json),
+        // (v2.17-md, C217M-02)
+        EntityKind.markdown => MarkdownText.fromJson(json),
       };
 }

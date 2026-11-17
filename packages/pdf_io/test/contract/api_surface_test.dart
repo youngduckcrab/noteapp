@@ -68,6 +68,8 @@ const Set<String> barrelNames = {
   'FilePickerPdfSource',
   'PdfIncomingFileSource',
   'NoIncomingPdfFiles',
+  // (v2.17-md, C217M-12) text files for MD 문서
+  'PickedTextFile', 'TextFileSource', 'FilePickerTextSource',
   // src/model/
   'PdfPageRange', 'PdfPageSizePolicy', 'PdfPageFit', 'PdfFileNaming',
   // src/import/
@@ -127,6 +129,9 @@ const Set<String> barrelNames = {
   'PdfOutputSink',
   'createPlatformOutputSink',
   'PdfShareFiles', // native app share (the app's plugin — R16)
+  // (v2.17-md, C217M-12) one file of any type (an MD 문서 as .md)
+  'DocumentFile', 'DocumentOutputAction', 'DocumentShareFile',
+  'DocumentFileOutput', 'createPlatformDocumentOutput',
   // src/ui/
   'PdfNavigateCallback',
   'PdfExportPurpose',

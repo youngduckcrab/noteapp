@@ -34,6 +34,19 @@ final class NoteRecoveredFromPurge extends SyncNotice {
   final NoteId copyNoteId;
 }
 
+/// (v2.17-md, C217M-07) A received MD 문서 text and an unsent local one differed: the
+/// losing text was kept as the MD 문서 [copyNoteId] ('다른 기기에서 고친 글을 사본으로
+/// 남겼어요' — 08-markdown 5.3).
+final class MarkdownConflictCopied extends SyncNotice {
+  const MarkdownConflictCopied({
+    required super.at,
+    required this.noteId,
+    required this.copyNoteId,
+  });
+  final NoteId noteId;
+  final NoteId copyNoteId;
+}
+
 final class InitialSyncCompleted extends SyncNotice {
   const InitialSyncCompleted({
     required super.at,

@@ -65,6 +65,8 @@ final class ChunkPacker {
     EntityKind.stroke,
     EntityKind.pageObject,
     EntityKind.handwriting,
+    // (v2.17-md, C217M-06) last: after its note.
+    EntityKind.markdown,
   ];
 
   static int compareRecords(SyncRecord a, SyncRecord b) {

@@ -358,6 +358,12 @@ Future<List<PageId>> deleteNoteContents(
     await (db.delete(db.strokes)..where((t) => t.noteId.isIn(chunk))).go();
     await (db.delete(db.pageObjects)..where((t) => t.noteId.isIn(chunk))).go();
     await (db.delete(db.handwriting)..where((t) => t.noteId.isIn(chunk))).go();
+    // (v2.17-md, C217M-05) MD 문서 bodies and the conflict-copy record of the note.
+    await (db.delete(db.mdDocs)..where((t) => t.noteId.isIn(chunk))).go();
+    await (db.delete(db.kv)..where(
+          (t) => t.key.isIn([for (final id in chunk) 'md.conflictCopy.$id']),
+        ))
+        .go();
     for (final pages in _chunks(pageIds)) {
       await (db.delete(db.strokes)..where((t) => t.pageId.isIn(pages))).go();
       // Rows of these pages whose note id is not (yet) the page's — remote orphans.
@@ -389,6 +395,7 @@ Future<List<PageId>> deleteNoteContents(
                 EntityKind.recording.name,
                 EntityKind.pageObject.name,
                 EntityKind.handwriting.name,
+                EntityKind.markdown.name,
               ]),
         ))
         .go();
@@ -430,6 +437,7 @@ Future<List<PageId>> deleteNoteContents(
       ..touch(EntityKind.recording)
       ..touch(EntityKind.pageObject)
       ..touch(EntityKind.handwriting)
+      ..touch(EntityKind.markdown)
       ..forgetPageNotes();
   }
   if (drafts != null && purgedDrafts.isNotEmpty) {

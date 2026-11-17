@@ -286,9 +286,12 @@ final class DriftNoteStore implements NoteStore {
   @override
   late final DriftSearchIndex search;
 
-  /// (v2.17-md, C217M-04) MD 문서 bodies — a placeholder until Track A (A-3).
+  /// (v2.17-md, C217M-04) MD 문서 bodies.
+  late final DriftMarkdownRepository markdownRepo = DriftMarkdownRepository(
+    this,
+  );
   @override
-  late final MarkdownRepository markdown = DriftMarkdownRepository(this);
+  MarkdownRepository get markdown => markdownRepo;
 
   /// Open note sessions (6.14).
   late final DriftSessions sessions;

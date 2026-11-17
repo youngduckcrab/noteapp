@@ -67,6 +67,7 @@ const Map<String, List<String>> kSyncEngineSurface = {
     'FolderCycleResolved',
     'PageRestored',
     'NoteRecoveredFromPurge',
+    'MarkdownConflictCopied', // (v2.17-md, C217M-07)
     'InitialSyncCompleted',
     'syncBadgeOf',
   ],
@@ -282,6 +283,7 @@ class _Private {}
         SyncPhase, SyncStatus, InitialSyncProgress, AssetTransferSummary,
         SyncIssueCode, SyncIssue, SyncNotice, FolderCycleResolved, PageRestored,
         NoteRecoveredFromPurge, InitialSyncCompleted, syncBadgeOf,
+        MarkdownConflictCopied,
         // 4.5
         SyncBackendFactory, SyncLifecycle, SyncLogLevel, SyncLogSink, SyncUsage,
         SyncEngine, SyncEngineDebug, ConnectivitySignal, AlwaysOnlineSignal,

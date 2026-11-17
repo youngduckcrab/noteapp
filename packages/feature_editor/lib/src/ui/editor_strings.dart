@@ -919,6 +919,9 @@ abstract final class EditorStrings {
     core.SearchSource.text => '텍스트',
     core.SearchSource.math => '수식',
     core.SearchSource.pdf => 'PDF',
+    // (v2.17-md, C217M-08) an MD 문서 body (never inside an ink note — listed for the
+    // exhaustive switch).
+    core.SearchSource.markdown => '문서',
   };
 
   // The handwriting hint — the same sentences as the library search's hint

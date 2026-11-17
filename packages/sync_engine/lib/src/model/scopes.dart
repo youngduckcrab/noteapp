@@ -12,6 +12,7 @@ abstract final class SyncScopes {
   /// from the page record before calling this (6.4.3 step 1); otherwise 'lib'.
   /// (2nd round, contract 7.2.8) pageObject → [noteIdHint] as stroke (no noteId in its
   /// JSON); handwriting → json['noteId'], then [noteIdHint], as page (07-sync 6.2.3).
+  /// (v2.17-md) markdown → as handwriting.
   static String scopeOf(UpsertRecord record, {NoteId? noteIdHint}) {
     final json = record.doc.json;
     final noteIdKey = switch (json['noteId']) {
@@ -28,6 +29,8 @@ abstract final class SyncScopes {
       EntityKind.stroke || EntityKind.pageObject => noteIdHint ?? library,
       EntityKind.recording => noteIdHint ?? noteIdKey ?? library,
       EntityKind.handwriting => noteIdKey ?? noteIdHint ?? library,
+      // (v2.17-md, C217M-06) as handwriting: the document's scope.
+      EntityKind.markdown => noteIdKey ?? noteIdHint ?? library,
     };
   }
 

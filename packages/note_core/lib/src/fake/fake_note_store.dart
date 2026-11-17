@@ -24,6 +24,7 @@ import '../edit/page_draft.dart';
 import '../model/asset.dart';
 import '../model/folder.dart';
 import '../model/handwriting.dart';
+import '../model/markdown_text.dart';
 import '../model/note.dart';
 import '../model/page.dart';
 import '../model/pen_preset.dart';
@@ -361,6 +362,13 @@ final class FakeNoteStore implements NoteStore {
       deleted: e.isDeleted,
       purged: purged,
     ),
+    MarkdownText(:final noteId) => EntityChange(
+      kind: e.kind,
+      id: e.id,
+      noteId: noteId,
+      deleted: e.isDeleted,
+      purged: purged,
+    ),
     HandwritingText(:final noteId, :final pageId) => EntityChange(
       kind: e.kind,
       id: e.id,
@@ -591,6 +599,10 @@ final class FakeNoteStore implements NoteStore {
       EntityKind.recording: recordingRows.values,
       EntityKind.pageObject: objects.values,
       EntityKind.handwriting: handwritingRows.values,
+      // (v2.17-md) MD 문서 bodies as the real store writes them.
+      EntityKind.markdown: [
+        for (final e in markdownRows.entries) markdown.entityOf(e.key, e.value),
+      ],
       EntityKind.penPreset: presets.values,
       EntityKind.asset: assetRows.values,
       EntityKind.setting: syncedSettings.values,
@@ -1344,7 +1356,7 @@ final class _FakeLibrary implements LibraryRepository {
     );
     changes.add(s.changeOf(s.notes[id]!));
     // (v2.17-md, C217M-05) an MD 문서 copies its body.
-    if (n.isMarkdown) s.markdown.copyBody(n.id, id, v);
+    if (n.isMarkdown) s.markdown.copyBody(n.id, id, v, changes);
     // (v2.0, m5-7/02-core 6.14.1 ①) recordings: new ids, the same asset / title / timing.
     final recordingIds = <RecordingId, RecordingId>{};
     for (final r in s.recordings.activeOf(n.id)) {
@@ -1605,7 +1617,10 @@ final class _FakeTrash implements TrashRepository {
     }
     for (final n in s.ownNotes.where((n) => n.trashRootId == rootId).toList()) {
       s.notes.remove(n.id);
-      s.markdownRows.remove(n.id); // (v2.17-md) the MD 문서 body goes with it
+      // (v2.17-md) the MD 문서 body goes with it
+      if (s.markdownRows.remove(n.id) case final body?) {
+        changes.add(s.changeOf(s.markdown.entityOf(n.id, body), purged: true));
+      }
       changes.add(s.changeOf(n, purged: true));
       // (v2.0, 6.14.2) recordings, drafts and the search owners of the note go with it.
       s.recordingRows.removeWhere((_, r) => r.noteId == n.id);
@@ -2176,4 +2191,9 @@ final class _FakeSyncStore implements SyncStore {
     NoteId noteId, {
     required String titleSuffix,
   }) => _unsupported('duplicateNoteForRecovery');
+  @override
+  Future<NoteId?> keepMarkdownConflictCopy(
+    MarkdownText remote,
+    EntityFieldVersions versions,
+  ) => _unsupported('keepMarkdownConflictCopy');
 }

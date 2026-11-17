@@ -1,13 +1,15 @@
 // Internal: the fake store's MarkdownRepository (v2.17-md, m5-7/08-markdown 12.1 / C217M-04).
 // Same validation, conflict-copy and read-only rules as the real store; bodies live in
-// FakeNoteStore.markdownRows. Until Track A adds EntityKind.markdown a body write is reported
-// as a change of its note (ChangeBatch), which is what the library and the screen listen to.
+// FakeNoteStore.markdownRows. A body write is reported as an EntityKind.markdown change and a
+// change of its note (ChangeBatch), and indexed (MemorySearchIndex.markdownWritten) like the
+// real store's write hook.
 import 'package:meta/meta.dart';
 
 import '../common/errors.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../common/sort_planner.dart';
+import '../model/markdown_text.dart';
 import '../model/note.dart';
 import '../repo/events.dart';
 import '../repo/markdown_repository.dart';
@@ -56,6 +58,27 @@ final class FakeMarkdown implements MarkdownRepository {
     return n != null && n.ownerId == s.ownerId ? n : null;
   }
 
+  /// The body row of [noteId] as the entity the real store keeps.
+  MarkdownText entityOf(NoteId noteId, FakeMarkdownBody b) => MarkdownText(
+    noteId: noteId,
+    text: b.text,
+    createdAt: b.createdAt,
+    updatedAt: b.updatedAt,
+    version: b.version,
+  );
+
+  /// Stores [body] for [noteId]: change + search index.
+  void putBody(
+    NoteId noteId,
+    FakeMarkdownBody body,
+    List<EntityChange> changes,
+  ) {
+    s.markdownRows[noteId] = body;
+    final e = entityOf(noteId, body);
+    changes.add(s.changeOf(e));
+    s.search.markdownWritten(e);
+  }
+
   MarkdownDoc? docOf(NoteId id) {
     final n = _ownNote(id);
     if (n == null || !n.isMarkdown) return null;
@@ -100,13 +123,12 @@ final class FakeMarkdown implements MarkdownRepository {
       version: v,
     );
     s.notes[id] = note;
-    s.markdownRows[id] = FakeMarkdownBody(
-      text: text,
-      createdAt: now,
-      updatedAt: now,
-      version: v,
-    );
     changes.add(s.changeOf(note));
+    putBody(
+      id,
+      FakeMarkdownBody(text: text, createdAt: now, updatedAt: now, version: v),
+      changes,
+    );
     return note;
   }
 
@@ -175,11 +197,15 @@ final class FakeMarkdown implements MarkdownRepository {
         ).id;
       }
       final now = s.now;
-      s.markdownRows[id] = FakeMarkdownBody(
-        text: text,
-        createdAt: stored.createdAt,
-        updatedAt: now,
-        version: v,
+      putBody(
+        id,
+        FakeMarkdownBody(
+          text: text,
+          createdAt: stored.createdAt,
+          updatedAt: now,
+          version: v,
+        ),
+        changes,
       );
       final note = n.copyWith(updatedAt: now, version: v);
       s.notes[id] = note;
@@ -208,13 +234,17 @@ final class FakeMarkdown implements MarkdownRepository {
 
   /// The body copy of copyItems / recovery copies ([from] → [to]); a document whose body
   /// has not arrived gets an empty body (08-markdown 4.5).
-  void copyBody(NoteId from, NoteId to, Hlc v) {
+  void copyBody(NoteId from, NoteId to, Hlc v, List<EntityChange> changes) {
     final now = s.now;
-    s.markdownRows[to] = FakeMarkdownBody(
-      text: s.markdownRows[from]?.text ?? '',
-      createdAt: now,
-      updatedAt: now,
-      version: v,
+    putBody(
+      to,
+      FakeMarkdownBody(
+        text: s.markdownRows[from]?.text ?? '',
+        createdAt: now,
+        updatedAt: now,
+        version: v,
+      ),
+      changes,
     );
   }
 
@@ -222,9 +252,14 @@ final class FakeMarkdown implements MarkdownRepository {
 
   /// The body of [id] removed (a note that arrived before its body).
   Future<void> debugRemoveBody(NoteId id) => s.write(() {
-    if (s.markdownRows.remove(id) == null) return;
+    final body = s.markdownRows.remove(id);
+    if (body == null) return;
+    s.search.markdownWritten(entityOf(id, body).copyWith(deletedAt: s.now));
     final n = s.notes[id];
-    if (n != null) s.record(ChangeOrigin.remote, [s.changeOf(n)]);
+    s.record(ChangeOrigin.remote, [
+      s.changeOf(entityOf(id, body), purged: true),
+      if (n != null) s.changeOf(n),
+    ]);
   });
 
   /// [text] written as if it came from another device (origin remote, a version of
@@ -239,15 +274,21 @@ final class FakeMarkdown implements MarkdownRepository {
     final v = Hlc(local.millis, local.counter + 1, kFakeRemoteNodeId);
     s.hlc.receive(v);
     final now = s.now;
-    s.markdownRows[id] = FakeMarkdownBody(
-      text: text,
-      createdAt: s.markdownRows[id]?.createdAt ?? now,
-      updatedAt: now,
-      version: v,
+    final changes = <EntityChange>[];
+    putBody(
+      id,
+      FakeMarkdownBody(
+        text: text,
+        createdAt: s.markdownRows[id]?.createdAt ?? now,
+        updatedAt: now,
+        version: v,
+      ),
+      changes,
     );
     final note = n.copyWith(updatedAt: now);
     s.notes[id] = note;
-    s.record(ChangeOrigin.remote, [s.changeOf(note)]);
+    changes.add(s.changeOf(note));
+    s.record(ChangeOrigin.remote, changes);
     return v;
   });
 }

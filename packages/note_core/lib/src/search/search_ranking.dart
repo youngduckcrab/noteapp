@@ -11,9 +11,10 @@ import 'search_spacing.dart';
 import 'search_text.dart';
 import 'search_types.dart';
 
-/// The source weight of a unit (text 1.0, math 0.95, ink 0.9, pdf 0.8).
+/// The source weight of a unit (text 1.0, math 0.95, ink 0.9, pdf 0.8; (v2.17-md) markdown
+/// 1.0 — typed text like a text box).
 double sourceWeight(SearchSource source) => switch (source) {
-  SearchSource.text => 1.0,
+  SearchSource.text || SearchSource.markdown => 1.0,
   SearchSource.math => 0.95,
   SearchSource.ink => 0.9,
   SearchSource.pdf => 0.8,

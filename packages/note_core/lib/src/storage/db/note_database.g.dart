@@ -10848,6 +10848,626 @@ class SearchUnitsCompanion extends UpdateCompanion<SearchUnitRow> {
   }
 }
 
+class $MdDocsTable extends MdDocs with TableInfo<$MdDocsTable, MdDocRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MdDocsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<String> version = GeneratedColumn<String>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fieldVersionsMeta = const VerificationMeta(
+    'fieldVersions',
+  );
+  @override
+  late final GeneratedColumn<String> fieldVersions = GeneratedColumn<String>(
+    'field_versions',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _textBytesMeta = const VerificationMeta(
+    'textBytes',
+  );
+  @override
+  late final GeneratedColumn<int> textBytes = GeneratedColumn<int>(
+    'text_bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baseTextVersionMeta = const VerificationMeta(
+    'baseTextVersion',
+  );
+  @override
+  late final GeneratedColumn<String> baseTextVersion = GeneratedColumn<String>(
+    'base_text_version',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    noteId,
+    body,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    version,
+    fieldVersions,
+    textBytes,
+    baseTextVersion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'md_docs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MdDocRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteIdMeta);
+    }
+    if (data.containsKey('text')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['text']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    if (data.containsKey('field_versions')) {
+      context.handle(
+        _fieldVersionsMeta,
+        fieldVersions.isAcceptableOrUnknown(
+          data['field_versions']!,
+          _fieldVersionsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('text_bytes')) {
+      context.handle(
+        _textBytesMeta,
+        textBytes.isAcceptableOrUnknown(data['text_bytes']!, _textBytesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_textBytesMeta);
+    }
+    if (data.containsKey('base_text_version')) {
+      context.handle(
+        _baseTextVersionMeta,
+        baseTextVersion.isAcceptableOrUnknown(
+          data['base_text_version']!,
+          _baseTextVersionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MdDocRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MdDocRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}text'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}version'],
+      )!,
+      fieldVersions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}field_versions'],
+      ),
+      textBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}text_bytes'],
+      )!,
+      baseTextVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_text_version'],
+      ),
+    );
+  }
+
+  @override
+  $MdDocsTable createAlias(String alias) {
+    return $MdDocsTable(attachedDatabase, alias);
+  }
+}
+
+class MdDocRow extends DataClass implements Insertable<MdDocRow> {
+  final String id;
+  final String noteId;
+  final String body;
+  final int createdAt;
+  final int updatedAt;
+  final int? deletedAt;
+  final String version;
+  final String? fieldVersions;
+  final int textBytes;
+  final String? baseTextVersion;
+  const MdDocRow({
+    required this.id,
+    required this.noteId,
+    required this.body,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.version,
+    this.fieldVersions,
+    required this.textBytes,
+    this.baseTextVersion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['note_id'] = Variable<String>(noteId);
+    map['text'] = Variable<String>(body);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['version'] = Variable<String>(version);
+    if (!nullToAbsent || fieldVersions != null) {
+      map['field_versions'] = Variable<String>(fieldVersions);
+    }
+    map['text_bytes'] = Variable<int>(textBytes);
+    if (!nullToAbsent || baseTextVersion != null) {
+      map['base_text_version'] = Variable<String>(baseTextVersion);
+    }
+    return map;
+  }
+
+  MdDocsCompanion toCompanion(bool nullToAbsent) {
+    return MdDocsCompanion(
+      id: Value(id),
+      noteId: Value(noteId),
+      body: Value(body),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      version: Value(version),
+      fieldVersions: fieldVersions == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fieldVersions),
+      textBytes: Value(textBytes),
+      baseTextVersion: baseTextVersion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baseTextVersion),
+    );
+  }
+
+  factory MdDocRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MdDocRow(
+      id: serializer.fromJson<String>(json['id']),
+      noteId: serializer.fromJson<String>(json['noteId']),
+      body: serializer.fromJson<String>(json['body']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      version: serializer.fromJson<String>(json['version']),
+      fieldVersions: serializer.fromJson<String?>(json['fieldVersions']),
+      textBytes: serializer.fromJson<int>(json['textBytes']),
+      baseTextVersion: serializer.fromJson<String?>(json['baseTextVersion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'noteId': serializer.toJson<String>(noteId),
+      'body': serializer.toJson<String>(body),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'version': serializer.toJson<String>(version),
+      'fieldVersions': serializer.toJson<String?>(fieldVersions),
+      'textBytes': serializer.toJson<int>(textBytes),
+      'baseTextVersion': serializer.toJson<String?>(baseTextVersion),
+    };
+  }
+
+  MdDocRow copyWith({
+    String? id,
+    String? noteId,
+    String? body,
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? version,
+    Value<String?> fieldVersions = const Value.absent(),
+    int? textBytes,
+    Value<String?> baseTextVersion = const Value.absent(),
+  }) => MdDocRow(
+    id: id ?? this.id,
+    noteId: noteId ?? this.noteId,
+    body: body ?? this.body,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    version: version ?? this.version,
+    fieldVersions: fieldVersions.present
+        ? fieldVersions.value
+        : this.fieldVersions,
+    textBytes: textBytes ?? this.textBytes,
+    baseTextVersion: baseTextVersion.present
+        ? baseTextVersion.value
+        : this.baseTextVersion,
+  );
+  MdDocRow copyWithCompanion(MdDocsCompanion data) {
+    return MdDocRow(
+      id: data.id.present ? data.id.value : this.id,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      body: data.body.present ? data.body.value : this.body,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      version: data.version.present ? data.version.value : this.version,
+      fieldVersions: data.fieldVersions.present
+          ? data.fieldVersions.value
+          : this.fieldVersions,
+      textBytes: data.textBytes.present ? data.textBytes.value : this.textBytes,
+      baseTextVersion: data.baseTextVersion.present
+          ? data.baseTextVersion.value
+          : this.baseTextVersion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MdDocRow(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('body: $body, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('version: $version, ')
+          ..write('fieldVersions: $fieldVersions, ')
+          ..write('textBytes: $textBytes, ')
+          ..write('baseTextVersion: $baseTextVersion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    noteId,
+    body,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    version,
+    fieldVersions,
+    textBytes,
+    baseTextVersion,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MdDocRow &&
+          other.id == this.id &&
+          other.noteId == this.noteId &&
+          other.body == this.body &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.version == this.version &&
+          other.fieldVersions == this.fieldVersions &&
+          other.textBytes == this.textBytes &&
+          other.baseTextVersion == this.baseTextVersion);
+}
+
+class MdDocsCompanion extends UpdateCompanion<MdDocRow> {
+  final Value<String> id;
+  final Value<String> noteId;
+  final Value<String> body;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<String> version;
+  final Value<String?> fieldVersions;
+  final Value<int> textBytes;
+  final Value<String?> baseTextVersion;
+  final Value<int> rowid;
+  const MdDocsCompanion({
+    this.id = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.body = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.version = const Value.absent(),
+    this.fieldVersions = const Value.absent(),
+    this.textBytes = const Value.absent(),
+    this.baseTextVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MdDocsCompanion.insert({
+    required String id,
+    required String noteId,
+    required String body,
+    required int createdAt,
+    required int updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String version,
+    this.fieldVersions = const Value.absent(),
+    required int textBytes,
+    this.baseTextVersion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       noteId = Value(noteId),
+       body = Value(body),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       version = Value(version),
+       textBytes = Value(textBytes);
+  static Insertable<MdDocRow> custom({
+    Expression<String>? id,
+    Expression<String>? noteId,
+    Expression<String>? body,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<String>? version,
+    Expression<String>? fieldVersions,
+    Expression<int>? textBytes,
+    Expression<String>? baseTextVersion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (noteId != null) 'note_id': noteId,
+      if (body != null) 'text': body,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (version != null) 'version': version,
+      if (fieldVersions != null) 'field_versions': fieldVersions,
+      if (textBytes != null) 'text_bytes': textBytes,
+      if (baseTextVersion != null) 'base_text_version': baseTextVersion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MdDocsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? noteId,
+    Value<String>? body,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? deletedAt,
+    Value<String>? version,
+    Value<String?>? fieldVersions,
+    Value<int>? textBytes,
+    Value<String?>? baseTextVersion,
+    Value<int>? rowid,
+  }) {
+    return MdDocsCompanion(
+      id: id ?? this.id,
+      noteId: noteId ?? this.noteId,
+      body: body ?? this.body,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      version: version ?? this.version,
+      fieldVersions: fieldVersions ?? this.fieldVersions,
+      textBytes: textBytes ?? this.textBytes,
+      baseTextVersion: baseTextVersion ?? this.baseTextVersion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (body.present) {
+      map['text'] = Variable<String>(body.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<String>(version.value);
+    }
+    if (fieldVersions.present) {
+      map['field_versions'] = Variable<String>(fieldVersions.value);
+    }
+    if (textBytes.present) {
+      map['text_bytes'] = Variable<int>(textBytes.value);
+    }
+    if (baseTextVersion.present) {
+      map['base_text_version'] = Variable<String>(baseTextVersion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MdDocsCompanion(')
+          ..write('id: $id, ')
+          ..write('noteId: $noteId, ')
+          ..write('body: $body, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('version: $version, ')
+          ..write('fieldVersions: $fieldVersions, ')
+          ..write('textBytes: $textBytes, ')
+          ..write('baseTextVersion: $baseTextVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NoteDatabase extends GeneratedDatabase {
   _$NoteDatabase(QueryExecutor e) : super(e);
   $NoteDatabaseManager get managers => $NoteDatabaseManager(this);
@@ -10868,6 +11488,7 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
   );
   late final $SearchOwnersTable searchOwners = $SearchOwnersTable(this);
   late final $SearchUnitsTable searchUnits = $SearchUnitsTable(this);
+  late final $MdDocsTable mdDocs = $MdDocsTable(this);
   late final Index idxFoldersParent = Index(
     'idx_folders_parent',
     'CREATE INDEX idx_folders_parent ON folders (owner_id, parent_id, deleted_at)',
@@ -10956,6 +11577,10 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
     'idx_search_units_pdf',
     'CREATE INDEX idx_search_units_pdf ON search_units (asset_id, pdf_index)',
   );
+  late final Index idxMdNote = Index(
+    'idx_md_note',
+    'CREATE INDEX idx_md_note ON md_docs (note_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -10976,6 +11601,7 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
     recordingDrafts,
     searchOwners,
     searchUnits,
+    mdDocs,
     idxFoldersParent,
     idxFoldersTrash,
     idxNotesFolder,
@@ -10998,6 +11624,7 @@ abstract class _$NoteDatabase extends GeneratedDatabase {
     idxSearchOwnersPending,
     idxSearchUnitsNote,
     idxSearchUnitsPdf,
+    idxMdNote,
   ];
 }
 
@@ -16189,6 +16816,306 @@ typedef $$SearchUnitsTableProcessedTableManager =
       SearchUnitRow,
       PrefetchHooks Function()
     >;
+typedef $$MdDocsTableCreateCompanionBuilder = MdDocsCompanion Function({
+  required String id,
+  required String noteId,
+  required String body,
+  required int createdAt,
+  required int updatedAt,
+  Value<int?> deletedAt,
+  required String version,
+  Value<String?> fieldVersions,
+  required int textBytes,
+  Value<String?> baseTextVersion,
+  Value<int> rowid,
+});
+typedef $$MdDocsTableUpdateCompanionBuilder = MdDocsCompanion Function({
+  Value<String> id,
+  Value<String> noteId,
+  Value<String> body,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int?> deletedAt,
+  Value<String> version,
+  Value<String?> fieldVersions,
+  Value<int> textBytes,
+  Value<String?> baseTextVersion,
+  Value<int> rowid,
+});
+
+class $$MdDocsTableFilterComposer
+    extends Composer<_$NoteDatabase, $MdDocsTable> {
+  $$MdDocsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get textBytes => $composableBuilder(
+    column: $table.textBytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baseTextVersion => $composableBuilder(
+    column: $table.baseTextVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$MdDocsTableOrderingComposer
+    extends Composer<_$NoteDatabase, $MdDocsTable> {
+  $$MdDocsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get textBytes => $composableBuilder(
+    column: $table.textBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baseTextVersion => $composableBuilder(
+    column: $table.baseTextVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MdDocsTableAnnotationComposer
+    extends Composer<_$NoteDatabase, $MdDocsTable> {
+  $$MdDocsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<String> get fieldVersions => $composableBuilder(
+    column: $table.fieldVersions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get textBytes =>
+      $composableBuilder(column: $table.textBytes, builder: (column) => column);
+
+  GeneratedColumn<String> get baseTextVersion => $composableBuilder(
+    column: $table.baseTextVersion,
+    builder: (column) => column,
+  );
+}
+
+class $$MdDocsTableTableManager
+    extends
+        RootTableManager<
+          _$NoteDatabase,
+          $MdDocsTable,
+          MdDocRow,
+          $$MdDocsTableFilterComposer,
+          $$MdDocsTableOrderingComposer,
+          $$MdDocsTableAnnotationComposer,
+          $$MdDocsTableCreateCompanionBuilder,
+          $$MdDocsTableUpdateCompanionBuilder,
+          (MdDocRow, BaseReferences<_$NoteDatabase, $MdDocsTable, MdDocRow>),
+          MdDocRow,
+          PrefetchHooks Function()
+        > {
+  $$MdDocsTableTableManager(_$NoteDatabase db, $MdDocsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MdDocsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MdDocsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MdDocsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> noteId = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> version = const Value.absent(),
+                Value<String?> fieldVersions = const Value.absent(),
+                Value<int> textBytes = const Value.absent(),
+                Value<String?> baseTextVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MdDocsCompanion(
+                id: id,
+                noteId: noteId,
+                body: body,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                version: version,
+                fieldVersions: fieldVersions,
+                textBytes: textBytes,
+                baseTextVersion: baseTextVersion,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String noteId,
+                required String body,
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> deletedAt = const Value.absent(),
+                required String version,
+                Value<String?> fieldVersions = const Value.absent(),
+                required int textBytes,
+                Value<String?> baseTextVersion = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MdDocsCompanion.insert(
+                id: id,
+                noteId: noteId,
+                body: body,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                version: version,
+                fieldVersions: fieldVersions,
+                textBytes: textBytes,
+                baseTextVersion: baseTextVersion,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$MdDocsTable, MdDocRow>(table),
+                  BaseReferences<_$NoteDatabase, $MdDocsTable, MdDocRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$MdDocsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NoteDatabase,
+      $MdDocsTable,
+      MdDocRow,
+      $$MdDocsTableFilterComposer,
+      $$MdDocsTableOrderingComposer,
+      $$MdDocsTableAnnotationComposer,
+      $$MdDocsTableCreateCompanionBuilder,
+      $$MdDocsTableUpdateCompanionBuilder,
+      (MdDocRow, BaseReferences<_$NoteDatabase, $MdDocsTable, MdDocRow>),
+      MdDocRow,
+      PrefetchHooks Function()
+    >;
 
 class $NoteDatabaseManager {
   final _$NoteDatabase _db;
@@ -16222,4 +17149,6 @@ class $NoteDatabaseManager {
       $$SearchOwnersTableTableManager(_db, _db.searchOwners);
   $$SearchUnitsTableTableManager get searchUnits =>
       $$SearchUnitsTableTableManager(_db, _db.searchUnits);
+  $$MdDocsTableTableManager get mdDocs =>
+      $$MdDocsTableTableManager(_db, _db.mdDocs);
 }

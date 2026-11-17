@@ -130,6 +130,13 @@ final Map<String, SyncEntity> kSampleEntities = {
   ),
   ...kSampleObjects,
   'handwriting': kSampleHandwriting,
+  // (v2.17-md, C217M-02) an MD 문서 body: BOM, CRLF, Korean, an emoji, a task list.
+  'markdown': MarkdownText(
+    noteId: '0193f1d2-7c40-7000-8000-00000000a002',
+    text: '\uFEFF# 회의 메모\r\n\r\n- [ ] 발표 준비 📌\r\n- [x] 자료 공유\r\n',
+    createdAt: kT,
+    version: kV,
+  ),
 };
 
 /// The recording without a title (the v1.4 shape).

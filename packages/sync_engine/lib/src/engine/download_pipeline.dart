@@ -139,6 +139,7 @@ final class DownloadPipeline {
     this.serverNowMillis = _noSample,
     this.onOwnChunk = _ignoreChunk,
     this.purgeGuard = _noGuard,
+    this.markdownGuard = _noMarkdownGuard,
     this.afterGroup = _noChecks,
     this.codecFormat = ChunkCodec.formatVersion,
     Set<EntityKind>? knownKinds,
@@ -172,6 +173,11 @@ final class DownloadPipeline {
 
   /// PurgeGuard (6.7.4): runs before the purges of a batch are applied.
   final Future<void> Function(List<PurgeRecord> purges) purgeGuard;
+
+  /// (v2.17-md, C217M-07 L2) Runs before the MD 문서 bodies of a batch are applied: the
+  /// engine asks CORE (SyncStore.keepMarkdownConflictCopy) to keep the losing text of a
+  /// concurrent edit (08-markdown 5.3).
+  final Future<void> Function(List<UpsertRecord> bodies) markdownGuard;
 
   /// Step 8, once per apply group after all its pieces: folder cycles (6.7.2) and page
   /// resurrection (6.7.3) over the committed outcomes.
@@ -211,6 +217,7 @@ final class DownloadPipeline {
   static void _ignoreWarning(String message) {}
   static void _ignoreChunk(RemoteChunk chunk) {}
   static Future<void> _noGuard(List<PurgeRecord> purges) async {}
+  static Future<void> _noMarkdownGuard(List<UpsertRecord> bodies) async {}
   static Future<void> _noChecks(Map<EntityRef, MergeOutcomeKind> o) async {}
 
   /// `sync.cursor`: newest serverTime of the applied chunks (6.6.2). Null before the first
@@ -723,6 +730,12 @@ final class DownloadPipeline {
 
     // 6. PurgeGuard before the purges are applied.
     if (purges.isNotEmpty) await purgeGuard(purges);
+    // 6b. (v2.17-md) The MD 문서 conflict-copy rule before the bodies are applied.
+    final bodies = [
+      for (final r in records)
+        if (r is UpsertRecord && r.ref.kind == EntityKind.markdown) r,
+    ];
+    if (bodies.isNotEmpty) await markdownGuard(bodies);
 
     // Meta for the last call of this batch.
     final meta = <String, String>{

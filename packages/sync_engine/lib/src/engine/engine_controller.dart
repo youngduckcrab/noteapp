@@ -740,6 +740,27 @@ final class EngineController {
           _notices.add(notice);
         }
       },
+      // (v2.17-md, C217M-07 L2 — 08-markdown 5.3) keep the losing text of a concurrent
+      // MD 문서 edit before the received bodies are applied.
+      markdownGuard: (bodies) async {
+        for (final r in bodies) {
+          final change = r.toRemoteChange();
+          final body = change.entity;
+          if (body is! MarkdownText) continue;
+          final copy = await sync.keepMarkdownConflictCopy(
+            body,
+            change.versions,
+          );
+          if (copy == null) continue;
+          _notices.add(
+            MarkdownConflictCopied(
+              at: _wallMillis(),
+              noteId: body.noteId,
+              copyNoteId: copy,
+            ),
+          );
+        }
+      },
       afterGroup: (outcomes) => _afterGroup(s, outcomes),
       knownKinds: _knownKinds,
       heldRecordsMaxPartBytes:

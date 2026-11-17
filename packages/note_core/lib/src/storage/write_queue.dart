@@ -21,6 +21,7 @@ import '../common/ids.dart';
 import '../common/write_guard.dart';
 import '../model/asset.dart';
 import '../model/handwriting.dart';
+import '../model/markdown_text.dart';
 import '../model/page.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
@@ -571,6 +572,9 @@ final class WriteTxn {
         );
       case HandwritingText(:final noteId, :final pageId):
         return (noteId: noteId, pageId: pageId);
+      // (v2.17-md, 08-markdown 4.4) the noteId hint (PurgeGuard, scopes).
+      case MarkdownText(:final noteId):
+        return (noteId: noteId, pageId: null);
       default:
         return (noteId: null, pageId: null);
     }

@@ -9,7 +9,9 @@ import 'package:meta/meta.dart';
 import '../common/geometry.dart';
 import '../common/ids.dart';
 
-enum SearchSource { ink, pdf, text, math }
+/// (v2.17-md, C217M-08) markdown: the body of an MD 문서 (owner = noteId, hit pageId =
+/// `md_<noteId>`, no rects).
+enum SearchSource { ink, pdf, text, math, markdown }
 
 @immutable
 final class SearchUnitDraft {

@@ -24,6 +24,9 @@ const Map<EntityKind, Set<String>> kLocalOnlyFields = {
   EntityKind.page: {'contentRevision'},
   EntityKind.stroke: {'bounds'},
   EntityKind.asset: {'hasLocalBytes'},
+  // (v2.17-md, 08-markdown 4.3) md_docs columns, never entity JSON keys — listed so a
+  // future toJson can never leak them.
+  EntityKind.markdown: {'textBytes', 'baseTextVersion'},
 };
 
 /// The synced JSON keys of [fields]: `{*}` when it holds `*`, otherwise without the

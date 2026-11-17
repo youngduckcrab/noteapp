@@ -322,6 +322,17 @@ final class DriftSearchIndex implements SearchIndex {
           after = chunk.last;
         }
       }
+      // (v2.17-md, 08-markdown 6 — review D5) MD 문서 bodies.
+      if (which.contains(SearchSource.markdown)) {
+        String? after;
+        while (true) {
+          final chunk = await s.queue.run(
+            (tx) => indexer.indexMarkdownChunk(after, kSearchRebuildChunk),
+          );
+          if (chunk.count < kSearchRebuildChunk) break;
+          after = chunk.last;
+        }
+      }
       final at = s.clock.now().millisecondsSinceEpoch;
       await s.queue.run((tx) async {
         await _putKv(KvKeys.searchLastRebuildAt, '$at');
@@ -391,6 +402,9 @@ final class DriftSearchIndex implements SearchIndex {
         'p.note_id || char(31) || n.updated_at, char(31)) FROM pages p '
         'JOIN notes n ON n.id = p.note_id WHERE p.bg_asset_id = u.asset_id '
         'AND p.bg_pdf_index = u.pdf_index AND $livePage) '
+        // (v2.17-md, C217M-08) an MD 문서 body: its note, active, no page row.
+        "WHEN u.source = 'markdown' THEN (SELECT n.updated_at FROM notes n "
+        'WHERE n.id = u.note_id AND n.deleted_at IS NULL AND n.owner_id = ?$within) '
         'ELSE (SELECT n.updated_at FROM pages p JOIN notes n ON n.id = p.note_id '
         'WHERE p.id = u.page_id AND $livePage) END';
 
@@ -410,13 +424,14 @@ final class DriftSearchIndex implements SearchIndex {
       vars = [
         ...liveVars,
         ...liveVars,
+        ...liveVars,
         for (final r in runs) Variable<String>(likeContains(r.text)),
       ];
     } else {
       from =
           'FROM search_fts JOIN search_units u ON u.id = search_fts.rowid '
           'WHERE search_fts MATCH ? ORDER BY search_fts.rowid DESC';
-      vars = [...liveVars, ...liveVars, Variable<String>(match)];
+      vars = [...liveVars, ...liveVars, ...liveVars, Variable<String>(match)];
     }
     final sql =
         'SELECT * FROM (SELECT $_candidateColumns, $live AS live $from '

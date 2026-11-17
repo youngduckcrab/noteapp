@@ -256,7 +256,10 @@ final class CoreSyncDevice {
   }) async {
     final refs = <EntityRef>{...extra};
     for (final n in notes) {
-      refs.add(EntityRef(EntityKind.note, n));
+      refs
+        ..add(EntityRef(EntityKind.note, n))
+        // (v2.17-md) an MD 문서 body (absent for an ink note: readVersioned null).
+        ..add(EntityRef(EntityKind.markdown, MarkdownText.idFor(n)));
       for (final page in await store.content.pagesOf(n)) {
         refs
           ..add(EntityRef(EntityKind.page, page.id))

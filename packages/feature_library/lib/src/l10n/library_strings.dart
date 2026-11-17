@@ -76,11 +76,15 @@ abstract final class LibraryStrings {
   static const String sourcePdf = 'PDF';
   static const String sourceText = '텍스트';
   static const String sourceMath = '수식';
+
+  /// (v2.17-md, C217M-08) the body of an MD 문서.
+  static const String sourceMarkdown = '문서';
   static String sourceLabel(SearchSource source) => switch (source) {
     SearchSource.ink => sourceInk,
     SearchSource.pdf => sourcePdf,
     SearchSource.text => sourceText,
     SearchSource.math => sourceMath,
+    SearchSource.markdown => sourceMarkdown,
   };
 
   /// A hit's page: '3쪽'; [pageUnknown] while loading or not found.

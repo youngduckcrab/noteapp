@@ -66,6 +66,14 @@ abstract final class FieldUnits {
       'id', 'noteId', 'pageId', 'engineId', 'sourceRev', 'lines', //
       'createdAt', 'updatedAt', 'deletedAt', 'version',
     },
+    // (v2.17-md, C217M-06) the body of an MD 문서: units {noteId} · {text} · {deletedAt}.
+    // The text is ONE last-writer-wins unit; the conflict-copy rule (CORE
+    // SyncStore.keepMarkdownConflictCopy, called by the download pipeline before the apply)
+    // keeps the losing text of a concurrent edit (08-markdown 5.3).
+    EntityKind.markdown => const {
+      'id', 'noteId', 'text', 'createdAt', 'updatedAt', 'deletedAt', //
+      'version',
+    },
   };
 
   /// Explicit multi-key groups per kind (table 6.3.1). pageObject / handwriting →
@@ -92,6 +100,7 @@ abstract final class FieldUnits {
     EntityKind.asset ||
     EntityKind.recording => const [],
     EntityKind.pageObject || EntityKind.handwriting => const [],
+    EntityKind.markdown => const [],
   };
 
   /// (2nd round) Kinds merged as ONE unit: every non-meta key present in either
@@ -112,7 +121,8 @@ abstract final class FieldUnits {
     EntityKind.penPreset ||
     EntityKind.asset ||
     EntityKind.recording ||
-    EntityKind.setting => null,
+    EntityKind.setting ||
+    EntityKind.markdown => null,
   };
 
   /// All units for the keys present in either snapshot (metaKeys excluded). For a

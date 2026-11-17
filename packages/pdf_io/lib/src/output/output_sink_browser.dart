@@ -17,7 +17,34 @@ import 'dart:js_interop_unsafe';
 import 'package:web/web.dart' as web;
 
 import '../export/export_types.dart';
+import 'document_output.dart';
 import 'pdf_output_sink.dart';
+
+/// (v2.17-md) The outcome of a failed navigator.share (shared with DocumentFileOutput):
+/// AbortError → dismissedByUser, NotAllowedError → needsUserGesture, else failed.
+PdfOutputOutcome browserShareFailure(Object error) {
+  if (!error.isA<web.DOMException>()) return PdfOutputOutcome.failed;
+  return switch ((error as web.DOMException).name) {
+    'AbortError' => PdfOutputOutcome.dismissedByUser,
+    'NotAllowedError' => PdfOutputOutcome.needsUserGesture,
+    _ => PdfOutputOutcome.failed,
+  };
+}
+
+/// (v2.17-md) A download of [url] as [fileName]: a hidden <a download> clicked and
+/// removed (shared with DocumentFileOutput).
+PdfOutputOutcome browserDownload(String url, String fileName) {
+  final body = web.document.body;
+  if (body == null) return PdfOutputOutcome.failed;
+  final anchor = web.HTMLAnchorElement()
+    ..href = url
+    ..download = fileName
+    ..style.display = 'none';
+  body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  return PdfOutputOutcome.done;
+}
 
 /// web: browser sink; native: save dialog + the app's share; others: unsupported.
 /// [share] is for the native sink only (the web shares through navigator.share).
@@ -110,14 +137,8 @@ final class BrowserPdfOutputSink implements PdfOutputSink {
     );
   }
 
-  static PdfOutputOutcome _shareFailure(Object error) {
-    if (!error.isA<web.DOMException>()) return PdfOutputOutcome.failed;
-    return switch ((error as web.DOMException).name) {
-      'AbortError' => PdfOutputOutcome.dismissedByUser,
-      'NotAllowedError' => PdfOutputOutcome.needsUserGesture,
-      _ => PdfOutputOutcome.failed,
-    };
-  }
+  static PdfOutputOutcome _shareFailure(Object error) =>
+      browserShareFailure(error);
 
   String _objectUrl(PdfExportResult result) {
     final url = web.URL.createObjectURL(_fileOf(result));
@@ -126,17 +147,8 @@ final class BrowserPdfOutputSink implements PdfOutputSink {
   }
 
   PdfOutputOutcome _download(PdfExportResult result) {
-    final body = web.document.body;
-    if (body == null) return PdfOutputOutcome.failed;
     try {
-      final anchor = web.HTMLAnchorElement()
-        ..href = _objectUrl(result)
-        ..download = result.fileName
-        ..style.display = 'none';
-      body.append(anchor);
-      anchor.click();
-      anchor.remove();
-      return PdfOutputOutcome.done;
+      return browserDownload(_objectUrl(result), result.fileName);
     } on Object {
       return PdfOutputOutcome.failed;
     }
@@ -149,6 +161,81 @@ final class BrowserPdfOutputSink implements PdfOutputSink {
           : PdfOutputOutcome.done;
     } on Object {
       return PdfOutputOutcome.failed;
+    }
+  }
+}
+
+// ---- (v2.17-md, C217M-12) DocumentFileOutput: one file of any type --------------
+
+DocumentFileOutput createPlatformDocumentOutput({DocumentShareFile? share}) =>
+    BrowserDocumentOutput();
+
+final class BrowserDocumentOutput implements DocumentFileOutput {
+  BrowserDocumentOutput({web.Navigator? navigator})
+    : _navigator = navigator ?? web.window.navigator;
+
+  final web.Navigator _navigator;
+
+  web.File _file(DocumentFile f, String type) => web.File(
+    <web.BlobPart>[f.bytes.toJS].toJS,
+    f.name,
+    web.FilePropertyBag(type: type),
+  );
+
+  web.ShareData _shareData(DocumentFile f) => web.ShareData(
+    files: <web.File>[_file(f, f.shareMimeType)].toJS,
+    title: f.name,
+  );
+
+  bool _canShare(DocumentFile f) {
+    if (!_navigator.has('canShare') || !_navigator.has('share')) return false;
+    try {
+      return _navigator.canShare(_shareData(f));
+    } on Object {
+      return false;
+    }
+  }
+
+  @override
+  Set<DocumentOutputAction> availableActions(DocumentFile file) => {
+    if (_canShare(file)) DocumentOutputAction.share,
+    DocumentOutputAction.save,
+  };
+
+  @override
+  String labelOf(DocumentOutputAction action) => switch (action) {
+    DocumentOutputAction.share => '공유',
+    DocumentOutputAction.save => '다운로드',
+  };
+
+  @override
+  Future<PdfOutputOutcome> deliver(
+    DocumentFile file,
+    DocumentOutputAction action,
+  ) {
+    if (!availableActions(file).contains(action)) {
+      throw ArgumentError.value(action, 'action', 'not available');
+    }
+    switch (action) {
+      case DocumentOutputAction.share:
+        final JSPromise<JSAny?> promise;
+        try {
+          promise = _navigator.share(_shareData(file));
+        } on Object catch (e) {
+          return Future.value(browserShareFailure(e));
+        }
+        return promise.toDart.then(
+          (_) => PdfOutputOutcome.done,
+          onError: browserShareFailure,
+        );
+      case DocumentOutputAction.save:
+        try {
+          final url = web.URL.createObjectURL(_file(file, file.mimeType));
+          Timer(const Duration(minutes: 1), () => web.URL.revokeObjectURL(url));
+          return Future.value(browserDownload(url, file.name));
+        } on Object {
+          return Future.value(PdfOutputOutcome.failed);
+        }
     }
   }
 }

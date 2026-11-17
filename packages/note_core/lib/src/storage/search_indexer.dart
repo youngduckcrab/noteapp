@@ -23,8 +23,10 @@ import '../common/geometry.dart';
 import '../common/hlc.dart';
 import '../common/ids.dart';
 import '../model/handwriting.dart';
+import '../model/markdown_text.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
+import '../search/markdown_index_text.dart';
 import '../search/search_spacing.dart';
 import '../search/search_text.dart';
 import '../search/search_types.dart';
@@ -129,6 +131,8 @@ final class SearchIndexer implements TxnIndexHooks {
         await _indexObject(o, version, noteId);
       case final HandwritingText h:
         await _indexHandwriting(h, version);
+      case final MarkdownText m:
+        await _indexMarkdown(m, version);
       default:
     }
   }
@@ -251,6 +255,36 @@ final class SearchIndexer implements TxnIndexHooks {
         for (final l in h.lines)
           if (SearchText.normalize(l.text).isNotEmpty)
             (body: l.text, rect: l.rect, rectsRef: null, pdfAspect: null),
+      ],
+    );
+  }
+
+  // (v2.17-md, C217M-08) The markdown owner = the note id; hits carry pageId md_<noteId>.
+  Future<void> _indexMarkdown(MarkdownText m, Hlc version) => _guarded(
+    SearchSource.markdown,
+    m.noteId,
+    m.noteId,
+    m.id,
+    () => _writeMarkdown(m, version),
+  );
+
+  Future<void> _writeMarkdown(MarkdownText m, Hlc version) async {
+    if (m.isDeleted) {
+      await removeOwnerRows(SearchSource.markdown, m.noteId);
+      return;
+    }
+    final rev = objectSourceRev(version);
+    if (await _upToDate(SearchSource.markdown, m.noteId, rev)) return;
+    await writeOwnerRows(
+      source: SearchSource.markdown,
+      ownerKey: m.noteId,
+      noteId: m.noteId,
+      pageId: m.id,
+      sourceRev: rev,
+      units: [
+        for (final body in MarkdownIndexText.units(m.text))
+          if (SearchText.normalize(body).isNotEmpty)
+            (body: body, rect: null, rectsRef: null, pdfAspect: null),
       ],
     );
   }
@@ -378,6 +412,17 @@ final class SearchIndexer implements TxnIndexHooks {
         }
         final h = handwritingOf(row);
         await _writeHandwriting(h, h.version!);
+      case SearchSource.markdown:
+        final row =
+            await (db.select(db.mdDocs)
+                  ..where((t) => t.id.equals(MarkdownText.idFor(ownerKey))))
+                .getSingleOrNull();
+        if (row == null) {
+          await removeOwnerRows(source, ownerKey);
+          return;
+        }
+        final m = markdownOf(row);
+        await _writeMarkdown(m, m.version!);
       case SearchSource.pdf:
         // pdf rows come from pdf_io only (never marked by CORE): nothing to rebuild here.
         await (db.update(db.searchOwners)..where(
@@ -583,6 +628,33 @@ final class SearchIndexer implements TxnIndexHooks {
       await _guarded(SearchSource.ink, r.id, r.noteId, r.pageId, () async {
         final h = handwritingOf(r);
         await _writeHandwriting(h, h.version!);
+      });
+    }
+    return (last: rows.isEmpty ? null : rows.last.id, count: rows.length);
+  }
+
+  /// (v2.17-md) Rebuild: indexes up to [limit] MD 문서 bodies after id [after].
+  Future<({String? last, int count})> indexMarkdownChunk(
+    String? after,
+    int limit,
+  ) async {
+    final t = db.mdDocs;
+    final rows =
+        await (db.select(t)
+              ..where(
+                (r) =>
+                    r.deletedAt.isNull() &
+                    (after == null
+                        ? const Constant(true)
+                        : r.id.isBiggerThanValue(after)),
+              )
+              ..orderBy([(r) => OrderingTerm(expression: r.id)])
+              ..limit(limit))
+            .get();
+    for (final r in rows) {
+      await _guarded(SearchSource.markdown, r.noteId, r.noteId, r.id, () async {
+        final m = markdownOf(r);
+        await _writeMarkdown(m, m.version!);
       });
     }
     return (last: rows.isEmpty ? null : rows.last.id, count: rows.length);

@@ -19,13 +19,16 @@ typedef SchemaUpgradeStep = Future<void> Function(
 );
 
 /// Steps of this app version, keyed by the version they upgrade from.
-const Map<int, SchemaUpgradeStep> kSchemaSteps = {1: upgradeV1ToV2};
+const Map<int, SchemaUpgradeStep> kSchemaSteps = {
+  1: upgradeV1ToV2,
+  2: upgradeV2ToV3,
+};
 
 /// v1 → v2 (6.12.1 steps 1–6; step 0, the v1 copy, ran before the transaction — 6.12.4).
 /// Only new tables, new columns and derived columns: entity columns, versions,
 /// field_versions, the outbox and the existing kv keys are not touched (C-14).
 Future<void> upgradeV1ToV2(Migrator m, GeneratedDatabase db, int from) async {
-  await migrationSteps(from1To2: _v1ToV2)(from, db);
+  await migrationSteps(from1To2: _v1ToV2, from2To3: _v2ToV3)(from, db);
   // Step 6 (kv): the normalizer of the (still empty) search index, the v1 copy record.
   final copyRecord = db is NoteDatabase ? db.pendingV1CopyRecord : null;
   for (final (key, value) in [
@@ -37,6 +40,16 @@ Future<void> upgradeV1ToV2(Migrator m, GeneratedDatabase db, int from) async {
       [key, value],
     );
   }
+}
+
+/// (v2.17-md, C217M-03) v2 → v3 (08-markdown 4.3): the md_docs table and its index — a new
+/// table only, so no pre-upgrade copy (the one transaction rolls back to v2 on failure).
+Future<void> upgradeV2ToV3(Migrator m, GeneratedDatabase db, int from) =>
+    migrationSteps(from1To2: _v1ToV2, from2To3: _v2ToV3)(from, db);
+
+Future<void> _v2ToV3(Migrator m, Schema3 schema) async {
+  await m.createTable(schema.mdDocs);
+  await m.createIndex(schema.idxMdNote);
 }
 
 Future<void> _v1ToV2(Migrator m, Schema2 schema) async {

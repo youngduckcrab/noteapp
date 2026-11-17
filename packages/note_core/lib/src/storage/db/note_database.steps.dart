@@ -1736,8 +1736,579 @@ i1.GeneratedColumn<double> _column_98(String aliasedName) =>
       type: i1.DriftSqlType.double,
       $customConstraints: 'NULL',
     );
+
+final class Schema3 extends i0.VersionedSchema {
+  Schema3({required super.database}) : super(version: 3);
+  @override
+  late final List<i1.DatabaseSchemaEntity> entities = [
+    kv,
+    folders,
+    notes,
+    pages,
+    strokes,
+    penPresets,
+    assets,
+    recordings,
+    settings,
+    outbox,
+    pageObjects,
+    handwriting,
+    recordingDrafts,
+    searchOwners,
+    searchUnits,
+    mdDocs,
+    idxFoldersParent,
+    idxFoldersTrash,
+    idxNotesFolder,
+    idxNotesOpened,
+    idxNotesFavorite,
+    idxNotesTrash,
+    idxPagesNote,
+    idxPagesBg,
+    idxStrokesPage,
+    idxStrokesNote,
+    idxStrokesRecording,
+    idxRecordingsNote,
+    idxOutboxEntity,
+    idxObjectsPage,
+    idxObjectsNote,
+    idxObjectsAsset,
+    idxHandwritingNote,
+    idxDraftsNote,
+    idxSearchOwnersNote,
+    idxSearchOwnersPending,
+    idxSearchUnitsNote,
+    idxSearchUnitsPdf,
+    idxMdNote,
+  ];
+  late final Shape0 kv = Shape0(
+    source: i0.VersionedTable(
+      entityName: 'kv',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY("key")'],
+      columns: [_column_0, _column_1],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape1 folders = Shape1(
+    source: i0.VersionedTable(
+      entityName: 'folders',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_3,
+        _column_4,
+        _column_5,
+        _column_6,
+        _column_7,
+        _column_8,
+        _column_9,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_13,
+        _column_14,
+        _column_15,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape2 notes = Shape2(
+    source: i0.VersionedTable(
+      entityName: 'notes',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_3,
+        _column_16,
+        _column_17,
+        _column_18,
+        _column_19,
+        _column_20,
+        _column_21,
+        _column_9,
+        _column_22,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_13,
+        _column_14,
+        _column_15,
+        _column_23,
+        _column_24,
+        _column_25,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape3 pages = Shape3(
+    source: i0.VersionedTable(
+      entityName: 'pages',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_26,
+        _column_9,
+        _column_27,
+        _column_28,
+        _column_29,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+        _column_30,
+        _column_31,
+        _column_32,
+        _column_33,
+        _column_34,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape4 strokes = Shape4(
+    source: i0.VersionedTable(
+      entityName: 'strokes',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_35,
+        _column_26,
+        _column_36,
+        _column_37,
+        _column_27,
+        _column_38,
+        _column_39,
+        _column_40,
+        _column_41,
+        _column_42,
+        _column_43,
+        _column_44,
+        _column_45,
+        _column_46,
+        _column_47,
+        _column_48,
+        _column_49,
+        _column_50,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape5 penPresets = Shape5(
+    source: i0.VersionedTable(
+      entityName: 'pen_presets',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_3,
+        _column_5,
+        _column_51,
+        _column_52,
+        _column_53,
+        _column_9,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape6 assets = Shape6(
+    source: i0.VersionedTable(
+      entityName: 'assets',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_3,
+        _column_54,
+        _column_55,
+        _column_56,
+        _column_57,
+        _column_58,
+        _column_59,
+        _column_60,
+        _column_10,
+        _column_12,
+        _column_14,
+        _column_15,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape7 recordings = Shape7(
+    source: i0.VersionedTable(
+      entityName: 'recordings',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_26,
+        _column_61,
+        _column_62,
+        _column_63,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+        _column_64,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape8 settings = Shape8(
+    source: i0.VersionedTable(
+      entityName: 'settings',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY("key")'],
+      columns: [
+        _column_0,
+        _column_65,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape9 outbox = Shape9(
+    source: i0.VersionedTable(
+      entityName: 'outbox',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [],
+      columns: [
+        _column_66,
+        _column_67,
+        _column_68,
+        _column_69,
+        _column_70,
+        _column_71,
+        _column_72,
+        _column_73,
+        _column_74,
+        _column_75,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape10 pageObjects = Shape10(
+    source: i0.VersionedTable(
+      entityName: 'page_objects',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_35,
+        _column_26,
+        _column_54,
+        _column_45,
+        _column_46,
+        _column_47,
+        _column_48,
+        _column_76,
+        _column_77,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape11 handwriting = Shape11(
+    source: i0.VersionedTable(
+      entityName: 'handwriting',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_35,
+        _column_26,
+        _column_78,
+        _column_79,
+        _column_80,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape12 recordingDrafts = Shape12(
+    source: i0.VersionedTable(
+      entityName: 'recording_drafts',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(draft_id)'],
+      columns: [
+        _column_81,
+        _column_82,
+        _column_26,
+        _column_55,
+        _column_63,
+        _column_58,
+        _column_83,
+        _column_84,
+        _column_11,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape13 searchOwners = Shape13(
+    source: i0.VersionedTable(
+      entityName: 'search_owners',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(source, owner_key)'],
+      columns: [
+        _column_85,
+        _column_86,
+        _column_70,
+        _column_71,
+        _column_79,
+        _column_87,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape14 searchUnits = Shape14(
+    source: i0.VersionedTable(
+      entityName: 'search_units',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)', 'UNIQUE(source, owner_key, seq)'],
+      columns: [
+        _column_88,
+        _column_85,
+        _column_86,
+        _column_89,
+        _column_70,
+        _column_71,
+        _column_77,
+        _column_90,
+        _column_91,
+        _column_92,
+        _column_93,
+        _column_94,
+        _column_95,
+        _column_96,
+        _column_97,
+        _column_98,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape15 mdDocs = Shape15(
+    source: i0.VersionedTable(
+      entityName: 'md_docs',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_2,
+        _column_26,
+        _column_99,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_14,
+        _column_15,
+        _column_100,
+        _column_101,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  final i1.Index idxFoldersParent = i1.Index(
+    'idx_folders_parent',
+    'CREATE INDEX idx_folders_parent ON folders (owner_id, parent_id, deleted_at)',
+  );
+  final i1.Index idxFoldersTrash = i1.Index(
+    'idx_folders_trash',
+    'CREATE INDEX idx_folders_trash ON folders (trash_root_id)',
+  );
+  final i1.Index idxNotesFolder = i1.Index(
+    'idx_notes_folder',
+    'CREATE INDEX idx_notes_folder ON notes (owner_id, folder_id, deleted_at)',
+  );
+  final i1.Index idxNotesOpened = i1.Index(
+    'idx_notes_opened',
+    'CREATE INDEX idx_notes_opened ON notes (owner_id, last_opened_at)',
+  );
+  final i1.Index idxNotesFavorite = i1.Index(
+    'idx_notes_favorite',
+    'CREATE INDEX idx_notes_favorite ON notes (owner_id, is_favorite, deleted_at)',
+  );
+  final i1.Index idxNotesTrash = i1.Index(
+    'idx_notes_trash',
+    'CREATE INDEX idx_notes_trash ON notes (trash_root_id)',
+  );
+  final i1.Index idxPagesNote = i1.Index(
+    'idx_pages_note',
+    'CREATE INDEX idx_pages_note ON pages (note_id, deleted_at, sort_key)',
+  );
+  final i1.Index idxPagesBg = i1.Index(
+    'idx_pages_bg',
+    'CREATE INDEX idx_pages_bg ON pages (bg_asset_id, bg_pdf_index)',
+  );
+  final i1.Index idxStrokesPage = i1.Index(
+    'idx_strokes_page',
+    'CREATE INDEX idx_strokes_page ON strokes (page_id, deleted_at)',
+  );
+  final i1.Index idxStrokesNote = i1.Index(
+    'idx_strokes_note',
+    'CREATE INDEX idx_strokes_note ON strokes (note_id)',
+  );
+  final i1.Index idxStrokesRecording = i1.Index(
+    'idx_strokes_recording',
+    'CREATE INDEX idx_strokes_recording ON strokes (recording_id)',
+  );
+  final i1.Index idxRecordingsNote = i1.Index(
+    'idx_recordings_note',
+    'CREATE INDEX idx_recordings_note ON recordings (note_id, deleted_at)',
+  );
+  final i1.Index idxOutboxEntity = i1.Index(
+    'idx_outbox_entity',
+    'CREATE UNIQUE INDEX idx_outbox_entity ON outbox (entity_kind, entity_id)',
+  );
+  final i1.Index idxObjectsPage = i1.Index(
+    'idx_objects_page',
+    'CREATE INDEX idx_objects_page ON page_objects (page_id, deleted_at)',
+  );
+  final i1.Index idxObjectsNote = i1.Index(
+    'idx_objects_note',
+    'CREATE INDEX idx_objects_note ON page_objects (note_id)',
+  );
+  final i1.Index idxObjectsAsset = i1.Index(
+    'idx_objects_asset',
+    'CREATE INDEX idx_objects_asset ON page_objects (asset_id)',
+  );
+  final i1.Index idxHandwritingNote = i1.Index(
+    'idx_handwriting_note',
+    'CREATE INDEX idx_handwriting_note ON handwriting (note_id, deleted_at)',
+  );
+  final i1.Index idxDraftsNote = i1.Index(
+    'idx_drafts_note',
+    'CREATE INDEX idx_drafts_note ON recording_drafts (note_id)',
+  );
+  final i1.Index idxSearchOwnersNote = i1.Index(
+    'idx_search_owners_note',
+    'CREATE INDEX idx_search_owners_note ON search_owners (note_id)',
+  );
+  final i1.Index idxSearchOwnersPending = i1.Index(
+    'idx_search_owners_pending',
+    'CREATE INDEX idx_search_owners_pending ON search_owners (pending)',
+  );
+  final i1.Index idxSearchUnitsNote = i1.Index(
+    'idx_search_units_note',
+    'CREATE INDEX idx_search_units_note ON search_units (note_id)',
+  );
+  final i1.Index idxSearchUnitsPdf = i1.Index(
+    'idx_search_units_pdf',
+    'CREATE INDEX idx_search_units_pdf ON search_units (asset_id, pdf_index)',
+  );
+  final i1.Index idxMdNote = i1.Index(
+    'idx_md_note',
+    'CREATE INDEX idx_md_note ON md_docs (note_id)',
+  );
+}
+
+class Shape15 extends i0.VersionedTable {
+  Shape15({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get id =>
+      columnsByName['id']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get noteId =>
+      columnsByName['note_id']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get text$ =>
+      columnsByName['text']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get createdAt =>
+      columnsByName['created_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<int> get updatedAt =>
+      columnsByName['updated_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<int> get deletedAt =>
+      columnsByName['deleted_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get version =>
+      columnsByName['version']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get fieldVersions =>
+      columnsByName['field_versions']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get textBytes =>
+      columnsByName['text_bytes']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get baseTextVersion =>
+      columnsByName['base_text_version']! as i1.GeneratedColumn<String>;
+}
+
+i1.GeneratedColumn<String> _column_99(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'text',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NOT NULL',
+    );
+i1.GeneratedColumn<int> _column_100(String aliasedName) =>
+    i1.GeneratedColumn<int>(
+      'text_bytes',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.int,
+      $customConstraints: 'NOT NULL',
+    );
+i1.GeneratedColumn<String> _column_101(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'base_text_version',
+      aliasedName,
+      true,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NULL',
+    );
 i0.MigrationStepWithVersion migrationSteps({
   required Future<void> Function(i1.Migrator m, Schema2 schema) from1To2,
+  required Future<void> Function(i1.Migrator m, Schema3 schema) from2To3,
 }) {
   return (currentVersion, database) async {
     switch (currentVersion) {
@@ -1746,6 +2317,11 @@ i0.MigrationStepWithVersion migrationSteps({
         final migrator = i1.Migrator(database, schema);
         await from1To2(migrator, schema);
         return 2;
+      case 2:
+        final schema = Schema3(database: database);
+        final migrator = i1.Migrator(database, schema);
+        await from2To3(migrator, schema);
+        return 3;
       default:
         throw ArgumentError.value('Unknown migration from $currentVersion');
     }
@@ -1754,6 +2330,7 @@ i0.MigrationStepWithVersion migrationSteps({
 
 i1.OnUpgrade stepByStep({
   required Future<void> Function(i1.Migrator m, Schema2 schema) from1To2,
+  required Future<void> Function(i1.Migrator m, Schema3 schema) from2To3,
 }) => i0.VersionedSchema.stepByStepHelper(
-  step: migrationSteps(from1To2: from1To2),
+  step: migrationSteps(from1To2: from1To2, from2To3: from2To3),
 );

@@ -20,10 +20,10 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:test/test.dart';
 
 /// A newer app's database: schema v3 with the given steps.
-class _V3Database extends NoteDatabase {
-  _V3Database(super.executor, {required super.upgradeSteps});
+class _NextDatabase extends NoteDatabase {
+  _NextDatabase(super.executor, {required super.upgradeSteps});
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => kDatabaseSchemaVersion + 1;
 }
 
 Matcher _openFailure(NoteStoreOpenFailure reason) =>
@@ -137,10 +137,10 @@ void main() {
           executor: NativeDatabase(File(path)),
           storageInfo: const StorageInfo(backend: StorageBackend.nativeFile),
           config: fileConfig(),
-          databaseFactory: (e, _) => _V3Database(
+          databaseFactory: (e, _) => _NextDatabase(
             e,
             upgradeSteps: {
-              2: (m, db, from) async {
+              kDatabaseSchemaVersion: (m, db, from) async {
                 await db.customStatement('CREATE TABLE extra (x INTEGER)');
                 throw StateError('step failed');
               },
@@ -157,11 +157,15 @@ void main() {
               .having(
                 (e) => e.cause,
                 'cause',
-                isA<SchemaStepError>().having((s) => s.from, 'from', 2),
+                isA<SchemaStepError>().having(
+                  (s) => s.from,
+                  'from',
+                  kDatabaseSchemaVersion,
+                ),
               ),
         ),
       );
-      expect(userVersion(), 2);
+      expect(userVersion(), kDatabaseSchemaVersion);
       final raw = sqlite.sqlite3.open(path);
       addTearDown(raw.close);
       expect(
@@ -180,11 +184,11 @@ void main() {
           executor: NativeDatabase(File(path)),
           storageInfo: const StorageInfo(backend: StorageBackend.nativeFile),
           config: fileConfig(),
-          databaseFactory: (e, _) => _V3Database(e, upgradeSteps: const {}),
+          databaseFactory: (e, _) => _NextDatabase(e, upgradeSteps: const {}),
         ),
         throwsA(_openFailure(NoteStoreOpenFailure.migrationFailed)),
       );
-      expect(userVersion(), 2);
+      expect(userVersion(), kDatabaseSchemaVersion);
     });
 
     test('a working step runs once and sets user_version', () async {
@@ -194,10 +198,10 @@ void main() {
         executor: NativeDatabase(File(path)),
         storageInfo: const StorageInfo(backend: StorageBackend.nativeFile),
         config: fileConfig(),
-        databaseFactory: (e, _) => _V3Database(
+        databaseFactory: (e, _) => _NextDatabase(
           e,
           upgradeSteps: {
-            2: (m, db, from) async {
+            kDatabaseSchemaVersion: (m, db, from) async {
               runs++;
               await db.customStatement('CREATE TABLE extra (x INTEGER)');
             },
@@ -207,16 +211,20 @@ void main() {
       final row = await store.db
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(row.read<int>('user_version'), 3);
+      expect(row.read<int>('user_version'), kDatabaseSchemaVersion + 1);
       await store.close();
       expect(runs, 1);
     });
 
-    test('schema steps of this version: v1 → v2 (m5-7 T24)', () {
-      expect(kSchemaSteps.keys, [1]);
-      expect(kSchemaSteps[1], same(upgradeV1ToV2));
-      expect(kDatabaseSchemaVersion, 2);
-    });
+    test(
+      'schema steps of this version: v1 → v2 (m5-7 T24), v2 → v3 (v2.17-md)',
+      () {
+        expect(kSchemaSteps.keys, [1, 2]);
+        expect(kSchemaSteps[1], same(upgradeV1ToV2));
+        expect(kSchemaSteps[2], same(upgradeV2ToV3));
+        expect(kDatabaseSchemaVersion, 3);
+      },
+    );
   });
 
   group('storageUnavailable', () {

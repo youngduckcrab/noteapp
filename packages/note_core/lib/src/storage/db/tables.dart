@@ -286,6 +286,27 @@ class Handwriting extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// (v3, v2.17-md C217M-03) MD 문서 bodies (08-markdown 4.3): one row per MD 문서, id
+/// `md_<noteId>`. text_bytes (derived) and base_text_version (the text field version this
+/// device knows the server has — 5.3) are device-local: not in the outbox, not in backups.
+@DataClassName('MdDocRow')
+@TableIndex(name: 'idx_md_note', columns: {#noteId})
+class MdDocs extends Table {
+  TextColumn get id => text()();
+  TextColumn get noteId => text()();
+  TextColumn get body => text().named('text')();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get deletedAt => integer().nullable()();
+  TextColumn get version => text()(); // = versions.max (HLC text)
+  TextColumn get fieldVersions =>
+      text().named('field_versions').nullable()(); // 7.2.10
+  IntColumn get textBytes => integer()(); // local, derived
+  TextColumn get baseTextVersion => text().nullable()(); // local (5.3)
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Recording drafts (7.2.4, 6.7) — device-local: no version, no outbox, not in backups.
 /// The chunks live in the blob store under `rd/<draftId>/…`.
 @DataClassName('RecordingDraftRow')

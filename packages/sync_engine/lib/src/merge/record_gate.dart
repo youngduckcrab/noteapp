@@ -145,7 +145,11 @@ abstract final class RecordGate {
       case EntityKind.folder || EntityKind.note:
         return isPurged(doc.ref) ? '${doc.ref} is permanently deleted' : null;
       // (2nd round, 07-sync 6.2.4) a handwriting result names its note like a page.
-      case EntityKind.page || EntityKind.recording || EntityKind.handwriting:
+      // (v2.17-md, C217M-06 — review D9) an MD 문서 body names its note too.
+      case EntityKind.page ||
+          EntityKind.recording ||
+          EntityKind.handwriting ||
+          EntityKind.markdown:
         final n = note(doc.json['noteId']);
         return n == null ? null : '${doc.ref} of permanently deleted note $n';
       // (2nd round) a page object finds its note like a stroke: the chunk scope, or for a
