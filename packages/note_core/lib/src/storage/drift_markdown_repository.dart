@@ -29,15 +29,46 @@ import 'write_queue.dart';
 bool _touchesMarkdown(CommitTouch t) =>
     t.kinds.contains(EntityKind.note) || t.kinds.contains(EntityKind.markdown);
 
-/// The kv key of the last conflict copy this device made for an MD 문서 (5.3: copies of
-/// one document within [kMarkdownConflictCopyWindow] are rewritten, not multiplied).
+/// The kv key of the last conflict copy this device made for an MD 문서
+/// (`'<copy id> <epoch ms>'`; 5.3: within [kMarkdownConflictCopyWindow] a copy that
+/// already holds the same losing text is reused instead of made again — a copy is never
+/// rewritten).
 String markdownConflictCopyKey(NoteId noteId) => 'md.conflictCopy.$noteId';
 
-/// 5.3 — one live conflict copy per document per 10 minutes.
+/// The kv key of what the L2 pre-pass compared for an MD 문서
+/// (`'<received text version> <stored text version>'`); the applyRemote job decides
+/// again when the row moved.
+String markdownGuardedKey(NoteId noteId) => 'md.guarded.$noteId';
+
+/// 5.3 — a copy of the last 10 minutes that holds the same losing text is reused.
 const Duration kMarkdownConflictCopyWindow = Duration(minutes: 10);
 
 /// What [DriftMarkdownRepository.guardRemoteText] did.
-typedef MarkdownGuardOutcome = ({NoteId noteId, NoteId copyId, bool rewrote});
+typedef MarkdownGuardOutcome = ({NoteId noteId, NoteId copyId, bool reused});
+
+/// [text] with every lone UTF-16 surrogate replaced by U+FFFD — what the database keeps
+/// (UTF-8 cannot hold one), so saving the same editor text again is a no-op.
+String _wellFormed(String text) {
+  final n = text.length;
+  StringBuffer? out;
+  var from = 0;
+  for (var i = 0; i < n; i++) {
+    final c = text.codeUnitAt(i);
+    if (c < 0xD800 || c > 0xDFFF) continue;
+    if (c <= 0xDBFF &&
+        i + 1 < n &&
+        (text.codeUnitAt(i + 1) & 0xFC00) == 0xDC00) {
+      i++;
+      continue;
+    }
+    (out ??= StringBuffer())
+      ..write(text.substring(from, i))
+      ..write('\uFFFD');
+    from = i + 1;
+  }
+  if (out == null) return text;
+  return (out..write(text.substring(from))).toString();
+}
 
 final class DriftMarkdownRepository implements MarkdownRepository {
   DriftMarkdownRepository(this.s);
@@ -61,7 +92,9 @@ final class DriftMarkdownRepository implements MarkdownRepository {
     final note = noteOf(r);
     if (!note.isMarkdown) return null;
     final body = await _bodyRow(id);
-    if (body == null) {
+    // A body tombstone (v1 never writes one; a later version or a bad record might) is
+    // treated like a body that has not arrived: read-only, as the search index drops it.
+    if (body == null || body.deletedAt != null) {
       return MarkdownDoc(note: note, text: '', bodyPresent: false);
     }
     return MarkdownDoc(
@@ -119,6 +152,7 @@ final class DriftMarkdownRepository implements MarkdownRepository {
     String text = '',
   }) async {
     final t = checkLibraryName(title, what: 'title');
+    text = _wellFormed(text);
     MarkdownLimits.check(text);
     return s.queue.run((tx) async {
       await _library.requireTarget(folderId);
@@ -155,6 +189,7 @@ final class DriftMarkdownRepository implements MarkdownRepository {
     String text, {
     required Hlc? baseVersion,
   }) async {
+    text = _wellFormed(text);
     MarkdownLimits.check(text);
     return s.queue.run((tx) async {
       final doc = await _doc(id);
@@ -265,21 +300,36 @@ final class DriftMarkdownRepository implements MarkdownRepository {
   /// received text version is newer than base_text_version and not this device's own,
   /// the text that will lose the field merge (newer text version wins — the merge rule of
   /// a one-field unit) is kept byte for byte as an MD 문서 '<title> (충돌 사본 …)' in the same
-  /// folder — or written into this device's copy of the last 10 minutes when it is still
-  /// alive — and base_text_version becomes the received version. null: nothing to keep.
+  /// folder. A copy is never rewritten: this device's copy of the last 10 minutes is
+  /// reused only when it still holds exactly the losing text. null: nothing to keep.
+  ///
+  /// This is the engine's pre-pass (its own write-queue job, so the engine can report the
+  /// copy). It does not raise base_text_version; it records what it compared
+  /// ([markdownGuardedKey]) and [guardInApply] — run again inside the applyRemote job,
+  /// on the row as it is then — finishes the rule: when the stored text changed in
+  /// between (an autosave), the decision is made again so no text is lost.
   Future<MarkdownGuardOutcome?> guardRemoteText(
     MarkdownText remote,
     EntityFieldVersions versions,
-  ) => s.queue.run((tx) async {
+  ) => s.queue.run((tx) => _guard(tx, remote, versions, applying: false));
+
+  /// [guardRemoteText] inside the applyRemote job [tx], before the merge decision of
+  /// [remote]; raises base_text_version to the received version when the rule applied.
+  Future<MarkdownGuardOutcome?> guardInApply(
+    WriteTxn tx,
+    MarkdownText remote,
+    EntityFieldVersions versions,
+  ) => _guard(tx, remote, versions, applying: true);
+
+  Future<MarkdownGuardOutcome?> _guard(
+    WriteTxn tx,
+    MarkdownText remote,
+    EntityFieldVersions versions, {
+    required bool applying,
+  }) async {
     final noteId = remote.noteId;
     final stored = await _bodyRow(noteId);
     if (stored == null || stored.id != remote.id) return null;
-    final entry = await outboxRowOf(_db, EntityKind.markdown, stored.id);
-    if (entry == null || entry.op != OutboxOp.upsert.name) return null;
-    final pending = outboxFieldsOf(entry);
-    if (!pending.contains('text') && !pending.contains(kAllFields)) return null;
-    final storedText = markdownTextOf(stored);
-    if (storedText == remote.text) return null;
     final remoteV = versions.of('text');
     final base = stored.baseTextVersion;
     if (base != null && !(remoteV > Hlc.parse(base))) return null;
@@ -288,6 +338,26 @@ final class DriftMarkdownRepository implements MarkdownRepository {
       stored.version,
       stored.fieldVersions,
     ).of('text');
+    final guardedKey = markdownGuardedKey(noteId);
+    final guarded = await _kv(guardedKey);
+    // The record of the pre-pass lives until this body is applied.
+    if (applying && guarded != null) await _deleteKv(tx, guardedKey);
+    final compared = '$remoteV $localV';
+    Future<void> finish() => applying
+        ? raiseBase(stored.id, remoteV)
+        : _putKv(tx, guardedKey, compared);
+
+    // The pre-pass already decided on this very row: nothing new to keep.
+    if (guarded == compared) {
+      if (applying) await finish();
+      return null;
+    }
+    final entry = await outboxRowOf(_db, EntityKind.markdown, stored.id);
+    if (entry == null || entry.op != OutboxOp.upsert.name) return null;
+    final pending = outboxFieldsOf(entry);
+    if (!pending.contains('text') && !pending.contains(kAllFields)) return null;
+    final storedText = markdownTextOf(stored);
+    if (storedText == remote.text) return null;
     final loser = remoteV > localV ? storedText : remote.text;
     try {
       MarkdownLimits.check(loser);
@@ -299,29 +369,21 @@ final class DriftMarkdownRepository implements MarkdownRepository {
     final note = noteOf(noteRow);
     final now = s.clock.now();
     NoteId? copyId;
-    var rewrote = false;
+    var reused = false;
     final key = markdownConflictCopyKey(noteId);
-    final kv = await (_db.select(
-      _db.kv,
-    )..where((t) => t.key.equals(key))).getSingleOrNull();
-    if (kv != null) {
-      final parts = kv.value.split(' ');
-      final at = parts.length == 2 ? int.tryParse(parts[1]) : null;
+    final last = await _kv(key);
+    if (last != null) {
+      final parts = last.split(' ');
+      final at = parts.length >= 2 ? int.tryParse(parts[1]) : null;
       if (at != null &&
           now.millisecondsSinceEpoch - at <=
               kMarkdownConflictCopyWindow.inMilliseconds) {
         final copy = await _doc(parts[0]);
-        if (copy != null && !copy.isReadOnly) {
-          if (copy.text != loser) {
-            await _writeText(
-              tx,
-              copy.note,
-              loser,
-              stored: await _bodyRow(copy.note.id),
-            );
-          }
+        // Never rewritten (a copy may hold the user's later writing or another
+        // loser): reused only when it already holds exactly this text.
+        if (copy != null && !copy.isReadOnly && copy.text == loser) {
           copyId = copy.note.id;
-          rewrote = true;
+          reused = true;
         }
       }
     }
@@ -331,18 +393,28 @@ final class DriftMarkdownRepository implements MarkdownRepository {
       title: MarkdownConflictCopy.titleFor(note.title, now),
       text: loser,
     )).id;
+    if (!reused) {
+      await _putKv(tx, key, '$copyId ${now.millisecondsSinceEpoch}');
+    }
+    await finish();
+    return (noteId: noteId, copyId: copyId, reused: reused);
+  }
+
+  Future<String?> _kv(String key) async => (await (_db.select(
+    _db.kv,
+  )..where((t) => t.key.equals(key))).getSingleOrNull())?.value;
+
+  Future<void> _putKv(WriteTxn tx, String key, String value) async {
     await _db
         .into(_db.kv)
-        .insertOnConflictUpdate(
-          KvCompanion.insert(
-            key: key,
-            value: '$copyId ${now.millisecondsSinceEpoch}',
-          ),
-        );
+        .insertOnConflictUpdate(KvCompanion.insert(key: key, value: value));
     tx.touchKv(key);
-    await raiseBase(stored.id, remoteV);
-    return (noteId: noteId, copyId: copyId, rewrote: rewrote);
-  });
+  }
+
+  Future<void> _deleteKv(WriteTxn tx, String key) async {
+    await (_db.delete(_db.kv)..where((t) => t.key.equals(key))).go();
+    tx.touchKv(key);
+  }
 
   Future<FolderId?> _activeFolderOrNull(FolderId? id) async {
     if (id == null) return null;

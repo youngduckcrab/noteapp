@@ -77,11 +77,11 @@ void main() {
         ),
       ], folderId: folder.id);
       expect(outcome.created, hasLength(2));
-      expect(outcome.refused, {
-        'cp949.txt': MarkdownWiringStrings.notUtf8,
-        'bin.md': MarkdownWiringStrings.notText,
-        'huge.md': MarkdownWiringStrings.tooLarge,
-      });
+      expect(outcome.refused, [
+        (name: 'cp949.txt', reason: MarkdownWiringStrings.notUtf8),
+        (name: 'bin.md', reason: MarkdownWiringStrings.notText),
+        (name: 'huge.md', reason: MarkdownWiringStrings.tooLarge),
+      ]);
       expect(outcome.cut, isFalse);
       final first = (await store.markdown.get(outcome.created.first))!;
       expect(first.note.title, '회의');
@@ -93,8 +93,36 @@ void main() {
         markdownImportMessage(outcome),
         '${MarkdownWiringStrings.imported(2)} · '
         '${MarkdownWiringStrings.refused(3)} — '
-        '${MarkdownWiringStrings.notUtf8}, ${MarkdownWiringStrings.notText}, '
-        '${MarkdownWiringStrings.tooLarge}',
+        'cp949.txt: ${MarkdownWiringStrings.notUtf8}, '
+        'bin.md: ${MarkdownWiringStrings.notText}, '
+        'huge.md: ${MarkdownWiringStrings.tooLarge}',
+      );
+    });
+
+    test('each refused file counts (same names too); a picked file that is not '
+        '.md / .markdown / .txt is refused by name; more than three → 외 N개 '
+        '(review finding)', () async {
+      final store = createFakeNoteStore();
+      addTearDown(store.close);
+      final outcome = await importMarkdownFiles(store.markdown, [
+        PickedTextFile.fromBytes('a.md', _b(utf8.encode('ok'))),
+        PickedTextFile.fromBytes('메모.md', _b([0xFF])),
+        PickedTextFile.fromBytes('메모.md', _b([0xFE])),
+        PickedTextFile.fromBytes('사진.png', _b([0x89, 0x50])),
+        PickedTextFile.fromBytes('표.csv', _b(utf8.encode('a,b'))),
+      ], folderId: null);
+      expect(outcome.created, hasLength(1));
+      expect(outcome.refused, hasLength(4));
+      expect(outcome.refused[2], (
+        name: '사진.png',
+        reason: MarkdownWiringStrings.noTextFile,
+      ));
+      expect(
+        markdownImportMessage(outcome),
+        '${MarkdownWiringStrings.refused(4)} — '
+        '메모.md: ${MarkdownWiringStrings.notUtf8}, '
+        '메모.md: ${MarkdownWiringStrings.notUtf8}, '
+        '사진.png: ${MarkdownWiringStrings.noTextFile}, 외 1개',
       );
     });
 
@@ -118,7 +146,10 @@ void main() {
       final bad = await importMarkdownFiles(store.markdown, [
         PickedTextFile.fromBytes('a.md', _b([0xFF])),
       ], folderId: null);
-      expect(markdownImportMessage(bad), MarkdownWiringStrings.notUtf8);
+      expect(
+        markdownImportMessage(bad),
+        'a.md: ${MarkdownWiringStrings.notUtf8}',
+      );
     });
   });
 

@@ -116,7 +116,8 @@ abstract final class MarkdownImport {
     var name = fileName.split(RegExp(r'[/\\]')).last;
     final lower = name.toLowerCase();
     for (final ext in _extensions) {
-      if (lower.endsWith(ext) && name.length > ext.length) {
+      // A name that is only the extension ('.md') has no title part.
+      if (lower.endsWith(ext)) {
         name = name.substring(0, name.length - ext.length);
         break;
       }

@@ -17,7 +17,7 @@ abstract final class AppStrings {
 
   /// (v2.17-md) The MD 문서 screen could not be loaded (web: its part file).
   static const String markdownLoadFailed =
-      'MD 문서 화면을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요';
+      'MD 문서 화면을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요';
   static const String close = '닫기';
   static const String settings = '설정';
 

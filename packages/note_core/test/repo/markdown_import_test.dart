@@ -88,7 +88,8 @@ void main() {
       expect(title('readme.txt', '# 프로젝트 소개\n'), '프로젝트 소개');
       expect(title('/storage/emulated/0/Download/강의.md'), '강의');
       expect(title(r'C:\docs\보고서.md'), '보고서');
-      expect(title('.md'), '.md');
+      expect(title('.md'), MarkdownImport.fallbackTitle);
+      expect(title('.markdown', '# 제목 있음\n'), '제목 있음');
     });
 
     test('decomposed Hangul (macOS names) is composed (NFC)', () {

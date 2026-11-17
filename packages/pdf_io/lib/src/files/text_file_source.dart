@@ -42,9 +42,9 @@ abstract interface class TextFileSource {
 
 /// file_picker 13.3.2: FilePicker.pickFiles / pickFile with the md / markdown / txt
 /// extensions. Android maps extensions to MIME types and may not know '.md': when the
-/// filtered picker fails there, it is opened again for any file, and the picked files are
-/// kept only when their name ends with one of [extensions] (the same check after a
-/// filtered pick — providers can return other files).
+/// filtered picker fails there, it is opened again for any file. Every picked file is
+/// returned — the caller refuses one whose name does not pass [hasTextExtension] (and
+/// says so, per file), since providers can return other files even after a filtered pick.
 final class FilePickerTextSource implements TextFileSource {
   const FilePickerTextSource({this.platformIsWeb = kIsWeb});
 
@@ -91,12 +91,11 @@ final class FilePickerTextSource implements TextFileSource {
       if (files == null || files.isEmpty) return null;
       return [
         for (final f in files)
-          if (hasTextExtension(f.name))
-            PickedTextFile(
-              name: f.name,
-              sizeBytes: f.lengthSync(),
-              readBytes: f.readAsBytes,
-            ),
+          PickedTextFile(
+            name: f.name,
+            sizeBytes: f.lengthSync(),
+            readBytes: f.readAsBytes,
+          ),
       ];
     }();
   }

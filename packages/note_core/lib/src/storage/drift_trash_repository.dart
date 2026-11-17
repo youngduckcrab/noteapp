@@ -23,6 +23,7 @@ import '../repo/library_types.dart';
 import '../repo/trash_repository.dart';
 import '../sync/outbox_types.dart';
 import 'db/note_database.dart';
+import 'drift_markdown_repository.dart';
 import 'drift_note_store.dart';
 import 'drift_recording_draft_store.dart';
 import 'entity_diff.dart';
@@ -361,7 +362,12 @@ Future<List<PageId>> deleteNoteContents(
     // (v2.17-md, C217M-05) MD 문서 bodies and the conflict-copy record of the note.
     await (db.delete(db.mdDocs)..where((t) => t.noteId.isIn(chunk))).go();
     await (db.delete(db.kv)..where(
-          (t) => t.key.isIn([for (final id in chunk) 'md.conflictCopy.$id']),
+          (t) => t.key.isIn([
+            for (final id in chunk) ...[
+              markdownConflictCopyKey(id),
+              markdownGuardedKey(id),
+            ],
+          ]),
         ))
         .go();
     for (final pages in _chunks(pageIds)) {

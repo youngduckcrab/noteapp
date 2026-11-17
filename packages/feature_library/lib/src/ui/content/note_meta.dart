@@ -4,19 +4,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart'
-    show
-        FolderId,
-        MarkdownLimits,
-        Note,
-        clockProvider,
-        folderTreeProvider,
-        markdownDocProvider;
+    show FolderId, Note, clockProvider, folderTreeProvider;
 
 import '../../l10n/library_date_format.dart';
 import '../../l10n/library_strings.dart';
 import '../../model/location_label.dart';
 import '../../model/search_match.dart';
 import '../../model/section.dart';
+import '../../state/markdown_preview.dart';
 
 /// What the meta line of a note says (6.8 / 6.14).
 enum NoteMetaStyle {
@@ -65,11 +60,13 @@ String watchNoteMeta(
       if (!listRow) return modified;
       // (v2.17-md, 08-markdown 9) an MD 문서 row: '<modified> · 문서 · 2.1 KB'.
       if (note.isMarkdown) {
-        final doc = ref.watch(markdownDocProvider(note.id)).value;
-        return LibraryStrings.markdownListMeta(
-          modified,
-          doc == null ? null : MarkdownLimits.utf8BytesOf(doc.text),
+        final size = ref.watch(
+          libraryMarkdownSizeProvider((
+            noteId: note.id,
+            updatedAt: note.updatedAt,
+          )),
         );
+        return LibraryStrings.markdownListMeta(modified, size.value);
       }
       return LibraryStrings.noteListMeta(modified, note.pageCount);
     case NoteMetaStyle.recent:

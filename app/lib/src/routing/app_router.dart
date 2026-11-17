@@ -97,6 +97,8 @@ GoRouter createAppRouter({
             : (context, state) {
                 final id = state.pathParameters[_noteIdParam];
                 if (id == null) return null;
+                // An in-app open of a handwriting note: decided at once (U18).
+                if (state.extra == AppRoutes.inkNoteExtra) return null;
                 final markdown = isMarkdownNote(id);
                 if (markdown is bool) {
                   return markdown ? markdownRoute(id) : null;

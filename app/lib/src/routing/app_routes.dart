@@ -17,6 +17,11 @@ abstract final class AppRoutes {
   static const String markdownPattern = '/md/:noteId';
   static const String markdownQueryKey = 'q';
   static const String markdownEditKey = 'edit';
+
+  /// (v2.17-md, U18) The `extra` of an in-app push of `/notes/<id>` whose caller knows
+  /// the note is a handwriting note (the library dispatches by format): the MD 문서
+  /// redirect then decides at once, with no DB read.
+  static const String inkNoteExtra = 'ink-note';
   static const String pageQueryKey = 'page';
   static const String focusQueryKey = 'focus';
 

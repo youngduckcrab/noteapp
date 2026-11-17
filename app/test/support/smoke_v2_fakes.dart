@@ -25,6 +25,7 @@ import 'dart:typed_data';
 
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:feature_markdown/slots.dart' show markdownExportActionProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -262,6 +263,10 @@ void expectContractOverridesV2(
     pageThumbnailRendererProvider, // FeatureWiringModule
     libraryPdfImportActionProvider,
     libraryPdfExportActionProvider,
+    // (v2.17-md) the MD 문서 slots.
+    libraryMarkdownImportActionProvider,
+    libraryMarkdownExportActionProvider,
+    markdownExportActionProvider,
     editorExtensionsProvider,
     editorImageImporterProvider,
     devOverlaySectionsProvider,

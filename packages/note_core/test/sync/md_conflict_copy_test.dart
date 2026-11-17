@@ -2,7 +2,8 @@
 // .keepMarkdownConflictCopy on the SQLite store: when a received MD 문서 body would replace
 // (or be replaced by) an unsent local text, the losing text is kept as a conflict copy; the
 // cases that are NOT concurrent edits (same text, a re-delivered or older version, this
-// device's own record, nothing unsent) make no copy; copies within 10 minutes are rewritten.
+// device's own record, nothing unsent) make no copy; a copy is never rewritten; an autosave
+// between the engine's pre-pass and the apply loses neither text.
 @TestOn('vm')
 library;
 
@@ -174,47 +175,186 @@ void main() {
     },
   );
 
-  test(
-    '6. within 10 minutes the copy is rewritten, later a new one is made',
-    () async {
-      await editLocally('내 글 1');
-      final r1 = remote('남 글 1');
-      final copy1 = await store.sync.keepMarkdownConflictCopy(
-        r1.body,
-        r1.versions,
+  Future<List<String>> allTexts() async => [
+    for (final r
+        in await store.db.customSelect('SELECT text FROM md_docs').get())
+      r.read<String>('text'),
+  ];
+
+  test('6. a copy is never rewritten: a second conflict within 10 minutes '
+      'makes a new copy; the same losing text reuses the copy', () async {
+    await editLocally('내 글 1');
+    final r1 = remote('남 글 1');
+    final copy1 = await store.sync.keepMarkdownConflictCopy(
+      r1.body,
+      r1.versions,
+    );
+    await apply(r1);
+    now = now.add(const Duration(minutes: 3));
+    await editLocally('내 글 2');
+    final r2 = remote('남 글 2');
+    final copy2 = await store.sync.keepMarkdownConflictCopy(
+      r2.body,
+      r2.versions,
+    );
+    expect(copy2, isNot(copy1));
+    expect((await doc(copy1!)).text, '내 글 1');
+    expect((await doc(copy2!)).text, '내 글 2');
+    await apply(r2);
+    expect(await folderNotes(), hasLength(3));
+    // The same losing text again within the window: the copy that holds it is reused.
+    now = now.add(const Duration(minutes: 1));
+    await editLocally('내 글 2');
+    final r3 = remote('남 글 3');
+    expect(
+      await store.sync.keepMarkdownConflictCopy(r3.body, r3.versions),
+      copy2,
+    );
+    await apply(r3);
+    expect(await folderNotes(), hasLength(3));
+    // ... but not after 10 minutes, and not when that copy is in the trash.
+    now = now.add(const Duration(minutes: 11));
+    await editLocally('내 글 2');
+    final r4 = remote('남 글 4');
+    final copy4 = await store.sync.keepMarkdownConflictCopy(
+      r4.body,
+      r4.versions,
+    );
+    expect(copy4, isNot(copy2));
+    await apply(r4);
+    await store.library.trashItems([NoteRef(copy4!)]);
+    await editLocally('내 글 2');
+    final r5 = remote('남 글 5');
+    final copy5 = await store.sync.keepMarkdownConflictCopy(
+      r5.body,
+      r5.versions,
+    );
+    expect(copy5, isNot(copy4));
+  });
+
+  test('6b. what the user wrote into a copy is never overwritten by a later '
+      'conflict (review finding)', () async {
+    await editLocally('로컬1');
+    final r1 = remote('원격1');
+    final c1 = await store.sync.keepMarkdownConflictCopy(r1.body, r1.versions);
+    await apply(r1);
+    final copy = await doc(c1!);
+    await store.markdown.saveText(
+      c1,
+      '로컬1 + 사본에서 쓴 중요한 내용',
+      baseVersion: copy.textVersion,
+    );
+    now = now.add(const Duration(minutes: 3));
+    await editLocally('로컬2');
+    final r2 = remote('원격2');
+    final c2 = await store.sync.keepMarkdownConflictCopy(r2.body, r2.versions);
+    await apply(r2);
+    expect(c2, isNot(c1));
+    expect((await doc(c1)).text, '로컬1 + 사본에서 쓴 중요한 내용');
+    expect(await allTexts(), containsAll(['원격2', '로컬2']));
+  });
+
+  test('6c. two received texts that lose in a row are both kept', () async {
+    final r1 = remote('원격1', ahead: 1);
+    now = now.add(const Duration(seconds: 5));
+    await editLocally('로컬1');
+    await store.sync.keepMarkdownConflictCopy(r1.body, r1.versions);
+    await apply(r1);
+    final r2 = remote('원격2 (원격1과 별개)', ahead: 1);
+    now = now.add(const Duration(seconds: 5));
+    await editLocally('로컬2');
+    await store.sync.keepMarkdownConflictCopy(r2.body, r2.versions);
+    await apply(r2);
+    expect(await allTexts(), unorderedEquals(['로컬2', '원격1', '원격2 (원격1과 별개)']));
+  });
+
+  group(
+    '7. an autosave between the pre-pass and the apply (review finding)',
+    () {
+      test(
+        'local newer after the autosave: the received text is kept too',
+        () async {
+          await editLocally('로컬1');
+          final r = remote('원격 중요', ahead: 1);
+          final c = await store.sync.keepMarkdownConflictCopy(
+            r.body,
+            r.versions,
+          );
+          expect((await doc(c!)).text, '로컬1');
+          now = now.add(const Duration(seconds: 2));
+          await editLocally('로컬1 더 씀');
+          final batches = <ChangeBatch>[];
+          final sub = store.changes.listen(batches.add);
+          await apply(r);
+          await sub.cancel();
+          // The body is a remote change; the copy made inside the apply a local one.
+          expect([
+            for (final b in batches)
+              for (final c in b.changes)
+                if (c.kind == EntityKind.note) (b.origin, c.id == note.id),
+          ], contains((ChangeOrigin.local, false)));
+          expect((await doc(note.id)).text, '로컬1 더 씀');
+          expect(
+            await allTexts(),
+            unorderedEquals(['로컬1 더 씀', '로컬1', '원격 중요']),
+          );
+          // The copy made inside the apply is a local write: it uploads.
+          final pending = await store.sync.pendingChanges();
+          expect(
+            pending.where((e) => e.kind == EntityKind.markdown),
+            hasLength(3),
+          );
+        },
       );
-      await apply(r1);
-      now = now.add(const Duration(minutes: 3));
-      await editLocally('내 글 2');
-      final r2 = remote('남 글 2');
-      final copy2 = await store.sync.keepMarkdownConflictCopy(
-        r2.body,
-        r2.versions,
+
+      test(
+        'received text still newer: the autosaved text is kept too',
+        () async {
+          await editLocally('로컬1');
+          final r = remote('원격', ahead: 60000);
+          await store.sync.keepMarkdownConflictCopy(r.body, r.versions);
+          await editLocally('로컬1 더 씀');
+          await apply(r);
+          expect((await doc(note.id)).text, '원격');
+          expect(await allTexts(), containsAll(['로컬1', '로컬1 더 씀']));
+        },
       );
-      expect(copy2, copy1);
-      expect((await doc(copy1!)).text, '내 글 2');
-      await apply(r2);
-      expect(await folderNotes(), hasLength(2));
-      now = now.add(const Duration(minutes: 11));
-      await editLocally('내 글 3');
-      final r3 = remote('남 글 3');
-      final copy3 = await store.sync.keepMarkdownConflictCopy(
-        r3.body,
-        r3.versions,
+
+      test(
+        'an unsent edit that appears only after the pre-pass is kept',
+        () async {
+          final r = remote('원격', ahead: 60000);
+          expect(
+            await store.sync.keepMarkdownConflictCopy(r.body, r.versions),
+            isNull,
+          );
+          await editLocally('사이에 쓴 글');
+          await apply(r);
+          expect((await doc(note.id)).text, '원격');
+          expect(await allTexts(), contains('사이에 쓴 글'));
+        },
       );
-      expect(copy3, isNot(copy1));
-      expect((await doc(copy3!)).text, '내 글 3');
-      expect(await folderNotes(), hasLength(3));
-      // A trashed copy is not rewritten either.
-      await apply(r3);
-      await store.library.trashItems([NoteRef(copy3)]);
-      await editLocally('내 글 4');
-      final r4 = remote('남 글 4');
-      final copy4 = await store.sync.keepMarkdownConflictCopy(
-        r4.body,
-        r4.versions,
+
+      test('no autosave: the apply makes no second copy', () async {
+        await editLocally('로컬1');
+        final r = remote('원격');
+        await store.sync.keepMarkdownConflictCopy(r.body, r.versions);
+        await apply(r);
+        expect(await allTexts(), unorderedEquals(['원격', '로컬1']));
+        final kv = await store.db
+            .customSelect("SELECT key FROM kv WHERE key LIKE 'md.guarded.%'")
+            .get();
+        expect(kv, isEmpty);
+      });
+
+      test(
+        'an apply without the pre-pass still keeps the losing text',
+        () async {
+          await editLocally('로컬1');
+          await apply(remote('원격'));
+          expect(await allTexts(), unorderedEquals(['원격', '로컬1']));
+        },
       );
-      expect(copy4, isNot(copy3));
     },
   );
 

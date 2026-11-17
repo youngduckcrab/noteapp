@@ -73,10 +73,12 @@ abstract interface class SyncStore {
   /// unsent, different text of that document and the received text version is newer than
   /// what this device knows the server had (base_text_version) and was not written by this
   /// device, the text that will lose the merge is kept byte for byte as a conflict copy
-  /// (a new MD 문서 '<title> (충돌 사본 …)' in the same folder, or this device's copy of
-  /// the same document from the last 10 minutes, rewritten). One local write
-  /// (ChangeBatch(origin: local), outbox). Returns the copy's note id, or null when nothing
-  /// had to be kept.
+  /// (a new MD 문서 '<title> (충돌 사본 …)' in the same folder; this device's copy of the
+  /// last 10 minutes is reused only when it already holds exactly that text — a copy is
+  /// never rewritten). One local write (ChangeBatch(origin: local), outbox). Returns the
+  /// copy's note id, or null when nothing had to be kept. [applyRemote] applies the same
+  /// rule again on the row as it is then (an edit saved after this call loses no text;
+  /// such a copy is a local change of that remote commit, with no copy id returned).
   Future<NoteId?> keepMarkdownConflictCopy(
     MarkdownText remote,
     EntityFieldVersions versions,

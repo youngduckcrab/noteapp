@@ -32,10 +32,18 @@ Future<void> removeBodyReal(NoteStore store, NoteId noteId) async {
   });
 }
 
-/// [text] arriving from another device (a newer version of [kOtherNode]).
+/// [text] arriving from another device (a newer version of [kOtherNode]), after this
+/// device's text was uploaded (its pending body entry acknowledged) — otherwise the apply
+/// keeps the unsent local text as a conflict copy (08-markdown 5.3 L2).
 Future<Hlc> remoteTextReal(NoteStore store, NoteId noteId, String text) async {
   final s = store as DriftNoteStore;
   final current = (await store.markdown.get(noteId))!;
+  await store.sync.acknowledge([
+    for (final e in await store.sync.pendingChanges())
+      if (e.kind == EntityKind.markdown &&
+          e.entityId == MarkdownText.idFor(noteId))
+        OutboxAck(e.seq, e.rev, uploadedTextVersion: current.textVersion),
+  ]);
   final last = s.queue.hlc.last;
   final v = Hlc(last.millis, last.counter + 1, kOtherNode);
   final body = MarkdownText(
@@ -265,5 +273,54 @@ void main() {
         .migrateIfNeeded(note.id);
     expect(migrated.schemaVersion, kMarkdownNoteSchemaVersion);
     expect((await store.markdown.get(note.id))!.text, 'x');
+  });
+
+  test('a lone surrogate is stored as U+FFFD and saving the same editor text '
+      'again is a no-op (review finding)', () async {
+    final store = await openTestNoteStore();
+    addTearDown(store.close);
+    final note = await store.markdown.create(title: 's', text: 'a\uD800b');
+    var doc = (await store.markdown.get(note.id))!;
+    expect(doc.text.codeUnits, [0x61, 0xFFFD, 0x62]);
+    final again = await store.markdown.saveText(
+      note.id,
+      'a\uD800b',
+      baseVersion: doc.textVersion,
+    );
+    expect(again.outcome, MarkdownSaveOutcome.unchanged);
+    await store.markdown.saveText(
+      note.id,
+      'x\uDC00\uD83D\uDE42',
+      baseVersion: doc.textVersion,
+    );
+    doc = (await store.markdown.get(note.id))!;
+    expect(doc.text, 'x\uFFFD\uD83D\uDE42');
+  });
+
+  test('a received body tombstone makes the document read-only, like a '
+      'missing body (review finding)', () async {
+    final store = await openTestNoteStore() as DriftNoteStore;
+    addTearDown(store.close);
+    final note = await store.markdown.create(title: 't', text: '찾을 글');
+    final current = (await store.markdown.get(note.id))!;
+    final last = store.queue.hlc.last;
+    final v = Hlc(last.millis + 1000, 0, kOtherNode);
+    await store.sync.applyRemote([
+      RemoteUpsert(
+        MarkdownText(
+          noteId: note.id,
+          text: '찾을 글',
+          createdAt: current.note.createdAt,
+          updatedAt: last.millis + 1000,
+          deletedAt: last.millis + 1000,
+          version: v,
+        ),
+        EntityFieldVersions(v),
+      ),
+    ], policy: newerVersionWinsPolicy);
+    final doc = (await store.markdown.get(note.id))!;
+    expect(doc.bodyPresent, isFalse);
+    expect(doc.isReadOnly, isTrue);
+    expect(await store.search.searchPages('찾을'), isEmpty);
   });
 }

@@ -55,3 +55,20 @@
 - `dart run tool/ws.dart check --strict` 0 · 0, 루트 `flutter analyze` 0, `dart format` 0 변경, `dart test tool/test` 566 통과.
 - note_core VM 전부 통과(이전 1,273 + 새 시험), sync_engine(integration 포함) 통과, pdf_io · feature_library · app 통과 — 수치는 커밋 메시지와 최종 보고.
 - 통합(I) · 실기기 체크리스트 8항목은 트랙 B 병합 뒤.
+
+## 트랙 A 검토 반영 (2026-11-17)
+
+판정 전체는 [08-markdown 21절](../m5-7/08-markdown.md). 고친 것:
+
+- **L2를 두 번 판정**(검토 A1 · B2, HIGH): 엔진 앞 단계(`keepMarkdownConflictCopy`)는 base를 올리지 않고 kv `md.guarded.<noteId>` = '받은 판본 저장된 판본'만 적는다. `applyRemote`의 `_RemoteApply._upsert`가 markdown 업서트마다 정책 전에 `DriftMarkdownRepository.guardInApply`로 그 순간의 행을 다시 본다 — 판본 쌍이 그대로면 base만 올림, 사이에 자동 저장이 끼었거나 앞 단계가 없었으면 진 쪽 글을 사본으로. `WriteTxn.putLocal`은 원격 job 안에서 쓴 변경을 `ChangeOrigin.local` 묶음으로 낸다(사본이 올라가도록 엔진이 밀기를 잡음). 영구 삭제가 `md.guarded.*`도 지움.
+- **사본을 다시 쓰지 않음**(A2 · A3 · B1 · B3, HIGH/MEDIUM): 10분 안 이 기기 사본이 진 쪽 글과 똑같을 때만 그 사본을 가리킴, 아니면 새 사본. `FakeSyncStore`도 같음.
+- 받은 본문 묘비 = 본문 없음(A4). 외톨이 서로게이트는 저장 · 만들기 전에 U+FFFD(A6). 이름이 '.md'뿐이면 머리말 · h1 · '가져온 문서'(A7).
+- 가져오기: pdf_io는 고른 파일을 모두 돌려주고, 앱이 파일마다 확장자 · 크기 · 해석을 판정, 거절은 `(name, reason)` 목록, 알림에 셋까지 이름(A5 · B12). 내보내기 시트 아이콘은 `AppIcon`(share · exportMarkdown), 알림은 떠 있는 snack(라이브러리와 같은 모양), 문서가 없으면 '문서를 찾을 수 없어요'.
+- 경로: 앱 안 `openNote`의 `extra: AppRoutes.inkNoteExtra` → MD redirect가 DB를 안 읽음(B4). deferred 화면: 실패한 부르기를 잊고 [다시 시도](B8), 네이티브 한가 작업 `featureWiring.markdownScreen`(우선순위 30, B9).
+- 라이브러리: 목록 줄 크기 `libraryMarkdownSizeProvider((noteId, updatedAt))` — 판본마다 한 번 읽음(B5). MD 카드 골든 6장(B6).
+- 문서: 00-overview 7.9 'v2.17-md 고침' 표, 08 상태 줄 · 4.4 · 4.5 · 5.3 · 9 · 10 · 11 · 15.4(실기기: 저장 파일 이름 `.md`, A8) · R11 · 21절(B10 · B11).
+- 통합 시험 `app_smoke_v2_test`(integration 단계)의 override 표에 MD 자리 셋을 더함. 이 시험은 MD와 상관없는 줄(`developerModeProvider` · `pdfShareFilesProvider` · `libraryInkSearchProvider` · `editorInkSearchProvider`)이 표에 없어 트랙 A 이전부터 실패 — 통합(I)에서 정리.
+
+새 시험: `md_conflict_copy_test` 6 · 6b · 6c · 7번 묶음 5개(옛 코드에서 7개 실패 확인 뒤 고침), `markdown_contract_real_test` 서로게이트 · 묘비, `markdown_import_test` '.md', `markdown_wiring_test` 파일마다 거절, `markdown_routing_test` redirect 빠른 길 · 다시 시도 · 한가 작업, feature_library `markdown_size_test`, `library_markdown_golden_test`(6장).
+
+웹 예산(고침 뒤 다시 잼): main.dart.js **6,938,174 raw / 2,045,178 gzip** — 트랙 A 끝 대비 **+2,245 raw / +674 gzip**, part 파일 2,038 B(+260). 상한 2,000,000은 여전히 over(기반부터 — 총괄 판단).

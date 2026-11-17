@@ -38,16 +38,22 @@ final class GoRouterAppNavigator implements AppNavigator {
 
   /// A [focusRectPt] without [pageId] is dropped (S2-6).
   @override
-  void openNote(String noteId, {String? pageId, Rect? focusRectPt}) =>
-      unawaited(
-        router.push<void>(
-          AppRoutes.note(
-            noteId,
-            pageId: pageId,
-            focus: pageId == null ? null : focusRectPt,
-          ),
-        ),
-      );
+  void openNote(
+    String noteId, {
+    String? pageId,
+    Rect? focusRectPt,
+  }) => unawaited(
+    router.push<void>(
+      AppRoutes.note(
+        noteId,
+        pageId: pageId,
+        focus: pageId == null ? null : focusRectPt,
+      ),
+      // Callers open handwriting notes only (MD 문서 go through openMarkdown):
+      // the MD redirect needs no DB read (U18).
+      extra: AppRoutes.inkNoteExtra,
+    ),
+  );
 
   @override
   void closeNote() => _closeTop();

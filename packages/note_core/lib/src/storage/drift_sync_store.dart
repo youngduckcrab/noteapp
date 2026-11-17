@@ -759,6 +759,11 @@ final class _RemoteApply {
         );
       }
     }
+    // (v2.17-md, C217M-07 L2) The conflict-copy rule once more, on the row as it is in
+    // this job: an autosave after the engine's pre-pass must not lose either text.
+    if (u.entity case final MarkdownText body) {
+      await sync.s.markdownRepo.guardInApply(tx, body, u.versions);
+    }
     final MergeDecision decision;
     try {
       decision = policy(local, VersionedEntity(u.entity, u.versions), pending);

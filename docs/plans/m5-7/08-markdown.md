@@ -1,6 +1,6 @@
 # 08 · MARKDOWN — MD 문서 v1 (선택안 ①: 파일 그대로 앱 안에서 보기 · 고치기)
 
-> 상태: **기반 구현됨 · 검토 반영 · 트랙 A(데이터 · 동기화 · 검색 · 라이브러리 · 경로) 구현됨(`track/md-data`, 20절 · progress/markdown.md)** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋은 이 문서와 같은 커밋 · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
+> 상태: **기반 구현됨 · 검토 반영 · 트랙 A(데이터 · 동기화 · 검색 · 라이브러리 · 경로) 구현됨 · 트랙 A 검토 반영(`track/md-data`, 20 · 21절 · progress/markdown.md)** · 작성 2026-11-17 · 영역 ID **MD** · 바탕 HEAD `c100b05`(브랜치 `claude/note-app-planning-bk29xb`), 설계 `47e2fc3`, 기반 커밋 `31e7ef2`(트랙 B의 `658f361`과 트리 같음) · 계약 행: 00-overview 7.9 **v2.17-md C217M-01~C217M-17**(이 문서 14절과 같음). 이 문서와 00-overview 7장이 다르면 7장이 우선한다. 데이터 · UX 검토 37건의 판정은 19절.
 >
 > 오너 요청: 'PDF뿐만 아니라 md파일도 읽을 수 있으면 좋겠다' → 오너 선택: **md 파일 자체를 앱 안에서 쓴다(필기 노트로 바꾸지 않음)**, 범위 **①**. ②(블록마다 펜 필기)와 ③(원본 파일과 살아 있는 연결)은 뒤 라운드다.
 >
@@ -186,14 +186,14 @@ final class WrongNoteFormatException extends NoteCoreException {}
 
 - 두 상한을 모두 본다(검토 D4): `jsonEncode`는 C0 제어 문자를 `\u00XX`(6바이트)로 쓰므로 400 KB 원문이 1 MB 기록 상한을 넘을 수 있다. `maxEncodedBytes` 900,000은 나머지 키 · 필드 판본에 100 KB를 남긴다. 트랙 A는 실제 `ChunkCodec.encodeRecord` 길이와 `encodedBytesOf`의 차이가 그 여유 안인지 시험한다(A-10).
 - 만들기 · 저장 · 가져오기 · 충돌 사본이 모두 **바꾸기 전에** `check`를 부른다 → 넘으면 아무것도 안 바뀐다. 편집기는 글을 그대로 들고 띠를 보인다(8.7).
-- 그래도 기록이 `entityTooLarge`로 격리되면(형식 바뀜 등) 그 기기에 'MD 문서 하나가 너무 커서 다른 기기로 보내지 못했어요' 동기화 알림(`SyncNotice`, A-10). 노트만 가고 본문이 안 가는 상태를 조용히 두지 않는다.
+- 그래도 기록이 `entityTooLarge`로 격리되면(형식 바뀜 등) 일반 동기화 문제 보고가 알린다. **MD 전용 문구는 두지 않음 — 받아들인 차이(21절)**. 노트만 가고 본문이 안 가는 상태는 받은 쪽에서 읽기 전용 + 띠(5.3 끝)로 보인다.
 - 판본: 쓰기 한 번 = `text` 필드 HLC 하나(outbox `changedFields ['text']`, **noteId 힌트 포함** — 5.2 purge 판정), 노트의 `updatedAt`도 올림. 되돌리기 기록은 CORE `HistoryState`에 넣지 않는다(편집기 안 — 8.7).
 
 ### 4.5 CORE 규칙 (트랙 A, 가짜는 기반에서 구현됨)
 
 - `MarkdownRepository.create`: `Note`(schemaVersion 100, 제목 규칙 = createNote) + `MarkdownText`를 **한 트랜잭션**으로.
 - `saveText(id, text, {required Hlc? baseVersion})`(검토 D1 · U6): 같은 글 → `unchanged`. 저장된 판본 == `baseVersion` → `saved`. 다르면(그 사이 다른 기기 글이 들어왔거나 다른 쓰기가 있었음) **저장된 글을 먼저 충돌 사본으로 남기고** 받은 글을 쓴다 → `savedWithConflictCopy(conflictCopyId)`. 한 트랜잭션. 열린 편집기 · 할 일 토글 · 나란히 미리보기가 모두 이 길만 쓴다 → 다른 기기 글을 덮어쓰고 잃는 길이 없다.
-- `copyItems`(복제) · `duplicateNoteForRecovery`: 본문을 새 id로 복사. 본문이 아직 없는 문서(`bodyPresent false`)의 복제는 빈 본문으로 만든다(잃을 글이 없음) — 라이브러리는 그 문서의 '복제'를 끈다(A-14).
+- `copyItems`(복제) · `duplicateNoteForRecovery`: 본문을 새 id로 복사. 본문이 아직 없는 문서(`bodyPresent false`)의 복제는 빈 본문으로 만든다(잃을 글이 없음). 라이브러리는 '복제'를 끄지 않는다 — 받아들인 차이(21절).
 - 휴지통: 노트만. 영구 삭제(purge · 자동 정리 · `RemotePurge`): 본문 행 + 검색 소유자 함께 삭제.
 - `openSession`: MD 문서면 `WrongNoteFormatException`(기반 구현). `NoteMigrator`: 4.1대로 저절로 건너뜀 — 시험만(A-5).
 - 저장된 노트의 형식 범위를 바꾸는 원격 쓰기 거절(4.1).
@@ -249,10 +249,12 @@ final class WrongNoteFormatException extends NoteCoreException {}
 
 **L2 — 받기(SYNC 쪽에서 판정, PurgeGuard와 같은 자리 — 검토 D12)**: 다운로드 파이프라인이 markdown 업서트를 적용하기 **전에** CORE에 묻는다(`SyncStore`의 새 내부 메서드 — A 안에서만): 로컬 행이 있고 · 로컬 outbox에 안 올린 `text`가 있고 · 받은 `text` ≠ 로컬 `text` 이고 · **받은 `text` 판본 > `base_text_version` 이고 그 HLC 노드가 이 기기(`deviceNodeId`)가 아님**(검토 D3a — 같거나 옛 판본의 재전달 · 압축 스냅숏 · 보류 해제 · 내 기록은 동시 수정이 아님). 참이면:
 
-- 정책 결정 뒤 진 쪽 글(받은 쪽이 이기면 로컬 글, 로컬이 이기면 받은 글)을 `keepMarkdownConflictCopy(noteId, text)`로 새 MD 문서 `MarkdownConflictCopy.titleFor(제목, 지금)`에 바이트 그대로 남긴다(같은 폴더, 로컬 쓰기 — 다른 기기에도 감).
-- 그리고 **`base_text_version` := 받은 판본**(검토 D3b — 갈라짐 하나에 사본 하나).
-- 사본 폭주 막기: 같은 문서에 이 기기가 만든 사본이 10분 안에 있고 아직 살아 있으면 새로 만들지 않고 **그 사본의 글을 바꾼다**(기기 로컬 kv `md.conflictCopy.<noteId>` = 사본 id + 시각). 두 기기가 동시에 계속 칠 때 사본이 저장마다 생기지 않고, 진 쪽의 가장 새 글이 남는다.
-- `SyncNotice` `MarkdownConflictCopied(noteId, copyId)` + `RemoteApplyReport`에 기록 → 앱이 '다른 기기에서 고친 글을 사본으로 남겼어요' 알림(검토 D12).
+- 진 쪽 글(받은 쪽이 이기면 로컬 글, 로컬이 이기면 받은 글 — 한 필드 단위의 병합 규칙, 새 판본이 이김)을 새 MD 문서 `MarkdownConflictCopy.titleFor(제목, 지금)`에 바이트 그대로 남긴다(같은 폴더, 로컬 쓰기 — 다른 기기에도 감).
+- **두 번 판정한다(트랙 A 검토 A1 · B2)**: 엔진이 적용 전에 `SyncStore.keepMarkdownConflictCopy(remote, versions)`를 부른다(자기 job — 사본 id가 돌아와 알림을 낼 수 있음). 이 단계는 base를 올리지 않고 비교한 판본 쌍(받은 판본 · 저장된 판본)을 kv `md.guarded.<noteId>`에 적는다. 그다음 `applyRemote`가 **같은 job 안에서, 그 순간의 행으로** 같은 규칙을 다시 본다: 판본 쌍이 그대로면 이미 처리됨, 사이에 편집기 자동 저장이 끼었으면(저장된 판본이 바뀜) 다시 판정해 진 쪽 글을 사본으로 남긴다. 앞 단계를 거치지 않은 적용도 같은 규칙을 탄다. 적용 안에서 만든 사본은 로컬 변경(ChangeBatch local · outbox)이고 알림은 없다(드묾 — 라이브러리에 '(충돌 사본 …)'으로 보임).
+- 그리고 적용 job에서 **`base_text_version` := 받은 판본**(검토 D3b — 갈라짐 하나에 사본 하나), `md.guarded` 지움.
+- **사본은 다시 쓰지 않는다**(트랙 A 검토 A2 · A3 · B1 · B3): 사본은 사용자가 고칠 수 있는 보통 MD 문서이고, 한 사본에 들어간 진 쪽 글이 다음 진 쪽 글의 조상이라는 보장이 없다(받은 쪽이 이긴 뒤 사용자는 받은 글을 고침). 사본 폭주는 이렇게만 막는다: 같은 문서에 이 기기가 10분 안에 만든 사본(kv `md.conflictCopy.<noteId>` = 사본 id + 시각)이 살아 있고 **진 쪽 글과 똑같으면** 새로 만들지 않고 그 사본을 가리킨다. 아니면 새 사본 — 두 기기가 계속 칠 때 사본이 여럿 생길 수 있지만 글은 하나도 사라지지 않는다.
+- `SyncNotice` `MarkdownConflictCopied(noteId, copyId)` → 앱이 '다른 기기에서 고친 글을 사본으로 남겼어요' 알림(검토 D12). `RemoteApplyReport`에는 더하지 않음.
+- 받은 본문에 `deletedAt`이 있으면(v1은 쓰지 않음 — 뒤 판 · 잘못된 기록) 본문 없음과 같이 읽기 전용(`bodyMissing`), 검색에서도 빠짐(트랙 A 검토 A4).
 - `base_text_version` 갱신 셋: (1) 받은 글을 쓸 때 = 받은 판본, (2) 사본을 만들 때 = 받은 판본, (3) 올린 것이 확인될 때 = **올린 기록의 `text` 필드 판본**. (3)은 `OutboxAck`가 `(seq, rev)`만 가지고 outbox `hlc`가 합쳐질 때 덮이므로(검토 D3c), SYNC가 올린 기록에서 그 판본을 읽어 `OutboxAck.uploadedTextVersion`(선택 필드, markdown 기록만)으로 넘기고 CORE는 `max(base, 그 값)`으로 둔다. 업로드 중에 계속 친 경우(rev가 바뀌어 행이 안 지워짐)에도 base는 올린 판본으로 맞는다.
 
 나머지:
@@ -425,11 +427,11 @@ packages/feature_markdown/lib/
 
 - 목록 · 최근 · 즐겨찾기 · 휴지통: MD 문서도 `Note`라 그대로 나온다.
 - **MD 카드**(검토 U15): 표지 자리에 '글 페이지' — 노트 표지처럼 `inkSwatch` 바탕(모든 밝기에서 종이색)에 미리보기 글(첫 줄 굵게 + 다음 몇 줄)을 `paperInk`로(대비 4.5:1 시험 — 모자라면 총괄에 토큰 요청) + 오른쪽 아래 'MD' 표(`accentSoft` 바탕 + `onAccentSoft`, 키 `library.tile.mdBadge`, `AppIconKind.markdownDoc`). 미리보기는 `markdownPreviewProvider((noteId:, updatedAt:))`(기반 구현 — 고친 뒤 옛 미리보기가 안 남음), 그리드 스크롤 깜빡임을 막으려고 라이브러리 쪽에서 30초 캐시. 썸네일 스케줄러는 MD 문서를 건너뜀. 골든: 필기 카드와 섞인 그리드, 스타일 3 × 밝기 2.
-- 메타 줄: '문서 · 2.1 KB'.
-- 메뉴(⋯ · 길게 누름): MD 문서는 'PDF로 내보내기' · '표지 바꾸기'를 빼고 **'.md로 내보내기'**(자리 `libraryMarkdownExportActionProvider`). 본문 없는 문서는 '복제'와 '.md로 내보내기'를 끔(4.5). 여러 개 'PDF로 내보내기'는 MD 문서를 빼고 'MD 문서 N개는 빼고 내보냈어요'.
+- 메타 줄: '문서 · 2.1 KB' — 크기는 `libraryMarkdownSizeProvider((noteId, updatedAt))`로 판본마다 한 번 읽음(본문 watch가 아님 — 다른 쓰기마다 보이는 줄의 본문을 다시 읽지 않음, 검토 B5).
+- 메뉴(⋯ · 길게 누름): MD 문서는 'PDF로 내보내기' · '표지 바꾸기'를 빼고 **'.md로 내보내기'**(자리 `libraryMarkdownExportActionProvider`). 본문 없는 문서: '.md로 내보내기'는 눌렀을 때 '아직 내용을 받지 못한 문서는 내보낼 수 없어요', '복제'는 빈 본문으로(끄지 않음 — 21절). 여러 개 'PDF로 내보내기'는 MD 문서를 빼고 'MD 문서 N개는 빼고 내보냈어요'.
 - '새로 만들기': '새 노트' · '새 폴더' · **'새 MD 문서'**(`newMarkdown`, 이름 대화 기본 '새 MD 문서' → `MarkdownRepository.create` → 편집으로 엶) · 'PDF 가져오기' · **'MD 가져오기'**(`importMarkdown`, 자리 `libraryMarkdownImportActionProvider`, 실행 중이면 꺼짐).
 - 열기: `LibraryScreen.onOpenMarkdown(NoteId id, {String? query, bool edit = false})`. `note.isMarkdown`이면 이것을, 아니면 `onOpenNote`. null이면 `onOpenNote`로(앱이 돌림).
-- 다른 노트를 고르는 곳(PDF '이 노트에 가져오기' 대상 등)에서 MD 문서는 고를 수 없음(`isMarkdown` 거름).
+- 다른 노트를 고르는 곳(PDF '이 노트에 가져오기' 대상 등)에서 MD 문서는 고를 수 없음(`isMarkdown` 거름) — 지금 라이브러리에는 노트 고르기가 없어 할 일 없음(20절).
 
 ---
 
@@ -437,7 +439,7 @@ packages/feature_markdown/lib/
 
 ### 10.1 고르기 (pdf_io)
 
-- 새 공개 `TextFileSource` / `FilePickerTextSource.pickTextFiles({bool allowMultiple = true}) → Future<List<PickedTextFile>?>`(`PickedTextFile{name, bytes}` — PDF 형 이름을 빌리지 않음), `allowedExtensions: ['md','markdown','txt']`. 웹: 탭 처리기 안 동기 호출. Android에서 확장자 필터가 안 먹으면 `FileType.any` + 확장자 검사로 물러남 [추측 — 실기기 확인].
+- 새 공개 `TextFileSource` / `FilePickerTextSource.pickTextFiles({bool allowMultiple = true}) → Future<List<PickedTextFile>?>`(`PickedTextFile{name, bytes}` — PDF 형 이름을 빌리지 않음), `allowedExtensions: ['md','markdown','txt']`. 웹: 탭 처리기 안 동기 호출. Android에서 확장자 필터가 안 먹으면 `FileType.any`로 물러남 [추측 — 실기기 확인]. 고른 파일은 모두 돌려주고 **앱이 파일마다** 확장자(`FilePickerTextSource.hasTextExtension`) · 크기 · 해석을 판정한다(트랙 A 검토 A5).
 
 ### 10.2 해석 (note_core, 순수 Dart)
 
@@ -451,7 +453,7 @@ packages/feature_markdown/lib/
 
 ### 10.3 흐름 (앱 — `app/lib/src/modules/markdown_wiring.dart`)
 
-- 고른 파일마다(최대 20, 넘으면 앞 20개 + 알림) 해석 → `MarkdownRepository.create`. 하나면 그 문서를 연다, 여럿이면 'MD 문서 N개를 가져왔어요' (+ 'M개는 가져오지 못했어요 — 이유').
+- 고른 파일마다(최대 20, 넘으면 앞 20개 + 알림) 해석 → `MarkdownRepository.create`. 하나면 그 문서를 연다, 여럿이면 'MD 문서 N개를 가져왔어요' (+ 'M개는 가져오지 못했어요 — 파일 이름: 이유, …'(셋까지, 나머지 '외 K개')). 거절은 파일마다 셈(같은 이름 둘이면 둘).
 
 ### 10.4 내보내기
 
@@ -467,9 +469,9 @@ packages/feature_markdown/lib/
 
 - `AppRoutes.markdownPattern = '/md/:noteId'`, 쿼리 `q`(검색어) · `edit=1`, `AppRoutes.markdown(noteId, {query, edit})`, `MarkdownRouteArgs`, `AppScreenBuilders.markdown`, `AppNavigator.openMarkdown(id, {query, edit})` · `closeMarkdown()`.
 - 페이지: `NoTransitionPage(key: state.pageKey)` + `wrapEditor`(편집기 스타일).
-- `/notes/:noteId`에 MD 문서가 오면 `/md/:id`로: **라이브러리 · 검색 · 최근에서 여는 길은 처음부터 `openMarkdown`을 부르므로 DB를 읽지 않는다**(검토 U18 · D15). `createAppRouter(isMarkdownNote:)`의 비동기 redirect는 주소 직접 · 옛 즐겨찾기용 대비책이고, 앞서 `noteProvider` 캐시에 그 노트가 있으면 그것으로 바로 판정한다. 열기 지연을 `production_screens_test`에서 잰다.
+- `/notes/:noteId`에 MD 문서가 오면 `/md/:id`로: **라이브러리 · 검색 · 최근에서 여는 길은 처음부터 `openMarkdown`을 부르므로 DB를 읽지 않는다**(검토 U18 · D15). `createAppRouter(isMarkdownNote:)`의 비동기 redirect는 주소 직접 · 옛 즐겨찾기용 대비책이다. 앱 안의 `AppNavigator.openNote`는 필기 노트에만 불리므로 `extra: AppRoutes.inkNoteExtra`를 달고, redirect는 그 표시를 보면 바로 통과한다(DB 안 읽음 — `noteProvider` 캐시 대신, 라이브러리가 그 캐시를 채우지 않아서; 시험 `markdown_routing_test`).
 - `/md/:id`에 필기 노트가 오면 화면이 '이 문서는 MD 문서가 아니에요' + [노트로 열기](`onOpenAsNote`).
-- 화면 생성: `deferred as md` → **한 번만 부르는 정적 `Future` + '불렸음' 표시**(검토 U19): 불린 뒤에는 `MarkdownScreen`을 바로 만든다(빈 프레임 없음). 네이티브는 앱 시작 뒤 한가할 때 `loadLibrary()`를 미리 부른다.
+- 화면 생성: `deferred as md` → **한 번만 부르는 정적 `Future` + '불렸음' 표시**(검토 U19): 불린 뒤에는 `MarkdownScreen`을 바로 만든다(빈 프레임 없음). 네이티브는 앱 시작 뒤 한가할 때 `loadLibrary()`를 미리 부른다(`FeatureWiringModule` 한가 작업 `featureWiring.markdownScreen`, 우선순위 30 — 웹은 안 부름). 실패한 부르기는 잊고 화면의 [다시 시도]가 다시 부른다(검토 B8 · B9).
 
 ---
 
@@ -622,7 +624,7 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 
 ### 15.4 통합 (A가, 둘 병합 뒤)
 
-앱 끝까지(실제 CORE, VM): 가져오기(가짜 고르기) → 열림 → 편집 → 뒤로 → 라이브러리 미리보기 갱신 → 검색 → 맞는 곳 → 내보내기 바이트 같음 → 휴지통 → 되살리기 → 영구 삭제. Android 실기기 체크리스트 MD 항목 10개(가져오기 필터 · 한국어 IME 자동 저장 · 펜 손글씨 입력 · 100 KB 첫 그림 · 400 KB 편집 상한 띠 · 공유 대상 · 저장 · 링크 열기 · 앱 종료 뒤 글 · 다크 모드).
+앱 끝까지(실제 CORE, VM): 가져오기(가짜 고르기) → 열림 → 편집 → 뒤로 → 라이브러리 미리보기 갱신 → 검색 → 맞는 곳 → 내보내기 바이트 같음 → 휴지통 → 되살리기 → 영구 삭제. Android 실기기 체크리스트 MD 항목 11개(가져오기 필터 · 한국어 IME 자동 저장 · 펜 손글씨 입력 · 100 KB 첫 그림 · 400 KB 편집 상한 띠 · 공유 대상 · 저장 · **저장한 파일 이름이 `.md`인지(SAF가 `text/markdown`에 `.md.txt`를 붙이면 `text/plain`으로 물러남 — 트랙 A 검토 A8)** · 링크 복사 · 앱 종료 뒤 글 · 다크 모드).
 
 ---
 
@@ -678,7 +680,7 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 | R8 | KaTeX가 줄 높이를 흔듦 | `WidgetSpan` middle |
 | R9 | 큰 글 TextField 느림 | 편집 상한(8.7) + perf 측정으로 값 조정 |
 | R10 | 웹 예산 게이트 빨강(이미) | 17절 — 숫자 보고 + 총괄 판단 |
-| R11 | 사본 10분 묶기에서 중간 글이 사라짐 | 같은 기기의 진 쪽 글 중 가장 새 것은 남음 — 받아들임, 문서에 적음 |
+| R11 | 사본 10분 묶기에서 중간 글이 사라짐 | **고침(트랙 A 검토)**: 처음 규칙(10분 안 사본을 다시 씀)은 사용자가 사본에 쓴 글, 앞 진 쪽 글(받은 글이든 이 기기 글이든)을 지울 수 있었다. 이제 사본은 다시 쓰지 않고, 같은 글일 때만 묶는다(5.3) — 사본이 더 생길 수 있음을 받아들임 |
 | Q1 | 앱이 `url_launcher`를 직접 의존해도 되는가 | 기본값: 된다(이미 해석되는 플러그인, 잠금 그대로). 안 되면 '복사'만 |
 | Q2 | 카드 미리보기 읽기가 많을 때 | 보이는 카드만 · 키에 updatedAt · 30초 캐시. 문제가 보이면 로컬 파생 열(A) |
 | Q3 | 충돌 사본 이름 · 위치 | 기본값대로 |
@@ -737,4 +739,28 @@ final markdownOpenLinkProvider = Provider<MarkdownOpenLinkAction?>((ref) => null
 - C217M-10: `url_launcher`는 Q1 미승인으로 넣지 않음 — 링크 시트는 복사만.
 - C217M-12: 공개 이름 `DocumentFile` · `DocumentOutputAction` · `DocumentShareFile`이 더 있음. `PickedTextFile`은 `{name, sizeBytes, readBytes}`.
 - 웹 예산: 기반 대비 main.dart.js **+18,473 B gzip**(2,026,031 → 2,044,504), 상한 2,000,000 over(기반부터) — 총괄 판단 요청(17절).
+
+## 21. 트랙 A 검토 반영 (2026-11-17)
+
+검토 A(정확성 · 데이터 안전) · 검토 B(계획 대조)의 판정. 시험은 먼저 실패를 재현한 뒤 고쳤다(옛 코드에서 7개 실패 확인).
+
+| 항목 | 판정 | 반영 |
+|---|---|---|
+| A1 · B2 앞 단계와 적용 사이 자동 저장이 받은 글을 잃음 | 받아들임 | `applyRemote` 안에서 같은 규칙을 다시 판정(5.3), 앞 단계는 kv `md.guarded.<noteId>`에 비교한 판본 쌍만 적음, base는 적용 job에서. `WriteTxn.putLocal`이 원격 job 안에서 쓴 변경은 local 출처로 냄. 시험 `md_conflict_copy_test` 7번 묶음(5개) |
+| A2 · B1 10분 안 사본 다시 쓰기가 사용자가 사본에 쓴 글을 지움 | 받아들임 | 사본을 다시 쓰지 않음, 같은 글일 때만 묶음. 시험 6 · 6b. 가짜 `FakeSyncStore`도 같음 |
+| A3 · B3 연달아 진 글이 앞 사본을 덮음 | 받아들임 | 위와 같음(새 사본). 시험 6c. R11 문구 고침 |
+| A4 받은 본문 묘비가 반만 적용됨 | 받아들임 | 묘비 = 본문 없음(읽기 전용, 검색에서 빠짐) |
+| A5 · B12 가져오기 거절이 파일마다가 아님 · 확장자 거름이 조용함 · 이름 없음 | 받아들임 | 거절 목록 `(name, reason)`, 확장자는 앱이 판정, 알림에 이름 셋까지 |
+| A6 외톨이 서로게이트로 저장마다 새 판본 | 받아들임 | 저장 · 만들기 전에 U+FFFD로 바꿈 → 같은 글 다시 저장은 unchanged |
+| A7 파일 이름이 '.md'뿐 | 받아들임 | 확장자만이면 이름 없음 → 머리말 · h1 → '가져온 문서' |
+| A8 Android 저장 MIME 미확인 | 받아들임(확인은 실기기) | 15.4 체크리스트에 더함 |
+| B4 필기 노트 열기마다 DB 읽기 redirect | 받아들임(방법 바꿈) | `openNote`의 `extra` 표시로 바로 통과(11절). 시험: 응답 없는 DB 판정에도 필기 노트가 바로 열림 |
+| B5 목록 줄이 본문 전체를 읽고 쓰기마다 다시 읽음 | 받아들임(방법 바꿈) | `libraryMarkdownSizeProvider((noteId, updatedAt))` — 판본마다 한 번, 30초 캐시. 계약 표면(`MarkdownRepository`)은 그대로 — 새 메서드는 트랙 B의 시험용 구현을 깨므로 하지 않음 |
+| B6 MD 카드 골든 없음 | 받아들임 | `library_markdown_golden_test` 6장(스타일 3 × 밝기 2, 섞인 그리드) |
+| B7 웹 예산 증가 | 보고(총괄 판단) | 이번 고침의 차이는 progress/markdown.md |
+| B8 실패한 deferred 부르기를 다시 못 함 | 받아들임 | 실패 Future를 잊음 + [다시 시도] 단추 |
+| B9 네이티브 미리 부르기 없음 | 받아들임 | 한가 작업 `featureWiring.markdownScreen` |
+| B10 계약 표 · 본문 낡음 | 받아들임 | 00-overview 7.9 'v2.17-md 고침' 표, 이 문서 상태 줄 · 4.4 · 4.5 · 5.3 · 9 · 10 · 11 · R11 |
+| B11 (a) MD 전용 entityTooLarge 알림 · (b) 본문 없는 문서 '복제' 끄기 | 받아들인 차이 | (a) 일반 동기화 문제 보고로 충분, 받은 쪽은 읽기 전용 띠. (b) 빈 본문 복제는 잃을 글이 없고, 끄려면 메뉴마다 본문을 읽어야 함 |
+| B13 남의 탐침 시험 파일 | 해당 없음 | 작업 트리 깨끗(추적 안 된 파일 없음) |
 

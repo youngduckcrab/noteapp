@@ -3,6 +3,8 @@
 // real MarkdownScreen (deferred library — loaded at once on the VM) gets the arguments and
 // closes back to the library; /notes/<MD 문서> redirects to /md/<id> with isMarkdownNote,
 // an ink note stays on /notes/; the address builder encodes ids and queries.
+import 'dart:async';
+
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_markdown/feature_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,9 +13,12 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:note_core/testing.dart';
+import 'package:noteapp/src/app/strings.dart';
 import 'package:noteapp/src/bootstrap/startup_report.dart';
 import 'package:noteapp/src/errors/app_error_log.dart';
+import 'package:noteapp/src/modules/feature_wiring_module.dart';
 import 'package:noteapp/src/providers.dart';
+import 'package:noteapp/src/routing/app_navigator.dart';
 import 'package:noteapp/src/routing/app_router.dart';
 import 'package:noteapp/src/routing/app_routes.dart';
 import 'package:noteapp/src/routing/screen_builders.dart';
@@ -133,6 +138,65 @@ void main() {
     await tester.pumpAndSettle();
     expect(_location(tester), AppRoutes.note(ink.id));
     expect(find.text('noteId: ${ink.id}'), findsOneWidget);
+  });
+
+  testWidgets('an in-app open of a handwriting note does not wait for the '
+      'MD redirect (no DB read, U18)', (tester) async {
+    tester.view
+      ..physicalSize = const Size(2064, 2752)
+      ..devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    var asked = 0;
+    final router = createAppRouter(
+      screens: AppScreenBuilders.placeholders(),
+      initialLocation: AppRoutes.library,
+      isMarkdownNote: (id) {
+        asked++;
+        return Completer<bool>().future; // a DB read that never answers
+      },
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    GoRouterAppNavigator(router).openNote('ink1');
+    await tester.pump();
+    await tester.pump();
+    expect(asked, 0);
+    expect(router.state.uri.toString(), AppRoutes.note('ink1'));
+    expect(find.text('noteId: ink1'), findsOneWidget);
+    // A typed address still asks.
+    router.go(AppRoutes.note('typed'));
+    await tester.pump();
+    expect(asked, 1);
+  });
+
+  testWidgets('a failed load of the screen can be retried (review finding)', (
+    tester,
+  ) async {
+    MarkdownScreenLoader.resetForTest();
+    addTearDown(MarkdownScreenLoader.resetForTest);
+    var attempts = 0;
+    MarkdownScreenLoader.loadLibrary = () async {
+      attempts++;
+      if (attempts == 1) throw StateError('part file not reachable');
+    };
+    final store = createFakeNoteStore();
+    final note = await store.markdown.create(title: 'md', text: '# 제목');
+    await _pump(tester, store: store, initialLocation: markdownRoute(note.id));
+    expect(find.text(AppStrings.markdownLoadFailed), findsOneWidget);
+    expect(MarkdownScreenLoader.isLoaded, isFalse);
+    await tester.tap(find.byKey(const Key('md.load.retry')));
+    await tester.pumpAndSettle();
+    expect(attempts, 2);
+    expect(MarkdownScreenLoader.isLoaded, isTrue);
+    expect(find.byType(MarkdownScreen), findsOneWidget);
+  });
+
+  test('native builds preload the screen when idle; the web does not', () {
+    expect(FeatureWiringModule(isWeb: false).idleTasks().map((t) => t.id), [
+      'featureWiring.markdownScreen',
+    ]);
+    expect(FeatureWiringModule(isWeb: true).idleTasks(), isEmpty);
   });
 
   testWidgets('/md/<ink note> shows the screen (it says it is not an MD 문서)', (

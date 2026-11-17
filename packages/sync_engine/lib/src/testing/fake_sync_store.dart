@@ -823,7 +823,9 @@ final class FakeSyncStore implements SyncStore {
 
   /// (v2.17-md, C217M-07 L2) The CORE rule (DriftMarkdownRepository.guardRemoteText):
   /// an unsent different local text, a received text version newer than the base and of
-  /// another node → the losing text kept as a conflict copy (rewritten within 10 minutes).
+  /// another node → the losing text kept as a conflict copy (never rewritten; the copy of
+  /// the last 10 minutes is reused only when it holds the same text). The fake applies
+  /// with no gap after this call, so the CORE re-check inside applyRemote is not modelled.
   @override
   Future<NoteId?> keepMarkdownConflictCopy(
     MarkdownText remote,
@@ -853,35 +855,43 @@ final class FakeSyncStore implements SyncStore {
     if (note == null) return null;
     final now = _s.millis;
     final last = _s.markdownCopies[remote.noteId];
-    NoteId? reuse;
     if (last != null && now - last.$2 <= 600000) {
+      // A copy is never rewritten: reused only when it already holds this text.
       final copyNote = _s.entityOf(EntityKind.note, last.$1) as Note?;
-      if (copyNote != null && copyNote.deletedAt == null) reuse = last.$1;
+      final copyBody = _s.entityOf(
+        EntityKind.markdown,
+        MarkdownText.idFor(last.$1),
+      ) as MarkdownText?;
+      if (copyNote != null &&
+          copyNote.deletedAt == null &&
+          copyBody?.text == loser) {
+        _s.markdownBase[remote.id] = remoteV;
+        return last.$1;
+      }
     }
     final copyId = _s.transaction((txn) {
-      final id = reuse ?? _s.newId('note');
+      final id = _s.newId('note');
       _s.localCommit([
-        if (reuse == null)
-          (
-            kind: EntityKind.note,
-            json: {
-              ...note.toJson(),
-              'id': id,
-              'title': MarkdownConflictCopy.titleFor(
-                note.title,
-                DateTime.fromMillisecondsSinceEpoch(now),
-              ),
-              'sortKey': lastSortKeyAfter(note.folderId),
-              'createdAt': now,
-              'deletedAt': null,
-              'trashRootId': null,
-            },
-            fields: const {kAllFields},
-          ),
+        (
+          kind: EntityKind.note,
+          json: {
+            ...note.toJson(),
+            'id': id,
+            'title': MarkdownConflictCopy.titleFor(
+              note.title,
+              DateTime.fromMillisecondsSinceEpoch(now),
+            ),
+            'sortKey': lastSortKeyAfter(note.folderId),
+            'createdAt': now,
+            'deletedAt': null,
+            'trashRootId': null,
+          },
+          fields: const {kAllFields},
+        ),
         (
           kind: EntityKind.markdown,
           json: MarkdownText(noteId: id, text: loser, createdAt: now).toJson(),
-          fields: reuse == null ? const {kAllFields} : const {'text'},
+          fields: const {kAllFields},
         ),
       ], at: now);
       return id;

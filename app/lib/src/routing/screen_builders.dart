@@ -96,13 +96,33 @@ abstract final class MarkdownScreenLoader {
   static Future<void>? _load;
   static bool _loaded = false;
 
+  /// tests: the deferred load (a failing one, to test the retry).
+  @visibleForTesting
+  static Future<void> Function() loadLibrary = _loadDeferred;
+  static Future<void> _loadDeferred() => md.loadLibrary();
+
   /// Whether the MD 문서 screen can be built synchronously.
   static bool get isLoaded => _loaded;
 
-  /// Starts (or joins) the load; the app calls it when idle on native builds.
-  static Future<void> load() => _load ??= md.loadLibrary().then((_) {
-    _loaded = true;
-  });
+  /// Starts (or joins) the load; FeatureWiringModule's idle task calls it on native
+  /// builds. A failed load is forgotten, so the next call (the screen's 다시 시도, or the
+  /// next opening) tries again.
+  static Future<void> load() => _load ??= loadLibrary().then(
+    (_) {
+      _loaded = true;
+    },
+    onError: (Object e, StackTrace s) {
+      _load = null;
+      Error.throwWithStackTrace(e, s);
+    },
+  );
+
+  @visibleForTesting
+  static void resetForTest() {
+    _load = null;
+    _loaded = false;
+    loadLibrary = _loadDeferred;
+  }
 }
 
 Widget _productionMarkdown(
@@ -163,11 +183,17 @@ class _DeferredMarkdownScreenState extends State<_DeferredMarkdownScreen> {
     },
   );
 
+  Future<void>? _loading;
+
+  void _retry() => setState(() {
+    _loading = MarkdownScreenLoader.load();
+  });
+
   @override
   Widget build(BuildContext context) {
     if (MarkdownScreenLoader.isLoaded) return _screen();
     return FutureBuilder<void>(
-      future: MarkdownScreenLoader.load(),
+      future: _loading ??= MarkdownScreenLoader.load(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done &&
             !snapshot.hasError) {
@@ -183,7 +209,24 @@ class _DeferredMarkdownScreenState extends State<_DeferredMarkdownScreen> {
           ),
           body: Center(
             child: snapshot.hasError
-                ? const Text(AppStrings.markdownLoadFailed)
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          AppStrings.markdownLoadFailed,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        key: const Key('md.load.retry'),
+                        onPressed: _retry,
+                        child: const Text(AppStrings.retry),
+                      ),
+                    ],
+                  )
                 : const CircularProgressIndicator(),
           ),
         );

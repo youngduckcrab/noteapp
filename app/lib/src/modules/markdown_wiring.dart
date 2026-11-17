@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart';
 import 'package:pdf_io/pdf_io.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import 'document_share.dart';
 
@@ -40,6 +41,7 @@ abstract final class MarkdownWiringStrings {
   static const String exportDone = '내보냈어요';
   static const String exportUnavailable = '이 기기에서는 내보낼 수 없어요';
   static const String noBody = '아직 내용을 받지 못한 문서는 내보낼 수 없어요';
+  static const String missing = '문서를 찾을 수 없어요';
 
   static String reason(MarkdownDecodeFailure f) => switch (f) {
     MarkdownDecodeFailure.tooLarge => tooLarge,
@@ -65,10 +67,14 @@ DocumentFile markdownDocumentFile({
   );
 }
 
-/// What one 'MD 가져오기' did.
+/// A picked file that was not imported, and why.
+typedef MarkdownImportRefusal = ({String name, String reason});
+
+/// What one 'MD 가져오기' did. [refused] has one entry per file (two files of the same
+/// name count twice).
 typedef MarkdownImportOutcome = ({
   List<NoteId> created,
-  Map<String, String> refused,
+  List<MarkdownImportRefusal> refused,
   bool cut,
 });
 
@@ -80,12 +86,18 @@ Future<MarkdownImportOutcome> importMarkdownFiles(
   required FolderId? folderId,
 }) async {
   final created = <NoteId>[];
-  final refused = <String, String>{};
+  final refused = <MarkdownImportRefusal>[];
+  void refuse(PickedTextFile f, String reason) =>
+      refused.add((name: f.name, reason: reason));
   final take = files.take(MarkdownLimits.maxImportFiles);
   for (final f in take) {
+    if (!FilePickerTextSource.hasTextExtension(f.name)) {
+      refuse(f, MarkdownWiringStrings.noTextFile);
+      continue;
+    }
     final size = f.sizeBytes;
     if (size != null && size > MarkdownLimits.maxTextBytes) {
-      refused[f.name] = MarkdownWiringStrings.tooLarge;
+      refuse(f, MarkdownWiringStrings.tooLarge);
       continue;
     }
     try {
@@ -94,7 +106,7 @@ Future<MarkdownImportOutcome> importMarkdownFiles(
         fileName: f.name,
       );
       if (decoded.failure case final failure?) {
-        refused[f.name] = MarkdownWiringStrings.reason(failure);
+        refuse(f, MarkdownWiringStrings.reason(failure));
         continue;
       }
       final note = await repo.create(
@@ -104,9 +116,9 @@ Future<MarkdownImportOutcome> importMarkdownFiles(
       );
       created.add(note.id);
     } on MarkdownTooLargeException {
-      refused[f.name] = MarkdownWiringStrings.tooLarge;
+      refuse(f, MarkdownWiringStrings.tooLarge);
     } on Object {
-      refused[f.name] = MarkdownWiringStrings.importFailed;
+      refuse(f, MarkdownWiringStrings.importFailed);
     }
   }
   return (
@@ -116,23 +128,47 @@ Future<MarkdownImportOutcome> importMarkdownFiles(
   );
 }
 
-/// The message after an import (null: one document opens, nothing to say).
+/// Refused files named in a message.
+const int _namedRefusals = 3;
+
+/// The message after an import (null: one document opens, nothing to say). Names the
+/// refused files (up to three, then '외 N개') with each reason.
 @visibleForTesting
 String? markdownImportMessage(MarkdownImportOutcome o) {
+  final refused = o.refused;
+  String named() {
+    final shown = [
+      for (final r in refused.take(_namedRefusals)) '${r.name}: ${r.reason}',
+    ];
+    final more = refused.length - shown.length;
+    return [...shown, if (more > 0) '외 $more개'].join(', ');
+  }
+
   final parts = <String>[
     if (o.created.length > 1) MarkdownWiringStrings.imported(o.created.length),
-    if (o.refused.isNotEmpty)
-      o.refused.length == 1 && o.created.isEmpty
-          ? o.refused.values.single
-          : '${MarkdownWiringStrings.refused(o.refused.length)}'
-                ' — ${o.refused.values.toSet().join(', ')}',
+    if (refused.isNotEmpty)
+      refused.length == 1 && o.created.isEmpty
+          ? '${refused.single.name}: ${refused.single.reason}'
+          : '${MarkdownWiringStrings.refused(refused.length)} — ${named()}',
     if (o.cut) MarkdownWiringStrings.onlyFirst(MarkdownLimits.maxImportFiles),
   ];
   return parts.isEmpty ? null : parts.join(' · ');
 }
 
-void _snack(ScaffoldMessengerState? messenger, String message) =>
-    messenger?.showSnackBar(SnackBar(content: Text(message)));
+/// A floating snack bar that replaces the current one (the library's look, 05-library
+/// 6.11); longer for import results that name files.
+void _snack(ScaffoldMessengerState? messenger, String message) {
+  if (messenger == null || !messenger.mounted) return;
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: message.length > 60 ? 8 : 4),
+      ),
+    );
+}
 
 /// libraryMarkdownImportActionProvider (C217M-11). The picker opens synchronously (web
 /// user activation): nothing is awaited before it.
@@ -201,10 +237,10 @@ Future<void> exportMarkdownText(
             if (actions.contains(action))
               ListTile(
                 key: Key('md.export.${action.name}'),
-                leading: Icon(
+                leading: AppIcon(
                   action == DocumentOutputAction.share
-                      ? Icons.ios_share
-                      : Icons.download_outlined,
+                      ? AppIconKind.share
+                      : AppIconKind.exportMarkdown,
                 ),
                 title: Text(out.labelOf(action)),
                 // Called in the tap handler; the sheet closes with the result.
@@ -234,7 +270,11 @@ LibraryMarkdownExportAction markdownLibraryExportAction({
   final container = ProviderScope.containerOf(context, listen: false);
   final messenger = ScaffoldMessenger.maybeOf(context);
   final doc = await container.read(markdownRepositoryProvider).get(noteId);
-  if (doc == null || !doc.bodyPresent) {
+  if (doc == null) {
+    _snack(messenger, MarkdownWiringStrings.missing);
+    return;
+  }
+  if (!doc.bodyPresent) {
     _snack(messenger, MarkdownWiringStrings.noBody);
     return;
   }

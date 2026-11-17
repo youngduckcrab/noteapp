@@ -8,7 +8,7 @@ import 'dart:async';
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
 import 'package:feature_markdown/slots.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:ink_engine/ink_engine.dart' as ink;
@@ -17,8 +17,10 @@ import 'package:pdf_io/pdf_io.dart';
 import 'package:pencil_bridge/pencil_bridge.dart' show PencilCapabilities;
 
 import '../bootstrap/app_module.dart';
+import '../bootstrap/idle_tasks.dart';
 import '../errors/app_error_log.dart';
 import '../pencil/pencil_stylus_extras.dart';
+import '../routing/screen_builders.dart' show MarkdownScreenLoader;
 import 'markdown_wiring.dart';
 import 'media_wiring.dart';
 import 'pdf_module.dart';
@@ -50,7 +52,12 @@ final class FeatureWiringModule extends AppModule {
     /// importImageForNote — works without initializeMediaIo).
     this._imageImporter = mediaImageImporterOrNull,
     LibraryMarkdownImportAction? importMarkdown,
+
+    /// tests: the idle preload is native only.
+    this._isWeb = kIsWeb,
   }) : _importMarkdown = importMarkdown ?? markdownImportAction();
+
+  final bool _isWeb;
 
   /// (v2.17-md) 'MD 가져오기' (tests give a fake picker).
   final LibraryMarkdownImportAction _importMarkdown;
@@ -238,6 +245,19 @@ final class FeatureWiringModule extends AppModule {
   ///       searchIndexSection(ref)]),
   ///   if (pencil.isSupported) stylusExtrasProvider.overrideWithValue(
   ///       PencilStylusExtrasSource(capabilities: capabilities, events: pencil.events)).
+  /// (v2.17-md, U19) Native builds load the deferred MD 문서 screen when idle, so the
+  /// first opening has no loading frame. On the web the part file is fetched on the
+  /// first opening only (no download for people who never open one).
+  @override
+  List<AppIdleTask> idleTasks() => [
+    if (!_isWeb)
+      AppIdleTask(
+        id: 'featureWiring.markdownScreen',
+        priority: AppIdlePriority.preload,
+        run: (_) => MarkdownScreenLoader.load(),
+      ),
+  ];
+
   @override
   List<Override> overrides() {
     final contributions = _contributions;
