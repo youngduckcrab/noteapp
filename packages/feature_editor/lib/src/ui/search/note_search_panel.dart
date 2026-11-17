@@ -231,6 +231,7 @@ IconData _sourceIcon(core.SearchSource source) => switch (source) {
   core.SearchSource.text => Icons.text_fields,
   core.SearchSource.math => Icons.functions,
   core.SearchSource.pdf => Icons.picture_as_pdf_outlined,
+  core.SearchSource.markdown => Icons.article_outlined, // (v2.17-md)
 };
 
 class _ResultTile extends StatelessWidget {

@@ -82,6 +82,8 @@ const _contract75 = <String, String>{
   'vector_graphics': '1.2.3',
   'vector_graphics_compiler': '1.3.0',
   'xml': '7.0.1',
+  // v2.17-md (C217M-10)
+  'markdown': '7.3.1', // feature_markdown direct
 };
 
 /// The plugins the app resolves after R2-B1 (`app/.flutter-plugins-
@@ -170,7 +172,8 @@ void main() {
     test('pinned_external equals the contract 7.5 table (1차 + 2차)', () {
       expect(rules.pinnedExternal, _contract75);
       // + share_plus (app), flutter_onnxruntime (ink_recognition)
-      expect(rules.pinnedExternal.length, 36 + 21 + 2);
+      // + markdown (v2.17-md, feature_markdown)
+      expect(rules.pinnedExternal.length, 36 + 21 + 2 + 1);
     });
 
     test('allowed_dependencies equals contract 7.1 v2.1 (app without '
@@ -185,6 +188,8 @@ void main() {
         'media_io': ['note_core', 'ui_kit'],
         'ink_recognition': ['note_core', 'ink_engine', 'ui_kit'],
         'pencil_bridge': <String>[],
+        // v2.17-md (C217M-09): the MD 문서 screen.
+        'feature_markdown': ['note_core', 'ink_engine', 'ui_kit'],
         // v2.14-ui: the shared design layer.
         'ui_kit': <String>[],
         'noteapp': [
@@ -197,6 +202,7 @@ void main() {
           'ink_recognition',
           'pencil_bridge',
           'ui_kit',
+          'feature_markdown',
         ],
         'ink_lab': ['note_core', 'ink_engine'],
       });
@@ -251,6 +257,7 @@ void main() {
         'ink_engine',
         'note_core',
         'ui_kit',
+        'feature_markdown', // v2.17-md
       ]);
       expect(rules.pluginExceptions, {
         'pdf_io': ['file_picker'],
@@ -1013,9 +1020,9 @@ dependencies:
           )
           .replaceFirst(
             'plugin_free_members: [feature_editor, feature_library, '
-                'ink_engine, note_core, ui_kit]',
+                'ink_engine, note_core, ui_kit, feature_markdown]',
             'plugin_free_members: [feature_editor, feature_library, '
-                'note_core, ui_kit]',
+                'note_core, ui_kit, feature_markdown]',
           );
       final custom = WorkspaceRules.parse(text);
       expect(custom.pluginExceptions['pdf_io'], [

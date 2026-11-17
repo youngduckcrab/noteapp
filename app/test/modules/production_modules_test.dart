@@ -119,6 +119,7 @@ void main() {
       'media.leaveGuard',
       'media.recoverDrafts',
       'recognition.indexer',
+      'featureWiring.markdownScreen',
     ]);
     expect(success.report.storage, same(store.storageInfo));
     expect(opener.openCount, 1);

@@ -11,6 +11,7 @@ import '../../l10n/library_strings.dart';
 import '../../model/location_label.dart';
 import '../../model/search_match.dart';
 import '../../model/section.dart';
+import '../../state/markdown_preview.dart';
 
 /// What the meta line of a note says (6.8 / 6.14).
 enum NoteMetaStyle {
@@ -56,9 +57,18 @@ String watchNoteMeta(
   final modified = formatLibraryDate(note.updatedAt, now: now);
   switch (style) {
     case NoteMetaStyle.modified:
-      return listRow
-          ? LibraryStrings.noteListMeta(modified, note.pageCount)
-          : modified;
+      if (!listRow) return modified;
+      // (v2.17-md, 08-markdown 9) an MD 문서 row: '<modified> · 문서 · 2.1 KB'.
+      if (note.isMarkdown) {
+        final size = ref.watch(
+          libraryMarkdownSizeProvider((
+            noteId: note.id,
+            updatedAt: note.updatedAt,
+          )),
+        );
+        return LibraryStrings.markdownListMeta(modified, size.value);
+      }
+      return LibraryStrings.noteListMeta(modified, note.pageCount);
     case NoteMetaStyle.recent:
       final location = watchLocationLabel(ref, note.folderId);
       final openedAt = note.lastOpenedAt;

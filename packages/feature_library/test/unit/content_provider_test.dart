@@ -658,6 +658,7 @@ void main() {
         EntityKind.page: SearchRequery.debounced,
         EntityKind.pageObject: SearchRequery.debounced,
         EntityKind.handwriting: SearchRequery.debounced,
+        EntityKind.markdown: SearchRequery.debounced, // (v2.17-md)
         EntityKind.stroke: SearchRequery.none,
         EntityKind.penPreset: SearchRequery.none,
         EntityKind.asset: SearchRequery.none,

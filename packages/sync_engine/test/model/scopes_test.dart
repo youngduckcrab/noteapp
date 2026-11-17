@@ -73,7 +73,11 @@ void main() {
 
   test('handwriting uses the same order as page: json noteId, then the hint, '
       'then lib', () {
-    for (final kind in [EntityKind.page, EntityKind.handwriting]) {
+    for (final kind in [
+      EntityKind.page,
+      EntityKind.handwriting,
+      EntityKind.markdown, // (v2.17-md)
+    ]) {
       // JSON noteId wins over the hint.
       expect(
         SyncScopes.scopeOf(withNoteId(kind, 'n1'), noteIdHint: 'n7'),

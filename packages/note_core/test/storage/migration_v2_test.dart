@@ -68,7 +68,10 @@ void main() {
     final store = await openTestNoteStore(filePath: path) as DriftNoteStore;
     await store.close();
     raw((db) {
-      expect(db.userVersion, 2);
+      expect(
+        db.userVersion,
+        kDatabaseSchemaVersion,
+      ); // (v2.17-md) v1 → v3 in one open
       for (final t in [
         'page_objects',
         'handwriting',
@@ -258,7 +261,7 @@ void main() {
       // The next open upgrades.
       final store = await openTestNoteStore(filePath: path);
       await store.close();
-      expect(raw((db) => db.userVersion), 2);
+      expect(raw((db) => db.userVersion), kDatabaseSchemaVersion);
     },
   );
 }

@@ -13,11 +13,20 @@ import 'package:file_picker/file_picker.dart';
 
 import '../export/export_types.dart';
 import '../ui/strings_ko.dart';
+import 'document_output.dart';
 import 'pdf_output_sink.dart';
 
 /// web: browser sink; native: save dialog + the app's share; others: unsupported
 PdfOutputSink createPlatformOutputSink({PdfShareFiles? share}) =>
     NativePdfOutputSink(share: share);
+
+/// (v2.17-md) The system save dialog of every native output (PDF and DocumentFileOutput):
+/// file_picker's FilePicker.saveFile. The saved file's Uri, or null when it was closed.
+Future<Uri?> systemSaveFile({
+  required String fileName,
+  required Uint8List bytes,
+  required String mimeType,
+}) => FilePicker.saveFile(fileName: fileName, bytes: bytes, mimeType: mimeType);
 
 /// The system save dialog: the saved file's Uri, or null when the user closed it.
 typedef PdfSaveFile = Future<Uri?> Function({
@@ -40,8 +49,7 @@ final class NativePdfOutputSink
     required String fileName,
     required Uint8List bytes,
     required String mimeType,
-  }) =>
-      FilePicker.saveFile(fileName: fileName, bytes: bytes, mimeType: mimeType);
+  }) => systemSaveFile(fileName: fileName, bytes: bytes, mimeType: mimeType);
 
   @override
   String labelOf(PdfOutputAction action) => switch (action) {
@@ -92,6 +100,64 @@ final class NativePdfOutputSink
       return uri == null
           ? PdfOutputOutcome.dismissedByUser
           : PdfOutputOutcome.done;
+    } on Object {
+      return PdfOutputOutcome.failed;
+    }
+  }
+}
+
+// ---- (v2.17-md, C217M-12) DocumentFileOutput: one file of any type --------------
+
+DocumentFileOutput createPlatformDocumentOutput({DocumentShareFile? share}) =>
+    NativeDocumentOutput(share: share);
+
+final class NativeDocumentOutput implements DocumentFileOutput {
+  NativeDocumentOutput({this._share, PdfSaveFile? saveFile})
+    : _saveFile = saveFile ?? _systemSave;
+
+  final DocumentShareFile? _share;
+  final PdfSaveFile _saveFile;
+
+  static Future<Uri?> _systemSave({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  }) => systemSaveFile(fileName: fileName, bytes: bytes, mimeType: mimeType);
+
+  @override
+  Set<DocumentOutputAction> availableActions(DocumentFile file) => {
+    if (_share != null) DocumentOutputAction.share,
+    DocumentOutputAction.save,
+  };
+
+  @override
+  String labelOf(DocumentOutputAction action) => switch (action) {
+    DocumentOutputAction.share => PdfStringsKo.share,
+    DocumentOutputAction.save => PdfStringsKo.save,
+  };
+
+  @override
+  Future<PdfOutputOutcome> deliver(
+    DocumentFile file,
+    DocumentOutputAction action,
+  ) async {
+    if (!availableActions(file).contains(action)) {
+      throw ArgumentError.value(action, 'action', 'not available');
+    }
+    try {
+      switch (action) {
+        case DocumentOutputAction.share:
+          return await _share!(file);
+        case DocumentOutputAction.save:
+          final uri = await _saveFile(
+            fileName: file.name,
+            bytes: file.bytes,
+            mimeType: file.mimeType,
+          );
+          return uri == null
+              ? PdfOutputOutcome.dismissedByUser
+              : PdfOutputOutcome.done;
+      }
     } on Object {
       return PdfOutputOutcome.failed;
     }

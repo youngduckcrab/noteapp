@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -23,7 +25,10 @@ const String _noteIdParam = 'noteId';
 /// - (v2.14-ui split) The editor page's child goes through [wrapEditor]
 ///   (appRouterProvider: EditorStyleScope — the editor subtree has the
 ///   필기 화면 스타일, the other routes the app's home-style theme).
-/// - No redirects (M4 adds the login redirect); ids are percent-encoded by
+/// - (v2.17-md) `/md/:noteId?q=&edit=1` → the MD 문서 screen (NoTransitionPage +
+///   [wrapEditor], like the editor). With [isMarkdownNote], `/notes/<id>` of an MD 문서
+///   redirects there (the library calls openMarkdown directly — no DB read on the way).
+/// - No other redirects (M4 adds the login redirect); ids are percent-encoded by
 ///   [AppRoutes] and decoded by go_router.
 /// - `/notes/:noteId?page=<pageId>&focus=<l>,<t>,<r>,<b>` (2차 6.8, S2-6):
 ///   `focus` counts only with `page` and is dropped when
@@ -43,6 +48,7 @@ GoRouter createAppRouter({
   String initialLocation = AppRoutes.library,
   List<NavigatorObserver>? observers,
   Widget Function(Widget editor) wrapEditor = _unwrapped,
+  FutureOr<bool> Function(String noteId)? isMarkdownNote,
 }) {
   GoRouter.optionURLReflectsImperativeAPIs = true;
   late final GoRouter router;
@@ -84,11 +90,37 @@ GoRouter createAppRouter({
       GoRoute(
         path: AppRoutes.notePattern,
         name: 'note',
+        // (v2.17-md, C217M-13) an MD 문서 at /notes/<id> (an old address, a typed one)
+        // goes to /md/<id>; the library opens MD 문서 at /md/ directly.
+        redirect: isMarkdownNote == null
+            ? null
+            : (context, state) {
+                final id = state.pathParameters[_noteIdParam];
+                if (id == null) return null;
+                // An in-app open of a handwriting note: decided at once (U18).
+                if (state.extra == AppRoutes.inkNoteExtra) return null;
+                final markdown = isMarkdownNote(id);
+                if (markdown is bool) {
+                  return markdown ? markdownRoute(id) : null;
+                }
+                return markdown.then((md) => md ? markdownRoute(id) : null);
+              },
         pageBuilder: (context, state) => NoTransitionPage<void>(
           key: state.pageKey,
           name: state.name,
           child: wrapEditor(
             screens.editor(context, _editorArgs(state), navigator),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.markdownPattern,
+        name: 'markdown',
+        pageBuilder: (context, state) => NoTransitionPage<void>(
+          key: state.pageKey,
+          name: state.name,
+          child: wrapEditor(
+            screens.markdown(context, _markdownArgs(state), navigator),
           ),
         ),
       ),
@@ -103,6 +135,16 @@ GoRouter createAppRouter({
 }
 
 Widget _unwrapped(Widget editor) => editor;
+
+MarkdownRouteArgs _markdownArgs(GoRouterState state) {
+  final query = state.uri.queryParameters;
+  final q = query[AppRoutes.markdownQueryKey];
+  return MarkdownRouteArgs(
+    noteId: state.pathParameters[_noteIdParam]!,
+    initialQuery: q == null || q.isEmpty ? null : q,
+    initialEdit: query[AppRoutes.markdownEditKey] == '1',
+  );
+}
 
 EditorRouteArgs _editorArgs(GoRouterState state) {
   final query = state.uri.queryParameters;

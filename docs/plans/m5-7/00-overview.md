@@ -2392,6 +2392,42 @@ C. **TestFlight 뒤(Apple 유료 계정 가입 후)** — 2차 완료 조건이 
 
 ### 7.9 계약 변경 이력
 
+#### v2.17-md (2026-11-17, MD 문서 v1 — 오너 말 'PDF뿐만 아니라 md파일도 읽을 수 있으면 좋겠다', 선택안 ①)
+
+추가와 저장 형식 바뀜(DB 스키마 v3 표 하나, 새 동기화 종류 `markdown`). 노트 JSON 키 · 열은 바뀌지 않음(형식 = `schemaVersion` 범위). 설계는 [08-markdown.md](08-markdown.md).
+
+| # | 절 | 변경 | 출처 | 반영할 영역 |
+|---|---|---|---|---|
+| C217M-01 | 7.2.6 CORE 노트 | `NoteFormat {ink, markdown, unknown}` = `schemaVersion` 범위(1~99 · 100~199 · ≥200), `kMarkdownNoteSchemaVersion = 100`, `kLaterNoteFormatSchemaVersion = 200`, `Note.format` · `isMarkdown`, `requiresNewerApp`는 형식별 판본과 비교. 필드 · JSON 키 · 열 없음. 저장된 노트의 형식 범위를 바꾸는 원격 쓰기 거절 | 오너 요청 · 검토 D6 | 기반(처리됨) · A(거절) |
+| C217M-02 | 7.2.6 CORE 새 엔티티 | `EntityKind.markdown`(wire 'markdown') · `MarkdownText{id 'md_<noteId>', noteId, text, createdAt, updatedAt, deletedAt, version}`. 노트 하나에 하나 | 오너 요청 | A |
+| C217M-03 | 7.2.7 저장 형식 | DB 스키마 v3: 새 표 `md_docs`(+ 로컬 `text_bytes`, `base_text_version`), 단계 v2→v3(표 더하기만, 사본 없음, 한 트랜잭션). 백업에 `markdown` 종류 | 오너 요청 | A |
+| C217M-04 | 7.2.x CORE 저장소 | `MarkdownRepository`(watch/get/create/saveText(baseVersion)/preview), `MarkdownDoc`, `MarkdownReadOnlyReason`, `MarkdownSaveResult`/`Outcome`, `MarkdownLimits{maxTextBytes 400000, maxEncodedBytes 900000, maxImportFiles 20, previewChars 400}`, `MarkdownTooLargeException`, `WrongNoteFormatException`, `MarkdownConflictCopy`, `MarkdownPreviewText`, `MarkdownPreviewKey`, `NoteStore.markdown`, provider 셋, `FakeMarkdownHooks`(testing) | 오너 요청 · 검토 D1 · D4 · D7 | 기반(형 · 가짜, 처리됨) · A(실제) |
+| C217M-05 | 7.2.x CORE 규칙 | 만들기 = 노트 + 본문 한 트랜잭션. `saveText`: 같은 글 unchanged, base가 다르면 저장된 글을 충돌 사본으로 남긴 뒤 씀. 복제 · 복구 복제는 본문 복사(본문 없으면 빈 본문). 휴지통은 노트만, 영구 삭제는 본문 · 검색 소유자 함께. `openSession`은 MD 문서에 `WrongNoteFormatException`. MD 문서의 페이지(뒤 버전)는 지우지도 보이지도 않음 | 오너 요청 | 기반(openSession · 가짜) · A |
+| C217M-06 | 7.2.8 SYNC 매핑 | keysOf(markdown) = {id, noteId, text, createdAt, updatedAt, deletedAt, version}, groupsOf = [], wholeUnitExcept = null, scope = json noteId → hint → 'lib', kindOrder 맨 끝, ownerId null. `record_gate._purged` markdown 팔, `purge_guard._editedInOutbox` markdown 팔(noteId 힌트), `kLocalOnlyFields` 둘, applyRemote 노트 updatedAt에 본문 noteId. keysOf(note) 그대로 | 5.1 · 검토 D2 · D9 | A |
+| C217M-07 | 7.2.10 충돌 규칙 | L1: `saveText` base 검사(CORE). L2: SYNC가 적용 전 판정 — 안 올린 text · 글 다름 · 받은 판본 > base_text_version · 남의 노드 → 진 쪽 글을 '<제목> (충돌 사본 yyyy-MM-dd HH:mm)'로(같은 폴더, 10분 안 같은 문서 사본은 다시 씀), base := 받은 판본, `SyncNotice` `MarkdownConflictCopied`. `OutboxAck.uploadedTextVersion`으로 올린 판본을 base에. 본문 없는 문서는 편집 금지 | 오너 요구 '문서 통째로 조용히 잃지 않음' · 검토 D1 · D3 · D12 | A |
+| C217M-08 | 7.2.5 검색 | `SearchSource.markdown`, 소유자 = noteId, 히트 pageId = 'md_<noteId>', 사각형 없음, 생존 = 노트가 휴지통 밖. 단위 = 블록 + 가벼운 정리, 1,000자 넘는 블록은 여러 단위. rebuild · pending 다시 하기에 markdown | 오너 요청 · 검토 D5 · D10 | A |
+| C217M-09 | 7.1 패키지 | 새 멤버 `feature_markdown`(의존 note_core · ink_engine · ui_kit, 플러그인 없음, 진입점 `feature_markdown.dart` · `slots.dart`). 앱 의존 더함. workspace_rules: allowed_dependencies · plugin_free_members · noteapp 행 | D5 | 기반(처리됨) |
+| C217M-10 | 7.5 외부 버전 | `markdown 7.3.1`(feature_markdown 직접 — 잠금에 한 줄), `url_launcher 6.3.3`(앱 직접 — 잠금 그대로, Q1) | 2.5 | 기반(markdown, 처리됨) · A(url_launcher) |
+| C217M-11 | 7.2.11 LIBRARY | `LibraryScreen.onOpenMarkdown(id, {query, edit})`, '새로 만들기'에 '새 MD 문서' · 'MD 가져오기'(자리 `libraryMarkdownImportActionProvider`), MD 카드(`inkSwatch` 글 페이지 + 'MD' 표, 미리보기 키에 updatedAt), MD 메뉴 '.md로 내보내기'(자리 `libraryMarkdownExportActionProvider`) · PDF 내보내기 · 표지 바꾸기 뺌, 검색 MD 줄, 노트 고르기에서 뺌 | 오너 요청 · 검토 U15 | A |
+| C217M-12 | 7.2.12 PDF 파일 도우미 | pdf_io 공개 `TextFileSource`/`FilePickerTextSource`/`PickedTextFile`(md · markdown · txt, 여러 개), `DocumentFileOutput`/`createPlatformDocumentOutput`(바이트 + 이름 + MIME). `PdfOutputSink` 표면 그대로 | R16 | A |
+| C217M-13 | 4.5.5 INFRA 경로 | `/md/:noteId?q=&edit=1`, `MarkdownRouteArgs`, `AppNavigator.openMarkdown`/`closeMarkdown`, 편집기 스타일, 라이브러리는 처음부터 `/md/`로(redirect는 주소 직접용 대비책), 화면은 deferred import(한 번 부른 뒤 동기) | D7 · D9 · 검토 U18 · U19 | A |
+| C217M-14 | 화면 | `MarkdownScreen(noteId, initialQuery, initialEdit, onClose, onOpenAsNote)`, 보기 ↔ 편집 단추 하나, 모든 바뀜은 버퍼 하나를 거쳐 `saveText(baseVersion)`, 자동 저장(700 ms · 최대 5 s · 조합은 1 s만 미룸 · 떠날 때 · 앱 숨김 때 비움), 실패하면 떠나기 대화, 상한 있는 되돌리기, 편집 상한(150,000 단위 — 넘으면 보기 전용), 할 일 토글(블록별 수가 맞을 때만, 되돌리기 알림), 링크는 묻고 열기/복사, 원격 이미지 안 가져옴, 수식 MathPreview, 머리말 · HTML 허용 목록, 넓은 화면 나란히 | 오너 요청 · 검토 U1~U12 · U16 · U20 | B |
+| C217M-15 | 자리 | feature_markdown `slots.dart`: `MarkdownExportAction`/`markdownExportActionProvider`, `MarkdownOpenLinkAction`/`markdownOpenLinkProvider`(앱이 url_launcher로, http · https · mailto · tel만) | D8 | 기반(형, 처리됨) · A(연결) |
+| C217M-16 | 가져오기 · 내보내기 | UTF-8만(BOM 허용 · 보존), NUL 거절, `MarkdownLimits.check`, 원문 그대로 저장, 내보내기 = `utf8.encode(text)` → 가져온 그대로면 바이트 같음. 이름 = 정리한 제목 + '.md'(흔한 파일 이름이면 머리말 title → 첫 h1). 공유 MIME `text/plain`, 저장 `text/markdown` | 오너 요청 · 검토 U21 | A |
+| C217M-17 | 7.2.x UI 아이콘 | `AppIconKind` 13개 더함(12.3) — 메뉴 · 화면 글리프만 | 12.3 | 기반(처리됨) |
+
+**v2.17-md 고침(트랙 A 구현 · 검토 반영, 2026-11-17 — 위 행과 다르면 이것이 우선):**
+
+| 행 | 고친 내용 | 근거 |
+|---|---|---|
+| C217M-07 | L2는 `SyncStore.keepMarkdownConflictCopy(remote, versions)` 하나(엔진의 적용 전 단계, 알림용) **+ `applyRemote` 안에서 같은 규칙을 그 순간의 행으로 다시 판정**(앞 단계와 적용 사이의 자동 저장이 어느 글도 잃지 않게). 앞 단계는 base를 올리지 않고 비교한 판본 쌍을 kv `md.guarded.<noteId>`에 적어 두며, base := 받은 판본은 적용 job에서. **사본은 다시 쓰지 않는다** — 10분 안 이 기기 사본이 진 쪽 글과 똑같을 때만 그 사본을 그대로 가리킴(새로 안 만듦, 글은 안 바뀜), 아니면 새 사본. 적용 안에서 만든 사본은 로컬 변경(ChangeBatch local)이고 알림은 없음. `RemoteApplyReport`에는 더하지 않음. 받은 본문 묘비(`deletedAt`)는 본문 없음(읽기 전용)으로 봄 | 트랙 A 검토 A1~A4 · B1~B3 |
+| C217M-10 | `url_launcher`는 넣지 않음(Q1 미승인) — 링크는 복사만 | 트랙 A |
+| C217M-11 | 노트 고르기에서 빼기: 라이브러리에 노트 고르기가 없어 할 일 없음. 본문 없는 문서의 '복제'는 끄지 않음(빈 본문으로 복제 — 잃을 글 없음), '.md로 내보내기'는 눌렀을 때 알림. 목록 줄 크기는 (noteId, updatedAt)마다 한 번 읽음 | 트랙 A · 검토 B5 · B11 |
+| C217M-12 | pdf_io 공개 이름 더: `DocumentFile` · `DocumentOutputAction` · `DocumentShareFile`. `PickedTextFile{name, sizeBytes, readBytes}`(큰 파일은 읽기 전에 거절). 고르기는 고른 파일을 모두 돌려주고 앱이 파일마다 확장자 · 크기 · 해석을 판정해 이름과 이유를 알림 | 트랙 A · 검토 A5 |
+| C217M-13 | redirect 대비책의 빠른 길: 앱 안의 `openNote`(필기 노트만 부름)는 `extra` 표시를 달아 redirect가 DB를 읽지 않음(주소 직접 · 옛 즐겨찾기만 읽음). 네이티브는 한가할 때 `featureWiring.markdownScreen` 작업으로 화면 코드를 미리 부름, 실패한 deferred 부르기는 '다시 시도'로 다시 | 검토 B4 · B8 · B9 |
+| C217M-16 | 이름이 확장자뿐인 파일('.md')은 제목 → 머리말 · h1 → '가져온 문서'. 외톨이 서로게이트는 저장 전에 U+FFFD로(같은 글 다시 저장 = unchanged) | 검토 A6 · A7 |
+| 4.4(08) | MD 전용 `entityTooLarge` 알림은 두지 않음 — 일반 동기화 문제 보고가 알림(받아들인 차이) | 트랙 A · 검토 B11 |
+
 #### v2.16-ui (2026-11-16, 편집기 스타일마다 다른 배치 — 사용자 말 '미니멀 떠있는 막대랑 스튜디오 세로 막대도 만들어줘')
 
 추가와 뜻 바뀜. 저장 형식·동기화 키·포트·설정 키 변경 없음. 설계는 [04-editor.md 24절](04-editor.md#24-편집기-스타일마다-다른-배치--미니멀-떠-있는-막대--스튜디오-세로-막대-2026-11-16-v216-ui).

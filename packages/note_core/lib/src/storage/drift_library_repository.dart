@@ -407,6 +407,14 @@ final class DriftLibraryRepository implements LibraryRepository {
 
   // ---- write helpers ------------------------------------------------------------------
 
+  /// (v2.17-md) For DriftMarkdownRepository: EntityNotFoundException unless [id] is null
+  /// or an active folder.
+  Future<void> requireTarget(FolderId? id) => _requireTarget(id);
+
+  /// (v2.17-md) The sort key after every active note of [folderId].
+  Future<String> sortKeyAtEnd(FolderId? folderId) async =>
+      sortKeyAfterAll(await _noteKeys(folderId));
+
   Future<void> _requireTarget(FolderId? id) async {
     if (id != null && await _activeFolderRow(id) == null) {
       throw EntityNotFoundException('Folder $id does not exist');
@@ -1007,6 +1015,9 @@ final class DriftLibraryRepository implements LibraryRepository {
       const {kAllFields},
       isNew: true,
     );
+    // (v2.17-md, C217M-05) an MD 문서 copies its body (a document whose body has not
+    // arrived gets an empty one — there is no text to lose).
+    if (n.isMarkdown) await s.markdownRepo.copyBody(tx, n.id, id);
     // ① recordings (R-6): old id → new id.
     final recordingIds = <RecordingId, RecordingId>{};
     final recordingRows =

@@ -26,7 +26,7 @@ enum SearchRequery { none, debounced, immediate }
 
 /// 6.1.6 table, per batch (first rule that matches):
 /// 1. a folder change, or a deleted / purged note → immediate;
-/// 2. a page / pageObject / handwriting change → debounced;
+/// 2. a page / pageObject / handwriting / (v2.17-md) markdown change → debounced;
 /// 3. a stroke change → none (the note change beside it is the session's updatedAt);
 /// 4. a note change → immediate;
 /// 5. anything else (settings, presets, assets, recordings) → none.
@@ -41,7 +41,11 @@ SearchRequery searchRequeryOf(ChangeBatch batch) {
       case EntityKind.note:
         if (c.deleted || c.purged) return SearchRequery.immediate;
         note = true;
-      case EntityKind.page || EntityKind.pageObject || EntityKind.handwriting:
+      // (v2.17-md, 08-markdown 5.2) an MD 문서 body is content.
+      case EntityKind.page ||
+          EntityKind.pageObject ||
+          EntityKind.handwriting ||
+          EntityKind.markdown:
         content = true;
       case EntityKind.stroke:
         stroke = true;

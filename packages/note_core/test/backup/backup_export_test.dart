@@ -128,7 +128,7 @@ void main() {
       await upgraded.library.createNote(title: '이주 뒤');
       final bytes = await upgraded.exportBackupJson();
       final doc = jsonDecode(utf8.decode(bytes)) as Map<String, Object?>;
-      expect((doc['schema']! as Map<String, Object?>)['database'], 2);
+      expect((doc['schema']! as Map<String, Object?>)['database'], 3);
       final text = utf8.decode(bytes);
       for (final local in ['v1Copy', copy.fileName, 'SQLite format']) {
         expect(text, isNot(contains(local)), reason: local);

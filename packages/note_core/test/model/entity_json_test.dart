@@ -19,12 +19,12 @@ void main() {
     }
   });
 
-  test('every kind is covered by the samples (20 entity shapes)', () {
+  test('every kind is covered by the samples (21 entity shapes)', () {
     expect(
       kSampleEntities.values.map((e) => e.kind).toSet(),
       EntityKind.values.toSet(),
     );
-    expect(kSampleEntities.length, 20);
+    expect(kSampleEntities.length, 21);
   });
 
   test('local-only fields are not serialized and get fixed values', () {
@@ -224,7 +224,7 @@ void main() {
 
   test('schema constants', () {
     expect(kNoteSchemaVersion, 1);
-    expect(kDatabaseSchemaVersion, 2); // (v2) DB v2 — m5-7 T24
+    expect(kDatabaseSchemaVersion, 3); // (v2.17-md) DB v3 — C217M-03
     expect(kStrokePointsFormatVersion, 1);
     final newer = (kSampleEntities['note']! as Note).copyWith(schemaVersion: 2);
     expect(newer.requiresNewerApp, isTrue);

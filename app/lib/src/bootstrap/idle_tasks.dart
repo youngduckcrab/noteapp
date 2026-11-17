@@ -28,6 +28,9 @@ abstract final class AppIdlePriority {
 
   /// recognition.indexer
   static const int recognition = 20;
+
+  /// (v2.17-md) featureWiring.markdownScreen — loading code ahead of use, last.
+  static const int preload = 30;
 }
 
 /// Work a module asks for once the app is on screen (6.5).

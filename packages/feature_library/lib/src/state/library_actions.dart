@@ -255,7 +255,11 @@ final class LibraryActions {
   /// Unique default note title for the target folder (6.12):
   /// uniqueName('제목 없는 노트', titles of the notes in [folderId]). A failed
   /// read is reported and gives the base name.
-  Future<String> uniqueNoteTitle(FolderId? folderId) async {
+  /// (v2.17-md) [base] replaces '제목 없는 노트' ('새 MD 문서').
+  Future<String> uniqueNoteTitle(
+    FolderId? folderId, {
+    String base = LibraryStrings.defaultNoteTitle,
+  }) async {
     try {
       final listing = await _library
           .watchListing(
@@ -266,13 +270,10 @@ final class LibraryActions {
             ),
           )
           .first;
-      return uniqueName(
-        LibraryStrings.defaultNoteTitle,
-        listing.notes.map((n) => n.title),
-      );
+      return uniqueName(base, listing.notes.map((n) => n.title));
     } on Object catch (error, stack) {
       _report(error, stack, 'library action: uniqueNoteTitle');
-      return LibraryStrings.defaultNoteTitle;
+      return base;
     }
   }
 

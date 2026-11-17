@@ -174,7 +174,10 @@ void main() {
         File('${v1CopyTempPathOf(path)}/x').writeAsStringSync('x');
         final store = await open();
         addTearDown(store.close);
-        expect((store as DriftNoteStore).db.schemaVersion, 2);
+        expect(
+          (store as DriftNoteStore).db.schemaVersion,
+          kDatabaseSchemaVersion,
+        );
         final info = await v1DatabaseCopyInfo(store);
         expect(info, isNotNull);
         expect(info!.failure, 'io');
@@ -347,7 +350,7 @@ void main() {
         );
         final store = await openDump();
         addTearDown(store.close);
-        expect(store.db.schemaVersion, 2);
+        expect(store.db.schemaVersion, kDatabaseSchemaVersion);
         final info = await v1DatabaseCopyInfo(store);
         expect(info!.failure, 'quota');
         expect(info.fileName, 'noteapp-v1-backup.sql.txt');

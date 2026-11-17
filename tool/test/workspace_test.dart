@@ -91,6 +91,7 @@ dev_dependencies:
       'media_io',
       'ink_recognition',
       'pencil_bridge',
+      'feature_markdown', // v2.17-md
       'noteapp',
     ]);
     expect(ws.memberNamed('noteapp')!.path, 'app');

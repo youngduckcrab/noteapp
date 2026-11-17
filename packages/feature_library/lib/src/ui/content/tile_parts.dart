@@ -32,6 +32,11 @@ void openLibraryNote(BuildContext context, Note note) {
     );
     return;
   }
+  // (v2.17-md) an MD 문서 opens in its own screen (view mode).
+  if (note.isMarkdown) {
+    scope.openMarkdown(note.id);
+    return;
+  }
   scope.openNote(note.id);
 }
 

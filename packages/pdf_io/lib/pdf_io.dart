@@ -97,6 +97,9 @@ export 'src/files/pdf_file_source.dart'
         FilePickerPdfSource,
         PdfIncomingFileSource,
         NoIncomingPdfFiles;
+// (v2.17-md, C217M-12) text files and one-file output (MD 문서).
+export 'src/files/text_file_source.dart'
+    show PickedTextFile, TextFileSource, FilePickerTextSource;
 export 'src/gateway/core_note_gateway.dart' show CorePdfNoteGateway;
 export 'src/gateway/pdf_note_gateway.dart' show PdfNoteGateway;
 export 'src/import/import_service.dart'
@@ -114,7 +117,14 @@ export 'src/ink_adapter/ink_vectorizer.dart' show InkEngineVectorizer;
 export 'src/model/file_naming.dart' show PdfFileNaming;
 export 'src/model/page_range.dart' show PdfPageRange;
 export 'src/model/page_size_policy.dart' show PdfPageSizePolicy, PdfPageFit;
-export 'src/output/output_sink_factory.dart' show createPlatformOutputSink;
+export 'src/output/document_output.dart'
+    show
+        DocumentFile,
+        DocumentOutputAction,
+        DocumentShareFile,
+        DocumentFileOutput;
+export 'src/output/output_sink_factory.dart'
+    show createPlatformOutputSink, createPlatformDocumentOutput;
 export 'src/output/pdf_output_sink.dart'
     show PdfOutputAction, PdfOutputOutcome, PdfOutputSink, PdfShareFiles;
 export 'src/providers.dart'

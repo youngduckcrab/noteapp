@@ -329,4 +329,31 @@ void main() {
     );
     expect(a, b);
   });
+
+  // --- (v2.17-md, C217M-06) the MD 문서 body ---
+  test(
+    'markdown: keys = CORE keys, units {noteId} {text} {deletedAt}, no groups, '
+    'not a one-unit kind',
+    () {
+      expect(
+        FieldUnits.keysOf(EntityKind.markdown),
+        kCoreJsonKeys[EntityKind.markdown],
+      );
+      expect(FieldUnits.groupsOf(EntityKind.markdown), isEmpty);
+      expect(FieldUnits.wholeUnitExcept(EntityKind.markdown), isNull);
+      expect(
+        FieldUnits.unitsFor(
+          EntityKind.markdown,
+          FieldUnits.keysOf(EntityKind.markdown),
+        ).toSet(),
+        {
+          {'noteId'},
+          {'text'},
+          {'deletedAt'},
+        },
+      );
+      // The note's keys are unchanged: the format is the schemaVersion range.
+      expect(FieldUnits.keysOf(EntityKind.note), isNot(contains('format')));
+    },
+  );
 }

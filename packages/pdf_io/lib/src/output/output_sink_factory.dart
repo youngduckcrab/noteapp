@@ -3,6 +3,8 @@
 //
 //   /// web: browser sink; native: save dialog + the app's share; others: unsupported
 //   PdfOutputSink createPlatformOutputSink({PdfShareFiles? share});
+//   /// (v2.17-md) web: Web Share + download; native: save dialog + the app's share
+//   DocumentFileOutput createPlatformDocumentOutput({DocumentShareFile? share});
 export 'output_sink_stub.dart'
     if (dart.library.js_interop) 'output_sink_browser.dart'
     if (dart.library.io) 'output_sink_native.dart';

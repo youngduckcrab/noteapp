@@ -23,6 +23,7 @@ import '../common/sort_planner.dart';
 import '../model/asset.dart';
 import '../model/entity_json.dart';
 import '../model/handwriting.dart';
+import '../model/markdown_text.dart';
 import '../model/note.dart';
 import '../model/page.dart';
 import '../model/stroke.dart';
@@ -132,6 +133,17 @@ final class DriftSyncStore implements SyncStore {
     final list = [...acks];
     await s.queue.run((tx) async {
       for (final a in list) {
+        // (v2.17-md, 5.3 (3)) base_text_version := the uploaded text version, even when
+        // the entry changed during the upload (its rev moved on: the row stays).
+        final uploaded = a.uploadedTextVersion;
+        if (uploaded != null) {
+          final row = await (_db.select(
+            _db.outbox,
+          )..where((t) => t.seq.equals(a.seq))).getSingleOrNull();
+          if (row != null && row.entityKind == EntityKind.markdown.name) {
+            await s.markdownRepo.raiseBase(row.entityId, uploaded);
+          }
+        }
         await (_db.delete(
           _db.outbox,
         )..where((t) => t.seq.equals(a.seq) & t.rev.equals(a.rev))).go();
@@ -222,6 +234,12 @@ final class DriftSyncStore implements SyncStore {
         _db.handwriting,
       )..where((t) => t.id.isIn(ids))).get())
         versionedHandwriting(r),
+    ],
+    EntityKind.markdown => [
+      for (final r in await (_db.select(
+        _db.mdDocs,
+      )..where((t) => t.id.isIn(ids))).get())
+        versionedMarkdown(r),
     ],
   };
 
@@ -457,6 +475,18 @@ final class DriftSyncStore implements SyncStore {
     }
   }
 
+  // ---- keepMarkdownConflictCopy (v2.17-md, 08-markdown 5.3 L2) ------------------------
+
+  @override
+  Future<NoteId?> keepMarkdownConflictCopy(
+    MarkdownText remote,
+    EntityFieldVersions versions,
+  ) async {
+    _checkId(EntityKind.markdown, remote.id, 'remote');
+    final outcome = await s.markdownRepo.guardRemoteText(remote, versions);
+    return outcome?.copyId;
+  }
+
   // ---- duplicateNoteForRecovery (6.10.5) ---------------------------------------------
 
   @override
@@ -592,6 +622,10 @@ final class _RemoteWriter {
       // A handwriting result is derived: its page's content_rev + 1 (thumbnail, ink_rev
       // cache — 6.9.3) and its note affected, but the note's updatedAt is not moved
       // (as the local put — 6.9.4).
+      // (v2.17-md, 08-markdown 5.2) A body is the document's content: its note's
+      // updatedAt moves (recent order on this device).
+      case MarkdownText():
+        _affect(entity.noteId, entity.updatedAt);
       case HandwritingText():
         written.add(entity.pageId);
         _affect(entity.noteId, 0);
@@ -712,6 +746,24 @@ final class _RemoteApply {
         : isPurge
         ? const {kAllFields}
         : Set.unmodifiable(outboxFieldsOf(entry));
+    // (v2.17-md, C217M-01) a stored note never changes format (ink ↔ MD 문서): such a
+    // record is rejected (malformedRemoteData on the SYNC side).
+    if (u.entity case final Note remote) {
+      if (local?.entity case final Note stored
+          when stored.format != remote.format) {
+        throw ArgumentError.value(
+          remote.schemaVersion,
+          'changes',
+          'note ${remote.id} is ${stored.format.name} here, the record makes it '
+              '${remote.format.name}',
+        );
+      }
+    }
+    // (v2.17-md, C217M-07 L2) The conflict-copy rule once more, on the row as it is in
+    // this job: an autosave after the engine's pre-pass must not lose either text.
+    if (u.entity case final MarkdownText body) {
+      await sync.s.markdownRepo.guardInApply(tx, body, u.versions);
+    }
     final MergeDecision decision;
     try {
       decision = policy(local, VersionedEntity(u.entity, u.versions), pending);
@@ -725,6 +777,7 @@ final class _RemoteApply {
         kept++;
       case TakeRemote(:final dropPendingLocal):
         await writer.write(u.entity, u.versions, local);
+        await _markdownBase(u, u.versions);
         if (entry != null && (dropPendingLocal || isPurge)) {
           await deleteOutboxEntry(_db, ref.kind, ref.id);
           tx.touchKv(kOutboxTouchKey);
@@ -742,6 +795,7 @@ final class _RemoteApply {
           );
         }
         final hints = await writer.write(entity, versions, local);
+        await _markdownBase(u, versions);
         await setOutboxFields(
           _db,
           current: entry,
@@ -756,6 +810,18 @@ final class _RemoteApply {
         tx.touchKv(kOutboxTouchKey);
         merged++;
     }
+  }
+
+  /// (v2.17-md, 5.3 (1)) The received text is the stored one now: base_text_version :=
+  /// its version.
+  Future<void> _markdownBase(
+    RemoteUpsert u,
+    EntityFieldVersions written,
+  ) async {
+    if (u.entity is! MarkdownText) return;
+    final v = u.versions.of('text');
+    if (written.of('text') != v) return;
+    await sync.s.markdownRepo.raiseBase(u.id, v);
   }
 
   /// RemotePurge (6.10.3): the folder / note row, the members of its trash group,

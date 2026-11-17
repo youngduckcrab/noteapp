@@ -23,9 +23,9 @@ void main() {
   };
 
   // (v2.0, m5-7/02-core 6.3) 11 v1.4 files + 9 new (8 page objects, handwriting);
-  // (math pen) + math_ink.
-  test('21 golden files', () {
-    expect(docs.length, 21);
+  // (math pen) + math_ink; (v2.17-md) + markdown.
+  test('22 golden files', () {
+    expect(docs.length, 22);
   });
 
   for (final e in docs.entries) {

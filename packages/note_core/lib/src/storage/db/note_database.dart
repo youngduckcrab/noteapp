@@ -38,6 +38,8 @@ typedef V1CopyMaker = Future<String> Function(GeneratedDatabase db);
     RecordingDrafts,
     SearchOwners,
     SearchUnits,
+    // (v3)
+    MdDocs,
   ],
 )
 class NoteDatabase extends _$NoteDatabase {

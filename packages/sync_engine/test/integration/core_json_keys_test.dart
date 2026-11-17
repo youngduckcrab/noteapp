@@ -45,6 +45,8 @@ EntityKind? _kindOf(String name) => switch (name) {
   'math_ink' ||
   'unknown' => EntityKind.pageObject,
   'handwriting' => EntityKind.handwriting,
+  // (v2.17-md, C217M-02)
+  'markdown' => EntityKind.markdown,
   _ => null,
 };
 

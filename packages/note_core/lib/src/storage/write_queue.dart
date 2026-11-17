@@ -21,6 +21,7 @@ import '../common/ids.dart';
 import '../common/write_guard.dart';
 import '../model/asset.dart';
 import '../model/handwriting.dart';
+import '../model/markdown_text.dart';
 import '../model/page.dart';
 import '../model/stroke.dart';
 import '../model/sync_entity.dart';
@@ -291,7 +292,12 @@ final class WriteQueue {
       }
     }
     final batches = batchesOf([
-      for (final tx in ok) (tx.origin, tx._changes),
+      for (final tx in ok) ...[
+        (tx.origin, tx._changes),
+        // Local writes inside a remote job (an MD 문서 conflict copy made while a
+        // received body is applied) are published as local changes.
+        (ChangeOrigin.local, tx._ownChanges),
+      ],
     ], committed.millisecondsSinceEpoch);
     bus.publish(batches);
     final hook = onCommitted;
@@ -361,6 +367,7 @@ final class WriteTxn {
   /// Wall-clock ms of this transaction (outbox enqueuedAt).
   final EpochMillis now;
   final List<EntityChange> _changes = [];
+  final List<EntityChange> _ownChanges = [];
   final List<void Function()> _after = [];
   final Set<EntityKind> _touched = {};
   final Set<String> _kvTouched = {};
@@ -377,6 +384,14 @@ final class WriteTxn {
   void addChange(EntityChange change) {
     _touched.add(change.kind);
     _changes.add(change);
+  }
+
+  /// A change of a local write ([putLocal]): in a remote job (v2.17-md, an MD 문서
+  /// conflict copy made inside applyRemote) it is published as ChangeOrigin.local.
+  void _addOwnChange(EntityChange change) {
+    if (origin != ChangeOrigin.remote) return addChange(change);
+    _touched.add(change.kind);
+    _ownChanges.add(change);
   }
 
   /// Marks a raw write of [kind] rows (watch streams re-query; no ChangeBatch entry).
@@ -458,7 +473,7 @@ final class WriteTxn {
       hlc: h,
       now: now,
     );
-    addChange(
+    _addOwnChange(
       EntityChange(
         kind: entity.kind,
         id: entity.id,
@@ -571,6 +586,9 @@ final class WriteTxn {
         );
       case HandwritingText(:final noteId, :final pageId):
         return (noteId: noteId, pageId: pageId);
+      // (v2.17-md, 08-markdown 4.4) the noteId hint (PurgeGuard, scopes).
+      case MarkdownText(:final noteId):
+        return (noteId: noteId, pageId: null);
       default:
         return (noteId: null, pageId: null);
     }

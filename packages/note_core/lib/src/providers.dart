@@ -21,6 +21,7 @@ import 'repo/folder_tree.dart';
 import 'repo/handwriting_repository.dart';
 import 'repo/library_repository.dart';
 import 'repo/library_types.dart';
+import 'repo/markdown_repository.dart';
 import 'repo/note_store.dart';
 import 'repo/pen_preset_repository.dart';
 import 'repo/recording_repository.dart';
@@ -303,3 +304,25 @@ final searchIndexProvider = Provider<SearchIndex>(
   (ref) => ref.watch(noteStoreProvider).search,
   name: 'searchIndexProvider',
 );
+
+// (v2.17-md, C217M-04) MD 문서 (m5-7/08-markdown 12.1)
+final markdownRepositoryProvider = Provider<MarkdownRepository>(
+  (ref) => ref.watch(noteStoreProvider).markdown,
+  name: 'markdownRepositoryProvider',
+);
+
+/// The MD 문서 [NoteId] (null = no such MD 문서), `MarkdownRepository.watch`.
+final markdownDocProvider = StreamProvider.autoDispose
+    .family<MarkdownDoc?, NoteId>(
+      (ref, id) => ref.watch(markdownRepositoryProvider).watch(id),
+      retry: noRetry,
+      name: 'markdownDocProvider',
+    );
+
+/// Card preview text; keyed with the note's updatedAt so an edit gives a new value.
+final markdownPreviewProvider = FutureProvider.autoDispose
+    .family<String, MarkdownPreviewKey>(
+      (ref, key) => ref.watch(markdownRepositoryProvider).preview(key.noteId),
+      retry: noRetry,
+      name: 'markdownPreviewProvider',
+    );

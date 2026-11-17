@@ -1,6 +1,7 @@
 // lib/src/ui/top_bar/new_menu_button.dart — 05-library 6.2 top bar table:
 // '새로 만들기' (FilledButton.tonal; a + icon button in the compact class)
-// with 새 노트 · 새 폴더 · PDF 가져오기 (4.3: disabled while an import runs;
+// with 새 노트 · 새 폴더 · (v2.17-md) 새 MD 문서 · PDF 가져오기 · (v2.17-md) MD 가져오기
+// (4.3: disabled while an import runs;
 // (v2.14-ui, UI stage 1) hidden without the import slot — it was a disabled
 // 'PDF 가져오기 · 준비 중'). The target is the folder of a folder section, 홈
 // for every other section. 새 폴더 is also where the sidebar's '폴더 +' went.
@@ -9,6 +10,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:note_core/note_core.dart' show FolderId;
 import 'package:ui_kit/ui_kit.dart';
 
+import '../../integration/markdown_flows.dart';
+import '../../integration/markdown_slots.dart';
 import '../../integration/pdf_flows.dart';
 import '../../integration/pdf_slots.dart';
 import '../../l10n/library_strings.dart';
@@ -36,6 +39,7 @@ class NewMenuButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final target = targetOf(section);
     final importPdf = ref.watch(libraryPdfImportActionProvider);
+    final importMarkdown = ref.watch(libraryMarkdownImportActionProvider);
     return MenuAnchor(
       menuChildren: [
         MenuItemButton(
@@ -47,6 +51,13 @@ class NewMenuButton extends ConsumerWidget {
           leadingIcon: AppIcon(AppIconKind.newFolder),
           onPressed: () => runNewFolderFlow(context, parentId: target),
           child: const Text(LibraryStrings.newFolder),
+        ),
+        // (v2.17-md, C217M-11)
+        MenuItemButton(
+          key: const Key('library.new.markdown'),
+          leadingIcon: AppIcon(AppIconKind.newMarkdown),
+          onPressed: () => runNewMarkdownFlow(context, folderId: target),
+          child: const Text(LibraryStrings.newMarkdown),
         ),
         if (importPdf != null)
           ValueListenableBuilder<bool>(
@@ -61,6 +72,22 @@ class NewMenuButton extends ConsumerWidget {
                       folderId: target,
                     ),
               child: const Text(LibraryStrings.importPdf),
+            ),
+          ),
+        if (importMarkdown != null)
+          ValueListenableBuilder<bool>(
+            valueListenable: libraryMarkdownImportRunning(context),
+            builder: (_, running, _) => MenuItemButton(
+              key: const Key('library.new.importMarkdown'),
+              leadingIcon: AppIcon(AppIconKind.importMarkdown),
+              onPressed: running
+                  ? null
+                  : () => runLibraryMarkdownImport(
+                      context,
+                      action: importMarkdown,
+                      folderId: target,
+                    ),
+              child: const Text(LibraryStrings.importMarkdown),
             ),
           ),
       ],

@@ -22,6 +22,7 @@ import '../common/text_normalize.dart';
 import '../model/asset.dart';
 import '../model/folder.dart';
 import '../model/handwriting.dart';
+import '../model/markdown_text.dart';
 import '../model/note.dart';
 import '../model/page.dart';
 import '../model/page_background.dart';
@@ -353,6 +354,24 @@ Future<void> writeEntityRow(
               fieldVersions: Value(fv),
             ),
           );
+    case MarkdownText():
+      // (v3, v2.17-md) text_bytes is derived from the text; base_text_version is local and
+      // never written here (absent → kept on update, NULL on insert — 08-markdown 4.3).
+      await db
+          .into(db.mdDocs)
+          .insertOnConflictUpdate(
+            MdDocsCompanion.insert(
+              id: e.id,
+              noteId: e.noteId,
+              body: e.text,
+              createdAt: e.createdAt,
+              updatedAt: e.updatedAt,
+              deletedAt: Value(e.deletedAt),
+              version: version,
+              fieldVersions: Value(fv),
+              textBytes: utf8ByteLength(e.text),
+            ),
+          );
     default:
       throw ArgumentError.value(e, 'entity', 'unknown entity type');
   }
@@ -391,6 +410,9 @@ Future<bool> deleteEntityRow(NoteDatabase db, EntityRef ref) async {
     )..where((t) => t.id.equals(id))).go(),
     EntityKind.handwriting => await (db.delete(
       db.handwriting,
+    )..where((t) => t.id.equals(id))).go(),
+    EntityKind.markdown => await (db.delete(
+      db.mdDocs,
     )..where((t) => t.id.equals(id))).go(),
   };
   return n > 0;
@@ -453,6 +475,11 @@ Future<VersionedEntity?> readVersionedRow(
         db.handwriting,
       )..where((t) => t.id.equals(id))).getSingleOrNull();
       return r == null ? null : versionedHandwriting(r);
+    case EntityKind.markdown:
+      final r = await (db.select(
+        db.mdDocs,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      return r == null ? null : versionedMarkdown(r);
   }
 }
 
@@ -525,6 +552,12 @@ Future<List<VersionedEntity>> readVersionedPage(
         ..limit(limit);
       if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
       return [for (final r in await q.get()) versionedHandwriting(r)];
+    case EntityKind.markdown:
+      final q = db.select(db.mdDocs)
+        ..orderBy([(t) => OrderingTerm.asc(t.id)])
+        ..limit(limit);
+      if (after != null) q.where((t) => t.id.isBiggerThanValue(after));
+      return [for (final r in await q.get()) versionedMarkdown(r)];
   }
 }
 
@@ -557,6 +590,8 @@ VersionedEntity versionedObject(PageObjectRow r) =>
     _versioned((v) => pageObjectOf(r, v), r.version, r.fieldVersions);
 VersionedEntity versionedHandwriting(HandwritingRow r) =>
     _versioned((v) => handwritingOf(r, v), r.version, r.fieldVersions);
+VersionedEntity versionedMarkdown(MdDocRow r) =>
+    _versioned((v) => markdownOf(r, v), r.version, r.fieldVersions);
 
 Folder folderOf(FolderRow r, [Hlc? version]) => Folder(
   id: r.id,
@@ -728,3 +763,25 @@ HandwritingText handwritingOf(HandwritingRow r, [Hlc? version]) =>
       deletedAt: r.deletedAt,
       version: version ?? Hlc.parse(r.version),
     );
+
+MarkdownText markdownOf(MdDocRow r, [Hlc? version]) => MarkdownText(
+  noteId: r.noteId,
+  text: markdownTextOf(r),
+  createdAt: r.createdAt,
+  updatedAt: r.updatedAt,
+  deletedAt: r.deletedAt,
+  version: version ?? Hlc.parse(r.version),
+);
+
+/// UTF-8 length of [text] (md_docs.text_bytes).
+int utf8ByteLength(String text) => utf8.encode(text).length;
+
+/// The stored text of an md_docs row, byte for byte. SQLite keeps a leading U+FEFF (BOM),
+/// but the UTF-8 decoding of the database driver drops it when the column is read; the
+/// difference to the derived text_bytes column (3 bytes per BOM) brings it back.
+String markdownTextOf(MdDocRow r) {
+  final text = r.body;
+  final missing = r.textBytes - utf8ByteLength(text);
+  if (missing <= 0 || missing % 3 != 0) return text;
+  return '${'\uFEFF' * (missing ~/ 3)}$text';
+}

@@ -201,7 +201,7 @@ void main() {
           EntityRef(EntityKind.handwriting, HandwritingText.idFor('p1')),
         ];
         expect(await store.sync.readVersioned(refs), [null, null]);
-        expect(kDatabaseSchemaVersion, 2);
+        expect(kDatabaseSchemaVersion, 3);
       },
     );
   });

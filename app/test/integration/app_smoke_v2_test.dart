@@ -74,6 +74,7 @@ void main() {
         'media.leaveGuard',
         'media.recoverDrafts',
         'recognition.indexer',
+        'featureWiring.markdownScreen',
       },
     );
     expect(

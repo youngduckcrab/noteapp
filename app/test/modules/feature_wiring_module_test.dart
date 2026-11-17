@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:feature_editor/feature_editor.dart';
 import 'package:feature_library/feature_library.dart';
+import 'package:feature_markdown/slots.dart';
 import 'package:flutter/foundation.dart'
     show
         TargetPlatform,
@@ -297,6 +298,10 @@ void main() {
       pageThumbnailRendererProvider,
       libraryPdfImportActionProvider,
       libraryPdfExportActionProvider,
+      // (v2.17-md) the MD 문서 slots (always)
+      libraryMarkdownImportActionProvider,
+      libraryMarkdownExportActionProvider,
+      markdownExportActionProvider,
       editorExtensionsProvider,
       devOverlaySectionsProvider,
     ];
@@ -309,6 +314,9 @@ void main() {
     await withoutPdf.start(context(pdfOk: false));
     expect(withoutPdf.overrides().map((o) => o.origin), [
       ...origins.take(features.length + 1),
+      libraryMarkdownImportActionProvider,
+      libraryMarkdownExportActionProvider,
+      markdownExportActionProvider,
       devOverlaySectionsProvider,
     ]);
 
@@ -316,7 +324,7 @@ void main() {
     final withImages = _wiring(FakePdfActions(), importer: _importer);
     await withImages.start(context(pdfOk: true));
     expect(withImages.overrides().map((o) => o.origin), [
-      ...origins.take(features.length + 4),
+      ...origins.take(features.length + 7),
       editorImageImporterProvider,
       devOverlaySectionsProvider,
     ]);

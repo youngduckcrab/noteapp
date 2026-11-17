@@ -201,8 +201,10 @@ class ContentHitRow extends ConsumerWidget {
     if (hidden) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final selecting = _watchSelecting(ref, context);
+    // (v2.17-md) an MD 문서 hit has no page: '문서' instead of 'n쪽'.
+    final markdown = hit.source == SearchSource.markdown;
     final pages = ref.watch(notePageIndexProvider(hit.noteId));
-    if (pages.hasError) {
+    if (!markdown && pages.hasError) {
       reportLibraryErrorOnce(
         ProviderScope.containerOf(context, listen: false),
         pages.error!,
@@ -211,7 +213,9 @@ class ContentHitRow extends ConsumerWidget {
       );
     }
     final index = pages.value?[hit.pageId];
-    final page = index == null
+    final page = markdown
+        ? LibraryStrings.markdownKind
+        : index == null
         ? LibraryStrings.pageUnknown
         : LibraryStrings.pageLabel(index);
     final source = LibraryStrings.sourceLabel(hit.source);
@@ -220,6 +224,7 @@ class ContentHitRow extends ConsumerWidget {
     }
 
     return Semantics(
+      key: markdown ? ValueKey('library.hit.markdown.${hit.noteId}') : null,
       container: true,
       button: true,
       label: LibraryStrings.contentHitSemantics(

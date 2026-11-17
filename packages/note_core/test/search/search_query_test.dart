@@ -288,7 +288,7 @@ void main() {
     test('source weights and the order rule', () {
       expect(
         [for (final s in SearchSource.values) sourceWeight(s)],
-        [0.9, 0.8, 1.0, 0.95],
+        [0.9, 0.8, 1.0, 0.95, 1.0],
       );
       final hits = [
         (score: 1.0, noteUpdatedAt: 5, pageId: 'b'),

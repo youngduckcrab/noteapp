@@ -93,16 +93,26 @@ final class OutboxEntry {
 }
 
 final class OutboxAck {
-  const OutboxAck(this.seq, this.rev);
+  const OutboxAck(this.seq, this.rev, {this.uploadedTextVersion});
   final int seq, rev;
+
+  /// (v2.17-md, C217M-07) markdown records only: the `text` field version of the uploaded
+  /// record — the store's base_text_version (08-markdown 5.3 (3)). The outbox entry's hlc
+  /// cannot tell it: entries merge while an upload runs.
+  final Hlc? uploadedTextVersion;
 
   @override
   bool operator ==(Object other) =>
-      other is OutboxAck && other.seq == seq && other.rev == rev;
+      other is OutboxAck &&
+      other.seq == seq &&
+      other.rev == rev &&
+      other.uploadedTextVersion == uploadedTextVersion;
 
   @override
-  int get hashCode => Object.hash(seq, rev);
+  int get hashCode => Object.hash(seq, rev, uploadedTextVersion);
 
   @override
-  String toString() => 'OutboxAck($seq, $rev)';
+  String toString() =>
+      'OutboxAck($seq, $rev'
+      '${uploadedTextVersion == null ? '' : ', text: $uploadedTextVersion'})';
 }

@@ -59,6 +59,10 @@ const Map<EntityKind, Set<String>> kCoreJsonKeys = {
     'id', 'noteId', 'pageId', 'engineId', 'sourceRev', 'lines', 'createdAt', //
     'updatedAt', 'deletedAt', 'version',
   },
+  // (v2.17-md, C217M-02)
+  EntityKind.markdown: {
+    'id', 'noteId', 'text', 'createdAt', 'updatedAt', 'deletedAt', 'version', //
+  },
 };
 
 /// The 8 keys every page object writes (contract 7.2.7).
@@ -155,6 +159,24 @@ PageObject objectFixture(String type, {String? id}) {
 /// The handwriting result fixture of page 'p1' in note 'n1': two lines, one with
 /// alternatives, one confirmed by the user. Its id is always `hw_<pageId>`
 /// (HandwritingText.idFor); an [id] must have that form and names the page.
+/// (v2.17-md) An MD 문서 body (BOM, CRLF, Korean) of note n1 (id `md_<noteId>`).
+MarkdownText markdownFixture({String? id}) {
+  final String noteId;
+  if (id == null) {
+    noteId = 'n1';
+  } else if (id.startsWith('md_') && id.length > 3) {
+    noteId = id.substring(3);
+  } else {
+    throw ArgumentError.value(id, 'id', 'a markdown body id is md_<noteId>');
+  }
+  return MarkdownText(
+    noteId: noteId,
+    text: '\uFEFF# 강의 요약\r\n\r\n- [ ] 복습\r\n',
+    createdAt: kT0,
+    version: Hlc.parse(hlcText(kT0)),
+  );
+}
+
 HandwritingText handwritingFixture({String? id}) {
   final String pageId;
   if (id == null) {
@@ -318,6 +340,7 @@ Map<String, Object?> fixtureJson(EntityKind kind, {String? id}) {
     },
     EntityKind.pageObject => objectFixture('shape', id: id).toJson(),
     EntityKind.handwriting => handwritingFixture(id: id).toJson(),
+    EntityKind.markdown => markdownFixture(id: id).toJson(),
   };
 }
 

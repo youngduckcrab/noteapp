@@ -2,7 +2,7 @@
 // (test/backup/backup_export_test.dart), the fake (test/testing/fake_backup_export_test.dart)
 // and in Chrome (test/web/backup_export_browser_test.dart). Web-safe (no dart:io).
 //
-// The golden state (v2 — m5-7/02-core 6.14.4): folders 2, notes 3 (one in the trash),
+// The golden state (v2 — m5-7/02-core 6.14.4): folders 2, notes 3 (one in the trash) + (v2.17-md) an MD 문서,
 // pages 4, strokes 20 (one erased, one linked to the recording), presets 5, assets 3 (pdf,
 // audio, image), settings 2 (one reset), a recording with a title, page objects of the 5
 // types (shape, text box, image, math, an unknown type) and a handwriting result. Whole-entity
@@ -12,6 +12,7 @@ import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:note_core/note_core.dart';
+import 'package:note_core/src/fake/fake_markdown.dart';
 import 'package:note_core/src/fake/fake_note_store.dart';
 import 'package:note_core/testing.dart';
 import 'package:test/test.dart';
@@ -276,6 +277,29 @@ List<VersionedEntity> backupGoldenState() {
         version: x,
       ),
     ),
+    // (v2.17-md, C217M-03) an MD 문서: the note (schemaVersion 100, no pages) and its
+    // body, byte for byte (BOM, CRLF).
+    v(
+      (x) => Note(
+        id: 'note-md',
+        ownerId: kLocalOwnerId,
+        title: '회의 메모',
+        sortKey: 'a3',
+        schemaVersion: kMarkdownNoteSchemaVersion,
+        createdAt: kBackupT,
+        updatedAt: kBackupT + 20,
+        version: x,
+      ),
+    ),
+    v(
+      (x) => MarkdownText(
+        noteId: 'note-md',
+        text: '\uFEFF# 회의 메모\r\n\r\n- [ ] 발표 준비 📌\r\n',
+        createdAt: kBackupT,
+        updatedAt: kBackupT + 20,
+        version: x,
+      ),
+    ),
   ];
 }
 
@@ -308,6 +332,13 @@ Future<void> seedFakeBackupState(
         fake.putObject(entity);
       case HandwritingText():
         fake.handwritingRows[entity.pageId] = entity;
+      case MarkdownText():
+        fake.markdownRows[entity.noteId] = FakeMarkdownBody(
+          text: entity.text,
+          createdAt: entity.createdAt,
+          updatedAt: entity.updatedAt,
+          version: entity.version!,
+        );
       default:
         throw UnsupportedError('${entity.kind} is not in the fake');
     }
@@ -394,7 +425,7 @@ void defineBackupTests({
       }
       expect(counts, {
         'folder': 2,
-        'note': 3,
+        'note': 4,
         'page': 4,
         'stroke': 20,
         'penPreset': 5,
@@ -403,6 +434,7 @@ void defineBackupTests({
         'setting': 2,
         'pageObject': 5,
         'handwriting': 1,
+        'markdown': 1,
       });
       final want = {
         for (final v in state) '${v.entity.kind.name}/${v.entity.id}': v,

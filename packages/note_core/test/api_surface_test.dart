@@ -281,6 +281,11 @@ final class _Sync implements SyncStore {
     NoteId noteId, {
     required String titleSuffix,
   }) => _no();
+  @override
+  Future<NoteId?> keepMarkdownConflictCopy(
+    MarkdownText remote,
+    EntityFieldVersions versions,
+  ) => _no();
 }
 
 final class _Assets implements AssetStore {
@@ -387,6 +392,35 @@ final class _Store implements NoteStore {
   HandwritingRepository get handwriting => _Handwriting();
   @override
   SearchIndex get search => _Search();
+  // v2.17-md (C217M-04)
+  @override
+  MarkdownRepository get markdown => _Markdown();
+}
+
+// ---- v2.17-md (m5-7/08-markdown 12.1) ------------------------------------------------
+
+final class _Markdown implements MarkdownRepository {
+  @override
+  Stream<MarkdownDoc?> watch(NoteId id) => _no();
+  @override
+  Future<MarkdownDoc?> get(NoteId id) => _no();
+  @override
+  Future<Note> create({
+    FolderId? folderId,
+    required String title,
+    String text = '',
+  }) => _no();
+  @override
+  Future<MarkdownSaveResult> saveText(
+    NoteId id,
+    String text, {
+    required Hlc? baseVersion,
+  }) => _no();
+  @override
+  Future<String> preview(
+    NoteId id, {
+    int maxChars = MarkdownLimits.previewChars,
+  }) => _no();
 }
 
 // ---- v2 interfaces (7.2.4, 7.2.5) -------------------------------------------------------
@@ -599,6 +633,8 @@ String _exhaustiveException(NoteCoreException e) => switch (e) {
   SessionClosedException() => 'f',
   AssetHashMismatchException() => 'g',
   NoteStoreOpenException() => 'h',
+  MarkdownTooLargeException() => 'i',
+  WrongNoteFormatException() => 'j',
 };
 
 String _exhaustiveSealed(
@@ -1118,6 +1154,7 @@ void main() {
       setting,
       object,
       handwriting,
+      MarkdownText(noteId: 'n1', text: '# 제목', createdAt: 1),
       _Entity(),
     ];
     expect(entities.map((x) => x.kind).toSet(), EntityKind.values.toSet());
@@ -1126,7 +1163,7 @@ void main() {
     expect(decode(EntityKind.setting, setting.toJson()), setting);
     expect(
       [kNoteSchemaVersion, kDatabaseSchemaVersion, kStrokePointsFormatVersion],
-      [1, 2, 1], // (v2) kDatabaseSchemaVersion 2 — 7.2.7, CORE T24
+      [1, 3, 1], // (v2.17-md) kDatabaseSchemaVersion 3 — C217M-03
     );
   });
 
@@ -1715,6 +1752,7 @@ void main() {
       'setting',
       'pageObject',
       'handwriting',
+      'markdown', // (v2.17-md, C217M-02)
     ]);
     expect(ShapeKind.values.map((k) => k.name), [
       'line',
@@ -2333,6 +2371,7 @@ void main() {
       'pdf',
       'text',
       'math',
+      'markdown', // (v2.17-md, C217M-08)
     ]);
     const unit = SearchUnitDraft(body: '안녕', rects: [], pdfPageAspect: null);
     final List<Object?> unitFields = [
@@ -2483,8 +2522,8 @@ void main() {
     ], hasLength(7));
   });
 
-  test('v2 7.2.7 schema versions (DB v2 since CORE T24)', () {
-    expect([kNoteSchemaVersion, kDatabaseSchemaVersion], [1, 2]);
+  test('v2 7.2.7 schema versions (DB v3 since v2.17-md)', () {
+    expect([kNoteSchemaVersion, kDatabaseSchemaVersion], [1, 3]);
   });
 
   test('v2 providers (7.2.4, 7.2.5)', () {
@@ -2663,5 +2702,104 @@ void main() {
       EmptyHandwritingRepository,
       EmptySearchIndex,
     ], hasLength(13));
+  });
+
+  test('v2.17-md MD 문서 surface (C217M-01, C217M-04)', () {
+    expect(kMarkdownNoteSchemaVersion, 100);
+    expect(kLaterNoteFormatSchemaVersion, 200);
+    expect(NoteFormat.values, [
+      NoteFormat.ink,
+      NoteFormat.markdown,
+      NoteFormat.unknown,
+    ]);
+    final NoteFormat Function(int) ofVersion = NoteFormat.ofSchemaVersion;
+    expect(
+      [
+        MarkdownLimits.maxTextBytes,
+        MarkdownLimits.maxEncodedBytes,
+        MarkdownLimits.maxImportFiles,
+        MarkdownLimits.previewChars,
+      ],
+      [400000, 900000, 20, 400],
+    );
+    final int Function(String) bytes = MarkdownLimits.utf8BytesOf;
+    final int Function(String) encoded = MarkdownLimits.encodedBytesOf;
+    final void Function(String) check = MarkdownLimits.check;
+    final String Function(String, DateTime) copyTitle =
+        MarkdownConflictCopy.titleFor;
+    final String Function(String, {int maxChars}) previewOf =
+        MarkdownPreviewText.of;
+    const MarkdownPreviewKey key = (noteId: 'n', updatedAt: 1);
+    expect(MarkdownReadOnlyReason.values, hasLength(3));
+    expect(MarkdownSaveOutcome.values, [
+      MarkdownSaveOutcome.saved,
+      MarkdownSaveOutcome.unchanged,
+      MarkdownSaveOutcome.savedWithConflictCopy,
+    ]);
+    const NoteCoreException tooLarge = MarkdownTooLargeException(
+      'm',
+      bytes: 1,
+      encodedBytes: 2,
+    );
+    const NoteCoreException wrong = WrongNoteFormatException('m');
+    final providers = <String, ProviderOrFamily>{
+      'markdownRepositoryProvider': markdownRepositoryProvider,
+      'markdownDocProvider': markdownDocProvider,
+      'markdownPreviewProvider': markdownPreviewProvider,
+    };
+    for (final e in providers.entries) {
+      expect(e.value.name, e.key, reason: '7.4.4');
+    }
+    final Provider<MarkdownRepository> repo = markdownRepositoryProvider;
+    final ProviderListenable<AsyncValue<MarkdownDoc?>> Function(NoteId) doc =
+        markdownDocProvider.call;
+    final ProviderListenable<AsyncValue<String>> Function(MarkdownPreviewKey)
+    preview = markdownPreviewProvider.call;
+    MarkdownRepository getter(NoteStore s) => s.markdown;
+    expect([
+      ofVersion,
+      bytes,
+      encoded,
+      check,
+      copyTitle,
+      previewOf,
+      key,
+      tooLarge,
+      wrong,
+      repo,
+      doc,
+      preview,
+      getter,
+      testing.FakeMarkdownHooks.removeBody,
+      testing.FakeMarkdownHooks.remoteText,
+    ], hasLength(15));
+  });
+
+  test('v2.17-md track A surface (12.4)', () {
+    final body = MarkdownText(noteId: 'n1', text: 'a\r\nb', createdAt: 1);
+    expect(MarkdownText.idFor('n1'), 'md_n1');
+    expect(body.kind, EntityKind.markdown);
+    expect(body.toJson().keys, [
+      'id',
+      'noteId',
+      'text',
+      'createdAt',
+      'updatedAt',
+      'deletedAt',
+      'version',
+    ]);
+    expect(EntityJson.decode(EntityKind.markdown, body.toJson()), body);
+    const ack = OutboxAck(1, 2, uploadedTextVersion: Hlc.zero);
+    expect(ack.uploadedTextVersion, Hlc.zero);
+    final MarkdownDecodeResult Function(Uint8List, {required String fileName})
+    decode = MarkdownImport.decode;
+    expect(MarkdownDecodeFailure.values.map((f) => f.name), [
+      'tooLarge',
+      'notText',
+      'notUtf8',
+    ]);
+    final Future<NoteId?> Function(MarkdownText, EntityFieldVersions) keep =
+        _Sync().keepMarkdownConflictCopy;
+    expect([decode, keep], hasLength(2));
   });
 }

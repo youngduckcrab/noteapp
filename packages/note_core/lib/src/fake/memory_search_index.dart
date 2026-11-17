@@ -10,8 +10,10 @@ import 'dart:math' as math;
 import '../common/geometry.dart';
 import '../common/ids.dart';
 import '../model/handwriting.dart';
+import '../model/markdown_text.dart';
 import '../model/page_background.dart';
 import '../model/stroke.dart';
+import '../search/markdown_index_text.dart';
 import '../search/search_match.dart';
 import '../search/search_pipeline.dart';
 import '../search/search_rects.dart';
@@ -184,6 +186,37 @@ final class MemorySearchIndex implements SearchIndex {
     );
   }
 
+  /// (v2.17-md) An MD 문서 body was written: owner = the note id, one unit per
+  /// MarkdownIndexText unit, hit pageId `md_<noteId>`, no rect (the real write hook's rule).
+  void markdownWritten(MarkdownText m) {
+    if (m.isDeleted) {
+      _removeOwner(SearchSource.markdown, m.noteId);
+      return;
+    }
+    final bodies = [
+      for (final b in MarkdownIndexText.units(m.text))
+        if (SearchText.normalize(b).isNotEmpty) b,
+    ];
+    _replace(
+      SearchSource.markdown,
+      m.noteId,
+      '${m.version}:${SearchText.normalizerVersion}',
+      [
+        for (final b in bodies)
+          (id, seq) => _Unit(
+            id: id,
+            source: SearchSource.markdown,
+            ownerKey: m.noteId,
+            seq: seq,
+            body: b,
+            noteId: m.noteId,
+            pageId: m.id,
+          ),
+      ],
+      noteId: m.noteId,
+    );
+  }
+
   /// A purged note: the owners of its objects and handwriting go (pdf owners are per asset
   /// and stay — 6.14.2).
   void notePurged(NoteId noteId) {
@@ -271,9 +304,15 @@ final class MemorySearchIndex implements SearchIndex {
             if (_livePage(p.id, within)) (noteId: p.noteId, pageId: p.id),
       ];
 
-  bool _alive(_Unit u, NoteId? within) => u.source == SearchSource.pdf
-      ? _pdfPages(u.assetId, u.pdfIndex, within).isNotEmpty
-      : _livePage(u.pageId, within);
+  bool _alive(_Unit u, NoteId? within) => switch (u.source) {
+    SearchSource.pdf => _pdfPages(u.assetId, u.pdfIndex, within).isNotEmpty,
+    // (v2.17-md) an MD 문서: its note active (no page row — the real liveness SQL).
+    SearchSource.markdown =>
+      (within == null || u.noteId == within) &&
+          u.noteId != null &&
+          s.activeNote(u.noteId!) != null,
+    _ => _livePage(u.pageId, within),
+  };
 
   /// [searchPages] plus whether the candidate cap or [limit] cut the result.
   ({List<PageSearchHit> hits, bool truncated}) search(
@@ -320,8 +359,8 @@ final class MemorySearchIndex implements SearchIndex {
               pdfAspect: u.pdfAspect,
             );
           },
-          pageWidth: s.pages[page.pageId]!.size.width,
-          pageHeight: s.pages[page.pageId]!.size.height,
+          pageWidth: s.pages[page.pageId]?.size.width ?? 0,
+          pageHeight: s.pages[page.pageId]?.size.height ?? 0,
         ),
     ];
     return (hits: List.unmodifiable(hits), truncated: capped || ranked.more);
@@ -377,6 +416,11 @@ final class MemorySearchIndex implements SearchIndex {
         if (which.contains(SearchSource.ink)) {
           for (final h in s.handwritingRows.values) {
             if (!h.isDeleted) handwritingWritten(h);
+          }
+        }
+        if (which.contains(SearchSource.markdown)) {
+          for (final e in s.markdownRows.entries) {
+            markdownWritten(s.markdown.entityOf(e.key, e.value));
           }
         }
       });

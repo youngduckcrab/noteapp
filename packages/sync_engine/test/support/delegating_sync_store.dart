@@ -127,4 +127,10 @@ final class DelegatingSyncStore implements SyncStore {
     NoteId noteId, {
     required String titleSuffix,
   }) => inner.duplicateNoteForRecovery(noteId, titleSuffix: titleSuffix);
+
+  @override
+  Future<NoteId?> keepMarkdownConflictCopy(
+    MarkdownText remote,
+    EntityFieldVersions versions,
+  ) => inner.keepMarkdownConflictCopy(remote, versions);
 }

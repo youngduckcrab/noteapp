@@ -76,11 +76,15 @@ abstract final class LibraryStrings {
   static const String sourcePdf = 'PDF';
   static const String sourceText = '텍스트';
   static const String sourceMath = '수식';
+
+  /// (v2.17-md, C217M-08) the body of an MD 문서.
+  static const String sourceMarkdown = '문서';
   static String sourceLabel(SearchSource source) => switch (source) {
     SearchSource.ink => sourceInk,
     SearchSource.pdf => sourcePdf,
     SearchSource.text => sourceText,
     SearchSource.math => sourceMath,
+    SearchSource.markdown => sourceMarkdown,
   };
 
   /// A hit's page: '3쪽'; [pageUnknown] while loading or not found.
@@ -110,6 +114,33 @@ abstract final class LibraryStrings {
   static const String newNote = '새 노트';
   static const String newFolder = '새 폴더';
   static const String importPdf = 'PDF 가져오기';
+
+  // (v2.17-md, C217M-11) MD 문서
+  static const String newMarkdown = '새 MD 문서';
+  static const String importMarkdown = 'MD 가져오기';
+  static const String defaultMarkdownTitle = '새 MD 문서';
+  static const String exportMarkdown = '.md로 내보내기';
+  static const String markdownBadge = 'MD';
+  static const String markdownKind = '문서';
+
+  /// The meta of an MD 문서 list row: `'<modified> · 문서 · 2.1 KB'`.
+  static String markdownListMeta(String modified, int? bytes) => bytes == null
+      ? '$modified · $markdownKind'
+      : '$modified · $markdownKind · ${markdownSize(bytes)}';
+
+  /// '820 B', '2.1 KB', '1.3 MB'.
+  static String markdownSize(int bytes) {
+    if (bytes < 1000) return '$bytes B';
+    if (bytes < 1000000) return '${(bytes / 1000).toStringAsFixed(1)} KB';
+    return '${(bytes / 1000000).toStringAsFixed(1)} MB';
+  }
+
+  /// After a bulk PDF export that left MD 문서 out.
+  static String markdownLeftOutOfPdf(int n) => 'MD 문서 $n개는 빼고 내보냈어요';
+
+  /// Every selected note is an MD 문서: nothing to export as PDF.
+  static const String pdfExportNeedsInkNote =
+      'PDF로 내보낼 노트가 없어요 (MD 문서는 .md로 내보내 주세요)';
 
   // Sort
   static const String sortName = '이름';

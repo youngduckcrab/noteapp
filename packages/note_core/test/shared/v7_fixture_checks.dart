@@ -141,8 +141,11 @@ Future<Map<String, Object?>> v7CopyRecord(DriftNoteStore store) async =>
 Future<void> expectV7Upgraded(DriftNoteStore store, V7Manifest m) async {
   await store.flush();
   final q = _query(store);
-  expect(store.db.schemaVersion, 2);
-  expect((await _rows(store, 'PRAGMA user_version')).single.values.single, 2);
+  expect(store.db.schemaVersion, kDatabaseSchemaVersion);
+  expect(
+    (await _rows(store, 'PRAGMA user_version')).single.values.single,
+    kDatabaseSchemaVersion,
+  );
 
   // ① entity tables, v1 columns, derived ones left out (C-14).
   final derived = m.derivedColumns;

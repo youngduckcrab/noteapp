@@ -1,5 +1,6 @@
 // lib/src/sync/sync_store.dart — contract 00-overview 7.2.10 (v1.3) / CORE 4.6.
 import '../common/ids.dart';
+import '../model/markdown_text.dart';
 import 'field_versions.dart';
 import 'merge.dart';
 import 'outbox_types.dart';
@@ -66,5 +67,21 @@ abstract interface class SyncStore {
     NoteId noteId, {
     required String titleSuffix,
   });
+
+  /// (v2.17-md, C217M-07 L2 — m5-7/08-markdown 5.3) Called by SYNC before it applies a
+  /// received MD 문서 body [remote] (field versions [versions]). When this device holds an
+  /// unsent, different text of that document and the received text version is newer than
+  /// what this device knows the server had (base_text_version) and was not written by this
+  /// device, the text that will lose the merge is kept byte for byte as a conflict copy
+  /// (a new MD 문서 '<title> (충돌 사본 …)' in the same folder; this device's copy of the
+  /// last 10 minutes is reused only when it already holds exactly that text — a copy is
+  /// never rewritten). One local write (ChangeBatch(origin: local), outbox). Returns the
+  /// copy's note id, or null when nothing had to be kept. [applyRemote] applies the same
+  /// rule again on the row as it is then (an edit saved after this call loses no text;
+  /// such a copy is a local change of that remote commit, with no copy id returned).
+  Future<NoteId?> keepMarkdownConflictCopy(
+    MarkdownText remote,
+    EntityFieldVersions versions,
+  );
 }
 // Removed: readEntities, readCursor, applyRemote(cursorUpdates:), unversioned RemoteMergePolicy.

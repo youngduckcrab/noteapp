@@ -33,6 +33,12 @@ final class FakeStoreState {
   final Map<EntityRef, VersionedEntity> rows = {};
   final Map<EntityRef, OutboxEntry> outbox = {};
   final Map<String, String> meta = {};
+
+  /// (v2.17-md) base_text_version per MD 문서 body id (CORE md_docs, device-local).
+  final Map<String, Hlc> markdownBase = {};
+
+  /// (v2.17-md) The last conflict copy per document: (copy note id, ms).
+  final Map<NoteId, (NoteId, int)> markdownCopies = {};
   final Map<AssetId, Uint8List> blobs = {};
 
   final Map<NoteId, Set<PageId>> _pagesByNote = {};
@@ -321,6 +327,7 @@ final class FakeStoreState {
         e.pageId,
       ),
       HandwritingText() => (e.noteId, e.pageId),
+      MarkdownText() => (e.noteId, null),
       _ => (null, null),
     };
   }
@@ -464,6 +471,7 @@ final class FakeStoreState {
     Stroke() => (entityOf(EntityKind.page, e.pageId) as Page?)?.noteId,
     PageObject() => (entityOf(EntityKind.page, e.pageId) as Page?)?.noteId,
     HandwritingText() => e.noteId,
+    MarkdownText() => e.noteId,
     _ => null,
   };
 
@@ -477,6 +485,7 @@ final class FakeStoreState {
     SettingValue() => e.updatedAt,
     PageObject() => e.updatedAt,
     HandwritingText() => e.updatedAt,
+    MarkdownText() => e.updatedAt,
     _ => null,
   };
 
@@ -616,6 +625,11 @@ final class FakeStoreState {
       if (e is HandwritingText && notes.contains(e.noteId)) {
         removed.add(EntityRef(EntityKind.handwriting, e.id));
       }
+      // (v2.17-md) an MD 문서 body goes with its note.
+      if (e is MarkdownText && notes.contains(e.noteId)) {
+        removed.add(EntityRef(EntityKind.markdown, e.id));
+        markdownBase.remove(e.id);
+      }
     }
     for (final r in removed) {
       removeRow(r);
@@ -679,6 +693,16 @@ final class FakeSyncStore implements SyncStore {
       final bySeq = {for (final e in _s.outbox.values) e.seq: e};
       for (final ack in acks) {
         final entry = bySeq[ack.seq];
+        // (v2.17-md, 08-markdown 5.3 (3)) base := max(base, uploaded text version).
+        final uploaded = ack.uploadedTextVersion;
+        if (entry != null &&
+            uploaded != null &&
+            entry.ref.kind == EntityKind.markdown) {
+          final base = _s.markdownBase[entry.ref.id];
+          if (base == null || uploaded > base) {
+            _s.markdownBase[entry.ref.id] = uploaded;
+          }
+        }
         if (entry != null && entry.rev == ack.rev) _s.removeEntry(entry.ref);
       }
     });
@@ -729,6 +753,7 @@ final class FakeSyncStore implements SyncStore {
               case TakeRemote(:final dropPendingLocal):
                 _keepNoteUpdatedAt(txn, local);
                 _s.writeEntity(entity, versions);
+                _markdownBase(entity, versions, versions);
                 if (dropPendingLocal || entry?.op == OutboxOp.purge) {
                   _s.removeEntry(ref);
                 }
@@ -753,6 +778,7 @@ final class FakeSyncStore implements SyncStore {
                 }
                 _keepNoteUpdatedAt(txn, local);
                 _s.writeEntity(e, v);
+                _markdownBase(entity, versions, v);
                 _s.setEntryFields(ref, fieldsToUpload, v.max);
                 _noteBump(txn, e, affected);
                 merged++;
@@ -780,6 +806,101 @@ final class FakeSyncStore implements SyncStore {
     });
     _s.emitPendingCount();
     return report;
+  }
+
+  /// (v2.17-md, 5.3 (1)) The received text is the stored one: base := its version.
+  void _markdownBase(
+    SyncEntity remote,
+    EntityFieldVersions remoteVersions,
+    EntityFieldVersions written,
+  ) {
+    if (remote is! MarkdownText) return;
+    final v = remoteVersions.of('text');
+    if (written.of('text') != v) return;
+    final base = _s.markdownBase[remote.id];
+    if (base == null || v > base) _s.markdownBase[remote.id] = v;
+  }
+
+  /// (v2.17-md, C217M-07 L2) The CORE rule (DriftMarkdownRepository.guardRemoteText):
+  /// an unsent different local text, a received text version newer than the base and of
+  /// another node → the losing text kept as a conflict copy (never rewritten; the copy of
+  /// the last 10 minutes is reused only when it holds the same text). The fake applies
+  /// with no gap after this call, so the CORE re-check inside applyRemote is not modelled.
+  @override
+  Future<NoteId?> keepMarkdownConflictCopy(
+    MarkdownText remote,
+    EntityFieldVersions versions,
+  ) async {
+    _s.checkWrite('keepMarkdownConflictCopy');
+    final ref = EntityRef(EntityKind.markdown, remote.id);
+    final local = _s.rows[ref];
+    final entry = _s.outbox[ref];
+    if (local == null || entry == null || entry.op != OutboxOp.upsert) {
+      return null;
+    }
+    if (!entry.changedFields.contains('text') &&
+        !entry.changedFields.contains(kAllFields)) {
+      return null;
+    }
+    final stored = local.entity as MarkdownText;
+    if (stored.text == remote.text) return null;
+    final remoteV = versions.of('text');
+    final base = _s.markdownBase[remote.id];
+    if (base != null && !(remoteV > base)) return null;
+    if (remoteV.nodeId == _s.nodeId) return null;
+    final loser = remoteV > local.versions.of('text')
+        ? stored.text
+        : remote.text;
+    final note = _s.entityOf(EntityKind.note, remote.noteId) as Note?;
+    if (note == null) return null;
+    final now = _s.millis;
+    final last = _s.markdownCopies[remote.noteId];
+    if (last != null && now - last.$2 <= 600000) {
+      // A copy is never rewritten: reused only when it already holds this text.
+      final copyNote = _s.entityOf(EntityKind.note, last.$1) as Note?;
+      final copyBody = _s.entityOf(
+        EntityKind.markdown,
+        MarkdownText.idFor(last.$1),
+      ) as MarkdownText?;
+      if (copyNote != null &&
+          copyNote.deletedAt == null &&
+          copyBody?.text == loser) {
+        _s.markdownBase[remote.id] = remoteV;
+        return last.$1;
+      }
+    }
+    final copyId = _s.transaction((txn) {
+      final id = _s.newId('note');
+      _s.localCommit([
+        (
+          kind: EntityKind.note,
+          json: {
+            ...note.toJson(),
+            'id': id,
+            'title': MarkdownConflictCopy.titleFor(
+              note.title,
+              DateTime.fromMillisecondsSinceEpoch(now),
+            ),
+            'sortKey': lastSortKeyAfter(note.folderId),
+            'createdAt': now,
+            'deletedAt': null,
+            'trashRootId': null,
+          },
+          fields: const {kAllFields},
+        ),
+        (
+          kind: EntityKind.markdown,
+          json: MarkdownText(noteId: id, text: loser, createdAt: now).toJson(),
+          fields: const {kAllFields},
+        ),
+      ], at: now);
+      return id;
+    });
+    _s.markdownCopies[remote.noteId] = (copyId, now);
+    _s.markdownBase[remote.id] = remoteV;
+    _s.emitPendingCount();
+    _s.emitLocalChange();
+    return copyId;
   }
 
   /// Before a remote write replaces a note row: its current updatedAt stays a candidate,
@@ -1080,6 +1201,23 @@ final class FakeSyncStore implements SyncStore {
             fields: const {kAllFields},
           ));
         }
+      }
+      // (v2.17-md, C217M-05) an MD 문서 copies its body ('' when it has not arrived).
+      if (NoteFormat.ofSchemaVersion(source.schemaVersion) ==
+          NoteFormat.markdown) {
+        final body = _s.entityOf(
+          EntityKind.markdown,
+          MarkdownText.idFor(noteId),
+        ) as MarkdownText?;
+        writes.add((
+          kind: EntityKind.markdown,
+          json: MarkdownText(
+            noteId: newNoteId,
+            text: body?.text ?? '',
+            createdAt: now,
+          ).toJson(),
+          fields: const {kAllFields},
+        ));
       }
       _s.localCommit(writes, at: now);
       return newNoteId;

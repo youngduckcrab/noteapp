@@ -7,12 +7,14 @@ library;
 
 import 'package:drift/drift.dart';
 import 'package:drift_dev/api/migrations_native.dart';
+import 'package:note_core/src/storage/db/migrations.dart';
 import 'package:note_core/src/storage/db/note_database.dart';
 import 'package:test/test.dart';
 
 import 'generated/schema.dart';
 import 'generated/schema_v1.dart' as v1;
 import 'generated/schema_v2.dart' as v2;
+import 'generated/schema_v3.dart' as v3;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -177,6 +179,93 @@ void main() {
           [('search.normalizerVersion', '1')],
         );
       },
+    );
+  });
+
+  // (v2.17-md, MD-T04) v2 → v3 adds md_docs only: every v2 row stays as it was.
+  test(
+    'migration from v2 to v3 keeps every row; md_docs starts empty',
+    () async {
+      const v = '001792974725000-0000-ab463465a52e80fa';
+      const note = v2.NotesData(
+        id: 'n1',
+        ownerId: 'local',
+        title: '노트',
+        titleNorm: '노트',
+        coverJson: '{"type":"firstPage"}',
+        tagsJson: '[]',
+        isFavorite: 0,
+        sortKey: 'a0',
+        schemaVersion: 1,
+        createdAt: 1,
+        updatedAt: 2,
+        version: v,
+        pageCount: 0,
+      );
+      const newNote = v3.NotesData(
+        id: 'n1',
+        ownerId: 'local',
+        title: '노트',
+        titleNorm: '노트',
+        coverJson: '{"type":"firstPage"}',
+        tagsJson: '[]',
+        isFavorite: 0,
+        sortKey: 'a0',
+        schemaVersion: 1,
+        createdAt: 1,
+        updatedAt: 2,
+        version: v,
+        pageCount: 0,
+      );
+      await verifier.testWithDataIntegrity(
+        oldVersion: 2,
+        newVersion: 3,
+        createOld: v2.DatabaseAtV2.new,
+        createNew: v3.DatabaseAtV3.new,
+        openTestedDatabase: NoteDatabase.new,
+        createItems: (batch, oldDb) {
+          batch
+            ..insert(oldDb.notes, note)
+            ..insert(
+              oldDb.kv,
+              const v2.KvData(key: 'search.normalizerVersion', value: '1'),
+            );
+        },
+        validateItems: (newDb) async {
+          expect(await newDb.select(newDb.notes).get(), [newNote]);
+          expect(await newDb.select(newDb.mdDocs).get(), isEmpty);
+          expect(
+            (await newDb.select(newDb.kv).get()).map((r) => (r.key, r.value)),
+            [('search.normalizerVersion', '1')],
+          );
+        },
+      );
+    },
+  );
+
+  test('a failing v2 → v3 step leaves the v2 database as it was', () async {
+    final schema = await verifier.schemaAt(2);
+    final db = NoteDatabase(
+      schema.newConnection(),
+      upgradeSteps: {
+        1: upgradeV1ToV2,
+        2: (m, db, from) async {
+          await upgradeV2ToV3(m, db, from);
+          throw StateError('injected');
+        },
+      },
+    );
+    await expectLater(
+      db.customSelect('SELECT 1').get(),
+      throwsA(isA<SchemaStepError>()),
+    );
+    await db.close();
+    expect(schema.rawDatabase.userVersion, 2);
+    expect(
+      schema.rawDatabase.select(
+        "SELECT name FROM sqlite_master WHERE name = 'md_docs'",
+      ),
+      isEmpty,
     );
   });
 }

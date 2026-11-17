@@ -321,6 +321,29 @@ final class _Run {
     acked += entries.length;
   }
 
+  Future<void> _acknowledgeSent(
+    List<PackItem<OutboxEntry>> sent,
+    List<OutboxEntry> extraAcks,
+  ) async {
+    final acks = [
+      for (final item in sent)
+        switch (item.record) {
+          UpsertRecord(:final doc, :final versions)
+              when doc.kind == EntityKind.markdown =>
+            OutboxAck(
+              item.tag.seq,
+              item.tag.rev,
+              uploadedTextVersion: versions.of('text'),
+            ),
+          _ => item.tag.ack,
+        },
+      for (final e in extraAcks) e.ack,
+    ];
+    if (acks.isEmpty) return;
+    await p.sync.acknowledge(acks);
+    acked += acks.length;
+  }
+
   /// Commits [group] as one commit; on invalidArgument bisects (6.5.6).
   Future<void> send(
     List<PackedChunk<OutboxEntry>> group, {
@@ -373,7 +396,9 @@ final class _Run {
         for (final item in c.items) item,
     ];
     records += sent.length;
-    await acknowledge([for (final item in sent) item.tag, ...extraAcks]);
+    // (v2.17-md, C217M-07, 08-markdown 5.3 (3)) an uploaded MD 문서 body tells CORE which
+    // text version the server now has (base_text_version).
+    await _acknowledgeSent(sent, extraAcks);
     final purges = [
       for (final item in sent)
         if (item.record case final PurgeRecord purge) purge,
